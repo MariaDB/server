@@ -4419,8 +4419,8 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(10) DEFAULT NULL,
-  `mn` varchar(10) DEFAULT LIKE_RANGE_MIN(a,10),
-  `mx` varchar(10) DEFAULT LIKE_RANGE_MAX(a,10)
+  `mn` varchar(10) DEFAULT like_range_min(`a`,10),
+  `mx` varchar(10) DEFAULT like_range_max(`a`,10)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT INTO t1 (a) VALUES ('a'),('a_'),('a%');
 SELECT a, HEX(mn), HEX(mx) FROM t1;

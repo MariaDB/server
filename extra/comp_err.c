@@ -172,8 +172,8 @@ int main(int argc, char *argv[])
   MY_INIT(argv[0]);
   {
     uint max_error, error_count;
-    struct errors *error_head;
-    struct languages *lang_head;
+    struct errors *error_head= NULL;
+    struct languages *lang_head= NULL;
     DBUG_ENTER("main");
 
     charsets_dir= DEFAULT_CHARSET_DIR;

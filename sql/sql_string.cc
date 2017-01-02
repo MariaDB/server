@@ -733,7 +733,7 @@ void String::qs_append(int i)
 void String::qs_append(ulonglong i)
 {
   char *buff= Ptr + str_length;
-  char *end= longlong10_to_str(i, buff,10);
+  char *end= longlong10_to_str(i, buff, 10);
   str_length+= (int) (end-buff);
 }
 
@@ -1018,10 +1018,10 @@ String_copier::well_formed_copy(CHARSET_INFO *to_cs,
   {
     m_cannot_convert_error_pos= NULL;
     return to_cs->cset->copy_fix(to_cs, to, to_length, from, from_length,
-                                 nchars, &m_native_copy_status);
+                                 nchars, this);
   }
   return my_convert_fix(to_cs, to, to_length, from_cs, from, from_length,
-                        nchars, this);
+                        nchars, this, this);
 }
 
 

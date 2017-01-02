@@ -11,10 +11,10 @@ DROP TABLE if exists t2;
 
 --echo Testing tables with large records
 # Create table.
-CREATE TABLE t1 (a INT NOT NULL PRIMARY KEY AUTO_INCREMENT, b VARCHAR(256), KEY SECOND(a, b)) ENGINE=INNODB;
+CREATE TABLE t1 (a INT NOT NULL PRIMARY KEY AUTO_INCREMENT, b VARCHAR(256), c VARCHAR(256), KEY SECOND(a, b,c)) ENGINE=INNODB;
 
 # Populate table.
-INSERT INTO t1 VALUES (1, REPEAT('A', 256));
+INSERT INTO t1 VALUES (1, REPEAT('A', 256), REPEAT('B', 256));
 INSERT INTO t1 (b) SELECT b from t1;
 INSERT INTO t1 (b) SELECT b from t1;
 INSERT INTO t1 (b) SELECT b from t1;
@@ -36,28 +36,24 @@ while ($size)
 }
 --enable_query_log
 
+--source include/wait_innodb_all_purged.inc
 --source include/restart_mysqld.inc
 optimize table t1;
-select sleep(1);
 
---source include/restart_mysqld.inc
 select count(*) from t1;
 
-# After deletion & defragmentation, there are 800 records left. Each page can hold about 57 records. We fill the page 90% full,
-# so there should be less than 16 pages total.
 --let $primary_before = query_get_value(select count(*) as Value from information_schema.innodb_buffer_page where table_name like '%t1%' and index_name = 'PRIMARY', Value, 1)
 
 select count(*) from t1 force index (second);
 
-# secondary index is slightly bigger than primary index so the number of pages should be similar.
 --let $second_before = query_get_value(select count(*) as Value from information_schema.innodb_buffer_page where table_name like '%t1%' and index_name = 'second', Value, 1)
 
 --echo # A few more insertions on the page should not cause a page split.
-insert into t1 values (81, REPEAT('A', 256));
-insert into t1 values (83, REPEAT('A', 256));
-insert into t1 values (87, REPEAT('A', 256));
-insert into t1 values (82, REPEAT('A', 256));
-insert into t1 values (86, REPEAT('A', 256));
+insert into t1 values (81, REPEAT('A', 256), REPEAT('B', 256));
+insert into t1 values (83, REPEAT('A', 256), REPEAT('B', 256));
+insert into t1 values (87, REPEAT('A', 256), REPEAT('B', 256));
+insert into t1 values (82, REPEAT('A', 256), REPEAT('B', 256));
+insert into t1 values (86, REPEAT('A', 256), REPEAT('B', 256));
 --let $primary_after = query_get_value(select count(*) as Value from information_schema.innodb_buffer_page where table_name like '%t1%' and index_name = 'PRIMARY', Value, 1)
 --let $second_after = query_get_value(select count(*) as Value from information_schema.innodb_buffer_page where table_name like '%t1%' and index_name = 'second', Value, 1)
 
@@ -69,28 +65,52 @@ if ($second_before != $second_after) {
    --echo Insertion caused page split on second, which should be avoided by innodb_defragment_fill_factor.
 }
 
---echo # More insertions will cause page splits
-insert into t1 values (88, REPEAT('A', 256));
-insert into t1 values (85, REPEAT('A', 256));
-insert into t1 values (84, REPEAT('A', 256));
+--echo # Insert more rows to cause a page split
+insert into t1 values (180, REPEAT('A', 256), REPEAT('B', 256));
+insert into t1 values (181, REPEAT('A', 256), REPEAT('B', 256));
+insert into t1 values (182, REPEAT('A', 256), REPEAT('B', 256));
+insert into t1 values (183, REPEAT('A', 256), REPEAT('B', 256));
+insert into t1 values (184, REPEAT('A', 256), REPEAT('B', 256));
+insert into t1 values (185, REPEAT('A', 256), REPEAT('B', 256));
+insert into t1 values (186, REPEAT('A', 256), REPEAT('B', 256));
+insert into t1 values (187, REPEAT('A', 256), REPEAT('B', 256));
+insert into t1 values (188, REPEAT('A', 256), REPEAT('B', 256));
+insert into t1 values (189, REPEAT('A', 256), REPEAT('B', 256));
+insert into t1 values (190, REPEAT('A', 256), REPEAT('B', 256));
+insert into t1 values (191, REPEAT('A', 256), REPEAT('B', 256));
+insert into t1 values (192, REPEAT('A', 256), REPEAT('B', 256));
+insert into t1 values (193, REPEAT('A', 256), REPEAT('B', 256));
+insert into t1 values (194, REPEAT('A', 256), REPEAT('B', 256));
+insert into t1 values (195, REPEAT('A', 256), REPEAT('B', 256));
+insert into t1 values (196, REPEAT('A', 256), REPEAT('B', 256));
+insert into t1 values (197, REPEAT('A', 256), REPEAT('B', 256));
+insert into t1 values (198, REPEAT('A', 256), REPEAT('B', 256));
+insert into t1 values (199, REPEAT('A', 256), REPEAT('B', 256));
+insert into t1 values (200, REPEAT('A', 256), REPEAT('B', 256));
+insert into t1 values (201, REPEAT('A', 256), REPEAT('B', 256));
+insert into t1 values (202, REPEAT('A', 256), REPEAT('B', 256));
+insert into t1 values (203, REPEAT('A', 256), REPEAT('B', 256));
+insert into t1 values (204, REPEAT('A', 256), REPEAT('B', 256));
+
 --let $primary_after = query_get_value(select count(*) as Value from information_schema.innodb_buffer_page where table_name like '%t1%' and index_name = 'PRIMARY', Value, 1)
+
 --let $second_after = query_get_value(select count(*) as Value from information_schema.innodb_buffer_page where table_name like '%t1%' and index_name = 'second', Value, 1)
 
 if ($primary_before == $primary_after) {
-   --echo Too much space are reserved on primary index.
+   --echo Too little space is reserved on primary index.
 }
 
 if ($second_before == $second_after) {
-   --echo Too much space are reserved on second index.
+   --echo Too little space is reserved on second index.
 }
 
 DROP TABLE t1;
 
 --echo Testing table with small records
-CREATE TABLE t2 (a INT NOT NULL PRIMARY KEY AUTO_INCREMENT, b VARchar(16), KEY SECOND(a,b)) ENGINE=INNODB;
+CREATE TABLE t2 (a INT NOT NULL PRIMARY KEY AUTO_INCREMENT, b VARCHAR(16), c VARCHAR(32), KEY SECOND(a,b,c)) ENGINE=INNODB;
 # Populate table.
 --disable_query_log
-INSERT INTO t2 VALUES (1, REPEAT('A', 16));
+INSERT INTO t2 VALUES (1, REPEAT('A', 16), REPEAT('B', 32));
 INSERT INTO t2 (b) SELECT b from t2;
 INSERT INTO t2 (b) SELECT b from t2;
 INSERT INTO t2 (b) SELECT b from t2;
@@ -115,36 +135,36 @@ while ($size)
 }
 --enable_query_log
 
+--source include/wait_innodb_all_purged.inc
 --source include/restart_mysqld.inc
 optimize table t2;
-select sleep(1);
 
---source include/restart_mysqld.inc
+select count(*) from t2;
 select count(*) from t2 force index(second);
 
 --let $second_before = query_get_value(select count(*) as Value from information_schema.innodb_buffer_page where table_name like '%t2%' and index_name = 'second', Value, 1)
 
 --echo The page should have room for about 20 insertions
-insert into t2 values(1181, REPEAT('A', 16));
-insert into t2 values(1191, REPEAT('A', 16));
-insert into t2 values(1182, REPEAT('A', 16));
-insert into t2 values(1192, REPEAT('A', 16));
-insert into t2 values(1183, REPEAT('A', 16));
-insert into t2 values(1193, REPEAT('A', 16));
-insert into t2 values(1184, REPEAT('A', 16));
-insert into t2 values(1194, REPEAT('A', 16));
-insert into t2 values(1185, REPEAT('A', 16));
-insert into t2 values(1195, REPEAT('A', 16));
-insert into t2 values(1186, REPEAT('A', 16));
-insert into t2 values(1196, REPEAT('A', 16));
-insert into t2 values(1187, REPEAT('A', 16));
-insert into t2 values(1197, REPEAT('A', 16));
-insert into t2 values(1188, REPEAT('A', 16));
-insert into t2 values(1198, REPEAT('A', 16));
-insert into t2 values(1189, REPEAT('A', 16));
-insert into t2 values(1199, REPEAT('A', 16));
-insert into t2 values(1190, REPEAT('A', 16));
-insert into t2 values(1180, REPEAT('A', 16));
+insert into t2 values(1181, REPEAT('A', 16), REPEAT('B',32));
+insert into t2 values(1191, REPEAT('A', 16), REPEAT('B',32));
+insert into t2 values(1182, REPEAT('A', 16), REPEAT('B',32));
+insert into t2 values(1192, REPEAT('A', 16), REPEAT('B',32));
+insert into t2 values(1183, REPEAT('A', 16), REPEAT('B',32));
+insert into t2 values(1193, REPEAT('A', 16), REPEAT('B',32));
+insert into t2 values(1184, REPEAT('A', 16), REPEAT('B',32));
+insert into t2 values(1194, REPEAT('A', 16), REPEAT('B',32));
+insert into t2 values(1185, REPEAT('A', 16), REPEAT('B',32));
+insert into t2 values(1195, REPEAT('A', 16), REPEAT('B',32));
+insert into t2 values(1186, REPEAT('A', 16), REPEAT('B',32));
+insert into t2 values(1196, REPEAT('A', 16), REPEAT('B',32));
+insert into t2 values(1187, REPEAT('A', 16), REPEAT('B',32));
+insert into t2 values(1197, REPEAT('A', 16), REPEAT('B',32));
+insert into t2 values(1188, REPEAT('A', 16), REPEAT('B',32));
+insert into t2 values(1198, REPEAT('A', 16), REPEAT('B',32));
+insert into t2 values(1189, REPEAT('A', 16), REPEAT('B',32));
+insert into t2 values(1199, REPEAT('A', 16), REPEAT('B',32));
+insert into t2 values(1190, REPEAT('A', 16), REPEAT('B',32));
+insert into t2 values(1180, REPEAT('A', 16), REPEAT('B',32));
 
 --let $second_after = query_get_value(select count(*) as Value from information_schema.innodb_buffer_page where table_name like '%t2%' and index_name = 'second', Value, 1)
 
@@ -152,15 +172,39 @@ if ($second_before != $second_after) {
    --echo Insertion caused page split on second, which should be avoided by innodb_defragment_fill_factor.
 }
 
---echo More insertions will cause page split.
-insert into t2 values(1280, REPEAT('A', 16));
-insert into t2 values(1290, REPEAT('A', 16));
-insert into t2 values(1281, REPEAT('A', 16));
-insert into t2 values(1291, REPEAT('A', 16));
+--echo # Insert more rows to cause a page split
+insert into t2 values (180, REPEAT('A', 16), REPEAT('B', 32));
+insert into t2 values (181, REPEAT('A', 16), REPEAT('B', 32));
+insert into t2 values (182, REPEAT('A', 16), REPEAT('B', 32));
+insert into t2 values (183, REPEAT('A', 16), REPEAT('B', 32));
+insert into t2 values (184, REPEAT('A', 16), REPEAT('B', 32));
+insert into t2 values (185, REPEAT('A', 16), REPEAT('B', 32));
+insert into t2 values (186, REPEAT('A', 16), REPEAT('B', 32));
+insert into t2 values (187, REPEAT('A', 16), REPEAT('B', 32));
+insert into t2 values (188, REPEAT('A', 16), REPEAT('B', 32));
+insert into t2 values (189, REPEAT('A', 16), REPEAT('B', 32));
+insert into t2 values (190, REPEAT('A', 16), REPEAT('B', 32));
+insert into t2 values (191, REPEAT('A', 16), REPEAT('B', 32));
+insert into t2 values (192, REPEAT('A', 16), REPEAT('B', 32));
+insert into t2 values (193, REPEAT('A', 16), REPEAT('B', 32));
+insert into t2 values (194, REPEAT('A', 16), REPEAT('B', 32));
+insert into t2 values (195, REPEAT('A', 16), REPEAT('B', 32));
+insert into t2 values (196, REPEAT('A', 16), REPEAT('B', 32));
+insert into t2 values (197, REPEAT('A', 16), REPEAT('B', 32));
+insert into t2 values (198, REPEAT('A', 16), REPEAT('B', 32));
+insert into t2 values (199, REPEAT('A', 16), REPEAT('B', 32));
+insert into t2 values (200, REPEAT('A', 16), REPEAT('B', 32));
+insert into t2 values (201, REPEAT('A', 16), REPEAT('B', 32));
+insert into t2 values (202, REPEAT('A', 16), REPEAT('B', 32));
+insert into t2 values (203, REPEAT('A', 16), REPEAT('B', 32));
+insert into t2 values (204, REPEAT('A', 16), REPEAT('B', 32));
 
 --let $second_after = query_get_value(select count(*) as Value from information_schema.innodb_buffer_page where table_name like '%t2%' and index_name = 'second', Value, 1)
+
 if ($second_before == $second_after) {
-   --echo Too much space are reserved on second index.
+   --echo Too little space is reserved on second index.
 }
 
 DROP TABLE t2;
+
+--source include/wait_innodb_all_purged.inc

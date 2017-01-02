@@ -41,7 +41,6 @@ Created 11/11/1995 Heikki Tuuri
 #include "srv0start.h"
 #include "srv0srv.h"
 #include "page0zip.h"
-#ifndef UNIV_HOTBACKUP
 #include "ut0byte.h"
 #include "page0page.h"
 #include "fil0fil.h"
@@ -806,7 +805,6 @@ buf_flush_write_complete(
 
 	buf_dblwr_update(bpage, flush_type);
 }
-#endif /* !UNIV_HOTBACKUP */
 
 /** Calculate the checksum of a page from compressed table and update
 the page.
@@ -995,7 +993,6 @@ buf_flush_init_for_writing(
 			checksum);
 }
 
-#ifndef UNIV_HOTBACKUP
 /********************************************************************//**
 Does an asynchronous write of a buffer page. NOTE: in simulated aio and
 also when the doublewrite buffer is used, we must call
@@ -2264,8 +2261,6 @@ buf_flush_single_page_from_LRU(
 			scanned);
 	}
 
-
-
 	ut_ad(!buf_pool_mutex_own(buf_pool));
 	return(freed);
 }
@@ -2520,7 +2515,6 @@ page_cleaner_flush_pages_recommendation(
 			/ time_elapsed);
 
 		lsn_avg_rate = (lsn_avg_rate + lsn_rate) / 2;
-
 
 		/* aggregate stats of all slots */
 		mutex_enter(&page_cleaner->mutex);
@@ -3237,7 +3231,8 @@ DECLARE_THREAD(buf_flush_page_cleaner_coordinator)(
 		if (ret_sleep == OS_SYNC_TIME_EXCEEDED) {
 			ulint	curr_time = ut_time_ms();
 
-			if (curr_time > next_loop_time + 3000) {
+			if (curr_time > next_loop_time + 3000
+			    && !(test_flags & TEST_SIGINT)) {
 				if (warn_count == 0) {
 					ib::info() << "page_cleaner: 1000ms"
 						" intended loop took "
@@ -3678,7 +3673,6 @@ buf_flush_validate(
 }
 
 #endif /* UNIV_DEBUG || UNIV_BUF_DEBUG */
-#endif /* !UNIV_HOTBACKUP */
 
 /******************************************************************//**
 Check if there are any dirty pages that belong to a space id in the flush

@@ -722,8 +722,8 @@ b INT, c INT, d DATE NOT NULL, e VARCHAR(1),
 KEY (c), KEY (d), KEY k2(b), KEY k3(b), KEY k4(b)
 );
 Warnings:
-Note	1831	Duplicate index 'k3' defined on the table 'test.t1'. This is deprecated and will be disallowed in a future release
-Note	1831	Duplicate index 'k4' defined on the table 'test.t1'. This is deprecated and will be disallowed in a future release
+Note	1831	Duplicate index `k3`. This is deprecated and will be disallowed in a future release
+Note	1831	Duplicate index `k4`. This is deprecated and will be disallowed in a future release
 INSERT INTO t1 (b,c,d,e) VALUES
 (6,5,'2006-05-25','y'),(1,5,'2008-01-23','t'),
 (6,5,'2007-06-18','d'),(4,5,'1900-01-01','r'),

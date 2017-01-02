@@ -26,7 +26,6 @@ Modified 30/07/2014 Jan Lindström jan.lindstrom@mariadb.com
 *******************************************************/
 
 #include "btr0defragment.h"
-#ifndef UNIV_HOTBACKUP
 #include "btr0btr.h"
 #include "btr0cur.h"
 #include "btr0sea.h"
@@ -499,7 +498,7 @@ btr_defragment_merge_pages(
 		// n_recs_to_move number of records to to_page. We try to reduce
 		// the targeted data size on the to_page by
 		// BTR_DEFRAGMENT_PAGE_REDUCTION_STEP_SIZE and try again.
-		os_atomic_increment_ulint(
+		my_atomic_addlint(
 			&btr_defragment_compression_failures, 1);
 		max_ins_size_to_use =
 			move_size > BTR_DEFRAGMENT_PAGE_REDUCTION_STEP_SIZE
@@ -722,10 +721,10 @@ btr_defragment_n_pages(
 	}
 	mem_heap_free(heap);
 	n_defragmented ++;
-	os_atomic_increment_ulint(
+	my_atomic_addlint(
 		&btr_defragment_count, 1);
 	if (n_pages == n_defragmented) {
-		os_atomic_increment_ulint(
+		my_atomic_addlint(
 			&btr_defragment_failures, 1);
 	} else {
 		index->stat_defrag_n_pages_freed += (n_pages - n_defragmented);
@@ -847,5 +846,3 @@ DECLARE_THREAD(btr_defragment_thread)(
 	os_thread_exit();
 	OS_THREAD_DUMMY_RETURN;
 }
-
-#endif /* !UNIV_HOTBACKUP */

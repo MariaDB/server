@@ -1012,9 +1012,9 @@ ROUND(c1,c2)	TRUNCATE(c1,c2)
 1.133000	1.132000
 DROP TABLE t5;
 CREATE TABLE t7(c1 DECIMAL(66,0));
-ERROR 42000: Too big precision 66 specified for 'c1'. Maximum is 65.
+ERROR 42000: Too big precision 66 specified for 'c1'. Maximum is 65
 CREATE TABLE t7(c1 DECIMAL(5,10));
-ERROR 42000: For float(M,D), double(M,D) or decimal(M,D), M must be >= D (column 'c1').
+ERROR 42000: For float(M,D), double(M,D) or decimal(M,D), M must be >= D (column 'c1')
 DROP TABLE t1,t2;
 CREATE TABLE t1(c1 FLOAT(10,5) UNSIGNED NOT NULL, c2 FLOAT(10,5) SIGNED NULL, c3 FLOAT, c4 INT, UNIQUE INDEX idx(c1,c2));
 CREATE TABLE t2(c1 FLOAT(10,0) SIGNED NOT NULL, c2 FLOAT(10,0) UNSIGNED NULL, c3 FLOAT, c4 INT);
@@ -1914,7 +1914,7 @@ ROUND(c1,c2)	TRUNCATE(c1,c2)
 1.133000	1.132000
 DROP TABLE t5;
 CREATE TABLE t7(c1 FLOAT(5,10));
-ERROR 42000: For float(M,D), double(M,D) or decimal(M,D), M must be >= D (column 'c1').
+ERROR 42000: For float(M,D), double(M,D) or decimal(M,D), M must be >= D (column 'c1')
 DROP TABLE t1,t2;
 CREATE TABLE t1(c1 DOUBLE(10,5) UNSIGNED NOT NULL, c2 DOUBLE(10,5) SIGNED NULL, c3 DOUBLE, c4 INT, UNIQUE INDEX idx(c1,c2));
 CREATE TABLE t2(c1 DOUBLE(10,0) SIGNED NOT NULL, c2 DOUBLE(10,0) UNSIGNED NULL, c3 DOUBLE, c4 INT);
@@ -2843,5 +2843,5 @@ ROUND(c1,c2)	TRUNCATE(c1,c2)
 1.132000	1.132000
 DROP TABLE t5;
 CREATE TABLE t7(c1 DOUBLE(5,10));
-ERROR 42000: For float(M,D), double(M,D) or decimal(M,D), M must be >= D (column 'c1').
+ERROR 42000: For float(M,D), double(M,D) or decimal(M,D), M must be >= D (column 'c1')
 DROP TABLE t1,t2;

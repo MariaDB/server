@@ -69,8 +69,8 @@ static double mbr_join_square(const double *a, const double *b, int n_dim)
     b += 2;
   }while (a != end);
 
-   /* Check for infinity or NaN */
-  if (my_isinf(square) || isnan(square))
+   /* Check if not finite (i.e. infinity or NaN) */
+  if (!isfinite(square))
     square = DBL_MAX;
 
   return square;

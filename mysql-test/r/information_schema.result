@@ -455,10 +455,10 @@ Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_par
 select * from information_schema.views where TABLE_NAME like "v%";
 TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	VIEW_DEFINITION	CHECK_OPTION	IS_UPDATABLE	DEFINER	SECURITY_TYPE	CHARACTER_SET_CLIENT	COLLATION_CONNECTION	ALGORITHM
 def	test	v0	select `information_schema`.`schemata`.`SCHEMA_NAME` AS `c` from `information_schema`.`schemata`	NONE	NO	root@localhost	DEFINER	latin1	latin1_swedish_ci	UNDEFINED
-def	test	v1	select `information_schema`.`tables`.`TABLE_NAME` AS `c` from `information_schema`.`tables` where (`information_schema`.`tables`.`TABLE_NAME` = 'v1')	NONE	NO	root@localhost	DEFINER	latin1	latin1_swedish_ci	UNDEFINED
-def	test	v2	select `information_schema`.`columns`.`COLUMN_NAME` AS `c` from `information_schema`.`columns` where (`information_schema`.`columns`.`TABLE_NAME` = 'v2')	NONE	NO	root@localhost	DEFINER	latin1	latin1_swedish_ci	UNDEFINED
-def	test	v3	select `information_schema`.`character_sets`.`CHARACTER_SET_NAME` AS `c` from `information_schema`.`character_sets` where (`information_schema`.`character_sets`.`CHARACTER_SET_NAME` like 'latin1%')	NONE	NO	root@localhost	DEFINER	latin1	latin1_swedish_ci	UNDEFINED
-def	test	v4	select `information_schema`.`collations`.`COLLATION_NAME` AS `c` from `information_schema`.`collations` where (`information_schema`.`collations`.`COLLATION_NAME` like 'latin1%')	NONE	NO	root@localhost	DEFINER	latin1	latin1_swedish_ci	UNDEFINED
+def	test	v1	select `information_schema`.`tables`.`TABLE_NAME` AS `c` from `information_schema`.`tables` where `information_schema`.`tables`.`TABLE_NAME` = 'v1'	NONE	NO	root@localhost	DEFINER	latin1	latin1_swedish_ci	UNDEFINED
+def	test	v2	select `information_schema`.`columns`.`COLUMN_NAME` AS `c` from `information_schema`.`columns` where `information_schema`.`columns`.`TABLE_NAME` = 'v2'	NONE	NO	root@localhost	DEFINER	latin1	latin1_swedish_ci	UNDEFINED
+def	test	v3	select `information_schema`.`character_sets`.`CHARACTER_SET_NAME` AS `c` from `information_schema`.`character_sets` where `information_schema`.`character_sets`.`CHARACTER_SET_NAME` like 'latin1%'	NONE	NO	root@localhost	DEFINER	latin1	latin1_swedish_ci	UNDEFINED
+def	test	v4	select `information_schema`.`collations`.`COLLATION_NAME` AS `c` from `information_schema`.`collations` where `information_schema`.`collations`.`COLLATION_NAME` like 'latin1%'	NONE	NO	root@localhost	DEFINER	latin1	latin1_swedish_ci	UNDEFINED
 drop view v0, v1, v2, v3, v4;
 create table t1 (a int);
 grant select,update,insert on t1 to mysqltest_1@localhost;
@@ -508,10 +508,10 @@ create table t1 (a int null, primary key(a));
 alter table t1 add constraint constraint_1 unique (a);
 alter table t1 add constraint unique key_1(a);
 Warnings:
-Note	1831	Duplicate index 'key_1' defined on the table 'test.t1'. This is deprecated and will be disallowed in a future release
+Note	1831	Duplicate index `key_1`. This is deprecated and will be disallowed in a future release
 alter table t1 add constraint constraint_2 unique key_2(a);
 Warnings:
-Note	1831	Duplicate index 'key_2' defined on the table 'test.t1'. This is deprecated and will be disallowed in a future release
+Note	1831	Duplicate index `key_2`. This is deprecated and will be disallowed in a future release
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -1053,19 +1053,19 @@ Grants for user3@localhost
 GRANT USAGE ON *.* TO 'user3'@'localhost'
 GRANT SELECT ON `mysqltest`.* TO 'user3'@'localhost'
 connection con4;
-select * from information_schema.column_privileges where grantee like '%user%'
+select * from information_schema.column_privileges where grantee like '\'user%'
 order by grantee;
 GRANTEE	TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	COLUMN_NAME	PRIVILEGE_TYPE	IS_GRANTABLE
 'user1'@'localhost'	def	mysqltest	t1	f1	SELECT	NO
-select * from information_schema.table_privileges where grantee like '%user%'
+select * from information_schema.table_privileges where grantee like '\'user%'
 order by grantee;
 GRANTEE	TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	PRIVILEGE_TYPE	IS_GRANTABLE
 'user2'@'localhost'	def	mysqltest	t2	SELECT	NO
-select * from information_schema.schema_privileges where grantee like '%user%'
+select * from information_schema.schema_privileges where grantee like '\'user%'
 order by grantee;
 GRANTEE	TABLE_CATALOG	TABLE_SCHEMA	PRIVILEGE_TYPE	IS_GRANTABLE
 'user3'@'localhost'	def	mysqltest	SELECT	NO
-select * from information_schema.user_privileges where grantee like '%user%'
+select * from information_schema.user_privileges where grantee like '\'user%'
 order by grantee;
 GRANTEE	TABLE_CATALOG	PRIVILEGE_TYPE	IS_GRANTABLE
 'user1'@'localhost'	def	USAGE	NO
@@ -1247,7 +1247,6 @@ table_schema='information_schema' and
  or column_type = 'varchar(27)')
 group by column_type order by num;
 column_type	group_concat(table_schema, '.', table_name)	num
-varchar(27)	information_schema.COLUMNS	1
 varchar(7)	information_schema.ROUTINES,information_schema.VIEWS	2
 varchar(20)	information_schema.ALL_PLUGINS,information_schema.ALL_PLUGINS,information_schema.ALL_PLUGINS,information_schema.FILES,information_schema.FILES,information_schema.PLUGINS,information_schema.PLUGINS,information_schema.PLUGINS,information_schema.PROFILING	9
 create table t1(f1 char(1) not null, f2 char(9) not null)
@@ -2062,7 +2061,7 @@ where (table_schema = "osm") and (table_name = "test");
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	columns	ALL	NULL	TABLE_SCHEMA,TABLE_NAME	NULL	NULL	NULL	NULL	Using where; Open_frm_only; Scanned 0 databases
 Warnings:
-Note	1003	select `information_schema`.`columns`.`COLUMN_NAME` AS `column_name` from `information_schema`.`columns` where ((`information_schema`.`columns`.`TABLE_SCHEMA` = 'osm') and (`information_schema`.`columns`.`TABLE_NAME` = 'test'))
+Note	1003	select `information_schema`.`columns`.`COLUMN_NAME` AS `column_name` from `information_schema`.`columns` where `information_schema`.`columns`.`TABLE_SCHEMA` = 'osm' and `information_schema`.`columns`.`TABLE_NAME` = 'test'
 explain extended
 select information_schema.columns.column_name as column_name
 from information_schema.columns
@@ -2070,7 +2069,7 @@ where (information_schema.columns.table_schema = 'osm') and (information_schema.
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	columns	ALL	NULL	TABLE_SCHEMA,TABLE_NAME	NULL	NULL	NULL	NULL	Using where; Open_frm_only; Scanned 0 databases
 Warnings:
-Note	1003	select `information_schema`.`columns`.`COLUMN_NAME` AS `column_name` from `information_schema`.`columns` where ((`information_schema`.`columns`.`TABLE_SCHEMA` = 'osm') and (`information_schema`.`columns`.`TABLE_NAME` = 'test'))
+Note	1003	select `information_schema`.`columns`.`COLUMN_NAME` AS `column_name` from `information_schema`.`columns` where `information_schema`.`columns`.`TABLE_SCHEMA` = 'osm' and `information_schema`.`columns`.`TABLE_NAME` = 'test'
 drop view v1;
 #
 # Clean-up.

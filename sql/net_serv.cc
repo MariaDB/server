@@ -1,5 +1,5 @@
-/* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2014, SkySQL Ab.
+/* Copyright (c) 2000, 2016, Oracle and/or its affiliates.
+   Copyright (c) 2012, 2016, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -60,7 +60,9 @@
 #define EXTRA_DEBUG_fflush fflush
 #else
 static void inline EXTRA_DEBUG_fprintf(...) {}
+#ifndef MYSQL_SERVER
 static int inline EXTRA_DEBUG_fflush(...) { return 0; }
+#endif
 #endif
 #ifdef MYSQL_SERVER
 #define MYSQL_SERVER_my_error my_error
@@ -1133,15 +1135,22 @@ ulong my_net_read(NET *net)
   The function returns the length of the found packet or packet_error.
   net->read_pos points to the read data.
 */
+ulong
+my_net_read_packet(NET *net, my_bool read_from_server)
+{
+  ulong reallen = 0;
+  return my_net_read_packet_reallen(net, read_from_server, &reallen); 
+}
 
 
 ulong
-my_net_read_packet(NET *net, my_bool read_from_server)
+my_net_read_packet_reallen(NET *net, my_bool read_from_server, ulong* reallen)
 {
   size_t len, complen;
 
   MYSQL_NET_READ_START();
 
+  *reallen = 0;
 #ifdef HAVE_COMPRESS
   if (!net->compress)
   {
@@ -1164,7 +1173,10 @@ my_net_read_packet(NET *net, my_bool read_from_server)
     }
     net->read_pos = net->buff + net->where_b;
     if (len != packet_error)
+    {
       net->read_pos[len]=0;		/* Safeguard for mysql_use_result */
+      *reallen = len;
+    }
     MYSQL_NET_READ_DONE(0, len);
     return len;
 #ifdef HAVE_COMPRESS
@@ -1265,6 +1277,7 @@ my_net_read_packet(NET *net, my_bool read_from_server)
 	return packet_error;
       }
       buf_length+= complen;
+      *reallen += packet_len;
     }
 
     net->read_pos=      net->buff+ first_packet_offset + NET_HEADER_SIZE;

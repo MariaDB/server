@@ -285,7 +285,6 @@ dfield_dup(
 	}
 }
 
-#ifndef UNIV_HOTBACKUP
 /*********************************************************************//**
 Tests if two data fields are equal.
 If len==0, tests the data length and content for equality.
@@ -330,7 +329,6 @@ dfield_data_is_binary_equal(
 	       && (len == UNIV_SQL_NULL
 		   || !memcmp(dfield_get_data(field), data, len)));
 }
-#endif /* !UNIV_HOTBACKUP */
 
 /*********************************************************************//**
 Gets info bits in a data tuple.

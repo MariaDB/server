@@ -20,28 +20,8 @@ WHERE	t.table_id = i.table_id
 AND	t.name LIKE 'mysql%'
 	ORDER BY t.name, i.index_id;
 table_name	n_cols	table_flags	index_name	root_page	type	n_fields	merge_threshold
-mysql/engine_cost	9	33	PRIMARY	3	3	3	50
-mysql/gtid_executed	6	33	PRIMARY	3	3	2	50
-mysql/help_category	7	33	PRIMARY	3	3	1	50
-mysql/help_category	7	33	name	4	2	1	50
-mysql/help_keyword	5	33	PRIMARY	3	3	1	50
-mysql/help_keyword	5	33	name	4	2	1	50
-mysql/help_relation	5	33	PRIMARY	3	3	2	50
-mysql/help_topic	9	33	PRIMARY	3	3	1	50
-mysql/help_topic	9	33	name	4	2	1	50
 mysql/innodb_index_stats	11	33	PRIMARY	3	3	4	50
 mysql/innodb_table_stats	9	33	PRIMARY	3	3	2	50
-mysql/plugin	5	33	PRIMARY	3	3	1	50
-mysql/servers	12	33	PRIMARY	3	3	1	50
-mysql/server_cost	7	33	PRIMARY	3	3	1	50
-mysql/slave_master_info	28	33	PRIMARY	3	3	1	50
-mysql/slave_relay_log_info	12	33	PRIMARY	3	3	1	50
-mysql/slave_worker_info	16	33	PRIMARY	3	3	2	50
-mysql/time_zone	5	33	PRIMARY	3	3	1	50
-mysql/time_zone_leap_second	5	33	PRIMARY	3	3	1	50
-mysql/time_zone_name	5	33	PRIMARY	3	3	1	50
-mysql/time_zone_transition	6	33	PRIMARY	3	3	2	50
-mysql/time_zone_transition_type	8	33	PRIMARY	3	3	2	50
 CREATE TABLE t1 (a INT KEY, b TEXT) ROW_FORMAT=REDUNDANT ENGINE=innodb;
 CREATE TABLE t2 (a INT KEY, b TEXT) ROW_FORMAT=COMPACT ENGINE=innodb;
 CREATE TABLE t3 (a INT KEY, b TEXT) ROW_FORMAT=COMPRESSED ENGINE=innodb;
@@ -65,12 +45,6 @@ test/t1	Single	DEFAULT	0	Compact or Redundant	MYSQLD_DATADIR/test/t1.ibd
 test/t2	Single	DEFAULT	0	Compact or Redundant	MYSQLD_DATADIR/test/t2.ibd
 test/t3	Single	DEFAULT	2048	Compressed	MYSQLD_DATADIR/test/t3.ibd
 test/t4	Single	DEFAULT	0	Dynamic	MYSQLD_DATADIR/test/t4.ibd
-=== information_schema.files ===
-Space_Name	File_Type	Engine	Status	Tablespace_Name	Path
-test/t1	TABLESPACE	InnoDB	NORMAL	innodb_file_per_table.##	MYSQLD_DATADIR/test/t1.ibd
-test/t2	TABLESPACE	InnoDB	NORMAL	innodb_file_per_table.##	MYSQLD_DATADIR/test/t2.ibd
-test/t3	TABLESPACE	InnoDB	NORMAL	innodb_file_per_table.##	MYSQLD_DATADIR/test/t3.ibd
-test/t4	TABLESPACE	InnoDB	NORMAL	innodb_file_per_table.##	MYSQLD_DATADIR/test/t4.ibd
 DROP TABLE t1, t2, t3, t4;
 # Test 4) The maximum row size is dependent upon the page size.
 #         Redundant: 1979, Compact: 1982.
@@ -153,38 +127,40 @@ ERROR 42000: Specified key was too long; max key length is 768 bytes
 #         in strict mode and converted to 4 in non-strict mode.
 SET SESSION innodb_strict_mode = ON;
 CREATE TABLE t1 (i int) ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=16;
-ERROR HY000: Table storage engine for 't1' doesn't have this option
+ERROR HY000: Can't create table `test`.`t1` (errno: 140 "Wrong create options")
 SHOW WARNINGS;
 Level	Code	Message
 Warning	1478	InnoDB: KEY_BLOCK_SIZE=16 cannot be larger than 4.
-Error	1031	Table storage engine for 't1' doesn't have this option
+Error	1005	Can't create table `test`.`t1` (errno: 140 "Wrong create options")
+Warning	1030	Got error 140 "Wrong create options" from storage engine InnoDB
 CREATE TABLE t1 ( i INT ) ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8;
-ERROR HY000: Table storage engine for 't1' doesn't have this option
+ERROR HY000: Can't create table `test`.`t1` (errno: 140 "Wrong create options")
 SHOW WARNINGS;
 Level	Code	Message
 Warning	1478	InnoDB: KEY_BLOCK_SIZE=8 cannot be larger than 4.
-Error	1031	Table storage engine for 't1' doesn't have this option
+Error	1005	Can't create table `test`.`t1` (errno: 140 "Wrong create options")
+Warning	1030	Got error 140 "Wrong create options" from storage engine InnoDB
 CREATE TABLE t1 ( i INT ) ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=4;
 SHOW WARNINGS;
 Level	Code	Message
 SELECT table_name, row_format, create_options
 FROM information_schema.tables WHERE table_name = 't1';
 table_name	row_format	create_options
-t1	Compressed	row_format=COMPRESSED KEY_BLOCK_SIZE=4
+t1	Compressed	row_format=COMPRESSED key_block_size=4
 ALTER TABLE t1 KEY_BLOCK_SIZE=2;
 SHOW WARNINGS;
 Level	Code	Message
 SELECT table_name, row_format, create_options
 FROM information_schema.tables WHERE table_name = 't1';
 table_name	row_format	create_options
-t1	Compressed	row_format=COMPRESSED KEY_BLOCK_SIZE=2
+t1	Compressed	row_format=COMPRESSED key_block_size=2
 ALTER TABLE t1 KEY_BLOCK_SIZE=1;
 SHOW WARNINGS;
 Level	Code	Message
 SELECT table_name, row_format, create_options
 FROM information_schema.tables WHERE table_name = 't1';
 table_name	row_format	create_options
-t1	Compressed	row_format=COMPRESSED KEY_BLOCK_SIZE=1
+t1	Compressed	row_format=COMPRESSED key_block_size=1
 ALTER TABLE t1 KEY_BLOCK_SIZE=0;
 SHOW WARNINGS;
 Level	Code	Message
@@ -203,7 +179,7 @@ Warning	1478	InnoDB: ignoring KEY_BLOCK_SIZE=16.
 SELECT table_name, row_format, create_options
 FROM information_schema.tables WHERE table_name = 't1';
 table_name	row_format	create_options
-t1	Compressed	row_format=COMPRESSED KEY_BLOCK_SIZE=16
+t1	Compressed	row_format=COMPRESSED key_block_size=16
 DROP TABLE t1;
 CREATE TABLE t1 ( i INT ) ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8;
 Warnings:
@@ -214,7 +190,7 @@ Warning	1478	InnoDB: ignoring KEY_BLOCK_SIZE=8.
 SELECT table_name, row_format, create_options
 FROM information_schema.tables WHERE table_name = 't1';
 table_name	row_format	create_options
-t1	Compressed	row_format=COMPRESSED KEY_BLOCK_SIZE=8
+t1	Compressed	row_format=COMPRESSED key_block_size=8
 DROP TABLE t1;
 CREATE TABLE t1 ( i INT ) ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=4;
 SHOW WARNINGS;
@@ -222,21 +198,21 @@ Level	Code	Message
 SELECT table_name, row_format, create_options
 FROM information_schema.tables WHERE table_name = 't1';
 table_name	row_format	create_options
-t1	Compressed	row_format=COMPRESSED KEY_BLOCK_SIZE=4
+t1	Compressed	row_format=COMPRESSED key_block_size=4
 ALTER TABLE t1 KEY_BLOCK_SIZE=2;
 SHOW WARNINGS;
 Level	Code	Message
 SELECT table_name, row_format, create_options
 FROM information_schema.tables WHERE table_name = 't1';
 table_name	row_format	create_options
-t1	Compressed	row_format=COMPRESSED KEY_BLOCK_SIZE=2
+t1	Compressed	row_format=COMPRESSED key_block_size=2
 ALTER TABLE t1 KEY_BLOCK_SIZE=1;
 SHOW WARNINGS;
 Level	Code	Message
 SELECT table_name, row_format, create_options
 FROM information_schema.tables WHERE table_name = 't1';
 table_name	row_format	create_options
-t1	Compressed	row_format=COMPRESSED KEY_BLOCK_SIZE=1
+t1	Compressed	row_format=COMPRESSED key_block_size=1
 ALTER TABLE t1 KEY_BLOCK_SIZE=0;
 SHOW WARNINGS;
 Level	Code	Message
@@ -253,37 +229,41 @@ SHOW VARIABLES LIKE 'innodb_file_per_table';
 Variable_name	Value
 innodb_file_per_table	OFF
 CREATE TABLE t4 (id int PRIMARY KEY) ENGINE=innodb KEY_BLOCK_SIZE=8;
-ERROR HY000: Table storage engine for 't4' doesn't have this option
+ERROR HY000: Can't create table `test`.`t4` (errno: 140 "Wrong create options")
 SHOW WARNINGS;
 Level	Code	Message
 Warning	1478	InnoDB: KEY_BLOCK_SIZE=8 cannot be larger than 4.
 Warning	1478	InnoDB: KEY_BLOCK_SIZE requires innodb_file_per_table.
-Error	1031	Table storage engine for 't4' doesn't have this option
+Error	1005	Can't create table `test`.`t4` (errno: 140 "Wrong create options")
+Warning	1030	Got error 140 "Wrong create options" from storage engine InnoDB
 CREATE TABLE t5 (id int PRIMARY KEY) ENGINE=innodb KEY_BLOCK_SIZE=16;
-ERROR HY000: Table storage engine for 't5' doesn't have this option
+ERROR HY000: Can't create table `test`.`t5` (errno: 140 "Wrong create options")
 SHOW WARNINGS;
 Level	Code	Message
 Warning	1478	InnoDB: KEY_BLOCK_SIZE=16 cannot be larger than 4.
 Warning	1478	InnoDB: KEY_BLOCK_SIZE requires innodb_file_per_table.
-Error	1031	Table storage engine for 't5' doesn't have this option
+Error	1005	Can't create table `test`.`t5` (errno: 140 "Wrong create options")
+Warning	1030	Got error 140 "Wrong create options" from storage engine InnoDB
 SET GLOBAL innodb_file_per_table = ON;
 SET GLOBAL innodb_file_format = `Antelope`;
 Warnings:
 Warning	131	Using innodb_file_format is deprecated and the parameter may be removed in future releases. See http://dev.mysql.com/doc/refman/5.7/en/innodb-file-format.html
 CREATE TABLE t4 (id int PRIMARY KEY) ENGINE=innodb KEY_BLOCK_SIZE=8;
-ERROR HY000: Table storage engine for 't4' doesn't have this option
+ERROR HY000: Can't create table `test`.`t4` (errno: 140 "Wrong create options")
 SHOW WARNINGS;
 Level	Code	Message
 Warning	1478	InnoDB: KEY_BLOCK_SIZE=8 cannot be larger than 4.
 Warning	1478	InnoDB: KEY_BLOCK_SIZE requires innodb_file_format > Antelope.
-Error	1031	Table storage engine for 't4' doesn't have this option
+Error	1005	Can't create table `test`.`t4` (errno: 140 "Wrong create options")
+Warning	1030	Got error 140 "Wrong create options" from storage engine InnoDB
 CREATE TABLE t5 (id int PRIMARY KEY) ENGINE=innodb KEY_BLOCK_SIZE=16;
-ERROR HY000: Table storage engine for 't5' doesn't have this option
+ERROR HY000: Can't create table `test`.`t5` (errno: 140 "Wrong create options")
 SHOW WARNINGS;
 Level	Code	Message
 Warning	1478	InnoDB: KEY_BLOCK_SIZE=16 cannot be larger than 4.
 Warning	1478	InnoDB: KEY_BLOCK_SIZE requires innodb_file_format > Antelope.
-Error	1031	Table storage engine for 't5' doesn't have this option
+Error	1005	Can't create table `test`.`t5` (errno: 140 "Wrong create options")
+Warning	1030	Got error 140 "Wrong create options" from storage engine InnoDB
 SET GLOBAL innodb_file_format = `Barracuda`;
 Warnings:
 Warning	131	Using innodb_file_format is deprecated and the parameter may be removed in future releases. See http://dev.mysql.com/doc/refman/5.7/en/innodb-file-format.html
@@ -307,7 +287,7 @@ k=@c,l=@c,m=@c,n=@c,o=@c,p=@c,q=@c,r=@c,s=@c,t=@c,u=@c;
 CREATE INDEX t1b ON t1 (b(767));
 UPDATE t1 SET a=@d,b=@d,c=@d,d=@d,e=@d,f=@d,g=@d,h=@d,i=@d,j=@d,
 k=@d,l=@d,m=@d,n=@d,o=@d,p=@d,q=@d,r=@d,s=@d,t=@d,u=@d;
-ERROR HY000: Undo log record is too big.
+ERROR HY000: Undo log record is too big
 BEGIN;
 UPDATE t1 SET a=@d,b=@d,c=@d,d=@d,e=@d;
 UPDATE t1 SET f=@d,g=@d,h=@d,i=@d,j=@d,k=@d,l=@d,m=@d,
@@ -317,32 +297,32 @@ CREATE INDEX t1c ON t1 (c(767));
 UPDATE t1 SET c=@e;
 CREATE INDEX t1d ON t1 (d(767));
 UPDATE t1 SET d=@e;
-ERROR HY000: Undo log record is too big.
+ERROR HY000: Undo log record is too big
 CREATE INDEX t1e ON t1 (e(767));
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` blob,
-  `b` blob,
-  `c` blob,
-  `d` blob,
-  `e` blob,
-  `f` blob,
-  `g` blob,
-  `h` blob,
-  `i` blob,
-  `j` blob,
-  `k` blob,
-  `l` blob,
-  `m` blob,
-  `n` blob,
-  `o` blob,
-  `p` blob,
-  `q` blob,
-  `r` blob,
-  `s` blob,
-  `t` blob,
-  `u` blob,
+  `a` blob DEFAULT NULL,
+  `b` blob DEFAULT NULL,
+  `c` blob DEFAULT NULL,
+  `d` blob DEFAULT NULL,
+  `e` blob DEFAULT NULL,
+  `f` blob DEFAULT NULL,
+  `g` blob DEFAULT NULL,
+  `h` blob DEFAULT NULL,
+  `i` blob DEFAULT NULL,
+  `j` blob DEFAULT NULL,
+  `k` blob DEFAULT NULL,
+  `l` blob DEFAULT NULL,
+  `m` blob DEFAULT NULL,
+  `n` blob DEFAULT NULL,
+  `o` blob DEFAULT NULL,
+  `p` blob DEFAULT NULL,
+  `q` blob DEFAULT NULL,
+  `r` blob DEFAULT NULL,
+  `s` blob DEFAULT NULL,
+  `t` blob DEFAULT NULL,
+  `u` blob DEFAULT NULL,
   KEY `t1a` (`a`(767)),
   KEY `t1b` (`b`(767)),
   KEY `t1c` (`c`(767)),

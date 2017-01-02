@@ -24,10 +24,8 @@ Data dictionary memory object creation
 Created 1/8/1996 Heikki Tuuri
 ***********************************************************************/
 
-#ifndef UNIV_HOTBACKUP
 #include "ha_prototypes.h"
 #include <mysql_com.h>
-#endif /* !UNIV_HOTBACKUP */
 
 #include "dict0mem.h"
 
@@ -41,11 +39,7 @@ Created 1/8/1996 Heikki Tuuri
 #include "dict0dict.h"
 #include "fts0priv.h"
 #include "ut0crc32.h"
-
-#ifndef UNIV_HOTBACKUP
-# include "lock0lock.h"
-#endif /* !UNIV_HOTBACKUP */
-
+#include "lock0lock.h"
 #include "sync0sync.h"
 #include <iostream>
 
@@ -152,20 +146,11 @@ dict_mem_table_create(
 	dict_table_stats_lock() will not be noop. */
 	dict_table_stats_latch_create(table, true);
 
-#ifndef UNIV_HOTBACKUP
 	table->autoinc_lock = static_cast<ib_lock_t*>(
 		mem_heap_alloc(heap, lock_get_size()));
 
 	/* lazy creation of table autoinc latch */
 	dict_table_autoinc_create_lazy(table);
-
-	table->autoinc = 0;
-	table->sess_row_id = 0;
-	table->sess_trx_id = 0;
-
-	/* The number of transactions that are either waiting on the
-	AUTOINC lock or have been granted the lock. */
-	table->n_waiting_or_granted_auto_inc_locks = 0;
 
 	/* If the table has an FTS index or we are in the process
 	of building one, create the table->fts */
@@ -177,7 +162,6 @@ dict_mem_table_create(
 	} else {
 		table->fts = NULL;
 	}
-#endif /* !UNIV_HOTBACKUP */
 
 	if (DICT_TF_HAS_SHARED_SPACE(table->flags)) {
 		dict_get_and_save_space_name(table, true);
@@ -209,10 +193,8 @@ dict_mem_table_free(
 			fts_free(table);
 		}
 	}
-#ifndef UNIV_HOTBACKUP
-	dict_table_autoinc_destroy(table);
-#endif /* UNIV_HOTBACKUP */
 
+	dict_table_autoinc_destroy(table);
 	dict_mem_table_free_foreign_vcol_set(table);
 	dict_table_stats_latch_destroy(table);
 
@@ -440,7 +422,6 @@ dict_mem_table_add_s_col(
 	table->s_cols->push_back(s_col);
 }
 
-
 /**********************************************************************//**
 Renames a column of a table in the data dictionary cache. */
 static MY_ATTRIBUTE((nonnull))
@@ -640,10 +621,8 @@ dict_mem_fill_column_struct(
 	ulint		prtype,		/*!< in: precise type */
 	ulint		col_len)	/*!< in: column length */
 {
-#ifndef UNIV_HOTBACKUP
 	ulint	mbminlen;
 	ulint	mbmaxlen;
-#endif /* !UNIV_HOTBACKUP */
 
 	column->ind = (unsigned int) col_pos;
 	column->ord_part = 0;
@@ -651,10 +630,9 @@ dict_mem_fill_column_struct(
 	column->mtype = (unsigned int) mtype;
 	column->prtype = (unsigned int) prtype;
 	column->len = (unsigned int) col_len;
-#ifndef UNIV_HOTBACKUP
-        dtype_get_mblen(mtype, prtype, &mbminlen, &mbmaxlen);
+
+	dtype_get_mblen(mtype, prtype, &mbminlen, &mbmaxlen);
 	dict_col_set_mbminmaxlen(column, mbminlen, mbmaxlen);
-#endif /* !UNIV_HOTBACKUP */
 }
 
 /**********************************************************************//**
@@ -701,7 +679,6 @@ dict_mem_index_create(
 	return(index);
 }
 
-#ifndef UNIV_HOTBACKUP
 /**********************************************************************//**
 Creates and initializes a foreign constraint memory object.
 @return own: foreign constraint struct */
@@ -961,8 +938,6 @@ dict_mem_table_free_foreign_vcol_set(
 	}
 }
 
-#endif /* !UNIV_HOTBACKUP */
-
 /**********************************************************************//**
 Adds a field definition to an index. NOTE: does not take a copy
 of the column name if the field is a column. The memory occupied
@@ -1045,7 +1020,7 @@ dict_mem_create_temporary_tablename(
 	size_t		dblen   = dbend - dbtab + 1;
 
 	/* Increment a randomly initialized  number for each temp file. */
-	os_atomic_increment_uint32(&dict_temp_file_num, 1);
+	my_atomic_add32((int32*) &dict_temp_file_num, 1);
 
 	size = dblen + (sizeof(TEMP_FILE_PREFIX) + 3 + 20 + 1 + 10);
 	name = static_cast<char*>(mem_heap_alloc(heap, size));
@@ -1158,4 +1133,3 @@ dict_mem_table_is_system(
 		return true;
 	}
 }
-

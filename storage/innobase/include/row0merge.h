@@ -114,7 +114,6 @@ struct index_field_t {
 	ulint		col_no;		/*!< column offset */
 	ulint		prefix_len;	/*!< column prefix length, or 0
 					if indexing the whole column */
-	const char*	col_name;	/*!< column name or NULL */
 	bool		is_v_col;	/*!< whether this is a virtual column */
 };
 

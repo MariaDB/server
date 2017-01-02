@@ -32,7 +32,7 @@
 +DEFAULT_VALUE	OFF
 +VARIABLE_SCOPE	GLOBAL
 +VARIABLE_TYPE	BOOLEAN
-+VARIABLE_COMMENT	Depricated. This option is temporary alias of --innodb-numa-interleave.
++VARIABLE_COMMENT	Deprecated. This option has no effect and will be removed in MariaDB 10.2.3.
 +NUMERIC_MIN_VALUE	NULL
 +NUMERIC_MAX_VALUE	NULL
 +NUMERIC_BLOCK_SIZE	NULL
@@ -167,7 +167,7 @@
 +DEFAULT_VALUE	assert
 +VARIABLE_SCOPE	GLOBAL
 +VARIABLE_TYPE	ENUM
-+VARIABLE_COMMENT	Warn corruptions of user tables as 'corrupt table' instead of not crashing itself, when used with file_per_table. All file io for the datafile after detected as corrupt are disabled, except for the deletion
++VARIABLE_COMMENT	Warn corruptions of user tables as 'corrupt table' instead of not crashing itself, when used with file_per_table. All file io for the datafile after detected as corrupt are disabled, except for the deletion.
 +NUMERIC_MIN_VALUE	NULL
 +NUMERIC_MAX_VALUE	NULL
 +NUMERIC_BLOCK_SIZE	NULL
@@ -661,8 +661,8 @@
  COMMAND_LINE_ARGUMENT	OPTIONAL
  VARIABLE_NAME	INNODB_VERSION
  SESSION_VALUE	NULL
--GLOBAL_VALUE	5.6.32
-+GLOBAL_VALUE	5.6.31-77.0
+-GLOBAL_VALUE	5.6.33
++GLOBAL_VALUE	5.6.34-79.1
  GLOBAL_VALUE_ORIGIN	COMPILE-TIME
  DEFAULT_VALUE	NULL
  VARIABLE_SCOPE	GLOBAL

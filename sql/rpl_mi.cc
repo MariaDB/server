@@ -18,7 +18,7 @@
 #include "sql_priv.h"
 #include <my_dir.h>
 #include "rpl_mi.h"
-#include "slave.h"                              // SLAVE_MAX_HEARTBEAT_PERIOD
+#include "slave.h"
 #include "strfunc.h"
 #include "sql_repl.h"
 
@@ -647,7 +647,7 @@ file '%s')", fname);
                             (ulong) mi->master_log_pos));
 
   mi->rli.mi= mi;
-  if (init_relay_log_info(&mi->rli, slave_info_fname))
+  if (mi->rli.init(slave_info_fname))
     goto err;
 
   mi->inited = 1;

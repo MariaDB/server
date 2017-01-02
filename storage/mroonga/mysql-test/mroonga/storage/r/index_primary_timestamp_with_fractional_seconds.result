@@ -6,7 +6,7 @@ title TEXT
 SHOW CREATE TABLE diaries;
 Table	Create Table
 diaries	CREATE TABLE `diaries` (
-  `time` timestamp(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
+  `time` timestamp(6) NOT NULL DEFAULT current_timestamp(6) ON UPDATE current_timestamp(6),
   `title` text DEFAULT NULL,
   PRIMARY KEY (`time`)
 ) ENGINE=Mroonga DEFAULT CHARSET=utf8

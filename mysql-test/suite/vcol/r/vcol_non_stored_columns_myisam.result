@@ -76,23 +76,23 @@ drop table t1;
 # Case 7. ALTER. Modify virtual stored -> virtual non-stored
 create table t1 (a int, b int as (a % 2) persistent);
 alter table t1 modify b int as (a % 2);
-ERROR HY000: This is not yet supported for computed columns
+ERROR HY000: This is not yet supported for generated columns
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
-  `b` int(11) AS (a % 2) PERSISTENT
+  `b` int(11) GENERATED ALWAYS AS (`a` % 2) STORED
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table t1;
 # Case 8. ALTER. Modify virtual non-stored -> virtual stored
 create table t1 (a int, b int as (a % 2));
 alter table t1 modify b int as (a % 2) persistent;
-ERROR HY000: This is not yet supported for computed columns
+ERROR HY000: This is not yet supported for generated columns
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
-  `b` int(11) AS (a % 2) VIRTUAL
+  `b` int(11) GENERATED ALWAYS AS (`a` % 2) VIRTUAL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table t1;
 # Case 9. CREATE LIKE
@@ -173,7 +173,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
-  `c` int(11) AS (dayofyear(b)) VIRTUAL,
+  `c` int(11) GENERATED ALWAYS AS (dayofyear(`b`)) VIRTUAL,
   `b` datetime DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table t1;
@@ -194,7 +194,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
-  `c` int(11) AS (dayofyear(b)) PERSISTENT,
+  `c` int(11) GENERATED ALWAYS AS (dayofyear(`b`)) STORED,
   `b` datetime DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table t1;
@@ -216,7 +216,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` datetime DEFAULT NULL,
-  `c` int(11) AS (week(b,1)) PERSISTENT
+  `c` int(11) GENERATED ALWAYS AS (week(`b`,1)) STORED
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table t1;
 # Case 15. ALTER. Changing the expression of a virtual non-stored column.
@@ -237,7 +237,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` datetime DEFAULT NULL,
-  `c` int(11) AS (week(b,1)) VIRTUAL
+  `c` int(11) GENERATED ALWAYS AS (week(`b`,1)) VIRTUAL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table t1;
 #

@@ -25,9 +25,8 @@ Created 3/26/1996 Heikki Tuuri
 
 #include "trx0trx.h"
 #include "data0type.h"
-#ifndef UNIV_HOTBACKUP
-# include "srv0srv.h"
-# include "mtr0log.h"
+#include "srv0srv.h"
+#include "mtr0log.h"
 
 /* The typedef for rseg slot in the file copy */
 typedef byte	trx_sysf_rseg_t;
@@ -198,7 +197,6 @@ trx_sysf_rseg_set_page_no(
 			 page_no,
 			 MLOG_4BYTES, mtr);
 }
-#endif /* !UNIV_HOTBACKUP */
 
 /*****************************************************************//**
 Writes a trx id to an index page. In case that the id size changes in
@@ -230,7 +228,6 @@ trx_sys_is_noredo_rseg_slot(
 	return(slot_id > 0 && slot_id < (srv_tmp_undo_logs + 1));
 }
 
-#ifndef UNIV_HOTBACKUP
 /*****************************************************************//**
 Reads a trx id from an index page. In case that the id size changes in
 some future version, this function should be used instead of
@@ -503,5 +500,3 @@ trx_sys_rw_trx_add(trx_t* trx)
 	trx_sys->rw_trx_set.insert(TrxTrack(trx->id, trx));
 	ut_d(trx->in_rw_trx_list = true);
 }
-
-#endif /* !UNIV_HOTBACKUP */

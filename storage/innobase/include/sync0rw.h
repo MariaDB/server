@@ -34,15 +34,12 @@ Created 9/11/1995 Heikki Tuuri
 #define sync0rw_h
 
 #include "univ.i"
-#ifndef UNIV_HOTBACKUP
 #include "ut0counter.h"
 #include "os0event.h"
 #include "ut0mutex.h"
 
 /** Enable semaphore request instrumentation */
 extern my_bool srv_instrument_semaphores;
-
-#endif /* !UNIV_HOTBACKUP */
 
 /** Counters for RW locks. */
 struct rw_lock_stats_t {
@@ -96,7 +93,6 @@ enum rw_lock_type_t {
 	RW_NO_LATCH = 8
 };
 
-#ifndef UNIV_HOTBACKUP
 /* We decrement lock_word by X_LOCK_DECR for each x_lock. It is also the
 start value for the lock_word, meaning that it limits the maximum number
 of concurrent read locks before the rw_lock breaks. */
@@ -482,14 +478,6 @@ ulint
 rw_lock_get_sx_lock_count(
 /*======================*/
 	const rw_lock_t*	lock);	/*!< in: rw-lock */
-/********************************************************************//**
-Check if there are threads waiting for the rw-lock.
-@return 1 if waiters, 0 otherwise */
-UNIV_INLINE
-ulint
-rw_lock_get_waiters(
-/*================*/
-	const rw_lock_t*	lock);	/*!< in: rw-lock */
 /******************************************************************//**
 Returns the write-status of the lock - this function made more sense
 with the old rw_lock implementation.
@@ -518,31 +506,6 @@ rw_lock_lock_word_decr(
 	rw_lock_t*	lock,		/*!< in/out: rw-lock */
 	ulint		amount,		/*!< in: amount to decrement */
 	lint		threshold);	/*!< in: threshold of judgement */
-/******************************************************************//**
-Increments lock_word the specified amount and returns new value.
-@return lock->lock_word after increment */
-UNIV_INLINE
-lint
-rw_lock_lock_word_incr(
-/*===================*/
-	rw_lock_t*	lock,		/*!< in/out: rw-lock */
-	ulint		amount);	/*!< in: amount to increment */
-/******************************************************************//**
-This function sets the lock->writer_thread and lock->recursive fields.
-For platforms where we are using atomic builtins instead of lock->mutex
-it sets the lock->writer_thread field using atomics to ensure memory
-ordering. Note that it is assumed that the caller of this function
-effectively owns the lock i.e.: nobody else is allowed to modify
-lock->writer_thread at this point in time.
-The protocol is that lock->writer_thread MUST be updated BEFORE the
-lock->recursive flag is set. */
-UNIV_INLINE
-void
-rw_lock_set_writer_id_and_recursion_flag(
-/*=====================================*/
-	rw_lock_t*	lock,		/*!< in/out: lock to work on */
-	bool		recursive);	/*!< in: true if recursion
-					allowed */
 #ifdef UNIV_DEBUG
 /******************************************************************//**
 Checks if the thread has locked the rw-lock in the specified mode, with
@@ -627,18 +590,7 @@ struct rw_lock_t
 	volatile lint	lock_word;
 
 	/** 1: there are waiters */
-	volatile ulint	waiters;
-
-	/** Default value FALSE which means the lock is non-recursive.
-	The value is typically set to TRUE making normal rw_locks recursive.
-	In case of asynchronous IO, when a non-zero value of 'pass' is
-	passed then we keep the lock non-recursive.
-
-	This flag also tells us about the state of writer_thread field.
-	If this flag is set then writer_thread MUST contain the thread
-	id of the current x-holder or wait-x thread.  This flag must be
-	reset in x_unlock functions before incrementing the lock_word */
-	volatile bool	recursive;
+	volatile uint32_t	waiters;
 
 	/** number of granted SX locks. */
 	volatile ulint	sx_recursive;
@@ -649,8 +601,12 @@ struct rw_lock_t
 	causing much memory bus traffic */
 	bool		writer_is_wait_ex;
 
-	/** Thread id of writer thread. Is only guaranteed to have sane
-	and non-stale value iff recursive flag is set. */
+	/** The value is typically set to thread id of a writer thread making
+	normal rw_locks recursive. In case of asynchronous IO, when a non-zero
+	value of 'pass' is passed then we keep the lock non-recursive.
+
+	writer_thread must be reset in x_unlock functions before incrementing
+	the lock_word. */
 	volatile os_thread_id_t	writer_thread;
 
 	/** Used by sync0arr.cc for thread queueing */
@@ -696,11 +652,6 @@ struct rw_lock_t
 	/** The instrumentation hook */
 	struct PSI_rwlock*	pfs_psi;
 #endif /* UNIV_PFS_RWLOCK */
-
-#ifndef INNODB_RW_LOCKS_USE_ATOMICS
-	/** The mutex protecting rw_lock_t */
-	mutable ib_mutex_t mutex;
-#endif /* INNODB_RW_LOCKS_USE_ATOMICS */
 
 #ifdef UNIV_DEBUG
 /** Value of rw_lock_t::magic_n */
@@ -942,11 +893,8 @@ pfs_rw_lock_free_func(
 	rw_lock_t*	lock);	/*!< in: rw-lock */
 #endif  /* UNIV_PFS_RWLOCK */
 
-
 #ifndef UNIV_NONINL
 #include "sync0rw.ic"
 #endif /* !UNIV_NONINL */
-
-#endif /* !UNIV_HOTBACKUP */
 
 #endif /* sync0rw.h */

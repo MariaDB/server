@@ -488,7 +488,7 @@ GLOBAL_VALUE_ORIGIN	COMPILE-TIME
 DEFAULT_VALUE	crc32
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	ENUM
-VARIABLE_COMMENT	The algorithm InnoDB uses for page checksumming. Possible values are CRC32 (hardware accelerated if the CPU supports it) write crc32, allow any of the other checksums to match when reading; STRICT_CRC32 write crc32, do not allow other algorithms to match when reading; INNODB write a software calculated checksum, allow any other checksums to match when reading; STRICT_INNODB write a software calculated checksum, do not allow other algorithms to match when reading; NONE write a constant magic number, do not do any checksum verification when reading (same as innodb_checksums=OFF); STRICT_NONE write a constant magic number, do not allow values other than that magic number when reading; Files updated when this option is set to crc32 or strict_crc32 will not be readable by MySQL versions older than 5.6.3
+VARIABLE_COMMENT	The algorithm InnoDB uses for page checksumming. Possible values are CRC32 (hardware accelerated if the CPU supports it) write crc32, allow any of the other checksums to match when reading; STRICT_CRC32 write crc32, do not allow other algorithms to match when reading; INNODB write a software calculated checksum, allow any other checksums to match when reading; STRICT_INNODB write a software calculated checksum, do not allow other algorithms to match when reading; NONE write a constant magic number, do not do any checksum verification when reading (same as innodb_checksums=OFF); STRICT_NONE write a constant magic number, do not allow values other than that magic number when reading; Files updated when this option is set to crc32 or strict_crc32 will not be readable by MariaDB versions older than 10.0.4
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -535,6 +535,20 @@ NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
 ENUM_VALUE_LIST	none,zlib,lz4,lzo,lzma,bzip2,snappy
+READ_ONLY	NO
+COMMAND_LINE_ARGUMENT	OPTIONAL
+VARIABLE_NAME	INNODB_COMPRESSION_DEFAULT
+SESSION_VALUE	OFF
+GLOBAL_VALUE	OFF
+GLOBAL_VALUE_ORIGIN	COMPILE-TIME
+DEFAULT_VALUE	OFF
+VARIABLE_SCOPE	SESSION
+VARIABLE_TYPE	BOOLEAN
+VARIABLE_COMMENT	Is compression the default for new tables
+NUMERIC_MIN_VALUE	NULL
+NUMERIC_MAX_VALUE	NULL
+NUMERIC_BLOCK_SIZE	NULL
+ENUM_VALUE_LIST	OFF,ON
 READ_ONLY	NO
 COMMAND_LINE_ARGUMENT	OPTIONAL
 VARIABLE_NAME	INNODB_COMPRESSION_FAILURE_THRESHOLD_PCT
@@ -618,6 +632,20 @@ VARIABLE_COMMENT	Path to individual files and their sizes.
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
+ENUM_VALUE_LIST	NULL
+READ_ONLY	YES
+COMMAND_LINE_ARGUMENT	REQUIRED
+VARIABLE_NAME	INNODB_DATA_FILE_SIZE_DEBUG
+SESSION_VALUE	NULL
+GLOBAL_VALUE	0
+GLOBAL_VALUE_ORIGIN	COMPILE-TIME
+DEFAULT_VALUE	0
+VARIABLE_SCOPE	GLOBAL
+VARIABLE_TYPE	BIGINT UNSIGNED
+VARIABLE_COMMENT	InnoDB system tablespace size to be set in recovery.
+NUMERIC_MIN_VALUE	0
+NUMERIC_MAX_VALUE	4294967295
+NUMERIC_BLOCK_SIZE	0
 ENUM_VALUE_LIST	NULL
 READ_ONLY	YES
 COMMAND_LINE_ARGUMENT	REQUIRED
@@ -1447,6 +1475,20 @@ NUMERIC_BLOCK_SIZE	NULL
 ENUM_VALUE_LIST	OFF,ON
 READ_ONLY	YES
 COMMAND_LINE_ARGUMENT	NONE
+VARIABLE_NAME	INNODB_LOCK_SCHEDULE_ALGORITHM
+SESSION_VALUE	NULL
+GLOBAL_VALUE	vats
+GLOBAL_VALUE_ORIGIN	COMPILE-TIME
+DEFAULT_VALUE	vats
+VARIABLE_SCOPE	GLOBAL
+VARIABLE_TYPE	ENUM
+VARIABLE_COMMENT	The algorithm Innodb uses for deciding which locks to grant next when a lock is released. Possible values are FCFS grant the locks in First-Come-First-Served order; VATS use the Variance-Aware-Transaction-Scheduling algorithm, which uses an Eldest-Transaction-First heuristic.
+NUMERIC_MIN_VALUE	NULL
+NUMERIC_MAX_VALUE	NULL
+NUMERIC_BLOCK_SIZE	NULL
+ENUM_VALUE_LIST	fcfs,vats
+READ_ONLY	NO
+COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	INNODB_LOCK_WAIT_TIMEOUT
 SESSION_VALUE	50
 GLOBAL_VALUE	50
@@ -1902,7 +1944,7 @@ GLOBAL_VALUE_ORIGIN	COMPILE-TIME
 DEFAULT_VALUE	OFF
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BOOLEAN
-VARIABLE_COMMENT	Print all deadlocks to MySQL error log (off by default)
+VARIABLE_COMMENT	Print all deadlocks to MariaDB error log (off by default)
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -2560,7 +2602,7 @@ GLOBAL_VALUE_ORIGIN	COMPILE-TIME
 DEFAULT_VALUE	OFF
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BOOLEAN
-VARIABLE_COMMENT	Preallocate files fast, using operating system functionality. On POSIX systems, posix_fallocate system call is used.
+VARIABLE_COMMENT	Use posix_fallocate() to allocate files. DEPRECATED, has no effect.
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL

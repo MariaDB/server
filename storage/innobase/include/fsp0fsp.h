@@ -48,7 +48,7 @@ Created 12/18/1995 Heikki Tuuri
 					+ FSP_FLAGS_WIDTH_PAGE_SSIZE)
 /** Bit mask of the DATA_DIR field */
 #define FSP_FLAGS_MASK_DATA_DIR_ORACLE				\
-		((~(~0 << FSP_FLAGS_WIDTH_DATA_DIR))		\
+		((~(~0U << FSP_FLAGS_WIDTH_DATA_DIR))		\
 		<< FSP_FLAGS_POS_DATA_DIR_ORACLE)
 
 #define FSP_FLAGS_HAS_DATA_DIR_ORACLE(flags)			\
@@ -360,6 +360,16 @@ fsp_header_get_encryption_key(
 	byte*		key,
 	byte*		iv,
 	page_t*		page);
+
+/** Get the byte offset of encryption information in page 0.
+@param[in]	ps	page size
+@return	byte offset relative to FSP_HEADER_OFFSET */
+inline MY_ATTRIBUTE((pure, warn_unused_result))
+ulint
+fsp_header_get_encryption_offset(const page_size_t& ps)
+{
+	return XDES_ARR_OFFSET + XDES_SIZE * ps.physical() / FSP_EXTENT_SIZE;
+}
 
 /** Check the encryption key from the first page of a tablespace.
 @param[in]	fsp_flags	tablespace flags
@@ -769,20 +779,6 @@ ulint
 xdes_calc_descriptor_page(
 	const page_size_t&	page_size,
 	ulint			offset);
-
-#endif /* !UNIV_INNOCHECKSUM */
-
-/*********************************************************************//**
-@return offset into fsp header where crypt data is stored */
-UNIV_INTERN
-ulint
-fsp_header_get_crypt_offset(
-/*========================*/
-	const page_size_t&	page_size,/*!< in: page size */
-	ulint* max_size);	/*!< out: free space after offset */
-
-
-#ifndef UNIV_INNOCHECKSUM
 
 /**********************************************************************//**
 Checks if a single page is free.

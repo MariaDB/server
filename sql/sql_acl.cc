@@ -1064,7 +1064,12 @@ static bool fix_lex_user(THD *thd, LEX_USER *user)
       make_scramble= my_make_scrambled_password;
     }
 
+    Query_arena *arena, backup;
+    arena= thd->activate_stmt_arena_if_needed(&backup);
     char *buff= (char *) thd->alloc(scramble_length + 1);
+    if (arena)
+      thd->restore_active_arena(arena, &backup);
+
     if (buff == NULL)
       return true;
     make_scramble(buff, user->pwtext.str, user->pwtext.length);
@@ -1750,7 +1755,7 @@ bool acl_reload(THD *thd)
   my_hash_init2(&acl_roles,50, &my_charset_utf8_bin,
                 0, 0, 0, (my_hash_get_key) acl_role_get_key, 0,
                 (void (*)(void *))free_acl_role, 0);
-  my_hash_init2(&acl_roles_mappings, 50, system_charset_info, 0, 0, 0,
+  my_hash_init2(&acl_roles_mappings, 50, &my_charset_utf8_bin, 0, 0, 0,
                 (my_hash_get_key) acl_role_map_get_key, 0, 0, 0);
   old_mem= acl_memroot;
   delete_dynamic(&acl_wild_hosts);
@@ -12030,14 +12035,9 @@ static ulong parse_client_handshake_packet(MPVIO_EXT *mpvio,
     mostly for backward compatibility (to truncate long usernames, as
     old 5.1 did)
   */
-  {
-    CHARSET_INFO *cs= system_charset_info;
-    int           err;
-
-    user_len= (uint) cs->cset->well_formed_len(cs, user, user + user_len,
-                                               username_char_length, &err);
-    user[user_len]= '\0';
-  }
+  user_len= Well_formed_prefix(system_charset_info, user, user_len,
+                               username_char_length).length();
+  user[user_len]= '\0';
 
   Security_context *sctx= thd->security_ctx;
 

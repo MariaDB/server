@@ -27,13 +27,9 @@ Created 2012-11-16 by Sunny Bains as srv/srv0space.cc
 
 #include "fsp0space.h"
 #include "fsp0sysspace.h"
-#ifndef UNIV_HOTBACKUP
 #include "fsp0fsp.h"
 #include "os0file.h"
-#endif /* !UNIV_HOTBACKUP */
-
 #include "my_sys.h"
-
 
 /** Check if two tablespaces have common data file names.
 @param other_space	Tablespace to check against this.
@@ -122,18 +118,12 @@ Tablespace::open_or_create(bool is_temp)
 			break;
 		}
 
-		bool	atomic_write;
-
-#if !defined(NO_FALLOCATE) && defined(UNIV_LINUX)
-		if (!srv_use_doublewrite_buf) {
-			atomic_write = fil_fusionio_enable_atomic_write(
-				it->m_handle);
-		} else {
-			atomic_write = false;
-		}
+#ifdef UNIV_LINUX
+		const bool atomic_write = fil_fusionio_enable_atomic_write(
+			it->m_handle);
 #else
-		atomic_write = false;
-#endif /* !NO_FALLOCATE && UNIV_LINUX */
+		const bool atomic_write = false;
+#endif
 
 		/* We can close the handle now and open the tablespace
 		the proper way. */
@@ -150,7 +140,8 @@ Tablespace::open_or_create(bool is_temp)
 			tablespace in the tablespace manager. */
 			space = fil_space_create(
 				m_name, m_space_id, flags, is_temp
-				? FIL_TYPE_TEMPORARY : FIL_TYPE_TABLESPACE, it->m_crypt_info);
+				? FIL_TYPE_TEMPORARY : FIL_TYPE_TABLESPACE, it->m_crypt_info,
+				false);
 		}
 
 		ut_a(fil_validate());
@@ -185,7 +176,6 @@ Tablespace::find(const char* filename)
 	return(false);
 }
 
-
 /** Delete all the data files. */
 void
 Tablespace::delete_files()
@@ -205,17 +195,6 @@ Tablespace::delete_files()
 				" file: \"" << it->m_name << "\"";
 		}
 	}
-}
-
-/** Check if undo tablespace.
-@return true if undo tablespace */
-bool
-Tablespace::is_undo_tablespace(
-	ulint	id)
-{
-	return(id <= srv_undo_tablespaces_open
-	       && id != srv_sys_space.space_id()
-	       && id != srv_tmp_space.space_id());
 }
 
 /** Use the ADD DATAFILE path to create a Datafile object and add it to the

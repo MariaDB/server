@@ -32,9 +32,7 @@ Created 7/19/1997 Heikki Tuuri
 #include "mtr0mtr.h"
 #include "dict0mem.h"
 #include "fsp0fsp.h"
-
-#ifndef UNIV_HOTBACKUP
-# include "ibuf0types.h"
+#include "ibuf0types.h"
 
 /** Default value for maximum on-disk size of change buffer in terms
 of percentage of the buffer pool. */
@@ -377,7 +375,6 @@ ibuf_merge_space(
 /*=============*/
 	ulint	space);	/*!< in: space id */
 
-#endif /* !UNIV_HOTBACKUP */
 /*********************************************************************//**
 Parses a redo log record of an ibuf bitmap page init.
 @return end of log record or NULL */
@@ -388,9 +385,8 @@ ibuf_parse_bitmap_init(
 	byte*		end_ptr,/*!< in: buffer end */
 	buf_block_t*	block,	/*!< in: block or NULL */
 	mtr_t*		mtr);	/*!< in: mtr or NULL */
-#ifndef UNIV_HOTBACKUP
-#ifdef UNIV_IBUF_COUNT_DEBUG
 
+#ifdef UNIV_IBUF_COUNT_DEBUG
 /** Gets the ibuf count for a given page.
 @param[in]	page_id	page id
 @return number of entries in the insert buffer currently buffered for
@@ -398,7 +394,6 @@ this page */
 ulint
 ibuf_count_get(
 	const page_id_t&	page_id);
-
 #endif
 /******************************************************************//**
 Looks if the insert buffer is empty.
@@ -446,8 +441,6 @@ ibuf_set_bitmap_for_bulk_load(
 
 #define IBUF_HEADER_PAGE_NO	FSP_IBUF_HEADER_PAGE_NO
 #define IBUF_TREE_ROOT_PAGE_NO	FSP_IBUF_TREE_ROOT_PAGE_NO
-
-#endif /* !UNIV_HOTBACKUP */
 
 /* The ibuf header page currently contains only the file segment header
 for the file segment from which the pages for the ibuf tree are allocated */

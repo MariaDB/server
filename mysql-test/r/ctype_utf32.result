@@ -1662,6 +1662,11 @@ CHAR_LENGTH(TRIM(BOTH 0x61 FROM _utf32 0x00000061))
 SELECT CHAR_LENGTH(TRIM(BOTH 0x00 FROM _utf32 0x00000061));
 CHAR_LENGTH(TRIM(BOTH 0x00 FROM _utf32 0x00000061))
 1
+select hex(lower(cast(0xffff0000 as char character set utf32))) as c;
+c
+0000003F0000003F0000003F0000003F
+Warnings:
+Warning	1300	Invalid utf32 character string: '\xFF\xFF\x00\x00'
 #
 # End of 5.5 tests
 #

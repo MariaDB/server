@@ -433,7 +433,7 @@ void Materialized_cursor::on_table_fill_finished()
 bool Select_materialize::send_result_set_metadata(List<Item> &list, uint flags)
 {
   DBUG_ASSERT(table == 0);
-  if (create_result_table(unit->thd, unit->get_unit_column_types(),
+  if (create_result_table(unit->thd, unit->get_column_types(true),
                           FALSE,
                           thd->variables.option_bits | TMP_TABLE_ALL_COLUMNS,
                           "", FALSE, TRUE, TRUE))

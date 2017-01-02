@@ -1,7 +1,8 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, MariaDB Corporation
+Copyright (c) 2015, 2016, MariaDB Corporation. All Rights Reserved.
+
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -393,10 +394,14 @@ ibool
 trx_state_eq(
 /*=========*/
 	const trx_t*	trx,	/*!< in: transaction */
-	trx_state_t	state)	/*!< in: state;
+	trx_state_t	state,	/*!< in: state;
 				if state != TRX_STATE_NOT_STARTED
 				asserts that
 				trx->state != TRX_STATE_NOT_STARTED */
+	bool		relaxed = false)
+				/*!< in: whether to allow
+				trx->state == TRX_STATE_NOT_STARTED
+				after an error has been reported */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 # ifdef UNIV_DEBUG
 /**********************************************************************//**
@@ -707,8 +712,7 @@ lock_sys->mutex and sometimes by trx->mutex. */
 
 typedef enum {
 	TRX_SERVER_ABORT = 0,
-	TRX_WSREP_ABORT  = 1,
-	TRX_REPLICATION_ABORT = 2
+	TRX_WSREP_ABORT  = 1
 } trx_abort_t;
 
 struct trx_t{
@@ -877,6 +881,8 @@ struct trx_t{
 
 	time_t		start_time;	/*!< time the trx state last time became
 					TRX_STATE_ACTIVE */
+	clock_t		start_time_micro;	/*!< start time of transaction in
+					microseconds */
 	trx_id_t	id;		/*!< transaction id */
 	XID		xid;		/*!< X/Open XA transaction
 					identification to identify a

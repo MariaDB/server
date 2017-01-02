@@ -33,63 +33,10 @@ Created 10/25/1995 Heikki Tuuri
 #include "log0recv.h"
 #include "dict0types.h"
 #include "page0size.h"
-#ifndef UNIV_HOTBACKUP
 #include "ibuf0types.h"
-#else
-#include "log0log.h"
-#include "os0file.h"
-#include "m_string.h"
-#endif /* !UNIV_HOTBACKUP */
 
 #include <list>
 #include <vector>
-
-#ifdef UNIV_HOTBACKUP
-#include <cstring>
-/** determine if file is intermediate / temporary.These files are created during
-reorganize partition, rename tables, add / drop columns etc.
-@param[in]	filepath asbosolute / relative or simply file name
-@retvalue	true	if it is intermediate file
-@retvalue	false	if it is normal file */
-inline
-bool
-is_intermediate_file(const std::string& filepath)
-{
-	std::string file_name = filepath;
-
-	// extract file name from relative or absolute file name
-	std::size_t pos = file_name.rfind(OS_PATH_SEPARATOR);
-	if (pos != std::string::npos)
-		file_name = file_name.substr(++pos);
-
-	transform(file_name.begin(), file_name.end(),
-		file_name.begin(), ::tolower);
-
-	if (file_name[0] != '#') {
-		pos = file_name.rfind("#tmp#.ibd");
-		if (pos != std::string::npos)
-			return true;
-		else
-			return false;  /* normal file name */
-	}
-
-	std::vector<std::string> file_name_patterns = {"#sql-", "#sql2-",
-		"#tmp#", "#ren#"};
-
-	/* search for the unsupported patterns */
-	for (auto itr = file_name_patterns.begin();
-		itr != file_name_patterns.end();
-		itr++) {
-
-		if (0 == std::strncmp(file_name.c_str(),
-			itr->c_str(), itr->length())){
-			return true;
-		}
-	}
-
-	return false;
-}
-#endif /* UNIV_HOTBACKUP */
 
 extern const char general_space_name[];
 
@@ -97,8 +44,6 @@ extern const char general_space_name[];
 struct trx_t;
 class page_id_t;
 class truncate_t;
-struct fil_node_t;
-struct fil_space_t;
 struct btr_create_t;
 
 /* structure containing encryption specification */
@@ -184,6 +129,10 @@ struct fil_space_t {
 				/*!< length of the FSP_FREE list */
 	ulint		free_limit;
 				/*!< contents of FSP_FREE_LIMIT */
+	ulint		recv_size;
+				/*!< recovered tablespace size in pages;
+				0 if no size change was read from the redo log,
+				or if the size change was implemented */
 	ulint		flags;	/*!< tablespace flags; see
 				fsp_flags_is_valid(),
 				page_size_t(ulint) (constructor) */
@@ -203,10 +152,8 @@ struct fil_space_t {
 				Protected by fil_system->mutex. */
 	hash_node_t	hash;	/*!< hash chain node */
 	hash_node_t	name_hash;/*!< hash chain the name_hash table */
-#ifndef UNIV_HOTBACKUP
 	rw_lock_t	latch;	/*!< latch protecting the file space storage
 				allocation */
-#endif /* !UNIV_HOTBACKUP */
 	UT_LIST_NODE_T(fil_space_t) unflushed_spaces;
 				/*!< list of spaces with at least one unflushed
 				file we have written to */
@@ -237,8 +184,8 @@ struct fil_space_t {
 	/** MariaDB encryption data */
         fil_space_crypt_t* crypt_data;
 
-	/** Space file block size */
-	ulint		file_block_size;
+	/** tablespace crypt data has been read */
+	bool		page_0_crypt_read;
 
 	/** True if we have already printed compression failure */
 	bool		printed_compression_failure;
@@ -617,9 +564,7 @@ fil_space_get(
 data space) is stored here; below we talk about tablespaces, but also
 the ib_logfiles form a 'space' and it is handled here */
 struct fil_system_t {
-#ifndef UNIV_HOTBACKUP
 	ib_mutex_t	mutex;		/*!< The mutex protecting the cache */
-#endif /* !UNIV_HOTBACKUP */
 	hash_table_t*	spaces;		/*!< The hash table of spaces in the
 					system; they are hashed on the space
 					id */
@@ -681,7 +626,6 @@ extern fil_system_t*	fil_system;
 
 #include "fil0crypt.h"
 
-#ifndef UNIV_HOTBACKUP
 /** Returns the latch of a file space.
 @param[in]	id	space id
 @param[out]	flags	tablespace flags
@@ -708,15 +652,14 @@ void
 fil_space_set_imported(
 	ulint	id);
 
-# ifdef UNIV_DEBUG
+#ifdef UNIV_DEBUG
 /** Determine if a tablespace is temporary.
 @param[in]	id	tablespace identifier
 @return whether it is a temporary tablespace */
 bool
 fsp_is_temporary(ulint id)
 MY_ATTRIBUTE((warn_unused_result, pure));
-# endif /* UNIV_DEBUG */
-#endif /* !UNIV_HOTBACKUP */
+#endif /* UNIV_DEBUG */
 
 /** Append a file to the chain of files of a space.
 @param[in]	name		file name of a file that is not open
@@ -753,7 +696,8 @@ fil_space_create(
 	ulint		id,
 	ulint		flags,
 	fil_type_t	purpose,	/*!< in: FIL_TABLESPACE, or FIL_LOG if log */
-	fil_space_crypt_t* crypt_data)	/*!< in: crypt data */
+	fil_space_crypt_t* crypt_data, /*!< in: crypt data */
+	bool		create_table)  /*!< in: true if create table */
 	MY_ATTRIBUTE((warn_unused_result));
 
 /*******************************************************************//**
@@ -787,6 +731,12 @@ char*
 fil_space_get_first_path(
 	ulint		id);
 
+/** Set the recovered size of a tablespace in pages.
+@param id	tablespace ID
+@param size	recovered size in pages */
+UNIV_INTERN
+void
+fil_space_set_recv_size(ulint id, ulint size);
 /*******************************************************************//**
 Returns the size of the space in pages. The tablespace must be cached in the
 memory cache.
@@ -875,7 +825,6 @@ void
 fil_set_max_space_id_if_bigger(
 /*===========================*/
 	ulint	max_id);/*!< in: maximum known id */
-#ifndef UNIV_HOTBACKUP
 
 /** Write the flushed LSN to the page header of the first page in the
 system tablespace.
@@ -966,8 +915,6 @@ private:
 	/** The wrapped pointer */
 	fil_space_t*	m_space;
 };
-
-#endif /* !UNIV_HOTBACKUP */
 
 /********************************************************//**
 Creates the database directory for a table if it does not exist yet. */
@@ -1068,7 +1015,7 @@ fil_close_tablespace(
 /*=================*/
 	trx_t*	trx,	/*!< in/out: Transaction covering the close */
 	ulint	id);	/*!< in: space id */
-#ifndef UNIV_HOTBACKUP
+
 /*******************************************************************//**
 Discards a single-table tablespace. The tablespace must be cached in the
 memory cache. Discarding is like deleting a tablespace, but
@@ -1088,7 +1035,6 @@ fil_discard_tablespace(
 /*===================*/
 	ulint	id)	/*!< in: space id */
 	MY_ATTRIBUTE((warn_unused_result));
-#endif /* !UNIV_HOTBACKUP */
 
 /** Test if a tablespace file can be renamed to a new filepath by checking
 if that the old filepath exists and the new filepath does not exist.
@@ -1234,7 +1180,6 @@ fil_file_readdir_next_file(
 	os_file_dir_t	dir,	/*!< in: directory stream */
 	os_file_stat_t*	info);	/*!< in/out: buffer where the
 				info is returned */
-#ifndef UNIV_HOTBACKUP
 /*******************************************************************//**
 Returns true if a matching tablespace exists in the InnoDB tablespace memory
 cache. Note that if we have not done a crash recovery at the database startup,
@@ -1256,16 +1201,7 @@ fil_space_for_table_exists_in_mem(
 	mem_heap_t*	heap,		/*!< in: heap memory */
 	table_id_t	table_id,	/*!< in: table id */
 	dict_table_t*	table);		/*!< in: table or NULL */
-#else /* !UNIV_HOTBACKUP */
-/********************************************************************//**
-Extends all tablespaces to the size stored in the space header. During the
-mysqlbackup --apply-log phase we extended the spaces on-demand so that log
-records could be appllied, but that may have left spaces still too small
-compared to the size stored in the space header. */
-void
-fil_extend_tablespaces_to_stored_len(void);
-/*======================================*/
-#endif /* !UNIV_HOTBACKUP */
+
 /** Try to extend a tablespace if it is smaller than the specified size.
 @param[in,out]	space	tablespace
 @param[in]	size	desired size in pages
@@ -1609,18 +1545,6 @@ fil_get_space_names(
 				/*!< in/out: Vector for collecting the names. */
 	MY_ATTRIBUTE((warn_unused_result));
 
-/** Return the next fil_node_t in the current or next fil_space_t.
-Once started, the caller must keep calling this until it returns NULL.
-fil_space_acquire() and fil_space_release() are invoked here which
-blocks a concurrent operation from dropping the tablespace.
-@param[in]	prev_node	Pointer to the previous fil_node_t.
-If NULL, use the first fil_space_t on fil_system->space_list.
-@return pointer to the next fil_node_t.
-@retval NULL if this was the last file node */
-const fil_node_t*
-fil_node_next(
-	const fil_node_t*	prev_node);
-
 /** Generate redo log for swapping two .ibd files
 @param[in]	old_table	old table
 @param[in]	new_table	new table
@@ -1809,14 +1733,14 @@ fil_names_clear(
 	lsn_t	lsn,
 	bool	do_write);
 
-#if !defined(NO_FALLOCATE) && defined(UNIV_LINUX)
+#ifdef UNIV_LINUX
 /**
 Try and enable FusionIO atomic writes.
 @param[in] file		OS file handle
 @return true if successful */
 bool
 fil_fusionio_enable_atomic_write(os_file_t file);
-#endif /* !NO_FALLOCATE && UNIV_LINUX */
+#endif /* UNIV_LINUX */
 
 /** Note that the file system where the file resides doesn't support PUNCH HOLE
 @param[in,out]	node		Node to set */

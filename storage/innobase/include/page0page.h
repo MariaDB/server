@@ -1,5 +1,4 @@
 /*****************************************************************************
-
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2013, 2016, MariaDB Corporation
 
@@ -70,10 +69,12 @@ typedef	byte		page_header_t;
 #define	PAGE_N_DIRECTION 14	/* number of consecutive inserts to the same
 				direction */
 #define	PAGE_N_RECS	 16	/* number of user records on the page */
-#define PAGE_MAX_TRX_ID	 18	/* highest id of a trx which may have modified
-				a record on the page; trx_id_t; defined only
-				in secondary indexes and in the insert buffer
-				tree */
+/** The largest DB_TRX_ID that may have modified a record on the page;
+Defined only in secondary index leaf pages and in change buffer leaf pages.
+Otherwise written as 0. @see PAGE_ROOT_AUTO_INC */
+#define PAGE_MAX_TRX_ID	 18
+/** The AUTO_INCREMENT value (on persistent clustered index root pages). */
+#define PAGE_ROOT_AUTO_INC	PAGE_MAX_TRX_ID
 #define PAGE_HEADER_PRIV_END 26	/* end of private data structure of the page
 				header which are set in a page create */
 /*----*/
@@ -213,6 +214,32 @@ page_update_max_trx_id(
 				uncompressed part will be updated, or NULL */
 	trx_id_t	trx_id,	/*!< in: transaction id */
 	mtr_t*		mtr);	/*!< in/out: mini-transaction */
+
+/** Persist the AUTO_INCREMENT value on a clustered index root page.
+@param[in,out]	block	clustered index root page
+@param[in]	index	clustered index
+@param[in]	autoinc	next available AUTO_INCREMENT value
+@param[in,out]	mtr	mini-transaction
+@param[in]	reset	whether to reset the AUTO_INCREMENT
+			to a possibly smaller value than currently
+			exists in the page */
+void
+page_set_autoinc(
+	buf_block_t*		block,
+	const dict_index_t*	index MY_ATTRIBUTE((unused)),
+	ib_uint64_t		autoinc,
+	mtr_t*			mtr,
+	bool			reset)
+	MY_ATTRIBUTE((nonnull));
+
+/** Read the AUTO_INCREMENT value from a clustered index root page.
+@param[in]	page	clustered index root page
+@return	the persisted AUTO_INCREMENT value */
+MY_ATTRIBUTE((nonnull, warn_unused_result))
+UNIV_INLINE
+ib_uint64_t
+page_get_autoinc(const page_t* page);
+
 /*************************************************************//**
 Returns the RTREE SPLIT SEQUENCE NUMBER (FIL_RTREE_SPLIT_SEQ_NUM).
 @return SPLIT SEQUENCE NUMBER */
@@ -282,7 +309,7 @@ page_header_set_ptr(
 				uncompressed part will be updated, or NULL */
 	ulint		field,	/*!< in/out: PAGE_FREE, ... */
 	const byte*	ptr);	/*!< in: pointer or NULL*/
-#ifndef UNIV_HOTBACKUP
+
 /*************************************************************//**
 Resets the last insert info field in the page header. Writes to mlog
 about this operation. */
@@ -294,7 +321,6 @@ page_header_reset_last_insert(
 	page_zip_des_t*	page_zip,/*!< in/out: compressed page whose
 				uncompressed part will be updated, or NULL */
 	mtr_t*		mtr);	/*!< in: mtr */
-#endif /* !UNIV_HOTBACKUP */
 /************************************************************//**
 Gets the offset of the first record on the page.
 @return offset of the first record in record list, relative from page */
@@ -335,7 +361,7 @@ page_rec_get_nth(
 	page_t*	page,	/*< in: page */
 	ulint	nth)	/*!< in: nth record */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
-#ifndef UNIV_HOTBACKUP
+
 /************************************************************//**
 Returns the middle record of the records on the page. If there is an
 even number of records in the list, returns the first record of the
@@ -347,7 +373,6 @@ page_get_middle_rec(
 /*================*/
 	page_t*	page)	/*!< in: page */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
-#endif /* !UNIV_HOTBACKUP */
 /*************************************************************//**
 Gets the page number.
 @return page number */
@@ -729,7 +754,7 @@ rec_t*
 page_rec_find_owner_rec(
 /*====================*/
 	rec_t*	rec);	/*!< in: the physical record */
-#ifndef UNIV_HOTBACKUP
+
 /***********************************************************************//**
 Write a 32-bit field in a data dictionary record. */
 UNIV_INLINE
@@ -741,7 +766,6 @@ page_rec_write_field(
 	ulint	val,	/*!< in: value to write */
 	mtr_t*	mtr)	/*!< in/out: mini-transaction */
 	MY_ATTRIBUTE((nonnull));
-#endif /* !UNIV_HOTBACKUP */
 /************************************************************//**
 Returns the maximum combined size of records which can be inserted on top
 of record heap.
@@ -1042,7 +1066,7 @@ page_parse_create(
 	buf_block_t*	block,
 	ulint		comp,
 	bool		is_rtree);
-#ifndef UNIV_HOTBACKUP
+
 /************************************************************//**
 Prints record contents including the data relevant only in
 the index page context. */
@@ -1088,7 +1112,6 @@ page_print(
 	ulint		rn);	/*!< in: print rn first and last records
 				in directory */
 # endif /* UNIV_BTR_PRINT */
-#endif /* !UNIV_HOTBACKUP */
 /***************************************************************//**
 The following is used to validate a record on a page. This function
 differs from rec_validate as it can also check the n_owned field and

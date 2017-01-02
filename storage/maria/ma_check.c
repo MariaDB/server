@@ -6103,7 +6103,7 @@ int maria_recreate_table(HA_CHECK *param, MARIA_HA **org_info, char *filename)
   create_info.data_file_length=file_length;
   create_info.auto_increment=share.state.auto_increment;
   create_info.language = (param->language ? param->language :
-			  share.state.header.language);
+			  share.base.language);
   create_info.key_file_length=  status_info.key_file_length;
   create_info.org_data_file_type= ((enum data_file_type)
                                    share.state.header.org_data_file_type);

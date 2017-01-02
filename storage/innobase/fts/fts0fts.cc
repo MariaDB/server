@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2011, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2016, MariaDB Corporation. All Rights reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1857,7 +1858,7 @@ fts_create_one_common_table(
 		TRX_DICT_OP_TABLE. */
 		trx_dict_op_t op = trx_get_dict_operation(trx);
 
-		error =	row_create_index_for_mysql(index, trx, NULL, NULL);
+		error =	row_create_index_for_mysql(index, trx, NULL);
 
 		trx->dict_operation = op;
 	}
@@ -1974,7 +1975,7 @@ fts_create_common_tables(
 
 	op = trx_get_dict_operation(trx);
 
-	error =	row_create_index_for_mysql(index, trx, NULL, NULL);
+	error =	row_create_index_for_mysql(index, trx, NULL);
 
 	trx->dict_operation = op;
 
@@ -1992,18 +1993,20 @@ func_exit:
 
 	return(error);
 }
-/** Creates one FTS auxiliary index table for an FTS index.
+
+/** Create one FTS auxiliary index table for an FTS index.
 @param[in,out]	trx		transaction
 @param[in]	index		the index instance
 @param[in]	fts_table	fts_table structure
-@param[in]	heap		memory heap
+@param[in,out]	heap		memory heap
+@see row_merge_create_fts_sort_index()
 @return DB_SUCCESS or error code */
 static
 dict_table_t*
 fts_create_one_index_table(
 	trx_t*			trx,
 	const dict_index_t*	index,
-	fts_table_t*		fts_table,
+	const fts_table_t*	fts_table,
 	mem_heap_t*		heap)
 {
 	dict_field_t*		field;
@@ -2027,7 +2030,8 @@ fts_create_one_index_table(
 			       charset == &my_charset_latin1
 			       ? DATA_VARCHAR : DATA_VARMYSQL,
 			       field->col->prtype,
-			       FTS_INDEX_WORD_LEN);
+			       FTS_MAX_WORD_LEN_IN_CHAR
+			       * DATA_MBMAXLEN(field->col->mbminmaxlen));
 
 	dict_mem_table_add_col(new_table, heap, "first_doc_id", DATA_INT,
 			       DATA_NOT_NULL | DATA_UNSIGNED,
@@ -2063,7 +2067,7 @@ fts_create_one_index_table(
 
 		trx_dict_op_t op = trx_get_dict_operation(trx);
 
-		error =	row_create_index_for_mysql(index, trx, NULL, NULL);
+		error =	row_create_index_for_mysql(index, trx, NULL);
 
 		trx->dict_operation = op;
 	}

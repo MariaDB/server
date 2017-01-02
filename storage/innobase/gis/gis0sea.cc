@@ -28,8 +28,6 @@ Created 2014/01/16 Jimmy Yang
 #include "page0cur.h"
 #include "page0zip.h"
 #include "gis0rtree.h"
-
-#ifndef UNIV_HOTBACKUP
 #include "btr0cur.h"
 #include "btr0sea.h"
 #include "btr0pcur.h"
@@ -39,8 +37,6 @@ Created 2014/01/16 Jimmy Yang
 #include "trx0trx.h"
 #include "srv0mon.h"
 #include "gis0geo.h"
-
-#endif /* UNIV_HOTBACKUP */
 
 /*************************************************************//**
 Pop out used parent path entry, until we find the parent with matching
@@ -1550,7 +1546,6 @@ rtr_copy_buf(
 	(another) thread while it was copied. */
 	memcpy(&matches->block.page, &block->page, sizeof(buf_page_t));
 	matches->block.frame = block->frame;
-#ifndef UNIV_HOTBACKUP
 	matches->block.unzip_LRU = block->unzip_LRU;
 
 	ut_d(matches->block.in_unzip_LRU_list = block->in_unzip_LRU_list);
@@ -1569,12 +1564,9 @@ rtr_copy_buf(
 	matches->block.curr_n_fields = block->curr_n_fields;
 	matches->block.curr_left_side = block->curr_left_side;
 	matches->block.index = block->index;
-	matches->block.made_dirty_with_no_latch
-		= block->made_dirty_with_no_latch;
 
 	ut_d(matches->block.debug_latch = block->debug_latch);
 
-#endif /* !UNIV_HOTBACKUP */
 }
 
 /****************************************************************//**

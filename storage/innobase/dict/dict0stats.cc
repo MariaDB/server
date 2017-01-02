@@ -23,8 +23,6 @@ Code used for calculating and manipulating table statistics.
 Created Jan 06, 2010 Vasil Dimov
 *******************************************************/
 
-#ifndef UNIV_HOTBACKUP
-
 #include "univ.i"
 
 #include "ut0ut.h"
@@ -700,7 +698,10 @@ void
 dict_stats_copy(
 /*============*/
 	dict_table_t*		dst,	/*!< in/out: destination table */
-	const dict_table_t*	src)	/*!< in: source table */
+	const dict_table_t*	src,	/*!< in: source table */
+	bool reset_ignored_indexes)	/*!< in: if true, set ignored indexes
+                                             to have the same statistics as if
+                                             the table was empty */
 {
 	dst->stats_last_recalc = src->stats_last_recalc;
 	dst->stat_n_rows = src->stat_n_rows;
@@ -719,7 +720,16 @@ dict_stats_copy(
 	      && (src_idx = dict_table_get_next_index(src_idx)))) {
 
 		if (dict_stats_should_ignore_index(dst_idx)) {
-			continue;
+			if (reset_ignored_indexes) {
+				/* Reset index statistics for all ignored indexes,
+				unless they are FT indexes (these have no statistics)*/
+				if (dst_idx->type & DICT_FTS) {
+					continue;
+				}
+				dict_stats_empty_index(dst_idx, true);
+			} else {
+				continue;
+			}
 		}
 
 		ut_ad(!dict_index_is_ibuf(dst_idx));
@@ -818,7 +828,7 @@ dict_stats_snapshot_create(
 
 	t = dict_stats_table_clone_create(table);
 
-	dict_stats_copy(t, table);
+	dict_stats_copy(t, table, false);
 
 	t->stat_persistent = table->stat_persistent;
 	t->stats_auto_recalc = table->stats_auto_recalc;
@@ -3283,13 +3293,10 @@ dict_stats_update(
 
 			dict_table_stats_lock(table, RW_X_LATCH);
 
-			/* Initialize all stats to dummy values before
-			copying because dict_stats_table_clone_create() does
-			skip corrupted indexes so our dummy object 't' may
-			have less indexes than the real object 'table'. */
-			dict_stats_empty_table(table, true);
-
-			dict_stats_copy(table, t);
+			/* Pass reset_ignored_indexes=true as parameter
+			to dict_stats_copy. This will cause statictics
+			for corrupted indexes to be set to empty values */
+			dict_stats_copy(table, t, true);
 
 			dict_stats_assert_initialized(table);
 
@@ -4281,5 +4288,3 @@ test_dict_stats_all()
 
 #endif /* UNIV_ENABLE_UNIT_TEST_DICT_STATS */
 /* @} */
-
-#endif /* UNIV_HOTBACKUP */

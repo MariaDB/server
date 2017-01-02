@@ -364,8 +364,9 @@ mbr_join_square(
 		b += 2;
 	} while (a != end);
 
-	/* Check for infinity or NaN, so we don't get NaN in calculations */
-	if (my_isinf(square) || my_isnan(square)) {
+	/* Check if finite (not infinity or NaN),
+	so we don't get NaN in calculations */
+	if (!isfinite(square)) {
 		return DBL_MAX;
 	}
 

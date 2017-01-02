@@ -75,7 +75,9 @@ int trx_callback(
     void *extra) {
 
     uint64_t txn_id = txn->id64(txn);
-    uint64_t client_id = txn->get_client_id(txn);
+    uint64_t client_id;
+    void *client_extra;
+    txn->get_client_id(txn, &client_id, &client_extra);
     uint64_t start_time = txn->get_start_time(txn);
     trx_extra_t* e = reinterpret_cast<struct trx_extra_t*>(extra);
     THD* thd = e->thd;
@@ -85,7 +87,7 @@ int trx_callback(
     uint64_t tnow = (uint64_t) ::time(NULL);
     table->field[2]->store(tnow >= start_time ? tnow - start_time : 0, false);
     int error = schema_table_store_record(thd, table);
-    if (!error && thd_killed(thd))
+    if (!error && thd_kill_level(thd))
         error = ER_QUERY_INTERRUPTED;
     return error;
 }
@@ -219,7 +221,7 @@ int lock_waits_callback(
 
     int error = schema_table_store_record(thd, table);
 
-    if (!error && thd_killed(thd))
+    if (!error && thd_kill_level(thd))
         error = ER_QUERY_INTERRUPTED;
 
     return error;
@@ -314,7 +316,9 @@ int locks_callback(
     void* extra) {
 
     uint64_t txn_id = txn->id64(txn);
-    uint64_t client_id = txn->get_client_id(txn);
+    uint64_t client_id;
+    void *client_extra;
+    txn->get_client_id(txn, &client_id, &client_extra);
     locks_extra_t* e = reinterpret_cast<struct locks_extra_t*>(extra);
     THD* thd = e->thd;
     TABLE* table = e->table;
@@ -361,7 +365,7 @@ int locks_callback(
 
         error = schema_table_store_record(thd, table);
 
-        if (!error && thd_killed(thd))
+        if (!error && thd_kill_level(thd))
             error = ER_QUERY_INTERRUPTED;
     }
     return error;
@@ -493,7 +497,7 @@ int report_file_map(TABLE* table, THD* thd) {
 
             error = schema_table_store_record(thd, table);
         }
-        if (!error && thd_killed(thd))
+        if (!error && thd_kill_level(thd))
             error = ER_QUERY_INTERRUPTED;
     }
     if (error == DB_NOTFOUND) {
@@ -698,7 +702,7 @@ int report_fractal_tree_info(TABLE* table, THD* thd) {
             if (error)
                 error = 0; // ignore read uncommitted errors
         }
-        if (!error && thd_killed(thd))
+        if (!error && thd_kill_level(thd))
             error = ER_QUERY_INTERRUPTED;
     }
     if (error == DB_NOTFOUND) {
@@ -989,7 +993,7 @@ int report_fractal_tree_block_map(TABLE* table, THD* thd) {
                 table,
                 thd);
         }
-        if (!error && thd_killed(thd))
+        if (!error && thd_kill_level(thd))
             error = ER_QUERY_INTERRUPTED;
     }
     if (error == DB_NOTFOUND) {
@@ -1085,7 +1089,7 @@ ST_FIELD_INFO background_job_status_field_info[] = {
     {"scheduler", 32, MYSQL_TYPE_STRING, 0, 0, NULL, SKIP_OPEN_TABLE },
     {"scheduled_time", 0, MYSQL_TYPE_DATETIME, 0, 0, NULL, SKIP_OPEN_TABLE },
     {"started_time", 0, MYSQL_TYPE_DATETIME, 0, MY_I_S_MAYBE_NULL, NULL, SKIP_OPEN_TABLE },
-    {"status", 256, MYSQL_TYPE_STRING, 0, MY_I_S_MAYBE_NULL, SKIP_OPEN_TABLE },
+    {"status", 1024, MYSQL_TYPE_STRING, 0, MY_I_S_MAYBE_NULL, SKIP_OPEN_TABLE },
     {NULL, 0, MYSQL_TYPE_NULL, 0, 0, NULL, SKIP_OPEN_TABLE}
 };
 
@@ -1095,15 +1099,7 @@ struct background_job_status_extra {
 };
 
 void background_job_status_callback(
-    uint64_t id,
-    const char* database_name,
-    const char* table_name,
-    const char* type,
-    const char* params,
-    const char* status,
-    bool user_scheduled,
-    time_t scheduled_time,
-    time_t started_time,
+    tokudb::background::job_manager_t::job_t* job,
     void* extra) {
 
     background_job_status_extra* e =
@@ -1111,24 +1107,33 @@ void background_job_status_callback(
 
     THD* thd = e->thd;
     TABLE* table = e->table;
+    const char* tmp = NULL;
 
-    table->field[0]->store(id, false);
-    table->field[1]->store(
-        database_name,
-        strlen(database_name),
-        system_charset_info);
-    table->field[2]->store(table_name, strlen(table_name), system_charset_info);
-    table->field[3]->store(type, strlen(type), system_charset_info);
-    table->field[4]->store(params, strlen(params), system_charset_info);
-    if (user_scheduled)
+    table->field[0]->store(job->id(), false);
+
+    tmp = job->database();
+    table->field[1]->store(tmp, strlen(tmp),  system_charset_info);
+
+    tmp = job->table();
+    table->field[2]->store(tmp, strlen(tmp),  system_charset_info);
+
+    tmp = job->type();
+    table->field[3]->store(tmp, strlen(tmp),  system_charset_info);
+
+    tmp = job->parameters();
+    table->field[4]->store(tmp, strlen(tmp),  system_charset_info);
+
+    if (job->user_scheduled())
         table->field[5]->store("USER", strlen("USER"), system_charset_info);
     else
         table->field[5]->store("AUTO", strlen("AUTO"), system_charset_info);
 
-    field_store_time_t(table->field[6], scheduled_time);
-    field_store_time_t(table->field[7], started_time);
-    if (status[0] != '\0') {
-        table->field[8]->store(status, strlen(status), system_charset_info);
+    field_store_time_t(table->field[6], job->scheduled_time());
+    field_store_time_t(table->field[7], job->started_time());
+
+    tmp = job->status();
+    if (tmp && tmp[0] != '\0') {
+        table->field[8]->store(tmp, strlen(tmp), system_charset_info);
         table->field[8]->set_notnull();
     } else {
         table->field[8]->store(NULL, 0, system_charset_info);

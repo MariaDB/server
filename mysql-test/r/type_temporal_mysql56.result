@@ -63,7 +63,7 @@ SET TIME_ZONE='+00:00';
 SHOW CREATE TABLE mysql56timestamp;
 Table	Create Table
 mysql56timestamp	CREATE TABLE `mysql56timestamp` (
-  `ts0` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `ts0` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   `ts1` timestamp(1) NOT NULL DEFAULT '0000-00-00 00:00:00.0',
   `ts2` timestamp(2) NOT NULL DEFAULT '0000-00-00 00:00:00.00',
   `ts3` timestamp(3) NOT NULL DEFAULT '0000-00-00 00:00:00.000',

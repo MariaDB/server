@@ -662,8 +662,8 @@ t16	CREATE TABLE `t16` (
   `c5` char(5) DEFAULT NULL,
   PRIMARY KEY (`c1`)
 ) ENGINE=TokuDB DEFAULT CHARSET=latin1
-/*!50100 PARTITION BY KEY (c1)
-PARTITIONS 4 */
+ PARTITION BY KEY (c1)
+PARTITIONS 4
 *** Show table on Slave ****
 connection slave;
 SHOW CREATE TABLE t16;
@@ -675,11 +675,11 @@ t16	CREATE TABLE `t16` (
   `c4` blob DEFAULT NULL,
   `c5` char(5) DEFAULT NULL,
   `c6` int(11) DEFAULT 1,
-  `c7` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  `c7` timestamp NULL DEFAULT current_timestamp(),
   PRIMARY KEY (`c1`)
 ) ENGINE=TokuDB DEFAULT CHARSET=latin1
-/*!50100 PARTITION BY KEY (c1)
-PARTITIONS 4 */
+ PARTITION BY KEY (c1)
+PARTITIONS 4
 *** DROP TABLE t16 ***
 connection master;
 DROP TABLE t16;

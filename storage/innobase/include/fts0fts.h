@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2011, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2016, MariaDB Corporation. All Rights reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -103,8 +104,8 @@ those defined in mysql file ft_global.h */
 should not exceed FTS_DOC_ID_MAX_STEP */
 #define FTS_DOC_ID_MAX_STEP		65535
 
-/** Maximum possible Fulltext word length */
-#define FTS_MAX_WORD_LEN		HA_FT_MAXBYTELEN
+/** Maximum possible Fulltext word length in bytes (assuming mbmaxlen=4) */
+#define FTS_MAX_WORD_LEN		(HA_FT_MAXCHARLEN * 4)
 
 /** Maximum possible Fulltext word length (in characters) */
 #define FTS_MAX_WORD_LEN_IN_CHAR	HA_FT_MAXCHARLEN
@@ -120,7 +121,6 @@ should not exceed FTS_DOC_ID_MAX_STEP */
 #define FTS_CONFIG_TABLE_KEY_COL_LEN	50
 #define FTS_CONFIG_TABLE_VALUE_COL_LEN	200
 
-#define FTS_INDEX_WORD_LEN		FTS_MAX_WORD_LEN
 #define FTS_INDEX_FIRST_DOC_ID_LEN	8
 #define FTS_INDEX_LAST_DOC_ID_LEN	8
 #define FTS_INDEX_DOC_COUNT_LEN		4

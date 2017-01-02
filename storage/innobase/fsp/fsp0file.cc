@@ -33,9 +33,6 @@ Created 2013-7-26 by Kevin Lewis
 #include "srv0start.h"
 #include "ut0new.h"
 #include "fil0crypt.h"
-#ifdef UNIV_HOTBACKUP
-#include "my_sys.h"
-#endif /* UNIV_HOTBACKUP */
 
 /** Initialize the name, size and order of this datafile
 @param[in]	name	tablespace name, will be copied
@@ -63,22 +60,17 @@ Datafile::shutdown()
 	ut_free(m_name);
 	m_name = NULL;
 
+	ut_free(m_encryption_key);
+	m_encryption_key = NULL;
+
+	/* The fil_space_t::crypt_data was freed in
+	fil_space_free_low(). Invalidate our redundant pointer. */
+	m_crypt_info = NULL;
+
+	ut_free(m_encryption_iv);
+	m_encryption_iv = NULL;
+
 	free_filepath();
-
-	if (m_encryption_key != NULL) {
-		ut_free(m_encryption_key);
-		m_encryption_key = NULL;
-	}
-
-	if (m_crypt_info) {
-		fil_space_destroy_crypt_data(&m_crypt_info);
-	}
-
-	if (m_encryption_iv != NULL) {
-		ut_free(m_encryption_iv);
-		m_encryption_iv = NULL;
-	}
-
 	free_first_page();
 }
 
@@ -373,9 +365,10 @@ Datafile::read_first_page(bool read_only_mode)
 		m_space_id = fsp_header_get_space_id(m_first_page);
 	}
 
-	const page_size_t page_sz = fsp_header_get_page_size(m_first_page);
-	ulint offset = fsp_header_get_crypt_offset(page_sz, NULL);
-	m_crypt_info = fil_space_read_crypt_data(m_space_id, m_first_page, offset);
+	m_crypt_info = fil_space_read_crypt_data(
+		m_space_id, m_first_page,
+		FSP_HEADER_OFFSET + fsp_header_get_encryption_offset(
+			fsp_header_get_page_size(m_first_page)));
 
 	return(err);
 }
@@ -463,39 +456,6 @@ Datafile::validate_for_recovery()
 	switch (err) {
 	case DB_SUCCESS:
 	case DB_TABLESPACE_EXISTS:
-#ifdef UNIV_HOTBACKUP
-		err = restore_from_doublewrite(0);
-		if (err != DB_SUCCESS) {
-			return(err);
-		}
-		/* Free the previously read first page and then re-validate. */
-		free_first_page();
-		err = validate_first_page(0, false);
-		if (err == DB_SUCCESS) {
-			std::string filepath = fil_space_get_first_path(
-				m_space_id);
-			if (is_intermediate_file(filepath.c_str())) {
-				/* Existing intermediate file with same space
-				id is obsolete.*/
-				if (fil_space_free(m_space_id, FALSE)) {
-					err = DB_SUCCESS;
-				}
-		} else {
-			filepath.assign(m_filepath);
-			if (is_intermediate_file(filepath.c_str())) {
-				/* New intermediate file with same space id
-				shall be ignored.*/
-				err = DB_TABLESPACE_EXISTS;
-				/* Set all bits of 'flags' as a special
-				indicator for "ignore tablespace". Hopefully
-				InnoDB will never use all bits or at least all
-				bits set will not be a meaningful setting
-				otherwise.*/
-				m_flags = ~0;
-			}
-		}
-		}
-#endif /* UNIV_HOTBACKUP */
 		break;
 
 	default:

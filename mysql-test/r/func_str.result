@@ -587,15 +587,15 @@ select _latin1'B' in (_latin1'a',_latin1'b' collate latin1_bin);
 _latin1'B' in (_latin1'a',_latin1'b' collate latin1_bin)
 0
 select _latin2'B' in (_latin1'a',_latin1'b');
-ERROR HY000: Illegal mix of collations (latin2_general_ci,COERCIBLE), (latin1_swedish_ci,COERCIBLE), (latin1_swedish_ci,COERCIBLE) for operation ' IN '
+ERROR HY000: Illegal mix of collations (latin2_general_ci,COERCIBLE), (latin1_swedish_ci,COERCIBLE), (latin1_swedish_ci,COERCIBLE) for operation 'in'
 select _latin1'B' in (_latin2'a',_latin1'b');
-ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE), (latin2_general_ci,COERCIBLE), (latin1_swedish_ci,COERCIBLE) for operation ' IN '
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE), (latin2_general_ci,COERCIBLE), (latin1_swedish_ci,COERCIBLE) for operation 'in'
 select _latin1'B' in (_latin1'a',_latin2'b');
-ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE), (latin1_swedish_ci,COERCIBLE), (latin2_general_ci,COERCIBLE) for operation ' IN '
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE), (latin1_swedish_ci,COERCIBLE), (latin2_general_ci,COERCIBLE) for operation 'in'
 select _latin1'B' COLLATE latin1_general_ci in (_latin1'a' COLLATE latin1_bin,_latin1'b');
-ERROR HY000: Illegal mix of collations (latin1_general_ci,EXPLICIT), (latin1_bin,EXPLICIT), (latin1_swedish_ci,COERCIBLE) for operation ' IN '
+ERROR HY000: Illegal mix of collations (latin1_general_ci,EXPLICIT), (latin1_bin,EXPLICIT), (latin1_swedish_ci,COERCIBLE) for operation 'in'
 select _latin1'B' COLLATE latin1_general_ci in (_latin1'a',_latin1'b' COLLATE latin1_bin);
-ERROR HY000: Illegal mix of collations (latin1_general_ci,EXPLICIT), (latin1_swedish_ci,COERCIBLE), (latin1_bin,EXPLICIT) for operation ' IN '
+ERROR HY000: Illegal mix of collations (latin1_general_ci,EXPLICIT), (latin1_swedish_ci,COERCIBLE), (latin1_bin,EXPLICIT) for operation 'in'
 select collation(bin(130)), coercibility(bin(130));
 collation(bin(130))	coercibility(bin(130))
 latin1_swedish_ci	4
@@ -841,7 +841,7 @@ explain extended select 'mood' sounds like 'mud';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
-Note	1003	select (soundex('mood') = soundex('mud')) AS `'mood' sounds like 'mud'`
+Note	1003	select soundex('mood') = soundex('mud') AS `'mood' sounds like 'mud'`
 explain extended select aes_decrypt(aes_encrypt('abc','1'),'1');
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
@@ -921,7 +921,7 @@ explain extended select FIELD('b' COLLATE latin1_bin,'A','B');
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
-Note	1003	select field(('b' collate latin1_bin),'A','B') AS `FIELD('b' COLLATE latin1_bin,'A','B')`
+Note	1003	select field('b' collate latin1_bin,'A','B') AS `FIELD('b' COLLATE latin1_bin,'A','B')`
 explain extended select FIND_IN_SET(_latin1'B', _latin1'a,b,c,d');
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
@@ -976,7 +976,7 @@ explain extended select quote(1/0);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
-Note	1003	select quote((1 / 0)) AS `quote(1/0)`
+Note	1003	select quote(1 / 0) AS `quote(1/0)`
 explain extended select crc32("123");
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
@@ -1290,27 +1290,27 @@ EXPLAIN EXTENDED SELECT s FROM t1 WHERE TRIM(s) > 'ab';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
-Note	1003	select `test`.`t1`.`s` AS `s` from `test`.`t1` where (trim(`test`.`t1`.`s`) > 'ab')
+Note	1003	select `test`.`t1`.`s` AS `s` from `test`.`t1` where trim(`test`.`t1`.`s`) > 'ab'
 EXPLAIN EXTENDED SELECT s FROM t1 WHERE TRIM('y' FROM s) > 'ab';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
-Note	1003	select `test`.`t1`.`s` AS `s` from `test`.`t1` where (trim(both 'y' from `test`.`t1`.`s`) > 'ab')
+Note	1003	select `test`.`t1`.`s` AS `s` from `test`.`t1` where trim(both 'y' from `test`.`t1`.`s`) > 'ab'
 EXPLAIN EXTENDED SELECT s FROM t1 WHERE TRIM(LEADING 'y' FROM s) > 'ab';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
-Note	1003	select `test`.`t1`.`s` AS `s` from `test`.`t1` where (trim(leading 'y' from `test`.`t1`.`s`) > 'ab')
+Note	1003	select `test`.`t1`.`s` AS `s` from `test`.`t1` where trim(leading 'y' from `test`.`t1`.`s`) > 'ab'
 EXPLAIN EXTENDED SELECT s FROM t1 WHERE TRIM(TRAILING 'y' FROM s) > 'ab';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
-Note	1003	select `test`.`t1`.`s` AS `s` from `test`.`t1` where (trim(trailing 'y' from `test`.`t1`.`s`) > 'ab')
+Note	1003	select `test`.`t1`.`s` AS `s` from `test`.`t1` where trim(trailing 'y' from `test`.`t1`.`s`) > 'ab'
 EXPLAIN EXTENDED SELECT s FROM t1 WHERE TRIM(BOTH 'y' FROM s) > 'ab';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
-Note	1003	select `test`.`t1`.`s` AS `s` from `test`.`t1` where (trim(both 'y' from `test`.`t1`.`s`) > 'ab')
+Note	1003	select `test`.`t1`.`s` AS `s` from `test`.`t1` where trim(both 'y' from `test`.`t1`.`s`) > 'ab'
 DROP TABLE t1;
 create table t1(f1 varchar(4));
 explain extended select encode(f1,'zxcv') as 'enc' from t1;
@@ -1400,7 +1400,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t2	const	PRIMARY	PRIMARY	12	const	1	100.00	Using index
 1	SIMPLE	t1	ref	code	code	13	const	3	100.00	Using where; Using index
 Warnings:
-Note	1003	select `test`.`t1`.`code` AS `code`,'a12' AS `id` from `test`.`t1` join `test`.`t2` where ((`test`.`t1`.`code` = 'a12') and (length(`test`.`t1`.`code`) = 5))
+Note	1003	select `test`.`t1`.`code` AS `code`,'a12' AS `id` from `test`.`t1` join `test`.`t2` where `test`.`t1`.`code` = 'a12' and length(`test`.`t1`.`code`) = 5
 DROP TABLE t1,t2;
 select encode(NULL, NULL);
 encode(NULL, NULL)
@@ -4575,7 +4575,7 @@ SELECT * FROM t1 WHERE a=18446744073709551615 AND FORMAT(a,0)='18,446,744,073,70
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
-Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where ((`test`.`t1`.`a` = 18446744073709551615) and (format(`test`.`t1`.`a`,0) = '18,446,744,073,709,551,615'))
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = 18446744073709551615 and format(`test`.`t1`.`a`,0) = '18,446,744,073,709,551,615'
 DROP TABLE t1;
 #
 # Bug#58081 Duplicate entry error when doing GROUP BY
@@ -4587,6 +4587,80 @@ INSERT INTO t1 VALUES (0),(0),(1),(0),(0);
 SELECT COUNT(*) FROM t1, t1 t2 GROUP BY INSERT('', t2.a, t1.a, @@global.max_binlog_size);
 COUNT(*)
 25
+DROP TABLE t1;
+# Start of func_str_ascii_checksum.inc
+#
+# MDEV-10850 Wrong result for WHERE .. (f2=TO_BASE64('test') OR f2=TO_BASE64('TEST'))
+#
+CREATE TABLE t1 (f1 VARCHAR(4), f2 VARCHAR(255), UNIQUE KEY k1 (f1,f2));
+INSERT INTO t1 VALUES ('test',hex('test')), ('TEST', hex('TEST'));
+SELECT * FROM t1 IGNORE INDEX(k1) WHERE f1='test' AND (f2= hex("test") OR f2= hex("TEST"));
+f1	f2
+test	74657374
+TEST	54455354
+SELECT * FROM t1                  WHERE f1='test' AND (f2= hex("test") OR f2= hex("TEST"));
+f1	f2
+TEST	54455354
+test	74657374
+SELECT * FROM t1                  WHERE f1='test' AND (f2= hex("TEST") OR f2= hex("test"));
+f1	f2
+TEST	54455354
+test	74657374
+DROP TABLE t1;
+#
+# MDEV-10425 Assertion `collation.derivation == DERIVATION_IMPLICIT' failed in Item_func_conv_charset::fix_length_and_dec()
+#
+PREPARE stmt FROM "SELECT hex(CONVERT('foo' USING latin1))";
+EXECUTE stmt;
+hex(CONVERT('foo' USING latin1))
+666F6F
+DEALLOCATE PREPARE stmt;
+# End of func_str_ascii_checksum.inc
+# Start of func_str_ascii_checksum.inc
+#
+# MDEV-10850 Wrong result for WHERE .. (f2=TO_BASE64('test') OR f2=TO_BASE64('TEST'))
+#
+CREATE TABLE t1 (f1 VARCHAR(4), f2 VARCHAR(255), UNIQUE KEY k1 (f1,f2));
+INSERT INTO t1 VALUES ('test',to_base64('test')), ('TEST', to_base64('TEST'));
+SELECT * FROM t1 IGNORE INDEX(k1) WHERE f1='test' AND (f2= to_base64("test") OR f2= to_base64("TEST"));
+f1	f2
+test	dGVzdA==
+TEST	VEVTVA==
+SELECT * FROM t1                  WHERE f1='test' AND (f2= to_base64("test") OR f2= to_base64("TEST"));
+f1	f2
+test	dGVzdA==
+TEST	VEVTVA==
+SELECT * FROM t1                  WHERE f1='test' AND (f2= to_base64("TEST") OR f2= to_base64("test"));
+f1	f2
+test	dGVzdA==
+TEST	VEVTVA==
+DROP TABLE t1;
+#
+# MDEV-10425 Assertion `collation.derivation == DERIVATION_IMPLICIT' failed in Item_func_conv_charset::fix_length_and_dec()
+#
+PREPARE stmt FROM "SELECT to_base64(CONVERT('foo' USING latin1))";
+EXECUTE stmt;
+to_base64(CONVERT('foo' USING latin1))
+Zm9v
+DEALLOCATE PREPARE stmt;
+# End of func_str_ascii_checksum.inc
+#
+# MDEV-10864 Wrong result for WHERE .. (f2=COMPRESS('test') OR f2=COMPRESS('TEST'))
+#
+CREATE TABLE t1 (f1 VARCHAR(4), f2 VARCHAR(128), UNIQUE KEY k1 (f1,f2));
+INSERT INTO t1 VALUES ('YQ==',from_base64('YQ==')), ('Yq==', from_base64('Yq=='));
+SELECT f1,HEX(f2) FROM t1 ignore index(k1) WHERE f1='YQ==' AND (f2= from_base64("YQ==") OR f2= from_base64("Yq=="));
+f1	HEX(f2)
+YQ==	61
+Yq==	62
+SELECT f1,HEX(f2) FROM t1                  WHERE f1='YQ==' AND (f2= from_base64("YQ==") OR f2= from_base64("Yq=="));
+f1	HEX(f2)
+YQ==	61
+Yq==	62
+SELECT f1,HEX(f2) FROM t1                  WHERE f1='YQ==' AND (f2= from_base64("Yq==") OR f2= from_base64("YQ=="));
+f1	HEX(f2)
+YQ==	61
+Yq==	62
 DROP TABLE t1;
 #
 # End of 10.1 tests

@@ -434,6 +434,8 @@ btr_pcur_open_low(
 	btr_pcur_t*	cursor, /*!< in: memory buffer for persistent cursor */
 	const char*	file,	/*!< in: file name */
 	ulint		line,	/*!< in: line where called */
+	ib_uint64_t	autoinc,/*!< in: PAGE_ROOT_AUTO_INC to be written
+				(0 if none) */
 	mtr_t*		mtr)	/*!< in: mtr */
 {
 	btr_cur_t*	btr_cursor;
@@ -452,20 +454,9 @@ btr_pcur_open_low(
 
 	ut_ad(!dict_index_is_spatial(index));
 
-	if (dict_table_is_intrinsic(index->table)) {
-		ut_ad((latch_mode & BTR_MODIFY_LEAF)
-		      || (latch_mode & BTR_SEARCH_LEAF)
-		      || (latch_mode & BTR_MODIFY_TREE));
-		err = btr_cur_search_to_nth_level_with_no_latch(
-			index, level, tuple, mode, btr_cursor,
-			file, line, mtr,
-			(((latch_mode & BTR_MODIFY_LEAF)
-			 || (latch_mode & BTR_MODIFY_TREE)) ? true : false));
-	} else {
-		err = btr_cur_search_to_nth_level(
-			index, level, tuple, mode, latch_mode,
-			btr_cursor, 0, file, line, mtr);
-	}
+	err = btr_cur_search_to_nth_level(
+		index, level, tuple, mode, latch_mode,
+		btr_cursor, 0, file, line, mtr, autoinc);
 
 	if (err != DB_SUCCESS) {
 		ib::warn() << " Error code: " << err
@@ -521,18 +512,9 @@ btr_pcur_open_with_no_init_func(
 
 	btr_cursor = btr_pcur_get_btr_cur(cursor);
 
-	if (dict_table_is_intrinsic(index->table)) {
-		ut_ad((latch_mode & BTR_MODIFY_LEAF)
-		      || (latch_mode & BTR_SEARCH_LEAF));
-		err = btr_cur_search_to_nth_level_with_no_latch(
-			index, 0, tuple, mode, btr_cursor,
-			file, line, mtr,
-			((latch_mode & BTR_MODIFY_LEAF) ? true : false));
-	} else {
-		err = btr_cur_search_to_nth_level(
-			index, 0, tuple, mode, latch_mode, btr_cursor,
-			has_search_latch, file, line, mtr);
-	}
+	err = btr_cur_search_to_nth_level(
+		index, 0, tuple, mode, latch_mode, btr_cursor,
+		has_search_latch, file, line, mtr);
 
 	cursor->pos_state = BTR_PCUR_IS_POSITIONED;
 
@@ -568,15 +550,9 @@ btr_pcur_open_at_index_side(
 		btr_pcur_init(pcur);
 	}
 
-	if (dict_table_is_intrinsic(index->table)) {
-		err = btr_cur_open_at_index_side_with_no_latch(
-			from_left, index,
-			btr_pcur_get_btr_cur(pcur), level, mtr);
-	} else {
-		err = btr_cur_open_at_index_side(
-			from_left, index, latch_mode,
-			btr_pcur_get_btr_cur(pcur), level, mtr);
-	}
+	err = btr_cur_open_at_index_side(
+		from_left, index, latch_mode,
+		btr_pcur_get_btr_cur(pcur), level, mtr);
 	pcur->pos_state = BTR_PCUR_IS_POSITIONED;
 
 	pcur->old_stored = false;

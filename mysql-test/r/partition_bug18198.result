@@ -130,8 +130,7 @@ ERROR HY000: Constant, random or timezone-dependent expressions in (sub)partitio
 create table t1 (col1 datetime)
 partition by range(week(col1))
 (partition p0 values less than (10), partition p1 values less than (30));
-ERROR 42000: Constant, random or timezone-dependent expressions in (sub)partitioning function are not allowed near ')
-(partition p0 values less than (10), partition p1 values less than (30))' at line 2
+ERROR HY000: This partition function is not allowed
 create table t1 (col1 varchar(25))
 partition by range(cast(col1 as signed))
 (partition p0 values less than (10), partition p1 values less than (30));

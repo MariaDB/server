@@ -54,17 +54,8 @@ Created 10/21/1995 Heikki Tuuri
 #ifdef HAVE_LINUX_UNISTD_H
 #include "unistd.h"
 #endif
-#ifndef UNIV_HOTBACKUP
-# include "os0event.h"
-# include "os0thread.h"
-#else /* !UNIV_HOTBACKUP */
-# ifdef _WIN32
-/* Add includes for the _stat() call to compile on Windows */
-#  include <sys/types.h>
-#  include <sys/stat.h>
-#  include <errno.h>
-# endif /* _WIN32 */
-#endif /* !UNIV_HOTBACKUP */
+#include "os0event.h"
+#include "os0thread.h"
 
 #include <vector>
 
@@ -134,7 +125,7 @@ struct Block {
 	byte*		m_ptr;
 
 	byte		pad[CACHE_LINE_SIZE - sizeof(ulint)];
-	lock_word_t	m_in_use;
+	int32		m_in_use;
 };
 
 /** For storing the allocated blocks */
@@ -167,8 +158,6 @@ static HANDLE	read_completion_port;
 static DWORD	fls_sync_io  = FLS_OUT_OF_INDEXES;
 #define IOCP_SHUTDOWN_KEY (ULONG_PTR)-1
 #endif /* _WIN32 */
-
-#ifndef UNIV_HOTBACKUP
 
 /** In simulated aio, merge at most this many consecutive i/os */
 static const ulint	OS_AIO_MERGE_N_CONSECUTIVE = 64;
@@ -749,7 +738,6 @@ static ulint		os_aio_n_segments = ULINT_UNDEFINED;
 /** If the following is true, read i/o handler threads try to
 wait until a batch of new read requests have been posted */
 static bool		os_aio_recommend_sleep_for_read_threads = false;
-#endif /* !UNIV_HOTBACKUP */
 
 ulint	os_n_file_reads		= 0;
 ulint	os_bytes_read_since_printout = 0;
@@ -915,7 +903,8 @@ os_alloc_block()
 
 		pos = i++ % size;
 
-		if (TAS(&blocks[pos].m_in_use, 1) == 0) {
+		if (my_atomic_fas32_explicit(&blocks[pos].m_in_use, 1,
+					     MY_MEMORY_ORDER_ACQUIRE) == 0) {
 			block = &blocks[pos];
 			break;
 		}
@@ -938,7 +927,7 @@ os_free_block(Block* block)
 {
 	ut_ad(block->m_in_use == 1);
 
-	TAS(&block->m_in_use, 0);
+	my_atomic_store32_explicit(&block->m_in_use, 0, MY_MEMORY_ORDER_RELEASE);
 
 	/* When this block is not in the block cache, and it's
 	a temporary block, we need to free it directly. */
@@ -1452,7 +1441,6 @@ os_file_compress_page(
 #endif /* MYSQL_COMPRESSION */
 
 #ifdef UNIV_DEBUG
-# ifndef UNIV_HOTBACKUP
 /** Validates the consistency the aio system some of the time.
 @return true if ok or the check was skipped */
 bool
@@ -1478,16 +1466,12 @@ os_aio_validate_skip()
 	os_aio_validate_count = OS_AIO_VALIDATE_SKIP;
 	return(os_aio_validate());
 }
-# endif /* !UNIV_HOTBACKUP */
 #endif /* UNIV_DEBUG */
 
 #undef USE_FILE_LOCK
-#define USE_FILE_LOCK
-#if defined(UNIV_HOTBACKUP) || defined(_WIN32)
-/* InnoDB Hot Backup does not lock the data files.
- * On Windows, mandatory locking is used.
- */
-# undef USE_FILE_LOCK
+#ifndef _WIN32
+/* On Windows, mandatory locking is used */
+# define USE_FILE_LOCK
 #endif
 #ifdef USE_FILE_LOCK
 /** Obtain an exclusive lock on a file.
@@ -1526,8 +1510,6 @@ os_file_lock(
 	return(0);
 }
 #endif /* USE_FILE_LOCK */
-
-#ifndef UNIV_HOTBACKUP
 
 /** Calculates local segment number and aio array from global segment number.
 @param[out]	array		aio wait array
@@ -1757,8 +1739,6 @@ os_file_io_complete(
 
 	return(DB_SUCCESS);
 }
-
-#endif /* !UNIV_HOTBACKUP */
 
 /** This function returns a new path name after replacing the basename
 in an old path with a new basename.  The old_path is a full path
@@ -4066,18 +4046,6 @@ os_file_set_eof(
 	return(!ftruncate(fileno(file), ftell(file)));
 }
 
-#ifdef UNIV_HOTBACKUP
-/** Closes a file handle.
-@param[in]	file		Handle to a file
-@return true if success */
-bool
-os_file_close_no_error_handling(
-	os_file_t	file)
-{
-	return(close(file) != -1);
-}
-#endif /* UNIV_HOTBACKUP */
-
 /** This function can be called if one wants to post a batch of reads and
 prefers an i/o-handler thread to handle them all at once later. You must
 call os_aio_simulated_wake_handler_threads later to ensure the threads
@@ -4874,9 +4842,6 @@ os_file_create_func(
 
 	DWORD		attributes = 0;
 
-#ifdef UNIV_HOTBACKUP
-	attributes |= FILE_FLAG_NO_BUFFERING;
-#else
 	if (purpose == OS_FILE_AIO) {
 
 #ifdef WIN_ASYNC_IO
@@ -4916,7 +4881,6 @@ os_file_create_func(
 	}
 #endif /* UNIV_NON_BUFFERED_IO */
 
-#endif /* UNIV_HOTBACKUP */
 	DWORD	access = GENERIC_READ;
 
 	if (!read_only) {
@@ -5083,8 +5047,9 @@ os_file_delete_if_exists_func(
 	}
 
 	for (;;) {
-		/* In Windows, deleting an .ibd file may fail if ibbackup
-		is copying it */
+		/* In Windows, deleting an .ibd file may fail if
+		the file is being accessed by an external program,
+		such as a backup tool. */
 
 		bool	ret = DeleteFile((LPCTSTR) name);
 
@@ -5135,8 +5100,9 @@ os_file_delete_func(
 	ulint	count	= 0;
 
 	for (;;) {
-		/* In Windows, deleting an .ibd file may fail if ibbackup
-		is copying it */
+		/* In Windows, deleting an .ibd file may fail if
+		the file is being accessed by an external program,
+		such as a backup tool. */
 
 		BOOL	ret = DeleteFile((LPCTSTR) name);
 
@@ -5159,8 +5125,8 @@ os_file_delete_func(
 			os_file_get_last_error(true);
 
 			ib::warn()
-				<< "Cannot delete file '" << name << "'. Are "
-				<< "you running ibbackup to back up the file?";
+				<< "Cannot delete file '" << name << "'. Is "
+				<< "another program accessing it?";
 		}
 
 		/* sleep for a second */
@@ -5469,18 +5435,6 @@ os_file_set_eof(
 	return(SetEndOfFile(h));
 }
 
-#ifdef UNIV_HOTBACKUP
-/** Closes a file handle.
-@param[in]	file		Handle to close
-@return true if success */
-bool
-os_file_close_no_error_handling(
-	os_file_t	file)
-{
-	return(CloseHandle(file) ? true : false);
-}
-#endif /* UNIV_HOTBACKUP */
-
 /** This function can be called if one wants to post a batch of reads and
 prefers an i/o-handler thread to handle them all at once later. You must
 call os_aio_simulated_wake_handler_threads later to ensure the threads
@@ -5709,12 +5663,12 @@ os_file_pwrite(
 
 	++os_n_file_writes;
 
-	(void) os_atomic_increment_ulint(&os_n_pending_writes, 1);
+	(void) my_atomic_addlint(&os_n_pending_writes, 1);
 	MONITOR_ATOMIC_INC(MONITOR_OS_PENDING_WRITES);
 
 	ssize_t	n_bytes = os_file_io(type, file, (void*) buf, n, offset, err);
 
-	(void) os_atomic_decrement_ulint(&os_n_pending_writes, 1);
+	(void) my_atomic_addlint(&os_n_pending_writes, -1);
 	MONITOR_ATOMIC_DEC(MONITOR_OS_PENDING_WRITES);
 
 	return(n_bytes);
@@ -5792,12 +5746,12 @@ os_file_pread(
 {
 	++os_n_file_reads;
 
-	(void) os_atomic_increment_ulint(&os_n_pending_reads, 1);
+	(void) my_atomic_addlint(&os_n_pending_reads, 1);
 	MONITOR_ATOMIC_INC(MONITOR_OS_PENDING_READS);
 
 	ssize_t	n_bytes = os_file_io(type, file, buf, n, offset, err);
 
-	(void) os_atomic_decrement_ulint(&os_n_pending_reads, 1);
+	(void) my_atomic_addlint(&os_n_pending_reads, -1);
 	MONITOR_ATOMIC_DEC(MONITOR_OS_PENDING_READS);
 
 	return(n_bytes);
@@ -5909,22 +5863,18 @@ os_file_get_last_error(
 	return(os_file_get_last_error_low(report_all_errors, false));
 }
 
-/** Does error handling when a file operation fails.
-Conditionally exits (calling srv_fatal_error()) based on should_exit value
-and the error type, if should_exit is true then on_error_silent is ignored.
+/** Handle errors for file operations.
 @param[in]	name		name of a file or NULL
 @param[in]	operation	operation
-@param[in]	should_exit	call srv_fatal_error() on an unknown error,
-				if this parameter is true
-@param[in]	on_error_silent	if true then don't print any message to the log
-				iff it is an unknown non-fatal error
+@param[in]	should_abort	whether to abort on an unknown error
+@param[in]	on_error_silent	whether to suppress reports of non-fatal errors
 @return true if we should retry the operation */
 static MY_ATTRIBUTE((warn_unused_result))
 bool
 os_file_handle_error_cond_exit(
 	const char*	name,
 	const char*	operation,
-	bool		should_exit,
+	bool		should_abort,
 	bool		on_error_silent)
 {
 	ulint	err;
@@ -5985,17 +5935,17 @@ os_file_handle_error_cond_exit(
 		is better to ignore on_error_silent and print an error message
 		to the log. */
 
-		if (should_exit || !on_error_silent) {
+		if (should_abort || !on_error_silent) {
 			ib::error() << "File "
 				<< (name != NULL ? name : "(unknown)")
 				<< ": '" << operation << "'"
 				" returned OS error " << err << "."
-				<< (should_exit
+				<< (should_abort
 				    ? " Cannot continue operation" : "");
 		}
 
-		if (should_exit) {
-			srv_fatal_error();
+		if (should_abort) {
+			abort();
 		}
 	}
 
@@ -6139,21 +6089,8 @@ os_file_set_size(
 		dberr_t		err;
 		IORequest	request(IORequest::WRITE);
 
-#ifdef UNIV_HOTBACKUP
-
 		err = os_file_write(
 			request, name, file, buf, current_size, n_bytes);
-#else
-		/* Using OS_AIO_SYNC mode on POSIX systems will result in
-		fall back to os_file_write/read. On Windows it will use
-		special mechanism to wait before it returns back. */
-
-		err = os_aio(
-			request,
-			OS_AIO_SYNC, name,
-			file, buf, current_size, n_bytes,
-			read_only, NULL, NULL, NULL);
-#endif /* UNIV_HOTBACKUP */
 
 		if (err != DB_SUCCESS) {
 

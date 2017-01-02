@@ -46,8 +46,6 @@ my_bool	srv_ibuf_disable_background_merge;
 #include "ibuf0ibuf.ic"
 #endif
 
-#ifndef UNIV_HOTBACKUP
-
 #include "buf0buf.h"
 #include "buf0rea.h"
 #include "fsp0fsp.h"
@@ -595,7 +593,6 @@ ibuf_max_size_update(
 }
 
 
-#endif /* !UNIV_HOTBACKUP */
 /*********************************************************************//**
 Initializes an ibuf bitmap page. */
 void
@@ -618,10 +615,7 @@ ibuf_bitmap_page_init(
 	memset(page + IBUF_BITMAP, 0, byte_offset);
 
 	/* The remaining area (up to the page trailer) is uninitialized. */
-
-#ifndef UNIV_HOTBACKUP
 	mlog_write_initial_log_record(page, MLOG_IBUF_BITMAP_INIT, mtr);
-#endif /* !UNIV_HOTBACKUP */
 }
 
 /*********************************************************************//**
@@ -644,7 +638,7 @@ ibuf_parse_bitmap_init(
 
 	return(ptr);
 }
-#ifndef UNIV_HOTBACKUP
+
 # ifdef UNIV_DEBUG
 /** Gets the desired bits for a given page from a bitmap page.
 @param[in]	page		bitmap page
@@ -862,11 +856,17 @@ ibuf_set_free_bits_low(
 	mtr_t*			mtr)	/*!< in/out: mtr */
 {
 	page_t*	bitmap_page;
+	buf_frame_t* frame;
 
 	ut_ad(mtr->is_named_space(block->page.id.space()));
 
-	if (!page_is_leaf(buf_block_get_frame(block))) {
+	if (!block) {
+		return;
+	}
 
+	frame = buf_block_get_frame(block);
+
+	if (!frame || !page_is_leaf(frame)) {
 		return;
 	}
 
@@ -1040,7 +1040,10 @@ ibuf_update_free_bits_zip(
 	page_t*	bitmap_page;
 	ulint	after;
 
-	ut_a(page_is_leaf(buf_block_get_frame(block)));
+	ut_a(block);
+	buf_frame_t* frame = buf_block_get_frame(block);
+	ut_a(frame);
+	ut_a(page_is_leaf(frame));
 	ut_a(block->page.size.is_compressed());
 
 	bitmap_page = ibuf_bitmap_get_map_page(block->page.id,
@@ -1447,7 +1450,7 @@ ibuf_add_ops(
 	ulint	i;
 
 	for (i = 0; i < IBUF_OP_COUNT; i++) {
-		os_atomic_increment_ulint(&arr[i], ops[i]);
+		my_atomic_addlint(&arr[i], ops[i]);
 	}
 }
 
@@ -2745,8 +2748,6 @@ ibuf_merge_in_background(
 	}
 #endif /* UNIV_DEBUG || UNIV_IBUF_DEBUG */
 
-
-
 	while (sum_pages < n_pages) {
 		ulint	n_bytes;
 
@@ -3727,9 +3728,10 @@ ibuf_insert(
 			    op, page_id.space(), page_id.page_no()));
 
 	ut_ad(dtuple_check_typed(entry));
-	ut_ad(page_id.space() != srv_tmp_space.space_id());
+	ut_ad(page_id.space() != SRV_TMP_SPACE_ID);
 
 	ut_a(!dict_index_is_clust(index));
+	ut_ad(!dict_table_is_temporary(index->table));
 
 	no_counter = use <= IBUF_USE_INSERT;
 
@@ -4788,7 +4790,7 @@ reset_bit:
 	btr_pcur_close(&pcur);
 	mem_heap_free(heap);
 
-	os_atomic_increment_ulint(&ibuf->n_merges, 1);
+	my_atomic_addlint(&ibuf->n_merges, 1);
 	ibuf_add_ops(ibuf->n_merged_ops, mops);
 	ibuf_add_ops(ibuf->n_discarded_ops, dops);
 	if (space != NULL) {
@@ -5122,5 +5124,3 @@ ibuf_set_bitmap_for_bulk_load(
 
 	mtr_commit(&mtr);
 }
-
-#endif /* !UNIV_HOTBACKUP */

@@ -31,9 +31,6 @@ Created 11/29/1995 Heikki Tuuri
 #include "fsp0fsp.ic"
 #endif
 
-#ifdef UNIV_HOTBACKUP
-# include "fut0lst.h"
-#else /* UNIV_HOTBACKUP */
 #include "buf0buf.h"
 #include "fil0fil.h"
 #include "fil0crypt.h"
@@ -215,7 +212,6 @@ fsp_flags_to_dict_tf(
 
 	return(flags);
 }
-#endif /* !UNIV_HOTBACKUP */
 
 /** Validate the tablespace flags.
 These flags are stored in the tablespace header at offset FSP_SPACE_FLAGS.
@@ -338,16 +334,6 @@ err_exit:
 	return (false);
 }
 
-/** Check if tablespace is system temporary.
-@param[in]	space_id	tablespace ID
-@return true if tablespace is system temporary. */
-bool
-fsp_is_system_temporary(
-	ulint	space_id)
-{
-	return(space_id == srv_tmp_space.space_id());
-}
-
 /** Check if checksum is disabled for the given space.
 @param[in]	space_id	tablespace ID
 @return true if checksum is disabled for given space. */
@@ -371,9 +357,7 @@ fsp_is_file_per_table(
 		&& !fsp_is_shared_tablespace(fsp_flags));
 }
 
-#ifndef UNIV_HOTBACKUP
 #ifdef UNIV_DEBUG
-
 /** Skip some of the sanity checks that are time consuming even in debug mode
 and can affect frequent verification runs that are done to ensure stability of
 the product.
@@ -385,7 +369,6 @@ fsp_skip_sanity_check(
 	return(srv_skip_temp_table_checks_debug
 	       && fsp_is_system_temporary(space_id));
 }
-
 #endif /* UNIV_DEBUG */
 
 /**********************************************************************//**
@@ -751,7 +734,6 @@ xdes_get_offset(
 	       + ((page_offset(descr) - XDES_ARR_OFFSET) / XDES_SIZE)
 	       * FSP_EXTENT_SIZE);
 }
-#endif /* !UNIV_HOTBACKUP */
 
 /***********************************************************//**
 Inits a file page whose prior contents should be ignored. */
@@ -781,8 +763,7 @@ fsp_init_file_page_low(
 	}
 }
 
-#ifndef UNIV_HOTBACKUP
-# ifdef UNIV_DEBUG
+#ifdef UNIV_DEBUG
 /** Assert that the mini-transaction is compatible with
 updating an allocation bitmap page.
 @param[in]	id	tablespace identifier
@@ -800,24 +781,18 @@ fsp_space_modify_check(
 		when there is a higher-level redo log record written. */
 		break;
 	case MTR_LOG_NO_REDO:
-#ifdef UNIV_DEBUG
 		{
 			const fil_type_t	type = fil_space_get_type(id);
-			ut_a(id == srv_tmp_space.space_id()
-			     || srv_is_tablespace_truncated(id)
+			ut_a(srv_is_tablespace_truncated(id)
 			     || fil_space_is_being_truncated(id)
 			     || fil_space_get_flags(id) == ULINT_UNDEFINED
 			     || type == FIL_TYPE_TEMPORARY
 			     || type == FIL_TYPE_IMPORT
 			     || fil_space_is_redo_skipped(id));
 		}
-#endif /* UNIV_DEBUG */
 		return;
 	case MTR_LOG_ALL:
-		/* We must not write redo log for the shared temporary
-		tablespace. */
-		ut_ad(id != srv_tmp_space.space_id());
-		/* If we write redo log, the tablespace must exist. */
+		/* We may only write redo log for a persistent tablespace. */
 		ut_ad(fil_space_get_type(id) == FIL_TYPE_TABLESPACE);
 		ut_ad(mtr->is_named_space(id));
 		return;
@@ -825,7 +800,7 @@ fsp_space_modify_check(
 
 	ut_ad(0);
 }
-# endif /* UNIV_DEBUG */
+#endif /* UNIV_DEBUG */
 
 /** Initialize a file page.
 @param[in,out]	block	file page
@@ -842,7 +817,6 @@ fsp_init_file_page(
 	mlog_write_initial_log_record(buf_block_get_frame(block),
 				      MLOG_INIT_FILE_PAGE2, mtr);
 }
-#endif /* !UNIV_HOTBACKUP */
 
 /***********************************************************//**
 Parses a redo log record of a file page init.
@@ -901,31 +875,6 @@ fsp_header_init_fields(
 			space_id);
 	mach_write_to_4(FSP_HEADER_OFFSET + FSP_SPACE_FLAGS + page,
 			flags);
-}
-
-#ifndef UNIV_HOTBACKUP
-/** Get the offset of encrytion information in page 0.
-@param[in]	page_size	page size.
-@return	offset on success, otherwise 0. */
-static
-ulint
-fsp_header_get_encryption_offset(
-	const page_size_t&	page_size)
-{
-	ulint	offset;
-#ifdef UNIV_DEBUG
-	ulint	left_size;
-#endif
-
-	offset = XDES_ARR_OFFSET + XDES_SIZE * xdes_arr_size(page_size);
-#ifdef UNIV_DEBUG
-	left_size = page_size.physical() - FSP_HEADER_OFFSET - offset
-		- FIL_PAGE_DATA_END;
-
-	ut_ad(left_size >= ENCRYPTION_INFO_SIZE_V2);
-#endif
-
-	return offset;
 }
 
 #if 0 /* MySQL 5.7 Encryption */
@@ -1194,13 +1143,14 @@ fsp_header_init(
 		}
 	}
 
-	ulint maxsize = 0;
-	ulint offset = fsp_header_get_crypt_offset(page_size, &maxsize);
-	fil_space_write_crypt_data(space_id, page, offset, maxsize, mtr);
+	ulint offset = FSP_HEADER_OFFSET
+		+ fsp_header_get_encryption_offset(page_size);
+	fil_space_write_crypt_data(space_id, page, offset,
+				   page_size.logical()
+				   - offset - FIL_PAGE_DATA_END, mtr);
 
 	return(true);
 }
-#endif /* !UNIV_HOTBACKUP */
 
 /**********************************************************************//**
 Reads the space id from the first page of a tablespace.
@@ -1397,7 +1347,6 @@ fsp_header_get_encryption_key(
 }
 #endif /* ! */
 
-#ifndef UNIV_HOTBACKUP
 /**********************************************************************//**
 Increases the space size field of a space. */
 void
@@ -1549,15 +1498,14 @@ fsp_try_extend_data_file(
 	const page_size_t	page_size(
 		mach_read_from_4(header + FSP_SPACE_FLAGS));
 
-	if (space->id == srv_sys_space.space_id()) {
-
+	switch (space->id) {
+	case TRX_SYS_SPACE:
 		size_increase = srv_sys_space.get_increment();
-
-	} else if (space->id == srv_tmp_space.space_id()) {
-
+		break;
+	case SRV_TMP_SPACE_ID:
 		size_increase = srv_tmp_space.get_increment();
-
-	} else {
+		break;
+	default:
 		ulint	extent_pages
 			= fsp_get_extent_size_in_pages(page_size);
 		if (size < extent_pages) {
@@ -1679,11 +1627,17 @@ fsp_fill_free_list(
 	const page_size_t	page_size(flags);
 
 	if (size < limit + FSP_EXTENT_SIZE * FSP_FREE_ADD) {
-		if ((!init_space && !is_system_tablespace(space->id))
-		    || (space->id == srv_sys_space.space_id()
-			&& srv_sys_space.can_auto_extend_last_file())
-		    || (space->id == srv_tmp_space.space_id()
-			&& srv_tmp_space.can_auto_extend_last_file())) {
+		bool	skip_resize	= init_space;
+		switch (space->id) {
+		case TRX_SYS_SPACE:
+			skip_resize = !srv_sys_space.can_auto_extend_last_file();
+			break;
+		case SRV_TMP_SPACE_ID:
+			skip_resize = srv_tmp_space.can_auto_extend_last_file();
+			break;
+		}
+
+		if (!skip_resize) {
 			ulint n_pages = 0;
 			fsp_try_extend_data_file(space, header, mtr, &n_pages);
 			size = space->size_in_header;
@@ -1733,7 +1687,7 @@ fsp_fill_free_list(
 			order, and we must be able to release its latch.
 			Note: Insert-Buffering is disabled for tables that
 			reside in the temp-tablespace. */
-			if (space->id != srv_tmp_space.space_id()) {
+			if (space->purpose != FIL_TYPE_TEMPORARY) {
 				mtr_t	ibuf_mtr;
 
 				mtr_start(&ibuf_mtr);
@@ -1741,9 +1695,7 @@ fsp_fill_free_list(
 
 				/* Avoid logging while truncate table
 				fix-up is active. */
-				if (space->purpose == FIL_TYPE_TEMPORARY
-				    || srv_is_tablespace_truncated(
-					    space->id)) {
+				if (srv_is_tablespace_truncated(space->id)) {
 					mtr_set_log_mode(
 						&ibuf_mtr, MTR_LOG_NO_REDO);
 				}
@@ -4305,7 +4257,6 @@ fseg_print(
 	fseg_print_low(inode, mtr);
 }
 #endif /* UNIV_BTR_PRINT */
-#endif /* !UNIV_HOTBACKUP */
 
 #ifdef UNIV_DEBUG
 /** Print the file segment header to the given output stream.
@@ -4352,36 +4303,4 @@ fsp_page_is_free_func(
 
 	return xdes_mtr_get_bit(
 		descr, XDES_FREE_BIT, page_no % FSP_EXTENT_SIZE, mtr);
-}
-
-/**********************************************************************//**
-Compute offset after xdes where crypt data can be stored
-@return	offset */
-ulint
-fsp_header_get_crypt_offset(
-/*========================*/
-	const page_size_t&	page_size,/*!< in: page size */
-	ulint* 			max_size) /*!< out: free space available for crypt data */
-{
-	ulint pageno = 0;
-	/* compute first page_no that will have xdes stored on page != 0*/
-
-	for (ulint i = 0;
-	     (pageno = xdes_calc_descriptor_page(page_size, i)) == 0; )
-		i++;
-
-	/* use pageno prior to this...i.e last page on page 0 */
-	ut_ad(pageno > 0);
-	pageno--;
-
-	ulint iv_offset = XDES_ARR_OFFSET +
-		XDES_SIZE * (1 + xdes_calc_descriptor_index(page_size, pageno));
-
-	if (max_size != NULL) {
-		/* return how much free space there is available on page */
-		*max_size = (page_size.logical() ? page_size.logical() : UNIV_PAGE_SIZE) -
-			(FSP_HEADER_OFFSET + iv_offset + FIL_PAGE_DATA_END);
-	}
-
-	return FSP_HEADER_OFFSET + iv_offset;
 }

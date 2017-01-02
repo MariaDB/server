@@ -38,9 +38,6 @@ Created 12/15/2009	Jimmy Yang
 
 #include <stdint.h>
 
-#ifndef UNIV_HOTBACKUP
-
-
 /** Possible status values for "mon_status" in "struct monitor_value" */
 enum monitor_running_status {
 	MONITOR_STARTED = 1,	/*!< Monitor has been turned on */
@@ -180,6 +177,7 @@ enum monitor_id_t {
 	MONITOR_OVLD_INDEX_PAGES_WRITTEN,
 	MONITOR_OVLD_NON_INDEX_PAGES_WRITTEN,
 	MONITOR_OVLD_PAGES_READ,
+	MONITOR_OVLD_PAGES0_READ,
 	MONITOR_OVLD_INDEX_SEC_REC_CLUSTER_READS,
 	MONITOR_OVLD_INDEX_SEC_REC_CLUSTER_READS_AVOIDED,
 	MONITOR_OVLD_BYTE_READ,
@@ -613,8 +611,8 @@ Use MONITOR_INC if appropriate mutex protection exists.
 # define MONITOR_ATOMIC_INC(monitor)					\
 	if (MONITOR_IS_ON(monitor)) {					\
 		ib_uint64_t	value;					\
-		value  = os_atomic_increment_uint64(			\
-			(ib_uint64_t*) &MONITOR_VALUE(monitor),	 1);	\
+		value  = my_atomic_add64(				\
+			(int64*) &MONITOR_VALUE(monitor), 1) + 1;	\
 		/* Note: This is not 100% accurate because of the	\
 		inherent race, we ignore it due to performance. */	\
 		if (value > (ib_uint64_t) MONITOR_MAX_VALUE(monitor)) {	\
@@ -628,8 +626,8 @@ Use MONITOR_DEC if appropriate mutex protection exists.
 # define MONITOR_ATOMIC_DEC(monitor)					\
 	if (MONITOR_IS_ON(monitor)) {					\
 		ib_uint64_t	value;					\
-		value = os_atomic_decrement_uint64(			\
-			(ib_uint64_t*) &MONITOR_VALUE(monitor), 1);	\
+		value = my_atomic_add64(				\
+			(int64*) &MONITOR_VALUE(monitor), -1) - 1;	\
 		/* Note: This is not 100% accurate because of the	\
 		inherent race, we ignore it due to performance. */	\
 		if (value < (ib_uint64_t) MONITOR_MIN_VALUE(monitor)) {	\
@@ -898,9 +896,5 @@ srv_mon_default_on(void);
 #ifndef UNIV_NONINL
 #include "srv0mon.ic"
 #endif
-#else /* !UNIV_HOTBACKUP */
-# define MONITOR_INC(x)		((void) 0)
-# define MONITOR_DEC(x)		((void) 0)
-#endif /* !UNIV_HOTBACKUP */
 
 #endif

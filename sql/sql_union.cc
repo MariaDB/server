@@ -1382,7 +1382,9 @@ bool st_select_lex_unit::change_result(select_result_interceptor *new_result,
   Get column type information for this unit.
 
   SYNOPSIS
-    st_select_lex_unit::get_unit_column_types()
+    st_select_lex_unit::get_column_types()
+      @param for_cursor if true return the list the fields
+                        retrieved by the cursor
 
   DESCRIPTION
     For a single-select the column types are taken
@@ -1396,7 +1398,7 @@ bool st_select_lex_unit::change_result(select_result_interceptor *new_result,
     st_select_lex_unit::prepare()
 */
 
-List<Item> *st_select_lex_unit::get_unit_column_types()
+List<Item> *st_select_lex_unit::get_column_types(bool for_cursor)
 {
   SELECT_LEX *sl= first_select();
   bool is_procedure= MY_TEST(sl->join->procedure);
@@ -1416,7 +1418,7 @@ List<Item> *st_select_lex_unit::get_unit_column_types()
     return &types;
   }
 
-  return &sl->item_list;
+  return for_cursor ? sl->join->fields :  &sl->item_list;
 }
 
 

@@ -13,4 +13,4 @@
 innodb_scrub : MDEV-8139
 innodb_scrub_compressed : MDEV-8139
 innodb_scrub_background : MDEV-8139
-innodb_encryption_discard_import : MDEV-9099
+innochecksum: see buf_page_is_corrupted()

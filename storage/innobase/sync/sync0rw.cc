@@ -104,31 +104,12 @@ sx-lock holder.
 
 The other members of the lock obey the following rules to remain consistent:
 
-recursive:	This and the writer_thread field together control the
-		behaviour of recursive x-locking or sx-locking.
-		lock->recursive must be FALSE in following states:
-			1) The writer_thread contains garbage i.e.: the
-			lock has just been initialized.
-			2) The lock is not x-held and there is no
-			x-waiter waiting on WAIT_EX event.
-			3) The lock is x-held or there is an x-waiter
-			waiting on WAIT_EX event but the 'pass' value
-			is non-zero.
-		lock->recursive is TRUE iff:
-			1) The lock is x-held or there is an x-waiter
-			waiting on WAIT_EX event and the 'pass' value
-			is zero.
-		This flag must be set after the writer_thread field
-		has been updated with a memory ordering barrier.
-		It is unset before the lock_word has been incremented.
-writer_thread:	Is used only in recursive x-locking. Can only be safely
-		read iff lock->recursive flag is TRUE.
-		This field is uninitialized at lock creation time and
-		is updated atomically when x-lock is acquired or when
-		move_ownership is called. A thread is only allowed to
-		set the value of this field to it's thread_id i.e.: a
-		thread cannot set writer_thread to some other thread's
-		id.
+writer_thread:	Is used only in recursive x-locking or sx-locking.
+		This field is 0 at lock creation time and is updated
+		when x-lock is acquired or when move_ownership is called.
+		A thread is only allowed to set the value of this field to
+		it's thread_id i.e.: a thread cannot set writer_thread to
+		some other thread's id.
 waiters:	May be set to 1 anytime, but to avoid unnecessary wake-up
 		signals, it should only be set to 1 when there are threads
 		waiting on event. Must be 1 when a writer starts waiting to
@@ -233,29 +214,11 @@ rw_lock_create_func(
 	/* If this is the very first time a synchronization object is
 	created, then the following call initializes the sync system. */
 
-#ifndef INNODB_RW_LOCKS_USE_ATOMICS
-	mutex_create(LATCH_ID_RW_LOCK_MUTEX, rw_lock_get_mutex(lock));
-
-	lock->mutex.cfile_name = cfile_name;
-	lock->mutex.cline = cline;
-	lock->mutex.lock_name = cmutex_name;
-#else /* INNODB_RW_LOCKS_USE_ATOMICS */
-# ifdef UNIV_DEBUG
-	UT_NOT_USED(cmutex_name);
-# endif
-#endif /* INNODB_RW_LOCKS_USE_ATOMICS */
-
 	lock->lock_word = X_LOCK_DECR;
 	lock->waiters = 0;
 
-	/* We set this value to signify that lock->writer_thread
-	contains garbage at initialization and cannot be used for
-	recursive x-locking. */
-	lock->recursive = FALSE;
 	lock->sx_recursive = 0;
-	/* Silence Valgrind when UNIV_DEBUG_VALGRIND is not enabled. */
-	memset((void*) &lock->writer_thread, 0, sizeof lock->writer_thread);
-	UNIV_MEM_INVALID(&lock->writer_thread, sizeof lock->writer_thread);
+	lock->writer_thread= 0;
 
 #ifdef UNIV_DEBUG
 	lock->m_rw_lock = true;
@@ -307,15 +270,10 @@ rw_lock_free_func(
 /*==============*/
 	rw_lock_t*	lock)	/*!< in/out: rw-lock */
 {
-	os_rmb;
 	ut_ad(rw_lock_validate(lock));
 	ut_a(lock->lock_word == X_LOCK_DECR);
 
 	mutex_enter(&rw_lock_list_mutex);
-
-#ifndef INNODB_RW_LOCKS_USE_ATOMICS
-	mutex_free(rw_lock_get_mutex(lock));
-#endif /* !INNODB_RW_LOCKS_USE_ATOMICS */
 
 	os_event_destroy(lock->event);
 
@@ -356,7 +314,6 @@ rw_lock_s_lock_spin(
 lock_loop:
 
 	/* Spin waiting for the writer field to become free */
-	os_rmb;
 	HMT_low();
 	while (i < srv_n_spin_wait_rounds && lock->lock_word <= 0) {
 		if (srv_spin_wait_delay) {
@@ -364,7 +321,6 @@ lock_loop:
 		}
 
 		i++;
-		os_rmb;
 	}
 
 	HMT_medium();
@@ -402,7 +358,7 @@ lock_loop:
 
 		/* Set waiters before checking lock_word to ensure wake-up
 		signal is sent. This may lead to some unnecessary signals. */
-		rw_lock_set_waiter_flag(lock);
+		my_atomic_fas32((int32*) &lock->waiters, 1);
 
 		if (rw_lock_s_lock_low(lock, pass, file_name, line)) {
 
@@ -456,7 +412,7 @@ rw_lock_x_lock_move_ownership(
 {
 	ut_ad(rw_lock_is_locked(lock, RW_LOCK_X));
 
-	rw_lock_set_writer_id_and_recursion_flag(lock, true);
+	lock->writer_thread = os_thread_get_curr_id();
 }
 
 /******************************************************************//**
@@ -480,7 +436,6 @@ rw_lock_x_lock_wait_func(
 	sync_array_t*	sync_arr;
 	uint64_t	count_os_wait = 0;
 
-	os_rmb;
 	ut_ad(lock->lock_word <= threshold);
 
 	while (lock->lock_word < threshold) {
@@ -493,7 +448,6 @@ rw_lock_x_lock_wait_func(
 
 		if (i < srv_n_spin_wait_rounds) {
 			i++;
-			os_rmb;
 			continue;
 		}
 		HMT_medium();
@@ -580,31 +534,24 @@ rw_lock_x_lock_low(
 {
 	if (rw_lock_lock_word_decr(lock, X_LOCK_DECR, X_LOCK_HALF_DECR)) {
 
-
-		/* lock->recursive also tells us if the writer_thread
-		field is stale or active. As we are going to write
-		our own thread id in that field it must be that the
-		current writer_thread value is not active. */
-		ut_a(!lock->recursive);
+		/* As we are going to write our own thread id in that field it
+		must be that the current writer_thread value is not active. */
+		ut_a(!lock->writer_thread);
 
 		/* Decrement occurred: we are writer or next-writer. */
-		rw_lock_set_writer_id_and_recursion_flag(
-			lock, !pass);
+		if (!pass)
+		{
+			lock->writer_thread = os_thread_get_curr_id();
+		}
 
 		rw_lock_x_lock_wait(lock, pass, 0, file_name, line);
 
 	} else {
 		os_thread_id_t	thread_id = os_thread_get_curr_id();
 
-		if (!pass) {
-			os_rmb;
-		}
-
 		/* Decrement failed: An X or SX lock is held by either
 		this thread or another. Try to relock. */
-		if (!pass
-		    && lock->recursive
-		    && os_thread_eq(lock->writer_thread, thread_id)) {
+		if (!pass && os_thread_eq(lock->writer_thread, thread_id)) {
 			/* Other s-locks can be allowed. If it is request x
 			recursively while holding sx lock, this x lock should
 			be along with the latching-order. */
@@ -667,29 +614,24 @@ rw_lock_sx_lock_low(
 {
 	if (rw_lock_lock_word_decr(lock, X_LOCK_HALF_DECR, X_LOCK_HALF_DECR)) {
 
-		/* lock->recursive also tells us if the writer_thread
-		field is stale or active. As we are going to write
-		our own thread id in that field it must be that the
-		current writer_thread value is not active. */
-		ut_a(!lock->recursive);
+		/* As we are going to write our own thread id in that field it
+		must be that the current writer_thread value is not active. */
+		ut_a(!lock->writer_thread);
 
 		/* Decrement occurred: we are the SX lock owner. */
-		rw_lock_set_writer_id_and_recursion_flag(
-			lock, !pass);
+		if (!pass)
+		{
+			lock->writer_thread = os_thread_get_curr_id();
+		}
 
 		lock->sx_recursive = 1;
 	} else {
 		os_thread_id_t	thread_id = os_thread_get_curr_id();
 
-		if (!pass) {
-			os_rmb;
-		}
-
 		/* Decrement failed: It already has an X or SX lock by this
 		thread or another thread. If it is this thread, relock,
 		else fail. */
-		if (!pass && lock->recursive
-		    && os_thread_eq(lock->writer_thread, thread_id)) {
+		if (!pass && os_thread_eq(lock->writer_thread, thread_id)) {
 			/* This thread owns an X or SX lock */
 			if (lock->sx_recursive++ == 0) {
 				/* This thread is making first SX-lock request
@@ -776,7 +718,6 @@ lock_loop:
 	} else {
 
 		/* Spin waiting for the lock_word to become free */
-		os_rmb;
 		HMT_low();
 		while (i < srv_n_spin_wait_rounds
 		       && lock->lock_word <= X_LOCK_HALF_DECR) {
@@ -787,7 +728,6 @@ lock_loop:
 			}
 
 			i++;
-			os_rmb;
 		}
 
 		HMT_medium();
@@ -810,7 +750,7 @@ lock_loop:
 
 	/* Waiters must be set before checking lock_word, to ensure signal
 	is sent. This could lead to a few unnecessary wake-up signals. */
-	rw_lock_set_waiter_flag(lock);
+	my_atomic_fas32((int32*) &lock->waiters, 1);
 
 	if (rw_lock_x_lock_low(lock, pass, file_name, line)) {
 		sync_array_free_cell(sync_arr, cell);
@@ -885,7 +825,6 @@ lock_loop:
 		++spin_wait_count;
 
 		/* Spin waiting for the lock_word to become free */
-		os_rmb;
 		while (i < srv_n_spin_wait_rounds
 		       && lock->lock_word <= X_LOCK_HALF_DECR) {
 
@@ -916,7 +855,7 @@ lock_loop:
 
 	/* Waiters must be set before checking lock_word, to ensure signal
 	is sent. This could lead to a few unnecessary wake-up signals. */
-	rw_lock_set_waiter_flag(lock);
+	my_atomic_fas32((int32*) &lock->waiters, 1);
 
 	if (rw_lock_sx_lock_low(lock, pass, file_name, line)) {
 
@@ -955,16 +894,14 @@ rw_lock_validate(
 /*=============*/
 	const rw_lock_t*	lock)	/*!< in: rw-lock */
 {
-	ulint	waiters;
 	lint	lock_word;
 
 	ut_ad(lock);
 
-	waiters = rw_lock_get_waiters(lock);
 	lock_word = lock->lock_word;
 
 	ut_ad(lock->magic_n == RW_LOCK_MAGIC_N);
-	ut_ad(waiters == 0 || waiters == 1);
+	ut_ad(lock->waiters < 2);
 	ut_ad(lock_word > -(2 * X_LOCK_DECR));
 	ut_ad(lock_word <= X_LOCK_DECR);
 
@@ -1226,15 +1163,11 @@ rw_lock_list_print_info(
 
 		count++;
 
-#ifndef INNODB_RW_LOCKS_USE_ATOMICS
-		mutex_enter(&lock->mutex);
-#endif /* INNODB_RW_LOCKS_USE_ATOMICS */
-
 		if (lock->lock_word != X_LOCK_DECR) {
 
 			fprintf(file, "RW-LOCK: %p ", (void*) lock);
 
-			if (rw_lock_get_waiters(lock)) {
+			if (lock->waiters) {
 				fputs(" Waiters for the lock exist\n", file);
 			} else {
 				putc('\n', file);
@@ -1253,10 +1186,6 @@ rw_lock_list_print_info(
 
 			rw_lock_debug_mutex_exit();
 		}
-
-#ifndef INNODB_RW_LOCKS_USE_ATOMICS
-		mutex_exit(&lock->mutex);
-#endif /* INNODB_RW_LOCKS_USE_ATOMICS */
 	}
 
 	fprintf(file, "Total number of rw-locks " ULINTPF "\n", count);
@@ -1277,18 +1206,9 @@ rw_lock_print(
 		"RW-LATCH INFO\n"
 		"RW-LATCH: %p ", (void*) lock);
 
-#ifndef INNODB_RW_LOCKS_USE_ATOMICS
-	/* We used to acquire lock->mutex here, but it would cause a
-	recursive call to sync_thread_add_level() if UNIV_DEBUG
-	is defined.  Since this function is only invoked from
-	sync_thread_levels_g(), let us choose the smaller evil:
-	performing dirty reads instead of causing bogus deadlocks or
-	assertion failures. */
-#endif /* INNODB_RW_LOCKS_USE_ATOMICS */
-
 	if (lock->lock_word != X_LOCK_DECR) {
 
-		if (rw_lock_get_waiters(lock)) {
+		if (lock->waiters) {
 			fputs(" Waiters for the lock exist\n", stderr);
 		} else {
 			putc('\n', stderr);

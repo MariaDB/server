@@ -9,13 +9,13 @@ innodb_encryption_threads	4
 select space,name,current_key_version from information_schema.innodb_tablespaces_encryption order by space;
 space	name	current_key_version
 0	NULL	1
-2	mysql/innodb_table_stats	1
-3	mysql/innodb_index_stats	1
+1	mysql/innodb_table_stats	1
+2	mysql/innodb_index_stats	1
 set global debug_key_management_version=10;
 select space,name,current_key_version from information_schema.innodb_tablespaces_encryption order by space;
 space	name	current_key_version
 0	NULL	10
-2	mysql/innodb_table_stats	10
-3	mysql/innodb_index_stats	10
+1	mysql/innodb_table_stats	10
+2	mysql/innodb_index_stats	10
 set global innodb_encrypt_tables=OFF;
 set global debug_key_management_version=1;

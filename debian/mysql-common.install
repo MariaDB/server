@@ -1,0 +1,2 @@
+debian/additions/my.cnf etc/mysql
+usr/share/mysql-common/internal-use-only

@@ -2,7 +2,7 @@
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2014, 2015, MariaDB Corporation. All Rights Reserved.
+Copyright (c) 2014, 2016, MariaDB Corporation. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -37,7 +37,6 @@ Created 6/2/1994 Heikki Tuuri
 #include "btr0types.h"
 #include "gis0type.h"
 
-#ifndef UNIV_HOTBACKUP
 /** Maximum record size which can be stored on a page, without using the
 special big record storage structure */
 #define	BTR_PAGE_MAX_REC_SIZE	(UNIV_PAGE_SIZE / 2 - 200)
@@ -140,7 +139,6 @@ record is in spatial index */
 	((latch_mode) & ~(BTR_LATCH_FOR_INSERT		\
 			  | BTR_LATCH_FOR_DELETE	\
 			  | BTR_MODIFY_EXTERNAL))
-#endif /* UNIV_HOTBACKUP */
 
 /**************************************************************//**
 Report that an index page is corrupted. */
@@ -161,7 +159,6 @@ btr_corruption_report(
 		ut_error;					\
 	}
 
-#ifndef UNIV_HOTBACKUP
 /**************************************************************//**
 Gets the root node of a tree and sx-latches it for segment access.
 @return root page, sx-latched */
@@ -242,10 +239,16 @@ btr_block_get_func(
 @param index index tree, may be NULL if not the insert buffer tree
 @param mtr mini-transaction handle
 @return the uncompressed page frame */
-# define btr_page_get(page_id, page_size, mode, index, mtr)	\
-	buf_block_get_frame(btr_block_get(page_id, page_size,	\
-					  mode, index, mtr))
-#endif /* !UNIV_HOTBACKUP */
+UNIV_INLINE
+page_t*
+btr_page_get(
+/*=========*/
+	const page_id_t&	page_id,
+	const page_size_t&	page_size,
+	ulint			mode,
+	dict_index_t*		index,
+	mtr_t*			mtr)
+	MY_ATTRIBUTE((warn_unused_result));
 /**************************************************************//**
 Gets the index id field of a page.
 @return index id */
@@ -255,7 +258,6 @@ btr_page_get_index_id(
 /*==================*/
 	const page_t*	page)	/*!< in: index page */
 	MY_ATTRIBUTE((warn_unused_result));
-#ifndef UNIV_HOTBACKUP
 /********************************************************//**
 Gets the node level field in an index page.
 @return level, leaf level == 0 */
@@ -352,6 +354,34 @@ void
 btr_free(
 	const page_id_t&	page_id,
 	const page_size_t&	page_size);
+
+/** Read the last used AUTO_INCREMENT value from PAGE_ROOT_AUTO_INC.
+@param[in,out]	index	clustered index
+@return	the last used AUTO_INCREMENT value
+@retval	0 on error or if no AUTO_INCREMENT value was used yet */
+ib_uint64_t
+btr_read_autoinc(dict_index_t* index)
+	MY_ATTRIBUTE((nonnull, warn_unused_result));
+
+/** Read the last used AUTO_INCREMENT value from PAGE_ROOT_AUTO_INC,
+or fall back to MAX(auto_increment_column).
+@param[in]	table	table containing an AUTO_INCREMENT column
+@param[in]	col_no	index of the AUTO_INCREMENT column
+@return	the AUTO_INCREMENT value
+@retval	0 on error or if no AUTO_INCREMENT value was used yet */
+ib_uint64_t
+btr_read_autoinc_with_fallback(const dict_table_t* table, unsigned col_no)
+	MY_ATTRIBUTE((nonnull, warn_unused_result));
+
+/** Write the next available AUTO_INCREMENT value to PAGE_ROOT_AUTO_INC.
+@param[in,out]	index	clustered index
+@param[in]	autoinc	the AUTO_INCREMENT value
+@param[in]	reset	whether to reset the AUTO_INCREMENT
+			to a possibly smaller value than currently
+			exists in the page */
+void
+btr_write_autoinc(dict_index_t* index, ib_uint64_t autoinc, bool reset = false)
+	MY_ATTRIBUTE((nonnull));
 
 /*************************************************************//**
 Makes tree one level higher by splitting the root, and inserts
@@ -479,9 +509,8 @@ btr_insert_on_non_leaf_level_func(
 	const char*	file,	/*!< in: file name */
 	ulint		line,	/*!< in: line where called */
 	mtr_t*		mtr);	/*!< in: mtr */
-# define btr_insert_on_non_leaf_level(f,i,l,t,m)			\
+#define btr_insert_on_non_leaf_level(f,i,l,t,m)			\
 	btr_insert_on_non_leaf_level_func(f,i,l,t,__FILE__,__LINE__,m)
-#endif /* !UNIV_HOTBACKUP */
 /****************************************************************//**
 Sets a record as the predefined minimum record. */
 void
@@ -490,7 +519,6 @@ btr_set_min_rec_mark(
 	rec_t*	rec,	/*!< in/out: record */
 	mtr_t*	mtr)	/*!< in: mtr */
 	MY_ATTRIBUTE((nonnull));
-#ifndef UNIV_HOTBACKUP
 /*************************************************************//**
 Deletes on the upper level the node pointer to a page. */
 void
@@ -543,7 +571,6 @@ btr_discard_page(
 	btr_cur_t*	cursor,	/*!< in: cursor on the page to discard: not on
 				the root page */
 	mtr_t*		mtr);	/*!< in: mtr */
-#endif /* !UNIV_HOTBACKUP */
 /****************************************************************//**
 Parses the redo log record for setting an index record as the predefined
 minimum record.
@@ -570,7 +597,6 @@ btr_parse_page_reorganize(
 	buf_block_t*	block,	/*!< in: page to be reorganized, or NULL */
 	mtr_t*		mtr)	/*!< in: mtr or NULL */
 	MY_ATTRIBUTE((warn_unused_result));
-#ifndef UNIV_HOTBACKUP
 /**************************************************************//**
 Gets the number of pages in a B-tree.
 @return number of pages, or ULINT_UNDEFINED if the index is unavailable */
@@ -771,7 +797,6 @@ btr_lift_page_up(
 
 #define BTR_N_LEAF_PAGES	1
 #define BTR_TOTAL_SIZE		2
-#endif /* !UNIV_HOTBACKUP */
 
 #ifndef UNIV_NONINL
 #include "btr0btr.ic"

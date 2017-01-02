@@ -583,6 +583,15 @@ ALTER TABLE t2 RENAME t1, LOCK EXCLUSIVE;
 
 DROP TABLE t1;
 
+--echo #
+--echo # MDEV-10792: Assertion `thd->mdl_context.is_lock_owner
+--echo # (MDL_key::TABLE, table->db, table->table_name, MDL_SHARED)'
+--echo # failed in mysql_rm_table_no_locks
+--echo #
+CREATE TEMPORARY TABLE t1 (i INT);
+--error ER_BAD_TABLE_ERROR
+DROP TABLE nonexisting_table, t1;
+
 --echo # Cleanup
 DROP DATABASE temp_db;
 

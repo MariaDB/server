@@ -34,7 +34,7 @@ EXPLAIN
       "access_type": "ALL",
       "rows": 10,
       "filtered": 100,
-      "attached_condition": "(t0.a < 3)"
+      "attached_condition": "t0.a < 3"
     }
   }
 }
@@ -56,7 +56,7 @@ EXPLAIN
       "access_type": "ALL",
       "rows": 10,
       "filtered": 100,
-      "attached_condition": "(t0.a is not null)"
+      "attached_condition": "t0.a is not null"
     },
     "table": {
       "table_name": "t1",
@@ -88,7 +88,7 @@ EXPLAIN
       "used_key_parts": ["a1"],
       "rows": 5,
       "filtered": 100,
-      "index_condition": "(t2.a1 < 5)"
+      "index_condition": "t2.a1 < 5"
     }
   }
 }
@@ -116,7 +116,7 @@ EXPLAIN
       },
       "rows": 2,
       "filtered": 100,
-      "attached_condition": "((t2.a1 = 1) or (t2.b1 = 2))"
+      "attached_condition": "t2.a1 = 1 or t2.b1 = 2"
     }
   }
 }
@@ -144,7 +144,7 @@ EXPLAIN
       },
       "rows": 2,
       "filtered": 100,
-      "attached_condition": "((t2.a1 = 1) or ((t2.b1 = 2) and (t2.b2 = 3)))"
+      "attached_condition": "t2.a1 = 1 or t2.b1 = 2 and t2.b2 = 3"
     }
   }
 }
@@ -173,7 +173,7 @@ EXPLAIN
       },
       "rows": 2,
       "filtered": 100,
-      "attached_condition": "(((t2.a1 = 1) and (t2.a2 = 1)) or ((t2.b1 = 2) and (t2.b2 = 1)))"
+      "attached_condition": "t2.a1 = 1 and t2.a2 = 1 or t2.b1 = 2 and t2.b2 = 1"
     }
   }
 }
@@ -188,7 +188,7 @@ EXPLAIN
       "access_type": "ALL",
       "rows": 10,
       "filtered": 100,
-      "attached_condition": "(t0.a is not null)"
+      "attached_condition": "t0.a is not null"
     },
     "table": {
       "table_name": "t2",
@@ -302,7 +302,7 @@ EXPLAIN
               "access_type": "ALL",
               "rows": 10,
               "filtered": 100,
-              "attached_condition": "(t1.b = t0.a)"
+              "attached_condition": "t1.b = t0.a"
             }
           }
         }
@@ -322,7 +322,7 @@ EXPLAIN
       "access_type": "ALL",
       "rows": 10,
       "filtered": 100,
-      "attached_condition": "((t0.a > (subquery#2)) or (t0.a < 3))"
+      "attached_condition": "t0.a > (subquery#2) or t0.a < 3"
     },
     "subqueries": [
       {
@@ -335,7 +335,7 @@ EXPLAIN
               "access_type": "ALL",
               "rows": 10,
               "filtered": 100,
-              "attached_condition": "(t1.b = t0.a)"
+              "attached_condition": "t1.b = t0.a"
             }
           }
         }
@@ -360,7 +360,7 @@ EXPLAIN
       "access_type": "ALL",
       "rows": 100,
       "filtered": 100,
-      "attached_condition": "(tbl1.b < 3)"
+      "attached_condition": "tbl1.b < 3"
     },
     "block-nl-join": {
       "table": {
@@ -368,12 +368,12 @@ EXPLAIN
         "access_type": "ALL",
         "rows": 100,
         "filtered": 100,
-        "attached_condition": "(tbl2.b < 5)"
+        "attached_condition": "tbl2.b < 5"
       },
       "buffer_type": "flat",
       "buffer_size": "256Kb",
       "join_type": "BNL",
-      "attached_condition": "(tbl2.a = tbl1.a)"
+      "attached_condition": "tbl2.a = tbl1.a"
     }
   }
 }
@@ -411,7 +411,7 @@ EXPLAIN
       "table_name": "t0",
       "access_type": "ALL",
       "rows": 10,
-      "attached_condition": "(t0.a < 3)"
+      "attached_condition": "t0.a < 3"
     }
   }
 }
@@ -425,7 +425,7 @@ EXPLAIN
       "table_name": "t0",
       "access_type": "ALL",
       "rows": 10,
-      "attached_condition": "(t0.a in (2,3,4))"
+      "attached_condition": "t0.a in (2,3,4)"
     }
   }
 }
@@ -481,11 +481,11 @@ EXPLAIN
       "access_type": "ALL",
       "rows": 10,
       "filtered": 100,
-      "attached_condition": "(tbl.cnt > 0)",
+      "attached_condition": "tbl.cnt > 0",
       "materialized": {
         "query_block": {
           "select_id": 2,
-          "having_condition": "(cnt > 0)",
+          "having_condition": "cnt > 0",
           "filesort": {
             "sort_key": "t1.a",
             "temporary_table": {
@@ -514,7 +514,7 @@ EXPLAIN
       "access_type": "ALL",
       "rows": 10,
       "filtered": 100,
-      "attached_condition": "(tbl2.a is not null)"
+      "attached_condition": "tbl2.a is not null"
     },
     "table": {
       "table_name": "<derived2>",
@@ -526,7 +526,7 @@ EXPLAIN
       "ref": ["test.tbl2.a"],
       "rows": 2,
       "filtered": 100,
-      "attached_condition": "(tbl1.cnt = tbl2.a)",
+      "attached_condition": "tbl1.cnt = tbl2.a",
       "materialized": {
         "query_block": {
           "select_id": 2,
@@ -560,7 +560,7 @@ EXPLAIN
       "access_type": "ALL",
       "rows": 10,
       "filtered": 100,
-      "attached_condition": "(t1.a is not null)"
+      "attached_condition": "t1.a is not null"
     },
     "table": {
       "table_name": "<subquery2>",
@@ -674,7 +674,7 @@ EXPLAIN
       "buffer_type": "flat",
       "buffer_size": "256Kb",
       "join_type": "BNL",
-      "attached_condition": "((t1.b = t2.b) and (t1.a = t2.a))"
+      "attached_condition": "t1.b = t2.b and t1.a = t2.a"
     }
   }
 }
@@ -711,7 +711,7 @@ EXPLAIN
         "buffer_type": "flat",
         "buffer_size": "256Kb",
         "join_type": "BNL",
-        "attached_condition": "((t1.b = t2.b) and (t1.a = t2.a))"
+        "attached_condition": "t1.b = t2.b and t1.a = t2.a"
       }
     }
   }
@@ -739,7 +739,7 @@ EXPLAIN
       "used_key_parts": ["a"],
       "rows": 1,
       "filtered": 100,
-      "index_condition": "(t1.a < 3)",
+      "index_condition": "t1.a < 3",
       "mrr_type": "Rowid-ordered scan"
     }
   }
@@ -792,14 +792,14 @@ EXPLAIN
       "used_key_parts": ["a"],
       "rows": 2,
       "filtered": 100,
-      "attached_condition": "(not(<in_optimizer>(outer_t1.a,<exists>(subquery#2))))",
+      "attached_condition": "!<in_optimizer>(outer_t1.a,<exists>(subquery#2))",
       "using_index": true
     },
     "subqueries": [
       {
         "query_block": {
           "select_id": 2,
-          "having_condition": "trigcond(<is_not_null_test>(t1.a))",
+          "having_condition": "trigcond(t1.a is null)",
           "full-scan-on-null_key": {
             "table": {
               "table_name": "t1",
@@ -811,7 +811,7 @@ EXPLAIN
               "ref": ["func"],
               "rows": 2,
               "filtered": 100,
-              "attached_condition": "trigcond(((<cache>(outer_t1.a) = t1.a) or isnull(t1.a)))",
+              "attached_condition": "trigcond(<cache>(outer_t1.a) = t1.a or t1.a is null)",
               "using_index": true
             }
           },
@@ -825,7 +825,7 @@ EXPLAIN
             "buffer_type": "flat",
             "buffer_size": "256Kb",
             "join_type": "BNL",
-            "attached_condition": "((t2.b <> outer_t1.a) and trigcond(((<cache>(outer_t1.a) = t1.a) or isnull(t1.a))))"
+            "attached_condition": "t2.b <> outer_t1.a and trigcond(<cache>(outer_t1.a) = t1.a or t1.a is null)"
           }
         }
       }
@@ -849,7 +849,7 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "const_condition": "<not>(<in_optimizer>(20000,(<max>(subquery#2) >= 20000)))",
+    "const_condition": "<not>(<in_optimizer>(20000,<max>(subquery#2) >= 20000))",
     "table": {
       "table_name": "t0",
       "access_type": "ALL",
@@ -876,7 +876,7 @@ EXPLAIN
             "buffer_type": "flat",
             "buffer_size": "256Kb",
             "join_type": "BNL",
-            "attached_condition": "(tbl2.b = tbl1.b)"
+            "attached_condition": "tbl2.b = tbl1.b"
           }
         }
       }
@@ -902,7 +902,7 @@ EXPLAIN
       "access_type": "ALL",
       "rows": 2,
       "filtered": 100,
-      "attached_condition": "(not(<in_optimizer>(t1.a,t1.a in (subquery#2))))"
+      "attached_condition": "!<in_optimizer>(t1.a,t1.a in (subquery#2))"
     },
     "subqueries": [
       {
@@ -1047,7 +1047,7 @@ EXPLAIN
       "used_key_parts": ["a1", "a2", "b"],
       "rows": 17,
       "filtered": 100,
-      "attached_condition": "((t1.b = 'a') and (t1.a2 >= 'b'))",
+      "attached_condition": "t1.b = 'a' and t1.a2 >= 'b'",
       "using_index_for_group_by": true
     }
   }
@@ -1065,7 +1065,7 @@ EXPLAIN
       "used_key_parts": ["a1", "a2", "b", "c"],
       "rows": 65,
       "filtered": 100,
-      "attached_condition": "((t1.b = 'a') and (t1.c = 'i121') and (t1.a2 >= 'b'))",
+      "attached_condition": "t1.b = 'a' and t1.c = 'i121' and t1.a2 >= 'b'",
       "using_index_for_group_by": "scanning"
     }
   }
@@ -1086,7 +1086,7 @@ EXPLAIN
       "access_type": "ALL",
       "rows": 2,
       "filtered": 100,
-      "attached_condition": "(t1.a = _latin1'\xDF')"
+      "attached_condition": "t1.a = _latin1'\xDF'"
     }
   }
 }
@@ -1106,7 +1106,7 @@ EXPLAIN
       "access_type": "ALL",
       "rows": 2,
       "filtered": 100,
-      "attached_condition": "(case when convert(t1.a using utf8) = <cache>((_utf8'a' collate utf8_bin)) then NULL else t1.a end)"
+      "attached_condition": "(case when convert(t1.a using utf8) = <cache>(_utf8'a' collate utf8_bin) then NULL else t1.a end)"
     }
   }
 }
@@ -1130,7 +1130,7 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "having_condition": "(TOP > t2.a)",
+    "having_condition": "TOP > t2.a",
     "filesort": {
       "sort_key": "t2.a",
       "temporary_table": {
@@ -1323,7 +1323,7 @@ EXPLAIN
       "ref": ["test.t1.a"],
       "rows": 1,
       "filtered": 100,
-      "attached_condition": "(trigcond(isnull(t2.pk)) and trigcond(trigcond((t1.a is not null))))",
+      "attached_condition": "trigcond(t2.pk is null) and trigcond(trigcond(t1.a is not null))",
       "using_index": true,
       "not_exists": true
     }
@@ -1361,7 +1361,7 @@ ANALYZE
       "r_total_time_ms": "REPLACED",
       "filtered": 100,
       "r_filtered": 100,
-      "attached_condition": "(trigcond(isnull(t2.pk)) and trigcond(trigcond((t1.a is not null))))",
+      "attached_condition": "trigcond(t2.pk is null) and trigcond(trigcond(t1.a is not null))",
       "using_index": true,
       "not_exists": true
     }
@@ -1385,7 +1385,7 @@ EXPLAIN
         "access_type": "ALL",
         "rows": 2,
         "filtered": 100,
-        "attached_condition": "(t1.a is not null)"
+        "attached_condition": "t1.a is not null"
       },
       "table": {
         "table_name": "t2",
@@ -1421,7 +1421,7 @@ ANALYZE
         "r_total_time_ms": "REPLACED",
         "filtered": 100,
         "r_filtered": 100,
-        "attached_condition": "(t1.a is not null)"
+        "attached_condition": "t1.a is not null"
       },
       "table": {
         "table_name": "t2",
@@ -1473,7 +1473,7 @@ EXPLAIN
       "access_type": "ALL",
       "rows": 10,
       "filtered": 100,
-      "attached_condition": "(t3.a is not null)"
+      "attached_condition": "t3.a is not null"
     },
     "block-nl-join": {
       "table": {
@@ -1486,7 +1486,7 @@ EXPLAIN
         "ref": ["test.t3.a"],
         "rows": 1,
         "filtered": 100,
-        "index_condition_bka": "((t4.b + 1) <= (t3.b + 1))"
+        "index_condition_bka": "t4.b + 1 <= t3.b + 1"
       },
       "buffer_type": "flat",
       "buffer_size": "256Kb",
@@ -1512,7 +1512,7 @@ ANALYZE
       "r_total_time_ms": "REPLACED",
       "filtered": 100,
       "r_filtered": 100,
-      "attached_condition": "(t3.a is not null)"
+      "attached_condition": "t3.a is not null"
     },
     "block-nl-join": {
       "table": {
@@ -1529,7 +1529,7 @@ ANALYZE
         "r_total_time_ms": "REPLACED",
         "filtered": 100,
         "r_filtered": null,
-        "index_condition_bka": "((t4.b + 1) <= (t3.b + 1))"
+        "index_condition_bka": "t4.b + 1 <= t3.b + 1"
       },
       "buffer_type": "flat",
       "buffer_size": "256Kb",
@@ -1567,13 +1567,13 @@ EXPLAIN
           "state": "uninitialized",
           "query_block": {
             "select_id": 2,
-            "outer_ref_condition": "(t0.a < 5)",
+            "outer_ref_condition": "t0.a < 5",
             "table": {
               "table_name": "t1",
               "access_type": "ALL",
               "rows": 10,
               "filtered": 100,
-              "attached_condition": "((t0.a < 5) and (t1.b < t0.a))"
+              "attached_condition": "t0.a < 5 and t1.b < t0.a"
             }
           }
         }

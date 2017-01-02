@@ -173,3 +173,10 @@ drop table option;
 set option=1;
 --error 1193
 set option option=1;
+
+--echo #
+--echo # MDEV-10585 EXECUTE IMMEDIATE statement
+--echo #
+
+CREATE TABLE immediate (immediate int);
+DROP TABLE immediate;

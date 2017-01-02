@@ -30,10 +30,6 @@ Completed by Sunny Bains and Marko Makela
 
 #include "ha_prototypes.h"
 
-#include <math.h>
-
-#include "ha_prototypes.h"
-
 #include "row0merge.h"
 #include "row0ext.h"
 #include "row0log.h"
@@ -51,7 +47,6 @@ Completed by Sunny Bains and Marko Makela
 #include "fsp0sysspace.h"
 #include "ut0new.h"
 #include "ut0stage.h"
-#include "math.h" /* log() */
 #include "fil0crypt.h"
 
 float my_log2f(float n)
@@ -660,13 +655,10 @@ row_merge_buf_add(
 		const dfield_t*		row_field;
 
 		col = ifield->col;
-
-#ifdef MYSQL_VIRTUAL_COLUMNS
 		const dict_v_col_t*	v_col = NULL;
 		if (dict_col_is_virtual(col)) {
 			v_col = reinterpret_cast<const dict_v_col_t*>(col);
 		}
-#endif /* MYSQL_VIRTUAL_COLUMNS */
 
 		col_no = dict_col_get_no(col);
 
@@ -692,7 +684,6 @@ row_merge_buf_add(
 		} else {
 			/* Use callback to get the virtual column value */
 			if (dict_col_is_virtual(col)) {
- #ifdef MYSQL_VIRTUAL_COLUMN
 				dict_index_t*	clust_index
 					= dict_table_get_first_index(new_table);
 
@@ -706,7 +697,6 @@ row_merge_buf_add(
 					DBUG_RETURN(0);
 				}
 				dfield_copy(field, row_field);
-#endif /* MYSQL_VIRTUAL_COLUMN */
 			} else {
 				row_field = dtuple_get_nth_field(row, col_no);
 				dfield_copy(field, row_field);
@@ -2090,8 +2080,7 @@ row_merge_read_clustered_index(
 			}
 
 			if (dbug_run_purge
-			    || rw_lock_get_waiters(
-				    dict_index_get_lock(clust_index))) {
+			    || dict_index_get_lock(clust_index)->waiters) {
 				/* There are waiters on the clustered
 				index tree lock, likely the purge
 				thread. Store and restore the cursor
@@ -4515,9 +4504,7 @@ row_merge_create_index(
 			if (col_names && col_names[i]) {
 				name = col_names[i];
 			} else {
-				name = ifield->col_name ?
-					dict_table_get_col_name_for_mysql(table, ifield->col_name) :
-					dict_table_get_col_name(table, ifield->col_no);
+				name = dict_table_get_col_name(table, ifield->col_no);
 			}
 		}
 
@@ -4714,10 +4701,7 @@ row_merge_build_indexes(
 
 	/* If tablespace is encrypted, allocate additional buffer for
 	encryption/decryption. */
-	if ((crypt_data && crypt_data->encryption == FIL_SPACE_ENCRYPTION_ON) ||
-		(srv_encrypt_tables &&
-			crypt_data && crypt_data->encryption == FIL_SPACE_ENCRYPTION_DEFAULT)) {
-
+	if (crypt_data && crypt_data->should_encrypt()) {
 		crypt_block = static_cast<row_merge_block_t*>(
 			alloc.allocate_large(3 * srv_sort_buf_size, &crypt_pfx));
 
@@ -4942,9 +4926,10 @@ wait_again:
 				(total_static_cost + total_dynamic_cost)
 				* PCT_COST_MERGESORT_INDEX * 100;
 
-			bufend = innobase_convert_name(buf, sizeof buf,
+			bufend = innobase_convert_name(
+				buf, sizeof buf,
 				indexes[i]->name, strlen(indexes[i]->name),
-				trx ? trx->mysql_thd : NULL);
+				trx->mysql_thd);
 
 			buf[bufend - buf]='\0';
 

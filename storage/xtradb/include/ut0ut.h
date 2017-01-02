@@ -85,7 +85,7 @@ private:
    the YieldProcessor macro defined in WinNT.h. It is a CPU architecture-
    independent way by using YieldProcessor. */
 #  define UT_RELAX_CPU() YieldProcessor()
-# elif defined(__powerpc__)
+# elif defined(__powerpc__) && defined __GLIBC__
 #include <sys/platform/ppc.h>
 #  define UT_RELAX_CPU() do { \
      volatile lint      volatile_var = __ppc_get_timebase(); \

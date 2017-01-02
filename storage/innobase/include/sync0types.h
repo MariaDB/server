@@ -28,6 +28,7 @@ Created 9/5/1995 Heikki Tuuri
 
 #include <vector>
 #include <iostream>
+#include <my_atomic.h>
 
 #include "ut0new.h"
 #include "ut0counter.h"
@@ -44,12 +45,6 @@ typedef CRITICAL_SECTION	sys_mutex_t;
 /** Native mutex */
 typedef pthread_mutex_t		sys_mutex_t;
 #endif /* _WIN32 */
-
-/** The new (C++11) syntax allows the following and we should use it when it
-is available on platforms that we support.
-
-	enum class mutex_state_t : lock_word_t { ... };
-*/
 
 /** Mutex states. */
 enum mutex_state_t {
@@ -1038,10 +1033,10 @@ struct latch_t {
 		return(m_temp_fsp);
 	}
 
-	/** Set the temporary tablespace flag. The latch order constraints
-	are different for intrinsic tables. We don't always acquire the
-	index->lock. We need to figure out the context and add some special
-	rules during the checks. */
+	/** Set the temporary tablespace flag. (For internal temporary
+	tables, MySQL 5.7 does not always acquire the index->lock. We
+	need to figure out the context and add some special rules
+	during the checks.) */
 	void set_temp_fsp()
 		UNIV_NOTHROW
 	{
@@ -1095,26 +1090,11 @@ struct btrsea_sync_check : public sync_check_functor_t {
 	virtual bool operator()(const latch_level_t level)
 	{
 		/* If calling thread doesn't hold search latch then
-		check if there are latch level exception provided.
-
-		Note: Optimizer has added InnoDB intrinsic table as an
-		alternative to MyISAM intrinsic table. With this a new
-		control flow comes into existence, it is:
-
-		Server -> Plugin -> SE
-
-		Plugin in this case is I_S which is sharing the latch vector
-		of InnoDB and so there could be lock conflicts. Ideally
-		the Plugin should use a difference namespace latch vector
-		as it doesn't have any depedency with SE latching protocol.
-
-		Added check that will allow thread to hold I_S latches */
+		check if there are latch level exception provided. */
 
 		if (!m_has_search_latch
 		    && (level != SYNC_SEARCH_SYS
-			&& level != SYNC_FTS_CACHE
-			&& level != SYNC_TRX_I_S_RWLOCK
-			&& level != SYNC_TRX_I_S_LAST_READ)) {
+			&& level != SYNC_FTS_CACHE)) {
 
 			m_result = true;
 
@@ -1260,5 +1240,15 @@ enum rw_lock_flag_t {
 #endif /* UNIV_DBEUG */
 
 #endif /* UNIV_INNOCHECKSUM */
+
+#ifdef _WIN64
+#define my_atomic_addlint(A,B) my_atomic_add64((int64*) (A), (B))
+#define my_atomic_loadlint(A) my_atomic_load64((int64*) (A))
+#define my_atomic_caslint(A,B,C) my_atomic_cas64((int64*) (A), (int64*) (B), (C))
+#else
+#define my_atomic_addlint my_atomic_addlong
+#define my_atomic_loadlint my_atomic_loadlong
+#define my_atomic_caslint my_atomic_caslong
+#endif
 
 #endif /* sync0types_h */

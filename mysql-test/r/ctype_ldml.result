@@ -483,6 +483,9 @@ ucs2_vn_ci	ucs2	359			8
 ucs2_5624_1	ucs2	360			8
 utf8_5624_5	utf8	368			8
 utf8_5624_5_bad	utf8	369			8
+utf8_czech_test_w2	utf8	370			4
+utf8_czech_test_nopad_w2	utf8	371			4
+utf8_czech_test_bad_w2	utf8	372			4
 utf32_test_ci	utf32	391			8
 utf8_maxuserid_ci	utf8	2047			8
 show collation like '%test%';
@@ -491,6 +494,9 @@ latin1_test	latin1	99		Yes	1
 latin1_test2	latin1	332			1
 latin1_test2_cs	latin1	333			1
 utf8_test_ci	utf8	353			8
+utf8_czech_test_w2	utf8	370			4
+utf8_czech_test_nopad_w2	utf8	371			4
+utf8_czech_test_bad_w2	utf8	372			4
 ucs2_test_ci	ucs2	358			8
 utf8mb4_test_ci	utf8mb4	326			8
 utf8mb4_test_400_ci	utf8mb4	328			8
@@ -1326,3 +1332,1705 @@ HEX(a)	REPLACE(a,' ','<SP>')
 6120	a<SP>
 61	a
 DROP TABLE t1;
+SET NAMES utf8 COLLATE utf8_czech_test_w2;
+CREATE TABLE t1 AS SELECT SPACE(10) AS c1 LIMIT 0;
+insert into t1 values ('A'),('a');
+insert into t1 values ('B'),('b');
+insert into t1 values ('C'),('c');
+insert into t1 values ('D'),('d');
+insert into t1 values ('E'),('e');
+insert into t1 values ('F'),('f');
+insert into t1 values ('G'),('g');
+insert into t1 values ('H'),('h');
+insert into t1 values ('I'),('i');
+insert into t1 values ('J'),('j');
+insert into t1 values ('K'),('k');
+insert into t1 values ('L'),('l');
+insert into t1 values ('M'),('m');
+insert into t1 values ('N'),('n');
+insert into t1 values ('O'),('o');
+insert into t1 values ('P'),('p');
+insert into t1 values ('Q'),('q');
+insert into t1 values ('R'),('r');
+insert into t1 values ('S'),('s');
+insert into t1 values ('T'),('t');
+insert into t1 values ('U'),('u');
+insert into t1 values ('V'),('v');
+insert into t1 values ('W'),('w');
+insert into t1 values ('X'),('x');
+insert into t1 values ('Y'),('y');
+insert into t1 values ('Z'),('z');
+insert into t1 values (_ucs2 0x00e0),(_ucs2 0x00c0);
+insert into t1 values (_ucs2 0x00e1),(_ucs2 0x00c1);
+insert into t1 values (_ucs2 0x00e2),(_ucs2 0x00c2);
+insert into t1 values (_ucs2 0x00e3),(_ucs2 0x00c3);
+insert into t1 values (_ucs2 0x00e4),(_ucs2 0x00c4);
+insert into t1 values (_ucs2 0x00e5),(_ucs2 0x00c5);
+insert into t1 values (_ucs2 0x00e6),(_ucs2 0x00c6);
+insert into t1 values (_ucs2 0x00e7),(_ucs2 0x00c7);
+insert into t1 values (_ucs2 0x00e8),(_ucs2 0x00c8);
+insert into t1 values (_ucs2 0x00e9),(_ucs2 0x00c9);
+insert into t1 values (_ucs2 0x00ea),(_ucs2 0x00ca);
+insert into t1 values (_ucs2 0x00eb),(_ucs2 0x00cb);
+insert into t1 values (_ucs2 0x00ec),(_ucs2 0x00cc);
+insert into t1 values (_ucs2 0x00ed),(_ucs2 0x00cd);
+insert into t1 values (_ucs2 0x00ee),(_ucs2 0x00ce);
+insert into t1 values (_ucs2 0x00ef),(_ucs2 0x00cf);
+insert into t1 values (_ucs2 0x00f0),(_ucs2 0x00d0);
+insert into t1 values (_ucs2 0x00f1),(_ucs2 0x00d1);
+insert into t1 values (_ucs2 0x00f2),(_ucs2 0x00d2);
+insert into t1 values (_ucs2 0x00f3),(_ucs2 0x00d3);
+insert into t1 values (_ucs2 0x00f4),(_ucs2 0x00d4);
+insert into t1 values (_ucs2 0x00f5),(_ucs2 0x00d5);
+insert into t1 values (_ucs2 0x00f6),(_ucs2 0x00d6);
+insert into t1 values (_ucs2 0x00f7),(_ucs2 0x00d7);
+insert into t1 values (_ucs2 0x00f8),(_ucs2 0x00d8);
+insert into t1 values (_ucs2 0x00f9),(_ucs2 0x00d9);
+insert into t1 values (_ucs2 0x00fa),(_ucs2 0x00da);
+insert into t1 values (_ucs2 0x00fb),(_ucs2 0x00db);
+insert into t1 values (_ucs2 0x00fc),(_ucs2 0x00dc);
+insert into t1 values (_ucs2 0x00fd),(_ucs2 0x00dd);
+insert into t1 values (_ucs2 0x00fe),(_ucs2 0x00de);
+insert into t1 values (_ucs2 0x00ff),(_ucs2 0x00df);
+insert into t1 values (_ucs2 0x0100),(_ucs2 0x0101),(_ucs2 0x0102),(_ucs2 0x0103);
+insert into t1 values (_ucs2 0x0104),(_ucs2 0x0105),(_ucs2 0x0106),(_ucs2 0x0107);
+insert into t1 values (_ucs2 0x0108),(_ucs2 0x0109),(_ucs2 0x010a),(_ucs2 0x010b);
+insert into t1 values (_ucs2 0x010c),(_ucs2 0x010d),(_ucs2 0x010e),(_ucs2 0x010f);
+insert into t1 values (_ucs2 0x0110),(_ucs2 0x0111),(_ucs2 0x0112),(_ucs2 0x0113);
+insert into t1 values (_ucs2 0x0114),(_ucs2 0x0115),(_ucs2 0x0116),(_ucs2 0x0117);
+insert into t1 values (_ucs2 0x0118),(_ucs2 0x0119),(_ucs2 0x011a),(_ucs2 0x011b);
+insert into t1 values (_ucs2 0x011c),(_ucs2 0x011d),(_ucs2 0x011e),(_ucs2 0x011f);
+insert into t1 values (_ucs2 0x0120),(_ucs2 0x0121),(_ucs2 0x0122),(_ucs2 0x0123);
+insert into t1 values (_ucs2 0x0124),(_ucs2 0x0125),(_ucs2 0x0126),(_ucs2 0x0127);
+insert into t1 values (_ucs2 0x0128),(_ucs2 0x0129),(_ucs2 0x012a),(_ucs2 0x012b);
+insert into t1 values (_ucs2 0x012c),(_ucs2 0x012d),(_ucs2 0x012e),(_ucs2 0x012f);
+insert into t1 values (_ucs2 0x0130),(_ucs2 0x0131),(_ucs2 0x0132),(_ucs2 0x0133);
+insert into t1 values (_ucs2 0x0134),(_ucs2 0x0135),(_ucs2 0x0136),(_ucs2 0x0137);
+insert into t1 values (_ucs2 0x0138),(_ucs2 0x0139),(_ucs2 0x013a),(_ucs2 0x013b);
+insert into t1 values (_ucs2 0x013c),(_ucs2 0x013d),(_ucs2 0x013e),(_ucs2 0x013f);
+insert into t1 values (_ucs2 0x0140),(_ucs2 0x0141),(_ucs2 0x0142),(_ucs2 0x0143);
+insert into t1 values (_ucs2 0x0144),(_ucs2 0x0145),(_ucs2 0x0146),(_ucs2 0x0147);
+insert into t1 values (_ucs2 0x0148),(_ucs2 0x0149),(_ucs2 0x014a),(_ucs2 0x014b);
+insert into t1 values (_ucs2 0x014c),(_ucs2 0x014d),(_ucs2 0x014e),(_ucs2 0x014f);
+insert into t1 values (_ucs2 0x0150),(_ucs2 0x0151),(_ucs2 0x0152),(_ucs2 0x0153);
+insert into t1 values (_ucs2 0x0154),(_ucs2 0x0155),(_ucs2 0x0156),(_ucs2 0x0157);
+insert into t1 values (_ucs2 0x0158),(_ucs2 0x0159),(_ucs2 0x015a),(_ucs2 0x015b);
+insert into t1 values (_ucs2 0x015c),(_ucs2 0x015d),(_ucs2 0x015e),(_ucs2 0x015f);
+insert into t1 values (_ucs2 0x0160),(_ucs2 0x0161),(_ucs2 0x0162),(_ucs2 0x0163);
+insert into t1 values (_ucs2 0x0164),(_ucs2 0x0165),(_ucs2 0x0166),(_ucs2 0x0167);
+insert into t1 values (_ucs2 0x0168),(_ucs2 0x0169),(_ucs2 0x016a),(_ucs2 0x016b);
+insert into t1 values (_ucs2 0x016c),(_ucs2 0x016d),(_ucs2 0x016e),(_ucs2 0x016f);
+insert into t1 values (_ucs2 0x0170),(_ucs2 0x0171),(_ucs2 0x0172),(_ucs2 0x0173);
+insert into t1 values (_ucs2 0x0174),(_ucs2 0x0175),(_ucs2 0x0176),(_ucs2 0x0177);
+insert into t1 values (_ucs2 0x0178),(_ucs2 0x0179),(_ucs2 0x017a),(_ucs2 0x017b);
+insert into t1 values (_ucs2 0x017c),(_ucs2 0x017d),(_ucs2 0x017e),(_ucs2 0x017f);
+insert into t1 values (_ucs2 0x0180),(_ucs2 0x0181),(_ucs2 0x0182),(_ucs2 0x0183);
+insert into t1 values (_ucs2 0x0184),(_ucs2 0x0185),(_ucs2 0x0186),(_ucs2 0x0187);
+insert into t1 values (_ucs2 0x0188),(_ucs2 0x0189),(_ucs2 0x018a),(_ucs2 0x018b);
+insert into t1 values (_ucs2 0x018c),(_ucs2 0x018d),(_ucs2 0x018e),(_ucs2 0x018f);
+insert into t1 values (_ucs2 0x0190),(_ucs2 0x0191),(_ucs2 0x0192),(_ucs2 0x0193);
+insert into t1 values (_ucs2 0x0194),(_ucs2 0x0195),(_ucs2 0x0196),(_ucs2 0x0197);
+insert into t1 values (_ucs2 0x0198),(_ucs2 0x0199),(_ucs2 0x019a),(_ucs2 0x019b);
+insert into t1 values (_ucs2 0x019c),(_ucs2 0x019d),(_ucs2 0x019e),(_ucs2 0x019f);
+insert into t1 values (_ucs2 0x01a0),(_ucs2 0x01a1),(_ucs2 0x01a2),(_ucs2 0x01a3);
+insert into t1 values (_ucs2 0x01a4),(_ucs2 0x01a5),(_ucs2 0x01a6),(_ucs2 0x01a7);
+insert into t1 values (_ucs2 0x01a8),(_ucs2 0x01a9),(_ucs2 0x01aa),(_ucs2 0x01ab);
+insert into t1 values (_ucs2 0x01ac),(_ucs2 0x01ad),(_ucs2 0x01ae),(_ucs2 0x01af);
+insert into t1 values (_ucs2 0x01b0),(_ucs2 0x01b1),(_ucs2 0x01b2),(_ucs2 0x01b3);
+insert into t1 values (_ucs2 0x01b4),(_ucs2 0x01b5),(_ucs2 0x01b6),(_ucs2 0x01b7);
+insert into t1 values (_ucs2 0x01b8),(_ucs2 0x01b9),(_ucs2 0x01ba),(_ucs2 0x01bb);
+insert into t1 values (_ucs2 0x01bc),(_ucs2 0x01bd),(_ucs2 0x01be),(_ucs2 0x01bf);
+insert into t1 values (_ucs2 0x01c0),(_ucs2 0x01c1),(_ucs2 0x01c2),(_ucs2 0x01c3);
+insert into t1 values (_ucs2 0x01c4),(_ucs2 0x01c5),(_ucs2 0x01c6),(_ucs2 0x01c7);
+insert into t1 values (_ucs2 0x01c8),(_ucs2 0x01c9),(_ucs2 0x01ca),(_ucs2 0x01cb);
+insert into t1 values (_ucs2 0x01cc),(_ucs2 0x01cd),(_ucs2 0x01ce),(_ucs2 0x01cf);
+insert into t1 values (_ucs2 0x01d0),(_ucs2 0x01d1),(_ucs2 0x01d2),(_ucs2 0x01d3);
+insert into t1 values (_ucs2 0x01d4),(_ucs2 0x01d5),(_ucs2 0x01d6),(_ucs2 0x01d7);
+insert into t1 values (_ucs2 0x01d8),(_ucs2 0x01d9),(_ucs2 0x01da),(_ucs2 0x01db);
+insert into t1 values (_ucs2 0x01dc),(_ucs2 0x01dd),(_ucs2 0x01de),(_ucs2 0x01df);
+insert into t1 values (_ucs2 0x01e0),(_ucs2 0x01e1),(_ucs2 0x01e2),(_ucs2 0x01e3);
+insert into t1 values (_ucs2 0x01e4),(_ucs2 0x01e5),(_ucs2 0x01e6),(_ucs2 0x01e7);
+insert into t1 values (_ucs2 0x01e8),(_ucs2 0x01e9),(_ucs2 0x01ea),(_ucs2 0x01eb);
+insert into t1 values (_ucs2 0x01ec),(_ucs2 0x01ed),(_ucs2 0x01ee),(_ucs2 0x01ef);
+insert into t1 values (_ucs2 0x01f0),(_ucs2 0x01f1),(_ucs2 0x01f2),(_ucs2 0x01f3);
+insert into t1 values (_ucs2 0x01f4),(_ucs2 0x01f5),(_ucs2 0x01f6),(_ucs2 0x01f7);
+insert into t1 values (_ucs2 0x01f8),(_ucs2 0x01f9),(_ucs2 0x01fa),(_ucs2 0x01fb);
+insert into t1 values (_ucs2 0x01fc),(_ucs2 0x01fd),(_ucs2 0x01fe),(_ucs2 0x01ff);
+INSERT INTO t1 VALUES (_ucs2 0x1EA0),(_ucs2 0x1EA1),(_ucs2 0x1EA2),(_ucs2 0x1EA3);
+INSERT INTO t1 VALUES (_ucs2 0x1EA4),(_ucs2 0x1EA5),(_ucs2 0x1EA6),(_ucs2 0x1EA7);
+INSERT INTO t1 VALUES (_ucs2 0x1EA8),(_ucs2 0x1EA9),(_ucs2 0x1EAA),(_ucs2 0x1EAB);
+INSERT INTO t1 VALUES (_ucs2 0x1EAC),(_ucs2 0x1EAD),(_ucs2 0x1EAE),(_ucs2 0x1EAF);
+INSERT INTO t1 VALUES (_ucs2 0x1EB0),(_ucs2 0x1EB1),(_ucs2 0x1EB2),(_ucs2 0x1EB3);
+INSERT INTO t1 VALUES (_ucs2 0x1EB4),(_ucs2 0x1EB5),(_ucs2 0x1EB6),(_ucs2 0x1EB7);
+INSERT INTO t1 VALUES (_ucs2 0x1EB8),(_ucs2 0x1EB9),(_ucs2 0x1EBA),(_ucs2 0x1EBB);
+INSERT INTO t1 VALUES (_ucs2 0x1EBC),(_ucs2 0x1EBD),(_ucs2 0x1EBE),(_ucs2 0x1EBF);
+INSERT INTO t1 VALUES (_ucs2 0x1EC0),(_ucs2 0x1EC1),(_ucs2 0x1EC2),(_ucs2 0x1EC3);
+INSERT INTO t1 VALUES (_ucs2 0x1EC4),(_ucs2 0x1EC5),(_ucs2 0x1EC6),(_ucs2 0x1EC7);
+INSERT INTO t1 VALUES (_ucs2 0x1EC8),(_ucs2 0x1EC9),(_ucs2 0x1ECA),(_ucs2 0x1ECB);
+INSERT INTO t1 VALUES (_ucs2 0x1ECC),(_ucs2 0x1ECD),(_ucs2 0x1ECE),(_ucs2 0x1ECF);
+INSERT INTO t1 VALUES (_ucs2 0x1ED0),(_ucs2 0x1ED1),(_ucs2 0x1ED2),(_ucs2 0x1ED3);
+INSERT INTO t1 VALUES (_ucs2 0x1ED4),(_ucs2 0x1ED5),(_ucs2 0x1ED6),(_ucs2 0x1ED7);
+INSERT INTO t1 VALUES (_ucs2 0x1ED8),(_ucs2 0x1ED9),(_ucs2 0x1EDA),(_ucs2 0x1EDB);
+INSERT INTO t1 VALUES (_ucs2 0x1EDC),(_ucs2 0x1EDD),(_ucs2 0x1EDE),(_ucs2 0x1EDF);
+INSERT INTO t1 VALUES (_ucs2 0x1EE0),(_ucs2 0x1EE1),(_ucs2 0x1EE2),(_ucs2 0x1EE3);
+INSERT INTO t1 VALUES (_ucs2 0x1EE4),(_ucs2 0x1EE5),(_ucs2 0x1EE6),(_ucs2 0x1EE7);
+INSERT INTO t1 VALUES (_ucs2 0x1EE8),(_ucs2 0x1EE9),(_ucs2 0x1EEA),(_ucs2 0x1EEB);
+INSERT INTO t1 VALUES (_ucs2 0x1EEC),(_ucs2 0x1EED),(_ucs2 0x1EEE),(_ucs2 0x1EEF);
+INSERT INTO t1 VALUES (_ucs2 0x1EF0),(_ucs2 0x1EF1);
+insert into t1 values ('AA'),('Aa'),('aa'),('aA');
+insert into t1 values ('AE'),('Ae'),('ae'),('aE');
+insert into t1 values ('CH'),('Ch'),('ch'),('cH');
+insert into t1 values ('DZ'),('Dz'),('dz'),('dZ');
+insert into t1 values ('DŽ'),('Dž'),('dž'),('dŽ');
+insert into t1 values ('IJ'),('Ij'),('ij'),('iJ');
+insert into t1 values ('LJ'),('Lj'),('lj'),('lJ');
+insert into t1 values ('LL'),('Ll'),('ll'),('lL');
+insert into t1 values ('NJ'),('Nj'),('nj'),('nJ');
+insert into t1 values ('OE'),('Oe'),('oe'),('oE');
+insert into t1 values ('SS'),('Ss'),('ss'),('sS');
+insert into t1 values ('RR'),('Rr'),('rr'),('rR');
+INSERT INTO t1 VALUES ('a ');
+SELECT c1, HEX(WEIGHT_STRING(c1 LEVEL 1)), HEX(WEIGHT_STRING(c1 LEVEL 2)) FROM t1 ORDER BY c1, BINARY c1;
+c1	HEX(WEIGHT_STRING(c1 LEVEL 1))	HEX(WEIGHT_STRING(c1 LEVEL 2))
+÷	0552	0020
+×	0553	0020
+A	120F	0020
+a	120F	0020
+a 	120F020A	00200020
+Á	120F	00200032
+á	120F	00200032
+À	120F	00200035
+à	120F	00200035
+Ă	120F	00200037
+ă	120F	00200037
+Ắ	120F	002000370032
+ắ	120F	002000370032
+Ằ	120F	002000370035
+ằ	120F	002000370035
+Ẵ	120F	00200037004E
+ẵ	120F	00200037004E
+Ẳ	120F	002000370064
+ẳ	120F	002000370064
+Â	120F	0020003C
+â	120F	0020003C
+Ấ	120F	0020003C0032
+ấ	120F	0020003C0032
+Ầ	120F	0020003C0035
+ầ	120F	0020003C0035
+Ẫ	120F	0020003C004E
+ẫ	120F	0020003C004E
+Ẩ	120F	0020003C0064
+ẩ	120F	0020003C0064
+Ǎ	120F	00200041
+ǎ	120F	00200041
+Å	120F	00200043
+å	120F	00200043
+Ǻ	120F	002000430032
+ǻ	120F	002000430032
+Ä	120F	00200047
+ä	120F	00200047
+Ǟ	120F	00200047005B
+ǟ	120F	00200047005B
+Ã	120F	0020004E
+ã	120F	0020004E
+Ǡ	120F	00200052005B
+ǡ	120F	00200052005B
+Ą	120F	00200059
+ą	120F	00200059
+Ā	120F	0020005B
+ā	120F	0020005B
+Ả	120F	00200064
+ả	120F	00200064
+Ạ	120F	00200070
+ạ	120F	00200070
+Ặ	120F	002000700037
+ặ	120F	002000700037
+Ậ	120F	00200070003C
+ậ	120F	00200070003C
+AA	120F120F	00200020
+Aa	120F120F	00200020
+aA	120F120F	00200020
+aa	120F120F	00200020
+AE	120F126B	00200020
+Ae	120F126B	00200020
+aE	120F126B	00200020
+ae	120F126B	00200020
+Æ	120F126B	002001590020
+æ	120F126B	002001590020
+Ǽ	120F126B	0020015900200032
+ǽ	120F126B	0020015900200032
+Ǣ	120F126B	002001590020005B
+ǣ	120F126B	002001590020005B
+B	1225	0020
+b	1225	0020
+ƀ	122D	0020
+Ɓ	1235	0020
+Ƃ	1239	0020
+ƃ	1239	0020
+C	123D	0020
+c	123D	0020
+Ć	123D	00200032
+ć	123D	00200032
+Ĉ	123D	0020003C
+ĉ	123D	0020003C
+Ċ	123D	00200052
+ċ	123D	00200052
+Ç	123D	00200056
+ç	123D	00200056
+cH	123D12D3	00200020
+Č	123E	0020
+č	123E	0020
+Ƈ	1246	0020
+ƈ	1246	0020
+D	1250	0020
+d	1250	0020
+Ď	1250	00200041
+ď	1250	00200041
+Đ	1250	0020007D
+đ	1250	0020007D
+Ð	1250	00200159
+ð	1250	00200159
+DZ	125014AD	00200020
+Dz	125014AD	00200020
+dZ	125014AD	00200020
+dz	125014AD	00200020
+Ǳ	125014AD	00200020
+ǲ	125014AD	00200020
+ǳ	125014AD	00200020
+Ǆ	125014AD	002000200041
+ǅ	125014AD	002000200041
+ǆ	125014AD	002000200041
+DŽ	125014AE	00200020
+Dž	125014AE	00200020
+dŽ	125014AE	00200020
+dž	125014AE	00200020
+Ɖ	1258	0020
+Ɗ	125C	0020
+Ƌ	1261	0020
+ƌ	1261	0020
+E	126B	0020
+e	126B	0020
+É	126B	00200032
+é	126B	00200032
+È	126B	00200035
+è	126B	00200035
+Ĕ	126B	00200037
+ĕ	126B	00200037
+Ê	126B	0020003C
+ê	126B	0020003C
+Ế	126B	0020003C0032
+ế	126B	0020003C0032
+Ề	126B	0020003C0035
+ề	126B	0020003C0035
+Ễ	126B	0020003C004E
+ễ	126B	0020003C004E
+Ể	126B	0020003C0064
+ể	126B	0020003C0064
+Ě	126B	00200041
+ě	126B	00200041
+Ë	126B	00200047
+ë	126B	00200047
+Ẽ	126B	0020004E
+ẽ	126B	0020004E
+Ė	126B	00200052
+ė	126B	00200052
+Ę	126B	00200059
+ę	126B	00200059
+Ē	126B	0020005B
+ē	126B	0020005B
+Ẻ	126B	00200064
+ẻ	126B	00200064
+Ẹ	126B	00200070
+ẹ	126B	00200070
+Ệ	126B	00200070003C
+ệ	126B	00200070003C
+Ǝ	1276	0020
+ǝ	1276	0020
+Ə	127B	0020
+Ɛ	1280	0020
+F	12A3	0020
+f	12A3	0020
+Ƒ	12AA	0020
+ƒ	12AA	0020
+G	12B0	0020
+g	12B0	0020
+Ǵ	12B0	00200032
+ǵ	12B0	00200032
+Ğ	12B0	00200037
+ğ	12B0	00200037
+Ĝ	12B0	0020003C
+ĝ	12B0	0020003C
+Ǧ	12B0	00200041
+ǧ	12B0	00200041
+Ġ	12B0	00200052
+ġ	12B0	00200052
+Ģ	12B0	00200056
+ģ	12B0	00200056
+Ǥ	12BC	0020
+ǥ	12BC	0020
+Ɠ	12C1	0020
+Ɣ	12CB	0020
+Ƣ	12CF	0020
+ƣ	12CF	0020
+H	12D3	0020
+h	12D3	0020
+Ĥ	12D3	0020003C
+ĥ	12D3	0020003C
+Ħ	12D3	0020007D
+ħ	12D3	0020007D
+CH	12D4	0020
+Ch	12D4	0020
+ch	12D4	0020
+ƕ	12DB	0020
+Ƕ	12DB	0020
+I	12EC	0020
+i	12EC	0020
+Í	12EC	00200032
+í	12EC	00200032
+Ì	12EC	00200035
+ì	12EC	00200035
+Ĭ	12EC	00200037
+ĭ	12EC	00200037
+Î	12EC	0020003C
+î	12EC	0020003C
+Ǐ	12EC	00200041
+ǐ	12EC	00200041
+Ï	12EC	00200047
+ï	12EC	00200047
+Ĩ	12EC	0020004E
+ĩ	12EC	0020004E
+İ	12EC	00200052
+Į	12EC	00200059
+į	12EC	00200059
+Ī	12EC	0020005B
+ī	12EC	0020005B
+Ỉ	12EC	00200064
+ỉ	12EC	00200064
+Ị	12EC	00200070
+ị	12EC	00200070
+IJ	12EC1305	00200020
+Ij	12EC1305	00200020
+iJ	12EC1305	00200020
+ij	12EC1305	00200020
+Ĳ	12EC1305	00200020
+ĳ	12EC1305	00200020
+ı	12F0	0020
+Ɨ	12FA	0020
+Ɩ	1300	0020
+J	1305	0020
+j	1305	0020
+Ĵ	1305	0020003C
+ĵ	1305	0020003C
+ǰ	1305	00200041
+K	131E	0020
+k	131E	0020
+Ǩ	131E	00200041
+ǩ	131E	00200041
+Ķ	131E	00200056
+ķ	131E	00200056
+Ƙ	1324	0020
+ƙ	1324	0020
+L	1330	0020
+l	1330	0020
+Ĺ	1330	00200032
+ĺ	1330	00200032
+Ľ	1330	00200041
+ľ	1330	00200041
+Ļ	1330	00200056
+ļ	1330	00200056
+Ł	1330	0020007D
+ł	1330	0020007D
+Ŀ	1330	00200159
+ŀ	1330	00200159
+LJ	13301305	00200020
+Lj	13301305	00200020
+lJ	13301305	00200020
+lj	13301305	00200020
+Ǉ	13301305	00200020
+ǈ	13301305	00200020
+ǉ	13301305	00200020
+LL	13301330	00200020
+Ll	13301330	00200020
+lL	13301330	00200020
+ll	13301330	00200020
+ƚ	133B	0020
+ƛ	1357	0020
+M	135F	0020
+m	135F	0020
+N	136D	0020
+n	136D	0020
+Ń	136D	00200032
+ń	136D	00200032
+Ǹ	136D	00200035
+ǹ	136D	00200035
+Ň	136D	00200041
+ň	136D	00200041
+Ñ	136D	0020004E
+ñ	136D	0020004E
+Ņ	136D	00200056
+ņ	136D	00200056
+NJ	136D1305	00200020
+Nj	136D1305	00200020
+nJ	136D1305	00200020
+nj	136D1305	00200020
+Ǌ	136D1305	00200020
+ǋ	136D1305	00200020
+ǌ	136D1305	00200020
+Ɲ	1378	0020
+ƞ	137C	0020
+Ŋ	138A	0020
+ŋ	138A	0020
+O	138E	0020
+o	138E	0020
+Ó	138E	00200032
+ó	138E	00200032
+Ò	138E	00200035
+ò	138E	00200035
+Ŏ	138E	00200037
+ŏ	138E	00200037
+Ô	138E	0020003C
+ô	138E	0020003C
+Ố	138E	0020003C0032
+ố	138E	0020003C0032
+Ồ	138E	0020003C0035
+ồ	138E	0020003C0035
+Ỗ	138E	0020003C004E
+ỗ	138E	0020003C004E
+Ổ	138E	0020003C0064
+ổ	138E	0020003C0064
+Ǒ	138E	00200041
+ǒ	138E	00200041
+Ö	138E	00200047
+ö	138E	00200047
+Ő	138E	0020004D
+ő	138E	0020004D
+Õ	138E	0020004E
+õ	138E	0020004E
+Ø	138E	00200054
+ø	138E	00200054
+Ǿ	138E	002000540032
+ǿ	138E	002000540032
+Ǫ	138E	00200059
+ǫ	138E	00200059
+Ǭ	138E	00200059005B
+ǭ	138E	00200059005B
+Ō	138E	0020005B
+ō	138E	0020005B
+Ỏ	138E	00200064
+ỏ	138E	00200064
+Ơ	138E	00200068
+ơ	138E	00200068
+Ớ	138E	002000680032
+ớ	138E	002000680032
+Ờ	138E	002000680035
+ờ	138E	002000680035
+Ỡ	138E	00200068004E
+ỡ	138E	00200068004E
+Ở	138E	002000680064
+ở	138E	002000680064
+Ợ	138E	002000680070
+ợ	138E	002000680070
+Ọ	138E	00200070
+ọ	138E	00200070
+Ộ	138E	00200070003C
+ộ	138E	00200070003C
+OE	138E126B	00200020
+Oe	138E126B	00200020
+oE	138E126B	00200020
+oe	138E126B	00200020
+Œ	138E126B	002001590020
+œ	138E126B	002001590020
+Ɔ	139A	0020
+Ɵ	13A5	0020
+P	13B3	0020
+p	13B3	0020
+Ƥ	13BC	0020
+ƥ	13BC	0020
+Q	13C8	0020
+q	13C8	0020
+ĸ	13D6	0020
+R	13DA	0020
+r	13DA	0020
+Ŕ	13DA	00200032
+ŕ	13DA	00200032
+Ŗ	13DA	00200056
+ŗ	13DA	00200056
+RR	13DA13DA	00200020
+Rr	13DA13DA	00200020
+rR	13DA13DA	00200020
+rr	13DA13DA	00200020
+Ř	13DB	0020
+ř	13DB	0020
+Ʀ	13DE	0020
+S	1410	0020
+s	1410	0020
+Ś	1410	00200032
+ś	1410	00200032
+Ŝ	1410	0020003C
+ŝ	1410	0020003C
+Ş	1410	00200056
+ş	1410	00200056
+ſ	1410	0020015A
+SS	14101410	00200020
+Ss	14101410	00200020
+sS	14101410	00200020
+ss	14101410	00200020
+ß	14101410	002001590020
+Š	1411	0020
+š	1411	0020
+Ʃ	1421	0020
+ƪ	1426	0020
+T	1433	0020
+t	1433	0020
+Ť	1433	00200041
+ť	1433	00200041
+Ţ	1433	00200056
+ţ	1433	00200056
+ƾ	14331410	00200020
+Ŧ	1438	0020
+ŧ	1438	0020
+ƫ	143E	0020
+Ƭ	1442	0020
+ƭ	1442	0020
+Ʈ	1446	0020
+U	1453	0020
+u	1453	0020
+Ú	1453	00200032
+ú	1453	00200032
+Ù	1453	00200035
+ù	1453	00200035
+Ŭ	1453	00200037
+ŭ	1453	00200037
+Û	1453	0020003C
+û	1453	0020003C
+Ǔ	1453	00200041
+ǔ	1453	00200041
+Ů	1453	00200043
+ů	1453	00200043
+Ü	1453	00200047
+ü	1453	00200047
+Ǘ	1453	002000470032
+ǘ	1453	002000470032
+Ǜ	1453	002000470035
+ǜ	1453	002000470035
+Ǚ	1453	002000470041
+ǚ	1453	002000470041
+Ǖ	1453	00200047005B
+ǖ	1453	00200047005B
+Ű	1453	0020004D
+ű	1453	0020004D
+Ũ	1453	0020004E
+ũ	1453	0020004E
+Ų	1453	00200059
+ų	1453	00200059
+Ū	1453	0020005B
+ū	1453	0020005B
+Ủ	1453	00200064
+ủ	1453	00200064
+Ư	1453	00200068
+ư	1453	00200068
+Ứ	1453	002000680032
+ứ	1453	002000680032
+Ừ	1453	002000680035
+ừ	1453	002000680035
+Ữ	1453	00200068004E
+ữ	1453	00200068004E
+Ử	1453	002000680064
+ử	1453	002000680064
+Ự	1453	002000680070
+ự	1453	002000680070
+Ụ	1453	00200070
+ụ	1453	00200070
+Ɯ	146D	0020
+Ʊ	1476	0020
+V	147B	0020
+v	147B	0020
+Ʋ	1482	0020
+W	148D	0020
+w	148D	0020
+Ŵ	148D	0020003C
+ŵ	148D	0020003C
+X	1497	0020
+x	1497	0020
+Y	149C	0020
+y	149C	0020
+Ý	149C	00200032
+ý	149C	00200032
+Ŷ	149C	0020003C
+ŷ	149C	0020003C
+ÿ	149C	00200047
+Ÿ	149C	00200047
+Ƴ	14A8	0020
+ƴ	14A8	0020
+Z	14AD	0020
+z	14AD	0020
+Ź	14AD	00200032
+ź	14AD	00200032
+Ż	14AD	00200052
+ż	14AD	00200052
+ƍ	14AD148D	00200020
+Ž	14AE	0020
+ž	14AE	0020
+Ƶ	14B2	0020
+ƶ	14B2	0020
+Ʒ	14CA	0020
+Ǯ	14CA	00200041
+ǯ	14CA	00200041
+Ƹ	14CF	0020
+ƹ	14CF	0020
+ƺ	14D4	0020
+Þ	14E0	0020
+þ	14E0	0020
+ƿ	14E6	0020
+Ƿ	14E6	0020
+ƻ	14EF	0020
+Ƨ	14F6	0020
+ƨ	14F6	0020
+Ƽ	14FA	0020
+ƽ	14FA	0020
+Ƅ	14FE	0020
+ƅ	14FE	0020
+ŉ	150B136D	00200020
+ǀ	1525	0020
+ǁ	1529	0020
+ǂ	152D	0020
+ǃ	1531	0020
+SELECT c1, HEX(WEIGHT_STRING(c1 AS CHAR(3) LEVEL 1)), HEX(WEIGHT_STRING(c1 AS CHAR(3) LEVEL 2)) FROM t1 WHERE c1 BETWEEN 'a' AND 'aZ' ORDER BY c1, BINARY c1;
+c1	HEX(WEIGHT_STRING(c1 AS CHAR(3) LEVEL 1))	HEX(WEIGHT_STRING(c1 AS CHAR(3) LEVEL 2))
+A	120F020A020A	002000200020
+a	120F020A020A	002000200020
+a 	120F020A020A	002000200020
+Á	120F020A020A	002000320020
+á	120F020A020A	002000320020
+À	120F020A020A	002000350020
+à	120F020A020A	002000350020
+Ă	120F020A020A	002000370020
+ă	120F020A020A	002000370020
+Ắ	120F020A020A	002000370032
+ắ	120F020A020A	002000370032
+Ằ	120F020A020A	002000370035
+ằ	120F020A020A	002000370035
+Ẵ	120F020A020A	00200037004E
+ẵ	120F020A020A	00200037004E
+Ẳ	120F020A020A	002000370064
+ẳ	120F020A020A	002000370064
+Â	120F020A020A	0020003C0020
+â	120F020A020A	0020003C0020
+Ấ	120F020A020A	0020003C0032
+ấ	120F020A020A	0020003C0032
+Ầ	120F020A020A	0020003C0035
+ầ	120F020A020A	0020003C0035
+Ẫ	120F020A020A	0020003C004E
+ẫ	120F020A020A	0020003C004E
+Ẩ	120F020A020A	0020003C0064
+ẩ	120F020A020A	0020003C0064
+Ǎ	120F020A020A	002000410020
+ǎ	120F020A020A	002000410020
+Å	120F020A020A	002000430020
+å	120F020A020A	002000430020
+Ǻ	120F020A020A	002000430032
+ǻ	120F020A020A	002000430032
+Ä	120F020A020A	002000470020
+ä	120F020A020A	002000470020
+Ǟ	120F020A020A	00200047005B
+ǟ	120F020A020A	00200047005B
+Ã	120F020A020A	0020004E0020
+ã	120F020A020A	0020004E0020
+Ǡ	120F020A020A	00200052005B
+ǡ	120F020A020A	00200052005B
+Ą	120F020A020A	002000590020
+ą	120F020A020A	002000590020
+Ā	120F020A020A	0020005B0020
+ā	120F020A020A	0020005B0020
+Ả	120F020A020A	002000640020
+ả	120F020A020A	002000640020
+Ạ	120F020A020A	002000700020
+ạ	120F020A020A	002000700020
+Ặ	120F020A020A	002000700037
+ặ	120F020A020A	002000700037
+Ậ	120F020A020A	00200070003C
+ậ	120F020A020A	00200070003C
+AA	120F120F020A	002000200020
+Aa	120F120F020A	002000200020
+aA	120F120F020A	002000200020
+aa	120F120F020A	002000200020
+AE	120F126B020A	002000200020
+Ae	120F126B020A	002000200020
+aE	120F126B020A	002000200020
+ae	120F126B020A	002000200020
+Æ	120F126B020A	002001590020
+æ	120F126B020A	002001590020
+Ǽ	120F126B020A	002001590020
+ǽ	120F126B020A	002001590020
+Ǣ	120F126B020A	002001590020
+ǣ	120F126B020A	002001590020
+DROP TABLE t1;
+SELECT 'a' = 'a ';
+'a' = 'a '
+1
+SELECT 'a'  < 'á';
+'a'  < 'á'
+1
+SELECT 'áa' < 'ab';
+'áa' < 'ab'
+1
+SELECT 'á'  < 'ä';
+'á'  < 'ä'
+1
+SELECT 'äa' < 'áb';
+'äa' < 'áb'
+1
+SELECT 'c'  < 'č';
+'c'  < 'č'
+1
+SELECT 'cb' < 'ča';
+'cb' < 'ča'
+1
+SELECT 'd'  < 'ď';
+'d'  < 'ď'
+1
+SELECT 'ďa' < 'db';
+'ďa' < 'db'
+1
+SELECT 'e'  < 'é';
+'e'  < 'é'
+1
+SELECT 'éa' < 'eb';
+'éa' < 'eb'
+1
+SELECT 'é'  < 'ě';
+'é'  < 'ě'
+1
+SELECT 'ěa' < 'éb';
+'ěa' < 'éb'
+1
+SELECT 'i'  < 'í';
+'i'  < 'í'
+1
+SELECT 'ía' < 'ib';
+'ía' < 'ib'
+1
+SELECT 'n'  < 'ň';
+'n'  < 'ň'
+1
+SELECT 'ňa' < 'nb';
+'ňa' < 'nb'
+1
+SELECT 'o'  < 'ó';
+'o'  < 'ó'
+1
+SELECT 'óa' < 'ob';
+'óa' < 'ob'
+1
+SELECT 'ó'  < 'ö';
+'ó'  < 'ö'
+1
+SELECT 'öa' < 'ób';
+'öa' < 'ób'
+1
+SELECT 'r'  < 'ř';
+'r'  < 'ř'
+1
+SELECT 'rb' < 'řa';
+'rb' < 'řa'
+1
+SELECT 's'  < 'š';
+'s'  < 'š'
+1
+SELECT 'sb' < 'ša';
+'sb' < 'ša'
+1
+SELECT 't'  < 'ť';
+'t'  < 'ť'
+1
+SELECT 'ťa' < 'tb';
+'ťa' < 'tb'
+1
+SELECT 'u'  < 'ú';
+'u'  < 'ú'
+1
+SELECT 'úa' < 'ub';
+'úa' < 'ub'
+1
+SELECT 'ú'  < 'ů';
+'ú'  < 'ů'
+1
+SELECT 'ůa' < 'úb';
+'ůa' < 'úb'
+1
+SELECT 'ů'  < 'ü';
+'ů'  < 'ü'
+1
+SELECT 'üa' < 'ůb';
+'üa' < 'ůb'
+1
+SELECT 'y'  < 'ý';
+'y'  < 'ý'
+1
+SELECT 'ýa' < 'yb';
+'ýa' < 'yb'
+1
+SELECT 'z'  < 'ž';
+'z'  < 'ž'
+1
+SELECT 'zb' < 'ža';
+'zb' < 'ža'
+1
+SELECT 'hž' < 'ch';
+'hž' < 'ch'
+1
+SELECT 'chž'< 'i';
+'chž'< 'i'
+1
+SET NAMES utf8 COLLATE utf8_czech_test_nopad_w2;
+CREATE TABLE t1 AS SELECT SPACE(10) AS c1 LIMIT 0;
+insert into t1 values ('A'),('a');
+insert into t1 values ('B'),('b');
+insert into t1 values ('C'),('c');
+insert into t1 values ('D'),('d');
+insert into t1 values ('E'),('e');
+insert into t1 values ('F'),('f');
+insert into t1 values ('G'),('g');
+insert into t1 values ('H'),('h');
+insert into t1 values ('I'),('i');
+insert into t1 values ('J'),('j');
+insert into t1 values ('K'),('k');
+insert into t1 values ('L'),('l');
+insert into t1 values ('M'),('m');
+insert into t1 values ('N'),('n');
+insert into t1 values ('O'),('o');
+insert into t1 values ('P'),('p');
+insert into t1 values ('Q'),('q');
+insert into t1 values ('R'),('r');
+insert into t1 values ('S'),('s');
+insert into t1 values ('T'),('t');
+insert into t1 values ('U'),('u');
+insert into t1 values ('V'),('v');
+insert into t1 values ('W'),('w');
+insert into t1 values ('X'),('x');
+insert into t1 values ('Y'),('y');
+insert into t1 values ('Z'),('z');
+insert into t1 values (_ucs2 0x00e0),(_ucs2 0x00c0);
+insert into t1 values (_ucs2 0x00e1),(_ucs2 0x00c1);
+insert into t1 values (_ucs2 0x00e2),(_ucs2 0x00c2);
+insert into t1 values (_ucs2 0x00e3),(_ucs2 0x00c3);
+insert into t1 values (_ucs2 0x00e4),(_ucs2 0x00c4);
+insert into t1 values (_ucs2 0x00e5),(_ucs2 0x00c5);
+insert into t1 values (_ucs2 0x00e6),(_ucs2 0x00c6);
+insert into t1 values (_ucs2 0x00e7),(_ucs2 0x00c7);
+insert into t1 values (_ucs2 0x00e8),(_ucs2 0x00c8);
+insert into t1 values (_ucs2 0x00e9),(_ucs2 0x00c9);
+insert into t1 values (_ucs2 0x00ea),(_ucs2 0x00ca);
+insert into t1 values (_ucs2 0x00eb),(_ucs2 0x00cb);
+insert into t1 values (_ucs2 0x00ec),(_ucs2 0x00cc);
+insert into t1 values (_ucs2 0x00ed),(_ucs2 0x00cd);
+insert into t1 values (_ucs2 0x00ee),(_ucs2 0x00ce);
+insert into t1 values (_ucs2 0x00ef),(_ucs2 0x00cf);
+insert into t1 values (_ucs2 0x00f0),(_ucs2 0x00d0);
+insert into t1 values (_ucs2 0x00f1),(_ucs2 0x00d1);
+insert into t1 values (_ucs2 0x00f2),(_ucs2 0x00d2);
+insert into t1 values (_ucs2 0x00f3),(_ucs2 0x00d3);
+insert into t1 values (_ucs2 0x00f4),(_ucs2 0x00d4);
+insert into t1 values (_ucs2 0x00f5),(_ucs2 0x00d5);
+insert into t1 values (_ucs2 0x00f6),(_ucs2 0x00d6);
+insert into t1 values (_ucs2 0x00f7),(_ucs2 0x00d7);
+insert into t1 values (_ucs2 0x00f8),(_ucs2 0x00d8);
+insert into t1 values (_ucs2 0x00f9),(_ucs2 0x00d9);
+insert into t1 values (_ucs2 0x00fa),(_ucs2 0x00da);
+insert into t1 values (_ucs2 0x00fb),(_ucs2 0x00db);
+insert into t1 values (_ucs2 0x00fc),(_ucs2 0x00dc);
+insert into t1 values (_ucs2 0x00fd),(_ucs2 0x00dd);
+insert into t1 values (_ucs2 0x00fe),(_ucs2 0x00de);
+insert into t1 values (_ucs2 0x00ff),(_ucs2 0x00df);
+insert into t1 values (_ucs2 0x0100),(_ucs2 0x0101),(_ucs2 0x0102),(_ucs2 0x0103);
+insert into t1 values (_ucs2 0x0104),(_ucs2 0x0105),(_ucs2 0x0106),(_ucs2 0x0107);
+insert into t1 values (_ucs2 0x0108),(_ucs2 0x0109),(_ucs2 0x010a),(_ucs2 0x010b);
+insert into t1 values (_ucs2 0x010c),(_ucs2 0x010d),(_ucs2 0x010e),(_ucs2 0x010f);
+insert into t1 values (_ucs2 0x0110),(_ucs2 0x0111),(_ucs2 0x0112),(_ucs2 0x0113);
+insert into t1 values (_ucs2 0x0114),(_ucs2 0x0115),(_ucs2 0x0116),(_ucs2 0x0117);
+insert into t1 values (_ucs2 0x0118),(_ucs2 0x0119),(_ucs2 0x011a),(_ucs2 0x011b);
+insert into t1 values (_ucs2 0x011c),(_ucs2 0x011d),(_ucs2 0x011e),(_ucs2 0x011f);
+insert into t1 values (_ucs2 0x0120),(_ucs2 0x0121),(_ucs2 0x0122),(_ucs2 0x0123);
+insert into t1 values (_ucs2 0x0124),(_ucs2 0x0125),(_ucs2 0x0126),(_ucs2 0x0127);
+insert into t1 values (_ucs2 0x0128),(_ucs2 0x0129),(_ucs2 0x012a),(_ucs2 0x012b);
+insert into t1 values (_ucs2 0x012c),(_ucs2 0x012d),(_ucs2 0x012e),(_ucs2 0x012f);
+insert into t1 values (_ucs2 0x0130),(_ucs2 0x0131),(_ucs2 0x0132),(_ucs2 0x0133);
+insert into t1 values (_ucs2 0x0134),(_ucs2 0x0135),(_ucs2 0x0136),(_ucs2 0x0137);
+insert into t1 values (_ucs2 0x0138),(_ucs2 0x0139),(_ucs2 0x013a),(_ucs2 0x013b);
+insert into t1 values (_ucs2 0x013c),(_ucs2 0x013d),(_ucs2 0x013e),(_ucs2 0x013f);
+insert into t1 values (_ucs2 0x0140),(_ucs2 0x0141),(_ucs2 0x0142),(_ucs2 0x0143);
+insert into t1 values (_ucs2 0x0144),(_ucs2 0x0145),(_ucs2 0x0146),(_ucs2 0x0147);
+insert into t1 values (_ucs2 0x0148),(_ucs2 0x0149),(_ucs2 0x014a),(_ucs2 0x014b);
+insert into t1 values (_ucs2 0x014c),(_ucs2 0x014d),(_ucs2 0x014e),(_ucs2 0x014f);
+insert into t1 values (_ucs2 0x0150),(_ucs2 0x0151),(_ucs2 0x0152),(_ucs2 0x0153);
+insert into t1 values (_ucs2 0x0154),(_ucs2 0x0155),(_ucs2 0x0156),(_ucs2 0x0157);
+insert into t1 values (_ucs2 0x0158),(_ucs2 0x0159),(_ucs2 0x015a),(_ucs2 0x015b);
+insert into t1 values (_ucs2 0x015c),(_ucs2 0x015d),(_ucs2 0x015e),(_ucs2 0x015f);
+insert into t1 values (_ucs2 0x0160),(_ucs2 0x0161),(_ucs2 0x0162),(_ucs2 0x0163);
+insert into t1 values (_ucs2 0x0164),(_ucs2 0x0165),(_ucs2 0x0166),(_ucs2 0x0167);
+insert into t1 values (_ucs2 0x0168),(_ucs2 0x0169),(_ucs2 0x016a),(_ucs2 0x016b);
+insert into t1 values (_ucs2 0x016c),(_ucs2 0x016d),(_ucs2 0x016e),(_ucs2 0x016f);
+insert into t1 values (_ucs2 0x0170),(_ucs2 0x0171),(_ucs2 0x0172),(_ucs2 0x0173);
+insert into t1 values (_ucs2 0x0174),(_ucs2 0x0175),(_ucs2 0x0176),(_ucs2 0x0177);
+insert into t1 values (_ucs2 0x0178),(_ucs2 0x0179),(_ucs2 0x017a),(_ucs2 0x017b);
+insert into t1 values (_ucs2 0x017c),(_ucs2 0x017d),(_ucs2 0x017e),(_ucs2 0x017f);
+insert into t1 values (_ucs2 0x0180),(_ucs2 0x0181),(_ucs2 0x0182),(_ucs2 0x0183);
+insert into t1 values (_ucs2 0x0184),(_ucs2 0x0185),(_ucs2 0x0186),(_ucs2 0x0187);
+insert into t1 values (_ucs2 0x0188),(_ucs2 0x0189),(_ucs2 0x018a),(_ucs2 0x018b);
+insert into t1 values (_ucs2 0x018c),(_ucs2 0x018d),(_ucs2 0x018e),(_ucs2 0x018f);
+insert into t1 values (_ucs2 0x0190),(_ucs2 0x0191),(_ucs2 0x0192),(_ucs2 0x0193);
+insert into t1 values (_ucs2 0x0194),(_ucs2 0x0195),(_ucs2 0x0196),(_ucs2 0x0197);
+insert into t1 values (_ucs2 0x0198),(_ucs2 0x0199),(_ucs2 0x019a),(_ucs2 0x019b);
+insert into t1 values (_ucs2 0x019c),(_ucs2 0x019d),(_ucs2 0x019e),(_ucs2 0x019f);
+insert into t1 values (_ucs2 0x01a0),(_ucs2 0x01a1),(_ucs2 0x01a2),(_ucs2 0x01a3);
+insert into t1 values (_ucs2 0x01a4),(_ucs2 0x01a5),(_ucs2 0x01a6),(_ucs2 0x01a7);
+insert into t1 values (_ucs2 0x01a8),(_ucs2 0x01a9),(_ucs2 0x01aa),(_ucs2 0x01ab);
+insert into t1 values (_ucs2 0x01ac),(_ucs2 0x01ad),(_ucs2 0x01ae),(_ucs2 0x01af);
+insert into t1 values (_ucs2 0x01b0),(_ucs2 0x01b1),(_ucs2 0x01b2),(_ucs2 0x01b3);
+insert into t1 values (_ucs2 0x01b4),(_ucs2 0x01b5),(_ucs2 0x01b6),(_ucs2 0x01b7);
+insert into t1 values (_ucs2 0x01b8),(_ucs2 0x01b9),(_ucs2 0x01ba),(_ucs2 0x01bb);
+insert into t1 values (_ucs2 0x01bc),(_ucs2 0x01bd),(_ucs2 0x01be),(_ucs2 0x01bf);
+insert into t1 values (_ucs2 0x01c0),(_ucs2 0x01c1),(_ucs2 0x01c2),(_ucs2 0x01c3);
+insert into t1 values (_ucs2 0x01c4),(_ucs2 0x01c5),(_ucs2 0x01c6),(_ucs2 0x01c7);
+insert into t1 values (_ucs2 0x01c8),(_ucs2 0x01c9),(_ucs2 0x01ca),(_ucs2 0x01cb);
+insert into t1 values (_ucs2 0x01cc),(_ucs2 0x01cd),(_ucs2 0x01ce),(_ucs2 0x01cf);
+insert into t1 values (_ucs2 0x01d0),(_ucs2 0x01d1),(_ucs2 0x01d2),(_ucs2 0x01d3);
+insert into t1 values (_ucs2 0x01d4),(_ucs2 0x01d5),(_ucs2 0x01d6),(_ucs2 0x01d7);
+insert into t1 values (_ucs2 0x01d8),(_ucs2 0x01d9),(_ucs2 0x01da),(_ucs2 0x01db);
+insert into t1 values (_ucs2 0x01dc),(_ucs2 0x01dd),(_ucs2 0x01de),(_ucs2 0x01df);
+insert into t1 values (_ucs2 0x01e0),(_ucs2 0x01e1),(_ucs2 0x01e2),(_ucs2 0x01e3);
+insert into t1 values (_ucs2 0x01e4),(_ucs2 0x01e5),(_ucs2 0x01e6),(_ucs2 0x01e7);
+insert into t1 values (_ucs2 0x01e8),(_ucs2 0x01e9),(_ucs2 0x01ea),(_ucs2 0x01eb);
+insert into t1 values (_ucs2 0x01ec),(_ucs2 0x01ed),(_ucs2 0x01ee),(_ucs2 0x01ef);
+insert into t1 values (_ucs2 0x01f0),(_ucs2 0x01f1),(_ucs2 0x01f2),(_ucs2 0x01f3);
+insert into t1 values (_ucs2 0x01f4),(_ucs2 0x01f5),(_ucs2 0x01f6),(_ucs2 0x01f7);
+insert into t1 values (_ucs2 0x01f8),(_ucs2 0x01f9),(_ucs2 0x01fa),(_ucs2 0x01fb);
+insert into t1 values (_ucs2 0x01fc),(_ucs2 0x01fd),(_ucs2 0x01fe),(_ucs2 0x01ff);
+INSERT INTO t1 VALUES (_ucs2 0x1EA0),(_ucs2 0x1EA1),(_ucs2 0x1EA2),(_ucs2 0x1EA3);
+INSERT INTO t1 VALUES (_ucs2 0x1EA4),(_ucs2 0x1EA5),(_ucs2 0x1EA6),(_ucs2 0x1EA7);
+INSERT INTO t1 VALUES (_ucs2 0x1EA8),(_ucs2 0x1EA9),(_ucs2 0x1EAA),(_ucs2 0x1EAB);
+INSERT INTO t1 VALUES (_ucs2 0x1EAC),(_ucs2 0x1EAD),(_ucs2 0x1EAE),(_ucs2 0x1EAF);
+INSERT INTO t1 VALUES (_ucs2 0x1EB0),(_ucs2 0x1EB1),(_ucs2 0x1EB2),(_ucs2 0x1EB3);
+INSERT INTO t1 VALUES (_ucs2 0x1EB4),(_ucs2 0x1EB5),(_ucs2 0x1EB6),(_ucs2 0x1EB7);
+INSERT INTO t1 VALUES (_ucs2 0x1EB8),(_ucs2 0x1EB9),(_ucs2 0x1EBA),(_ucs2 0x1EBB);
+INSERT INTO t1 VALUES (_ucs2 0x1EBC),(_ucs2 0x1EBD),(_ucs2 0x1EBE),(_ucs2 0x1EBF);
+INSERT INTO t1 VALUES (_ucs2 0x1EC0),(_ucs2 0x1EC1),(_ucs2 0x1EC2),(_ucs2 0x1EC3);
+INSERT INTO t1 VALUES (_ucs2 0x1EC4),(_ucs2 0x1EC5),(_ucs2 0x1EC6),(_ucs2 0x1EC7);
+INSERT INTO t1 VALUES (_ucs2 0x1EC8),(_ucs2 0x1EC9),(_ucs2 0x1ECA),(_ucs2 0x1ECB);
+INSERT INTO t1 VALUES (_ucs2 0x1ECC),(_ucs2 0x1ECD),(_ucs2 0x1ECE),(_ucs2 0x1ECF);
+INSERT INTO t1 VALUES (_ucs2 0x1ED0),(_ucs2 0x1ED1),(_ucs2 0x1ED2),(_ucs2 0x1ED3);
+INSERT INTO t1 VALUES (_ucs2 0x1ED4),(_ucs2 0x1ED5),(_ucs2 0x1ED6),(_ucs2 0x1ED7);
+INSERT INTO t1 VALUES (_ucs2 0x1ED8),(_ucs2 0x1ED9),(_ucs2 0x1EDA),(_ucs2 0x1EDB);
+INSERT INTO t1 VALUES (_ucs2 0x1EDC),(_ucs2 0x1EDD),(_ucs2 0x1EDE),(_ucs2 0x1EDF);
+INSERT INTO t1 VALUES (_ucs2 0x1EE0),(_ucs2 0x1EE1),(_ucs2 0x1EE2),(_ucs2 0x1EE3);
+INSERT INTO t1 VALUES (_ucs2 0x1EE4),(_ucs2 0x1EE5),(_ucs2 0x1EE6),(_ucs2 0x1EE7);
+INSERT INTO t1 VALUES (_ucs2 0x1EE8),(_ucs2 0x1EE9),(_ucs2 0x1EEA),(_ucs2 0x1EEB);
+INSERT INTO t1 VALUES (_ucs2 0x1EEC),(_ucs2 0x1EED),(_ucs2 0x1EEE),(_ucs2 0x1EEF);
+INSERT INTO t1 VALUES (_ucs2 0x1EF0),(_ucs2 0x1EF1);
+insert into t1 values ('AA'),('Aa'),('aa'),('aA');
+insert into t1 values ('AE'),('Ae'),('ae'),('aE');
+insert into t1 values ('CH'),('Ch'),('ch'),('cH');
+insert into t1 values ('DZ'),('Dz'),('dz'),('dZ');
+insert into t1 values ('DŽ'),('Dž'),('dž'),('dŽ');
+insert into t1 values ('IJ'),('Ij'),('ij'),('iJ');
+insert into t1 values ('LJ'),('Lj'),('lj'),('lJ');
+insert into t1 values ('LL'),('Ll'),('ll'),('lL');
+insert into t1 values ('NJ'),('Nj'),('nj'),('nJ');
+insert into t1 values ('OE'),('Oe'),('oe'),('oE');
+insert into t1 values ('SS'),('Ss'),('ss'),('sS');
+insert into t1 values ('RR'),('Rr'),('rr'),('rR');
+INSERT INTO t1 VALUES ('a ');
+SELECT c1, HEX(WEIGHT_STRING(c1 LEVEL 1)), HEX(WEIGHT_STRING(c1 LEVEL 2)) FROM t1 ORDER BY c1, BINARY c1;
+c1	HEX(WEIGHT_STRING(c1 LEVEL 1))	HEX(WEIGHT_STRING(c1 LEVEL 2))
+÷	0552	0020
+×	0553	0020
+A	120F	0020
+a	120F	0020
+Á	120F	00200032
+á	120F	00200032
+À	120F	00200035
+à	120F	00200035
+Ă	120F	00200037
+ă	120F	00200037
+Ắ	120F	002000370032
+ắ	120F	002000370032
+Ằ	120F	002000370035
+ằ	120F	002000370035
+Ẵ	120F	00200037004E
+ẵ	120F	00200037004E
+Ẳ	120F	002000370064
+ẳ	120F	002000370064
+Â	120F	0020003C
+â	120F	0020003C
+Ấ	120F	0020003C0032
+ấ	120F	0020003C0032
+Ầ	120F	0020003C0035
+ầ	120F	0020003C0035
+Ẫ	120F	0020003C004E
+ẫ	120F	0020003C004E
+Ẩ	120F	0020003C0064
+ẩ	120F	0020003C0064
+Ǎ	120F	00200041
+ǎ	120F	00200041
+Å	120F	00200043
+å	120F	00200043
+Ǻ	120F	002000430032
+ǻ	120F	002000430032
+Ä	120F	00200047
+ä	120F	00200047
+Ǟ	120F	00200047005B
+ǟ	120F	00200047005B
+Ã	120F	0020004E
+ã	120F	0020004E
+Ǡ	120F	00200052005B
+ǡ	120F	00200052005B
+Ą	120F	00200059
+ą	120F	00200059
+Ā	120F	0020005B
+ā	120F	0020005B
+Ả	120F	00200064
+ả	120F	00200064
+Ạ	120F	00200070
+ạ	120F	00200070
+Ặ	120F	002000700037
+ặ	120F	002000700037
+Ậ	120F	00200070003C
+ậ	120F	00200070003C
+a 	120F020A	00200020
+AA	120F120F	00200020
+Aa	120F120F	00200020
+aA	120F120F	00200020
+aa	120F120F	00200020
+AE	120F126B	00200020
+Ae	120F126B	00200020
+aE	120F126B	00200020
+ae	120F126B	00200020
+Æ	120F126B	002001590020
+æ	120F126B	002001590020
+Ǽ	120F126B	0020015900200032
+ǽ	120F126B	0020015900200032
+Ǣ	120F126B	002001590020005B
+ǣ	120F126B	002001590020005B
+B	1225	0020
+b	1225	0020
+ƀ	122D	0020
+Ɓ	1235	0020
+Ƃ	1239	0020
+ƃ	1239	0020
+C	123D	0020
+c	123D	0020
+Ć	123D	00200032
+ć	123D	00200032
+Ĉ	123D	0020003C
+ĉ	123D	0020003C
+Ċ	123D	00200052
+ċ	123D	00200052
+Ç	123D	00200056
+ç	123D	00200056
+cH	123D12D3	00200020
+Č	123E	0020
+č	123E	0020
+Ƈ	1246	0020
+ƈ	1246	0020
+D	1250	0020
+d	1250	0020
+Ď	1250	00200041
+ď	1250	00200041
+Đ	1250	0020007D
+đ	1250	0020007D
+Ð	1250	00200159
+ð	1250	00200159
+DZ	125014AD	00200020
+Dz	125014AD	00200020
+dZ	125014AD	00200020
+dz	125014AD	00200020
+Ǳ	125014AD	00200020
+ǲ	125014AD	00200020
+ǳ	125014AD	00200020
+Ǆ	125014AD	002000200041
+ǅ	125014AD	002000200041
+ǆ	125014AD	002000200041
+DŽ	125014AE	00200020
+Dž	125014AE	00200020
+dŽ	125014AE	00200020
+dž	125014AE	00200020
+Ɖ	1258	0020
+Ɗ	125C	0020
+Ƌ	1261	0020
+ƌ	1261	0020
+E	126B	0020
+e	126B	0020
+É	126B	00200032
+é	126B	00200032
+È	126B	00200035
+è	126B	00200035
+Ĕ	126B	00200037
+ĕ	126B	00200037
+Ê	126B	0020003C
+ê	126B	0020003C
+Ế	126B	0020003C0032
+ế	126B	0020003C0032
+Ề	126B	0020003C0035
+ề	126B	0020003C0035
+Ễ	126B	0020003C004E
+ễ	126B	0020003C004E
+Ể	126B	0020003C0064
+ể	126B	0020003C0064
+Ě	126B	00200041
+ě	126B	00200041
+Ë	126B	00200047
+ë	126B	00200047
+Ẽ	126B	0020004E
+ẽ	126B	0020004E
+Ė	126B	00200052
+ė	126B	00200052
+Ę	126B	00200059
+ę	126B	00200059
+Ē	126B	0020005B
+ē	126B	0020005B
+Ẻ	126B	00200064
+ẻ	126B	00200064
+Ẹ	126B	00200070
+ẹ	126B	00200070
+Ệ	126B	00200070003C
+ệ	126B	00200070003C
+Ǝ	1276	0020
+ǝ	1276	0020
+Ə	127B	0020
+Ɛ	1280	0020
+F	12A3	0020
+f	12A3	0020
+Ƒ	12AA	0020
+ƒ	12AA	0020
+G	12B0	0020
+g	12B0	0020
+Ǵ	12B0	00200032
+ǵ	12B0	00200032
+Ğ	12B0	00200037
+ğ	12B0	00200037
+Ĝ	12B0	0020003C
+ĝ	12B0	0020003C
+Ǧ	12B0	00200041
+ǧ	12B0	00200041
+Ġ	12B0	00200052
+ġ	12B0	00200052
+Ģ	12B0	00200056
+ģ	12B0	00200056
+Ǥ	12BC	0020
+ǥ	12BC	0020
+Ɠ	12C1	0020
+Ɣ	12CB	0020
+Ƣ	12CF	0020
+ƣ	12CF	0020
+H	12D3	0020
+h	12D3	0020
+Ĥ	12D3	0020003C
+ĥ	12D3	0020003C
+Ħ	12D3	0020007D
+ħ	12D3	0020007D
+CH	12D4	0020
+Ch	12D4	0020
+ch	12D4	0020
+ƕ	12DB	0020
+Ƕ	12DB	0020
+I	12EC	0020
+i	12EC	0020
+Í	12EC	00200032
+í	12EC	00200032
+Ì	12EC	00200035
+ì	12EC	00200035
+Ĭ	12EC	00200037
+ĭ	12EC	00200037
+Î	12EC	0020003C
+î	12EC	0020003C
+Ǐ	12EC	00200041
+ǐ	12EC	00200041
+Ï	12EC	00200047
+ï	12EC	00200047
+Ĩ	12EC	0020004E
+ĩ	12EC	0020004E
+İ	12EC	00200052
+Į	12EC	00200059
+į	12EC	00200059
+Ī	12EC	0020005B
+ī	12EC	0020005B
+Ỉ	12EC	00200064
+ỉ	12EC	00200064
+Ị	12EC	00200070
+ị	12EC	00200070
+IJ	12EC1305	00200020
+Ij	12EC1305	00200020
+iJ	12EC1305	00200020
+ij	12EC1305	00200020
+Ĳ	12EC1305	00200020
+ĳ	12EC1305	00200020
+ı	12F0	0020
+Ɨ	12FA	0020
+Ɩ	1300	0020
+J	1305	0020
+j	1305	0020
+Ĵ	1305	0020003C
+ĵ	1305	0020003C
+ǰ	1305	00200041
+K	131E	0020
+k	131E	0020
+Ǩ	131E	00200041
+ǩ	131E	00200041
+Ķ	131E	00200056
+ķ	131E	00200056
+Ƙ	1324	0020
+ƙ	1324	0020
+L	1330	0020
+l	1330	0020
+Ĺ	1330	00200032
+ĺ	1330	00200032
+Ľ	1330	00200041
+ľ	1330	00200041
+Ļ	1330	00200056
+ļ	1330	00200056
+Ł	1330	0020007D
+ł	1330	0020007D
+Ŀ	1330	00200159
+ŀ	1330	00200159
+LJ	13301305	00200020
+Lj	13301305	00200020
+lJ	13301305	00200020
+lj	13301305	00200020
+Ǉ	13301305	00200020
+ǈ	13301305	00200020
+ǉ	13301305	00200020
+LL	13301330	00200020
+Ll	13301330	00200020
+lL	13301330	00200020
+ll	13301330	00200020
+ƚ	133B	0020
+ƛ	1357	0020
+M	135F	0020
+m	135F	0020
+N	136D	0020
+n	136D	0020
+Ń	136D	00200032
+ń	136D	00200032
+Ǹ	136D	00200035
+ǹ	136D	00200035
+Ň	136D	00200041
+ň	136D	00200041
+Ñ	136D	0020004E
+ñ	136D	0020004E
+Ņ	136D	00200056
+ņ	136D	00200056
+NJ	136D1305	00200020
+Nj	136D1305	00200020
+nJ	136D1305	00200020
+nj	136D1305	00200020
+Ǌ	136D1305	00200020
+ǋ	136D1305	00200020
+ǌ	136D1305	00200020
+Ɲ	1378	0020
+ƞ	137C	0020
+Ŋ	138A	0020
+ŋ	138A	0020
+O	138E	0020
+o	138E	0020
+Ó	138E	00200032
+ó	138E	00200032
+Ò	138E	00200035
+ò	138E	00200035
+Ŏ	138E	00200037
+ŏ	138E	00200037
+Ô	138E	0020003C
+ô	138E	0020003C
+Ố	138E	0020003C0032
+ố	138E	0020003C0032
+Ồ	138E	0020003C0035
+ồ	138E	0020003C0035
+Ỗ	138E	0020003C004E
+ỗ	138E	0020003C004E
+Ổ	138E	0020003C0064
+ổ	138E	0020003C0064
+Ǒ	138E	00200041
+ǒ	138E	00200041
+Ö	138E	00200047
+ö	138E	00200047
+Ő	138E	0020004D
+ő	138E	0020004D
+Õ	138E	0020004E
+õ	138E	0020004E
+Ø	138E	00200054
+ø	138E	00200054
+Ǿ	138E	002000540032
+ǿ	138E	002000540032
+Ǫ	138E	00200059
+ǫ	138E	00200059
+Ǭ	138E	00200059005B
+ǭ	138E	00200059005B
+Ō	138E	0020005B
+ō	138E	0020005B
+Ỏ	138E	00200064
+ỏ	138E	00200064
+Ơ	138E	00200068
+ơ	138E	00200068
+Ớ	138E	002000680032
+ớ	138E	002000680032
+Ờ	138E	002000680035
+ờ	138E	002000680035
+Ỡ	138E	00200068004E
+ỡ	138E	00200068004E
+Ở	138E	002000680064
+ở	138E	002000680064
+Ợ	138E	002000680070
+ợ	138E	002000680070
+Ọ	138E	00200070
+ọ	138E	00200070
+Ộ	138E	00200070003C
+ộ	138E	00200070003C
+OE	138E126B	00200020
+Oe	138E126B	00200020
+oE	138E126B	00200020
+oe	138E126B	00200020
+Œ	138E126B	002001590020
+œ	138E126B	002001590020
+Ɔ	139A	0020
+Ɵ	13A5	0020
+P	13B3	0020
+p	13B3	0020
+Ƥ	13BC	0020
+ƥ	13BC	0020
+Q	13C8	0020
+q	13C8	0020
+ĸ	13D6	0020
+R	13DA	0020
+r	13DA	0020
+Ŕ	13DA	00200032
+ŕ	13DA	00200032
+Ŗ	13DA	00200056
+ŗ	13DA	00200056
+RR	13DA13DA	00200020
+Rr	13DA13DA	00200020
+rR	13DA13DA	00200020
+rr	13DA13DA	00200020
+Ř	13DB	0020
+ř	13DB	0020
+Ʀ	13DE	0020
+S	1410	0020
+s	1410	0020
+Ś	1410	00200032
+ś	1410	00200032
+Ŝ	1410	0020003C
+ŝ	1410	0020003C
+Ş	1410	00200056
+ş	1410	00200056
+ſ	1410	0020015A
+SS	14101410	00200020
+Ss	14101410	00200020
+sS	14101410	00200020
+ss	14101410	00200020
+ß	14101410	002001590020
+Š	1411	0020
+š	1411	0020
+Ʃ	1421	0020
+ƪ	1426	0020
+T	1433	0020
+t	1433	0020
+Ť	1433	00200041
+ť	1433	00200041
+Ţ	1433	00200056
+ţ	1433	00200056
+ƾ	14331410	00200020
+Ŧ	1438	0020
+ŧ	1438	0020
+ƫ	143E	0020
+Ƭ	1442	0020
+ƭ	1442	0020
+Ʈ	1446	0020
+U	1453	0020
+u	1453	0020
+Ú	1453	00200032
+ú	1453	00200032
+Ù	1453	00200035
+ù	1453	00200035
+Ŭ	1453	00200037
+ŭ	1453	00200037
+Û	1453	0020003C
+û	1453	0020003C
+Ǔ	1453	00200041
+ǔ	1453	00200041
+Ů	1453	00200043
+ů	1453	00200043
+Ü	1453	00200047
+ü	1453	00200047
+Ǘ	1453	002000470032
+ǘ	1453	002000470032
+Ǜ	1453	002000470035
+ǜ	1453	002000470035
+Ǚ	1453	002000470041
+ǚ	1453	002000470041
+Ǖ	1453	00200047005B
+ǖ	1453	00200047005B
+Ű	1453	0020004D
+ű	1453	0020004D
+Ũ	1453	0020004E
+ũ	1453	0020004E
+Ų	1453	00200059
+ų	1453	00200059
+Ū	1453	0020005B
+ū	1453	0020005B
+Ủ	1453	00200064
+ủ	1453	00200064
+Ư	1453	00200068
+ư	1453	00200068
+Ứ	1453	002000680032
+ứ	1453	002000680032
+Ừ	1453	002000680035
+ừ	1453	002000680035
+Ữ	1453	00200068004E
+ữ	1453	00200068004E
+Ử	1453	002000680064
+ử	1453	002000680064
+Ự	1453	002000680070
+ự	1453	002000680070
+Ụ	1453	00200070
+ụ	1453	00200070
+Ɯ	146D	0020
+Ʊ	1476	0020
+V	147B	0020
+v	147B	0020
+Ʋ	1482	0020
+W	148D	0020
+w	148D	0020
+Ŵ	148D	0020003C
+ŵ	148D	0020003C
+X	1497	0020
+x	1497	0020
+Y	149C	0020
+y	149C	0020
+Ý	149C	00200032
+ý	149C	00200032
+Ŷ	149C	0020003C
+ŷ	149C	0020003C
+ÿ	149C	00200047
+Ÿ	149C	00200047
+Ƴ	14A8	0020
+ƴ	14A8	0020
+Z	14AD	0020
+z	14AD	0020
+Ź	14AD	00200032
+ź	14AD	00200032
+Ż	14AD	00200052
+ż	14AD	00200052
+ƍ	14AD148D	00200020
+Ž	14AE	0020
+ž	14AE	0020
+Ƶ	14B2	0020
+ƶ	14B2	0020
+Ʒ	14CA	0020
+Ǯ	14CA	00200041
+ǯ	14CA	00200041
+Ƹ	14CF	0020
+ƹ	14CF	0020
+ƺ	14D4	0020
+Þ	14E0	0020
+þ	14E0	0020
+ƿ	14E6	0020
+Ƿ	14E6	0020
+ƻ	14EF	0020
+Ƨ	14F6	0020
+ƨ	14F6	0020
+Ƽ	14FA	0020
+ƽ	14FA	0020
+Ƅ	14FE	0020
+ƅ	14FE	0020
+ŉ	150B136D	00200020
+ǀ	1525	0020
+ǁ	1529	0020
+ǂ	152D	0020
+ǃ	1531	0020
+SELECT c1, HEX(WEIGHT_STRING(c1 AS CHAR(3) LEVEL 1)), HEX(WEIGHT_STRING(c1 AS CHAR(3) LEVEL 2)) FROM t1 WHERE c1 BETWEEN 'a' AND 'aZ' ORDER BY c1, BINARY c1;
+c1	HEX(WEIGHT_STRING(c1 AS CHAR(3) LEVEL 1))	HEX(WEIGHT_STRING(c1 AS CHAR(3) LEVEL 2))
+A	120F02000200	002000200020
+a	120F02000200	002000200020
+Á	120F02000200	002000320020
+á	120F02000200	002000320020
+À	120F02000200	002000350020
+à	120F02000200	002000350020
+Ă	120F02000200	002000370020
+ă	120F02000200	002000370020
+Ắ	120F02000200	002000370032
+ắ	120F02000200	002000370032
+Ằ	120F02000200	002000370035
+ằ	120F02000200	002000370035
+Ẵ	120F02000200	00200037004E
+ẵ	120F02000200	00200037004E
+Ẳ	120F02000200	002000370064
+ẳ	120F02000200	002000370064
+Â	120F02000200	0020003C0020
+â	120F02000200	0020003C0020
+Ấ	120F02000200	0020003C0032
+ấ	120F02000200	0020003C0032
+Ầ	120F02000200	0020003C0035
+ầ	120F02000200	0020003C0035
+Ẫ	120F02000200	0020003C004E
+ẫ	120F02000200	0020003C004E
+Ẩ	120F02000200	0020003C0064
+ẩ	120F02000200	0020003C0064
+Ǎ	120F02000200	002000410020
+ǎ	120F02000200	002000410020
+Å	120F02000200	002000430020
+å	120F02000200	002000430020
+Ǻ	120F02000200	002000430032
+ǻ	120F02000200	002000430032
+Ä	120F02000200	002000470020
+ä	120F02000200	002000470020
+Ǟ	120F02000200	00200047005B
+ǟ	120F02000200	00200047005B
+Ã	120F02000200	0020004E0020
+ã	120F02000200	0020004E0020
+Ǡ	120F02000200	00200052005B
+ǡ	120F02000200	00200052005B
+Ą	120F02000200	002000590020
+ą	120F02000200	002000590020
+Ā	120F02000200	0020005B0020
+ā	120F02000200	0020005B0020
+Ả	120F02000200	002000640020
+ả	120F02000200	002000640020
+Ạ	120F02000200	002000700020
+ạ	120F02000200	002000700020
+Ặ	120F02000200	002000700037
+ặ	120F02000200	002000700037
+Ậ	120F02000200	00200070003C
+ậ	120F02000200	00200070003C
+a 	120F020A0200	002000200020
+AA	120F120F0200	002000200020
+Aa	120F120F0200	002000200020
+aA	120F120F0200	002000200020
+aa	120F120F0200	002000200020
+AE	120F126B0200	002000200020
+Ae	120F126B0200	002000200020
+aE	120F126B0200	002000200020
+ae	120F126B0200	002000200020
+Æ	120F126B0200	002001590020
+æ	120F126B0200	002001590020
+Ǽ	120F126B0200	002001590020
+ǽ	120F126B0200	002001590020
+Ǣ	120F126B0200	002001590020
+ǣ	120F126B0200	002001590020
+DROP TABLE t1;
+SELECT 'a' = 'a ';
+'a' = 'a '
+0
+SELECT 'a'  < 'á';
+'a'  < 'á'
+1
+SELECT 'áa' < 'ab';
+'áa' < 'ab'
+1
+SELECT 'á'  < 'ä';
+'á'  < 'ä'
+1
+SELECT 'äa' < 'áb';
+'äa' < 'áb'
+1
+SELECT 'c'  < 'č';
+'c'  < 'č'
+1
+SELECT 'cb' < 'ča';
+'cb' < 'ča'
+1
+SELECT 'd'  < 'ď';
+'d'  < 'ď'
+1
+SELECT 'ďa' < 'db';
+'ďa' < 'db'
+1
+SELECT 'e'  < 'é';
+'e'  < 'é'
+1
+SELECT 'éa' < 'eb';
+'éa' < 'eb'
+1
+SELECT 'é'  < 'ě';
+'é'  < 'ě'
+1
+SELECT 'ěa' < 'éb';
+'ěa' < 'éb'
+1
+SELECT 'i'  < 'í';
+'i'  < 'í'
+1
+SELECT 'ía' < 'ib';
+'ía' < 'ib'
+1
+SELECT 'n'  < 'ň';
+'n'  < 'ň'
+1
+SELECT 'ňa' < 'nb';
+'ňa' < 'nb'
+1
+SELECT 'o'  < 'ó';
+'o'  < 'ó'
+1
+SELECT 'óa' < 'ob';
+'óa' < 'ob'
+1
+SELECT 'ó'  < 'ö';
+'ó'  < 'ö'
+1
+SELECT 'öa' < 'ób';
+'öa' < 'ób'
+1
+SELECT 'r'  < 'ř';
+'r'  < 'ř'
+1
+SELECT 'rb' < 'řa';
+'rb' < 'řa'
+1
+SELECT 's'  < 'š';
+'s'  < 'š'
+1
+SELECT 'sb' < 'ša';
+'sb' < 'ša'
+1
+SELECT 't'  < 'ť';
+'t'  < 'ť'
+1
+SELECT 'ťa' < 'tb';
+'ťa' < 'tb'
+1
+SELECT 'u'  < 'ú';
+'u'  < 'ú'
+1
+SELECT 'úa' < 'ub';
+'úa' < 'ub'
+1
+SELECT 'ú'  < 'ů';
+'ú'  < 'ů'
+1
+SELECT 'ůa' < 'úb';
+'ůa' < 'úb'
+1
+SELECT 'ů'  < 'ü';
+'ů'  < 'ü'
+1
+SELECT 'üa' < 'ůb';
+'üa' < 'ůb'
+1
+SELECT 'y'  < 'ý';
+'y'  < 'ý'
+1
+SELECT 'ýa' < 'yb';
+'ýa' < 'yb'
+1
+SELECT 'z'  < 'ž';
+'z'  < 'ž'
+1
+SELECT 'zb' < 'ža';
+'zb' < 'ža'
+1
+SELECT 'hž' < 'ch';
+'hž' < 'ch'
+1
+SELECT 'chž'< 'i';
+'chž'< 'i'
+1
+SELECT 'a' COLLATE utf8_czech_test_bad_w2;
+ERROR HY000: Unknown collation: 'utf8_czech_test_bad_w2'

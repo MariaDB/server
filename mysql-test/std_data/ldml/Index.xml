@@ -1167,6 +1167,45 @@
       </rules>
    </collation>
 
+    <collation name="utf8_czech_test_w2" id="370" version="5.2.0">
+      <settings strength="2"/>
+      <rules>
+        <reset>C</reset><p>\u010D</p><t>\u010C</t>
+        <reset>H</reset><p>ch</p><t>Ch</t><t>CH</t>
+        <reset>R</reset><p>\u0159</p><t>\u0158</t>
+        <reset>S</reset><p>\u0161</p><t>\u0160</t>
+        <reset>Z</reset><p>\u017E</p><t>\u017D</t>
+      </rules>
+    </collation>
+
+    <collation name="utf8_czech_test_nopad_w2" id="371" version="5.2.0" flag="nopad">
+      <settings strength="2"/>
+      <rules>
+        <reset>C</reset><p>\u010D</p><t>\u010C</t>
+        <reset>H</reset><p>ch</p><t>Ch</t><t>CH</t>
+        <reset>R</reset><p>\u0159</p><t>\u0158</t>
+        <reset>S</reset><p>\u0161</p><t>\u0160</t>
+        <reset>Z</reset><p>\u017E</p><t>\u017D</t>
+      </rules>
+    </collation>
+
+    <!--
+       This collation definition is bad.
+       It uses Unicode-4.0.0 (the default version), and requests strength="2".
+       Unicode-4.0.0 does not have information about the secondary weight level.
+       The version="5.2.0" collation attribute was forgotten in this definition.
+    -->
+    <collation name="utf8_czech_test_bad_w2" id="372">
+      <settings strength="2"/>
+      <rules>
+        <reset>C</reset><p>\u010D</p><t>\u010C</t>
+        <reset>H</reset><p>ch</p><t>Ch</t><t>CH</t>
+        <reset>R</reset><p>\u0159</p><t>\u0158</t>
+        <reset>S</reset><p>\u0161</p><t>\u0160</t>
+        <reset>Z</reset><p>\u017E</p><t>\u017D</t>
+      </rules>
+    </collation>
+
   </charset>
   
 </charsets>

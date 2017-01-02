@@ -430,9 +430,9 @@ call p_verify_status_increment(2, 2, 2, 2);
 --echo # 4. Read-write statement: UPDATE, update 0 rows, 1 row matches WHERE 
 --echo #
 update t1 set a=2;
-call p_verify_status_increment(2, 2, 1, 0);
+call p_verify_status_increment(2, 0, 1, 0);
 commit;
-call p_verify_status_increment(2, 2, 1, 0);
+call p_verify_status_increment(2, 0, 1, 0);
 
 --echo # 5. Read-write statement: UPDATE, update 0 rows, 0 rows match WHERE 
 --echo #

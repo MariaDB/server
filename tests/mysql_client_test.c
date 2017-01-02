@@ -461,7 +461,7 @@ static void test_prepare_simple()
   strmov(query, "SHOW SLAVE STATUS");
   stmt= mysql_simple_prepare(mysql, query);
   check_stmt(stmt);
-  DIE_UNLESS(mysql_stmt_field_count(stmt) == 47);
+  DIE_UNLESS(mysql_stmt_field_count(stmt) == 50);
   mysql_stmt_close(stmt);
 
   /* show master status */
@@ -7552,7 +7552,7 @@ static void test_explain_bug()
   verify_prepare_field(result, 5, "Extra", "EXTRA",
                        mysql_get_server_version(mysql) <= 50000 ?
                        MYSQL_TYPE_STRING : MYSQL_TYPE_VAR_STRING,
-                       0, 0, "information_schema", 27, 0);
+                       0, 0, "information_schema", 30, 0);
 
   mysql_free_result(result);
   mysql_stmt_close(stmt);
@@ -15385,6 +15385,9 @@ static void test_bug14169()
   mysql_stmt_close(stmt);
 
   rc= mysql_query(mysql, "drop table t1");
+  myquery(rc);
+
+  rc= mysql_query(mysql, "set session group_concat_max_len=@@global.group_concat_max_len");
   myquery(rc);
 }
 

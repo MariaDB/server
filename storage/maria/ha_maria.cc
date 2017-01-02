@@ -522,6 +522,14 @@ static int table2maria(TABLE *table_arg, data_file_type row_type,
     for (j= 0; j < pos->user_defined_key_parts; j++)
     {
       Field *field= pos->key_part[j].field;
+
+      if (!table_arg->field[field->field_index]->stored_in_db())
+      {
+        my_free(*recinfo_out);
+        my_error(ER_KEY_BASED_ON_GENERATED_VIRTUAL_COLUMN, MYF(0));
+        DBUG_RETURN(HA_ERR_UNSUPPORTED);
+      }
+
       type= field->key_type();
       keydef[i].seg[j].flag= pos->key_part[j].key_part_flag;
 
@@ -549,8 +557,7 @@ static int table2maria(TABLE *table_arg, data_file_type row_type,
       keydef[i].seg[j].type= (int) type;
       keydef[i].seg[j].start= pos->key_part[j].offset;
       keydef[i].seg[j].length= pos->key_part[j].length;
-      keydef[i].seg[j].bit_start= keydef[i].seg[j].bit_end=
-        keydef[i].seg[j].bit_length= 0;
+      keydef[i].seg[j].bit_start= keydef[i].seg[j].bit_length= 0;
       keydef[i].seg[j].bit_pos= 0;
       keydef[i].seg[j].language= field->charset()->number;
 
@@ -2839,9 +2846,10 @@ int ha_maria::implicit_commit(THD *thd, bool new_trn)
   int error;
   uint locked_tables;
   DYNAMIC_ARRAY used_tables;
+  extern my_bool plugins_are_initialized;
   
   DBUG_ENTER("ha_maria::implicit_commit");
-  if (!maria_hton || !(trn= THD_TRN))
+  if (!maria_hton || !plugins_are_initialized || !(trn= THD_TRN))
     DBUG_RETURN(0);
   if (!new_trn && (thd->locked_tables_mode == LTM_LOCK_TABLES ||
                    thd->locked_tables_mode == LTM_PRELOCKED_UNDER_LOCK_TABLES))

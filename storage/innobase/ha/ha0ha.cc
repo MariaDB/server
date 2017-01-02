@@ -28,11 +28,10 @@ Created 8/22/1994 Heikki Tuuri
 #include "ha0ha.ic"
 #endif
 
-#ifndef UNIV_HOTBACKUP
 #ifdef UNIV_DEBUG
 # include "buf0buf.h"
 #endif /* UNIV_DEBUG */
-# include "btr0sea.h"
+#include "btr0sea.h"
 #include "page0page.h"
 
 /*************************************************************//**
@@ -537,4 +536,3 @@ builds, see http://bugs.mysql.com/36941 */
 			(ulong) n_bufs);
 	}
 }
-#endif /* !UNIV_HOTBACKUP */

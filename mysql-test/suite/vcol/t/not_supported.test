@@ -13,16 +13,16 @@ set time_zone='+10:00';
 set div_precision_increment=20;
 
 create table t1 (a int, b int, v decimal(20,19) as (a/3));
---error ER_VIRTUAL_COLUMN_FUNCTION_IS_NOT_ALLOWED
+--error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
 create table t2 (a int, b int, v int as (a+@a));
---error ER_VIRTUAL_COLUMN_FUNCTION_IS_NOT_ALLOWED
+--error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
 create table t2 (a int, b int, v int as (a+@a) PERSISTENT);
 create table t3_ok (a int, b int, v int as (a+@@error_count));
---error ER_VIRTUAL_COLUMN_FUNCTION_IS_NOT_ALLOWED
+--error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
 create table t3 (a int, b int, v int as (a+@@error_count) PERSISTENT);
---error ER_VIRTUAL_COLUMN_FUNCTION_IS_NOT_ALLOWED
+--error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
 create table t4 (a int, b int, v int as (@a:=a));
---error ER_VIRTUAL_COLUMN_FUNCTION_IS_NOT_ALLOWED
+--error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
 create table t4 (a int, b int, v int as (@a:=a) PERSISTENT);
 create table t8 (a int, b int, v varchar(100) as (from_unixtime(a)));
 

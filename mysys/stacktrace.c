@@ -38,13 +38,13 @@
 
 static char *heap_start;
 
-#ifdef HAVE_BSS_START
+#if(defined HAVE_BSS_START) && !(defined __linux__)
 extern char *__bss_start;
 #endif
 
 void my_init_stacktrace()
 {
-#ifdef HAVE_BSS_START
+#if(defined HAVE_BSS_START) && !(defined __linux__)
   heap_start = (char*) &__bss_start;
 #endif
 }

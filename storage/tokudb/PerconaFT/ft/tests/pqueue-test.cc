@@ -109,7 +109,9 @@ static int run_test(void)
         r = pqueue_pop(pq, &node);   assert(r==0);
         if (verbose) printf("%d : %d\n", i, *(int*)(node->key->data));
         if ( *(int*)(node->key->data) != i ) { 
-            if (verbose) printf("FAIL\n"); return -1; 
+            if (verbose)
+                printf("FAIL\n");
+            return -1;
         }
     }
     pqueue_free(pq);

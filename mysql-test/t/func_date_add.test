@@ -100,3 +100,34 @@ drop table t1;
 
 --echo End of 5.5 tests
 
+#
+# how + interval is printed
+#
+
+create or replace view v1 as select 3 & 20010101 + interval 2 day as x;
+show create view v1;
+select 3 & 20010101 + interval 2 day, x from v1;
+
+create or replace view v1 as select (3 & 20010101) + interval 2 day as x;
+show create view v1;
+select (3 & 20010101) + interval 2 day, x from v1;
+
+create or replace view v1 as select 3 & (20010101 + interval 2 day) as x;
+show create view v1;
+select 3 & (20010101 + interval 2 day), x from v1;
+
+create or replace view v1 as select 30 + 20010101 + interval 2 day as x;
+show create view v1;
+select 30 + 20010101 + interval 2 day, x from v1;
+
+create or replace view v1 as select (30 + 20010101) + interval 2 day as x;
+show create view v1;
+select (30 + 20010101) + interval 2 day, x from v1;
+
+create or replace view v1 as select 30 + (20010101 + interval 2 day) as x;
+show create view v1;
+select 30 + (20010101 + interval 2 day), x from v1;
+
+drop view v1;
+
+--echo End of 10.2 tests

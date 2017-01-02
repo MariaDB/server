@@ -1,0 +1,21 @@
+--source include/have_innodb.inc
+
+create table t1(a int not null primary key, b geometry not null) engine=innodb;
+--error 1846
+ALTER ONLINE TABLE t1 ADD SPATIAL INDEX new(b);
+show warnings;
+show errors;
+ALTER ONLINE TABLE t1 ADD SPATIAL INDEX new(b), LOCK=SHARED;
+show warnings;
+show errors;
+drop table t1;
+create table t1(a int not null, b geometry not null, d int,spatial key c(b), key d(d)) engine=innodb;
+show create table t1;
+--error 1846
+ALTER ONLINE TABLE t1 ADD PRIMARY KEY(a),DROP INDEX d;
+show warnings;
+show errors;
+ALTER ONLINE TABLE t1 ADD PRIMARY KEY(a),DROP INDEX d, LOCK=SHARED;
+show warnings;
+show errors;
+drop table t1;

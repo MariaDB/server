@@ -2,7 +2,7 @@
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2015, MariaDB Corporation.
+Copyright (c) 2013, 2016, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -51,8 +51,7 @@ Created 1/8/1996 Heikki Tuuri
 extern bool innodb_table_stats_not_found;
 extern bool innodb_index_stats_not_found;
 
-#ifndef UNIV_HOTBACKUP
-# include "sync0rw.h"
+#include "sync0rw.h"
 /********************************************************************//**
 Get the database name length in a table name.
 @return database name length */
@@ -228,7 +227,6 @@ dict_max_v_field_len_store_undo(
 	dict_table_t*		table,
 	ulint			col_no);
 
-#endif /* !UNIV_HOTBACKUP */
 #ifdef UNIV_DEBUG
 /*********************************************************************//**
 Assert that a column and a data type match.
@@ -241,7 +239,7 @@ dict_col_type_assert_equal(
 	const dtype_t*		type)	/*!< in: data type */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 #endif /* UNIV_DEBUG */
-#ifndef UNIV_HOTBACKUP
+
 /***********************************************************************//**
 Returns the minimum size of the column.
 @return minimum size */
@@ -327,46 +325,52 @@ dict_table_autoinc_lock(
 /*====================*/
 	dict_table_t*	table)	/*!< in/out: table */
 	MY_ATTRIBUTE((nonnull));
-/********************************************************************//**
-Unconditionally set the autoinc counter. */
+/** Unconditionally set the AUTO_INCREMENT counter.
+@param[in,out]	table	table or partition
+@param[in]	value	next available AUTO_INCREMENT value */
+MY_ATTRIBUTE((nonnull))
+UNIV_INLINE
 void
-dict_table_autoinc_initialize(
-/*==========================*/
-	dict_table_t*	table,	/*!< in/out: table */
-	ib_uint64_t	value)	/*!< in: next value to assign to a row */
-	MY_ATTRIBUTE((nonnull));
+dict_table_autoinc_initialize(dict_table_t* table, ib_uint64_t value)
+{
+	ut_ad(dict_table_autoinc_own(table));
+	table->autoinc = value;
+}
 
-/** Store autoinc value when the table is evicted.
-@param[in]	table	table evicted */
-void
-dict_table_autoinc_store(
-	const dict_table_t*	table);
-
-/** Restore autoinc value when the table is loaded.
-@param[in]	table	table loaded */
-void
-dict_table_autoinc_restore(
-	dict_table_t*	table);
-
-/********************************************************************//**
-Reads the next autoinc value (== autoinc counter value), 0 if not yet
-initialized.
-@return value for a new row, or 0 */
+/**
+@param[in]	table	table or partition
+@return the next AUTO_INCREMENT counter value
+@retval	0	if AUTO_INCREMENT is not yet initialized */
+MY_ATTRIBUTE((nonnull, warn_unused_result))
+UNIV_INLINE
 ib_uint64_t
-dict_table_autoinc_read(
-/*====================*/
-	const dict_table_t*	table)	/*!< in: table */
-	MY_ATTRIBUTE((nonnull, warn_unused_result));
-/********************************************************************//**
-Updates the autoinc counter if the value supplied is greater than the
-current value. */
-void
-dict_table_autoinc_update_if_greater(
-/*=================================*/
+dict_table_autoinc_read(const dict_table_t* table)
+{
+	ut_ad(dict_table_autoinc_own(table));
+	return(table->autoinc);
+}
 
-	dict_table_t*	table,	/*!< in/out: table */
-	ib_uint64_t	value)	/*!< in: value which was assigned to a row */
-	MY_ATTRIBUTE((nonnull));
+/** Update the AUTO_INCREMENT sequence if the value supplied is greater
+than the current value.
+@param[in,out]	table	table or partition
+@param[in]	value	AUTO_INCREMENT value that was assigned to a row
+@return	whether the AUTO_INCREMENT sequence was updated */
+MY_ATTRIBUTE((nonnull))
+UNIV_INLINE
+bool
+dict_table_autoinc_update_if_greater(dict_table_t* table, ib_uint64_t value)
+{
+	ut_ad(dict_table_autoinc_own(table));
+
+	if (value > table->autoinc) {
+
+		table->autoinc = value;
+		return(true);
+	}
+
+	return(false);
+}
+
 /********************************************************************//**
 Release the autoinc lock. */
 void
@@ -374,7 +378,6 @@ dict_table_autoinc_unlock(
 /*======================*/
 	dict_table_t*	table)	/*!< in/out: table */
 	MY_ATTRIBUTE((nonnull));
-#endif /* !UNIV_HOTBACKUP */
 /**********************************************************************//**
 Adds system columns to a table object. */
 void
@@ -383,7 +386,7 @@ dict_table_add_system_columns(
 	dict_table_t*	table,	/*!< in/out: table */
 	mem_heap_t*	heap)	/*!< in: temporary heap */
 	MY_ATTRIBUTE((nonnull));
-#ifndef UNIV_HOTBACKUP
+
 /** Mark if table has big rows.
 @param[in,out]	table	table handler */
 void
@@ -412,8 +415,9 @@ void
 dict_table_remove_from_cache_low(
 /*=============================*/
 	dict_table_t*	table,		/*!< in, own: table */
-	ibool		lru_evict);	/*!< in: TRUE if table being evicted
+	ibool		lru_evict)	/*!< in: TRUE if table being evicted
 					to make room in the table LRU list */
+	MY_ATTRIBUTE((nonnull));
 /**********************************************************************//**
 Renames a table object.
 @return TRUE if success */
@@ -613,18 +617,6 @@ dict_table_get_col_name(
 	ulint			col_nr)	/*!< in: column number */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 
-/**********************************************************************//**
-Returns a column's name.
-@return column name. NOTE: not guaranteed to stay valid if table is
-modified in any way (columns added, etc.). */
-UNIV_INTERN
-const char*
-dict_table_get_col_name_for_mysql(
-/*==============================*/
-	const dict_table_t*	table,	/*!< in: table */
-	const char*		col_name)/*!< in: MySQL table column name */
-	MY_ATTRIBUTE((nonnull, warn_unused_result));
-
 /** Returns a virtual column's name.
 @param[in]	table		table object
 @param[in]	col_nr		virtual column number(nth virtual column)
@@ -736,7 +728,6 @@ dict_table_get_next_index(
 # define dict_table_get_last_index(table) UT_LIST_GET_LAST((table)->indexes)
 # define dict_table_get_next_index(index) UT_LIST_GET_NEXT(indexes, index)
 #endif /* UNIV_DEBUG */
-#endif /* !UNIV_HOTBACKUP */
 
 /* Skip corrupted index */
 #define dict_table_skip_corrupt_index(index)			\
@@ -843,17 +834,6 @@ ulint
 dict_table_get_n_tot_u_cols(
 	const dict_table_t*	table);
 /********************************************************************//**
-Gets the number of system columns in a table.
-For intrinsic table on ROW_ID column is added for all other
-tables TRX_ID and ROLL_PTR are all also appeneded.
-@return number of system (e.g., ROW_ID) columns of a table */
-UNIV_INLINE
-ulint
-dict_table_get_n_sys_cols(
-/*======================*/
-	const dict_table_t*	table)	/*!< in: table */
-	MY_ATTRIBUTE((warn_unused_result));
-/********************************************************************//**
 Gets the number of all non-virtual columns (also system) in a table
 in the dictionary cache.
 @return number of columns of a table */
@@ -909,7 +889,6 @@ dict_table_n_rows_dec(
 /*==================*/
 	dict_table_t*	table)	/*!< in/out: table */
 	MY_ATTRIBUTE((nonnull));
-
 
 /** Get nth virtual column
 @param[in]	table	target table
@@ -969,7 +948,7 @@ dict_table_get_sys_col_no(
 	const dict_table_t*	table,	/*!< in: table */
 	ulint			sys)	/*!< in: DATA_ROW_ID, ... */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
-#ifndef UNIV_HOTBACKUP
+
 /********************************************************************//**
 Returns the minimum data size of an index record.
 @return minimum data size in bytes */
@@ -979,7 +958,6 @@ dict_index_get_min_size(
 /*====================*/
 	const dict_index_t*	index)	/*!< in: index */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
-#endif /* !UNIV_HOTBACKUP */
 /********************************************************************//**
 Check whether the table uses the compact page format.
 @return TRUE if table uses the compact page format */
@@ -1092,7 +1070,6 @@ dict_table_page_size(
 	const dict_table_t*	table)
 	MY_ATTRIBUTE((warn_unused_result));
 
-#ifndef UNIV_HOTBACKUP
 /*********************************************************************//**
 Obtain exclusive locks on all index trees of the table. This is to prevent
 accessing index trees while InnoDB is updating internal metadata for
@@ -1222,7 +1199,6 @@ dict_index_add_to_cache_w_vcol(
 	ulint			page_no,
 	ibool			strict)
 	MY_ATTRIBUTE((warn_unused_result));
-#endif /* !UNIV_HOTBACKUP */
 /********************************************************************//**
 Gets the number of fields in the internal representation of an index,
 including fields added by the dictionary system.
@@ -1413,7 +1389,7 @@ dict_index_add_col(
 	dict_col_t*		col,		/*!< in: column */
 	ulint			prefix_len)	/*!< in: column prefix length */
 	MY_ATTRIBUTE((nonnull));
-#ifndef UNIV_HOTBACKUP
+
 /*******************************************************************//**
 Copies types of fields contained in index to tuple. */
 void
@@ -1424,7 +1400,6 @@ dict_index_copy_types(
 	ulint			n_fields)	/*!< in: number of
 						field types to copy */
 	MY_ATTRIBUTE((nonnull));
-#endif /* !UNIV_HOTBACKUP */
 /*********************************************************************//**
 Gets the field column.
 @return field->col, pointer to the table column */
@@ -1434,7 +1409,7 @@ dict_field_get_col(
 /*===============*/
 	const dict_field_t*	field)	/*!< in: index field */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
-#ifndef UNIV_HOTBACKUP
+
 /**********************************************************************//**
 Returns an index object if it is found in the dictionary cache.
 Assumes that dict_sys->mutex is already being held.
@@ -1769,8 +1744,6 @@ extern dict_sys_t*	dict_sys;
 /** the data dictionary rw-latch protecting dict_sys */
 extern rw_lock_t*	dict_operation_lock;
 
-typedef std::map<table_id_t, ib_uint64_t> autoinc_map_t;
-
 /* Dictionary system struct */
 struct dict_sys_t{
 	DictSysMutex	mutex;		/*!< mutex protecting the data
@@ -1806,10 +1779,7 @@ struct dict_sys_t{
 	UT_LIST_BASE_NODE_T(dict_table_t)
 			table_non_LRU;	/*!< List of tables that can't be
 					evicted from the cache */
-	autoinc_map_t*	autoinc_map;	/*!< Map to store table id and autoinc
-					when table is evicted */
 };
-#endif /* !UNIV_HOTBACKUP */
 
 /** dummy index for ROW_FORMAT=REDUNDANT supremum and infimum records */
 extern dict_index_t*	dict_ind_redundant;
@@ -1901,7 +1871,7 @@ Closes the data dictionary module. */
 void
 dict_close(void);
 /*============*/
-#ifndef UNIV_HOTBACKUP
+
 /**********************************************************************//**
 Check whether the table is corrupted.
 @return nonzero for corrupted table, zero for valid tables */
@@ -1922,7 +1892,6 @@ dict_index_is_corrupted(
 	const dict_index_t*	index)	/*!< in: index */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 
-#endif /* !UNIV_HOTBACKUP */
 /**********************************************************************//**
 Flags an index and table corrupted both in the data dictionary cache
 and in the system table SYS_INDEXES. */
@@ -2016,42 +1985,12 @@ dict_table_is_encrypted(
 	const dict_table_t*	table)	/*!< in: table to check */
 	MY_ATTRIBUTE((warn_unused_result));
 
-/** Check whether the table is intrinsic.
-An intrinsic table is a special kind of temporary table that
-is invisible to the end user.  It is created internally by the MySQL server
-layer or other module connected to InnoDB in order to gather and use data
-as part of a larger task.  Since access to it must be as fast as possible,
-it does not need UNDO semantics, system fields DB_TRX_ID & DB_ROLL_PTR,
-doublewrite, checksum, insert buffer, use of the shared data dictionary,
-locking, or even a transaction.  In short, these are not ACID tables at all,
-just temporary
-
-@param[in]	table	table to check
-@return true if intrinsic table flag is set. */
-UNIV_INLINE
-bool
-dict_table_is_intrinsic(
-	const dict_table_t*	table)
-	MY_ATTRIBUTE((warn_unused_result));
-
 /** Check if the table is in a shared tablespace (System or General).
 @param[in]	id	Space ID to check
 @return true if id is a shared tablespace, false if not. */
 UNIV_INLINE
 bool
 dict_table_in_shared_tablespace(
-	const dict_table_t*	table)
-	MY_ATTRIBUTE((warn_unused_result));
-
-/** Check whether locking is disabled for this table.
-Currently this is done for intrinsic table as their visibility is limited
-to the connection only.
-
-@param[in]	table	table to check
-@return true if locking is disabled. */
-UNIV_INLINE
-bool
-dict_table_is_locking_disabled(
 	const dict_table_t*	table)
 	MY_ATTRIBUTE((warn_unused_result));
 
@@ -2064,31 +2003,6 @@ dict_disable_redo_if_temporary(
 	const dict_table_t*	table,	/*!< in: table to check */
 	mtr_t*			mtr);	/*!< out: mini-transaction */
 
-/** Get table session row-id and increment the row-id counter for next use.
-@param[in,out]	table	table handler
-@return next table local row-id. */
-UNIV_INLINE
-row_id_t
-dict_table_get_next_table_sess_row_id(
-	dict_table_t*		table);
-
-/** Get table session trx-id and increment the trx-id counter for next use.
-@param[in,out]	table	table handler
-@return next table local trx-id. */
-UNIV_INLINE
-trx_id_t
-dict_table_get_next_table_sess_trx_id(
-	dict_table_t*		table);
-
-/** Get current session trx-id.
-@param[in]	table	table handler
-@return table local trx-id. */
-UNIV_INLINE
-trx_id_t
-dict_table_get_curr_table_sess_trx_id(
-	const dict_table_t*	table);
-
-#ifndef UNIV_HOTBACKUP
 /*********************************************************************//**
 This function should be called whenever a page is successfully
 compressed. Updates the compression padding information. */
@@ -2129,18 +2043,6 @@ dict_index_node_ptr_max_size(
 /*=========================*/
 	const dict_index_t*	index)	/*!< in: index */
 	MY_ATTRIBUTE((warn_unused_result));
-/*****************************************************************//**
-Get index by first field of the index
-@return index which is having first field matches
-with the field present in field_index position of table */
-UNIV_INLINE
-dict_index_t*
-dict_table_get_index_on_first_col(
-/*==============================*/
-	const dict_table_t*	table,		/*!< in: table */
-	ulint			col_index,	/*!< in: position of column
-						in table */
-	const char*		field_name);	/*!< in: field name */
 /** Check if a column is a virtual column
 @param[in]	col	column
 @return true if it is a virtual column, false otherwise */
@@ -2200,9 +2102,6 @@ UNIV_INLINE
 bool
 dict_table_have_virtual_index(
 	dict_table_t*	table);
-
-#endif /* !UNIV_HOTBACKUP */
-
 
 #ifndef UNIV_NONINL
 #include "dict0dict.ic"

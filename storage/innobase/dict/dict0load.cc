@@ -493,7 +493,7 @@ err_len:
 	}
 
 	/* This receives a dict_foreign_t* that points to a stack variable.
-	So mem_heap_free(foreign->heap) is not used as elsewhere.
+	So dict_foreign_free(foreign) is not used as elsewhere.
 	Since the heap used here is freed elsewhere, foreign->heap
 	is not assigned. */
 	foreign->id = mem_heap_strdupl(heap, (const char*) field, len);
@@ -3179,7 +3179,7 @@ err_exit:
 		ib::error() << "Table " << table->name << " in InnoDB"
 			" data dictionary contains invalid flags."
 			" SYS_TABLES.MIX_LEN=" << table->flags2;
-		table->flags2 &= ~(DICT_TF2_TEMPORARY|DICT_TF2_INTRINSIC);
+		table->flags2 &= ~DICT_TF2_TEMPORARY;
 		dict_table_remove_from_cache(table);
 		table = NULL;
 		err = DB_FAIL;

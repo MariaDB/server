@@ -3450,7 +3450,7 @@ int ha_partition::open(const char *name, int mode, uint test_if_locked)
   }
   m_start_key.length= 0;
   m_rec0= table->record[0];
-  m_rec_length= table_share->stored_rec_length;
+  m_rec_length= table_share->reclength;
   if (!m_part_ids_sorted_by_num_of_records)
   {
     if (!(m_part_ids_sorted_by_num_of_records=
@@ -7975,7 +7975,7 @@ void ha_partition::append_row_to_str(String &str)
   {
     Field **field_ptr;
     if (!is_rec0)
-      set_field_ptr(m_part_info->full_part_field_array, rec,
+      table->move_fields(m_part_info->full_part_field_array, rec,
                     table->record[0]);
     /* No primary key, use full partition field array. */
     for (field_ptr= m_part_info->full_part_field_array;
@@ -7989,7 +7989,7 @@ void ha_partition::append_row_to_str(String &str)
       field_unpack(&str, field, rec, 0, false);
     }
     if (!is_rec0)
-      set_field_ptr(m_part_info->full_part_field_array, table->record[0],
+      table->move_fields(m_part_info->full_part_field_array, table->record[0],
                     rec);
   }
 }
@@ -8453,18 +8453,6 @@ uint ha_partition::max_supported_record_length() const
 uint ha_partition::max_supported_keys() const
 {
   return min_of_the_max_uint(&handler::max_supported_keys);
-}
-
-
-uint ha_partition::extra_rec_buf_length() const
-{
-  handler **file;
-  uint max= (*m_file)->extra_rec_buf_length();
-
-  for (file= m_file, file++; *file; file++)
-    if (max < (*file)->extra_rec_buf_length())
-      max= (*file)->extra_rec_buf_length();
-  return max;
 }
 
 

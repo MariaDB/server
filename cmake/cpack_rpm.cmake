@@ -157,7 +157,7 @@ SETA(CPACK_RPM_server_PACKAGE_REQUIRES
 IF(WITH_WSREP)
 SETA(CPACK_RPM_server_PACKAGE_REQUIRES
   "galera" "rsync" "lsof" "grep" "gawk" "iproute"
-  "coreutils" "findutils" "tar")
+  "coreutils" "findutils" "tar" "which")
 ENDIF()
 
 SET(CPACK_RPM_server_PRE_INSTALL_SCRIPT_FILE ${CMAKE_SOURCE_DIR}/support-files/rpm/server-prein.sh)
@@ -223,6 +223,9 @@ SETA(CPACK_RPM_test_PACKAGE_PROVIDES
   "perl(mtr_io.pl)"
   "perl(mtr_match)"
   "perl(mtr_misc.pl)"
+  "perl(mtr_gcov.pl)"
+  "perl(mtr_gprof.pl)"
+  "perl(mtr_process.pl)"
   "perl(mtr_report)"
   "perl(mtr_results)"
   "perl(mtr_unique)")

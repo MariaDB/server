@@ -294,7 +294,7 @@ int TABDEF::GetColCatInfo(PGLOBAL g)
 				nlg+= nof;
       case TAB_DIR:
       case TAB_XML:
-        poff= loff + 1;
+				poff= loff + (pcf->Flags & U_VIRTUAL ? 0 : 1);
         break;
       case TAB_INI:
       case TAB_MAC:
@@ -440,7 +440,11 @@ int TABDEF::GetColCatInfo(PGLOBAL g)
       } // endswitch tc
 
 		// lrecl must be at least recln to avoid buffer overflow
-		recln= MY_MAX(recln, Hc->GetIntegerOption("Lrecl"));
+		if (trace)
+			htrc("Lrecl: Calculated=%d defined=%d\n", 
+			  recln, Hc->GetIntegerOption("Lrecl"));
+
+		recln = MY_MAX(recln, Hc->GetIntegerOption("Lrecl"));
 		Hc->SetIntegerOption("Lrecl", recln);
 		((PDOSDEF)this)->SetLrecl(recln);
 		} // endif Lrecl
@@ -534,7 +538,7 @@ PTABDEF OEMDEF::GetXdef(PGLOBAL g)
 #endif // 0
 
   // Is the library already loaded?
-  if (!Hdll && !(Hdll = dlopen(soname, RTLD_NOLOAD)))
+  if (!Hdll)
     // Load the desired shared library
     if (!(Hdll = dlopen(soname, RTLD_LAZY))) {
       error = dlerror();

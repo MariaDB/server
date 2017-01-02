@@ -32,10 +32,8 @@ Created 9/8/1995 Heikki Tuuri
 #include "os0thread.ic"
 #endif
 
-#ifndef UNIV_HOTBACKUP
 #include "srv0srv.h"
 #include "os0event.h"
-
 #include <map>
 
 /** Mutex that tracks the thread count. Used by innorwlocktest.cc
@@ -117,9 +115,6 @@ os_thread_create_func(
 {
 	os_thread_id_t	new_thread_id;
 
-	/* the new thread should look recent changes up here so far. */
-	os_wmb;
-
 #ifdef _WIN32
 	HANDLE		handle;
 
@@ -156,9 +151,7 @@ os_thread_create_func(
 
 	int	ret = pthread_create(&new_thread_id, &attr, func, arg);
 
-	if (ret != 0) {
-		ib::fatal() << "pthread_create returned " << ret;
-	}
+	ut_a(ret == 0);
 
 	pthread_attr_destroy(&attr);
 
@@ -213,7 +206,6 @@ os_thread_yield(void)
 	sched_yield();
 #endif
 }
-#endif /* !UNIV_HOTBACKUP */
 
 /*****************************************************************//**
 The thread sleeps at least the time given in microseconds. */

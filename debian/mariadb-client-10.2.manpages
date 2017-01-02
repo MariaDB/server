@@ -1,0 +1,12 @@
+debian/additions/innotop/innotop.1
+debian/tmp/usr/share/man/man1/mysqlaccess.1
+debian/tmp/usr/share/man/man1/mysqladmin.1
+debian/tmp/usr/share/man/man1/mysqldump.1
+debian/tmp/usr/share/man/man1/mysqldumpslow.1
+debian/tmp/usr/share/man/man1/mysql_find_rows.1
+debian/tmp/usr/share/man/man1/mysql_fix_extensions.1
+debian/tmp/usr/share/man/man1/mysqlimport.1
+debian/additions/mysqlreport.1
+debian/tmp/usr/share/man/man1/mysqlshow.1
+debian/tmp/usr/share/man/man1/mysqlslap.1
+debian/tmp/usr/share/man/man1/mysql_waitpid.1

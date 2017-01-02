@@ -1,0 +1,8 @@
+SET GLOBAL innodb_file_per_table=0;
+CREATE TABLE t(a INT)ENGINE=InnoDB;
+SET GLOBAL innodb_file_per_table=1;
+CREATE TABLE ibd4(a INT UNIQUE)ENGINE=InnoDB;
+CREATE TABLE ibd4f(a INT UNIQUE)ENGINE=InnoDB;
+CREATE TABLE ibd5(a INT UNIQUE, b INT UNIQUE)ENGINE=InnoDB;
+# Kill the server
+DROP TABLE t,ibd4,ibd4f,ibd5;

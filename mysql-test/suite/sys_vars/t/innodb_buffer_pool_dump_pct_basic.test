@@ -9,6 +9,9 @@
 
 -- source include/have_innodb.inc
 
+# Save the default value
+SET @orig = @@global.innodb_buffer_pool_dump_pct;
+
 # Check the default value
 SELECT @@global.innodb_buffer_pool_dump_pct;
 
@@ -55,3 +58,6 @@ SET GLOBAL innodb_buffer_pool_dump_pct='foo';
 # Set without using Global
 --error ER_GLOBAL_VARIABLE
 SET innodb_buffer_pool_dump_pct=50;
+
+# Restore original value
+SET GLOBAL innodb_buffer_pool_dump_pct=@orig;

@@ -1,0 +1,440 @@
+select json_valid('[1, 2]');
+json_valid('[1, 2]')
+1
+select json_valid('"string"}');
+json_valid('"string"}')
+0
+select json_valid('{"key1":1, "key2":[2,3]}');
+json_valid('{"key1":1, "key2":[2,3]}')
+1
+select json_valid('[false, true, null]');
+json_valid('[false, true, null]')
+1
+select json_valid(repeat('[', 1000));
+json_valid(repeat('[', 1000))
+0
+select json_valid(repeat('{"a":', 1000));
+json_valid(repeat('{"a":', 1000))
+0
+select json_value('{"key1":123}', '$.key2');
+json_value('{"key1":123}', '$.key2')
+NULL
+select json_value('{"key1":123}', '$.key1');
+json_value('{"key1":123}', '$.key1')
+123
+select json_value('{"key1":[1,2,3]}', '$.key1');
+json_value('{"key1":[1,2,3]}', '$.key1')
+NULL
+select json_value('{"key1": [1,2,3], "key1":123}', '$.key1');
+json_value('{"key1": [1,2,3], "key1":123}', '$.key1')
+123
+select json_query('{"key1":{"a":1, "b":[1,2]}}', '$.key2');
+json_query('{"key1":{"a":1, "b":[1,2]}}', '$.key2')
+NULL
+select json_query('{"key1":{"a":1, "b":[1,2]}}', '$.key1');
+json_query('{"key1":{"a":1, "b":[1,2]}}', '$.key1')
+{"a":1, "b":[1,2]}
+select json_query('{"key1": 1}', '$.key1');
+json_query('{"key1": 1}', '$.key1')
+NULL
+select json_query('{"key1":123, "key1": [1,2,3]}', '$.key1');
+json_query('{"key1":123, "key1": [1,2,3]}', '$.key1')
+[1,2,3]
+select json_query('{"key1":123, "key1": [1,2,3]}', concat('$', repeat('.k', 1000)));
+json_query('{"key1":123, "key1": [1,2,3]}', concat('$', repeat('.k', 1000)))
+NULL
+select json_array();
+json_array()
+[]
+select json_array(1);
+json_array(1)
+[1]
+select json_array(1, "text", false, null);
+json_array(1, "text", false, null)
+[1, "text", false, null]
+select json_array_append('["a", "b"]', '$', FALSE);
+json_array_append('["a", "b"]', '$', FALSE)
+["a", "b", false]
+select json_array_append('{"k1":1, "k2":["a", "b"]}', '$.k2', 2);
+json_array_append('{"k1":1, "k2":["a", "b"]}', '$.k2', 2)
+{"k1":1, "k2":["a", "b", 2]}
+select json_array_append('["a", ["b", "c"], "d"]', '$[0]', 2);
+json_array_append('["a", ["b", "c"], "d"]', '$[0]', 2)
+[["a", 2], ["b", "c"], "d"]
+select json_array_insert('["a", {"b": [1, 2]}, [3, 4]]', '$[1]', 'x');
+json_array_insert('["a", {"b": [1, 2]}, [3, 4]]', '$[1]', 'x')
+["a", "x", {"b": [1, 2]}, [3, 4]]
+select json_array_insert('["a", {"b": [1, 2]}, [3, 4]]', '$[2]', 'x');
+json_array_insert('["a", {"b": [1, 2]}, [3, 4]]', '$[2]', 'x')
+["a", {"b": [1, 2]}, "x", [3, 4]]
+select json_array_insert('["a", {"b": [1, 2]}, [3, 4]]', '$[3]', 'x');
+json_array_insert('["a", {"b": [1, 2]}, [3, 4]]', '$[3]', 'x')
+["a", {"b": [1, 2]}, [3, 4], "x"]
+select json_array_insert('["a", {"b": [1, 2]}, [3, 4]]', '$[4]', 'x');
+json_array_insert('["a", {"b": [1, 2]}, [3, 4]]', '$[4]', 'x')
+["a", {"b": [1, 2]}, [3, 4], "x"]
+select json_array_insert('["a", {"b": [1, 2]}, [3, 4]]', '$[1].b[0]', 'x');
+json_array_insert('["a", {"b": [1, 2]}, [3, 4]]', '$[1].b[0]', 'x')
+["a", {"b": ["x", 1, 2]}, [3, 4]]
+select json_array_insert('true', '$', 1);
+json_array_insert('true', '$', 1)
+NULL
+select json_array_insert('["a", {"b": [1, 2]}, [3, 4]]', '$[2][1]', 'y');
+json_array_insert('["a", {"b": [1, 2]}, [3, 4]]', '$[2][1]', 'y')
+["a", {"b": [1, 2]}, [3, "y", 4]]
+select json_contains('{"k1":123, "k2":345}', '123', '$.k1');
+json_contains('{"k1":123, "k2":345}', '123', '$.k1')
+1
+select json_contains('"you"', '"you"');
+json_contains('"you"', '"you"')
+1
+select json_contains('"youth"', '"you"');
+json_contains('"youth"', '"you"')
+0
+select json_contains('[1]', '[1]', '$', '$[0]');
+ERROR 42000: Incorrect parameter count in the call to native function 'json_contains'
+select json_contains('', '', '$');
+json_contains('', '', '$')
+NULL
+Warnings:
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_contains'
+select json_contains('null', 'null', '$');
+json_contains('null', 'null', '$')
+1
+select json_contains('"10"', '"10"', '$');
+json_contains('"10"', '"10"', '$')
+1
+select json_contains('"10"', '10', '$');
+json_contains('"10"', '10', '$')
+0
+select json_contains('10.1', '10', '$');
+json_contains('10.1', '10', '$')
+0
+select json_contains('10.0', '10', '$');
+json_contains('10.0', '10', '$')
+1
+select json_contains('[1]', '1');
+json_contains('[1]', '1')
+1
+select json_contains('[2, 1]', '1');
+json_contains('[2, 1]', '1')
+1
+select json_contains('[2, [2, 3], 1]', '1');
+json_contains('[2, [2, 3], 1]', '1')
+1
+select json_contains('[4, [2, 3], 1]', '2');
+json_contains('[4, [2, 3], 1]', '2')
+1
+select json_contains('[2, 1]', '[1, 2]');
+json_contains('[2, 1]', '[1, 2]')
+1
+select json_contains('[2, 1]', '[1, 0, 2]');
+json_contains('[2, 1]', '[1, 0, 2]')
+0
+select json_contains('[2, 0, 3, 1]', '[1, 2]');
+json_contains('[2, 0, 3, 1]', '[1, 2]')
+1
+select json_contains('{"b":[1,2], "a":1}', '{"a":1, "b":2}');
+json_contains('{"b":[1,2], "a":1}', '{"a":1, "b":2}')
+1
+select json_contains('{"a":1}', '{}');
+json_contains('{"a":1}', '{}')
+1
+select json_contains('[1, {"a":1}]', '{}');
+json_contains('[1, {"a":1}]', '{}')
+1
+select json_contains('[1, {"a":1}]', '{"a":1}');
+json_contains('[1, {"a":1}]', '{"a":1}')
+1
+select json_contains('[{"abc":"def", "def":"abc"}]', '["foo","bar"]');
+json_contains('[{"abc":"def", "def":"abc"}]', '["foo","bar"]')
+0
+select json_contains('[{"abc":"def", "def":"abc"}, "bar"]', '["bar", {}]');
+json_contains('[{"abc":"def", "def":"abc"}, "bar"]', '["bar", {}]')
+1
+select json_contains_path('{"key1":1, "key2":[2,3]}', "oNE", "$.key2[1]");
+json_contains_path('{"key1":1, "key2":[2,3]}', "oNE", "$.key2[1]")
+1
+select json_contains_path('{"key1":1, "key2":[2,3]}', "oNE", "$.key2[10]");
+json_contains_path('{"key1":1, "key2":[2,3]}', "oNE", "$.key2[10]")
+0
+select json_contains_path('{"key1":1, "key2":[2,3]}', "oNE", "$.ma");
+json_contains_path('{"key1":1, "key2":[2,3]}', "oNE", "$.ma")
+0
+select json_contains_path('{"key1":1, "key2":[2,3]}', "one", "$.key1");
+json_contains_path('{"key1":1, "key2":[2,3]}', "one", "$.key1")
+1
+select json_contains_path('{"key1":1, "key2":[2,3]}', "one", "$.key1", "$.ma");
+json_contains_path('{"key1":1, "key2":[2,3]}', "one", "$.key1", "$.ma")
+1
+select json_contains_path('{"key1":1, "key2":[2,3]}', "aLl", "$.key1", "$.ma");
+json_contains_path('{"key1":1, "key2":[2,3]}', "aLl", "$.key1", "$.ma")
+0
+select json_contains_path('{"key1":1, "key2":[2,3]}', "aLl", "$.key1", "$.key2");
+json_contains_path('{"key1":1, "key2":[2,3]}', "aLl", "$.key1", "$.key2")
+1
+select json_contains_path('{ "a": true }', NULL, '$.a' );
+json_contains_path('{ "a": true }', NULL, '$.a' )
+NULL
+select json_contains_path('{ "a": true }', 'all', NULL );
+json_contains_path('{ "a": true }', 'all', NULL )
+NULL
+select json_contains_path('{"a":{"b":"c"}}', 'one', '$.a.*');
+json_contains_path('{"a":{"b":"c"}}', 'one', '$.a.*')
+1
+select json_extract('{"key1":"asd", "key2":[2,3]}', "$.key1");
+json_extract('{"key1":"asd", "key2":[2,3]}', "$.key1")
+"asd"
+select json_extract('{"key1":"asd", "key2":[2,3]}', "$.keyX", "$.keyY");
+json_extract('{"key1":"asd", "key2":[2,3]}', "$.keyX", "$.keyY")
+NULL
+select json_extract('{"key1":"asd", "key2":[2,3]}', "$.key1", "$.key2");
+json_extract('{"key1":"asd", "key2":[2,3]}', "$.key1", "$.key2")
+["asd", [2,3]]
+select json_extract('{"key1":5, "key2":[2,3]}', "$.key1", "$.key2");
+json_extract('{"key1":5, "key2":[2,3]}', "$.key1", "$.key2")
+[5, [2,3]]
+select json_extract('{"key0":true, "key1":"qwe"}', "$.key1");
+json_extract('{"key0":true, "key1":"qwe"}', "$.key1")
+"qwe"
+select json_extract(json_object('foo', 'foobar'),'$');
+json_extract(json_object('foo', 'foobar'),'$')
+{"foo": "foobar"}
+select json_extract('[10, 20, [30, 40]]', '$[2][*]');
+json_extract('[10, 20, [30, 40]]', '$[2][*]')
+[30, 40]
+select json_extract('[10, 20, [{"a":3}, 30, 40]]', '$[2][*]');
+json_extract('[10, 20, [{"a":3}, 30, 40]]', '$[2][*]')
+[{"a":3}, 30, 40]
+select json_extract('1', '$');
+json_extract('1', '$')
+1
+select json_extract('[10, 20, [30, 40], 1, 10]', '$[1]');
+json_extract('[10, 20, [30, 40], 1, 10]', '$[1]')
+20
+select json_insert('{"a":1, "b":{"c":1}, "d":[1, 2]}', '$.b.k1', 'word');
+json_insert('{"a":1, "b":{"c":1}, "d":[1, 2]}', '$.b.k1', 'word')
+{"a":1, "b":{"c":1, "k1":"word"}, "d":[1, 2]}
+select json_insert('{"a":1, "b":{"c":1}, "d":[1, 2]}', '$.d[3]', 3);
+json_insert('{"a":1, "b":{"c":1}, "d":[1, 2]}', '$.d[3]', 3)
+{"a":1, "b":{"c":1}, "d":[1, 2, 3]}
+select json_insert('{"a":1, "b":{"c":1}, "d":[1, 2]}', '$.a[2]', 2);
+json_insert('{"a":1, "b":{"c":1}, "d":[1, 2]}', '$.a[2]', 2)
+{"a":[1, 2], "b":{"c":1}, "d":[1, 2]}
+select json_insert('{"a":1, "b":{"c":1}, "d":[1, 2]}', '$.b.c', 'word');
+json_insert('{"a":1, "b":{"c":1}, "d":[1, 2]}', '$.b.c', 'word')
+{"a":1, "b":{"c":1}, "d":[1, 2]}
+select json_set('{ "a": 1, "b": [2, 3]}', '$.a', 10, '$.c', '[true, false]');
+json_set('{ "a": 1, "b": [2, 3]}', '$.a', 10, '$.c', '[true, false]')
+{ "a": 10, "b": [2, 3], "c":"[true, false]"}
+select json_replace('{ "a": 1, "b": [2, 3]}', '$.a', 10, '$.c', '[true, false]');
+json_replace('{ "a": 1, "b": [2, 3]}', '$.a', 10, '$.c', '[true, false]')
+{ "a": 10, "b": [2, 3]}
+select json_replace('{ "a": 1, "b": [2, 3]}', '$.a', 10, '$.b', '[true, false]');
+json_replace('{ "a": 1, "b": [2, 3]}', '$.a', 10, '$.b', '[true, false]')
+{ "a": 10, "b": "[true, false]"}
+set @j = '["a", ["b", "c"], "d"]';
+select json_remove(@j, '$[0]');
+json_remove(@j, '$[0]')
+[ ["b", "c"], "d"]
+select json_remove(@j, '$[1]');
+json_remove(@j, '$[1]')
+["a", "d"]
+select json_remove(@j, '$[2]');
+json_remove(@j, '$[2]')
+["a", ["b", "c"]]
+set @j = '{"a": 1, "b": [2, 3]}';
+select json_remove(@j, '$.b');
+json_remove(@j, '$.b')
+{"a": 1}
+select json_remove(@j, '$.a');
+json_remove(@j, '$.a')
+{"b": [2, 3]}
+select json_object();
+json_object()
+{}
+select json_object("ki", 1, "mi", "ya");
+json_object("ki", 1, "mi", "ya")
+{"ki": 1, "mi": "ya"}
+create table t1 as select json_object('id', 87, 'name', 'carrot') as f;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `f` varchar(32) NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+select * from t1;
+f
+{"id": 87, "name": "carrot"}
+drop table t1;
+select json_exists('{"key1":"xxxx", "key2":[1, 2, 3]}', "$.key2");
+json_exists('{"key1":"xxxx", "key2":[1, 2, 3]}', "$.key2")
+1
+select json_exists('{"key1":"xxxx", "key2":[1, 2, 3]}', "$.key2[1]");
+json_exists('{"key1":"xxxx", "key2":[1, 2, 3]}', "$.key2[1]")
+1
+select json_exists('{"key1":"xxxx", "key2":[1, 2, 3]}', "$.key2[10]");
+json_exists('{"key1":"xxxx", "key2":[1, 2, 3]}', "$.key2[10]")
+0
+select json_quote('"string"');
+json_quote('"string"')
+"\"string\""
+create table t1 as select json_quote('foo');
+select * from t1;
+json_quote('foo')
+"foo"
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `json_quote('foo')` varchar(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+drop table t1;
+select json_merge('string');
+ERROR 42000: Incorrect parameter count in the call to native function 'json_merge'
+select json_merge('string', 123);
+json_merge('string', 123)
+NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_merge' at position 1
+select json_merge('"string"', 123);
+json_merge('"string"', 123)
+["string", 123]
+select json_merge('[1, 2]', '[true, false]');
+json_merge('[1, 2]', '[true, false]')
+[1, 2, true, false]
+select json_merge('{"1": 2}', '{"true": false}');
+json_merge('{"1": 2}', '{"true": false}')
+{"1": 2, "true": false}
+select json_merge('{"1": 2}', '{"true": false}', '{"3": 4}');
+json_merge('{"1": 2}', '{"true": false}', '{"3": 4}')
+{"1": 2, "true": false, "3": 4}
+select json_merge(NULL,json_object('foo', 1));
+json_merge(NULL,json_object('foo', 1))
+NULL
+select json_merge('a','b');
+json_merge('a','b')
+NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_merge' at position 1
+select json_merge('{"a":"b"}','{"c":"d"}');
+json_merge('{"a":"b"}','{"c":"d"}')
+{"a":"b", "c":"d"}
+SELECT JSON_MERGE('[1, 2]', '{"id": 47}');
+JSON_MERGE('[1, 2]', '{"id": 47}')
+[1, 2, {"id": 47}]
+select json_type('{"k1":123, "k2":345}');
+json_type('{"k1":123, "k2":345}')
+OBJECT
+select json_type('[123, "k2", 345]');
+json_type('[123, "k2", 345]')
+ARRAY
+select json_type("true");
+json_type("true")
+BOOLEAN
+select json_type('123');
+json_type('123')
+INTEGER
+select json_type('123.12');
+json_type('123.12')
+DOUBLE
+select json_keys('{"a":{"c":1, "d":2}, "b":2}');
+json_keys('{"a":{"c":1, "d":2}, "b":2}')
+["a", "b"]
+select json_keys('{"a":{"c":1, "d":2}, "b":2}', "$.a");
+json_keys('{"a":{"c":1, "d":2}, "b":2}', "$.a")
+["c", "d"]
+select json_keys('{"a":{"c":1, "d":2}, "b":2}', "$.b");
+json_keys('{"a":{"c":1, "d":2}, "b":2}', "$.b")
+NULL
+select json_keys('foo');
+json_keys('foo')
+NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_keys' at position 1
+SET @j = '["abc", [{"k": "10"}, "def"], {"x":"abc"}, {"y":"bcd"}]';
+select json_search(@j, 'one', 'abc');
+json_search(@j, 'one', 'abc')
+"$[0]"
+select json_search(@j, 'all', 'abc');
+json_search(@j, 'all', 'abc')
+["$[0]", "$[2].x"]
+select json_search(@j, 'all', 'abc', NULL, '$[2]');
+json_search(@j, 'all', 'abc', NULL, '$[2]')
+"$[2].x"
+select json_search(@j, 'all', 'abc', NULL, '$');
+json_search(@j, 'all', 'abc', NULL, '$')
+["$[0]", "$[2].x"]
+select json_search(@j, 'all', '10', NULL, '$');
+json_search(@j, 'all', '10', NULL, '$')
+"$[1][0].k"
+select json_search(@j, 'all', '10', NULL, '$[*]');
+json_search(@j, 'all', '10', NULL, '$[*]')
+"$[1][0].k"
+select json_search(@j, 'all', '10', NULL, '$[*][0].k');
+json_search(@j, 'all', '10', NULL, '$[*][0].k')
+"$[1][0].k"
+select json_search(@j, 'all', '10', NULL, '$**.k');
+json_search(@j, 'all', '10', NULL, '$**.k')
+"$[1][0].k"
+create table t1( json_col text );
+insert into t1 values
+('{ "a": "foobar" }'),
+('{ "a": "foobar", "b": "focus", "c": [ "arm", "foot", "shoulder" ] }');
+select json_search( json_col, 'all', 'foot' ) from t1;
+json_search( json_col, 'all', 'foot' )
+NULL
+"$.c[1]"
+drop table t1;
+select json_unquote('"abc"');
+json_unquote('"abc"')
+abc
+select json_unquote('abc');
+json_unquote('abc')
+abc
+select json_object("a", json_object("b", "abcd"));
+json_object("a", json_object("b", "abcd"))
+{"a": {"b": "abcd"}}
+select json_object("a", '{"b": "abcd"}');
+json_object("a", '{"b": "abcd"}')
+{"a": "{\"b\": \"abcd\"}"}
+select json_object("a", cast('{"b": "abcd"}' as json));
+json_object("a", cast('{"b": "abcd"}' as json))
+{"a": {"b": "abcd"}}
+select cast(NULL AS JSON);
+cast(NULL AS JSON)
+NULL
+select json_depth(cast(NULL as JSON));
+json_depth(cast(NULL as JSON))
+NULL
+select json_depth('[[], {}]');
+json_depth('[[], {}]')
+2
+select json_depth('[[[1,2,3],"s"], {}, []]');
+json_depth('[[[1,2,3],"s"], {}, []]')
+4
+select json_depth('[10, {"a": 20}]');
+json_depth('[10, {"a": 20}]')
+3
+select json_length('');
+json_length('')
+NULL
+Warnings:
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_length'
+select json_length('{}');
+json_length('{}')
+0
+select json_length('[1, 2, {"a": 3}]');
+json_length('[1, 2, {"a": 3}]')
+3
+select json_length('{"a": 1, "b": {"c": 30}}', '$.b');
+json_length('{"a": 1, "b": {"c": 30}}', '$.b')
+1
+select json_length('{"a": 1, "b": {"c": 30}}');
+json_length('{"a": 1, "b": {"c": 30}}')
+2
+create table json (j INT);
+show create table json;
+Table	Create Table
+json	CREATE TABLE `json` (
+  `j` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+drop table json;

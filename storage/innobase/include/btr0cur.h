@@ -60,7 +60,6 @@ struct btr_latch_leaves_t {
 	ulint		savepoints[3];
 };
 
-#ifndef UNIV_HOTBACKUP
 #include "que0types.h"
 #include "row0types.h"
 #include "ha0ha.h"
@@ -190,38 +189,10 @@ btr_cur_search_to_nth_level(
 				RW_S_LATCH, or 0 */
 	const char*	file,	/*!< in: file name */
 	ulint		line,	/*!< in: line where called */
-	mtr_t*		mtr);	/*!< in: mtr */
-
-/** Searches an index tree and positions a tree cursor on a given level.
-This function will avoid placing latches the travesal path and so
-should be used only for cases where-in latching is not needed.
-
-@param[in]	index	index
-@param[in]	level	the tree level of search
-@param[in]	tuple	data tuple; Note: n_fields_cmp in compared
-			to the node ptr page node field
-@param[in]	mode	PAGE_CUR_L, ....
-			Insert should always be made using PAGE_CUR_LE
-			to search the position.
-@param[in,out]	cursor	tree cursor; points to record of interest.
-@param[in]	file	file name
-@param[in[	line	line where called from
-@param[in,out]	mtr	mtr
-@param[in]	mark_dirty
-			if true then mark the block as dirty
-@return DB_SUCCESS or error code */
-dberr_t
-btr_cur_search_to_nth_level_with_no_latch(
-	dict_index_t*		index,
-	ulint			level,
-	const dtuple_t*		tuple,
-	page_cur_mode_t		mode,
-	btr_cur_t*		cursor,
-	const char*		file,
-	ulint			line,
-	mtr_t*			mtr,
-	bool			mark_dirty = true)
-	__attribute__((warn_unused_result));
+	mtr_t*		mtr,	/*!< in/out: mini-transaction */
+	ib_uint64_t	autoinc = 0);
+				/*!< in: PAGE_ROOT_AUTO_INC to be written
+				(0 if none) */
 
 /*****************************************************************//**
 Opens a cursor at either end of an index.
@@ -243,35 +214,6 @@ btr_cur_open_at_index_side_func(
 
 #define btr_cur_open_at_index_side(f,i,l,c,lv,m)			\
 	btr_cur_open_at_index_side_func(f,i,l,c,lv,__FILE__,__LINE__,m)
-
-/** Opens a cursor at either end of an index.
-Avoid taking latches on buffer, just pin (by incrementing fix_count)
-to keep them in buffer pool. This mode is used by intrinsic table
-as they are not shared and so there is no need of latching.
-@param[in]	from_left	true if open to low end, false if open
-				to high end.
-@param[in]	index		index
-@param[in]	latch_mode	latch mode
-@param[in,out]	cursor		cursor
-@param[in]	file		file name
-@param[in]	line		line where called
-@param[in,out]	mtr		mini transaction
-@return DB_SUCCESS or error code
-*/
-dberr_t
-btr_cur_open_at_index_side_with_no_latch_func(
-	bool		from_left,
-	dict_index_t*	index,
-	btr_cur_t*	cursor,
-	ulint		level,
-	const char*	file,
-	ulint		line,
-	mtr_t*		mtr)
-	__attribute__((warn_unused_result));
-
-#define btr_cur_open_at_index_side_with_no_latch(f,i,c,lv,m)		\
-	btr_cur_open_at_index_side_with_no_latch_func(			\
-		f,i,c,lv,__FILE__,__LINE__,m)
 
 /**********************************************************************//**
 Positions a cursor at a randomly chosen position within a B-tree.
@@ -587,7 +529,6 @@ btr_cur_pessimistic_delete(
 	bool		rollback,/*!< in: performing rollback? */
 	mtr_t*		mtr)	/*!< in: mtr */
 	MY_ATTRIBUTE((nonnull));
-#endif /* !UNIV_HOTBACKUP */
 /***********************************************************//**
 Parses a redo log record of updating a record in-place.
 @return end of log record or NULL */
@@ -622,7 +563,6 @@ btr_cur_parse_del_mark_set_sec_rec(
 	byte*		end_ptr,/*!< in: buffer end */
 	page_t*		page,	/*!< in/out: page or NULL */
 	page_zip_des_t*	page_zip);/*!< in/out: compressed page, or NULL */
-#ifndef UNIV_HOTBACKUP
 
 /** Estimates the number of rows in a given index range.
 @param[in]	index	index
@@ -998,7 +938,6 @@ btr_rec_set_deleted_flag(
 	page_zip_des_t*	page_zip,/*!< in/out: compressed page (or NULL) */
 	ulint		flag);	/*!< in: nonzero if delete marked */
 
-
 /** If pessimistic delete fails because of lack of file space, there
 is still a good change of success a little later.  Try this many
 times. */
@@ -1052,7 +991,6 @@ extern ulint	btr_cur_n_non_sea_old;
 srv_refresh_innodb_monitor_stats().  Referenced by
 srv_printf_innodb_monitor(). */
 extern ulint	btr_cur_n_sea_old;
-#endif /* !UNIV_HOTBACKUP */
 
 #ifdef UNIV_DEBUG
 /* Flag to limit optimistic insert records */

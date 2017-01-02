@@ -205,8 +205,7 @@ static char *process_str_arg(CHARSET_INFO *cs, char *to, const char *end,
   plen= strnlen(par, width);
   if (left_len <= plen)
     plen = left_len - 1;
-  plen= cs->cset->well_formed_len(cs, par, par + plen,
-                                  width, &well_formed_error);
+  plen= my_well_formed_length(cs, par, par + plen, width, &well_formed_error);
   if (print_type & ESCAPED_ARG)
     to= backtick_string(cs, to, end, par, plen, '`');
   else
@@ -791,7 +790,7 @@ int my_fprintf(FILE *stream, const char* format, ...)
   @param nr         Error number
 */
 
-void my_strerror(char *buf, size_t len, int nr)
+const char* my_strerror(char *buf, size_t len, int nr)
 {
   char *msg= NULL;
 
@@ -803,7 +802,7 @@ void my_strerror(char *buf, size_t len, int nr)
                   "Internal error/check (Not system error)" :
                   "Internal error < 0 (Not system error)"),
             len-1);
-    return;
+    return buf;
   }
 
   /*
@@ -844,4 +843,5 @@ void my_strerror(char *buf, size_t len, int nr)
   */
   if (!buf[0])
     strmake(buf, "unknown error", len - 1);
+  return buf;
 }

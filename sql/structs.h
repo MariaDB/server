@@ -64,9 +64,11 @@ typedef struct st_keyfile_info {	/* used with ha_info() */
 
 
 typedef struct st_key_part_info {	/* Info about a key part */
-  Field *field;
-  uint	offset;				/* offset in record (from 0) */
-  uint	null_offset;			/* Offset to null_bit in record */
+  Field *field;                         /* the Field object for the indexed
+                                           prefix of the original table Field.
+                                           NOT necessarily the original Field */
+  uint  offset;                         /* Offset in record (from 0) */
+  uint  null_offset;                    /* Offset to null_bit in record */
   /* Length of key part in bytes, excluding NULL flag and length bytes */
   uint16 length;
   /* 
@@ -77,9 +79,8 @@ typedef struct st_key_part_info {	/* Info about a key part */
   */
   uint16 store_length;
   uint16 key_type;
-  /* Fieldnr begins counting from 1 */
-  uint16 fieldnr;			/* Fieldnum in UNIREG */
-  uint16 key_part_flag;			/* 0 or HA_REVERSE_SORT */
+  uint16 fieldnr;                       /* Fieldnr begins counting from 1 */
+  uint16 key_part_flag;                 /* 0 or HA_REVERSE_SORT */
   uint8 type;
   uint8 null_bit;			/* Position to null_bit */
 } KEY_PART_INFO ;

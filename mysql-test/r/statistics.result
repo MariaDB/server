@@ -1676,6 +1676,26 @@ analyze table t1;
 Table	Op	Msg_type	Msg_text
 test.t1	analyze	status	Table is already up to date
 drop table t1;
+#
+# MDEV-10435 crash with bad stat tables
+#
+set use_stat_tables='preferably';
+call mtr.add_suppression("Column count of mysql.table_stats is wrong. Expected 3, found 1. The table is probably corrupted");
+rename table mysql.table_stats to test.table_stats;
+flush tables;
+create table t1 (a int);
+rename table t1 to t2, t3 to t4;
+ERROR 42S02: Table 'test.t3' doesn't exist
+drop table t1;
+rename table test.table_stats to mysql.table_stats;
+rename table mysql.table_stats to test.table_stats;
+create table mysql.table_stats (a int);
+flush tables;
+create table t1 (a int);
+rename table t1 to t2, t3 to t4;
+ERROR 42S02: Table 'test.t3' doesn't exist
+drop table t1, mysql.table_stats;
+rename table test.table_stats to mysql.table_stats;
 set use_stat_tables=@save_use_stat_tables;
 #
 # Start of 10.2 tests
@@ -1688,7 +1708,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` blob DEFAULT NULL,
-  `b` text DEFAULT DECODE_HISTOGRAM('SINGLE_PREC_HB',a)
+  `b` text DEFAULT decode_histogram('SINGLE_PREC_HB',`a`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT INTO t1 (a) VALUES (0x0000000000000000000000000101010101010101010202020303030304040404050505050606070707080809090A0A0B0C0D0D0E0E0F10111213131415161718191B1C1E202224292A2E33373B4850575F6A76818C9AA7B9C4CFDADFE5EBF0F4F8FAFCFF);
 SELECT b FROM t1;

@@ -104,6 +104,7 @@ cli_advanced_command(MYSQL *mysql, enum enum_server_command command,
 		     const unsigned char *arg, ulong arg_length,
                      my_bool skip_check, MYSQL_STMT *stmt);
 unsigned long cli_safe_read(MYSQL *mysql);
+unsigned long cli_safe_read_reallen(MYSQL *mysql, ulong* reallen);
 void net_clear_error(NET *net);
 void set_stmt_errmsg(MYSQL_STMT *stmt, NET *net);
 void set_stmt_error(MYSQL_STMT *stmt, int errcode, const char *sqlstate,

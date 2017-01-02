@@ -59,21 +59,18 @@ rollback_log_destroy(ROLLBACK_LOG_NODE log) {
 
 // flush an ununused log to disk, by allocating a size 0 blocknum in
 // the blocktable
-static void
-toku_rollback_flush_unused_log(
-    ROLLBACK_LOG_NODE log,
-    BLOCKNUM logname,
-    int fd,
-    FT ft,
-    bool write_me,
-    bool keep_me,
-    bool for_checkpoint,
-    bool is_clone
-    )
-{
+static void toku_rollback_flush_unused_log(ROLLBACK_LOG_NODE log,
+                                           BLOCKNUM logname,
+                                           int fd,
+                                           FT ft,
+                                           bool write_me,
+                                           bool keep_me,
+                                           bool for_checkpoint,
+                                           bool is_clone) {
     if (write_me) {
         DISKOFF offset;
-        ft->blocktable.realloc_on_disk(logname, 0, &offset, ft, fd, for_checkpoint, INT_MAX);
+        ft->blocktable.realloc_on_disk(
+            logname, 0, &offset, ft, fd, for_checkpoint);
     }
     if (!keep_me && !is_clone) {
         toku_free(log);

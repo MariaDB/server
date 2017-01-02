@@ -13969,8 +13969,8 @@ enum_alter_inplace_result ha_mroonga::wrapper_check_if_supported_inplace_alter(
       (
         Alter_inplace_info::ADD_COLUMN |
         Alter_inplace_info::DROP_COLUMN |
-        Alter_inplace_info::ALTER_COLUMN_TYPE |
-        Alter_inplace_info::ALTER_COLUMN_ORDER |
+        Alter_inplace_info::ALTER_STORED_COLUMN_TYPE |
+        Alter_inplace_info::ALTER_STORED_COLUMN_ORDER |
         Alter_inplace_info::ALTER_COLUMN_NULLABLE |
         Alter_inplace_info::ALTER_COLUMN_NOT_NULLABLE |
         Alter_inplace_info::ALTER_COLUMN_STORAGE_TYPE |
@@ -16124,10 +16124,8 @@ int ha_mroonga::storage_get_foreign_key_list(THD *thd,
                                                        ref_table_buff,
                                                        ref_table_name_length,
                                                        TRUE);
-    f_key_info.update_method = thd_make_lex_string(thd, NULL, "RESTRICT",
-                                                    8, TRUE);
-    f_key_info.delete_method = thd_make_lex_string(thd, NULL, "RESTRICT",
-                                                    8, TRUE);
+    f_key_info.update_method = FK_OPTION_RESTRICT;
+    f_key_info.delete_method = FK_OPTION_RESTRICT;
     f_key_info.referenced_key_name = thd_make_lex_string(thd, NULL, "PRIMARY",
                                                           7, TRUE);
     LEX_STRING *field_name = thd_make_lex_string(thd, NULL, column_name,

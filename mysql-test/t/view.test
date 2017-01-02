@@ -4636,7 +4636,6 @@ DROP TABLE t1, t2;
 --echo #
 
 --disable_warnings
-DROP TABLE IF EXISTS t1;
 DROP VIEW IF EXISTS v1;
 DROP PROCEDURE IF EXISTS p1;
 --enable_warnings
@@ -4647,25 +4646,27 @@ connect (con3, localhost, root);
 connection default;
 
 CREATE VIEW v1 AS SELECT schema_name FROM information_schema.schemata;
-CREATE TABLE t1 (str VARCHAR(50));
-CREATE PROCEDURE p1() INSERT INTO t1 SELECT * FROM v1;
+CREATE PROCEDURE p1() SELECT COUNT(*), GET_LOCK('blocker', 100) FROM v1;
 
 --echo # CALL p1() so the view is merged.
+--disable_result_log
 CALL p1();
+--enable_result_log
+SELECT RELEASE_LOCK('blocker');
 
 connection con3;
-LOCK TABLE t1 READ;
+SELECT GET_LOCK('blocker', 100);
 
 connection default;
---echo # Try to CALL p1() again, this time it should block for t1.
+--echo # Try to CALL p1() again, this time it should block on "blocker".
 --echo # Sending:
 --send CALL p1()
 
 connection con2;
 let $wait_condition=
   SELECT COUNT(*) = 1 from information_schema.processlist
-  WHERE state = "Waiting for table level lock" AND
-        info = "INSERT INTO t1 SELECT * FROM v1";
+  WHERE state = "User lock" AND
+        info = "SELECT COUNT(*), GET_LOCK('blocker', 100) FROM v1";
 --source include/wait_condition.inc
 --echo # ... then try to drop the view. This should block.
 --echo # Sending:
@@ -4677,11 +4678,14 @@ let $wait_condition=
   WHERE state = "Waiting for table metadata lock" AND info = "DROP VIEW v1";
 --source include/wait_condition.inc
 --echo # Now allow CALL p1() to complete
-UNLOCK TABLES;
+SELECT RELEASE_LOCK('blocker');
 
 connection default;
 --echo # Reaping: CALL p1()
+--disable_result_log
 --reap
+--enable_result_log
+SELECT RELEASE_LOCK('blocker');
 
 connection con2;
 --echo # Reaping: DROP VIEW v1
@@ -4689,7 +4693,6 @@ connection con2;
 
 connection default;
 DROP PROCEDURE p1;
-DROP TABLE t1;
 disconnect con2;
 disconnect con3;
 
@@ -6019,6 +6022,26 @@ select * from v1;
 DROP VIEW v1;
 
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-10724:Assertion `vcol_table == 0 || vcol_table == table'
+--echo # failed in fill_record(THD*, TABLE*, List<Item>&, List<Item>&,
+--echo # bool, bool)
+--echo #
+
+CREATE TABLE t1 (f1 INT);
+CREATE TABLE t2 (f2 INT);
+CREATE TABLE t3 (f3 INT);
+ 
+CREATE ALGORITHM = MERGE VIEW v AS SELECT f1, f3 FROM t1,
+( SELECT f3 FROM t2, t3 ) AS sq;
+ 
+--error ER_VIEW_MULTIUPDATE
+INSERT INTO v (f1, f3) VALUES (1,1), (2,2);
+
+drop view v;
+drop tables t1,t2,t3;
+
 --echo #
 --echo # End of 10.2 tests
 --echo #

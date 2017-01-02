@@ -49,7 +49,6 @@ Created 11/5/1995 Heikki Tuuri
 #include "fil0fil.h"
 #include "fil0crypt.h"
 #include "fsp0sysspace.h"
-#ifndef UNIV_HOTBACKUP
 #include "buf0buddy.h"
 #include "lock0lock.h"
 #include "sync0rw.h"
@@ -59,7 +58,6 @@ Created 11/5/1995 Heikki Tuuri
 #include "trx0purge.h"
 #include "log0log.h"
 #include "dict0stats_bg.h"
-#endif /* !UNIV_HOTBACKUP */
 #include "srv0srv.h"
 #include "srv0start.h"
 #include "dict0dict.h"
@@ -96,11 +94,12 @@ struct set_numa_interleave_t
 	{
 		if (srv_numa_interleave) {
 
+			struct bitmask *numa_mems_allowed = numa_get_mems_allowed();
 			ib::info() << "Setting NUMA memory policy to"
 				" MPOL_INTERLEAVE";
 			if (set_mempolicy(MPOL_INTERLEAVE,
-					  numa_all_nodes_ptr->maskp,
-					  numa_all_nodes_ptr->size) != 0) {
+					  numa_mems_allowed->maskp,
+					  numa_mems_allowed->size) != 0) {
 
 				ib::warn() << "Failed to set NUMA memory"
 					" policy to MPOL_INTERLEAVE: "
@@ -128,6 +127,11 @@ struct set_numa_interleave_t
 #else
 #define NUMA_MEMPOLICY_INTERLEAVE_IN_SCOPE
 #endif /* HAVE_LIBNUMA && WITH_NUMA */
+
+/* Enable this for checksum error messages. */
+//#ifdef UNIV_DEBUG
+//#define UNIV_DEBUG_LEVEL2 1
+//#endif
 
 /*
 		IMPLEMENTATION OF THE BUFFER POOL
@@ -317,7 +321,7 @@ that the whole area may be needed in the near future, and issue
 the read requests for the whole area.
 */
 
-#if (!(defined(UNIV_HOTBACKUP) || defined(UNIV_INNOCHECKSUM)))
+#ifndef UNIV_INNOCHECKSUM
 /** Value in microseconds */
 static const int WAIT_FOR_READ	= 100;
 static const int WAIT_FOR_WRITE = 100;
@@ -405,6 +409,9 @@ buf_pool_register_chunk(
 	buf_chunk_map_reg->insert(buf_pool_chunk_map_t::value_type(
 		chunk->blocks->frame, chunk));
 }
+
+/* prototypes for new functions added to ha_innodb.cc */
+trx_t* innobase_get_trx();
 
 /********************************************************************//**
 Check if page is maybe compressed, encrypted or both when we encounter
@@ -582,7 +589,7 @@ buf_block_alloc(
 
 	return(block);
 }
-#endif /* !UNIV_HOTBACKUP && !UNIV_INNOCHECKSUM */
+#endif /* !UNIV_INNOCHECKSUM */
 
 /** Checks if a page contains only zeroes.
 @param[in]	read_buf	database page
@@ -640,19 +647,26 @@ buf_page_is_checksum_valid_crc32(
 #endif /* UNIV_INNOCHECKSUM */
 
 	if (checksum_field1 != checksum_field2) {
-		return(false);
+		goto invalid;
 	}
 
 	if (checksum_field1 == crc32) {
 		return(true);
+	} else {
+		const uint32_t	crc32_legacy = buf_calc_page_crc32(read_buf, true);
+
+		if (checksum_field1 == crc32_legacy) {
+			return(true);
+		}
 	}
 
-	const uint32_t	crc32_legacy = buf_calc_page_crc32(read_buf, true);
-
-	if (checksum_field1 == crc32_legacy) {
-		return(true);
-	}
-
+invalid:
+#ifdef UNIV_DEBUG_LEVEL2
+	ib::info() << "Page checksum crc32 not valid"
+		   << " field1 " << checksum_field1
+		   << " field2 " << checksum_field2
+		   << " crc32 " << crc32;
+#endif
 	return(false);
 }
 
@@ -724,6 +738,13 @@ buf_page_is_checksum_valid_innodb(
 
 	if (checksum_field2 != mach_read_from_4(read_buf + FIL_PAGE_LSN)
 	    && checksum_field2 != old_checksum) {
+#ifdef UNIV_DEBUG_LEVEL2
+		ib::info() << "Page checksum crc32 not valid"
+			   << " field1 " << checksum_field1
+			   << " field2 " << checksum_field2
+			   << " crc32 " << buf_calc_page_old_checksum(read_buf)
+			   << " lsn " << mach_read_from_4(read_buf + FIL_PAGE_LSN);
+#endif
 		return(false);
 	}
 
@@ -733,6 +754,13 @@ buf_page_is_checksum_valid_innodb(
 	(always equal to 0), to FIL_PAGE_SPACE_OR_CHKSUM */
 
 	if (checksum_field1 != 0 && checksum_field1 != new_checksum) {
+#ifdef UNIV_DEBUG_LEVEL2
+		ib::info() << "Page checksum crc32 not valid"
+			   << " field1 " << checksum_field1
+			   << " field2 " << checksum_field2
+			   << " crc32 " << buf_calc_page_new_checksum(read_buf)
+			   << " lsn " << mach_read_from_4(read_buf + FIL_PAGE_LSN);
+#endif
 		return(false);
 	}
 
@@ -762,6 +790,15 @@ buf_page_is_checksum_valid_none(
 #endif	/* UNIV_INNOCHECKSUM */
 	)
 {
+#ifdef UNIV_DEBUG_LEVEL2
+	if (!(checksum_field1 == checksum_field2 || checksum_field1 == BUF_NO_CHECKSUM_MAGIC)) {
+		ib::info() << "Page checksum crc32 not valid"
+			   << " field1 " << checksum_field1
+			   << " field2 " << checksum_field2
+			   << " crc32 " << BUF_NO_CHECKSUM_MAGIC
+			   << " lsn " << mach_read_from_4(read_buf + FIL_PAGE_LSN);
+	}
+#endif
 
 #ifdef UNIV_INNOCHECKSUM
 	if (is_log_enabled
@@ -805,9 +842,24 @@ buf_page_is_corrupted(
 #endif /* UNIV_INNOCHECKSUM */
 )
 {
-	ulint		page_encrypted = (mach_read_from_4(read_buf+FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION) != 0);
 	ulint		checksum_field1;
 	ulint		checksum_field2;
+	bool page_encrypted = false;
+
+#ifndef UNIV_INNOCHECKSUM // FIXME see also encryption.innochecksum test
+	ulint 		space_id = mach_read_from_4(
+		read_buf + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID);
+	fil_space_crypt_t* crypt_data = fil_space_get_crypt_data(space_id);
+
+	/* Page is encrypted if encryption information is found from
+	tablespace and page contains used key_version. This is true
+	also for pages first compressed and then encrypted. */
+	if (crypt_data &&
+	    crypt_data->type != CRYPT_SCHEME_UNENCRYPTED &&
+	    fil_page_is_encrypted(read_buf)) {
+		page_encrypted = true;
+	}
+#endif
 
 	DBUG_EXECUTE_IF("buf_page_is_corrupt_failure", return(TRUE); );
 
@@ -819,10 +871,17 @@ buf_page_is_corrupted(
 		/* Stored log sequence numbers at the start and the end
 		of page do not match */
 
+#ifndef UNIV_INNOCHECKSUM
+		ib::info() << "Log sequence number at the start "
+			   << mach_read_from_4(read_buf + FIL_PAGE_LSN + 4)
+			   << " and the end "
+			   << mach_read_from_4(read_buf + UNIV_PAGE_SIZE - FIL_PAGE_END_LSN_OLD_CHKSUM + 4)
+			   << " do not match";
+#endif
 		return(TRUE);
 	}
 
-#if !defined(UNIV_HOTBACKUP) && !defined(UNIV_INNOCHECKSUM)
+#ifndef UNIV_INNOCHECKSUM
 	if (check_lsn && recv_lsn_checks_on) {
 		lsn_t		current_lsn;
 		const lsn_t	page_lsn
@@ -852,7 +911,7 @@ buf_page_is_corrupted(
 
 		}
 	}
-#endif /* !UNIV_HOTBACKUP && !UNIV_INNOCHECKSUM */
+#endif /* !UNIV_INNOCHECKSUM */
 
 	/* Check whether the checksum fields have correct values */
 
@@ -905,6 +964,10 @@ buf_page_is_corrupted(
 			if ((i < FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION
 			     || i >= FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID)
 			    && read_buf[i] != 0) {
+
+#ifndef UNIV_INNOCHECKSUM
+				ib::info() << "Checksum fields zero but page is not empty.";
+#endif
 
 				break;
 			}
@@ -1199,9 +1262,7 @@ buf_page_print(
 	const page_size_t&	page_size,
 	ulint			flags)
 {
-#ifndef UNIV_HOTBACKUP
 	dict_index_t*	index;
-#endif /* !UNIV_HOTBACKUP */
 
 	if (!(flags & BUF_PAGE_PRINT_NO_FULL)) {
 
@@ -1307,7 +1368,6 @@ buf_page_print(
 				read_buf + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID);
 	}
 
-#ifndef UNIV_HOTBACKUP
 	if (mach_read_from_2(read_buf + TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_TYPE)
 	    == TRX_UNDO_INSERT) {
 		fprintf(stderr,
@@ -1318,7 +1378,6 @@ buf_page_print(
 		fprintf(stderr,
 			"InnoDB: Page may be an update undo log page\n");
 	}
-#endif /* !UNIV_HOTBACKUP */
 
 	switch (fil_page_get_type(read_buf)) {
 		index_id_t	index_id;
@@ -1329,7 +1388,6 @@ buf_page_print(
 			"InnoDB: Page may be an index page where"
 			" index id is " << index_id;
 
-#ifndef UNIV_HOTBACKUP
 		index = dict_index_find_on_id_low(index_id);
 		if (index) {
 			ib::info()
@@ -1337,7 +1395,6 @@ buf_page_print(
 				<< " is " << index->name
 				<< " in table " << index->table->name;
 		}
-#endif /* !UNIV_HOTBACKUP */
 		break;
 	case FIL_PAGE_INODE:
 		fputs("InnoDB: Page may be an 'inode' page\n", stderr);
@@ -1383,8 +1440,6 @@ buf_page_print(
 
 	ut_ad(flags & BUF_PAGE_PRINT_NO_CRASH);
 }
-
-#ifndef UNIV_HOTBACKUP
 
 # ifdef PFS_GROUP_BUFFER_SYNC
 extern mysql_pfs_key_t	buffer_block_mutex_key;
@@ -1456,6 +1511,7 @@ buf_block_init(
 	block->frame = frame;
 
 	block->page.buf_pool_index = buf_pool_index(buf_pool);
+	block->page.flush_type = BUF_FLUSH_LRU;
 	block->page.state = BUF_BLOCK_NOT_USED;
 	block->page.buf_fix_count = 0;
 	block->page.io_fix = BUF_IO_NONE;
@@ -1474,7 +1530,6 @@ buf_block_init(
 	ut_d(block->page.file_page_was_freed = FALSE);
 
 	block->index = NULL;
-	block->made_dirty_with_no_latch = false;
 	block->skip_flush_check = false;
 
 	ut_d(block->page.in_page_hash = FALSE);
@@ -1555,10 +1610,11 @@ buf_chunk_init(
 
 #if defined(HAVE_LIBNUMA) && defined(WITH_NUMA)
 	if (srv_numa_interleave) {
+		struct bitmask *numa_mems_allowed = numa_get_mems_allowed();
 		int	st = mbind(chunk->mem, chunk->mem_size(),
 				   MPOL_INTERLEAVE,
-				   numa_all_nodes_ptr->maskp,
-				   numa_all_nodes_ptr->size,
+				   numa_mems_allowed->maskp,
+				   numa_mems_allowed->size,
 				   MPOL_MF_MOVE);
 		if (st != 0) {
 			ib::warn() << "Failed to set NUMA memory policy of"
@@ -1711,12 +1767,25 @@ buf_chunk_not_freed(
 			file pages. */
 			break;
 		case BUF_BLOCK_FILE_PAGE:
+			if (srv_read_only_mode) {
+				/* The page cleaner is disabled in
+				read-only mode.  No pages can be
+				dirtied, so all of them must be clean. */
+				ut_ad(block->page.oldest_modification
+				      == block->page.newest_modification);
+				ut_ad(block->page.oldest_modification == 0
+				      || block->page.oldest_modification
+				      == recv_sys->recovered_lsn);
+				ut_ad(block->page.buf_fix_count == 0);
+				ut_ad(block->page.io_fix == BUF_IO_NONE);
+				break;
+			}
+
 			buf_page_mutex_enter(block);
 			ready = buf_flush_ready_for_replace(&block->page);
 			buf_page_mutex_exit(block);
 
 			if (!ready) {
-
 				return(block);
 			}
 
@@ -2504,7 +2573,6 @@ buf_pool_withdraw_blocks(
 
 	/* retry is not needed */
 	++buf_withdraw_clock;
-	os_wmb;
 
 	return(false);
 }
@@ -3397,6 +3465,11 @@ page_found:
 	buf_pool->watch[]. However, it is not in the critical code path
 	as this function will be called only by the purge thread. */
 
+/* Enable this for checksum error messages. Currently on by
+default on UNIV_DEBUG for encryption bugs. */
+#ifdef UNIV_DEBUG
+#define UNIV_DEBUG_LEVEL2 1
+#endif
 
 	/* To obey latching order first release the hash_lock. */
 	rw_lock_x_unlock(*hash_lock);
@@ -3846,7 +3919,6 @@ buf_block_init_low(
 	buf_block_t*	block)	/*!< in: block to init */
 {
 	block->index		= NULL;
-	block->made_dirty_with_no_latch = false;
 	block->skip_flush_check = false;
 
 	block->n_hash_helps	= 0;
@@ -3854,7 +3926,6 @@ buf_block_init_low(
 	block->n_bytes		= 0;
 	block->left_side	= TRUE;
 }
-#endif /* !UNIV_HOTBACKUP */
 
 /********************************************************************//**
 Decompress a block.
@@ -3925,7 +3996,6 @@ buf_zip_decompress(
 	return(FALSE);
 }
 
-#ifndef UNIV_HOTBACKUP
 /** Get a buffer block from an adaptive hash index pointer.
 This function does not return if the block is not identified.
 @param[in]	ptr	pointer to within a page frame
@@ -3939,14 +4009,17 @@ buf_block_from_ahi(const byte* ptr)
 	ut_ad(buf_chunk_map_ref == buf_chunk_map_reg);
 	ut_ad(!buf_pool_resizing);
 
-	const byte* bound = reinterpret_cast<uintptr_t>(ptr)
-			    > srv_buf_pool_chunk_unit
-			    ? ptr - srv_buf_pool_chunk_unit : 0;
-	it = chunk_map->upper_bound(bound);
+	buf_chunk_t*	chunk;
+	it = chunk_map->upper_bound(ptr);
 
-	ut_a(it != chunk_map->end());
+	ut_a(it != chunk_map->begin());
 
-	buf_chunk_t*	chunk = it->second;
+	if (it == chunk_map->end()) {
+		chunk = chunk_map->rbegin()->second;
+	} else {
+		chunk = (--it)->second;
+	}
+
 	ulint		offs = ptr - chunk->blocks->frame;
 
 	offs >>= UNIV_PAGE_SIZE_SHIFT;
@@ -4112,9 +4185,6 @@ BUF_PEEK_IF_IN_POOL, BUF_GET_NO_LATCH, or BUF_GET_IF_IN_POOL_OR_WATCH
 @param[in]	file		file name
 @param[in]	line		line where called
 @param[in]	mtr		mini-transaction
-@param[in]	dirty_with_no_latch
-				mark page as dirty even if page
-				is being pinned without any latch
 @return pointer to the block or NULL */
 buf_block_t*
 buf_page_get_gen(
@@ -4126,8 +4196,7 @@ buf_page_get_gen(
 	const char*		file,
 	ulint			line,
 	mtr_t*			mtr,
-	dberr_t*		err,
-	bool			dirty_with_no_latch)
+	dberr_t*		err)
 {
 	buf_block_t*	block;
 	unsigned	access_time;
@@ -4292,7 +4361,7 @@ loop:
 				mutex_enter(pmutex);
 
 				ut_ad(buf_pool->n_pend_reads > 0);
-				os_atomic_decrement_ulint(&buf_pool->n_pend_reads, 1);
+				my_atomic_addlint(&buf_pool->n_pend_reads, -1);
 				buf_page_set_io_fix(bpage, BUF_IO_NONE);
 				mutex_exit(pmutex);
 				buf_LRU_free_page(bpage, true);
@@ -4339,7 +4408,7 @@ loop:
 				mutex_enter(pmutex);
 
 				ut_ad(buf_pool->n_pend_reads > 0);
-				os_atomic_decrement_ulint(&buf_pool->n_pend_reads, 1);
+				my_atomic_addlint(&buf_pool->n_pend_reads, -1);
  				buf_page_set_io_fix(bpage, BUF_IO_NONE);
 				mutex_exit(pmutex);
 				buf_LRU_free_page(bpage, true);
@@ -4410,11 +4479,9 @@ got_block:
 		bpage = &block->page;
 		if (fsp_is_system_temporary(page_id.space())
 		    && buf_page_get_io_fix(bpage) != BUF_IO_NONE) {
-			/* This suggest that page is being flushed.
+			/* This suggests that the page is being flushed.
 			Avoid returning reference to this page.
-			Instead wait for flush action to complete.
-			For normal page this sync is done using SX
-			lock but for intrinsic there is no latching. */
+			Instead wait for the flush action to complete. */
 			buf_block_unfix(fix_block);
 			os_thread_sleep(WAIT_FOR_WRITE);
 			goto loop;
@@ -4738,17 +4805,6 @@ got_block:
 	under the protection of the hash_lock and not the block->mutex
 	and block->lock. */
 	buf_wait_for_read(fix_block);
-
-	/* Mark block as dirty if requested by caller. If not requested (false)
-	then we avoid updating the dirty state of the block and retain the
-	original one. This is reason why ?
-	Same block can be shared/pinned by 2 different mtrs. If first mtr
-	set the dirty state to true and second mtr mark it as false the last
-	updated dirty state is retained. Which means we can loose flushing of
-	a modified block. */
-	if (dirty_with_no_latch) {
-		fix_block->made_dirty_with_no_latch = dirty_with_no_latch;
-	}
 
 	mtr_memo_type_t	fix_type;
 
@@ -5126,6 +5182,7 @@ buf_page_init_low(
 	bpage->flush_type = BUF_FLUSH_LRU;
 	bpage->io_fix = BUF_IO_NONE;
 	bpage->buf_fix_count = 0;
+	bpage->old = 0;
 	bpage->freed_page_clock = 0;
 	bpage->access_time = 0;
 	bpage->newest_modification = 0;
@@ -5199,8 +5256,7 @@ buf_page_init(
 
 		ut_a(buf_fix_count > 0);
 
-		os_atomic_increment_uint32(&block->page.buf_fix_count,
-					   buf_fix_count);
+		my_atomic_add32((int32*) &block->page.buf_fix_count, buf_fix_count);
 
 		buf_pool_watch_remove(buf_pool, hash_page);
 	} else {
@@ -5439,8 +5495,7 @@ buf_page_init_for_read(
 
 			ut_a(buf_fix_count > 0);
 
-			os_atomic_increment_uint32(
-				&bpage->buf_fix_count, buf_fix_count);
+			my_atomic_add32((int32*) &bpage->buf_fix_count, buf_fix_count);
 
 			ut_ad(buf_pool_watch_is_sentinel(buf_pool, watch_page));
 			buf_pool_watch_remove(buf_pool, watch_page);
@@ -5796,16 +5851,16 @@ buf_page_check_corrupt(
 {
 	byte* dst_frame = (bpage->zip.data) ? bpage->zip.data :
 		((buf_block_t*) bpage)->frame;
-	unsigned key_version = bpage->key_version;
 	bool page_compressed = bpage->page_encrypted;
 	ulint stored_checksum = bpage->stored_checksum;
-	ulint calculated_checksum = bpage->stored_checksum;
+	ulint calculated_checksum = bpage->calculated_checksum;
 	bool page_compressed_encrypted = bpage->page_compressed;
 	ulint space_id = mach_read_from_4(
 		dst_frame + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID);
 	fil_space_crypt_t* crypt_data = fil_space_get_crypt_data(space_id);
 	fil_space_t* space = fil_space_found_by_id(space_id);
 	bool corrupted = true;
+	ulint key_version = bpage->key_version;
 
 	if (key_version != 0 || page_compressed_encrypted) {
 		bpage->encrypted = true;
@@ -5895,7 +5950,7 @@ buf_page_io_complete(
 	if (io_type == BUF_IO_READ) {
 		ulint	read_page_no;
 		ulint	read_space_id;
-		byte*	frame;
+		byte*	frame = NULL;
 		bool	compressed_page=false;
 
 		ut_ad(bpage->zip.data != NULL || ((buf_block_t*)bpage)->frame != NULL);
@@ -5907,7 +5962,15 @@ buf_page_io_complete(
 			} else {
 				frame = ((buf_block_t*) bpage)->frame;
 			}
-			goto corrupt;
+
+			ib::info() << "Page "
+				   << bpage->id
+				   << " in tablespace "
+				   << bpage->space
+				   << " encryption error key_version "
+				   << bpage->key_version;
+
+			goto database_corrupted;
 		}
 
 		if (bpage->size.is_compressed()) {
@@ -5920,7 +5983,14 @@ buf_page_io_complete(
 
 				buf_pool->n_pend_unzip--;
 				compressed_page = false;
-				goto corrupt;
+
+				ib::info() << "Page "
+					   << bpage->id
+					   << " in tablespace "
+					   << bpage->space
+					   << " zip_decompress failure.";
+
+				goto database_corrupted;
 			}
 			buf_pool->n_pend_unzip--;
 		} else {
@@ -6009,7 +6079,7 @@ buf_page_io_complete(
 				}
 				goto page_not_corrupt;
 				;);
-corrupt:
+database_corrupted:
 			bool corrupted = buf_page_check_corrupt(bpage);
 
 			/* Compressed and encrypted pages are basically gibberish avoid
@@ -6049,6 +6119,7 @@ corrupt:
 					return(false);
 				} else {
 					corrupted = buf_page_check_corrupt(bpage);
+					ulint key_version = bpage->key_version;
 
 					if (corrupted) {
 						ib::fatal()
@@ -6065,7 +6136,7 @@ corrupt:
 						"However key management plugin or used key_id %u is not found or"
 						" used encryption algorithm or method does not match."
 						" Can't continue opening the table.",
-						(ulint)bpage->space, bpage->key_version);
+						(ulint)bpage->space, key_version);
 
 					buf_page_print(frame, bpage->size, BUF_PAGE_PRINT_NO_CRASH);
 
@@ -6094,7 +6165,7 @@ corrupt:
 #endif /* MYSQL_COMPRESSION */
 		    && !recv_no_ibuf_operations
 		    && !Tablespace::is_undo_tablespace(bpage->id.space())
-		    && bpage->id.space() != srv_tmp_space.space_id()
+		    && bpage->id.space() != SRV_TMP_SPACE_ID
 		    && !srv_is_tablespace_truncated(bpage->id.space())
 		    && fil_page_get_type(frame) == FIL_PAGE_INDEX
 		    && page_is_leaf(frame)) {
@@ -7256,57 +7327,6 @@ buf_pool_check_no_pending_io(void)
 	return(pending_io);
 }
 
-#if 0
-Code currently not used
-/*********************************************************************//**
-Gets the current length of the free list of buffer blocks.
-@return length of the free list */
-ulint
-buf_get_free_list_len(void)
-/*=======================*/
-{
-	ulint	len;
-
-	buf_pool_mutex_enter(buf_pool);
-
-	len = UT_LIST_GET_LEN(buf_pool->free);
-
-	buf_pool_mutex_exit(buf_pool);
-
-	return(len);
-}
-#endif
-
-#else /* !UNIV_HOTBACKUP */
-
-/** Inits a page to the buffer buf_pool, for use in mysqlbackup --restore.
-@param[in]	page_id		page id
-@param[in]	page_size	page size
-@param[in,out]	block		block to init */
-void
-buf_page_init_for_backup_restore(
-	const page_id_t&	page_id,
-	const page_size_t&	page_size,
-	buf_block_t*		block)
-{
-	block->page.state = BUF_BLOCK_FILE_PAGE;
-	block->page.id = page_id;
-	block->page.size.copy_from(page_size);
-
-	page_zip_des_init(&block->page.zip);
-
-	/* We assume that block->page.data has been allocated
-	with page_size == univ_page_size. */
-	if (page_size.is_compressed()) {
-		page_zip_set_size(&block->page.zip, page_size.physical());
-		block->page.zip.data = block->frame + page_size.logical();
-	} else {
-		page_zip_set_size(&block->page.zip, 0);
-	}
-}
-
-#endif /* !UNIV_HOTBACKUP */
-
 /** Print the given page_id_t object.
 @param[in,out]	out	the output stream
 @param[in]	page_id	the page_id_t object to be printed
@@ -7436,12 +7456,12 @@ buf_page_encrypt_before_write(
 		return src_frame;
 	}
 
-	if (crypt_data != NULL && crypt_data->encryption == FIL_SPACE_ENCRYPTION_OFF) {
+	if (crypt_data != NULL && crypt_data->not_encrypted()) {
 		/* Encryption is disabled */
 		encrypted = false;
 	}
 
-	if (!srv_encrypt_tables && (crypt_data == NULL || crypt_data->encryption == FIL_SPACE_ENCRYPTION_DEFAULT)) {
+	if (!srv_encrypt_tables && (crypt_data == NULL || crypt_data->is_default_encryption())) {
 		/* Encryption is disabled */
 		encrypted = false;
 	}
@@ -7546,6 +7566,35 @@ buf_page_decrypt_after_read(
 	bool page_compressed_encrypted = fil_page_is_compressed_encrypted(dst_frame);
 	buf_pool_t* buf_pool = buf_pool_from_bpage(bpage);
 	bool success = true;
+	ulint 		space_id = mach_read_from_4(
+		dst_frame + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID);
+	fil_space_crypt_t* crypt_data = fil_space_get_crypt_data(space_id);
+
+	/* Page is encrypted if encryption information is found from
+	tablespace and page contains used key_version. This is true
+	also for pages first compressed and then encrypted. */
+	if (!crypt_data ||
+	    (crypt_data &&
+	     crypt_data->type == CRYPT_SCHEME_UNENCRYPTED &&
+	     key_version != 0)) {
+		byte*	frame = NULL;
+
+		if (bpage->size.is_compressed()) {
+			frame = bpage->zip.data;
+		} else {
+			frame = ((buf_block_t*) bpage)->frame;
+		}
+
+		/* If page is not corrupted at this point, page can't be
+		encrypted, thus set key_version to 0. If page is corrupted,
+		we assume at this point that it is encrypted as page
+		contained key_version != 0. Note that page could still be
+		really corrupted. This we will find out after decrypt by
+		checking page checksums. */
+		if (!buf_page_is_corrupted(false, frame, bpage->size, false)) {
+			key_version = 0;
+		}
+	}
 
 	/* If page is encrypted read post-encryption checksum */
 	if (!page_compressed_encrypted && key_version != 0) {
@@ -7650,4 +7699,3 @@ buf_page_decrypt_after_read(
 	return (success);
 }
 #endif /* !UNIV_INNOCHECKSUM */
-

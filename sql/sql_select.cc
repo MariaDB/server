@@ -1121,9 +1121,6 @@ int JOIN::optimize()
 int
 JOIN::optimize_inner()
 {
-/*
-    if (conds) { Item *it_clone= conds->build_clone(thd,thd->mem_root); }
-*/
   ulonglong select_opts_for_readinfo;
   uint no_jbuf_after;
   JOIN_TAB *tab;
@@ -1136,6 +1133,12 @@ JOIN::optimize_inner()
 
   set_allowed_join_cache_types();
   need_distinct= TRUE;
+
+  /*
+    Needed in case optimizer short-cuts,
+    set properly in make_tmp_tables_info()
+  */
+  fields= &select_lex->item_list;
 
   if (select_lex->first_cond_optimization)
   {
@@ -1277,10 +1280,21 @@ JOIN::optimize_inner()
     List_iterator_fast<TABLE_LIST> li(select_lex->leaf_tables);
     while ((tbl= li++))
     {
+      /* 
+        Do not push conditions from where into materialized inner tables
+        of outer joins: this is not valid.
+      */
       if (tbl->is_materialized_derived())
       {
-        if (pushdown_cond_for_derived(thd, conds, tbl))
-	  DBUG_RETURN(1);
+        /* 
+          Do not push conditions from where into materialized inner tables
+          of outer joins: this is not valid.
+        */
+        if (!tbl->is_inner_table_of_outer_join())
+	{
+          if (pushdown_cond_for_derived(thd, conds, tbl))
+	    DBUG_RETURN(1);
+        }
 	if (mysql_handle_single_derived(thd->lex, tbl, DT_OPTIMIZE))
 	  DBUG_RETURN(1);
       }
@@ -1452,6 +1466,7 @@ JOIN::optimize_inner()
   
   /* Calculate how to do the join */
   THD_STAGE_INFO(thd, stage_statistics);
+  result->prepare_to_read_rows();
   if (make_join_statistics(this, select_lex->leaf_tables, &keyuse) ||
       thd->is_fatal_error)
   {
@@ -1912,7 +1927,7 @@ JOIN::optimize_inner()
   /*
     It's necessary to check const part of HAVING cond as
     there is a chance that some cond parts may become
-    const items after make_join_statisctics(for example
+    const items after make_join_statistics(for example
     when Item is a reference to cost table field from
     outer join).
     This check is performed only for those conditions
@@ -7476,7 +7491,7 @@ double table_multi_eq_cond_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
    if (!s->keyuse)
     return sel;
 
- Item_equal *item_equal;
+  Item_equal *item_equal;
   List_iterator_fast<Item_equal> it(cond_equal->current_level);
   TABLE *table= s->table;
   table_map table_bit= table->map;
@@ -11842,7 +11857,7 @@ void JOIN::join_free()
 /**
   Free resources of given join.
 
-  @param fill   true if we should free all resources, call with full==1
+  @param full   true if we should free all resources, call with full==1
                 should be last, before it this function can be called with
                 full==0
 
@@ -11954,7 +11969,7 @@ void JOIN::cleanup(bool full)
     /*
       If we have tmp_join and 'this' JOIN is not tmp_join and
       tmp_table_param.copy_field's  of them are equal then we have to remove
-      pointer to  tmp_table_param.copy_field from tmp_join, because it qill
+      pointer to  tmp_table_param.copy_field from tmp_join, because it will
       be removed in tmp_table_param.cleanup().
     */
     tmp_table_param.cleanup();
@@ -15096,20 +15111,9 @@ bool cond_is_datetime_is_null(Item *cond)
   if (cond->type() == Item::FUNC_ITEM &&
       ((Item_func*) cond)->functype() == Item_func::ISNULL_FUNC)
   {
-    Item **args= ((Item_func_isnull*) cond)->arguments();
-    if (args[0]->type() == Item::FIELD_ITEM)
-    {
-      Field *field=((Item_field*) args[0])->field;
-
-      if (((field->type() == MYSQL_TYPE_DATE) ||
-           (field->type() == MYSQL_TYPE_DATETIME)) &&
-          (field->flags & NOT_NULL_FLAG))
-      {
-        return TRUE;
-      }
-    }
+    return ((Item_func_isnull*) cond)->arg_is_datetime_notnull_field();
   }
-  return FALSE;
+  return false;
 }
 
 
@@ -16067,6 +16071,7 @@ Field *create_tmp_field(THD *thd, TABLE *table,Item *item, Item::Type type,
   case Item::CACHE_ITEM:
   case Item::WINDOW_FUNC_ITEM: // psergey-winfunc:
   case Item::EXPR_CACHE_ITEM:
+  case Item::PARAM_ITEM:
     if (make_copy_field)
     {
       DBUG_ASSERT(((Item_result_field*)item)->result_field);
@@ -16324,7 +16329,6 @@ create_tmp_table(THD *thd, TMP_TABLE_PARAM *param, List<Item> &fields,
   table->in_use= thd;
   table->quick_keys.init();
   table->covering_keys.init();
-  table->merge_keys.init();
   table->intersect_keys.init();
   table->keys_in_use_for_query.init();
   table->no_rows_with_nulls= param->force_not_null_cols;
@@ -17119,7 +17123,7 @@ bool open_tmp_table(TABLE *table)
     table->db_stat= 0;
     return 1;
   }
-  table->db_stat= HA_OPEN_KEYFILE+HA_OPEN_RNDFILE;
+  table->db_stat= HA_OPEN_KEYFILE;
   (void) table->file->extra(HA_EXTRA_QUICK); /* Faster */
   if (!table->is_created())
   {
@@ -18429,9 +18433,6 @@ evaluate_join_record(JOIN *join, JOIN_TAB *join_tab,
 
   join_tab->tracker->r_rows++;
 
-  if (join_tab->table->vfield)
-    update_virtual_fields(join->thd, join_tab->table);
-
   if (select_cond)
   {
     select_cond_result= MY_TEST(select_cond->val_int());
@@ -18882,8 +18883,6 @@ join_read_system(JOIN_TAB *tab)
       empty_record(table);			// Make empty record
       return -1;
     }
-    if (table->vfield)
-      update_virtual_fields(tab->join->thd, table);
     store_record(table,record[1]);
   }
   else if (!table->status)			// Only happens with left join
@@ -18929,8 +18928,6 @@ join_read_const(JOIN_TAB *tab)
 	return report_error(table, error);
       return -1;
     }
-    if (table->vfield)
-      update_virtual_fields(tab->join->thd, table);
     store_record(table,record[1]);
   }
   else if (!(table->status & ~STATUS_NULL_ROW))	// Only happens with left join
@@ -22846,7 +22843,7 @@ setup_copy_fields(THD *thd, TMP_TABLE_PARAM *param,
  err:
   if (copy)
     delete [] param->copy_field;			// This is never 0
-  param->copy_field=0;
+  param->copy_field= 0;
 err2:
   DBUG_RETURN(TRUE);
 }

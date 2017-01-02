@@ -162,6 +162,9 @@ public:
   Select_fetch_protocol_binary result;
   Item_param **param_array;
   Server_side_cursor *cursor;
+  uchar *packet;
+  uchar *packet_end;
+  ulong iterations;
   uint param_count;
   uint last_errno;
   uint flags;
@@ -180,15 +183,19 @@ public:
   */
   uint select_number_after_prepare;
   char last_error[MYSQL_ERRMSG_SIZE];
+  my_bool start_param;
 #ifndef EMBEDDED_LIBRARY
   bool (*set_params)(Prepared_statement *st, uchar *data, uchar *data_end,
                      uchar *read_pos, String *expanded_query);
+  bool (*set_bulk_params)(Prepared_statement *st,
+                          uchar **read_pos, uchar *data_end, bool reset);
 #else
   bool (*set_params_data)(Prepared_statement *st, String *expanded_query);
+  /*TODO: add bulk support for builtin server */
 #endif
-  bool (*set_params_from_vars)(Prepared_statement *stmt,
-                               List<LEX_STRING>& varnames,
-                               String *expanded_query);
+  bool (*set_params_from_actual_params)(Prepared_statement *stmt,
+                                        List<Item> &list,
+                                        String *expanded_query);
 public:
   Prepared_statement(THD *thd_arg);
   virtual ~Prepared_statement();
@@ -204,9 +211,16 @@ public:
   bool execute_loop(String *expanded_query,
                     bool open_cursor,
                     uchar *packet_arg, uchar *packet_end_arg);
+  bool execute_bulk_loop(String *expanded_query,
+                         bool open_cursor,
+                         uchar *packet_arg, uchar *packet_end_arg,
+                         ulong iterations);
   bool execute_server_runnable(Server_runnable *server_runnable);
+  my_bool set_bulk_parameters(bool reset);
+  ulong bulk_iterations();
   /* Destroy this statement */
   void deallocate();
+  bool execute_immediate(const char *query, uint query_length);
 private:
   /**
     The memory root to allocate parsed tree elements (instances of Item,
@@ -218,6 +232,7 @@ private:
   bool set_parameters(String *expanded_query,
                       uchar *packet, uchar *packet_end);
   bool execute(String *expanded_query, bool open_cursor);
+  void deallocate_immediate();
   bool reprepare();
   bool validate_metadata(Prepared_statement  *copy);
   void swap_prepared_statement(Prepared_statement *copy);
@@ -960,11 +975,62 @@ static bool insert_params(Prepared_statement *stmt, uchar *null_array,
 }
 
 
+static bool insert_bulk_params(Prepared_statement *stmt,
+                               uchar **read_pos, uchar *data_end,
+                               bool reset)
+{
+  Item_param **begin= stmt->param_array;
+  Item_param **end= begin + stmt->param_count;
+
+  DBUG_ENTER("insert_params");
+
+  for (Item_param **it= begin; it < end; ++it)
+  {
+    Item_param *param= *it;
+    if (reset)
+      param->reset();
+    if (param->state != Item_param::LONG_DATA_VALUE)
+    {
+      if (param->indicators)
+        param->indicator= (enum_indicator_type) *((*read_pos)++);
+      else
+        param->indicator= STMT_INDICATOR_NONE;
+      if ((*read_pos) > data_end)
+        DBUG_RETURN(1);
+      switch (param->indicator)
+      {
+      case STMT_INDICATOR_NONE:
+        if ((*read_pos) >= data_end)
+          DBUG_RETURN(1);
+        param->set_param_func(param, read_pos, (uint) (data_end - (*read_pos)));
+        if (param->state == Item_param::NO_VALUE)
+          DBUG_RETURN(1);
+        break;
+      case STMT_INDICATOR_NULL:
+        param->set_null();
+        break;
+      case STMT_INDICATOR_DEFAULT:
+        param->set_default();
+        break;
+      case STMT_INDICATOR_IGNORE:
+        param->set_ignore();
+        break;
+      }
+    }
+    else
+      DBUG_RETURN(1); // long is not supported here
+  }
+  DBUG_RETURN(0);
+}
+
 static bool setup_conversion_functions(Prepared_statement *stmt,
-                                       uchar **data, uchar *data_end)
+                                       uchar **data, uchar *data_end,
+                                       bool bulk_protocol= 0)
 {
   /* skip null bits */
-  uchar *read_pos= *data + (stmt->param_count+7) / 8;
+  uchar *read_pos= *data;
+  if (!bulk_protocol)
+    read_pos+= (stmt->param_count+7) / 8;
 
   DBUG_ENTER("setup_conversion_functions");
 
@@ -981,6 +1047,7 @@ static bool setup_conversion_functions(Prepared_statement *stmt,
     {
       ushort typecode;
       const uint signed_bit= 1 << 15;
+      const uint indicators_bit= 1 << 14;
 
       if (read_pos >= data_end)
         DBUG_RETURN(1);
@@ -988,7 +1055,10 @@ static bool setup_conversion_functions(Prepared_statement *stmt,
       typecode= sint2korr(read_pos);
       read_pos+= 2;
       (**it).unsigned_flag= MY_TEST(typecode & signed_bit);
-      setup_one_conversion_function(thd, *it, (uchar) (typecode & ~signed_bit));
+      if (bulk_protocol)
+        (**it).indicators= MY_TEST(typecode & indicators_bit);
+      setup_one_conversion_function(thd, *it,
+                                    (uchar) (typecode & 0xff));
     }
   }
   *data= read_pos;
@@ -996,6 +1066,8 @@ static bool setup_conversion_functions(Prepared_statement *stmt,
 }
 
 #else
+
+//TODO: support bulk parameters
 
 /**
   Embedded counterparts of parameter assignment routines.
@@ -1141,31 +1213,27 @@ swap_parameter_array(Item_param **param_array_dst,
   Assign prepared statement parameters from user variables.
 
   @param stmt      Statement
-  @param varnames  List of variables. Caller must ensure that number
-                   of variables in the list is equal to number of statement
+  @param params    A list of parameters. Caller must ensure that number
+                   of parameters in the list is equal to number of statement
                    parameters
   @param query     Ignored
 */
 
-static bool insert_params_from_vars(Prepared_statement *stmt,
-                                    List<LEX_STRING>& varnames,
-                                    String *query __attribute__((unused)))
+static bool
+insert_params_from_actual_params(Prepared_statement *stmt,
+                                 List<Item> &params,
+                                 String *query __attribute__((unused)))
 {
   Item_param **begin= stmt->param_array;
   Item_param **end= begin + stmt->param_count;
-  user_var_entry *entry;
-  LEX_STRING *varname;
-  List_iterator<LEX_STRING> var_it(varnames);
-  DBUG_ENTER("insert_params_from_vars");
+  List_iterator<Item> param_it(params);
+  DBUG_ENTER("insert_params_from_actual_params");
 
   for (Item_param **it= begin; it < end; ++it)
   {
     Item_param *param= *it;
-    varname= var_it++;
-    entry= (user_var_entry*)my_hash_search(&stmt->thd->user_vars,
-                                           (uchar*) varname->str,
-                                           varname->length);
-    if (param->set_from_user_var(stmt->thd, entry) ||
+    Item *ps_param= param_it++;
+    if (ps_param->save_in_param(stmt->thd, param) ||
         param->convert_str_value(stmt->thd))
       DBUG_RETURN(1);
   }
@@ -1174,45 +1242,41 @@ static bool insert_params_from_vars(Prepared_statement *stmt,
 
 
 /**
-  Do the same as insert_params_from_vars but also construct query text for
-  binary log.
+  Do the same as insert_params_from_actual_params
+  but also construct query text for binary log.
 
   @param stmt      Prepared statement
-  @param varnames  List of variables. Caller must ensure that number of
-                   variables in the list is equal to number of statement
+  @param params    A list of parameters. Caller must ensure that number of
+                   parameters in the list is equal to number of statement
                    parameters
   @param query     The query with parameter markers replaced with corresponding
                    user variables that were used to execute the query.
 */
 
-static bool insert_params_from_vars_with_log(Prepared_statement *stmt,
-                                             List<LEX_STRING>& varnames,
-                                             String *query)
+static bool
+insert_params_from_actual_params_with_log(Prepared_statement *stmt,
+                                          List<Item> &params,
+                                          String *query)
 {
   Item_param **begin= stmt->param_array;
   Item_param **end= begin + stmt->param_count;
-  user_var_entry *entry;
-  LEX_STRING *varname;
-  List_iterator<LEX_STRING> var_it(varnames);
+  List_iterator<Item> param_it(params);
   THD *thd= stmt->thd;
   Copy_query_with_rewrite acc(thd, stmt->query(), stmt->query_length(), query);
 
-  DBUG_ENTER("insert_params_from_vars_with_log");
+  DBUG_ENTER("insert_params_from_actual_params_with_log");
 
   for (Item_param **it= begin; it < end; ++it)
   {
     Item_param *param= *it;
-    varname= var_it++;
-
-    entry= (user_var_entry *) my_hash_search(&thd->user_vars, (uchar*)
-                                             varname->str, varname->length);
+    Item *ps_param= param_it++;
     /*
       We have to call the setup_one_conversion_function() here to set
       the parameter's members that might be needed further
       (e.g. value.cs_info.character_set_client is used in the query_val_str()).
     */
     setup_one_conversion_function(thd, param, param->field_type());
-    if (param->set_from_user_var(thd, entry))
+    if (ps_param->save_in_param(thd, param))
       DBUG_RETURN(1);
 
     if (acc.append(param))
@@ -2607,95 +2671,99 @@ end:
 }
 
 /**
-  Get an SQL statement text from a user variable or from plain text.
+  Get an SQL statement from an item in lex->prepared_stmt_code.
 
-  If the statement is plain text, just assign the
-  pointers, otherwise allocate memory in thd->mem_root and copy
-  the contents of the variable, possibly with character
-  set conversion.
+  This function can return pointers to very different memory classes:
+  - a static string "NULL", if the item returned NULL
+  - the result of prepare_stmt_code->val_str(), if no conversion was needed
+  - a thd->mem_root allocated string with the result of
+    prepare_stmt_code->val_str() converted to @@collation_connection,
+    if conversion was needed
 
-  @param[in]  lex               main lex
-  @param[out] query_len         length of the SQL statement (is set only
-    in case of success)
+  The caller must dispose the result before the life cycle of "buffer" ends.
+  As soon as buffer's destructor is called, the value is not valid any more!
 
-  @retval
-    non-zero  success
-  @retval
-    0         in case of error (out of memory)
+  mysql_sql_stmt_prepare() and mysql_sql_stmt_execute_immediate()
+  call get_dynamic_sql_string() and then call respectively
+  Prepare_statement::prepare() and Prepare_statment::execute_immediate(),
+  who store the returned result into its permanent location using
+  alloc_query(). "buffer" is still not destructed at that time.
+
+  @param[out]   dst        the result is stored here
+  @param[inout] buffer
+
+  @retval       false on success
+  @retval       true on error (out of memory)
 */
 
-static const char *get_dynamic_sql_string(LEX *lex, uint *query_len)
+bool LEX::get_dynamic_sql_string(LEX_CSTRING *dst, String *buffer)
 {
-  THD *thd= lex->thd;
-  char *query_str= 0;
+  if (prepared_stmt_code->fix_fields(thd, NULL) ||
+      prepared_stmt_code->check_cols(1))
+    return true;
 
-  if (lex->prepared_stmt_code_is_varref)
+  const String *str= prepared_stmt_code->val_str(buffer);
+  if (prepared_stmt_code->null_value)
   {
-    /* This is PREPARE stmt FROM or EXECUTE IMMEDIATE @var. */
-    String str;
-    CHARSET_INFO *to_cs= thd->variables.collation_connection;
-    bool needs_conversion;
-    user_var_entry *entry;
-    String *var_value= &str;
-    uint32 unused, len;
     /*
-      Convert @var contents to string in connection character set. Although
-      it is known that int/real/NULL value cannot be a valid query we still
-      convert it for error messages to be uniform.
+      Prepare source was NULL, so we need to set "str" to
+      something reasonable to get a readable error message during parsing
     */
-    if ((entry=
-         (user_var_entry*)my_hash_search(&thd->user_vars,
-                                         (uchar*)lex->prepared_stmt_code.str,
-                                         lex->prepared_stmt_code.length))
-        && entry->value)
-    {
-      bool is_var_null;
-      var_value= entry->val_str(&is_var_null, &str, NOT_FIXED_DEC);
-      /*
-        NULL value of variable checked early as entry->value so here
-        we can't get NULL in normal conditions
-      */
-      DBUG_ASSERT(!is_var_null);
-      if (!var_value)
-        goto end;
-    }
-    else
-    {
-      /*
-        variable absent or equal to NULL, so we need to set variable to
-        something reasonable to get a readable error message during parsing
-      */
-      str.set(STRING_WITH_LEN("NULL"), &my_charset_latin1);
-    }
-
-    needs_conversion= String::needs_conversion(var_value->length(),
-                                               var_value->charset(), to_cs,
-                                               &unused);
-
-    len= (needs_conversion ? var_value->length() * to_cs->mbmaxlen :
-          var_value->length());
-    if (!(query_str= (char*) alloc_root(thd->mem_root, len+1)))
-      goto end;
-
-    if (needs_conversion)
-    {
-      uint dummy_errors;
-      len= copy_and_convert(query_str, len, to_cs, var_value->ptr(),
-                            var_value->length(), var_value->charset(),
-                            &dummy_errors);
-    }
-    else
-      memcpy(query_str, var_value->ptr(), var_value->length());
-    query_str[len]= '\0';                       // Safety (mostly for debug)
-    *query_len= len;
+    dst->str= "NULL";
+    dst->length= 4;
+    return false;
   }
-  else
+
+  /*
+    Character set conversion notes:
+
+    1) When PREPARE or EXECUTE IMMEDIATE are used with string literals:
+          PREPARE stmt FROM 'SELECT ''str''';
+          EXECUTE IMMEDIATE 'SELECT ''str''';
+       it's very unlikely that any conversion will happen below, because
+       @@character_set_client and @@collation_connection are normally
+       set to the same CHARSET_INFO pointer.
+
+       In tricky environments when @@collation_connection is set to something
+       different from @@character_set_client, double conversion may happen:
+       - When the parser scans the string literal
+         (sql_yacc.yy rules "prepare_src" -> "expr" -> ... -> "text_literal")
+         it will convert 'str' from @@character_set_client to
+         @@collation_connection.
+       - Then in the code below will convert 'str' from @@collation_connection
+         back to @@character_set_client.
+
+    2) When PREPARE or EXECUTE IMMEDIATE is used with a user variable,
+        it should work about the same way, because user variables are usually
+        assigned like this:
+          SET @str='str';
+        and thus have the same character set with string literals.
+
+    3) When PREPARE or EXECUTE IMMEDIATE is used with some
+       more complex expression, conversion will depend on this expression.
+       For example, a concatenation of string literals:
+         EXECUTE IMMEDIATE 'SELECT * FROM'||'t1';
+       should work the same way with just a single literal,
+       so no conversion normally.
+  */
+  CHARSET_INFO *to_cs= thd->variables.character_set_client;
+
+  uint32 unused;
+  if (String::needs_conversion(str->length(), str->charset(), to_cs, &unused))
   {
-    query_str= lex->prepared_stmt_code.str;
-    *query_len= lex->prepared_stmt_code.length;
+    if (!(dst->str= sql_strmake_with_convert(thd, str->ptr(), str->length(),
+                                             str->charset(), UINT_MAX32,
+                                             to_cs, &dst->length)))
+    {
+      dst->length= 0;
+      return true;
+    }
+    DBUG_ASSERT(dst->length <= UINT_MAX32);
+    return false;
   }
-end:
-  return query_str;
+  dst->str= str->ptr();
+  dst->length= str->length();
+  return false;
 }
 
 
@@ -2718,8 +2786,7 @@ void mysql_sql_stmt_prepare(THD *thd)
   LEX *lex= thd->lex;
   LEX_STRING *name= &lex->prepared_stmt_name;
   Prepared_statement *stmt;
-  const char *query;
-  uint query_len= 0;
+  LEX_CSTRING query;
   DBUG_ENTER("mysql_sql_stmt_prepare");
 
   if ((stmt= (Prepared_statement*) thd->stmt_map.find_by_name(name)))
@@ -2737,7 +2804,12 @@ void mysql_sql_stmt_prepare(THD *thd)
     stmt->deallocate();
   }
 
-  if (! (query= get_dynamic_sql_string(lex, &query_len)) ||
+  /*
+    It's important for "buffer" not to be destructed before stmt->prepare()!
+    See comments in get_dynamic_sql_string().
+  */
+  StringBuffer<256> buffer;
+  if (lex->get_dynamic_sql_string(&query, &buffer) ||
       ! (stmt= new Prepared_statement(thd)))
   {
     DBUG_VOID_RETURN;                           /* out of memory */
@@ -2758,7 +2830,7 @@ void mysql_sql_stmt_prepare(THD *thd)
     DBUG_VOID_RETURN;
   }
 
-  if (stmt->prepare(query, query_len))
+  if (stmt->prepare(query.str, (uint) query.length))
   {
     /* Statement map deletes the statement on erase */
     thd->stmt_map.erase(stmt);
@@ -2771,6 +2843,43 @@ void mysql_sql_stmt_prepare(THD *thd)
 
   DBUG_VOID_RETURN;
 }
+
+
+void mysql_sql_stmt_execute_immediate(THD *thd)
+{
+  LEX *lex= thd->lex;
+  Prepared_statement *stmt;
+  LEX_CSTRING query;
+  DBUG_ENTER("mysql_sql_stmt_execute_immediate");
+
+  if (lex->prepared_stmt_params_fix_fields(thd))
+    DBUG_VOID_RETURN;
+
+  /*
+    Prepared_statement is quite large,
+    let's allocate it on the heap rather than on the stack.
+
+    It's important for "buffer" not to be destructed
+    before stmt->execute_immediate().
+    See comments in get_dynamic_sql_string().
+  */
+  StringBuffer<256> buffer;
+  if (lex->get_dynamic_sql_string(&query, &buffer) ||
+      !(stmt= new Prepared_statement(thd)))
+    DBUG_VOID_RETURN;                           // out of memory
+
+  // See comments on thd->free_list in mysql_sql_stmt_execute()
+  Item *free_list_backup= thd->free_list;
+  thd->free_list= NULL;
+  (void) stmt->execute_immediate(query.str, (uint) query.length);
+  thd->free_items();
+  thd->free_list= free_list_backup;
+
+  stmt->lex->restore_set_statement_var();
+  delete stmt;
+  DBUG_VOID_RETURN;
+}
+
 
 /**
   Reinit prepared statement/stored procedure before execution.
@@ -2957,6 +3066,11 @@ void mysqld_stmt_execute(THD *thd, char *packet_arg, uint packet_length)
   uchar *packet= (uchar*)packet_arg; // GCC 4.0.1 workaround
   ulong stmt_id= uint4korr(packet);
   ulong flags= (ulong) packet[4];
+#ifndef EMBEDDED_LIBRARY
+  ulong iterations= uint4korr(packet + 5);
+#else
+  ulong iterations= 0; // no support
+#endif
   /* Query text for binary, general or slow log, if any of them is open */
   String expanded_query;
   uchar *packet_end= packet + packet_length;
@@ -2982,12 +3096,16 @@ void mysqld_stmt_execute(THD *thd, char *packet_arg, uint packet_length)
   thd->profiling.set_query_source(stmt->query(), stmt->query_length());
 #endif
   DBUG_PRINT("exec_query", ("%s", stmt->query()));
-  DBUG_PRINT("info",("stmt: 0x%lx", (long) stmt));
+  DBUG_PRINT("info",("stmt: %p iterations: %lu", stmt, iterations));
 
   open_cursor= MY_TEST(flags & (ulong) CURSOR_TYPE_READ_ONLY);
 
   thd->protocol= &thd->protocol_binary;
-  stmt->execute_loop(&expanded_query, open_cursor, packet, packet_end);
+  if (iterations <= 1)
+    stmt->execute_loop(&expanded_query, open_cursor, packet, packet_end);
+  else
+    stmt->execute_bulk_loop(&expanded_query, open_cursor, packet, packet_end,
+                            iterations);
   thd->protocol= save_protocol;
 
   sp_cache_enforce_limit(thd->sp_proc_cache, stored_program_cache_size);
@@ -3042,7 +3160,44 @@ void mysql_sql_stmt_execute(THD *thd)
 
   DBUG_PRINT("info",("stmt: 0x%lx", (long) stmt));
 
+  if (lex->prepared_stmt_params_fix_fields(thd))
+    DBUG_VOID_RETURN;
+
+  /*
+    thd->free_list can already have some Items.
+
+    Example queries:
+      - SET STATEMENT var=expr FOR EXECUTE stmt;
+      - EXECUTE stmt USING expr;
+
+    E.g. for a query like this:
+      PREPARE stmt FROM 'INSERT INTO t1 VALUES (@@max_sort_length)';
+      SET STATEMENT max_sort_length=2048 FOR EXECUTE stmt;
+    thd->free_list contains a pointer to Item_int corresponding to 2048.
+
+    If Prepared_statement::execute() notices that the table metadata for "t1"
+    has changed since PREPARE, it returns an error asking the calling
+    Prepared_statement::execute_loop() to re-prepare the statement.
+    Before returning the error, Prepared_statement::execute()
+    calls Prepared_statement::cleanup_stmt(),
+    which calls thd->cleanup_after_query(),
+    which calls Query_arena::free_items().
+
+    We hide "external" Items, e.g. those created while parsing the
+    "SET STATEMENT" or "USING" parts of the query,
+    so they don't get freed in case of re-prepare.
+    See MDEV-10702 Crash in SET STATEMENT FOR EXECUTE
+  */
+  Item *free_list_backup= thd->free_list;
+  thd->free_list= NULL; // Hide the external (e.g. "SET STATEMENT") Items
   (void) stmt->execute_loop(&expanded_query, FALSE, NULL, NULL);
+  thd->free_items();    // Free items created by execute_loop()
+  /*
+    Now restore the "external" (e.g. "SET STATEMENT") Item list.
+    It will be freed normaly in THD::cleanup_after_query().
+  */
+  thd->free_list= free_list_backup;
+
   stmt->lex->restore_set_statement_var();
   DBUG_VOID_RETURN;
 }
@@ -3455,9 +3610,13 @@ Prepared_statement::Prepared_statement(THD *thd_arg)
   result(thd_arg),
   param_array(0),
   cursor(0),
+  packet(0),
+  packet_end(0),
+  iterations(0),
   param_count(0),
   last_errno(0),
-  flags((uint) IS_IN_USE)
+  flags((uint) IS_IN_USE),
+  start_param(0)
 {
   init_sql_alloc(&main_mem_root, thd_arg->variables.query_alloc_block_size,
                  thd_arg->variables.query_prealloc_size, MYF(MY_THREAD_SPECIFIC));
@@ -3490,19 +3649,23 @@ void Prepared_statement::setup_set_params()
 
   if (replace_params_with_values)
   {
-    set_params_from_vars= insert_params_from_vars_with_log;
+    set_params_from_actual_params= insert_params_from_actual_params_with_log;
 #ifndef EMBEDDED_LIBRARY
     set_params= insert_params_with_log;
+    set_bulk_params= insert_bulk_params; // TODO: add binlog support
 #else
+    //TODO: add bulk support for bulk parameters
     set_params_data= emb_insert_params_with_log;
 #endif
   }
   else
   {
-    set_params_from_vars= insert_params_from_vars;
+    set_params_from_actual_params= insert_params_from_actual_params;
 #ifndef EMBEDDED_LIBRARY
     set_params= insert_params;
+    set_bulk_params= insert_bulk_params;
 #else
+    //TODO: add bulk support for bulk parameters
     set_params_data= emb_insert_params;
 #endif
   }
@@ -3809,8 +3972,8 @@ Prepared_statement::set_parameters(String *expanded_query,
   if (is_sql_ps)
   {
     /* SQL prepared statement */
-    res= set_params_from_vars(this, thd->lex->prepared_stmt_params,
-                              expanded_query);
+    res= set_params_from_actual_params(this, thd->lex->prepared_stmt_params,
+                                       expanded_query);
   }
   else if (param_count)
   {
@@ -3859,6 +4022,7 @@ Prepared_statement::set_parameters(String *expanded_query,
   @retval  FALSE   successfully executed the statement, perhaps
                    after having reprepared it a few times.
 */
+const static int MAX_REPREPARE_ATTEMPTS= 3;
 
 bool
 Prepared_statement::execute_loop(String *expanded_query,
@@ -3866,13 +4030,18 @@ Prepared_statement::execute_loop(String *expanded_query,
                                  uchar *packet,
                                  uchar *packet_end)
 {
-  const int MAX_REPREPARE_ATTEMPTS= 3;
   Reprepare_observer reprepare_observer;
   bool error;
   int reprepare_attempt= 0;
-#ifndef DBUG_OFF
-  Item *free_list_state= thd->free_list;
-#endif
+  iterations= 0;
+
+  /*
+    - In mysql_sql_stmt_execute() we hide all "external" Items
+      e.g. those created in the "SET STATEMENT" part of the "EXECUTE" query.
+    - In case of mysqld_stmt_execute() there should not be "external" Items.
+  */
+  DBUG_ASSERT(thd->free_list == NULL);
+
   thd->select_number= select_number_after_prepare;
   /* Check if we got an error when sending long data */
   if (state == Query_arena::STMT_ERROR)
@@ -3894,12 +4063,8 @@ Prepared_statement::execute_loop(String *expanded_query,
 #endif
 
 reexecute:
-  /*
-    If the free_list is not empty, we'll wrongly free some externally
-    allocated items when cleaning up after validation of the prepared
-    statement.
-  */
-  DBUG_ASSERT(thd->free_list == free_list_state);
+  // Make sure that reprepare() did not create any new Items.
+  DBUG_ASSERT(thd->free_list == NULL);
 
   /*
     Install the metadata observer. If some metadata version is
@@ -3957,6 +4122,199 @@ reexecute:
       goto reexecute;
   }
   reset_stmt_params(this);
+
+  return error;
+}
+
+my_bool bulk_parameters_set(THD *thd)
+{
+  DBUG_ENTER("bulk_parameters_set");
+  Prepared_statement *stmt= (Prepared_statement *) thd->bulk_param;
+
+  if (stmt && stmt->set_bulk_parameters(FALSE))
+    DBUG_RETURN(TRUE);
+  DBUG_RETURN(FALSE);
+}
+
+ulong bulk_parameters_iterations(THD *thd)
+{
+  Prepared_statement *stmt= (Prepared_statement *) thd->bulk_param;
+  if (!stmt)
+    return 1;
+  return stmt->bulk_iterations();
+}
+
+
+my_bool Prepared_statement::set_bulk_parameters(bool reset)
+{
+  DBUG_ENTER("Prepared_statement::set_bulk_parameters");
+  DBUG_PRINT("info", ("iteration: %lu", iterations));
+  if (iterations)
+  {
+#ifndef EMBEDDED_LIBRARY
+    if ((*set_bulk_params)(this, &packet, packet_end, reset))
+#else
+    // bulk parameters are not supported for embedded, so it will an error
+#endif
+    {
+      my_error(ER_WRONG_ARGUMENTS, MYF(0),
+               "mysqld_stmt_bulk_execute");
+      reset_stmt_params(this);
+      DBUG_RETURN(true);
+    }
+    iterations--;
+  }
+  start_param= 0;
+  DBUG_RETURN(false);
+}
+
+ulong Prepared_statement::bulk_iterations()
+{
+  if (iterations)
+    return iterations;
+  return start_param ? 1 : 0;
+}
+
+bool
+Prepared_statement::execute_bulk_loop(String *expanded_query,
+                                      bool open_cursor,
+                                      uchar *packet_arg,
+                                      uchar *packet_end_arg,
+                                      ulong iterations_arg)
+{
+  Reprepare_observer reprepare_observer;
+  bool error= 0;
+  packet= packet_arg;
+  packet_end= packet_end_arg;
+  iterations= iterations_arg;
+  start_param= true;
+#ifndef DBUG_OFF
+  Item *free_list_state= thd->free_list;
+#endif
+  thd->select_number= select_number_after_prepare;
+  thd->set_bulk_execution((void *)this);
+  /* Check if we got an error when sending long data */
+  if (state == Query_arena::STMT_ERROR)
+  {
+    my_message(last_errno, last_error, MYF(0));
+    thd->set_bulk_execution(0);
+    return TRUE;
+  }
+
+  if (!(sql_command_flags[lex->sql_command] & CF_SP_BULK_SAFE))
+  {
+    my_error(ER_UNSUPPORTED_PS, MYF(0));
+    thd->set_bulk_execution(0);
+    return TRUE;
+  }
+
+#ifndef EMBEDDED_LIBRARY
+  if (setup_conversion_functions(this, &packet, packet_end, TRUE))
+#else
+  // bulk parameters are not supported for embedded, so it will an error
+#endif
+  {
+    my_error(ER_WRONG_ARGUMENTS, MYF(0),
+            "mysqld_stmt_bulk_execute");
+    reset_stmt_params(this);
+    thd->set_bulk_execution(0);
+    return true;
+  }
+
+#ifdef NOT_YET_FROM_MYSQL_5_6
+  if (unlikely(thd->security_ctx->password_expired &&
+               !lex->is_change_password))
+  {
+    my_error(ER_MUST_CHANGE_PASSWORD, MYF(0));
+    thd->set_bulk_execution(0);
+    return true;
+  }
+#endif
+
+  // iterations changed by set_bulk_parameters
+  while ((iterations || start_param) && !error && !thd->is_error())
+  {
+    int reprepare_attempt= 0;
+
+    /*
+      Here we set parameters for not optimized commands,
+      optimized commands do it inside thier internal loop.
+    */
+    if (!(sql_command_flags[lex->sql_command] & CF_SP_BULK_OPTIMIZED))
+    {
+      if (set_bulk_parameters(TRUE))
+      {
+        thd->set_bulk_execution(0);
+        return true;
+      }
+    }
+
+reexecute:
+    /*
+      If the free_list is not empty, we'll wrongly free some externally
+      allocated items when cleaning up after validation of the prepared
+      statement.
+    */
+    DBUG_ASSERT(thd->free_list == free_list_state);
+
+    /*
+      Install the metadata observer. If some metadata version is
+      different from prepare time and an observer is installed,
+      the observer method will be invoked to push an error into
+      the error stack.
+    */
+
+    if (sql_command_flags[lex->sql_command] & CF_REEXECUTION_FRAGILE)
+    {
+      reprepare_observer.reset_reprepare_observer();
+      DBUG_ASSERT(thd->m_reprepare_observer == NULL);
+      thd->m_reprepare_observer= &reprepare_observer;
+    }
+
+    error= execute(expanded_query, open_cursor) || thd->is_error();
+
+    thd->m_reprepare_observer= NULL;
+#ifdef WITH_WSREP
+
+    if (WSREP_ON)
+    {
+      mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+      switch (thd->wsrep_conflict_state)
+      {
+      case CERT_FAILURE:
+        WSREP_DEBUG("PS execute fail for CERT_FAILURE: thd: %lld  err: %d",
+	            (longlong) thd->thread_id,
+                    thd->get_stmt_da()->sql_errno() );
+        thd->wsrep_conflict_state = NO_CONFLICT;
+        break;
+
+      case MUST_REPLAY:
+        (void) wsrep_replay_transaction(thd);
+        break;
+
+      default:
+        break;
+      }
+      mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+    }
+#endif /* WITH_WSREP */
+
+    if ((sql_command_flags[lex->sql_command] & CF_REEXECUTION_FRAGILE) &&
+        error && !thd->is_fatal_error && !thd->killed &&
+        reprepare_observer.is_invalidated() &&
+        reprepare_attempt++ < MAX_REPREPARE_ATTEMPTS)
+    {
+      DBUG_ASSERT(thd->get_stmt_da()->sql_errno() == ER_NEED_REPREPARE);
+      thd->clear_error();
+
+      error= reprepare();
+
+      if (! error)                                /* Success */
+        goto reexecute;
+    }
+  }
+  reset_stmt_params(this);
+  thd->set_bulk_execution(0);
 
   return error;
 }
@@ -4367,16 +4725,58 @@ error:
 }
 
 
-/** Common part of DEALLOCATE PREPARE and mysqld_stmt_close. */
+/**
+  Prepare, execute and clean-up a statement.
+  @param query  - query text
+  @param length - query text length
+  @retval true  - the query was not executed (parse error, wrong parameters)
+  @retval false - the query was prepared and executed
 
-void Prepared_statement::deallocate()
+  Note, if some error happened during execution, it still returns "false".
+*/
+bool Prepared_statement::execute_immediate(const char *query, uint query_len)
+{
+  DBUG_ENTER("Prepared_statement::execute_immediate");
+  String expanded_query;
+  static LEX_STRING execute_immediate_stmt_name=
+    {(char*) STRING_WITH_LEN("(immediate)") };
+
+  set_sql_prepare();
+  name= execute_immediate_stmt_name;      // for DBUG_PRINT etc
+  if (prepare(query, query_len))
+    DBUG_RETURN(true);
+
+  if (param_count != thd->lex->prepared_stmt_params.elements)
+  {
+    my_error(ER_WRONG_ARGUMENTS, MYF(0), "EXECUTE");
+    deallocate_immediate();
+    DBUG_RETURN(true);
+  }
+
+  (void) execute_loop(&expanded_query, FALSE, NULL, NULL);
+  deallocate_immediate();
+  DBUG_RETURN(false);
+}
+
+
+/**
+  Common part of DEALLOCATE PREPARE, EXECUTE IMMEDIATE, mysqld_stmt_close.
+*/
+void Prepared_statement::deallocate_immediate()
 {
   /* We account deallocate in the same manner as mysqld_stmt_close */
   status_var_increment(thd->status_var.com_stmt_close);
 
   /* It should now be safe to reset CHANGE MASTER parameters */
   lex_end_stage2(lex);
+}
 
+
+/** Common part of DEALLOCATE PREPARE and mysqld_stmt_close. */
+
+void Prepared_statement::deallocate()
+{
+  deallocate_immediate();
   /* Statement map calls delete stmt on erase */
   thd->stmt_map.erase(this);
 }

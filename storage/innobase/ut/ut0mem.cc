@@ -29,11 +29,9 @@ Created 5/11/1994 Heikki Tuuri
 #include "ut0mem.ic"
 #endif
 
-#ifndef UNIV_HOTBACKUP
-# include "os0thread.h"
-# include "srv0srv.h"
-# include <stdlib.h>
-#endif /* !UNIV_HOTBACKUP */
+#include "os0thread.h"
+#include "srv0srv.h"
+#include <stdlib.h>
 
 /**********************************************************************//**
 Copies up to size - 1 characters from the NUL-terminated string src to
@@ -81,7 +79,6 @@ ut_strlcpy_rev(
 	return(src_size);
 }
 
-#ifndef UNIV_HOTBACKUP
 /**********************************************************************//**
 Return the number of times s2 occurs in s1. Overlapping instances of s2
 are only counted once.
@@ -199,5 +196,3 @@ ut_strreplace(
 
 	return(new_str);
 }
-
-#endif /* !UNIV_HOTBACKUP */

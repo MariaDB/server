@@ -177,34 +177,7 @@ row_search_for_mysql(
 	MY_ATTRIBUTE((warn_unused_result));
 
 /** Searches for rows in the database using cursor.
-function is meant for temporary table that are not shared accross connection
-and so lot of complexity is reduced especially locking and transaction related.
-The cursor is an iterator over the table/index.
-
-@param[out]	buf		buffer for the fetched row in MySQL format
-@param[in]	mode		search mode PAGE_CUR_L
-@param[in,out]	prebuilt	prebuilt struct for the table handler;
-				this contains the info to search_tuple,
-				index; if search tuple contains 0 field then
-				we position the cursor at start or the end of
-				index, depending on 'mode'
-@param[in]	match_mode	0 or ROW_SEL_EXACT or ROW_SEL_EXACT_PREFIX
-@param[in]	direction	0 or ROW_SEL_NEXT or ROW_SEL_PREV;
-				Note: if this is != 0, then prebuilt must has a
-				pcur with stored position! In opening of a
-				cursor 'direction' should be 0.
-@return DB_SUCCESS or error code */
-dberr_t
-row_search_no_mvcc(
-	byte*		buf,
-	page_cur_mode_t	mode,
-	row_prebuilt_t*	prebuilt,
-	ulint		match_mode,
-	ulint		direction)
-	MY_ATTRIBUTE((warn_unused_result));
-
-/** Searches for rows in the database using cursor.
-Function is mainly used for tables that are shared accorss connection and
+Function is mainly used for tables that are shared across connections and
 so it employs technique that can help re-construct the rows that
 transaction is suppose to see.
 It also has optimization such as pre-caching the rows, using AHI, etc.
@@ -221,15 +194,6 @@ It also has optimization such as pre-caching the rows, using AHI, etc.
 				Note: if this is != 0, then prebuilt must has a
 				pcur with stored position! In opening of a
 				cursor 'direction' should be 0.
-@param[in]	ins_sel_stmt	if true, then this statement is
-				insert .... select statement. For normal table
-				this can be detected by checking out locked
-				tables using trx->mysql_n_tables_locked > 0
-				condition. For intrinsic table
-				external_lock is not invoked and so condition
-				above will not stand valid instead this is
-				traced using alternative condition
-				at caller level.
 @return DB_SUCCESS or error code */
 dberr_t
 row_search_mvcc(
@@ -266,15 +230,12 @@ row_search_check_if_query_cache_permitted(
 	trx_t*		trx,		/*!< in: transaction object */
 	const char*	norm_name);	/*!< in: concatenation of database name,
 					'/' char, table name */
-/*******************************************************************//**
-Read the max AUTOINC value from an index.
-@return DB_SUCCESS if all OK else error code */
-dberr_t
-row_search_max_autoinc(
-/*===================*/
-	dict_index_t*	index,		/*!< in: index to search */
-	const char*	col_name,	/*!< in: autoinc column name */
-	ib_uint64_t*	value)		/*!< out: AUTOINC value read */
+/** Read the max AUTOINC value from an index.
+@param[in] index	index starting with an AUTO_INCREMENT column
+@return	the largest AUTO_INCREMENT value
+@retval	0	if no records were found */
+ib_uint64_t
+row_search_max_autoinc(dict_index_t* index)
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 
 /** A structure for caching column values for prefetched rows */

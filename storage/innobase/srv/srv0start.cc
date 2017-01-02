@@ -3,7 +3,7 @@
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All rights reserved.
 Copyright (c) 2008, Google Inc.
 Copyright (c) 2009, Percona Inc.
-Copyright (c) 2013, 2015, MariaDB Corporation
+Copyright (c) 2013, 2016, MariaDB Corporation
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -76,42 +76,39 @@ Created 2/16/1996 Heikki Tuuri
 #include "srv0start.h"
 #include "srv0srv.h"
 #include "btr0defragment.h"
-
 #include "fsp0sysspace.h"
 #include "row0trunc.h"
 #include <mysql/service_wsrep.h>
-
-#ifndef UNIV_HOTBACKUP
-# include "trx0rseg.h"
-# include "os0proc.h"
-# include "buf0flu.h"
-# include "buf0rea.h"
-# include "buf0mtflu.h"
-# include "dict0boot.h"
-# include "dict0load.h"
-# include "dict0stats_bg.h"
-# include "que0que.h"
-# include "usr0sess.h"
-# include "lock0lock.h"
-# include "trx0roll.h"
-# include "trx0purge.h"
-# include "lock0lock.h"
-# include "pars0pars.h"
-# include "btr0sea.h"
-# include "rem0cmp.h"
-# include "dict0crea.h"
-# include "row0ins.h"
-# include "row0sel.h"
-# include "row0upd.h"
-# include "row0row.h"
-# include "row0mysql.h"
-# include "row0trunc.h"
-# include "btr0pcur.h"
-# include "os0event.h"
-# include "zlib.h"
-# include "ut0crc32.h"
-# include "btr0scrub.h"
-# include "ut0new.h"
+#include "trx0rseg.h"
+#include "os0proc.h"
+#include "buf0flu.h"
+#include "buf0rea.h"
+#include "buf0mtflu.h"
+#include "dict0boot.h"
+#include "dict0load.h"
+#include "dict0stats_bg.h"
+#include "que0que.h"
+#include "usr0sess.h"
+#include "lock0lock.h"
+#include "trx0roll.h"
+#include "trx0purge.h"
+#include "lock0lock.h"
+#include "pars0pars.h"
+#include "btr0sea.h"
+#include "rem0cmp.h"
+#include "dict0crea.h"
+#include "row0ins.h"
+#include "row0sel.h"
+#include "row0upd.h"
+#include "row0row.h"
+#include "row0mysql.h"
+#include "row0trunc.h"
+#include "btr0pcur.h"
+#include "os0event.h"
+#include "zlib.h"
+#include "ut0crc32.h"
+#include "btr0scrub.h"
+#include "ut0new.h"
 
 #ifdef HAVE_LZO1X
 #include <lzo/lzo1x.h>
@@ -140,6 +137,10 @@ bool	srv_sys_tablespaces_open = false;
 ibool	srv_was_started = FALSE;
 /** TRUE if innobase_start_or_create_for_mysql() has been called */
 static ibool	srv_start_has_been_called = FALSE;
+#ifdef UNIV_DEBUG
+/** InnoDB system tablespace to set during recovery */
+UNIV_INTERN ulong	srv_sys_space_size_debug;
+#endif /* UNIV_DEBUG */
 
 /** Bit flags for tracking background thread creation. They are used to
 determine which threads need to be stopped if we need to abort during
@@ -186,7 +187,6 @@ static bool		dict_stats_thread_started = false;
 static bool		buf_flush_page_cleaner_thread_started = false;
 /** Name of srv_monitor_file */
 static char*	srv_monitor_file_name;
-#endif /* !UNIV_HOTBACKUP */
 
 /** Minimum expected tablespace size. (10M) */
 static const ulint MIN_EXPECTED_TABLESPACE_SIZE = 5 * 1024 * 1024;
@@ -194,9 +194,6 @@ static const ulint MIN_EXPECTED_TABLESPACE_SIZE = 5 * 1024 * 1024;
 /** */
 #define SRV_MAX_N_PENDING_SYNC_IOS	100
 
-/** The round off to MB is similar as done in srv_parse_megabytes() */
-#define CALC_NUMBER_OF_PAGES(size)  ((size) / (1024 * 1024)) * \
-				  ((1024 * 1024) / (UNIV_PAGE_SIZE))
 #ifdef UNIV_PFS_THREAD
 /* Keys to register InnoDB threads with performance schema */
 mysql_pfs_key_t	buf_dump_thread_key;
@@ -281,7 +278,6 @@ srv_file_check_mode(
 	return(true);
 }
 
-#ifndef UNIV_HOTBACKUP
 /********************************************************************//**
 I/o-handler thread function.
 @return OS_THREAD_DUMMY_RETURN */
@@ -340,9 +336,7 @@ DECLARE_THREAD(io_handler_thread)(
 
 	OS_THREAD_DUMMY_RETURN;
 }
-#endif /* !UNIV_HOTBACKUP */
 
-#ifndef UNIV_HOTBACKUP
 /*********************************************************************//**
 Creates a log file.
 @return DB_SUCCESS or error code */
@@ -455,8 +449,8 @@ create_log_files(
 		"innodb_redo_log", SRV_LOG_SPACE_FIRST_ID,
 		fsp_flags_set_page_size(0, univ_page_size),
 		FIL_TYPE_LOG,
-		NULL /* No encryption yet */
-		);
+		NULL, /* No encryption yet */
+		true /* this is create */);
 	ut_a(fil_validate());
 	ut_a(log_space != NULL);
 
@@ -681,17 +675,12 @@ srv_undo_tablespace_open(
 		os_offset_t	size;
 		fil_space_t*	space;
 
-		bool	atomic_write;
-
-#if !defined(NO_FALLOCATE) && defined(UNIV_LINUX)
-		if (!srv_use_doublewrite_buf) {
-			atomic_write = fil_fusionio_enable_atomic_write(fh);
-		} else {
-			atomic_write = false;
-		}
+#ifdef UNIV_LINUX
+		const bool atomic_write = !srv_use_doublewrite_buf
+			&& fil_fusionio_enable_atomic_write(fh);
 #else
-		atomic_write = false;
-#endif /* !NO_FALLOCATE && UNIV_LINUX */
+		const bool atomic_write = false;
+#endif
 
 		size = os_file_get_size(fh);
 		ut_a(size != (os_offset_t) -1);
@@ -712,7 +701,7 @@ srv_undo_tablespace_open(
 		flags = fsp_flags_init(
 			univ_page_size, false, false, false, false, false, 0, ATOMIC_WRITES_DEFAULT);
 		space = fil_space_create(
-			undo_name, space_id, flags, FIL_TYPE_TABLESPACE, NULL);
+			undo_name, space_id, flags, FIL_TYPE_TABLESPACE, NULL, true);
 
 		ut_a(fil_validate());
 		ut_a(space);
@@ -1123,76 +1112,67 @@ srv_start_wait_for_purge_to_start()
 
 /** Create the temporary file tablespace.
 @param[in]	create_new_db	whether we are creating a new database
-@param[in,out]	tmp_space	Shared Temporary SysTablespace
 @return DB_SUCCESS or error code. */
 static
 dberr_t
-srv_open_tmp_tablespace(
-	bool		create_new_db,
-	SysTablespace*	tmp_space)
+srv_open_tmp_tablespace(bool create_new_db)
 {
 	ulint	sum_of_new_sizes;
 
 	/* Will try to remove if there is existing file left-over by last
 	unclean shutdown */
-	tmp_space->set_sanity_check_status(true);
-	tmp_space->delete_files();
-	tmp_space->set_ignore_read_only(true);
+	srv_tmp_space.set_sanity_check_status(true);
+	srv_tmp_space.delete_files();
+	srv_tmp_space.set_ignore_read_only(true);
 
 	ib::info() << "Creating shared tablespace for temporary tables";
 
 	bool	create_new_temp_space;
-	ulint	temp_space_id = ULINT_UNDEFINED;
 
-	dict_hdr_get_new_id(NULL, NULL, &temp_space_id, NULL, true);
-
-	tmp_space->set_space_id(temp_space_id);
+	srv_tmp_space.set_space_id(SRV_TMP_SPACE_ID);
 
 	RECOVERY_CRASH(100);
 
-	dberr_t	err = tmp_space->check_file_spec(
-			&create_new_temp_space, 12 * 1024 * 1024);
+	dberr_t	err = srv_tmp_space.check_file_spec(
+		&create_new_temp_space, 12 * 1024 * 1024);
 
 	if (err == DB_FAIL) {
 
-		ib::error() << "The " << tmp_space->name()
+		ib::error() << "The " << srv_tmp_space.name()
 			<< " data file must be writable!";
 
 		err = DB_ERROR;
 
 	} else if (err != DB_SUCCESS) {
 		ib::error() << "Could not create the shared "
-			<< tmp_space->name() << ".";
+			<< srv_tmp_space.name() << ".";
 
-	} else if ((err = tmp_space->open_or_create(
+	} else if ((err = srv_tmp_space.open_or_create(
 			    true, create_new_db, &sum_of_new_sizes, NULL))
 		   != DB_SUCCESS) {
 
 		ib::error() << "Unable to create the shared "
-			<< tmp_space->name();
+			<< srv_tmp_space.name();
 
 	} else {
 
 		mtr_t	mtr;
-		ulint	size = tmp_space->get_sum_of_sizes();
-
-		ut_a(temp_space_id != ULINT_UNDEFINED);
-		ut_a(tmp_space->space_id() == temp_space_id);
+		ulint	size = srv_tmp_space.get_sum_of_sizes();
 
 		/* Open this shared temp tablespace in the fil_system so that
 		it stays open until shutdown. */
-		if (fil_space_open(tmp_space->name())) {
+		if (fil_space_open(srv_tmp_space.name())) {
 
 			/* Initialize the header page */
 			mtr_start(&mtr);
 			mtr_set_log_mode(&mtr, MTR_LOG_NO_REDO);
 
-			fsp_header_init(tmp_space->space_id(), size, &mtr);
+			fsp_header_init(SRV_TMP_SPACE_ID, size, &mtr);
 
 			mtr_commit(&mtr);
 		} else {
 			/* This file was just opened in the code above! */
-			ib::error() << "The " << tmp_space->name()
+			ib::error() << "The " << srv_tmp_space.name()
 				<< " data file cannot be re-opened"
 				" after check_file_spec() succeeded!";
 
@@ -1235,6 +1215,7 @@ srv_shutdown_all_bg_threads()
 	ulint	i;
 
 	srv_shutdown_state = SRV_SHUTDOWN_EXIT_THREADS;
+	fil_crypt_threads_end();
 
 	if (!srv_start_state) {
 		return;
@@ -1247,13 +1228,12 @@ srv_shutdown_all_bg_threads()
 		/* NOTE: IF YOU CREATE THREADS IN INNODB, YOU MUST EXIT THEM
 		HERE OR EARLIER */
 
+		if (srv_start_state_is_set(SRV_START_STATE_LOCK_SYS)) {
+			/* a. Let the lock timeout thread exit */
+			os_event_set(lock_sys->timeout_event);
+		}
+
 		if (!srv_read_only_mode) {
-
-			if (srv_start_state_is_set(SRV_START_STATE_LOCK_SYS)) {
-				/* a. Let the lock timeout thread exit */
-				os_event_set(lock_sys->timeout_event);
-			}
-
 			/* b. srv error monitor thread exits automatically,
 			no need to do anything here */
 
@@ -1270,27 +1250,32 @@ srv_shutdown_all_bg_threads()
 		}
 
 		if (srv_start_state_is_set(SRV_START_STATE_IO)) {
+			ut_ad(!srv_read_only_mode);
+
 			/* e. Exit the i/o threads */
-			if (!srv_read_only_mode) {
-				if (recv_sys->flush_start != NULL) {
-					os_event_set(recv_sys->flush_start);
-				}
-				if (recv_sys->flush_end != NULL) {
-					os_event_set(recv_sys->flush_end);
-				}
+			if (recv_sys->flush_start != NULL) {
+				os_event_set(recv_sys->flush_start);
+			}
+			if (recv_sys->flush_end != NULL) {
+				os_event_set(recv_sys->flush_end);
 			}
 
 			os_event_set(buf_flush_event);
 
-			if (!buf_page_cleaner_is_active
-			    && os_aio_all_slots_free()) {
-				os_aio_wake_all_threads_at_shutdown();
+			/* f. dict_stats_thread is signaled from
+			logs_empty_and_mark_files_at_shutdown() and
+			should have already quit or is quitting right
+			now. */
+
+			if (srv_use_mtflush) {
+				/* g. Exit the multi threaded flush threads */
+				buf_mtflu_io_thread_exit();
 			}
 		}
 
-		/* f. dict_stats_thread is signaled from
-		logs_empty_and_mark_files_at_shutdown() and should have
-		already quit or is quitting right now. */
+		if (!buf_page_cleaner_is_active && os_aio_all_slots_free()) {
+			os_aio_wake_all_threads_at_shutdown();
+		}
 
 		bool	active = os_thread_active();
 
@@ -1460,8 +1445,9 @@ innobase_start_or_create_for_mysql(void)
 	if (srv_read_only_mode) {
 		ib::info() << "Started in read only mode";
 
-		/* There is no write except to intrinsic table and so turn-off
-		doublewrite mechanism completely. */
+		/* There is no write to InnoDB tablespaces (not even
+		temporary ones, because also CREATE TEMPORARY TABLE is
+		refused in read-only mode). */
 		srv_use_doublewrite_buf = FALSE;
 	}
 
@@ -1511,19 +1497,12 @@ innobase_start_or_create_for_mysql(void)
 	ib::info() << "Compiler hints enabled.";
 #endif /* defined(COMPILER_HINTS_ENABLED) */
 
-	ib::info() << IB_ATOMICS_STARTUP_MSG;
-	ib::info() << MUTEX_TYPE;
-	ib::info() << IB_MEMORY_BARRIER_STARTUP_MSG;
-
-#ifndef HAVE_MEMORY_BARRIER
-#if defined __i386__ || defined __x86_64__ || defined _M_IX86 || defined _M_X64 || defined _WIN32
+#ifdef _WIN32
+	ib::info() << "Mutexes and rw_locks use Windows interlocked functions";
 #else
-	ib::warn() << "MySQL was built without a memory barrier capability on"
-		" this architecture, which might allow a mutex/rw_lock"
-		" violation under high thread concurrency. This may cause a"
-		" hang.";
-#endif /* IA32 or AMD64 */
-#endif /* HAVE_MEMORY_BARRIER */
+	ib::info() << "Mutexes and rw_locks use GCC atomic builtins";
+#endif
+	ib::info() << MUTEX_TYPE;
 
 	ib::info() << "Compressed tables use zlib " ZLIB_VERSION
 #ifdef UNIV_ZIP_DEBUG
@@ -1704,13 +1683,7 @@ innobase_start_or_create_for_mysql(void)
 
 	srv_boot();
 
-	if (ut_crc32_sse2_enabled) {
-		ib::info() << "Using SSE crc32 instructions";
-	} else if (ut_crc32_power8_enabled) {
-		ib::info() << "Using POWER8 crc32 instructions";
-	} else {
-		ib::info() << "Using generic crc32 instructions";
-	}
+	ib::info() << ut_crc32_implementation;
 
 	if (!srv_read_only_mode) {
 
@@ -1858,26 +1831,26 @@ innobase_start_or_create_for_mysql(void)
 		thread_started[t] = true;
 	}
 
-	/* Even in read-only mode there could be flush job generated by
-	intrinsic table operations. */
-	buf_flush_page_cleaner_init();
+	if (!srv_read_only_mode) {
+		buf_flush_page_cleaner_init();
 
-	os_thread_create(buf_flush_page_cleaner_coordinator,
-			 NULL, NULL);
-
-	buf_flush_page_cleaner_thread_started = true;
-
-	for (i = 1; i < srv_n_page_cleaners; ++i) {
-		os_thread_create(buf_flush_page_cleaner_worker,
+		os_thread_create(buf_flush_page_cleaner_coordinator,
 				 NULL, NULL);
-	}
 
-	/* Make sure page cleaner is active. */
-	while (!buf_page_cleaner_is_active) {
-		os_thread_sleep(10000);
-	}
+		buf_flush_page_cleaner_thread_started = true;
 
-	srv_start_state_set(SRV_START_STATE_IO);
+		for (i = 1; i < srv_n_page_cleaners; ++i) {
+			os_thread_create(buf_flush_page_cleaner_worker,
+					 NULL, NULL);
+		}
+
+		/* Make sure page cleaner is active. */
+		while (!buf_page_cleaner_is_active) {
+			os_thread_sleep(10000);
+		}
+
+		srv_start_state_set(SRV_START_STATE_IO);
+	}
 
 	if (srv_n_log_files * srv_log_file_size * UNIV_PAGE_SIZE
 	    >= 512ULL * 1024ULL * 1024ULL * 1024ULL) {
@@ -2080,7 +2053,8 @@ innobase_start_or_create_for_mysql(void)
 			SRV_LOG_SPACE_FIRST_ID,
 			fsp_flags_set_page_size(0, univ_page_size),
 			FIL_TYPE_LOG,
-			NULL /* no encryption yet */);
+			NULL /* no encryption yet */,
+			true /* create */);
 
 		ut_a(fil_validate());
 		ut_a(log_space);
@@ -2111,6 +2085,7 @@ files_checked:
 	shutdown */
 
 	fil_open_log_and_system_tablespace_files();
+	ut_d(fil_space_get(0)->recv_size = srv_sys_space_size_debug);
 
 	err = srv_undo_tablespaces_init(
 		create_new_db,
@@ -2235,21 +2210,8 @@ files_checked:
 		if (err == DB_SUCCESS) {
 			/* Initialize the change buffer. */
 			err = dict_boot();
-		}
-
-		if (err != DB_SUCCESS) {
-
-			/* A tablespace was not found during recovery. The
-			user must force recovery. */
-
-			if (err == DB_TABLESPACE_NOT_FOUND) {
-
-				srv_fatal_error();
-
-				ut_error;
-			}
-
-			return(srv_init_abort(DB_ERROR));
+		} else {
+			return(srv_init_abort(err));
 		}
 
 		purge_queue = trx_sys_init_at_db_start();
@@ -2446,7 +2408,7 @@ files_checked:
 
 	/* Open temp-tablespace and keep it open until shutdown. */
 
-	err = srv_open_tmp_tablespace(create_new_db, &srv_tmp_space);
+	err = srv_open_tmp_tablespace(create_new_db);
 
 	if (err != DB_SUCCESS) {
 		return(srv_init_abort(err));
@@ -2577,10 +2539,10 @@ files_checked:
 		purge_sys->state = PURGE_STATE_DISABLED;
 	}
 
-	/* wake main loop of page cleaner up */
-	os_event_set(buf_flush_event);
-
 	if (!srv_read_only_mode) {
+		/* wake main loop of page cleaner up */
+		os_event_set(buf_flush_event);
+
 		if (srv_use_mtflush) {
 			/* Start multi-threaded flush threads */
 			mtflush_ctx = buf_mtflu_handler_init(
@@ -2777,6 +2739,16 @@ srv_fts_close(void)
 #endif
 
 /****************************************************************//**
+Shuts down background threads that can generate undo pages. */
+void
+srv_shutdown_bg_undo_sources(void)
+/*===========================*/
+{
+	fts_optimize_shutdown();
+	dict_stats_shutdown();
+}
+
+/****************************************************************//**
 Shuts down the InnoDB database.
 @return DB_SUCCESS or error code */
 dberr_t
@@ -2792,12 +2764,8 @@ innobase_shutdown_for_mysql(void)
 		return(DB_SUCCESS);
 	}
 
-	if (!srv_read_only_mode) {
-		fts_optimize_shutdown();
-		dict_stats_shutdown();
-
-		/* Shutdown key rotation threads */
-		fil_crypt_threads_end();
+	if (!srv_read_only_mode && srv_fast_shutdown) {
+		srv_shutdown_bg_undo_sources();
 	}
 
 	/* 1. Flush the buffer pool to disk, write the current lsn to
@@ -2815,11 +2783,6 @@ innobase_shutdown_for_mysql(void)
 
 	/* 2. Make all threads created by InnoDB to exit */
 	srv_shutdown_all_bg_threads();
-
-	if (srv_use_mtflush) {
-		/* g. Exit the multi threaded flush threads */
-		buf_mtflu_io_thread_exit();
-	}
 
 	if (srv_monitor_file) {
 		fclose(srv_monitor_file);
@@ -2849,9 +2812,7 @@ innobase_shutdown_for_mysql(void)
 		}
 	}
 
-	if (!srv_read_only_mode) {
-		fil_crypt_threads_cleanup();
-	}
+	fil_crypt_threads_cleanup();
 
 	/* Cleanup data for datafile scrubbing */
 	btr_scrub_cleanup();
@@ -2913,8 +2874,6 @@ innobase_shutdown_for_mysql(void)
 
 	return(DB_SUCCESS);
 }
-#endif /* !UNIV_HOTBACKUP */
-
 
 /********************************************************************
 Signal all per-table background threads to shutdown, and wait for them to do

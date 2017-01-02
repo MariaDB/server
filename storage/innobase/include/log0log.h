@@ -35,9 +35,7 @@ Created 12/9/1995 Heikki Tuuri
 
 #include "univ.i"
 #include "dyn0buf.h"
-#ifndef UNIV_HOTBACKUP
 #include "sync0rw.h"
-#endif /* !UNIV_HOTBACKUP */
 #include "log0crypt.h"
 #include "log0types.h"
 
@@ -72,7 +70,6 @@ log_calc_where_lsn_is(
 						files */
 	int64_t		log_file_size);		/*!< in: log file size
 						(including the header) */
-#ifndef UNIV_HOTBACKUP
 /** Append a string to the log.
 @param[in]	str		string
 @param[in]	len		string length
@@ -268,19 +265,6 @@ log_write_checkpoint_info(
 mtr_buf_t*
 log_append_on_checkpoint(
 	mtr_buf_t*	buf);
-#else /* !UNIV_HOTBACKUP */
-/******************************************************//**
-Writes info to a buffer of a log group when log files are created in
-backup restoration. */
-void
-log_reset_first_header_and_checkpoint(
-/*==================================*/
-	byte*		hdr_buf,/*!< in: buffer which will be written to the
-				start of the first log file */
-	ib_uint64_t	start);	/*!< in: lsn of the start of the first log file;
-				we pretend that there is a checkpoint at
-				start + LOG_BLOCK_HDR_SIZE */
-#endif /* !UNIV_HOTBACKUP */
 /**
 Checks that there is enough free space in the log to start a new query step.
 Flushes the log buffer or makes a new checkpoint if necessary. NOTE: this
@@ -288,7 +272,7 @@ function may only be called if the calling thread owns no synchronization
 objects! */
 void
 log_check_margins(void);
-#ifndef UNIV_HOTBACKUP
+
 /******************************************************//**
 Reads a specified log segment to a buffer. */
 void
@@ -316,7 +300,6 @@ lsn_t
 log_group_get_capacity(
 /*===================*/
 	const log_group_t*	group);	/*!< in: log group */
-#endif /* !UNIV_HOTBACKUP */
 /************************************************************//**
 Gets a log block flush bit.
 @return TRUE if this block was the first to be written in a log flush */
@@ -422,17 +405,6 @@ log_block_init(
 /*===========*/
 	byte*	log_block,	/*!< in: pointer to the log buffer */
 	lsn_t	lsn);		/*!< in: lsn within the log block */
-#ifdef UNIV_HOTBACKUP
-/************************************************************//**
-Initializes a log block in the log buffer in the old, < 3.23.52 format, where
-there was no checksum yet. */
-UNIV_INLINE
-void
-log_block_init_in_old_format(
-/*=========================*/
-	byte*	log_block,	/*!< in: pointer to the log buffer */
-	lsn_t	lsn);		/*!< in: lsn within the log block */
-#endif /* UNIV_HOTBACKUP */
 /************************************************************//**
 Converts a lsn to a log block number.
 @return log block number, it is > 0 and <= 1G */
@@ -555,7 +527,11 @@ or the MySQL version that created the redo log file. */
 /** End of the log file creator field. */
 #define LOG_HEADER_CREATOR_END	(LOG_HEADER_CREATOR + 32)
 /** Contents of the LOG_HEADER_CREATOR field */
-#define LOG_HEADER_CREATOR_CURRENT	"MySQL " INNODB_VERSION_STR
+#define LOG_HEADER_CREATOR_CURRENT		\
+	"MariaDB "				\
+	IB_TO_STR(MYSQL_VERSION_MAJOR) "."	\
+	IB_TO_STR(MYSQL_VERSION_MINOR) "."	\
+	IB_TO_STR(MYSQL_VERSION_PATCH)
 
 /** The redo log format identifier corresponding to the current format version.
 Stored in LOG_HEADER_FORMAT. */
@@ -644,7 +620,7 @@ struct log_t{
 	lsn_t		lsn;		/*!< log sequence number */
 	ulint		buf_free;	/*!< first free offset within the log
 					buffer in use */
-#ifndef UNIV_HOTBACKUP
+
 	char		pad2[CACHE_LINE_SIZE];/*!< Padding */
 	LogSysMutex	mutex;		/*!< mutex protecting the log */
 	char		pad3[CACHE_LINE_SIZE]; /*!< Padding */
@@ -659,7 +635,6 @@ struct log_t{
 					mtr_commit and still ensure that
 					insertions in the flush_list happen
 					in the LSN order. */
-#endif /* !UNIV_HOTBACKUP */
 	byte*		buf_ptr;	/*!< unaligned log buffer, which should
 					be of double of buf_size */
 	byte*		buf;		/*!< log buffer currently in use;
@@ -688,7 +663,6 @@ struct log_t{
 	UT_LIST_BASE_NODE_T(log_group_t)
 			log_groups;	/*!< log groups */
 
-#ifndef UNIV_HOTBACKUP
 	/** The fields involved in the log buffer flush @{ */
 
 	ulint		buf_next_to_write;/*!< first offset in the log buffer
@@ -772,7 +746,6 @@ struct log_t{
 					checkpoint write is running; a thread
 					should wait for this without owning
 					the log mutex */
-#endif /* !UNIV_HOTBACKUP */
 	byte*		checkpoint_buf_ptr;/* unaligned checkpoint header */
 	byte*		checkpoint_buf;	/*!< checkpoint header is read to this
 					buffer */

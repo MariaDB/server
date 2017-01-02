@@ -1510,7 +1510,7 @@ explain extended select count(*),min(fld4),max(fld4),sum(fld1),avg(fld1),std(fld
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	1199	100.00	Using where
 Warnings:
-Note	1003	select count(0) AS `count(*)`,min(`test`.`t2`.`fld4`) AS `min(fld4)`,max(`test`.`t2`.`fld4`) AS `max(fld4)`,sum(`test`.`t2`.`fld1`) AS `sum(fld1)`,avg(`test`.`t2`.`fld1`) AS `avg(fld1)`,std(`test`.`t2`.`fld1`) AS `std(fld1)`,variance(`test`.`t2`.`fld1`) AS `variance(fld1)` from `test`.`t2` where ((`test`.`t2`.`companynr` = 34) and (`test`.`t2`.`fld4` <> ''))
+Note	1003	select count(0) AS `count(*)`,min(`test`.`t2`.`fld4`) AS `min(fld4)`,max(`test`.`t2`.`fld4`) AS `max(fld4)`,sum(`test`.`t2`.`fld1`) AS `sum(fld1)`,avg(`test`.`t2`.`fld1`) AS `avg(fld1)`,std(`test`.`t2`.`fld1`) AS `std(fld1)`,variance(`test`.`t2`.`fld1`) AS `variance(fld1)` from `test`.`t2` where `test`.`t2`.`companynr` = 34 and `test`.`t2`.`fld4` <> ''
 select companynr,count(*),min(fld4),max(fld4),sum(fld1),avg(fld1),std(fld1),variance(fld1) from t2 group by companynr limit 3;
 companynr	count(*)	min(fld4)	max(fld4)	sum(fld1)	avg(fld1)	std(fld1)	variance(fld1)
 00	82	Anthony	windmills	10355753	126289.6707	115550.9757	13352027981.7087
@@ -4395,12 +4395,12 @@ EXPLAIN EXTENDED SELECT a, b FROM t1 WHERE a > 1 AND a = b LIMIT 2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	range	PRIMARY	PRIMARY	4	NULL	3	100.00	Using index condition; Using where
 Warnings:
-Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1` where ((`test`.`t1`.`b` = `test`.`t1`.`a`) and (`test`.`t1`.`a` > 1)) limit 2
+Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1` where `test`.`t1`.`b` = `test`.`t1`.`a` and `test`.`t1`.`a` > 1 limit 2
 EXPLAIN EXTENDED SELECT a, b FROM t1 WHERE a > 1 AND b = a LIMIT 2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	range	PRIMARY	PRIMARY	4	NULL	3	100.00	Using index condition; Using where
 Warnings:
-Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1` where ((`test`.`t1`.`b` = `test`.`t1`.`a`) and (`test`.`t1`.`a` > 1)) limit 2
+Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1` where `test`.`t1`.`b` = `test`.`t1`.`a` and `test`.`t1`.`a` > 1 limit 2
 DROP TABLE t1;
 #
 # Bug#47019: Assertion failed: 0, file .\rt_mbr.c, line 138 when 
@@ -4767,7 +4767,7 @@ EXPLAIN EXTENDED SELECT * FROM t1 WHERE a = 1 + 1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	100.00	Using where
 Warnings:
-Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where (`test`.`t1`.`a` = <cache>((1 + 1)))
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = <cache>(1 + 1)
 SELECT * FROM t1 HAVING a = 1 + 1;
 a
 2
@@ -4775,7 +4775,7 @@ EXPLAIN EXTENDED SELECT * FROM t1 HAVING a = 1 + 1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	100.00	
 Warnings:
-Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` having (`test`.`t1`.`a` = <cache>((1 + 1)))
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` having `test`.`t1`.`a` = <cache>(1 + 1)
 SELECT * FROM t1, t2 WHERE a = b + (1 + 1);
 a	b
 4	2
@@ -4784,7 +4784,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t2	system	NULL	NULL	NULL	NULL	1	100.00	
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	100.00	Using where
 Warnings:
-Note	1003	select `test`.`t1`.`a` AS `a`,2 AS `b` from `test`.`t1` where (`test`.`t1`.`a` = <cache>((2 + (1 + 1))))
+Note	1003	select `test`.`t1`.`a` AS `a`,2 AS `b` from `test`.`t1` where `test`.`t1`.`a` = <cache>(2 + 1 + 1)
 SELECT * FROM t2 LEFT JOIN t1 ON a = b + 1;
 b	a
 2	3
@@ -4798,7 +4798,7 @@ EXPLAIN EXTENDED SELECT * FROM t1 WHERE a > UNIX_TIMESTAMP('2009-03-10 00:00:00'
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	100.00	Using where
 Warnings:
-Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where (`test`.`t1`.`a` > <cache>(unix_timestamp('2009-03-10 00:00:00')))
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` > <cache>(unix_timestamp('2009-03-10 00:00:00'))
 CREATE FUNCTION f1() RETURNS INT DETERMINISTIC
 BEGIN
 SET @cnt := @cnt + 1;
@@ -4815,7 +4815,7 @@ EXPLAIN EXTENDED SELECT * FROM t1 WHERE a = f1();
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	100.00	Using where
 Warnings:
-Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where (`test`.`t1`.`a` = <cache>(`f1`()))
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = <cache>(`f1`())
 DROP TABLE t1, t2;
 DROP FUNCTION f1;
 # End of bug#33546
@@ -5383,7 +5383,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	system	idx	NULL	NULL	NULL	1	100.00	
 1	SIMPLE	t2	ref	idx	idx	5	const	1	100.00	Using index
 Warnings:
-Note	1003	select 8 AS `a`,8 AS `b`,`test`.`t2`.`c` AS `c` from `test`.`t2` where (`test`.`t2`.`c` = 8)
+Note	1003	select 8 AS `a`,8 AS `b`,`test`.`t2`.`c` AS `c` from `test`.`t2` where `test`.`t2`.`c` = 8
 SELECT * FROM t1 INNER JOIN t2 ON ( c = a ) 
 WHERE 1 IS NULL OR b < 33 AND b = c;
 a	b	c
@@ -5413,7 +5413,7 @@ SELECT * FROM t1 WHERE (1 != 1 OR a = 5) AND (b != 1 OR a = 1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	5	100.00	Using where
 Warnings:
-Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1` where ((`test`.`t1`.`a` = 5) and (`test`.`t1`.`b` <> 1))
+Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1` where `test`.`t1`.`a` = 5 and `test`.`t1`.`b` <> 1
 SELECT * FROM t1 WHERE (1 != 1 OR a = 5) AND (b != 1 OR a = 1);
 a	b
 5	11
@@ -5422,7 +5422,7 @@ SELECT * FROM t1 WHERE (b != 1 OR a = 1) AND (1 != 1 OR a = 5);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	5	100.00	Using where
 Warnings:
-Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1` where ((`test`.`t1`.`a` = 5) and (`test`.`t1`.`b` <> 1))
+Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1` where `test`.`t1`.`a` = 5 and `test`.`t1`.`b` <> 1
 SELECT * FROM t1 WHERE (b != 1 OR a = 1) AND (1 != 1 OR a = 5);
 a	b
 5	11
@@ -5431,7 +5431,7 @@ SELECT * FROM t1 WHERE (b != 1 OR a = 1) AND (a = 5 OR 1 != 1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	5	100.00	Using where
 Warnings:
-Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1` where ((`test`.`t1`.`a` = 5) and (`test`.`t1`.`b` <> 1))
+Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1` where `test`.`t1`.`a` = 5 and `test`.`t1`.`b` <> 1
 SELECT * FROM t1 WHERE (b != 1 OR a = 1) AND (a = 5 OR 1 != 1);
 a	b
 5	11
@@ -5448,7 +5448,7 @@ SELECT * FROM t1 WHERE (b = 1 OR a = 5) AND (b = 5 AND a = 5 OR 1 != 1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	5	100.00	Using where
 Warnings:
-Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1` where ((`test`.`t1`.`b` = 5) and (`test`.`t1`.`a` = 5))
+Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1` where `test`.`t1`.`b` = 5 and `test`.`t1`.`a` = 5
 SELECT * FROM t1 WHERE (b = 1 OR a = 5) AND (b = 5 AND a = 5 OR 1 != 1);
 a	b
 DROP TABLE t1;
@@ -5466,7 +5466,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t2	system	NULL	NULL	NULL	NULL	1	100.00	
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
-Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,'k' AS `c`,'k' AS `d` from `test`.`t1` where ((`test`.`t1`.`b` = 'k') and (`test`.`t1`.`a` = 136))
+Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,'k' AS `c`,'k' AS `d` from `test`.`t1` where `test`.`t1`.`b` = 'k' and `test`.`t1`.`a` = 136
 SELECT * FROM t1, t2 WHERE c=b AND (1=2 OR ((b='h' OR a=136) AND d=b));
 a	b	c	d
 DROP TABLE t1,t2;
@@ -5507,7 +5507,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t2	system	PRIMARY	NULL	NULL	NULL	1	100.00	
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
-Note	1003	select `test`.`t1`.`pk1` AS `pk1`,`test`.`t1`.`a1` AS `a1`,`test`.`t1`.`b1` AS `b1`,1 AS `pk2`,1 AS `a2` from `test`.`t1` where ((`test`.`t1`.`a1` = 1) and (`test`.`t1`.`b1` = 6))
+Note	1003	select `test`.`t1`.`pk1` AS `pk1`,`test`.`t1`.`a1` AS `a1`,`test`.`t1`.`b1` AS `b1`,1 AS `pk2`,1 AS `a2` from `test`.`t1` where `test`.`t1`.`a1` = 1 and `test`.`t1`.`b1` = 6
 INSERT INTO t1 VALUES (3,1,6);
 SELECT * FROM t1, t2
 WHERE a1 = pk2 AND ( ( b1 = 6 OR a2 > 4 ) AND pk2 = a2 OR pk1 IS NULL );

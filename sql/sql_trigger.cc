@@ -257,20 +257,6 @@ static File_option trigname_file_parameters[]=
 };
 
 
-const LEX_STRING trg_action_time_type_names[]=
-{
-  { C_STRING_WITH_LEN("BEFORE") },
-  { C_STRING_WITH_LEN("AFTER") }
-};
-
-const LEX_STRING trg_event_type_names[]=
-{
-  { C_STRING_WITH_LEN("INSERT") },
-  { C_STRING_WITH_LEN("UPDATE") },
-  { C_STRING_WITH_LEN("DELETE") }
-};
-
-
 class Handle_old_incorrect_sql_modes_hook: public Unknown_key_hook
 {
 private:
@@ -1993,7 +1979,7 @@ bool Trigger::change_on_table_name(void* param_arg)
 
   if (sql_create_definition_file(NULL, &trigname_file, &trigname_file_type,
                                  (uchar*)&trigname, trigname_file_parameters))
-    return this;
+    return true;
 
   /* Remove stale .TRN file in case of database upgrade */
   if (param->old_db_name)
@@ -2260,35 +2246,6 @@ add_tables_and_routines_for_triggers(THD *thd,
     }
   }
   return FALSE;
-}
-
-
-/**
-  Check if any of the marked fields are used in the trigger.
-
-  @param used_fields  Bitmap over fields to check
-  @param event_type   Type of event triggers for which we are going to inspect
-  @param action_time  Type of trigger action time we are going to inspect
-*/
-
-bool Trigger::is_fields_updated_in_trigger(MY_BITMAP *used_fields)
-{
-  Item_trigger_field *trg_field;
-  sp_head *sp= body;
-  DBUG_ASSERT(used_fields->n_bits == base->trigger_table->s->fields);
-
-  for (trg_field= sp->m_trg_table_fields.first; trg_field;
-       trg_field= trg_field->next_trg_field)
-  {
-    /* We cannot check fields which does not present in table. */
-    if (trg_field->field_idx != (uint)-1)
-    {
-      if (bitmap_is_set(used_fields, trg_field->field_idx) &&
-          trg_field->get_settable_routine_parameter())
-        return true;
-    }
-  }
-  return false;
 }
 
 

@@ -21,11 +21,6 @@
 /* This file defines all XML functions */
 
 
-#ifdef USE_PRAGMA_INTERFACE
-#pragma interface			/* gcc class implementation */
-#endif
-
-
 typedef struct my_xml_node_st MY_XML_NODE;
 
 

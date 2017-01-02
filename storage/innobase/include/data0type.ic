@@ -24,8 +24,7 @@ Created 1/16/1996 Heikki Tuuri
 *******************************************************/
 
 #include "mach0data.h"
-#ifndef UNIV_HOTBACKUP
-# include "ha_prototypes.h"
+#include "ha_prototypes.h"
 
 /*********************************************************************//**
 Gets the MySQL charset-collation code for MySQL string types.
@@ -137,9 +136,6 @@ dtype_set_mblen(
 
 	ut_ad(dtype_validate(type));
 }
-#else /* !UNIV_HOTBACKUP */
-# define dtype_set_mblen(type) (void) 0
-#endif /* !UNIV_HOTBACKUP */
 
 /*********************************************************************//**
 Sets a data type structure. */
@@ -218,7 +214,6 @@ dtype_get_len(
 	return(type->len);
 }
 
-#ifndef UNIV_HOTBACKUP
 /*********************************************************************//**
 Gets the minimum length of a character, in bytes.
 @return minimum length of a char, in bytes, or 0 if this is not a
@@ -471,8 +466,6 @@ dtype_sql_name(
 	return(name);
 }
 
-#endif /* !UNIV_HOTBACKUP */
-
 /***********************************************************************//**
 Returns the size of a fixed size data type, 0 if not a fixed size type.
 @return fixed size, or 0 */
@@ -513,7 +506,6 @@ dtype_get_fixed_size_low(
 	case DATA_POINT:
 		return(len);
 	case DATA_MYSQL:
-#ifndef UNIV_HOTBACKUP
 		if (prtype & DATA_BINARY_TYPE) {
 			return(len);
 		} else if (!comp) {
@@ -534,9 +526,6 @@ dtype_get_fixed_size_low(
 				return(len);
 			}
 		}
-#else /* !UNIV_HOTBACKUP */
-		return(len);
-#endif /* !UNIV_HOTBACKUP */
 		/* fall through for variable-length charsets */
 	case DATA_VARCHAR:
 	case DATA_BINARY:
@@ -553,7 +542,6 @@ dtype_get_fixed_size_low(
 	return(0);
 }
 
-#ifndef UNIV_HOTBACKUP
 /***********************************************************************//**
 Returns the minimum size of a data type.
 @return minimum size */
@@ -659,7 +647,6 @@ dtype_get_max_size_low(
 
 	return(ULINT_MAX);
 }
-#endif /* !UNIV_HOTBACKUP */
 
 /***********************************************************************//**
 Returns the ROW_FORMAT=REDUNDANT stored SQL NULL size of a type.
@@ -672,11 +659,6 @@ dtype_get_sql_null_size(
 	const dtype_t*	type,	/*!< in: type */
 	ulint		comp)	/*!< in: nonzero=ROW_FORMAT=COMPACT  */
 {
-#ifndef UNIV_HOTBACKUP
 	return(dtype_get_fixed_size_low(type->mtype, type->prtype, type->len,
 					type->mbminmaxlen, comp));
-#else /* !UNIV_HOTBACKUP */
-	return(dtype_get_fixed_size_low(type->mtype, type->prtype, type->len,
-					0, 0));
-#endif /* !UNIV_HOTBACKUP */
 }

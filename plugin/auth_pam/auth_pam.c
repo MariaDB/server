@@ -131,7 +131,7 @@ static int pam_auth(MYSQL_PLUGIN_VIO *vio, MYSQL_SERVER_AUTH_INFO *info)
 {
   pam_handle_t *pamh = NULL;
   int status;
-  const char *new_username;
+  const char *new_username= NULL;
   struct param param;
   /* The following is written in such a way to make also solaris happy */
   struct pam_conv pam_start_arg = { &conv, (char*) &param };
@@ -139,7 +139,7 @@ static int pam_auth(MYSQL_PLUGIN_VIO *vio, MYSQL_SERVER_AUTH_INFO *info)
   /*
     get the service name, as specified in
 
-     CREATE USER ... IDENTIFIED WITH pam_auth AS  "service"
+     CREATE USER ... IDENTIFIED WITH pam AS "service"
   */
   const char *service = info->auth_string && info->auth_string[0]
                           ? info->auth_string : "mysql";

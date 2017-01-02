@@ -1002,6 +1002,7 @@ Exit_status process_event(PRINT_EVENT_INFO *print_event_info, Log_event *ev,
 
     switch (ev_type) {
     case QUERY_EVENT:
+    case QUERY_COMPRESSED_EVENT:
     {
       Query_log_event *qe= (Query_log_event*)ev;
       if (!qe->is_trans_keyword())
@@ -1243,6 +1244,12 @@ Exit_status process_event(PRINT_EVENT_INFO *print_event_info, Log_event *ev,
     case WRITE_ROWS_EVENT_V1:
     case UPDATE_ROWS_EVENT_V1:
     case DELETE_ROWS_EVENT_V1:
+    case WRITE_ROWS_COMPRESSED_EVENT:
+    case DELETE_ROWS_COMPRESSED_EVENT:
+    case UPDATE_ROWS_COMPRESSED_EVENT:
+    case WRITE_ROWS_COMPRESSED_EVENT_V1:
+    case UPDATE_ROWS_COMPRESSED_EVENT_V1:
+    case DELETE_ROWS_COMPRESSED_EVENT_V1:
     {
       Rows_log_event *e= (Rows_log_event*) ev;
       if (print_row_event(print_event_info, ev, e->get_table_id(),
@@ -1260,6 +1267,9 @@ Exit_status process_event(PRINT_EVENT_INFO *print_event_info, Log_event *ev,
         goto err;
       break;
     }
+    case START_ENCRYPTION_EVENT:
+      glob_description_event->start_decryption((Start_encryption_log_event*)ev);
+      /* fall through */
     default:
       print_skip_replication_statement(print_event_info, ev);
       ev->print(result_file, print_event_info);
@@ -2832,9 +2842,16 @@ err:
 }
 
 
+uint dummy1() { return 1; }
 struct encryption_service_st encryption_handler=
 {
-  0, 0, 0, 0, 0, 0, 0
+  (uint(*)(uint))dummy1,
+  (uint(*)(uint, uint, uchar*, uint*))dummy1,
+  (uint(*)(uint, uint))dummy1,
+  (int (*)(void*, const uchar*, uint, const uchar*, uint, int, uint, uint))dummy1,
+  (int (*)(void*, const uchar*, uint, uchar*, uint*))dummy1,
+  (int (*)(void*, uchar*, uint*))dummy1,
+  (uint (*)(uint, uint, uint))dummy1
 };
 
 /*

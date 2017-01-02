@@ -110,7 +110,65 @@ where t1.child_user_id=t3.id and t1.child_group_id is null and t2.lower_group_na
 drop table t1,t2,t3;
 
 --echo #
+--echo # MDEV-9187: duplicate of bug mdev-9628
+--echo #
+
+set use_stat_tables = preferably;
+set optimizer_use_condition_selectivity=3;
+ 
+CREATE TABLE t1 (f1 char(32)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES ('foo'),('bar'),('qux');
+ANALYZE TABLE t1;
+
+SELECT * FROM t1 WHERE f1 < 'm';
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE f1 < 'm';
+
+CREATE TABLE t2 (f1 TEXT) ENGINE=InnoDB;
+INSERT INTO t2 VALUES ('foo'),('bar'),('qux');
+ANALYZE TABLE t2;
+
+SELECT * FROM t2 WHERE f1 <> 'qux';
+EXPLAIN EXTENDED
+SELECT * FROM t2 WHERE f1 <> 'qux';
+
+DROP TABLE t1,t2;
+
+--echo #
 --echo # End of 10.0 tests
+--echo #
+
+
+--echo #
+--echo # Start of 10.1 tests
+--echo #
+
+--echo #
+--echo # MDEV-11060: sql/protocol.cc:532: void Protocol::end_statement(): Assertion `0' failed
+--echo #
+
+
+set optimizer_use_condition_selectivity=4;
+
+--disable_warnings
+drop view if exists v1;
+--enable_warnings
+
+create table t1 (a int not null, b int, c int) engine=InnoDB;
+create trigger trgi before insert on t1 for each row set new.a=if(new.a is null,new.b,new.c);
+
+create table t2 (d int, e int) engine=InnoDB;
+update t1, t2 set a=NULL, b=2, c=NULL where b=d and e=200;
+
+create view v1 as select * from t1, t2 where d=2;
+--error ER_BAD_NULL_ERROR
+insert v1 (a,c) values (NULL, 20);
+
+drop table t1,t2;
+drop view v1;
+
+--echo #
+--echo # End of 10.1 tests
 --echo #
 
 set use_stat_tables= @tmp_ust;

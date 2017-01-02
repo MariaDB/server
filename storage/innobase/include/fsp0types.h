@@ -29,6 +29,12 @@ Created May 26, 2009 Vasil Dimov
 
 #ifndef UNIV_INNOCHECKSUM
 
+/** The fil_space_t::id of the redo log. All persistent tablespaces
+have a smaller fil_space_t::id. */
+#define SRV_LOG_SPACE_FIRST_ID		0xFFFFFFF0U
+/** The fil_space_t::id of the innodb_temporary tablespace. */
+#define SRV_TMP_SPACE_ID		0xFFFFFFFEU
+
 #include "univ.i"
 #include "ut0byte.h"
 
@@ -196,9 +202,12 @@ fsp_flags_is_valid(
 /** Check if tablespace is system temporary.
 @param[in]      space_id        verify is checksum is enabled for given space.
 @return true if tablespace is system temporary. */
+inline
 bool
-fsp_is_system_temporary(
-	ulint	space_id);
+fsp_is_system_temporary(ulint	space_id)
+{
+	return(space_id == SRV_TMP_SPACE_ID);
+}
 
 /** Check if checksum is disabled for the given space.
 @param[in]	space_id	verify is checksum is enabled for given space.
@@ -275,7 +284,7 @@ is a tablespace with encryption. */
 				+ FSP_FLAGS_WIDTH_ATOMIC_WRITES )
 
 /** A mask of all the known/used bits in tablespace flags */
-#define FSP_FLAGS_MASK		(~(~0 << FSP_FLAGS_WIDTH))
+#define FSP_FLAGS_MASK		(~(~0U << FSP_FLAGS_WIDTH))
 
 /** Zero relative shift position of the POST_ANTELOPE field */
 #define FSP_FLAGS_POS_POST_ANTELOPE	0
@@ -348,15 +357,15 @@ is a tablespace with encryption. */
 		<< FSP_FLAGS_POS_ENCRYPTION)
 /** Bit mask of the PAGE_COMPRESSION field */
 #define FSP_FLAGS_MASK_PAGE_COMPRESSION			\
-		((~(~0 << FSP_FLAGS_WIDTH_PAGE_COMPRESSION))	\
+		((~(~0U << FSP_FLAGS_WIDTH_PAGE_COMPRESSION))	\
 		<< FSP_FLAGS_POS_PAGE_COMPRESSION)
 /** Bit mask of the PAGE_COMPRESSION_LEVEL field */
 #define FSP_FLAGS_MASK_PAGE_COMPRESSION_LEVEL		\
-		((~(~0 << FSP_FLAGS_WIDTH_PAGE_COMPRESSION_LEVEL))	\
+		((~(~0U << FSP_FLAGS_WIDTH_PAGE_COMPRESSION_LEVEL))	\
 		<< FSP_FLAGS_POS_PAGE_COMPRESSION_LEVEL)
 /** Bit mask of the ATOMIC_WRITES field */
 #define FSP_FLAGS_MASK_ATOMIC_WRITES		\
-		((~(~0 << FSP_FLAGS_WIDTH_ATOMIC_WRITES))	\
+		((~(~0U << FSP_FLAGS_WIDTH_ATOMIC_WRITES))	\
 		<< FSP_FLAGS_POS_ATOMIC_WRITES)
 
 /** Return the value of the POST_ANTELOPE field */

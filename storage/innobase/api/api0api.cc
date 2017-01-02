@@ -2172,7 +2172,7 @@ ib_col_set_value(
 
 			if (len > 0 && cs->mbmaxlen > 1) {
 				true_len = (ulint)
-					cs->cset->well_formed_len(
+					my_well_formed_length(
 						cs,
 						(const char*)src,
 						(const char*)src + len,
@@ -3425,9 +3425,9 @@ ib_cursor_set_memcached_sync(
                 }
 
 		if (flag) {
-			os_atomic_increment_lint(&table->memcached_sync_count, 1);
+			my_atomic_addlint(&table->memcached_sync_count, 1);
 		} else {
-			os_atomic_decrement_lint(&table->memcached_sync_count, 1);
+			my_atomic_addlint(&table->memcached_sync_count, -1);
 		        ut_a(table->memcached_sync_count >= 0);
 		}
 	} else {

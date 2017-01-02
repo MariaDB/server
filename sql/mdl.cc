@@ -391,7 +391,11 @@ public:
     virtual const bitmap_t *incompatible_waiting_types_bitmap() const
     { return m_waiting_incompatible; }
     virtual bool needs_notification(const MDL_ticket *ticket) const
-    { return (ticket->get_type() >= MDL_SHARED_NO_WRITE); }
+    {
+      return ticket->get_type() == MDL_SHARED_NO_WRITE ||
+             ticket->get_type() == MDL_SHARED_NO_READ_WRITE ||
+             ticket->get_type() == MDL_EXCLUSIVE;
+    }
 
     /**
       Notify threads holding a shared metadata locks on object which
@@ -1413,7 +1417,8 @@ const MDL_lock::bitmap_t
 MDL_lock::MDL_scoped_lock::m_granted_incompatible[MDL_TYPE_END]=
 {
   MDL_BIT(MDL_EXCLUSIVE) | MDL_BIT(MDL_SHARED),
-  MDL_BIT(MDL_EXCLUSIVE) | MDL_BIT(MDL_INTENTION_EXCLUSIVE), 0, 0, 0, 0, 0, 0,
+  MDL_BIT(MDL_EXCLUSIVE) | MDL_BIT(MDL_INTENTION_EXCLUSIVE),
+  0, 0, 0, 0, 0, 0, 0,
   MDL_BIT(MDL_EXCLUSIVE) | MDL_BIT(MDL_SHARED) | MDL_BIT(MDL_INTENTION_EXCLUSIVE)
 };
 
@@ -1421,7 +1426,7 @@ const MDL_lock::bitmap_t
 MDL_lock::MDL_scoped_lock::m_waiting_incompatible[MDL_TYPE_END]=
 {
   MDL_BIT(MDL_EXCLUSIVE) | MDL_BIT(MDL_SHARED),
-  MDL_BIT(MDL_EXCLUSIVE), 0, 0, 0, 0, 0, 0, 0
+  MDL_BIT(MDL_EXCLUSIVE), 0, 0, 0, 0, 0, 0, 0, 0
 };
 
 
@@ -1433,39 +1438,41 @@ MDL_lock::MDL_scoped_lock::m_waiting_incompatible[MDL_TYPE_END]=
   The first array specifies if particular type of request can be satisfied
   if there is granted lock of certain type.
 
-     Request  |  Granted requests for lock       |
-      type    | S  SH  SR  SW  SU  SNW  SNRW  X  |
-    ----------+----------------------------------+
-    S         | +   +   +   +   +   +    +    -  |
-    SH        | +   +   +   +   +   +    +    -  |
-    SR        | +   +   +   +   +   +    -    -  |
-    SW        | +   +   +   +   +   -    -    -  |
-    SU        | +   +   +   +   -   -    -    -  |
-    SNW       | +   +   +   -   -   -    -    -  |
-    SNRW      | +   +   -   -   -   -    -    -  |
-    X         | -   -   -   -   -   -    -    -  |
-    SU -> X   | -   -   -   -   0   0    0    0  |
-    SNW -> X  | -   -   -   0   0   0    0    0  |
-    SNRW -> X | -   -   0   0   0   0    0    0  |
+     Request  |  Granted requests for lock            |
+      type    | S  SH  SR  SW  SU  SRO  SNW  SNRW  X  |
+    ----------+---------------------------------------+
+    S         | +   +   +   +   +   +    +    +    -  |
+    SH        | +   +   +   +   +   +    +    +    -  |
+    SR        | +   +   +   +   +   +    +    -    -  |
+    SW        | +   +   +   +   +   -    -    -    -  |
+    SU        | +   +   +   +   -   +    -    -    -  |
+    SRO       | +   +   +   -   +   +    +    -    -  |
+    SNW       | +   +   +   -   -   +    -    -    -  |
+    SNRW      | +   +   -   -   -   -    -    -    -  |
+    X         | -   -   -   -   -   -    -    -    -  |
+    SU -> X   | -   -   -   -   0   -    0    0    0  |
+    SNW -> X  | -   -   -   0   0   -    0    0    0  |
+    SNRW -> X | -   -   0   0   0   0    0    0    0  |
 
   The second array specifies if particular type of request can be satisfied
   if there is waiting request for the same lock of certain type. In other
   words it specifies what is the priority of different lock types.
 
-     Request  |  Pending requests for lock      |
-      type    | S  SH  SR  SW  SU  SNW  SNRW  X |
-    ----------+---------------------------------+
-    S         | +   +   +   +   +   +     +   - |
-    SH        | +   +   +   +   +   +     +   + |
-    SR        | +   +   +   +   +   +     -   - |
-    SW        | +   +   +   +   +   -     -   - |
-    SU        | +   +   +   +   +   +     +   - |
-    SNW       | +   +   +   +   +   +     +   - |
-    SNRW      | +   +   +   +   +   +     +   - |
-    X         | +   +   +   +   +   +     +   + |
-    SU -> X   | +   +   +   +   +   +     +   + |
-    SNW -> X  | +   +   +   +   +   +     +   + |
-    SNRW -> X | +   +   +   +   +   +     +   + |
+     Request  |  Pending requests for lock           |
+      type    | S  SH  SR  SW  SU  SRO  SNW  SNRW  X |
+    ----------+--------------------------------------+
+    S         | +   +   +   +   +   +    +     +   - |
+    SH        | +   +   +   +   +   +    +     +   + |
+    SR        | +   +   +   +   +   +    +     -   - |
+    SW        | +   +   +   +   +   +    -     -   - |
+    SU        | +   +   +   +   +   +    +     +   - |
+    SRO       | +   +   +   -   +   +    +     -   - |
+    SNW       | +   +   +   +   +   +    +     +   - |
+    SNRW      | +   +   +   +   +   +    +     +   - |
+    X         | +   +   +   +   +   +    +     +   + |
+    SU -> X   | +   +   +   +   +   +    +     +   + |
+    SNW -> X  | +   +   +   +   +   +    +     +   + |
+    SNRW -> X | +   +   +   +   +   +    +     +   + |
 
   Here: "+" -- means that request can be satisfied
         "-" -- means that request can't be satisfied and should wait
@@ -1487,19 +1494,23 @@ MDL_lock::MDL_object_lock::m_granted_incompatible[MDL_TYPE_END]=
   MDL_BIT(MDL_EXCLUSIVE),
   MDL_BIT(MDL_EXCLUSIVE) | MDL_BIT(MDL_SHARED_NO_READ_WRITE),
   MDL_BIT(MDL_EXCLUSIVE) | MDL_BIT(MDL_SHARED_NO_READ_WRITE) |
-    MDL_BIT(MDL_SHARED_NO_WRITE),
+    MDL_BIT(MDL_SHARED_NO_WRITE) | MDL_BIT(MDL_SHARED_READ_ONLY),
   MDL_BIT(MDL_EXCLUSIVE) | MDL_BIT(MDL_SHARED_NO_READ_WRITE) |
     MDL_BIT(MDL_SHARED_NO_WRITE) | MDL_BIT(MDL_SHARED_UPGRADABLE),
+  MDL_BIT(MDL_EXCLUSIVE) | MDL_BIT(MDL_SHARED_NO_READ_WRITE) |
+    MDL_BIT(MDL_SHARED_WRITE),
   MDL_BIT(MDL_EXCLUSIVE) | MDL_BIT(MDL_SHARED_NO_READ_WRITE) |
     MDL_BIT(MDL_SHARED_NO_WRITE) | MDL_BIT(MDL_SHARED_UPGRADABLE) |
     MDL_BIT(MDL_SHARED_WRITE),
   MDL_BIT(MDL_EXCLUSIVE) | MDL_BIT(MDL_SHARED_NO_READ_WRITE) |
-    MDL_BIT(MDL_SHARED_NO_WRITE) | MDL_BIT(MDL_SHARED_UPGRADABLE) |
-    MDL_BIT(MDL_SHARED_WRITE) | MDL_BIT(MDL_SHARED_READ),
+    MDL_BIT(MDL_SHARED_NO_WRITE) | MDL_BIT(MDL_SHARED_READ_ONLY) |
+    MDL_BIT(MDL_SHARED_UPGRADABLE) | MDL_BIT(MDL_SHARED_WRITE) |
+    MDL_BIT(MDL_SHARED_READ),
   MDL_BIT(MDL_EXCLUSIVE) | MDL_BIT(MDL_SHARED_NO_READ_WRITE) |
-    MDL_BIT(MDL_SHARED_NO_WRITE) | MDL_BIT(MDL_SHARED_UPGRADABLE) |
-    MDL_BIT(MDL_SHARED_WRITE) | MDL_BIT(MDL_SHARED_READ) |
-    MDL_BIT(MDL_SHARED_HIGH_PRIO) | MDL_BIT(MDL_SHARED)
+    MDL_BIT(MDL_SHARED_NO_WRITE) | MDL_BIT(MDL_SHARED_READ_ONLY) |
+    MDL_BIT(MDL_SHARED_UPGRADABLE) | MDL_BIT(MDL_SHARED_WRITE) |
+    MDL_BIT(MDL_SHARED_READ) | MDL_BIT(MDL_SHARED_HIGH_PRIO) |
+    MDL_BIT(MDL_SHARED)
 };
 
 
@@ -1513,6 +1524,8 @@ MDL_lock::MDL_object_lock::m_waiting_incompatible[MDL_TYPE_END]=
   MDL_BIT(MDL_EXCLUSIVE) | MDL_BIT(MDL_SHARED_NO_READ_WRITE) |
     MDL_BIT(MDL_SHARED_NO_WRITE),
   MDL_BIT(MDL_EXCLUSIVE),
+  MDL_BIT(MDL_EXCLUSIVE) | MDL_BIT(MDL_SHARED_NO_READ_WRITE) |
+    MDL_BIT(MDL_SHARED_WRITE),
   MDL_BIT(MDL_EXCLUSIVE),
   MDL_BIT(MDL_EXCLUSIVE),
   0
@@ -2306,10 +2319,11 @@ MDL_context::upgrade_shared_lock(MDL_ticket *mdl_ticket,
   if (mdl_ticket->has_stronger_or_equal_type(new_type))
     DBUG_RETURN(FALSE);
 
-  /* Only allow upgrades from SHARED_UPGRADABLE/NO_WRITE/NO_READ_WRITE */
+  /* Only allow upgrades from SHARED_UPGRADABLE/NO_WRITE/NO_READ_WRITE/READ */
   DBUG_ASSERT(mdl_ticket->m_type == MDL_SHARED_UPGRADABLE ||
               mdl_ticket->m_type == MDL_SHARED_NO_WRITE ||
-              mdl_ticket->m_type == MDL_SHARED_NO_READ_WRITE);
+              mdl_ticket->m_type == MDL_SHARED_NO_READ_WRITE ||
+              mdl_ticket->m_type == MDL_SHARED_READ);
 
   mdl_xlock_request.init(&mdl_ticket->m_lock->key, new_type,
                          MDL_TRANSACTION);

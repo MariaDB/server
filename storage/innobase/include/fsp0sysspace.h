@@ -152,15 +152,6 @@ public:
 		       * ((1024 * 1024) / UNIV_PAGE_SIZE));
 	}
 
-	/** Roundoff to MegaBytes is similar as done in
-	SysTablespace::parse_units() function.
-	@return the pages when given size of file (bytes). */
-	ulint get_pages_from_size(os_offset_t size)
-	{
-		return (ulint)((size / (1024 * 1024))
-			       * ((1024 * 1024) / UNIV_PAGE_SIZE));
-	}
-
 	/**
 	@return next increment size */
 	ulint get_increment() const;
@@ -291,11 +282,9 @@ extern SysTablespace srv_tmp_space;
 @return true if id is a system tablespace, false if not. */
 UNIV_INLINE
 bool
-is_system_tablespace(
-	ulint	id)
+is_system_tablespace(ulint	id)
 {
-	return(id == srv_sys_space.space_id()
-	       || id == srv_tmp_space.space_id());
+	return(id == TRX_SYS_SPACE || id == SRV_TMP_SPACE_ID);
 }
 
 /** Check if shared-system or undo tablespace.
@@ -305,8 +294,7 @@ bool
 is_system_or_undo_tablespace(
 	ulint   id)
 {
-	return(id == srv_sys_space.space_id()
-	       || id <= srv_undo_tablespaces_open);
+	return(id <= srv_undo_tablespaces_open);
 }
 
 /** Check if predefined shared tablespace.
@@ -319,6 +307,6 @@ is_predefined_tablespace(
 	ut_ad(srv_sys_space.space_id() == TRX_SYS_SPACE);
 	ut_ad(TRX_SYS_SPACE == 0);
 	return(id <= srv_undo_tablespaces_open
-	       || id == srv_tmp_space.space_id());
+	       || id == SRV_TMP_SPACE_ID);
 }
 #endif /* fsp0sysspace_h */

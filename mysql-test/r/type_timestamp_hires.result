@@ -64,15 +64,15 @@ a
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` timestamp(4) NOT NULL DEFAULT CURRENT_TIMESTAMP(4) ON UPDATE CURRENT_TIMESTAMP(4)
+  `a` timestamp(4) NOT NULL DEFAULT current_timestamp(4) ON UPDATE current_timestamp(4)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 show columns from t1;
 Field	Type	Null	Key	Default	Extra
-a	timestamp(4)	NO		CURRENT_TIMESTAMP(4)	on update CURRENT_TIMESTAMP
+a	timestamp(4)	NO		current_timestamp(4)	on update current_timestamp(4)
 select table_name, column_name, column_default, is_nullable, data_type, character_maximum_length, character_octet_length, numeric_precision, numeric_scale, datetime_precision, character_set_name, collation_name, column_type, column_key, extra from information_schema.columns where table_name='t1';
 table_name	t1
 column_name	a
-column_default	CURRENT_TIMESTAMP(4)
+column_default	current_timestamp(4)
 is_nullable	NO
 data_type	timestamp
 character_maximum_length	NULL
@@ -84,7 +84,7 @@ character_set_name	NULL
 collation_name	NULL
 column_type	timestamp(4)
 column_key	
-extra	on update CURRENT_TIMESTAMP
+extra	on update current_timestamp(4)
 select a, a+interval 9876543 microsecond from t1;
 a	a+interval 9876543 microsecond
 2010-12-11 01:02:03.4567	2010-12-11 01:02:13.333243
@@ -109,12 +109,12 @@ create table t3 like t1;
 show create table t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `a` timestamp(4) NOT NULL DEFAULT CURRENT_TIMESTAMP(4) ON UPDATE CURRENT_TIMESTAMP(4)
+  `a` timestamp(4) NOT NULL DEFAULT current_timestamp(4) ON UPDATE current_timestamp(4)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 show create table t3;
 Table	Create Table
 t3	CREATE TABLE `t3` (
-  `a` timestamp(4) NOT NULL DEFAULT CURRENT_TIMESTAMP(4) ON UPDATE CURRENT_TIMESTAMP(4)
+  `a` timestamp(4) NOT NULL DEFAULT current_timestamp(4) ON UPDATE current_timestamp(4)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 drop table t2, t3;
 insert t1 values ('2010-12-13 14:15:16.222222');
@@ -130,7 +130,7 @@ create table t3 select max(a), min(a), sum(a), avg(a) from t1;
 show create table t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `a` timestamp(4) NOT NULL DEFAULT CURRENT_TIMESTAMP(4) ON UPDATE CURRENT_TIMESTAMP(4),
+  `a` timestamp(4) NOT NULL DEFAULT current_timestamp(4) ON UPDATE current_timestamp(4),
   `a+0` decimal(25,4) NOT NULL,
   `a-1` decimal(25,4) NOT NULL,
   `a*1` decimal(25,4) NOT NULL,
@@ -276,13 +276,13 @@ create or replace table t1 (a timestamp(5) default current_timestamp);
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` timestamp(5) NOT NULL DEFAULT CURRENT_TIMESTAMP(5)
+  `a` timestamp(5) NOT NULL DEFAULT current_timestamp(5)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 create or replace table t1 (a timestamp(5) default current_timestamp());
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` timestamp(5) NOT NULL DEFAULT CURRENT_TIMESTAMP(5)
+  `a` timestamp(5) NOT NULL DEFAULT current_timestamp(5)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 create or replace table t1 (a timestamp(5) default current_timestamp(2));
 show create table t1;
@@ -298,25 +298,25 @@ create or replace table t1 (a timestamp(5) default current_timestamp(5));
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` timestamp(5) NOT NULL DEFAULT CURRENT_TIMESTAMP(5)
+  `a` timestamp(5) NOT NULL DEFAULT current_timestamp(5)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 create or replace table t1 (a timestamp(5) default current_timestamp(6));
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` timestamp(5) NOT NULL DEFAULT CURRENT_TIMESTAMP(5)
+  `a` timestamp(5) NOT NULL DEFAULT current_timestamp(5)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 create or replace table t1 (a timestamp(5) on update current_timestamp);
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` timestamp(5) NOT NULL DEFAULT '0000-00-00 00:00:00.00000' ON UPDATE CURRENT_TIMESTAMP(5)
+  `a` timestamp(5) NOT NULL DEFAULT '0000-00-00 00:00:00.00000' ON UPDATE current_timestamp(5)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 create or replace table t1 (a timestamp(5) on update current_timestamp());
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` timestamp(5) NOT NULL DEFAULT '0000-00-00 00:00:00.00000' ON UPDATE CURRENT_TIMESTAMP(5)
+  `a` timestamp(5) NOT NULL DEFAULT '0000-00-00 00:00:00.00000' ON UPDATE current_timestamp(5)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 create or replace table t1 (a timestamp(5) on update current_timestamp(3));
 ERROR HY000: Invalid ON UPDATE clause for 'a' column
@@ -324,12 +324,12 @@ create or replace table t1 (a timestamp(5) on update current_timestamp(5));
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` timestamp(5) NOT NULL DEFAULT '0000-00-00 00:00:00.00000' ON UPDATE CURRENT_TIMESTAMP(5)
+  `a` timestamp(5) NOT NULL DEFAULT '0000-00-00 00:00:00.00000' ON UPDATE current_timestamp(5)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 create or replace table t1 (a timestamp(5) on update current_timestamp(6));
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` timestamp(5) NOT NULL DEFAULT '0000-00-00 00:00:00.00000' ON UPDATE CURRENT_TIMESTAMP(5)
+  `a` timestamp(5) NOT NULL DEFAULT '0000-00-00 00:00:00.00000' ON UPDATE current_timestamp(5)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table t1;

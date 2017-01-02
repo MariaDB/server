@@ -1,0 +1,39 @@
+create table t1(a int not null primary key, b geometry not null) engine=innodb;
+ALTER ONLINE TABLE t1 ADD SPATIAL INDEX new(b);
+ERROR 0A000: LOCK=NONE is not supported. Reason: Do not support online operation on table with GIS index. Try LOCK=SHARED
+show warnings;
+Level	Code	Message
+Error	1846	LOCK=NONE is not supported. Reason: Do not support online operation on table with GIS index. Try LOCK=SHARED
+show errors;
+Level	Code	Message
+Error	1846	LOCK=NONE is not supported. Reason: Do not support online operation on table with GIS index. Try LOCK=SHARED
+ALTER ONLINE TABLE t1 ADD SPATIAL INDEX new(b), LOCK=SHARED;
+show warnings;
+Level	Code	Message
+show errors;
+Level	Code	Message
+drop table t1;
+create table t1(a int not null, b geometry not null, d int,spatial key c(b), key d(d)) engine=innodb;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) NOT NULL,
+  `b` geometry NOT NULL,
+  `d` int(11) DEFAULT NULL,
+  SPATIAL KEY `c` (`b`),
+  KEY `d` (`d`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+ALTER ONLINE TABLE t1 ADD PRIMARY KEY(a),DROP INDEX d;
+ERROR 0A000: LOCK=NONE is not supported. Reason: Do not support online operation on table with GIS index. Try LOCK=SHARED
+show warnings;
+Level	Code	Message
+Error	1846	LOCK=NONE is not supported. Reason: Do not support online operation on table with GIS index. Try LOCK=SHARED
+show errors;
+Level	Code	Message
+Error	1846	LOCK=NONE is not supported. Reason: Do not support online operation on table with GIS index. Try LOCK=SHARED
+ALTER ONLINE TABLE t1 ADD PRIMARY KEY(a),DROP INDEX d, LOCK=SHARED;
+show warnings;
+Level	Code	Message
+show errors;
+Level	Code	Message
+drop table t1;

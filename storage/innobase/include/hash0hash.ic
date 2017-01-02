@@ -85,7 +85,6 @@ hash_calc_hash(
 	return(ut_hash_ulint(fold, table->n_cells));
 }
 
-#ifndef UNIV_HOTBACKUP
 /************************************************************//**
 Gets the sync object index for a fold value in a hash table.
 @return index */
@@ -276,4 +275,3 @@ hash_lock_x_confirm(
 
 	return(hash_lock);
 }
-#endif /* !UNIV_HOTBACKUP */

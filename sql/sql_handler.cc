@@ -282,7 +282,7 @@ bool mysql_ha_open(THD *thd, TABLE_LIST *tables, SQL_HANDLER *reopen)
     back-off for such locks.
   */
   tables->mdl_request.init(MDL_key::TABLE, tables->db, tables->table_name,
-                           MDL_SHARED, MDL_TRANSACTION);
+                           MDL_SHARED_READ, MDL_TRANSACTION);
   mdl_savepoint= thd->mdl_context.mdl_savepoint();
 
   /* for now HANDLER can be used only for real TABLES */
@@ -486,56 +486,6 @@ bool mysql_ha_close(THD *thd, TABLE_LIST *tables)
 
 
 /**
-  A helper class to process an error from mysql_lock_tables().
-  HANDLER READ statement's attempt to lock the subject table
-  may get aborted if there is a pending DDL. In that case
-  we close the table, reopen it, and try to read again.
-  This is implicit and obscure, since HANDLER position
-  is lost in the process, but it's the legacy server
-  behaviour we should preserve.
-*/
-
-class Sql_handler_lock_error_handler: public Internal_error_handler
-{
-public:
-  virtual
-  bool handle_condition(THD *thd,
-                        uint sql_errno,
-                        const char *sqlstate,
-                        Sql_condition::enum_warning_level level,
-                        const char* msg,
-                        Sql_condition **cond_hdl);
-
-  bool need_reopen() const { return m_need_reopen; };
-  void init() { m_need_reopen= FALSE; };
-private:
-  bool m_need_reopen;
-};
-
-
-/**
-  Handle an error from mysql_lock_tables().
-  Ignore ER_LOCK_ABORTED errors.
-*/
-
-bool
-Sql_handler_lock_error_handler::
-handle_condition(THD *thd,
-                 uint sql_errno,
-                 const char *sqlstate,
-                 Sql_condition::enum_warning_level level,
-                 const char* msg,
-                 Sql_condition **cond_hdl)
-{
-  *cond_hdl= NULL;
-  if (sql_errno == ER_LOCK_ABORTED)
-    m_need_reopen= TRUE;
-
-  return m_need_reopen;
-}
-
-
-/**
    Finds an open HANDLER table.
 
    @params name		Name of handler to open
@@ -731,7 +681,7 @@ bool mysql_ha_read(THD *thd, TABLE_LIST *tables,
   int           error, keyno;
   uint          num_rows;
   uchar		*UNINIT_VAR(key);
-  Sql_handler_lock_error_handler sql_handler_lock_error;
+  MDL_deadlock_and_lock_abort_error_handler sql_handler_lock_error;
   DBUG_ENTER("mysql_ha_read");
   DBUG_PRINT("enter",("'%s'.'%s' as '%s'",
                       tables->db, tables->table_name, tables->alias));
@@ -750,11 +700,12 @@ retry:
   tables->table= table;                         // This is used by fix_fields
   table->pos_in_table_list= tables;
 
-  if (handler->lock->lock_count > 0)
+  if (handler->lock->table_count > 0)
   {
     int lock_error;
 
-    handler->lock->locks[0]->type= handler->lock->locks[0]->org_type;
+    if (handler->lock->lock_count > 0)
+      handler->lock->locks[0]->type= handler->lock->locks[0]->org_type;
 
     /* save open_tables state */
     TABLE* backup_open_tables= thd->open_tables;
@@ -928,9 +879,6 @@ retry:
       }
       goto ok;
     }
-    /* Generate values for virtual fields */
-    if (table->vfield)
-      update_virtual_fields(thd, table);
     if (cond && !cond->val_int())
     {
       if (thd->is_error())

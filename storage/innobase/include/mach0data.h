@@ -271,7 +271,7 @@ ib_uint64_t
 mach_u64_parse_compressed(
 	const byte**	ptr,
 	const byte*	end_ptr);
-#ifndef UNIV_HOTBACKUP
+
 /*********************************************************//**
 Reads a double. It is stored in a little-endian format.
 @return double read */
@@ -388,7 +388,6 @@ mach_read_ulint(
 	mlog_id_t	type)
 	MY_ATTRIBUTE((warn_unused_result));
 
-#endif /* !UNIV_HOTBACKUP */
 #endif /* !UNIV_INNOCHECKSUM */
 
 #ifndef UNIV_NONINL

@@ -498,145 +498,6 @@ PQRYRES JDBCDrivers(PGLOBAL g, int maxres, bool info)
 	return qrp;
 } // end of JDBCDrivers
 
-#if 0
-/*************************************************************************/
-/*  JDBCDataSources: constructs the result blocks containing all JDBC    */
-/*  data sources available on the local host.                            */
-/*  Called with info=true to have result column names.                   */
-/*************************************************************************/
-PQRYRES JDBCDataSources(PGLOBAL g, int maxres, bool info)
-{
-	int      buftyp[] ={ TYPE_STRING, TYPE_STRING };
-	XFLD     fldtyp[] ={ FLD_NAME, FLD_REM };
-	unsigned int length[] ={ 0, 256 };
-	bool     b[] ={ false, true };
-	int      i, n = 0, ncol = 2;
-	PCOLRES  crp;
-	PQRYRES  qrp;
-	JDBConn *jcp = NULL;
-
-	/************************************************************************/
-	/*  Do an evaluation of the result size.                                */
-	/************************************************************************/
-	if (!info) {
-		jcp = new(g)JDBConn(g, NULL);
-		n = jcp->GetMaxValue(SQL_MAX_DSN_LENGTH);
-		length[0] = (n) ? (n + 1) : 256;
-
-		if (!maxres)
-			maxres = 512;         // Estimated max number of data sources
-
-	} else {
-		length[0] = 256;
-		maxres = 0;
-	} // endif info
-
-	if (trace)
-		htrc("JDBCDataSources: max=%d len=%d\n", maxres, length[0]);
-
-	/************************************************************************/
-	/*  Allocate the structures used to refer to the result set.            */
-	/************************************************************************/
-	qrp = PlgAllocResult(g, ncol, maxres, IDS_DSRC,
-		buftyp, fldtyp, length, false, true);
-
-	for (i = 0, crp = qrp->Colresp; crp; i++, crp = crp->Next)
-		if (b[i])
-			crp->Kdata->SetNullable(true);
-
-	/************************************************************************/
-	/*  Now get the results into blocks.                                    */
-	/************************************************************************/
-	if (!info && qrp && jcp->GetDataSources(qrp))
-		qrp = NULL;
-
-	/************************************************************************/
-	/*  Return the result pointer for use by GetData routines.              */
-	/************************************************************************/
-	return qrp;
-} // end of JDBCDataSources
-
-/**************************************************************************/
-/*  PrimaryKeys: constructs the result blocks containing all the          */
-/*  JDBC catalog information concerning primary keys.                     */
-/**************************************************************************/
-PQRYRES JDBCPrimaryKeys(PGLOBAL g, JDBConn *op, char *dsn, char *table)
-{
-	static int buftyp[] ={ TYPE_STRING, TYPE_STRING, TYPE_STRING,
-		TYPE_STRING, TYPE_SHORT, TYPE_STRING };
-	static unsigned int length[] ={ 0, 0, 0, 0, 6, 128 };
-	int      n, ncol = 5;
-	int     maxres;
-	PQRYRES  qrp;
-	JCATPARM *cap;
-	JDBConn *jcp = op;
-
-	if (!op) {
-		/**********************************************************************/
-		/*  Open the connection with the JDBC data source.                    */
-		/**********************************************************************/
-		jcp = new(g)JDBConn(g, NULL);
-
-		if (jcp->Open(dsn, 2) < 1)        // 2 is openReadOnly
-			return NULL;
-
-	} // endif op
-
-	/************************************************************************/
-	/*  Do an evaluation of the result size.                                */
-	/************************************************************************/
-	n = jcp->GetMaxValue(SQL_MAX_COLUMNS_IN_TABLE);
-	maxres = (n) ? (int)n : 250;
-	n = jcp->GetMaxValue(SQL_MAX_CATALOG_NAME_LEN);
-	length[0] = (n) ? (n + 1) : 128;
-	n = jcp->GetMaxValue(SQL_MAX_SCHEMA_NAME_LEN);
-	length[1] = (n) ? (n + 1) : 128;
-	n = jcp->GetMaxValue(SQL_MAX_TABLE_NAME_LEN);
-	length[2] = (n) ? (n + 1) : 128;
-	n = jcp->GetMaxValue(SQL_MAX_COLUMN_NAME_LEN);
-	length[3] = (n) ? (n + 1) : 128;
-
-	if (trace)
-		htrc("JDBCPrimaryKeys: max=%d len=%d,%d,%d\n",
-		maxres, length[0], length[1], length[2]);
-
-	/************************************************************************/
-	/*  Allocate the structure used to refer to the result set.             */
-	/************************************************************************/
-	qrp = PlgAllocResult(g, ncol, maxres, IDS_PKEY,
-		buftyp, NULL, length, false, true);
-
-	if (trace)
-		htrc("Getting pkey results ncol=%d\n", qrp->Nbcol);
-
-	cap = AllocCatInfo(g, CAT_KEY, NULL, table, qrp);
-
-	/************************************************************************/
-	/*  Now get the results into blocks.                                    */
-	/************************************************************************/
-	if ((n = jcp->GetCatInfo(cap)) >= 0) {
-		qrp->Nblin = n;
-		//  ResetNullValues(cap);
-
-		if (trace)
-			htrc("PrimaryKeys: NBCOL=%d NBLIN=%d\n", qrp->Nbcol, qrp->Nblin);
-
-	} else
-		qrp = NULL;
-
-	/************************************************************************/
-	/*  Close any local connection.                                         */
-	/************************************************************************/
-	if (!op)
-		jcp->Close();
-
-	/************************************************************************/
-	/*  Return the result pointer for use by GetData routines.              */
-	/************************************************************************/
-	return qrp;
-} // end of JDBCPrimaryKeys
-#endif // 0
-
 /***********************************************************************/
 /*  JDBConn construction/destruction.                                  */
 /***********************************************************************/
@@ -651,7 +512,7 @@ JDBConn::JDBConn(PGLOBAL g, TDBJDBC *tdbp)
 	xqid = xuid = xid = grs = readid = fetchid = typid = errid = nullptr;
 	prepid = xpid = pcid = nullptr;
 	chrfldid = intfldid = dblfldid = fltfldid = bigfldid = nullptr;
-	datfldid = timfldid = tspfldid = nullptr;
+	objfldid = datfldid = timfldid = tspfldid = nullptr;
 	//m_LoginTimeout = DEFAULT_LOGIN_TIMEOUT;
 //m_QueryTimeout = DEFAULT_QUERY_TIMEOUT;
 //m_UpdateOptions = 0;
@@ -738,60 +599,6 @@ bool  JDBConn::gmID(PGLOBAL g, jmethodID& mid, const char *name, const char *sig
 		return false;
 
 } // end of gmID
-
-#if 0
-/***********************************************************************/
-/*  Utility routine.                                                   */
-/***********************************************************************/
-PSZ JDBConn::GetStringInfo(ushort infotype)
-{
-	//ASSERT(m_hdbc != SQL_NULL_HDBC);
-	char   *p, buffer[MAX_STRING_INFO];
-	SWORD   result;
-	RETCODE rc;
-
-	rc = SQLGetInfo(m_hdbc, infotype, buffer, sizeof(buffer), &result);
-
-	if (!Check(rc)) {
-		ThrowDJX(rc, "SQLGetInfo");  // Temporary
-		//  *buffer = '\0';
-	} // endif rc
-
-	p = PlugDup(m_G, buffer);
-	return p;
-} // end of GetStringInfo
-
-/***********************************************************************/
-/*  Utility routines.                                                  */
-/***********************************************************************/
-void JDBConn::OnSetOptions(HSTMT hstmt)
-{
-	RETCODE rc;
-	ASSERT(m_hdbc != SQL_NULL_HDBC);
-
-	if ((signed)m_QueryTimeout != -1) {
-		// Attempt to set query timeout.  Ignore failure
-		rc = SQLSetStmtOption(hstmt, SQL_QUERY_TIMEOUT, m_QueryTimeout);
-
-		if (!Check(rc))
-			// don't attempt it again
-			m_QueryTimeout = (DWORD)-1;
-
-	} // endif m_QueryTimeout
-
-	if (m_RowsetSize > 0) {
-		// Attempt to set rowset size.
-		// In case of failure reset it to 0 to use Fetch.
-		rc = SQLSetStmtOption(hstmt, SQL_ROWSET_SIZE, m_RowsetSize);
-
-		if (!Check(rc))
-			// don't attempt it again
-			m_RowsetSize = 0;
-
-	} // endif m_RowsetSize
-
-} // end of OnSetOptions
-#endif // 0
 
 /***********************************************************************/
 /*  Utility routine.                                                   */
@@ -1007,7 +814,7 @@ int JDBConn::Open(PJPARM sop)
 #define N 1
 #endif
 
-		// Java source will be compiled as ajar file installed in the plugin dir
+		// Java source will be compiled as a jar file installed in the plugin dir
 		jpop->Append(sep);
 		jpop->Append(GetPluginDir());
 		jpop->Append("JdbcInterface.jar");
@@ -1204,6 +1011,21 @@ int JDBConn::Open(PJPARM sop)
 		return RC_FX;
 	}	// endif Msg
 
+	jmethodID qcid = nullptr;
+
+	if (!gmID(g, qcid, "GetQuoteString", "()Ljava/lang/String;")) {
+		jstring s = (jstring)env->CallObjectMethod(job, qcid);
+
+		if (s != nullptr) {
+			char *qch = (char*)env->GetStringUTFChars(s, (jboolean)false);
+			m_IDQuoteChar[0] = *qch;
+		} else {
+			s = (jstring)env->CallObjectMethod(job, errid);
+			Msg = (char*)env->GetStringUTFChars(s, (jboolean)false);
+		}	// endif s
+
+	}	// endif qcid
+
 	if (gmID(g, typid, "ColumnType", "(ILjava/lang/String;)I"))
 		return RC_FX;
 	else
@@ -1345,9 +1167,10 @@ void JDBConn::Close()
 /***********************************************************************/
 void JDBConn::SetColumnValue(int rank, PSZ name, PVAL val)
 {
-	PGLOBAL&   g = m_G;
-	jint       ctyp;
-	jstring    cn, jn = nullptr;
+	PGLOBAL& g = m_G;
+	jint     ctyp;
+	jstring  cn, jn = nullptr;
+	jobject  jb = nullptr;
 
 	if (rank == 0)
 		if (!name || (jn = env->NewStringUTF(name)) == nullptr) {
@@ -1363,21 +1186,32 @@ void JDBConn::SetColumnValue(int rank, PSZ name, PVAL val)
 		longjmp(g->jumper[g->jump_level], TYPE_AM_JDBC);
 	} // endif Check
 
+	if (val->GetNullable())
+		if (!gmID(g, objfldid, "ObjectField", "(ILjava/lang/String;)Ljava/lang/Object;")) {
+			jb = env->CallObjectMethod(job, objfldid, (jint)rank, jn);
+
+			if (jb == nullptr) {
+				val->Reset();
+				val->SetNull(true);
+				goto chk;
+			}	// endif job
+
+		}	// endif objfldid
+
 	switch (ctyp) {
 	case 12:          // VARCHAR
 	case -1:          // LONGVARCHAR
 	case 1:           // CHAR
-		if (!gmID(g, chrfldid, "StringField", "(ILjava/lang/String;)Ljava/lang/String;")) {
+		if (jb)
+			cn = (jstring)jb;
+		else if (!gmID(g, chrfldid, "StringField", "(ILjava/lang/String;)Ljava/lang/String;"))
 			cn = (jstring)env->CallObjectMethod(job, chrfldid, (jint)rank, jn);
+		else
+			cn = nullptr;
 
-			if (cn) {
-				const char *field = env->GetStringUTFChars(cn, (jboolean)false);
-				val->SetValue_psz((PSZ)field);
-			} else {
-				val->Reset();
-				val->SetNull(true);
-			} // endif cn
-
+		if (cn) {
+			const char *field = env->GetStringUTFChars(cn, (jboolean)false);
+			val->SetValue_psz((PSZ)field);
 		} else
 			val->Reset();
 
@@ -1449,6 +1283,7 @@ void JDBConn::SetColumnValue(int rank, PSZ name, PVAL val)
 		val->Reset();
 	} // endswitch Type
 
+ chk:
 	if (Check()) {
 		if (rank == 0)
 			env->DeleteLocalRef(jn);

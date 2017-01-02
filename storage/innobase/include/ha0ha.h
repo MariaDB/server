@@ -174,7 +174,7 @@ ha_search_and_delete_if_found(
 	hash_table_t*	table,	/*!< in: hash table */
 	ulint		fold,	/*!< in: folded value of the searched data */
 	const rec_t*	data);	/*!< in: pointer to the data */
-#ifndef UNIV_HOTBACKUP
+
 /*****************************************************************//**
 Removes from the chain determined by fold all nodes whose data pointer
 points to the page given. */
@@ -202,7 +202,6 @@ ha_print_info(
 /*==========*/
 	FILE*		file,	/*!< in: file where to print */
 	hash_table_t*	table);	/*!< in: hash table */
-#endif /* !UNIV_HOTBACKUP */
 
 /** The hash table external chain node */
 struct ha_node_t {

@@ -1761,3 +1761,9 @@ drop function f1;
 #
 --error ER_TABLE_MUST_HAVE_COLUMNS
 create table t1;
+
+#
+# MDEV-11231 Server crashes in check_duplicate_key on CREATE TABLE ... SELECT
+#
+create table t1 (i int, j int, key(i), key(i)) as select 1 as i, 2 as j;
+drop table t1;

@@ -36,7 +36,6 @@ Created 12/27/1996 Heikki Tuuri
 #include "dict0mem.h"
 #include "trx0undo.h"
 #include "rem0rec.h"
-#ifndef UNIV_HOTBACKUP
 #include "dict0boot.h"
 #include "dict0crea.h"
 #include "mach0data.h"
@@ -58,7 +57,6 @@ Created 12/27/1996 Heikki Tuuri
 #include "fts0fts.h"
 #include "fts0types.h"
 #include <algorithm>
-
 #include <mysql/plugin.h>
 #include <mysql/service_wsrep.h>
 
@@ -126,7 +124,6 @@ row_upd_changes_first_fields_binary(
 	dict_index_t*	index,	/*!< in: index of entry */
 	const upd_t*	update,	/*!< in: update vector for the row */
 	ulint		n);	/*!< in: how many first fields to check */
-
 
 /*********************************************************************//**
 Checks if index currently is mentioned as a referenced index in a foreign
@@ -454,7 +451,6 @@ upd_node_create(
 
 	return(node);
 }
-#endif /* !UNIV_HOTBACKUP */
 
 /*********************************************************************//**
 Updates the trx id and roll ptr field in a clustered index record in database
@@ -488,7 +484,6 @@ row_upd_rec_sys_fields_in_recovery(
 	}
 }
 
-#ifndef UNIV_HOTBACKUP
 /*********************************************************************//**
 Sets the trx id or roll ptr field of a clustered index entry. */
 void
@@ -633,7 +628,6 @@ row_upd_changes_disowned_external(
 
 	return(false);
 }
-#endif /* !UNIV_HOTBACKUP */
 
 /***********************************************************//**
 Replaces the new column values stored in the update vector to the
@@ -689,7 +683,6 @@ row_upd_rec_in_place(
 	}
 }
 
-#ifndef UNIV_HOTBACKUP
 /*********************************************************************//**
 Writes into the redo log the values of trx id and roll ptr and enough info
 to determine their positions within a clustered index record.
@@ -718,7 +711,6 @@ row_upd_write_sys_vals_to_log(
 
 	return(log_ptr);
 }
-#endif /* !UNIV_HOTBACKUP */
 
 /*********************************************************************//**
 Parses the log data of system field values.
@@ -752,7 +744,6 @@ row_upd_parse_sys_vals(
 	return(const_cast<byte*>(ptr));
 }
 
-#ifndef UNIV_HOTBACKUP
 /***********************************************************//**
 Writes to the redo log the new values of the fields occurring in the index. */
 void
@@ -830,7 +821,6 @@ row_upd_index_write_log(
 
 	mlog_close(mtr, log_ptr);
 }
-#endif /* !UNIV_HOTBACKUP */
 
 /*********************************************************************//**
 Parses the log data written by row_upd_index_write_log.
@@ -917,7 +907,6 @@ row_upd_index_parse(
 	return(const_cast<byte*>(ptr));
 }
 
-#ifndef UNIV_HOTBACKUP
 /***************************************************************//**
 Builds an update vector from those fields which in a secondary index entry
 differ from a record that has the equal ordering fields. NOTE: we compare
@@ -1032,9 +1021,8 @@ row_upd_build_difference_binary(
 	n_diff = 0;
 
 	trx_id_pos = dict_index_get_sys_col_pos(index, DATA_TRX_ID);
-	ut_ad(dict_table_is_intrinsic(index->table)
-	      || (dict_index_get_sys_col_pos(index, DATA_ROLL_PTR)
-			== trx_id_pos + 1));
+	ut_ad(dict_index_get_sys_col_pos(index, DATA_ROLL_PTR)
+	      == trx_id_pos + 1);
 
 	if (!offsets) {
 		offsets = rec_get_offsets(rec, index, offsets_,
@@ -1058,8 +1046,7 @@ row_upd_build_difference_binary(
 			}
 
 			/* DB_ROLL_PTR */
-			if (i == trx_id_pos + 1
-			    && !dict_table_is_intrinsic(index->table)) {
+			if (i == trx_id_pos + 1) {
 				continue;
 			}
 		}
@@ -1078,7 +1065,6 @@ row_upd_build_difference_binary(
 		}
 	}
 
-#ifdef MYSQL_VIRTUAL_COLUMNS
 	/* Check the virtual columns updates. Even if there is no non-virtual
 	column (base columns) change, we will still need to build the
 	indexed virtual column value so that undo log would log them (
@@ -1143,7 +1129,6 @@ row_upd_build_difference_binary(
 			mem_heap_free(v_heap);
 		}
 	}
-#endif /* MYSQL_VIRTUAL_COLUMNS */
 
 	update->n_fields = n_diff;
 	ut_ad(update->validate());
@@ -2063,7 +2048,6 @@ row_upd_eval_new_vals(
 	}
 }
 
-#ifdef MYSQL_VIRTUAL_COLUMNS
 /** Stores to the heap the virtual columns that need for any indexes
 @param[in,out]	node		row update node
 @param[in]	update		an update vector if it is update
@@ -2142,7 +2126,6 @@ row_upd_store_v_row(
 		mem_heap_free(heap);
 	}
 }
-#endif /* MYSQL_VIRTUAL_COLUMNS */
 
 /** Stores to the heap the row on which the node->pcur is positioned.
 @param[in]	node		row update node
@@ -2192,12 +2175,10 @@ row_upd_store_row(
 	node->row = row_build(ROW_COPY_DATA, clust_index, rec, offsets,
 			      NULL, NULL, NULL, ext, node->heap);
 
-#ifdef MYSQL_VIRTUAL_COLUMNS
 	if (node->table->n_v_cols) {
 		row_upd_store_v_row(node, node->is_delete ? NULL : node->update,
 				    thd, mysql_table);
 	}
-#endif /* MYSQL_VIRTUAL_COLUMNS */
 
 	if (node->is_delete) {
 		node->upd_row = NULL;
@@ -2232,7 +2213,6 @@ srv_mbr_print(const byte* data)
 		<< ", " << d << "\n";
 }
 
-
 /***********************************************************//**
 Updates a secondary index entry of a row.
 @return DB_SUCCESS if operation successfully completed, else error
@@ -2255,7 +2235,7 @@ row_upd_sec_index_entry(
 	dberr_t			err	= DB_SUCCESS;
 	trx_t*			trx	= thr_get_trx(thr);
 	ulint			mode;
-	ulint			flags = 0;
+	ulint			flags;
 	enum row_search_result	search_result;
 
 	ut_ad(trx->id != 0);
@@ -2273,9 +2253,7 @@ row_upd_sec_index_entry(
 	entry = row_build_index_entry(node->row, node->ext, index, heap);
 	ut_a(entry);
 
-	if (!dict_table_is_intrinsic(index->table)) {
-		log_free_check();
-	}
+	log_free_check();
 
 	DEBUG_SYNC_C_IF_THD(trx->mysql_thd,
 			    "before_row_upd_sec_index_entry");
@@ -2288,12 +2266,10 @@ row_upd_sec_index_entry(
 	on restart for recovery.
 	Disable locking as temp-tables are not shared across connection. */
 	if (dict_table_is_temporary(index->table)) {
-		flags |= BTR_NO_LOCKING_FLAG;
+		flags = BTR_NO_LOCKING_FLAG;
 		mtr.set_log_mode(MTR_LOG_NO_REDO);
-
-		if (dict_table_is_intrinsic(index->table)) {
-			flags |= BTR_NO_UNDO_LOG_FLAG;
-		}
+	} else {
+		flags = 0;
 	}
 
 	if (!index->is_committed()) {
@@ -2400,7 +2376,8 @@ row_upd_sec_index_entry(
 			<< " of table " << index->table->name
 			<< " was not found on update: " << *entry
 			<< " at: " << rec_index_print(rec, index);
-		srv_mbr_print((unsigned char*)entry->fields[0].data);
+		if (entry->fields[0].data)
+			srv_mbr_print((unsigned char*)entry->fields[0].data);
 #ifdef UNIV_DEBUG
 		mtr_commit(&mtr);
 		mtr_start(&mtr);
@@ -2410,7 +2387,6 @@ row_upd_sec_index_entry(
 		break;
 	case ROW_FOUND:
 		ut_ad(err == DB_SUCCESS);
-
 
 		/* Delete mark the old index record; it can already be
 		delete marked if we return after a lock wait in
@@ -2877,10 +2853,6 @@ row_upd_clust_rec(
 	if (dict_table_is_temporary(index->table)) {
 		flags |= BTR_NO_LOCKING_FLAG;
 		mtr->set_log_mode(MTR_LOG_NO_REDO);
-
-		if (dict_table_is_intrinsic(index->table)) {
-			flags |= BTR_NO_UNDO_LOG_FLAG;
-		}
 	}
 
 	/* NOTE: this transaction has an s-lock or x-lock on the record and
@@ -3058,7 +3030,7 @@ row_upd_clust_step(
 	ulint		offsets_[REC_OFFS_NORMAL_SIZE];
 	ulint*		offsets;
 	ibool		referenced;
-	ulint		flags	= 0;
+	ulint		flags;
 	ibool		foreign = FALSE;
 	trx_t*		trx = thr_get_trx(thr);
 
@@ -3085,12 +3057,10 @@ row_upd_clust_step(
 	on restart for recovery.
 	Disable locking as temp-tables are not shared across connection. */
 	if (dict_table_is_temporary(index->table)) {
-		flags |= BTR_NO_LOCKING_FLAG;
+		flags = BTR_NO_LOCKING_FLAG;
 		mtr.set_log_mode(MTR_LOG_NO_REDO);
-
-		if (dict_table_is_intrinsic(index->table)) {
-			flags |= BTR_NO_UNDO_LOG_FLAG;
-		}
+	} else {
+		flags = 0;
 	}
 
 	/* If the restoration does not succeed, then the same
@@ -3265,8 +3235,6 @@ row_upd(
 	dberr_t		err	= DB_SUCCESS;
 	DBUG_ENTER("row_upd");
 
-	ut_ad(node != NULL);
-	ut_ad(thr != NULL);
 	ut_ad(!thr_get_trx(thr)->in_rollback);
 
 	DBUG_PRINT("row_upd", ("table: %s", node->table->name.m_name));
@@ -3292,9 +3260,8 @@ row_upd(
 	switch (node->state) {
 	case UPD_NODE_UPDATE_CLUSTERED:
 	case UPD_NODE_INSERT_CLUSTERED:
-		if (!dict_table_is_intrinsic(node->table)) {
-			log_free_check();
-		}
+		log_free_check();
+
 		err = row_upd_clust_step(node, thr);
 
 		if (err != DB_SUCCESS) {
@@ -3531,4 +3498,3 @@ void upd_node_t::dbug_trace()
 	DBUG_VOID_RETURN;
 }
 #endif /* !DBUG_OFF */
-#endif /* !UNIV_HOTBACKUP */
