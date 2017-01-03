@@ -1705,6 +1705,7 @@ srv_export_innodb_status(void)
 		scrub_stat.page_split_failures_missing_index;
 	export_vars.innodb_scrub_page_split_failures_unknown =
 		scrub_stat.page_split_failures_unknown;
+	export_vars.innodb_scrub_log = srv_stats.n_log_scrubs;
 
 	mutex_exit(&srv_innodb_monitor_mutex);
 }

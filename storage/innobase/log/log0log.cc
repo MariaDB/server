@@ -2,7 +2,7 @@
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2009, Google Inc.
-Copyright (C) 2014, 2016, MariaDB Corporation. All Rights Reserved.
+Copyright (C) 2014, 2017, MariaDB Corporation. All Rights Reserved.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -2552,6 +2552,10 @@ log_pad_current_log_block(void)
 		pad_length = 0;
 	}
 
+	if (pad_length) {
+		srv_stats.n_log_scrubs.inc();
+	}
+
 	for (i = 0; i < pad_length; i++) {
 		log_write_low(&b, 1);
 	}
@@ -2571,6 +2575,7 @@ void
 log_scrub()
 /*=========*/
 {
+	log_mutex_enter();
 	ulint cur_lbn = log_block_convert_lsn_to_no(log_sys->lsn);
 
 	if (next_lbn_to_pad == cur_lbn)
@@ -2579,6 +2584,7 @@ log_scrub()
 	}
 
 	next_lbn_to_pad = log_block_convert_lsn_to_no(log_sys->lsn);
+	log_mutex_exit();
 }
 
 /* log scrubbing speed, in bytes/sec */

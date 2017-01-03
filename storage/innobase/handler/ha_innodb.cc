@@ -1273,6 +1273,9 @@ static SHOW_VAR innodb_status_variables[]= {
   {"scrub_background_page_split_failures_unknown",
    (char*) &export_vars.innodb_scrub_page_split_failures_unknown,
    SHOW_LONG},
+  {"scrub_log",
+   (char*) &export_vars.innodb_scrub_log,
+   SHOW_LONGLONG},
   {"encryption_num_key_requests",
    (char*) &export_vars.innodb_encryption_key_requests, SHOW_LONGLONG},
 

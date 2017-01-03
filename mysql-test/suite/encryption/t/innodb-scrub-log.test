@@ -1,0 +1,13 @@
+--source include/have_innodb.inc
+
+#
+# MDEV-11705: InnoDB: Failing assertion: (&log_sys->mutex)->is_owned() if server started with innodb-scrub-log
+#
+
+create table t1(a int not null primary key auto_increment,
+b varchar(200), c char(100), d varchar(150)) engine=innodb;
+
+let $wait_condition= SELECT variable_value FROM information_schema.global_status WHERE variable_name = 'innodb_scrub_log';
+--source include/wait_condition.inc
+
+DROP TABLE t1;

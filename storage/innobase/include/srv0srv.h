@@ -3,7 +3,7 @@
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All rights reserved.
 Copyright (c) 2008, 2009, Google Inc.
 Copyright (c) 2009, Percona Inc.
-Copyright (c) 2013, 2016, MariaDB Corporation
+Copyright (c) 2013, 2017, MariaDB Corporation
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -194,6 +194,9 @@ struct srv_stats_t {
 
 	/** Number of encryption_get_latest_key_version calls */
 	ulint_ctr_64_t		n_key_requests;
+
+	/** Number of log scrub operations */
+	ulint_ctr_64_t		n_log_scrubs;
 };
 
 extern const char*	srv_main_thread_op_info;
@@ -1118,6 +1121,7 @@ struct export_var_t{
 	ulint innodb_scrub_page_split_failures_out_of_filespace;
 	ulint innodb_scrub_page_split_failures_missing_index;
 	ulint innodb_scrub_page_split_failures_unknown;
+	int64_t innodb_scrub_log;
 };
 
 /** Thread slot in the thread table.  */
