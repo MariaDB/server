@@ -3,6 +3,7 @@
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All rights reserved.
 Copyright (c) 2008, Google Inc.
 Copyright (c) 2009, Percona Inc.
+Copyright (c) 2017, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -2774,12 +2775,6 @@ files_checked:
 		if (err != DB_SUCCESS) {
 			return(err);
 		}
-	}
-
-	/* Create the SYS_ZIP_DICT system table */
-	err = dict_create_or_check_sys_zip_dict();
-	if (err != DB_SUCCESS) {
-		return(err);
 	}
 
 	srv_is_being_started = FALSE;
