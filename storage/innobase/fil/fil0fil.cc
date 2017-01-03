@@ -1691,12 +1691,17 @@ fil_space_create(
 		space->page_0_crypt_read = true;
 	}
 
-#ifdef UNIV_DEBUG
-	ib::info() << "Created tablespace for space " << space->id
-		<< " name " << space->name
-		<< " key_id " << (space->crypt_data ? space->crypt_data->key_id : 0)
-		<< " encryption " << (space->crypt_data ? space->crypt_data->encryption : 0);
-#endif
+	DBUG_LOG("tablespace",
+		 "Tablespace for space " << id << " name " << name
+		 << create_table ? " created" : " opened");
+	if (crypt_data) {
+		DBUG_LOG("crypt",
+			 "Tablespace " << id << " name " << name
+			 << " encryption " << crypt_data->encryption
+			 << " key id " << crypt_data->key_id
+			 << ":" << fil_crypt_get_mode(crypt_data)
+			 << " " << fil_crypt_get_type(crypt_data));
+	}
 
 	space->encryption_type = Encryption::NONE;
 
@@ -1717,15 +1722,6 @@ fil_space_create(
 
 		fil_system->max_assigned_id = id;
 	}
-
-#ifdef UNIV_DEBUG
-	if (crypt_data) {
-		/* If table could be encrypted print info */
-		ib::info() << "Tablespace ID " << id << " name " << space->name
-			   << ":" << fil_crypt_get_mode(crypt_data)
-			   << " " << fil_crypt_get_type(crypt_data);
-	}
-#endif
 
 	mutex_exit(&fil_system->mutex);
 

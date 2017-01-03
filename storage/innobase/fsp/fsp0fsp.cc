@@ -3730,10 +3730,14 @@ fseg_free_page(
 				the adaptive hash index */
 	mtr_t*		mtr)	/*!< in/out: mini-transaction */
 {
+	DBUG_ENTER("fseg_free_page");
 	fseg_inode_t*		seg_inode;
 	buf_block_t*		iblock;
 	const fil_space_t*	space = mtr_x_lock_space(space_id, mtr);
 	const page_size_t	page_size(space->flags);
+
+	DBUG_LOG("fseg_free_page", "space_id: " << space_id
+		 << ", page_no: " << page);
 
 	seg_inode = fseg_inode_get(seg_header, space_id, page_size, mtr,
 				   &iblock);
@@ -3744,6 +3748,8 @@ fseg_free_page(
 	fseg_free_page_low(seg_inode, page_id, page_size, ahi, mtr);
 
 	ut_d(buf_page_set_file_page_was_freed(page_id));
+
+	DBUG_VOID_RETURN;
 }
 
 /**********************************************************************//**

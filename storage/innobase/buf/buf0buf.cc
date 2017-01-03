@@ -128,11 +128,6 @@ struct set_numa_interleave_t
 #define NUMA_MEMPOLICY_INTERLEAVE_IN_SCOPE
 #endif /* HAVE_LIBNUMA */
 
-/* Enable this for checksum error messages. */
-//#ifdef UNIV_DEBUG
-//#define UNIV_DEBUG_LEVEL2 1
-//#endif
-
 /*
 		IMPLEMENTATION OF THE BUFFER POOL
 		=================================
@@ -661,12 +656,10 @@ buf_page_is_checksum_valid_crc32(
 	}
 
 invalid:
-#ifdef UNIV_DEBUG_LEVEL2
-	ib::info() << "Page checksum crc32 not valid"
+	DBUG_LOG("checksum", "Page checksum crc32 not valid"
 		   << " field1 " << checksum_field1
 		   << " field2 " << checksum_field2
-		   << " crc32 " << crc32;
-#endif
+		 << " crc32 " << crc32);
 	return(false);
 }
 
@@ -738,13 +731,13 @@ buf_page_is_checksum_valid_innodb(
 
 	if (checksum_field2 != mach_read_from_4(read_buf + FIL_PAGE_LSN)
 	    && checksum_field2 != old_checksum) {
-#ifdef UNIV_DEBUG_LEVEL2
-		ib::info() << "Page checksum crc32 not valid"
-			   << " field1 " << checksum_field1
-			   << " field2 " << checksum_field2
-			   << " crc32 " << buf_calc_page_old_checksum(read_buf)
-			   << " lsn " << mach_read_from_4(read_buf + FIL_PAGE_LSN);
-#endif
+		DBUG_LOG("checksum",
+			 "Page checksum crc32 not valid"
+			 << " field1 " << checksum_field1
+			 << " field2 " << checksum_field2
+			 << " crc32 " << buf_calc_page_old_checksum(read_buf)
+			 << " lsn " << mach_read_from_4(
+				 read_buf + FIL_PAGE_LSN));
 		return(false);
 	}
 
@@ -754,13 +747,13 @@ buf_page_is_checksum_valid_innodb(
 	(always equal to 0), to FIL_PAGE_SPACE_OR_CHKSUM */
 
 	if (checksum_field1 != 0 && checksum_field1 != new_checksum) {
-#ifdef UNIV_DEBUG_LEVEL2
-		ib::info() << "Page checksum crc32 not valid"
-			   << " field1 " << checksum_field1
-			   << " field2 " << checksum_field2
-			   << " crc32 " << buf_calc_page_new_checksum(read_buf)
-			   << " lsn " << mach_read_from_4(read_buf + FIL_PAGE_LSN);
-#endif
+		DBUG_LOG("checksum",
+			 "Page checksum crc32 not valid"
+			 << " field1 " << checksum_field1
+			 << " field2 " << checksum_field2
+			 << " crc32 " << buf_calc_page_new_checksum(read_buf)
+			 << " lsn " << mach_read_from_4(
+				 read_buf + FIL_PAGE_LSN));
 		return(false);
 	}
 
@@ -790,13 +783,16 @@ buf_page_is_checksum_valid_none(
 #endif	/* UNIV_INNOCHECKSUM */
 	)
 {
-#ifdef UNIV_DEBUG_LEVEL2
-	if (!(checksum_field1 == checksum_field2 || checksum_field1 == BUF_NO_CHECKSUM_MAGIC)) {
-		ib::info() << "Page checksum crc32 not valid"
-			   << " field1 " << checksum_field1
-			   << " field2 " << checksum_field2
-			   << " crc32 " << BUF_NO_CHECKSUM_MAGIC
-			   << " lsn " << mach_read_from_4(read_buf + FIL_PAGE_LSN);
+#ifndef DBUG_OFF
+	if (checksum_field1 != checksum_field2
+	    && checksum_field1 != BUF_NO_CHECKSUM_MAGIC) {
+		DBUG_LOG("checksum",
+			 "Page checksum crc32 not valid"
+			 << " field1 " << checksum_field1
+			 << " field2 " << checksum_field2
+			 << " crc32 " << BUF_NO_CHECKSUM_MAGIC
+			 << " lsn " << mach_read_from_4(read_buf
+							+ FIL_PAGE_LSN));
 	}
 #endif
 
@@ -3466,12 +3462,6 @@ page_found:
 	because we don't want to read any stale information in
 	buf_pool->watch[]. However, it is not in the critical code path
 	as this function will be called only by the purge thread. */
-
-/* Enable this for checksum error messages. Currently on by
-default on UNIV_DEBUG for encryption bugs. */
-#ifdef UNIV_DEBUG
-#define UNIV_DEBUG_LEVEL2 1
-#endif
 
 	/* To obey latching order first release the hash_lock. */
 	rw_lock_x_unlock(*hash_lock);
