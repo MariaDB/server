@@ -18,6 +18,15 @@ Variable_name	Value
 wsrep_cluster_status	non-Primary
 SELECT * FROM t1;
 ERROR 08S01: WSREP has not yet prepared node for application use
+SELECT @@wsrep_dirty_reads;
+@@wsrep_dirty_reads
+0
+SELECT 2;
+2
+2
+SELECT 2+2 FROM DUAL;
+2+2
+4
 SET @@session.wsrep_dirty_reads=ON;
 SELECT * FROM t1;
 i

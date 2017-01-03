@@ -288,6 +288,7 @@ void init_update_queries(void)
   server_command_flags[COM_STMT_RESET]= CF_SKIP_QUESTIONS | CF_SKIP_WSREP_CHECK;
   server_command_flags[COM_STMT_EXECUTE]= CF_SKIP_WSREP_CHECK;
   server_command_flags[COM_STMT_SEND_LONG_DATA]= CF_SKIP_WSREP_CHECK;
+  server_command_flags[COM_REGISTER_SLAVE]= CF_SKIP_WSREP_CHECK;
 
   /* Initialize the sql command flags array. */
   memset(sql_command_flags, 0, sizeof(sql_command_flags));
@@ -2651,7 +2652,7 @@ mysql_execute_command(THD *thd)
     /*
       Bail out if DB snapshot has not been installed. SET and SHOW commands,
       however, are always allowed.
-
+      Select query is also allowed if it does not access any table.
       We additionally allow all other commands that do not change data in
       case wsrep_dirty_reads is enabled.
     */
@@ -2659,6 +2660,8 @@ mysql_execute_command(THD *thd)
         !wsrep_is_show_query(lex->sql_command) &&
         !(thd->variables.wsrep_dirty_reads     &&
           !is_update_query(lex->sql_command))  &&
+        !(lex->sql_command == SQLCOM_SELECT    &&
+          !all_tables)                         &&
         !wsrep_node_is_ready(thd))
       goto error;
   }
