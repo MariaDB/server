@@ -8758,17 +8758,22 @@ bool Item_default_value::fix_fields(THD *thd, Item **items)
     goto error;
   memcpy((void *)def_field, (void *)field_arg->field,
          field_arg->field->size_of());
-  def_field->move_field_offset((my_ptrdiff_t)
-                               (def_field->table->s->default_values -
-                                def_field->table->record[0]));
-  set_field(def_field);
-  if (field->default_value)
+  IF_DBUG(def_field->is_stat_field=1,); // a hack to fool ASSERT_COLUMN_MARKED_FOR_WRITE_OR_COMPUTED
+  if (def_field->default_value && def_field->default_value->flags)
   {
-    fix_session_vcol_expr_for_read(thd, field, field->default_value);
+    uchar *newptr= (uchar*) thd->alloc(1+def_field->pack_length());
+    if (!newptr)
+      goto error;
+    fix_session_vcol_expr_for_read(thd, def_field, def_field->default_value);
     if (thd->mark_used_columns != MARK_COLUMNS_NONE)
-      field->default_value->expr->walk(&Item::register_field_in_read_map, 1, 0);
-    IF_DBUG(def_field->is_stat_field=1,); // a hack to fool ASSERT_COLUMN_MARKED_FOR_WRITE_OR_COMPUTED
+      def_field->default_value->expr->walk(&Item::register_field_in_read_map, 1, 0);
+    def_field->move_field(newptr+1, def_field->maybe_null() ? newptr : 0, 1);
   }
+  else
+    def_field->move_field_offset((my_ptrdiff_t)
+                                 (def_field->table->s->default_values -
+                                  def_field->table->record[0]));
+  set_field(def_field);
   return FALSE;
 
 error:
@@ -8793,6 +8798,7 @@ void Item_default_value::calculate()
 {
   if (field->default_value)
     field->set_default();
+  DEBUG_SYNC(field->table->in_use, "after_Item_default_value_calculate");
 }
 
 String *Item_default_value::val_str(String *str)
