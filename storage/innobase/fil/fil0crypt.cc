@@ -2477,6 +2477,9 @@ void
 fil_crypt_threads_cleanup()
 /*=======================*/
 {
+	if (!fil_crypt_threads_inited) {
+		return;
+	}
 	os_event_free(fil_crypt_event);
 	os_event_free(fil_crypt_threads_event);
 	mutex_free(&fil_crypt_threads_mutex);
