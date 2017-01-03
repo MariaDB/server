@@ -42,7 +42,7 @@ Usage: $0 [-h|-n] [configure-options]
                           Influences the debug flags. Old is default.
   --prefix=path           Build with prefix 'path'.
 
-Note: this script is intended for internal use by MySQL developers.
+Note: this script is intended for internal use by MariaDB developers.
 EOF
 }
 
