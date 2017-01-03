@@ -2465,8 +2465,9 @@ void
 fil_crypt_threads_end()
 /*===================*/
 {
-	/* stop threads */
-	fil_crypt_set_thread_cnt(0);
+	if (fil_crypt_threads_inited) {
+		fil_crypt_set_thread_cnt(0);
+	}
 }
 
 /*********************************************************************
