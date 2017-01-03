@@ -846,7 +846,7 @@ buf_page_is_corrupted(
 	ulint		checksum_field2;
 	bool page_encrypted = false;
 
-#ifndef UNIV_INNOCHECKSUM // FIXME see also encryption.innochecksum test
+#ifndef UNIV_INNOCHECKSUM
 	ulint 		space_id = mach_read_from_4(
 		read_buf + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID);
 	fil_space_crypt_t* crypt_data = fil_space_get_crypt_data(space_id);
@@ -859,6 +859,12 @@ buf_page_is_corrupted(
 	    fil_page_is_encrypted(read_buf)) {
 		page_encrypted = true;
 	}
+#else
+	if (mach_read_from_4(read_buf+FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION) != 0
+	    || mach_read_from_2(read_buf+FIL_PAGE_TYPE) == FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED) {
+		page_encrypted = true;
+	}
+
 #endif
 
 	DBUG_EXECUTE_IF("buf_page_is_corrupt_failure", return(TRUE); );

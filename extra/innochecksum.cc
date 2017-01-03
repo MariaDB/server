@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2005, 2016, Oracle and/or its affiliates. All rights reserved.
-   Copyright (c) 2014, 2016, MariaDB Corporation.
+   Copyright (c) 2014, 2017, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -69,6 +69,24 @@ The parts not included are excluded by #ifndef UNIV_INNOCHECKSUM. */
 #ifndef PRIuMAX
 #define PRIuMAX   "llu"
 #endif
+
+/*********************************************************************
+Verify checksum for a page (iff it's encrypted)
+NOTE: currently this function can only be run in single threaded mode
+as it modifies srv_checksum_algorithm (temporarily)
+@param[in]	src_fame	page to verify
+@param[in]	page_size	page_size
+@param[in]	page_no		page number of given read_buf
+@param[in]	strict_check	true if strict-check option is enabled
+@return true if page is encrypted AND OK, false otherwise */
+UNIV_INTERN
+bool
+fil_space_verify_crypt_checksum(
+/*============================*/
+	const byte* 		src_frame,	/*!< in: page the verify */
+	const page_size_t&	page_size	/*!< in: page size */
+	,uintmax_t 		page_no,
+	bool			strict_check);
 
 /* Global variables */
 static bool			verbose;
@@ -564,9 +582,25 @@ is_page_corrupted(
 		}
 	}
 
-	is_corrupted = buf_page_is_corrupted(
-		true, buf, page_size, false, cur_page_num, strict_verify,
-		is_log_enabled, log_file);
+	/* If page is encrypted, use different checksum calculation
+	as innochecksum can't decrypt pages. Note that some old InnoDB
+	versions did not initialize FIL_PAGE_FILE_FLUSH_LSN field
+	so if crypt checksum does not match we verify checksum using
+	normal method.
+	*/
+	if (mach_read_from_4(buf+FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION) != 0) {
+		is_corrupted = fil_space_verify_crypt_checksum(buf, page_size,
+			cur_page_num, strict_verify);
+	} else {
+		is_corrupted = true;
+	}
+
+	if (is_corrupted) {
+		is_corrupted = buf_page_is_corrupted(
+			true, buf, page_size, false,
+			cur_page_num, strict_verify,
+			is_log_enabled, log_file);
+	}
 
 	return(is_corrupted);
 }
