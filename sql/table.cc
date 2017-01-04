@@ -7573,46 +7573,58 @@ bool TABLE::validate_default_values_of_unset_fields(THD *thd) const
 }
 
 
-bool TABLE::insert_all_rows_into(THD *thd, TABLE *dest, bool with_cleanup)
+bool TABLE::insert_all_rows_into_tmp_table(THD *thd,
+                                           TABLE *tmp_table,
+                                           TMP_TABLE_PARAM *tmp_table_param,
+                                           bool with_cleanup)
 {
   int write_err= 0;
 
-  DBUG_ENTER("TABLE::insert_all_rows_into");
+  DBUG_ENTER("TABLE::insert_all_rows_into_tmp_table");
 
   if (with_cleanup)
   {
-   if ((write_err= dest->file->ha_delete_all_rows()))
+   if ((write_err= tmp_table->file->ha_delete_all_rows()))
       goto err;
   }
    
   if (file->indexes_are_disabled())
-    dest->file->ha_disable_indexes(HA_KEY_SWITCH_ALL);
+    tmp_table->file->ha_disable_indexes(HA_KEY_SWITCH_ALL);
   file->ha_index_or_rnd_end();
 
   if (file->ha_rnd_init_with_error(1))
     DBUG_RETURN(1);
 
-  if (dest->no_rows)
-    dest->file->extra(HA_EXTRA_NO_ROWS);
+  if (tmp_table->no_rows)
+    tmp_table->file->extra(HA_EXTRA_NO_ROWS);
   else
   {
     /* update table->file->stats.records */
     file->info(HA_STATUS_VARIABLE);
-    dest->file->ha_start_bulk_insert(file->stats.records);
+    tmp_table->file->ha_start_bulk_insert(file->stats.records);
   }
 
-  while (!file->ha_rnd_next(dest->record[1]))
+  while (!file->ha_rnd_next(tmp_table->record[0]))
   {
-    write_err= dest->file->ha_write_tmp_row(dest->record[1]);
+    write_err= tmp_table->file->ha_write_tmp_row(tmp_table->record[0]);
     if (write_err)
-      goto err;
+    {
+      bool is_duplicate;
+      if (tmp_table->file->is_fatal_error(write_err, HA_CHECK_DUP) &&
+          create_internal_tmp_table_from_heap(thd, tmp_table,
+                                              tmp_table_param->start_recinfo, 
+                                              &tmp_table_param->recinfo,
+                                              write_err, 1, &is_duplicate))
+	DBUG_RETURN(1);
+       
+    }  
     if (thd->check_killed())
     {
       thd->send_kill_message();
       goto err_killed;
     }
   }
-  if (!dest->no_rows && dest->file->ha_end_bulk_insert())
+  if (!tmp_table->no_rows && tmp_table->file->ha_end_bulk_insert())
     goto err;
   DBUG_RETURN(0);
 

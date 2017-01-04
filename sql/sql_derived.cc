@@ -969,7 +969,10 @@ bool TABLE_LIST::fill_recursive(THD *thd)
   if (!rc)
   {
     TABLE *src= with->rec_result->table;
-    rc =src->insert_all_rows_into(thd, table, true);
+    rc =src->insert_all_rows_into_tmp_table(thd,
+                                            table,
+                                            &with->rec_result->tmp_table_param,
+                                            true);
   } 
   return rc;
 }

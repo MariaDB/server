@@ -1484,3 +1484,24 @@ ORDER BY a, dist, b;
 
 DROP VIEW edges2;
 DROP TABLE edges;
+
+
+--echo #
+--echo # MDEV-11674: recursive CTE table that cannot be stored
+--echo #             in a heap table
+--echo #
+
+create table t1 (id int, test_data varchar(36));
+
+insert into t1(id, test_data)
+select id, test_data
+    from (
+        with recursive data_generator(id, test_data) as (
+                select 1 as id, uuid() as test_data
+                union all
+                select id + 1, uuid() from data_generator where id < 150000
+            )
+        select * from data_generator
+    ) as a;
+
+drop table t1;
