@@ -1,7 +1,7 @@
 /*****************************************************************************
 
-Copyright (c) 2012, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation. All Rights Reserved.
+Copyright (c) 2012, 2017, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -31,6 +31,7 @@ Created Apr 25, 2012 Vasil Dimov
 #include "row0mysql.h"
 #include "srv0start.h"
 #include "ut0new.h"
+#include "fil0fil.h"
 
 #include <vector>
 
@@ -314,6 +315,12 @@ dict_stats_process_entry_from_recalc_pool()
 	if (table == NULL) {
 		/* table does not exist, must have been DROPped
 		after its id was enqueued */
+		mutex_exit(&dict_sys->mutex);
+		return;
+	}
+
+	if (fil_space_is_being_truncated(table->space)) {
+		dict_table_close(table, TRUE, FALSE);
 		mutex_exit(&dict_sys->mutex);
 		return;
 	}
