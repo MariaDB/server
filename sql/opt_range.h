@@ -1006,7 +1006,7 @@ public:
 
     This is used by an optimization in filesort.
   */
-  virtual void add_used_key_part_to_set(MY_BITMAP *col_set)=0;
+  virtual void add_used_key_part_to_set()=0;
 };
 
 
@@ -1097,7 +1097,7 @@ public:
   virtual void replace_handler(handler *new_file) { file= new_file; }
   QUICK_SELECT_I *make_reverse(uint used_key_parts_arg);
 
-  virtual void add_used_key_part_to_set(MY_BITMAP *col_set);
+  virtual void add_used_key_part_to_set();
 
 private:
   /* Default copy ctor used by QUICK_SELECT_DESC */
@@ -1261,7 +1261,7 @@ public:
   /* used to get rows collected in Unique */
   READ_RECORD read_record;
 
-  virtual void add_used_key_part_to_set(MY_BITMAP *col_set);
+  virtual void add_used_key_part_to_set();
 };
 
 
@@ -1336,7 +1336,7 @@ public:
   void add_keys_and_lengths(String *key_names, String *used_lengths);
   Explain_quick_select *get_explain(MEM_ROOT *alloc);
   bool is_keys_used(const MY_BITMAP *fields);
-  void add_used_key_part_to_set(MY_BITMAP *col_set);
+  void add_used_key_part_to_set();
 #ifndef DBUG_OFF
   void dbug_dump(int indent, bool verbose);
 #endif
@@ -1416,7 +1416,7 @@ public:
   void add_keys_and_lengths(String *key_names, String *used_lengths);
   Explain_quick_select *get_explain(MEM_ROOT *alloc);
   bool is_keys_used(const MY_BITMAP *fields);
-  void add_used_key_part_to_set(MY_BITMAP *col_set);
+  void add_used_key_part_to_set();
 #ifndef DBUG_OFF
   void dbug_dump(int indent, bool verbose);
 #endif
@@ -1560,7 +1560,7 @@ public:
   bool unique_key_range() { return false; }
   int get_type() { return QS_TYPE_GROUP_MIN_MAX; }
   void add_keys_and_lengths(String *key_names, String *used_lengths);
-  void add_used_key_part_to_set(MY_BITMAP *col_set);
+  void add_used_key_part_to_set();
 #ifndef DBUG_OFF
   void dbug_dump(int indent, bool verbose);
 #endif

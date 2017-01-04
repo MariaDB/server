@@ -10864,3 +10864,14 @@ bool Field::save_in_field_ignore_value(bool view_error_processing)
     return save_in_field_default_value(view_error_processing);
   return 0; // ignore
 }
+
+
+void Field::register_field_in_read_map()
+{
+  if (vcol_info)
+  {
+    Item *vcol_item= vcol_info->expr;
+    vcol_item->walk(&Item::register_field_in_read_map, 1, 0);
+  }
+  bitmap_set_bit(table->read_set, field_index);
+}
