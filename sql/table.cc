@@ -2410,8 +2410,9 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
       }
     }
   }
-  DBUG_ASSERT((table_check_constraints - share->check_constraints) ==
-              share->table_check_constraints - share->field_check_constraints);
+  DBUG_ASSERT((uint) (table_check_constraints - share->check_constraints) ==
+              (uint) (share->table_check_constraints -
+                      share->field_check_constraints));
 
   if (options)
   {
