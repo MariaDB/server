@@ -419,8 +419,7 @@ unpack_row(rpl_group_info *rgi,
   /*
     Add Extra slave persistent columns
   */
-  int error= 0;
-  if ((error= fill_extra_persistent_columns(table, cols->n_bits)))
+  if (int error= fill_extra_persistent_columns(table, cols->n_bits))
     DBUG_RETURN(error);
 
   /*

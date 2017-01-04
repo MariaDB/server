@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2010-2012, Percona Inc. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -22,7 +23,5 @@ this program; if not, write to the Free Software Foundation, Inc.,
 extern struct st_mysql_plugin	i_s_xtradb_read_view;
 extern struct st_mysql_plugin	i_s_xtradb_internal_hash_tables;
 extern struct st_mysql_plugin	i_s_xtradb_rseg;
-extern struct st_mysql_plugin	i_s_xtradb_zip_dict;
-extern struct st_mysql_plugin	i_s_xtradb_zip_dict_cols;
 
 #endif /* XTRADB_I_S_H */

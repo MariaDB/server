@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2005, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -623,8 +624,7 @@ row_merge_buf_add(
 		  ((col->mtype == DATA_VARCHAR || col->mtype == DATA_BINARY
 		   || col->mtype == DATA_VARMYSQL)
 		   && (col->len == 0
-		       || len <= col->len +
-			  prtype_get_compression_extra(col->prtype))));
+		       || len <= col->len)));
 
 		fixed_len = ifield->fixed_len;
 		if (fixed_len && !dict_table_is_comp(index->table)
@@ -653,8 +653,7 @@ row_merge_buf_add(
 		} else if (dfield_is_ext(field)) {
 			extra_size += 2;
 		} else if (len < 128
-			   || (col->len < 256 -
-			       prtype_get_compression_extra(col->prtype)
+			   || (col->len < 256
 			       && col->mtype != DATA_BLOB)) {
 			extra_size++;
 		} else {

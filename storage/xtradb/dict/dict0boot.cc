@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2012, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, MariaDB Corporation.
+Copyright (c) 2016, 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -273,10 +273,6 @@ dict_boot(void)
 	ut_ad(DICT_NUM_FIELDS__SYS_FOREIGN_FOR_NAME == 2);
 	ut_ad(DICT_NUM_COLS__SYS_FOREIGN_COLS == 4);
 	ut_ad(DICT_NUM_FIELDS__SYS_FOREIGN_COLS == 6);
-	ut_ad(DICT_NUM_COLS__SYS_ZIP_DICT == 3);
-	ut_ad(DICT_NUM_FIELDS__SYS_ZIP_DICT == 5);
-	ut_ad(DICT_NUM_COLS__SYS_ZIP_DICT_COLS == 3);
-	ut_ad(DICT_NUM_FIELDS__SYS_ZIP_DICT_COLS == 5);
 
 	mtr_start(&mtr);
 
