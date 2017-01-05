@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2014, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2016, MariaDB Corporation. All Rights Reserved.
+Copyright (c) 2013, 2017, MariaDB Corporation. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -636,6 +636,7 @@ buf_dblwr_process()
 		}
 	}
 
+	ut_free(unaligned_read_buf);
 	fil_flush_file_spaces(FIL_TABLESPACE);
 
         {
