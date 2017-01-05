@@ -76,3 +76,9 @@ then put your .test file and .result file(s) into a tar.gz archive,
 add a README that explains the problem, ftp the archive to
 ftp://ftp.askmonty.org/private and submit a report to
 http://mariadb.org/jira about it.
+
+The latest information about mysql-test-run can be found at:
+https://mariadb.com/kb/en/mariadb/mysqltest/
+
+If you want to create .rdiff files, check
+https://mariadb.com/kb/en/mariadb/mysql-test-auxiliary-files/
