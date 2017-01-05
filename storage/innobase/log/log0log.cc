@@ -2230,7 +2230,7 @@ wait_suspend_loop:
 	const ulint	n_flush	= log_sys->n_pending_flushes;
 	log_mutex_exit();
 
-	if (n_write != 0 || n_flush != 0) {
+	if (log_scrub_thread_active || n_write || n_flush) {
 		if (srv_print_verbose_log && count > 600) {
 			ib::info() << "Pending checkpoint_writes: " << n_write
 				<< ". Pending log flush writes: " << n_flush;
