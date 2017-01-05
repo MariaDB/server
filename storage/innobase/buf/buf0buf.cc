@@ -3150,17 +3150,13 @@ calc_buf_pool_size:
 
 /** This is the thread for resizing buffer pool. It waits for an event and
 when waked up either performs a resizing and sleeps again.
-@param[in]	arg	a dummy parameter required by os_thread_create.
 @return	this function does not return, calls os_thread_exit()
 */
 extern "C"
 os_thread_ret_t
-DECLARE_THREAD(buf_resize_thread)(
-	void*	arg MY_ATTRIBUTE((unused)))
+DECLARE_THREAD(buf_resize_thread)(void*)
 {
 	my_thread_init();
-
-	srv_buf_resize_thread_active = true;
 
 	while (srv_shutdown_state == SRV_SHUTDOWN_NONE) {
 		os_event_wait(srv_buf_resize_event);

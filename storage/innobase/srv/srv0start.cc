@@ -3,7 +3,7 @@
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All rights reserved.
 Copyright (c) 2008, Google Inc.
 Copyright (c) 2009, Percona Inc.
-Copyright (c) 2013, 2016, MariaDB Corporation
+Copyright (c) 2013, 2017, MariaDB Corporation
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -1209,13 +1209,11 @@ srv_start_state_is_set(
 
 /**
 Shutdown all background threads created by InnoDB. */
+static
 void
 srv_shutdown_all_bg_threads()
 {
-	ulint	i;
-
 	srv_shutdown_state = SRV_SHUTDOWN_EXIT_THREADS;
-	fil_crypt_threads_end();
 
 	if (!srv_start_state) {
 		return;
@@ -1224,7 +1222,7 @@ srv_shutdown_all_bg_threads()
 	/* All threads end up waiting for certain events. Put those events
 	to the signaled state. Then the threads will exit themselves after
 	os_event_wait(). */
-	for (i = 0; i < 1000; i++) {
+	for (uint i = 0; i < 1000; ++i) {
 		/* NOTE: IF YOU CREATE THREADS IN INNODB, YOU MUST EXIT THEM
 		HERE OR EARLIER */
 
@@ -1246,6 +1244,14 @@ srv_shutdown_all_bg_threads()
 			if (srv_start_state_is_set(SRV_START_STATE_PURGE)) {
 				/* d. Wakeup purge threads. */
 				srv_purge_wakeup();
+			}
+
+			if (srv_n_fil_crypt_threads_started) {
+				os_event_set(fil_crypt_threads_event);
+			}
+
+			if (log_scrub_thread_active) {
+				os_event_set(log_scrub_event);
 			}
 		}
 
@@ -1277,26 +1283,20 @@ srv_shutdown_all_bg_threads()
 			os_aio_wake_all_threads_at_shutdown();
 		}
 
-		bool	active = os_thread_active();
+		const bool active = os_thread_active();
 
 		os_thread_sleep(100000);
 
 		if (!active) {
-			break;
+			srv_start_state = SRV_START_STATE_NONE;
+			return;
 		}
 	}
 
-	if (i == 1000) {
-		ib::warn() << os_thread_count << " threads created by InnoDB"
-			" had not exited at shutdown!";
-#ifdef UNIV_DEBUG
-		os_aio_print_pending_io(stderr);
-		ut_ad(0);
-#endif /* UNIV_DEBUG */
-	} else {
-		/* Reset the start state. */
-		srv_start_state = SRV_START_STATE_NONE;
-	}
+	ib::warn() << os_thread_count << " threads created by InnoDB"
+		" had not exited at shutdown!";
+	ut_d(os_aio_print_pending_io(stderr));
+	ut_ad(0);
 }
 
 #ifdef UNIV_DEBUG
@@ -2107,11 +2107,6 @@ files_checked:
 		dict_stats_thread_init();
 	}
 
-	if (!srv_read_only_mode && srv_scrub_log) {
-		/* TODO(minliz): have/use log_scrub_thread_init() instead? */
-		log_scrub_event = os_event_create(0);
-	}
-
 	trx_sys_file_format_init();
 
 	trx_sys_create();
@@ -2462,14 +2457,17 @@ files_checked:
 			lock_wait_timeout_thread,
 			NULL, thread_ids + 2 + SRV_MAX_N_IO_THREADS);
 		thread_started[2 + SRV_MAX_N_IO_THREADS] = true;
+		lock_sys->timeout_thread_active = true;
 
 		/* Create the thread which warns of long semaphore waits */
+		srv_error_monitor_active = true;
 		thread_handles[3 + SRV_MAX_N_IO_THREADS] = os_thread_create(
 			srv_error_monitor_thread,
 			NULL, thread_ids + 3 + SRV_MAX_N_IO_THREADS);
 		thread_started[3 + SRV_MAX_N_IO_THREADS] = true;
 
 		/* Create the thread which prints InnoDB monitor info */
+		srv_monitor_active = true;
 		thread_handles[4 + SRV_MAX_N_IO_THREADS] = os_thread_create(
 			srv_monitor_thread,
 			NULL, thread_ids + 4 + SRV_MAX_N_IO_THREADS);
@@ -2671,6 +2669,8 @@ files_checked:
 		/* Create the buffer pool dump/load thread */
 		buf_dump_thread_handle=
 			os_thread_create(buf_dump_thread, NULL, NULL);
+
+		srv_buf_dump_thread_active = true;
 		buf_dump_thread_started = true;
 #ifdef WITH_WSREP
 		} else {
@@ -2681,21 +2681,19 @@ files_checked:
 #endif /* WITH_WSREP */
 
 		/* Create the dict stats gathering thread */
-		dict_stats_thread_handle = os_thread_create(dict_stats_thread, NULL, NULL);
+		dict_stats_thread_handle = os_thread_create(
+			dict_stats_thread, NULL, NULL);
+		srv_dict_stats_thread_active = true;
 		dict_stats_thread_started = true;
 
 		/* Create the thread that will optimize the FTS sub-system. */
 		fts_optimize_init();
 
 		srv_start_state_set(SRV_START_STATE_STAT);
-
-		/* Create the log scrub thread */
-		if (srv_scrub_log) {
-			os_thread_create(log_scrub_thread, NULL, NULL);
-		}
 	}
 
 	/* Create the buffer pool resize thread */
+	srv_buf_resize_thread_active = true;
 	os_thread_create(buf_resize_thread, NULL, NULL);
 
 	/* Init data for datafile scrub threads */
@@ -2805,14 +2803,8 @@ innobase_shutdown_for_mysql(void)
 
 	if (!srv_read_only_mode) {
 		dict_stats_thread_deinit();
-		if (srv_scrub_log) {
-			/* TODO(minliz): have/use log_scrub_thread_deinit() instead? */
-			os_event_destroy(log_scrub_event);
-			log_scrub_event = NULL;
-		}
+		fil_crypt_threads_cleanup();
 	}
-
-	fil_crypt_threads_cleanup();
 
 	/* Cleanup data for datafile scrubbing */
 	btr_scrub_cleanup();

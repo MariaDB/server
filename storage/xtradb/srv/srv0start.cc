@@ -3,7 +3,7 @@
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All rights reserved.
 Copyright (c) 2008, Google Inc.
 Copyright (c) 2009, Percona Inc.
-Copyright (c) 2013, 2016, MariaDB Corporation
+Copyright (c) 2013, 2017, MariaDB Corporation
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -2404,11 +2404,6 @@ files_checked:
 		dict_stats_thread_init();
 	}
 
-	if (!srv_read_only_mode && srv_scrub_log) {
-		/* TODO(minliz): have/use log_scrub_thread_init() instead? */
-		log_scrub_event = os_event_create();
-	}
-
 	trx_sys_file_format_init();
 
 	trx_sys_create();
@@ -2751,14 +2746,17 @@ files_checked:
 			lock_wait_timeout_thread,
 			NULL, thread_ids + 2 + SRV_MAX_N_IO_THREADS);
 		thread_started[2 + SRV_MAX_N_IO_THREADS] = true;
+		lock_sys->timeout_thread_active = true;
 
 		/* Create the thread which warns of long semaphore waits */
+		srv_error_monitor_active = true;
 		thread_handles[3 + SRV_MAX_N_IO_THREADS] = os_thread_create(
 			srv_error_monitor_thread,
 			NULL, thread_ids + 3 + SRV_MAX_N_IO_THREADS);
 		thread_started[3 + SRV_MAX_N_IO_THREADS] = true;
 
 		/* Create the thread which prints InnoDB monitor info */
+		srv_monitor_active = true;
 		thread_handles[4 + SRV_MAX_N_IO_THREADS] = os_thread_create(
 			srv_monitor_thread,
 			NULL, thread_ids + 4 + SRV_MAX_N_IO_THREADS);
@@ -2778,12 +2776,6 @@ files_checked:
 		if (err != DB_SUCCESS) {
 			return(err);
 		}
-	}
-
-	/* Create the SYS_ZIP_DICT system table */
-	err = dict_create_or_check_sys_zip_dict();
-	if (err != DB_SUCCESS) {
-		return(err);
 	}
 
 	srv_is_being_started = FALSE;
@@ -3008,6 +3000,8 @@ files_checked:
 		/* Create the buffer pool dump/load thread */
 		buf_dump_thread_handle=
 			os_thread_create(buf_dump_thread, NULL, NULL);
+
+		srv_buf_dump_thread_active = true;
 		buf_dump_thread_started = true;
 #ifdef WITH_WSREP
 		} else {
@@ -3018,7 +3012,9 @@ files_checked:
 #endif /* WITH_WSREP */
 
 		/* Create the dict stats gathering thread */
-		dict_stats_thread_handle = os_thread_create(dict_stats_thread, NULL, NULL);
+		dict_stats_thread_handle = os_thread_create(
+			dict_stats_thread, NULL, NULL);
+		srv_dict_stats_thread_active = true;
 		dict_stats_thread_started = true;
 
 		/* Create the thread that will optimize the FTS sub-system. */
@@ -3028,10 +3024,6 @@ files_checked:
 		fil_system_enter();
 		fil_crypt_threads_init();
 		fil_system_exit();
-
-		/* Create the log scrub thread */
-		if (srv_scrub_log)
-			os_thread_create(log_scrub_thread, NULL, NULL);
 	}
 
 	/* Init data for datafile scrub threads */
@@ -3100,9 +3092,6 @@ innobase_shutdown_for_mysql(void)
 		fts_optimize_start_shutdown();
 
 		fts_optimize_end();
-
-		/* Shutdown key rotation threads */
-		fil_crypt_threads_end();
 	}
 
 	/* 1. Flush the buffer pool to disk, write the current lsn to
@@ -3205,14 +3194,6 @@ innobase_shutdown_for_mysql(void)
 
 	if (!srv_read_only_mode) {
 		dict_stats_thread_deinit();
-		if (srv_scrub_log) {
-			/* TODO(minliz): have/use log_scrub_thread_deinit() instead? */
-			os_event_free(log_scrub_event);
-			log_scrub_event = NULL;
-		}
-	}
-
-	if (!srv_read_only_mode) {
 		fil_crypt_threads_cleanup();
 	}
 

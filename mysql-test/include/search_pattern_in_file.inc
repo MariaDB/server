@@ -82,8 +82,14 @@ perl;
     }
     $ENV{'SEARCH_FILE'} =~ s{^.*?([^/\\]+)$}{$1};
     if ($content =~ m{$search_pattern}) {
+      die "FOUND /$search_pattern/ in $ENV{'SEARCH_FILE'}\n"
+      if $ENV{SEARCH_ABORT} eq 'FOUND';
       print "FOUND /$search_pattern/ in $ENV{'SEARCH_FILE'}\n"
+      unless defined $ENV{SEARCH_ABORT};
     } else {
+      die "NOT FOUND /$search_pattern/ in $ENV{'SEARCH_FILE'}\n"
+      if $ENV{SEARCH_ABORT} eq 'NOT FOUND';
       print "NOT FOUND /$search_pattern/ in $ENV{'SEARCH_FILE'}\n"
+      unless defined $ENV{SEARCH_ABORT};
     }
 EOF

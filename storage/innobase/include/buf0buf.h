@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2016, MariaDB Corporation.
+Copyright (c) 2013, 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -389,15 +389,11 @@ buf_pool_resize();
 
 /** This is the thread for resizing buffer pool. It waits for an event and
 when waked up either performs a resizing and sleeps again.
-@param[in]	arg	a dummy parameter required by os_thread_create.
 @return	this function does not return, calls os_thread_exit()
 */
 extern "C"
 os_thread_ret_t
-DECLARE_THREAD(buf_resize_thread)(
-/*==============================*/
-	void*	arg);				/*!< in: a dummy parameter
-						required by os_thread_create */
+DECLARE_THREAD(buf_resize_thread)(void*);
 
 /********************************************************************//**
 Clears the adaptive hash index on all pages in the buffer pool. */

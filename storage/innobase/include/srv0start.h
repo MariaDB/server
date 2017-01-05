@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -110,11 +111,6 @@ srv_path_copy(
 	const char*	basedir,	/*!< in: base directory */
 	const char*	table_name)	/*!< in: source table name */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
-
-/**
-Shutdown all background threads created by InnoDB. */
-void
-srv_shutdown_all_bg_threads();
 
 /** Get the meta-data filename from the table name for a
 single-table tablespace.

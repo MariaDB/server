@@ -331,6 +331,9 @@ extern ulong	srv_undo_logs;
 /** Maximum size of undo tablespace. */
 extern unsigned long long	srv_max_undo_log_size;
 
+extern uint	srv_n_fil_crypt_threads;
+extern uint	srv_n_fil_crypt_threads_started;
+
 /** Rate at which UNDO records should be purged. */
 extern ulong	srv_purge_rseg_truncate_frequency;
 
@@ -501,22 +504,20 @@ extern my_bool	srv_print_innodb_monitor;
 extern my_bool	srv_print_innodb_lock_monitor;
 extern ibool	srv_print_verbose_log;
 
-extern ibool	srv_monitor_active;
-extern ibool	srv_error_monitor_active;
+extern bool	srv_monitor_active;
+extern bool	srv_error_monitor_active;
 
 /* TRUE during the lifetime of the buffer pool dump/load thread */
-extern ibool	srv_buf_dump_thread_active;
+extern bool	srv_buf_dump_thread_active;
 
 /* true during the lifetime of the buffer pool resize thread */
 extern bool	srv_buf_resize_thread_active;
 
 /* TRUE during the lifetime of the stats thread */
-extern ibool	srv_dict_stats_thread_active;
+extern bool	srv_dict_stats_thread_active;
 
 /* TRUE if enable log scrubbing */
 extern my_bool	srv_scrub_log;
-/* TRUE during the lifetime of the log scrub thread */
-extern ibool	srv_log_scrub_thread_active;
 
 extern ulong	srv_n_spin_wait_rounds;
 extern ulong	srv_n_free_tickets_to_enter;
@@ -932,14 +933,6 @@ srv_release_threads(
 /*================*/
 	enum srv_thread_type	type,	/*!< in: thread type */
 	ulint			n);	/*!< in: number of threads to release */
-
-/**********************************************************************//**
-Check whether any background thread are active. If so print which thread
-is active. Send the threads wakeup signal.
-@return name of thread that is active or NULL */
-const char*
-srv_any_background_threads_are_active(void);
-/*=======================================*/
 
 /**********************************************************************//**
 Wakeup the purge threads. */

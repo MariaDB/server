@@ -37,6 +37,11 @@ SHOW STATUS LIKE 'wsrep_cluster_status';
 --error ER_UNKNOWN_COM_ERROR
 SELECT * FROM t1;
 
+#Select query which does not access table should be allowed MDEV-11016
+SELECT @@wsrep_dirty_reads;
+SELECT 2;
+SELECT 2+2 FROM DUAL;
+
 SET @@session.wsrep_dirty_reads=ON;
 
 SELECT * FROM t1;

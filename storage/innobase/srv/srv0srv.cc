@@ -3,7 +3,7 @@
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, 2009 Google Inc.
 Copyright (c) 2009, Percona Inc.
-Copyright (c) 2013, 2016, MariaDB Corporation.
+Copyright (c) 2013, 2017, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -53,7 +53,6 @@ Created 10/8/1995 Heikki Tuuri
 #include "buf0lru.h"
 #include "dict0boot.h"
 #include "dict0load.h"
-#include "dict0stats_bg.h"
 #include "fsp0sysspace.h"
 #include "ibuf0ibuf.h"
 #include "lock0lock.h"
@@ -90,17 +89,13 @@ UNIV_INTERN ulong	srv_fatal_semaphore_wait_threshold =  DEFAULT_SRV_FATAL_SEMAPH
 in microseconds, in order to reduce the lagging of the purge thread. */
 ulint	srv_dml_needed_delay = 0;
 
-ibool	srv_monitor_active = FALSE;
-ibool	srv_error_monitor_active = FALSE;
+bool	srv_monitor_active;
+bool	srv_error_monitor_active;
+bool	srv_buf_dump_thread_active;
+bool	srv_dict_stats_thread_active;
+bool	srv_buf_resize_thread_active;
 
-ibool	srv_buf_dump_thread_active = FALSE;
-
-bool	srv_buf_resize_thread_active = false;
-
-UNIV_INTERN ibool	srv_log_scrub_active = FALSE;
-UNIV_INTERN my_bool	srv_scrub_log = FALSE;
-
-ibool	srv_dict_stats_thread_active = FALSE;
+my_bool	srv_scrub_log;
 
 const char*	srv_main_thread_op_info = "";
 
@@ -1715,11 +1710,7 @@ A thread which prints the info output by various InnoDB monitors.
 @return a dummy parameter */
 extern "C"
 os_thread_ret_t
-DECLARE_THREAD(srv_monitor_thread)(
-/*===============================*/
-	void*	arg MY_ATTRIBUTE((unused)))
-			/*!< in: a dummy parameter required by
-			os_thread_create */
+DECLARE_THREAD(srv_monitor_thread)(void*)
 {
 	int64_t		sig_count;
 	double		time_elapsed;
@@ -1740,9 +1731,7 @@ DECLARE_THREAD(srv_monitor_thread)(
 #ifdef UNIV_PFS_THREAD
 	pfs_register_thread(srv_monitor_thread_key);
 #endif /* UNIV_PFS_THREAD */
-	srv_monitor_active = TRUE;
 
-	UT_NOT_USED(arg);
 	srv_last_monitor_time = ut_time();
 	last_table_monitor_time = ut_time();
 	last_tablespace_monitor_time = ut_time();
@@ -1875,7 +1864,7 @@ loop:
 	goto loop;
 
 exit_func:
-	srv_monitor_active = FALSE;
+	srv_monitor_active = false;
 
 	/* We count the number of threads in os_thread_exit(). A created
 	thread should always use that to exit and not use return() to exit. */
@@ -1891,11 +1880,7 @@ too long. These can be used to track bugs which cause hangs.
 @return a dummy parameter */
 extern "C"
 os_thread_ret_t
-DECLARE_THREAD(srv_error_monitor_thread)(
-/*=====================================*/
-	void*	arg MY_ATTRIBUTE((unused)))
-			/*!< in: a dummy parameter required by
-			os_thread_create */
+DECLARE_THREAD(srv_error_monitor_thread)(void*)
 {
 	/* number of successive fatal timeouts observed */
 	ulint		fatal_cnt	= 0;
@@ -1921,7 +1906,6 @@ DECLARE_THREAD(srv_error_monitor_thread)(
 #ifdef UNIV_PFS_THREAD
 	pfs_register_thread(srv_error_monitor_thread_key);
 #endif /* UNIV_PFS_THREAD */
-	srv_error_monitor_active = TRUE;
 
 loop:
 	/* Try to track a strange bug reported by Harald Fuchs and others,
@@ -1994,7 +1978,7 @@ loop:
 		goto loop;
 	}
 
-	srv_error_monitor_active = FALSE;
+	srv_error_monitor_active = false;
 
 	/* We count the number of threads in os_thread_exit(). A created
 	thread should always use that to exit and not use return() to exit. */
@@ -2049,52 +2033,6 @@ srv_get_active_thread_type(void)
 	}
 
 	return(ret);
-}
-
-/**********************************************************************//**
-Check whether any background thread are active. If so print which thread
-is active. Send the threads wakeup signal.
-@return name of thread that is active or NULL */
-const char*
-srv_any_background_threads_are_active(void)
-/*=======================================*/
-{
-	const char*	thread_active = NULL;
-
-	if (srv_read_only_mode) {
-		if (srv_buf_resize_thread_active) {
-			thread_active = "buf_resize_thread";
-		}
-		os_event_set(srv_buf_resize_event);
-		return(thread_active);
-	} else if (srv_error_monitor_active) {
-		thread_active = "srv_error_monitor_thread";
-	} else if (lock_sys->timeout_thread_active) {
-		thread_active = "srv_lock_timeout thread";
-	} else if (srv_monitor_active) {
-		thread_active = "srv_monitor_thread";
-	} else if (srv_buf_dump_thread_active) {
-		thread_active = "buf_dump_thread";
-	} else if (srv_buf_resize_thread_active) {
-		thread_active = "buf_resize_thread";
-	} else if (srv_dict_stats_thread_active) {
-		thread_active = "dict_stats_thread";
-	} else if (srv_scrub_log && srv_log_scrub_thread_active) {
-		thread_active = "log_scrub_thread";
-	}
-
-	os_event_set(srv_error_event);
-	os_event_set(srv_monitor_event);
-	os_event_set(srv_buf_dump_event);
-	os_event_set(lock_sys->timeout_event);
-	os_event_set(dict_stats_event);
-	os_event_set(srv_buf_resize_event);
-
-	if (srv_scrub_log) {
-		os_event_set(log_scrub_event);
-	}
-
-	return(thread_active);
 }
 
 /*******************************************************************//**
