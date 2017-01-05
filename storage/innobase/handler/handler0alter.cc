@@ -6067,7 +6067,7 @@ check_if_can_drop_indexes:
 
 			if (!index->to_be_dropped && dict_index_is_corrupted(index)) {
 				my_error(ER_INDEX_CORRUPT, MYF(0), index->name());
-				DBUG_RETURN(true);
+				goto err_exit;
 			}
 		}
 	}
