@@ -3904,7 +3904,7 @@ check_if_can_drop_indexes:
 					index->name, TRUE);
 
 				my_error(ER_INDEX_CORRUPT, MYF(0), index_name);
-				DBUG_RETURN(true);
+				goto err_exit;
 			}
 		}
 	}
