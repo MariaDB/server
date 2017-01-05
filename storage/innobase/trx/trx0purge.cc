@@ -294,15 +294,19 @@ trx_purge_remove_log_hdr(
 {
 	flst_remove(rseg_hdr + TRX_RSEG_HISTORY,
 		    log_hdr + TRX_UNDO_HISTORY_NODE, mtr);
-
+#ifdef HAVE_ATOMIC_BUILTINS
 	os_atomic_decrement_ulint(&trx_sys->rseg_history_len, 1);
+#else
+	mutex_enter(&trx_sys->mutex);
+	--trx_sys->rseg_history_len;
+	mutex_exit(&trx_sys->mutex);
+#endif
 }
 
 /** Frees an undo log segment which is in the history list. Removes the
 undo log hdr from the history list.
 @param[in,out]	rseg		rollback segment
-@param[in]	hdr_addr	file address of log_hdr
-@param[in]	noredo		skip redo logging. */
+@param[in]	hdr_addr	file address of log_hdr */
 static
 void
 trx_purge_free_segment(
