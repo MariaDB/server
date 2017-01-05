@@ -524,7 +524,6 @@ row_merge_fts_doc_tokenize(
 	while (t_ctx->processed_len < doc->text.f_len) {
 		ulint		idx = 0;
 		ib_uint32_t	position;
-		ulint           offset = 0;
 		ulint		cur_len;
 		doc_id_t	write_doc_id;
 		row_fts_token_t* fts_token = NULL;

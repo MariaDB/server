@@ -1693,7 +1693,7 @@ fil_space_create(
 
 	DBUG_LOG("tablespace",
 		 "Tablespace for space " << id << " name " << name
-		 << create_table ? " created" : " opened");
+		 << (create_table ? " created" : " opened"));
 	if (crypt_data) {
 		DBUG_LOG("crypt",
 			 "Tablespace " << id << " name " << name
