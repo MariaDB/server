@@ -893,6 +893,9 @@ public:
   /* namp of nesting SELECT visibility (for aggregate functions check) */
   nesting_map name_visibility_map;
 
+  /* it is for correct printing SELECT options */
+  thr_lock_type lock_type;
+
   void init_query();
   void init_select();
   st_select_lex_unit* master_unit() { return (st_select_lex_unit*) master; }

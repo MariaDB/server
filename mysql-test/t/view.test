@@ -5706,6 +5706,28 @@ drop table t1, t2;
 --error ER_BAD_FIELD_ERROR
 SELECT 1 FROM (SELECT 1 as a) AS b HAVING (SELECT `SOME_GARBAGE`.b.a)=1; 
 
+
+--echo #
+--echo # MDEV-10035: DBUG_ASSERT on CREATE VIEW v1 AS SELECT * FROM t1
+--echo # FOR UPDATE
+--echo #
+
+CREATE TABLE t1 (a INT);
+insert into t1 values (1),(2);
+
+CREATE VIEW v1 AS SELECT * FROM t1 FOR UPDATE;
+SHOW CREATE VIEW v1;
+select * from v1;
+DROP VIEW v1;
+
+CREATE VIEW v1 AS SELECT * FROM t1 LOCK IN SHARE MODE;
+SHOW CREATE VIEW v1;
+select * from v1;
+DROP VIEW v1;
+
+DROP TABLE t1;
+
+
 --echo # -----------------------------------------------------------------
 --echo # -- End of 10.0 tests.
 --echo # -----------------------------------------------------------------
