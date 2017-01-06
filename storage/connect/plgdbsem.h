@@ -1,9 +1,9 @@
 /************** PlgDBSem H Declares Source Code File (.H) **************/
-/*  Name: PLGDBSEM.H  Version 3.6                                      */
+/*  Name: PLGDBSEM.H  Version 3.7                                      */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          1998-2015    */
+/*  (C) Copyright to the author Olivier BERTRAND          1998-2016    */
 /*                                                                     */
-/*  This file contains the PlugDB++ application type definitions.      */
+/*  This file contains the CONNECT storage engine definitions.         */
 /***********************************************************************/
 
 /***********************************************************************/
@@ -49,7 +49,8 @@ enum BLKTYP {TYPE_TABLE      = 50,    /* Table Name/Srcdef/... Block   */
              TYPE_FB_MAP     = 23,    /* Mapped file block (storage)   */
              TYPE_FB_HANDLE  = 24,    /* File block (handle)           */
              TYPE_FB_XML     = 21,    /* DOM XML file block            */
-             TYPE_FB_XML2    = 27};   /* libxml2 XML file block        */
+             TYPE_FB_XML2    = 27,    /* libxml2 XML file block        */
+             TYPE_FB_ZIP     = 28};   /* ZIP file block                */
 
 enum TABTYPE {TAB_UNDEF =  0,   /* Table of undefined type             */
               TAB_DOS   =  1,   /* Fixed column offset, variable LRECL */
@@ -78,7 +79,8 @@ enum TABTYPE {TAB_UNDEF =  0,   /* Table of undefined type             */
               TAB_JCT   = 24,   /* Junction tables NIY                 */
               TAB_DMY   = 25,   /* DMY Dummy tables NIY                */
 							TAB_JDBC  = 26,   /* Table accessed via JDBC             */
-							TAB_NIY   = 27};  /* Table not implemented yet           */
+							TAB_ZIP   = 27,   /* ZIP file info table                 */
+							TAB_NIY   = 28};  /* Table not implemented yet           */
 
 enum AMT {TYPE_AM_ERROR =   0,        /* Type not defined              */
           TYPE_AM_ROWID =   1,        /* ROWID type (special column)   */
@@ -123,7 +125,7 @@ enum AMT {TYPE_AM_ERROR =   0,        /* Type not defined              */
           TYPE_AM_PRX   = 129,        /* PROXY access method type no   */
           TYPE_AM_XTB   = 130,        /* SYS table access method type  */
           TYPE_AM_BLK   = 131,        /* BLK access method type no     */
-          TYPE_AM_ZIP   = 132,        /* ZIP access method type no     */
+          TYPE_AM_GZ    = 132,        /* GZ access method type no      */
           TYPE_AM_ZLIB  = 133,        /* ZLIB access method type no    */
           TYPE_AM_JSON  = 134,        /* JSON access method type no    */
           TYPE_AM_JSN   = 135,        /* JSN access method type no     */
@@ -140,7 +142,8 @@ enum AMT {TYPE_AM_ERROR =   0,        /* Type not defined              */
           TYPE_AM_MYSQL = 192,        /* MYSQL access method type no   */
           TYPE_AM_MYX   = 193,        /* MYSQL EXEC access method type */
           TYPE_AM_CAT   = 195,        /* Catalog access method type no */
-          TYPE_AM_OUT   = 200};       /* Output relations (storage)    */
+					TYPE_AM_ZIP   = 198,				/* ZIP access method type no     */
+					TYPE_AM_OUT   = 200};       /* Output relations (storage)    */
 
 enum RECFM {RECFM_NAF   =    -2,      /* Not a file                    */
             RECFM_OEM   =    -1,      /* OEM file access method        */

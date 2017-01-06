@@ -1,7 +1,7 @@
 /**************** Value H Declares Source Code File (.H) ***************/
-/*  Name: VALUE.H    Version 2.1                                       */
+/*  Name: VALUE.H    Version 2.2                                       */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          2001-2014    */
+/*  (C) Copyright to the author Olivier BERTRAND          2001-2016    */
 /*                                                                     */
 /*  This file contains the VALUE and derived classes declares.         */
 /***********************************************************************/
@@ -15,6 +15,13 @@
 /***********************************************************************/
 #include "assert.h"
 #include "block.h"
+
+/***********************************************************************/
+/*  This should list the processors accepting unaligned numeral values.*/
+/***********************************************************************/
+#if defined(__i386__) || defined(__x86_64__) || defined(_M_IX86) || defined(_M_X64) || defined(_M_AMD64) || defined(_M_IA64)
+#define UNALIGNED_OK
+#endif
 
 /***********************************************************************/
 /*  Types used in some class definitions.                              */
@@ -116,27 +123,46 @@ class DllExport VALUE : public BLOCK {
   virtual bool   Compute(PGLOBAL g, PVAL *vp, int np, OPVAL op);
   virtual bool   FormatValue(PVAL vp, char *fmt) = 0;
 
-  /**
-    Set value from a non-aligned in-memory value in the machine byte order.
-    TYPE can be either of:
-    - int, short, longlong
-    - uint, ushort, ulonglong
-    - float, double
-    @param - a pointer to a non-aligned value of type TYPE.
-  */
-  template<typename TYPE>
-  void SetValueNonAligned(const char *p)
-  {
-#if defined(__i386__) || defined(__x86_64__)
-    SetValue(*((TYPE*) p)); // x86 can cast non-aligned memory directly
+	/**
+	Set value from a non-aligned in-memory value in the machine byte order.
+	TYPE can be either of:
+	- int, short, longlong
+	- uint, ushort, ulonglong
+	- float, double
+	@param - a pointer to a non-aligned value of type TYPE.
+	*/
+	template<typename TYPE>
+	void SetValueNonAligned(const char *p)
+	{
+#if defined(UNALIGNED_OK)
+		SetValue(*((TYPE*)p)); // x86 can cast non-aligned memory directly
 #else
-    TYPE tmp;               // a slower version for non-x86 platforms
-    memcpy(&tmp, p, sizeof(tmp));
-    SetValue(tmp);
+		TYPE tmp;               // a slower version for non-x86 platforms
+		memcpy(&tmp, p, sizeof(tmp));
+		SetValue(tmp);
 #endif
-  }
+	}	// end of SetValueNonAligned
 
- protected:
+	/**
+	Get value from a non-aligned in-memory value in the machine byte order.
+	TYPE can be either of:
+	- int, short, longlong
+	- uint, ushort, ulonglong
+	- float, double
+	@params - a pointer to a non-aligned value of type TYPE, the TYPE value.
+	*/
+	template<typename TYPE>
+	void GetValueNonAligned(char *p, TYPE n)
+	{
+#if defined(UNALIGNED_OK)
+		*(TYPE *)p = n; // x86 can cast non-aligned memory directly
+#else
+		TYPE tmp = n;               // a slower version for non-x86 platforms
+		memcpy(p, &tmp, sizeof(tmp));
+#endif
+	}	// end of SetValueNonAligned
+
+protected:
   virtual bool   SetConstFormat(PGLOBAL, FORMAT&) = 0;
   const   char  *GetXfmt(void);
 

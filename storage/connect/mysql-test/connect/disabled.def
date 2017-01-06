@@ -9,8 +9,7 @@
 #  Do not use any TAB characters for whitespace.
 #
 ##############################################################################
-#json_udf_bin   : broken upstream in --ps  (fixed)
-jdbc            : Variable settings depend on machine configuration
-jdbc_new        : Variable settings depend on machine configuration
+#jdbc            : Variable settings depend on machine configuration
+#jdbc_new        : Variable settings depend on machine configuration
 jdbc_oracle     : Variable settings depend on machine configuration
 jdbc_postgresql : Variable settings depend on machine configuration
