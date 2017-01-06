@@ -9,3 +9,8 @@ select_for_update_skip_locked_nowait: MDEV-11481
 rpl_read_free: MDEV-10976
 
 optimizer_loose_index_scans: MariaDB doesnt support Skip Scan
+
+# MDEV-11735: MyRocks: Gap Lock detector support
+gap_lock_issue254: MDEV-11735: MyRocks: Gap Lock detector support
+gap_lock_raise_error: MDEV-11735: MyRocks: Gap Lock detector support
+
