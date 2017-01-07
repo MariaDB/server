@@ -95,7 +95,6 @@ namespace myrocks {
 static st_global_stats global_stats;
 static st_export_stats export_stats;
 
-#ifdef MARIAROCKS_NOT_YET
 /**
   Updates row counters based on the table type and operation type.
 */
@@ -107,7 +106,6 @@ void ha_rocksdb::update_row_stats(const operation_type &type) {
   else
     global_stats.rows[type].inc();
 }
-#endif
 
 void dbug_dump_database(rocksdb::DB *db);
 static handler *rocksdb_create_handler(my_core::handlerton *hton,
@@ -6451,8 +6449,8 @@ int ha_rocksdb::secondary_index_read(const int keyno, uchar* const buf)
 #ifdef MARIAROCKS_NOT_YET
         stats.rows_read++;
         stats.rows_index_next++;
-        update_row_stats(ROWS_READ);
 #endif
+        update_row_stats(ROWS_READ);
       }
       return rc;
     }
@@ -6600,8 +6598,8 @@ int ha_rocksdb::index_read_map_impl(uchar* const buf, const uchar* const key,
 #ifdef MARIAROCKS_NOT_YET
       stats.rows_read++;
       stats.rows_index_first++;
-      update_row_stats(ROWS_READ);
 #endif
+      update_row_stats(ROWS_READ);
     }
     DBUG_RETURN(rc);
   }
@@ -6729,8 +6727,8 @@ int ha_rocksdb::index_read_map_impl(uchar* const buf, const uchar* const key,
 #ifdef MARIAROCKS_NOT_YET
     stats.rows_read++;
     stats.rows_index_first++;
-    update_row_stats(ROWS_READ);
 #endif
+    update_row_stats(ROWS_READ);
   }
   DBUG_RETURN(rc);
 }
@@ -7632,8 +7630,8 @@ int ha_rocksdb::write_row(uchar* const buf)
   {
 #ifdef MARIAROCKS_NOT_YET
     stats.rows_inserted++;
-    update_row_stats(ROWS_INSERTED);
 #endif
+    update_row_stats(ROWS_INSERTED);
   }
   DBUG_RETURN(rv);
 }
@@ -8545,8 +8543,8 @@ int ha_rocksdb::rnd_next_with_direction(uchar* const buf, bool move_forward)
 #ifdef MARIAROCKS_NOT_YET
     stats.rows_read++;
     stats.rows_index_next++;
-    update_row_stats(ROWS_READ);
 #endif
+    update_row_stats(ROWS_READ);
   }
 
   DBUG_RETURN(rc);
@@ -8662,8 +8660,8 @@ int ha_rocksdb::delete_row(const uchar* const buf)
   }
 #ifdef MARIAROCKS_NOT_YET
   stats.rows_deleted++;
-  update_row_stats(ROWS_DELETED);
 #endif
+  update_row_stats(ROWS_DELETED);
 
   DBUG_RETURN(0);
 }
@@ -8882,8 +8880,8 @@ int ha_rocksdb::rnd_pos(uchar* const buf, uchar* const pos)
   {
 #ifdef MARIAROCKS_NOT_YET
     stats.rows_read++;
-    update_row_stats(ROWS_READ);
 #endif
+    update_row_stats(ROWS_READ);
   }
 
   DBUG_RETURN(rc);
@@ -8946,8 +8944,8 @@ int ha_rocksdb::update_row(const uchar* const old_data, uchar* const new_data)
   {
 #ifdef MARIAROCKS_NOT_YET
     stats.rows_updated++;
-    update_row_stats(ROWS_UPDATED);
 #endif
+    update_row_stats(ROWS_UPDATED);
   }
   DBUG_RETURN(rv);
 }

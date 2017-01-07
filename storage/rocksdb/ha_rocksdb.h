@@ -510,9 +510,9 @@ class ha_rocksdb: public my_core::handler
     __attribute__((__nonnull__, __warn_unused_result__));
   bool has_hidden_pk(const TABLE* const table) const
     __attribute__((__nonnull__, __warn_unused_result__));
-#ifdef MARIAROCKS_NOT_YET
+
   void update_row_stats(const operation_type &type);
-#endif
+
   void set_last_rowkey(const uchar* const old_data);
 
   /*
