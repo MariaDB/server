@@ -139,7 +139,7 @@ ibool	srv_was_started = FALSE;
 static ibool	srv_start_has_been_called = FALSE;
 #ifdef UNIV_DEBUG
 /** InnoDB system tablespace to set during recovery */
-UNIV_INTERN ulong	srv_sys_space_size_debug;
+UNIV_INTERN uint	srv_sys_space_size_debug;
 #endif /* UNIV_DEBUG */
 
 /** Bit flags for tracking background thread creation. They are used to
