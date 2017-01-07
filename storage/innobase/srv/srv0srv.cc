@@ -418,7 +418,7 @@ ulong	srv_replication_delay		= 0;
 
 /*-------------------------------------------*/
 UNIV_INTERN ulong	srv_n_spin_wait_rounds	= 15;
-ulong	srv_spin_wait_delay	= 6;
+uint	srv_spin_wait_delay;
 ibool	srv_priority_boost	= TRUE;
 
 static ulint		srv_n_rows_inserted_old		= 0;
