@@ -6528,6 +6528,23 @@ int ha_rocksdb::read_range_first(const key_range* const start_key,
 }
 
 
+int ha_rocksdb::prepare_index_scan()
+{
+  range_key_part= table->key_info[active_index].key_part;
+  set_end_range(NULL);
+  return 0;
+}
+
+
+int ha_rocksdb::prepare_range_scan(const key_range *start_key,
+                                    const key_range *end_key)
+{
+  range_key_part= table->key_info[active_index].key_part;
+  set_end_range(end_key);
+  return 0;
+}
+
+
 int ha_rocksdb::index_read_map(uchar* const buf, const uchar* const key,
                                key_part_map keypart_map,
                                enum ha_rkey_function find_flag)

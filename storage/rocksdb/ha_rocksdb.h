@@ -577,6 +577,17 @@ class ha_rocksdb: public my_core::handler
 
 public:
   /*
+    The following two are currently only used for getting the range bounds
+    from QUICK_SELECT_DESC.
+    We don't need to implement prepare_index_key_scan[_map] because it is
+    only used with HA_READ_KEY_EXACT and HA_READ_PREFIX_LAST where one
+    can infer the bounds of the range being scanned, anyway.
+  */
+  int prepare_index_scan() override;
+  int prepare_range_scan(const key_range *start_key,
+                         const key_range *end_key) override;
+
+  /*
     Controls whether writes include checksums. This is updated from the session variable
     at the start of each query.
   */

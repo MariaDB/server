@@ -101,11 +101,11 @@ insert into t1 values (21,2,2,0x12FFFFFFFFFF,1);
 explain 
 select * from t1 where kp0=1 and kp1=1 and kp2=0x12FFFFFFFFFF order by kp3 desc;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	kp12	kp12	28	NULL	#	Using where; Using index
+1	SIMPLE	t1	ref	kp12	kp12	20	const,const,const	#	Using where; Using index
 show status like '%rocksdb_bloom_filter_prefix%';
 Variable_name	Value
-rocksdb_bloom_filter_prefix_checked	0
-rocksdb_bloom_filter_prefix_useful	0
+Rocksdb_bloom_filter_prefix_checked	0
+Rocksdb_bloom_filter_prefix_useful	0
 select variable_value into @c from information_schema.global_status where variable_name='rocksdb_bloom_filter_prefix_checked';
 select * from t1 where kp0=1 and kp1=1 and kp2=0x12FFFFFFFFFF order by kp3 desc;
 pk	kp0	kp1	kp2	kp3
@@ -113,8 +113,8 @@ pk	kp0	kp1	kp2	kp3
 10	1	1	20890720927743	1
 show status like '%rocksdb_bloom_filter_prefix%';
 Variable_name	Value
-rocksdb_bloom_filter_prefix_checked	0
-rocksdb_bloom_filter_prefix_useful	0
+Rocksdb_bloom_filter_prefix_checked	0
+Rocksdb_bloom_filter_prefix_useful	0
 # The following MUST show TRUE:
 select case when variable_value-@c = 0 then 'true' else 'false' end from information_schema.global_status where variable_name='rocksdb_bloom_filter_prefix_checked';
 case when variable_value-@c = 0 then 'true' else 'false' end
