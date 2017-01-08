@@ -147,6 +147,7 @@ static unsigned long connect_flags= CLIENT_MULTI_RESULTS |
 static int verbose, delimiter_length;
 static uint commit_rate;
 static uint detach_rate;
+static uint qps_target;
 const char *num_int_cols_opt;
 const char *num_char_cols_opt;
 
@@ -216,6 +217,7 @@ typedef struct thread_context thread_context;
 struct thread_context {
   statement *stmt;
   ulonglong limit;
+  ulong srv_time_target;
 };
 
 typedef struct conclusions conclusions;
@@ -280,6 +282,27 @@ static long int timedif(struct timeval a, struct timeval b)
     s = a.tv_sec - b.tv_sec;
     s *= 1000;
     return s + us;
+}
+
+void sleep_us(ulong tm)
+{
+#ifdef _WIN32
+    Sleep((DWORD) tm / 1000);
+#elif defined(HAVE_NANOSLEEP)
+    struct timespec t;
+
+    t.tv_sec = tm / 1000000;
+    t.tv_nsec = (tm % 1000000) * 1000;
+
+    nanosleep(&t, NULL);
+#else
+    struct timeval  t;
+
+    t.tv_sec = tm / 1000000;
+    t.tv_usec = tm % 1000000;
+
+    select(0, NULL, NULL, NULL, &t);
+#endif
 }
 
 #ifdef __WIN__
@@ -698,6 +721,9 @@ static struct my_option my_long_options[] =
   {"protocol", OPT_MYSQL_PROTOCOL,
     "The protocol to use for connection (tcp, socket, pipe, memory).",
     0, 0, 0, GET_STR,  REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+  {"qps-target", OPT_QPS_TARGET, "QPS(Queries per second) target.",
+    &qps_target, &qps_target, 0, GET_UINT, REQUIRED_ARG,
+    0, 0, 0, 0, 0, 0},
   {"query", 'q', "Query to run or file containing query to run.",
     &user_supplied_query, &user_supplied_query,
     0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
@@ -1793,6 +1819,11 @@ run_scheduler(stats *sptr, statement *stmts, uint concur, ulonglong limit)
 
   con.stmt= stmts;
   con.limit= limit;
+  if (qps_target)
+    con.srv_time_target= 1000000 * concur / qps_target > ULONG_MAX ? ULONG_MAX :
+                         1000000 * concur / qps_target;
+  else
+    con.srv_time_target= 0;
 
   pthread_attr_init(&attr);
   pthread_attr_setdetachstate(&attr,
@@ -1855,11 +1886,16 @@ pthread_handler_t run_task(void *p)
   ulonglong counter= 0, queries;
   ulonglong detach_counter;
   unsigned int commit_counter;
+  ulong sleep_tm= 0;
+  struct timeval last_tmstamp, tmstamp;
   MYSQL *mysql;
   MYSQL_RES *result;
   MYSQL_ROW row;
   statement *ptr;
   thread_context *con= (thread_context *)p;
+
+  if (unlikely(con->srv_time_target))
+    gettimeofday(&last_tmstamp, NULL);
 
   DBUG_ENTER("run_task");
   DBUG_PRINT("info", ("task script \"%s\"", con->stmt ? con->stmt->string : ""));
@@ -1994,6 +2030,29 @@ limit_not_met:
 
       if (con->limit && queries == con->limit)
         goto end;
+
+      if (unlikely(con->srv_time_target))
+      {
+        gettimeofday(&tmstamp, NULL);
+        /*
+          srv_time set as a ulong value based on the assumption that time diff
+          between two execs never exceed 4293sec (: ((2^32-1)-1000^2)/(1000^2) ).
+        */
+        ulong srv_time= (tmstamp.tv_sec - last_tmstamp.tv_sec) * 1000000 +
+                         tmstamp.tv_usec - last_tmstamp.tv_usec;
+        last_tmstamp= tmstamp;
+        /*
+          in case srv_time_target is rather big, random gain helps queries
+          to be sparsely distributed.
+         */
+        if (con->srv_time_target > srv_time)
+          sleep_tm+= (con->srv_time_target - srv_time) / 10 * (random() % 10);
+        else if (sleep_tm > (srv_time - con->srv_time_target))
+          sleep_tm-= (srv_time - con->srv_time_target) / 10 * (random() % 10);
+        else
+          sleep_tm= 0;
+        sleep_us(sleep_tm);
+      }
     }
 
     if (con->limit && queries < con->limit)
