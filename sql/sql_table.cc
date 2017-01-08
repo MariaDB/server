@@ -2497,7 +2497,19 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
         int frm_delete_error, trigger_drop_error= 0;
 	/* Delete the table definition file */
 	strmov(end,reg_ext);
-        frm_delete_error= mysql_file_delete(key_file_frm, path, MYF(MY_WME));
+        if (table_type && table_type != view_pseudo_hton &&
+            table_type->discover_table)
+        {
+          /*
+            Table type is using discovery and may not need a .frm file.
+            Delete it silently if it exists
+          */
+          (void) mysql_file_delete(key_file_frm, path, MYF(0));
+          frm_delete_error= 0;
+        }
+        else
+          frm_delete_error= mysql_file_delete(key_file_frm, path,
+                                              MYF(MY_WME));
         if (frm_delete_error)
           frm_delete_error= my_errno;
         else
@@ -2513,7 +2525,7 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
         else if (frm_delete_error && if_exists)
           thd->clear_error();
       }
-      non_tmp_error= error ? TRUE : non_tmp_error;
+      non_tmp_error|= MY_TEST(error);
     }
     if (error)
     {
