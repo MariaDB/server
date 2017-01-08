@@ -6795,7 +6795,7 @@ int ha_rocksdb::find_icp_matching_index_rec(const bool &move_forward,
         return HA_ERR_INTERNAL_ERROR;
       }
 
-      const enum icp_result icp_status= check_index_cond();
+      const enum icp_result icp_status= handler_index_cond_check(this);
       if (icp_status == ICP_NO_MATCH)
       {
         if (move_forward)
@@ -6804,7 +6804,7 @@ int ha_rocksdb::find_icp_matching_index_rec(const bool &move_forward,
           m_scan_it->Prev();
         continue; /* Get the next (or prev) index tuple */
       }
-      else if (icp_status == ICP_OUT_OF_RANGE)
+      else if (icp_status == ICP_OUT_OF_RANGE || icp_status == ICP_ABORTED_BY_USER)
       {
         /* We have walked out of range we are scanning */
         table->status= STATUS_NOT_FOUND;
@@ -9948,41 +9948,6 @@ class Item* ha_rocksdb::idx_cond_push(uint keyno, class Item* const idx_cond)
 
   /* We will check the whole condition */
   return nullptr;
-}
-
-
-/*
-  @brief
-  Check the index condition.
-
-  @detail
-  Check the index condition. (The caller has unpacked all needed index
-  columns into table->record[0])
-
-  @return
-    ICP_NO_MATCH - Condition not satisfied (caller should continue
-                   scanning)
-    OUT_OF_RANGE - We've left the range we're scanning (caller should
-                   stop scanning and return HA_ERR_END_OF_FILE)
-
-    ICP_MATCH    - Condition is satisfied (caller should fetch the record
-                   and return it)
-*/
-
-enum icp_result ha_rocksdb::check_index_cond() const
-{
-  DBUG_ASSERT(pushed_idx_cond);
-  DBUG_ASSERT(pushed_idx_cond_keyno != MAX_KEY);
-  
-  // MARIAROCKS_NOT_YET: MariaRocks todo: switch to using
-  // handler_index_cond_check() call?
-  if (end_range && compare_key2(end_range) > 0)
-  {
-    /* caller should return HA_ERR_END_OF_FILE already */
-    return ICP_OUT_OF_RANGE;
-  }
-
-  return pushed_idx_cond->val_int() ? ICP_MATCH : ICP_NO_MATCH;
 }
 
 

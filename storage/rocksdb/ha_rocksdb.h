@@ -855,7 +855,6 @@ private:
   int index_last_intern(uchar *buf)
     __attribute__((__nonnull__, __warn_unused_result__));
 
-  enum icp_result check_index_cond() const;
   int find_icp_matching_index_rec(const bool &move_forward, uchar* const buf)
     __attribute__((__nonnull__, __warn_unused_result__));
 

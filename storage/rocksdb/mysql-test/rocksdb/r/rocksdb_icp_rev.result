@@ -50,23 +50,17 @@ EXPLAIN
     "table": {
       "table_name": "t3",
       "access_type": "range",
-      "possible_keys": [
-        "kp1"
-      ],
+      "possible_keys": ["kp1"],
       "key": "kp1",
-      "used_key_parts": [
-        "kp1"
-      ],
       "key_length": "5",
+      "used_key_parts": ["kp1"],
       "rows": 1000,
       "filtered": 100,
-      "index_condition": "((`test`.`t3`.`kp1` between 2 and 4) and ((`test`.`t3`.`kp1` % 3) = 0))",
-      "attached_condition": "(`test`.`t3`.`kp2` like '%foo%')"
+      "index_condition": "t3.kp1 between 2 and 4 and t3.kp1 % 3 = 0",
+      "attached_condition": "t3.kp2 like '%foo%'"
     }
   }
 }
-Warnings:
-Note	1003	/* select#1 */ select `test`.`t3`.`pk` AS `pk`,`test`.`t3`.`kp1` AS `kp1`,`test`.`t3`.`kp2` AS `kp2`,`test`.`t3`.`col1` AS `col1` from `test`.`t3` where ((`test`.`t3`.`kp1` between 2 and 4) and ((`test`.`t3`.`kp1` % 3) = 0) and (`test`.`t3`.`kp2` like '%foo%'))
 # Check that we handle the case where out-of-range is encountered sooner
 # than matched index condition
 explain 
@@ -82,10 +76,11 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 select * from t2 where kp1< 3 and kp2+1>50000;
 pk	kp1	kp2	col1
 # Try doing backwards scans
+#  MariaDB: ICP is not supported for reverse scans.
 explain 
 select * from t2 where kp1 between 1 and 10 and mod(kp2,2)=0 order by kp1 desc;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	range	kp1	kp1	5	NULL	#	Using index condition
+1	SIMPLE	t2	range	kp1	kp1	5	NULL	#	Using where
 select * from t2 where kp1 between 1 and 10 and mod(kp2,2)=0 order by kp1 desc;
 pk	kp1	kp2	col1
 10	10	10	10
@@ -96,7 +91,7 @@ pk	kp1	kp2	col1
 explain 
 select * from t2 where kp1 >990 and mod(kp2,2)=0 order by kp1 desc;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	range	kp1	kp1	5	NULL	#	Using index condition
+1	SIMPLE	t2	range	kp1	kp1	5	NULL	#	Using where
 select * from t2 where kp1 >990 and mod(kp2,2)=0 order by kp1 desc;
 pk	kp1	kp2	col1
 998	998	998	998
@@ -106,7 +101,7 @@ pk	kp1	kp2	col1
 explain 
 select * from t2 where kp1< 3 and kp2+1>50000 order by kp1 desc;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	range	kp1	kp1	5	NULL	#	Using index condition
+1	SIMPLE	t2	range	kp1	kp1	5	NULL	#	Using where
 select * from t2 where kp1< 3 and kp2+1>50000 order by kp1 desc;
 pk	kp1	kp2	col1
 drop table t0,t1,t2,t3;
@@ -115,16 +110,48 @@ drop table t0,t1,t2,t3;
 #
 # First, some preparations
 #
+# in facebook/mysql-5.6, it was:
+#  select ROWS_READ, ROWS_REQUESTED, ROWS_INDEX_FIRST, ROWS_INDEX_NEXT 
+# 
+# In MariaDB, we do:
 create procedure save_read_stats()
-select ROWS_READ, ROWS_REQUESTED, ROWS_INDEX_FIRST, ROWS_INDEX_NEXT 
-into @rr, @rq, @rif, @rin
+begin
+set @rr=(select ROWS_READ
 from information_schema.table_statistics 
-where table_name='t4' and table_schema=database();
+where table_name='t4' and table_schema=database());
+set @rif= (select VARIABLE_VALUE 
+from information_schema.session_status
+where VARIABLE_NAME='Handler_read_first');
+set @rin=(select VARIABLE_VALUE 
+from information_schema.session_status
+where VARIABLE_NAME='Handler_read_next');
+set @icp_attempts=(select VARIABLE_VALUE 
+from information_schema.session_status
+where VARIABLE_NAME='Handler_icp_attempts');
+set @icp_matches=(select VARIABLE_VALUE 
+from information_schema.session_status
+where VARIABLE_NAME='Handler_icp_match');
+end|
 create procedure get_read_stats()
+begin
 select 
-ROWS_READ-@rr, ROWS_REQUESTED-@rq, ROWS_INDEX_FIRST-@rif, ROWS_INDEX_NEXT-@rin
+(select ROWS_READ 
 from information_schema.table_statistics 
-where table_name='t4' and table_schema=database();
+where table_name='t4' and table_schema=database()
+) - @rr as ROWS_READ_DIFF,
+(select VARIABLE_VALUE - @rif
+from information_schema.session_status
+where VARIABLE_NAME='Handler_read_first') as ROWS_INDEX_FIRST,
+(select VARIABLE_VALUE - @rin
+from information_schema.session_status
+where VARIABLE_NAME='Handler_read_next') as ROWS_INDEX_NEXT,
+(select VARIABLE_VALUE - @icp_attempts
+from information_schema.session_status
+where VARIABLE_NAME='Handler_icp_attempts') as ICP_ATTEMPTS,
+(select VARIABLE_VALUE - @icp_matches
+from information_schema.session_status
+where VARIABLE_NAME='Handler_icp_match') as ICP_MATCHES;
+end|
 create table t4 (
 id int, 
 id1 int, 
@@ -142,8 +169,8 @@ insert into t4 values
 #
 call save_read_stats();
 call get_read_stats();
-ROWS_READ-@rr	ROWS_REQUESTED-@rq	ROWS_INDEX_FIRST-@rif	ROWS_INDEX_NEXT-@rin
-0	0	0	0
+ROWS_READ_DIFF	ROWS_INDEX_FIRST	ROWS_INDEX_NEXT	ICP_ATTEMPTS	ICP_MATCHES
+0	0	0	0	0
 # ============== index-only query ==============
 explain
 select id1,id2 from t4 force index (id1_id2) where id1=1 and id2 % 10 = 1;
@@ -154,10 +181,11 @@ select id1,id2 from t4 force index (id1_id2) where id1=1 and id2 % 10 = 1;
 id1	id2
 1	1
 call get_read_stats();
-ROWS_READ-@rr	10
-ROWS_REQUESTED-@rq	11
-ROWS_INDEX_FIRST-@rif	1
-ROWS_INDEX_NEXT-@rin	9
+ROWS_READ_DIFF	10
+ROWS_INDEX_FIRST	0
+ROWS_INDEX_NEXT	10
+ICP_ATTEMPTS	0
+ICP_MATCHES	0
 # ============== Query without ICP ==============
 set optimizer_switch='index_condition_pushdown=off';
 explain
@@ -169,10 +197,11 @@ select * from t4 force index (id1_id2) where id1=1 and id2 % 10 = 1;
 id	id1	id2	value	value2
 1	1	1	1	1
 call get_read_stats();
-ROWS_READ-@rr	10
-ROWS_REQUESTED-@rq	11
-ROWS_INDEX_FIRST-@rif	1
-ROWS_INDEX_NEXT-@rin	9
+ROWS_READ_DIFF	10
+ROWS_INDEX_FIRST	0
+ROWS_INDEX_NEXT	10
+ICP_ATTEMPTS	0
+ICP_MATCHES	0
 # ============== Query with ICP ==============
 set optimizer_switch='index_condition_pushdown=on';
 explain
@@ -184,10 +213,11 @@ select * from t4 force index (id1_id2) where id1=1 and id2 % 10 = 1;
 id	id1	id2	value	value2
 1	1	1	1	1
 call get_read_stats();
-ROWS_READ-@rr	1
-ROWS_REQUESTED-@rq	1
-ROWS_INDEX_FIRST-@rif	1
-ROWS_INDEX_NEXT-@rin	0
+ROWS_READ_DIFF	1
+ROWS_INDEX_FIRST	0
+ROWS_INDEX_NEXT	1
+ICP_ATTEMPTS	10
+ICP_MATCHES	1
 drop table t4;
 drop procedure save_read_stats;
 drop procedure get_read_stats;

@@ -66,6 +66,8 @@ select * from t2 where kp1< 3 and kp2+1>50000;
 select * from t2 where kp1< 3 and kp2+1>50000;
 
 --echo # Try doing backwards scans
+--echo #  MariaDB: ICP is not supported for reverse scans.
+
 --replace_column 9 #
 explain 
 select * from t2 where kp1 between 1 and 10 and mod(kp2,2)=0 order by kp1 desc;
@@ -88,17 +90,60 @@ drop table t0,t1,t2,t3;
 --echo #
 --echo # First, some preparations
 --echo #
+--echo # in facebook/mysql-5.6, it was:
+--echo #  select ROWS_READ, ROWS_REQUESTED, ROWS_INDEX_FIRST, ROWS_INDEX_NEXT 
+--echo # 
+--echo # In MariaDB, we do:
+delimiter |;
 create procedure save_read_stats()
-  select ROWS_READ, ROWS_REQUESTED, ROWS_INDEX_FIRST, ROWS_INDEX_NEXT 
-  into @rr, @rq, @rif, @rin
-  from information_schema.table_statistics 
-  where table_name='t4' and table_schema=database();
+begin
+  set @rr=(select ROWS_READ
+           from information_schema.table_statistics 
+           where table_name='t4' and table_schema=database());
+
+  set @rif= (select VARIABLE_VALUE 
+            from information_schema.session_status
+            where VARIABLE_NAME='Handler_read_first');
+
+  set @rin=(select VARIABLE_VALUE 
+            from information_schema.session_status
+            where VARIABLE_NAME='Handler_read_next');
+
+  set @icp_attempts=(select VARIABLE_VALUE 
+            from information_schema.session_status
+            where VARIABLE_NAME='Handler_icp_attempts');
+
+  set @icp_matches=(select VARIABLE_VALUE 
+            from information_schema.session_status
+            where VARIABLE_NAME='Handler_icp_match');
+end|
 
 create procedure get_read_stats()
+begin
   select 
-    ROWS_READ-@rr, ROWS_REQUESTED-@rq, ROWS_INDEX_FIRST-@rif, ROWS_INDEX_NEXT-@rin
-  from information_schema.table_statistics 
-  where table_name='t4' and table_schema=database();
+    (select ROWS_READ 
+     from information_schema.table_statistics 
+     where table_name='t4' and table_schema=database()
+    ) - @rr as ROWS_READ_DIFF,
+
+    (select VARIABLE_VALUE - @rif
+    from information_schema.session_status
+    where VARIABLE_NAME='Handler_read_first') as ROWS_INDEX_FIRST,
+
+    (select VARIABLE_VALUE - @rin
+     from information_schema.session_status
+     where VARIABLE_NAME='Handler_read_next') as ROWS_INDEX_NEXT,
+
+    (select VARIABLE_VALUE - @icp_attempts
+     from information_schema.session_status
+     where VARIABLE_NAME='Handler_icp_attempts') as ICP_ATTEMPTS,
+
+    (select VARIABLE_VALUE - @icp_matches
+     from information_schema.session_status
+     where VARIABLE_NAME='Handler_icp_match') as ICP_MATCHES;
+end|
+
+delimiter ;|
 
 eval
 create table t4 (
