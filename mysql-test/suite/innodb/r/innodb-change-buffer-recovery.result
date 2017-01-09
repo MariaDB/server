@@ -30,15 +30,14 @@ x
 x
 x
 connect  con1,localhost,root,,;
-connection con1;
 BEGIN;
 DELETE FROM t1 WHERE a=1;
 INSERT INTO t1 VALUES(1,'X',1);
-SET DEBUG='+d,crash_after_log_ibuf_upd_inplace';
-Warnings:
-Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
+SET DEBUG_DBUG='+d,crash_after_log_ibuf_upd_inplace';
 SELECT b FROM t1 LIMIT 3;
 ERROR HY000: Lost connection to MySQL server during query
+disconnect con1;
+connection default;
 FOUND /Wrote log record for ibuf update in place operation/ in my_restart.err
 CHECK TABLE t1;
 Table	Op	Msg_type	Msg_text
