@@ -8497,7 +8497,10 @@ ha_innobase::build_template(
 				index_contains = dict_index_contains_col_or_prefix(
 					index, num_v, true);
                                 if (index_contains)
+                                {
+                                        m_prebuilt->n_template = 0;
                                         goto no_icp;
+                                }
 			} else {
 				index_contains = dict_index_contains_col_or_prefix(
 					index, i - num_v, false);
