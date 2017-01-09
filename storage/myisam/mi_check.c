@@ -2781,7 +2781,7 @@ int mi_repair_parallel(HA_CHECK *param, register MI_INFO *info,
   del=info->state->del;
   param->glob_crc=0;
   /* for compressed tables */
-  max_pack_reclength= share->base.pack_reclength;
+  max_pack_reclength= MY_MAX(share->base.pack_reclength, share->vreclength);
   if (share->options & HA_OPTION_COMPRESS_RECORD)
     set_if_bigger(max_pack_reclength, share->max_pack_length);
   if (!(sort_param=(MI_SORT_PARAM *)
