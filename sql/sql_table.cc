@@ -5943,7 +5943,7 @@ drop_create_field:
         while ((f_key= fk_key_it++))
         {
           if (my_strcasecmp(system_charset_info, f_key->foreign_id->str,
-                key->name.str) == 0)
+                keyname) == 0)
             goto remove_key;
         }
       }
