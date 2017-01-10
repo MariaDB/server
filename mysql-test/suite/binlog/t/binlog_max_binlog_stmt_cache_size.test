@@ -1,0 +1,22 @@
+source include/have_log_bin.inc;
+select @@max_binlog_stmt_cache_size;
+
+--let $cache_size=`select @@max_binlog_stmt_cache_size;`
+
+set global max_binlog_stmt_cache_size= 18446744073709547520;
+select @@max_binlog_stmt_cache_size;
+
+set global max_binlog_stmt_cache_size= 18446744073709547519;
+select @@max_binlog_stmt_cache_size;
+
+set global max_binlog_stmt_cache_size= 18446744073709551615;
+select @@max_binlog_stmt_cache_size;
+
+set global max_binlog_stmt_cache_size= 18446744073709551614;
+select @@max_binlog_stmt_cache_size;
+
+--error ER_WRONG_TYPE_FOR_VAR
+set global max_binlog_stmt_cache_size= 18446744073709551616;
+select @@max_binlog_stmt_cache_size;
+
+--eval set global max_binlog_stmt_cache_size= $cache_size
