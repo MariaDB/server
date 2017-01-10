@@ -4796,11 +4796,11 @@ pthread_handler_t handle_slave_sql(void *arg)
   { 
     rli->report(ERROR_LEVEL, ER_SLAVE_FATAL_ERROR, NULL,
                 "Error initializing relay log position: %s", errmsg);
-    goto err;
+    goto err_before_start;
   }
   rli->reset_inuse_relaylog();
   if (rli->alloc_inuse_relaylog(rli->group_relay_log_name))
-    goto err;
+    goto err_before_start;
 
   strcpy(rli->future_event_master_log_name, rli->group_master_log_name);
   THD_CHECK_SENTRY(thd);
@@ -4977,6 +4977,7 @@ pthread_handler_t handle_slave_sql(void *arg)
     }
   }
 
+ err:
   if (mi->using_parallel())
     rli->parallel.wait_for_done(thd, rli);
 
@@ -4994,15 +4995,7 @@ pthread_handler_t handle_slave_sql(void *arg)
                           rli->group_master_log_pos, tmp.c_ptr_safe());
   }
 
- err:
-
-  /*
-    Once again, in case we aborted with an error and skipped the first one.
-    (We want the first one to be before the printout of stop position to
-    get the correct position printed.)
-  */
-  if (mi->using_parallel())
-    rli->parallel.wait_for_done(thd, rli);
+ err_before_start:
 
   /*
     Some events set some playgrounds, which won't be cleared because thread

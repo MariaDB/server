@@ -1737,6 +1737,25 @@ SHOW CREATE TABLE `tab1`;
 ALTER TABLE `tab1` CHANGE COLUMN v_col `v_col` varchar(128) AS (IF(field11='option1',CONCAT_WS(":","field1",field2,field3,field4,field5,field6,field7,field8,field9,field10), CONCAT_WS(":","field1",field11,field2,field3,field4,field5,field6,field7,field8,field9,field10))) PERSISTENT;
 SHOW CREATE TABLE `tab1`;
 DROP TABLE `tab1`;
+
+--echo #
+--echo # MDEV-11548 Reproducible server crash after the 2nd ALTER TABLE ADD FOREIGN KEY IF NOT EXISTS
+--echo #
+
+CREATE TABLE t1 (id INT UNSIGNED NOT NULL PRIMARY KEY);
+CREATE TABLE t2 (id1 INT UNSIGNED NOT NULL);
+
+ALTER TABLE t2
+ADD FOREIGN KEY IF NOT EXISTS (id1)
+  REFERENCES t1 (id);
+
+ALTER TABLE t2
+ADD FOREIGN KEY IF NOT EXISTS (id1)
+REFERENCES t1 (id);
+
+DROP TABLE t2;
+DROP TABLE t1;
+
 --echo #
 --echo # Start of 10.1 tests
 --echo #
