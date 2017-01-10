@@ -215,7 +215,6 @@ parse_arguments() {
   for arg do
     val=`echo "$arg" | sed -e "s;--[^=]*=;;"`
     case "$arg" in
-      --crash[-_]script=*) CRASH_SCRIPT="$val" ;;
       # these get passed explicitly to mysqld
       --basedir=*) MY_BASEDIR_VERSION="$val" ;;
       --datadir=*|--data=*) DATADIR="$val" ;;
@@ -241,7 +240,7 @@ parse_arguments() {
       --socket=*) mysql_unix_port="$val" ;;
 
       # mysqld_safe-specific options - must be set in my.cnf ([mysqld_safe])!
-      --core[-_]file-size=*) core_file_size="$val" ;;
+      --core[-_]file[-_]size=*) core_file_size="$val" ;;
       --ledir=*) check_executable_location "$arg" ; ledir="$val" ;;
       --malloc[-_]lib=*) check_executable_location "$arg"; set_malloc_lib "$val" ;;
       --crash[-_]script=*) check_executable_location "$arg"; crash_script="$val" ;;
