@@ -1054,7 +1054,7 @@ sub print_global_resfile {
   resfile_global("gprof", $opt_gprof ? 1 : 0);
   resfile_global("valgrind", $opt_valgrind ? 1 : 0);
   resfile_global("callgrind", $opt_callgrind ? 1 : 0);
-  resfile_global("mem", $opt_mem ? 1 : 0);
+  resfile_global("mem", $opt_mem);
   resfile_global("tmpdir", $opt_tmpdir);
   resfile_global("vardir", $opt_vardir);
   resfile_global("fast", $opt_fast ? 1 : 0);
@@ -1194,7 +1194,7 @@ sub command_line_setup {
 	     # Directories
              'tmpdir=s'                 => \$opt_tmpdir,
              'vardir=s'                 => \$opt_vardir,
-             'mem'                      => \$opt_mem,
+             'mem:s'                    => \$opt_mem,
 	     'clean-vardir'             => \$opt_clean_vardir,
              'client-bindir=s'          => \$path_client_bindir,
              'client-libdir=s'          => \$path_client_libdir,
@@ -6427,9 +6427,9 @@ Options to control directories to use
   vardir=DIR            The directory where files generated from the test run
                         is stored (default: ./var). Specifying a ramdisk or
                         tmpfs will speed up tests.
-  mem                   Run testsuite in "memory" using tmpfs or ramdisk
-                        Attempts to find a suitable location
-                        using a builtin list of standard locations
+  mem[=DIR]             Run testsuite in "memory" using tmpfs or ramdisk
+                        Attempts to use DIR first if specified else
+                        uses a builtin list of standard locations
                         for tmpfs (/run/shm, /dev/shm, /tmp)
                         The option can also be set using environment
                         variable MTR_MEM=[DIR]
