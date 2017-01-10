@@ -2403,7 +2403,8 @@ int multi_update::do_updates()
         field_num++;
       } while ((tbl= check_opt_it++));
 
-      if (table->vfield && table->update_virtual_fields(VCOL_UPDATE_INDEXED))
+      if (table->vfield &&
+          table->update_virtual_fields(VCOL_UPDATE_INDEXED_FOR_UPDATE))
         goto err2;
 
       table->status|= STATUS_UPDATED;

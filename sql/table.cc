@@ -4932,7 +4932,7 @@ bool TABLE_LIST::prep_check_option(THD *thd, uint8 check_opt_type)
 
 void TABLE_LIST::hide_view_error(THD *thd)
 {
-  if (thd->killed || thd->get_internal_handler())
+  if ((thd->killed && !thd->is_error())|| thd->get_internal_handler())
     return;
   /* Hide "Unknown column" or "Unknown function" error */
   DBUG_ASSERT(thd->is_error());
@@ -7308,6 +7308,24 @@ bool is_simple_order(ORDER *order)
   return TRUE;
 }
 
+class Turn_errors_to_warnings_handler : public Internal_error_handler
+{
+public:
+  Turn_errors_to_warnings_handler() {}
+  bool handle_condition(THD *thd,
+                        uint sql_errno,
+                        const char* sqlstate,
+                        Sql_condition::enum_warning_level *level,
+                        const char* msg,
+                        Sql_condition ** cond_hdl)
+  {
+    *cond_hdl= NULL;
+    if (*level == Sql_condition::WARN_LEVEL_ERROR)
+      *level= Sql_condition::WARN_LEVEL_WARN;
+    return(0);
+  }
+};
+
 /*
   @brief Compute values for virtual columns used in query
 
@@ -7328,9 +7346,22 @@ int TABLE::update_virtual_fields(enum_vcol_update_mode update_mode)
   DBUG_ENTER("TABLE::update_virtual_fields");
   DBUG_PRINT("enter", ("update_mode: %d", update_mode));
   Field **vfield_ptr, *vf;
+  Turn_errors_to_warnings_handler Suppress_errors;
+  int error;
+  bool handler_pushed= 0;
   DBUG_ASSERT(vfield);
 
+  error= 0;
   in_use->reset_arena_for_cached_items(expr_arena);
+
+  /* When reading or deleting row, ignore errors from virtual columns */
+  if (update_mode == VCOL_UPDATE_FOR_READ ||
+      update_mode == VCOL_UPDATE_FOR_DELETE ||
+      update_mode == VCOL_UPDATE_INDEXED)
+  {
+    in_use->push_internal_handler(&Suppress_errors);
+    handler_pushed= 1;
+  }
   /* Iterate over virtual fields in the table */
   for (vfield_ptr= vfield; *vfield_ptr; vfield_ptr++)
   {
@@ -7347,6 +7378,8 @@ int TABLE::update_virtual_fields(enum_vcol_update_mode update_mode)
            && bitmap_is_set(vcol_set, vf->field_index);
       swap_values= 1;
       break;
+    case VCOL_UPDATE_FOR_DELETE:
+      /* Fall trough */
     case VCOL_UPDATE_FOR_WRITE:
       update= bitmap_is_set(vcol_set, vf->field_index);
       break;
@@ -7367,6 +7400,7 @@ int TABLE::update_virtual_fields(enum_vcol_update_mode update_mode)
       }
       break;
     case VCOL_UPDATE_INDEXED:
+    case VCOL_UPDATE_INDEXED_FOR_UPDATE:
       /* Read indexed fields that was not updated in VCOL_UPDATE_FOR_READ */
       update= (!vcol_info->stored_in_db && (vf->flags & PART_KEY_FLAG) &&
                bitmap_is_set(vcol_set, vf->field_index) &&
@@ -7377,9 +7411,12 @@ int TABLE::update_virtual_fields(enum_vcol_update_mode update_mode)
 
     if (update)
     {
+      int field_error __attribute__((unused)) = 0;
       /* Compute the actual value of the virtual fields */
-      vcol_info->expr->save_in_field(vf, 0);
-      DBUG_PRINT("info", ("field '%s' - updated", vf->field_name));
+      if (vcol_info->expr->save_in_field(vf, 0))
+        field_error= error= 1;
+      DBUG_PRINT("info", ("field '%s' - updated  error: %d",
+                          vf->field_name, field_error));
       if (swap_values && (vf->flags & BLOB_FLAG))
       {
         /*
@@ -7396,8 +7433,12 @@ int TABLE::update_virtual_fields(enum_vcol_update_mode update_mode)
       DBUG_PRINT("info", ("field '%s' - skipped", vf->field_name));
     }
   }
+  if (handler_pushed)
+    in_use->pop_internal_handler();
   in_use->reset_arena_for_cached_items(0);
-  DBUG_RETURN(0);
+  
+  /* Return 1 only of we got a fatal error, not a warning */
+  DBUG_RETURN(in_use->is_error());
 }
 
 int TABLE::update_virtual_field(Field *vf)

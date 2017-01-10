@@ -195,7 +195,7 @@ public:
   virtual bool handle_condition(THD *thd,
                                 uint sql_errno,
                                 const char* sql_state,
-                                Sql_condition::enum_warning_level level,
+                                Sql_condition::enum_warning_level *level,
                                 const char* msg,
                                 Sql_condition ** cond_hdl);
   const char *message() const { return m_message; }
@@ -205,7 +205,7 @@ bool
 Silence_log_table_errors::handle_condition(THD *,
                                            uint,
                                            const char*,
-                                           Sql_condition::enum_warning_level,
+                                           Sql_condition::enum_warning_level*,
                                            const char* msg,
                                            Sql_condition ** cond_hdl)
 {

@@ -640,7 +640,7 @@ char *thd_security_context(THD *thd,
 bool Drop_table_error_handler::handle_condition(THD *thd,
                                                 uint sql_errno,
                                                 const char* sqlstate,
-                                                Sql_condition::enum_warning_level level,
+                                                Sql_condition::enum_warning_level *level,
                                                 const char* msg,
                                                 Sql_condition ** cond_hdl)
 {
@@ -660,7 +660,7 @@ MDL_deadlock_and_lock_abort_error_handler::
 handle_condition(THD *thd,
                  uint sql_errno,
                  const char *sqlstate,
-                 Sql_condition::enum_warning_level level,
+                 Sql_condition::enum_warning_level *level,
                  const char* msg,
                  Sql_condition **cond_hdl)
 {
@@ -945,7 +945,7 @@ void THD::push_internal_handler(Internal_error_handler *handler)
 
 bool THD::handle_condition(uint sql_errno,
                            const char* sqlstate,
-                           Sql_condition::enum_warning_level level,
+                           Sql_condition::enum_warning_level *level,
                            const char* msg,
                            Sql_condition ** cond_hdl)
 {
@@ -1072,6 +1072,7 @@ Sql_condition* THD::raise_condition(uint sql_errno,
   Diagnostics_area *da= get_stmt_da();
   Sql_condition *cond= NULL;
   DBUG_ENTER("THD::raise_condition");
+  DBUG_ASSERT(level < Sql_condition::WARN_LEVEL_END);
 
   if (!(variables.option_bits & OPTION_SQL_NOTES) &&
       (level == Sql_condition::WARN_LEVEL_NOTE))
@@ -1099,23 +1100,22 @@ Sql_condition* THD::raise_condition(uint sql_errno,
       push_warning and strict SQL_MODE case.
     */
     level= Sql_condition::WARN_LEVEL_ERROR;
-    killed= KILL_BAD_DATA;
   }
 
-  switch (level)
-  {
+  if (handle_condition(sql_errno, sqlstate, &level, msg, &cond))
+    DBUG_RETURN(cond);
+
+  switch (level) {
   case Sql_condition::WARN_LEVEL_NOTE:
   case Sql_condition::WARN_LEVEL_WARN:
     got_warning= 1;
     break;
   case Sql_condition::WARN_LEVEL_ERROR:
     break;
-  default:
-    DBUG_ASSERT(FALSE);
+  case Sql_condition::WARN_LEVEL_END:
+    /* Impossible */
+    break;
   }
-
-  if (handle_condition(sql_errno, sqlstate, level, msg, &cond))
-    DBUG_RETURN(cond);
 
   if (level == Sql_condition::WARN_LEVEL_ERROR)
   {

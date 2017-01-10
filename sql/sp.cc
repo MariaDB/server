@@ -691,7 +691,7 @@ public:
   virtual bool handle_condition(THD *thd,
                                 uint sql_errno,
                                 const char* sqlstate,
-                                Sql_condition::enum_warning_level level,
+                                Sql_condition::enum_warning_level *level,
                                 const char* msg,
                                 Sql_condition ** cond_hdl);
 };
@@ -701,13 +701,13 @@ Silence_deprecated_warning::handle_condition(
   THD *,
   uint sql_errno,
   const char*,
-  Sql_condition::enum_warning_level level,
+  Sql_condition::enum_warning_level *level,
   const char*,
   Sql_condition ** cond_hdl)
 {
   *cond_hdl= NULL;
   if (sql_errno == ER_WARN_DEPRECATED_SYNTAX &&
-      level == Sql_condition::WARN_LEVEL_WARN)
+      *level == Sql_condition::WARN_LEVEL_WARN)
     return TRUE;
 
   return FALSE;
@@ -780,7 +780,7 @@ public:
   virtual bool handle_condition(THD *thd,
                                 uint sql_errno,
                                 const char* sqlstate,
-                                Sql_condition::enum_warning_level level,
+                                Sql_condition::enum_warning_level *level,
                                 const char* message,
                                 Sql_condition ** cond_hdl);
 
@@ -794,7 +794,8 @@ bool
 Bad_db_error_handler::handle_condition(THD *thd,
                                        uint sql_errno,
                                        const char* sqlstate,
-                                       Sql_condition::enum_warning_level level,
+                                       Sql_condition::enum_warning_level
+                                       *level,
                                        const char* message,
                                        Sql_condition ** cond_hdl)
 {
@@ -1477,7 +1478,7 @@ public:
   bool handle_condition(THD *thd,
                         uint sql_errno,
                         const char* sqlstate,
-                        Sql_condition::enum_warning_level level,
+                        Sql_condition::enum_warning_level *level,
                         const char* msg,
                         Sql_condition ** cond_hdl)
   {

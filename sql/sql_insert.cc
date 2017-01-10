@@ -3174,6 +3174,7 @@ bool Delayed_insert::handle_inserts(void)
 
   while ((row=rows.get()))
   {
+    int tmp_error;
     stacked_inserts--;
     mysql_mutex_unlock(&mutex);
     memcpy(table->record[0],row->record,table->s->reclength);
@@ -3250,16 +3251,18 @@ bool Delayed_insert::handle_inserts(void)
       table->file->extra(HA_EXTRA_INSERT_WITH_UPDATE);
     thd.clear_error(); // reset error for binlog
 
+    tmp_error= 0;
     if (table->vfield)
     {
       /*
-        Virtual fields where not calculated by caller as the temporary TABLE object used
-        had vcol_set empty. Better to calculate them here to make the caller faster.
+        Virtual fields where not calculated by caller as the temporary
+        TABLE object used had vcol_set empty. Better to calculate them
+        here to make the caller faster.
       */
-     table->update_virtual_fields(VCOL_UPDATE_FOR_WRITE);
+      tmp_error= table->update_virtual_fields(VCOL_UPDATE_FOR_WRITE);
     }
 
-    if (write_record(&thd, table, &info))
+    if (tmp_error || write_record(&thd, table, &info))
     {
       info.error_count++;				// Ignore errors
       thread_safe_increment(delayed_insert_errors,&LOCK_delayed_status);
