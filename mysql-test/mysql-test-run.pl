@@ -1457,6 +1457,9 @@ sub command_line_setup {
     # Use $ENV{'MTR_MEM'} as first location to look (if defined)
     unshift(@tmpfs_locations, $ENV{'MTR_MEM'}) if defined $ENV{'MTR_MEM'};
 
+    # however if the opt_mem was given a value, use this first
+    unshift(@tmpfs_locations, $opt_mem) if $opt_mem ne '';
+
     foreach my $fs (@tmpfs_locations)
     {
       if ( -d $fs )
