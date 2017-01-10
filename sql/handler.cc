@@ -3023,6 +3023,35 @@ int handler::update_auto_increment()
   enum enum_check_fields save_count_cuted_fields;
   DBUG_ENTER("handler::update_auto_increment");
 
+  if (table->versioned_by_sql())
+  {
+    Field *end= table->vers_end_field();
+    DBUG_ASSERT(end);
+    bitmap_set_bit(table->read_set, end->field_index);
+    if (!end->is_max())
+    {
+      uchar *ptr= table->next_number_field->ptr;
+      switch (table->next_number_field->pack_length())
+      {
+      case 8:
+        int8store(ptr, vers_auto_decrement--);
+        break;
+      case 4:
+        int4store(ptr, vers_auto_decrement--);
+        break;
+      case 2:
+        int2store(ptr, vers_auto_decrement--);
+        break;
+      case 1:
+        *ptr= vers_auto_decrement--;
+        break;
+      default:
+        DBUG_ASSERT(false);
+      }
+      DBUG_RETURN(0);
+    }
+  }
+
   /*
     next_insert_id is a "cursor" into the reserved interval, it may go greater
     than the interval, but not smaller.
@@ -3145,7 +3174,7 @@ int handler::update_auto_increment()
   /* Store field without warning (Warning will be printed by insert) */
   save_count_cuted_fields= thd->count_cuted_fields;
   thd->count_cuted_fields= CHECK_FIELD_IGNORE;
-  tmp= table->next_number_field->store((longlong) nr, TRUE);
+  tmp= table->next_number_field->store((longlong)nr, TRUE);
   thd->count_cuted_fields= save_count_cuted_fields;
 
   if (unlikely(tmp))                            // Out of range value in store

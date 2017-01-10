@@ -1832,6 +1832,7 @@ row_merge_read_clustered_index(
 	double 			curr_progress = 0.0;
 	ib_uint64_t		read_rows = 0;
 	ib_uint64_t		table_total_rows = 0;
+	ulonglong		historic_auto_decrement = 0xffffffffffffffff;
 
 	DBUG_ENTER("row_merge_read_clustered_index");
 
@@ -2236,6 +2237,18 @@ end_of_index:
 			ut_ad(add_autoinc
 			      < dict_table_get_n_user_cols(new_table));
 
+			bool row_is_historic = false;
+			if (DICT_TF2_FLAG_IS_SET(
+				    new_table, DICT_TF2_VERSIONED)) {
+				const dfield_t *dfield = dtuple_get_nth_field(
+					row, new_table->vers_row_end);
+				const byte *data = static_cast<const byte *>(
+					dfield_get_data(dfield));
+				ut_ad(dfield_get_len(dfield) == 8);
+				row_is_historic =
+					mach_read_from_8(data) != TRX_ID_MAX;
+			}
+
 			const dfield_t*	dfield;
 
 			dfield = dtuple_get_nth_field(row, add_autoinc);
@@ -2256,7 +2269,11 @@ end_of_index:
 				goto func_exit;
 			}
 
-			ulonglong	value = sequence++;
+			ulonglong value;
+			if (likely(!row_is_historic))
+				value = sequence++;
+                        else
+				value = historic_auto_decrement--;
 
 			switch (dtype_get_mtype(dtype)) {
 			case DATA_INT: {

@@ -165,6 +165,38 @@ alter table t without system versioning, algorithm=inplace;
 alter table t without system versioning, algorithm=copy;
 show create table t;
 
+create or replace table t (a int) with system versioning engine=innodb;
+insert into t values (1), (2), (3);
+delete from t where a<3;
+alter table t add b int auto_increment unique;
+select * from t for system_time all;
+insert into t values (4, NULL);
+select * from t for system_time all;
+
+create or replace table t (a int) with system versioning;
+insert into t values (1), (2), (3);
+delete from t where a<3;
+alter table t add b int auto_increment unique;
+select * from t for system_time all;
+insert into t values (4, NULL);
+select * from t for system_time all;
+
+create or replace table t (a int) with system versioning engine=innodb;
+insert into t values (1), (2), (3);
+delete from t where a<3;
+alter table t add b tinyint auto_increment unique;
+select * from t for system_time all;
+insert into t values (4, NULL);
+select * from t for system_time all;
+
+create or replace table t (a int) with system versioning;
+insert into t values (1), (2), (3);
+delete from t where a<3;
+alter table t add b tinyint auto_increment unique;
+select * from t for system_time all;
+insert into t values (4, NULL);
+select * from t for system_time all;
+
 call verify_vtq;
 drop table t;
 drop procedure verify_vtq;

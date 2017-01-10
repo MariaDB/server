@@ -353,6 +353,70 @@ Table	Create Table
 t	CREATE TABLE `t` (
   `a` int(11) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
+create or replace table t (a int) with system versioning engine=innodb;
+insert into t values (1), (2), (3);
+delete from t where a<3;
+alter table t add b int auto_increment unique;
+select * from t for system_time all;
+a	b
+1	-1
+2	-2
+3	1
+insert into t values (4, NULL);
+select * from t for system_time all;
+a	b
+1	-1
+2	-2
+3	1
+4	2
+create or replace table t (a int) with system versioning;
+insert into t values (1), (2), (3);
+delete from t where a<3;
+alter table t add b int auto_increment unique;
+select * from t for system_time all;
+a	b
+1	-1
+2	-2
+3	1
+insert into t values (4, NULL);
+select * from t for system_time all;
+a	b
+1	-1
+2	-2
+3	1
+4	2
+create or replace table t (a int) with system versioning engine=innodb;
+insert into t values (1), (2), (3);
+delete from t where a<3;
+alter table t add b tinyint auto_increment unique;
+select * from t for system_time all;
+a	b
+1	-1
+2	-2
+3	1
+insert into t values (4, NULL);
+select * from t for system_time all;
+a	b
+1	-1
+2	-2
+3	1
+4	2
+create or replace table t (a int) with system versioning;
+insert into t values (1), (2), (3);
+delete from t where a<3;
+alter table t add b tinyint auto_increment unique;
+select * from t for system_time all;
+a	b
+1	-1
+2	-2
+3	1
+insert into t values (4, NULL);
+select * from t for system_time all;
+a	b
+1	-1
+2	-2
+3	1
+4	2
 call verify_vtq;
 No	A	B	C	D
 1	1	1	1	1
@@ -360,5 +424,11 @@ No	A	B	C	D
 3	1	1	1	1
 4	1	1	1	1
 5	1	1	1	1
+6	1	1	1	1
+7	1	1	1	1
+8	1	1	1	1
+9	1	1	1	1
+10	1	1	1	1
+11	1	1	1	1
 drop table t;
 drop procedure verify_vtq;

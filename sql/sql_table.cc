@@ -9777,6 +9777,10 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
   {
     from_sys_trx_end= from->field[from->s->row_end_field];
   }
+  else if (from->versioned() && to->versioned())
+  {
+    to->file->vers_auto_decrement= 0xffffffffffffffff;
+  }
 
   THD_STAGE_INFO(thd, stage_copy_to_tmp_table);
   /* Tell handler that we have values for all columns in the to table */
