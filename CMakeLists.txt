@@ -363,6 +363,10 @@ IF(WITH_UNIT_TESTS)
 ENDIF()
 
 SET (MYSQLD_STATIC_PLUGIN_LIBS "" CACHE INTERNAL "")
+
+# mariadb_connector_c fetches submodules which is useful for plugins
+INCLUDE(mariadb_connector_c) # this does ADD_SUBDIRECTORY(libmariadb)
+
 # Add storage engines and plugins.
 CONFIGURE_PLUGINS()
 
@@ -372,7 +376,6 @@ ADD_SUBDIRECTORY(strings)
 ADD_SUBDIRECTORY(vio)
 ADD_SUBDIRECTORY(mysys)
 ADD_SUBDIRECTORY(mysys_ssl)
-INCLUDE(mariadb_connector_c) # this does ADD_SUBDIRECTORY(libmariadb)
 ADD_SUBDIRECTORY(client)
 ADD_SUBDIRECTORY(extra)
 ADD_SUBDIRECTORY(libservices)
