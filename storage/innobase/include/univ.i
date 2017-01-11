@@ -1,8 +1,8 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2013, 2017, MariaDB Corporation.
 Copyright (c) 2008, Google Inc.
-Copyright (c) 2013, 2016, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -184,7 +184,7 @@ command. */
 #define UNIV_ENABLE_UNIT_TEST_ROW_RAW_FORMAT_INT
 */
 
-#if defined HAVE_VALGRIND
+#if defined HAVE_valgrind && defined HAVE_VALGRIND
 # define UNIV_DEBUG_VALGRIND
 #endif /* HAVE_VALGRIND */
 #if 0
