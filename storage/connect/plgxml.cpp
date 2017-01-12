@@ -30,19 +30,51 @@ PXDOC GetLibxmlDoc(PGLOBAL g, char *nsl, char *nsdf,
 /*  XMLDOCUMENT constructor.                                      */
 /******************************************************************/
 XMLDOCUMENT::XMLDOCUMENT(char *nsl, char *nsdf, char *enc)
-  {
-  Namespaces = NULL;
+{
+#if defined(ZIP_SUPPORT)
+	zip = NULL;
+#else   // !ZIP_SUPPORT
+	zip = false;
+#endif  // !ZIP_SUPPORT
+	Namespaces = NULL;
   Encoding = enc;
   Nslist = nsl;
   DefNs = nsdf;
-  } // end of XMLDOCUMENT constructor
+} // end of XMLDOCUMENT constructor
+
+/******************************************************************/
+/*  Initialize zipped file processing.                            */
+/******************************************************************/
+bool XMLDOCUMENT::InitZip(PGLOBAL g, char *entry)
+{
+#if defined(ZIP_SUPPORT)
+	bool mul = (entry) ? strchr(entry, '*') || strchr(entry, '?') : false;
+	zip = new(g) ZIPUTIL(entry, mul);
+	return zip == NULL;
+#else   // !ZIP_SUPPORT
+	sprintf(g->Message, MSG(NO_FEAT_SUPPORT), "ZIP");
+	return true;
+#endif  // !ZIP_SUPPORT
+} // end of InitZip
+
+/******************************************************************/
+/*  Make the namespace structure list.                            */
+/******************************************************************/
+char* XMLDOCUMENT::GetMemDoc(PGLOBAL g, char *fn)
+{
+#if defined(ZIP_SUPPORT)
+	return (zip->OpenTable(g, MODE_ANY, fn)) ? NULL : zip->memory;
+#else   // !ZIP_SUPPORT
+	return NULL;
+#endif  // !ZIP_SUPPORT
+} // end of GetMemDoc
 
 /******************************************************************/
 /*  Make the namespace structure list.                            */
 /******************************************************************/
 bool XMLDOCUMENT::MakeNSlist(PGLOBAL g)
-  {
-  char *prefix, *href, *next = Nslist;
+{
+	char *prefix, *href, *next = Nslist;
   PNS   nsp, *ppns = &Namespaces;
 
   while (next) {
@@ -82,6 +114,19 @@ bool XMLDOCUMENT::MakeNSlist(PGLOBAL g)
 
   return false;
   } // end of MakeNSlist
+
+/******************************************************************/
+/*  Close ZIP file.                                               */
+/******************************************************************/
+void XMLDOCUMENT::CloseZip(void)
+{
+#if defined(ZIP_SUPPORT)
+	if (zip) {
+		zip->close();
+		zip = NULL;
+	}	// endif zip
+#endif   //	ZIP_SUPPORT
+} // end of CloseZip
 
 /******************************************************************/
 /*  XMLNODE constructor.                                          */

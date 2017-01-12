@@ -78,7 +78,8 @@ public:
   virtual AMT   GetAmType(void) {return TYPE_AM_JSN;}
   virtual bool  SkipHeader(PGLOBAL g);
   virtual PTDB  Duplicate(PGLOBAL g) {return (PTDB)new(g) TDBJSN(this);}
-          PJSON GetRow(void) {return Row;} 
+          PJSON GetRow(void) {return Row;}
+					void  SetG(PGLOBAL g) {G = g;}
 
   // Methods
   virtual PTDB  CopyOne(PTABS t);

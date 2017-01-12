@@ -1,11 +1,11 @@
 /************* TabDos C++ Program Source Code File (.CPP) **************/
 /* PROGRAM NAME: TABDOS                                                */
 /* -------------                                                       */
-/*  Version 4.9                                                        */
+/*  Version 4.9.2                                                      */
 /*                                                                     */
 /* COPYRIGHT:                                                          */
 /* ----------                                                          */
-/*  (C) Copyright to the author Olivier BERTRAND          1998-2015    */
+/*  (C) Copyright to the author Olivier BERTRAND          1998-2016    */
 /*                                                                     */
 /* WHAT THIS PROGRAM DOES:                                             */
 /* -----------------------                                             */
@@ -51,6 +51,9 @@
 #include "filamap.h"
 #include "filamfix.h"
 #include "filamdbf.h"
+#if defined(GZ_SUPPORT)
+#include "filamgz.h"
+#endif   // GZ_SUPPORT
 #if defined(ZIP_SUPPORT)
 #include "filamzip.h"
 #endif   // ZIP_SUPPORT
@@ -93,10 +96,13 @@ DOSDEF::DOSDEF(void)
   Pseudo = 3;
   Fn = NULL;
   Ofn = NULL;
+	Entry = NULL;
   To_Indx = NULL;
   Recfm = RECFM_VAR;
   Mapped = false;
-  Padded = false;
+	Zipped = false;
+	Mulentries = false;
+	Padded = false;
   Huge = false;
   Accept = false;
   Eof = false;
@@ -125,6 +131,11 @@ bool DOSDEF::DefineAM(PGLOBAL g, LPCSTR am, int)
   LPCSTR dfm = (am && (*am == 'F' || *am == 'f')) ? "F"
              : (am && (*am == 'B' || *am == 'b')) ? "B"
              : (am && !stricmp(am, "DBF"))        ? "D" : "V";
+
+	if ((Zipped = GetBoolCatInfo("Zipped", false)))
+		Mulentries = ((Entry = GetStringCatInfo(g, "Entry", NULL)))
+			         ? strchr(Entry, '*') || strchr(Entry, '?')
+			         : GetBoolCatInfo("Mulentries", false);
 
   Desc = Fn = GetStringCatInfo(g, "Filename", NULL);
   Ofn = GetStringCatInfo(g, "Optname", Fn);
@@ -333,7 +344,21 @@ PTDB DOSDEF::GetTable(PGLOBAL g, MODE mode)
   /*  Allocate table and file processing class of the proper type.     */
   /*  Column blocks will be allocated only when needed.                */
   /*********************************************************************/
-  if (Recfm == RECFM_DBF) {
+	if (Zipped) {
+#if defined(ZIP_SUPPORT)
+		if (Recfm == RECFM_VAR) {
+			txfp = new(g)ZIPFAM(this);
+			tdbp = new(g)TDBDOS(this, txfp);
+		} else {
+			txfp = new(g)ZPXFAM(this);
+			tdbp = new(g)TDBFIX(this, txfp);
+		} // endif Recfm
+
+#else   // !ZIP_SUPPORT
+		sprintf(g->Message, MSG(NO_FEAT_SUPPORT), "ZIP");
+		return NULL;
+#endif  // !ZIP_SUPPORT
+	} else if (Recfm == RECFM_DBF) {
     if (Catfunc == FNC_NO) {
       if (map)
         txfp = new(g) DBMFAM(this);
@@ -350,28 +375,28 @@ PTDB DOSDEF::GetTable(PGLOBAL g, MODE mode)
     else if (map)
       txfp = new(g) MPXFAM(this);
     else if (Compressed) {
-#if defined(ZIP_SUPPORT)
+#if defined(GZ_SUPPORT)
       txfp = new(g) ZIXFAM(this);
-#else   // !ZIP_SUPPORT
-      sprintf(g->Message, MSG(NO_FEAT_SUPPORT), "ZIP");
+#else   // !GZ_SUPPORT
+      sprintf(g->Message, MSG(NO_FEAT_SUPPORT), "GZ");
       return NULL;
-#endif  // !ZIP_SUPPORT
+#endif  // !GZ_SUPPORT
     } else
       txfp = new(g) FIXFAM(this);
 
     tdbp = new(g) TDBFIX(this, txfp);
   } else {
     if (Compressed) {
-#if defined(ZIP_SUPPORT)
+#if defined(GZ_SUPPORT)
       if (Compressed == 1)
-        txfp = new(g) ZIPFAM(this);
+        txfp = new(g) GZFAM(this);
       else
         txfp = new(g) ZLBFAM(this);
 
-#else   // !ZIP_SUPPORT
-      sprintf(g->Message, MSG(NO_FEAT_SUPPORT), "ZIP");
+#else   // !GZ_SUPPORT
+      sprintf(g->Message, MSG(NO_FEAT_SUPPORT), "GZ");
       return NULL;
-#endif  // !ZIP_SUPPORT
+#endif  // !GZ_SUPPORT
     } else if (map)
       txfp = new(g) MAPFAM(this);
     else
@@ -396,7 +421,7 @@ PTDB DOSDEF::GetTable(PGLOBAL g, MODE mode)
         if      (map) {
           txfp = new(g) MBKFAM(this);
         } else if (Compressed) {
-#if defined(ZIP_SUPPORT)
+#if defined(GZ_SUPPORT)
           if (Compressed == 1)
             txfp = new(g) ZBKFAM(this);
           else {
@@ -404,7 +429,7 @@ PTDB DOSDEF::GetTable(PGLOBAL g, MODE mode)
             ((PZLBFAM)txfp)->SetOptimized(To_Pos != NULL);
             } // endelse
 #else
-          sprintf(g->Message, MSG(NO_FEAT_SUPPORT), "ZIP");
+          sprintf(g->Message, MSG(NO_FEAT_SUPPORT), "GZ");
           return NULL;
 #endif
         } else
@@ -531,14 +556,14 @@ int TDBDOS::ResetTableOpt(PGLOBAL g, bool dop, bool dox)
       // except for ZLIB access method.
       if        (Txfp->GetAmType() == TYPE_AM_MAP) {
         Txfp = new(g) MAPFAM((PDOSDEF)To_Def);
-#if defined(ZIP_SUPPORT)
-      } else if (Txfp->GetAmType() == TYPE_AM_ZIP) {
-        Txfp = new(g) ZIPFAM((PDOSDEF)To_Def);
+#if defined(GZ_SUPPORT)
+      } else if (Txfp->GetAmType() == TYPE_AM_GZ) {
+        Txfp = new(g) GZFAM((PDOSDEF)To_Def);
       } else if (Txfp->GetAmType() == TYPE_AM_ZLIB) {
         Txfp->Reset();
         ((PZLBFAM)Txfp)->SetOptimized(false);
-#endif   // ZIP_SUPPORT
-      } else if (Txfp->GetAmType() == TYPE_AM_BLK)
+#endif   // GZ_SUPPORT
+			} else if (Txfp->GetAmType() == TYPE_AM_BLK)
         Txfp = new(g) DOSFAM((PDOSDEF)To_Def);
 
       Txfp->SetTdbp(this);
@@ -609,7 +634,12 @@ int TDBDOS::MakeBlockValues(PGLOBAL g)
   defp->SetOptimized(0);
 
   // Estimate the number of needed blocks
-  block = (int)((MaxSize + (int)nrec - 1) / (int)nrec);
+	if ((block = (int)((MaxSize + (int)nrec - 1) / (int)nrec)) < 2) {
+		// This may be wrong to do in some cases
+		defp->RemoveOptValues(g);
+		strcpy(g->Message, MSG(TABLE_NOT_OPT));
+		return RC_INFO;                   // Not to be optimized
+	}	// endif block
 
   // We have to use local variables because Txfp->CurBlk is set
   // to Rows+1 by unblocked variable length table access methods.
@@ -952,13 +982,14 @@ bool TDBDOS::GetBlockValues(PGLOBAL g)
   PCOLDEF    cdp;
   PDOSDEF    defp = (PDOSDEF)To_Def;
   PCATLG     cat = defp->GetCat();
+	PDBUSER    dup = PlgGetUser(g);
 
 #if 0
   if (Mode == MODE_INSERT && Txfp->GetAmType() == TYPE_AM_DOS)
     return false;
 #endif   // __WIN__
 
-  if (defp->Optimized)
+	if (defp->Optimized || !(dup->Check & CHK_OPT))
     return false;                   // Already done or to be redone
 
   if (Ftype == RECFM_VAR || defp->Compressed == 2) {
@@ -2079,10 +2110,10 @@ bool TDBDOS::OpenDB(PGLOBAL g)
     /*******************************************************************/
     if (Txfp->GetAmType() == TYPE_AM_MAP && Mode == MODE_DELETE)
       Txfp = new(g) MAPFAM((PDOSDEF)To_Def);
-#if defined(ZIP_SUPPORT)
-    else if (Txfp->GetAmType() == TYPE_AM_ZIP)
-      Txfp = new(g) ZIPFAM((PDOSDEF)To_Def);
-#endif   // ZIP_SUPPORT
+#if defined(GZ_SUPPORT)
+    else if (Txfp->GetAmType() == TYPE_AM_GZ)
+      Txfp = new(g) GZFAM((PDOSDEF)To_Def);
+#endif   // GZ_SUPPORT
     else // if (Txfp->GetAmType() != TYPE_AM_DOS)    ???
       Txfp = new(g) DOSFAM((PDOSDEF)To_Def);
 

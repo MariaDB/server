@@ -777,10 +777,15 @@ JOIN::prepare(Item ***rref_pointer_array,
     if (mixed_implicit_grouping && tbl->table)
       tbl->table->maybe_null= 1;
   }
+ 
+  uint real_og_num= og_num;
+  if (skip_order_by && 
+      select_lex != select_lex->master_unit()->global_parameters)
+    real_og_num+= select_lex->order_list.elements;
 
   if ((wild_num && setup_wild(thd, tables_list, fields_list, &all_fields,
                               wild_num)) ||
-      select_lex->setup_ref_array(thd, og_num) ||
+      select_lex->setup_ref_array(thd, real_og_num) ||
       setup_fields(thd, (*rref_pointer_array), fields_list, MARK_COLUMNS_READ,
 		   &all_fields, 1) ||
       setup_without_group(thd, (*rref_pointer_array), tables_list,
@@ -3082,7 +3087,7 @@ void JOIN::exec_inner()
                                     *curr_fields_list),
                                    Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF);
   error= do_select(curr_join, curr_fields_list, NULL, procedure);
-  thd->limit_found_rows= curr_join->send_records;
+  thd->limit_found_rows= curr_join->send_records - curr_join->duplicate_rows;
   if (curr_join->order && curr_join->sortorder &&
       curr_join->filesort_found_rows)
   {
@@ -12765,6 +12770,9 @@ static COND *build_equal_items_for_cond(THD *thd, COND *cond,
   COND_EQUAL cond_equal;
   cond_equal.upper_levels= inherited;
 
+  if (check_stack_overrun(thd, STACK_MIN_SIZE, NULL))
+    return cond;                          // Fatal error flag is set!
+
   if (cond->type() == Item::COND_ITEM)
   {
     List<Item> eq_list;
@@ -17453,7 +17461,7 @@ do_select(JOIN *join,List<Item> *fields,TABLE *table,Procedure *procedure)
     join->join_tab[join->top_join_tab_count - 1].next_select= end_select;
     join_tab=join->join_tab+join->const_tables;
   }
-  join->send_records=0;
+  join->duplicate_rows= join->send_records=0;
   if (join->table_count == join->const_tables)
   {
     /*
@@ -18978,7 +18986,12 @@ end_send(JOIN *join, JOIN_TAB *join_tab __attribute__((unused)),
       int error;
       /* result < 0 if row was not accepted and should not be counted */
       if ((error= join->result->send_data(*join->fields)))
-        DBUG_RETURN(error < 0 ? NESTED_LOOP_OK : NESTED_LOOP_ERROR);
+      {
+        if (error > 0)
+          DBUG_RETURN(NESTED_LOOP_ERROR);
+        // error < 0 => duplicate row
+        join->duplicate_rows++;
+      }
     }
 
     ++join->send_records;
@@ -19112,7 +19125,7 @@ end_send_group(JOIN *join, JOIN_TAB *join_tab __attribute__((unused)),
               if (error < 0)
               {
                 /* Duplicate row, don't count */
-                join->send_records--;
+                join->duplicate_rows++;
                 error= 0;
               }
             }

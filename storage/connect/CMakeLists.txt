@@ -20,25 +20,25 @@ SET(CONNECT_SOURCES
 ha_connect.cc connect.cc user_connect.cc mycat.cc
 fmdlex.c osutil.c plugutil.c rcmsg.c rcmsg.h
 array.cpp blkfil.cpp colblk.cpp csort.cpp
-filamap.cpp filamdbf.cpp filamfix.cpp filamtxt.cpp filamvct.cpp filamzip.cpp
+filamap.cpp filamdbf.cpp filamfix.cpp filamgz.cpp filamtxt.cpp
 filter.cpp json.cpp jsonudf.cpp maputil.cpp myconn.cpp myutil.cpp plgdbutl.cpp
 reldef.cpp tabcol.cpp tabdos.cpp tabfix.cpp tabfmt.cpp tabjson.cpp table.cpp
 tabmul.cpp tabmysql.cpp taboccur.cpp tabpivot.cpp tabsys.cpp tabtbl.cpp tabutil.cpp
-tabvct.cpp tabvir.cpp tabxcl.cpp valblk.cpp value.cpp xindex.cpp xobject.cpp
+tabvir.cpp tabxcl.cpp valblk.cpp value.cpp xindex.cpp xobject.cpp
 
 array.h blkfil.h block.h catalog.h checklvl.h colblk.h connect.h csort.h
-engmsg.h filamap.h filamdbf.h filamfix.h filamtxt.h filamvct.h filamzip.h
+engmsg.h filamap.h filamdbf.h filamfix.h filamgz.h filamtxt.h
 filter.h global.h ha_connect.h inihandl.h json.h jsonudf.h maputil.h msgid.h
 mycat.h myconn.h myutil.h os.h osutil.h plgcnx.h plgdbsem.h preparse.h reldef.h
 resource.h tabcol.h tabdos.h tabfix.h tabfmt.h tabjson.h tabmul.h tabmysql.h
-taboccur.h tabpivot.h tabsys.h tabtbl.h tabutil.h tabvct.h tabvir.h tabxcl.h
+taboccur.h tabpivot.h tabsys.h tabtbl.h tabutil.h tabvir.h tabxcl.h
 user_connect.h valblk.h value.h xindex.h xobject.h xtable.h)
 
 #
 # Definitions that are shared for all OSes
 #
 add_definitions( -DMARIADB -DFORCE_INIT_OF_VARS -Dconnect_EXPORTS)
-add_definitions( -DHUGE_SUPPORT -DZIP_SUPPORT -DPIVOT_SUPPORT )
+add_definitions( -DHUGE_SUPPORT -DGZ_SUPPORT -DPIVOT_SUPPORT )
 
 
 #
@@ -87,6 +87,18 @@ ELSE(NOT UNIX)
   SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /EHsc")
   SET(IPHLPAPI_LIBRARY iphlpapi.lib)
 ENDIF(UNIX)
+
+
+#
+# VCT: the VEC format might be not supported in future versions
+#
+
+OPTION(CONNECT_WITH_VCT "Compile CONNECT storage engine with VCT support" ON)
+
+IF(CONNECT_WITH_VCT)
+  SET(CONNECT_SOURCES ${CONNECT_SOURCES} filamvct.cpp tabvct.cpp filamvct.h tabvct.h)
+  add_definitions(-DVCT_SUPPORT)
+ENDIF(CONNECT_WITH_VCT)
 
 
 #
@@ -236,9 +248,9 @@ ENDIF(CONNECT_WITH_ODBC)
 # JDBC
 #
 IF(APPLE)
-  OPTION(CONNECT_WITH_JDBC "some comment" OFF)
+  OPTION(CONNECT_WITH_JDBC "Compile CONNECT storage engine without JDBC support" OFF)
 ELSE()
-  OPTION(CONNECT_WITH_JDBC "some comment" ON)
+  OPTION(CONNECT_WITH_JDBC "Compile CONNECT storage engine with JDBC support" ON)
 ENDIF()
 
 IF(CONNECT_WITH_JDBC)
@@ -252,17 +264,32 @@ IF(CONNECT_WITH_JDBC)
     SET(CONNECT_SOURCES ${CONNECT_SOURCES}
     jdbconn.cpp tabjdbc.cpp jdbconn.h tabjdbc.h jdbccat.h
     JdbcInterface.java ApacheInterface.java MariadbInterface.java
-    MysqlInterface.java OracleInterface.java PostgresqlInterface.java)
+    MysqlInterface.java OracleInterface.java PostgresqlInterface.java
+    JavaWrappers.jar)
     # TODO: Find how to compile and install the java wrapper classes
     # Find required libraries and include directories
     SET (JAVA_SOURCES JdbcInterface.java)
     add_jar(JdbcInterface ${JAVA_SOURCES})
-		install_jar(JdbcInterface DESTINATION ${INSTALL_PLUGINDIR} COMPONENT connect-engine)
+    install_jar(JdbcInterface DESTINATION ${INSTALL_PLUGINDIR} COMPONENT connect-engine)
+    INSTALL(FILES ${CMAKE_CURRENT_SOURCE_DIR}/JavaWrappers.jar
+      DESTINATION ${INSTALL_PLUGINDIR} COMPONENT connect-engine)
     add_definitions(-DJDBC_SUPPORT)
   ELSE()
     SET(JDBC_LIBRARY "")
   ENDIF()
 ENDIF(CONNECT_WITH_JDBC)
+
+#
+# ZIP
+#
+
+OPTION(CONNECT_WITH_ZIP "Compile CONNECT storage engine with ZIP support" ON)
+
+IF(CONNECT_WITH_ZIP)
+  SET(CONNECT_SOURCES ${CONNECT_SOURCES} filamzip.cpp tabzip.cpp unzip.c ioapi.c zip.c
+    filamzip.h tabzip.h ioapi.h unzip.h zip.h)
+  add_definitions(-DZIP_SUPPORT -DNOCRYPT)
+ENDIF(CONNECT_WITH_ZIP)
 
 
 #
