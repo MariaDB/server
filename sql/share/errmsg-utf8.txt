@@ -7525,3 +7525,6 @@ WARN_VERS_PART_ROTATION
 
 ER_VERS_NOT_ALLOWED
         eng "%`s is not allowed for versioned table"
+
+ER_VERS_WRONG_QUERY_TYPE
+        eng "%`s works only with %`s query type"

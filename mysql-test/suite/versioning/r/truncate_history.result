@@ -111,5 +111,53 @@ select * from t for system_time all;
 a
 9
 8
+create or replace table t (a int) with system versioning;
+insert into t values (1), (2);
+update t set a=11 where a=1;
+set @ts1=now(6);
+update t set a=22 where a=2;
+select * from t for system_time all;
+a
+11
+22
+1
+2
+truncate t for system_time before timestamp @ts1;
+select * from t for system_time all;
+a
+11
+22
+2
+truncate t for system_time before timestamp now(6);
+select * from t for system_time all;
+a
+11
+22
+create or replace table t (a int) with system versioning engine=innodb;
+insert into t values (1), (2);
+update t set a=11 where a=1;
+set @ts1=now(6);
+update t set a=22 where a=2;
+select * from t for system_time all;
+a
+11
+22
+1
+2
+truncate t for system_time before timestamp @ts1;
+select * from t for system_time all;
+a
+11
+22
+1
+2
+truncate t for system_time before timestamp now(6);
+select * from t for system_time all;
+a
+11
+22
+2
+select * from t for system_time before timestamp now();
+ERROR HY000: `FOR SYSTEM_TIME BEFORE` works only with `TRUNCATE` query type
 drop table t;
 drop procedure truncate_history_of_t;

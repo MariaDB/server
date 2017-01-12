@@ -762,6 +762,14 @@ int vers_setup_select(THD *thd, TABLE_LIST *tables, COND **where_expr,
         table->vers_conditions.type == FOR_SYSTEM_TIME_UNSPECIFIED ?
           slex->vers_conditions : table->vers_conditions;
 
+      if (vers_conditions.type == FOR_SYSTEM_TIME_BEFORE &&
+          thd->lex->sql_command != SQLCOM_TRUNCATE)
+      {
+        my_error(ER_VERS_WRONG_QUERY_TYPE, MYF(0), "FOR SYSTEM_TIME BEFORE",
+                 "TRUNCATE");
+        DBUG_RETURN(-1);
+      }
+
       if (vers_conditions.type != FOR_SYSTEM_TIME_UNSPECIFIED)
       {
         switch (slex->lock_type)
@@ -869,6 +877,10 @@ int vers_setup_select(THD *thd, TABLE_LIST *tables, COND **where_expr,
           cond2= newx Item_func_ge(thd, row_end,
             vers_conditions.start);
           break;
+        case FOR_SYSTEM_TIME_BEFORE:
+          cond1= newx Item_func_lt(thd, row_end,
+            vers_conditions.start);
+          break;
         default:
           DBUG_ASSERT(0);
         }
@@ -911,6 +923,12 @@ int vers_setup_select(THD *thd, TABLE_LIST *tables, COND **where_expr,
             newx Item_func_vtq_trx_sees(thd, trx_id1, row_start) :
             newx Item_func_vtq_trx_sees_eq(thd, trx_id1, row_start);
           cond2= newx Item_func_vtq_trx_sees_eq(thd, row_end, trx_id0);
+          break;
+        case FOR_SYSTEM_TIME_BEFORE:
+          trx_id0= vers_conditions.unit == UNIT_TIMESTAMP ?
+            newx Item_func_vtq_id(thd, vers_conditions.start, VTQ_TRX_ID) :
+            vers_conditions.start;
+          cond1= newx Item_func_lt(thd, row_end, trx_id0);
           break;
         default:
           DBUG_ASSERT(0);

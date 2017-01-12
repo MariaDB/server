@@ -8880,6 +8880,12 @@ for_system_time_expr:
           {
             Lex->vers_conditions.init(FOR_SYSTEM_TIME_BETWEEN, $1, $3, $5);
           }
+        | BEFORE_SYM
+          trans_or_timestamp
+          simple_expr
+          {
+            Lex->vers_conditions.init(FOR_SYSTEM_TIME_BEFORE, $2, $3);
+          }
         ;
 
 select_option_list:

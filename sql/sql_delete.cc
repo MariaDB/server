@@ -283,11 +283,16 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
       DBUG_RETURN(TRUE);
 
     // trx_sees() in InnoDB reads sys_trx_start
-    if (!table->versioned_by_sql() &&
-        (select_lex->vers_conditions.type == FOR_SYSTEM_TIME_BETWEEN ||
-         select_lex->vers_conditions.type == FOR_SYSTEM_TIME_FROM_TO))
-    {
-      bitmap_set_bit(table->read_set, table->vers_start_field()->field_index);
+    if (!table->versioned_by_sql()) {
+      if (select_lex->vers_conditions.type == FOR_SYSTEM_TIME_BETWEEN ||
+          select_lex->vers_conditions.type == FOR_SYSTEM_TIME_FROM_TO)
+      {
+        bitmap_set_bit(table->read_set, table->vers_start_field()->field_index);
+      }
+      else if (select_lex->vers_conditions.type == FOR_SYSTEM_TIME_BEFORE)
+      {
+        bitmap_set_bit(table->read_set, table->vers_end_field()->field_index);
+      }
     }
   }
 
