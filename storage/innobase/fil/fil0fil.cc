@@ -7376,14 +7376,17 @@ fil_space_get_crypt_data(
 			space->crypt_data = fil_space_read_crypt_data(space_id, page, offset);
 			ut_free(buf);
 
-#ifdef UNIV_DEBUG
-			ib::info() << "Read page 0 from tablespace for"
-				<< "space " << space_id
-				<< " name " << space->name
-				<< " key_id " << (space->crypt_data ? space->crypt_data->key_id : 0)
-				<< " encryption " << (space->crypt_data ? space->crypt_data->encryption : 0)
-				<< " handle " << node->handle;
-#endif
+			DBUG_LOG("crypt",
+				 "Read page 0 from"
+				 << " tablespace " << space_id
+				 << " name " << space->name
+				 << " key_id " << (space->crypt_data
+						   ? space->crypt_data->key_id
+						   : 0)
+				 << " encryption "
+				 << (space->crypt_data
+				     ? space->crypt_data->encryption : 0)
+				 << " handle " << node->handle);
 
 			ut_a(space->id == space_id);
 

@@ -5255,13 +5255,13 @@ innobase_rollback(
 		error = trx_rollback_for_mysql(trx);
 
 		if (trx->state == TRX_STATE_FORCED_ROLLBACK) {
-#ifdef UNIV_DEBUG
+#ifndef DBUG_OFF
 			char	buffer[1024];
 
-			ib::info() << "Forced rollback : "
-				<< thd_get_error_context_description(thd,
-						buffer, sizeof(buffer), 512);
-#endif /* UNIV_DEBUG */
+			DBUG_LOG("trx", "Forced rollback: "
+				 << thd_get_error_context_description(
+					 thd, buffer, sizeof buffer, 512));
+#endif /* !DBUG_OFF */
 
 			trx->state = TRX_STATE_NOT_STARTED;
 		}

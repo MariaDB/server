@@ -3761,9 +3761,7 @@ FlushObserver::FlushObserver(
 		m_removed->at(i) = 0;
 	}
 
-#ifdef FLUSH_LIST_OBSERVER_DEBUG
-		ib::info() << "FlushObserver constructor: " << m_trx->id;
-#endif /* FLUSH_LIST_OBSERVER_DEBUG */
+	DBUG_LOG("flush", "FlushObserver(): trx->id=" << m_trx->id);
 }
 
 /** FlushObserver deconstructor */
@@ -3774,9 +3772,7 @@ FlushObserver::~FlushObserver()
 	UT_DELETE(m_flushed);
 	UT_DELETE(m_removed);
 
-#ifdef FLUSH_LIST_OBSERVER_DEBUG
-		ib::info() << "FlushObserver deconstructor: " << m_trx->id;
-#endif /* FLUSH_LIST_OBSERVER_DEBUG */
+	DBUG_LOG("flush", "~FlushObserver(): trx->id=" << m_trx->id);
 }
 
 /** Check whether trx is interrupted
@@ -3809,10 +3805,7 @@ FlushObserver::notify_flush(
 		m_stage->inc();
 	}
 
-#ifdef FLUSH_LIST_OBSERVER_DEBUG
-	ib::info() << "Flush <" << bpage->id.space()
-		   << ", " << bpage->id.page_no() << ">";
-#endif /* FLUSH_LIST_OBSERVER_DEBUG */
+	DBUG_LOG("flush", "Flush " << bpage->id);
 }
 
 /** Notify observer of a remove
@@ -3827,10 +3820,7 @@ FlushObserver::notify_remove(
 
 	m_removed->at(buf_pool->instance_no)++;
 
-#ifdef FLUSH_LIST_OBSERVER_DEBUG
-	ib::info() << "Remove <" << bpage->id.space()
-		   << ", " << bpage->id.page_no() << ">";
-#endif /* FLUSH_LIST_OBSERVER_DEBUG */
+	DBUG_LOG("flush", "Remove " << bpage->id);
 }
 
 /** Flush dirty pages and wait. */

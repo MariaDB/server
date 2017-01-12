@@ -933,10 +933,9 @@ trx_purge_mark_undo_for_truncate(
 		return;
 	}
 
-#ifdef UNIV_DEBUG
-	ib::info() << "UNDO tablespace with space identifier "
-		<< undo_trunc->get_marked_space_id() << " marked for truncate";
-#endif /* UNIV_DEBUG */
+	DBUG_LOG("undo",
+		 "marking for truncate UNDO tablespace "
+		 << undo_trunc->get_marked_space_id());
 
 	/* Step-3: Iterate over all the rsegs of selected UNDO tablespace
 	and mark them temporarily unavailable for allocation.*/

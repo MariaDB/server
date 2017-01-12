@@ -487,10 +487,8 @@ fil_decompress_page(
 		*write_size = actual_size;
 	}
 
-#ifdef UNIV_PAGECOMPRESS_DEBUG
-	ib::info() << "Preparing for decompress for len "
-		   << actual_size << ".";
-#endif /* UNIV_PAGECOMPRESS_DEBUG */
+	DBUG_LOG("compress", "Preparing for decompress for len "
+		 << actual_size << ".");
 
 	switch(compression_alg) {
 	case PAGE_ZLIB_ALGORITHM:
