@@ -2081,6 +2081,15 @@ DELIMITER ;|
 create table t1 as select f1();
 drop function f1;
 
+--echo #
+--echo # MDEV-10274 Bundling insert with create statement
+--echo #  for table with unsigned Decimal primary key issues warning 1194
+--echo #
+
+create table t1(ID decimal(2,1) unsigned NOT NULL, PRIMARY KEY (ID))engine=memory
+        select  2.1 ID;
+drop table t1;
+
 --echo End of 5.5 tests
 
 #
@@ -2088,3 +2097,9 @@ drop function f1;
 #
 --error ER_TABLE_MUST_HAVE_COLUMNS
 create table t1;
+
+#
+# MDEV-11231 Server crashes in check_duplicate_key on CREATE TABLE ... SELECT
+#
+create table t1 (i int, j int, key(i), key(i)) as select 1 as i, 2 as j;
+drop table t1;

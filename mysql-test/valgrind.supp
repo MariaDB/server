@@ -353,9 +353,22 @@
    Memcheck:Leak
    fun:memalign
    ...
-   fun:call_init
+   fun:call_init*
    fun:_dl_init
 }
+
+# This one is on OpenSuse 10.3 with gcc 5.4
+{
+   memory "loss" from _dl_init 2
+   Memcheck:Leak
+   fun:malloc
+   fun:pool
+   ...
+   fun:call_init*
+   fun:_dl_init
+}
+
+
 
 #
 #  dlclose can allocate memory for error message, the memory will be
@@ -952,6 +965,14 @@
    ...
    fun:pthread_once
    fun:backtrace
+}
+
+{
+   memory leak in mysqld_exit
+   Memcheck:Leak
+   fun:malloc
+   fun:_dl_close_worker
+   fun:_dl_close
 }
 
 #

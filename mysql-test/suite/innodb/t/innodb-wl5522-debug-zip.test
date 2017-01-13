@@ -17,6 +17,10 @@
 # allow test to run only when innodb-page-size=16  
 --source include/have_innodb_16k.inc
 
+# Test intentionally crashes the server, corrupted pages possible
+call mtr.add_suppression("InnoDB: Page for tablespace .* ");
+call mtr.add_suppression("InnoSB: Warning: database page corruption or a failed .*");
+FLUSH TABLES;
 
 let MYSQLD_DATADIR =`SELECT @@datadir`;
 let $innodb_file_per_table = `SELECT @@innodb_file_per_table`;

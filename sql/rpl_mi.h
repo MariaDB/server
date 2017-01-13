@@ -75,6 +75,10 @@ class Master_info : public Slave_reporting_capability
     return connection_name.str == 0;
   }
   static const char *using_gtid_astext(enum enum_using_gtid arg);
+  bool using_parallel()
+  {
+    return opt_slave_parallel_threads > 0;
+  }
 
   /* the variables below are needed because we can change masters on the fly */
   char master_log_name[FN_REFLEN+6]; /* Room for multi-*/

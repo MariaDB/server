@@ -99,7 +99,7 @@ char wsrep_defaults_group_suffix[FN_EXTLEN]= {0,};
 
 /* Which directories are searched for options (and in which order) */
 
-#define MAX_DEFAULT_DIRS 6
+#define MAX_DEFAULT_DIRS 7
 #define DEFAULT_DIRS_SIZE (MAX_DEFAULT_DIRS + 1)  /* Terminate with NULL */
 static const char **default_directories = NULL;
 
@@ -1244,7 +1244,12 @@ static const char **init_default_directories(MEM_ROOT *alloc)
     errors += add_directory(alloc, "C:/", dirs);
 
     if (my_get_module_parent(fname_buffer, sizeof(fname_buffer)) != NULL)
+    {
       errors += add_directory(alloc, fname_buffer, dirs);
+
+      strncat(fname_buffer, "/data", sizeof(fname_buffer));
+      errors += add_directory(alloc, fname_buffer, dirs);
+    }
   }
 
 #else

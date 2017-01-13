@@ -1,3 +1,6 @@
+call mtr.add_suppression("InnoDB: Page for tablespace .* ");
+call mtr.add_suppression("InnoSB: Warning: database page corruption or a failed .*");
+FLUSH TABLES;
 SET GLOBAL innodb_file_per_table = 1;
 SELECT @@innodb_file_per_table;
 @@innodb_file_per_table

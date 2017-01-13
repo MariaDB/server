@@ -16,7 +16,7 @@
 /*************** Mycat CC Program Source Code File (.CC) ***************/
 /* PROGRAM NAME: MYCAT                                                 */
 /* -------------                                                       */
-/*  Version 1.4                                                        */
+/*  Version 1.5                                                        */
 /*                                                                     */
 /*  Author: Olivier Bertrand                       2012 - 2016         */
 /*                                                                     */
@@ -64,7 +64,9 @@
 #include "filamtxt.h"
 #include "tabdos.h"
 #include "tabfmt.h"
+#if defined(VCT_SUPPORT)
 #include "tabvct.h"
+#endif   // VCT_SUPPORT
 #include "tabsys.h"
 #if defined(__WIN__)
 #include "tabmac.h"
@@ -93,6 +95,9 @@
 #if defined(XML_SUPPORT)
 #include "tabxml.h"
 #endif   // XML_SUPPORT
+#if defined(ZIP_SUPPORT)
+#include "tabzip.h"
+#endif   // ZIP_SUPPORT
 #include "mycat.h"
 
 /***********************************************************************/
@@ -152,7 +157,10 @@ TABTYPE GetTypeID(const char *type)
 #endif
                  : (!stricmp(type, "VIR"))   ? TAB_VIR
                  : (!stricmp(type, "JSON"))  ? TAB_JSON
-                 : (!stricmp(type, "OEM"))   ? TAB_OEM : TAB_NIY;
+#ifdef ZIP_SUPPORT
+								 : (!stricmp(type, "ZIP"))   ? TAB_ZIP
+#endif
+								 : (!stricmp(type, "OEM"))   ? TAB_OEM : TAB_NIY;
   } // end of GetTypeID
 
 /***********************************************************************/
@@ -173,6 +181,7 @@ bool IsFileType(TABTYPE type)
     case TAB_INI:
     case TAB_VEC:
     case TAB_JSON:
+//	case TAB_ZIP:
       isfile= true;
       break;
     default:
@@ -549,7 +558,9 @@ PRELDEF MYCAT::MakeTableDesc(PGLOBAL g, PTABLE tablep, LPCSTR am)
 #if defined(XML_SUPPORT)
     case TAB_XML: tdp= new(g) XMLDEF;   break;
 #endif   // XML_SUPPORT
-    case TAB_VEC: tdp= new(g) VCTDEF;   break;
+#if defined(VCT_SUPPORT)
+		case TAB_VEC: tdp = new(g)VCTDEF;   break;
+#endif   // VCT_SUPPORT
 #if defined(ODBC_SUPPORT)
     case TAB_ODBC: tdp= new(g) ODBCDEF; break;
 #endif   // ODBC_SUPPORT
@@ -571,7 +582,10 @@ PRELDEF MYCAT::MakeTableDesc(PGLOBAL g, PTABLE tablep, LPCSTR am)
 #endif   // PIVOT_SUPPORT
     case TAB_VIR: tdp= new(g) VIRDEF;   break;
     case TAB_JSON: tdp= new(g) JSONDEF; break;
-    default:
+#if defined(ZIP_SUPPORT)
+		case TAB_ZIP: tdp= new(g) ZIPDEF;   break;
+#endif   // ZIP_SUPPORT
+		default:
 			sprintf(g->Message, MSG(BAD_TABLE_TYPE), am, name);
     } // endswitch
 

@@ -180,9 +180,9 @@ protected:
 	char     *Msg;
 	char     *m_Wrap;
 	char      m_IDQuoteChar[2];
-	PSZ       m_Driver;
-	PSZ       m_Url;
-	PSZ       m_User;
+//PSZ       m_Driver;
+//PSZ       m_Url;
+//PSZ       m_User;
 	PSZ       m_Pwd;
   int       m_Ncol;
 	int       m_Aff;
