@@ -32,6 +32,7 @@ class Item_func_hex;
 class Item_hybrid_func;
 class Item_func_min_max;
 class Item_func_hybrid_field_type;
+class Item_bool_func2;
 class Item_func_between;
 class Item_func_in;
 class cmp_item;
@@ -346,6 +347,31 @@ public:
   virtual uint32 max_display_length(const Item *item) const= 0;
   virtual int Item_save_in_field(Item *item, Field *field,
                                  bool no_conversions) const= 0;
+  /**
+    Check if
+      WHERE expr=value AND expr=const
+    can be rewritten as:
+      WHERE const=value AND expr=const
+
+    "this" is the comparison handler that is used by "target".
+
+    @param target       - the predicate expr=value,
+                          whose "expr" argument will be replaced to "const".
+    @param target_expr  - the target's "expr" which will be replaced to "const".
+    @param target_value - the target's second argument, it will remain unchanged.
+    @param source       - the equality predicate expr=const (or expr<=>const)
+                          that can be used to rewrite the "target" part
+                          (under certain conditions, see the code).
+    @param source_expr  - the source's "expr". It should be exactly equal to
+                          the target's "expr" to make condition rewrite possible.
+    @param source_const - the source's "const" argument, it will be inserted
+                          into "target" instead of "expr".
+  */
+  virtual bool
+  can_change_cond_ref_to_const(Item_bool_func2 *target,
+                               Item *target_expr, Item *target_value,
+                               Item_bool_func2 *source,
+                               Item *source_expr, Item *source_const) const= 0;
   virtual Item_cache *Item_get_cache(THD *thd, const Item *item) const= 0;
   virtual bool set_comparator_func(Arg_comparator *cmp) const= 0;
   virtual bool Item_hybrid_func_fix_attributes(THD *thd, Item_hybrid_func *func,
@@ -455,6 +481,14 @@ public:
     DBUG_ASSERT(0);
     return 1;
   }
+  bool can_change_cond_ref_to_const(Item_bool_func2 *target,
+                                   Item *target_expr, Item *target_value,
+                                   Item_bool_func2 *source,
+                                   Item *source_expr, Item *source_const) const
+  {
+    DBUG_ASSERT(0);
+    return false;
+  }
   Item_cache *Item_get_cache(THD *thd, const Item *item) const;
   bool set_comparator_func(Arg_comparator *cmp) const;
   bool Item_hybrid_func_fix_attributes(THD *thd, Item_hybrid_func *func,
@@ -558,6 +592,10 @@ public:
   bool Item_func_min_max_get_date(Item_func_min_max*,
                                   MYSQL_TIME *, ulonglong fuzzydate) const;
   virtual ~Type_handler_numeric() { }
+  bool can_change_cond_ref_to_const(Item_bool_func2 *target,
+                                   Item *target_expr, Item *target_value,
+                                   Item_bool_func2 *source,
+                                   Item *source_expr, Item *source_const) const;
 };
 
 
@@ -699,6 +737,10 @@ public:
                   const Type_std_attributes *item,
                   SORT_FIELD_ATTR *attr) const;
   uint32 max_display_length(const Item *item) const;
+  bool can_change_cond_ref_to_const(Item_bool_func2 *target,
+                                   Item *target_expr, Item *target_value,
+                                   Item_bool_func2 *source,
+                                   Item *source_expr, Item *source_const) const;
   Item_cache *Item_get_cache(THD *thd, const Item *item) const;
   bool set_comparator_func(Arg_comparator *cmp) const;
   bool Item_sum_hybrid_fix_length_and_dec(Item_sum_hybrid *func) const;
@@ -746,6 +788,10 @@ public:
                   SORT_FIELD_ATTR *attr) const;
   uint32 max_display_length(const Item *item) const;
   int Item_save_in_field(Item *item, Field *field, bool no_conversions) const;
+  bool can_change_cond_ref_to_const(Item_bool_func2 *target,
+                                   Item *target_expr, Item *target_value,
+                                   Item_bool_func2 *source,
+                                   Item *source_expr, Item *source_const) const;
   Item_cache *Item_get_cache(THD *thd, const Item *item) const;
   bool set_comparator_func(Arg_comparator *cmp) const;
   bool Item_hybrid_func_fix_attributes(THD *thd, Item_hybrid_func *func,
