@@ -71,9 +71,9 @@ int hp_get_new_block(HP_SHARE *info, HP_BLOCK *block, size_t *alloc_length)
     lower levels.
 
     For example, for level 0, we allocate data for X rows.
-    When level 0 is full, we allocate data for HPTRS_IN_NODE + X rows.
+    When level 0 is full, we allocate data for HP_PTRS_IN_NOD + X rows.
     Next time we allocate data for X rows.
-    When level 1 is full, we allocate data for HPTRS_IN_NODE at level 2 and 1
+    When level 1 is full, we allocate data for HP_PTRS_IN_NOD at level 2 and 1
     + X rows at level 0.
    */
   *alloc_length= (sizeof(HP_PTRS) * ((i == block->levels) ? i : i - 1) +

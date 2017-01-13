@@ -392,7 +392,7 @@ public:
     Specifies which result type the function uses to compare its arguments.
     This method is used in equal field propagation.
   */
-  virtual Item_result compare_type() const
+  virtual const Type_handler *compare_type_handler() const
   {
     /*
       Have STRING_RESULT by default, which means the function compares
@@ -400,7 +400,7 @@ public:
       and for Item_func_spatial_rel.
       Note, Item_bool_rowready_func2 overrides this default behaviour.
     */
-    return STRING_RESULT;
+    return &type_handler_varchar;
   }
   SEL_TREE *get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr)
   {
@@ -508,7 +508,10 @@ public:
     return cmp.set_cmp_func(this, tmp_arg, tmp_arg + 1, true);
   }
   CHARSET_INFO *compare_collation() const { return cmp.compare_collation(); }
-  Item_result compare_type() const { return cmp.compare_type(); }
+  const Type_handler *compare_type_handler() const
+  {
+    return cmp.compare_type_handler();
+  }
   Arg_comparator *get_comparator() { return &cmp; }
   void cleanup()
   {

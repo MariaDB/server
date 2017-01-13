@@ -200,7 +200,7 @@ const Name
 
 const Name
   Type_handler_tiny::m_name_tiny(C_STRING_WITH_LEN("tinyint")),
-  Type_handler_short::m_name_short(C_STRING_WITH_LEN("shortint")),
+  Type_handler_short::m_name_short(C_STRING_WITH_LEN("smallint")),
   Type_handler_long::m_name_int(C_STRING_WITH_LEN("int")),
   Type_handler_longlong::m_name_longlong(C_STRING_WITH_LEN("bigint")),
   Type_handler_int24::m_name_mediumint(C_STRING_WITH_LEN("mediumint")),
@@ -1054,6 +1054,99 @@ bool Type_handler_string_result::set_comparator_func(Arg_comparator *cmp) const
 bool Type_handler_temporal_result::set_comparator_func(Arg_comparator *cmp) const
 {
   return cmp->set_cmp_func_temporal();
+}
+
+
+/*************************************************************************/
+
+bool Type_handler_temporal_result::
+       can_change_cond_ref_to_const(Item_bool_func2 *target,
+                                    Item *target_expr, Item *target_value,
+                                    Item_bool_func2 *source,
+                                    Item *source_expr, Item *source_const)
+                                    const
+{
+  if (source->compare_type_handler()->cmp_type() != TIME_RESULT)
+    return false;
+
+  /*
+    Can't rewrite:
+      WHERE COALESCE(time_column)='00:00:00'
+        AND COALESCE(time_column)=DATE'2015-09-11'
+    to
+      WHERE DATE'2015-09-11'='00:00:00'
+        AND COALESCE(time_column)=DATE'2015-09-11'
+    because the left part will erroneously try to parse '00:00:00'
+    as DATE, not as TIME.
+
+    TODO: It could still be rewritten to:
+      WHERE DATE'2015-09-11'=TIME'00:00:00'
+        AND COALESCE(time_column)=DATE'2015-09-11'
+    i.e. we need to replace both target_expr and target_value
+    at the same time. This is not supported yet.
+  */
+  return target_value->cmp_type() == TIME_RESULT;
+}
+
+
+bool Type_handler_string_result::
+       can_change_cond_ref_to_const(Item_bool_func2 *target,
+                                    Item *target_expr, Item *target_value,
+                                    Item_bool_func2 *source,
+                                    Item *source_expr, Item *source_const)
+                                    const
+{
+  if (source->compare_type_handler()->cmp_type() != STRING_RESULT)
+    return false;
+  /*
+    In this example:
+      SET NAMES utf8 COLLATE utf8_german2_ci;
+      DROP TABLE IF EXISTS t1;
+      CREATE TABLE t1 (a CHAR(10) CHARACTER SET utf8);
+      INSERT INTO t1 VALUES ('o-umlaut'),('oe');
+      SELECT * FROM t1 WHERE a='oe' COLLATE utf8_german2_ci AND a='oe';
+
+    the query should return only the row with 'oe'.
+    It should not return 'o-umlaut', because 'o-umlaut' does not match
+    the right part of the condition: a='oe'
+    ('o-umlaut' is not equal to 'oe' in utf8_general_ci,
+     which is the collation of the field "a").
+
+    If we change the right part from:
+       ... AND a='oe'
+    to
+       ... AND 'oe' COLLATE utf8_german2_ci='oe'
+    it will be evalulated to TRUE and removed from the condition,
+    so the overall query will be simplified to:
+
+      SELECT * FROM t1 WHERE a='oe' COLLATE utf8_german2_ci;
+
+    which will erroneously start to return both 'oe' and 'o-umlaut'.
+    So changing "expr" to "const" is not possible if the effective
+    collations of "target" and "source" are not exactly the same.
+
+    Note, the code before the fix for MDEV-7152 only checked that
+    collations of "source_const" and "target_value" are the same.
+    This was not enough, as the bug report demonstrated.
+  */
+  return
+    target->compare_collation() == source->compare_collation() &&
+    target_value->collation.collation == source_const->collation.collation;
+}
+
+
+bool Type_handler_numeric::
+       can_change_cond_ref_to_const(Item_bool_func2 *target,
+                                    Item *target_expr, Item *target_value,
+                                    Item_bool_func2 *source,
+                                    Item *source_expr, Item *source_const)
+                                    const
+{
+  /*
+   The collations of "target" and "source" do not make sense for numeric
+   data types.
+  */
+  return target->compare_type_handler() == source->compare_type_handler();
 }
 
 
