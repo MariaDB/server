@@ -1856,7 +1856,7 @@ enum vers_range_unit_t
   UNIT_TRX_ID
 };
 
-/** System versioning support. */
+/** last_leaf_for_name_resolutioning support. */
 struct vers_select_conds_t
 {
   vers_range_type_t type;
@@ -2343,6 +2343,9 @@ struct TABLE_LIST
   TABLE_LIST *find_underlying_table(TABLE *table);
   TABLE_LIST *first_leaf_for_name_resolution();
   TABLE_LIST *last_leaf_for_name_resolution();
+
+  /* System Versioning */
+  vers_select_conds_t vers_conditions;
 
   /**
      @brief

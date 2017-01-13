@@ -2920,6 +2920,9 @@ public:
   Window_frame_bound *frame_bottom_bound;
   Window_spec *win_spec;
 
+  /* System Versioning */
+  vers_select_conds_t vers_conditions;
+
   inline void free_set_stmt_mem_root()
   {
     DBUG_ASSERT(!is_arena_for_set_stmt());
