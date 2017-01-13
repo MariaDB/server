@@ -7340,16 +7340,7 @@ wsrep_store_key_val_for_row(
 			blob_data = row_mysql_read_blob_ref(&blob_len,
 				(byte*) (record
 				+ (ulint) get_field_offset(table, field)),
-				(ulint) field->pack_length(),
-#ifdef HAVE_PERCONA_COMPRESSED_COLUMNS
-				field->column_format() ==
-					COLUMN_FORMAT_TYPE_COMPRESSED,
-				reinterpret_cast<const byte*>(
-					field->zip_dict_data.str),
-				field->zip_dict_data.length, prebuilt);
-#else
-                                0, 0, 0, prebuilt);
-#endif
+				(ulint) field->pack_length());
 
 			true_len = blob_len;
 
@@ -9103,9 +9094,7 @@ wsrep_calc_row_hash(
 		switch (col_type) {
 
 		case DATA_BLOB:
-			ptr = row_mysql_read_blob_ref(&len, ptr, len,
-				false, 0, 0, prebuilt);
-
+			ptr = row_mysql_read_blob_ref(&len, ptr, len);
 			break;
 
 		case DATA_VARCHAR:
