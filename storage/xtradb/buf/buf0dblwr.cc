@@ -589,6 +589,21 @@ buf_dblwr_process()
 			continue;
 		}
 
+		if (page_no == 0) {
+			/* Check the FSP_SPACE_FLAGS. */
+			ulint flags = fsp_header_get_flags(page);
+			if (!fsp_flags_is_valid(flags)
+			    && fsp_flags_convert_from_101(flags)
+			    == ULINT_UNDEFINED) {
+				ib_logf(IB_LOG_LEVEL_WARN,
+					"Ignoring a doublewrite copy of page "
+					ULINTPF ":0 due to invalid flags 0x%x",
+					space_id, int(flags));
+				continue;
+			}
+			/* The flags on the page should be converted later. */
+		}
+
 		/* Write the good page from the doublewrite buffer to
 		the intended position. */
 

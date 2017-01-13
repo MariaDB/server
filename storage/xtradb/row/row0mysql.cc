@@ -4362,6 +4362,7 @@ row_drop_table_for_mysql(
 
 	switch (err) {
 		ibool	is_temp;
+		ulint	table_flags;
 
 	case DB_SUCCESS:
 		/* Clone the name, in case it has been allocated
@@ -4370,6 +4371,7 @@ row_drop_table_for_mysql(
 		space_id = table->space;
 		ibd_file_missing = table->ibd_file_missing;
 
+		table_flags = table->flags;
 		is_temp = DICT_TF2_FLAG_IS_SET(table, DICT_TF2_TEMPORARY);
 
 		/* If there is a temp path then the temp flag is set.
@@ -4385,9 +4387,9 @@ row_drop_table_for_mysql(
 		}
 
 		/* We do not allow temporary tables with a remote path. */
-		ut_a(!(is_temp && DICT_TF_HAS_DATA_DIR(table->flags)));
+		ut_a(!(is_temp && DICT_TF_HAS_DATA_DIR(table_flags)));
 
-		if (space_id && DICT_TF_HAS_DATA_DIR(table->flags)) {
+		if (space_id && DICT_TF_HAS_DATA_DIR(table_flags)) {
 			dict_get_and_save_data_dir_path(table, true);
 			ut_a(table->data_dir_path);
 
@@ -4453,8 +4455,9 @@ row_drop_table_for_mysql(
 		if (err == DB_SUCCESS && space_id > TRX_SYS_SPACE) {
 			if (!is_temp
 			    && !fil_space_for_table_exists_in_mem(
-					space_id, tablename, FALSE,
-					print_msg, false, NULL, 0)) {
+					space_id, tablename,
+					print_msg, false, NULL, 0,
+					table_flags)) {
 				/* This might happen if we are dropping a
 				discarded tablespace */
 				err = DB_SUCCESS;
