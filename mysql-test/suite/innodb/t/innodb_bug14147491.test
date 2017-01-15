@@ -21,7 +21,6 @@ source include/have_debug.inc;
 source include/not_windows.inc;
 
 CALL mtr.add_suppression("InnoDB: Error: Unable to read tablespace .* page no .* into the buffer pool after 100 attempts");
-CALL mtr.add_suppression("InnoDB: Warning: database page corruption or a failed");
 CALL mtr.add_suppression("InnoDB: Database page corruption on disk or a failed");
 CALL mtr.add_suppression("InnoDB: Space .* file test/t1 read of page .*");
 CALL mtr.add_suppression("InnoDB: You may have to recover from a backup.");
