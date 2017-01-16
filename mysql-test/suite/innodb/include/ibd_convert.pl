@@ -10,7 +10,7 @@ sub convert_to_mariadb_101
     sysseek(FILE, 0, 0)||die "Unable to seek $file\n";
 
     # FIL_PAGE_DATA + FSP_SPACE_FLAGS = 38 + 16 = 54 bytes from the start
-    my($flags) = unpack "x[54]N";
+    my($flags) = unpack "x[54]N", $_;
     my $badflags = ($flags & 0x3f);
     my $compression_level=6;
     $badflags |= 1<<6|$compression_level<<7 if ($flags & 1 << 16);
