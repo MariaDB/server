@@ -45,6 +45,8 @@
 
 #define WRITEBUFFERSIZE (16384)
 
+bool ZipLoadFile(PGLOBAL g, char *zfn, char *fn, char *entry, bool append, bool mul);
+
 /***********************************************************************/
 /*  Compress a file in zip when creating a table.                      */
 /***********************************************************************/
@@ -252,7 +254,7 @@ void ZIPUTIL::getTime(tm_zip& tmZip)
 {
 	time_t rawtime;
 	time(&rawtime);
-	auto timeinfo = localtime(&rawtime);
+	struct tm *timeinfo = localtime(&rawtime);
 	tmZip.tm_sec = timeinfo->tm_sec;
 	tmZip.tm_min = timeinfo->tm_min;
 	tmZip.tm_hour = timeinfo->tm_hour;
@@ -321,7 +323,7 @@ bool ZIPUTIL::OpenTable(PGLOBAL g, MODE mode, char *fn, bool append)
 			fp->Memory = NULL;
 			fp->Mode = mode;
 			fp->File = this;
-			fp->Handle = NULL;
+			fp->Handle = 0;
 		} else
 			return true;
 
@@ -339,7 +341,7 @@ bool ZIPUTIL::OpenTable(PGLOBAL g, MODE mode, char *fn, bool append)
 bool ZIPUTIL::addEntry(PGLOBAL g, char *entry)
 {
 	//?? we dont need the stinking time
-	zip_fileinfo zi = { 0 };
+	zip_fileinfo zi = { 0, 0, 0, 0, 0, 0, 0, 0, 0 };
 
 	getTime(zi.tmz_date);
 	target = entry;
@@ -432,7 +434,7 @@ loopStart:
 			if (!*++pat) return TRUE;
 			goto loopStart;
 		default:
-			if (mapCaseTable[*s] != mapCaseTable[*p])
+			if (mapCaseTable[(uint)*s] != mapCaseTable[(uint)*p])
 				goto starCheck;
 			break;
 		} /* endswitch */
@@ -486,7 +488,7 @@ int UNZIPUTL::findEntry(PGLOBAL g, bool next)
 			if (rc == UNZ_END_OF_LIST_OF_FILE)
 				return RC_EF;
 			else if (rc != UNZ_OK) {
-				sprintf(g->Message, "unzGoToNextFile rc = ", rc);
+				sprintf(g->Message, "unzGoToNextFile rc = %d", rc);
 				return RC_FX;
 			} // endif rc
 
@@ -596,7 +598,7 @@ bool UNZIPUTL::OpenTable(PGLOBAL g, MODE mode, char *fn)
 				fp->Memory = memory;
 				fp->Mode = mode;
 				fp->File = this;
-				fp->Handle = NULL;
+				fp->Handle = 0;
 			} // endif fp
 
 		} else
@@ -632,7 +634,7 @@ bool UNZIPUTL::openEntry(PGLOBAL g)
 	memory = new char[size + 1];
 
 	if ((rc = unzReadCurrentFile(zipfile, memory, size)) < 0) {
-		sprintf(g->Message, "unzReadCurrentFile rc = ", rc);
+		sprintf(g->Message, "unzReadCurrentFile rc = %d", rc);
 		unzCloseCurrentFile(zipfile);
 		free(memory);
 		memory = NULL;
