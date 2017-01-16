@@ -988,7 +988,6 @@ do
     chmod "$fmode" "$err_log"           # wrong owner next time we log, so set
   fi                                    # it up correctly while we can!
 
-  eval_log_error "$cmd"
   end_time=`date +%M%S`
 
   if test ! -f "$pid_file"		# This is removed if normal shutdown
