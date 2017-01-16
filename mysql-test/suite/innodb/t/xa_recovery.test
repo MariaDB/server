@@ -12,11 +12,6 @@ if (`select plugin_auth_version <= "5.6.24" from information_schema.plugins wher
 FLUSH TABLES;
 --enable_query_log
 
-#
-# We kill server belown with timeout 0 that is not fully safe
-#
-call mtr.add_suppression("InnoDB: Warning: database page corruption or a failed");
-
 CREATE TABLE t1 (a INT) ENGINE=InnoDB;
 INSERT INTO t1 VALUES (1);
 connect (con1,localhost,root);
@@ -25,15 +20,8 @@ connection default;
 
 call mtr.add_suppression("Found 1 prepared XA transactions");
 
-# Kill and restart the server.
--- exec echo "wait" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
--- shutdown_server 0
--- source include/wait_until_disconnected.inc
-
--- exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
--- enable_reconnect
--- source include/wait_until_connected_again.inc
--- disable_reconnect
+--source include/kill_mysqld.inc
+--source include/start_mysqld.inc
 
 disconnect con1;
 connect (con1,localhost,root);
