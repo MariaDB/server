@@ -74,15 +74,15 @@ my $fname= "$ENV{'MYSQLD_DATADIR'}test/t1.ibd";
 my $page_size = $ENV{INNODB_PAGE_SIZE};
 my $page;
 open(FILE, "+<", $fname) or die;
-sysread(FILE, $page, $page_size)==$page_size||die "Unable to read $file\n";
-sysseek(FILE, 0, 0)||die "Unable to seek $file\n";
+sysread(FILE, $page, $page_size)==$page_size||die "Unable to read $name\n";
+sysseek(FILE, 0, 0)||die "Unable to seek $fname\n";
 die unless syswrite(FILE, chr(0) x $page_size, $page_size) == $page_size;
 close FILE;
 
 open(FILE, "+<", "$ENV{MYSQLD_DATADIR}ibdata1")||die "cannot open ibdata1\n";
 sysseek(FILE, 6 * $page_size - 190, 0)||die "Unable to seek ibdata1\n";
 sysread(FILE, $_, 12) == 12||die "Unable to read TRX_SYS\n";
-my($magic,$d1,$d2)=unpack "NNN";
+my($magic,$d1,$d2)=unpack "NNN", $_;
 die "magic=$magic, $d1, $d2\n" unless $magic == 536853855 && $d2 >= $d1 + 64;
 sysseek(FILE, $d1 * $page_size, 0)||die "Unable to seek ibdata1\n";
 # Find the page in the doublewrite buffer
@@ -92,7 +92,7 @@ for (my $d = $d1; $d < $d2 + 64; $d++)
     next unless $_ eq $page;
     sysseek(FILE, $d * $page_size, 0)||die "Unable to seek ibdata1\n";
     # Write buggy MariaDB 10.1.x FSP_SPACE_FLAGS to the doublewrite buffer
-    my($flags) = unpack "x[54]N";
+    my($flags) = unpack "x[54]N", $_;
     my $badflags = ($flags & 0x3f);
     my $compression_level=6;
     $badflags |= 1<<6|$compression_level<<7 if ($flags & 1 << 16);
@@ -102,7 +102,7 @@ for (my $d = $d1; $d < $d2 + 64; $d++)
     # Replace the innodb_checksum_algorithm=none checksum
     substr ($_, 0, 4) = pack("N", 0xdeadbeef);
     substr ($_, $page_size - 8, 4) = pack("N", 0xdeadbeef);
-    syswrite(FILE, $_, $page_size)==$page_size||die "Unable to write $file\n";
+    syswrite(FILE, $_, $page_size)==$page_size||die;
     close(FILE);
     exit 0;
 }
