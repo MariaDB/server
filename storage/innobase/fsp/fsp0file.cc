@@ -268,9 +268,8 @@ Datafile::same_as(
 }
 
 /** Allocate and set the datafile or tablespace name in m_name.
-If a name is provided, use it; else if the datafile is file-per-table,
-extract a file-per-table tablespace name from m_filepath; else it is a
-general tablespace, so just call it that for now. The value of m_name
+If a name is provided, use it; else extract a file-per-table
+tablespace name from m_filepath. The value of m_name
 will be freed in the destructor.
 @param[in]	name	tablespace name if known, NULL if not */
 void
@@ -280,14 +279,8 @@ Datafile::set_name(const char*	name)
 
 	if (name != NULL) {
 		m_name = mem_strdup(name);
-	} else if (fsp_is_file_per_table(m_space_id, m_flags)) {
-		m_name = fil_path_to_space_name(m_filepath);
 	} else {
-		/* Give this general tablespace a temporary name. */
-		m_name = static_cast<char*>(
-			ut_malloc_nokey(strlen(general_space_name) + 20));
-
-		sprintf(m_name, "%s_" ULINTPF, general_space_name, m_space_id);
+		m_name = fil_path_to_space_name(m_filepath);
 	}
 }
 
@@ -408,9 +401,8 @@ Datafile::validate_to_dd(
 	If the datafile is a file-per-table tablespace then also match
 	the row format and zip page size. */
 	if (m_space_id == space_id
-	    && (m_flags & FSP_FLAGS_MASK_SHARED
-	        || (m_flags & ~FSP_FLAGS_MASK_DATA_DIR)
-	            == (flags & ~FSP_FLAGS_MASK_DATA_DIR))) {
+	    && ((m_flags & ~FSP_FLAGS_MASK_DATA_DIR)
+		== (flags & ~FSP_FLAGS_MASK_DATA_DIR))) {
 		/* Datafile matches the tablespace expected. */
 		return(DB_SUCCESS);
 	}
@@ -900,19 +892,7 @@ the path provided without its suffix, plus DOT_ISL.
 void
 RemoteDatafile::set_link_filepath(const char* path)
 {
-	if (m_link_filepath != NULL) {
-		return;
-	}
-
-	if (path != NULL && FSP_FLAGS_GET_SHARED(flags())) {
-		/* Make the link_filepath based on the basename. */
-		ut_ad(strcmp(&path[strlen(path) - strlen(DOT_IBD)],
-		      DOT_IBD) == 0);
-
-		m_link_filepath = fil_make_filepath(NULL, base_name(path),
-						    ISL, false);
-	} else {
-		/* Make the link_filepath based on the m_name. */
+	if (m_link_filepath == NULL) {
 		m_link_filepath = fil_make_filepath(NULL, name(), ISL, false);
 	}
 }
@@ -922,14 +902,11 @@ under the 'datadir' of MySQL. The datadir is the directory of a
 running mysqld program. We can refer to it by simply using the path ".".
 @param[in]	name		tablespace name
 @param[in]	filepath	remote filepath of tablespace datafile
-@param[in]	is_shared	true for general tablespace,
-				false for file-per-table
 @return DB_SUCCESS or error code */
 dberr_t
 RemoteDatafile::create_link_file(
 	const char*	name,
-	const char*	filepath,
-	bool		is_shared)
+	const char*	filepath)
 {
 	bool		success;
 	dberr_t		err = DB_SUCCESS;
@@ -939,31 +916,8 @@ RemoteDatafile::create_link_file(
 	ut_ad(!srv_read_only_mode);
 	ut_ad(0 == strcmp(&filepath[strlen(filepath) - 4], DOT_IBD));
 
-	if (is_shared) {
-		/* The default location for a shared tablespace is the
-		datadir. We previously made sure that this filepath is
-		not under the datadir.  If it is in the datadir there
-		is no need for a link file. */
+	link_filepath = fil_make_filepath(NULL, name, ISL, false);
 
-		size_t	len = dirname_length(filepath);
-		if (len == 0) {
-			/* File is in the datadir. */
-			return(DB_SUCCESS);
-		}
-
-		Folder	folder(filepath, len);
-
-		if (folder_mysql_datadir == folder) {
-			/* File is in the datadir. */
-			return(DB_SUCCESS);
-		}
-
-		/* Use the file basename to build the ISL filepath. */
-		link_filepath = fil_make_filepath(NULL, base_name(filepath),
-						  ISL, false);
-	} else {
-		link_filepath = fil_make_filepath(NULL, name, ISL, false);
-	}
 	if (link_filepath == NULL) {
 		return(DB_ERROR);
 	}
@@ -1070,8 +1024,6 @@ RemoteDatafile::delete_link_file(
 It is always created under the datadir of MySQL.
 For file-per-table tablespaces, the isl file is expected to be
 in a 'database' directory and called 'tablename.isl'.
-For general tablespaces, there will be no 'database' directory.
-The 'basename.isl' will be in the datadir.
 The caller must free the memory returned if it is not null.
 @param[in]	link_filepath	filepath of the ISL file
 @return Filepath of the IBD file read from the ISL file */
@@ -1079,16 +1031,12 @@ char*
 RemoteDatafile::read_link_file(
 	const char*	link_filepath)
 {
-	char*		filepath = NULL;
-	FILE*		file = NULL;
-
-	file = fopen(link_filepath, "r+b");
+	FILE* file = fopen(link_filepath, "r+b");
 	if (file == NULL) {
 		return(NULL);
 	}
 
-	filepath = static_cast<char*>(
-		ut_malloc_nokey(OS_FILE_MAX_PATH));
+	char* filepath = static_cast<char*>(ut_malloc_nokey(OS_FILE_MAX_PATH));
 
 	os_file_read_string(file, filepath, OS_FILE_MAX_PATH);
 	fclose(file);

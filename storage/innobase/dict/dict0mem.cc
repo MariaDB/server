@@ -163,10 +163,6 @@ dict_mem_table_create(
 		table->fts = NULL;
 	}
 
-	if (DICT_TF_HAS_SHARED_SPACE(table->flags)) {
-		dict_get_and_save_space_name(table, true);
-	}
-
 	new(&table->foreign_set) dict_foreign_set();
 	new(&table->referenced_set) dict_foreign_set();
 

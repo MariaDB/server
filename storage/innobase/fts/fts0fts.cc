@@ -1780,13 +1780,6 @@ fts_create_in_mem_aux_table(
 		aux_table_name, table->space, n_cols, 0, table->flags,
 		fts_get_table_flags2_for_aux_tables(table->flags2));
 
-	if (DICT_TF_HAS_SHARED_SPACE(table->flags)) {
-		ut_ad(table->space == fil_space_get_id_by_name(
-			table->tablespace()));
-		new_table->tablespace = mem_heap_strdup(
-			new_table->heap, table->tablespace);
-	}
-
 	if (DICT_TF_HAS_DATA_DIR(table->flags)) {
 		ut_ad(table->data_dir_path != NULL);
 		new_table->data_dir_path = mem_heap_strdup(

@@ -154,8 +154,6 @@ enum dberr_t {
 	DB_TABLE_CORRUPT,		/*!< Table/clustered index is
 					corrupted */
 
-	DB_WRONG_FILE_NAME,		/*!< Invalid Filename */
-
 	DB_COMPUTE_VALUE_FAILED,	/*!< Compute generated value failed */
 
 	DB_NO_FK_ON_S_BASE_COL,		/*!< Cannot add foreign constrain

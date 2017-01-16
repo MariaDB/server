@@ -7268,22 +7268,14 @@ dict_tf_to_fsp_flags(
 				 DICT_TF_HAS_ATOMIC_BLOBS(table_flags);
 	page_size_t	page_size = dict_tf_get_page_size(table_flags);
 	bool		has_data_dir = DICT_TF_HAS_DATA_DIR(table_flags);
-	bool		is_shared = DICT_TF_HAS_SHARED_SPACE(table_flags);
 	bool		page_compression = DICT_TF_GET_PAGE_COMPRESSION(table_flags);
 	ulint		page_compression_level = DICT_TF_GET_PAGE_COMPRESSION_LEVEL(table_flags);
 
 	ut_ad(!page_size.is_compressed() || has_atomic_blobs);
 
-	/* General tablespaces that are not compressed do not get the
-	flags for dynamic row format (POST_ANTELOPE & ATOMIC_BLOBS) */
-	if (is_shared && !page_size.is_compressed()) {
-		has_atomic_blobs = false;
-	}
-
 	ulint		fsp_flags = fsp_flags_init(page_size,
 						   has_atomic_blobs,
 						   has_data_dir,
-						   is_shared,
 						   is_temp,
 						   0,
 						   0,

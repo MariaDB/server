@@ -660,7 +660,6 @@ dict_tf_is_valid(
 	ulint	zip_ssize = DICT_TF_GET_ZIP_SSIZE(flags);
 	bool	atomic_blobs = DICT_TF_HAS_ATOMIC_BLOBS(flags);
 	bool	data_dir = DICT_TF_HAS_DATA_DIR(flags);
-	bool	shared_space = DICT_TF_HAS_SHARED_SPACE(flags);
 	ulint	unused = DICT_TF_GET_UNUSED(flags);
 	bool	page_compression = DICT_TF_GET_PAGE_COMPRESSION(flags);
 	ulint	page_compression_level = DICT_TF_GET_PAGE_COMPRESSION_LEVEL(flags);
@@ -711,11 +710,6 @@ dict_tf_is_valid(
 	}
 
 
-	/* HAS_DATA_DIR and SHARED_SPACE are mutually exclusive. */
-	if (data_dir && shared_space) {
-		flags_corrupt = true;
-	}
-
 	if (flags_corrupt) {
 		ib::error()
 			<< "InnoDB: Error: table unused flags are:" << flags
@@ -726,8 +720,7 @@ dict_tf_is_valid(
 			<< " data_dir:" << data_dir
 			<< " zip_ssize:" << zip_ssize
 			<< " page_compression:" << page_compression
-			<< " page_compression_level:" << page_compression_level
-			<< " shared_space:" << shared_space;
+			<< " page_compression_level:" << page_compression_level;
 		return (false);
 	} else {
 		return(true);
@@ -750,13 +743,6 @@ dict_tf2_is_valid(
 	}
 
 	if ((flags2 & DICT_TF2_UNUSED_BIT_MASK) != 0) {
-		return(false);
-	}
-
-	bool	file_per_table = ((flags2 & DICT_TF2_USE_FILE_PER_TABLE) != 0);
-	bool	shared_space = DICT_TF_HAS_SHARED_SPACE(flags);
-
-	if (file_per_table && shared_space) {
 		return(false);
 	}
 
@@ -931,7 +917,6 @@ dict_table_get_format(
 @param[in]	format		File Format
 @param[in]	zip_ssize	Zip Shift Size
 @param[in]	use_data_dir	Table uses DATA DIRECTORY
-@param[in]	shared_space	Table uses a General Shared Tablespace
 @param[in]	page_compressed Table uses page compression
 @param[in]	page_compression_level Page compression level
 @param[in]	not_used        For future */
@@ -943,7 +928,6 @@ dict_tf_set(
 	rec_format_t	format,
 	ulint		zip_ssize,
 	bool		use_data_dir,
-	bool		shared_space,
 	bool		page_compressed,
 	ulint		page_compression_level,
 	ulint		not_used)
@@ -973,10 +957,6 @@ dict_tf_set(
 		*flags |= (1 << DICT_TF_POS_DATA_DIR);
 	}
 
-	if (shared_space) {
-		*flags |= (1 << DICT_TF_POS_SHARED_SPACE);
-	}
-
 	if (page_compressed) {
 		*flags |= (1 << DICT_TF_POS_ATOMIC_BLOBS)
 		       | (1 << DICT_TF_POS_PAGE_COMPRESSION)
@@ -993,7 +973,6 @@ dict_tf_set(
 @param[in]	zip_ssize	Zip Shift Size (log 2 minus 9)
 @param[in]	atomic_blobs	Table uses Compressed or Dynamic
 @param[in]	data_dir	Table uses DATA DIRECTORY
-@param[in]	shared_space	Table uses a General Shared Tablespace
 @param[in]	page_compression Table uses page compression
 @param[in]	page_compression_level used compression level
 @param[in]	not_used         For future */
@@ -1004,7 +983,6 @@ dict_tf_init(
 	ulint		zip_ssize,
 	bool		atomic_blobs,
 	bool		data_dir,
-	bool		shared_space,
 	bool		page_compressed,
 	ulint		page_compression_level,
 	ulint		not_used)
@@ -1025,10 +1003,6 @@ dict_tf_init(
 
 	if (data_dir) {
 		flags |= (1 << DICT_TF_POS_DATA_DIR);
-	}
-
-	if (shared_space) {
-		flags |= (1 << DICT_TF_POS_SHARED_SPACE);
 	}
 
 	if (page_compressed) {
@@ -1073,8 +1047,7 @@ dict_sys_tables_type_to_tf(
 			 | DICT_TF_MASK_ATOMIC_BLOBS
 			 | DICT_TF_MASK_DATA_DIR
 			 | DICT_TF_MASK_PAGE_COMPRESSION
-			 | DICT_TF_MASK_PAGE_COMPRESSION_LEVEL
-			 | DICT_TF_MASK_SHARED_SPACE);
+			 | DICT_TF_MASK_PAGE_COMPRESSION_LEVEL);
 
 	ut_ad(!DICT_TF_GET_ZIP_SSIZE(flags) || DICT_TF_HAS_ATOMIC_BLOBS(flags));
 	return(flags);
@@ -1109,8 +1082,7 @@ dict_tf_to_sys_tables_type(
 			 | DICT_TF_MASK_ATOMIC_BLOBS
 			 | DICT_TF_MASK_DATA_DIR
 			 | DICT_TF_MASK_PAGE_COMPRESSION
-			 | DICT_TF_MASK_PAGE_COMPRESSION_LEVEL
-			 | DICT_TF_MASK_SHARED_SPACE);
+			 | DICT_TF_MASK_PAGE_COMPRESSION_LEVEL);
 
 	return(type);
 }
@@ -1744,18 +1716,6 @@ dict_table_is_temporary(
 	return(DICT_TF2_FLAG_IS_SET(table, DICT_TF2_TEMPORARY));
 }
 
-/** Check if the table is in a shared tablespace (System or General).
-@param[in]	id	Space ID to check
-@return true if id is a shared tablespace, false if not. */
-UNIV_INLINE
-bool
-dict_table_in_shared_tablespace(
-	const dict_table_t*	table)
-{
-	return(is_system_tablespace(table->space)
-		|| DICT_TF_HAS_SHARED_SPACE(table->flags));
-}
-
 /********************************************************************//**
 Turn-off redo-logging if temporary table. */
 UNIV_INLINE
@@ -1778,8 +1738,8 @@ A patch was added to v3.23.52 which initializes the MIX_LEN field to 0.
 Since file-per-table tablespaces were added in 4.1, any SYS_TABLES
 record with a non-zero space ID will have a reliable MIX_LEN field.
 However, this test does not use flags2 from SYS_TABLES.MIX_LEN.  Instead,
-assume that if the tablespace is not a predefined system tablespace and it
-is not a general shared tablespace, then it must be file-per-table.
+assume that if the tablespace is not a predefined system tablespace,
+ then it must be file-per-table.
 Also, during ALTER TABLE, the DICT_TF2_USE_FILE_PER_TABLE flag may not be
 set on one of the file-per-table tablespaces.
 This test cannot be done on a table in the process of being created
@@ -1792,8 +1752,7 @@ dict_table_is_file_per_table(
 	const dict_table_t*	table)	/*!< in: table to check */
 {
 	bool is_file_per_table =
-		!is_system_tablespace(table->space)
-		&& !DICT_TF_HAS_SHARED_SPACE(table->flags);
+		!is_system_tablespace(table->space);
 
 	/* If the table is file-per-table and it is not redundant, then
 	it should have the flags2 bit for DICT_TF2_USE_FILE_PER_TABLE. */
@@ -1801,7 +1760,7 @@ dict_table_is_file_per_table(
 	      || !DICT_TF_GET_COMPACT(table->flags)
 	      || DICT_TF2_FLAG_IS_SET(table, DICT_TF2_USE_FILE_PER_TABLE));
 
-	return(is_file_per_table );
+	return(is_file_per_table);
 }
 
 /** Get reference count.
@@ -1831,20 +1790,6 @@ dict_table_t::release()
 	ut_ad(mutex_own(&dict_sys->mutex));
 	ut_ad(n_ref_count > 0);
 	--n_ref_count;
-}
-
-/** Check if tablespace name is "innodb_general".
-@param[in]	tablespace_name	tablespace name
-@retval		true		if name is "innodb_general"
-@retval		false		if name is not "innodb_general" */
-inline
-bool
-dict_table_has_temp_general_tablespace_name(
-	const char*	tablespace_name) {
-
-	return(tablespace_name != NULL
-	       && strncmp(tablespace_name, general_space_name,
-			  strlen(general_space_name)) == 0);
 }
 
 /** Encode the number of columns and number of virtual columns in a

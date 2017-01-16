@@ -38,8 +38,6 @@ Created 10/25/1995 Heikki Tuuri
 #include <list>
 #include <vector>
 
-extern const char general_space_name[];
-
 // Forward declaration
 struct trx_t;
 class page_id_t;
@@ -256,101 +254,10 @@ extern const char* dot_ext[];
 #define DOT_ISL dot_ext[ISL]
 #define DOT_CFG dot_ext[CFG]
 
-/** Wrapper for a path to a directory.
-This folder may or may not yet esist.  Since not all directory paths
-end in "/", we should only use this for a directory path or a filepath
-that has a ".ibd" extension. */
-class Folder
-{
-public:
-	/** Default constructor */
-	Folder() : m_folder(NULL) {}
-
-	/** Constructor
-	@param[in]	path	pathname (not necessarily NUL-terminated)
-	@param[in]	len	length of the path, in bytes */
-	Folder(const char* path, size_t len);
-
-	/** Assignment operator
-	@param[in]	folder	folder string provided */
-	class Folder& operator=(const char* path);
-
-	/** Destructor */
-	~Folder()
-	{
-		ut_free(m_folder);
-	}
-
-	/** Implicit type conversion
-	@return the wrapped object */
-	operator const char*() const
-	{
-		return(m_folder);
-	}
-
-	/** Explicit type conversion
-	@return the wrapped object */
-	const char* operator()() const
-	{
-		return(m_folder);
-	}
-
-	/** return the length of m_folder
-	@return the length of m_folder */
-	size_t len()
-	{
-		return m_folder_len;
-	}
-
-	/** Determine if two folders are equal
-	@param[in]	other	folder to compare to
-	@return whether the folders are equal */
-	bool operator==(const Folder& other) const;
-
-	/** Determine if the left folder is the same or an ancestor of
-	(contains) the right folder.
-	@param[in]	other	folder to compare to
-	@return whether this is the same or an ancestor or the other folder. */
-	bool operator>=(const Folder& other) const;
-
-	/** Determine if the left folder is an ancestor of (contains)
-	the right folder.
-	@param[in]	other	folder to compare to
-	@return whether this is an ancestor of the other folder */
-	bool operator>(const Folder& other) const;
-
-	/** Determine if the directory referenced by m_folder exists.
-	@return whether the directory exists */
-	bool exists();
-
-private:
-	/** Build the basic folder name from the path and length provided
-	@param[in]	path	pathname (not necessarily NUL-terminated)
-	@param[in]	len	length of the path, in bytes */
-	void	make_path(const char* path, size_t len);
-
-	/** Resolve a relative path in m_folder to an absolute path
-	in m_abs_path setting m_abs_len. */
-	void	make_abs_path();
-
-	/** The wrapped folder string */
-	char*	m_folder;
-
-	/** Length of m_folder */
-	size_t	m_folder_len;
-
-	/** A full absolute path to the same file. */
-	char	m_abs_path[FN_REFLEN + 2];
-
-	/** Length of m_abs_path to the deepest folder */
-	size_t	m_abs_len;
-};
-
 /** When mysqld is run, the default directory "." is the mysqld datadir,
 but in the MySQL Embedded Server Library and mysqlbackup it is not the default
 directory, and we must set the base file path explicitly */
 extern const char*	fil_path_to_mysql_datadir;
-extern Folder   	folder_mysql_datadir;
 
 /** Initial size of a single-table tablespace in pages */
 #define FIL_IBD_FILE_INITIAL_SIZE	4
@@ -1052,7 +959,6 @@ fil_make_filepath(
 /** Creates a new General or Single-Table tablespace
 @param[in]	space_id	Tablespace ID
 @param[in]	name		Tablespace name in dbname/tablename format.
-For general tablespaces, the 'dbname/' part may be missing.
 @param[in]	path		Path and filename of the datafile to create.
 @param[in]	flags		Tablespace flags
 @param[in]	size		Initial size of the tablespace file in pages,

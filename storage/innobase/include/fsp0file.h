@@ -220,9 +220,8 @@ public:
 	void set_filepath(const char* filepath);
 
 	/** Allocate and set the datafile or tablespace name in m_name.
-	If a name is provided, use it; else if the datafile is file-per-table,
-	extract a file-per-table tablespace name from m_filepath; else it is a
-	general tablespace, so just call it that for now. The value of m_name
+	If a name is provided, use it; else extract a file-per-table
+	tablespace name from m_filepath. The value of m_name
 	will be freed in the destructor.
 	@param[in]	name	Tablespace Name if known, NULL if not */
 	void set_name(const char*	name);
@@ -559,13 +558,10 @@ public:
 	the path ".".
 	@param[in]	name		tablespace name
 	@param[in]	filepath	remote filepath of tablespace datafile
-	@param[in]	is_shared	true for general tablespace,
-					false for file-per-table
 	@return DB_SUCCESS or error code */
 	static dberr_t create_link_file(
 		const char*	name,
-		const char*	filepath,
-		bool		is_shared = false);
+		const char*	filepath);
 
 	/** Delete an InnoDB Symbolic Link (ISL) file by name.
 	@param[in]	name	tablespace name */
@@ -575,8 +571,6 @@ public:
 	It is always created under the datadir of MySQL.
 	For file-per-table tablespaces, the isl file is expected to be
 	in a 'database' directory and called 'tablename.isl'.
-	For general tablespaces, there will be no 'database' directory.
-	The 'basename.isl' will be in the datadir.
 	The caller must free the memory returned if it is not null.
 	@param[in]	link_filepath	filepath of the ISL file
 	@return Filepath of the IBD file read from the ISL file */

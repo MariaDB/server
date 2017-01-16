@@ -4050,14 +4050,12 @@ row_drop_table_for_mysql(
 		bool	is_temp;
 		bool	ibd_file_missing;
 		bool	is_discarded;
-		bool	shared_tablespace;
 
 	case DB_SUCCESS:
 		space_id = table->space;
 		ibd_file_missing = table->ibd_file_missing;
 		is_discarded = dict_table_is_discarded(table);
 		is_temp = dict_table_is_temporary(table);
-		shared_tablespace = DICT_TF_HAS_SHARED_SPACE(table->flags);
 
 		/* If there is a temp path then the temp flag is set.
 		However, during recovery, we might have a temp flag but
@@ -4086,7 +4084,7 @@ row_drop_table_for_mysql(
 			filepath = fil_make_filepath(
 				table->dir_path_of_temp_table,
 				NULL, IBD, false);
-		} else if (!shared_tablespace) {
+		} else {
 			filepath = fil_make_filepath(
 				NULL, table->name.m_name, IBD, false);
 		}
@@ -4098,8 +4096,8 @@ row_drop_table_for_mysql(
 		}
 
 		/* Do not attempt to drop known-to-be-missing tablespaces,
-		nor system or shared general tablespaces. */
-		if (is_discarded || ibd_file_missing || shared_tablespace
+		nor the system tablespace. */
+		if (is_discarded || ibd_file_missing
 		    || is_system_tablespace(space_id)) {
 			break;
 		}

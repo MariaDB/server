@@ -197,7 +197,6 @@ fsp_flags_to_dict_tf(
 	ulint	zip_ssize	= FSP_FLAGS_GET_ZIP_SSIZE(fsp_flags);
 	bool	atomic_blobs	= FSP_FLAGS_HAS_ATOMIC_BLOBS(fsp_flags);
 	bool	data_dir	= FSP_FLAGS_HAS_DATA_DIR(fsp_flags);
-	bool	shared_space	= FSP_FLAGS_GET_SHARED(fsp_flags);
 	bool	page_compressed = FSP_FLAGS_GET_PAGE_COMPRESSION(fsp_flags);
 	ulint	comp_level	= FSP_FLAGS_GET_PAGE_COMPRESSION_LEVEL(fsp_flags);
 
@@ -206,7 +205,7 @@ fsp_flags_to_dict_tf(
 	any code is created where that is needed. */
 
 	ulint	flags = dict_tf_init(post_antelope | compact, zip_ssize,
-				atomic_blobs, data_dir, shared_space,
+				atomic_blobs, data_dir,
 				page_compressed, comp_level, 0);
 
 	return(flags);
@@ -228,7 +227,6 @@ fsp_flags_is_valid(
 	bool	atomic_blobs = FSP_FLAGS_HAS_ATOMIC_BLOBS(flags);
 	ulint	page_ssize = FSP_FLAGS_GET_PAGE_SSIZE(flags);
 	bool	has_data_dir = FSP_FLAGS_HAS_DATA_DIR(flags);
-	bool	is_shared = FSP_FLAGS_GET_SHARED(flags);
 	bool	is_temp = FSP_FLAGS_GET_TEMPORARY(flags);
 	ulint	unused = FSP_FLAGS_GET_UNUSED(flags);
 	bool	page_compression = FSP_FLAGS_GET_PAGE_COMPRESSION(flags);
@@ -279,7 +277,7 @@ fsp_flags_is_valid(
 	/* Only single-table tablespaces use the DATA DIRECTORY clause.
 	It is not compatible with the TABLESPACE clause.  Nor is it
 	compatible with the TEMPORARY clause. */
-	if (has_data_dir && (is_shared || is_temp)) {
+	if (has_data_dir && is_temp) {
 		GOTO_ERROR;
 		return(false);
 	}
@@ -311,7 +309,6 @@ err_exit:
 		    << " page_ssize: " << page_ssize
 		    << " " << UNIV_PAGE_SSIZE_MIN << ":" << UNIV_PAGE_SSIZE_MAX
 		    << " has_data_dir: " << has_data_dir
-		    << " is_shared: " << is_shared
 		    << " is_temp: " << is_temp
 		    << " page_compressed: " << page_compression
 		    << " page_compression_level: " << page_compression_level;
@@ -326,19 +323,6 @@ fsp_is_checksum_disabled(
 	ulint	space_id)
 {
 	return(fsp_is_system_temporary(space_id));
-}
-
-/** Check if tablespace is file-per-table.
-@param[in]	space_id	tablespace ID
-@param[in]	fsp_flags	tablespace flags
-@return true if tablespace is file-per-table. */
-bool
-fsp_is_file_per_table(
-	ulint	space_id,
-	ulint	fsp_flags)
-{
-	return(!is_system_tablespace(space_id)
-		&& !fsp_is_shared_tablespace(fsp_flags));
 }
 
 #ifdef UNIV_DEBUG
@@ -1099,8 +1083,8 @@ fsp_try_extend_data_file(
 		to reset the flag to false as dealing with this
 		error requires server restart. */
 		if (!srv_sys_space.get_tablespace_full_status()) {
-			ib::error() << "Tablespace " << srv_sys_space.name()
-				<< " " << OUT_OF_SPACE_MSG
+			ib::error() << "The InnoDB system tablespace "
+				<< OUT_OF_SPACE_MSG
 				<< " innodb_data_file_path.";
 			srv_sys_space.set_tablespace_full_status(true);
 		}
@@ -1113,8 +1097,8 @@ fsp_try_extend_data_file(
 		to reset the flag to false as dealing with this
 		error requires server restart. */
 		if (!srv_tmp_space.get_tablespace_full_status()) {
-			ib::error() << "Tablespace " << srv_tmp_space.name()
-				<< " " << OUT_OF_SPACE_MSG
+			ib::error() << "The InnoDB temporary tablespace "
+				<< OUT_OF_SPACE_MSG
 				<< " innodb_temp_data_file_path.";
 			srv_tmp_space.set_tablespace_full_status(true);
 		}
@@ -1174,7 +1158,7 @@ fsp_try_extend_data_file(
 }
 
 /** Calculate the number of pages to extend a datafile.
-We extend single-table and general tablespaces first one extent at a time,
+We extend single-table tablespaces first one extent at a time,
 but 4 at a time for bigger tablespaces. It is not enough to extend always
 by one extent, because we need to add at least one extent to FSP_FREE.
 A single extent descriptor page will track many extents. And the extent

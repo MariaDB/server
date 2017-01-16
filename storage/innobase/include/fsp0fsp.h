@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2016, MariaDB Corporation. All Rights Reserved.
+Copyright (c) 2013, 2017, MariaDB Corporation. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -274,7 +274,7 @@ fsp_header_get_tablespace_size(void);
 /*================================*/
 
 /** Calculate the number of pages to extend a datafile.
-We extend single-table and general tablespaces first one extent at a time,
+We extend single-table tablespaces first one extent at a time,
 but 4 at a time for bigger tablespaces. It is not enough to extend always
 by one extent, because we need to add at least one extent to FSP_FREE.
 A single extent descriptor page will track many extents. And the extent
@@ -644,21 +644,10 @@ bool
 fsp_flags_is_compressed(
 	ulint	flags);
 
-/** Determine if two tablespaces are equivalent or compatible.
-@param[in]	flags1	First tablespace flags
-@param[in]	flags2	Second tablespace flags
-@return true the flags are compatible, false if not */
-UNIV_INLINE
-bool
-fsp_flags_are_equal(
-	ulint	flags1,
-	ulint	flags2);
-
 /** Initialize an FSP flags integer.
 @param[in]	page_size	page sizes in bytes and compression flag.
 @param[in]	atomic_blobs	Used by Dynammic and Compressed.
 @param[in]	has_data_dir	This tablespace is in a remote location.
-@param[in]	is_shared	This tablespace can be shared by many tables.
 @param[in]	is_temporary	This tablespace is temporary.
 @return tablespace flags after initialization */
 UNIV_INLINE
@@ -667,7 +656,6 @@ fsp_flags_init(
 	const page_size_t&	page_size,
 	bool			atomic_blobs,
 	bool			has_data_dir,
-	bool			is_shared,
 	bool			is_temporary,
 	bool			page_compression,
 	ulint			page_compression_level,

@@ -377,75 +377,6 @@ dict_build_table_def_step(
 	return(err);
 }
 
-/** Build a tablespace to store various objects.
-@param[in,out]	tablespace	Tablespace object describing what to build.
-@return DB_SUCCESS or error code. */
-dberr_t
-dict_build_tablespace(
-	Tablespace*	tablespace)
-{
-	dberr_t		err	= DB_SUCCESS;
-	mtr_t		mtr;
-	ulint		space = 0;
-
-	ut_ad(mutex_own(&dict_sys->mutex));
-	ut_ad(tablespace);
-
-        DBUG_EXECUTE_IF("out_of_tablespace_disk",
-                         return(DB_OUT_OF_FILE_SPACE););
-	/* Get a new space id. */
-	dict_hdr_get_new_id(NULL, NULL, &space, NULL, false);
-	if (space == ULINT_UNDEFINED) {
-		return(DB_ERROR);
-	}
-	tablespace->set_space_id(space);
-
-	Datafile* datafile = tablespace->first_datafile();
-
-	/* We create a new generic empty tablespace.
-	We initially let it be 4 pages:
-	- page 0 is the fsp header and an extent descriptor page,
-	- page 1 is an ibuf bitmap page,
-	- page 2 is the first inode page,
-	- page 3 will contain the root of the clustered index of the
-	first table we create here. */
-
-	err = fil_ibd_create(
-		space,
-		tablespace->name(),
-		datafile->filepath(),
-		tablespace->flags(),
-		FIL_IBD_FILE_INITIAL_SIZE,
-		tablespace->encryption_mode(),
-		tablespace->key_id());
-
-	if (err != DB_SUCCESS) {
-		return(err);
-	}
-
-	/* Update SYS_TABLESPACES and SYS_DATAFILES */
-	err = dict_replace_tablespace_and_filepath(
-		tablespace->space_id(), tablespace->name(),
-		datafile->filepath(), tablespace->flags());
-	if (err != DB_SUCCESS) {
-		os_file_delete(innodb_data_file_key, datafile->filepath());
-		return(err);
-	}
-
-	mtr_start(&mtr);
-	mtr.set_named_space(space);
-
-	/* Once we allow temporary general tablespaces, we must do this;
-	mtr_set_log_mode(&mtr, MTR_LOG_NO_REDO); */
-	ut_a(!FSP_FLAGS_GET_TEMPORARY(tablespace->flags()));
-
-	fsp_header_init(space, FIL_IBD_FILE_INITIAL_SIZE, &mtr);
-
-	mtr_commit(&mtr);
-
-	return(err);
-}
-
 /** Builds a tablespace to contain a table, using file-per-table=1.
 @param[in,out]	table	Table to build in its own tablespace.
 @param[in]	node	Table create node
@@ -554,15 +485,7 @@ dict_build_tablespace_for_table(
 			return(DB_ERROR);
 		}
 	} else {
-		/* We do not need to build a tablespace for this table. It
-		is already built.  Just find the correct tablespace ID. */
-
-		if (DICT_TF_HAS_SHARED_SPACE(table->flags)) {
-			ut_ad(table->tablespace != NULL);
-
-			ut_ad(table->space == fil_space_get_id_by_name(
-				table->tablespace()));
-		} else if (dict_table_is_temporary(table)) {
+		if (dict_table_is_temporary(table)) {
 			/* Use the shared temporary tablespace.
 			Note: The temp tablespace supports all non-Compressed
 			row formats whereas the system tablespace only

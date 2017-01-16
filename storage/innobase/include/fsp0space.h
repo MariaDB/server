@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2013, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -18,7 +19,7 @@ this program; if not, write to the Free Software Foundation, Inc.,
 
 /**************************************************//**
 @file include/fsp0space.h
-General shared tablespace implementation.
+Shared tablespace interface
 
 Created 2013-7-26 by Kevin Lewis
 *******************************************************/
@@ -61,10 +62,6 @@ public:
 		shutdown();
 		ut_ad(m_files.empty());
 		ut_ad(m_space_id == ULINT_UNDEFINED);
-		if (m_name != NULL) {
-			ut_free(m_name);
-			m_name = NULL;
-		}
 		if (m_path != NULL) {
 			ut_free(m_path);
 			m_path = NULL;
@@ -75,21 +72,8 @@ public:
 	Tablespace(const Tablespace&);
 	Tablespace& operator=(const Tablespace&);
 
-	/** Set tablespace name
-	@param[in]	name	tablespace name */
-	void set_name(const char* name)
-	{
-		ut_ad(m_name == NULL);
-		m_name = mem_strdup(name);
-		ut_ad(m_name != NULL);
-	}
-
-	/** Get tablespace name
-	@return tablespace name */
-	const char* name()	const
-	{
-		return(m_name);
-	}
+	void set_name(const char* name) { m_name = name; }
+	const char* name() const { return m_name; }
 
 	/** Set tablespace path and filename members.
 	@param[in]	path	where tablespace file(s) resides
@@ -236,7 +220,7 @@ private:
 	/* DATA MEMBERS */
 
 	/** Name of the tablespace. */
-	char*		m_name;
+	const char*	m_name;
 
 	/** Tablespace ID */
 	ulint		m_space_id;

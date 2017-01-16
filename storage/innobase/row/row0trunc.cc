@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2013, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1309,7 +1310,6 @@ row_truncate_fts(
 	fts_table.name = table->name;
 	fts_table.flags2 = table->flags2;
 	fts_table.flags = table->flags;
-	fts_table.tablespace = table->tablespace;
 	fts_table.space = table->space;
 
 	/* table->data_dir_path is used for FTS AUX table
@@ -1320,20 +1320,6 @@ row_truncate_fts(
 		ut_ad(table->data_dir_path != NULL);
 	}
 
-	/* table->tablespace() may not be always populated or
-	if table->tablespace() uses "innodb_general" name,
-	fetch the real name. */
-	if (DICT_TF_HAS_SHARED_SPACE(table->flags)
-	    && (table->tablespace() == NULL
-		|| dict_table_has_temp_general_tablespace_name(
-			table->tablespace()))) {
-		dict_get_and_save_space_name(table, true);
-		ut_ad(table->tablespace() != NULL);
-		ut_ad(!dict_table_has_temp_general_tablespace_name(
-			table->tablespace()));
-	}
-
-	fts_table.tablespace = table->tablespace();
 	fts_table.data_dir_path = table->data_dir_path;
 
 	dberr_t		err;
@@ -1603,8 +1589,6 @@ row_truncate_prepare(dict_table_t* table, ulint* flags)
 	ut_ad(!dict_table_is_temporary(table));
 
 	dict_get_and_save_data_dir_path(table, true);
-
-	dict_get_and_save_space_name(table, true);
 
 	if (*flags != ULINT_UNDEFINED) {
 
@@ -2212,75 +2196,51 @@ truncate_t::fixup_tables_in_non_system_tablespace()
 		done and erased from this list. */
 		ut_a((*it)->m_space_id != TRX_SYS_SPACE);
 
-		/* Step-1: Drop tablespace (only for single-tablespace),
-		drop indexes and re-create indexes. */
+		/* Drop tablespace, drop indexes and re-create indexes. */
 
-		if (fsp_is_file_per_table((*it)->m_space_id,
-					  (*it)->m_tablespace_flags)) {
-			/* The table is file_per_table */
+		ib::info() << "Completing truncate for table with "
+			"id (" << (*it)->m_old_table_id << ") "
+			"residing in file-per-table tablespace with "
+			"id (" << (*it)->m_space_id << ")";
 
-			ib::info() << "Completing truncate for table with "
-				"id (" << (*it)->m_old_table_id << ") "
-				"residing in file-per-table tablespace with "
-				"id (" << (*it)->m_space_id << ")";
+		if (!fil_space_get((*it)->m_space_id)) {
 
-			if (!fil_space_get((*it)->m_space_id)) {
+			/* Create the database directory for name,
+			if it does not exist yet */
+			fil_create_directory_for_tablename(
+				(*it)->m_tablename);
 
-				/* Create the database directory for name,
-				if it does not exist yet */
-				fil_create_directory_for_tablename(
-					(*it)->m_tablename);
+			err = fil_ibd_create(
+				(*it)->m_space_id,
+				(*it)->m_tablename,
+				(*it)->m_dir_path,
+				(*it)->m_tablespace_flags,
+				FIL_IBD_FILE_INITIAL_SIZE,
+				(*it)->m_encryption,
+				(*it)->m_key_id);
 
-				err = fil_ibd_create(
-					(*it)->m_space_id,
-					(*it)->m_tablename,
-					(*it)->m_dir_path,
-					(*it)->m_tablespace_flags,
-					FIL_IBD_FILE_INITIAL_SIZE,
-					(*it)->m_encryption,
-					(*it)->m_key_id);
-
-				if (err != DB_SUCCESS) {
-					/* If checkpoint is not yet done
-					and table is dropped and then we might
-					still have REDO entries for this table
-					which are INVALID. Ignore them. */
-					ib::warn() << "Failed to create"
-						" tablespace for "
-						<< (*it)->m_space_id
-						<< " space-id";
-					err = DB_ERROR;
-					break;
-				}
+			if (err != DB_SUCCESS) {
+				/* If checkpoint is not yet done
+				and table is dropped and then we might
+				still have REDO entries for this table
+				which are INVALID. Ignore them. */
+				ib::warn() << "Failed to create"
+					" tablespace for "
+					   << (*it)->m_space_id
+					   << " space-id";
+				err = DB_ERROR;
+				break;
 			}
-
-			ut_ad(fil_space_get((*it)->m_space_id));
-
-			err = fil_recreate_tablespace(
-				(*it)->m_space_id,
-				(*it)->m_format_flags,
-				(*it)->m_tablespace_flags,
-				(*it)->m_tablename,
-				**it, log_get_lsn());
-
-		} else {
-			/* Table is in a shared tablespace */
-
-			ib::info() << "Completing truncate for table with "
-				"id (" << (*it)->m_old_table_id << ") "
-				"residing in shared tablespace with "
-				"id (" << (*it)->m_space_id << ")";
-
-			/* Temp-tables in temp-tablespace are never restored.*/
-			ut_ad((*it)->m_space_id != SRV_TMP_SPACE_ID);
-
-			err = fil_recreate_table(
-				(*it)->m_space_id,
-				(*it)->m_format_flags,
-				(*it)->m_tablespace_flags,
-				(*it)->m_tablename,
-				**it);
 		}
+
+		ut_ad(fil_space_get((*it)->m_space_id));
+
+		err = fil_recreate_tablespace(
+			(*it)->m_space_id,
+			(*it)->m_format_flags,
+			(*it)->m_tablespace_flags,
+			(*it)->m_tablename,
+			**it, log_get_lsn());
 
 		/* Step-2: Update the SYS_XXXX tables to reflect new
 		table-id and root_page_no. */

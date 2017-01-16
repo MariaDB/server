@@ -216,15 +216,6 @@ bool
 fsp_is_checksum_disabled(
 	ulint	space_id);
 
-/** Check if tablespace is file-per-table.
-@param[in]	space_id	Tablespace ID
-@param[in]	fsp_flags	Tablespace Flags
-@return true if tablespace is file-per-table. */
-bool
-fsp_is_file_per_table(
-	ulint	space_id,
-	ulint	fsp_flags);
-
 #ifdef UNIV_DEBUG
 /** Skip some of the sanity checks that are time consuming even in debug mode
 and can affect frequent verification runs that are done to ensure stability of
@@ -343,10 +334,6 @@ is a tablespace with encryption. */
 #define FSP_FLAGS_MASK_DATA_DIR					\
 		((~(~0U << FSP_FLAGS_WIDTH_DATA_DIR))		\
 		<< FSP_FLAGS_POS_DATA_DIR)
-/** Bit mask of the SHARED field */
-#define FSP_FLAGS_MASK_SHARED					\
-		((~(~0U << FSP_FLAGS_WIDTH_SHARED))		\
-		<< FSP_FLAGS_POS_SHARED)
 /** Bit mask of the TEMPORARY field */
 #define FSP_FLAGS_MASK_TEMPORARY				\
 		((~(~0U << FSP_FLAGS_WIDTH_TEMPORARY))		\
@@ -384,10 +371,6 @@ is a tablespace with encryption. */
 #define FSP_FLAGS_HAS_DATA_DIR(flags)				\
 		((flags & FSP_FLAGS_MASK_DATA_DIR)		\
 		>> FSP_FLAGS_POS_DATA_DIR)
-/** Return the contents of the SHARED field */
-#define FSP_FLAGS_GET_SHARED(flags)				\
-		((flags & FSP_FLAGS_MASK_SHARED)		\
-		>> FSP_FLAGS_POS_SHARED)
 /** Return the contents of the TEMPORARY field */
 #define FSP_FLAGS_GET_TEMPORARY(flags)				\
 		((flags & FSP_FLAGS_MASK_TEMPORARY)		\
@@ -407,8 +390,6 @@ is a tablespace with encryption. */
 #define FSP_FLAGS_GET_ATOMIC_WRITES(flags)		\
 		((flags & FSP_FLAGS_MASK_ATOMIC_WRITES) \
 		>> FSP_FLAGS_POS_ATOMIC_WRITES)
-/** Use an alias in the code for FSP_FLAGS_GET_SHARED() */
-#define fsp_is_shared_tablespace FSP_FLAGS_GET_SHARED
 /* @} */
 
 /** Set a PAGE_COMPRESSION into the correct bits in a given

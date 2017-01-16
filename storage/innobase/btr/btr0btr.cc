@@ -338,7 +338,7 @@ btr_root_adjust_on_import(
 			ulint	flags = dict_tf_to_fsp_flags(
 				table->flags, false);
 			ulint	fsp_flags = fil_space_get_flags(table->space);
-			err = fsp_flags_are_equal(flags, fsp_flags)
+			err = flags == fsp_flags
 			      ? DB_SUCCESS : DB_CORRUPTION;
 		}
 	} else {

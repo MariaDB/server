@@ -692,7 +692,7 @@ srv_undo_tablespace_open(
 
 		/* Set the compressed page size to 0 (non-compressed) */
 		flags = fsp_flags_init(
-			univ_page_size, false, false, false, false, false, 0, 0);
+			univ_page_size, false, false, false, false, 0, 0);
 		space = fil_space_create(
 			undo_name, space_id, flags, FIL_TYPE_TABLESPACE, NULL, true);
 

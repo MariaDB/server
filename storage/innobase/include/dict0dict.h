@@ -992,7 +992,9 @@ dict_tf_get_format(
 @param[in]	format,		File Format
 @param[in]	zip_ssize	Zip Shift Size
 @param[in]	use_data_dir	Table uses DATA DIRECTORY
-@param[in]	shared_space	Table uses a General Shared Tablespace */
+@param[in]	page_compressed Table uses page compression
+@param[in]	page_compression_level Page compression level
+@param[in]	not_used        For future */
 UNIV_INLINE
 void
 dict_tf_set(
@@ -1000,7 +1002,6 @@ dict_tf_set(
 	rec_format_t	format,
 	ulint		zip_ssize,
 	bool		use_data_dir,
-	bool		shared_space,
 	bool		page_compressed,
 	ulint		page_compression_level,
 	ulint		not_used);
@@ -1010,7 +1011,9 @@ dict_tf_set(
 @param[in]	zip_ssize	Zip Shift Size (log 2 minus 9)
 @param[in]	atomic_blobs	Table uses Compressed or Dynamic
 @param[in]	data_dir	Table uses DATA DIRECTORY
-@param[in]	shared_space	Table uses a General Shared Tablespace */
+@param[in]	page_compressed Table uses page compression
+@param[in]	page_compression_level Page compression level
+@param[in]	not_used        For future */
 UNIV_INLINE
 ulint
 dict_tf_init(
@@ -1018,7 +1021,6 @@ dict_tf_init(
 	ulint		zip_ssize,
 	bool		atomic_blobs,
 	bool		data_dir,
-	bool		shared_space,
 	bool		page_compressed,
 	ulint		page_compression_level,
 	ulint		not_used);
@@ -1971,15 +1973,6 @@ bool
 dict_table_is_temporary(
 /*====================*/
 	const dict_table_t*	table)	/*!< in: table to check */
-	MY_ATTRIBUTE((warn_unused_result));
-
-/** Check if the table is in a shared tablespace (System or General).
-@param[in]	id	Space ID to check
-@return true if id is a shared tablespace, false if not. */
-UNIV_INLINE
-bool
-dict_table_in_shared_tablespace(
-	const dict_table_t*	table)
 	MY_ATTRIBUTE((warn_unused_result));
 
 /********************************************************************//**

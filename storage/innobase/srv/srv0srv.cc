@@ -3157,11 +3157,6 @@ srv_was_tablespace_truncated(const fil_space_t* space)
 		return(false);
 	}
 
-	bool	has_shared_space = FSP_FLAGS_GET_SHARED(space->flags);
-
-	if (is_system_tablespace(space->id) || has_shared_space) {
-		return(false);
-	}
-
-	return(truncate_t::was_tablespace_truncated(space->id));
+	return (!is_system_tablespace(space->id)
+		&& truncate_t::was_tablespace_truncated(space->id));
 }
