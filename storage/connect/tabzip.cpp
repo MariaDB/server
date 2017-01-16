@@ -70,8 +70,12 @@ PCOL TDBZIP::MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n)
 /*  param: filename	path and the filename of the zip file to open.		 */
 /*  return:	true if open, false otherwise.														 */
 /***********************************************************************/
-bool TDBZIP::open(PGLOBAL g, const char *filename)
+bool TDBZIP::open(PGLOBAL g, const char *fn)
 {
+	char filename[_MAX_PATH];
+
+	PlugSetPath(filename, fn, GetPath());
+
 	if (!zipfile && !(zipfile = unzOpen64(filename)))
 		sprintf(g->Message, "Zipfile open error");
 
@@ -102,7 +106,7 @@ int TDBZIP::Cardinality(PGLOBAL g)
 			unz_global_info64 ginfo;
 			int err = unzGetGlobalInfo64(zipfile, &ginfo);
 
-			Cardinal = (err == UNZ_OK) ? ginfo.number_entry : 0;
+			Cardinal = (err == UNZ_OK) ? (int)ginfo.number_entry : 0;
 		} else
 			Cardinal = 0;
 
@@ -220,6 +224,14 @@ void ZIPCOL::ReadColumn(PGLOBAL g)
 		break;
 	case 3:
 		Value->SetValue((int)Tdbz->finfo.compression_method);
+		break;
+	case 4:
+		Tdbz->finfo.tmu_date.tm_year -= 1900;
+
+		if (((DTVAL*)Value)->MakeTime((tm*)&Tdbz->finfo.tmu_date))
+			Value->SetNull(true);
+
+		Tdbz->finfo.tmu_date.tm_year += 1900;
 		break;
 	default:
 		Value->SetValue_psz((PSZ)Tdbz->fn);

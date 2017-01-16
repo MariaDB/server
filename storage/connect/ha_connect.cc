@@ -1,4 +1,4 @@
-/* Copyright (C) Olivier Bertrand 2004 - 2016
+/* Copyright (C) Olivier Bertrand 2004 - 2017
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -171,9 +171,9 @@
 #define JSONMAX      10             // JSON Default max grp size
 
 extern "C" {
-       char version[]= "Version 1.05.0001 December 13, 2016";
+       char version[]= "Version 1.05.0002 January 08, 2017";
 #if defined(__WIN__)
-       char compver[]= "Version 1.05.0001 " __DATE__ " "  __TIME__;
+       char compver[]= "Version 1.05.0002 " __DATE__ " "  __TIME__;
        char slash= '\\';
 #else   // !__WIN__
        char slash= '/';
@@ -214,6 +214,7 @@ int     TranslateJDBCType(int stp, char *tn, int prec, int& len, char& v);
 void    PushWarning(PGLOBAL g, THD *thd, int level);
 bool    CheckSelf(PGLOBAL g, TABLE_SHARE *s, const char *host,
                   const char *db, char *tab, const char *src, int port);
+bool    ZipLoadFile(PGLOBAL, char*, char*, char*, bool, bool);
 bool    ExactInfo(void);
 USETEMP UseTemp(void);
 int     GetConvSize(void);
@@ -6267,21 +6268,26 @@ int ha_connect::create(const char *name, TABLE *table_arg,
     // Check for incompatible options
     if (options->sepindex) {
       my_message(ER_UNKNOWN_ERROR,
-            "SEPINDEX is incompatible with unspecified file name",
-            MYF(0));
+            "SEPINDEX is incompatible with unspecified file name", MYF(0));
       DBUG_RETURN(HA_ERR_UNSUPPORTED);
-    } else if (GetTypeID(options->type) == TAB_VEC)
-      if (!table->s->max_rows || options->split) {
-        my_printf_error(ER_UNKNOWN_ERROR,
-            "%s tables whose file name is unspecified cannot be split",
-            MYF(0), options->type);
-        DBUG_RETURN(HA_ERR_UNSUPPORTED);
-      } else if (options->header == 2) {
-        my_printf_error(ER_UNKNOWN_ERROR,
-        "header=2 is not allowed for %s tables whose file name is unspecified",
-            MYF(0), options->type);
-        DBUG_RETURN(HA_ERR_UNSUPPORTED);
-      } // endif's
+		} else if (GetTypeID(options->type) == TAB_VEC) {
+			if (!table->s->max_rows || options->split) {
+				my_printf_error(ER_UNKNOWN_ERROR,
+					"%s tables whose file name is unspecified cannot be split",
+					MYF(0), options->type);
+				DBUG_RETURN(HA_ERR_UNSUPPORTED);
+			} else if (options->header == 2) {
+				my_printf_error(ER_UNKNOWN_ERROR,
+					"header=2 is not allowed for %s tables whose file name is unspecified",
+					MYF(0), options->type);
+				DBUG_RETURN(HA_ERR_UNSUPPORTED);
+			} // endif's
+
+		} else if (options->zipped) {
+			my_message(ER_UNKNOWN_ERROR,
+				"ZIPPED is incompatible with unspecified file name", MYF(0));
+			DBUG_RETURN(HA_ERR_UNSUPPORTED);
+		}	// endif's options
 
     // Fold type to lower case
     for (int i= 0; i < 12; i++)
@@ -6333,6 +6339,36 @@ int ha_connect::create(const char *name, TABLE *table_arg,
 
   if (trace)
     htrc("xchk=%p createas=%d\n", g->Xchk, g->Createas);
+
+	if (options->zipped) {
+		// Check whether the zip entry must be made from a file
+		char *fn = GetListOption(g, "Load", options->oplist, NULL);
+
+		if (fn) {
+			char  zbuf[_MAX_PATH], buf[_MAX_PATH], dbpath[_MAX_PATH];
+			char *entry = GetListOption(g, "Entry", options->oplist, NULL);
+			char *a = GetListOption(g, "Append", options->oplist, "NO");
+			bool  append = *a == '1' || *a == 'Y' || *a == 'y' || !stricmp(a, "ON");
+			char *m = GetListOption(g, "Mulentries", options->oplist, "NO");
+			bool  mul = *m == '1' || *m == 'Y' || *m == 'y' || !stricmp(m, "ON");
+
+			if (!entry && !mul) {
+				my_message(ER_UNKNOWN_ERROR, "Missing entry name", MYF(0));
+				DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
+			}	// endif entry
+
+			strcat(strcat(strcpy(dbpath, "./"), table->s->db.str), "/");
+			PlugSetPath(zbuf, options->filename, dbpath);
+			PlugSetPath(buf, fn, dbpath);
+
+			if (ZipLoadFile(g, zbuf, buf, entry, append, mul)) {
+				my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
+				DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
+			}	// endif LoadFile
+
+		}	// endif fn
+
+	}	// endif zipped
 
   // To check whether indexes have to be made or remade
   if (!g->Xchk) {

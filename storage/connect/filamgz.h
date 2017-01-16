@@ -12,7 +12,7 @@
 
 typedef class GZFAM *PGZFAM;
 typedef class ZBKFAM *PZBKFAM;
-typedef class ZIXFAM *PZIXFAM;
+typedef class GZXFAM *PZIXFAM;
 typedef class ZLBFAM *PZLBFAM;
 
 /***********************************************************************/
@@ -101,16 +101,16 @@ class DllExport ZBKFAM : public GZFAM {
 /*  length files compressed using the gzip library functions.          */
 /*  The file is always accessed by block.                              */
 /***********************************************************************/
-class DllExport ZIXFAM : public ZBKFAM {
+class DllExport GZXFAM : public ZBKFAM {
  public:
   // Constructor
-  ZIXFAM(PDOSDEF tdp);
-  ZIXFAM(PZIXFAM txfp) : ZBKFAM(txfp) {}
+  GZXFAM(PDOSDEF tdp);
+  GZXFAM(PZIXFAM txfp) : ZBKFAM(txfp) {}
 
   // Implementation
   virtual int  GetNextPos(void) {return 0;}
   virtual PTXF Duplicate(PGLOBAL g)
-                {return (PTXF)new(g) ZIXFAM(this);}
+                {return (PTXF)new(g) GZXFAM(this);}
 
   // Methods
   virtual int  Cardinality(PGLOBAL g);
@@ -120,7 +120,7 @@ class DllExport ZIXFAM : public ZBKFAM {
 
  protected:
   // No additional Members
-  }; // end of class ZIXFAM
+  }; // end of class GZXFAM
 
 /***********************************************************************/
 /*  This is the DOS/UNIX Access Method class declaration for PlugDB    */
