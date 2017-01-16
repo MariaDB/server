@@ -5943,7 +5943,6 @@ buf_page_io_complete(
 		ulint	read_page_no;
 		ulint	read_space_id;
 		byte*	frame = NULL;
-		bool	compressed_page=false;
 
 		ut_ad(bpage->zip.data != NULL || ((buf_block_t*)bpage)->frame != NULL);
 
@@ -5957,8 +5956,6 @@ buf_page_io_complete(
 
 			ib::info() << "Page "
 				   << bpage->id
-				   << " in tablespace "
-				   << bpage->space
 				   << " encryption error key_version "
 				   << bpage->key_version;
 
@@ -5974,12 +5971,9 @@ buf_page_io_complete(
 						   FALSE)) {
 
 				buf_pool->n_pend_unzip--;
-				compressed_page = false;
 
 				ib::info() << "Page "
 					   << bpage->id
-					   << " in tablespace "
-					   << bpage->space
 					   << " zip_decompress failure.";
 
 				goto database_corrupted;
@@ -6005,13 +5999,13 @@ buf_page_io_complete(
 
 		} else if (read_space_id == 0 && read_page_no == 0) {
 			/* This is likely an uninitialized page. */
-		} else if ((bpage->id.space() != 0
+		} else if ((bpage->id.space() != TRX_SYS_SPACE
 			    && bpage->id.space() != read_space_id)
 			   || bpage->id.page_no() != read_page_no) {
 			/* We did not compare space_id to read_space_id
-			if bpage->space == 0, because the field on the
-			page may contain garbage in MySQL < 4.1.1,
-			which only supported bpage->space == 0. */
+			in the system tablespace, because the field
+			was written as garbage before MySQL 4.1.1,
+			which did not support innodb_file_per_table. */
 
 			ib::error() << "Space id and page no stored in "
 				"the page, read in are "
@@ -6019,37 +6013,16 @@ buf_page_io_complete(
 				<< ", should be " << bpage->id;
 		}
 
-#ifdef MYSQL_COMPRESSION
-		compressed_page = Compression::is_compressed_page(frame);
-
-		/* If the decompress failed then the most likely case is
-		that we are reading in a page for which this instance doesn't
-		support the compression algorithm. */
-		if (compressed_page) {
-
-			Compression::meta_t	meta;
-
-			Compression::deserialize_header(frame, &meta);
-
-			ib::error()
-				<< "Page " << bpage->id << " "
-				<< "compressed with "
-				<< Compression::to_string(meta) << " "
-				<< "that is not supported by this instance";
-		}
-#endif /* MYSQL_COMPRESSION */
-
 		/* From version 3.23.38 up we store the page checksum
 		to the 4 first bytes of the page end lsn field */
-		if (compressed_page
-		    || buf_page_is_corrupted(
+		if (buf_page_is_corrupted(
 			    true, frame, bpage->size,
 			    fsp_is_checksum_disabled(bpage->id.space()))) {
 
 			/* Not a real corruption if it was triggered by
 			error injection */
 			DBUG_EXECUTE_IF("buf_page_is_corrupt_failure",
-				if (bpage->space > TRX_SYS_SPACE
+				if (bpage->id.space() != TRX_SYS_SPACE
 				    && buf_mark_space_corrupt(bpage)) {
 					ib::info() <<
 						"Simulated page corruption";
@@ -6076,7 +6049,7 @@ database_corrupted:
 
 			/* Compressed and encrypted pages are basically gibberish avoid
 			printing the contents. */
-			if (corrupted && !compressed_page) {
+			if (corrupted) {
 
 				ib::error()
 					<< "Database page corruption on disk"
@@ -6124,11 +6097,11 @@ database_corrupted:
 					}
 
 					ib_push_warning((void *)NULL, DB_DECRYPTION_FAILED,
-						"Table in tablespace %lu encrypted."
+						"Table in tablespace %u encrypted."
 						"However key management plugin or used key_id %u is not found or"
 						" used encryption algorithm or method does not match."
 						" Can't continue opening the table.",
-						(ulint)bpage->space, key_version);
+						bpage->id.space(), key_version);
 
 					buf_page_print(frame, bpage->size, BUF_PAGE_PRINT_NO_CRASH);
 
@@ -6152,9 +6125,6 @@ database_corrupted:
 		/* If space is being truncated then avoid ibuf operation.
 		During re-init we have already freed ibuf entries. */
 		if (uncompressed
-#ifdef MYSQL_COMPRESSION
-		    && !Compression::is_compressed_page(frame)
-#endif /* MYSQL_COMPRESSION */
 		    && !recv_no_ibuf_operations
 		    && !Tablespace::is_undo_tablespace(bpage->id.space())
 		    && bpage->id.space() != SRV_TMP_SPACE_ID
@@ -6164,11 +6134,11 @@ database_corrupted:
 
 		    	if (bpage && bpage->encrypted) {
 				fprintf(stderr,
-					"InnoDB: Warning: Table in tablespace %lu encrypted."
+					"InnoDB: Warning: Table in tablespace %u encrypted."
 					"However key management plugin or used key_id %u is not found or"
 					" used encryption algorithm or method does not match."
 					" Can't continue opening the table.\n",
-					(ulint)bpage->space, bpage->key_version);
+					bpage->id.space(), bpage->key_version);
 			} else {
 				ibuf_merge_or_delete_for_page(
 					(buf_block_t*) bpage, bpage->id,
@@ -7604,7 +7574,6 @@ buf_page_decrypt_after_read(
 	bpage->key_version = key_version;
 	bpage->page_encrypted = page_compressed_encrypted;
 	bpage->page_compressed = page_compressed;
-	bpage->space = bpage->id.space();
 
 	if (page_compressed) {
 		/* the page we read is unencrypted */

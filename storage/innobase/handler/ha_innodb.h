@@ -795,9 +795,6 @@ public:
 	/** Validate TABLESPACE option. */
 	bool create_option_tablespace_is_valid();
 
-	/** Validate COMPRESSION option. */
-	bool create_option_compression_is_valid();
-
 	/** Prepare to create a table. */
 	int prepare_create_table(const char*		name);
 

@@ -1182,9 +1182,6 @@ row_merge_read(
 
 	IORequest	request;
 
-	/* Merge sort pages are never compressed. */
-	request.disable_compression();
-
 	dberr_t	err = os_file_read_no_error_handling(
 		request,
 		OS_FILE_FROM_FD(fd), buf, ofs, srv_sort_buf_size, NULL);
@@ -1238,8 +1235,6 @@ row_merge_write(
 		/* Mark block unencrypted */
 		mach_write_to_4((byte *)out_buf, 0);
 	}
-
-	request.disable_compression();
 
 	dberr_t	err = os_file_write(
 		request,

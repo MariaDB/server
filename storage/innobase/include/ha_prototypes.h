@@ -41,7 +41,6 @@ struct fts_string_t;
 
 // JAN: TODO missing features:
 #undef MYSQL_57_SELECT_COUNT_OPTIMIZATION
-#undef MYSQL_COMPRESSION
 #undef MYSQL_FT_INIT_EXT
 #undef MYSQL_INNODB_API_CB
 #undef MYSQL_INNODB_PARTITIONING

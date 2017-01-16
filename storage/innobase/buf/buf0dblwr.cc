@@ -380,8 +380,6 @@ buf_dblwr_init_or_load_pages(
 
 	IORequest	read_request(IORequest::READ);
 
-	read_request.disable_compression();
-
 	err = os_file_read(
 		read_request,
 		file, read_buf, TRX_SYS_PAGE_NO * UNIV_PAGE_SIZE,
@@ -495,11 +493,6 @@ buf_dblwr_init_or_load_pages(
 			}
 
 			IORequest	write_request(IORequest::WRITE);
-
-			/* Recovered data file pages are written out
-			as uncompressed. */
-
-			write_request.disable_compression();
 
 			err = os_file_write(
 				write_request, path, file, page,
@@ -704,12 +697,7 @@ buf_dblwr_process(void)
 				}
 			}
 
-			/* Recovered data file pages are written out
-			as uncompressed. */
-
 			IORequest	write_request(IORequest::WRITE);
-
-			write_request.disable_compression();
 
 			/* Write the good page from the doublewrite
 			buffer to the intended position. */
@@ -717,7 +705,7 @@ buf_dblwr_process(void)
 			fil_io(write_request, true,
 			       page_id, page_size,
 			       0, page_size.physical(),
-				const_cast<byte*>(page), NULL, NULL);
+			       const_cast<byte*>(page), NULL, NULL);
 
 			ib::info()
 				<< "Recovered page "

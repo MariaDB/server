@@ -2,7 +2,7 @@
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2009, Percona Inc.
-Copyright (c) 2013, 2016, MariaDB Corporation.
+Copyright (c) 2013, 2017, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted
 by Percona Inc.. Those modifications are
@@ -169,130 +169,6 @@ static const ulint OS_FILE_OPERATION_NOT_SUPPORTED = 125;
 static const ulint OS_FILE_ERROR_MAX = 200;
 /* @} */
 
-/** Compression algorithm. */
-struct Compression {
-
-	/** Algorithm types supported */
-	enum Type {
-		/* Note: During recovery we don't have the compression type
-		because the .frm file has not been read yet. Therefore
-		we write the recovered pages out without compression. */
-
-		/** No compression */
-		NONE = 0,
-
-		/** Use ZLib */
-		ZLIB = 1,
-
-		/** Use LZ4 faster variant, usually lower compression. */
-		LZ4 = 2
-	};
-
-	/** Compressed page meta-data */
-	struct meta_t {
-
-		/** Version number */
-		uint8_t		m_version;
-
-		/** Algorithm type */
-		Type		m_algorithm;
-
-		/** Original page type */
-		uint16_t	m_original_type;
-
-		/** Original page size, before compression */
-		uint16_t	m_original_size;
-
-		/** Size after compression */
-		uint16_t	m_compressed_size;
-	};
-
-	/** Default constructor */
-	Compression() : m_type(NONE) { };
-
-	/** Specific constructor
-	@param[in]	type		Algorithm type */
-	explicit Compression(Type type)
-		:
-		m_type(type)
-	{
-#ifdef UNIV_DEBUG
-		switch (m_type) {
-		case NONE:
-		case ZLIB:
-		case LZ4:
-
-		default:
-			ut_error;
-		}
-#endif /* UNIV_DEBUG */
-	}
-
-	/** Check the page header type field.
-	@param[in]	page		Page contents
-	@return true if it is a compressed page */
-	static bool is_compressed_page(const byte* page)
-		MY_ATTRIBUTE((warn_unused_result));
-
-        /** Check wether the compression algorithm is supported.
-        @param[in]      algorithm       Compression algorithm to check
-        @param[out]     type            The type that algorithm maps to
-        @return DB_SUCCESS or error code */
-	static dberr_t check(const char* algorithm, Compression* type)
-		MY_ATTRIBUTE((warn_unused_result));
-
-        /** Validate the algorithm string.
-        @param[in]      algorithm       Compression algorithm to check
-        @return DB_SUCCESS or error code */
-	static dberr_t validate(const char* algorithm)
-		MY_ATTRIBUTE((warn_unused_result));
-
-        /** Convert to a "string".
-        @param[in]      type            The compression type
-        @return the string representation */
-        static const char* to_string(Type type)
-		MY_ATTRIBUTE((warn_unused_result));
-
-        /** Convert the meta data to a std::string.
-        @param[in]      meta		Page Meta data
-        @return the string representation */
-        static std::string to_string(const meta_t& meta)
-		MY_ATTRIBUTE((warn_unused_result));
-
-	/** Deserizlise the page header compression meta-data
-	@param[in]	header		Pointer to the page header
-	@param[out]	control		Deserialised data */
-	static void deserialize_header(
-		const byte*	page,
-		meta_t*		control);
-
-        /** Check if the string is "empty" or "none".
-        @param[in]      algorithm       Compression algorithm to check
-        @return true if no algorithm requested */
-	static bool is_none(const char* algorithm)
-		MY_ATTRIBUTE((warn_unused_result));
-
-	/** Decompress the page data contents. Page type must be
-	FIL_PAGE_COMPRESSED, if not then the source contents are
-	left unchanged and DB_SUCCESS is returned.
-	@param[in]	dblwr_recover	true of double write recovery
-					in progress
-	@param[in,out]	src		Data read from disk, decompressed
-					data will be copied to this page
-	@param[in,out]	dst		Scratch area to use for decompression
-	@param[in]	dst_len		Size of the scratch area in bytes
-	@return DB_SUCCESS or error code */
-	static dberr_t deserialize(
-		bool		dblwr_recover,
-		byte*		src,
-		byte*		dst,
-		ulint		dst_len)
-		MY_ATTRIBUTE((warn_unused_result));
-
-	/** Compression type */
-	Type		m_type;
-};
-
 /** Types for AIO operations @{ */
 
 /** No transformations during read/write, write as is. */
@@ -335,25 +211,13 @@ public:
 
 		/** Ignore failed reads of non-existent pages */
 		IGNORE_MISSING = 128,
-
-		/** Use punch hole if available, only makes sense if
-		compression algorithm != NONE. Ignored if not set */
-		PUNCH_HOLE = 256,
-
-		/** Force raw read, do not try to compress/decompress.
-		This can be used to force a read and write without any
-		compression e.g., for redo log, merge sort temporary files
-		and the truncate redo log. */
-		NO_COMPRESSION = 512
-
 	};
 
 	/** Default constructor */
 	IORequest()
 		:
 		m_block_size(UNIV_SECTOR_SIZE),
-		m_type(READ),
-		m_compression()
+		m_type(READ)
 	{
 		/* No op */
 	}
@@ -364,16 +228,8 @@ public:
 	explicit IORequest(ulint type)
 		:
 		m_block_size(UNIV_SECTOR_SIZE),
-		m_type(static_cast<uint16_t>(type)),
-		m_compression()
+		m_type(static_cast<uint16_t>(type))
 	{
-		if (is_log()) {
-			disable_compression();
-		}
-
-		if (!is_punch_hole_supported()) {
-			clear_punch_hole();
-		}
 	}
 
 	/** Destructor */
@@ -435,40 +291,17 @@ public:
 		return(ignore_missing(m_type));
 	}
 
-	/** @return true if punch hole should be used */
-	bool punch_hole() const
-		MY_ATTRIBUTE((warn_unused_result))
-	{
-		return((m_type & PUNCH_HOLE) == PUNCH_HOLE);
-	}
-
 	/** @return true if the read should be validated */
 	bool validate() const
 		MY_ATTRIBUTE((warn_unused_result))
 	{
-		ut_a(is_read() ^ is_write());
-
-		return(!is_read() || !punch_hole());
-	}
-
-	/** Set the punch hole flag */
-	void set_punch_hole()
-	{
-		if (is_punch_hole_supported()) {
-			m_type |= PUNCH_HOLE;
-		}
+		return(is_read() ^ is_write());
 	}
 
 	/** Clear the do not wake flag */
 	void clear_do_not_wake()
 	{
 		m_type &= ~DO_NOT_WAKE;
-	}
-
-	/** Clear the punch hole flag */
-	void clear_punch_hole()
-	{
-		m_type &= ~PUNCH_HOLE;
 	}
 
 	/** @return the block size to use for IO */
@@ -485,60 +318,11 @@ public:
 		m_block_size = static_cast<uint32_t>(block_size);
 	}
 
-	/** Clear all compression related flags */
-	void clear_compressed()
-	{
-		clear_punch_hole();
-
-		m_compression.m_type  = Compression::NONE;
-	}
-
 	/** Compare two requests
 	@reutrn true if the are equal */
 	bool operator==(const IORequest& rhs) const
 	{
 		return(m_type == rhs.m_type);
-	}
-
-	/** Set compression algorithm
-	@param[in] compression	The compression algorithm to use */
-	void compression_algorithm(Compression::Type type)
-	{
-		if (type == Compression::NONE) {
-			return;
-		}
-
-		set_punch_hole();
-
-		m_compression.m_type = type;
-	}
-
-	/** Get the compression algorithm.
-	@return the compression algorithm */
-	Compression compression_algorithm() const
-		MY_ATTRIBUTE((warn_unused_result))
-	{
-		return(m_compression);
-	}
-
-	/** @return true if the page should be compressed */
-	bool is_compressed() const
-		MY_ATTRIBUTE((warn_unused_result))
-	{
-		return(compression_algorithm().m_type != Compression::NONE);
-	}
-
-	/** @return true if the page read should not be transformed. */
-	bool is_compression_enabled() const
-		MY_ATTRIBUTE((warn_unused_result))
-	{
-		return((m_type & NO_COMPRESSION) == 0);
-	}
-
-	/** Disable transformations. */
-	void disable_compression()
-	{
-		m_type |= NO_COMPRESSION;
 	}
 
 	/** Note that the IO is for double write recovery. */
@@ -554,33 +338,12 @@ public:
 		return((m_type & DBLWR_RECOVER) == DBLWR_RECOVER);
 	}
 
-	/** @return true if punch hole is supported */
-	static bool is_punch_hole_supported()
-	{
-
-		/* In this debugging mode, we act as if punch hole is supported,
-		and then skip any calls to actually punch a hole here.
-		In this way, Transparent Page Compression is still being tested. */
-		DBUG_EXECUTE_IF("ignore_punch_hole",
-			return(true);
-		);
-
-#if defined(HAVE_FALLOC_PUNCH_HOLE_AND_KEEP_SIZE) || defined(_WIN32)
-		return(true);
-#else
-		return(false);
-#endif /* HAVE_FALLOC_PUNCH_HOLE_AND_KEEP_SIZE || _WIN32 */
-	}
-
 private:
 	/* File system best block size */
 	uint32_t		m_block_size;
 
 	/** Request type bit flags */
 	uint16_t		m_type;
-
-	/** Compression algorithm */
-	Compression		m_compression;
 };
 
 /* @} */
@@ -1659,70 +1422,10 @@ int
 innobase_mysql_tmpfile(
 	const char*	path);
 
-/** If it is a compressed page return the compressed page data + footer size
-@param[in]	buf		Buffer to check, must include header + 10 bytes
-@return ULINT_UNDEFINED if the page is not a compressed page or length
-	of the compressed data (including footer) if it is a compressed page */
-ulint
-os_file_compressed_page_size(const byte* buf);
-
-/** If it is a compressed page return the original page data + footer size
-@param[in]	buf		Buffer to check, must include header + 10 bytes
-@return ULINT_UNDEFINED if the page is not a compressed page or length
-	of the original data + footer if it is a compressed page */
-ulint
-os_file_original_page_size(const byte* buf);
-
 /** Set the file create umask
 @param[in]	umask		The umask to use for file creation. */
 void
 os_file_set_umask(ulint umask);
-
-/** Free storage space associated with a section of the file.
-@param[in]	fh		Open file handle
-@param[in]	off		Starting offset (SEEK_SET)
-@param[in]	len		Size of the hole
-@return DB_SUCCESS or error code */
-dberr_t
-os_file_punch_hole(
-	os_file_t	fh,
-	os_offset_t	off,
-	os_offset_t	len)
-	MY_ATTRIBUTE((warn_unused_result));
-
-/** Check if the file system supports sparse files.
-
-Warning: On POSIX systems we try and punch a hole from offset 0 to
-the system configured page size. This should only be called on an empty
-file.
-
-Note: On Windows we use the name and on Unices we use the file handle.
-
-@param[in]	name		File name
-@param[in]	fh		File handle for the file - if opened
-@return true if the file system supports sparse files */
-bool
-os_is_sparse_file_supported(
-	const char*	path,
-	os_file_t	fh)
-	MY_ATTRIBUTE((warn_unused_result));
-
-/** Decompress the page data contents. Page type must be FIL_PAGE_COMPRESSED, if
-not then the source contents are left unchanged and DB_SUCCESS is returned.
-@param[in]	dblwr_recover	true of double write recovery in progress
-@param[in,out]	src		Data read from disk, decompressed data will be
-				copied to this page
-@param[in,out]	dst		Scratch area to use for decompression
-@param[in]	dst_len		Size of the scratch area in bytes
-@return DB_SUCCESS or error code */
-
-dberr_t
-os_file_decompress_page(
-	bool		dblwr_recover,
-	byte*		src,
-	byte*		dst,
-	ulint		dst_len)
-	MY_ATTRIBUTE((warn_unused_result));
 
 /** Normalizes a directory path for the current OS:
 On Windows, we convert '/' to '\', else we convert '\' to '/'.

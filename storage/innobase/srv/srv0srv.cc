@@ -195,8 +195,6 @@ UNIV_INTERN long srv_mtflush_threads = MTFLUSH_DEFAULT_WORKER;
 UNIV_INTERN my_bool	srv_use_mtflush                 = FALSE;
 
 #ifdef UNIV_DEBUG
-/** Force all user tables to use page compression. */
-ulong	srv_debug_compress;
 /** Used by SET GLOBAL innodb_master_thread_disabled_debug = X. */
 my_bool	srv_master_thread_disabled_debug;
 /** Event used to inform that master thread is disabled. */

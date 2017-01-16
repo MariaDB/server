@@ -166,9 +166,6 @@ struct fil_space_t {
 	UT_LIST_NODE_T(fil_space_t) space_list;
 				/*!< list of all spaces */
 
-	/** Compression algorithm */
-	Compression::Type	compression_type;
-
 	/** MariaDB encryption data */
         fil_space_crypt_t* crypt_data;
 
@@ -233,9 +230,6 @@ struct fil_node_t {
 	UT_LIST_NODE_T(fil_node_t) chain;
 	/** link to the fil_system->LRU list (keeping track of open files) */
 	UT_LIST_NODE_T(fil_node_t) LRU;
-
-	/** whether the file system of this file supports PUNCH HOLE */
-	bool		punch_hole;
 
 	/** block size to use for punching holes */
 	ulint		block_size;
@@ -438,23 +432,6 @@ extern fil_addr_t	fil_addr_null;
 					used to encrypt the page + 32-bit checksum
 					or 64 bits of zero if no encryption
 					*/
-/** If page type is FIL_PAGE_COMPRESSED then the 8 bytes starting at
-FIL_PAGE_FILE_FLUSH_LSN are broken down as follows: */
-
-/** Control information version format (u8) */
-static const ulint FIL_PAGE_VERSION = FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION;
-
-/** Compression algorithm (u8) */
-static const ulint FIL_PAGE_ALGORITHM_V1 = FIL_PAGE_VERSION + 1;
-
-/** Original page type (u16) */
-static const ulint FIL_PAGE_ORIGINAL_TYPE_V1 = FIL_PAGE_ALGORITHM_V1 + 1;
-
-/** Original data size in bytes (u16)*/
-static const ulint FIL_PAGE_ORIGINAL_SIZE_V1 = FIL_PAGE_ORIGINAL_TYPE_V1 + 2;
-
-/** Size after compression (u16) */
-static const ulint FIL_PAGE_COMPRESS_SIZE_V1 = FIL_PAGE_ORIGINAL_SIZE_V1 + 2;
 
 /** This overloads FIL_PAGE_FILE_FLUSH_LSN for RTREE Split Sequence Number */
 #define	FIL_RTREE_SPLIT_SEQ_NUM	FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION
@@ -504,11 +481,12 @@ static const ulint FIL_PAGE_COMPRESS_SIZE_V1 = FIL_PAGE_ORIGINAL_SIZE_V1 + 2;
 #define FIL_PAGE_TYPE_UNKNOWN	13	/*!< In old tablespaces, garbage
 					in FIL_PAGE_TYPE is replaced with this
 					value when flushing pages. */
-#define FIL_PAGE_COMPRESSED	14	/*!< Compressed page */
-#define FIL_PAGE_ENCRYPTED	15	/*!< Encrypted page */
-#define FIL_PAGE_COMPRESSED_AND_ENCRYPTED 16
-					/*!< Compressed and Encrypted page */
-#define FIL_PAGE_ENCRYPTED_RTREE 17	/*!< Encrypted R-tree page */
+
+/* File page types introduced in MySQL 5.7, not supported in MariaDB */
+//#define FIL_PAGE_COMPRESSED	14
+//#define FIL_PAGE_ENCRYPTED	15
+//#define FIL_PAGE_COMPRESSED_AND_ENCRYPTED 16
+//#define FIL_PAGE_ENCRYPTED_RTREE 17
 
 /** Used by i_s.cc to index into the text description. */
 #define FIL_PAGE_TYPE_LAST	FIL_PAGE_TYPE_UNKNOWN
@@ -1622,24 +1600,6 @@ fil_names_dirty_and_write(
 	fil_space_t*	space,
 	mtr_t*		mtr);
 
-/** Set the compression type for the tablespace of a table
-@param[in]	table		Table that should be compressesed
-@param[in]	algorithm	Text representation of the algorithm
-@return DB_SUCCESS or error code */
-dberr_t
-fil_set_compression(
-	dict_table_t*	table,
-	const char*	algorithm)
-	MY_ATTRIBUTE((warn_unused_result));
-
-/** Get the compression type for the tablespace
-@param[in]	space_id	Space ID to check
-@return the compression algorithm */
-Compression::Type
-fil_get_compression(
-	ulint		space_id)
-	MY_ATTRIBUTE((warn_unused_result));
-
 /** Write MLOG_FILE_NAME records if a persistent tablespace was modified
 for the first time since the latest fil_names_clear().
 @param[in,out]	space	tablespace
@@ -1704,10 +1664,6 @@ bool
 fil_names_clear(
 	lsn_t	lsn,
 	bool	do_write);
-
-/** Note that the file system where the file resides doesn't support PUNCH HOLE
-@param[in,out]	node		Node to set */
-void fil_no_punch_hole(fil_node_t* node);
 
 #ifdef UNIV_ENABLE_UNIT_TEST_MAKE_FILEPATH
 void test_make_filepath();

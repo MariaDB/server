@@ -382,25 +382,6 @@ get_row_format(
 
 static ulong	innodb_default_row_format = DEFAULT_ROW_FORMAT_DYNAMIC;
 
-#ifdef UNIV_DEBUG
-/** Values for --innodb-debug-compress names. */
-static const char* innodb_debug_compress_names[] = {
-	"none",
-	"zlib",
-	"lz4",
-	"lz4hc",
-	NullS
-};
-
-/** Enumeration of --innodb-debug-compress */
-static TYPELIB innodb_debug_compress_typelib = {
-	array_elements(innodb_debug_compress_names) - 1,
-	"innodb_debug_compress_typelib",
-	innodb_debug_compress_names,
-	NULL
-};
-#endif /* UNIV_DEBUG */
-
 /** Possible values for system variable "innodb_stats_method". The values
 are defined the same as its corresponding MyISAM system variable
 "myisam_stats_method"(see "myisam_stats_method_names"), for better usability */
@@ -2827,64 +2808,6 @@ innobase_raw_format(
 
 	return(ut_str_sql_format(buf_tmp, buf_tmp_used, buf, buf_size));
 }
-
-#ifdef MYSQL_COMPRESSION
-/** Check if the string is "empty" or "none".
-@param[in]      algorithm       Compression algorithm to check
-@return true if no algorithm requested */
-bool
-Compression::is_none(const char* algorithm)
-{
-	/* NULL is the same as NONE */
-	if (algorithm == NULL
-	    || *algorithm == 0
-	    || innobase_strcasecmp(algorithm, "none") == 0) {
-		return(true);
-	}
-
-	return(false);
-}
-
-/** Check for supported COMPRESS := (ZLIB | LZ4 | NONE) supported values
-@param[in]	name		Name of the compression algorithm
-@param[out]	compression	The compression algorithm
-@return DB_SUCCESS or DB_UNSUPPORTED */
-dberr_t
-Compression::check(
-	const char*	algorithm,
-	Compression*	compression)
-{
-	if (is_none(algorithm)) {
-
-		compression->m_type = NONE;
-
-	} else if (innobase_strcasecmp(algorithm, "zlib") == 0) {
-
-		compression->m_type = ZLIB;
-
-	} else if (innobase_strcasecmp(algorithm, "lz4") == 0) {
-
-		compression->m_type = LZ4;
-
-	} else {
-		return(DB_UNSUPPORTED);
-	}
-
-	return(DB_SUCCESS);
-}
-
-/** Check for supported COMPRESS := (ZLIB | LZ4 | NONE) supported values
-@param[in]	name		Name of the compression algorithm
-@param[out]	compression	The compression algorithm
-@return DB_SUCCESS or DB_UNSUPPORTED */
-dberr_t
-Compression::validate(const char* algorithm)
-{
-	Compression	compression;
-
-	return(check(algorithm, &compression));
-}
-#endif /* MYSQL_COMPRESSION */
 
 /*********************************************************************//**
 Compute the next autoinc value.
@@ -7042,34 +6965,6 @@ ha_innobase::open(
 	}
 
 	info(HA_STATUS_NO_LOCK | HA_STATUS_VARIABLE | HA_STATUS_CONST);
-
-#ifdef MYSQL_COMPRESSION
-	dberr_t	err = fil_set_compression(m_prebuilt->table,
-					  table->s->compress.str);
-
-	switch (err) {
-	case DB_NOT_FOUND:
-	case DB_UNSUPPORTED:
-		/* We will do another check before the create
-		table and push the error to the client there. */
-		break;
-
-	case DB_IO_NO_PUNCH_HOLE_TABLESPACE:
-		/* We did the check in the 'if' above. */
-
-	case DB_IO_NO_PUNCH_HOLE_FS:
-		/* During open we can't check whether the FS supports
-		punch hole or not, at least on Linux. */
-		break;
-
-	default:
-		ut_error;
-
-	case DB_SUCCESS:
-		break;
-	}
-#endif
-
 	DBUG_RETURN(0);
 }
 
@@ -12099,96 +11994,34 @@ err_col:
 	on re-start we don't need to restore temp-table and so no entry is
 	needed in SYSTEM tables. */
 	if (dict_table_is_temporary(table)) {
-#ifdef MYSQL_COMPRESSION
-		if (m_create_info->compress.length > 0) {
-			push_warning_printf(
-				m_thd,
-				Sql_condition::WARN_LEVEL_WARN,
-				HA_ERR_UNSUPPORTED,
-				"InnoDB: Compression not supported for "
-				"temporary tables");
+		/* Get a new table ID */
+		dict_table_assign_new_id(table, m_trx);
 
-			err = DB_UNSUPPORTED;
-
-			dict_mem_table_free(table);
-		} else {
-#endif /* MYSQL_COMPRESSION */
-			/* Get a new table ID */
-			dict_table_assign_new_id(table, m_trx);
-
-			/* Create temp tablespace if configured. */
-			err = dict_build_tablespace_for_table(table, NULL);
-
-			if (err == DB_SUCCESS) {
-				/* Temp-table are maintained in memory and so
-				can_be_evicted is FALSE. */
-				mem_heap_t* temp_table_heap;
-
-				temp_table_heap = mem_heap_create(256);
-
-				dict_table_add_to_cache(
-					table, FALSE, temp_table_heap);
-
-				DBUG_EXECUTE_IF("ib_ddl_crash_during_create2",
-						DBUG_SUICIDE(););
-
-				mem_heap_free(temp_table_heap);
-			}
-#ifdef MYSQL_COMPRESSION
-		}
-#endif
-
-	} else {
-		const char*     algorithm = NULL;
-
-#if MYSQL_COMPRESSION
-		const char*     algorithm = m_create_info->compress.str;
-
-		if (!(m_flags2 & DICT_TF2_USE_FILE_PER_TABLE)
-		    && m_create_info->compress.length > 0
-		    && !Compression::is_none(algorithm)) {
-
-			push_warning_printf(
-				m_thd,
-				Sql_condition::WARN_LEVEL_WARN,
-				HA_ERR_UNSUPPORTED,
-				"InnoDB: Compression not supported for "
-				"shared tablespaces");
-
-			algorithm = NULL;
-
-			err = DB_UNSUPPORTED;
-			dict_mem_table_free(table);
-
-		} else if (Compression::validate(algorithm) != DB_SUCCESS
-			   || m_form->s->row_type == ROW_TYPE_COMPRESSED
-			   || m_create_info->key_block_size > 0) {
-
-			algorithm = NULL;
-		}
-#endif /* MYSQL_COMPRESSION */
+		/* Create temp tablespace if configured. */
+		err = dict_build_tablespace_for_table(table, NULL);
 
 		if (err == DB_SUCCESS) {
+			/* Temp-table are maintained in memory and so
+			can_be_evicted is FALSE. */
+			mem_heap_t* temp_table_heap;
+
+			temp_table_heap = mem_heap_create(256);
+
+			dict_table_add_to_cache(
+				table, FALSE, temp_table_heap);
+
+			DBUG_EXECUTE_IF("ib_ddl_crash_during_create2",
+					DBUG_SUICIDE(););
+
+			mem_heap_free(temp_table_heap);
+		}
+	} else {
+		if (err == DB_SUCCESS) {
 			err = row_create_table_for_mysql(
-				table, algorithm, m_trx, false,
+				table, m_trx, false,
 				(fil_encryption_t)options->encryption,
 				options->encryption_key_id);
 
-		}
-
-		if (err == DB_IO_NO_PUNCH_HOLE_FS) {
-
-			ut_ad(!dict_table_in_shared_tablespace(table));
-
-			push_warning_printf(
-				m_thd,
-				Sql_condition::WARN_LEVEL_WARN,
-				HA_ERR_UNSUPPORTED,
-				"InnoDB: Punch hole not supported by the "
-				"file system or the tablespace page size "
-				"is not large enough. Compression disabled");
-
-			err = DB_SUCCESS;
 		}
 
 		DBUG_EXECUTE_IF("ib_crash_during_create_for_encryption",
@@ -12665,77 +12498,6 @@ create_table_info_t::create_option_tablespace_is_valid()
 }
 #endif
 
-#ifdef MYSQL_COMPRESSION
-/** Validate the COPMRESSION option.
-@return true if valid, false if not. */
-bool
-create_table_info_t::create_option_compression_is_valid()
-{
-	dberr_t		err;
-	Compression	compression;
-
-	if (m_create_info->compress.length == 0) {
-		return(true);
-	}
-
-	err = Compression::check(m_create_info->compress.str, &compression);
-
-	if (err == DB_UNSUPPORTED) {
-		push_warning_printf(
-			m_thd,
-			Sql_condition::WARN_LEVEL_WARN,
-			ER_UNSUPPORTED_EXTENSION,
-			"InnoDB: Unsupported compression algorithm '%s'",
-			m_create_info->compress.str);
-		return(false);
-	}
-
-	/* Allow Compression=NONE on any tablespace or row format. */
-	if (compression.m_type == Compression::NONE) {
-		return(true);
-	}
-
-	static char intro[] = "InnoDB: Page Compression is not supported";
-
-	if (m_create_info->key_block_size != 0
-	    || m_create_info->row_type == ROW_TYPE_COMPRESSED) {
-		push_warning_printf(
-			m_thd, Sql_condition::WARN_LEVEL_WARN,
-			ER_UNSUPPORTED_EXTENSION,
-			"%s with row_format=compressed or"
-			" key_block_size > 0", intro);
-		return(false);
-	}
-
-	if (m_create_info->options & HA_LEX_CREATE_TMP_TABLE) {
-		push_warning_printf(
-			m_thd, Sql_condition::WARN_LEVEL_WARN,
-			HA_ERR_UNSUPPORTED,
-			"%s for temporary tables", intro);
-		return(false);
-	}
-
-	if (tablespace_is_general_space(m_create_info)) {
-		push_warning_printf(
-			m_thd, Sql_condition::WARN_LEVEL_WARN,
-			HA_ERR_UNSUPPORTED,
-			"%s for shared general tablespaces", intro);
-		return(false);
-	}
-
-	/* The only non-file-per-table tablespace left is the system space. */
-	if (!m_use_file_per_table) {
-		push_warning_printf(
-			m_thd, Sql_condition::WARN_LEVEL_WARN,
-			HA_ERR_UNSUPPORTED,
-			"%s for the system tablespace", intro);
-		return(false);
-	}
-
-	return(true);
-}
-#endif /* MYSQL_COMPRESSION */
-
 /** Validate the create options. Check that the options KEY_BLOCK_SIZE,
 ROW_FORMAT, DATA DIRECTORY, TEMPORARY & TABLESPACE are compatible with
 each other and other settings.  These CREATE OPTIONS are not validated
@@ -12934,25 +12696,6 @@ create_table_info_t::create_options_are_invalid()
 			ret = "ROW_TYPE";
 		}
 	}
-
-#ifdef MYSQL_COMPRESSION
-	/* Validate the page compression parameter. */
-	if (!create_option_compression_is_valid()) {
-		return("COMPRESSION");
-	}
-
-	/* Check the encryption option. */
-	if (ret == NULL && m_create_info->encrypt_type.length > 0) {
-		dberr_t		err;
-
-		err = Encryption::validate(m_create_info->encrypt_type.str);
-
-		if (err == DB_UNSUPPORTED) {
-			my_error(ER_INVALID_ENCRYPTION_OPTION, MYF(0));
-			ret = "ENCRYPTION";
-		}
-	}
-#endif
 
 	return(ret);
 }
@@ -13268,17 +13011,6 @@ create_table_info_t::innobase_table_flags()
 
 	m_flags = 0;
 	m_flags2 = 0;
-
-#ifdef MYSQL_COMPRESSION
-	/* Validate the page compression parameter. */
-	if (!create_option_compression_is_valid()) {
-		/* No need to do anything. Warnings were issued.
-		The compresion setting will be ignored later.
-		If inodb_strict_mode=ON, this is called twice unless
-		there was a problem before.
-		If inodb_strict_mode=OFF, this is the only call. */
-	}
-#endif
 
 	/* Check if there are any FTS indexes defined on this table. */
 	for (uint i = 0; i < m_form->s->keys; i++) {
@@ -22573,11 +22305,6 @@ static MYSQL_SYSVAR_BOOL(disable_background_merge,
   PLUGIN_VAR_NOCMDARG | PLUGIN_VAR_RQCMDARG,
   "Disable change buffering merges by the master thread",
   NULL, NULL, FALSE);
-
-static MYSQL_SYSVAR_ENUM(compress_debug, srv_debug_compress,
-  PLUGIN_VAR_RQCMDARG,
-  "Compress all tables, without specifying the COMPRESS table attribute",
-  NULL, NULL, Compression::NONE, &innodb_debug_compress_typelib);
 #endif /* UNIV_DEBUG || UNIV_IBUF_DEBUG */
 
 static MYSQL_SYSVAR_ULONG(buf_dump_status_frequency, srv_buf_dump_status_frequency,
@@ -23114,7 +22841,6 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(data_file_size_debug),
   MYSQL_SYSVAR(fil_make_page_dirty_debug),
   MYSQL_SYSVAR(saved_page_number_debug),
-  MYSQL_SYSVAR(compress_debug),
   MYSQL_SYSVAR(disable_resize_buffer_pool_debug),
   MYSQL_SYSVAR(page_cleaner_disabled_debug),
   MYSQL_SYSVAR(dict_stats_disabled_debug),

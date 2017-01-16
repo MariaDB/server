@@ -2,7 +2,7 @@
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2009, Percona Inc.
-Copyright (c) 2013, 2016, MariaDB Corporation.
+Copyright (c) 2013, 2017, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted
 by Percona Inc.. Those modifications are
@@ -63,11 +63,6 @@ Created 10/21/1995 Heikki Tuuri
 #include <libaio.h>
 #endif /* LINUX_NATIVE_AIO */
 
-#ifdef HAVE_FALLOC_PUNCH_HOLE_AND_KEEP_SIZE
-# include <fcntl.h>
-# include <linux/falloc.h>
-#endif /* HAVE_FALLOC_PUNCH_HOLE_AND_KEEP_SIZE */
-
 #ifdef HAVE_LZ4
 #include <lz4.h>
 #endif
@@ -87,11 +82,6 @@ bool	innodb_calling_exit;
 #include <linux/falloc.h>
 #endif
 
-#ifdef HAVE_FALLOC_PUNCH_HOLE_AND_KEEP_SIZE
-# include <fcntl.h>
-# include <linux/falloc.h>
-#endif /* HAVE_FALLOC_PUNCH_HOLE_AND_KEEP_SIZE */
-
 #ifdef HAVE_LZO
 #include "lzo/lzo1x.h"
 #endif
@@ -108,30 +98,6 @@ static const ulint IO_LOG_SEGMENT = 1;
 
 /** Number of retries for partial I/O's */
 static const ulint NUM_RETRIES_ON_PARTIAL_IO = 10;
-
-/** Blocks for doing IO, used in the transparent compression
-and encryption code. */
-struct Block {
-	/** Default constructor */
-	Block() : m_ptr(), m_in_use() { }
-
-	byte*		m_ptr;
-
-	byte		pad[CACHE_LINE_SIZE - sizeof(ulint)];
-	int32		m_in_use;
-};
-
-/** For storing the allocated blocks */
-typedef std::vector<Block> Blocks;
-
-/** Block collection */
-static Blocks*	block_cache;
-
-/** Number of blocks to allocate for sync read/writes */
-static const size_t	MAX_BLOCKS = 128;
-
-/** Block buffer size */
-#define BUFFER_BLOCK_SIZE ((ulint)(UNIV_PAGE_SIZE * 1.3))
 
 /* This specifies the file permissions InnoDB uses when it creates files in
 Unix; the value of os_innodb_umask is initialized in ha_innodb.cc to
@@ -319,18 +285,6 @@ struct Slot {
 
 	/** Length of the block before it was compressed */
 	uint32			original_len;
-
-	/** Buffer block for compressed pages or encrypted pages */
-	Block*			buf_block;
-
-	/** Unaligned buffer for compressed pages */
-	byte*			compressed_ptr;
-
-	/** Compressed data page, aligned and derived from compressed_ptr */
-	byte*			compressed_page;
-
-	/** true, if we shouldn't punch a hole after writing the page */
-	bool			skip_punch_hole;
 
 	ulint*			write_size;
 };
@@ -839,140 +793,12 @@ os_aio_windows_handler(
 	IORequest*	type);
 #endif /* WIN_ASYNC_IO */
 
-#ifdef MYSQL_COMPRESSION
-/** Allocate a page for sync IO
-@return pointer to page */
-static
-Block*
-os_alloc_block()
-{
-	size_t		pos;
-	Blocks&		blocks = *block_cache;
-	size_t		i = static_cast<size_t>(my_timer_cycles());
-	const size_t	size = blocks.size();
-	ulint		retry = 0;
-	Block*		block;
-
-	DBUG_EXECUTE_IF("os_block_cache_busy", retry = MAX_BLOCKS * 3;);
-
-	for (;;) {
-
-		/* After go through the block cache for 3 times,
-		allocate a new temporary block. */
-		if (retry == MAX_BLOCKS * 3) {
-			byte*	ptr;
-
-			ptr = static_cast<byte*>(
-				ut_malloc_nokey(sizeof(*block)
-						+ BUFFER_BLOCK_SIZE));
-
-			block = new (ptr) Block();
-			block->m_ptr = static_cast<byte*>(
-				ptr + sizeof(*block));
-			block->m_in_use = 1;
-
-			break;
-		}
-
-		pos = i++ % size;
-
-		if (my_atomic_fas32_explicit(&blocks[pos].m_in_use, 1,
-					     MY_MEMORY_ORDER_ACQUIRE) == 0) {
-			block = &blocks[pos];
-			break;
-		}
-
-		os_thread_yield();
-
-		++retry;
-	}
-
-	ut_a(block->m_in_use != 0);
-
-	return(block);
-}
-
-/** Free a page after sync IO
-@param[in,own]	block		The block to free/release */
-static
-void
-os_free_block(Block* block)
-{
-	ut_ad(block->m_in_use == 1);
-
-	my_atomic_store32_explicit(&block->m_in_use, 0, MY_MEMORY_ORDER_RELEASE);
-
-	/* When this block is not in the block cache, and it's
-	a temporary block, we need to free it directly. */
-	if (std::less<Block*>()(block, &block_cache->front())
-	    || std::greater<Block*>()(block, &block_cache->back())) {
-		ut_free(block);
-	}
-}
-#endif /* MYSQL_COMPRESSION */
-
 /** Generic AIO Handler methods. Currently handles IO post processing. */
 class AIOHandler {
 public:
 	/** Do any post processing after a read/write
 	@return DB_SUCCESS or error code. */
 	static dberr_t post_io_processing(Slot* slot);
-
-private:
-	/** Check whether the page was compressed.
-	@param[in]	slot		The slot that contains the IO request
-	@return true if it was a compressed page */
-	static bool is_compressed_page(const Slot* slot)
-	{
-		const byte*	src = slot->buf;
-
-		ulint	page_type = mach_read_from_2(src + FIL_PAGE_TYPE);
-
-		return(page_type == FIL_PAGE_COMPRESSED);
-	}
-
-	/** Get the compressed page size.
-	@param[in]	slot		The slot that contains the IO request
-	@return number of bytes to read for a successful decompress */
-	static ulint compressed_page_size(const Slot* slot)
-	{
-		ut_ad(slot->type.is_read());
-		ut_ad(is_compressed_page(slot));
-
-		ulint		size;
-		const byte*	src = slot->buf;
-
-		size = mach_read_from_2(src + FIL_PAGE_COMPRESS_SIZE_V1);
-
-		return(size + FIL_PAGE_DATA);
-	}
-
-	/** Check if the page contents can be decompressed.
-	@param[in]	slot		The slot that contains the IO request
-	@return true if the data read has all the compressed data */
-	static bool can_decompress(const Slot* slot)
-	{
-		ut_ad(slot->type.is_read());
-		ut_ad(is_compressed_page(slot));
-
-		ulint		version;
-		const byte*	src = slot->buf;
-
-		version = mach_read_from_1(src + FIL_PAGE_VERSION);
-
-		ut_a(version == 1);
-
-		/* Includes the page header size too */
-		ulint		size = compressed_page_size(slot);
-
-		return(size <= (slot->ptr - slot->buf) + (ulint) slot->n_bytes);
-	}
-
-	/** Check if we need to read some more data.
-	@param[in]	slot		The slot that contains the IO request
-	@param[in]	n_bytes		Total bytes read so far
-	@return DB_SUCCESS or error code */
-	static dberr_t check_read(Slot* slot, ulint n_bytes);
 };
 
 /** Helper class for doing synchronous file IO. Currently, the objective
@@ -1038,152 +864,17 @@ private:
 	os_offset_t		m_offset;
 };
 
-/** If it is a compressed page return the compressed page data + footer size
-@param[in]	buf		Buffer to check, must include header + 10 bytes
-@return ULINT_UNDEFINED if the page is not a compressed page or length
-	of the compressed data (including footer) if it is a compressed page */
-ulint
-os_file_compressed_page_size(const byte* buf)
-{
-	ulint	type = mach_read_from_2(buf + FIL_PAGE_TYPE);
-
-	if (type == FIL_PAGE_COMPRESSED) {
-		ulint	version = mach_read_from_1(buf + FIL_PAGE_VERSION);
-		ut_a(version == 1);
-		return(mach_read_from_2(buf + FIL_PAGE_COMPRESS_SIZE_V1));
-	}
-
-	return(ULINT_UNDEFINED);
-}
-
-/** If it is a compressed page return the original page data + footer size
-@param[in] buf		Buffer to check, must include header + 10 bytes
-@return ULINT_UNDEFINED if the page is not a compressed page or length
-	of the original data + footer if it is a compressed page */
-ulint
-os_file_original_page_size(const byte* buf)
-{
-	ulint	type = mach_read_from_2(buf + FIL_PAGE_TYPE);
-
-	if (type == FIL_PAGE_COMPRESSED) {
-
-		ulint	version = mach_read_from_1(buf + FIL_PAGE_VERSION);
-		ut_a(version == 1);
-
-		return(mach_read_from_2(buf + FIL_PAGE_ORIGINAL_SIZE_V1));
-	}
-
-	return(ULINT_UNDEFINED);
-}
-
-/** Check if we need to read some more data.
-@param[in]	slot		The slot that contains the IO request
-@param[in]	n_bytes		Total bytes read so far
-@return DB_SUCCESS or error code */
-dberr_t
-AIOHandler::check_read(Slot* slot, ulint n_bytes)
-{
-	dberr_t	err=DB_SUCCESS;
-
-	ut_ad(slot->type.is_read());
-	ut_ad(slot->original_len > slot->len);
-
-	if (is_compressed_page(slot)) {
-
-		if (can_decompress(slot)) {
-
-			ut_a(slot->offset > 0);
-
-			slot->len = slot->original_len;
-#ifdef _WIN32
-			slot->n_bytes = static_cast<DWORD>(n_bytes);
-#else
-			slot->n_bytes = static_cast<ulint>(n_bytes);
-#endif /* _WIN32 */
-		} else {
-			/* Read the next block in */
-			ut_ad(compressed_page_size(slot) >= n_bytes);
-
-			err = DB_FAIL;
-		}
-	} else {
-		err = DB_FAIL;
-	}
-
-#ifdef MYSQL_COMPRESSION
-	if (slot->buf_block != NULL) {
-		os_free_block(slot->buf_block);
-		slot->buf_block = NULL;
-	}
-#endif
-	return(err);
-}
-
 /** Do any post processing after a read/write
 @return DB_SUCCESS or error code. */
 dberr_t
 AIOHandler::post_io_processing(Slot* slot)
 {
-	dberr_t	err=DB_SUCCESS;
-
 	ut_ad(slot->is_reserved);
 
 	/* Total bytes read so far */
 	ulint	n_bytes = (slot->ptr - slot->buf) + slot->n_bytes;
 
-	/* Compressed writes can be smaller than the original length.
-	Therefore they can be processed without further IO. */
-	if (n_bytes == slot->original_len
-	    || (slot->type.is_write()
-		&& slot->type.is_compressed()
-		&& slot->len == static_cast<ulint>(slot->n_bytes))) {
-
-#ifdef MYSQL_COMPRESSION
-		if (!slot->type.is_log() && is_compressed_page(slot)) {
-
-			ut_a(slot->offset > 0);
-
-			if (slot->type.is_read()) {
-				slot->len = slot->original_len;
-			}
-
-			/* The punch hole has been done on collect() */
-
-			if (slot->type.is_read()) {
-				err = io_complete(slot);
-			} else {
-				err = DB_SUCCESS;
-			}
-
-			ut_ad(err == DB_SUCCESS
-			      || err == DB_UNSUPPORTED
-			      || err == DB_CORRUPTION
-			      || err == DB_IO_DECOMPRESS_FAIL);
-		} else {
-
-			err = DB_SUCCESS;
-		}
-
-		if (slot->buf_block != NULL) {
-			os_free_block(slot->buf_block);
-			slot->buf_block = NULL;
-		}
-#endif /* MYSQL_COMPRESSION */
-	} else if ((ulint) slot->n_bytes == (ulint) slot->len) {
-
-		/* It *must* be a partial read. */
-		ut_ad(slot->len < slot->original_len);
-
-		/* Has to be a read request, if it is less than
-		the original length. */
-		ut_ad(slot->type.is_read());
-		err = check_read(slot, n_bytes);
-
-	} else {
-		err = DB_FAIL;
-	}
-
-	return(err);
+	return(n_bytes == slot->original_len ? DB_SUCCESS : DB_FAIL);
 }
 
 /** Count the number of free slots
@@ -1218,155 +909,6 @@ AIO::pending_io_count() const
 
 	return(reserved);
 }
-
-#ifdef MYSQL_COMPRESSION
-/** Compress a data page
-#param[in]	block_size	File system block size
-@param[in]	src		Source contents to compress
-@param[in]	src_len		Length in bytes of the source
-@param[out]	dst		Compressed page contents
-@param[out]	dst_len		Length in bytes of dst contents
-@return buffer data, dst_len will have the length of the data */
-static
-byte*
-os_file_compress_page(
-	Compression	compression,
-	ulint		block_size,
-	byte*		src,
-	ulint		src_len,
-	byte*		dst,
-	ulint*		dst_len)
-{
-	ulint		len = 0;
-	ulint		compression_level = page_zip_level;
-	ulint		page_type = mach_read_from_2(src + FIL_PAGE_TYPE);
-
-	/* The page size must be a multiple of the OS punch hole size. */
-	ut_ad(!(src_len % block_size));
-
-	/* Shouldn't compress an already compressed page. */
-	ut_ad(page_type != FIL_PAGE_COMPRESSED);
-
-	/* The page must be at least twice as large as the file system
-	block size if we are to save any space. Ignore R-Tree pages for now,
-	they repurpose the same 8 bytes in the page header. No point in
-	compressing if the file system block size >= our page size. */
-
-	if (page_type == FIL_PAGE_RTREE
-	    || block_size == ULINT_UNDEFINED
-            || compression.m_type == Compression::NONE
-	    || src_len < block_size * 2) {
-
-		*dst_len = src_len;
-
-		return(src);
-	}
-
-	/* Leave the header alone when compressing. */
-	ut_ad(block_size >= FIL_PAGE_DATA * 2);
-
-	ut_ad(src_len > FIL_PAGE_DATA + block_size);
-
-	/* Must compress to <= N-1 FS blocks. */
-	ulint		out_len = src_len - (FIL_PAGE_DATA + block_size);
-
-	/* This is the original data page size - the page header. */
-	ulint		content_len = src_len - FIL_PAGE_DATA;
-
-	ut_ad(out_len >= block_size - FIL_PAGE_DATA);
-	ut_ad(out_len <= src_len - (block_size + FIL_PAGE_DATA));
-
-	/* Only compress the data + trailer, leave the header alone */
-
-	switch (compression.m_type) {
-	case Compression::NONE:
-		ut_error;
-
-	case Compression::ZLIB: {
-
-		uLongf	zlen = static_cast<uLongf>(out_len);
-
-		if (compress2(
-			dst + FIL_PAGE_DATA,
-			&zlen,
-			src + FIL_PAGE_DATA,
-			static_cast<uLong>(content_len),
-			static_cast<int>(compression_level)) != Z_OK) {
-
-			*dst_len = src_len;
-
-			return(src);
-		}
-
-		len = static_cast<ulint>(zlen);
-
-		break;
-	}
-
-#ifdef HAVE_LZ4
-	case Compression::LZ4:
-
-		len = LZ4_compress_limitedOutput(
-			reinterpret_cast<char*>(src) + FIL_PAGE_DATA,
-			reinterpret_cast<char*>(dst) + FIL_PAGE_DATA,
-			static_cast<int>(content_len),
-			static_cast<int>(out_len));
-
-		ut_a(len <= src_len - FIL_PAGE_DATA);
-
-		if (len == 0  || len >= out_len) {
-
-			*dst_len = src_len;
-
-			return(src);
-		}
-
-		break;
-#endif
-
-	default:
-		*dst_len = src_len;
-		return(src);
-	}
-
-	ut_a(len <= out_len);
-
-	ut_ad(memcmp(src + FIL_PAGE_LSN + 4,
-		     src + src_len - FIL_PAGE_END_LSN_OLD_CHKSUM + 4, 4)
-	      == 0);
-
-	/* Copy the header as is. */
-	memmove(dst, src, FIL_PAGE_DATA);
-
-	/* Add compression control information. Required for decompressing. */
-	mach_write_to_2(dst + FIL_PAGE_TYPE, FIL_PAGE_COMPRESSED);
-
-	mach_write_to_1(dst + FIL_PAGE_VERSION, 1);
-
-	mach_write_to_1(dst + FIL_PAGE_ALGORITHM_V1, compression.m_type);
-
-	mach_write_to_2(dst + FIL_PAGE_ORIGINAL_TYPE_V1, page_type);
-
-	mach_write_to_2(dst + FIL_PAGE_ORIGINAL_SIZE_V1, content_len);
-
-	mach_write_to_2(dst + FIL_PAGE_COMPRESS_SIZE_V1, len);
-
-	/* Round to the next full block size */
-
-	len += FIL_PAGE_DATA;
-
-	*dst_len = ut_calc_align(len, block_size);
-
-	ut_ad(*dst_len >= len && *dst_len <= out_len + FIL_PAGE_DATA);
-
-	/* Clear out the unused portion of the page. */
-	if (len % block_size) {
-		memset(dst + len, 0x0, block_size - (len % block_size));
-	}
-
-	return(dst);
-}
-#endif /* MYSQL_COMPRESSION */
 
 #ifdef UNIV_DEBUG
 /** Validates the consistency the aio system some of the time.
@@ -1882,87 +1424,6 @@ os_file_create_subdirs_if_needed(
 	return(success ? DB_SUCCESS : DB_ERROR);
 }
 
-#ifdef MYSQL_COMPRESSION
-/** Allocate the buffer for IO on a transparently compressed table.
-@param[in]	type		IO flags
-@param[out]	buf		buffer to read or write
-@param[in,out]	n		number of bytes to read/write, starting from
-				offset
-@return pointer to allocated page, compressed data is written to the offset
-	that is aligned on UNIV_SECTOR_SIZE of Block.m_ptr */
-static
-Block*
-os_file_compress_page(
-	IORequest&	type,
-	void*&		buf,
-	ulint*		n)
-{
-	ut_ad(!type.is_log());
-	ut_ad(type.is_write());
-	ut_ad(type.is_compressed());
-
-	ulint	n_alloc = *n * 2;
-
-	ut_a(n_alloc <= UNIV_PAGE_SIZE_MAX * 2);
-#ifdef HAVE_LZ4
-	ut_a(type.compression_algorithm().m_type != Compression::LZ4
-	     || static_cast<ulint>(LZ4_COMPRESSBOUND(*n)) < n_alloc);
-#endif
-
-	Block*	ptr = reinterpret_cast<Block*>(ut_malloc_nokey(n_alloc));
-
-	if (ptr == NULL) {
-		return(NULL);
-	}
-
-	ulint	old_compressed_len;
-	ulint	compressed_len = *n;
-
-	old_compressed_len = mach_read_from_2(
-		reinterpret_cast<byte*>(buf)
-		+ FIL_PAGE_COMPRESS_SIZE_V1);
-
-	if (old_compressed_len > 0) {
-		old_compressed_len = ut_calc_align(
-			old_compressed_len + FIL_PAGE_DATA,
-			type.block_size());
-	}
-
-	byte*	compressed_page;
-
-	compressed_page = static_cast<byte*>(
-		ut_align(block->m_ptr, UNIV_SECTOR_SIZE));
-
-	byte*	buf_ptr;
-
-	buf_ptr = os_file_compress_page(
-		type.compression_algorithm(),
-		type.block_size(),
-		reinterpret_cast<byte*>(buf),
-		*n,
-		compressed_page,
-		&compressed_len);
-
-	if (buf_ptr != buf) {
-		/* Set new compressed size to uncompressed page. */
-		memcpy(reinterpret_cast<byte*>(buf) + FIL_PAGE_COMPRESS_SIZE_V1,
-		       buf_ptr + FIL_PAGE_COMPRESS_SIZE_V1, 2);
-
-		buf = buf_ptr;
-		*n = compressed_len;
-
-		if (compressed_len >= old_compressed_len) {
-
-			ut_ad(old_compressed_len <= UNIV_PAGE_SIZE);
-
-			type.clear_punch_hole();
-		}
-	}
-
-	return(block);
-}
-#endif /* MYSQL_COMPRESSION */
-
 #ifndef _WIN32
 
 /** Do the read/write
@@ -1981,51 +1442,6 @@ SyncFileIO::execute(const IORequest& request)
 	}
 
 	return(n_bytes);
-}
-
-/** Free storage space associated with a section of the file.
-@param[in]	fh		Open file handle
-@param[in]	off		Starting offset (SEEK_SET)
-@param[in]	len		Size of the hole
-@return DB_SUCCESS or error code */
-static
-dberr_t
-os_file_punch_hole_posix(
-	os_file_t	fh,
-	os_offset_t	off,
-	os_offset_t	len)
-{
-
-#ifdef HAVE_FALLOC_PUNCH_HOLE_AND_KEEP_SIZE
-	const int	mode = FALLOC_FL_PUNCH_HOLE | FALLOC_FL_KEEP_SIZE;
-
-	int		ret = fallocate(fh, mode, off, len);
-
-	if (ret == 0) {
-		return(DB_SUCCESS);
-	}
-
-	ut_a(ret == -1);
-
-	if (errno == ENOTSUP) {
-		return(DB_IO_NO_PUNCH_HOLE);
-	}
-
-	ib::warn()
-		<< "fallocate(" << fh
-		<<", FALLOC_FL_PUNCH_HOLE | FALLOC_FL_KEEP_SIZE, "
-		<< off << ", " << len << ") returned errno: "
-		<<  errno;
-
-	return(DB_IO_ERROR);
-
-#elif defined(UNIV_SOLARIS)
-
-	// Use F_FREESP
-
-#endif /* HAVE_FALLOC_PUNCH_HOLE_AND_KEEP_SIZE */
-
-	return(DB_IO_NO_PUNCH_HOLE);
 }
 
 #if defined(LINUX_NATIVE_AIO)
@@ -2318,20 +1734,7 @@ LinuxAIOHandler::collect()
 			/* We have not overstepped to next segment. */
 			ut_a(slot->pos < end_pos);
 
-			/* We never compress/decompress the first page */
-
-			if (slot->offset > 0
-			    && !slot->skip_punch_hole
-			    && slot->type.is_compression_enabled()
-			    && !slot->type.is_log()
-			    && slot->type.is_write()
-			    && slot->type.is_compressed()
-			    && slot->type.punch_hole()) {
-
-				slot->err = AIOHandler::io_complete(slot);
-			} else {
-				slot->err = DB_SUCCESS;
-			}
+			slot->err = DB_SUCCESS;
 
 			/* Mark this request as completed. The error handling
 			will be done in the calling function. */
@@ -2497,16 +1900,7 @@ os_aio_linux_handler(
 	void**		m2,
 	IORequest*	request)
 {
-	LinuxAIOHandler	handler(global_segment);
-
-	dberr_t	err = handler.poll(m1, m2, request);
-
-	if (err == DB_IO_NO_PUNCH_HOLE) {
-		fil_no_punch_hole(*m1);
-		err = DB_SUCCESS;
-	}
-
-	return(err);
+	return LinuxAIOHandler(global_segment).poll(m1, m2, request);
 }
 
 /** Dispatch an AIO request to the kernel.
@@ -3959,66 +3353,6 @@ struct WinIoInit
 /* Ensures proper initialization and shutdown */
 static WinIoInit win_io_init;
 
-/** Check if the file system supports sparse files.
-@param[in]	 name		File name
-@return true if the file system supports sparse files */
-static
-bool
-os_is_sparse_file_supported_win32(const char* filename)
-{
-	char	volname[MAX_PATH];
-	BOOL	result = GetVolumePathName(filename, volname, MAX_PATH);
-
-	if (!result) {
-
-		ib::error()
-			<< "os_is_sparse_file_supported: "
-			<< "Failed to get the volume path name for: "
-			<< filename
-			<< "- OS error number " << GetLastError();
-
-		return(false);
-	}
-
-	DWORD	flags;
-
-	GetVolumeInformation(
-		volname, NULL, MAX_PATH, NULL, NULL,
-		&flags, NULL, MAX_PATH);
-
-	return(flags & FILE_SUPPORTS_SPARSE_FILES) ? true : false;
-}
-
-/** Free storage space associated with a section of the file.
-@param[in]	fh		Open file handle
-@param[in]	page_size	Tablespace page size
-@param[in]	block_size	File system block size
-@param[in]	off		Starting offset (SEEK_SET)
-@param[in]	len		Size of the hole
-@return 0 on success or errno */
-static
-dberr_t
-os_file_punch_hole_win32(
-	os_file_t	fh,
-	os_offset_t	off,
-	os_offset_t	len)
-{
-	FILE_ZERO_DATA_INFORMATION	punch;
-
-	punch.FileOffset.QuadPart = off;
-	punch.BeyondFinalZero.QuadPart = off + len;
-
-	/* If lpOverlapped is NULL, lpBytesReturned cannot be NULL,
-	therefore we pass a dummy parameter. */
-	DWORD	temp;
-
-	BOOL	result = DeviceIoControl(
-		fh, FSCTL_SET_ZERO_DATA, &punch, sizeof(punch),
-		NULL, 0, &temp, NULL);
-
-	return(!result ? DB_IO_NO_PUNCH_HOLE : DB_SUCCESS);
-}
-
 /** Check the existence and type of the given file.
 @param[in]	path		path name of file
 @param[out]	exists		true if the file exists
@@ -5243,30 +4577,6 @@ AIO::simulated_put_read_threads_to_sleep()
 
 #endif /* !_WIN32*/
 
-#ifdef MYSQL_COMPRESSION
-/** Validate the type, offset and number of bytes to read *
-@param[in]	type		IO flags
-@param[in]	offset		Offset from start of the file
-@param[in]	n		Number of bytes to read from offset */
-static
-void
-os_file_check_args(const IORequest& type, os_offset_t offset, ulint n)
-{
-	ut_ad(type.validate());
-
-	ut_ad(n > 0);
-
-	/* If off_t is > 4 bytes in size, then we assume we can pass a
-	64-bit address */
-	off_t		offs = static_cast<off_t>(offset);
-
-	if (sizeof(off_t) <= 4 && offset != (os_offset_t) offs) {
-
-		ib::error() << "file write at offset > 4 GB.";
-	}
-}
-#endif /* MYSQL_COMPRESSION */
-
 /** Does a syncronous read or write depending upon the type specified
 In case of partial reads/writes the function tries
 NUM_RETRIES_ON_PARTIAL_IO times to read/write the complete data.
@@ -5289,26 +4599,7 @@ os_file_io(
 {
 	ulint		original_n = n;
 	IORequest	type = in_type;
-	byte*		compressed_page=NULL;
 	ssize_t		bytes_returned = 0;
-
-#ifdef MYSQL_COMPRESSION
-	Block*		block=NULL;
-	if (type.is_compressed()) {
-
-		/* We don't compress the first page of any file. */
-		ut_ad(offset > 0);
-
-		block  = os_file_compress_page(type, buf, &n);
-
-		compressed_page = static_cast<byte*>(
-			ut_align(block->m_ptr, UNIV_SECTOR_SIZE));
-
-	} else {
-		block = NULL;
-		compressed_page = NULL;
-	}
-#endif /* MYSQL_COMPRESSION */
 
 	SyncFileIO	sync_file_io(file, buf, n, offset);
 
@@ -5325,11 +4616,6 @@ os_file_io(
 
 			bytes_returned += n_bytes;
 			*err = DB_SUCCESS;
-#ifdef MYSQL_COMPRESSION
-			if (block != NULL) {
-				os_free_block(block);
-			}
-#endif
 
 			return(original_n);
 		}
@@ -5357,12 +4643,6 @@ os_file_io(
 		sync_file_io.advance(n_bytes);
 	}
 
-#ifdef MYSQL_COMPRESSION
-	if (block != NULL) {
-		os_free_block(block);
-	}
-#endif
-
 	*err = DB_IO_ERROR;
 
 	if (!type.is_partial_io_warning_disabled()) {
@@ -5388,7 +4668,7 @@ ssize_t
 os_file_pwrite(
 	IORequest&	type,
 	os_file_t	file,
-	const byte*	buf,
+	const void*	buf,
 	ulint		n,
 	os_offset_t	offset,
 	dberr_t*	err)
@@ -5400,7 +4680,8 @@ os_file_pwrite(
 	(void) my_atomic_addlint(&os_n_pending_writes, 1);
 	MONITOR_ATOMIC_INC(MONITOR_OS_PENDING_WRITES);
 
-	ssize_t	n_bytes = os_file_io(type, file, (void*) buf, n, offset, err);
+	ssize_t	n_bytes = os_file_io(type, file, const_cast<void*>(buf),
+				     n, offset, err);
 
 	(void) my_atomic_addlint(&os_n_pending_writes, -1);
 	MONITOR_ATOMIC_DEC(MONITOR_OS_PENDING_WRITES);
@@ -5415,21 +4696,21 @@ os_file_pwrite(
 @param[in]	offset		file offset from the start where to read
 @param[in]	n		number of bytes to read, starting from offset
 @return DB_SUCCESS if request was successful, false if fail */
-static MY_ATTRIBUTE((warn_unused_result))
 dberr_t
-os_file_write_page(
+os_file_write_func(
 	IORequest&	type,
 	const char*	name,
 	os_file_t	file,
-	const byte*	buf,
+	const void*	buf,
 	os_offset_t	offset,
 	ulint		n)
 {
 	dberr_t		err;
 
+	ut_ad(type.is_write());
 	ut_ad(type.validate());
 	ut_ad(n > 0);
-	
+
 	ssize_t	n_bytes = os_file_pwrite(type, file, buf, n, offset, &err);
 
 	if ((ulint) n_bytes != n && !os_has_said_disk_full) {
@@ -5533,23 +4814,7 @@ os_file_read_page(
 			return(err);
 
 		} else if ((ulint) n_bytes == n) {
-
-#ifdef MYSQL_COMPRESSION
-			/** The read will succeed but decompress can fail
-			for various reasons. */
-
-			if (type.is_compression_enabled()
-			    && !Compression::is_compressed_page(
-				    static_cast<byte*>(buf))) {
-
-				return(DB_SUCCESS);
-
-			} else {
-				return(err);
-			}
-#else
 			return(DB_SUCCESS);
-#endif /* MYSQL_COMPRESSION */
 		}
 
 		ib::error() << "Tried to read " << n
@@ -5930,37 +5195,6 @@ os_file_read_no_error_handling_func(
 	return(os_file_read_page(type, file, buf, offset, n, o, false));
 }
 
-/** NOTE! Use the corresponding macro os_file_write(), not directly
-Requests a synchronous write operation.
-@param[in]	type		IO flags
-@param[in]	file		handle to an open file
-@param[out]	buf		buffer from which to write
-@param[in]	offset		file offset from the start where to read
-@param[in]	n		number of bytes to read, starting from offset
-@return DB_SUCCESS if request was successful, false if fail */
-dberr_t
-os_file_write_func(
-	IORequest&	type,
-	const char*	name,
-	os_file_t	file,
-	const void*	buf,
-	os_offset_t	offset,
-	ulint		n)
-{
-	ut_ad(type.validate());
-	ut_ad(type.is_write());
-
-	/* We never compress the first page.
-	Note: This assumes we always do block IO. */
-	if (offset == 0) {
-		type.clear_compressed();
-	}
-
-	const byte*	ptr = reinterpret_cast<const byte*>(buf);
-
-	return(os_file_write_page(type, name, file, ptr, offset, n));
-}
-
 /** Check the existence and type of the given file.
 @param[in]	path		path name of file
 @param[out]	exists		true if the file exists
@@ -5976,65 +5210,6 @@ os_file_status(
 	return(os_file_status_win32(path, exists, type));
 #else
 	return(os_file_status_posix(path, exists, type));
-#endif /* _WIN32 */
-}
-
-/** Free storage space associated with a section of the file.
-@param[in]	fh		Open file handle
-@param[in]	off		Starting offset (SEEK_SET)
-@param[in]	len		Size of the hole
-@return DB_SUCCESS or error code */
-dberr_t
-os_file_punch_hole(
-	os_file_t	fh,
-	os_offset_t	off,
-	os_offset_t	len)
-{
-	/* In this debugging mode, we act as if punch hole is supported,
-	and then skip any calls to actually punch a hole here.
-	In this way, Transparent Page Compression is still being tested. */
-	DBUG_EXECUTE_IF("ignore_punch_hole",
-		return(DB_SUCCESS);
-	);
-
-#ifdef _WIN32
-	return(os_file_punch_hole_win32(fh, off, len));
-#else
-	return(os_file_punch_hole_posix(fh, off, len));
-#endif /* _WIN32 */
-}
-
-/** Check if the file system supports sparse files.
-
-Warning: On POSIX systems we try and punch a hole from offset 0 to
-the system configured page size. This should only be called on an empty
-file.
-
-Note: On Windows we use the name and on Unices we use the file handle.
-
-@param[in]	name		File name
-@param[in]	fh		File handle for the file - if opened
-@return true if the file system supports sparse files */
-bool
-os_is_sparse_file_supported(const char* path, os_file_t fh)
-{
-	/* In this debugging mode, we act as if punch hole is supported,
-	then we skip any calls to actually punch a hole.  In this way,
-	Transparent Page Compression is still being tested. */
-	DBUG_EXECUTE_IF("ignore_punch_hole",
-		return(true);
-	);
-
-#ifdef _WIN32
-	return(os_is_sparse_file_supported_win32(path));
-#else
-	dberr_t	err;
-
-	/* We don't know the FS block size, use the sector size. The FS
-	will do the magic. */
-	err = os_file_punch_hole(fh, 0, UNIV_PAGE_SIZE);
-
-	return(err == DB_SUCCESS);
 #endif /* _WIN32 */
 }
 
@@ -6192,16 +5367,6 @@ AIO::init_slots()
 		memset(&slot.control, 0x0, sizeof(slot.control));
 
 #endif /* WIN_ASYNC_IO */
-
-		slot.compressed_ptr = reinterpret_cast<byte*>(
-			ut_zalloc_nokey(UNIV_PAGE_SIZE_MAX * 2));
-
-		if (slot.compressed_ptr == NULL) {
-			return(DB_OUT_OF_MEMORY);
-		}
-
-		slot.compressed_page = static_cast<byte *>(
-			ut_align(slot.compressed_ptr, UNIV_PAGE_SIZE));
 	}
 
 	return(DB_SUCCESS);
@@ -6327,16 +5492,6 @@ AIO::~AIO()
 		ut_free(m_aio_ctx);
 	}
 #endif /* LINUX_NATIVE_AIO */
-
-	for (ulint i = 0; i < m_slots.size(); ++i) {
-		Slot&	slot = m_slots[i];
-
-		if (slot.compressed_ptr != NULL) {
-			ut_free(slot.compressed_ptr);
-			slot.compressed_ptr = NULL;
-			slot.compressed_page = NULL;
-		}
-	}
 
 	m_slots.clear();
 }
@@ -6499,27 +5654,6 @@ os_aio_init(
 	/* Maximum number of pending aio operations allowed per segment */
 	ulint		limit = 8 * OS_AIO_N_PENDING_IOS_PER_THREAD;
 
-
-	ut_a(block_cache == NULL);
-
-	block_cache = UT_NEW_NOKEY(Blocks(MAX_BLOCKS));
-
-	for (Blocks::iterator it = block_cache->begin();
-	     it != block_cache->end();
-	     ++it) {
-
-		ut_a(it->m_in_use == 0);
-		ut_a(it->m_ptr == NULL);
-
-		/* Allocate double of max page size memory, since
-		compress could generate more bytes than orgininal
-		data. */
-		it->m_ptr = static_cast<byte*>(
-			ut_malloc_nokey(BUFFER_BLOCK_SIZE));
-
-		ut_a(it->m_ptr != NULL);
-	}
-
 	return(AIO::start(limit, n_readers, n_writers, n_slots_sync));
 }
 
@@ -6536,18 +5670,6 @@ os_aio_free()
 	ut_free(os_aio_segment_wait_events);
 	os_aio_segment_wait_events = 0;
 	os_aio_n_segments = 0;
-
-	for (Blocks::iterator it = block_cache->begin();
-	     it != block_cache->end();
-	     ++it) {
-
-		ut_a(it->m_in_use == 0);
-		ut_free(it->m_ptr);
-	}
-
-	UT_DELETE(block_cache);
-
-	block_cache = NULL;
 }
 
 /** Wakes up all async i/o threads so that they know to exit themselves in
@@ -6753,39 +5875,7 @@ AIO::reserve_slot(
 	slot->is_log   = type.is_log();
 	slot->original_len = static_cast<uint32>(len);
 	slot->io_already_done = false;
-	slot->buf_block = NULL;
 	slot->buf      = static_cast<byte*>(buf);
-
-#ifdef MYSQL_COMPRESSION
-	if (srv_use_native_aio
-	    && offset > 0
-	    && type.is_write()
-	    && type.is_compressed()) {
-		ulint	compressed_len = len;
-
-		ut_ad(!type.is_log());
-
-		release();
-
-		void* src_buf = slot->buf;
-
-		slot->buf_block = os_file_compress_page(
-			type,
-			src_buf,
-			&compressed_len);
-
-		slot->buf = static_cast<byte*>(src_buf);
-		slot->ptr = slot->buf;
-#ifdef _WIN32
-		slot->len = static_cast<DWORD>(compressed_len);
-#else
-		slot->len = static_cast<ulint>(compressed_len);
-#endif /* _WIN32 */
-		slot->skip_punch_hole = type.punch_hole();
-
-		acquire();
-	}
-#endif /* MYSQL_COMPRESSION */
 
 #ifdef WIN_ASYNC_IO
 	{
@@ -7506,7 +6596,7 @@ private:
 			slot->offset,
 			slot->len);
 
-		ut_a(err == DB_SUCCESS || err == DB_IO_NO_PUNCH_HOLE);
+		ut_a(err == DB_SUCCESS);
 	}
 
 	/** @return true if the slots are adjacent and can be merged */
@@ -8134,291 +7224,8 @@ os_file_set_umask(ulint umask)
 }
 
 #else
-
 #include "univ.i"
-#include "db0err.h"
-#include "mach0data.h"
-#include "fil0fil.h"
-#include "os0file.h"
-
-#ifdef HAVE_LZ4
-#include <lz4.h>
-#endif
-
-#include <zlib.h>
-#ifndef UNIV_INNOCHECKSUM
-#include <my_aes.h>
-#include <my_rnd.h>
-#include <mysqld.h>
-#include <mysql/service_mysql_keyring.h>
-#endif
-
-typedef byte	Block;
-
-#ifdef MYSQL_COMPRESSION
-/** Allocate a page for sync IO
-@return pointer to page */
-static
-Block*
-os_alloc_block()
-{
-	return(reinterpret_cast<byte*>(malloc(UNIV_PAGE_SIZE_MAX * 2)));
-}
-
-/** Free a page after sync IO
-@param[in,own]	block		The block to free/release */
-static
-void
-os_free_block(Block* block)
-{
-	ut_free(block);
-}
-#endif
 #endif /* !UNIV_INNOCHECKSUM */
-
-#ifdef MYSQL_COMPRESSION
-
-/**
-@param[in]      type            The compression type
-@return the string representation */
-const char*
-Compression::to_string(Type type)
-{
-        switch(type) {
-        case NONE:
-                return("None");
-        case ZLIB:
-                return("Zlib");
-        case LZ4:
-                return("LZ4");
-        }
-
-        ut_ad(0);
-
-        return("<UNKNOWN>");
-}
-
-/**
-@param[in]      meta		Page Meta data
-@return the string representation */
-std::string Compression::to_string(const Compression::meta_t& meta)
-{
-	std::ostringstream	stream;
-
-	stream	<< "version: " << int(meta.m_version) << " "
-		<< "algorithm: " << meta.m_algorithm << " "
-		<< "(" << to_string(meta.m_algorithm) << ") "
-		<< "orginal_type: " << meta.m_original_type << " "
-		<< "original_size: " << meta.m_original_size << " "
-		<< "compressed_size: " << meta.m_compressed_size;
-
-	return(stream.str());
-}
-
-/** @return true if it is a compressed page */
-bool
-Compression::is_compressed_page(const byte* page)
-{
-	return(mach_read_from_2(page + FIL_PAGE_TYPE) == FIL_PAGE_COMPRESSED);
-}
-
-/** Deserizlise the page header compression meta-data
-@param[in]	page		Pointer to the page header
-@param[out]	control		Deserialised data */
-void
-Compression::deserialize_header(
-	const byte*		page,
-	Compression::meta_t*	control)
-{
-	ut_ad(is_compressed_page(page));
-
-	control->m_version = static_cast<uint8_t>(
-		mach_read_from_1(page + FIL_PAGE_VERSION));
-
-	control->m_original_type = static_cast<uint16_t>(
-		mach_read_from_2(page + FIL_PAGE_ORIGINAL_TYPE_V1));
-
-	control->m_compressed_size = static_cast<uint16_t>(
-		mach_read_from_2(page + FIL_PAGE_COMPRESS_SIZE_V1));
-
-	control->m_original_size = static_cast<uint16_t>(
-		mach_read_from_2(page + FIL_PAGE_ORIGINAL_SIZE_V1));
-
-	control->m_algorithm = static_cast<Type>(
-		mach_read_from_1(page + FIL_PAGE_ALGORITHM_V1));
-}
-
-/** Decompress the page data contents. Page type must be FIL_PAGE_COMPRESSED, if
-not then the source contents are left unchanged and DB_SUCCESS is returned.
-@param[in]	dblwr_recover	true of double write recovery in progress
-@param[in,out]	src		Data read from disk, decompressed data will be
-				copied to this page
-@param[in,out]	dst		Scratch area to use for decompression
-@param[in]	dst_len		Size of the scratch area in bytes
-@return DB_SUCCESS or error code */
-dberr_t
-Compression::deserialize(
-	bool		dblwr_recover,
-	byte*		src,
-	byte*		dst,
-	ulint		dst_len)
-{
-	if (!is_compressed_page(src)) {
-		/* There is nothing we can do. */
-		return(DB_SUCCESS);
-	}
-
-	meta_t	header;
-
-	deserialize_header(src, &header);
-
-	byte*	ptr = src + FIL_PAGE_DATA;
-
-	ut_ad(header.m_version == 1);
-
-	if (header.m_version != 1
-	    || header.m_original_size < UNIV_PAGE_SIZE_MIN - (FIL_PAGE_DATA + 8)
-	    || header.m_original_size > UNIV_PAGE_SIZE_MAX - FIL_PAGE_DATA
-	    || dst_len < header.m_original_size + FIL_PAGE_DATA) {
-
-		/* The last check could potentially return DB_OVERFLOW,
-		the caller should be able to retry with a larger buffer. */
-
-		return(DB_CORRUPTION);
-	}
-
-	Block*	block;
-
-	/* The caller doesn't know what to expect */
-	if (dst == NULL) {
-
-		block = os_alloc_block();
-
-#ifdef UNIV_INNOCHECKSUM
-		dst = block;
-#else
-		dst = block->m_ptr;
-#endif /* UNIV_INNOCHECKSUM */
-
-	} else {
-		block = NULL;
-	}
-
-	int		ret;
-	Compression	compression;
-	ulint		len = header.m_original_size;
-
-	compression.m_type = static_cast<Compression::Type>(header.m_algorithm);
-
-	switch(compression.m_type) {
-	case Compression::ZLIB: {
-
-		uLongf	zlen = header.m_original_size;
-
-		if (uncompress(dst, &zlen, ptr, header.m_compressed_size)
-		    != Z_OK) {
-
-			if (block != NULL) {
-				os_free_block(block);
-			}
-
-			return(DB_IO_DECOMPRESS_FAIL);
-		}
-
-		len = static_cast<ulint>(zlen);
-
-		break;
-	}
-#ifdef HAVE_LZ4
-	case Compression::LZ4: {
-		int		ret;
-
-		if (dblwr_recover) {
-
-			ret = LZ4_decompress_safe(
-				reinterpret_cast<char*>(ptr),
-				reinterpret_cast<char*>(dst),
-				header.m_compressed_size,
-				header.m_original_size);
-
-		} else {
-
-			/* This can potentially read beyond the input
-			buffer if the data is malformed. According to
-			the LZ4 documentation it is a little faster
-			than the above function. When recovering from
-			the double write buffer we can afford to us the
-			slower function above. */
-
-			ret = LZ4_decompress_fast(
-				reinterpret_cast<char*>(ptr),
-				reinterpret_cast<char*>(dst),
-				header.m_original_size);
-		}
-
-		if (ret < 0) {
-
-			if (block != NULL) {
-				os_free_block(block);
-			}
-
-			return(DB_IO_DECOMPRESS_FAIL);
-		}
-
-		break;
-	}
-#endif
-	default:
-#if !defined(UNIV_INNOCHECKSUM)
-		ib::error()
-			<< "Compression algorithm support missing: "
-			<< Compression::to_string(compression.m_type);
-#else
-		fprintf(stderr, "Compression algorithm support missing: %s\n",
-			Compression::to_string(compression.m_type));
-#endif /* !UNIV_INNOCHECKSUM */
-
-		if (block != NULL) {
-			os_free_block(block);
-		}
-
-		return(DB_UNSUPPORTED);
-	}
-	/* Leave the header alone */
-	memmove(src + FIL_PAGE_DATA, dst, len);
-
-	mach_write_to_2(src + FIL_PAGE_TYPE, header.m_original_type);
-
-	ut_ad(dblwr_recover
-	      || memcmp(src + FIL_PAGE_LSN + 4,
-			src + (header.m_original_size + FIL_PAGE_DATA)
-			- FIL_PAGE_END_LSN_OLD_CHKSUM + 4, 4) == 0);
-
-	if (block != NULL) {
-		os_free_block(block);
-	}
-
-	return(DB_SUCCESS);
-}
-
-/** Decompress the page data contents. Page type must be FIL_PAGE_COMPRESSED, if
-not then the source contents are left unchanged and DB_SUCCESS is returned.
-@param[in]	dblwr_recover	true of double write recovery in progress
-@param[in,out]	src		Data read from disk, decompressed data will be
-				copied to this page
-@param[in,out]	dst		Scratch area to use for decompression
-@param[in]	dst_len		Size of the scratch area in bytes
-@return DB_SUCCESS or error code */
-dberr_t
-os_file_decompress_page(
-	bool		dblwr_recover,
-	byte*		src,
-	byte*		dst,
-	ulint		dst_len)
-{
-	return(Compression::deserialize(dblwr_recover, src, dst, dst_len));
-}
-#endif /* MYSQL_COMPRESSION */
 
 /** Normalizes a directory path for the current OS:
 On Windows, we convert '/' to '\', else we convert '\' to '/'.

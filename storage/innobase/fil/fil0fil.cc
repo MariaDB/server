@@ -481,7 +481,6 @@ fil_space_is_flushed(
 @param[in]	size		file size in entire database blocks
 @param[in,out]	space		tablespace from fil_space_create()
 @param[in]	is_raw		whether this is a raw device or partition
-@param[in]	punch_hole	true if supported for this node
 @param[in]	atomic_write	true if the file could use atomic write
 @param[in]	max_pages	maximum number of pages in file,
 ULINT_MAX means the file size is unlimited.
@@ -494,7 +493,6 @@ fil_node_create_low(
 	ulint		size,
 	fil_space_t*	space,
 	bool		is_raw,
-	bool		punch_hole,
 	bool		atomic_write,
 	ulint		max_pages = ULINT_MAX)
 {
@@ -544,26 +542,6 @@ fil_node_create_low(
 
 	node->block_size = stat_info.block_size;
 
-	/* In this debugging mode, we can overcome the limitation of some
-	OSes like Windows that support Punch Hole but have a hole size
-	effectively too large.  By setting the block size to be half the
-	page size, we can bypass one of the checks that would normally
-	turn Page Compression off.  This execution mode allows compression
-	to be tested even when full punch hole support is not available. */
-	DBUG_EXECUTE_IF("ignore_punch_hole",
-		node->block_size = ut_min(stat_info.block_size,
-					  static_cast<size_t>(UNIV_PAGE_SIZE / 2));
-	);
-
-	if (!IORequest::is_punch_hole_supported()
-	    || !punch_hole
-	    || node->block_size >= srv_page_size) {
-
-		fil_no_punch_hole(node);
-	} else {
-		node->punch_hole = punch_hole;
-	}
-
 	node->atomic_write = atomic_write;
 
 	UT_LIST_ADD_LAST(space->chain, node);
@@ -595,8 +573,7 @@ fil_node_create(
 	fil_node_t*	node;
 
 	node = fil_node_create_low(
-		name, size, space, is_raw, IORequest::is_punch_hole_supported(),
-		atomic_write, max_pages);
+		name, size, space, is_raw, atomic_write, max_pages);
 
 	return(node == NULL ? NULL : node->name);
 }
@@ -3868,23 +3845,6 @@ fil_ibd_create(
 		return(DB_OUT_OF_FILE_SPACE);
 	}
 
-	/* Note: We are actually punching a hole, previous contents will
-	be lost after this call, if it succeeds. In this case the file
-	should be full of NULs. */
-
-	bool	punch_hole = os_is_sparse_file_supported(path, file);
-
-	if (punch_hole) {
-
-		dberr_t	punch_err;
-
-		punch_err = os_file_punch_hole(file, 0, size * UNIV_PAGE_SIZE);
-
-		if (punch_err != DB_SUCCESS) {
-			punch_hole = false;
-		}
-	}
-
 	/* printf("Creating tablespace %s id %lu\n", path, space_id); */
 
 	/* We have to write the space id to the file immediately and flush the
@@ -3920,9 +3880,6 @@ fil_ibd_create(
 
 		err = os_file_write(
 			request, path, file, page, 0, page_size.physical());
-
-		ut_ad(err != DB_IO_NO_PUNCH_HOLE);
-
 	} else {
 		page_zip_des_t	page_zip;
 		page_zip_set_size(&page_zip, page_size.physical());
@@ -3940,10 +3897,6 @@ fil_ibd_create(
 		err = os_file_write(
 			request, path, file, page_zip.data, 0,
 			page_size.physical());
-
-		ut_a(err != DB_IO_NO_PUNCH_HOLE);
-
-		punch_hole = false;
 	}
 
 	ut_free(buf2);
@@ -3993,8 +3946,7 @@ fil_ibd_create(
 		? FIL_TYPE_TEMPORARY : FIL_TYPE_TABLESPACE,
 		crypt_data, true);
 
-	if (!fil_node_create_low(
-			path, size, space, false, punch_hole, TRUE)) {
+	if (!fil_node_create_low(path, size, space, false, true)) {
 
 		if (crypt_data) {
 			free(crypt_data);
@@ -4387,7 +4339,7 @@ skip_validate:
 			    df_remote.is_open() ? df_remote.filepath() :
 			    df_dict.is_open() ? df_dict.filepath() :
 			    df_default.filepath(), 0, space, false,
-			    true, TRUE) == NULL) {
+			    true) == NULL) {
 			err = DB_ERROR;
 		}
 	}
@@ -4750,8 +4702,7 @@ fil_ibd_load(
 	the rounding formula for extents and pages is somewhat complex; we
 	let fil_node_open() do that task. */
 
-	if (!fil_node_create_low(file.filepath(), 0, space,
-				 false, true, false)) {
+	if (!fil_node_create_low(file.filepath(), 0, space, false, false)) {
 		ut_error;
 	}
 
@@ -5487,29 +5438,6 @@ fil_io(
 
 	const char* name = node->name == NULL ? space->name : node->name;
 
-#ifdef MYSQL_COMPRESSION
-	/* Don't compress the log, page 0 of all tablespaces, tables
-	compresssed with the old scheme and all pages from the system
-	tablespace. */
-
-	if (req_type.is_write()
-	    && !req_type.is_log()
-	    && !page_size.is_compressed()
-	    && page_id.page_no() > 0
-	    && IORequest::is_punch_hole_supported()
-	    && node->punch_hole) {
-
-		ut_ad(!req_type.is_log());
-
-		req_type.set_punch_hole();
-
-		req_type.compression_algorithm(space->compression_type);
-
-	} else {
-		req_type.clear_compressed();
-	}
-#endif /* MYSQL_COMPRESSION */
-
 	req_type.block_size(node->block_size);
 
 	/* Queue the aio request */
@@ -5519,20 +5447,6 @@ fil_io(
 		space->purpose != FIL_TYPE_TEMPORARY
 		&& srv_read_only_mode,
 		node, message, write_size);
-
-	if (err == DB_IO_NO_PUNCH_HOLE) {
-
-		err = DB_SUCCESS;
-
-		if (node->punch_hole) {
-
-			ib::warn()
-				<< "Punch hole failed for '"
-				<< name << "'";
-		}
-
-		fil_no_punch_hole(node);
-	}
 
 	/* We an try to recover the page from the double write buffer if
 	the decompression fails or the page is corrupt. */
@@ -6160,17 +6074,8 @@ fil_iterate(
 				iter.filepath, iter.file, writeptr,
 				offset, (ulint) n_bytes)) != DB_SUCCESS) {
 
-			/* This is not a hard error */
-			if (err == DB_IO_NO_PUNCH_HOLE) {
-
-				err = DB_SUCCESS;
-				write_type &= ~IORequest::PUNCH_HOLE;
-
-			} else {
-				ib::error() << "os_file_write() failed";
-
-				return(err);
-			}
+			ib::error() << "os_file_write() failed";
+			return(err);
 		}
 	}
 
@@ -6796,111 +6701,6 @@ truncate_t::truncate(
 
 	return(err);
 }
-
-/**
-Note that the file system where the file resides doesn't support PUNCH HOLE.
-Called from AIO handlers when IO returns DB_IO_NO_PUNCH_HOLE
-@param[in,out]	node		Node to set */
-void
-fil_no_punch_hole(fil_node_t* node)
-{
-	node->punch_hole = false;
-}
-
-#ifdef MYSQL_COMPRESSION
-
-/** Set the compression type for the tablespace of a table
-@param[in]	table		The table that should be compressed
-@param[in]	algorithm	Text representation of the algorithm
-@return DB_SUCCESS or error code */
-dberr_t
-fil_set_compression(
-	dict_table_t*	table,
-	const char*	algorithm)
-{
-	ut_ad(table != NULL);
-
-	/* We don't support Page Compression for the system tablespace,
-	the temporary tablespace, or any general tablespace because
-	COMPRESSION is set by TABLE DDL, not TABLESPACE DDL. There is
-	no other technical reason.  Also, do not use it for missing
-	tables or tables with compressed row_format. */
-	if (table->ibd_file_missing
-	    || !DICT_TF2_FLAG_IS_SET(table, DICT_TF2_USE_FILE_PER_TABLE)
-	    || DICT_TF2_FLAG_IS_SET(table, DICT_TF2_TEMPORARY)
-	    || page_size_t(table->flags).is_compressed()) {
-
-		return(DB_IO_NO_PUNCH_HOLE_TABLESPACE);
-	}
-
-	dberr_t		err;
-	Compression	compression;
-
-	if (algorithm == NULL || strlen(algorithm) == 0) {
-
-#ifndef UNIV_DEBUG
-		compression.m_type = Compression::NONE;
-#else
-		/* This is a Debug tool for setting compression on all
-		compressible tables not otherwise specified. */
-		switch (srv_debug_compress) {
-		case Compression::LZ4:
-		case Compression::ZLIB:
-		case Compression::NONE:
-
-			compression.m_type =
-				static_cast<Compression::Type>(
-					srv_debug_compress);
-			break;
-
-		default:
-			compression.m_type = Compression::NONE;
-		}
-
-#endif /* UNIV_DEBUG */
-
-		err = DB_SUCCESS;
-
-	} else {
-
-		err = Compression::check(algorithm, &compression);
-	}
-
-	fil_space_t*	space = fil_space_get(table->space);
-
-	if (space == NULL) {
-		return(DB_NOT_FOUND);
-	}
-
-	space->compression_type = compression.m_type;
-
-	if (space->compression_type != Compression::NONE) {
-
-		const fil_node_t* node;
-
-		node = UT_LIST_GET_FIRST(space->chain);
-
-		if (!node->punch_hole) {
-
-			return(DB_IO_NO_PUNCH_HOLE_FS);
-		}
-	}
-
-	return(err);
-}
-
-/** Get the compression algorithm for a tablespace.
-@param[in]	space_id	Space ID to check
-@return the compression algorithm */
-Compression::Type
-fil_get_compression(
-	ulint	space_id)
-{
-	fil_space_t*	space = fil_space_get(space_id);
-
-	return(space == NULL ? Compression::NONE : space->compression_type);
-}
-#endif /* MYSQL_COMPRESSION */
 
 /** Build the basic folder name from the path and length provided
 @param[in]	path	pathname (may also include the file basename)

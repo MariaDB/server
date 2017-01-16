@@ -682,30 +682,7 @@ Datafile::find_space_id()
 			err = os_file_read(
 				request, m_handle, page, n_bytes, page_size);
 
-			if (err == DB_IO_DECOMPRESS_FAIL) {
-
-				/* If the page was compressed on the fly then
-				try and decompress the page */
-
-				n_bytes = os_file_compressed_page_size(page);
-
-				if (n_bytes != ULINT_UNDEFINED) {
-
-					err = os_file_read(
-						request,
-						m_handle, page, page_size,
-						UNIV_PAGE_SIZE_MAX);
-
-					if (err != DB_SUCCESS) {
-
-						ib::info()
-							<< "READ FAIL: "
-							<< "page_no:" << j;
-						continue;
-					}
-				}
-
-			} else if (err != DB_SUCCESS) {
+			if (err != DB_SUCCESS) {
 
 				ib::info()
 					<< "READ FAIL: page_no:" << j;
@@ -837,11 +814,6 @@ Datafile::restore_from_doublewrite(
 		<< m_filepath << "'";
 
 	IORequest	request(IORequest::WRITE);
-
-	/* Note: The pages are written out as uncompressed because we don't
-	have the compression algorithm information at this point. */
-
-	request.disable_compression();
 
 	return(os_file_write(
 			request,

@@ -395,8 +395,6 @@ public:
 
 		IORequest	request(IORequest::WRITE);
 
-		request.disable_compression();
-
 		io_err = os_file_write(
 			request, m_log_file_name, handle, log_buf, 0, sz);
 
@@ -487,8 +485,6 @@ public:
 		dberr_t	err;
 
 		IORequest	request(IORequest::WRITE);
-
-		request.disable_compression();
 
 		err = os_file_write(
 			request,
@@ -670,8 +666,6 @@ TruncateLogParser::parse(
 	}
 
 	IORequest	request(IORequest::READ);
-
-	request.disable_compression();
 
 	/* Align the memory for file i/o if we might have O_DIRECT set*/
 	byte*	log_buf = static_cast<byte*>(ut_align(buf, UNIV_PAGE_SIZE));

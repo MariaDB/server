@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (C) 2013, 2016, MariaDB Corporation. All Rights Reserved.
+Copyright (C) 2013, 2017, MariaDB Corporation. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -415,21 +415,23 @@ fil_decompress_page(
 	ulint compression_alg = 0;
 	byte *in_buf;
 	ulint ptype;
-	ulint header_len = FIL_PAGE_DATA + FIL_PAGE_COMPRESSED_SIZE;
+	ulint header_len;
 
 	ut_ad(buf);
 	ut_ad(len);
 
 	ptype = mach_read_from_2(buf+FIL_PAGE_TYPE);
 
-	if (ptype == FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED) {
-		header_len += FIL_PAGE_COMPRESSION_METHOD_SIZE;
-	}
-
-	/* Do not try to uncompressed pages that are not compressed */
-	if (ptype !=  FIL_PAGE_PAGE_COMPRESSED &&
-		ptype != FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED &&
-		ptype != FIL_PAGE_COMPRESSED) {
+	switch (ptype) {
+	case FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED:
+		header_len = FIL_PAGE_DATA + FIL_PAGE_COMPRESSED_SIZE
+			+ FIL_PAGE_COMPRESSION_METHOD_SIZE;
+		break;
+	case FIL_PAGE_PAGE_COMPRESSED:
+		header_len = FIL_PAGE_DATA + FIL_PAGE_COMPRESSED_SIZE;
+		break;
+	default:
+		/* The page is not in our format. */
 		return;
 	}
 
@@ -443,9 +445,7 @@ fil_decompress_page(
 
 	/* Before actual decompress, make sure that page type is correct */
 
-	if (mach_read_from_4(buf+FIL_PAGE_SPACE_OR_CHKSUM) != BUF_NO_CHECKSUM_MAGIC ||
-		(ptype != FIL_PAGE_PAGE_COMPRESSED &&
-		 ptype != FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED)) {
+	if (mach_read_from_4(buf+FIL_PAGE_SPACE_OR_CHKSUM) != BUF_NO_CHECKSUM_MAGIC) {
 		ib::error() << "Corruption: We try to uncompress corrupted page:"
 			    << " CRC "
 			    << mach_read_from_4(buf+FIL_PAGE_SPACE_OR_CHKSUM)

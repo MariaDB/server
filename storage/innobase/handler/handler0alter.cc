@@ -4358,7 +4358,6 @@ prepare_inplace_alter_table_dict(
 	dict_index_t*		fts_index	= NULL;
 	ulint			new_clustered	= 0;
 	dberr_t			error;
-	const char*		punch_hole_warning = NULL;
 	ulint			num_fts_index;
 	dict_add_v_col_t*	add_v = NULL;
 	ha_innobase_inplace_ctx*ctx;
@@ -4534,7 +4533,6 @@ prepare_inplace_alter_table_dict(
 		ulint		z = 0;
 		ulint		key_id = FIL_DEFAULT_ENCRYPTION_KEY;
 		fil_encryption_t mode = FIL_SPACE_ENCRYPTION_DEFAULT;
-		const char*	compression=NULL;
 
 		crypt_data = fil_space_get_crypt_data(ctx->prebuilt->table->space);
 
@@ -4732,39 +4730,11 @@ prepare_inplace_alter_table_dict(
 			ctx->new_table->fts->doc_col = fts_doc_id_col;
 		}
 
-#ifdef MYSQL_COMPRESSION
-		compression = ha_alter_info->create_info->compress.str;
-
-		if (Compression::validate(compression) != DB_SUCCESS) {
-
-			compression = NULL;
-		}
-#endif /* MYSQL_COMPRESSION */
-
 		error = row_create_table_for_mysql(
-			ctx->new_table, compression, ctx->trx, false, mode, key_id);
-
-		punch_hole_warning =
-			(error == DB_IO_NO_PUNCH_HOLE_FS)
-			? "Punch hole is not supported by the file system"
-			: "Page Compression is not supported for this"
-			  " tablespace";
+			ctx->new_table, ctx->trx, false, mode, key_id);
 
 		switch (error) {
 			dict_table_t*	temp_table;
-		case DB_IO_NO_PUNCH_HOLE_FS:
-		case DB_IO_NO_PUNCH_HOLE_TABLESPACE:
-			push_warning_printf(
-				ctx->prebuilt->trx->mysql_thd,
-				Sql_condition::WARN_LEVEL_WARN,
-				HA_ERR_UNSUPPORTED,
-				"%s. Compression disabled for '%s'",
-				punch_hole_warning,
-				ctx->new_table->name.m_name);
-
-			error = DB_SUCCESS;
-
-
 		case DB_SUCCESS:
 			/* We need to bump up the table ref count and
 			before we can use it we need to open the
@@ -9077,10 +9047,6 @@ foreign_fail:
 					  crash_inject_count++);
 		}
 	}
-
-	/* We don't support compression for the system tablespace nor
-	the temporary tablespace. Only because they are shared tablespaces.
-	There is no other technical reason. */
 
 	innobase_parse_hint_from_comment(
 		m_user_thd, m_prebuilt->table, altered_table->s);

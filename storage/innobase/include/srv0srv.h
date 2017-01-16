@@ -731,11 +731,6 @@ enum srv_stats_method_name_enum {
 
 typedef enum srv_stats_method_name_enum		srv_stats_method_name_t;
 
-#ifdef UNIV_DEBUG
-/** Force all user tables to use page compression. */
-extern ulong	srv_debug_compress;
-#endif /* UNIV_DEBUG */
-
 /** Types of threads existing in the system. */
 enum srv_thread_type {
 	SRV_NONE,			/*!< None */

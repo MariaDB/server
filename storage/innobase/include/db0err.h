@@ -146,18 +146,6 @@ enum dberr_t {
 
 	DB_IO_ERROR = 100,		/*!< Generic IO error */
 
-	DB_IO_DECOMPRESS_FAIL,		/*!< Failure to decompress a page
-					after reading it from disk */
-
-	DB_IO_NO_PUNCH_HOLE,		/*!< Punch hole not supported by
-					InnoDB */
-
-	DB_IO_NO_PUNCH_HOLE_FS,		/*!< The file system doesn't support
-					punch hole */
-
-	DB_IO_NO_PUNCH_HOLE_TABLESPACE,	/*!< The tablespace doesn't support
-					punch hole */
-
 	DB_IO_PARTIAL_FAILED,		/*!< Partial IO request failed */
 
 	DB_FORCED_ABORT,		/*!< Transaction was forced to rollback

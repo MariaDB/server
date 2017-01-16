@@ -703,8 +703,6 @@ namespace undo {
 
 		IORequest	request(IORequest::WRITE);
 
-		request.disable_compression();
-
 		err = os_file_write(
 			request, log_file_name, handle, log_buf, 0, sz);
 
@@ -767,8 +765,6 @@ namespace undo {
 		mach_write_to_4(log_buf, undo::s_magic);
 
 		IORequest	request(IORequest::WRITE);
-
-		request.disable_compression();
 
 		err = os_file_write(
 			request, log_file_name, handle, log_buf, 0, sz);
@@ -836,8 +832,6 @@ namespace undo {
 				ut_align(buf, UNIV_PAGE_SIZE));
 
 			IORequest	request(IORequest::READ);
-
-			request.disable_compression();
 
 			dberr_t	err;
 

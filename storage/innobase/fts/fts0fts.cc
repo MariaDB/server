@@ -1838,7 +1838,7 @@ fts_create_one_common_table(
 			FTS_CONFIG_TABLE_VALUE_COL_LEN);
 	}
 
-	error = row_create_table_for_mysql(new_table, NULL, trx, false,
+	error = row_create_table_for_mysql(new_table, trx, false,
 		FIL_SPACE_ENCRYPTION_DEFAULT, FIL_DEFAULT_ENCRYPTION_KEY);
 
 	if (error == DB_SUCCESS) {
@@ -2055,7 +2055,7 @@ fts_create_one_index_table(
 		(DATA_MTYPE_MAX << 16) | DATA_UNSIGNED | DATA_NOT_NULL,
 		FTS_INDEX_ILIST_LEN);
 
-	error = row_create_table_for_mysql(new_table, NULL, trx, false,
+	error = row_create_table_for_mysql(new_table, trx, false,
 		FIL_SPACE_ENCRYPTION_DEFAULT, FIL_DEFAULT_ENCRYPTION_KEY);
 
 	if (error == DB_SUCCESS) {

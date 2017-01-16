@@ -1454,14 +1454,6 @@ innobase_start_or_create_for_mysql(void)
 	}
 #endif /* HAVE_LZO1X */
 
-#ifdef UNIV_LINUX
-# ifdef HAVE_FALLOC_PUNCH_HOLE_AND_KEEP_SIZE
-	ib::info() << "PUNCH HOLE support available";
-# else
-	ib::info() << "PUNCH HOLE support not available";
-# endif /* HAVE_FALLOC_PUNCH_HOLE_AND_KEEP_SIZE */
-#endif /* UNIV_LINUX */
-
 	if (sizeof(ulint) != sizeof(void*)) {
 		ib::error() << "Size of InnoDB's ulint is " << sizeof(ulint)
 			<< ", but size of void* is " << sizeof(void*)
