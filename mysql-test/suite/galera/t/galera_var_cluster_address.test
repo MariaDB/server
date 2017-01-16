@@ -9,6 +9,7 @@
 --let $node_1=node_1
 --let $node_2=node_2
 --source include/auto_increment_offset_save.inc
+
 #
 # Set to invalid value
 # 
@@ -73,3 +74,4 @@ CALL mtr.add_suppression("WSREP: wsrep::connect\\(foo://\\) failed: 7");
 --source include/auto_increment_offset_restore.inc
 
 --source include/galera_end.inc
+--echo # End of test

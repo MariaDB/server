@@ -208,13 +208,6 @@ shell_quote_string() {
   echo "$1" | sed -e 's,\([^a-zA-Z0-9/_.=-]\),\\\1,g'
 }
 
-check_executable_location() {
-  if test "$unsafe_my_cnf" = 1 -a "$unrecognized_handling" != collect; then
-    log_error "Cannot accept $1 from a config file, when my.cnf is in the datadir"
-    exit 1
-  fi
-}
-
 wsrep_pick_url() {
   [ $# -eq 0 ] && return 0
 
@@ -296,6 +289,13 @@ wsrep_recover_position() {
   [ $ret -eq 0 ] && rm $wr_logfile
 
   return $ret
+}
+
+check_executable_location() {
+  if test "$unsafe_my_cnf" = 1 -a "$unrecognized_handling" != collect; then
+    log_error "Cannot accept $1 from a config file, when my.cnf is in the datadir"
+    exit 1
+  fi
 }
 
 parse_arguments() {
@@ -996,7 +996,6 @@ else
   exec 1>&-
   exec 2>&-
 fi
-
 
 # maximum number of wsrep restarts
 max_wsrep_restarts=0
