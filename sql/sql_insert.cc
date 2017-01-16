@@ -304,6 +304,32 @@ static int check_insert_fields(THD *thd, TABLE_LIST *table_list,
   DBUG_RETURN(0);
 }
 
+static bool has_no_default_value(THD *thd, Field *field, TABLE_LIST *table_list)
+{
+  if ((field->flags & NO_DEFAULT_VALUE_FLAG) && field->real_type() != MYSQL_TYPE_ENUM)
+  {
+    bool view= false;
+    if (table_list)
+    {
+      table_list= table_list->top_table();
+      view= table_list->view != NULL;
+    }
+    if (view)
+    {
+      push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN, ER_NO_DEFAULT_FOR_VIEW_FIELD,
+                          ER_THD(thd, ER_NO_DEFAULT_FOR_VIEW_FIELD),
+                          table_list->view_db.str, table_list->view_name.str);
+    }
+    else
+    {
+      push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN, ER_NO_DEFAULT_FOR_FIELD,
+                          ER_THD(thd, ER_NO_DEFAULT_FOR_FIELD), field->field_name);
+    }
+    return true;
+  }
+  return false;
+}
+
 
 /**
   Check if update fields are correct.
@@ -733,13 +759,10 @@ bool mysql_insert(THD *thd,TABLE_LIST *table_list,
 
   if (mysql_prepare_insert(thd, table_list, table, fields, values,
 			   update_fields, update_values, duplic, &unused_conds,
-                           FALSE,
-                           (fields.elements || !value_count ||
-                            table_list->view != 0),
-                           !ignore && thd->is_strict_mode()))
+                           FALSE))
     goto abort;
 
-  /* mysql_prepare_insert set table_list->table if it was not set */
+  /* mysql_prepare_insert sets table_list->table if it was not set */
   table= table_list->table;
 
   context= &thd->lex->select_lex.context;
@@ -866,6 +889,14 @@ bool mysql_insert(THD *thd,TABLE_LIST *table_list,
   table->prepare_triggers_for_insert_stmt_or_event();
   table->mark_columns_needed_for_insert();
 
+  if (fields.elements || !value_count || table_list->view != 0)
+  {
+    if (check_that_all_fields_are_given_values(thd, table, table_list))
+    {
+      error= 1;
+      goto values_loop_end;
+    }
+  }
 
   if (table_list->prepare_where(thd, 0, TRUE) ||
       table_list->prepare_check_option(thd))
@@ -964,6 +995,23 @@ bool mysql_insert(THD *thd,TABLE_LIST *table_list,
     {
       error= 1;
       break;
+    }
+    /*
+      with triggers a field can get a value *conditionally*, so we have to repeat
+      has_no_default_value() check for every row
+    */
+    if (table->triggers &&
+        table->triggers->has_triggers(TRG_EVENT_INSERT, TRG_ACTION_BEFORE))
+    {
+      for (Field **f=table->field ; *f ; f++)
+      {
+        if (!((*f)->flags & HAS_EXPLICIT_VALUE) && has_no_default_value(thd, *f, table_list))
+        {
+          error= 1;
+          goto values_loop_end;
+        }
+        (*f)->flags &= ~HAS_EXPLICIT_VALUE;
+      }
     }
 
     if ((res= table_list->view_check_option(thd,
@@ -1374,10 +1422,6 @@ static void prepare_for_positional_update(TABLE *table, TABLE_LIST *tables)
 			be taken from table_list->table)    
     where		Where clause (for insert ... select)
     select_insert	TRUE if INSERT ... SELECT statement
-    check_fields        TRUE if need to check that all INSERT fields are 
-                        given values.
-    abort_on_warning    whether to report if some INSERT field is not 
-                        assigned as an error (TRUE) or as a warning (FALSE).
 
   TODO (in far future)
     In cases of:
@@ -1397,9 +1441,8 @@ static void prepare_for_positional_update(TABLE *table, TABLE_LIST *tables)
 bool mysql_prepare_insert(THD *thd, TABLE_LIST *table_list,
                           TABLE *table, List<Item> &fields, List_item *values,
                           List<Item> &update_fields, List<Item> &update_values,
-                          enum_duplicates duplic,
-                          COND **where, bool select_insert,
-                          bool check_fields, bool abort_on_warning)
+                          enum_duplicates duplic, COND **where,
+                          bool select_insert)
 {
   SELECT_LEX *select_lex= &thd->lex->select_lex;
   Name_resolution_context *context= &select_lex->context;
@@ -1469,17 +1512,6 @@ bool mysql_prepare_insert(THD *thd, TABLE_LIST *table_list,
     res= (setup_fields(thd, 0, *values, MARK_COLUMNS_READ, 0, 0) ||
           check_insert_fields(thd, context->table_list, fields, *values,
                               !insert_into_view, 0, &map));
-
-    if (!res && check_fields)
-    {
-      bool saved_abort_on_warning= thd->abort_on_warning;
-      thd->abort_on_warning= abort_on_warning;
-      res= check_that_all_fields_are_given_values(thd, 
-                                                  table ? table : 
-                                                  context->table_list->table,
-                                                  context->table_list);
-      thd->abort_on_warning= saved_abort_on_warning;
-    }
 
     if (!res)
       res= setup_fields(thd, 0, update_values, MARK_COLUMNS_READ, 0, 0);
@@ -1923,8 +1955,8 @@ before_trg_err:
   Check that all fields with arn't null_fields are used
 ******************************************************************************/
 
-int check_that_all_fields_are_given_values(THD *thd, TABLE *entry,
-                                           TABLE_LIST *table_list)
+
+int check_that_all_fields_are_given_values(THD *thd, TABLE *entry, TABLE_LIST *table_list)
 {
   int err= 0;
   MY_BITMAP *write_set= entry->write_set;
@@ -1932,32 +1964,8 @@ int check_that_all_fields_are_given_values(THD *thd, TABLE *entry,
   for (Field **field=entry->field ; *field ; field++)
   {
     if (!bitmap_is_set(write_set, (*field)->field_index) &&
-        ((*field)->flags & NO_DEFAULT_VALUE_FLAG) &&
-        ((*field)->real_type() != MYSQL_TYPE_ENUM))
-    {
-      bool view= FALSE;
-      if (table_list)
-      {
-        table_list= table_list->top_table();
-        view= MY_TEST(table_list->view);
-      }
-      if (view)
-      {
-        push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-                            ER_NO_DEFAULT_FOR_VIEW_FIELD,
-                            ER_THD(thd, ER_NO_DEFAULT_FOR_VIEW_FIELD),
-                            table_list->view_db.str,
-                            table_list->view_name.str);
-      }
-      else
-      {
-        push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-                            ER_NO_DEFAULT_FOR_FIELD,
-                            ER_THD(thd, ER_NO_DEFAULT_FOR_FIELD),
-                            (*field)->field_name);
-      }
-      err= 1;
-    }
+        has_no_default_value(thd, *field, table_list))
+      err=1;
   }
   return thd->abort_on_warning ? err : 0;
 }
@@ -3390,9 +3398,8 @@ bool mysql_insert_select_prepare(THD *thd)
   
   if (mysql_prepare_insert(thd, lex->query_tables,
                            lex->query_tables->table, lex->field_list, 0,
-                           lex->update_list, lex->value_list,
-                           lex->duplicates,
-                           &select_lex->where, TRUE, FALSE, FALSE))
+                           lex->update_list, lex->value_list, lex->duplicates,
+                           &select_lex->where, TRUE))
     DBUG_RETURN(TRUE);
 
   DBUG_ASSERT(select_lex->leaf_tables.elements != 0);
@@ -3479,8 +3486,7 @@ select_insert::prepare(List<Item> &values, SELECT_LEX_UNIT *u)
   {
     bool saved_abort_on_warning= thd->abort_on_warning;
     thd->abort_on_warning= !info.ignore && thd->is_strict_mode();
-    res= check_that_all_fields_are_given_values(thd, table_list->table, 
-                                                table_list);
+    res= check_that_all_fields_are_given_values(thd, table_list->table, table_list);
     thd->abort_on_warning= saved_abort_on_warning;
   }
 
