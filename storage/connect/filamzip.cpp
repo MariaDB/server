@@ -19,6 +19,7 @@
 #include "my_global.h"
 #if !defined(__WIN__)
 #if defined(UNIX)
+#include <fnmatch.h>
 #include <errno.h>
 #include <unistd.h>
 #else    // !UNIX
