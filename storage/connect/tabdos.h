@@ -28,6 +28,7 @@ class DllExport DOSDEF : public TABDEF {  /* Logical table description */
   friend class TDBFIX;
   friend class TXTFAM;
   friend class DBFBASE;
+	friend class ZIPUTIL;
  public:
   // Constructor
   DOSDEF(void);
@@ -40,7 +41,9 @@ class DllExport DOSDEF : public TABDEF {  /* Logical table description */
   virtual bool        IsHuge(void) {return Huge;}
   PSZ     GetFn(void) {return Fn;}
   PSZ     GetOfn(void) {return Ofn;}
-  void    SetBlock(int block) {Block = block;}
+	PSZ     GetEntry(void) {return Entry;}
+	bool    GetMul(void) {return Mulentries;}
+	void    SetBlock(int block) {Block = block;}
   int     GetBlock(void) {return Block;}
   int     GetLast(void) {return Last;}
   void    SetLast(int last) {Last = last;}
@@ -57,9 +60,9 @@ class DllExport DOSDEF : public TABDEF {  /* Logical table description */
   int    *GetTo_Pos(void) {return To_Pos;}
 
   // Methods
-  virtual int  Indexable(void)
-          {return (!Multiple && Compressed != 1) ? 1 : 0;}
-  virtual bool DeleteIndexFile(PGLOBAL g, PIXDEF pxdf);
+	virtual int  Indexable(void)
+  	{return (!Multiple && !Mulentries && Compressed != 1) ? 1 : 0;}
+	virtual bool DeleteIndexFile(PGLOBAL g, PIXDEF pxdf);
   virtual bool DefineAM(PGLOBAL g, LPCSTR am, int poff);
   virtual PTDB GetTable(PGLOBAL g, MODE mode);
           bool InvalidateIndex(PGLOBAL g);
@@ -72,10 +75,13 @@ class DllExport DOSDEF : public TABDEF {  /* Logical table description */
   // Members
   PSZ     Fn;                 /* Path/Name of corresponding file       */
   PSZ     Ofn;                /* Base Path/Name of matching index files*/
-  PIXDEF  To_Indx;            /* To index definitions blocks           */
+	PSZ     Entry;						  /* Zip entry name or pattern						 */
+	PIXDEF  To_Indx;            /* To index definitions blocks           */
   RECFM   Recfm;              /* 0:VAR, 1:FIX, 2:BIN, 3:VCT, 6:DBF     */
   bool    Mapped;             /* 0: disk file, 1: memory mapped file   */
-  bool    Padded;             /* true for padded table file            */
+	bool    Zipped;             /* true for zipped table file            */
+	bool    Mulentries;         /* true for multiple entries             */
+	bool    Padded;             /* true for padded table file            */
   bool    Huge;               /* true for files larger than 2GB        */
   bool    Accept;             /* true if wrong lines are accepted      */
   bool    Eof;                /* true if an EOF (0xA) character exists */
@@ -91,7 +97,7 @@ class DllExport DOSDEF : public TABDEF {  /* Logical table description */
   int     Maxerr;             /* Maximum number of bad records (DBF)   */
   int     ReadMode;           /* Specific to DBF                       */
   int     Ending;             /* Length of end of lines                */
-  int     Teds;               /* Binary table default endian setting   */
+  char    Teds;               /* Binary table default endian setting   */
   }; // end of DOSDEF
 
 /***********************************************************************/

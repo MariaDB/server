@@ -48,7 +48,7 @@ IF (WIN32)
 ENDIF()
 
 IF(UNIX)
- SET (MYSYS_SOURCES ${MYSYS_SOURCES} my_addr_resolve.c)
+ SET (MYSYS_SOURCES ${MYSYS_SOURCES} my_addr_resolve.c my_setuser.c)
 ENDIF()
 
 IF(HAVE_ALARM)

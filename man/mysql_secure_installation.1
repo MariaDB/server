@@ -1,6 +1,6 @@
 '\" t
 .\"
-.TH "\FBMYSQL_SECURE_INST" "1" "14/12/2015" "MariaDB 10\&.1" "MariaDB Database System"
+.TH "\FBMYSQL_SECURE_INST" "1" "3 January 2017" "MariaDB 10\&.1" "MariaDB Database System"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -71,9 +71,8 @@ test
 database, which by default can be accessed by anonymous users\&.
 .RE
 .PP
-Invoke
 \fBmysql_secure_installation\fR
-without arguments:
+can be invoked without arguments:
 .sp
 .if n \{\
 .RS 4
@@ -86,10 +85,75 @@ shell> \fBmysql_secure_installation\fR
 .\}
 .PP
 The script will prompt you to determine which actions to perform\&.
+.PP
+\fBmysql_secure_installation\fR
+accepts some options:
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysql_secure_installation: basedir option
+.\" basedir option: mysql_secure_installation
+\fB\-\-basedir=\fR\fB\fIdir_name\fR\fR
+.sp
+Base directory\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysql_secure_installation: defaults-extra-file option
+.\" defaults-extra-file option: mysql_secure_installation
+\fB\-\-defaults\-extra\-file=\fR\fB\fIfile_name\fR\fR
+.sp
+Additional option file\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysql_secure_installation: defaults-file option
+.\" defaults-file option: mysql_secure_installation
+\fB\-\-defaults\-file=\fR\fB\fIfile_name\fR\fR
+.sp
+Option file\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysql_secure_installation: no-defaults option
+.\" no-defaults option: mysql_secure_installation
+\fB\-\-no\-defaults\fR
+.sp
+Don't read any defaults file\&.
+.RE
+.sp
+Other unrecognized options will be passed on to the server\&.
 .SH "COPYRIGHT"
 .br
 .PP
-Copyright 2007-2008 MySQL AB, 2008-2010 Sun Microsystems, Inc., 2010-2015 MariaDB Foundation
+Copyright 2007-2008 MySQL AB, 2008-2010 Sun Microsystems, Inc., 2010-2017 MariaDB Foundation
 .PP
 This documentation is free software; you can redistribute it and/or modify it only under the terms of the GNU General Public License as published by the Free Software Foundation; version 2 of the License.
 .PP

@@ -5470,11 +5470,8 @@ end_with_restore_list:
     }
   case SQLCOM_SHOW_CREATE_TRIGGER:
     {
-      if (lex->spname->m_name.length > NAME_LEN)
-      {
-        my_error(ER_TOO_LONG_IDENT, MYF(0), lex->spname->m_name.str);
+      if (check_ident_length(&lex->spname->m_name))
         goto error;
-      }
 
 #ifdef WITH_WSREP
       if (WSREP_CLIENT(thd) && wsrep_sync_wait(thd)) goto error;
@@ -9100,6 +9097,18 @@ bool check_string_char_length(LEX_STRING *str, uint err_msg,
   }
   return TRUE;
 }
+
+
+bool check_ident_length(LEX_STRING *ident)
+{
+  if (check_string_char_length(ident, 0, NAME_CHAR_LEN, system_charset_info, 1))
+  {
+    my_error(ER_TOO_LONG_IDENT, MYF(0), ident->str);
+    return 1;
+  }
+  return 0;
+}
+
 
 C_MODE_START
 

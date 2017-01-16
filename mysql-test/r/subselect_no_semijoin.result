@@ -7152,6 +7152,17 @@ NULL
 drop view v2;
 drop table t1,t2;
 #
+# MDEV-10386 Assertion `fixed == 1' failed in virtual String* Item_func_conv_charset::val_str(String*)
+#
+CREATE TABLE t1 (f1 CHAR(3) CHARACTER SET utf8 NULL, f2 CHAR(3) CHARACTER SET latin1 NULL);
+INSERT INTO t1 VALUES ('foo','bar');
+SELECT * FROM t1 WHERE f2 >= SOME ( SELECT f1 FROM t1 );
+f1	f2
+SELECT * FROM t1 WHERE f2 <= SOME ( SELECT f1 FROM t1 );
+f1	f2
+foo	bar
+DROP TABLE t1;
+#
 # MDEV-9487: Server crashes in Time_and_counter_tracker::incr_loops
 # with UNION in ALL subquery
 #

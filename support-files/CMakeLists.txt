@@ -59,6 +59,7 @@ IF(UNIX)
   IF(INSTALL_SUPPORTFILESDIR)
     INSTALL(FILES magic DESTINATION ${inst_location} COMPONENT SupportFiles)
     INSTALL(DIRECTORY policy DESTINATION ${inst_location} COMPONENT SupportFiles)
+    ADD_SUBDIRECTORY(SELinux)
   ENDIF()
 
   CONFIGURE_FILE(mariadb.pc.in ${CMAKE_CURRENT_BINARY_DIR}/mariadb.pc @ONLY)

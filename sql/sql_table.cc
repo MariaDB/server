@@ -3489,7 +3489,6 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
           sql_field->pack_length=	dup_field->pack_length;
           sql_field->key_length=	dup_field->key_length;
 	  sql_field->decimals=		dup_field->decimals;
-	  sql_field->create_length_to_internal_length();
 	  sql_field->unireg_check=	dup_field->unireg_check;
           /* 
             We're making one field from two, the result field will have
@@ -3499,6 +3498,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
           if (!(sql_field->flags & NOT_NULL_FLAG))
             null_fields--;
 	  sql_field->flags=		dup_field->flags;
+	  sql_field->create_length_to_internal_length();
           sql_field->interval=          dup_field->interval;
           sql_field->vcol_info=         dup_field->vcol_info;
           sql_field->stored_in_db=      dup_field->stored_in_db;
@@ -3625,12 +3625,8 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
       my_error(ER_TOO_MANY_KEY_PARTS,MYF(0),tmp);
       DBUG_RETURN(TRUE);
     }
-    if (check_string_char_length(&key->name, 0, NAME_CHAR_LEN,
-                                 system_charset_info, 1))
-    {
-      my_error(ER_TOO_LONG_IDENT, MYF(0), key->name.str);
+    if (check_ident_length(&key->name))
       DBUG_RETURN(TRUE);
-    }
     key_iterator2.rewind ();
     if (key->type != Key::FOREIGN_KEY)
     {
@@ -4142,7 +4138,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
     }
 
     if (thd->variables.sql_mode & MODE_NO_ZERO_DATE &&
-        !sql_field->def &&
+        !sql_field->def && !sql_field->vcol_info &&
         is_timestamp_type(sql_field->sql_type) &&
         (sql_field->flags & NOT_NULL_FLAG) &&
         (type == Field::NONE || type == Field::TIMESTAMP_UN_FIELD))
