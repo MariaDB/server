@@ -21,9 +21,7 @@
 #if defined(UNIX)
 #include <fnmatch.h>
 #include <errno.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
+#include <dirent.h>
 #include <unistd.h>
 #else    // !UNIX
 #include <io.h>
