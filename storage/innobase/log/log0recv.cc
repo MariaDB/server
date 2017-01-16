@@ -224,42 +224,6 @@ fil_name_process(
 		case FIL_LOAD_OK:
 			ut_ad(space != NULL);
 
-#ifdef MYSQL_ENCRYPTION
-			/* For encrypted tablespace, set key and iv. */
-			if (FSP_FLAGS_GET_ENCRYPTION(space->flags)
-			    && recv_sys->encryption_list != NULL) {
-				dberr_t				err;
-				encryption_list_t::iterator	it;
-
-				for (it = recv_sys->encryption_list->begin();
-				     it != recv_sys->encryption_list->end();
-				     it++) {
-					if (it->space_id == space->id) {
-						err = fil_set_encryption(
-							space->id,
-							Encryption::AES,
-							it->key,
-							it->iv);
-						if (err != DB_SUCCESS) {
-							ib::error()
-								<< "Can't set"
-								" encryption"
-								" information"
-								" for"
-								" tablespace"
-								<< space->name
-								<< "!";
-						}
-						ut_free(it->key);
-						ut_free(it->iv);
-						it->key = NULL;
-						it->iv = NULL;
-						it->space_id = 0;
-					}
-				}
-			}
-#endif /* MYSQL_ENCRYPTION */
-
 			if (f.space == NULL || f.space == space) {
 				f.name = fname.name;
 				f.space = space;
@@ -682,7 +646,6 @@ recv_sys_init(
 	/* Call the constructor for recv_sys_t::dblwr member */
 	new (&recv_sys->dblwr) recv_dblwr_t();
 
-	recv_sys->encryption_list = NULL;
 	mutex_exit(&(recv_sys->mutex));
 }
 
@@ -730,28 +693,6 @@ recv_sys_debug_free(void)
 		ut_ad(!recv_writer_thread_active);
 		os_event_reset(buf_flush_event);
 		os_event_set(recv_sys->flush_start);
-	}
-
-	if (recv_sys->encryption_list != NULL) {
-		encryption_list_t::iterator	it;
-
-		for (it = recv_sys->encryption_list->begin();
-		     it != recv_sys->encryption_list->end();
-		     it++) {
-			if (it->key != NULL) {
-				ut_free(it->key);
-				it->key = NULL;
-			}
-			if (it->iv != NULL) {
-				ut_free(it->iv);
-				it->iv = NULL;
-			}
-		}
-
-		recv_sys->encryption_list->swap(*recv_sys->encryption_list);
-
-		UT_DELETE(recv_sys->encryption_list);
-		recv_sys->encryption_list = NULL;
 	}
 
 	mutex_exit(&(recv_sys->mutex));
@@ -1101,116 +1042,6 @@ log_block_checksum_is_ok(
 	       == log_block_calc_checksum(block));
 }
 
-#ifdef MYSQL_ENCRYPTION
-
-/** Parse or process a write encryption info record.
-@param[in]	ptr		redo log record
-@param[in]	end		end of the redo log buffer
-@param[in]	space_id	the tablespace ID
-@return log record end, NULL if not a complete record */
-static
-byte*
-fil_write_encryption_parse(
-	byte*		ptr,
-	const byte*	end,
-	ulint		space_id)
-{
-	fil_space_t*	space;
-	ulint		offset;
-	ulint		len;
-	byte*		key = NULL;
-	byte*		iv = NULL;
-	bool		is_new = false;
-
-	space = fil_space_get(space_id);
-	if (space == NULL) {
-		encryption_list_t::iterator	it;
-
-		if (recv_sys->encryption_list == NULL) {
-			recv_sys->encryption_list =
-				UT_NEW_NOKEY(encryption_list_t());
-		}
-
-		for (it = recv_sys->encryption_list->begin();
-		     it != recv_sys->encryption_list->end();
-		     it++) {
-			if (it->space_id == space_id) {
-				key = it->key;
-				iv = it->iv;
-			}
-		}
-
-		if (key == NULL) {
-			key = static_cast<byte*>(ut_malloc_nokey(
-					ENCRYPTION_KEY_LEN));
-			iv = static_cast<byte*>(ut_malloc_nokey(
-					ENCRYPTION_KEY_LEN));
-			is_new = true;
-		}
-	} else {
-		key = space->encryption_key;
-		iv = space->encryption_iv;
-	}
-
-	offset = mach_read_from_2(ptr);
-	ptr += 2;
-	len = mach_read_from_2(ptr);
-
-	ptr += 2;
-	if (end < ptr + len) {
-		return(NULL);
-	}
-
-	if (offset >= UNIV_PAGE_SIZE
-	    || len + offset > UNIV_PAGE_SIZE
-	    || (len != ENCRYPTION_INFO_SIZE_V1
-		&& len != ENCRYPTION_INFO_SIZE_V2)) {
-		recv_sys->found_corrupt_log = TRUE;
-		return(NULL);
-	}
-
-#ifdef	UNIV_ENCRYPT_DEBUG
-	if (space) {
-		fprintf(stderr, "Got %lu from redo log:", space->id);
-	}
-#endif
-
-	if (!fsp_header_decode_encryption_info(key,
-					       iv,
-					       ptr)) {
-		recv_sys->found_corrupt_log = TRUE;
-		ib::warn() << "Encryption information"
-			<< " in the redo log of space "
-			<< space_id << " is invalid";
-	}
-
-	ut_ad(len == ENCRYPTION_INFO_SIZE_V1
-	      || len == ENCRYPTION_INFO_SIZE_V2);
-
-	ptr += len;
-
-	if (space == NULL) {
-		if (is_new) {
-			recv_encryption_t info;
-
-			/* Add key and iv to list */
-			info.space_id = space_id;
-			info.key = key;
-			info.iv = iv;
-
-			recv_sys->encryption_list->push_back(info);
-		}
-	} else {
-		ut_ad(FSP_FLAGS_GET_ENCRYPTION(space->flags));
-
-		space->encryption_type = Encryption::AES;
-		space->encryption_klen = ENCRYPTION_KEY_LEN;
-	}
-
-	return(ptr);
-}
-#endif /* MYSQL_ENCRYPTION */
-
 /** Try to parse a single log record body and also applies it if
 specified.
 @param[in]	type		redo log entry type
@@ -1257,20 +1088,6 @@ recv_parse_or_apply_log_rec_body(
 		return(ptr + 8);
 	case MLOG_TRUNCATE:
 		return(truncate_t::parse_redo_entry(ptr, end_ptr, space_id));
-	case MLOG_WRITE_STRING:
-		/* For encrypted tablespace, we need to get the
-		encryption key information before the page 0 is recovered.
-	        Otherwise, redo will not find the key to decrypt
-		the data pages. */
-#ifdef MYSQL_ENCRYPTION
-		if (page_no == 0 && !is_system_tablespace(space_id)
-		    && !apply) {
-			return(fil_write_encryption_parse(ptr,
-							  end_ptr,
-							  space_id));
-		}
-#endif
-		break;
 
 	default:
 		break;

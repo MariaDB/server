@@ -139,7 +139,7 @@ const char*	fil_path_to_mysql_datadir;
 Folder		folder_mysql_datadir;
 
 /** Common InnoDB file extentions */
-const char* dot_ext[] = { "", ".ibd", ".isl", ".cfg", ".cfp" };
+const char* dot_ext[] = { "", ".ibd", ".isl", ".cfg" };
 
 /** The number of fsyncs done to the log */
 ulint	fil_n_log_flushes			= 0;
@@ -746,21 +746,6 @@ retry:
 		}
 
 		ut_free(buf2);
-
-#ifdef MYSQL_ENCRYPTION
-		/* For encrypted tablespace, we need to check the
-		encrytion key and iv(initial vector) is readed. */
-		if (FSP_FLAGS_GET_ENCRYPTION(flags)
-		    && !recv_recovery_is_on()) {
-			if (space->encryption_type != Encryption::AES) {
-				ib::error()
-					<< "Can't read encryption"
-					<< " key from file "
-					<< node->name << "!";
-				return(false);
-			}
-		}
-#endif
 
 		if (node->size == 0) {
 			ulint	extent_size;
@@ -1694,8 +1679,6 @@ fil_space_create(
 			 << ":" << fil_crypt_get_mode(crypt_data)
 			 << " " << fil_crypt_get_type(crypt_data));
 	}
-
-	space->encryption_type = Encryption::NONE;
 
 	rw_lock_create(fil_space_latch_key, &space->latch, SYNC_FSP);
 
@@ -4021,17 +4004,6 @@ fil_ibd_create(
 		goto error_exit_1;
 	}
 
-#ifdef MYSQL_ENCRYPTION
-	/* For encryption tablespace, initial encryption information. */
-	if (FSP_FLAGS_GET_ENCRYPTION(space->flags)) {
-		err = fil_set_encryption(space->id,
-					 Encryption::AES,
-					 NULL,
-					 NULL);
-		ut_ad(err == DB_SUCCESS);
-	}
-#endif /* MYSQL_ENCRYPTION */
-
 	if (!is_temp) {
 		mtr_t			mtr;
 		const fil_node_t*	file = UT_LIST_GET_FIRST(space->chain);
@@ -4107,7 +4079,6 @@ fil_ibd_open(
 	bool		link_file_found = false;
 	bool		link_file_is_bad = false;
 	bool		is_shared = FSP_FLAGS_GET_SHARED(flags);
-	bool		is_encrypted = FSP_FLAGS_GET_ENCRYPTION(flags);
 	Datafile	df_default;	/* default location */
 	Datafile	df_dict;	/* dictionary location */
 	RemoteDatafile	df_remote;	/* remote location */
@@ -4228,7 +4199,7 @@ fil_ibd_open(
 	normal, we only found 1. */
 	/* For encrypted tablespace, we need to check the
 	encryption in header of first page. */
-	if (!validate && tablespaces_found == 1 && !is_encrypted) {
+	if (!validate && tablespaces_found == 1) {
 		goto skip_validate;
 	}
 
@@ -4249,21 +4220,12 @@ fil_ibd_open(
 	/* Make sense of these three possible locations.
 	First, bail out if no tablespace files were found. */
 	if (valid_tablespaces_found == 0) {
-		if (!is_encrypted) {
-			/* The following call prints an error message.
-			For encrypted tablespace we skip print, since it should
-			be keyring plugin issues. */
-			os_file_get_last_error(true);
-			ib::error() << "Could not find a valid tablespace file for `"
-				<< space_name << "`. " << TROUBLESHOOT_DATADICT_MSG;
-		}
-
+		os_file_get_last_error(true);
+		ib::error() << "Could not find a valid tablespace file for `"
+			<< space_name << "`. " << TROUBLESHOOT_DATADICT_MSG;
 		return(DB_CORRUPTION);
 	}
-	if (!validate && !is_encrypted) {
-		return(DB_SUCCESS);
-	}
-	if (validate && is_encrypted && fil_space_get(id)) {
+	if (!validate) {
 		return(DB_SUCCESS);
 	}
 
@@ -4428,25 +4390,6 @@ skip_validate:
 			    true, TRUE) == NULL) {
 			err = DB_ERROR;
 		}
-
-#ifdef MYSQL_ENCRYPTION
-		/* For encryption tablespace, initialize encryption
-		information.*/
-		if (err == DB_SUCCESS && is_encrypted && !for_import) {
-			Datafile& df_current = df_remote.is_open() ?
-				df_remote: df_dict.is_open() ?
-				df_dict : df_default;
-
-			byte*	key = df_current.m_encryption_key;
-			byte*	iv = df_current.m_encryption_iv;
-			ut_ad(key && iv);
-
-			err = fil_set_encryption(space->id, Encryption::AES,
-						 key, iv);
-			ut_ad(err == DB_SUCCESS);
-		}
-#endif /* MYSQL_ENCRYPTION */
-
 	}
 
 	return(err);
@@ -4811,21 +4754,6 @@ fil_ibd_load(
 				 false, true, false)) {
 		ut_error;
 	}
-
-#ifdef MYSQL_ENCRYPTION
-	/* For encryption tablespace, initial encryption information. */
-	if (FSP_FLAGS_GET_ENCRYPTION(space->flags)
-	    && file.m_encryption_key != NULL) {
-		dberr_t err = fil_set_encryption(space->id,
-						 Encryption::AES,
-						 file.m_encryption_key,
-						 file.m_encryption_iv);
-		if (err != DB_SUCCESS) {
-			ib::error() << "Can't set encryption information for"
-				" tablespace " << space->name << "!";
-		}
-	}
-#endif /* MYSQL_ENCRYPTION */
 
 	return(FIL_LOAD_OK);
 }
@@ -5296,33 +5224,6 @@ fil_report_invalid_page_access(
 	_exit(1);
 }
 
-#ifdef MYSQL_ENCRYPTION
-/** Set encryption information for IORequest.
-@param[in,out]	req_type	IO request
-@param[in]	page_id		page id
-@param[in]	space		table space */
-inline
-void
-fil_io_set_encryption(
-	IORequest&		req_type,
-	const page_id_t&	page_id,
-	fil_space_t*		space)
-{
-	/* Don't encrypt the log, page 0 of all tablespaces, all pages
-	from the system tablespace. */
-	if (!req_type.is_log() && page_id.page_no() > 0
-	    && space->encryption_type != Encryption::NONE)
-	{
-		req_type.encryption_key(space->encryption_key,
-					space->encryption_klen,
-					space->encryption_iv);
-		req_type.encryption_algorithm(Encryption::AES);
-	} else {
-		req_type.clear_encrypted();
-	}
-}
-#endif /* MYSQL_ENCRYPTION */
-
 /** Reads or writes data. This operation could be asynchronous (aio).
 
 @param[in,out] type	IO context
@@ -5608,11 +5509,6 @@ fil_io(
 		req_type.clear_compressed();
 	}
 #endif /* MYSQL_COMPRESSION */
-
-#ifdef MYSQL_ENCRYPTION
-	/* Set encryption information. */
-	fil_io_set_encryption(req_type, page_id, space);
-#endif /* MYSQL_ENCRYPTION */
 
 	req_type.block_size(node->block_size);
 
@@ -6001,8 +5897,6 @@ struct fil_iterator_t {
 	byte*		io_buffer;		/*!< Buffer to use for IO */
 	fil_space_crypt_t *crypt_data;		/*!< MariaDB Crypt data (if encrypted) */
 	byte*           crypt_io_buffer;        /*!< MariaDB IO buffer when encrypted */
-	byte*		encryption_key;		/*!< Encryption key */
-	byte*		encryption_iv;		/*!< Encryption iv */
 };
 
 /********************************************************************//**
@@ -6079,16 +5973,6 @@ fil_iterate(
 
 		dberr_t		err = DB_SUCCESS;
 		IORequest	read_request(read_type);
-
-#ifdef MYSQL_ENCRYPTION
-		/* For encrypted table, set encryption information. */
-		if (iter.encryption_key != NULL && offset != 0) {
-			read_request.encryption_key(iter.encryption_key,
-						    ENCRYPTION_KEY_LEN,
-						    iter.encryption_iv);
-			read_request.encryption_algorithm(Encryption::AES);
-		}
-#endif /* MYSQL_ENCRYPTION */
 
 		byte* readptr = io_buffer;
 		byte* writeptr = io_buffer;
@@ -6266,16 +6150,6 @@ fil_iterate(
 
 		IORequest	write_request(write_type);
 
-#ifdef MYSQL_ENCRYPTION
-		/* For encrypted table, set encryption information. */
-		if (iter.encryption_key != NULL && offset != 0) {
-			write_request.encryption_key(iter.encryption_key,
-						     ENCRYPTION_KEY_LEN,
-						     iter.encryption_iv);
-			write_request.encryption_algorithm(Encryption::AES);
-		}
-#endif /* MYSQL_ENCRYPTION */
-
 		/* A page was updated in the set, write back to disk.
 		Note: We don't have the compression algorithm, we write
 		out the imported file as uncompressed. */
@@ -6422,26 +6296,6 @@ fil_tablespace_iterate(
 			0, page, FSP_HEADER_OFFSET
 			+ fsp_header_get_encryption_offset(
 				callback.get_page_size()));
-
-#ifdef MYSQL_ENCRYPTION
-		/* Set encryption info. */
-		iter.encryption_key = table->encryption_key;
-		iter.encryption_iv = table->encryption_iv;
-
-		/* Check encryption is matched or not. */
-		ulint	space_flags = callback.get_space_flags();
-		if (FSP_FLAGS_GET_ENCRYPTION(space_flags)) {
-			ut_ad(table->encryption_key != NULL);
-
-			if (!dict_table_is_encrypted(table)) {
-				ib::error() << "Table is not in an encrypted"
-					" tablespace, but the data file which"
-					" trying to import is an encrypted"
-					" tablespace";
-				err = DB_IO_NO_ENCRYPT_TABLESPACE;
-			}
-		}
-#endif /* MYSQL_ENCRYPTION */
 
 		if (err == DB_SUCCESS) {
 
@@ -7046,101 +6900,6 @@ fil_get_compression(
 
 	return(space == NULL ? Compression::NONE : space->compression_type);
 }
-
-/** Set the encryption type for the tablespace
-@param[in] space_id		Space ID of tablespace for which to set
-@param[in] algorithm		Encryption algorithm
-@param[in] key			Encryption key
-@param[in] iv			Encryption iv
-@return DB_SUCCESS or error code */
-dberr_t
-fil_set_encryption(
-	ulint			space_id,
-	Encryption::Type	algorithm,
-	byte*			key,
-	byte*			iv)
-{
-	ut_ad(!is_system_or_undo_tablespace(space_id));
-
-	if (is_system_tablespace(space_id)) {
-		return(DB_IO_NO_ENCRYPT_TABLESPACE);
-	}
-
-	mutex_enter(&fil_system->mutex);
-
-	fil_space_t*	space = fil_space_get_by_id(space_id);
-
-	if (space == NULL) {
-		mutex_exit(&fil_system->mutex);
-		return(DB_NOT_FOUND);
-	}
-
-	ut_ad(algorithm != Encryption::NONE);
-	space->encryption_type = algorithm;
-	if (key == NULL) {
-		Encryption::random_value(space->encryption_key);
-	} else {
-		memcpy(space->encryption_key,
-		       key, ENCRYPTION_KEY_LEN);
-	}
-
-	space->encryption_klen = ENCRYPTION_KEY_LEN;
-	if (iv == NULL) {
-		Encryption::random_value(space->encryption_iv);
-	} else {
-		memcpy(space->encryption_iv,
-		       iv, ENCRYPTION_KEY_LEN);
-	}
-
-	mutex_exit(&fil_system->mutex);
-
-	return(DB_SUCCESS);
-}
-
-/** Rotate the tablespace keys by new master key.
-@return true if the re-encrypt suceeds */
-bool
-fil_encryption_rotate()
-{
-	fil_space_t*	space;
-	mtr_t		mtr;
-	byte		encrypt_info[ENCRYPTION_INFO_SIZE_V2];
-
-	for (space = UT_LIST_GET_FIRST(fil_system->space_list);
-	     space != NULL; ) {
-		/* Skip unencypted tablespaces. */
-		if (is_system_or_undo_tablespace(space->id)
-		    || fsp_is_system_temporary(space->id)
-		    || space->purpose == FIL_TYPE_LOG) {
-			space = UT_LIST_GET_NEXT(space_list, space);
-			continue;
-		}
-
-		if (space->encryption_type != Encryption::NONE) {
-			mtr_start(&mtr);
-			mtr.set_named_space(space->id);
-
-			space = mtr_x_lock_space(space->id, &mtr);
-
-			memset(encrypt_info, 0, ENCRYPTION_INFO_SIZE_V2);
-
-			if (!fsp_header_rotate_encryption(space,
-							  encrypt_info,
-							  &mtr)) {
-				mtr_commit(&mtr);
-				return(false);
-			}
-
-			mtr_commit(&mtr);
-		}
-
-		space = UT_LIST_GET_NEXT(space_list, space);
-		DBUG_EXECUTE_IF("ib_crash_during_rotation_for_encryption",
-				DBUG_SUICIDE(););
-	}
-
-	return(true);
-}
 #endif /* MYSQL_COMPRESSION */
 
 /** Build the basic folder name from the path and length provided
@@ -7300,7 +7059,6 @@ test_make_filepath()
 	path = MF("/this/is/a/path/with/a/filename", NULL, IBD, false); DISPLAY;
 	path = MF("/this/is/a/path/with/a/filename", NULL, ISL, false); DISPLAY;
 	path = MF("/this/is/a/path/with/a/filename", NULL, CFG, false); DISPLAY;
-	path = MF("/this/is/a/path/with/a/filename", NULL, CFP, false); DISPLAY;
 	path = MF("/this/is/a/path/with/a/filename.ibd", NULL, IBD, false); DISPLAY;
 	path = MF("/this/is/a/path/with/a/filename.ibd", NULL, IBD, false); DISPLAY;
 	path = MF("/this/is/a/path/with/a/filename.dat", NULL, IBD, false); DISPLAY;
@@ -7310,7 +7068,6 @@ test_make_filepath()
 	path = MF(NULL, "dbname/tablespacename", IBD, false); DISPLAY;
 	path = MF(NULL, "dbname/tablespacename", ISL, false); DISPLAY;
 	path = MF(NULL, "dbname/tablespacename", CFG, false); DISPLAY;
-	path = MF(NULL, "dbname/tablespacename", CFP, false); DISPLAY;
 	path = MF(NULL, "dbname\\tablespacename", NO_EXT, false); DISPLAY;
 	path = MF(NULL, "dbname\\tablespacename", IBD, false); DISPLAY;
 	path = MF("/this/is/a/path", "dbname/tablespacename", IBD, false); DISPLAY;

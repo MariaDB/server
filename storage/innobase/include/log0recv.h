@@ -190,16 +190,6 @@ struct recv_dblwr_t {
 	list	pages;
 };
 
-/* Recovery encryption information */
-typedef	struct recv_encryption {
-	ulint		space_id;	/*!< the page number */
-	byte*		key;		/*!< encryption key */
-	byte*		iv;		/*!< encryption iv */
-} recv_encryption_t;
-
-typedef std::vector<recv_encryption_t, ut_allocator<recv_encryption_t> >
-		encryption_list_t;
-
 /** Recovery system data structure */
 struct recv_sys_t{
 	ib_mutex_t		mutex;	/*!< mutex protecting the fields apply_log_recs,
@@ -266,9 +256,6 @@ struct recv_sys_t{
 				addresses in the hash table */
 
 	recv_dblwr_t	dblwr;
-
-	encryption_list_t*	/*!< Encryption information list */
-			encryption_list;
 };
 
 /** The recovery system */

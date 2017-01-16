@@ -2289,17 +2289,6 @@ files_checked:
 			dict_check_tablespaces_and_store_max_id(validate);
 		}
 
-#ifdef MYSQL_ENCRYPTION
-		/* Rotate the encryption key for recovery. It's because
-		server could crash in middle of key rotation. Some tablespace
-		didn't complete key rotation. Here, we will resume the
-		rotation. */
-		if (!srv_read_only_mode
-		    && srv_force_recovery < SRV_FORCE_NO_LOG_REDO) {
-			fil_encryption_rotate();
-		}
-#endif /* MYSQL_ENCRYPTION */
-
 		/* Fix-up truncate of table if server crashed while truncate
 		was active. */
 		err = truncate_t::fixup_tables_in_non_system_tablespace();
@@ -2960,39 +2949,6 @@ srv_get_meta_data_filename(
 			table->data_dir_path, table->name.m_name, CFG, true);
 	} else {
 		path = fil_make_filepath(NULL, table->name.m_name, CFG, false);
-	}
-
-	ut_a(path);
-	len = ut_strlen(path);
-	ut_a(max_len >= len);
-
-	strcpy(filename, path);
-
-	ut_free(path);
-}
-/** Get the encryption-data filename from the table name for a
-single-table tablespace.
-@param[in]	table		table object
-@param[out]	filename	filename
-@param[in]	max_len		filename max length */
-void
-srv_get_encryption_data_filename(
-	dict_table_t*	table,
-	char*		filename,
-	ulint		max_len)
-{
-	ulint		len;
-	char*		path;
-	/* Make sure the data_dir_path is set. */
-	dict_get_and_save_data_dir_path(table, false);
-
-	if (DICT_TF_HAS_DATA_DIR(table->flags)) {
-		ut_a(table->data_dir_path);
-
-		path = fil_make_filepath(
-			table->data_dir_path, table->name.m_name, CFP, true);
-	} else {
-		path = fil_make_filepath(NULL, table->name.m_name, CFP, false);
 	}
 
 	ut_a(path);

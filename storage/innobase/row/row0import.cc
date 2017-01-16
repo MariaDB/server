@@ -124,8 +124,7 @@ struct row_import {
 		m_col_names(),
 		m_n_indexes(),
 		m_indexes(),
-		m_missing(true),
-		m_cfp_missing(true)	{ }
+		m_missing(true) {}
 
 	~row_import() UNIV_NOTHROW;
 
@@ -219,9 +218,6 @@ struct row_import {
 	row_index_t*	m_indexes;		/*!< Index meta data */
 
 	bool		m_missing;		/*!< true if a .cfg file was
-						found and was readable */
-
-	bool		m_cfp_missing;		/*!< true if a .cfp file was
 						found and was readable */
 };
 
@@ -2182,9 +2178,6 @@ row_import_cleanup(
 
 	trx_commit_for_mysql(trx);
 
-	prebuilt->table->encryption_key = NULL;
-	prebuilt->table->encryption_iv = NULL;
-
 	row_mysql_unlock_data_dictionary(trx);
 
 	trx_free_for_mysql(trx);
@@ -3168,170 +3161,6 @@ row_import_read_cfg(
 	return(err);
 }
 
-#ifdef MYSQL_ENCRYPTION
-/** Read the contents of the <tablespace>.cfp file.
-@param[in]	table		table
-@param[in]	file		file to read from
-@param[in]	thd		session
-@param[in]	cfp		contents of the .cfp file
-@return DB_SUCCESS or error code. */
-static
-dberr_t
-row_import_read_encryption_data(
-	dict_table_t*	table,
-	FILE*		file,
-	THD*		thd,
-	row_import&	import)
-{
-	byte		row[sizeof(ib_uint32_t)];
-	ulint		key_size;
-	byte		transfer_key[ENCRYPTION_KEY_LEN];
-	byte		encryption_key[ENCRYPTION_KEY_LEN];
-	byte		encryption_iv[ENCRYPTION_KEY_LEN];
-	lint		elen;
-
-	if (fread(&row, 1, sizeof(row), file) != sizeof(row)) {
-		ib_senderrf(
-			thd, IB_LOG_LEVEL_ERROR, ER_IO_READ_ERROR,
-			errno, strerror(errno),
-			"while reading encrypton key size.");
-
-		return(DB_IO_ERROR);
-	}
-
-	key_size = mach_read_from_4(row);
-	if (key_size != ENCRYPTION_KEY_LEN) {
-		ib_senderrf(
-			thd, IB_LOG_LEVEL_ERROR, ER_IO_READ_ERROR,
-			errno, strerror(errno),
-			"while parsing encryption key size.");
-
-		return(DB_IO_ERROR);
-	}
-
-	/* Read the transfer key. */
-	if (fread(transfer_key, 1, ENCRYPTION_KEY_LEN, file)
-		!= ENCRYPTION_KEY_LEN) {
-		ib_senderrf(
-			thd, IB_LOG_LEVEL_WARN, ER_IO_WRITE_ERROR,
-			errno, strerror(errno),
-			"while reading tranfer key.");
-
-		return(DB_IO_ERROR);
-	}
-
-	/* Read the encrypted key. */
-	if (fread(encryption_key, 1, ENCRYPTION_KEY_LEN, file)
-		!= ENCRYPTION_KEY_LEN) {
-		ib_senderrf(
-			thd, IB_LOG_LEVEL_WARN, ER_IO_WRITE_ERROR,
-			errno, strerror(errno),
-			"while reading encryption key.");
-
-		return(DB_IO_ERROR);
-	}
-
-	/* Read the encrypted iv. */
-	if (fread(encryption_iv, 1, ENCRYPTION_KEY_LEN, file)
-		!= ENCRYPTION_KEY_LEN) {
-		ib_senderrf(
-			thd, IB_LOG_LEVEL_WARN, ER_IO_WRITE_ERROR,
-			errno, strerror(errno),
-			"while reading encryption iv.");
-
-		return(DB_IO_ERROR);
-	}
-
-	table->encryption_key =
-		static_cast<byte*>(mem_heap_alloc(table->heap,
-						  ENCRYPTION_KEY_LEN));
-
-	table->encryption_iv =
-		static_cast<byte*>(mem_heap_alloc(table->heap,
-						  ENCRYPTION_KEY_LEN));
-	/* Decrypt tablespace key and iv. */
-	elen = my_aes_decrypt(
-		encryption_key,
-		ENCRYPTION_KEY_LEN,
-		table->encryption_key,
-		transfer_key,
-		ENCRYPTION_KEY_LEN,
-		my_aes_256_ecb, NULL, false);
-
-	if (elen == MY_AES_BAD_DATA) {
-		ib_senderrf(
-			thd, IB_LOG_LEVEL_ERROR, ER_IO_READ_ERROR,
-			errno, strerror(errno),
-			"while decrypt encryption key.");
-
-		return(DB_IO_ERROR);
-	}
-
-	elen = my_aes_decrypt(
-		encryption_iv,
-		ENCRYPTION_KEY_LEN,
-		table->encryption_iv,
-		transfer_key,
-		ENCRYPTION_KEY_LEN,
-		my_aes_256_ecb, NULL, false);
-
-	if (elen == MY_AES_BAD_DATA) {
-		ib_senderrf(
-			thd, IB_LOG_LEVEL_ERROR, ER_IO_READ_ERROR,
-			errno, strerror(errno),
-			"while decrypt encryption iv.");
-
-		return(DB_IO_ERROR);
-	}
-
-	return(DB_SUCCESS);
-}
-
-/** Read the contents of the <tablename>.cfp file.
-@param[in]	table		table
-@param[in]	thd		session
-@param[in]	cfp		contents of the .cfp file
-@return DB_SUCCESS or error code. */
-static
-dberr_t
-row_import_read_cfp(
-	dict_table_t*	table,
-	THD*		thd,
-	row_import&	import)
-{
-	dberr_t		err;
-	char		name[OS_FILE_MAX_PATH];
-
-	/* Clear table encryption information. */
-	table->encryption_key = NULL;
-	table->encryption_iv  = NULL;
-
-	srv_get_encryption_data_filename(table, name, sizeof(name));
-
-	FILE*	file = fopen(name, "rb");
-
-	if (file == NULL) {
-		import.m_cfp_missing = true;
-
-		/* If there's no cfp file, we assume it's not an
-		encrpyted table. return directly. */
-
-		import.m_cfp_missing = true;
-
-		err = DB_SUCCESS;
-	} else {
-
-		import.m_cfp_missing = false;
-
-		err = row_import_read_encryption_data(table, file,
-						      thd, import);
-		fclose(file);
-	}
-
-	return(err);
-}
-#endif /* MYSQL_ENCRYPTION */
-
 /*****************************************************************//**
 Update the <space, root page> of a table's indexes from the values
 in the data dictionary.
@@ -3699,42 +3528,7 @@ row_import_for_mysql(
 		rw_lock_s_unlock_gen(dict_operation_lock, 0);
 	}
 
-	/* Try to read encryption information. */
-	if (err == DB_SUCCESS) {
-#ifdef MYSQL_ENCRYPTION
-		err = row_import_read_cfp(table, trx->mysql_thd, cfg);
-
-		/* If table is not set to encrypted, but the fsp flag
-		is not, then return error. */
-		if (!dict_table_is_encrypted(table)
-		    && space_flags != 0
-		    && FSP_FLAGS_GET_ENCRYPTION(space_flags)) {
-
-			ib_errf(trx->mysql_thd, IB_LOG_LEVEL_ERROR,
-				 ER_TABLE_SCHEMA_MISMATCH,
-				 "Table is not marked as encrypted, but"
-				 " the tablespace is marked as encrypted");
-
-			err = DB_ERROR;
-			return(row_import_error(prebuilt, trx, err));
-		}
-
-		/* If table is set to encrypted, but can't find
-		cfp file, then return error. */
-		if (cfg.m_cfp_missing== true
-		    && ((space_flags != 0
-			 && FSP_FLAGS_GET_ENCRYPTION(space_flags))
-			|| dict_table_is_encrypted(table))) {
-			ib_errf(trx->mysql_thd, IB_LOG_LEVEL_ERROR,
-				 ER_TABLE_SCHEMA_MISMATCH,
-				 "Table is in an encrypted tablespace, but"
-				 " can't find the encryption meta-data file"
-				 " in importing");
-			err = DB_ERROR;
-			return(row_import_error(prebuilt, trx, err));
-		}
-#endif /* MYSQL_ENCRYPTION */
-	} else {
+	if (err != DB_SUCCESS) {
 		return(row_import_error(prebuilt, trx, err));
 	}
 
@@ -3756,22 +3550,6 @@ row_import_for_mysql(
 
 	DBUG_EXECUTE_IF("ib_import_reset_space_and_lsn_failure",
 			err = DB_TOO_MANY_CONCURRENT_TRXS;);
-
-#ifdef MYSQL_ENCRYPTION
-	if (err == DB_IO_NO_ENCRYPT_TABLESPACE) {
-		char	table_name[MAX_FULL_NAME_LEN + 1];
-
-		innobase_format_name(
-			table_name, sizeof(table_name),
-			table->name.m_name);
-
-		ib_errf(trx->mysql_thd, IB_LOG_LEVEL_ERROR,
-			ER_TABLE_SCHEMA_MISMATCH,
-			"Encryption attribute is no matched");
-
-		return(row_import_cleanup(prebuilt, trx, err));
-	}
-#endif /* MYSQL_ENCRYPTION */
 
 	if (err != DB_SUCCESS) {
 		char	table_name[MAX_FULL_NAME_LEN + 1];
@@ -3828,12 +3606,6 @@ row_import_for_mysql(
 
 	ulint	fsp_flags = dict_tf_to_fsp_flags(table->flags, false);
 
-#ifdef MYSQL_ENCRYPTION
-	if (table->encryption_key != NULL) {
-		fsp_flags |= FSP_FLAGS_MASK_ENCRYPTION;
-	}
-#endif /* MYSQL_ENCRYPTION */
-
 	err = fil_ibd_open(
 		true, true, FIL_TYPE_IMPORT, table->space,
 		fsp_flags, table->name.m_name, filepath, table);
@@ -3852,17 +3624,6 @@ row_import_for_mysql(
 
 		return(row_import_cleanup(prebuilt, trx, err));
 	}
-
-#ifdef MYSQL_ENCRYPTION
-	/* For encrypted table, set encryption information. */
-	if (dict_table_is_encrypted(table)) {
-
-		err = fil_set_encryption(table->space,
-					 Encryption::AES,
-					 table->encryption_key,
-					 table->encryption_iv);
-	}
-#endif /* MYSQL_ENCRYPTION */
 
 	row_mysql_unlock_data_dictionary(trx);
 
@@ -3960,37 +3721,6 @@ row_import_for_mysql(
 
 	ib::info() << "Phase IV - Flush complete";
 	fil_space_set_imported(prebuilt->table->space);
-
-#ifdef MYSQL_ENCRYPTION
-	if (dict_table_is_encrypted(table)) {
-		fil_space_t*	space;
-		mtr_t		mtr;
-		byte		encrypt_info[ENCRYPTION_INFO_SIZE_V2];
-
-		mtr_start(&mtr);
-
-		mtr.set_named_space(table->space);
-		space = mtr_x_lock_space(table->space, &mtr);
-
-		memset(encrypt_info, 0, ENCRYPTION_INFO_SIZE_V2);
-
-		if (!fsp_header_rotate_encryption(space,
-						  encrypt_info,
-						  &mtr)) {
-			mtr_commit(&mtr);
-			ib_senderrf(trx->mysql_thd, IB_LOG_LEVEL_ERROR,
-				ER_FILE_NOT_FOUND,
-				filepath, err, ut_strerr(err));
-
-			ut_free(filepath);
-			row_mysql_unlock_data_dictionary(trx);
-
-			return(row_import_cleanup(prebuilt, trx, err));
-		}
-
-		mtr_commit(&mtr);
-	}
-#endif /* MYSQL_ENCRYPTION */
 
 	/* The dictionary latches will be released in in row_import_cleanup()
 	after the transaction commit, for both success and error. */

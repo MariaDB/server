@@ -334,9 +334,6 @@ use its own tablespace instead of the system tablespace. */
 index tables) of a FTS table are in HEX format. */
 #define DICT_TF2_FTS_AUX_HEX_NAME	64
 
-/** Encryption table bit. */
-#define DICT_TF2_ENCRYPTION		256
-
 /* @} */
 
 #define DICT_TF2_FLAG_SET(table, flag)		\
@@ -1779,12 +1776,6 @@ public:
 	/** mysql_row_templ_t for base columns used for compute the virtual
 	columns */
 	dict_vcol_templ_t*			vc_templ;
-
-	/** encryption key, it's only for export/import */
-	byte*					encryption_key;
-
-	/** encryption iv, it's only for export/import */
-	byte*					encryption_iv;
 };
 
 /*******************************************************************//**

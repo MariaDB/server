@@ -608,8 +608,7 @@ static PSI_mutex_info all_innodb_mutexes[] = {
 	PSI_KEY(rtr_path_mutex),
 	PSI_KEY(rtr_ssn_mutex),
 	PSI_KEY(trx_sys_mutex),
-	PSI_KEY(zip_pad_mutex),
-	PSI_KEY(master_key_id_mutex),
+	PSI_KEY(zip_pad_mutex)
 };
 # endif /* UNIV_PFS_MUTEX */
 
@@ -2887,60 +2886,6 @@ Compression::validate(const char* algorithm)
 }
 #endif /* MYSQL_COMPRESSION */
 
-#ifdef MYSQL_ENCRYPTION
-/** Check if the string is "" or "n".
-@param[in]      algorithm       Encryption algorithm to check
-@return true if no algorithm requested */
-bool
-Encryption::is_none(const char* algorithm)
-{
-	/* NULL is the same as NONE */
-	if (algorithm == NULL
-	    || innobase_strcasecmp(algorithm, "n") == 0
-	    || innobase_strcasecmp(algorithm, "") == 0) {
-		return(true);
-	}
-
-	return(false);
-}
-
-/** Check the encryption option and set it
-@param[in]	option		encryption option
-@param[in/out]	encryption	The encryption algorithm
-@return DB_SUCCESS or DB_UNSUPPORTED */
-dberr_t
-Encryption::set_algorithm(
-	const char*	option,
-	Encryption*	encryption)
-{
-	if (is_none(option)) {
-
-		encryption->m_type = NONE;
-
-	} else if (innobase_strcasecmp(option, "y") == 0) {
-
-		encryption->m_type = AES;
-
-	} else {
-		return(DB_UNSUPPORTED);
-	}
-
-	return(DB_SUCCESS);
-}
-
-/** Check for supported ENCRYPT := (Y | N) supported values
-@param[in]	option		Encryption option
-@param[out]	encryption	The encryption algorithm
-@return DB_SUCCESS or DB_UNSUPPORTED */
-dberr_t
-Encryption::validate(const char* option)
-{
-	Encryption	encryption;
-
-	return(encryption.set_algorithm(option, &encryption));
-}
-#endif /* MYSQL_ENCRYPTION */
-
 /*********************************************************************//**
 Compute the next autoinc value.
 
@@ -3961,67 +3906,6 @@ innobase_init_abort()
 	DBUG_RETURN(1);
 }
 
-
-#ifdef MYSQL_ENCRYPTION
-/* mutex protecting the master_key_id */
-ib_mutex_t	master_key_id_mutex;
-
-/** Rotate the encrypted tablespace keys according to master key
-rotation.
-@return false on success, true on failure */
-bool
-innobase_encryption_key_rotation()
-{
-	byte*	master_key = NULL;
-	bool	ret = FALSE;
-
-	/* Require the mutex to block other rotate request. */
-	mutex_enter(&master_key_id_mutex);
-
-	/* Check if keyring loaded and the currently master key
-	can be fetched. */
-	if (Encryption::master_key_id != 0) {
-		ulint			master_key_id;
-		Encryption::Version	version;
-
-		Encryption::get_master_key(&master_key_id,
-					   &master_key,
-					   &version);
-		if (master_key == NULL) {
-			mutex_exit(&master_key_id_mutex);
-			my_error(ER_CANNOT_FIND_KEY_IN_KEYRING, MYF(0));
-			return(true);
-		}
-		my_free(master_key);
-	}
-
-	master_key = NULL;
-
-	/* Generate the new master key. */
-	Encryption::create_master_key(&master_key);
-
-        if (master_key == NULL) {
-		my_error(ER_CANNOT_FIND_KEY_IN_KEYRING, MYF(0));
-		mutex_exit(&master_key_id_mutex);
-                return(true);
-        }
-
-	ret = !fil_encryption_rotate();
-
-	my_free(master_key);
-
-	/* If rotation failure, return error */
-	if (ret) {
-		my_error(ER_CANNOT_FIND_KEY_IN_KEYRING, MYF(0));
-	}
-
-	/* Release the mutex. */
-	mutex_exit(&master_key_id_mutex);
-
-	return(ret);
-}
-#endif /* MYSQL_ENCRYPTION */
-
 /** Return partitioning flags. */
 static uint innobase_partition_flags()
 {
@@ -4159,11 +4043,6 @@ innobase_init(
 	innobase_hton->table_options = innodb_table_option_list;
 
 	innodb_remember_check_sysvar_funcs();
-
-#ifdef MYSQL_ENCRYPTION
-	innobase_hton->rotate_encryption_master_key =
-		innobase_encryption_key_rotation;
-#endif
 
 	ut_a(DATA_MYSQL_TRUE_VARCHAR == (ulint)MYSQL_TYPE_VARCHAR);
 
@@ -4742,11 +4621,6 @@ innobase_change_buffering_inited_ok:
 		DBUG_RETURN(innobase_init_abort());
 	}
 
-#ifdef MYSQL_ENCRYPTION
-	/* Create mutex to protect encryption master_key_id. */
-	mutex_create(LATCH_ID_MASTER_KEY_ID_MUTEX, &master_key_id_mutex);
-#endif
-
 	/* Adjust the innodb_undo_logs config object */
 	innobase_undo_logs_init_default_max();
 
@@ -4849,10 +4723,6 @@ innobase_end(
 		innodb_inited = 0;
 		hash_table_free(innobase_open_tables);
 		innobase_open_tables = NULL;
-
-#ifdef MYSQL_ENCRYPTION
-		mutex_free(&master_key_id_mutex);
-#endif
 
 		if (!abort_loop && thd_destructor_myvar) {
 			// may be UNINSTALL PLUGIN statement
@@ -6886,28 +6756,6 @@ ha_innobase::open(
 		ib_table = NULL;
 		is_part = NULL;
 	}
-
-#ifdef MYSQL_ENCRYPTION
-	/* For encrypted table, check if the encryption info in data
-	file can't be retrieved properly, mark it as corrupted. */
-	if (ib_table != NULL
-	    && dict_table_is_encrypted(ib_table)
-	    && ib_table->ibd_file_missing
-	    && !dict_table_is_discarded(ib_table)) {
-
-		/* Mark this table as corrupted, so the drop table
-		or force recovery can still use it, but not others. */
-
-		dict_table_close(ib_table, FALSE, FALSE);
-		ib_table = NULL;
-		is_part = NULL;
-
-		free_share(m_share);
-		my_error(ER_CANNOT_FIND_KEY_IN_KEYRING, MYF(0));
-
-		DBUG_RETURN(HA_ERR_TABLE_CORRUPT);
-	}
-#endif
 
 	if (NULL == ib_table) {
 
@@ -12263,13 +12111,6 @@ err_col:
 			err = DB_UNSUPPORTED;
 
 			dict_mem_table_free(table);
-		} else if (m_create_info->encrypt_type.length > 0
-			   && !Encryption::is_none(
-				   m_create_info->encrypt_type.str)) {
-
-			my_error(ER_TABLESPACE_CANNOT_ENCRYPT, MYF(0));
-			err = DB_UNSUPPORTED;
-			dict_mem_table_free(table);
 		} else {
 #endif /* MYSQL_COMPRESSION */
 			/* Get a new table ID */
@@ -12324,39 +12165,6 @@ err_col:
 			   || m_create_info->key_block_size > 0) {
 
 			algorithm = NULL;
-		}
-
-		const char*	encrypt = m_create_info->encrypt_type.str;
-
-		if (!(m_flags2 & DICT_TF2_USE_FILE_PER_TABLE)
-		    && m_create_info->encrypt_type.length > 0
-		    && !Encryption::is_none(encrypt)) {
-
-			my_error(ER_TABLESPACE_CANNOT_ENCRYPT, MYF(0));
-			err = DB_UNSUPPORTED;
-			dict_mem_table_free(table);
-
-		} else if (!Encryption::is_none(encrypt)) {
-			/* Set the encryption flag. */
-			byte*			master_key = NULL;
-			ulint			master_key_id;
-			Encryption::Version	version;
-
-			/* Check if keyring is ready. */
-			Encryption::get_master_key(&master_key_id,
-						   &master_key,
-						   &version);
-
-			if (master_key == NULL) {
-				my_error(ER_CANNOT_FIND_KEY_IN_KEYRING,
-					 MYF(0));
-				err = DB_UNSUPPORTED;
-				dict_mem_table_free(table);
-			} else {
-				my_free(master_key);
-				DICT_TF2_FLAG_SET(table,
-						  DICT_TF2_ENCRYPTION);
-			}
 		}
 #endif /* MYSQL_COMPRESSION */
 
@@ -13471,29 +13279,6 @@ create_table_info_t::innobase_table_flags()
 		If inodb_strict_mode=OFF, this is the only call. */
 	}
 #endif
-
-#ifdef MYSQL_ENCRYPTION
-	/* Validate the page encryption parameter. */
-	if (m_create_info->encrypt_type.length > 0) {
-
-		const char* encryption = m_create_info->encrypt_type.str;
-
-		if (Encryption::validate(encryption) != DB_SUCCESS) {
-			/* Incorrect encryption option */
-			my_error(ER_INVALID_ENCRYPTION_OPTION, MYF(0));
-			DBUG_RETURN(false);
-		}
-
-		if (m_use_shared_space
-		    || (m_create_info->options & HA_LEX_CREATE_TMP_TABLE)) {
-			if (!Encryption::is_none(encryption)) {
-				/* Can't encrypt shared tablespace */
-				my_error(ER_TABLESPACE_CANNOT_ENCRYPT, MYF(0));
-				DBUG_RETURN(false);
-			}
-		}
-	}
-#endif /* MYSQL_ENCRYPTION */
 
 	/* Check if there are any FTS indexes defined on this table. */
 	for (uint i = 0; i < m_form->s->keys; i++) {

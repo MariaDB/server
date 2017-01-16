@@ -169,18 +169,6 @@ struct fil_space_t {
 	/** Compression algorithm */
 	Compression::Type	compression_type;
 
-	/** Encryption algorithm */
-	Encryption::Type	encryption_type;
-
-	/** Encrypt key */
-	byte			encryption_key[ENCRYPTION_KEY_LEN];
-
-	/** Encrypt key length*/
-	ulint			encryption_klen;
-
-	/** Encrypt initial vector */
-	byte			encryption_iv[ENCRYPTION_KEY_LEN];
-
 	/** MariaDB encryption data */
         fil_space_crypt_t* crypt_data;
 
@@ -267,14 +255,12 @@ enum ib_extention {
 	NO_EXT = 0,
 	IBD = 1,
 	ISL = 2,
-	CFG = 3,
-	CFP = 4
+	CFG = 3
 };
 extern const char* dot_ext[];
 #define DOT_IBD dot_ext[IBD]
 #define DOT_ISL dot_ext[ISL]
 #define DOT_CFG dot_ext[CFG]
-#define DOT_CPF dot_ext[CFP]
 
 /** Wrapper for a path to a directory.
 This folder may or may not yet esist.  Since not all directory paths
@@ -1653,25 +1639,6 @@ Compression::Type
 fil_get_compression(
 	ulint		space_id)
 	MY_ATTRIBUTE((warn_unused_result));
-
-/** Set the encryption type for the tablespace
-@param[in] space		Space ID of tablespace for which to set
-@param[in] algorithm		Encryption algorithm
-@param[in] key			Encryption key
-@param[in] iv			Encryption iv
-@return DB_SUCCESS or error code */
-dberr_t
-fil_set_encryption(
-	ulint			space_id,
-	Encryption::Type	algorithm,
-	byte*			key,
-	byte*			iv)
-	MY_ATTRIBUTE((warn_unused_result));
-
-/**
-@return true if the re-encrypt success */
-bool
-fil_encryption_rotate();
 
 /** Write MLOG_FILE_NAME records if a persistent tablespace was modified
 for the first time since the latest fil_names_clear().

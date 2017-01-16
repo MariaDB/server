@@ -336,31 +336,6 @@ page_size_t
 fsp_header_get_page_size(
 	const page_t*	page);
 
-/** Decoding the encryption info
-from the first page of a tablespace.
-@param[in/out]	key		key
-@param[in/out]	iv		iv
-@param[in]	encryption_info	encrytion info.
-@return true if success */
-bool
-fsp_header_decode_encryption_info(
-	byte*		key,
-	byte*		iv,
-	byte*		encryption_info);
-
-/** Reads the encryption key from the first page of a tablespace.
-@param[in]	fsp_flags	tablespace flags
-@param[in/out]	key		tablespace key
-@param[in/out]	iv		tablespace iv
-@param[in]	page	first page of a tablespace
-@return true if success */
-bool
-fsp_header_get_encryption_key(
-	ulint		fsp_flags,
-	byte*		key,
-	byte*		iv,
-	page_t*		page);
-
 /** Get the byte offset of encryption information in page 0.
 @param[in]	ps	page size
 @return	byte offset relative to FSP_HEADER_OFFSET */
@@ -391,17 +366,6 @@ fsp_header_init_fields(
 	ulint	space_id,	/*!< in: space id */
 	ulint	flags);		/*!< in: tablespace flags (FSP_SPACE_FLAGS):
 				0, or table->flags if newer than COMPACT */
-
-/** Rotate the encryption info in the space header.
-@param[in]	space		tablespace
-@param[in]      encrypt_info	buffer for re-encrypt key.
-@param[in,out]	mtr		mini-transaction
-@return true if success. */
-bool
-fsp_header_rotate_encryption(
-	fil_space_t*		space,
-	byte*			encrypt_info,
-	mtr_t*			mtr);
 
 /** Initializes the space header of a new created space and creates also the
 insert buffer tree root if space == 0.
@@ -696,7 +660,6 @@ fsp_flags_are_equal(
 @param[in]	has_data_dir	This tablespace is in a remote location.
 @param[in]	is_shared	This tablespace can be shared by many tables.
 @param[in]	is_temporary	This tablespace is temporary.
-@param[in]	is_encrypted	This tablespace is encrypted.
 @return tablespace flags after initialization */
 UNIV_INLINE
 ulint
@@ -708,8 +671,7 @@ fsp_flags_init(
 	bool			is_temporary,
 	bool			page_compression,
 	ulint			page_compression_level,
-	ulint			not_used,
-	bool			is_encrypted = false);
+	ulint			not_used);
 
 /** Convert a 32 bit integer tablespace flags to the 32 bit table flags.
 This can only be done for a tablespace that was built as a file-per-table

@@ -7255,13 +7255,11 @@ dict_table_t::flags |     0     |    1    |     1      |    1
 fil_space_t::flags  |     0     |    0    |     1      |    1
 @param[in]	table_flags	dict_table_t::flags
 @param[in]	is_temp		whether the tablespace is temporary
-@param[in]	is_encrypted	whether the tablespace is encrypted
 @return tablespace flags (fil_space_t::flags) */
 ulint
 dict_tf_to_fsp_flags(
 	ulint	table_flags,
-	bool	is_temp,
-	bool	is_encrypted)
+	bool	is_temp)
 {
 	DBUG_EXECUTE_IF("dict_tf_to_fsp_flags_failure",
 			return(ULINT_UNDEFINED););
@@ -7289,8 +7287,7 @@ dict_tf_to_fsp_flags(
 						   is_temp,
 						   0,
 						   0,
-						   0,
-						   is_encrypted);
+						   0);
 
 	/* In addition, tablespace flags also contain if the page
 	compression is used for this table. */

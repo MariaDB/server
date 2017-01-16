@@ -588,21 +588,6 @@ ha_innobase::check_if_supported_inplace_alter(
 		DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
 	}
 
-#ifdef MYSQL_ENCRYPTION
-	/* We don't support change encryption attribute with
-	inplace algorithm. */
-	char*	old_encryption = this->table->s->encrypt_type.str;
-	char*	new_encryption = altered_table->s->encrypt_type.str;
-
-	if (Encryption::is_none(old_encryption)
-	    != Encryption::is_none(new_encryption)) {
-		ha_alter_info->unsupported_reason =
-			innobase_get_err_msg(
-				ER_UNSUPPORTED_ALTER_ENCRYPTION_INPLACE);
-		DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
-	}
-#endif /* MYSQL_ENCRYPTION */
-
 	update_thd();
 	trx_search_latch_release_if_reserved(m_prebuilt->trx);
 

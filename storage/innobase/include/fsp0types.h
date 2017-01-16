@@ -351,10 +351,6 @@ is a tablespace with encryption. */
 #define FSP_FLAGS_MASK_TEMPORARY				\
 		((~(~0U << FSP_FLAGS_WIDTH_TEMPORARY))		\
 		<< FSP_FLAGS_POS_TEMPORARY)
-/** Bit mask of the ENCRYPTION field */
-#define FSP_FLAGS_MASK_ENCRYPTION				\
-		((~(~0U << FSP_FLAGS_WIDTH_ENCRYPTION))		\
-		<< FSP_FLAGS_POS_ENCRYPTION)
 /** Bit mask of the PAGE_COMPRESSION field */
 #define FSP_FLAGS_MASK_PAGE_COMPRESSION			\
 		((~(~0U << FSP_FLAGS_WIDTH_PAGE_COMPRESSION))	\
@@ -396,10 +392,6 @@ is a tablespace with encryption. */
 #define FSP_FLAGS_GET_TEMPORARY(flags)				\
 		((flags & FSP_FLAGS_MASK_TEMPORARY)		\
 		>> FSP_FLAGS_POS_TEMPORARY)
-/** Return the contents of the ENCRYPTION field */
-#define FSP_FLAGS_GET_ENCRYPTION(flags)				\
-		((flags & FSP_FLAGS_MASK_ENCRYPTION)		\
-		>> FSP_FLAGS_POS_ENCRYPTION)
 /** Return the contents of the UNUSED bits */
 #define FSP_FLAGS_GET_UNUSED(flags)				\
 		(flags >> FSP_FLAGS_POS_UNUSED)

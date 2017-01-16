@@ -67,8 +67,6 @@ public:
 		m_first_page(),
 		m_last_os_error(),
 		m_file_info(),
-		m_encryption_key(NULL),
-		m_encryption_iv(NULL),
 		m_crypt_info()
 	{
 		/* No op */
@@ -92,8 +90,6 @@ public:
 		m_first_page(),
 		m_last_os_error(),
 		m_file_info(),
-		m_encryption_key(NULL),
-		m_encryption_iv(NULL),
 		m_crypt_info()
 	{
 		ut_ad(m_name != NULL);
@@ -115,8 +111,6 @@ public:
 		m_first_page(),
 		m_last_os_error(),
 		m_file_info(),
-		m_encryption_key(NULL),
-		m_encryption_iv(NULL),
 		m_crypt_info()
 	{
 		m_name = mem_strdup(file.m_name);
@@ -175,8 +169,6 @@ public:
 		it should be reread if needed */
 		m_first_page_buf = NULL;
 		m_first_page = NULL;
-		m_encryption_key = NULL;
-		m_encryption_iv = NULL;
 		/* Do not copy crypt info it is read from first page */
 		m_crypt_info = NULL;
 
@@ -483,12 +475,6 @@ public:
 	/* Use field st_ino. */
 	struct stat			m_file_info;
 #endif	/* WIN32 */
-
-	/** Encryption key read from first page */
-	byte*			m_encryption_key;
-
-	/** Encryption iv read from first page */
-	byte*			m_encryption_iv;
 
 	/** Encryption information */
 	fil_space_crypt_t* 	m_crypt_info;
