@@ -129,8 +129,9 @@ extern "C" {
  #endif
 #endif
 
-
-
+#ifndef OF
+#define OF(args)  args
+#endif
 
 typedef voidpf   (ZCALLBACK *open_file_func)      OF((voidpf opaque, const char* filename, int mode));
 typedef uLong    (ZCALLBACK *read_file_func)      OF((voidpf opaque, voidpf stream, void* buf, uLong size));
