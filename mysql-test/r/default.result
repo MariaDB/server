@@ -480,6 +480,10 @@ a	b
 2	2
 3	4
 drop table t1;
+CREATE OR REPLACE TABLE t1 (a INT DEFAULT @v);
+drop table t1;
+CREATE TABLE t1 (a INT DEFAULT @v:=1);
+drop table t1;
 #
 # Error handling
 #
@@ -516,10 +520,6 @@ CREATE TABLE t1 (a INT DEFAULT(?));
 Got one of the listed errors
 CREATE TABLE t1 (a INT DEFAULT (b), b INT DEFAULT(a));
 ERROR 01000: Expression for field `a` is refering to uninitialized field `b`
-CREATE TABLE t1 (a INT DEFAULT @v);
-ERROR HY000: Function or expression '@v' cannot be used in the DEFAULT clause of `a`
-CREATE TABLE t1 (a INT DEFAULT @v:=1);
-ERROR HY000: Function or expression '@v' cannot be used in the DEFAULT clause of `a`
 CREATE TABLE t1 (a INT DEFAULT(NAME_CONST('xxx', 'yyy'));
 ERROR HY000: Function or expression 'name_const()' cannot be used in the DEFAULT clause of `a`
 CREATE TABLE t1 (a INT DEFAULT COUNT(*));

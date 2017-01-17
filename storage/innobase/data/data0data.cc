@@ -31,7 +31,6 @@ Created 5/30/1994 Heikki Tuuri
 #include "data0data.ic"
 #endif
 
-#ifndef UNIV_HOTBACKUP
 #include "rem0rec.h"
 #include "rem0cmp.h"
 #include "page0page.h"
@@ -39,8 +38,6 @@ Created 5/30/1994 Heikki Tuuri
 #include "dict0dict.h"
 #include "btr0cur.h"
 #include "row0upd.h"
-
-#endif /* !UNIV_HOTBACKUP */
 
 #ifdef UNIV_DEBUG
 /** Dummy variable to catch access to uninitialized fields.  In the
@@ -54,7 +51,6 @@ ulint	data_dummy;
 # endif /* !UNIV_DEBUG_VALGRIND */
 #endif /* UNIV_DEBUG */
 
-#ifndef UNIV_HOTBACKUP
 /** Compare two data tuples.
 @param[in] tuple1 first data tuple
 @param[in] tuple2 second data tuple
@@ -159,7 +155,6 @@ dump:
 
 	return(TRUE);
 }
-#endif /* !UNIV_HOTBACKUP */
 
 #ifdef UNIV_DEBUG
 /**********************************************************//**
@@ -255,7 +250,6 @@ dtuple_validate(
 }
 #endif /* UNIV_DEBUG */
 
-#ifndef UNIV_HOTBACKUP
 /*************************************************************//**
 Pretty prints a dfield value according to its data type. */
 void
@@ -848,4 +842,3 @@ dfield_t::clone(
 
 	return(obj);
 }
-#endif /* !UNIV_HOTBACKUP */

@@ -184,7 +184,7 @@ fsp_flags_set_page_size(
 @param[in]	is_encrypted	This tablespace is encrypted.
 @param[in]	page_compressed Table uses page compression
 @param[in]	page_compression_level Page compression level
-@param[in]	atomic_writes	Table uses atomic writes
+@param[in]	not_used  For future
 @@return tablespace flags after initialization */
 UNIV_INLINE
 ulint
@@ -196,7 +196,7 @@ fsp_flags_init(
 	bool			is_temporary,
 	bool			page_compression,
 	ulint			page_compression_level,
-	ulint			atomic_writes,
+	ulint			not_used,
 	bool			is_encrypted)
 {
 	ut_ad(page_size.physical() <= page_size.logical());
@@ -245,12 +245,6 @@ fsp_flags_init(
 	if page compression is used for this table. */
 	if (page_compression && page_compression_level) {
 		flags |= FSP_FLAGS_SET_PAGE_COMPRESSION_LEVEL(flags, page_compression_level);
-	}
-
-	/* In addition, tablespace flags also contain flag if atomic writes
-	is used for this table */
-	if (atomic_writes) {
-		flags |= FSP_FLAGS_SET_ATOMIC_WRITES(flags, atomic_writes);
 	}
 
 	ut_ad(fsp_flags_is_valid(flags));

@@ -3,7 +3,7 @@
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All rights reserved.
 Copyright (c) 2008, Google Inc.
 Copyright (c) 2009, Percona Inc.
-Copyright (c) 2013, 2016, MariaDB Corporation
+Copyright (c) 2013, 2017, MariaDB Corporation
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -130,6 +130,10 @@ UNIV_INTERN ibool	srv_is_being_started = FALSE;
 UNIV_INTERN ibool	srv_was_started = FALSE;
 /** TRUE if innobase_start_or_create_for_mysql() has been called */
 static ibool		srv_start_has_been_called = FALSE;
+#ifdef UNIV_DEBUG
+/** InnoDB system tablespace to set during recovery */
+UNIV_INTERN uint	srv_sys_space_size_debug;
+#endif /* UNIV_DEBUG */
 
 /** At a shutdown this value climbs from SRV_SHUTDOWN_NONE to
 SRV_SHUTDOWN_CLEANUP and then to SRV_SHUTDOWN_LAST_PHASE, and so on */
@@ -188,9 +192,6 @@ static const ulint SRV_UNDO_TABLESPACE_SIZE_IN_PAGES =
 #define SRV_N_PENDING_IOS_PER_THREAD	OS_AIO_N_PENDING_IOS_PER_THREAD
 #define SRV_MAX_N_PENDING_SYNC_IOS	100
 
-/** The round off to MB is similar as done in srv_parse_megabytes() */
-#define CALC_NUMBER_OF_PAGES(size)  ((size) / (1024 * 1024)) * \
-				  ((1024 * 1024) / (UNIV_PAGE_SIZE))
 #ifdef UNIV_PFS_THREAD
 /* Keys to register InnoDB threads with performance schema */
 UNIV_INTERN mysql_pfs_key_t	io_handler_thread_key;
@@ -1025,15 +1026,12 @@ size_check:
 			size = os_file_get_size(files[i]);
 			ut_a(size != (os_offset_t) -1);
 
-			/* Under some error conditions like disk full
-			narios or file size reaching filesystem
-			limit the data file could contain an incomplete
-			extent at the end. When we extend a data file
-			and if some failure happens, then also the data
-			file could contain an incomplete extent.  So we
-			need to round the size downward to a megabyte.*/
+			/* If InnoDB encountered an error or was killed
+			while extending the data file, the last page
+			could be incomplete. */
 
-			rounded_size_pages = (ulint) CALC_NUMBER_OF_PAGES(size);
+			rounded_size_pages = static_cast<ulint>(
+				size >> UNIV_PAGE_SIZE_SHIFT);
 
 			if (i == srv_n_data_files - 1
 			    && srv_auto_extend_last_data_file) {
@@ -2160,9 +2158,11 @@ innobase_start_or_create_for_mysql(void)
 		sum_of_new_sizes += srv_data_file_sizes[i];
 	}
 
-	if (sum_of_new_sizes < 10485760 / UNIV_PAGE_SIZE) {
+	if (!srv_auto_extend_last_data_file && sum_of_new_sizes < 640) {
 		ib_logf(IB_LOG_LEVEL_ERROR,
-			"Tablespace size must be at least 10 MB");
+			"Combined size in innodb_data_file_path"
+			" must be at least %u MiB",
+			640 >> (20 - UNIV_PAGE_SIZE_SHIFT));
 
 		return(DB_ERROR);
 	}
@@ -2229,6 +2229,8 @@ innobase_start_or_create_for_mysql(void)
 			return(err);
 		}
 	} else {
+		ut_d(fil_space_get(0)->recv_size = srv_sys_space_size_debug);
+
 		for (i = 0; i < SRV_N_LOG_FILES_MAX; i++) {
 			os_offset_t	size;
 			os_file_stat_t	stat_info;
@@ -2400,11 +2402,6 @@ files_checked:
 	can also be used by recovery if it tries to drop some table */
 	if (!srv_read_only_mode) {
 		dict_stats_thread_init();
-	}
-
-	if (!srv_read_only_mode && srv_scrub_log) {
-		/* TODO(minliz): have/use log_scrub_thread_init() instead? */
-		log_scrub_event = os_event_create();
 	}
 
 	trx_sys_file_format_init();
@@ -2749,14 +2746,17 @@ files_checked:
 			lock_wait_timeout_thread,
 			NULL, thread_ids + 2 + SRV_MAX_N_IO_THREADS);
 		thread_started[2 + SRV_MAX_N_IO_THREADS] = true;
+		lock_sys->timeout_thread_active = true;
 
 		/* Create the thread which warns of long semaphore waits */
+		srv_error_monitor_active = true;
 		thread_handles[3 + SRV_MAX_N_IO_THREADS] = os_thread_create(
 			srv_error_monitor_thread,
 			NULL, thread_ids + 3 + SRV_MAX_N_IO_THREADS);
 		thread_started[3 + SRV_MAX_N_IO_THREADS] = true;
 
 		/* Create the thread which prints InnoDB monitor info */
+		srv_monitor_active = true;
 		thread_handles[4 + SRV_MAX_N_IO_THREADS] = os_thread_create(
 			srv_monitor_thread,
 			NULL, thread_ids + 4 + SRV_MAX_N_IO_THREADS);
@@ -2776,12 +2776,6 @@ files_checked:
 		if (err != DB_SUCCESS) {
 			return(err);
 		}
-	}
-
-	/* Create the SYS_ZIP_DICT system table */
-	err = dict_create_or_check_sys_zip_dict();
-	if (err != DB_SUCCESS) {
-		return(err);
 	}
 
 	srv_is_being_started = FALSE;
@@ -3006,6 +3000,8 @@ files_checked:
 		/* Create the buffer pool dump/load thread */
 		buf_dump_thread_handle=
 			os_thread_create(buf_dump_thread, NULL, NULL);
+
+		srv_buf_dump_thread_active = true;
 		buf_dump_thread_started = true;
 #ifdef WITH_WSREP
 		} else {
@@ -3016,7 +3012,9 @@ files_checked:
 #endif /* WITH_WSREP */
 
 		/* Create the dict stats gathering thread */
-		dict_stats_thread_handle = os_thread_create(dict_stats_thread, NULL, NULL);
+		dict_stats_thread_handle = os_thread_create(
+			dict_stats_thread, NULL, NULL);
+		srv_dict_stats_thread_active = true;
 		dict_stats_thread_started = true;
 
 		/* Create the thread that will optimize the FTS sub-system. */
@@ -3026,10 +3024,6 @@ files_checked:
 		fil_system_enter();
 		fil_crypt_threads_init();
 		fil_system_exit();
-
-		/* Create the log scrub thread */
-		if (srv_scrub_log)
-			os_thread_create(log_scrub_thread, NULL, NULL);
 	}
 
 	/* Init data for datafile scrub threads */
@@ -3098,9 +3092,6 @@ innobase_shutdown_for_mysql(void)
 		fts_optimize_start_shutdown();
 
 		fts_optimize_end();
-
-		/* Shutdown key rotation threads */
-		fil_crypt_threads_end();
 	}
 
 	/* 1. Flush the buffer pool to disk, write the current lsn to
@@ -3203,14 +3194,6 @@ innobase_shutdown_for_mysql(void)
 
 	if (!srv_read_only_mode) {
 		dict_stats_thread_deinit();
-		if (srv_scrub_log) {
-			/* TODO(minliz): have/use log_scrub_thread_deinit() instead? */
-			os_event_free(log_scrub_event);
-			log_scrub_event = NULL;
-		}
-	}
-
-	if (!srv_read_only_mode) {
 		fil_crypt_threads_cleanup();
 	}
 

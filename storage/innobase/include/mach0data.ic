@@ -609,7 +609,7 @@ mach_u64_parse_compressed(
 
 	return(val);
 }
-#ifndef UNIV_HOTBACKUP
+
 /*********************************************************//**
 Reads a double. It is stored in a little-endian format.
 @return double read */
@@ -947,5 +947,4 @@ mach_read_ulint(
 	return(0);
 }
 
-#endif /* !UNIV_HOTBACKUP */
 #endif /* !UNIV_INNOCHECKSUM */

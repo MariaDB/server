@@ -3,7 +3,7 @@
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All rights reserved.
 Copyright (c) 2008, 2009, Google Inc.
 Copyright (c) 2009, Percona Inc.
-Copyright (c) 2013, 2016, MariaDB Corporation
+Copyright (c) 2013, 2017, MariaDB Corporation
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -48,7 +48,6 @@ Created 10/10/1995 Heikki Tuuri
 #include "mysql/psi/psi.h"
 
 #include "univ.i"
-#ifndef UNIV_HOTBACKUP
 #include "log0log.h"
 #include "os0event.h"
 #include "que0types.h"
@@ -195,6 +194,9 @@ struct srv_stats_t {
 
 	/** Number of encryption_get_latest_key_version calls */
 	ulint_ctr_64_t		n_key_requests;
+
+	/** Number of log scrub operations */
+	ulint_ctr_64_t		n_log_scrubs;
 };
 
 extern const char*	srv_main_thread_op_info;
@@ -309,8 +311,6 @@ extern long    srv_mtflush_threads;
 /* If this flag is TRUE, then we will use multi threaded flush. */
 extern my_bool	srv_use_mtflush;
 
-#endif /* !UNIV_HOTBACKUP */
-
 /** Server undo tablespaces directory, can be absolute path. */
 extern char*	srv_undo_dir;
 
@@ -331,6 +331,9 @@ extern ulong	srv_undo_logs;
 /** Maximum size of undo tablespace. */
 extern unsigned long long	srv_max_undo_log_size;
 
+extern uint	srv_n_fil_crypt_threads;
+extern uint	srv_n_fil_crypt_threads_started;
+
 /** Rate at which UNDO records should be purged. */
 extern ulong	srv_purge_rseg_truncate_frequency;
 
@@ -349,7 +352,6 @@ extern const ulint	SRV_UNDO_TABLESPACE_SIZE_IN_PAGES;
 
 extern char*	srv_log_group_home_dir;
 
-#ifndef UNIV_HOTBACKUP
 /** Maximum number of srv_n_log_files, or innodb_log_files_in_group */
 #define SRV_N_LOG_FILES_MAX 100
 extern ulong	srv_n_log_files;
@@ -502,27 +504,25 @@ extern my_bool	srv_print_innodb_monitor;
 extern my_bool	srv_print_innodb_lock_monitor;
 extern ibool	srv_print_verbose_log;
 
-extern ibool	srv_monitor_active;
-extern ibool	srv_error_monitor_active;
+extern bool	srv_monitor_active;
+extern bool	srv_error_monitor_active;
 
 /* TRUE during the lifetime of the buffer pool dump/load thread */
-extern ibool	srv_buf_dump_thread_active;
+extern bool	srv_buf_dump_thread_active;
 
 /* true during the lifetime of the buffer pool resize thread */
 extern bool	srv_buf_resize_thread_active;
 
 /* TRUE during the lifetime of the stats thread */
-extern ibool	srv_dict_stats_thread_active;
+extern bool	srv_dict_stats_thread_active;
 
 /* TRUE if enable log scrubbing */
 extern my_bool	srv_scrub_log;
-/* TRUE during the lifetime of the log scrub thread */
-extern ibool	srv_log_scrub_thread_active;
 
 extern ulong	srv_n_spin_wait_rounds;
 extern ulong	srv_n_free_tickets_to_enter;
 extern ulong	srv_thread_sleep_delay;
-extern ulong	srv_spin_wait_delay;
+extern uint	srv_spin_wait_delay;
 extern ibool	srv_priority_boost;
 
 extern ulint	srv_truncated_status_writes;
@@ -538,6 +538,7 @@ extern my_bool	srv_purge_view_update_only_debug;
 
 /** Value of MySQL global used to disable master thread. */
 extern my_bool	srv_master_thread_disabled_debug;
+extern uint	srv_sys_space_size_debug;
 #endif /* UNIV_DEBUG */
 
 #define SRV_SEMAPHORE_WAIT_EXTENSION	7200
@@ -659,8 +660,6 @@ extern PSI_stage_info	srv_stage_alter_table_read_pk_internal_sort;
 extern PSI_stage_info	srv_stage_buffer_pool_load;
 #endif /* HAVE_PSI_STAGE_INTERFACE */
 
-#endif /* !UNIV_HOTBACKUP */
-
 #ifndef _WIN32
 /** Alternatives for the file flush option in Unix; see the InnoDB manual
 about what these mean */
@@ -737,7 +736,6 @@ typedef enum srv_stats_method_name_enum		srv_stats_method_name_t;
 extern ulong	srv_debug_compress;
 #endif /* UNIV_DEBUG */
 
-#ifndef UNIV_HOTBACKUP
 /** Types of threads existing in the system. */
 enum srv_thread_type {
 	SRV_NONE,			/*!< None */
@@ -937,14 +935,6 @@ srv_release_threads(
 	ulint			n);	/*!< in: number of threads to release */
 
 /**********************************************************************//**
-Check whether any background thread are active. If so print which thread
-is active. Send the threads wakeup signal.
-@return name of thread that is active or NULL */
-const char*
-srv_any_background_threads_are_active(void);
-/*=======================================*/
-
-/**********************************************************************//**
 Wakeup the purge threads. */
 void
 srv_purge_wakeup(void);
@@ -1124,6 +1114,7 @@ struct export_var_t{
 	ulint innodb_scrub_page_split_failures_out_of_filespace;
 	ulint innodb_scrub_page_split_failures_missing_index;
 	ulint innodb_scrub_page_split_failures_unknown;
+	int64_t innodb_scrub_log;
 };
 
 /** Thread slot in the thread table.  */
@@ -1150,20 +1141,6 @@ struct srv_slot_t{
 	que_thr_t*	thr;			/*!< suspended query thread
 						(only used for user threads) */
 };
-
-#else /* !UNIV_HOTBACKUP */
-# define srv_use_adaptive_hash_indexes		FALSE
-# define srv_use_native_aio			FALSE
-# define srv_numa_interleave			FALSE
-# define srv_force_recovery			0UL
-# define srv_set_io_thread_op_info(t,info)	((void) 0)
-# define srv_reset_io_thread_op_info()		((void) 0)
-# define srv_is_being_started			0
-# define srv_win_file_flush_method		SRV_WIN_IO_UNBUFFERED
-# define srv_unix_file_flush_method		SRV_UNIX_O_DSYNC
-# define srv_start_raw_disk_in_use		0
-# define srv_file_per_table			1
-#endif /* !UNIV_HOTBACKUP */
 
 #ifdef WITH_WSREP
 UNIV_INTERN

@@ -163,9 +163,9 @@ foreach (glob("$ENV{MYSQLD_DATADIR}/*/*.ibd")) {
 }
 EOF
 
-let $restart_parameters = restart: --innodb_checksum_algorithm=strict_none --default_storage_engine=InnoDB;
+--let $restart_parameters = --innodb_checksum_algorithm=strict_none --default_storage_engine=InnoDB
 --source include/start_mysqld.inc
-
+--let $restart_parameters=
 # check the table status is GOOD with DML
 INSERT INTO tab1 (pk, linestring_key, linestring_nokey)
 VALUES (4, ST_GeomFromText('MULTIPOINT(0 0,5 5,10 10,20 20) '), ST_GeomFromText('MULTIPOINT(0 0,5 5,10 10,20 20) '));

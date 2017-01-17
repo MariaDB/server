@@ -1503,7 +1503,6 @@ rec_convert_dtuple_to_rec(
 	return(rec);
 }
 
-#ifndef UNIV_HOTBACKUP
 /**********************************************************//**
 Determines the size of a data tuple prefix in ROW_FORMAT=COMPACT.
 @return total size */
@@ -1763,7 +1762,6 @@ rec_copy_prefix_to_buf(
 
 	return(*buf + (rec - (lens + 1)));
 }
-#endif /* UNIV_HOTBACKUP */
 
 /***************************************************************//**
 Validates the consistency of an old-style physical record.
@@ -1930,7 +1928,6 @@ rec_print_old(
 	rec_validate_old(rec);
 }
 
-#ifndef UNIV_HOTBACKUP
 /***************************************************************//**
 Prints a physical record in ROW_FORMAT=COMPACT.  Ignores the
 record header. */
@@ -2268,7 +2265,7 @@ operator<<(std::ostream& o, const rec_offsets_print& r)
 	return(o);
 }
 
-# ifdef UNIV_DEBUG
+#ifdef UNIV_DEBUG
 /************************************************************//**
 Reads the DB_TRX_ID of a clustered index record.
 @return the value of DB_TRX_ID */
@@ -2308,8 +2305,7 @@ rec_get_trx_id(
 
 	return(trx_read_trx_id(trx_id));
 }
-# endif /* UNIV_DEBUG */
-#endif /* !UNIV_HOTBACKUP */
+#endif /* UNIV_DEBUG */
 
 /** Mark the nth field as externally stored.
 @param[in]	offsets		array returned by rec_get_offsets()

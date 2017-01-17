@@ -3,6 +3,7 @@
 *.reject
 *.spec
 *.bak
+*.dgcov
 *.rpm
 .*.swp
 *.ninja
@@ -80,6 +81,9 @@ mysql-test/lib/My/SafeProcess/my_safe_process
 mysql-test/mtr
 mysql-test/mysql-test-run
 mysql-test/var
+mysql-test-gcov.err
+mysql-test-gcov.msg
+mysys/test_hash
 mysys/thr_lock
 mysys/thr_timer
 packaging/rpm-oel/mysql.spec

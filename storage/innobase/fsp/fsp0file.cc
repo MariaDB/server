@@ -33,9 +33,6 @@ Created 2013-7-26 by Kevin Lewis
 #include "srv0start.h"
 #include "ut0new.h"
 #include "fil0crypt.h"
-#ifdef UNIV_HOTBACKUP
-#include "my_sys.h"
-#endif /* UNIV_HOTBACKUP */
 
 /** Initialize the name, size and order of this datafile
 @param[in]	name	tablespace name, will be copied
@@ -459,39 +456,6 @@ Datafile::validate_for_recovery()
 	switch (err) {
 	case DB_SUCCESS:
 	case DB_TABLESPACE_EXISTS:
-#ifdef UNIV_HOTBACKUP
-		err = restore_from_doublewrite(0);
-		if (err != DB_SUCCESS) {
-			return(err);
-		}
-		/* Free the previously read first page and then re-validate. */
-		free_first_page();
-		err = validate_first_page(0, false);
-		if (err == DB_SUCCESS) {
-			std::string filepath = fil_space_get_first_path(
-				m_space_id);
-			if (is_intermediate_file(filepath.c_str())) {
-				/* Existing intermediate file with same space
-				id is obsolete.*/
-				if (fil_space_free(m_space_id, FALSE)) {
-					err = DB_SUCCESS;
-				}
-		} else {
-			filepath.assign(m_filepath);
-			if (is_intermediate_file(filepath.c_str())) {
-				/* New intermediate file with same space id
-				shall be ignored.*/
-				err = DB_TABLESPACE_EXISTS;
-				/* Set all bits of 'flags' as a special
-				indicator for "ignore tablespace". Hopefully
-				InnoDB will never use all bits or at least all
-				bits set will not be a meaningful setting
-				otherwise.*/
-				m_flags = ~0;
-			}
-		}
-		}
-#endif /* UNIV_HOTBACKUP */
 		break;
 
 	default:

@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -71,7 +72,7 @@ char*
 srv_add_path_separator_if_needed(
 /*=============================*/
 	char*	str);	/*!< in: null-terminated character string */
-#ifndef UNIV_HOTBACKUP
+
 /****************************************************************//**
 Starts Innobase and creates a new database if database files
 are not found and the user wants.
@@ -110,11 +111,6 @@ srv_path_copy(
 	const char*	basedir,	/*!< in: base directory */
 	const char*	table_name)	/*!< in: source table name */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
-
-/**
-Shutdown all background threads created by InnoDB. */
-void
-srv_shutdown_all_bg_threads();
 
 /** Get the meta-data filename from the table name for a
 single-table tablespace.
@@ -156,7 +152,6 @@ extern	bool	srv_startup_is_before_trx_rollback_phase;
 /** TRUE if a raw partition is in use */
 extern	ibool	srv_start_raw_disk_in_use;
 
-
 /** Shutdown state */
 enum srv_shutdown_t {
 	SRV_SHUTDOWN_NONE = 0,	/*!< Database running normally */
@@ -176,6 +171,4 @@ enum srv_shutdown_t {
 /** At a shutdown this value climbs from SRV_SHUTDOWN_NONE to
 SRV_SHUTDOWN_CLEANUP and then to SRV_SHUTDOWN_LAST_PHASE, and so on */
 extern	enum srv_shutdown_t	srv_shutdown_state;
-#endif /* !UNIV_HOTBACKUP */
-
 #endif

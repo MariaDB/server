@@ -1069,7 +1069,7 @@ public:
   }
 
   bool handle_condition(THD *thd, uint sql_errno, const char * /* sqlstate */,
-                        Sql_condition::enum_warning_level level,
+                        Sql_condition::enum_warning_level *level,
                         const char *message, Sql_condition ** /* cond_hdl */)
   {
     /*
@@ -4675,7 +4675,7 @@ public:
   bool handle_condition(THD *thd,
                         uint sql_errno,
                         const char* sqlstate,
-                        Sql_condition::enum_warning_level level,
+                        Sql_condition::enum_warning_level *level,
                         const char* msg,
                         Sql_condition ** cond_hdl)
   {
@@ -4684,7 +4684,7 @@ public:
         sql_errno == ER_TRG_NO_CREATION_CTX)
       return true;
 
-    if (level != Sql_condition::WARN_LEVEL_ERROR)
+    if (*level != Sql_condition::WARN_LEVEL_ERROR)
       return false;
 
     if (!thd->get_stmt_da()->is_error())

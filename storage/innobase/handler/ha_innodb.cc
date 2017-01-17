@@ -1,10 +1,10 @@
 /*****************************************************************************
 
 Copyright (c) 2000, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2013, 2017, MariaDB Corporation.
 Copyright (c) 2008, 2009 Google Inc.
 Copyright (c) 2009, Percona Inc.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2016, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -249,7 +249,8 @@ values */
 
 static ulong	innobase_fast_shutdown			= 1;
 static my_bool	innobase_file_format_check		= TRUE;
-static my_bool	innobase_use_atomic_writes		= FALSE;
+static my_bool	innobase_use_atomic_writes		= TRUE;
+static my_bool	innobase_use_fallocate;
 static my_bool	innobase_use_doublewrite		= TRUE;
 static my_bool	innobase_use_checksums			= TRUE;
 static my_bool	innobase_locks_unsafe_for_binlog	= FALSE;
@@ -261,7 +262,6 @@ static my_bool	innodb_optimize_fulltext_only		= FALSE;
 
 static char*	innodb_version_str = (char*) INNODB_VERSION_STR;
 
-extern uint srv_n_fil_crypt_threads;
 extern uint srv_fil_crypt_rotate_key_age;
 extern uint srv_n_fil_crypt_iops;
 
@@ -791,8 +791,6 @@ ha_create_table_option innodb_table_option_list[]=
   /* With this option user can set zip compression level for page
   compression for this table*/
   HA_TOPTION_NUMBER("PAGE_COMPRESSION_LEVEL", page_compression_level, 0, 1, 9, 1),
-  /* With this option user can enable atomic writes feature for this table */
-  HA_TOPTION_ENUM("ATOMIC_WRITES", atomic_writes, "DEFAULT,ON,OFF", 0),
   /* With this option the user can enable encryption for the table */
   HA_TOPTION_ENUM("ENCRYPTED", encryption, "DEFAULT,YES,NO", 0),
   /* With this option the user defines the key identifier using for the encryption */
@@ -1272,6 +1270,9 @@ static SHOW_VAR innodb_status_variables[]= {
   {"scrub_background_page_split_failures_unknown",
    (char*) &export_vars.innodb_scrub_page_split_failures_unknown,
    SHOW_LONG},
+  {"scrub_log",
+   (char*) &export_vars.innodb_scrub_log,
+   SHOW_LONGLONG},
   {"encryption_num_key_requests",
    (char*) &export_vars.innodb_encryption_key_requests, SHOW_LONGLONG},
 
@@ -4210,8 +4211,9 @@ innobase_init(
 
 		/* There is hang on buffer pool when trying to get a new
 		page if buffer pool size is too small for large page sizes */
-		if (innobase_buffer_pool_size < (24 * 1024 * 1024)) {
-			ib::info() << "innobase_page_size "
+		if (UNIV_PAGE_SIZE > UNIV_PAGE_SIZE_DEF
+		    && innobase_buffer_pool_size < (24 * 1024 * 1024)) {
+			ib::info() << "innodb_page_size="
 				<< UNIV_PAGE_SIZE << " requires "
 				<< "innodb_buffer_pool_size > 24M current "
 				<< innobase_buffer_pool_size;
@@ -4328,7 +4330,7 @@ innobase_init(
 
 	/* Create the filespace flags. */
 	fsp_flags = fsp_flags_init(
-		univ_page_size, false, false, false, false, false, 0, ATOMIC_WRITES_DEFAULT);
+		univ_page_size, false, false, false, false, false, 0, 0);
 	srv_sys_space.set_flags(fsp_flags);
 
 	srv_sys_space.set_name(reserved_system_space_name);
@@ -4354,7 +4356,7 @@ innobase_init(
 
 	/* Create the filespace flags with the temp flag set. */
 	fsp_flags = fsp_flags_init(
-		univ_page_size, false, false, false, true, false, 0, ATOMIC_WRITES_DEFAULT);
+		univ_page_size, false, false, false, true, false, 0, 0);
 	srv_tmp_space.set_flags(fsp_flags);
 
 	if (!srv_tmp_space.parse_params(innobase_temp_data_file_path, false)) {
@@ -4636,17 +4638,27 @@ innobase_change_buffering_inited_ok:
 	data_mysql_default_charset_coll = (ulint) default_charset_info->number;
 
 	innobase_commit_concurrency_init_default();
-	srv_use_atomic_writes = (ibool) innobase_use_atomic_writes;
-	if (innobase_use_atomic_writes) {
-		fprintf(stderr, "InnoDB: using atomic writes.\n");
-		/* Force doublewrite buffer off, atomic writes replace it. */
-		if (srv_use_doublewrite_buf) {
-			fprintf(stderr, "InnoDB: Switching off doublewrite buffer "
-				"because of atomic writes.\n");
-				innobase_use_doublewrite = srv_use_doublewrite_buf = FALSE;
-		}
 
-		/* Force O_DIRECT on Unixes (on Windows writes are always unbuffered)*/
+	if (innobase_use_fallocate) {
+		ib::warn() << "innodb_use_fallocate is DEPRECATED"
+			" and has no effect in MariaDB 10.2."
+			" It will be removed in MariaDB 10.3.";
+	}
+
+	srv_use_atomic_writes = (ibool) (innobase_use_atomic_writes &&
+                                         my_may_have_atomic_write);
+        if (srv_use_atomic_writes && !srv_file_per_table)
+        {
+          fprintf(stderr, "InnoDB: Disabling atomic_writes as file_per_table is not used.\n");
+          srv_use_atomic_writes= 0;
+        }
+
+	if (srv_use_atomic_writes) {
+		fprintf(stderr, "InnoDB: using atomic writes.\n");
+		/*
+                  Force O_DIRECT on Unixes (on Windows writes are always
+                  unbuffered)
+                */
 #ifndef _WIN32
 		if (!innobase_file_flush_method ||
 			!strstr(innobase_file_flush_method, "O_DIRECT")) {
@@ -4873,7 +4885,7 @@ innobase_commit_low(
 #ifdef WITH_WSREP
 	THD* thd = (THD*)trx->mysql_thd;
 	const char* tmp = 0;
-	if (wsrep_on(thd)) {
+	if (thd && wsrep_on(thd)) {
 #ifdef WSREP_PROC_INFO
 		char info[64];
 		info[sizeof(info) - 1] = '\0';
@@ -5243,13 +5255,13 @@ innobase_rollback(
 		error = trx_rollback_for_mysql(trx);
 
 		if (trx->state == TRX_STATE_FORCED_ROLLBACK) {
-#ifdef UNIV_DEBUG
+#ifndef DBUG_OFF
 			char	buffer[1024];
 
-			ib::info() << "Forced rollback : "
-				<< thd_get_error_context_description(thd,
-						buffer, sizeof(buffer), 512);
-#endif /* UNIV_DEBUG */
+			DBUG_LOG("trx", "Forced rollback: "
+				 << thd_get_error_context_description(
+					 thd, buffer, sizeof buffer, 512));
+#endif /* !DBUG_OFF */
 
 			trx->state = TRX_STATE_NOT_STARTED;
 		}
@@ -8485,7 +8497,10 @@ ha_innobase::build_template(
 				index_contains = dict_index_contains_col_or_prefix(
 					index, num_v, true);
                                 if (index_contains)
+                                {
+                                        m_prebuilt->n_template = 0;
                                         goto no_icp;
+                                }
 			} else {
 				index_contains = dict_index_contains_col_or_prefix(
 					index, i - num_v, false);
@@ -13142,7 +13157,6 @@ create_table_info_t::check_table_options()
 {
 	enum row_type	row_format = m_form->s->row_type;
 	ha_table_option_struct *options= m_form->s->option_struct;
-	atomic_writes_t awrites = (atomic_writes_t)options->atomic_writes;
 	fil_encryption_t encrypt = (fil_encryption_t)options->encryption;
 
 	if (encrypt != FIL_SPACE_ENCRYPTION_DEFAULT && !m_allow_file_per_table) {
@@ -13273,19 +13287,6 @@ create_table_info_t::check_table_options()
 			);
 			return "ENCRYPTION_KEY_ID";
 
-		}
-	}
-
-	/* Check atomic writes requirements */
-	if (awrites == ATOMIC_WRITES_ON ||
-		(awrites == ATOMIC_WRITES_DEFAULT && srv_use_atomic_writes)) {
-		if (!m_allow_file_per_table) {
-			push_warning(
-				m_thd, Sql_condition::WARN_LEVEL_WARN,
-				HA_WRONG_CREATE_OPTION,
-				"InnoDB: ATOMIC_WRITES requires"
-				" innodb_file_per_table.");
-			return "ATOMIC_WRITES";
 		}
 	}
 
@@ -13701,7 +13702,7 @@ index_bad:
 			options->page_compressed,
 		    	options->page_compression_level == 0 ?
 		        	default_compression_level : options->page_compression_level,
-		    	options->atomic_writes);
+		    	0);
 
 	if (m_use_file_per_table) {
 		ut_ad(!m_use_shared_space);
@@ -15021,7 +15022,7 @@ innobase_create_tablespace(
 		false,		/* Temporary General Tablespaces not allowed */
 		false,		/* Page compression is not used. */
 		0,		/* Page compression level 0 */
-		ATOMIC_WRITES_DEFAULT); /* No atomic writes yet */
+		0);
 
 	tablespace.set_flags(fsp_flags);
 
@@ -19471,8 +19472,8 @@ ha_innobase::check_if_incompatible_data(
 
 	/* Changes on engine specific table options requests a rebuild of the table. */
 	if (param_new->page_compressed != param_old->page_compressed ||
-	    param_new->page_compression_level != param_old->page_compression_level ||
-	    param_new->atomic_writes != param_old->atomic_writes) {
+	    param_new->page_compression_level != param_old->page_compression_level)
+        {
 		return(COMPATIBLE_DATA_NO);
 	}
 
@@ -21939,11 +21940,17 @@ static MYSQL_SYSVAR_BOOL(doublewrite, innobase_use_doublewrite,
 
 static MYSQL_SYSVAR_BOOL(use_atomic_writes, innobase_use_atomic_writes,
   PLUGIN_VAR_NOCMDARG | PLUGIN_VAR_READONLY,
-  "Prevent partial page writes, via atomic writes."
-  "The option is used to prevent partial writes in case of a crash/poweroff, "
-  "as faster alternative to doublewrite buffer."
-  "Currently this option works only "
-  "on Linux only with FusionIO device, and directFS filesystem.",
+  "Enable atomic writes, instead of using the doublewrite buffer, for files "
+  "on devices that supports atomic writes. "
+  "To use this option one must use "
+  "file_per_table=1, flush_method=O_DIRECT and use_fallocate=1. "
+  "This option only works on Linux with either FusionIO cards using "
+  "the directFS filesystem or with Shannon cards using any file system.",
+  NULL, NULL, TRUE);
+
+static MYSQL_SYSVAR_BOOL(use_fallocate, innobase_use_fallocate,
+  PLUGIN_VAR_NOCMDARG | PLUGIN_VAR_READONLY,
+  "Use posix_fallocate() to allocate files. DEPRECATED, has no effect.",
   NULL, NULL, FALSE);
 
 static MYSQL_SYSVAR_ULONG(io_capacity, srv_io_capacity,
@@ -22595,10 +22602,10 @@ static MYSQL_SYSVAR_ULONG(sync_spin_loops, srv_n_spin_wait_rounds,
   "Count of spin-loop rounds in InnoDB mutexes (30 by default)",
   NULL, NULL, 30L, 0L, ~0UL, 0);
 
-static MYSQL_SYSVAR_ULONG(spin_wait_delay, srv_spin_wait_delay,
+static MYSQL_SYSVAR_UINT(spin_wait_delay, srv_spin_wait_delay,
   PLUGIN_VAR_OPCMDARG,
   "Maximum delay between polling for a spin lock (6 by default)",
-  NULL, NULL, 6L, 0L, ~0UL, 0);
+  NULL, NULL, 6, 0, 6000, 0);
 
 static MYSQL_SYSVAR_ULONG(thread_concurrency, srv_thread_concurrency,
   PLUGIN_VAR_RQCMDARG,
@@ -22710,12 +22717,12 @@ static MYSQL_SYSVAR_BOOL(use_native_aio, srv_use_native_aio,
   "Use native AIO if supported on this platform.",
   NULL, NULL, TRUE);
 
-#if defined(HAVE_LIBNUMA) && defined(WITH_NUMA)
+#ifdef HAVE_LIBNUMA
 static MYSQL_SYSVAR_BOOL(numa_interleave, srv_numa_interleave,
   PLUGIN_VAR_NOCMDARG | PLUGIN_VAR_READONLY,
   "Use NUMA interleave memory policy to allocate InnoDB buffer pool.",
   NULL, NULL, FALSE);
-#endif /* HAVE_LIBNUMA && WITH_NUMA */
+#endif /* HAVE_LIBNUMA */
 
 static MYSQL_SYSVAR_BOOL(api_enable_binlog, ib_binlog_enabled,
   PLUGIN_VAR_NOCMDARG | PLUGIN_VAR_READONLY,
@@ -22928,6 +22935,12 @@ static MYSQL_SYSVAR_BOOL(trx_purge_view_update_only_debug,
   " It is to create artificially the situation the purge view have been updated"
   " but the each purges were not done yet.",
   NULL, NULL, FALSE);
+
+static MYSQL_SYSVAR_UINT(data_file_size_debug,
+  srv_sys_space_size_debug,
+  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
+  "InnoDB system tablespace size to be set in recovery.",
+  NULL, NULL, 0, 0, UINT_MAX32, 0);
 
 static MYSQL_SYSVAR_ULONG(fil_make_page_dirty_debug,
   srv_fil_make_page_dirty_debug, PLUGIN_VAR_OPCMDARG,
@@ -23171,6 +23184,7 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(data_home_dir),
   MYSQL_SYSVAR(doublewrite),
   MYSQL_SYSVAR(use_atomic_writes),
+  MYSQL_SYSVAR(use_fallocate),
   MYSQL_SYSVAR(api_enable_binlog),
   MYSQL_SYSVAR(api_enable_mdl),
   MYSQL_SYSVAR(api_disable_rowlock),
@@ -23255,9 +23269,9 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(autoinc_lock_mode),
   MYSQL_SYSVAR(version),
   MYSQL_SYSVAR(use_native_aio),
-#if defined(HAVE_LIBNUMA) && defined(WITH_NUMA)
+#ifdef HAVE_LIBNUMA
   MYSQL_SYSVAR(numa_interleave),
-#endif /* HAVE_LIBNUMA && WITH_NUMA */
+#endif /* HAVE_LIBNUMA */
   MYSQL_SYSVAR(change_buffering),
   MYSQL_SYSVAR(change_buffer_max_size),
 #if defined UNIV_DEBUG || defined UNIV_IBUF_DEBUG
@@ -23312,6 +23326,7 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(trx_rseg_n_slots_debug),
   MYSQL_SYSVAR(limit_optimistic_insert_debug),
   MYSQL_SYSVAR(trx_purge_view_update_only_debug),
+  MYSQL_SYSVAR(data_file_size_debug),
   MYSQL_SYSVAR(fil_make_page_dirty_debug),
   MYSQL_SYSVAR(saved_page_number_debug),
   MYSQL_SYSVAR(compress_debug),
@@ -23381,7 +23396,6 @@ i_s_innodb_cmp_per_index_reset,
 i_s_innodb_buffer_page,
 i_s_innodb_buffer_page_lru,
 i_s_innodb_buffer_stats,
-i_s_innodb_temp_table_info,
 i_s_innodb_metrics,
 i_s_innodb_ft_default_stopword,
 i_s_innodb_ft_deleted,

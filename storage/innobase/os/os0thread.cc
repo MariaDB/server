@@ -32,10 +32,8 @@ Created 9/8/1995 Heikki Tuuri
 #include "os0thread.ic"
 #endif
 
-#ifndef UNIV_HOTBACKUP
 #include "srv0srv.h"
 #include "os0event.h"
-
 #include <map>
 
 /** Mutex that tracks the thread count. Used by innorwlocktest.cc
@@ -208,7 +206,6 @@ os_thread_yield(void)
 	sched_yield();
 #endif
 }
-#endif /* !UNIV_HOTBACKUP */
 
 /*****************************************************************//**
 The thread sleeps at least the time given in microseconds. */

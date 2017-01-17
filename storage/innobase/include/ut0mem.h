@@ -27,10 +27,8 @@ Created 5/30/1994 Heikki Tuuri
 #define ut0mem_h
 
 #include "univ.i"
-#ifndef UNIV_HOTBACKUP
-# include "os0event.h"
-# include "ut0mutex.h"
-#endif /* !UNIV_HOTBACKUP */
+#include "os0event.h"
+#include "ut0mutex.h"
 
 /** Wrapper for memcpy(3).  Copy memory area when the source and
 target are not overlapping.

@@ -26,7 +26,6 @@ Created 7/19/1997 Heikki Tuuri
 #include "page0page.h"
 #include "page0zip.h"
 #include "fsp0types.h"
-#ifndef UNIV_HOTBACKUP
 #include "buf0lru.h"
 
 /** An index page must contain at least UNIV_PAGE_SIZE /
@@ -340,4 +339,3 @@ ibuf_update_free_bits_if_full(
 		ibuf_set_free_bits(block, after, before);
 	}
 }
-#endif /* !UNIV_HOTBACKUP */

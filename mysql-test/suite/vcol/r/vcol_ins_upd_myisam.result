@@ -389,3 +389,240 @@ id	name	name_hash
 2051	name2+1	fd4f236320db3956a5ec073c5ec39707d7f05708
 2041	name3+1	93c9096df48221428de46e146abc9f4f94bf7d2e
 drop table t1,t2;
+#
+# Test error handling with virtual columns
+#
+CREATE TABLE IF NOT EXISTS t1 (
+f1 DOUBLE,
+f2 DOUBLE NOT NULL DEFAULT '0',
+f3 DOUBLE,
+f4 DOUBLE NOT NULL DEFAULT '0',
+v1 DOUBLE AS ( ( f1 DIV ( f1 ) ) <= f2 ) VIRTUAL,
+v2 DOUBLE AS ( ( f2 DIV ( f2 ) ) <= f2 ) VIRTUAL,
+KEY (v2)
+);
+set sql_mode='strict_all_tables,error_for_division_by_zero';
+INSERT INTO t1 (f1, f2, f3, f4) VALUES (0, 0, 0, 0);
+ERROR 22012: Division by 0
+INSERT INTO t1 (f1, f2, f3, f4) VALUES (1, 1, 1, 1);
+INSERT INTO t1 (f1, f2, f3, f4) VALUES (1, 0, 1, 1);
+ERROR 22012: Division by 0
+INSERT IGNORE INTO t1 (f1, f2, f3, f4) VALUES (1, 0, 1, 1);
+Warnings:
+Warning	1365	Division by 0
+INSERT INTO t1 (f1, f2, f3, f4) VALUES (0, 1, 1, 1);
+select v1 from t1;
+v1
+1
+0
+NULL
+Warnings:
+Warning	1365	Division by 0
+INSERT INTO t1 (f1, f2, f3, f4) VALUES (0,0,0,0), (2,2,2,2);
+ERROR 22012: Division by 0
+INSERT INTO t1 (f1, f2, f3, f4) VALUES (3,3,3,3), (4,4,4,4);
+INSERT INTO t1 (f1, f2, f3, f4) VALUES (5,5,5,5), (1,0,0,0);
+ERROR 22012: Division by 0
+INSERT INTO t1 (f1, f2, f3, f4) VALUES (6,6,0,0);
+INSERT INTO t1 ( f1, f2, f3, f4 ) SELECT f3, f4, f3, f4 FROM t1;
+ERROR 22012: Division by 0
+select count(*) from t1;
+count(*)
+13
+DELETE FROM t1 WHERE v2 != f1 and f1 < 5;
+Warnings:
+Warning	1365	Division by 0
+Warning	1365	Division by 0
+select count(*) from t1;
+count(*)
+8
+select * from t1;
+f1	f2	f3	f4	v1	v2
+1	1	1	1	1	1
+1	0	1	1	0	NULL
+5	5	5	5	1	1
+6	6	0	0	1	1
+1	1	1	1	1	1
+1	1	1	1	1	1
+1	1	1	1	1	1
+5	5	5	5	1	1
+Warnings:
+Warning	1365	Division by 0
+INSERT INTO t1 ( f1, f2, f3, f4 ) SELECT v1, v2, 10,10 FROM t1;
+ERROR 23000: Column 'f2' cannot be null
+INSERT INTO t1 ( f1, f2, f3, f4 ) SELECT v1, v2, 10,10 FROM t1 where f2 !=0;
+Warnings:
+Warning	1365	Division by 0
+UPDATE t1 SET f3 = v1 WHERE f2 = 2 AND v2 is null;
+Warnings:
+Warning	1365	Division by 0
+SELECT * FROM t1;
+f1	f2	f3	f4	v1	v2
+1	1	1	1	1	1
+1	0	1	1	0	NULL
+1	1	10	10	1	1
+1	1	10	10	1	1
+1	1	10	10	1	1
+5	5	5	5	1	1
+6	6	0	0	1	1
+1	1	1	1	1	1
+1	1	1	1	1	1
+1	1	1	1	1	1
+1	1	10	10	1	1
+1	1	10	10	1	1
+5	5	5	5	1	1
+1	1	10	10	1	1
+1	1	10	10	1	1
+1	1	10	10	1	1
+1	1	10	10	1	1
+Warnings:
+Warning	1365	Division by 0
+TRUNCATE TABLE t1;
+set sql_mode='error_for_division_by_zero';
+INSERT INTO t1 (f1, f2, f3, f4) VALUES (0, 0, 0, 0);
+Warnings:
+Warning	1365	Division by 0
+INSERT INTO t1 (f1, f2, f3, f4) VALUES (1, 1, 1, 1);
+INSERT INTO t1 (f1, f2, f3, f4) VALUES (1, 0, 1, 1);
+Warnings:
+Warning	1365	Division by 0
+INSERT INTO t1 (f1, f2, f3, f4) VALUES (0, 1, 1, 1);
+select v1 from t1;
+v1
+NULL
+1
+0
+NULL
+Warnings:
+Warning	1365	Division by 0
+Warning	1365	Division by 0
+INSERT INTO t1 (f1, f2, f3, f4) VALUES (0,0,0,0), (2,2,2,2);
+Warnings:
+Warning	1365	Division by 0
+INSERT INTO t1 (f1, f2, f3, f4) VALUES (3,3,3,3), (4,4,4,4);
+INSERT INTO t1 (f1, f2, f3, f4) VALUES (5,5,5,5), (1,0,0,0);
+Warnings:
+Warning	1365	Division by 0
+INSERT INTO t1 (f1, f2, f3, f4) VALUES (6,6,0,0);
+INSERT INTO t1 ( f1, f2, f3, f4 ) SELECT f3, f4, f3, f4 FROM t1;
+Warnings:
+Warning	1365	Division by 0
+Warning	1365	Division by 0
+Warning	1365	Division by 0
+Warning	1365	Division by 0
+select count(*) from t1;
+count(*)
+22
+DELETE FROM t1 WHERE v2 != f1 and f1 < 5;
+Warnings:
+Warning	1365	Division by 0
+Warning	1365	Division by 0
+Warning	1365	Division by 0
+Warning	1365	Division by 0
+Warning	1365	Division by 0
+Warning	1365	Division by 0
+Warning	1365	Division by 0
+Warning	1365	Division by 0
+Warning	1365	Division by 0
+Warning	1365	Division by 0
+Warning	1365	Division by 0
+Warning	1365	Division by 0
+Warning	1365	Division by 0
+Warning	1365	Division by 0
+Warning	1365	Division by 0
+Warning	1365	Division by 0
+select count(*) from t1;
+count(*)
+15
+select * from t1;
+f1	f2	f3	f4	v1	v2
+0	0	0	0	NULL	NULL
+1	1	1	1	1	1
+1	0	1	1	0	NULL
+0	0	0	0	NULL	NULL
+5	5	5	5	1	1
+1	0	0	0	0	NULL
+6	6	0	0	1	1
+0	0	0	0	NULL	NULL
+1	1	1	1	1	1
+1	1	1	1	1	1
+1	1	1	1	1	1
+0	0	0	0	NULL	NULL
+5	5	5	5	1	1
+0	0	0	0	NULL	NULL
+0	0	0	0	NULL	NULL
+Warnings:
+Warning	1365	Division by 0
+Warning	1365	Division by 0
+Warning	1365	Division by 0
+Warning	1365	Division by 0
+Warning	1365	Division by 0
+Warning	1365	Division by 0
+Warning	1365	Division by 0
+Warning	1365	Division by 0
+Warning	1365	Division by 0
+Warning	1365	Division by 0
+Warning	1365	Division by 0
+Warning	1365	Division by 0
+Warning	1365	Division by 0
+Warning	1365	Division by 0
+INSERT INTO t1 ( f1, f2, f3, f4 ) SELECT v1, v2, 10,10 FROM t1;
+Warnings:
+Warning	1365	Division by 0
+Warning	1365	Division by 0
+Warning	1365	Division by 0
+Warning	1365	Division by 0
+Warning	1365	Division by 0
+Warning	1365	Division by 0
+Warning	1365	Division by 0
+Warning	1365	Division by 0
+Warning	1365	Division by 0
+Warning	1365	Division by 0
+Warning	1365	Division by 0
+Warning	1365	Division by 0
+Warning	1365	Division by 0
+Warning	1365	Division by 0
+Warning	1048	Column 'f2' cannot be null
+Warning	1365	Division by 0
+Warning	1048	Column 'f2' cannot be null
+Warning	1365	Division by 0
+Warning	1048	Column 'f2' cannot be null
+Warning	1365	Division by 0
+Warning	1048	Column 'f2' cannot be null
+Warning	1365	Division by 0
+Warning	1048	Column 'f2' cannot be null
+Warning	1365	Division by 0
+Warning	1048	Column 'f2' cannot be null
+Warning	1365	Division by 0
+Warning	1048	Column 'f2' cannot be null
+Warning	1365	Division by 0
+Warning	1048	Column 'f2' cannot be null
+Warning	1365	Division by 0
+UPDATE t1 SET f3 = v1 WHERE f2 = 2 AND v2 is null;
+Warnings:
+Warning	1365	Division by 0
+Warning	1365	Division by 0
+Warning	1365	Division by 0
+Warning	1365	Division by 0
+Warning	1365	Division by 0
+Warning	1365	Division by 0
+Warning	1365	Division by 0
+Warning	1365	Division by 0
+Warning	1365	Division by 0
+Warning	1365	Division by 0
+Warning	1365	Division by 0
+Warning	1365	Division by 0
+Warning	1365	Division by 0
+Warning	1365	Division by 0
+Warning	1365	Division by 0
+Warning	1365	Division by 0
+Warning	1365	Division by 0
+Warning	1365	Division by 0
+Warning	1365	Division by 0
+Warning	1365	Division by 0
+Warning	1365	Division by 0
+Warning	1365	Division by 0
+Warning	1365	Division by 0
+Warning	1365	Division by 0
+drop table t1;
+set sql_mode=@@global.sql_mode;

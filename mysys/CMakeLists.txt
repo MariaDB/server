@@ -42,6 +42,7 @@ SET(MYSYS_SOURCES  array.c charset-def.c charset.c checksum.c my_default.c
 				my_atomic.c my_getncpus.c my_safehash.c my_chmod.c my_rnd.c
                                 my_uuid.c wqueue.c waiting_threads.c ma_dyncol.c ../sql-common/my_time.c
 				my_rdtsc.c my_context.c psi_noop.c
+				my_atomic_writes.c
                                 file_logger.c)
 
 IF (WIN32)
@@ -95,6 +96,10 @@ SET_TARGET_PROPERTIES(thr_lock PROPERTIES COMPILE_FLAGS "-DMAIN")
 ADD_EXECUTABLE(thr_timer thr_timer.c)
 TARGET_LINK_LIBRARIES(thr_timer mysys)
 SET_TARGET_PROPERTIES(thr_timer PROPERTIES COMPILE_FLAGS "-DMAIN")
+
+ADD_EXECUTABLE(test_hash hash.c)
+TARGET_LINK_LIBRARIES(test_hash mysys)
+SET_TARGET_PROPERTIES(test_hash PROPERTIES COMPILE_FLAGS "-DMAIN")
 
 IF(MSVC)
    INSTALL_DEBUG_TARGET(mysys DESTINATION ${INSTALL_LIBDIR}/debug)

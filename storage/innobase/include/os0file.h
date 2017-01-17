@@ -918,7 +918,6 @@ struct os_file_stat_t {
 						if type == OS_FILE_TYPE_FILE */
 };
 
-#ifndef UNIV_HOTBACKUP
 /** Create a temporary file. This function is like tmpfile(3), but
 the temporary file is created in the given parameter path. If the path
 is null then it will create the file in the mysql server configuration
@@ -928,7 +927,6 @@ parameter (--tmpdir).
 FILE*
 os_file_create_tmpfile(
 	const char*	path);
-#endif /* !UNIV_HOTBACKUP */
 
 /** The os_file_opendir() function opens a directory stream corresponding to the
 directory named by the dirname argument. The directory stream is positioned
@@ -1569,14 +1567,6 @@ to original un-instrumented file I/O APIs */
 
 #endif	/* UNIV_PFS_IO */
 
-#ifdef UNIV_HOTBACKUP
-/** Closes a file handle.
-@param[in] file		handle to a file
-@return true if success */
-bool
-os_file_close_no_error_handling(os_file_t file);
-#endif /* UNIV_HOTBACKUP */
-
 /** Gets a file size.
 @param[in]	file		handle to a file
 @return file size if OK, else set m_total_size to ~0 and m_alloc_size
@@ -1914,7 +1904,6 @@ os_file_get_status(
 	bool		check_rw_perm,
 	bool		read_only);
 
-#if !defined(UNIV_HOTBACKUP)
 /** Creates a temporary file in the location specified by the parameter
 path. If the path is NULL then it will be created on --tmpdir location.
 This function is defined in ha_innodb.cc.
@@ -1923,8 +1912,6 @@ This function is defined in ha_innodb.cc.
 int
 innobase_mysql_tmpfile(
 	const char*	path);
-#endif /* !UNIV_HOTBACKUP */
-
 
 /** If it is a compressed page return the compressed page data + footer size
 @param[in]	buf		Buffer to check, must include header + 10 bytes

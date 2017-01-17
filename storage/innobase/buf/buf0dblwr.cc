@@ -40,8 +40,6 @@ Created 2011/12/19
 #include "fil0crypt.h"
 #include "fil0pagecompress.h"
 
-#ifndef UNIV_HOTBACKUP
-
 /** The doublewrite buffer */
 buf_dblwr_t*	buf_dblwr = NULL;
 
@@ -1195,7 +1193,6 @@ try_again:
 	} else {
 		ut_a(buf_page_get_state(bpage) == BUF_BLOCK_FILE_PAGE);
 
-
 		UNIV_MEM_ASSERT_RW(frame,
 				   bpage->size.logical());
 
@@ -1360,4 +1357,3 @@ retry:
 	blocks. Next do the write to the intended position. */
 	buf_dblwr_write_block_to_datafile(bpage, sync);
 }
-#endif /* !UNIV_HOTBACKUP */

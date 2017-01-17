@@ -614,8 +614,7 @@ ha_innobase::check_if_supported_inplace_alter(
 		ha_table_option_struct *old_options= table->s->option_struct;
 
 		if (new_options->page_compressed != old_options->page_compressed ||
-		    new_options->page_compression_level != old_options->page_compression_level ||
-			new_options->atomic_writes != old_options->atomic_writes) {
+		    new_options->page_compression_level != old_options->page_compression_level) {
 			ha_alter_info->unsupported_reason = innobase_get_err_msg(
 				ER_ALTER_OPERATION_NOT_SUPPORTED_REASON);
 			DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
@@ -1914,7 +1913,7 @@ innobase_row_to_mysql(
 	}
 	if (table->vfield) {
 		my_bitmap_map*	old_vcol_set = tmp_use_all_columns(table, table->vcol_set);
-		table->update_virtual_fields(VCOL_UPDATE_FOR_READ_WRITE);
+		table->update_virtual_fields(VCOL_UPDATE_FOR_READ);
 		tmp_restore_column_map(table->vcol_set, old_vcol_set);
 	}
 }
@@ -6067,7 +6066,7 @@ check_if_can_drop_indexes:
 
 			if (!index->to_be_dropped && dict_index_is_corrupted(index)) {
 				my_error(ER_INDEX_CORRUPT, MYF(0), index->name());
-				DBUG_RETURN(true);
+				goto err_exit;
 			}
 		}
 	}

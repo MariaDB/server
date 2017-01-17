@@ -28,7 +28,6 @@ Created 11/5/1995 Heikki Tuuri
 #include "buf0lru.ic"
 #endif /* UNIV_NOINL */
 
-#ifndef UNIV_HOTBACKUP
 #include "ut0byte.h"
 #include "ut0rnd.h"
 #include "sync0rw.h"
@@ -79,10 +78,6 @@ static const ulint BUF_LRU_DROP_SEARCH_SIZE = 1024;
 /** We scan these many blocks when looking for a clean page to evict
 during LRU eviction. */
 static const ulint BUF_LRU_SEARCH_SCAN_THRESHOLD = 100;
-
-/** We scan these many blocks when looking for a clean page to evict
-during LRU eviction. */
-#define BUF_LRU_SEARCH_SCAN_THRESHOLD	100
 
 /** If we switch on the InnoDB monitor because there are too few available
 frames in the buffer pool, we set this to TRUE */
@@ -2791,4 +2786,3 @@ buf_LRU_print(void)
 	}
 }
 #endif /* UNIV_DEBUG_PRINT || UNIV_DEBUG || UNIV_BUF_DEBUG */
-#endif /* !UNIV_HOTBACKUP */

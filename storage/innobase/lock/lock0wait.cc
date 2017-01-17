@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2014, 2016, MariaDB Corporation.
+Copyright (c) 2014, 2017, MariaDB Corporation. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -509,11 +509,7 @@ A thread which wakes up threads whose lock wait may have lasted too long.
 @return a dummy parameter */
 extern "C"
 os_thread_ret_t
-DECLARE_THREAD(lock_wait_timeout_thread)(
-/*=====================================*/
-	void*	arg MY_ATTRIBUTE((unused)))
-			/* in: a dummy parameter required by
-			os_thread_create */
+DECLARE_THREAD(lock_wait_timeout_thread)(void*)
 {
 	int64_t		sig_count = 0;
 	os_event_t	event = lock_sys->timeout_event;
@@ -523,8 +519,6 @@ DECLARE_THREAD(lock_wait_timeout_thread)(
 #ifdef UNIV_PFS_THREAD
 	pfs_register_thread(srv_lock_timeout_thread_key);
 #endif /* UNIV_PFS_THREAD */
-
-	lock_sys->timeout_thread_active = true;
 
 	do {
 		srv_slot_t*	slot;

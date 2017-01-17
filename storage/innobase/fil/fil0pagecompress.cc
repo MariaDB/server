@@ -48,14 +48,9 @@ Updated 14/02/2015
 #include "trx0sys.h"
 #include "row0mysql.h"
 #include "ha_prototypes.h"  // IB_LOG_
-#ifndef UNIV_HOTBACKUP
-# include "buf0lru.h"
-# include "ibuf0ibuf.h"
-# include "sync0sync.h"
-#else /* !UNIV_HOTBACKUP */
-# include "srv0srv.h"
-static ulint srv_data_read, srv_data_written;
-#endif /* !UNIV_HOTBACKUP */
+#include "buf0lru.h"
+#include "ibuf0ibuf.h"
+#include "sync0sync.h"
 #include "zlib.h"
 #ifdef __linux__
 #include <linux/fs.h>
@@ -492,10 +487,8 @@ fil_decompress_page(
 		*write_size = actual_size;
 	}
 
-#ifdef UNIV_PAGECOMPRESS_DEBUG
-	ib::info() << "Preparing for decompress for len "
-		   << actual_size << ".";
-#endif /* UNIV_PAGECOMPRESS_DEBUG */
+	DBUG_LOG("compress", "Preparing for decompress for len "
+		 << actual_size << ".");
 
 	switch(compression_alg) {
 	case PAGE_ZLIB_ALGORITHM:

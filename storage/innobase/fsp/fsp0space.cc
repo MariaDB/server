@@ -27,13 +27,9 @@ Created 2012-11-16 by Sunny Bains as srv/srv0space.cc
 
 #include "fsp0space.h"
 #include "fsp0sysspace.h"
-#ifndef UNIV_HOTBACKUP
 #include "fsp0fsp.h"
 #include "os0file.h"
-#endif /* !UNIV_HOTBACKUP */
-
 #include "my_sys.h"
-
 
 /** Check if two tablespaces have common data file names.
 @param other_space	Tablespace to check against this.
@@ -122,13 +118,6 @@ Tablespace::open_or_create(bool is_temp)
 			break;
 		}
 
-#ifdef UNIV_LINUX
-		const bool atomic_write = fil_fusionio_enable_atomic_write(
-			it->m_handle);
-#else
-		const bool atomic_write = false;
-#endif
-
 		/* We can close the handle now and open the tablespace
 		the proper way. */
 		it->close();
@@ -153,7 +142,7 @@ Tablespace::open_or_create(bool is_temp)
 		/* Create the tablespace node entry for this data file. */
 		if (!fil_node_create(
 			    it->m_filepath, it->m_size, space, false,
-			    atomic_write)) {
+			    TRUE)) {
 
 		       err = DB_ERROR;
 		       break;
@@ -179,7 +168,6 @@ Tablespace::find(const char* filename)
 
 	return(false);
 }
-
 
 /** Delete all the data files. */
 void

@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2012, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -399,10 +400,7 @@ statistics.
 @return this function does not return, it calls os_thread_exit() */
 extern "C"
 os_thread_ret_t
-DECLARE_THREAD(dict_stats_thread)(
-/*==============================*/
-	void*	arg MY_ATTRIBUTE((unused)))	/*!< in: a dummy parameter
-						required by os_thread_create */
+DECLARE_THREAD(dict_stats_thread)(void*)
 {
 	ut_a(!srv_read_only_mode);
 
@@ -411,8 +409,6 @@ DECLARE_THREAD(dict_stats_thread)(
 	pfs_register_thread(dict_stats_thread_key);
 	*/
 #endif /* UNIV_PFS_THREAD */
-
-	srv_dict_stats_thread_active = TRUE;
 
 	while (!dict_stats_start_shutdown) {
 
@@ -445,7 +441,7 @@ DECLARE_THREAD(dict_stats_thread)(
 		os_event_reset(dict_stats_event);
 	}
 
-	srv_dict_stats_thread_active = FALSE;
+	srv_dict_stats_thread_active = false;
 
 	os_event_set(dict_stats_shutdown_event);
 	my_thread_end();

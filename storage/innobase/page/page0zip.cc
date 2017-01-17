@@ -49,32 +49,24 @@ const byte field_ref_zero[FIELD_REF_SIZE] = {
 #include "log0recv.h"
 #include "row0trunc.h"
 #include "zlib.h"
-#ifndef UNIV_HOTBACKUP
-# include "buf0buf.h"
+#include "buf0buf.h"
 #include "buf0types.h"
 #include "buf0checksum.h"
-# include "btr0sea.h"
-# include "dict0boot.h"
-# include "lock0lock.h"
-# include "srv0srv.h"
-# include "buf0lru.h"
-# include "srv0mon.h"
-# include "ut0crc32.h"
-#else /* !UNIV_HOTBACKUP */
-# include "buf0checksum.h"
-# define lock_move_reorganize_page(block, temp_block)	((void) 0)
-# define buf_LRU_stat_inc_unzip()			((void) 0)
-#endif /* !UNIV_HOTBACKUP */
+#include "btr0sea.h"
+#include "dict0boot.h"
+#include "lock0lock.h"
+#include "srv0srv.h"
+#include "buf0lru.h"
+#include "srv0mon.h"
+#include "ut0crc32.h"
 
 #include <map>
 #include <algorithm>
 
-#ifndef UNIV_HOTBACKUP
 /** Statistics on compression, indexed by page_zip_des_t::ssize - 1 */
 page_zip_stat_t		page_zip_stat[PAGE_ZIP_SSIZE_MAX];
 /** Statistics on compression, indexed by index->id */
 page_zip_stat_per_index_t	page_zip_stat_per_index;
-#endif /* !UNIV_HOTBACKUP */
 
 /* Compression level to be used by zlib. Settable by user. */
 uint	page_zip_level = DEFAULT_COMPRESSION_LEVEL;
@@ -156,7 +148,6 @@ page_zip_fail_func(
 # define page_zip_fail(fmt_args) /* empty */
 #endif /* UNIV_DEBUG || UNIV_ZIP_DEBUG */
 
-#ifndef UNIV_HOTBACKUP
 /**********************************************************************//**
 Determine the guaranteed free space on an empty page.
 @return minimum payload size on the page */
@@ -228,7 +219,6 @@ page_zip_is_too_big(
 
 	return(false);
 }
-#endif /* !UNIV_HOTBACKUP */
 
 /*************************************************************//**
 Gets the number of elements in the dense page directory,
@@ -384,7 +374,6 @@ page_zip_dir_get(
 				- PAGE_ZIP_DIR_SLOT_SIZE * (slot + 1)));
 }
 
-#ifndef UNIV_HOTBACKUP
 /**********************************************************************//**
 Write a log record of compressing an index page. */
 static
@@ -448,7 +437,6 @@ page_zip_compress_write_log(
 	mlog_catenate_string(mtr, page_zip->data + page_zip_get_size(page_zip)
 			     - trailer_size, trailer_size);
 }
-#endif /* !UNIV_HOTBACKUP */
 
 /******************************************************//**
 Determine how many externally stored columns are contained
@@ -1290,9 +1278,7 @@ page_zip_compress(
 	byte*			storage;	/* storage of uncompressed
 						columns */
 	index_id_t		ind_id;
-#ifndef UNIV_HOTBACKUP
 	uintmax_t		usec = ut_time_us(NULL);
-#endif /* !UNIV_HOTBACKUP */
 #ifdef PAGE_ZIP_COMPRESS_DBG
 	FILE*			logfile = NULL;
 #endif
@@ -1375,14 +1361,12 @@ page_zip_compress(
 		}
 	}
 #endif /* PAGE_ZIP_COMPRESS_DBG */
-#ifndef UNIV_HOTBACKUP
 	page_zip_stat[page_zip->ssize - 1].compressed++;
 	if (cmp_per_index_enabled) {
 		mutex_enter(&page_zip_stat_per_index_mutex);
 		page_zip_stat_per_index[ind_id].compressed++;
 		mutex_exit(&page_zip_stat_per_index_mutex);
 	}
-#endif /* !UNIV_HOTBACKUP */
 
 	if (UNIV_UNLIKELY(n_dense * PAGE_ZIP_DIR_SLOT_SIZE
 			  >= page_zip_get_size(page_zip))) {
@@ -1578,7 +1562,6 @@ err_exit:
 			fclose(logfile);
 		}
 #endif /* PAGE_ZIP_COMPRESS_DBG */
-#ifndef UNIV_HOTBACKUP
 		if (page_is_leaf(page) && index) {
 			dict_index_zip_failure(index);
 		}
@@ -1592,7 +1575,6 @@ err_exit:
 				+= time_diff;
 			mutex_exit(&page_zip_stat_per_index_mutex);
 		}
-#endif /* !UNIV_HOTBACKUP */
 		return(FALSE);
 	}
 
@@ -1633,9 +1615,7 @@ err_exit:
 #endif /* UNIV_ZIP_DEBUG */
 
 	if (mtr) {
-#ifndef UNIV_HOTBACKUP
 		page_zip_compress_write_log(page_zip, page, index, mtr);
-#endif /* !UNIV_HOTBACKUP */
 	}
 
 	UNIV_MEM_ASSERT_RW(page_zip->data, page_zip_get_size(page_zip));
@@ -1652,7 +1632,6 @@ err_exit:
 		fclose(logfile);
 	}
 #endif /* PAGE_ZIP_COMPRESS_DBG */
-#ifndef UNIV_HOTBACKUP
 	uintmax_t	time_diff = ut_time_us(NULL) - usec;
 	page_zip_stat[page_zip->ssize - 1].compressed_ok++;
 	page_zip_stat[page_zip->ssize - 1].compressed_usec += time_diff;
@@ -1666,7 +1645,6 @@ err_exit:
 	if (page_is_leaf(page) && !truncate_t::s_fix_up_active) {
 		dict_index_zip_success(index);
 	}
-#endif /* !UNIV_HOTBACKUP */
 
 	return(TRUE);
 }
@@ -3277,15 +3255,12 @@ page_zip_decompress(
 				page header fields that should not change
 				after page creation */
 {
-#ifndef UNIV_HOTBACKUP
 	uintmax_t	usec = ut_time_us(NULL);
-#endif /* !UNIV_HOTBACKUP */
 
 	if (!page_zip_decompress_low(page_zip, page, all)) {
 		return(FALSE);
 	}
 
-#ifndef UNIV_HOTBACKUP
 	uintmax_t	time_diff = ut_time_us(NULL) - usec;
 	page_zip_stat[page_zip->ssize - 1].decompressed++;
 	page_zip_stat[page_zip->ssize - 1].decompressed_usec += time_diff;
@@ -3298,7 +3273,6 @@ page_zip_decompress(
 		page_zip_stat_per_index[index_id].decompressed_usec += time_diff;
 		mutex_exit(&page_zip_stat_per_index_mutex);
 	}
-#endif /* !UNIV_HOTBACKUP */
 
 	/* Update the stat counter for LRU policy. */
 	buf_LRU_stat_inc_unzip();
@@ -4013,7 +3987,6 @@ page_zip_write_blob_ptr(
 #endif /* UNIV_ZIP_DEBUG */
 
 	if (mtr) {
-#ifndef UNIV_HOTBACKUP
 		byte*	log_ptr	= mlog_open(
 			mtr, 11 + 2 + 2 + BTR_EXTERN_FIELD_REF_SIZE);
 		if (UNIV_UNLIKELY(!log_ptr)) {
@@ -4029,7 +4002,6 @@ page_zip_write_blob_ptr(
 		memcpy(log_ptr, externs, BTR_EXTERN_FIELD_REF_SIZE);
 		log_ptr += BTR_EXTERN_FIELD_REF_SIZE;
 		mlog_close(mtr, log_ptr);
-#endif /* !UNIV_HOTBACKUP */
 	}
 }
 
@@ -4153,7 +4125,6 @@ page_zip_write_node_ptr(
 	memcpy(storage, field, REC_NODE_PTR_SIZE);
 
 	if (mtr) {
-#ifndef UNIV_HOTBACKUP
 		byte*	log_ptr	= mlog_open(mtr,
 					    11 + 2 + 2 + REC_NODE_PTR_SIZE);
 		if (UNIV_UNLIKELY(!log_ptr)) {
@@ -4169,7 +4140,6 @@ page_zip_write_node_ptr(
 		memcpy(log_ptr, field, REC_NODE_PTR_SIZE);
 		log_ptr += REC_NODE_PTR_SIZE;
 		mlog_close(mtr, log_ptr);
-#endif /* !UNIV_HOTBACKUP */
 	}
 }
 
@@ -4654,7 +4624,6 @@ corrupt:
 	return(ptr + len);
 }
 
-#ifndef UNIV_HOTBACKUP
 /**********************************************************************//**
 Write a log record of writing to the uncompressed header portion of a page. */
 void
@@ -4688,7 +4657,6 @@ page_zip_write_header_log(
 
 	mlog_catenate_string(mtr, data, length);
 }
-#endif /* !UNIV_HOTBACKUP */
 
 /**********************************************************************//**
 Reorganize and compress a page.  This is a low-level operation for
@@ -4711,9 +4679,7 @@ page_zip_reorganize(
 	dict_index_t*	index,	/*!< in: index of the B-tree node */
 	mtr_t*		mtr)	/*!< in: mini-transaction */
 {
-#ifndef UNIV_HOTBACKUP
 	buf_pool_t*	buf_pool	= buf_pool_from_block(block);
-#endif /* !UNIV_HOTBACKUP */
 	page_zip_des_t*	page_zip	= buf_block_get_page_zip(block);
 	page_t*		page		= buf_block_get_frame(block);
 	buf_block_t*	temp_block;
@@ -4729,13 +4695,8 @@ page_zip_reorganize(
 	/* Disable logging */
 	mtr_log_t	log_mode = mtr_set_log_mode(mtr, MTR_LOG_NONE);
 
-#ifndef UNIV_HOTBACKUP
 	temp_block = buf_block_alloc(buf_pool);
 	btr_search_drop_page_hash_index(block);
-#else /* !UNIV_HOTBACKUP */
-	ut_ad(block == back_block1);
-	temp_block = back_block2;
-#endif /* !UNIV_HOTBACKUP */
 	temp_page = temp_block->frame;
 
 	/* Copy the old page to temporary space */
@@ -4773,21 +4734,16 @@ page_zip_reorganize(
 	if (!page_zip_compress(page_zip, page, index,
 			       page_zip_level, NULL, mtr)) {
 
-#ifndef UNIV_HOTBACKUP
 		buf_block_free(temp_block);
-#endif /* !UNIV_HOTBACKUP */
 		return(FALSE);
 	}
 
 	lock_move_reorganize_page(block, temp_block);
 
-#ifndef UNIV_HOTBACKUP
 	buf_block_free(temp_block);
-#endif /* !UNIV_HOTBACKUP */
 	return(TRUE);
 }
 
-#ifndef UNIV_HOTBACKUP
 /**********************************************************************//**
 Copy the records of a page byte for byte.  Do not copy the page header
 or trailer, except those B-tree header fields that are directly
@@ -4885,7 +4841,6 @@ page_zip_copy_recs(
 #endif /* UNIV_ZIP_DEBUG */
 	page_zip_compress_write_log(page_zip, page, index, mtr);
 }
-#endif /* !UNIV_HOTBACKUP */
 
 /**********************************************************************//**
 Parses a log record of compressing an index page.

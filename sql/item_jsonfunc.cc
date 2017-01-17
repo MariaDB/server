@@ -2307,7 +2307,7 @@ bool Item_func_json_search::fix_fields(THD *thd, Item **ref)
 }
 
 
-static const uint SQR_MAX_BLOB_WIDTH= sqrt(MAX_BLOB_WIDTH);
+static const uint SQR_MAX_BLOB_WIDTH= (uint) sqrt(MAX_BLOB_WIDTH);
 
 void Item_func_json_search::fix_length_and_dec()
 {

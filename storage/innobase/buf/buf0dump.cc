@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2011, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -778,18 +779,13 @@ again.
 @return this function does not return, it calls os_thread_exit() */
 extern "C"
 os_thread_ret_t
-DECLARE_THREAD(buf_dump_thread)(
-/*============================*/
-	void*	arg MY_ATTRIBUTE((unused)))	/*!< in: a dummy parameter
-						required by os_thread_create */
+DECLARE_THREAD(buf_dump_thread)(void*)
 {
 	ut_ad(!srv_read_only_mode);
 	/* JAN: TODO: MySQL 5.7 PSI
 #ifdef UNIV_PFS_THREAD
 	pfs_register_thread(buf_dump_thread_key);
 	#endif */ /* UNIV_PFS_THREAD */
-
-	srv_buf_dump_thread_active = TRUE;
 
 	buf_dump_status(STATUS_VERBOSE, "Dumping of buffer pool not started");
 	buf_load_status(STATUS_VERBOSE, "Loading of buffer pool not started");
@@ -820,7 +816,7 @@ DECLARE_THREAD(buf_dump_thread)(
 		keep going even if we are in a shutdown state */);
 	}
 
-	srv_buf_dump_thread_active = FALSE;
+	srv_buf_dump_thread_active = false;
 
 	/* We count the number of threads in os_thread_exit(). A created
 	thread should always use that to exit and not use return() to exit. */

@@ -197,7 +197,6 @@ page_cur_move_to_prev(
 	cur->rec = page_rec_get_prev(cur->rec);
 }
 
-#ifndef UNIV_HOTBACKUP
 /** Search the right position for a page cursor.
 @param[in] block buffer block
 @param[in] index index tree
@@ -294,7 +293,6 @@ page_cur_tuple_insert(
 	ut_ad(!rec || !cmp_dtuple_rec(tuple, rec, *offsets));
 	return(rec);
 }
-#endif /* !UNIV_HOTBACKUP */
 
 /***********************************************************//**
 Inserts a record next to page cursor. Returns pointer to inserted record if

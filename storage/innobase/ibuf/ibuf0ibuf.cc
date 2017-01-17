@@ -46,8 +46,6 @@ my_bool	srv_ibuf_disable_background_merge;
 #include "ibuf0ibuf.ic"
 #endif
 
-#ifndef UNIV_HOTBACKUP
-
 #include "buf0buf.h"
 #include "buf0rea.h"
 #include "fsp0fsp.h"
@@ -595,7 +593,6 @@ ibuf_max_size_update(
 }
 
 
-#endif /* !UNIV_HOTBACKUP */
 /*********************************************************************//**
 Initializes an ibuf bitmap page. */
 void
@@ -618,10 +615,7 @@ ibuf_bitmap_page_init(
 	memset(page + IBUF_BITMAP, 0, byte_offset);
 
 	/* The remaining area (up to the page trailer) is uninitialized. */
-
-#ifndef UNIV_HOTBACKUP
 	mlog_write_initial_log_record(page, MLOG_IBUF_BITMAP_INIT, mtr);
-#endif /* !UNIV_HOTBACKUP */
 }
 
 /*********************************************************************//**
@@ -644,7 +638,7 @@ ibuf_parse_bitmap_init(
 
 	return(ptr);
 }
-#ifndef UNIV_HOTBACKUP
+
 # ifdef UNIV_DEBUG
 /** Gets the desired bits for a given page from a bitmap page.
 @param[in]	page		bitmap page
@@ -2753,8 +2747,6 @@ ibuf_merge_in_background(
 		return(0);
 	}
 #endif /* UNIV_DEBUG || UNIV_IBUF_DEBUG */
-
-
 
 	while (sum_pages < n_pages) {
 		ulint	n_bytes;
@@ -5132,5 +5124,3 @@ ibuf_set_bitmap_for_bulk_load(
 
 	mtr_commit(&mtr);
 }
-
-#endif /* !UNIV_HOTBACKUP */

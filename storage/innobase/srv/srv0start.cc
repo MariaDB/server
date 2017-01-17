@@ -3,7 +3,7 @@
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All rights reserved.
 Copyright (c) 2008, Google Inc.
 Copyright (c) 2009, Percona Inc.
-Copyright (c) 2013, 2016, MariaDB Corporation
+Copyright (c) 2013, 2017, MariaDB Corporation
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -76,42 +76,39 @@ Created 2/16/1996 Heikki Tuuri
 #include "srv0start.h"
 #include "srv0srv.h"
 #include "btr0defragment.h"
-
 #include "fsp0sysspace.h"
 #include "row0trunc.h"
 #include <mysql/service_wsrep.h>
-
-#ifndef UNIV_HOTBACKUP
-# include "trx0rseg.h"
-# include "os0proc.h"
-# include "buf0flu.h"
-# include "buf0rea.h"
-# include "buf0mtflu.h"
-# include "dict0boot.h"
-# include "dict0load.h"
-# include "dict0stats_bg.h"
-# include "que0que.h"
-# include "usr0sess.h"
-# include "lock0lock.h"
-# include "trx0roll.h"
-# include "trx0purge.h"
-# include "lock0lock.h"
-# include "pars0pars.h"
-# include "btr0sea.h"
-# include "rem0cmp.h"
-# include "dict0crea.h"
-# include "row0ins.h"
-# include "row0sel.h"
-# include "row0upd.h"
-# include "row0row.h"
-# include "row0mysql.h"
-# include "row0trunc.h"
-# include "btr0pcur.h"
-# include "os0event.h"
-# include "zlib.h"
-# include "ut0crc32.h"
-# include "btr0scrub.h"
-# include "ut0new.h"
+#include "trx0rseg.h"
+#include "os0proc.h"
+#include "buf0flu.h"
+#include "buf0rea.h"
+#include "buf0mtflu.h"
+#include "dict0boot.h"
+#include "dict0load.h"
+#include "dict0stats_bg.h"
+#include "que0que.h"
+#include "usr0sess.h"
+#include "lock0lock.h"
+#include "trx0roll.h"
+#include "trx0purge.h"
+#include "lock0lock.h"
+#include "pars0pars.h"
+#include "btr0sea.h"
+#include "rem0cmp.h"
+#include "dict0crea.h"
+#include "row0ins.h"
+#include "row0sel.h"
+#include "row0upd.h"
+#include "row0row.h"
+#include "row0mysql.h"
+#include "row0trunc.h"
+#include "btr0pcur.h"
+#include "os0event.h"
+#include "zlib.h"
+#include "ut0crc32.h"
+#include "btr0scrub.h"
+#include "ut0new.h"
 
 #ifdef HAVE_LZO1X
 #include <lzo/lzo1x.h>
@@ -140,6 +137,10 @@ bool	srv_sys_tablespaces_open = false;
 ibool	srv_was_started = FALSE;
 /** TRUE if innobase_start_or_create_for_mysql() has been called */
 static ibool	srv_start_has_been_called = FALSE;
+#ifdef UNIV_DEBUG
+/** InnoDB system tablespace to set during recovery */
+UNIV_INTERN uint	srv_sys_space_size_debug;
+#endif /* UNIV_DEBUG */
 
 /** Bit flags for tracking background thread creation. They are used to
 determine which threads need to be stopped if we need to abort during
@@ -186,7 +187,6 @@ static bool		dict_stats_thread_started = false;
 static bool		buf_flush_page_cleaner_thread_started = false;
 /** Name of srv_monitor_file */
 static char*	srv_monitor_file_name;
-#endif /* !UNIV_HOTBACKUP */
 
 /** Minimum expected tablespace size. (10M) */
 static const ulint MIN_EXPECTED_TABLESPACE_SIZE = 5 * 1024 * 1024;
@@ -194,9 +194,6 @@ static const ulint MIN_EXPECTED_TABLESPACE_SIZE = 5 * 1024 * 1024;
 /** */
 #define SRV_MAX_N_PENDING_SYNC_IOS	100
 
-/** The round off to MB is similar as done in srv_parse_megabytes() */
-#define CALC_NUMBER_OF_PAGES(size)  ((size) / (1024 * 1024)) * \
-				  ((1024 * 1024) / (UNIV_PAGE_SIZE))
 #ifdef UNIV_PFS_THREAD
 /* Keys to register InnoDB threads with performance schema */
 mysql_pfs_key_t	buf_dump_thread_key;
@@ -281,7 +278,6 @@ srv_file_check_mode(
 	return(true);
 }
 
-#ifndef UNIV_HOTBACKUP
 /********************************************************************//**
 I/o-handler thread function.
 @return OS_THREAD_DUMMY_RETURN */
@@ -340,9 +336,7 @@ DECLARE_THREAD(io_handler_thread)(
 
 	OS_THREAD_DUMMY_RETURN;
 }
-#endif /* !UNIV_HOTBACKUP */
 
-#ifndef UNIV_HOTBACKUP
 /*********************************************************************//**
 Creates a log file.
 @return DB_SUCCESS or error code */
@@ -681,13 +675,6 @@ srv_undo_tablespace_open(
 		os_offset_t	size;
 		fil_space_t*	space;
 
-#ifdef UNIV_LINUX
-		const bool atomic_write = !srv_use_doublewrite_buf
-			&& fil_fusionio_enable_atomic_write(fh);
-#else
-		const bool atomic_write = false;
-#endif
-
 		size = os_file_get_size(fh);
 		ut_a(size != (os_offset_t) -1);
 
@@ -705,7 +692,7 @@ srv_undo_tablespace_open(
 
 		/* Set the compressed page size to 0 (non-compressed) */
 		flags = fsp_flags_init(
-			univ_page_size, false, false, false, false, false, 0, ATOMIC_WRITES_DEFAULT);
+			univ_page_size, false, false, false, false, false, 0, 0);
 		space = fil_space_create(
 			undo_name, space_id, flags, FIL_TYPE_TABLESPACE, NULL, true);
 
@@ -719,7 +706,7 @@ srv_undo_tablespace_open(
 		the unit has been scaled to pages and page number is always
 		32 bits. */
 		if (fil_node_create(
-			name, (ulint) n_pages, space, false, atomic_write)) {
+			name, (ulint) n_pages, space, false, TRUE)) {
 
 			err = DB_SUCCESS;
 		}
@@ -1215,13 +1202,11 @@ srv_start_state_is_set(
 
 /**
 Shutdown all background threads created by InnoDB. */
+static
 void
 srv_shutdown_all_bg_threads()
 {
-	ulint	i;
-
 	srv_shutdown_state = SRV_SHUTDOWN_EXIT_THREADS;
-	fil_crypt_threads_end();
 
 	if (!srv_start_state) {
 		return;
@@ -1230,7 +1215,7 @@ srv_shutdown_all_bg_threads()
 	/* All threads end up waiting for certain events. Put those events
 	to the signaled state. Then the threads will exit themselves after
 	os_event_wait(). */
-	for (i = 0; i < 1000; i++) {
+	for (uint i = 0; i < 1000; ++i) {
 		/* NOTE: IF YOU CREATE THREADS IN INNODB, YOU MUST EXIT THEM
 		HERE OR EARLIER */
 
@@ -1252,6 +1237,14 @@ srv_shutdown_all_bg_threads()
 			if (srv_start_state_is_set(SRV_START_STATE_PURGE)) {
 				/* d. Wakeup purge threads. */
 				srv_purge_wakeup();
+			}
+
+			if (srv_n_fil_crypt_threads_started) {
+				os_event_set(fil_crypt_threads_event);
+			}
+
+			if (log_scrub_thread_active) {
+				os_event_set(log_scrub_event);
 			}
 		}
 
@@ -1283,26 +1276,20 @@ srv_shutdown_all_bg_threads()
 			os_aio_wake_all_threads_at_shutdown();
 		}
 
-		bool	active = os_thread_active();
+		const bool active = os_thread_active();
 
 		os_thread_sleep(100000);
 
 		if (!active) {
-			break;
+			srv_start_state = SRV_START_STATE_NONE;
+			return;
 		}
 	}
 
-	if (i == 1000) {
-		ib::warn() << os_thread_count << " threads created by InnoDB"
-			" had not exited at shutdown!";
-#ifdef UNIV_DEBUG
-		os_aio_print_pending_io(stderr);
-		ut_ad(0);
-#endif /* UNIV_DEBUG */
-	} else {
-		/* Reset the start state. */
-		srv_start_state = SRV_START_STATE_NONE;
-	}
+	ib::warn() << os_thread_count << " threads created by InnoDB"
+		" had not exited at shutdown!";
+	ut_d(os_aio_print_pending_io(stderr));
+	ut_ad(0);
 }
 
 #ifdef UNIV_DEBUG
@@ -1690,7 +1677,6 @@ innobase_start_or_create_for_mysql(void)
 	srv_boot();
 
 	ib::info() << ut_crc32_implementation;
-
 
 	if (!srv_read_only_mode) {
 
@@ -2092,6 +2078,7 @@ files_checked:
 	shutdown */
 
 	fil_open_log_and_system_tablespace_files();
+	ut_d(fil_space_get(0)->recv_size = srv_sys_space_size_debug);
 
 	err = srv_undo_tablespaces_init(
 		create_new_db,
@@ -2111,11 +2098,6 @@ files_checked:
 	can also be used by recovery if it tries to drop some table */
 	if (!srv_read_only_mode) {
 		dict_stats_thread_init();
-	}
-
-	if (!srv_read_only_mode && srv_scrub_log) {
-		/* TODO(minliz): have/use log_scrub_thread_init() instead? */
-		log_scrub_event = os_event_create(0);
 	}
 
 	trx_sys_file_format_init();
@@ -2468,14 +2450,17 @@ files_checked:
 			lock_wait_timeout_thread,
 			NULL, thread_ids + 2 + SRV_MAX_N_IO_THREADS);
 		thread_started[2 + SRV_MAX_N_IO_THREADS] = true;
+		lock_sys->timeout_thread_active = true;
 
 		/* Create the thread which warns of long semaphore waits */
+		srv_error_monitor_active = true;
 		thread_handles[3 + SRV_MAX_N_IO_THREADS] = os_thread_create(
 			srv_error_monitor_thread,
 			NULL, thread_ids + 3 + SRV_MAX_N_IO_THREADS);
 		thread_started[3 + SRV_MAX_N_IO_THREADS] = true;
 
 		/* Create the thread which prints InnoDB monitor info */
+		srv_monitor_active = true;
 		thread_handles[4 + SRV_MAX_N_IO_THREADS] = os_thread_create(
 			srv_monitor_thread,
 			NULL, thread_ids + 4 + SRV_MAX_N_IO_THREADS);
@@ -2677,6 +2662,8 @@ files_checked:
 		/* Create the buffer pool dump/load thread */
 		buf_dump_thread_handle=
 			os_thread_create(buf_dump_thread, NULL, NULL);
+
+		srv_buf_dump_thread_active = true;
 		buf_dump_thread_started = true;
 #ifdef WITH_WSREP
 		} else {
@@ -2687,21 +2674,19 @@ files_checked:
 #endif /* WITH_WSREP */
 
 		/* Create the dict stats gathering thread */
-		dict_stats_thread_handle = os_thread_create(dict_stats_thread, NULL, NULL);
+		dict_stats_thread_handle = os_thread_create(
+			dict_stats_thread, NULL, NULL);
+		srv_dict_stats_thread_active = true;
 		dict_stats_thread_started = true;
 
 		/* Create the thread that will optimize the FTS sub-system. */
 		fts_optimize_init();
 
 		srv_start_state_set(SRV_START_STATE_STAT);
-
-		/* Create the log scrub thread */
-		if (srv_scrub_log) {
-			os_thread_create(log_scrub_thread, NULL, NULL);
-		}
 	}
 
 	/* Create the buffer pool resize thread */
+	srv_buf_resize_thread_active = true;
 	os_thread_create(buf_resize_thread, NULL, NULL);
 
 	/* Init data for datafile scrub threads */
@@ -2744,7 +2729,6 @@ srv_fts_close(void)
 }
 #endif
 
-
 /****************************************************************//**
 Shuts down background threads that can generate undo pages. */
 void
@@ -2754,7 +2738,6 @@ srv_shutdown_bg_undo_sources(void)
 	fts_optimize_shutdown();
 	dict_stats_shutdown();
 }
-
 
 /****************************************************************//**
 Shuts down the InnoDB database.
@@ -2813,14 +2796,8 @@ innobase_shutdown_for_mysql(void)
 
 	if (!srv_read_only_mode) {
 		dict_stats_thread_deinit();
-		if (srv_scrub_log) {
-			/* TODO(minliz): have/use log_scrub_thread_deinit() instead? */
-			os_event_destroy(log_scrub_event);
-			log_scrub_event = NULL;
-		}
+		fil_crypt_threads_cleanup();
 	}
-
-	fil_crypt_threads_cleanup();
 
 	/* Cleanup data for datafile scrubbing */
 	btr_scrub_cleanup();
@@ -2882,8 +2859,6 @@ innobase_shutdown_for_mysql(void)
 
 	return(DB_SUCCESS);
 }
-#endif /* !UNIV_HOTBACKUP */
-
 
 /********************************************************************
 Signal all per-table background threads to shutdown, and wait for them to do

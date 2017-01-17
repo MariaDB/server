@@ -2099,7 +2099,7 @@ trx_commit_in_memory(
 	trx->dict_operation = TRX_DICT_OP_NONE;
 
 #ifdef WITH_WSREP
-	if (wsrep_on(trx->mysql_thd)) {
+	if (trx->mysql_thd && wsrep_on(trx->mysql_thd)) {
 		trx->lock.was_chosen_as_deadlock_victim = FALSE;
 	}
 #endif
@@ -3379,24 +3379,20 @@ trx_kill_blocking(trx_t* trx)
 
 		trx_mutex_exit(victim_trx);
 
-#ifdef UNIV_DEBUG
+#ifndef DBUG_OFF
 		char		buffer[1024];
-		char*		thr_text;
-		trx_id_t	id;
+#endif /* !DBUG_OFF */
 
-		thr_text = thd_get_error_context_description(victim_trx->mysql_thd,
-						buffer, sizeof(buffer),
-						512);
-		id = victim_trx->id;
-#endif /* UNIV_DEBUG */
+		DBUG_LOG("trx",
+			 "High Priority Transaction "
+			 << trx->id << " killed transaction "
+			 << victim_trx->id << " in hit list"
+			 << " - "
+			 << thd_get_error_context_description(
+				 victim_trx->mysql_thd,
+				 buffer, sizeof(buffer), 512));
+
 		trx_rollback_for_mysql(victim_trx);
-
-#ifdef UNIV_DEBUG
-		ib::info() << "High Priority Transaction (ID): "
-			   << trx->id << " killed transaction (ID): "
-			   << id << " in hit list"
-			   << " - " << thr_text;
-#endif /* UNIV_DEBUG */
 		trx_mutex_enter(victim_trx);
 
 		version++;

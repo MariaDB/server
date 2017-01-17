@@ -37,7 +37,6 @@ Created 6/2/1994 Heikki Tuuri
 #include "page0zip.h"
 #include "gis0rtree.h"
 
-#ifndef UNIV_HOTBACKUP
 #include "btr0cur.h"
 #include "btr0sea.h"
 #include "btr0pcur.h"
@@ -64,8 +63,6 @@ btr_can_merge_with_page(
 	buf_block_t**	merge_block,	/*!< out: the merge block */
 	mtr_t*		mtr);		/*!< in: mini-transaction */
 
-#endif /* UNIV_HOTBACKUP */
-
 /**************************************************************//**
 Report that an index page is corrupted. */
 void
@@ -80,7 +77,6 @@ btr_corruption_report(
 		<< " of table " << index->table->name;
 }
 
-#ifndef UNIV_HOTBACKUP
 /*
 Latching strategy of the InnoDB B-tree
 --------------------------------------
@@ -173,7 +169,6 @@ btr_root_block_get(
 
 	buf_block_t*	block = btr_block_get(page_id, page_size, mode,
 					      index, mtr);
-
 
 	if (!block) {
 		if (index && index->table) {
@@ -1526,7 +1521,6 @@ btr_write_autoinc(dict_index_t* index, ib_uint64_t autoinc, bool reset)
 		fil_space_release(space);
 	}
 }
-#endif /* !UNIV_HOTBACKUP */
 
 /*************************************************************//**
 Reorganizes an index page.
@@ -1554,9 +1548,7 @@ btr_page_reorganize_low(
 	mtr_t*		mtr)	/*!< in/out: mini-transaction */
 {
 	buf_block_t*	block		= page_cur_get_block(cursor);
-#ifndef UNIV_HOTBACKUP
 	buf_pool_t*	buf_pool	= buf_pool_from_bpage(&block->page);
-#endif /* !UNIV_HOTBACKUP */
 	page_t*		page		= buf_block_get_frame(block);
 	page_zip_des_t*	page_zip	= buf_block_get_page_zip(block);
 	buf_block_t*	temp_block;
@@ -1581,12 +1573,7 @@ btr_page_reorganize_low(
 	/* Turn logging off */
 	mtr_log_t	log_mode = mtr_set_log_mode(mtr, MTR_LOG_NONE);
 
-#ifndef UNIV_HOTBACKUP
 	temp_block = buf_block_alloc(buf_pool);
-#else /* !UNIV_HOTBACKUP */
-	ut_ad(block == back_block1);
-	temp_block = back_block2;
-#endif /* !UNIV_HOTBACKUP */
 	temp_page = temp_block->frame;
 
 	MONITOR_INC(MONITOR_INDEX_REORG_ATTEMPTS);
@@ -1599,11 +1586,9 @@ btr_page_reorganize_low(
 	/* Copy the old page to temporary space */
 	buf_frame_copy(temp_page, page);
 
-#ifndef UNIV_HOTBACKUP
 	if (!recovery) {
 		btr_search_drop_page_hash_index(block);
 	}
-#endif /* !UNIV_HOTBACKUP */
 
 	/* Save the cursor position. */
 	pos = page_rec_get_n_recs_before(page_cur_get_rec(cursor));
@@ -1678,12 +1663,10 @@ btr_page_reorganize_low(
 		goto func_exit;
 	}
 
-#ifndef UNIV_HOTBACKUP
 	if (!recovery && !dict_table_is_locking_disabled(index->table)) {
 		/* Update the record lock bitmaps */
 		lock_move_reorganize_page(block, temp_block);
 	}
-#endif /* !UNIV_HOTBACKUP */
 
 	data_size2 = page_get_data_size(page);
 	max_ins_size2 = page_get_max_insert_size_after_reorganize(page, 1);
@@ -1712,14 +1695,11 @@ func_exit:
 #ifdef UNIV_ZIP_DEBUG
 	ut_a(!page_zip || page_zip_validate(page_zip, page, index));
 #endif /* UNIV_ZIP_DEBUG */
-#ifndef UNIV_HOTBACKUP
 	buf_block_free(temp_block);
-#endif /* !UNIV_HOTBACKUP */
 
 	/* Restore logging mode */
 	mtr_set_log_mode(mtr, log_mode);
 
-#ifndef UNIV_HOTBACKUP
 	if (success) {
 		mlog_id_t	type;
 		byte*		log_ptr;
@@ -1748,7 +1728,6 @@ func_exit:
 
 		MONITOR_INC(MONITOR_INDEX_REORG_SUCCESSFUL);
 	}
-#endif /* !UNIV_HOTBACKUP */
 
 	return(success);
 }
@@ -1784,7 +1763,6 @@ btr_page_reorganize_block(
 	return(btr_page_reorganize_low(recovery, z_level, &cur, index, mtr));
 }
 
-#ifndef UNIV_HOTBACKUP
 /*************************************************************//**
 Reorganizes an index page.
 
@@ -1806,7 +1784,6 @@ btr_page_reorganize(
 	return(btr_page_reorganize_low(false, page_zip_level,
 				       cursor, index, mtr));
 }
-#endif /* !UNIV_HOTBACKUP */
 
 /***********************************************************//**
 Parses a redo log record of reorganizing a page.
@@ -1850,7 +1827,6 @@ btr_parse_page_reorganize(
 	return(ptr);
 }
 
-#ifndef UNIV_HOTBACKUP
 /*************************************************************//**
 Empties an index page.  @see btr_page_create(). */
 static
@@ -3345,9 +3321,6 @@ btr_set_min_rec_mark_log(
 	/* Write rec offset as a 2-byte ulint */
 	mlog_catenate_ulint(mtr, page_offset(rec), MLOG_2BYTES);
 }
-#else /* !UNIV_HOTBACKUP */
-# define btr_set_min_rec_mark_log(rec,comp,mtr) ((void) 0)
-#endif /* !UNIV_HOTBACKUP */
 
 /****************************************************************//**
 Parses the redo log record for setting an index record as the predefined
@@ -3405,7 +3378,6 @@ btr_set_min_rec_mark(
 	}
 }
 
-#ifndef UNIV_HOTBACKUP
 /*************************************************************//**
 Deletes on the upper level the node pointer to a page. */
 void
@@ -5497,7 +5469,6 @@ btr_can_merge_with_page(
 		goto error;
 	}
 
-
 	max_ins_size = page_get_max_insert_size(mpage, n_recs);
 
 	if (data_size > max_ins_size) {
@@ -5531,5 +5502,3 @@ error:
 	*merge_block = NULL;
 	DBUG_RETURN(false);
 }
-
-#endif /* !UNIV_HOTBACKUP */

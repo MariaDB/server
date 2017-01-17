@@ -233,6 +233,20 @@ static void get_basedir(char *basedir, int size, const char *mysqld_path)
   }
 }
 
+#define STR(s) _STR(s)
+#define _STR(s) #s
+
+static char *get_plugindir()
+{
+  static char plugin_dir[2*MAX_PATH];
+  get_basedir(plugin_dir, sizeof(plugin_dir), mysqld_path);
+  strcat(plugin_dir, "/" STR(INSTALL_PLUGINDIR));
+
+  if (access(plugin_dir, 0) == 0)
+    return plugin_dir;
+
+  return NULL;
+}
 
 /**
   Allocate and initialize command line for mysqld --bootstrap.
@@ -313,6 +327,10 @@ static int create_myini()
     fprintf(myini,"protocol=pipe\n");
   else if (opt_port)
     fprintf(myini,"port=%d\n",opt_port);
+
+  char *plugin_dir = get_plugindir();
+  if (plugin_dir)
+    fprintf(myini, "plugin-dir=%s\n", plugin_dir);
   fclose(myini);
   return 0;
 }

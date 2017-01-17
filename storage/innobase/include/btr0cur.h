@@ -60,7 +60,6 @@ struct btr_latch_leaves_t {
 	ulint		savepoints[3];
 };
 
-#ifndef UNIV_HOTBACKUP
 #include "que0types.h"
 #include "row0types.h"
 #include "ha0ha.h"
@@ -530,7 +529,6 @@ btr_cur_pessimistic_delete(
 	bool		rollback,/*!< in: performing rollback? */
 	mtr_t*		mtr)	/*!< in: mtr */
 	MY_ATTRIBUTE((nonnull));
-#endif /* !UNIV_HOTBACKUP */
 /***********************************************************//**
 Parses a redo log record of updating a record in-place.
 @return end of log record or NULL */
@@ -565,7 +563,6 @@ btr_cur_parse_del_mark_set_sec_rec(
 	byte*		end_ptr,/*!< in: buffer end */
 	page_t*		page,	/*!< in/out: page or NULL */
 	page_zip_des_t*	page_zip);/*!< in/out: compressed page, or NULL */
-#ifndef UNIV_HOTBACKUP
 
 /** Estimates the number of rows in a given index range.
 @param[in]	index	index
@@ -941,7 +938,6 @@ btr_rec_set_deleted_flag(
 	page_zip_des_t*	page_zip,/*!< in/out: compressed page (or NULL) */
 	ulint		flag);	/*!< in: nonzero if delete marked */
 
-
 /** If pessimistic delete fails because of lack of file space, there
 is still a good change of success a little later.  Try this many
 times. */
@@ -995,7 +991,6 @@ extern ulint	btr_cur_n_non_sea_old;
 srv_refresh_innodb_monitor_stats().  Referenced by
 srv_printf_innodb_monitor(). */
 extern ulint	btr_cur_n_sea_old;
-#endif /* !UNIV_HOTBACKUP */
 
 #ifdef UNIV_DEBUG
 /* Flag to limit optimistic insert records */

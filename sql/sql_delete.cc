@@ -560,10 +560,9 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
 	 ! thd->is_error())
   {
     explain->tracker.on_record_read();
-    if (table->vfield)
-      table->update_virtual_fields(VCOL_UPDATE_FOR_WRITE);
     thd->inc_examined_row_count(1);
-    // thd->is_error() is tested to disallow delete row on error
+    if (table->vfield)
+      (void) table->update_virtual_fields(VCOL_UPDATE_FOR_DELETE);
     if (!select || select->skip_record(thd) > 0)
     {
       explain->tracker.on_record_after_where();

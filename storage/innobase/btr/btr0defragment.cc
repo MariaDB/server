@@ -26,7 +26,6 @@ Modified 30/07/2014 Jan Lindström jan.lindstrom@mariadb.com
 *******************************************************/
 
 #include "btr0defragment.h"
-#ifndef UNIV_HOTBACKUP
 #include "btr0btr.h"
 #include "btr0cur.h"
 #include "btr0sea.h"
@@ -847,5 +846,3 @@ DECLARE_THREAD(btr_defragment_thread)(
 	os_thread_exit();
 	OS_THREAD_DUMMY_RETURN;
 }
-
-#endif /* !UNIV_HOTBACKUP */

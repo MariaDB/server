@@ -8,6 +8,7 @@ include/stop_slave.inc
 Master_Log_File = 'master-bin.000001'
 Using_Gtid = 'No'
 CHANGE MASTER TO master_use_gtid=current_pos;
+FLUSH LOGS;
 connection server_1;
 FLUSH LOGS;
 include/wait_for_purge.inc "master-bin.000002"
@@ -55,6 +56,7 @@ INSERT INTO t1 VALUES(5);
 include/save_master_gtid.inc
 connection server_2;
 include/sync_with_master_gtid.inc
+FLUSH NO_WRITE_TO_BINLOG TABLES;
 SELECT * FROM t1 ORDER BY a;
 a
 1
@@ -87,6 +89,7 @@ a
 connection server_1;
 INSERT INTO t1 VALUES (7);
 connection server_2;
+FLUSH NO_WRITE_TO_BINLOG TABLES;
 SELECT * FROM t1 ORDER BY a;
 a
 1
@@ -116,6 +119,7 @@ include/start_slave.inc
 connection server_1;
 INSERT INTO t1 VALUES (8);
 connection server_2;
+FLUSH NO_WRITE_TO_BINLOG TABLES;
 SELECT * FROM t1 ORDER BY a;
 a
 1
@@ -142,6 +146,7 @@ Error	1286	Unknown storage engine 'InnoDB'
 connection server_1;
 INSERT INTO t1 VALUES (9);
 connection server_2;
+FLUSH NO_WRITE_TO_BINLOG TABLES;
 SELECT * FROM t1 ORDER BY a;
 a
 1
@@ -171,6 +176,7 @@ domain_id	COUNT(*)
 connection server_1;
 INSERT INTO t1 VALUES (11);
 connection server_2;
+FLUSH NO_WRITE_TO_BINLOG TABLES;
 SELECT domain_id, COUNT(*) FROM mysql.gtid_slave_pos GROUP BY domain_id;
 domain_id	COUNT(*)
 0	2
@@ -180,6 +186,7 @@ connection server_1;
 INSERT INTO t1 VALUES (12);
 INSERT INTO t1 VALUES (13);
 connection server_2;
+FLUSH NO_WRITE_TO_BINLOG TABLES;
 SELECT domain_id, COUNT(*) FROM mysql.gtid_slave_pos GROUP BY domain_id;
 domain_id	COUNT(*)
 0	2

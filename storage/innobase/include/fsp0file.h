@@ -65,7 +65,6 @@ public:
 		m_is_valid(),
 		m_first_page_buf(),
 		m_first_page(),
-		m_atomic_write(),
 		m_last_os_error(),
 		m_file_info(),
 		m_encryption_key(NULL),
@@ -91,7 +90,6 @@ public:
 		m_is_valid(),
 		m_first_page_buf(),
 		m_first_page(),
-		m_atomic_write(),
 		m_last_os_error(),
 		m_file_info(),
 		m_encryption_key(NULL),
@@ -115,7 +113,6 @@ public:
 		m_is_valid(file.m_is_valid),
 		m_first_page_buf(),
 		m_first_page(),
-		m_atomic_write(file.m_atomic_write),
 		m_last_os_error(),
 		m_file_info(),
 		m_encryption_key(NULL),
@@ -182,8 +179,6 @@ public:
 		m_encryption_iv = NULL;
 		/* Do not copy crypt info it is read from first page */
 		m_crypt_info = NULL;
-
-		m_atomic_write = file.m_atomic_write;
 
 		return(*this);
 	}
@@ -474,9 +469,6 @@ private:
 
 	/** Pointer to the first page held in the buffer above */
 	byte*			m_first_page;
-
-	/** true if atomic writes enabled for this file */
-	bool			m_atomic_write;
 
 protected:
 	/** Last OS error received so it can be reported if needed. */

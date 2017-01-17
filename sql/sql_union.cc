@@ -105,7 +105,7 @@ int select_union_recursive::send_data(List<Item> &values)
 {
   int rc= select_union::send_data(values);
 
-  if (!write_err)
+  if (write_err != HA_ERR_FOUND_DUPP_KEY)
   { 
     int err;
     if ((err= incr_table->file->ha_write_tmp_row(table->record[0])))
@@ -1192,6 +1192,7 @@ bool st_select_lex_unit::exec_recursive()
   st_select_lex *end= NULL;
   bool is_unrestricted= with_element->is_unrestricted();
   List_iterator_fast<TABLE> li(with_element->rec_result->rec_tables);
+  TMP_TABLE_PARAM *tmp_table_param= &with_element->rec_result->tmp_table_param;
   ha_rows examined_rows= 0;
   bool was_executed= executed;
   TABLE *rec_table;
@@ -1247,7 +1248,9 @@ bool st_select_lex_unit::exec_recursive()
   while ((rec_table= li++))
   {
     saved_error=
-      incr_table->insert_all_rows_into(thd, rec_table, !is_unrestricted);
+      incr_table->insert_all_rows_into_tmp_table(thd, rec_table,
+                                                 tmp_table_param,
+                                                 !is_unrestricted);
     if (!with_element->rec_result->first_rec_table_to_update)
       with_element->rec_result->first_rec_table_to_update= rec_table;
     if (with_element->level == 1)

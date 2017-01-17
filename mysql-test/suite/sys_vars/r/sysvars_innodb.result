@@ -2,6 +2,7 @@ select * from information_schema.system_variables
 where variable_name like 'innodb%' and
 variable_name not in (
 'innodb_disallow_writes',           # only available WITH_WSREP
+'innodb_numa_interleave',           # only available WITH_NUMA
 'innodb_sched_priority_cleaner',    # linux only
 'innodb_use_native_aio')            # default value depends on OS
 order by variable_name;
@@ -632,6 +633,20 @@ VARIABLE_COMMENT	Path to individual files and their sizes.
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
+ENUM_VALUE_LIST	NULL
+READ_ONLY	YES
+COMMAND_LINE_ARGUMENT	REQUIRED
+VARIABLE_NAME	INNODB_DATA_FILE_SIZE_DEBUG
+SESSION_VALUE	NULL
+GLOBAL_VALUE	0
+GLOBAL_VALUE_ORIGIN	COMPILE-TIME
+DEFAULT_VALUE	0
+VARIABLE_SCOPE	GLOBAL
+VARIABLE_TYPE	INT UNSIGNED
+VARIABLE_COMMENT	InnoDB system tablespace size to be set in recovery.
+NUMERIC_MIN_VALUE	0
+NUMERIC_MAX_VALUE	4294967295
+NUMERIC_BLOCK_SIZE	0
 ENUM_VALUE_LIST	NULL
 READ_ONLY	YES
 COMMAND_LINE_ARGUMENT	REQUIRED
@@ -2181,10 +2196,10 @@ GLOBAL_VALUE	6
 GLOBAL_VALUE_ORIGIN	COMPILE-TIME
 DEFAULT_VALUE	6
 VARIABLE_SCOPE	GLOBAL
-VARIABLE_TYPE	BIGINT UNSIGNED
+VARIABLE_TYPE	INT UNSIGNED
 VARIABLE_COMMENT	Maximum delay between polling for a spin lock (6 by default)
 NUMERIC_MIN_VALUE	0
-NUMERIC_MAX_VALUE	18446744073709551615
+NUMERIC_MAX_VALUE	6000
 NUMERIC_BLOCK_SIZE	0
 ENUM_VALUE_LIST	NULL
 READ_ONLY	NO
@@ -2569,12 +2584,26 @@ READ_ONLY	YES
 COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	INNODB_USE_ATOMIC_WRITES
 SESSION_VALUE	NULL
+GLOBAL_VALUE	ON
+GLOBAL_VALUE_ORIGIN	COMPILE-TIME
+DEFAULT_VALUE	ON
+VARIABLE_SCOPE	GLOBAL
+VARIABLE_TYPE	BOOLEAN
+VARIABLE_COMMENT	Enable atomic writes, instead of using the doublewrite buffer, for files on devices that supports atomic writes. To use this option one must use file_per_table=1, flush_method=O_DIRECT and use_fallocate=1. This option only works on Linux with either FusionIO cards using the directFS filesystem or with Shannon cards using any file system.
+NUMERIC_MIN_VALUE	NULL
+NUMERIC_MAX_VALUE	NULL
+NUMERIC_BLOCK_SIZE	NULL
+ENUM_VALUE_LIST	OFF,ON
+READ_ONLY	YES
+COMMAND_LINE_ARGUMENT	NONE
+VARIABLE_NAME	INNODB_USE_FALLOCATE
+SESSION_VALUE	NULL
 GLOBAL_VALUE	OFF
 GLOBAL_VALUE_ORIGIN	COMPILE-TIME
 DEFAULT_VALUE	OFF
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BOOLEAN
-VARIABLE_COMMENT	Prevent partial page writes, via atomic writes.The option is used to prevent partial writes in case of a crash/poweroff, as faster alternative to doublewrite buffer.Currently this option works only on Linux only with FusionIO device, and directFS filesystem.
+VARIABLE_COMMENT	Use posix_fallocate() to allocate files. DEPRECATED, has no effect.
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
