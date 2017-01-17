@@ -12368,15 +12368,6 @@ create_table_info_t::create_options_are_invalid()
 		}
 		break;
 	case ROW_TYPE_DYNAMIC:
-		if (!m_allow_file_per_table && !is_temp) {
-			push_warning_printf(
-				m_thd, Sql_condition::WARN_LEVEL_WARN,
-				ER_ILLEGAL_HA_CREATE_OPTION,
-				"InnoDB: ROW_FORMAT=%s requires"
-				" innodb_file_per_table.",
-				get_row_format_name(row_format));
-			ret = "ROW_FORMAT";
-		}
 		if (!is_temp && srv_file_format < UNIV_FORMAT_B) {
 			push_warning_printf(
 				m_thd, Sql_condition::WARN_LEVEL_WARN,

@@ -63,10 +63,11 @@ SET default_storage_engine=InnoDB;
 
 --disable_query_log
 # These values can change during the test
+LET $innodb_file_format_orig=`select @@innodb_file_format`;
 LET $innodb_file_per_table_orig=`select @@innodb_file_per_table`;
-LET $innodb_strict_mode_orig=`select @@session.innodb_strict_mode`;
 --enable_query_log
 
+SET GLOBAL innodb_file_format=`Barracuda`;
 SET GLOBAL innodb_file_per_table=ON;
 
 # The first half of these tests are with strict mode ON.
@@ -242,8 +243,9 @@ SHOW WARNINGS;
 --error ER_ILLEGAL_HA_CREATE_OPTION
 ALTER TABLE t1 ROW_FORMAT=COMPRESSED;
 SHOW WARNINGS;
---error 1478
+--error ER_ILLEGAL_HA_CREATE_OPTION
 ALTER TABLE t1 ROW_FORMAT=DYNAMIC;
+SHOW WARNINGS;
 SET GLOBAL innodb_file_format=Barracuda;
 DROP TABLE t1;
 CREATE TABLE t1 ( i INT ) ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=4;
@@ -257,7 +259,7 @@ ALTER TABLE t1 ADD COLUMN f2 INT;
 SHOW WARNINGS;
 SET GLOBAL innodb_file_format=Barracuda;
 
---echo # Test 8) StrictMode=ON, Make sure ROW_FORMAT= COMPRESSED & DYNAMIC and
+--echo # Test 8) StrictMode=ON, Make sure ROW_FORMAT=COMPRESSED
 --echo #         and a valid non-zero KEY_BLOCK_SIZE are rejected with
 --echo #         innodb_file_per_table=OFF and that they can be set to default
 --echo #         values during strict mode.
@@ -269,8 +271,10 @@ SHOW WARNINGS;
 --error ER_ILLEGAL_HA,1005
 CREATE TABLE t1 ( i INT ) ROW_FORMAT=COMPRESSED;
 SHOW WARNINGS;
---error 1005
 CREATE TABLE t1 ( i INT ) ROW_FORMAT=DYNAMIC;
+SHOW WARNINGS;
+SELECT TABLE_NAME,ROW_FORMAT,CREATE_OPTIONS FROM information_schema.tables WHERE TABLE_NAME = 't1';
+DROP TABLE t1;
 CREATE TABLE t1 ( i INT ) ROW_FORMAT=REDUNDANT;
 SHOW WARNINGS;
 SELECT TABLE_NAME,ROW_FORMAT,CREATE_OPTIONS FROM information_schema.tables WHERE TABLE_NAME = 't1';
@@ -287,8 +291,9 @@ SHOW WARNINGS;
 --error ER_ILLEGAL_HA_CREATE_OPTION
 ALTER TABLE t1 ROW_FORMAT=COMPRESSED;
 SHOW WARNINGS;
---error 1478
 ALTER TABLE t1 ROW_FORMAT=DYNAMIC;
+SELECT TABLE_NAME,ROW_FORMAT,CREATE_OPTIONS FROM information_schema.tables WHERE TABLE_NAME = 't1';
+SHOW WARNINGS;
 ALTER TABLE t1 ROW_FORMAT=COMPACT;
 SELECT TABLE_NAME,ROW_FORMAT,CREATE_OPTIONS FROM information_schema.tables WHERE TABLE_NAME = 't1';
 ALTER TABLE t1 ROW_FORMAT=REDUNDANT;
@@ -522,7 +527,6 @@ SELECT TABLE_NAME,ROW_FORMAT,CREATE_OPTIONS FROM information_schema.tables WHERE
 DROP TABLE t1;
 
 --disable_query_log
+EVAL SET GLOBAL innodb_file_format=$innodb_file_format_orig;
 EVAL SET GLOBAL innodb_file_per_table=$innodb_file_per_table_orig;
-EVAL SET SESSION innodb_strict_mode=$innodb_strict_mode_orig;
 --enable_query_log
-
