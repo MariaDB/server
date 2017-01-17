@@ -4,14 +4,6 @@
 -- source include/not_embedded.inc
 -- source include/not_windows.inc
 
---disable_query_log
-let $innodb_file_format_orig = `SELECT @@innodb_file_format`;
-let $innodb_file_per_table_orig = `SELECT @@innodb_file_per_table`;
---enable_query_log
-
-SET GLOBAL innodb_file_format = `Barracuda`;
-SET GLOBAL innodb_file_per_table = ON;
-
 --let $MYSQLD_DATADIR=`select @@datadir`
 --let SEARCH_RANGE = 10000000
 --let t1_IBD = $MYSQLD_DATADIR/test/t1.ibd
@@ -183,9 +175,3 @@ select count(1) from t7;
 
 DROP PROCEDURE innodb_insert_proc;
 DROP TABLE t1, t2, t3, t4, t5, t6, t7;
-
-# reset system
---disable_query_log
-EVAL SET GLOBAL innodb_file_per_table = $innodb_file_per_table_orig;
-EVAL SET GLOBAL innodb_file_format = $innodb_file_format_orig;
---enable_query_log

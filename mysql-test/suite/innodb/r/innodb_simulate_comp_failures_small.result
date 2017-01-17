@@ -1,6 +1,7 @@
 #
 # Testing robustness against random compression failures
 #
+call mtr.add_suppression(".*");
 CREATE TABLE t1(id INT AUTO_INCREMENT PRIMARY KEY, msg VARCHAR(255), KEY msg_i(msg)) ENGINE=INNODB ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8;
 SHOW CREATE TABLE t1;
 Table	Create Table

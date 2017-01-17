@@ -2,8 +2,6 @@ call mtr.add_suppression("InnoDB: Warning: innodb_page_size has been changed fro
 call mtr.add_suppression("InnoDB: Resizing redo log from *");
 call mtr.add_suppression("InnoDB: Starting to delete and rewrite log files.");
 call mtr.add_suppression("InnoDB: New log files created, LSN=*");
-SET GLOBAL innodb_file_format = `Barracuda`;
-SET GLOBAL innodb_file_per_table = ON;
 # Test 1) Show the page size from Information Schema
 SELECT variable_value FROM information_schema.global_status
 WHERE LOWER(variable_name) = 'innodb_page_size';

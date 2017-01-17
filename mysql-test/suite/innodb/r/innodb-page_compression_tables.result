@@ -1,7 +1,3 @@
-SET GLOBAL innodb_file_format = `Barracuda`;
-Warnings:
-Warning	131	Using innodb_file_format is deprecated and the parameter may be removed in future releases. See http://dev.mysql.com/doc/refman/5.7/en/innodb-file-format.html
-SET GLOBAL innodb_file_per_table = ON;
 set global innodb_compression_algorithm = 1;
 create table innodb_normal(c1 bigint not null, b char(200)) engine=innodb;
 create table innodb_compact(c1 bigint not null, b char(200)) engine=innodb row_format=compact page_compressed=1;
@@ -92,10 +88,6 @@ count(*)
 select count(*) from innodb_dynamic where c1 < 1500000;
 count(*)
 5000
-SET GLOBAL innodb_file_format = `Barracuda`;
-Warnings:
-Warning	131	Using innodb_file_format is deprecated and the parameter may be removed in future releases. See http://dev.mysql.com/doc/refman/5.7/en/innodb-file-format.html
-SET GLOBAL innodb_file_per_table = ON;
 set global innodb_compression_algorithm = 0;
 alter table innodb_compact engine=innodb page_compressed=DEFAULT;
 alter table innodb_dynamic engine=innodb page_compressed=DEFAULT;
@@ -149,5 +141,3 @@ DROP TABLE no_compression;
 DROP TABLE default_compression;
 DROP TABLE explicit_no_compression;
 SET SESSION innodb_compression_default = 0;
-Warnings:
-Warning	131	Using innodb_file_format is deprecated and the parameter may be removed in future releases. See http://dev.mysql.com/doc/refman/5.7/en/innodb-file-format.html

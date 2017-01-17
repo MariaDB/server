@@ -1,15 +1,4 @@
 call mtr.add_suppression("InnoDB: Unable to import tablespace .* because it already exists.  Please DISCARD the tablespace before IMPORT.");
-DROP TABLE IF EXISTS t1;
-SET GLOBAL innodb_file_per_table = 1;
-SELECT @@innodb_file_per_table;
-@@innodb_file_per_table
-1
-SET GLOBAL innodb_file_format = `Barracuda`;
-Warnings:
-Warning	131	Using innodb_file_format is deprecated and the parameter may be removed in future releases. See http://dev.mysql.com/doc/refman/5.7/en/innodb-file-format.html
-SELECT @@innodb_file_format;
-@@innodb_file_format
-Barracuda
 CREATE TABLE t1
 (a INT AUTO_INCREMENT PRIMARY KEY,
 b char(22),
@@ -103,16 +92,6 @@ a	b	c
 822	Devotion	asdfuihknaskdf
 821	Cavalry	..asdasdfaeraf
 DROP TABLE t1;
-SET GLOBAL innodb_file_per_table = 1;
-SELECT @@innodb_file_per_table;
-@@innodb_file_per_table
-1
-SET GLOBAL innodb_file_format = `Barracuda`;
-Warnings:
-Warning	131	Using innodb_file_format is deprecated and the parameter may be removed in future releases. See http://dev.mysql.com/doc/refman/5.7/en/innodb-file-format.html
-SELECT @@innodb_file_format;
-@@innodb_file_format
-Barracuda
 CREATE TABLE t1(
 c1 INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
 c2 INT) ENGINE=InnoDB;
@@ -1034,7 +1013,3 @@ DROP TABLE t1;
 call mtr.add_suppression("Got error -1 when reading table '.*'");
 call mtr.add_suppression("InnoDB: Error: tablespace id and flags in file '.*'.*");
 call mtr.add_suppression("InnoDB: The table .* doesn't have a corresponding tablespace, it was discarded");
-SET GLOBAL INNODB_FILE_FORMAT=Barracuda;
-Warnings:
-Warning	131	Using innodb_file_format is deprecated and the parameter may be removed in future releases. See http://dev.mysql.com/doc/refman/5.7/en/innodb-file-format.html
-SET GLOBAL INNODB_FILE_PER_TABLE=1;
