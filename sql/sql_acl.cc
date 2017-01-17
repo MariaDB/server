@@ -895,7 +895,7 @@ static my_bool do_validate(THD *, plugin_ref plugin, void *arg)
 }
 
 
-static bool validate_password(LEX_USER *user)
+static bool validate_password(LEX_USER *user, THD *thd)
 {
   if (user->pwtext.length || !user->pwhash.length)
   {
@@ -911,7 +911,8 @@ static bool validate_password(LEX_USER *user)
   }
   else
   {
-    if (strict_password_validation && has_validation_plugins())
+    if (!thd->slave_thread &&
+        strict_password_validation && has_validation_plugins())
     {
       my_error(ER_OPTION_PREVENTS_STATEMENT, MYF(0), "--strict-password-validation");
       return true;
@@ -2750,7 +2751,7 @@ bool check_change_password(THD *thd, LEX_USER *user)
   LEX_USER *real_user= get_current_user(thd, user);
 
   if (fix_and_copy_user(real_user, user, thd) ||
-      validate_password(real_user))
+      validate_password(real_user, thd))
     return true;
 
   *user= *real_user;
@@ -3465,7 +3466,7 @@ static int replace_user_table(THD *thd, TABLE *table, LEX_USER &combo,
   }
 
   if (!old_row_exists || combo.pwtext.length || combo.pwhash.length)
-    if (!handle_as_role && validate_password(&combo))
+    if (!handle_as_role && validate_password(&combo, thd))
       goto end;
 
   /* Update table columns with new privileges */
