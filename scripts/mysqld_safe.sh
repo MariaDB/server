@@ -975,10 +975,6 @@ cmd="$cmd $args"
 # Avoid 'nohup: ignoring input' warning
 test -n "$NOHUP_NICENESS" && cmd="$cmd < /dev/null"
 
-# close stdout and stderr, everything goes to $logging now
-exec 1>&-
-exec 2>&-
-
 log_notice "Starting $MYSQLD daemon with databases from $DATADIR"
 
 # variable to track the current number of "fast" (a.k.a. subsecond) restarts

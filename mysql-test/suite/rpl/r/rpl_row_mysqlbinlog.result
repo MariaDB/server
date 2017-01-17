@@ -1,7 +1,6 @@
 include/master-slave.inc
 [connection master]
 ---Setup Section  --
----Setup Section  --
 set timestamp=1000000000;
 CREATE TABLE t1(word VARCHAR(20));
 CREATE TABLE t2(id INT AUTO_INCREMENT NOT NULL PRIMARY KEY);

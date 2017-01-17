@@ -17972,7 +17972,7 @@ do_select(JOIN *join,List<Item> *fields,TABLE *table,Procedure *procedure)
       error= NESTED_LOOP_OK;                    /* select_limit used */
   }
 
-  join->thd->limit_found_rows= join->send_records;
+  join->thd->limit_found_rows= join->send_records - join->duplicate_rows;
 
   if (error == NESTED_LOOP_NO_MORE_ROWS || join->thd->killed == ABORT_QUERY)
     error= NESTED_LOOP_OK;

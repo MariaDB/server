@@ -480,10 +480,6 @@ ulong opt_binlog_rows_event_max_size;
 my_bool opt_master_verify_checksum= 0;
 my_bool opt_slave_sql_verify_checksum= 1;
 const char *binlog_format_names[]= {"MIXED", "STATEMENT", "ROW", NullS};
-#ifdef WITH_WSREP
-const char *wsrep_binlog_format_names[]=
-                                   {"MIXED", "STATEMENT", "ROW", "NONE", NullS};
-#endif /* WITH_WSREP */
 volatile sig_atomic_t calling_initgroups= 0; /**< Used in SIGSEGV handler. */
 uint mysqld_port, test_flags, select_errors, dropping_tables, ha_open_options;
 uint mysqld_extra_port;

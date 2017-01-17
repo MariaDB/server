@@ -1133,7 +1133,7 @@ Item *Item_cache::safe_charset_converter(THD *thd, CHARSET_INFO *tocs)
   if (conv == example)
     return this;
   Item_cache *cache;
-  if (!conv || conv->fix_fields(current_thd, (Item **) NULL) ||
+  if (!conv || conv->fix_fields(thd, (Item **) NULL) ||
       !(cache= new (thd->mem_root) Item_cache_str(thd, conv)))
     return NULL; // Safe conversion is not possible, or OEM
   cache->setup(thd, conv);
