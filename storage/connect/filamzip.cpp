@@ -97,7 +97,7 @@ loopStart:
 			if (!*++pat) return TRUE;
 			goto loopStart;
 		default:
-			if (mapCaseTable[*s] != mapCaseTable[*p])
+			if (mapCaseTable[(unsigned)*s] != mapCaseTable[(unsigned)*p])
 				goto starCheck;
 			break;
 		} /* endswitch */
@@ -151,7 +151,7 @@ int ZIPUTIL::findEntry(PGLOBAL g, bool next)
 			if (rc == UNZ_END_OF_LIST_OF_FILE)
 				return RC_EF;
 			else if (rc != UNZ_OK) {
-				sprintf(g->Message, "unzGoToNextFile rc = ", rc);
+				sprintf(g->Message, "unzGoToNextFile rc = %d", rc);
 				return RC_FX;
 			} // endif rc
 
@@ -261,7 +261,7 @@ bool ZIPUTIL::OpenTable(PGLOBAL g, MODE mode, char *fn)
 				fp->Memory = memory;
 				fp->Mode = mode;
 				fp->File = this;
-				fp->Handle = NULL;
+				fp->Handle = 0;
 			} // endif fp
 
 		} else
@@ -297,7 +297,7 @@ bool ZIPUTIL::openEntry(PGLOBAL g)
 	memory = new char[size + 1];
 
 	if ((rc = unzReadCurrentFile(zipfile, memory, size)) < 0) {
-		sprintf(g->Message, "unzReadCurrentFile rc = ", rc);
+		sprintf(g->Message, "unzReadCurrentFile rc = %d", rc);
 		unzCloseCurrentFile(zipfile);
 		free(memory);
 		memory = NULL;

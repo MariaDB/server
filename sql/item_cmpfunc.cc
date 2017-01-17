@@ -620,7 +620,7 @@ int Arg_comparator::set_compare_func(Item_func_or_sum *item, Item_result type)
 int Arg_comparator::set_cmp_func(Item_func_or_sum *owner_arg,
                                  Item **a1, Item **a2)
 {
-  thd= current_thd;
+  THD *thd= current_thd;
   owner= owner_arg;
   set_null= set_null && owner_arg;
   a= a1;
@@ -752,12 +752,10 @@ get_datetime_value(THD *thd, Item ***item_arg, Item **cache_arg,
   if (cache_arg && item->const_item() &&
       !(item->type() == Item::CACHE_ITEM && item->cmp_type() == TIME_RESULT))
   {
-    Query_arena backup;
-    Query_arena *save_arena= thd->switch_to_arena_for_cached_items(&backup);
-    Item_cache_temporal *cache= new (thd->mem_root) Item_cache_temporal(thd, f_type);
-    if (save_arena)
-      thd->set_query_arena(save_arena);
+    if (!thd)
+      thd= current_thd;
 
+    Item_cache_temporal *cache= new (thd->mem_root) Item_cache_temporal(thd, f_type);
     cache->store_packed(value, item);
     *cache_arg= cache;
     *item_arg= cache_arg;
@@ -792,12 +790,12 @@ int Arg_comparator::compare_temporal(enum_field_types type)
     owner->null_value= 1;
 
   /* Get DATE/DATETIME/TIME value of the 'a' item. */
-  a_value= get_datetime_value(thd, &a, &a_cache, type, &a_is_null);
+  a_value= get_datetime_value(0, &a, &a_cache, type, &a_is_null);
   if (a_is_null)
     return -1;
 
   /* Get DATE/DATETIME/TIME value of the 'b' item. */
-  b_value= get_datetime_value(thd, &b, &b_cache, type, &b_is_null);
+  b_value= get_datetime_value(0, &b, &b_cache, type, &b_is_null);
   if (b_is_null)
     return -1;
 
@@ -815,10 +813,10 @@ int Arg_comparator::compare_e_temporal(enum_field_types type)
   longlong a_value, b_value;
 
   /* Get DATE/DATETIME/TIME value of the 'a' item. */
-  a_value= get_datetime_value(thd, &a, &a_cache, type, &a_is_null);
+  a_value= get_datetime_value(0, &a, &a_cache, type, &a_is_null);
 
   /* Get DATE/DATETIME/TIME value of the 'b' item. */
-  b_value= get_datetime_value(thd, &b, &b_cache, type, &b_is_null);
+  b_value= get_datetime_value(0, &b, &b_cache, type, &b_is_null);
   return a_is_null || b_is_null ? a_is_null == b_is_null
                                 : a_value == b_value;
 }
@@ -3755,7 +3753,7 @@ uchar *in_datetime::get_value(Item *item)
   Item **tmp_item= lval_cache ? &lval_cache : &item;
   enum_field_types f_type=
     tmp_item[0]->field_type_for_temporal_comparison(warn_item);
-  tmp.val= get_datetime_value(thd, &tmp_item, &lval_cache, f_type, &is_null);
+  tmp.val= get_datetime_value(0, &tmp_item, &lval_cache, f_type, &is_null);
   if (item->null_value)
     return 0;
   tmp.unsigned_flag= 1L;
@@ -4020,7 +4018,7 @@ void cmp_item_datetime::store_value(Item *item)
   Item **tmp_item= lval_cache ? &lval_cache : &item;
   enum_field_types f_type=
     tmp_item[0]->field_type_for_temporal_comparison(warn_item);
-  value= get_datetime_value(thd, &tmp_item, &lval_cache, f_type, &is_null);
+  value= get_datetime_value(0, &tmp_item, &lval_cache, f_type, &is_null);
   m_null_value= item->null_value;
 }
 

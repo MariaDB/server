@@ -2767,7 +2767,6 @@ void Item_func_min_max::fix_length_and_dec()
   decimals=0;
   max_length=0;
   maybe_null=0;
-  thd= current_thd;
   Item_result tmp_cmp_type= args[0]->cmp_type();
   uint string_type_count= 0;
   uint temporal_type_count= 0;
@@ -2909,10 +2908,8 @@ bool Item_func_min_max::get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date)
     longlong res= args[i]->val_temporal_packed(Item_func_min_max::field_type());
 
     /* Check if we need to stop (because of error or KILL) and stop the loop */
-    if (thd->is_error() || args[i]->null_value)
-    {
+    if (args[i]->null_value)
       return (null_value= 1);
-    }
 
     if (i == 0 || (res < min_max ? cmp_sign : -cmp_sign) > 0)
       min_max= res;

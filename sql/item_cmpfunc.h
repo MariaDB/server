@@ -55,7 +55,6 @@ class Arg_comparator: public Sql_alloc
   Arg_comparator *comparators;   // used only for compare_row()
   double precision;
   /* Fields used in DATE/DATETIME comparison. */
-  THD *thd;
   Item *a_cache, *b_cache;         // Cached values of a and b items
                                    //   when one of arguments is NULL.
   int set_compare_func(Item_func_or_sum *owner, Item_result type);
@@ -70,12 +69,12 @@ public:
 
   Arg_comparator(): m_compare_type(STRING_RESULT),
     m_compare_collation(&my_charset_bin),
-    set_null(TRUE), comparators(0), thd(0),
+    set_null(TRUE), comparators(0),
     a_cache(0), b_cache(0) {};
   Arg_comparator(Item **a1, Item **a2): a(a1), b(a2),
     m_compare_type(STRING_RESULT),
     m_compare_collation(&my_charset_bin),
-    set_null(TRUE), comparators(0), thd(0),
+    set_null(TRUE), comparators(0),
     a_cache(0), b_cache(0) {};
 
 public:
@@ -1194,15 +1193,13 @@ public:
 class in_datetime :public in_longlong
 {
 public:
-  THD *thd;
   /* An item used to issue warnings. */
   Item *warn_item;
   /* Cache for the left item. */
   Item *lval_cache;
 
   in_datetime(Item *warn_item_arg, uint elements)
-    :in_longlong(elements), thd(current_thd), warn_item(warn_item_arg),
-     lval_cache(0) {};
+    :in_longlong(elements), warn_item(warn_item_arg), lval_cache(0) {};
   void set(uint pos,Item *item);
   uchar *get_value(Item *item);
   Item *create_item(THD *thd);
@@ -1372,14 +1369,13 @@ class cmp_item_datetime : public cmp_item_scalar
 {
   longlong value;
 public:
-  THD *thd;
   /* Item used for issuing warnings. */
   Item *warn_item;
   /* Cache for the left item. */
   Item *lval_cache;
 
   cmp_item_datetime(Item *warn_item_arg)
-    :thd(current_thd), warn_item(warn_item_arg), lval_cache(0) {}
+    : warn_item(warn_item_arg), lval_cache(0) {}
   void store_value(Item *item);
   int cmp(Item *arg);
   int compare(cmp_item *ci);
@@ -2584,4 +2580,3 @@ extern Ge_creator ge_creator;
 extern Le_creator le_creator;
 
 #endif /* ITEM_CMPFUNC_INCLUDED */
-
