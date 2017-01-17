@@ -116,7 +116,9 @@ bool DOMDOC::ParseFile(PGLOBAL g, char *fn)
 		// Parse an in memory document
 		char *xdoc = GetMemDoc(g, fn);
 
-		b = (xdoc) ? (bool)Docp->loadXML((_bstr_t)xdoc) : false;
+		// This is not equivalent to load for UTF8 characters
+		// It is why get node content is not the same
+  	b = (xdoc) ? (bool)Docp->loadXML((_bstr_t)xdoc) : false;
 	} else
 		// Load the document
 		b = (bool)Docp->load((_bstr_t)fn);
@@ -266,6 +268,7 @@ DOMNODE::DOMNODE(PXDOC dp, MSXML2::IXMLDOMNodePtr np) : XMLNODE(dp)
   Nodep = np;
   Ws = NULL;
   Len = 0;
+	Zip = (bool)dp->zip;
   } // end of DOMNODE constructor
 
 /******************************************************************/
@@ -316,8 +319,10 @@ RCODE DOMNODE::GetContent(PGLOBAL g, char *buf, int len)
   RCODE rc = RC_OK;
 
   // Nodep can be null for a missing HTML table column
-  if (Nodep) {                                                
-    if (!WideCharToMultiByte(CP_UTF8, 0, Nodep->text, -1,
+  if (Nodep) {
+		if (Zip) {
+			strcpy(buf, Nodep->text);
+		} else if (!WideCharToMultiByte(CP_UTF8, 0, Nodep->text, -1,
                              buf, len, NULL, NULL)) {
       DWORD lsr = GetLastError();
 

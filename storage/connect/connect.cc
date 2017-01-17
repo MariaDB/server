@@ -157,23 +157,22 @@ bool CntCheckDB(PGLOBAL g, PHC handler, const char *pathname)
 /*  Returns valid: true if this is a table info.                       */
 /***********************************************************************/
 bool CntInfo(PGLOBAL g, PTDB tp, PXF info)
-  {
-  bool    b;
-  PTDBDOS tdbp= (PTDBDOS)tp;
+{
+  if (tp) {
+		bool    b = ((PTDBASE)tp)->GetFtype() == RECFM_NAF;
+		PTDBDOS tdbp = b ? NULL : (PTDBDOS)tp;
 
-  if (tdbp) {
-    b= tdbp->GetFtype() != RECFM_NAF;
-    info->data_file_length= (b) ? (ulonglong)tdbp->GetFileLength(g) : 0;
+		info->data_file_length = (b) ? 0 : (ulonglong)tdbp->GetFileLength(g);
 
-    if (!b || info->data_file_length)
-      info->records= (unsigned)tdbp->Cardinality(g);
-//      info->records= (unsigned)tdbp->GetMaxSize(g);
+    if (b || info->data_file_length)
+      info->records= (unsigned)tp->Cardinality(g);
+//    info->records= (unsigned)tp->GetMaxSize(g);
     else
       info->records= 0;
 
 //  info->mean_rec_length= tdbp->GetLrecl();
     info->mean_rec_length= 0;
-    info->data_file_name= (b) ? tdbp->GetFile(g) : NULL;
+    info->data_file_name= (b) ? NULL : tdbp->GetFile(g);
     return true;
   } else {
     info->data_file_length= 0;
@@ -183,7 +182,7 @@ bool CntInfo(PGLOBAL g, PTDB tp, PXF info)
     return false;
   } // endif tdbp
 
-  } // end of CntInfo
+} // end of CntInfo
 
 /***********************************************************************/
 /*  GetTDB: Get the table description block of a CONNECT table.        */

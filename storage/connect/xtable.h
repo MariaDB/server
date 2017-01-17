@@ -243,7 +243,8 @@ class DllExport TDBCAT : public TDBASE {
 
   // Database routines
   virtual PCOL MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n);
-  virtual int  GetMaxSize(PGLOBAL g);
+	virtual int  Cardinality(PGLOBAL) {return 10;}	 // To avoid assert
+	virtual int  GetMaxSize(PGLOBAL g);
   virtual bool OpenDB(PGLOBAL g);
   virtual int  ReadDB(PGLOBAL g);
   virtual int  WriteDB(PGLOBAL g);
@@ -275,7 +276,7 @@ class DllExport CATCOL : public COLBLK {
   virtual int  GetAmType(void) {return TYPE_AM_ODBC;}
 
   // Methods
-  virtual void ReadColumn(PGLOBAL g);
+	virtual void ReadColumn(PGLOBAL g);
 
  protected:
   CATCOL(void) {}              // Default constructor not to be used

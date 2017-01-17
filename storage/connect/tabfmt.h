@@ -52,6 +52,7 @@ public:
 /***********************************************************************/
 class DllExport TDBCSV : public TDBDOS {
   friend class CSVCOL;
+	friend class MAPFAM;
 	friend PQRYRES CSVColumns(PGLOBAL, char *, PTOS, bool);
 public:
   // Constructor
