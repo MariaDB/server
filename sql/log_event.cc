@@ -7107,6 +7107,7 @@ Gtid_list_log_event::do_apply_event(rpl_group_info *rgi)
     rli->abort_slave= true;
     rli->stop_for_until= true;
   }
+  free_root(thd->mem_root, MYF(MY_KEEP_PREALLOC));
   return ret;
 }
 
