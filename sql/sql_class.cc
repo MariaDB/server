@@ -1054,7 +1054,6 @@ THD::THD()
 
   m_internal_handler= NULL;
   m_binlog_invoker= INVOKER_NONE;
-  arena_for_cached_items= 0;
   memset(&invoker_user, 0, sizeof(invoker_user));
   memset(&invoker_host, 0, sizeof(invoker_host));
   prepare_derived_at_open= FALSE;
