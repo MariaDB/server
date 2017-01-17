@@ -1239,8 +1239,7 @@ dict_check_sys_tables(
 		char*	filepath = dict_get_first_path(space_id);
 
 		/* Check that the .ibd file exists. */
-		bool	is_temp = flags2 & DICT_TF2_TEMPORARY;
-		ulint	fsp_flags = dict_tf_to_fsp_flags(flags, is_temp);
+		ulint	fsp_flags = dict_tf_to_fsp_flags(flags);
 		validate = true; /* Encryption */
 
 		dberr_t	err = fil_ibd_open(
@@ -2513,9 +2512,9 @@ dict_get_and_save_data_dir_path(
 	dict_table_t*	table,
 	bool		dict_mutex_own)
 {
-	bool is_temp = DICT_TF2_FLAG_IS_SET(table, DICT_TF2_TEMPORARY);
+	ut_ad(!dict_table_is_temporary(table));
 
-	if (!is_temp && !table->data_dir_path && table->space) {
+	if (!table->data_dir_path && table->space) {
 		char*	path = fil_space_get_first_path(table->space);
 
 		if (!dict_mutex_own) {
@@ -2610,6 +2609,8 @@ dict_load_tablespace(
 	mem_heap_t*		heap,
 	dict_err_ignore_t	ignore_err)
 {
+	ut_ad(!dict_table_is_temporary(table));
+
 	/* The system tablespace is always available. */
 	if (is_system_tablespace(table->space)) {
 		return;
@@ -2618,12 +2619,6 @@ dict_load_tablespace(
 	if (table->flags2 & DICT_TF2_DISCARDED) {
 		ib::warn() << "Tablespace for table " << table->name
 			<< " is set as discarded.";
-		table->ibd_file_missing = TRUE;
-		return;
-	}
-
-	if (dict_table_is_temporary(table)) {
-		/* Do not bother to retry opening temporary tables. */
 		table->ibd_file_missing = TRUE;
 		return;
 	}
@@ -2662,7 +2657,7 @@ dict_load_tablespace(
 
 	/* Try to open the tablespace.  We set the 2nd param (fix_dict) to
 	false because we do not have an x-lock on dict_operation_lock */
-	ulint fsp_flags = dict_tf_to_fsp_flags(table->flags, false);
+	ulint fsp_flags = dict_tf_to_fsp_flags(table->flags);
 	dberr_t err = fil_ibd_open(
 		true, false, FIL_TYPE_TABLESPACE, table->space,
 		fsp_flags, space_name, filepath, table);

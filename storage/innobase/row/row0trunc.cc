@@ -1993,9 +1993,9 @@ row_truncate_table_for_mysql(
 			return(row_truncate_complete(
 				table, trx, fsp_flags, logger, err));
 		}
-
 	} else {
 		/* For temporary tables we don't have entries in SYSTEM TABLES*/
+		ut_ad(fsp_is_system_temporary(table->space));
 		for (dict_index_t* index = UT_LIST_GET_FIRST(table->indexes);
 		     index != NULL;
 		     index = UT_LIST_GET_NEXT(indexes, index)) {
@@ -2018,10 +2018,7 @@ row_truncate_table_for_mysql(
 		}
 	}
 
-	if (is_file_per_table
-	    && !dict_table_is_temporary(table)
-	    && fsp_flags != ULINT_UNDEFINED) {
-
+	if (is_file_per_table && fsp_flags != ULINT_UNDEFINED) {
 		fil_reinit_space_header(
 			table->space,
 			table->indexes.count + FIL_IBD_FILE_INITIAL_SIZE + 1);

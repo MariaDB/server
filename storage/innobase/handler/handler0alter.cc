@@ -5588,7 +5588,6 @@ ha_innobase::prepare_inplace_alter_table(
 				     altered_table,
 				     ha_alter_info->create_info,
 				     NULL,
-				     NULL,
 				     NULL);
 
 	info.set_tablespace_type(indexed_table->space != TRX_SYS_SPACE);

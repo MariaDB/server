@@ -4688,6 +4688,7 @@ page_zip_reorganize(
 	ut_ad(mtr_memo_contains(mtr, block, MTR_MEMO_PAGE_X_FIX));
 	ut_ad(page_is_comp(page));
 	ut_ad(!dict_index_is_ibuf(index));
+	ut_ad(!dict_table_is_temporary(index->table));
 	/* Note that page_zip_validate(page_zip, page, index) may fail here. */
 	UNIV_MEM_ASSERT_RW(page, UNIV_PAGE_SIZE);
 	UNIV_MEM_ASSERT_RW(page_zip->data, page_zip_get_size(page_zip));
@@ -4719,7 +4720,6 @@ page_zip_reorganize(
 	       temp_page + (PAGE_HEADER + PAGE_MAX_TRX_ID), 8);
 	/* PAGE_MAX_TRX_ID must be set on secondary index leaf pages. */
 	ut_ad(dict_index_is_clust(index) || !page_is_leaf(temp_page)
-	      || dict_table_is_temporary(index->table)
 	      || page_get_max_trx_id(page) != 0);
 	/* PAGE_MAX_TRX_ID must be zero on non-leaf pages other than
 	clustered index root pages. */
@@ -4764,6 +4764,7 @@ page_zip_copy_recs(
 	ut_ad(mtr_memo_contains_page(mtr, page, MTR_MEMO_PAGE_X_FIX));
 	ut_ad(mtr_memo_contains_page(mtr, src, MTR_MEMO_PAGE_X_FIX));
 	ut_ad(!dict_index_is_ibuf(index));
+	ut_ad(!dict_table_is_temporary(index->table));
 #ifdef UNIV_ZIP_DEBUG
 	/* The B-tree operations that call this function may set
 	FIL_PAGE_PREV or PAGE_LEVEL, causing a temporary min_rec_flag
@@ -4807,8 +4808,7 @@ page_zip_copy_recs(
 	} else {
 		/* The PAGE_MAX_TRX_ID must be nonzero on leaf pages
 		of secondary indexes, and 0 on others. */
-		ut_ad(dict_table_is_temporary(index->table)
-		      || !page_is_leaf(src) == !page_get_max_trx_id(src));
+		ut_ad(!page_is_leaf(src) == !page_get_max_trx_id(src));
 	}
 
 	/* Copy all fields of src_zip to page_zip, except the pointer

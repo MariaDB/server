@@ -956,13 +956,15 @@ fil_make_filepath(
 	ib_extention	suffix,
 	bool		strip_name);
 
-/** Creates a new General or Single-Table tablespace
+/** Create a tablespace file.
 @param[in]	space_id	Tablespace ID
 @param[in]	name		Tablespace name in dbname/tablename format.
 @param[in]	path		Path and filename of the datafile to create.
 @param[in]	flags		Tablespace flags
 @param[in]	size		Initial size of the tablespace file in pages,
 must be >= FIL_IBD_FILE_INITIAL_SIZE
+@param[in]	mode		MariaDB encryption mode
+@param[in]	key_id		MariaDB encryption key_id
 @return DB_SUCCESS or error code */
 dberr_t
 fil_ibd_create(
@@ -971,8 +973,8 @@ fil_ibd_create(
 	const char*	path,
 	ulint		flags,
 	ulint		size,
-	fil_encryption_t mode,	/*!< in: encryption mode */
-	ulint		key_id) /*!< in: encryption key_id */
+	fil_encryption_t mode,
+	ulint		key_id)
 	MY_ATTRIBUTE((warn_unused_result));
 
 /********************************************************************//**

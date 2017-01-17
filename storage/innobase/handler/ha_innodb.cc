@@ -4098,7 +4098,7 @@ innobase_init(
 
 	/* Create the filespace flags. */
 	fsp_flags = fsp_flags_init(
-		univ_page_size, false, false, false, false, 0, 0);
+		univ_page_size, false, false, false, 0, 0);
 	srv_sys_space.set_flags(fsp_flags);
 
 	srv_sys_space.set_name("innodb_system");
@@ -4124,7 +4124,7 @@ innobase_init(
 
 	/* Create the filespace flags with the temp flag set. */
 	fsp_flags = fsp_flags_init(
-		univ_page_size, false, false, true, false, 0, 0);
+		univ_page_size, false, false, false, 0, 0);
 	srv_tmp_space.set_flags(fsp_flags);
 
 	if (!srv_tmp_space.parse_params(innobase_temp_data_file_path, false)) {
@@ -11755,11 +11755,6 @@ create_table_info_t::create_table_def()
 				      ? doc_id_col : n_cols - num_v;
 	}
 
-	if (strlen(m_temp_path) != 0) {
-		table->dir_path_of_temp_table =
-			mem_heap_strdup(table->heap, m_temp_path);
-	}
-
 	if (DICT_TF_HAS_DATA_DIR(m_flags)) {
 		ut_a(strlen(m_remote_path));
 
@@ -12271,9 +12266,10 @@ create_table_info_t::create_options_are_invalid()
 
 	const char*	ret = NULL;
 	enum row_type	row_format	= m_create_info->row_type;
+	const bool	is_temp
+		= m_create_info->options & HA_LEX_CREATE_TMP_TABLE;
 
 	ut_ad(m_thd != NULL);
-	ut_ad(m_create_info != NULL);
 
 	/* If innodb_strict_mode is not set don't do any more validation. */
 	if (!THDVAR(m_thd, strict_mode)) {
@@ -12282,6 +12278,12 @@ create_table_info_t::create_options_are_invalid()
 
 	/* Check if a non-zero KEY_BLOCK_SIZE was specified. */
 	if (has_key_block_size) {
+		if (is_temp) {
+			my_error(ER_UNSUPPORT_COMPRESSED_TEMPORARY_TABLE,
+				 MYF(0));
+			return("KEY_BLOCK_SIZE");
+		}
+
 		switch (m_create_info->key_block_size) {
 			ulint	kbs_max;
 		case 1:
@@ -12341,6 +12343,11 @@ create_table_info_t::create_options_are_invalid()
 	other incompatibilities. */
 	switch (row_format) {
 	case ROW_TYPE_COMPRESSED:
+		if (is_temp) {
+			my_error(ER_UNSUPPORT_COMPRESSED_TEMPORARY_TABLE,
+				 MYF(0));
+			return("ROW_FORMAT");
+		}
 		if (!m_allow_file_per_table) {
 			push_warning_printf(
 				m_thd, Sql_condition::WARN_LEVEL_WARN,
@@ -12361,7 +12368,7 @@ create_table_info_t::create_options_are_invalid()
 		}
 		break;
 	case ROW_TYPE_DYNAMIC:
-		if (!m_allow_file_per_table) {
+		if (!m_allow_file_per_table && !is_temp) {
 			push_warning_printf(
 				m_thd, Sql_condition::WARN_LEVEL_WARN,
 				ER_ILLEGAL_HA_CREATE_OPTION,
@@ -12370,7 +12377,7 @@ create_table_info_t::create_options_are_invalid()
 				get_row_format_name(row_format));
 			ret = "ROW_FORMAT";
 		}
-		if (srv_file_format < UNIV_FORMAT_B) {
+		if (!is_temp && srv_file_format < UNIV_FORMAT_B) {
 			push_warning_printf(
 				m_thd, Sql_condition::WARN_LEVEL_WARN,
 				ER_ILLEGAL_HA_CREATE_OPTION,
@@ -12595,6 +12602,10 @@ ha_innobase::update_create_info(
 		create_info->auto_increment_value = stats.auto_increment_value;
 	}
 
+	if (dict_table_is_temporary(m_prebuilt->table)) {
+		return;
+	}
+
 	/* Update the DATA DIRECTORY name from SYS_DATAFILES. */
 	dict_get_and_save_data_dir_path(m_prebuilt->table, false);
 
@@ -12619,8 +12630,7 @@ innobase_fts_load_stopword(
 				 THDVAR(thd, ft_enable_stopword), FALSE));
 }
 
-/** Parse the table name into normal name and either temp path or remote path
-if needed.
+/** Parse the table name into normal name and remote path if needed.
 @param[in]	name	Table name (db/table or full path).
 @return 0 if successful, otherwise, error number */
 int
@@ -12653,16 +12663,7 @@ create_table_info_t::parse_table_name(
 	}
 #endif
 
-	m_temp_path[0] = '\0';
 	m_remote_path[0] = '\0';
-
-	/* A full path is provided by the server for TEMPORARY tables not
-	targeted for a tablespace or when DATA DIRECTORY is given.
-	So these two are not compatible.  Likewise, DATA DIRECTORY is not
-	compatible with a TABLESPACE assignment. */
-	if ((m_create_info->options & HA_LEX_CREATE_TMP_TABLE)) {
-		strncpy(m_temp_path, name, FN_REFLEN - 1);
-	}
 
 	/* Make sure DATA DIRECTORY is compatible with other options
 	and set the remote path.  In the case of either;
@@ -12703,11 +12704,14 @@ create_table_info_t::innobase_table_flags()
 	DBUG_ENTER("innobase_table_flags");
 
 	const char*	fts_doc_id_index_bad = NULL;
-	bool		zip_allowed = true;
 	ulint		zip_ssize = 0;
 	enum row_type	row_type;
 	rec_format_t	innodb_row_format =
 		get_row_format(innodb_default_row_format);
+	const bool	is_temp
+		= m_create_info->options & HA_LEX_CREATE_TMP_TABLE;
+	bool		zip_allowed
+		= !is_temp;
 
 	const ulint	zip_ssize_max =
 		ut_min(static_cast<ulint>(UNIV_PAGE_SSIZE_MAX),
@@ -12735,20 +12739,13 @@ create_table_info_t::innobase_table_flags()
 
 			/* We don't support FTS indexes in temporary
 			tables. */
-			if (m_create_info->options & HA_LEX_CREATE_TMP_TABLE) {
-
+			if (is_temp) {
 				my_error(ER_INNODB_NO_FT_TEMP_TABLE, MYF(0));
 				DBUG_RETURN(false);
 			}
 
 			if (fts_doc_id_index_bad) {
 				goto index_bad;
-			}
-		} else if (key->flags & HA_SPATIAL) {
-			if (m_create_info->options & HA_LEX_CREATE_TMP_TABLE
-			    && !m_use_file_per_table) {
-				my_error(ER_TABLE_CANT_HANDLE_SPKEYS, MYF(0));
-				DBUG_RETURN(false);
 			}
 		}
 
@@ -12789,7 +12786,14 @@ index_bad:
 		}
 
 		/* Make sure compressed row format is allowed. */
-		if (!m_allow_file_per_table) {
+		if (is_temp) {
+			push_warning(
+				m_thd, Sql_condition::WARN_LEVEL_WARN,
+				ER_ILLEGAL_HA_CREATE_OPTION,
+				"InnoDB: KEY_BLOCK_SIZE is ignored"
+				" for TEMPORARY TABLE.");
+			zip_allowed = false;
+		} else if (!m_allow_file_per_table) {
 			push_warning(
 				m_thd, Sql_condition::WARN_LEVEL_WARN,
 				ER_ILLEGAL_HA_CREATE_OPTION,
@@ -12859,9 +12863,14 @@ index_bad:
 		innodb_row_format = REC_FORMAT_COMPACT;
 		break;
 	case ROW_TYPE_COMPRESSED:
-		/* ROW_FORMAT=COMPRESSED requires file_per_table and
-		file_format=Barracuda unless there is a target tablespace. */
-		if (!m_allow_file_per_table) {
+		if (is_temp) {
+			push_warning_printf(
+				m_thd, Sql_condition::WARN_LEVEL_WARN,
+				ER_ILLEGAL_HA_CREATE_OPTION,
+				"InnoDB: ROW_FORMAT=%s is ignored for"
+				" TEMPORARY TABLE.",
+				get_row_format_name(row_type));
+		} else if (!m_allow_file_per_table) {
 			push_warning_printf(
 				m_thd, Sql_condition::WARN_LEVEL_WARN,
 				ER_ILLEGAL_HA_CREATE_OPTION,
@@ -12874,20 +12883,9 @@ index_bad:
 				ER_ILLEGAL_HA_CREATE_OPTION,
 				"InnoDB: ROW_FORMAT=COMPRESSED requires"
 				" innodb_file_format > Antelope.");
-
 		} else {
-			switch(row_type) {
-			case ROW_TYPE_COMPRESSED:
-				innodb_row_format = REC_FORMAT_COMPRESSED;
-				break;
-			case ROW_TYPE_DYNAMIC:
-				innodb_row_format = REC_FORMAT_DYNAMIC;
-				break;
-			default:
-				/* Not possible, avoid compiler warning */
-				break;
-			}
-			break; /* Correct row_format */
+			innodb_row_format = REC_FORMAT_COMPRESSED;
+			break;
 		}
 		zip_allowed = false;
 		/* fall through to set row_type = DYNAMIC */
@@ -12915,13 +12913,18 @@ index_bad:
 		zip_allowed = false;
 	}
 
+	ut_ad(!is_temp || !zip_allowed);
+	ut_ad(!is_temp || innodb_row_format != REC_FORMAT_COMPRESSED);
+
 	/* Set the table flags */
 	if (!zip_allowed) {
 		zip_ssize = 0;
 	}
 
-	if (m_create_info->options & HA_LEX_CREATE_TMP_TABLE) {
+	if (is_temp) {
 		m_flags2 |= DICT_TF2_TEMPORARY;
+	} else if (m_use_file_per_table) {
+		m_flags2 |= DICT_TF2_USE_FILE_PER_TABLE;
 	}
 
 	/* Set the table flags */
@@ -12931,10 +12934,6 @@ index_bad:
 		    	options->page_compression_level == 0 ?
 		        	default_compression_level : options->page_compression_level,
 		    	0);
-
-	if (m_use_file_per_table) {
-		m_flags2 |= DICT_TF2_USE_FILE_PER_TABLE;
-	}
 
 	/* Set the flags2 when create table or alter tables */
 	m_flags2 |= DICT_TF2_FTS_AUX_HEX_NAME;
@@ -13125,24 +13124,16 @@ create_table_info_t::set_tablespace_type(
 		m_innodb_file_per_table
 		|| table_being_altered_is_file_per_table;
 
-	/* All noncompresed temporary tables will be put into the
-	system temporary tablespace.  */
-	bool is_noncompressed_temporary =
-		m_create_info->options & HA_LEX_CREATE_TMP_TABLE
-		&& !(m_create_info->row_type == ROW_TYPE_COMPRESSED
-		     || m_create_info->key_block_size > 0);
-
 	/* Ignore the current innodb-file-per-table setting if we are
-	creating a temporary, non-compressed table. */
+	creating a temporary table. */
 	m_use_file_per_table =
 		m_allow_file_per_table
-		&& !is_noncompressed_temporary;
+		&& !(m_create_info->options & HA_LEX_CREATE_TMP_TABLE);
 
 	/* DATA DIRECTORY must have m_use_file_per_table but cannot be
 	used with TEMPORARY tables. */
 	m_use_data_dir =
 		m_use_file_per_table
-		&& !(m_create_info->options & HA_LEX_CREATE_TMP_TABLE)
 		&& (m_create_info->data_file_name != NULL)
 		&& (m_create_info->data_file_name[0] != '\0');
 }
@@ -13570,7 +13561,6 @@ ha_innobase::create(
 {
 	int		error;
 	char		norm_name[FN_REFLEN];	/* {database}/{tablename} */
-	char		temp_path[FN_REFLEN];	/* Absolute path of temp frm */
 	char		remote_path[FN_REFLEN];	/* Absolute path of table */
 	trx_t*		trx;
 	DBUG_ENTER("ha_innobase::create");
@@ -13579,7 +13569,6 @@ ha_innobase::create(
 				     form,
 				     create_info,
 				     norm_name,
-				     temp_path,
 				     remote_path);
 
 	/* Initialize the object. */

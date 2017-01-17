@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2000, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2016, MariaDB Corporation.
+Copyright (c) 2013, 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -688,13 +688,11 @@ public:
 		TABLE*		form,
 		HA_CREATE_INFO*	create_info,
 		char*		table_name,
-		char*		temp_path,
 		char*		remote_path)
 	:m_thd(thd),
 	m_form(form),
 	m_create_info(create_info),
 	m_table_name(table_name),
-	m_temp_path(temp_path),
 	m_remote_path(remote_path),
 	m_innodb_file_per_table(srv_file_per_table)
 	{}
@@ -804,12 +802,6 @@ private:
 
 	/** Table name */
 	char*		m_table_name;
-	/** If this is a table explicitly created by the user with the
-	TEMPORARY keyword, then this parameter is the dir path where the
-	table should be placed if we create an .ibd file for it
-	(no .ibd extension in the path, though).
-	Otherwise this is a zero length-string */
-	char*		m_temp_path;
 
 	/** Remote path (DATA DIRECTORY) or zero length-string */
 	char*		m_remote_path;

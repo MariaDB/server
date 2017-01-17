@@ -3604,7 +3604,7 @@ row_import_for_mysql(
 	we will not be writing any redo log for it before we have invoked
 	fil_space_set_imported() to declare it a persistent tablespace. */
 
-	ulint	fsp_flags = dict_tf_to_fsp_flags(table->flags, false);
+	ulint	fsp_flags = dict_tf_to_fsp_flags(table->flags);
 
 	err = fil_ibd_open(
 		true, true, FIL_TYPE_IMPORT, table->space,

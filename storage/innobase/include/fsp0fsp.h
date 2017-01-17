@@ -648,7 +648,9 @@ fsp_flags_is_compressed(
 @param[in]	page_size	page sizes in bytes and compression flag.
 @param[in]	atomic_blobs	Used by Dynammic and Compressed.
 @param[in]	has_data_dir	This tablespace is in a remote location.
-@param[in]	is_temporary	This tablespace is temporary.
+@param[in]	page_compressed Table uses page compression
+@param[in]	page_compression_level Page compression level
+@param[in]	not_used  For future
 @return tablespace flags after initialization */
 UNIV_INLINE
 ulint
@@ -656,7 +658,6 @@ fsp_flags_init(
 	const page_size_t&	page_size,
 	bool			atomic_blobs,
 	bool			has_data_dir,
-	bool			is_temporary,
 	bool			page_compression,
 	ulint			page_compression_level,
 	ulint			not_used);

@@ -215,12 +215,13 @@ fil_space_belongs_in_lru(
 	const fil_space_t*	space)	/*!< in: file space */
 {
 	switch (space->purpose) {
+	case FIL_TYPE_TEMPORARY:
 	case FIL_TYPE_LOG:
 		return(false);
 	case FIL_TYPE_TABLESPACE:
-	case FIL_TYPE_TEMPORARY:
-	case FIL_TYPE_IMPORT:
 		return(fil_is_user_tablespace_id(space->id));
+	case FIL_TYPE_IMPORT:
+		return(true);
 	}
 
 	ut_ad(0);
@@ -3711,7 +3712,7 @@ func_exit:
 	return(success);
 }
 
-/** Create a new General or Single-Table tablespace
+/** Create a tablespace file.
 @param[in]	space_id	Tablespace ID
 @param[in]	name		Tablespace name in dbname/tablename format.
 @param[in]	path		Path and filename of the datafile to create.
@@ -3736,7 +3737,6 @@ fil_ibd_create(
 	byte*		buf2;
 	byte*		page;
 	bool		success;
-	bool		is_temp = FSP_FLAGS_GET_TEMPORARY(flags);
 	bool		has_data_dir = FSP_FLAGS_HAS_DATA_DIR(flags);
 	fil_space_t*	space = NULL;
 	fil_space_crypt_t *crypt_data = NULL;
@@ -3926,21 +3926,16 @@ fil_ibd_create(
 		crypt_data = fil_space_create_crypt_data(mode, key_id);
 	}
 
-	space = fil_space_create(name, space_id, flags, is_temp
-		? FIL_TYPE_TEMPORARY : FIL_TYPE_TABLESPACE,
+	space = fil_space_create(name, space_id, flags, FIL_TYPE_TABLESPACE,
 		crypt_data, true);
 
 	if (!fil_node_create_low(path, size, space, false, true)) {
-
 		if (crypt_data) {
 			free(crypt_data);
 		}
 
 		err = DB_ERROR;
-		goto error_exit_1;
-	}
-
-	if (!is_temp) {
+	} else {
 		mtr_t			mtr;
 		const fil_node_t*	file = UT_LIST_GET_FIRST(space->chain);
 
@@ -3950,20 +3945,14 @@ fil_ibd_create(
 			NULL, space->flags, &mtr);
 		fil_name_write(space, 0, file, &mtr);
 		mtr_commit(&mtr);
-	}
-
-	err = DB_SUCCESS;
-
-	/* Error code is set.  Cleanup the various variables used.
-	These labels reflect the order in which variables are assigned or
-	actions are done. */
-error_exit_1:
-	if (err != DB_SUCCESS && has_data_dir) {
-		RemoteDatafile::delete_link_file(name);
+		err = DB_SUCCESS;
 	}
 
 	os_file_close(file);
 	if (err != DB_SUCCESS) {
+		if (has_data_dir) {
+			RemoteDatafile::delete_link_file(name);
+		}
 		os_file_delete(innodb_data_file_key, path);
 	}
 
@@ -4596,10 +4585,8 @@ fil_ibd_load(
 
 	ut_ad(space == NULL);
 
-	bool is_temp = FSP_FLAGS_GET_TEMPORARY(file.flags());
 	space = fil_space_create(
-		file.name(), space_id, file.flags(),
-		is_temp ? FIL_TYPE_TEMPORARY : FIL_TYPE_TABLESPACE,
+		file.name(), space_id, file.flags(), FIL_TYPE_TABLESPACE,
 		file.get_crypt_info(), false);
 
 	if (space == NULL) {
@@ -4668,10 +4655,7 @@ fil_report_missing_tablespace(
 		<< " in the InnoDB data dictionary has tablespace id "
 		<< space_id << ","
 		" but tablespace with that id or name does not exist. Have"
-		" you deleted or moved .ibd files? This may also be a table"
-		" created with CREATE TEMPORARY TABLE whose .ibd and .frm"
-		" files MySQL automatically removed, but the table still"
-		" exists in the InnoDB internal data dictionary.";
+		" you deleted or moved .ibd files?";
 }
 
 /** Returns true if a matching tablespace exists in the InnoDB tablespace

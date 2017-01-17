@@ -1036,12 +1036,9 @@ dict_table_t::flags |     0     |    1    |     1      |    1
 fil_space_t::flags  |     0     |    0    |     1      |    1
 ==================================================================
 @param[in]	table_flags	dict_table_t::flags
-@param[in]	is_temp		whether the tablespace is temporary
 @return tablespace flags (fil_space_t::flags) */
 ulint
-dict_tf_to_fsp_flags(
-	ulint	table_flags,
-	bool	is_temp)
+dict_tf_to_fsp_flags(ulint table_flags)
 	MY_ATTRIBUTE((const));
 
 /** Extract the page size from table flags.
