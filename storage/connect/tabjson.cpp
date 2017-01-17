@@ -129,7 +129,7 @@ PQRYRES JSONColumns(PGLOBAL g, char *db, PTOS topt, bool info)
   if (tdp->Pretty == 2) {
 		if (tdp->Zipped) {
 #if defined(ZIP_SUPPORT)
-			tjsp = new(g) TDBJSON(tdp, new(g) ZIPFAM(tdp));
+			tjsp = new(g) TDBJSON(tdp, new(g) UNZFAM(tdp));
 #else   // !ZIP_SUPPORT
 			sprintf(g->Message, MSG(NO_FEAT_SUPPORT), "ZIP");
 			return NULL;
@@ -151,7 +151,7 @@ PQRYRES JSONColumns(PGLOBAL g, char *db, PTOS topt, bool info)
 
 		if (tdp->Zipped) {
 #if defined(ZIP_SUPPORT)
-			tjnp = new(g)TDBJSN(tdp, new(g)ZIPFAM(tdp));
+			tjnp = new(g)TDBJSN(tdp, new(g)UNZFAM(tdp));
 #else   // !ZIP_SUPPORT
 			sprintf(g->Message, MSG(NO_FEAT_SUPPORT), "ZIP");
 			return NULL;
@@ -441,7 +441,14 @@ PTDB JSONDEF::GetTable(PGLOBAL g, MODE m)
 
 		if (Zipped) {
 #if defined(ZIP_SUPPORT)
-			txfp = new(g) ZIPFAM(this);
+			if (m == MODE_READ || m == MODE_UPDATE) {
+				txfp = new(g) UNZFAM(this);
+			} else if (m == MODE_INSERT) {
+				txfp = new(g) ZIPFAM(this);
+			} else {
+				strcpy(g->Message, "UPDATE/DELETE not supported for ZIP");
+				return NULL;
+			}	// endif's m
 #else   // !ZIP_SUPPORT
 			sprintf(g->Message, MSG(NO_FEAT_SUPPORT), "ZIP");
 			return NULL;
@@ -479,7 +486,15 @@ PTDB JSONDEF::GetTable(PGLOBAL g, MODE m)
 	} else {
 		if (Zipped)	{
 #if defined(ZIP_SUPPORT)
-			txfp = new(g)ZIPFAM(this);
+			if (m == MODE_READ || m == MODE_UPDATE) {
+				txfp = new(g) UNZFAM(this);
+			} else if (m == MODE_INSERT) {
+				strcpy(g->Message, "INSERT supported only for zipped JSON when pretty=0");
+				return NULL;
+			} else {
+				strcpy(g->Message, "UPDATE/DELETE not supported for ZIP");
+				return NULL;
+			}	// endif's m
 #else   // !ZIP_SUPPORT
 			sprintf(g->Message, MSG(NO_FEAT_SUPPORT), "ZIP");
 			return NULL;

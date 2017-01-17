@@ -537,6 +537,11 @@ PTDB XMLDEF::GetTable(PGLOBAL g, MODE m)
   if (Catfunc == FNC_COL)
     return new(g) TDBXCT(this);
 
+	if (Zipped && !(m == MODE_READ || m == MODE_ANY)) {
+		strcpy(g->Message, "ZIpped XML tables are read only");
+		return NULL;
+	}	// endif Zipped
+
   PTDBASE tdbp = new(g) TDBXML(this);
 
   if (Multiple)
