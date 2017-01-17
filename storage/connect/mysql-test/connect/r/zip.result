@@ -236,5 +236,5 @@ method INT NOT NULL FLAG=3)
 ENGINE=CONNECT TABLE_TYPE=ZIP FILE_NAME='bios.zip';
 SELECT * FROM t4;
 fn	cmpsize	uncsize	method
-bios.json	1106	7121	8
+bios.json	1096	6848	8
 DROP TABLE t1,t2,t3,t4;
