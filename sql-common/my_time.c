@@ -151,7 +151,7 @@ static int get_date_time_separator(uint *number_of_fields, ulonglong flags,
   if (s >= end)
     return 0;
 
-  if (*s == 'T')
+  if (*s == 'T' || *s == 't')
   {
     (*str)++;
     return 0;
@@ -191,7 +191,7 @@ static int get_date_time_separator(uint *number_of_fields, ulonglong flags,
 
 static int get_maybe_T(const char **str, const char *end)
 {
-  if (*str < end && **str == 'T')
+  if (*str < end && (**str == 'T' || **str == 't'))
     (*str)++;
   return 0;
 }
@@ -267,6 +267,9 @@ static void get_microseconds(ulong *val, MYSQL_TIME_STATUS *status,
     YYMMDD, YYYYMMDD, YYMMDDHHMMSS, YYYYMMDDHHMMSS
     YY-MM-DD, YYYY-MM-DD, YY-MM-DD HH.MM.SS
     YYYYMMDDTHHMMSS  where T is a the character T (ISO8601)
+    YYYYMMDDTHHMMSS-HH:MM  where T is a the character T (ISO8601)
+    YYYYMMDDTHHMMSS+HH:MM  where T is a the character T (ISO8601)
+    YYYYMMDDTHHMMSSZ  where T is a the character T (ISO8601) AND Z is the character Z (RFC3339)
     Also dates where all parts are zero are allowed
 
     The second part may have an optional .###### fraction part.
@@ -326,7 +329,7 @@ str_to_datetime(const char *str, uint length, MYSQL_TIME *l_time,
   pos= str;
   digits= skip_digits(&pos, end);
 
-  if (pos < end && *pos == 'T') /* YYYYYMMDDHHMMSSThhmmss is supported too */
+  if (pos < end && (*pos == 'T' || *pos == 't')) /* YYYYYMMDDHHMMSSThhmmss is supported too */
   {
     pos++;
     digits+= skip_digits(&pos, end);
@@ -336,12 +339,21 @@ str_to_datetime(const char *str, uint length, MYSQL_TIME *l_time,
     pos++;
     skip_digits(&pos, end); // ignore the return value
   }
+  if (pos < end && (*pos == '-' || *pos == '+') && digits >= 12) /* YYYYYMMDDHHMMSShhmmss.uuuuuu-HH:MM is supported too */
+  {
+    pos+=6; // Skip 6 places as defined in RFC3339 reserved for local offset
+  }
+  else if (pos < end && *pos == 'Z' && digits >= 12) /* YYYYYMMDDHHMMSShhmmss.uuuuuuZ is supported too */
+  {
+    pos++;
+  }
+
 
   if (pos == end)
   {
     /*
       Found date in internal format
-      (only numbers like [YY]YYMMDD[T][hhmmss[.uuuuuu]])
+      (only numbers like [YY]YYMMDD[T|t][hhmmss[.uuuuuu]][[Z|z]|[[-|+]hh[[:]mm]]])
     */
     year_length= (digits == 4 || digits == 8 || digits >= 14) ? 4 : 2;
     if (get_digits(&l_time->year, &number_of_fields, &str, end, year_length) 
@@ -387,6 +399,14 @@ str_to_datetime(const char *str, uint length, MYSQL_TIME *l_time,
     str++;
     get_microseconds(&l_time->second_part, status,
                      &number_of_fields, &str, end);
+  }
+  if (!status->warnings && str < end && (*str == '-' || *str == '+'))
+  {
+    str+=6; // Skip 6 places as defined in RFC3339 reserved for local offset
+  }
+  else if (!status->warnings && str < end && (*str == 'Z' || *str == 'z'))
+  {
+    str++;
   }
 
   not_zero_date = l_time->year || l_time->month || l_time->day ||
