@@ -1505,15 +1505,3 @@ select id, test_data
     ) as a;
 
 drop table t1;
-
---echo #
---echo # MDEV-10773: ANALYZE FORMAT=JSON query_with_CTE crashes
---echo #
---replace_regex /"r_total_time_ms": [0-9]*[.]?[0-9]*/"r_total_time_ms": "REPLACED"/
-analyze format=json 
-with recursive src(counter) as 
-(select 1 
- union 
- select counter+1 from src where counter<10
-) select * from src;
-
