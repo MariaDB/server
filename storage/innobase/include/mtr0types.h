@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2015, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -257,10 +258,10 @@ The record consists of a MLOG_CHECKPOINT byte followed by
 mach_write_to_8(checkpoint_lsn). */
 #define SIZE_OF_MLOG_CHECKPOINT	9
 
+#ifndef UNIV_INNOCHECKSUM
 /** Types for the mlock objects to store in the mtr memo; NOTE that the
 first 3 values must be RW_S_LATCH, RW_X_LATCH, RW_NO_LATCH */
 enum mtr_memo_type_t {
-#ifndef UNIV_INNOCHECKSUM
 	MTR_MEMO_PAGE_S_FIX = RW_S_LATCH,
 
 	MTR_MEMO_PAGE_X_FIX = RW_X_LATCH,
@@ -268,18 +269,18 @@ enum mtr_memo_type_t {
 	MTR_MEMO_PAGE_SX_FIX = RW_SX_LATCH,
 
 	MTR_MEMO_BUF_FIX = RW_NO_LATCH,
-#endif /* !UNIV_CHECKSUM */
 
 #ifdef UNIV_DEBUG
-	MTR_MEMO_MODIFY = 32,
+	MTR_MEMO_MODIFY = 16,
 #endif /* UNIV_DEBUG */
 
-	MTR_MEMO_S_LOCK = 64,
+	MTR_MEMO_S_LOCK = RW_S_LATCH << 5,
 
-	MTR_MEMO_X_LOCK = 128,
+	MTR_MEMO_X_LOCK = RW_X_LATCH << 5,
 
-	MTR_MEMO_SX_LOCK = 256
+	MTR_MEMO_SX_LOCK = RW_SX_LATCH << 5
 };
+#endif /* !UNIV_CHECKSUM */
 
 #ifdef UNIV_DEBUG
 # define MTR_MAGIC_N		54551

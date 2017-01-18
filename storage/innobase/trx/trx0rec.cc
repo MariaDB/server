@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -2234,9 +2235,9 @@ trx_undo_prev_version_build(
 	byte*		buf;
 
 	ut_ad(!rw_lock_own(&purge_sys->latch, RW_LOCK_S));
-	ut_ad(mtr_memo_contains_page(index_mtr, index_rec, MTR_MEMO_PAGE_S_FIX)
-	      || mtr_memo_contains_page(index_mtr, index_rec,
-					MTR_MEMO_PAGE_X_FIX));
+	ut_ad(mtr_memo_contains_page_flagged(index_mtr, index_rec,
+					     MTR_MEMO_PAGE_S_FIX
+					     | MTR_MEMO_PAGE_X_FIX));
 	ut_ad(rec_offs_validate(rec, index, offsets));
 	ut_a(dict_index_is_clust(index));
 

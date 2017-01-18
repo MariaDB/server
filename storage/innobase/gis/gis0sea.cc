@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -129,12 +130,10 @@ rtr_pcur_getnext_from_path(
 		      || latch_mode & BTR_MODIFY_LEAF);
 		mtr_s_lock(dict_index_get_lock(index), mtr);
 	} else {
-		ut_ad(mtr_memo_contains(mtr, dict_index_get_lock(index),
-					MTR_MEMO_SX_LOCK)
-		      || mtr_memo_contains(mtr, dict_index_get_lock(index),
-					MTR_MEMO_S_LOCK)
-		      || mtr_memo_contains(mtr, dict_index_get_lock(index),
-					   MTR_MEMO_X_LOCK));
+		ut_ad(mtr_memo_contains_flagged(mtr, &index->lock,
+						MTR_MEMO_SX_LOCK
+						| MTR_MEMO_S_LOCK
+						| MTR_MEMO_X_LOCK));
 	}
 
 	const page_size_t&	page_size = dict_table_page_size(index->table);
@@ -601,10 +600,9 @@ rtr_pcur_open_low(
 	}
 
 	if (latch_mode & BTR_MODIFY_TREE) {
-		ut_ad(mtr_memo_contains(mtr, dict_index_get_lock(index),
-					MTR_MEMO_X_LOCK)
-		      || mtr_memo_contains(mtr, dict_index_get_lock(index),
-					   MTR_MEMO_SX_LOCK));
+		ut_ad(mtr_memo_contains_flagged(mtr, &index->lock,
+						MTR_MEMO_X_LOCK
+						| MTR_MEMO_SX_LOCK));
 		tree_latched = true;
 	}
 
