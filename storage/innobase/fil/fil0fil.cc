@@ -659,7 +659,7 @@ retry:
 
 		os_file_close(node->handle);
 
-		const page_size_t	page_size(flags);
+		const page_size_t	page_size(space->flags);
 
 		min_size = FIL_IBD_FILE_INITIAL_SIZE * page_size.physical();
 
@@ -1901,20 +1901,6 @@ fil_space_get_flags(
 	mutex_exit(&fil_system->mutex);
 
 	return(flags);
-}
-
-/** Check if table is mark for truncate.
-@param[in]	id	space id
-@return true if tablespace is marked for truncate. */
-bool
-fil_space_is_being_truncated(
-	ulint id)
-{
-	bool	mark_for_truncate;
-	mutex_enter(&fil_system->mutex);
-	mark_for_truncate = fil_space_get_by_id(id)->is_being_truncated;
-	mutex_exit(&fil_system->mutex);
-	return(mark_for_truncate);
 }
 
 /** Open each fil_node_t of a named fil_space_t if not already open.
@@ -3311,30 +3297,6 @@ fil_space_dec_redo_skipped_count(
 	space->redo_skipped_count--;
 
 	mutex_exit(&fil_system->mutex);
-}
-
-/**
-Check whether a single-table tablespace is redo skipped.
-@param[in]	id	space id
-@return true if redo skipped */
-bool
-fil_space_is_redo_skipped(
-	ulint		id)
-{
-	fil_space_t*	space;
-	bool		is_redo_skipped;
-
-	mutex_enter(&fil_system->mutex);
-
-	space = fil_space_get_by_id(id);
-
-	ut_a(space != NULL);
-
-	is_redo_skipped = space->redo_skipped_count > 0;
-
-	mutex_exit(&fil_system->mutex);
-
-	return(is_redo_skipped);
 }
 #endif /* UNIV_DEBUG */
 
@@ -6131,15 +6093,6 @@ fil_tablespace_iterate(
 	return(err);
 }
 
-/** Set the tablespace table size.
-@param[in]	page	a page belonging to the tablespace */
-void
-PageCallback::set_page_size(
-	const buf_frame_t*	page) UNIV_NOTHROW
-{
-	m_page_size.copy_from(fsp_header_get_page_size(page));
-}
-
 /********************************************************************//**
 Delete the tablespace file and any related files like .cfg.
 This should not be called for temporary tables.
@@ -6656,10 +6609,9 @@ fil_space_get_crypt_data(
 			byte *page = static_cast<byte*>(ut_align(buf, UNIV_PAGE_SIZE));
 			fil_read(page_id_t(space_id, 0), univ_page_size, 0, univ_page_size.physical(),
 				 page);
-			ulint flags = fsp_header_get_flags(page);
 			ulint offset = FSP_HEADER_OFFSET
 				+ fsp_header_get_encryption_offset(
-					page_size_t(flags));
+					page_size_t(space->flags));
 			space->crypt_data = fil_space_read_crypt_data(space_id, page, offset);
 			ut_free(buf);
 

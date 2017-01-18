@@ -630,13 +630,6 @@ fil_space_get_flags(
 /*================*/
 	ulint	id);	/*!< in: space id */
 
-/** Check if table is mark for truncate.
-@param[in]	id	space id
-@return true if tablespace is marked for truncate. */
-bool
-fil_space_is_being_truncated(
-	ulint id);
-
 /** Open each fil_node_t of a named fil_space_t if not already open.
 @param[in]	name	Tablespace name
 @return true if all file nodes are opened. */
@@ -1275,14 +1268,6 @@ fil_space_inc_redo_skipped_count(
 void
 fil_space_dec_redo_skipped_count(
 	ulint		id);
-
-/*******************************************************************//**
-Check whether a single-table tablespace is redo skipped.
-@return true if redo skipped */
-bool
-fil_space_is_redo_skipped(
-/*======================*/
-	ulint		id);	/*!< in: space id */
 #endif
 
 /********************************************************************//**
@@ -1340,10 +1325,6 @@ struct PageCallback {
 	/**
 	@retval the space flags of the tablespace being iterated over */
 	virtual ulint get_space_flags() const UNIV_NOTHROW = 0;
-
-	/** Set the tablespace table size.
-	@param[in] page a page belonging to the tablespace */
-	void set_page_size(const buf_frame_t* page) UNIV_NOTHROW;
 
 	/** The compressed page size
 	@return the compressed page size */

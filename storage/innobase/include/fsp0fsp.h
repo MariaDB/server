@@ -329,13 +329,6 @@ fsp_header_get_flags(const page_t* page)
 	return(fsp_header_get_field(page, FSP_SPACE_FLAGS));
 }
 
-/** Reads the page size from the first page of a tablespace.
-@param[in]	page	first page of a tablespace
-@return page size */
-page_size_t
-fsp_header_get_page_size(
-	const page_t*	page);
-
 /** Get the byte offset of encryption information in page 0.
 @param[in]	ps	page size
 @return	byte offset relative to FSP_HEADER_OFFSET */
@@ -687,27 +680,6 @@ ulint
 xdes_calc_descriptor_index(
 	const page_size_t&	page_size,
 	ulint			offset);
-
-/** Gets pointer to a the extent descriptor of a page.
-The page where the extent descriptor resides is x-locked. If the page offset
-is equal to the free limit of the space, adds new extents from above the free
-limit to the space free list, if not free limit == space size. This adding
-is necessary to make the descriptor defined, as they are uninitialized
-above the free limit.
-@param[in]	space_id	space id
-@param[in]	offset		page offset; if equal to the free limit, we
-try to add new extents to the space free list
-@param[in]	page_size	page size
-@param[in,out]	mtr		mini-transaction
-@return pointer to the extent descriptor, NULL if the page does not
-exist in the space or if the offset exceeds the free limit */
-xdes_t*
-xdes_get_descriptor(
-	ulint			space_id,
-	ulint			offset,
-	const page_size_t&	page_size,
-	mtr_t*			mtr)
-MY_ATTRIBUTE((warn_unused_result));
 
 /**********************************************************************//**
 Gets a descriptor bit of a page.

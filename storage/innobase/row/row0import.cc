@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2012, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2016, MariaDB Corporation.
+Copyright (c) 2015, 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -384,6 +384,12 @@ public:
 		return(get_page_size().is_compressed());
 	}
 
+	/** @return the tablespace flags */
+	ulint get_space_flags() const
+	{
+		return(m_space_flags);
+	}
+
 protected:
 	/** Get the data page depending on the table type, compressed or not.
 	@param block block read from disk
@@ -541,13 +547,7 @@ AbstractCallback::init(
 	const page_t*		page = block->frame;
 
 	m_space_flags = fsp_header_get_flags(page);
-
-	/* Since we don't know whether it is a compressed table
-	or not, the data is always read into the block->frame. */
-
-	set_page_size(block->frame);
-
-	/* Set the page size used to traverse the tablespace. */
+	m_page_size.copy_from(page_size_t(m_space_flags));
 
 	if (!is_compressed_table() && !m_page_size.equals_to(univ_page_size)) {
 
@@ -612,13 +612,6 @@ struct FetchIndexRootPages : public AbstractCallback {
 	virtual ulint get_space_id() const UNIV_NOTHROW
 	{
 		return(m_space);
-	}
-
-	/**
-	@retval the space flags of the tablespace being iterated over */
-	virtual ulint get_space_flags() const UNIV_NOTHROW
-	{
-		return(m_space_flags);
 	}
 
 	/** Check if the .ibd file row format is the same as the table's.
@@ -847,13 +840,6 @@ public:
 	virtual ulint get_space_id() const UNIV_NOTHROW
 	{
 		return(m_cfg->m_table->space);
-	}
-
-	/**
-	@retval the space flags of the tablespace being iterated over */
-	virtual ulint get_space_flags() const UNIV_NOTHROW
-	{
-		return(m_space_flags);
 	}
 
 	/** Called for each block as it is read from the file.
