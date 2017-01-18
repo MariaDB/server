@@ -72,6 +72,29 @@ protected:
   static inline void adjust_leap_second(MYSQL_TIME *t);
 };
 
+/*
+  Instance of this class represents time zone which
+  was specified as offset from UTC.
+*/
+class Time_zone_offset : public Time_zone
+{
+public:
+  Time_zone_offset(long tz_offset_arg);
+  virtual my_time_t TIME_to_gmt_sec(const MYSQL_TIME *t,
+                                    uint *error_code) const;
+  virtual void   gmt_sec_to_TIME(MYSQL_TIME *tmp, my_time_t t) const;
+  virtual const String * get_name() const;
+  /*
+    This have to be public because we want to be able to access it from
+    my_offset_tzs_get_key() function
+  */
+  long offset;
+private:
+  /* Extra reserve because of snprintf */
+  char name_buff[7+16];
+  String name;
+};
+
 extern Time_zone * my_tz_UTC;
 extern Time_zone * my_tz_SYSTEM;
 extern Time_zone * my_tz_OFFSET0;

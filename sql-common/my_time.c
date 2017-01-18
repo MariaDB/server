@@ -151,7 +151,7 @@ static int get_date_time_separator(uint *number_of_fields, ulonglong flags,
   if (s >= end)
     return 0;
 
-  if (*s == 'T')
+  if (*s == 'T' || *s == 't')
   {
     (*str)++;
     return 0;
@@ -191,7 +191,7 @@ static int get_date_time_separator(uint *number_of_fields, ulonglong flags,
 
 static int get_maybe_T(const char **str, const char *end)
 {
-  if (*str < end && **str == 'T')
+  if (*str < end && (**str == 'T' || **str == 't'))
     (*str)++;
   return 0;
 }
@@ -267,6 +267,9 @@ static void get_microseconds(ulong *val, MYSQL_TIME_STATUS *status,
     YYMMDD, YYYYMMDD, YYMMDDHHMMSS, YYYYMMDDHHMMSS
     YY-MM-DD, YYYY-MM-DD, YY-MM-DD HH.MM.SS
     YYYYMMDDTHHMMSS  where T is a the character T (ISO8601)
+    YYYYMMDDTHHMMSS-HH:MM  where T is a the character T (ISO8601)
+    YYYYMMDDTHHMMSS+HH:MM  where T is a the character T (ISO8601)
+    YYYYMMDDTHHMMSSZ  where T is a the character T (ISO8601) AND Z is the character Z (RFC3339)
     Also dates where all parts are zero are allowed
 
     The second part may have an optional .###### fraction part.
@@ -326,7 +329,7 @@ str_to_datetime(const char *str, uint length, MYSQL_TIME *l_time,
   pos= str;
   digits= skip_digits(&pos, end);
 
-  if (pos < end && *pos == 'T') /* YYYYYMMDDHHMMSSThhmmss is supported too */
+  if (pos < end && (*pos == 'T' || *pos == 't')) /* YYYYYMMDDHHMMSSThhmmss is supported too */
   {
     pos++;
     digits+= skip_digits(&pos, end);
@@ -336,12 +339,24 @@ str_to_datetime(const char *str, uint length, MYSQL_TIME *l_time,
     pos++;
     skip_digits(&pos, end); // ignore the return value
   }
+  if (pos < end && (*pos == '-' || *pos == '+') && digits >= 12) /* YYYYYMMDDHHMMSShhmmss.uuuuuu-HH:MM is supported too */
+  {
+    status->tz_offset_valid = str_to_offset(pos, 6, &status->tz_offset); //RFC3339 specifies the offset will be exactly 6 digits
+    pos+=6; // Skip 6 places as defined in RFC3339 reserved for local offset
+  }
+  else if (pos < end && *pos == 'Z' && digits >= 12) /* YYYYYMMDDHHMMSShhmmss.uuuuuuZ is supported too */
+  {
+    status->tz_offset_valid = 1;
+    status->tz_offset = 0;
+    pos++;
+  }
+
 
   if (pos == end)
   {
     /*
       Found date in internal format
-      (only numbers like [YY]YYMMDD[T][hhmmss[.uuuuuu]])
+      (only numbers like [YY]YYMMDD[T|t][hhmmss[.uuuuuu]][[Z|z]|[[-|+]hh[[:]mm]]])
     */
     year_length= (digits == 4 || digits == 8 || digits >= 14) ? 4 : 2;
     if (get_digits(&l_time->year, &number_of_fields, &str, end, year_length) 
@@ -387,6 +402,17 @@ str_to_datetime(const char *str, uint length, MYSQL_TIME *l_time,
     str++;
     get_microseconds(&l_time->second_part, status,
                      &number_of_fields, &str, end);
+  }
+  if (!status->warnings && str < end && (*str == '-' || *str == '+'))
+  {
+    status->tz_offset_valid = (str_to_offset(str, 6, &status->tz_offset) == 0); //RFC3339 specifies the offset will be exactly 6 digits
+    str+=6;
+  }
+  else if (!status->warnings && str < end && (*str == 'Z' || *str == 'z'))
+  {
+    status->tz_offset_valid = 1;
+    status->tz_offset = 0;
+    str++;
   }
 
   not_zero_date = l_time->year || l_time->month || l_time->day ||
@@ -635,6 +661,86 @@ err:
   bzero((char*) l_time, sizeof(*l_time));
   l_time->time_type= MYSQL_TIMESTAMP_ERROR;
   return TRUE;
+}
+
+
+/*
+  Parse string that specifies time zone as offset from UTC.
+
+  SYNOPSIS
+    str_to_offset()
+      str    - pointer to string which contains offset
+      length - length of string
+      offset - out parameter for storing found offset in seconds.
+
+  DESCRIPTION
+    This function parses string which contains time zone offset
+    in form similar to '+10:00' and converts found value to
+    seconds from UTC form (east is positive).
+
+  RETURN VALUE
+    0 - Ok
+    1 - String doesn't contain valid time zone offset
+*/
+my_bool
+str_to_offset(const char *str, uint length, long *offset)
+{
+  const char *end= str + length;
+  my_bool negative;
+  ulong number_tmp;
+  long offset_tmp;
+
+  if (length < 4)
+    return 1;
+
+  if (*str == '+')
+    negative= 0;
+  else if (*str == '-')
+    negative= 1;
+  else
+    return 1;
+  str++;
+
+  number_tmp= 0;
+
+  while (str < end && my_isdigit(&my_charset_latin1, *str))
+  {
+    number_tmp= number_tmp*10 + *str - '0';
+    str++;
+  }
+
+  if (str + 1 >= end || *str != ':')
+    return 1;
+  str++;
+
+  offset_tmp = number_tmp * MINS_PER_HOUR; number_tmp= 0;
+
+  while (str < end && my_isdigit(&my_charset_latin1, *str))
+  {
+    number_tmp= number_tmp * 10 + *str - '0';
+    str++;
+  }
+
+  if (str != end)
+    return 1;
+
+  offset_tmp= (offset_tmp + number_tmp) * SECS_PER_MIN;
+
+  if (negative)
+    offset_tmp= -offset_tmp;
+
+  /*
+    Check if offset is in range prescribed by standard
+    (from -12:59 to 13:00).
+  */
+
+  if (number_tmp > 59 || offset_tmp < -13 * SECS_PER_HOUR + 1 ||
+      offset_tmp > 13 * SECS_PER_HOUR)
+    return 1;
+
+  *offset= offset_tmp;
+
+  return 0;
 }
 
 

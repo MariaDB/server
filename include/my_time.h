@@ -80,6 +80,15 @@ extern uchar days_in_month[];
 
 /* Usefull constants */
 #define SECONDS_IN_24H 86400L
+#define SECS_PER_MIN	60
+#define MINS_PER_HOUR	60
+#define HOURS_PER_DAY	24
+#define DAYS_PER_WEEK	7
+#define DAYS_PER_NYEAR	365
+#define DAYS_PER_LYEAR	366
+#define SECS_PER_HOUR	(SECS_PER_MIN * MINS_PER_HOUR)
+#define SECS_PER_DAY	((long) SECS_PER_HOUR * HOURS_PER_DAY)
+#define MONS_PER_YEAR	12
 
 /* Limits for the TIME data type */
 #define TIME_MAX_HOUR 838
@@ -100,11 +109,13 @@ typedef struct st_mysql_time_status
 {
   int warnings;
   uint precision;
+  long tz_offset;
+  my_bool tz_offset_valid;
 } MYSQL_TIME_STATUS;
 
 static inline void my_time_status_init(MYSQL_TIME_STATUS *status)
 {
-  status->warnings= status->precision= 0;
+  status->warnings= status->precision= status->tz_offset_valid= 0;
 }
 
 my_bool check_date(const MYSQL_TIME *ltime, my_bool not_zero_date,
@@ -113,6 +124,7 @@ my_bool str_to_time(const char *str, uint length, MYSQL_TIME *l_time,
                     ulonglong flag, MYSQL_TIME_STATUS *status);
 my_bool str_to_datetime(const char *str, uint length, MYSQL_TIME *l_time,
                         ulonglong flags, MYSQL_TIME_STATUS *status);
+my_bool str_to_offset(const char *str, uint length, long *offset);
 longlong number_to_datetime(longlong nr, ulong sec_part, MYSQL_TIME *time_res,
                             ulonglong flags, int *was_cut);
 

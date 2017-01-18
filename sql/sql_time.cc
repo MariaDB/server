@@ -304,7 +304,20 @@ bool str_to_datetime(CHARSET_INFO *cs, const char *str, uint length,
     length= to_ascii(cs, str, length, cnv, sizeof(cnv));
     str= cnv;
   }
-  return str_to_datetime(str, length, l_time, flags, status);
+  bool ret = str_to_datetime(str, length, l_time, flags, status);
+  if(ret == 0 && status->tz_offset_valid)
+  {
+    uint tz_convert_err;
+    my_time_t tm= Time_zone_offset(status->tz_offset).TIME_to_gmt_sec(l_time, &tz_convert_err);
+    if(tz_convert_err)
+    {
+      status->warnings |= MYSQL_TIME_WARN_TRUNCATED;
+      return ret;
+    }
+    current_thd->variables.time_zone->gmt_sec_to_TIME(l_time, tm);
+  }
+
+  return ret;
 }
 
 
