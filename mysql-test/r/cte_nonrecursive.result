@@ -927,3 +927,15 @@ Sergei Golubchik	Development	DE
 Claudio Nanni	Support	ES
 Sergei Petrunia	Development	RU
 drop table employees;
+#
+# MDEV-11818: EXPLAIN EXTENDED for a query with optimized away CTE table
+#
+CREATE TABLE t1 (i INT, c VARCHAR(3));
+INSERT INTO t1 VALUES (1,'foo');
+EXPLAIN EXTENDED
+WITH cte AS ( SELECT * FROM t1 ) SELECT i FROM cte;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	system	NULL	NULL	NULL	NULL	1	100.00	
+Warnings:
+Note	1003	with cte as (select `test`.`t1`.`i` AS `i`,`test`.`t1`.`c` AS `c` from `test`.`t1`)select 1 AS `i` from dual
+DROP TABLE t1;
