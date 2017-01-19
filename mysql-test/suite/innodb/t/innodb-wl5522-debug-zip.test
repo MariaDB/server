@@ -19,11 +19,10 @@
 
 call mtr.add_suppression("InnoDB: Tablespace for table .* is set as discarded.");
 call mtr.add_suppression("InnoDB: Cannot calculate statistics for table .* because the .ibd file is missing. Please refer to .* for how to resolve the issue.");
-call mtr.add_suppression("InnoDB: Error: Tablespace flags .* corrupted unused .*");
-call mtr.add_suppression("InnoDB: Tablespace flags: .* corrupted  in file: .* ");
 call mtr.add_suppression("InnoDB: Page 0 at offset 0 looks corrupted in file .*");
-call mtr.add_suppression("InnoDB: Page for tablespace .* ");
-flush tables;
+call mtr.add_suppression("InnoDB: Page for tablespace ");
+call mtr.add_suppression("InnoDB: Invalid FSP_SPACE_FLAGS=0x");
+FLUSH TABLES;
 
 let MYSQLD_DATADIR =`SELECT @@datadir`;
 let $pathfix=/: '.*test_wl5522.*t1.ibd'/: 'test_wl5522_t1.ibd'/;

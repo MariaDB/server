@@ -42,7 +42,6 @@ Created 10/25/1995 Heikki Tuuri
 struct trx_t;
 class page_id_t;
 class truncate_t;
-struct btr_create_t;
 
 /* structure containing encryption specification */
 typedef struct fil_space_crypt_struct fil_space_crypt_t;
@@ -131,7 +130,8 @@ struct fil_space_t {
 				/*!< recovered tablespace size in pages;
 				0 if no size change was read from the redo log,
 				or if the size change was implemented */
-	ulint		flags;	/*!< tablespace flags; see
+	ulint		flags;	/*!< FSP_SPACE_FLAGS and FSP_FLAGS_MEM_ flags;
+				see fsp0types.h,
 				fsp_flags_is_valid(),
 				page_size_t(ulint) (constructor) */
 	ulint		n_reserved_extents;
@@ -970,6 +970,14 @@ fil_ibd_create(
 	ulint		key_id)
 	MY_ATTRIBUTE((warn_unused_result));
 
+/** Try to adjust FSP_SPACE_FLAGS if they differ from the expectations.
+(Typically when upgrading from MariaDB 10.1.0..10.1.20.)
+@param[in]	space_id	tablespace ID
+@param[in]	flags		desired tablespace flags */
+UNIV_INTERN
+void
+fsp_flags_try_adjust(ulint space_id, ulint flags);
+
 /********************************************************************//**
 Tries to open a single-table tablespace and optionally checks the space id is
 right in it. If does not succeed, prints an error message to the .err log. This
@@ -994,7 +1002,7 @@ statement to update the dictionary tables if they are incorrect.
 @param[in]	fix_dict	true if the dictionary is available to be fixed
 @param[in]	purpose		FIL_TYPE_TABLESPACE or FIL_TYPE_TEMPORARY
 @param[in]	id		tablespace ID
-@param[in]	flags		tablespace flags
+@param[in]	flags		expected FSP_SPACE_FLAGS
 @param[in]	space_name	tablespace name of the datafile
 If file-per-table, it is the table name in the databasename/tablename format
 @param[in]	path_in		expected filepath, usually read from dictionary
@@ -1070,7 +1078,8 @@ fil_space_for_table_exists_in_mem(
 					when find table space mismatch */
 	mem_heap_t*	heap,		/*!< in: heap memory */
 	table_id_t	table_id,	/*!< in: table id */
-	dict_table_t*	table);		/*!< in: table or NULL */
+	dict_table_t*	table,		/*!< in: table or NULL */
+	ulint		table_flags);	/*!< in: table flags */
 
 /** Try to extend a tablespace if it is smaller than the specified size.
 @param[in,out]	space	tablespace

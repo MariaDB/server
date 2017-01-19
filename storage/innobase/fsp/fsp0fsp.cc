@@ -181,146 +181,6 @@ fsp_get_space_header(
 	return(header);
 }
 
-/** Convert a 32 bit integer tablespace flags to the 32 bit table flags.
-This can only be done for a tablespace that was built as a file-per-table
-tablespace. Note that the fsp_flags cannot show the difference between a
-Compact and Redundant table, so an extra Compact boolean must be supplied.
-			Low order bit
-		    | REDUNDANT | COMPACT | COMPRESSED | DYNAMIC
-fil_space_t::flags  |     0     |    0    |     1      |    1
-dict_table_t::flags |     0     |    1    |     1      |    1
-@param[in]	fsp_flags	fil_space_t::flags
-@param[in]	compact		true if not Redundant row format
-@return tablespace flags (fil_space_t::flags) */
-ulint
-fsp_flags_to_dict_tf(
-	ulint	fsp_flags,
-	bool	compact)
-{
-	/* If the table in this file-per-table tablespace is Compact
-	row format, the low order bit will not indicate Compact. */
-	bool	post_antelope	= FSP_FLAGS_GET_POST_ANTELOPE(fsp_flags);
-	ulint	zip_ssize	= FSP_FLAGS_GET_ZIP_SSIZE(fsp_flags);
-	bool	atomic_blobs	= FSP_FLAGS_HAS_ATOMIC_BLOBS(fsp_flags);
-	bool	data_dir	= FSP_FLAGS_HAS_DATA_DIR(fsp_flags);
-	bool	page_compressed = FSP_FLAGS_GET_PAGE_COMPRESSION(fsp_flags);
-	ulint	comp_level	= FSP_FLAGS_GET_PAGE_COMPRESSION_LEVEL(fsp_flags);
-
-	/* FSP_FLAGS_GET_TEMPORARY(fsp_flags) does not have an equivalent
-	flag position in the table flags. But it would go into flags2 if
-	any code is created where that is needed. */
-
-	ulint	flags = dict_tf_init(post_antelope | compact, zip_ssize,
-				atomic_blobs, data_dir,
-				page_compressed, comp_level, 0);
-
-	return(flags);
-}
-
-/** Validate the tablespace flags.
-These flags are stored in the tablespace header at offset FSP_SPACE_FLAGS.
-They should be 0 for ROW_FORMAT=COMPACT and ROW_FORMAT=REDUNDANT.
-The newer row formats, COMPRESSED and DYNAMIC, use a file format > Antelope
-so they should have a file format number plus the DICT_TF_COMPACT bit set.
-@param[in]	flags	Tablespace flags
-@return true if valid, false if not */
-bool
-fsp_flags_is_valid(
-	ulint	flags)
-{
-	bool	post_antelope = FSP_FLAGS_GET_POST_ANTELOPE(flags);
-	ulint	zip_ssize = FSP_FLAGS_GET_ZIP_SSIZE(flags);
-	bool	atomic_blobs = FSP_FLAGS_HAS_ATOMIC_BLOBS(flags);
-	ulint	page_ssize = FSP_FLAGS_GET_PAGE_SSIZE(flags);
-	bool	has_data_dir = FSP_FLAGS_HAS_DATA_DIR(flags);
-	bool	is_temp = FSP_FLAGS_GET_TEMPORARY(flags);
-	ulint	unused = FSP_FLAGS_GET_UNUSED(flags);
-	bool	page_compression = FSP_FLAGS_GET_PAGE_COMPRESSION(flags);
-	ulint	page_compression_level = FSP_FLAGS_GET_PAGE_COMPRESSION_LEVEL(flags);
-
-	const char *file;
-	ulint line;
-
-#define GOTO_ERROR file = __FILE__; line = __LINE__; goto err_exit;
-
-	DBUG_EXECUTE_IF("fsp_flags_is_valid_failure", return(false););
-
-	/* The Antelope row formats REDUNDANT and COMPACT did
-	not use tablespace flags, so the entire 4-byte field
-	is zero for Antelope row formats. */
-	if (flags == 0) {
-		return(true);
-	}
-
-	/* Barracuda row formats COMPRESSED and DYNAMIC use a feature called
-	ATOMIC_BLOBS which builds on the page structure introduced for the
-	COMPACT row format by allowing long fields to be broken into prefix
-	and externally stored parts. So if it is Post_antelope, it uses
-	Atomic BLOBs. */
-	if (post_antelope != atomic_blobs) {
-		GOTO_ERROR;
-		return(false);
-	}
-
-	/* Make sure there are no bits that we do not know about. */
-	if (unused != 0) {
-		GOTO_ERROR;
-	}
-
-	/* The zip ssize can be zero if it is other than compressed row format,
-	or it could be from 1 to the max. */
-	if (zip_ssize > PAGE_ZIP_SSIZE_MAX) {
-		GOTO_ERROR;
-	}
-
-	/* The actual page size must be within 4k and 16K (3 =< ssize =< 5). */
-	if (page_ssize != 0
-	    && (page_ssize < UNIV_PAGE_SSIZE_MIN
-	        || page_ssize > UNIV_PAGE_SSIZE_MAX)) {
-		GOTO_ERROR;
-	}
-
-	/* Only single-table tablespaces use the DATA DIRECTORY clause.
-	It is not compatible with the TABLESPACE clause.  Nor is it
-	compatible with the TEMPORARY clause. */
-	if (has_data_dir && is_temp) {
-		GOTO_ERROR;
-		return(false);
-	}
-
-	/* Page compression level requires page compression and atomic blobs
-	to be set */
-	if (page_compression_level || page_compression) {
-		if (!page_compression || !atomic_blobs) {
-			GOTO_ERROR;
-		}
-	}
-
-#if UNIV_FORMAT_MAX != UNIV_FORMAT_B
-# error UNIV_FORMAT_MAX != UNIV_FORMAT_B, Add more validations.
-#endif
-#if FSP_FLAGS_POS_UNUSED != 13
-	//# error You have added a new FSP_FLAG without adding a validation check.
-#endif
-
-	return(true);
-
-err_exit:
-	ib::error() << "Tablespace flags: " << flags << " corrupted "
-		    << " in file: " << file << " line: " << line
-		    << " post_antelope: " << post_antelope
-		    << " atomic_blobs: " << atomic_blobs
-		    << " unused: " << unused
-		    << " zip_ssize: " << zip_ssize << " max: " << PAGE_ZIP_SSIZE_MAX
-		    << " page_ssize: " << page_ssize
-		    << " " << UNIV_PAGE_SSIZE_MIN << ":" << UNIV_PAGE_SSIZE_MAX
-		    << " has_data_dir: " << has_data_dir
-		    << " is_temp: " << is_temp
-		    << " page_compressed: " << page_compression
-		    << " page_compression_level: " << page_compression_level;
-	return (false);
-}
-
 /** Check if checksum is disabled for the given space.
 @param[in]	space_id	tablespace ID
 @return true if checksum is disabled for given space. */
@@ -835,6 +695,7 @@ fsp_header_init_fields(
 	ulint	space_id,	/*!< in: space id */
 	ulint	flags)		/*!< in: tablespace flags (FSP_SPACE_FLAGS) */
 {
+	flags &= ~FSP_FLAGS_MEM_MASK;
 	ut_a(fsp_flags_is_valid(flags));
 
 	mach_write_to_4(FSP_HEADER_OFFSET + FSP_SPACE_ID + page,
@@ -889,7 +750,8 @@ fsp_header_init(
 
 	mlog_write_ulint(header + FSP_SIZE, size, MLOG_4BYTES, mtr);
 	mlog_write_ulint(header + FSP_FREE_LIMIT, 0, MLOG_4BYTES, mtr);
-	mlog_write_ulint(header + FSP_SPACE_FLAGS, space->flags,
+	mlog_write_ulint(header + FSP_SPACE_FLAGS,
+			 space->flags & ~FSP_FLAGS_MEM_MASK,
 			 MLOG_4BYTES, mtr);
 	mlog_write_ulint(header + FSP_FRAG_N_USED, 0, MLOG_4BYTES, mtr);
 

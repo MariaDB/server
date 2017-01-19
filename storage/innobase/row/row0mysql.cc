@@ -3546,19 +3546,22 @@ This deletes the fil_space_t if found and the file on disk.
 @param[in]	space_id	Tablespace ID
 @param[in]	tablename	Table name, same as the tablespace name
 @param[in]	filepath	File path of tablespace to delete
+@param[in]	table_flags	table flags
 @return error code or DB_SUCCESS */
 UNIV_INLINE
 dberr_t
 row_drop_single_table_tablespace(
 	ulint		space_id,
 	const char*	tablename,
-	const char*	filepath)
+	const char*	filepath,
+	ulint		table_flags)
 {
 	dberr_t	err = DB_SUCCESS;
 
 	/* If the tablespace is not in the cache, just delete the file. */
 	if (!fil_space_for_table_exists_in_mem(
-			space_id, tablename, true, false, NULL, 0, NULL)) {
+		    space_id, tablename, true, false, NULL, 0, NULL,
+		    table_flags)) {
 
 		/* Force a delete of any discarded or temporary files. */
 		fil_delete_file(filepath);
@@ -4039,11 +4042,13 @@ row_drop_table_for_mysql(
 		ulint	space_id;
 		bool	ibd_file_missing;
 		bool	is_discarded;
+		ulint	table_flags;
 
 	case DB_SUCCESS:
 		space_id = table->space;
 		ibd_file_missing = table->ibd_file_missing;
 		is_discarded = dict_table_is_discarded(table);
+		table_flags = table->flags;
 		ut_ad(!dict_table_is_temporary(table));
 
 		err = row_drop_ancillary_fts_tables(table, trx);
@@ -4079,7 +4084,7 @@ row_drop_table_for_mysql(
 
 		/* We can now drop the single-table tablespace. */
 		err = row_drop_single_table_tablespace(
-			space_id, tablename, filepath);
+			space_id, tablename, filepath, table_flags);
 		break;
 
 	case DB_OUT_OF_FILE_SPACE:

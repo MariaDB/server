@@ -2,13 +2,13 @@ call mtr.add_suppression("InnoDB: Operating system error number .* in a file ope
 call mtr.add_suppression("InnoDB: The error means the system cannot find the path specified.");
 call mtr.add_suppression("InnoDB: If you are installing InnoDB, remember that you must create directories yourself, InnoDB does not create them.");
 call mtr.add_suppression("InnoDB: Cannot open datafile for read-only: .*");
-call mtr.add_suppression("InnoDB: Tablespace flags: .*");
 call mtr.add_suppression("InnoDB: Ignoring tablespace .* because it could not be opened.");
 call mtr.add_suppression("InnoDB: Tablespace for table .* is set as discarded.");
 call mtr.add_suppression("InnoDB: Cannot calculate statistics for table .*");
-call mtr.add_suppression("InnoDB: Page 0 at offset 0 looks corrupted in file .*");
-call mtr.add_suppression("InnoDB: Page for tablespace .* ");
-flush tables;
+call mtr.add_suppression("InnoDB: Page 0 at offset 0 looks corrupted in file");
+call mtr.add_suppression("InnoDB: Page for tablespace ");
+call mtr.add_suppression("InnoDB: Invalid FSP_SPACE_FLAGS=");
+FLUSH TABLES;
 SET GLOBAL innodb_file_per_table = 1;
 SELECT @@innodb_file_per_table;
 @@innodb_file_per_table
@@ -921,7 +921,7 @@ ERROR HY000: Tablespace has been discarded for table `t1`
 restore: t1 .ibd and .cfg files
 SET SESSION debug_dbug="+d,fsp_flags_is_valid_failure";
 ALTER TABLE test_wl5522.t1 IMPORT TABLESPACE;
-ERROR HY000: Internal error: Cannot reset LSNs in table `test_wl5522`.`t1` : Unsupported
+ERROR HY000: Internal error: Cannot reset LSNs in table `test_wl5522`.`t1` : Data structure corruption
 SET SESSION debug_dbug="-d,fsp_flags_is_valid_failure";
 DROP TABLE test_wl5522.t1;
 unlink: t1.ibd

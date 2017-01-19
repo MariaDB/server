@@ -904,7 +904,7 @@ TruncateLogger::operator()(mtr_t* mtr, btr_pcur_t* pcur)
 
 	/* For compressed tables we need to store extra meta-data
 	required during btr_create(). */
-	if (fsp_flags_is_compressed(m_flags)) {
+	if (FSP_FLAGS_GET_ZIP_SSIZE(m_flags)) {
 
 		const dict_index_t* dict_index = find(index.m_id);
 
@@ -2581,7 +2581,7 @@ truncate_t::parse(
 
 	ut_ad(!m_indexes.empty());
 
-	if (fsp_flags_is_compressed(m_tablespace_flags)) {
+	if (FSP_FLAGS_GET_ZIP_SSIZE(m_tablespace_flags)) {
 
 		/* Parse the number of index fields from TRUNCATE log record */
 		for (ulint i = 0; i < m_indexes.size(); ++i) {
@@ -2880,12 +2880,12 @@ truncate_t::create_indexes(
 	     ++it) {
 
 		btr_create_t    btr_redo_create_info(
-			fsp_flags_is_compressed(flags)
+			FSP_FLAGS_GET_ZIP_SSIZE(flags)
 			? &it->m_fields[0] : NULL);
 
 		btr_redo_create_info.format_flags = format_flags;
 
-		if (fsp_flags_is_compressed(flags)) {
+		if (FSP_FLAGS_GET_ZIP_SSIZE(flags)) {
 
 			btr_redo_create_info.n_fields = it->m_n_fields;
 			/* Skip the NUL appended field */
@@ -3020,7 +3020,7 @@ truncate_t::write(
 	}
 
 	/* If tablespace compressed then field info of each index. */
-	if (fsp_flags_is_compressed(flags)) {
+	if (FSP_FLAGS_GET_ZIP_SSIZE(flags)) {
 
 		for (ulint i = 0; i < m_indexes.size(); ++i) {
 

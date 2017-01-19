@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2013, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -343,17 +344,37 @@ Datafile::read_first_page(bool read_only_mode)
 		}
 	}
 
-	if (err == DB_SUCCESS && m_order == 0) {
+	if (err != DB_SUCCESS) {
+		return(err);
+	}
 
-		m_flags = fsp_header_get_flags(m_first_page);
-
+	if (m_order == 0) {
 		m_space_id = fsp_header_get_space_id(m_first_page);
+		m_flags = fsp_header_get_flags(m_first_page);
+		if (!fsp_flags_is_valid(m_flags)) {
+			ulint cflags = fsp_flags_convert_from_101(m_flags);
+			if (cflags == ULINT_UNDEFINED) {
+				ib::error()
+					<< "Invalid flags " << ib::hex(m_flags)
+					<< " in " << m_filepath;
+				return(DB_CORRUPTION);
+			} else {
+				m_flags = cflags;
+			}
+		}
+	}
+
+	const page_size_t ps(m_flags);
+	if (ps.physical() > page_size) {
+		ib::error() << "File " << m_filepath
+			<< " should be longer than "
+			<< page_size << " bytes";
+		return(DB_CORRUPTION);
 	}
 
 	m_crypt_info = fil_space_read_crypt_data(
 		m_space_id, m_first_page,
-		FSP_HEADER_OFFSET + fsp_header_get_encryption_offset(
-			page_size_t(m_flags)));
+		FSP_HEADER_OFFSET + fsp_header_get_encryption_offset(ps));
 
 	return(err);
 }
@@ -374,14 +395,10 @@ space ID and flags.  The file should exist and be successfully opened
 in order for this function to validate it.
 @param[in]	space_id	The expected tablespace ID.
 @param[in]	flags		The expected tablespace flags.
-@param[in]	for_import	if it is for importing
 @retval DB_SUCCESS if tablespace is valid, DB_ERROR if not.
 m_is_valid is also set true on success, else false. */
 dberr_t
-Datafile::validate_to_dd(
-	ulint		space_id,
-	ulint		flags,
-	bool		for_import)
+Datafile::validate_to_dd(ulint space_id, ulint flags)
 {
 	dberr_t err;
 
@@ -392,17 +409,17 @@ Datafile::validate_to_dd(
 	/* Validate this single-table-tablespace with the data dictionary,
 	but do not compare the DATA_DIR flag, in case the tablespace was
 	remotely located. */
-	err = validate_first_page(0, for_import);
+	err = validate_first_page(0);
 	if (err != DB_SUCCESS) {
 		return(err);
 	}
 
+	flags &= ~FSP_FLAGS_MEM_MASK;
+
 	/* Make sure the datafile we found matched the space ID.
 	If the datafile is a file-per-table tablespace then also match
 	the row format and zip page size. */
-	if (m_space_id == space_id
-	    && ((m_flags & ~FSP_FLAGS_MASK_DATA_DIR)
-		== (flags & ~FSP_FLAGS_MASK_DATA_DIR))) {
+	if (m_space_id == space_id && m_flags == flags) {
 		/* Datafile matches the tablespace expected. */
 		return(DB_SUCCESS);
 	}
@@ -411,9 +428,10 @@ Datafile::validate_to_dd(
 	m_is_valid = false;
 
 	ib::error() << "In file '" << m_filepath << "', tablespace id and"
-		" flags are " << m_space_id << " and " << m_flags << ", but in"
-		" the InnoDB data dictionary they are " << space_id << " and "
-		<< flags << ". Have you moved InnoDB .ibd files around without"
+		" flags are " << m_space_id << " and " << ib::hex(m_flags)
+		<< ", but in the InnoDB data dictionary they are "
+		<< space_id << " and " << ib::hex(flags)
+		<< ". Have you moved InnoDB .ibd files around without"
 		" using the commands DISCARD TABLESPACE and IMPORT TABLESPACE?"
 		" " << TROUBLESHOOT_DATADICT_MSG;
 
@@ -435,7 +453,7 @@ Datafile::validate_for_recovery()
 	ut_ad(is_open());
 	ut_ad(!srv_read_only_mode);
 
-	err = validate_first_page(0, false);
+	err = validate_first_page(0);
 
 	switch (err) {
 	case DB_SUCCESS:
@@ -463,14 +481,13 @@ Datafile::validate_for_recovery()
 			return(err);
 		}
 
-		err = restore_from_doublewrite(0);
-		if (err != DB_SUCCESS) {
-			return(err);
+		if (restore_from_doublewrite()) {
+			return(DB_CORRUPTION);
 		}
 
 		/* Free the previously read first page and then re-validate. */
 		free_first_page();
-		err = validate_first_page(0, false);
+		err = validate_first_page(0);
 	}
 
 	if (err == DB_SUCCESS) {
@@ -485,14 +502,11 @@ tablespace is opened.  This occurs before the fil_space_t is created
 so the Space ID found here must not already be open.
 m_is_valid is set true on success, else false.
 @param[out]	flush_lsn	contents of FIL_PAGE_FILE_FLUSH_LSN
-@param[in]	for_import	if it is for importing
-(only valid for the first file of the system tablespace)
 @retval DB_SUCCESS on if the datafile is valid
 @retval DB_CORRUPTION if the datafile is not readable
 @retval DB_TABLESPACE_EXISTS if there is a duplicate space_id */
 dberr_t
-Datafile::validate_first_page(lsn_t*	flush_lsn,
-			      bool	for_import)
+Datafile::validate_first_page(lsn_t* flush_lsn)
 {
 	char*		prev_name;
 	char*		prev_filepath;
@@ -550,8 +564,7 @@ Datafile::validate_first_page(lsn_t*	flush_lsn,
 		free_first_page();
 
 		return(DB_ERROR);
-	} else if (!fsp_flags_is_valid(m_flags)
-		   || FSP_FLAGS_GET_TEMPORARY(m_flags)) {
+	} else if (!fsp_flags_is_valid(m_flags)) {
 		/* Tablespace flags must be valid. */
 		error_txt = "Tablespace flags are invalid";
 	} else if (page_get_page_no(m_first_page) != 0) {
@@ -768,17 +781,15 @@ Datafile::find_space_id()
 }
 
 
-/** Finds a given page of the given space id from the double write buffer
-and copies it to the corresponding .ibd file.
-@param[in]	page_no		Page number to restore
-@return DB_SUCCESS if page was restored from doublewrite, else DB_ERROR */
-dberr_t
-Datafile::restore_from_doublewrite(
-	ulint	restore_page_no)
+/** Restore the first page of the tablespace from
+the double write buffer.
+@return whether the operation failed */
+bool
+Datafile::restore_from_doublewrite()
 {
 	/* Find if double write buffer contains page_no of given space id. */
-	const byte*	page = recv_sys->dblwr.find_page(
-		m_space_id, restore_page_no);
+	const byte*	page = recv_sys->dblwr.find_page(m_space_id, 0);
+	const page_id_t	page_id(m_space_id, 0);
 
 	if (page == NULL) {
 		/* If the first page of the given user tablespace is not there
@@ -786,23 +797,34 @@ Datafile::restore_from_doublewrite(
 		now. Hence this is treated as an error. */
 
 		ib::error()
-			<< "Corrupted page "
-			<< page_id_t(m_space_id, restore_page_no)
+			<< "Corrupted page " << page_id
 			<< " of datafile '" << m_filepath
 			<< "' could not be found in the doublewrite buffer.";
 
-		return(DB_CORRUPTION);
+		return(true);
 	}
 
-	const ulint		flags = mach_read_from_4(
+	ulint	flags = mach_read_from_4(
 		FSP_HEADER_OFFSET + FSP_SPACE_FLAGS + page);
+
+	if (!fsp_flags_is_valid(flags)) {
+		ulint cflags = fsp_flags_convert_from_101(flags);
+		if (cflags == ULINT_UNDEFINED) {
+			ib::warn()
+				<< "Ignoring a doublewrite copy of page "
+				<< page_id
+				<< " due to invalid flags " << ib::hex(flags);
+			return(true);
+		}
+		flags = cflags;
+		/* The flags on the page should be converted later. */
+	}
 
 	const page_size_t	page_size(flags);
 
-	ut_a(page_get_page_no(page) == restore_page_no);
+	ut_a(page_get_page_no(page) == page_id.page_no());
 
-	ib::info() << "Restoring page "
-		<< page_id_t(m_space_id, restore_page_no)
+	ib::info() << "Restoring page " << page_id
 		<< " of datafile '" << m_filepath
 		<< "' from the doublewrite buffer. Writing "
 		<< page_size.physical() << " bytes into file '"
@@ -812,7 +834,8 @@ Datafile::restore_from_doublewrite(
 
 	return(os_file_write(
 			request,
-			m_filepath, m_handle, page, 0, page_size.physical()));
+			m_filepath, m_handle, page, 0, page_size.physical())
+	       != DB_SUCCESS);
 }
 
 /** Create a link filename based on the contents of m_name,

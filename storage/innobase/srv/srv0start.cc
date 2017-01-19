@@ -443,12 +443,8 @@ create_log_files(
 	has been completed and renamed. */
 	sprintf(logfilename + dirnamelen, "ib_logfile%u", INIT_LOG_FILE0);
 
-	/* Disable the doublewrite buffer for log files, not required */
-
 	fil_space_t*	log_space = fil_space_create(
-		"innodb_redo_log", SRV_LOG_SPACE_FIRST_ID,
-		fsp_flags_set_page_size(0, univ_page_size),
-		FIL_TYPE_LOG,
+		"innodb_redo_log", SRV_LOG_SPACE_FIRST_ID, 0, FIL_TYPE_LOG,
 		NULL, /* No encryption yet */
 		true /* this is create */);
 	ut_a(fil_validate());
@@ -645,7 +641,6 @@ srv_undo_tablespace_open(
 {
 	os_file_t	fh;
 	bool		ret;
-	ulint		flags;
 	dberr_t		err	= DB_ERROR;
 	char		undo_name[sizeof "innodb_undo000"];
 
@@ -690,11 +685,9 @@ srv_undo_tablespace_open(
 
 		fil_set_max_space_id_if_bigger(space_id);
 
-		/* Set the compressed page size to 0 (non-compressed) */
-		flags = fsp_flags_init(
-			univ_page_size, false, false, false, 0, 0);
 		space = fil_space_create(
-			undo_name, space_id, flags, FIL_TYPE_TABLESPACE, NULL, true);
+			undo_name, space_id, FSP_FLAGS_PAGE_SSIZE(),
+			FIL_TYPE_TABLESPACE, NULL, true);
 
 		ut_a(fil_validate());
 		ut_a(space);
@@ -2035,8 +2028,7 @@ innobase_start_or_create_for_mysql(void)
 		/* Disable the doublewrite buffer for log files. */
 		fil_space_t*	log_space = fil_space_create(
 			"innodb_redo_log",
-			SRV_LOG_SPACE_FIRST_ID,
-			fsp_flags_set_page_size(0, univ_page_size),
+			SRV_LOG_SPACE_FIRST_ID, 0,
 			FIL_TYPE_LOG,
 			NULL /* no encryption yet */,
 			true /* create */);
@@ -2425,6 +2417,13 @@ files_checked:
 	srv_startup_is_before_trx_rollback_phase = false;
 
 	if (!srv_read_only_mode) {
+		const ulint flags = FSP_FLAGS_PAGE_SSIZE();
+		for (ulint id = 0; id <= srv_undo_tablespaces; id++) {
+			if (fil_space_get(id)) {
+				fsp_flags_try_adjust(id, flags);
+			}
+		}
+
 		/* Create the thread which watches the timeouts
 		for lock waits */
 		thread_handles[2 + SRV_MAX_N_IO_THREADS] = os_thread_create(

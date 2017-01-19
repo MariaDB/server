@@ -13,11 +13,10 @@ SET GLOBAL innodb_fast_shutdown = 0;
 --source include/restart_mysqld.inc
 
 --disable_query_log
-call mtr.add_suppression("InnoDB: Database page [0-9]+:1 contained only zeroes.");
 call mtr.add_suppression("Header page consists of zero bytes");
 call mtr.add_suppression("Checksum mismatch in datafile");
 call mtr.add_suppression("but the innodb_page_size start-up parameter is");
-call mtr.add_suppression("Database page corruption");
+call mtr.add_suppression("adjusting FSP_SPACE_FLAGS");
 --enable_query_log
 
 let INNODB_PAGE_SIZE=`select @@innodb_page_size`;
@@ -65,14 +64,48 @@ set global innodb_buf_flush_list_now = 1;
 
 --echo # Make the first page (page_no=0) of the user tablespace
 --echo # full of zeroes.
+--echo #
+--echo # MDEV-11623: Use old FSP_SPACE_FLAGS in the doublewrite buffer.
+
 perl;
 use IO::Handle;
 my $fname= "$ENV{'MYSQLD_DATADIR'}test/t1.ibd";
+my $page_size = $ENV{INNODB_PAGE_SIZE};
+my $page;
 open(FILE, "+<", $fname) or die;
-FILE->autoflush(1);
-binmode FILE;
-print FILE chr(0) x ($ENV{'INNODB_PAGE_SIZE'});
+sysread(FILE, $page, $page_size)==$page_size||die "Unable to read $name\n";
+sysseek(FILE, 0, 0)||die "Unable to seek $fname\n";
+die unless syswrite(FILE, chr(0) x $page_size, $page_size) == $page_size;
 close FILE;
+
+open(FILE, "+<", "$ENV{MYSQLD_DATADIR}ibdata1")||die "cannot open ibdata1\n";
+sysseek(FILE, 6 * $page_size - 190, 0)||die "Unable to seek ibdata1\n";
+sysread(FILE, $_, 12) == 12||die "Unable to read TRX_SYS\n";
+my($magic,$d1,$d2)=unpack "NNN", $_;
+die "magic=$magic, $d1, $d2\n" unless $magic == 536853855 && $d2 >= $d1 + 64;
+sysseek(FILE, $d1 * $page_size, 0)||die "Unable to seek ibdata1\n";
+# Find the page in the doublewrite buffer
+for (my $d = $d1; $d < $d2 + 64; $d++)
+{
+    sysread(FILE, $_, $page_size)==$page_size||die "Cannot read doublewrite\n";
+    next unless $_ eq $page;
+    sysseek(FILE, $d * $page_size, 0)||die "Unable to seek ibdata1\n";
+    # Write buggy MariaDB 10.1.x FSP_SPACE_FLAGS to the doublewrite buffer
+    my($flags) = unpack "x[54]N", $_;
+    my $badflags = ($flags & 0x3f);
+    my $compression_level=6;
+    $badflags |= 1<<6|$compression_level<<7 if ($flags & 1 << 16);
+    $badflags |= ($flags & 15 << 6) << 7; # PAGE_SSIZE
+
+    substr ($_, 54, 4) = pack("N", $badflags);
+    # Replace the innodb_checksum_algorithm=none checksum
+    substr ($_, 0, 4) = pack("N", 0xdeadbeef);
+    substr ($_, $page_size - 8, 4) = pack("N", 0xdeadbeef);
+    syswrite(FILE, $_, $page_size)==$page_size||die;
+    close(FILE);
+    exit 0;
+}
+die "Did not find the page in the doublewrite buffer ($d1,$d2)\n";
 EOF
 
 --source include/start_mysqld.inc

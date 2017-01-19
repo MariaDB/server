@@ -1037,6 +1037,7 @@ fil_space_t::flags  |     0     |    0    |     1      |    1
 ==================================================================
 @param[in]	table_flags	dict_table_t::flags
 @return tablespace flags (fil_space_t::flags) */
+UNIV_INLINE
 ulint
 dict_tf_to_fsp_flags(ulint table_flags)
 	MY_ATTRIBUTE((const));

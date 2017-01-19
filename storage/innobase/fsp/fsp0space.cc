@@ -126,15 +126,13 @@ Tablespace::open_or_create(bool is_temp)
 		if (it == begin) {
 			/* First data file. */
 
-			ulint	flags;
-
-			flags = fsp_flags_set_page_size(0, univ_page_size);
-
 			/* Create the tablespace entry for the multi-file
 			tablespace in the tablespace manager. */
 			space = fil_space_create(
-				m_name, m_space_id, flags, is_temp
-				? FIL_TYPE_TEMPORARY : FIL_TYPE_TABLESPACE, it->m_crypt_info,
+				m_name, m_space_id, FSP_FLAGS_PAGE_SSIZE(),
+				is_temp
+				? FIL_TYPE_TEMPORARY : FIL_TYPE_TABLESPACE,
+				it->m_crypt_info,
 				false);
 		}
 

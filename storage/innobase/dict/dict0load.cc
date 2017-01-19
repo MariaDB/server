@@ -1215,7 +1215,7 @@ dict_check_sys_tables(
 		look to see if it is already in the tablespace cache. */
 		if (fil_space_for_table_exists_in_mem(
 			    space_id, table_name.m_name,
-			    false, true, NULL, 0, NULL)) {
+			    false, true, NULL, 0, NULL, flags)) {
 			/* Recovery can open a datafile that does not
 			match SYS_DATAFILES.  If they don't match, update
 			SYS_DATAFILES. */
@@ -1239,15 +1239,13 @@ dict_check_sys_tables(
 		char*	filepath = dict_get_first_path(space_id);
 
 		/* Check that the .ibd file exists. */
-		ulint	fsp_flags = dict_tf_to_fsp_flags(flags);
 		validate = true; /* Encryption */
 
 		dberr_t	err = fil_ibd_open(
 			validate,
 			!srv_read_only_mode && srv_log_file_size != 0,
 			FIL_TYPE_TABLESPACE,
-			space_id,
-			fsp_flags,
+			space_id, dict_tf_to_fsp_flags(flags),
 			table_name.m_name,
 			filepath,
 			NULL);
@@ -2628,7 +2626,7 @@ dict_load_tablespace(
 	/* The tablespace may already be open. */
 	if (fil_space_for_table_exists_in_mem(
 		    table->space, space_name, false,
-		    true, heap, table->id, table)) {
+		    true, heap, table->id, table, table->flags)) {
 		return;
 	}
 
@@ -2657,10 +2655,10 @@ dict_load_tablespace(
 
 	/* Try to open the tablespace.  We set the 2nd param (fix_dict) to
 	false because we do not have an x-lock on dict_operation_lock */
-	ulint fsp_flags = dict_tf_to_fsp_flags(table->flags);
 	dberr_t err = fil_ibd_open(
 		true, false, FIL_TYPE_TABLESPACE, table->space,
-		fsp_flags, space_name, filepath, table);
+		dict_tf_to_fsp_flags(table->flags),
+		space_name, filepath, table);
 
 	if (err != DB_SUCCESS) {
 		/* We failed to find a sensible tablespace file */

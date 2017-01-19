@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2012, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, SkySQL Ab. All Rights Reserved.
+Copyright (c) 2013, 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -44,107 +44,6 @@ fsp_descr_page(
 	}
 
 	return((page_no & (zip_size - 1)) == FSP_XDES_OFFSET);
-}
-
-/********************************************************************//**
-Validate and return the tablespace flags, which are stored in the
-tablespace header at offset FSP_SPACE_FLAGS.  They should be 0 for
-ROW_FORMAT=COMPACT and ROW_FORMAT=REDUNDANT. The newer row formats,
-COMPRESSED and DYNAMIC, use a file format > Antelope so they should
-have a file format number plus the DICT_TF_COMPACT bit set.
-@return	true if check ok */
-UNIV_INLINE
-bool
-fsp_flags_is_valid(
-/*===============*/
-	ulint	flags)		/*!< in: tablespace flags */
-{
-	ulint	post_antelope = FSP_FLAGS_GET_POST_ANTELOPE(flags);
-	ulint	zip_ssize = FSP_FLAGS_GET_ZIP_SSIZE(flags);
-	ulint	atomic_blobs = FSP_FLAGS_HAS_ATOMIC_BLOBS(flags);
-	ulint	page_ssize = FSP_FLAGS_GET_PAGE_SSIZE(flags);
-	ulint	unused = FSP_FLAGS_GET_UNUSED(flags);
-	ulint	page_compression = FSP_FLAGS_GET_PAGE_COMPRESSION(flags);
-	ulint	page_compression_level = FSP_FLAGS_GET_PAGE_COMPRESSION_LEVEL(flags);
-	ulint	atomic_writes = FSP_FLAGS_GET_ATOMIC_WRITES(flags);
-
-	DBUG_EXECUTE_IF("fsp_flags_is_valid_failure", return(false););
-
-	/* fsp_flags is zero unless atomic_blobs is set. */
-	/* Make sure there are no bits that we do not know about. */
-	if (unused != 0 || flags == 1) {
-		fprintf(stderr, "InnoDB: Error: Tablespace flags %lu corrupted unused %lu\n",
-			flags, unused);
-		return(false);
-	} else if (post_antelope) {
-		/* The Antelope row formats REDUNDANT and COMPACT did
-		not use tablespace flags, so this flag and the entire
-		4-byte field is zero for Antelope row formats. */
-
-		if (!atomic_blobs) {
-			fprintf(stderr, "InnoDB: Error: Tablespace flags %lu corrupted atomic_blobs %lu\n",
-				flags, atomic_blobs);
-			return(false);
-		}
-	}
-
-	if (!atomic_blobs) {
-		/* Barracuda row formats COMPRESSED and DYNAMIC build on
-		the page structure introduced for the COMPACT row format
-		by allowing long fields to be broken into prefix and
-		externally stored parts. */
-
-		if (post_antelope || zip_ssize != 0) {
-			fprintf(stderr, "InnoDB: Error: Tablespace flags %lu corrupted zip_ssize %lu atomic_blobs %lu\n",
-				flags, zip_ssize, atomic_blobs);
-			return(false);
-		}
-
-	} else if (!post_antelope || zip_ssize > PAGE_ZIP_SSIZE_MAX) {
-		fprintf(stderr, "InnoDB: Error: Tablespace flags %lu corrupted zip_ssize %lu max %d\n",
-			flags, zip_ssize, PAGE_ZIP_SSIZE_MAX);
-		return(false);
-	} else if (page_ssize > UNIV_PAGE_SSIZE_MAX) {
-
-		/* The page size field can be used for any row type, or it may
-		be zero for an original 16k page size.
-		Validate the page shift size is within allowed range. */
-
-		fprintf(stderr, "InnoDB: Error: Tablespace flags %lu corrupted page_ssize %lu max %lu\n",
-			flags, page_ssize, UNIV_PAGE_SSIZE_MAX);
-		return(false);
-
-	} else if (UNIV_PAGE_SIZE != UNIV_PAGE_SIZE_ORIG && !page_ssize) {
-		fprintf(stderr, "InnoDB: Error: Tablespace flags %lu corrupted page_ssize %lu max %lu:%d\n",
-			flags, page_ssize, UNIV_PAGE_SIZE, UNIV_PAGE_SIZE_ORIG);
-		return(false);
-	}
-
-#if UNIV_FORMAT_MAX != UNIV_FORMAT_B
-# error "UNIV_FORMAT_MAX != UNIV_FORMAT_B, Add more validations."
-#endif
-
-	/* Page compression level requires page compression and atomic blobs
-	to be set */
-        if (page_compression_level || page_compression) {
-		if (!page_compression || !atomic_blobs) {
-			fprintf(stderr, "InnoDB: Error: Tablespace flags %lu corrupted page_compression %lu\n"
-				"InnoDB: Error: page_compression_level %lu atomic_blobs %lu\n",
-				flags, page_compression, page_compression_level, atomic_blobs);
-			return(false);
-		}
-	}
-
-	if (atomic_writes > ATOMIC_WRITES_OFF) {
-		fprintf(stderr, "InnoDB: Error: Tablespace flags %lu corrupted atomic_writes %lu\n",
-			flags, atomic_writes);
-		return (false);
-	}
-
-	/* The DATA_DIR field can be used for any row type so there is
-	nothing here to validate. */
-
-	return(true);
 }
 
 /********************************************************************//**
@@ -191,10 +90,10 @@ UNIV_INLINE
 ulint
 fsp_flags_get_page_size(
 /*====================*/
-	ulint	flags)	/*!< in: tablespace flags */
+	ulint	flags)		/*!< in: tablespace flags */
 {
-	ulint	page_size = 0;
-	ulint	ssize = FSP_FLAGS_GET_PAGE_SSIZE(flags);
+	ulint   page_size = 0;
+	ulint   ssize = FSP_FLAGS_GET_PAGE_SSIZE(flags);
 
 	/* Convert from a 'log2 minus 9' to a page size in bytes. */
 	if (UNIV_UNLIKELY(ssize)) {
@@ -211,50 +110,6 @@ fsp_flags_get_page_size(
 }
 
 #ifndef UNIV_INNOCHECKSUM
-
-/********************************************************************//**
-Add the page size to the tablespace flags.
-@return	tablespace flags after page size is added */
-UNIV_INLINE
-ulint
-fsp_flags_set_page_size(
-/*====================*/
-	ulint	flags,		/*!< in: tablespace flags */
-	ulint	page_size)	/*!< in: page size in bytes */
-{
-	ulint ssize = 0;
-	ulint shift;
-
-	/* Page size should be > UNIV_PAGE_SIZE_MIN */
-	ut_ad(page_size >= UNIV_PAGE_SIZE_MIN);
-	ut_ad(page_size <= UNIV_PAGE_SIZE_MAX);
-
-	if (page_size == UNIV_PAGE_SIZE_ORIG) {
-		ut_ad(0 == FSP_FLAGS_GET_PAGE_SSIZE(flags));
-		return(flags);
-	}
-
-	for (shift = UNIV_PAGE_SIZE_SHIFT_MAX;
-	     shift >= UNIV_PAGE_SIZE_SHIFT_MIN;
-	     shift--) {
-		ulint	mask = (1 << shift);
-		if (page_size & mask) {
-			ut_ad(!(page_size & ~mask));
-			ssize = shift - UNIV_ZIP_SIZE_SHIFT_MIN + 1;
-			break;
-		}
-	}
-
-	ut_ad(ssize);
-	ut_ad(ssize <= UNIV_PAGE_SSIZE_MAX);
-
-	flags = FSP_FLAGS_SET_PAGE_SSIZE(flags, ssize);
-
-	ut_ad(fsp_flags_is_valid(flags));
-
-	return(flags);
-}
-
 /********************************************************************//**
 Calculates the descriptor index within a descriptor page.
 @return	descriptor index */

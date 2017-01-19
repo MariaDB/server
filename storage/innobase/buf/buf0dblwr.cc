@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2015, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2016, MariaDB Corporation. All Rights Reserved.
+Copyright (c) 2013, 2017, MariaDB Corporation. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -509,8 +509,9 @@ buf_dblwr_init_or_load_pages(
 				return(err);
 			}
 
-		} else {
-
+		} else if (memcmp(field_ref_zero, page + FIL_PAGE_LSN, 8)) {
+			/* Each valid page header must contain
+			a nonzero FIL_PAGE_LSN field. */
 			recv_dblwr.add(page);
 		}
 
@@ -544,11 +545,9 @@ buf_dblwr_process(void)
 	for (recv_dblwr_t::list::iterator i = recv_dblwr.pages.begin();
 	     i != recv_dblwr.pages.end();
 	     ++i, ++page_no_dblwr) {
-		bool is_compressed = false;
-
-		const byte*	page		= *i;
-		ulint		page_no		= page_get_page_no(page);
-		ulint		space_id	= page_get_space_id(page);
+		byte*	page		= *i;
+		ulint	page_no		= page_get_page_no(page);
+		ulint	space_id	= page_get_space_id(page);
 
 		fil_space_t*	space = fil_space_get(space_id);
 
@@ -560,158 +559,130 @@ buf_dblwr_process(void)
 
 		fil_space_open_if_needed(space);
 
+		const page_id_t		page_id(space_id, page_no);
+
 		if (page_no >= space->size) {
 
-			/* Do not report the warning if the tablespace is
-			schedule for truncate or was truncated and we have live
-			MLOG_TRUNCATE record in redo. */
-			bool	skip_warning =
-				srv_is_tablespace_truncated(space_id)
-				|| srv_was_tablespace_truncated(space);
-
-			if (!skip_warning) {
-				ib::warn() << "Page " << page_no_dblwr
-					<< " in the doublewrite buffer is"
-					" not within space bounds: page "
-					<< page_id_t(space_id, page_no);
+			/* Do not report the warning if the tablespace
+			is scheduled for truncation or was truncated
+			and we have parsed an MLOG_TRUNCATE record. */
+			if (!srv_is_tablespace_truncated(space_id)
+			    && !srv_was_tablespace_truncated(space)) {
+				ib::warn() << "A copy of page " << page_id
+					<< " in the doublewrite buffer slot "
+					<< page_no_dblwr
+					<< " is not within space bounds";
 			}
+			continue;
+		}
+
+		const page_size_t	page_size(space->flags);
+		ut_ad(!buf_page_is_zeroes(page, page_size));
+
+		/* We want to ensure that for partial reads the
+		unread portion of the page is NUL. */
+		memset(read_buf, 0x0, page_size.physical());
+
+		IORequest	request;
+
+		request.dblwr_recover();
+
+		/* Read in the actual page from the file */
+		dberr_t	err = fil_io(
+			request, true,
+			page_id, page_size,
+			0, page_size.physical(), read_buf, NULL, NULL);
+
+		if (err != DB_SUCCESS) {
+			ib::warn()
+				<< "Double write buffer recovery: "
+				<< page_id << " read failed with "
+				<< "error: " << ut_strerr(err);
+		}
+
+		const bool is_all_zero = buf_page_is_zeroes(
+			read_buf, page_size);
+
+		if (is_all_zero) {
+			/* We will check if the copy in the
+			doublewrite buffer is valid. If not, we will
+			ignore this page (there should be redo log
+			records to initialize it). */
 		} else {
-			const page_size_t	page_size(space->flags);
-			const page_id_t		page_id(space_id, page_no);
-
-			/* We want to ensure that for partial reads the
-			unread portion of the page is NUL. */
-			memset(read_buf, 0x0, page_size.physical());
-
-			IORequest	request;
-
-			request.dblwr_recover();
-
-			/* Read in the actual page from the file */
-			dberr_t	err = fil_io(
-				request, true,
-				page_id, page_size,
-				0, page_size.physical(), read_buf, NULL, NULL);
-
-			if (err != DB_SUCCESS) {
-
-				ib::warn()
-					<< "Double write buffer recovery: "
-					<< page_id << " read failed with "
-					<< "error: " << ut_strerr(err);
+			if (fil_page_is_compressed_encrypted(read_buf) ||
+			    fil_page_is_compressed(read_buf)) {
+				/* Decompress the page before
+				validating the checksum. */
+				fil_decompress_page(
+					NULL, read_buf, UNIV_PAGE_SIZE,
+					NULL, true);
 			}
 
-			/* Is page compressed ? */
-			is_compressed = fil_page_is_compressed_encrypted(read_buf) |
-				fil_page_is_compressed(read_buf);
-
-			/* If page was compressed, decompress it before we
-			check checksum. */
-			if (is_compressed) {
-				fil_decompress_page(NULL, read_buf, UNIV_PAGE_SIZE, NULL, true);
-			}
-			if (err != DB_SUCCESS) {
-
-				ib::warn()
-					<< "Double write buffer recovery: "
-					<< page_id << " read failed with "
-					<< "error: " << ut_strerr(err);
+			if (fil_space_verify_crypt_checksum(
+				    read_buf, page_size)
+			   || !buf_page_is_corrupted(
+				   true, read_buf, page_size, false)) {
+				/* The page is good; there is no need
+				to consult the doublewrite buffer. */
+				continue;
 			}
 
-			if (fil_space_verify_crypt_checksum(read_buf, page_size)) {
-
-				/* page is encrypted and checksum is OK */
-			} else if (buf_page_is_corrupted(
-					true, read_buf, page_size,
-					fsp_is_checksum_disabled(space_id))) {
-
-				ib::warn() << "Database page corruption or"
-					   << " a failed file read of page "
-					   << page_id
-					   << ". Trying to recover it from the"
-					   << " doublewrite buffer.";
-
-				/* Is page compressed ? */
-				is_compressed = fil_page_is_compressed_encrypted(page) |
-					fil_page_is_compressed(page);
-
-				/* If page was compressed, decompress it before we
-				check checksum. */
-				if (is_compressed) {
-					fil_decompress_page(NULL, (byte*)page, UNIV_PAGE_SIZE, NULL, true);
-				}
-
-				if (fil_space_verify_crypt_checksum(page, page_size)) {
-					/* the doublewrite buffer page is encrypted and OK */
-				} else if (buf_page_is_corrupted(
-						true, page, page_size,
-						fsp_is_checksum_disabled(space_id))) {
-
-					ib::error() << "Dump of the page:";
-
-					buf_page_print(
-						read_buf, page_size,
-						BUF_PAGE_PRINT_NO_CRASH);
-					ib::error() << "Dump of corresponding"
-						" page in doublewrite buffer:";
-
-					buf_page_print(
-						page, page_size,
-						BUF_PAGE_PRINT_NO_CRASH);
-
-					ib::fatal() << "The page in the"
-						" doublewrite buffer is"
-						" corrupt. Cannot continue"
-						" operation. You can try to"
-						" recover the database with"
-						" innodb_force_recovery=6";
-				}
-			} else if (buf_page_is_zeroes(read_buf, page_size)
-				   && !buf_page_is_zeroes(page, page_size)
-				   && !buf_page_is_corrupted(
-					true, page, page_size,
-					fsp_is_checksum_disabled(space_id))) {
-
-				/* Database page contained only zeroes, while
-				a valid copy is available in dblwr buffer. */
-
-			} else {
-
-				bool t1 = buf_page_is_zeroes(
-                                        read_buf, page_size);
-
-				bool t2 = buf_page_is_zeroes(page, page_size);
-
-				bool t3 = buf_page_is_corrupted(
-					true, page, page_size,
-					fsp_is_checksum_disabled(space_id));
-
-				if (t1 && !(t2 || t3)) {
-
-					/* Database page contained only
-					zeroes, while a valid copy is
-					available in dblwr buffer. */
-
-				} else {
-					continue;
-				}
-			}
-
-			IORequest	write_request(IORequest::WRITE);
-
-			/* Write the good page from the doublewrite
-			buffer to the intended position. */
-
-			fil_io(write_request, true,
-			       page_id, page_size,
-			       0, page_size.physical(),
-			       const_cast<byte*>(page), NULL, NULL);
-
+			/* We intentionally skip this message for
+			is_all_zero pages. */
 			ib::info()
-				<< "Recovered page "
-				<< page_id
+				<< "Trying to recover page " << page_id
 				<< " from the doublewrite buffer.";
 		}
+
+		/* Next, validate the doublewrite page. */
+		if (fil_page_is_compressed_encrypted(page) ||
+		    fil_page_is_compressed(page)) {
+			/* Decompress the page before
+			validating the checksum. */
+			fil_decompress_page(
+				NULL, page, UNIV_PAGE_SIZE, NULL, true);
+		}
+
+		if (!fil_space_verify_crypt_checksum(page, page_size)
+		    && buf_page_is_corrupted(true, page, page_size, false)) {
+			if (!is_all_zero) {
+				ib::warn() << "A doublewrite copy of page "
+					<< page_id << " is corrupted.";
+			}
+			/* Theoretically we could have another good
+			copy for this page in the doublewrite
+			buffer. If not, we will report a fatal error
+			for a corrupted page somewhere else if that
+			page was truly needed. */
+			continue;
+		}
+
+		if (page_no == 0) {
+			/* Check the FSP_SPACE_FLAGS. */
+			ulint flags = fsp_header_get_flags(page);
+			if (!fsp_flags_is_valid(flags)
+			    && fsp_flags_convert_from_101(flags)
+			    == ULINT_UNDEFINED) {
+				ib::warn() << "Ignoring a doublewrite copy"
+					" of page " << page_id
+					<< " due to invalid flags "
+					<< ib::hex(flags);
+				continue;
+			}
+			/* The flags on the page should be converted later. */
+		}
+
+		/* Write the good page from the doublewrite buffer to
+		the intended position. */
+
+		IORequest	write_request(IORequest::WRITE);
+
+		fil_io(write_request, true, page_id, page_size,
+		       0, page_size.physical(),
+		       const_cast<byte*>(page), NULL, NULL);
+
+		ib::info() << "Recovered page " << page_id
+			<< " from the doublewrite buffer.";
 	}
 
 	recv_dblwr.pages.clear();

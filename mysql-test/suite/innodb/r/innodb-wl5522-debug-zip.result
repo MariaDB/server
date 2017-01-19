@@ -1,10 +1,9 @@
 call mtr.add_suppression("InnoDB: Tablespace for table .* is set as discarded.");
 call mtr.add_suppression("InnoDB: Cannot calculate statistics for table .* because the .ibd file is missing. Please refer to .* for how to resolve the issue.");
-call mtr.add_suppression("InnoDB: Error: Tablespace flags .* corrupted unused .*");
-call mtr.add_suppression("InnoDB: Tablespace flags: .* corrupted  in file: .* ");
 call mtr.add_suppression("InnoDB: Page 0 at offset 0 looks corrupted in file .*");
-call mtr.add_suppression("InnoDB: Page for tablespace .* ");
-flush tables;
+call mtr.add_suppression("InnoDB: Page for tablespace ");
+call mtr.add_suppression("InnoDB: Invalid FSP_SPACE_FLAGS=0x");
+FLUSH TABLES;
 SET SESSION innodb_strict_mode=1;
 CREATE DATABASE test_wl5522;
 CREATE TABLE test_wl5522.t1 (c1 INT) ENGINE = Innodb
@@ -546,7 +545,7 @@ ERROR HY000: Tablespace has been discarded for table `t1`
 restore: t1 .ibd and .cfg files
 SET SESSION debug_dbug="+d,fsp_flags_is_valid_failure";
 ALTER TABLE test_wl5522.t1 IMPORT TABLESPACE;
-ERROR HY000: Internal error: Cannot reset LSNs in table `test_wl5522`.`t1` : Unsupported
+ERROR HY000: Internal error: Cannot reset LSNs in table `test_wl5522`.`t1` : Data structure corruption
 SET SESSION debug_dbug="-d,fsp_flags_is_valid_failure";
 DROP TABLE test_wl5522.t1;
 unlink: t1.ibd

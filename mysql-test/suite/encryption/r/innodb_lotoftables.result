@@ -86,47 +86,47 @@ Innodb_pages0_read	3
 # Restart Success!
 show status like 'innodb_pages0_read%';
 Variable_name	Value
-Innodb_pages0_read	1
+Innodb_pages0_read	303
 show status like 'innodb_pages0_read%';
 Variable_name	Value
-Innodb_pages0_read	1
+Innodb_pages0_read	303
 use test;
 show status like 'innodb_pages0_read%';
 Variable_name	Value
-Innodb_pages0_read	1
+Innodb_pages0_read	303
 use innodb_encrypted_1;
 show status like 'innodb_pages0_read%';
 Variable_name	Value
-Innodb_pages0_read	1
+Innodb_pages0_read	303
 use innodb_encrypted_2;
 show status like 'innodb_pages0_read%';
 Variable_name	Value
-Innodb_pages0_read	1
+Innodb_pages0_read	303
 use innodb_encrypted_3;
 show status like 'innodb_pages0_read%';
 Variable_name	Value
-Innodb_pages0_read	1
+Innodb_pages0_read	303
 use innodb_encrypted_1;
 show status like 'innodb_pages0_read%';
 Variable_name	Value
-Innodb_pages0_read	1
+Innodb_pages0_read	303
 show status like 'innodb_pages0_read%';
 Variable_name	Value
-Innodb_pages0_read	101
+Innodb_pages0_read	303
 use innodb_encrypted_2;
 show status like 'innodb_pages0_read%';
 Variable_name	Value
-Innodb_pages0_read	101
+Innodb_pages0_read	303
 show status like 'innodb_pages0_read%';
 Variable_name	Value
-Innodb_pages0_read	201
+Innodb_pages0_read	303
 use innodb_encrypted_3;
 show status like 'innodb_pages0_read%';
 Variable_name	Value
-Innodb_pages0_read	201
+Innodb_pages0_read	303
 show status like 'innodb_pages0_read%';
 Variable_name	Value
-Innodb_pages0_read	301
+Innodb_pages0_read	303
 SELECT COUNT(*) FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION = 0 AND NAME LIKE 'innodb_encrypted%';
 COUNT(*)
 100

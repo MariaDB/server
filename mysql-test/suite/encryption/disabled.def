@@ -10,5 +10,5 @@
 #
 ##############################################################################
 
-innodb_scrub_background : MDEV-8139 background scrubbing does not work reliably
-innodb_scrub : MDEV-8139 occasional corruption of delete_3.ibd page 2
+innodb_scrub            : MDEV-8139 scrubbing does not work reliably
+innodb_scrub_background : MDEV-8139 scrubbing does not work reliably

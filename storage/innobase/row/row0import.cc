@@ -361,8 +361,7 @@ public:
 		m_space(ULINT_UNDEFINED),
 		m_xdes(),
 		m_xdes_page_no(ULINT_UNDEFINED),
-		m_space_flags(ULINT_UNDEFINED),
-		m_table_flags(ULINT_UNDEFINED) UNIV_NOTHROW { }
+		m_space_flags(ULINT_UNDEFINED) UNIV_NOTHROW { }
 
 	/** Free any extent descriptor instance */
 	virtual ~AbstractCallback()
@@ -529,10 +528,6 @@ protected:
 
 	/** Flags value read from the header page */
 	ulint			m_space_flags;
-
-	/** Derived from m_space_flags and row format type, the row format
-	type is determined from the page header. */
-	ulint			m_table_flags;
 };
 
 /** Determine the page size to use for traversing the tablespace
@@ -547,6 +542,18 @@ AbstractCallback::init(
 	const page_t*		page = block->frame;
 
 	m_space_flags = fsp_header_get_flags(page);
+	if (!fsp_flags_is_valid(m_space_flags)) {
+		ulint cflags = fsp_flags_convert_from_101(m_space_flags);
+		if (cflags == ULINT_UNDEFINED) {
+			ib::error() << "Invalid FSP_SPACE_FLAGS="
+				<< ib::hex(m_space_flags);
+			return(DB_CORRUPTION);
+		}
+		m_space_flags = cflags;
+	}
+
+	/* Clear the DATA_DIR flag, which is basically garbage. */
+	m_space_flags &= ~(1U << FSP_FLAGS_POS_RESERVED);
 	m_page_size.copy_from(page_size_t(m_space_flags));
 
 	if (!is_compressed_table() && !m_page_size.equals_to(univ_page_size)) {
@@ -614,45 +621,6 @@ struct FetchIndexRootPages : public AbstractCallback {
 		return(m_space);
 	}
 
-	/** Check if the .ibd file row format is the same as the table's.
-	@param ibd_table_flags determined from space and page.
-	@return DB_SUCCESS or error code. */
-	dberr_t check_row_format(ulint ibd_table_flags) UNIV_NOTHROW
-	{
-		dberr_t		err;
-		rec_format_t	ibd_rec_format;
-		rec_format_t	table_rec_format;
-
-		if (!dict_tf_is_valid(ibd_table_flags)) {
-
-			ib_errf(m_trx->mysql_thd, IB_LOG_LEVEL_ERROR,
-				ER_TABLE_SCHEMA_MISMATCH,
-				".ibd file has invalid table flags: %lx",
-				ibd_table_flags);
-
-			return(DB_CORRUPTION);
-		}
-
-		ibd_rec_format = dict_tf_get_rec_format(ibd_table_flags);
-		table_rec_format = dict_tf_get_rec_format(m_table->flags);
-
-		if (table_rec_format != ibd_rec_format) {
-
-			ib_errf(m_trx->mysql_thd, IB_LOG_LEVEL_ERROR,
-				ER_TABLE_SCHEMA_MISMATCH,
-				"Table has %s row format, .ibd"
-				" file has %s row format.",
-				dict_tf_to_row_format_string(m_table->flags),
-				dict_tf_to_row_format_string(ibd_table_flags));
-
-			err = DB_CORRUPTION;
-		} else {
-			err = DB_SUCCESS;
-		}
-
-		return(err);
-	}
-
 	/** Called for each block as it is read from the file.
 	@param offset physical offset in the file
 	@param block block to convert, it is not from the buffer pool.
@@ -713,12 +681,17 @@ FetchIndexRootPages::operator() (
 		m_indexes.push_back(Index(id, block->page.id.page_no()));
 
 		if (m_indexes.size() == 1) {
-
-			m_table_flags = fsp_flags_to_dict_tf(
-				m_space_flags,
-				page_is_comp(page) ? true : false);
-
-			err = check_row_format(m_table_flags);
+			/* Check that the tablespace flags match the table flags. */
+			ulint expected = dict_tf_to_fsp_flags(m_table->flags);
+			if (!fsp_flags_match(expected, m_space_flags)) {
+				ib_errf(m_trx->mysql_thd, IB_LOG_LEVEL_ERROR,
+					ER_TABLE_SCHEMA_MISMATCH,
+					"Expected FSP_SPACE_FLAGS=0x%x, .ibd "
+					"file contains 0x%x.",
+					unsigned(expected),
+					unsigned(m_space_flags));
+				return(DB_CORRUPTION);
+			}
 		}
 	}
 
@@ -1896,19 +1869,14 @@ PageConverter::update_header(
 		ib::warn() << "Space id check in the header failed: ignored";
 	}
 
-	ulint	space_flags = fsp_header_get_flags(get_frame(block));
-
-	if (!fsp_flags_is_valid(space_flags)) {
-
-		ib::error() <<  "Unsupported tablespace format "
-			<< space_flags;
-
-		return(DB_UNSUPPORTED);
-	}
-
 	mach_write_to_8(
 		get_frame(block) + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION,
 		m_current_lsn);
+
+	/* Write back the adjusted flags. */
+	mach_write_to_4(FSP_HEADER_OFFSET + FSP_SPACE_FLAGS
+			+ get_frame(block), m_space_flags);
+
 	/* Write space_id to the tablespace header, page 0. */
 	mach_write_to_4(
 		get_frame(block) + FSP_HEADER_OFFSET + FSP_SPACE_ID,

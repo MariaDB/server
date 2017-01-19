@@ -231,13 +231,9 @@ public:
 	successfully opened in order for this function to validate it.
 	@param[in]	space_id	The expected tablespace ID.
 	@param[in]	flags		The expected tablespace flags.
-	@param[in]	for_import	is it for importing
 	@retval DB_SUCCESS if tablespace is valid, DB_ERROR if not.
 	m_is_valid is also set true on success, else false. */
-	dberr_t validate_to_dd(
-		ulint		space_id,
-		ulint		flags,
-		bool		for_import)
+	dberr_t validate_to_dd(ulint space_id, ulint flags)
 		MY_ATTRIBUTE((warn_unused_result));
 
 	/** Validates this datafile for the purpose of recovery.
@@ -256,13 +252,10 @@ public:
 	so the Space ID found here must not already be open.
 	m_is_valid is set true on success, else false.
 	@param[out]	flush_lsn	contents of FIL_PAGE_FILE_FLUSH_LSN
-	@param[in]	for_import	if it is for importing
-	(only valid for the first file of the system tablespace)
 	@retval DB_SUCCESS on if the datafile is valid
 	@retval DB_CORRUPTION if the datafile is not readable
 	@retval DB_TABLESPACE_EXISTS if there is a duplicate space_id */
-	dberr_t validate_first_page(lsn_t*	flush_lsn,
-				    bool	for_import)
+	dberr_t validate_first_page(lsn_t* flush_lsn)
 		MY_ATTRIBUTE((warn_unused_result));
 
 	/** Get Datafile::m_name.
@@ -414,12 +407,10 @@ private:
 	else DB_ERROR. */
 	dberr_t find_space_id();
 
-	/** Finds a given page of the given space id from the double write
-	buffer and copies it to the corresponding .ibd file.
-	@param[in]	page_no		Page number to restore
-	@return DB_SUCCESS if page was restored, else DB_ERROR */
-	dberr_t restore_from_doublewrite(
-		ulint	restore_page_no);
+	/** Restore the first page of the tablespace from
+	the double write buffer.
+	@return whether the operation failed */
+	bool restore_from_doublewrite();
 
 	/** Points into m_filepath to the file name with extension */
 	char*			m_filename;

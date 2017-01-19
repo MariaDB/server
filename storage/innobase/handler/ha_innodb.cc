@@ -3865,7 +3865,6 @@ innobase_init(
 	uint		format_id;
 	ulong		num_pll_degree;
 	ulint		srv_buf_pool_size_org = 0;
-	ulint		fsp_flags =0;
 
 	DBUG_ENTER("innobase_init");
 	handlerton* innobase_hton= (handlerton*) p;
@@ -4095,12 +4094,7 @@ innobase_init(
 		page_size_t(srv_page_size, srv_page_size, false));
 
 	srv_sys_space.set_space_id(TRX_SYS_SPACE);
-
-	/* Create the filespace flags. */
-	fsp_flags = fsp_flags_init(
-		univ_page_size, false, false, false, 0, 0);
-	srv_sys_space.set_flags(fsp_flags);
-
+	srv_sys_space.set_flags(FSP_FLAGS_PAGE_SSIZE());
 	srv_sys_space.set_name("innodb_system");
 	srv_sys_space.set_path(srv_data_home);
 
@@ -4121,11 +4115,7 @@ innobase_init(
 	Set the name and path. */
 	srv_tmp_space.set_name("innodb_temporary");
 	srv_tmp_space.set_path(srv_data_home);
-
-	/* Create the filespace flags with the temp flag set. */
-	fsp_flags = fsp_flags_init(
-		univ_page_size, false, false, false, 0, 0);
-	srv_tmp_space.set_flags(fsp_flags);
+	srv_tmp_space.set_flags(FSP_FLAGS_PAGE_SSIZE());
 
 	if (!srv_tmp_space.parse_params(innobase_temp_data_file_path, false)) {
 		DBUG_RETURN(innobase_init_abort());
