@@ -16,3 +16,7 @@ jdbc_postgresql : Variable settings depend on machine configuration
 json            : TABLE_TYPE = JSON conflicts with the SQL syntax
 json_udf        : conflicts with the server JSON functions
 json_udf_bin    : conflicts with the server JSON functions
+
+mrr: versioning branch
+index: versioning branch
+mysql_index: versioning branch
