@@ -997,12 +997,12 @@
  VARIABLE_SCOPE	SESSION
 -VARIABLE_TYPE	BIGINT UNSIGNED
 +VARIABLE_TYPE	INT UNSIGNED
- VARIABLE_COMMENT      Seconds between sending progress reports to the client for time-consuming statements. Set to 0 to disable progress reporting.
- NUMERIC_MIN_VALUE     0
- NUMERIC_MAX_VALUE     4294967295
+ VARIABLE_COMMENT	Seconds between sending progress reports to the client for time-consuming statements. Set to 0 to disable progress reporting.
+ NUMERIC_MIN_VALUE	0
+ NUMERIC_MAX_VALUE	4294967295
 @@ -3123,7 +3123,7 @@
- GLOBAL_VALUE_ORIGIN   COMPILE-TIME
- DEFAULT_VALUE 16384
+ GLOBAL_VALUE_ORIGIN	COMPILE-TIME
+ DEFAULT_VALUE	16384
  VARIABLE_SCOPE	SESSION
 -VARIABLE_TYPE	BIGINT UNSIGNED
 +VARIABLE_TYPE	INT UNSIGNED
