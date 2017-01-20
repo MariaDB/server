@@ -208,6 +208,9 @@ The following options may be given as the first argument:
  --extra-port=#      Extra port number to use for tcp connections in a
  one-thread-per-connection manner. 0 means don't use
  another port
+ --flashback         Setup the server to use flashback. This enables binary
+ log in row mode and will enable extra logging for DDL's
+ needed by flashback feature
  --flush             Flush MyISAM tables to disk between SQL commands
  --flush-time=#      A dedicated thread is created to flush all tables at the
  given interval
@@ -1233,6 +1236,7 @@ explicit-defaults-for-timestamp FALSE
 external-locking FALSE
 extra-max-connections 1
 extra-port 0
+flashback FALSE
 flush FALSE
 flush-time 0
 ft-boolean-syntax + -><()~*:""&|
