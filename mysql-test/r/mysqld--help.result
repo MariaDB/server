@@ -1076,6 +1076,9 @@ The following options may be given as the first argument:
  passwords that cannot be validated (passwords specified
  as a hash)
  (Defaults to on; use --skip-strict-password-validation to disable.)
+ --support-flashback Setup the server to use flashback. This enables binary
+ log in row mode and will enable extra logging for DDL's
+ needed by flashback feature
  -s, --symbolic-links 
  Enable symbolic link support.
  --sync-binlog=#     Synchronously flush binary log to disk after every #th
@@ -1469,6 +1472,7 @@ stack-trace TRUE
 standards-compliant-cte TRUE
 stored-program-cache 256
 strict-password-validation TRUE
+support-flashback FALSE
 symbolic-links FALSE
 sync-binlog 0
 sync-frm FALSE
