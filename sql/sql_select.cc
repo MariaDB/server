@@ -1619,7 +1619,8 @@ JOIN::optimize_inner()
         <fields> to ORDER BY <fields>. There are three exceptions:
         - if skip_sort_order is set (see above), then we can simply skip
           GROUP BY;
-        - if we are in a subquery, we don't have to maintain order
+        - if we are in a subquery, we don't have to maintain order unless there
+	  is a limit clause in the subquery.
         - we can only rewrite ORDER BY if the ORDER BY fields are 'compatible'
           with the GROUP BY ones, i.e. either one is a prefix of another.
           We only check if the ORDER BY is a prefix of GROUP BY. In this case
@@ -1631,7 +1632,7 @@ JOIN::optimize_inner()
       if (!order || test_if_subpart(group_list, order))
       {
         if (skip_sort_order ||
-            select_lex->master_unit()->item) // This is a subquery
+            (select_lex->master_unit()->item && select_limit == HA_POS_ERROR)) // This is a subquery
           order= NULL;
         else
           order= group_list;
