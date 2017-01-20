@@ -3518,7 +3518,6 @@ dict_foreign_find_index(
 		if (types_idx != index
 		    && !(index->type & DICT_FTS)
 		    && !dict_index_is_spatial(index)
-		    && !dict_index_has_virtual(index)
 		    && !index->to_be_dropped
 		    && dict_foreign_qualify_index(
 			    table, col_names, columns, n_cols,
@@ -4021,6 +4020,23 @@ dict_scan_col(
 
 				*success = TRUE;
 				*column = dict_table_get_nth_col(table, i);
+				strcpy((char*) *name, col_name);
+
+				break;
+			}
+		}
+
+		for (i = 0; i < dict_table_get_n_v_cols(table); i++) {
+
+			const char*	col_name = dict_table_get_v_col_name(
+				table, i);
+
+			if (0 == innobase_strcasecmp(col_name, *name)) {
+				/* Found */
+				dict_v_col_t * vcol;
+				*success = TRUE;
+				vcol = dict_table_get_nth_v_col(table, i);
+				*column = &vcol->m_col;
 				strcpy((char*) *name, col_name);
 
 				break;
@@ -5010,9 +5026,7 @@ col_loop1:
 
 	for (i = 0; i < foreign->n_fields; i++) {
 		foreign->foreign_col_names[i] = mem_heap_strdup(
-			foreign->heap,
-			dict_table_get_col_name(table,
-						dict_col_get_no(columns[i])));
+                        foreign->heap, column_names[i]);
 	}
 
 	ptr = dict_scan_table_name(cs, ptr, &referenced_table, name,
@@ -5330,6 +5344,7 @@ try_find_index:
 						ref_column_names, i,
 						foreign->foreign_index,
 			TRUE, FALSE, &index_error, &err_col, &err_index);
+
 		if (!index) {
 			mutex_enter(&dict_foreign_err_mutex);
 			dict_foreign_error_report_low(ef, create_name);
@@ -7032,8 +7047,6 @@ dict_foreign_qualify_index(
 		field = dict_index_get_nth_field(index, i);
 		col_no = dict_col_get_no(field->col);
 
-		ut_ad(!dict_col_is_virtual(field->col));
-
 		if (field->prefix_len != 0) {
 			/* We do not accept column prefix
 			indexes here */
@@ -7058,6 +7071,15 @@ dict_foreign_qualify_index(
 		col_name = col_names
 			? col_names[col_no]
 			: dict_table_get_col_name(table, col_no);
+
+		if (dict_col_is_virtual(field->col)) {
+			for (ulint j = 0; j < table->n_v_def; j++) {
+				col_name = dict_table_get_v_col_name(table, j);
+				if (innobase_strcasecmp(field->name,col_name) == 0) {
+					break;
+				}
+			}
+		}
 
 		if (0 != innobase_strcasecmp(columns[i], col_name)) {
 			return(false);
