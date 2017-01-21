@@ -2230,6 +2230,18 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
         if (key == primary_key)
         {
           field->flags|= PRI_KEY_FLAG;
+          /*
+            If this field is part of the primary key and all keys contains
+            the primary key, then we can use any key to find this column
+          */
+          if (ha_option & HA_PRIMARY_KEY_IN_READ_INDEX)
+          {
+            if (field->key_length() == key_part->length &&
+                !(field->flags & BLOB_FLAG))
+              field->part_of_key= share->keys_in_use;
+            if (field->part_of_sortkey.is_set(key))
+              field->part_of_sortkey= share->keys_in_use;
+          }
         }
         if (field->key_length() != key_part->length)
         {
@@ -2289,38 +2301,6 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
           (ha_option & HA_ANY_INDEX_MAY_BE_UNIQUE))
         set_if_bigger(share->max_unique_length,keyinfo->key_length);
     }
-
-    /*
-      The next call is here for MyRocks/MariaRocks:  Now, we have filled in
-      field and key definitions, give the storage engine a chance to adjust
-      its properties.
-
-      MyRocks may (and typically does) adjust HA_PRIMARY_KEY_IN_READ_INDEX
-      flag in this call.
-    */
-    if (handler_file->init_with_fields())
-      goto err;
-
-    if (primary_key < MAX_KEY && (handler_file->ha_table_flags() &
-                                  HA_PRIMARY_KEY_IN_READ_INDEX))
-    {
-      keyinfo= &share->key_info[primary_key];
-      key_part= keyinfo->key_part;
-      for (i=0 ; i < keyinfo->user_defined_key_parts ; key_part++,i++)
-      {
-        Field *field= key_part->field;
-        /*
-          If this field is part of the primary key and all keys contains
-          the primary key, then we can use any key to find this column
-        */
-        if (field->key_length() == key_part->length &&
-            !(field->flags & BLOB_FLAG))
-          field->part_of_key= share->keys_in_use;
-        if (field->part_of_sortkey.is_set(primary_key))
-          field->part_of_sortkey= share->keys_in_use;
-      }
-    }
-
     if (primary_key < MAX_KEY &&
 	(share->keys_in_use.is_set(primary_key)))
     {

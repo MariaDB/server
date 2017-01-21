@@ -421,22 +421,6 @@ ha_partition::~ha_partition()
 }
 
 
-bool ha_partition::init_with_fields()
-{
-  /* Pass the call to each partition */
-  for (uint i= 0; i < m_tot_parts; i++)
-  {
-    if (m_file[i]->init_with_fields())
-      return true;
-  }
-  /* Re-read table flags in case init_with_fields caused it to change */
-  cached_table_flags= (m_file[0]->ha_table_flags() &
-                       ~(PARTITION_DISABLED_TABLE_FLAGS)) |
-                      PARTITION_ENABLED_TABLE_FLAGS;
-  return false;
-}
-
-
 /*
   Initialize partition handler object
 

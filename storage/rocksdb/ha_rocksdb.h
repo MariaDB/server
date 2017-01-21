@@ -640,18 +640,24 @@ public:
       HA_REC_NOT_IN_SEQ
         If we don't set it, filesort crashes, because it assumes rowids are
         1..8 byte numbers
+      HA_PRIMARY_KEY_IN_READ_INDEX
+        This flag is always set, even for tables that:
+        - have no PK
+        - have some (or all) of PK that can't be decoded from the secondary
+          index.
     */
     return HA_BINLOG_ROW_CAPABLE | HA_BINLOG_STMT_CAPABLE |
            HA_REC_NOT_IN_SEQ | HA_CAN_INDEX_BLOBS |
-           (m_pk_can_be_decoded? HA_PRIMARY_KEY_IN_READ_INDEX : 0) |
+           HA_PRIMARY_KEY_IN_READ_INDEX |
            HA_PRIMARY_KEY_REQUIRED_FOR_POSITION |
            HA_NULL_IN_KEY |
            HA_PARTIAL_COLUMN_READ |
            HA_TABLE_SCAN_ON_INDEX;
   }
-//#ifdef MARIAROCKS_NOT_YET
-  bool init_with_fields() override;
-//#endif
+
+private:
+  bool init_with_fields(); /* no 'override' in MariaDB */
+public:
   /** @brief
     This is a bitmap of flags that indicates how the storage engine
     implements indexes. The current index flags are documented in
