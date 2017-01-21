@@ -21,6 +21,7 @@ env:
     - GCC_VERSION=4.8
     - GCC_VERSION=5
     - GCC_VERSION=6
+
 addons:
   apt:
     sources:
@@ -32,10 +33,6 @@ addons:
 # https://github.com/travis-ci/apt-source-whitelist/pull/288
 # https://github.com/travis-ci/apt-source-whitelist/pull/309
     packages: # make sure these match debian/control contents
-      - gcc-5
-      - g++-5
-      - gcc-6
-      - g++-6
       - bison
       - chrpath
       - cmake
@@ -76,7 +73,6 @@ env:
 # libsystemd-daemon-dev # https://github.com/travis-ci/apt-package-whitelist/issues/3882
 
 script:
-  - export MYSQL_BUILD_CC=/usr/bin/gcc-${GCC_VERSION} MYSQL_BUILD_CXX=/usr/bin/g++-${GCC_VERSION}
-  - ${MYSQL_BUILD_CC} --version ; ${MYSQL_BUILD_CXX} --version
+  - ${CC} --version ; ${CXX} --version
   - cd "${TRAVIS_BUILD_DIR}"
   - "LD_PRELOAD=/usr/lib/libtcmalloc_minimal.so.4 cmake -DWITH_INNOBASE_STORAGE_ENGINE=yes $BUILD_TYPE && LD_PRELOAD=/usr/lib/libtcmalloc_minimal.so.4 make -j $(grep -c processor /proc/cpuinfo) && cd ./mysql-test && ./mtr $MTR_FLAGS --suite=versioning --force --max-test-fail=0"
