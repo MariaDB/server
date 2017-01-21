@@ -861,10 +861,10 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %parse-param { THD *thd }
 %lex-param { THD *thd }
 /*
-  Currently there are 103 shift/reduce conflicts.
+  Currently there are 106 shift/reduce conflicts.
   We should not introduce new conflicts any more.
 */
-%expect 103
+%expect 106
 
 /*
    Comments for TOKENS.
@@ -1353,7 +1353,6 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  PURGE
 %token  QUARTER_SYM
 %token  QUERY_SYM
-%token  QUERY_FOR_SYM                 /* INTERNAL */
 %token  QUICK
 %token  RAISE_SYM                     /* Oracle-PLSQL-R */
 %token  RANGE_SYM                     /* SQL-2003-R */
@@ -8813,7 +8812,7 @@ trans_or_timestamp:
 opt_query_for_system_time_clause:
           /* empty */
           {}
-        | QUERY_FOR_SYM SYSTEM_TIME_SYM for_system_time_expr
+        | QUERY_SYM FOR_SYSTEM_TIME_SYM for_system_time_expr
           {
             DBUG_ASSERT(Select);
             Select->vers_conditions= Lex->vers_conditions;
@@ -11690,15 +11689,21 @@ date_time_type:
         | TIMESTAMP {$$=MYSQL_TIMESTAMP_DATETIME;}
         ;
 
-table_alias:
-          /* empty */
-        | AS
-        | '='
-        ;
-
 opt_table_alias:
           /* empty */ { $$=0; }
-        | table_alias ident
+        | ident
+          {
+            $$= (LEX_STRING*) thd->memdup(&$1,sizeof(LEX_STRING));
+            if ($$ == NULL)
+              MYSQL_YYABORT;
+          }
+        | AS ident
+          {
+            $$= (LEX_STRING*) thd->memdup(&$2,sizeof(LEX_STRING));
+            if ($$ == NULL)
+              MYSQL_YYABORT;
+          }
+        | '=' ident
           {
             $$= (LEX_STRING*) thd->memdup(&$2,sizeof(LEX_STRING));
             if ($$ == NULL)
