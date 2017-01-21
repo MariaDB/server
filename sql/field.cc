@@ -8721,6 +8721,7 @@ int Field_enum::store(longlong nr, bool unsigned_val)
 
 double Field_enum::val_real(void)
 {
+  ASSERT_COLUMN_MARKED_FOR_READ;
   return (double) Field_enum::val_int();
 }
 
