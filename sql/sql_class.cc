@@ -3877,7 +3877,8 @@ create_result_table(THD *thd_arg, List<Item> *column_types,
                     bool is_union_distinct, ulonglong options,
                     const char *table_alias, bool bit_fields_as_long,
                     bool create_table,
-                    bool keep_row_order)
+                    bool keep_row_order,
+                    uint hidden)
 {
   DBUG_ASSERT(table == 0);
   tmp_table_param.field_count= column_types->elements;
@@ -3912,12 +3913,12 @@ void select_materialize_with_stats::reset()
 void select_materialize_with_stats::cleanup()
 {
   reset();
-  select_union::cleanup();
+  select_unit::cleanup();
 }
 
 
 /**
-  Override select_union::send_data to analyze each row for NULLs and to
+  Override select_unit::send_data to analyze each row for NULLs and to
   update null_statistics before sending data to the client.
 
   @return TRUE if fatal error when sending data to the client
@@ -3932,7 +3933,7 @@ int select_materialize_with_stats::send_data(List<Item> &items)
   uint nulls_in_row= 0;
   int res;
 
-  if ((res= select_union::send_data(items)))
+  if ((res= select_unit::send_data(items)))
     return res;
   if (table->null_catch_flags & REJECT_ROW_DUE_TO_NULL_FIELDS)
   {

@@ -230,6 +230,12 @@ static inline void lex_string_set(LEX_STRING *lex_str, const char *c_str)
   lex_str->str= (char *) c_str;
   lex_str->length= strlen(c_str);
 }
+static inline void lex_string_set3(LEX_STRING *lex_str, const char *c_str,
+                                   size_t len)
+{
+  lex_str->str= (char *) c_str;
+  lex_str->length= len;
+}
 
 #ifdef __cplusplus
 static inline char *safe_str(char *str)

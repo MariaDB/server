@@ -7504,18 +7504,21 @@ mysql_init_select(LEX *lex)
 */
 
 bool
-mysql_new_select(LEX *lex, bool move_down)
+mysql_new_select(LEX *lex, bool move_down, SELECT_LEX *select_lex)
 {
-  SELECT_LEX *select_lex;
   THD *thd= lex->thd;
+  bool new_select= select_lex == NULL;
   DBUG_ENTER("mysql_new_select");
 
-  if (!(select_lex= new (thd->mem_root) SELECT_LEX()))
-    DBUG_RETURN(1);
-  select_lex->select_number= ++thd->select_number;
-  select_lex->parent_lex= lex; /* Used in init_query. */
-  select_lex->init_query();
-  select_lex->init_select();
+  if (new_select)
+  {
+    if (!(select_lex= new (thd->mem_root) SELECT_LEX()))
+      DBUG_RETURN(1);
+    select_lex->select_number= ++thd->select_number;
+    select_lex->parent_lex= lex; /* Used in init_query. */
+    select_lex->init_query();
+    select_lex->init_select();
+  }
   lex->nest_level++;
   if (lex->nest_level > (int) MAX_SELECT_NESTING)
   {
@@ -7586,7 +7589,8 @@ mysql_new_select(LEX *lex, bool move_down)
                 unit->first_select()->context.outer_context;
   }
 
-  select_lex->include_global((st_select_lex_node**)&lex->all_selects_list);
+  if (new_select)
+    select_lex->include_global((st_select_lex_node**)&lex->all_selects_list);
   lex->current_select= select_lex;
   /*
     in subquery is SELECT query and we allow resolution of names in SELECT
@@ -8517,7 +8521,7 @@ bool st_select_lex_unit::add_fake_select_lex(THD *thd_arg)
   fake_select_lex->nest_level_base= first_select()->nest_level_base;
   fake_select_lex->nest_level=first_select()->nest_level;
 
-  if (!is_union())
+  if (!is_unit_op())
   {
     /* 
       This works only for 

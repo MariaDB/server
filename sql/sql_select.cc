@@ -346,7 +346,7 @@ bool handle_select(THD *thd, LEX *lex, select_result *result,
   DBUG_ENTER("handle_select");
   MYSQL_SELECT_START(thd->query());
 
-  if (select_lex->master_unit()->is_union() || 
+  if (select_lex->master_unit()->is_unit_op() ||
       select_lex->master_unit()->fake_select_lex)
     res= mysql_union(thd, lex, result, &lex->unit, setup_tables_done_option);
   else
@@ -707,7 +707,7 @@ JOIN::prepare(TABLE_LIST *tables_init,
   select_lex= select_lex_arg;
   select_lex->join= this;
   join_list= &select_lex->top_join_list;
-  union_part= unit_arg->is_union();
+  union_part= unit_arg->is_unit_op();
 
   if (select_lex->handle_derived(thd->lex, DT_PREPARE))
     DBUG_RETURN(1);
@@ -4997,7 +4997,7 @@ Item_func_trig_cond::add_key_fields(JOIN *join, KEY_FIELD **key_fields,
   if (!join->group_list && !join->order &&
       join->unit->item && 
       join->unit->item->substype() == Item_subselect::IN_SUBS &&
-      !join->unit->is_union())
+      !join->unit->is_unit_op())
   {
     KEY_FIELD *save= *key_fields;
     args[0]->add_key_fields(join, key_fields, and_level, usable_tables,
@@ -24475,6 +24475,7 @@ int JOIN::save_explain_data_intern(Explain_query *output,
 
     explain->select_id= join->select_lex->select_number;
     explain->select_type= join->select_lex->type;
+    explain->linkage= select_lex->linkage;
     explain->using_temporary= need_tmp;
     explain->using_filesort=  need_order_arg;
     /* Setting explain->message means that all other members are invalid */
@@ -24492,6 +24493,7 @@ int JOIN::save_explain_data_intern(Explain_query *output,
 
     explain->select_id=   select_lex->select_number;
     explain->select_type= select_lex->type;
+    explain->linkage= select_lex->linkage;
     explain->using_temporary= need_tmp;
     explain->using_filesort=  need_order_arg;
     explain->message= "Storage engine handles GROUP BY";
@@ -24511,6 +24513,7 @@ int JOIN::save_explain_data_intern(Explain_query *output,
     join->select_lex->set_explain_type(true);
     xpl_sel->select_id= join->select_lex->select_number;
     xpl_sel->select_type= join->select_lex->type;
+    xpl_sel->linkage= select_lex->linkage;
     if (select_lex->master_unit()->derived)
       xpl_sel->connection_type= Explain_node::EXPLAIN_NODE_DERIVED;
     
@@ -24686,12 +24689,12 @@ bool mysql_explain_union(THD *thd, SELECT_LEX_UNIT *unit, select_result *result)
     sl->options|= SELECT_DESCRIBE;
   }
 
-  if (unit->is_union())
+  if (unit->is_unit_op())
   {
     if (unit->union_needs_tmp_table() && unit->fake_select_lex)
     {
       unit->fake_select_lex->select_number= FAKE_SELECT_LEX_ID; // just for initialization
-      unit->fake_select_lex->type= "UNION RESULT";
+      unit->fake_select_lex->type= unit_operation_text[unit->common_op()];
       unit->fake_select_lex->options|= SELECT_DESCRIBE;
     }
     if (!(res= unit->prepare(thd, result, SELECT_NO_UNLOCK | SELECT_DESCRIBE)))
@@ -25069,6 +25072,17 @@ void TABLE_LIST::print(THD *thd, table_map eliminated_tables, String *str,
 void st_select_lex::print(THD *thd, String *str, enum_query_type query_type)
 {
   DBUG_ASSERT(thd);
+
+  if ((query_type & QT_SHOW_SELECT_NUMBER) &&
+      thd->lex->all_selects_list &&
+      thd->lex->all_selects_list->link_next &&
+      select_number != UINT_MAX &&
+      select_number != INT_MAX)
+  {
+    str->append("/* select#");
+    str->append_ulonglong(select_number);
+    str->append(" */ ");
+  }
 
   str->append(STRING_WITH_LEN("select "));
 

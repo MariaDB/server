@@ -781,6 +781,54 @@ bool ha_heap::check_if_incompatible_data(HA_CREATE_INFO *info,
   return COMPATIBLE_DATA_YES;
 }
 
+
+/**
+  Find record by unique index (used in temporary tables with the index)
+
+  @param record          (IN|OUT) the record to find
+  @param unique_idx      (IN) number of index (for this engine)
+
+  @note It is like hp_search but uses function for raw where hp_search
+        uses functions for index.
+
+  @retval  0 OK
+  @retval  1 Not found
+  @retval -1 Error
+*/
+
+int ha_heap::find_unique_row(uchar *record, uint unique_idx)
+{
+  DBUG_ENTER("ha_heap::find_unique_row");
+  HP_SHARE *share= file->s;
+  DBUG_ASSERT(inited==NONE);
+  HP_KEYDEF *keyinfo= share->keydef + unique_idx;
+  DBUG_ASSERT(keyinfo->algorithm == HA_KEY_ALG_HASH);
+  DBUG_ASSERT(keyinfo->flag & HA_NOSAME);
+  if (!share->records)
+    DBUG_RETURN(1); // not found
+  HASH_INFO *pos= hp_find_hash(&keyinfo->block,
+                               hp_mask(hp_rec_hashnr(keyinfo, record),
+                                       share->blength, share->records));
+  do
+  {
+    if (!hp_rec_key_cmp(keyinfo, pos->ptr_to_rec, record))
+    {
+      file->current_hash_ptr= pos;
+      file->current_ptr= pos->ptr_to_rec;
+      file->update = HA_STATE_AKTIV;
+      /*
+        We compare it only by record in the index, so better to read all
+        records.
+      */
+      memcpy(record, file->current_ptr, (size_t) share->reclength);
+
+      DBUG_RETURN(0); // found and position set
+    }
+  }
+  while ((pos= pos->next_key));
+  DBUG_RETURN(1); // not found
+}
+
 struct st_mysql_storage_engine heap_storage_engine=
 { MYSQL_HANDLERTON_INTERFACE_VERSION };
 

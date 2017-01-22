@@ -4,7 +4,7 @@
 #include "sql_lex.h"
 #include "sql_select.h"
 
-class select_union;
+class select_unit;
 struct st_unit_ctxt_elem;
 
 

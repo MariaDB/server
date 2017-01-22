@@ -4111,6 +4111,7 @@ EXPLAIN
         {
           "query_block": {
             "select_id": 2,
+            "operation": "UNION",
             "table": {
               "table_name": "t2",
               "access_type": "ALL",
@@ -4254,6 +4255,7 @@ EXPLAIN
         {
           "query_block": {
             "select_id": 2,
+            "operation": "UNION",
             "table": {
               "table_name": "t2",
               "access_type": "ALL",
@@ -4408,6 +4410,7 @@ EXPLAIN
         {
           "query_block": {
             "select_id": 2,
+            "operation": "UNION",
             "table": {
               "table_name": "t2",
               "access_type": "ALL",
@@ -4564,6 +4567,7 @@ EXPLAIN
         {
           "query_block": {
             "select_id": 2,
+            "operation": "UNION",
             "table": {
               "table_name": "t2",
               "access_type": "ALL",
@@ -4607,6 +4611,7 @@ EXPLAIN
         {
           "query_block": {
             "select_id": 3,
+            "operation": "UNION",
             "table": {
               "table_name": "t2",
               "access_type": "ALL",
@@ -4730,6 +4735,7 @@ EXPLAIN
               {
                 "query_block": {
                   "select_id": 3,
+                  "operation": "UNION",
                   "having_condition": "c < 300 and c > 100",
                   "filesort": {
                     "sort_key": "t1.a, t1.b",
@@ -4838,6 +4844,7 @@ EXPLAIN
               {
                 "query_block": {
                   "select_id": 3,
+                  "operation": "UNION",
                   "having_condition": "c < 300 and (t1.a < 2 or c > 800)",
                   "filesort": {
                     "sort_key": "t1.a, t1.b",
@@ -4933,6 +4940,7 @@ EXPLAIN
               {
                 "query_block": {
                   "select_id": 3,
+                  "operation": "UNION",
                   "having_condition": "c < 300 and c < 200",
                   "filesort": {
                     "sort_key": "t1.b",
@@ -5130,6 +5138,7 @@ EXPLAIN
               {
                 "query_block": {
                   "select_id": 3,
+                  "operation": "UNION",
                   "having_condition": "c < 300",
                   "filesort": {
                     "sort_key": "t1.b",
@@ -5234,6 +5243,7 @@ EXPLAIN
               {
                 "query_block": {
                   "select_id": 3,
+                  "operation": "UNION",
                   "having_condition": "c < 300 and c > 200",
                   "filesort": {
                     "sort_key": "t1.a, t1.b",
@@ -5252,6 +5262,7 @@ EXPLAIN
               {
                 "query_block": {
                   "select_id": 4,
+                  "operation": "UNION",
                   "having_condition": "c < 707 and c > 200",
                   "filesort": {
                     "sort_key": "t1.a, t1.b",
@@ -5395,6 +5406,7 @@ EXPLAIN
               {
                 "query_block": {
                   "select_id": 3,
+                  "operation": "UNION",
                   "table": {
                     "table_name": "t1",
                     "access_type": "ALL",
@@ -5512,6 +5524,7 @@ EXPLAIN
               {
                 "query_block": {
                   "select_id": 3,
+                  "operation": "UNION",
                   "table": {
                     "table_name": "t1",
                     "access_type": "ALL",
@@ -5597,6 +5610,7 @@ EXPLAIN
               {
                 "query_block": {
                   "select_id": 3,
+                  "operation": "UNION",
                   "table": {
                     "table_name": "t1",
                     "access_type": "ALL",
@@ -5685,6 +5699,7 @@ EXPLAIN
               {
                 "query_block": {
                   "select_id": 3,
+                  "operation": "UNION",
                   "table": {
                     "table_name": "t1",
                     "access_type": "ALL",
@@ -5792,6 +5807,7 @@ EXPLAIN
               {
                 "query_block": {
                   "select_id": 3,
+                  "operation": "UNION",
                   "table": {
                     "table_name": "t1",
                     "access_type": "ALL",
@@ -6996,7 +7012,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	<derived3>	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 3	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	
 Warnings:
-Note	1003	select `sq1`.`f` AS `f` from (select min(`test`.`t1`.`i`) AS `f` from `test`.`t1` having `f` = 8) `sq1` where `sq1`.`f` = 8
+Note	1003	/* select#1 */ select `sq1`.`f` AS `f` from (/* select#3 */ select min(`test`.`t1`.`i`) AS `f` from `test`.`t1` having `f` = 8) `sq1` where `sq1`.`f` = 8
 SELECT *
 FROM ( SELECT * FROM ( SELECT MIN(i) as f FROM t1 ) sq1 ) AS sq2
 WHERE f = 8;

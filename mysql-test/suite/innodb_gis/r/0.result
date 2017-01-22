@@ -507,8 +507,8 @@ down3,left3,right3,up3
 SELECT GROUP_CONCAT(a2.name ORDER BY a2.name) AS equals       FROM t1 a1 JOIN t1 a2 ON Equals(        a1.square, a2.square) WHERE a1.name = "center" GROUP BY a1.name;
 equals
 center
-SELECT GROUP_CONCAT(a2.name ORDER BY a2.name) AS intersect    FROM t1 a1 JOIN t1 a2 ON Intersects(    a1.square, a2.square) WHERE a1.name = "center" GROUP BY a1.name;
-intersect
+SELECT GROUP_CONCAT(a2.name ORDER BY a2.name) AS intersects   FROM t1 a1 JOIN t1 a2 ON Intersects(    a1.square, a2.square) WHERE a1.name = "center" GROUP BY a1.name;
+intersects
 big,center,down,down2,left,left2,right,right2,small,up,up2
 SELECT GROUP_CONCAT(a2.name ORDER BY a2.name) AS overlaps     FROM t1 a1 JOIN t1 a2 ON Overlaps(      a1.square, a2.square) WHERE a1.name = "center" GROUP BY a1.name;
 overlaps

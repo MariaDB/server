@@ -4153,11 +4153,27 @@ public:
   virtual handlerton *partition_ht() const
   { return ht; }
   inline int ha_write_tmp_row(uchar *buf);
+  inline int ha_delete_tmp_row(uchar *buf);
   inline int ha_update_tmp_row(const uchar * old_data, uchar * new_data);
 
   virtual void set_lock_type(enum thr_lock_type lock);
 
   friend enum icp_result handler_index_cond_check(void* h_arg);
+
+  /**
+    Find unique record by index or unique constrain
+
+    @param record        record to find (also will be fillded with
+                         actual record fields)
+    @param unique_ref    index or unique constraiun number (depends
+                         on what used in the engine
+
+    @retval -1 Error
+    @retval  1 Not found
+    @retval  0 Found
+  */
+  virtual int find_unique_row(uchar *record, uint unique_ref)
+  { return -1; /*unsupported */}
 protected:
   Handler_share *get_ha_share_ptr();
   void set_ha_share_ptr(Handler_share *arg_ha_share);

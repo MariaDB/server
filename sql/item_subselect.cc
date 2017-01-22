@@ -118,7 +118,7 @@ void Item_subselect::init(st_select_lex *select_lex,
     parsing_place= (outer_select->in_sum_expr ?
                     NO_MATTER :
                     outer_select->parsing_place);
-    if (unit->is_union())
+    if (unit->is_unit_op())
       engine= new subselect_union_engine(unit, result, this);
     else
       engine= new subselect_single_select_engine(select_lex, result, this);
@@ -1123,7 +1123,7 @@ Item_singlerow_subselect::select_transformer(JOIN *join)
   SELECT_LEX *select_lex= join->select_lex;
   Query_arena *arena= thd->stmt_arena;
 
-  if (!select_lex->master_unit()->is_union() &&
+  if (!select_lex->master_unit()->is_unit_op() &&
       !select_lex->table_list.elements &&
       select_lex->item_list.elements == 1 &&
       !select_lex->item_list.head()->with_sum_func &&
@@ -1819,7 +1819,7 @@ Item_in_subselect::single_value_transformer(JOIN *join)
   if (!(join_having || select_lex->with_sum_func ||
         select_lex->group_list.elements) &&
       select_lex->table_list.elements == 0 &&
-      !select_lex->master_unit()->is_union())
+      !select_lex->master_unit()->is_unit_op())
   {
     Item *where_item= (Item*) select_lex->item_list.head();
     /*
@@ -2177,7 +2177,7 @@ Item_in_subselect::create_single_in_to_exists_cond(JOIN *join,
     }
     else
     {
-      if (select_lex->master_unit()->is_union())
+      if (select_lex->master_unit()->is_unit_op())
       {
         Item *new_having=
           func->create(thd, expr,
@@ -3253,7 +3253,7 @@ bool Item_in_subselect::fix_fields(THD *thd_arg, Item **ref)
   {
     outer_cols_num= left_expr->cols();
 
-    if (unit->is_union())
+    if (unit->is_unit_op())
       inner_cols= &(unit->types);
     else
       inner_cols= &(unit->first_select()->item_list);
@@ -4845,7 +4845,7 @@ my_bitmap_init_memroot(MY_BITMAP *map, uint n_bits, MEM_ROOT *mem_root)
 bool subselect_hash_sj_engine::init(List<Item> *tmp_columns, uint subquery_id)
 {
   THD *thd= get_thd();
-  select_union *result_sink;
+  select_unit *result_sink;
   /* Options to create_tmp_table. */
   ulonglong tmp_create_options= thd->variables.option_bits | TMP_TABLE_ALL_COLUMNS;
                              /* | TMP_TABLE_FORCE_MYISAM; TIMOUR: force MYISAM */
@@ -4897,7 +4897,7 @@ bool subselect_hash_sj_engine::init(List<Item> *tmp_columns, uint subquery_id)
   }
   if (result_sink->create_result_table(thd, tmp_columns, TRUE,
                                        tmp_create_options,
-				       name, TRUE, TRUE))
+				       name, TRUE, TRUE, FALSE, 0))
     DBUG_RETURN(TRUE);
 
   tmp_table= result_sink->table;

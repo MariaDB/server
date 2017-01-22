@@ -33,6 +33,14 @@
 
 /* YACC and LEX Definitions */
 
+enum sub_select_type
+{
+  UNSPECIFIED_TYPE,
+  /* following 3 enums should be as they are*/
+  UNION_TYPE, INTERSECT_TYPE, EXCEPT_TYPE,
+  GLOBAL_OPTIONS_TYPE, DERIVED_TABLE_TYPE, OLAP_TYPE
+};
+enum unit_common_op {OP_MIX, OP_UNION, OP_INTERSECT, OP_EXCEPT};
 /* These may not be declared yet */
 class Table_ident;
 class sql_exchange;
@@ -298,12 +306,6 @@ typedef struct st_lex_reset_slave
   bool all;
 } LEX_RESET_SLAVE;
 
-enum sub_select_type
-{
-  UNSPECIFIED_TYPE,UNION_TYPE, INTERSECT_TYPE,
-  EXCEPT_TYPE, GLOBAL_OPTIONS_TYPE, DERIVED_TABLE_TYPE, OLAP_TYPE
-};
-
 enum olap_type 
 {
   UNSPECIFIED_OLAP_TYPE, CUBE_TYPE, ROLLUP_TYPE
@@ -563,7 +565,7 @@ public:
   st_select_lex_node *insert_chain_before(st_select_lex_node **ptr_pos_to_insert,
                                           st_select_lex_node *end_chain_node);
   friend class st_select_lex_unit;
-  friend bool mysql_new_select(LEX *lex, bool move_down);
+  friend bool mysql_new_select(LEX *lex, bool move_down, SELECT_LEX *sel);
   friend bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *table,
                               bool open_view_no_parse);
   friend bool mysql_derived_prepare(THD *thd, LEX *lex,
@@ -583,7 +585,7 @@ typedef class st_select_lex_node SELECT_LEX_NODE;
 class THD;
 class select_result;
 class JOIN;
-class select_union;
+class select_unit;
 class Procedure;
 class Explain_query;
 
@@ -595,7 +597,7 @@ bool print_explain_for_slow_log(LEX *lex, THD *thd, String *str);
 class st_select_lex_unit: public st_select_lex_node {
 protected:
   TABLE_LIST result_table_list;
-  select_union *union_result;
+  select_unit *union_result;
   ulonglong found_rows_for_union;
   bool saved_error;
 
@@ -628,6 +630,11 @@ public:
     any SELECT of this unit execution
   */
   List<Item> types;
+  /**
+    There is INTERSECT and it is item used in creating temporary
+    table for it
+  */
+  Item_int *intersect_mark;
   /**
     Pointer to 'last' select, or pointer to select where we stored
     global parameters for union.
@@ -719,7 +726,7 @@ public:
                      select_result_interceptor *old_result);
   void set_limit(st_select_lex *values);
   void set_thd(THD *thd_arg) { thd= thd_arg; }
-  inline bool is_union (); 
+  inline bool is_unit_op ();
   bool union_needs_tmp_table();
 
   void set_unique_exclude();
@@ -729,9 +736,10 @@ public:
 
   List<Item> *get_column_types(bool for_cursor);
 
-  select_union *get_union_result() { return union_result; }
+  select_unit *get_union_result() { return union_result; }
   int save_union_explain(Explain_query *output);
   int save_union_explain_part2(Explain_query *output);
+  unit_common_op common_op();
 };
 
 typedef class st_select_lex_unit SELECT_LEX_UNIT;
@@ -866,7 +874,8 @@ public:
   int nest_level;     /* nesting level of select */
   Item_sum *inner_sum_func_list; /* list of sum func in nested selects */ 
   uint with_wild; /* item list contain '*' */
-  bool  braces;   	/* SELECT ... UNION (SELECT ... ) <- this braces */
+  bool braces;    /* SELECT ... UNION (SELECT ... ) <- this braces */
+  bool automatic_brackets; /* dummy select for INTERSECT precedence */
   /* TRUE when having fix field called in processing of this SELECT */
   bool having_fix_field;
   /* List of references to fields referenced from inner selects */
@@ -1030,7 +1039,7 @@ public:
   ha_rows get_limit();
 
   friend void lex_start(THD *thd);
-  st_select_lex() : group_list_ptrs(NULL), braces(0),
+  st_select_lex() : group_list_ptrs(NULL), braces(0), automatic_brackets(0),
   n_sum_items(0), n_child_sum_items(0)
   {}
   void make_empty_select()
@@ -1075,7 +1084,7 @@ public:
   }
 
   void clear_index_hints(void) { index_hints= NULL; }
-  bool is_part_of_union() { return master_unit()->is_union(); }
+  bool is_part_of_union() { return master_unit()->is_unit_op(); }
   bool is_top_level_node() 
   { 
     return (select_number == 1) && !is_part_of_union();
@@ -1178,10 +1187,14 @@ public:
 };
 typedef class st_select_lex SELECT_LEX;
 
-inline bool st_select_lex_unit::is_union ()
-{ 
-  return first_select()->next_select() && 
-    first_select()->next_select()->linkage == UNION_TYPE;
+inline bool st_select_lex_unit::is_unit_op ()
+{
+  if (!first_select()->next_select())
+    return 0;
+
+  enum sub_select_type linkage= first_select()->next_select()->linkage;
+  return linkage == UNION_TYPE || linkage == INTERSECT_TYPE ||
+    linkage == EXCEPT_TYPE;
 }
 
 
@@ -3014,7 +3027,9 @@ public:
   int case_stmt_action_expr(Item* expr);
   int case_stmt_action_when(Item *when, bool simple);
   int case_stmt_action_then();
-  bool add_select_to_union_list(bool is_union_distinct,  bool is_top_level);
+  bool add_select_to_union_list(bool is_union_distinct,
+                                enum sub_select_type type,
+                                bool is_top_level);
   bool setup_select_in_parentheses();
   bool set_trigger_new_row(LEX_STRING *name, Item *val);
   bool set_system_variable(struct sys_var_with_base *tmp,
@@ -3130,6 +3145,10 @@ public:
   */
   bool tmp_table() const { return create_info.tmp_table(); }
   bool if_exists() const { return create_info.if_exists(); }
+
+  SELECT_LEX *exclude_last_select();
+  bool add_unit_in_brackets(SELECT_LEX *nselect);
+  void check_automatic_up(enum sub_select_type type);
 };
 
 

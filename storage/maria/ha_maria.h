@@ -190,6 +190,8 @@ public:
   
   /* Index condition pushdown implementation */
   Item *idx_cond_push(uint keyno, Item* idx_cond);
+
+  int find_unique_row(uchar *record, uint unique_idx);
 private:
   DsMrr_impl ds_mrr;
   friend ICP_RESULT index_cond_func_maria(void *arg);
