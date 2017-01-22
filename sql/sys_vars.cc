@@ -454,12 +454,12 @@ static bool binlog_format_check(sys_var *self, THD *thd, set_var *var)
   {
     // Push a warning to the error log.
     push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN, ER_UNKNOWN_ERROR,
-                        "MariaDB Galera and flashback does not support binlog format: %s",
+                        "MariaDB Galera and flashback do not support binlog format: %s",
                         binlog_format_names[var->save_result.ulonglong_value]);
 
     if (var->type == OPT_GLOBAL)
     {
-      WSREP_ERROR("MariaDB Galera and flashback does not support binlog format: %s",
+      WSREP_ERROR("MariaDB Galera and flashback do not support binlog format: %s",
                   binlog_format_names[var->save_result.ulonglong_value]);
       return true;
     }
