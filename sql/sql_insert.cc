@@ -1732,7 +1732,7 @@ int write_record(THD *thd, TABLE *table,COPY_INFO *info)
           in handler methods for the just read row in record[1].
         */
         table->move_fields(table->field, table->record[1], table->record[0]);
-        table->update_virtual_fields(VCOL_UPDATE_FOR_REPLACE);
+        table->update_virtual_fields(table->file, VCOL_UPDATE_FOR_REPLACE);
         table->move_fields(table->field, table->record[0], table->record[1]);
       }
       if (info->handle_duplicates == DUP_UPDATE)
@@ -3268,7 +3268,8 @@ bool Delayed_insert::handle_inserts(void)
         TABLE object used had vcol_set empty. Better to calculate them
         here to make the caller faster.
       */
-      tmp_error= table->update_virtual_fields(VCOL_UPDATE_FOR_WRITE);
+      tmp_error= table->update_virtual_fields(table->file,
+                                              VCOL_UPDATE_FOR_WRITE);
     }
 
     if (tmp_error || write_record(&thd, table, &info))

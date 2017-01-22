@@ -682,7 +682,7 @@ int mysql_update(THD *thd,
       if (error >= 0)
 	goto err;
     }
-    table->set_keyread(false);
+    table->file->ha_end_keyread();
     table->column_bitmaps_set(save_read_set, save_write_set);
   }
 
@@ -1032,7 +1032,7 @@ err:
   delete select;
   delete file_sort;
   free_underlaid_joins(thd, select_lex);
-  table->set_keyread(false);
+  table->file->ha_end_keyread();
   thd->abort_on_warning= 0;
   DBUG_RETURN(1);
 
@@ -2404,7 +2404,8 @@ int multi_update::do_updates()
       } while ((tbl= check_opt_it++));
 
       if (table->vfield &&
-          table->update_virtual_fields(VCOL_UPDATE_INDEXED_FOR_UPDATE))
+          table->update_virtual_fields(table->file,
+                                       VCOL_UPDATE_INDEXED_FOR_UPDATE))
         goto err2;
 
       table->status|= STATUS_UPDATED;
@@ -2431,7 +2432,7 @@ int multi_update::do_updates()
             (error= table->update_default_fields(1, ignore)))
           goto err2;
         if (table->vfield &&
-            table->update_virtual_fields(VCOL_UPDATE_FOR_WRITE))
+            table->update_virtual_fields(table->file, VCOL_UPDATE_FOR_WRITE))
           goto err2;
         if ((error= cur_table->view_check_option(thd, ignore)) !=
             VIEW_CHECK_OK)

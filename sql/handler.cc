@@ -2580,7 +2580,7 @@ int handler::ha_rnd_next(uchar *buf)
   {
     update_rows_read();
     if (table->vfield && buf == table->record[0])
-      table->update_virtual_fields(VCOL_UPDATE_FOR_READ);
+      table->update_virtual_fields(this, VCOL_UPDATE_FOR_READ);
     increment_statistics(&SSV::ha_read_rnd_next_count);
   }
   else if (result == HA_ERR_RECORD_DELETED)
@@ -2608,7 +2608,7 @@ int handler::ha_rnd_pos(uchar *buf, uchar *pos)
   {
     update_rows_read();
     if (table->vfield && buf == table->record[0])
-      table->update_virtual_fields(VCOL_UPDATE_FOR_READ);
+      table->update_virtual_fields(this, VCOL_UPDATE_FOR_READ);
   }
   table->status=result ? STATUS_NOT_FOUND: 0;
   DBUG_RETURN(result);
@@ -2631,7 +2631,7 @@ int handler::ha_index_read_map(uchar *buf, const uchar *key,
   {
     update_index_statistics();
     if (table->vfield && buf == table->record[0])
-      table->update_virtual_fields(VCOL_UPDATE_FOR_READ);
+      table->update_virtual_fields(this, VCOL_UPDATE_FOR_READ);
   }
   table->status=result ? STATUS_NOT_FOUND: 0;
   DBUG_RETURN(result);
@@ -2660,7 +2660,7 @@ int handler::ha_index_read_idx_map(uchar *buf, uint index, const uchar *key,
     update_rows_read();
     index_rows_read[index]++;
     if (table->vfield && buf == table->record[0])
-      table->update_virtual_fields(VCOL_UPDATE_FOR_READ);
+      table->update_virtual_fields(this, VCOL_UPDATE_FOR_READ);
   }
   table->status=result ? STATUS_NOT_FOUND: 0;
   return result;
@@ -2681,7 +2681,7 @@ int handler::ha_index_next(uchar * buf)
   {
     update_index_statistics();
     if (table->vfield && buf == table->record[0])
-      table->update_virtual_fields(VCOL_UPDATE_FOR_READ);
+      table->update_virtual_fields(this, VCOL_UPDATE_FOR_READ);
   }
   table->status=result ? STATUS_NOT_FOUND: 0;
   DBUG_RETURN(result);
@@ -2702,7 +2702,7 @@ int handler::ha_index_prev(uchar * buf)
   {
     update_index_statistics();
     if (table->vfield && buf == table->record[0])
-      table->update_virtual_fields(VCOL_UPDATE_FOR_READ);
+      table->update_virtual_fields(this, VCOL_UPDATE_FOR_READ);
   }
   table->status=result ? STATUS_NOT_FOUND: 0;
   DBUG_RETURN(result);
@@ -2722,7 +2722,7 @@ int handler::ha_index_first(uchar * buf)
   {
     update_index_statistics();
     if (table->vfield && buf == table->record[0])
-      table->update_virtual_fields(VCOL_UPDATE_FOR_READ);
+      table->update_virtual_fields(this, VCOL_UPDATE_FOR_READ);
   }
   table->status=result ? STATUS_NOT_FOUND: 0;
   return result;
@@ -2742,7 +2742,7 @@ int handler::ha_index_last(uchar * buf)
   {
     update_index_statistics();
     if (table->vfield && buf == table->record[0])
-      table->update_virtual_fields(VCOL_UPDATE_FOR_READ);
+      table->update_virtual_fields(this, VCOL_UPDATE_FOR_READ);
   }
   table->status=result ? STATUS_NOT_FOUND: 0;
   return result;
@@ -2762,7 +2762,7 @@ int handler::ha_index_next_same(uchar *buf, const uchar *key, uint keylen)
   {
     update_index_statistics();
     if (table->vfield && buf == table->record[0])
-      table->update_virtual_fields(VCOL_UPDATE_FOR_READ);
+      table->update_virtual_fields(this, VCOL_UPDATE_FOR_READ);
   }
   table->status=result ? STATUS_NOT_FOUND: 0;
   return result;
@@ -5911,7 +5911,7 @@ int handler::ha_reset()
               table->s->column_bitmap_size ==
               (uchar*) table->def_write_set.bitmap);
   DBUG_ASSERT(bitmap_is_set_all(&table->s->all_set));
-  DBUG_ASSERT(table->key_read == 0);
+  DBUG_ASSERT(table->file->key_read == 0);
   /* ensure that ha_index_end / ha_rnd_end has been called */
   DBUG_ASSERT(inited == NONE);
   /* reset the bitmaps to point to defaults */

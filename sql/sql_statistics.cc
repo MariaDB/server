@@ -2633,8 +2633,7 @@ int collect_statistics_for_index(THD *thd, TABLE *table, uint index)
     DBUG_RETURN(rc);
   }
 
-  table->key_read= 1;
-  table->file->extra(HA_EXTRA_KEYREAD);
+  table->file->ha_start_keyread();
 
   table->file->ha_index_init(index, TRUE);
   rc= table->file->ha_index_first(table->record[0]);
@@ -2649,7 +2648,7 @@ int collect_statistics_for_index(THD *thd, TABLE *table, uint index)
     index_prefix_calc.add();
     rc= table->file->ha_index_next(table->record[0]);
   }
-  table->key_read= 0;
+  table->file->ha_end_keyread();
   table->file->ha_index_end();
 
   rc= (rc == HA_ERR_END_OF_FILE && !thd->killed) ? 0 : 1;

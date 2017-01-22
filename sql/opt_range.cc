@@ -1236,7 +1236,7 @@ QUICK_SELECT_I::QUICK_SELECT_I()
 QUICK_RANGE_SELECT::QUICK_RANGE_SELECT(THD *thd, TABLE *table, uint key_nr,
                                        bool no_alloc, MEM_ROOT *parent_alloc,
                                        bool *create_error)
-  :doing_key_read(0),free_file(0),cur_range(NULL),last_range(0),dont_free(0)
+  :free_file(0),cur_range(NULL),last_range(0),dont_free(0)
 {
   my_bitmap_map *bitmap;
   DBUG_ENTER("QUICK_RANGE_SELECT::QUICK_RANGE_SELECT");
@@ -1318,8 +1318,7 @@ QUICK_RANGE_SELECT::~QUICK_RANGE_SELECT()
     if (file) 
     {
       range_end();
-      if (doing_key_read)
-        file->extra(HA_EXTRA_NO_KEYREAD);
+      file->ha_end_keyread();
       if (free_file)
       {
         DBUG_PRINT("info", ("Freeing separate handler 0x%lx (free: %d)", (long) file,
@@ -1475,7 +1474,6 @@ int QUICK_RANGE_SELECT::init_ror_merged_scan(bool reuse_handler,
                                              MEM_ROOT *local_alloc)
 {
   handler *save_file= file, *org_file;
-  my_bool org_key_read;
   THD *thd= head->in_use;
   MY_BITMAP * const save_vcol_set= head->vcol_set;
   MY_BITMAP * const save_read_set= head->read_set;
@@ -1537,21 +1535,15 @@ end:
     key. The 'column_bitmap' is used in ::get_next()
   */
   org_file= head->file;
-  org_key_read= head->key_read;
   head->file= file;
-  head->key_read= 0;
   head->mark_columns_used_by_index_no_reset(index, &column_bitmap);
 
   if (!head->no_keyread)
-  {
-    doing_key_read= 1;
-    head->set_keyread(true);
-  }
+    head->file->ha_start_keyread();
 
   head->prepare_for_position();
 
   head->file= org_file;
-  head->key_read= org_key_read;
 
   /* Restore head->read_set (and write_set) to what they had before the call */
   head->column_bitmaps_set(save_read_set, save_write_set);
@@ -10631,7 +10623,7 @@ QUICK_RANGE_SELECT *get_quick_select_for_ref(THD *thd, TABLE *table,
 
   /* Call multi_range_read_info() to get the MRR flags and buffer size */
   quick->mrr_flags= HA_MRR_NO_ASSOCIATION | 
-                    (table->key_read ? HA_MRR_INDEX_ONLY : 0);
+                    (table->file->key_read ? HA_MRR_INDEX_ONLY : 0);
   if (thd->lex->sql_command != SQLCOM_SELECT)
     quick->mrr_flags |= HA_MRR_USE_DEFAULT_IMPL;
 
@@ -10681,15 +10673,10 @@ int read_keys_and_merge_scans(THD *thd,
   Unique *unique= *unique_ptr;
   handler *file= head->file;
   bool with_cpk_filter= pk_quick_select != NULL;
-  bool enabled_keyread= 0;
   DBUG_ENTER("read_keys_and_merge");
 
   /* We're going to just read rowids. */
-  if (!head->key_read)
-  {
-    enabled_keyread= 1;
-    head->set_keyread(true);
-  }
+  head->file->ha_start_keyread();
   head->prepare_for_position();
 
   cur_quick_it.rewind();
@@ -10780,16 +10767,14 @@ int read_keys_and_merge_scans(THD *thd,
   /*
     index merge currently doesn't support "using index" at all
   */
-  if (enabled_keyread)
-    head->set_keyread(false);
+  head->file->ha_end_keyread();
   if (init_read_record(read_record, thd, head, (SQL_SELECT*) 0,
                        &unique->sort, 1 , 1, TRUE))
     result= 1;
  DBUG_RETURN(result);
 
 err:
-  if (enabled_keyread)
-    head->set_keyread(false);
+  head->file->ha_end_keyread();
   DBUG_RETURN(1);
 }
 
@@ -13340,7 +13325,7 @@ QUICK_GROUP_MIN_MAX_SELECT(TABLE *table, JOIN *join_arg, bool have_min_arg,
    group_prefix_len(group_prefix_len_arg),
    group_key_parts(group_key_parts_arg), have_min(have_min_arg),
    have_max(have_max_arg), have_agg_distinct(have_agg_distinct_arg),
-   seen_first_key(FALSE), doing_key_read(FALSE), min_max_arg_part(min_max_arg_part_arg),
+   seen_first_key(FALSE), min_max_arg_part(min_max_arg_part_arg),
    key_infix(key_infix_arg), key_infix_len(key_infix_len_arg),
    min_functions_it(NULL), max_functions_it(NULL),
    is_index_scan(is_index_scan_arg)
@@ -13480,8 +13465,7 @@ QUICK_GROUP_MIN_MAX_SELECT::~QUICK_GROUP_MIN_MAX_SELECT()
   if (file->inited != handler::NONE) 
   {
     DBUG_ASSERT(file == head->file);
-    if (doing_key_read)
-      head->set_keyread(false);
+    head->file->ha_end_keyread();
     /*
       There may be a code path when the same table was first accessed by index,
       then the index is closed, and the table is scanned (order by + loose scan).
@@ -13671,11 +13655,8 @@ int QUICK_GROUP_MIN_MAX_SELECT::reset(void)
   DBUG_ENTER("QUICK_GROUP_MIN_MAX_SELECT::reset");
 
   seen_first_key= FALSE;
-  if (!head->key_read)
-  {
-    doing_key_read= 1;
-    head->set_keyread(true); /* We need only the key attributes */
-  }
+  head->file->ha_start_keyread(); /* We need only the key attributes */
+
   if ((result= file->ha_index_init(index,1)))
   {
     head->file->print_error(result, MYF(0));

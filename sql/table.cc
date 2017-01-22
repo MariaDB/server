@@ -4447,7 +4447,7 @@ void TABLE::init(THD *thd, TABLE_LIST *tl)
     (*f_ptr)->cond_selectivity= 1.0;
   }
 
-  DBUG_ASSERT(key_read == 0);
+  DBUG_ASSERT(file->key_read == 0);
 
   /* mark the record[0] uninitialized */
   TRASH_ALLOC(record[0], s->reclength);
@@ -6096,7 +6096,7 @@ void TABLE::mark_columns_used_by_index(uint index)
   MY_BITMAP *bitmap= &tmp_set;
   DBUG_ENTER("TABLE::mark_columns_used_by_index");
 
-  set_keyread(true);
+  file->ha_start_keyread();
   bitmap_clear_all(bitmap);
   mark_columns_used_by_index_no_reset(index, bitmap);
   column_bitmaps_set(bitmap, bitmap);
@@ -6117,7 +6117,7 @@ void TABLE::add_read_columns_used_by_index(uint index)
   MY_BITMAP *bitmap= &tmp_set;
   DBUG_ENTER("TABLE::add_read_columns_used_by_index");
 
-  set_keyread(true);
+  file->ha_start_keyread();
   bitmap_copy(bitmap, read_set);
   mark_columns_used_by_index_no_reset(index, bitmap);
   column_bitmaps_set(bitmap, write_set);
@@ -6140,7 +6140,7 @@ void TABLE::restore_column_maps_after_mark_index()
 {
   DBUG_ENTER("TABLE::restore_column_maps_after_mark_index");
 
-  set_keyread(false);
+  file->ha_end_keyread();
   default_column_bitmaps();
   file->column_bitmaps_signal();
   DBUG_VOID_RETURN;
@@ -7335,7 +7335,7 @@ public:
     >0   Error occurred when storing a virtual field value
 */
 
-int TABLE::update_virtual_fields(enum_vcol_update_mode update_mode)
+int TABLE::update_virtual_fields(handler *h, enum_vcol_update_mode update_mode)
 {
   DBUG_ENTER("TABLE::update_virtual_fields");
   DBUG_PRINT("enter", ("update_mode: %d", update_mode));
@@ -7370,7 +7370,7 @@ int TABLE::update_virtual_fields(enum_vcol_update_mode update_mode)
     switch (update_mode) {
     case VCOL_UPDATE_FOR_READ:
       update= !vcol_info->stored_in_db
-           && !(key_read && vf->part_of_key.is_set(file->active_index))
+           && !(h->key_read && vf->part_of_key.is_set(h->active_index))
            && bitmap_is_set(vcol_set, vf->field_index);
       swap_values= 1;
       break;
@@ -7400,7 +7400,7 @@ int TABLE::update_virtual_fields(enum_vcol_update_mode update_mode)
       /* Read indexed fields that was not updated in VCOL_UPDATE_FOR_READ */
       update= (!vcol_info->stored_in_db && (vf->flags & PART_KEY_FLAG) &&
                bitmap_is_set(vcol_set, vf->field_index) &&
-               (key_read && vf->part_of_key.is_set(file->active_index)));
+               (h->key_read && vf->part_of_key.is_set(h->active_index)));
       swap_values= 1;
       break;
     }

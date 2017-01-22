@@ -1037,7 +1037,6 @@ class QUICK_RANGE_SELECT : public QUICK_SELECT_I
 {
 protected:
   /* true if we enabled key only reads */
-  bool doing_key_read;
   handler *file;
 
   /* Members to deal with case when this quick select is a ROR-merged scan */

@@ -1245,11 +1245,6 @@ public:
   */
   bool keep_row_order;
 
-  /**
-     If set, the optimizer has found that row retrieval should access index 
-     tree only.
-   */
-  bool key_read;
   bool no_keyread;
   /**
     If set, indicate that the table is not replicated by the server.
@@ -1388,23 +1383,6 @@ public:
     tablenr= tablenr_arg;
   }
 
-  void set_keyread(bool flag)
-  {
-    DBUG_ASSERT(file);
-    if (flag && !key_read)
-    {
-      key_read= 1;
-      if (is_created())
-        file->extra(HA_EXTRA_KEYREAD);
-    }
-    else if (!flag && key_read)
-    {
-      key_read= 0;
-      if (is_created())
-        file->extra(HA_EXTRA_NO_KEYREAD);
-    }
-  }
-
   /// Return true if table is instantiated, and false otherwise.
   bool is_created() const { return created; }
 
@@ -1416,7 +1394,7 @@ public:
   {
     if (created)
       return;
-    if (key_read)
+    if (file->key_read)
       file->extra(HA_EXTRA_KEYREAD);
     created= true;
   }
@@ -1438,7 +1416,7 @@ public:
   uint actual_n_key_parts(KEY *keyinfo);
   ulong actual_key_flags(KEY *keyinfo);
   int update_virtual_field(Field *vf);
-  int update_virtual_fields(enum_vcol_update_mode update_mode);
+  int update_virtual_fields(handler *h, enum_vcol_update_mode update_mode);
   int update_default_fields(bool update, bool ignore_errors);
   void reset_default_fields();
   inline ha_rows stat_records() { return used_stat_records; }

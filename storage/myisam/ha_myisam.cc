@@ -665,8 +665,8 @@ static int compute_vcols(MI_INFO *info, uchar *record, int keynum)
   table->move_fields(table->field, record, table->field[0]->record_ptr());
   if (keynum == -1) // update all vcols
   {
-    int error= table->update_virtual_fields(VCOL_UPDATE_FOR_READ);
-    if (table->update_virtual_fields(VCOL_UPDATE_INDEXED))
+    int error= table->update_virtual_fields(table->file, VCOL_UPDATE_FOR_READ);
+    if (table->update_virtual_fields(table->file, VCOL_UPDATE_INDEXED))
       error= 1;
     return error;
   }
