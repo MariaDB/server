@@ -14,6 +14,7 @@ cache:
 
 env:
   matrix:
+    - GCC_VERSION=4.8
     - GCC_VERSION=5
     - GCC_VERSION=6
 addons:
