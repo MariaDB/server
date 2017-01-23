@@ -742,45 +742,35 @@ static void setup_one_conversion_function(THD *thd, Item_param *param,
   switch (param_type) {
   case MYSQL_TYPE_TINY:
     param->set_param_func= set_param_tiny;
-    param->item_type= Item::INT_ITEM;
     break;
   case MYSQL_TYPE_SHORT:
     param->set_param_func= set_param_short;
-    param->item_type= Item::INT_ITEM;
     break;
   case MYSQL_TYPE_LONG:
     param->set_param_func= set_param_int32;
-    param->item_type= Item::INT_ITEM;
     break;
   case MYSQL_TYPE_LONGLONG:
     param->set_param_func= set_param_int64;
-    param->item_type= Item::INT_ITEM;
     break;
   case MYSQL_TYPE_FLOAT:
     param->set_param_func= set_param_float;
-    param->item_type= Item::REAL_ITEM;
     break;
   case MYSQL_TYPE_DOUBLE:
     param->set_param_func= set_param_double;
-    param->item_type= Item::REAL_ITEM;
     break;
   case MYSQL_TYPE_DECIMAL:
   case MYSQL_TYPE_NEWDECIMAL:
     param->set_param_func= set_param_decimal;
-    param->item_type= Item::DECIMAL_ITEM;
     break;
   case MYSQL_TYPE_TIME:
     param->set_param_func= set_param_time;
-    param->item_type= Item::STRING_ITEM;
     break;
   case MYSQL_TYPE_DATE:
     param->set_param_func= set_param_date;
-    param->item_type= Item::STRING_ITEM;
     break;
   case MYSQL_TYPE_DATETIME:
   case MYSQL_TYPE_TIMESTAMP:
     param->set_param_func= set_param_datetime;
-    param->item_type= Item::STRING_ITEM;
     break;
   case MYSQL_TYPE_TINY_BLOB:
   case MYSQL_TYPE_MEDIUM_BLOB:
@@ -792,7 +782,6 @@ static void setup_one_conversion_function(THD *thd, Item_param *param,
       thd->variables.character_set_client;
     DBUG_ASSERT(thd->variables.character_set_client);
     param->value.cs_info.final_character_set_of_str_value= &my_charset_bin;
-    param->item_type= Item::STRING_ITEM;
     break;
   default:
     /*
@@ -821,7 +810,6 @@ static void setup_one_conversion_function(THD *thd, Item_param *param,
         Exact value of max_length is not known unless data is converted to
         charset of connection, so we have to set it later.
       */
-      param->item_type= Item::STRING_ITEM;
     }
   }
   param->set_handler_by_field_type((enum enum_field_types) param_type);
@@ -892,7 +880,7 @@ static bool insert_params_with_log(Prepared_statement *stmt, uchar *null_array,
   for (Item_param **it= begin; it < end; ++it)
   {
     Item_param *param= *it;
-    if (param->state != Item_param::LONG_DATA_VALUE)
+    if (!param->has_long_data_value())
     {
       if (is_param_null(null_array, (uint) (it - begin)))
         param->set_null();
@@ -901,13 +889,12 @@ static bool insert_params_with_log(Prepared_statement *stmt, uchar *null_array,
         if (read_pos >= data_end)
           DBUG_RETURN(1);
         param->set_param_func(param, &read_pos, (uint) (data_end - read_pos));
-        if (param->state == Item_param::NO_VALUE)
+        if (param->has_no_value())
           DBUG_RETURN(1);
 
-        if (param->limit_clause_param && param->state != Item_param::INT_VALUE)
+        if (param->limit_clause_param && !param->has_int_value())
         {
           param->set_int(param->val_int(), MY_INT64_NUM_DECIMAL_DIGITS);
-          param->item_type= Item::INT_ITEM;
           if (!param->unsigned_flag && param->value.integer < 0)
             DBUG_RETURN(1);
         }
@@ -947,7 +934,7 @@ static bool insert_params(Prepared_statement *stmt, uchar *null_array,
   for (Item_param **it= begin; it < end; ++it)
   {
     Item_param *param= *it;
-    if (param->state != Item_param::LONG_DATA_VALUE)
+    if (!param->has_long_data_value())
     {
       if (is_param_null(null_array, (uint) (it - begin)))
         param->set_null();
@@ -956,7 +943,7 @@ static bool insert_params(Prepared_statement *stmt, uchar *null_array,
         if (read_pos >= data_end)
           DBUG_RETURN(1);
         param->set_param_func(param, &read_pos, (uint) (data_end - read_pos));
-        if (param->state == Item_param::NO_VALUE)
+        if (param->has_no_value())
           DBUG_RETURN(1);
       }
     }
@@ -989,7 +976,7 @@ static bool insert_bulk_params(Prepared_statement *stmt,
     Item_param *param= *it;
     if (reset)
       param->reset();
-    if (param->state != Item_param::LONG_DATA_VALUE)
+    if (!param->has_long_data_value())
     {
       if (param->indicators)
         param->indicator= (enum_indicator_type) *((*read_pos)++);
@@ -1003,7 +990,7 @@ static bool insert_bulk_params(Prepared_statement *stmt,
         if ((*read_pos) >= data_end)
           DBUG_RETURN(1);
         param->set_param_func(param, read_pos, (uint) (data_end - (*read_pos)));
-        if (param->state == Item_param::NO_VALUE)
+        if (param->has_no_value())
           DBUG_RETURN(1);
         break;
       case STMT_INDICATOR_NULL:
@@ -1093,7 +1080,7 @@ static bool emb_insert_params(Prepared_statement *stmt, String *expanded_query)
   {
     Item_param *param= *it;
     setup_one_conversion_function(thd, param, client_param->buffer_type);
-    if (param->state != Item_param::LONG_DATA_VALUE)
+    if (!param->has_long_data_value())
     {
       if (*client_param->is_null)
         param->set_null();
@@ -1105,7 +1092,7 @@ static bool emb_insert_params(Prepared_statement *stmt, String *expanded_query)
                               client_param->length ?
                               *client_param->length :
                               client_param->buffer_length);
-        if (param->state == Item_param::NO_VALUE)
+        if (param->has_no_value())
           DBUG_RETURN(1);
       }
     }
@@ -1129,7 +1116,7 @@ static bool emb_insert_params_with_log(Prepared_statement *stmt, String *query)
   {
     Item_param *param= *it;
     setup_one_conversion_function(thd, param, client_param->buffer_type);
-    if (param->state != Item_param::LONG_DATA_VALUE)
+    if (!param->has_long_data_value())
     {
       if (*client_param->is_null)
         param->set_null();
@@ -1141,7 +1128,7 @@ static bool emb_insert_params_with_log(Prepared_statement *stmt, String *query)
                               client_param->length ?
                               *client_param->length :
                               client_param->buffer_length);
-        if (param->state == Item_param::NO_VALUE)
+        if (param->has_no_value())
           DBUG_RETURN(1);
       }
     }

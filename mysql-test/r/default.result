@@ -3278,6 +3278,44 @@ INSERT INTO t1 VALUES (1),(2),(3);
 EXECUTE IMMEDIATE 'EXPLAIN EXTENDED SELECT * FROM t1 WHERE ?+a<=>?+a' USING DEFAULT,DEFAULT;
 ERROR HY000: Default/ignore value is not supported for such parameter usage
 DROP TABLE t1;
+#
+# MDEV-11134 Assertion `fixed' failed in Item::const_charset_converter(THD*, CHARSET_INFO*, bool, const char*)
+#
+SET NAMES utf8;
+PREPARE stmt FROM "CREATE OR REPLACE TABLE t1 (c CHAR(8) DEFAULT ?)";
+SET @a='';
+EXECUTE stmt USING @a;
+EXECUTE stmt USING @a;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c` char(8) DEFAULT ''
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+SET @a='A';
+EXECUTE stmt USING @a;
+EXECUTE stmt USING @a;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c` char(8) DEFAULT 'A'
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+SET @a=_utf8 0xC380;
+EXECUTE stmt USING @a;
+EXECUTE stmt USING @a;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c` char(8) DEFAULT 'À'
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+SET @a=_utf8 0xD18F;
+EXECUTE stmt USING @a;
+ERROR 42000: Invalid default value for 'c'
+EXECUTE stmt USING @a;
+ERROR 42000: Invalid default value for 'c'
+DEALLOCATE PREPARE stmt;
 # end of 10.2 test
 set sql_mode=ansi_quotes;
 create table t1 (a int, b int default (a+1));
