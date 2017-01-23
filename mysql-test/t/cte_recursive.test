@@ -1304,6 +1304,7 @@ drop table folks;
 create table t1(a int);
 insert into t1 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
  
+--source include/analyze-format.inc
 explain format=json 
 with recursive t as (select a from t1 union select a+10 from t where a < 1000) 
 select  * from t;
