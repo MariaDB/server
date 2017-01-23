@@ -1231,10 +1231,7 @@ int json_key_matches(json_engine_t *je, json_string_t *k)
       return 0;
   }
 
-  if (json_read_string_const_chr(k))
-    return 1;
-
-  return 0;
+  return json_read_string_const_chr(k);
 }
 
 

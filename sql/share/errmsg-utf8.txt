@@ -7440,3 +7440,9 @@ ER_JSON_ONE_OR_ALL
         eng "Argument 2 to function '%s' must be "one" or "all"."
 ER_UNSUPPORT_COMPRESSED_TEMPORARY_TABLE
 	eng "CREATE TEMPORARY TABLE is not allowed with ROW_FORMAT=COMPRESSED or KEY_BLOCK_SIZE."
+ER_GEOJSON_INCORRECT
+        eng "Incorrect GeoJSON format specified for st_geomfromgeojson function."
+ER_GEOJSON_TOO_FEW_POINTS
+        eng "Incorrect GeoJSON format - too few points for linestring specified."
+ER_GEOJSON_NOT_CLOSED
+        eng "Incorrect GeoJSON format - polygon not closed."

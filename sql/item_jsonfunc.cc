@@ -117,9 +117,9 @@ static int st_append_escaped(String *s, const String *a)
   report_json_error_ex(js, je, func_name(), n_param, \
       Sql_condition::WARN_LEVEL_WARN)
 
-static void report_json_error_ex(String *js, json_engine_t *je,
-                                 const char *fname, int n_param,
-                                 Sql_condition::enum_warning_level lv)
+void report_json_error_ex(String *js, json_engine_t *je,
+                          const char *fname, int n_param,
+                          Sql_condition::enum_warning_level lv)
 {
   THD *thd= current_thd;
   int position= (const char *) je->s.c_str - js->ptr();
