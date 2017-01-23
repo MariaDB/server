@@ -9,34 +9,34 @@ create table t0 (a int);
 INSERT INTO t0 VALUES (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
 
 --echo # r_filtered=30%, because 3 rows match: 0,1,2
---replace_regex /"r_total_time_ms": [0-9]*[.]?[0-9]*/"r_total_time_ms": "REPLACED"/
+--source include/analyze-format.inc
 analyze format=json select * from t0 where a<3;
 
 create table t1 (a int, b int, c int, key(a));
 insert into t1 select A.a*10 + B.a, A.a*10 + B.a, A.a*10 + B.a from t0 A, t0 B;
 
---replace_regex /"r_total_time_ms": [0-9]*[.]?[0-9]*/"r_total_time_ms": "REPLACED"/
+--source include/analyze-format.inc
 analyze
 select * from t0, t1 where t1.a=t0.a and t0.a > 9;
---replace_regex /"r_total_time_ms": [0-9]*[.]?[0-9]*/"r_total_time_ms": "REPLACED"/
+--source include/analyze-format.inc
 analyze format=json 
 select * from t0, t1 where t1.a=t0.a and t0.a > 9;
 
 analyze
 select * from t0, t1 where t1.a=t0.a and t1.b<4;
 
---replace_regex /"r_total_time_ms": [0-9]*[.]?[0-9]*/"r_total_time_ms": "REPLACED"/
+--source include/analyze-format.inc
 analyze format=json
 select * from t0, t1 where t1.a=t0.a and t1.b<4;
 
 analyze 
 select * from t1 tbl1, t1 tbl2 where tbl1.b<2 and tbl2.b>5;
 
---replace_regex /"r_total_time_ms": [0-9]*[.]?[0-9]*/"r_total_time_ms": "REPLACED"/
+--source include/analyze-format.inc
 analyze format=json
 select * from t1 tbl1, t1 tbl2 where tbl1.b<20 and tbl2.b<60;
 
---replace_regex /"r_total_time_ms": [0-9]*[.]?[0-9]*/"r_total_time_ms": "REPLACED"/
+--source include/analyze-format.inc
 analyze format=json
 select * from t1 tbl1, t1 tbl2 where tbl1.b<20 and tbl2.b<60 and tbl1.c > tbl2.c;
 
@@ -53,7 +53,7 @@ insert into t1 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
 create table t2 (a int, key(a));
 insert into t2 values (0),(1);
 
---replace_regex /"r_total_time_ms": [0-9]*[.]?[0-9]*/"r_total_time_ms": "REPLACED"/
+--source include/analyze-format.inc
 analyze format=json select * from t1 straight_join t2 force index(a) where t2.a=t1.a;
 
 drop table t1,t2;
@@ -69,7 +69,7 @@ select database();
 connect (con1,localhost,root,,*NO-ONE*);
 connection con1;
 select database();
---replace_regex /"r_total_time_ms": [0-9]*[.]?[0-9]*/"r_total_time_ms": "REPLACED"/
+--source include/analyze-format.inc
 analyze format=json select * from test.t1 where t1.a<5;
 disconnect con1;
 connection default;
@@ -91,15 +91,15 @@ create table t1 (pk int primary key);
 insert into t1 select a from t3;
 alter table t1 add b int;
 
---replace_regex /"r_total_time_ms": [0-9]*[.]?[0-9]*/"r_total_time_ms": "REPLACED"/
+--source include/analyze-format.inc
 analyze format=json
 update t1 set b=pk;
 
---replace_regex /"r_total_time_ms": [0-9]*[.]?[0-9]*/"r_total_time_ms": "REPLACED"/
+--source include/analyze-format.inc
 analyze format=json
 select * from t1 where pk < 10 and b > 4;
 
---replace_regex /"r_total_time_ms": [0-9]*[.]?[0-9]*/"r_total_time_ms": "REPLACED"/
+--source include/analyze-format.inc
 analyze format=json
 delete from t1 where pk < 10 and b > 4;
 
@@ -127,7 +127,7 @@ create table t2 (key1 int, key2 int, key3 int, key4 int, col1 int,
 insert into t2 select a,a,a,a,a from t3;
 insert into t2 select 15,15,15,15,15 from t4;
 
---replace_regex /"r_total_time_ms": [0-9]*[.]?[0-9]*/"r_total_time_ms": "REPLACED"/
+--source include/analyze-format.inc
 analyze format=json
 select * from t1, t2 where (t2.key1 between t1.lb1 and t1.rb1) and
                            (t2.key2 between t1.lb2 and t1.rb2) and
@@ -144,7 +144,7 @@ INSERT INTO t0 VALUES (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
 create table t1 (a int);
 INSERT INTO t1 select * from t0;
 
---replace_regex /"r_total_time_ms": [0-9]*[.]?[0-9]*/"r_total_time_ms": "REPLACED"/
+--source include/analyze-format.inc
 analyze format=json (select * from t1 tbl1 where a<5) union (select * from t1 tbl2 where a in (2,3));
 
 drop table t0, t1;
@@ -164,16 +164,16 @@ create table t2 (
 );
 insert into t2 select A.a*1000 + B.a, A.a*1000 + B.a from t0 A, t1 B;
 --echo # normal HAVING
---replace_regex /"(r_total_time_ms|r_buffer_size)": .*?,/"volatile parameter": "REPLACED",/
+--source include/analyze-format.inc
 analyze format=json select a, max(b) as TOP from t2 group by a having TOP > a;
 --echo # HAVING is always TRUE (not printed)
---replace_regex /"(r_total_time_ms|r_buffer_size)": .*?,/"volatile parameter": "REPLACED",/
+--source include/analyze-format.inc
 analyze format=json select a, max(b) as TOP from t2 group by a having 1<>2;
 --echo # HAVING is always FALSE (intercepted by message)
---replace_regex /"(r_total_time_ms|r_buffer_size)": .*?,/"volatile parameter": "REPLACED",/
+--source include/analyze-format.inc
 analyze format=json select a, max(b) as TOP from t2 group by a having 1=2;
 --echo # HAVING is absent
---replace_regex /"(r_total_time_ms|r_buffer_size)": .*?,/"volatile parameter": "REPLACED",/
+--source include/analyze-format.inc
 analyze format=json select a, max(b) as TOP from t2 group by a;
 drop table t0, t1, t2;
 
@@ -186,7 +186,7 @@ INSERT INTO t1 VALUES (1),(2);
 CREATE TABLE t2 (b INT);
 INSERT INTO t2 VALUES (3),(4);
 
---replace_regex /"(r_total_time_ms|r_buffer_size)": .*?,/"volatile parameter": "REPLACED",/
+--source include/analyze-format.inc
 ANALYZE FORMAT=JSON SELECT STRAIGHT_JOIN * FROM t1, t2 WHERE b IN ( SELECT a FROM t1 );
 
 drop table t1,t2;
@@ -203,7 +203,7 @@ INSERT INTO t2 VALUES (2),(3);
 CREATE TABLE t3 (f3 INT) ENGINE=MyISAM;
 INSERT INTO t3 VALUES (3),(4);
 
---replace_regex /"(r_total_time_ms|r_buffer_size)": .*?,/"volatile parameter": "REPLACED",/
+--source include/analyze-format.inc
 ANALYZE FORMAT=JSON 
 SELECT GROUP_CONCAT(f3) AS gc, ( SELECT MAX(f1) FROM t1, t2 WHERE f2 = f3 ) sq
 FROM t2, t3
