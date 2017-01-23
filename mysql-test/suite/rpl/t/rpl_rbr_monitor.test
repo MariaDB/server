@@ -1,0 +1,79 @@
+--source include/have_innodb.inc
+--source include/have_binlog_format_row.inc
+--source include/master-slave.inc
+--enable_connect_log
+
+--connection master
+create table t1(a int primary key);
+--save_master_pos
+
+--connection slave
+--sync_with_master
+SET GLOBAL debug_dbug="+d,should_sleep_for_mdev7409";
+select * from t1;
+
+--connection master
+insert into t1(a) values(1);
+--save_master_pos
+
+--echo #monitoring write rows
+--connection slave
+
+let $wait_condition= SELECT COUNT(*) = 1 FROM  INFORMATION_SCHEMA.PROCESSLIST
+      WHERE DB = 'test' AND STATE LIKE  "Write_rows_log_event::write_row(%) on table t1";
+--source include/wait_condition.inc
+SELECT db , state  FROM  INFORMATION_SCHEMA.PROCESSLIST
+      WHERE DB = 'test' AND STATE LIKE  "Write_rows_log_event::write_row(%) on table t1";
+--sync_with_master
+
+--echo #monitoring update rows
+--connection master
+update t1 set a = a + 4194304 ;
+
+--connection slave
+let $wait_condition= SELECT COUNT(*) = 1 FROM  INFORMATION_SCHEMA.PROCESSLIST
+  WHERE DB = 'test' AND STATE LIKE  "Update_rows_log_event::find_row(%) on table t1";
+--source include/wait_condition.inc
+SELECT db, state  FROM  INFORMATION_SCHEMA.PROCESSLIST
+  WHERE DB = 'test' AND STATE LIKE  "Update_rows_log_event::find_row(%) on table t1";
+
+let $wait_condition= SELECT COUNT(*) = 1 FROM  INFORMATION_SCHEMA.PROCESSLIST
+  WHERE DB = 'test' AND STATE LIKE  "Update_rows_log_event::unpack_current_row(%) on table t1";
+--source include/wait_condition.inc
+SELECT db, state FROM  INFORMATION_SCHEMA.PROCESSLIST
+  WHERE DB = 'test' AND STATE LIKE  "Update_rows_log_event::unpack_current_row(%) on table t1";
+
+let $wait_condition= SELECT COUNT(*) = 1 FROM  INFORMATION_SCHEMA.PROCESSLIST
+  WHERE DB = 'test' AND STATE LIKE  "Update_rows_log_event::ha_update_row(%) on table t1";
+--source include/wait_condition.inc
+SELECT db, state  FROM  INFORMATION_SCHEMA.PROCESSLIST
+  WHERE DB = 'test' AND STATE LIKE  "Update_rows_log_event::ha_update_row(%) on table t1";
+
+--source include/wait_condition.inc
+--sync_with_master
+
+--echo #monitoring delete rows
+--connection master
+delete from t1 where a>1;
+
+--connection slave
+let $wait_condition= SELECT COUNT(*) = 1 FROM  INFORMATION_SCHEMA.PROCESSLIST
+  WHERE DB = 'test' AND STATE LIKE  "Delete_rows_log_event::find_row(%) on table t1";
+--source include/wait_condition.inc
+SELECT db , state FROM  INFORMATION_SCHEMA.PROCESSLIST
+  WHERE DB = 'test' AND STATE LIKE  "Delete_rows_log_event::find_row(%) on table t1";
+
+let $wait_condition= SELECT COUNT(*) = 1 FROM  INFORMATION_SCHEMA.PROCESSLIST
+  WHERE DB = 'test' AND STATE LIKE  "Delete_rows_log_event::ha_delete_row(%) on table t1";
+--source include/wait_condition.inc
+SELECT db, state  FROM  INFORMATION_SCHEMA.PROCESSLIST
+  WHERE DB = 'test' AND STATE LIKE  "Delete_rows_log_event::ha_delete_row(%) on table t1";
+
+--sync_with_master
+
+#CleanUp
+--connection master
+drop table t1;
+--connection slave
+SET GLOBAL debug_dbug="";
+--source include/rpl_end.inc
