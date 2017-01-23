@@ -1,3 +1,4 @@
+call mtr.add_suppression("InnoDB: Table .* does not exist in the InnoDB internal data dictionary .*");
 #
 # Bug#11766879/Bug#60106: DIFF BETWEEN # OF INDEXES IN MYSQL VS INNODB,
 #                         PARTITONING, ON INDEX CREATE
@@ -28,19 +29,17 @@ t1	CREATE TABLE `t1` (
   `id2` bigint(20) NOT NULL,
   PRIMARY KEY (`id`,`time`)
 ) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8
-/*!50100 PARTITION BY RANGE (TO_DAYS(time))
+ PARTITION BY RANGE (TO_DAYS(time))
 (PARTITION p10 VALUES LESS THAN (734708) ENGINE = InnoDB,
- PARTITION p20 VALUES LESS THAN MAXVALUE ENGINE = InnoDB) */
+ PARTITION p20 VALUES LESS THAN MAXVALUE ENGINE = InnoDB)
 DROP TABLE t1;
 call mtr.add_suppression("InnoDB: Error: table `test`.`t1` .* InnoDB internal");
 #
 # Bug#55091: Server crashes on ADD PARTITION after a failed attempt
 #
-SET @old_innodb_file_format = @@global.innodb_file_format;
 SET @old_innodb_file_per_table = @@global.innodb_file_per_table;
 SET @old_innodb_strict_mode = @@global.innodb_strict_mode;
-SET @@global.innodb_file_format = Barracuda,
-@@global.innodb_file_per_table = ON,
+SET @@global.innodb_file_per_table = ON,
 @@global.innodb_strict_mode = ON;
 connect con1,localhost,root,,;
 CREATE TABLE t1 (id INT NOT NULL
@@ -59,8 +58,8 @@ t1	CREATE TABLE `t1` (
   `user_num` char(10) DEFAULT NULL,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 KEY_BLOCK_SIZE=4
-/*!50100 PARTITION BY HASH (id)
-PARTITIONS 1 */
+ PARTITION BY HASH (id)
+PARTITIONS 1
 SET GLOBAL innodb_file_per_table = OFF;
 disconnect con1;
 connect con2,localhost,root,,;
@@ -97,13 +96,12 @@ t1	CREATE TABLE `t1` (
   `user_num` char(10) DEFAULT NULL,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 KEY_BLOCK_SIZE=4
-/*!50100 PARTITION BY HASH (id)
-PARTITIONS 3 */
+ PARTITION BY HASH (id)
+PARTITIONS 3
 DROP TABLE t1;
 disconnect con2;
 connection default;
 SET @@global.innodb_strict_mode = @old_innodb_strict_mode;
-SET @@global.innodb_file_format = @old_innodb_file_format;
 SET @@global.innodb_file_per_table = @old_innodb_file_per_table;
 SET NAMES utf8;
 CREATE TABLE `t``\""e` (a INT, PRIMARY KEY (a))
@@ -143,16 +141,15 @@ ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
 # First table reported in 'SHOW ENGINE InnoDB STATUS'
 SHOW ENGINE InnoDB STATUS;
 Type	Name	Status
-InnoDB		index `PRIMARY` of table `test`.`t``\""e` /* Partition `p0``\""e`, Subpartition `sp0``\""e` */ 
+InnoDB		index PRIMARY of table `test`.`t``\""e` /* Partition `p0``\""e`, Subpartition `sp0``\""e` */
 set @old_sql_mode = @@sql_mode;
 set sql_mode = 'ANSI_QUOTES';
 SHOW ENGINE InnoDB STATUS;
 Type	Name	Status
-InnoDB		index `PRIMARY` of table `test`.`t``\""e` /* Partition `p0``\""e`, Subpartition `sp0``\""e` */ 
+InnoDB		index PRIMARY of table `test`.`t``\""e` /* Partition `p0``\""e`, Subpartition `sp0``\""e` */
 set @@sql_mode = @old_sql_mode;
 connection con1;
 ROLLBACK;
 disconnect con1;
 connection default;
 DROP TABLE `t``\""e`;
-SET NAMES DEFAULT;

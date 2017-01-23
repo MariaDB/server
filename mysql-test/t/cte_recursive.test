@@ -1162,6 +1162,140 @@ select h_name, h_dob, w_name, w_dob
   from ancestor_couples;
 
 
+create table my_ancestors
+with recursive
+ancestor_ids (id)
+as
+(
+  select father from folks where name = 'Me'
+  union
+  select mother from folks where name = 'Me'
+  union
+  select father from folks, ancestor_ids a  where folks.id = a.id
+  union
+  select mother from folks, ancestor_ids a  where folks.id = a.id
+)
+select p.* from folks as p, ancestor_ids as a where p.id = a.id;
+
+select * from my_ancestors;
+
+delete from my_ancestors;
+
+insert into my_ancestors 
+with recursive
+ancestor_ids (id)
+as
+(
+  select father from folks where name = 'Me'
+  union
+  select mother from folks where name = 'Me'
+  union
+  select father from folks, ancestor_ids a  where folks.id = a.id
+  union
+  select mother from folks, ancestor_ids a  where folks.id = a.id
+)
+select p.* from folks as p, ancestor_ids as a where p.id = a.id;
+
+select * from my_ancestors;
+
+drop table my_ancestors;
+
+--echo #
+--echo # MDEV-10883: execution of prepared statement from SELECT
+--echo #             with recursive CTE that renames columns
+--echo #
+
+prepare stmt from"
+with recursive
+ancestor_ids (id)
+as
+(
+  select father from folks where name = 'Me'
+  union
+  select mother from folks where name = 'Me'
+  union
+  select father from folks, ancestor_ids a  where folks.id = a.id
+  union
+  select mother from folks, ancestor_ids a  where folks.id = a.id
+)
+select p.* from folks as p, ancestor_ids as a where p.id = a.id;
+";
+execute stmt;
+deallocate prepare stmt;
+
+--echo #
+--echo # MDEV-10881: execution of prepared statement from
+--echo #             CREATE ... SELECT, INSERT ... SELECT       
+--echo #
+
+prepare stmt from"
+create table my_ancestors
+with recursive
+ancestor_ids (id)
+as
+(
+  select father from folks where name = 'Me'
+  union
+  select mother from folks where name = 'Me'
+  union
+  select father from folks, ancestor_ids a  where folks.id = a.id
+  union
+  select mother from folks, ancestor_ids a  where folks.id = a.id
+)
+select p.* from folks as p, ancestor_ids as a where p.id = a.id;
+";
+execute stmt;
+deallocate prepare stmt;
+select * from my_ancestors;
+
+delete from my_ancestors;
+
+prepare stmt from"
+insert into my_ancestors
+with recursive
+ancestor_ids (id)
+as
+(
+  select father from folks where name = 'Me'
+  union
+  select mother from folks where name = 'Me'
+  union
+  select father from folks, ancestor_ids a  where folks.id = a.id
+  union
+  select mother from folks, ancestor_ids a  where folks.id = a.id
+)
+select p.* from folks as p, ancestor_ids as a where p.id = a.id;
+";
+execute stmt;
+deallocate prepare stmt;
+select * from my_ancestors;
+
+drop table my_ancestors;
+
+--echo #
+--echo # MDEV-10933: WITH clause together with SELECT in parenthesis
+--echo #             CREATE SELECT      
+--echo #
+
+create table my_ancestors
+(
+with recursive
+ancestor_ids (id)
+as
+(
+  select father from folks where name = 'Me'
+  union
+  select mother from folks where name = 'Me'
+  union
+  select father from folks, ancestor_ids a  where folks.id = a.id
+  union
+  select mother from folks, ancestor_ids a  where folks.id = a.id
+)
+select p.* from folks as p, ancestor_ids as a where p.id = a.id
+);
+select * from my_ancestors;
+drop table my_ancestors;
+
 drop table folks;
 
 --echo #
@@ -1194,3 +1328,180 @@ WITH RECURSIVE cte(f) AS
   (SELECT t1.f FROM t1 UNION ALL SELECT cte.f FROM cte) 
 SELECT * FROM cte as t;
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-10899: mergeable derived in the spec of recursive CTE
+--echo #
+
+create table t1 (a int);
+insert into t1 values
+  (0), (1), (2), (3), (4);
+create table t2 (a int);
+insert into t2 values
+  (1), (2), (3), (4), (5);
+
+with recursive
+t1 as
+(
+select x.a from (select a from t2 where t2.a=3) x
+union
+select t2.a from t1,t2 where t1.a+1=t2.a
+)
+select * from t1;
+
+explain
+with recursive
+t1 as
+(
+select x.a from (select a from t2 where t2.a=3) x
+union
+select t2.a from t1,t2 where t1.a+1=t2.a
+)
+select * from t1;
+
+drop table t1,t2;
+
+--echo #
+--echo # MDEV-11278: non-mergeable view in the spec of recursive CTE
+--echo #
+
+create table t1 (a int);
+insert into t1 values
+  (0), (1), (2), (3), (4);
+create table t2 (a int);
+insert into t2 values
+  (1), (2), (3), (4), (5);
+
+create view v1 as
+  select a from t2 where a < 3
+  union
+  select a from t2 where a > 4; 
+
+with recursive
+t1 as
+(
+select a from v1 where a=1 
+union
+select v1.a from t1,v1 where t1.a+1=v1.a
+)
+select * from t1;
+
+drop view v1;
+drop table t1,t2;
+
+
+--echo #
+--echo # MDEV-11259: recursive CTE with concatenation operation
+--echo #
+
+DROP TABLE IF EXISTS edges;
+CREATE TABLE edges(
+  a int(10) unsigned NOT NULL,
+  b int(10) unsigned NOT NULL,
+  PRIMARY KEY (a,b),
+  KEY b(b)
+);
+
+INSERT INTO edges
+  VALUES (1,3),(2,1),(2,4),(3,4),(3,5),(3,6),(4,7),(5,1),(5,6),(6,1);
+
+DROP TABLE IF EXISTS edges2;
+CREATE VIEW edges2 (a, b) AS 
+ SELECT a, b FROM edges   UNION ALL   SELECT b, a FROM edges;
+
+--sorted_result
+WITH RECURSIVE transitive_closure(a, b, distance, path_string) AS
+( SELECT a, b, 1 AS distance,
+   concat(a, '.', b, '.') AS path_string
+  FROM edges
+ 
+  UNION ALL
+ 
+  SELECT tc.a, e.b, tc.distance + 1,
+  concat(tc.path_string, e.b, '.') AS path_string
+  FROM edges AS e
+    JOIN transitive_closure AS tc
+      ON e.a = tc.b
+  WHERE tc.path_string NOT LIKE concat('%', e.b, '.%')
+)
+SELECT * FROM transitive_closure
+ORDER BY a, b, distance;
+
+--sorted_result
+WITH RECURSIVE transitive_closure(a, b, distance, path_string) AS
+( SELECT a, b, 1 AS distance,
+         concat(a, '.', b, '.') AS path_string
+  FROM edges
+ WHERE a = 1 -- source
+ 
+  UNION ALL
+ 
+  SELECT tc.a, e.b, tc.distance + 1,
+         concat(tc.path_string, e.b, '.') AS path_string
+  FROM edges AS e
+  JOIN transitive_closure AS tc ON e.a = tc.b
+ WHERE tc.path_string NOT LIKE concat('%', e.b, '.%')
+)
+  SELECT * FROM transitive_closure
+   WHERE b = 6 -- destination
+ORDER BY a, b, distance;
+
+--sorted_result
+WITH RECURSIVE transitive_closure(a, b, distance, path_string) AS
+( SELECT  a, b, 1 AS distance,
+          concat(a, '.', b, '.') AS path_string
+  FROM edges2
+ 
+  UNION ALL
+ 
+  SELECT tc.a, e.b, tc.distance + 1,
+  concat(tc.path_string, e.b, '.') AS path_string
+  FROM edges2 AS e
+    JOIN transitive_closure AS tc ON e.a = tc.b
+  WHERE tc.path_string NOT LIKE concat('%', e.b, '.%')
+)
+SELECT * FROM transitive_closure
+ORDER BY a, b, distance;
+
+--sorted_result
+WITH RECURSIVE transitive_closure(a, b, distance, path_string)
+AS
+( SELECT a, b, 1 AS distance,
+         concat(a, '.', b, '.') AS path_string
+  FROM edges2
+ 
+  UNION ALL
+ 
+  SELECT tc.a, e.b, tc.distance + 1,
+         concat(tc.path_string, e.b, '.') AS path_string
+  FROM edges2 AS e
+  JOIN transitive_closure AS tc ON e.a = tc.b
+ WHERE tc.path_string NOT LIKE concat('%', e.b, '.%')
+)
+SELECT a, b, min(distance) AS dist FROM transitive_closure
+GROUP BY a, b
+ORDER BY a, dist, b;
+
+DROP VIEW edges2;
+DROP TABLE edges;
+
+
+--echo #
+--echo # MDEV-11674: recursive CTE table that cannot be stored
+--echo #             in a heap table
+--echo #
+
+create table t1 (id int, test_data varchar(36));
+
+insert into t1(id, test_data)
+select id, test_data
+    from (
+        with recursive data_generator(id, test_data) as (
+                select 1 as id, uuid() as test_data
+                union all
+                select id + 1, uuid() from data_generator where id < 150000
+            )
+        select * from data_generator
+    ) as a;
+
+drop table t1;

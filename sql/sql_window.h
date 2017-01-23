@@ -45,6 +45,8 @@ public:
 
   bool is_unbounded() { return offset == NULL; }
 
+  void print(String *str, enum_query_type query_type);
+
 };
 
 
@@ -83,6 +85,8 @@ public:
       bottom_bound(win_frame_bottom_bound), exclusion(win_frame_exclusion) {}
 
   bool check_frame_bounds();
+
+  void print(String *str, enum_query_type query_type);
 
 };
 
@@ -125,6 +129,9 @@ class Window_spec : public Sql_alloc
   {
     *(partition_list->next)= NULL;
   }
+
+  void print(String *str, enum_query_type query_type);
+
 };
 
 class Window_def : public Window_spec
@@ -186,7 +193,8 @@ private:
 class Window_funcs_sort : public Sql_alloc
 {
 public:
-  bool setup(THD *thd, SQL_SELECT *sel, List_iterator<Item_window_func> &it);
+  bool setup(THD *thd, SQL_SELECT *sel, List_iterator<Item_window_func> &it,
+             st_join_table *join_tab);
   bool exec(JOIN *join);
   void cleanup() { delete filesort; }
 

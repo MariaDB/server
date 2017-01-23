@@ -23,10 +23,10 @@ t1	CREATE TABLE `t1` (
   `created_at` datetime NOT NULL,
   `cool` tinyint(4) DEFAULT 0
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
-/*!50100 PARTITION BY RANGE (TO_DAYS(created_at))
+ PARTITION BY RANGE (TO_DAYS(created_at))
 (PARTITION month_2010_4 VALUES LESS THAN (734258) ENGINE = InnoDB,
  PARTITION month_2010_5 VALUES LESS THAN (734289) ENGINE = InnoDB,
- PARTITION month_max VALUES LESS THAN MAXVALUE ENGINE = InnoDB) */
+ PARTITION month_max VALUES LESS THAN MAXVALUE ENGINE = InnoDB)
 INSERT INTO t1 VALUES (1, now(), 0);
 flush status;
 show status like "Qcache_queries_in_cache";
@@ -72,12 +72,12 @@ t1	CREATE TABLE `t1` (
   `created_at` datetime NOT NULL,
   `cool` tinyint(4) DEFAULT 0
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
-/*!50100 PARTITION BY RANGE (TO_DAYS(created_at))
+ PARTITION BY RANGE (TO_DAYS(created_at))
 SUBPARTITION BY HASH (cool)
 SUBPARTITIONS 3
 (PARTITION month_2010_4 VALUES LESS THAN (734258) ENGINE = InnoDB,
  PARTITION month_2010_5 VALUES LESS THAN (734289) ENGINE = InnoDB,
- PARTITION month_max VALUES LESS THAN MAXVALUE ENGINE = InnoDB) */
+ PARTITION month_max VALUES LESS THAN MAXVALUE ENGINE = InnoDB)
 INSERT INTO t1 VALUES (1, now(), 0);
 flush status;
 show status like "Qcache_queries_in_cache";

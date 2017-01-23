@@ -322,42 +322,6 @@ MK_WRAPPER(
   mysql)
 
 MK_WRAPPER(
-  MYSQL_RES *,
-  mysql_list_dbs,
-  (MYSQL *mysql, const char *wild),
-  (&res, mysql, wild),
-  (mysql, wild),
-  mysql,
-  mysql)
-
-MK_WRAPPER(
-  MYSQL_RES *,
-  mysql_list_tables,
-  (MYSQL *mysql, const char *wild),
-  (&res, mysql, wild),
-  (mysql, wild),
-  mysql,
-  mysql)
-
-MK_WRAPPER(
-  MYSQL_RES *,
-  mysql_list_processes,
-  (MYSQL *mysql),
-  (&res, mysql),
-  (mysql),
-  mysql,
-  mysql)
-
-MK_WRAPPER(
-  MYSQL_RES *,
-  mysql_list_fields,
-  (MYSQL *mysql, const char *table, const char *wild),
-  (&res, mysql, table, wild),
-  (mysql, table, wild),
-  mysql,
-  mysql)
-
-MK_WRAPPER(
   my_bool,
   mysql_read_query_result,
   (MYSQL *mysql),
@@ -500,7 +464,6 @@ MK_WRAPPER(
 #define mysql_list_dbs wrap_mysql_list_dbs
 #define mysql_list_tables wrap_mysql_list_tables
 #define mysql_list_processes wrap_mysql_list_processes
-#define mysql_list_fields wrap_mysql_list_fields
 #define mysql_read_query_result wrap_mysql_read_query_result
 #define mysql_stmt_prepare wrap_mysql_stmt_prepare
 #define mysql_stmt_execute wrap_mysql_stmt_execute

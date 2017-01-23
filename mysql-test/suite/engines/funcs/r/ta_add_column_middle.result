@@ -1071,7 +1071,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` int(11) NOT NULL,
-  `c2` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `c2` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   `c3` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
   PRIMARY KEY (`c1`)
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
@@ -1083,7 +1083,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` int(11) NOT NULL,
-  `c2` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `c2` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   `c4` bit(1) NOT NULL,
   `c3` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
   PRIMARY KEY (`c1`)
@@ -2415,7 +2415,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` int(11) NOT NULL,
-  `c2` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `c2` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   `c3` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
   PRIMARY KEY (`c1`)
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
@@ -2427,7 +2427,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` int(11) NOT NULL,
-  `c2` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `c2` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   `c4` tinyint(4) NOT NULL,
   `c3` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
   PRIMARY KEY (`c1`)
@@ -3759,7 +3759,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` int(11) NOT NULL,
-  `c2` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `c2` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   `c3` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
   PRIMARY KEY (`c1`)
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
@@ -3771,7 +3771,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` int(11) NOT NULL,
-  `c2` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `c2` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   `c4` smallint(6) NOT NULL,
   `c3` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
   PRIMARY KEY (`c1`)
@@ -5103,7 +5103,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` int(11) NOT NULL,
-  `c2` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `c2` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   `c3` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
   PRIMARY KEY (`c1`)
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
@@ -5115,7 +5115,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` int(11) NOT NULL,
-  `c2` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `c2` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   `c4` mediumint(9) NOT NULL,
   `c3` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
   PRIMARY KEY (`c1`)
@@ -6447,7 +6447,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` int(11) NOT NULL,
-  `c2` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `c2` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   `c3` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
   PRIMARY KEY (`c1`)
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
@@ -6459,7 +6459,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` int(11) NOT NULL,
-  `c2` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `c2` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   `c4` int(11) NOT NULL,
   `c3` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
   PRIMARY KEY (`c1`)
@@ -7791,7 +7791,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` int(11) NOT NULL,
-  `c2` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `c2` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   `c3` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
   PRIMARY KEY (`c1`)
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
@@ -7803,7 +7803,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` int(11) NOT NULL,
-  `c2` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `c2` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   `c4` int(11) NOT NULL,
   `c3` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
   PRIMARY KEY (`c1`)
@@ -9135,7 +9135,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` int(11) NOT NULL,
-  `c2` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `c2` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   `c3` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
   PRIMARY KEY (`c1`)
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
@@ -9147,7 +9147,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` int(11) NOT NULL,
-  `c2` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `c2` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   `c4` bigint(20) NOT NULL,
   `c3` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
   PRIMARY KEY (`c1`)
@@ -10479,7 +10479,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` int(11) NOT NULL,
-  `c2` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `c2` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   `c3` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
   PRIMARY KEY (`c1`)
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
@@ -10491,7 +10491,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` int(11) NOT NULL,
-  `c2` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `c2` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   `c4` double NOT NULL,
   `c3` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
   PRIMARY KEY (`c1`)
@@ -11823,7 +11823,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` int(11) NOT NULL,
-  `c2` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `c2` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   `c3` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
   PRIMARY KEY (`c1`)
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
@@ -11835,7 +11835,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` int(11) NOT NULL,
-  `c2` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `c2` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   `c4` double NOT NULL,
   `c3` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
   PRIMARY KEY (`c1`)
@@ -13167,7 +13167,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` int(11) NOT NULL,
-  `c2` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `c2` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   `c3` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
   PRIMARY KEY (`c1`)
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
@@ -13179,7 +13179,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` int(11) NOT NULL,
-  `c2` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `c2` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   `c4` float NOT NULL,
   `c3` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
   PRIMARY KEY (`c1`)
@@ -14511,7 +14511,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` int(11) NOT NULL,
-  `c2` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `c2` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   `c3` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
   PRIMARY KEY (`c1`)
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
@@ -14523,7 +14523,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` int(11) NOT NULL,
-  `c2` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `c2` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   `c4` decimal(10,0) NOT NULL,
   `c3` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
   PRIMARY KEY (`c1`)
@@ -15855,7 +15855,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` int(11) NOT NULL,
-  `c2` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `c2` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   `c3` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
   PRIMARY KEY (`c1`)
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
@@ -15867,7 +15867,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` int(11) NOT NULL,
-  `c2` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `c2` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   `c4` decimal(10,0) NOT NULL,
   `c3` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
   PRIMARY KEY (`c1`)
@@ -17199,7 +17199,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` int(11) NOT NULL,
-  `c2` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `c2` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   `c3` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
   PRIMARY KEY (`c1`)
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
@@ -17211,7 +17211,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` int(11) NOT NULL,
-  `c2` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `c2` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   `c4` date NOT NULL,
   `c3` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
   PRIMARY KEY (`c1`)
@@ -18543,7 +18543,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` int(11) NOT NULL,
-  `c2` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `c2` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   `c3` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
   PRIMARY KEY (`c1`)
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
@@ -18555,7 +18555,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` int(11) NOT NULL,
-  `c2` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `c2` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   `c4` time NOT NULL,
   `c3` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
   PRIMARY KEY (`c1`)
@@ -19508,7 +19508,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` int(11) NOT NULL,
   `c2` bit(1) NOT NULL,
-  `c4` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `c4` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   `c3` bit(1) NOT NULL,
   PRIMARY KEY (`c1`)
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
@@ -19536,7 +19536,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` int(11) NOT NULL,
   `c2` tinyint(4) NOT NULL,
-  `c4` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `c4` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   `c3` tinyint(4) NOT NULL,
   PRIMARY KEY (`c1`)
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
@@ -19564,7 +19564,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` int(11) NOT NULL,
   `c2` smallint(6) NOT NULL,
-  `c4` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `c4` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   `c3` smallint(6) NOT NULL,
   PRIMARY KEY (`c1`)
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
@@ -19592,7 +19592,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` int(11) NOT NULL,
   `c2` mediumint(9) NOT NULL,
-  `c4` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `c4` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   `c3` mediumint(9) NOT NULL,
   PRIMARY KEY (`c1`)
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
@@ -19620,7 +19620,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` int(11) NOT NULL,
   `c2` int(11) NOT NULL,
-  `c4` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `c4` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   `c3` int(11) NOT NULL,
   PRIMARY KEY (`c1`)
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
@@ -19648,7 +19648,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` int(11) NOT NULL,
   `c2` int(11) NOT NULL,
-  `c4` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `c4` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   `c3` int(11) NOT NULL,
   PRIMARY KEY (`c1`)
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
@@ -19676,7 +19676,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` int(11) NOT NULL,
   `c2` bigint(20) NOT NULL,
-  `c4` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `c4` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   `c3` bigint(20) NOT NULL,
   PRIMARY KEY (`c1`)
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
@@ -19704,7 +19704,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` int(11) NOT NULL,
   `c2` double NOT NULL,
-  `c4` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `c4` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   `c3` double NOT NULL,
   PRIMARY KEY (`c1`)
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
@@ -19732,7 +19732,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` int(11) NOT NULL,
   `c2` double NOT NULL,
-  `c4` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `c4` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   `c3` double NOT NULL,
   PRIMARY KEY (`c1`)
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
@@ -19760,7 +19760,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` int(11) NOT NULL,
   `c2` float NOT NULL,
-  `c4` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `c4` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   `c3` float NOT NULL,
   PRIMARY KEY (`c1`)
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
@@ -19788,7 +19788,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` int(11) NOT NULL,
   `c2` decimal(10,0) NOT NULL,
-  `c4` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `c4` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   `c3` decimal(10,0) NOT NULL,
   PRIMARY KEY (`c1`)
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
@@ -19816,7 +19816,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` int(11) NOT NULL,
   `c2` decimal(10,0) NOT NULL,
-  `c4` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `c4` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   `c3` decimal(10,0) NOT NULL,
   PRIMARY KEY (`c1`)
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
@@ -19844,7 +19844,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` int(11) NOT NULL,
   `c2` date NOT NULL,
-  `c4` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `c4` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   `c3` date NOT NULL,
   PRIMARY KEY (`c1`)
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
@@ -19872,7 +19872,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` int(11) NOT NULL,
   `c2` time NOT NULL,
-  `c4` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `c4` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   `c3` time NOT NULL,
   PRIMARY KEY (`c1`)
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
@@ -19887,7 +19887,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` int(11) NOT NULL,
-  `c2` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `c2` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   `c3` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
   PRIMARY KEY (`c1`)
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
@@ -19899,7 +19899,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` int(11) NOT NULL,
-  `c2` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `c2` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   `c4` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
   `c3` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
   PRIMARY KEY (`c1`)
@@ -19928,7 +19928,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` int(11) NOT NULL,
   `c2` year(4) NOT NULL,
-  `c4` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `c4` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   `c3` year(4) NOT NULL,
   PRIMARY KEY (`c1`)
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
@@ -19956,7 +19956,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` int(11) NOT NULL,
   `c2` tinyblob NOT NULL,
-  `c4` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `c4` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   `c3` tinyblob NOT NULL,
   PRIMARY KEY (`c1`)
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
@@ -19984,7 +19984,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` int(11) NOT NULL,
   `c2` blob NOT NULL,
-  `c4` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `c4` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   `c3` blob NOT NULL,
   PRIMARY KEY (`c1`)
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
@@ -20012,7 +20012,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` int(11) NOT NULL,
   `c2` mediumblob NOT NULL,
-  `c4` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `c4` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   `c3` mediumblob NOT NULL,
   PRIMARY KEY (`c1`)
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
@@ -20040,7 +20040,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` int(11) NOT NULL,
   `c2` longblob NOT NULL,
-  `c4` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `c4` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   `c3` longblob NOT NULL,
   PRIMARY KEY (`c1`)
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
@@ -20068,7 +20068,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` int(11) NOT NULL,
   `c2` tinytext NOT NULL,
-  `c4` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `c4` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   `c3` tinytext NOT NULL,
   PRIMARY KEY (`c1`)
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
@@ -20096,7 +20096,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` int(11) NOT NULL,
   `c2` text NOT NULL,
-  `c4` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `c4` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   `c3` text NOT NULL,
   PRIMARY KEY (`c1`)
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
@@ -20124,7 +20124,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` int(11) NOT NULL,
   `c2` mediumtext NOT NULL,
-  `c4` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `c4` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   `c3` mediumtext NOT NULL,
   PRIMARY KEY (`c1`)
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
@@ -20152,7 +20152,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` int(11) NOT NULL,
   `c2` longtext NOT NULL,
-  `c4` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `c4` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   `c3` longtext NOT NULL,
   PRIMARY KEY (`c1`)
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
@@ -21231,7 +21231,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` int(11) NOT NULL,
-  `c2` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `c2` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   `c3` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
   PRIMARY KEY (`c1`)
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
@@ -21243,7 +21243,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` int(11) NOT NULL,
-  `c2` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `c2` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   `c4` year(4) NOT NULL,
   `c3` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
   PRIMARY KEY (`c1`)
@@ -22575,7 +22575,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` int(11) NOT NULL,
-  `c2` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `c2` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   `c3` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
   PRIMARY KEY (`c1`)
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
@@ -22587,7 +22587,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` int(11) NOT NULL,
-  `c2` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `c2` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   `c4` tinyblob NOT NULL,
   `c3` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
   PRIMARY KEY (`c1`)
@@ -23919,7 +23919,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` int(11) NOT NULL,
-  `c2` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `c2` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   `c3` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
   PRIMARY KEY (`c1`)
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
@@ -23931,7 +23931,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` int(11) NOT NULL,
-  `c2` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `c2` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   `c4` blob NOT NULL,
   `c3` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
   PRIMARY KEY (`c1`)
@@ -25263,7 +25263,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` int(11) NOT NULL,
-  `c2` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `c2` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   `c3` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
   PRIMARY KEY (`c1`)
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
@@ -25275,7 +25275,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` int(11) NOT NULL,
-  `c2` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `c2` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   `c4` mediumblob NOT NULL,
   `c3` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
   PRIMARY KEY (`c1`)
@@ -26607,7 +26607,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` int(11) NOT NULL,
-  `c2` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `c2` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   `c3` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
   PRIMARY KEY (`c1`)
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
@@ -26619,7 +26619,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` int(11) NOT NULL,
-  `c2` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `c2` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   `c4` longblob NOT NULL,
   `c3` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
   PRIMARY KEY (`c1`)
@@ -27951,7 +27951,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` int(11) NOT NULL,
-  `c2` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `c2` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   `c3` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
   PRIMARY KEY (`c1`)
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
@@ -27963,7 +27963,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` int(11) NOT NULL,
-  `c2` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `c2` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   `c4` tinytext NOT NULL,
   `c3` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
   PRIMARY KEY (`c1`)
@@ -29295,7 +29295,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` int(11) NOT NULL,
-  `c2` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `c2` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   `c3` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
   PRIMARY KEY (`c1`)
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
@@ -29307,7 +29307,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` int(11) NOT NULL,
-  `c2` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `c2` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   `c4` text NOT NULL,
   `c3` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
   PRIMARY KEY (`c1`)
@@ -30639,7 +30639,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` int(11) NOT NULL,
-  `c2` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `c2` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   `c3` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
   PRIMARY KEY (`c1`)
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
@@ -30651,7 +30651,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` int(11) NOT NULL,
-  `c2` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `c2` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   `c4` mediumtext NOT NULL,
   `c3` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
   PRIMARY KEY (`c1`)
@@ -31983,7 +31983,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` int(11) NOT NULL,
-  `c2` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `c2` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   `c3` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
   PRIMARY KEY (`c1`)
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
@@ -31995,7 +31995,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` int(11) NOT NULL,
-  `c2` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `c2` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   `c4` longtext NOT NULL,
   `c3` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
   PRIMARY KEY (`c1`)

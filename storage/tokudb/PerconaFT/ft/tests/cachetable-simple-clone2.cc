@@ -77,7 +77,7 @@ flush (
 
 //
 // test the following things for simple cloning:
-//  - verifies that after teh checkpoint ends, the PAIR is properly 
+//  - verifies that after the checkpoint ends, the PAIR is properly
 //     dirty or clean based on the second unpin
 //
 static void

@@ -1,0 +1,8 @@
+if(DEFINED Java_JAVA_EXECUTABLE)
+  return()
+endif()
+
+set(orig_CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH})
+unset(CMAKE_MODULE_PATH)
+include(FindJava)
+set(CMAKE_MODULE_PATH ${orig_CMAKE_MODULE_PATH})

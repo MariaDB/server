@@ -9,9 +9,13 @@ innodb-locks
 innodb-buffer-pool-stats
 innodb-buffer-page
 innodb-buffer-page-lru
+innodb-sys-columns
+innodb-sys-fields
 innodb-sys-foreign
 innodb-sys-foreign-cols
+innodb-sys-indexes
 innodb-sys-tables
+innodb-sys-virtual
 innodb-metrics
 
 [xtradb_plugin]
@@ -43,3 +47,21 @@ innodb-buffer-page-lru
 innodb-sys-foreign
 innodb-sys-foreign-cols
 innodb-sys-tables
+
+[innodb]
+innodb
+innodb-cmpmem
+innodb-cmp-per-index
+innodb-trx
+innodb-locks
+innodb-metrics
+innodb-buffer-pool-stats
+innodb-buffer-page
+innodb-buffer-page-lru
+innodb-sys-columns
+innodb-sys-fields
+innodb-sys-foreign
+innodb-sys-foreign-cols
+innodb-sys-indexes
+innodb-sys-tables
+innodb-sys-virtual

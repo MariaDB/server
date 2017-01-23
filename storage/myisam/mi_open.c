@@ -328,21 +328,27 @@ MI_INFO *mi_open(const char *name, int mode, uint open_flags)
     strmov(share->index_file_name,  index_name);
     strmov(share->data_file_name,   data_name);
 
+    share->vreclength= share->base.reclength;
     share->blocksize=MY_MIN(IO_SIZE,myisam_block_size);
     {
       HA_KEYSEG *pos=share->keyparts;
       uint32 ftkey_nr= 1;
       for (i=0 ; i < keys ; i++)
       {
-        share->keyinfo[i].share= share;
-	disk_pos=mi_keydef_read(disk_pos, &share->keyinfo[i]);
-        disk_pos_assert(disk_pos + share->keyinfo[i].keysegs * HA_KEYSEG_SIZE,
- 			end_pos);
-        if (share->keyinfo[i].key_alg == HA_KEY_ALG_RTREE)
+        MI_KEYDEF *keyinfo= share->keyinfo + i;
+        uint sp_segs;
+        keyinfo->share= share;
+        disk_pos=mi_keydef_read(disk_pos, keyinfo);
+        disk_pos_assert(disk_pos + keyinfo->keysegs * HA_KEYSEG_SIZE, end_pos);
+        if (keyinfo->key_alg == HA_KEY_ALG_RTREE)
           have_rtree=1;
-	set_if_smaller(share->blocksize,share->keyinfo[i].block_length);
-	share->keyinfo[i].seg=pos;
-	for (j=0 ; j < share->keyinfo[i].keysegs; j++,pos++)
+        set_if_smaller(share->blocksize, keyinfo->block_length);
+        keyinfo->seg= pos;
+        if (keyinfo->flag & HA_SPATIAL)
+          sp_segs= 2*SPDIMS;
+        else
+          sp_segs= 0;
+        for (j=0 ; j < keyinfo->keysegs; j++, pos++)
 	{
 	  disk_pos=mi_keyseg_read(disk_pos, pos);
           if (pos->flag & HA_BLOB_PART &&
@@ -366,35 +372,35 @@ MI_INFO *mi_open(const char *name, int mode, uint open_flags)
 	  }
 	  else if (pos->type == HA_KEYTYPE_BINARY)
 	    pos->charset= &my_charset_bin;
-          if (!(share->keyinfo[i].flag & HA_SPATIAL) &&
-              pos->start > share->base.reclength)
+          if (j < keyinfo->keysegs - sp_segs)
           {
-            my_errno= HA_ERR_CRASHED;
-            goto err;
+            uint real_length= pos->flag & HA_BLOB_PART ? pos->bit_start
+                                                       : pos->length;
+            set_if_bigger(share->vreclength, pos->start + real_length);
           }
 	}
-	if (share->keyinfo[i].flag & HA_SPATIAL)
+        if (keyinfo->flag & HA_SPATIAL)
 	{
 #ifdef HAVE_SPATIAL
-	  uint sp_segs=SPDIMS*2;
-	  share->keyinfo[i].seg=pos-sp_segs;
-	  share->keyinfo[i].keysegs--;
+          keyinfo->seg= pos - sp_segs;
+          DBUG_ASSERT(keyinfo->keysegs == sp_segs + 1);
+          keyinfo->keysegs= sp_segs;
 #else
 	  my_errno=HA_ERR_UNSUPPORTED;
 	  goto err;
 #endif
 	}
-        else if (share->keyinfo[i].flag & HA_FULLTEXT)
+        else if (keyinfo->flag & HA_FULLTEXT)
 	{
           if (!fulltext_keys)
           { /* 4.0 compatibility code, to be removed in 5.0 */
-            share->keyinfo[i].seg=pos-FT_SEGS;
-            share->keyinfo[i].keysegs-=FT_SEGS;
+            keyinfo->seg= pos - FT_SEGS;
+            keyinfo->keysegs-= FT_SEGS;
           }
           else
           {
             uint k;
-            share->keyinfo[i].seg=pos;
+            keyinfo->seg= pos;
             for (k=0; k < FT_SEGS; k++)
             {
               *pos= ft_keysegs[k];
@@ -409,7 +415,7 @@ MI_INFO *mi_open(const char *name, int mode, uint open_flags)
           }
           if (!share->ft2_keyinfo.seg)
           {
-            memcpy(& share->ft2_keyinfo, & share->keyinfo[i], sizeof(MI_KEYDEF));
+            memcpy(& share->ft2_keyinfo, keyinfo, sizeof(MI_KEYDEF));
             share->ft2_keyinfo.keysegs=1;
             share->ft2_keyinfo.flag=0;
             share->ft2_keyinfo.keylength=
@@ -419,10 +425,10 @@ MI_INFO *mi_open(const char *name, int mode, uint open_flags)
             share->ft2_keyinfo.end=pos;
             setup_key_functions(& share->ft2_keyinfo);
           }
-          share->keyinfo[i].ftkey_nr= ftkey_nr++;
+          keyinfo->ftkey_nr= ftkey_nr++;
 	}
-        setup_key_functions(share->keyinfo+i);
-	share->keyinfo[i].end=pos;
+        setup_key_functions(keyinfo);
+        keyinfo->end= pos;
 	pos->type=HA_KEYTYPE_END;			/* End */
 	pos->length=share->base.rec_reflength;
 	pos->null_bit=0;
@@ -734,6 +740,7 @@ uchar *mi_alloc_rec_buff(MI_INFO *info, ulong length, uchar **buf)
       else
         length= info->s->base.pack_reclength;
       length= MY_MAX(length, info->s->base.max_key_length);
+      length= MY_MAX(length, info->s->vreclength);
       /* Avoid unnecessary realloc */
       if (newptr && length == old_length)
 	return newptr;
@@ -746,7 +753,7 @@ uchar *mi_alloc_rec_buff(MI_INFO *info, ulong length, uchar **buf)
       newptr-= MI_REC_BUFF_OFFSET;
     if (!(newptr=(uchar*) my_realloc((uchar*)newptr, length+extra+8,
                                      MYF(MY_ALLOW_ZERO_PTR))))
-      return newptr;
+      return NULL;
     *((uint32 *) newptr)= (uint32) length;
     *buf= newptr+(extra ?  MI_REC_BUFF_OFFSET : 0);
   }
@@ -1183,7 +1190,6 @@ uchar *mi_keyseg_read(uchar *ptr, HA_KEYSEG *keyseg)
    keyseg->length	= mi_uint2korr(ptr);  ptr +=2;
    keyseg->start	= mi_uint4korr(ptr);  ptr +=4;
    keyseg->null_pos	= mi_uint4korr(ptr);  ptr +=4;
-   keyseg->bit_end= 0;
    keyseg->charset=0;				/* Will be filled in later */
    if (keyseg->null_bit)
      /* We adjust bit_pos if null_bit is last in the byte */
@@ -1389,4 +1395,3 @@ int mi_indexes_are_disabled(MI_INFO *info)
   */
   return 2;
 }
-

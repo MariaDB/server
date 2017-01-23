@@ -80,7 +80,7 @@ const char field_separator=',';
 
   NOTE: to avoid 256*256 table, gap in table types numeration is skiped
   following #defines describe that gap and how to canculate number of fields
-  and index of field in thia array.
+  and index of field in this array.
 */
 #define FIELDTYPE_TEAR_FROM (MYSQL_TYPE_BIT + 1)
 #define FIELDTYPE_TEAR_TO   (MYSQL_TYPE_NEWDECIMAL - 1)
@@ -355,7 +355,7 @@ static enum_field_types field_types_merge_rules [FIELDTYPE_NUM][FIELDTYPE_NUM]=
   //MYSQL_TYPE_NULL         MYSQL_TYPE_TIMESTAMP
     MYSQL_TYPE_LONGLONG,    MYSQL_TYPE_VARCHAR,
   //MYSQL_TYPE_LONGLONG     MYSQL_TYPE_INT24
-    MYSQL_TYPE_LONGLONG,    MYSQL_TYPE_LONG,
+    MYSQL_TYPE_LONGLONG,    MYSQL_TYPE_LONGLONG,
   //MYSQL_TYPE_DATE         MYSQL_TYPE_TIME
     MYSQL_TYPE_VARCHAR,     MYSQL_TYPE_VARCHAR,
   //MYSQL_TYPE_DATETIME     MYSQL_TYPE_YEAR
@@ -2310,7 +2310,7 @@ void Field::set_default()
   if (default_value)
   {
     table->in_use->reset_arena_for_cached_items(table->expr_arena);
-    (void) default_value->expr_item->save_in_field(this, 0);
+    (void) default_value->expr->save_in_field(this, 0);
     table->in_use->reset_arena_for_cached_items(0);
     return;
   }
@@ -4956,8 +4956,8 @@ Field_timestamp::Field_timestamp(uchar *ptr_arg, uint32 len_arg,
       this field will be automaticly updated on insert.
     */
     flags|= TIMESTAMP_FLAG;
-    flags|= ON_UPDATE_NOW_FLAG;
-    DBUG_ASSERT(unireg_check == TIMESTAMP_UN_FIELD);
+    if (unireg_check != TIMESTAMP_DN_FIELD)
+      flags|= ON_UPDATE_NOW_FLAG;
   }
 }
 
@@ -7883,7 +7883,7 @@ void Field_blob::store_length(uchar *i_ptr, uint i_packlength, uint32 i_number)
 }
 
 
-uint32 Field_blob::get_length(const uchar *pos, uint packlength_arg)
+uint32 Field_blob::get_length(const uchar *pos, uint packlength_arg) const
 {
   return (uint32)read_lowendian(pos, packlength_arg);
 }
@@ -7898,16 +7898,12 @@ int Field_blob::copy_value(Field_blob *from)
   DBUG_ASSERT(field_charset == from->charset());
   int rc= 0;
   uint32 length= from->get_length();
-  uchar *data;
-  from->get_ptr(&data);
+  uchar *data= from->get_ptr();
   if (packlength < from->packlength)
   {
-    int well_formed_errors;
     set_if_smaller(length, Field_blob::max_data_length());
-    length= field_charset->cset->well_formed_len(field_charset,
-                                                 (const char *) data,
-                                                 (const char *) data + length,
-                                                 length, &well_formed_errors);
+    length= (uint32) Well_formed_prefix(field_charset,
+                                        (const char *) data, length).length();
     rc= report_if_important_data((const char *) data + length,
                                  (const char *) data + from->get_length(),
                                  true);
@@ -7943,9 +7939,8 @@ int Field_blob::store(const char *from,uint length,CHARSET_INFO *cs)
     copy_length= table->in_use->variables.group_concat_max_len;
     if (new_length > copy_length)
     {
-      int well_formed_error;
-      new_length= cs->cset->well_formed_len(cs, from, from + copy_length,
-                                            new_length, &well_formed_error);
+      new_length= Well_formed_prefix(cs,
+                                     from, copy_length, new_length).length();
       table->blob_storage->set_truncated_value(true);
     }
     if (!(tmp= table->blob_storage->store(from, new_length)))
@@ -8150,7 +8145,7 @@ uint Field_blob::get_key_image(uchar *buff,uint length, imagetype type_arg)
       bzero(buff, image_length);
       return image_length;
     }
-    get_ptr(&blob);
+    blob= get_ptr();
     gobj= Geometry::construct(&buffer, (char*) blob, blob_length);
     if (!gobj || gobj->get_mbr(&mbr, &dummy))
       bzero(buff, image_length);
@@ -8165,7 +8160,7 @@ uint Field_blob::get_key_image(uchar *buff,uint length, imagetype type_arg)
   }
 #endif /*HAVE_SPATIAL*/
 
-  get_ptr(&blob);
+  blob= get_ptr();
   uint local_char_length= length / field_charset->mbmaxlen;
   local_char_length= my_charpos(field_charset, blob, blob + blob_length,
                           local_char_length);
@@ -8324,7 +8319,7 @@ uchar *Field_blob::pack(uchar *to, const uchar *from, uint max_length)
    */
   if (length > 0)
   {
-    get_ptr((uchar**) &from);
+    from= get_ptr();
     memcpy(to+packlength, from,length);
   }
   ptr=save;					// Restore org row pointer
@@ -8570,14 +8565,12 @@ int Field_geom::store(const char *from, uint length, CHARSET_INFO *cs)
         geom_type != Field::GEOM_GEOMETRYCOLLECTION &&
         (uint32) geom_type != wkb_type)
     {
-      my_printf_error(ER_TRUNCATED_WRONG_VALUE_FOR_FIELD, 
-                      ER_THD(get_thd(), ER_TRUNCATED_WRONG_VALUE_FOR_FIELD),
-                      MYF(0),
-                      Geometry::ci_collection[geom_type]->m_name.str,
-                      Geometry::ci_collection[wkb_type]->m_name.str,
-                      field_name,
-                      (ulong) table->in_use->get_stmt_da()->
-                      current_row_for_warning());
+      my_error(ER_TRUNCATED_WRONG_VALUE_FOR_FIELD, MYF(0),
+               Geometry::ci_collection[geom_type]->m_name.str,
+               Geometry::ci_collection[wkb_type]->m_name.str,
+               field_name,
+               (ulong) table->in_use->get_stmt_da()->
+               current_row_for_warning());
       goto err_exit;
     }
 
@@ -9780,42 +9773,39 @@ void Column_definition::create_length_to_internal_length(void)
 }
 
 
-bool check_expression(Virtual_column_info *vcol, const char *type,
-                      const char *name, bool must_be_determinstic)
+bool check_expression(Virtual_column_info *vcol, const char *name,
+                      enum_vcol_info_type type)
+
 {
   bool ret;
   Item::vcol_func_processor_result res;
-  /* We use 2 bytes to store the expression length */
-  if (vcol->expr_str.length > UINT_MAX32)
-  {
-    my_error(ER_EXPRESSION_IS_TOO_BIG, MYF(0), type, name);
-    return TRUE;
-  }
+
+  if (!vcol->name.length)
+    vcol->name.str= const_cast<char*>(name);
 
   /*
     Walk through the Item tree checking if all items are valid
     to be part of the virtual column
   */
-
   res.errors= 0;
-  ret= vcol->expr_item->walk(&Item::check_vcol_func_processor, 0, &res);
+  ret= vcol->expr->walk(&Item::check_vcol_func_processor, 0, &res);
   vcol->flags= res.errors;
 
   uint filter= VCOL_IMPOSSIBLE;
-  if (must_be_determinstic)
+  if (type != VCOL_GENERATED_VIRTUAL && type != VCOL_DEFAULT)
     filter|= VCOL_NOT_STRICTLY_DETERMINISTIC;
 
   if (ret || (res.errors & filter))
   {
-    my_error(ER_VIRTUAL_COLUMN_FUNCTION_IS_NOT_ALLOWED, MYF(0), res.name,
-             type, name);
+    my_error(ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED, MYF(0), res.name,
+             vcol_type_name(type), name);
     return TRUE;
   }
   /*
     Safe to call before fix_fields as long as vcol's don't include sub
     queries (which is now checked in check_vcol_func_processor)
   */
-  if (vcol->expr_item->check_cols(1))
+  if (vcol->expr->check_cols(1))
     return TRUE;
   return FALSE;
 }
@@ -9831,22 +9821,21 @@ bool Column_definition::check(THD *thd)
   /* Initialize data for a computed field */
   if (vcol_info)
   {
-    DBUG_ASSERT(vcol_info->expr_item);
+    DBUG_ASSERT(vcol_info->expr);
     vcol_info->set_field_type(sql_type);
-    if (check_expression(vcol_info, "GENERATED ALWAYS AS", field_name,
-                         vcol_info->stored_in_db))
+    if (check_expression(vcol_info, field_name, vcol_info->stored_in_db
+                         ? VCOL_GENERATED_STORED : VCOL_GENERATED_VIRTUAL))
       DBUG_RETURN(TRUE);
   }
 
   if (check_constraint &&
-      check_expression(check_constraint, "CHECK", field_name, 0))
-    DBUG_RETURN(1);
+      check_expression(check_constraint, field_name, VCOL_CHECK_FIELD))
+      DBUG_RETURN(1);
 
   if (default_value)
   {
-    Item *def_expr= default_value->expr_item;
-
-    if (check_expression(default_value, "DEFAULT", field_name, 0))
+    Item *def_expr= default_value->expr;
+    if (check_expression(default_value, field_name, VCOL_DEFAULT))
       DBUG_RETURN(TRUE);
 
     /* Constant's are stored in the 'empty_record', except for blobs */
@@ -9870,15 +9859,15 @@ bool Column_definition::check(THD *thd)
     DBUG_RETURN(1);
   }
 
-  if (default_value && !default_value->expr_item->basic_const_item() &&
+  if (default_value && !default_value->expr->basic_const_item() &&
       mysql_type_to_time_type(sql_type) == MYSQL_TIMESTAMP_DATETIME &&
-      default_value->expr_item->type() == Item::FUNC_ITEM)
+      default_value->expr->type() == Item::FUNC_ITEM)
   {
     /*
       Special case: NOW() for TIMESTAMP and DATETIME fields are handled
       as in MariaDB 10.1 by marking them in unireg_check.
     */
-    Item_func *fn= static_cast<Item_func*>(default_value->expr_item);
+    Item_func *fn= static_cast<Item_func*>(default_value->expr);
     if (fn->functype() == Item_func::NOW_FUNC &&
         (fn->decimals == 0 || fn->decimals >= length))
     {
@@ -10563,8 +10552,8 @@ Column_definition::Column_definition(THD *thd, Field *old_field,
   if (!(flags & (NO_DEFAULT_VALUE_FLAG | BLOB_FLAG)) &&
       old_field->ptr != NULL && orig_field != NULL)
   {
-    if (orig_field->has_update_default_function())
-      unireg_check= Field::TIMESTAMP_UN_FIELD;
+    if (orig_field->unireg_check != Field::NEXT_NUMBER)
+      unireg_check= orig_field->unireg_check;
 
     /* Get the value from default_values */
     const uchar *dv= orig_field->table->s->default_values;
@@ -10574,9 +10563,7 @@ Column_definition::Column_definition(THD *thd, Field *old_field,
       String *res= orig_field->val_str(&tmp, orig_field->ptr_in_record(dv));
       char *pos= (char*) thd->strmake(res->ptr(), res->length());
       default_value= new (thd->mem_root) Virtual_column_info();
-      default_value->expr_str.str= pos;
-      default_value->expr_str.length= res->length();
-      default_value->expr_item=
+      default_value->expr=
         new (thd->mem_root) Item_string(thd, pos, res->length(), charset);
       default_value->utf8= 0;
     }
@@ -10640,7 +10627,7 @@ Create_field *Create_field::clone(MEM_ROOT *mem_root) const
 bool Column_definition::has_default_expression()
 {
   return (default_value &&
-          (!default_value->expr_item->basic_const_item() ||
+          (!default_value->expr->basic_const_item() ||
            (flags & BLOB_FLAG)));
 }
 
@@ -10824,4 +10811,67 @@ bool Field::validate_value_in_record_with_warn(THD *thd, const uchar *record)
   }
   dbug_tmp_restore_column_map(table->read_set, old_map);
   return rc;
+}
+
+
+bool Field::save_in_field_default_value(bool view_error_processing)
+{
+  THD *thd= table->in_use;
+
+  if (flags & NO_DEFAULT_VALUE_FLAG &&
+      real_type() != MYSQL_TYPE_ENUM)
+  {
+    if (reset())
+    {
+      my_message(ER_CANT_CREATE_GEOMETRY_OBJECT,
+                 ER_THD(thd, ER_CANT_CREATE_GEOMETRY_OBJECT), MYF(0));
+      return -1;
+    }
+
+    if (view_error_processing)
+    {
+      TABLE_LIST *view= table->pos_in_table_list->top_table();
+      push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                          ER_NO_DEFAULT_FOR_VIEW_FIELD,
+                          ER_THD(thd, ER_NO_DEFAULT_FOR_VIEW_FIELD),
+                          view->view_db.str,
+                          view->view_name.str);
+    }
+    else
+    {
+      push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                          ER_NO_DEFAULT_FOR_FIELD,
+                          ER_THD(thd, ER_NO_DEFAULT_FOR_FIELD),
+                          field_name);
+    }
+    return 1;
+  }
+  set_default();
+  return
+    !is_null() &&
+    validate_value_in_record_with_warn(thd, table->record[0]) &&
+    thd->is_error() ? -1 : 0;
+}
+
+
+bool Field::save_in_field_ignore_value(bool view_error_processing)
+{
+  enum_sql_command com= table->in_use->lex->sql_command;
+  // All insert-like commands
+  if (com == SQLCOM_INSERT || com == SQLCOM_REPLACE ||
+      com == SQLCOM_INSERT_SELECT || com == SQLCOM_REPLACE_SELECT ||
+      com == SQLCOM_LOAD)
+    return save_in_field_default_value(view_error_processing);
+  return 0; // ignore
+}
+
+
+void Field::register_field_in_read_map()
+{
+  if (vcol_info)
+  {
+    Item *vcol_item= vcol_info->expr;
+    vcol_item->walk(&Item::register_field_in_read_map, 1, 0);
+  }
+  bitmap_set_bit(table->read_set, field_index);
 }

@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2013, Monty Program Ab
+   Copyright (c) 2009, 2016, MariaDB
 
    This library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Library General Public
@@ -4980,16 +4980,6 @@ static const uchar to_upper_utf8[] = {
   240,241,242,243,244,245,246,247,248,249,250,251,252,253,254,255
 };
 
-static inline int bincmp(const uchar *s, const uchar *se,
-                         const uchar *t, const uchar *te)
-{
-  int slen= (int) (se-s), tlen= (int) (te-t);
-  int len=MY_MIN(slen,tlen);
-  int cmp= memcmp(s,t,len);
-  return cmp ? cmp : slen-tlen;
-}
-
-
 static int my_utf8_uni(CHARSET_INFO *cs __attribute__((unused)),
                        my_wc_t * pwc, const uchar *s, const uchar *e)
 {
@@ -5150,14 +5140,6 @@ my_toupper_utf8mb3(MY_UNICASE_INFO *uni_plane, my_wc_t *wc)
     *wc= page[*wc & 0xFF].toupper;
 }
 
-
-static inline void
-my_tosort_utf8mb3(MY_UNICASE_INFO *uni_plane, my_wc_t *wc)
-{
-  MY_UNICASE_CHARACTER *page;
-  if ((page= uni_plane->page[(*wc >> 8) & 0xFF]))
-    *wc= page[*wc & 0xFF].sort;
-}
 
 static size_t my_caseup_utf8(CHARSET_INFO *cs, char *src, size_t srclen,
                              char *dst, size_t dstlen)
@@ -5421,27 +5403,6 @@ int my_charlen_utf8(CHARSET_INFO *cs __attribute__((unused)),
   return MY_CS_ILSEQ;
 }
 
-static size_t
-my_well_formed_len_utf8(CHARSET_INFO *cs, const char *b, const char *e,
-                        size_t pos, int *error)
-{
-  const char *b_start= b;
-  *error= 0;
-  while (pos)
-  {
-    int mb_len;
-
-    if ((mb_len= my_charlen_utf8(cs, (uchar*) b, (uchar*) e)) <= 0)
-    {
-      *error= b < e ? 1 : 0;
-      break;
-    }
-    b+= mb_len;
-    pos--;
-  }
-  return (size_t) (b - b_start);
-}
-
 
 #define MY_FUNCTION_NAME(x)       my_ ## x ## _utf8
 #define CHARLEN(cs,str,end)       my_charlen_utf8(cs,str,end)
@@ -5656,7 +5617,6 @@ MY_CHARSET_HANDLER my_charset_utf8_handler=
     NULL,               /* init */
     my_numchars_mb,
     my_charpos_mb,
-    my_well_formed_len_utf8,
     my_lengthsp_8bit,
     my_numcells_mb,
     my_utf8_uni,
@@ -7276,7 +7236,6 @@ static MY_CHARSET_HANDLER my_charset_filename_handler=
     NULL,               /* init */
     my_numchars_mb,
     my_charpos_mb,
-    my_well_formed_len_mb,
     my_lengthsp_8bit,
     my_numcells_mb,
     my_mb_wc_filename,
@@ -7413,17 +7372,6 @@ static uchar to_upper_utf8mb4[]=
   224,225,226,227,228,229,230,231,232,233,234,235,236,237,238,239,
   240,241,242,243,244,245,246,247,248,249,250,251,252,253,254,255
 };
-
-
-static inline int
-bincmp_utf8mb4(const uchar *s, const uchar *se,
-               const uchar *t, const uchar *te)
-{
-  int slen= (int) (se - s), tlen= (int) (te - t);
-  int len= MY_MIN(slen, tlen);
-  int cmp= memcmp(s, t, len);
-  return cmp ? cmp : slen - tlen;
-}
 
 
 static int
@@ -7885,29 +7833,6 @@ my_charlen_utf8mb4(CHARSET_INFO *cs __attribute__((unused)),
 }
 
 
-static
-size_t my_well_formed_len_utf8mb4(CHARSET_INFO *cs,
-                                  const char *b, const char *e,
-                                  size_t pos, int *error)
-{
-  const char *b_start= b;
-  *error= 0;
-  while (pos)
-  {
-    int mb_len;
-
-    if ((mb_len= my_charlen_utf8mb4(cs, (uchar*) b, (uchar*) e)) <= 0)
-    {
-      *error= b < e ? 1 : 0;
-      break;
-    }
-    b+= mb_len;
-    pos--;
-  }
-  return (size_t) (b - b_start);
-}
-
-
 #define MY_FUNCTION_NAME(x)       my_ ## x ## _utf8mb4
 #define CHARLEN(cs,str,end)       my_charlen_utf8mb4(cs,str,end)
 #define DEFINE_WELL_FORMED_CHAR_LENGTH_USING_CHARLEN
@@ -8033,7 +7958,6 @@ MY_CHARSET_HANDLER my_charset_utf8mb4_handler=
   NULL,               /* init */
   my_numchars_mb,
   my_charpos_mb,
-  my_well_formed_len_utf8mb4,
   my_lengthsp_8bit,
   my_numcells_mb,
   my_mb_wc_utf8mb4,

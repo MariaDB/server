@@ -550,10 +550,6 @@ fi
 if test -d $MY_BASEDIR_VERSION/data/mysql
 then
   DATADIR=$MY_BASEDIR_VERSION/data
-  if test -z "$defaults" -a -r "$DATADIR/my.cnf"
-  then
-    defaults="--defaults-extra-file=$DATADIR/my.cnf"
-  fi
 # Next try where the source installs put it
 elif test -d $MY_BASEDIR_VERSION/var/mysql
 then
@@ -565,23 +561,13 @@ fi
 
 if test -z "$MYSQL_HOME"
 then 
-  if test -r "$MY_BASEDIR_VERSION/my.cnf" && test -r "$DATADIR/my.cnf"
-  then
-    log_error "WARNING: Found two instances of my.cnf -
-$MY_BASEDIR_VERSION/my.cnf and
-$DATADIR/my.cnf
-IGNORING $DATADIR/my.cnf"
-
-    MYSQL_HOME=$MY_BASEDIR_VERSION
-  elif test -r "$DATADIR/my.cnf"
+  if test -r "$DATADIR/my.cnf"
   then
     log_error "WARNING: Found $DATADIR/my.cnf
-The data directory is a deprecated location for my.cnf, please move it to
+The data directory is not a valid location for my.cnf, please move it to
 $MY_BASEDIR_VERSION/my.cnf"
-    MYSQL_HOME=$DATADIR
-  else
-    MYSQL_HOME=$MY_BASEDIR_VERSION
   fi
+  MYSQL_HOME=$MY_BASEDIR_VERSION
 fi
 export MYSQL_HOME
 
@@ -768,7 +754,7 @@ if [ ! -d $mysql_unix_port_dir ]
 then
   if ! `mkdir -p $mysql_unix_port_dir`
   then
-    echo "Fatal error Can't create database directory '$mysql_unix_port'"
+    log_error "Fatal error Can't create database directory '$mysql_unix_port'"
     exit 1
   fi
   chown $user $mysql_unix_port_dir
@@ -983,8 +969,13 @@ do
 done
 cmd="$cmd $args"
 [ $dry_run -eq 1 ] && return
+
 # Avoid 'nohup: ignoring input' warning
 test -n "$NOHUP_NICENESS" && cmd="$cmd < /dev/null"
+
+# close stdout and stderr, everything goes to $logging now
+exec 1>&-
+exec 2>&-
 
 log_notice "Starting $MYSQLD daemon with databases from $DATADIR"
 

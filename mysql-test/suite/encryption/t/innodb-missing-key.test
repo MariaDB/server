@@ -1,0 +1,68 @@
+--source include/have_innodb.inc
+-- source include/have_file_key_management_plugin.inc
+# embedded does not support restart
+-- source include/not_embedded.inc
+-- source include/not_valgrind.inc
+# Avoid CrashReporter popup on Mac
+-- source include/not_crashrep.inc
+
+#
+# MDEV-11004: Unable to start (Segfault or os error 2) when encryption key missing
+#
+call mtr.add_suppression("InnoDB: Block in space_id .* in file test/.* encrypted");
+call mtr.add_suppression("InnoDB: However key management plugin or used key_id .* is not found or used encryption algorithm or method does not match.");
+call mtr.add_suppression("InnoDB: Marking tablespace as missing. You may drop this table or install correct key management plugin and key file.");
+
+--echo
+--echo # Start server with keys2.txt
+-- let $restart_parameters=--file-key-management-filename=$MYSQL_TEST_DIR/std_data/keys2.txt
+-- source include/restart_mysqld.inc
+
+CREATE TABLE t1(a int not null primary key auto_increment, b varchar(128)) engine=innodb ENCRYPTED=YES ENCRYPTION_KEY_ID=19;
+CREATE TABLE t2(a int not null primary key auto_increment, b varchar(128)) engine=innodb ENCRYPTED=YES ENCRYPTION_KEY_ID=1;
+CREATE TABLE t3(a int not null primary key auto_increment, b varchar(128)) engine=innodb ENCRYPTED=NO;
+INSERT INTO t1(b) VALUES ('thisissecredmessage');
+INSERT INTO t1(b) SELECT b FROM t1;
+INSERT INTO t1(b) SELECT b FROM t1;
+INSERT INTO t1(b) SELECT b FROM t1;
+INSERT INTO t1(b) SELECT b FROM t1;
+INSERT INTO t1(b) SELECT b FROM t1;
+INSERT INTO t1(b) SELECT b FROM t1;
+INSERT INTO t1(b) SELECT b FROM t1;
+INSERT INTO t1(b) SELECT b FROM t1;
+INSERT INTO t1(b) SELECT b FROM t1;
+INSERT INTO t1(b) SELECT b FROM t1;
+INSERT INTO t1(b) SELECT b FROM t1;
+INSERT INTO t2 SELECT * FROM t1;
+INSERT INTO t3 SELECT * FROM t1;
+
+--echo
+--echo # Restart server with keys3.txt
+-- let $restart_parameters=--file-key-management-filename=$MYSQL_TEST_DIR/std_data/keys3.txt
+-- source include/restart_mysqld.inc
+
+set global innodb_encryption_rotate_key_age = 1;
+use test;
+CREATE TABLE t4(a int not null primary key auto_increment, b varchar(128)) engine=innodb ENCRYPTED=YES ENCRYPTION_KEY_ID=1;
+SELECT SLEEP(5);
+SELECT COUNT(1) FROM t3;
+SELECT COUNT(1) FROM t2;
+--error 1296
+SELECT COUNT(1) FROM t2,t1 where t2.a = t1.a;
+--error 1296
+SELECT COUNT(1) FROM t1 where b = 'ab';
+--error 1296
+SELECT COUNT(1) FROM t1;
+
+--echo
+--echo # Start server with keys2.txt
+-- let $restart_parameters=--file-key-management-filename=$MYSQL_TEST_DIR/std_data/keys2.txt
+-- source include/restart_mysqld.inc
+
+SELECT COUNT(1) FROM t1;
+SELECT COUNT(1) FROM t2;
+SELECT COUNT(1) FROM t3;
+
+DROP TABLE t1, t2, t3;
+
+

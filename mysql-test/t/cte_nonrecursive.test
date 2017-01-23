@@ -576,3 +576,48 @@ UNION
 SELECT * FROM t1, t2 WHERE a2 = i1 and b2 >= i1 AND i1 IN ( SELECT i3 FROM t3 )
 ;
 DROP TABLE t1,t2,t3;
+
+--echo #
+--echo # MDEV-10923: mergeable CTE used twice in the query
+--echo #
+
+create table employees (
+  name varchar(32),
+  dept varchar(32),
+  country varchar(8)
+);
+ 
+insert into employees 
+values 
+('Sergei Golubchik', 'Development', 'DE'),
+('Claudio Nanni', 'Support', 'ES'),
+('Sergei Petrunia', 'Development', 'RU');
+
+with eng as 
+(
+   select * from employees
+   where dept in ('Development','Support')
+),
+eu_eng  as 
+(
+  select * from eng where country IN ('DE','ES','RU')
+)
+select * from eu_eng T1 
+where 
+  not exists (select 1 from eu_eng T2 
+              where T2.country=T1.country
+              and T2.name <> T1.name);
+
+drop table employees;
+
+--echo #
+--echo # MDEV-11818: EXPLAIN EXTENDED for a query with optimized away CTE table
+--echo #
+
+CREATE TABLE t1 (i INT, c VARCHAR(3));
+INSERT INTO t1 VALUES (1,'foo');
+
+EXPLAIN EXTENDED
+WITH cte AS ( SELECT * FROM t1 ) SELECT i FROM cte;
+
+DROP TABLE t1;

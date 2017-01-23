@@ -1073,6 +1073,7 @@ static void print_result()
 
 static int dbConnect(char *host, char *user, char *passwd)
 {
+  my_bool reconnect= 1;
   DBUG_ENTER("dbConnect");
   if (verbose > 1)
   {
@@ -1111,7 +1112,7 @@ static int dbConnect(char *host, char *user, char *passwd)
     DBerror(&mysql_connection, "when trying to connect");
     DBUG_RETURN(1);
   }
-  mysql_connection.reconnect= 1;
+  mysql_options(&mysql_connection, MYSQL_OPT_RECONNECT, &reconnect);
   DBUG_RETURN(0);
 } /* dbConnect */
 

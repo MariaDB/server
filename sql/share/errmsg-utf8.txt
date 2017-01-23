@@ -142,7 +142,7 @@ ER_DB_CREATE_EXISTS
         por "Não pode criar o banco de dados '%-.192s'; este banco de dados já existe"
         rum "Nu pot sa creez baza de date '%-.192s'; baza de date exista deja"
         rus "Невозможно создать базу данных '%-.192s'. База данных уже существует"
-        serbian "Ne mogu da kreiram bazu '%-.192s'; baza već postoji."
+        serbian "Ne mogu da kreiram bazu '%-.192s'; baza već postoji"
         slo "Nemôžem vytvoriť databázu '%-.192s'; databáza existuje"
         spa "No puedo crear base de datos '%-.192s'; la base de datos ya existe"
         swe "Databasen '%-.192s' existerar redan"
@@ -166,7 +166,7 @@ ER_DB_DROP_EXISTS
         por "Não pode eliminar o banco de dados '%-.192s'; este banco de dados não existe"
         rum "Nu pot sa drop baza de date '%-.192s'; baza da date este inexistenta"
         rus "Невозможно удалить базу данных '%-.192s'. Такой базы данных нет"
-        serbian "Ne mogu da izbrišem bazu '%-.192s'; baza ne postoji."
+        serbian "Ne mogu da izbrišem bazu '%-.192s'; baza ne postoji"
         slo "Nemôžem zmazať databázu '%-.192s'; databáza neexistuje"
         spa "No puedo eliminar base de datos '%-.192s'; la base de datos no existe"
         swe "Kan inte radera databasen '%-.192s'; databasen finns inte"
@@ -492,7 +492,7 @@ ER_DUP_KEY 23000
         fre "Ecriture impossible, doublon dans une clé de la table '%-.192s'"
         ger "Kann nicht speichern, Grund: doppelter Schlüssel in Tabelle '%-.192s'"
         greek "Δεν είναι δυνατή η καταχώρηση, η τιμή υπάρχει ήδη στον πίνακα '%-.192s'"
-        hun "Irasi hiba, duplikalt kulcs a '%-.192s' tablaban."
+        hun "Irasi hiba, duplikalt kulcs a '%-.192s' tablaban"
         ita "Scrittura impossibile: chiave duplicata nella tabella '%-.192s'"
         jpn "書き込めません。表 '%-.192s' に重複するキーがあります。"
         kor "기록할 수 없읍니다., 테이블 '%-.192s'에서 중복 키"
@@ -748,7 +748,7 @@ ER_NOT_KEYFILE
         cze "Nesprávný klíč pro tabulku '%-.200s'; pokuste se ho opravit"
         dan "Fejl i indeksfilen til tabellen '%-.200s'; prøv at reparere den"
         nla "Verkeerde zoeksleutel file voor tabel: '%-.200s'; probeer het te repareren"
-        eng "Incorrect key file for table '%-.200s'; try to repair it"
+        eng "Index for table '%-.200s' is corrupt; try to repair it"
         est "Tabeli '%-.200s' võtmefail on vigane; proovi seda parandada"
         fre "Index corrompu dans la table: '%-.200s'; essayez de le réparer"
         ger "Fehlerhafte Index-Datei für Tabelle '%-.200s'; versuche zu reparieren"
@@ -769,7 +769,7 @@ ER_NOT_KEYFILE
         swe "Fatalt fel vid hantering av register '%-.200s'; kör en reparation"
         ukr "Хибний файл ключей для таблиці: '%-.200s'; Спробуйте його відновити"
 ER_OLD_KEYFILE  
-        cze "Starý klíčový soubor pro '%-.192s'; opravte ho."
+        cze "Starý klíčový soubor pro '%-.192s'; opravte ho"
         dan "Gammel indeksfil for tabellen '%-.192s'; reparer den"
         nla "Oude zoeksleutel file voor tabel '%-.192s'; repareer het!"
         eng "Old key file for table '%-.192s'; repair it!"
@@ -846,7 +846,7 @@ ER_OUT_OF_SORTMEMORY HY001 S1001
         nla "Geen geheugen om te sorteren. Verhoog de server sort buffer size"
         eng "Out of sort memory, consider increasing server sort buffer size"
         est "Mälu sai sorteerimisel otsa. Suurenda MariaDB-i sorteerimispuhvrit"
-        fre "Manque de mémoire pour le tri. Augmentez-la."
+        fre "Manque de mémoire pour le tri. Augmentez-la"
         ger "Kein Speicher zum Sortieren vorhanden. sort_buffer_size sollte im Server erhöht werden"
         greek "Δεν υπάρχει διαθέσιμη μνήμη για ταξινόμιση. Αυξήστε το sort buffer size για τη διαδικασία (demon)"
         hun "Nincs eleg memoria a rendezeshez. Novelje a rendezo demon puffermeretet"
@@ -856,7 +856,7 @@ ER_OUT_OF_SORTMEMORY HY001 S1001
         nor "Ikke mer sorteringsminne. Vurder å øke sorteringsminnet (sort buffer size) for tjenesten"
         norwegian-ny "Ikkje meir sorteringsminne. Vurder å auke sorteringsminnet (sorteringsbuffer storleik) for tenesten"
         pol "Zbyt mało pamięci dla sortowania. Zwiększ wielko?ć bufora demona dla sortowania"
-        por "Não há memória suficiente para ordenação. Considere aumentar o tamanho do retentor (buffer) de ordenação."
+        por "Não há memória suficiente para ordenação. Considere aumentar o tamanho do retentor (buffer) de ordenação"
         rum "Out of memory pentru sortare. Largeste marimea buffer-ului pentru sortare in daemon (sort buffer size)"
         rus "Недостаточно памяти для сортировки. Увеличьте размер буфера сортировки на сервере"
         serbian "Nema memorije za sortiranje. Povećajte veličinu sort buffer-a MariaDB server-u"
@@ -993,7 +993,7 @@ ER_DBACCESS_DENIED_ERROR 42000
         fre "Accès refusé pour l'utilisateur: '%s'@'%s'. Base '%-.192s'"
         ger "Benutzer '%s'@'%s' hat keine Zugriffsberechtigung für Datenbank '%-.192s'"
         greek "Δεν επιτέρεται η πρόσβαση στο χρήστη: '%s'@'%s' στη βάση δεδομένων '%-.192s'"
-        hun "A(z) '%s'@'%s' felhasznalo szamara tiltott eleres az '%-.192s' adabazishoz."
+        hun "A(z) '%s'@'%s' felhasznalo szamara tiltott eleres az '%-.192s' adabazishoz"
         ita "Accesso non consentito per l'utente: '%s'@'%s' al database '%-.192s'"
         jpn "ユーザー '%s'@'%s' の '%-.192s' データベースへのアクセスを拒否します"
         kor "'%s'@'%s' 사용자는 '%-.192s' 데이타베이스에 접근이 거부 되었습니다."
@@ -1350,7 +1350,7 @@ ER_TOO_LONG_IDENT 42000 S1009
         fre "Le nom de l'identificateur '%-.100s' est trop long"
         ger "Name des Bezeichners '%-.100s' ist zu lang"
         greek "Το identifier name '%-.100s' είναι πολύ μεγάλο"
-        hun "A(z) '%-.100s' azonositonev tul hosszu."
+        hun "A(z) '%-.100s' azonositonev tul hosszu"
         ita "Il nome dell'identificatore '%-.100s' e` troppo lungo"
         jpn "識別子名 '%-.100s' は長すぎます。"
         kor "Identifier '%-.100s'는 너무 길군요."
@@ -1424,7 +1424,7 @@ ER_DUP_ENTRY 23000 S1009
 	fre "Duplicata du champ '%-.192s' pour la clef %d"
 	ger "Doppelter Eintrag '%-.192s' für Schlüssel %d"
 	greek "Διπλή εγγραφή '%-.192s' για το κλειδί %d"
-	hun "Duplikalt bejegyzes '%-.192s' a %d kulcs szerint."
+	hun "Duplikalt bejegyzes '%-.192s' a %d kulcs szerint"
 	ita "Valore duplicato '%-.192s' per la chiave %d"
 	jpn "'%-.192s' は索引 %d で重複しています。"
 	kor "중복된 입력 값 '%-.192s': key %d"
@@ -1496,7 +1496,7 @@ ER_EMPTY_QUERY 42000
         fre "Query est vide"
         ger "Leere Abfrage"
         greek "Το ερώτημα (query) που θέσατε ήταν κενό"
-        hun "Ures lekerdezes."
+        hun "Ures lekerdezes"
         ita "La query e` vuota"
         jpn "クエリが空です。"
         kor "쿼리결과가 없습니다."
@@ -1568,7 +1568,7 @@ ER_MULTIPLE_PRI_KEY 42000 S1009
         fre "Plusieurs clefs primaires définies"
         ger "Mehrere Primärschlüssel (PRIMARY KEY) definiert"
         greek "Περισσότερα από ένα primary key ορίστηκαν"
-        hun "Tobbszoros elsodleges kulcs definialas."
+        hun "Tobbszoros elsodleges kulcs definialas"
         ita "Definite piu` chiave primarie"
         jpn "PRIMARY KEY が複数定義されています。"
         kor "Multiple primary key가 정의되어 있슴"
@@ -1592,7 +1592,7 @@ ER_TOO_MANY_KEYS 42000 S1009
         fre "Trop de clefs sont définies. Maximum de %d clefs alloué"
         ger "Zu viele Schlüssel definiert. Maximal %d Schlüssel erlaubt"
         greek "Πάρα πολλά key ορίσθηκαν. Το πολύ %d επιτρέπονται"
-        hun "Tul sok kulcs. Maximum %d kulcs engedelyezett."
+        hun "Tul sok kulcs. Maximum %d kulcs engedelyezett"
         ita "Troppe chiavi. Sono ammesse max %d chiavi"
         jpn "索引の数が多すぎます。最大 %d 個までです。"
         kor "너무 많은 키가 정의되어 있읍니다.. 최대 %d의 키가 가능함"
@@ -1693,8 +1693,8 @@ ER_TOO_BIG_FIELDLENGTH 42000 S1009
         fre "Champ '%-.192s' trop long (max = %lu). Utilisez un BLOB"
         ger "Feldlänge für Feld '%-.192s' zu groß (maximal %lu). BLOB- oder TEXT-Spaltentyp verwenden!"
         greek "Πολύ μεγάλο μήκος για το πεδίο '%-.192s' (max = %lu). Παρακαλώ χρησιμοποιείστε τον τύπο BLOB"
-        hun "A(z) '%-.192s' oszlop tul hosszu. (maximum = %lu). Hasznaljon BLOB tipust inkabb."
-        ita "La colonna '%-.192s' e` troppo grande (max=%lu). Utilizza un BLOB."
+        hun "A(z) '%-.192s' oszlop tul hosszu. (maximum = %lu). Hasznaljon BLOB tipust inkabb"
+        ita "La colonna '%-.192s' e` troppo grande (max=%lu). Utilizza un BLOB"
         jpn "列 '%-.192s' のサイズ定義が大きすぎます (最大 %lu まで)。代わりに BLOB または TEXT を使用してください。"
         kor "칼럼 '%-.192s'의 칼럼 길이가 너무 깁니다 (최대 = %lu). 대신에 BLOB를 사용하세요."
         nor "For stor nøkkellengde for kolonne '%-.192s' (maks = %lu). Bruk BLOB istedenfor"
@@ -1711,18 +1711,18 @@ ER_TOO_BIG_FIELDLENGTH 42000 S1009
 ER_WRONG_AUTO_KEY 42000 S1009
         cze "Můžete mít pouze jedno AUTO pole a to musí být definováno jako klíč"
         dan "Der kan kun specificeres eet AUTO_INCREMENT-felt, og det skal være indekseret"
-        nla "Er kan slechts 1 autofield zijn en deze moet als zoeksleutel worden gedefinieerd."
+        nla "Er kan slechts 1 autofield zijn en deze moet als zoeksleutel worden gedefinieerd"
         eng "Incorrect table definition; there can be only one auto column and it must be defined as a key"
         est "Vigane tabelikirjeldus; Tabelis tohib olla üks auto_increment tüüpi tulp ning see peab olema defineeritud võtmena"
         fre "Un seul champ automatique est permis et il doit être indexé"
         ger "Falsche Tabellendefinition. Es darf nur eine AUTO_INCREMENT-Spalte geben, und diese muss als Schlüssel definiert werden"
         greek "Μπορεί να υπάρχει μόνο ένα auto field και πρέπει να έχει ορισθεί σαν key"
-        hun "Csak egy auto mezo lehetseges, es azt kulcskent kell definialni."
+        hun "Csak egy auto mezo lehetseges, es azt kulcskent kell definialni"
         ita "Puo` esserci solo un campo AUTO e deve essere definito come chiave"
         jpn "不正な表定義です。AUTO_INCREMENT列は１個までで、索引を定義する必要があります。"
         kor "부정확한 테이블 정의; 테이블은 하나의 auto 칼럼이 존재하고 키로 정의되어져야 합니다."
-        nor "Bare ett auto felt kan være definert som nøkkel."
-        norwegian-ny "Bare eitt auto felt kan være definert som nøkkel."
+        nor "Bare ett auto felt kan være definert som nøkkel"
+        norwegian-ny "Bare eitt auto felt kan være definert som nøkkel"
         pol "W tabeli może być tylko jedno pole auto i musi ono być zdefiniowane jako klucz"
         por "Definição incorreta de tabela. Somente é permitido um único campo auto-incrementado e ele tem que ser definido como chave"
         rum "Definitia tabelei este incorecta; Nu pot fi mai mult de o singura coloana de tip auto si aceasta trebuie definita ca cheie"
@@ -1903,33 +1903,33 @@ ER_WRONG_FIELD_TERMINATORS 42000 S1009
         swe "Fältseparatorerna är vad som förväntades. Kontrollera mot manualen"
         ukr "Хибний розділювач полів. Почитайте документацію"
 ER_BLOBS_AND_NO_TERMINATED 42000 S1009
-        cze "Není možné použít pevný rowlength s BLOBem. Použijte 'fields terminated by'."
-        dan "Man kan ikke bruge faste feltlængder med BLOB. Brug i stedet 'fields terminated by'."
-        nla "Bij het gebruik van BLOBs is het niet mogelijk om vaste rijlengte te gebruiken. Maak s.v.p. gebruik van 'fields terminated by'."
+        cze "Není možné použít pevný rowlength s BLOBem. Použijte 'fields terminated by'"
+        dan "Man kan ikke bruge faste feltlængder med BLOB. Brug i stedet 'fields terminated by'"
+        nla "Bij het gebruik van BLOBs is het niet mogelijk om vaste rijlengte te gebruiken. Maak s.v.p. gebruik van 'fields terminated by'"
         eng "You can't use fixed rowlength with BLOBs; please use 'fields terminated by'"
-        est "BLOB-tüüpi väljade olemasolul ei saa kasutada fikseeritud väljapikkust. Vajalik 'fields terminated by' määrang."
-        fre "Vous ne pouvez utiliser des lignes de longueur fixe avec des BLOBs. Utiliser 'fields terminated by'."
+        est "BLOB-tüüpi väljade olemasolul ei saa kasutada fikseeritud väljapikkust. Vajalik 'fields terminated by' määrang"
+        fre "Vous ne pouvez utiliser des lignes de longueur fixe avec des BLOBs. Utiliser 'fields terminated by'"
         ger "Eine feste Zeilenlänge kann für BLOB-Felder nicht verwendet werden. Bitte 'fields terminated by' verwenden"
-        greek "Δεν μπορείτε να χρησιμοποιήσετε fixed rowlength σε BLOBs. Παρακαλώ χρησιμοποιείστε 'fields terminated by'."
-        hun "Fix hosszusagu BLOB-ok nem hasznalhatok. Hasznalja a 'mezoelvalaszto jelet' ."
-        ita "Non possono essere usate righe a lunghezza fissa con i BLOB. Usa 'FIELDS TERMINATED BY'."
+        greek "Δεν μπορείτε να χρησιμοποιήσετε fixed rowlength σε BLOBs. Παρακαλώ χρησιμοποιείστε 'fields terminated by'"
+        hun "Fix hosszusagu BLOB-ok nem hasznalhatok. Hasznalja a 'mezoelvalaszto jelet' "
+        ita "Non possono essere usate righe a lunghezza fissa con i BLOB. Usa 'FIELDS TERMINATED BY'"
         jpn "BLOBには固定長レコードが使用できません。'FIELDS TERMINATED BY'句を使用して下さい。"
         kor "BLOB로는 고정길이의 lowlength를 사용할 수 없습니다. 'fields terminated by'를 사용하세요."
-        nor "En kan ikke bruke faste feltlengder med BLOB. Vennlisgt bruk 'fields terminated by'."
-        norwegian-ny "Ein kan ikkje bruke faste feltlengder med BLOB. Vennlisgt bruk 'fields terminated by'."
-        pol "Nie można użyć stałej długo?ci wiersza z polami typu BLOB. Użyj 'fields terminated by'."
-        por "Você não pode usar comprimento de linha fixo com BLOBs. Por favor, use campos com comprimento limitado."
-        rum "Nu poti folosi lungime de cimp fix pentru BLOB-uri. Foloseste 'fields terminated by'."
+        nor "En kan ikke bruke faste feltlengder med BLOB. Vennlisgt bruk 'fields terminated by'"
+        norwegian-ny "Ein kan ikkje bruke faste feltlengder med BLOB. Vennlisgt bruk 'fields terminated by'"
+        pol "Nie można użyć stałej długo?ci wiersza z polami typu BLOB. Użyj 'fields terminated by'"
+        por "Você não pode usar comprimento de linha fixo com BLOBs. Por favor, use campos com comprimento limitado"
+        rum "Nu poti folosi lungime de cimp fix pentru BLOB-uri. Foloseste 'fields terminated by'"
         rus "Фиксированный размер записи с полями типа BLOB использовать нельзя, применяйте 'fields terminated by'"
-        serbian "Ne možete koristiti fiksnu veličinu sloga kada imate BLOB polja. Molim koristite 'fields terminated by' opciju."
-        slo "Nie je možné použiť fixnú dĺžku s BLOBom. Použite 'fields terminated by'."
-        spa "No puedes usar longitudes de filas fijos con BLOBs. Por favor usa 'campos terminados por '."
+        serbian "Ne možete koristiti fiksnu veličinu sloga kada imate BLOB polja. Molim koristite 'fields terminated by' opciju"
+        slo "Nie je možné použiť fixnú dĺžku s BLOBom. Použite 'fields terminated by'"
+        spa "No puedes usar longitudes de filas fijos con BLOBs. Por favor usa 'campos terminados por '"
         swe "Man kan inte använda fast radlängd med blobs. Använd 'fields terminated by'"
         ukr "Не можна використовувати сталу довжину строки з BLOB. Зкористайтеся 'fields terminated by'"
 ER_TEXTFILE_NOT_READABLE  
         cze "Soubor '%-.128s' musí být v adresáři databáze nebo čitelný pro všechny"
         dan "Filen '%-.128s' skal være i database-folderen, eller kunne læses af alle"
-        nla "Het bestand '%-.128s' dient in de database directory voor the komen of leesbaar voor iedereen te zijn."
+        nla "Het bestand '%-.128s' dient in de database directory voor the komen of leesbaar voor iedereen te zijn"
         eng "The file '%-.128s' must be in the database directory or be readable by all"
         est "Fail '%-.128s' peab asuma andmebaasi kataloogis või olema kõigile loetav"
         fre "Le fichier '%-.128s' doit être dans le répertoire de la base et lisible par tous"
@@ -1959,7 +1959,7 @@ ER_FILE_EXISTS_ERROR
         fre "Le fichier '%-.200s' existe déjà"
         ger "Datei '%-.200s' bereits vorhanden"
         greek "Το αρχείο '%-.200s' υπάρχει ήδη"
-        hun "A '%-.200s' file mar letezik."
+        hun "A '%-.200s' file mar letezik"
         ita "Il file '%-.200s' esiste gia`"
         jpn "ファイル '%-.200s' はすでに存在します。"
         kor "'%-.200s' 화일은 이미 존재합니다."
@@ -2032,7 +2032,7 @@ ER_WRONG_SUB_KEY
         ger "Falscher Unterteilschlüssel. Der verwendete Schlüsselteil ist entweder kein String, die verwendete Länge ist länger als der Teilschlüssel oder die Speicher-Engine unterstützt keine Unterteilschlüssel"
         greek "Εσφαλμένο sub part key. Το χρησιμοποιούμενο key part δεν είναι string ή το μήκος του είναι μεγαλύτερο"
         hun "Rossz alkulcs. A hasznalt kulcsresz nem karaktersorozat vagy hosszabb, mint a kulcsresz"
-        ita "Sotto-parte della chiave errata. La parte di chiave utilizzata non e` una stringa o la lunghezza e` maggiore della parte di chiave."
+        ita "Sotto-parte della chiave errata. La parte di chiave utilizzata non e` una stringa o la lunghezza e` maggiore della parte di chiave"
         jpn "キーのプレフィックスが不正です。キーが文字列ではないか、プレフィックス長がキーよりも長いか、ストレージエンジンが一意索引のプレフィックス指定をサポートしていません。"
         kor "부정확한 서버 파트 키. 사용된 키 파트가 스트링이 아니거나 키 파트의 길이가 너무 깁니다."
         nor "Feil delnøkkel. Den brukte delnøkkelen er ikke en streng eller den oppgitte lengde er lengre enn nøkkel lengden"
@@ -2048,7 +2048,7 @@ ER_WRONG_SUB_KEY
         ukr "Невірна частина ключа. Використана частина ключа не є строкою, задовга або вказівник таблиці не підтримує унікальних частин ключей"
 ER_CANT_REMOVE_ALL_FIELDS 42000 
         cze "Není možné vymazat všechny položky s ALTER TABLE. Použijte DROP TABLE"
-        dan "Man kan ikke slette alle felter med ALTER TABLE. Brug DROP TABLE i stedet."
+        dan "Man kan ikke slette alle felter med ALTER TABLE. Brug DROP TABLE i stedet"
         nla "Het is niet mogelijk alle velden te verwijderen met ALTER TABLE. Gebruik a.u.b. DROP TABLE hiervoor!"
         eng "You can't delete all columns with ALTER TABLE; use DROP TABLE instead"
         est "ALTER TABLE kasutades ei saa kustutada kõiki tulpasid. Kustuta tabel DROP TABLE abil"
@@ -2059,8 +2059,8 @@ ER_CANT_REMOVE_ALL_FIELDS 42000
         ita "Non si possono cancellare tutti i campi con una ALTER TABLE. Utilizzare DROP TABLE"
         jpn "ALTER TABLE では全ての列の削除はできません。DROP TABLE を使用してください。"
         kor "ALTER TABLE 명령으로는 모든 칼럼을 지울 수 없습니다. DROP TABLE 명령을 이용하세요."
-        nor "En kan ikke slette alle felt med ALTER TABLE. Bruk DROP TABLE isteden."
-        norwegian-ny "Ein kan ikkje slette alle felt med ALTER TABLE. Bruk DROP TABLE istadenfor."
+        nor "En kan ikke slette alle felt med ALTER TABLE. Bruk DROP TABLE isteden"
+        norwegian-ny "Ein kan ikkje slette alle felt med ALTER TABLE. Bruk DROP TABLE istadenfor"
         pol "Nie można usun?ć wszystkich pól wykorzystuj?c ALTER TABLE. W zamian użyj DROP TABLE"
         por "Você não pode deletar todas as colunas com ALTER TABLE; use DROP TABLE em seu lugar"
         rum "Nu poti sterge toate coloanele cu ALTER TABLE. Foloseste DROP TABLE in schimb"
@@ -2072,8 +2072,8 @@ ER_CANT_REMOVE_ALL_FIELDS 42000
         ukr "Не можливо видалити всі стовбці за допомогою ALTER TABLE. Для цього скористайтеся DROP TABLE"
 ER_CANT_DROP_FIELD_OR_KEY 42000 
         cze "Nemohu zrušit (DROP %s) %`-.192s. Zkontrolujte, zda neexistují záznamy/klíče"
-        dan "Kan ikke udføre DROP %s %`-.192s. Undersøg om feltet/nøglen eksisterer."
-        nla "DROP %s: Kan %`-.192s niet weggooien. Controleer of het veld of de zoeksleutel daadwerkelijk bestaat."
+        dan "Kan ikke udføre DROP %s %`-.192s. Undersøg om feltet/nøglen eksisterer"
+        nla "DROP %s: Kan %`-.192s niet weggooien. Controleer of het veld of de zoeksleutel daadwerkelijk bestaat"
         eng "Can't DROP %s %`-.192s; check that it exists"
         est "Ei suuda kustutada (DROP %s) %`-.192s. Kontrolli kas tulp/võti eksisteerib"
         fre "Ne peut effacer (DROP %s) %`-.192s. Vérifiez s'il existe"
@@ -2081,8 +2081,8 @@ ER_CANT_DROP_FIELD_OR_KEY 42000
         greek "Αδύνατη η διαγραφή (DROP %s) %`-.192s. Παρακαλώ ελέγξτε αν το πεδίο/κλειδί υπάρχει"
         hun "A DROP %s %`-.192s nem lehetseges. Ellenorizze, hogy a mezo/kulcs letezik-e"
         ita "Impossibile cancellare (DROP %s) %`-.192s. Controllare che il campo chiave esista"
-        nor "Kan ikke DROP %s %`-.192s. Undersøk om felt/nøkkel eksisterer."
-        norwegian-ny "Kan ikkje DROP %s %`-.192s. Undersøk om felt/nøkkel eksisterar."
+        nor "Kan ikke DROP %s %`-.192s. Undersøk om felt/nøkkel eksisterer"
+        norwegian-ny "Kan ikkje DROP %s %`-.192s. Undersøk om felt/nøkkel eksisterar"
         pol "Nie można wykonać operacji DROP %s %`-.192s. SprawdĽ, czy to pole/klucz istnieje"
         por "Não se pode fazer DROP %s %`-.192s. Confira se esta coluna/chave existe"
         rum "Nu pot sa DROP %s %`-.192s. Verifica daca coloana/cheia exista"
@@ -2170,7 +2170,7 @@ ER_KILL_DENIED_ERROR
 ER_NO_TABLES_USED  
         cze "Nejsou použity žádné tabulky"
         dan "Ingen tabeller i brug"
-        nla "Geen tabellen gebruikt."
+        nla "Geen tabellen gebruikt"
         eng "No tables used"
         est "Ühtegi tabelit pole kasutusel"
         fre "Aucune table utilisée"
@@ -2242,7 +2242,7 @@ ER_NO_UNIQUE_LOGFILE
 ER_TABLE_NOT_LOCKED_FOR_WRITE  
         cze "Tabulka '%-.192s' byla zamčena s READ a nemůže být změněna"
         dan "Tabellen '%-.192s' var låst med READ lås og kan ikke opdateres"
-        nla "Tabel '%-.192s' was gelocked met een lock om te lezen. Derhalve kunnen geen wijzigingen worden opgeslagen."
+        nla "Tabel '%-.192s' was gelocked met een lock om te lezen. Derhalve kunnen geen wijzigingen worden opgeslagen"
         eng "Table '%-.192s' was locked with a READ lock and can't be updated"
         est "Tabel '%-.192s' on lukustatud READ lukuga ning ei ole muudetav"
         fre "Table '%-.192s' verrouillée lecture (READ): modification impossible"
@@ -2362,14 +2362,14 @@ ER_WRONG_TABLE_NAME 42000
 ER_TOO_BIG_SELECT 42000 
         cze "Zadaný SELECT by procházel příliš mnoho záznamů a trval velmi dlouho. Zkontrolujte tvar WHERE a je-li SELECT v pořádku, použijte SET SQL_BIG_SELECTS=1"
         dan "SELECT ville undersøge for mange poster og ville sandsynligvis tage meget lang tid. Undersøg WHERE delen og brug SET SQL_BIG_SELECTS=1 hvis udtrykket er korrekt"
-        nla "Het SELECT-statement zou te veel records analyseren en dus veel tijd in beslagnemen. Kijk het WHERE-gedeelte van de query na en kies SET SQL_BIG_SELECTS=1 als het stament in orde is."
+        nla "Het SELECT-statement zou te veel records analyseren en dus veel tijd in beslagnemen. Kijk het WHERE-gedeelte van de query na en kies SET SQL_BIG_SELECTS=1 als het stament in orde is"
         eng "The SELECT would examine more than MAX_JOIN_SIZE rows; check your WHERE and use SET SQL_BIG_SELECTS=1 or SET MAX_JOIN_SIZE=# if the SELECT is okay"
         est "SELECT lause peab läbi vaatama suure hulga kirjeid ja võtaks tõenäoliselt liiga kaua aega. Tasub kontrollida WHERE klauslit ja vajadusel kasutada käsku SET SQL_BIG_SELECTS=1"
         fre "SELECT va devoir examiner beaucoup d'enregistrements ce qui va prendre du temps. Vérifiez la clause WHERE et utilisez SET SQL_BIG_SELECTS=1 si SELECT se passe bien"
         ger "Die Ausführung des SELECT würde zu viele Datensätze untersuchen und wahrscheinlich sehr lange dauern. Bitte WHERE-Klausel überprüfen und gegebenenfalls SET SQL_BIG_SELECTS=1 oder SET MAX_JOIN_SIZE=# verwenden"
         greek "Το SELECT θα εξετάσει μεγάλο αριθμό εγγραφών και πιθανώς θα καθυστερήσει. Παρακαλώ εξετάστε τις παραμέτρους του WHERE και χρησιμοποιείστε SET SQL_BIG_SELECTS=1 αν το SELECT είναι σωστό"
         hun "A SELECT tul sok rekordot fog megvizsgalni es nagyon sokaig fog tartani. Ellenorizze a WHERE-t es hasznalja a SET SQL_BIG_SELECTS=1 beallitast, ha a SELECT okay"
-        ita "La SELECT dovrebbe esaminare troppi record e usare troppo tempo. Controllare la WHERE e usa SET SQL_BIG_SELECTS=1 se e` tutto a posto."
+        ita "La SELECT dovrebbe esaminare troppi record e usare troppo tempo. Controllare la WHERE e usa SET SQL_BIG_SELECTS=1 se e` tutto a posto"
         jpn "SELECTがMAX_JOIN_SIZEを超える行数を処理しました。WHERE句を確認し、SELECT文に問題がなければ、 SET SQL_BIG_SELECTS=1 または SET MAX_JOIN_SIZE=# を使用して下さい。"
         kor "SELECT 명령에서 너무 많은 레코드를 찾기 때문에 많은 시간이 소요됩니다. 따라서 WHERE 문을 점검하거나, 만약 SELECT가 ok되면  SET SQL_BIG_SELECTS=1 옵션을 사용하세요."
         nor "SELECT ville undersøke for mange poster og ville sannsynligvis ta veldig lang tid. Undersøk WHERE klausulen og bruk SET SQL_BIG_SELECTS=1 om SELECTen er korrekt"
@@ -2550,13 +2550,13 @@ ER_INVALID_GROUP_FUNC_USE
 ER_UNSUPPORTED_EXTENSION 42000 
         cze "Tabulka '%-.192s' používá rozšíření, které v této verzi MySQL není"
         dan "Tabellen '%-.192s' bruger et filtypenavn som ikke findes i denne MariaDB version"
-        nla "Tabel '%-.192s' gebruikt een extensie, die niet in deze MariaDB-versie voorkomt."
+        nla "Tabel '%-.192s' gebruikt een extensie, die niet in deze MariaDB-versie voorkomt"
         eng "Table '%-.192s' uses an extension that doesn't exist in this MariaDB version"
         est "Tabel '%-.192s' kasutab laiendust, mis ei eksisteeri antud MariaDB versioonis"
         fre "Table '%-.192s' : utilise une extension invalide pour cette version de MariaDB"
         ger "Tabelle '%-.192s' verwendet eine Erweiterung, die in dieser MariaDB-Version nicht verfügbar ist"
         greek "Ο πίνακς '%-.192s' χρησιμοποιεί κάποιο extension που δεν υπάρχει στην έκδοση αυτή της MariaDB"
-        hun "A(z) '%-.192s' tabla olyan bovitest hasznal, amely nem letezik ebben a MariaDB versioban."
+        hun "A(z) '%-.192s' tabla olyan bovitest hasznal, amely nem letezik ebben a MariaDB versioban"
         ita "La tabella '%-.192s' usa un'estensione che non esiste in questa versione di MariaDB"
 	jpn "表 '%-.192s' は、このMySQLバージョンには無い機能を使用しています。"
         kor "테이블 '%-.192s'는 확장명령을 이용하지만 현재의 MariaDB 버젼에서는 존재하지 않습니다."
@@ -2679,7 +2679,7 @@ ER_TOO_MANY_FIELDS
 ER_TOO_BIG_ROWSIZE 42000 
         cze "Řádek je příliš velký. Maximální velikost řádku, nepočítaje položky blob, je %ld. Musíte změnit některé položky na blob"
         dan "For store poster. Max post størrelse, uden BLOB's, er %ld. Du må lave nogle felter til BLOB's"
-        nla "Rij-grootte is groter dan toegestaan. Maximale rij grootte, blobs niet meegeteld, is %ld. U dient sommige velden in blobs te veranderen."
+        nla "Rij-grootte is groter dan toegestaan. Maximale rij grootte, blobs niet meegeteld, is %ld. U dient sommige velden in blobs te veranderen"
         eng "Row size too large. The maximum row size for the used table type, not counting BLOBs, is %ld. This includes storage overhead, check the manual. You have to change some columns to TEXT or BLOBs"
         est "Liiga pikk kirje. Kirje maksimumpikkus arvestamata BLOB-tüüpi välju on %ld. Muuda mõned väljad BLOB-tüüpi väljadeks"
         fre "Ligne trop grande. Le taille maximale d'une ligne, sauf les BLOBs, est %ld. Changez le type de quelques colonnes en BLOB"
@@ -2700,13 +2700,13 @@ ER_TOO_BIG_ROWSIZE 42000
 ER_STACK_OVERRUN  
         cze "Přetečení zásobníku threadu: použito %ld z %ld. Použijte 'mysqld --thread_stack=#' k zadání většího zásobníku"
         dan "Thread stack brugt:  Brugt: %ld af en %ld stak.  Brug 'mysqld --thread_stack=#' for at allokere en større stak om nødvendigt"
-        nla "Thread stapel overrun:  Gebruikte: %ld van een %ld stack. Gebruik 'mysqld --thread_stack=#' om een grotere stapel te definieren (indien noodzakelijk)."
+        nla "Thread stapel overrun:  Gebruikte: %ld van een %ld stack. Gebruik 'mysqld --thread_stack=#' om een grotere stapel te definieren (indien noodzakelijk)"
         eng "Thread stack overrun:  Used: %ld of a %ld stack.  Use 'mysqld --thread_stack=#' to specify a bigger stack if needed"
         fre "Débordement de la pile des tâches (Thread stack). Utilisées: %ld pour une pile de %ld.  Essayez 'mysqld --thread_stack=#' pour indiquer une plus grande valeur"
         ger "Thread-Stack-Überlauf. Benutzt: %ld von %ld Stack. 'mysqld --thread_stack=#' verwenden, um bei Bedarf einen größeren Stack anzulegen"
         greek "Stack overrun στο thread:  Used: %ld of a %ld stack.  Παρακαλώ χρησιμοποιείστε 'mysqld --thread_stack=#' για να ορίσετε ένα μεγαλύτερο stack αν χρειάζεται"
         hun "Thread verem tullepes:  Used: %ld of a %ld stack. Hasznalja a 'mysqld --thread_stack=#' nagyobb verem definialasahoz"
-        ita "Thread stack overrun:  Usati: %ld di uno stack di %ld.  Usa 'mysqld --thread_stack=#' per specificare uno stack piu` grande."
+        ita "Thread stack overrun:  Usati: %ld di uno stack di %ld.  Usa 'mysqld --thread_stack=#' per specificare uno stack piu` grande"
         jpn "スレッドスタック不足です(使用: %ld ; サイズ: %ld)。必要に応じて、より大きい値で 'mysqld --thread_stack=#' の指定をしてください。"
         kor "쓰레드 스택이 넘쳤습니다.  사용: %ld개 스택: %ld개.  만약 필요시 더큰 스택을 원할때에는 'mysqld --thread_stack=#' 를 정의하세요"
         por "Estouro da pilha do 'thread'. Usados %ld de uma pilha de %ld. Use 'mysqld --thread_stack=#' para especificar uma pilha maior, se necessário"
@@ -2944,7 +2944,7 @@ ER_PASSWORD_ANONYMOUS_USER 42000
         jpn "MySQL を匿名ユーザーで使用しているので、パスワードの変更はできません。"
         kor "당신은 MariaDB서버에 익명의 사용자로 접속을 하셨습니다.익명의 사용자는 암호를 변경할 수 없습니다."
         por "Você está usando o MariaDB como usuário anônimo e usuários anônimos não têm permissão para mudar senhas"
-        rum "Dumneavoastra folositi MariaDB ca un utilizator anonim si utilizatorii anonimi nu au voie sa schimbe setarile utilizatorilor."
+        rum "Dumneavoastra folositi MariaDB ca un utilizator anonim si utilizatorii anonimi nu au voie sa schimbe setarile utilizatorilor"
         rus "Вы используете MariaDB от имени анонимного пользователя, а анонимным пользователям не разрешается менять пароли"
         serbian "Vi koristite MariaDB kao anonimni korisnik a anonimnim korisnicima nije dozvoljeno da menjaju lozinke"
         spa "Tu estás usando MariaDB como un usuario anonimo y usuarios anonimos no tienen permiso para cambiar las claves"
@@ -3189,27 +3189,27 @@ ER_COLUMNACCESS_DENIED_ERROR 42000
         swe "%-.32s ej tillåtet för '%s'@'%s' för kolumn '%-.192s' i tabell '%-.192s'"
         ukr "%-.32s команда заборонена користувачу: '%s'@'%s' для стовбця '%-.192s' у таблиці '%-.192s'"
 ER_ILLEGAL_GRANT_FOR_TABLE 42000 
-        cze "Neplatný příkaz GRANT/REVOKE. Prosím, přečtěte si v manuálu, jaká privilegia je možné použít."
-        dan "Forkert GRANT/REVOKE kommando. Se i brugervejledningen hvilke privilegier der kan specificeres."
-        nla "Foutief GRANT/REVOKE commando. Raadpleeg de handleiding welke priveleges gebruikt kunnen worden."
+        cze "Neplatný příkaz GRANT/REVOKE. Prosím, přečtěte si v manuálu, jaká privilegia je možné použít"
+        dan "Forkert GRANT/REVOKE kommando. Se i brugervejledningen hvilke privilegier der kan specificeres"
+        nla "Foutief GRANT/REVOKE commando. Raadpleeg de handleiding welke priveleges gebruikt kunnen worden"
         eng "Illegal GRANT/REVOKE command; please consult the manual to see which privileges can be used"
         est "Vigane GRANT/REVOKE käsk. Tutvu kasutajajuhendiga"
-        fre "Commande GRANT/REVOKE incorrecte. Consultez le manuel."
+        fre "Commande GRANT/REVOKE incorrecte. Consultez le manuel"
         ger "Unzulässiger GRANT- oder REVOKE-Befehl. Verfügbare Berechtigungen sind im Handbuch aufgeführt"
-        greek "Illegal GRANT/REVOKE command; please consult the manual to see which privileges can be used."
+        greek "Illegal GRANT/REVOKE command; please consult the manual to see which privileges can be used"
         hun "Ervenytelen GRANT/REVOKE parancs. Kerem, nezze meg a kezikonyvben, milyen jogok lehetsegesek"
-        ita "Comando GRANT/REVOKE illegale. Prego consultare il manuale per sapere quali privilegi possono essere usati."
+        ita "Comando GRANT/REVOKE illegale. Prego consultare il manuale per sapere quali privilegi possono essere usati"
         jpn "不正な GRANT/REVOKE コマンドです。どの権限で利用可能かはマニュアルを参照して下さい。"
         kor "잘못된 GRANT/REVOKE 명령. 어떤 권리와 승인이 사용되어 질 수 있는지 메뉴얼을 보시오."
-        nor "Illegal GRANT/REVOKE command; please consult the manual to see which privleges can be used."
-        norwegian-ny "Illegal GRANT/REVOKE command; please consult the manual to see which privleges can be used."
-        pol "Illegal GRANT/REVOKE command; please consult the manual to see which privleges can be used."
-        por "Comando GRANT/REVOKE ilegal. Por favor consulte no manual quais privilégios podem ser usados."
-        rum "Comanda GRANT/REVOKE ilegala. Consultati manualul in privinta privilegiilor ce pot fi folosite."
+        nor "Illegal GRANT/REVOKE command; please consult the manual to see which privleges can be used"
+        norwegian-ny "Illegal GRANT/REVOKE command; please consult the manual to see which privleges can be used"
+        pol "Illegal GRANT/REVOKE command; please consult the manual to see which privleges can be used"
+        por "Comando GRANT/REVOKE ilegal. Por favor consulte no manual quais privilégios podem ser usados"
+        rum "Comanda GRANT/REVOKE ilegala. Consultati manualul in privinta privilegiilor ce pot fi folosite"
         rus "Неверная команда GRANT или REVOKE. Обратитесь к документации, чтобы выяснить, какие привилегии можно использовать"
-        serbian "Pogrešna 'GRANT' odnosno 'REVOKE' komanda. Molim Vas pogledajte u priručniku koje vrednosti mogu biti upotrebljene."
-        slo "Illegal GRANT/REVOKE command; please consult the manual to see which privleges can be used."
-        spa "Ilegal comando GRANT/REVOKE. Por favor consulte el manual para cuales permisos pueden ser usados."
+        serbian "Pogrešna 'GRANT' odnosno 'REVOKE' komanda. Molim Vas pogledajte u priručniku koje vrednosti mogu biti upotrebljene"
+        slo "Illegal GRANT/REVOKE command; please consult the manual to see which privleges can be used"
+        spa "Ilegal comando GRANT/REVOKE. Por favor consulte el manual para cuales permisos pueden ser usados"
         swe "Felaktigt GRANT-privilegium använt"
         ukr "Хибна GRANT/REVOKE команда; прочитайте документацію стосовно того, які права можна використовувати"
 ER_GRANT_WRONG_HOST_OR_USER 42000 
@@ -4149,7 +4149,7 @@ ER_SLAVE_MUST_STOP
         ita "Questa operazione non puo' essere eseguita con un database 'slave' '%2$*1$s' che gira, lanciare prima STOP SLAVE '%2$*1$s'"
         por "Esta operação não pode ser realizada com um 'slave' '%2$*1$s' em execução. Execute STOP SLAVE '%2$*1$s' primeiro"
         rus "Эту операцию невозможно выполнить при работающем потоке подчиненного сервера %2$*1$s. Сначала выполните STOP SLAVE '%2$*1$s'"
-        serbian "Ova operacija ne može biti izvršena dok je aktivan podređeni '%2$*1$s' server. Zadajte prvo komandu 'STOP SLAVE '%2$*1$s'' da zaustavite podređeni server."
+        serbian "Ova operacija ne može biti izvršena dok je aktivan podređeni '%2$*1$s' server. Zadajte prvo komandu 'STOP SLAVE '%2$*1$s'' da zaustavite podređeni server"
         spa "Esta operación no puede ser hecha con el esclavo '%2$*1$s' funcionando, primero use STOP SLAVE '%2$*1$s'"
         swe "Denna operation kan inte göras under replikering; Du har en aktiv förbindelse till '%2$*1$s'. Gör STOP SLAVE '%2$*1$s' först"
         ukr "Операція не може бути виконана з запущеним підлеглим '%2$*1$s', спочатку виконайте STOP SLAVE '%2$*1$s'"
@@ -4241,7 +4241,7 @@ ER_LOCK_WAIT_TIMEOUT
         ger "Beim Warten auf eine Sperre wurde die zulässige Wartezeit überschritten. Bitte versuchen Sie, die Transaktion neu zu starten"
         ita "E' scaduto il timeout per l'attesa del lock"
         jpn "ロック待ちがタイムアウトしました。トランザクションを再試行してください。"
-        por "Tempo de espera (timeout) de travamento excedido. Tente reiniciar a transação."
+        por "Tempo de espera (timeout) de travamento excedido. Tente reiniciar a transação"
         rus "Таймаут ожидания блокировки истек; попробуйте перезапустить транзакцию"
         serbian "Vremenski limit za zaključavanje tabele je istekao; Probajte da ponovo startujete transakciju"
         spa "Tiempo de bloqueo de espera excedido"
@@ -4342,7 +4342,7 @@ ER_UNION_TABLES_IN_DIFFERENT_DIR
         ger "Falsche Tabellendefinition. Alle MERGE-Tabellen müssen sich in derselben Datenbank befinden"
         ita "Definizione della tabella errata; tutte le tabelle di tipo MERGE devono essere nello stesso database"
         jpn "不正な表定義です。MERGE表の構成表はすべて同じデータベース内になければなりません。"
-        por "Definição incorreta da tabela. Todas as tabelas contidas na junção devem estar no mesmo banco de dados."
+        por "Definição incorreta da tabela. Todas as tabelas contidas na junção devem estar no mesmo banco de dados"
         rus "Неверное определение таблицы; Все таблицы в MERGE должны принадлежать одной и той же базе данных"
         serbian "Pogrešna definicija tabele; sve 'MERGE' tabele moraju biti u istoj bazi podataka"
         spa "Incorrecta definición de la tabla; Todas las tablas MERGE deben estar en el mismo banco de datos"
@@ -4355,7 +4355,7 @@ ER_LOCK_DEADLOCK 40001
         ger "Beim Versuch, eine Sperre anzufordern, ist ein Deadlock aufgetreten. Versuchen Sie, die Transaktion neu zu starten"
         ita "Trovato deadlock durante il lock; Provare a far ripartire la transazione"
         jpn "ロック取得中にデッドロックが検出されました。トランザクションを再試行してください。"
-        por "Encontrado um travamento fatal (deadlock) quando tentava obter uma trava. Tente reiniciar a transação."
+        por "Encontrado um travamento fatal (deadlock) quando tentava obter uma trava. Tente reiniciar a transação"
         rus "Возникла тупиковая ситуация в процессе получения блокировки; Попробуйте перезапустить транзакцию"
         serbian "Unakrsno zaključavanje pronađeno kada sam pokušao da dobijem pravo na zaključavanje; Probajte da restartujete transakciju"
         spa "Encontrado deadlock cuando tentando obtener el bloqueo; Tente recomenzar la transición"
@@ -4482,7 +4482,7 @@ ER_CANT_UPDATE_WITH_READLOCK
         spa "No puedo ejecutar el query  porque usted tiene conflicto de traba de lectura"
         swe "Kan inte utföra kommandot emedan du har ett READ-lås"
 ER_MIXING_NOT_ALLOWED  
-        nla "Het combineren van transactionele en niet-transactionele tabellen is uitgeschakeld."
+        nla "Het combineren van transactionele en niet-transactionele tabellen is uitgeschakeld"
         eng "Mixing of transactional and non-transactional tables is disabled"
         est "Transaktsioone toetavate ning mittetoetavate tabelite kooskasutamine ei ole lubatud"
         ger "Die gleichzeitige Verwendung von Tabellen mit und ohne Transaktionsunterstützung ist deaktiviert"
@@ -4746,7 +4746,7 @@ ER_NOT_SUPPORTED_AUTH_MODE 08004
         nla "Client ondersteunt het door de server verwachtte authenticatieprotocol niet. Overweeg een nieuwere MariaDB client te gebruiken"
         por "Cliente não suporta o protocolo de autenticação exigido pelo servidor; considere a atualização do cliente MariaDB"
         spa "Cliente no soporta protocolo de autenticación solicitado por el servidor; considere actualizar el cliente MariaDB"
-        swe "Klienten stöder inte autentiseringsprotokollet som begärts av servern; överväg uppgradering av klientprogrammet."
+        swe "Klienten stöder inte autentiseringsprotokollet som begärts av servern; överväg uppgradering av klientprogrammet"
 ER_SPATIAL_CANT_HAVE_NULL 42000 
         eng "All parts of a SPATIAL index must be NOT NULL"
         ger "Alle Teile eines SPATIAL-Index müssen als NOT NULL deklariert sein"
@@ -5092,11 +5092,11 @@ ER_SP_BADSTATEMENT 0A000
         eng "%s is not allowed in stored procedures"
         ger "%s ist in gespeicherten Prozeduren nicht erlaubt"
 ER_UPDATE_LOG_DEPRECATED_IGNORED 42000 
-        eng "The update log is deprecated and replaced by the binary log; SET SQL_LOG_UPDATE has been ignored. This option will be removed in MariaDB 5.6."
-        ger "Das Update-Log ist veraltet und wurde durch das Binär-Log ersetzt. SET SQL_LOG_UPDATE wird ignoriert. Diese Option wird in MariaDB 5.6 entfernt."
+        eng "The update log is deprecated and replaced by the binary log; SET SQL_LOG_UPDATE has been ignored. This option will be removed in MariaDB 5.6"
+        ger "Das Update-Log ist veraltet und wurde durch das Binär-Log ersetzt. SET SQL_LOG_UPDATE wird ignoriert. Diese Option wird in MariaDB 5.6 entfernt"
 ER_UPDATE_LOG_DEPRECATED_TRANSLATED 42000 
-        eng "The update log is deprecated and replaced by the binary log; SET SQL_LOG_UPDATE has been translated to SET SQL_LOG_BIN. This option will be removed in MariaDB 5.6."
-        ger "Das Update-Log ist veraltet und wurde durch das Binär-Log ersetzt. SET SQL_LOG_UPDATE wurde in SET SQL_LOG_BIN übersetzt. Diese Option wird in MariaDB 5.6 entfernt."
+        eng "The update log is deprecated and replaced by the binary log; SET SQL_LOG_UPDATE has been translated to SET SQL_LOG_BIN. This option will be removed in MariaDB 5.6"
+        ger "Das Update-Log ist veraltet und wurde durch das Binär-Log ersetzt. SET SQL_LOG_UPDATE wurde in SET SQL_LOG_BIN übersetzt. Diese Option wird in MariaDB 5.6 entfernt"
 ER_QUERY_INTERRUPTED 70100 
         eng "Query execution was interrupted"
         ger "Ausführung der Abfrage wurde unterbrochen"
@@ -5454,28 +5454,28 @@ ER_BINLOG_CREATE_ROUTINE_NEED_SUPER
         eng "You do not have the SUPER privilege and binary logging is enabled (you *might* want to use the less safe log_bin_trust_function_creators variable)"
         ger "Sie haben keine SUPER-Berechtigung und Binärlogging ist aktiv (*vielleicht* sollten Sie die weniger sichere Variable log_bin_trust_function_creators verwenden)"
 ER_EXEC_STMT_WITH_OPEN_CURSOR
-        eng "You can't execute a prepared statement which has an open cursor associated with it. Reset the statement to re-execute it."
+        eng "You can't execute a prepared statement which has an open cursor associated with it. Reset the statement to re-execute it"
         ger "Sie können keine vorbereitete Anweisung ausführen, die mit einem geöffneten Cursor verknüpft ist. Setzen Sie die Anweisung zurück, um sie neu auszuführen"
 ER_STMT_HAS_NO_OPEN_CURSOR
-        eng "The statement (%lu) has no open cursor."
+        eng "The statement (%lu) has no open cursor"
         ger "Die Anweisung (%lu) hat keinen geöffneten Cursor"
 ER_COMMIT_NOT_ALLOWED_IN_SF_OR_TRG
-        eng "Explicit or implicit commit is not allowed in stored function or trigger."
+        eng "Explicit or implicit commit is not allowed in stored function or trigger"
         ger "Explizites oder implizites Commit ist in gespeicherten Funktionen und in Triggern nicht erlaubt"
 ER_NO_DEFAULT_FOR_VIEW_FIELD
         eng "Field of view '%-.192s.%-.192s' underlying table doesn't have a default value"
         ger "Ein Feld der dem View '%-.192s.%-.192s' zugrundeliegenden Tabelle hat keinen Vorgabewert"
 ER_SP_NO_RECURSION
-        eng "Recursive stored functions and triggers are not allowed."
+        eng "Recursive stored functions and triggers are not allowed"
         ger "Rekursive gespeicherte Routinen und Triggers sind nicht erlaubt"
 ER_TOO_BIG_SCALE 42000 S1009
-        eng "Too big scale %llu specified for '%-.192s'. Maximum is %u."
+        eng "Too big scale %llu specified for '%-.192s'. Maximum is %u"
         ger "Zu großer Skalierungsfaktor %llu für '%-.192s' angegeben. Maximum ist %u"
 ER_TOO_BIG_PRECISION 42000 S1009
-        eng "Too big precision %llu specified for '%-.192s'. Maximum is %u."
+        eng "Too big precision %llu specified for '%-.192s'. Maximum is %u"
         ger "Zu große Genauigkeit %llu für '%-.192s' angegeben. Maximum ist %u"
 ER_M_BIGGER_THAN_D 42000 S1009
-        eng "For float(M,D), double(M,D) or decimal(M,D), M must be >= D (column '%-.192s')."
+        eng "For float(M,D), double(M,D) or decimal(M,D), M must be >= D (column '%-.192s')"
         ger "Für FLOAT(M,D), DOUBLE(M,D) oder DECIMAL(M,D) muss M >= D sein (Feld '%-.192s')"
 ER_WRONG_LOCK_OF_SYSTEM_TABLE
         eng "You can't combine write-locking of system tables with other tables or lock types"
@@ -5502,7 +5502,7 @@ ER_TRG_IN_WRONG_SCHEMA
         eng "Trigger in wrong schema"
         ger "Trigger im falschen Schema"
 ER_STACK_OVERRUN_NEED_MORE
-        eng "Thread stack overrun:  %ld bytes used of a %ld byte stack, and %ld bytes needed.  Use 'mysqld --thread_stack=#' to specify a bigger stack."
+        eng "Thread stack overrun:  %ld bytes used of a %ld byte stack, and %ld bytes needed.  Use 'mysqld --thread_stack=#' to specify a bigger stack"
         ger "Thread-Stack-Überlauf: %ld Bytes eines %ld-Byte-Stacks in Verwendung, und %ld Bytes benötigt. Verwenden Sie 'mysqld --thread_stack=#', um einen größeren Stack anzugeben"
         jpn "スレッドスタック不足です(使用: %ld ; サイズ: %ld ; 要求: %ld)。より大きい値で 'mysqld --thread_stack=#' の指定をしてください。"
 ER_TOO_LONG_BODY 42000 S1009
@@ -5521,10 +5521,10 @@ ER_DATETIME_FUNCTION_OVERFLOW 22008
         eng "Datetime function: %-.32s field overflow"
         ger "Datetime-Funktion: %-.32s Feldüberlauf"
 ER_CANT_UPDATE_USED_TABLE_IN_SF_OR_TRG
-        eng "Can't update table '%-.192s' in stored function/trigger because it is already used by statement which invoked this stored function/trigger."
+        eng "Can't update table '%-.192s' in stored function/trigger because it is already used by statement which invoked this stored function/trigger"
         ger "Kann Tabelle '%-.192s' in gespeicherter Funktion oder Trigger nicht aktualisieren, weil sie bereits von der Anweisung verwendet wird, die diese gespeicherte Funktion oder den Trigger aufrief"
 ER_VIEW_PREVENT_UPDATE
-        eng "The definition of table '%-.192s' prevents operation %.192s on table '%-.192s'."
+        eng "The definition of table '%-.192s' prevents operation %.192s on table '%-.192s'"
         ger "Die Definition der Tabelle '%-.192s' verhindert die Operation %.192s auf Tabelle '%-.192s'"
 ER_PS_NO_RECURSION
         eng "The prepared statement contains a stored routine call that refers to that same statement. It's not allowed to execute a prepared statement in such a recursive manner"
@@ -5544,7 +5544,7 @@ ER_NO_SUCH_USER
         eng "The user specified as a definer ('%-.64s'@'%-.64s') does not exist"
         ger "Der als Definierer angegebene Benutzer ('%-.64s'@'%-.64s') existiert nicht"
 ER_FORBID_SCHEMA_CHANGE
-        eng "Changing schema from '%-.192s' to '%-.192s' is not allowed."
+        eng "Changing schema from '%-.192s' to '%-.192s' is not allowed"
         ger "Wechsel des Schemas von '%-.192s' auf '%-.192s' ist nicht erlaubt"
 ER_ROW_IS_REFERENCED_2 23000
         eng "Cannot delete or update a parent row: a foreign key constraint fails (%.192s)"
@@ -5556,8 +5556,8 @@ ER_SP_BAD_VAR_SHADOW 42000
         eng "Variable '%-.64s' must be quoted with `...`, or renamed"
         ger "Variable '%-.64s' muss mit `...` geschützt oder aber umbenannt werden"
 ER_TRG_NO_DEFINER
-        eng "No definer attribute for trigger '%-.192s'.'%-.192s'. The trigger will be activated under the authorization of the invoker, which may have insufficient privileges. Please recreate the trigger."
-        ger "Kein Definierer-Attribut für Trigger '%-.192s'.'%-.192s'. Der Trigger wird mit der Autorisierung des Aufrufers aktiviert, der möglicherweise keine zureichenden Berechtigungen hat. Bitte legen Sie den Trigger neu an."
+        eng "No definer attribute for trigger '%-.192s'.'%-.192s'. The trigger will be activated under the authorization of the invoker, which may have insufficient privileges. Please recreate the trigger"
+        ger "Kein Definierer-Attribut für Trigger '%-.192s'.'%-.192s'. Der Trigger wird mit der Autorisierung des Aufrufers aktiviert, der möglicherweise keine zureichenden Berechtigungen hat. Bitte legen Sie den Trigger neu an"
 ER_OLD_FILE_FORMAT
         eng "'%-.192s' has an old format, you should re-create the '%s' object(s)"
         ger "'%-.192s' hat altes Format, Sie sollten die '%s'-Objekt(e) neu erzeugen"
@@ -5623,8 +5623,8 @@ ER_AMBIGUOUS_FIELD_TERM
   eng "First character of the FIELDS TERMINATED string is ambiguous; please use non-optional and non-empty FIELDS ENCLOSED BY"
   ger "Das erste Zeichen der Zeichenkette FIELDS TERMINATED ist mehrdeutig; bitte benutzen Sie nicht optionale und nicht leere FIELDS ENCLOSED BY"
 ER_FOREIGN_SERVER_EXISTS
-  eng "The foreign server, %s, you are trying to create already exists."
-  ger "Der entfernte Server %s, den Sie versuchen zu erzeugen, existiert schon."
+  eng "The foreign server, %s, you are trying to create already exists"
+  ger "Der entfernte Server %s, den Sie versuchen zu erzeugen, existiert schon"
 ER_FOREIGN_SERVER_DOESNT_EXIST
         eng "The foreign server name you are trying to reference does not exist. Data source error:  %-.64s"
 	ger "Die externe Verbindung, auf die Sie zugreifen wollen, existiert nicht. Datenquellenfehlermeldung:  %-.64s"
@@ -5851,7 +5851,7 @@ ER_EVENT_ALREADY_EXISTS
         eng "Event '%-.192s' already exists"
         ger "Event '%-.192s' existiert bereits"
 ER_EVENT_STORE_FAILED
-        eng "Failed to store event %s. Error code %M from storage engine."
+        eng "Failed to store event %s. Error code %M from storage engine"
         ger "Speichern von Event %s fehlgeschlagen. Fehlercode der Speicher-Engine: %M"
 ER_EVENT_DOES_NOT_EXIST
         eng "Unknown event '%-.192s'"
@@ -5906,12 +5906,12 @@ ER_CANT_WRITE_LOCK_LOG_TABLE
         eng "You can't write-lock a log table. Only read access is possible"
         ger "Eine Log-Tabelle kann nicht schreibgesperrt werden. Es ist ohnehin nur Lesezugriff möglich"
 ER_CANT_LOCK_LOG_TABLE
-        eng "You can't use locks with log tables."
-        ger "Log-Tabellen können nicht gesperrt werden."
+        eng "You can't use locks with log tables"
+        ger "Log-Tabellen können nicht gesperrt werden"
 ER_UNUSED_4
         eng "You should never see it"
 ER_COL_COUNT_DOESNT_MATCH_PLEASE_UPDATE
-        eng "Column count of mysql.%s is wrong. Expected %d, found %d. Created with MariaDB %d, now running %d. Please use mysql_upgrade to fix this error."
+        eng "Column count of mysql.%s is wrong. Expected %d, found %d. Created with MariaDB %d, now running %d. Please use mysql_upgrade to fix this error"
         ger "Spaltenanzahl von mysql.%s falsch. %d erwartet, aber %d erhalten. Erzeugt mit MariaDB %d, jetzt unter %d. Bitte benutzen Sie mysql_upgrade, um den Fehler zu beheben"
 ER_TEMP_TABLE_PREVENTS_SWITCH_OUT_OF_RBR
         eng "Cannot switch out of the row-based binary log format when the session has open temporary tables"
@@ -6009,7 +6009,7 @@ ER_DUP_ENTRY_WITH_KEY_NAME 23000 S1009
         fre "Duplicata du champ '%-.64s' pour la clef '%-.192s'"
         ger "Doppelter Eintrag '%-.64s' für Schlüssel '%-.192s'"
         greek "Διπλή εγγραφή '%-.64s' για το κλειδί '%-.192s'"
-        hun "Duplikalt bejegyzes '%-.64s' a '%-.192s' kulcs szerint."
+        hun "Duplikalt bejegyzes '%-.64s' a '%-.192s' kulcs szerint"
         ita "Valore duplicato '%-.64s' per la chiave '%-.192s'"
         jpn "'%-.64s' は索引 '%-.192s' で重複しています。"
         kor "중복된 입력 값 '%-.64s': key '%-.192s'"
@@ -6028,11 +6028,11 @@ ER_BINLOG_PURGE_EMFILE
   eng "Too many files opened, please execute the command again"
   ger "Zu viele offene Dateien, bitte führen Sie den Befehl noch einmal aus"
 ER_EVENT_CANNOT_CREATE_IN_THE_PAST
-  eng "Event execution time is in the past and ON COMPLETION NOT PRESERVE is set. The event was dropped immediately after creation."
-  ger "Ausführungszeit des Events liegt in der Vergangenheit, und es wurde ON COMPLETION NOT PRESERVE gesetzt. Das Event wurde unmittelbar nach Erzeugung gelöscht."
+  eng "Event execution time is in the past and ON COMPLETION NOT PRESERVE is set. The event was dropped immediately after creation"
+  ger "Ausführungszeit des Events liegt in der Vergangenheit, und es wurde ON COMPLETION NOT PRESERVE gesetzt. Das Event wurde unmittelbar nach Erzeugung gelöscht"
 ER_EVENT_CANNOT_ALTER_IN_THE_PAST
-  eng "Event execution time is in the past and ON COMPLETION NOT PRESERVE is set. The event was not changed. Specify a time in the future."
-  ger "Execution Zeitpunkt des Ereignisses in der Vergangenheit liegt, und es war NACH ABSCHLUSS Set nicht erhalten. Die Veranstaltung wurde nicht verändert. Geben Sie einen Zeitpunkt in der Zukunft."
+  eng "Event execution time is in the past and ON COMPLETION NOT PRESERVE is set. The event was not changed. Specify a time in the future"
+  ger "Execution Zeitpunkt des Ereignisses in der Vergangenheit liegt, und es war NACH ABSCHLUSS Set nicht erhalten. Die Veranstaltung wurde nicht verändert. Geben Sie einen Zeitpunkt in der Zukunft"
 ER_SLAVE_INCIDENT
   eng "The incident %s occurred on the master. Message: %-.64s"
   ger "Der Vorfall %s passierte auf dem Master. Meldung: %-.64s"
@@ -6091,8 +6091,8 @@ ER_CANT_CREATE_SROUTINE
 ER_UNUSED_11
         eng "You should never see it"
 ER_NO_FORMAT_DESCRIPTION_EVENT_BEFORE_BINLOG_STATEMENT
-  eng "The BINLOG statement of type `%s` was not preceded by a format description BINLOG statement."
-  ger "Der BINLOG-Anweisung vom Typ `%s` ging keine BINLOG-Anweisung zur Formatbeschreibung voran."
+  eng "The BINLOG statement of type `%s` was not preceded by a format description BINLOG statement"
+  ger "Der BINLOG-Anweisung vom Typ `%s` ging keine BINLOG-Anweisung zur Formatbeschreibung voran"
 ER_SLAVE_CORRUPT_EVENT
   eng "Corrupted replication event was detected"
   ger "Beschädigtes Replikationsereignis entdeckt"
@@ -6136,7 +6136,7 @@ ER_SLAVE_HEARTBEAT_FAILURE
   eng "Unexpected master's heartbeat data: %s"
   ger "Unerwartete Daten vom Heartbeat des Masters: %s"
 ER_SLAVE_HEARTBEAT_VALUE_OUT_OF_RANGE
-  eng "The requested value for the heartbeat period is either negative or exceeds the maximum allowed (%u seconds)."
+  eng "The requested value for the heartbeat period is either negative or exceeds the maximum allowed (%u seconds)"
 ER_UNUSED_14
   eng "You should never see it"
 ER_CONFLICT_FN_PARSE_ERROR
@@ -6257,36 +6257,36 @@ ER_PARTITION_FIELDS_TOO_LONG
   eng "The total length of the partitioning fields is too large"
   ger "Die Gesamtlänge der Partitionsfelder ist zu groß"
 ER_BINLOG_ROW_ENGINE_AND_STMT_ENGINE
-  eng "Cannot execute statement: impossible to write to binary log since both row-incapable engines and statement-incapable engines are involved."
+  eng "Cannot execute statement: impossible to write to binary log since both row-incapable engines and statement-incapable engines are involved"
 ER_BINLOG_ROW_MODE_AND_STMT_ENGINE
-  eng "Cannot execute statement: impossible to write to binary log since BINLOG_FORMAT = ROW and at least one table uses a storage engine limited to statement-based logging."
+  eng "Cannot execute statement: impossible to write to binary log since BINLOG_FORMAT = ROW and at least one table uses a storage engine limited to statement-based logging"
 ER_BINLOG_UNSAFE_AND_STMT_ENGINE
   eng "Cannot execute statement: impossible to write to binary log since statement is unsafe, storage engine is limited to statement-based logging, and BINLOG_FORMAT = MIXED. %s"
 ER_BINLOG_ROW_INJECTION_AND_STMT_ENGINE
-  eng "Cannot execute statement: impossible to write to binary log since statement is in row format and at least one table uses a storage engine limited to statement-based logging."
+  eng "Cannot execute statement: impossible to write to binary log since statement is in row format and at least one table uses a storage engine limited to statement-based logging"
 ER_BINLOG_STMT_MODE_AND_ROW_ENGINE
   eng "Cannot execute statement: impossible to write to binary log since BINLOG_FORMAT = STATEMENT and at least one table uses a storage engine limited to row-based logging.%s"
 ER_BINLOG_ROW_INJECTION_AND_STMT_MODE
-  eng "Cannot execute statement: impossible to write to binary log since statement is in row format and BINLOG_FORMAT = STATEMENT."
+  eng "Cannot execute statement: impossible to write to binary log since statement is in row format and BINLOG_FORMAT = STATEMENT"
 ER_BINLOG_MULTIPLE_ENGINES_AND_SELF_LOGGING_ENGINE
-  eng "Cannot execute statement: impossible to write to binary log since more than one engine is involved and at least one engine is self-logging."
+  eng "Cannot execute statement: impossible to write to binary log since more than one engine is involved and at least one engine is self-logging"
 
 ER_BINLOG_UNSAFE_LIMIT
-  eng "The statement is unsafe because it uses a LIMIT clause. This is unsafe because the set of rows included cannot be predicted."
+  eng "The statement is unsafe because it uses a LIMIT clause. This is unsafe because the set of rows included cannot be predicted"
 ER_BINLOG_UNSAFE_INSERT_DELAYED
-  eng "The statement is unsafe because it uses INSERT DELAYED. This is unsafe because the times when rows are inserted cannot be predicted."
+  eng "The statement is unsafe because it uses INSERT DELAYED. This is unsafe because the times when rows are inserted cannot be predicted"
 ER_BINLOG_UNSAFE_SYSTEM_TABLE
-  eng "The statement is unsafe because it uses the general log, slow query log, or performance_schema table(s). This is unsafe because system tables may differ on slaves."
+  eng "The statement is unsafe because it uses the general log, slow query log, or performance_schema table(s). This is unsafe because system tables may differ on slaves"
 ER_BINLOG_UNSAFE_AUTOINC_COLUMNS
-  eng "Statement is unsafe because it invokes a trigger or a stored function that inserts into an AUTO_INCREMENT column. Inserted values cannot be logged correctly."
+  eng "Statement is unsafe because it invokes a trigger or a stored function that inserts into an AUTO_INCREMENT column. Inserted values cannot be logged correctly"
 ER_BINLOG_UNSAFE_UDF
-  eng "Statement is unsafe because it uses a UDF which may not return the same value on the slave."
+  eng "Statement is unsafe because it uses a UDF which may not return the same value on the slave"
 ER_BINLOG_UNSAFE_SYSTEM_VARIABLE
-  eng "Statement is unsafe because it uses a system variable that may have a different value on the slave."
+  eng "Statement is unsafe because it uses a system variable that may have a different value on the slave"
 ER_BINLOG_UNSAFE_SYSTEM_FUNCTION
-  eng "Statement is unsafe because it uses a system function that may return a different value on the slave."
+  eng "Statement is unsafe because it uses a system function that may return a different value on the slave"
 ER_BINLOG_UNSAFE_NONTRANS_AFTER_TRANS
-  eng "Statement is unsafe because it accesses a non-transactional table after accessing a transactional table within the same transaction."
+  eng "Statement is unsafe because it accesses a non-transactional table after accessing a transactional table within the same transaction"
 
 ER_MESSAGE_AND_STATEMENT
   eng "%s Statement: %s"
@@ -6298,16 +6298,16 @@ ER_SLAVE_CANT_CREATE_CONVERSION
 ER_INSIDE_TRANSACTION_PREVENTS_SWITCH_BINLOG_FORMAT
   eng "Cannot modify @@session.binlog_format inside a transaction"
 ER_PATH_LENGTH
-  eng "The path specified for %.64s is too long."
+  eng "The path specified for %.64s is too long"
 ER_WARN_DEPRECATED_SYNTAX_NO_REPLACEMENT  
-  eng "'%s' is deprecated and will be removed in a future release."
-  ger "'%s' ist veraltet und wird in einer zukünftigen Version entfernt werden."
+  eng "'%s' is deprecated and will be removed in a future release"
+  ger "'%s' ist veraltet und wird in einer zukünftigen Version entfernt werden"
 
 ER_WRONG_NATIVE_TABLE_STRUCTURE
         eng "Native table '%-.64s'.'%-.64s' has the wrong structure"
 
 ER_WRONG_PERFSCHEMA_USAGE
-        eng "Invalid performance_schema usage."
+        eng "Invalid performance_schema usage"
 ER_WARN_I_S_SKIPPED_TABLE
   eng "Table '%s'.'%s' was skipped since its definition is being modified by concurrent DDL statement"
 
@@ -6331,10 +6331,10 @@ ER_WRONG_SPVAR_TYPE_IN_LIMIT
   eng "A variable of a non-integer based type in LIMIT clause"
 
 ER_BINLOG_UNSAFE_MULTIPLE_ENGINES_AND_SELF_LOGGING_ENGINE
-  eng "Mixing self-logging and non-self-logging engines in a statement is unsafe."
+  eng "Mixing self-logging and non-self-logging engines in a statement is unsafe"
 
 ER_BINLOG_UNSAFE_MIXED_STATEMENT
-  eng "Statement accesses nontransactional table as well as transactional or temporary table, and writes to any of them."
+  eng "Statement accesses nontransactional table as well as transactional or temporary table, and writes to any of them"
 
 ER_INSIDE_TRANSACTION_PREVENTS_SWITCH_SQL_LOG_BIN
   eng "Cannot modify @@session.sql_log_bin inside a transaction"
@@ -6359,7 +6359,7 @@ ER_ACCESS_DENIED_NO_PASSWORD_ERROR 28000
         fre "Accès refusé pour l'utilisateur: '%s'@'%s'"
         ger "Benutzer '%s'@'%s' hat keine Zugriffsberechtigung"
         greek "Δεν επιτέρεται η πρόσβαση στο χρήστη: '%s'@'%s'"
-        hun "A(z) '%s'@'%s' felhasznalo szamara tiltott eleres."
+        hun "A(z) '%s'@'%s' felhasznalo szamara tiltott eleres"
         ita "Accesso non consentito per l'utente: '%s'@'%s'"
         kor "'%s'@'%s' 사용자는 접근이 거부 되었습니다."
         nor "Tilgang nektet for bruker: '%s'@'%s'"
@@ -6386,16 +6386,16 @@ ER_PLUGIN_IS_PERMANENT
   eng "Plugin '%s' is force_plus_permanent and can not be unloaded"
 
 ER_SLAVE_HEARTBEAT_VALUE_OUT_OF_RANGE_MIN
-  eng "The requested value for the heartbeat period is less than 1 millisecond. The value is reset to 0, meaning that heartbeating will effectively be disabled."
+  eng "The requested value for the heartbeat period is less than 1 millisecond. The value is reset to 0, meaning that heartbeating will effectively be disabled"
 
 ER_SLAVE_HEARTBEAT_VALUE_OUT_OF_RANGE_MAX
-  eng "The requested value for the heartbeat period exceeds the value of `slave_net_timeout' seconds. A sensible value for the period should be less than the timeout."
+  eng "The requested value for the heartbeat period exceeds the value of `slave_net_timeout' seconds. A sensible value for the period should be less than the timeout"
 
 ER_STMT_CACHE_FULL  
         eng "Multi-row statements required more than 'max_binlog_stmt_cache_size' bytes of storage; increase this mysqld variable and try again"
 
 ER_MULTI_UPDATE_KEY_CONFLICT
-  eng "Primary key/partition key update is not allowed since the table is updated both as '%-.192s' and '%-.192s'."
+  eng "Primary key/partition key update is not allowed since the table is updated both as '%-.192s' and '%-.192s'"
 
 # When translating this error message make sure to include "ALTER TABLE" in the
 # message as mysqlcheck parses the error message looking for ALTER TABLE.
@@ -6406,7 +6406,7 @@ WARN_OPTION_BELOW_LIMIT
   eng "The value of '%s' should be no less than the value of '%s'"
 
 ER_INDEX_COLUMN_TOO_LONG
-  eng "Index column size too large. The maximum column size is %lu bytes."
+  eng "Index column size too large. The maximum column size is %lu bytes"
 
 ER_ERROR_IN_TRIGGER_BODY
   eng "Trigger '%-.64s' has an error in its body: '%-.256s'"
@@ -6418,25 +6418,25 @@ ER_INDEX_CORRUPT
   eng "Index %s is corrupted"
 
 ER_UNDO_RECORD_TOO_BIG
-  eng "Undo log record is too big."
+  eng "Undo log record is too big"
 
 ER_BINLOG_UNSAFE_INSERT_IGNORE_SELECT
-  eng "INSERT IGNORE... SELECT is unsafe because the order in which rows are retrieved by the SELECT determines which (if any) rows are ignored. This order cannot be predicted and may differ on master and the slave."
+  eng "INSERT IGNORE... SELECT is unsafe because the order in which rows are retrieved by the SELECT determines which (if any) rows are ignored. This order cannot be predicted and may differ on master and the slave"
 
 ER_BINLOG_UNSAFE_INSERT_SELECT_UPDATE
-  eng "INSERT... SELECT... ON DUPLICATE KEY UPDATE is unsafe because the order in which rows are retrieved by the SELECT determines which (if any) rows are updated. This order cannot be predicted and may differ on master and the slave."
+  eng "INSERT... SELECT... ON DUPLICATE KEY UPDATE is unsafe because the order in which rows are retrieved by the SELECT determines which (if any) rows are updated. This order cannot be predicted and may differ on master and the slave"
 
 ER_BINLOG_UNSAFE_REPLACE_SELECT
- eng "REPLACE... SELECT is unsafe because the order in which rows are retrieved by the SELECT determines which (if any) rows are replaced. This order cannot be predicted and may differ on master and the slave."
+ eng "REPLACE... SELECT is unsafe because the order in which rows are retrieved by the SELECT determines which (if any) rows are replaced. This order cannot be predicted and may differ on master and the slave"
 
 ER_BINLOG_UNSAFE_CREATE_IGNORE_SELECT
-  eng "CREATE... IGNORE SELECT is unsafe because the order in which rows are retrieved by the SELECT determines which (if any) rows are ignored. This order cannot be predicted and may differ on master and the slave."
+  eng "CREATE... IGNORE SELECT is unsafe because the order in which rows are retrieved by the SELECT determines which (if any) rows are ignored. This order cannot be predicted and may differ on master and the slave"
 
 ER_BINLOG_UNSAFE_CREATE_REPLACE_SELECT
-  eng "CREATE... REPLACE SELECT is unsafe because the order in which rows are retrieved by the SELECT determines which (if any) rows are replaced. This order cannot be predicted and may differ on master and the slave."
+  eng "CREATE... REPLACE SELECT is unsafe because the order in which rows are retrieved by the SELECT determines which (if any) rows are replaced. This order cannot be predicted and may differ on master and the slave"
 
 ER_BINLOG_UNSAFE_UPDATE_IGNORE
-  eng "UPDATE IGNORE is unsafe because the order in which rows are updated determines which (if any) rows are ignored. This order cannot be predicted and may differ on master and the slave."
+  eng "UPDATE IGNORE is unsafe because the order in which rows are updated determines which (if any) rows are ignored. This order cannot be predicted and may differ on master and the slave"
 
 ER_UNUSED_15
   eng "You should never see it"
@@ -6445,22 +6445,22 @@ ER_UNUSED_16
   eng "You should never see it"
 
 ER_BINLOG_UNSAFE_WRITE_AUTOINC_SELECT
-  eng "Statements writing to a table with an auto-increment column after selecting from another table are unsafe because the order in which rows are retrieved determines what (if any) rows will be written. This order cannot be predicted and may differ on master and the slave."
+  eng "Statements writing to a table with an auto-increment column after selecting from another table are unsafe because the order in which rows are retrieved determines what (if any) rows will be written. This order cannot be predicted and may differ on master and the slave"
 
 ER_BINLOG_UNSAFE_CREATE_SELECT_AUTOINC
-  eng "CREATE TABLE... SELECT...  on a table with an auto-increment column is unsafe because the order in which rows are retrieved by the SELECT determines which (if any) rows are inserted. This order cannot be predicted and may differ on master and the slave."
+  eng "CREATE TABLE... SELECT...  on a table with an auto-increment column is unsafe because the order in which rows are retrieved by the SELECT determines which (if any) rows are inserted. This order cannot be predicted and may differ on master and the slave"
 
 ER_BINLOG_UNSAFE_INSERT_TWO_KEYS
   eng "INSERT... ON DUPLICATE KEY UPDATE  on a table with more than one UNIQUE KEY is unsafe"
 
 ER_TABLE_IN_FK_CHECK
-  eng "Table is being used in foreign key check."
+  eng "Table is being used in foreign key check"
 
 ER_UNUSED_1
   eng "You should never see it"
 
 ER_BINLOG_UNSAFE_AUTOINC_NOT_FIRST
-  eng "INSERT into autoincrement field which is not the first part in the composed primary key is unsafe."
+  eng "INSERT into autoincrement field which is not the first part in the composed primary key is unsafe"
 
 #
 #  End of 5.5 error messages.
@@ -6497,7 +6497,7 @@ ER_ROW_DOES_NOT_MATCH_PARTITION
   eng "Found a row that does not match the partition"
   swe "Hittade en rad som inte passar i partitionen"
 ER_BINLOG_CACHE_SIZE_GREATER_THAN_MAX
-  eng "Option binlog_cache_size (%lu) is greater than max_binlog_cache_size (%lu); setting binlog_cache_size equal to max_binlog_cache_size."
+  eng "Option binlog_cache_size (%lu) is greater than max_binlog_cache_size (%lu); setting binlog_cache_size equal to max_binlog_cache_size"
 ER_WARN_INDEX_NOT_APPLICABLE
   eng "Cannot use %-.64s access on index '%-.64s' due to type or collation conversion on field '%-.64s'"
 
@@ -6509,14 +6509,14 @@ ER_NO_SUCH_KEY_VALUE
 ER_VALUE_TOO_LONG
   eng "Too long value for '%s'"
 ER_NETWORK_READ_EVENT_CHECKSUM_FAILURE
-  eng "Replication event checksum verification failed while reading from network."
+  eng "Replication event checksum verification failed while reading from network"
 ER_BINLOG_READ_EVENT_CHECKSUM_FAILURE
-  eng "Replication event checksum verification failed while reading from a log file."
+  eng "Replication event checksum verification failed while reading from a log file"
 
 ER_BINLOG_STMT_CACHE_SIZE_GREATER_THAN_MAX
-  eng "Option binlog_stmt_cache_size (%lu) is greater than max_binlog_stmt_cache_size (%lu); setting binlog_stmt_cache_size equal to max_binlog_stmt_cache_size."
+  eng "Option binlog_stmt_cache_size (%lu) is greater than max_binlog_stmt_cache_size (%lu); setting binlog_stmt_cache_size equal to max_binlog_stmt_cache_size"
 ER_CANT_UPDATE_TABLE_IN_CREATE_TABLE_SELECT
-  eng "Can't update table '%-.192s' while '%-.192s' is being created."
+  eng "Can't update table '%-.192s' while '%-.192s' is being created"
 
 ER_PARTITION_CLAUSE_ON_NONPARTITIONED
   eng "PARTITION () clause on non partitioned table"
@@ -6529,35 +6529,35 @@ ER_UNUSED_5
   eng "You should never see it"
 
 ER_CHANGE_RPL_INFO_REPOSITORY_FAILURE
-  eng "Failure while changing the type of replication repository: %s."
+  eng "Failure while changing the type of replication repository: %s"
 
 ER_WARNING_NOT_COMPLETE_ROLLBACK_WITH_CREATED_TEMP_TABLE
-  eng "The creation of some temporary tables could not be rolled back."
+  eng "The creation of some temporary tables could not be rolled back"
 ER_WARNING_NOT_COMPLETE_ROLLBACK_WITH_DROPPED_TEMP_TABLE
-  eng "Some temporary tables were dropped, but these operations could not be rolled back."
+  eng "Some temporary tables were dropped, but these operations could not be rolled back"
 
 ER_MTS_FEATURE_IS_NOT_SUPPORTED
   eng "%s is not supported in multi-threaded slave mode. %s"
 ER_MTS_UPDATED_DBS_GREATER_MAX
-  eng "The number of modified databases exceeds the maximum %d; the database names will not be included in the replication event metadata."
+  eng "The number of modified databases exceeds the maximum %d; the database names will not be included in the replication event metadata"
 ER_MTS_CANT_PARALLEL
-  eng "Cannot execute the current event group in the parallel mode. Encountered event %s, relay-log name %s, position %s which prevents execution of this event group in parallel mode. Reason: %s."
+  eng "Cannot execute the current event group in the parallel mode. Encountered event %s, relay-log name %s, position %s which prevents execution of this event group in parallel mode. Reason: %s"
 ER_MTS_INCONSISTENT_DATA
   eng "%s"
 
 ER_FULLTEXT_NOT_SUPPORTED_WITH_PARTITIONING
-  eng "FULLTEXT index is not supported for partitioned tables."
-  swe "FULLTEXT index stöds ej för partitionerade tabeller."
+  eng "FULLTEXT index is not supported for partitioned tables"
+  swe "FULLTEXT index stöds ej för partitionerade tabeller"
 
 ER_DA_INVALID_CONDITION_NUMBER 35000
   eng "Invalid condition number"
   por "Número de condição inválido"
 
 ER_INSECURE_PLAIN_TEXT
-  eng "Sending passwords in plain text without SSL/TLS is extremely insecure."
+  eng "Sending passwords in plain text without SSL/TLS is extremely insecure"
 
 ER_INSECURE_CHANGE_MASTER
-  eng "Storing MySQL user name or password information in the master.info repository is not secure and is therefore not recommended. Please see the MySQL Manual for more about this issue and possible alternatives."
+  eng "Storing MySQL user name or password information in the master.info repository is not secure and is therefore not recommended. Please see the MySQL Manual for more about this issue and possible alternatives"
 
 ER_FOREIGN_DUPLICATE_KEY_WITH_CHILD_INFO 23000 S1009
         eng "Foreign key constraint for table '%.192s', record '%-.192s' would lead to a duplicate entry in table '%.192s', key '%.192s'"
@@ -6570,101 +6570,101 @@ ER_FOREIGN_DUPLICATE_KEY_WITHOUT_CHILD_INFO 23000 S1009
         swe "FOREIGN KEY constraint för tabell '%.192s', posten '%-.192s' kan inte uppdatera en barntabell på grund av UNIQUE-test"
 
 ER_SQLTHREAD_WITH_SECURE_SLAVE
-  eng "Setting authentication options is not possible when only the Slave SQL Thread is being started."
+  eng "Setting authentication options is not possible when only the Slave SQL Thread is being started"
 
 ER_TABLE_HAS_NO_FT
   eng "The table does not have FULLTEXT index to support this query"
 
 ER_VARIABLE_NOT_SETTABLE_IN_SF_OR_TRIGGER
-  eng "The system variable %.200s cannot be set in stored functions or triggers."
+  eng "The system variable %.200s cannot be set in stored functions or triggers"
 
 ER_VARIABLE_NOT_SETTABLE_IN_TRANSACTION
-  eng "The system variable %.200s cannot be set when there is an ongoing transaction."
+  eng "The system variable %.200s cannot be set when there is an ongoing transaction"
 
 ER_GTID_NEXT_IS_NOT_IN_GTID_NEXT_LIST
-  eng "The system variable @@SESSION.GTID_NEXT has the value %.200s, which is not listed in @@SESSION.GTID_NEXT_LIST."
+  eng "The system variable @@SESSION.GTID_NEXT has the value %.200s, which is not listed in @@SESSION.GTID_NEXT_LIST"
 
 ER_CANT_CHANGE_GTID_NEXT_IN_TRANSACTION_WHEN_GTID_NEXT_LIST_IS_NULL
-  eng "When @@SESSION.GTID_NEXT_LIST == NULL, the system variable @@SESSION.GTID_NEXT cannot change inside a transaction."
+  eng "When @@SESSION.GTID_NEXT_LIST == NULL, the system variable @@SESSION.GTID_NEXT cannot change inside a transaction"
 
 ER_SET_STATEMENT_CANNOT_INVOKE_FUNCTION
-  eng "The statement 'SET %.200s' cannot invoke a stored function."
+  eng "The statement 'SET %.200s' cannot invoke a stored function"
 
 ER_GTID_NEXT_CANT_BE_AUTOMATIC_IF_GTID_NEXT_LIST_IS_NON_NULL
-  eng "The system variable @@SESSION.GTID_NEXT cannot be 'AUTOMATIC' when @@SESSION.GTID_NEXT_LIST is non-NULL."
+  eng "The system variable @@SESSION.GTID_NEXT cannot be 'AUTOMATIC' when @@SESSION.GTID_NEXT_LIST is non-NULL"
 
 ER_SKIPPING_LOGGED_TRANSACTION
-  eng "Skipping transaction %.200s because it has already been executed and logged."
+  eng "Skipping transaction %.200s because it has already been executed and logged"
 
 ER_MALFORMED_GTID_SET_SPECIFICATION
-  eng "Malformed GTID set specification '%.200s'."
+  eng "Malformed GTID set specification '%.200s'"
 
 ER_MALFORMED_GTID_SET_ENCODING
-  eng "Malformed GTID set encoding."
+  eng "Malformed GTID set encoding"
 
 ER_MALFORMED_GTID_SPECIFICATION
-  eng "Malformed GTID specification '%.200s'."
+  eng "Malformed GTID specification '%.200s'"
 
 ER_GNO_EXHAUSTED
-  eng "Impossible to generate Global Transaction Identifier: the integer component reached the maximal value. Restart the server with a new server_uuid."
+  eng "Impossible to generate Global Transaction Identifier: the integer component reached the maximal value. Restart the server with a new server_uuid"
 
 ER_BAD_SLAVE_AUTO_POSITION
-  eng "Parameters MASTER_LOG_FILE, MASTER_LOG_POS, RELAY_LOG_FILE and RELAY_LOG_POS cannot be set when MASTER_AUTO_POSITION is active."
+  eng "Parameters MASTER_LOG_FILE, MASTER_LOG_POS, RELAY_LOG_FILE and RELAY_LOG_POS cannot be set when MASTER_AUTO_POSITION is active"
 
 ER_AUTO_POSITION_REQUIRES_GTID_MODE_ON
-  eng "CHANGE MASTER TO MASTER_AUTO_POSITION = 1 can only be executed when GTID_MODE = ON."
+  eng "CHANGE MASTER TO MASTER_AUTO_POSITION = 1 can only be executed when GTID_MODE = ON"
 
 ER_CANT_DO_IMPLICIT_COMMIT_IN_TRX_WHEN_GTID_NEXT_IS_SET
-  eng "Cannot execute statements with implicit commit inside a transaction when GTID_NEXT != AUTOMATIC or GTID_NEXT_LIST != NULL."
+  eng "Cannot execute statements with implicit commit inside a transaction when GTID_NEXT != AUTOMATIC or GTID_NEXT_LIST != NULL"
 
 ER_GTID_MODE_2_OR_3_REQUIRES_ENFORCE_GTID_CONSISTENCY_ON
-  eng "GTID_MODE = ON or GTID_MODE = UPGRADE_STEP_2 requires ENFORCE_GTID_CONSISTENCY = 1."
+  eng "GTID_MODE = ON or GTID_MODE = UPGRADE_STEP_2 requires ENFORCE_GTID_CONSISTENCY = 1"
 
 ER_GTID_MODE_REQUIRES_BINLOG
-  eng "GTID_MODE = ON or UPGRADE_STEP_1 or UPGRADE_STEP_2 requires --log-bin and --log-slave-updates."
+  eng "GTID_MODE = ON or UPGRADE_STEP_1 or UPGRADE_STEP_2 requires --log-bin and --log-slave-updates"
 
 ER_CANT_SET_GTID_NEXT_TO_GTID_WHEN_GTID_MODE_IS_OFF
-  eng "GTID_NEXT cannot be set to UUID:NUMBER when GTID_MODE = OFF."
+  eng "GTID_NEXT cannot be set to UUID:NUMBER when GTID_MODE = OFF"
 
 ER_CANT_SET_GTID_NEXT_TO_ANONYMOUS_WHEN_GTID_MODE_IS_ON
-  eng "GTID_NEXT cannot be set to ANONYMOUS when GTID_MODE = ON."
+  eng "GTID_NEXT cannot be set to ANONYMOUS when GTID_MODE = ON"
 
 ER_CANT_SET_GTID_NEXT_LIST_TO_NON_NULL_WHEN_GTID_MODE_IS_OFF
-  eng "GTID_NEXT_LIST cannot be set to a non-NULL value when GTID_MODE = OFF."
+  eng "GTID_NEXT_LIST cannot be set to a non-NULL value when GTID_MODE = OFF"
 
 ER_FOUND_GTID_EVENT_WHEN_GTID_MODE_IS_OFF
-  eng "Found a Gtid_log_event or Previous_gtids_log_event when GTID_MODE = OFF."
+  eng "Found a Gtid_log_event or Previous_gtids_log_event when GTID_MODE = OFF"
 
 ER_GTID_UNSAFE_NON_TRANSACTIONAL_TABLE
-  eng "When ENFORCE_GTID_CONSISTENCY = 1, updates to non-transactional tables can only be done in either autocommitted statements or single-statement transactions, and never in the same statement as updates to transactional tables."
+  eng "When ENFORCE_GTID_CONSISTENCY = 1, updates to non-transactional tables can only be done in either autocommitted statements or single-statement transactions, and never in the same statement as updates to transactional tables"
 
 ER_GTID_UNSAFE_CREATE_SELECT
-  eng "CREATE TABLE ... SELECT is forbidden when ENFORCE_GTID_CONSISTENCY = 1."
+  eng "CREATE TABLE ... SELECT is forbidden when ENFORCE_GTID_CONSISTENCY = 1"
 
 ER_GTID_UNSAFE_CREATE_DROP_TEMPORARY_TABLE_IN_TRANSACTION
- eng "When ENFORCE_GTID_CONSISTENCY = 1, the statements CREATE TEMPORARY TABLE and DROP TEMPORARY TABLE can be executed in a non-transactional context only, and require that AUTOCOMMIT = 1."
+ eng "When ENFORCE_GTID_CONSISTENCY = 1, the statements CREATE TEMPORARY TABLE and DROP TEMPORARY TABLE can be executed in a non-transactional context only, and require that AUTOCOMMIT = 1"
 
 ER_GTID_MODE_CAN_ONLY_CHANGE_ONE_STEP_AT_A_TIME
   eng "The value of GTID_MODE can only change one step at a time: OFF <-> UPGRADE_STEP_1 <-> UPGRADE_STEP_2 <-> ON. Also note that this value must be stepped up or down simultaneously on all servers; see the Manual for instructions." 
 
 ER_MASTER_HAS_PURGED_REQUIRED_GTIDS
-  eng "The slave is connecting using CHANGE MASTER TO MASTER_AUTO_POSITION = 1, but the master has purged binary logs containing GTIDs that the slave requires."
+  eng "The slave is connecting using CHANGE MASTER TO MASTER_AUTO_POSITION = 1, but the master has purged binary logs containing GTIDs that the slave requires"
 
 ER_CANT_SET_GTID_NEXT_WHEN_OWNING_GTID
-  eng "GTID_NEXT cannot be changed by a client that owns a GTID. The client owns %s. Ownership is released on COMMIT or ROLLBACK."
+  eng "GTID_NEXT cannot be changed by a client that owns a GTID. The client owns %s. Ownership is released on COMMIT or ROLLBACK"
 
 ER_UNKNOWN_EXPLAIN_FORMAT
   eng "Unknown EXPLAIN format name: '%s'"
   rus "Неизвестное имя формата команды EXPLAIN: '%s'"
 
 ER_CANT_EXECUTE_IN_READ_ONLY_TRANSACTION 25006
-  eng "Cannot execute statement in a READ ONLY transaction."
+  eng "Cannot execute statement in a READ ONLY transaction"
 
 ER_TOO_LONG_TABLE_PARTITION_COMMENT
   eng "Comment for table partition '%-.64s' is too long (max = %lu)"
 
 ER_SLAVE_CONFIGURATION
-  eng "Slave is not configured or failed to initialize properly. You must at least set --server-id to enable either a master or a slave. Additional error messages can be found in the MySQL error log."
+  eng "Slave is not configured or failed to initialize properly. You must at least set --server-id to enable either a master or a slave. Additional error messages can be found in the MySQL error log"
 
 ER_INNODB_FT_LIMIT
   eng "InnoDB presently supports one FULLTEXT index creation at a time"
@@ -6679,7 +6679,7 @@ ER_INNODB_FT_WRONG_DOCID_INDEX
   eng "Index '%-.192s' is of wrong type for an InnoDB FULLTEXT index"
 
 ER_INNODB_ONLINE_LOG_TOO_BIG
-  eng "Creating index '%-.192s' required more than 'innodb_online_alter_log_max_size' bytes of modification log. Please try again."
+  eng "Creating index '%-.192s' required more than 'innodb_online_alter_log_max_size' bytes of modification log. Please try again"
 
 ER_UNKNOWN_ALTER_ALGORITHM
   eng "Unknown ALGORITHM '%s'"
@@ -6688,13 +6688,13 @@ ER_UNKNOWN_ALTER_LOCK
   eng "Unknown LOCK type '%s'"
 
 ER_MTS_CHANGE_MASTER_CANT_RUN_WITH_GAPS
-  eng "CHANGE MASTER cannot be executed when the slave was stopped with an error or killed in MTS mode. Consider using RESET SLAVE or START SLAVE UNTIL."
+  eng "CHANGE MASTER cannot be executed when the slave was stopped with an error or killed in MTS mode. Consider using RESET SLAVE or START SLAVE UNTIL"
 
 ER_MTS_RECOVERY_FAILURE
-  eng "Cannot recover after SLAVE errored out in parallel execution mode. Additional error messages can be found in the MySQL error log."
+  eng "Cannot recover after SLAVE errored out in parallel execution mode. Additional error messages can be found in the MySQL error log"
 
 ER_MTS_RESET_WORKERS
-  eng "Cannot clean up worker info tables. Additional error messages can be found in the MySQL error log."
+  eng "Cannot clean up worker info tables. Additional error messages can be found in the MySQL error log"
 
 ER_COL_COUNT_DOESNT_MATCH_CORRUPTED_V2
   eng "Column count of %s.%s is wrong. Expected %d, found %d. The table is probably corrupted"
@@ -6704,13 +6704,13 @@ ER_SLAVE_SILENT_RETRY_TRANSACTION
   eng "Slave must silently retry current transaction"
 
 ER_DISCARD_FK_CHECKS_RUNNING
-  eng "There is a foreign key check running on table '%-.192s'. Cannot discard the table."
+  eng "There is a foreign key check running on table '%-.192s'. Cannot discard the table"
 
 ER_TABLE_SCHEMA_MISMATCH
   eng "Schema mismatch (%s)"
 
 ER_TABLE_IN_SYSTEM_TABLESPACE
-  eng "Table '%-.192s' in system tablespace"
+  eng "Table %-.192s in system tablespace"
 
 ER_IO_READ_ERROR
   eng "IO Read error: (%lu, %s) %s"
@@ -6722,10 +6722,10 @@ ER_TABLESPACE_MISSING
   eng "Tablespace is missing for table '%-.192s'"
 
 ER_TABLESPACE_EXISTS
-  eng "Tablespace for table '%-.192s' exists. Please DISCARD the tablespace before IMPORT."
+  eng "Tablespace for table '%-.192s' exists. Please DISCARD the tablespace before IMPORT"
 
 ER_TABLESPACE_DISCARDED
-  eng "Tablespace has been discarded for table '%-.192s'"
+  eng "Tablespace has been discarded for table %`s"
 
 ER_INTERNAL_ERROR
   eng "Internal error: %-.192s"
@@ -6737,8 +6737,8 @@ ER_INNODB_INDEX_CORRUPT
   eng "Index corrupt: %s"
 
 ER_INVALID_YEAR_COLUMN_LENGTH
-  eng "YEAR(%lu) column type is deprecated. Creating YEAR(4) column instead."
-  rus "Тип YEAR(%lu) более не поддерживается, вместо него будет создана колонка с типом YEAR(4)."
+  eng "YEAR(%lu) column type is deprecated. Creating YEAR(4) column instead"
+  rus "Тип YEAR(%lu) более не поддерживается, вместо него будет создана колонка с типом YEAR(4)"
 
 ER_NOT_VALID_PASSWORD
   eng "Your password does not satisfy the current policy requirements"
@@ -6766,22 +6766,22 @@ ER_DUP_CONSTRAINT_NAME
        eng "Duplicate %s constraint name '%s'"
 
 ER_PASSWORD_FORMAT
-  eng "The password hash doesn't have the expected format. Check if the correct password algorithm is being used with the PASSWORD() function."
+  eng "The password hash doesn't have the expected format. Check if the correct password algorithm is being used with the PASSWORD() function"
 
 ER_FK_COLUMN_CANNOT_DROP
         eng "Cannot drop column '%-.192s': needed in a foreign key constraint '%-.192s'"
         ger "Kann Spalte '%-.192s' nicht löschen: wird für eine Fremdschlüsselbeschränkung '%-.192s' benötigt"
 
 ER_FK_COLUMN_CANNOT_DROP_CHILD
-        eng "Cannot drop column '%-.192s': needed in a foreign key constraint '%-.192s' of table '%-.192s'"
-        ger "Kann Spalte '%-.192s' nicht löschen: wird für eine Fremdschlüsselbeschränkung '%-.192s' der Tabelle '%-.192s' benötigt"
+        eng "Cannot drop column '%-.192s': needed in a foreign key constraint '%-.192s' of table %-.192s"
+        ger "Kann Spalte '%-.192s' nicht löschen: wird für eine Fremdschlüsselbeschränkung '%-.192s' der Tabelle %-.192s benötigt"
 
 ER_FK_COLUMN_NOT_NULL
         eng "Column '%-.192s' cannot be NOT NULL: needed in a foreign key constraint '%-.192s' SET NULL"
         ger "Spalte '%-.192s' kann nicht NOT NULL sein: wird für eine Fremdschlüsselbeschränkung '%-.192s' SET NULL benötigt"
 
 ER_DUP_INDEX
-  eng "Duplicate index '%-.64s' defined on the table '%-.64s.%-.64s'. This is deprecated and will be disallowed in a future release."
+  eng "Duplicate index %`s. This is deprecated and will be disallowed in a future release"
 
 ER_FK_COLUMN_CANNOT_CHANGE
   eng "Cannot change column '%-.192s': used in a foreign key constraint '%-.192s'"
@@ -6793,40 +6793,40 @@ ER_FK_CANNOT_DELETE_PARENT
   eng "Cannot delete rows from table which is parent in a foreign key constraint '%-.192s' of table '%-.192s'"
 
 ER_MALFORMED_PACKET
-  eng "Malformed communication packet."
+  eng "Malformed communication packet"
 
 ER_READ_ONLY_MODE
         eng "Running in read-only mode"
 
 ER_GTID_NEXT_TYPE_UNDEFINED_GROUP
-  eng "When GTID_NEXT is set to a GTID, you must explicitly set it again after a COMMIT or ROLLBACK. If you see this error message in the slave SQL thread, it means that a table in the current transaction is transactional on the master and non-transactional on the slave. In a client connection, it means that you executed SET GTID_NEXT before a transaction and forgot to set GTID_NEXT to a different identifier or to 'AUTOMATIC' after COMMIT or ROLLBACK. Current GTID_NEXT is '%s'."
+  eng "When GTID_NEXT is set to a GTID, you must explicitly set it again after a COMMIT or ROLLBACK. If you see this error message in the slave SQL thread, it means that a table in the current transaction is transactional on the master and non-transactional on the slave. In a client connection, it means that you executed SET GTID_NEXT before a transaction and forgot to set GTID_NEXT to a different identifier or to 'AUTOMATIC' after COMMIT or ROLLBACK. Current GTID_NEXT is '%s'"
 
 ER_VARIABLE_NOT_SETTABLE_IN_SP
-  eng "The system variable %.200s cannot be set in stored procedures."
+  eng "The system variable %.200s cannot be set in stored procedures"
 
 ER_CANT_SET_GTID_PURGED_WHEN_GTID_MODE_IS_OFF
-  eng "GTID_PURGED can only be set when GTID_MODE = ON."
+  eng "GTID_PURGED can only be set when GTID_MODE = ON"
 
 ER_CANT_SET_GTID_PURGED_WHEN_GTID_EXECUTED_IS_NOT_EMPTY
-  eng "GTID_PURGED can only be set when GTID_EXECUTED is empty."
+  eng "GTID_PURGED can only be set when GTID_EXECUTED is empty"
 
 ER_CANT_SET_GTID_PURGED_WHEN_OWNED_GTIDS_IS_NOT_EMPTY
-  eng "GTID_PURGED can only be set when there are no ongoing transactions (not even in other clients)."
+  eng "GTID_PURGED can only be set when there are no ongoing transactions (not even in other clients)"
 
 ER_GTID_PURGED_WAS_CHANGED
-  eng "GTID_PURGED was changed from '%s' to '%s'."
+  eng "GTID_PURGED was changed from '%s' to '%s'"
 
 ER_GTID_EXECUTED_WAS_CHANGED
-  eng "GTID_EXECUTED was changed from '%s' to '%s'."
+  eng "GTID_EXECUTED was changed from '%s' to '%s'"
 
 ER_BINLOG_STMT_MODE_AND_NO_REPL_TABLES
-  eng "Cannot execute statement: impossible to write to binary log since BINLOG_FORMAT = STATEMENT, and both replicated and non replicated tables are written to."
+  eng "Cannot execute statement: impossible to write to binary log since BINLOG_FORMAT = STATEMENT, and both replicated and non replicated tables are written to"
 
 ER_ALTER_OPERATION_NOT_SUPPORTED 0A000
-  eng "%s is not supported for this operation. Try %s."
+  eng "%s is not supported for this operation. Try %s"
 
 ER_ALTER_OPERATION_NOT_SUPPORTED_REASON 0A000
-  eng "%s is not supported. Reason: %s. Try %s."
+  eng "%s is not supported. Reason: %s. Try %s"
 
 ER_ALTER_OPERATION_NOT_SUPPORTED_REASON_COPY
   eng "COPY algorithm requires a lock"
@@ -6873,7 +6873,7 @@ ER_DUP_UNKNOWN_IN_INDEX 23000
   fre "Duplicata du champ pour la clef '%-.192s'"
   ger "Doppelter Eintrag für Schlüssel '%-.192s'"
   greek "Διπλή εγγραφή για το κλειδί '%-.192s'"
-  hun "Duplikalt bejegyzes a '%-.192s' kulcs szerint."
+  hun "Duplikalt bejegyzes a '%-.192s' kulcs szerint"
   ita "Valore duplicato per la chiave '%-.192s'"
   jpn "は索引 '%-.192s' で重複しています。"
   kor "중복된 입력 값: key '%-.192s'"
@@ -6890,21 +6890,21 @@ ER_DUP_UNKNOWN_IN_INDEX 23000
   ukr "Дублюючий запис для ключа '%-.192s'"
 
 ER_IDENT_CAUSES_TOO_LONG_PATH
-  eng "Long database name and identifier for object resulted in path length exceeding %d characters. Path: '%s'."
+  eng "Long database name and identifier for object resulted in path length exceeding %d characters. Path: '%s'"
 
 ER_ALTER_OPERATION_NOT_SUPPORTED_REASON_NOT_NULL
   eng "cannot silently convert NULL values, as required in this SQL_MODE"
 
 ER_MUST_CHANGE_PASSWORD_LOGIN
-  eng "Your password has expired. To log in you must change it using a client that supports expired passwords."
-  bgn "Паролата ви е изтекла. За да влезете трябва да я смените използвайки клиент който поддрържа такива пароли."
+  eng "Your password has expired. To log in you must change it using a client that supports expired passwords"
+  bgn "Паролата ви е изтекла. За да влезете трябва да я смените използвайки клиент който поддрържа такива пароли"
 
 ER_ROW_IN_WRONG_PARTITION
   eng "Found a row in wrong partition %s"
   swe "Hittade en rad i fel partition %s"
 
 ER_MTS_EVENT_BIGGER_PENDING_JOBS_SIZE_MAX
-  eng "Cannot schedule event %s, relay-log name %s, position %s to Worker thread because its size %lu exceeds %lu of slave_pending_jobs_size_max."
+  eng "Cannot schedule event %s, relay-log name %s, position %s to Worker thread because its size %lu exceeds %lu of slave_pending_jobs_size_max"
 
 ER_INNODB_NO_FT_USES_PARSER
   eng "Cannot CREATE FULLTEXT INDEX WITH PARSER on InnoDB table"
@@ -6912,10 +6912,10 @@ ER_BINLOG_LOGICAL_CORRUPTION
   eng "The binary log file '%s' is logically corrupted: %s"
 
 ER_WARN_PURGE_LOG_IN_USE
-  eng "file %s was not purged because it was being read by %d thread(s), purged only %d out of %d files."
+  eng "file %s was not purged because it was being read by %d thread(s), purged only %d out of %d files"
 
 ER_WARN_PURGE_LOG_IS_ACTIVE
-  eng "file %s was not purged because it is the active log file."
+  eng "file %s was not purged because it is the active log file"
 
 ER_AUTO_INCREMENT_CONFLICT
   eng "Auto-increment value in UPDATE conflicts with internally generated values"
@@ -6930,26 +6930,26 @@ ER_SLAVE_RLI_INIT_REPOSITORY
   eng "Slave failed to initialize relay log info structure from the repository"
 
 ER_ACCESS_DENIED_CHANGE_USER_ERROR 28000 
-        eng "Access denied trying to change to user '%-.48s'@'%-.64s' (using password: %s). Disconnecting."
-        bgn "Отказан достъп при опит за смяна към потребител %-.48s'@'%-.64s' (използвана парола: %s). Затваряне на връзката."
+        eng "Access denied trying to change to user '%-.48s'@'%-.64s' (using password: %s). Disconnecting"
+        bgn "Отказан достъп при опит за смяна към потребител %-.48s'@'%-.64s' (използвана парола: %s). Затваряне на връзката"
 
 ER_INNODB_READ_ONLY
-  eng "InnoDB is in read only mode."
+  eng "InnoDB is in read only mode"
 
 ER_STOP_SLAVE_SQL_THREAD_TIMEOUT
-  eng "STOP SLAVE command execution is incomplete: Slave SQL thread got the stop signal, thread is busy, SQL thread will stop once the current task is complete."
+  eng "STOP SLAVE command execution is incomplete: Slave SQL thread got the stop signal, thread is busy, SQL thread will stop once the current task is complete"
 
 ER_STOP_SLAVE_IO_THREAD_TIMEOUT
-  eng "STOP SLAVE command execution is incomplete: Slave IO thread got the stop signal, thread is busy, IO thread will stop once the current task is complete."
+  eng "STOP SLAVE command execution is incomplete: Slave IO thread got the stop signal, thread is busy, IO thread will stop once the current task is complete"
 
 ER_TABLE_CORRUPT
-  eng "Operation cannot be performed. The table '%-.64s.%-.64s' is missing, corrupt or contains bad data."
+  eng "Operation cannot be performed. The table '%-.64s.%-.64s' is missing, corrupt or contains bad data"
 
 ER_TEMP_FILE_WRITE_FAILURE
-  eng "Temporary file write failure."
+  eng "Temporary file write failure"
 
 ER_INNODB_FT_AUX_NOT_HEX_ID
-  eng "Upgrade index name failed, please use create index(alter table) algorithm copy to rebuild index."
+  eng "Upgrade index name failed, please use create index(alter table) algorithm copy to rebuild index"
 
 
 #
@@ -6965,28 +6965,28 @@ ER_LAST_MYSQL_ERROR_MESSAGE
 # MariaDB error numbers starts from 1900
 start-error-number 1900
 
-ER_VCOL_BASED_ON_VCOL
-  eng "A computed column cannot be based on a computed column"
-ER_VIRTUAL_COLUMN_FUNCTION_IS_NOT_ALLOWED
+ER_UNUSED_18
+  eng ""
+ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
   eng "Function or expression '%s' cannot be used in the %s clause of %`s"
-ER_DATA_CONVERSION_ERROR_FOR_VIRTUAL_COLUMN
-  eng "Generated value for computed column '%s' cannot be converted to type '%s'"
-ER_PRIMARY_KEY_BASED_ON_VIRTUAL_COLUMN
-  eng "Primary key cannot be defined upon a computed column"
+ER_UNUSED_19
+  eng ""
+ER_PRIMARY_KEY_BASED_ON_GENERATED_COLUMN
+  eng "Primary key cannot be defined upon a generated column"
 ER_KEY_BASED_ON_GENERATED_VIRTUAL_COLUMN
-  eng "Key/Index cannot be defined on a non-stored computed column"
-ER_WRONG_FK_OPTION_FOR_VIRTUAL_COLUMN
-  eng "Cannot define foreign key with %s clause on a computed column"
-ER_WARNING_NON_DEFAULT_VALUE_FOR_VIRTUAL_COLUMN
-  eng "The value specified for computed column '%s' in table '%s' ignored"
-ER_UNSUPPORTED_ACTION_ON_VIRTUAL_COLUMN
-  eng "This is not yet supported for computed columns"
-ER_CONST_EXPR_IN_VCOL
-  eng "Constant expression in computed column function is not allowed"
-ER_ROW_EXPR_FOR_VCOL
-  eng "Expression for computed column cannot return a row"
-ER_UNSUPPORTED_ENGINE_FOR_VIRTUAL_COLUMNS
-        eng "%s storage engine does not support computed columns"
+  eng "Key/Index cannot be defined on a virtual generated column"
+ER_WRONG_FK_OPTION_FOR_GENERATED_COLUMN
+  eng "Cannot define foreign key with %s clause on a generated column"
+ER_WARNING_NON_DEFAULT_VALUE_FOR_GENERATED_COLUMN
+  eng "The value specified for generated column '%s' in table '%s' ignored"
+ER_UNSUPPORTED_ACTION_ON_GENERATED_COLUMN
+  eng "This is not yet supported for generated columns"
+ER_UNUSED_20
+  eng ""
+ER_UNUSED_21
+  eng ""
+ER_UNSUPPORTED_ENGINE_FOR_GENERATED_COLUMNS
+  eng "%s storage engine does not support generated columns"
 ER_UNKNOWN_OPTION
   eng "Unknown option '%-.64s'"
 ER_BAD_OPTION_VALUE
@@ -6998,7 +6998,7 @@ ER_UNUSED_7
 ER_UNUSED_8
   eng "You should never see it"
 ER_DATA_OVERFLOW 22003
-        eng "Got overflow when converting '%-.128s' to %-.32s. Value truncated."
+        eng "Got overflow when converting '%-.128s' to %-.32s. Value truncated"
 ER_DATA_TRUNCATED 22003
         eng "Truncated value '%-.128s' when converting to %-.32s"
 ER_BAD_DATA 22007
@@ -7012,13 +7012,13 @@ ER_DYN_COL_DATA 22007
 ER_DYN_COL_WRONG_CHARSET
         eng "Dynamic column contains unknown character set"
 ER_ILLEGAL_SUBQUERY_OPTIMIZER_SWITCHES
-        eng "At least one of the 'in_to_exists' or 'materialization' optimizer_switch flags must be 'on'."
+        eng "At least one of the 'in_to_exists' or 'materialization' optimizer_switch flags must be 'on'"
 ER_QUERY_CACHE_IS_DISABLED
         eng "Query cache is disabled (resize or similar command in progress); repeat this command later"
 ER_QUERY_CACHE_IS_GLOBALY_DISABLED
         eng "Query cache is globally disabled and you can't enable it only for this session"
 ER_VIEW_ORDERBY_IGNORED
-        eng "View '%-.192s'.'%-.192s' ORDER BY clause ignored because there is other ORDER BY clause already."
+        eng "View '%-.192s'.'%-.192s' ORDER BY clause ignored because there is other ORDER BY clause already"
 ER_CONNECTION_KILLED 70100 
         eng "Connection was killed"
 ER_UNUSED_12
@@ -7028,7 +7028,7 @@ ER_INSIDE_TRANSACTION_PREVENTS_SWITCH_SKIP_REPLICATION
 ER_STORED_FUNCTION_PREVENTS_SWITCH_SKIP_REPLICATION
         eng "Cannot modify @@session.skip_replication inside a stored function or trigger"
 ER_QUERY_EXCEEDED_ROWS_EXAMINED_LIMIT
-        eng "Query execution was interrupted. The query examined at least %llu rows, which exceeds LIMIT ROWS EXAMINED (%llu). The query result may be incomplete."
+        eng "Query execution was interrupted. The query examined at least %llu rows, which exceeds LIMIT ROWS EXAMINED (%llu). The query result may be incomplete"
 ER_NO_SUCH_TABLE_IN_ENGINE 42S02 
         eng "Table '%-.192s.%-.192s' doesn't exist in engine"
         swe "Det finns ingen tabell som heter '%-.192s.%-.192s' i handlern"
@@ -7062,13 +7062,13 @@ ER_GTID_POSITION_NOT_FOUND_IN_BINLOG
 ER_CANNOT_LOAD_SLAVE_GTID_STATE
 	eng "Failed to load replication slave GTID position from table %s.%s"
 ER_MASTER_GTID_POS_CONFLICTS_WITH_BINLOG
-	eng "Specified GTID %u-%u-%llu conflicts with the binary log which contains a more recent GTID %u-%u-%llu. If MASTER_GTID_POS=CURRENT_POS is used, the binlog position will override the new value of @@gtid_slave_pos."
+	eng "Specified GTID %u-%u-%llu conflicts with the binary log which contains a more recent GTID %u-%u-%llu. If MASTER_GTID_POS=CURRENT_POS is used, the binlog position will override the new value of @@gtid_slave_pos"
 ER_MASTER_GTID_POS_MISSING_DOMAIN
-	eng "Specified value for @@gtid_slave_pos contains no value for replication domain %u. This conflicts with the binary log which contains GTID %u-%u-%llu. If MASTER_GTID_POS=CURRENT_POS is used, the binlog position will override the new value of @@gtid_slave_pos."
+	eng "Specified value for @@gtid_slave_pos contains no value for replication domain %u. This conflicts with the binary log which contains GTID %u-%u-%llu. If MASTER_GTID_POS=CURRENT_POS is used, the binlog position will override the new value of @@gtid_slave_pos"
 ER_UNTIL_REQUIRES_USING_GTID
 	eng "START SLAVE UNTIL master_gtid_pos requires that slave is using GTID"
 ER_GTID_STRICT_OUT_OF_ORDER
-	eng "An attempt was made to binlog GTID %u-%u-%llu which would create an out-of-order sequence number with existing GTID %u-%u-%llu, and gtid strict mode is enabled."
+	eng "An attempt was made to binlog GTID %u-%u-%llu which would create an out-of-order sequence number with existing GTID %u-%u-%llu, and gtid strict mode is enabled"
 ER_GTID_START_FROM_BINLOG_HOLE
 	eng "The binlog on the master is missing the GTID %u-%u-%llu requested by the slave (even though a subsequent sequence number does exist), and GTID strict mode is enabled"
 ER_SLAVE_UNEXPECTED_MASTER_SWITCH
@@ -7088,17 +7088,17 @@ ER_NO_SUCH_QUERY
 ER_BAD_BASE64_DATA
 	eng "Bad base64 data as position %u"
 ER_INVALID_ROLE OP000
-       eng "Invalid role specification %`s."
-       rum "Rolul %`s este invalid."
+       eng "Invalid role specification %`s"
+       rum "Rolul %`s este invalid"
 ER_INVALID_CURRENT_USER 0L000
-	eng "The current user is invalid."
-	rum "Utilizatorul curent este invalid."
+	eng "The current user is invalid"
+	rum "Utilizatorul curent este invalid"
 ER_CANNOT_GRANT_ROLE
-	eng "Cannot grant role '%s' to: %s."
-	rum "Rolul '%s' nu poate fi acordat catre: %s."
+	eng "Cannot grant role '%s' to: %s"
+	rum "Rolul '%s' nu poate fi acordat catre: %s"
 ER_CANNOT_REVOKE_ROLE
-	eng "Cannot revoke role '%s' from: %s."
-	rum "Rolul '%s' nu poate fi revocat de la: %s."
+	eng "Cannot revoke role '%s' from: %s"
+	rum "Rolul '%s' nu poate fi revocat de la: %s"
 ER_CHANGE_SLAVE_PARALLEL_THREADS_ACTIVE
 	eng "Cannot change @@slave_parallel_threads while another change is in progress"
 ER_PRIOR_COMMIT_FAILED
@@ -7106,7 +7106,7 @@ ER_PRIOR_COMMIT_FAILED
 ER_IT_IS_A_VIEW 42S02
         eng "'%-.192s' is a view"
 ER_SLAVE_SKIP_NOT_IN_GTID
-	eng "When using parallel replication and GTID with multiple replication domains, @@sql_slave_skip_counter can not be used. Instead, setting @@gtid_slave_pos explicitly can be used to skip to after a given GTID position."
+	eng "When using parallel replication and GTID with multiple replication domains, @@sql_slave_skip_counter can not be used. Instead, setting @@gtid_slave_pos explicitly can be used to skip to after a given GTID position"
 ER_TABLE_DEFINITION_TOO_BIG
         eng "The definition for table %`s is too big"
 ER_PLUGIN_INSTALLED
@@ -7115,7 +7115,7 @@ ER_PLUGIN_INSTALLED
 ER_STATEMENT_TIMEOUT 70100
         eng "Query execution was interrupted (max_statement_time exceeded)"
 ER_SUBQUERIES_NOT_SUPPORTED 42000
-        eng "%s does not support subqueries or stored functions."
+        eng "%s does not support subqueries or stored functions"
 ER_SET_STATEMENT_NOT_SUPPORTED 42000
         eng "The system variable %.200s cannot be set in SET STATEMENT." 
 ER_UNUSED_17
@@ -7151,8 +7151,187 @@ skip-to-error-number 2000
 # MySQL 5.7 error numbers starts here
 skip-to-error-number 3000
 
-ER_MYSQL_57_TEST
-        eng "5.7 test"
+ER_ERROR_ON_MASTER
+  eng "Query partially completed on the master (error on master: %d) and was aborted. There is a chance that your master is inconsistent at this point. If you are sure that your master is ok, run this query manually on the slave and then restart the slave with SET GLOBAL SQL_SLAVE_SKIP_COUNTER=1; START SLAVE;. Query:'%s'" 
+
+ER_INCONSISTENT_ERROR
+  eng "Query caused different errors on master and slave. Error on master: message (format)='%s' error code=%d; Error on slave:actual message='%s', error code=%d. Default database:'%s'. Query:'%s'"
+
+ER_STORAGE_ENGINE_NOT_LOADED
+        eng "Storage engine for table '%s'.'%s' is not loaded."
+
+ER_GET_STACKED_DA_WITHOUT_ACTIVE_HANDLER 0Z002
+  eng "GET STACKED DIAGNOSTICS when handler not active"
+
+ER_WARN_LEGACY_SYNTAX_CONVERTED
+  eng "%s is no longer supported. The statement was converted to %s."
+
+ER_BINLOG_UNSAFE_FULLTEXT_PLUGIN
+  eng "Statement is unsafe because it uses a fulltext parser plugin which may not return the same value on the slave."
+
+ER_CANNOT_DISCARD_TEMPORARY_TABLE
+  eng "Cannot DISCARD/IMPORT tablespace associated with temporary table"
+
+ER_FK_DEPTH_EXCEEDED
+  eng "Foreign key cascade delete/update exceeds max depth of %d."
+
+ER_COL_COUNT_DOESNT_MATCH_PLEASE_UPDATE_V2
+        eng "Column count of %s.%s is wrong. Expected %d, found %d. Created with MySQL %d, now running %d. Please use mysql_upgrade to fix this error."
+        ger "Spaltenanzahl von %s.%s falsch. %d erwartet, aber %d erhalten. Erzeugt mit MySQL %d, jetzt unter %d. Bitte benutzen Sie mysql_upgrade, um den Fehler zu beheben"
+
+ER_WARN_TRIGGER_DOESNT_HAVE_CREATED
+  eng "Trigger %s.%s.%s does not have CREATED attribute."
+
+ER_REFERENCED_TRG_DOES_NOT_EXIST_MYSQL
+  eng "Referenced trigger '%s' for the given action time and event type does not exist."
+
+ER_EXPLAIN_NOT_SUPPORTED
+        eng "EXPLAIN FOR CONNECTION command is supported only for SELECT/UPDATE/INSERT/DELETE/REPLACE"
+ER_INVALID_FIELD_SIZE
+        eng "Invalid size for column '%-.192s'."
+
+ER_MISSING_HA_CREATE_OPTION
+        eng "Table storage engine '%-.64s' found required create option missing"
+
+ER_ENGINE_OUT_OF_MEMORY
+  eng "Out of memory in storage engine '%-.64s'."
+
+ER_PASSWORD_EXPIRE_ANONYMOUS_USER
+  eng "The password for anonymous user cannot be expired."
+
+ER_SLAVE_SQL_THREAD_MUST_STOP
+  eng "This operation cannot be performed with a running slave sql thread; run STOP SLAVE SQL_THREAD first"
+
+ER_NO_FT_MATERIALIZED_SUBQUERY
+  eng "Cannot create FULLTEXT index on materialized subquery"
+
+ER_INNODB_UNDO_LOG_FULL
+  eng "Undo Log error: %s"
+
+ER_INVALID_ARGUMENT_FOR_LOGARITHM 2201E
+  eng "Invalid argument for logarithm"
+
+ER_SLAVE_CHANNEL_IO_THREAD_MUST_STOP
+  eng "This operation cannot be performed with a running slave io thread; run STOP SLAVE IO_THREAD FOR CHANNEL '%s' first."
+
+ER_WARN_OPEN_TEMP_TABLES_MUST_BE_ZERO
+  eng "This operation may not be safe when the slave has temporary tables. The tables will be kept open until the server restarts or until the tables are deleted by any replicated DROP statement. Suggest to wait until slave_open_temp_tables = 0."
+
+ER_WARN_ONLY_MASTER_LOG_FILE_NO_POS
+  eng "CHANGE MASTER TO with a MASTER_LOG_FILE clause but no MASTER_LOG_POS clause may not be safe. The old position value may not be valid for the new binary log file."
+
+ER_QUERY_TIMEOUT 
+  eng "Query execution was interrupted, maximum statement execution time exceeded"
+
+ER_NON_RO_SELECT_DISABLE_TIMER
+  eng "Select is not a read only statement, disabling timer"
+
+ER_DUP_LIST_ENTRY
+  eng "Duplicate entry '%-.192s'."
+
+ER_SQL_MODE_NO_EFFECT
+  eng "'%s' mode no longer has any effect. Use STRICT_ALL_TABLES or STRICT_TRANS_TABLES instead."
+
+ER_AGGREGATE_ORDER_FOR_UNION
+  eng "Expression #%u of ORDER BY contains aggregate function and applies to a UNION"
+
+ER_AGGREGATE_ORDER_NON_AGG_QUERY
+  eng "Expression #%u of ORDER BY contains aggregate function and applies to the result of a non-aggregated query"
+
+ER_SLAVE_WORKER_STOPPED_PREVIOUS_THD_ERROR
+  eng "Slave worker has stopped after at least one previous worker encountered an error when slave-preserve-commit-order was enabled. To preserve commit order, the last transaction executed by this thread has not been committed. When restarting the slave after fixing any failed threads, you should fix this worker as well."
+
+ER_DONT_SUPPORT_SLAVE_PRESERVE_COMMIT_ORDER
+  eng "slave_preserve_commit_order is not supported %s."
+
+ER_SERVER_OFFLINE_MODE
+  eng "The server is currently in offline mode"
+
+ER_GIS_DIFFERENT_SRIDS
+  eng "Binary geometry function %s given two geometries of different srids: %u and %u, which should have been identical."
+
+ER_GIS_UNSUPPORTED_ARGUMENT
+  eng "Calling geometry function %s with unsupported types of arguments."
+
+ER_GIS_UNKNOWN_ERROR
+  eng "Unknown GIS error occured in function %s."
+
+ER_GIS_UNKNOWN_EXCEPTION
+  eng "Unknown exception caught in GIS function %s."
+
+ER_GIS_INVALID_DATA 22023
+  eng "Invalid GIS data provided to function %s."
+
+ER_BOOST_GEOMETRY_EMPTY_INPUT_EXCEPTION
+  eng "The geometry has no data in function %s."
+
+ER_BOOST_GEOMETRY_CENTROID_EXCEPTION
+  eng "Unable to calculate centroid because geometry is empty in function %s."
+
+ER_BOOST_GEOMETRY_OVERLAY_INVALID_INPUT_EXCEPTION
+  eng "Geometry overlay calculation error: geometry data is invalid in function %s."
+
+ER_BOOST_GEOMETRY_TURN_INFO_EXCEPTION
+  eng "Geometry turn info calculation error: geometry data is invalid in function %s."
+
+ER_BOOST_GEOMETRY_SELF_INTERSECTION_POINT_EXCEPTION
+  eng "Analysis procedures of intersection points interrupted unexpectedly in function %s."
+
+ER_BOOST_GEOMETRY_UNKNOWN_EXCEPTION
+  eng "Unknown exception thrown in function %s."
+
+ER_STD_BAD_ALLOC_ERROR
+  eng "Memory allocation error: %-.256s in function %s."
+
+ER_STD_DOMAIN_ERROR
+  eng "Domain error: %-.256s in function %s."
+
+ER_STD_LENGTH_ERROR
+  eng "Length error: %-.256s in function %s."
+
+ER_STD_INVALID_ARGUMENT
+  eng "Invalid argument error: %-.256s in function %s."
+
+ER_STD_OUT_OF_RANGE_ERROR
+  eng "Out of range error: %-.256s in function %s."
+
+ER_STD_OVERFLOW_ERROR
+  eng "Overflow error error: %-.256s in function %s."
+
+ER_STD_RANGE_ERROR
+  eng "Range error: %-.256s in function %s."
+
+ER_STD_UNDERFLOW_ERROR
+  eng "Underflow error: %-.256s in function %s."
+
+ER_STD_LOGIC_ERROR
+  eng "Logic error: %-.256s in function %s."
+
+ER_STD_RUNTIME_ERROR
+  eng "Runtime error: %-.256s in function %s."
+
+ER_STD_UNKNOWN_EXCEPTION
+  eng "Unknown exception: %-.384s in function %s."
+
+ER_GIS_DATA_WRONG_ENDIANESS
+  eng "Geometry byte string must be little endian."
+
+ER_CHANGE_MASTER_PASSWORD_LENGTH
+  eng "The password provided for the replication user exceeds the maximum length of 32 characters"
+
+ER_USER_LOCK_WRONG_NAME 42000
+        eng "Incorrect user-level lock name '%-.192s'."
+
+# Should be different from ER_LOCK_DEADLOCK since it doesn't cause implicit
+# rollback. Should not be mapped to SQLSTATE 40001 for the same reason.
+ER_USER_LOCK_DEADLOCK
+  eng "Deadlock found when trying to get user-level lock; try rolling back transaction/releasing locks and restarting lock acquisition."
+
+ER_REPLACE_INACCESSIBLE_ROWS
+  eng "REPLACE cannot be executed as it requires deleting rows that are not in the view"
+
+ER_ALTER_OPERATION_NOT_SUPPORTED_REASON_GIS
+  eng "Do not support online operation on table with GIS index"
 
 # MariaDB extra error numbers starts from 4000
 skip-to-error-number 4000
@@ -7216,9 +7395,9 @@ ER_CONSTRAINT_FAILED 23000
         rus "проверка CONSTRAINT %`s для %`-.192s.%`-.192s провалилась"
         ukr "Перевірка CONSTRAINT %`s для %`-.192s.%`-.192s не пройшла"
 ER_EXPRESSION_IS_TOO_BIG
-        eng "%s expression in the %s clause is too big"
+        eng "Expression in the %s clause is too big"
 ER_ERROR_EVALUATING_EXPRESSION
-        eng "Got an error evaluating stored expression %`s"
+        eng "Got an error evaluating stored expression %s"
 ER_CALCULATING_DEFAULT_VALUE
         eng "Got an error when calculating default value for %`s"
 ER_EXPRESSION_REFERS_TO_UNINIT_FIELD 01000
@@ -7226,3 +7405,38 @@ ER_EXPRESSION_REFERS_TO_UNINIT_FIELD 01000
 ER_PARTITION_DEFAULT_ERROR
         eng "Only one DEFAULT partition allowed"
         ukr "Припустимо мати тільки один DEFAULT розділ" 
+ER_REFERENCED_TRG_DOES_NOT_EXIST
+  eng "Referenced trigger '%s' for the given action time and event type does not exist"
+ER_INVALID_DEFAULT_PARAM
+        eng "Default/ignore value is not supported for such parameter usage"
+        ukr "Значення за замовчуванням або ігнороване значення не підтримано для цього випадку використання параьетра"
+ER_BINLOG_NON_SUPPORTED_BULK
+        eng "Only row based replication supported for bulk operations"
+ER_BINLOG_UNCOMPRESS_ERROR
+        eng "Uncompress the compressed binlog failed"
+ER_JSON_BAD_CHR
+        eng "Broken JSON string in argument %d to function '%s' at position %d"
+ER_JSON_NOT_JSON_CHR
+        eng "Character disallowd in JSON in argument %d to function '%s' at position %d"
+ER_JSON_EOS
+        eng "Unexpected end of JSON text in argument %d to function '%s'"
+ER_JSON_SYNTAX
+        eng "Syntax error in JSON text in argument %d to function '%s' at position %d"
+ER_JSON_ESCAPING
+        eng "Incorrect escaping in JSON text in argument %d to function '%s' at position %d"
+ER_JSON_DEPTH
+        eng "Limit of %d on JSON nested strucures depth is reached in argument %d to function '%s' at position %d"
+ER_JSON_PATH_EOS
+        eng "Unexpected end of JSON path in argument %d to function '%s'"
+ER_JSON_PATH_SYNTAX
+        eng "Syntax error in JSON path in argument %d to function '%s' at position %d"
+ER_JSON_PATH_DEPTH
+        eng "Limit of %d on JSON path depth is reached in argument %d to function '%s' at position %d"
+ER_JSON_PATH_NO_WILDCARD
+        eng "Wildcards in JSON path not allowed in argument %d to function '%s'"
+ER_JSON_PATH_ARRAY
+        eng "JSON path should end with an array identifier in argument %d to function '%s'"
+ER_JSON_ONE_OR_ALL
+        eng "Argument 2 to function '%s' must be "one" or "all"."
+ER_UNSUPPORT_COMPRESSED_TEMPORARY_TABLE
+	eng "CREATE TEMPORARY TABLE is not allowed with ROW_FORMAT=COMPRESSED or KEY_BLOCK_SIZE."

@@ -253,12 +253,9 @@ void table_events_statements_common::make_row_part_1(PFS_events_statements *stat
   {
     if (cs->mbmaxlen > 1)
     {
-      int well_formed_error;
-      valid_length= cs->cset->well_formed_len(cs,
-                                              statement->m_sqltext,
-                                              statement->m_sqltext + valid_length,
-                                              valid_length,
-                                              &well_formed_error);
+      valid_length= Well_formed_prefix(cs,
+                                       statement->m_sqltext,
+                                       valid_length).length();
     }
   }
 

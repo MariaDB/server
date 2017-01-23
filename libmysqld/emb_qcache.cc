@@ -18,6 +18,7 @@
 
 #ifdef HAVE_QUERY_CACHE
 #include <mysql.h>
+#include "sql_basic_types.h"
 #include "emb_qcache.h"
 #include "embedded_priv.h"
 #include "sql_class.h"                          // THD

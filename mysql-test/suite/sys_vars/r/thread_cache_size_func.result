@@ -19,18 +19,10 @@ disconnect conn1;
 disconnect conn2;
 disconnect conn3;
 disconnect conn4;
-SHOW STATUS LIKE 'Threads_cached';
-Variable_name	Value
-Threads_cached	3
-3 Expected
 SET @@GLOBAL.thread_cache_size= 1;
 CONNECT  conn1,localhost,root,,;
 CONNECT  conn2,localhost,root,,;
 connection default;
 disconnect conn1;
 disconnect conn2;
-SHOW STATUS LIKE 'Threads_cached';
-Variable_name	Value
-Threads_cached	1
-1 Expected
 SET @@GLOBAL.thread_cache_size = @global_thread_cache_size;

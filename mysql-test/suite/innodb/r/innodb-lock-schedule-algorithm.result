@@ -1,0 +1,109 @@
+CREATE TABLE t1 (i1 INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1),(2);
+CREATE TABLE t2 (i2 int) ENGINE=MyISAM;
+BEGIN;
+DELETE FROM t1;
+connect  con1,localhost,root,,test;
+connection con1;
+BEGIN;
+INSERT INTO t2 VALUES (1),(2);
+SELECT * from t1;
+i1
+1
+2
+UPDATE t1 SET i1 = 1;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+COMMIT;
+connection default;
+COMMIT;
+SELECT * FROM t1;
+i1
+SELECT * FROM t2;
+i2
+1
+2
+DROP TABLE t1, t2;
+disconnect con1;
+CREATE TABLE t1 (i1 INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1),(2);
+CREATE TABLE t2 (i2 int) ENGINE=MyISAM;
+BEGIN;
+DELETE FROM t1;
+connect  con1,localhost,root,,test;
+connection con1;
+BEGIN;
+INSERT INTO t2 VALUES (1),(2);
+SELECT * FROM t1;
+i1
+1
+2
+UPDATE t1 SET i1 = 1;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+connection default;
+COMMIT;
+connection con1;
+COMMIT;
+connection default;
+SELECT * FROM t1;
+i1
+SELECT * FROM t2;
+i2
+1
+2
+DROP TABLE t1, t2;
+disconnect con1;
+# "restart: --loose-innodb-lock-schedule-algorithm=FCFS"
+CREATE TABLE t1 (i1 INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1),(2);
+CREATE TABLE t2 (i2 int) ENGINE=MyISAM;
+BEGIN;
+DELETE FROM t1;
+connect  con1,localhost,root,,test;
+connection con1;
+BEGIN;
+INSERT INTO t2 VALUES (1),(2);
+SELECT * from t1;
+i1
+1
+2
+UPDATE t1 SET i1 = 1;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+COMMIT;
+connection default;
+COMMIT;
+SELECT * FROM t1;
+i1
+SELECT * FROM t2;
+i2
+1
+2
+DROP TABLE t1, t2;
+disconnect con1;
+CREATE TABLE t1 (i1 INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1),(2);
+CREATE TABLE t2 (i2 int) ENGINE=MyISAM;
+BEGIN;
+DELETE FROM t1;
+connect  con1,localhost,root,,test;
+connection con1;
+BEGIN;
+INSERT INTO t2 VALUES (1),(2);
+SELECT * FROM t1;
+i1
+1
+2
+UPDATE t1 SET i1 = 1;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+connection default;
+COMMIT;
+connection con1;
+COMMIT;
+connection default;
+SELECT * FROM t1;
+i1
+SELECT * FROM t2;
+i2
+1
+2
+DROP TABLE t1, t2;
+disconnect con1;

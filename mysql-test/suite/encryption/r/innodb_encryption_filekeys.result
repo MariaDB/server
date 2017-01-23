@@ -1,6 +1,4 @@
 call mtr.add_suppression("trying to do an operation on a dropped tablespace .*");
-SET GLOBAL innodb_file_format = `Barracuda`;
-SET GLOBAL innodb_file_per_table = ON;
 SET GLOBAL innodb_encrypt_tables = OFF;
 SET GLOBAL innodb_encryption_threads = 4;
 CREATE TABLE t1 (pk INT PRIMARY KEY AUTO_INCREMENT, c VARCHAR(256)) ENGINE=INNODB;

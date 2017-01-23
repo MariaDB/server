@@ -928,13 +928,18 @@ With_element *st_select_lex::find_table_def_in_with_clauses(TABLE_LIST *table)
     /* 
       If sl->master_unit() is the spec of a with element then the search for 
       a definition was already done by With_element::check_dependencies_in_spec
-      and it was unsuccesful.
+      and it was unsuccesful. Yet for units cloned from the spec it has not 
+      been done yet.
     */
-    if (with_elem)
+    if (with_elem && sl->master_unit() == with_elem->spec)
       break;      
     With_clause *with_clause=sl->get_with_clause();
-    if (with_clause && (found= with_clause->find_table_def(table,NULL)))
-      break;
+    if (with_clause)
+    {
+      With_element *barrier= with_clause->with_recursive ? NULL : with_elem;
+      if ((found= with_clause->find_table_def(table, barrier)))
+        break;
+    }
     master_unit= sl->master_unit();
     /* Do not look for the table's definition beyond the scope of the view */
     if (master_unit->is_view)
@@ -1106,7 +1111,7 @@ bool With_element::check_unrestricted_recursive(st_select_lex *sel,
 					        table_map &unrestricted, 
 						table_map &encountered)
 {
-  /* Check conditions 1-for restricted specification*/
+  /* Check conditions 1 for restricted specification*/
   List_iterator<TABLE_LIST> ti(sel->leaf_tables);
   TABLE_LIST *tbl;
   while ((tbl= ti++))
@@ -1116,17 +1121,6 @@ bool With_element::check_unrestricted_recursive(st_select_lex *sel,
     { 
       if(!tbl->is_with_table())
       {
-        if (tbl->is_materialized_derived())
-        {
-          table_map dep_map;
-          check_dependencies_in_unit(unit, NULL, false, &dep_map);
-          if (dep_map & get_elem_map())
-          {
-	    my_error(ER_REF_TO_RECURSIVE_WITH_TABLE_IN_DERIVED,
-	  	     MYF(0), query_name->str);
-	    return true;
-          }
-        }
         if (check_unrestricted_recursive(unit->first_select(), 
 					 unrestricted, 
 				         encountered))
@@ -1141,7 +1135,7 @@ bool With_element::check_unrestricted_recursive(st_select_lex *sel,
         encountered|= with_elem->get_elem_map();
     }
   } 
-  for (With_element *with_elem= sel->get_with_element()->owner->with_list.first;
+  for (With_element *with_elem= owner->with_list.first;
        with_elem;
        with_elem= with_elem->next)
   {
@@ -1252,6 +1246,12 @@ bool st_select_lex::check_subqueries_with_recursive_references()
 
 void With_clause::print(String *str, enum_query_type query_type)
 {
+  /*
+    Any with clause contains just definitions of CTE tables.
+    No data expansion is applied to these definitions.
+  */
+  query_type= (enum_query_type) (query_type | QT_NO_DATA_EXPANSION);
+
   str->append(STRING_WITH_LEN("with "));
   if (with_recursive)
     str->append(STRING_WITH_LEN("recursive "));

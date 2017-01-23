@@ -40,11 +40,11 @@ pk1	count(*)
 # The following should use range(ux_pk1_fd5), two key parts (key_len=5+8=13)
 EXPLAIN SELECT * FROM t2 USE INDEX(ux_pk1_fd5) WHERE pk1=9 AND fd5 < 500 ORDER BY fd5 DESC LIMIT 10;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	range	ux_pk1_fd5	ux_pk1_fd5	13	NULL	137	Using where
+1	SIMPLE	t2	range	ux_pk1_fd5	ux_pk1_fd5	13	NULL	138	Using where
 # This also must use range, not ref. key_len must be 13
 EXPLAIN SELECT * FROM t2                       WHERE pk1=9 AND fd5 < 500 ORDER BY fd5 DESC LIMIT 10;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	range	PRIMARY,ux_pk1_fd5	ux_pk1_fd5	13	NULL	137	Using where
+1	SIMPLE	t2	range	PRIMARY,ux_pk1_fd5	ux_pk1_fd5	13	NULL	138	Using where
 drop table t0,t1, t2;
 #
 # MDEV-6814: Server crashes in calculate_key_len on query with ORDER BY

@@ -108,9 +108,6 @@ The following options may be given as the first argument:
  --bulk-insert-buffer-size=# 
  Size of tree cache used in bulk insert optimisation. Note
  that this is a limit per thread!
- --changed-page-bitmaps[=name] 
- Enable or disable CHANGED_PAGE_BITMAPS plugin. One of:
- ON, OFF, FORCE (don't start if the plugin fails to load).
  --character-set-client-handshake 
  Don't ignore client side character set value sent during
  handshake.
@@ -211,6 +208,9 @@ The following options may be given as the first argument:
  --extra-port=#      Extra port number to use for tcp connections in a
  one-thread-per-connection manner. 0 means don't use
  another port
+ --flashback         Setup the server to use flashback. This enables binary
+ log in row mode and will enable extra logging for DDL's
+ needed by flashback feature
  --flush             Flush MyISAM tables to disk between SQL commands
  --flush-time=#      A dedicated thread is created to flush all tables at the
  given interval
@@ -347,6 +347,10 @@ The following options may be given as the first argument:
  We strongly recommend to use either --log-basename or
  specify a filename to ensure that replication doesn't
  stop if the real hostname of the computer changes.
+ --log-bin-compress  Whether the binary log can be compressed
+ --log-bin-compress-min-len[=#] 
+ Minimum length of sql statement(in statement mode) or
+ record(in row mode)that can be compressed.
  --log-bin-index=name 
  File that holds the names for last binary log files.
  --log-bin-trust-function-creators 
@@ -460,6 +464,10 @@ The following options may be given as the first argument:
  --max-seeks-for-key=# 
  Limit assumed max number of seeks when looking up rows
  based on a key
+ --max-session-mem-used=# 
+ Amount of memory a single user session is allowed to
+ allocate. This limits the value of the session variable
+ MEM_USED
  --max-sort-length=# The number of bytes to use when sorting BLOB or TEXT
  values (only the first max_sort_length bytes of each
  value are used; the rest are ignored)
@@ -777,6 +785,9 @@ The following options may be given as the first argument:
  --range-alloc-block-size=# 
  Allocation block size for storing ranges during
  optimization
+ --read-binlog-speed-limit=# 
+ Maximum speed(KB/s) to read binlog from master (0 = no
+ limit)
  --read-buffer-size=# 
  Each thread that does a sequential scan allocates a
  buffer of this size for each table it scans. If you do
@@ -1091,6 +1102,8 @@ The following options may be given as the first argument:
  The number of cached table definitions
  --table-open-cache=# 
  The number of cached open tables
+ --table-open-cache-instances=# 
+ Maximum number of table cache instances
  --tc-heuristic-recover=name 
  Decision to use in heuristic recover process. One of: OFF,
  COMMIT, ROLLBACK
@@ -1106,6 +1119,15 @@ The following options may be given as the first argument:
  --thread-pool-oversubscribe=# 
  How many additional active worker threads in a group are
  allowed.
+ --thread-pool-prio-kickup-timer=# 
+ The number of milliseconds before a dequeued low-priority
+ statement is moved to the high-priority queue
+ --thread-pool-priority=name 
+ Threadpool priority. High priority connections usually
+ start executing earlier than low priority.If priority set
+ to 'auto', the the actual priority(low or high) is
+ determined based on whether or not connection is inside
+ transaction.
  --thread-pool-size=# 
  Number of thread groups in the pool. This parameter is
  roughly equivalent to maximum number of concurrently
@@ -1180,7 +1202,6 @@ binlog-row-event-max-size 1024
 binlog-row-image FULL
 binlog-stmt-cache-size 32768
 bulk-insert-buffer-size 8388608
-changed-page-bitmaps ON
 character-set-client-handshake TRUE
 character-set-filesystem binary
 character-sets-dir MYSQL_CHARSETSDIR/
@@ -1215,6 +1236,7 @@ explicit-defaults-for-timestamp FALSE
 external-locking FALSE
 extra-max-connections 1
 extra-port 0
+flashback FALSE
 flush FALSE
 flush-time 0
 ft-boolean-syntax + -><()~*:""&|
@@ -1257,6 +1279,8 @@ lc-time-names en_US
 local-infile TRUE
 lock-wait-timeout 31536000
 log-bin (No default value)
+log-bin-compress FALSE
+log-bin-compress-min-len 256
 log-bin-index (No default value)
 log-bin-trust-function-creators FALSE
 log-error 
@@ -1295,6 +1319,7 @@ max-prepared-stmt-count 16382
 max-recursive-iterations 18446744073709551615
 max-relay-log-size 1073741824
 max-seeks-for-key 18446744073709551615
+max-session-mem-used 9223372036854775807
 max-sort-length 1024
 max-sp-recursion-depth 0
 max-statement-time 0
@@ -1329,7 +1354,7 @@ old-style-user-limits FALSE
 optimizer-prune-level 1
 optimizer-search-depth 62
 optimizer-selectivity-sampling-limit 100
-optimizer-switch index_merge=on,index_merge_union=on,index_merge_sort_union=on,index_merge_intersection=on,index_merge_sort_intersection=off,engine_condition_pushdown=off,index_condition_pushdown=on,derived_merge=on,derived_with_keys=on,firstmatch=on,loosescan=on,materialization=on,in_to_exists=on,semijoin=on,partial_match_rowid_merge=on,partial_match_table_scan=on,subquery_cache=on,mrr=off,mrr_cost_based=off,mrr_sort_keys=off,outer_join_with_cache=on,semijoin_with_cache=on,join_cache_incremental=on,join_cache_hashed=on,join_cache_bka=on,optimize_join_buffer_size=off,table_elimination=on,extended_keys=on,exists_to_in=on,orderby_uses_equalities=off,condition_pushdown_for_derived=on
+optimizer-switch index_merge=on,index_merge_union=on,index_merge_sort_union=on,index_merge_intersection=on,index_merge_sort_intersection=off,engine_condition_pushdown=off,index_condition_pushdown=on,derived_merge=on,derived_with_keys=on,firstmatch=on,loosescan=on,materialization=on,in_to_exists=on,semijoin=on,partial_match_rowid_merge=on,partial_match_table_scan=on,subquery_cache=on,mrr=off,mrr_cost_based=off,mrr_sort_keys=off,outer_join_with_cache=on,semijoin_with_cache=on,join_cache_incremental=on,join_cache_hashed=on,join_cache_bka=on,optimize_join_buffer_size=off,table_elimination=on,extended_keys=on,exists_to_in=on,orderby_uses_equalities=on,condition_pushdown_for_derived=on
 optimizer-use-condition-selectivity 1
 performance-schema FALSE
 performance-schema-accounts-size -1
@@ -1367,7 +1392,7 @@ performance-schema-max-rwlock-instances -1
 performance-schema-max-socket-classes 10
 performance-schema-max-socket-instances -1
 performance-schema-max-stage-classes 150
-performance-schema-max-statement-classes 184
+performance-schema-max-statement-classes 185
 performance-schema-max-table-handles -1
 performance-schema-max-table-instances -1
 performance-schema-max-thread-classes 50
@@ -1392,6 +1417,7 @@ query-cache-type OFF
 query-cache-wlock-invalidate FALSE
 query-prealloc-size 24576
 range-alloc-block-size 4096
+read-binlog-speed-limit 0
 read-buffer-size 131072
 read-only FALSE
 read-rnd-buffer-size 262144
@@ -1457,11 +1483,14 @@ sysdate-is-now FALSE
 table-cache 431
 table-definition-cache 400
 table-open-cache 431
+table-open-cache-instances 8
 tc-heuristic-recover OFF
 thread-cache-size 151
 thread-pool-idle-timeout 60
 thread-pool-max-threads 1000
 thread-pool-oversubscribe 3
+thread-pool-prio-kickup-timer 1000
+thread-pool-priority auto
 thread-pool-stall-limit 500
 thread-stack 297984
 time-format %H:%i:%s

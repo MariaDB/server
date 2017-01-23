@@ -20,21 +20,21 @@ drop table t2;
 create table t1 (a int not null primary key, b int, c varchar(80), e enum('a','b'));
 insert into t1 (a) values (1),(2),(3);
 alter online table t1 drop column b, add b int;
-ERROR 0A000: LOCK=NONE is not supported for this operation. Try LOCK=SHARED.
+ERROR 0A000: LOCK=NONE is not supported for this operation. Try LOCK=SHARED
 alter online table t1 modify b bigint;
-ERROR 0A000: LOCK=NONE is not supported for this operation. Try LOCK=SHARED.
+ERROR 0A000: LOCK=NONE is not supported for this operation. Try LOCK=SHARED
 alter online table t1 modify e enum('c','a','b');
-ERROR 0A000: LOCK=NONE is not supported for this operation. Try LOCK=SHARED.
+ERROR 0A000: LOCK=NONE is not supported for this operation. Try LOCK=SHARED
 alter online table t1 modify c varchar(50);
-ERROR 0A000: LOCK=NONE is not supported for this operation. Try LOCK=SHARED.
+ERROR 0A000: LOCK=NONE is not supported for this operation. Try LOCK=SHARED
 alter online table t1 modify c varchar(100);
-ERROR 0A000: LOCK=NONE is not supported for this operation. Try LOCK=SHARED.
+ERROR 0A000: LOCK=NONE is not supported for this operation. Try LOCK=SHARED
 alter online table t1 add f int;
-ERROR 0A000: LOCK=NONE is not supported for this operation. Try LOCK=SHARED.
+ERROR 0A000: LOCK=NONE is not supported for this operation. Try LOCK=SHARED
 alter online table t1 engine=memory;
-ERROR 0A000: LOCK=NONE is not supported. Reason: COPY algorithm requires a lock. Try LOCK=SHARED.
+ERROR 0A000: LOCK=NONE is not supported. Reason: COPY algorithm requires a lock. Try LOCK=SHARED
 alter online table t1 rename to t2;
-ERROR 0A000: LOCK=NONE/SHARED is not supported for this operation. Try LOCK=EXCLUSIVE.
+ERROR 0A000: LOCK=NONE/SHARED is not supported for this operation. Try LOCK=EXCLUSIVE
 alter table t1 engine=innodb;
 alter table t1 add index (b);
 alter online table t1 add index c (c);
@@ -59,7 +59,7 @@ create table t1 (a int not null primary key, b int, c varchar(80));
 create table t2 (a int not null primary key, b int, c varchar(80));
 create table t3 (a int not null primary key, b int, c varchar(80)) engine=merge UNION=(t1);
 alter online table t3 union=(t1,t2);
-ERROR 0A000: LOCK=NONE/SHARED is not supported for this operation. Try LOCK=EXCLUSIVE.
+ERROR 0A000: LOCK=NONE/SHARED is not supported for this operation. Try LOCK=EXCLUSIVE
 drop table t1,t2,t3;
 create table t1 (i int) partition by hash(i) partitions 2;
 alter online table t1 comment 'test';
@@ -114,75 +114,75 @@ ALTER TABLE t1 MODIFY a LONGTEXT, ALGORITHM=INPLACE;
 DROP TABLE t1;
 CREATE TABLE t1 (a CHAR(10));
 ALTER TABLE t1 MODIFY a CHAR(10) COLLATE latin1_bin, ALGORITHM=INPLACE;
-ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY.
+ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY
 DROP TABLE t1;
 CREATE TABLE t1 (a VARCHAR(10));
 ALTER TABLE t1 MODIFY a VARCHAR(10) COLLATE latin1_bin, ALGORITHM=INPLACE;
-ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY.
+ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY
 DROP TABLE t1;
 CREATE TABLE t1 (a TINYTEXT);
 ALTER TABLE t1 MODIFY a TINYTEXT COLLATE latin1_bin, ALGORITHM=INPLACE;
-ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY.
+ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY
 DROP TABLE t1;
 CREATE TABLE t1 (a MEDIUMTEXT);
 ALTER TABLE t1 MODIFY a MEDIUMTEXT COLLATE latin1_bin, ALGORITHM=INPLACE;
-ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY.
+ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY
 DROP TABLE t1;
 CREATE TABLE t1 (a TEXT);
 ALTER TABLE t1 MODIFY a TEXT COLLATE latin1_bin, ALGORITHM=INPLACE;
-ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY.
+ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY
 DROP TABLE t1;
 CREATE TABLE t1 (a LONGTEXT);
 ALTER TABLE t1 MODIFY a LONGTEXT COLLATE latin1_bin, ALGORITHM=INPLACE;
-ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY.
+ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY
 DROP TABLE t1;
 CREATE TABLE t1 (a CHAR(10) COLLATE latin1_bin);
 ALTER TABLE t1 MODIFY a CHAR(10) COLLATE latin1_swedish_ci, ALGORITHM=INPLACE;
-ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY.
+ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY
 DROP TABLE t1;
 CREATE TABLE t1 (a VARCHAR(10) COLLATE latin1_bin);
 ALTER TABLE t1 MODIFY a VARCHAR(10) COLLATE latin1_swedish_ci, ALGORITHM=INPLACE;
-ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY.
+ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY
 DROP TABLE t1;
 CREATE TABLE t1 (a TINYTEXT COLLATE latin1_bin);
 ALTER TABLE t1 MODIFY a TINYTEXT COLLATE latin1_swedish_ci, ALGORITHM=INPLACE;
-ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY.
+ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY
 DROP TABLE t1;
 CREATE TABLE t1 (a MEDIUMTEXT COLLATE latin1_bin);
 ALTER TABLE t1 MODIFY a MEDIUMTEXT COLLATE latin1_swedish_ci, ALGORITHM=INPLACE;
-ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY.
+ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY
 DROP TABLE t1;
 CREATE TABLE t1 (a TEXT COLLATE latin1_bin);
 ALTER TABLE t1 MODIFY a TEXT COLLATE latin1_swedish_ci, ALGORITHM=INPLACE;
-ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY.
+ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY
 DROP TABLE t1;
 CREATE TABLE t1 (a LONGTEXT COLLATE latin1_bin);
 ALTER TABLE t1 MODIFY a LONGTEXT COLLATE latin1_swedish_ci, ALGORITHM=INPLACE;
-ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY.
+ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY
 DROP TABLE t1;
 CREATE TABLE t1 (a CHAR(10) COLLATE latin1_general_ci);
 ALTER TABLE t1 MODIFY a CHAR(10) COLLATE latin1_swedish_ci, ALGORITHM=INPLACE;
-ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY.
+ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY
 DROP TABLE t1;
 CREATE TABLE t1 (a VARCHAR(10) COLLATE latin1_general_ci);
 ALTER TABLE t1 MODIFY a VARCHAR(10) COLLATE latin1_swedish_ci, ALGORITHM=INPLACE;
-ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY.
+ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY
 DROP TABLE t1;
 CREATE TABLE t1 (a TINYTEXT COLLATE latin1_general_ci);
 ALTER TABLE t1 MODIFY a TINYTEXT COLLATE latin1_swedish_ci, ALGORITHM=INPLACE;
-ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY.
+ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY
 DROP TABLE t1;
 CREATE TABLE t1 (a MEDIUMTEXT COLLATE latin1_general_ci);
 ALTER TABLE t1 MODIFY a MEDIUMTEXT COLLATE latin1_swedish_ci, ALGORITHM=INPLACE;
-ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY.
+ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY
 DROP TABLE t1;
 CREATE TABLE t1 (a TEXT COLLATE latin1_general_ci);
 ALTER TABLE t1 MODIFY a TEXT COLLATE latin1_swedish_ci, ALGORITHM=INPLACE;
-ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY.
+ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY
 DROP TABLE t1;
 CREATE TABLE t1 (a LONGTEXT COLLATE latin1_general_ci);
 ALTER TABLE t1 MODIFY a LONGTEXT COLLATE latin1_swedish_ci, ALGORITHM=INPLACE;
-ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY.
+ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY
 DROP TABLE t1;
 #
 # End of MDEV-8948 ALTER ... INPLACE does work for BINARY, BLOB

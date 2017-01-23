@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2006, 2013, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2006, 2014, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -31,16 +31,18 @@ Created September 2006 Marko Makela
 
 #include "btr0cur.h"
 
-/********************************************************************//**
-Fills the column prefix cache of an externally stored column. */
+/** Fills the column prefix cache of an externally stored column.
+@param[in,out]	ext		column prefix cache
+@param[in]	i		index of ext->ext[]
+@param[in]	page_size	page size
+@param[in]	dfield		data field */
 static
 void
 row_ext_cache_fill(
-/*===============*/
-	row_ext_t*	ext,	/*!< in/out: column prefix cache */
-	ulint		i,	/*!< in: index of ext->ext[] */
-	ulint		zip_size,/*!< compressed page size in bytes, or 0 */
-	const dfield_t*	dfield)	/*!< in: data field */
+	row_ext_t*		ext,
+	ulint			i,
+	const page_size_t&	page_size,
+	const dfield_t*		dfield)
 {
 	const byte*	field	= static_cast<const byte*>(
 					dfield_get_data(dfield));
@@ -78,16 +80,14 @@ row_ext_cache_fill(
 			crashed during the execution of
 			btr_free_externally_stored_field(). */
 			ext->len[i] = btr_copy_externally_stored_field_prefix(
-				buf, ext->max_len, zip_size, field, f_len,
-				NULL);
+				buf, ext->max_len, page_size, field, f_len);
 		}
 	}
 }
 
 /********************************************************************//**
 Creates a cache of column prefixes of externally stored columns.
-@return	own: column prefix cache */
-UNIV_INTERN
+@return own: column prefix cache */
 row_ext_t*
 row_ext_create(
 /*===========*/
@@ -106,7 +106,7 @@ row_ext_create(
 	mem_heap_t*	heap)	/*!< in: heap where created */
 {
 	ulint		i;
-	ulint		zip_size = dict_tf_get_zip_size(flags);
+	const page_size_t&	page_size = dict_tf_get_page_size(flags);
 
 	row_ext_t*	ret;
 
@@ -116,12 +116,10 @@ row_ext_create(
 		mem_heap_alloc(heap,
 			       (sizeof *ret) + (n_ext - 1) * sizeof ret->len));
 
-	ut_ad(ut_is_2pow(zip_size));
-	ut_ad(zip_size <= UNIV_ZIP_SIZE_MAX);
-
 	ret->n_ext = n_ext;
 	ret->ext = ext;
 	ret->max_len = DICT_MAX_FIELD_LEN_BY_FORMAT_FLAG(flags);
+	ret->page_size.copy_from(page_size);
 
 	ret->buf = static_cast<byte*>(
 		mem_heap_alloc(heap, n_ext * ret->max_len));
@@ -136,7 +134,7 @@ row_ext_create(
 		const dfield_t*	dfield;
 
 		dfield = dtuple_get_nth_field(tuple, ext[i]);
-		row_ext_cache_fill(ret, i, zip_size, dfield);
+		row_ext_cache_fill(ret, i, page_size, dfield);
 	}
 
 	return(ret);

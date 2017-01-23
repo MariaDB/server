@@ -16,22 +16,22 @@ CREATE VIEW v1 AS SELECT * FROM t1 WHERE id>11;
 ERROR 42S01: Table 'v1' already exists
 SELECT VIEW_DEFINITION FROM INFORMATION_SCHEMA.VIEWS WHERE TABLE_NAME='v1';
 VIEW_DEFINITION
-select `test`.`t1`.`id` AS `id` from `test`.`t1` where (`test`.`t1`.`id` > 10)
+select `test`.`t1`.`id` AS `id` from `test`.`t1` where `test`.`t1`.`id` > 10
 CREATE VIEW IF NOT EXISTS v1 AS SELECT * FROM t1 WHERE id>12;
 Warnings:
 Note	1050	Table 'v1' already exists
 SELECT VIEW_DEFINITION FROM INFORMATION_SCHEMA.VIEWS WHERE TABLE_NAME='v1';
 VIEW_DEFINITION
-select `test`.`t1`.`id` AS `id` from `test`.`t1` where (`test`.`t1`.`id` > 10)
+select `test`.`t1`.`id` AS `id` from `test`.`t1` where `test`.`t1`.`id` > 10
 CREATE OR REPLACE VIEW IF NOT EXISTS v1 AS SELECT * FROM t1 WHERE id>13;
 ERROR HY000: Incorrect usage of OR REPLACE and IF NOT EXISTS
 SELECT VIEW_DEFINITION FROM INFORMATION_SCHEMA.VIEWS WHERE TABLE_NAME='v1';
 VIEW_DEFINITION
-select `test`.`t1`.`id` AS `id` from `test`.`t1` where (`test`.`t1`.`id` > 10)
+select `test`.`t1`.`id` AS `id` from `test`.`t1` where `test`.`t1`.`id` > 10
 CREATE OR REPLACE VIEW v1 AS SELECT * FROM t1 WHERE id>14;
 SELECT VIEW_DEFINITION FROM INFORMATION_SCHEMA.VIEWS WHERE TABLE_NAME='v1';
 VIEW_DEFINITION
-select `test`.`t1`.`id` AS `id` from `test`.`t1` where (`test`.`t1`.`id` > 14)
+select `test`.`t1`.`id` AS `id` from `test`.`t1` where `test`.`t1`.`id` > 14
 INSERT INTO t1 VALUES (50), (80), (3), (2), (40);
 SELECT * FROM t1;
 id

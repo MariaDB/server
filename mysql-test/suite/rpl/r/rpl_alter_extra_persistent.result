@@ -1,0 +1,203 @@
+include/master-slave.inc
+[connection master]
+connection master;
+create table t1(a int primary key);
+insert into t1 values(1);
+insert into t1 values(2);
+insert into t1 values(3);
+insert into t1 values(4);
+connection slave;
+select * from t1 order by a;
+a
+1
+2
+3
+4
+alter table t1 add column z1 int as(a+1) virtual, add column z2 int as (a+2) persistent;
+select * from t1 order by a;
+a	z1	z2
+1	2	3
+2	3	4
+3	4	5
+4	5	6
+connection master;
+insert into t1 values(5);
+insert into t1 values(6);
+connection slave;
+select * from t1 order by a;
+a	z1	z2
+1	2	3
+2	3	4
+3	4	5
+4	5	6
+5	6	7
+6	7	8
+#UPDATE query
+connection master;
+update t1 set a = a+10;
+select * from t1 order by a;
+a
+11
+12
+13
+14
+15
+16
+connection slave;
+select * from t1 order by a;
+a	z1	z2
+11	12	13
+12	13	14
+13	14	15
+14	15	16
+15	16	17
+16	17	18
+connection master;
+update t1 set a = a-10;
+select * from t1 order by a;
+a
+1
+2
+3
+4
+5
+6
+connection slave;
+select * from t1 order by a;
+a	z1	z2
+1	2	3
+2	3	4
+3	4	5
+4	5	6
+5	6	7
+6	7	8
+#DELETE quert
+connection master;
+delete from t1 where a > 2 and a < 4;
+select * from t1 order by a;
+a
+1
+2
+4
+5
+6
+connection slave;
+select * from t1 order by a;
+a	z1	z2
+1	2	3
+2	3	4
+4	5	6
+5	6	7
+6	7	8
+#REPLACE query
+connection master;
+replace into t1 values(1);
+replace into t1 values(3);
+replace into t1 values(1);
+connection slave;
+select * from t1 order by a;
+a	z1	z2
+1	2	3
+2	3	4
+3	4	5
+4	5	6
+5	6	7
+6	7	8
+#SELECT query
+connection master;
+select * from t1 where a > 2 and a < 4;
+a
+3
+connection slave;
+select * from t1 where a > 2 and a < 4;
+a	z1	z2
+3	4	5
+#UPDATE with SELECT query
+connection master;
+update t1 set a = a + 10  where a > 2 and a < 4;
+select * from t1 order by a;
+a
+1
+2
+4
+5
+6
+13
+connection slave;
+select * from t1 order by a;
+a	z1	z2
+1	2	3
+2	3	4
+4	5	6
+5	6	7
+6	7	8
+13	14	15
+connection master;
+update t1 set a = a - 10  where a = 13;
+select * from t1 order by a;
+a
+1
+2
+3
+4
+5
+6
+connection slave;
+select * from t1 order by a;
+a	z1	z2
+1	2	3
+2	3	4
+3	4	5
+4	5	6
+5	6	7
+6	7	8
+#Break Unique Constraint
+alter table t1 add column z4 int as (a % 6) persistent unique;
+connection master;
+#entering duplicate value for slave persistent column
+insert into t1 values(7);
+select * from t1 order by a;
+a
+1
+2
+3
+4
+5
+6
+7
+connection slave;
+include/wait_for_slave_sql_error.inc [errno=1062]
+select * from t1 order by a;
+a	z1	z2	z4
+1	2	3	1
+2	3	4	2
+3	4	5	3
+4	5	6	4
+5	6	7	5
+6	7	8	0
+alter table t1 drop column z4;
+start slave;
+include/wait_for_slave_sql_to_start.inc
+connection master;
+connection slave;
+select * from t1 order by a;
+a	z1	z2
+1	2	3
+2	3	4
+3	4	5
+4	5	6
+5	6	7
+6	7	8
+7	8	9
+connection master;
+select * from t1 order by a;
+a
+1
+2
+3
+4
+5
+6
+7
+drop table t1;
+include/rpl_end.inc

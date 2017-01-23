@@ -917,8 +917,8 @@ AaBbCcDdEeFfGgHhIiJjÄäÜüÖö	1.7976931348623e308	3
 	0	4
 	-1	5
 Warnings:
-Warning	1916	Got overflow when converting '-1.7976931348623e308' to INT. Value truncated.
-Warning	1916	Got overflow when converting '1.7976931348623e308' to INT. Value truncated.
+Warning	1916	Got overflow when converting '-1.7976931348623e308' to INT. Value truncated
+Warning	1916	Got overflow when converting '1.7976931348623e308' to INT. Value truncated
 SHOW CREATE VIEW v1;
 View	Create View	character_set_client	collation_connection
 v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select left('AaBbCcDdEeFfGgHhIiJjÄäÜüÖö',`t1_values`.`my_double`) AS `LEFT('AaBbCcDdEeFfGgHhIiJjÄäÜüÖö', my_double)`,`t1_values`.`my_double` AS `my_double`,`t1_values`.`id` AS `id` from `t1_values`	latin1	latin1_swedish_ci
@@ -932,8 +932,8 @@ AaBbCcDdEeFfGgHhIiJjÄäÜüÖö	1.7976931348623e308	3
 	0	4
 	-1	5
 Warnings:
-Warning	1916	Got overflow when converting '-1.7976931348623e308' to INT. Value truncated.
-Warning	1916	Got overflow when converting '1.7976931348623e308' to INT. Value truncated.
+Warning	1916	Got overflow when converting '-1.7976931348623e308' to INT. Value truncated
+Warning	1916	Got overflow when converting '1.7976931348623e308' to INT. Value truncated
 DROP VIEW v1;
 
 
@@ -947,8 +947,8 @@ AaBbCcDdEeFfGgHhIiJjÄäÜüÖö	9999999999999999999999999999999999.999999999999
 	0.000000000000000000000000000000	4
 	-1.000000000000000000000000000000	5
 Warnings:
-Warning	1916	Got overflow when converting '-9999999999999999999999999999999999.999999999999999999999999999999' to INT. Value truncated.
-Warning	1916	Got overflow when converting '9999999999999999999999999999999999.999999999999999999999999999999' to INT. Value truncated.
+Warning	1916	Got overflow when converting '-9999999999999999999999999999999999.999999999999999999999999999999' to INT. Value truncated
+Warning	1916	Got overflow when converting '9999999999999999999999999999999999.999999999999999999999999999999' to INT. Value truncated
 SHOW CREATE VIEW v1;
 View	Create View	character_set_client	collation_connection
 v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select left('AaBbCcDdEeFfGgHhIiJjÄäÜüÖö',`t1_values`.`my_decimal`) AS `LEFT('AaBbCcDdEeFfGgHhIiJjÄäÜüÖö', my_decimal)`,`t1_values`.`my_decimal` AS `my_decimal`,`t1_values`.`id` AS `id` from `t1_values`	latin1	latin1_swedish_ci
@@ -962,8 +962,8 @@ AaBbCcDdEeFfGgHhIiJjÄäÜüÖö	9999999999999999999999999999999999.999999999999
 	0.000000000000000000000000000000	4
 	-1.000000000000000000000000000000	5
 Warnings:
-Warning	1916	Got overflow when converting '-9999999999999999999999999999999999.999999999999999999999999999999' to INT. Value truncated.
-Warning	1916	Got overflow when converting '9999999999999999999999999999999999.999999999999999999999999999999' to INT. Value truncated.
+Warning	1916	Got overflow when converting '-9999999999999999999999999999999999.999999999999999999999999999999' to INT. Value truncated
+Warning	1916	Got overflow when converting '9999999999999999999999999999999999.999999999999999999999999999999' to INT. Value truncated
 DROP VIEW v1;
 
 
@@ -1545,7 +1545,7 @@ IS NOT NULL	2000	4
 IS NOT NULL	2005	5
 SHOW CREATE VIEW v1;
 View	Create View	character_set_client	collation_connection
-v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select if(isnull(`t1_values`.`my_year`),'IS     NULL','IS NOT NULL') AS `IF(my_year IS NULL, 'IS     NULL',
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select if(`t1_values`.`my_year` is null,'IS     NULL','IS NOT NULL') AS `IF(my_year IS NULL, 'IS     NULL',
 'IS NOT NULL')`,`t1_values`.`my_year` AS `my_year`,`t1_values`.`id` AS `id` from `t1_values`	latin1	latin1_swedish_ci
 SELECT v1.* FROM v1
 WHERE v1.id IN (SELECT id FROM t1_values
@@ -1574,7 +1574,7 @@ IS NOT NULL	13:00:00	4
 IS NOT NULL	10:00:00	5
 SHOW CREATE VIEW v1;
 View	Create View	character_set_client	collation_connection
-v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select if(isnull(`t1_values`.`my_time`),'IS     NULL','IS NOT NULL') AS `IF(my_time IS NULL, 'IS     NULL',
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select if(`t1_values`.`my_time` is null,'IS     NULL','IS NOT NULL') AS `IF(my_time IS NULL, 'IS     NULL',
 'IS NOT NULL')`,`t1_values`.`my_time` AS `my_time`,`t1_values`.`id` AS `id` from `t1_values`	latin1	latin1_swedish_ci
 SELECT v1.* FROM v1
 WHERE v1.id IN (SELECT id FROM t1_values
@@ -1603,7 +1603,7 @@ IS NOT NULL	2004-02-29 23:59:59	4
 IS NOT NULL	2005-06-28 10:00:00	5
 SHOW CREATE VIEW v1;
 View	Create View	character_set_client	collation_connection
-v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select if(isnull(`t1_values`.`my_timestamp`),'IS     NULL','IS NOT NULL') AS `IF(my_timestamp IS NULL, 'IS     NULL',
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select if(`t1_values`.`my_timestamp` is null,'IS     NULL','IS NOT NULL') AS `IF(my_timestamp IS NULL, 'IS     NULL',
 'IS NOT NULL')`,`t1_values`.`my_timestamp` AS `my_timestamp`,`t1_values`.`id` AS `id` from `t1_values`	latin1	latin1_swedish_ci
 SELECT v1.* FROM v1
 WHERE v1.id IN (SELECT id FROM t1_values
@@ -1632,7 +1632,7 @@ IS NOT NULL	2004-02-29	4
 IS NOT NULL	2005-06-28	5
 SHOW CREATE VIEW v1;
 View	Create View	character_set_client	collation_connection
-v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select if(isnull(`t1_values`.`my_date`),'IS     NULL','IS NOT NULL') AS `IF(my_date IS NULL, 'IS     NULL',
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select if(`t1_values`.`my_date` is null,'IS     NULL','IS NOT NULL') AS `IF(my_date IS NULL, 'IS     NULL',
 'IS NOT NULL')`,`t1_values`.`my_date` AS `my_date`,`t1_values`.`id` AS `id` from `t1_values`	latin1	latin1_swedish_ci
 SELECT v1.* FROM v1
 WHERE v1.id IN (SELECT id FROM t1_values
@@ -1661,7 +1661,7 @@ IS NOT NULL	2004-02-29 23:59:59	4
 IS NOT NULL	2005-06-28 10:00:00	5
 SHOW CREATE VIEW v1;
 View	Create View	character_set_client	collation_connection
-v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select if(isnull(`t1_values`.`my_datetime`),'IS     NULL','IS NOT NULL') AS `IF(my_datetime IS NULL, 'IS     NULL',
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select if(`t1_values`.`my_datetime` is null,'IS     NULL','IS NOT NULL') AS `IF(my_datetime IS NULL, 'IS     NULL',
 'IS NOT NULL')`,`t1_values`.`my_datetime` AS `my_datetime`,`t1_values`.`id` AS `id` from `t1_values`	latin1	latin1_swedish_ci
 SELECT v1.* FROM v1
 WHERE v1.id IN (SELECT id FROM t1_values
@@ -1690,7 +1690,7 @@ IS NOT NULL	0	4
 IS NOT NULL	-1	5
 SHOW CREATE VIEW v1;
 View	Create View	character_set_client	collation_connection
-v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select if(isnull(`t1_values`.`my_double`),'IS     NULL','IS NOT NULL') AS `IF(my_double IS NULL, 'IS     NULL',
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select if(`t1_values`.`my_double` is null,'IS     NULL','IS NOT NULL') AS `IF(my_double IS NULL, 'IS     NULL',
 'IS NOT NULL')`,`t1_values`.`my_double` AS `my_double`,`t1_values`.`id` AS `id` from `t1_values`	latin1	latin1_swedish_ci
 SELECT v1.* FROM v1
 WHERE v1.id IN (SELECT id FROM t1_values
@@ -1719,7 +1719,7 @@ IS NOT NULL	0.000000000000000000000000000000	4
 IS NOT NULL	-1.000000000000000000000000000000	5
 SHOW CREATE VIEW v1;
 View	Create View	character_set_client	collation_connection
-v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select if(isnull(`t1_values`.`my_decimal`),'IS     NULL','IS NOT NULL') AS `IF(my_decimal IS NULL, 'IS     NULL',
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select if(`t1_values`.`my_decimal` is null,'IS     NULL','IS NOT NULL') AS `IF(my_decimal IS NULL, 'IS     NULL',
 'IS NOT NULL')`,`t1_values`.`my_decimal` AS `my_decimal`,`t1_values`.`id` AS `id` from `t1_values`	latin1	latin1_swedish_ci
 SELECT v1.* FROM v1
 WHERE v1.id IN (SELECT id FROM t1_values
@@ -1748,7 +1748,7 @@ IS NOT NULL	0	4
 IS NOT NULL	-1	5
 SHOW CREATE VIEW v1;
 View	Create View	character_set_client	collation_connection
-v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select if(isnull(`t1_values`.`my_bigint`),'IS     NULL','IS NOT NULL') AS `IF(my_bigint IS NULL, 'IS     NULL',
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select if(`t1_values`.`my_bigint` is null,'IS     NULL','IS NOT NULL') AS `IF(my_bigint IS NULL, 'IS     NULL',
 'IS NOT NULL')`,`t1_values`.`my_bigint` AS `my_bigint`,`t1_values`.`id` AS `id` from `t1_values`	latin1	latin1_swedish_ci
 SELECT v1.* FROM v1
 WHERE v1.id IN (SELECT id FROM t1_values
@@ -1777,7 +1777,7 @@ IS NOT NULL	 ---äÖüß@µ*$-- 	4
 IS NOT NULL	-1	5
 SHOW CREATE VIEW v1;
 View	Create View	character_set_client	collation_connection
-v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select if(isnull(`t1_values`.`my_varbinary_1000`),'IS     NULL','IS NOT NULL') AS `IF(my_varbinary_1000 IS NULL, 'IS     NULL',
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select if(`t1_values`.`my_varbinary_1000` is null,'IS     NULL','IS NOT NULL') AS `IF(my_varbinary_1000 IS NULL, 'IS     NULL',
 'IS NOT NULL')`,`t1_values`.`my_varbinary_1000` AS `my_varbinary_1000`,`t1_values`.`id` AS `id` from `t1_values`	latin1	latin1_swedish_ci
 SELECT v1.* FROM v1
 WHERE v1.id IN (SELECT id FROM t1_values
@@ -1806,7 +1806,7 @@ IS NOT NULL	 ---äÖüß@µ*$-- 	4
 IS NOT NULL	-1	5
 SHOW CREATE VIEW v1;
 View	Create View	character_set_client	collation_connection
-v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select if(isnull(`t1_values`.`my_binary_30`),'IS     NULL','IS NOT NULL') AS `IF(my_binary_30 IS NULL, 'IS     NULL',
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select if(`t1_values`.`my_binary_30` is null,'IS     NULL','IS NOT NULL') AS `IF(my_binary_30 IS NULL, 'IS     NULL',
 'IS NOT NULL')`,`t1_values`.`my_binary_30` AS `my_binary_30`,`t1_values`.`id` AS `id` from `t1_values`	latin1	latin1_swedish_ci
 SELECT v1.* FROM v1
 WHERE v1.id IN (SELECT id FROM t1_values
@@ -1835,7 +1835,7 @@ IS NOT NULL	 ---äÖüß@µ*$-- 	4
 IS NOT NULL	-1	5
 SHOW CREATE VIEW v1;
 View	Create View	character_set_client	collation_connection
-v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select if(isnull(`t1_values`.`my_varchar_1000`),'IS     NULL','IS NOT NULL') AS `IF(my_varchar_1000 IS NULL, 'IS     NULL',
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select if(`t1_values`.`my_varchar_1000` is null,'IS     NULL','IS NOT NULL') AS `IF(my_varchar_1000 IS NULL, 'IS     NULL',
 'IS NOT NULL')`,`t1_values`.`my_varchar_1000` AS `my_varchar_1000`,`t1_values`.`id` AS `id` from `t1_values`	latin1	latin1_swedish_ci
 SELECT v1.* FROM v1
 WHERE v1.id IN (SELECT id FROM t1_values
@@ -1864,7 +1864,7 @@ IS NOT NULL	 ---äÖüß@µ*$--	4
 IS NOT NULL	-1	5
 SHOW CREATE VIEW v1;
 View	Create View	character_set_client	collation_connection
-v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select if(isnull(`t1_values`.`my_char_30`),'IS     NULL','IS NOT NULL') AS `IF(my_char_30 IS NULL, 'IS     NULL',
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select if(`t1_values`.`my_char_30` is null,'IS     NULL','IS NOT NULL') AS `IF(my_char_30 IS NULL, 'IS     NULL',
 'IS NOT NULL')`,`t1_values`.`my_char_30` AS `my_char_30`,`t1_values`.`id` AS `id` from `t1_values`	latin1	latin1_swedish_ci
 SELECT v1.* FROM v1
 WHERE v1.id IN (SELECT id FROM t1_values
@@ -2587,9 +2587,9 @@ NULL	NULL	1
 0	0	4
 18446744073709551615	-1	5
 Warnings:
-Warning	1916	Got overflow when converting '-1.7976931348623e308' to INT. Value truncated.
+Warning	1916	Got overflow when converting '-1.7976931348623e308' to INT. Value truncated
 Note	1105	Cast to unsigned converted negative integer to it's positive complement
-Warning	1916	Got overflow when converting '1.7976931348623e308' to INT. Value truncated.
+Warning	1916	Got overflow when converting '1.7976931348623e308' to INT. Value truncated
 Note	1105	Cast to unsigned converted negative integer to it's positive complement
 SHOW CREATE VIEW v1;
 View	Create View	character_set_client	collation_connection
@@ -2604,9 +2604,9 @@ NULL	NULL	1
 0	0	4
 18446744073709551615	-1	5
 Warnings:
-Warning	1916	Got overflow when converting '-1.7976931348623e308' to INT. Value truncated.
+Warning	1916	Got overflow when converting '-1.7976931348623e308' to INT. Value truncated
 Note	1105	Cast to unsigned converted negative integer to it's positive complement
-Warning	1916	Got overflow when converting '1.7976931348623e308' to INT. Value truncated.
+Warning	1916	Got overflow when converting '1.7976931348623e308' to INT. Value truncated
 Note	1105	Cast to unsigned converted negative integer to it's positive complement
 DROP VIEW v1;
 
@@ -2623,9 +2623,9 @@ NULL	NULL	1
 0	0.000000000000000000000000000000	4
 0	-1.000000000000000000000000000000	5
 Warnings:
-Warning	1916	Got overflow when converting '-9999999999999999999999999999999999.999999999999999999999999999999' to UNSIGNED INT. Value truncated.
-Warning	1916	Got overflow when converting '9999999999999999999999999999999999.999999999999999999999999999999' to UNSIGNED INT. Value truncated.
-Warning	1916	Got overflow when converting '-1.000000000000000000000000000000' to UNSIGNED INT. Value truncated.
+Warning	1916	Got overflow when converting '-9999999999999999999999999999999999.999999999999999999999999999999' to UNSIGNED INT. Value truncated
+Warning	1916	Got overflow when converting '9999999999999999999999999999999999.999999999999999999999999999999' to UNSIGNED INT. Value truncated
+Warning	1916	Got overflow when converting '-1.000000000000000000000000000000' to UNSIGNED INT. Value truncated
 SHOW CREATE VIEW v1;
 View	Create View	character_set_client	collation_connection
 v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select cast(`t1_values`.`my_decimal` as unsigned) AS `CAST(my_decimal AS UNSIGNED INTEGER)`,`t1_values`.`my_decimal` AS `my_decimal`,`t1_values`.`id` AS `id` from `t1_values`	latin1	latin1_swedish_ci
@@ -2639,9 +2639,9 @@ NULL	NULL	1
 0	0.000000000000000000000000000000	4
 0	-1.000000000000000000000000000000	5
 Warnings:
-Warning	1916	Got overflow when converting '-9999999999999999999999999999999999.999999999999999999999999999999' to UNSIGNED INT. Value truncated.
-Warning	1916	Got overflow when converting '9999999999999999999999999999999999.999999999999999999999999999999' to UNSIGNED INT. Value truncated.
-Warning	1916	Got overflow when converting '-1.000000000000000000000000000000' to UNSIGNED INT. Value truncated.
+Warning	1916	Got overflow when converting '-9999999999999999999999999999999999.999999999999999999999999999999' to UNSIGNED INT. Value truncated
+Warning	1916	Got overflow when converting '9999999999999999999999999999999999.999999999999999999999999999999' to UNSIGNED INT. Value truncated
+Warning	1916	Got overflow when converting '-1.000000000000000000000000000000' to UNSIGNED INT. Value truncated
 DROP VIEW v1;
 
 
@@ -2965,8 +2965,8 @@ NULL	NULL	1
 0	0	4
 -1	-1	5
 Warnings:
-Warning	1916	Got overflow when converting '-1.7976931348623e308' to INT. Value truncated.
-Warning	1916	Got overflow when converting '1.7976931348623e308' to INT. Value truncated.
+Warning	1916	Got overflow when converting '-1.7976931348623e308' to INT. Value truncated
+Warning	1916	Got overflow when converting '1.7976931348623e308' to INT. Value truncated
 SHOW CREATE VIEW v1;
 View	Create View	character_set_client	collation_connection
 v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select cast(`t1_values`.`my_double` as signed) AS `CAST(my_double AS SIGNED INTEGER)`,`t1_values`.`my_double` AS `my_double`,`t1_values`.`id` AS `id` from `t1_values`	latin1	latin1_swedish_ci
@@ -2980,8 +2980,8 @@ NULL	NULL	1
 0	0	4
 -1	-1	5
 Warnings:
-Warning	1916	Got overflow when converting '-1.7976931348623e308' to INT. Value truncated.
-Warning	1916	Got overflow when converting '1.7976931348623e308' to INT. Value truncated.
+Warning	1916	Got overflow when converting '-1.7976931348623e308' to INT. Value truncated
+Warning	1916	Got overflow when converting '1.7976931348623e308' to INT. Value truncated
 DROP VIEW v1;
 
 
@@ -2997,8 +2997,8 @@ NULL	NULL	1
 0	0.000000000000000000000000000000	4
 -1	-1.000000000000000000000000000000	5
 Warnings:
-Warning	1916	Got overflow when converting '-9999999999999999999999999999999999.999999999999999999999999999999' to INT. Value truncated.
-Warning	1916	Got overflow when converting '9999999999999999999999999999999999.999999999999999999999999999999' to INT. Value truncated.
+Warning	1916	Got overflow when converting '-9999999999999999999999999999999999.999999999999999999999999999999' to INT. Value truncated
+Warning	1916	Got overflow when converting '9999999999999999999999999999999999.999999999999999999999999999999' to INT. Value truncated
 SHOW CREATE VIEW v1;
 View	Create View	character_set_client	collation_connection
 v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select cast(`t1_values`.`my_decimal` as signed) AS `CAST(my_decimal AS SIGNED INTEGER)`,`t1_values`.`my_decimal` AS `my_decimal`,`t1_values`.`id` AS `id` from `t1_values`	latin1	latin1_swedish_ci
@@ -3012,8 +3012,8 @@ NULL	NULL	1
 0	0.000000000000000000000000000000	4
 -1	-1.000000000000000000000000000000	5
 Warnings:
-Warning	1916	Got overflow when converting '-9999999999999999999999999999999999.999999999999999999999999999999' to INT. Value truncated.
-Warning	1916	Got overflow when converting '9999999999999999999999999999999999.999999999999999999999999999999' to INT. Value truncated.
+Warning	1916	Got overflow when converting '-9999999999999999999999999999999999.999999999999999999999999999999' to INT. Value truncated
+Warning	1916	Got overflow when converting '9999999999999999999999999999999999.999999999999999999999999999999' to INT. Value truncated
 DROP VIEW v1;
 
 
@@ -3324,9 +3324,9 @@ NULL	NULL	1
 -1.00	-1	5
 -3333.33	-3333.3333	30
 Warnings:
-Warning	1916	Got overflow when converting '' to DECIMAL. Value truncated.
+Warning	1916	Got overflow when converting '' to DECIMAL. Value truncated
 Warning	1264	Out of range value for column 'CAST(my_double AS DECIMAL(37,2))' at row 1
-Warning	1916	Got overflow when converting '' to DECIMAL. Value truncated.
+Warning	1916	Got overflow when converting '' to DECIMAL. Value truncated
 Warning	1264	Out of range value for column 'CAST(my_double AS DECIMAL(37,2))' at row 1
 SHOW CREATE VIEW v1;
 View	Create View	character_set_client	collation_connection
@@ -3342,9 +3342,9 @@ NULL	NULL	1
 -1.00	-1	5
 -3333.33	-3333.3333	30
 Warnings:
-Warning	1916	Got overflow when converting '' to DECIMAL. Value truncated.
+Warning	1916	Got overflow when converting '' to DECIMAL. Value truncated
 Warning	1264	Out of range value for column 'CAST(my_double AS DECIMAL(37,2))' at row 1
-Warning	1916	Got overflow when converting '' to DECIMAL. Value truncated.
+Warning	1916	Got overflow when converting '' to DECIMAL. Value truncated
 Warning	1264	Out of range value for column 'CAST(my_double AS DECIMAL(37,2))' at row 1
 DROP VIEW v1;
 

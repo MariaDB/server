@@ -97,7 +97,6 @@ static rpl_group_info* wsrep_relay_group_init(const char* log_fname)
 {
   Relay_log_info* rli= new Relay_log_info(false);
 
-  rli->no_storage= true;
   if (!rli->relay_log.description_event_for_exec)
   {
     rli->relay_log.description_event_for_exec=
@@ -266,7 +265,8 @@ void wsrep_replay_transaction(THD *thd)
         }
         else if (thd->get_stmt_da()->is_set())
         {
-          if (thd->get_stmt_da()->status() != Diagnostics_area::DA_OK)
+          if (thd->get_stmt_da()->status() != Diagnostics_area::DA_OK &&
+              thd->get_stmt_da()->status() != Diagnostics_area::DA_OK_BULK)
           {
             WSREP_WARN("replay ok, thd has error status %d",
                        thd->get_stmt_da()->status());

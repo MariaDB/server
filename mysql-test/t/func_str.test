@@ -1783,6 +1783,24 @@ INSERT INTO t1 VALUES (0),(0),(1),(0),(0);
 SELECT COUNT(*) FROM t1, t1 t2 GROUP BY INSERT('', t2.a, t1.a, @@global.max_binlog_size);
 DROP TABLE t1;
 
+--let func=hex
+--source include/func_str_ascii_checksum.inc
+
+--let func=to_base64
+--source include/func_str_ascii_checksum.inc
+
+--echo #
+--echo # MDEV-10864 Wrong result for WHERE .. (f2=COMPRESS('test') OR f2=COMPRESS('TEST'))
+--echo #
+
+CREATE TABLE t1 (f1 VARCHAR(4), f2 VARCHAR(128), UNIQUE KEY k1 (f1,f2));
+INSERT INTO t1 VALUES ('YQ==',from_base64('YQ==')), ('Yq==', from_base64('Yq=='));
+SELECT f1,HEX(f2) FROM t1 ignore index(k1) WHERE f1='YQ==' AND (f2= from_base64("YQ==") OR f2= from_base64("Yq=="));
+SELECT f1,HEX(f2) FROM t1                  WHERE f1='YQ==' AND (f2= from_base64("YQ==") OR f2= from_base64("Yq=="));
+SELECT f1,HEX(f2) FROM t1                  WHERE f1='YQ==' AND (f2= from_base64("Yq==") OR f2= from_base64("YQ=="));
+DROP TABLE t1;
+
+
 --echo #
 --echo # End of 10.1 tests
 --echo #

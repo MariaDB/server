@@ -25,6 +25,7 @@ SET(HEADERS
   mysql.h 
   mysql_com.h
   mysql_com_server.h
+  pack.h
   my_byteorder.h
   byte_order_generic.h
   byte_order_generic_x86.h
@@ -60,6 +61,7 @@ SET(HEADERS
   my_compiler.h
   handler_state.h
   handler_ername.h
+  json_lib.h
 )
 
 INSTALL(FILES ${HEADERS} DESTINATION ${INSTALL_INCLUDEDIR} COMPONENT Development)

@@ -7,4 +7,12 @@ select * from t1;
 nr	b	str
 select * from t1 limit 0;
 nr	b	str
+show status like "Empty_queries";
+Variable_name	Value
+Empty_queries	2
 drop table t1;
+select * from t2;
+ERROR 42S02: Table 'test.t2' doesn't exist
+show status like "Empty_queries";
+Variable_name	Value
+Empty_queries	2

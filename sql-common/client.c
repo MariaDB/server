@@ -569,16 +569,22 @@ err:
                            Error message is set.
   @retval  
 */
-
 ulong
 cli_safe_read(MYSQL *mysql)
+{
+  ulong reallen = 0;
+  return cli_safe_read_reallen(mysql, &reallen);
+}
+
+ulong
+cli_safe_read_reallen(MYSQL *mysql, ulong* reallen)
 {
   NET *net= &mysql->net;
   ulong len=0;
 
 restart:
   if (net->vio != 0)
-    len= my_net_read_packet(net, 0);
+    len= my_net_read_packet_reallen(net, 0, reallen);
 
   if (len == packet_error || len == 0)
   {
@@ -1004,11 +1010,6 @@ enum option_id {
 
 static TYPELIB option_types={array_elements(default_options)-1,
 			     "options",default_options, NULL};
-
-const char *sql_protocol_names_lib[] =
-{ "TCP", "SOCKET", "PIPE", "MEMORY", NullS };
-TYPELIB sql_protocol_typelib = {array_elements(sql_protocol_names_lib)-1,"",
-				sql_protocol_names_lib, NULL};
 
 static int add_init_command(struct st_mysql_options *options, const char *cmd)
 {
@@ -4775,4 +4776,12 @@ mysql_get_socket(const MYSQL *mysql)
   if (mysql->net.vio)
     return vio_fd(mysql->net.vio);
   return INVALID_SOCKET;
+}
+
+
+int STDCALL mysql_cancel(MYSQL *mysql)
+{
+  if (mysql->net.vio)
+	return vio_shutdown(mysql->net.vio, SHUT_RDWR);
+  return -1;
 }

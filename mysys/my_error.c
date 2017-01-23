@@ -131,7 +131,7 @@ void my_error(uint nr, myf MyFlags, ...)
   Print an error message.
 
   @note
-    Goes through the (sole) function registered in error_handler_hook
+    Just like my_error, but for cases when the error message is not ER(error)
 
   @param error     error number
   @param format    format string

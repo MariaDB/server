@@ -1236,10 +1236,10 @@ public:
 
   uint get_column_count() { return key_column_count; }
   uint get_keyid() { return keyid; }
-  uint get_field_idx(uint i)
+  Field *get_field(uint i)
   {
     DBUG_ASSERT(i < key_column_count);
-    return key_columns[i]->field->field_index;
+    return key_columns[i]->field;
   }
   rownum_t get_min_null_row() { return min_null_row; }
   rownum_t get_max_null_row() { return max_null_row; }

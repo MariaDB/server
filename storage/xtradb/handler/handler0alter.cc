@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2005, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2016, MariaDB Corporation. All Rights Reserved.
+Copyright (c) 2013, 2017, MariaDB Corporation. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -214,7 +214,10 @@ innobase_need_rebuild(
 	const Alter_inplace_info*	ha_alter_info,
 	const TABLE*			altered_table)
 {
-	if (ha_alter_info->handler_flags
+	Alter_inplace_info::HA_ALTER_FLAGS alter_inplace_flags =
+		ha_alter_info->handler_flags & ~(INNOBASE_INPLACE_IGNORE);
+
+	if (alter_inplace_flags
 	    == Alter_inplace_info::CHANGE_CREATE_OPTION
 	    && !(ha_alter_info->create_info->used_fields
 		 & (HA_CREATE_USED_ROW_FORMAT
@@ -2492,7 +2495,8 @@ innobase_build_col_map_add(
 	mem_heap_t*	heap,
 	dfield_t*	dfield,
 	const Field*	field,
-	ulint		comp)
+	ulint		comp,
+	row_prebuilt_t*	prebuilt)
 {
 	if (field->is_real_null()) {
 		dfield_set_null(dfield);
@@ -2529,7 +2533,8 @@ innobase_build_col_map(
 	const dict_table_t*	new_table,
 	const dict_table_t*	old_table,
 	dtuple_t*		add_cols,
-	mem_heap_t*		heap)
+	mem_heap_t*		heap,
+	row_prebuilt_t*	prebuilt)
 {
         uint old_i, old_innobase_i;
 	DBUG_ENTER("innobase_build_col_map");
@@ -2580,7 +2585,7 @@ innobase_build_col_map(
 		innobase_build_col_map_add(
 			heap, dtuple_get_nth_field(add_cols, i),
 			altered_table->field[sql_idx],
-			dict_table_is_comp(new_table));
+			dict_table_is_comp(new_table), prebuilt);
 found_col:
 		i++;
                 sql_idx++;
@@ -2744,7 +2749,8 @@ prepare_inplace_alter_table_dict(
 	ulint			flags2,
 	ulint			fts_doc_id_col,
 	bool			add_fts_doc_id,
-	bool			add_fts_doc_id_idx)
+	bool			add_fts_doc_id_idx,
+	row_prebuilt_t* 	prebuilt)
 {
 	bool			dict_locked	= false;
 	ulint*			add_key_nums;	/* MySQL key numbers */
@@ -3087,7 +3093,7 @@ prepare_inplace_alter_table_dict(
 		ctx->col_map = innobase_build_col_map(
 			ha_alter_info, altered_table, old_table,
 			ctx->new_table, user_table,
-			add_cols, ctx->heap);
+			add_cols, ctx->heap, prebuilt);
 		ctx->add_cols = add_cols;
 	} else {
 		DBUG_ASSERT(!innobase_need_rebuild(ha_alter_info, old_table));
@@ -3953,7 +3959,7 @@ check_if_can_drop_indexes:
 					index->name, TRUE);
 
 				my_error(ER_INDEX_CORRUPT, MYF(0), index_name);
-				DBUG_RETURN(true);
+				goto err_exit;
 			}
 		}
 	}
@@ -3999,7 +4005,7 @@ err_exit:
 	}
 
 	if (!(ha_alter_info->handler_flags & INNOBASE_ALTER_DATA)
-	    || (ha_alter_info->handler_flags
+	    || ((ha_alter_info->handler_flags & ~INNOBASE_INPLACE_IGNORE)
 		== Alter_inplace_info::CHANGE_CREATE_OPTION
 		&& !innobase_need_rebuild(ha_alter_info, table))) {
 
@@ -4133,7 +4139,7 @@ found_col:
 			    table_share->table_name.str,
 			    flags, flags2,
 			    fts_doc_col_no, add_fts_doc_id,
-			    add_fts_doc_id_idx));
+			    add_fts_doc_id_idx, prebuilt));
 }
 
 /** Alter the table structure in-place with operations
@@ -4173,7 +4179,7 @@ ok_exit:
 		DBUG_RETURN(false);
 	}
 
-	if (ha_alter_info->handler_flags
+	if ((ha_alter_info->handler_flags & ~INNOBASE_INPLACE_IGNORE)
 	    == Alter_inplace_info::CHANGE_CREATE_OPTION
 	    && !innobase_need_rebuild(ha_alter_info, table)) {
 		goto ok_exit;

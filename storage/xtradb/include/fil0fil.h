@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2016, MariaDB Corporation.
+Copyright (c) 2013, 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -45,7 +45,6 @@ Created 10/25/1995 Heikki Tuuri
 
 // Forward declaration
 struct trx_t;
-struct fil_space_t;
 
 typedef std::list<const char*> space_name_list_t;
 
@@ -264,10 +263,6 @@ struct fil_space_t {
 				an insert buffer merge request for a
 				page because it actually was for the
 				previous incarnation of the space */
-	ibool		mark;	/*!< this is set to TRUE at database startup if
-				the space corresponds to a table in the InnoDB
-				data dictionary; so we can print a warning of
-				orphaned tablespaces */
 	ibool		stop_ios;/*!< TRUE if we want to rename the
 				.ibd file of tablespace and want to
 				stop temporarily posting of new i/o
@@ -292,7 +287,12 @@ struct fil_space_t {
 				tablespace whose size we do not know yet;
 				last incomplete megabytes in data files may be
 				ignored if space == 0 */
-	ulint		flags;	/*!< tablespace flags; see
+	ulint		recv_size;
+				/*!< recovered tablespace size in pages;
+				0 if no size change was read from the redo log,
+				or if the size change was implemented */
+	ulint		flags;	/*!< FSP_SPACE_FLAGS and FSP_FLAGS_MEM_ flags;
+				see fsp0fsp.h,
 				fsp_flags_is_valid(),
 				fsp_flags_get_zip_size() */
 	ulint		n_reserved_extents;
@@ -321,13 +321,21 @@ struct fil_space_t {
 				/*!< true if this space is currently in
 				unflushed_spaces */
 	ibool		is_corrupt;
+				/*!< true if tablespace corrupted */
 	bool		printed_compression_failure;
 				/*!< true if we have already printed
 				compression failure */
+	fil_space_crypt_t* crypt_data;
+				/*!< tablespace crypt data or NULL */
+	bool		page_0_crypt_read;
+				/*!< tablespace crypt data has been
+				read */
+	ulint		file_block_size;
+				/*!< file system block size */
+
 	UT_LIST_NODE_T(fil_space_t) space_list;
 				/*!< list of all spaces */
-        fil_space_crypt_t* crypt_data;
-	ulint		file_block_size;/*!< file system block size */
+
 	ulint		magic_n;/*!< FIL_SPACE_MAGIC_N */
 };
 
@@ -437,6 +445,7 @@ fil_node_create(
 	ibool		is_raw)	/*!< in: TRUE if a raw device or
 				a raw disk partition */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
+
 #ifdef UNIV_LOG_ARCHIVE
 /****************************************************************//**
 Drops files from the start of a file space, so that its size is cut by
@@ -471,7 +480,8 @@ fil_space_create(
 	ulint		zip_size,/*!< in: compressed page size, or
 				0 for uncompressed tablespaces */
 	ulint		purpose, /*!< in: FIL_TABLESPACE, or FIL_LOG if log */
-	fil_space_crypt_t* crypt_data); /*!< in: crypt data */
+	fil_space_crypt_t* crypt_data, /*!< in: crypt data */
+	bool		create_table); /*!< in: true if create table */
 
 /*******************************************************************//**
 Assigns a new space id for a new single-table tablespace. This works simply by
@@ -493,6 +503,12 @@ char*
 fil_space_get_first_path(
 /*=====================*/
 	ulint	id);	/*!< in: space id */
+/** Set the recovered size of a tablespace in pages.
+@param id	tablespace ID
+@param size	recovered size in pages */
+UNIV_INTERN
+void
+fil_space_set_recv_size(ulint id, ulint size);
 /*******************************************************************//**
 Returns the size of the space in pages. The tablespace must be cached in the
 memory cache.
@@ -601,7 +617,7 @@ fil_read_first_page(
 	ibool		one_read_already,	/*!< in: TRUE if min and max
 						parameters below already
 						contain sensible data */
-	ulint*		flags,			/*!< out: tablespace flags */
+	ulint*		flags,			/*!< out: FSP_SPACE_FLAGS */
 	ulint*		space_id,		/*!< out: tablespace ID */
 	lsn_t*		min_flushed_lsn,	/*!< out: min of flushed
 						lsn values in data files */
@@ -813,6 +829,14 @@ fil_create_new_single_table_tablespace(
 	ulint		key_id)	/*!< in: encryption key_id */
 	__attribute__((nonnull, warn_unused_result));
 #ifndef UNIV_HOTBACKUP
+/** Try to adjust FSP_SPACE_FLAGS if they differ from the expectations.
+(Typically when upgrading from MariaDB 10.1.0..10.1.20.)
+@param[in]	space_id	tablespace ID
+@param[in]	flags		desired tablespace flags */
+UNIV_INTERN
+void
+fsp_flags_try_adjust(ulint space_id, ulint flags);
+
 /********************************************************************//**
 Tries to open a single-table tablespace and optionally checks the space id is
 right in it. If does not succeed, prints an error message to the .err log. This
@@ -841,7 +865,7 @@ fil_open_single_table_tablespace(
 	bool		validate,	/*!< in: Do we validate tablespace? */
 	bool		fix_dict,	/*!< in: Can we fix the dictionary? */
 	ulint		id,		/*!< in: space id */
-	ulint		flags,		/*!< in: tablespace flags */
+	ulint		flags,		/*!< in: expected FSP_SPACE_FLAGS */
 	const char*	tablename,	/*!< in: table name in the
 					databasename/tablename format */
 	const char*	filepath,	/*!< in: tablespace filepath */
@@ -882,25 +906,18 @@ fil_tablespace_exists_in_mem(
 /*=========================*/
 	ulint	id);	/*!< in: space id */
 #ifndef UNIV_HOTBACKUP
-/*******************************************************************//**
-Returns TRUE if a matching tablespace exists in the InnoDB tablespace memory
+/** Check if a matching tablespace exists in the InnoDB tablespace memory
 cache. Note that if we have not done a crash recovery at the database startup,
 there may be many tablespaces which are not yet in the memory cache.
-@return	TRUE if a matching tablespace exists in the memory cache */
+@return whether a matching tablespace exists in the memory cache */
 UNIV_INTERN
-ibool
+bool
 fil_space_for_table_exists_in_mem(
 /*==============================*/
 	ulint		id,		/*!< in: space id */
 	const char*	name,		/*!< in: table name in the standard
 					'databasename/tablename' format */
-	ibool		mark_space,	/*!< in: in crash recovery, at database
-					startup we mark all spaces which have
-					an associated table in the InnoDB
-					data dictionary, so that
-					we can print a warning about orphaned
-					tablespaces */
-	ibool		print_error_if_does_not_exist,
+	bool		print_error_if_does_not_exist,
 					/*!< in: print detailed error
 					information to the .err log if a
 					matching tablespace is not found from
@@ -908,7 +925,8 @@ fil_space_for_table_exists_in_mem(
 	bool		adjust_space,	/*!< in: whether to adjust space id
 					when find table space mismatch */
 	mem_heap_t*	heap,		/*!< in: heap memory */
-	table_id_t	table_id);	/*!< in: table id */
+	table_id_t	table_id,	/*!< in: table id */
+	ulint		table_flags);	/*!< in: table flags */
 #else /* !UNIV_HOTBACKUP */
 /********************************************************************//**
 Extends all tablespaces to the size stored in the space header. During the

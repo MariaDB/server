@@ -39,13 +39,13 @@ OBJECT_TYPE	OBJECT_SCHEMA	OBJECT_NAME	ENABLED	TIMED
 TABLE	FOO	BAR	NO	YES
 update performance_schema.setup_objects
 set object_type='ILLEGAL';
-ERROR HY000: Invalid performance_schema usage.
+ERROR HY000: Invalid performance_schema usage
 update performance_schema.setup_objects
 set object_schema='ILLEGAL';
-ERROR HY000: Invalid performance_schema usage.
+ERROR HY000: Invalid performance_schema usage
 update performance_schema.setup_objects
 set object_name='ILLEGAL';
-ERROR HY000: Invalid performance_schema usage.
+ERROR HY000: Invalid performance_schema usage
 update performance_schema.setup_objects
 set enabled='NO', timed='NO';
 select * from performance_schema.setup_objects

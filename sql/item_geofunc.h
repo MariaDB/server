@@ -291,7 +291,7 @@ public:
     }
   }
  
-  const char *func_name() const { return "st_multipoint"; }
+  const char *func_name() const { return "geometrycollection"; }
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_func_spatial_collection>(thd, mem_root, this); }
 };

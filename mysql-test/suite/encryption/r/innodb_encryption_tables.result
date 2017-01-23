@@ -1,5 +1,3 @@
-SET GLOBAL innodb_file_format = `Barracuda`;
-SET GLOBAL innodb_file_per_table = ON;
 create table innodb_normal(c1 bigint not null, b char(200)) engine=innodb;
 create table innodb_compact(c1 bigint not null, b char(200)) engine=innodb row_format=compact;
 create table innodb_dynamic(c1 bigint not null, b char(200)) engine=innodb row_format=dynamic;
@@ -103,8 +101,6 @@ variable_value >= 0
 SELECT variable_value >= 0 FROM information_schema.global_status WHERE variable_name = 'innodb_num_pages_page_decompressed';
 variable_value >= 0
 1
-SET GLOBAL innodb_file_format = `Barracuda`;
-SET GLOBAL innodb_file_per_table = ON;
 update innodb_normal set c1 = c1 + 1;
 update innodb_compact set c1 = c1 + 1;
 update innodb_dynamic set c1 = c1 + 1;

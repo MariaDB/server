@@ -79,7 +79,7 @@ ENDIF()
 
 SET (SQL_SOURCE
               ../sql-common/client.c compat56.cc derror.cc des_key_file.cc
-               discover.cc ../libmysql/errmsg.c field.cc  field_conv.cc 
+               discover.cc ../sql-common/errmsg.c field.cc field_conv.cc
                filesort_utils.cc
                filesort.cc gstream.cc sha2.cc
                signal_handler.cc
@@ -90,7 +90,7 @@ SET (SQL_SOURCE
                key.cc log.cc lock.cc
                log_event.cc rpl_record.cc rpl_reporting.cc
                log_event_old.cc rpl_record_old.cc
-               message.h mf_iocache.cc my_decimal.cc ../sql-common/my_time.c
+               message.h mf_iocache.cc my_decimal.cc
                mysqld.cc net_serv.cc  keycaches.cc
                ../sql-common/client_plugin.c
                opt_range.cc opt_range.h opt_sum.cc 
@@ -136,7 +136,7 @@ SET (SQL_SOURCE
                opt_table_elimination.cc sql_expression_cache.cc
                gcalc_slicescan.cc gcalc_tools.cc
                threadpool_common.cc ../sql-common/mysql_async.c
-               my_apc.cc my_apc.h mf_iocache_encr.cc
+               my_apc.cc my_apc.h mf_iocache_encr.cc item_jsonfunc.cc
                my_json_writer.cc my_json_writer.h
                rpl_gtid.cc rpl_parallel.cc
                sql_type.cc sql_type.h
@@ -157,9 +157,9 @@ IF (CMAKE_SYSTEM_NAME MATCHES "Linux" OR
  ADD_DEFINITIONS(-DHAVE_POOL_OF_THREADS)
  IF(WIN32)
    SET(SQL_SOURCE ${SQL_SOURCE} threadpool_win.cc)
- ELSE()
-   SET(SQL_SOURCE ${SQL_SOURCE} threadpool_unix.cc)
  ENDIF()
+ SET(SQL_SOURCE ${SQL_SOURCE} threadpool_generic.cc)
+
 ENDIF()
 
 MYSQL_ADD_PLUGIN(partition ha_partition.cc STORAGE_ENGINE DEFAULT STATIC_ONLY
@@ -322,12 +322,6 @@ IF(WIN32 OR HAVE_DLOPEN AND NOT DISABLE_SHARED)
   ENDIF()
 ENDIF()
 
-FOREACH(tool gtar tar git)
- STRING(TOUPPER ${tool}  TOOL)
- FIND_PROGRAM(${TOOL}_EXECUTABLE ${tool} DOC "path to the executable")
- MARK_AS_ADVANCED(${TOOL}_EXECUTABLE)
-ENDFOREACH()
-
 CONFIGURE_FILE(
   ${CMAKE_SOURCE_DIR}/cmake/make_dist.cmake.in
   ${CMAKE_BINARY_DIR}/make_dist.cmake @ONLY)
@@ -419,6 +413,7 @@ IF(WIN32)
     ${CMAKE_CURRENT_BINARY_DIR}/mysql_bootstrap_sql.c
     COMPONENT Server
   )
+  SET_TARGET_PROPERTIES(mysql_install_db PROPERTIES COMPILE_FLAGS -DINSTALL_PLUGINDIR=${INSTALL_PLUGINDIR})
   TARGET_LINK_LIBRARIES(mysql_install_db mysys)
 
   ADD_LIBRARY(winservice STATIC winservice.c)

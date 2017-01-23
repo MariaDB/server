@@ -98,9 +98,17 @@ double tokutime_to_seconds(tokutime_t)  __attribute__((__visibility__("default")
 
 // Get the value of tokutime for right now.  We want this to be fast, so we expose the implementation as RDTSC.
 static inline tokutime_t toku_time_now(void) {
+#if defined(__x86_64__) || defined(__i386__)
     uint32_t lo, hi;
     __asm__ __volatile__ ("rdtsc" : "=a" (lo), "=d" (hi));
     return (uint64_t)hi << 32 | lo;
+#elif defined (__aarch64__)
+    uint64_t result;
+    __asm __volatile__ ("mrs %[rt], cntvct_el0" : [rt] "=r" (result));
+    return result;
+#else
+#error No timer implementation for this platform
+#endif
 }
 
 static inline uint64_t toku_current_time_microsec(void) {

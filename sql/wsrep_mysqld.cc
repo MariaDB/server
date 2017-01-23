@@ -36,6 +36,7 @@
 #include <cstdlib>
 #include "log_event.h"
 #include <slave.h>
+#include "sql_plugin.h"                         /* wsrep_plugins_pre_init() */
 
 wsrep_t *wsrep                  = NULL;
 /*
@@ -792,7 +793,6 @@ void wsrep_thr_init()
   DBUG_VOID_RETURN;
 }
 
-
 void wsrep_init_startup (bool first)
 {
   if (wsrep_init()) unireg_abort(1);
@@ -802,6 +802,17 @@ void wsrep_init_startup (bool first)
      (wsrep_abort_thd_fun)wsrep_abort_thd,
      wsrep_debug, wsrep_convert_LOCK_to_trx,
      (wsrep_on_fun)wsrep_on);
+
+  /*
+    Pre-initialize global_system_variables.table_plugin with a dummy engine
+    (placeholder) required during the initialization of wsrep threads (THDs).
+    (see: plugin_thdvar_init())
+    Note: This only needs to be done for rsync & xtrabackup based SST methods.
+    In case of mysqldump SST method, the wsrep threads are created after the
+    server plugins & global system variables are initialized.
+  */
+  if (wsrep_before_SE())
+    wsrep_plugins_pre_init();
 
   /* Skip replication start if dummy wsrep provider is loaded */
   if (!strcmp(wsrep_provider, WSREP_NONE)) return;
@@ -972,6 +983,8 @@ bool wsrep_must_sync_wait (THD* thd, uint mask)
 {
   return (thd->variables.wsrep_sync_wait & mask) &&
     thd->variables.wsrep_on &&
+    !(thd->variables.wsrep_dirty_reads &&
+      !is_update_query(thd->lex->sql_command)) &&
     !thd->in_active_multi_stmt_transaction() &&
     thd->wsrep_conflict_state != REPLAYING &&
     thd->wsrep_sync_wait_gtid.seqno == WSREP_SEQNO_UNDEFINED;
@@ -1237,9 +1250,11 @@ int wsrep_to_buf_helper(
                        65536, MYF(MY_WME)))
     return 1;
   int ret(0);
+  enum enum_binlog_checksum_alg current_binlog_check_alg=
+    (enum_binlog_checksum_alg) binlog_checksum_options;
 
   Format_description_log_event *tmp_fd= new Format_description_log_event(4);
-  tmp_fd->checksum_alg= (enum_binlog_checksum_alg)binlog_checksum_options;
+  tmp_fd->checksum_alg= current_binlog_check_alg;
   writer.write(tmp_fd);
   delete tmp_fd;
 
@@ -1258,11 +1273,13 @@ int wsrep_to_buf_helper(
     Query_log_event ev(thd, thd->wsrep_TOI_pre_query,
 		       thd->wsrep_TOI_pre_query_len,
 		       FALSE, FALSE, FALSE, 0);
+    ev.checksum_alg= current_binlog_check_alg;
     if (writer.write(&ev)) ret= 1;
   }
 
   /* continue to append the actual query */
   Query_log_event ev(thd, query, query_len, FALSE, FALSE, FALSE, 0);
+  ev.checksum_alg= current_binlog_check_alg;
   if (!ret && writer.write(&ev)) ret= 1;
   if (!ret && wsrep_write_cache_buf(&tmp_io_cache, buf, buf_len)) ret= 1;
   close_cached_file(&tmp_io_cache);
@@ -1764,11 +1781,11 @@ bool wsrep_grant_mdl_exception(MDL_context *requestor_ctx,
       /* Print some debug information. */
       if (wsrep_debug)
       {
-        if ((request_thd->lex->sql_command == SQLCOM_DROP_TABLE))
+        if (request_thd->lex->sql_command == SQLCOM_DROP_TABLE)
         {
           WSREP_DEBUG("DROP caused BF abort");
         }
-        else if ((granted_thd->wsrep_query_state == QUERY_COMMITTING))
+        else if (granted_thd->wsrep_query_state == QUERY_COMMITTING)
         {
           WSREP_DEBUG("MDL granted, but committing thd abort scheduled");
         }
@@ -2216,7 +2233,7 @@ static int wsrep_create_sp(THD *thd, uchar** buf, size_t* buf_len)
 {
   String log_query;
   sp_head *sp = thd->lex->sphead;
-  ulong saved_mode= thd->variables.sql_mode;
+  sql_mode_t saved_mode= thd->variables.sql_mode;
   String retstr(64);
   retstr.set_charset(system_charset_info);
 
@@ -2570,10 +2587,11 @@ static int wsrep_create_trigger_query(THD *thd, uchar** buf, size_t* buf_len)
   append_definer(thd, &stmt_query, &definer_user, &definer_host);
 
   LEX_STRING stmt_definition;
+  uint not_used;
   stmt_definition.str= (char*) thd->lex->stmt_definition_begin;
   stmt_definition.length= thd->lex->stmt_definition_end
     - thd->lex->stmt_definition_begin;
-  trim_whitespace(thd->charset(), & stmt_definition);
+  trim_whitespace(thd->charset(), &stmt_definition, &not_used);
 
   stmt_query.append(stmt_definition.str, stmt_definition.length);
 

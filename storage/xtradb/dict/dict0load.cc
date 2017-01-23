@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, MariaDB Corporation.
+Copyright (c) 2016, 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -490,7 +490,7 @@ err_len:
 	}
 
 	/* This receives a dict_foreign_t* that points to a stack variable.
-	So mem_heap_free(foreign->heap) is not used as elsewhere.
+	So dict_foreign_free(foreign) is not used as elsewhere.
 	Since the heap used here is freed elsewhere, foreign->heap
 	is not assigned. */
 	foreign->id = mem_heap_strdupl(heap, (const char*) field, len);
@@ -1052,8 +1052,6 @@ loop:
 
 		btr_pcur_store_position(&pcur, &mtr);
 
-		mtr_commit(&mtr);
-
 		/* For tables created with old versions of InnoDB,
 		SYS_TABLES.MIX_LEN may contain garbage.  Such tables
 		would always be in ROW_FORMAT=REDUNDANT. Pretend that
@@ -1087,16 +1085,19 @@ loop:
 		if (space_id == 0) {
 			/* The system tablespace always exists. */
 			ut_ad(!discarded);
-			goto next_tablespace;
+			mem_free(name);
+			goto loop;
 		}
+
+		mtr_commit(&mtr);
 
 		switch (dict_check) {
 		case DICT_CHECK_ALL_LOADED:
 			/* All tablespaces should have been found in
 			fil_load_single_table_tablespaces(). */
 			if (fil_space_for_table_exists_in_mem(
-				space_id, name, TRUE, !(is_temp || discarded),
-				false, NULL, 0)
+				space_id, name, !(is_temp || discarded),
+				false, NULL, 0, flags)
 			    && !(is_temp || discarded)) {
 				/* If user changes the path of .ibd files in
 				   *.isl files before doing crash recovery ,
@@ -1128,8 +1129,8 @@ loop:
 			/* Some tablespaces may have been opened in
 			trx_resurrect_table_locks(). */
 			if (fil_space_for_table_exists_in_mem(
-				    space_id, name, FALSE, FALSE,
-				    false, NULL, 0)) {
+				    space_id, name, false,
+				    false, NULL, 0, flags)) {
 				break;
 			}
 			/* fall through */
@@ -1154,11 +1155,14 @@ loop:
 					space_id, name);
 			}
 
-			/* We need to read page 0 to get (optional) IV
-			regardless if encryptions is turned on or not,
-			since if it's off we should decrypt a potentially
-			already encrypted table */
-			bool read_page_0 = true;
+			/* We could read page 0 to get (optional) IV
+			if encryption is turned on, if it's off
+			we will read the page 0 later and find out
+			if we should decrypt a potentially
+			already encrypted table
+			bool read_page_0 = srv_encrypt_tables; */
+
+			bool read_page_0 = false;
 
 			/* We set the 2nd param (fix_dict = true)
 			here because we already have an x-lock on
@@ -1188,7 +1192,6 @@ loop:
 			max_space_id = space_id;
 		}
 
-next_tablespace:
 		mem_free(name);
 		mtr_start(&mtr);
 
@@ -2380,8 +2383,8 @@ err_exit:
 		table->ibd_file_missing = TRUE;
 
 	} else if (!fil_space_for_table_exists_in_mem(
-			table->space, name, FALSE, FALSE, true, heap,
-			table->id)) {
+			table->space, name, false, true, heap,
+			table->id, table->flags)) {
 
 		if (DICT_TF2_FLAG_IS_SET(table, DICT_TF2_TEMPORARY)) {
 			/* Do not bother to retry opening temporary tables. */

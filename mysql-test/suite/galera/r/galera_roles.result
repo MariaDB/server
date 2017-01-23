@@ -171,6 +171,7 @@ DROP DATABASE test1;
 #
 
 # On node_1
+connection node_1;
 CREATE USER foo@localhost;
 CREATE ROLE role1;
 CREATE ROLE role2 WITH ADMIN CURRENT_USER;
@@ -189,6 +190,7 @@ root@localhost	role1	YES	NO
 root@localhost	role2	YES	NO
 
 # On node_2
+connection node_2;
 SELECT * FROM mysql.roles_mapping;
 Host	User	Role	Admin_option
 	role1	role4	Y

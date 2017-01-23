@@ -1117,6 +1117,8 @@ trx_start_low(
 
 	trx->start_time = ut_time();
 
+	trx->start_time_micro = clock();
+
 	MONITOR_INC(MONITOR_TRX_ACTIVE);
 }
 
@@ -1570,7 +1572,7 @@ trx_commit_in_memory(
 	ut_ad(!trx->in_rw_trx_list);
 
 #ifdef WITH_WSREP
-	if (wsrep_on(trx->mysql_thd)) {
+	if (trx->mysql_thd && wsrep_on(trx->mysql_thd)) {
 		trx->lock.was_chosen_as_deadlock_victim = FALSE;
 	}
 #endif

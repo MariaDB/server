@@ -1,5 +1,3 @@
-SET GLOBAL innodb_file_format = `Barracuda`;
-SET GLOBAL innodb_file_per_table = ON;
 create table t1(a blob) engine=innodb key_block_size=8;
 create function generate_blob()
 returns varchar(20000)

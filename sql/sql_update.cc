@@ -254,7 +254,7 @@ int mysql_update(THD *thd,
                  ha_rows *found_return, ha_rows *updated_return)
 {
   bool		using_limit= limit != HA_POS_ERROR;
-  bool safe_update= MY_TEST(thd->variables.option_bits & OPTION_SAFE_UPDATES);
+  bool          safe_update= thd->variables.option_bits & OPTION_SAFE_UPDATES;
   bool          used_key_is_modified= FALSE, transactional_table, will_batch;
   bool		can_compare_record;
   int           res;
@@ -618,10 +618,6 @@ int mysql_update(THD *thd,
       while (!(error=info.read_record(&info)) && !thd->killed)
       {
         explain->buf_tracker.on_record_read();
-        if (table->vfield)
-          update_virtual_fields(thd, table,
-                                table->triggers ? VCOL_UPDATE_ALL :
-                                                  VCOL_UPDATE_FOR_READ);
         thd->inc_examined_row_count(1);
 	if (!select || (error= select->skip_record(thd)) > 0)
 	{
@@ -737,10 +733,6 @@ int mysql_update(THD *thd,
   while (!(error=info.read_record(&info)) && !thd->killed)
   {
     explain->tracker.on_record_read();
-    if (table->vfield)
-      update_virtual_fields(thd, table,
-                            table->triggers ? VCOL_UPDATE_ALL :
-                                              VCOL_UPDATE_FOR_READ);
     thd->inc_examined_row_count(1);
     if (!select || select->skip_record(thd) > 0)
     {
@@ -1804,6 +1796,21 @@ void multi_update::update_used_tables()
   }
 }
 
+void multi_update::prepare_to_read_rows()
+{
+  /*
+    update column maps now. it cannot be done in ::prepare() before the
+    optimizer, because the optimize might reset them (in
+    SELECT_LEX::update_used_tables()), it cannot be done in
+    ::initialize_tables() after the optimizer, because the optimizer
+    might read rows from const tables
+  */
+
+  for (TABLE_LIST *tl= update_tables; tl; tl= tl->next_local)
+    tl->table->mark_columns_needed_for_update();
+}
+
+
 /*
   Check if table is safe to update on fly
 
@@ -1920,12 +1927,10 @@ multi_update::initialize_tables(JOIN *join)
     {
       if (safe_update_on_fly(thd, join->join_tab, table_ref, all_tables))
       {
-        table->mark_columns_needed_for_update();
 	table_to_update= table;			// Update table on the fly
 	continue;
       }
     }
-    table->mark_columns_needed_for_update();
     table->prepare_for_position();
 
     /*
@@ -2318,6 +2323,17 @@ int multi_update::do_updates()
       goto err;
     }
     table->file->extra(HA_EXTRA_NO_CACHE);
+    /*
+      We have to clear the base record, if we have virtual indexed
+      blob fields, as some storage engines will access the blob fields
+      to calculate the keys to see if they have changed. Without
+      clearing the blob pointers will contain random values which can
+      cause a crash.
+      This is a workaround for engines that access columns not present in
+      either read or write set.
+    */
+    if (table->vfield)
+      empty_record(table);
 
     check_opt_it.rewind();
     while(TABLE *tbl= check_opt_it++)
@@ -2387,6 +2403,10 @@ int multi_update::do_updates()
         field_num++;
       } while ((tbl= check_opt_it++));
 
+      if (table->vfield &&
+          table->update_virtual_fields(VCOL_UPDATE_INDEXED_FOR_UPDATE))
+        goto err2;
+
       table->status|= STATUS_UPDATED;
       store_record(table,record[1]);
 
@@ -2411,8 +2431,7 @@ int multi_update::do_updates()
             (error= table->update_default_fields(1, ignore)))
           goto err2;
         if (table->vfield &&
-            update_virtual_fields(thd, table,
-                 (table->triggers ? VCOL_UPDATE_ALL : VCOL_UPDATE_FOR_WRITE)))
+            table->update_virtual_fields(VCOL_UPDATE_FOR_WRITE))
           goto err2;
         if ((error= cur_table->view_check_option(thd, ignore)) !=
             VIEW_CHECK_OK)

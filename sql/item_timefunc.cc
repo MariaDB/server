@@ -1044,13 +1044,15 @@ uint week_mode(uint mode)
 longlong Item_func_week::val_int()
 {
   DBUG_ASSERT(fixed == 1);
-  uint year;
+  uint year, week_format;
   MYSQL_TIME ltime;
   if (get_arg0_date(&ltime, TIME_NO_ZERO_DATE | TIME_NO_ZERO_IN_DATE))
     return 0;
-  return (longlong) calc_week(&ltime,
-			      week_mode((uint) args[1]->val_int()),
-			      &year);
+  if (arg_count > 1)
+    week_format= args[1]->val_int();
+  else
+    week_format= current_thd->variables.default_week_format;
+  return (longlong) calc_week(&ltime, week_mode(week_format), &year);
 }
 
 
@@ -1649,6 +1651,15 @@ bool Item_func_curtime::get_date(MYSQL_TIME *res,
   return 0;
 }
 
+void Item_func_curtime::print(String *str, enum_query_type query_type)
+{
+  str->append(func_name());
+  str->append('(');
+  if (decimals)
+    str->append_ulonglong(decimals);
+  str->append(')');
+}
+
 static void set_sec_part(ulong sec_part, MYSQL_TIME *ltime, Item *item)
 {
   DBUG_ASSERT(item->decimals == AUTO_SEC_PART_DIGITS ||
@@ -1700,6 +1711,15 @@ bool Item_func_now::fix_fields(THD *thd, Item **items)
     return 1;
   }
   return Item_temporal_func::fix_fields(thd, items);
+}
+
+void Item_func_now::print(String *str, enum_query_type query_type)
+{
+  str->append(func_name());
+  str->append('(');
+  if (decimals)
+    str->append_ulonglong(decimals);
+  str->append(')');
 }
 
 /**
@@ -2179,13 +2199,11 @@ static const char *interval_names[]=
 
 void Item_date_add_interval::print(String *str, enum_query_type query_type)
 {
-  str->append('(');
-  args[0]->print(str, query_type);
+  args[0]->print_parenthesised(str, query_type, ADDINTERVAL_PRECEDENCE);
   str->append(date_sub_interval?" - interval ":" + interval ");
-  args[1]->print(str, query_type);
+  args[1]->print_parenthesised(str, query_type, INTERVAL_PRECEDENCE);
   str->append(' ');
   str->append(interval_names[int_type]);
-  str->append(')');
 }
 
 void Item_extract::print(String *str, enum_query_type query_type)
@@ -2334,7 +2352,7 @@ void Item_temporal_typecast::print(String *str, enum_query_type query_type)
   args[0]->print(str, query_type);
   str->append(STRING_WITH_LEN(" as "));
   str->append(cast_type());
-  if (decimals)
+  if (decimals && decimals != NOT_FIXED_DEC)
   {
     str->append('(');
     str->append(llstr(decimals, buf));
@@ -2468,13 +2486,9 @@ String *Item_char_typecast::val_str(String *str)
     if (!charset_conversion)
     {
       // Try to reuse the original string (if well formed).
-      MY_STRCOPY_STATUS status;
-      cs->cset->well_formed_char_length(cs, res->ptr(), res->end(),
-                                        cast_length, &status);
-      if (!status.m_well_formed_error_pos)
-      {
-        res= reuse(res, status.m_source_end_pos - res->ptr());
-      }
+      Well_formed_prefix prefix(cs, res->ptr(), res->end(), cast_length);
+      if (!prefix.well_formed_error_pos())
+        res= reuse(res, prefix.length());
       goto end;
     }
     // Character set conversion, or bad bytes were found.

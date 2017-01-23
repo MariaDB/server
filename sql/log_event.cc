@@ -51,6 +51,7 @@
 #include "rpl_utility.h"
 #include "rpl_constants.h"
 #include "sql_digest.h"
+#include "zlib.h"
 
 #define my_b_write_string(A, B) my_b_write((A), (uchar*)(B), (uint) (sizeof(B) - 1))
 
@@ -299,17 +300,34 @@ public:
       constructor, but it would be possible to create a subclass
       holding the IO_CACHE itself.
    */
-  Write_on_release_cache(IO_CACHE *cache, FILE *file, flag_set flags = 0)
-    : m_cache(cache), m_file(file), m_flags(flags)
+  Write_on_release_cache(IO_CACHE *cache, FILE *file, flag_set flags = 0, Log_event *ev = NULL)
+    : m_cache(cache), m_file(file), m_flags(flags), m_ev(ev)
   {
     reinit_io_cache(m_cache, WRITE_CACHE, 0L, FALSE, TRUE);
   }
 
   ~Write_on_release_cache()
   {
+#ifdef MYSQL_CLIENT
+    if(m_ev == NULL)
+    {
+      copy_event_cache_to_file_and_reinit(m_cache, m_file);
+      if (m_flags & FLUSH_F)
+        fflush(m_file);
+    }
+    else // if m_ev<>NULL, then storing the output in output_buf
+    {
+      LEX_STRING tmp_str;
+      if (copy_event_cache_to_string_and_reinit(m_cache, &tmp_str))
+        exit(1);
+      m_ev->output_buf.append(tmp_str.str, tmp_str.length);
+      my_free(tmp_str.str);
+    }
+#else /* MySQL_SERVER */
     copy_event_cache_to_file_and_reinit(m_cache, m_file);
     if (m_flags & FLUSH_F)
       fflush(m_file);
+#endif
   }
 
   /*
@@ -339,6 +357,7 @@ private:
   IO_CACHE *m_cache;
   FILE *m_file;
   flag_set m_flags;
+  Log_event *m_ev; // Used for Flashback
 };
 
 /*
@@ -702,6 +721,380 @@ char *str_to_hex(char *to, const char *from, uint len)
   return to;                               // pointer to end 0 of 'to'
 }
 
+#define BINLOG_COMPRESSED_HEADER_LEN 1
+#define BINLOG_COMPRESSED_ORIGINAL_LENGTH_MAX_BYTES 4
+/**
+  Compressed Record
+    Record Header: 1 Byte
+             7 Bit: Always 1, mean compressed;
+           4-6 Bit: Compressed algorithm - Always 0, means zlib
+                    It maybe support other compression algorithm in the future.
+           0-3 Bit: Bytes of "Record Original Length"
+    Record Original Length: 1-4 Bytes
+    Compressed Buf:
+*/
+
+/**
+  Get the length of compress content.
+*/
+
+uint32 binlog_get_compress_len(uint32 len)
+{
+    /* 5 for the begin content, 1 reserved for a '\0'*/
+    return ALIGN_SIZE((BINLOG_COMPRESSED_HEADER_LEN + BINLOG_COMPRESSED_ORIGINAL_LENGTH_MAX_BYTES) 
+                        + compressBound(len) + 1);
+}
+
+/**
+   Compress buf from 'src' to 'dst'.
+
+   Note: 1) Then the caller should guarantee the length of 'dst', which
+      can be got by binlog_get_uncompress_len, is enough to hold
+      the content uncompressed.
+         2) The 'comlen' should stored the length of 'dst', and it will
+      be set as the size of compressed content after return.
+
+   return zero if successful, others otherwise.
+*/
+int binlog_buf_compress(const char *src, char *dst, uint32 len, uint32 *comlen)
+{
+  uchar lenlen;
+  if (len & 0xFF000000)
+  {
+    dst[1] = uchar(len >> 24);
+    dst[2] = uchar(len >> 16);
+    dst[3] = uchar(len >> 8);
+    dst[4] = uchar(len);
+    lenlen = 4;
+  }
+  else if (len & 0x00FF0000)
+  {
+    dst[1] = uchar(len >> 16);
+    dst[2] = uchar(len >> 8);
+    dst[3] = uchar(len);
+    lenlen = 3;
+  }
+  else if (len & 0x0000FF00)
+  {
+    dst[1] = uchar(len >> 8);
+    dst[2] = uchar(len);
+    lenlen = 2;
+  }
+  else 
+  {
+    dst[1] = uchar(len);
+    lenlen = 1;
+  }
+  dst[0] = 0x80 | (lenlen & 0x07);
+
+  uLongf tmplen = (uLongf)*comlen - BINLOG_COMPRESSED_HEADER_LEN - lenlen - 1;
+  if (compress((Bytef *)dst + BINLOG_COMPRESSED_HEADER_LEN + lenlen, &tmplen,
+               (const Bytef *)src, (uLongf)len) != Z_OK)
+  {
+    return 1;
+  }
+  *comlen = (uint32)tmplen + BINLOG_COMPRESSED_HEADER_LEN + lenlen;
+  return 0;
+}
+
+/**
+   Convert a query_compressed_log_event to query_log_event
+   from 'src' to 'dst', the size after compression stored in 'newlen'.
+
+   @Note:
+      1) The caller should call my_free to release 'dst' if *is_malloc is
+         returned as true.
+      2) If *is_malloc is retuened as false, then 'dst' reuses the passed-in
+         'buf'.
+
+   return zero if successful, non-zero otherwise.
+*/
+
+int
+query_event_uncompress(const Format_description_log_event *description_event,
+                       bool contain_checksum, const char *src, ulong src_len, 
+                       char* buf, ulong buf_size, bool* is_malloc, char **dst,
+                       ulong *newlen)
+{
+  ulong len = uint4korr(src + EVENT_LEN_OFFSET);
+  const char *tmp = src;
+  const char *end = src + len;
+
+  // bad event
+  if (src_len < len )
+    return 1;
+
+  DBUG_ASSERT((uchar)src[EVENT_TYPE_OFFSET] == QUERY_COMPRESSED_EVENT);
+
+  uint8 common_header_len= description_event->common_header_len;
+  uint8 post_header_len=
+    description_event->post_header_len[QUERY_COMPRESSED_EVENT-1];
+
+  *is_malloc = false;
+
+  tmp += common_header_len;
+  // bad event
+  if (end <= tmp)
+    return 1;
+
+  uint db_len = (uint)tmp[Q_DB_LEN_OFFSET];
+  uint16 status_vars_len= uint2korr(tmp + Q_STATUS_VARS_LEN_OFFSET);
+
+  tmp += post_header_len + status_vars_len + db_len + 1;
+  // bad event
+  if (end <= tmp)
+    return 1;
+
+  int32 comp_len = len - (tmp - src) - 
+                  (contain_checksum ? BINLOG_CHECKSUM_LEN : 0);
+  uint32 un_len = binlog_get_uncompress_len(tmp);
+
+  // bad event 
+  if (comp_len < 0 || un_len == 0)
+    return 1;
+
+  *newlen = (tmp - src) + un_len;
+  if(contain_checksum)
+    *newlen += BINLOG_CHECKSUM_LEN;
+  
+  uint32 alloc_size = ALIGN_SIZE(*newlen);
+  char *new_dst = NULL;
+
+  
+  if (alloc_size <= buf_size) 
+  {
+    new_dst = buf;
+  }
+  else 
+  {
+    new_dst = (char *)my_malloc(alloc_size, MYF(MY_WME));
+    if (!new_dst)
+      return 1;
+
+    *is_malloc = true;
+  }
+
+  /* copy the head*/
+  memcpy(new_dst, src , tmp - src);
+  if (binlog_buf_uncompress(tmp, new_dst + (tmp - src),
+                            comp_len, &un_len))
+  {
+    if (*is_malloc)
+      my_free(new_dst);
+
+    *is_malloc = false;
+
+    return 1;
+  }
+
+  new_dst[EVENT_TYPE_OFFSET] = QUERY_EVENT;
+  int4store(new_dst + EVENT_LEN_OFFSET, *newlen);
+  if(contain_checksum)
+  {
+    ulong clear_len = *newlen - BINLOG_CHECKSUM_LEN;
+    int4store(new_dst + clear_len,
+              my_checksum(0L, (uchar *)new_dst, clear_len));
+  }
+  *dst = new_dst;
+  return 0;
+}
+
+int
+row_log_event_uncompress(const Format_description_log_event *description_event,
+                         bool contain_checksum, const char *src, ulong src_len,
+                         char* buf, ulong buf_size, bool* is_malloc, char **dst,
+                         ulong *newlen)
+{
+  Log_event_type type = (Log_event_type)(uchar)src[EVENT_TYPE_OFFSET];
+  ulong len = uint4korr(src + EVENT_LEN_OFFSET);
+  const char *tmp = src;
+  char *new_dst = NULL;
+  const char *end = tmp + len;
+
+  // bad event
+  if (src_len < len)
+    return 1;
+
+  DBUG_ASSERT(LOG_EVENT_IS_ROW_COMPRESSED(type));
+
+  uint8 common_header_len= description_event->common_header_len;
+  uint8 post_header_len= description_event->post_header_len[type-1];
+
+  tmp += common_header_len + ROWS_HEADER_LEN_V1;
+  if (post_header_len == ROWS_HEADER_LEN_V2)
+  {
+    /*
+      Have variable length header, check length,
+      which includes length bytes
+    */
+
+    // bad event
+    if (end - tmp <= 2)
+      return 1;
+
+    uint16 var_header_len= uint2korr(tmp);
+    DBUG_ASSERT(var_header_len >= 2);
+
+    /* skip over var-len header, extracting 'chunks' */
+    tmp += var_header_len;
+
+    /* get the uncompressed event type */
+    type=
+      (Log_event_type)(type - WRITE_ROWS_COMPRESSED_EVENT + WRITE_ROWS_EVENT);
+  }
+  else 
+  {
+    /* get the uncompressed event type */
+    type= (Log_event_type)
+      (type - WRITE_ROWS_COMPRESSED_EVENT_V1 + WRITE_ROWS_EVENT_V1);
+  }
+
+  //bad event
+  if (end <= tmp)
+    return 1;
+
+  ulong m_width = net_field_length((uchar **)&tmp);
+  tmp += (m_width + 7) / 8;
+
+  if (type == UPDATE_ROWS_EVENT_V1 || type == UPDATE_ROWS_EVENT)
+  {
+    tmp += (m_width + 7) / 8;
+  }
+
+  //bad event
+  if (end <= tmp)
+    return 1;
+
+  uint32 un_len = binlog_get_uncompress_len(tmp);
+  //bad event
+  if (un_len == 0)
+    return 1;
+
+  long comp_len = len - (tmp - src) - 
+    (contain_checksum ? BINLOG_CHECKSUM_LEN : 0);
+  //bad event
+  if (comp_len <=0)
+    return 1;
+
+  *newlen = (tmp - src) + un_len;
+  if(contain_checksum)
+    *newlen += BINLOG_CHECKSUM_LEN;
+
+  uint32 alloc_size = ALIGN_SIZE(*newlen);
+  
+  *is_malloc = false;
+  if (alloc_size <= buf_size) 
+  {
+    new_dst = buf;
+  }
+  else
+  {
+    new_dst = (char *)my_malloc(alloc_size, MYF(MY_WME));
+    if (!new_dst)
+      return 1;
+
+    *is_malloc = true;
+  }
+
+  /* Copy the head. */
+  memcpy(new_dst, src , tmp - src);
+  /* Uncompress the body. */
+  if (binlog_buf_uncompress(tmp, new_dst + (tmp - src),
+                            comp_len, &un_len))
+  {
+    if (*is_malloc)
+      my_free(new_dst);
+
+    return 1;
+  }
+
+  new_dst[EVENT_TYPE_OFFSET] = type;
+  int4store(new_dst + EVENT_LEN_OFFSET, *newlen);
+  if(contain_checksum){
+    ulong clear_len = *newlen - BINLOG_CHECKSUM_LEN;
+    int4store(new_dst + clear_len,
+              my_checksum(0L, (uchar *)new_dst, clear_len));
+  }
+  *dst = new_dst;
+  return 0;
+}
+
+/**
+  Get the length of uncompress content.
+  return 0 means error.
+*/
+
+uint32 binlog_get_uncompress_len(const char *buf)
+{
+  DBUG_ASSERT((buf[0] & 0xe0) == 0x80);
+  uint32 lenlen = buf[0] & 0x07;
+  uint32 len = 0;
+  switch(lenlen)
+  {
+  case 1:
+    len = uchar(buf[1]);
+    break;
+  case 2:
+    len = uchar(buf[1]) << 8 | uchar(buf[2]);
+    break;
+  case 3:
+    len = uchar(buf[1]) << 16 | uchar(buf[2]) << 8 | uchar(buf[3]);
+    break;
+  case 4:
+    len = uchar(buf[1]) << 24 | uchar(buf[2]) << 16 |
+          uchar(buf[3]) << 8 | uchar(buf[4]);
+    break;
+  default:
+    DBUG_ASSERT(lenlen >= 1 && lenlen <= 4);
+    break;
+  }
+  return len;
+}
+
+/**
+   Uncompress the content in 'src' with length of 'len' to 'dst'.
+
+   Note: 1) Then the caller should guarantee the length of 'dst' (which
+      can be got by statement_get_uncompress_len) is enough to hold
+      the content uncompressed.
+         2) The 'newlen' should stored the length of 'dst', and it will
+      be set as the size of uncompressed content after return.
+
+   return zero if successful, others otherwise.
+*/
+int binlog_buf_uncompress(const char *src, char *dst, uint32 len,
+                          uint32 *newlen)
+{
+  if((src[0] & 0x80) == 0)
+  {
+    return 1;
+  }
+
+  uint32 lenlen= src[0] & 0x07;
+  uLongf buflen= *newlen;
+
+  uint32 alg = (src[0] & 0x70) >> 4;
+  switch(alg)
+  {
+  case 0:
+    // zlib
+    if(uncompress((Bytef *)dst, &buflen,
+      (const Bytef*)src + 1 + lenlen, len - 1 - lenlen) != Z_OK)
+    {
+      return 1;
+    }
+    break;
+  default:
+    //TODO
+    //bad algorithm
+    return 1;
+  }
+
+  DBUG_ASSERT(*newlen == (uint32)buflen);
+  *newlen = (uint32)buflen;
+  return 0;
+}
+
 #ifndef MYSQL_CLIENT
 
 /**
@@ -828,6 +1221,13 @@ const char* Log_event::get_type_str(Log_event_type type)
   case TRANSACTION_CONTEXT_EVENT: return "Transaction_context";
   case VIEW_CHANGE_EVENT: return "View_change";
   case XA_PREPARE_LOG_EVENT: return "XA_prepare";
+  case QUERY_COMPRESSED_EVENT: return "Query_compressed";
+  case WRITE_ROWS_COMPRESSED_EVENT: return "Write_rows_compressed";
+  case UPDATE_ROWS_COMPRESSED_EVENT: return "Update_rows_compressed";
+  case DELETE_ROWS_COMPRESSED_EVENT: return "Delete_rows_compressed";
+  case WRITE_ROWS_COMPRESSED_EVENT_V1: return "Write_rows_compressed_v1";
+  case UPDATE_ROWS_COMPRESSED_EVENT_V1: return "Update_rows_compressed_v1";
+  case DELETE_ROWS_COMPRESSED_EVENT_V1: return "Delete_rows_compressed_v1";
 
   default: return "Unknown";				/* impossible */
   }
@@ -966,6 +1366,7 @@ int Log_event::do_update_pos(rpl_group_info *rgi)
   Relay_log_info *rli= rgi->rli;
   DBUG_ENTER("Log_event::do_update_pos");
 
+  DBUG_ASSERT(!rli->belongs_to_client());
   /*
     rli is null when (as far as I (Guilhem) know) the caller is
     Load_log_event::do_apply_event *and* that one is called from
@@ -1354,7 +1755,7 @@ int Log_event::read_log_event(IO_CACHE* file, String* packet,
   ulong data_len;
   char buf[LOG_EVENT_MINIMAL_HEADER_LEN];
   uchar ev_offset= packet->length();
-#ifndef max_allowed_packet
+#if !defined(MYSQL_CLIENT)
   THD *thd=current_thd;
   ulong max_allowed_packet= thd ? thd->slave_thread ? slave_max_allowed_packet
                                                     : thd->variables.max_allowed_packet
@@ -1411,7 +1812,7 @@ int Log_event::read_log_event(IO_CACHE* file, String* packet,
   if (fdle->crypto_data.scheme)
   {
     uchar iv[BINLOG_IV_LENGTH];
-    fdle->crypto_data.set_iv(iv, my_b_tell(file) - data_len);
+    fdle->crypto_data.set_iv(iv, (uint32) (my_b_tell(file) - data_len));
 
     char *newpkt= (char*)my_malloc(data_len + ev_offset + 1, MYF(MY_WME));
     if (!newpkt)
@@ -1514,6 +1915,10 @@ err:
   if (error)
   {
     DBUG_ASSERT(!res);
+#ifdef MYSQL_CLIENT
+    if (force_opt)
+      DBUG_RETURN(new Unknown_log_event());
+#endif
     if (event.length() >= OLD_HEADER_LEN)
       sql_print_error("Error in Log_event::read_log_event(): '%s',"
                       " data_len: %lu, event_type: %d", error,
@@ -1660,6 +2065,10 @@ Log_event* Log_event::read_log_event(const char* buf, uint event_len,
     case QUERY_EVENT:
       ev  = new Query_log_event(buf, event_len, fdle, QUERY_EVENT);
       break;
+    case QUERY_COMPRESSED_EVENT:
+      ev = new Query_compressed_log_event(buf, event_len, fdle,
+                                          QUERY_COMPRESSED_EVENT);
+      break;
     case LOAD_EVENT:
       ev = new Load_log_event(buf, event_len, fdle);
       break;
@@ -1734,6 +2143,19 @@ Log_event* Log_event::read_log_event(const char* buf, uint event_len,
       ev = new Delete_rows_log_event(buf, event_len, fdle);
       break;
 
+    case WRITE_ROWS_COMPRESSED_EVENT:
+    case WRITE_ROWS_COMPRESSED_EVENT_V1:
+      ev = new Write_rows_compressed_log_event(buf, event_len, fdle);
+      break;
+    case UPDATE_ROWS_COMPRESSED_EVENT:
+    case UPDATE_ROWS_COMPRESSED_EVENT_V1:
+      ev = new Update_rows_compressed_log_event(buf, event_len, fdle);
+      break;
+    case DELETE_ROWS_COMPRESSED_EVENT:
+    case DELETE_ROWS_COMPRESSED_EVENT_V1:
+      ev = new Delete_rows_compressed_log_event(buf, event_len, fdle);
+      break;
+
       /* MySQL GTID events are ignored */
     case GTID_LOG_EVENT:
     case ANONYMOUS_GTID_LOG_EVENT:
@@ -1777,7 +2199,7 @@ Log_event* Log_event::read_log_event(const char* buf, uint event_len,
       else
       {
         DBUG_PRINT("error",("Unknown event code: %d",
-                            (int) buf[EVENT_TYPE_OFFSET]));
+                            (uchar) buf[EVENT_TYPE_OFFSET]));
         ev= NULL;
         break;
       }
@@ -2356,7 +2778,7 @@ log_event_print_value(IO_CACHE *file, const uchar *ptr,
       d= (ulong) (i64 / 1000000);
       t= (ulong) (i64 % 1000000);
 
-      my_b_printf(file, "%04d-%02d-%02d %02d:%02d:%02d",
+      my_b_printf(file, "'%04d-%02d-%02d %02d:%02d:%02d'",
                   (int) (d / 10000), (int) (d % 10000) / 100, (int) (d % 100),
                   (int) (t / 10000), (int) (t % 10000) / 100, (int) t % 100);
       return 8;
@@ -2590,22 +3012,30 @@ size_t
 Rows_log_event::print_verbose_one_row(IO_CACHE *file, table_def *td,
                                       PRINT_EVENT_INFO *print_event_info,
                                       MY_BITMAP *cols_bitmap,
-                                      const uchar *value, const uchar *prefix)
+                                      const uchar *value, const uchar *prefix,
+                                      const my_bool no_fill_output)
 {
   const uchar *value0= value;
   const uchar *null_bits= value;
   uint null_bit_index= 0;
   char typestr[64]= "";
-  
+
+#ifdef WHEN_FLASHBACK_REVIEW_READY
+  /* Storing the review SQL */
+  IO_CACHE *review_sql= &print_event_info->review_sql_cache;
+  LEX_STRING review_str;
+#endif
+
   /*
     Skip metadata bytes which gives the information about nullabity of master
     columns. Master writes one bit for each affected column.
    */
 
   value+= (bitmap_bits_set(cols_bitmap) + 7) / 8;
-  
-  my_b_printf(file, "%s", prefix);
-  
+
+  if (!no_fill_output)
+    my_b_printf(file, "%s", prefix);
+
   for (size_t i= 0; i < td->size(); i ++)
   {
     size_t size;
@@ -2614,44 +3044,223 @@ Rows_log_event::print_verbose_one_row(IO_CACHE *file, table_def *td,
 
     if (bitmap_is_set(cols_bitmap, i) == 0)
       continue;
-    
-    my_b_printf(file, "###   @%d=", static_cast<int>(i + 1));
+
+    if (!no_fill_output)
+      my_b_printf(file, "###   @%d=", static_cast<int>(i + 1));
+
     if (!is_null)
     {
       size_t fsize= td->calc_field_size((uint)i, (uchar*) value);
       if (value + fsize > m_rows_end)
       {
-        my_b_printf(file, "***Corrupted replication event was detected."
-                    " Not printing the value***\n");
+        if (!no_fill_output)
+          my_b_printf(file, "***Corrupted replication event was detected."
+                      " Not printing the value***\n");
         value+= fsize;
         return 0;
       }
     }
-    if (!(size= log_event_print_value(file,is_null? NULL: value,
-                                      td->type(i), td->field_metadata(i),
-                                      typestr, sizeof(typestr))))
+
+    if (!no_fill_output)
+    {
+      size= log_event_print_value(file,is_null? NULL: value,
+                                  td->type(i), td->field_metadata(i),
+                                  typestr, sizeof(typestr));
+#ifdef WHEN_FLASHBACK_REVIEW_READY
+      if (need_flashback_review)
+      {
+        String tmp_str, hex_str;
+        IO_CACHE tmp_cache;
+
+        // Using a tmp IO_CACHE to get the value output
+        open_cached_file(&tmp_cache, NULL, NULL, 0, MYF(MY_WME | MY_NABP));
+        size= log_event_print_value(&tmp_cache, is_null? NULL: value,
+                                    td->type(i), td->field_metadata(i),
+                                    typestr, sizeof(typestr));
+        if (copy_event_cache_to_string_and_reinit(&tmp_cache, &review_str))
+          exit(1);
+        close_cached_file(&tmp_cache);
+
+        switch (td->type(i)) // Converting a string to HEX format
+        {
+          case MYSQL_TYPE_VARCHAR:
+          case MYSQL_TYPE_VAR_STRING:
+          case MYSQL_TYPE_STRING:
+          case MYSQL_TYPE_BLOB:
+            // Avoid write_pos changed to a new area
+            // tmp_str.free();
+            tmp_str.append(review_str.str + 1, review_str.length - 2); // Removing quotation marks
+            if (hex_str.alloc(tmp_str.length()*2+1)) // If out of memory
+            {
+              fprintf(stderr, "\nError: Out of memory. "
+                      "Could not print correct binlog event.\n");
+              exit(1);
+            }
+            octet2hex((char*) hex_str.ptr(), tmp_str.ptr(), tmp_str.length());
+            my_b_printf(review_sql, ", UNHEX('%s')", hex_str.ptr());
+            break;
+          default:
+            tmp_str.free();
+            tmp_str.append(review_str.str, review_str.length);
+            my_b_printf(review_sql, ", %s", tmp_str.ptr());
+            break;
+        }
+        my_free(revieww_str.str);
+      }
+#endif
+    }
+    else
+    {
+      IO_CACHE tmp_cache;
+      open_cached_file(&tmp_cache, NULL, NULL, 0, MYF(MY_WME | MY_NABP));
+      size= log_event_print_value(&tmp_cache,is_null? NULL: value,
+                                  td->type(i), td->field_metadata(i),
+                                  typestr, sizeof(typestr));
+      close_cached_file(&tmp_cache);
+    }
+
+    if (!size)
       return 0;
 
     if (!is_null)
       value+= size;
 
-    if (print_event_info->verbose > 1)
+    if (print_event_info->verbose > 1 && !no_fill_output)
     {
       my_b_write(file, (uchar*)" /* ", 4);
 
       my_b_printf(file, "%s ", typestr);
-      
+
       my_b_printf(file, "meta=%d nullable=%d is_null=%d ",
                   td->field_metadata(i),
                   td->maybe_null(i), is_null);
       my_b_write(file, (uchar*)"*/", 2);
     }
-    
-    my_b_write_byte(file, '\n');
-    
+
+    if (!no_fill_output)
+      my_b_write_byte(file, '\n');
+
     null_bit_index++;
   }
   return value - value0;
+}
+
+
+/**
+  Exchange the SET part and WHERE part for the Update events.
+  Revert the operations order for the Write and Delete events.
+  And then revert the events order from the last one to the first one.
+
+  @param[in] print_event_info   PRINT_EVENT_INFO
+  @param[in] rows_buff          Packed event buff
+*/
+
+void Rows_log_event::change_to_flashback_event(PRINT_EVENT_INFO *print_event_info,
+                                               uchar *rows_buff, Log_event_type ev_type)
+{
+  Table_map_log_event *map;
+  table_def *td;
+  DYNAMIC_ARRAY rows_arr;
+  uchar *swap_buff1, *swap_buff2;
+  uchar *rows_pos= rows_buff + m_rows_before_size;
+
+  if (!(map= print_event_info->m_table_map.get_table(m_table_id)) ||
+      !(td= map->create_table_def()))
+    return;
+
+  /* If the write rows event contained no values for the AI */
+  if (((get_general_type_code() == WRITE_ROWS_EVENT) && (m_rows_buf==m_rows_end)))
+    goto end;
+
+  (void) my_init_dynamic_array(&rows_arr, sizeof(LEX_STRING), 8, 8, MYF(0));
+
+  for (uchar *value= m_rows_buf; value < m_rows_end; )
+  {
+    uchar *start_pos= value;
+    size_t length1= 0;
+    if (!(length1= print_verbose_one_row(NULL, td, print_event_info,
+                                         &m_cols, value,
+                                         (const uchar*) "", TRUE)))
+      {
+        fprintf(stderr, "\nError row length: %zu\n", length1);
+        exit(1);
+      }
+    value+= length1;
+
+    swap_buff1= (uchar *) my_malloc(length1, MYF(0));
+    if (!swap_buff1)
+    {
+      fprintf(stderr, "\nError: Out of memory. "
+              "Could not exchange to flashback event.\n");
+      exit(1);
+    }
+    memcpy(swap_buff1, start_pos, length1);
+
+    // For Update_event, we have the second part
+    size_t length2= 0;
+    if (ev_type == UPDATE_ROWS_EVENT ||
+        ev_type == UPDATE_ROWS_EVENT_V1)
+    {
+      if (!(length2= print_verbose_one_row(NULL, td, print_event_info,
+                                           &m_cols, value,
+                                           (const uchar*) "", TRUE)))
+      {
+        fprintf(stderr, "\nError row length: %zu\n", length2);
+        exit(1);
+      }
+      value+= length2;
+
+      swap_buff2= (uchar *) my_malloc(length2, MYF(0));
+      if (!swap_buff2)
+      {
+        fprintf(stderr, "\nError: Out of memory. "
+                "Could not exchange to flashback event.\n");
+        exit(1);
+      }
+      memcpy(swap_buff2, start_pos + length1, length2); // WHERE part
+    }
+
+    if (ev_type == UPDATE_ROWS_EVENT ||
+        ev_type == UPDATE_ROWS_EVENT_V1)
+    {
+      /* Swap SET and WHERE part */
+      memcpy(start_pos, swap_buff2, length2);
+      memcpy(start_pos + length2, swap_buff1, length1);
+    }
+
+    /* Free tmp buffers */
+    my_free(swap_buff1);
+    if (ev_type == UPDATE_ROWS_EVENT ||
+        ev_type == UPDATE_ROWS_EVENT_V1)
+      my_free(swap_buff2);
+
+    /* Copying one row into a buff, and pushing into the array */
+    LEX_STRING one_row;
+
+    one_row.length= length1 + length2;
+    one_row.str=    (char *) my_malloc(one_row.length, MYF(0));
+    memcpy(one_row.str, start_pos, one_row.length);
+    if (one_row.str == NULL || push_dynamic(&rows_arr, (uchar *) &one_row))
+    {
+      fprintf(stderr, "\nError: Out of memory. "
+              "Could not push flashback event into array.\n");
+      exit(1);
+    }
+  }
+
+  /* Copying rows from the end to the begining into event */
+  for (uint i= rows_arr.elements; i > 0; --i)
+  {
+    LEX_STRING *one_row= dynamic_element(&rows_arr, i - 1, LEX_STRING*);
+
+    memcpy(rows_pos, (uchar *)one_row->str, one_row->length);
+    rows_pos+= one_row->length;
+    my_free(one_row->str);
+  }
+  delete_dynamic(&rows_arr);
+
+end:
+  delete td;
 }
 
 
@@ -2667,8 +3276,12 @@ void Rows_log_event::print_verbose(IO_CACHE *file,
   Table_map_log_event *map;
   table_def *td;
   const char *sql_command, *sql_clause1, *sql_clause2;
+  const char *sql_command_short __attribute__((unused));
   Log_event_type general_type_code= get_general_type_code();
-  
+#ifdef WHEN_FLASHBACK_REVIEW_READY
+  IO_CACHE *review_sql= &print_event_info->review_sql_cache;
+#endif
+
   if (m_extra_row_data)
   {
     uint8 extra_data_len= m_extra_row_data[EXTRA_ROW_INFO_LEN_OFFSET];
@@ -2698,19 +3311,23 @@ void Rows_log_event::print_verbose(IO_CACHE *file,
     sql_command= "INSERT INTO";
     sql_clause1= "### SET\n";
     sql_clause2= NULL;
+    sql_command_short= "I";
     break;
   case DELETE_ROWS_EVENT:
     sql_command= "DELETE FROM";
     sql_clause1= "### WHERE\n";
     sql_clause2= NULL;
+    sql_command_short= "D";
     break;
   case UPDATE_ROWS_EVENT:
     sql_command= "UPDATE";
     sql_clause1= "### WHERE\n";
     sql_clause2= "### SET\n";
+    sql_command_short= "U";
     break;
   default:
     sql_command= sql_clause1= sql_clause2= NULL;
+    sql_command_short= "";
     DBUG_ASSERT(0); /* Not possible */
   }
   
@@ -2736,6 +3353,13 @@ void Rows_log_event::print_verbose(IO_CACHE *file,
     my_b_printf(file, "### %s %`s.%`s\n",
                       sql_command,
                       map->get_db_name(), map->get_table_name());
+
+#ifdef WHEN_FLASHBACK_REVIEW_READY
+    if (need_flashback_review)
+      my_b_printf(review_sql, "\nINSERT INTO `%s`.`%s` VALUES ('%s'",
+                  map->get_review_dbname(), map->get_review_tablename(), sql_command_short);
+#endif
+
     /* Print the first image */
     if (!(length= print_verbose_one_row(file, td, print_event_info,
                                   &m_cols, value,
@@ -2752,6 +3376,17 @@ void Rows_log_event::print_verbose(IO_CACHE *file,
         goto end;
       value+= length;
     }
+#ifdef WHEN_FLASHBACK_REVIEW_READY
+    else
+    {
+      if (need_flashback_review)
+        for (size_t i= 0; i < td->size(); i ++)
+          my_b_printf(review_sql, ", NULL");
+    }
+
+    if (need_flashback_review)
+      my_b_printf(review_sql, ")%s\n", print_event_info->delimiter);
+#endif
   }
 
 end:
@@ -2767,11 +3402,11 @@ void Log_event::print_base64(IO_CACHE* file,
                              PRINT_EVENT_INFO* print_event_info,
                              bool more)
 {
-  const uchar *ptr= (const uchar *)temp_buf;
+  uchar *ptr= (uchar *)temp_buf;
   uint32 size= uint4korr(ptr + EVENT_LEN_OFFSET);
   DBUG_ENTER("Log_event::print_base64");
 
-  size_t const tmp_str_sz= base64_needed_encoded_length((int) size);
+  size_t const tmp_str_sz= my_base64_needed_encoded_length((int) size);
   char *const tmp_str= (char *) my_malloc(tmp_str_sz, MYF(MY_WME));
   if (!tmp_str) {
     fprintf(stderr, "\nError: Out of memory. "
@@ -2779,7 +3414,52 @@ void Log_event::print_base64(IO_CACHE* file,
     DBUG_VOID_RETURN;
   }
 
-  if (base64_encode(ptr, (size_t) size, tmp_str))
+  if (is_flashback)
+  {
+    uint tmp_size= size;
+    Rows_log_event *ev= NULL;
+    Log_event_type ev_type = (enum Log_event_type) ptr[EVENT_TYPE_OFFSET];
+    if (checksum_alg != BINLOG_CHECKSUM_ALG_UNDEF &&
+        checksum_alg != BINLOG_CHECKSUM_ALG_OFF)
+      tmp_size-= BINLOG_CHECKSUM_LEN; // checksum is displayed through the header
+    switch (ev_type) {
+      case WRITE_ROWS_EVENT:
+        ptr[EVENT_TYPE_OFFSET]= DELETE_ROWS_EVENT;
+        ev= new Delete_rows_log_event((const char*) ptr, tmp_size,
+                                       glob_description_event);
+        ev->change_to_flashback_event(print_event_info, ptr, ev_type);
+        break;
+      case WRITE_ROWS_EVENT_V1:
+        ptr[EVENT_TYPE_OFFSET]= DELETE_ROWS_EVENT_V1;
+        ev= new Delete_rows_log_event((const char*) ptr, tmp_size,
+                                       glob_description_event);
+        ev->change_to_flashback_event(print_event_info, ptr, ev_type);
+        break;
+      case DELETE_ROWS_EVENT:
+        ptr[EVENT_TYPE_OFFSET]= WRITE_ROWS_EVENT;
+        ev= new Write_rows_log_event((const char*) ptr, tmp_size,
+                                       glob_description_event);
+        ev->change_to_flashback_event(print_event_info, ptr, ev_type);
+        break;
+      case DELETE_ROWS_EVENT_V1:
+        ptr[EVENT_TYPE_OFFSET]= WRITE_ROWS_EVENT_V1;
+        ev= new Write_rows_log_event((const char*) ptr, tmp_size,
+                                       glob_description_event);
+        ev->change_to_flashback_event(print_event_info, ptr, ev_type);
+        break;
+      case UPDATE_ROWS_EVENT:
+      case UPDATE_ROWS_EVENT_V1:
+        ev= new Update_rows_log_event((const char*) ptr, tmp_size,
+                                       glob_description_event);
+        ev->change_to_flashback_event(print_event_info, ptr, ev_type);
+        break;
+      default:
+        break;
+    }
+    delete ev;
+  }
+
+  if (my_base64_encode(ptr, (size_t) size, tmp_str))
   {
     DBUG_ASSERT(0);
   }
@@ -2794,8 +3474,12 @@ void Log_event::print_base64(IO_CACHE* file,
     if (!more)
       my_b_printf(file, "'%s\n", print_event_info->delimiter);
   }
-  
+
+#ifdef WHEN_FLASHBACK_REVIEW_READY
+  if (print_event_info->verbose || need_flashback_review)
+#else
   if (print_event_info->verbose)
+#endif
   {
     Rows_log_event *ev= NULL;
     Log_event_type et= (Log_event_type) ptr[EVENT_TYPE_OFFSET];
@@ -2803,7 +3487,7 @@ void Log_event::print_base64(IO_CACHE* file,
     if (checksum_alg != BINLOG_CHECKSUM_ALG_UNDEF &&
         checksum_alg != BINLOG_CHECKSUM_ALG_OFF)
       size-= BINLOG_CHECKSUM_LEN; // checksum is displayed through the header
-    
+
     switch (et)
     {
     case TABLE_MAP_EVENT:
@@ -2811,6 +3495,13 @@ void Log_event::print_base64(IO_CACHE* file,
       Table_map_log_event *map; 
       map= new Table_map_log_event((const char*) ptr, size, 
                                    glob_description_event);
+#ifdef WHEN_FLASHBACK_REVIEW_READY
+      if (need_flashback_review)
+      {
+        map->set_review_dbname(m_review_dbname.ptr());
+        map->set_review_tablename(m_review_tablename.ptr());
+      }
+#endif
       print_event_info->m_table_map.set_table(map->get_table_id(), map);
       break;
     }
@@ -2835,17 +3526,51 @@ void Log_event::print_base64(IO_CACHE* file,
                                     glob_description_event);
       break;
     }
+    case WRITE_ROWS_COMPRESSED_EVENT:
+    case WRITE_ROWS_COMPRESSED_EVENT_V1:
+    {
+      ev= new Write_rows_compressed_log_event((const char*) ptr, size,
+                                              glob_description_event);
+      break;
+    }
+    case UPDATE_ROWS_COMPRESSED_EVENT:
+    case UPDATE_ROWS_COMPRESSED_EVENT_V1:
+    {
+      ev= new Update_rows_compressed_log_event((const char*) ptr, size,
+                                               glob_description_event);
+      break;
+      }
+    case DELETE_ROWS_COMPRESSED_EVENT:
+    case DELETE_ROWS_COMPRESSED_EVENT_V1:
+    {
+      ev= new Delete_rows_compressed_log_event((const char*) ptr, size,
+                                               glob_description_event);
+      break;
+    }
     default:
       break;
     }
-    
+
     if (ev)
     {
+#ifdef WHEN_FLASHBACK_REVIEW_READY
+      ev->need_flashback_review= need_flashback_review;
+      if (print_event_info->verbose)
+        ev->print_verbose(file, print_event_info);
+      else
+      {
+        IO_CACHE tmp_cache;
+        open_cached_file(&tmp_cache, NULL, NULL, 0, MYF(MY_WME | MY_NABP));
+        ev->print_verbose(&tmp_cache, print_event_info);
+        close_cached_file(&tmp_cache);
+      }
+#else
       ev->print_verbose(file, print_event_info);
+#endif
       delete ev;
     }
   }
-    
+
   my_free(tmp_str);
   DBUG_VOID_RETURN;
 }
@@ -3189,6 +3914,24 @@ bool Query_log_event::write()
          write_footer();
 }
 
+bool Query_compressed_log_event::write()
+{
+  const char *query_tmp = query;
+  uint32 q_len_tmp = q_len;
+  uint32 alloc_size;
+  bool ret = true;
+  q_len = alloc_size = binlog_get_compress_len(q_len);
+  query = (char *)my_safe_alloca(alloc_size);
+  if(query && !binlog_buf_compress(query_tmp, (char *)query, q_len_tmp, &q_len))
+  {
+    ret = Query_log_event::write();
+  }
+  my_safe_afree((void *)query, alloc_size);
+  query = query_tmp;
+  q_len = q_len_tmp;
+  return ret;
+}
+
 /**
   The simplest constructor that could possibly work.  This is used for
   creating static objects that have a special meaning and are invisible
@@ -3380,6 +4123,16 @@ Query_log_event::Query_log_event(THD* thd_arg, const char* query_arg,
   DBUG_ASSERT(cache_type != Log_event::EVENT_INVALID_CACHE);
   DBUG_PRINT("info",("Query_log_event has flags2: %lu  sql_mode: %llu  cache_tye: %d",
                      (ulong) flags2, sql_mode, cache_type));
+}
+
+Query_compressed_log_event::Query_compressed_log_event(THD* thd_arg, const char* query_arg,
+    ulong query_length, bool using_trans,
+    bool direct, bool suppress_use, int errcode)
+    :Query_log_event(thd_arg, query_arg, query_length, using_trans, direct,
+                     suppress_use, errcode),
+     query_buf(0)
+{
+
 }
 #endif /* MYSQL_CLIENT */
 
@@ -3591,7 +4344,7 @@ Query_log_event::Query_log_event(const char* buf, uint event_len,
     {
       CHECK_SPACE(pos, end, 8);
       sql_mode_inited= 1;
-      sql_mode= (ulong) uint8korr(pos); // QQ: Fix when sql_mode is ulonglong
+      sql_mode= (sql_mode_t) uint8korr(pos);
       DBUG_PRINT("info",("In Query_log_event, read sql_mode: %llu", sql_mode));
       pos+= 8;
       break;
@@ -3787,6 +4540,39 @@ Query_log_event::Query_log_event(const char* buf, uint event_len,
   DBUG_VOID_RETURN;
 }
 
+Query_compressed_log_event::Query_compressed_log_event(const char *buf,
+      uint event_len,
+      const Format_description_log_event
+      *description_event,
+      Log_event_type event_type)
+      :Query_log_event(buf, event_len, description_event, event_type),
+       query_buf(NULL)
+{
+  if(query)
+  {
+    uint32 un_len=binlog_get_uncompress_len(query);
+    if (!un_len)
+    {
+      query = 0;
+      return;
+    }
+
+    /* Reserve one byte for '\0' */
+    query_buf = (Log_event::Byte*)my_malloc(ALIGN_SIZE(un_len + 1),
+                                            MYF(MY_WME));
+    if(query_buf &&
+       !binlog_buf_uncompress(query, (char *)query_buf, q_len, &un_len))
+    {
+      query_buf[un_len] = 0;
+      query = (const char *)query_buf;
+      q_len = un_len;
+    }
+    else
+    {
+      query= 0;
+    }
+  }
+}
 
 /*
   Replace a binlog event read into a packet with a dummy event. Either a
@@ -4073,8 +4859,9 @@ void Query_log_event::print_query_header(IO_CACHE* file,
       (unlikely(print_event_info->sql_mode != sql_mode ||
                 !print_event_info->sql_mode_inited)))
   {
-    my_b_printf(file,"SET @@session.sql_mode=%lu%s\n",
-                (ulong)sql_mode, print_event_info->delimiter);
+    char llbuff[22];
+    my_b_printf(file,"SET @@session.sql_mode=%s%s\n",
+                ullstr(sql_mode, llbuff), print_event_info->delimiter);
     print_event_info->sql_mode= sql_mode;
     print_event_info->sql_mode_inited= 1;
   }
@@ -4144,7 +4931,7 @@ void Query_log_event::print_query_header(IO_CACHE* file,
 
 void Query_log_event::print(FILE* file, PRINT_EVENT_INFO* print_event_info)
 {
-  Write_on_release_cache cache(&print_event_info->head_cache, file);
+  Write_on_release_cache cache(&print_event_info->head_cache, file, 0, this);
 
   /**
     reduce the size of io cache so that the write function is called
@@ -4153,8 +4940,24 @@ void Query_log_event::print(FILE* file, PRINT_EVENT_INFO* print_event_info)
   DBUG_EXECUTE_IF ("simulate_file_write_error",
                    {(&cache)->write_pos= (&cache)->write_end- 500;});
   print_query_header(&cache, print_event_info);
-  my_b_write(&cache, (uchar*) query, q_len);
-  my_b_printf(&cache, "\n%s\n", print_event_info->delimiter);
+  if (!is_flashback)
+  {
+    my_b_write(&cache, (uchar*) query, q_len);
+    my_b_printf(&cache, "\n%s\n", print_event_info->delimiter);
+  }
+  else // is_flashback == 1
+  {
+    if (strcmp("BEGIN", query) == 0)
+    {
+      my_b_write(&cache, (uchar*) "COMMIT", 6);
+      my_b_printf(&cache, "\n%s\n", print_event_info->delimiter);
+    }
+    else if (strcmp("COMMIT", query) == 0)
+    {
+      my_b_write(&cache, (uchar*) "BEGIN", 5);
+      my_b_printf(&cache, "\n%s\n", print_event_info->delimiter);
+    }
+  }
 }
 #endif /* MYSQL_CLIENT */
 
@@ -4304,8 +5107,8 @@ int Query_log_event::do_apply_event(rpl_group_info *rgi,
       */
       if (sql_mode_inited)
         thd->variables.sql_mode=
-          (ulong) ((thd->variables.sql_mode & MODE_NO_DIR_IN_CREATE) |
-                   (sql_mode & ~(ulong) MODE_NO_DIR_IN_CREATE));
+          (sql_mode_t) ((thd->variables.sql_mode & MODE_NO_DIR_IN_CREATE) |
+                        (sql_mode & ~(ulong) MODE_NO_DIR_IN_CREATE));
       if (charset_inited)
       {
         rpl_sql_thread_info *sql_info= thd->system_thread_info.rpl_sql_info;
@@ -5053,6 +5856,15 @@ Format_description_log_event(uint8 binlog_ver, const char* server_ver)
       post_header_len[GTID_EVENT-1]= GTID_HEADER_LEN;
       post_header_len[GTID_LIST_EVENT-1]= GTID_LIST_HEADER_LEN;
       post_header_len[START_ENCRYPTION_EVENT-1]= START_ENCRYPTION_HEADER_LEN;
+
+      //compressed event
+      post_header_len[QUERY_COMPRESSED_EVENT-1]= QUERY_HEADER_LEN;
+      post_header_len[WRITE_ROWS_COMPRESSED_EVENT-1]=   ROWS_HEADER_LEN_V2;
+      post_header_len[UPDATE_ROWS_COMPRESSED_EVENT-1]=  ROWS_HEADER_LEN_V2;
+      post_header_len[DELETE_ROWS_COMPRESSED_EVENT-1]=  ROWS_HEADER_LEN_V2;
+      post_header_len[WRITE_ROWS_COMPRESSED_EVENT_V1-1]=   ROWS_HEADER_LEN_V1;
+      post_header_len[UPDATE_ROWS_COMPRESSED_EVENT_V1-1]=  ROWS_HEADER_LEN_V1;
+      post_header_len[DELETE_ROWS_COMPRESSED_EVENT_V1-1]=  ROWS_HEADER_LEN_V1;
 
       // Sanity-check that all post header lengths are initialized.
       int i;
@@ -6402,6 +7214,9 @@ bool Rotate_log_event::write()
   in a A -> B -> A setup.
   The NOTES below is a wrong comment which will disappear when 4.1 is merged.
 
+  This must only be called from the Slave SQL thread, since it calls
+  Relay_log_info::flush().
+
   @retval
     0	ok
 */
@@ -6455,7 +7270,7 @@ int Rotate_log_event::do_update_pos(rpl_group_info *rgi)
                         (ulong) rli->group_master_log_pos));
     mysql_mutex_unlock(&rli->data_lock);
     rpl_global_gtid_slave_state->record_and_update_gtid(thd, rgi);
-    flush_relay_log_info(rli);
+    rli->flush();
     
     /*
       Reset thd->variables.option_bits and sql_mode etc, because this could
@@ -6559,7 +7374,7 @@ Binlog_checkpoint_log_event::Binlog_checkpoint_log_event(
   uint8 header_size= description_event->common_header_len;
   uint8 post_header_len=
     description_event->post_header_len[BINLOG_CHECKPOINT_EVENT-1];
-  if (event_len < header_size + post_header_len ||
+  if (event_len < (uint) header_size + (uint) post_header_len ||
       post_header_len < BINLOG_CHECKPOINT_HEADER_LEN)
     return;
   buf+= header_size;
@@ -6597,7 +7412,7 @@ Gtid_log_event::Gtid_log_event(const char *buf, uint event_len,
 {
   uint8 header_size= description_event->common_header_len;
   uint8 post_header_len= description_event->post_header_len[GTID_EVENT-1];
-  if (event_len < header_size + post_header_len ||
+  if (event_len < (uint) header_size + (uint) post_header_len ||
       post_header_len < GTID_HEADER_LEN)
     return;
 
@@ -6852,11 +7667,11 @@ void
 Gtid_log_event::print(FILE *file, PRINT_EVENT_INFO *print_event_info)
 {
   Write_on_release_cache cache(&print_event_info->head_cache, file,
-                               Write_on_release_cache::FLUSH_F);
+                               Write_on_release_cache::FLUSH_F, this);
   char buf[21];
   char buf2[21];
 
-  if (!print_event_info->short_form)
+  if (!print_event_info->short_form & !is_flashback)
   {
     print_header(&cache, print_event_info, FALSE);
     longlong10_to_str(seq_no, buf, 10);
@@ -6902,11 +7717,12 @@ Gtid_log_event::print(FILE *file, PRINT_EVENT_INFO *print_event_info)
       print_event_info->server_id_printed= true;
     }
 
-    my_b_printf(&cache, "/*!100001 SET @@session.gtid_seq_no=%s*/%s\n",
-                buf, print_event_info->delimiter);
+    if (!is_flashback)
+      my_b_printf(&cache, "/*!100001 SET @@session.gtid_seq_no=%s*/%s\n",
+                  buf, print_event_info->delimiter);
   }
   if (!(flags2 & FL_STANDALONE))
-    my_b_printf(&cache, "BEGIN\n%s\n", print_event_info->delimiter);
+    my_b_printf(&cache, is_flashback ? "COMMIT\n%s\n" : "BEGIN\n%s\n", print_event_info->delimiter);
 }
 
 #endif  /* MYSQL_SERVER */
@@ -6922,7 +7738,7 @@ Gtid_list_log_event::Gtid_list_log_event(const char *buf, uint event_len,
   uint32 val;
   uint8 header_size= description_event->common_header_len;
   uint8 post_header_len= description_event->post_header_len[GTID_LIST_EVENT-1];
-  if (event_len < header_size + post_header_len ||
+  if (event_len < (uint) header_size + (uint) post_header_len ||
       post_header_len < GTID_LIST_HEADER_LEN)
     return;
 
@@ -7548,7 +8364,7 @@ bool Xid_log_event::write()
 void Xid_log_event::print(FILE* file, PRINT_EVENT_INFO* print_event_info)
 {
   Write_on_release_cache cache(&print_event_info->head_cache, file,
-                               Write_on_release_cache::FLUSH_F);
+                               Write_on_release_cache::FLUSH_F, this);
 
   if (!print_event_info->short_form)
   {
@@ -7558,7 +8374,7 @@ void Xid_log_event::print(FILE* file, PRINT_EVENT_INFO* print_event_info)
     print_header(&cache, print_event_info, FALSE);
     my_b_printf(&cache, "\tXid = %s\n", buf);
   }
-  my_b_printf(&cache, "COMMIT%s\n", print_event_info->delimiter);
+  my_b_printf(&cache, is_flashback ? "BEGIN%s\n" : "COMMIT%s\n", print_event_info->delimiter);
 }
 #endif /* MYSQL_CLIENT */
 
@@ -8185,8 +9001,13 @@ void Unknown_log_event::print(FILE* file_arg, PRINT_EVENT_INFO* print_event_info
 
   if (print_event_info->short_form)
     return;
-  print_header(&cache, print_event_info, FALSE);
-  my_b_printf(&cache, "\n# %s", "Unknown event\n");
+  if (what != ENCRYPTED)
+  {
+    print_header(&cache, print_event_info, FALSE);
+    my_b_printf(&cache, "\n# Unknown event\n");
+  }
+  else
+    my_b_printf(&cache, "# Encrypted event\n");
 }
 #endif  
 
@@ -8202,7 +9023,7 @@ void Unknown_log_event::print(FILE* file_arg, PRINT_EVENT_INFO* print_event_info
 void Stop_log_event::print(FILE* file, PRINT_EVENT_INFO* print_event_info)
 {
   Write_on_release_cache cache(&print_event_info->head_cache, file,
-                               Write_on_release_cache::FLUSH_F);
+                               Write_on_release_cache::FLUSH_F, this);
 
   if (print_event_info->short_form)
     return;
@@ -8224,6 +9045,9 @@ void Stop_log_event::print(FILE* file, PRINT_EVENT_INFO* print_event_info)
   were we must do this cleaning is in
   Start_log_event_v3::do_apply_event(), not here. Because if we come
   here, the master was sane.
+
+  This must only be called from the Slave SQL thread, since it calls
+  Relay_log_info::flush().
 */
 
 int Stop_log_event::do_update_pos(rpl_group_info *rgi)
@@ -8243,7 +9067,7 @@ int Stop_log_event::do_update_pos(rpl_group_info *rgi)
   {
     rpl_global_gtid_slave_state->record_and_update_gtid(thd, rgi);
     rli->inc_group_relay_log_pos(0, rgi);
-    flush_relay_log_info(rli);
+    rli->flush();
   }
   DBUG_RETURN(0);
 }
@@ -9396,7 +10220,7 @@ Rows_log_event::Rows_log_event(const char *buf, uint event_len,
 {
   DBUG_ENTER("Rows_log_event::Rows_log_event(const char*,...)");
   uint8 const common_header_len= description_event->common_header_len;
-  Log_event_type event_type= (Log_event_type) buf[EVENT_TYPE_OFFSET];
+  Log_event_type event_type= (Log_event_type)(uchar)buf[EVENT_TYPE_OFFSET];
   m_type= event_type;
   
   uint8 const post_header_len= description_event->post_header_len[event_type-1];
@@ -9495,8 +10319,7 @@ Rows_log_event::Rows_log_event(const char *buf, uint event_len,
 
   m_cols_ai.bitmap= m_cols.bitmap; /* See explanation in is_valid() */
 
-  if ((event_type == UPDATE_ROWS_EVENT) ||
-      (event_type == UPDATE_ROWS_EVENT_V1))
+  if (LOG_EVENT_IS_UPDATE_ROW(event_type))
   {
     DBUG_PRINT("debug", ("Reading from %p", ptr_after_width));
 
@@ -9536,11 +10359,41 @@ Rows_log_event::Rows_log_event(const char *buf, uint event_len,
     m_rows_end= m_rows_buf + data_size;
     m_rows_cur= m_rows_end;
     memcpy(m_rows_buf, ptr_rows_data, data_size);
+    m_rows_before_size= ptr_rows_data - (const uchar *) buf; // Get the size that before SET part
   }
   else
     m_cols.bitmap= 0; // to not free it
 
   DBUG_VOID_RETURN;
+}
+
+void Rows_log_event::uncompress_buf()
+{
+  uint32 un_len = binlog_get_uncompress_len((char *)m_rows_buf);
+  if (!un_len)
+    return;
+
+  uchar *new_buf= (uchar*) my_malloc(ALIGN_SIZE(un_len), MYF(MY_WME));
+  if (new_buf)
+  {
+    if(!binlog_buf_uncompress((char *)m_rows_buf, (char *)new_buf,
+                              m_rows_cur - m_rows_buf, &un_len))
+    {
+      my_free(m_rows_buf);
+      m_rows_buf = new_buf;
+#if !defined(MYSQL_CLIENT) && defined(HAVE_REPLICATION)
+      m_curr_row= m_rows_buf;
+#endif
+      m_rows_end= m_rows_buf + un_len;
+      m_rows_cur= m_rows_end;
+      return;
+    }
+    else
+    {
+      my_free(new_buf);
+    }
+  }
+  m_cols.bitmap= 0; // catch it in is_valid
 }
 
 Rows_log_event::~Rows_log_event()
@@ -9565,7 +10418,8 @@ int Rows_log_event::get_data_size()
                   (m_rows_cur - m_rows_buf););
 
   int data_size= 0;
-  bool is_v2_event= get_type_code() > DELETE_ROWS_EVENT_V1;
+  Log_event_type type = get_type_code();
+  bool is_v2_event= LOG_EVENT_IS_ROW_V2(type);
   if (is_v2_event)
   {
     data_size= ROWS_HEADER_LEN_V2 +
@@ -10042,7 +10896,7 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
       extra columns on the slave. In that case, do not force
       MODE_NO_AUTO_VALUE_ON_ZERO.
     */
-    ulonglong saved_sql_mode= thd->variables.sql_mode;
+    sql_mode_t saved_sql_mode= thd->variables.sql_mode;
     if (!is_auto_inc_in_extra_columns())
       thd->variables.sql_mode= MODE_NO_AUTO_VALUE_ON_ZERO;
 
@@ -10380,6 +11234,27 @@ bool Rows_log_event::write_data_body()
   return res;
 
 }
+
+bool Rows_log_event::write_compressed()
+{
+  uchar *m_rows_buf_tmp = m_rows_buf;
+  uchar *m_rows_cur_tmp = m_rows_cur;
+  bool ret = true;
+  uint32 comlen, alloc_size;
+  comlen= alloc_size= binlog_get_compress_len(m_rows_cur_tmp - m_rows_buf_tmp);
+  m_rows_buf = (uchar *)my_safe_alloca(alloc_size);
+  if(m_rows_buf &&
+     !binlog_buf_compress((const char *)m_rows_buf_tmp, (char *)m_rows_buf,
+                          m_rows_cur_tmp - m_rows_buf_tmp, &comlen))
+  {
+    m_rows_cur= comlen + m_rows_buf;
+    ret= Log_event::write();
+  }
+  my_safe_afree(m_rows_buf, alloc_size);
+  m_rows_buf= m_rows_buf_tmp;
+  m_rows_cur= m_rows_cur_tmp;
+  return ret;
+}
 #endif
 
 #if defined(HAVE_REPLICATION) && !defined(MYSQL_CLIENT)
@@ -10401,6 +11276,10 @@ void Rows_log_event::print_helper(FILE *file,
 {
   IO_CACHE *const head= &print_event_info->head_cache;
   IO_CACHE *const body= &print_event_info->body_cache;
+#ifdef WHEN_FLASHBACK_REVIEW_READY
+  IO_CACHE *const sql= &print_event_info->review_sql_cache;
+#endif
+
   if (!print_event_info->short_form)
   {
     bool const last_stmt_event= get_flags(STMT_END_F);
@@ -10413,8 +11292,19 @@ void Rows_log_event::print_helper(FILE *file,
 
   if (get_flags(STMT_END_F))
   {
-    copy_event_cache_to_file_and_reinit(head, file);
-    copy_event_cache_to_file_and_reinit(body, file);
+    reinit_io_cache(head, READ_CACHE, 0L, FALSE, FALSE);
+    output_buf.append(head, head->end_of_file);
+    reinit_io_cache(head, WRITE_CACHE, 0, FALSE, TRUE);
+
+    reinit_io_cache(body, READ_CACHE, 0L, FALSE, FALSE);
+    output_buf.append(body, body->end_of_file);
+    reinit_io_cache(body, WRITE_CACHE, 0, FALSE, TRUE);
+
+#ifdef WHEN_FLASHBACK_REVIEW_READY
+    reinit_io_cache(sql, READ_CACHE, 0L, FALSE, FALSE);
+    output_buf.append(sql, sql->end_of_file);
+    reinit_io_cache(sql, WRITE_CACHE, 0, FALSE, TRUE);
+#endif
   }
 }
 #endif
@@ -11162,9 +12052,7 @@ int Table_map_log_event::do_apply_event(rpl_group_info *rgi)
           For the cases in which a 'BINLOG' statement is set to 
           execute in a user session 
          */
-        my_printf_error(ER_SLAVE_FATAL_ERROR,
-                        ER_THD(thd, ER_SLAVE_FATAL_ERROR), 
-                        MYF(0), buf);
+        my_error(ER_SLAVE_FATAL_ERROR, MYF(0), buf);
     } 
     
     my_free(memory);
@@ -11294,6 +12182,21 @@ Write_rows_log_event::Write_rows_log_event(THD *thd_arg, TABLE *tbl_arg,
                   is_transactional, WRITE_ROWS_EVENT_V1)
 {
 }
+
+Write_rows_compressed_log_event::Write_rows_compressed_log_event(
+                                           THD *thd_arg,
+                                           TABLE *tbl_arg,
+                                           ulong tid_arg,
+                                           bool is_transactional)
+  : Write_rows_log_event(thd_arg, tbl_arg, tid_arg, is_transactional)
+{
+  m_type = WRITE_ROWS_COMPRESSED_EVENT_V1;
+}
+
+bool Write_rows_compressed_log_event::write()
+{
+  return Rows_log_event::write_compressed();
+}
 #endif
 
 /*
@@ -11305,6 +12208,15 @@ Write_rows_log_event::Write_rows_log_event(const char *buf, uint event_len,
                                            *description_event)
 : Rows_log_event(buf, event_len, description_event)
 {
+}
+
+Write_rows_compressed_log_event::Write_rows_compressed_log_event(
+                                           const char *buf, uint event_len,
+                                           const Format_description_log_event
+                                           *description_event)
+: Write_rows_log_event(buf, event_len, description_event)
+{
+  uncompress_buf();
 }
 #endif
 
@@ -11795,7 +12707,29 @@ void Write_rows_log_event::print(FILE *file, PRINT_EVENT_INFO* print_event_info)
 {
   DBUG_EXECUTE_IF("simulate_cache_read_error",
                   {DBUG_SET("+d,simulate_my_b_fill_error");});
-  Rows_log_event::print_helper(file, print_event_info, "Write_rows");
+  Rows_log_event::print_helper(file, print_event_info, is_flashback ? "Delete_rows" : "Write_rows");
+}
+
+void Write_rows_compressed_log_event::print(FILE *file,
+                                            PRINT_EVENT_INFO* print_event_info)
+{
+  char *new_buf;
+  ulong len;
+  bool is_malloc = false;
+  if(!row_log_event_uncompress(glob_description_event,
+                               checksum_alg == BINLOG_CHECKSUM_ALG_CRC32,
+                               temp_buf, UINT_MAX32, NULL, 0, &is_malloc, &new_buf, &len))
+  {
+    free_temp_buf();
+    register_temp_buf(new_buf, true);
+    Rows_log_event::print_helper(file, print_event_info,
+                                 "Write_compressed_rows");
+  }
+  else
+  {
+    my_b_printf(&print_event_info->head_cache,
+                "ERROR: uncompress write_compressed_rows failed\n");
+  }
 }
 #endif
 
@@ -11982,7 +12916,7 @@ void issue_long_find_row_warning(Log_event_type type,
     if (delta > LONG_FIND_ROW_THRESHOLD)
     {
       rgi->set_long_find_row_note_printed();
-      const char* evt_type= type == DELETE_ROWS_EVENT ? " DELETE" : "n UPDATE";
+      const char* evt_type= LOG_EVENT_IS_DELETE_ROW(type) ? " DELETE" : "n UPDATE";
       const char* scan_type= is_index_scan ? "scanning an index" : "scanning the table";
 
       sql_print_information("The slave is applying a ROW event on behalf of a%s statement "
@@ -12317,6 +13251,20 @@ Delete_rows_log_event::Delete_rows_log_event(THD *thd_arg, TABLE *tbl_arg,
                    DELETE_ROWS_EVENT_V1)
 {
 }
+
+Delete_rows_compressed_log_event::Delete_rows_compressed_log_event(
+                                           THD *thd_arg, TABLE *tbl_arg,
+                                           ulong tid_arg,
+                                           bool is_transactional)
+  : Delete_rows_log_event(thd_arg, tbl_arg, tid_arg, is_transactional)
+{
+  m_type= DELETE_ROWS_COMPRESSED_EVENT_V1;
+}
+
+bool Delete_rows_compressed_log_event::write()
+{
+  return Rows_log_event::write_compressed();    
+}
 #endif /* #if !defined(MYSQL_CLIENT) */
 
 /*
@@ -12328,6 +13276,15 @@ Delete_rows_log_event::Delete_rows_log_event(const char *buf, uint event_len,
                                              *description_event)
   : Rows_log_event(buf, event_len, description_event)
 {
+}
+
+Delete_rows_compressed_log_event::Delete_rows_compressed_log_event(
+                                           const char *buf, uint event_len,
+                                           const Format_description_log_event
+                                           *description_event)
+  : Delete_rows_log_event(buf, event_len, description_event)
+{
+  uncompress_buf();
 }
 #endif
 
@@ -12424,7 +13381,29 @@ int Delete_rows_log_event::do_exec_row(rpl_group_info *rgi)
 void Delete_rows_log_event::print(FILE *file,
                                   PRINT_EVENT_INFO* print_event_info)
 {
-  Rows_log_event::print_helper(file, print_event_info, "Delete_rows");
+  Rows_log_event::print_helper(file, print_event_info, is_flashback ? "Write_rows" : "Delete_rows");
+}
+
+void Delete_rows_compressed_log_event::print(FILE *file,
+                                             PRINT_EVENT_INFO* print_event_info)
+{
+  char *new_buf;
+  ulong len;
+  bool is_malloc = false;
+  if(!row_log_event_uncompress(glob_description_event,
+                               checksum_alg == BINLOG_CHECKSUM_ALG_CRC32,
+                               temp_buf, UINT_MAX32, NULL, 0, &is_malloc, &new_buf, &len))
+  {
+    free_temp_buf();
+    register_temp_buf(new_buf, true);
+    Rows_log_event::print_helper(file, print_event_info,
+                                 "Delete_compressed_rows");
+  }
+  else
+  {
+    my_b_printf(&print_event_info->head_cache,
+                "ERROR: uncompress delete_compressed_rows failed\n");
+  }
 }
 #endif
 
@@ -12451,6 +13430,19 @@ Update_rows_log_event::Update_rows_log_event(THD *thd_arg, TABLE *tbl_arg,
                  UPDATE_ROWS_EVENT_V1)
 {
   init(tbl_arg->rpl_write_set);
+}
+
+Update_rows_compressed_log_event::Update_rows_compressed_log_event(THD *thd_arg, TABLE *tbl_arg,
+                                                                   ulong tid,
+                                                                   bool is_transactional)
+: Update_rows_log_event(thd_arg, tbl_arg, tid, is_transactional)
+{
+  m_type = UPDATE_ROWS_COMPRESSED_EVENT_V1;
+}
+
+bool Update_rows_compressed_log_event::write()
+{
+  return Rows_log_event::write_compressed();
 }
 
 void Update_rows_log_event::init(MY_BITMAP const *cols)
@@ -12490,6 +13482,15 @@ Update_rows_log_event::Update_rows_log_event(const char *buf, uint event_len,
                                              *description_event)
   : Rows_log_event(buf, event_len, description_event)
 {
+}
+
+Update_rows_compressed_log_event::Update_rows_compressed_log_event(
+                                             const char *buf, uint event_len,
+                                             const Format_description_log_event
+                                             *description_event)
+  : Update_rows_log_event(buf, event_len, description_event)
+{
+  uncompress_buf();
 }
 #endif
 
@@ -12643,6 +13644,27 @@ void Update_rows_log_event::print(FILE *file,
 {
   Rows_log_event::print_helper(file, print_event_info, "Update_rows");
 }
+
+void Update_rows_compressed_log_event::print(FILE *file, PRINT_EVENT_INFO *print_event_info)
+{
+  char *new_buf;
+  ulong len;
+  bool is_malloc= false;
+  if(!row_log_event_uncompress(glob_description_event,
+                               checksum_alg == BINLOG_CHECKSUM_ALG_CRC32,
+                               temp_buf, UINT_MAX32, NULL, 0, &is_malloc, &new_buf, &len))
+  {
+    free_temp_buf();
+    register_temp_buf(new_buf, true);
+    Rows_log_event::print_helper(file, print_event_info,
+                                 "Update_compressed_rows");
+  }
+  else
+  {
+    my_b_printf(&print_event_info->head_cache,
+                "ERROR: uncompress update_compressed_rows failed\n");
+  }
+}
 #endif
 
 #if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
@@ -12770,7 +13792,7 @@ err:
     DBUG_ASSERT(error != 0);
     sql_print_error("Error in Log_event::read_log_event(): "
                     "'%s', data_len: %d, event_type: %d",
-		    error,data_len,head[EVENT_TYPE_OFFSET]);
+		    error,data_len,(uchar)head[EVENT_TYPE_OFFSET]);
   }
   (*arg_buf)+= data_len;
   (*arg_buf_len)-= data_len;
@@ -12911,6 +13933,9 @@ st_print_event_info::st_print_event_info()
   myf const flags = MYF(MY_WME | MY_NABP);
   open_cached_file(&head_cache, NULL, NULL, 0, flags);
   open_cached_file(&body_cache, NULL, NULL, 0, flags);
+#ifdef WHEN_FLASHBACK_REVIEW_READY
+  open_cached_file(&review_sql_cache, NULL, NULL, 0, flags);
+#endif
 }
 #endif
 

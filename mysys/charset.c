@@ -258,12 +258,38 @@ static my_bool simple_cs_is_full(CHARSET_INFO *cs)
 
 
 #if defined(HAVE_UCA_COLLATIONS) && (defined(HAVE_CHARSET_ucs2) || defined(HAVE_CHARSET_utf8))
+/**
+  Initialize a loaded collation.
+  @param [OUT] to     - The new charset_info_st structure to initialize.
+  @param [IN]  from   - A template collation, to fill the missing data from.
+  @param [IN]  loaded - The collation data loaded from the LDML file.
+                        some data may be missing in "loaded".
+*/
 static void
-copy_uca_collation(struct charset_info_st *to, CHARSET_INFO *from)
+copy_uca_collation(struct charset_info_st *to, CHARSET_INFO *from,
+                   CHARSET_INFO *loaded)
 {
   to->cset= from->cset;
   to->coll= from->coll;
-  to->strxfrm_multiply= from->strxfrm_multiply;
+  /*
+    Single-level UCA collation have strnxfrm_multiple=8.
+    In case of a multi-level UCA collation we use strnxfrm_multiply=4.
+    That means MY_COLLATION_HANDLER::strnfrmlen() will request the caller
+    to allocate a buffer smaller size for each level, for performance purpose,
+    and to fit longer VARCHARs to @@max_sort_length.
+    This makes filesort produce non-precise order for some rare Unicode
+    characters that produce more than 4 weights (long expansions).
+    UCA requires 2 bytes per weight multiplied by the number of levels.
+    In case of a 2-level collation, each character requires 4*2=8 bytes.
+    Therefore, the longest VARCHAR that fits into the default @@max_sort_length
+    is 1024/8=VARCHAR(128). With strnxfrm_multiply==8, only VARCHAR(64)
+    would fit.
+    Note, the built-in collation utf8_thai_520_w2 also uses strnxfrm_multiply=4,
+    for the same purpose.
+    TODO: we could add a new LDML syntax to choose strxfrm_multiply value.
+  */
+  to->strxfrm_multiply= loaded->levels_for_order > 1 ?
+                        4 : from->strxfrm_multiply;
   to->min_sort_char= from->min_sort_char;
   to->max_sort_char= from->max_sort_char;
   to->mbminlen= from->mbminlen;
@@ -310,14 +336,20 @@ static int add_collation(struct charset_info_st *cs)
       if (!strcmp(cs->csname,"ucs2") )
       {
 #if defined(HAVE_CHARSET_ucs2) && defined(HAVE_UCA_COLLATIONS)
-        copy_uca_collation(newcs, &my_charset_ucs2_unicode_ci);
+        copy_uca_collation(newcs, newcs->state & MY_CS_NOPAD ?
+                                  &my_charset_ucs2_unicode_nopad_ci :
+                                  &my_charset_ucs2_unicode_ci,
+                                  cs);
         newcs->state|= MY_CS_AVAILABLE | MY_CS_LOADED | MY_CS_NONASCII;
 #endif        
       }
       else if (!strcmp(cs->csname, "utf8") || !strcmp(cs->csname, "utf8mb3"))
       {
 #if defined (HAVE_CHARSET_utf8) && defined(HAVE_UCA_COLLATIONS)
-        copy_uca_collation(newcs, &my_charset_utf8_unicode_ci);
+        copy_uca_collation(newcs, newcs->state & MY_CS_NOPAD ?
+                                  &my_charset_utf8_unicode_nopad_ci :
+                                  &my_charset_utf8_unicode_ci,
+                                  cs);
         newcs->ctype= my_charset_utf8_unicode_ci.ctype;
         if (init_state_maps(newcs))
           return MY_XML_ERROR;
@@ -326,7 +358,10 @@ static int add_collation(struct charset_info_st *cs)
       else if (!strcmp(cs->csname, "utf8mb4"))
       {
 #if defined (HAVE_CHARSET_utf8mb4) && defined(HAVE_UCA_COLLATIONS)
-        copy_uca_collation(newcs, &my_charset_utf8mb4_unicode_ci);
+        copy_uca_collation(newcs, newcs->state & MY_CS_NOPAD ?
+                                  &my_charset_utf8mb4_unicode_nopad_ci :
+                                  &my_charset_utf8mb4_unicode_ci,
+                                  cs);
         newcs->ctype= my_charset_utf8mb4_unicode_ci.ctype;
         newcs->state|= MY_CS_AVAILABLE | MY_CS_LOADED;
 #endif
@@ -334,14 +369,20 @@ static int add_collation(struct charset_info_st *cs)
       else if (!strcmp(cs->csname, "utf16"))
       {
 #if defined (HAVE_CHARSET_utf16) && defined(HAVE_UCA_COLLATIONS)
-        copy_uca_collation(newcs, &my_charset_utf16_unicode_ci);
+        copy_uca_collation(newcs, newcs->state & MY_CS_NOPAD ?
+                                  &my_charset_utf16_unicode_nopad_ci :
+                                  &my_charset_utf16_unicode_ci,
+                                  cs);
         newcs->state|= MY_CS_AVAILABLE | MY_CS_LOADED | MY_CS_NONASCII;
 #endif
       }
       else if (!strcmp(cs->csname, "utf32"))
       {
 #if defined (HAVE_CHARSET_utf32) && defined(HAVE_UCA_COLLATIONS)
-        copy_uca_collation(newcs, &my_charset_utf32_unicode_ci);
+        copy_uca_collation(newcs, newcs->state & MY_CS_NOPAD ?
+                                  &my_charset_utf32_unicode_nopad_ci :
+                                  &my_charset_utf32_unicode_ci,
+                                  cs);
         newcs->state|= MY_CS_AVAILABLE | MY_CS_LOADED | MY_CS_NONASCII;
 #endif
       }

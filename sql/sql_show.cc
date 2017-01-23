@@ -92,6 +92,20 @@ enum enum_i_s_events_fields
 
 #define USERNAME_WITH_HOST_CHAR_LENGTH (USERNAME_CHAR_LENGTH + HOSTNAME_LENGTH + 2)
 
+
+static const LEX_STRING trg_action_time_type_names[]=
+{
+  { C_STRING_WITH_LEN("BEFORE") },
+  { C_STRING_WITH_LEN("AFTER") }
+};
+
+static const LEX_STRING trg_event_type_names[]=
+{
+  { C_STRING_WITH_LEN("INSERT") },
+  { C_STRING_WITH_LEN("UPDATE") },
+  { C_STRING_WITH_LEN("DELETE") }
+};
+
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
 static const char *grant_names[]={
   "select","insert","update","delete","create","drop","reload","shutdown",
@@ -1055,7 +1069,7 @@ public:
   }
 
   bool handle_condition(THD *thd, uint sql_errno, const char * /* sqlstate */,
-                        Sql_condition::enum_warning_level level,
+                        Sql_condition::enum_warning_level *level,
                         const char *message, Sql_condition ** /* cond_hdl */)
   {
     /*
@@ -1621,9 +1635,11 @@ static bool print_on_update_clause(Field *field, String *val, bool lcase)
       val->append(STRING_WITH_LEN("on update "));
     else
       val->append(STRING_WITH_LEN("ON UPDATE "));
-    val->append(STRING_WITH_LEN("CURRENT_TIMESTAMP"));
+    val->append(STRING_WITH_LEN("current_timestamp"));
     if (field->decimals() > 0)
       val->append_parenthesized(field->decimals());
+    else
+      val->append(STRING_WITH_LEN("()"));
     return true;
   }
   return false;
@@ -1643,56 +1659,47 @@ static bool get_field_default_value(THD *thd, Field *field, String *def_value,
   def_value->length(0);
   if (has_default)
   {
+    StringBuffer<MAX_FIELD_WIDTH> str(field->charset());
     if (field->default_value)
     {
-      if (field->default_value->expr_item->need_parentheses_in_default())
+      field->default_value->print(&str);
+      if (field->default_value->expr->need_parentheses_in_default())
       {
         def_value->set_charset(&my_charset_utf8mb4_general_ci);
         def_value->append('(');
-        def_value->append(field->default_value->expr_str.str,
-                          field->default_value->expr_str.length);
+        def_value->append(str);
         def_value->append(')');
       }
-      else if (field->unireg_check)
-        def_value->append(field->default_value->expr_str.str,
-                          field->default_value->expr_str.length);
       else
-        def_value->set(field->default_value->expr_str.str,
-                       field->default_value->expr_str.length,
-                       &my_charset_utf8mb4_general_ci);
+        def_value->append(str);
     }
     else if (!field->is_null())
     {                                             // Not null by default
-      char tmp[MAX_FIELD_WIDTH];
-      String type(tmp, sizeof(tmp), field->charset());
       if (field_type == MYSQL_TYPE_BIT)
       {
-        longlong dec= field->val_int();
-        char *ptr= longlong2str(dec, tmp + 2, 2);
-        uint32 length= (uint32) (ptr - tmp);
-        tmp[0]= 'b';
-        tmp[1]= '\'';
-        tmp[length]= '\'';
-        type.length(length + 1);
+        str.qs_append('b');
+        str.qs_append('\'');
+        str.qs_append(field->val_int(), 2);
+        str.qs_append('\'');
         quoted= 0;
       }
       else
       {
-        field->val_str(&type);
+        field->val_str(&str);
         if (!field->str_needs_quotes())
           quoted= 0;
       }
-      if (type.length())
+      if (str.length())
       {
-        String def_val;
+        StringBuffer<MAX_FIELD_WIDTH> def_val;
         uint dummy_errors;
         /* convert to system_charset_info == utf8 */
-        def_val.copy(type.ptr(), type.length(), field->charset(),
+        def_val.copy(str.ptr(), str.length(), field->charset(),
                      system_charset_info, &dummy_errors);
         if (quoted)
           append_unescaped(def_value, def_val.ptr(), def_val.length());
         else
-          def_value->move(def_val);
+          def_value->append(def_val);
       }
       else if (quoted)
         def_value->set(STRING_WITH_LEN("''"), system_charset_info);
@@ -1904,13 +1911,13 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
 
     if (field->vcol_info)
     {
-      packet->append(STRING_WITH_LEN(" AS ("));
-      packet->append(field->vcol_info->expr_str.str,
-                     field->vcol_info->expr_str.length,
-                     &my_charset_utf8mb4_general_ci);
+      StringBuffer<MAX_FIELD_WIDTH> str(&my_charset_utf8mb4_general_ci);
+      field->vcol_info->print(&str);
+      packet->append(STRING_WITH_LEN(" GENERATED ALWAYS AS ("));
+      packet->append(str);
       packet->append(STRING_WITH_LEN(")"));
       if (field->vcol_info->stored_in_db)
-        packet->append(STRING_WITH_LEN(" PERSISTENT"));
+        packet->append(STRING_WITH_LEN(" STORED"));
       else
         packet->append(STRING_WITH_LEN(" VIRTUAL"));
     }
@@ -1947,10 +1954,10 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
     }
     if (field->check_constraint)
     {
+      StringBuffer<MAX_FIELD_WIDTH> str(&my_charset_utf8mb4_general_ci);
+      field->check_constraint->print(&str);
       packet->append(STRING_WITH_LEN(" CHECK ("));
-      packet->append(field->check_constraint->expr_str.str,
-                     field->check_constraint->expr_str.length,
-                     &my_charset_utf8mb4_general_ci);
+      packet->append(str);
       packet->append(STRING_WITH_LEN(")"));
     }
 
@@ -2048,7 +2055,9 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
     for (uint i= share->field_check_constraints;
          i < share->table_check_constraints ; i++)
     {
+      StringBuffer<MAX_FIELD_WIDTH> str(&my_charset_utf8mb4_general_ci);
       Virtual_column_info *check= table->check_constraints[i];
+      check->print(&str);
 
       packet->append(STRING_WITH_LEN(",\n  "));
       if (check->name.length)
@@ -2057,9 +2066,7 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
         append_identifier(thd, packet, check->name.str, check->name.length);
       }
       packet->append(STRING_WITH_LEN(" CHECK ("));
-      packet->append(check->expr_str.str,
-                     check->expr_str.length,
-                     &my_charset_utf8mb4_general_ci);
+      packet->append(str);
       packet->append(STRING_WITH_LEN(")"));
     }
   }
@@ -2218,7 +2225,7 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
       uint part_syntax_len;
       char *part_syntax;
       String comment_start;
-      table->part_info->set_show_version_string(&comment_start);
+      comment_start.append(STRING_WITH_LEN("\n"));
       if ((part_syntax= generate_partition_syntax(thd, table->part_info,
                                                   &part_syntax_len,
                                                   FALSE,
@@ -2227,8 +2234,7 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
                                                   comment_start.c_ptr())))
       {
          packet->append(comment_start);
-         if (packet->append(part_syntax, part_syntax_len) ||
-             packet->append(STRING_WITH_LEN(" */")))
+         if (packet->append(part_syntax, part_syntax_len))
           error= 1;
          my_free(part_syntax);
       }
@@ -4669,7 +4675,7 @@ public:
   bool handle_condition(THD *thd,
                         uint sql_errno,
                         const char* sqlstate,
-                        Sql_condition::enum_warning_level level,
+                        Sql_condition::enum_warning_level *level,
                         const char* msg,
                         Sql_condition ** cond_hdl)
   {
@@ -4678,7 +4684,7 @@ public:
         sql_errno == ER_TRG_NO_CREATION_CTX)
       return true;
 
-    if (level != Sql_condition::WARN_LEVEL_ERROR)
+    if (*level != Sql_condition::WARN_LEVEL_ERROR)
       return false;
 
     if (!thd->get_stmt_da()->is_error())
@@ -5502,9 +5508,9 @@ static int get_schema_column_record(THD *thd, TABLE_LIST *tables,
     if (field->vcol_info)
     {
       if (field->vcol_info->stored_in_db)
-        table->field[17]->store(STRING_WITH_LEN("PERSISTENT"), cs);
+        table->field[17]->store(STRING_WITH_LEN("STORED GENERATED"), cs);
       else
-        table->field[17]->store(STRING_WITH_LEN("VIRTUAL"), cs);
+        table->field[17]->store(STRING_WITH_LEN("VIRTUAL GENERATED"), cs);
     }
     table->field[19]->store(field->comment.str, field->comment.length, cs);
     if (schema_table_store_record(thd, table))
@@ -6385,43 +6391,56 @@ static int get_schema_constraints_record(THD *thd, TABLE_LIST *tables,
 }
 
 
-static bool store_trigger(THD *thd, TABLE *table, LEX_STRING *db_name,
-                          LEX_STRING *table_name, LEX_STRING *trigger_name,
-                          enum trg_event_type event,
-                          enum trg_action_time_type timing,
-                          LEX_STRING *trigger_stmt,
-                          ulong sql_mode,
-                          LEX_STRING *definer_buffer,
-                          LEX_STRING *client_cs_name,
-                          LEX_STRING *connection_cl_name,
-                          LEX_STRING *db_cl_name)
+static bool store_trigger(THD *thd, Trigger *trigger,
+                          TABLE *table, LEX_STRING *db_name,
+                          LEX_STRING *table_name)
 {
   CHARSET_INFO *cs= system_charset_info;
   LEX_STRING sql_mode_rep;
+  MYSQL_TIME timestamp;
+  char definer_holder[USER_HOST_BUFF_SIZE];
+  LEX_STRING definer_buffer, trigger_stmt, trigger_body;
+  definer_buffer.str= definer_holder;
+
+  trigger->get_trigger_info(&trigger_stmt, &trigger_body, &definer_buffer);
 
   restore_record(table, s->default_values);
   table->field[0]->store(STRING_WITH_LEN("def"), cs);
   table->field[1]->store(db_name->str, db_name->length, cs);
-  table->field[2]->store(trigger_name->str, trigger_name->length, cs);
-  table->field[3]->store(trg_event_type_names[event].str,
-                         trg_event_type_names[event].length, cs);
+  table->field[2]->store(trigger->name.str, trigger->name.length, cs);
+  table->field[3]->store(trg_event_type_names[trigger->event].str,
+                         trg_event_type_names[trigger->event].length, cs);
   table->field[4]->store(STRING_WITH_LEN("def"), cs);
   table->field[5]->store(db_name->str, db_name->length, cs);
   table->field[6]->store(table_name->str, table_name->length, cs);
-  table->field[9]->store(trigger_stmt->str, trigger_stmt->length, cs);
+  table->field[7]->store(trigger->action_order);
+  table->field[9]->store(trigger_body.str, trigger_body.length, cs);
   table->field[10]->store(STRING_WITH_LEN("ROW"), cs);
-  table->field[11]->store(trg_action_time_type_names[timing].str,
-                          trg_action_time_type_names[timing].length, cs);
+  table->field[11]->store(trg_action_time_type_names[trigger->action_time].str,
+                          trg_action_time_type_names[trigger->action_time].length, cs);
   table->field[14]->store(STRING_WITH_LEN("OLD"), cs);
   table->field[15]->store(STRING_WITH_LEN("NEW"), cs);
 
-  sql_mode_string_representation(thd, sql_mode, &sql_mode_rep);
+  if (trigger->create_time)
+  {
+    table->field[16]->set_notnull();
+    thd->variables.time_zone->gmt_sec_to_TIME(&timestamp,
+                                              trigger->create_time/100);
+    /* timestamp is with 6 digits */
+    timestamp.second_part= (trigger->create_time % 100) * 10000;
+    ((Field_temporal_with_date*) table->field[16])->store_time_dec(&timestamp,
+                                                                   2);
+  }
+
+  sql_mode_string_representation(thd, trigger->sql_mode, &sql_mode_rep);
   table->field[17]->store(sql_mode_rep.str, sql_mode_rep.length, cs);
-  table->field[18]->store(definer_buffer->str, definer_buffer->length, cs);
-  table->field[19]->store(client_cs_name->str, client_cs_name->length, cs);
-  table->field[20]->store(connection_cl_name->str,
-                          connection_cl_name->length, cs);
-  table->field[21]->store(db_cl_name->str, db_cl_name->length, cs);
+  table->field[18]->store(definer_buffer.str, definer_buffer.length, cs);
+  table->field[19]->store(trigger->client_cs_name.str,
+                          trigger->client_cs_name.length, cs);
+  table->field[20]->store(trigger->connection_cl_name.str,
+                          trigger->connection_cl_name.length, cs);
+  table->field[21]->store(trigger->db_cl_name.str,
+                          trigger->db_cl_name.length, cs);
 
   return schema_table_store_record(thd, table);
 }
@@ -6458,35 +6477,16 @@ static int get_schema_triggers_record(THD *thd, TABLE_LIST *tables,
     {
       for (timing= 0; timing < (int)TRG_ACTION_MAX; timing++)
       {
-        LEX_STRING trigger_name;
-        LEX_STRING trigger_stmt;
-        ulong sql_mode;
-        char definer_holder[USER_HOST_BUFF_SIZE];
-        LEX_STRING definer_buffer;
-        LEX_STRING client_cs_name;
-        LEX_STRING connection_cl_name;
-        LEX_STRING db_cl_name;
-
-        definer_buffer.str= definer_holder;
-        if (triggers->get_trigger_info(thd, (enum trg_event_type) event,
-                                       (enum trg_action_time_type)timing,
-                                       &trigger_name, &trigger_stmt,
-                                       &sql_mode,
-                                       &definer_buffer,
-                                       &client_cs_name,
-                                       &connection_cl_name,
-                                       &db_cl_name))
-          continue;
-
-        if (store_trigger(thd, table, db_name, table_name, &trigger_name,
-                         (enum trg_event_type) event,
-                         (enum trg_action_time_type) timing, &trigger_stmt,
-                         sql_mode,
-                         &definer_buffer,
-                         &client_cs_name,
-                         &connection_cl_name,
-                         &db_cl_name))
-          DBUG_RETURN(1);
+        Trigger *trigger;
+        for (trigger= triggers->
+               get_trigger((enum trg_event_type) event,
+                           (enum trg_action_time_type) timing) ;
+             trigger;
+             trigger= trigger->next)
+        {
+          if (store_trigger(thd, trigger, table, db_name, table_name))
+            DBUG_RETURN(1);
+        }
       }
     }
   }
@@ -7358,6 +7358,7 @@ get_referential_constraints_record(THD *thd, TABLE_LIST *tables,
                                    LEX_STRING *db_name, LEX_STRING *table_name)
 {
   CHARSET_INFO *cs= system_charset_info;
+  LEX_CSTRING *s;
   DBUG_ENTER("get_referential_constraints_record");
 
   if (res)
@@ -7402,10 +7403,10 @@ get_referential_constraints_record(THD *thd, TABLE_LIST *tables,
       else
         table->field[5]->set_null();
       table->field[6]->store(STRING_WITH_LEN("NONE"), cs);
-      table->field[7]->store(f_key_info->update_method->str,
-                             f_key_info->update_method->length, cs);
-      table->field[8]->store(f_key_info->delete_method->str,
-                             f_key_info->delete_method->length, cs);
+      s= fk_option_name(f_key_info->update_method);
+      table->field[7]->store(s->str, s->length, cs);
+      s= fk_option_name(f_key_info->delete_method);
+      table->field[8]->store(s->str, s->length, cs);
       if (schema_table_store_record(thd, table))
         DBUG_RETURN(1);
     }
@@ -7569,6 +7570,7 @@ TABLE *create_schema_table(THD *thd, TABLE_LIST *table_list)
                                   strlen(fields_info->field_name),
                                   fields_info->field_type)))
         DBUG_RETURN(0);
+      item->decimals= fields_info->field_length;
       break;
     case MYSQL_TYPE_FLOAT:
     case MYSQL_TYPE_DOUBLE:
@@ -8438,7 +8440,7 @@ ST_FIELD_INFO columns_fields_info[]=
    OPEN_FRM_ONLY},
   {"COLUMN_TYPE", 65535, MYSQL_TYPE_STRING, 0, 0, "Type", OPEN_FRM_ONLY},
   {"COLUMN_KEY", 3, MYSQL_TYPE_STRING, 0, 0, "Key", OPEN_FRM_ONLY},
-  {"EXTRA", 27, MYSQL_TYPE_STRING, 0, 0, "Extra", OPEN_FRM_ONLY},
+  {"EXTRA", 30, MYSQL_TYPE_STRING, 0, 0, "Extra", OPEN_FRM_ONLY},
   {"PRIVILEGES", 80, MYSQL_TYPE_STRING, 0, 0, "Privileges", OPEN_FRM_ONLY},
   {"COLUMN_COMMENT", COLUMN_COMMENT_MAXLEN, MYSQL_TYPE_STRING, 0, 0, 
    "Comment", OPEN_FRM_ONLY},
@@ -8776,7 +8778,8 @@ ST_FIELD_INFO triggers_fields_info[]=
    OPEN_FRM_ONLY},
   {"ACTION_REFERENCE_OLD_ROW", 3, MYSQL_TYPE_STRING, 0, 0, 0, OPEN_FRM_ONLY},
   {"ACTION_REFERENCE_NEW_ROW", 3, MYSQL_TYPE_STRING, 0, 0, 0, OPEN_FRM_ONLY},
-  {"CREATED", 0, MYSQL_TYPE_DATETIME, 0, 1, "Created", OPEN_FRM_ONLY},
+  /* 2 here indicates 2 decimals */
+  {"CREATED", 2, MYSQL_TYPE_DATETIME, 0, 1, "Created", OPEN_FRM_ONLY},
   {"SQL_MODE", 32*256, MYSQL_TYPE_STRING, 0, 0, "sql_mode", OPEN_FRM_ONLY},
   {"DEFINER", DEFINER_CHAR_LENGTH, MYSQL_TYPE_STRING, 0, 0, "Definer", OPEN_FRM_ONLY},
   {"CHARACTER_SET_CLIENT", MY_CS_NAME_SIZE, MYSQL_TYPE_STRING, 0, 0,
@@ -8913,7 +8916,7 @@ ST_FIELD_INFO plugin_fields_info[]=
 ST_FIELD_INFO files_fields_info[]=
 {
   {"FILE_ID", 4, MYSQL_TYPE_LONGLONG, 0, 0, 0, SKIP_OPEN_TABLE},
-  {"FILE_NAME", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 1, 0, SKIP_OPEN_TABLE},
+  {"FILE_NAME", FN_REFLEN, MYSQL_TYPE_STRING, 0, 1, 0, SKIP_OPEN_TABLE},
   {"FILE_TYPE", 20, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE},
   {"TABLESPACE_NAME", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 1, 0,
    SKIP_OPEN_TABLE},
@@ -9307,35 +9310,35 @@ int finalize_schema_table(st_plugin_int *plugin)
   DBUG_RETURN(0);
 }
 
+/*
+  This is used to create a timestamp field
+*/
+
+MYSQL_TIME zero_time={ 0,0,0,0,0,0,0,0, MYSQL_TIMESTAMP_TIME };
 
 /**
   Output trigger information (SHOW CREATE TRIGGER) to the client.
 
   @param thd          Thread context.
-  @param triggers     List of triggers for the table.
-  @param trigger_idx  Index of the trigger to dump.
+  @param trigger      Trigger to dump
 
   @return Operation status
     @retval TRUE Error.
     @retval FALSE Success.
 */
 
-static bool show_create_trigger_impl(THD *thd,
-                                     Table_triggers_list *triggers,
-                                     int trigger_idx)
+static bool show_create_trigger_impl(THD *thd, Trigger *trigger)
 {
   int ret_code;
   Protocol *p= thd->protocol;
   List<Item> fields;
-  LEX_STRING trg_name;
-  ulonglong trg_sql_mode;
-  LEX_STRING trg_sql_mode_str;
+  LEX_STRING trg_sql_mode_str, trg_body;
   LEX_STRING trg_sql_original_stmt;
-  LEX_STRING trg_client_cs_name;
-  LEX_STRING trg_connection_cl_name;
-  LEX_STRING trg_db_cl_name;
+  LEX_STRING trg_definer;
   CHARSET_INFO *trg_client_cs;
   MEM_ROOT *mem_root= thd->mem_root;
+  char definer_holder[USER_HOST_BUFF_SIZE];
+  trg_definer.str= definer_holder;
 
   /*
     TODO: Check privileges here. This functionality will be added by
@@ -9349,20 +9352,12 @@ static bool show_create_trigger_impl(THD *thd,
 
   /* Prepare trigger "object". */
 
-  triggers->get_trigger_info(thd,
-                             trigger_idx,
-                             &trg_name,
-                             &trg_sql_mode,
-                             &trg_sql_original_stmt,
-                             &trg_client_cs_name,
-                             &trg_connection_cl_name,
-                             &trg_db_cl_name);
-
-  sql_mode_string_representation(thd, trg_sql_mode, &trg_sql_mode_str);
+  trigger->get_trigger_info(&trg_sql_original_stmt, &trg_body, &trg_definer);
+  sql_mode_string_representation(thd, trigger->sql_mode, &trg_sql_mode_str);
 
   /* Resolve trigger client character set. */
 
-  if (resolve_charset(trg_client_cs_name.str, NULL, &trg_client_cs))
+  if (resolve_charset(trigger->client_cs_name.str, NULL, &trg_client_cs))
     return TRUE;
 
   /* Send header. */
@@ -9404,6 +9399,11 @@ static bool show_create_trigger_impl(THD *thd,
                                      MY_CS_NAME_SIZE),
                    mem_root);
 
+  Item_datetime_literal *tmp= (new (mem_root) 
+                               Item_datetime_literal(thd, &zero_time, 2));
+  tmp->set_name(thd, STRING_WITH_LEN("Created"), system_charset_info);
+  fields.push_back(tmp, mem_root);
+
   if (p->send_result_set_metadata(&fields,
                                   Protocol::SEND_NUM_ROWS |
                                   Protocol::SEND_EOF))
@@ -9413,8 +9413,8 @@ static bool show_create_trigger_impl(THD *thd,
 
   p->prepare_for_resend();
 
-  p->store(trg_name.str,
-           trg_name.length,
+  p->store(trigger->name.str,
+           trigger->name.length,
            system_charset_info);
 
   p->store(trg_sql_mode_str.str,
@@ -9425,17 +9425,29 @@ static bool show_create_trigger_impl(THD *thd,
            trg_sql_original_stmt.length,
            trg_client_cs);
 
-  p->store(trg_client_cs_name.str,
-           trg_client_cs_name.length,
+  p->store(trigger->client_cs_name.str,
+           trigger->client_cs_name.length,
            system_charset_info);
 
-  p->store(trg_connection_cl_name.str,
-           trg_connection_cl_name.length,
+  p->store(trigger->connection_cl_name.str,
+           trigger->connection_cl_name.length,
            system_charset_info);
 
-  p->store(trg_db_cl_name.str,
-           trg_db_cl_name.length,
+  p->store(trigger->db_cl_name.str,
+           trigger->db_cl_name.length,
            system_charset_info);
+
+  if (trigger->create_time)
+  {
+    MYSQL_TIME timestamp;
+    thd->variables.time_zone->gmt_sec_to_TIME(&timestamp,
+                                              trigger->create_time/100);
+    timestamp.second_part= (trigger->create_time % 100) * 10000;
+    p->store(&timestamp, 2);
+  }
+  else
+    p->store_null();
+
 
   ret_code= p->write();
 
@@ -9528,7 +9540,7 @@ bool show_create_trigger(THD *thd, const sp_name *trg_name)
   TABLE_LIST *lst= get_trigger_table(thd, trg_name);
   uint num_tables; /* NOTE: unused, only to pass to open_tables(). */
   Table_triggers_list *triggers;
-  int trigger_idx;
+  Trigger *trigger;
   bool error= TRUE;
 
   if (!lst)
@@ -9569,9 +9581,9 @@ bool show_create_trigger(THD *thd, const sp_name *trg_name)
     goto exit;
   }
 
-  trigger_idx= triggers->find_trigger_by_name(&trg_name->m_name);
+  trigger= triggers->find_trigger(&trg_name->m_name, 0);
 
-  if (trigger_idx < 0)
+  if (!trigger)
   {
     my_error(ER_TRG_CORRUPTED_FILE, MYF(0),
              (const char *) trg_name->m_db.str,
@@ -9580,7 +9592,7 @@ bool show_create_trigger(THD *thd, const sp_name *trg_name)
     goto exit;
   }
 
-  error= show_create_trigger_impl(thd, triggers, trigger_idx);
+  error= show_create_trigger_impl(thd, trigger);
 
   /*
     NOTE: if show_create_trigger_impl() failed, that means we could not

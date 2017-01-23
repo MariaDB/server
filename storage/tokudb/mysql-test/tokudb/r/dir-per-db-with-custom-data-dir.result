@@ -1,0 +1,10 @@
+SELECT @@tokudb_dir_per_db;
+@@tokudb_dir_per_db
+1
+TOKUDB_DATA_DIR_CHANGED
+1
+CREATE DATABASE tokudb_test;
+USE tokudb_test;
+CREATE TABLE t (a INT UNSIGNED AUTO_INCREMENT PRIMARY KEY) ENGINE=tokudb;
+DROP TABLE t;
+DROP DATABASE tokudb_test;

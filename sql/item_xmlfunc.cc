@@ -13,10 +13,6 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA */
 
-#ifdef __GNUC__
-#pragma implementation
-#endif
-
 #include <my_global.h>
 #include "sql_priv.h"
 /*
@@ -403,19 +399,6 @@ public:
   String *val_nodeset(String *nodeset);
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_nodeset_func_elementbyindex>(thd, mem_root, this); }
-};
-
-
-/*
-  We need to distinguish a number from a boolean:
-  a[1] and a[true] are different things in XPath.
-*/
-class Item_bool :public Item_int
-{
-public:
-  Item_bool(THD *thd, int32 i): Item_int(thd, i) {}
-  const char *func_name() const { return "xpath_bool"; }
-  bool is_bool_type() { return true; }
 };
 
 
@@ -1214,13 +1197,13 @@ my_xpath_keyword(MY_XPATH *x,
 
 static Item *create_func_true(MY_XPATH *xpath, Item **args, uint nargs)
 {
-  return new (xpath->thd->mem_root) Item_bool(xpath->thd, 1);
+  return new (xpath->thd->mem_root) Item_bool(xpath->thd, "xpath_bool", 1);
 }
 
 
 static Item *create_func_false(MY_XPATH *xpath, Item **args, uint nargs)
 {
-  return new (xpath->thd->mem_root) Item_bool(xpath->thd, 0);
+  return new (xpath->thd->mem_root) Item_bool(xpath->thd, "xpath_bool", 0);
 }
 
 

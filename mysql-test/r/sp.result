@@ -997,9 +997,9 @@ select f5(1)|
 f5(1)
 1
 select f5(2)|
-ERROR HY000: Recursive stored functions and triggers are not allowed.
+ERROR HY000: Recursive stored functions and triggers are not allowed
 select f5(3)|
-ERROR HY000: Recursive stored functions and triggers are not allowed.
+ERROR HY000: Recursive stored functions and triggers are not allowed
 create function f6() returns int
 begin
 declare n int;
@@ -1048,11 +1048,11 @@ ERROR HY000: View 'test.v1' references invalid table(s) or column(s) or function
 create function f1() returns int
 return (select sum(data) from t1) + (select sum(data) from v1)|
 select f1()|
-ERROR HY000: Recursive stored functions and triggers are not allowed.
+ERROR HY000: Recursive stored functions and triggers are not allowed
 select * from v1|
-ERROR HY000: Recursive stored functions and triggers are not allowed.
+ERROR HY000: Recursive stored functions and triggers are not allowed
 select * from v2|
-ERROR HY000: Recursive stored functions and triggers are not allowed.
+ERROR HY000: Recursive stored functions and triggers are not allowed
 drop function f1|
 create function f1() returns int
 return (select sum(data) from t1)|
@@ -4064,9 +4064,9 @@ select @@max_sp_recursion_depth|
 @@max_sp_recursion_depth
 4
 select bug10100f(3)|
-ERROR HY000: Recursive stored functions and triggers are not allowed.
+ERROR HY000: Recursive stored functions and triggers are not allowed
 select bug10100f(6)|
-ERROR HY000: Recursive stored functions and triggers are not allowed.
+ERROR HY000: Recursive stored functions and triggers are not allowed
 call bug10100t(5)|
 res
 120
@@ -4135,7 +4135,7 @@ select @@max_sp_recursion_depth|
 @@max_sp_recursion_depth
 0
 select bug10100f(5)|
-ERROR HY000: Recursive stored functions and triggers are not allowed.
+ERROR HY000: Recursive stored functions and triggers are not allowed
 call bug10100t(5)|
 ERROR HY000: Recursive limit 0 (as set by the max_sp_recursion_depth variable) was exceeded for routine bug10100p
 deallocate prepare stmt2|
@@ -6045,12 +6045,12 @@ select bug20777(9223372036854775810) as '9223372036854775810   2**63+2';
 9223372036854775810   2**63+2
 9223372036854775810
 select bug20777(-9223372036854775808) as 'lower bounds signed bigint';
-ERROR 22003: BIGINT UNSIGNED value is out of range in '(f1@0 - 10)'
+ERROR 22003: BIGINT UNSIGNED value is out of range in 'f1@0 - 10'
 select bug20777(9223372036854775807) as 'upper bounds signed bigint';
 upper bounds signed bigint
 9223372036854775807
 select bug20777(0) as 'lower bounds unsigned bigint';
-ERROR 22003: BIGINT UNSIGNED value is out of range in '(f1@0 - 10)'
+ERROR 22003: BIGINT UNSIGNED value is out of range in 'f1@0 - 10'
 select bug20777(18446744073709551615) as 'upper bounds unsigned bigint';
 upper bounds unsigned bigint
 18446744073709551615
@@ -6060,7 +6060,7 @@ upper bounds unsigned bigint + 1
 Warnings:
 Warning	1264	Out of range value for column 'f1' at row 1
 select bug20777(-1) as 'lower bounds unsigned bigint - 1';
-ERROR 22003: BIGINT UNSIGNED value is out of range in '(f1@0 - 10)'
+ERROR 22003: BIGINT UNSIGNED value is out of range in 'f1@0 - 10'
 create table examplebug20777 as select 
 0 as 'i',
 bug20777(9223372036854775806) as '2**63-2',
@@ -7870,6 +7870,45 @@ v1
 6
 DROP PROCEDURE p1;
 DROP TABLE t1;
+#
+# MDEV-10713: signal 11 error on multi-table update - crash in
+# handler::increment_statistics or in make_select or assertion
+# failure pfs_thread == ((PFS_thread*) pthread_getspecific((THR_PFS)))
+#
+CREATE TABLE `t1` (
+`CLOSE_YN` varchar(10) COLLATE utf8_bin DEFAULT NULL
+) DEFAULT CHARSET=utf8 COLLATE=utf8_bin ;
+CREATE TABLE `t2` (
+`ap_close_to` varchar(8) COLLATE utf8_bin DEFAULT NULL
+) DEFAULT CHARSET=utf8 COLLATE=utf8_bin ;
+insert t1 values (1);
+CREATE  FUNCTION `f1`(`P_DC_CD` VARBINARY(50), `P_SYS_DATE` DATETIME) RETURNS datetime
+DETERMINISTIC
+SQL SECURITY INVOKER
+BEGIN
+DECLARE V_SYS_DATE DATETIME;
+SELECT now() AS LOC_DATE INTO V_SYS_DATE ;
+RETURN v_sys_date ;
+END $$
+update t1 S
+JOIN
+(
+SELECT CASE
+WHEN DATE_FORMAT( f1('F01', NOW()) , '%Y%m%d') <= CLOSE_YMD
+THEN '99991231'
+	     ELSE '' END ACCOUNT_APPLY_YYYYMMDD
+FROM (
+select case
+when 'AP'='AP'
+                   then ap_close_to
+end AS CLOSE_YMD
+from t2
+) A
+) X
+SET S.CLOSE_YN = ''
+where 1=1;
+drop function if exists f1;
+drop table t1,t2;
 # End of 5.5 test
 #
 #  MDEV-7040: Crash in field_conv, memcpy_field_possible, part#2
@@ -8001,3 +8040,52 @@ return 1;
 end |
 ERROR 0A000: Not allowed to return a result set from a function
 drop table t1,t2;
+#
+# MDEV-11584: GRANT inside an SP does not work well on 2nd execution
+#
+CREATE PROCEDURE sp1()
+GRANT ALL PRIVILEGES ON *.* TO 'foo'@'%' IDENTIFIED BY 'pass';
+CALL sp1();
+CALL sp1();
+drop user 'foo'@'%';
+drop procedure sp1;
+#End of 10.1 tests
+#
+# MDEV-11081: CURSOR for query with GROUP BY
+#
+CREATE TABLE t1 (name VARCHAR(10), value INT);
+INSERT INTO t1 VALUES ('b',1);
+INSERT INTO t1 VALUES ('b',1);
+INSERT INTO t1 VALUES ('c',1);
+INSERT INTO t1 VALUES ('a',1);
+INSERT INTO t1 VALUES ('a',1);
+INSERT INTO t1 VALUES ('a',1);
+CREATE PROCEDURE p1 ()
+BEGIN
+DECLARE done INT DEFAULT FALSE;
+DECLARE v_name VARCHAR(10);
+DECLARE v_total INT;
+DECLARE c CURSOR FOR
+SELECT name, SUM(value) AS total FROM t1 GROUP BY name;
+DECLARE CONTINUE HANDLER FOR NOT FOUND SET done = TRUE;
+OPEN c;
+read_loop:
+LOOP
+FETCH c INTO v_name, v_total;
+IF done THEN
+LEAVE read_loop;
+END IF;
+SELECT v_name, v_total;
+END LOOP;
+CLOSE c;
+END;
+|
+CALL p1();
+v_name	v_total
+a	3
+v_name	v_total
+b	2
+v_name	v_total
+c	1
+DROP PROCEDURE p1;
+DROP TABLE t1;

@@ -56,12 +56,6 @@ MACRO(CHECK_SYSTEMD)
          AND HAVE_SYSTEMD_SD_NOTIFY AND HAVE_SYSTEMD_SD_NOTIFYF)
         ADD_DEFINITIONS(-DHAVE_SYSTEMD)
         SET(SYSTEMD_SCRIPTS mariadb-service-convert galera_new_cluster galera_recovery)
-        SET(SYSTEMD_DEB_FILES "usr/bin/mariadb-service-convert
-                               usr/bin/galera_new_cluster
-                               usr/bin/galera_recovery
-                               ${INSTALL_SYSTEMD_UNITDIR}/mariadb.service
-                               ${INSTALL_SYSTEMD_UNITDIR}/mariadb@.service
-                               ${INSTALL_SYSTEMD_UNITDIR}/mariadb@bootstrap.service.d/use_galera_new_cluster.conf")
         IF(DEB)
           SET(SYSTEMD_EXECSTARTPRE "ExecStartPre=/usr/bin/install -m 755 -o mysql -g root -d /var/run/mysqld")
           SET(SYSTEMD_EXECSTARTPOST "ExecStartPost=/etc/mysql/debian-start")

@@ -31,7 +31,7 @@
 #include <m_ctype.h>
 #include "sql_sort.h"
 #include "probes_mysql.h"
-#include "sql_base.h"                           // update_virtual_fields
+#include "sql_base.h"
 #include "sql_test.h"                           // TEST_filesort
 #include "opt_range.h"                          // SQL_SELECT
 #include "bounded_queue.h"
@@ -716,7 +716,7 @@ static ha_rows find_all_keys(THD *thd, Sort_param *param, SQL_SELECT *select,
   TABLE *sort_form;
   handler *file;
   MY_BITMAP *save_read_set, *save_write_set, *save_vcol_set;
-  
+  Item *sort_cond;
   DBUG_ENTER("find_all_keys");
   DBUG_PRINT("info",("using: %s",
                      (select ? select->quick ? "ranges" : "where":
@@ -754,22 +754,22 @@ static ha_rows find_all_keys(THD *thd, Sort_param *param, SQL_SELECT *select,
   /* Remember original bitmaps */
   save_read_set=  sort_form->read_set;
   save_write_set= sort_form->write_set;
-  save_vcol_set= sort_form->vcol_set;
+  save_vcol_set=  sort_form->vcol_set;
+
   /* Set up temporary column read map for columns used by sort */
   bitmap_clear_all(&sort_form->tmp_set);
-  /* Temporary set for register_used_fields and register_field_in_read_map */
-  sort_form->read_set= &sort_form->tmp_set;
-  register_used_fields(param);
-  if (quick_select)
-    select->quick->add_used_key_part_to_set(sort_form->read_set);
-
-  Item *sort_cond= !select ?  
-                     0 : !select->pre_idx_push_select_cond ? 
-                           select->cond : select->pre_idx_push_select_cond;
-  if (sort_cond)
-    sort_cond->walk(&Item::register_field_in_read_map, 1, sort_form);
   sort_form->column_bitmaps_set(&sort_form->tmp_set, &sort_form->tmp_set, 
                                 &sort_form->tmp_set);
+  register_used_fields(param);
+  if (quick_select)
+    select->quick->add_used_key_part_to_set();
+
+  sort_cond= (!select ? 0 :
+              (!select->pre_idx_push_select_cond ?
+               select->cond : select->pre_idx_push_select_cond));
+  if (sort_cond)
+    sort_cond->walk(&Item::register_field_in_read_map, 1, sort_form);
+  sort_form->file->column_bitmaps_signal();
 
   if (quick_select)
   {
@@ -784,8 +784,6 @@ static ha_rows find_all_keys(THD *thd, Sort_param *param, SQL_SELECT *select,
     {
       if ((error= select->quick->get_next()))
         break;
-      if (!error && sort_form->vfield)
-        update_virtual_fields(thd, sort_form);
       file->position(sort_form->record[0]);
       DBUG_EXECUTE_IF("debug_filesort", dbug_print_record(sort_form, TRUE););
     }
@@ -793,8 +791,6 @@ static ha_rows find_all_keys(THD *thd, Sort_param *param, SQL_SELECT *select,
     {
       {
 	error= file->ha_rnd_next(sort_form->record[0]);
-	if (!error && sort_form->vfield)
-	  update_virtual_fields(thd, sort_form);
 	if (!flag)
 	{
 	  my_store_ptr(ref_pos,ref_length,record); // Position to row
@@ -1263,7 +1259,6 @@ static void register_used_fields(Sort_param *param)
 {
   reg1 SORT_FIELD *sort_field;
   TABLE *table=param->sort_form;
-  MY_BITMAP *bitmap= table->read_set;
 
   for (sort_field= param->local_sortorder ;
        sort_field != param->end ;
@@ -1273,14 +1268,7 @@ static void register_used_fields(Sort_param *param)
     if ((field= sort_field->field))
     {
       if (field->table == table)
-      {
-        if (field->vcol_info)
-	{
-          Item *vcol_item= field->vcol_info->expr_item;
-          vcol_item->walk(&Item::register_field_in_read_map, 1, 0);
-        }                   
-        bitmap_set_bit(bitmap, field->field_index);
-      }
+        field->register_field_in_read_map();
     }
     else
     {						// Item
@@ -1293,7 +1281,7 @@ static void register_used_fields(Sort_param *param)
     SORT_ADDON_FIELD *addonf= param->addon_field;
     Field *field;
     for ( ; (field= addonf->field) ; addonf++)
-      bitmap_set_bit(bitmap, field->field_index);
+      field->register_field_in_read_map();
   }
   else
   {

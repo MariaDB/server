@@ -5,7 +5,7 @@ create temporary table bar (a int, key(a))engine=TOkuDB;
 alter table bar add column c int default 0;
 create index blah on bar(a);
 Warnings:
-Note	1831	Duplicate index 'blah' defined on the table 'test.bar'. This is deprecated and will be disallowed in a future release.
+Note	1831	Duplicate index `blah`. This is deprecated and will be disallowed in a future release
 drop index a on bar;
 set session tokudb_disable_slow_alter=OFF;
 insert into bar (a) values (1),(2),(3);

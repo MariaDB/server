@@ -1,0 +1,54 @@
+--source include/not_embedded.inc
+--echo #
+--echo # MDEV-10744 Roles are not fully case-sensitive
+--echo #
+
+--echo #
+--echo # Test creating two case-different roles.
+--echo #
+create user test_user@'%';
+create role test_ROLE;
+create role test_role;
+--echo #
+--echo # Test if mysql.user has the roles created.
+--echo #
+--sorted_result
+select user, host from mysql.user where is_role='y' and user like 'test%';
+
+create database secret_db;
+create table secret_db.t1 (secret varchar(100));
+insert into secret_db.t1 values ("Some Secret P4ssw0rd");
+
+grant select on secret_db.* to test_role;
+grant test_role to test_user;
+show grants for test_user;
+--echo #
+--echo # Now test the UPPER case role.
+--echo #
+grant test_ROLE to test_user;
+grant insert on secret_db.t1 to test_ROLE;
+show grants for test_user;
+connect (test_user,localhost,test_user);
+
+--echo #
+--echo # Test users privileges when interacting with those roles;
+--echo #
+--error ER_DBACCESS_DENIED_ERROR
+show tables from secret_db;
+set role test_ROLE;
+show tables from secret_db;
+--error ER_TABLEACCESS_DENIED_ERROR
+select * from secret_db.t1;
+insert into secret_db.t1 values ("|-|4><");
+set role test_role;
+select * from secret_db.t1 order by secret;
+--error ER_TABLEACCESS_DENIED_ERROR
+insert into secret_db.t1 values ("|_33T|-|4><");
+
+connection default;
+
+
+drop role test_ROLE;
+drop role test_role;
+drop user test_user;
+drop database secret_db;

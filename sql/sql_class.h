@@ -21,6 +21,7 @@
 /* Classes in mysql */
 
 #include "my_global.h"                          /* NO_EMBEDDED_ACCESS_CHECKS */
+#include "dur_prop.h"
 #include <waiting_threads.h>
 #include "sql_const.h"
 #include <mysql/plugin_audit.h>
@@ -351,8 +352,6 @@ class Foreign_key: public Key {
 public:
   enum fk_match_opt { FK_MATCH_UNDEF, FK_MATCH_FULL,
 		      FK_MATCH_PARTIAL, FK_MATCH_SIMPLE};
-  enum fk_option { FK_OPTION_UNDEF, FK_OPTION_RESTRICT, FK_OPTION_CASCADE,
-		   FK_OPTION_SET_NULL, FK_OPTION_NO_ACTION, FK_OPTION_DEFAULT};
 
   LEX_STRING ref_db;
   LEX_STRING ref_table;
@@ -512,8 +511,6 @@ class Time_zone;
 
 #define THD_CHECK_SENTRY(thd) DBUG_ASSERT(thd->dbug_sentry == THD_SENTRY_MAGIC)
 
-typedef ulonglong sql_mode_t;
-
 typedef struct system_variables
 {
   /*
@@ -549,6 +546,7 @@ typedef struct system_variables
   ulonglong sortbuff_size;
   ulonglong group_concat_max_len;
   ulonglong default_regex_flags;
+  ulonglong max_mem_used;
 
   /**
      Place holders to store Multi-source variables in sys_var.cc during
@@ -696,6 +694,7 @@ typedef struct system_variables
   my_bool session_track_schema;
   my_bool session_track_state_change;
 
+  ulong threadpool_priority;
 } SV;
 
 /**
@@ -787,6 +786,7 @@ typedef struct system_status_var
   ulong feature_timezone;	    /* +1 when XPATH is used */
   ulong feature_trigger;	    /* +1 opening a table with triggers */
   ulong feature_xml;		    /* +1 when XPATH is used */
+  ulong feature_window_functions;   /* +1 when window functions are used */
 
   /* From MASTER_GTID_WAIT usage */
   ulonglong master_gtid_wait_timeouts;          /* Number of timeouts */
@@ -1279,7 +1279,8 @@ enum enum_locked_tables_mode
   LTM_NONE= 0,
   LTM_LOCK_TABLES,
   LTM_PRELOCKED,
-  LTM_PRELOCKED_UNDER_LOCK_TABLES
+  LTM_PRELOCKED_UNDER_LOCK_TABLES,
+  LTM_always_last
 };
 
 /**
@@ -1529,7 +1530,8 @@ enum enum_thread_type
   SYSTEM_THREAD_EVENT_SCHEDULER= 8,
   SYSTEM_THREAD_EVENT_WORKER= 16,
   SYSTEM_THREAD_BINLOG_BACKGROUND= 32,
-  SYSTEM_THREAD_SLAVE_BACKGROUND= 64
+  SYSTEM_THREAD_SLAVE_BACKGROUND= 64,
+  SYSTEM_THREAD_GENERIC= 128
 };
 
 inline char const *
@@ -1557,6 +1559,7 @@ show_system_thread(enum_thread_type thread)
   Internal error handlers are exception handlers used by the server
   implementation.
 */
+
 class Internal_error_handler
 {
 protected:
@@ -1594,7 +1597,7 @@ public:
   virtual bool handle_condition(THD *thd,
                                 uint sql_errno,
                                 const char* sqlstate,
-                                Sql_condition::enum_warning_level level,
+                                Sql_condition::enum_warning_level *level,
                                 const char* msg,
                                 Sql_condition ** cond_hdl) = 0;
 
@@ -1615,7 +1618,7 @@ public:
   bool handle_condition(THD *thd,
                         uint sql_errno,
                         const char* sqlstate,
-                        Sql_condition::enum_warning_level level,
+                        Sql_condition::enum_warning_level *level,
                         const char* msg,
                         Sql_condition ** cond_hdl)
   {
@@ -1642,11 +1645,35 @@ public:
   bool handle_condition(THD *thd,
                         uint sql_errno,
                         const char* sqlstate,
-                        Sql_condition::enum_warning_level level,
+                        Sql_condition::enum_warning_level *level,
                         const char* msg,
                         Sql_condition ** cond_hdl);
 
 private:
+};
+
+
+/**
+  Internal error handler to process an error from MDL_context::upgrade_lock()
+  and mysql_lock_tables(). Used by implementations of HANDLER READ and
+  LOCK TABLES LOCAL.
+*/
+
+class MDL_deadlock_and_lock_abort_error_handler: public Internal_error_handler
+{
+public:
+  virtual
+  bool handle_condition(THD *thd,
+                        uint sql_errno,
+                        const char *sqlstate,
+                        Sql_condition::enum_warning_level *level,
+                        const char* msg,
+                        Sql_condition **cond_hdl);
+
+  bool need_reopen() const { return m_need_reopen; };
+  void init() { m_need_reopen= FALSE; };
+private:
+  bool m_need_reopen;
 };
 
 
@@ -1990,14 +2017,14 @@ private:
   void dec_thread_count(void)
   {
     DBUG_ASSERT(thread_count > 0);
-    thread_safe_decrement32(const_cast<int32*>(&thread_count));
+    thread_safe_decrement32(&thread_count);
     signal_thd_deleted();
   }
 
 
   void inc_thread_count(void)
   {
-    thread_safe_increment32(const_cast<int32*>(&thread_count));
+    thread_safe_increment32(&thread_count);
   }
 
 public:
@@ -2461,6 +2488,8 @@ public:
     Note: in the parser, stmt_arena == thd, even for PS/SP.
   */
   Query_arena *stmt_arena;
+
+  void *bulk_param;
 
   /*
     map for tables that will be updated for a multi-table update query
@@ -3437,6 +3466,12 @@ public:
     To raise this flag, use my_error().
   */
   inline bool is_error() const { return m_stmt_da->is_error(); }
+  void set_bulk_execution(void *bulk)
+  {
+    bulk_param= bulk;
+    m_stmt_da->set_bulk_execution(MY_TEST(bulk));
+  }
+  bool is_bulk_op() const { return MY_TEST(bulk_param); }
 
   /// Returns Diagnostics-area for the current statement.
   Diagnostics_area *get_stmt_da()
@@ -3785,7 +3820,7 @@ private:
   */
   bool handle_condition(uint sql_errno,
                         const char* sqlstate,
-                        Sql_condition::enum_warning_level level,
+                        Sql_condition::enum_warning_level *level,
                         const char* msg,
                         Sql_condition ** cond_hdl);
 
@@ -4383,7 +4418,7 @@ protected:
   /* 
     All descendant classes have their send_data() skip the first 
     unit->offset_limit_cnt rows sent.  Select_materialize
-    also uses unit->get_unit_column_types().
+    also uses unit->get_column_types().
   */
   SELECT_LEX_UNIT *unit;
   /* Something used only by the parser: */
@@ -4445,6 +4480,9 @@ public:
   void begin_dataset() {}
 #endif
   virtual void update_used_tables() {}
+
+  /* this method is called just before the first row of the table can be read */
+  virtual void prepare_to_read_rows() {}
 
   void reset_offset_limit()
   {
@@ -5292,11 +5330,9 @@ public:
   int do_deletes();
   int do_table_deletes(TABLE *table, SORT_INFO *sort_info, bool ignore);
   bool send_eof();
-  inline ha_rows num_deleted()
-  {
-    return deleted;
-  }
+  inline ha_rows num_deleted() const { return deleted; }
   virtual void abort_result_set();
+  void prepare_to_read_rows();
 };
 
 
@@ -5340,16 +5376,11 @@ public:
   bool initialize_tables (JOIN *join);
   int  do_updates();
   bool send_eof();
-  inline ha_rows num_found()
-  {
-    return found;
-  }
-  inline ha_rows num_updated()
-  {
-    return updated;
-  }
+  inline ha_rows num_found() const { return found; }
+  inline ha_rows num_updated() const { return updated; }
   virtual void abort_result_set();
   void update_used_tables();
+  void prepare_to_read_rows();
 };
 
 class my_var : public Sql_alloc  {
@@ -5508,6 +5539,15 @@ public:
   Statement that updates existing rows (UPDATE, multi-update)
 */
 #define CF_UPDATES_DATA (1U << 18)
+
+/**
+  SP Bulk execution safe
+*/
+#define CF_SP_BULK_SAFE (1U << 19)
+/**
+  SP Bulk execution optimized
+*/
+#define CF_SP_BULK_OPTIMIZED (1U << 20)
 
 /* Bits in server_command_flags */
 
@@ -5679,6 +5719,12 @@ void thd_exit_cond(MYSQL_THD thd, const PSI_stage_info *stage,
 
 #define THD_EXIT_COND(P1, P2) \
   thd_exit_cond(P1, P2, __func__, __FILE__, __LINE__)
+
+inline bool binlog_should_compress(ulong len)
+{
+  return opt_bin_log_compress &&
+    len >= opt_bin_log_compress_min_len;
+}
 
 #endif /* MYSQL_SERVER */
 

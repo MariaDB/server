@@ -269,9 +269,9 @@ INSERT INTO `test`.`t1`(`a`,`b`,`c`,`d`) VALUES ( '1','a',NULL,NULL);
 UPDATE `test`.`t1` SET `d`='b' WHERE `a`='1' AND `b`='a' AND `c`='1' AND  `d`='a';
 INSERT INTO `test`.`t1`(`a`,`b`,`c`,`d`) VALUES ( '1','a',NULL,'a');
 set sql_mode='strict_all_tables';
---error ER_WARNING_NON_DEFAULT_VALUE_FOR_VIRTUAL_COLUMN
+--error ER_WARNING_NON_DEFAULT_VALUE_FOR_GENERATED_COLUMN
 UPDATE `test`.`t1` SET `d`='b' WHERE `a`='1' AND `b`='a' AND `c`='1' AND  `d`='a';
---error ER_WARNING_NON_DEFAULT_VALUE_FOR_VIRTUAL_COLUMN
+--error ER_WARNING_NON_DEFAULT_VALUE_FOR_GENERATED_COLUMN
 INSERT INTO `test`.`t1`(`a`,`b`,`c`,`d`) VALUES ( '1','a',NULL,'a');
 drop table t1;
 

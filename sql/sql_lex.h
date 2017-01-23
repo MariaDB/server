@@ -29,7 +29,7 @@
 #include "sql_cmd.h"
 #include "sql_alter.h"                // Alter_info
 #include "sql_window.h"
-
+#include "sql_trigger.h"
 
 /* YACC and LEX Definitions */
 
@@ -246,11 +246,12 @@ struct LEX_MASTER_INFO
   ulong server_id;
   uint port, connect_retry;
   float heartbeat_period;
+  int sql_delay;
   /*
     Enum is used for making it possible to detect if the user
     changed variable or if it should be left at old value
    */
-  enum {LEX_MI_UNCHANGED, LEX_MI_DISABLE, LEX_MI_ENABLE}
+  enum {LEX_MI_UNCHANGED= 0, LEX_MI_DISABLE, LEX_MI_ENABLE}
     ssl, ssl_verify_server_cert, heartbeat_opt, repl_ignore_server_ids_opt,
     repl_do_domain_ids_opt, repl_ignore_domain_ids_opt;
   enum {
@@ -266,6 +267,7 @@ struct LEX_MASTER_INFO
                           sizeof(ulong), 0, 16, MYF(0));
     my_init_dynamic_array(&repl_ignore_domain_ids,
                           sizeof(ulong), 0, 16, MYF(0));
+    sql_delay= -1;
   }
   void reset(bool is_change_master)
   {
@@ -286,6 +288,7 @@ struct LEX_MASTER_INFO
       repl_ignore_domain_ids_opt= LEX_MI_UNCHANGED;
     gtid_pos_str= null_lex_str;
     use_gtid_opt= LEX_GTID_UNCHANGED;
+    sql_delay= -1;
   }
 };
 
@@ -679,13 +682,6 @@ public:
   bool describe; /* union exec() called for EXPLAIN */
   Procedure *last_procedure;	 /* Pointer to procedure, if such exists */
 
-  /* 
-    Insert table with stored virtual columns.
-    This is used only in those rare cases 
-    when the list of inserted values is empty.
-  */
-  TABLE *insert_table_with_stored_vcol;
-
   bool columns_are_renamed;
 
   void init_query();
@@ -729,7 +725,7 @@ public:
   friend void lex_start(THD *thd);
   friend int subselect_union_engine::exec();
 
-  List<Item> *get_unit_column_types();
+  List<Item> *get_column_types(bool for_cursor);
 
   select_union *get_union_result() { return union_result; }
   int save_union_explain(Explain_query *output);
@@ -765,6 +761,8 @@ public:
   Item *where, *having;                         /* WHERE & HAVING clauses */
   Item *prep_where; /* saved WHERE clause for prepared statement processing */
   Item *prep_having;/* saved HAVING clause for prepared statement processing */
+  Item *cond_pushed_into_where;  /* condition pushed into the select's WHERE  */
+  Item *cond_pushed_into_having; /* condition pushed into the select's HAVING */
   /* Saved values of the WHERE and HAVING clauses*/
   Item::cond_result cond_value, having_value;
   /* point on lex in which it was created, used in view subquery detection */
@@ -783,7 +781,6 @@ public:
   Group_list_ptrs        *group_list_ptrs;
 
   List<Item>          item_list;  /* list of fields & expressions */
-  List<String>        interval_list;
   bool	              is_item_list_lookup;
   /* 
     Usualy it is pointer to ftfunc_list_alloc, but in union used to create fake
@@ -1158,7 +1155,7 @@ public:
   bool have_window_funcs() const { return (window_funcs.elements !=0); }
 
   bool cond_pushdown_is_allowed() const
-  { return !have_window_funcs() && !olap; }
+  { return !have_window_funcs() && !olap && !explicit_limit; }
   
 private:
   bool m_non_agg_field_used;
@@ -1194,10 +1191,16 @@ struct st_sp_chistics
   enum enum_sp_data_access daccess;
 };
 
-struct st_trg_chistics
+
+
+struct st_trg_chistics: public st_trg_execution_order
 {
   enum trg_action_time_type action_time;
   enum trg_event_type event;
+
+  const char *ordering_clause_begin;
+  const char *ordering_clause_end;
+
 };
 
 extern sys_var *trg_new_row_fake_var;
@@ -2672,8 +2675,8 @@ public:
   uint profile_options;
   uint grant, grant_tot_col, which_columns;
   enum Foreign_key::fk_match_opt fk_match_option;
-  enum Foreign_key::fk_option fk_update_opt;
-  enum Foreign_key::fk_option fk_delete_opt;
+  enum_fk_option fk_update_opt;
+  enum_fk_option fk_delete_opt;
   uint slave_thd_opt, start_transaction_opt;
   int nest_level;
   /*
@@ -2712,15 +2715,10 @@ public:
   TABLE_LIST *create_last_non_select_table;
   /* Prepared statements SQL syntax:*/
   LEX_STRING prepared_stmt_name; /* Statement name (in all queries) */
-  /*
-    Prepared statement query text or name of variable that holds the
-    prepared statement (in PREPARE ... queries)
-  */
-  LEX_STRING prepared_stmt_code;
-  /* If true, prepared_stmt_code is a name of variable that holds the query */
-  bool prepared_stmt_code_is_varref;
+  /* PREPARE or EXECUTE IMMEDIATE source expression */
+  Item *prepared_stmt_code;
   /* Names of user variables holding parameters (in EXECUTE) */
-  List<LEX_STRING> prepared_stmt_params;
+  List<Item> prepared_stmt_params;
   sp_head *sphead;
   sp_name *spname;
   bool sp_lex_in_use;	/* Keep track on lex usage in SPs for error handling */
@@ -2998,6 +2996,20 @@ public:
   void init_last_field(Column_definition *field, const char *name, CHARSET_INFO *cs);
   void set_last_field_type(const Lex_field_type_st &type);
   bool set_bincmp(CHARSET_INFO *cs, bool bin);
+
+  bool get_dynamic_sql_string(LEX_CSTRING *dst, String *buffer);
+  bool prepared_stmt_params_fix_fields(THD *thd)
+  {
+    // Fix Items in the EXECUTE..USING list
+    List_iterator_fast<Item> param_it(prepared_stmt_params);
+    while (Item *param= param_it++)
+    {
+      if (param->fix_fields(thd, 0) || param->check_cols(1))
+        return true;
+    }
+    return false;
+  }
+
   // Check if "KEY IF NOT EXISTS name" used outside of ALTER context
   bool check_add_key(DDL_options_st ddl)
   {
@@ -3276,7 +3288,8 @@ void end_lex_with_single_table(THD *thd, TABLE *table, LEX *old_lex);
 int init_lex_with_single_table(THD *thd, TABLE *table, LEX *lex);
 extern int MYSQLlex(union YYSTYPE *yylval, THD *thd);
 
-extern void trim_whitespace(CHARSET_INFO *cs, LEX_STRING *str);
+extern void trim_whitespace(CHARSET_INFO *cs, LEX_STRING *str,
+                            uint *prefix_removed);
 
 extern bool is_lex_native_function(const LEX_STRING *name);
 

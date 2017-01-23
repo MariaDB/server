@@ -441,7 +441,7 @@ INSERT INTO temp_t1 VALUES(1);
 DROP TABLE temp_t1;
 RETURN 0;
 END|
-ERROR HY000: Explicit or implicit commit is not allowed in stored function or trigger.
+ERROR HY000: Explicit or implicit commit is not allowed in stored function or trigger
 CREATE FUNCTION f2() RETURNS INT
 BEGIN
 DROP TEMPORARY TABLE IF EXISTS temp_t1;
@@ -538,5 +538,13 @@ UNLOCK TABLES;
 ALTER TABLE t1 RENAME t2, LOCK SHARED;
 ALTER TABLE t2 RENAME t1, LOCK EXCLUSIVE;
 DROP TABLE t1;
+#
+# MDEV-10792: Assertion `thd->mdl_context.is_lock_owner
+# (MDL_key::TABLE, table->db, table->table_name, MDL_SHARED)'
+# failed in mysql_rm_table_no_locks
+#
+CREATE TEMPORARY TABLE t1 (i INT);
+DROP TABLE nonexisting_table, t1;
+ERROR 42S02: Unknown table 'temp_db.nonexisting_table'
 # Cleanup
 DROP DATABASE temp_db;

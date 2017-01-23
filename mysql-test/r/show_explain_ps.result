@@ -1,3 +1,5 @@
+truncate table performance_schema.events_statements_history_long;
+truncate table performance_schema.events_stages_history_long;
 drop table if exists t0, t1;
 select * from performance_schema.setup_instruments where name like '%show_explain%';
 NAME	ENABLED	TIMED
@@ -28,8 +30,13 @@ count(*)
 10
 set debug_dbug='';
 select event_name
-from performance_schema.events_waits_history_long 
-where event_name='wait/synch/cond/sql/show_explain';
+from
+performance_schema.events_stages_history_long
+where
+event_name like '%show explain' and
+thread_id in(select thread_id
+from performance_schema.events_statements_history_long
+where EVENT_NAME='statement/sql/show_explain');
 event_name
-wait/synch/cond/sql/show_explain
+stage/sql/show explain
 drop table t0;

@@ -9,9 +9,10 @@ sub skip_combinations {
   # disable innodb/xtradb combinatons for configurations that were not built
   push @combinations, 'innodb_plugin' unless $ENV{HA_INNODB_SO};
 
-  # if something is compiled in, it's xtradb. innodb is MODULE_ONLY:
-  push @combinations, 'xtradb' unless $::mysqld_variables{'innodb'} eq "ON";
-  push @combinations, 'innodb';
+  push @combinations, qw(xtradb innodb) unless $::mysqld_variables{'innodb'} eq "ON";
+
+  # unconditionally, for now in 10.2. Later it could check for xtradb I_S plugins
+  push @combinations, 'xtradb';
 
   # XtraDB is RECOMPILE_FOR_EMBEDDED, ha_xtradb.so cannot work with embedded server
   push @combinations, 'xtradb_plugin' if not $ENV{HA_XTRADB_SO}
@@ -56,9 +57,10 @@ sub skip_combinations {
   sub ipv6_ok() {
     use Socket;
     return 0 unless socket my $sock, PF_INET6, SOCK_STREAM, getprotobyname('tcp');
-    # eval{}, if there's no Socket::sockaddr_in6 at all, old Perl installation
-    eval { connect $sock, sockaddr_in6(7, Socket::IN6ADDR_LOOPBACK) };
-    return $@ eq "";
+    $!="";
+    # eval{}, if there's no Socket::sockaddr_in6 at all, old Perl installation <5.14
+    eval { bind $sock, sockaddr_in6($::baseport, Socket::IN6ADDR_LOOPBACK) };
+    return $@ eq "" && $! eq ""
   }
   $skip{'include/check_ipv6.inc'} = 'No IPv6' unless ipv6_ok();
 

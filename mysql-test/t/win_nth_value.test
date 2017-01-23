@@ -1,0 +1,67 @@
+create table t1 (
+  pk int primary key,
+  a int,
+  b int,
+  c char(10),
+  d decimal(10, 3),
+  e real
+);
+
+insert into t1 values
+( 1, 0, 1,    'one',    0.1,  0.001),
+( 2, 0, 2,    'two',    0.2,  0.002),
+( 3, 0, 3,    'three',  0.3,  0.003),
+( 4, 1, 2,    'three',  0.4,  0.004),
+( 5, 1, 1,    'two',    0.5,  0.005),
+( 6, 1, 1,    'one',    0.6,  0.006),
+( 7, 2, NULL, 'n_one',  0.5,  0.007),
+( 8, 2, 1,    'n_two',  NULL, 0.008),
+( 9, 2, 2,    NULL,     0.7,  0.009),
+(10, 2, 0,    'n_four', 0.8,  0.010),
+(11, 2, 10,   NULL,     0.9,  NULL);
+
+select pk,
+       nth_value(pk, 1) over (order by pk),
+       nth_value(pk, 2) over (order by pk),
+       nth_value(pk, 0) over (order by pk),
+       nth_value(pk, -1) over (order by pk),
+       nth_value(pk, -2) over (order by pk)
+from t1
+order by pk asc;
+
+select pk,
+       nth_value(pk, pk) over (order by pk),
+       nth_value(pk / 0.1, pk) over (order by pk)
+from t1
+order by pk asc;
+
+select pk,
+       a,
+       nth_value(pk, pk) over (partition by a order by pk),
+       nth_value(pk, a + 1) over (partition by a order by pk)
+from t1
+order by pk asc;
+
+select pk,
+       a,
+       nth_value(pk, 1) over (partition by a order by pk ROWS between 1 preceding and 1 following)
+from t1;
+
+select pk,
+       a,
+       nth_value(a, 1) over (order by a RANGE BETWEEN 1 preceding and 1 following),
+       nth_value(a, 2) over (order by a RANGE BETWEEN 1 preceding and 1 following),
+       nth_value(a, 3) over (order by a RANGE BETWEEN 1 preceding and 1 following),
+       nth_value(a, 4) over (order by a RANGE BETWEEN 1 preceding and 1 following),
+       nth_value(a, 5) over (order by a RANGE BETWEEN 1 preceding and 1 following),
+       nth_value(a, 6) over (order by a RANGE BETWEEN 1 preceding and 1 following),
+       nth_value(a, 7) over (order by a RANGE BETWEEN 1 preceding and 1 following),
+       nth_value(a, 8) over (order by a RANGE BETWEEN 1 preceding and 1 following),
+       nth_value(a, 9) over (order by a RANGE BETWEEN 1 preceding and 1 following),
+       nth_value(a, 10) over (order by a RANGE BETWEEN 1 preceding and 1 following),
+       nth_value(a, 11) over (order by a RANGE BETWEEN 1 preceding and 1 following),
+       nth_value(a, 12) over (order by a RANGE BETWEEN 1 preceding and 1 following)
+from t1
+order by pk asc;
+
+drop table t1;

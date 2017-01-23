@@ -337,7 +337,6 @@ static const int bulk_padding= 64;              // bytes "overhead" in packet
 
 /* Variables used when chopping off trailing characters */
 static const uint sizeof_trailing_comma= sizeof(", ") - 1;
-static const uint sizeof_trailing_closeparen= sizeof(") ") - 1;
 static const uint sizeof_trailing_and= sizeof(" AND ") - 1;
 static const uint sizeof_trailing_where= sizeof(" WHERE ") - 1;
 
@@ -1787,7 +1786,7 @@ public:
 
 public:
   bool handle_condition(THD *thd, uint sql_errno, const char* sqlstate,
-                        Sql_condition::enum_warning_level level,
+                        Sql_condition::enum_warning_level *level,
                         const char* msg, Sql_condition ** cond_hdl)
   {
     return sql_errno >= ER_ABORTING_CONNECTION &&

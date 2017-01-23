@@ -2563,12 +2563,12 @@ row_upd_del_mark_clust_rec(
 			err = DB_SUCCESS;
 			break;
 		case DB_DEADLOCK:
-			if (wsrep_debug) fprintf (stderr, 
+			if (wsrep_debug) fprintf (stderr,
 				"WSREP: clust rec FK check fail for deadlock");
 			break;
 		default:
-			fprintf (stderr, 
-				"WSREP: clust rec referenced FK check fail: %d", 
+			fprintf (stderr,
+				"WSREP: clust rec referenced FK check fail: %d",
 				 (int)err);
 			break;
 		}
@@ -2821,9 +2821,6 @@ row_upd(
 	que_thr_t*	thr)	/*!< in: query thread */
 {
 	dberr_t		err	= DB_SUCCESS;
-
-	ut_ad(node != NULL);
-	ut_ad(thr != NULL);
 
 	if (UNIV_LIKELY(node->in_mysql_interface)) {
 

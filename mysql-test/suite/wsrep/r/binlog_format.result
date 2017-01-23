@@ -1,4 +1,4 @@
-call mtr.add_suppression("WSREP: MariaDB Galera does not support binlog format.*");
+call mtr.add_suppression("WSREP: MariaDB Galera and flashback do not support binlog format.*");
 call mtr.add_suppression("WSREP: Cannot get fake transaction ID from storage engine.");
 #
 # MDEV-4227: Galera server should stop crashing on setting binlog_format STATEMENT
@@ -8,20 +8,20 @@ Variable_name	Value
 binlog_format	ROW
 SET binlog_format=STATEMENT;
 Warnings:
-Warning	1105	MariaDB Galera does not support binlog format: STATEMENT
+Warning	1105	MariaDB Galera and flashback do not support binlog format: STATEMENT
 SHOW WARNINGS;
 Level	Code	Message
-Warning	1105	MariaDB Galera does not support binlog format: STATEMENT
+Warning	1105	MariaDB Galera and flashback do not support binlog format: STATEMENT
 SHOW VARIABLES LIKE 'binlog_format';
 Variable_name	Value
 binlog_format	STATEMENT
 CREATE TABLE IF NOT EXISTS test.t1 AS SELECT * FROM information_schema.routines WHERE 1 = 0;
 SET binlog_format=MIXED;
 Warnings:
-Warning	1105	MariaDB Galera does not support binlog format: MIXED
+Warning	1105	MariaDB Galera and flashback do not support binlog format: MIXED
 SHOW WARNINGS;
 Level	Code	Message
-Warning	1105	MariaDB Galera does not support binlog format: MIXED
+Warning	1105	MariaDB Galera and flashback do not support binlog format: MIXED
 SHOW VARIABLES LIKE 'binlog_format';
 Variable_name	Value
 binlog_format	MIXED

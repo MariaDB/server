@@ -401,6 +401,7 @@ ascii2_nopad_bin	ascii2	325			1
 utf8mb4_test_ci	utf8mb4	326			8
 utf16_test_ci	utf16	327			8
 utf8mb4_test_400_ci	utf8mb4	328			8
+utf8mb4_test_520_nopad_ci	utf8mb4	329			8
 latin1_test2	latin1	332			1
 latin1_test2_cs	latin1	333			1
 latin1_swedish_nopad2_ci	latin1	334			1
@@ -418,6 +419,9 @@ ucs2_vn_ci	ucs2	359			8
 ucs2_5624_1	ucs2	360			8
 utf8_5624_5	utf8	368			8
 utf8_5624_5_bad	utf8	369			8
+utf8_czech_test_w2	utf8	370			4
+utf8_czech_test_nopad_w2	utf8	371			4
+utf8_czech_test_bad_w2	utf8	372			4
 utf32_test_ci	utf32	391			8
 utf8_maxuserid_ci	utf8	2047			8
 show collation like '%test%';
@@ -426,9 +430,13 @@ latin1_test	latin1	99		Yes	1
 latin1_test2	latin1	332			1
 latin1_test2_cs	latin1	333			1
 utf8_test_ci	utf8	353			8
+utf8_czech_test_w2	utf8	370			4
+utf8_czech_test_nopad_w2	utf8	371			4
+utf8_czech_test_bad_w2	utf8	372			4
 ucs2_test_ci	ucs2	358			8
 utf8mb4_test_ci	utf8mb4	326			8
 utf8mb4_test_400_ci	utf8mb4	328			8
+utf8mb4_test_520_nopad_ci	utf8mb4	329			8
 utf16_test_ci	utf16	327			8
 utf32_test_ci	utf32	391			8
 show collation like 'ucs2_vn_ci';

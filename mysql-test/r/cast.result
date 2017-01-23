@@ -33,7 +33,7 @@ explain extended select ~5, cast(~5 as signed);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
-Note	1003	select ~(5) AS `~5`,cast(~(5) as signed) AS `cast(~5 as signed)`
+Note	1003	select ~5 AS `~5`,cast(~5 as signed) AS `cast(~5 as signed)`
 select cast(18446744073709551615 as signed);
 cast(18446744073709551615 as signed)
 -1
@@ -382,17 +382,17 @@ cast('' as signed)
 Warnings:
 Warning	1292	Truncated incorrect INTEGER value: ''
 select cast(1 as double(5,6));
-ERROR 42000: For float(M,D), double(M,D) or decimal(M,D), M must be >= D (column '').
+ERROR 42000: For float(M,D), double(M,D) or decimal(M,D), M must be >= D (column '')
 select cast(1 as decimal(5,6));
-ERROR 42000: For float(M,D), double(M,D) or decimal(M,D), M must be >= D (column '').
+ERROR 42000: For float(M,D), double(M,D) or decimal(M,D), M must be >= D (column '')
 select cast(1 as double(66,6));
-ERROR 42000: Too big precision 66 specified for '1'. Maximum is 65.
+ERROR 42000: Too big precision 66 specified for '1'. Maximum is 65
 select cast(1 as decimal(66,6));
-ERROR 42000: Too big precision 66 specified for '1'. Maximum is 65.
+ERROR 42000: Too big precision 66 specified for '1'. Maximum is 65
 select cast(1 as decimal(64,63));
-ERROR 42000: Too big scale 63 specified for '1'. Maximum is 38.
+ERROR 42000: Too big scale 63 specified for '1'. Maximum is 38
 select cast(1 as double(64,63));
-ERROR 42000: Too big scale 63 specified for '1'. Maximum is 38.
+ERROR 42000: Too big scale 63 specified for '1'. Maximum is 38
 set names binary;
 select cast(_latin1'test' as char character set latin2);
 cast(_latin1'test' as char character set latin2)
@@ -583,7 +583,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `cast(1 as unsigned)` int(1) unsigned NOT NULL,
-  `cast(1 as signed)` int(1) NOT NULL,
+  `cast(1 as signed)` int(2) NOT NULL,
   `cast(1 as double(5,2))` double(5,2) DEFAULT NULL,
   `cast(1 as decimal(5,3))` decimal(5,3) NOT NULL,
   `cast("A" as binary)` varbinary(1) NOT NULL,
@@ -601,8 +601,8 @@ double_val	cast_val
 -1e30	-9223372036854775808
 1e30	9223372036854775807
 Warnings:
-Warning	1916	Got overflow when converting '-1e30' to INT. Value truncated.
-Warning	1916	Got overflow when converting '1e30' to INT. Value truncated.
+Warning	1916	Got overflow when converting '-1e30' to INT. Value truncated
+Warning	1916	Got overflow when converting '1e30' to INT. Value truncated
 DROP TABLE t1;
 select isnull(date(NULL)), isnull(cast(NULL as DATE));
 isnull(date(NULL))	isnull(cast(NULL as DATE))
@@ -804,7 +804,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
-  `b` char(5) AS (cast("a" as char(10) binary) + a) VIRTUAL
+  `b` char(5) GENERATED ALWAYS AS (cast('a' as char(10) charset latin1) + `a`) VIRTUAL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table t1;
 select collation(cast("a" as char(10) binary));
@@ -822,3 +822,74 @@ utf8_bin
 select collation(cast("a" as char(10) binary ascii));
 collation(cast("a" as char(10) binary ascii))
 latin1_bin
+#
+# MDEV-11030 Assertion `precision > 0' failed in decimal_bin_size
+#
+SELECT * FROM (SELECT IFNULL(CONVERT(NULL, UNSIGNED), NULL)) sq;
+IFNULL(CONVERT(NULL, UNSIGNED), NULL)
+NULL
+CREATE TABLE t1 AS SELECT IFNULL(CONVERT(NULL, UNSIGNED), NULL);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `IFNULL(CONVERT(NULL, UNSIGNED), NULL)` decimal(1,0) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 AS SELECT COALESCE(CONVERT(NULL, UNSIGNED), NULL);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `COALESCE(CONVERT(NULL, UNSIGNED), NULL)` decimal(1,0) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 AS SELECT CASE WHEN TRUE THEN CONVERT(NULL, UNSIGNED) ELSE NULL END;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `CASE WHEN TRUE THEN CONVERT(NULL, UNSIGNED) ELSE NULL END` decimal(1,0) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 AS SELECT IFNULL(CONVERT(NULL,SIGNED),CONVERT(NULL,UNSIGNED)) AS a;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` decimal(1,0) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 AS SELECT
+-1,
+CONVERT(NULL,SIGNED),
+CONCAT(CONVERT(NULL,SIGNED)),
+1,
+CONVERT(NULL,UNSIGNED),
+CONCAT(CONVERT(NULL,UNSIGNED));
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `-1` int(2) NOT NULL,
+  `CONVERT(NULL,SIGNED)` int(2) DEFAULT NULL,
+  `CONCAT(CONVERT(NULL,SIGNED))` varchar(2) DEFAULT NULL,
+  `1` int(1) NOT NULL,
+  `CONVERT(NULL,UNSIGNED)` int(1) unsigned DEFAULT NULL,
+  `CONCAT(CONVERT(NULL,UNSIGNED))` varchar(1) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 AS SELECT
+CONVERT('',SIGNED),
+CONCAT(CONVERT('',SIGNED)),
+CONVERT('',UNSIGNED),
+CONCAT(CONVERT('',UNSIGNED));
+Warnings:
+Warning	1292	Truncated incorrect INTEGER value: ''
+Warning	1292	Truncated incorrect INTEGER value: ''
+Warning	1292	Truncated incorrect INTEGER value: ''
+Warning	1292	Truncated incorrect INTEGER value: ''
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `CONVERT('',SIGNED)` int(2) NOT NULL,
+  `CONCAT(CONVERT('',SIGNED))` varchar(2) NOT NULL,
+  `CONVERT('',UNSIGNED)` int(1) unsigned NOT NULL,
+  `CONCAT(CONVERT('',UNSIGNED))` varchar(1) NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;

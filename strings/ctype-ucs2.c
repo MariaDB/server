@@ -1,5 +1,5 @@
 /* Copyright (c) 2003, 2013, Oracle and/or its affiliates
-   Copyright (c) 2009, 2014, SkySQL Ab.
+   Copyright (c) 2009, 2016, MariaDB
 
    This library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Library General Public
@@ -53,17 +53,6 @@ static unsigned long lfactor[9]=
 
 
 #ifdef HAVE_CHARSET_mb2_or_mb4
-static inline int
-my_bincmp(const uchar *s, const uchar *se,
-          const uchar *t, const uchar *te)
-{
-  int slen= (int) (se - s), tlen= (int) (te - t);
-  int len= MY_MIN(slen, tlen);
-  int cmp= memcmp(s, t, len);
-  return cmp ? cmp : slen - tlen;
-}
-
-
 static size_t
 my_caseup_str_mb2_or_mb4(CHARSET_INFO * cs  __attribute__((unused)), 
                          char * s __attribute__((unused)))
@@ -1190,9 +1179,12 @@ my_lengthsp_mb2(CHARSET_INFO *cs __attribute__((unused)),
 #endif /* HAVE_CHARSET_mb2*/
 
 
+/*
+  Next part is actually HAVE_CHARSET_utf16-specific,
+  but the JSON functions needed my_utf16_uni()
+  so the #ifdef was moved lower.
+*/
 
-
-#ifdef HAVE_CHARSET_utf16
 
 /*
   D800..DB7F - Non-provate surrogate high (896 pages)
@@ -1260,7 +1252,12 @@ static inline int my_weight_mb2_utf16mb2_general_ci(uchar b0, uchar b1)
 #undef IS_MB2_CHAR
 #undef IS_MB4_CHAR
 
-static int
+/*
+  These two functions are used in JSON library, so made exportable
+  and unconditionally compiled into the library.
+*/
+
+/*static*/ int
 my_utf16_uni(CHARSET_INFO *cs __attribute__((unused)),
              my_wc_t *pwc, const uchar *s, const uchar *e)
 {
@@ -1293,7 +1290,7 @@ my_utf16_uni(CHARSET_INFO *cs __attribute__((unused)),
 }
 
 
-static int
+/*static*/ int
 my_uni_utf16(CHARSET_INFO *cs __attribute__((unused)),
              my_wc_t wc, uchar *s, uchar *e)
 {
@@ -1321,6 +1318,9 @@ my_uni_utf16(CHARSET_INFO *cs __attribute__((unused)),
 
   return MY_CS_ILUNI;
 }
+
+
+#ifdef HAVE_CHARSET_utf16
 
 
 static inline void
@@ -1490,27 +1490,6 @@ my_charpos_utf16(CHARSET_INFO *cs,
 }
 
 
-static size_t
-my_well_formed_len_utf16(CHARSET_INFO *cs,
-                         const char *b, const char *e,
-                         size_t nchars, int *error)
-{
-  const char *b0= b;
-  uint charlen;
-  *error= 0;
-  
-  for ( ; nchars; b+= charlen, nchars--)
-  {
-    if (!(charlen= my_ismbchar(cs, b, e)))
-    {
-      *error= b < e ? 1 : 0;
-      break;
-    }
-  }
-  return (size_t) (b - b0);
-}
-
-
 static int
 my_wildcmp_utf16_ci(CHARSET_INFO *cs,
                     const char *str,const char *str_end,
@@ -1629,7 +1608,6 @@ MY_CHARSET_HANDLER my_charset_utf16_handler=
   NULL,                /* init         */
   my_numchars_utf16,
   my_charpos_utf16,
-  my_well_formed_len_utf16,
   my_lengthsp_mb2,
   my_numcells_mb,
   my_utf16_uni,        /* mb_wc        */
@@ -1963,7 +1941,6 @@ static MY_CHARSET_HANDLER my_charset_utf16le_handler=
   NULL,                /* init         */
   my_numchars_utf16,
   my_charpos_utf16,
-  my_well_formed_len_utf16,
   my_lengthsp_utf16le,
   my_numcells_mb,
   my_utf16le_uni,      /* mb_wc        */
@@ -2636,34 +2613,6 @@ my_charpos_utf32(CHARSET_INFO *cs __attribute__((unused)),
 }
 
 
-static size_t
-my_well_formed_len_utf32(CHARSET_INFO *cs __attribute__((unused)),
-                         const char *b, const char *e,
-                         size_t nchars, int *error)
-{
-  /* Ensure string length is divisible by 4 */
-  const char *b0= b;
-  size_t length= e - b;
-  DBUG_ASSERT((length % 4) == 0);
-  *error= 0;
-  nchars*= 4;
-  if (length > nchars)
-  {
-    length= nchars;
-    e= b + nchars;
-  }
-  for (; b < e; b+= 4)
-  {
-    if (!IS_UTF32_MBHEAD4(b[0], b[1]))
-    {
-      *error= 1;
-      return b - b0;
-    }
-  }
-  return length;
-}
-
-
 static
 void my_fill_utf32(CHARSET_INFO *cs,
                    char *s, size_t slen, int fill)
@@ -2809,7 +2758,6 @@ MY_CHARSET_HANDLER my_charset_utf32_handler=
   NULL, /* init */
   my_numchars_utf32,
   my_charpos_utf32,
-  my_well_formed_len_utf32,
   my_lengthsp_utf32,
   my_numcells_mb,
   my_utf32_uni,
@@ -3248,19 +3196,6 @@ size_t my_charpos_ucs2(CHARSET_INFO *cs __attribute__((unused)),
 }
 
 
-static
-size_t my_well_formed_len_ucs2(CHARSET_INFO *cs __attribute__((unused)),
-                               const char *b, const char *e,
-                               size_t nchars, int *error)
-{
-  /* Ensure string length is dividable with 2 */
-  size_t nbytes= ((size_t) (e-b)) & ~(size_t) 1;
-  *error= 0;
-  nchars*= 2;
-  return MY_MIN(nbytes, nchars);
-}
-
-
 static size_t
 my_well_formed_char_length_ucs2(CHARSET_INFO *cs __attribute__((unused)),
                                 const char *b, const char *e,
@@ -3403,7 +3338,6 @@ MY_CHARSET_HANDLER my_charset_ucs2_handler=
     NULL,		/* init */
     my_numchars_ucs2,
     my_charpos_ucs2,
-    my_well_formed_len_ucs2,
     my_lengthsp_mb2,
     my_numcells_mb,
     my_ucs2_uni,	/* mb_wc        */

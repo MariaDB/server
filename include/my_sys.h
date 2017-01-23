@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2013, Monty Program Ab.
+   Copyright (c) 2010, 2016, Monty Program Ab.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -192,6 +192,14 @@ extern void my_large_free(uchar *ptr);
 #define my_large_free(A) my_free_lock((A))
 #endif /* HAVE_LARGE_PAGES */
 
+void my_init_atomic_write(void);
+#ifdef __linux__
+my_bool my_test_if_atomic_write(File handle, int pagesize);
+#else
+#define my_test_if_atomic_write(A, B) 0
+#endif /* __linux__ */
+extern my_bool my_may_have_atomic_write;
+
 #if defined(HAVE_ALLOCA) && !defined(HAVE_valgrind)
 #if defined(_AIX) && !defined(__GNUC__) && !defined(_AIX43)
 #pragma alloca
@@ -279,7 +287,7 @@ extern my_bool my_use_symdir;
 extern ulong	my_default_record_cache_size;
 extern my_bool  my_disable_locking, my_disable_async_io,
                 my_disable_flush_key_blocks, my_disable_symlinks;
-extern my_bool my_disable_sync;
+extern my_bool my_disable_sync, my_disable_copystat_in_redel;
 extern char	wild_many,wild_one,wild_prefix;
 extern const char *charsets_dir;
 extern my_bool timed_mutexes;
@@ -472,6 +480,8 @@ typedef struct st_io_cache		/* Used when cacheing files */
   const char *dir;
   char prefix[3];
   File file; /* file descriptor */
+
+  struct st_io_cache *next_file_user;
   /*
     seek_not_done is set by my_b_seek() to inform the upcoming read/write
     operation that a seek needs to be preformed prior to the actual I/O
@@ -696,7 +706,7 @@ extern FILE *my_fdopen(File Filedes,const char *name, int Flags,myf MyFlags);
 extern FILE *my_freopen(const char *path, const char *mode, FILE *stream);
 extern int my_fclose(FILE *fd,myf MyFlags);
 extern int my_vfprintf(FILE *stream, const char* format, va_list args);
-extern void my_strerror(char *buf, size_t len, int nr);
+extern const char* my_strerror(char *buf, size_t len, int nr);
 extern int my_fprintf(FILE *stream, const char* format, ...);
 extern File my_fileno(FILE *fd);
 extern int my_chsize(File fd,my_off_t newlength, int filler, myf MyFlags);
@@ -802,6 +812,11 @@ extern my_bool reinit_io_cache(IO_CACHE *info,enum cache_type type,
 extern void setup_io_cache(IO_CACHE* info);
 extern void init_io_cache_share(IO_CACHE *read_cache, IO_CACHE_SHARE *cshare,
                                 IO_CACHE *write_cache, uint num_threads);
+
+extern int init_slave_io_cache(IO_CACHE *master, IO_CACHE *slave);
+void end_slave_io_cache(IO_CACHE *cache);
+void seek_io_cache(IO_CACHE *cache, my_off_t needed_offset);
+
 extern void remove_io_thread(IO_CACHE *info);
 extern int _my_b_async_read(IO_CACHE *info,uchar *Buffer,size_t Count);
 extern int my_b_append(IO_CACHE *info,const uchar *Buffer,size_t Count);
@@ -1019,6 +1034,7 @@ extern void add_compiled_collation(struct charset_info_st *cs);
 extern size_t escape_string_for_mysql(CHARSET_INFO *charset_info,
                                       char *to, size_t to_length,
                                       const char *from, size_t length);
+extern char *get_tty_password(const char *opt_message);
 #ifdef __WIN__
 #define BACKSLASH_MBTAIL
 /* File system character set */

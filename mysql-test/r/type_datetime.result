@@ -544,7 +544,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	x1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; Start temporary; End temporary
 Warnings:
 Note	1276	Field or reference 'test.t1.cur_date' of SELECT #2 was resolved in SELECT #1
-Note	1003	select `test`.`t1`.`id` AS `id`,`test`.`t1`.`cur_date` AS `cur_date` from `test`.`t1` semi join (`test`.`t1` `x1`) where ((`test`.`x1`.`id` = `test`.`t1`.`id`) and (`test`.`t1`.`cur_date` = 0))
+Note	1003	select `test`.`t1`.`id` AS `id`,`test`.`t1`.`cur_date` AS `cur_date` from `test`.`t1` semi join (`test`.`t1` `x1`) where `test`.`x1`.`id` = `test`.`t1`.`id` and `test`.`t1`.`cur_date` = 0
 select * from t1
 where id in (select id from t1 as x1 where (t1.cur_date is null));
 id	cur_date
@@ -556,7 +556,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	x1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; Start temporary; End temporary
 Warnings:
 Note	1276	Field or reference 'test.t2.cur_date' of SELECT #2 was resolved in SELECT #1
-Note	1003	select `test`.`t2`.`id` AS `id`,`test`.`t2`.`cur_date` AS `cur_date` from `test`.`t2` semi join (`test`.`t2` `x1`) where ((`test`.`x1`.`id` = `test`.`t2`.`id`) and (`test`.`t2`.`cur_date` = 0))
+Note	1003	select `test`.`t2`.`id` AS `id`,`test`.`t2`.`cur_date` AS `cur_date` from `test`.`t2` semi join (`test`.`t2` `x1`) where `test`.`x1`.`id` = `test`.`t2`.`id` and `test`.`t2`.`cur_date` = 0
 select * from t2
 where id in (select id from t2 as x1 where (t2.cur_date is null));
 id	cur_date
@@ -747,7 +747,7 @@ EXPLAIN EXTENDED SELECT * FROM t1 FORCE INDEX(attime) WHERE AtTime = '2010-02-22
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ref	AtTime	AtTime	6	const	1	100.00	
 Warnings:
-Note	1003	select `test`.`t1`.`Id` AS `Id`,`test`.`t1`.`AtTime` AS `AtTime` from `test`.`t1` FORCE INDEX (`attime`) where (`test`.`t1`.`AtTime` = TIMESTAMP'2010-02-22 18:40:07')
+Note	1003	select `test`.`t1`.`Id` AS `Id`,`test`.`t1`.`AtTime` AS `AtTime` from `test`.`t1` FORCE INDEX (`attime`) where `test`.`t1`.`AtTime` = TIMESTAMP'2010-02-22 18:40:07'
 DROP TABLE t1;
 SET NAMES latin1;
 #
@@ -977,14 +977,14 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Warning	1292	Truncated incorrect datetime value: '2001-01-01 00:00:00x'
-Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where (`test`.`t1`.`a` = TIMESTAMP'2001-01-01 00:00:00')
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIMESTAMP'2001-01-01 00:00:00'
 EXPLAIN EXTENDED
 SELECT * FROM t1 WHERE LENGTH(a)!=30+RAND() AND a='2001-01-01 00:00:00x';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Warning	1292	Truncated incorrect datetime value: '2001-01-01 00:00:00x'
-Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where ((`test`.`t1`.`a` = TIMESTAMP'2001-01-01 00:00:00') and (<cache>(length(TIMESTAMP'2001-01-01 00:00:00')) <> (30 + rand())))
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIMESTAMP'2001-01-01 00:00:00' and <cache>(length(TIMESTAMP'2001-01-01 00:00:00')) <> 30 + rand()
 DROP TABLE t1;
 CREATE TABLE t1 (a DATETIME);;
 INSERT INTO t1 VALUES ('2001-01-01 00:00:00'),('2001-01-01 00:00:01');
@@ -1000,20 +1000,20 @@ SELECT * FROM t1 WHERE LENGTH(a)=19 AND a=' 2001-01-01 00:00:00';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
-Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where (`test`.`t1`.`a` = TIMESTAMP'2001-01-01 00:00:00')
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIMESTAMP'2001-01-01 00:00:00'
 EXPLAIN EXTENDED
 SELECT * FROM t1 WHERE LENGTH(a)=19+RAND() AND a=' 2001-01-01 00:00:00';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
-Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where ((`test`.`t1`.`a` = TIMESTAMP'2001-01-01 00:00:00') and (<cache>(length(TIMESTAMP'2001-01-01 00:00:00')) = (19 + rand())))
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIMESTAMP'2001-01-01 00:00:00' and <cache>(length(TIMESTAMP'2001-01-01 00:00:00')) = 19 + rand()
 EXPLAIN EXTENDED
 SELECT * FROM t1 WHERE LENGTH(a)=30+RAND() AND a=' garbage ';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Warning	1292	Incorrect datetime value: ' garbage '
-Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where ((`test`.`t1`.`a` = TIMESTAMP'0000-00-00 00:00:00') and (<cache>(length(TIMESTAMP'0000-00-00 00:00:00')) = (30 + rand())))
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIMESTAMP'0000-00-00 00:00:00' and <cache>(length(TIMESTAMP'0000-00-00 00:00:00')) = 30 + rand()
 DROP TABLE t1;
 CREATE TABLE t1 (a DATETIME);;
 INSERT INTO t1 VALUES ('2001-01-01 00:00:00'),('2001-01-01 00:00:01');
@@ -1032,13 +1032,13 @@ SELECT * FROM t1 WHERE LENGTH(a)=19 AND a=TIMESTAMP'2001-01-01 00:00:00.000000';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
-Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where (`test`.`t1`.`a` = TIMESTAMP'2001-01-01 00:00:00.000000')
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIMESTAMP'2001-01-01 00:00:00.000000'
 EXPLAIN EXTENDED
 SELECT * FROM t1 WHERE LENGTH(a)=30+RAND() AND a=TIMESTAMP'2001-01-01 00:00:00.000000';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
-Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where ((`test`.`t1`.`a` = TIMESTAMP'2001-01-01 00:00:00.000000') and (<cache>(length(TIMESTAMP'2001-01-01 00:00:00')) = (30 + rand())))
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIMESTAMP'2001-01-01 00:00:00.000000' and <cache>(length(TIMESTAMP'2001-01-01 00:00:00')) = 30 + rand()
 DROP TABLE t1;
 CREATE TABLE t1 (a DATETIME(6));;
 INSERT INTO t1 VALUES ('2001-01-01 00:00:00.000000'),('2001-01-01 00:00:01.000000');
@@ -1057,13 +1057,13 @@ SELECT * FROM t1 WHERE LENGTH(a)=26 AND a=TIMESTAMP'2001-01-01 00:00:00.000000';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
-Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where (`test`.`t1`.`a` = TIMESTAMP'2001-01-01 00:00:00.000000')
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIMESTAMP'2001-01-01 00:00:00.000000'
 EXPLAIN EXTENDED
 SELECT * FROM t1 WHERE LENGTH(a)=40+RAND() AND a=TIMESTAMP'2001-01-01 00:00:00.000000';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
-Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where ((`test`.`t1`.`a` = TIMESTAMP'2001-01-01 00:00:00.000000') and (<cache>(length(TIMESTAMP'2001-01-01 00:00:00.000000')) = (40 + rand())))
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIMESTAMP'2001-01-01 00:00:00.000000' and <cache>(length(TIMESTAMP'2001-01-01 00:00:00.000000')) = 40 + rand()
 DROP TABLE t1;
 SET timestamp=UNIX_TIMESTAMP('2001-01-01 10:20:30');
 CREATE TABLE t1 (a DATETIME);;
@@ -1083,13 +1083,13 @@ SELECT * FROM t1 WHERE LENGTH(a)=19 AND a=TIME'00:00:00';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
-Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where (`test`.`t1`.`a` = TIMESTAMP'2001-01-01 00:00:00')
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIMESTAMP'2001-01-01 00:00:00'
 EXPLAIN EXTENDED
 SELECT * FROM t1 WHERE LENGTH(a)=40+RAND() AND a=TIME'00:00:00';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
-Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where ((`test`.`t1`.`a` = TIMESTAMP'2001-01-01 00:00:00') and (<cache>(length(TIMESTAMP'2001-01-01 00:00:00')) = (40 + rand())))
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIMESTAMP'2001-01-01 00:00:00' and <cache>(length(TIMESTAMP'2001-01-01 00:00:00')) = 40 + rand()
 DROP TABLE t1;
 #
 # MDEV-8795 Equal expression propagation does not work for temporal literals
@@ -1100,7 +1100,7 @@ EXPLAIN EXTENDED SELECT * FROM t1 WHERE COALESCE(a)=TIMESTAMP'2001-01-01 00:00:0
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
-Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where (coalesce(`test`.`t1`.`a`) = TIMESTAMP'2001-01-01 00:00:00')
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where coalesce(`test`.`t1`.`a`) = TIMESTAMP'2001-01-01 00:00:00'
 DROP TABLE t1;
 #
 # MDEV-8875 Wrong metadata for MAX(CAST(time_column AS DATETIME))

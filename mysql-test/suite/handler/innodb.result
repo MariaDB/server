@@ -1299,19 +1299,27 @@ commit;
 # an open HANDLER, ER_LOCK_DEADLOCK is reported.
 #
 create table t1 (a int, key a(a));
-create  table t2 like t1;
 handler t1 open;
 connection con1;
-lock table t1 write, t2 write;
+select get_lock('lock1', 10);
+get_lock('lock1', 10)
+1
 connection default;
-drop table t2;
+select get_lock('lock1', 10);
 connection con2;
-# Waiting for 'drop table t2' to get blocked...
+# Waiting for 'select get_lock('lock1', 10)' to get blocked...
 connection con1;
 drop table t1;
 ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
-unlock tables;
+select release_lock('lock1');
+release_lock('lock1')
+1
 connection default;
+get_lock('lock1', 10)
+1
+select release_lock('lock1');
+release_lock('lock1')
+1
 # Demonstrate that there is no deadlock with FLUSH TABLE,
 # even though it is waiting for the other table to go away
 create table t2 like t1;
@@ -1350,6 +1358,10 @@ handler t1 read a next;
 a
 1
 # Unblock 'lock tables t1 write'.
+select * from t1;
+a
+1
+2
 commit;
 connection con1;
 # Reap 'lock tables t1 write'.
@@ -1519,10 +1531,6 @@ handler t1 read a last;
 a	b
 7	7
 commit;
-connection con1;
-# Demonstrate that the HANDLER doesn't hold MDL_SHARED_WRITE.
-lock table t1 write;
-unlock tables;
 connection default;
 handler t1 read a prev;
 a	b

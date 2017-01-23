@@ -525,14 +525,14 @@ Start transaction;
 Set new.f120='U';
 Commit;
 END//
-ERROR HY000: Explicit or implicit commit is not allowed in stored function or trigger.
+ERROR HY000: Explicit or implicit commit is not allowed in stored function or trigger
 Create trigger trg9_2 before delete on tb3 for each row
 BEGIN
 Start transaction;
 Set @var2=old.f120;
 Rollback;
 END//
-ERROR HY000: Explicit or implicit commit is not allowed in stored function or trigger.
+ERROR HY000: Explicit or implicit commit is not allowed in stored function or trigger
 connection default;
 drop user test_general@localhost;
 drop user test_general;

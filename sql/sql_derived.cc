@@ -713,6 +713,7 @@ bool mysql_derived_prepare(THD *thd, LEX *lex, TABLE_LIST *derived)
   }
 
   unit->derived= derived;
+  derived->fill_me= FALSE;
 
   if (!(derived->derived_result= new (thd->mem_root) select_union(thd)))
     DBUG_RETURN(TRUE); // out of memory
@@ -968,7 +969,10 @@ bool TABLE_LIST::fill_recursive(THD *thd)
   if (!rc)
   {
     TABLE *src= with->rec_result->table;
-    rc =src->insert_all_rows_into(thd, table, true);
+    rc =src->insert_all_rows_into_tmp_table(thd,
+                                            table,
+                                            &with->rec_result->tmp_table_param,
+                                            true);
   } 
   return rc;
 }
@@ -1125,32 +1129,37 @@ bool mysql_derived_reinit(THD *thd, LEX *lex, TABLE_LIST *derived)
 
 bool pushdown_cond_for_derived(THD *thd, Item *cond, TABLE_LIST *derived)
 {
+  DBUG_ENTER("pushdown_cond_for_derived");
   if (!cond)
-    return false;
+    DBUG_RETURN(false);
 
   st_select_lex_unit *unit= derived->get_unit();
   st_select_lex *sl= unit->first_select();
 
+  /* Do not push conditions into constant derived */
+  if (unit->executed)
+    DBUG_RETURN(false);
+
+  /* Do not push conditions into recursive with tables */
+  if (derived->is_recursive_with_table())
+    DBUG_RETURN(false);
+
+  /* Do not push conditions into unit with global ORDER BY ... LIMIT */
+  if (unit->fake_select_lex && unit->fake_select_lex->explicit_limit)
+    DBUG_RETURN(false);
+
   /* Check whether any select of 'unit' allows condition pushdown */
-  bool any_select_allows_cond_pushdown= false;
+  bool some_select_allows_cond_pushdown= false;
   for (; sl; sl= sl->next_select())
   {
     if (sl->cond_pushdown_is_allowed())
     {
-      any_select_allows_cond_pushdown= true;
+      some_select_allows_cond_pushdown= true;
       break;
     }
   }
-  if (!any_select_allows_cond_pushdown)
-    return false; 
-
-  /* Do not push conditions into constant derived */
-  if (derived->fill_me)
-    return false;
-
-  /* Do not push conditions into recursive with tables */
-  if (derived->is_recursive_with_table())
-    return false;
+  if (!some_select_allows_cond_pushdown)
+    DBUG_RETURN(false);
 
   /*
     Build the most restrictive condition extractable from 'cond'
@@ -1165,7 +1174,7 @@ bool pushdown_cond_for_derived(THD *thd, Item *cond, TABLE_LIST *derived)
   if (!extracted_cond)
   {
     /* Nothing can be pushed into the derived table */
-    return false;
+    DBUG_RETURN(false);
   }
   /* Push extracted_cond into every select of the unit specifying 'derived' */
   st_select_lex *save_curr_select= thd->lex->current_select;
@@ -1191,18 +1200,9 @@ bool pushdown_cond_for_derived(THD *thd, Item *cond, TABLE_LIST *derived)
                                  (uchar*) sl);
       if (extracted_cond_copy)
       {
-        /*
-          Create the conjunction of the existing where condition of sl
-          and the pushed condition, take it as the new where condition of sl
-          and fix this new condition
-        */
-        extracted_cond_copy->walk(&Item::cleanup_processor, 0, 0);
-        thd->change_item_tree(&sl->join->conds,
-                              and_conds(thd, sl->join->conds,
-                                        extracted_cond_copy));
-    
-        if (sl->join->conds->fix_fields(thd, &sl->join->conds))
-          goto err;
+        extracted_cond_copy->walk(
+          &Item::cleanup_excluding_const_fields_processor, 0, 0);
+        sl->cond_pushed_into_where= extracted_cond_copy;
       }      
   
       continue;
@@ -1235,20 +1235,11 @@ bool pushdown_cond_for_derived(THD *thd, Item *cond, TABLE_LIST *derived)
         has been pushed into the where clause of sl
       */
       extracted_cond_copy= remove_pushed_top_conjuncts(thd, extracted_cond_copy);
-  
-      /*
-        Create the conjunction of the existing where condition of sl
-        and the pushed condition, take it as the new where condition of sl
-        and fix this new condition
-      */
-      cond_over_grouping_fields->walk(&Item::cleanup_processor, 0, 0);
-      thd->change_item_tree(&sl->join->conds,
-                            and_conds(thd, sl->join->conds,
-                                      cond_over_grouping_fields));
-    
-      if (sl->join->conds->fix_fields(thd, &sl->join->conds))
-        goto err;
-           
+
+      cond_over_grouping_fields->walk(
+        &Item::cleanup_excluding_const_fields_processor, 0, 0);
+      sl->cond_pushed_into_where= cond_over_grouping_fields;
+
       if (!extracted_cond_copy)
         continue;
     }
@@ -1262,24 +1253,11 @@ bool pushdown_cond_for_derived(THD *thd, Item *cond, TABLE_LIST *derived)
                          (uchar*) sl);
     if (!extracted_cond_copy)
       continue;
-    /*
-      Create the conjunction of the existing having condition of sl
-      and the pushed condition, take it as the new having condition of sl
-      and fix this new condition
-    */
+
     extracted_cond_copy->walk(&Item::cleanup_processor, 0, 0);
-    thd->change_item_tree(&sl->join->having,
-    and_conds(thd, sl->join->having,
-    extracted_cond_copy));
-    sl->having_fix_field= 1;
-    if (sl->join->having->fix_fields(thd, &sl->join->having))
-      return true;
-    sl->having_fix_field= 0;
+    sl->cond_pushed_into_having= extracted_cond_copy;
   }
   thd->lex->current_select= save_curr_select;
-  return false;
-err:
-  thd->lex->current_select= save_curr_select;
-  return true;
+  DBUG_RETURN(false);
 }
 

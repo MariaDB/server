@@ -330,6 +330,7 @@ TODO list:
 
 #include <my_global.h>                          /* NO_EMBEDDED_ACCESS_CHECKS */
 #include "sql_priv.h"
+#include "sql_basic_types.h"
 #include "sql_cache.h"
 #include "sql_parse.h"                          // check_table_access
 #include "tztime.h"                             // struct Time_zone
@@ -961,7 +962,7 @@ inline void Query_cache_query::unlock_reading()
 void Query_cache_query::init_n_lock()
 {
   DBUG_ENTER("Query_cache_query::init_n_lock");
-  res=0; wri = 0; len = 0;
+  res=0; wri = 0; len = 0; ready= 0;
   mysql_rwlock_init(key_rwlock_query_cache_query_lock, &lock);
   lock_writing();
   DBUG_PRINT("qcache", ("inited & locked query for block 0x%lx",
@@ -1226,6 +1227,7 @@ void Query_cache::end_of_result(THD *thd)
       query_cache.split_block(last_result_block,len);
 
     header->found_rows(limit_found_rows);
+    header->set_results_ready(); // signal for plugin
     header->result()->type= Query_cache_block::RESULT;
 
     /* Drop the writer. */

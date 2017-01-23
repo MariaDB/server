@@ -1,0 +1,3 @@
+--loose-file-key-management-filekey=secret
+--loose-file-key-management-filename=$MTR_SUITE_DIR/t/filekeys-tooshort.enc
+

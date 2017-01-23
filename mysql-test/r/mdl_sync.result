@@ -76,10 +76,6 @@ ERROR 42000: Key column 'not_exist' doesn't exist in table
 # lock.
 alter table t1 add primary key (c1);
 ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
-# Check that SNRW lock is compatible with S lock.
-lock table t1 write;
-insert into t1 values (1);
-unlock tables;
 # Check that X lock is incompatible with S lock.
 # Sending:
 rename table t1 to t2;;
@@ -117,29 +113,6 @@ connection mdl_con1;
 alter table t1 drop column c2;
 # 
 connection default;
-handler t1 open;
-# 
-connection mdl_con1;
-# Check that upgrade from SNRW to X is blocked by presence of S lock.
-lock table t1 write;
-# Sending:
-alter table t1 add column c2 int;;
-# 
-connection mdl_con2;
-# Check that the above upgrade of SNRW to X in ALTER TABLE is blocked
-# because of S lock.
-# 
-connection default;
-# Unblock ALTER TABLE.
-handler t1 close;
-# 
-connection mdl_con1;
-# Reaping ALTER TABLE.
-# Restore the original state of the things.
-alter table t1 drop column c2;
-unlock tables;
-# 
-connection default;
 #
 # 2) Acquire SH (shared high-priority) lock on the table.
 #    We have to involve DEBUG_SYNC facility for this as usually
@@ -160,7 +133,7 @@ column_name
 c1
 select count(*) from t1;
 count(*)
-3
+2
 insert into t1 values (1);
 # Check that SU lock is compatible with it. To do this use ALTER TABLE
 # which will fail when constructing .frm and thus obtaining SU metadata
@@ -258,7 +231,7 @@ connection default;
 begin;
 select count(*) from t1;
 count(*)
-3
+2
 # 
 connection mdl_con1;
 # Check that S, SH, SR and SW locks are compatible with it.
@@ -270,7 +243,7 @@ column_name
 c1
 select count(*) from t1;
 count(*)
-3
+2
 insert into t1 values (1);
 # Check that SU lock is compatible with it. To do this use ALTER TABLE
 # which will fail when constructing .frm and thus obtaining SU metadata
@@ -300,7 +273,7 @@ connection default;
 begin;
 select count(*) from t1;
 count(*)
-3
+2
 # 
 connection mdl_con1;
 # Check that X lock is incompatible with SR lock.
@@ -323,7 +296,7 @@ connection default;
 begin;
 select count(*) from t1;
 count(*)
-3
+2
 # 
 connection mdl_con1;
 # Check that upgrade from SNW to X is blocked by presence of SR lock.
@@ -453,7 +426,7 @@ column_name
 c1
 select count(*) from t1;
 count(*)
-5
+4
 delete from t1 limit 1;
 # Check that SU lock is incompatible with SU lock.
 # Sending:
@@ -549,7 +522,7 @@ column_name
 c1
 select count(*) from t1;
 count(*)
-5
+4
 # Check that SW lock is incompatible with SNW lock.
 # Sending:
 delete from t1 limit 2;;
@@ -658,8 +631,6 @@ lock table t1 write;
 # 
 connection mdl_con1;
 # Check that S and SH locks are compatible with it.
-handler t1 open;
-handler t1 close;
 select column_name from information_schema.columns where
 table_schema='test' and table_name='t1';
 column_name
@@ -676,7 +647,7 @@ unlock tables;
 connection mdl_con1;
 # Reaping SELECT.
 count(*)
-4
+3
 # 
 connection default;
 lock table t1 write;
@@ -847,7 +818,7 @@ ERROR 42S01: Table 't2' already exists
 connection mdl_con1;
 # Reaping SELECT.
 count(*)
-4
+3
 # 
 connection mdl_con2;
 # Prepare for blocking RENAME TABLE.
@@ -996,7 +967,7 @@ column_name
 c1
 select count(*) from t1;
 count(*)
-4
+3
 # Check that SW is incompatible with pending SNW
 # Sending:
 delete from t1 limit 1;;
@@ -1025,7 +996,7 @@ connection mdl_con2;
 begin;
 select count(*) from t1;
 count(*)
-3
+2
 # 
 connection default;
 # Add pending SNRW lock.
@@ -1035,8 +1006,6 @@ lock table t1 write;;
 connection mdl_con1;
 # Check that LOCK TABLE is waiting with pending SNRW lock.
 # Check that S and SH locks are compatible with pending SNRW
-handler t1 open t;
-handler t close;
 select column_name from information_schema.columns where
 table_schema='test' and table_name='t1';
 column_name
@@ -1057,14 +1026,14 @@ unlock tables;
 connection mdl_con1;
 # Reaping SELECT.
 count(*)
-3
+2
 # Restore pending SNRW lock.
 # 
 connection mdl_con2;
 begin;
 select count(*) from t1;
 count(*)
-3
+2
 # 
 connection default;
 # Sending:
@@ -1093,7 +1062,7 @@ connection mdl_con2;
 begin;
 select count(*) from t1;
 count(*)
-4
+3
 # 
 connection default;
 # Sending:
@@ -1126,7 +1095,7 @@ connection mdl_con2;
 begin;
 select count(*) from t1;
 count(*)
-4
+3
 # 
 connection default;
 # Add pending X lock.
@@ -1162,7 +1131,7 @@ connection mdl_con2;
 begin;
 select count(*) from t1;
 count(*)
-4
+3
 # 
 connection default;
 # Add pending X lock.
@@ -1187,14 +1156,14 @@ ERROR 42S01: Table 't2' already exists
 connection mdl_con1;
 # Reaping SELECT.
 count(*)
-4
+3
 # Restore pending X lock.
 # 
 connection mdl_con2;
 begin;
 select count(*) from t1;
 count(*)
-4
+3
 # 
 connection default;
 # Add pending X lock.
@@ -1224,7 +1193,7 @@ connection mdl_con2;
 begin;
 select count(*) from t1;
 count(*)
-3
+2
 # 
 connection default;
 # Add pending X lock.
@@ -1299,7 +1268,7 @@ connection default;
 begin;
 select count(*) from t1;
 count(*)
-3
+2
 # 
 connection mdl_con1;
 # Create an active SNW lock on t2.
@@ -1321,7 +1290,7 @@ commit;
 begin;
 select count(*) from t1;
 count(*)
-3
+2
 # Sending:
 insert into t2 values (1);;
 # 
@@ -1347,7 +1316,7 @@ commit;
 begin;
 select count(*) from t1;
 count(*)
-3
+2
 # 
 connection mdl_con1;
 # Create an active SNW lock on t1.
@@ -1360,7 +1329,7 @@ set debug_sync= 'now WAIT_FOR locked';
 # We should still be able to get SR lock without waiting.
 select count(*) from t1;
 count(*)
-3
+2
 # Since the above ALTER TABLE is not upgrading SNW lock to X by waiting
 # for SW lock we won't create deadlock.
 # So the below INSERT should not end-up with ER_LOCK_DEADLOCK error.
@@ -1397,7 +1366,7 @@ connection default;
 # We should still be able to get both SW and SR locks without waiting.
 select count(*) from t1;
 count(*)
-5
+4
 delete from t1 limit 1;
 # Unblock ALTER TABLE.
 commit;
@@ -1416,7 +1385,7 @@ connection default;
 begin;
 select count(*) from t1;
 count(*)
-4
+3
 # 
 connection mdl_con2;
 # Start transaction which will prevent SNW -> X upgrade from
@@ -1454,7 +1423,7 @@ commit;
 begin;
 select count(*) from t1;
 count(*)
-4
+3
 # 
 connection mdl_con2;
 # Start transaction which will prevent SNW -> X upgrade from
@@ -1493,7 +1462,7 @@ commit;
 begin;
 select count(*) from t1;
 count(*)
-4
+3
 # 
 connection mdl_con1;
 # Create SNW lock pending upgrade to X.
@@ -1505,7 +1474,7 @@ connection default;
 # Check that transaction is still able to acquire SR lock.
 select count(*) from t1;
 count(*)
-4
+3
 # Waiting trying to acquire SW lock will cause deadlock and
 # therefore should cause an error.
 delete from t1 limit 1;
@@ -1526,7 +1495,7 @@ connection default;
 begin;
 select count(*) from t1;
 count(*)
-4
+3
 # 
 connection mdl_con1;
 lock table t2 write;
@@ -1551,7 +1520,7 @@ commit;
 begin;
 select count(*) from t1;
 count(*)
-4
+3
 # 
 connection mdl_con1;
 lock table t2 write;
@@ -1580,7 +1549,7 @@ commit;
 begin;
 select count(*) from t1;
 count(*)
-4
+3
 # 
 connection mdl_con1;
 # Sending:
@@ -1591,7 +1560,7 @@ connection default;
 # Check that another instance of SR lock is granted without waiting.
 select count(*) from t1;
 count(*)
-4
+3
 # Attempt to wait for SW lock will lead to deadlock, thus
 # the below statement should end with ER_LOCK_DEADLOCK error.
 delete from t1 limit 1;
@@ -1620,7 +1589,7 @@ connection default;
 # and errors.
 select count(*) from t1;
 count(*)
-3
+2
 insert into t1 values (1, 1);
 # Unblock LOCK TABLES.
 commit;
@@ -1639,7 +1608,7 @@ connection default;
 begin;
 select count(*) from t1;
 count(*)
-4
+3
 # 
 connection mdl_con2;
 # Start transaction which will prevent X lock from going away
@@ -1677,7 +1646,7 @@ rename table t3 to t2;
 begin;
 select count(*) from t1;
 count(*)
-4
+3
 # 
 connection mdl_con2;
 # Start transaction which will prevent X lock from going away
@@ -1721,7 +1690,7 @@ rename table t3 to t2;
 begin;
 select count(*) from t1;
 count(*)
-4
+3
 # 
 connection mdl_con1;
 # Sending:
@@ -1732,7 +1701,7 @@ connection default;
 # Check that another instance of SR lock is granted without waiting.
 select count(*) from t1;
 count(*)
-4
+3
 # Attempt to wait for SW lock will lead to deadlock, thus
 # the below statement should end with ER_LOCK_DEADLOCK error.
 delete from t1 limit 1;
@@ -1761,7 +1730,7 @@ connection default;
 # and errors.
 select count(*) from t1;
 count(*)
-3
+2
 insert into t1 values (1, 1);
 # Unblock RENAME TABLE.
 commit;
@@ -1777,149 +1746,6 @@ disconnect mdl_con2;
 disconnect mdl_con3;
 set debug_sync= 'RESET';
 drop table t1, t2;
-#
-# Additional coverage for some scenarios in which not quite
-# correct use of S metadata locks by HANDLER statement might
-# have caused deadlocks.
-#
-drop table if exists t1, t2;
-connect handler_con1,localhost,root,,;
-connect handler_con2,localhost,root,,;
-connection default;
-create table t1 (i int);
-create table t2 (j int);
-insert into t1 values (1);
-#
-# First, check scenario in which we upgrade SNRW lock to X lock
-# on a table while having HANDLER READ trying to acquire TL_READ
-# on the same table.
-#
-handler t1 open;
-# 
-connection handler_con1;
-lock table t1 write;
-# Upgrade SNRW to X lock.
-# Sending:
-alter table t1 add column j int;;
-# 
-connection handler_con2;
-# Wait until ALTER is blocked during upgrade.
-# 
-connection default;
-# The below statement should not cause deadlock.
-handler t1 read first;;
-# 
-connection handler_con1;
-# Reap ALTER TABLE.
-unlock tables;
-# 
-connection default;
-# Reap HANDLER READ.
-i	j
-1	NULL
-handler t1 close;
-#
-# Now, check scenario in which upgrade of SNRW lock to X lock
-# can be blocked by HANDLER which is open in connection currently
-# waiting to get table-lock owned by connection doing upgrade.
-#
-handler t1 open;
-# 
-connection handler_con1;
-lock table t1 write, t2 read;
-# 
-connection default;
-# Execute statement which will be blocked on table-level lock
-# owned by connection 'handler_con1'.
-# Sending:
-insert into t2 values (1);;
-# 
-connection handler_con1;
-# Wait until INSERT is blocked on table-level lock.
-# Sending 'alter table t1 drop column j'. It should not cause
-# deadlock.
-alter table t1 drop column j;
-connection handler_con2;
-# Wait until ALTER is blocked during upgrade.
-# 
-connection default;
-# Reap INSERT.
-ERROR HY000: Wait on a lock was aborted due to a pending exclusive lock
-handler t1 close;
-#
-connection handler_con1;
-# Reaping 'alter table t1 drop column j'
-unlock tables;
-connection default;
-# Then, check the scenario in which upgrade of SNRW lock to X
-# lock is blocked by HANDLER which is open in connection currently
-# waiting to get SW lock on the same table.
-#
-handler t1 open;
-# 
-connection handler_con1;
-lock table t1 write;
-# 
-connection default;
-# The below insert should be blocked because active SNRW lock on 't1'.
-# Sending:
-insert into t1 values (1);;
-# 
-connection handler_con1;
-# Wait until INSERT is blocked because of SNRW lock.
-# The below ALTER TABLE will be blocked because of presence of HANDLER.
-# Sending:
-alter table t1 add column j int;;
-# 
-connection default;
-# INSERT should be chosen as victim for resolving deadlock.
-# Reaping INSERT.
-ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
-# Close HANDLER to unblock ALTER TABLE.
-handler t1 close;
-# 
-connection handler_con1;
-# Reaping ALTER TABLE.
-unlock tables;
-# 
-connection default;
-#
-# Finally, test in which upgrade of SNRW lock to X lock is blocked
-# by HANDLER which is open in connection currently waiting to get
-# SR lock on the table on which lock is upgraded.
-#
-handler t1 open;
-# 
-connection handler_con1;
-lock table t1 write, t2 write;
-# 
-connection default;
-# The below insert should be blocked because active SNRW lock on 't1'.
-# Sending:
-insert into t2 values (1);;
-# 
-connection handler_con1;
-# Wait until INSERT is blocked because of SNRW lock.
-# The below ALTER TABLE will be blocked because of presence of HANDLER.
-# Sending:
-alter table t1 drop column j;;
-# 
-connection default;
-# INSERT should be chosen as victim for resolving deadlock.
-# Reaping INSERT.
-ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
-# Close HANDLER to unblock ALTER TABLE.
-handler t1 close;
-# 
-connection handler_con1;
-# Reaping ALTER TABLE.
-unlock tables;
-# 
-connection default;
-# Clean-up.
-disconnect handler_con1;
-disconnect handler_con2;
-drop tables t1, t2;
 #
 # Test coverage for basic deadlock detection in metadata
 # locking subsystem.

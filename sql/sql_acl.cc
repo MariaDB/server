@@ -1064,7 +1064,12 @@ static bool fix_lex_user(THD *thd, LEX_USER *user)
       make_scramble= my_make_scrambled_password;
     }
 
+    Query_arena *arena, backup;
+    arena= thd->activate_stmt_arena_if_needed(&backup);
     char *buff= (char *) thd->alloc(scramble_length + 1);
+    if (arena)
+      thd->restore_active_arena(arena, &backup);
+
     if (buff == NULL)
       return true;
     make_scramble(buff, user->pwtext.str, user->pwtext.length);
@@ -1196,7 +1201,7 @@ static bool acl_load(THD *thd, TABLE_LIST *tables)
   bool check_no_resolve= specialflag & SPECIAL_NO_RESOLVE;
   char tmp_name[SAFE_NAME_LEN+1];
   int password_length;
-  ulonglong old_sql_mode= thd->variables.sql_mode;
+  sql_mode_t old_sql_mode= thd->variables.sql_mode;
   DBUG_ENTER("acl_load");
 
   thd->variables.sql_mode&= ~MODE_PAD_CHAR_TO_FULL_LENGTH;
@@ -1750,7 +1755,7 @@ bool acl_reload(THD *thd)
   my_hash_init2(&acl_roles,50, &my_charset_utf8_bin,
                 0, 0, 0, (my_hash_get_key) acl_role_get_key, 0,
                 (void (*)(void *))free_acl_role, 0);
-  my_hash_init2(&acl_roles_mappings, 50, system_charset_info, 0, 0, 0,
+  my_hash_init2(&acl_roles_mappings, 50, &my_charset_utf8_bin, 0, 0, 0,
                 (my_hash_get_key) acl_role_map_get_key, 0, 0, 0);
   old_mem= acl_memroot;
   delete_dynamic(&acl_wild_hosts);
@@ -4360,6 +4365,8 @@ table_hash_search(const char *host, const char *ip, const char *db,
 static GRANT_COLUMN *
 column_hash_search(GRANT_TABLE *t, const char *cname, uint length)
 {
+  if (!my_hash_inited(&t->hash_columns))
+    return (GRANT_COLUMN*) 0;
   return (GRANT_COLUMN*) my_hash_search(&t->hash_columns,
                                         (uchar*) cname, length);
 }
@@ -6600,7 +6607,7 @@ static bool grant_load(THD *thd, TABLE_LIST *tables)
   TABLE *t_table, *c_table, *p_table;
   bool check_no_resolve= specialflag & SPECIAL_NO_RESOLVE;
   MEM_ROOT *save_mem_root= thd->mem_root;
-  ulonglong old_sql_mode= thd->variables.sql_mode;
+  sql_mode_t old_sql_mode= thd->variables.sql_mode;
   DBUG_ENTER("grant_load");
 
   thd->variables.sql_mode&= ~MODE_PAD_CHAR_TO_FULL_LENGTH;
@@ -9643,7 +9650,7 @@ bool mysql_drop_user(THD *thd, List <LEX_USER> &list, bool handle_as_role)
   List_iterator <LEX_USER> user_list(list);
   TABLE_LIST tables[TABLES_MAX];
   bool binlog= false;
-  ulonglong old_sql_mode= thd->variables.sql_mode;
+  sql_mode_t old_sql_mode= thd->variables.sql_mode;
   DBUG_ENTER("mysql_drop_user");
   DBUG_PRINT("entry", ("Handle as %s", handle_as_role ? "role" : "user"));
 
@@ -10148,7 +10155,7 @@ public:
   virtual bool handle_condition(THD *thd,
                                 uint sql_errno,
                                 const char* sqlstate,
-                                Sql_condition::enum_warning_level level,
+                                Sql_condition::enum_warning_level *level,
                                 const char* msg,
                                 Sql_condition ** cond_hdl);
 
@@ -10163,12 +10170,12 @@ Silence_routine_definer_errors::handle_condition(
   THD *thd,
   uint sql_errno,
   const char*,
-  Sql_condition::enum_warning_level level,
+  Sql_condition::enum_warning_level *level,
   const char* msg,
   Sql_condition ** cond_hdl)
 {
   *cond_hdl= NULL;
-  if (level == Sql_condition::WARN_LEVEL_ERROR)
+  if (*level == Sql_condition::WARN_LEVEL_ERROR)
   {
     switch (sql_errno)
     {
@@ -12030,14 +12037,9 @@ static ulong parse_client_handshake_packet(MPVIO_EXT *mpvio,
     mostly for backward compatibility (to truncate long usernames, as
     old 5.1 did)
   */
-  {
-    CHARSET_INFO *cs= system_charset_info;
-    int           err;
-
-    user_len= (uint) cs->cset->well_formed_len(cs, user, user + user_len,
-                                               username_char_length, &err);
-    user[user_len]= '\0';
-  }
+  user_len= Well_formed_prefix(system_charset_info, user, user_len,
+                               username_char_length).length();
+  user[user_len]= '\0';
 
   Security_context *sctx= thd->security_ctx;
 

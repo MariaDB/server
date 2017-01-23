@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2010, 2014, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2010, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
 Copyright (c) 2013, 2016, MariaDB Corporation.
 
@@ -308,6 +308,12 @@ static monitor_info_t	innodb_counter_info[] =
 	 static_cast<monitor_type_t>(
 	 MONITOR_EXISTING | MONITOR_DEFAULT_ON),
 	 MONITOR_DEFAULT_START, MONITOR_OVLD_PAGES_READ},
+
+	{"buffer_pages0_read", "buffer",
+	 "Number of page 0 read (innodb_pages0_read)",
+	 static_cast<monitor_type_t>(
+	 MONITOR_EXISTING | MONITOR_DEFAULT_ON),
+	 MONITOR_DEFAULT_START, MONITOR_OVLD_PAGES0_READ},
 
 	{"buffer_index_sec_rec_cluster_reads", "buffer",
 	 "Number of secondary record reads triggered cluster read",
@@ -1493,7 +1499,10 @@ srv_mon_set_module_control(
 				module */
 				set_current_module = FALSE;
 			} else if (module_id == MONITOR_ALL_COUNTER) {
-				continue;
+				if (!(innodb_counter_info[ix].monitor_type
+				      & MONITOR_GROUP_MODULE)) {
+					continue;
+				}
 			} else {
 				/* Hitting the next module, stop */
 				break;
@@ -1713,6 +1722,11 @@ srv_mon_process_existing_counter(
 	case MONITOR_OVLD_PAGES_READ:
 		buf_get_total_stat(&stat);
 		value = stat.n_pages_read;
+		break;
+
+	/* innodb_pages0_read */
+	case MONITOR_OVLD_PAGES0_READ:
+		value = srv_stats.page0_read;
 		break;
 
 	/* Number of times secondary index lookup triggered cluster lookup */

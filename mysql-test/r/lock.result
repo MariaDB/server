@@ -444,7 +444,7 @@ UPDATE LOW_PRIORITY t1 SET f2 = 7;
 # Statement below should fail with ER_CANT_UPDATE_USED_TABLE_IN_SF_OR_TRG
 # error instead of failing on assertion in table-level locking subsystem.
 INSERT INTO t1(f1) VALUES(0);
-ERROR HY000: Can't update table 't1' in stored function/trigger because it is already used by statement which invoked this stored function/trigger.
+ERROR HY000: Can't update table 't1' in stored function/trigger because it is already used by statement which invoked this stored function/trigger
 DROP TABLE t1;
 #
 # Bug#43685 Lock table affects other non-related tables

@@ -1,16 +1,13 @@
 -- source include/have_innodb.inc
 -- source include/not_embedded.inc
 -- source include/have_file_key_management_plugin.inc
+-- source include/big_test.inc
+# Test heavy not tested on valgrind
+-- source include/not_valgrind.inc
 
---disable_query_log
 let $innodb_compression_algorithm_orig=`SELECT @@innodb_compression_algorithm`;
-let $innodb_file_format_orig = `SELECT @@innodb_file_format`;
-let $innodb_file_per_table_orig = `SELECT @@innodb_file_per_table`;
 let $encryption = `SELECT @@innodb_encrypt_tables`;
---enable_query_log
 
-SET GLOBAL innodb_file_format = `Barracuda`;
-SET GLOBAL innodb_file_per_table = ON;
 # zlib
 set global innodb_compression_algorithm = 1;
 
@@ -64,8 +61,6 @@ SELECT variable_value >= 0 FROM information_schema.global_status WHERE variable_
 
 --source include/restart_mysqld.inc
 
-SET GLOBAL innodb_file_format = `Barracuda`;
-SET GLOBAL innodb_file_per_table = ON;
 # zlib
 set global innodb_compression_algorithm = 1;
 
@@ -93,9 +88,6 @@ alter table innodb_dynamic engine=innodb encrypted=DEFAULT encryption_key_id=DEF
 show create table innodb_dynamic;
 
 --source include/restart_mysqld.inc
-
-SET GLOBAL innodb_file_format = `Barracuda`;
-SET GLOBAL innodb_file_per_table = ON;
 
 show create table innodb_normal;
 show create table innodb_compact;
@@ -125,7 +117,5 @@ drop table innodb_dynamic;
 # reset system
 --disable_query_log
 EVAL SET GLOBAL innodb_compression_algorithm = $innodb_compression_algorithm_orig;
-EVAL SET GLOBAL innodb_file_per_table = $innodb_file_per_table_orig;
-EVAL SET GLOBAL innodb_file_format = $innodb_file_format_orig;
 EVAL SET GLOBAL innodb_encrypt_tables = $encryption;
 --enable_query_log

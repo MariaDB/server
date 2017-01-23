@@ -495,7 +495,7 @@ static enum enum_binlog_checksum_alg get_binlog_checksum_value_at_connect(THD * 
 
   TODO
     - Inform the slave threads that they should sync the position
-      in the binary log file with flush_relay_log_info.
+      in the binary log file with Relay_log_info::flush().
       Now they sync is done for next read.
 */
 
@@ -1629,7 +1629,7 @@ is_until_reached(binlog_send_info *info, ulong *ev_offset,
     break;
   case GTID_UNTIL_STOP_AFTER_TRANSACTION:
     if (event_type != XID_EVENT &&
-        (event_type != QUERY_EVENT ||
+        (event_type != QUERY_EVENT ||    /* QUERY_COMPRESSED_EVENT would never be commmit or rollback */
          !Query_log_event::peek_is_commit_rollback
                (info->packet->ptr()+*ev_offset,
                 info->packet->length()-*ev_offset,
@@ -1863,7 +1863,7 @@ send_event_to_slave(binlog_send_info *info, Log_event_type event_type,
     return NULL;
   case GTID_SKIP_TRANSACTION:
     if (event_type == XID_EVENT ||
-        (event_type == QUERY_EVENT &&
+        (event_type == QUERY_EVENT && /* QUERY_COMPRESSED_EVENT would never be commmit or rollback */
          Query_log_event::peek_is_commit_rollback(packet->ptr() + ev_offset,
                                                   len - ev_offset,
                                                   current_checksum_alg)))
@@ -2205,6 +2205,7 @@ static int send_format_descriptor_event(binlog_send_info *info, IO_CACHE *log,
   THD *thd= info->thd;
   String *packet= info->packet;
   Log_event_type event_type;
+  DBUG_ENTER("send_format_descriptor_event");
 
   /**
    * 1) reset fdev before each log-file
@@ -2219,12 +2220,12 @@ static int send_format_descriptor_event(binlog_send_info *info, IO_CACHE *log,
   {
     info->errmsg= "Out of memory initializing format_description event";
     info->error= ER_MASTER_FATAL_ERROR_READING_BINLOG;
-    return 1;
+    DBUG_RETURN(1);
   }
 
   /* reset transmit packet for the event read from binary log file */
   if (reset_transmit_packet(info, info->flags, &ev_offset, &info->errmsg))
-    return 1;
+    DBUG_RETURN(1);
 
   /*
     Try to find a Format_description_log_event at the beginning of
@@ -2240,7 +2241,7 @@ static int send_format_descriptor_event(binlog_send_info *info, IO_CACHE *log,
   if (error)
   {
     set_read_error(info, error);
-    return 1;
+    DBUG_RETURN(1);
   }
 
   event_type= (Log_event_type)((uchar)(*packet)[LOG_EVENT_OFFSET+ev_offset]);
@@ -2261,7 +2262,7 @@ static int send_format_descriptor_event(binlog_send_info *info, IO_CACHE *log,
     sql_print_warning("Failed to find format descriptor event in "
                       "start of binlog: %s",
                       info->log_file_name);
-    return 1;
+    DBUG_RETURN(1);
   }
 
   info->current_checksum_alg= get_checksum_alg(packet->ptr() + ev_offset,
@@ -2281,7 +2282,7 @@ static int send_format_descriptor_event(binlog_send_info *info, IO_CACHE *log,
     sql_print_warning("Master is configured to log replication events "
                       "with checksum, but will not send such events to "
                       "slaves that cannot process them");
-    return 1;
+    DBUG_RETURN(1);
   }
 
   uint ev_len= packet->length() - ev_offset;
@@ -2295,7 +2296,7 @@ static int send_format_descriptor_event(binlog_send_info *info, IO_CACHE *log,
     info->error= ER_MASTER_FATAL_ERROR_READING_BINLOG;
     info->errmsg= "Corrupt Format_description event found "
         "or out-of-memory";
-    return 1;
+    DBUG_RETURN(1);
   }
   delete info->fdev;
   info->fdev= tmp;
@@ -2354,7 +2355,7 @@ static int send_format_descriptor_event(binlog_send_info *info, IO_CACHE *log,
   {
     info->errmsg= "Failed on my_net_write()";
     info->error= ER_UNKNOWN_ERROR;
-    return 1;
+    DBUG_RETURN(1);
   }
 
   /*
@@ -2374,7 +2375,7 @@ static int send_format_descriptor_event(binlog_send_info *info, IO_CACHE *log,
   if (error)
   {
     set_read_error(info, error);
-    return 1;
+    DBUG_RETURN(1);
   }
 
   event_type= (Log_event_type)((uchar)(*packet)[LOG_EVENT_OFFSET]);
@@ -2386,14 +2387,15 @@ static int send_format_descriptor_event(binlog_send_info *info, IO_CACHE *log,
     if (!sele)
     {
       info->error= ER_MASTER_FATAL_ERROR_READING_BINLOG;
-      return 1;
+      DBUG_RETURN(1);
     }
 
     if (info->fdev->start_decryption(sele))
     {
       info->error= ER_MASTER_FATAL_ERROR_READING_BINLOG;
       info->errmsg= "Could not decrypt binlog: encryption key error";
-      return 1;
+      delete sele;
+      DBUG_RETURN(1);
     }
     delete sele;
   }
@@ -2409,7 +2411,7 @@ static int send_format_descriptor_event(binlog_send_info *info, IO_CACHE *log,
 
 
   /** all done */
-  return 0;
+  DBUG_RETURN(0);
 }
 
 static bool should_stop(binlog_send_info *info)
@@ -3304,6 +3306,7 @@ int reset_slave(THD *thd, Master_info* mi)
   mi->clear_error();
   mi->rli.clear_error();
   mi->rli.clear_until_condition();
+  mi->rli.clear_sql_delay();
   mi->rli.slave_skip_counter= 0;
 
   // close master_info_file, relay_log_info_file, set mi->inited=rli->inited=0
@@ -3613,6 +3616,9 @@ bool change_master(THD* thd, Master_info* mi, bool *master_info_added)
   if (lex_mi->ssl != LEX_MASTER_INFO::LEX_MI_UNCHANGED)
     mi->ssl= (lex_mi->ssl == LEX_MASTER_INFO::LEX_MI_ENABLE);
 
+  if (lex_mi->sql_delay != -1)
+    mi->rli.set_sql_delay(lex_mi->sql_delay);
+
   if (lex_mi->ssl_verify_server_cert != LEX_MASTER_INFO::LEX_MI_UNCHANGED)
     mi->ssl_verify_server_cert=
       (lex_mi->ssl_verify_server_cert == LEX_MASTER_INFO::LEX_MI_ENABLE);
@@ -3797,7 +3803,7 @@ bool change_master(THD* thd, Master_info* mi, bool *master_info_added)
     in-memory value at restart (thus causing errors, as the old relay log does
     not exist anymore).
   */
-  flush_relay_log_info(&mi->rli);
+  mi->rli.flush();
   mysql_cond_broadcast(&mi->data_cond);
   mysql_mutex_unlock(&mi->rli.data_lock);
 

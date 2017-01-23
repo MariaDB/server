@@ -1711,6 +1711,54 @@ ALTER TABLE t1 ADD PRIMARY KEY IF NOT EXISTS event_id (event_id,market_id);
 DROP TABLE t1;
 
 --echo #
+--echo # MDEV-11126 Crash while altering persistent virtual column
+--echo #
+
+CREATE TABLE `tab1` (
+  `id` bigint(20) NOT NULL AUTO_INCREMENT,
+  `field2` set('option1','option2','option3','option4') NOT NULL,
+  `field3` set('option1','option2','option3','option4','option5') NOT NULL,
+  `field4` set('option1','option2','option3','option4') NOT NULL,
+  `field5` varchar(32) NOT NULL,
+  `field6` varchar(32) NOT NULL,
+  `field7` varchar(32) NOT NULL,
+  `field8` varchar(32) NOT NULL,
+  `field9` int(11) NOT NULL DEFAULT '1',
+  `field10` varchar(16) NOT NULL,
+  `field11` enum('option1','option2','option3') NOT NULL DEFAULT 'option1',
+  `v_col` varchar(128) AS (IF(field11='option1',CONCAT_WS(":","field1",field2,field3,field4,field5,field6,field7,field8,field9,field10), CONCAT_WS(":","field1",field11,field2,field3,field4,field5,field6,field7,field8,field9,field10))) PERSISTENT,
+  PRIMARY KEY (`id`)
+) DEFAULT CHARSET=latin1;
+
+ALTER TABLE `tab1` CHANGE COLUMN v_col `v_col` varchar(128);
+SHOW CREATE TABLE `tab1`;
+ALTER TABLE `tab1` CHANGE COLUMN v_col `v_col` varchar(128) AS (IF(field11='option1',CONCAT_WS(":","field1",field2,field3,field4,field5,field6,field7,field8,field9,field10), CONCAT_WS(":","field1",field11,field2,field3,field4,field5,field6,field7,field8,field9,field10))) PERSISTENT;
+SHOW CREATE TABLE `tab1`;
+DROP TABLE `tab1`;
+
+--echo #
+--echo # MDEV-11548 Reproducible server crash after the 2nd ALTER TABLE ADD FOREIGN KEY IF NOT EXISTS
+--echo #
+
+CREATE TABLE t1 (id INT UNSIGNED NOT NULL PRIMARY KEY);
+CREATE TABLE t2 (id1 INT UNSIGNED NOT NULL);
+
+ALTER TABLE t2
+ADD FOREIGN KEY IF NOT EXISTS (id1)
+  REFERENCES t1 (id);
+
+ALTER TABLE t2
+ADD FOREIGN KEY IF NOT EXISTS (id1)
+REFERENCES t1 (id);
+
+DROP TABLE t2;
+DROP TABLE t1;
+
+--echo #
+--echo # Start of 10.1 tests
+--echo #
+
+--echo #
 --echo # MDEV-7374 : Losing connection to MySQL while running ALTER TABLE
 --echo #
 CREATE TABLE t1(i INT) ENGINE=INNODB;
@@ -1718,10 +1766,6 @@ INSERT INTO t1 VALUES (1),(2),(3),(4),(5),(6),(7),(8);
 INSERT INTO t1 SELECT a.* FROM t1 a, t1 b, t1 c, t1 d, t1 e;
 ALTER TABLE t1 MODIFY i FLOAT;
 DROP TABLE t1;
-
---echo #
---echo # Start of 10.1 tests
---echo #
 
 --echo #
 --echo # MDEV-7816 ALTER with DROP INDEX and ADD INDEX .. COMMENT='comment2' ignores the new comment

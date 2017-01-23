@@ -313,3 +313,12 @@ INSERT INTO table1 VALUES (1);
 DROP TABLE table1,table2;
 
 --echo # End BUG#34750
+
+--echo #
+--echo # MDEV-11105 Table named 'db' has weird side effect.
+--echo #
+
+CREATE DATABASE mysqltest;
+CREATE TABLE mysqltest.db(id INT);
+DROP DATABASE mysqltest;
+

@@ -10,8 +10,5 @@
 #
 ##############################################################################
 
-innodb_scrub : MDEV-8139
-innodb_scrub_compressed : MDEV-8139
-innodb_scrub_background : MDEV-8139
-innodb_encryption-page-compression : Fails with lost connection at line 156
-
+innodb_scrub            : MDEV-8139 scrubbing does not work reliably
+innodb_scrub_background : MDEV-8139 scrubbing does not work reliably

@@ -2289,8 +2289,8 @@ CREATE TABLE t2(a int);
 CREATE TABLE t3(a int) ENGINE = MERGE UNION(t1, t2);
 CREATE TRIGGER tr1 AFTER INSERT ON t3 FOR EACH ROW CALL foo();
 SHOW CREATE TRIGGER tr1;
-Trigger	sql_mode	SQL Original Statement	character_set_client	collation_connection	Database Collation
-tr1	NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` TRIGGER tr1 AFTER INSERT ON t3 FOR EACH ROW CALL foo()	latin1	latin1_swedish_ci	latin1_swedish_ci
+Trigger	sql_mode	SQL Original Statement	character_set_client	collation_connection	Database Collation	Created
+tr1	NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` TRIGGER tr1 AFTER INSERT ON t3 FOR EACH ROW CALL foo()	latin1	latin1_swedish_ci	latin1_swedish_ci	#
 DROP TRIGGER tr1;
 DROP TABLE t1, t2, t3;
 #
@@ -2785,14 +2785,14 @@ CREATE TRIGGER tm1_ai AFTER INSERT ON tm1
 FOR EACH ROW INSERT INTO t1 VALUES(11);
 LOCK TABLE tm1 WRITE, t1 WRITE;
 INSERT INTO tm1 VALUES (1);
-ERROR HY000: Can't update table 't1' in stored function/trigger because it is already used by statement which invoked this stored function/trigger.
+ERROR HY000: Can't update table 't1' in stored function/trigger because it is already used by statement which invoked this stored function/trigger
 SELECT * FROM tm1;
 c1
 1
 UNLOCK TABLES;
 LOCK TABLE t1 WRITE, tm1 WRITE;
 INSERT INTO tm1 VALUES (1);
-ERROR HY000: Can't update table 't1' in stored function/trigger because it is already used by statement which invoked this stored function/trigger.
+ERROR HY000: Can't update table 't1' in stored function/trigger because it is already used by statement which invoked this stored function/trigger
 SELECT * FROM tm1;
 c1
 1
@@ -3711,9 +3711,9 @@ ERROR HY000: Table 'm1' is specified twice, both as a target for 'INSERT' and as
 insert into m1 (a) values ((select max(a) from tmp, t2));
 ERROR HY000: Table 'm1' is specified twice, both as a target for 'INSERT' and as a separate source for data
 insert into m1 (a) values ((select max(a) from v1));
-ERROR HY000: The definition of table 'v1' prevents operation INSERT on table 'm1'.
+ERROR HY000: The definition of table 'v1' prevents operation INSERT on table 'm1'
 insert into m1 (a) values ((select max(a) from tmp, v1));
-ERROR HY000: The definition of table 'v1' prevents operation INSERT on table 'm1'.
+ERROR HY000: The definition of table 'v1' prevents operation INSERT on table 'm1'
 update m1 set a = ((select max(a) from m1));
 ERROR HY000: Table 'm1' is specified twice, both as a target for 'UPDATE' and as a separate source for data
 update m1 set a = ((select max(a) from m2));
@@ -3739,9 +3739,9 @@ ERROR HY000: Table 'm1' is specified twice, both as a target for 'UPDATE' and as
 update m1 set a = ((select max(a) from tmp, t2));
 ERROR HY000: Table 'm1' is specified twice, both as a target for 'UPDATE' and as a separate source for data
 update m1 set a = ((select max(a) from v1));
-ERROR HY000: The definition of table 'v1' prevents operation UPDATE on table 'm1'.
+ERROR HY000: The definition of table 'v1' prevents operation UPDATE on table 'm1'
 update m1 set a = ((select max(a) from tmp, v1));
-ERROR HY000: The definition of table 'v1' prevents operation UPDATE on table 'm1'.
+ERROR HY000: The definition of table 'v1' prevents operation UPDATE on table 'm1'
 delete from m1 where a = (select max(a) from m1);
 ERROR HY000: Table 'm1' is specified twice, both as a target for 'DELETE' and as a separate source for data
 delete from m1 where a = (select max(a) from m2);
@@ -3767,9 +3767,9 @@ ERROR HY000: Table 'm1' is specified twice, both as a target for 'DELETE' and as
 delete from m1 where a = (select max(a) from tmp, t2);
 ERROR HY000: Table 'm1' is specified twice, both as a target for 'DELETE' and as a separate source for data
 delete from m1 where a = (select max(a) from v1);
-ERROR HY000: The definition of table 'v1' prevents operation DELETE on table 'm1'.
+ERROR HY000: The definition of table 'v1' prevents operation DELETE on table 'm1'
 delete from m1 where a = (select max(a) from tmp, v1);
-ERROR HY000: The definition of table 'v1' prevents operation DELETE on table 'm1'.
+ERROR HY000: The definition of table 'v1' prevents operation DELETE on table 'm1'
 drop view v1;
 drop temporary table tmp;
 drop table t1, t2, t3, m1, m2;
@@ -3862,6 +3862,23 @@ test.m1	repair	error	Corrupt
 # Clean-up.
 drop tables m1, t1, t4;
 drop view t3;
+#
+# MDEV-10424 - Assertion `ticket == __null' failed in
+#              MDL_request::set_type
+#
+CREATE TABLE t1 (f1 INT) ENGINE=MyISAM;
+CREATE TABLE tmerge (f1 INT) ENGINE=MERGE UNION=(t1);
+PREPARE stmt FROM "ANALYZE TABLE tmerge, t1";
+EXECUTE stmt;
+Table	Op	Msg_type	Msg_text
+test.tmerge	analyze	note	The storage engine for the table doesn't support analyze
+test.t1	analyze	status	Table is already up to date
+EXECUTE stmt;
+Table	Op	Msg_type	Msg_text
+test.tmerge	analyze	note	The storage engine for the table doesn't support analyze
+test.t1	analyze	status	Table is already up to date
+DEALLOCATE PREPARE stmt;
+DROP TABLE t1, tmerge;
 End of 5.5 tests
 #
 # Additional coverage for refactoring which is made as part

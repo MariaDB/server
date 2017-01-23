@@ -64,18 +64,18 @@ extern "C" sig_handler handle_fatal_signal(int sig)
   struct tm tm;
 #ifdef HAVE_STACKTRACE
   THD *thd;
-#endif
   /*
      This flag remembers if the query pointer was found invalid.
      We will try and print the query at the end of the signal handler, in case
      we're wrong.
   */
   bool print_invalid_query_pointer= false;
+#endif
 
   if (segfaulted)
   {
     my_safe_printf_stderr("Fatal " SIGNAL_FMT " while backtracing\n", sig);
-    _exit(1); /* Quit without running destructors */
+    goto end;
   }
 
   segfaulted = 1;
@@ -276,6 +276,7 @@ extern "C" sig_handler handle_fatal_signal(int sig)
       "\"mlockall\" bugs.\n");
   }
 
+#ifdef HAVE_STACKTRACE
   if (print_invalid_query_pointer)
   {
     my_safe_printf_stderr(
@@ -285,6 +286,7 @@ extern "C" sig_handler handle_fatal_signal(int sig)
     my_write_stderr(thd->query(), MY_MIN(65536U, thd->query_length()));
     my_safe_printf_stderr("\n\n");
   }
+#endif
 
 #ifdef HAVE_WRITE_CORE
   if (test_flags & TEST_CORE_ON_SIGNAL)
@@ -299,9 +301,11 @@ end:
 #ifndef __WIN__
   /*
      Quit, without running destructors (etc.)
+     Use a signal, because the parent (systemd) can check that with WIFSIGNALED
      On Windows, do not terminate, but pass control to exception filter.
   */
-  _exit(1);  // Using _exit(), since exit() is not async signal safe
+  signal(sig, SIG_DFL);
+  kill(getpid(), sig);
 #else
   return;
 #endif

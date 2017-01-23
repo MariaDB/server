@@ -15,15 +15,6 @@
    along with this program; if not, write to the Free Software Foundation,
    51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA */
 
-#if defined(__IBMC__) || defined(__IBMCPP__)
-/* Further down, "next_in_lock" and "next_in_context" have the same type,
-   and in "sql_plist.h" this leads to an identical signature, which causes
-   problems in function overloading.
-*/
-#pragma namemangling(v5)
-#endif
-
-
 #include "sql_plist.h"
 #include <my_sys.h>
 #include <m_string.h>
@@ -204,6 +195,12 @@ enum enum_mdl_type {
     To be used for the first phase of ALTER TABLE.
   */
   MDL_SHARED_UPGRADABLE,
+  /*
+    A shared metadata lock for cases when we need to read data from table
+    and block all concurrent modifications to it (for both data and metadata).
+    Used by LOCK TABLES READ statement.
+  */
+  MDL_SHARED_READ_ONLY,
   /*
     An upgradable shared metadata lock which blocks all attempts to update
     table data, allowing reads.
@@ -474,6 +471,19 @@ public:
   {
     DBUG_ASSERT(ticket == NULL);
     type= type_arg;
+  }
+
+  /**
+    Is this a request for a lock which allow data to be updated?
+
+    @note This method returns true for MDL_SHARED_UPGRADABLE type of
+          lock. Even though this type of lock doesn't allow updates
+          it will always be upgraded to one that does.
+  */
+  bool is_write_lock_request() const
+  {
+    return (type >= MDL_SHARED_WRITE &&
+            type != MDL_SHARED_READ_ONLY);
   }
 
   /*

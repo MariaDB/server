@@ -350,7 +350,8 @@ public:
     AVG_DISTINCT_FUNC, MIN_FUNC, MAX_FUNC, STD_FUNC,
     VARIANCE_FUNC, SUM_BIT_FUNC, UDF_SUM_FUNC, GROUP_CONCAT_FUNC,
     ROW_NUMBER_FUNC, RANK_FUNC, DENSE_RANK_FUNC, PERCENT_RANK_FUNC,
-    CUME_DIST_FUNC, NTILE_FUNC
+    CUME_DIST_FUNC, NTILE_FUNC, FIRST_VALUE_FUNC, LAST_VALUE_FUNC,
+    NTH_VALUE_FUNC, LEAD_FUNC, LAG_FUNC
   };
 
   Item **ref_by; /* pointer to a ref to the object used to register it */
@@ -1194,7 +1195,6 @@ public:
     fixed= true;
   }
   table_map used_tables() const { return (table_map) 1L; }
-  void set_result_field(Field *) { DBUG_ASSERT(0); }
   void save_in_result_field(bool no_conversions) { DBUG_ASSERT(0); }
   bool check_vcol_func_processor(void *arg)
   {

@@ -52,7 +52,8 @@ enum enum_table_stat_col
 {
   TABLE_STAT_DB_NAME,
   TABLE_STAT_TABLE_NAME,
-  TABLE_STAT_CARDINALITY
+  TABLE_STAT_CARDINALITY,
+  TABLE_STAT_N_FIELDS
 };
 
 enum enum_column_stat_col
@@ -67,7 +68,8 @@ enum enum_column_stat_col
   COLUMN_STAT_AVG_FREQUENCY,
   COLUMN_STAT_HIST_SIZE,
   COLUMN_STAT_HIST_TYPE,
-  COLUMN_STAT_HISTOGRAM
+  COLUMN_STAT_HISTOGRAM,
+  COLUMN_STAT_N_FIELDS
 };
 
 enum enum_index_stat_col
@@ -76,7 +78,8 @@ enum enum_index_stat_col
   INDEX_STAT_TABLE_NAME,
   INDEX_STAT_INDEX_NAME,
   INDEX_STAT_PREFIX_ARITY,
-  INDEX_STAT_AVG_FREQUENCY
+  INDEX_STAT_AVG_FREQUENCY,
+  INDEX_STAT_N_FIELDS
 };
 
 inline
@@ -107,6 +110,7 @@ double get_column_range_cardinality(Field *field,
                                     key_range *min_endp,
                                     key_range *max_endp,
                                     uint range_flag);
+bool is_stat_table(const char *db, const char *table);
 
 class Histogram
 {
@@ -388,6 +392,11 @@ public:
     avg_frequency= (ulong) (val * Scale_factor_avg_frequency);
   }
 
+  bool min_max_values_are_provided()
+  {
+    return !is_null(COLUMN_STAT_MIN_VALUE) && 
+      !is_null(COLUMN_STAT_MIN_VALUE);
+  }          
 };
 
 

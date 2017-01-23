@@ -1,8 +1,8 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2013, 2017, MariaDB Corporation.
 Copyright (c) 2008, Google Inc.
-Copyright (c) 2013, 2015, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -45,10 +45,10 @@ Created 1/20/1994 Heikki Tuuri
 
 #define INNODB_VERSION_MAJOR	5
 #define INNODB_VERSION_MINOR	6
-#define INNODB_VERSION_BUGFIX	31
+#define INNODB_VERSION_BUGFIX	34
 
 #ifndef PERCONA_INNODB_VERSION
-#define PERCONA_INNODB_VERSION 77.0
+#define PERCONA_INNODB_VERSION 79.1
 #endif
 
 /* Enable UNIV_LOG_ARCHIVE in XtraDB */
@@ -184,7 +184,7 @@ command. Not tested on Windows. */
 #define UNIV_COMPILE_TEST_FUNCS
 */
 
-#if defined(HAVE_valgrind)&& defined(HAVE_VALGRIND_MEMCHECK_H)
+#if defined HAVE_valgrind && defined HAVE_VALGRIND
 # define UNIV_DEBUG_VALGRIND
 #endif
 #if 0

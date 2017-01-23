@@ -359,7 +359,7 @@ int ha_init_errors(void)
   SETMSG(HA_ERR_NO_CONNECTION,          "Could not connect to storage engine");
   SETMSG(HA_ERR_TABLE_DEF_CHANGED,      ER_DEFAULT(ER_TABLE_DEF_CHANGED));
   SETMSG(HA_ERR_FOREIGN_DUPLICATE_KEY,  "FK constraint would lead to duplicate key");
-  SETMSG(HA_ERR_TABLE_NEEDS_UPGRADE,    "Table upgrade required. Please do \"REPAIR TABLE %`\" or dump/reload to fix it");
+  SETMSG(HA_ERR_TABLE_NEEDS_UPGRADE,    ER_DEFAULT(ER_TABLE_NEEDS_UPGRADE));
   SETMSG(HA_ERR_TABLE_READONLY,         ER_DEFAULT(ER_OPEN_AS_READONLY));
   SETMSG(HA_ERR_AUTOINC_READ_FAILED,    ER_DEFAULT(ER_AUTOINC_READ_FAILED));
   SETMSG(HA_ERR_AUTOINC_ERANGE,         ER_DEFAULT(ER_WARN_DATA_OUT_OF_RANGE));
@@ -370,6 +370,8 @@ int ha_init_errors(void)
   SETMSG(HA_ERR_TABLE_IN_FK_CHECK,	ER_DEFAULT(ER_TABLE_IN_FK_CHECK));
   SETMSG(HA_ERR_DISK_FULL,              ER_DEFAULT(ER_DISK_FULL));
   SETMSG(HA_ERR_FTS_TOO_MANY_WORDS_IN_PHRASE,  "Too many words in a FTS phrase or proximity search");
+  SETMSG(HA_ERR_FK_DEPTH_EXCEEDED,      "Foreign key cascade delete/update exceeds");
+  SETMSG(HA_ERR_TABLESPACE_MISSING,     ER_DEFAULT(ER_TABLESPACE_MISSING));
 
   /* Register the error messages for use with my_error(). */
   return my_error_register(get_handler_errmsgs, HA_ERR_FIRST, HA_ERR_LAST);
@@ -2577,6 +2579,8 @@ int handler::ha_rnd_next(uchar *buf)
   if (!result)
   {
     update_rows_read();
+    if (table->vfield && buf == table->record[0])
+      table->update_virtual_fields(VCOL_UPDATE_FOR_READ);
     increment_statistics(&SSV::ha_read_rnd_next_count);
   }
   else if (result == HA_ERR_RECORD_DELETED)
@@ -2601,7 +2605,11 @@ int handler::ha_rnd_pos(uchar *buf, uchar *pos)
     { result= rnd_pos(buf, pos); })
   increment_statistics(&SSV::ha_read_rnd_count);
   if (!result)
+  {
     update_rows_read();
+    if (table->vfield && buf == table->record[0])
+      table->update_virtual_fields(VCOL_UPDATE_FOR_READ);
+  }
   table->status=result ? STATUS_NOT_FOUND: 0;
   DBUG_RETURN(result);
 }
@@ -2620,7 +2628,11 @@ int handler::ha_index_read_map(uchar *buf, const uchar *key,
     { result= index_read_map(buf, key, keypart_map, find_flag); })
   increment_statistics(&SSV::ha_read_key_count);
   if (!result)
+  {
     update_index_statistics();
+    if (table->vfield && buf == table->record[0])
+      table->update_virtual_fields(VCOL_UPDATE_FOR_READ);
+  }
   table->status=result ? STATUS_NOT_FOUND: 0;
   DBUG_RETURN(result);
 }
@@ -2647,6 +2659,8 @@ int handler::ha_index_read_idx_map(uchar *buf, uint index, const uchar *key,
   {
     update_rows_read();
     index_rows_read[index]++;
+    if (table->vfield && buf == table->record[0])
+      table->update_virtual_fields(VCOL_UPDATE_FOR_READ);
   }
   table->status=result ? STATUS_NOT_FOUND: 0;
   return result;
@@ -2664,7 +2678,11 @@ int handler::ha_index_next(uchar * buf)
     { result= index_next(buf); })
   increment_statistics(&SSV::ha_read_next_count);
   if (!result)
+  {
     update_index_statistics();
+    if (table->vfield && buf == table->record[0])
+      table->update_virtual_fields(VCOL_UPDATE_FOR_READ);
+  }
   table->status=result ? STATUS_NOT_FOUND: 0;
   DBUG_RETURN(result);
 }
@@ -2681,7 +2699,11 @@ int handler::ha_index_prev(uchar * buf)
     { result= index_prev(buf); })
   increment_statistics(&SSV::ha_read_prev_count);
   if (!result)
+  {
     update_index_statistics();
+    if (table->vfield && buf == table->record[0])
+      table->update_virtual_fields(VCOL_UPDATE_FOR_READ);
+  }
   table->status=result ? STATUS_NOT_FOUND: 0;
   DBUG_RETURN(result);
 }
@@ -2697,7 +2719,11 @@ int handler::ha_index_first(uchar * buf)
     { result= index_first(buf); })
   increment_statistics(&SSV::ha_read_first_count);
   if (!result)
+  {
     update_index_statistics();
+    if (table->vfield && buf == table->record[0])
+      table->update_virtual_fields(VCOL_UPDATE_FOR_READ);
+  }
   table->status=result ? STATUS_NOT_FOUND: 0;
   return result;
 }
@@ -2713,7 +2739,11 @@ int handler::ha_index_last(uchar * buf)
     { result= index_last(buf); })
   increment_statistics(&SSV::ha_read_last_count);
   if (!result)
+  {
     update_index_statistics();
+    if (table->vfield && buf == table->record[0])
+      table->update_virtual_fields(VCOL_UPDATE_FOR_READ);
+  }
   table->status=result ? STATUS_NOT_FOUND: 0;
   return result;
 }
@@ -2729,7 +2759,11 @@ int handler::ha_index_next_same(uchar *buf, const uchar *key, uint keylen)
     { result= index_next_same(buf, key, keylen); })
   increment_statistics(&SSV::ha_read_next_count);
   if (!result)
+  {
     update_index_statistics();
+    if (table->vfield && buf == table->record[0])
+      table->update_virtual_fields(VCOL_UPDATE_FOR_READ);
+  }
   table->status=result ? STATUS_NOT_FOUND: 0;
   return result;
 }
@@ -3535,9 +3569,10 @@ void handler::print_error(int error, myf errflag)
     DBUG_VOID_RETURN;
   }
   case HA_ERR_TABLE_NEEDS_UPGRADE:
+    textno= ER_TABLE_NEEDS_UPGRADE;
     my_error(ER_TABLE_NEEDS_UPGRADE, errflag,
              "TABLE", table_share->table_name.str);
-    break;
+    DBUG_VOID_RETURN;
   case HA_ERR_NO_PARTITION_FOUND:
     textno=ER_WRONG_PARTITION_NAME;
     break;
@@ -4207,6 +4242,7 @@ handler::check_if_supported_inplace_alter(TABLE *altered_table,
     Alter_inplace_info::ALTER_COLUMN_OPTION |
     Alter_inplace_info::CHANGE_CREATE_OPTION |
     Alter_inplace_info::ALTER_PARTITIONED |
+    Alter_inplace_info::ALTER_VIRTUAL_GCOL_EXPR |
     Alter_inplace_info::ALTER_RENAME;
 
   /* Is there at least one operation that requires copy algorithm? */
@@ -4938,7 +4974,7 @@ public:
   bool handle_condition(THD *thd,
                         uint sql_errno,
                         const char* sqlstate,
-                        Sql_condition::enum_warning_level level,
+                        Sql_condition::enum_warning_level *level,
                         const char* msg,
                         Sql_condition ** cond_hdl)
   {
@@ -4951,7 +4987,7 @@ public:
       return TRUE;
     }
 
-    if (level == Sql_condition::WARN_LEVEL_ERROR)
+    if (*level == Sql_condition::WARN_LEVEL_ERROR)
       m_unhandled_errors++;
     return FALSE;
   }
@@ -5819,8 +5855,6 @@ int handler::ha_external_lock(THD *thd, int lock_type)
     }
   }
 
-  ha_statistic_increment(&SSV::ha_external_lock_count);
-
   /*
     We cache the table flags if the locking succeeded. Otherwise, we
     keep them as they were when they were fetched in ha_open().
@@ -5892,6 +5926,10 @@ static int check_wsrep_max_ws_rows()
   if (wsrep_max_ws_rows)
   {
     THD *thd= current_thd;
+
+    if (!WSREP(thd))
+      return 0;
+
     thd->wsrep_affected_rows++;
     if (thd->wsrep_exec_mode != REPL_RECV &&
         thd->wsrep_affected_rows > wsrep_max_ws_rows)
@@ -6102,6 +6140,13 @@ void handler::set_lock_type(enum thr_lock_type lock)
   @note Aborting the transaction does NOT end it, it still has to
   be rolled back with hton->rollback().
 
+  @note It is safe to abort from one thread (bf_thd) the transaction,
+  running in another thread (victim_thd), because InnoDB's lock_sys and
+  trx_mutex guarantee the necessary protection. However, its not safe
+  to access victim_thd->transaction, because it's not protected from
+  concurrent accesses. And it's an overkill to take LOCK_plugin and
+  iterate the whole installed_htons[] array every time.
+
   @param bf_thd       brute force THD asking for the abort
   @param victim_thd   victim THD to be aborted
 
@@ -6118,29 +6163,16 @@ int ha_abort_transaction(THD *bf_thd, THD *victim_thd, my_bool signal)
     DBUG_RETURN(0);
   }
 
-  /* Try statement transaction if standard one is not set. */
-  THD_TRANS *trans= (victim_thd->transaction.all.ha_list) ?
-    &victim_thd->transaction.all : &victim_thd->transaction.stmt;
-
-  Ha_trx_info *ha_info= trans->ha_list, *ha_info_next;
-
-  for (; ha_info; ha_info= ha_info_next)
+  handlerton *hton= installed_htons[DB_TYPE_INNODB];
+  if (hton && hton->abort_transaction)
   {
-    handlerton *hton= ha_info->ht();
-    if (!hton->abort_transaction)
-    {
-      /* Skip warning for binlog & wsrep. */
-      if (hton->db_type != DB_TYPE_BINLOG && hton != wsrep_hton)
-      {
-        WSREP_WARN("Cannot abort transaction.");
-      }
-    }
-    else
-    {
-      hton->abort_transaction(hton, bf_thd, victim_thd, signal);
-    }
-    ha_info_next= ha_info->next();
+    hton->abort_transaction(hton, bf_thd, victim_thd, signal);
   }
+  else
+  {
+    WSREP_WARN("Cannot abort InnoDB transaction");
+  }
+
   DBUG_RETURN(0);
 }
 

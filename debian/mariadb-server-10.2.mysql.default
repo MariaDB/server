@@ -1,0 +1,8 @@
+# The delay in seconds the init script waits for the server to be up and running after having started "mysqld_safe" to run the "/etc/mysql/debian-start" script.
+# If the server is still not responding after the delay, the script won't be executed and an error will be thrown on the syslog.
+# Default: 30
+#MYSQLD_STARTUP_TIMEOUT=30
+
+# The email recipient(s) of the output of the check for crashed and improperly closed MyISAM and Aria tables done at each server start by the "/etc/mysql/debian-start" script.
+# Default: root
+#MYCHECK_RCPT="root"

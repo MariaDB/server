@@ -1,14 +1,8 @@
 --source include/have_innodb.inc
 --source include/not_embedded.inc
 
---disable_query_log
 let $innodb_compression_algorithm_orig=`SELECT @@innodb_compression_algorithm`;
-let $innodb_file_format_orig = `SELECT @@innodb_file_format`;
-let $innodb_file_per_table_orig = `SELECT @@innodb_file_per_table`;
---enable_query_log
 
-SET GLOBAL innodb_file_format = `Barracuda`;
-SET GLOBAL innodb_file_per_table = ON;
 # zlib
 set global innodb_compression_algorithm = 1;
 
@@ -75,8 +69,6 @@ update innodb_dynamic set c1 = c1 + 1;
 select count(*) from innodb_compact where c1 < 1500000;
 select count(*) from innodb_dynamic where c1 < 1500000;
 
-SET GLOBAL innodb_file_format = `Barracuda`;
-SET GLOBAL innodb_file_per_table = ON;
 # none
 set global innodb_compression_algorithm = 0;
 
@@ -95,9 +87,21 @@ drop table innodb_normal;
 drop table innodb_compact;
 drop table innodb_dynamic;
 
+# MDEV-9820 introducing variable for having page compression turned on by default on InnoDB tables
+# test that innodb_compression_default works as expected, i.e. if it has a value of 1 (ON) tables are by default created with page_compressed=1;
+CREATE TABLE no_compression (id INT NOT NULL, name VARCHAR(200)) ENGINE=InnoDB;
+SET SESSION innodb_compression_default = 1;
+CREATE TABLE default_compression (id INT NOT NULL, name VARCHAR(200)) ENGINE=InnoDB;
+CREATE TABLE explicit_no_compression (id INT NOT NULL, name VARCHAR(200)) ENGINE=InnoDB PAGE_COMPRESSED=0;
+SHOW CREATE TABLE no_compression;
+SHOW CREATE TABLE default_compression;
+SHOW CREATE TABLE explicit_no_compression;
+DROP TABLE no_compression;
+DROP TABLE default_compression;
+DROP TABLE explicit_no_compression;
+SET SESSION innodb_compression_default = 0;
+
 # reset system
 --disable_query_log
 EVAL SET GLOBAL innodb_compression_algorithm = $innodb_compression_algorithm_orig;
-EVAL SET GLOBAL innodb_file_per_table = $innodb_file_per_table_orig;
-EVAL SET GLOBAL innodb_file_format = $innodb_file_format_orig;
 --enable_query_log

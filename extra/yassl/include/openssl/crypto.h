@@ -19,7 +19,7 @@
 
 /* crypto.h for openSSL */
 
-#ifndef ysSSL_crypto_h__
+#ifndef yaSSL_crypto_h__
 #define yaSSL_crypto_h__
 
 #ifdef YASSL_PREFIX

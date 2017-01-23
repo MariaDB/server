@@ -1,0 +1,18 @@
+show status like '%window%';
+
+create table t1 (a int, b int);
+insert into t1 values (1, 10), (2, 20), (3, 30);
+
+select a, b, rank() over (order by a) from t1;
+show status like '%window%';
+
+select a, b, rank() over (order by a), sum(a) over (order by a) from t1;
+show status like '%window%';
+
+--sorted_result
+select t_a.r1, t_b.r2
+from (select a, b, rank() over (order by a) as r1 from t1) t_a,
+     (select a, b, row_number() over (order by a) as r2 from t1) t_b;
+show status like '%window%';
+
+drop table t1;

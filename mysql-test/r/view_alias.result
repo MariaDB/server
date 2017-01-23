@@ -90,7 +90,7 @@ CREATE TABLE t2 LIKE t1;
 # Test alias in subquery
 CREATE VIEW v1 AS SELECT a FROM t1 WHERE EXISTS (SELECT 1 FROM t2 AS b WHERE b.a = 0);
 DROP VIEW v1;
-CREATE VIEW v1 AS select `test`.`t1`.`a` AS `a` from `test`.`t1` where exists(select 1 from `test`.`t2` `b` where (`b`.`a` = 0));
+CREATE VIEW v1 AS select `test`.`t1`.`a` AS `a` from `test`.`t1` where exists(select 1 from `test`.`t2` `b` where `b`.`a` = 0);
 DROP VIEW v1;
 # Test column alias in subquery
 CREATE VIEW v1 AS SELECT a FROM t1 WHERE EXISTS (SELECT a AS alias FROM t1 GROUP BY alias);

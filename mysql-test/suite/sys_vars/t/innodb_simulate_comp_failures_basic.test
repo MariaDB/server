@@ -1,4 +1,5 @@
 --source include/have_innodb.inc
+--source include/have_debug.inc
 
 SET @start_global_value = @@global.innodb_simulate_comp_failures;
 SELECT @start_global_value;

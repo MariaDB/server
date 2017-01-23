@@ -1,3 +1,0 @@
-usr/lib/libmysqlclient*.so.*
-usr/lib/mysql/plugin/mysql_clear_password.so
-usr/lib/mysql/plugin/dialog.so

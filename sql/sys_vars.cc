@@ -1,5 +1,5 @@
 /* Copyright (c) 2002, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2012, 2016, MariaDB Corporation
+   Copyright (c) 2012, 2017, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -449,16 +449,17 @@ static bool binlog_format_check(sys_var *self, THD *thd, set_var *var)
   /*
     MariaDB Galera does not support STATEMENT or MIXED binlog format currently.
   */
-  if (WSREP(thd) && var->save_result.ulonglong_value != BINLOG_FORMAT_ROW)
+  if ((WSREP(thd) || opt_support_flashback) &&
+      var->save_result.ulonglong_value != BINLOG_FORMAT_ROW)
   {
     // Push a warning to the error log.
     push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN, ER_UNKNOWN_ERROR,
-                        "MariaDB Galera does not support binlog format: %s",
+                        "MariaDB Galera and flashback do not support binlog format: %s",
                         binlog_format_names[var->save_result.ulonglong_value]);
 
     if (var->type == OPT_GLOBAL)
     {
-      WSREP_ERROR("MariaDB Galera does not support binlog format: %s",
+      WSREP_ERROR("MariaDB Galera and flashback do not support binlog format: %s",
                   binlog_format_names[var->save_result.ulonglong_value]);
       return true;
     }
@@ -1156,6 +1157,18 @@ static Sys_var_mybool Sys_locked_in_memory(
 static Sys_var_mybool Sys_log_bin(
        "log_bin", "Whether the binary log is enabled",
        READ_ONLY GLOBAL_VAR(opt_bin_log), NO_CMD_LINE, DEFAULT(FALSE));
+
+static Sys_var_mybool Sys_log_bin_compress(
+  "log_bin_compress", "Whether the binary log can be compressed",
+  GLOBAL_VAR(opt_bin_log_compress), CMD_LINE(OPT_ARG), DEFAULT(FALSE));
+
+/* the min length is 10, means that Begin/Commit/Rollback would never be compressed!   */
+static Sys_var_uint Sys_log_bin_compress_min_len(
+  "log_bin_compress_min_len",
+  "Minimum length of sql statement(in statement mode) or record(in row mode)"
+  "that can be compressed.",
+  GLOBAL_VAR(opt_bin_log_compress_min_len),
+  CMD_LINE(OPT_ARG), VALID_RANGE(10, 1024), DEFAULT(256), BLOCK_SIZE(1));
 
 static Sys_var_mybool Sys_trust_function_creators(
        "log_bin_trust_function_creators",
@@ -3001,7 +3014,7 @@ static Sys_var_ulonglong Sys_sort_buffer(
        VALID_RANGE(MIN_SORT_MEMORY, SIZE_T_MAX), DEFAULT(MAX_SORT_MEMORY),
        BLOCK_SIZE(1));
 
-export ulonglong expand_sql_mode(ulonglong sql_mode)
+export sql_mode_t expand_sql_mode(sql_mode_t sql_mode)
 {
   if (sql_mode & MODE_ANSI)
   {
@@ -3055,7 +3068,7 @@ export ulonglong expand_sql_mode(ulonglong sql_mode)
 static bool check_sql_mode(sys_var *self, THD *thd, set_var *var)
 {
   var->save_result.ulonglong_value=
-    expand_sql_mode(var->save_result.ulonglong_value);
+    (ulonglong) expand_sql_mode(var->save_result.ulonglong_value);
   return false;
 }
 static bool fix_sql_mode(sys_var *self, THD *thd, enum_var_type type)
@@ -3088,7 +3101,8 @@ static const char *sql_mode_names[]=
   "PAD_CHAR_TO_FULL_LENGTH",
   0
 };
-export bool sql_mode_string_representation(THD *thd, ulonglong sql_mode,
+
+export bool sql_mode_string_representation(THD *thd, sql_mode_t sql_mode,
                                            LEX_STRING *ls)
 {
   set_to_string(thd, ls, sql_mode, sql_mode_names);
@@ -3223,9 +3237,14 @@ static bool fix_table_open_cache(sys_var *, THD *, enum_var_type)
 static Sys_var_ulong Sys_table_cache_size(
        "table_open_cache", "The number of cached open tables",
        GLOBAL_VAR(tc_size), CMD_LINE(REQUIRED_ARG),
-       VALID_RANGE(1, 512*1024), DEFAULT(TABLE_OPEN_CACHE_DEFAULT),
+       VALID_RANGE(1, 1024*1024), DEFAULT(TABLE_OPEN_CACHE_DEFAULT),
        BLOCK_SIZE(1), NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
        ON_UPDATE(fix_table_open_cache));
+
+static Sys_var_uint Sys_table_cache_instances(
+       "table_open_cache_instances", "Maximum number of table cache instances",
+       READ_ONLY GLOBAL_VAR(tc_instances), CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(1, 64), DEFAULT(8), BLOCK_SIZE(1));
 
 static Sys_var_ulong Sys_thread_cache_size(
        "thread_cache_size",
@@ -3236,9 +3255,7 @@ static Sys_var_ulong Sys_thread_cache_size(
 #ifdef HAVE_POOL_OF_THREADS
 static bool fix_tp_max_threads(sys_var *, THD *, enum_var_type)
 {
-#ifdef _WIN32
   tp_set_max_threads(threadpool_max_threads);
-#endif
   return false;
 }
 
@@ -3251,8 +3268,6 @@ static bool fix_tp_min_threads(sys_var *, THD *, enum_var_type)
 }
 #endif
 
-
-#ifndef  _WIN32
 static bool check_threadpool_size(sys_var *self, THD *thd, set_var *var)
 {
   ulonglong v= var->save_result.ulonglong_value;
@@ -3277,7 +3292,6 @@ static bool fix_threadpool_stall_limit(sys_var*, THD*, enum_var_type)
   tp_set_threadpool_stall_limit(threadpool_stall_limit);
   return false;
 }
-#endif
 
 #ifdef _WIN32
 static Sys_var_uint Sys_threadpool_min_threads(
@@ -3288,7 +3302,24 @@ static Sys_var_uint Sys_threadpool_min_threads(
   NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
   ON_UPDATE(fix_tp_min_threads)
   );
-#else
+
+static const char *threadpool_mode_names[]={ "windows", "generic", 0 };
+static Sys_var_enum Sys_threadpool_mode(
+  "thread_pool_mode",
+  "Chose implementation of the threadpool",
+  READ_ONLY GLOBAL_VAR(threadpool_mode), CMD_LINE(REQUIRED_ARG),
+  threadpool_mode_names, DEFAULT(TP_MODE_WINDOWS)
+  );
+#endif
+
+static const char *threadpool_priority_names[]={ "high", "low", "auto", 0 };
+static Sys_var_enum Sys_thread_pool_priority(
+  "thread_pool_priority",
+  "Threadpool priority. High priority connections usually start executing earlier than low priority."
+  "If priority set to 'auto', the the actual priority(low or high) is determined based on whether or not connection is inside transaction.",
+  SESSION_VAR(threadpool_priority), CMD_LINE(REQUIRED_ARG),
+  threadpool_priority_names, DEFAULT(TP_PRIORITY_AUTO));
+
 static Sys_var_uint Sys_threadpool_idle_thread_timeout(
   "thread_pool_idle_timeout",
   "Timeout in seconds for an idle thread in the thread pool."
@@ -3323,7 +3354,7 @@ static Sys_var_uint Sys_threadpool_stall_limit(
   NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0), 
   ON_UPDATE(fix_threadpool_stall_limit)
 );
-#endif /* !WIN32 */
+
 static Sys_var_uint Sys_threadpool_max_threads(
   "thread_pool_max_threads",
   "Maximum allowed number of worker threads in the thread pool",
@@ -3331,6 +3362,13 @@ static Sys_var_uint Sys_threadpool_max_threads(
    VALID_RANGE(1, 65536), DEFAULT(1000), BLOCK_SIZE(1),
    NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0), 
    ON_UPDATE(fix_tp_max_threads)
+);
+
+static Sys_var_uint Sys_threadpool_threadpool_prio_kickup_timer(
+ "thread_pool_prio_kickup_timer",
+ "The number of milliseconds before a dequeued low-priority statement is moved to the high-priority queue",
+  GLOBAL_VAR(threadpool_prio_kickup_timer), CMD_LINE(REQUIRED_ARG),
+  VALID_RANGE(0, UINT_MAX), DEFAULT(1000), BLOCK_SIZE(1)
 );
 #endif /* HAVE_POOL_OF_THREADS */
 
@@ -4605,6 +4643,12 @@ static Sys_var_charptr Sys_slave_skip_errors(
        READ_ONLY GLOBAL_VAR(opt_slave_skip_errors), CMD_LINE(REQUIRED_ARG),
        IN_SYSTEM_CHARSET, DEFAULT(0));
 
+static Sys_var_ulonglong Sys_read_binlog_speed_limit(
+       "read_binlog_speed_limit", "Maximum speed(KB/s) to read binlog from"
+       " master (0 = no limit)",
+       GLOBAL_VAR(opt_read_binlog_speed_limit), CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(0, ULONG_MAX), DEFAULT(0), BLOCK_SIZE(1));
+
 static Sys_var_ulonglong Sys_relay_log_space_limit(
        "relay_log_space_limit", "Maximum space to use for all relay logs",
        READ_ONLY GLOBAL_VAR(relay_log_space_limit), CMD_LINE(REQUIRED_ARG),
@@ -4999,8 +5043,9 @@ static Sys_var_mybool Sys_wsrep_restart_slave(
        GLOBAL_VAR(wsrep_restart_slave), CMD_LINE(OPT_ARG), DEFAULT(FALSE));
 
 static Sys_var_mybool Sys_wsrep_dirty_reads(
-       "wsrep_dirty_reads", "Do not reject SELECT queries even when the node "
-       "is not ready.", SESSION_ONLY(wsrep_dirty_reads), NO_CMD_LINE,
+       "wsrep_dirty_reads",
+       "Allow reads even when the node is not in the primary component.",
+       SESSION_VAR(wsrep_dirty_reads), CMD_LINE(OPT_ARG),
        DEFAULT(FALSE), NO_MUTEX_GUARD, NOT_IN_BINLOG);
 
 static Sys_var_uint Sys_wsrep_gtid_domain_id(
@@ -5423,6 +5468,13 @@ static Sys_var_ulong Sys_log_tc_size(
        DEFAULT(my_getpagesize() * 6),
        BLOCK_SIZE(my_getpagesize()));
 #endif
+
+static Sys_var_ulonglong Sys_max_thread_mem(
+       "max_session_mem_used", "Amount of memory a single user session "
+       "is allowed to allocate. This limits the value of the "
+       "session variable MEM_USED", SESSION_VAR(max_mem_used),
+       CMD_LINE(REQUIRED_ARG), VALID_RANGE(8192,  ULONGLONG_MAX),
+       DEFAULT(LONGLONG_MAX), BLOCK_SIZE(1));
 
 #ifndef EMBEDDED_LIBRARY
 

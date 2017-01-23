@@ -7,38 +7,37 @@ SET @@session.storage_engine = 'InnoDB';
 #            - CHECK (allowed but not used)
 # UNIQUE
 create table t1 (a int, b int as (a*2) unique);
-ERROR HY000: Key/Index cannot be defined on a non-stored computed column
+drop table t1;
 create table t1 (a int, b int as (a*2) persistent unique);
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
-  `b` int(11) AS (a*2) PERSISTENT,
+  `b` int(11) GENERATED ALWAYS AS (`a` * 2) STORED,
   UNIQUE KEY `b` (`b`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 describe t1;
 Field	Type	Null	Key	Default	Extra
 a	int(11)	YES		NULL	
-b	int(11)	YES	UNI	NULL	PERSISTENT
+b	int(11)	YES	UNI	NULL	STORED GENERATED
 drop table t1;
 create table t1 (a int, b int as (a*2), unique key (b));
-ERROR HY000: Key/Index cannot be defined on a non-stored computed column
+drop table t1;
 create table t1 (a int, b int as (a*2) persistent, unique (b));
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
-  `b` int(11) AS (a*2) PERSISTENT,
+  `b` int(11) GENERATED ALWAYS AS (`a` * 2) STORED,
   UNIQUE KEY `b` (`b`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 describe t1;
 Field	Type	Null	Key	Default	Extra
 a	int(11)	YES		NULL	
-b	int(11)	YES	UNI	NULL	PERSISTENT
+b	int(11)	YES	UNI	NULL	STORED GENERATED
 drop table t1;
 create table t1 (a int, b int as (a*2));
 alter table t1 add unique key (b);
-ERROR HY000: Key/Index cannot be defined on a non-stored computed column
 drop table t1;
 create table t1 (a int, b int as (a*2) persistent);
 alter table t1 add unique key (b);
@@ -50,40 +49,38 @@ drop table t1;
 # 
 # INDEX
 create table t1 (a int, b int as (a*2), index (b));
-ERROR HY000: Key/Index cannot be defined on a non-stored computed column
+drop table t1;
 create table t1 (a int, b int as (a*2), index (a,b));
-ERROR HY000: Key/Index cannot be defined on a non-stored computed column
+drop table t1;
 create table t1 (a int, b int as (a*2) persistent, index (b));
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
-  `b` int(11) AS (a*2) PERSISTENT,
+  `b` int(11) GENERATED ALWAYS AS (`a` * 2) STORED,
   KEY `b` (`b`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 describe t1;
 Field	Type	Null	Key	Default	Extra
 a	int(11)	YES		NULL	
-b	int(11)	YES	MUL	NULL	PERSISTENT
+b	int(11)	YES	MUL	NULL	STORED GENERATED
 drop table t1;
 create table t1 (a int, b int as (a*2) persistent, index (a,b));
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
-  `b` int(11) AS (a*2) PERSISTENT,
+  `b` int(11) GENERATED ALWAYS AS (`a` * 2) STORED,
   KEY `a` (`a`,`b`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 describe t1;
 Field	Type	Null	Key	Default	Extra
 a	int(11)	YES	MUL	NULL	
-b	int(11)	YES		NULL	PERSISTENT
+b	int(11)	YES		NULL	STORED GENERATED
 drop table t1;
 create table t1 (a int, b int as (a*2));
 alter table t1 add index (b);
-ERROR HY000: Key/Index cannot be defined on a non-stored computed column
 alter table t1 add index (a,b);
-ERROR HY000: Key/Index cannot be defined on a non-stored computed column
 drop table t1;
 create table t1 (a int, b int as (a*2) persistent);
 alter table t1 add index (b);
@@ -99,31 +96,37 @@ drop table t1;
 #
 # TODO: FULLTEXT INDEX
 # SPATIAL INDEX
+# Error "All parts of a SPATIAL index must be NOT NULL"
+create table t1 (a int, b geometry as (a+1) persistent, spatial index (b));
+ERROR 42000: All parts of a SPATIAL index must be NOT NULL
+create table t1 (a int, b int as (a+1) persistent);
+alter table t1 add spatial index (b);
+ERROR HY000: Incorrect arguments to SPATIAL INDEX
+drop table t1;
 # FOREIGN KEY
 # Rejected FK options.
 create table t1 (a int, b int as (a+1) persistent,
 foreign key (b) references t2(a) on update set null);
-ERROR HY000: Cannot define foreign key with ON UPDATE SET NULL clause on a computed column
+ERROR HY000: Cannot define foreign key with ON UPDATE SET NULL clause on a generated column
 create table t1 (a int, b int as (a+1) persistent,
 foreign key (b) references t2(a) on update cascade);
-ERROR HY000: Cannot define foreign key with ON UPDATE CASCADE clause on a computed column
+ERROR HY000: Cannot define foreign key with ON UPDATE CASCADE clause on a generated column
 create table t1 (a int, b int as (a+1) persistent,
 foreign key (b) references t2(a) on delete set null);
-ERROR HY000: Cannot define foreign key with ON DELETE SET NULL clause on a computed column
+ERROR HY000: Cannot define foreign key with ON DELETE SET NULL clause on a generated column
 create table t1 (a int, b int as (a+1) persistent);
 alter table t1 add foreign key (b) references t2(a) on update set null;
-ERROR HY000: Cannot define foreign key with ON UPDATE SET NULL clause on a computed column
+ERROR HY000: Cannot define foreign key with ON UPDATE SET NULL clause on a generated column
 alter table t1 add foreign key (b) references t2(a) on update cascade;
-ERROR HY000: Cannot define foreign key with ON UPDATE CASCADE clause on a computed column
+ERROR HY000: Cannot define foreign key with ON UPDATE CASCADE clause on a generated column
 alter table t1 add foreign key (b) references t2(a) on delete set null;
-ERROR HY000: Cannot define foreign key with ON DELETE SET NULL clause on a computed column
+ERROR HY000: Cannot define foreign key with ON DELETE SET NULL clause on a generated column
 drop table t1;
-create table t1 (a int, b int as (a+1),
-foreign key (b) references t2(a));
-ERROR HY000: Key/Index cannot be defined on a non-stored computed column
+create table t1 (a int, b int as (a+1), foreign key (b) references t2(a));
+ERROR HY000: Can't create table `test`.`t1` (errno: 150 "Foreign key constraint is incorrectly formed")
 create table t1 (a int, b int as (a+1));
 alter table t1 add foreign key (b) references t2(a);
-ERROR HY000: Key/Index cannot be defined on a non-stored computed column
+ERROR HY000: Can't create table `test`.`#sql-temporary` (errno: 150 "Foreign key constraint is incorrectly formed")
 drop table t1;
 # Allowed FK options.
 create table t2 (a int primary key, b char(5));
@@ -147,5 +150,78 @@ drop table t1;
 # on virtual columns can be found in:
 #  - vcol_ins_upd.inc
 #  - vcol_select.inc
+create table t1 (a int, b timestamp as (now()), key (b));
+ERROR HY000: Function or expression 'current_timestamp()' cannot be used in the GENERATED ALWAYS AS clause of `b`
+create table t1 (a int, b timestamp as (now()));
+alter table t1 add index (b);
+ERROR HY000: Function or expression 'current_timestamp()' cannot be used in the GENERATED ALWAYS AS clause of `b`
+drop table t1;
+create table t1 (a int, b varchar(100) as (user()), key (b));
+ERROR HY000: Function or expression 'user()' cannot be used in the GENERATED ALWAYS AS clause of `b`
+create table t1 (a int, b varchar(100) as (user()));
+alter table t1 add index (b);
+ERROR HY000: Function or expression 'user()' cannot be used in the GENERATED ALWAYS AS clause of `b`
+drop table t1;
+create table t1 (a int, b double as (rand()), key (b));
+ERROR HY000: Function or expression 'rand()' cannot be used in the GENERATED ALWAYS AS clause of `b`
+create table t1 (a int, b double as (rand()));
+alter table t1 add index (b);
+ERROR HY000: Function or expression 'rand()' cannot be used in the GENERATED ALWAYS AS clause of `b`
+drop table t1;
+CREATE OR REPLACE TABLE t1 (
+f2 DOUBLE NOT NULL DEFAULT '0',
+f3 DOUBLE NOT NULL DEFAULT '0',
+f4 DOUBLE,
+f5 DOUBLE DEFAULT '0',
+v4 DOUBLE AS (IF(f4,f3,f2)) VIRTUAL,
+KEY (f5),
+KEY (v4)
+);
+INSERT INTO t1 (f2,f3,f4,f5) VALUES (5,4,1,0),(5,7,NULL,0);
+INSERT INTO t1 (f2,f3,f4,f5) SELECT f2, f3, f5, f3 FROM t1;
+INSERT INTO t1 (f2,f3,f4,f5) VALUES (5,0,NULL,1);
+INSERT INTO t1 (f2,f3,f4,f5) SELECT f2, f5, f5, f3 FROM t1;
+DELETE FROM t1 WHERE f5 = 1 OR v4 = 4 ORDER BY f5,v4 LIMIT 9;
+SELECT * from t1;
+f2	f3	f4	f5	v4
+5	7	NULL	0	5
+5	4	0	4	5
+5	7	0	7	5
+5	0	0	4	5
+5	0	0	7	5
+5	7	7	7	7
+5	1	1	0	1
+DROP TABLE t1;
+CREATE TABLE t1 (
+d DECIMAL(63,0) NOT NULL DEFAULT 0,
+c VARCHAR(64) NOT NULL DEFAULT '',
+vd DECIMAL(63,0) AS (d) VIRTUAL,
+vc VARCHAR(2048) AS (c) VIRTUAL,
+pk BIGINT AUTO_INCREMENT,
+PRIMARY KEY(pk));
+INSERT INTO t1 (d,c) VALUES (0.5,'foo');
+Warnings:
+Note	1265	Data truncated for column 'd' at row 1
+SELECT * FROM t1 WHERE vc != 'bar' ORDER BY vd;
+d	c	vd	vc	pk
+1	foo	1	foo	1
+DROP TABLE t1;
+CREATE TABLE t1 (
+pk BIGINT,
+c CHAR(64) NOT NULL DEFAULT '',
+vc CHAR(64) AS (c) VIRTUAL,
+PRIMARY KEY(pk),
+INDEX(vc(32))
+);
+DELETE FROM t1 WHERE vc IS NULL ORDER BY pk;
+DROP TABLE t1;
 #
-# TODO: CHECK
+# MDEV-11737 Failing assertion: block->magic_n == MEM_BLOCK_MAGIC_N
+# 
+CREATE TABLE t1 (i INT PRIMARY KEY, vi INT AS (i*2) VIRTUAL UNIQUE)
+ENGINE=InnoDB;
+CREATE TABLE t2 (i INT) ENGINE=InnoDB;
+ALTER TABLE t1 ADD COLUMN col INT;
+SELECT * FROM t1 WHERE vi < 2;
+i	vi	col
+DROP TABLE t1, t2;

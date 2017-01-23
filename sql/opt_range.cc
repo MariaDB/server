@@ -1477,6 +1477,7 @@ int QUICK_RANGE_SELECT::init_ror_merged_scan(bool reuse_handler,
   handler *save_file= file, *org_file;
   my_bool org_key_read;
   THD *thd= head->in_use;
+  MY_BITMAP * const save_vcol_set= head->vcol_set;
   MY_BITMAP * const save_read_set= head->read_set;
   MY_BITMAP * const save_write_set= head->write_set;
   DBUG_ENTER("QUICK_RANGE_SELECT::init_ror_merged_scan");
@@ -1489,7 +1490,7 @@ int QUICK_RANGE_SELECT::init_ror_merged_scan(bool reuse_handler,
     {
       DBUG_RETURN(1);
     }
-    head->column_bitmaps_set(&column_bitmap, &column_bitmap);
+    head->column_bitmaps_set(&column_bitmap, &column_bitmap, &column_bitmap);
     goto end;
   }
 
@@ -1514,7 +1515,7 @@ int QUICK_RANGE_SELECT::init_ror_merged_scan(bool reuse_handler,
     goto failure;  /* purecov: inspected */
   }
 
-  head->column_bitmaps_set(&column_bitmap, &column_bitmap);
+  head->column_bitmaps_set(&column_bitmap, &column_bitmap, &column_bitmap);
 
   if (file->ha_external_lock(thd, F_RDLCK))
     goto failure;
@@ -1568,7 +1569,7 @@ end:
   DBUG_RETURN(0);
 
 failure:
-  head->column_bitmaps_set(save_read_set, save_write_set);
+  head->column_bitmaps_set(save_read_set, save_write_set, save_vcol_set);
   delete file;
   file= save_file;
   DBUG_RETURN(1);
@@ -2759,9 +2760,16 @@ bool create_key_parts_for_pseudo_indexes(RANGE_OPT_PARAM *param,
     {
       Field *field= *field_ptr;
       uint16 store_length;
+      uint16 max_key_part_length= (uint16) table->file->max_key_part_length();
       key_part->key= keys;
       key_part->part= 0;
-      key_part->length= (uint16) field->key_length();
+      if (field->flags & BLOB_FLAG)
+        key_part->length= max_key_part_length;
+      else
+      {
+        key_part->length= (uint16) field->key_length();
+        set_if_smaller(key_part->length, max_key_part_length);
+      }
       store_length= key_part->length;
       if (field->real_maybe_null())
         store_length+= HA_KEY_NULL_LENGTH;
@@ -3107,6 +3115,7 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item **cond)
     }
 
   free_alloc:
+    thd->no_errors= 0;
     thd->mem_root= param.old_root;
     free_root(&alloc, MYF(0));
 
@@ -11092,6 +11101,7 @@ int QUICK_RANGE_SELECT::reset()
   HANDLER_BUFFER empty_buf;
   MY_BITMAP * const save_read_set= head->read_set;
   MY_BITMAP * const save_write_set= head->write_set;
+  MY_BITMAP * const save_vcol_set= head->vcol_set;
   DBUG_ENTER("QUICK_RANGE_SELECT::reset");
   last_range= NULL;
   cur_range= (QUICK_RANGE**) ranges.buffer;
@@ -11105,7 +11115,8 @@ int QUICK_RANGE_SELECT::reset()
   }
 
   if (in_ror_merged_scan)
-    head->column_bitmaps_set_no_signal(&column_bitmap, &column_bitmap);
+    head->column_bitmaps_set_no_signal(&column_bitmap, &column_bitmap,
+                                       &column_bitmap);
 
   if (file->inited == handler::NONE)
   {
@@ -11148,8 +11159,8 @@ int QUICK_RANGE_SELECT::reset()
 err:
   /* Restore bitmaps set on entry */
   if (in_ror_merged_scan)
-    head->column_bitmaps_set_no_signal(save_read_set, save_write_set);
-
+    head->column_bitmaps_set_no_signal(save_read_set, save_write_set,
+                                       save_vcol_set);
   DBUG_RETURN(error);
 }
 
@@ -11180,13 +11191,16 @@ int QUICK_RANGE_SELECT::get_next()
 
   MY_BITMAP * const save_read_set= head->read_set;
   MY_BITMAP * const save_write_set= head->write_set;
+  MY_BITMAP * const save_vcol_set= head->vcol_set;
   /*
     We don't need to signal the bitmap change as the bitmap is always the
     same for this head->file
   */
-  head->column_bitmaps_set_no_signal(&column_bitmap, &column_bitmap);
+  head->column_bitmaps_set_no_signal(&column_bitmap, &column_bitmap,
+                                     &column_bitmap);
   result= file->multi_range_read_next(&dummy);
-  head->column_bitmaps_set_no_signal(save_read_set, save_write_set);
+  head->column_bitmaps_set_no_signal(save_read_set, save_write_set,
+                                     save_vcol_set);
   DBUG_RETURN(result);
 }
 
@@ -11363,7 +11377,7 @@ QUICK_SELECT_DESC::QUICK_SELECT_DESC(QUICK_RANGE_SELECT *q,
   used_key_parts (used_key_parts_arg)
 {
   QUICK_RANGE *r;
-  /* 
+  /*
     Use default MRR implementation for reverse scans. No table engine
     currently can do an MRR scan with output in reverse index order.
   */
@@ -11838,62 +11852,76 @@ void QUICK_ROR_UNION_SELECT::add_keys_and_lengths(String *key_names,
 }
 
 
-void QUICK_RANGE_SELECT::add_used_key_part_to_set(MY_BITMAP *col_set)
+void QUICK_RANGE_SELECT::add_used_key_part_to_set()
 {
   uint key_len;
   KEY_PART *part= key_parts;
   for (key_len=0; key_len < max_used_key_length;
        key_len += (part++)->store_length)
   {
-    bitmap_set_bit(col_set, part->field->field_index);
+    /*
+      We have to use field_index instead of part->field
+      as for partial fields, part->field points to
+      a temporary field that is only part of the original
+      field.  field_index always points to the original field
+    */
+    Field *field= head->field[part->field->field_index];
+    field->register_field_in_read_map();
   }
 }
 
 
-void QUICK_GROUP_MIN_MAX_SELECT::add_used_key_part_to_set(MY_BITMAP *col_set)
+void QUICK_GROUP_MIN_MAX_SELECT::add_used_key_part_to_set()
 {
   uint key_len;
   KEY_PART_INFO *part= index_info->key_part;
   for (key_len=0; key_len < max_used_key_length;
        key_len += (part++)->store_length)
   {
-    bitmap_set_bit(col_set, part->field->field_index);
+    /*
+      We have to use field_index instead of part->field
+      as for partial fields, part->field points to
+      a temporary field that is only part of the original
+      field.  field_index always points to the original field
+    */
+    Field *field= head->field[part->field->field_index];
+    field->register_field_in_read_map();
   }
 }
 
 
-void QUICK_ROR_INTERSECT_SELECT::add_used_key_part_to_set(MY_BITMAP *col_set)
+void QUICK_ROR_INTERSECT_SELECT::add_used_key_part_to_set()
 {
   List_iterator_fast<QUICK_SELECT_WITH_RECORD> it(quick_selects);
   QUICK_SELECT_WITH_RECORD *quick;
   while ((quick= it++))
   {
-    quick->quick->add_used_key_part_to_set(col_set);
+    quick->quick->add_used_key_part_to_set();
   }
 }
 
 
-void QUICK_INDEX_SORT_SELECT::add_used_key_part_to_set(MY_BITMAP *col_set)
+void QUICK_INDEX_SORT_SELECT::add_used_key_part_to_set()
 {
   QUICK_RANGE_SELECT *quick;
   List_iterator_fast<QUICK_RANGE_SELECT> it(quick_selects);
   while ((quick= it++))
   {
-    quick->add_used_key_part_to_set(col_set);
+    quick->add_used_key_part_to_set();
   }
   if (pk_quick_select)
-    pk_quick_select->add_used_key_part_to_set(col_set);
+    pk_quick_select->add_used_key_part_to_set();
 }
 
 
-void QUICK_ROR_UNION_SELECT::add_used_key_part_to_set(MY_BITMAP *col_set)
+void QUICK_ROR_UNION_SELECT::add_used_key_part_to_set()
 {
   QUICK_SELECT_I *quick;
   List_iterator_fast<QUICK_SELECT_I> it(quick_selects);
 
   while ((quick= it++))
   {
-    quick->add_used_key_part_to_set(col_set);
+    quick->add_used_key_part_to_set();
   }
 }
 

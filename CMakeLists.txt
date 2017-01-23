@@ -31,6 +31,9 @@ IF(CMAKE_VERSION VERSION_EQUAL "3.0.0" OR
  CMAKE_POLICY(SET CMP0045 OLD)
  CMAKE_POLICY(SET CMP0042 OLD)
 ENDIF()
+IF(POLICY CMP0054)
+  CMAKE_POLICY(SET CMP0054 NEW)
+ENDIF()
 
 MESSAGE(STATUS "Running cmake version ${CMAKE_VERSION}")
 
@@ -112,6 +115,11 @@ FOREACH(_base
   ENDIF()
 ENDFOREACH()
 
+FOREACH(tool gtar tar git)
+ STRING(TOUPPER ${tool}  TOOL)
+ FIND_PROGRAM(${TOOL}_EXECUTABLE ${tool} DOC "path to the executable")
+ MARK_AS_ADVANCED(${TOOL}_EXECUTABLE)
+ENDFOREACH()
 
 # Following autotools tradition, add preprocessor definitions
 # specified in environment variable CPPFLAGS
@@ -266,7 +274,7 @@ ENDIF()
 
 # Set commonly used variables
 IF(WIN32)
-  SET(DEFAULT_MYSQL_HOME "C:/MariaDB${MYSQL_BASE_VERSION}")
+  SET(DEFAULT_MYSQL_HOME "C:/Program Files/MariaDB ${MYSQL_BASE_VERSION}")
   SET(SHAREDIR share)
 ELSE()
   SET(DEFAULT_MYSQL_HOME ${CMAKE_INSTALL_PREFIX})
@@ -348,6 +356,7 @@ IF(WITH_UNIT_TESTS)
  ADD_SUBDIRECTORY(unittest/examples)
  ADD_SUBDIRECTORY(unittest/mysys)
  ADD_SUBDIRECTORY(unittest/my_decimal)
+ ADD_SUBDIRECTORY(unittest/json_lib)
  IF(NOT WITHOUT_SERVER)
    ADD_SUBDIRECTORY(unittest/sql)
  ENDIF()
@@ -363,7 +372,7 @@ ADD_SUBDIRECTORY(strings)
 ADD_SUBDIRECTORY(vio)
 ADD_SUBDIRECTORY(mysys)
 ADD_SUBDIRECTORY(mysys_ssl)
-ADD_SUBDIRECTORY(libmysql)
+INCLUDE(mariadb_connector_c) # this does ADD_SUBDIRECTORY(libmariadb)
 ADD_SUBDIRECTORY(client)
 ADD_SUBDIRECTORY(extra)
 ADD_SUBDIRECTORY(libservices)
@@ -424,12 +433,6 @@ CONFIGURE_FILE(${CMAKE_SOURCE_DIR}/sql/sql_builtin.cc.in
 CONFIGURE_FILE(
     ${CMAKE_SOURCE_DIR}/cmake/info_macros.cmake.in
     ${CMAKE_BINARY_DIR}/info_macros.cmake @ONLY)
-
-IF(DEB)
-  CONFIGURE_FILE(
-    ${CMAKE_SOURCE_DIR}/debian/mariadb-server-10.2.files.in
-    ${CMAKE_SOURCE_DIR}/debian/mariadb-server-10.2.files)
-ENDIF(DEB)
 
 # Handle the "INFO_*" files.
 INCLUDE(${CMAKE_BINARY_DIR}/info_macros.cmake)

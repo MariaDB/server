@@ -5,11 +5,6 @@
 
 --source include/have_innodb.inc
 
-if (`select plugin_auth_version <= "5.6.10" from information_schema.plugins where plugin_name='innodb'`)
-{
-  --skip Not fixed in InnoDB 5.6.10 or earlier
-}
-
 #
 # show the global and session values;
 #
@@ -18,8 +13,10 @@ select @@global.innodb_ft_result_cache_limit;
 select @@session.innodb_ft_result_cache_limit;
 show global variables like 'innodb_ft_result_cache_limit';
 show session variables like 'innodb_ft_result_cache_limit';
+--disable_warnings
 select * from information_schema.global_variables where variable_name='innodb_ft_result_cache_limit';
 select * from information_schema.session_variables where variable_name='innodb_ft_result_cache_limit';
+--enable_warnings
 
 #
 # test default, min, max value
@@ -32,7 +29,10 @@ select @@innodb_ft_result_cache_limit;
 set global innodb_ft_result_cache_limit=1000000;
 select @@innodb_ft_result_cache_limit;
 
-set global innodb_ft_result_cache_limit=4000000000;
+set global innodb_ft_result_cache_limit=4294967295;
+select @@innodb_ft_result_cache_limit;
+
+set global innodb_ft_result_cache_limit=4*1024*1024*1024;
 select @@innodb_ft_result_cache_limit;
 
 eval set global innodb_ft_result_cache_limit=$innodb_ft_result_cache_limit_orig;

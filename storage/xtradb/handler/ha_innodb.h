@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2000, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2016, MariaDB Corporation.
+Copyright (c) 2013, 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -315,6 +315,7 @@ class ha_innobase: public handler
 	void set_partition_owner_stats(ha_statistics *stats);
 	bool check_if_incompatible_data(HA_CREATE_INFO *info,
 					uint table_changes);
+
 	bool check_if_supported_virtual_columns(void) { return TRUE; }
 
 private:

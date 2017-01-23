@@ -1,19 +1,14 @@
+--source include/have_innodb.inc
+
 # This is the DDL function tests for innodb FTS
 # Functional testing with FTS proximity search using '@'
 # and try search default words
---source include/have_innodb.inc
-
-if (`select plugin_auth_version <= "5.6.10" from information_schema.plugins where plugin_name='innodb'`)
-{
-  --skip Not fixed in InnoDB 5.6.10 or earlier
-}
 
 --disable_warnings
 drop table if exists t1;
 --enable_warnings
 
 --disable_query_log
-let $innodb_file_format_orig = `select @@innodb_file_format`;
 let $innodb_file_per_table_orig = `select @@innodb_file_per_table`;
 --enable_query_log
 
@@ -156,7 +151,7 @@ SELECT * FROM t1
 
 INSERT INTO t1 (a,b) VALUES   ('XYZ, long blob', repeat("a", 9000));
 
-INSERT INTO t1 (a,b) VALUES   (repeat("b", 9000), 'XYZ, long blob');
+INSERT IGNORE INTO t1 (a,b) VALUES   (repeat("b", 9000), 'XYZ, long blob');
 
 # 2 rows match
 SELECT count(*) FROM t1
@@ -165,7 +160,6 @@ SELECT count(*) FROM t1
 
 DROP TABLE t1;
 
-set global innodb_file_format="Barracuda";
 set global innodb_file_per_table=1;
 
 # Test fts with externally stored long column
@@ -263,5 +257,4 @@ SELECT count(*) FROM t1
 
 DROP TABLE t1;
 
-eval SET GLOBAL innodb_file_format=$innodb_file_format_orig;
 eval SET GLOBAL innodb_file_per_table=$innodb_file_per_table_orig;

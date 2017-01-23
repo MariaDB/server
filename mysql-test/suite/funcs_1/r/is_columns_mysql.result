@@ -7,7 +7,7 @@ def	mysql	columns_priv	Column_priv	7		NO	set	31	93	NULL	NULL	NULL	utf8	utf8_gene
 def	mysql	columns_priv	Db	2		NO	char	64	192	NULL	NULL	NULL	utf8	utf8_bin	char(64)	PRI		select,insert,update,references	
 def	mysql	columns_priv	Host	1		NO	char	60	180	NULL	NULL	NULL	utf8	utf8_bin	char(60)	PRI		select,insert,update,references	
 def	mysql	columns_priv	Table_name	4		NO	char	64	192	NULL	NULL	NULL	utf8	utf8_bin	char(64)	PRI		select,insert,update,references	
-def	mysql	columns_priv	Timestamp	6	CURRENT_TIMESTAMP	NO	timestamp	NULL	NULL	NULL	NULL	0	NULL	NULL	timestamp		on update CURRENT_TIMESTAMP	select,insert,update,references	
+def	mysql	columns_priv	Timestamp	6	current_timestamp()	NO	timestamp	NULL	NULL	NULL	NULL	0	NULL	NULL	timestamp		on update current_timestamp()	select,insert,update,references	
 def	mysql	columns_priv	User	3		NO	char	80	240	NULL	NULL	NULL	utf8	utf8_bin	char(80)	PRI		select,insert,update,references	
 def	mysql	column_stats	avg_frequency	8	NULL	YES	decimal	NULL	NULL	12	4	NULL	NULL	NULL	decimal(12,4)			select,insert,update,references	
 def	mysql	column_stats	avg_length	7	NULL	YES	decimal	NULL	NULL	12	4	NULL	NULL	NULL	decimal(12,4)			select,insert,update,references	
@@ -47,7 +47,7 @@ def	mysql	event	body_utf8	22	NULL	YES	longblob	4294967295	4294967295	NULL	NULL	N
 def	mysql	event	character_set_client	19	NULL	YES	char	32	96	NULL	NULL	NULL	utf8	utf8_bin	char(32)			select,insert,update,references	
 def	mysql	event	collation_connection	20	NULL	YES	char	32	96	NULL	NULL	NULL	utf8	utf8_bin	char(32)			select,insert,update,references	
 def	mysql	event	comment	16		NO	char	64	192	NULL	NULL	NULL	utf8	utf8_bin	char(64)			select,insert,update,references	
-def	mysql	event	created	8	CURRENT_TIMESTAMP	NO	timestamp	NULL	NULL	NULL	NULL	0	NULL	NULL	timestamp		on update CURRENT_TIMESTAMP	select,insert,update,references	
+def	mysql	event	created	8	current_timestamp()	NO	timestamp	NULL	NULL	NULL	NULL	0	NULL	NULL	timestamp		on update current_timestamp()	select,insert,update,references	
 def	mysql	event	db	1		NO	char	64	192	NULL	NULL	NULL	utf8	utf8_bin	char(64)	PRI		select,insert,update,references	
 def	mysql	event	db_collation	21	NULL	YES	char	32	96	NULL	NULL	NULL	utf8	utf8_bin	char(32)			select,insert,update,references	
 def	mysql	event	definer	4		NO	char	141	423	NULL	NULL	NULL	utf8	utf8_bin	char(141)			select,insert,update,references	
@@ -70,7 +70,7 @@ def	mysql	func	ret	2	0	NO	tinyint	NULL	NULL	3	0	NULL	NULL	NULL	tinyint(1)			sele
 def	mysql	func	type	4	NULL	NO	enum	9	27	NULL	NULL	NULL	utf8	utf8_general_ci	enum('function','aggregate')			select,insert,update,references	
 def	mysql	general_log	argument	6	NULL	NO	mediumtext	16777215	16777215	NULL	NULL	NULL	utf8	utf8_general_ci	mediumtext			select,insert,update,references	
 def	mysql	general_log	command_type	5	NULL	NO	varchar	64	192	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(64)			select,insert,update,references	
-def	mysql	general_log	event_time	1	CURRENT_TIMESTAMP(6)	NO	timestamp	NULL	NULL	NULL	NULL	6	NULL	NULL	timestamp(6)		on update CURRENT_TIMESTAMP	select,insert,update,references	
+def	mysql	general_log	event_time	1	current_timestamp(6)	NO	timestamp	NULL	NULL	NULL	NULL	6	NULL	NULL	timestamp(6)		on update current_timestamp(6)	select,insert,update,references	
 def	mysql	general_log	server_id	4	NULL	NO	int	NULL	NULL	10	0	NULL	NULL	NULL	int(10) unsigned			select,insert,update,references	
 def	mysql	general_log	thread_id	3	NULL	NO	bigint	NULL	NULL	20	0	NULL	NULL	NULL	bigint(21) unsigned			select,insert,update,references	
 def	mysql	general_log	user_host	2	NULL	NO	mediumtext	16777215	16777215	NULL	NULL	NULL	utf8	utf8_general_ci	mediumtext			select,insert,update,references	
@@ -124,7 +124,7 @@ def	mysql	proc	body_utf8	20	NULL	YES	longblob	4294967295	4294967295	NULL	NULL	NU
 def	mysql	proc	character_set_client	17	NULL	YES	char	32	96	NULL	NULL	NULL	utf8	utf8_bin	char(32)			select,insert,update,references	
 def	mysql	proc	collation_connection	18	NULL	YES	char	32	96	NULL	NULL	NULL	utf8	utf8_bin	char(32)			select,insert,update,references	
 def	mysql	proc	comment	16	NULL	NO	text	65535	65535	NULL	NULL	NULL	utf8	utf8_bin	text			select,insert,update,references	
-def	mysql	proc	created	13	CURRENT_TIMESTAMP	NO	timestamp	NULL	NULL	NULL	NULL	0	NULL	NULL	timestamp		on update CURRENT_TIMESTAMP	select,insert,update,references	
+def	mysql	proc	created	13	current_timestamp()	NO	timestamp	NULL	NULL	NULL	NULL	0	NULL	NULL	timestamp		on update current_timestamp()	select,insert,update,references	
 def	mysql	proc	db	1		NO	char	64	192	NULL	NULL	NULL	utf8	utf8_bin	char(64)	PRI		select,insert,update,references	
 def	mysql	proc	db_collation	19	NULL	YES	char	32	96	NULL	NULL	NULL	utf8	utf8_bin	char(32)			select,insert,update,references	
 def	mysql	proc	definer	12		NO	char	141	423	NULL	NULL	NULL	utf8	utf8_bin	char(141)			select,insert,update,references	
@@ -145,13 +145,13 @@ def	mysql	procs_priv	Host	1		NO	char	60	180	NULL	NULL	NULL	utf8	utf8_bin	char(60
 def	mysql	procs_priv	Proc_priv	7		NO	set	27	81	NULL	NULL	NULL	utf8	utf8_general_ci	set('Execute','Alter Routine','Grant')			select,insert,update,references	
 def	mysql	procs_priv	Routine_name	4		NO	char	64	192	NULL	NULL	NULL	utf8	utf8_general_ci	char(64)	PRI		select,insert,update,references	
 def	mysql	procs_priv	Routine_type	5	NULL	NO	enum	9	27	NULL	NULL	NULL	utf8	utf8_bin	enum('FUNCTION','PROCEDURE')	PRI		select,insert,update,references	
-def	mysql	procs_priv	Timestamp	8	CURRENT_TIMESTAMP	NO	timestamp	NULL	NULL	NULL	NULL	0	NULL	NULL	timestamp		on update CURRENT_TIMESTAMP	select,insert,update,references	
+def	mysql	procs_priv	Timestamp	8	current_timestamp()	NO	timestamp	NULL	NULL	NULL	NULL	0	NULL	NULL	timestamp		on update current_timestamp()	select,insert,update,references	
 def	mysql	procs_priv	User	3		NO	char	80	240	NULL	NULL	NULL	utf8	utf8_bin	char(80)	PRI		select,insert,update,references	
 def	mysql	proxies_priv	Grantor	6		NO	char	141	423	NULL	NULL	NULL	utf8	utf8_bin	char(141)	MUL		select,insert,update,references	
 def	mysql	proxies_priv	Host	1		NO	char	60	180	NULL	NULL	NULL	utf8	utf8_bin	char(60)	PRI		select,insert,update,references	
 def	mysql	proxies_priv	Proxied_host	3		NO	char	60	180	NULL	NULL	NULL	utf8	utf8_bin	char(60)	PRI		select,insert,update,references	
 def	mysql	proxies_priv	Proxied_user	4		NO	char	80	240	NULL	NULL	NULL	utf8	utf8_bin	char(80)	PRI		select,insert,update,references	
-def	mysql	proxies_priv	Timestamp	7	CURRENT_TIMESTAMP	NO	timestamp	NULL	NULL	NULL	NULL	0	NULL	NULL	timestamp		on update CURRENT_TIMESTAMP	select,insert,update,references	
+def	mysql	proxies_priv	Timestamp	7	current_timestamp()	NO	timestamp	NULL	NULL	NULL	NULL	0	NULL	NULL	timestamp		on update current_timestamp()	select,insert,update,references	
 def	mysql	proxies_priv	User	2		NO	char	80	240	NULL	NULL	NULL	utf8	utf8_bin	char(80)	PRI		select,insert,update,references	
 def	mysql	proxies_priv	With_grant	5	0	NO	tinyint	NULL	NULL	3	0	NULL	NULL	NULL	tinyint(1)			select,insert,update,references	
 def	mysql	roles_mapping	Admin_option	4	N	NO	enum	1	3	NULL	NULL	NULL	utf8	utf8_general_ci	enum('N','Y')			select,insert,update,references	
@@ -177,7 +177,7 @@ def	mysql	slow_log	rows_examined	6	NULL	NO	int	NULL	NULL	10	0	NULL	NULL	NULL	int
 def	mysql	slow_log	rows_sent	5	NULL	NO	int	NULL	NULL	10	0	NULL	NULL	NULL	int(11)			select,insert,update,references	
 def	mysql	slow_log	server_id	10	NULL	NO	int	NULL	NULL	10	0	NULL	NULL	NULL	int(10) unsigned			select,insert,update,references	
 def	mysql	slow_log	sql_text	11	NULL	NO	mediumtext	16777215	16777215	NULL	NULL	NULL	utf8	utf8_general_ci	mediumtext			select,insert,update,references	
-def	mysql	slow_log	start_time	1	CURRENT_TIMESTAMP(6)	NO	timestamp	NULL	NULL	NULL	NULL	6	NULL	NULL	timestamp(6)		on update CURRENT_TIMESTAMP	select,insert,update,references	
+def	mysql	slow_log	start_time	1	current_timestamp(6)	NO	timestamp	NULL	NULL	NULL	NULL	6	NULL	NULL	timestamp(6)		on update current_timestamp(6)	select,insert,update,references	
 def	mysql	slow_log	thread_id	12	NULL	NO	bigint	NULL	NULL	20	0	NULL	NULL	NULL	bigint(21) unsigned			select,insert,update,references	
 def	mysql	slow_log	user_host	2	NULL	NO	mediumtext	16777215	16777215	NULL	NULL	NULL	utf8	utf8_general_ci	mediumtext			select,insert,update,references	
 def	mysql	tables_priv	Column_priv	8		NO	set	31	93	NULL	NULL	NULL	utf8	utf8_general_ci	set('Select','Insert','Update','References')			select,insert,update,references	
@@ -186,7 +186,7 @@ def	mysql	tables_priv	Grantor	5		NO	char	141	423	NULL	NULL	NULL	utf8	utf8_bin	ch
 def	mysql	tables_priv	Host	1		NO	char	60	180	NULL	NULL	NULL	utf8	utf8_bin	char(60)	PRI		select,insert,update,references	
 def	mysql	tables_priv	Table_name	4		NO	char	64	192	NULL	NULL	NULL	utf8	utf8_bin	char(64)	PRI		select,insert,update,references	
 def	mysql	tables_priv	Table_priv	7		NO	set	98	294	NULL	NULL	NULL	utf8	utf8_general_ci	set('Select','Insert','Update','Delete','Create','Drop','Grant','References','Index','Alter','Create View','Show view','Trigger')			select,insert,update,references	
-def	mysql	tables_priv	Timestamp	6	CURRENT_TIMESTAMP	NO	timestamp	NULL	NULL	NULL	NULL	0	NULL	NULL	timestamp		on update CURRENT_TIMESTAMP	select,insert,update,references	
+def	mysql	tables_priv	Timestamp	6	current_timestamp()	NO	timestamp	NULL	NULL	NULL	NULL	0	NULL	NULL	timestamp		on update current_timestamp()	select,insert,update,references	
 def	mysql	tables_priv	User	3		NO	char	80	240	NULL	NULL	NULL	utf8	utf8_bin	char(80)	PRI		select,insert,update,references	
 def	mysql	table_stats	cardinality	3	NULL	YES	bigint	NULL	NULL	20	0	NULL	NULL	NULL	bigint(21) unsigned			select,insert,update,references	
 def	mysql	table_stats	db_name	1	NULL	NO	varchar	64	192	NULL	NULL	NULL	utf8	utf8_bin	varchar(64)	PRI		select,insert,update,references	

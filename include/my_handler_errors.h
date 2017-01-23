@@ -23,16 +23,18 @@
 
 static const char *handler_error_messages[]=
 {
+  /* 120 */
   "Didn't find key on read or update",
   "Duplicate key on write or update",
   "Internal (unspecified) error in handler",
   "Someone has changed the row since it was read (while the table was locked to prevent it)",
   "Wrong index given to function",
   "Undefined handler error 125",
-  "Index file is crashed",
-  "Record file is crashed",
+  "Index is corrupted",
+  "Table file is corrupted",
   "Out of memory in engine",
   "Undefined handler error 129",
+  /* 130 */
   "Incorrect file format",
   "Command not supported by database",
   "Old database file",
@@ -43,6 +45,7 @@ static const char *handler_error_messages[]=
   "No more records (read after end of file)",
   "Unsupported extension used for table",
   "Too big row",
+  /* 140 */
   "Wrong create options",
   "Duplicate unique key or constraint on write or update",
   "Unknown character set used in table",
@@ -53,6 +56,7 @@ static const char *handler_error_messages[]=
   "Lock table is full;  Restart program with a larger lock table",
   "Updates are not allowed under a read only transactions",
   "Lock deadlock; Retry transaction",
+  /* 150 */
   "Foreign key constraint is incorrectly formed",
   "Cannot add a child row",
   "Cannot delete a parent row",
@@ -63,6 +67,7 @@ static const char *handler_error_messages[]=
   "Could not connect to storage engine",
   "Unexpected null pointer found when using spatial index",
   "The table changed in storage engine",
+  /* 160 */
   "There's no partition in table for the given value",
   "Row-based binary logging of row failed",
   "Index needed in foreign key constraint",
@@ -73,6 +78,7 @@ static const char *handler_error_messages[]=
   "Failed to set row auto increment value",
   "Unknown (generic) error from engine",
   "Record was not update. Original values was same as new values",
+  /* 170 */
   "It is not possible to log this statement",
   "The event was corrupt, leading to illegal data being read",
   "The table is of a new format not supported by this version",
@@ -83,6 +89,7 @@ static const char *handler_error_messages[]=
   "Too many active concurrent transactions",
   "Record not matching the given partition set",
   "Index column length exceeds limit",
+  /* 180 */
   "Index corrupted",
   "Undo record too big",
   "Invalid InnoDB FTS Doc ID",
@@ -93,9 +100,12 @@ static const char *handler_error_messages[]=
   "Row is not visible by the current transaction",
   "Operation was interrupted by end user (probably kill command?)",
   "Disk full",
+  /* 190 */
   "Incompatible key or row definition between the MariaDB .frm file and the information in the storage engine. You have to dump and restore the table to fix this",
   "Too many words in a FTS phrase or proximity search",
-  "Table encrypted but decryption failed. This could be because correct encryption management plugin is not loaded, used encryption key is not available or encryption method does not match."
+  "Table encrypted but decryption failed. This could be because correct encryption management plugin is not loaded, used encryption key is not available or encryption method does not match.",
+  "Foreign key cascade delete/update exceeds max depth",
+  "Tablespace is missing for table"
 };
 
 #endif /* MYSYS_MY_HANDLER_ERRORS_INCLUDED */

@@ -184,7 +184,6 @@ extern MY_UNI_CTYPE my_uni_ctype[256];
 #define MY_CS_MBMAXLEN  6     /* Maximum supported mbmaxlen */
 #define MY_CS_IS_TOOSMALL(rc) ((rc) >= MY_CS_TOOSMALL6 && (rc) <= MY_CS_TOOSMALL)
 
-
 #define MY_SEQ_INTTAIL	1
 #define MY_SEQ_SPACES	2
 #define MY_SEQ_NONSPACES 3 /* Skip non-space characters, including bad bytes */
@@ -397,7 +396,6 @@ typedef struct
 */
 typedef struct
 {
-  MY_STRCOPY_STATUS m_native_copy_status;
   const char *m_cannot_convert_error_pos;
 } MY_STRCONV_STATUS;
 
@@ -410,9 +408,6 @@ struct my_charset_handler_st
   size_t  (*numchars)(CHARSET_INFO *, const char *b, const char *e);
   size_t  (*charpos)(CHARSET_INFO *, const char *b, const char *e,
                      size_t pos);
-  size_t  (*well_formed_len)(CHARSET_INFO *,
-                             const char *b,const char *e,
-                             size_t nchars, int *error);
   size_t  (*lengthsp)(CHARSET_INFO *, const char *ptr, size_t length);
   size_t  (*numcells)(CHARSET_INFO *, const char *b, const char *e);
   
@@ -634,6 +629,7 @@ extern struct charset_info_st my_charset_ucs2_nopad_bin;
 extern struct charset_info_st my_charset_ucs2_general_nopad_ci;
 extern struct charset_info_st my_charset_ucs2_general_mysql500_ci;
 extern struct charset_info_st my_charset_ucs2_unicode_ci;
+extern struct charset_info_st my_charset_ucs2_unicode_nopad_ci;
 extern struct charset_info_st my_charset_ucs2_general_mysql500_ci;
 extern struct charset_info_st my_charset_ujis_bin;
 extern struct charset_info_st my_charset_ujis_japanese_ci;
@@ -642,6 +638,7 @@ extern struct charset_info_st my_charset_ujis_japanese_nopad_ci;
 extern struct charset_info_st my_charset_utf16_bin;
 extern struct charset_info_st my_charset_utf16_general_ci;
 extern struct charset_info_st my_charset_utf16_unicode_ci;
+extern struct charset_info_st my_charset_utf16_unicode_nopad_ci;
 extern struct charset_info_st my_charset_utf16le_bin;
 extern struct charset_info_st my_charset_utf16le_general_ci;
 extern struct charset_info_st my_charset_utf16_general_nopad_ci;
@@ -651,6 +648,7 @@ extern struct charset_info_st my_charset_utf16le_general_nopad_ci;
 extern struct charset_info_st my_charset_utf32_bin;
 extern struct charset_info_st my_charset_utf32_general_ci;
 extern struct charset_info_st my_charset_utf32_unicode_ci;
+extern struct charset_info_st my_charset_utf32_unicode_nopad_ci;
 extern struct charset_info_st my_charset_utf32_nopad_bin;
 extern struct charset_info_st my_charset_utf32_general_nopad_ci;
 extern struct charset_info_st my_charset_utf8_bin;
@@ -658,11 +656,13 @@ extern struct charset_info_st my_charset_utf8_nopad_bin;
 extern struct charset_info_st my_charset_utf8_general_nopad_ci;
 extern struct charset_info_st my_charset_utf8_general_mysql500_ci;
 extern struct charset_info_st my_charset_utf8_unicode_ci;
+extern struct charset_info_st my_charset_utf8_unicode_nopad_ci;
 extern struct charset_info_st my_charset_utf8mb4_bin;
 extern struct charset_info_st my_charset_utf8mb4_general_ci;
 extern struct charset_info_st my_charset_utf8mb4_nopad_bin;
 extern struct charset_info_st my_charset_utf8mb4_general_nopad_ci;
 extern struct charset_info_st my_charset_utf8mb4_unicode_ci;
+extern struct charset_info_st my_charset_utf8mb4_unicode_nopad_ci;
 
 #define MY_UTF8MB3                 "utf8"
 #define MY_UTF8MB4                 "utf8mb4"
@@ -812,8 +812,6 @@ int my_wildcmp_bin(CHARSET_INFO *,
 size_t my_numchars_8bit(CHARSET_INFO *, const char *b, const char *e);
 size_t my_numcells_8bit(CHARSET_INFO *, const char *b, const char *e);
 size_t my_charpos_8bit(CHARSET_INFO *, const char *b, const char *e, size_t pos);
-size_t my_well_formed_len_8bit(CHARSET_INFO *, const char *b, const char *e,
-                             size_t pos, int *error);
 size_t my_well_formed_char_length_8bit(CHARSET_INFO *cs,
                                        const char *b, const char *e,
                                        size_t nchars,
@@ -845,8 +843,6 @@ int my_wildcmp_mb(CHARSET_INFO *,
 size_t my_numchars_mb(CHARSET_INFO *, const char *b, const char *e);
 size_t my_numcells_mb(CHARSET_INFO *, const char *b, const char *e);
 size_t my_charpos_mb(CHARSET_INFO *, const char *b, const char *e, size_t pos);
-size_t my_well_formed_len_mb(CHARSET_INFO *, const char *b, const char *e,
-                             size_t pos, int *error);
 uint my_instr_mb(CHARSET_INFO *,
                  const char *b, size_t b_length,
                  const char *s, size_t s_length,
@@ -989,7 +985,9 @@ uint32 my_convert_using_func(char *to, uint32 to_length, CHARSET_INFO *to_cs,
 */
 size_t my_convert_fix(CHARSET_INFO *dstcs, char *dst, size_t dst_length,
                       CHARSET_INFO *srccs, const char *src, size_t src_length,
-                      size_t nchars, MY_STRCONV_STATUS *status);
+                      size_t nchars,
+                      MY_STRCOPY_STATUS *copy_status,
+                      MY_STRCONV_STATUS *conv_status);
 
 #define	_MY_U	01	/* Upper case */
 #define	_MY_L	02	/* Lower case */
@@ -1081,6 +1079,22 @@ uint my_charlen_fix(CHARSET_INFO *cs, const char *str, const char *end)
   int char_length= my_charlen(cs, str, end);
   DBUG_ASSERT(str < end);
   return char_length > 0 ? (uint) char_length : (uint) 1U;
+}
+
+
+/*
+  A compatibility replacement pure C function for the former
+    cs->cset->well_formed_len().
+  In C++ code please use Well_formed_prefix::length() instead.
+*/
+static inline size_t
+my_well_formed_length(CHARSET_INFO *cs, const char *b, const char *e,
+                      size_t nchars, int *error)
+{
+  MY_STRCOPY_STATUS status;
+  (void) cs->cset->well_formed_char_length(cs, b, e, nchars, &status);
+  *error= status.m_well_formed_error_pos == NULL ? 0 : 1;
+  return status.m_source_end_pos - b;
 }
 
 

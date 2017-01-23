@@ -161,6 +161,13 @@ INSERT INTO t1 (a) VALUES ('a');
 SELECT a, HEX(b) FROM t1;
 DROP TABLE t1;
 
+#
+# Item_func_weight_string::print()
+#
+create view v1 as select weight_string("MySQL" as char(4));
+select * from v1;
+drop view v1;
+
 --echo #
 --echo # End of 10.2 tests
 --echo #

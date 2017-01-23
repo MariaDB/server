@@ -102,3 +102,50 @@ select * from t1 where case a when adddate( '2012-12-12', 7 ) then true end;
 a
 drop table t1;
 End of 5.5 tests
+create or replace view v1 as select 3 & 20010101 + interval 2 day as x;
+show create view v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select 3 & 20010101 + interval 2 day AS `x`	latin1	latin1_swedish_ci
+select 3 & 20010101 + interval 2 day, x from v1;
+3 & 20010101 + interval 2 day	x
+3	3
+create or replace view v1 as select (3 & 20010101) + interval 2 day as x;
+show create view v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select (3 & 20010101) + interval 2 day AS `x`	latin1	latin1_swedish_ci
+select (3 & 20010101) + interval 2 day, x from v1;
+(3 & 20010101) + interval 2 day	x
+NULL	NULL
+Warnings:
+Warning	1292	Incorrect datetime value: '1'
+Warning	1292	Incorrect datetime value: '1'
+create or replace view v1 as select 3 & (20010101 + interval 2 day) as x;
+show create view v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select 3 & 20010101 + interval 2 day AS `x`	latin1	latin1_swedish_ci
+select 3 & (20010101 + interval 2 day), x from v1;
+3 & (20010101 + interval 2 day)	x
+3	3
+create or replace view v1 as select 30 + 20010101 + interval 2 day as x;
+show create view v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select 30 + 20010101 + interval 2 day AS `x`	latin1	latin1_swedish_ci
+select 30 + 20010101 + interval 2 day, x from v1;
+30 + 20010101 + interval 2 day	x
+2001-02-02	2001-02-02
+create or replace view v1 as select (30 + 20010101) + interval 2 day as x;
+show create view v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select 30 + 20010101 + interval 2 day AS `x`	latin1	latin1_swedish_ci
+select (30 + 20010101) + interval 2 day, x from v1;
+(30 + 20010101) + interval 2 day	x
+2001-02-02	2001-02-02
+create or replace view v1 as select 30 + (20010101 + interval 2 day) as x;
+show create view v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select 30 + (20010101 + interval 2 day) AS `x`	latin1	latin1_swedish_ci
+select 30 + (20010101 + interval 2 day), x from v1;
+30 + (20010101 + interval 2 day)	x
+20010133	20010133
+drop view v1;
+End of 10.2 tests

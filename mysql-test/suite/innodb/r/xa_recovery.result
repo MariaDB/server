@@ -7,6 +7,7 @@ XA END 'x';
 XA PREPARE 'x';
 connection default;
 call mtr.add_suppression("Found 1 prepared XA transactions");
+# Kill the server
 disconnect con1;
 connect  con1,localhost,root;
 SELECT * FROM t1 LOCK IN SHARE MODE;

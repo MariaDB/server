@@ -1,4 +1,4 @@
---source include/have_xtradb.inc
+--source include/have_innodb.inc
 
 CREATE TABLE t1 (a INT) ENGINE=InnoDB;
 CREATE TABLE t2 (b INT) ENGINE=InnoDB;

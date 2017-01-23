@@ -2334,7 +2334,7 @@ ib_col_set_value(
 
 			if (len > 0 && cs->mbmaxlen > 1) {
 				true_len = (ulint)
-					cs->cset->well_formed_len(
+					my_well_formed_length(
 						cs,
 						(const char*)src,
 						(const char*)src + len,

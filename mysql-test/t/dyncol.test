@@ -805,24 +805,24 @@ select column_json(column_create(1, "val", 2, column_create(3, "val2")));
 --echo # Time encoding
 --echo #
 select hex(column_create("t", "800:46:06.23434" AS time)) as hex,
-       column_json(column_create("t", "800:46:06.23434" AS time)) as json;
+       column_json(column_create("t", "800:46:06.23434" AS time)) as js;
 select hex(column_create(1, "800:46:06.23434" AS time)) as hex,
-       column_json(column_create(1, "800:46:06.23434" AS time)) as json;
+       column_json(column_create(1, "800:46:06.23434" AS time)) as js;
 
 select hex(column_create("t", "800:46:06" AS time)) as hex,
-       column_json(column_create("t", "800:46:06" AS time)) as json;
+       column_json(column_create("t", "800:46:06" AS time)) as js;
 select hex(column_create(1, "800:46:06" AS time)) as hex,
-       column_json(column_create(1, "800:46:06" AS time)) as json;
+       column_json(column_create(1, "800:46:06" AS time)) as js;
 
 select hex(column_create("t", "2012-12-21 10:46:06.23434" AS datetime)) as hex,
-       column_json(column_create("t", "2012-12-21 10:46:06.23434" AS datetime)) as json;
+       column_json(column_create("t", "2012-12-21 10:46:06.23434" AS datetime)) as js;
 select hex(column_create(1, "2012-12-21 10:46:06.23434" AS datetime)) as hex,
-       column_json(column_create(1, "2012-12-21 10:46:06.23434" AS datetime)) as json;
+       column_json(column_create(1, "2012-12-21 10:46:06.23434" AS datetime)) as js;
 
 select hex(column_create("t", "2012-12-21 10:46:06" AS datetime)) as hex,
-       column_json(column_create("t", "2012-12-21 10:46:06" AS datetime)) as json;
+       column_json(column_create("t", "2012-12-21 10:46:06" AS datetime)) as js;
 select hex(column_create(1, "2012-12-21 10:46:06" AS datetime)) as hex,
-       column_json(column_create(1, "2012-12-21 10:46:06" AS datetime)) as json;
+       column_json(column_create(1, "2012-12-21 10:46:06" AS datetime)) as js;
 
 --echo #
 --echo # MDEV-4849: Out of memory error and valgrind warnings on COLUMN_ADD
@@ -927,6 +927,14 @@ SELECT COLUMN_JSON(COLUMN_CREATE('a',1 AS DECIMAL,'b',1 AS DECIMAL));
 --echo #
 --echo # Start of 10.2 tests
 --echo #
+
+#
+# Item_func_dyncol_add::print
+#
+create view v1 as select column_get(column_add(column_create(1 , 'blue' as char), 2, 'ttt'), 1 as char);
+show create view v1;
+select * from v1;
+drop view v1;
 
 --echo #
 --echo # MDEV-10134 Add full support for DEFAULT

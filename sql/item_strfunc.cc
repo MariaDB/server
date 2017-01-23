@@ -164,31 +164,6 @@ String *Item_func_md5::val_str_ascii(String *str)
 }
 
 
-/*
-  The MD5()/SHA() functions treat their parameter as being a case sensitive.
-  Thus we set binary collation on it so different instances of MD5() will be
-  compared properly.
-*/
-static CHARSET_INFO *get_checksum_charset(const char *csname)
-{
-  CHARSET_INFO *cs= get_charset_by_csname(csname, MY_CS_BINSORT, MYF(0));
-  if (!cs)
-  {
-    // Charset has no binary collation: use my_charset_bin.
-    cs= &my_charset_bin;
-  }
-  return cs;
-}
-
-
-void Item_func_md5::fix_length_and_dec()
-{
-  CHARSET_INFO *cs= get_checksum_charset(args[0]->collation.collation->csname);
-  args[0]->collation.set(cs, DERIVATION_COERCIBLE);
-  fix_length_and_charset(32, default_charset());
-}
-
-
 String *Item_func_sha::val_str_ascii(String *str)
 {
   DBUG_ASSERT(fixed == 1);
@@ -214,8 +189,6 @@ String *Item_func_sha::val_str_ascii(String *str)
 
 void Item_func_sha::fix_length_and_dec()
 {
-  CHARSET_INFO *cs= get_checksum_charset(args[0]->collation.collation->csname);
-  args[0]->collation.set(cs, DERIVATION_COERCIBLE);
   // size of hex representation of hash
   fix_length_and_charset(SHA1_HASH_SIZE * 2, default_charset());
 }
@@ -345,9 +318,6 @@ void Item_func_sha2::fix_length_and_dec()
                         "sha2");
   }
 
-  CHARSET_INFO *cs= get_checksum_charset(args[0]->collation.collation->csname);
-  args[0]->collation.set(cs, DERIVATION_COERCIBLE);
-
 #else
   THD *thd= current_thd;
   push_warning_printf(thd,
@@ -427,14 +397,14 @@ void Item_func_to_base64::fix_length_and_dec()
 {
   maybe_null= args[0]->maybe_null;
   collation.set(default_charset(), DERIVATION_COERCIBLE, MY_REPERTOIRE_ASCII);
-  if (args[0]->max_length > (uint) base64_encode_max_arg_length())
+  if (args[0]->max_length > (uint) my_base64_encode_max_arg_length())
   {
     maybe_null= 1;
-    fix_char_length_ulonglong((ulonglong) base64_encode_max_arg_length());
+    fix_char_length_ulonglong((ulonglong) my_base64_encode_max_arg_length());
   }
   else
   {
-    int length= base64_needed_encoded_length((int) args[0]->max_length);
+    int length= my_base64_needed_encoded_length((int) args[0]->max_length);
     DBUG_ASSERT(length > 0);
     fix_char_length_ulonglong((ulonglong) length - 1);
   }
@@ -447,9 +417,9 @@ String *Item_func_to_base64::val_str_ascii(String *str)
   bool too_long= false;
   int length;
   if (!res ||
-      res->length() > (uint) base64_encode_max_arg_length() ||
+      res->length() > (uint) my_base64_encode_max_arg_length() ||
       (too_long=
-       ((uint) (length= base64_needed_encoded_length((int) res->length())) >
+       ((uint) (length= my_base64_needed_encoded_length((int) res->length())) >
         current_thd->variables.max_allowed_packet)) ||
       tmp_value.alloc((uint) length))
   {
@@ -465,7 +435,7 @@ String *Item_func_to_base64::val_str_ascii(String *str)
     }
     return 0;
   }
-  base64_encode(res->ptr(), (int) res->length(), (char*) tmp_value.ptr());
+  my_base64_encode(res->ptr(), (int) res->length(), (char*) tmp_value.ptr());
   DBUG_ASSERT(length > 0);
   tmp_value.length((uint) length - 1); // Without trailing '\0'
   null_value= 0;
@@ -475,13 +445,13 @@ String *Item_func_to_base64::val_str_ascii(String *str)
 
 void Item_func_from_base64::fix_length_and_dec()
 {
-  if (args[0]->max_length > (uint) base64_decode_max_arg_length())
+  if (args[0]->max_length > (uint) my_base64_decode_max_arg_length())
   {
-    fix_char_length_ulonglong((ulonglong) base64_decode_max_arg_length());
+    fix_char_length_ulonglong((ulonglong) my_base64_decode_max_arg_length());
   }
   else
   {
-    int length= base64_needed_decoded_length((int) args[0]->max_length);
+    int length= my_base64_needed_decoded_length((int) args[0]->max_length);
     fix_char_length_ulonglong((ulonglong) length);
   }
   maybe_null= 1; // Can be NULL, e.g. in case of badly formed input string
@@ -497,8 +467,8 @@ String *Item_func_from_base64::val_str(String *str)
   if (!res)
     goto err;
 
-  if (res->length() > (uint) base64_decode_max_arg_length() ||
-      ((uint) (length= base64_needed_decoded_length((int) res->length())) >
+  if (res->length() > (uint) my_base64_decode_max_arg_length() ||
+      ((uint) (length= my_base64_needed_decoded_length((int) res->length())) >
        current_thd->variables.max_allowed_packet))
   {
     THD *thd= current_thd;
@@ -513,7 +483,7 @@ String *Item_func_from_base64::val_str(String *str)
   if (tmp_value.alloc((uint) length))
     goto err;
 
-  if ((length= base64_decode(res->ptr(), (int) res->length(),
+  if ((length= my_base64_decode(res->ptr(), (int) res->length(),
                              (char *) tmp_value.ptr(), &end_ptr, 0)) < 0 ||
       end_ptr < res->ptr() + res->length())
   {
@@ -572,7 +542,7 @@ String *Item_func_decode_histogram::val_str(String *str)
   uint i;
   str->length(0);
   char numbuf[32];
-  const uchar *p= (uchar*)res->c_ptr();
+  const uchar *p= (uchar*)res->c_ptr_safe();
   for (i= 0; i < res->length(); i++)
   {
     double val;
@@ -2671,7 +2641,7 @@ String *Item_func_format::val_str_ascii(String *str)
       return 0; /* purecov: inspected */
     nr= my_double_round(nr, (longlong) dec, FALSE, FALSE);
     str->set_real(nr, dec, &my_charset_numeric);
-    if (isnan(nr) || my_isinf(nr))
+    if (!isfinite(nr))
       return str;
     str_length=str->length();
   }
@@ -3487,13 +3457,11 @@ bool Item_func_set_collation::eq(const Item *item, bool binary_cmp) const
 
 void Item_func_set_collation::print(String *str, enum_query_type query_type)
 {
-  str->append('(');
-  args[0]->print(str, query_type);
+  args[0]->print_parenthesised(str, query_type, precedence());
   str->append(STRING_WITH_LEN(" collate "));
   DBUG_ASSERT(args[1]->basic_const_item() &&
               args[1]->type() == Item::STRING_ITEM);
   ((Item_string *)args[1])->print_value(str);
-  str->append(')');
 }
 
 String *Item_func_charset::val_str(String *str)
@@ -3618,6 +3586,21 @@ String *Item_func_weight_string::val_str(String *str)
 nl:
   null_value= 1;
   return 0;
+}
+
+
+void Item_func_weight_string::print(String *str, enum_query_type query_type)
+{
+  str->append(func_name());
+  str->append('(');
+  args[0]->print(str, query_type);
+  str->append(',');
+  str->append_ulonglong(result_length);
+  str->append(',');
+  str->append_ulonglong(nweights);
+  str->append(',');
+  str->append_ulonglong(flags);
+  str->append(')');
 }
 
 
@@ -4728,7 +4711,7 @@ void Item_func_dyncol_add::print(String *str,
                                  enum_query_type query_type)
 {
   DBUG_ASSERT((arg_count & 0x1) == 1); // odd number of arguments
-  str->append(STRING_WITH_LEN("column_create("));
+  str->append(STRING_WITH_LEN("column_add("));
   args[arg_count - 1]->print(str, query_type);
   str->append(',');
   print_arguments(str, query_type);

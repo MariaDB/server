@@ -63,20 +63,6 @@ const LEX_STRING Diag_condition_item_names[]=
   { C_STRING_WITH_LEN("TRIGGER_SCHEMA") }
 };
 
-const LEX_STRING Diag_statement_item_names[]=
-{
-  { C_STRING_WITH_LEN("NUMBER") },
-  { C_STRING_WITH_LEN("MORE") },
-  { C_STRING_WITH_LEN("COMMAND_FUNCTION") },
-  { C_STRING_WITH_LEN("COMMAND_FUNCTION_CODE") },
-  { C_STRING_WITH_LEN("DYNAMIC_FUNCTION") },
-  { C_STRING_WITH_LEN("DYNAMIC_FUNCTION_CODE") },
-  { C_STRING_WITH_LEN("ROW_COUNT") },
-  { C_STRING_WITH_LEN("TRANSACTIONS_COMMITTED") },
-  { C_STRING_WITH_LEN("TRANSACTIONS_ROLLED_BACK") },
-  { C_STRING_WITH_LEN("TRANSACTION_ACTIVE") }
-};
-
 
 Set_signal_information::Set_signal_information(
   const Set_signal_information& set)

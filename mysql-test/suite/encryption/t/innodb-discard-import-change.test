@@ -1,0 +1,118 @@
+-- source include/have_innodb.inc
+-- source include/have_file_key_management_plugin.inc
+#
+# MDEV-11656: 'Data structure corruption' IMPORT TABLESPACE doesn't work for encrypted InnoDB tables if space_id changed
+#
+
+call mtr.add_suppression("InnoDB: Table .* tablespace is set as discarded");
+
+let $innodb_compression_algo = `SELECT @@innodb_compression_algorithm`;
+
+SET GLOBAL innodb_compression_algorithm = 1;
+
+create table t1(c1 bigint not null primary key auto_increment, b char(200))  engine=innodb encrypted=yes encryption_key_id=4;
+create table t2(c1 bigint not null primary key auto_increment, b char(200))  engine=innodb encrypted=yes encryption_key_id=1;
+create table t3(c1 bigint not null primary key auto_increment, b char(200))  engine=innodb page_compressed=yes;
+create table t4(c1 bigint not null primary key auto_increment, b char(200))  engine=innodb page_compressed=yes encrypted=yes encryption_key_id=4;
+create table t5(c1 bigint not null primary key auto_increment, b char(200))  engine=innodb;
+
+insert into t1 values (NULL, 'verysecretmessage');
+insert into t1(b) select b from t1;
+insert into t1(b) select b from t1;
+insert into t1(b) select b from t1;
+insert into t1(b) select b from t1;
+insert into t1(b) select b from t1;
+insert into t1(b) select b from t1;
+insert into t1(b) select b from t1;
+insert into t1(b) select b from t1;
+insert into t2 select * from t1;
+insert into t3 select * from t1;
+insert into t4 select * from t1;
+insert into t5 select * from t1;
+
+let MYSQLD_DATADIR =`SELECT @@datadir`;
+FLUSH TABLE t1,t2,t3,t4,t5 FOR EXPORT;
+perl;
+do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+ib_backup_tablespaces("test", "t1","t2","t3","t4","t5");
+EOF
+--list_files $MYSQLD_DATADIR/test
+UNLOCK TABLES;
+
+ALTER TABLE t1 DISCARD TABLESPACE;
+ALTER TABLE t2 DISCARD TABLESPACE;
+ALTER TABLE t3 DISCARD TABLESPACE;
+ALTER TABLE t4 DISCARD TABLESPACE;
+ALTER TABLE t5 DISCARD TABLESPACE;
+
+#
+# Now intentionally change space_id for t1,t3,t4,t5
+#
+DROP TABLE t1;
+DROP TABLE t3;
+DROP TABLE t4;
+DROP TABLE t5;
+
+create table t6(a int) engine=innodb;
+create table t5(c1 bigint not null primary key auto_increment, b char(200))  engine=innodb;
+create table t3(c1 bigint not null primary key auto_increment, b char(200))  engine=innodb page_compressed=yes;
+create table t1(c1 bigint not null primary key auto_increment, b char(200))  engine=innodb encrypted=yes encryption_key_id=4;
+create table t4(c1 bigint not null primary key auto_increment, b char(200))  engine=innodb page_compressed=yes encrypted=yes encryption_key_id=4;
+
+ALTER TABLE t1 DISCARD TABLESPACE;
+ALTER TABLE t3 DISCARD TABLESPACE;
+ALTER TABLE t4 DISCARD TABLESPACE;
+ALTER TABLE t5 DISCARD TABLESPACE;
+
+perl;
+do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+ib_discard_tablespaces("test", "t1","t2","t3","t4","t5");
+ib_restore_tablespaces("test", "t1","t2","t3","t4","t5");
+EOF
+
+ALTER TABLE t1 IMPORT TABLESPACE;
+SHOW CREATE TABLE t1;
+SELECT COUNT(*) FROM t1;
+ALTER TABLE t2 IMPORT TABLESPACE;
+SELECT COUNT(*) FROM t2;
+ALTER TABLE t3 IMPORT TABLESPACE;
+SELECT COUNT(*) FROM t3;
+ALTER TABLE t4 IMPORT TABLESPACE;
+SELECT COUNT(*) FROM t4;
+ALTER TABLE t5 IMPORT TABLESPACE;
+SELECT COUNT(*) FROM t5;
+
+#
+# Verify
+#
+--let $MYSQLD_TMPDIR = `SELECT @@tmpdir`
+--let $MYSQLD_DATADIR = `SELECT @@datadir`
+--let SEARCH_RANGE = 10000000
+--let t1_IBD = $MYSQLD_DATADIR/test/t1.ibd
+--let t2_IBD = $MYSQLD_DATADIR/test/t2.ibd
+--let t3_IBD = $MYSQLD_DATADIR/test/t3.ibd
+--let t4_IBD = $MYSQLD_DATADIR/test/t4.ibd
+--let t5_IBD = $MYSQLD_DATADIR/test/t5.ibd
+--let SEARCH_PATTERN=verysecretmessage
+--echo # t1 encrypted expecting NOT FOUND
+-- let SEARCH_FILE=$t1_IBD
+-- source include/search_pattern_in_file.inc
+--echo # t2 encrypted expecting NOT FOUND
+-- let SEARCH_FILE=$t2_IBD
+-- source include/search_pattern_in_file.inc
+--echo # t3 page compressed expecting NOT FOUND
+-- let SEARCH_FILE=$t3_IBD
+-- source include/search_pattern_in_file.inc
+--echo # t4 page compressed and encrypted expecting NOT FOUND
+-- let SEARCH_FILE=$t4_IBD
+-- source include/search_pattern_in_file.inc
+--echo # t5 normal expecting FOUND
+-- let SEARCH_FILE=$t5_IBD
+-- source include/search_pattern_in_file.inc
+
+DROP TABLE t1,t2,t3,t4,t5,t6;
+
+# reset system
+--disable_query_log
+EVAL SET GLOBAL innodb_compression_algorithm = $innodb_compression_algo;
+--enable_query_log

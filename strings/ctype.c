@@ -667,6 +667,8 @@ static int cs_value(MY_XML_PARSER *st,const char *attr, size_t len)
   case _CS_ST_STRENGTH:
     /* 1, 2, 3, 4, 5, or primary, secondary, tertiary, quaternary, identical */
     rc= tailoring_append(st, "[strength %.*s]", len, attr);
+    if (len && attr[0] >= '1' && attr[0] <= '9')
+      i->cs.levels_for_order= attr[0] - '0';
     break;
 
   case _CS_ST_ALTERNATE:
@@ -1138,7 +1140,9 @@ my_convert(char *to, uint32 to_length, CHARSET_INFO *to_cs,
 size_t
 my_convert_fix(CHARSET_INFO *to_cs, char *to, size_t to_length,
                CHARSET_INFO *from_cs, const char *from, size_t from_length,
-               size_t nchars, MY_STRCONV_STATUS *status)
+               size_t nchars,
+               MY_STRCOPY_STATUS *copy_status,
+               MY_STRCONV_STATUS *conv_status)
 {
   int cnvres;
   my_wc_t wc;
@@ -1151,8 +1155,8 @@ my_convert_fix(CHARSET_INFO *to_cs, char *to, size_t to_length,
   DBUG_ASSERT(to_cs != &my_charset_bin);
   DBUG_ASSERT(from_cs != &my_charset_bin);
 
-  status->m_native_copy_status.m_well_formed_error_pos= NULL;
-  status->m_cannot_convert_error_pos= NULL;
+  copy_status->m_well_formed_error_pos= NULL;
+  conv_status->m_cannot_convert_error_pos= NULL;
 
   for ( ; nchars; nchars--)
   {
@@ -1161,8 +1165,8 @@ my_convert_fix(CHARSET_INFO *to_cs, char *to, size_t to_length,
       from+= cnvres;
     else if (cnvres == MY_CS_ILSEQ)
     {
-      if (!status->m_native_copy_status.m_well_formed_error_pos)
-        status->m_native_copy_status.m_well_formed_error_pos= from;
+      if (!copy_status->m_well_formed_error_pos)
+        copy_status->m_well_formed_error_pos= from;
       from++;
       wc= '?';
     }
@@ -1172,8 +1176,8 @@ my_convert_fix(CHARSET_INFO *to_cs, char *to, size_t to_length,
         A correct multibyte sequence detected
         But it doesn't have Unicode mapping.
       */
-      if (!status->m_cannot_convert_error_pos)
-        status->m_cannot_convert_error_pos= from;
+      if (!conv_status->m_cannot_convert_error_pos)
+        conv_status->m_cannot_convert_error_pos= from;
       from+= (-cnvres);
       wc= '?';
     }
@@ -1182,8 +1186,8 @@ my_convert_fix(CHARSET_INFO *to_cs, char *to, size_t to_length,
       if ((uchar *) from >= from_end)
         break; // End of line
       // Incomplete byte sequence
-      if (!status->m_native_copy_status.m_well_formed_error_pos)
-        status->m_native_copy_status.m_well_formed_error_pos= from;
+      if (!copy_status->m_well_formed_error_pos)
+        copy_status->m_well_formed_error_pos= from;
       from++;
       wc= '?';
     }
@@ -1192,8 +1196,8 @@ outp:
       to+= cnvres;
     else if (cnvres == MY_CS_ILUNI && wc != '?')
     {
-      if (!status->m_cannot_convert_error_pos)
-        status->m_cannot_convert_error_pos= from_prev;
+      if (!conv_status->m_cannot_convert_error_pos)
+        conv_status->m_cannot_convert_error_pos= from_prev;
       wc= '?';
       goto outp;
     }
@@ -1203,6 +1207,6 @@ outp:
       break;
     }
   }
-  status->m_native_copy_status.m_source_end_pos= from;
+  copy_status->m_source_end_pos= from;
   return to - to_start;
 }

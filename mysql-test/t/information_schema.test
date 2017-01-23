@@ -8,8 +8,7 @@
 # on the presence of the log tables (which are CSV-based).
 --source include/have_csv.inc
 
-# Check that XtraDB is enabled as result depends on it
--- source include/have_xtradb.inc
+-- source include/have_innodb.inc
 
 # Save the initial number of concurrent sessions
 --source include/count_sessions.inc
@@ -576,7 +575,9 @@ begin
   end if;
 end|
 delimiter ;|
+--replace_column 6 #
 show triggers;
+--replace_column 17 #
 select * from information_schema.triggers where trigger_schema in ('mysql', 'information_schema', 'test', 'mysqltest');
 
 drop trigger trg1;
@@ -620,13 +621,13 @@ select * from information_schema.schema_privileges order by grantee;
 select * from information_schema.user_privileges order by grantee;
 show grants;
 connection con4;
-select * from information_schema.column_privileges where grantee like '%user%'
+select * from information_schema.column_privileges where grantee like '\'user%'
 order by grantee;
-select * from information_schema.table_privileges where grantee like '%user%'
+select * from information_schema.table_privileges where grantee like '\'user%'
 order by grantee;
-select * from information_schema.schema_privileges where grantee like '%user%'
+select * from information_schema.schema_privileges where grantee like '\'user%'
 order by grantee;
-select * from information_schema.user_privileges where grantee like '%user%'
+select * from information_schema.user_privileges where grantee like '\'user%'
 order by grantee;
 show grants;
 connection default;
@@ -1034,12 +1035,14 @@ grant select(b) on mysqltest.t1 to mysqltest_1@localhost;
 
 select trigger_name from information_schema.triggers
 where event_object_table='t1';
+--replace_column 6 #
 show triggers from mysqltest;
 
 connect (con27629,localhost,mysqltest_1,,mysqltest);
 show columns from t1;
 select column_name from information_schema.columns where table_name='t1';
 
+--replace_column 6 #
 show triggers;
 select trigger_name from information_schema.triggers
 where event_object_table='t1';

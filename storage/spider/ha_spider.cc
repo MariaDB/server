@@ -9559,7 +9559,6 @@ int ha_spider::write_row(
     DBUG_RETURN(error_num);
   }
 #endif
-  ha_statistic_increment(&SSV::ha_write_count);
 #if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100000
 #else
   if (table->timestamp_field_type & TIMESTAMP_AUTO_SET_ON_INSERT)
@@ -9795,7 +9794,6 @@ int ha_spider::update_row(
     DBUG_RETURN(error_num);
   }
 #endif
-  ha_statistic_increment(&SSV::ha_update_count);
 #ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
   do_direct_update = FALSE;
 #endif
@@ -10138,7 +10136,6 @@ int ha_spider::delete_row(
     DBUG_RETURN(error_num);
   }
 #endif
-  ha_statistic_increment(&SSV::ha_delete_count);
 #ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
   do_direct_update = FALSE;
 #endif

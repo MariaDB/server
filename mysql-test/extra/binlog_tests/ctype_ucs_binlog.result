@@ -1,0 +1,212 @@
+SET TIMESTAMP=10000;
+create table t2 (c char(30)) charset=ucs2;
+set @v=convert('abc' using ucs2);
+reset master;
+insert into t2 values (@v);
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	User var	#	#	@`v`=_ucs2 X'006100620063' COLLATE ucs2_general_ci
+master-bin.000001	#	Query	#	#	use `test`; insert into t2 values (@v)
+master-bin.000001	#	Query	#	#	COMMIT
+flush logs;
+/*!50530 SET @@SESSION.PSEUDO_SLAVE_MODE=1*/;
+/*!40019 SET @@session.max_insert_delayed_threads=0*/;
+/*!50003 SET @OLD_COMPLETION_TYPE=@@COMPLETION_TYPE,COMPLETION_TYPE=0*/;
+DELIMITER /*!*/;
+ROLLBACK/*!*/;
+BEGIN
+/*!*/;
+SET @`v`:=_ucs2 X'006100620063' COLLATE `ucs2_general_ci`/*!*/;
+use `test`/*!*/;
+SET TIMESTAMP=10000/*!*/;
+SET @@session.pseudo_thread_id=999999999/*!*/;
+SET @@session.foreign_key_checks=1, @@session.sql_auto_is_null=0, @@session.unique_checks=1, @@session.autocommit=1, @@session.check_constraint_checks=1/*!*/;
+SET @@session.sql_mode=1342177280/*!*/;
+SET @@session.auto_increment_increment=1, @@session.auto_increment_offset=1/*!*/;
+/*!\C latin1 *//*!*/;
+SET @@session.character_set_client=8,@@session.collation_connection=8,@@session.collation_server=8/*!*/;
+SET @@session.lc_time_names=0/*!*/;
+SET @@session.collation_database=DEFAULT/*!*/;
+insert into t2 values (@v)
+/*!*/;
+SET TIMESTAMP=10000/*!*/;
+COMMIT
+/*!*/;
+DELIMITER ;
+# End of log file
+ROLLBACK /* added by mysqlbinlog */;
+/*!50003 SET COMPLETION_TYPE=@OLD_COMPLETION_TYPE*/;
+/*!50530 SET @@SESSION.PSEUDO_SLAVE_MODE=0*/;
+drop table t2;
+#
+# Start of 10.2 tests
+#
+#
+# MDEV-10866 Extend PREPARE and EXECUTE IMMEDIATE to understand expressions
+#
+FLUSH LOGS;
+SET NAMES utf8;
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET utf8);
+EXECUTE IMMEDIATE 'INSERT INTO t1 VALUES (''ä(i1)'')';
+EXECUTE IMMEDIATE CONVERT('INSERT INTO t1 VALUES (''ä(i2)'')' USING ucs2);
+SET @stmt=CONVERT('INSERT INTO t1 VALUES (''ä(i3)'')' USING ucs2);
+EXECUTE IMMEDIATE @stmt;
+PREPARE stmt FROM 'INSERT INTO t1 VALUES (''ä(p1)'')';
+EXECUTE stmt;
+PREPARE stmt FROM CONVERT('INSERT INTO t1 VALUES (''ä(p2)'')' USING ucs2);
+EXECUTE stmt;
+SET @stmt=CONVERT('INSERT INTO t1 VALUES (''ä(p3)'')' USING ucs2);
+PREPARE stmt FROM @stmt;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+SELECT * FROM t1;
+a
+ä(i1)
+ä(i2)
+ä(i3)
+ä(p1)
+ä(p2)
+ä(p3)
+DROP TABLE t1;
+FLUSH LOGS;
+/*!50530 SET @@SESSION.PSEUDO_SLAVE_MODE=1*/;
+/*!40019 SET @@session.max_insert_delayed_threads=0*/;
+/*!50003 SET @OLD_COMPLETION_TYPE=@@COMPLETION_TYPE,COMPLETION_TYPE=0*/;
+DELIMITER /*!*/;
+# at #
+#700101  6:46:40 server id #  end_log_pos # CRC32 XXX 	Start: binlog v 4, server v #.##.## created 700101  6:46:40
+# at #
+#700101  6:46:40 server id #  end_log_pos # CRC32 XXX 	Gtid list [#-#-#]
+# at #
+#700101  6:46:40 server id #  end_log_pos # CRC32 XXX 	Binlog checkpoint master-bin.000002
+# at #
+#700101  6:46:40 server id #  end_log_pos # CRC32 XXX 	Binlog checkpoint master-bin.000003
+# at #
+#700101  6:46:40 server id #  end_log_pos # CRC32 XXX 	GTID #-#-# ddl
+/*!100101 SET @@session.skip_parallel_replication=0*//*!*/;
+/*!100001 SET @@session.gtid_domain_id=#*//*!*/;
+/*!100001 SET @@session.server_id=#*//*!*/;
+/*!100001 SET @@session.gtid_seq_no=#*//*!*/;
+# at #
+#700101  6:46:40 server id #  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0
+use `test`/*!*/;
+SET TIMESTAMP=10000/*!*/;
+SET @@session.pseudo_thread_id=#/*!*/;
+SET @@session.foreign_key_checks=1, @@session.sql_auto_is_null=0, @@session.unique_checks=1, @@session.autocommit=1, @@session.check_constraint_checks=1/*!*/;
+SET @@session.sql_mode=1342177280/*!*/;
+SET @@session.auto_increment_increment=1, @@session.auto_increment_offset=1/*!*/;
+/*!\C utf8 *//*!*/;
+SET @@session.character_set_client=33,@@session.collation_connection=33,@@session.collation_server=8/*!*/;
+SET @@session.lc_time_names=0/*!*/;
+SET @@session.collation_database=DEFAULT/*!*/;
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET utf8)
+/*!*/;
+# at #
+#700101  6:46:40 server id #  end_log_pos # CRC32 XXX 	GTID #-#-#
+/*!100001 SET @@session.gtid_seq_no=#*//*!*/;
+BEGIN
+/*!*/;
+# at #
+#700101  6:46:40 server id #  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0
+SET TIMESTAMP=10000/*!*/;
+INSERT INTO t1 VALUES ('ä(i1)')
+/*!*/;
+# at #
+#700101  6:46:40 server id #  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0
+SET TIMESTAMP=10000/*!*/;
+COMMIT
+/*!*/;
+# at #
+#700101  6:46:40 server id #  end_log_pos # CRC32 XXX 	GTID #-#-#
+/*!100001 SET @@session.gtid_seq_no=#*//*!*/;
+BEGIN
+/*!*/;
+# at #
+#700101  6:46:40 server id #  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0
+SET TIMESTAMP=10000/*!*/;
+INSERT INTO t1 VALUES ('ä(i2)')
+/*!*/;
+# at #
+#700101  6:46:40 server id #  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0
+SET TIMESTAMP=10000/*!*/;
+COMMIT
+/*!*/;
+# at #
+#700101  6:46:40 server id #  end_log_pos # CRC32 XXX 	GTID #-#-#
+/*!100001 SET @@session.gtid_seq_no=#*//*!*/;
+BEGIN
+/*!*/;
+# at #
+#700101  6:46:40 server id #  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0
+SET TIMESTAMP=10000/*!*/;
+INSERT INTO t1 VALUES ('ä(i3)')
+/*!*/;
+# at #
+#700101  6:46:40 server id #  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0
+SET TIMESTAMP=10000/*!*/;
+COMMIT
+/*!*/;
+# at #
+#700101  6:46:40 server id #  end_log_pos # CRC32 XXX 	GTID #-#-#
+/*!100001 SET @@session.gtid_seq_no=#*//*!*/;
+BEGIN
+/*!*/;
+# at #
+#700101  6:46:40 server id #  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0
+SET TIMESTAMP=10000/*!*/;
+INSERT INTO t1 VALUES ('ä(p1)')
+/*!*/;
+# at #
+#700101  6:46:40 server id #  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0
+SET TIMESTAMP=10000/*!*/;
+COMMIT
+/*!*/;
+# at #
+#700101  6:46:40 server id #  end_log_pos # CRC32 XXX 	GTID #-#-#
+/*!100001 SET @@session.gtid_seq_no=#*//*!*/;
+BEGIN
+/*!*/;
+# at #
+#700101  6:46:40 server id #  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0
+SET TIMESTAMP=10000/*!*/;
+INSERT INTO t1 VALUES ('ä(p2)')
+/*!*/;
+# at #
+#700101  6:46:40 server id #  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0
+SET TIMESTAMP=10000/*!*/;
+COMMIT
+/*!*/;
+# at #
+#700101  6:46:40 server id #  end_log_pos # CRC32 XXX 	GTID #-#-#
+/*!100001 SET @@session.gtid_seq_no=#*//*!*/;
+BEGIN
+/*!*/;
+# at #
+#700101  6:46:40 server id #  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0
+SET TIMESTAMP=10000/*!*/;
+INSERT INTO t1 VALUES ('ä(p3)')
+/*!*/;
+# at #
+#700101  6:46:40 server id #  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0
+SET TIMESTAMP=10000/*!*/;
+COMMIT
+/*!*/;
+# at #
+#700101  6:46:40 server id #  end_log_pos # CRC32 XXX 	GTID #-#-# ddl
+/*!100001 SET @@session.gtid_seq_no=#*//*!*/;
+# at #
+#700101  6:46:40 server id #  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0
+SET TIMESTAMP=10000/*!*/;
+DROP TABLE `t1` /* generated by server */
+/*!*/;
+# at #
+#700101  6:46:40 server id #  end_log_pos # CRC32 XXX 	Rotate to master-bin.000004  pos: 4
+DELIMITER ;
+# End of log file
+ROLLBACK /* added by mysqlbinlog */;
+/*!50003 SET COMPLETION_TYPE=@OLD_COMPLETION_TYPE*/;
+/*!50530 SET @@SESSION.PSEUDO_SLAVE_MODE=0*/;
+#
+# End of 10.2 tests
+#

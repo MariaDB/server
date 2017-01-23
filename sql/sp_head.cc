@@ -253,6 +253,7 @@ sp_get_flags_for_command(LEX *lex)
     statement within an IF condition.
   */
   case SQLCOM_EXECUTE:
+  case SQLCOM_EXECUTE_IMMEDIATE:
     flags= sp_head::MULTI_RESULTS | sp_head::CONTAINS_DYNAMIC_SQL;
     break;
   case SQLCOM_PREPARE:
@@ -707,6 +708,7 @@ sp_head::set_stmt_end(THD *thd)
 {
   Lex_input_stream *lip= & thd->m_parser_state->m_lip; /* shortcut */
   const char *end_ptr= lip->get_cpp_ptr(); /* shortcut */
+  uint not_used;
 
   /* Make the string of parameters. */
 
@@ -724,7 +726,7 @@ sp_head::set_stmt_end(THD *thd)
 
   m_body.length= end_ptr - m_body_begin;
   m_body.str= thd->strmake(m_body_begin, m_body.length);
-  trim_whitespace(thd->charset(), & m_body);
+  trim_whitespace(thd->charset(), &m_body, &not_used);
 
   /* Make the string of UTF-body. */
 
@@ -732,7 +734,7 @@ sp_head::set_stmt_end(THD *thd)
 
   m_body_utf8.length= lip->get_body_utf8_length();
   m_body_utf8.str= thd->strmake(lip->get_body_utf8_str(), m_body_utf8.length);
-  trim_whitespace(thd->charset(), & m_body_utf8);
+  trim_whitespace(thd->charset(), &m_body_utf8, &not_used);
 
   /*
     Make the string of whole stored-program-definition query (in the
@@ -741,7 +743,7 @@ sp_head::set_stmt_end(THD *thd)
 
   m_defstr.length= end_ptr - lip->get_cpp_buf();
   m_defstr.str= thd->strmake(lip->get_cpp_buf(), m_defstr.length);
-  trim_whitespace(thd->charset(), & m_defstr);
+  trim_whitespace(thd->charset(), &m_defstr, &not_used);
 }
 
 
@@ -2412,7 +2414,7 @@ sp_head::do_cont_backpatch()
 
 void
 sp_head::set_info(longlong created, longlong modified,
-                  st_sp_chistics *chistics, ulonglong sql_mode)
+                  st_sp_chistics *chistics, sql_mode_t sql_mode)
 {
   m_created= created;
   m_modified= modified;
@@ -4254,7 +4256,7 @@ sp_head::add_used_tables_to_table_list(THD *thd,
     if (stab->temp)
       continue;
 
-    if (!(tab_buff= (char *)thd->calloc(ALIGN_SIZE(sizeof(TABLE_LIST)) *
+    if (!(tab_buff= (char *)thd->alloc(ALIGN_SIZE(sizeof(TABLE_LIST)) *
                                         stab->lock_count)) ||
         !(key_buff= (char*)thd->memdup(stab->qname.str,
                                        stab->qname.length)))
@@ -4263,32 +4265,11 @@ sp_head::add_used_tables_to_table_list(THD *thd,
     for (uint j= 0; j < stab->lock_count; j++)
     {
       table= (TABLE_LIST *)tab_buff;
-
-      table->db= key_buff;
-      table->db_length= stab->db_length;
-      table->table_name= table->db + table->db_length + 1;
-      table->table_name_length= stab->table_name_length;
-      table->alias= table->table_name + table->table_name_length + 1;
-      table->lock_type= stab->lock_type;
-      table->cacheable_table= 1;
-      table->prelocking_placeholder= 1;
-      table->belong_to_view= belong_to_view;
-      table->trg_event_map= stab->trg_event_map;
-      /*
-        Since we don't allow DDL on base tables in prelocked mode it
-        is safe to infer the type of metadata lock from the type of
-        table lock.
-      */
-      table->mdl_request.init(MDL_key::TABLE, table->db, table->table_name,
-                              table->lock_type >= TL_WRITE_ALLOW_WRITE ?
-                              MDL_SHARED_WRITE : MDL_SHARED_READ,
-                              MDL_TRANSACTION);
-
-      /* Everyting else should be zeroed */
-
-      **query_tables_last_ptr= table;
-      table->prev_global= *query_tables_last_ptr;
-      *query_tables_last_ptr= &table->next_global;
+      table->init_one_table_for_prelocking(key_buff, stab->db_length,
+           key_buff + stab->db_length + 1, stab->table_name_length,
+           key_buff + stab->db_length + stab->table_name_length + 2,
+           stab->lock_type, true, belong_to_view, stab->trg_event_map,
+           query_tables_last_ptr);
 
       tab_buff+= ALIGN_SIZE(sizeof(TABLE_LIST));
       result= TRUE;

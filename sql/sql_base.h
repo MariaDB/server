@@ -16,8 +16,8 @@
 #ifndef SQL_BASE_INCLUDED
 #define SQL_BASE_INCLUDED
 
-#include "sql_trigger.h"                        /* trg_event_type */
 #include "sql_class.h"                          /* enum_mark_columns */
+#include "sql_trigger.h"                        /* trg_event_type */
 #include "mysqld.h"                             /* key_map */
 #include "table_cache.h"
 
@@ -288,8 +288,6 @@ TABLE *find_table_for_mdl_upgrade(THD *thd, const char *db,
                                   const char *table_name,
                                   bool no_error);
 
-int update_virtual_fields(THD *thd, TABLE *table,
-      enum enum_vcol_update_mode vcol_update_mode= VCOL_UPDATE_FOR_READ);
 int dynamic_column_error_message(enum_dyncol_func_result rc);
 
 /* open_and_lock_tables with optional derived handling */
@@ -331,14 +329,12 @@ inline void setup_table_map(TABLE *table, TABLE_LIST *table_list, uint tablenr)
   table->force_index= table_list->force_index;
   table->force_index_order= table->force_index_group= 0;
   table->covering_keys= table->s->keys_for_keyread;
-  table->merge_keys.clear_all();
   TABLE_LIST *orig= table_list->select_lex ?
     table_list->select_lex->master_unit()->derived : 0;
   if (!orig || !orig->is_merged_derived())
   {
     /* Tables merged from derived were set up already.*/
     table->covering_keys= table->s->keys_for_keyread;
-    table->merge_keys.clear_all();
   }
 }
 
@@ -628,7 +624,7 @@ public:
   bool handle_condition(THD *thd,
                         uint sql_errno,
                         const char* sqlstate,
-                        Sql_condition::enum_warning_level level,
+                        Sql_condition::enum_warning_level *level,
                         const char* msg,
                         Sql_condition ** cond_hdl);
 

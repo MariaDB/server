@@ -482,3 +482,123 @@ SELECT a, a='a', a='a ', HEX(a), LOWER(a), UPPER(a), CONVERT(a USING utf8) FROM 
 ALTER TABLE t1 MODIFY a VARCHAR(10) CHARACTER SET latin1 COLLATE latin1_swedish_nopad2_ci;
 SELECT a, a='a', a='a ', HEX(a), LOWER(a), UPPER(a), CONVERT(a USING utf8) FROM t1;
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-10877 xxx_unicode_nopad_ci collations
+--echo #
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_test_520_nopad_ci);
+INSERT INTO t1 VALUES ('a'),('b'),('a '),('b ');
+SELECT
+  HEX(a),
+  WEIGHT_STRING(a)=WEIGHT_STRING(a COLLATE utf8mb4_unicode_ci) AS is_400,
+  WEIGHT_STRING(a)=WEIGHT_STRING(a COLLATE utf8mb4_unicode_520_ci) AS is_520
+FROM t1
+ORDER BY a;
+SELECT COUNT(DISTINCT a) FROM t1;
+SELECT HEX(a), REPLACE(a,' ','<SP>') FROM t1 WHERE a='a';
+SELECT HEX(a), REPLACE(a,' ','<SP>') FROM t1 ORDER BY a;
+SELECT HEX(a), REPLACE(a,' ','<SP>') FROM t1 ORDER BY a DESC;
+DROP TABLE t1;
+
+
+SET NAMES utf8 COLLATE utf8_czech_test_w2;
+CREATE TABLE t1 AS SELECT SPACE(10) AS c1 LIMIT 0;
+--source include/ctype_unicode_latin.inc
+INSERT INTO t1 VALUES ('a ');
+SELECT c1, HEX(WEIGHT_STRING(c1 LEVEL 1)), HEX(WEIGHT_STRING(c1 LEVEL 2)) FROM t1 ORDER BY c1, BINARY c1;
+SELECT c1, HEX(WEIGHT_STRING(c1 AS CHAR(3) LEVEL 1)), HEX(WEIGHT_STRING(c1 AS CHAR(3) LEVEL 2)) FROM t1 WHERE c1 BETWEEN 'a' AND 'aZ' ORDER BY c1, BINARY c1;
+DROP TABLE t1;
+
+SELECT 'a' = 'a ';
+SELECT 'a'  < 'á';
+SELECT 'áa' < 'ab';
+SELECT 'á'  < 'ä';
+SELECT 'äa' < 'áb';
+SELECT 'c'  < 'č';
+SELECT 'cb' < 'ča';
+SELECT 'd'  < 'ď';
+SELECT 'ďa' < 'db';
+SELECT 'e'  < 'é';
+SELECT 'éa' < 'eb';
+SELECT 'é'  < 'ě';
+SELECT 'ěa' < 'éb';
+SELECT 'i'  < 'í';
+SELECT 'ía' < 'ib';
+SELECT 'n'  < 'ň';
+SELECT 'ňa' < 'nb';
+SELECT 'o'  < 'ó';
+SELECT 'óa' < 'ob';
+SELECT 'ó'  < 'ö';
+SELECT 'öa' < 'ób';
+SELECT 'r'  < 'ř';
+SELECT 'rb' < 'řa';
+SELECT 's'  < 'š';
+SELECT 'sb' < 'ša';
+SELECT 't'  < 'ť';
+SELECT 'ťa' < 'tb';
+SELECT 'u'  < 'ú';
+SELECT 'úa' < 'ub';
+SELECT 'ú'  < 'ů';
+SELECT 'ůa' < 'úb';
+SELECT 'ů'  < 'ü';
+SELECT 'üa' < 'ůb';
+SELECT 'y'  < 'ý';
+SELECT 'ýa' < 'yb';
+SELECT 'z'  < 'ž';
+SELECT 'zb' < 'ža';
+SELECT 'hž' < 'ch';
+SELECT 'chž'< 'i';
+
+
+
+SET NAMES utf8 COLLATE utf8_czech_test_nopad_w2;
+CREATE TABLE t1 AS SELECT SPACE(10) AS c1 LIMIT 0;
+--source include/ctype_unicode_latin.inc
+INSERT INTO t1 VALUES ('a ');
+SELECT c1, HEX(WEIGHT_STRING(c1 LEVEL 1)), HEX(WEIGHT_STRING(c1 LEVEL 2)) FROM t1 ORDER BY c1, BINARY c1;
+SELECT c1, HEX(WEIGHT_STRING(c1 AS CHAR(3) LEVEL 1)), HEX(WEIGHT_STRING(c1 AS CHAR(3) LEVEL 2)) FROM t1 WHERE c1 BETWEEN 'a' AND 'aZ' ORDER BY c1, BINARY c1;
+DROP TABLE t1;
+
+SELECT 'a' = 'a ';
+SELECT 'a'  < 'á';
+SELECT 'áa' < 'ab';
+SELECT 'á'  < 'ä';
+SELECT 'äa' < 'áb';
+SELECT 'c'  < 'č';
+SELECT 'cb' < 'ča';
+SELECT 'd'  < 'ď';
+SELECT 'ďa' < 'db';
+SELECT 'e'  < 'é';
+SELECT 'éa' < 'eb';
+SELECT 'é'  < 'ě';
+SELECT 'ěa' < 'éb';
+SELECT 'i'  < 'í';
+SELECT 'ía' < 'ib';
+SELECT 'n'  < 'ň';
+SELECT 'ňa' < 'nb';
+SELECT 'o'  < 'ó';
+SELECT 'óa' < 'ob';
+SELECT 'ó'  < 'ö';
+SELECT 'öa' < 'ób';
+SELECT 'r'  < 'ř';
+SELECT 'rb' < 'řa';
+SELECT 's'  < 'š';
+SELECT 'sb' < 'ša';
+SELECT 't'  < 'ť';
+SELECT 'ťa' < 'tb';
+SELECT 'u'  < 'ú';
+SELECT 'úa' < 'ub';
+SELECT 'ú'  < 'ů';
+SELECT 'ůa' < 'úb';
+SELECT 'ů'  < 'ü';
+SELECT 'üa' < 'ůb';
+SELECT 'y'  < 'ý';
+SELECT 'ýa' < 'yb';
+SELECT 'z'  < 'ž';
+SELECT 'zb' < 'ža';
+SELECT 'hž' < 'ch';
+SELECT 'chž'< 'i';
+
+
+--error ER_UNKNOWN_COLLATION
+SELECT 'a' COLLATE utf8_czech_test_bad_w2;

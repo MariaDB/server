@@ -1,0 +1,149 @@
+create table innodb_compressed1(c1 bigint not null primary key, d int, a varchar(20), b char(200)) engine=innodb row_format=compressed encrypted=yes;
+create table innodb_compressed2(c1 bigint not null primary key, d int, a varchar(20), b char(200)) engine=innodb row_format=compressed key_block_size=1 encrypted=yes;
+create table innodb_compressed3(c1 bigint not null primary key, d int, a varchar(20), b char(200)) engine=innodb row_format=compressed key_block_size=2 encrypted=yes;
+create table innodb_compressed4(c1 bigint not null primary key, d int, a varchar(20), b char(200)) engine=innodb row_format=compressed key_block_size=4 encrypted=yes;
+insert into innodb_compressed1 values (1, 20, 'private', 'evenmoreprivate');
+insert into innodb_compressed1 values (2, 20, 'private', 'evenmoreprivate');
+insert into innodb_compressed1 values (3, 30, 'private', 'evenmoreprivate');
+insert into innodb_compressed1 values (4, 30, 'private', 'evenmoreprivate');
+insert into innodb_compressed1 values (5, 30, 'private', 'evenmoreprivate');
+insert into innodb_compressed1 values (6, 30, 'private', 'evenmoreprivate');
+insert into innodb_compressed1 values (7, 30, 'private', 'evenmoreprivate');
+insert into innodb_compressed1 values (8, 20, 'private', 'evenmoreprivate');
+insert into innodb_compressed1 values (9, 20, 'private', 'evenmoreprivate');
+insert into innodb_compressed1 values (10, 20, 'private', 'evenmoreprivate');
+insert into innodb_compressed2 select * from innodb_compressed1;
+insert into innodb_compressed3 select * from innodb_compressed1;
+insert into innodb_compressed4 select * from innodb_compressed1;
+# t1 yes on expecting NOT FOUND
+NOT FOUND /private/ in innodb_compressed1.ibd
+# t2 yes on expecting NOT FOUND
+NOT FOUND /private/ in innodb_compressed2.ibd
+# t3 yes on expecting NOT FOUND
+NOT FOUND /private/ in innodb_compressed3.ibd
+# t4 yes on expecting NOT FOUND
+NOT FOUND /private/ in innodb_compressed4.ibd
+select * from innodb_compressed1 where d = 20;
+c1	d	a	b
+1	20	private	evenmoreprivate
+2	20	private	evenmoreprivate
+8	20	private	evenmoreprivate
+9	20	private	evenmoreprivate
+10	20	private	evenmoreprivate
+select * from innodb_compressed1 where d = 30;
+c1	d	a	b
+3	30	private	evenmoreprivate
+4	30	private	evenmoreprivate
+5	30	private	evenmoreprivate
+6	30	private	evenmoreprivate
+7	30	private	evenmoreprivate
+select * from innodb_compressed2 where d = 20;
+c1	d	a	b
+1	20	private	evenmoreprivate
+2	20	private	evenmoreprivate
+8	20	private	evenmoreprivate
+9	20	private	evenmoreprivate
+10	20	private	evenmoreprivate
+select * from innodb_compressed2 where d = 30;
+c1	d	a	b
+3	30	private	evenmoreprivate
+4	30	private	evenmoreprivate
+5	30	private	evenmoreprivate
+6	30	private	evenmoreprivate
+7	30	private	evenmoreprivate
+select * from innodb_compressed3 where d = 20;
+c1	d	a	b
+1	20	private	evenmoreprivate
+2	20	private	evenmoreprivate
+8	20	private	evenmoreprivate
+9	20	private	evenmoreprivate
+10	20	private	evenmoreprivate
+select * from innodb_compressed3 where d = 30;
+c1	d	a	b
+3	30	private	evenmoreprivate
+4	30	private	evenmoreprivate
+5	30	private	evenmoreprivate
+6	30	private	evenmoreprivate
+7	30	private	evenmoreprivate
+select * from innodb_compressed4 where d = 20;
+c1	d	a	b
+1	20	private	evenmoreprivate
+2	20	private	evenmoreprivate
+8	20	private	evenmoreprivate
+9	20	private	evenmoreprivate
+10	20	private	evenmoreprivate
+select * from innodb_compressed4 where d = 30;
+c1	d	a	b
+3	30	private	evenmoreprivate
+4	30	private	evenmoreprivate
+5	30	private	evenmoreprivate
+6	30	private	evenmoreprivate
+7	30	private	evenmoreprivate
+update innodb_compressed1 set d = d + 10 where d = 30;
+update innodb_compressed2 set d = d + 10 where d = 30;
+update innodb_compressed3 set d = d + 10 where d = 30;
+update innodb_compressed4 set d = d + 10 where d = 30;
+insert into innodb_compressed1 values (20, 60, 'newprivate', 'newevenmoreprivate');
+insert into innodb_compressed2 values (20, 60, 'newprivate', 'newevenmoreprivate');
+insert into innodb_compressed3 values (20, 60, 'newprivate', 'newevenmoreprivate');
+insert into innodb_compressed4 values (20, 60, 'newprivate', 'newevenmoreprivate');
+# t1 yes on expecting NOT FOUND
+NOT FOUND /private/ in innodb_compressed1.ibd
+# t2 yes on expecting NOT FOUND
+NOT FOUND /private/ in innodb_compressed2.ibd
+# t3 yes on expecting NOT FOUND
+NOT FOUND /private/ in innodb_compressed3.ibd
+# t4 yes on expecting NOT FOUND
+NOT FOUND /private/ in innodb_compressed4.ibd
+select * from innodb_compressed1 where d = 40;
+c1	d	a	b
+3	40	private	evenmoreprivate
+4	40	private	evenmoreprivate
+5	40	private	evenmoreprivate
+6	40	private	evenmoreprivate
+7	40	private	evenmoreprivate
+select * from innodb_compressed1 where d = 60;
+c1	d	a	b
+20	60	newprivate	newevenmoreprivate
+select * from innodb_compressed2 where d = 40;
+c1	d	a	b
+3	40	private	evenmoreprivate
+4	40	private	evenmoreprivate
+5	40	private	evenmoreprivate
+6	40	private	evenmoreprivate
+7	40	private	evenmoreprivate
+select * from innodb_compressed2 where d = 60;
+c1	d	a	b
+20	60	newprivate	newevenmoreprivate
+select * from innodb_compressed3 where d = 40;
+c1	d	a	b
+3	40	private	evenmoreprivate
+4	40	private	evenmoreprivate
+5	40	private	evenmoreprivate
+6	40	private	evenmoreprivate
+7	40	private	evenmoreprivate
+select * from innodb_compressed3 where d = 60;
+c1	d	a	b
+20	60	newprivate	newevenmoreprivate
+select * from innodb_compressed4 where d = 40;
+c1	d	a	b
+3	40	private	evenmoreprivate
+4	40	private	evenmoreprivate
+5	40	private	evenmoreprivate
+6	40	private	evenmoreprivate
+7	40	private	evenmoreprivate
+select * from innodb_compressed4 where d = 60;
+c1	d	a	b
+20	60	newprivate	newevenmoreprivate
+# t1 yes on expecting NOT FOUND
+NOT FOUND /private/ in innodb_compressed1.ibd
+# t2 yes on expecting NOT FOUND
+NOT FOUND /private/ in innodb_compressed2.ibd
+# t3 yes on expecting NOT FOUND
+NOT FOUND /private/ in innodb_compressed3.ibd
+# t4 yes on expecting NOT FOUND
+NOT FOUND /private/ in innodb_compressed4.ibd
+drop table innodb_compressed1;
+drop table innodb_compressed2;
+drop table innodb_compressed3;
+drop table innodb_compressed4;

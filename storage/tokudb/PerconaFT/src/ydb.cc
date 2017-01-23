@@ -1299,6 +1299,22 @@ env_get_check_thp(DB_ENV * env) {
     return env->i->check_thp;
 }
 
+static bool env_set_dir_per_db(DB_ENV *env, bool new_val) {
+    HANDLE_PANICKED_ENV(env);
+    bool r = env->i->dir_per_db;
+    env->i->dir_per_db = new_val;
+    return r;
+}
+
+static bool env_get_dir_per_db(DB_ENV *env) {
+    HANDLE_PANICKED_ENV(env);
+    return env->i->dir_per_db;
+}
+
+static const char *env_get_data_dir(DB_ENV *env) {
+    return env->i->real_data_dir;
+}
+
 static int env_dbremove(DB_ENV * env, DB_TXN *txn, const char *fname, const char *dbname, uint32_t flags);
 
 static int
@@ -1786,6 +1802,12 @@ static int env_set_lock_timeout(DB_ENV *env, uint64_t default_lock_timeout_msec,
 static int
 env_set_lock_timeout_callback(DB_ENV *env, lock_timeout_callback callback) {
     env->i->lock_wait_timeout_callback = callback;
+    return 0;
+}
+
+static int
+env_set_lock_wait_callback(DB_ENV *env, lock_wait_callback callback) {
+    env->i->lock_wait_needed_callback = callback;
     return 0;
 }
 
@@ -2605,6 +2627,10 @@ static void env_set_killed_callback(DB_ENV *env, uint64_t default_killed_time_ms
     env->i->killed_callback = killed_callback;
 }
 
+static void env_kill_waiter(DB_ENV *env, void *extra) {
+    env->i->ltm.kill_waiter(extra);
+}
+
 static void env_do_backtrace(DB_ENV *env) {
     if (env->i->errcall) {
         db_env_do_backtrace_errfunc((toku_env_err_func) toku_env_err, (const void *) env);
@@ -2685,6 +2711,7 @@ toku_env_create(DB_ENV ** envp, uint32_t flags) {
     USENV(get_lock_timeout);
     USENV(set_lock_timeout);
     USENV(set_lock_timeout_callback);
+    USENV(set_lock_wait_callback);
     USENV(set_redzone);
     USENV(log_flush);
     USENV(log_archive);
@@ -2701,6 +2728,10 @@ toku_env_create(DB_ENV ** envp, uint32_t flags) {
     USENV(do_backtrace);
     USENV(set_check_thp);
     USENV(get_check_thp);
+    USENV(set_dir_per_db);
+    USENV(get_dir_per_db);
+    USENV(get_data_dir);
+    USENV(kill_waiter);
 #undef USENV
     
     // unlocked methods
@@ -3046,7 +3077,7 @@ env_dbrename(DB_ENV *env, DB_TXN *txn, const char *fname, const char *dbname, co
     if (env_is_db_with_dname_open(env, newname)) {
         return toku_ydb_do_error(env, EINVAL, "Cannot rename dictionary; Dictionary with target name has an open handle.\n");
     }
-    
+
     DBT old_dname_dbt;  
     DBT new_dname_dbt;  
     DBT iname_dbt;  
@@ -3066,10 +3097,35 @@ env_dbrename(DB_ENV *env, DB_TXN *txn, const char *fname, const char *dbname, co
             r = EEXIST;
         }
         else if (r == DB_NOTFOUND) {
+            DBT new_iname_dbt;
+            // Do not rename ft file if 'dir_per_db' option is not set
+            auto new_iname =
+                env->get_dir_per_db(env)
+                    ? generate_iname_for_rename_or_open(
+                          env, txn, newname, false)
+                    : std::unique_ptr<char[], decltype(&toku_free)>(
+                          toku_strdup(iname), &toku_free);
+            toku_fill_dbt(
+                &new_iname_dbt, new_iname.get(), strlen(new_iname.get()) + 1);
+
             // remove old (dname,iname) and insert (newname,iname) in directory
             r = toku_db_del(env->i->directory, txn, &old_dname_dbt, DB_DELETE_ANY, true);
             if (r != 0) { goto exit; }
-            r = toku_db_put(env->i->directory, txn, &new_dname_dbt, &iname_dbt, 0, true);
+
+            // Do not rename ft file if 'dir_per_db' option is not set
+            if (env->get_dir_per_db(env))
+                r = toku_ft_rename_iname(txn,
+                                         env->get_data_dir(env),
+                                         iname,
+                                         new_iname.get(),
+                                         env->i->cachetable);
+
+            r = toku_db_put(env->i->directory,
+                            txn,
+                            &new_dname_dbt,
+                            &new_iname_dbt,
+                            0,
+                            true);
             if (r != 0) { goto exit; }
 
             //Now that we have writelocks on both dnames, verify that there are still no handles open. (to prevent race conditions)
@@ -3092,7 +3148,7 @@ env_dbrename(DB_ENV *env, DB_TXN *txn, const char *fname, const char *dbname, co
             // otherwise, we're okay in marking this ft as remove on
             // commit. no new handles can open for this dictionary
             // because the txn has directory write locks on the dname
-            if (txn && !can_acquire_table_lock(env, txn, iname)) {
+            if (txn && !can_acquire_table_lock(env, txn, new_iname.get())) {
                 r = DB_LOCK_NOTGRANTED;
             }
             // We don't do anything at the ft or cachetable layer for rename.

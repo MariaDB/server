@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1997, 2011, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1997, 2014, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -30,7 +30,7 @@ Created 12/14/1997 Heikki Tuuri
 que_node_t */
 
 #include "univ.i"
-#include <math.h>				/* Can't be before univ.i */
+#include <math.h>
 #include "pars0pars.h"
 #include "mem0mem.h"
 #include "que0types.h"
@@ -40,7 +40,6 @@ que_node_t */
 #define YYSTYPE que_node_t*
 
 /* #define __STDC__ */
-
 int
 yylex(void);
 %}

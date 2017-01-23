@@ -142,9 +142,9 @@ OBJECT_TYPE	OBJECT_SCHEMA	OBJECT_NAME	ENABLED	TIMED
 select * from performance_schema.setup_timers;
 NAME	TIMER_NAME
 insert into performance_schema.setup_objects values ('TABLE', 'myschema', 'myobject', 'YES', 'YES');
-ERROR HY000: Invalid performance_schema usage.
+ERROR HY000: Invalid performance_schema usage
 insert into performance_schema.setup_actors values ('myhost', 'mysuser', 'myrole');
-ERROR HY000: Invalid performance_schema usage.
+ERROR HY000: Invalid performance_schema usage
 select * from performance_schema.setup_objects;
 OBJECT_TYPE	OBJECT_SCHEMA	OBJECT_NAME	ENABLED	TIMED
 update performance_schema.setup_objects set OBJECT_NAME = 'myobject';

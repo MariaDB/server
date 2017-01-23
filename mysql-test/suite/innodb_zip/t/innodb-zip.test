@@ -1,10 +1,5 @@
 -- source include/have_innodb.inc
 
-
---disable_warnings
-DROP DATABASE IF EXISTS mysqltest_innodb_zip;
---enable_warnings
-
 CREATE DATABASE mysqltest_innodb_zip;
 USE mysqltest_innodb_zip;
 SELECT table_name, row_format, data_length, index_length
@@ -18,14 +13,13 @@ let $innodb_file_format_orig=`select @@innodb_file_format`;
 let $innodb_file_format_max_orig=`select @@innodb_file_format_max`;
 SET @save_innodb_stats_on_metadata=@@global.innodb_stats_on_metadata;
 
-
 --let $query_i_s = SELECT table_schema, table_name, row_format, data_length, index_length FROM information_schema.tables WHERE engine='innodb' AND table_schema != 'mysql'
 
 set session innodb_strict_mode=0;
 set global innodb_file_per_table=off;
 set global innodb_file_format=`0`;
 SET @@global.innodb_stats_on_metadata=ON;
- 
+
 create table t0(a int primary key) engine=innodb row_format=compressed;
 create table t00(a int primary key) engine=innodb
 key_block_size=4 row_format=compressed;
@@ -280,21 +274,18 @@ show warnings;
 create table t6 (id int primary key) engine = innodb row_format = compressed;
 --replace_regex / - .*[0-9]*[)]/)/
 show warnings;
---replace_regex / - .*[0-9]*[)]/)/
---error ER_CANT_CREATE_TABLE
 create table t7 (id int primary key) engine = innodb row_format = dynamic;
---replace_regex / - .*[0-9]*[)]/)/
 show warnings;
 create table t8 (id int primary key) engine = innodb row_format = compact;
 create table t9 (id int primary key) engine = innodb row_format = redundant;
 
 --replace_result 16384 {valid} 8192 {valid} 4096 {valid}
 --eval $query_i_s
-drop table t8, t9;
+drop table t7, t8, t9;
 
 #test valid values with innodb_file_format unset
 set global innodb_file_per_table = on;
-set global innodb_file_format = `0`; 
+set global innodb_file_format = `0`;
 
 --replace_regex / - .*[0-9]*[)]/)/
 --error ER_CANT_CREATE_TABLE
@@ -369,6 +360,4 @@ eval SET GLOBAL innodb_file_format_max=$innodb_file_format_max_orig;
 SET @@global.innodb_stats_on_metadata=@save_innodb_stats_on_metadata;
 --enable_query_log
 
-USE test;
 DROP DATABASE mysqltest_innodb_zip;
-

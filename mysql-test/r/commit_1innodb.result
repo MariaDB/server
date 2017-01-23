@@ -419,11 +419,11 @@ SUCCESS
 # 4. Read-write statement: UPDATE, update 0 rows, 1 row matches WHERE 
 #
 update t1 set a=2;
-call p_verify_status_increment(2, 2, 1, 0);
+call p_verify_status_increment(2, 0, 1, 0);
 SUCCESS
 
 commit;
-call p_verify_status_increment(2, 2, 1, 0);
+call p_verify_status_increment(2, 0, 1, 0);
 SUCCESS
 
 # 5. Read-write statement: UPDATE, update 0 rows, 0 rows match WHERE 

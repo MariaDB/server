@@ -1,5 +1,3 @@
-SET GLOBAL innodb_file_format = `Barracuda`;
-SET GLOBAL innodb_file_per_table = ON;
 create table innodb_normal(c1 bigint not null, b char(200)) engine=innodb;
 show warnings;
 Level	Code	Message
@@ -120,8 +118,6 @@ variable_value >= 0
 SELECT variable_value >= 0 FROM information_schema.global_status WHERE variable_name = 'innodb_num_pages_decrypted';
 variable_value >= 0
 1
-SET GLOBAL innodb_file_format = `Barracuda`;
-SET GLOBAL innodb_file_per_table = ON;
 update innodb_normal set c1 = c1 +1;
 update innodb_compact set c1 = c1 + 1;
 update innodb_compressed set c1 = c1 + 1;
@@ -197,8 +193,6 @@ innodb_redundant	CREATE TABLE `innodb_redundant` (
   `c1` bigint(20) NOT NULL,
   `b` char(200) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=REDUNDANT
-SET GLOBAL innodb_file_format = `Barracuda`;
-SET GLOBAL innodb_file_per_table = ON;
 show create table innodb_compact;
 Table	Create Table
 innodb_compact	CREATE TABLE `innodb_compact` (

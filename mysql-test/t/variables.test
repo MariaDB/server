@@ -1532,3 +1532,11 @@ show global status like 'foobar';
 select * from information_schema.session_variables where variable_name='sql_mode';
 
 --echo End of 5.5 tests
+
+#
+# test Item_func_get_system_var::print()
+#
+explain extended select @@VERsion from dual where rand() > @@verSION;
+explain extended select @@SESsion.SQL_mode from dual where rand() > @@sesSION.sql_MODE;
+explain extended select @@GLObal.COLLATION_connection from dual where rand() > @@gloBAL.collation_CONNECTION;
+explain extended select @@FOObar.KEY_BUFfer_size from dual where rand() > @@fooBAR.key_bufFER_SIZE;

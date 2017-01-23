@@ -114,12 +114,24 @@ enum enum_server_command
   /* don't forget to update const char *command_name[] in sql_parse.cc */
   COM_MDB_GAP_BEG,
   COM_MDB_GAP_END=250,
-  COM_SLAVE_WORKER,
-  COM_SLAVE_IO,
-  COM_SLAVE_SQL,
-  COM_MULTI,
+  COM_SLAVE_WORKER=251,
+  COM_SLAVE_IO=252,
+  COM_SLAVE_SQL=253,
+  COM_MULTI=254,
   /* Must be last */
-  COM_END
+  COM_END=255
+};
+
+
+/*
+  Bulk PS protocol indicator value:
+*/
+enum enum_indicator_type
+{
+  STMT_INDICATOR_NONE= 0,
+  STMT_INDICATOR_NULL,
+  STMT_INDICATOR_DEFAULT,
+  STMT_INDICATOR_IGNORE
 };
 
 /* sql type stored in .frm files for virtual fields */
@@ -202,43 +214,43 @@ enum enum_server_command
 #define REFRESH_FAST            (1ULL << 31) /* Intern flag */
 
 #define CLIENT_LONG_PASSWORD	0	/* obsolete flag */
-#define CLIENT_MYSQL            1       /* mysql/old mariadb server/client */
-#define CLIENT_FOUND_ROWS	2	/* Found instead of affected rows */
-#define CLIENT_LONG_FLAG	4	/* Get all column flags */
-#define CLIENT_CONNECT_WITH_DB	8	/* One can specify db on connect */
-#define CLIENT_NO_SCHEMA	16	/* Don't allow database.table.column */
-#define CLIENT_COMPRESS		32	/* Can use compression protocol */
-#define CLIENT_ODBC		64	/* Odbc client */
-#define CLIENT_LOCAL_FILES	128	/* Can use LOAD DATA LOCAL */
-#define CLIENT_IGNORE_SPACE	256	/* Ignore spaces before '(' */
-#define CLIENT_PROTOCOL_41	512	/* New 4.1 protocol */
-#define CLIENT_INTERACTIVE	1024	/* This is an interactive client */
-#define CLIENT_SSL              2048	/* Switch to SSL after handshake */
-#define CLIENT_IGNORE_SIGPIPE   4096    /* IGNORE sigpipes */
-#define CLIENT_TRANSACTIONS	8192	/* Client knows about transactions */
-#define CLIENT_RESERVED         16384   /* Old flag for 4.1 protocol  */
-#define CLIENT_SECURE_CONNECTION 32768  /* New 4.1 authentication */
-#define CLIENT_MULTI_STATEMENTS (1UL << 16) /* Enable/disable multi-stmt support */
-#define CLIENT_MULTI_RESULTS    (1UL << 17) /* Enable/disable multi-results */
-#define CLIENT_PS_MULTI_RESULTS (1UL << 18) /* Multi-results in PS-protocol */
+#define CLIENT_MYSQL            1ULL       /* mysql/old mariadb server/client */
+#define CLIENT_FOUND_ROWS	2ULL	/* Found instead of affected rows */
+#define CLIENT_LONG_FLAG	4ULL	/* Get all column flags */
+#define CLIENT_CONNECT_WITH_DB	8ULL	/* One can specify db on connect */
+#define CLIENT_NO_SCHEMA	16ULL	/* Don't allow database.table.column */
+#define CLIENT_COMPRESS		32ULL	/* Can use compression protocol */
+#define CLIENT_ODBC		64ULL	/* Odbc client */
+#define CLIENT_LOCAL_FILES	128ULL	/* Can use LOAD DATA LOCAL */
+#define CLIENT_IGNORE_SPACE	256ULL	/* Ignore spaces before '(' */
+#define CLIENT_PROTOCOL_41	512ULL	/* New 4.1 protocol */
+#define CLIENT_INTERACTIVE	1024ULL	/* This is an interactive client */
+#define CLIENT_SSL              2048ULL	/* Switch to SSL after handshake */
+#define CLIENT_IGNORE_SIGPIPE   4096ULL    /* IGNORE sigpipes */
+#define CLIENT_TRANSACTIONS	8192ULL	/* Client knows about transactions */
+#define CLIENT_RESERVED         16384ULL   /* Old flag for 4.1 protocol  */
+#define CLIENT_SECURE_CONNECTION 32768ULL  /* New 4.1 authentication */
+#define CLIENT_MULTI_STATEMENTS (1ULL << 16) /* Enable/disable multi-stmt support */
+#define CLIENT_MULTI_RESULTS    (1ULL << 17) /* Enable/disable multi-results */
+#define CLIENT_PS_MULTI_RESULTS (1ULL << 18) /* Multi-results in PS-protocol */
 
-#define CLIENT_PLUGIN_AUTH  (1UL << 19) /* Client supports plugin authentication */
-#define CLIENT_CONNECT_ATTRS (1UL << 20) /* Client supports connection attributes */
+#define CLIENT_PLUGIN_AUTH  (1ULL << 19) /* Client supports plugin authentication */
+#define CLIENT_CONNECT_ATTRS (1ULL << 20) /* Client supports connection attributes */
 /* Enable authentication response packet to be larger than 255 bytes. */
-#define CLIENT_PLUGIN_AUTH_LENENC_CLIENT_DATA (1UL << 21)
+#define CLIENT_PLUGIN_AUTH_LENENC_CLIENT_DATA (1ULL << 21)
 /* Don't close the connection for a connection with expired password. */
-#define CLIENT_CAN_HANDLE_EXPIRED_PASSWORDS (1UL << 22)
+#define CLIENT_CAN_HANDLE_EXPIRED_PASSWORDS (1ULL << 22)
 
 /**
   Capable of handling server state change information. Its a hint to the
   server to include the state change information in Ok packet.
 */
-#define CLIENT_SESSION_TRACK (1UL << 23)
+#define CLIENT_SESSION_TRACK (1ULL << 23)
 /* Client no longer needs EOF packet */
-#define CLIENT_DEPRECATE_EOF (1UL << 24)
+#define CLIENT_DEPRECATE_EOF (1ULL << 24)
 
-#define CLIENT_PROGRESS_OBSOLETE  (1UL << 29)
-#define CLIENT_SSL_VERIFY_SERVER_CERT (1UL << 30)
+#define CLIENT_PROGRESS_OBSOLETE  (1ULL << 29)
+#define CLIENT_SSL_VERIFY_SERVER_CERT (1ULL << 30)
 /*
   It used to be that if mysql_real_connect() failed, it would delete any
   options set by the client, unless the CLIENT_REMEMBER_OPTIONS flag was
@@ -248,7 +260,7 @@ enum enum_server_command
   always preserve any options set in case of failed connect, and this
   option is effectively always set.
 */
-#define CLIENT_REMEMBER_OPTIONS (1UL << 31)
+#define CLIENT_REMEMBER_OPTIONS (1ULL << 31)
 
 /* MariaDB extended capability flags */
 #define MARIADB_CLIENT_FLAGS_MASK 0xffffffff00000000ULL
@@ -256,6 +268,8 @@ enum enum_server_command
 #define MARIADB_CLIENT_PROGRESS (1ULL << 32)
 /* support COM_MULTI */
 #define MARIADB_CLIENT_COM_MULTI (1ULL << 33)
+/* support of array binding */
+#define MARIADB_CLIENT_STMT_BULK_OPERATIONS (1ULL << 34)
 
 #ifdef HAVE_COMPRESS
 #define CAN_CLIENT_COMPRESS CLIENT_COMPRESS
@@ -295,7 +309,8 @@ enum enum_server_command
                            CLIENT_SESSION_TRACK |\
                            CLIENT_DEPRECATE_EOF |\
                            CLIENT_CONNECT_ATTRS |\
-                           MARIADB_CLIENT_COM_MULTI)
+                           MARIADB_CLIENT_COM_MULTI |\
+                           MARIADB_CLIENT_STMT_BULK_OPERATIONS)
 
 /*
   To be added later:
@@ -585,6 +600,8 @@ my_bool	net_write_command(NET *net,unsigned char command,
 			  const unsigned char *packet, size_t len);
 int	net_real_write(NET *net,const unsigned char *packet, size_t len);
 unsigned long my_net_read_packet(NET *net, my_bool read_from_server);
+unsigned long my_net_read_packet_reallen(NET *net, my_bool read_from_server,
+                                         unsigned long* reallen);
 #define my_net_read(A) my_net_read_packet((A), 0)
 
 #ifdef MY_GLOBAL_INCLUDED
@@ -680,12 +697,7 @@ my_bool my_thread_init(void);
 void my_thread_end(void);
 
 #ifdef MY_GLOBAL_INCLUDED
-ulong STDCALL net_field_length(uchar **packet);
-my_ulonglong net_field_length_ll(uchar **packet);
-my_ulonglong safe_net_field_length_ll(uchar **packet, size_t packet_len);
-uchar *net_store_length(uchar *pkg, ulonglong length);
-uchar *safe_net_store_length(uchar *pkg, size_t pkg_len, ulonglong length);
-unsigned int net_length_size(ulonglong num);
+#include "pack.h"
 #endif
 
 #ifdef __cplusplus
@@ -702,12 +714,5 @@ unsigned int net_length_size(ulonglong num);
   decimals
 */
 
-#define FLOATING_POINT_DECIMALS 31
 
-/* Keep client compatible with earlier versions */
-#ifdef MYSQL_SERVER
-#define NOT_FIXED_DEC           DECIMAL_NOT_SPECIFIED
-#else
-#define NOT_FIXED_DEC           FLOATING_POINT_DECIMALS
-#endif
 #endif

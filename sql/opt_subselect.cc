@@ -4000,7 +4000,7 @@ SJ_TMP_TABLE::create_sj_weedout_tmp_table(THD *thd)
   table->alias.set("weedout-tmp", sizeof("weedout-tmp")-1,
                    table_alias_charset);
   table->reginfo.lock_type=TL_WRITE;	/* Will be updated */
-  table->db_stat=HA_OPEN_KEYFILE+HA_OPEN_RNDFILE;
+  table->db_stat=HA_OPEN_KEYFILE;
   table->map=1;
   table->temp_pool_slot = temp_pool_slot;
   table->copy_blobs= 1;

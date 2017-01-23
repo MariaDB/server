@@ -25,7 +25,7 @@ set name='FOO', timer_name='CYCLE';
 ERROR 42000: INSERT command denied to user 'root'@'localhost' for table 'setup_timers'
 update performance_schema.setup_timers
 set name='FOO';
-ERROR HY000: Invalid performance_schema usage.
+ERROR HY000: Invalid performance_schema usage
 update performance_schema.setup_timers
 set timer_name='MILLISECOND';
 select * from performance_schema.setup_timers;

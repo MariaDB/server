@@ -1783,7 +1783,7 @@ prepare stmt from "create view v1 (c) as select b+1 from t1";
 execute stmt;
 show create view v1;
 View	Create View	character_set_client	collation_connection
-v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select (`t1`.`b` + 1) AS `c` from `t1`	latin1	latin1_swedish_ci
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select `t1`.`b` + 1 AS `c` from `t1`	latin1	latin1_swedish_ci
 select * from v1;
 c
 drop view v1;
@@ -1791,7 +1791,7 @@ execute stmt;
 deallocate prepare stmt;
 show create view v1;
 View	Create View	character_set_client	collation_connection
-v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select (`t1`.`b` + 1) AS `c` from `t1`	latin1	latin1_swedish_ci
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select `t1`.`b` + 1 AS `c` from `t1`	latin1	latin1_swedish_ci
 select * from v1;
 c
 drop view v1;
@@ -1799,7 +1799,7 @@ prepare stmt from "create view v1 (c,d,e,f) as select a,b,a in (select a+2 from 
 execute stmt;
 show create view v1;
 View	Create View	character_set_client	collation_connection
-v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select `t1`.`a` AS `c`,`t1`.`b` AS `d`,`t1`.`a` in (select (`t1`.`a` + 2) from `t1`) AS `e`,`t1`.`a` = all (select `t1`.`a` from `t1`) AS `f` from `t1`	latin1	latin1_swedish_ci
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select `t1`.`a` AS `c`,`t1`.`b` AS `d`,`t1`.`a` in (select `t1`.`a` + 2 from `t1`) AS `e`,`t1`.`a` = all (select `t1`.`a` from `t1`) AS `f` from `t1`	latin1	latin1_swedish_ci
 select * from v1;
 c	d	e	f
 drop view v1;
@@ -1807,7 +1807,7 @@ execute stmt;
 deallocate prepare stmt;
 show create view v1;
 View	Create View	character_set_client	collation_connection
-v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select `t1`.`a` AS `c`,`t1`.`b` AS `d`,`t1`.`a` in (select (`t1`.`a` + 2) from `t1`) AS `e`,`t1`.`a` = all (select `t1`.`a` from `t1`) AS `f` from `t1`	latin1	latin1_swedish_ci
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select `t1`.`a` AS `c`,`t1`.`b` AS `d`,`t1`.`a` in (select `t1`.`a` + 2 from `t1`) AS `e`,`t1`.`a` = all (select `t1`.`a` from `t1`) AS `f` from `t1`	latin1	latin1_swedish_ci
 select * from v1;
 c	d	e	f
 drop view v1;
@@ -1853,7 +1853,7 @@ prepare stmt from "create view v1 (x) as select a from t1 where a > 1";
 execute stmt;
 show create view v1;
 View	Create View	character_set_client	collation_connection
-v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select `t1`.`a` AS `x` from `t1` where (`t1`.`a` > 1)	latin1	latin1_swedish_ci
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select `t1`.`a` AS `x` from `t1` where `t1`.`a` > 1	latin1	latin1_swedish_ci
 select * from v1;
 x
 drop view v1;
@@ -1861,7 +1861,7 @@ execute stmt;
 deallocate prepare stmt;
 show create view v1;
 View	Create View	character_set_client	collation_connection
-v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select `t1`.`a` AS `x` from `t1` where (`t1`.`a` > 1)	latin1	latin1_swedish_ci
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select `t1`.`a` AS `x` from `t1` where `t1`.`a` > 1	latin1	latin1_swedish_ci
 select * from v1;
 x
 drop view v1;
@@ -2566,7 +2566,7 @@ call proc_1();
 Got one of the listed errors
 drop procedure proc_1;
 create function func_1() returns int begin install plugin my_plug soname '/tmp/plugin'; return 1; end|
-ERROR HY000: Explicit or implicit commit is not allowed in stored function or trigger.
+ERROR HY000: Explicit or implicit commit is not allowed in stored function or trigger
 select func_1(), func_1(), func_1() from dual;
 ERROR 42000: FUNCTION test.func_1 does not exist
 drop function func_1;
@@ -2582,7 +2582,7 @@ call proc_1();
 ERROR 42000: PLUGIN my_plug does not exist
 drop procedure proc_1;
 create function func_1() returns int begin uninstall plugin my_plug; return 1; end|
-ERROR HY000: Explicit or implicit commit is not allowed in stored function or trigger.
+ERROR HY000: Explicit or implicit commit is not allowed in stored function or trigger
 select func_1(), func_1(), func_1() from dual;
 ERROR 42000: FUNCTION test.func_1 does not exist
 drop function func_1;
@@ -2607,7 +2607,7 @@ call proc_1();
 drop database if exists mysqltest_xyz;
 drop procedure proc_1;
 create function func_1() returns int begin create database mysqltest_xyz; return 1; end|
-ERROR HY000: Explicit or implicit commit is not allowed in stored function or trigger.
+ERROR HY000: Explicit or implicit commit is not allowed in stored function or trigger
 select func_1(), func_1(), func_1() from dual;
 ERROR 42000: FUNCTION test.func_1 does not exist
 drop function func_1;
@@ -2670,7 +2670,7 @@ call proc_1();
 drop user pstest_xyz@localhost;
 drop procedure proc_1;
 create function func_1() returns int begin create user pstest_xyz@localhost; return 1; end|
-ERROR HY000: Explicit or implicit commit is not allowed in stored function or trigger.
+ERROR HY000: Explicit or implicit commit is not allowed in stored function or trigger
 select func_1(), func_1(), func_1() from dual;
 ERROR 42000: FUNCTION test.func_1 does not exist
 drop function func_1;
@@ -2709,7 +2709,7 @@ call proc_1();
 drop event xyz;
 drop procedure proc_1;
 create function func_1() returns int begin alter event xyz comment 'xyz'; return 1; end|
-ERROR HY000: Explicit or implicit commit is not allowed in stored function or trigger.
+ERROR HY000: Explicit or implicit commit is not allowed in stored function or trigger
 prepare abc from "alter event xyz comment 'xyz'";
 ERROR HY000: This command is not supported in the prepared statement protocol yet
 deallocate prepare abc;
@@ -2724,7 +2724,7 @@ call proc_1();
 ERROR HY000: Unknown event 'xyz'
 drop procedure proc_1;
 create function func_1() returns int begin drop event xyz; return 1; end|
-ERROR HY000: Explicit or implicit commit is not allowed in stored function or trigger.
+ERROR HY000: Explicit or implicit commit is not allowed in stored function or trigger
 prepare abc from "drop event xyz";
 ERROR HY000: This command is not supported in the prepared statement protocol yet
 deallocate prepare abc;
@@ -4067,9 +4067,9 @@ DROP TABLE t1, t2;
 #
 CREATE TABLE t1 (a INT);
 PREPARE stmt FROM "SELECT 1 FROM t1 GROUP BY 0 OR 18446744073709551615+1";
-ERROR 22003: BIGINT UNSIGNED value is out of range in '(18446744073709551615 + 1)'
+ERROR 22003: BIGINT UNSIGNED value is out of range in '18446744073709551615 + 1'
 SELECT 1 FROM t1 GROUP BY 0 OR 18446744073709551615+1;
-ERROR 22003: BIGINT UNSIGNED value is out of range in '(18446744073709551615 + 1)'
+ERROR 22003: BIGINT UNSIGNED value is out of range in '18446744073709551615 + 1'
 drop table t1;
 # End of 5.3 tests
 #
@@ -4092,4 +4092,658 @@ id	value
 deallocate prepare stmt;
 SET SESSION sql_mode = @save_sql_mode;
 DROP TABLE t1,t2;
-# End of 10.0 tests
+#
+# MDEV-8833: Crash of server on prepared statement with
+# conversion to semi-join
+#
+CREATE TABLE t1 (column1 INT);
+INSERT INTO t1 VALUES (3),(9);
+CREATE TABLE t2 (column2 INT);
+INSERT INTO t2 VALUES (1),(4);
+CREATE TABLE t3 (column3 INT);
+INSERT INTO t3 VALUES (6),(8);
+CREATE TABLE t4 (column4 INT);
+INSERT INTO t4 VALUES (2),(5);
+PREPARE stmt FROM "SELECT ( SELECT MAX( table1.column1 ) AS field1 
+FROM t1 AS table1
+WHERE table3.column3 IN ( SELECT table2.column2 AS field2 FROM t2 AS table2 ) 
+) AS sq
+FROM t3 AS table3, t4 AS table4";
+EXECUTE stmt;
+sq
+NULL
+NULL
+NULL
+NULL
+EXECUTE stmt;
+sq
+NULL
+NULL
+NULL
+NULL
+deallocate prepare stmt;
+drop table t1,t2,t3,t4;
+# End of 5.5 tests
+#
+# Start of 10.2 tests
+#
+#
+# MDEV-10709 Expressions as parameters to Dynamic SQL
+#
+#
+# Using a simple expressions as an EXECUTE parameter
+#
+PREPARE stmt FROM 'SELECT ? FROM DUAL';
+EXECUTE stmt USING 10;
+?
+10
+DEALLOCATE PREPARE stmt;
+PREPARE stmt FROM 'SELECT ? FROM DUAL';
+EXECUTE stmt USING TO_BASE64('xxx');
+?
+eHh4
+DEALLOCATE PREPARE stmt;
+PREPARE stmt FROM 'SELECT ?+? FROM DUAL';
+EXECUTE stmt USING 10, 10 + 10;
+?+?
+30
+DEALLOCATE PREPARE stmt;
+PREPARE stmt FROM 'SELECT CONCAT(?,?) FROM DUAL';
+EXECUTE stmt USING 'xxx', CONCAT('yyy','zzz');
+CONCAT(?,?)
+xxxyyyzzz
+DEALLOCATE PREPARE stmt;
+#
+# Testing disallowed expressions in USING
+#
+PREPARE stmt FROM 'SELECT ? FROM DUAL';
+EXECUTE stmt USING (SELECT 1);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'SELECT 1)' at line 1
+DEALLOCATE PREPARE stmt;
+CREATE FUNCTION f1() RETURNS VARCHAR(10) RETURN 'test';
+PREPARE stmt FROM 'SELECT ? FROM DUAL';
+EXECUTE stmt USING f1();
+ERROR 42000: EXECUTE..USING does not support subqueries or stored functions
+DEALLOCATE PREPARE stmt;
+DROP FUNCTION f1;
+#
+# Testing erroneous expressions in USING
+#
+PREPARE stmt FROM 'SELECT ?';
+EXECUTE stmt USING _latin1'a'=_latin2'a';
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (latin2_general_ci,COERCIBLE) for operation '='
+DEALLOCATE PREPARE stmt;
+PREPARE stmt FROM 'SELECT ?';
+EXECUTE stmt USING ROW(1,2);
+ERROR 21000: Operand should contain 1 column(s)
+DEALLOCATE PREPARE stmt;
+#
+# Creating tables from EXECUTE parameters
+#
+PREPARE stmt FROM 'CREATE TABLE t1 AS SELECT ? AS c1 FROM DUAL';
+EXECUTE stmt USING 10;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` bigint(21) NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+EXECUTE stmt USING 10.123;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` decimal(5,3) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+EXECUTE stmt USING 10.123e0;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` double NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+EXECUTE stmt USING CURRENT_DATE;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` date DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+EXECUTE stmt USING CURRENT_TIMESTAMP;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` datetime DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+EXECUTE stmt USING CURRENT_TIMESTAMP(3);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` datetime(3) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+EXECUTE stmt USING CURRENT_TIMESTAMP(6);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` datetime(6) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+EXECUTE stmt USING CURRENT_TIME;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` time DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+EXECUTE stmt USING CURRENT_TIME(3);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` time(3) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+EXECUTE stmt USING CURRENT_TIME(6);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` time(6) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+DEALLOCATE PREPARE stmt;
+#
+# Using a user variable as an EXECUTE..USING out parameter
+#
+CREATE PROCEDURE p1(OUT a INT)
+BEGIN
+SET a:= 10;
+END;
+/
+SET @a=1;
+CALL p1(@a);
+SELECT @a;
+@a
+10
+SET @a=2;
+PREPARE stmt FROM 'CALL p1(?)';
+EXECUTE stmt USING @a;
+SELECT @a;
+@a
+10
+DROP PROCEDURE p1;
+#
+# Using an SP variable as an EXECUTE..USING out parameter
+#
+CREATE PROCEDURE p1 (OUT a INT)
+BEGIN
+SET a=10;
+END;
+/
+CREATE PROCEDURE p2 (OUT a INT)
+BEGIN
+PREPARE stmt FROM 'CALL p1(?)';
+EXECUTE stmt USING a;
+END;
+/
+SET @a= 1;
+CALL p2(@a);
+SELECT @a;
+@a
+10
+DROP PROCEDURE p2;
+DROP PROCEDURE p1;
+#
+# Testing re-prepare on a table metadata update between PREPARE and EXECUTE
+#
+CREATE TABLE t1 (a INT);
+CREATE PROCEDURE p1(a INT)
+BEGIN
+INSERT INTO t1 VALUES (a);
+END;
+/
+PREPARE stmt FROM 'CALL p1(?)';
+EXECUTE stmt USING 10;
+SELECT * FROM t1;
+a
+10
+CREATE TRIGGER tr1 BEFORE INSERT ON t1 FOR EACH ROW SET NEW.a=NEW.a+1;
+EXECUTE stmt USING 20;
+SELECT * FROM t1;
+a
+10
+21
+DEALLOCATE PREPARE stmt;
+DROP PROCEDURE p1;
+DROP TABLE t1;
+#
+# End of MDEV-10709 Expressions as parameters to Dynamic SQL
+#
+#
+# MDEV-10585 EXECUTE IMMEDIATE statement
+#
+EXECUTE IMMEDIATE 'SELECT 1 AS a';
+a
+1
+SET @a=10;
+EXECUTE IMMEDIATE 'SELECT ? AS a' USING @a;
+a
+10
+EXECUTE IMMEDIATE 'SELECT ? AS a' USING 20;
+a
+20
+#
+# Erroneous queries
+#
+EXECUTE IMMEDIATE 'xxx';
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'xxx' at line 1
+EXECUTE IMMEDIATE 'SELECT 1' USING @a;
+ERROR HY000: Incorrect arguments to EXECUTE
+EXECUTE IMMEDIATE 'SELECT ?';
+ERROR HY000: Incorrect arguments to EXECUTE
+EXECUTE IMMEDIATE 'EXECUTE IMMEDIATE "SELECT 1"';
+ERROR HY000: This command is not supported in the prepared statement protocol yet
+EXECUTE IMMEDIATE 'PREPARE stmt FROM "SELECT 1"';
+ERROR HY000: This command is not supported in the prepared statement protocol yet
+EXECUTE IMMEDIATE 'EXECUTE stmt';
+ERROR HY000: This command is not supported in the prepared statement protocol yet
+EXECUTE IMMEDIATE 'DEALLOCATE PREPARE stmt';
+ERROR HY000: This command is not supported in the prepared statement protocol yet
+EXECUTE IMMEDIATE 'SELECT ?' USING _latin1'a'=_latin2'a';
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (latin2_general_ci,COERCIBLE) for operation '='
+EXECUTE IMMEDIATE 'SELECT ?' USING ROW(1,2);
+ERROR 21000: Operand should contain 1 column(s)
+#
+# Testing disallowed expressions in USING
+#
+EXECUTE IMMEDIATE 'SELECT ? FROM DUAL' USING (SELECT 1);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'SELECT 1)' at line 1
+CREATE FUNCTION f1() RETURNS VARCHAR(10) RETURN 'test';
+EXECUTE IMMEDIATE 'SELECT ? FROM DUAL' USING f1();
+ERROR 42000: EXECUTE..USING does not support subqueries or stored functions
+DROP FUNCTION f1;
+#
+# DDL
+#
+EXECUTE IMMEDIATE 'CREATE TABLE t1 (a INT)';
+EXECUTE IMMEDIATE 'SHOW CREATE TABLE t1';
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+EXECUTE IMMEDIATE 'DROP TABLE t1';
+SET @stmt= 'CREATE TABLE t1 (a INT)';
+EXECUTE IMMEDIATE @stmt;
+SET @stmt= 'SHOW CREATE TABLE t1';
+EXECUTE IMMEDIATE @stmt;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+SET @stmt= 'DROP TABLE t1';
+EXECUTE IMMEDIATE @stmt;
+#
+# DDL with parameters
+#
+SET @a= 10, @b= 10.1, @c= 10e0, @d='str';
+EXECUTE IMMEDIATE
+'CREATE TABLE t1 AS SELECT ? AS a,? AS b,? AS c,? AS d'
+  USING @a,@b,@c,@d;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` bigint(21) NOT NULL,
+  `b` decimal(3,1) DEFAULT NULL,
+  `c` double NOT NULL,
+  `d` varchar(3) NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+EXECUTE IMMEDIATE
+'CREATE TABLE t1 AS SELECT ? AS a,? AS b,? AS c,? AS d'
+  USING 10, 10.1, 10e0, 'str';
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` bigint(21) NOT NULL,
+  `b` decimal(3,1) DEFAULT NULL,
+  `c` double NOT NULL,
+  `d` varchar(3) NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+EXECUTE IMMEDIATE
+'CREATE TABLE t1 AS SELECT ? AS t1,? AS t2, ? AS d1,? AS dt1, ? AS dt2'
+  USING TIME'10:20:30',
+TIME'10:20:30.123',
+DATE'2001-01-01',
+TIMESTAMP'2001-01-01 10:20:30',
+TIMESTAMP'2001-01-01 10:20:30.123';
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `t1` time DEFAULT NULL,
+  `t2` time(3) DEFAULT NULL,
+  `d1` date DEFAULT NULL,
+  `dt1` datetime DEFAULT NULL,
+  `dt2` datetime(3) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+#
+# Using a user variable as an EXECUTE IMMEDIATE..USING out parameter
+#
+CREATE PROCEDURE p1(OUT a INT)
+BEGIN
+SET a:= 10;
+END;
+/
+SET @a=1;
+CALL p1(@a);
+SELECT @a;
+@a
+10
+SET @a=2;
+EXECUTE IMMEDIATE 'CALL p1(?)' USING @a;
+SELECT @a;
+@a
+10
+DROP PROCEDURE p1;
+#
+# Using an SP variable as an EXECUTE IMMEDIATE..USING out parameter
+#
+CREATE PROCEDURE p1 (OUT a INT)
+BEGIN
+SET a=10;
+END;
+/
+CREATE PROCEDURE p2 (OUT a INT)
+BEGIN
+EXECUTE IMMEDIATE 'CALL p1(?)' USING a;
+END;
+/
+SET @a= 1;
+CALL p2(@a);
+SELECT @a;
+@a
+10
+DROP PROCEDURE p2;
+DROP PROCEDURE p1;
+#
+# Changing user variables
+#
+SET @a=10;
+EXECUTE IMMEDIATE 'SET @a=@a+1';
+SELECT @a;
+@a
+11
+#
+# SET STATEMENT
+#
+SET @@max_sort_length=1024;
+EXECUTE IMMEDIATE 'SET STATEMENT max_sort_length=1025 FOR SELECT @@max_sort_length';
+@@max_sort_length
+1025
+SELECT @@max_sort_length;
+@@max_sort_length
+1024
+SET @@max_sort_length=DEFAULT;
+#
+# Similar to prepared EXECUTE, IMMEDIATE is not allowed in stored functions
+#
+CREATE FUNCTION f1() RETURNS INT
+BEGIN
+EXECUTE IMMEDIATE 'DO 1';
+RETURN 1;
+END;
+$$
+ERROR 0A000: Dynamic SQL is not allowed in stored function or trigger
+#
+# Status variables
+#
+CREATE FUNCTION get_status_var(name TEXT) RETURNS INT
+RETURN (SELECT CAST(VARIABLE_VALUE AS INT)
+FROM INFORMATION_SCHEMA.SESSION_STATUS
+WHERE VARIABLE_NAME=name);
+CREATE PROCEDURE test_status_var(name TEXT)
+BEGIN
+SET @cnt0=get_status_var(name);
+EXECUTE IMMEDIATE 'DO 1';
+SET @cnt1=get_status_var(name);
+SELECT @cnt1-@cnt0 AS increment;
+END;
+$$
+# Note, EXECUTE IMMEDIATE does not increment COM_EXECUTE_SQL
+# It increments COM_EXECUTE_IMMEDIATE instead.
+CALL test_status_var('COM_EXECUTE_SQL');
+increment
+0
+CALL test_status_var('COM_EXECUTE_IMMEDIATE');
+increment
+1
+CALL test_status_var('COM_STMT_PREPARE');
+increment
+1
+CALL test_status_var('COM_STMT_EXECUTE');
+increment
+1
+CALL test_status_var('COM_STMT_CLOSE');
+increment
+1
+DROP PROCEDURE test_status_var;
+DROP FUNCTION get_status_var;
+#
+# End of MDEV-10585 EXECUTE IMMEDIATE statement
+#
+#
+# MDEV-10866 Extend PREPARE and EXECUTE IMMEDIATE to understand expressions
+#
+#
+# Testing erroneous and diallowed prepare source
+#
+EXECUTE IMMEDIATE CONCAT(_latin1'SELECT 1 AS c FROM ', _latin2 'DUAL');
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (latin2_general_ci,COERCIBLE) for operation 'concat'
+PREPARE stmt FROM CONCAT(_latin1'SELECT 1 AS c FROM ', _latin2 'DUAL');
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (latin2_general_ci,COERCIBLE) for operation 'concat'
+EXECUTE IMMEDIATE (SELECT 'SELECT 1');
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'SELECT 'SELECT 1')' at line 1
+PREPARE stmt FROM (SELECT 'SELECT 1');
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'SELECT 'SELECT 1')' at line 1
+EXECUTE IMMEDIATE a;
+ERROR 42S22: Unknown column 'a' in 'field list'
+PREPARE stmt FROM a;
+ERROR 42S22: Unknown column 'a' in 'field list'
+EXECUTE IMMEDIATE NULL;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'NULL' at line 1
+PREPARE stmt FROM NULL;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'NULL' at line 1
+EXECUTE IMMEDIATE CONCAT(NULL);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'NULL' at line 1
+PREPARE stmt FROM CONCAT(NULL);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'NULL' at line 1
+EXECUTE IMMEDIATE ? USING 'SELECT 1';
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '? USING 'SELECT 1'' at line 1
+EXECUTE IMMEDIATE 10;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '10' at line 1
+EXECUTE IMMEDIATE TIME'10:20:30';
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '10:20:30' at line 1
+EXECUTE IMMEDIATE ROW('SELECT 1','SELECT 2');
+ERROR 21000: Operand should contain 1 column(s)
+EXECUTE IMMEDIATE MAX('SELECT 1 AS c');
+ERROR HY000: Invalid use of group function
+EXECUTE IMMEDIATE DEFAULT(a);
+ERROR 42S22: Unknown column 'a' in 'field list'
+EXECUTE IMMEDIATE VALUES(a);
+ERROR 42S22: Unknown column 'a' in 'field list'
+CREATE FUNCTION f1() RETURNS VARCHAR(64) RETURN 't1';
+EXECUTE IMMEDIATE f1();
+ERROR 42000: EXECUTE IMMEDIATE does not support subqueries or stored functions
+PREPARE stmt FROM f1();
+ERROR 42000: PREPARE..FROM does not support subqueries or stored functions
+DROP FUNCTION f1;
+EXECUTE IMMEDIATE non_existent();
+ERROR 42000: EXECUTE IMMEDIATE does not support subqueries or stored functions
+#
+# Testing literals in prepare source
+#
+EXECUTE IMMEDIATE N'SELECT 1 AS c';
+c
+1
+EXECUTE IMMEDIATE _latin1'SELECT 1 AS c';
+c
+1
+EXECUTE IMMEDIATE 'SELECT '  '1'  ' AS c'  ' FROM '  'DUAL';
+c
+1
+EXECUTE IMMEDIATE 0x53454C4543542031 /*This is 'SELECT 1'*/;
+1
+1
+#
+# Testing user variables in prepare source
+#
+SET @stmt='SELECT 1 AS c FROM DUAL';
+EXECUTE IMMEDIATE @stmt;
+c
+1
+PREPARE stmt FROM @stmt;
+EXECUTE stmt;
+c
+1
+DEALLOCATE PREPARE stmt;
+SET @table_name='DUAL';
+EXECUTE IMMEDIATE CONCAT('SELECT 1 AS a FROM ', @table_name);
+a
+1
+PREPARE stmt FROM CONCAT('SELECT 1 AS a FROM ', @table_name);
+EXECUTE stmt;
+a
+1
+DEALLOCATE PREPARE stmt;
+#
+# Testing SP parameters and variables in prepare source
+#
+CREATE PROCEDURE p1(table_name VARCHAR(64))
+BEGIN
+EXECUTE IMMEDIATE CONCAT('SELECT 1 AS c FROM ', table_name);
+END;
+$$
+CALL p1('DUAL');
+c
+1
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE table_name VARCHAR(64) DEFAULT 'DUAL';
+EXECUTE IMMEDIATE CONCAT('SELECT 1 AS c FROM ', table_name);
+END;
+$$
+CALL p1();
+c
+1
+DROP PROCEDURE p1;
+#
+# Testing complex expressions
+#
+EXECUTE IMMEDIATE CONVERT('SELECT 1 AS c' USING utf8);
+c
+1
+EXECUTE IMMEDIATE CAST('SELECT 1 AS c' AS CHAR);
+c
+1
+EXECUTE IMMEDIATE _latin1'SELECT 1 AS c' COLLATE latin1_bin;
+c
+1
+EXECUTE IMMEDIATE (((('SELECT 1 AS c'))));
+c
+1
+EXECUTE IMMEDIATE CASE WHEN 1>2 THEN 'SELECT 1 AS c' ELSE 'SELECT 2 AS c' END;
+c
+2
+EXECUTE IMMEDIATE TRIM('SELECT 1 AS c');
+c
+1
+EXECUTE IMMEDIATE SUBSTRING('SELECT 1 AS c' FROM 1);
+c
+1
+EXECUTE IMMEDIATE COALESCE(NULL, 'SELECT 1 AS c');
+c
+1
+#
+# Testing SET STATEMENT and system variables
+#
+CREATE TABLE t1 (a INT);
+SET STATEMENT max_sort_length=1025 FOR EXECUTE IMMEDIATE CONCAT('INSERT INTO t1 VALUES (', @@max_sort_length, ')');
+SELECT * FROM t1;
+a
+1025
+DROP TABLE t1;
+#
+# End of MDEV-10866 Extend PREPARE and EXECUTE IMMEDIATE to understand expressions
+#
+#
+# End of 10.2 tests
+#
+#
+# MDEV-11360 Dynamic SQL: DEFAULT as a bind parameter
+#
+CREATE TABLE t1 (a INT DEFAULT 10, b INT DEFAULT NULL);
+EXECUTE IMMEDIATE 'INSERT INTO t1 VALUES (?,?)' USING DEFAULT, DEFAULT;
+SELECT * FROM t1;
+a	b
+10	NULL
+UPDATE t1 SET a=20, b=30;
+SELECT * FROM t1;
+a	b
+20	30
+EXECUTE IMMEDIATE 'UPDATE t1 SET a=?,b=?' USING DEFAULT, DEFAULT;
+SELECT * FROM t1;
+a	b
+10	NULL
+DROP TABLE t1;
+CREATE TABLE t1 (a INT DEFAULT 10);
+EXECUTE IMMEDIATE 'INSERT INTO t1 VALUES (?+1)' USING DEFAULT;
+ERROR HY000: Default/ignore value is not supported for such parameter usage
+EXECUTE IMMEDIATE 'INSERT INTO t1 VALUES (CONCAT(?,?))' USING DEFAULT, 'test';
+ERROR HY000: Default/ignore value is not supported for such parameter usage
+DROP TABLE t1;
+CREATE TABLE t1 (a INT DEFAULT 10);
+INSERT INTO t1 VALUES (20);
+EXECUTE IMMEDIATE 'UPDATE t1 SET a=?+1' USING DEFAULT;
+ERROR HY000: Default/ignore value is not supported for such parameter usage
+EXECUTE IMMEDIATE 'UPDATE t1 SET a=CONCAT(?,?)' USING DEFAULT, 'test';
+ERROR HY000: Default/ignore value is not supported for such parameter usage
+DROP TABLE t1;
+EXECUTE IMMEDIATE 'SELECT CAST(? AS SIGNED)' USING DEFAULT;
+ERROR HY000: Default/ignore value is not supported for such parameter usage
+EXECUTE IMMEDIATE 'SELECT CAST(? AS DOUBLE)' USING DEFAULT;
+ERROR HY000: Default/ignore value is not supported for such parameter usage
+EXECUTE IMMEDIATE 'SELECT CAST(? AS CHAR)' USING DEFAULT;
+ERROR HY000: Default/ignore value is not supported for such parameter usage
+EXECUTE IMMEDIATE 'SELECT CAST(? AS DECIMAL(10,1))' USING DEFAULT;
+ERROR HY000: Default/ignore value is not supported for such parameter usage
+EXECUTE IMMEDIATE 'SELECT CAST(? AS TIME)' USING DEFAULT;
+ERROR HY000: Default/ignore value is not supported for such parameter usage
+EXECUTE IMMEDIATE 'SELECT CAST(? AS DATE)' USING DEFAULT;
+ERROR HY000: Default/ignore value is not supported for such parameter usage
+EXECUTE IMMEDIATE 'SELECT CAST(? AS DATETIME)' USING DEFAULT;
+ERROR HY000: Default/ignore value is not supported for such parameter usage
+EXECUTE IMMEDIATE 'SELECT ?+1' USING DEFAULT;
+ERROR HY000: Default/ignore value is not supported for such parameter usage
+EXECUTE IMMEDIATE 'SELECT CONCAT(?,?)' USING DEFAULT,'test';
+ERROR HY000: Default/ignore value is not supported for such parameter usage
+EXECUTE IMMEDIATE 'SELECT 1 LIMIT ?' USING DEFAULT;
+ERROR HY000: Default/ignore value is not supported for such parameter usage
+CREATE TABLE t1 (a INT DEFAULT 10);
+INSERT INTO t1 VALUES (1),(2),(3);
+EXECUTE IMMEDIATE 'SELECT * FROM t1 LIMIT ?' USING DEFAULT;
+ERROR HY000: Default/ignore value is not supported for such parameter usage
+DROP TABLE t1;
+# The output of this query in 'Note' is a syntactically incorrect query.
+# But as it's never logged, it's ok. It should be human readable only.
+EXECUTE IMMEDIATE 'EXPLAIN EXTENDED SELECT ?' USING DEFAULT;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Warnings:
+Note	1003	select default AS `?`
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2),(3);
+EXECUTE IMMEDIATE 'EXPLAIN EXTENDED SELECT * FROM t1 WHERE ?+a<=>?+a' USING DEFAULT,DEFAULT;
+ERROR HY000: Default/ignore value is not supported for such parameter usage
+DROP TABLE t1;

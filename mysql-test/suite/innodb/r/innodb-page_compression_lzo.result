@@ -1,5 +1,3 @@
-set global innodb_file_format = `barracuda`;
-set global innodb_file_per_table = on;
 set global innodb_compression_algorithm = 3;
 create table innodb_compressed(c1 int, b char(20)) engine=innodb row_format=compressed key_block_size=8;
 show warnings;

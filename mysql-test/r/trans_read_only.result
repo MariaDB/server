@@ -37,6 +37,6 @@ DROP TABLE t1;
 CREATE TABLE t1(a INT);
 START TRANSACTION READ ONLY;
 INSERT DELAYED INTO t1 VALUES (1);
-ERROR 25006: Cannot execute statement in a READ ONLY transaction.
+ERROR 25006: Cannot execute statement in a READ ONLY transaction
 COMMIT;
 DROP TABLE t1;

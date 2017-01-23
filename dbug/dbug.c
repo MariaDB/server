@@ -1213,7 +1213,7 @@ void _db_return_(struct _db_stack_frame_ *_stack_frame_)
  *
  *  SYNOPSIS
  *
- *      VOID _db_pargs_(_line_, keyword)
+ *      int _db_pargs_(_line_, keyword)
  *      int _line_;
  *      char *keyword;
  *
@@ -1226,12 +1226,14 @@ void _db_return_(struct _db_stack_frame_ *_stack_frame_)
  *
  */
 
-void _db_pargs_(uint _line_, const char *keyword)
+int _db_pargs_(uint _line_, const char *keyword)
 {
   CODE_STATE *cs;
-  get_code_state_or_return;
+  get_code_state_or_return 0;
   cs->u_line= _line_;
   cs->u_keyword= keyword;
+
+  return DEBUGGING && _db_keyword_(cs, cs->u_keyword, 0);
 }
 
 
@@ -1265,27 +1267,24 @@ void _db_doprnt_(const char *format,...)
 {
   va_list args;
   CODE_STATE *cs;
+  int save_errno;
+
   get_code_state_or_return;
 
   va_start(args,format);
 
   if (!cs->locked)
     pthread_mutex_lock(&THR_LOCK_dbug);
-  if (_db_keyword_(cs, cs->u_keyword, 0))
-  {
-    int save_errno=errno;
-    DoPrefix(cs, cs->u_line);
-    if (TRACING)
-      Indent(cs, cs->level + 1);
-    else
-      (void) fprintf(cs->stack->out_file->file, "%s: ", cs->func);
-    (void) fprintf(cs->stack->out_file->file, "%s: ", cs->u_keyword);
-    DbugVfprintf(cs->stack->out_file->file, format, args);
-    DbugFlush(cs);
-    errno=save_errno;
-  }
-  else if (!cs->locked)
-    pthread_mutex_unlock(&THR_LOCK_dbug);
+  save_errno=errno;
+  DoPrefix(cs, cs->u_line);
+  if (TRACING)
+    Indent(cs, cs->level + 1);
+  else
+    (void) fprintf(cs->stack->out_file->file, "%s: ", cs->func);
+  (void) fprintf(cs->stack->out_file->file, "%s: ", cs->u_keyword);
+  DbugVfprintf(cs->stack->out_file->file, format, args);
+  DbugFlush(cs);
+  errno=save_errno;
 
   va_end(args);
 }

@@ -670,7 +670,7 @@ int wsrep_show_status (THD *thd, SHOW_VAR *var, char *buff,
       v->name = thd->strdup(sv->name);
       switch (sv->type) {
       case WSREP_VAR_INT64:
-        v->value = (char*)thd->memdup(&sv->value._int64, sizeof(longlong));
+        v->value = (char*)thd->memdup(&sv->value._integer64, sizeof(longlong));
         v->type  = SHOW_LONGLONG;
         break;
       case WSREP_VAR_STRING:

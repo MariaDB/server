@@ -196,7 +196,6 @@ init_lex_with_single_table(THD *thd, TABLE *table, LEX *lex)
   lex->context_analysis_only|= CONTEXT_ANALYSIS_ONLY_VCOL_EXPR;
   select_lex->cur_pos_in_select_list= UNDEF_POS;
   table->map= 1; //To ensure correct calculation of const item
-  table->get_fields_in_item_tree= TRUE;
   table_list->table= table;
   table_list->cacheable_table= false;
   return FALSE;
@@ -1320,7 +1319,7 @@ static int lex_one_token(YYSTYPE *yylval, THD *thd)
       state= (enum my_lex_states) state_map[c];
       break;
     case MY_LEX_ESCAPE:
-      if (lip->yyGet() == 'N')
+      if (!lip->eof() && lip->yyGet() == 'N')
       {					// Allow \N as shortcut for NULL
 	yylval->lex_str.str=(char*) "\\N";
 	yylval->lex_str.length=2;
@@ -2013,7 +2012,7 @@ static int lex_one_token(YYSTYPE *yylval, THD *thd)
 }
 
 
-void trim_whitespace(CHARSET_INFO *cs, LEX_STRING *str)
+void trim_whitespace(CHARSET_INFO *cs, LEX_STRING *str, uint *prefix_length)
 {
   /*
     TODO:
@@ -2021,8 +2020,10 @@ void trim_whitespace(CHARSET_INFO *cs, LEX_STRING *str)
     that can be considered white-space.
   */
 
+  *prefix_length= 0;
   while ((str->length > 0) && (my_isspace(cs, str->str[0])))
   {
+    (*prefix_length)++;
     str->length --;
     str->str ++;
   }
@@ -2073,7 +2074,6 @@ void st_select_lex_unit::init_query()
   item_list.empty();
   describe= 0;
   found_rows_for_union= 0;
-  insert_table_with_stored_vcol= 0;
   derived= 0;
   is_view= false;
   with_clause= 0;
@@ -2093,6 +2093,7 @@ void st_select_lex::init_query()
   item_list.empty();
   join= 0;
   having= prep_having= where= prep_where= 0;
+  cond_pushed_into_where= cond_pushed_into_having= 0;
   olap= UNSPECIFIED_OLAP_TYPE;
   having_fix_field= 0;
   context.select_lex= this;
@@ -2148,7 +2149,6 @@ void st_select_lex::init_select()
   in_sum_expr= with_wild= 0;
   options= 0;
   sql_cache= SQL_CACHE_UNSPECIFIED;
-  interval_list.empty();
   ftfunc_list_alloc.empty();
   inner_sum_func_list= 0;
   ftfunc_list= &ftfunc_list_alloc;
@@ -3415,6 +3415,9 @@ void LEX::first_lists_tables_same()
     if (query_tables_last == &first_table->next_global)
       query_tables_last= first_table->prev_global;
 
+    if (query_tables_own_last == &first_table->next_global)
+      query_tables_own_last= first_table->prev_global;
+
     if ((next= *first_table->prev_global= first_table->next_global))
       next->prev_global= first_table->prev_global;
     /* include in new place */
@@ -3740,12 +3743,28 @@ bool st_select_lex::add_index_hint (THD *thd, char *str, uint length)
 
 bool st_select_lex::optimize_unflattened_subqueries(bool const_only)
 {
-  for (SELECT_LEX_UNIT *un= first_inner_unit(); un; un= un->next_unit())
+  SELECT_LEX_UNIT *next_unit= NULL;
+  for (SELECT_LEX_UNIT *un= first_inner_unit();
+       un;
+       un= next_unit ? next_unit : un->next_unit())
   {
     Item_subselect *subquery_predicate= un->item;
-    
+    next_unit= NULL;
+
     if (subquery_predicate)
     {
+      if (!subquery_predicate->fixed)
+      {
+	/*
+	 This subquery was excluded as part of some expression so it is
+	 invisible from all prepared expression.
+       */
+	next_unit= un->next_unit();
+	un->exclude_level();
+	if (next_unit)
+	  continue;
+	break;
+      }
       if (subquery_predicate->substype() == Item_subselect::IN_SUBS)
       {
         Item_in_subselect *in_subs= (Item_in_subselect*) subquery_predicate;
@@ -4120,7 +4139,15 @@ void SELECT_LEX::update_used_tables()
           TABLE *tab= tl->table;
           tab->covering_keys= tab->s->keys_for_keyread;
           tab->covering_keys.intersect(tab->keys_in_use_for_query);
-          tab->merge_keys.clear_all();
+          /*
+            View/derived was merged. Need to recalculate read_set/vcol_set
+            bitmaps here. For example:
+              CREATE VIEW v1 AS SELECT f1,f2,f3 FROM t1;
+              SELECT f1 FROM v1;
+            Initially, the view definition will put all f1,f2,f3 in the
+            read_set for t1. But after the view is merged, only f1 should
+            be in the read_set.
+          */
           bitmap_clear_all(tab->read_set);
           if (tab->vcol_set)
             bitmap_clear_all(tab->vcol_set);
@@ -4922,6 +4949,7 @@ void binlog_unsafe_map_init()
 
 void st_select_lex::collect_grouping_fields(THD *thd) 
 {
+  grouping_tmp_fields.empty();
   List_iterator<Item> li(join->fields_list);
   Item *item= li++;
   for (uint i= 0; i < master_unit()->derived->table->s->fields; i++, (item=li++))

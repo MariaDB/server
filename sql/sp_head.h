@@ -182,7 +182,7 @@ public:
 
   const char *m_tmp_query;	///< Temporary pointer to sub query string
   st_sp_chistics *m_chistics;
-  ulonglong m_sql_mode;		///< For SHOW CREATE and execution
+  sql_mode_t m_sql_mode;		///< For SHOW CREATE and execution
   LEX_STRING m_qname;		///< db.name
   bool m_explicit_name;         ///< Prepend the db name? */
   LEX_STRING m_db;
@@ -421,7 +421,7 @@ public:
                              Column_definition *field_def);
 
   void set_info(longlong created, longlong modified,
-		st_sp_chistics *chistics, ulonglong sql_mode);
+		st_sp_chistics *chistics, sql_mode_t sql_mode);
 
   void set_definer(const char *definer, uint definerlen);
   void set_definer(const LEX_STRING *user_name, const LEX_STRING *host_name);

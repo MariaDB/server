@@ -156,8 +156,9 @@ struct Query_cache_query
   Query_cache_block *res;
   Query_cache_tls *wri;
   ulong len;
-  uint8 tbls_type;
   unsigned int last_pkt_nr;
+  uint8 tbls_type;
+  uint8 ready;
 
   Query_cache_query() {}                      /* Remove gcc warning */
   inline void init_n_lock();
@@ -177,6 +178,12 @@ struct Query_cache_query
   {
     return (((uchar*)this) + ALIGN_SIZE(sizeof(Query_cache_query)));
   }
+  /**
+    following used to check if result ready in plugin without
+    locking rw_lock of the query.
+  */
+  inline void set_results_ready()          { ready= 1; }
+  inline bool is_results_ready()           { return ready; }
   void lock_writing();
   void lock_reading();
   bool try_lock_writing();
@@ -548,7 +555,7 @@ struct Query_cache_query_flags
   uint collation_connection_num;
   ha_rows limit;
   Time_zone *time_zone;
-  ulonglong sql_mode;
+  sql_mode_t sql_mode;
   ulong max_sort_length;
   ulong group_concat_max_len;
   ulong default_week_format;

@@ -17,7 +17,8 @@
 #ifndef MYSQLD_INCLUDED
 #define MYSQLD_INCLUDED
 
-#include "my_global.h" /* MYSQL_PLUGIN_IMPORT, FN_REFLEN, FN_EXTLEN */
+#include <my_global.h> /* MYSQL_PLUGIN_IMPORT, FN_REFLEN, FN_EXTLEN */
+#include "sql_basic_types.h"			/* query_id_t */
 #include "sql_bitmap.h"                         /* Bitmap */
 #include "my_decimal.h"                         /* my_decimal */
 #include "mysql_com.h"                     /* SERVER_VERSION_LENGTH */
@@ -108,10 +109,12 @@ extern CHARSET_INFO *character_set_filesystem;
 
 extern MY_BITMAP temp_pool;
 extern bool opt_large_files;
-extern bool opt_update_log, opt_bin_log, opt_error_log;
+extern bool opt_update_log, opt_bin_log, opt_error_log, opt_bin_log_compress; 
+extern uint opt_bin_log_compress_min_len;
 extern my_bool opt_log, opt_bootstrap;
 extern my_bool opt_backup_history_log;
 extern my_bool opt_backup_progress_log;
+extern my_bool opt_support_flashback;
 extern ulonglong log_output_options;
 extern ulong log_backup_output_options;
 extern my_bool opt_log_queries_not_using_indexes;
@@ -660,13 +663,15 @@ enum enum_query_type
   QT_WITHOUT_INTRODUCERS= (1 << 1),
   /// view internal representation (like QT_ORDINARY except ORDER BY clause)
   QT_VIEW_INTERNAL= (1 << 2),
-  /// If identifiers should not include database names for the current database
-  QT_ITEM_IDENT_SKIP_CURRENT_DATABASE= (1 << 3),
+  /// If identifiers should not include database names, where unambiguous
+  QT_ITEM_IDENT_SKIP_DB_NAMES= (1 << 3),
+  /// If identifiers should not include table names, where unambiguous
+  QT_ITEM_IDENT_SKIP_TABLE_NAMES= (1 << 4),
   /// If Item_cache_wrapper should not print <expr_cache>
-  QT_ITEM_CACHE_WRAPPER_SKIP_DETAILS= (1 << 4),
+  QT_ITEM_CACHE_WRAPPER_SKIP_DETAILS= (1 << 5),
   /// If Item_subselect should print as just "(subquery#1)"
   /// rather than display the subquery body
-  QT_ITEM_SUBSELECT_ID_ONLY= (1 << 5),
+  QT_ITEM_SUBSELECT_ID_ONLY= (1 << 6),
   /// If NULLIF(a,b) should print itself as
   /// CASE WHEN a_for_comparison=b THEN NULL ELSE a_for_return_value END
   /// when "a" was replaced to two different items
@@ -676,11 +681,11 @@ enum enum_query_type
   /// a_for_return_value is not the same as a_for_comparison.
   /// SHOW CREATE {VIEW|PROCEDURE|FUNCTION} and other cases where the
   /// original representation is required, should set this flag.
-  QT_ITEM_ORIGINAL_FUNC_NULLIF= (1 <<6),
+  QT_ITEM_ORIGINAL_FUNC_NULLIF= (1 << 7),
 
   /// This value means focus on readability, not on ability to parse back, etc.
   QT_EXPLAIN=           QT_TO_SYSTEM_CHARSET |
-                        QT_ITEM_IDENT_SKIP_CURRENT_DATABASE |
+                        QT_ITEM_IDENT_SKIP_DB_NAMES |
                         QT_ITEM_CACHE_WRAPPER_SKIP_DETAILS |
                         QT_ITEM_SUBSELECT_ID_ONLY,
 
@@ -698,7 +703,6 @@ enum enum_query_type
 
 
 /* query_id */
-typedef int64 query_id_t;
 extern query_id_t global_query_id;
 
 void unireg_end(void) __attribute__((noreturn));

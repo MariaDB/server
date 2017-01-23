@@ -94,6 +94,16 @@ connection node_1;
 COMMIT;
 DROP TABLE t1;
 DROP TABLE t2;
+#
+# MDEV-11152: wsrep_replicate_myisam: SELECT gets replicated using TO
+#
+connection node_1;
+CREATE TABLE t1 (i INT) ENGINE=INNODB;
+INSERT INTO t1 VALUES(1);
+SELECT * FROM t1;
+i
+1
+DROP TABLE t1;
 connection node_1;
 SET GLOBAL wsrep_replicate_myisam = 0;
 connection node_2;

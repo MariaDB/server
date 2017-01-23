@@ -29,7 +29,6 @@ Created Feb 20, 2014 Vasil Dimov
 
 #include "univ.i"
 
-#include "os0sync.h"
 #include "ut0ut.h"
 
 /** Execute a given function exactly once in a multi-threaded environment
@@ -67,7 +66,6 @@ public:
 	/** Finished execution. */
 	static const state_t	DONE = 2;
 
-#ifdef HAVE_ATOMIC_BUILTINS
 	/** Call a given function or wait its execution to complete if it is
 	already called by another thread.
 	@param[in,out]	state		control variable
@@ -80,22 +78,19 @@ public:
 		void			(*do_func)(void*),
 		void*			do_func_arg)
 	{
-		/* Avoid calling os_compare_and_swap_uint32() in the most
-		common case. */
+		int32 oldval = NEVER_DONE;
+
+		/* Avoid calling my_atomic_cas32() in the most common case. */
 		if (*state == DONE) {
 			return;
 		}
 
-		if (os_compare_and_swap_uint32(state,
-					       NEVER_DONE, IN_PROGRESS)) {
+		if (my_atomic_cas32((int32*) state, &oldval, IN_PROGRESS)) {
 			/* We are the first. Call the function. */
 
 			do_func(do_func_arg);
 
-			const bool	swapped = os_compare_and_swap_uint32(
-				state, IN_PROGRESS, DONE);
-
-			ut_a(swapped);
+			my_atomic_store32((int32*) state, DONE);
 		} else {
 			/* The state is not NEVER_DONE, so either it is
 			IN_PROGRESS (somebody is calling the function right
@@ -119,7 +114,6 @@ public:
 			}
 		}
 	}
-#endif /* HAVE_ATOMIC_BUILTINS */
 };
 
 #endif /* os0once_h */

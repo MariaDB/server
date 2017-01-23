@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2000, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -65,6 +66,7 @@ Created 9/17/2000 Heikki Tuuri
 #include "row0import.h"
 #include "m_string.h"
 #include "my_sys.h"
+#include "zlib.h"
 #include <algorithm>
 
 /** Provide optional 4.x backwards compatibility for 5.0 and above */
@@ -261,9 +263,8 @@ row_mysql_store_blob_ref(
 	ut_a(col_len - 8 > 2 || len < 256 * 256);
 	ut_a(col_len - 8 > 3 || len < 256 * 256 * 256);
 
-	mach_write_to_n_little_endian(dest, col_len - 8, len);
-
 	memcpy(dest + col_len - 8, &data, sizeof data);
+	mach_write_to_n_little_endian(dest, col_len - 8, len);
 }
 
 /*******************************************************************//**
@@ -279,7 +280,7 @@ row_mysql_read_blob_ref(
 	ulint		col_len)	/*!< in: BLOB reference length
 					(not BLOB length) */
 {
-	byte*	data;
+	byte*	data = NULL;
 
 	*len = mach_read_from_n_little_endian(ref, col_len - 8);
 
@@ -420,8 +421,8 @@ row_mysql_store_col_in_innobase_format(
 				lenlen = 2;
 			}
 
-			ptr = row_mysql_read_true_varchar(&col_len, mysql_data,
-							  lenlen);
+			ptr = row_mysql_read_true_varchar(
+				&col_len, mysql_data, lenlen);
 		} else {
 			/* Remove trailing spaces from old style VARCHAR
 			columns. */
@@ -659,9 +660,7 @@ handle_new_error:
 		      "InnoDB: lack of space. You must add"
 		      " a new data file to\n"
 		      "InnoDB: my.cnf and restart the database.\n", stderr);
-
-		ut_ad(0);
-		exit(1);
+		abort();
 
 	case DB_CORRUPTION:
 		fputs("InnoDB: We detected index corruption"
@@ -2748,12 +2747,26 @@ loop:
 		return(n_tables + n_tables_dropped);
 	}
 
+	DBUG_EXECUTE_IF("row_drop_tables_in_background_sleep",
+		os_thread_sleep(5000000);
+	);
+
 	table = dict_table_open_on_name(drop->table_name, FALSE, FALSE,
 					DICT_ERR_IGNORE_NONE);
 
 	if (table == NULL) {
 		/* If for some reason the table has already been dropped
 		through some other mechanism, do not try to drop it */
+
+		goto already_dropped;
+	}
+
+	if (!table->to_be_dropped) {
+		/* There is a scenario: the old table is dropped
+		just after it's added into drop list, and new
+		table with the same name is created, then we try
+		to drop the new table in background. */
+		dict_table_close(table, FALSE, FALSE);
 
 		goto already_dropped;
 	}
@@ -2887,6 +2900,12 @@ row_mysql_table_id_reassign(
 
 	pars_info_add_ull_literal(info, "old_id", table->id);
 	pars_info_add_ull_literal(info, "new_id", *new_id);
+
+	/* As micro-SQL does not support int4 == int8 comparisons,
+	old and new IDs are added again under different names as
+	int4 values*/
+	pars_info_add_int4_literal(info, "old_id_narrow", table->id);
+	pars_info_add_int4_literal(info, "new_id_narrow", *new_id);
 
 	err = que_eval_sql(
 		info,
@@ -3293,7 +3312,7 @@ fil_wait_crypt_bg_threads(
 	uint last = start;
 
 	if (table->space != 0) {
-		fil_space_crypt_mark_space_closing(table->space);
+		fil_space_crypt_mark_space_closing(table->space, table->crypt_data);
 	}
 
 	while (table->n_ref_count > 0) {
@@ -3713,6 +3732,12 @@ next_rec:
 	pars_info_add_ull_literal(info, "old_id", table->id);
 	pars_info_add_ull_literal(info, "new_id", new_id);
 
+	/* As micro-SQL does not support int4 == int8 comparisons,
+	old and new IDs are added again under different names as
+	int4 values*/
+	pars_info_add_int4_literal(info, "old_id_narrow", table->id);
+	pars_info_add_int4_literal(info, "new_id_narrow", new_id);
+
 	err = que_eval_sql(info,
 			   "PROCEDURE RENUMBER_TABLE_ID_PROC () IS\n"
 			   "BEGIN\n"
@@ -4089,6 +4114,13 @@ row_drop_table_for_mysql(
 		}
 	}
 
+
+	DBUG_EXECUTE_IF("row_drop_table_add_to_background",
+		row_add_table_to_background_drop_list(table->name);
+		err = DB_SUCCESS;
+		goto funct_exit;
+	);
+
 	/* TODO: could we replace the counter n_foreign_key_checks_running
 	with lock checks on the table? Acquire here an exclusive lock on the
 	table, and rewrite lock0lock.cc and the lock wait in srv0srv.cc so that
@@ -4225,6 +4257,12 @@ row_drop_table_for_mysql(
 		rw_lock_x_unlock(dict_index_get_lock(index));
 	}
 
+	/* If table has not yet have crypt_data, try to read it to
+	make freeing the table easier. */
+	if (!table->crypt_data) {
+		table->crypt_data = fil_space_get_crypt_data(table->space);
+	}
+
 	/* We use the private SQL parser of Innobase to generate the
 	query graphs needed in deleting the dictionary data from system
 	tables in Innobase. Deleting a row from SYS_INDEXES table also
@@ -4324,6 +4362,7 @@ row_drop_table_for_mysql(
 
 	switch (err) {
 		ibool	is_temp;
+		ulint	table_flags;
 
 	case DB_SUCCESS:
 		/* Clone the name, in case it has been allocated
@@ -4332,6 +4371,7 @@ row_drop_table_for_mysql(
 		space_id = table->space;
 		ibd_file_missing = table->ibd_file_missing;
 
+		table_flags = table->flags;
 		is_temp = DICT_TF2_FLAG_IS_SET(table, DICT_TF2_TEMPORARY);
 
 		/* If there is a temp path then the temp flag is set.
@@ -4347,9 +4387,9 @@ row_drop_table_for_mysql(
 		}
 
 		/* We do not allow temporary tables with a remote path. */
-		ut_a(!(is_temp && DICT_TF_HAS_DATA_DIR(table->flags)));
+		ut_a(!(is_temp && DICT_TF_HAS_DATA_DIR(table_flags)));
 
-		if (space_id && DICT_TF_HAS_DATA_DIR(table->flags)) {
+		if (space_id && DICT_TF_HAS_DATA_DIR(table_flags)) {
 			dict_get_and_save_data_dir_path(table, true);
 			ut_a(table->data_dir_path);
 
@@ -4415,8 +4455,9 @@ row_drop_table_for_mysql(
 		if (err == DB_SUCCESS && space_id > TRX_SYS_SPACE) {
 			if (!is_temp
 			    && !fil_space_for_table_exists_in_mem(
-					space_id, tablename, FALSE,
-					print_msg, false, NULL, 0)) {
+					space_id, tablename,
+					print_msg, false, NULL, 0,
+					table_flags)) {
 				/* This might happen if we are dropping a
 				discarded tablespace */
 				err = DB_SUCCESS;
@@ -4709,6 +4750,19 @@ loop:
 	row_mysql_lock_data_dictionary(trx);
 
 	while ((table_name = dict_get_first_table_name_in_db(name))) {
+		/* Drop parent table if it is a fts aux table, to
+		avoid accessing dropped fts aux tables in information
+		scheam when parent table still exists.
+		Note: Drop parent table will drop fts aux tables. */
+		char*	parent_table_name;
+		parent_table_name = fts_get_parent_table_name(
+				table_name, strlen(table_name));
+
+		if (parent_table_name != NULL) {
+			mem_free(table_name);
+			table_name = parent_table_name;
+		}
+
 		ut_a(memcmp(table_name, name, namelen) == 0);
 
 		table = dict_table_open_on_name(
