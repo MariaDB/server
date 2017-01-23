@@ -22,6 +22,8 @@
 
 #include <my_config.h>
 
+#include <inttypes.h>
+
 /* The C++ file's header */
 #include "./ha_rocksdb.h"
 

@@ -19,6 +19,8 @@
 /* This C++ file's header file */
 #include "./rdb_sst_info.h"
 
+#include <inttypes.h>
+
 /* C++ standard header files */
 #include <cstdio>
 #include <string>

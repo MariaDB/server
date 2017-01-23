@@ -26,14 +26,6 @@
 #include <vector>
 
 /* MySQL header files */
-#include "../storage/xtradb/include/ut0counter.h"
-/*
-  'EMPTY' from field.h conflicts with EMPTY from
-  /usr/include/x86_64-linux-gnu/bits/utmpx.h
-  MARIAROCKS_NOT_YET: Sort out #include order so that we don't have to resort 
-  to #undef
-*/
-#undef EMPTY
 #include "./handler.h"                     /* handler */
 #include "./my_global.h"                   /* ulonglong */
 #include "./sql_string.h"
@@ -52,6 +44,7 @@
 #include "./rdb_perf_context.h"
 #include "./rdb_sst_info.h"
 #include "./rdb_utils.h"
+#include "./ut0counter.h"
 
 /**
   @note MyRocks Coding Conventions:

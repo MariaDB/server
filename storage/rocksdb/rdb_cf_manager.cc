@@ -20,6 +20,8 @@
 
 #include <my_config.h>
 
+#include <inttypes.h>
+
 /* This C++ files header file */
 #include "./rdb_cf_manager.h"
 

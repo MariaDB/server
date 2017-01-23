@@ -22,6 +22,7 @@
 /* This C++ file's header file */
 #include "./rdb_datadic.h"
 
+#include <inttypes.h>
 /* C++ standard header files */
 #include <algorithm>
 #include <array>
