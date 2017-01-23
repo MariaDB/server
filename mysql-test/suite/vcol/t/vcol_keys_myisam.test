@@ -249,3 +249,16 @@ SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 ALTER TABLE t1 ADD INDEX(col_year);
 --enable_warnings
 DROP TABLE t1;
+
+#
+# MDEV-11750 Assertion `vfield' failed in TABLE::update_virtual_fields after crash recovery on corrupted MyISAM table
+#
+create table t1 (
+  pk int primary key auto_increment,
+  b bit default null,
+  key(b)
+) engine=myisam;
+
+insert into t1 values (null, 0);
+repair table t1 extended;
+drop table t1;
