@@ -605,6 +605,9 @@ String *Item_func_json_extract::val_str(String *str)
       }
       c_path->parsed= c_path->constant;
     }
+
+    if (args[n_arg]->null_value)
+      goto return_null;
   }
 
   possible_multiple_values= arg_count > 2 ||
@@ -666,7 +669,6 @@ String *Item_func_json_extract::val_str(String *str)
 error:
   report_json_error(js, &je, 0);
 return_null:
-  /* TODO: launch error messages. */
   null_value= 1;
   return 0;
 }
@@ -1958,6 +1960,9 @@ String *Item_func_json_insert::val_str(String *str)
     json_scan_start(&je, js->charset(),(const uchar *) js->ptr(),
                     (const uchar *) js->ptr() + js->length());
 
+    if (c_path->p.last_step < c_path->p.steps)
+      goto v_found;
+
     c_path->cur_step= c_path->p.steps;
 
     if (c_path->p.last_step >= c_path->p.steps &&
@@ -2572,7 +2577,6 @@ end:
 js_error:
   report_json_error(js, &je, 0);
 null_return:
-  /* TODO: launch error messages. */
   null_value= 1;
   return 0;
 }
