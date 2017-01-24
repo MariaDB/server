@@ -1381,7 +1381,7 @@ static struct my_option innochecksum_options[] = {
    {"log", 'l', "log output.",
      &log_filename, &log_filename, 0,
       GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
-  {"leaf", 'l', "Examine leaf index pages",
+  {"leaf", 'e', "Examine leaf index pages",
     &do_leaf, &do_leaf, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"merge", 'm', "leaf page count if merge given number of consecutive pages",
    &n_merge, &n_merge, 0, GET_ULONG, REQUIRED_ARG, 0, 0, (longlong)10L, 0, 1, 0},
@@ -1411,7 +1411,7 @@ static void usage(void)
 	printf("Usage: %s [-c] [-s <start page>] [-e <end page>] "
 		"[-p <page>] [-v]  [-a <allow mismatches>] [-n] "
 		"[-C <strict-check>] [-w <write>] [-S] [-D <page type dump>] "
-		"[-l <log>] <filename or [-]>\n", my_progname);
+		"[-l <log>] [-e] <filename or [-]>\n", my_progname);
 	printf("See " REFMAN "innochecksum.html for usage hints.\n");
 	my_print_help(innochecksum_options);
 	my_print_variables(innochecksum_options);
