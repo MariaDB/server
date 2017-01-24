@@ -1883,7 +1883,6 @@ LinuxAIOHandler::collect()
 			/* Deallocate unused blocks from file system.
 			This is newer done to page 0 or to log files.*/
 			if (slot->offset > 0
-			    && !slot->skip_punch_hole
 			    && !slot->type.is_log()
 			    && slot->type.is_write()
 			    && slot->type.punch_hole()) {
