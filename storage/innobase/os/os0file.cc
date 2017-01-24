@@ -1887,7 +1887,7 @@ LinuxAIOHandler::collect()
 			    && slot->type.is_write()
 			    && slot->type.punch_hole()) {
 
-				slot->err = AIOHandler::io_complete(slot);
+				slot->err = slot->type.punch_hole(slot->file, slot->offset, slot->len);
 			} else {
 				slot->err = DB_SUCCESS;
 			}
