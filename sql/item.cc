@@ -8853,9 +8853,11 @@ int Item_default_value::save_in_field(Field *field_arg, bool no_conversions)
 
 table_map Item_default_value::used_tables() const
 {
-  if (field && field->default_value && field->default_value->flags)
-    return field->default_value->expr->used_tables();
-  return static_cast<table_map>(0);
+  if (!field || !field->default_value)
+    return static_cast<table_map>(0);
+  if (!field->default_value->expr)                      // not fully parsed field
+    return static_cast<table_map>(RAND_TABLE_BIT);
+  return field->default_value->expr->used_tables();
 }
 
 /**

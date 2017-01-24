@@ -3362,4 +3362,6 @@ a	b	t
 4	5	4 also expression DEFAULT(0)+0
 4	5	5 the value of the DEFAULT(a), that is b
 drop table t1;
+create table t1 (col1 int default(-(default(col1))));
+ERROR 01000: Expression for field `col1` is refering to uninitialized field `col1`
 # end of 10.2 test

@@ -2069,4 +2069,10 @@ insert into t1 values (b, 5, '5 the value of the DEFAULT(a), that is b');
 select * from t1 order by t;
 drop table t1;
 
+#
+# MDEV-10352 Server crashes in Field::set_default on CREATE TABLE
+#
+--error ER_EXPRESSION_REFERS_TO_UNINIT_FIELD
+create table t1 (col1 int default(-(default(col1))));
+
 --echo # end of 10.2 test
