@@ -4747,3 +4747,26 @@ INSERT INTO t1 VALUES (1),(2),(3);
 EXECUTE IMMEDIATE 'EXPLAIN EXTENDED SELECT * FROM t1 WHERE ?+a<=>?+a' USING DEFAULT,DEFAULT;
 ERROR HY000: Default/ignore value is not supported for such parameter usage
 DROP TABLE t1;
+#
+# MDEV-11780 Crash with PREPARE + SP out parameter + literal
+#
+CREATE OR REPLACE PROCEDURE p1(OUT a INT)
+BEGIN
+SET a=10;
+END;
+$$
+PREPARE stmt FROM 'CALL p1(?)';
+EXECUTE stmt USING 10;
+ERROR 42000: OUT or INOUT argument 1 for routine test.p1 is not a variable or NEW pseudo-variable in BEFORE trigger
+EXECUTE stmt USING DEFAULT;
+ERROR 42000: OUT or INOUT argument 1 for routine test.p1 is not a variable or NEW pseudo-variable in BEFORE trigger
+EXECUTE stmt USING IGNORE;
+ERROR 42000: OUT or INOUT argument 1 for routine test.p1 is not a variable or NEW pseudo-variable in BEFORE trigger
+DEALLOCATE PREPARE stmt;
+EXECUTE IMMEDIATE 'CALL p1(?)' USING 10;
+ERROR 42000: OUT or INOUT argument 1 for routine test.p1 is not a variable or NEW pseudo-variable in BEFORE trigger
+EXECUTE IMMEDIATE 'CALL p1(?)' USING DEFAULT;
+ERROR 42000: OUT or INOUT argument 1 for routine test.p1 is not a variable or NEW pseudo-variable in BEFORE trigger
+EXECUTE IMMEDIATE 'CALL p1(?)' USING IGNORE;
+ERROR 42000: OUT or INOUT argument 1 for routine test.p1 is not a variable or NEW pseudo-variable in BEFORE trigger
+DROP PROCEDURE p1;

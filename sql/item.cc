@@ -3313,7 +3313,15 @@ Item_param::Item_param(THD *thd, uint pos_in_query_arg):
   item_type(PARAM_ITEM),
   indicators(0), indicator(STMT_INDICATOR_NONE),
   set_param_func(default_set_param_func),
-  m_out_param_info(NULL)
+  m_out_param_info(NULL),
+  /*
+    Set m_is_settable_routine_parameter to "true" by default.
+    This is needed for client-server protocol,
+    whose parameters are always settable.
+    For dynamic SQL, settability depends on the type of Item passed
+    as an actual parameter. See Item_param::set_from_item().
+  */
+  m_is_settable_routine_parameter(true)
 {
   name= (char*) "?";
   /* 
@@ -3557,6 +3565,7 @@ bool Item_param::CONVERSION_INFO::convert(THD *thd, String *str)
 bool Item_param::set_from_item(THD *thd, Item *item)
 {
   DBUG_ENTER("Item_param::set_from_item");
+  m_is_settable_routine_parameter= item->get_settable_routine_parameter();
   if (limit_clause_param)
   {
     longlong val= item->val_int();
@@ -4132,6 +4141,7 @@ Item_param::set_param_type_and_swap_value(Item_param *src)
 
 void Item_param::set_default()
 {
+  m_is_settable_routine_parameter= false;
   state= DEFAULT_VALUE;
   fixed= true;
   /*
@@ -4147,6 +4157,7 @@ void Item_param::set_default()
 
 void Item_param::set_ignore()
 {
+  m_is_settable_routine_parameter= false;
   state= IGNORE_VALUE;
   fixed= true;
   null_value= true;

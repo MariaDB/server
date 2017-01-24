@@ -2982,7 +2982,7 @@ public:
   Rewritable_query_parameter *get_rewritable_query_parameter()
   { return this; }
   Settable_routine_parameter *get_settable_routine_parameter()
-  { return this; }
+  { return m_is_settable_routine_parameter ? this : NULL; }
 
   bool append_for_log(THD *thd, String *str);
   bool check_vcol_func_processor(void *int_arg) {return FALSE;}
@@ -3002,6 +3002,7 @@ public:
 
 private:
   Send_field *m_out_param_info;
+  bool m_is_settable_routine_parameter;
 };
 
 
