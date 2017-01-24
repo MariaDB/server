@@ -227,6 +227,7 @@ private:
     SELECT_LEX and other classes).
   */
   MEM_ROOT main_mem_root;
+  sql_mode_t m_sql_mode;
 private:
   bool set_db(const char *db, uint db_length);
   bool set_parameters(String *expanded_query,
@@ -3603,7 +3604,8 @@ Prepared_statement::Prepared_statement(THD *thd_arg)
   param_count(0),
   last_errno(0),
   flags((uint) IS_IN_USE),
-  start_param(0)
+  start_param(0),
+  m_sql_mode(thd->variables.sql_mode)
 {
   init_sql_alloc(&main_mem_root, thd_arg->variables.query_alloc_block_size,
                  thd_arg->variables.query_prealloc_size, MYF(MY_THREAD_SPECIFIC));
@@ -3777,6 +3779,7 @@ bool Prepared_statement::prepare(const char *packet, uint packet_len)
   Statement stmt_backup;
   Query_arena *old_stmt_arena;
   DBUG_ENTER("Prepared_statement::prepare");
+  DBUG_ASSERT(m_sql_mode == thd->variables.sql_mode);
   /*
     If this is an SQLCOM_PREPARE, we also increase Com_prepare_sql.
     However, it seems handy if com_stmt_prepare is increased always,
@@ -4365,6 +4368,7 @@ Prepared_statement::reprepare()
   bool error;
 
   Prepared_statement copy(thd);
+  copy.m_sql_mode= m_sql_mode;
 
   copy.set_sql_prepare(); /* To suppress sending metadata to the client. */
 
@@ -4374,9 +4378,12 @@ Prepared_statement::reprepare()
                           &cur_db_changed))
     return TRUE;
 
+  sql_mode_t save_sql_mode= thd->variables.sql_mode;
+  thd->variables.sql_mode= m_sql_mode;
   error= ((name.str && copy.set_name(&name)) ||
           copy.prepare(query(), query_length()) ||
           validate_metadata(&copy));
+  thd->variables.sql_mode= save_sql_mode;
 
   if (cur_db_changed)
     mysql_change_db(thd, &saved_cur_db_name, TRUE);
