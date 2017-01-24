@@ -58,6 +58,7 @@ Created 10/25/1995 Heikki Tuuri
 #include "srv0start.h"
 #include "trx0purge.h"
 #include "ut0new.h"
+#include "os0api.h"
 
 /** Tries to close a file in the LRU list. The caller must hold the fil_sys
 mutex.
@@ -280,7 +281,7 @@ fil_read(
 	void*			buf)
 {
 	return(fil_io(IORequestRead, true, page_id, page_size,
-			byte_offset, len, buf, NULL, NULL));
+			byte_offset, len, buf, NULL));
 }
 
 /** Writes data to a space from a buffer. Remember that the possible incomplete
@@ -308,7 +309,7 @@ fil_write(
 	ut_ad(!srv_read_only_mode);
 
 	return(fil_io(IORequestWrite, true, page_id, page_size,
-		      byte_offset, len, buf, NULL, NULL));
+		      byte_offset, len, buf, NULL));
 }
 
 /*******************************************************************//**
@@ -523,20 +524,6 @@ fil_node_create_low(
 	space->size += size;
 
 	node->space = space;
-
-	os_file_stat_t	stat_info;
-
-#ifdef UNIV_DEBUG
-	dberr_t err =
-#endif /* UNIV_DEBUG */
-
-	os_file_get_status(
-		node->name, &stat_info, false,
-		fsp_is_system_temporary(space->id) ? true : srv_read_only_mode);
-
-	ut_ad(err == DB_SUCCESS);
-
-	node->block_size = stat_info.block_size;
 
 	node->atomic_write = atomic_write;
 
@@ -1043,7 +1030,7 @@ fil_write_zeros(
 		err = os_aio(
 			request, OS_AIO_SYNC, node->name,
 			node->handle, buf, offset, n_bytes, read_only_mode,
-			NULL, NULL, NULL);
+			NULL, NULL);
 
 		if (err != DB_SUCCESS) {
 			break;
@@ -3758,11 +3745,30 @@ fil_ibd_create(
 			success = true;
 		}
 #endif /* HAVE_POSIX_FALLOCATE */
-        if (!success)
-        {
+
+	if (!success) {
 		success = os_file_set_size(
 			path, file, size * UNIV_PAGE_SIZE, srv_read_only_mode);
 	}
+
+	/* Note: We are actually punching a hole, previous contents will
+	be lost after this call, if it succeeds. In this case the file
+	should be full of NULs. */
+
+	bool	punch_hole = os_is_sparse_file_supported(path, file);
+
+	if (punch_hole) {
+
+		dberr_t	punch_err;
+
+		punch_err = os_file_punch_hole(file, 0, size * UNIV_PAGE_SIZE);
+
+		if (punch_err != DB_SUCCESS) {
+			punch_hole = false;
+		}
+	}
+
+	ulint block_size = os_file_get_block_size(file, path);
 
 	if (!success) {
 		os_file_close(file);
@@ -3866,7 +3872,13 @@ fil_ibd_create(
 	space = fil_space_create(name, space_id, flags, FIL_TYPE_TABLESPACE,
 				 crypt_data, true);
 
-	if (!fil_node_create_low(path, size, space, false, true)) {
+	fil_node_t* node = NULL;
+
+	if (space) {
+		node = fil_node_create_low(path, size, space, false, true);
+	}
+
+	if (!space || !node) {
 		if (crypt_data) {
 			free(crypt_data);
 		}
@@ -3882,6 +3894,9 @@ fil_ibd_create(
 			NULL, space->flags & ~FSP_FLAGS_MEM_MASK, &mtr);
 		fil_name_write(space, 0, file, &mtr);
 		mtr.commit();
+
+		node->block_size = block_size;
+		space->punch_hole = punch_hole;
 
 		err = DB_SUCCESS;
 	}
@@ -5038,8 +5053,6 @@ fil_report_invalid_page_access(
 			aligned
 @param[in] message	message for aio handler if non-sync aio
 			used, else ignored
-@param[in] write_size	actual payload size when written
-                        to avoid extra punch holes in compression
 @return DB_SUCCESS, DB_TABLESPACE_DELETED or DB_TABLESPACE_TRUNCATED
 	if we are trying to do i/o on a tablespace which does not exist */
 dberr_t
@@ -5051,8 +5064,7 @@ fil_io(
 	ulint			byte_offset,
 	ulint			len,
 	void*			buf,
-	void*			message,
-	ulint*			write_size)
+	void*			message)
 {
 	os_offset_t		offset;
 	IORequest		req_type(type);
@@ -5285,7 +5297,7 @@ fil_io(
 
 	const char* name = node->name == NULL ? space->name : node->name;
 
-	req_type.block_size(node->block_size);
+	req_type.set_fil_node(node);
 
 	/* Queue the aio request */
 	dberr_t err = os_aio(
@@ -5293,7 +5305,7 @@ fil_io(
 		mode, name, node->handle, buf, offset, len,
 		space->purpose != FIL_TYPE_TEMPORARY
 		&& srv_read_only_mode,
-		node, message, write_size);
+		node, message);
 
 	/* We an try to recover the page from the double write buffer if
 	the decompression fails or the page is corrupt. */
@@ -6972,4 +6984,27 @@ fil_system_exit(void)
 {
 	ut_ad(mutex_own(&fil_system->mutex));
 	mutex_exit(&fil_system->mutex);
+}
+
+/**
+Get should we punch hole to tablespace.
+@param[in]	node		File node
+@return true, if punch hole should be tried, false if not. */
+bool
+fil_node_should_punch_hole(
+	const fil_node_t*	node)
+{
+	return (node->space->punch_hole);
+}
+
+/**
+Set punch hole to tablespace to given value.
+@param[in]	node		File node
+@param[in]	val		value to be set. */
+void
+fil_space_set_punch_hole(
+	fil_node_t*		node,
+	bool			val)
+{
+	node->space->punch_hole = val;
 }

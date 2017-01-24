@@ -35,6 +35,7 @@ Created 11/5/1995 Heikki Tuuri
 
 #include "page0size.h"
 #include "buf0buf.h"
+#include "os0api.h"
 
 #ifdef UNIV_NONINL
 #include "buf0buf.ic"
@@ -7659,4 +7660,30 @@ buf_page_decrypt_after_read(
 
 	return (success);
 }
+
+/**
+Should we punch hole to deallocate unused portion of the page.
+@param[in]	bpage		Page control block
+@return true if punch hole should be used, false if not */
+bool
+buf_page_should_punch_hole(
+	const buf_page_t* bpage)
+{
+	return (bpage->real_size != bpage->size.physical());
+}
+
+/**
+Calculate the length of trim (punch_hole) operation.
+@param[in]	bpage		Page control block
+@param[in]	write_length	Write length
+@return length of the trim or zero. */
+ulint
+buf_page_get_trim_length(
+	const buf_page_t*	bpage,
+	ulint			write_length)
+{
+	return (bpage->size.physical() - write_length);
+}
+
+
 #endif /* !UNIV_INNOCHECKSUM */

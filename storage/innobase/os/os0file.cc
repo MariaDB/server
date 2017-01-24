@@ -44,6 +44,11 @@ Created 10/21/1995 Heikki Tuuri
 #include "os0file.ic"
 #endif
 
+#ifdef UNIV_LINUX
+#include <sys/types.h>
+#include <sys/stat.h>
+#endif
+
 #include "srv0srv.h"
 #include "srv0start.h"
 #include "fil0fil.h"
@@ -63,16 +68,22 @@ Created 10/21/1995 Heikki Tuuri
 #include <libaio.h>
 #endif /* LINUX_NATIVE_AIO */
 
-#ifdef HAVE_LZ4
-#include <lz4.h>
-#endif
-
-#include <zlib.h>
+#ifdef HAVE_FALLOC_PUNCH_HOLE_AND_KEEP_SIZE
+# include <fcntl.h>
+# include <linux/falloc.h>
+#endif /* HAVE_FALLOC_PUNCH_HOLE_AND_KEEP_SIZE */
 
 #ifdef UNIV_DEBUG
 /** Set when InnoDB has invoked exit(). */
 bool	innodb_calling_exit;
 #endif /* UNIV_DEBUG */
+
+#if defined(UNIV_LINUX) && defined(HAVE_SYS_IOCTL_H)
+# include <sys/ioctl.h>
+# ifndef DFS_IOCTL_ATOMIC_WRITE_SET
+#  define DFS_IOCTL_ATOMIC_WRITE_SET _IOW(0x95, 2, uint)
+# endif
+#endif
 
 #if defined(UNIV_LINUX) && defined(HAVE_SYS_STATVFS_H)
 #include <sys/statvfs.h>
@@ -82,12 +93,8 @@ bool	innodb_calling_exit;
 #include <linux/falloc.h>
 #endif
 
-#ifdef HAVE_LZO
-#include "lzo/lzo1x.h"
-#endif
-
-#ifdef HAVE_SNAPPY
-#include "snappy-c.h"
+#ifdef _WIN32
+#include <winioctl.h>
 #endif
 
 /** Insert buffer segment id */
@@ -216,8 +223,6 @@ struct Slot {
 
 	/** buffer used in i/o */
 	byte*			buf;
-	ulint		is_log;		/*!< 1 if OS_FILE_LOG or 0 */
-	ulint		page_size;      /*!< UNIV_PAGE_SIZE or zip_size */
 
 	/** Buffer pointer used for actual IO. We advance this
 	when partial IO is required and not buf */
@@ -286,7 +291,6 @@ struct Slot {
 	/** Length of the block before it was compressed */
 	uint32			original_len;
 
-	ulint*			write_size;
 };
 
 /** The asynchronous i/o array structure */
@@ -328,8 +332,7 @@ public:
 		const char*	name,
 		void*		buf,
 		os_offset_t	offset,
-		ulint		len,
-		ulint*		write_size)
+		ulint		len)
 		MY_ATTRIBUTE((warn_unused_result));
 
 	/** @return number of reserved slots */
@@ -758,6 +761,107 @@ os_aio_simulated_handler(
 	fil_node_t**	m1,
 	void**		m2,
 	IORequest*	type);
+
+#ifdef _WIN32
+static HANDLE win_get_syncio_event();
+#endif
+
+#ifdef _WIN32
+/**
+ Wrapper around Windows DeviceIoControl() function.
+
+ Works synchronously, also in case for handle opened
+ for async access (i.e with FILE_FLAG_OVERLAPPED).
+
+ Accepts the same parameters as DeviceIoControl(),except
+ last parameter (OVERLAPPED).
+*/
+static
+BOOL
+os_win32_device_io_control(
+	HANDLE handle,
+	DWORD code,
+	LPVOID inbuf,
+	DWORD inbuf_size,
+	LPVOID outbuf,
+	DWORD outbuf_size,
+	LPDWORD bytes_returned
+)
+{
+	OVERLAPPED overlapped = { 0 };
+	overlapped.hEvent = win_get_syncio_event();
+	BOOL result = DeviceIoControl(handle, code, inbuf, inbuf_size, outbuf,
+		outbuf_size, bytes_returned, &overlapped);
+
+	if (!result && (GetLastError() == ERROR_IO_PENDING)) {
+		/* Wait for async io to complete */
+		result = GetOverlappedResult(handle, &overlapped, bytes_returned, TRUE);
+	}
+
+	return result;
+}
+
+#endif
+
+/***********************************************************************//**
+Try to get number of bytes per sector from file system.
+@return	file block size */
+UNIV_INTERN
+ulint
+os_file_get_block_size(
+/*===================*/
+	os_file_t	file,	/*!< in: handle to a file */
+	const char*	name)	/*!< in: file name */
+{
+	ulint		fblock_size = 512;
+
+#if defined(UNIV_LINUX)
+	struct stat local_stat;
+	int		err;
+
+	err = fstat((int)file, &local_stat);
+
+	if (err != 0) {
+		os_file_handle_error_no_exit(name, "fstat()", FALSE);
+	} else {
+		fblock_size = local_stat.st_blksize;
+	}
+#endif /* UNIV_LINUX */
+#ifdef _WIN32
+	DWORD outsize;
+	STORAGE_PROPERTY_QUERY storageQuery;
+	memset(&storageQuery, 0, sizeof(storageQuery));
+	storageQuery.PropertyId = StorageAccessAlignmentProperty;
+	storageQuery.QueryType  = PropertyStandardQuery;
+	STORAGE_ACCESS_ALIGNMENT_DESCRIPTOR diskAlignment;
+
+	BOOL result = os_win32_device_io_control(file,
+		IOCTL_STORAGE_QUERY_PROPERTY,
+		&storageQuery,
+		sizeof(STORAGE_PROPERTY_QUERY),
+		&diskAlignment,
+		sizeof(STORAGE_ACCESS_ALIGNMENT_DESCRIPTOR),
+		&outsize);
+
+	if (!result) {
+		os_file_handle_error_no_exit(name, "DeviceIoControl()", FALSE);
+		fblock_size = 0;
+	}
+
+	fblock_size = diskAlignment.BytesPerPhysicalSector;
+#endif /* _WIN32 */
+
+	/* Currently we support file block size up to 4Kb */
+	if (fblock_size > 4096 || fblock_size < 512) {
+		if (fblock_size < 512) {
+			fblock_size = 512;
+		} else {
+			fblock_size = 4096;
+		}
+	}
+
+	return fblock_size;
+}
 
 #ifdef WIN_ASYNC_IO
 /** This function is only used in Windows asynchronous i/o.
@@ -1443,6 +1547,48 @@ SyncFileIO::execute(const IORequest& request)
 
 	return(n_bytes);
 }
+/** Free storage space associated with a section of the file.
+@param[in]	fh		Open file handle
+@param[in]	off		Starting offset (SEEK_SET)
+@param[in]	len		Size of the hole
+@return DB_SUCCESS or error code */
+static
+dberr_t
+os_file_punch_hole_posix(
+	os_file_t	fh,
+	os_offset_t	off,
+	os_offset_t	len)
+{
+
+#ifdef HAVE_FALLOC_PUNCH_HOLE_AND_KEEP_SIZE
+	const int	mode = FALLOC_FL_PUNCH_HOLE | FALLOC_FL_KEEP_SIZE;
+
+	int		ret = fallocate(fh, mode, off, len);
+
+	if (ret == 0) {
+		return(DB_SUCCESS);
+	}
+
+	if (errno == ENOTSUP) {
+		return(DB_IO_NO_PUNCH_HOLE);
+	}
+
+	ib::warn()
+		<< "fallocate("
+		<<", FALLOC_FL_PUNCH_HOLE | FALLOC_FL_KEEP_SIZE, "
+		<< off << ", " << len << ") returned errno: "
+		<<  errno;
+
+	return(DB_IO_ERROR);
+
+#elif defined(UNIV_SOLARIS)
+
+	// Use F_FREESP
+
+#endif /* HAVE_FALLOC_PUNCH_HOLE_AND_KEEP_SIZE */
+
+	return(DB_IO_NO_PUNCH_HOLE);
+}
 
 #if defined(LINUX_NATIVE_AIO)
 
@@ -1734,7 +1880,18 @@ LinuxAIOHandler::collect()
 			/* We have not overstepped to next segment. */
 			ut_a(slot->pos < end_pos);
 
-			slot->err = DB_SUCCESS;
+			/* Deallocate unused blocks from file system.
+			This is newer done to page 0 or to log files.*/
+			if (slot->offset > 0
+			    && !slot->skip_punch_hole
+			    && !slot->type.is_log()
+			    && slot->type.is_write()
+			    && slot->type.punch_hole()) {
+
+				slot->err = AIOHandler::io_complete(slot);
+			} else {
+				slot->err = DB_SUCCESS;
+			}
 
 			/* Mark this request as completed. The error handling
 			will be done in the calling function. */
@@ -3353,6 +3510,76 @@ struct WinIoInit
 /* Ensures proper initialization and shutdown */
 static WinIoInit win_io_init;
 
+/** Check if the file system supports sparse files.
+@param[in]	 name		File name
+@return true if the file system supports sparse files */
+static
+bool
+os_is_sparse_file_supported_win32(const char* filename)
+{
+	char	volname[MAX_PATH];
+	BOOL	result = GetVolumePathName(filename, volname, MAX_PATH);
+
+	if (!result) {
+
+		ib::error()
+			<< "os_is_sparse_file_supported: "
+			<< "Failed to get the volume path name for: "
+			<< filename
+			<< "- OS error number " << GetLastError();
+
+		return(false);
+	}
+
+	DWORD	flags;
+
+	result = GetVolumeInformation(
+		volname, NULL, MAX_PATH, NULL, NULL,
+		&flags, NULL, MAX_PATH);
+
+
+	if (!result) {
+		ib::error()
+			<< "os_is_sparse_file_supported: "
+			<< "Failed to get the volume info for: "
+			<< volname
+			<< "- OS error number " << GetLastError();
+
+		return(false);
+	}
+
+	return(flags & FILE_SUPPORTS_SPARSE_FILES) ? true : false;
+}
+
+/** Free storage space associated with a section of the file.
+@param[in]	fh		Open file handle
+@param[in]	page_size	Tablespace page size
+@param[in]	block_size	File system block size
+@param[in]	off		Starting offset (SEEK_SET)
+@param[in]	len		Size of the hole
+@return 0 on success or errno */
+static
+dberr_t
+os_file_punch_hole_win32(
+	os_file_t	fh,
+	os_offset_t	off,
+	os_offset_t	len)
+{
+	FILE_ZERO_DATA_INFORMATION	punch;
+
+	punch.FileOffset.QuadPart = off;
+	punch.BeyondFinalZero.QuadPart = off + len;
+
+	/* If lpOverlapped is NULL, lpBytesReturned cannot be NULL,
+	therefore we pass a dummy parameter. */
+	DWORD	temp;
+	BOOL	success = os_win32_device_io_control(
+		fh, FSCTL_SET_ZERO_DATA, &punch, sizeof(punch),
+		NULL, 0, &temp);
+
+	return(success ? DB_SUCCESS: DB_IO_NO_PUNCH_HOLE);
+}
+
 /** Check the existence and type of the given file.
 @param[in]	path		path name of file
 @param[out]	exists		true if the file exists
@@ -3661,9 +3888,9 @@ os_file_create_simple_func(
 			/* This is a best effort use case, if it fails then
 			we will find out when we try and punch the hole. */
 
-			DeviceIoControl(
+			os_win32_device_io_control(
 				file, FSCTL_SET_SPARSE, NULL, 0, NULL, 0,
-				&temp, NULL);
+				&temp);
 		}
 
 	} while (retry);
@@ -4020,9 +4247,9 @@ os_file_create_func(
 
 			/* This is a best effort use case, if it fails then
 			we will find out when we try and punch the hole. */
-			DeviceIoControl(
+			os_win32_device_io_control(
 				file, FSCTL_SET_SPARSE, NULL, 0, NULL, 0,
-				&temp, NULL);
+				&temp);
 		}
 
 	} while (retry);
@@ -4459,28 +4686,6 @@ os_file_get_status_win32(
 		}
 
 		stat_info->block_size = bytesPerSector * sectorsPerCluster;
-
-		/* On Windows the block size is not used as the allocation
-		unit for sparse files. The underlying infra-structure for
-		sparse files is based on NTFS compression. The punch hole
-		is done on a "compression unit". This compression unit
-		is based on the cluster size. You cannot punch a hole if
-		the cluster size >= 8K. For smaller sizes the table is
-		as follows:
-
-		Cluster Size	Compression Unit
-		512 Bytes		 8 KB
-		  1 KB			16 KB
-		  2 KB			32 KB
-		  4 KB			64 KB
-
-		Default NTFS cluster size is 4K, compression unit size of 64K.
-		Therefore unless the user has created the file system with
-		a smaller cluster size and used larger page sizes there is
-		little benefit from compression out of the box. */
-
-		stat_info->block_size = (stat_info->block_size <= 4096)
-			?  stat_info->block_size * 16 : ULINT_UNDEFINED;
 	} else {
 		stat_info->type = OS_FILE_TYPE_UNKNOWN;
 	}
@@ -4615,7 +4820,18 @@ os_file_io(
 		} else if ((ulint) n_bytes + bytes_returned == n) {
 
 			bytes_returned += n_bytes;
-			*err = DB_SUCCESS;
+
+			if (offset > 0
+			    && !type.is_log()
+			    && type.is_write()
+			    && type.punch_hole()) {
+				*err = type.punch_hole(file,
+					static_cast<ulint>(offset),
+					n);
+
+			} else {
+				*err = DB_SUCCESS;
+			}
 
 			return(original_n);
 		}
@@ -4668,7 +4884,7 @@ ssize_t
 os_file_pwrite(
 	IORequest&	type,
 	os_file_t	file,
-	const void*	buf,
+	const byte*	buf,
 	ulint		n,
 	os_offset_t	offset,
 	dberr_t*	err)
@@ -4680,7 +4896,7 @@ os_file_pwrite(
 	(void) my_atomic_addlint(&os_n_pending_writes, 1);
 	MONITOR_ATOMIC_INC(MONITOR_OS_PENDING_WRITES);
 
-	ssize_t	n_bytes = os_file_io(type, file, const_cast<void*>(buf),
+	ssize_t	n_bytes = os_file_io(type, file, const_cast<byte*>(buf),
 				     n, offset, err);
 
 	(void) my_atomic_addlint(&os_n_pending_writes, -1);
@@ -4696,8 +4912,9 @@ os_file_pwrite(
 @param[in]	offset		file offset from the start where to read
 @param[in]	n		number of bytes to read, starting from offset
 @return DB_SUCCESS if request was successful, false if fail */
+static MY_ATTRIBUTE((warn_unused_result))
 dberr_t
-os_file_write_func(
+os_file_write_page(
 	IORequest&	type,
 	const char*	name,
 	os_file_t	file,
@@ -4711,7 +4928,7 @@ os_file_write_func(
 	ut_ad(type.validate());
 	ut_ad(n > 0);
 
-	ssize_t	n_bytes = os_file_pwrite(type, file, buf, n, offset, &err);
+	ssize_t	n_bytes = os_file_pwrite(type, file, (byte*)buf, n, offset, &err);
 
 	if ((ulint) n_bytes != n && !os_has_said_disk_full) {
 
@@ -5195,6 +5412,31 @@ os_file_read_no_error_handling_func(
 	return(os_file_read_page(type, file, buf, offset, n, o, false));
 }
 
+/** NOTE! Use the corresponding macro os_file_write(), not directly
+Requests a synchronous write operation.
+@param[in]	type		IO flags
+@param[in]	file		handle to an open file
+@param[out]	buf		buffer from which to write
+@param[in]	offset		file offset from the start where to read
+@param[in]	n		number of bytes to read, starting from offset
+@return DB_SUCCESS if request was successful, false if fail */
+dberr_t
+os_file_write_func(
+	IORequest&	type,
+	const char*	name,
+	os_file_t	file,
+	const void*	buf,
+	os_offset_t	offset,
+	ulint		n)
+{
+	ut_ad(type.validate());
+	ut_ad(type.is_write());
+
+	const byte*	ptr = reinterpret_cast<const byte*>(buf);
+
+	return(os_file_write_page(type, name, file, ptr, offset, n));
+}
+
 /** Check the existence and type of the given file.
 @param[in]	path		path name of file
 @param[out]	exists		true if the file exists
@@ -5210,6 +5452,110 @@ os_file_status(
 	return(os_file_status_win32(path, exists, type));
 #else
 	return(os_file_status_posix(path, exists, type));
+#endif /* _WIN32 */
+}
+
+/** Free storage space associated with a section of the file.
+@param[in]	fh		Open file handle
+@param[in]	off		Starting offset (SEEK_SET)
+@param[in]	len		Size of the hole
+@return DB_SUCCESS or error code */
+dberr_t
+os_file_punch_hole(
+	os_file_t	fh,
+	os_offset_t	off,
+	os_offset_t	len)
+{
+	dberr_t err;
+
+#ifdef _WIN32
+	err = os_file_punch_hole_win32(fh, off, len);
+#else
+	err = os_file_punch_hole_posix(fh, off, len);
+#endif /* _WIN32 */
+
+	return (err);
+}
+
+/** Free storage space associated with a section of the file.
+@param[in]	fh		Open file handle
+@param[in]	off		Starting offset (SEEK_SET)
+@param[in]	len		Size of the hole
+@return DB_SUCCESS or error code */
+dberr_t
+IORequest::punch_hole(
+	os_file_t	fh,
+	os_offset_t	off,
+	os_offset_t	len)
+{
+	/* In this debugging mode, we act as if punch hole is supported,
+	and then skip any calls to actually punch a hole here.
+	In this way, Transparent Page Compression is still being tested. */
+	DBUG_EXECUTE_IF("ignore_punch_hole",
+		return(DB_SUCCESS);
+	);
+
+	ulint trim_len = get_trim_length(len);
+
+	if (trim_len == 0) {
+		return(DB_SUCCESS);
+	}
+
+	off += len;
+
+	/* Check does file system support punching holes for this
+	tablespace. */
+	if (!should_punch_hole() || !srv_use_trim) {
+		return DB_IO_NO_PUNCH_HOLE;
+	}
+
+	dberr_t err = os_file_punch_hole(fh, off, len);
+
+	if (err == DB_SUCCESS) {
+		srv_stats.page_compressed_trim_op.inc();
+	} else {
+		/* If punch hole is not supported,
+		set space so that it is not used. */
+		if (err == DB_IO_NO_PUNCH_HOLE) {
+			space_no_punch_hole();
+			err = DB_SUCCESS;
+		}
+	}
+
+	return (err);
+}
+
+/** Check if the file system supports sparse files.
+
+Warning: On POSIX systems we try and punch a hole from offset 0 to
+the system configured page size. This should only be called on an empty
+file.
+
+Note: On Windows we use the name and on Unices we use the file handle.
+
+@param[in]	name		File name
+@param[in]	fh		File handle for the file - if opened
+@return true if the file system supports sparse files */
+bool
+os_is_sparse_file_supported(const char* path, os_file_t fh)
+{
+	/* In this debugging mode, we act as if punch hole is supported,
+	then we skip any calls to actually punch a hole.  In this way,
+	Transparent Page Compression is still being tested. */
+	DBUG_EXECUTE_IF("ignore_punch_hole",
+		return(true);
+	);
+
+#ifdef _WIN32
+	return(os_is_sparse_file_supported_win32(path));
+#else
+	dberr_t	err;
+
+	/* We don't know the FS block size, use the sector size. The FS
+	will do the magic. */
+	err = os_file_punch_hole_posix(fh, 0, UNIV_PAGE_SIZE);
+
+	return(err == DB_SUCCESS);
 #endif /* _WIN32 */
 }
 
@@ -5776,12 +6122,7 @@ AIO::reserve_slot(
 	const char*	name,
 	void*		buf,
 	os_offset_t	offset,
-	ulint		len,
-	ulint*		write_size)/*!< in/out: Actual write size initialized
-			       after fist successfull trim
-			       operation for this page and if
-			       initialized we do not trim again if
-			       actual page size does not decrease. */
+	ulint		len)
 {
 #ifdef WIN_ASYNC_IO
 	ut_a((len & 0xFFFFFFFFUL) == len);
@@ -5871,8 +6212,6 @@ AIO::reserve_slot(
 	slot->ptr      = slot->buf;
 	slot->offset   = offset;
 	slot->err      = DB_SUCCESS;
-	slot->write_size = write_size;
-	slot->is_log   = type.is_log();
 	slot->original_len = static_cast<uint32>(len);
 	slot->io_already_done = false;
 	slot->buf      = static_cast<byte*>(buf);
@@ -6225,6 +6564,7 @@ Requests an asynchronous i/o operation.
 @param[in,out]	m2		message for the AIO handler (can be used to
 				identify a completed AIO operation); ignored
 				if mode is OS_AIO_SYNC
+
 @return DB_SUCCESS or error code */
 dberr_t
 os_aio_func(
@@ -6237,12 +6577,7 @@ os_aio_func(
 	ulint		n,
 	bool		read_only,
 	fil_node_t*	m1,
-	void*		m2,
-	ulint*		write_size)/*!< in/out: Actual write size initialized
-			       after fist successfull trim
-			       operation for this page and if
-			       initialized we do not trim again if
-			       actual page size does not decrease. */
+	void*		m2)
 {
 #ifdef WIN_ASYNC_IO
 	BOOL		ret = TRUE;
@@ -6278,7 +6613,7 @@ try_again:
 
 	Slot*	slot;
 
-	slot = array->reserve_slot(type, m1, m2, file, name, buf, offset, n, write_size);
+	slot = array->reserve_slot(type, m1, m2, file, name, buf, offset, n);
 
 	if (type.is_read()) {
 

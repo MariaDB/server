@@ -184,7 +184,7 @@ my_bool	srv_use_native_aio = TRUE;
 my_bool	srv_numa_interleave = FALSE;
 /* If this flag is TRUE, then we will use fallocate(PUCH_HOLE)
 to the pages */
-UNIV_INTERN my_bool	srv_use_trim = FALSE;
+UNIV_INTERN my_bool	srv_use_trim;
 /* If this flag is TRUE, then we disable doublewrite buffer */
 UNIV_INTERN my_bool	srv_use_atomic_writes = FALSE;
 /* If this flag IS TRUE, then we use this algorithm for page compressing the pages */
@@ -1617,13 +1617,10 @@ srv_export_innodb_status(void)
 
 	export_vars.innodb_available_undo_logs = srv_available_undo_logs;
 	export_vars.innodb_page_compression_saved = srv_stats.page_compression_saved;
-	export_vars.innodb_page_compression_trim_sect512 = srv_stats.page_compression_trim_sect512;
-	export_vars.innodb_page_compression_trim_sect4096 = srv_stats.page_compression_trim_sect4096;
 	export_vars.innodb_index_pages_written = srv_stats.index_pages_written;
 	export_vars.innodb_non_index_pages_written = srv_stats.non_index_pages_written;
 	export_vars.innodb_pages_page_compressed = srv_stats.pages_page_compressed;
 	export_vars.innodb_page_compressed_trim_op = srv_stats.page_compressed_trim_op;
-	export_vars.innodb_page_compressed_trim_op_saved = srv_stats.page_compressed_trim_op_saved;
 	export_vars.innodb_pages_page_decompressed = srv_stats.pages_page_decompressed;
 	export_vars.innodb_pages_page_compression_error = srv_stats.pages_page_compression_error;
 	export_vars.innodb_pages_decrypted = srv_stats.pages_decrypted;

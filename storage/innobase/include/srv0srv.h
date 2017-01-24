@@ -114,20 +114,6 @@ struct srv_stats_t {
 
 	/** Number of bytes saved by page compression */
 	ulint_ctr_64_t          page_compression_saved;
-	/** Number of 512Byte TRIM by page compression */
-	ulint_ctr_64_t          page_compression_trim_sect512;
-	/** Number of 1K TRIM by page compression */
-	ulint_ctr_64_t          page_compression_trim_sect1024;
-	/** Number of 2K TRIM by page compression */
-	ulint_ctr_64_t          page_compression_trim_sect2048;
-	/** Number of 4K TRIM  by page compression */
-	ulint_ctr_64_t          page_compression_trim_sect4096;
-	/** Number of 8K TRIM by page compression */
-	ulint_ctr_64_t          page_compression_trim_sect8192;
-	/** Number of 16K TRIM by page compression */
-	ulint_ctr_64_t          page_compression_trim_sect16384;
-	/** Number of 32K TRIM by page compression */
-	ulint_ctr_64_t          page_compression_trim_sect32768;
 	/* Number of index pages written */
 	ulint_ctr_64_t          index_pages_written;
 	/* Number of non index pages written */
@@ -136,8 +122,6 @@ struct srv_stats_t {
         ulint_ctr_64_t          pages_page_compressed;
 	/* Number of TRIM operations induced by page compression */
         ulint_ctr_64_t          page_compressed_trim_op;
-	/* Number of TRIM operations saved by using actual write size knowledge */
-        ulint_ctr_64_t          page_compressed_trim_op_saved;
 	/* Number of pages decompressed with page compression */
         ulint_ctr_64_t          pages_page_decompressed;
 	/* Number of page compression errors */
@@ -1059,20 +1043,6 @@ struct export_var_t{
 
 	int64_t innodb_page_compression_saved;/*!< Number of bytes saved
 						by page compression */
-	int64_t innodb_page_compression_trim_sect512;/*!< Number of 512b TRIM
-						by page compression */
-	int64_t innodb_page_compression_trim_sect1024;/*!< Number of 1K TRIM
-						by page compression */
-	int64_t innodb_page_compression_trim_sect2048;/*!< Number of 2K TRIM
-						by page compression */
-	int64_t innodb_page_compression_trim_sect4096;/*!< Number of 4K byte TRIM
-						by page compression */
-	int64_t innodb_page_compression_trim_sect8192;/*!< Number of 8K TRIM
-						by page compression */
-	int64_t innodb_page_compression_trim_sect16384;/*!< Number of 16K TRIM
-						by page compression */
-	int64_t innodb_page_compression_trim_sect32768;/*!< Number of 32K TRIM
-						by page compression */
 	int64_t innodb_index_pages_written;  /*!< Number of index pages
 						written */
 	int64_t innodb_non_index_pages_written;  /*!< Number of non index pages
@@ -1081,8 +1051,6 @@ struct export_var_t{
 						compressed by page compression */
 	int64_t innodb_page_compressed_trim_op;/*!< Number of TRIM operations
 						induced by page compression */
-	int64_t innodb_page_compressed_trim_op_saved;/*!< Number of TRIM operations
-						saved by page compression */
 	int64_t innodb_pages_page_decompressed;/*!< Number of pages
 						decompressed by page
 						compression */

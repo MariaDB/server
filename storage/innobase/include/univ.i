@@ -366,6 +366,12 @@ typedef enum innodb_file_formats_enum innodb_file_formats_t;
 #define IF_SNAPPY(A,B) B
 #endif
 
+#if defined (HAVE_FALLOC_PUNCH_HOLE_AND_KEEP_SIZE) || defined(_WIN32)
+#define IF_PUNCH_HOLE(A,B) A
+#else
+#define IF_PUNCH_HOLE(A,B) B
+#endif
+
 /** The universal page size of the database */
 #define UNIV_PAGE_SIZE		((ulint) srv_page_size)
 

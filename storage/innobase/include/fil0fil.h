@@ -185,6 +185,10 @@ struct fil_space_t {
 	@param[in]	n_reserved	number of reserved extents */
 	void release_free_extents(ulint n_reserved);
 
+	/** True if file system storing this tablespace supports
+	punch hole */
+	bool		punch_hole;
+
 	ulint		magic_n;/*!< FIL_SPACE_MAGIC_N */
 };
 
@@ -229,11 +233,11 @@ struct fil_node_t {
 	/** link to the fil_system->LRU list (keeping track of open files) */
 	UT_LIST_NODE_T(fil_node_t) LRU;
 
-	/** block size to use for punching holes */
-	ulint		block_size;
-
 	/** whether this file could use atomic write (data file) */
 	bool		atomic_write;
+
+	/** Filesystem block size */
+	ulint		block_size;
 
 	/** FIL_NODE_MAGIC_N */
 	ulint		magic_n;
@@ -1129,11 +1133,6 @@ fil_space_get_n_reserved_extents(
 				aligned
 @param[in]	message		message for aio handler if non-sync aio
 				used, else ignored
-@param[in,out]	write_size	Actual write size initialized
-				after fist successfull trim
-				operation for this page and if
-				nitialized we do not trim again if
-				Actual page
 
 @return DB_SUCCESS, DB_TABLESPACE_DELETED or DB_TABLESPACE_TRUNCATED
 if we are trying to do i/o on a tablespace which does not exist */
@@ -1146,8 +1145,7 @@ fil_io(
 	ulint			byte_offset,
 	ulint			len,
 	void*			buf,
-	void*			message,
-	ulint*			write_size);
+	void*			message);
 /**********************************************************************//**
 Waits for an aio operation to complete. This function is used to write the
 handler for completed requests. The aio array of pending requests is divided

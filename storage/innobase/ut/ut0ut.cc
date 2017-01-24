@@ -761,6 +761,8 @@ ut_strerr(
 	case DB_NO_FK_ON_S_BASE_COL:
 		return("Cannot add foreign key on the base column "
 		       "of stored column");
+	case DB_IO_NO_PUNCH_HOLE:
+		return ("File system does not support punch hole (trim) operation.");
 
 	/* do not add default: in order to produce a warning if new code
 	is added to the enum but not added here */

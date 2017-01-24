@@ -927,6 +927,7 @@ static ibool innodb_have_lz4=IF_LZ4(1, 0);
 static ibool innodb_have_lzma=IF_LZMA(1, 0);
 static ibool innodb_have_bzip2=IF_BZIP2(1, 0);
 static ibool innodb_have_snappy=IF_SNAPPY(1, 0);
+static ibool innodb_have_punch_hole=IF_PUNCH_HOLE(1, 0);
 
 static
 int
@@ -1134,20 +1135,6 @@ static SHOW_VAR innodb_status_variables[]= {
   /* Status variables for page compression */
   {"page_compression_saved",
    (char*) &export_vars.innodb_page_compression_saved,    SHOW_LONGLONG},
-  {"page_compression_trim_sect512",
-   (char*) &export_vars.innodb_page_compression_trim_sect512,    SHOW_LONGLONG},
-  {"page_compression_trim_sect1024",
-   (char*) &export_vars.innodb_page_compression_trim_sect1024,    SHOW_LONGLONG},
-  {"page_compression_trim_sect2048",
-   (char*) &export_vars.innodb_page_compression_trim_sect2048,    SHOW_LONGLONG},
-  {"page_compression_trim_sect4096",
-   (char*) &export_vars.innodb_page_compression_trim_sect4096,    SHOW_LONGLONG},
-  {"page_compression_trim_sect8192",
-   (char*) &export_vars.innodb_page_compression_trim_sect8192,    SHOW_LONGLONG},
-  {"page_compression_trim_sect16384",
-   (char*) &export_vars.innodb_page_compression_trim_sect16384,    SHOW_LONGLONG},
-  {"page_compression_trim_sect32768",
-   (char*) &export_vars.innodb_page_compression_trim_sect32768,    SHOW_LONGLONG},
   {"num_index_pages_written",
    (char*) &export_vars.innodb_index_pages_written,       SHOW_LONGLONG},
   {"num_non_index_pages_written",
@@ -1156,8 +1143,6 @@ static SHOW_VAR innodb_status_variables[]= {
    (char*) &export_vars.innodb_pages_page_compressed,     SHOW_LONGLONG},
   {"num_page_compressed_trim_op",
    (char*) &export_vars.innodb_page_compressed_trim_op,     SHOW_LONGLONG},
-  {"num_page_compressed_trim_op_saved",
-   (char*) &export_vars.innodb_page_compressed_trim_op_saved,     SHOW_LONGLONG},
   {"num_pages_page_decompressed",
    (char*) &export_vars.innodb_pages_page_decompressed,   SHOW_LONGLONG},
   {"num_pages_page_compression_error",
@@ -1176,6 +1161,8 @@ static SHOW_VAR innodb_status_variables[]= {
   (char*) &innodb_have_bzip2,		  SHOW_BOOL},
   {"have_snappy",
   (char*) &innodb_have_snappy,		  SHOW_BOOL},
+  {"have_punch_hole",
+  (char*) &innodb_have_punch_hole,	  SHOW_BOOL},
 
   /* Defragmentation */
   {"defragment_compression_failures",
@@ -3829,6 +3816,10 @@ static const char*	deprecated_file_format_check
 /** Deprecation message about innodb_file_format_max */
 static const char*	deprecated_file_format_max
 	= DEPRECATED_FORMAT_PARAMETER("innodb_file_format_max");
+
+/** Deprecation message about innodb_use_trim */
+static const char*	deprecated_use_trim
+	= DEPRECATED_FORMAT_PARAMETER("innodb_use_trim");
 
 /** Update log_checksum_algorithm_ptr with a pointer to the function
 corresponding to whether checksums are enabled.
@@ -20660,6 +20651,25 @@ wsrep_fake_trx_id(
 
 #endif /* WITH_WSREP */
 
+/** Update the innodb_use_trim parameter.
+@param[in]	thd	thread handle
+@param[in]	var	system variable
+@param[out]	var_ptr	current value
+@param[in]	save	immediate result from check function */
+static
+void
+innodb_use_trim_update(
+	THD*				thd,
+	struct st_mysql_sys_var*	var,
+	void*				var_ptr,
+	const void*			save)
+{
+	srv_use_trim = *static_cast<const my_bool*>(save);
+
+	push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
+		     HA_ERR_WRONG_COMMAND, deprecated_use_trim);
+}
+
 /* plugin options */
 
 static MYSQL_SYSVAR_ENUM(checksum_algorithm, srv_checksum_algorithm,
@@ -21761,8 +21771,8 @@ static MYSQL_SYSVAR_BOOL(force_primary_key,
 
 static MYSQL_SYSVAR_BOOL(use_trim, srv_use_trim,
   PLUGIN_VAR_OPCMDARG,
-  "Use trim. Default FALSE.",
-  NULL, NULL, FALSE);
+  "Deallocate (punch_hole|trim) unused portions of the page compressed page (on by default)",
+  NULL, innodb_use_trim_update, TRUE);
 
 static const char *page_compression_algorithms[]= { "none", "zlib", "lz4", "lzo", "lzma", "bzip2", "snappy", 0 };
 static TYPELIB page_compression_algorithms_typelib=

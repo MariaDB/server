@@ -591,7 +591,7 @@ buf_dblwr_process(void)
 		dberr_t	err = fil_io(
 			request, true,
 			page_id, page_size,
-			0, page_size.physical(), read_buf, NULL, NULL);
+				0, page_size.physical(), read_buf, NULL);
 
 		if (err != DB_SUCCESS) {
 			ib::warn()
@@ -679,7 +679,7 @@ buf_dblwr_process(void)
 
 		fil_io(write_request, true, page_id, page_size,
 		       0, page_size.physical(),
-		       const_cast<byte*>(page), NULL, NULL);
+				const_cast<byte*>(page), NULL);
 
 		ib::info() << "Recovered page " << page_id
 			<< " from the doublewrite buffer.";
@@ -912,7 +912,7 @@ buf_dblwr_write_block_to_datafile(
 		type |= IORequest::DO_NOT_WAKE;
 	}
 
-	IORequest	request(type);
+	IORequest	request(type, const_cast<buf_page_t*>(bpage));
 
 	/* We request frame here to get correct buffer in case of
 	encryption and/or page compression */
@@ -924,7 +924,7 @@ buf_dblwr_write_block_to_datafile(
 		fil_io(request, sync, bpage->id, bpage->size, 0,
 		       bpage->size.physical(),
 		       (void*) frame,
-		       (void*) bpage, NULL);
+		       (void*) bpage);
 	} else {
 		ut_ad(!bpage->size.is_compressed());
 
@@ -938,8 +938,8 @@ buf_dblwr_write_block_to_datafile(
 		buf_dblwr_check_page_lsn(block->frame);
 
 		fil_io(request,
-		       sync, bpage->id, bpage->size, 0, bpage->size.physical(),
-		       frame, block, (ulint *)&bpage->write_size);
+			sync, bpage->id, bpage->size, 0, bpage->real_size,
+			frame, block);
 	}
 }
 
@@ -1041,7 +1041,7 @@ try_again:
 
 	fil_io(IORequestWrite, true,
 	       page_id_t(TRX_SYS_SPACE, buf_dblwr->block1), univ_page_size,
-	       0, len, (void*) write_buf, NULL, NULL);
+	       0, len, (void*) write_buf, NULL);
 
 	if (buf_dblwr->first_free <= TRX_SYS_DOUBLEWRITE_BLOCK_SIZE) {
 		/* No unwritten pages in the second block. */
@@ -1057,7 +1057,7 @@ try_again:
 
 	fil_io(IORequestWrite, true,
 	       page_id_t(TRX_SYS_SPACE, buf_dblwr->block2), univ_page_size,
-	       0, len, (void*) write_buf, NULL, NULL);
+	       0, len, (void*) write_buf, NULL);
 
 flush:
 	/* increment the doublewrite flushed pages counter */
@@ -1292,7 +1292,6 @@ retry:
 		       0,
 		       univ_page_size.physical(),
 		       (void *)(buf_dblwr->write_buf + univ_page_size.physical() * i),
-		       NULL,
 		       NULL);
 	} else {
 		/* It is a regular page. Write it directly to the
@@ -1304,7 +1303,6 @@ retry:
 		       0,
 		       univ_page_size.physical(),
 		       (void*) frame,
-		       NULL,
 		       NULL);
 	}
 

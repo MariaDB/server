@@ -160,6 +160,9 @@ enum dberr_t {
 					placed on the base column of
 					stored column */
 
+	DB_IO_NO_PUNCH_HOLE,		/*!< Punch hole not supported by
+					file system. */
+
 	/* The following are partial failure codes */
 	DB_FAIL = 1000,
 	DB_OVERFLOW,

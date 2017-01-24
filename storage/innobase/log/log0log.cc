@@ -1019,7 +1019,7 @@ log_group_file_header_flush(
 	       page_id_t(group->space_id, page_no),
 	       univ_page_size,
 	       (ulint) (dest_offset % univ_page_size.physical()),
-	       OS_FILE_LOG_BLOCK_SIZE, buf, group, NULL);
+	       OS_FILE_LOG_BLOCK_SIZE, buf, group);
 
 	srv_stats.os_log_pending_writes.dec();
 }
@@ -1144,7 +1144,7 @@ loop:
 	       page_id_t(group->space_id, page_no),
 	       univ_page_size,
 	       (ulint) (next_offset % UNIV_PAGE_SIZE), write_len, buf,
-	       group, NULL);
+	       group);
 
 	srv_stats.os_log_pending_writes.dec();
 
@@ -1664,7 +1664,7 @@ log_group_checkpoint(
 	       (log_sys->next_checkpoint_no & 1)
 	       ? LOG_CHECKPOINT_2 : LOG_CHECKPOINT_1,
 	       OS_FILE_LOG_BLOCK_SIZE,
-	       buf, (byte*) group + 1, NULL);
+	       buf, (byte*) group + 1);
 
 	ut_ad(((ulint) group & 0x1UL) == 0);
 }
@@ -1686,7 +1686,7 @@ log_group_header_read(
 	fil_io(IORequestLogRead, true,
 	       page_id_t(group->space_id, header / univ_page_size.physical()),
 	       univ_page_size, header % univ_page_size.physical(),
-	       OS_FILE_LOG_BLOCK_SIZE, log_sys->checkpoint_buf, NULL, NULL);
+	       OS_FILE_LOG_BLOCK_SIZE, log_sys->checkpoint_buf, NULL);
 }
 
 /** Write checkpoint info to the log header and invoke log_mutex_exit().
@@ -2038,7 +2038,7 @@ loop:
 	       page_id_t(group->space_id, page_no),
 	       univ_page_size,
 	       (ulint) (source_offset % univ_page_size.physical()),
-	       len, buf, NULL, NULL);
+	       len, buf, NULL);
 
 #ifdef DEBUG_CRYPT
 	fprintf(stderr, "BEFORE DECRYPT: block: %lu checkpoint: %lu %.8lx %.8lx offset %lu\n",

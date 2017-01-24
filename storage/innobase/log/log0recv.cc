@@ -869,7 +869,7 @@ recv_log_format_0_recover(lsn_t lsn)
 	       univ_page_size,
 	       (ulint) ((source_offset & ~(OS_FILE_LOG_BLOCK_SIZE - 1))
 			% univ_page_size.physical()),
-		OS_FILE_LOG_BLOCK_SIZE, buf, NULL, NULL);
+		OS_FILE_LOG_BLOCK_SIZE, buf, NULL);
 
 	if (log_block_calc_checksum_format_0(buf)
 	    != log_block_get_checksum(buf)) {
