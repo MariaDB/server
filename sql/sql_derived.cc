@@ -1099,6 +1099,11 @@ bool mysql_derived_reinit(THD *thd, LEX *lex, TABLE_LIST *derived)
   unit->types.empty();
   /* for derived tables & PS (which can't be reset by Item_subselect) */
   unit->reinit_exec_mechanism();
+  for (st_select_lex *sl= unit->first_select(); sl; sl= sl->next_select())
+  {
+    sl->cond_pushed_into_where= NULL;
+    sl->cond_pushed_into_having= NULL;
+  }
   unit->set_thd(thd);
   DBUG_RETURN(FALSE);
 }
