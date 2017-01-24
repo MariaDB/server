@@ -58,12 +58,14 @@ Geometry::Class_info *Geometry::ci_collection[Geometry::wkb_last+1]=
 static Geometry::Class_info **ci_collection_end=
                                 Geometry::ci_collection+Geometry::wkb_last + 1;
 
-Geometry::Class_info::Class_info(const char *name, int type_id,
-                                 create_geom_t create_func):
+Geometry::Class_info::Class_info(const char *name, const char *geojson_name,
+                                 int type_id, create_geom_t create_func):
   m_type_id(type_id), m_create_func(create_func)
 {
   m_name.str= (char *) name;
   m_name.length= strlen(name);
+  m_geojson_name.str= (char *) geojson_name;
+  m_geojson_name.length= strlen(geojson_name);
 
   ci_collection[type_id]= this;
 }
@@ -105,26 +107,27 @@ static Geometry *create_geometrycollection(char *buffer)
 
 
 
-static Geometry::Class_info point_class("POINT",
+static Geometry::Class_info point_class("POINT", "Point",
 					Geometry::wkb_point, create_point);
 
-static Geometry::Class_info linestring_class("LINESTRING",
+static Geometry::Class_info linestring_class("LINESTRING", "LineString",
 					     Geometry::wkb_linestring,
 					     create_linestring);
-static Geometry::Class_info polygon_class("POLYGON",
+static Geometry::Class_info polygon_class("POLYGON", "Polygon",
 					      Geometry::wkb_polygon,
 					      create_polygon);
-static Geometry::Class_info multipoint_class("MULTIPOINT",
+static Geometry::Class_info multipoint_class("MULTIPOINT", "MultiPoint",
 						 Geometry::wkb_multipoint,
 						 create_multipoint);
 static Geometry::Class_info 
-multilinestring_class("MULTILINESTRING",
+multilinestring_class("MULTILINESTRING", "MultiLineString",
 		      Geometry::wkb_multilinestring, create_multilinestring);
-static Geometry::Class_info multipolygon_class("MULTIPOLYGON",
+static Geometry::Class_info multipolygon_class("MULTIPOLYGON", "MultiPolygon",
 						   Geometry::wkb_multipolygon,
 						   create_multipolygon);
 static Geometry::Class_info 
-geometrycollection_class("GEOMETRYCOLLECTION",Geometry::wkb_geometrycollection,
+geometrycollection_class("GEOMETRYCOLLECTION", "GeometryCollection",
+                         Geometry::wkb_geometrycollection,
 			 create_geometrycollection);
 
 static void get_point(double *x, double *y, const char *data)
@@ -251,14 +254,14 @@ static const int feature_coll_type_len= 17;
 
 int Geometry::as_json(String *wkt, uint max_dec_digits, const char **end)
 {
-  uint32 len= (uint) get_class_info()->m_name.length;
+  uint32 len= (uint) get_class_info()->m_geojson_name.length;
   if (wkt->reserve(4 + type_keyname_len + 2 + len + 2 + 2 +
                    coord_keyname_len + 4, 512))
     return 1;
   wkt->qs_append("{\"", 2);
   wkt->qs_append((const char *) type_keyname, type_keyname_len);
   wkt->qs_append("\": \"", 4);
-  wkt->qs_append(get_class_info()->m_name.str, len);
+  wkt->qs_append(get_class_info()->m_geojson_name.str, len);
   wkt->qs_append("\", \"", 4);
   if (get_class_info() == &geometrycollection_class)
     wkt->qs_append((const char *) geometries_keyname, geometries_keyname_len);

@@ -265,9 +265,11 @@ public:
   {
   public:
     LEX_STRING m_name;
+    LEX_STRING m_geojson_name;
     int m_type_id;
     create_geom_t m_create_func;
-    Class_info(const char *name, int type_id, create_geom_t create_func);
+    Class_info(const char *name, const char *gejson_name,
+               int type_id, create_geom_t create_func);
   };
 
   virtual const Class_info *get_class_info() const=0;

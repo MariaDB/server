@@ -1,24 +1,24 @@
 select st_asgeojson(geomfromtext('POINT(1 1)'));
 st_asgeojson(geomfromtext('POINT(1 1)'))
-{"type": "POINT", "coordinates": [1, 1]}
+{"type": "Point", "coordinates": [1, 1]}
 select st_asgeojson(geomfromtext('LINESTRING(10 10,20 10,20 20,10 20,10 10)'));
 st_asgeojson(geomfromtext('LINESTRING(10 10,20 10,20 20,10 20,10 10)'))
-{"type": "LINESTRING", "coordinates": [[10, 10], [20, 10], [20, 20], [10, 20], [10, 10]]}
+{"type": "LineString", "coordinates": [[10, 10], [20, 10], [20, 20], [10, 20], [10, 10]]}
 select st_asgeojson(geomfromtext('POLYGON((10 10,20 10,20 20,10 20,10 10))'));
 st_asgeojson(geomfromtext('POLYGON((10 10,20 10,20 20,10 20,10 10))'))
-{"type": "POLYGON", "coordinates": [[[10, 10], [20, 10], [20, 20], [10, 20], [10, 10]]]}
+{"type": "Polygon", "coordinates": [[[10, 10], [20, 10], [20, 20], [10, 20], [10, 10]]]}
 select st_asgeojson(geomfromtext('MULTIPOLYGON(((10 10,20 10,20 20,10 20,10 10)))'));
 st_asgeojson(geomfromtext('MULTIPOLYGON(((10 10,20 10,20 20,10 20,10 10)))'))
-{"type": "MULTIPOLYGON", "coordinates": [[[[10, 10], [20, 10], [20, 20], [10, 20], [10, 10]]]]}
+{"type": "MultiPolygon", "coordinates": [[[[10, 10], [20, 10], [20, 20], [10, 20], [10, 10]]]]}
 select st_asgeojson(geomfromtext('multilinestring((10 10,20 10,20 20,10 20,10 10))'));
 st_asgeojson(geomfromtext('multilinestring((10 10,20 10,20 20,10 20,10 10))'))
-{"type": "MULTILINESTRING", "coordinates": [[[10, 10], [20, 10], [20, 20], [10, 20], [10, 10]]]}
+{"type": "MultiLineString", "coordinates": [[[10, 10], [20, 10], [20, 20], [10, 20], [10, 10]]]}
 select st_asgeojson(geomfromtext('multipoint(10 10,20 10,20 20,10 20,10 10)'));
 st_asgeojson(geomfromtext('multipoint(10 10,20 10,20 20,10 20,10 10)'))
-{"type": "MULTIPOINT", "coordinates": [[10, 10], [20, 10], [20, 20], [10, 20], [10, 10]]}
+{"type": "MultiPoint", "coordinates": [[10, 10], [20, 10], [20, 20], [10, 20], [10, 10]]}
 select st_asgeojson(st_geomfromtext('GEOMETRYCOLLECTION(POINT(100 0),LINESTRING(101 0,102 1))'));
 st_asgeojson(st_geomfromtext('GEOMETRYCOLLECTION(POINT(100 0),LINESTRING(101 0,102 1))'))
-{"type": "GEOMETRYCOLLECTION", "geometries": [{"type": "POINT", "coordinates": [100, 0]}, {"type": "LINESTRING", "coordinates": [[101, 0], [102, 1]]}]}
+{"type": "GeometryCollection", "geometries": [{"type": "Point", "coordinates": [100, 0]}, {"type": "LineString", "coordinates": [[101, 0], [102, 1]]}]}
 SELECT st_astext(st_geomfromgeojson('{"type":"point","coordinates":[1,2]}'));
 st_astext(st_geomfromgeojson('{"type":"point","coordinates":[1,2]}'))
 POINT(1 2)
