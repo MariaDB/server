@@ -1778,6 +1778,7 @@ static void cleanup()
   my_free(const_cast<char*>(dirname_for_local_load));
   my_free(start_datetime_str);
   my_free(stop_datetime_str);
+  delete_dynamic(&binlog_events);
 
   delete binlog_filter;
   delete glob_description_event;
@@ -3030,7 +3031,6 @@ int main(int argc, char** argv)
     }
     fprintf(result_file, "COMMIT\n/*!*/;\n");
   }
-  delete_dynamic(&binlog_events);
 
   /* Set delimiter back to semicolon */
   if (!stop_event_string.is_empty())
