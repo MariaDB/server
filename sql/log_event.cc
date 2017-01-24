@@ -11765,27 +11765,18 @@ Write_rows_log_event::do_exec_row(rpl_group_info *rgi)
 {
   DBUG_ASSERT(m_table != NULL);
   const char *tmp= thd->get_proc_info();
-  char *tmp_db= thd->db;
-  char *message, msg[128];
-  my_snprintf(msg, sizeof(msg),"Write_rows_log_event::write_row() on table %s",
-                   m_table->s->table_name.str);
-  thd->db= m_table->s->db.str;
-  message= msg;
+  const char *message= "Write_rows_log_event::write_row()";
 
 #ifdef WSREP_PROC_INFO
   my_snprintf(thd->wsrep_info, sizeof(thd->wsrep_info) - 1,
-              "Write_rows_log_event::write_row(%lld) on table %s",
-              (long long) wsrep_thd_trx_seqno(thd), m_table->s->table_name.str);
+              "Write_rows_log_event::write_row(%lld)",
+              (long long) wsrep_thd_trx_seqno(thd));
   message= thd->wsrep_info;
 #endif /* WSREP_PROC_INFO */
 
   thd_proc_info(thd, message);
-  DBUG_EXECUTE_IF("should_sleep_for_mdev7409",{
-                  my_sleep(500000);
-                  };);
   int error= write_row(rgi, slave_exec_mode == SLAVE_EXEC_MODE_IDEMPOTENT);
   thd_proc_info(thd, tmp);
-  thd->db= tmp_db;
 
   if (error && !thd->is_error())
   {
@@ -12381,45 +12372,32 @@ int Delete_rows_log_event::do_exec_row(rpl_group_info *rgi)
 {
   int error;
   const char *tmp= thd->get_proc_info();
-  char *tmp_db= thd->db;
-  char *message, msg[128];
-  my_snprintf(msg, sizeof(msg),"Delete_rows_log_event::find_row() on table %s",
-                   m_table->s->table_name.str);
-  thd->db= m_table->s->db.str;
-  message= msg;
+  const char *message= "Delete_rows_log_event::find_row()";
   const bool invoke_triggers=
     slave_run_triggers_for_rbr && !master_had_triggers && m_table->triggers;
   DBUG_ASSERT(m_table != NULL);
 
 #ifdef WSREP_PROC_INFO
   my_snprintf(thd->wsrep_info, sizeof(thd->wsrep_info) - 1,
-              "Delete_rows_log_event::find_row(%lld) on table %s",
-              (long long) wsrep_thd_trx_seqno(thd), m_table->s->table_name.str) ;
+              "Delete_rows_log_event::find_row(%lld)",
+              (long long) wsrep_thd_trx_seqno(thd));
   message= thd->wsrep_info;
 #endif /* WSREP_PROC_INFO */
 
   thd_proc_info(thd, message);
-  DBUG_EXECUTE_IF("should_sleep_for_mdev7409",{
-                  my_sleep(500000);
-                  };);
   if (!(error= find_row(rgi))) 
   { 
     /*
       Delete the record found, located in record[0]
     */
-    my_snprintf(msg, sizeof(msg),"Delete_rows_log_event::ha_delete_row() on table %s",
-                   m_table->s->table_name.str);
-    message= msg;
+    message= "Delete_rows_log_event::ha_delete_row()";
 #ifdef WSREP_PROC_INFO
     snprintf(thd->wsrep_info, sizeof(thd->wsrep_info) - 1,
-             "Delete_rows_log_event::ha_delete_row(%lld) on table %s",
-              (long long) wsrep_thd_trx_seqno(thd), m_table->s->table_name.str) ;
+             "Delete_rows_log_event::ha_delete_row(%lld)",
+             (long long) wsrep_thd_trx_seqno(thd));
     message= thd->wsrep_info;
 #endif
     thd_proc_info(thd, message);
-    DBUG_EXECUTE_IF("should_sleep_for_mdev7409",{
-                  my_sleep(500000);
-                  };);
 
     if (invoke_triggers &&
         process_triggers(TRG_EVENT_DELETE, TRG_ACTION_BEFORE, FALSE))
@@ -12436,7 +12414,6 @@ int Delete_rows_log_event::do_exec_row(rpl_group_info *rgi)
     m_table->file->ha_index_or_rnd_end();
   }
   thd_proc_info(thd, tmp);
-  thd->db= tmp_db;
   return error;
 }
 
@@ -12555,26 +12532,17 @@ Update_rows_log_event::do_exec_row(rpl_group_info *rgi)
   const bool invoke_triggers=
     slave_run_triggers_for_rbr && !master_had_triggers && m_table->triggers;
   const char *tmp= thd->get_proc_info();
-  char *tmp_db= thd->db;
-  char *message, msg[128];
+  const char *message= "Update_rows_log_event::find_row()";
   DBUG_ASSERT(m_table != NULL);
-  my_snprintf(msg, sizeof(msg),"Update_rows_log_event::find_row() on table %s",
-                   m_table->s->table_name.str);
-  thd->db= m_table->s->db.str;
-  message= msg;
 
 #ifdef WSREP_PROC_INFO
   my_snprintf(thd->wsrep_info, sizeof(thd->wsrep_info) - 1,
-              "Update_rows_log_event::find_row(%lld) on table %s",
-              (long long) wsrep_thd_trx_seqno(thd), m_table->s->table_name.str) ;
+              "Update_rows_log_event::find_row(%lld)",
+              (long long) wsrep_thd_trx_seqno(thd));
   message= thd->wsrep_info;
 #endif /* WSREP_PROC_INFO */
 
   thd_proc_info(thd, message);
-  DBUG_EXECUTE_IF("should_sleep_for_mdev7409",{
-                  my_sleep(500000);
-                  };);
-
   int error= find_row(rgi); 
   if (error)
   {
@@ -12585,7 +12553,6 @@ Update_rows_log_event::do_exec_row(rpl_group_info *rgi)
     if ((m_curr_row= m_curr_row_end))
       unpack_current_row(rgi, &m_cols_ai);
     thd_proc_info(thd, tmp);
-    thd->db= tmp_db;
     return error;
   }
 
@@ -12603,21 +12570,16 @@ Update_rows_log_event::do_exec_row(rpl_group_info *rgi)
   store_record(m_table,record[1]);
 
   m_curr_row= m_curr_row_end;
-  my_snprintf(msg, sizeof(msg),"Update_rows_log_event::unpack_current_row() on table %s",
-             m_table->s->table_name.str);
-  message= msg;
+  message= "Update_rows_log_event::unpack_current_row()";
 #ifdef WSREP_PROC_INFO
   my_snprintf(thd->wsrep_info, sizeof(thd->wsrep_info) - 1,
-              "Update_rows_log_event::unpack_current_row(%lld) on table %s",
-              (long long) wsrep_thd_trx_seqno(thd), m_table->s->table_name.str) ;
+              "Update_rows_log_event::unpack_current_row(%lld)",
+              (long long) wsrep_thd_trx_seqno(thd));
   message= thd->wsrep_info;
 #endif /* WSREP_PROC_INFO */
 
   /* this also updates m_curr_row_end */
   thd_proc_info(thd, message);
-  DBUG_EXECUTE_IF("should_sleep_for_mdev7409",{
-                  my_sleep(500000);
-                  };);
   if ((error= unpack_current_row(rgi, &m_cols_ai)))
     goto err;
 
@@ -12635,20 +12597,15 @@ Update_rows_log_event::do_exec_row(rpl_group_info *rgi)
   DBUG_DUMP("new values", m_table->record[0], m_table->s->reclength);
 #endif
 
-  my_snprintf(msg, sizeof(msg),"Update_rows_log_event::ha_update_row() on table %s",
-             m_table->s->table_name.str);
-  message= msg;
+  message= "Update_rows_log_event::ha_update_row()";
 #ifdef WSREP_PROC_INFO
   my_snprintf(thd->wsrep_info, sizeof(thd->wsrep_info) - 1,
-              "Update_rows_log_event::ha_update_row(%lld) on table %s",
-              (long long) wsrep_thd_trx_seqno(thd), m_table->s->table_name.str) ;
+              "Update_rows_log_event::ha_update_row(%lld)",
+              (long long) wsrep_thd_trx_seqno(thd));
   message= thd->wsrep_info;
 #endif /* WSREP_PROC_INFO */
 
   thd_proc_info(thd, message);
-  DBUG_EXECUTE_IF("should_sleep_for_mdev7409",{
-                  my_sleep(500000);
-                  };);
   if (invoke_triggers &&
       process_triggers(TRG_EVENT_UPDATE, TRG_ACTION_BEFORE, TRUE))
   {
@@ -12670,9 +12627,9 @@ Update_rows_log_event::do_exec_row(rpl_group_info *rgi)
       process_triggers(TRG_EVENT_UPDATE, TRG_ACTION_AFTER, TRUE))
     error= HA_ERR_GENERIC; // in case if error is not set yet
 
-err:
   thd_proc_info(thd, tmp);
-  thd->db= tmp_db;
+
+err:
   m_table->file->ha_index_or_rnd_end();
   return error;
 }
