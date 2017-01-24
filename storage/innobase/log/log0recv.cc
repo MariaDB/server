@@ -796,9 +796,8 @@ recv_find_max_checkpoint_0(
 			    ut_fold_binary(buf + LOG_CHECKPOINT_LSN,
 					   CHECKSUM_2 - LOG_CHECKPOINT_LSN))
 		    != mach_read_from_4(buf + CHECKSUM_2)) {
-			DBUG_PRINT("ib_log",
-				   ("invalid pre-5.7.9 checkpoint " ULINTPF,
-				    field));
+			DBUG_LOG("ib_log",
+				 "invalid pre-10.2.2 checkpoint " << field);
 			continue;
 		}
 
@@ -813,8 +812,8 @@ recv_find_max_checkpoint_0(
 			buf + LOG_CHECKPOINT_NO);
 
 		if (!log_crypt_read_checkpoint_buf(buf)) {
-			ib::error() << "Reading checkpoint encryption info failed.";
-			return DB_ERROR;
+			ib::warn() << "Decrypting checkpoint failed";
+			continue;
 		}
 
 		DBUG_PRINT("ib_log",
@@ -834,14 +833,14 @@ recv_find_max_checkpoint_0(
 	}
 
 	ib::error() << "Upgrade after a crash is not supported."
-		" This redo log was created before MySQL 5.7.9,"
+		" This redo log was created before MariaDB 10.2.2,"
 		" and we did not find a valid checkpoint."
 		" Please follow the instructions at"
 		" " REFMAN "upgrading.html";
 	return(DB_ERROR);
 }
 
-/** Determine if a pre-5.7.9 redo log is clean.
+/** Determine if a pre-MySQL 5.7.9/MariaDB 10.2.2 redo log is clean.
 @param[in]	lsn	checkpoint LSN
 @return error code
 @retval	DB_SUCCESS	if the redo log is clean
@@ -861,7 +860,7 @@ recv_log_format_0_recover(lsn_t lsn)
 
 	static const char* NO_UPGRADE_RECOVERY_MSG =
 		"Upgrade after a crash is not supported."
-		" This redo log was created before MySQL 5.7.9";
+		" This redo log was created before MariaDB 10.2.2";
 	static const char* NO_UPGRADE_RTFM_MSG =
 		". Please follow the instructions at "
 		REFMAN "upgrading.html";

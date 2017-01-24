@@ -14,7 +14,7 @@ call mtr.add_suppression("InnoDB: MLOG_FILE_NAME incorrect");
 call mtr.add_suppression("InnoDB: ############### CORRUPT LOG RECORD FOUND");
 call mtr.add_suppression("InnoDB: Found corrupted log");
 call mtr.add_suppression("InnoDB: Redo log crypto: getting mysqld crypto key from key version failed");
-call mtr.add_suppression("InnoDB: Reading checkpoint encryption info failed");
+call mtr.add_suppression("InnoDB: Decrypting checkpoint failed");
 --enable_query_log
 
 let bugdir= $MYSQLTEST_VARDIR/tmp/log_corruption;
@@ -90,7 +90,7 @@ binmode OUT;
 print OUT chr(0) x 1048576;
 close OUT or die;
 
-# Create a redo log from before MySQL 5.7.9
+# Create a redo log from before MariaDB 10.2.2/MySQL 5.7.9
 die unless open OUT, ">", "$ENV{bugdir}/ib_logfile0";
 binmode OUT;
 print OUT pack("x[9]nx[5]", 0x1286), "    ", chr(0) x 492;
@@ -102,30 +102,28 @@ print OUT chr(0) x 1046016;
 close OUT or die;
 EOF
 
---echo # redo log from before MySQL 5.7.9
+--echo # redo log from before MariaDB 10.2.2/MySQL 5.7.9
 --let $restart_parameters= $dirs
 --source include/restart_mysqld.inc
 eval $check_no_innodb;
 --source include/shutdown_mysqld.inc
 
-let SEARCH_PATTERN=InnoDB: Upgrade after a crash is not supported. This redo log was created before MySQL 5\\.7\\.9\\.;
+let SEARCH_PATTERN=InnoDB: Upgrade after a crash is not supported. This redo log was created before MariaDB 10\\.2\\.2\\.;
 --source include/search_pattern_in_file.inc
 
---echo # redo log from before MySQL 5.7.9, with corrupted log checkpoint
+--echo # redo log from before MariaDB 10.2.2, with corrupted log checkpoint
 --move_file $bugdir/ib_logfile0 $bugdir/ib_logfile
 --copy_file $bugdir/ib_logfile1 $bugdir/ib_logfile0
 --source include/start_mysqld.inc
 eval $check_no_innodb;
 --source include/shutdown_mysqld.inc
 
-let SEARCH_PATTERN=InnoDB: Upgrade after a crash is not supported. This redo log was created before MySQL 5\\.7\\.9, and we did not find a valid checkpoint;
+let SEARCH_PATTERN=InnoDB: Upgrade after a crash is not supported. This redo log was created before MariaDB 10\\.2\\.2, and we did not find a valid checkpoint;
 --source include/search_pattern_in_file.inc
 let SEARCH_PATTERN=Plugin 'InnoDB' registration as a STORAGE ENGINE failed;
 --source include/search_pattern_in_file.inc
-let SEARCH_PATTERN=Unknown/unsupported storage engine: InnoDB;
---source include/search_pattern_in_file.inc
 
---echo # redo log from before MySQL 5.7.9, with corrupted log block
+--echo # redo log from before MariaDB 10.2.2, with corrupted log block
 --remove_file $bugdir/ib_logfile0
 --move_file $bugdir/ib_logfile $bugdir/ib_logfile0
 perl;
@@ -139,10 +137,10 @@ EOF
 --source include/start_mysqld.inc
 eval $check_no_innodb;
 --source include/shutdown_mysqld.inc
-let SEARCH_PATTERN=InnoDB: Upgrade after a crash is not supported. This redo log was created before MySQL 5\\.7\\.9, and it appears corrupted;
+let SEARCH_PATTERN=InnoDB: Upgrade after a crash is not supported. This redo log was created before MariaDB 10\\.2\\.2, and it appears corrupted;
 --source include/search_pattern_in_file.inc
 
---echo # redo log from "after" MySQL 5.7.9, but with invalid header checksum
+--echo # redo log from "after" MariaDB 10.2.2, but with invalid header checksum
 perl;
 die unless open OUT, "+<", "$ENV{bugdir}/ib_logfile0";
 binmode OUT;
@@ -337,12 +335,14 @@ print OUT pack("H*", "80000c380016000c000000015cf22e8aff355642045605c22b97f7cba9
 close OUT or die;
 EOF
 
+--let $restart_parameters= $dirs --innodb-force-recovery=5
 --source include/start_mysqld.inc
+if (!$no_cleanup) {
 eval $check_no_innodb;
 --source include/shutdown_mysqld.inc
 --let SEARCH_PATTERN= InnoDB: Redo log crypto: getting mysqld crypto key from key version failed err = 4294967295
 --source include/search_pattern_in_file.inc
---let SEARCH_PATTERN= InnoDB: Reading checkpoint encryption info failed
+--let SEARCH_PATTERN= InnoDB: Decrypting checkpoint failed
 --source include/search_pattern_in_file.inc
 
 --list_files $bugdir
@@ -350,3 +350,4 @@ eval $check_no_innodb;
 --rmdir $bugdir
 --let $restart_parameters=
 --source include/start_mysqld.inc
+}

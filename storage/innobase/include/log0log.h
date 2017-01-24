@@ -539,18 +539,16 @@ or the MySQL version that created the redo log file. */
 Stored in LOG_HEADER_FORMAT. */
 #define LOG_HEADER_FORMAT_CURRENT	1
 
-// JAN: TODO: Shoud 32 here be LOG_HEADER_CREATOR_END ?
-// Problem: Log format 5.6 == 5.7 ?
-#define LOG_CHECKPOINT_ARRAY_END	(32 + 32 * 8)
-#define LOG_CRYPT_VER			(20 + LOG_CHECKPOINT_ARRAY_END)
+/* @} */
+
+/** MariaDB Server 10.1 encrypted redo log offsets */
+/* @{ */
+#define LOG_CRYPT_VER			(20 + 32 * 9)
 #define LOG_CRYPT_MAX_ENTRIES           (5)
 #define LOG_CRYPT_ENTRY_SIZE            (4 + 4 + 2 * MY_AES_BLOCK_SIZE)
 #define LOG_CRYPT_SIZE                  (1 + 1 +			\
 					 (LOG_CRYPT_MAX_ENTRIES *	\
 					  LOG_CRYPT_ENTRY_SIZE))
-
-#define LOG_CHECKPOINT_SIZE		(20 + LOG_CHECKPOINT_ARRAY_END + \
-					 LOG_CRYPT_SIZE)
 /* @} */
 
 #define LOG_CHECKPOINT_1	OS_FILE_LOG_BLOCK_SIZE
