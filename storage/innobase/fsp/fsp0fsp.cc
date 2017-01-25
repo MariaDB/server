@@ -3262,7 +3262,6 @@ fseg_free_extent(
 	ulint	descr_n_used;
 	ulint	i;
 
-	ut_ad(seg_inode != NULL);
 	ut_ad(mtr != NULL);
 
 	descr = xdes_get_descriptor(space, page, page_size, mtr);

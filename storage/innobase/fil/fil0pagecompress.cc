@@ -162,8 +162,14 @@ fil_compress_page(
 	switch(comp_method) {
 #ifdef HAVE_LZ4
 	case PAGE_LZ4_ALGORITHM:
+
+#ifdef HAVE_LZ4_COMPRESS_DEFAULT
+		err = LZ4_compress_default((const char *)buf,
+			(char *)out_buf+header_len, len, write_size);
+#else
 		err = LZ4_compress_limitedOutput((const char *)buf,
 			(char *)out_buf+header_len, len, write_size);
+#endif /* HAVE_LZ4_COMPRESS_DEFAULT */
 		write_size = err;
 
 		if (err == 0) {
@@ -414,7 +420,7 @@ fil_decompress_page(
 {
 	int err = 0;
 	ulint actual_size = 0;
-	ulint compression_alg = 0;
+	ib_uint64_t compression_alg = 0;
 	byte *in_buf;
 	ulint ptype;
 	ulint header_len;
@@ -463,7 +469,7 @@ fil_decompress_page(
 
 	/* Get compression algorithm */
 	if (ptype == FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED) {
-		compression_alg = mach_read_from_2(buf+FIL_PAGE_DATA+FIL_PAGE_COMPRESSED_SIZE);
+		compression_alg = static_cast<ib_uint64_t>(mach_read_from_2(buf+FIL_PAGE_DATA+FIL_PAGE_COMPRESSED_SIZE));
 	} else {
 		compression_alg = mach_read_from_8(buf+FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION);
 	}

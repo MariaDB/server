@@ -1006,25 +1006,6 @@ dict_tf_set(
 	ulint		page_compression_level,
 	ulint		not_used);
 
-/** Initialize a dict_table_t::flags pointer.
-@param[in]	compact,	Table uses Compact or greater
-@param[in]	zip_ssize	Zip Shift Size (log 2 minus 9)
-@param[in]	atomic_blobs	Table uses Compressed or Dynamic
-@param[in]	data_dir	Table uses DATA DIRECTORY
-@param[in]	page_compressed Table uses page compression
-@param[in]	page_compression_level Page compression level
-@param[in]	not_used        For future */
-UNIV_INLINE
-ulint
-dict_tf_init(
-	bool		compact,
-	ulint		zip_ssize,
-	bool		atomic_blobs,
-	bool		data_dir,
-	bool		page_compressed,
-	ulint		page_compression_level,
-	ulint		not_used);
-
 /** Convert a 32 bit integer table flags to the 32 bit FSP Flags.
 Fsp Flags are written into the tablespace header at the offset
 FSP_SPACE_FLAGS and are also stored in the fil_space_t::flags field.

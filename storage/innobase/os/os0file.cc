@@ -2755,43 +2755,15 @@ os_file_readdir_next_file(
 	int		ret;
 	struct stat	statinfo;
 
-#ifdef HAVE_READDIR_R
-	char		dirent_buf[sizeof(struct dirent)
-				   + _POSIX_PATH_MAX + 100];
-	/* In /mysys/my_lib.c, _POSIX_PATH_MAX + 1 is used as
-	the max file name len; but in most standards, the
-	length is NAME_MAX; we add 100 to be even safer */
-#endif /* HAVE_READDIR_R */
-
 next_file:
 
-#ifdef HAVE_READDIR_R
-	ret = readdir_r(dir, (struct dirent*) dirent_buf, &ent);
-
-	if (ret != 0) {
-
-		ib::error()
-			<< "Cannot read directory " << dirname
-			<< " error: " << ret;
-
-		return(-1);
-	}
-
-	if (ent == NULL) {
-		/* End of directory */
-
-		return(1);
-	}
-
-	ut_a(strlen(ent->d_name) < _POSIX_PATH_MAX + 100 - 1);
-#else
 	ent = readdir(dir);
 
 	if (ent == NULL) {
 
 		return(1);
 	}
-#endif /* HAVE_READDIR_R */
+
 	ut_a(strlen(ent->d_name) < OS_FILE_MAX_PATH);
 
 	if (strcmp(ent->d_name, ".") == 0 || strcmp(ent->d_name, "..") == 0) {

@@ -3638,7 +3638,7 @@ btr_cur_update_in_place(
 #ifdef UNIV_DEBUG
 	{
 		rec_printer p(rec, offsets);
-		DBUG_PRINT("ib_cur", ("update-in-place %s (" IB_ID_FMT ") by "IB_ID_FMT ": %s",
+		DBUG_PRINT("ib_cur", ("update-in-place %s (" IB_ID_FMT ") by " IB_ID_FMT ": %s",
 				index->name(), index->id, trx_id,
 				p.str().c_str()));
 	}

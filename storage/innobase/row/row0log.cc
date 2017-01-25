@@ -526,7 +526,7 @@ err_exit:
 
 	my_atomic_addlint(&onlineddl_rowlog_rows, 1);
 	/* 10000 means 100.00%, 4525 means 45.25% */
-	onlineddl_rowlog_pct_used = (log->tail.total * 10000) / srv_online_max_size;
+	onlineddl_rowlog_pct_used = static_cast<ulint>((log->tail.total * 10000) / srv_online_max_size);
 }
 
 #ifdef UNIV_DEBUG

@@ -467,7 +467,6 @@ dtuple_create_from_mem(
 	dtuple_t*	tuple;
 	ulint		n_t_fields = n_fields + n_v_fields;
 
-	ut_ad(buf != NULL);
 	ut_a(buf_size >= DTUPLE_EST_ALLOC(n_t_fields));
 
 	tuple = (dtuple_t*) buf;

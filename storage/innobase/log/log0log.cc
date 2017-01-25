@@ -2596,7 +2596,7 @@ DECLARE_THREAD(log_scrub_thread)(void*)
 		/* log scrubbing interval in µs. */
 		ulonglong interval = 1000*1000*512/innodb_scrub_log_speed;
 
-		os_event_wait_time(log_scrub_event, interval);
+		os_event_wait_time(log_scrub_event, static_cast<ulint>(interval));
 
 		log_scrub();
 

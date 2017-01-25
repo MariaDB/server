@@ -703,7 +703,7 @@ retry:
 							   extent_size);
 			}
 
-			node->size = size_bytes / psize;
+			node->size = static_cast<ulint>(size_bytes / psize);
 			space->size += node->size;
 		}
 	}
@@ -6892,7 +6892,7 @@ fil_node_t*
 fil_space_get_node(
 	fil_space_t*	space,		/*!< in: file spage */
 	ulint 		space_id,	/*!< in: space id   */
-	ulint* 		block_offset,	/*!< in/out: offset in number of blocks */
+	os_offset_t* 	block_offset,	/*!< in/out: offset in number of blocks */
 	ulint 		byte_offset,	/*!< in: remainder of offset in bytes; in
 					aio this must be divisible by the OS block
 					size */
@@ -6928,14 +6928,16 @@ fil_space_get_node(
 
 /********************************************************************//**
 Return block size of node in file space
+@param[in]	space_id		space id
+@param[in]	block_offset		page offset
+@param[in]	len			page len
 @return file block size */
 UNIV_INTERN
 ulint
 fil_space_get_block_size(
-/*=====================*/
-	ulint	space_id,
-	ulint	block_offset,
-	ulint	len)
+	ulint		space_id,
+	os_offset_t	block_offset,
+	ulint		len)
 {
 	ulint block_size = 512;
 	ut_ad(!mutex_own(&fil_system->mutex));

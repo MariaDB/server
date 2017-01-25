@@ -1200,7 +1200,7 @@ struct rotate_thread_t {
 	uint estimated_max_iops;   /*!< estimation of max iops */
 	uint allocated_iops;	   /*!< allocated iops */
 	uint cnt_waited;	   /*!< #times waited during this slot */
-	uint sum_waited_us;	   /*!< wait time during this slot */
+	uintmax_t sum_waited_us;   /*!< wait time during this slot */
 
 	fil_crypt_stat_t crypt_stat; // statistics
 
@@ -2457,8 +2457,8 @@ fil_space_crypt_close_tablespace(
 		return;
 	}
 
-	uint start = time(0);
-	uint last = start;
+	time_t start = time(0);
+	time_t last = start;
 
 	mutex_enter(&crypt_data->mutex);
 	mutex_exit(&fil_crypt_threads_mutex);
@@ -2480,7 +2480,7 @@ fil_space_crypt_close_tablespace(
 		cnt = crypt_data->rotate_state.active_threads;
 		flushing = crypt_data->rotate_state.flushing;
 
-		uint now = time(0);
+		time_t now = time(0);
 
 		if (now >= last + 30) {
 			ib::warn() << "Waited "

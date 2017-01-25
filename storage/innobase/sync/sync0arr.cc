@@ -1340,7 +1340,7 @@ sync_arr_fill_sys_semphore_waits_table(
 			*/
 			OK(field_store_string(fields[SYS_SEMAPHORE_WAITS_FILE], innobase_basename(cell->file)));
 			OK(field_store_ulint(fields[SYS_SEMAPHORE_WAITS_LINE], cell->line));
-			OK(field_store_ulint(fields[SYS_SEMAPHORE_WAITS_WAIT_TIME], (longlong)difftime(time(NULL), cell->reservation_time)));
+			OK(field_store_ulint(fields[SYS_SEMAPHORE_WAITS_WAIT_TIME], (ulint)difftime(time(NULL), cell->reservation_time)));
 
 			if (type == SYNC_MUTEX) {
 				mutex = static_cast<WaitMutex*>(cell->latch.mutex);

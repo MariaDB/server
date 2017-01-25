@@ -5499,13 +5499,7 @@ innobase_kill_query(
 			trx_mutex_taken = true;
 		}
 
-#ifdef UNIV_DEBUG
-		dberr_t err =
-#endif
 		lock_trx_handle_wait(trx, true, true);
-
-		ut_ad(err == DB_SUCCESS || err == DB_LOCK_WAIT
-		      || err == DB_DEADLOCK);
 
 		if (lock_mutex_taken) {
 			lock_mutex_exit();
@@ -11950,7 +11944,7 @@ err_col:
 			err = row_create_table_for_mysql(
 				table, m_trx, false,
 				(fil_encryption_t)options->encryption,
-				options->encryption_key_id);
+				(ulint)options->encryption_key_id);
 
 		}
 
@@ -12904,7 +12898,7 @@ index_bad:
 			m_use_data_dir,
 			options->page_compressed,
 		    	options->page_compression_level == 0 ?
-		        	default_compression_level : options->page_compression_level,
+		        default_compression_level : static_cast<ulint>(options->page_compression_level),
 		    	0);
 
 	/* Set the flags2 when create table or alter tables */

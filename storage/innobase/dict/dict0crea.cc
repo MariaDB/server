@@ -2007,7 +2007,7 @@ dict_foreign_def_get(
 	char* fk_def = (char *)mem_heap_alloc(foreign->heap, 4*1024);
 	const char* tbname;
 	char tablebuf[MAX_TABLE_NAME_LEN + 1] = "";
-	int i;
+	unsigned i;
 	char* bufend;
 
 	tbname = dict_remove_db_name(foreign->id);
@@ -2025,7 +2025,7 @@ dict_foreign_def_get(
 				strlen(foreign->foreign_col_names[i]),
 				trx->mysql_thd);
 		strcat(fk_def, buf);
-		if (i < foreign->n_fields-1) {
+		if (i < static_cast<unsigned>(foreign->n_fields-1)) {
 			strcat(fk_def, (char *)",");
 		}
 	}
@@ -2049,7 +2049,7 @@ dict_foreign_def_get(
 				trx->mysql_thd);
 		buf[bufend - buf] = '\0';
 		strcat(fk_def, buf);
-		if (i < foreign->n_fields-1) {
+		if (i < (uint)foreign->n_fields-1) {
 			strcat(fk_def, (char *)",");
 		}
 	}

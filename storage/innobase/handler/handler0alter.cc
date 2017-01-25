@@ -5166,9 +5166,6 @@ innobase_check_foreign_key_index(
 	ulint			n_drop_fk)	/*!< in: Number of foreign keys
 						to drop */
 {
-	ut_ad(index != NULL);
-	ut_ad(indexed_table != NULL);
-
 	const dict_foreign_set*	fks = &indexed_table->referenced_set;
 
 	/* Check for all FK references from other tables to the index. */
@@ -7257,7 +7254,7 @@ innobase_enlarge_columns_try(
 				    == IS_EQUAL_PACK_LENGTH
 				    && innobase_enlarge_column_try(
 					    user_table, trx, table_name,
-					    idx, cf->length, is_v)) {
+					    idx, static_cast<ulint>(cf->length), is_v)) {
 					return(true);
 				}
 

@@ -5273,7 +5273,7 @@ locks_ok:
 		This optimization can avoid many IOs for certain schemas.
 		*/
 		ibool row_contains_all_values = TRUE;
-		int i;
+		uint i;
 		for (i = 0; i < prebuilt->n_template; i++) {
 			/* Condition (1) from above: is the field in the
 			index (prefix or not)? */
