@@ -355,6 +355,7 @@ fil_compress_page(
 	if (allocated) {
 		/* TODO: reduce number of memcpy's */
 		memcpy(buf, out_buf, len);
+		goto exit_free;
 	} else {
 		return(out_buf);
 	}
@@ -380,6 +381,7 @@ err_exit:
 	srv_stats.pages_page_compression_error.inc();
 	*out_len = len;
 
+exit_free:
 	if (allocated) {
 		ut_free(out_buf);
 #ifdef HAVE_LZO

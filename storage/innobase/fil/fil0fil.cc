@@ -5669,7 +5669,9 @@ struct fil_iterator_t {
 						for IO */
 	byte*		io_buffer;		/*!< Buffer to use for IO */
 	fil_space_crypt_t *crypt_data;		/*!< MariaDB Crypt data (if encrypted) */
-	byte*           crypt_io_buffer;        /*!< MariaDB IO buffer when encrypted */
+	byte*           crypt_io_buffer;        /*!< MariaDB IO buffer when
+						encrypted */
+	dict_table_t*	table;			/*!< Imported table */
 };
 
 /********************************************************************//**
@@ -5877,15 +5879,20 @@ fil_iterate(
 
 			if (page_compressed) {
 				ulint len = 0;
-				fil_compress_page(space_id,
+
+				byte * res = fil_compress_page(space_id,
 					src,
 					NULL,
 					size,
-					fil_space_get_page_compression_level(space_id),
+					dict_table_page_compression_level(iter.table),
 					fil_space_get_block_size(space_id, offset, size),
 					encrypted,
 					&len,
 					NULL);
+
+				if (len != size) {
+					memset(res+len, 0, size-len);
+				}
 
 				updated = true;
 			}
@@ -5936,6 +5943,9 @@ fil_iterate(
 			ib::error() << "os_file_write() failed";
 			return(err);
 		}
+
+		/* Clean up the temporal buffer. */
+		memset(writeptr, 0, n_bytes);
 	}
 
 	return(DB_SUCCESS);
@@ -6054,6 +6064,7 @@ fil_tablespace_iterate(
 		iter.file_size = file_size;
 		iter.n_io_buffers = n_io_buffers;
 		iter.page_size = callback.get_page_size().physical();
+		iter.table = table;
 
 		/* read (optional) crypt data */
 		iter.crypt_data = fil_space_read_crypt_data(
