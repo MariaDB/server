@@ -433,7 +433,7 @@ public:
 
 	dberr_t punch_hole(
 		os_file_t	fh,
-		ulint		offset,
+		os_offset_t	offset,
 		ulint		len);
 
 private:
