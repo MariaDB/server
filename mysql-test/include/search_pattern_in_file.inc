@@ -60,25 +60,36 @@
 
 perl;
     use strict;
-    my $search_file=    $ENV{'SEARCH_FILE'}    or die "SEARCH_FILE not set";
+    die "SEARCH_FILE not set" unless $ENV{'SEARCH_FILE'};
+    my @search_files= glob($ENV{'SEARCH_FILE'});
     my $search_pattern= $ENV{'SEARCH_PATTERN'} or die "SEARCH_PATTERN not set";
     my $search_range=   $ENV{'SEARCH_RANGE'};
-    my $file_content;
+    my $content;
     $search_range= 50000 unless $search_range =~ /-?[0-9]+/;
-    open(FILE, '<', $search_file) or die("Unable to open '$search_file': $!\n");
-    if ($search_range >= 0) {
-       read(FILE, $file_content, $search_range, 0);
-    } else {
-       my $size= -s $search_file;
-       $search_range = -$size if $size > -$search_range;
-       seek(FILE, $search_range, 2);
-       read(FILE, $file_content, -$search_range, 0);
+    foreach my $search_file (@search_files) {
+        open(FILE, '<', $search_file) or die("Unable to open '$search_file': $!\n");
+        my $file_content;
+        if ($search_range >= 0) {
+           read(FILE, $file_content, $search_range, 0);
+        } else {
+           my $size= -s $search_file;
+           $search_range = -$size if $size > -$search_range;
+           seek(FILE, $search_range, 2);
+           read(FILE, $file_content, -$search_range, 0);
+        }
+        close(FILE);
+        $content.= $file_content;
     }
-    close(FILE);
-    $search_file =~ s{^.*?([^/\\]+)$}{$1};
-    if ($file_content =~ m{$search_pattern}) {
-      print "FOUND /$search_pattern/ in $search_file\n"
+    $ENV{'SEARCH_FILE'} =~ s{^.*?([^/\\]+)$}{$1};
+    if ($content =~ m{$search_pattern}) {
+      die "FOUND /$search_pattern/ in $ENV{'SEARCH_FILE'}\n"
+      if $ENV{SEARCH_ABORT} eq 'FOUND';
+      print "FOUND /$search_pattern/ in $ENV{'SEARCH_FILE'}\n"
+      unless defined $ENV{SEARCH_ABORT};
     } else {
-      print "NOT FOUND /$search_pattern/ in $search_file\n"
+      die "NOT FOUND /$search_pattern/ in $ENV{'SEARCH_FILE'}\n"
+      if $ENV{SEARCH_ABORT} eq 'NOT FOUND';
+      print "NOT FOUND /$search_pattern/ in $ENV{'SEARCH_FILE'}\n"
+      unless defined $ENV{SEARCH_ABORT};
     }
 EOF
