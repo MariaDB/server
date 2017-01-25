@@ -1887,7 +1887,10 @@ LinuxAIOHandler::collect()
 			    && slot->type.is_write()
 			    && slot->type.punch_hole()) {
 
-				slot->err = slot->type.punch_hole(slot->file, slot->offset, slot->len);
+				slot->err = slot->type.punch_hole(
+					slot->file,
+					slot->offset,
+					static_cast<os_offset_t>(slot->len));
 			} else {
 				slot->err = DB_SUCCESS;
 			}
@@ -4825,8 +4828,8 @@ os_file_io(
 			    && type.is_write()
 			    && type.punch_hole()) {
 				*err = type.punch_hole(file,
-					static_cast<ulint>(offset),
-					n);
+					offset,
+					static_cast<os_offset_t>(n));
 
 			} else {
 				*err = DB_SUCCESS;
@@ -5494,7 +5497,7 @@ IORequest::punch_hole(
 		return(DB_SUCCESS);
 	);
 
-	ulint trim_len = get_trim_length(len);
+	os_offset_t trim_len = static_cast<os_offset_t>(get_trim_length(len));
 
 	if (trim_len == 0) {
 		return(DB_SUCCESS);
@@ -5508,7 +5511,7 @@ IORequest::punch_hole(
 		return DB_IO_NO_PUNCH_HOLE;
 	}
 
-	dberr_t err = os_file_punch_hole(fh, off, len);
+	dberr_t err = os_file_punch_hole(fh, off, trim_len);
 
 	if (err == DB_SUCCESS) {
 		srv_stats.page_compressed_trim_op.inc();

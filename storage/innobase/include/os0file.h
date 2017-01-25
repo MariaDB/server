@@ -434,7 +434,7 @@ public:
 	dberr_t punch_hole(
 		os_file_t	fh,
 		os_offset_t	offset,
-		ulint		len);
+		os_offset_t	len);
 
 private:
 	/** Page to be written on write operation. */
