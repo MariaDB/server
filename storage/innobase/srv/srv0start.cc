@@ -1299,6 +1299,7 @@ srv_shutdown_all_bg_threads()
 @param[in]	line		Line number
 @param[in]	err		Reason for aborting InnoDB startup
 @return DB_SUCCESS or error code. */
+MY_ATTRIBUTE((warn_unused_result, nonnull))
 static
 dberr_t
 srv_init_abort_low(
@@ -2411,6 +2412,7 @@ files_checked:
 	if (err != DB_SUCCESS) {
 		return(srv_init_abort(err));
 	}
+
 	/* Create the doublewrite buffer to a new tablespace */
 	if (buf_dblwr == NULL && !buf_dblwr_create()) {
 		return(srv_init_abort(DB_ERROR));
