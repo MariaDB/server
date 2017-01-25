@@ -29,7 +29,7 @@ implemented on buf0buf.cc and fil0fil.cc.
 #define OS_API_H 1
 
 /** Page control block */
-struct buf_page_t;
+class buf_page_t;
 
 /** File Node */
 struct fil_node_t;
