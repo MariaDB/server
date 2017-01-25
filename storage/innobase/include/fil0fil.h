@@ -201,8 +201,6 @@ struct fil_node_t {
 	fil_space_t*	space;
 	/** file name; protected by fil_system->mutex and log_sys->mutex. */
 	char*		name;
-	/** whether this file is open */
-	bool		is_open;
 	/** file handle (valid if is_open) */
 	os_file_t	handle;
 	/** event that groups and serializes calls to fsync */
@@ -241,6 +239,12 @@ struct fil_node_t {
 
 	/** FIL_NODE_MAGIC_N */
 	ulint		magic_n;
+
+	/** @return whether this file is open */
+	bool is_open() const
+	{
+		return(handle != OS_FILE_CLOSED);
+	}
 };
 
 /** Value of fil_node_t::magic_n */

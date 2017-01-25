@@ -504,6 +504,8 @@ fil_node_create_low(
 
 	node = reinterpret_cast<fil_node_t*>(ut_zalloc_nokey(sizeof(*node)));
 
+	node->handle = OS_FILE_CLOSED;
+
 	node->name = mem_strdup(name);
 
 	ut_a(!is_raw || srv_start_raw_disk_in_use);
@@ -577,7 +579,7 @@ fil_node_open_file(
 
 	ut_ad(mutex_own(&fil_system->mutex));
 	ut_a(node->n_pending == 0);
-	ut_a(!node->is_open);
+	ut_a(!node->is_open());
 
 	read_only_mode = !fsp_is_system_temporary(space->id)
 		&& srv_read_only_mode;
@@ -747,8 +749,7 @@ retry:
         }
 
 	ut_a(success);
-
-	node->is_open = true;
+	ut_a(node->is_open());
 
 	fil_system->n_open++;
 	fil_n_file_opened++;
@@ -772,7 +773,7 @@ fil_node_close_file(
 	bool	ret;
 
 	ut_ad(mutex_own(&(fil_system->mutex)));
-	ut_a(node->is_open);
+	ut_a(node->is_open());
 	ut_a(node->n_pending == 0);
 	ut_a(node->n_pending_flushes == 0);
 	ut_a(!node->being_extended);
@@ -785,7 +786,8 @@ fil_node_close_file(
 
 	/* printf("Closing file %s\n", node->name); */
 
-	node->is_open = false;
+	node->handle = OS_FILE_CLOSED;
+	ut_ad(!node->is_open());
 	ut_a(fil_system->n_open > 0);
 	fil_system->n_open--;
 	fil_n_file_opened--;
@@ -907,7 +909,7 @@ fil_flush_low(fil_space_t* space)
 			continue;
 		}
 
-		ut_a(node->is_open);
+		ut_a(node->is_open());
 
 		switch (space->purpose) {
 		case FIL_TYPE_TEMPORARY:
@@ -950,7 +952,7 @@ retry:
 			goto retry;
 		}
 
-		ut_a(node->is_open);
+		ut_a(node->is_open());
 		node->n_pending_flushes++;
 
 		mutex_exit(&fil_system->mutex);
@@ -1269,7 +1271,7 @@ fil_mutex_enter_and_prepare_for_io(
 			the insert buffer. The insert buffer is in
 			tablespace 0, and we cannot end up waiting in
 			this function. */
-		} else if (!node || node->is_open) {
+		} else if (!node || node->is_open()) {
 			/* If the file is already open, no need to do
 			anything; if the space does not exist, we handle the
 			situation in the function which called this
@@ -1374,7 +1376,7 @@ fil_node_close_to_free(
 	ut_a(node->n_pending == 0);
 	ut_a(!node->being_extended);
 
-	if (node->is_open) {
+	if (node->is_open()) {
 		/* We fool the assertion in fil_node_close_file() to think
 		there are no unflushed modifications in the file */
 
@@ -1887,7 +1889,7 @@ fil_space_open(
 	     node != NULL;
 	     node = UT_LIST_GET_NEXT(chain, node)) {
 
-		if (!node->is_open
+		if (!node->is_open()
 		    && !fil_node_open_file(node)) {
 			mutex_exit(&fil_system->mutex);
 			return(false);
@@ -1921,7 +1923,7 @@ fil_space_close(
 	     node != NULL;
 	     node = UT_LIST_GET_NEXT(chain, node)) {
 
-		if (node->is_open) {
+		if (node->is_open()) {
 			fil_node_close_file(node);
 		}
 	}
@@ -2012,7 +2014,7 @@ fil_open_log_and_system_tablespace_files(void)
 		     node != NULL;
 		     node = UT_LIST_GET_NEXT(chain, node)) {
 
-			if (!node->is_open) {
+			if (!node->is_open()) {
 				if (!fil_node_open_file(node)) {
 					/* This func is called during server's
 					startup. If some file of log or system
@@ -2070,7 +2072,7 @@ fil_close_all_files(void)
 		     node != NULL;
 		     node = UT_LIST_GET_NEXT(chain, node)) {
 
-			if (node->is_open) {
+			if (node->is_open()) {
 				fil_node_close_file(node);
 			}
 		}
@@ -2116,7 +2118,7 @@ fil_close_log_files(
 		     node != NULL;
 		     node = UT_LIST_GET_NEXT(chain, node)) {
 
-			if (node->is_open) {
+			if (node->is_open()) {
 				fil_node_close_file(node);
 			}
 		}
@@ -3130,7 +3132,7 @@ fil_truncate_tablespace(
 
 	fil_node_t*	node = UT_LIST_GET_FIRST(space->chain);
 
-	ut_ad(node->is_open);
+	ut_ad(node->is_open());
 
 	space->size = node->size = size_in_pages;
 
@@ -3544,7 +3546,7 @@ func_exit:
 	} else if (node->modification_counter > node->flush_counter) {
 		/* Flush the space */
 		sleep = flush = true;
-	} else if (node->is_open) {
+	} else if (node->is_open()) {
 		/* Close the file */
 
 		fil_node_close_file(node);
@@ -4936,7 +4938,7 @@ fil_node_prepare_for_io(
 			<< " exceeds the limit " << system->max_n_open;
 	}
 
-	if (!node->is_open) {
+	if (!node->is_open()) {
 		/* File is closed: open it */
 		ut_a(node->n_pending == 0);
 
@@ -5485,8 +5487,8 @@ struct	Check {
 	@param[in]	elem	file node to visit */
 	void	operator()(const fil_node_t* elem)
 	{
-		ut_a(elem->is_open || !elem->n_pending);
-		n_open += elem->is_open;
+		ut_a(elem->is_open() || !elem->n_pending);
+		n_open += elem->is_open();
 		size += elem->size;
 	}
 
@@ -5540,7 +5542,7 @@ fil_validate(void)
 
 		ut_a(fil_node->n_pending == 0);
 		ut_a(!fil_node->being_extended);
-		ut_a(fil_node->is_open);
+		ut_a(fil_node->is_open());
 		ut_a(fil_space_belongs_in_lru(fil_node->space));
 	}
 
@@ -6499,7 +6501,7 @@ truncate_t::truncate(
 		space->size = node->size = FIL_IBD_FILE_INITIAL_SIZE;
 	}
 
-	const bool already_open = node->is_open;
+	const bool already_open = node->is_open();
 
 	if (!already_open) {
 
@@ -6520,7 +6522,7 @@ truncate_t::truncate(
 			return(DB_ERROR);
 		}
 
-		node->is_open = true;
+		ut_a(node->is_open());
 	}
 
 	os_offset_t	trunc_size = trunc_to_default
@@ -6550,7 +6552,7 @@ truncate_t::truncate(
 
 			err = DB_ERROR;
 		} else {
-			node->is_open = false;
+			node->handle = OS_FILE_CLOSED;
 		}
 	}
 

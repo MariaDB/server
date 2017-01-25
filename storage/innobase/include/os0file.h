@@ -80,7 +80,7 @@ the OS actually supports it: Win 95 does not, NT does. */
 # define UNIV_NON_BUFFERED_IO
 
 /** File handle */
-# define os_file_t	HANDLE
+typedef HANDLE os_file_t;
 
 /** Convert a C file descriptor to a native file handle
 @param fd file descriptor
