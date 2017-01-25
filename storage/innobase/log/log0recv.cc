@@ -2,7 +2,7 @@
 
 Copyright (c) 1997, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2016, MariaDB Corporation. All Rights Reserved.
+Copyright (c) 2013, 2017, MariaDB Corporation. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -2848,10 +2848,9 @@ recv_scan_log_recs(
 
 					recv_init_crash_recovery();
 				} else {
-
-					ib::warn() << "Recovery skipped,"
-						" --innodb-read-only set!";
-
+					ib::warn() << "innodb_read_only"
+						" prevents crash recovery";
+					recv_needed_recovery = true;
 					return(true);
 				}
 			}
@@ -3262,6 +3261,10 @@ recv_recovery_from_checkpoint_start(
 	/* The first scan should not have stored or applied any records. */
 	ut_ad(recv_sys->n_addrs == 0);
 	ut_ad(!recv_sys->found_corrupt_fs);
+
+	if (srv_read_only_mode && recv_needed_recovery) {
+		return(DB_READ_ONLY);
+	}
 
 	if (recv_sys->found_corrupt_log && !srv_force_recovery) {
 		log_mutex_exit();

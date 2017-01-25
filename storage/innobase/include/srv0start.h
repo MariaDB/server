@@ -42,7 +42,7 @@ struct dict_table_t;
 		fprintf(stderr, "innodb_force_recovery_crash=%lu\n",	\
 			srv_force_recovery_crash);			\
 		fflush(stderr);						\
-		abort();						\
+		exit(3);						\
 	}								\
 } while (0)
 #endif /* DBUG_OFF */
