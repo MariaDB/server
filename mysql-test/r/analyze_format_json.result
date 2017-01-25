@@ -487,14 +487,14 @@ ANALYZE
   "query_block": {
     "select_id": 1,
     "r_loops": 1,
-    "volatile parameter": "REPLACED",
+    "r_total_time_ms": "REPLACED",
     "having_condition": "(TOP > a)",
     "filesort": {
       "r_loops": 1,
-      "volatile parameter": "REPLACED",
+      "r_total_time_ms": "REPLACED",
       "r_used_priority_queue": false,
       "r_output_rows": 0,
-      "volatile parameter": "REPLACED",
+      "r_buffer_size": "REPLACED",
       "temporary_table": {
         "table": {
           "table_name": "t2",
@@ -502,7 +502,7 @@ ANALYZE
           "r_loops": 1,
           "rows": 256,
           "r_rows": 256,
-          "volatile parameter": "REPLACED",
+          "r_total_time_ms": "REPLACED",
           "filtered": 100,
           "r_filtered": 100
         }
@@ -517,13 +517,13 @@ ANALYZE
   "query_block": {
     "select_id": 1,
     "r_loops": 1,
-    "volatile parameter": "REPLACED",
+    "r_total_time_ms": "REPLACED",
     "filesort": {
       "r_loops": 1,
-      "volatile parameter": "REPLACED",
+      "r_total_time_ms": "REPLACED",
       "r_used_priority_queue": false,
       "r_output_rows": 256,
-      "volatile parameter": "REPLACED",
+      "r_buffer_size": "REPLACED",
       "temporary_table": {
         "table": {
           "table_name": "t2",
@@ -531,7 +531,7 @@ ANALYZE
           "r_loops": 1,
           "rows": 256,
           "r_rows": 256,
-          "volatile parameter": "REPLACED",
+          "r_total_time_ms": "REPLACED",
           "filtered": 100,
           "r_filtered": 100
         }
@@ -557,13 +557,13 @@ ANALYZE
   "query_block": {
     "select_id": 1,
     "r_loops": 1,
-    "volatile parameter": "REPLACED",
+    "r_total_time_ms": "REPLACED",
     "filesort": {
       "r_loops": 1,
-      "volatile parameter": "REPLACED",
+      "r_total_time_ms": "REPLACED",
       "r_used_priority_queue": false,
       "r_output_rows": 256,
-      "volatile parameter": "REPLACED",
+      "r_buffer_size": "REPLACED",
       "temporary_table": {
         "table": {
           "table_name": "t2",
@@ -571,7 +571,7 @@ ANALYZE
           "r_loops": 1,
           "rows": 256,
           "r_rows": 256,
-          "volatile parameter": "REPLACED",
+          "r_total_time_ms": "REPLACED",
           "filtered": 100,
           "r_filtered": 100
         }
@@ -593,14 +593,14 @@ ANALYZE
   "query_block": {
     "select_id": 1,
     "r_loops": 1,
-    "volatile parameter": "REPLACED",
+    "r_total_time_ms": "REPLACED",
     "table": {
       "table_name": "t1",
       "access_type": "ALL",
       "r_loops": 1,
       "rows": 2,
       "r_rows": 2,
-      "volatile parameter": "REPLACED",
+      "r_total_time_ms": "REPLACED",
       "filtered": 100,
       "r_filtered": 100
     },
@@ -612,7 +612,7 @@ ANALYZE
         "r_loops": 1,
         "rows": 2,
         "r_rows": 2,
-        "volatile parameter": "REPLACED",
+        "r_total_time_ms": "REPLACED",
         "filtered": 100,
         "r_filtered": 100
       },
@@ -625,14 +625,14 @@ ANALYZE
         "query_block": {
           "select_id": 2,
           "r_loops": 1,
-          "volatile parameter": "REPLACED",
+          "r_total_time_ms": "REPLACED",
           "table": {
             "table_name": "t1",
             "access_type": "ALL",
             "r_loops": 1,
             "rows": 2,
             "r_rows": 2,
-            "volatile parameter": "REPLACED",
+            "r_total_time_ms": "REPLACED",
             "filtered": 100,
             "r_filtered": 100
           }
@@ -646,7 +646,7 @@ ANALYZE
         "r_loops": 1,
         "rows": 2,
         "r_rows": 2,
-        "volatile parameter": "REPLACED",
+        "r_total_time_ms": "REPLACED",
         "filtered": 100,
         "r_filtered": 100
       },
@@ -678,19 +678,19 @@ ANALYZE
   "query_block": {
     "select_id": 1,
     "r_loops": 1,
-    "volatile parameter": "REPLACED",
+    "r_total_time_ms": "REPLACED",
     "filesort": {
       "r_loops": 1,
-      "volatile parameter": "REPLACED",
+      "r_total_time_ms": "REPLACED",
       "r_used_priority_queue": false,
       "r_output_rows": 0,
-      "volatile parameter": "REPLACED",
+      "r_buffer_size": "REPLACED",
       "filesort": {
         "r_loops": 1,
-        "volatile parameter": "REPLACED",
+        "r_total_time_ms": "REPLACED",
         "r_used_priority_queue": false,
         "r_output_rows": 0,
-        "volatile parameter": "REPLACED",
+        "r_buffer_size": "REPLACED",
         "temporary_table": {
           "temporary_table": {
             "table": {
@@ -699,7 +699,7 @@ ANALYZE
               "r_loops": 1,
               "rows": 2,
               "r_rows": 2,
-              "volatile parameter": "REPLACED",
+              "r_total_time_ms": "REPLACED",
               "filtered": 100,
               "r_filtered": 100
             },
@@ -710,7 +710,7 @@ ANALYZE
                 "r_loops": 1,
                 "rows": 2,
                 "r_rows": 2,
-                "volatile parameter": "REPLACED",
+                "r_total_time_ms": "REPLACED",
                 "filtered": 100,
                 "r_filtered": 0,
                 "attached_condition": "(t3.f3 in (1,2))"
