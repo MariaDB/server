@@ -1388,9 +1388,8 @@ page_zip_compress(
 
 #ifdef UNIV_DEBUG
 		ib::error()
-			<< "InnoDB: Simulating a compression failure"
-			<< " for table "
-			<< (index->table->name.m_name)
+			<< "Simulating a compression failure"
+			<< " for table " << index->table->name
 			<< " index "
 			<< index->name()
 			<< " page "
