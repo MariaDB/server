@@ -179,3 +179,21 @@ create table json (j INT);
 show create table json;
 drop table json;
 
+select json_length( '[ 1, [ 2, 3, 4 ], 5 ]', '$[2]' );
+select json_length( '[ 1, [ 2, 3, 4 ], 5 ]', '$[2][0]' );
+select json_length( '[ 1, [ 2, 3, 4 ], 5 ]', '$[2][0][0]' );
+select json_length( '[ 1, [ 2, 3, 4 ], 5 ]', '$[2][0][0][0]' );
+select json_length( '[ 1, [ 2, 3, 4 ], {"a":5, "b":6} ]', '$[2]' );
+select json_length( '[ 1, [ 2, 3, 4 ], {"a":5, "b":6} ]', '$[2][0]' );
+select json_length( '[ 1, [ 2, 3, 4 ], {"a":5, "b":6} ]', '$[2][0][0]' );
+select json_length( '[ 1, [ 2, 3, 4 ], {"a":5, "b":6} ]', '$[2][0][0][0]' );
+select json_length( '{"a":{"b":{"d":1}}, "a":{"c":{"d":1, "j":2}}}', '$.a[0][0][0].c' );
+
+select json_set('1', '$[0]', 100);
+select json_set('1', '$[0][0]', 100);
+select json_set('1', '$[1]', 100);
+select json_set('{"a":12}', '$[0]', 100);
+select json_set('{"a":12}', '$[0].a', 100);
+select json_set('{"a":12}', '$[0][0].a', 100);
+select json_set('{"a":12}', '$[0][1].a', 100);
+

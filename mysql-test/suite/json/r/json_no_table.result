@@ -420,10 +420,10 @@ json_length( '[ 1, [ 2, 3, 4 ], 5 ]', '$[2]' )
 1
 select json_length( '[ 1, [ 2, 3, 4 ], 5 ]', '$[2][0]' );
 json_length( '[ 1, [ 2, 3, 4 ], 5 ]', '$[2][0]' )
-NULL
+1
 select json_length( '[ 1, [ 2, 3, 4 ], {"a": 1} ]', '$[2][0]' );
 json_length( '[ 1, [ 2, 3, 4 ], {"a": 1} ]', '$[2][0]' )
-NULL
+1
 select json_length( '[ 1, [ 2, 3, 4 ], 5 ]', '$[2][1]' );
 json_length( '[ 1, [ 2, 3, 4 ], 5 ]', '$[2][1]' )
 NULL
@@ -1694,13 +1694,13 @@ JSON_ARRAY_APPEND
 # ----------------------------------------------------------------------
 select json_array_append('{"a":1}', '$[0]', 100);
 json_array_append('{"a":1}', '$[0]', 100)
-NULL
+[{"a":1}, 100]
 select json_array_append('3', '$[0]', 100);
 json_array_append('3', '$[0]', 100)
-NULL
+[3, 100]
 select json_array_append('3', '$[0][0][0][0]', 100);
 json_array_append('3', '$[0][0][0][0]', 100)
-NULL
+[3, 100]
 # ----------------------------------------------------------------------
 # Test of JSON_INSERT function.
 # ----------------------------------------------------------------------
@@ -2118,7 +2118,7 @@ json_set('1', '$', 4)
 4
 select json_set('1', '$[0]', 4);
 json_set('1', '$[0]', 4)
-[1, 4]
+4
 select json_set('1', '$[1]', 4);
 json_set('1', '$[1]', 4)
 [1, 4]
@@ -2127,13 +2127,13 @@ json_set('1', '$[10]', '4', '$[11]', 5)
 [1, "4", 5]
 select json_set('[1,2,3]', '$[2][0]', 4);
 json_set('[1,2,3]', '$[2][0]', 4)
-[1,2,[3, 4]]
+[1,2,4]
 select json_set('[1,2,3]', '$[2][2]', 4);
 json_set('[1,2,3]', '$[2][2]', 4)
 [1,2,[3, 4]]
 select json_set('{"a": 3}', '$.a[0]', 4);
 json_set('{"a": 3}', '$.a[0]', 4)
-{"a": [3, 4]}
+{"a": 4}
 select json_set('{"a": 3}', '$.a[1]', 4, '$.a[2]', '5');
 json_set('{"a": 3}', '$.a[1]', 4, '$.a[2]', '5')
 {"a": [3, 4, "5"]}
@@ -2280,7 +2280,7 @@ json_replace('1', '$', 4)
 4
 select json_replace('1', '$[0]', 4);
 json_replace('1', '$[0]', 4)
-1
+4
 select json_replace('1', '$[1]', 4);
 json_replace('1', '$[1]', 4)
 1
@@ -2289,13 +2289,13 @@ json_replace('1', '$[10]', '4', '$[11]', 5)
 1
 select json_replace('[1,2,3]', '$[2][0]', 4);
 json_replace('[1,2,3]', '$[2][0]', 4)
-[1,2,3]
+[1,2,4]
 select json_replace('[1,2,3]', '$[2][2]', 4);
 json_replace('[1,2,3]', '$[2][2]', 4)
 [1,2,3]
 select json_replace('{"a": 3}', '$.a[0]', 4);
 json_replace('{"a": 3}', '$.a[0]', 4)
-{"a": 3}
+{"a": 4}
 select json_replace('{"a": 3}', '$.a[1]', 4, '$.a[2]', '5');
 json_replace('{"a": 3}', '$.a[1]', 4, '$.a[2]', '5')
 {"a": 3}
@@ -2312,7 +2312,7 @@ true);
 JSON_REPLACE('{ "a" : "foo", "b" : [ 1, 2, 3 ] }',
 '$.a[0]',
 true)
-{ "a" : "foo", "b" : [ 1, 2, 3 ] }
+{ "a" : true, "b" : [ 1, 2, 3 ] }
 SELECT JSON_REPLACE('{ "a" : "foo", "b" : [ 1, 2, 3 ] }',
 '$.b[5]',
 true);
@@ -3489,23 +3489,19 @@ JSON_SET('1', '$', 100)
 100
 SELECT JSON_SET('1', '$[0]', 100);
 JSON_SET('1', '$[0]', 100)
-[1, 100]
+100
 SELECT JSON_SET('1', '$[0][0]', 100);
 JSON_SET('1', '$[0][0]', 100)
-NULL
-Warnings:
-Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_set'
+100
 SELECT JSON_SET('1', '$[0][0][0]', 100);
 JSON_SET('1', '$[0][0][0]', 100)
-NULL
-Warnings:
-Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_set'
+100
 SELECT JSON_SET('[]', '$', 100);
 JSON_SET('[]', '$', 100)
 100
 SELECT JSON_SET('[]', '$[0]', 100);
 JSON_SET('[]', '$[0]', 100)
-[, 100]
+[100]
 SELECT JSON_SET('[]', '$[0][0]', 100);
 JSON_SET('[]', '$[0][0]', 100)
 NULL
@@ -3524,12 +3520,10 @@ JSON_SET('[1]', '$[0]', 100)
 [100]
 SELECT JSON_SET('[1]', '$[0][0]', 100);
 JSON_SET('[1]', '$[0][0]', 100)
-[[1, 100]]
+[100]
 SELECT JSON_SET('[1]', '$[0][0][0]', 100);
 JSON_SET('[1]', '$[0][0][0]', 100)
-NULL
-Warnings:
-Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_set'
+[100]
 SELECT JSON_SET('[[1]]', '$', 100);
 JSON_SET('[[1]]', '$', 100)
 100
@@ -3541,7 +3535,7 @@ JSON_SET('[[1]]', '$[0][0]', 100)
 [[100]]
 SELECT JSON_SET('[[1]]', '$[0][0][0]', 100);
 JSON_SET('[[1]]', '$[0][0][0]', 100)
-[[[1, 100]]]
+[[100]]
 SELECT JSON_SET('[[[1]]]', '$', 100);
 JSON_SET('[[[1]]]', '$', 100)
 100
@@ -3559,17 +3553,13 @@ JSON_REPLACE('1', '$', 100)
 100
 SELECT JSON_REPLACE('1', '$[0]', 100);
 JSON_REPLACE('1', '$[0]', 100)
-1
+100
 SELECT JSON_REPLACE('1', '$[0][0]', 100);
 JSON_REPLACE('1', '$[0][0]', 100)
-NULL
-Warnings:
-Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_update'
+100
 SELECT JSON_REPLACE('1', '$[0][0][0]', 100);
 JSON_REPLACE('1', '$[0][0][0]', 100)
-NULL
-Warnings:
-Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_update'
+100
 SELECT JSON_REPLACE('[]', '$', 100);
 JSON_REPLACE('[]', '$', 100)
 100
@@ -3594,12 +3584,10 @@ JSON_REPLACE('[1]', '$[0]', 100)
 [100]
 SELECT JSON_REPLACE('[1]', '$[0][0]', 100);
 JSON_REPLACE('[1]', '$[0][0]', 100)
-[1]
+[100]
 SELECT JSON_REPLACE('[1]', '$[0][0][0]', 100);
 JSON_REPLACE('[1]', '$[0][0][0]', 100)
-NULL
-Warnings:
-Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_update'
+[100]
 SELECT JSON_REPLACE('[[1]]', '$', 100);
 JSON_REPLACE('[[1]]', '$', 100)
 100
@@ -3611,7 +3599,7 @@ JSON_REPLACE('[[1]]', '$[0][0]', 100)
 [[100]]
 SELECT JSON_REPLACE('[[1]]', '$[0][0][0]', 100);
 JSON_REPLACE('[[1]]', '$[0][0][0]', 100)
-[[1]]
+[[100]]
 SELECT JSON_REPLACE('[[[1]]]', '$', 100);
 JSON_REPLACE('[[[1]]]', '$', 100)
 100

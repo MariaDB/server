@@ -1187,6 +1187,8 @@ int json_skip_key(json_engine_t *j)
 }
 
 
+#define SKIPPED_STEP_MARK ((uint) ~0)
+
 /*
   Current step of the patch matches the JSON construction.
   Now we should either stop the search or go to the next
@@ -1195,24 +1197,48 @@ int json_skip_key(json_engine_t *j)
 static int handle_match(json_engine_t *je, json_path_t *p,
                         json_path_step_t **p_cur_step, uint *array_counters)
 {
+  json_path_step_t *next_step= *p_cur_step + 1;
+
   DBUG_ASSERT(*p_cur_step < p->last_step);
 
   if (json_read_value(je))
     return 1;
 
   if (json_value_scalar(je))
-    return 0;
-
-  (*p_cur_step)++;
-  array_counters[*p_cur_step - p->steps]= 0;
-
-  if ((int) je->value_type !=
-      (int) ((*p_cur_step)->type & JSON_PATH_KEY_OR_ARRAY))
   {
-    (*p_cur_step)--;
-    return json_skip_level(je);
+    while (next_step->type == JSON_PATH_ARRAY && next_step->n_item == 0)
+    {
+      if (++next_step > p->last_step)
+      {
+        je->s.c_str= je->value_begin;
+        return 1;
+      }
+    }
+    return 0;
   }
 
+  if (next_step->type == JSON_PATH_ARRAY && next_step->n_item == 0 &&
+      je->value_type & JSON_VALUE_OBJECT)
+  {
+    do
+    {
+      array_counters[next_step - p->steps]= SKIPPED_STEP_MARK;
+      if (++next_step > p->last_step)
+      {
+        je->s.c_str= je->value_begin;
+        return 1;
+      }
+    } while (next_step->type == JSON_PATH_ARRAY && next_step->n_item == 0);
+  }
+
+
+  array_counters[next_step - p->steps]= 0;
+
+  if ((int) je->value_type !=
+      (int) (next_step->type & JSON_PATH_KEY_OR_ARRAY))
+    return json_skip_level(je);
+
+  *p_cur_step= next_step;
   return 0;
 }
 
@@ -1277,6 +1303,11 @@ int json_find_path(json_engine_t *je,
         json_skip_array_item(je);
       break;
     case JST_OBJ_END:
+      do
+      {
+        (*p_cur_step)--;
+      } while (array_counters[(*p_cur_step) - p->steps] == SKIPPED_STEP_MARK);
+      break;
     case JST_ARRAY_END:
       (*p_cur_step)--;
       break;

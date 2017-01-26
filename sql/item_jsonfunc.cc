@@ -1983,13 +1983,22 @@ String *Item_func_json_insert::val_str(String *str)
       if (je.value_type != JSON_VALUE_ARRAY)
       {
         const uchar *v_from= je.value_begin;
-        if (!mode_insert)
-          continue;
+        int do_array_autowrap;
+
+        if (mode_insert)
+          do_array_autowrap= !mode_replace || lp->n_item;
+        else
+        {
+          if (lp->n_item)
+            continue;
+          do_array_autowrap= 0;
+        }
+
 
         str->length(0);
         /* Wrap the value as an array. */
         if (append_simple(str, js->ptr(), (const char *) v_from - js->ptr()) ||
-            str->append("[", 1))
+            (do_array_autowrap && str->append("[", 1)))
           goto js_error; /* Out of memory. */
 
         if (je.value_type == JSON_VALUE_OBJECT)
@@ -1998,10 +2007,11 @@ String *Item_func_json_insert::val_str(String *str)
             goto js_error;
         }
 
-        if (append_simple(str, v_from, je.s.c_str - v_from) ||
-            str->append(", ", 2) ||
+        if ((do_array_autowrap &&
+             (append_simple(str, v_from, je.s.c_str - v_from) ||
+              str->append(", ", 2))) ||
             append_json_value(str, args[n_arg+1], &tmp_val) ||
-            str->append("]", 1) ||
+            (do_array_autowrap && str->append("]", 1)) ||
             append_simple(str, je.s.c_str, js->end()-(const char *) je.s.c_str))
           goto js_error; /* Out of memory. */
 
@@ -2033,7 +2043,7 @@ String *Item_func_json_insert::val_str(String *str)
       v_to= (const char *) (je.s.c_str - je.sav_c_len);
       str->length(0);
       if (append_simple(str, js->ptr(), v_to - js->ptr()) ||
-          str->append(", ", 2) ||
+          (n_item > 0 && str->append(", ", 2)) ||
           append_json_value(str, args[n_arg+1], &tmp_val) ||
           append_simple(str, v_to, js->end() - v_to))
         goto js_error; /* Out of memory. */

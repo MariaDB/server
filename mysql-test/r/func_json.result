@@ -444,3 +444,53 @@ json	CREATE TABLE `json` (
   `j` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table json;
+select json_length( '[ 1, [ 2, 3, 4 ], 5 ]', '$[2]' );
+json_length( '[ 1, [ 2, 3, 4 ], 5 ]', '$[2]' )
+1
+select json_length( '[ 1, [ 2, 3, 4 ], 5 ]', '$[2][0]' );
+json_length( '[ 1, [ 2, 3, 4 ], 5 ]', '$[2][0]' )
+1
+select json_length( '[ 1, [ 2, 3, 4 ], 5 ]', '$[2][0][0]' );
+json_length( '[ 1, [ 2, 3, 4 ], 5 ]', '$[2][0][0]' )
+1
+select json_length( '[ 1, [ 2, 3, 4 ], 5 ]', '$[2][0][0][0]' );
+json_length( '[ 1, [ 2, 3, 4 ], 5 ]', '$[2][0][0][0]' )
+1
+select json_length( '[ 1, [ 2, 3, 4 ], {"a":5, "b":6} ]', '$[2]' );
+json_length( '[ 1, [ 2, 3, 4 ], {"a":5, "b":6} ]', '$[2]' )
+2
+select json_length( '[ 1, [ 2, 3, 4 ], {"a":5, "b":6} ]', '$[2][0]' );
+json_length( '[ 1, [ 2, 3, 4 ], {"a":5, "b":6} ]', '$[2][0]' )
+2
+select json_length( '[ 1, [ 2, 3, 4 ], {"a":5, "b":6} ]', '$[2][0][0]' );
+json_length( '[ 1, [ 2, 3, 4 ], {"a":5, "b":6} ]', '$[2][0][0]' )
+2
+select json_length( '[ 1, [ 2, 3, 4 ], {"a":5, "b":6} ]', '$[2][0][0][0]' );
+json_length( '[ 1, [ 2, 3, 4 ], {"a":5, "b":6} ]', '$[2][0][0][0]' )
+2
+select json_length( '{"a":{"b":{"d":1}}, "a":{"c":{"d":1, "j":2}}}', '$.a[0][0][0].c' );
+json_length( '{"a":{"b":{"d":1}}, "a":{"c":{"d":1, "j":2}}}', '$.a[0][0][0].c' )
+2
+select json_set('1', '$[0]', 100);
+json_set('1', '$[0]', 100)
+100
+select json_set('1', '$[0][0]', 100);
+json_set('1', '$[0][0]', 100)
+100
+select json_set('1', '$[1]', 100);
+json_set('1', '$[1]', 100)
+[1, 100]
+select json_set('{"a":12}', '$[0]', 100);
+json_set('{"a":12}', '$[0]', 100)
+100
+select json_set('{"a":12}', '$[0].a', 100);
+json_set('{"a":12}', '$[0].a', 100)
+{"a":100}
+select json_set('{"a":12}', '$[0][0].a', 100);
+json_set('{"a":12}', '$[0][0].a', 100)
+{"a":100}
+select json_set('{"a":12}', '$[0][1].a', 100);
+json_set('{"a":12}', '$[0][1].a', 100)
+NULL
+Warnings:
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_set'
