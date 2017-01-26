@@ -1411,8 +1411,6 @@ innobase_start_or_create_for_mysql(void)
 {
 	bool		create_new_db = false;
 	lsn_t		flushed_lsn;
-	ulint		sum_of_data_file_sizes;
-	ulint		tablespace_size_in_header;
 	dberr_t		err;
 	ulint		srv_n_log_files_found = srv_n_log_files;
 	mtr_t		mtr;
@@ -1447,13 +1445,7 @@ innobase_start_or_create_for_mysql(void)
 	}
 #endif /* HAVE_LZO1X */
 
-	if (sizeof(ulint) != sizeof(void*)) {
-		ib::error() << "Size of InnoDB's ulint is " << sizeof(ulint)
-			<< ", but size of void* is " << sizeof(void*)
-			<< ". The sizes should be the same so that on"
-			" a 64-bit platforms you can allocate more than 4 GB"
-			" of memory.";
-	}
+	compile_time_assert(sizeof(ulint) == sizeof(void*));
 
 #ifdef UNIV_DEBUG
 	ib::info() << "!!!!!!!! UNIV_DEBUG switched on !!!!!!!!!";
@@ -2089,8 +2081,6 @@ files_checked:
 	trx_sys_create();
 
 	if (create_new_db) {
-		dberr_t err = DB_SUCCESS;
-
 		ut_a(!srv_read_only_mode);
 
 		mtr_start(&mtr);
@@ -2182,10 +2172,13 @@ files_checked:
 		if (err == DB_SUCCESS) {
 			/* Initialize the change buffer. */
 			err = dict_boot();
-		} else {
+		}
+
+		if (err != DB_SUCCESS) {
 			return(srv_init_abort(err));
 		}
 
+		/* This must precede recv_apply_hashed_log_recs(TRUE). */
 		purge_queue = trx_sys_init_at_db_start();
 
 		if (srv_force_recovery < SRV_FORCE_NO_LOG_REDO) {
@@ -2193,12 +2186,11 @@ files_checked:
 			respective file pages, for the last batch of
 			recv_group_scan_log_recs(). */
 
-			dberr_t err = recv_apply_hashed_log_recs(TRUE);
+			err = recv_apply_hashed_log_recs(TRUE);
 			DBUG_PRINT("ib_log", ("apply completed"));
 
 			if (err != DB_SUCCESS) {
-				ib::warn() << "recv_apply_hashed_log_recs "
-					   << " failed with error " << err;
+				return(srv_init_abort(err));
 			}
 
 			if (recv_needed_recovery) {
@@ -2215,6 +2207,65 @@ files_checked:
 				" to check that they are ok!"
 				" It may be safest to recover your"
 				" InnoDB database from a backup!";
+		}
+
+		if (!srv_read_only_mode) {
+			const ulint flags = FSP_FLAGS_PAGE_SSIZE();
+			for (ulint id = 0; id <= srv_undo_tablespaces; id++) {
+				if (fil_space_get(id)) {
+					fsp_flags_try_adjust(id, flags);
+				}
+			}
+
+			if (sum_of_new_sizes > 0) {
+				/* New data file(s) were added */
+				mtr.start();
+				fsp_header_inc_size(0, sum_of_new_sizes, &mtr);
+				mtr.commit();
+				/* Immediately write the log record about
+				increased tablespace size to disk, so that it
+				is durable even if mysqld would crash
+				quickly */
+				log_buffer_flush_to_disk();
+			}
+		}
+
+		const ulint	tablespace_size_in_header
+			= fsp_header_get_tablespace_size();
+		const ulint	sum_of_data_file_sizes
+			= srv_sys_space.get_sum_of_sizes();
+		/* Compare the system tablespace file size to what is
+		stored in FSP_SIZE. In open_or_create_data_files()
+		we already checked that the file sizes match the
+		innodb_data_file_path specification. */
+		if (srv_read_only_mode
+		    || sum_of_data_file_sizes == tablespace_size_in_header) {
+			/* Do not complain about the size. */
+		} else if (!srv_sys_space.can_auto_extend_last_file()
+			   || sum_of_data_file_sizes
+			   < tablespace_size_in_header) {
+			ib::error() << "Tablespace size stored in header is "
+				<< tablespace_size_in_header
+				<< " pages, but the sum of data file sizes is "
+				<< sum_of_data_file_sizes << " pages";
+
+			if (srv_force_recovery == 0
+			    && sum_of_data_file_sizes
+			    < tablespace_size_in_header) {
+				ib::error() <<
+					"Cannot start InnoDB. The tail of"
+					" the system tablespace is"
+					" missing. Have you edited"
+					" innodb_data_file_path in my.cnf"
+					" in an inappropriate way, removing"
+					" data files from there?"
+					" You can set innodb_force_recovery=1"
+					" in my.cnf to force"
+					" a startup if you are trying to"
+					" recover a badly corrupt database.";
+
+				return(srv_init_abort(DB_ERROR));
+			}
 		}
 
 		/* The purge system needs to create the purge view and
@@ -2285,8 +2336,6 @@ files_checked:
 		    && !recv_sys->found_corrupt_log
 		    && (srv_log_file_size_requested != srv_log_file_size
 			|| srv_n_log_files_found != srv_n_log_files)) {
-			dberr_t err = DB_SUCCESS;
-
 			/* Prepare to replace the redo log files. */
 
 			if (srv_read_only_mode) {
@@ -2352,20 +2401,8 @@ files_checked:
 		trx_sys_file_format_tag_init();
 	}
 
-	if (!create_new_db && sum_of_new_sizes > 0) {
-		/* New data file(s) were added */
-		mtr_start(&mtr);
-
-		fsp_header_inc_size(0, sum_of_new_sizes, &mtr);
-
-		mtr_commit(&mtr);
-
-		/* Immediately write the log record about increased tablespace
-		size to disk, so that it is durable even if mysqld would crash
-		quickly */
-
-		log_buffer_flush_to_disk();
-	}
+	ut_ad(err == DB_SUCCESS);
+	ut_a(sum_of_new_sizes != ULINT_UNDEFINED);
 
 	/* Open temp-tablespace and keep it open until shutdown. */
 
@@ -2417,13 +2454,6 @@ files_checked:
 	srv_startup_is_before_trx_rollback_phase = false;
 
 	if (!srv_read_only_mode) {
-		const ulint flags = FSP_FLAGS_PAGE_SSIZE();
-		for (ulint id = 0; id <= srv_undo_tablespaces; id++) {
-			if (fil_space_get(id)) {
-				fsp_flags_try_adjust(id, flags);
-			}
-		}
-
 		/* Create the thread which watches the timeouts
 		for lock waits */
 		thread_handles[2 + SRV_MAX_N_IO_THREADS] = os_thread_create(
@@ -2525,68 +2555,6 @@ files_checked:
 				srv_mtflush_threads,
 				mtflush_ctx,
 				(thread_ids + 6 + 32));
-		}
-	}
-
-	sum_of_data_file_sizes = srv_sys_space.get_sum_of_sizes();
-	ut_a(sum_of_new_sizes != ULINT_UNDEFINED);
-
-	tablespace_size_in_header = fsp_header_get_tablespace_size();
-
-	if (!srv_read_only_mode
-	    && !srv_sys_space.can_auto_extend_last_file()
-	    && sum_of_data_file_sizes != tablespace_size_in_header) {
-
-		ib::error() << "Tablespace size stored in header is "
-			<< tablespace_size_in_header << " pages, but the sum"
-			" of data file sizes is " << sum_of_data_file_sizes
-			<< " pages";
-
-		if (srv_force_recovery == 0
-		    && sum_of_data_file_sizes < tablespace_size_in_header) {
-			/* This is a fatal error, the tail of a tablespace is
-			missing */
-
-			ib::error()
-				<< "Cannot start InnoDB."
-				" The tail of the system tablespace is"
-				" missing. Have you edited"
-				" innodb_data_file_path in my.cnf in an"
-				" inappropriate way, removing"
-				" ibdata files from there?"
-				" You can set innodb_force_recovery=1"
-				" in my.cnf to force"
-				" a startup if you are trying"
-				" to recover a badly corrupt database.";
-
-			return(srv_init_abort(DB_ERROR));
-		}
-	}
-
-	if (!srv_read_only_mode
-	    && srv_sys_space.can_auto_extend_last_file()
-	    && sum_of_data_file_sizes < tablespace_size_in_header) {
-
-		ib::error() << "Tablespace size stored in header is "
-			<< tablespace_size_in_header << " pages, but the sum"
-			" of data file sizes is only "
-			<< sum_of_data_file_sizes << " pages";
-
-		if (srv_force_recovery == 0) {
-
-			ib::error()
-				<< "Cannot start InnoDB. The tail of"
-				" the system tablespace is"
-				" missing. Have you edited"
-				" innodb_data_file_path in my.cnf in an"
-				" InnoDB: inappropriate way, removing"
-				" ibdata files from there?"
-				" You can set innodb_force_recovery=1"
-				" in my.cnf to force"
-				" InnoDB: a startup if you are trying to"
-				" recover a badly corrupt database.";
-
-			return(srv_init_abort(DB_ERROR));
 		}
 	}
 
