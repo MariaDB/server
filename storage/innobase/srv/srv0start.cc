@@ -3,7 +3,7 @@
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All rights reserved.
 Copyright (c) 2008, Google Inc.
 Copyright (c) 2009, Percona Inc.
-Copyright (c) 2013, 2016, MariaDB Corporation
+Copyright (c) 2013, 2017, MariaDB Corporation
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -601,7 +601,7 @@ create_log_file(
 		fprintf(stderr, "innodb_force_recovery_crash=%lu\n",	\
 			srv_force_recovery_crash);			\
 		fflush(stderr);						\
-		abort();						\
+		exit(3);						\
 	}								\
 } while (0)
 #endif
@@ -1573,8 +1573,6 @@ innobase_start_or_create_for_mysql(void)
 	ulint		max_arch_log_no;
 #endif /* UNIV_LOG_ARCHIVE */
 	ulint		sum_of_new_sizes;
-	ulint		sum_of_data_file_sizes;
-	ulint		tablespace_size_in_header;
 	dberr_t		err;
 	unsigned	i;
 	ulint		srv_n_log_files_found = srv_n_log_files;
@@ -1586,6 +1584,19 @@ innobase_start_or_create_for_mysql(void)
 	char*		logfile0	= NULL;
 	size_t		dirnamelen;
 	bool		sys_datafiles_created = false;
+
+	/* Check that os_fast_mutexes work as expected */
+	os_fast_mutex_init(PFS_NOT_INSTRUMENTED, &srv_os_test_mutex);
+
+	ut_a(0 == os_fast_mutex_trylock(&srv_os_test_mutex));
+
+	os_fast_mutex_unlock(&srv_os_test_mutex);
+
+	os_fast_mutex_lock(&srv_os_test_mutex);
+
+	os_fast_mutex_unlock(&srv_os_test_mutex);
+
+	os_fast_mutex_free(&srv_os_test_mutex);
 
 	/* This should be initialized early */
 	ut_init_timer();
@@ -1632,22 +1643,7 @@ innobase_start_or_create_for_mysql(void)
 #endif /* PAGE_ATOMIC_REF_COUNT */
 	);
 
-
-	if (sizeof(ulint) != sizeof(void*)) {
-		ut_print_timestamp(stderr);
-		fprintf(stderr,
-			" InnoDB: Error: size of InnoDB's ulint is %lu, "
-			"but size of void*\n", (ulong) sizeof(ulint));
-		ut_print_timestamp(stderr);
-		fprintf(stderr,
-			" InnoDB: is %lu. The sizes should be the same "
-			"so that on a 64-bit\n",
-			(ulong) sizeof(void*));
-		ut_print_timestamp(stderr);
-		fprintf(stderr,
-			" InnoDB: platforms you can allocate more than 4 GB "
-			"of memory.\n");
-	}
+	compile_time_assert(sizeof(ulint) == sizeof(void*));
 
 #ifdef UNIV_DEBUG
 	ib_logf(IB_LOG_LEVEL_INFO,
@@ -2358,7 +2354,6 @@ files_checked:
 	trx_sys_create();
 
 	if (create_new_db) {
-
 		ut_a(!srv_read_only_mode);
 
 		mtr_start(&mtr);
@@ -2472,24 +2467,100 @@ files_checked:
 			LOG_CHECKPOINT, LSN_MAX,
 			min_flushed_lsn, max_flushed_lsn);
 
-		if (err != DB_SUCCESS) {
-
-			return(DB_ERROR);
+		if (err == DB_SUCCESS) {
+			/* Initialize the change buffer. */
+			err = dict_boot();
 		}
-
-		/* Since the insert buffer init is in dict_boot, and the
-		insert buffer is needed in any disk i/o, first we call
-		dict_boot(). Note that trx_sys_init_at_db_start() only needs
-		to access space 0, and the insert buffer at this stage already
-		works for space 0. */
-
-		err = dict_boot();
 
 		if (err != DB_SUCCESS) {
 			return(err);
 		}
 
+		/* This must precede recv_apply_hashed_log_recs(TRUE). */
 		ib_bh = trx_sys_init_at_db_start();
+
+		if (srv_force_recovery < SRV_FORCE_NO_LOG_REDO) {
+			/* Apply the hashed log records to the
+			respective file pages, for the last batch of
+			recv_group_scan_log_recs(). */
+
+			err = recv_apply_hashed_log_recs(TRUE);
+			DBUG_PRINT("ib_log", ("apply completed"));
+
+			if (err != DB_SUCCESS) {
+				return(err);
+			}
+		}
+
+		if (!srv_read_only_mode) {
+			const ulint flags = FSP_FLAGS_PAGE_SSIZE();
+			for (ulint id = 0; id <= srv_undo_tablespaces; id++) {
+				if (fil_space_get(id)) {
+					fsp_flags_try_adjust(id, flags);
+				}
+			}
+
+			if (sum_of_new_sizes > 0) {
+				/* New data file(s) were added */
+				mtr_start(&mtr);
+				fsp_header_inc_size(0, sum_of_new_sizes, &mtr);
+				mtr_commit(&mtr);
+				/* Immediately write the log record about
+				increased tablespace size to disk, so that it
+				is durable even if mysqld would crash
+				quickly */
+				log_buffer_flush_to_disk();
+			}
+		}
+
+		const ulint	tablespace_size_in_header
+			= fsp_header_get_tablespace_size();
+
+#ifdef UNIV_DEBUG
+		/* buf_debug_prints = TRUE; */
+#endif /* UNIV_DEBUG */
+		ulint		sum_of_data_file_sizes = 0;
+
+		for (ulint d = 0; d < srv_n_data_files; d++) {
+			sum_of_data_file_sizes += srv_data_file_sizes[d];
+		}
+
+		/* Compare the system tablespace file size to what is
+		stored in FSP_SIZE. In open_or_create_data_files()
+		we already checked that the file sizes match the
+		innodb_data_file_path specification. */
+		if (srv_read_only_mode
+		    || sum_of_data_file_sizes == tablespace_size_in_header) {
+			/* Do not complain about the size. */
+		} else if (!srv_auto_extend_last_data_file
+			   || sum_of_data_file_sizes
+			   < tablespace_size_in_header) {
+			ib_logf(IB_LOG_LEVEL_ERROR,
+				"Tablespace size stored in header is " ULINTPF
+				" pages, but the sum of data file sizes is "
+				ULINTPF " pages",
+				tablespace_size_in_header,
+				sum_of_data_file_sizes);
+
+			if (srv_force_recovery == 0
+			    && sum_of_data_file_sizes
+			    < tablespace_size_in_header) {
+				ib_logf(IB_LOG_LEVEL_ERROR,
+					"Cannot start InnoDB. The tail of"
+					" the system tablespace is"
+					" missing. Have you edited"
+					" innodb_data_file_path in my.cnf"
+					" in an inappropriate way, removing"
+					" data files from there?"
+					" You can set innodb_force_recovery=1"
+					" in my.cnf to force"
+					" a startup if you are trying to"
+					" recover a badly corrupt database.");
+
+				return(DB_ERROR);
+			}
+		}
+
 		n_recovered_trx = UT_LIST_GET_LEN(trx_sys->rw_trx_list);
 
 		/* The purge system needs to create the purge view and
@@ -2636,20 +2707,8 @@ files_checked:
 		trx_sys_file_format_tag_init();
 	}
 
-	if (!create_new_db && sum_of_new_sizes > 0) {
-		/* New data file(s) were added */
-		mtr_start(&mtr);
-
-		fsp_header_inc_size(0, sum_of_new_sizes, &mtr);
-
-		mtr_commit(&mtr);
-
-		/* Immediately write the log record about increased tablespace
-		size to disk, so that it is durable even if mysqld would crash
-		quickly */
-
-		log_buffer_flush_to_disk();
-	}
+	ut_ad(err == DB_SUCCESS);
+	ut_a(sum_of_new_sizes != ULINT_UNDEFINED);
 
 #ifdef UNIV_LOG_ARCHIVE
 	/* Archiving is always off under MySQL */
@@ -2711,13 +2770,6 @@ files_checked:
 	}
 
 	if (!srv_read_only_mode) {
-		const ulint flags = FSP_FLAGS_PAGE_SSIZE();
-		for (ulint id = 0; id <= srv_undo_tablespaces; id++) {
-			if (fil_space_get(id)) {
-				fsp_flags_try_adjust(id, flags);
-			}
-		}
-
 		/* Create the thread which watches the timeouts
 		for lock waits */
 		thread_handles[2 + SRV_MAX_N_IO_THREADS] = os_thread_create(
@@ -2815,116 +2867,6 @@ files_checked:
 		buf_flush_page_cleaner_thread_handle = os_thread_create(buf_flush_page_cleaner_thread, NULL, NULL);
 		buf_flush_page_cleaner_thread_started = true;
 	}
-
-#ifdef UNIV_DEBUG
-	/* buf_debug_prints = TRUE; */
-#endif /* UNIV_DEBUG */
-	sum_of_data_file_sizes = 0;
-
-	for (i = 0; i < srv_n_data_files; i++) {
-		sum_of_data_file_sizes += srv_data_file_sizes[i];
-	}
-
-	tablespace_size_in_header = fsp_header_get_tablespace_size();
-
-	if (!srv_read_only_mode
-	    && !srv_auto_extend_last_data_file
-	    && sum_of_data_file_sizes != tablespace_size_in_header) {
-
-		ut_print_timestamp(stderr);
-		fprintf(stderr,
-			" InnoDB: Error: tablespace size"
-			" stored in header is %lu pages, but\n",
-			(ulong) tablespace_size_in_header);
-		ut_print_timestamp(stderr);
-		fprintf(stderr,
-			"InnoDB: the sum of data file sizes is %lu pages\n",
-			(ulong) sum_of_data_file_sizes);
-
-		if (srv_force_recovery == 0
-		    && sum_of_data_file_sizes < tablespace_size_in_header) {
-			/* This is a fatal error, the tail of a tablespace is
-			missing */
-
-			ut_print_timestamp(stderr);
-			fprintf(stderr,
-				" InnoDB: Cannot start InnoDB."
-				" The tail of the system tablespace is\n");
-			ut_print_timestamp(stderr);
-			fprintf(stderr,
-				" InnoDB: missing. Have you edited"
-				" innodb_data_file_path in my.cnf in an\n");
-			ut_print_timestamp(stderr);
-			fprintf(stderr,
-				" InnoDB: inappropriate way, removing"
-				" ibdata files from there?\n");
-			ut_print_timestamp(stderr);
-			fprintf(stderr,
-				" InnoDB: You can set innodb_force_recovery=1"
-				" in my.cnf to force\n");
-			ut_print_timestamp(stderr);
-			fprintf(stderr,
-				" InnoDB: a startup if you are trying"
-				" to recover a badly corrupt database.\n");
-
-			return(DB_ERROR);
-		}
-	}
-
-	if (!srv_read_only_mode
-	    && srv_auto_extend_last_data_file
-	    && sum_of_data_file_sizes < tablespace_size_in_header) {
-
-		ut_print_timestamp(stderr);
-		fprintf(stderr,
-			" InnoDB: Error: tablespace size stored in header"
-			" is %lu pages, but\n",
-			(ulong) tablespace_size_in_header);
-		ut_print_timestamp(stderr);
-		fprintf(stderr,
-			" InnoDB: the sum of data file sizes"
-			" is only %lu pages\n",
-			(ulong) sum_of_data_file_sizes);
-
-		if (srv_force_recovery == 0) {
-
-			ut_print_timestamp(stderr);
-			fprintf(stderr,
-				" InnoDB: Cannot start InnoDB. The tail of"
-				" the system tablespace is\n");
-			ut_print_timestamp(stderr);
-			fprintf(stderr,
-				" InnoDB: missing. Have you edited"
-				" innodb_data_file_path in my.cnf in an\n");
-			ut_print_timestamp(stderr);
-			fprintf(stderr,
-				" InnoDB: inappropriate way, removing"
-				" ibdata files from there?\n");
-			ut_print_timestamp(stderr);
-			fprintf(stderr,
-				" InnoDB: You can set innodb_force_recovery=1"
-				" in my.cnf to force\n");
-			ut_print_timestamp(stderr);
-			fprintf(stderr,
-				" InnoDB: a startup if you are trying to"
-				" recover a badly corrupt database.\n");
-
-			return(DB_ERROR);
-		}
-	}
-
-	/* Check that os_fast_mutexes work as expected */
-	os_fast_mutex_init(PFS_NOT_INSTRUMENTED, &srv_os_test_mutex);
-
-	ut_a(0 == os_fast_mutex_trylock(&srv_os_test_mutex));
-
-	os_fast_mutex_unlock(&srv_os_test_mutex);
-
-	os_fast_mutex_lock(&srv_os_test_mutex);
-
-	os_fast_mutex_unlock(&srv_os_test_mutex);
-
-	os_fast_mutex_free(&srv_os_test_mutex);
 
 	if (srv_print_verbose_log) {
 		ib_logf(IB_LOG_LEVEL_INFO,
