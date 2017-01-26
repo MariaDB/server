@@ -3381,15 +3381,6 @@ void
 recv_recovery_from_checkpoint_finish(void)
 /*======================================*/
 {
-	/* Apply the hashed log records to the respective file pages */
-
-	if (srv_force_recovery < SRV_FORCE_NO_LOG_REDO) {
-
-		recv_apply_hashed_log_recs(TRUE);
-	}
-
-	DBUG_PRINT("ib_log", ("apply completed"));
-
 	if (recv_needed_recovery) {
 		trx_sys_print_mysql_master_log_pos();
 		trx_sys_print_mysql_binlog_offset();
