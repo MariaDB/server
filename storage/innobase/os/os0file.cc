@@ -828,27 +828,62 @@ os_file_get_block_size(
 	}
 #endif /* UNIV_LINUX */
 #ifdef _WIN32
-	DWORD outsize;
-	STORAGE_PROPERTY_QUERY storageQuery;
-	memset(&storageQuery, 0, sizeof(storageQuery));
-	storageQuery.PropertyId = StorageAccessAlignmentProperty;
-	storageQuery.QueryType  = PropertyStandardQuery;
-	STORAGE_ACCESS_ALIGNMENT_DESCRIPTOR diskAlignment;
 
-	BOOL result = os_win32_device_io_control(file,
-		IOCTL_STORAGE_QUERY_PROPERTY,
-		&storageQuery,
-		sizeof(STORAGE_PROPERTY_QUERY),
-		&diskAlignment,
-		sizeof(STORAGE_ACCESS_ALIGNMENT_DESCRIPTOR),
-		&outsize);
+	fblock_size = 0;
 
-	if (!result) {
-		os_file_handle_error_no_exit(name, "DeviceIoControl()", FALSE);
-		fblock_size = 0;
+	// Open volume for this file, find out it "physical bytes per sector"
+
+	HANDLE volume_handle = INVALID_HANDLE_VALUE;
+	char volume[MAX_PATH + 4]="\\\\.\\"; // Special prefix required for volume names.
+	if (!GetVolumePathName(name , volume + 4, MAX_PATH)) {
+		os_file_handle_error_no_exit(name,
+			"GetVolumePathName()", FALSE);
+		goto end;
 	}
 
-	fblock_size = diskAlignment.BytesPerPhysicalSector;
+	size_t len = strlen(volume);
+	if (volume[len - 1] == '\\') {
+		// Trim trailing backslash from volume name.
+		volume[len - 1] = 0;
+	}
+
+	volume_handle = CreateFile(volume, FILE_READ_ATTRIBUTES,
+		FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+		0, OPEN_EXISTING, 0, 0);
+
+	if (volume_handle == INVALID_HANDLE_VALUE) {
+		os_file_handle_error_no_exit(volume,
+			"CreateFile()", FALSE);
+		goto end;
+	}
+
+	DWORD tmp;
+	STORAGE_ACCESS_ALIGNMENT_DESCRIPTOR disk_alignment;
+
+	STORAGE_PROPERTY_QUERY storage_query;
+	memset(&storage_query, 0, sizeof(storage_query));
+	storage_query.PropertyId = StorageAccessAlignmentProperty;
+	storage_query.QueryType  = PropertyStandardQuery;
+
+	BOOL result = os_win32_device_io_control(volume_handle,
+		IOCTL_STORAGE_QUERY_PROPERTY,
+		&storage_query,
+		sizeof(storage_query),
+		&disk_alignment,
+		sizeof(disk_alignment),
+		&tmp);
+
+	CloseHandle(volume_handle);
+
+	if (!result) {
+		os_file_handle_error_no_exit(volume,
+			"DeviceIoControl(IOCTL_STORAGE_QUERY_PROPERTY)", FALSE);
+		goto end;
+	}
+
+	fblock_size = disk_alignment.BytesPerPhysicalSector;
+
+end:
 #endif /* _WIN32 */
 
 	/* Currently we support file block size up to 4Kb */
