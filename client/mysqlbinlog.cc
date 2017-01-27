@@ -2877,9 +2877,6 @@ int main(int argc, char** argv)
   DBUG_ENTER("main");
   DBUG_PROCESS(argv[0]);
 
-  (void) my_init_dynamic_array(&binlog_events, sizeof(LEX_STRING), 1024, 1024,
-                               MYF(0));
-
   my_init_time(); // for time functions
   tzset(); // set tzname
 
@@ -2916,6 +2913,10 @@ int main(int argc, char** argv)
             "Please use --base64-output=auto instead.");
 
   my_set_max_open_files(open_files_limit);
+
+  if (opt_flashback)
+    my_init_dynamic_array(&binlog_events, sizeof(LEX_STRING), 1024, 1024,
+                          MYF(0));
 
   if (opt_stop_never)
     to_last_remote_log= TRUE;
@@ -3029,8 +3030,8 @@ int main(int argc, char** argv)
       my_free(event_str->str);
     }
     fprintf(result_file, "COMMIT\n/*!*/;\n");
+    delete_dynamic(&binlog_events);
   }
-  delete_dynamic(&binlog_events);
 
   /* Set delimiter back to semicolon */
   if (!stop_event_string.is_empty())
