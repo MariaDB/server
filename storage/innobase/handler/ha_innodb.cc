@@ -313,26 +313,28 @@ This THDs must be destroyed rather early in the server shutdown sequence.
 This service thread creates a THD and idly waits for it to get a signal to
 die. Then it notifies all purge workers to shutdown.
 */
-st_my_thread_var *thd_destructor_myvar= NULL;
-mysql_cond_t thd_destructor_cond;
-pthread_t thd_destructor_thread;
+static volatile st_my_thread_var *thd_destructor_myvar= NULL;
+static pthread_t thd_destructor_thread;
 
 pthread_handler_t
 thd_destructor_proxy(void *)
 {
 	mysql_mutex_t thd_destructor_mutex;
+	mysql_cond_t thd_destructor_cond;
 
 	my_thread_init();
 	mysql_mutex_init(PSI_NOT_INSTRUMENTED, &thd_destructor_mutex, 0);
 	mysql_cond_init(PSI_NOT_INSTRUMENTED, &thd_destructor_cond, 0);
 
-	thd_destructor_myvar = _my_thread_var();
+	st_my_thread_var *myvar= _my_thread_var();
 	THD *thd= create_thd();
 	thd_proc_info(thd, "InnoDB background thread");
 
+	myvar->current_mutex = &thd_destructor_mutex;
+	myvar->current_cond = &thd_destructor_cond;
+
 	mysql_mutex_lock(&thd_destructor_mutex);
-	thd_destructor_myvar->current_mutex = &thd_destructor_mutex;
-	thd_destructor_myvar->current_cond = &thd_destructor_cond;
+	thd_destructor_myvar = myvar;
 	/* wait until the server wakes the THD to abort and die */
 	while (!thd_destructor_myvar->abort)
 		mysql_cond_wait(&thd_destructor_cond, &thd_destructor_mutex);
@@ -4487,6 +4489,8 @@ innobase_change_buffering_inited_ok:
 		mysql_thread_create(thd_destructor_thread_key,
 				    &thd_destructor_thread,
 				    NULL, thd_destructor_proxy, NULL);
+		while (!thd_destructor_myvar)
+			os_thread_sleep(20);
 	}
 
 	/* Adjust the innodb_undo_logs config object */
@@ -4603,6 +4607,7 @@ innobase_end(
 		}
 
 		innobase_space_shutdown();
+		pthread_join(thd_destructor_thread, NULL);
 
 		mysql_mutex_destroy(&innobase_share_mutex);
 		mysql_mutex_destroy(&commit_cond_m);
