@@ -7,7 +7,7 @@
 
 --let $simulate_comp_failures_save = `SELECT @@innodb_simulate_comp_failures`
 
-# since this test generates lot of errors in log, suppress checking errors
+--disable_query_log
 call mtr.add_suppression("InnoDB: Simulating a compression failure for table `test`\\.`t1`");
 --enable_query_log
 
