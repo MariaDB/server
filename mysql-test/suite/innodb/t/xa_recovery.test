@@ -1,7 +1,3 @@
-if (`select plugin_auth_version <= "5.6.24" from information_schema.plugins where plugin_name='innodb'`)
-{
-  --skip Not fixed in InnoDB as of 5.6.24 or earlier
-}
 --source include/have_innodb.inc
 # Embedded server does not support restarting.
 --source include/not_embedded.inc
@@ -9,6 +5,7 @@ if (`select plugin_auth_version <= "5.6.24" from information_schema.plugins wher
 # MDEV-8841 - close tables opened by previous tests, 
 # so they don't get marked crashed when the server gets crashed
 --disable_query_log
+call mtr.add_suppression("Found 1 prepared XA transactions");
 FLUSH TABLES;
 --enable_query_log
 
@@ -18,10 +15,7 @@ connect (con1,localhost,root);
 XA START 'x'; UPDATE t1 set a=2; XA END 'x'; XA PREPARE 'x';
 connection default;
 
-call mtr.add_suppression("Found 1 prepared XA transactions");
-
---source include/kill_mysqld.inc
---source include/start_mysqld.inc
+--source include/kill_and_restart_mysqld.inc
 
 disconnect con1;
 connect (con1,localhost,root);

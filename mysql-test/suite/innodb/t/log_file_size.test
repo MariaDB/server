@@ -13,10 +13,13 @@ if (`SELECT @@innodb_log_file_size = 1048576`) {
   --skip Test requires innodb_log_file_size>1M.
 }
 
+--disable_query_log
 call mtr.add_suppression("InnoDB: Resizing redo log");
 call mtr.add_suppression("InnoDB: Starting to delete and rewrite log files");
 call mtr.add_suppression("InnoDB: New log files created");
 call mtr.add_suppression("InnoDB: The log sequence numbers [0-9]+ and [0-9]+ in ibdata files do not match the log sequence number [0-9]+ in the ib_logfiles");
+FLUSH TABLES;
+--enable_query_log
 
 CREATE TABLE t1(a INT PRIMARY KEY) ENGINE=InnoDB;
 BEGIN;

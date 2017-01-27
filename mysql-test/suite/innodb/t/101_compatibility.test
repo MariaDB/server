@@ -9,9 +9,12 @@
 # This is actually testing the opposite: starting the fixed 10.1 with
 # buggy 10.1 files (by manually converting the flags in the files).
 
+--disable_query_log
 call mtr.add_suppression("InnoDB: adjusting FSP_SPACE_FLAGS of tablespace");
+FLUSH TABLES;
 SET GLOBAL innodb_file_per_table=1;
 SET GLOBAL innodb_file_format=Barracuda;
+--enable_query_log
 let INNODB_PAGE_SIZE=`select @@innodb_page_size`;
 let MYSQLD_DATADIR=`select @@datadir`;
 
