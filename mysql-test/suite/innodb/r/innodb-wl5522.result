@@ -1,4 +1,5 @@
 call mtr.add_suppression("InnoDB: Unable to import tablespace .* because it already exists.  Please DISCARD the tablespace before IMPORT.");
+FLUSH TABLES;
 CREATE TABLE t1
 (a INT AUTO_INCREMENT PRIMARY KEY,
 b char(22),
@@ -1013,3 +1014,4 @@ DROP TABLE t1;
 call mtr.add_suppression("Got error -1 when reading table '.*'");
 call mtr.add_suppression("InnoDB: Error: tablespace id and flags in file '.*'.*");
 call mtr.add_suppression("InnoDB: The table .* doesn't have a corresponding tablespace, it was discarded");
+FLUSH TABLES;
