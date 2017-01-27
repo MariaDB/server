@@ -10,14 +10,13 @@
 
 # Slow shutdown and restart to make sure ibuf merge is finished
 SET GLOBAL innodb_fast_shutdown = 0;
---source include/restart_mysqld.inc
-
 --disable_query_log
 call mtr.add_suppression("Header page consists of zero bytes");
 call mtr.add_suppression("Checksum mismatch in datafile");
 call mtr.add_suppression("but the innodb_page_size start-up parameter is");
 call mtr.add_suppression("adjusting FSP_SPACE_FLAGS");
 --enable_query_log
+--source include/restart_mysqld.inc
 
 let INNODB_PAGE_SIZE=`select @@innodb_page_size`;
 let MYSQLD_DATADIR=`select @@datadir`;
