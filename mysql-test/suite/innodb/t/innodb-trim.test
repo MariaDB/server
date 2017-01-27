@@ -31,8 +31,18 @@ call innodb_insert_proc(16000);
 commit;
 set autocommit=1;
 
+--disable_warnings
+--disable_query_log
+--disable_result_log
+let $success= SELECT variable_value FROM information_schema.global_status WHERE variable_name = 'innodb_num_page_compressed_trim_op';
+
+if ($success) {
 let $wait_condition= SELECT variable_value > 5 FROM information_schema.global_status WHERE variable_name = 'innodb_num_page_compressed_trim_op';
 --source include/wait_condition.inc
+}
+--enable_warnings
+--enable_query_log
+--enable_result_log
 
 DROP PROCEDURE innodb_insert_proc;
 DROP TABLE innodb_page_compressed;
