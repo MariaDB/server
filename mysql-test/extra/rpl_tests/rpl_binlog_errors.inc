@@ -50,7 +50,7 @@ call mtr.add_suppression("Can't generate a unique log-filename");
 call mtr.add_suppression("Writing one row to the row-based binary log failed.*");
 call mtr.add_suppression("Error writing file .*");
 
-SET @old_debug= @@global.debug;
+SET @old_debug= @@global.debug_dbug;
 
 ### ACTION: create a large file (> 4096 bytes) that will be later used
 ###         in LOAD DATA INFILE to check binlog errors in its vacinity
@@ -296,7 +296,7 @@ SET GLOBAL debug_dbug="+d,fault_injection_registering_index";
 -- replace_regex /\.[\\\/]master/master/
 -- error ER_CANT_OPEN_FILE
 FLUSH LOGS;
-SET GLOBAL debug_dbug="-d,fault_injection_registering_index";
+SET GLOBAL debug_dbug=@old_debug;
 
 -- error ER_NO_BINARY_LOGGING
 SHOW BINARY LOGS;
@@ -324,7 +324,7 @@ SET GLOBAL debug_dbug="+d,fault_injection_openning_index";
 -- replace_regex /\.[\\\/]master/master/
 -- error ER_CANT_OPEN_FILE
 FLUSH LOGS;
-SET GLOBAL debug_dbug="-d,fault_injection_openning_index";
+SET GLOBAL debug_dbug=@old_debug;
 
 -- error ER_FLUSH_MASTER_BINLOG_CLOSED
 RESET MASTER;
@@ -351,7 +351,7 @@ DROP TABLE t5;
 SET GLOBAL debug_dbug="+d,fault_injection_new_file_rotate_event";
 -- error ER_ERROR_ON_WRITE
 FLUSH LOGS;
-SET GLOBAL debug_dbug="-d,fault_injection_new_file_rotate_event";
+SET GLOBAL debug_dbug=@old_debug;
 
 -- error ER_FLUSH_MASTER_BINLOG_CLOSED
 RESET MASTER;

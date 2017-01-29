@@ -9,7 +9,7 @@ connection master;
 call mtr.add_suppression("Can't generate a unique log-filename");
 call mtr.add_suppression("Writing one row to the row-based binary log failed.*");
 call mtr.add_suppression("Error writing file .*");
-SET @old_debug= @@global.debug;
+SET @old_debug= @@global.debug_dbug;
 SELECT repeat('x',8192) INTO OUTFILE 'MYSQLTEST_VARDIR/tmp/bug_46166.data';
 SELECT repeat('x',10) INTO OUTFILE 'MYSQLTEST_VARDIR/tmp/bug_46166-2.data';
 RESET MASTER;
@@ -180,7 +180,7 @@ Level	Code	Message
 SET GLOBAL debug_dbug="+d,fault_injection_registering_index";
 FLUSH LOGS;
 ERROR HY000: Can't open file: 'master-bin.000002' (errno: 1 "Operation not permitted")
-SET GLOBAL debug_dbug="-d,fault_injection_registering_index";
+SET GLOBAL debug_dbug=@old_debug;
 SHOW BINARY LOGS;
 ERROR HY000: You are not using binary logging
 CREATE TABLE t5 (a INT);
@@ -194,7 +194,7 @@ include/rpl_restart_server.inc [server_number=1]
 SET GLOBAL debug_dbug="+d,fault_injection_openning_index";
 FLUSH LOGS;
 ERROR HY000: Can't open file: 'master-bin.index' (errno: 1 "Operation not permitted")
-SET GLOBAL debug_dbug="-d,fault_injection_openning_index";
+SET GLOBAL debug_dbug=@old_debug;
 RESET MASTER;
 ERROR HY000: Binlog closed, cannot RESET MASTER
 CREATE TABLE t5 (a INT);
@@ -208,7 +208,7 @@ include/rpl_restart_server.inc [server_number=1]
 SET GLOBAL debug_dbug="+d,fault_injection_new_file_rotate_event";
 FLUSH LOGS;
 ERROR HY000: Can't open file: 'master-bin' (errno: 2 "No such file or directory")
-SET GLOBAL debug_dbug="-d,fault_injection_new_file_rotate_event";
+SET GLOBAL debug_dbug=@old_debug;
 RESET MASTER;
 ERROR HY000: Binlog closed, cannot RESET MASTER
 CREATE TABLE t5 (a INT);
