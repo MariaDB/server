@@ -2720,7 +2720,6 @@ DECLARE_THREAD(srv_worker_thread)(
 
 	ut_a(!purge_sys->running);
 	ut_a(purge_sys->state == PURGE_STATE_EXIT);
-	ut_a(srv_shutdown_state > SRV_SHUTDOWN_NONE || thd_kill_level(thd));
 
 	rw_lock_x_unlock(&purge_sys->latch);
 
