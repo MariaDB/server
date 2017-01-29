@@ -702,11 +702,14 @@ mysql_mutex_t
   LOCK_delayed_insert, LOCK_delayed_status, LOCK_delayed_create,
   LOCK_crypt,
   LOCK_global_system_variables,
-  LOCK_user_conn, LOCK_slave_list, LOCK_active_mi,
+  LOCK_user_conn, LOCK_slave_list,
   LOCK_connection_count, LOCK_error_messages, LOCK_slave_init;
 
 mysql_mutex_t LOCK_stats, LOCK_global_user_client_stats,
               LOCK_global_table_stats, LOCK_global_index_stats;
+
+/* This protects against changes in master_info_index */
+mysql_mutex_t LOCK_active_mi;
 
 /**
   The below lock protects access to two global server variables:
@@ -1651,7 +1654,7 @@ static void close_connections(void)
   mysql_mutex_unlock(&LOCK_thread_count); // For unlink from list
 
   Events::deinit();
-  end_slave();
+  slave_prepare_for_shutdown();
 
   /*
     Give threads time to die.
@@ -1700,6 +1703,7 @@ static void close_connections(void)
     DBUG_PRINT("quit",("Unlocking LOCK_thread_count"));
     mysql_mutex_unlock(&LOCK_thread_count);
   }
+  end_slave();
   /* All threads has now been aborted */
   DBUG_PRINT("quit",("Waiting for threads to die (count=%u)",thread_count));
   mysql_mutex_lock(&LOCK_thread_count);
@@ -7214,17 +7218,14 @@ static int show_slave_running(THD *thd, SHOW_VAR *var, char *buff)
 
   var->type= SHOW_MY_BOOL;
   var->value= buff;
-  mysql_mutex_lock(&LOCK_active_mi);
-  if (master_info_index) 
+
+  if ((mi= get_master_info(&thd->variables.default_master_connection,
+                           Sql_condition::WARN_LEVEL_NOTE)))
   {
-    mi= master_info_index->
-      get_master_info(&thd->variables.default_master_connection,
-                      Sql_condition::WARN_LEVEL_NOTE);
-    if (mi)
-      tmp= (my_bool) (mi->slave_running == MYSQL_SLAVE_RUN_READING &&
-                      mi->rli.slave_running != MYSQL_SLAVE_NOT_RUN);
+    tmp= (my_bool) (mi->slave_running == MYSQL_SLAVE_RUN_READING &&
+                    mi->rli.slave_running != MYSQL_SLAVE_NOT_RUN);
+    mi->release();
   }
-  mysql_mutex_unlock(&LOCK_active_mi);
   if (mi)
     *((my_bool *)buff)= tmp;
   else
@@ -7256,38 +7257,26 @@ static int show_slaves_running(THD *thd, SHOW_VAR *var, char *buff)
 {
   var->type= SHOW_LONGLONG;
   var->value= buff;
-  mysql_mutex_lock(&LOCK_active_mi);
 
-  if (master_info_index)
-    *((longlong *)buff)= master_info_index->any_slave_sql_running();
-  else
-    *((longlong *)buff)= 0;
+  *((longlong *)buff)= any_slave_sql_running();
 
-  mysql_mutex_unlock(&LOCK_active_mi);
   return 0;
 }
 
 
 static int show_slave_received_heartbeats(THD *thd, SHOW_VAR *var, char *buff)
 {
-  Master_info *mi= NULL;
-  longlong tmp;
-  LINT_INIT(tmp);
+  Master_info *mi;
 
   var->type= SHOW_LONGLONG;
   var->value= buff;
-  mysql_mutex_lock(&LOCK_active_mi);
-  if (master_info_index) 
+
+  if ((mi= get_master_info(&thd->variables.default_master_connection,
+                           Sql_condition::WARN_LEVEL_NOTE)))
   {
-    mi= master_info_index->
-      get_master_info(&thd->variables.default_master_connection,
-                      Sql_condition::WARN_LEVEL_NOTE);
-    if (mi)
-      tmp= mi->received_heartbeats;
+    *((longlong *)buff)= mi->received_heartbeats;
+    mi->release();
   }
-  mysql_mutex_unlock(&LOCK_active_mi);
-  if (mi)
-    *((longlong *)buff)= tmp;
   else
     var->type= SHOW_UNDEF;
   return 0;
@@ -7297,23 +7286,16 @@ static int show_slave_received_heartbeats(THD *thd, SHOW_VAR *var, char *buff)
 static int show_heartbeat_period(THD *thd, SHOW_VAR *var, char *buff)
 {
   Master_info *mi= NULL;
-  float tmp;
-  LINT_INIT(tmp);
 
   var->type= SHOW_CHAR;
   var->value= buff;
-  mysql_mutex_lock(&LOCK_active_mi);
-  if (master_info_index) 
+
+  if ((mi= get_master_info(&thd->variables.default_master_connection,
+                           Sql_condition::WARN_LEVEL_NOTE)))
   {
-    mi= master_info_index->
-      get_master_info(&thd->variables.default_master_connection,
-                    Sql_condition::WARN_LEVEL_NOTE);
-    if (mi)
-      tmp= mi->heartbeat_period;
+    sprintf(buff, "%.3f", mi->heartbeat_period);
+    mi->release();
   }
-  mysql_mutex_unlock(&LOCK_active_mi);
-  if (mi)
-    sprintf(buff, "%.3f", tmp);
   else
     var->type= SHOW_UNDEF;
   return 0;

@@ -213,6 +213,7 @@ bool rpl_master_erroneous_autoinc(THD* thd);
 const char *print_slave_db_safe(const char *db);
 void skip_load_data_infile(NET* net);
 
+void slave_prepare_for_shutdown();
 void end_slave(); /* release slave threads */
 void close_active_mi(); /* clean up slave threads data */
 void clear_until_condition(Relay_log_info* rli);

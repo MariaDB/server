@@ -614,6 +614,7 @@ int terminate_slave_threads(Master_info* mi,int thread_mask,bool skip_lock)
   if (!mi->inited)
     DBUG_RETURN(0); /* successfully do nothing */
   int error,force_all = (thread_mask & SLAVE_FORCE_ALL);
+  int retval= 0;
   mysql_mutex_t *sql_lock = &mi->rli.run_lock, *io_lock = &mi->run_lock;
   mysql_mutex_t *log_lock= mi->rli.relay_log.get_log_lock();
 
@@ -633,24 +634,19 @@ int terminate_slave_threads(Master_info* mi,int thread_mask,bool skip_lock)
                                       skip_lock)) &&
         !force_all)
       DBUG_RETURN(error);
+    retval= error;
 
     mysql_mutex_lock(log_lock);
 
     DBUG_PRINT("info",("Flushing relay-log info file."));
     if (current_thd)
       THD_STAGE_INFO(current_thd, stage_flushing_relay_log_info_file);
-    if (flush_relay_log_info(&mi->rli))
-      DBUG_RETURN(ER_ERROR_DURING_FLUSH_LOGS);
-    
-    if (my_sync(mi->rli.info_fd, MYF(MY_WME)))
-      DBUG_RETURN(ER_ERROR_DURING_FLUSH_LOGS);
+    if (flush_relay_log_info(&mi->rli) ||
+        my_sync(mi->rli.info_fd, MYF(MY_WME)))
+      retval= ER_ERROR_DURING_FLUSH_LOGS;
 
     mysql_mutex_unlock(log_lock);
   }
-  if (opt_slave_parallel_threads > 0 &&
-      master_info_index &&// master_info_index is set to NULL on server shutdown
-      !master_info_index->any_slave_sql_running())
-    rpl_parallel_inactivate_pool(&global_rpl_thread_pool);
   if (thread_mask & (SLAVE_IO|SLAVE_FORCE_ALL))
   {
     DBUG_PRINT("info",("Terminating IO thread"));
@@ -661,25 +657,26 @@ int terminate_slave_threads(Master_info* mi,int thread_mask,bool skip_lock)
                                       skip_lock)) &&
         !force_all)
       DBUG_RETURN(error);
+    if (!retval)
+      retval= error;
 
     mysql_mutex_lock(log_lock);
 
     DBUG_PRINT("info",("Flushing relay log and master info file."));
     if (current_thd)
       THD_STAGE_INFO(current_thd, stage_flushing_relay_log_and_master_info_repository);
-    if (flush_master_info(mi, TRUE, FALSE))
-      DBUG_RETURN(ER_ERROR_DURING_FLUSH_LOGS);
-
+    if (likely(mi->fd >= 0))
+    {
+      if (flush_master_info(mi, TRUE, FALSE) || my_sync(mi->fd, MYF(MY_WME)))
+        retval= ER_ERROR_DURING_FLUSH_LOGS;
+    }
     if (mi->rli.relay_log.is_open() &&
         my_sync(mi->rli.relay_log.get_log_file()->file, MYF(MY_WME)))
-      DBUG_RETURN(ER_ERROR_DURING_FLUSH_LOGS);
-
-    if (my_sync(mi->fd, MYF(MY_WME)))
-      DBUG_RETURN(ER_ERROR_DURING_FLUSH_LOGS);
+      retval= ER_ERROR_DURING_FLUSH_LOGS;
 
     mysql_mutex_unlock(log_lock);
   }
-  DBUG_RETURN(0); 
+  DBUG_RETURN(retval); 
 }
 
 
@@ -956,10 +953,7 @@ int start_slave_threads(bool need_slave_mutex, bool wait_for_start,
                               mi);
   if (!error && (thread_mask & SLAVE_SQL))
   {
-    if (opt_slave_parallel_threads > 0)
-      error= rpl_parallel_activate_pool(&global_rpl_thread_pool);
-    if (!error)
-      error= start_slave_thread(
+    error= start_slave_thread(
 #ifdef HAVE_PSI_INTERFACE
                               key_thread_slave_sql,
 #endif
@@ -975,10 +969,18 @@ int start_slave_threads(bool need_slave_mutex, bool wait_for_start,
 
 
 /*
-  Release slave threads at time of executing shutdown.
+  Kill slaves preparing for shutdown
+*/
 
-  SYNOPSIS
-    end_slave()
+void slave_prepare_for_shutdown()
+{
+  mysql_mutex_lock(&LOCK_active_mi);
+  master_info_index->free_connections();
+  mysql_mutex_unlock(&LOCK_active_mi);
+}
+
+/*
+  Release slave threads at time of executing shutdown.
 */
 
 void end_slave()
@@ -996,7 +998,10 @@ void end_slave()
     startup parameter to the server was wrong.
   */
   mysql_mutex_lock(&LOCK_active_mi);
-  /* This will call terminate_slave_threads() on all connections */
+  /*
+    master_info_index should not have any threads anymore as they where
+    killed as part of slave_prepare_for_shutdown()
+  */
   delete master_info_index;
   master_info_index= 0;
   active_mi= 0;
@@ -2657,7 +2662,9 @@ static bool send_show_master_info_data(THD *thd, Master_info *mi, bool full,
 
     mysql_mutex_lock(&mi->data_lock);
     mysql_mutex_lock(&mi->rli.data_lock);
+    /* err_lock is to protect mi->last_error() */
     mysql_mutex_lock(&mi->err_lock);
+    /* err_lock is to protect mi->rli.last_error() */
     mysql_mutex_lock(&mi->rli.err_lock);
     protocol->store(mi->host, &my_charset_bin);
     protocol->store(mi->user, &my_charset_bin);
@@ -4493,6 +4500,16 @@ pthread_handler_t handle_slave_sql(void *arg)
   rli->slave_running= MYSQL_SLAVE_RUN_NOT_CONNECT;
 
   pthread_detach_this_thread();
+
+  if (opt_slave_parallel_threads > 0 && 
+      rpl_parallel_activate_pool(&global_rpl_thread_pool))
+  {
+    mysql_cond_broadcast(&rli->start_cond);
+    rli->report(ERROR_LEVEL, ER_SLAVE_FATAL_ERROR, NULL,
+                "Failed during parallel slave pool activation");
+    goto err_during_init;
+  }
+
   if (init_slave_thread(thd, mi, SLAVE_THD_SQL))
   {
     /*
@@ -4862,17 +4879,7 @@ err_during_init:
   DBUG_EXECUTE_IF("simulate_slave_delay_at_terminate_bug38694", sleep(5););
   mysql_mutex_unlock(&rli->run_lock);  // tell the world we are done
 
-  /*
-    Deactivate the parallel replication thread pool, if there are now no more
-    SQL threads running. Do this here, when we have released all locks, but
-    while our THD (and current_thd) is still valid.
-  */
-  mysql_mutex_lock(&LOCK_active_mi);
-  if (opt_slave_parallel_threads > 0 &&
-      master_info_index &&// master_info_index is set to NULL on server shutdown
-      !master_info_index->any_slave_sql_running())
-    rpl_parallel_inactivate_pool(&global_rpl_thread_pool);
-  mysql_mutex_unlock(&LOCK_active_mi);
+  rpl_parallel_resize_pool_if_no_slaves();
 
   mysql_mutex_lock(&LOCK_thread_count);
   delete thd;

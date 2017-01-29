@@ -1312,6 +1312,29 @@ handle_rpl_parallel_thread(void *arg)
     }
     if (!in_event_group)
     {
+      /* If we are in a FLUSH TABLES FOR READ LOCK, wait for it */
+      while (rpt->current_entry && rpt->pause_for_ftwrl)
+      {
+        /*
+          We are currently in the delicate process of pausing parallel
+          replication while FLUSH TABLES WITH READ LOCK is starting. We must
+          not de-allocate the thread (setting rpt->current_owner= NULL) until
+          rpl_unpause_after_ftwrl() has woken us up.
+        */
+        rpl_parallel_entry *e= rpt->current_entry;
+        /*
+          Ensure that we will unblock rpl_pause_for_ftrwl()
+          e->pause_sub_id may be LONGLONG_MAX if rpt->current_entry has changed
+        */
+        DBUG_ASSERT(e->pause_sub_id == (uint64)ULONGLONG_MAX ||
+                    e->last_committed_sub_id >= e->pause_sub_id);
+        mysql_mutex_lock(&e->LOCK_parallel_entry);
+        mysql_mutex_unlock(&rpt->LOCK_rpl_thread);
+        if (rpt->pause_for_ftwrl)
+          mysql_cond_wait(&e->COND_parallel_entry, &e->LOCK_parallel_entry);
+        mysql_mutex_unlock(&e->LOCK_parallel_entry);
+        mysql_mutex_lock(&rpt->LOCK_rpl_thread);
+      }
       rpt->current_owner= NULL;
       /* Tell wait_for_done() that we are done, if it is waiting. */
       if (likely(rpt->current_entry) &&
@@ -1369,6 +1392,28 @@ rpl_parallel_change_thread_count(rpl_parallel_thread_pool *pool,
   if ((res= pool_mark_busy(pool, current_thd)))
     return res;
 
+  /* Protect against parallel pool resizes */
+  if (pool->count == new_count)
+  {
+    pool_mark_not_busy(pool);
+    return 0;
+  }
+
+  /*
+    If we are about to delete pool, do an extra check that there are no new
+    slave threads running since we marked pool busy
+  */
+  if (!new_count)
+  {
+    if (any_slave_sql_running())
+    {
+      DBUG_PRINT("warning",
+                 ("SQL threads running while trying to reset parallel pool"));
+      pool_mark_not_busy(pool);
+      return 0;                                 // Ok to not resize pool
+    }
+  }
+
   /*
     Allocate the new list of threads up-front.
     That way, if we fail half-way, we only need to free whatever we managed
@@ -1382,7 +1427,7 @@ rpl_parallel_change_thread_count(rpl_parallel_thread_pool *pool,
   {
     my_error(ER_OUTOFMEMORY, MYF(0), (int(new_count*sizeof(*new_list) +
                                           new_count*sizeof(*rpt_array))));
-    goto err;;
+    goto err;
   }
 
   for (i= 0; i < new_count; ++i)
@@ -1501,6 +1546,20 @@ err:
   }
   pool_mark_not_busy(pool);
   return 1;
+}
+
+/*
+  Deactivate the parallel replication thread pool, if there are now no more
+  SQL threads running.
+*/
+
+int rpl_parallel_resize_pool_if_no_slaves(void)
+{
+  /* master_info_index is set to NULL on shutdown */
+  if (opt_slave_parallel_threads > 0 && !any_slave_sql_running() &&
+      master_info_index)
+    return rpl_parallel_inactivate_pool(&global_rpl_thread_pool);
+  return 0;
 }
 
 
@@ -1814,6 +1873,7 @@ rpl_parallel_thread_pool::get_thread(rpl_parallel_thread **owner,
 {
   rpl_parallel_thread *rpt;
 
+  DBUG_ASSERT(count > 0);
   mysql_mutex_lock(&LOCK_rpl_thread_pool);
   while (unlikely(busy) || !(rpt= free_list))
     mysql_cond_wait(&COND_rpl_thread_pool, &LOCK_rpl_thread_pool);

@@ -2207,7 +2207,7 @@ err:
 int
 mysql_execute_command(THD *thd)
 {
-  int res= FALSE;
+  int res= 0;
   int  up_result= 0;
   LEX  *lex= thd->lex;
   /* first SELECT_LEX (have special meaning for many of non-SELECTcommands) */
@@ -2702,10 +2702,17 @@ case SQLCOM_PREPARE:
 
     if (check_global_access(thd, SUPER_ACL))
       goto error;
+    /*
+      In this code it's ok to use LOCK_active_mi as we are adding new things
+      into master_info_index
+    */
     mysql_mutex_lock(&LOCK_active_mi);
-
     if (!master_info_index)
+    {
+      mysql_mutex_unlock(&LOCK_active_mi);
+      my_error(ER_SERVER_SHUTDOWN, MYF(0));
       goto error;
+    }
 
     mi= master_info_index->get_master_info(&lex_mi->connection_name,
                                            Sql_condition::WARN_LEVEL_NOTE);
@@ -2734,7 +2741,7 @@ case SQLCOM_PREPARE:
         If new master was not added, we still need to free mi.
       */
       if (master_info_added)
-        master_info_index->remove_master_info(&lex_mi->connection_name);
+        master_info_index->remove_master_info(mi);
       else
         delete mi;
     }
@@ -2752,22 +2759,24 @@ case SQLCOM_PREPARE:
     /* Accept one of two privileges */
     if (check_global_access(thd, SUPER_ACL | REPL_CLIENT_ACL))
       goto error;
-    mysql_mutex_lock(&LOCK_active_mi);
 
     if (lex->verbose)
+    {
+      mysql_mutex_lock(&LOCK_active_mi);
       res= show_all_master_info(thd);
+      mysql_mutex_unlock(&LOCK_active_mi);
+    }
     else
     {
       LEX_MASTER_INFO *lex_mi= &thd->lex->mi;
       Master_info *mi;
-      mi= master_info_index->get_master_info(&lex_mi->connection_name,
-                                             Sql_condition::WARN_LEVEL_ERROR);
-      if (mi != NULL)
+      if ((mi= get_master_info(&lex_mi->connection_name,
+                               Sql_condition::WARN_LEVEL_ERROR)))
       {
         res= show_master_info(thd, mi, 0);
+        mi->release();
       }
     }
-    mysql_mutex_unlock(&LOCK_active_mi);
     break;
   }
   case SQLCOM_SHOW_MASTER_STAT:
@@ -3091,22 +3100,23 @@ end_with_restore_list:
 
     load_error= rpl_load_gtid_slave_state(thd);
 
-    mysql_mutex_lock(&LOCK_active_mi);
-
-    if ((mi= (master_info_index->
-              get_master_info(&lex_mi->connection_name,
-                              Sql_condition::WARN_LEVEL_ERROR))))
+    /*
+      We don't need to ensure that only one user is using master_info
+      as start_slave is protected against simultaneous usage
+    */
+    if ((mi= get_master_info(&lex_mi->connection_name,
+                             Sql_condition::WARN_LEVEL_ERROR)))
     {
       if (load_error)
       {
         /*
-          We cannot start a slave using GTID if we cannot load the GTID position
-          from the mysql.gtid_slave_pos table. But we can allow non-GTID
-          replication (useful eg. during upgrade).
+          We cannot start a slave using GTID if we cannot load the
+          GTID position from the mysql.gtid_slave_pos table. But we
+          can allow non-GTID replication (useful eg. during upgrade).
         */
         if (mi->using_gtid != Master_info::USE_GTID_NO)
         {
-          mysql_mutex_unlock(&LOCK_active_mi);
+          mi->release();
           break;
         }
         else
@@ -3114,8 +3124,8 @@ end_with_restore_list:
       }
       if (!start_slave(thd, mi, 1 /* net report*/))
         my_ok(thd);
+      mi->release();
     }
-    mysql_mutex_unlock(&LOCK_active_mi);
     break;
   }
   case SQLCOM_SLAVE_STOP:
@@ -3145,13 +3155,17 @@ end_with_restore_list:
     }
 
     lex_mi= &thd->lex->mi;
-    mysql_mutex_lock(&LOCK_active_mi);
-    if ((mi= (master_info_index->
-              get_master_info(&lex_mi->connection_name,
-                              Sql_condition::WARN_LEVEL_ERROR))))
-      if (!stop_slave(thd, mi, 1/* net report*/))
+    if ((mi= get_master_info(&lex_mi->connection_name,
+                             Sql_condition::WARN_LEVEL_ERROR)))
+    {
+      if (stop_slave(thd, mi, 1/* net report*/))
+        res= 1;
+      mi->release();
+      if (rpl_parallel_resize_pool_if_no_slaves())
+        res= 1;
+      if (!res)
         my_ok(thd);
-    mysql_mutex_unlock(&LOCK_active_mi);
+    }
     break;
   }
   case SQLCOM_SLAVE_ALL_START:
@@ -4317,11 +4331,13 @@ end_with_restore_list:
            reload_acl_and_cache binlog interactions failed 
          */
         res= 1;
-      } 
+      }
 
       if (!res)
         my_ok(thd);
     } 
+    else
+      res= 1;                                   // reload_acl_and_cache failed
 #ifdef HAVE_REPLICATION
     if (lex->type & REFRESH_READ_LOCK)
       rpl_unpause_after_ftwrl(thd);

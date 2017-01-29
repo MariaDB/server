@@ -3265,8 +3265,8 @@ bool change_master(THD* thd, Master_info* mi, bool *master_info_added)
   LEX_MASTER_INFO* lex_mi= &thd->lex->mi;
   DBUG_ENTER("change_master");
 
-  mysql_mutex_assert_owner(&LOCK_active_mi);
   DBUG_ASSERT(master_info_index);
+  mysql_mutex_assert_owner(&LOCK_active_mi);
 
   *master_info_added= false;
   /* 
@@ -3646,7 +3646,6 @@ bool mysql_show_binlog_events(THD* thd)
   int old_max_allowed_packet= thd->variables.max_allowed_packet;
   Master_info *mi= 0;
   LOG_INFO linfo;
-
   DBUG_ENTER("mysql_show_binlog_events");
 
   Log_event::init_show_field_list(&field_list);
@@ -3674,13 +3673,9 @@ bool mysql_show_binlog_events(THD* thd)
   }
   else  /* showing relay log contents */
   {
-    mysql_mutex_lock(&LOCK_active_mi);
-    if (!master_info_index ||
-        !(mi= master_info_index->
-          get_master_info(&thd->variables.default_master_connection,
-                          Sql_condition::WARN_LEVEL_ERROR)))
+    if (!(mi= get_master_info(&thd->variables.default_master_connection,
+                              Sql_condition::WARN_LEVEL_ERROR)))
     {
-      mysql_mutex_unlock(&LOCK_active_mi);
       DBUG_RETURN(TRUE);
     }
     binary_log= &(mi->rli.relay_log);
@@ -3700,7 +3695,7 @@ bool mysql_show_binlog_events(THD* thd)
     if (mi)
     {
       /* We can unlock the mutex as we have a lock on the file */
-      mysql_mutex_unlock(&LOCK_active_mi);
+      mi->release();
       mi= 0;
     }
 
@@ -3722,6 +3717,7 @@ bool mysql_show_binlog_events(THD* thd)
       goto err;
     }
 
+    /* These locks is here to enable syncronization with log_in_use() */
     mysql_mutex_lock(&LOCK_thread_count);
     thd->current_linfo = &linfo;
     mysql_mutex_unlock(&LOCK_thread_count);
@@ -3799,7 +3795,7 @@ bool mysql_show_binlog_events(THD* thd)
     mysql_mutex_unlock(log_lock);
   }
   else if (mi)
-    mysql_mutex_unlock(&LOCK_active_mi);
+    mi->release();
 
   // Check that linfo is still on the function scope.
   DEBUG_SYNC(thd, "after_show_binlog_events");
@@ -3820,8 +3816,9 @@ err:
   else
     my_eof(thd);
 
+  /* These locks is here to enable syncronization with log_in_use() */
   mysql_mutex_lock(&LOCK_thread_count);
-  thd->current_linfo = 0;
+  thd->current_linfo= 0;
   mysql_mutex_unlock(&LOCK_thread_count);
   thd->variables.max_allowed_packet= old_max_allowed_packet;
   DBUG_RETURN(ret);
