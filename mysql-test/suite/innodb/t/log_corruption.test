@@ -1,3 +1,4 @@
+--source include/have_unzip.inc
 --source include/have_innodb.inc
 --source include/have_innodb_16k.inc
 
@@ -27,7 +28,7 @@ core_file
 EOF
 
 --echo # redo log from before MySQL 5.7.9
---exec unzip $MYSQL_TEST_DIR/suite/innodb/t/log_corruption.zip -d $bugdir > $SEARCH_FILE
+--exec unzip $MTR_SUITE_DIR/std_data/log_corruption.zip -d $bugdir > $SEARCH_FILE
 --error 1
 --exec $MYSQLD $args
 let SEARCH_PATTERN=InnoDB: Upgrade after a crash is not supported. This redo log was created before MySQL 5\\.7\\.9\\.;
@@ -43,7 +44,7 @@ let SEARCH_PATTERN=InnoDB: Upgrade after a crash is not supported. This redo log
 
 --echo # redo log from before MySQL 5.7.9, with corrupted log block
 --remove_file $bugdir/ib_logfile0
---exec unzip $MYSQL_TEST_DIR/suite/innodb/t/log_corruption0.zip -d $bugdir > $SEARCH_FILE
+--exec unzip $MTR_SUITE_DIR/std_data/log_corruption0.zip -d $bugdir > $SEARCH_FILE
 --error 1
 --exec $MYSQLD $args
 let SEARCH_PATTERN=InnoDB: Upgrade after a crash is not supported. This redo log was created before MySQL 5\\.7\\.9, and it appears corrupted;
@@ -51,7 +52,7 @@ let SEARCH_PATTERN=InnoDB: Upgrade after a crash is not supported. This redo log
 
 --echo # redo log from "after" MySQL 5.7.9, but with invalid header checksum
 --remove_file $bugdir/ib_logfile0
---exec unzip $MYSQL_TEST_DIR/suite/innodb/t/log_corruption1.zip -d $bugdir > $SEARCH_FILE
+--exec unzip $MTR_SUITE_DIR/std_data/log_corruption1.zip -d $bugdir > $SEARCH_FILE
 --error 1
 --exec $MYSQLD $args
 let SEARCH_PATTERN=InnoDB: Invalid redo log header checksum;
@@ -59,7 +60,7 @@ let SEARCH_PATTERN=InnoDB: Invalid redo log header checksum;
 
 --echo # distant future redo log format, with valid header checksum
 --remove_file $bugdir/ib_logfile0
---exec unzip $MYSQL_TEST_DIR/suite/innodb/t/log_corruption2.zip -d $bugdir > $SEARCH_FILE
+--exec unzip $MTR_SUITE_DIR/std_data/log_corruption2.zip -d $bugdir > $SEARCH_FILE
 --error 1
 --exec $MYSQLD $args
 let SEARCH_PATTERN=InnoDB: Unsupported redo log format. The redo log was created with malicious intentions, or perhaps\. Please follow the instructions at http://dev.mysql.com/doc/refman/5.7/en/upgrading-downgrading.html;
@@ -67,7 +68,7 @@ let SEARCH_PATTERN=InnoDB: Unsupported redo log format. The redo log was created
 
 --echo # valid header, but old-format checkpoint blocks
 --remove_file $bugdir/ib_logfile0
---exec unzip $MYSQL_TEST_DIR/suite/innodb/t/log_corruption3.zip -d $bugdir > $SEARCH_FILE
+--exec unzip $MTR_SUITE_DIR/std_data/log_corruption3.zip -d $bugdir > $SEARCH_FILE
 --error 1
 --exec $MYSQLD $args
 let SEARCH_PATTERN=InnoDB: No valid checkpoint found .corrupted redo log;
@@ -75,7 +76,7 @@ let SEARCH_PATTERN=InnoDB: No valid checkpoint found .corrupted redo log;
 
 --echo # valid header, valid checkpoint 1, all-zero (invalid) checkpoint 2, invalid block checksum
 --remove_file $bugdir/ib_logfile0
---exec unzip $MYSQL_TEST_DIR/suite/innodb/t/log_corruption4.zip -d $bugdir > $SEARCH_FILE
+--exec unzip $MTR_SUITE_DIR/std_data/log_corruption4.zip -d $bugdir > $SEARCH_FILE
 # Anything below innodb_force_recovery=6 must find a valid redo log.
 # Missing tablespace files are tolerated already with innodb_force_recovery=1.
 --error 1
@@ -94,7 +95,7 @@ let SEARCH_PATTERN=InnoDB: Cannot create sys_virtual system tables. running in r
 
 --echo # valid header, valid checkpoint 1, all-zero (invalid) checkpoint 2, invalid block number
 --remove_file $bugdir/ib_logfile0
---exec unzip $MYSQL_TEST_DIR/suite/innodb/t/log_corruption4a.zip -d $bugdir > $SEARCH_FILE
+--exec unzip $MTR_SUITE_DIR/std_data/log_corruption4a.zip -d $bugdir > $SEARCH_FILE
 # Anything below innodb_force_recovery=6 must find a valid redo log.
 # Missing tablespace files are tolerated already with innodb_force_recovery=1.
 --error 1
@@ -112,7 +113,7 @@ let SEARCH_PATTERN=InnoDB: Cannot create sys_virtual system tables. running in r
 --echo # Test a corrupted MLOG_FILE_NAME record.
 --echo # valid header, valid checkpoint 1, all-zero (invalid) checkpoint 2
 --remove_file $bugdir/ib_logfile0
---exec unzip $MYSQL_TEST_DIR/suite/innodb/t/log_corruption5.zip -d $bugdir > $SEARCH_FILE
+--exec unzip $MTR_SUITE_DIR/std_data/log_corruption5.zip -d $bugdir > $SEARCH_FILE
 --error 1
 --exec $MYSQLD $args
 let SEARCH_PATTERN=InnoDB: Log scan progressed past the checkpoint lsn 1213964;
@@ -129,7 +130,7 @@ let SEARCH_PATTERN=InnoDB: Set innodb_force_recovery to ignore this error;
 --echo # Test a corrupted MLOG_FILE_NAME record.
 --echo # valid header, invalid checkpoint 1, valid checkpoint 2
 --remove_file $bugdir/ib_logfile0
---exec unzip $MYSQL_TEST_DIR/suite/innodb/t/log_corruption6.zip -d $bugdir > $SEARCH_FILE
+--exec unzip $MTR_SUITE_DIR/std_data/log_corruption6.zip -d $bugdir > $SEARCH_FILE
 --error 1
 --exec $MYSQLD $args
 let SEARCH_PATTERN=InnoDB: ############### CORRUPT LOG RECORD FOUND ##################;
