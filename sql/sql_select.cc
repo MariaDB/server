@@ -18008,6 +18008,10 @@ bool instantiate_tmp_table(TABLE *table, KEY *keyinfo,
 {
   if (table->s->db_type() == TMP_ENGINE_HTON)
   {
+    /*
+      If it is not heap (in-memory) table then convert index to unique
+      constrain.
+    */
     if (create_internal_tmp_table(table, keyinfo, start_recinfo, recinfo,
                                   options))
       return TRUE;
