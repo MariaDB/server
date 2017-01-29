@@ -81,6 +81,8 @@ class Master_info : public Slave_reporting_capability
   }
   void release();
   void wait_until_free();
+  void lock_slave_threads();
+  void unlock_slave_threads();
 
   /* the variables below are needed because we can change masters on the fly */
   char master_log_name[FN_REFLEN+6]; /* Room for multi-*/
@@ -99,7 +101,7 @@ class Master_info : public Slave_reporting_capability
   File fd; // we keep the file open, so we need to remember the file pointer
   IO_CACHE file;
 
-  mysql_mutex_t data_lock, run_lock, sleep_lock;
+  mysql_mutex_t data_lock, run_lock, sleep_lock, start_stop_lock;
   mysql_cond_t data_cond, start_cond, stop_cond, sleep_cond;
   THD *io_thd;
   MYSQL* mysql;

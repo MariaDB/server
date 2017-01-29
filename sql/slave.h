@@ -219,8 +219,6 @@ void close_active_mi(); /* clean up slave threads data */
 void clear_until_condition(Relay_log_info* rli);
 void clear_slave_error(Relay_log_info* rli);
 void end_relay_log_info(Relay_log_info* rli);
-void lock_slave_threads(Master_info* mi);
-void unlock_slave_threads(Master_info* mi);
 void init_thread_mask(int* mask,Master_info* mi,bool inverse);
 Format_description_log_event *
 read_relay_log_description_event(IO_CACHE *cur_log, ulonglong start_pos,

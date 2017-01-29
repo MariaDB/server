@@ -80,6 +80,8 @@ Master_info::Master_info(LEX_STRING *connection_name_arg,
   bzero((char*) &file, sizeof(file));
   mysql_mutex_init(key_master_info_run_lock, &run_lock, MY_MUTEX_INIT_FAST);
   mysql_mutex_init(key_master_info_data_lock, &data_lock, MY_MUTEX_INIT_FAST);
+  mysql_mutex_init(key_master_info_start_stop_lock, &start_stop_lock,
+                   MY_MUTEX_INIT_SLOW);
   mysql_mutex_setflags(&run_lock, MYF_NO_DEADLOCK_DETECTION);
   mysql_mutex_setflags(&data_lock, MYF_NO_DEADLOCK_DETECTION);
   mysql_mutex_init(key_master_info_sleep_lock, &sleep_lock, MY_MUTEX_INIT_FAST);
@@ -117,6 +119,7 @@ Master_info::~Master_info()
   mysql_mutex_destroy(&run_lock);
   mysql_mutex_destroy(&data_lock);
   mysql_mutex_destroy(&sleep_lock);
+  mysql_mutex_destroy(&start_stop_lock);
   mysql_cond_destroy(&data_cond);
   mysql_cond_destroy(&start_cond);
   mysql_cond_destroy(&stop_cond);
@@ -727,17 +730,28 @@ uchar *get_key_master_info(Master_info *mi, size_t *length,
   return (uchar*) mi->cmp_connection_name.str;
 }
 
+/*
+  Delete a master info
+
+  Called from my_hash_delete(&master_info_hash)
+  Stops associated slave threads and frees master_info
+*/
+
 void free_key_master_info(Master_info *mi)
 {
   DBUG_ENTER("free_key_master_info");
+  mysql_mutex_unlock(&LOCK_active_mi);
+
   /* Ensure that we are not in reset_slave while this is done */
-  lock_slave_threads(mi);
+  mi->lock_slave_threads();
   terminate_slave_threads(mi,SLAVE_FORCE_ALL);
   /* We use 2 here instead of 1 just to make it easier when debugging */
   mi->killed= 2;
   end_master_info(mi);
-  unlock_slave_threads(mi);
+  mi->unlock_slave_threads();
   delete mi;
+
+  mysql_mutex_lock(&LOCK_active_mi);
   DBUG_VOID_RETURN;
 }
 
@@ -904,6 +918,7 @@ Master_info_index::Master_info_index()
 
 void Master_info_index::free_connections()
 {
+  mysql_mutex_assert_owner(&LOCK_active_mi);
   my_hash_reset(&master_info_hash);
 }
 
@@ -936,7 +951,6 @@ bool Master_info_index::init_all_master_info()
   File index_file_nr;
   DBUG_ENTER("init_all_master_info");
 
-  mysql_mutex_assert_owner(&LOCK_active_mi);
   DBUG_ASSERT(master_info_index);
 
   if ((index_file_nr= my_open(index_file_name,
@@ -984,7 +998,6 @@ bool Master_info_index::init_all_master_info()
       DBUG_RETURN(1);
     }
 
-    lock_slave_threads(mi);
     init_thread_mask(&thread_mask,mi,0 /*not inverse*/);
 
     create_logfile_name_with_suffix(buf_master_info_file,
@@ -999,6 +1012,7 @@ bool Master_info_index::init_all_master_info()
       sql_print_information("Reading Master_info: '%s'  Relay_info:'%s'",
                             buf_master_info_file, buf_relay_log_info_file);
 
+    mi->lock_slave_threads();
     if (init_master_info(mi, buf_master_info_file, buf_relay_log_info_file, 
                          0, thread_mask))
     {
@@ -1012,14 +1026,14 @@ bool Master_info_index::init_all_master_info()
         if (master_info_index->add_master_info(mi, FALSE))
           DBUG_RETURN(1);
         succ_num++;
-        unlock_slave_threads(mi);
+        mi->unlock_slave_threads();
       }
       else
       {
         /* Master_info already in HASH */
         sql_print_error(ER(ER_CONNECTION_ALREADY_EXISTS),
                         (int) connection_name.length, connection_name.str);
-        unlock_slave_threads(mi);
+        mi->unlock_slave_threads();
         delete mi;
       }
       continue;
@@ -1036,7 +1050,7 @@ bool Master_info_index::init_all_master_info()
         /* Master_info was already registered */
         sql_print_error(ER(ER_CONNECTION_ALREADY_EXISTS),
                         (int) connection_name.length, connection_name.str);
-        unlock_slave_threads(mi);
+        mi->unlock_slave_threads();
         delete mi;
         continue;
       }
@@ -1065,7 +1079,7 @@ bool Master_info_index::init_all_master_info()
                                 (int) connection_name.length,
                                 connection_name.str);
       }
-      unlock_slave_threads(mi);
+      mi->unlock_slave_threads();
     }
   }
 
@@ -1268,7 +1282,12 @@ bool Master_info_index::check_duplicate_master_info(LEX_STRING *name_arg,
 /* Add a Master_info class to Hash Table */
 bool Master_info_index::add_master_info(Master_info *mi, bool write_to_file)
 {
-  if (!my_hash_insert(&master_info_hash, (uchar*) mi))
+  /*
+    We have to protect against shutdown to ensure we are not calling
+    my_hash_insert() while my_hash_free() is in progress
+  */
+  if (unlikely(shutdown_in_progress) ||
+      !my_hash_insert(&master_info_hash, (uchar*) mi))
   {
     if (global_system_variables.log_warnings > 1)
       sql_print_information("Added new Master_info '%.*s' to hash table",
@@ -1392,23 +1411,31 @@ bool give_error_if_slave_running(bool already_locked)
    @return
    0            No Slave SQL thread is running
    #		Number of slave SQL thread running
+
+   Note that during shutdown we return 1. This is needed to ensure we
+   don't try to resize thread pool during shutdown as during shutdown
+   master_info_hash may be freeing the hash and during that time
+   hash entries can't be accessed.
 */
 
 uint any_slave_sql_running()
 {
   uint count= 0;
+  HASH *hash;
   DBUG_ENTER("any_slave_sql_running");
 
   mysql_mutex_lock(&LOCK_active_mi);
-  if (likely(master_info_index))                // Not shutdown
+  if (unlikely(shutdown_in_progress || !master_info_index))
   {
-    HASH *hash= &master_info_index->master_info_hash;
-    for (uint i= 0; i< hash->records; ++i)
-    {
-      Master_info *mi= (Master_info *)my_hash_element(hash, i);
-      if (mi->rli.slave_running != MYSQL_SLAVE_NOT_RUN)
-        count++;
-    }
+    mysql_mutex_unlock(&LOCK_active_mi);
+    return 1;
+  }
+  hash= &master_info_index->master_info_hash;
+  for (uint i= 0; i< hash->records; ++i)
+  {
+    Master_info *mi= (Master_info *)my_hash_element(hash, i);
+    if (mi->rli.slave_running != MYSQL_SLAVE_NOT_RUN)
+      count++;
   }
   mysql_mutex_unlock(&LOCK_active_mi);
   DBUG_RETURN(count);

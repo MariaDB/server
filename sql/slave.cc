@@ -228,16 +228,14 @@ void init_thread_mask(int* mask,Master_info* mi,bool inverse)
 
 
 /*
-  lock_slave_threads()
+  lock_slave_threads() against other threads doing STOP, START or RESET SLAVE
+
 */
 
-void lock_slave_threads(Master_info* mi)
+void Master_info::lock_slave_threads()
 {
   DBUG_ENTER("lock_slave_threads");
-
-  //TODO: see if we can do this without dual mutex
-  mysql_mutex_lock(&mi->run_lock);
-  mysql_mutex_lock(&mi->rli.run_lock);
+  mysql_mutex_lock(&start_stop_lock);
   DBUG_VOID_RETURN;
 }
 
@@ -246,13 +244,10 @@ void lock_slave_threads(Master_info* mi)
   unlock_slave_threads()
 */
 
-void unlock_slave_threads(Master_info* mi)
+void Master_info::unlock_slave_threads()
 {
   DBUG_ENTER("unlock_slave_threads");
-
-  //TODO: see if we can do this without dual mutex
-  mysql_mutex_unlock(&mi->rli.run_lock);
-  mysql_mutex_unlock(&mi->run_lock);
+  mysql_mutex_unlock(&start_stop_lock);
   DBUG_VOID_RETURN;
 }
 
@@ -374,7 +369,6 @@ int init_slave()
     accepted. However bootstrap may conflict with us if it does START SLAVE.
     So it's safer to take the lock.
   */
-  mysql_mutex_lock(&LOCK_active_mi);
 
   if (pthread_key_create(&RPL_MASTER_INFO, NULL))
     goto err;
@@ -383,7 +377,6 @@ int init_slave()
   if (!master_info_index || master_info_index->init_all_master_info())
   {
     sql_print_error("Failed to initialize multi master structures");
-    mysql_mutex_unlock(&LOCK_active_mi);
     DBUG_RETURN(1);
   }
   if (!(active_mi= new Master_info(&default_master_connection_name,
@@ -441,7 +434,6 @@ int init_slave()
   }
 
 end:
-  mysql_mutex_unlock(&LOCK_active_mi);
   DBUG_RETURN(error);
 
 err:
@@ -6159,7 +6151,7 @@ static int connect_to_master(THD* thd, MYSQL* mysql, Master_info* mi,
       suppress_warnings= 0;
       mi->report(ERROR_LEVEL, last_errno, NULL,
                  "error %s to master '%s@%s:%d'"
-                 " - retry-time: %d  retries: %lu  message: %s",
+                 " - retry-time: %d  maximum-retries: %lu  message: %s",
                  (reconnect ? "reconnecting" : "connecting"),
                  mi->user, mi->host, mi->port,
                  mi->connect_retry, master_retry_count,

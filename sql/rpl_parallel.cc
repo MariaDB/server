@@ -1378,10 +1378,24 @@ dealloc_gco(group_commit_orderer *gco)
   my_free(gco);
 }
 
+/**
+   Change thread count for global parallel worker threads
+
+   @param pool          parallel thread pool
+   @param new_count     Number of threads to be in pool. 0 in shutdown
+   @param force         Force thread count to new_count even if slave
+                        threads are running
+
+   By default we don't resize pool of there are running threads.
+   However during shutdown we will always do it.
+   This is needed as any_slave_sql_running() returns 1 during shutdown
+   as we don't want to access master_info while
+   Master_info_index::free_connections are running.
+*/
 
 static int
 rpl_parallel_change_thread_count(rpl_parallel_thread_pool *pool,
-                                 uint32 new_count)
+                                 uint32 new_count, bool force)
 {
   uint32 i;
   rpl_parallel_thread **new_list= NULL;
@@ -1403,7 +1417,7 @@ rpl_parallel_change_thread_count(rpl_parallel_thread_pool *pool,
     If we are about to delete pool, do an extra check that there are no new
     slave threads running since we marked pool busy
   */
-  if (!new_count)
+  if (!new_count && !force)
   {
     if (any_slave_sql_running())
     {
@@ -1556,8 +1570,7 @@ err:
 int rpl_parallel_resize_pool_if_no_slaves(void)
 {
   /* master_info_index is set to NULL on shutdown */
-  if (opt_slave_parallel_threads > 0 && !any_slave_sql_running() &&
-      master_info_index)
+  if (opt_slave_parallel_threads > 0 && !any_slave_sql_running())
     return rpl_parallel_inactivate_pool(&global_rpl_thread_pool);
   return 0;
 }
@@ -1567,7 +1580,8 @@ int
 rpl_parallel_activate_pool(rpl_parallel_thread_pool *pool)
 {
   if (!pool->count)
-    return rpl_parallel_change_thread_count(pool, opt_slave_parallel_threads);
+    return rpl_parallel_change_thread_count(pool, opt_slave_parallel_threads,
+                                            0);
   return 0;
 }
 
@@ -1575,7 +1589,7 @@ rpl_parallel_activate_pool(rpl_parallel_thread_pool *pool)
 int
 rpl_parallel_inactivate_pool(rpl_parallel_thread_pool *pool)
 {
-  return rpl_parallel_change_thread_count(pool, 0);
+  return rpl_parallel_change_thread_count(pool, 0, 0);
 }
 
 
@@ -1854,7 +1868,7 @@ rpl_parallel_thread_pool::destroy()
 {
   if (!inited)
     return;
-  rpl_parallel_change_thread_count(this, 0);
+  rpl_parallel_change_thread_count(this, 0, 1);
   mysql_mutex_destroy(&LOCK_rpl_thread_pool);
   mysql_cond_destroy(&COND_rpl_thread_pool);
   inited= false;
