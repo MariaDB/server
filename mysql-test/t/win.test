@@ -1426,3 +1426,19 @@ select * from v4;
 
 drop view v1,v2,v3,v4;
 drop table t0,t1;
+
+--echo #
+--echo # MDEV-10875: window function in subquery
+--echo #
+
+CREATE TABLE t1 (i INT);
+INSERT INTO t1 VALUES (3),(1);
+
+CREATE TABLE t2 (c VARCHAR(8));
+INSERT INTO t2 VALUES ('foo'),('bar'),('foo');
+
+SELECT COUNT(*) OVER (PARTITION BY c) FROM t2;
+
+SELECT * FROM t1 WHERE i IN ( SELECT COUNT(*) OVER (PARTITION BY c) FROM t2 );
+
+DROP TABLE t1, t2;

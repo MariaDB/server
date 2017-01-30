@@ -2382,3 +2382,19 @@ pk	c	CNT
 10	2	0.5000
 drop view v1,v2,v3,v4;
 drop table t0,t1;
+#
+# MDEV-10875: window function in subquery
+#
+CREATE TABLE t1 (i INT);
+INSERT INTO t1 VALUES (3),(1);
+CREATE TABLE t2 (c VARCHAR(8));
+INSERT INTO t2 VALUES ('foo'),('bar'),('foo');
+SELECT COUNT(*) OVER (PARTITION BY c) FROM t2;
+COUNT(*) OVER (PARTITION BY c)
+2
+1
+2
+SELECT * FROM t1 WHERE i IN ( SELECT COUNT(*) OVER (PARTITION BY c) FROM t2 );
+i
+1
+DROP TABLE t1, t2;

@@ -21403,9 +21403,6 @@ create_sort_index(THD *thd, JOIN *join, JOIN_TAB *tab, Filesort *fsort)
   table=  tab->table;
   select= fsort->select;
  
-  /* Currently ORDER BY ... LIMIT is not supported in subqueries. */
-  DBUG_ASSERT(join->group_list || !join->is_in_subquery());
-
   table->status=0;				// May be wrong if quick_select
 
   if (!tab->preread_init_done && tab->preread_init())
