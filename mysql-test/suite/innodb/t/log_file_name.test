@@ -151,7 +151,7 @@ call mtr.add_suppression("InnoDB: Tablespace .* was not found at .*test");
 call mtr.add_suppression("InnoDB: Set innodb_force_recovery=1 to ignore this and to permanently lose all changes to the tablespace");
 call mtr.add_suppression("InnoDB: Cannot read first page of '.*test.[tu]2.ibd' I/O error");
 call mtr.add_suppression("InnoDB: Cannot read first page in datafile: .*test.*ibd");
-call mtr.add_suppression("InnoDB: Datafile './test/.*ibd' is corrupted");
+call mtr.add_suppression("InnoDB: Datafile '.*test.*ibd' is corrupted");
 call mtr.add_suppression("InnoDB:  Cannot replay file rename. Remove either file and try again");
 call mtr.add_suppression("InnoDB: Cannot rename.*because the target file exists");
 call mtr.add_suppression("InnoDB: Found corrupted log");
