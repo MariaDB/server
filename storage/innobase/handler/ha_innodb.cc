@@ -4607,7 +4607,9 @@ innobase_end(
 		}
 
 		innobase_space_shutdown();
-		pthread_join(thd_destructor_thread, NULL);
+		if (!srv_read_only_mode) {
+			pthread_join(thd_destructor_thread, NULL);
+		}
 
 		mysql_mutex_destroy(&innobase_share_mutex);
 		mysql_mutex_destroy(&commit_cond_m);
