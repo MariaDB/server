@@ -46,7 +46,6 @@ let SEARCH_PATTERN= InnoDB: Ignoring data file '.*t2.ibd' with space ID \d+. Ano
 --source include/shutdown_mysqld.inc
 
 --remove_file $MYSQLD_DATADIR/test/t1.ibd
---remove_file $SEARCH_FILE
 
 # This could fail to refuse InnoDB startup, in case there was a log
 # checkpoint after the CREATE TABLE t3. That is what we checked above.
