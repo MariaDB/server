@@ -2013,13 +2013,18 @@ srv_get_active_thread_type(void)
 
 	srv_sys_mutex_exit();
 
-	/* Check only on shutdown. */
-	if (ret == SRV_NONE
-	    && srv_shutdown_state != SRV_SHUTDOWN_NONE
-	    && trx_purge_state() != PURGE_STATE_DISABLED
-	    && trx_purge_state() != PURGE_STATE_EXIT) {
-
-		ret = SRV_PURGE;
+	if (ret == SRV_NONE && srv_shutdown_state != SRV_SHUTDOWN_NONE) {
+		/* Check only on shutdown. */
+		switch (trx_purge_state()) {
+		case PURGE_STATE_INIT:
+		case PURGE_STATE_RUN:
+		case PURGE_STATE_STOP:
+			ret = SRV_PURGE;
+			break;
+		case PURGE_STATE_DISABLED:
+		case PURGE_STATE_EXIT:
+			break;
+		}
 	}
 
 	return(ret);
