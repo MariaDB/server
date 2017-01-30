@@ -3,7 +3,7 @@
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, Google Inc.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2015, 2016, MariaDB Corporation.
+Copyright (c) 2015, 2017, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -4208,7 +4208,6 @@ btr_cur_pessimistic_update(
 		ut_ad(thr_get_trx(thr)->in_rollback);
 
 		DBUG_EXECUTE_IF("ib_blob_update_rollback", DBUG_SUICIDE(););
-		RECOVERY_CRASH(99);
 
 		btr_rec_free_updated_extern_fields(
 			index, rec, page_zip, *offsets, update, true, mtr);

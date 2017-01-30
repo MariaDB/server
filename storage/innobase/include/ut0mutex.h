@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2012, 2015, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -30,7 +31,6 @@ Created 2012-03-24 Sunny Bains.
 
 extern uint	srv_spin_wait_delay;
 extern ulong	srv_n_spin_wait_rounds;
-extern ulong	srv_force_recovery_crash;
 
 #include "sync0policy.h"
 #include "ib0mutex.h"
