@@ -2046,7 +2046,7 @@ GLOBAL_VALUE_ORIGIN	COMPILE-TIME
 DEFAULT_VALUE	0.000000
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	DOUBLE
-VARIABLE_COMMENT	A SELECT query that have taken more than max_statement_time seconds will be aborted. The argument will be treated as a decimal value with microsecond precision.  A value of 0 (default) means no timeout
+VARIABLE_COMMENT	A query that has taken more than max_statement_time seconds will be aborted. The argument will be treated as a decimal value with microsecond precision. A value of 0 (default) means no timeout
 NUMERIC_MIN_VALUE	0
 NUMERIC_MAX_VALUE	31536000
 NUMERIC_BLOCK_SIZE	NULL

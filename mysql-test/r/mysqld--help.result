@@ -467,10 +467,10 @@ The following options may be given as the first argument:
  --max-sp-recursion-depth[=#] 
  Maximum stored procedure recursion depth
  --max-statement-time=# 
- A SELECT query that have taken more than
- max_statement_time seconds will be aborted. The argument
- will be treated as a decimal value with microsecond
- precision.  A value of 0 (default) means no timeout
+ A query that has taken more than max_statement_time
+ seconds will be aborted. The argument will be treated as
+ a decimal value with microsecond precision. A value of 0
+ (default) means no timeout
  --max-tmp-tables=#  Unused, will be removed.
  --max-user-connections=# 
  The maximum number of active connections for a single
