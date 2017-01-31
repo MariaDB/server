@@ -3965,21 +3965,15 @@ innobase_init(
 	any functions that could possibly allocate memory. */
 	ut_new_boot();
 
-	if (UNIV_PAGE_SIZE != UNIV_PAGE_SIZE_DEF) {
-		ib::info() << "innodb_page_size has been "
-			<< "changed from default value "
-			<< UNIV_PAGE_SIZE_DEF << " to " << UNIV_PAGE_SIZE;
-
-		/* There is hang on buffer pool when trying to get a new
-		page if buffer pool size is too small for large page sizes */
-		if (UNIV_PAGE_SIZE > UNIV_PAGE_SIZE_DEF
-		    && innobase_buffer_pool_size < (24 * 1024 * 1024)) {
-			ib::info() << "innodb_page_size="
-				<< UNIV_PAGE_SIZE << " requires "
-				<< "innodb_buffer_pool_size > 24M current "
-				<< innobase_buffer_pool_size;
-			goto error;
-		}
+	/* The buffer pool needs to be able to accommodate enough many
+	pages, even for larger pages */
+	if (UNIV_PAGE_SIZE > UNIV_PAGE_SIZE_DEF
+	    && innobase_buffer_pool_size < (24 * 1024 * 1024)) {
+		ib::info() << "innodb_page_size="
+			<< UNIV_PAGE_SIZE << " requires "
+			<< "innodb_buffer_pool_size > 24M current "
+			<< innobase_buffer_pool_size;
+		goto error;
 	}
 
 #ifndef HAVE_LZ4
@@ -4296,9 +4290,7 @@ innobase_change_buffering_inited_ok:
 	srv_log_file_size = (ib_uint64_t) innobase_log_file_size;
 
 	if (UNIV_PAGE_SIZE_DEF != srv_page_size) {
-		ib::warn() << "innodb-page-size has been changed from the"
-			" default value " << UNIV_PAGE_SIZE_DEF << " to "
-			<< srv_page_size << ".";
+		ib::info() << "innodb_page_size=" << srv_page_size;
 	}
 
 	if (srv_log_write_ahead_size > srv_page_size) {
