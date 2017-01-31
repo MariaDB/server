@@ -1864,14 +1864,11 @@ struct vers_select_conds_t
   vers_range_unit_t unit;
   Item *start, *end;
 
-  bool unwrapped;
-
   void empty()
   {
     type= FOR_SYSTEM_TIME_UNSPECIFIED;
     unit= UNIT_TIMESTAMP;
     start= end= NULL;
-    unwrapped= false;
   }
 
   void init(
@@ -1884,7 +1881,6 @@ struct vers_select_conds_t
     unit= u;
     start= s;
     end= e;
-    unwrapped= false;
   }
 };
 

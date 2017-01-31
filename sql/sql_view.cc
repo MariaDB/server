@@ -453,6 +453,26 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
     goto err;
   }
 
+  /* Implicitly add versioning fields if needed */
+  {
+    TABLE_LIST *tl = tables;
+    while (tl && tl->is_view())
+      tl = tl->view->select_lex.table_list.first;
+    if (tl && tl->table)
+    {
+      TABLE_SHARE *s= tl->table->s;
+      if (s->versioned)
+      {
+        select_lex->item_list.push_back(new (thd->mem_root) Item_field(
+            thd, &select_lex->context, NULL, NULL,
+            s->vers_start_field()->field_name));
+        select_lex->item_list.push_back(new (thd->mem_root) Item_field(
+            thd, &select_lex->context, NULL, NULL,
+            s->vers_end_field()->field_name));
+      }
+    }
+  }
+
   view= lex->unlink_first_table(&link_to_local);
 
   if (check_db_dir_existence(view->db))
@@ -605,14 +625,22 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
                                      view->table_name, item->name) &
                     VIEW_ANY_ACL);
 
-        if (fld && !fld->field->table->s->tmp_table)
+        if (!fld)
+          continue;
+        TABLE_SHARE *s= fld->field->table->s;
+        const char *field_name= fld->field->field_name;
+        if (s->tmp_table ||
+            (s->versioned &&
+             (!strcmp(field_name, s->vers_start_field()->field_name) ||
+              !strcmp(field_name, s->vers_end_field()->field_name))))
         {
-
-          final_priv&= fld->have_privileges;
-
-          if (~fld->have_privileges & priv)
-            report_item= item;
+          continue;
         }
+
+        final_priv&= fld->have_privileges;
+
+        if (~fld->have_privileges & priv)
+          report_item= item;
       }
     }
     
@@ -2027,7 +2055,14 @@ bool insert_view_fields(THD *thd, List<Item> *list, TABLE_LIST *view)
   {
     Item_field *fld;
     if ((fld= entry->item->field_for_view_update()))
+    {
+      TABLE_SHARE *s= fld->context->table_list->table->s;
+      if (s->versioned &&
+          (!strcmp(fld->name, s->vers_start_field()->field_name) ||
+           !strcmp(fld->name, s->vers_end_field()->field_name)))
+        continue;
       list->push_back(fld, thd->mem_root);
+    }
     else
     {
       my_error(ER_NON_INSERTABLE_TABLE, MYF(0), view->alias, "INSERT");

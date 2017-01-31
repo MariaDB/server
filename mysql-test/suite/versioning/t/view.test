@@ -15,8 +15,8 @@ prepare stmt from @vt1; execute stmt; drop prepare stmt;
 set @vt2= concat("create view vt2 as select * from t1 for system_time as of timestamp '", @t2, "'");
 prepare stmt from @vt2; execute stmt; drop prepare stmt;
 
-select * from vt1;
-select * from vt2;
+select * from vt1 for system_time all;
+select * from vt2 for system_time all;
 select * from t1;
 
 create or replace view vt1 as select * from t1;
@@ -24,5 +24,53 @@ show create view vt1;
 
 drop view vt1;
 drop view vt2;
-drop table t1;
 
+create view vt1 as select * from t1 for system_time all;
+select * from vt1 for system_time all;
+prepare stmt from 'select * from vt1 for system_time all'; execute stmt; drop prepare stmt;
+
+select * from vt1;
+prepare stmt from 'select * from vt1'; execute stmt; drop prepare stmt;
+
+select * from t1 for system_time as of timestamp @t1;
+select * from vt1 for system_time as of timestamp @t1;
+prepare stmt from 'select * from vt1 for system_time as of timestamp @t1'; execute stmt; drop prepare stmt;
+
+create or replace view vt1 as select * from t1;
+select * from vt1 for system_time all;
+prepare stmt from 'select * from vt1 for system_time all'; execute stmt; drop prepare stmt;
+
+insert into vt1 values (3);
+select * from t1;
+select * from vt1;
+select * from t1 for system_time all;
+select * from vt1 for system_time all;
+
+--error ER_DUP_FIELDNAME
+create view error_view as select *, sys_trx_start from t1;
+--error ER_DUP_FIELDNAME
+create view error_view as select *, sys_trx_end from t1;
+
+create or replace table t1 (x int) with system versioning;
+insert into t1 values (1), (2);
+set @t1=now(6);
+delete from t1 where x=2;
+set @t2=now(6);
+delete from t1 where x=1;
+set @t3=now(6);
+
+set @tmp= concat("create or replace view vt1 as select * from t1 for system_time as of timestamp '", @t1, "'");
+prepare stmt from @tmp; execute stmt; drop prepare stmt;
+set @tmp= concat("create or replace view vvt1 as select * from vt1 for system_time as of timestamp '", @t2, "'");
+prepare stmt from @tmp; execute stmt; drop prepare stmt;
+set @tmp= concat("create or replace view vvvt1 as select * from vvt1 for system_time as of timestamp '", @t3, "'");
+prepare stmt from @tmp; execute stmt; drop prepare stmt;
+
+select * from vt1 for system_time all;
+select * from vvt1 for system_time all;
+select * from vvvt1 for system_time all;
+
+drop view vvvt1;
+drop view vvt1;
+drop view vt1;
+drop table t1;

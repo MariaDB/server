@@ -76,16 +76,12 @@ set @str= concat('
   engine ', engine);
 prepare stmt from @str; execute stmt; drop prepare stmt;
 create view vt1_1 as select x, y from t1;
-create view vt1_2 as select x, y, sys_end from t1;
 insert into t1(x, y) values(8001, 9001);
 insert into vt1_1(x, y) values(1001, 2001);
 insert into vt1_1 values(1002, 2002);
-insert into vt1_2(x, y) values(3001, 4001);
 set @str= concat('select x, y, ', fields, ' from t1');
 prepare stmt from @str; execute stmt; drop prepare stmt;
 select x, y from vt1_1;
-set @str= concat('select x, y, ', fields, ' from vt1_2');
-prepare stmt from @str; execute stmt; drop prepare stmt;
 end~~
 create procedure test_04(
 sys_type varchar(255),
@@ -176,47 +172,23 @@ x	y	sys_end
 8001	9001	2038-01-19 03:14:07.000000
 1001	2001	2038-01-19 03:14:07.000000
 1002	2002	2038-01-19 03:14:07.000000
-3001	4001	2038-01-19 03:14:07.000000
 x	y
 8001	9001
 1001	2001
 1002	2002
-3001	4001
-x	y	sys_end
-8001	9001	2038-01-19 03:14:07.000000
-1001	2001	2038-01-19 03:14:07.000000
-1002	2002	2038-01-19 03:14:07.000000
-3001	4001	2038-01-19 03:14:07.000000
-insert into t1(x, y, sys_end) values(8001, 9001, '2015-1-1 1:1:1');
-ERROR HY000: System field `sys_end` is read-only
-insert into vt1_2 values(3002, 4002, '2015-2-2 2:2:2');
-ERROR HY000: System field `sys_end` is read-only
 drop table t1;
 drop view vt1_1;
-drop view vt1_2;
 call test_03('bigint unsigned', 'innodb', 'vtq_commit_ts(sys_end)');
 x	y	vtq_commit_ts(sys_end)
 8001	9001	2038-01-19 03:14:07.000000
 1001	2001	2038-01-19 03:14:07.000000
 1002	2002	2038-01-19 03:14:07.000000
-3001	4001	2038-01-19 03:14:07.000000
 x	y
 8001	9001
 1001	2001
 1002	2002
-3001	4001
-x	y	vtq_commit_ts(sys_end)
-8001	9001	2038-01-19 03:14:07.000000
-1001	2001	2038-01-19 03:14:07.000000
-1002	2002	2038-01-19 03:14:07.000000
-3001	4001	2038-01-19 03:14:07.000000
-insert into t1(x, y, sys_end) values(8001, 9001, 1111111);
-ERROR HY000: System field `sys_end` is read-only
-insert into vt1_2 values(3002, 4002, 2222222);
-ERROR HY000: System field `sys_end` is read-only
 drop table t1;
 drop view vt1_1;
-drop view vt1_2;
 call test_04('timestamp(6)', 'myisam', 'sys_end');
 id	a	b
 1	1	1
@@ -304,7 +276,6 @@ No	A	B	C	D
 13	1	1	1	1
 14	1	1	1	1
 15	1	1	1	1
-16	1	1	1	1
 create table t1(
 x int unsigned,
 sys_start bigint unsigned generated always as row start,

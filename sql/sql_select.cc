@@ -684,6 +684,11 @@ int vers_setup_select(THD *thd, TABLE_LIST *tables, COND **where_expr,
     DBUG_RETURN(0);
   }
 
+  while (tables && tables->is_view() && !thd->stmt_arena->is_stmt_prepare())
+  {
+    tables= tables->view->select_lex.table_list.first;
+  }
+
   for (table= tables; table; table= table->next_local)
   {
     if (table->table && table->table->versioned())
@@ -790,10 +795,7 @@ int vers_setup_select(THD *thd, TABLE_LIST *tables, COND **where_expr,
         }
 
         if (vers_conditions.type == FOR_SYSTEM_TIME_ALL)
-        {
-          vers_conditions.unwrapped= true;
           continue;
-        }
       }
 
       COND** dst_cond= where_expr;
@@ -953,8 +955,6 @@ int vers_setup_select(THD *thd, TABLE_LIST *tables, COND **where_expr,
 
   if (arena)
     thd->restore_active_arena(arena, &backup);
-
-  slex->vers_conditions.unwrapped= true;
 
   DBUG_RETURN(0);
 #undef newx
@@ -16728,6 +16728,8 @@ create_tmp_table(THD *thd, TMP_TABLE_PARAM *param, List<Item> &fields,
   List_iterator_fast<Item> li(fields);
   Item *item;
   Field **tmp_from_field=from_field;
+  Field *sys_trx_start= NULL;
+  Field *sys_trx_end= NULL;
   while ((item=li++))
   {
     Item::Type type=item->type();
@@ -16843,6 +16845,20 @@ create_tmp_table(THD *thd, TMP_TABLE_PARAM *param, List<Item> &fields,
 	  goto err;				// Got OOM
 	continue;				// Some kind of const item
       }
+
+      if (type == Item::FIELD_ITEM)
+      {
+        Item_field *item_field= (Item_field *)item;
+        Field *field= item_field->field;
+        TABLE_SHARE *s= field->table->s;
+        if (s->versioned)
+        {
+          if (field->flags & VERS_SYS_START_FLAG)
+            sys_trx_start= new_field;
+          else if (field->flags & VERS_SYS_END_FLAG)
+            sys_trx_end= new_field;
+        }
+      }
       if (type == Item::SUM_FUNC_ITEM)
       {
         Item_sum *agg_item= (Item_sum *) item;
@@ -16923,6 +16939,17 @@ create_tmp_table(THD *thd, TMP_TABLE_PARAM *param, List<Item> &fields,
       total_uneven_bit_length= 0;
     }
   }
+
+  if (sys_trx_start && sys_trx_end)
+  {
+    sys_trx_start->flags|= VERS_SYS_START_FLAG | HIDDEN_FLAG;
+    sys_trx_end->flags|= VERS_SYS_END_FLAG | HIDDEN_FLAG;
+    share->versioned= true;
+    share->field= table->field;
+    share->row_start_field= field_count - 2;
+    share->row_end_field= field_count - 1;
+  }
+
   DBUG_ASSERT(fieldnr == (uint) (reg_field - table->field));
   DBUG_ASSERT(field_count >= (uint) (reg_field - table->field));
   field_count= fieldnr;
@@ -25416,6 +25443,11 @@ void TABLE_LIST::print(THD *thd, table_map eliminated_tables, String *str,
 
       append_identifier(thd, str, t_alias, strlen(t_alias));
     }
+    if (table && table->versioned())
+    {
+      // versioning conditions are already unwrapped to WHERE clause
+      str->append(" FOR SYSTEM_TIME ALL");
+    }
 
     if (index_hints)
     {
@@ -25574,12 +25606,6 @@ void st_select_lex::print(THD *thd, String *str, enum_query_type query_type)
       cur_having->print(str, query_type);
     else
       str->append(having_value != Item::COND_FALSE ? "1" : "0");
-  }
-
-  if (vers_conditions.unwrapped)
-  {
-    // versioning conditions are already unwrapped to WHERE clause
-    str->append(STRING_WITH_LEN(" query for system_time all "));
   }
 
   if (order_list.elements)

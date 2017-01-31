@@ -64,16 +64,12 @@ begin
   engine ', engine);
   prepare stmt from @str; execute stmt; drop prepare stmt;
   create view vt1_1 as select x, y from t1;
-  create view vt1_2 as select x, y, sys_end from t1;
   insert into t1(x, y) values(8001, 9001);
   insert into vt1_1(x, y) values(1001, 2001);
   insert into vt1_1 values(1002, 2002);
-  insert into vt1_2(x, y) values(3001, 4001);
   set @str= concat('select x, y, ', fields, ' from t1');
   prepare stmt from @str; execute stmt; drop prepare stmt;
   select x, y from vt1_1;
-  set @str= concat('select x, y, ', fields, ' from vt1_2');
-  prepare stmt from @str; execute stmt; drop prepare stmt;
 end~~
 
 create procedure test_04(
@@ -150,22 +146,12 @@ call test_02('timestamp(6)', 'myisam', 'sys_end');
 call test_02('bigint unsigned', 'innodb', 'vtq_commit_ts(sys_end)');
 
 call test_03('timestamp(6)', 'myisam', 'sys_end');
---ERROR ER_VERS_READONLY_FIELD
-insert into t1(x, y, sys_end) values(8001, 9001, '2015-1-1 1:1:1');
---ERROR ER_VERS_READONLY_FIELD
-insert into vt1_2 values(3002, 4002, '2015-2-2 2:2:2');
 drop table t1;
 drop view vt1_1;
-drop view vt1_2;
 
 call test_03('bigint unsigned', 'innodb', 'vtq_commit_ts(sys_end)');
---ERROR ER_VERS_READONLY_FIELD
-insert into t1(x, y, sys_end) values(8001, 9001, 1111111);
---ERROR ER_VERS_READONLY_FIELD
-insert into vt1_2 values(3002, 4002, 2222222);
 drop table t1;
 drop view vt1_1;
-drop view vt1_2;
 
 call test_04('timestamp(6)', 'myisam', 'sys_end');
 call test_04('bigint unsigned', 'innodb', 'vtq_commit_ts(sys_end)');
