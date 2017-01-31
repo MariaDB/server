@@ -550,7 +550,23 @@ static uchar *net_store_length_fast(uchar *packet, uint length)
 
 void Protocol::end_statement()
 {
-  /* sanity check*/
+  /*
+    Commented out: This sanity check does not hold in general.
+    Thd->LOCK_wsrep_thd() must be unlocked before sending response
+    to client, so BF abort may sneak in here.
+    DBUG_ASSERT(!WSREP(thd) || thd->wsrep_conflict_state() == NO_CONFLICT);
+   */
+
+  /*
+    sanity check, don't send end statement while replaying
+  */
+  DBUG_ASSERT_IF_WSREP(!WSREP(thd) &&
+                       thd->wsrep_conflict_state_unsafe() != REPLAYING);
+  if (WSREP(thd) && thd->wsrep_conflict_state_unsafe()== REPLAYING)
+  {
+    WSREP_ERROR("attempting net_end_statement while replaying");
+    return;
+  }
   DBUG_ASSERT_IF_WSREP(!(WSREP(thd) && thd->wsrep_conflict_state == REPLAYING));
   DBUG_ENTER("Protocol::end_statement");
   DBUG_ASSERT(! thd->get_stmt_da()->is_sent());

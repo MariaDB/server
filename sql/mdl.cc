@@ -1163,7 +1163,7 @@ void MDL_lock::Ticket_list::add_ticket(MDL_ticket *ticket)
     Ticket_iterator itg(ticket->get_lock()->m_granted);
 
     DBUG_ASSERT(WSREP_ON);
-    MDL_ticket *waiting, *granted;
+    MDL_ticket *waiting;
     MDL_ticket *prev=NULL;
     bool added= false;
 
@@ -1184,18 +1184,6 @@ void MDL_lock::Ticket_list::add_ticket(MDL_ticket *ticket)
     /* Otherwise, insert the ticket at the back of the waiting list. */
     if (!added) m_list.push_back(ticket);
 
-    while ((granted= itg++))
-    {
-      if (granted->get_ctx() != ticket->get_ctx() &&
-          granted->is_incompatible_when_granted(ticket->get_type()))
-      {
-        if (!wsrep_grant_mdl_exception(ticket->get_ctx(), granted,
-                                       &ticket->get_lock()->key))
-        {
-          WSREP_DEBUG("MDL victim killed at add_ticket");
-        }
-      }
-    }
   }
   else
 #endif /* WITH_WSREP */

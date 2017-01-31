@@ -5706,6 +5706,14 @@ compare_errors:
                      "unexpected success or fatal error"),
                     print_slave_db_safe(thd->db), query_arg);
       thd->is_slave_error= 1;
+#ifdef WITH_WSREP
+      if (thd->wsrep_apply_toi && wsrep_must_ignore_error(thd))
+      {
+        clear_all_errors(thd, const_cast<Relay_log_info*>(rli));
+        thd->killed= THD::NOT_KILLED;
+        thd->wsrep_has_ignored_error= true;
+      }
+#endif /* WITH_WSREP */
     }
 
     /*
@@ -11153,10 +11161,10 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
 		   thd->get_stmt_da()->sql_errno(),
                    thd->is_fatal_error,
                    thd->wsrep_exec_mode,
-                   thd->wsrep_conflict_state,
+                   thd->wsrep_conflict_state_unsafe(),
                    (long long)wsrep_thd_trx_seqno(thd));
       }
-#endif
+#endif /* WITH_WSREP */
       if ((thd->is_slave_error || thd->is_fatal_error) &&
           !is_parallel_retry_error(rgi, actual_error))
       {
@@ -11409,6 +11417,13 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
         bool ignored_error= (idempotent_error == 0 ?
                              ignored_error_code(actual_error) : 0);
 
+#ifdef WITH_WSREP
+        if (wsrep_ignored_error_code(this, actual_error))
+        {
+          idempotent_error= true;
+          thd->wsrep_has_ignored_error= true;
+        }
+#endif /* WITH_WSREP */
         if (idempotent_error || ignored_error)
         {
           if (global_system_variables.log_warnings)

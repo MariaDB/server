@@ -136,6 +136,9 @@ mysql_cond_t  COND_wsrep_replaying;
 mysql_mutex_t LOCK_wsrep_slave_threads;
 mysql_mutex_t LOCK_wsrep_desync;
 mysql_mutex_t LOCK_wsrep_config_state;
+mysql_mutex_t LOCK_wsrep_SR_pool;
+mysql_mutex_t LOCK_wsrep_SR_store;
+mysql_mutex_t LOCK_wsrep_thd_pool;
 
 int wsrep_replaying= 0;
 ulong  wsrep_running_threads = 0; // # of currently running wsrep threads
@@ -146,11 +149,17 @@ PSI_mutex_key key_LOCK_wsrep_rollback, key_LOCK_wsrep_thd,
   key_LOCK_wsrep_replaying, key_LOCK_wsrep_ready, key_LOCK_wsrep_sst,
   key_LOCK_wsrep_sst_thread, key_LOCK_wsrep_sst_init,
   key_LOCK_wsrep_slave_threads, key_LOCK_wsrep_desync,
-  key_LOCK_wsrep_config_state;
+  key_LOCK_wsrep_config_state,
+  key_LOCK_wsrep_SR_pool,
+  key_LOCK_wsrep_SR_store, key_LOCK_wsrep_thd_pool, key_LOCK_wsrep_nbo,
+  key_LOCK_wsrep_thd_queue;
 
 PSI_cond_key key_COND_wsrep_rollback,
   key_COND_wsrep_replaying, key_COND_wsrep_ready, key_COND_wsrep_sst,
-  key_COND_wsrep_sst_init, key_COND_wsrep_sst_thread;
+  key_COND_wsrep_sst_init, key_COND_wsrep_sst_thread,
+  key_COND_wsrep_sst_init, key_COND_wsrep_sst_thread,
+  key_COND_wsrep_nbo, key_COND_wsrep_thd_queue;
+  
 
 PSI_file_key key_file_wsrep_gra_log;
 
@@ -166,7 +175,10 @@ static PSI_mutex_info wsrep_mutexes[]=
   { &key_LOCK_wsrep_replaying, "LOCK_wsrep_replaying", PSI_FLAG_GLOBAL},
   { &key_LOCK_wsrep_slave_threads, "LOCK_wsrep_slave_threads", PSI_FLAG_GLOBAL},
   { &key_LOCK_wsrep_desync, "LOCK_wsrep_desync", PSI_FLAG_GLOBAL},
-  { &key_LOCK_wsrep_config_state, "LOCK_wsrep_config_state", PSI_FLAG_GLOBAL}
+  { &key_LOCK_wsrep_config_state, "LOCK_wsrep_config_state", PSI_FLAG_GLOBAL},
+  { &key_LOCK_wsrep_SR_pool, "LOCK_wsrep_SR_pool", PSI_FLAG_GLOBAL},
+  { &key_LOCK_wsrep_SR_store, "LOCK_wsrep_SR_store", PSI_FLAG_GLOBAL},
+  { &key_LOCK_wsrep_thd_pool, "LOCK_wsrep_thd_pool", PSI_FLAG_GLOBAL}
 };
 
 static PSI_cond_info wsrep_conds[]=
@@ -803,6 +815,12 @@ void wsrep_thr_init()
   mysql_mutex_init(key_LOCK_wsrep_slave_threads, &LOCK_wsrep_slave_threads, MY_MUTEX_INIT_FAST);
   mysql_mutex_init(key_LOCK_wsrep_desync, &LOCK_wsrep_desync, MY_MUTEX_INIT_FAST);
   mysql_mutex_init(key_LOCK_wsrep_config_state, &LOCK_wsrep_config_state, MY_MUTEX_INIT_FAST);
+  mysql_mutex_init(key_LOCK_wsrep_SR_pool,
+                   &LOCK_wsrep_SR_pool, MY_MUTEX_INIT_FAST);
+  mysql_mutex_init(key_LOCK_wsrep_SR_store,
+                   &LOCK_wsrep_SR_store, MY_MUTEX_INIT_FAST);
+  mysql_mutex_init(key_LOCK_wsrep_thd_pool,
+                   &LOCK_wsrep_thd_pool, MY_MUTEX_INIT_FAST);
   DBUG_VOID_RETURN;
 }
 
@@ -879,6 +897,10 @@ void wsrep_thr_deinit()
   mysql_mutex_destroy(&LOCK_wsrep_slave_threads);
   mysql_mutex_destroy(&LOCK_wsrep_desync);
   mysql_mutex_destroy(&LOCK_wsrep_config_state);
+  mysql_mutex_destroy(&LOCK_wsrep_SR_pool);
+  mysql_mutex_destroy(&LOCK_wsrep_SR_store);
+  mysql_mutex_destroy(&LOCK_wsrep_thd_pool);
+
   delete wsrep_config_state;
   wsrep_config_state= 0;                        // Safety
 }
@@ -1902,14 +1924,24 @@ bool wsrep_grant_mdl_exception(MDL_context *requestor_ctx,
 }
 
 
-pthread_handler_t start_wsrep_THD(void *arg)
+void *start_wsrep_THD(void *arg)
 {
   THD *thd;
-  wsrep_thd_processor_fun processor= (wsrep_thd_processor_fun)arg;
+  //  wsrep_thd_processor_fun processor= (wsrep_thd_processor_fun)arg;
 
-  if (my_thread_init() || (!(thd= new THD(next_thread_id(), true))))
+  Wsrep_thd_args* thd_args= (Wsrep_thd_args*) arg;
+  
+  if (my_thread_init())
   {
-    goto error;
+    WSREP_ERROR("Could not initialize thread");
+    delete thd_args;
+    return(NULL);
+  }
+
+  if (!(thd= new THD(next_thread_id(), true)))
+  {
+    delete thd_args;
+    return(NULL);
   }
 
   mysql_mutex_lock(&LOCK_thread_count);
@@ -1927,6 +1959,7 @@ pthread_handler_t start_wsrep_THD(void *arg)
   my_net_init(&thd->net,(st_vio*) 0, thd, MYF(0));
 
   DBUG_PRINT("wsrep",(("creating thread %lld"), (long long)thd->thread_id));
+  WSREP_DEBUG("Creating wsrep system thread: %ld", thd->thread_id);
   thd->prior_thr_create_utime= thd->start_utime= microsecond_interval_timer();
   (void) mysql_mutex_unlock(&LOCK_thread_count);
 
@@ -1945,6 +1978,7 @@ pthread_handler_t start_wsrep_THD(void *arg)
     close_connection(thd, ER_OUT_OF_RESOURCES);
     statistic_increment(aborted_connects,&LOCK_status);
     MYSQL_CALLBACK(thread_scheduler, end_thread, (thd, 0));
+    delete thd_args;
     goto error;
   }
 
@@ -1967,6 +2001,8 @@ pthread_handler_t start_wsrep_THD(void *arg)
     close_connection(thd, ER_OUT_OF_RESOURCES);
     statistic_increment(aborted_connects,&LOCK_status);
     MYSQL_CALLBACK(thread_scheduler, end_thread, (thd, 0));
+    delete thd;
+    delete thd_args;
     goto error;
   }
 
@@ -1984,10 +2020,12 @@ pthread_handler_t start_wsrep_THD(void *arg)
   mysql_cond_broadcast(&COND_thread_count);
   mysql_mutex_unlock(&LOCK_thread_count);
 
-  processor(thd);
+  thd_args->fun()(thd, thd_args->args());
 
+  WSREP_DEBUG("wsrep system thread: %ld closing", thd->thread_id);
   close_connection(thd, 0);
-
+  delete thd_args;
+  
   mysql_mutex_lock(&LOCK_thread_count);
   wsrep_running_threads--;
   WSREP_DEBUG("wsrep running threads now: %lu", wsrep_running_threads);
@@ -2030,12 +2068,18 @@ error:
 static bool abort_replicated(THD *thd)
 {
   bool ret_code= false;
+  mysql_mutex_lock(&thd->LOCK_wsrep_thd);
   if (thd->wsrep_query_state== QUERY_COMMITTING)
   {
     WSREP_DEBUG("aborting replicated trx: %llu", (ulonglong)(thd->real_id));
 
+    mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
     (void)wsrep_abort_thd(thd, thd, TRUE);
     ret_code= true;
+  }
+  else
+  {
+    mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
   }
   return ret_code;
 }
@@ -2053,7 +2097,7 @@ static inline bool is_replaying_connection(THD *thd)
   bool ret;
 
   mysql_mutex_lock(&thd->LOCK_wsrep_thd);
-  ret=  (thd->wsrep_conflict_state == REPLAYING) ? true : false;
+  ret=  (thd->wsrep_conflict_state() == REPLAYING) ? true : false;
   mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
 
   return ret;
@@ -2065,20 +2109,23 @@ static inline bool is_committing_connection(THD *thd)
   bool ret;
 
   mysql_mutex_lock(&thd->LOCK_wsrep_thd);
-  ret=  (thd->wsrep_query_state == QUERY_COMMITTING) ? true : false;
+  ret=  (thd->wsrep_query_state() == QUERY_COMMITTING) ? true : false;
   mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
 
   return ret;
 }
 
 
-static bool have_client_connections()
+static bool have_client_connections(THD *except_thd)
 {
   THD *tmp;
 
   I_List_iterator<THD> it(threads);
   while ((tmp=it++))
   {
+    if (tmp == except_thd)
+        continue;
+
     DBUG_PRINT("quit",("Informing thread %lld that it's time to die",
                        (longlong) tmp->thread_id));
     if (is_client_connection(tmp) && tmp->killed == KILL_CONNECTION)
@@ -2148,7 +2195,7 @@ int wsrep_wait_committing_connections_close(int wait_time)
 }
 
 
-void wsrep_close_client_connections(my_bool wait_to_end)
+void wsrep_close_client_connections(my_bool wait_to_end, THD* except_caller_thd)
 {
   /*
     First signal all threads that it's time to die
@@ -2166,9 +2213,22 @@ void wsrep_close_client_connections(my_bool wait_to_end)
   {
     DBUG_PRINT("quit",("Informing thread %lld that it's time to die",
                        (longlong) tmp->thread_id));
-    /* We skip slave threads & scheduler on this first loop through. */
+    /* We skip slave threads, scheduler & caller on this first loop through. */
     if (!is_client_connection(tmp))
       continue;
+
+    if (tmp == except_caller_thd)
+    {
+      DBUG_ASSERT(is_client_connection(tmp));
+      /* Even though we don't kill the caller we must release resources
+       * it might have allocated with the provider */
+      wsrep_status_t rcode= wsrep->free_connection(wsrep, tmp->thread_id);
+      if (rcode) {
+        WSREP_WARN("wsrep failed to free connection context: %lu, code: %d",
+                   tmp->thread_id, rcode);
+      }
+      continue;
+    }
 
     if (is_replaying_connection(tmp))
     {
@@ -2185,8 +2245,12 @@ void wsrep_close_client_connections(my_bool wait_to_end)
   }
   mysql_mutex_unlock(&LOCK_thread_count);
 
-  if (thread_count)
-    sleep(2);                               // Give threads time to die
+  /*
+    Sleep for couple of seconds to give threads time to die.
+   */
+  int max_sleeps= 200;
+  while (--max_sleeps > 0 && thread_count > 0)
+    my_sleep(10000);
 
   mysql_mutex_lock(&LOCK_thread_count);
   /*
@@ -2199,7 +2263,8 @@ void wsrep_close_client_connections(my_bool wait_to_end)
 #ifndef __bsdi__				// Bug in BSDI kernel
     if (is_client_connection(tmp) &&
         !abort_replicated(tmp)    &&
-	!is_replaying_connection(tmp))
+        !is_replaying_connection(tmp) &&
+        tmp != except_caller_thd)
     {
       WSREP_INFO("killing local connection: %lld", (longlong) tmp->thread_id);
       close_connection(tmp,0);
@@ -2210,7 +2275,7 @@ void wsrep_close_client_connections(my_bool wait_to_end)
   DBUG_PRINT("quit",("Waiting for threads to die (count=%u)",thread_count));
   WSREP_DEBUG("waiting for client connections to close: %u", thread_count);
 
-  while (wait_to_end && have_client_connections())
+  while (wait_to_end && have_client_connections(except_caller_thd))
   {
     mysql_cond_wait(&COND_thread_count, &LOCK_thread_count);
     DBUG_PRINT("quit",("One thread died (count=%u)", thread_count));
@@ -2256,7 +2321,9 @@ void wsrep_wait_appliers_close(THD *thd)
 {
   /* Wait for wsrep appliers to gracefully exit */
   mysql_mutex_lock(&LOCK_thread_count);
-  while (wsrep_running_threads > 1)
+  while (wsrep_running_threads > 2)
+  // Rollbacker and post rollbacker threads need to be killed explicitly.
+    
   // 1 is for rollbacker thread which needs to be killed explicitly.
   // This gotta be fixed in a more elegant manner if we gonna have arbitrary
   // number of non-applier wsrep threads.
@@ -2371,16 +2438,9 @@ extern "C" void wsrep_thd_set_exec_mode(THD *thd, enum wsrep_exec_mode mode)
 }
 
 
-extern "C" void wsrep_thd_set_query_state(
-	THD *thd, enum wsrep_query_state state)
-{
-  thd->wsrep_query_state= state;
-}
-
-
 void wsrep_thd_set_conflict_state(THD *thd, enum wsrep_conflict_state state)
 {
-  thd->wsrep_conflict_state= state;
+  thd->set_wsrep_conflict_state(state);
 }
 
 
@@ -2392,50 +2452,58 @@ enum wsrep_exec_mode wsrep_thd_exec_mode(THD *thd)
 
 const char *wsrep_thd_exec_mode_str(THD *thd)
 {
-  return 
-    (!thd) ? "void" :
-    (thd->wsrep_exec_mode == LOCAL_STATE)  ? "local"         :
-    (thd->wsrep_exec_mode == REPL_RECV)    ? "applier"       :
-    (thd->wsrep_exec_mode == TOTAL_ORDER)  ? "total order"   : 
-    (thd->wsrep_exec_mode == LOCAL_COMMIT) ? "local commit"  : "void";
+  switch (thd->wsrep_exec_mode)
+  {
+  case LOCAL_STATE:    return "local";
+  case REPL_RECV:      return "applier";
+  case TOTAL_ORDER:    return "total order";
+  case LOCAL_COMMIT:   return "local commit";
+  case LOCAL_ROLLBACK: return "local rollback";
+  }
+  return "void";
+
 }
 
 
 enum wsrep_query_state wsrep_thd_query_state(THD *thd)
 {
-  return thd->wsrep_query_state;
+  return thd->wsrep_query_state();
 }
 
 
 const char *wsrep_thd_query_state_str(THD *thd)
 {
-  return 
-    (!thd) ? "void" : 
-    (thd->wsrep_query_state == QUERY_IDLE)        ? "idle"          :
-    (thd->wsrep_query_state == QUERY_EXEC)        ? "executing"     :
-    (thd->wsrep_query_state == QUERY_COMMITTING)  ? "committing"    :
-    (thd->wsrep_query_state == QUERY_EXITING)     ? "exiting"       : 
-    (thd->wsrep_query_state == QUERY_ROLLINGBACK) ? "rolling back"  : "void";
-}
+  switch (thd->wsrep_query_state_unsafe())
+  {
+  case QUERY_IDLE:        return "idle";
+  case QUERY_EXEC:        return "executing";
+  case QUERY_COMMITTING:  return "committing";
+  case QUERY_EXITING:     return "exiting";
 
+  }
+  return "void";
+}
 
 enum wsrep_conflict_state wsrep_thd_get_conflict_state(THD *thd)
 {
-  return thd->wsrep_conflict_state;
+  return thd->wsrep_conflict_state();
 }
 
 
 const char *wsrep_thd_conflict_state_str(THD *thd)
 {
-  return 
-    (!thd) ? "void" :
-    (thd->wsrep_conflict_state == NO_CONFLICT)      ? "no conflict"  :
-    (thd->wsrep_conflict_state == MUST_ABORT)       ? "must abort"   :
-    (thd->wsrep_conflict_state == ABORTING)         ? "aborting"     :
-    (thd->wsrep_conflict_state == MUST_REPLAY)      ? "must replay"  : 
-    (thd->wsrep_conflict_state == REPLAYING)        ? "replaying"    : 
-    (thd->wsrep_conflict_state == RETRY_AUTOCOMMIT) ? "retrying"     : 
-    (thd->wsrep_conflict_state == CERT_FAILURE)     ? "cert failure" : "void";
+  switch (thd->wsrep_conflict_state_unsafe())
+  {
+  case NO_CONFLICT:      return "no conflict";
+  case MUST_ABORT:       return "must abort";
+  case ABORTING:         return "aborting";
+  case ABORTED:          return "aborted";
+  case MUST_REPLAY:      return "must replay";
+  case REPLAYING:        return "replaying";
+  case RETRY_AUTOCOMMIT: return "retrying";
+  case CERT_FAILURE:     return "cert failure";
+  }
+  return "void";
 }
 
 
@@ -2479,6 +2547,14 @@ extern "C" query_id_t wsrep_thd_query_id(THD *thd)
   return thd->query_id;
 }
 
+extern "C" wsrep_trx_id_t wsrep_thd_next_trx_id(THD *thd)
+{
+  return thd->wsrep_next_trx_id();
+}
+extern "C" wsrep_trx_id_t wsrep_thd_trx_id(THD *thd)
+{
+  return thd->wsrep_trx_id();
+}
 
 char *wsrep_thd_query(THD *thd)
 {
@@ -2526,32 +2602,60 @@ extern "C" bool wsrep_thd_ignore_table(THD *thd)
 
 
 extern int
-wsrep_trx_order_before(THD *thd1, THD *thd2)
+wsrep_trx_order_before(void *thd1, void *thd2)
 {
-    if (wsrep_thd_trx_seqno(thd1) < wsrep_thd_trx_seqno(thd2)) {
+    if (wsrep_thd_trx_seqno((THD*)thd1) < wsrep_thd_trx_seqno((THD*)thd2)) {
         WSREP_DEBUG("BF conflict, order: %lld %lld\n",
-                    (long long)wsrep_thd_trx_seqno(thd1),
-                    (long long)wsrep_thd_trx_seqno(thd2));
+                    (long long)wsrep_thd_trx_seqno((THD*)thd1),
+                    (long long)wsrep_thd_trx_seqno((THD*)thd2));
         return 1;
     }
     WSREP_DEBUG("waiting for BF, trx order: %lld %lld\n",
-                (long long)wsrep_thd_trx_seqno(thd1),
-                (long long)wsrep_thd_trx_seqno(thd2));
+                (long long)wsrep_thd_trx_seqno((THD*)thd1),
+                (long long)wsrep_thd_trx_seqno((THD*)thd2));
     return 0;
 }
 
-
-int wsrep_trx_is_aborting(THD *thd_ptr)
+extern "C" int
+wsrep_trx_is_aborting(void *thd_ptr)
 {
-	if (thd_ptr) {
-		if ((((THD *)thd_ptr)->wsrep_conflict_state == MUST_ABORT) ||
-		    (((THD *)thd_ptr)->wsrep_conflict_state == ABORTING)) {
-		  return 1;
-		}
-	}
-	return 0;
+  if (thd_ptr) {
+    if ((((THD *)thd_ptr)->wsrep_conflict_state() == MUST_ABORT) ||
+        (((THD *)thd_ptr)->wsrep_conflict_state() == ABORTING)) {
+      return 1;
+    }
+  }
+  return 0;
 }
 
+extern "C" void
+wsrep_thd_last_written_gtid(THD *thd, wsrep_gtid_t* gtid)
+{
+  *gtid = WSREP_GTID_UNDEFINED;
+  if (thd)
+  {
+    *gtid = thd->wsrep_last_written_gtid;
+  }
+}
+
+extern "C" ulong
+wsrep_thd_trx_fragment_size(THD *thd)
+{
+  if (thd)
+    return thd->variables.wsrep_trx_fragment_size;
+  return 0;
+}
+
+extern "C" bool
+wsrep_thd_is_streaming(THD* thd)
+{
+  return thd && thd->wsrep_is_streaming();
+}
+
+my_bool wsrep_thd_no_gaps(const void *thd_ptr)
+{
+  return ((THD*)thd_ptr)->wsrep_no_gaps;
+}
 
 void wsrep_copy_query(THD *thd)
 {

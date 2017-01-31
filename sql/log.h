@@ -96,6 +96,11 @@ extern PSI_mutex_key key_LOCK_prepare_ordered, key_LOCK_commit_ordered;
 extern PSI_mutex_key key_LOCK_after_binlog_sync;
 extern PSI_cond_key key_COND_prepare_ordered;
 #endif
+#ifdef WITH_WSREP
+TC_LOG::enum_result wsrep_thd_binlog_commit(THD *thd, bool all);
+int wsrep_thd_binlog_rollback(THD *thd, bool all);
+int wsrep_thd_binlog_prepare(THD *thd, bool all);
+#endif /* WITH_WSREP */
 
 class TC_LOG_DUMMY: public TC_LOG // use it to disable the logging
 {

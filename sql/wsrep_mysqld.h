@@ -298,7 +298,32 @@ void thd_binlog_rollback_stmt(THD * thd);
 void thd_binlog_trx_reset(THD * thd);
 
 typedef void (*wsrep_thd_processor_fun)(THD *);
-pthread_handler_t start_wsrep_THD(void *arg);
+
+typedef void (*wsrep_thd_processor_fun)(THD*, void *);
+class Wsrep_thd_args
+{
+ public:
+ Wsrep_thd_args(wsrep_thd_processor_fun fun, void* args)
+   :
+  fun_ (fun),
+  args_(args)
+  { }
+
+  wsrep_thd_processor_fun fun() { return fun_; }
+
+  void* args() { return args_; }
+
+ private:
+
+  Wsrep_thd_args(const Wsrep_thd_args&);
+  Wsrep_thd_args& operator=(const Wsrep_thd_args&);
+
+  wsrep_thd_processor_fun fun_;
+  void*                    args_;
+};
+
+void* start_wsrep_THD(void*);
+
 int wsrep_wait_committing_connections_close(int wait_time);
 void wsrep_close_client_connections(my_bool wait_to_end);
 void wsrep_close_applier(THD *thd);

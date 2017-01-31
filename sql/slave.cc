@@ -3883,14 +3883,14 @@ apply_event_and_update_pos_apply(Log_event* ev, THD* thd, rpl_group_info *rgi,
     exec_res= ev->apply_event(rgi);
 
 #ifdef WITH_WSREP
-    if (exec_res && thd->wsrep_conflict_state != NO_CONFLICT)
-    {
-      WSREP_DEBUG("SQL apply failed, res %d conflict state: %d",
-                  exec_res, thd->wsrep_conflict_state);
-      rli->abort_slave= 1;
-      rli->report(ERROR_LEVEL, ER_UNKNOWN_COM_ERROR, rgi->gtid_info(),
-                  "Node has dropped from cluster");
-    }
+  if (exec_res && thd->wsrep_conflict_state() != NO_CONFLICT)
+  {
+    WSREP_DEBUG("SQL apply failed, res %d conflict state: %d",
+                exec_res, thd->wsrep_conflict_state_unsafe());
+    rli->abort_slave= 1;
+    rli->report(ERROR_LEVEL, ER_UNKNOWN_COM_ERROR, rgi->gtid_info(),
+                "Node has dropped from cluster");
+  }
 #endif
 
 #ifndef DBUG_OFF
@@ -4183,6 +4183,11 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
   }
   if (ev)
   {
+#ifdef WITH_WSREP
+    mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+    thd->set_wsrep_query_state(QUERY_EXEC);
+    mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+#endif /* WITH_WSREP */
     int exec_res;
     Log_event_type typ= ev->get_type_code();
 
@@ -4227,6 +4232,11 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
       rli->abort_slave= 1;
       rli->stop_for_until= true;
       mysql_mutex_unlock(&rli->data_lock);
+#ifdef WITH_WSREP
+      mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+      thd->set_wsrep_query_state(QUERY_IDLE);
+      mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+#endif /* WITH_WSREP */
       delete ev;
       DBUG_RETURN(1);
     }
@@ -4264,7 +4274,16 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
       if (res == 0)
         rli->event_relay_log_pos= rli->future_event_relay_log_pos;
       if (res >= 0)
+#ifdef WITH_WSREP
+      {
+        mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+        thd->set_wsrep_query_state(QUERY_IDLE);
+        mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+#endif /* WITH_WSREP */
         DBUG_RETURN(res);
+#ifdef WITH_WSREP
+      }
+#endif /* WITH_WSREP */
       /*
         Else we proceed to execute the event non-parallel.
         This is the case for pre-10.0 events without GTID, and for handling
@@ -4286,6 +4305,11 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
                         "aborted because of out-of-memory error");
         mysql_mutex_unlock(&rli->data_lock);
         delete ev;
+#ifdef WITH_WSREP
+        mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+        thd->set_wsrep_query_state(QUERY_IDLE);
+        mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+#endif /* WITH_WSREP */
         DBUG_RETURN(1);
       }
 
@@ -4300,6 +4324,11 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
                           "thread aborted because of out-of-memory error");
           mysql_mutex_unlock(&rli->data_lock);
           delete ev;
+#ifdef WITH_WSREP
+          mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+          thd->set_wsrep_query_state(QUERY_IDLE);
+          mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+#endif /* WITH_WSREP */
           DBUG_RETURN(1);
         }
         /*
@@ -4328,11 +4357,17 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
       retry.
     */
     if (exec_res == 2)
+    {
+#ifdef WITH_WSREP
+      mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+      thd->set_wsrep_query_state(QUERY_IDLE);
+      mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+#endif /* WITH_WSREP */
       DBUG_RETURN(1);
-
+    }
 #ifdef WITH_WSREP
     mysql_mutex_lock(&thd->LOCK_wsrep_thd);
-    if (thd->wsrep_conflict_state == NO_CONFLICT)
+    if (thd->wsrep_conflict_state() == NO_CONFLICT)
     {
       mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
 #endif /* WITH_WSREP */
@@ -4416,6 +4451,11 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
 #endif /* WITH_WSREP */
 
     thread_safe_increment64(&rli->executed_entries);
+#ifdef WITH_WSREP
+    mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+    thd->set_wsrep_query_state(QUERY_IDLE);
+    mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+#endif /* WITH_WSREP */
     DBUG_RETURN(exec_res);
   }
   mysql_mutex_unlock(&rli->data_lock);
@@ -5449,6 +5489,13 @@ pthread_handler_t handle_slave_sql(void *arg)
     THD_STAGE_INFO(thd, stage_reading_event_from_the_relay_log);
     THD_CHECK_SENTRY(thd);
 
+#ifdef WITH_WSREP
+    if (thd->wsrep_next_trx_id() == WSREP_UNDEFINED_TRX_ID)
+    {
+      thd->set_wsrep_next_trx_id(thd->query_id);
+      WSREP_DEBUG("assigned new next trx id: %lu", thd->wsrep_next_trx_id());
+    }
+#endif /* WITH_WSREP */
     if (saved_skip && rli->slave_skip_counter == 0)
     {
       StringBuffer<100> tmp;
@@ -5477,7 +5524,7 @@ pthread_handler_t handle_slave_sql(void *arg)
     if (exec_relay_log_event(thd, rli, serial_rgi))
     {
 #ifdef WITH_WSREP
-      if (thd->wsrep_conflict_state != NO_CONFLICT)
+      if (thd->wsrep_conflict_state() != NO_CONFLICT)
       {
         wsrep_node_dropped= TRUE;
         rli->abort_slave= TRUE;
@@ -5631,9 +5678,12 @@ err_during_init:
                  "SQL slave will continue");
       wsrep_node_dropped= FALSE;
       mysql_mutex_unlock(&rli->run_lock);
-      WSREP_DEBUG("wsrep_conflict_state now: %d", thd->wsrep_conflict_state);
-      WSREP_INFO("slave restart: %d", thd->wsrep_conflict_state);
-      thd->wsrep_conflict_state= NO_CONFLICT;
+      mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+      WSREP_DEBUG("wsrep_conflict_state now: %d",
+                  thd->wsrep_conflict_state());
+      WSREP_INFO("slave restart: %d", thd->wsrep_conflict_state());
+      thd->set_wsrep_conflict_state(NO_CONFLICT);
+      mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
       goto wsrep_restart_point;
     } else {
       WSREP_INFO("Slave error due to node going non-primary");
@@ -5642,6 +5692,10 @@ err_during_init:
       wsrep_restart_slave_activated= TRUE;
     }
   }
+  mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+  thd->set_wsrep_query_state(QUERY_EXITING);
+  if (WSREP(thd)) wsrep->free_connection(wsrep, thd->thread_id);
+  mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
 #endif /* WITH_WSREP */
 
  /*

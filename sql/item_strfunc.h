@@ -1655,5 +1655,47 @@ public:
   { return get_item_copy<Item_func_dyncol_list>(thd, this); }
 };
 
+#ifdef WITH_WSREP
+
+#include "../wsrep/wsrep_api.h"
+
+class Item_func_wsrep_last_written_gtid: public Item_str_ascii_func
+{
+  String gtid_str;
+public:
+  Item_func_wsrep_last_written_gtid(): Item_str_ascii_func() {}
+  const char *func_name() const { return "wsrep_last_written_gtid"; }
+  String *val_str_ascii(String *);
+  void fix_length_and_dec()
+  {
+    max_length = WSREP_GTID_STR_LEN;
+    maybe_null = true;
+  }
+};
+
+class Item_func_wsrep_last_seen_gtid: public Item_str_ascii_func
+{
+  String gtid_str;
+public:
+  Item_func_wsrep_last_seen_gtid(): Item_str_ascii_func() {}
+  const char *func_name() const { return "wsrep_last_seen_gtid"; }
+  String *val_str_ascii(String *);
+  void fix_length_and_dec()
+  {
+    max_length = WSREP_GTID_STR_LEN;
+    maybe_null = true;
+  }
+};
+
+class Item_func_wsrep_sync_wait_upto: public Item_int_func
+{
+  String value;
+public:
+  Item_func_wsrep_sync_wait_upto(Item *a): Item_int_func(a) {}
+  Item_func_wsrep_sync_wait_upto(Item *a, Item* b): Item_int_func(a, b) {}
+  const char *func_name() const { return "wsrep_sync_wait_upto_gtid"; }
+  longlong val_int();
+};
+#endif /* WITH_WSREP */
 #endif /* ITEM_STRFUNC_INCLUDED */
 

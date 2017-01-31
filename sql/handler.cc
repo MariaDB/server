@@ -1246,6 +1246,18 @@ ha_check_and_coalesce_trx_read_only(THD *thd, Ha_trx_info *ha_list,
 
   for (ha_info= ha_list; ha_info; ha_info= ha_info->next())
   {
+#ifdef WITH_WSREP
+    /*
+      Thd has wsrep_schema.SR open and may operate it
+      during prepare phase, set InnoDB ha_info read_write.
+     */
+    if (WSREP_CLIENT(thd) && thd->wsrep_is_streaming() &&
+        wsrep_SR_store && wsrep_SR_store_type == WSREP_SR_STORE_TABLE &&
+        ha_info->ht()->db_type == DB_TYPE_INNODB)
+    {
+      ha_info->set_trx_read_write();
+    }
+#endif /* WITH_WSREP */
     if (ha_info->is_trx_read_write())
       ++rw_ha_count;
 
@@ -1424,6 +1436,13 @@ int ha_commit_trans(THD *thd, bool all)
   need_prepare_ordered= FALSE;
   need_commit_ordered= FALSE;
   xid= thd->transaction.xid_state.xid.get_my_xid();
+#ifdef WITH_WSREP
+  if (RUN_HOOK(transaction, before_prepare, (thd, all)))
+  {
+    wsrep_override_error(thd, ER_ERROR_DURING_COMMIT);
+    DBUG_RETURN(1);
+  }
+#endif /* WITH_WSREP */
 
   for (Ha_trx_info *hi= ha_info; hi; hi= hi->next())
   {
@@ -1447,6 +1466,13 @@ int ha_commit_trans(THD *thd, bool all)
   }
   DEBUG_SYNC(thd, "ha_commit_trans_after_prepare");
   DBUG_EXECUTE_IF("crash_commit_after_prepare", DBUG_SUICIDE(););
+#ifdef WITH_WSREP
+  if (RUN_HOOK(transaction, after_prepare, (thd, all)))
+  {
+    wsrep_override_error(thd, ER_ERROR_DURING_COMMIT);
+    DBUG_RETURN(1);
+  }
+#endif /* WITH_WSREP */
 
   if (!error && WSREP_ON && wsrep_is_wsrep_xid(&thd->transaction.xid_state.xid))
   {
@@ -1670,6 +1696,9 @@ int ha_rollback_trans(THD *thd, bool all)
     DBUG_RETURN(1);
   }
 
+#ifdef WITH_WSREP
+  (void) RUN_HOOK(transaction, before_rollback, (thd, all));
+#endif // WITH_WSREP
   if (ha_info)
   {
     /* Close all cursors that can not survive ROLLBACK */
@@ -1685,10 +1714,10 @@ int ha_rollback_trans(THD *thd, bool all)
         my_error(ER_ERROR_DURING_ROLLBACK, MYF(0), err);
         error=1;
 #ifdef WITH_WSREP
-         WSREP_WARN("handlerton rollback failed, thd %llu %lld conf %d SQL %s",
-                    thd->thread_id, thd->query_id, thd->wsrep_conflict_state,
-                    thd->query());
-#endif /* WITH_WSREP */
+        WSREP_WARN("handlerton rollback failed, thd %lu %lld conf %d SQL %s",
+                   thd->thread_id, thd->query_id, thd->wsrep_conflict_state(),
+                   thd->query());
+#endif // WITH_WSREP
       }
       status_var_increment(thd->status_var.ha_rollback_count);
       ha_info_next= ha_info->next();
@@ -1706,6 +1735,12 @@ int ha_rollback_trans(THD *thd, bool all)
       thd->transaction.xid_state.xa_state != XA_NOTR)
     thd->transaction.xid_state.rm_error= thd->get_stmt_da()->sql_errno();
 
+#ifdef WITH_WSREP
+  if (thd->is_error())
+    WSREP_DEBUG("ha_rollback_trans(%lu, %s) rolled back: %s: %s; is_real %d",
+                thd->thread_id, all?"TRUE":"FALSE", WSREP_QUERY(thd),
+                thd->get_stmt_da()->message(), is_real_trans);
+#endif
   /* Always cleanup. Even if nht==0. There may be savepoints. */
   if (is_real_trans)
   {
@@ -2267,6 +2302,12 @@ int ha_rollback_to_savepoint(THD *thd, SAVEPOINT *sv)
     ha_info->reset(); /* keep it conveniently zero-filled */
   }
   trans->ha_list= sv->ha_list;
+#ifdef WITH_WSREP
+  if (thd->wsrep_is_streaming())
+  {
+    WSREP_DEBUG("keeping rollback in IO cache");
+  }
+#endif /* WITH_WSREP */
   DBUG_RETURN(error);
 }
 
@@ -2278,6 +2319,18 @@ int ha_rollback_to_savepoint(THD *thd, SAVEPOINT *sv)
 */
 int ha_savepoint(THD *thd, SAVEPOINT *sv)
 {
+#ifdef WITH_WSREP
+  /*
+    Register binlog hton for savepoint processing if wsrep binlog
+    emulation is on.
+   */
+  if (WSREP_EMULATE_BINLOG(thd) && thd->wsrep_exec_mode != REPL_RECV)
+  {
+    WSREP_DEBUG("ha_savepoint: register binlog handler");
+    thd->binlog_setup_trx_data();
+    register_binlog_handler(thd, thd->in_multi_stmt_transaction_mode());
+  }
+#endif /* WITH_WSREP */
   int error=0;
   THD_TRANS *trans= (thd->in_sub_stmt ? &thd->transaction.stmt :
                                         &thd->transaction.all);
@@ -6011,6 +6064,16 @@ static int binlog_log_row_internal(TABLE* table,
   bool error= 0;
   THD *const thd= table->in_use;
 
+#ifdef WITH_WSREP
+  /* only InnoDB tables will be replicated through binlog emulation */
+  if (WSREP_EMULATE_BINLOG(thd) &&
+      table->file->ht->db_type != DB_TYPE_INNODB &&
+      !(table->file->ht->db_type == DB_TYPE_PARTITION_DB &&
+        (((ha_partition*)(table->file))->wsrep_db_type() == DB_TYPE_INNODB)))
+  {
+      return 0;
+  }
+#endif /* WITH_WSREP */
   /*
     If there are no table maps written to the binary log, this is
     the first row handled in this statement. In that case, we need
@@ -6155,6 +6218,31 @@ int handler::ha_reset()
   DBUG_RETURN(reset());
 }
 
+#ifdef WITH_WSREP
+static int wsrep_after_row(THD *thd)
+{
+  DBUG_ENTER("wsrep_after_row");
+  /* enforce wsrep_max_ws_rows */
+  thd->wsrep_affected_rows++;
+  if (wsrep_max_ws_rows &&
+      thd->wsrep_exec_mode != REPL_RECV &&
+      thd->wsrep_affected_rows > wsrep_max_ws_rows)
+  {
+    trans_rollback_stmt(thd) || trans_rollback(thd);
+    my_message(ER_ERROR_DURING_COMMIT, "wsrep_max_ws_rows exceeded", MYF(0));
+    DBUG_RETURN(ER_ERROR_DURING_COMMIT);
+  }
+  else if (RUN_HOOK(transaction, after_row, (thd, false)))
+  {
+    if (!thd->get_stmt_da()->is_error())
+    {
+      wsrep_override_error(thd, ER_LOCK_DEADLOCK);
+    }
+    DBUG_RETURN(ER_LOCK_DEADLOCK);
+  }
+  DBUG_RETURN(0);
+}
+#endif /* WITH_WSREP */
 
 static int check_wsrep_max_ws_rows()
 {
@@ -6202,6 +6290,14 @@ int handler::ha_write_row(uchar *buf)
     rows_changed++;
     error= binlog_log_row(table, 0, buf, log_func);
   }
+#ifdef WITH_WSREP
+  THD *thd= current_thd;
+  if (table_share->tmp_table == NO_TMP_TABLE &&
+      WSREP(thd) && (error= wsrep_after_row(thd)))
+  {
+    DBUG_RETURN(error);
+  }
+#endif /* WITH_WSREP */
   DEBUG_SYNC_C("ha_write_row_end");
   DBUG_RETURN(error);
 }
@@ -6483,6 +6579,15 @@ int ha_abort_transaction(THD *bf_thd, THD *victim_thd, my_bool signal)
   handlerton *hton= installed_htons[DB_TYPE_INNODB];
   if (hton && hton->abort_transaction)
   {
+    /*
+      Assign trx_id at this point if not assigned yet. Otherwise
+      replication hooks for transaction process won't be fully executed.
+     */
+    if (victim_thd->wsrep_trx_id() == WSREP_UNDEFINED_TRX_ID)
+    {
+      (void)wsrep_ws_handle_for_trx(&victim_thd->wsrep_ws_handle,
+                                    victim_thd->wsrep_next_trx_id());
+    }
     hton->abort_transaction(hton, bf_thd, victim_thd, signal);
   }
   else
