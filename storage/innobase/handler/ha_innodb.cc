@@ -21585,10 +21585,11 @@ innobase_disallow_writes_update(
 {
 	*(my_bool*)var_ptr = *(my_bool*)save;
 	ut_a(srv_allow_writes_event);
-	if (*(my_bool*)var_ptr)
+	if (*(my_bool*)var_ptr) {
 		os_event_reset(srv_allow_writes_event);
-	else
+	} else {
 		os_event_set(srv_allow_writes_event);
+	}
 }
 
 static MYSQL_SYSVAR_BOOL(disallow_writes, innobase_disallow_writes,
@@ -21596,6 +21597,7 @@ static MYSQL_SYSVAR_BOOL(disallow_writes, innobase_disallow_writes,
   "Tell InnoDB to stop any writes to disk",
   NULL, innobase_disallow_writes_update, FALSE);
 #endif /* WITH_INNODB_DISALLOW_WRITES */
+
 static MYSQL_SYSVAR_BOOL(random_read_ahead, srv_random_read_ahead,
   PLUGIN_VAR_NOCMDARG,
   "Whether to use read ahead for random access within an extent.",

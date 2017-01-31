@@ -1942,9 +1942,7 @@ loop:
 	if (sync_array_print_long_waits(&waiter, &sema)
 	    && sema == old_sema && os_thread_eq(waiter, old_waiter)) {
 #if defined(WITH_WSREP) && defined(WITH_INNODB_DISALLOW_WRITES)
-		if (true) {
-			// JAN: TODO: MySQL 5.7
-		//if (srv_allow_writes_event->is_set) {
+	  if (os_event_is_set(srv_allow_writes_event)) {
 #endif /* WITH_WSREP */
 		fatal_cnt++;
 #if defined(WITH_WSREP) && defined(WITH_INNODB_DISALLOW_WRITES)

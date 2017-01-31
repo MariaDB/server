@@ -1227,6 +1227,7 @@ os_file_create_tmpfile(
 	const char*	path)
 {
 	FILE*	file	= NULL;
+	WAIT_ALLOW_WRITES();
 	int	fd	= innobase_mysql_tmpfile(path);
 
 	if (fd >= 0) {
@@ -2552,6 +2553,7 @@ os_file_flush_func(
 {
 	int	ret;
 
+	WAIT_ALLOW_WRITES();
 	ret = os_file_fsync_posix(file);
 
 	if (ret == 0) {
@@ -2602,6 +2604,10 @@ os_file_create_simple_func(
 
 	int		create_flag;
 	const char*	mode_str	= NULL;
+
+	if (create_mode != OS_FILE_OPEN && create_mode != OS_FILE_OPEN_RAW) {
+		WAIT_ALLOW_WRITES();
+	}
 
 	ut_a(!(create_mode & OS_FILE_ON_ERROR_SILENT));
 	ut_a(!(create_mode & OS_FILE_ON_ERROR_NO_EXIT));
@@ -2718,7 +2724,10 @@ os_file_create_directory(
 	const char*	pathname,
 	bool		fail_if_exists)
 {
-	int	rcode = mkdir(pathname, 0770);
+	int	rcode;
+
+	WAIT_ALLOW_WRITES();
+	rcode = mkdir(pathname, 0770);
 
 	if (!(rcode == 0 || (errno == EEXIST && !fail_if_exists))) {
 		/* failure */
@@ -3051,6 +3060,10 @@ os_file_create_simple_no_error_handling_func(
 	os_file_t	file;
 	int		create_flag;
 
+	if (create_mode != OS_FILE_OPEN && create_mode != OS_FILE_OPEN_RAW) {
+		WAIT_ALLOW_WRITES();
+	}
+
 	ut_a(!(create_mode & OS_FILE_ON_ERROR_SILENT));
 	ut_a(!(create_mode & OS_FILE_ON_ERROR_NO_EXIT));
 
@@ -3124,7 +3137,10 @@ os_file_delete_if_exists_func(
 		*exist = true;
 	}
 
-	int	ret = unlink(name);
+	int	ret;
+	WAIT_ALLOW_WRITES();
+
+	ret = unlink(name);
 
 	if (ret != 0 && errno == ENOENT) {
 		if (exist != NULL) {
@@ -3146,7 +3162,10 @@ bool
 os_file_delete_func(
 	const char*	name)
 {
-	int	ret = unlink(name);
+	int	ret;
+	WAIT_ALLOW_WRITES();
+
+	ret = unlink(name);
 
 	if (ret != 0) {
 		os_file_handle_error_no_exit(name, "delete", FALSE);
@@ -3182,7 +3201,10 @@ os_file_rename_func(
 	ut_ad(exists);
 #endif /* UNIV_DEBUG */
 
-	int	ret = rename(oldpath, newpath);
+	int	ret;
+	WAIT_ALLOW_WRITES();
+
+	ret = rename(oldpath, newpath);
 
 	if (ret != 0) {
 		os_file_handle_error_no_exit(oldpath, "rename", FALSE);
@@ -3367,6 +3389,7 @@ bool
 os_file_set_eof(
 	FILE*		file)	/*!< in: file to be truncated */
 {
+	WAIT_ALLOW_WRITES();
 	return(!ftruncate(fileno(file), ftell(file)));
 }
 
@@ -4127,6 +4150,10 @@ os_file_create_func(
 
 	DWORD		create_flag;
 	DWORD		share_mode = FILE_SHARE_READ;
+
+	if (create_mode != OS_FILE_OPEN && create_mode != OS_FILE_OPEN_RAW) {
+		WAIT_ALLOW_WRITES();
+	}
 
 	on_error_no_exit = create_mode & OS_FILE_ON_ERROR_NO_EXIT
 		? true : false;
@@ -4936,6 +4963,8 @@ os_file_write_page(
 	ut_ad(type.is_write());
 	ut_ad(type.validate());
 	ut_ad(n > 0);
+
+	WAIT_ALLOW_WRITES();
 
 	ssize_t	n_bytes = os_file_pwrite(type, file, (byte*)buf, n, offset, &err);
 
