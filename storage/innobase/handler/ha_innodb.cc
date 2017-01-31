@@ -4476,6 +4476,7 @@ innobase_change_buffering_inited_ok:
 	}
 
 	if (err != DB_SUCCESS) {
+		innodb_shutdown();
 		DBUG_RETURN(innobase_init_abort());
 	} else if (!srv_read_only_mode) {
 		mysql_thread_create(thd_destructor_thread_key,
@@ -4594,10 +4595,7 @@ innobase_end(
 			mysql_cond_broadcast(thd_destructor_myvar->current_cond);
 		}
 
-		if (innobase_shutdown_for_mysql() != DB_SUCCESS) {
-			err = 1;
-		}
-
+		innodb_shutdown();
 		innobase_space_shutdown();
 		if (!srv_read_only_mode) {
 			pthread_join(thd_destructor_thread, NULL);

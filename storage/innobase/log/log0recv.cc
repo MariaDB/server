@@ -455,6 +455,8 @@ recv_sys_close(void)
 /*================*/
 {
 	if (recv_sys != NULL) {
+		recv_sys->dblwr.pages.clear();
+
 		if (recv_sys->addr_hash != NULL) {
 			hash_table_free(recv_sys->addr_hash);
 		}
@@ -3263,6 +3265,7 @@ recv_recovery_from_checkpoint_start(
 	ut_ad(!recv_sys->found_corrupt_fs);
 
 	if (srv_read_only_mode && recv_needed_recovery) {
+		log_mutex_exit();
 		return(DB_READ_ONLY);
 	}
 

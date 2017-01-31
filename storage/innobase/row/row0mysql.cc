@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2000, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -5233,7 +5234,8 @@ row_mysql_close(void)
 {
 	ut_a(UT_LIST_GET_LEN(row_mysql_drop_list) == 0);
 
-	mutex_free(&row_drop_list_mutex);
-
-	row_mysql_drop_list_inited = FALSE;
+	if (row_mysql_drop_list_inited) {
+		mutex_free(&row_drop_list_mutex);
+		row_mysql_drop_list_inited = FALSE;
+	}
 }

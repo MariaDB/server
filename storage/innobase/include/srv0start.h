@@ -67,11 +67,9 @@ are not found and the user wants.
 dberr_t
 innobase_start_or_create_for_mysql(void);
 /*====================================*/
-/****************************************************************//**
-Shuts down the Innobase database.
-@return DB_SUCCESS or error code */
-dberr_t
-innobase_shutdown_for_mysql(void);
+/** Shut down InnoDB. */
+void
+innodb_shutdown();
 
 /****************************************************************//**
 Shuts down background threads that can generate undo pages. */

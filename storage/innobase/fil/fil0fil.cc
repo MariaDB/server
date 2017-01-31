@@ -779,7 +779,8 @@ fil_node_close_file(
 	ut_a(!node->being_extended);
 	ut_a(node->modification_counter == node->flush_counter
 	     || node->space->purpose == FIL_TYPE_TEMPORARY
-	     || srv_fast_shutdown == 2);
+	     || srv_fast_shutdown == 2
+	     || !srv_was_started);
 
 	ret = os_file_close(node->handle);
 	ut_a(ret);
@@ -1450,7 +1451,8 @@ fil_space_free_low(
 	fil_space_t*	space)
 {
 	/* The tablespace must not be in fil_system->named_spaces. */
-	ut_ad(srv_fast_shutdown == 2 || space->max_lsn == 0);
+	ut_ad(srv_fast_shutdown == 2 || !srv_was_started
+	      || space->max_lsn == 0);
 
 	for (fil_node_t* node = UT_LIST_GET_FIRST(space->chain);
 	     node != NULL; ) {
@@ -2059,6 +2061,7 @@ fil_close_all_files(void)
 
 	/* At shutdown, we should not have any files in this list. */
 	ut_ad(srv_fast_shutdown == 2
+	      || !srv_was_started
 	      || UT_LIST_GET_LEN(fil_system->named_spaces) == 0);
 
 	mutex_enter(&fil_system->mutex);
@@ -2085,6 +2088,7 @@ fil_close_all_files(void)
 	mutex_exit(&fil_system->mutex);
 
 	ut_ad(srv_fast_shutdown == 2
+	      || !srv_was_started
 	      || UT_LIST_GET_LEN(fil_system->named_spaces) == 0);
 }
 

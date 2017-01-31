@@ -1281,7 +1281,6 @@ srv_shutdown_all_bg_threads()
 		os_thread_sleep(100000);
 
 		if (!active) {
-			srv_start_state = SRV_START_STATE_NONE;
 			return;
 		}
 	}
@@ -1419,7 +1418,7 @@ innobase_start_or_create_for_mysql(void)
 {
 	bool		create_new_db = false;
 	lsn_t		flushed_lsn;
-	dberr_t		err;
+	dberr_t		err		= DB_SUCCESS;
 	ulint		srv_n_log_files_found = srv_n_log_files;
 	mtr_t		mtr;
 	purge_pq_t*	purge_queue;
@@ -1566,7 +1565,7 @@ innobase_start_or_create_for_mysql(void)
 		ib::error() << "Unrecognized value "
 			<< srv_file_flush_method_str
 			<< " for innodb_flush_method";
-		return(srv_init_abort(DB_ERROR));
+		err = DB_ERROR;
 	}
 
 	/* Note that the call srv_boot() also changes the values of
@@ -1660,6 +1659,10 @@ innobase_start_or_create_for_mysql(void)
 	}
 
 	srv_boot();
+
+	if (err != DB_SUCCESS) {
+		return(srv_init_abort(err));
+	}
 
 	ib::info() << ut_crc32_implementation;
 
@@ -2589,23 +2592,6 @@ files_checked:
 			<< srv_force_recovery << " !!!";
 	}
 
-	if (!srv_read_only_mode) {
-		/* Create thread(s) that handles key rotation. This is
-		needed already here as log_preflush_pool_modified_pages
-		will flush dirty pages and that might need e.g.
-		fil_crypt_threads_event. */
-		fil_system_enter();
-		fil_crypt_threads_init();
-		fil_system_exit();
-
-		/*
-		  Create a checkpoint before logging anything new, so that
-		  the current encryption key in use is definitely logged
-		  before any log blocks encrypted with that key.
-		*/
-		log_make_checkpoint_at(LSN_MAX, TRUE);
-	}
-
 	if (srv_force_recovery == 0) {
 		/* In the insert buffer we may have even bigger tablespace
 		id's, because we may have dropped those tablespaces, but
@@ -2641,6 +2627,21 @@ files_checked:
 		}
 #endif /* WITH_WSREP */
 
+		/* Create thread(s) that handles key rotation. This is
+		needed already here as log_preflush_pool_modified_pages
+		will flush dirty pages and that might need e.g.
+		fil_crypt_threads_event. */
+		fil_system_enter();
+		fil_crypt_threads_init();
+		fil_system_exit();
+
+		/*
+		  Create a checkpoint before logging anything new, so that
+		  the current encryption key in use is definitely logged
+		  before any log blocks encrypted with that key.
+		*/
+		log_make_checkpoint_at(LSN_MAX, TRUE);
+
 		/* Create the dict stats gathering thread */
 		dict_stats_thread_handle = os_thread_create(
 			dict_stats_thread, NULL, NULL);
@@ -2650,18 +2651,18 @@ files_checked:
 		/* Create the thread that will optimize the FTS sub-system. */
 		fts_optimize_init();
 
+		/* Init data for datafile scrub threads */
+		btr_scrub_init();
+
+		/* Initialize online defragmentation. */
+		btr_defragment_init();
+
 		srv_start_state_set(SRV_START_STATE_STAT);
 	}
 
 	/* Create the buffer pool resize thread */
 	srv_buf_resize_thread_active = true;
 	os_thread_create(buf_resize_thread, NULL, NULL);
-
-	/* Init data for datafile scrub threads */
-	btr_scrub_init();
-
-	/* Initialize online defragmentation. */
-	btr_defragment_init();
 
 	srv_was_started = TRUE;
 	return(DB_SUCCESS);
@@ -2703,27 +2704,18 @@ void
 srv_shutdown_bg_undo_sources(void)
 /*===========================*/
 {
-	fts_optimize_shutdown();
-	dict_stats_shutdown();
+	if (srv_start_state_is_set(SRV_START_STATE_STAT)) {
+		ut_ad(!srv_read_only_mode);
+		fts_optimize_shutdown();
+		dict_stats_shutdown();
+	}
 }
 
-/****************************************************************//**
-Shuts down the InnoDB database.
-@return DB_SUCCESS or error code */
-dberr_t
-innobase_shutdown_for_mysql(void)
-/*=============================*/
+/** Shut down InnoDB. */
+void
+innodb_shutdown()
 {
-	if (!srv_was_started) {
-		if (srv_is_being_started) {
-			ib::warn() << "Shutting down an improperly started,"
-				" or created database!";
-		}
-
-		return(DB_SUCCESS);
-	}
-
-	if (!srv_read_only_mode && srv_fast_shutdown) {
+	if (srv_fast_shutdown) {
 		srv_shutdown_bg_undo_sources();
 	}
 
@@ -2762,23 +2754,51 @@ innobase_shutdown_for_mysql(void)
 		srv_misc_tmpfile = 0;
 	}
 
-	if (!srv_read_only_mode) {
+	ut_ad(dict_stats_event || !srv_was_started || srv_read_only_mode);
+	ut_ad(dict_sys || !srv_was_started);
+	ut_ad(trx_sys || !srv_was_started);
+	ut_ad(buf_dblwr || !srv_was_started);
+	ut_ad(lock_sys || !srv_was_started);
+	ut_ad(btr_search_sys || !srv_was_started);
+	ut_ad(ibuf || !srv_was_started);
+	ut_ad(log_sys || !srv_was_started);
+
+	if (dict_stats_event) {
 		dict_stats_thread_deinit();
-		fil_crypt_threads_cleanup();
 	}
 
-	/* Cleanup data for datafile scrubbing */
-	btr_scrub_cleanup();
+	if (srv_start_state_is_set(SRV_START_STATE_STAT)) {
+		ut_ad(!srv_read_only_mode);
+		/* srv_shutdown_bg_undo_sources() already invoked
+		fts_optimize_shutdown(); dict_stats_shutdown(); */
+
+		fil_crypt_threads_cleanup();
+		btr_scrub_cleanup();
+		/* FIXME: call btr_defragment_shutdown(); */
+	}
 
 	/* This must be disabled before closing the buffer pool
 	and closing the data dictionary.  */
-	btr_search_disable(true);
 
-	ibuf_close();
-	log_shutdown();
-	trx_sys_file_format_close();
-	trx_sys_close();
-	lock_sys_close();
+	if (dict_sys) {
+		btr_search_disable(true);
+	}
+	if (ibuf) {
+		ibuf_close();
+	}
+	if (log_sys) {
+		log_shutdown();
+	}
+	if (trx_sys) {
+		trx_sys_file_format_close();
+		trx_sys_close();
+	}
+	if (buf_dblwr) {
+		buf_dblwr_free();
+	}
+	if (lock_sys) {
+		lock_sys_close();
+	}
 
 	trx_pool_close();
 
@@ -2790,13 +2810,17 @@ innobase_shutdown_for_mysql(void)
 		mutex_free(&srv_misc_tmpfile_mutex);
 	}
 
-	dict_close();
-	btr_search_sys_free();
+	if (dict_sys) {
+		dict_close();
+	}
+
+	if (btr_search_sys) {
+		btr_search_sys_free();
+	}
 
 	/* 3. Free all InnoDB's own mutexes and the os_fast_mutexes inside
 	them */
 	os_aio_free();
-	que_close();
 	row_mysql_close();
 	srv_free();
 	fil_close();
@@ -2817,15 +2841,14 @@ innobase_shutdown_for_mysql(void)
 		fclose(dict_foreign_err_file);
 	}
 
-	if (srv_print_verbose_log) {
+	if (srv_was_started && srv_print_verbose_log) {
 		ib::info() << "Shutdown completed; log sequence number "
 			<< srv_shutdown_lsn;
 	}
 
+	srv_start_state = SRV_START_STATE_NONE;
 	srv_was_started = FALSE;
 	srv_start_has_been_called = FALSE;
-
-	return(DB_SUCCESS);
 }
 
 /********************************************************************

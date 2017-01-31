@@ -1007,11 +1007,10 @@ srv_free_slot(
 	srv_sys_mutex_exit();
 }
 
-/*********************************************************************//**
-Initializes the server. */
+/** Initialize the server. */
+static
 void
-srv_init(void)
-/*==========*/
+srv_init()
 {
 	ulint	n_sys_threads = 0;
 	ulint	srv_sys_sz = sizeof(*srv_sys);
@@ -1097,6 +1096,10 @@ void
 srv_free(void)
 /*==========*/
 {
+	if (!srv_sys) {
+		return;
+	}
+
 	mutex_free(&srv_innodb_monitor_mutex);
 	mutex_free(&page_zip_stat_per_index_mutex);
 
@@ -1131,22 +1134,6 @@ srv_free(void)
 }
 
 /*********************************************************************//**
-Initializes the synchronization primitives, memory system, and the thread
-local storage. */
-void
-srv_general_init(void)
-/*==================*/
-{
-	sync_check_init();
-	/* Reset the system variables in the recovery module. */
-	recv_sys_var_init();
-	os_thread_init();
-	trx_pool_init();
-	que_init();
-	row_mysql_init();
-}
-
-/*********************************************************************//**
 Normalizes init parameter values to use units we use inside InnoDB. */
 static
 void
@@ -1175,10 +1162,12 @@ srv_boot(void)
 
 	srv_normalize_init_values();
 
-	/* Initialize synchronization primitives, memory management, and thread
-	local storage */
-
-	srv_general_init();
+	sync_check_init();
+	os_thread_init();
+	/* Reset the system variables in the recovery module. */
+	recv_sys_var_init();
+	trx_pool_init();
+	row_mysql_init();
 
 	/* Initialize this module */
 
@@ -2013,14 +2002,15 @@ srv_get_active_thread_type(void)
 
 	srv_sys_mutex_exit();
 
-	if (ret == SRV_NONE && srv_shutdown_state != SRV_SHUTDOWN_NONE) {
+	if (ret == SRV_NONE && srv_shutdown_state != SRV_SHUTDOWN_NONE
+	    && purge_sys != NULL) {
 		/* Check only on shutdown. */
 		switch (trx_purge_state()) {
-		case PURGE_STATE_INIT:
 		case PURGE_STATE_RUN:
 		case PURGE_STATE_STOP:
 			ret = SRV_PURGE;
 			break;
+		case PURGE_STATE_INIT:
 		case PURGE_STATE_DISABLED:
 		case PURGE_STATE_EXIT:
 			break;

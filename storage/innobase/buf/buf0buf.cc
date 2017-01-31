@@ -2000,6 +2000,11 @@ buf_pool_free_instance(
 	mutex_free(&buf_pool->zip_mutex);
 	mutex_free(&buf_pool->flush_list_mutex);
 
+	if (buf_pool->flush_rbt) {
+		rbt_free(buf_pool->flush_rbt);
+		buf_pool->flush_rbt = NULL;
+	}
+
 	for (bpage = UT_LIST_GET_LAST(buf_pool->LRU);
 	     bpage != NULL;
 	     bpage = prev_bpage) {
