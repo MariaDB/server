@@ -1021,10 +1021,10 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %parse-param { THD *thd }
 %lex-param { THD *thd }
 /*
-  Currently there are 103 shift/reduce conflicts.
+  Currently there are 102 shift/reduce conflicts.
   We should not introduce new conflicts any more.
 */
-%expect 103
+%expect 102
 
 /*
    Comments for TOKENS.
@@ -1535,10 +1535,10 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  ROLLBACK_SYM                  /* SQL-2003-R */
 %token  ROLLUP_SYM                    /* SQL-2003-R */
 %token  ROUTINE_SYM                   /* SQL-2003-N */
-%token  ROWS_SYM                      /* SQL-2003-R */
-%token  ROW_FORMAT_SYM
 %token  ROW_SYM                       /* SQL-2003-R */
+%token  ROWS_SYM                      /* SQL-2003-R */
 %token  ROW_COUNT_SYM                 /* SQL-2003-N */
+%token  ROW_FORMAT_SYM
 %token  ROW_NUMBER_SYM
 %token  RTREE_SYM
 %token  SAVEPOINT_SYM                 /* SQL-2003-R */
@@ -14835,7 +14835,6 @@ keyword_sp:
         | ROLE_SYM                 {}
         | ROLLUP_SYM               {}
         | ROUTINE_SYM              {}
-        | ROWS_SYM                 {}
         | ROW_COUNT_SYM            {}
         | ROW_FORMAT_SYM           {}
         | ROW_SYM                  {}
