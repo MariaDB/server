@@ -1,31 +1,22 @@
-select @@max_binlog_stmt_cache_size;
-@@max_binlog_stmt_cache_size
-18446744073709547520
-set global max_binlog_stmt_cache_size= 18446744073709547520;
-select @@max_binlog_stmt_cache_size;
-@@max_binlog_stmt_cache_size
-18446744073709547520
-set global max_binlog_stmt_cache_size= 18446744073709547519;
-Warnings:
-Warning	1292	Truncated incorrect max_binlog_stmt_cache_size value: '18446744073709547519'
-select @@max_binlog_stmt_cache_size;
-@@max_binlog_stmt_cache_size
-18446744073709543424
-set global max_binlog_stmt_cache_size= 18446744073709551615;
-Warnings:
-Warning	1292	Truncated incorrect max_binlog_stmt_cache_size value: '18446744073709551615'
-select @@max_binlog_stmt_cache_size;
-@@max_binlog_stmt_cache_size
-18446744073709547520
-set global max_binlog_stmt_cache_size= 18446744073709551614;
-Warnings:
-Warning	1292	Truncated incorrect max_binlog_stmt_cache_size value: '18446744073709551614'
-select @@max_binlog_stmt_cache_size;
-@@max_binlog_stmt_cache_size
-18446744073709547520
-set global max_binlog_stmt_cache_size= 18446744073709551616;
-ERROR 42000: Incorrect argument type to variable 'max_binlog_stmt_cache_size'
-select @@max_binlog_stmt_cache_size;
-@@max_binlog_stmt_cache_size
-18446744073709547520
-set global max_binlog_stmt_cache_size= 18446744073709547520;
+#
+# MDEV-4774: Strangeness with max_binlog_stmt_cache_size Settings
+#
+CALL mtr.add_suppression("unsigned value 18446744073709547520 adjusted to 4294963200");
+SELECT @@global.max_binlog_stmt_cache_size;
+@@global.max_binlog_stmt_cache_size
+MAX_BINLOG_STMT_CACHE_SIZE
+SET @cache_size= @@max_binlog_stmt_cache_size;
+SET @@global.max_binlog_stmt_cache_size= @cache_size+1;
+SELECT @@global.max_binlog_stmt_cache_size;
+@@global.max_binlog_stmt_cache_size
+MAX_BINLOG_STMT_CACHE_SIZE
+SET @@global.max_binlog_stmt_cache_size = @cache_size+4095;
+SELECT @@global.max_binlog_stmt_cache_size;
+@@global.max_binlog_stmt_cache_size
+MAX_BINLOG_STMT_CACHE_SIZE
+SET @@global.max_binlog_stmt_cache_size= @cache_size-1;
+SELECT @@global.max_binlog_stmt_cache_size = @cache_size-4096;
+@@global.max_binlog_stmt_cache_size = @cache_size-4096
+1
+SET @@global.max_binlog_stmt_cache_size= @cache_size;
+# End of test
