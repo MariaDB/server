@@ -1030,6 +1030,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
    Comments for TOKENS.
    For each token, please include in the same line a comment that contains
    the following tags:
+   SQL-2011-N : Non Reserved keywird as per SQL-2011
    SQL-2003-R : Reserved keyword as per SQL-2003
    SQL-2003-N : Non Reserved keyword as per SQL-2003
    SQL-1999-R : Reserved keyword as per SQL-1999
@@ -1219,7 +1220,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  EVERY_SYM                     /* SQL-2003-N */
 %token  EXCHANGE_SYM
 %token  EXAMINED_SYM
-%token  EXCLUDE_SYM
+%token  EXCLUDE_SYM                   /* SQL-2011-N */
 %token  EXECUTE_SYM                   /* SQL-2003-R */
 %token  EXISTS                        /* SQL-2003-R */
 %token  EXIT_SYM
@@ -1240,7 +1241,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  FLOAT_SYM                     /* SQL-2003-R */
 %token  FLUSH_SYM
 %token  FOLLOWS_SYM                   /* MYSQL trigger*/
-%token  FOLLOWING_SYM
+%token  FOLLOWING_SYM                 /* SQL-2011-N */
 %token  FORCE_SYM
 %token  FOREIGN                       /* SQL-2003-R */
 %token  FOR_SYM                       /* SQL-2003-R */
@@ -1442,7 +1443,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  ORDER_SYM                     /* SQL-2003-R */
 %token  OR_OR_SYM                     /* OPERATOR */
 %token  OR_SYM                        /* SQL-2003-R */
-%token  OTHERS_SYM            
+%token  OTHERS_SYM                    /* SQL-2011-N */
 %token  OUTER
 %token  OUTFILE
 %token  OUT_SYM                       /* SQL-2003-R */
@@ -1469,7 +1470,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  PORT_SYM
 %token  POSITION_SYM                  /* SQL-2003-N */
 %token  PRECEDES_SYM                  /* MYSQL */
-%token  PRECEDING_SYM
+%token  PRECEDING_SYM                 /* SQL-2011-N */
 %token  PRECISION                     /* SQL-2003-R */
 %token  PREPARE_SYM                   /* SQL-2003-R */
 %token  PRESERVE_SYM
@@ -1630,7 +1631,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  TEXT_SYM
 %token  THAN_SYM
 %token  THEN_SYM                      /* SQL-2003-R */
-%token  TIES_SYM
+%token  TIES_SYM                      /* SQL-2011-N */
 %token  TIMESTAMP                     /* SQL-2003-R */
 %token  TIMESTAMP_ADD
 %token  TIMESTAMP_DIFF
@@ -1651,7 +1652,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  TYPE_SYM                      /* SQL-2003-N */
 %token  UDF_RETURNS_SYM
 %token  ULONGLONG_NUM
-%token  UNBOUNDED_SYM
+%token  UNBOUNDED_SYM                 /* SQL-2011-N */
 %token  UNCOMMITTED_SYM               /* SQL-2003-N */
 %token  UNDEFINED_SYM
 %token  UNDERSCORE_CHARSET
@@ -14539,9 +14540,11 @@ keyword:
         | DO_SYM                {}
         | END                   {}
         | EXAMINED_SYM          {}
+        | EXCLUDE_SYM           {}
         | EXECUTE_SYM           {}
         | FLUSH_SYM             {}
         | FOLLOWS_SYM           {}
+        | FOLLOWING_SYM         {}
         | FORMAT_SYM            {}
         | GET_SYM               {}
         | HANDLER_SYM           {}
@@ -14553,10 +14556,12 @@ keyword:
         | OPEN_SYM              {}
         | OPTION                {}
         | OPTIONS_SYM           {}
+        | OTHERS_SYM            {}
         | OWNER_SYM             {}
         | PARSER_SYM            {}
         | PORT_SYM              {}
         | PRECEDES_SYM          {}
+        | PRECEDING_SYM         {}
         | PREPARE_SYM           {}
         | REMOVE_SYM            {}
         | REPAIR                {}
@@ -14575,9 +14580,11 @@ keyword:
         | START_SYM             {}
         | STOP_SYM              {}
         | STORED_SYM            {}
+        | TIES_SYM              {}
         | TRUNCATE_SYM          {}
         | UNICODE_SYM           {}
         | UNINSTALL_SYM         {}
+        | UNBOUNDED_SYM         {}
         | WRAPPER_SYM           {}
         | XA_SYM                {}
         | UPGRADE_SYM           {}
