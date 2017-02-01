@@ -18,6 +18,17 @@
 
 /* MySQL includes */
 #include "./my_global.h"
+#ifdef _WIN32
+#include <my_pthread.h>
+/*
+ Rocksdb implements their own pthread_key functions
+ undefine some my_pthread.h macros
+*/
+#undef pthread_key_create
+#undef pthread_key_delete
+#undef pthread_setspecific
+#undef pthread_getspecific
+#endif
 #include <mysql/psi/mysql_table.h>
 #ifdef MARIAROCKS_NOT_YET
 #include <mysql/thread_pool_priv.h>
@@ -64,7 +75,22 @@ class Rdb_thread
 
   int join()
   {
+#ifndef _WIN32
     return pthread_join(m_handle, nullptr);
+#else
+    /*
+      mysys on Windows creates "detached" threads in pthread_create().
+
+      m_handle here is the thread id I(it is not reused by the OS
+      thus it is safe to state there can't be other thread with
+      the same id at this point).
+
+      If thread is already finished before pthread_join(),
+      we get EINVAL, and it is safe to ignore and handle this as success.
+    */
+    (void)pthread_join(m_handle, nullptr);
+    return 0;
+#endif
   }
 
   void uninit();

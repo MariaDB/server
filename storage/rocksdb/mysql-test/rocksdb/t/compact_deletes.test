@@ -1,3 +1,4 @@
+--source include/not_windows.inc
 --source include/have_rocksdb.inc
 
 --disable_warnings

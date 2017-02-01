@@ -3,8 +3,14 @@
 # Make sure that the InnoDb information schema tables are disabled when InnoDB
 # is turned off and attempting to access them doesn't crash.
 
+# Disable warnings, as the table names in warnings appear in lower or uppercase
+# depending on platform
+
+--disable_warnings
+
 SELECT * FROM INFORMATION_SCHEMA.INNODB_TRX;
 #Not in MariaDB: SELECT * FROM INFORMATION_SCHEMA.INNODB_FILE_STATUS;
+
 SELECT * FROM INFORMATION_SCHEMA.INNODB_LOCKS;
 SELECT * FROM INFORMATION_SCHEMA.INNODB_LOCK_WAITS;
 SELECT * FROM INFORMATION_SCHEMA.INNODB_CMP;
@@ -33,3 +39,5 @@ SELECT * FROM INFORMATION_SCHEMA.INNODB_SYS_FOREIGN_COLS;
 SELECT * FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESPACES;
 SELECT * FROM INFORMATION_SCHEMA.INNODB_SYS_DATAFILES;
 #Not in MariaDB: SELECT * FROM INFORMATION_SCHEMA.INNODB_SYS_DOCSTORE_FIELDS;
+
+--enable_warnings

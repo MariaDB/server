@@ -1,5 +1,7 @@
 --source include/have_rocksdb.inc
 --source include/have_partition.inc
+# Unixism, exec sed
+--source include/not_windows.inc
 
 let ddl= $MYSQL_TMP_DIR/unique_sec.sql;
 --exec sed s/##CF##//g ../storage/rocksdb/mysql-test/rocksdb/t/unique_sec.inc > $ddl

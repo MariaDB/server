@@ -24,9 +24,12 @@
 #include <unordered_set>
 #include <utility>
 #include <vector>
+#include <array>
 
 /* C standard header files */
+#ifndef _WIN32
 #include <arpa/inet.h>
+#endif
 
 /* MyRocks header files */
 #include "./ha_rocksdb.h"

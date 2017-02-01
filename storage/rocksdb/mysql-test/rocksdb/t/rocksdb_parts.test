@@ -99,6 +99,7 @@ drop table t1, t2;
 --echo #
 CREATE TABLE t1 (c1 INT NOT NULL, c2 CHAR(5)) PARTITION BY HASH(c1) PARTITIONS 4;
 INSERT INTO t1 VALUES(1,'a');
+--replace_result \\ /
 --error ER_ERROR_ON_RENAME
 RENAME TABLE t1 TO db3.t3;
 SELECT * FROM t1;

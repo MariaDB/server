@@ -1,5 +1,8 @@
 --source include/have_rocksdb.inc
 
+# Bash
+--source include/not_windows.inc
+
 #
 # Generate concurrent requests to alter a table using mysqlslap
 #

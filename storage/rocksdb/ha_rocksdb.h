@@ -30,6 +30,14 @@
 #include "./my_global.h"                   /* ulonglong */
 #include "./sql_string.h"
 
+#ifdef _WIN32
+#undef pthread_key_create
+#undef pthread_key_delete
+#undef pthread_setspecific
+#undef pthread_getspecific
+#endif
+
+
 /* RocksDB header files */
 #include "rocksdb/cache.h"
 #include "rocksdb/perf_context.h"

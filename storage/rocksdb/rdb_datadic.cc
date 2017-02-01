@@ -1523,7 +1523,7 @@ static void rdb_pack_with_varchar_encoding(
     // pad with zeros if necessary;
     for (size_t idx= 0; idx < padding_bytes; idx++)
       *(ptr++)= 0;
-    *(ptr++) = 255 - padding_bytes;
+    *(ptr++) = 255 - (uchar)padding_bytes;
 
     xfrm_len     -= copy_len;
     encoded_size += RDB_ESCAPE_LENGTH;
@@ -1814,7 +1814,7 @@ static int rdb_unpack_binary_or_utf8_varchar(
   /* Save the length */
   if (field_var->length_bytes == 1)
   {
-    d0[0]= len;
+    d0[0]= (uchar)len;
   }
   else
   {
@@ -1944,7 +1944,7 @@ static int rdb_unpack_binary_or_utf8_varchar_space_pad(
   /* Save the length */
   if (field_var->length_bytes == 1)
   {
-    d0[0]= len;
+    d0[0]= (uchar)len;
   }
   else
   {
@@ -2257,7 +2257,7 @@ rdb_unpack_simple_varchar_space_pad(Rdb_field_packing* const fpi,
   /* Save the length */
   if (field_var->length_bytes == 1)
   {
-    d0[0]= len;
+    d0[0]= (uchar)len;
   }
   else
   {
@@ -3796,7 +3796,7 @@ rocksdb::Slice Rdb_binlog_manager::pack_value(uchar* const buf,
 
   // store binlog file name length
   DBUG_ASSERT(strlen(binlog_name) <= FN_REFLEN);
-  const uint16_t binlog_name_len = strlen(binlog_name);
+  const uint16_t binlog_name_len = (uint16_t)strlen(binlog_name);
   rdb_netbuf_store_uint16(buf+pack_len, binlog_name_len);
   pack_len += sizeof(uint16);
 
@@ -3810,7 +3810,7 @@ rocksdb::Slice Rdb_binlog_manager::pack_value(uchar* const buf,
 
   // store binlog gtid length.
   // If gtid was not set, store 0 instead
-  const uint16_t binlog_gtid_len = binlog_gtid? strlen(binlog_gtid) : 0;
+  const uint16_t binlog_gtid_len = binlog_gtid? (uint16_t)strlen(binlog_gtid) : 0;
   rdb_netbuf_store_uint16(buf+pack_len, binlog_gtid_len);
   pack_len += sizeof(uint16);
 

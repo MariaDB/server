@@ -1,4 +1,6 @@
 --source include/have_rocksdb.inc
+#Unixisms (possibly Linuxisms, exec truncate)
+--source include/not_windows.inc
 
 --disable_warnings
 DROP TABLE IF EXISTS t1;

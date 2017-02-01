@@ -1,4 +1,6 @@
 --source include/have_rocksdb.inc
+# Does not run on Windows, because of unixisms (exec grep, cut, truncate file with exec echo)
+--source include/not_windows.inc
 
 #
 #  Tests for row checksums feature

@@ -20,10 +20,11 @@ let TESTDB = $TESTDB;
 
 --perl
 
+$ENV{'RQG_HOME'}=$ENV{'RQG_BASE'};
 foreach $grammar_file (split(/ /, $ENV{'GRAMMAR_FILES'})) {
 
   # Errors from the gentest.pl file will be captured in the results file
-  my $cmd = "RQG_HOME=$ENV{'RQG_BASE'} perl $ENV{'RQG_BASE'}/gentest.pl " .
+  my $cmd = "perl $ENV{'RQG_BASE'}/gentest.pl " .
       "--dsn=dbi:mysql:host=:port=:user=root:database=$ENV{'TESTDB'}" .
       ":mysql_socket=$ENV{'MYSQL_SOCKET'} " .
       "--gendata=$ENV{'RQG_BASE'}/conf/$ENV{'TESTDIR'}/$ENV{'DATA_FILE'} " .

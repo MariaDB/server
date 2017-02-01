@@ -20,6 +20,16 @@
 #include <string>
 #include <vector>
 
+#ifdef _WIN32
+#include <stdlib.h>
+#define htobe64 _byteswap_uint64
+#define be64toh _byteswap_uint64
+#define htobe32 _byteswap_ulong
+#define be32toh _byteswap_ulong
+#define htobe16 _byteswap_ushort
+#define be16toh _byteswap_ushort
+#endif
+
 namespace myrocks {
 
 /*

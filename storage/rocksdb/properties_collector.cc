@@ -15,7 +15,11 @@
    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
 
 #include <my_config.h>
-
+#ifdef _WIN32
+#define _CRT_RAND_S
+#include <stdlib.h>
+#define rand_r rand_s
+#endif
 /* This C++ file's header file */
 #include "./properties_collector.h"
 
@@ -130,10 +134,9 @@ void Rdb_tbl_prop_coll::AdjustDeletedRows(rocksdb::EntryType type)
 Rdb_index_stats* Rdb_tbl_prop_coll::AccessStats(
   const rocksdb::Slice& key)
 {
-  GL_INDEX_ID gl_index_id = {
-    .cf_id = m_cf_id,
-    .index_id = rdb_netbuf_to_uint32(reinterpret_cast<const uchar*>(key.data()))
-  };
+  GL_INDEX_ID gl_index_id;
+  gl_index_id.cf_id = m_cf_id;
+  gl_index_id.index_id = rdb_netbuf_to_uint32(reinterpret_cast<const uchar*>(key.data()));
 
   if (m_last_stats == nullptr || m_last_stats->m_gl_index_id != gl_index_id)
   {
