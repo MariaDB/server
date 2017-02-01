@@ -437,33 +437,6 @@ SELECT f1(@p1);
 DROP FUNCTION f1;
 
 
---echo # Testing BEGIN NOT ATOMIC with no declarations
-DELIMITER /;
-BEGIN NOT ATOMIC
- SELECT 1 AS a;
-END
-/
-DELIMITER ;/
-
---echo # Testing BEGIN NOT ATOMIC with declarations
---echo # DECLARE starts a new block and thus must be followed by BEGIN .. END
-DELIMITER /;
-BEGIN NOT ATOMIC
-  DECLARE
-    i INT DEFAULT 5;
-    x INT DEFAULT 10;
-  BEGIN
-  <<label>>
-  WHILE i > 3 LOOP
-    i:= i - 1;
-    SELECT i;
-  END LOOP label;
-  END;
-END
-/
-DELIMITER ;/
-
-
 --echo # Testing exceptions
 
 CREATE TABLE t1 (c1 INT);
