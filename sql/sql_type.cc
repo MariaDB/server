@@ -2050,3 +2050,108 @@ bool Type_handler_temporal_result::
   return func->get_date_native(ltime, fuzzydate);
 }
 
+/***************************************************************************/
+
+/**
+  Get a string representation of the Item value.
+  See sql_type.h for details.
+*/
+String *Type_handler_row::
+          print_item_value(THD *thd, Item *item, String *str) const
+{
+  DBUG_ASSERT(0);
+  return NULL;
+}
+
+
+/**
+  Get a string representation of the Item value,
+  using the character string format with its charset and collation, e.g.
+    latin1 'string' COLLATE latin1_german2_ci
+*/
+String *Type_handler::
+          print_item_value_csstr(THD *thd, Item *item, String *str) const
+{
+  String *result= item->val_str(str);
+
+  if (!result)
+    return NULL;
+
+  StringBuffer<STRING_BUFFER_USUAL_SIZE> buf(result->charset());
+  CHARSET_INFO *cs= thd->variables.character_set_client;
+
+  buf.append('_');
+  buf.append(result->charset()->csname);
+  if (cs->escape_with_backslash_is_dangerous)
+    buf.append(' ');
+  append_query_string(cs, &buf, result->ptr(), result->length(),
+                     thd->variables.sql_mode & MODE_NO_BACKSLASH_ESCAPES);
+  buf.append(" COLLATE '");
+  buf.append(item->collation.collation->name);
+  buf.append('\'');
+  str->copy(buf);
+
+  return str;
+}
+
+
+String *Type_handler_numeric::
+          print_item_value(THD *thd, Item *item, String *str) const
+{
+  return item->val_str(str);
+}
+
+
+String *Type_handler::
+          print_item_value_temporal(THD *thd, Item *item, String *str,
+                                    const Name &type_name, String *buf) const
+{
+  String *result= item->val_str(buf);
+  return !result ||
+         str->realloc(type_name.length() + result->length() + 2) ||
+         str->copy(type_name.ptr(), type_name.length(), &my_charset_latin1) ||
+         str->append('\'') ||
+         str->append(result->ptr(), result->length()) ||
+         str->append('\'') ?
+         NULL :
+         str;
+}
+
+
+String *Type_handler_time_common::
+          print_item_value(THD *thd, Item *item, String *str) const
+{
+  StringBuffer<MAX_TIME_FULL_WIDTH+1> buf;
+  return print_item_value_temporal(thd, item, str,
+                                   Name(C_STRING_WITH_LEN("TIME")), &buf);
+}
+
+
+String *Type_handler_date_common::
+          print_item_value(THD *thd, Item *item, String *str) const
+{
+  StringBuffer<MAX_DATE_WIDTH+1> buf;
+  return print_item_value_temporal(thd, item, str,
+                                   Name(C_STRING_WITH_LEN("DATE")), &buf);
+}
+
+
+String *Type_handler_datetime_common::
+          print_item_value(THD *thd, Item *item, String *str) const
+{
+  StringBuffer<MAX_DATETIME_FULL_WIDTH+1> buf;
+  return print_item_value_temporal(thd, item, str,
+                                   Name(C_STRING_WITH_LEN("TIMESTAMP")), &buf);
+}
+
+
+String *Type_handler_timestamp_common::
+          print_item_value(THD *thd, Item *item, String *str) const
+{
+  StringBuffer<MAX_DATETIME_FULL_WIDTH+1> buf;
+  return print_item_value_temporal(thd, item, str,
+                                   Name(C_STRING_WITH_LEN("TIMESTAMP")), &buf);
+}
+
+
+/***************************************************************************/

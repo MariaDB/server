@@ -92,65 +92,6 @@ sp_map_item_type(enum enum_field_types type)
 }
 
 
-/**
-  Return a string representation of the Item value.
-
-  @param thd     thread handle
-  @param str     string buffer for representation of the value
-
-  @note
-    If the item has a string result type, the string is escaped
-    according to its character set.
-
-  @retval
-    NULL      on error
-  @retval
-    non-NULL  a pointer to valid a valid string on success
-*/
-
-static String *
-sp_get_item_value(THD *thd, Item *item, String *str)
-{
-  switch (item->result_type()) {
-  case REAL_RESULT:
-  case INT_RESULT:
-  case DECIMAL_RESULT:
-    if (item->field_type() != MYSQL_TYPE_BIT)
-      return item->val_str(str);
-    else {/* Bit type is handled as binary string */}
-  case STRING_RESULT:
-    {
-      String *result= item->val_str(str);
-
-      if (!result)
-        return NULL;
-
-      {
-        StringBuffer<STRING_BUFFER_USUAL_SIZE> buf(result->charset());
-        CHARSET_INFO *cs= thd->variables.character_set_client;
-
-        buf.append('_');
-        buf.append(result->charset()->csname);
-        if (cs->escape_with_backslash_is_dangerous)
-          buf.append(' ');
-        append_query_string(cs, &buf, result->ptr(), result->length(),
-                           thd->variables.sql_mode & MODE_NO_BACKSLASH_ESCAPES);
-        buf.append(" COLLATE '");
-        buf.append(item->collation.collation->name);
-        buf.append('\'');
-        str->copy(buf);
-
-        return str;
-      }
-    }
-
-  case ROW_RESULT:
-  default:
-    return NULL;
-  }
-}
-
-
 bool Item_splocal::append_for_log(THD *thd, String *str)
 {
   if (fix_fields(thd, NULL))
@@ -165,7 +106,9 @@ bool Item_splocal::append_for_log(THD *thd, String *str)
     return true;
 
   StringBuffer<STRING_BUFFER_USUAL_SIZE> str_value_holder(&my_charset_latin1);
-  String *str_value= sp_get_item_value(thd, this_item(), &str_value_holder);
+  Item *item= this_item();
+  String *str_value= item->type_handler()->print_item_value(thd, item,
+                                                            &str_value_holder);
   if (str_value)
     return str->append(*str_value) || str->append(')');
   else
@@ -1758,9 +1701,9 @@ sp_head::execute_function(THD *thd, Item **argp, uint argcount,
       if (arg_no)
         binlog_buf.append(',');
 
-      str_value= sp_get_item_value(thd, nctx->get_item(arg_no),
-                                   &str_value_holder);
-
+      Item *item= nctx->get_item(arg_no);
+      str_value= item->type_handler()->print_item_value(thd, item,
+                                                        &str_value_holder);
       if (str_value)
         binlog_buf.append(*str_value);
       else

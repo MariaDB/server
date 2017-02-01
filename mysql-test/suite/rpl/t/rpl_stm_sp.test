@@ -1,0 +1,30 @@
+--source include/have_binlog_format_statement.inc
+--source include/master-slave.inc
+
+--echo #
+--echo # MDEV-11815 SP variables of temporal data types do not replicate correctly
+--echo #
+
+connection master;
+CREATE TABLE t1(a INT);
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE a TIME DEFAULT '01:01:01';
+  INSERT INTO t1 VALUES (a=10101);
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+SELECT * FROM t1;
+
+sync_slave_with_master;
+SELECT * FROM t1;
+
+connection master;
+DROP TABLE t1;
+DROP PROCEDURE p1;
+sync_slave_with_master;
+
+
+--source include/rpl_end.inc
