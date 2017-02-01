@@ -1442,6 +1442,10 @@ innobase_start_or_create_for_mysql(void)
 	size_t		dirnamelen;
 	unsigned	i = 0;
 
+	if (srv_force_recovery == SRV_FORCE_NO_LOG_REDO) {
+		srv_read_only_mode = true;
+	}
+
 	high_level_read_only = srv_read_only_mode
 		|| srv_force_recovery > SRV_FORCE_NO_TRX_UNDO;
 
