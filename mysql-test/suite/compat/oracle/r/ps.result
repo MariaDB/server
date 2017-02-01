@@ -178,9 +178,9 @@ EXECUTE IMMEDIATE 'SELECT :1 FROM DUAL' USING 10;
 # Testing erroneous and diallowed prepare source
 #
 EXECUTE IMMEDIATE _latin1'SELECT 1 AS c FROM ' || _latin2 'DUAL';
-ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (latin2_general_ci,COERCIBLE) for operation 'concat'
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (latin2_general_ci,COERCIBLE) for operation '||'
 PREPARE stmt FROM _latin1'SELECT 1 AS c FROM ' || _latin2 'DUAL';
-ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (latin2_general_ci,COERCIBLE) for operation 'concat'
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (latin2_general_ci,COERCIBLE) for operation '||'
 EXECUTE IMMEDIATE (SELECT 'SELECT 1');
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'SELECT 'SELECT 1')' at line 1
 PREPARE stmt FROM (SELECT 'SELECT 1');

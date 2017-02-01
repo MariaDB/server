@@ -1,0 +1,172 @@
+SET sql_mode=ORACLE;
+EXPLAIN EXTENDED SELECT 'a'||'b'||'c';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Warnings:
+Note	1003	select 'a' || 'b' || 'c' AS "'a'||'b'||'c'"
+SELECT ''   || '';
+''   || ''
+
+SELECT ''   || 'b';
+''   || 'b'
+b
+SELECT ''   || NULL;
+''   || NULL
+
+SELECT 'a'  || '';
+'a'  || ''
+a
+SELECT 'a'  || 'b';
+'a'  || 'b'
+ab
+SELECT 'a'  || NULL;
+'a'  || NULL
+a
+SELECT NULL || '';
+NULL || ''
+
+SELECT NULL || 'b';
+NULL || 'b'
+b
+SELECT NULL || NULL;
+NULL || NULL
+NULL
+SELECT ''   || ''    || '';
+''   || ''    || ''
+
+SELECT ''   || ''    || 'c';
+''   || ''    || 'c'
+c
+SELECT ''   || ''    || NULL;
+''   || ''    || NULL
+
+SELECT ''   || 'b'   || '';
+''   || 'b'   || ''
+b
+SELECT ''   || 'b'   || 'c';
+''   || 'b'   || 'c'
+bc
+SELECT ''   || 'b'   || NULL;
+''   || 'b'   || NULL
+b
+SELECT ''   || NULL  || '';
+''   || NULL  || ''
+
+SELECT ''   || NULL  || 'c';
+''   || NULL  || 'c'
+c
+SELECT ''   || NULL  || NULL;
+''   || NULL  || NULL
+
+SELECT 'a'  || ''    || '';
+'a'  || ''    || ''
+a
+SELECT 'a'  || ''    || 'c';
+'a'  || ''    || 'c'
+ac
+SELECT 'a'  || ''    || NULL;
+'a'  || ''    || NULL
+a
+SELECT 'a'  || 'b'   || '';
+'a'  || 'b'   || ''
+ab
+SELECT 'a'  || 'b'   || 'c';
+'a'  || 'b'   || 'c'
+abc
+SELECT 'a'  || 'b'   || NULL;
+'a'  || 'b'   || NULL
+ab
+SELECT 'a'  || NULL  || '';
+'a'  || NULL  || ''
+a
+SELECT 'a'  || NULL  || 'c';
+'a'  || NULL  || 'c'
+ac
+SELECT 'a'  || NULL  || NULL;
+'a'  || NULL  || NULL
+a
+SELECT NULL || ''    || '';
+NULL || ''    || ''
+
+SELECT NULL || ''    || 'c';
+NULL || ''    || 'c'
+c
+SELECT NULL || ''    || NULL;
+NULL || ''    || NULL
+
+SELECT NULL || 'b'   || '';
+NULL || 'b'   || ''
+b
+SELECT NULL || 'b'   || 'c';
+NULL || 'b'   || 'c'
+bc
+SELECT NULL || 'b'   || NULL;
+NULL || 'b'   || NULL
+b
+SELECT NULL || NULL  || '';
+NULL || NULL  || ''
+
+SELECT NULL || NULL  || 'c';
+NULL || NULL  || 'c'
+c
+SELECT NULL || NULL  || NULL;
+NULL || NULL  || NULL
+NULL
+CREATE TABLE t1 (a VARCHAR(10), b VARCHAR(10), c VARCHAR(10));
+INSERT INTO t1 VALUES ('',   '',   '');
+INSERT INTO t1 VALUES ('',   '',   'c');
+INSERT INTO t1 VALUES ('',   '',   NULL);
+INSERT INTO t1 VALUES ('',   'b',  '');
+INSERT INTO t1 VALUES ('',   'b',  'c');
+INSERT INTO t1 VALUES ('',   'b',  NULL);
+INSERT INTO t1 VALUES ('',   NULL, '');
+INSERT INTO t1 VALUES ('',   NULL, 'c');
+INSERT INTO t1 VALUES ('',   NULL, NULL);
+INSERT INTO t1 VALUES ('a',  '',   '');
+INSERT INTO t1 VALUES ('a',  '',   'c');
+INSERT INTO t1 VALUES ('a',  '',   NULL);
+INSERT INTO t1 VALUES ('a',  'b',  '');
+INSERT INTO t1 VALUES ('a',  'b',  'c');
+INSERT INTO t1 VALUES ('a',  'b',  NULL);
+INSERT INTO t1 VALUES ('a',  NULL, '');
+INSERT INTO t1 VALUES ('a',  NULL, 'c');
+INSERT INTO t1 VALUES ('a',  NULL, NULL);
+INSERT INTO t1 VALUES (NULL, '',   '');
+INSERT INTO t1 VALUES (NULL, '',   'c');
+INSERT INTO t1 VALUES (NULL, '',   NULL);
+INSERT INTO t1 VALUES (NULL, 'b',  '');
+INSERT INTO t1 VALUES (NULL, 'b',  'c');
+INSERT INTO t1 VALUES (NULL, 'b',  NULL);
+INSERT INTO t1 VALUES (NULL, NULL, '');
+INSERT INTO t1 VALUES (NULL, NULL, 'c');
+INSERT INTO t1 VALUES (NULL, NULL, NULL);
+SELECT LENGTH(a||b||c), a||b||c FROM t1 ORDER BY a,b,c;
+LENGTH(a||b||c)	a||b||c 
+NULL	NULL
+0	
+1	c
+0	
+0	
+1	c
+1	b
+1	b
+2	bc
+0	
+0	
+1	c
+0	
+0	
+1	c
+1	b
+1	b
+2	bc
+1	a
+1	a
+2	ac
+1	a
+1	a
+2	ac
+2	ab
+2	ab
+3	abc
+DROP TABLE t1;
