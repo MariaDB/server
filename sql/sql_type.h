@@ -1134,6 +1134,7 @@ public:
   virtual ~Type_handler_null() {}
   const Name name() const { return m_name_null; }
   enum_field_types field_type() const { return MYSQL_TYPE_NULL; }
+  const Type_handler *type_handler_for_comparison() const;
   uint32 max_display_length(const Item *item) const { return 0; }
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
@@ -1220,6 +1221,7 @@ public:
   virtual ~Type_handler_geometry() {}
   const Name name() const { return m_name_geometry; }
   enum_field_types field_type() const { return MYSQL_TYPE_GEOMETRY; }
+  const Type_handler *type_handler_for_comparison() const;
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
   bool is_traditional_type() const
@@ -1316,8 +1318,10 @@ public:
   {
     return (m_type_handler= Type_handler::get_handler_by_real_type(type));
   }
-  void aggregate_for_comparison(const Type_handler *other);
-  bool aggregate_for_comparison(Item **items, uint nitems);
+  bool aggregate_for_comparison(const Type_handler *other);
+  bool aggregate_for_comparison(const char *funcname,
+                                Item **items, uint nitems,
+                                bool treat_int_to_uint_as_decimal);
   bool aggregate_for_result(const Type_handler *other);
   bool aggregate_for_result(const char *funcname,
                             Item **item, uint nitems, bool treat_bit_as_number);
@@ -1396,5 +1400,6 @@ public:
 };
 
 extern Type_aggregator type_aggregator_for_result;
+extern Type_aggregator type_aggregator_for_comparison;
 
 #endif /* SQL_TYPE_H_INCLUDED */

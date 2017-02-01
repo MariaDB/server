@@ -1017,7 +1017,7 @@ GEOMFROMTEXT(
 'multipolygon(((1 2,3 4,5 6,7 8,9 8),(7 6,5 4,3 2,1 2,3 4)))'));
 # must not crash
 SELECT 1 FROM t1 WHERE a <> (SELECT GEOMETRYCOLLECTIONFROMWKB(b) FROM t1);
-1
+ERROR HY000: Illegal parameter data types int and geometry for operation '<>'
 DROP TABLE t1;
 #
 # Bug #49250 : spatial btree index corruption and crash
@@ -1645,11 +1645,7 @@ FLUSH TABLES;
 SELECT 1 FROM g1 
 FORCE INDEX(i) WHERE a = date_sub(now(), interval 2808.4 year_month)
 ;
-1
-Warnings:
-Warning	1292	Incorrect datetime value: '\x00\x00\x00\x00\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\xF0?\x00\x00\x00\x00\x00\x00\xF0?'
-Warning	1441	Datetime function: datetime field overflow
-Warning	1292	Incorrect datetime value: '\x00\x00\x00\x00\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\xF0?\x00\x00\x00\x00\x00\x00\x00@'
+ERROR HY000: Illegal parameter data types geometry and datetime for operation '='
 DROP TABLE g1;
 #
 # Bug#13013970 MORE CRASHES IN FIELD_BLOB::GET_KEY_IMAGE
@@ -2811,6 +2807,907 @@ t1	CREATE TABLE `t1` (
   `NULL` geometry DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t1;
+DROP PROCEDURE p1;
+DROP PROCEDURE p2;
+#
+# MDEV-11692 Comparison data type aggregation for pluggable data types
+#
+CREATE PROCEDURE p2(query TEXT)
+BEGIN
+DECLARE errcount INT DEFAULT 0;
+DECLARE CONTINUE HANDLER FOR SQLEXCEPTION
+BEGIN
+SET errcount = errcount+1;
+GET DIAGNOSTICS CONDITION 1 @p= MESSAGE_TEXT;
+SELECT @p AS `ERROR: `;
+END;
+SELECT query AS ``;
+EXECUTE IMMEDIATE query;
+END;
+$$
+CREATE PROCEDURE p1(query TEXT)
+BEGIN
+SELECT query AS `-------------------------------------`;
+EXECUTE IMMEDIATE query;
+CALL p2('SELECT a=b FROM t1');
+CALL p2('SELECT b=a FROM t1');
+CALL p2('SELECT a BETWEEN b AND c FROM t1');
+CALL p2('SELECT a IN (b,c) FROM t1');
+CALL p2('SELECT CASE a WHEN b THEN "a" WHEN c THEN "b" END FROM t1');
+CALL p2('SELECT a=POINT(1,1) FROM t1');
+CALL p2('SELECT POINT(1,1)=a FROM t1');
+CALL p2('SELECT a BETWEEN POINT(1,1) AND POINT(1,2) FROM t1');
+CALL p2('SELECT a IN (POINT(1,1),POINT(1,2)) FROM t1');
+CALL p2('SELECT CASE a WHEN POINT(1,1) THEN "a" WHEN POINT(1,2) THEN "b" END FROM t1');
+DROP TABLE t1;
+END;
+$$
+CALL p1('CREATE TABLE t1 (a CHAR(10), b Point, c Point)');
+-------------------------------------
+CREATE TABLE t1 (a CHAR(10), b Point, c Point)
+
+SELECT a=b FROM t1
+a=b
+
+SELECT b=a FROM t1
+b=a
+
+SELECT a BETWEEN b AND c FROM t1
+a BETWEEN b AND c
+
+SELECT a IN (b,c) FROM t1
+a IN (b,c)
+
+SELECT CASE a WHEN b THEN "a" WHEN c THEN "b" END FROM t1
+CASE a WHEN b THEN "a" WHEN c THEN "b" END
+
+SELECT a=POINT(1,1) FROM t1
+a=POINT(1,1)
+
+SELECT POINT(1,1)=a FROM t1
+POINT(1,1)=a
+
+SELECT a BETWEEN POINT(1,1) AND POINT(1,2) FROM t1
+a BETWEEN POINT(1,1) AND POINT(1,2)
+
+SELECT a IN (POINT(1,1),POINT(1,2)) FROM t1
+a IN (POINT(1,1),POINT(1,2))
+
+SELECT CASE a WHEN POINT(1,1) THEN "a" WHEN POINT(1,2) THEN "b" END FROM t1
+CASE a WHEN POINT(1,1) THEN "a" WHEN POINT(1,2) THEN "b" END
+CALL p1('CREATE TABLE t1 (a VARCHAR(10), b Point, c Point)');
+-------------------------------------
+CREATE TABLE t1 (a VARCHAR(10), b Point, c Point)
+
+SELECT a=b FROM t1
+a=b
+
+SELECT b=a FROM t1
+b=a
+
+SELECT a BETWEEN b AND c FROM t1
+a BETWEEN b AND c
+
+SELECT a IN (b,c) FROM t1
+a IN (b,c)
+
+SELECT CASE a WHEN b THEN "a" WHEN c THEN "b" END FROM t1
+CASE a WHEN b THEN "a" WHEN c THEN "b" END
+
+SELECT a=POINT(1,1) FROM t1
+a=POINT(1,1)
+
+SELECT POINT(1,1)=a FROM t1
+POINT(1,1)=a
+
+SELECT a BETWEEN POINT(1,1) AND POINT(1,2) FROM t1
+a BETWEEN POINT(1,1) AND POINT(1,2)
+
+SELECT a IN (POINT(1,1),POINT(1,2)) FROM t1
+a IN (POINT(1,1),POINT(1,2))
+
+SELECT CASE a WHEN POINT(1,1) THEN "a" WHEN POINT(1,2) THEN "b" END FROM t1
+CASE a WHEN POINT(1,1) THEN "a" WHEN POINT(1,2) THEN "b" END
+CALL p1('CREATE TABLE t1 (a TINYTEXT, b Point, c Point)');
+-------------------------------------
+CREATE TABLE t1 (a TINYTEXT, b Point, c Point)
+
+SELECT a=b FROM t1
+a=b
+
+SELECT b=a FROM t1
+b=a
+
+SELECT a BETWEEN b AND c FROM t1
+a BETWEEN b AND c
+
+SELECT a IN (b,c) FROM t1
+a IN (b,c)
+
+SELECT CASE a WHEN b THEN "a" WHEN c THEN "b" END FROM t1
+CASE a WHEN b THEN "a" WHEN c THEN "b" END
+
+SELECT a=POINT(1,1) FROM t1
+a=POINT(1,1)
+
+SELECT POINT(1,1)=a FROM t1
+POINT(1,1)=a
+
+SELECT a BETWEEN POINT(1,1) AND POINT(1,2) FROM t1
+a BETWEEN POINT(1,1) AND POINT(1,2)
+
+SELECT a IN (POINT(1,1),POINT(1,2)) FROM t1
+a IN (POINT(1,1),POINT(1,2))
+
+SELECT CASE a WHEN POINT(1,1) THEN "a" WHEN POINT(1,2) THEN "b" END FROM t1
+CASE a WHEN POINT(1,1) THEN "a" WHEN POINT(1,2) THEN "b" END
+CALL p1('CREATE TABLE t1 (a TEXT, b Point, c Point)');
+-------------------------------------
+CREATE TABLE t1 (a TEXT, b Point, c Point)
+
+SELECT a=b FROM t1
+a=b
+
+SELECT b=a FROM t1
+b=a
+
+SELECT a BETWEEN b AND c FROM t1
+a BETWEEN b AND c
+
+SELECT a IN (b,c) FROM t1
+a IN (b,c)
+
+SELECT CASE a WHEN b THEN "a" WHEN c THEN "b" END FROM t1
+CASE a WHEN b THEN "a" WHEN c THEN "b" END
+
+SELECT a=POINT(1,1) FROM t1
+a=POINT(1,1)
+
+SELECT POINT(1,1)=a FROM t1
+POINT(1,1)=a
+
+SELECT a BETWEEN POINT(1,1) AND POINT(1,2) FROM t1
+a BETWEEN POINT(1,1) AND POINT(1,2)
+
+SELECT a IN (POINT(1,1),POINT(1,2)) FROM t1
+a IN (POINT(1,1),POINT(1,2))
+
+SELECT CASE a WHEN POINT(1,1) THEN "a" WHEN POINT(1,2) THEN "b" END FROM t1
+CASE a WHEN POINT(1,1) THEN "a" WHEN POINT(1,2) THEN "b" END
+CALL p1('CREATE TABLE t1 (a MEDIUMTEXT, b Point, c Point)');
+-------------------------------------
+CREATE TABLE t1 (a MEDIUMTEXT, b Point, c Point)
+
+SELECT a=b FROM t1
+a=b
+
+SELECT b=a FROM t1
+b=a
+
+SELECT a BETWEEN b AND c FROM t1
+a BETWEEN b AND c
+
+SELECT a IN (b,c) FROM t1
+a IN (b,c)
+
+SELECT CASE a WHEN b THEN "a" WHEN c THEN "b" END FROM t1
+CASE a WHEN b THEN "a" WHEN c THEN "b" END
+
+SELECT a=POINT(1,1) FROM t1
+a=POINT(1,1)
+
+SELECT POINT(1,1)=a FROM t1
+POINT(1,1)=a
+
+SELECT a BETWEEN POINT(1,1) AND POINT(1,2) FROM t1
+a BETWEEN POINT(1,1) AND POINT(1,2)
+
+SELECT a IN (POINT(1,1),POINT(1,2)) FROM t1
+a IN (POINT(1,1),POINT(1,2))
+
+SELECT CASE a WHEN POINT(1,1) THEN "a" WHEN POINT(1,2) THEN "b" END FROM t1
+CASE a WHEN POINT(1,1) THEN "a" WHEN POINT(1,2) THEN "b" END
+CALL p1('CREATE TABLE t1 (a LONGTEXT, b Point, c Point)');
+-------------------------------------
+CREATE TABLE t1 (a LONGTEXT, b Point, c Point)
+
+SELECT a=b FROM t1
+a=b
+
+SELECT b=a FROM t1
+b=a
+
+SELECT a BETWEEN b AND c FROM t1
+a BETWEEN b AND c
+
+SELECT a IN (b,c) FROM t1
+a IN (b,c)
+
+SELECT CASE a WHEN b THEN "a" WHEN c THEN "b" END FROM t1
+CASE a WHEN b THEN "a" WHEN c THEN "b" END
+
+SELECT a=POINT(1,1) FROM t1
+a=POINT(1,1)
+
+SELECT POINT(1,1)=a FROM t1
+POINT(1,1)=a
+
+SELECT a BETWEEN POINT(1,1) AND POINT(1,2) FROM t1
+a BETWEEN POINT(1,1) AND POINT(1,2)
+
+SELECT a IN (POINT(1,1),POINT(1,2)) FROM t1
+a IN (POINT(1,1),POINT(1,2))
+
+SELECT CASE a WHEN POINT(1,1) THEN "a" WHEN POINT(1,2) THEN "b" END FROM t1
+CASE a WHEN POINT(1,1) THEN "a" WHEN POINT(1,2) THEN "b" END
+CALL p1('CREATE TABLE t1 (a ENUM("a","b"), b Point, c Point)');
+-------------------------------------
+CREATE TABLE t1 (a ENUM("a","b"), b Point, c Point)
+
+SELECT a=b FROM t1
+a=b
+
+SELECT b=a FROM t1
+b=a
+
+SELECT a BETWEEN b AND c FROM t1
+a BETWEEN b AND c
+
+SELECT a IN (b,c) FROM t1
+a IN (b,c)
+
+SELECT CASE a WHEN b THEN "a" WHEN c THEN "b" END FROM t1
+CASE a WHEN b THEN "a" WHEN c THEN "b" END
+
+SELECT a=POINT(1,1) FROM t1
+a=POINT(1,1)
+
+SELECT POINT(1,1)=a FROM t1
+POINT(1,1)=a
+
+SELECT a BETWEEN POINT(1,1) AND POINT(1,2) FROM t1
+a BETWEEN POINT(1,1) AND POINT(1,2)
+
+SELECT a IN (POINT(1,1),POINT(1,2)) FROM t1
+a IN (POINT(1,1),POINT(1,2))
+
+SELECT CASE a WHEN POINT(1,1) THEN "a" WHEN POINT(1,2) THEN "b" END FROM t1
+CASE a WHEN POINT(1,1) THEN "a" WHEN POINT(1,2) THEN "b" END
+CALL p1('CREATE TABLE t1 (a TINYINT, b Point, c Point)');
+-------------------------------------
+CREATE TABLE t1 (a TINYINT, b Point, c Point)
+
+SELECT a=b FROM t1
+ERROR: 
+Illegal parameter data types tinyint and geometry for operation '='
+
+SELECT b=a FROM t1
+ERROR: 
+Illegal parameter data types geometry and tinyint for operation '='
+
+SELECT a BETWEEN b AND c FROM t1
+ERROR: 
+Illegal parameter data types tinyint and geometry for operation 'between'
+
+SELECT a IN (b,c) FROM t1
+ERROR: 
+Illegal parameter data types tinyint and geometry for operation 'in'
+
+SELECT CASE a WHEN b THEN "a" WHEN c THEN "b" END FROM t1
+ERROR: 
+Illegal parameter data types tinyint and geometry for operation 'case..when'
+
+SELECT a=POINT(1,1) FROM t1
+ERROR: 
+Illegal parameter data types tinyint and geometry for operation '='
+
+SELECT POINT(1,1)=a FROM t1
+ERROR: 
+Illegal parameter data types geometry and tinyint for operation '='
+
+SELECT a BETWEEN POINT(1,1) AND POINT(1,2) FROM t1
+ERROR: 
+Illegal parameter data types tinyint and geometry for operation 'between'
+
+SELECT a IN (POINT(1,1),POINT(1,2)) FROM t1
+ERROR: 
+Illegal parameter data types tinyint and geometry for operation 'in'
+
+SELECT CASE a WHEN POINT(1,1) THEN "a" WHEN POINT(1,2) THEN "b" END FROM t1
+ERROR: 
+Illegal parameter data types tinyint and geometry for operation 'case..when'
+CALL p1('CREATE TABLE t1 (a SMALLINT, b Point, c Point)');
+-------------------------------------
+CREATE TABLE t1 (a SMALLINT, b Point, c Point)
+
+SELECT a=b FROM t1
+ERROR: 
+Illegal parameter data types smallint and geometry for operation '='
+
+SELECT b=a FROM t1
+ERROR: 
+Illegal parameter data types geometry and smallint for operation '='
+
+SELECT a BETWEEN b AND c FROM t1
+ERROR: 
+Illegal parameter data types smallint and geometry for operation 'between'
+
+SELECT a IN (b,c) FROM t1
+ERROR: 
+Illegal parameter data types smallint and geometry for operation 'in'
+
+SELECT CASE a WHEN b THEN "a" WHEN c THEN "b" END FROM t1
+ERROR: 
+Illegal parameter data types smallint and geometry for operation 'case..when'
+
+SELECT a=POINT(1,1) FROM t1
+ERROR: 
+Illegal parameter data types smallint and geometry for operation '='
+
+SELECT POINT(1,1)=a FROM t1
+ERROR: 
+Illegal parameter data types geometry and smallint for operation '='
+
+SELECT a BETWEEN POINT(1,1) AND POINT(1,2) FROM t1
+ERROR: 
+Illegal parameter data types smallint and geometry for operation 'between'
+
+SELECT a IN (POINT(1,1),POINT(1,2)) FROM t1
+ERROR: 
+Illegal parameter data types smallint and geometry for operation 'in'
+
+SELECT CASE a WHEN POINT(1,1) THEN "a" WHEN POINT(1,2) THEN "b" END FROM t1
+ERROR: 
+Illegal parameter data types smallint and geometry for operation 'case..when'
+CALL p1('CREATE TABLE t1 (a MEDIUMINT, b Point, c Point)');
+-------------------------------------
+CREATE TABLE t1 (a MEDIUMINT, b Point, c Point)
+
+SELECT a=b FROM t1
+ERROR: 
+Illegal parameter data types mediumint and geometry for operation '='
+
+SELECT b=a FROM t1
+ERROR: 
+Illegal parameter data types geometry and mediumint for operation '='
+
+SELECT a BETWEEN b AND c FROM t1
+ERROR: 
+Illegal parameter data types mediumint and geometry for operation 'between'
+
+SELECT a IN (b,c) FROM t1
+ERROR: 
+Illegal parameter data types mediumint and geometry for operation 'in'
+
+SELECT CASE a WHEN b THEN "a" WHEN c THEN "b" END FROM t1
+ERROR: 
+Illegal parameter data types mediumint and geometry for operation 'case..when'
+
+SELECT a=POINT(1,1) FROM t1
+ERROR: 
+Illegal parameter data types mediumint and geometry for operation '='
+
+SELECT POINT(1,1)=a FROM t1
+ERROR: 
+Illegal parameter data types geometry and mediumint for operation '='
+
+SELECT a BETWEEN POINT(1,1) AND POINT(1,2) FROM t1
+ERROR: 
+Illegal parameter data types mediumint and geometry for operation 'between'
+
+SELECT a IN (POINT(1,1),POINT(1,2)) FROM t1
+ERROR: 
+Illegal parameter data types mediumint and geometry for operation 'in'
+
+SELECT CASE a WHEN POINT(1,1) THEN "a" WHEN POINT(1,2) THEN "b" END FROM t1
+ERROR: 
+Illegal parameter data types mediumint and geometry for operation 'case..when'
+CALL p1('CREATE TABLE t1 (a INT, b Point, c Point)');
+-------------------------------------
+CREATE TABLE t1 (a INT, b Point, c Point)
+
+SELECT a=b FROM t1
+ERROR: 
+Illegal parameter data types int and geometry for operation '='
+
+SELECT b=a FROM t1
+ERROR: 
+Illegal parameter data types geometry and int for operation '='
+
+SELECT a BETWEEN b AND c FROM t1
+ERROR: 
+Illegal parameter data types int and geometry for operation 'between'
+
+SELECT a IN (b,c) FROM t1
+ERROR: 
+Illegal parameter data types int and geometry for operation 'in'
+
+SELECT CASE a WHEN b THEN "a" WHEN c THEN "b" END FROM t1
+ERROR: 
+Illegal parameter data types int and geometry for operation 'case..when'
+
+SELECT a=POINT(1,1) FROM t1
+ERROR: 
+Illegal parameter data types int and geometry for operation '='
+
+SELECT POINT(1,1)=a FROM t1
+ERROR: 
+Illegal parameter data types geometry and int for operation '='
+
+SELECT a BETWEEN POINT(1,1) AND POINT(1,2) FROM t1
+ERROR: 
+Illegal parameter data types int and geometry for operation 'between'
+
+SELECT a IN (POINT(1,1),POINT(1,2)) FROM t1
+ERROR: 
+Illegal parameter data types int and geometry for operation 'in'
+
+SELECT CASE a WHEN POINT(1,1) THEN "a" WHEN POINT(1,2) THEN "b" END FROM t1
+ERROR: 
+Illegal parameter data types int and geometry for operation 'case..when'
+CALL p1('CREATE TABLE t1 (a BIGINT, b Point, c Point)');
+-------------------------------------
+CREATE TABLE t1 (a BIGINT, b Point, c Point)
+
+SELECT a=b FROM t1
+ERROR: 
+Illegal parameter data types bigint and geometry for operation '='
+
+SELECT b=a FROM t1
+ERROR: 
+Illegal parameter data types geometry and bigint for operation '='
+
+SELECT a BETWEEN b AND c FROM t1
+ERROR: 
+Illegal parameter data types bigint and geometry for operation 'between'
+
+SELECT a IN (b,c) FROM t1
+ERROR: 
+Illegal parameter data types bigint and geometry for operation 'in'
+
+SELECT CASE a WHEN b THEN "a" WHEN c THEN "b" END FROM t1
+ERROR: 
+Illegal parameter data types bigint and geometry for operation 'case..when'
+
+SELECT a=POINT(1,1) FROM t1
+ERROR: 
+Illegal parameter data types bigint and geometry for operation '='
+
+SELECT POINT(1,1)=a FROM t1
+ERROR: 
+Illegal parameter data types geometry and bigint for operation '='
+
+SELECT a BETWEEN POINT(1,1) AND POINT(1,2) FROM t1
+ERROR: 
+Illegal parameter data types bigint and geometry for operation 'between'
+
+SELECT a IN (POINT(1,1),POINT(1,2)) FROM t1
+ERROR: 
+Illegal parameter data types bigint and geometry for operation 'in'
+
+SELECT CASE a WHEN POINT(1,1) THEN "a" WHEN POINT(1,2) THEN "b" END FROM t1
+ERROR: 
+Illegal parameter data types bigint and geometry for operation 'case..when'
+CALL p1('CREATE TABLE t1 (a FLOAT, b Point, c Point)');
+-------------------------------------
+CREATE TABLE t1 (a FLOAT, b Point, c Point)
+
+SELECT a=b FROM t1
+ERROR: 
+Illegal parameter data types float and geometry for operation '='
+
+SELECT b=a FROM t1
+ERROR: 
+Illegal parameter data types geometry and float for operation '='
+
+SELECT a BETWEEN b AND c FROM t1
+ERROR: 
+Illegal parameter data types float and geometry for operation 'between'
+
+SELECT a IN (b,c) FROM t1
+ERROR: 
+Illegal parameter data types float and geometry for operation 'in'
+
+SELECT CASE a WHEN b THEN "a" WHEN c THEN "b" END FROM t1
+ERROR: 
+Illegal parameter data types float and geometry for operation 'case..when'
+
+SELECT a=POINT(1,1) FROM t1
+ERROR: 
+Illegal parameter data types float and geometry for operation '='
+
+SELECT POINT(1,1)=a FROM t1
+ERROR: 
+Illegal parameter data types geometry and float for operation '='
+
+SELECT a BETWEEN POINT(1,1) AND POINT(1,2) FROM t1
+ERROR: 
+Illegal parameter data types float and geometry for operation 'between'
+
+SELECT a IN (POINT(1,1),POINT(1,2)) FROM t1
+ERROR: 
+Illegal parameter data types float and geometry for operation 'in'
+
+SELECT CASE a WHEN POINT(1,1) THEN "a" WHEN POINT(1,2) THEN "b" END FROM t1
+ERROR: 
+Illegal parameter data types float and geometry for operation 'case..when'
+CALL p1('CREATE TABLE t1 (a DOUBLE, b Point, c Point)');
+-------------------------------------
+CREATE TABLE t1 (a DOUBLE, b Point, c Point)
+
+SELECT a=b FROM t1
+ERROR: 
+Illegal parameter data types double and geometry for operation '='
+
+SELECT b=a FROM t1
+ERROR: 
+Illegal parameter data types geometry and double for operation '='
+
+SELECT a BETWEEN b AND c FROM t1
+ERROR: 
+Illegal parameter data types double and geometry for operation 'between'
+
+SELECT a IN (b,c) FROM t1
+ERROR: 
+Illegal parameter data types double and geometry for operation 'in'
+
+SELECT CASE a WHEN b THEN "a" WHEN c THEN "b" END FROM t1
+ERROR: 
+Illegal parameter data types double and geometry for operation 'case..when'
+
+SELECT a=POINT(1,1) FROM t1
+ERROR: 
+Illegal parameter data types double and geometry for operation '='
+
+SELECT POINT(1,1)=a FROM t1
+ERROR: 
+Illegal parameter data types geometry and double for operation '='
+
+SELECT a BETWEEN POINT(1,1) AND POINT(1,2) FROM t1
+ERROR: 
+Illegal parameter data types double and geometry for operation 'between'
+
+SELECT a IN (POINT(1,1),POINT(1,2)) FROM t1
+ERROR: 
+Illegal parameter data types double and geometry for operation 'in'
+
+SELECT CASE a WHEN POINT(1,1) THEN "a" WHEN POINT(1,2) THEN "b" END FROM t1
+ERROR: 
+Illegal parameter data types double and geometry for operation 'case..when'
+CALL p1('CREATE TABLE t1 (a DECIMAL(10,2), b Point, c Point)');
+-------------------------------------
+CREATE TABLE t1 (a DECIMAL(10,2), b Point, c Point)
+
+SELECT a=b FROM t1
+ERROR: 
+Illegal parameter data types decimal and geometry for operation '='
+
+SELECT b=a FROM t1
+ERROR: 
+Illegal parameter data types geometry and decimal for operation '='
+
+SELECT a BETWEEN b AND c FROM t1
+ERROR: 
+Illegal parameter data types decimal and geometry for operation 'between'
+
+SELECT a IN (b,c) FROM t1
+ERROR: 
+Illegal parameter data types decimal and geometry for operation 'in'
+
+SELECT CASE a WHEN b THEN "a" WHEN c THEN "b" END FROM t1
+ERROR: 
+Illegal parameter data types decimal and geometry for operation 'case..when'
+
+SELECT a=POINT(1,1) FROM t1
+ERROR: 
+Illegal parameter data types decimal and geometry for operation '='
+
+SELECT POINT(1,1)=a FROM t1
+ERROR: 
+Illegal parameter data types geometry and decimal for operation '='
+
+SELECT a BETWEEN POINT(1,1) AND POINT(1,2) FROM t1
+ERROR: 
+Illegal parameter data types decimal and geometry for operation 'between'
+
+SELECT a IN (POINT(1,1),POINT(1,2)) FROM t1
+ERROR: 
+Illegal parameter data types decimal and geometry for operation 'in'
+
+SELECT CASE a WHEN POINT(1,1) THEN "a" WHEN POINT(1,2) THEN "b" END FROM t1
+ERROR: 
+Illegal parameter data types decimal and geometry for operation 'case..when'
+CALL p1('CREATE TABLE t1 (a BIT(8), b Point, c Point)');
+-------------------------------------
+CREATE TABLE t1 (a BIT(8), b Point, c Point)
+
+SELECT a=b FROM t1
+ERROR: 
+Illegal parameter data types bit and geometry for operation '='
+
+SELECT b=a FROM t1
+ERROR: 
+Illegal parameter data types geometry and bit for operation '='
+
+SELECT a BETWEEN b AND c FROM t1
+ERROR: 
+Illegal parameter data types bit and geometry for operation 'between'
+
+SELECT a IN (b,c) FROM t1
+ERROR: 
+Illegal parameter data types bit and geometry for operation 'in'
+
+SELECT CASE a WHEN b THEN "a" WHEN c THEN "b" END FROM t1
+ERROR: 
+Illegal parameter data types bit and geometry for operation 'case..when'
+
+SELECT a=POINT(1,1) FROM t1
+ERROR: 
+Illegal parameter data types bit and geometry for operation '='
+
+SELECT POINT(1,1)=a FROM t1
+ERROR: 
+Illegal parameter data types geometry and bit for operation '='
+
+SELECT a BETWEEN POINT(1,1) AND POINT(1,2) FROM t1
+ERROR: 
+Illegal parameter data types bit and geometry for operation 'between'
+
+SELECT a IN (POINT(1,1),POINT(1,2)) FROM t1
+ERROR: 
+Illegal parameter data types bit and geometry for operation 'in'
+
+SELECT CASE a WHEN POINT(1,1) THEN "a" WHEN POINT(1,2) THEN "b" END FROM t1
+ERROR: 
+Illegal parameter data types bit and geometry for operation 'case..when'
+CALL p1('CREATE TABLE t1 (a TIME, b Point, c Point)');
+-------------------------------------
+CREATE TABLE t1 (a TIME, b Point, c Point)
+
+SELECT a=b FROM t1
+ERROR: 
+Illegal parameter data types time and geometry for operation '='
+
+SELECT b=a FROM t1
+ERROR: 
+Illegal parameter data types geometry and time for operation '='
+
+SELECT a BETWEEN b AND c FROM t1
+ERROR: 
+Illegal parameter data types time and geometry for operation 'between'
+
+SELECT a IN (b,c) FROM t1
+ERROR: 
+Illegal parameter data types time and geometry for operation 'in'
+
+SELECT CASE a WHEN b THEN "a" WHEN c THEN "b" END FROM t1
+ERROR: 
+Illegal parameter data types time and geometry for operation 'case..when'
+
+SELECT a=POINT(1,1) FROM t1
+ERROR: 
+Illegal parameter data types time and geometry for operation '='
+
+SELECT POINT(1,1)=a FROM t1
+ERROR: 
+Illegal parameter data types geometry and time for operation '='
+
+SELECT a BETWEEN POINT(1,1) AND POINT(1,2) FROM t1
+ERROR: 
+Illegal parameter data types time and geometry for operation 'between'
+
+SELECT a IN (POINT(1,1),POINT(1,2)) FROM t1
+ERROR: 
+Illegal parameter data types time and geometry for operation 'in'
+
+SELECT CASE a WHEN POINT(1,1) THEN "a" WHEN POINT(1,2) THEN "b" END FROM t1
+ERROR: 
+Illegal parameter data types time and geometry for operation 'case..when'
+CALL p1('CREATE TABLE t1 (a DATE, b Point, c Point)');
+-------------------------------------
+CREATE TABLE t1 (a DATE, b Point, c Point)
+
+SELECT a=b FROM t1
+ERROR: 
+Illegal parameter data types date and geometry for operation '='
+
+SELECT b=a FROM t1
+ERROR: 
+Illegal parameter data types geometry and date for operation '='
+
+SELECT a BETWEEN b AND c FROM t1
+ERROR: 
+Illegal parameter data types date and geometry for operation 'between'
+
+SELECT a IN (b,c) FROM t1
+ERROR: 
+Illegal parameter data types date and geometry for operation 'in'
+
+SELECT CASE a WHEN b THEN "a" WHEN c THEN "b" END FROM t1
+ERROR: 
+Illegal parameter data types date and geometry for operation 'case..when'
+
+SELECT a=POINT(1,1) FROM t1
+ERROR: 
+Illegal parameter data types date and geometry for operation '='
+
+SELECT POINT(1,1)=a FROM t1
+ERROR: 
+Illegal parameter data types geometry and date for operation '='
+
+SELECT a BETWEEN POINT(1,1) AND POINT(1,2) FROM t1
+ERROR: 
+Illegal parameter data types date and geometry for operation 'between'
+
+SELECT a IN (POINT(1,1),POINT(1,2)) FROM t1
+ERROR: 
+Illegal parameter data types date and geometry for operation 'in'
+
+SELECT CASE a WHEN POINT(1,1) THEN "a" WHEN POINT(1,2) THEN "b" END FROM t1
+ERROR: 
+Illegal parameter data types date and geometry for operation 'case..when'
+CALL p1('CREATE TABLE t1 (a DATETIME, b Point, c Point)');
+-------------------------------------
+CREATE TABLE t1 (a DATETIME, b Point, c Point)
+
+SELECT a=b FROM t1
+ERROR: 
+Illegal parameter data types datetime and geometry for operation '='
+
+SELECT b=a FROM t1
+ERROR: 
+Illegal parameter data types geometry and datetime for operation '='
+
+SELECT a BETWEEN b AND c FROM t1
+ERROR: 
+Illegal parameter data types datetime and geometry for operation 'between'
+
+SELECT a IN (b,c) FROM t1
+ERROR: 
+Illegal parameter data types datetime and geometry for operation 'in'
+
+SELECT CASE a WHEN b THEN "a" WHEN c THEN "b" END FROM t1
+ERROR: 
+Illegal parameter data types datetime and geometry for operation 'case..when'
+
+SELECT a=POINT(1,1) FROM t1
+ERROR: 
+Illegal parameter data types datetime and geometry for operation '='
+
+SELECT POINT(1,1)=a FROM t1
+ERROR: 
+Illegal parameter data types geometry and datetime for operation '='
+
+SELECT a BETWEEN POINT(1,1) AND POINT(1,2) FROM t1
+ERROR: 
+Illegal parameter data types datetime and geometry for operation 'between'
+
+SELECT a IN (POINT(1,1),POINT(1,2)) FROM t1
+ERROR: 
+Illegal parameter data types datetime and geometry for operation 'in'
+
+SELECT CASE a WHEN POINT(1,1) THEN "a" WHEN POINT(1,2) THEN "b" END FROM t1
+ERROR: 
+Illegal parameter data types datetime and geometry for operation 'case..when'
+CALL p1('CREATE TABLE t1 (a TIMESTAMP, b Point, c Point)');
+-------------------------------------
+CREATE TABLE t1 (a TIMESTAMP, b Point, c Point)
+
+SELECT a=b FROM t1
+ERROR: 
+Illegal parameter data types timestamp and geometry for operation '='
+
+SELECT b=a FROM t1
+ERROR: 
+Illegal parameter data types geometry and timestamp for operation '='
+
+SELECT a BETWEEN b AND c FROM t1
+ERROR: 
+Illegal parameter data types timestamp and geometry for operation 'between'
+
+SELECT a IN (b,c) FROM t1
+ERROR: 
+Illegal parameter data types timestamp and geometry for operation 'in'
+
+SELECT CASE a WHEN b THEN "a" WHEN c THEN "b" END FROM t1
+ERROR: 
+Illegal parameter data types timestamp and geometry for operation 'case..when'
+
+SELECT a=POINT(1,1) FROM t1
+ERROR: 
+Illegal parameter data types timestamp and geometry for operation '='
+
+SELECT POINT(1,1)=a FROM t1
+ERROR: 
+Illegal parameter data types geometry and timestamp for operation '='
+
+SELECT a BETWEEN POINT(1,1) AND POINT(1,2) FROM t1
+ERROR: 
+Illegal parameter data types timestamp and geometry for operation 'between'
+
+SELECT a IN (POINT(1,1),POINT(1,2)) FROM t1
+ERROR: 
+Illegal parameter data types timestamp and geometry for operation 'in'
+
+SELECT CASE a WHEN POINT(1,1) THEN "a" WHEN POINT(1,2) THEN "b" END FROM t1
+ERROR: 
+Illegal parameter data types timestamp and geometry for operation 'case..when'
+CALL p1('CREATE TABLE t1 (a YEAR, b Point, c Point)');
+-------------------------------------
+CREATE TABLE t1 (a YEAR, b Point, c Point)
+
+SELECT a=b FROM t1
+ERROR: 
+Illegal parameter data types year and geometry for operation '='
+
+SELECT b=a FROM t1
+ERROR: 
+Illegal parameter data types geometry and year for operation '='
+
+SELECT a BETWEEN b AND c FROM t1
+ERROR: 
+Illegal parameter data types year and geometry for operation 'between'
+
+SELECT a IN (b,c) FROM t1
+ERROR: 
+Illegal parameter data types year and geometry for operation 'in'
+
+SELECT CASE a WHEN b THEN "a" WHEN c THEN "b" END FROM t1
+ERROR: 
+Illegal parameter data types year and geometry for operation 'case..when'
+
+SELECT a=POINT(1,1) FROM t1
+ERROR: 
+Illegal parameter data types year and geometry for operation '='
+
+SELECT POINT(1,1)=a FROM t1
+ERROR: 
+Illegal parameter data types geometry and year for operation '='
+
+SELECT a BETWEEN POINT(1,1) AND POINT(1,2) FROM t1
+ERROR: 
+Illegal parameter data types year and geometry for operation 'between'
+
+SELECT a IN (POINT(1,1),POINT(1,2)) FROM t1
+ERROR: 
+Illegal parameter data types year and geometry for operation 'in'
+
+SELECT CASE a WHEN POINT(1,1) THEN "a" WHEN POINT(1,2) THEN "b" END FROM t1
+ERROR: 
+Illegal parameter data types year and geometry for operation 'case..when'
+CALL p1('CREATE TABLE t1 (a Point, b Point, c Point)');
+-------------------------------------
+CREATE TABLE t1 (a Point, b Point, c Point)
+
+SELECT a=b FROM t1
+a=b
+
+SELECT b=a FROM t1
+b=a
+
+SELECT a BETWEEN b AND c FROM t1
+a BETWEEN b AND c
+
+SELECT a IN (b,c) FROM t1
+a IN (b,c)
+
+SELECT CASE a WHEN b THEN "a" WHEN c THEN "b" END FROM t1
+CASE a WHEN b THEN "a" WHEN c THEN "b" END
+
+SELECT a=POINT(1,1) FROM t1
+a=POINT(1,1)
+
+SELECT POINT(1,1)=a FROM t1
+POINT(1,1)=a
+
+SELECT a BETWEEN POINT(1,1) AND POINT(1,2) FROM t1
+a BETWEEN POINT(1,1) AND POINT(1,2)
+
+SELECT a IN (POINT(1,1),POINT(1,2)) FROM t1
+a IN (POINT(1,1),POINT(1,2))
+
+SELECT CASE a WHEN POINT(1,1) THEN "a" WHEN POINT(1,2) THEN "b" END FROM t1
+CASE a WHEN POINT(1,1) THEN "a" WHEN POINT(1,2) THEN "b" END
 DROP PROCEDURE p1;
 DROP PROCEDURE p2;
 #

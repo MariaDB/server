@@ -57,6 +57,7 @@ Type_handler_bit         type_handler_bit;
 
 
 Type_aggregator type_aggregator_for_result;
+Type_aggregator type_aggregator_for_comparison;
 
 
 class Static_data_initializer
@@ -81,6 +82,16 @@ public:
     type_aggregator_for_result.add(&type_handler_geometry,
                                    &type_handler_string,
                                    &type_handler_long_blob);
+
+    type_aggregator_for_comparison.add(&type_handler_geometry,
+                                       &type_handler_geometry,
+                                       &type_handler_geometry);
+    type_aggregator_for_comparison.add(&type_handler_geometry,
+                                       &type_handler_null,
+                                       &type_handler_geometry);
+    type_aggregator_for_comparison.add(&type_handler_geometry,
+                                       &type_handler_long_blob,
+                                       &type_handler_long_blob);
 #endif
   }
 };
@@ -222,6 +233,12 @@ const Name
   Type_handler_timestamp_common::m_name_timestamp(C_STRING_WITH_LEN("timestamp"));
 
 /***************************************************************************/
+
+const Type_handler *Type_handler_null::type_handler_for_comparison() const
+{
+  return &type_handler_null;
+}
+
 
 const Type_handler *Type_handler_int_result::type_handler_for_comparison() const
 {
@@ -380,11 +397,23 @@ Type_handler_hybrid_field_type::aggregate_for_result(const char *funcname,
   is needed after this call.
 */
 
-void
+bool
 Type_handler_hybrid_field_type::aggregate_for_comparison(const Type_handler *h)
 {
   DBUG_ASSERT(m_type_handler == m_type_handler->type_handler_for_comparison());
   DBUG_ASSERT(h == h->type_handler_for_comparison());
+
+  if (!m_type_handler->is_traditional_type() ||
+      !h->is_traditional_type())
+  {
+    h= type_aggregator_for_comparison.find_handler(m_type_handler, h);
+    if (!h)
+      return true;
+    m_type_handler= h;
+    DBUG_ASSERT(m_type_handler == m_type_handler->type_handler_for_comparison());
+    return false;
+  }
+
   Item_result a= cmp_type();
   Item_result b= h->cmp_type();
   if (a == STRING_RESULT && b == STRING_RESULT)
@@ -421,6 +450,7 @@ Type_handler_hybrid_field_type::aggregate_for_comparison(const Type_handler *h)
   else
     m_type_handler= &type_handler_double;
   DBUG_ASSERT(m_type_handler == m_type_handler->type_handler_for_comparison());
+  return false;
 }
 
 
@@ -899,6 +929,13 @@ Field *Type_handler_long_blob::make_conversion_table_field(TABLE *table,
 
 #ifdef HAVE_SPATIAL
 const Name Type_handler_geometry::m_name_geometry(C_STRING_WITH_LEN("geometry"));
+
+
+const Type_handler *Type_handler_geometry::type_handler_for_comparison() const
+{
+  return &type_handler_geometry;
+}
+
 
 Field *Type_handler_geometry::make_conversion_table_field(TABLE *table,
                                                           uint metadata,

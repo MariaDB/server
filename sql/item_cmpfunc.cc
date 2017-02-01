@@ -98,28 +98,26 @@ static int cmp_row_type(Item* item1, Item* item2)
 /**
   Aggregates result types from the array of items.
 
-  SYNOPSIS:
-    agg_cmp_type()
-    type   [out] the aggregated type
-    items        array of items to aggregate the type from
-    nitems       number of items in the array
+  This method aggregates comparison handler from the array of items.
+  The result handler is used later for comparison of values of these items.
 
-  DESCRIPTION
-    This function aggregates result types from the array of items. Found type
-    supposed to be used later for comparison of values of these items.
-    Aggregation itself is performed by the item_cmp_type() function.
-  @param[out] type    the aggregated type
-  @param      items        array of items to aggregate the type from
-  @param      nitems       number of items in the array
+  aggregate_for_comparison()
+  funcname                      the function or operator name,
+                                for error reporting
+  items                         array of items to aggregate the type from
+  nitems                        number of items in the array
+  int_uint_as_dec               what to do when comparing INT to UINT:
+                                set the comparison handler to decimal or int.
 
-  @retval
-    1  type incompatibility has been detected
-  @retval
-    0  otherwise
+  @retval true  type incompatibility has been detected
+  @retval false otherwise
 */
 
-bool Type_handler_hybrid_field_type::aggregate_for_comparison(Item **items,
-                                                              uint nitems)
+bool
+Type_handler_hybrid_field_type::aggregate_for_comparison(const char *funcname,
+                                                         Item **items,
+                                                         uint nitems,
+                                                         bool int_uint_as_dec)
 {
   uint unsigned_count= items[0]->unsigned_flag;
   /*
@@ -132,8 +130,22 @@ bool Type_handler_hybrid_field_type::aggregate_for_comparison(Item **items,
   for (uint i= 1 ; i < nitems ; i++)
   {
     unsigned_count+= items[i]->unsigned_flag;
-    aggregate_for_comparison(items[i]->type_handler()->
-                             type_handler_for_comparison());
+    if (aggregate_for_comparison(items[i]->type_handler()->
+                                 type_handler_for_comparison()))
+    {
+      /*
+        For more precise error messages if aggregation failed on the first pair
+        {items[0],items[1]}, use the name of items[0]->data_handler().
+        Otherwise use the name of this->type_handler(), which is already a
+        result of aggregation for items[0]..items[i-1].
+      */
+      my_error(ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION, MYF(0),
+               i == 1 ? items[0]->type_handler()->name().ptr() :
+                        type_handler()->name().ptr(),
+               items[i]->type_handler()->name().ptr(),
+               funcname);
+      return true;
+    }
     /*
       When aggregating types of two row expressions we have to check
       that they have the same cardinality and that each component
@@ -148,7 +160,8 @@ bool Type_handler_hybrid_field_type::aggregate_for_comparison(Item **items,
     If all arguments are of INT type but have different unsigned_flag values,
     switch to DECIMAL_RESULT.
   */
-  if (cmp_type() == INT_RESULT &&
+  if (int_uint_as_dec &&
+      cmp_type() == INT_RESULT &&
       unsigned_count != nitems && unsigned_count != 0)
     set_handler(&type_handler_newdecimal);
   return 0;
@@ -471,8 +484,14 @@ int Arg_comparator::set_cmp_func(Item_func_or_sum *owner_arg,
   set_null= set_null && owner_arg;
   a= a1;
   b= a2;
-  m_compare_handler= Type_handler::get_handler_by_cmp_type(item_cmp_type(*a1,
-                                                                         *a2));
+  Item *tmp_args[2]= {*a1, *a2};
+  Type_handler_hybrid_field_type tmp;
+  if (tmp.aggregate_for_comparison(owner_arg->func_name(), tmp_args, 2, false))
+  {
+    DBUG_ASSERT(thd->is_error());
+    return 1;
+  }
+  m_compare_handler= tmp.type_handler();
   return m_compare_handler->set_comparator_func(this);
 }
 
@@ -2004,8 +2023,12 @@ void Item_func_between::fix_length_and_dec()
   */
   if (!args[0] || !args[1] || !args[2])
     return;
-  if (m_comparator.aggregate_for_comparison(args, 3))
+  if (m_comparator.aggregate_for_comparison(Item_func_between::func_name(),
+                                            args, 3, true))
+  {
+    DBUG_ASSERT(thd->is_error());
     return;
+  }
 
   if (m_comparator.cmp_type() == STRING_RESULT &&
       agg_arg_charsets_for_comparison(cmp_collation, args, 3))
@@ -3033,7 +3056,7 @@ bool Item_func_case::prepare_predicant_and_values(THD *thd, uint *found_types)
   add_predicant(this, (uint) first_expr_num);
   for (uint i= 0 ; i < ncases / 2; i++)
   {
-    if (add_value_skip_null(this, i * 2, &have_null))
+    if (add_value_skip_null("case..when", this, i * 2, &have_null))
       return true;
   }
   all_values_added(&tmp, &type_cnt, &m_found_types);
@@ -3727,7 +3750,8 @@ bool Predicant_to_list_comparator::alloc_comparators(THD *thd, uint nargs)
 }
 
 
-bool Predicant_to_list_comparator::add_value(Item_args *args,
+bool Predicant_to_list_comparator::add_value(const char *funcname,
+                                             Item_args *args,
                                              uint value_index)
 {
   DBUG_ASSERT(m_predicant_index < args->argument_count());
@@ -3736,8 +3760,11 @@ bool Predicant_to_list_comparator::add_value(Item_args *args,
   Item *tmpargs[2];
   tmpargs[0]= args->arguments()[m_predicant_index];
   tmpargs[1]= args->arguments()[value_index];
-  if (tmp.aggregate_for_comparison(tmpargs, 2))
+  if (tmp.aggregate_for_comparison(funcname, tmpargs, 2, true))
+  {
+    DBUG_ASSERT(current_thd->is_error());
     return true;
+  }
   m_comparators[m_comparator_count].m_handler= tmp.type_handler();
   m_comparators[m_comparator_count].m_arg_index= value_index;
   m_comparator_count++;
@@ -3745,7 +3772,8 @@ bool Predicant_to_list_comparator::add_value(Item_args *args,
 }
 
 
-bool Predicant_to_list_comparator::add_value_skip_null(Item_args *args,
+bool Predicant_to_list_comparator::add_value_skip_null(const char *funcname,
+                                                       Item_args *args,
                                                        uint value_index,
                                                        bool *nulls_found)
 {
@@ -3760,7 +3788,7 @@ bool Predicant_to_list_comparator::add_value_skip_null(Item_args *args,
     *nulls_found= true;
     return false;
   }
-  return add_value(args, value_index);
+  return add_value(funcname, args, value_index);
 }
 
 
@@ -4153,7 +4181,7 @@ bool Item_func_in::prepare_predicant_and_values(THD *thd, uint *found_types)
   add_predicant(this, 0);
   for (uint i= 1 ; i < arg_count; i++)
   {
-    if (add_value_skip_null(this, i, &have_null))
+    if (add_value_skip_null(Item_func_in::func_name(), this, i, &have_null))
       return true;
   }
   all_values_added(&m_comparator, &type_cnt, found_types);
