@@ -149,18 +149,6 @@ void ORAerror(THD *thd, const char *s)
 
 
 
-static bool is_native_function(THD *thd, const LEX_STRING *name)
-{
-  if (find_native_function_builder(thd, *name))
-    return true;
-
-  if (is_lex_native_function(name))
-    return true;
-
-  return false;
-}
-
-
 #define bincmp_collation(X,Y)           \
   do                                    \
   {                                     \
@@ -343,6 +331,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  BIT_XOR                       /* MYSQL-FUNC */
 %token  BLOB_SYM                      /* SQL-2003-R */
 %token  BLOCK_SYM
+%token  BODY_SYM                      /* Oracle-R   */
 %token  BOOLEAN_SYM                   /* SQL-2003-R */
 %token  BOOL_SYM
 %token  BOTH                          /* SQL-2003-R */
@@ -712,6 +701,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  OUT_SYM                       /* SQL-2003-R */
 %token  OVER_SYM
 %token  OWNER_SYM
+%token  PACKAGE_SYM                   /* Oracle-R */
 %token  PACK_KEYS_SYM
 %token  PAGE_SYM
 %token  PAGE_CHECKSUM_SYM
@@ -1321,7 +1311,7 @@ END_OF_INPUT
 %type <sp_instr_addr> sp_instr_addr
 %type <sp_cursor_name_and_offset> sp_cursor_name_and_offset
 %type <num> opt_exception_clause exception_handlers
-%type <lex> sp_cursor_stmt remember_lex
+%type <lex> sp_cursor_stmt remember_lex package_routine_lex
 %type <spname> sp_name
 %type <spvar> sp_param_name sp_param_name_and_type
 %type <for_loop> sp_for_loop_index_and_bounds
@@ -1954,6 +1944,121 @@ create:
         | create_or_replace { Lex->set_command(SQLCOM_CREATE_SERVER, $1); }
           server_def
           { }
+        | CREATE PACKAGE_SYM opt_if_not_exists ident sp_tail_is
+          {
+            LEX *lex= Lex;
+            lex->name= $4;
+            lex->create_info.default_table_charset= NULL;
+            lex->create_info.used_fields= 0;
+            if (lex->set_command_with_check(SQLCOM_CREATE_PACKAGE, 0, $3))
+               MYSQL_YYABORT;
+            if (!(lex->package_body= new (thd->mem_root) Package_body()))
+              MYSQL_YYABORT;
+          }
+          package_declaration_element_list END opt_ident
+          { }
+        | CREATE PACKAGE_SYM BODY_SYM ident sp_tail_is
+          {
+            LEX *lex= Lex;
+            lex->name= $4;
+            lex->sql_command= SQLCOM_CREATE_PACKAGE_BODY;
+            lex->definer= NULL;
+            if (!(lex->package_body= new (thd->mem_root) Package_body()))
+              MYSQL_YYABORT;
+          }
+          package_implementation_element_list END opt_ident
+          { }
+        ;
+
+package_implementation_element_list:
+          package_implementation_element
+        | package_implementation_element_list package_implementation_element
+        ;
+
+
+package_routine_lex:
+          {
+            if (!($$= new (thd->mem_root) sp_lex_local(thd, thd->lex)))
+              MYSQL_YYABORT;
+            thd->m_parser_state->m_yacc.reset_before_substatement();
+          }
+        ;
+
+package_implementation_element:
+          remember_lex package_routine_lex
+          {
+            thd->lex= $2;
+          }
+          package_implementation_element_routine
+          {
+            if (($1)->package_body->m_lex_list.push_back($2, thd->mem_root))
+              MYSQL_YYABORT;
+            thd->lex= $1;
+          }
+        ;
+
+package_implementation_element_routine:
+          sf_tail ';'
+        | sp_tail ';'
+        ;
+
+
+package_declaration_element_list:
+          package_declaration_element
+        | package_declaration_element_list package_declaration_element
+        ;
+
+package_declaration_element:
+          package_declaration_function ';'
+        | package_declaration_procedure ';'
+        ;
+
+package_declaration_function:
+          FUNCTION_SYM remember_lex package_routine_lex sp_name
+          {
+            thd->lex= $3;
+            if (!Lex->make_sp_head_no_recursive(thd, DDL_options(), $4,
+                                                TYPE_ENUM_FUNCTION))
+              MYSQL_YYABORT;
+            Lex->spname= $4;
+            (void) is_native_function_with_warn(thd, &$4->m_name);
+            Lex->sql_command= SQLCOM_CREATE_FUNCTION;
+          }
+          opt_sp_parenthesized_fdparam_list
+          sf_return_type
+          sp_c_chistics
+          {
+            sp_head *sp= thd->lex->sphead;
+            sp->set_body_start(thd, YYLIP->get_cpp_tok_start());
+            sp->set_stmt_end(thd);
+            sp->restore_thd_mem_root(thd);
+            if (($2)->package_body->m_lex_list.push_back($3, thd->mem_root))
+              MYSQL_YYABORT;
+            thd->lex= $2;
+          }
+        ;
+
+package_declaration_procedure:
+          PROCEDURE_SYM remember_lex package_routine_lex sp_name
+          {
+            thd->lex= $3;
+            if (!Lex->make_sp_head_no_recursive(thd, DDL_options(), $4,
+                                                TYPE_ENUM_PROCEDURE))
+              MYSQL_YYABORT;
+            Lex->spname= $4;
+            Lex->sql_command= SQLCOM_CREATE_PROCEDURE;
+          }
+          opt_sp_parenthesized_pdparam_list
+          sp_c_chistics
+          {
+            sp_head *sp= thd->lex->sphead;
+            sp->set_body_start(thd, YYLIP->get_cpp_tok_start());
+            sp->set_stmt_end(thd);
+            sp->restore_thd_mem_root(thd);
+            if (($2)->package_body->m_lex_list.push_back($3, thd->mem_root))
+              MYSQL_YYABORT;
+            thd->lex= $2;
+          }
         ;
 
 server_def:
@@ -11826,6 +11931,18 @@ drop:
             lex->set_command(SQLCOM_DROP_DB, $3);
             lex->name= $4;
           }
+        | DROP PACKAGE_SYM opt_if_exists ident
+          {
+            LEX *lex= Lex;
+            lex->name= $4;
+            lex->set_command(SQLCOM_DROP_PACKAGE, $3);
+          }
+        | DROP PACKAGE_SYM BODY_SYM ident
+          {
+            LEX *lex= Lex;
+            lex->name= $4;
+            lex->sql_command= SQLCOM_DROP_PACKAGE_BODY;
+          }
         | DROP FUNCTION_SYM opt_if_exists ident '.' ident
           {
             LEX *lex= thd->lex;
@@ -16383,6 +16500,20 @@ udf_tail2:
           }
         ;
 
+sf_return_type:
+          RETURN_SYM
+          {
+            LEX *lex= Lex;
+            lex->init_last_field(&lex->sphead->m_return_field_def, NULL,
+                                 thd->variables.collation_database);
+          }
+          sp_param_type_with_opt_collate
+          {
+            if (Lex->sphead->fill_field_definition(thd, Lex->last_field))
+              MYSQL_YYABORT;
+          }
+        ;
+
 sf_tail:
           FUNCTION_SYM /* $1 */
           opt_if_not_exists /* $2 */
@@ -16394,26 +16525,16 @@ sf_tail:
             Lex->spname= $3;
           }
           opt_sp_parenthesized_fdparam_list /* $5 */
-          RETURN_SYM /* $6 */
-          { /* $7 */
-            LEX *lex= Lex;
-            lex->init_last_field(&lex->sphead->m_return_field_def, NULL,
-                                 thd->variables.collation_database);
-          }
-          sp_param_type_with_opt_collate /* $8 */
-          { /* $9 */
-            if (Lex->sphead->fill_field_definition(thd, Lex->last_field))
-              MYSQL_YYABORT;
-          }
-          sp_c_chistics /* $10 */
-          { /* $11 */
+          sf_return_type /* $6 */
+          sp_c_chistics /* $7 */
+          { /* $8 */
             LEX *lex= thd->lex;
             Lex_input_stream *lip= YYLIP;
 
             lex->sphead->set_body_start(thd, lip->get_cpp_tok_start());
           }
-          sp_tail_is /* $12 */
-          sp_body /* $13 */
+          sp_tail_is /* $9 */
+          sp_body /* $10 */
           {
             LEX *lex= thd->lex;
             sp_head *sp= lex->sphead;
@@ -16425,41 +16546,7 @@ sf_tail:
             sp->set_stmt_end(thd);
             if (!(sp->m_flags & sp_head::HAS_RETURN))
               my_yyabort_error((ER_SP_NORETURN, MYF(0), sp->m_qname.str));
-            if (is_native_function(thd, & sp->m_name))
-            {
-              /*
-                This warning will be printed when
-                [1] A client query is parsed,
-                [2] A stored function is loaded by db_load_routine.
-                Printing the warning for [2] is intentional, to cover the
-                following scenario:
-                - A user define a SF 'foo' using MySQL 5.N
-                - An application uses select foo(), and works.
-                - MySQL 5.{N+1} defines a new native function 'foo', as
-                part of a new feature.
-                - MySQL 5.{N+1} documentation is updated, and should mention
-                that there is a potential incompatible change in case of
-                existing stored function named 'foo'.
-                - The user deploys 5.{N+1}. At this point, 'select foo()'
-                means something different, and the user code is most likely
-                broken (it's only safe if the code is 'select db.foo()').
-                With a warning printed when the SF is loaded (which has to
-                occur before the call), the warning will provide a hint
-                explaining the root cause of a later failure of 'select foo()'.
-                With no warning printed, the user code will fail with no
-                apparent reason.
-                Printing a warning each time db_load_routine is executed for
-                an ambiguous function is annoying, since that can happen a lot,
-                but in practice should not happen unless there *are* name
-                collisions.
-                If a collision exists, it should not be silenced but fixed.
-              */
-              push_warning_printf(thd,
-                                  Sql_condition::WARN_LEVEL_NOTE,
-                                  ER_NATIVE_FCT_NAME_COLLISION,
-                                  ER_THD(thd, ER_NATIVE_FCT_NAME_COLLISION),
-                                  sp->m_name.str);
-            }
+            (void) is_native_function_with_warn(thd, & sp->m_name);
             sp->restore_thd_mem_root(thd);
           }
         ;

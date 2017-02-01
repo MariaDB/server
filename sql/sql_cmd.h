@@ -96,6 +96,10 @@ enum enum_sql_command {
   SQLCOM_ALTER_USER,
   SQLCOM_SHOW_CREATE_USER,
   SQLCOM_EXECUTE_IMMEDIATE,
+  SQLCOM_CREATE_PACKAGE,
+  SQLCOM_DROP_PACKAGE,
+  SQLCOM_CREATE_PACKAGE_BODY,
+  SQLCOM_DROP_PACKAGE_BODY,
 
   /*
     When a command is added here, be sure it's also added in mysqld.cc

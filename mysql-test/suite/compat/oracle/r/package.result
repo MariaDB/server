@@ -1,0 +1,137 @@
+SET sql_mode=ORACLE;
+#
+# Creating a body of a non-existing package
+#
+CREATE PACKAGE BODY test2 AS
+FUNCTION f1 RETURN INT AS BEGIN RETURN 10; END;
+END;
+$$
+ERROR 42000: Unknown database 'test2'
+#
+# Dropping a non-existing package
+#
+DROP PACKAGE test2;
+ERROR HY000: Unknown package 'test2'
+DROP PACKAGE IF EXISTS test2;
+Warnings:
+Note	1105	Unknown package 'test2'
+DROP PACKAGE BODY test2;
+ERROR HY000: Unknown package 'test2'
+#
+# PACKAGE and PS
+#
+PREPARE stmt FROM 'CREATE PACKAGE test2 AS FUNCTION f1 RETURN INT; END test2';
+ERROR HY000: This command is not supported in the prepared statement protocol yet
+PREPARE stmt FROM 'CREATE PACKAGE BODY test2 AS'
+                  '  FUNCTION f1 RETURN INT AS BEGIN RETURN 10; END;'
+                  'END test2';
+ERROR HY000: This command is not supported in the prepared statement protocol yet
+#
+# Package and READ ONLY transactions
+#
+SET SESSION TRANSACTION READ ONLY;
+CREATE PACKAGE test2 AS
+FUNCTION f1 RETURN INT;
+PROCEDURE p1;
+END
+$$
+ERROR 25006: Cannot execute statement in a READ ONLY transaction
+CREATE PACKAGE BODY test2 AS
+FUNCTION f1 RETURN INT AS BEGIN RETURN 10; END;
+FUNCTION f2 RETURN INT AS BEGIN RETURN f1(); END;
+PROCEDURE p1 AS
+BEGIN
+SELECT f2();
+END;
+END;
+$$
+ERROR 25006: Cannot execute statement in a READ ONLY transaction
+DROP PACKAGE test2;
+ERROR 25006: Cannot execute statement in a READ ONLY transaction
+DROP PACKAGE BODY test2;
+ERROR 25006: Cannot execute statement in a READ ONLY transaction
+SET SESSION TRANSACTION READ WRITE;
+#
+# DROP PACKAGE and DROP PACKAGE BODY works only on empty databases
+#
+CREATE DATABASE test2;
+CREATE TABLE test2.t1 (a INT);
+DROP PACKAGE BODY test2;
+ERROR HY000: Database test2 has some files. Use DROP DATABASE to drop it.
+DROP PACKAGE test2;
+ERROR HY000: Database test2 has some files. Use DROP DATABASE to drop it.
+DROP DATABASE test2;
+CREATE DATABASE test2;
+CREATE TABLE test2.t1 (a INT);
+DROP PACKAGE BODY test2;
+ERROR HY000: Database test2 has some files. Use DROP DATABASE to drop it.
+DROP PACKAGE test2;
+ERROR HY000: Database test2 has some files. Use DROP DATABASE to drop it.
+DROP TABLE test2.t1;
+DROP PACKAGE BODY test2;
+DROP PACKAGE test2;
+CREATE DATABASE test2;
+CREATE VIEW test2.v1 AS SELECT 1 AS a;
+DROP PACKAGE BODY test2;
+ERROR HY000: Database test2 has some files. Use DROP DATABASE to drop it.
+DROP PACKAGE test2;
+ERROR HY000: Database test2 has some files. Use DROP DATABASE to drop it.
+DROP DATABASE test2;
+CREATE DATABASE test2;
+CREATE VIEW test2.v1 AS SELECT 1 AS a;
+DROP PACKAGE BODY test2;
+ERROR HY000: Database test2 has some files. Use DROP DATABASE to drop it.
+DROP PACKAGE test2;
+ERROR HY000: Database test2 has some files. Use DROP DATABASE to drop it.
+DROP VIEW test2.v1;
+DROP PACKAGE BODY test2;
+DROP PACKAGE test2;
+#
+# Creating a new package
+#
+CREATE PACKAGE test2 AS
+FUNCTION f1 RETURN INT DETERMINISTIC;
+FUNCTION f2 RETURN INT;
+FUNCTION concat RETURN INT;
+PROCEDURE p1;
+END
+$$
+Warnings:
+Note	1585	This function 'concat' has the same name as a native function
+CREATE PACKAGE IF NOT EXISTS test2 AS
+FUNCTION f1 RETURN INT;
+END test2
+$$
+Warnings:
+Note	1007	Can't create database 'test2'; database exists
+CREATE PACKAGE BODY test2 AS
+FUNCTION f1 RETURN INT AS BEGIN RETURN 10; END;
+FUNCTION f2 RETURN INT AS BEGIN RETURN f1(); END;
+PROCEDURE p1 AS
+BEGIN
+SELECT f2();
+END;
+END;
+$$
+SELECT test2.f1();
+test2.f1()
+10
+SELECT test2.f2();
+test2.f2()
+10
+CALL test2.p1();
+f2()
+10
+DROP PACKAGE BODY test2;
+SELECT test2.f1();
+ERROR 42000: FUNCTION test2.f1 does not exist
+SELECT test2.f2();
+ERROR 42000: FUNCTION test2.f2 does not exist
+CALL test2.p1();
+ERROR 42000: PROCEDURE test2.p1 does not exist
+DROP PACKAGE BODY IF EXISTS test2;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'IF EXISTS test2' at line 1
+# "DROP PACKAGE BODY" now does sp_drop_db_routines.
+# So dropping a body which was already dropped before returns no errors.
+DROP PACKAGE BODY test2;
+DROP PACKAGE test2;

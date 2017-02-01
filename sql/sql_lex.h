@@ -2513,6 +2513,19 @@ public:
 class Query_arena_memroot;
 /* The state of the lex parsing. This is saved in the THD struct */
 
+
+class Package_body: public Sql_alloc
+{
+public:
+  List<LEX> m_lex_list;
+  Package_body()
+  {
+    m_lex_list.elements= 0;
+  }
+  void cleanup();
+};
+
+
 struct LEX: public Query_tables_list
 {
   SELECT_LEX_UNIT unit;                         /* most upper unit */
@@ -2533,6 +2546,8 @@ struct LEX: public Query_tables_list
 
   /* Query Plan Footprint of a currently running select  */
   Explain_query *explain;
+
+  Package_body *package_body;
 
   // type information
   CHARSET_INFO *charset;
@@ -3568,6 +3583,8 @@ extern void trim_whitespace(CHARSET_INFO *cs, LEX_STRING *str,
                             uint *prefix_removed);
 
 extern bool is_lex_native_function(const LEX_STRING *name);
+extern bool is_native_function(THD *thd, const LEX_STRING *name);
+extern bool is_native_function_with_warn(THD *thd, const LEX_STRING *name);
 
 /**
   @} (End of group Semantic_Analysis)

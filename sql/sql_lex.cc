@@ -807,6 +807,12 @@ void lex_end_stage1(LEX *lex)
     lex->sphead= NULL;
   }
 
+  if (lex->package_body)
+  {
+    lex->package_body->cleanup();
+    lex->package_body= NULL;
+  }
+
   DBUG_VOID_RETURN;
 }
 
@@ -833,6 +839,18 @@ Yacc_state::~Yacc_state()
     my_free(yacc_yyvs);
   }
 }
+
+
+void Package_body::cleanup()
+{
+  List_iterator<LEX> it(m_lex_list);
+  for (LEX *lex; (lex= it++); )
+  {
+    lex_end(lex);
+    delete lex;
+  }
+}
+
 
 static int find_keyword(Lex_input_stream *lip, uint len, bool function)
 {
@@ -891,6 +909,59 @@ bool is_lex_native_function(const LEX_STRING *name)
   DBUG_ASSERT(name != NULL);
   return (get_hash_symbol(name->str, (uint) name->length, 1) != 0);
 }
+
+
+bool is_native_function(THD *thd, const LEX_STRING *name)
+{
+  if (find_native_function_builder(thd, *name))
+    return true;
+
+  if (is_lex_native_function(name))
+    return true;
+
+  return false;
+}
+
+
+bool is_native_function_with_warn(THD *thd, const LEX_STRING *name)
+{
+  if (!is_native_function(thd, name))
+    return false;
+  /*
+    This warning will be printed when
+    [1] A client query is parsed,
+    [2] A stored function is loaded by db_load_routine.
+    Printing the warning for [2] is intentional, to cover the
+    following scenario:
+    - A user define a SF 'foo' using MySQL 5.N
+    - An application uses select foo(), and works.
+    - MySQL 5.{N+1} defines a new native function 'foo', as
+    part of a new feature.
+    - MySQL 5.{N+1} documentation is updated, and should mention
+    that there is a potential incompatible change in case of
+    existing stored function named 'foo'.
+    - The user deploys 5.{N+1}. At this point, 'select foo()'
+    means something different, and the user code is most likely
+    broken (it's only safe if the code is 'select db.foo()').
+    With a warning printed when the SF is loaded (which has to
+    occur before the call), the warning will provide a hint
+    explaining the root cause of a later failure of 'select foo()'.
+    With no warning printed, the user code will fail with no
+    apparent reason.
+    Printing a warning each time db_load_routine is executed for
+    an ambiguous function is annoying, since that can happen a lot,
+    but in practice should not happen unless there *are* name
+    collisions.
+    If a collision exists, it should not be silenced but fixed.
+  */
+  push_warning_printf(thd,
+                      Sql_condition::WARN_LEVEL_NOTE,
+                      ER_NATIVE_FCT_NAME_COLLISION,
+                      ER_THD(thd, ER_NATIVE_FCT_NAME_COLLISION),
+                      name->str);
+  return true;
+}
+
 
 /* make a copy of token before ptr and set yytoklen */
 
@@ -2926,6 +2997,7 @@ void Query_tables_list::destroy_query_tables_list()
 
 LEX::LEX()
   : explain(NULL),
+    package_body(0),
     result(0), arena_for_set_stmt(0), mem_root_for_set_stmt(0),
     option_type(OPT_DEFAULT), context_analysis_only(0), sphead(0),
     is_lex_started(0), limit_rows_examined_cnt(ULONGLONG_MAX)

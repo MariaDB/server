@@ -583,15 +583,8 @@ mysql_create_db_internal(THD *thd, char *db,
     DBUG_RETURN(-1);
   }
 
-  char db_tmp[SAFE_NAME_LEN], *dbnorm;
-  if (lower_case_table_names)
-  {
-    strmake_buf(db_tmp, db);
-    my_casedn_str(system_charset_info, db_tmp);
-    dbnorm= db_tmp;
-  }
-  else
-    dbnorm= db;
+  char db_tmp[SAFE_NAME_LEN];
+  char *dbnorm= normalize_db_name(db, db_tmp, sizeof(db_tmp));
 
   if (lock_schema_name(thd, dbnorm))
     DBUG_RETURN(-1);
@@ -824,15 +817,8 @@ mysql_rm_db_internal(THD *thd,char *db, bool if_exists, bool silent)
   Drop_table_error_handler err_handler;
   DBUG_ENTER("mysql_rm_db");
 
-  char db_tmp[SAFE_NAME_LEN], *dbnorm;
-  if (lower_case_table_names)
-  {
-    strmake_buf(db_tmp, db);
-    my_casedn_str(system_charset_info, db_tmp);
-    dbnorm= db_tmp;
-  }
-  else
-    dbnorm= db;
+  char db_tmp[SAFE_NAME_LEN];
+  char *dbnorm= normalize_db_name(db, db_tmp, sizeof(db_tmp));
 
   if (lock_schema_name(thd, dbnorm))
     DBUG_RETURN(true);
@@ -1890,4 +1876,15 @@ bool check_db_dir_existence(const char *db_name)
   /* Check access. */
 
   return my_access(db_dir_path, F_OK);
+}
+
+
+char *normalize_db_name(char *db, char *buffer, size_t buffer_size)
+{
+  DBUG_ASSERT(buffer_size > 1);
+  if (!lower_case_table_names)
+    return db;
+  strmake(buffer, db, buffer_size - 1);
+  my_casedn_str(system_charset_info, buffer);
+  return buffer;
 }
