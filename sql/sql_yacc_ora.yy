@@ -9102,7 +9102,8 @@ simple_expr:
           }
         | simple_expr OR_OR_SYM simple_expr
           {
-            $$= new (thd->mem_root) Item_func_concat(thd, $1, $3);
+            $$= new (thd->mem_root) Item_func_concat_operator_oracle(thd,
+                                                                     $1, $3);
             if ($$ == NULL)
               MYSQL_YYABORT;
           }
