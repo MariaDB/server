@@ -11,7 +11,9 @@
 # Test a corrupted MLOG_FILE_NAME record.
 # valid header, valid checkpoint 1, all-zero (invalid) checkpoint 2
 # Test a corrupted MLOG_FILE_NAME record.
-# valid header, invalid checkpoint 1, valid checkpoint 2
+# valid header, invalid checkpoint 1, valid checkpoint 2, invalid block
+# valid header, invalid checkpoint 1, valid checkpoint 2, invalid log record
+ib_buffer_pool
 ib_logfile0
 ib_logfile1
 ibdata1

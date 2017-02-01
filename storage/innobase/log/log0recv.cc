@@ -1023,25 +1023,24 @@ recv_find_max_checkpoint(
 
 /** Check the 4-byte checksum to the trailer checksum field of a log
 block.
-@param[in]	log block
+@param[in]	block		log block
+@param[in]	print_err	whether to report checksum mismatch
 @return whether the checksum matches */
 bool
-log_block_checksum_is_ok(
-	const byte*	block,	/*!< in: pointer to a log block */
-	bool            print_err) /*!< in print error ? */
+log_block_checksum_is_ok(const byte* block, bool print_err)
 {
-	if (log_block_get_checksum(block) != log_block_calc_checksum(block) &&
-	    print_err) {
-		ib::error() << " Log block checkpoint not correct."
+	bool	valid
+		= log_block_get_checksum(block) == log_block_calc_checksum(block);
+
+	if (!valid && print_err) {
+		ib::error() << "Invalid log block checksum."
 			    << " block: " << log_block_get_hdr_no(block)
 			    << " checkpoint no: " <<  log_block_get_checkpoint_no(block)
-			    << " calc checkpoint: " << log_block_calc_checksum(block)
-			    << " stored checkpoint: " << log_block_get_checksum(block);
+			    << " expected: " << log_block_calc_checksum(block)
+			    << " found: " << log_block_get_checksum(block);
 	}
 
-	return(!innodb_log_checksums
-	       || log_block_get_checksum(block)
-	       == log_block_calc_checksum(block));
+	return(valid || !innodb_log_checksums);
 }
 
 /** Try to parse a single log record body and also applies it if
@@ -2778,12 +2777,6 @@ recv_scan_log_recs(
 				return (TRUE);
 			}
 
-			ib::error() << "Log block " << no <<
-				" at lsn " << scanned_lsn << " has valid"
-				" header, but checksum field contains "
-				<< log_block_get_checksum(log_block)
-				<< ", should be "
-				<< log_block_calc_checksum(log_block);
 			/* Garbage or an incompletely written log block.
 
 			This could be the result of killing the server

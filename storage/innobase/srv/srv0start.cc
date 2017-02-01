@@ -2306,7 +2306,6 @@ files_checked:
 			/* Open or Create SYS_TABLESPACES and SYS_DATAFILES
 			so that tablespace names and other metadata can be
 			found. */
-			srv_sys_tablespaces_open = true;
 			err = dict_create_or_check_sys_tablespace();
 			if (err != DB_SUCCESS) {
 				return(srv_init_abort(err));
@@ -2435,7 +2434,8 @@ files_checked:
 	}
 
 	/* Create the doublewrite buffer to a new tablespace */
-	if (buf_dblwr == NULL && !buf_dblwr_create()) {
+	if (!srv_read_only_mode && srv_force_recovery < SRV_FORCE_NO_TRX_UNDO
+	    && !buf_dblwr_create()) {
 		return(srv_init_abort(DB_ERROR));
 	}
 
@@ -2503,20 +2503,22 @@ files_checked:
 
 	/* Create the SYS_FOREIGN and SYS_FOREIGN_COLS system tables */
 	err = dict_create_or_check_foreign_constraint_tables();
-	if (err != DB_SUCCESS) {
-		return(srv_init_abort(err));
+	if (err == DB_SUCCESS) {
+		err = dict_create_or_check_sys_tablespace();
+		if (err == DB_SUCCESS) {
+			err = dict_create_or_check_sys_virtual();
+		}
 	}
-
-	/* Create the SYS_TABLESPACES system table */
-	err = dict_create_or_check_sys_tablespace();
-	if (err != DB_SUCCESS) {
-		return(srv_init_abort(err));
-	}
-	srv_sys_tablespaces_open = true;
-
-	/* Create the SYS_VIRTUAL system table */
-	err = dict_create_or_check_sys_virtual();
-	if (err != DB_SUCCESS) {
+	switch (err) {
+	case DB_SUCCESS:
+		break;
+	case DB_READ_ONLY:
+		if (srv_force_recovery >= SRV_FORCE_NO_TRX_UNDO) {
+			break;
+		}
+		ib::error() << "Cannot create system tables in read-only mode";
+		/* fall through */
+	default:
 		return(srv_init_abort(err));
 	}
 
@@ -2757,7 +2759,8 @@ innodb_shutdown()
 	ut_ad(dict_stats_event || !srv_was_started || srv_read_only_mode);
 	ut_ad(dict_sys || !srv_was_started);
 	ut_ad(trx_sys || !srv_was_started);
-	ut_ad(buf_dblwr || !srv_was_started);
+	ut_ad(buf_dblwr || !srv_was_started || srv_read_only_mode
+	      || srv_force_recovery >= SRV_FORCE_NO_TRX_UNDO);
 	ut_ad(lock_sys || !srv_was_started);
 	ut_ad(btr_search_sys || !srv_was_started);
 	ut_ad(ibuf || !srv_was_started);
