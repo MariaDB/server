@@ -135,8 +135,6 @@ static bool xa_trans_force_rollback(THD *thd)
     by ha_rollback()/THD::transaction::cleanup().
   */
   thd->transaction.xid_state.rm_error= 0;
-  if (WSREP_ON)
-    wsrep_register_hton(thd, TRUE);
   if (ha_rollback_trans(thd, true))
   {
     my_error(ER_XAER_RMERR, MYF(0));
@@ -184,14 +182,10 @@ bool trans_begin(THD *thd, uint flags)
       (thd->variables.option_bits & OPTION_TABLE_LOCK))
   {
     thd->variables.option_bits&= ~OPTION_TABLE_LOCK;
-    if (WSREP_ON)
-      wsrep_register_hton(thd, TRUE);
     thd->server_status&=
       ~(SERVER_STATUS_IN_TRANS | SERVER_STATUS_IN_TRANS_READONLY);
     DBUG_PRINT("info", ("clearing SERVER_STATUS_IN_TRANS"));
     res= MY_TEST(ha_commit_trans(thd, TRUE));
-    if (WSREP_ON)
-      wsrep_post_commit(thd, TRUE);
   }
 
   thd->variables.option_bits&= ~(OPTION_BEGIN | OPTION_KEEP_LOG);
@@ -251,7 +245,6 @@ bool trans_begin(THD *thd, uint flags)
   }
 
 #ifdef WITH_WSREP
-  thd->wsrep_PA_safe= true;
   if (WSREP_CLIENT(thd) && wsrep_sync_wait(thd))
     DBUG_RETURN(TRUE);
 #endif /* WITH_WSREP */
@@ -298,8 +291,6 @@ bool trans_commit(THD *thd)
   if (trans_check(thd))
     DBUG_RETURN(TRUE);
 
-  if (WSREP_ON)
-    wsrep_register_hton(thd, TRUE);
   thd->server_status&=
     ~(SERVER_STATUS_IN_TRANS | SERVER_STATUS_IN_TRANS_READONLY);
   DBUG_PRINT("info", ("clearing SERVER_STATUS_IN_TRANS"));
@@ -310,8 +301,6 @@ bool trans_commit(THD *thd)
   mysql_mutex_assert_not_owner(&LOCK_after_binlog_sync);
   mysql_mutex_assert_not_owner(&LOCK_commit_ordered);
 
-  if (WSREP_ON)
-    wsrep_post_commit(thd, TRUE);
     /*
       if res is non-zero, then ha_commit_trans has rolled back the
       transaction, so the hooks for rollback will be called.
@@ -367,14 +356,10 @@ bool trans_commit_implicit(THD *thd)
     /* Safety if one did "drop table" on locked tables */
     if (!thd->locked_tables_mode)
       thd->variables.option_bits&= ~OPTION_TABLE_LOCK;
-    if (WSREP_ON)
-      wsrep_register_hton(thd, TRUE);
     thd->server_status&=
       ~(SERVER_STATUS_IN_TRANS | SERVER_STATUS_IN_TRANS_READONLY);
     DBUG_PRINT("info", ("clearing SERVER_STATUS_IN_TRANS"));
     res= MY_TEST(ha_commit_trans(thd, TRUE));
-    if (WSREP_ON)
-      wsrep_post_commit(thd, TRUE);
   }
 
   thd->variables.option_bits&= ~(OPTION_BEGIN | OPTION_KEEP_LOG);
@@ -408,14 +393,9 @@ bool trans_rollback(THD *thd)
   int res;
   DBUG_ENTER("trans_rollback");
 
-#ifdef WITH_WSREP
-  thd->wsrep_PA_safe= true;
-#endif /* WITH_WSREP */
   if (trans_check(thd))
     DBUG_RETURN(TRUE);
 
-  if (WSREP_ON)
-    wsrep_register_hton(thd, TRUE);
   thd->server_status&=
     ~(SERVER_STATUS_IN_TRANS | SERVER_STATUS_IN_TRANS_READONLY);
   DBUG_PRINT("info", ("clearing SERVER_STATUS_IN_TRANS"));
@@ -514,14 +494,10 @@ bool trans_commit_stmt(THD *thd)
 
   if (thd->transaction.stmt.ha_list)
   {
-    if (WSREP_ON)
-      wsrep_register_hton(thd, FALSE);
     res= ha_commit_trans(thd, FALSE);
     if (! thd->in_active_multi_stmt_transaction())
     {
       trans_reset_one_shot_chistics(thd);
-      if (WSREP_ON)
-        wsrep_post_commit(thd, FALSE);
     }
   }
 
@@ -577,8 +553,6 @@ bool trans_rollback_stmt(THD *thd)
 
   if (thd->transaction.stmt.ha_list)
   {
-    if (WSREP_ON)
-      wsrep_register_hton(thd, FALSE);
     ha_rollback_trans(thd, FALSE);
     if (! thd->in_active_multi_stmt_transaction())
       trans_reset_one_shot_chistics(thd);
@@ -740,7 +714,8 @@ bool trans_rollback_to_savepoint(THD *thd, LEX_CSTRING name)
     logging is off.
   */
   bool mdl_can_safely_rollback_to_savepoint=
-                (!(mysql_bin_log.is_open() && thd->variables.sql_log_bin) ||
+                (!((WSREP_EMULATE_BINLOG_NNULL(thd) || mysql_bin_log.is_open())
+                 && thd->variables.sql_log_bin) ||
                  ha_rollback_to_savepoint_can_release_mdl(thd));
 
   if (ha_rollback_to_savepoint(thd, sv))
@@ -951,13 +926,9 @@ bool trans_xa_commit(THD *thd)
   }
   else if (xa_state == XA_IDLE && thd->lex->xa_opt == XA_ONE_PHASE)
   {
-    if (WSREP_ON)
-      wsrep_register_hton(thd, TRUE);
     int r= ha_commit_trans(thd, TRUE);
     if ((res= MY_TEST(r)))
       my_error(r == 1 ? ER_XA_RBROLLBACK : ER_XAER_RMERR, MYF(0));
-    if (WSREP_ON)
-      wsrep_post_commit(thd, TRUE);
   }
   else if (xa_state == XA_PREPARED && thd->lex->xa_opt == XA_NONE)
   {
@@ -976,8 +947,6 @@ bool trans_xa_commit(THD *thd)
     if (thd->mdl_context.acquire_lock(&mdl_request,
                                       thd->variables.lock_wait_timeout))
     {
-      if (WSREP_ON)
-        wsrep_register_hton(thd, TRUE);
       ha_rollback_trans(thd, TRUE);
       my_error(ER_XAER_RMERR, MYF(0));
     }

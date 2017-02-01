@@ -3814,8 +3814,11 @@ bool select_insert::prepare_eof()
   DBUG_PRINT("enter", ("trans_table=%d, table_type='%s'",
                        trans_table, table->file->table_type()));
 
-  error = IF_WSREP((thd->wsrep_conflict_state == MUST_ABORT ||
-		  thd->wsrep_conflict_state == CERT_FAILURE) ? -1 :, )
+  mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+  int wsrep_error= (thd->wsrep_conflict_state() == MUST_ABORT ||
+                    thd->wsrep_conflict_state() == CERT_FAILURE);
+  mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+  error = IF_WSREP((wsrep_error) ? -1 :, )
 	  (thd->locked_tables_mode <= LTM_LOCK_TABLES ?
            table->file->ha_end_bulk_insert() : 0);
 
@@ -4474,10 +4477,10 @@ bool select_create::send_eof()
     if (WSREP_ON)
     {
       mysql_mutex_lock(&thd->LOCK_wsrep_thd);
-      if (thd->wsrep_conflict_state != NO_CONFLICT)
+      if (thd->wsrep_conflict_state() != NO_CONFLICT)
       {
         WSREP_DEBUG("select_create commit failed, thd: %lld  err: %d %s",
-                    (longlong) thd->thread_id, thd->wsrep_conflict_state,
+                    (longlong) thd->thread_id, thd->wsrep_conflict_state(),
                     thd->query());
         mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
         abort_result_set();

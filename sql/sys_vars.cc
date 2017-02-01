@@ -5366,7 +5366,7 @@ static Sys_var_uint Sys_wsrep_sync_wait(
        NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
        ON_UPDATE(wsrep_sync_wait_update));
 
-static const char *wsrep_OSU_method_names[]= { "TOI", "RSU", NullS };
+static const char *wsrep_OSU_method_names[]= { "TOI", "RSU", "NBO", NullS };
 static Sys_var_enum Sys_wsrep_OSU_method(
        "wsrep_OSU_method", "Method for Online Schema Upgrade",
        SESSION_VAR(wsrep_OSU_method), CMD_LINE(OPT_ARG),
@@ -5410,7 +5410,7 @@ static Sys_var_ulong Sys_wsrep_mysql_replication_bundle(
 
 static Sys_var_mybool Sys_wsrep_load_data_splitting(
        "wsrep_load_data_splitting", "To commit LOAD DATA "
-       "transaction after every 10K rows inserted",
+       "transaction after every 10K rows inserted (deprecating)",
        GLOBAL_VAR(wsrep_load_data_splitting), 
        CMD_LINE(OPT_ARG), DEFAULT(TRUE));
 
@@ -5430,11 +5430,38 @@ static Sys_var_mybool Sys_wsrep_restart_slave(
        "wsrep_restart_slave", "Should MariaDB slave be restarted automatically, when node joins back to cluster",
        GLOBAL_VAR(wsrep_restart_slave), CMD_LINE(OPT_ARG), DEFAULT(FALSE));
 
+static Sys_var_ulong Sys_wsrep_trx_fragment_size(
+      "wsrep_trx_fragment_size", "size (in bytes) for transaction fragments for streaming replication",
+       SESSION_VAR(wsrep_trx_fragment_size), CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(0, WSREP_MAX_WS_SIZE), DEFAULT(0), BLOCK_SIZE(1));
+
+extern const char *wsrep_fragment_units[];
+
+static Sys_var_enum Sys_wsrep_trx_fragment_unit(
+      "wsrep_trx_fragment_unit", "unit for fragments size: (bytes, events, rows, statements)",
+      SESSION_VAR(wsrep_trx_fragment_unit), CMD_LINE(REQUIRED_ARG),
+      wsrep_fragment_units,
+      DEFAULT(WSREP_FRAG_BYTES),
+      NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0), ON_UPDATE(0));
+
+extern const char *wsrep_SR_store_types[];
+static Sys_var_enum Sys_wsrep_SR_store(
+       "wsrep_SR_store", "Storage for streamin replication fragments",
+       READ_ONLY GLOBAL_VAR(wsrep_SR_store_type), CMD_LINE(REQUIRED_ARG),
+       wsrep_SR_store_types, DEFAULT(WSREP_SR_STORE_TABLE),
+       NO_MUTEX_GUARD, NOT_IN_BINLOG);
+
 static Sys_var_mybool Sys_wsrep_dirty_reads(
        "wsrep_dirty_reads",
        "Allow reads even when the node is not in the primary component.",
        SESSION_VAR(wsrep_dirty_reads), CMD_LINE(OPT_ARG),
        DEFAULT(FALSE), NO_MUTEX_GUARD, NOT_IN_BINLOG);
+
+static Sys_var_uint Sys_wsrep_ignore_apply_errors (
+       "wsrep_ignore_apply_errors", "Ignore replication errors",
+       GLOBAL_VAR(wsrep_ignore_apply_errors), CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(WSREP_IGNORE_ERRORS_NONE, WSREP_IGNORE_ERRORS_MAX),
+       DEFAULT(7), BLOCK_SIZE(1));
 
 static Sys_var_uint Sys_wsrep_gtid_domain_id(
        "wsrep_gtid_domain_id", "When wsrep_gtid_mode is set, this value is "
