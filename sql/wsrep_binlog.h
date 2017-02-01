@@ -16,10 +16,37 @@
 #ifndef WSREP_BINLOG_H
 #define WSREP_BINLOG_H
 
+#include "my_global.h"
+
+#define WSREP_FRAG_BYTES      0
+#define WSREP_FRAG_EVENTS     1
+#define WSREP_FRAG_ROWS       2
+#define WSREP_FRAG_STATEMENTS 3
+
+#define WSREP_SR_STORE_NONE      0
+#define WSREP_SR_STORE_FILE      1
+#define WSREP_SR_STORE_TABLE     2
+
+extern ulong wsrep_SR_store_type;
+extern const char *wsrep_fragment_units[];
+extern const char *wsrep_SR_store_types[];
+
+class wsrep_SR_trx;
 #include "sql_class.h" // THD, IO_CACHE
 
 #define HEAP_PAGE_SIZE 65536 /* 64K */
 #define WSREP_MAX_WS_SIZE 2147483647 /* 2GB */
+
+bool  wsrep_fragment_full(THD *thd);
+void  wsrep_reset_SR_trans(THD *thd);
+void  wsrep_reset_SR_fill(THD *thd);
+int   wsrep_append_SR_trans(THD *thd, ulong unit, ulong size, bool replicate);
+bool  wsrep_fragmented(THD *thd);
+void  wsrep_step_fragment_base(THD *thd, ulong size);
+ulong wsrep_get_fragment_base(THD *thd);
+void wsrep_append_fill_rate(THD*, ulong);
+void wsrep_reset_fragment_fill(THD*, ulong);
+ulong wsrep_get_fragment_fill(THD*);
 
 /*
   Write the contents of a cache to a memory buffer.
@@ -38,16 +65,13 @@ int wsrep_write_cache_buf(IO_CACHE *cache, uchar **buf, size_t *buf_len);
   @param len  total amount of data written
   @return     wsrep error status
  */
-int wsrep_write_cache (wsrep_t*  const wsrep,
-                       THD*      const thd,
-                       IO_CACHE* const cache,
-                       size_t*   const len);
+wsrep_trx_status wsrep_write_cache(wsrep_t*  wsrep,
+                                   THD*      thd,
+                                   IO_CACHE* cache,
+                                   size_t*   len);
 
 /* Dump replication buffer to disk */
 void wsrep_dump_rbr_buf(THD *thd, const void* rbr_buf, size_t buf_len);
-
-/* Dump replication buffer to disk without intermediate buffer */
-void wsrep_dump_rbr_direct(THD* thd, IO_CACHE* cache);
 
 /* Dump replication buffer along with header to a file */
 void wsrep_dump_rbr_buf_with_header(THD *thd, const void *rbr_buf,
@@ -56,5 +80,6 @@ void wsrep_dump_rbr_buf_with_header(THD *thd, const void *rbr_buf,
 int wsrep_binlog_close_connection(THD* thd);
 int wsrep_binlog_savepoint_set(THD *thd,  void *sv);
 int wsrep_binlog_savepoint_rollback(THD *thd, void *sv);
+uint wsrep_get_trans_cache_position(THD *thd);
 
 #endif /* WSREP_BINLOG_H */

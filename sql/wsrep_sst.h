@@ -68,9 +68,15 @@ extern void wsrep_sst_auth_init();
 extern void wsrep_sst_auth_free();
 
 extern void wsrep_SE_init_grab();   /*! grab init critical section */
-extern void wsrep_SE_init_wait();   /*! wait for SE init to complete */
+/*!
+  wait for SE init to complete
+
+  Return zero on success, non-zero on error
+*/
++extern int  wsrep_SE_init_wait();
 extern void wsrep_SE_init_done();   /*! signal that SE init is complte */
 extern void wsrep_SE_initialized(); /*! mark SE initialization complete */
+extern void wsrep_SE_init_failed(); /*! mark SE initialization failed */
 
 #else
 #define wsrep_SE_initialized() do { } while(0)

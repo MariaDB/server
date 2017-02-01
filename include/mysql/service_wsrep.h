@@ -48,7 +48,8 @@ enum wsrep_exec_mode {
       Transaction procession after it has been replicated in prepare stage and
       has passed certification.
     */
-    LOCAL_COMMIT
+    LOCAL_COMMIT,
+    LOCAL_ROLLBACK,
 };
 
 enum wsrep_query_state {
@@ -56,7 +57,6 @@ enum wsrep_query_state {
     QUERY_EXEC,
     QUERY_COMMITTING,
     QUERY_EXITING,
-    QUERY_ROLLINGBACK,
 };
 
 enum wsrep_trx_status {
