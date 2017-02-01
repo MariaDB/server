@@ -1488,7 +1488,6 @@ int QUICK_RANGE_SELECT::init_ror_merged_scan(bool reuse_handler,
     {
       DBUG_RETURN(1);
     }
-    head->column_bitmaps_set(&column_bitmap, &column_bitmap, &column_bitmap);
     goto end;
   }
 
@@ -1513,8 +1512,6 @@ int QUICK_RANGE_SELECT::init_ror_merged_scan(bool reuse_handler,
     goto failure;  /* purecov: inspected */
   }
 
-  head->column_bitmaps_set(&column_bitmap, &column_bitmap, &column_bitmap);
-
   if (file->ha_external_lock(thd, F_RDLCK))
     goto failure;
 
@@ -1528,7 +1525,6 @@ int QUICK_RANGE_SELECT::init_ror_merged_scan(bool reuse_handler,
   last_rowid= file->ref;
 
 end:
-  DBUG_ASSERT(head->read_set == &column_bitmap);
   /*
     We are only going to read key fields and call position() on 'file'
     The following sets head->read_set (== column_bitmap) to only use this
@@ -1536,11 +1532,9 @@ end:
   */
   org_file= head->file;
   head->file= file;
-  head->mark_columns_used_by_index_no_reset(index, &column_bitmap);
 
-  if (!head->no_keyread)
-    head->file->ha_start_keyread();
-
+  head->column_bitmaps_set_no_signal(&column_bitmap, &column_bitmap, &column_bitmap);
+  head->mark_columns_used_by_index_in_bitmap(index, &column_bitmap);
   head->prepare_for_position();
 
   head->file= org_file;

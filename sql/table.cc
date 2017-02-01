@@ -6080,12 +6080,12 @@ void TABLE::prepare_for_position()
     or TABLE::restore_column_maps_after_mark_index()
 */
 
-void TABLE::mark_columns_used_by_index(uint index)
+void TABLE::mark_columns_used_by_index_in_bitmap(uint index, MY_BITMAP *bitmap)
 {
-  MY_BITMAP *bitmap= &tmp_set;
-  DBUG_ENTER("TABLE::mark_columns_used_by_index");
+  DBUG_ENTER("TABLE::mark_columns_used_by_index_in_bitmap");
 
-  file->ha_start_keyread();
+  if (!no_keyread)
+    file->ha_start_keyread();
   bitmap_clear_all(bitmap);
   mark_columns_used_by_index_no_reset(index, bitmap);
   column_bitmaps_set(bitmap);
@@ -6140,8 +6140,7 @@ void TABLE::restore_column_maps_after_mark_index()
   mark columns used by key, but don't reset other fields
 */
 
-void TABLE::mark_columns_used_by_index_no_reset(uint index,
-                                                   MY_BITMAP *bitmap)
+void TABLE::mark_columns_used_by_index_no_reset(uint index, MY_BITMAP *bitmap)
 {
   KEY_PART_INFO *key_part= key_info[index].key_part;
   KEY_PART_INFO *key_part_end= (key_part +

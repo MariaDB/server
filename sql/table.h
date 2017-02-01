@@ -1307,7 +1307,9 @@ public:
   void clear_column_bitmaps(void);
   void prepare_for_position(void);
   void mark_columns_used_by_index_no_reset(uint index, MY_BITMAP *map);
-  void mark_columns_used_by_index(uint index);
+  void mark_columns_used_by_index_in_bitmap(uint index, MY_BITMAP *map);
+  void mark_columns_used_by_index(uint index)
+  { mark_columns_used_by_index_in_bitmap(index, &tmp_set); }
   void add_read_columns_used_by_index(uint index);
   void restore_column_maps_after_mark_index();
   void mark_auto_increment_column(void);
