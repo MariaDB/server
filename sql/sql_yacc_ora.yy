@@ -1236,7 +1236,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
         query verb_clause create change select do drop insert replace insert2
         insert_values update delete truncate rename compound_statement
         show describe load alter optimize keycache preload flush
-        reset purge begin commit rollback savepoint release
+        reset purge commit rollback savepoint release
         slave master_def master_defs master_file_def slave_until_opts
         repair analyze opt_with_admin opt_with_admin_option
         analyze_table_list analyze_table_elem_spec
@@ -1305,7 +1305,7 @@ END_OF_INPUT
 %type <NONE> sp_proc_stmt_compound_ok
 %type <NONE> sp_proc_stmt_if
 %type <NONE> sp_labeled_control sp_unlabeled_control
-%type <NONE> sp_labeled_block sp_unlabeled_block sp_unlabeled_block_not_atomic
+%type <NONE> sp_labeled_block sp_unlabeled_block
 %type <NONE> sp_proc_stmt_continue
 %type <NONE> sp_proc_stmt_exit
 %type <NONE> sp_proc_stmt_leave
@@ -1440,7 +1440,6 @@ opt_end_of_input:
 
 verb_clause:
           statement
-        | begin
         | compound_statement
         ;
 
@@ -2977,7 +2976,6 @@ sp_opt_default:
 sp_proc_stmt_in_returns_clause:
           sp_proc_stmt_return
         | sp_labeled_block
-        | sp_unlabeled_block
         | sp_labeled_control
         | sp_proc_stmt_compound_ok
         ;
@@ -2998,7 +2996,7 @@ sp_proc_stmt:
 sp_proc_stmt_compound_ok:
           sp_proc_stmt_if
         | case_stmt_specification
-        | sp_unlabeled_block_not_atomic
+        | sp_unlabeled_block
         | sp_unlabeled_control
         ;
 
@@ -3561,9 +3559,16 @@ sp_labeled_block:
           }
         ;
 
+opt_not_atomic:
+          /* Empty */
+        | not ATOMIC_SYM /* TODO: BEGIN ATOMIC (not -> opt_not) */
+        ;
+
 sp_unlabeled_block:
-          BEGIN_SYM
+          BEGIN_SYM opt_not_atomic
           {
+            if (Lex->maybe_start_compound_statement(thd))
+              MYSQL_YYABORT;
             Lex->sp_block_init(thd);
             if (Lex->sp_block_with_exceptions_finalize_declarations(thd))
               MYSQL_YYABORT;
@@ -3571,11 +3576,13 @@ sp_unlabeled_block:
           sp_block_statements_and_exceptions
           END
           {
-            if (Lex->sp_block_finalize(thd, Lex_spblock($3)))
+            if (Lex->sp_block_finalize(thd, Lex_spblock($4)))
               MYSQL_YYABORT;
           }
         | DECLARE_SYM
           {
+            if (Lex->maybe_start_compound_statement(thd))
+              MYSQL_YYABORT;
             Lex->sp_block_init(thd);
           }
           sp_decl_body_list
@@ -3629,21 +3636,6 @@ sp_block_statements_and_exceptions:
             if (Lex->sp_block_with_exceptions_finalize_exceptions(thd, $1, $4))
               MYSQL_YYABORT;
             $$.init($4);
-          }
-        ;
-
-sp_unlabeled_block_not_atomic:
-          BEGIN_SYM not ATOMIC_SYM /* TODO: BEGIN ATOMIC (not -> opt_not) */
-          {
-            if (Lex->maybe_start_compound_statement(thd))
-              MYSQL_YYABORT;
-            Lex->sp_block_init(thd);
-          }
-          sp_proc_stmts
-          END
-          {
-            if (Lex->sp_block_finalize(thd))
-              MYSQL_YYABORT;
           }
         ;
 
@@ -15797,16 +15789,6 @@ grant_option:
           GRANT OPTION { Lex->grant |= GRANT_ACL;}
 	| resource_option {}
         ;
-
-begin:
-          BEGIN_SYM
-          {
-            LEX *lex=Lex;
-            lex->sql_command = SQLCOM_BEGIN;
-            lex->start_transaction_opt= 0;
-          }
-          opt_work {}
-          ;
 
 compound_statement:
           sp_proc_stmt_compound_ok
