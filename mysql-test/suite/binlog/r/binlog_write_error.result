@@ -59,8 +59,8 @@ DROP VIEW v1;
 ERROR HY000: Error writing file 'master-bin' ((errno: #)
 SET GLOBAL debug_dbug='';
 SET GLOBAL debug_dbug='d,injecting_fault_writing';
-CREATE PROCEDURE p1(OUT rows INT) SELECT count(*) INTO rows FROM t1;
-CREATE PROCEDURE p1(OUT rows INT) SELECT count(*) INTO rows FROM t1;
+CREATE PROCEDURE p1(OUT rows_cnt INT) SELECT count(*) INTO rows_cnt FROM t1;
+CREATE PROCEDURE p1(OUT rows_cnt INT) SELECT count(*) INTO rows_cnt FROM t1;
 ERROR HY000: Error writing file 'master-bin' ((errno: #)
 SET GLOBAL debug_dbug='';
 SET GLOBAL debug_dbug='d,injecting_fault_writing';
