@@ -5609,8 +5609,8 @@ set join_cache_level = default;
 set optimizer_switch=@tmp_optimizer_switch;
 DROP TABLE t1,t2,t3;
 #
-# Bug #925985: LEFT JOIN with optimize_join_buffer_size=off +
-#              join_buffer_size > join_buffer_space_limit
+# lp:925985 LEFT JOIN with optimize_join_buffer_size=off +
+#           join_buffer_size > join_buffer_space_limit
 #
 CREATE TABLE t1 (a int);
 INSERT INTO t1 VALUES (5), (3);

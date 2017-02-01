@@ -3587,8 +3587,8 @@ set optimizer_switch=@tmp_optimizer_switch;
 DROP TABLE t1,t2,t3;
 
 --echo #
---echo # Bug #925985: LEFT JOIN with optimize_join_buffer_size=off +
---echo #              join_buffer_size > join_buffer_space_limit
+--echo # lp:925985 LEFT JOIN with optimize_join_buffer_size=off +
+--echo #           join_buffer_size > join_buffer_space_limit
 --echo #
 
 CREATE TABLE t1 (a int);
