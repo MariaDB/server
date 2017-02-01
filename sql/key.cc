@@ -465,8 +465,7 @@ void key_unpack(String *to, TABLE *table, KEY *key)
 
 bool is_key_used(TABLE *table, uint idx, const MY_BITMAP *fields)
 {
-  bitmap_clear_all(&table->tmp_set);
-  table->mark_columns_used_by_index_no_reset(idx, &table->tmp_set);
+  table->mark_columns_used_by_index(idx, &table->tmp_set);
   return bitmap_is_overlapping(&table->tmp_set, fields);
 }
 

@@ -3224,7 +3224,7 @@ void handler::get_auto_increment(ulonglong offset, ulonglong increment,
   int error;
   MY_BITMAP *old_read_set;
 
-  old_read_set= table->mark_columns_used_by_index(table->s->next_number_index);
+  old_read_set= table->prepare_for_keyread(table->s->next_number_index);
 
   if (ha_index_init(table->s->next_number_index, 1))
   {
@@ -3276,7 +3276,7 @@ void handler::get_auto_increment(ulonglong offset, ulonglong increment,
     nr= ((ulonglong) table->next_number_field->
          val_int_offset(table->s->rec_buff_length)+1);
   ha_index_end();
-  table->restore_column_maps_after_mark_index(old_read_set);
+  table->restore_column_maps_after_keyread(old_read_set);
   *first_value= nr;
   return;
 }

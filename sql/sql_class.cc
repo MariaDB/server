@@ -6489,21 +6489,19 @@ void THD::binlog_prepare_row_images(TABLE *table)
     */
     DBUG_ASSERT(table->read_set != &table->tmp_set);
 
-    bitmap_clear_all(&table->tmp_set);
-
     switch(thd->variables.binlog_row_image)
     {
       case BINLOG_ROW_IMAGE_MINIMAL:
         /* MINIMAL: Mark only PK */
-        table->mark_columns_used_by_index_no_reset(table->s->primary_key,
-                                                   &table->tmp_set);
+        table->mark_columns_used_by_index(table->s->primary_key,
+                                          &table->tmp_set);
         break;
       case BINLOG_ROW_IMAGE_NOBLOB:
         /**
           NOBLOB: Remove unnecessary BLOB fields from read_set
                   (the ones that are not part of PK).
          */
-        bitmap_union(&table->tmp_set, table->read_set);
+        bitmap_copy(&table->tmp_set, table->read_set);
         for (Field **ptr=table->field ; *ptr ; ptr++)
         {
           Field *field= (*ptr);

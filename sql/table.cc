@@ -6070,27 +6070,29 @@ void TABLE::prepare_for_position()
 }
 
 
-/*
-  Mark that only fields from one key is used
-
-  NOTE:
-    This changes the bitmap to use the tmp bitmap
-    After this, you can't access any other columns in the table until
-    bitmaps are reset, for example with TABLE::clear_column_bitmaps()
-    or TABLE::restore_column_maps_after_mark_index()
-*/
-
-MY_BITMAP *TABLE::mark_columns_used_by_index_in_bitmap(uint index,
-                                                       MY_BITMAP *bitmap)
+MY_BITMAP *TABLE::prepare_for_keyread(uint index, MY_BITMAP *map)
 {
   MY_BITMAP *backup= read_set;
-  DBUG_ENTER("TABLE::mark_columns_used_by_index_in_bitmap");
+  DBUG_ENTER("TABLE::prepare_for_keyread");
   if (!no_keyread)
     file->ha_start_keyread();
+  mark_columns_used_by_index(index, map);
+  column_bitmaps_set(map);
+  DBUG_RETURN(backup);
+}
+
+
+/*
+  Mark that only fields from one key is used. Useful before keyread.
+*/
+
+void TABLE::mark_columns_used_by_index(uint index, MY_BITMAP *bitmap)
+{
+  DBUG_ENTER("TABLE::mark_columns_used_by_index");
+
   bitmap_clear_all(bitmap);
   mark_columns_used_by_index_no_reset(index, bitmap);
-  column_bitmaps_set(bitmap);
-  DBUG_RETURN(backup);
+  DBUG_VOID_RETURN;
 }
 
 /*
@@ -6104,7 +6106,7 @@ MY_BITMAP *TABLE::mark_columns_used_by_index_in_bitmap(uint index,
     when calling mark_columns_used_by_index
 */
 
-void TABLE::restore_column_maps_after_mark_index(MY_BITMAP *backup)
+void TABLE::restore_column_maps_after_keyread(MY_BITMAP *backup)
 {
   DBUG_ENTER("TABLE::restore_column_maps_after_mark_index");
   file->ha_end_keyread();

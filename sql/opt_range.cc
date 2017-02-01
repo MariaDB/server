@@ -1534,7 +1534,7 @@ end:
   head->file= file;
 
   head->column_bitmaps_set_no_signal(&column_bitmap, &column_bitmap, &column_bitmap);
-  head->mark_columns_used_by_index_in_bitmap(index, &column_bitmap);
+  head->prepare_for_keyread(index, &column_bitmap);
   head->prepare_for_position();
 
   head->file= org_file;

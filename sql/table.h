@@ -1306,11 +1306,12 @@ public:
   void reset_item_list(List<Item> *item_list) const;
   void clear_column_bitmaps(void);
   void prepare_for_position(void);
+  MY_BITMAP *prepare_for_keyread(uint index, MY_BITMAP *map);
+  MY_BITMAP *prepare_for_keyread(uint index)
+  { return prepare_for_keyread(index, &tmp_set); }
+  void mark_columns_used_by_index(uint index, MY_BITMAP *map);
   void mark_columns_used_by_index_no_reset(uint index, MY_BITMAP *map);
-  MY_BITMAP *mark_columns_used_by_index_in_bitmap(uint index, MY_BITMAP *map);
-  MY_BITMAP *mark_columns_used_by_index(uint index)
-  { return mark_columns_used_by_index_in_bitmap(index, &tmp_set); }
-  void restore_column_maps_after_mark_index(MY_BITMAP *backup);
+  void restore_column_maps_after_keyread(MY_BITMAP *backup);
   void mark_auto_increment_column(void);
   void mark_columns_needed_for_update(void);
   void mark_columns_needed_for_delete(void);
