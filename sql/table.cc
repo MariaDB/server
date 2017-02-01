@@ -6080,16 +6080,17 @@ void TABLE::prepare_for_position()
     or TABLE::restore_column_maps_after_mark_index()
 */
 
-void TABLE::mark_columns_used_by_index_in_bitmap(uint index, MY_BITMAP *bitmap)
+MY_BITMAP *TABLE::mark_columns_used_by_index_in_bitmap(uint index,
+                                                       MY_BITMAP *bitmap)
 {
+  MY_BITMAP *backup= read_set;
   DBUG_ENTER("TABLE::mark_columns_used_by_index_in_bitmap");
-
   if (!no_keyread)
     file->ha_start_keyread();
   bitmap_clear_all(bitmap);
   mark_columns_used_by_index_no_reset(index, bitmap);
   column_bitmaps_set(bitmap);
-  DBUG_VOID_RETURN;
+  DBUG_RETURN(backup);
 }
 
 
@@ -6125,12 +6126,11 @@ void TABLE::add_read_columns_used_by_index(uint index)
     when calling mark_columns_used_by_index
 */
 
-void TABLE::restore_column_maps_after_mark_index()
+void TABLE::restore_column_maps_after_mark_index(MY_BITMAP *backup)
 {
   DBUG_ENTER("TABLE::restore_column_maps_after_mark_index");
-
   file->ha_end_keyread();
-  default_column_bitmaps();
+  read_set= backup;
   file->column_bitmaps_signal();
   DBUG_VOID_RETURN;
 }
