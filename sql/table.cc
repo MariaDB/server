@@ -6093,28 +6093,6 @@ MY_BITMAP *TABLE::mark_columns_used_by_index_in_bitmap(uint index,
   DBUG_RETURN(backup);
 }
 
-
-/*
-  Add fields used by a specified index to the table's read_set.
-
-  NOTE:
-    The original state can be restored with
-    restore_column_maps_after_mark_index().
-*/
-
-void TABLE::add_read_columns_used_by_index(uint index)
-{
-  MY_BITMAP *bitmap= &tmp_set;
-  DBUG_ENTER("TABLE::add_read_columns_used_by_index");
-
-  file->ha_start_keyread();
-  bitmap_copy(bitmap, read_set);
-  mark_columns_used_by_index_no_reset(index, bitmap);
-  column_bitmaps_set(bitmap, write_set);
-  DBUG_VOID_RETURN;
-}
-
-
 /*
   Restore to use normal column maps after key read
 
@@ -6143,10 +6121,12 @@ void TABLE::restore_column_maps_after_mark_index(MY_BITMAP *backup)
 void TABLE::mark_columns_used_by_index_no_reset(uint index, MY_BITMAP *bitmap)
 {
   KEY_PART_INFO *key_part= key_info[index].key_part;
-  KEY_PART_INFO *key_part_end= (key_part +
-                                key_info[index].user_defined_key_parts);
+  KEY_PART_INFO *key_part_end= (key_part + key_info[index].user_defined_key_parts);
   for (;key_part != key_part_end; key_part++)
     bitmap_set_bit(bitmap, key_part->fieldnr-1);
+  if (file->ha_table_flags() & HA_PRIMARY_KEY_IN_READ_INDEX &&
+      s->primary_key != MAX_KEY && s->primary_key != index)
+    mark_columns_used_by_index_no_reset(s->primary_key, bitmap);
 }
 
 

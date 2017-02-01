@@ -539,7 +539,7 @@ int mysql_update(THD *thd,
     MY_BITMAP *save_write_set= table->write_set;
 
     if (query_plan.index < MAX_KEY && old_covering_keys.is_set(query_plan.index))
-      table->add_read_columns_used_by_index(query_plan.index);
+      table->mark_columns_used_by_index(query_plan.index);
     else
       table->use_all_columns();
 

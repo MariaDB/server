@@ -1310,7 +1310,6 @@ public:
   MY_BITMAP *mark_columns_used_by_index_in_bitmap(uint index, MY_BITMAP *map);
   MY_BITMAP *mark_columns_used_by_index(uint index)
   { return mark_columns_used_by_index_in_bitmap(index, &tmp_set); }
-  void add_read_columns_used_by_index(uint index);
   void restore_column_maps_after_mark_index(MY_BITMAP *backup);
   void mark_auto_increment_column(void);
   void mark_columns_needed_for_update(void);
