@@ -1463,3 +1463,32 @@ FROM t1;
 
 DROP TABLE t1;
 
+--echo #
+--echo # MDEV-11867: window function with aggregation
+--echo #             over the result of grouping
+--echo #
+
+create table t1 (
+  username  varchar(32),
+  amount int
+);
+
+insert into t1 values
+('user1',1),
+('user1',5),
+('user1',3),
+('user2',10),
+('user2',20),
+('user2',30);
+
+select username, sum(amount) as s, avg(sum(amount)) over (order by s desc)
+  from t1
+group by username;
+
+select username, sum(amount), avg(sum(amount)) over (order by sum(amount) desc)
+  from t1
+group by username;
+
+drop table t1;
+
+

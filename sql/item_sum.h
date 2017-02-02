@@ -340,6 +340,9 @@ private:
   */
   bool with_distinct;
 
+  /* TRUE if this is aggregate function of a window function */
+  bool window_func_sum_expr_flag;
+
 public:
 
   bool has_force_copy_fields() const { return force_copy_fields; }
@@ -551,6 +554,7 @@ public:
   virtual void cleanup();
   bool check_vcol_func_processor(void *arg);
   virtual void setup_window_func(THD *thd, Window_spec *window_spec) {}
+  void mark_as_window_func_sum_expr() { window_func_sum_expr_flag= true; }
 };
 
 

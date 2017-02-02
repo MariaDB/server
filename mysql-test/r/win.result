@@ -2432,3 +2432,31 @@ id	sum(a) OVER (ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING)
 8	2100
 9	9200
 DROP TABLE t1;
+#
+# MDEV-11867: window function with aggregation
+#             over the result of grouping
+#
+create table t1 (
+username  varchar(32),
+amount int
+);
+insert into t1 values
+('user1',1),
+('user1',5),
+('user1',3),
+('user2',10),
+('user2',20),
+('user2',30);
+select username, sum(amount) as s, avg(sum(amount)) over (order by s desc)
+from t1
+group by username;
+username	s	avg(sum(amount)) over (order by s desc)
+user1	9	34.5000
+user2	60	60.0000
+select username, sum(amount), avg(sum(amount)) over (order by sum(amount) desc)
+from t1
+group by username;
+username	sum(amount)	avg(sum(amount)) over (order by sum(amount) desc)
+user1	9	34.5000
+user2	60	60.0000
+drop table t1;
