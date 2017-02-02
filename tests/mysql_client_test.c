@@ -19460,6 +19460,25 @@ static void test_big_packet()
 }
 
 
+/* Test simple prepares of all DML statements */
+
+static void test_prepare_analyze()
+{
+  MYSQL_STMT *stmt;
+  int rc;
+  myheader("test_prepare_analyze");
+
+  stmt= mysql_stmt_init(mysql);
+  check_stmt(stmt);
+  rc= mysql_stmt_prepare(stmt, "ANALYZE SELECT 1", -1);
+  check_execute(stmt, rc);
+  verify_param_count(stmt, 0);
+  rc= mysql_stmt_execute(stmt);
+  check_execute(stmt, rc);
+
+  mysql_stmt_close(stmt);
+}
+
 static struct my_tests_st my_tests[]= {
   { "disable_query_logs", disable_query_logs },
   { "test_view_sp_list_fields", test_view_sp_list_fields },
@@ -19733,6 +19752,7 @@ static struct my_tests_st my_tests[]= {
   { "test_ps_sp_out_params", test_ps_sp_out_params },
   { "test_compressed_protocol", test_compressed_protocol },
   { "test_big_packet", test_big_packet },
+  { "test_prepare_analyze", test_prepare_analyze },
   { 0, 0 }
 };
 
