@@ -86,6 +86,13 @@ WHERE engine = 'innodb'
 AND support IN ('YES', 'DEFAULT', 'ENABLED');
 ENGINE	SUPPORT	COMMENT	TRANSACTIONS	XA	SAVEPOINTS
 FOUND /len 22; hex 38000000000012860cb7809781e800066269676f7400; asc 8               bigot ;/ in mysqld.1.err
+# Minimal MariaDB 10.1.21 encrypted redo log
+SELECT * FROM INFORMATION_SCHEMA.ENGINES
+WHERE engine = 'innodb'
+AND support IN ('YES', 'DEFAULT', 'ENABLED');
+ENGINE	SUPPORT	COMMENT	TRANSACTIONS	XA	SAVEPOINTS
+FOUND /InnoDB: Redo log crypto: getting mysqld crypto key from key version failed err = 4294967295/ in mysqld.1.err
+FOUND /InnoDB: Reading checkpoint encryption info failed/ in mysqld.1.err
 ib_buffer_pool
 ib_logfile0
 ib_logfile1

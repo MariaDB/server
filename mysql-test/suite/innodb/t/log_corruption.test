@@ -13,6 +13,8 @@ call mtr.add_suppression("InnoDB: Ignoring the redo log due to missing MLOG_CHEC
 call mtr.add_suppression("InnoDB: MLOG_FILE_NAME incorrect");
 call mtr.add_suppression("InnoDB: ############### CORRUPT LOG RECORD FOUND");
 call mtr.add_suppression("InnoDB: Found corrupted log");
+call mtr.add_suppression("InnoDB: Redo log crypto: getting mysqld crypto key from key version failed");
+call mtr.add_suppression("InnoDB: Reading checkpoint encryption info failed");
 --enable_query_log
 
 let bugdir= $MYSQLTEST_VARDIR/tmp/log_corruption;
@@ -316,6 +318,31 @@ EOF
 eval $check_no_innodb;
 --source include/shutdown_mysqld.inc
 --let SEARCH_PATTERN= len 22; hex 38000000000012860cb7809781e800066269676f7400; asc 8               bigot ;
+--source include/search_pattern_in_file.inc
+
+--echo # Minimal MariaDB 10.1.21 encrypted redo log
+perl;
+die unless open OUT, "+<", "$ENV{bugdir}/ib_logfile0";
+binmode OUT;
+# header and empty checkpoint page 1 (not encrypted)
+print OUT pack("x[9]nx[5]A[4]x[46]Cx[1469]", 0x186e, "", 2);
+# checkpoint page 2 (not encrypted)
+print OUT pack("NNNNNNNN", 0, 1, 0, 0x186e16, 0x816, 0x1000000, ~0, ~0);
+print OUT pack("x[6]Cx[249]", 0x20);
+print OUT pack("H*x[12]nNNn", "FDE012DE6D3BD6AC", 0x201, 1, 1, 0xEFC);
+print OUT pack("H*x[162]",
+               "75774015174BE4723904C88E110E3B50FF5C634167DB058D02A415D2A4A3");
+# log block (encrypted)
+print OUT pack("H*", "80000c380016000c000000015cf22e8aff355642045605c22b97f7cba94cc9932b6032b9c828ef85269024127d3863193b44e52d22eccdd0a8b197ce837f6b530c3042a022738bbac803adc5e7607333409b35c1f6351601a9da83d9b0bc3f389fb288d2bd6a0783066e3b07cae0e276fe83aa522d3f2b59b9549e2338031674383bbef87d7a42f415870fa33685afd3894a9d8214d60b5cde0c776489f45ad0c759e0495bc5d0c91018750070ed21ec1a41bcb9054007851df28e1da15fb662ab219bd558f1569b22671c943bfb0c12e97b604feb0d96a53c05c868e2eea9d4692cd0b6f4625a52adc8251ac955957e33d8c32eb964e416b246b950321a71d5b2e8e95c26e00333abe24ca827cd2eb95cff7b21dce639073f526614816fa2151afdb967aa049b4625cd70881fbd73827c1eb6f70447dcb7755055fa939a2c8ec38fc24f135c22f9f9691bd34a91be7047e5fd68d2e68b0d072cb69c253e14c7111b950b9d6df327f3ffb2a0dc6eff045d64baeb3c75c4ae4aeb41235757f40291540148d79deaff983851247134d7513a550ed7e21bf2e209d8dec51b252f0e9ba6fa33cc2ad0b28d05c04442dac9d233d0ca93d8ef0b81ba82e7396ffaec979b2df97f7249a20d8cb8036b582c245f27e64ac12c8b1d46248b670936893c7c737ba8a4ecf623689c18d79755865626993a43d607611d0736d1c626ebf88946");
+close OUT or die;
+EOF
+
+--source include/start_mysqld.inc
+eval $check_no_innodb;
+--source include/shutdown_mysqld.inc
+--let SEARCH_PATTERN= InnoDB: Redo log crypto: getting mysqld crypto key from key version failed err = 4294967295
+--source include/search_pattern_in_file.inc
+--let SEARCH_PATTERN= InnoDB: Reading checkpoint encryption info failed
 --source include/search_pattern_in_file.inc
 
 --list_files $bugdir
