@@ -563,3 +563,24 @@ const sp_pcursor *sp_pcontext::find_cursor(uint offset) const
          m_parent->find_cursor(offset) :  // Some previous frame
          NULL;                            // Index out of bounds
 }
+
+
+const Spvar_definition *
+sp_variable::find_row_field(const LEX_STRING &var_name,
+                            const LEX_STRING &field_name,
+                            uint *row_field_offset)
+{
+  if (!field_def.is_row())
+  {
+    my_printf_error(ER_UNKNOWN_ERROR,
+                    "'%s' is not a row variable", MYF(0), var_name.str);
+    return NULL;
+  }
+  const Spvar_definition *def;
+  if ((def= field_def.find_row_field_by_name(field_name.str, row_field_offset)))
+    return def;
+  my_printf_error(ER_UNKNOWN_ERROR,
+                  "Row variable '%s' does not have a field '%s'",
+                  MYF(0), var_name.str, field_name.str);
+  return NULL;
+}

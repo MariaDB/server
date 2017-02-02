@@ -692,4 +692,10 @@ public:
 };
 
 
+struct Lex_string_with_pos_st: public LEX_STRING
+{
+  const char *m_pos;
+};
+
+
 #endif /* STRUCTS_INCLUDED */

@@ -89,23 +89,35 @@ static inline bool test_if_sum_overflows_ull(ulonglong arg1, ulonglong arg2)
 }
 
 
-void Item_args::set_arguments(THD *thd, List<Item> &list)
+/**
+  Allocate memory for arguments using tmp_args or thd->alloc().
+  @retval false  - success
+  @retval true   - error (arg_count is set to 0 for conveniece)
+*/
+bool Item_args::alloc_arguments(THD *thd, uint count)
 {
-  arg_count= list.elements;
-  if (arg_count <= 2)
+  if (count <= 2)
   {
     args= tmp_arg;
+    return false;
   }
-  else if (!(args= (Item**) thd->alloc(sizeof(Item*) * arg_count)))
+  if ((args= (Item**) thd->alloc(sizeof(Item*) * count)) == NULL)
   {
     arg_count= 0;
-    return;
+    return true;
   }
-  uint i= 0;
+  return false;
+}
+
+
+void Item_args::set_arguments(THD *thd, List<Item> &list)
+{
+  if (alloc_arguments(thd, list.elements))
+    return;
   List_iterator_fast<Item> li(list);
   Item *item;
-  while ((item= li++))
-    args[i++]= item;
+  for (arg_count= 0; (item= li++); )
+    args[arg_count++]= item;
 }
 
 
@@ -135,6 +147,19 @@ void Item_func::sync_with_sum_func_and_with_field(List<Item> &list)
     with_window_func|= item->with_window_func;
     with_field|= item->with_field;
   }
+}
+
+
+bool Item_func::check_allowed_arg_cols(uint n)
+{
+  if (allowed_arg_cols)
+    return args[n]->check_cols(allowed_arg_cols);
+
+  /*  we have to fetch allowed_arg_cols from first argument */
+  DBUG_ASSERT(n == 0); // it is first argument
+  allowed_arg_cols= args[n]->cols();
+  DBUG_ASSERT(allowed_arg_cols); // Can't be 0 any more
+  return false;
 }
 
 
@@ -210,18 +235,8 @@ Item_func::fix_fields(THD *thd, Item **ref)
 	return TRUE;				/* purecov: inspected */
       item= *arg;
 
-      if (allowed_arg_cols)
-      {
-        if (item->check_cols(allowed_arg_cols))
-          return 1;
-      }
-      else
-      {
-        /*  we have to fetch allowed_arg_cols from first argument */
-        DBUG_ASSERT(arg == args); // it is first argument
-        allowed_arg_cols= item->cols();
-        DBUG_ASSERT(allowed_arg_cols); // Can't be 0 any more
-      }
+      if (check_allowed_arg_cols(arg - args))
+        return true;
 
       if (item->maybe_null)
 	maybe_null=1;

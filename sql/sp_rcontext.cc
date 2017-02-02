@@ -222,13 +222,55 @@ bool sp_rcontext::init_var_items(THD *thd,
   if (!m_var_items.array())
     return true;
 
-  for (uint idx = 0; idx < num_vars; ++idx)
+  DBUG_ASSERT(field_def_lst.elements == num_vars);
+  List_iterator<Spvar_definition> it(field_def_lst);
+  Spvar_definition *def= it++;
+
+  for (uint idx= 0; idx < num_vars; ++idx, def= it++)
   {
-    if (!(m_var_items[idx]= new (thd->mem_root) Item_field(thd, m_var_table->field[idx])))
+    Field *field= m_var_table->field[idx];
+    if (def->is_row())
+    {
+      Item_field_row *item= new (thd->mem_root) Item_field_row(thd, field);
+      if (!(m_var_items[idx]= item) ||
+          item->row_create_items(thd, def->row_field_definitions()))
+        return true;
+    }
+    else
+    {
+      if (!(m_var_items[idx]= new (thd->mem_root) Item_field(thd, field)))
+        return true;
+    }
+  }
+  return false;
+}
+
+
+bool Item_spvar_args::row_create_items(THD *thd, List<Spvar_definition> *list)
+{
+  DBUG_ASSERT(list);
+  if (!(m_table= create_virtual_tmp_table(thd, *list)))
+    return true;
+
+  if (alloc_arguments(thd, list->elements))
+    return true;
+
+  List_iterator<Spvar_definition> it(*list);
+  Spvar_definition *def;
+  for (arg_count= 0; (def= it++); arg_count++)
+  {
+    if (!(args[arg_count]= new (thd->mem_root)
+                           Item_field(thd, m_table->field[arg_count])))
       return true;
   }
-
   return false;
+}
+
+
+Item_spvar_args::~Item_spvar_args()
+{
+  if (m_table)
+    free_blobs(m_table);
 }
 
 
@@ -238,7 +280,7 @@ bool sp_rcontext::set_return_value(THD *thd, Item **return_value_item)
 
   m_return_value_set = true;
 
-  return sp_eval_expr(thd, m_return_value_fld, return_value_item);
+  return sp_eval_expr(thd, NULL, m_return_value_fld, return_value_item);
 }
 
 
@@ -455,8 +497,78 @@ int sp_rcontext::set_variable(THD *thd, uint idx, Item **value)
     field->set_null();
     return 0;
   }
+  Item *dst= m_var_items[idx];
 
-  return sp_eval_expr(thd, field, value);
+  if (dst->cmp_type() != ROW_RESULT)
+    return sp_eval_expr(thd, dst, m_var_table->field[idx], value);
+
+  DBUG_ASSERT(dst->type() == Item::FIELD_ITEM);
+  if (value[0]->type() == Item::NULL_ITEM)
+  {
+    /*
+      We're in a auto-generated sp_inst_set, to assign
+      the explicit default NULL value to a ROW variable.
+    */
+    for (uint i= 0; i < dst->cols(); i++)
+    {
+      Item_field_row *item_field_row= (Item_field_row*) dst;
+      item_field_row->get_row_field(i)->set_null();
+    }
+    return false;
+  }
+
+  /**
+    - In case if we're assigning a ROW variable from another ROW variable,
+      value[0] points to Item_splocal. sp_prepare_func_item() will return the
+      fixed underlying Item_field_spvar with ROW members in its aguments().
+    - In case if we're assigning from a ROW() value, src and value[0] will
+      point to the same Item_row.
+  */
+  Item *src;
+  if (!(src= sp_prepare_func_item(thd, value, dst->cols())) ||
+      src->cmp_type() != ROW_RESULT)
+  {
+    my_error(ER_OPERAND_COLUMNS, MYF(0), dst->cols());
+    return true;
+  }
+  DBUG_ASSERT(dst->cols() == src->cols());
+  for (uint i= 0; i < src->cols(); i++)
+    set_variable_row_field(thd, idx, i, src->addr(i));
+  return false;
+}
+
+
+void sp_rcontext::set_variable_row_field_to_null(THD *thd,
+                                                 uint var_idx,
+                                                 uint field_idx)
+{
+  Item *dst= get_item(var_idx);
+  DBUG_ASSERT(dst->type() == Item::FIELD_ITEM);
+  DBUG_ASSERT(dst->cmp_type() == ROW_RESULT);
+  Item_field_row *item_field_row= (Item_field_row*) dst;
+  item_field_row->get_row_field(field_idx)->set_null();
+}
+
+
+int sp_rcontext::set_variable_row_field(THD *thd, uint var_idx, uint field_idx,
+                                        Item **value)
+{
+  DBUG_ASSERT(value);
+  Item *dst= get_item(var_idx);
+  DBUG_ASSERT(dst->type() == Item::FIELD_ITEM);
+  DBUG_ASSERT(dst->cmp_type() == ROW_RESULT);
+  Item_field_row *item_field_row= (Item_field_row*) dst;
+
+  Item *expr_item= sp_prepare_func_item(thd, value);
+  if (!expr_item)
+  {
+    DBUG_ASSERT(thd->is_error());
+    return true;
+  }
+  return sp_eval_expr(thd,
+                      item_field_row->arguments()[field_idx],
+                      item_field_row->get_row_field(field_idx),
+                      value);
 }
 
 

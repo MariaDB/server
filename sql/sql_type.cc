@@ -2059,8 +2059,22 @@ bool Type_handler_temporal_result::
 String *Type_handler_row::
           print_item_value(THD *thd, Item *item, String *str) const
 {
-  DBUG_ASSERT(0);
-  return NULL;
+  CHARSET_INFO *cs= thd->variables.character_set_client;
+  StringBuffer<STRING_BUFFER_USUAL_SIZE> val(cs);
+  str->append(C_STRING_WITH_LEN("ROW("));
+  for (uint i= 0 ; i < item->cols(); i++)
+  {
+    if (i > 0)
+      str->append(',');
+    Item *elem= item->element_index(i);
+    String *tmp= elem->type_handler()->print_item_value(thd, elem, &val);
+    if (tmp)
+      str->append(*tmp);
+    else
+      str->append(STRING_WITH_LEN("NULL"));
+  }
+  str->append(C_STRING_WITH_LEN(")"));
+  return str;
 }
 
 

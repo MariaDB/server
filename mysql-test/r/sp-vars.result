@@ -673,7 +673,6 @@ vb IS TRUE;
 END|
 call p1();
 HEX(b)	b = 0	b = FALSE	b IS FALSE	b = 1	b = TRUE	b IS TRUE
-
 0	1	1	1	0	0	0
 1	0	0	0	1	1	1
 call p2();

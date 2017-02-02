@@ -69,6 +69,20 @@ public:
     offset(_offset),
     default_value(NULL)
   { }
+  /*
+    Find a ROW field by its qualified name.
+    @param      var_name - the name of the variable
+    @param      field_name - the name of the variable field
+    @param[OUT] row_field_offset - the index of the field
+
+    @retval  NULL if the variable with the given name was not found,
+             or it is not a row variable, or it does not have a field
+             with the given name, or a non-null pointer otherwise.
+             row_field_offset[0] is set only when the method returns !NULL.
+  */
+  const Spvar_definition *find_row_field(const LEX_STRING &var_name,
+                                         const LEX_STRING &field_name,
+                                         uint *row_field_offset);
 };
 
 ///////////////////////////////////////////////////////////////////////////

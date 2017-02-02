@@ -672,9 +672,9 @@ select @a, @b;
 @a	@b
 2	1
 set @@global.global.key_buffer_size= 1;
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'key_buffer_size= 1' at line 1
+ERROR HY000: Unknown structured system variable or ROW routine variable 'global'
 set GLOBAL global.key_buffer_size= 1;
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'key_buffer_size= 1' at line 1
+ERROR HY000: Unknown structured system variable or ROW routine variable 'global'
 SELECT @@global.global.key_buffer_size;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'key_buffer_size' at line 1
 SELECT @@global.session.key_buffer_size;

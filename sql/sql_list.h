@@ -334,16 +334,15 @@ public:
   friend class error_list;
   friend class error_list_iterator;
 
-#ifndef DBUG_OFF
   /*
-    Debugging help: return N-th element in the list, or NULL if the list has
+    Return N-th element in the list, or NULL if the list has
     less than N elements.
   */
-  void *elem(int n)
+  void *elem(uint n)
   {
     list_node *node= first;
     void *data= NULL;
-    for (int i=0; i <= n; i++)
+    for (uint i= 0; i <= n; i++)
     {
       if (node == &end_of_list)
       {
@@ -355,7 +354,6 @@ public:
     }
     return data;
   }
-#endif
 
 #ifdef LIST_EXTRA_DEBUG
   /*
@@ -546,9 +544,7 @@ public:
     }
     empty();
   }
-#ifndef DBUG_OFF
-  T *elem(int n) { return (T*)base_list::elem(n); }
-#endif
+  T *elem(uint n) { return (T*) base_list::elem(n); }
 };
 
 

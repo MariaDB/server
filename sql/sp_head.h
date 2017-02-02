@@ -369,9 +369,12 @@ public:
                                                  spcont->last_label());
   }
 
+  Item *adjust_assignment_source(THD *thd, Item *val, Item *val2);
   bool set_local_variable(THD *thd, sp_pcontext *spcont,
                           sp_variable *spv, Item *val, LEX *lex);
-
+  bool set_local_variable_row_field(THD *thd, sp_pcontext *spcont,
+                                    sp_variable *spv, uint field_idx,
+                                    Item *val, LEX *lex);
 private:
   /**
     Generate a code to set a single cursor parameter variable.
@@ -1001,7 +1004,7 @@ public:
 
   virtual void print(String *str);
 
-private:
+protected:
 
   uint m_offset;		///< Frame offset
   Item *m_value;
@@ -1009,6 +1012,36 @@ private:
   sp_lex_keeper m_lex_keeper;
 
 }; // class sp_instr_set : public sp_instr
+
+
+/*
+  This class handles assignments of a ROW fields:
+    DECLARE rec ROW (a INT,b INT);
+    SET rec.a= 10;
+*/
+class sp_instr_set_row_field : public sp_instr_set
+{
+  sp_instr_set_row_field(const sp_instr_set_row_field &); // Prevent use of this
+  void operator=(sp_instr_set_row_field &);
+  uint m_field_offset;
+
+public:
+
+  sp_instr_set_row_field(uint ip, sp_pcontext *ctx,
+                         uint offset, uint field_offset,
+                         Item *val, enum enum_field_types type_arg,
+                         LEX *lex, bool lex_resp)
+    : sp_instr_set(ip, ctx, offset, val, type_arg, lex, lex_resp),
+      m_field_offset(field_offset)
+  {}
+
+  virtual ~sp_instr_set_row_field()
+  {}
+
+  virtual int exec_core(THD *thd, uint *nextp);
+
+  virtual void print(String *str);
+}; // class sp_instr_set_field : public sp_instr_set
 
 
 /**
@@ -1612,10 +1645,11 @@ sp_add_to_query_tables(THD *thd, LEX *lex,
                        enum_mdl_type mdl_type);
 
 Item *
-sp_prepare_func_item(THD* thd, Item **it_addr);
+sp_prepare_func_item(THD* thd, Item **it_addr, uint cols= 1);
 
 bool
-sp_eval_expr(THD *thd, Field *result_field, Item **expr_item_ptr);
+sp_eval_expr(THD *thd, Item *result_item, Field *result_field,
+             Item **expr_item_ptr);
 
 /**
   @} (end of group Stored_Routines)

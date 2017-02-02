@@ -438,9 +438,9 @@ select @a, @b;
 #
 # Bug#2586:Disallow global/session/local as structured var. instance names
 #
---error ER_PARSE_ERROR
+--error ER_UNKNOWN_STRUCTURED_VARIABLE
 set @@global.global.key_buffer_size= 1;
---error ER_PARSE_ERROR
+--error ER_UNKNOWN_STRUCTURED_VARIABLE
 set GLOBAL global.key_buffer_size= 1;
 --error ER_PARSE_ERROR
 SELECT @@global.global.key_buffer_size;

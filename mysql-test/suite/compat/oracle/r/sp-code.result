@@ -887,3 +887,98 @@ DROP PROCEDURE p1;
 #
 # End of MDEV-10597 Cursors with parameters
 #
+#
+# MDEV-10914 ROW data type for stored routine variables
+#
+CREATE FUNCTION f1() RETURN INT
+AS
+a ROW(a INT, b INT);
+BEGIN
+a.b:= 200;
+RETURN a.b;
+END;
+$$
+SHOW FUNCTION CODE f1;
+Pos	Instruction
+0	set a@0 NULL
+1	set a.b@0[1] 200
+2	freturn 3 a.b@0[1]
+SELECT f1();
+f1()
+200
+DROP FUNCTION f1;
+CREATE PROCEDURE p1
+AS
+rec ROW(a INT,b DOUBLE,c DECIMAL(10,3),d VARCHAR(10));
+BEGIN
+rec:= ROW(10,20.123456,30.123,'test');
+SELECT rec.a, rec.b, rec.c, rec.d;
+END;
+$$
+SHOW PROCEDURE CODE p1;
+Pos	Instruction
+0	set rec@0 NULL
+1	set rec@0 (10,20.123456,30.123,'test')
+2	stmt 0 "SELECT rec.a, rec.b, rec.c, rec.d"
+CALL p1;
+rec.a	rec.b	rec.c	rec.d
+10	20.123456	30.123	test
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1
+AS
+rec ROW(a INT,b DOUBLE,c DECIMAL(10,3),d VARCHAR(10)) :=
+ROW(10,20.123456,30.123,'test');
+BEGIN
+SELECT rec.a, rec.b, rec.c, rec.d;
+END;
+$$
+SHOW PROCEDURE CODE p1;
+Pos	Instruction
+0	set rec@0 (10,20.123456,30.123,'test')
+1	stmt 0 "SELECT rec.a, rec.b, rec.c, rec.d"
+CALL p1;
+rec.a	rec.b	rec.c	rec.d
+10	20.123456	30.123	test
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1
+AS
+rec1 ROW(a INT,b DOUBLE,c DECIMAL(10,3),d VARCHAR(10));
+rec2 ROW(a INT,b DOUBLE,c DECIMAL(10,3),d VARCHAR(10));
+BEGIN
+rec1:= ROW(10,20.123456,30.123,'test');
+rec2:= rec1;
+SELECT rec2.a, rec2.b, rec2.c, rec2.d;
+END;
+$$
+SHOW PROCEDURE CODE p1;
+Pos	Instruction
+0	set rec1@0 NULL
+1	set rec2@1 NULL
+2	set rec1@0 (10,20.123456,30.123,'test')
+3	set rec2@1 rec1@0
+4	stmt 0 "SELECT rec2.a, rec2.b, rec2.c, rec2.d"
+CALL p1;
+rec2.a	rec2.b	rec2.c	rec2.d
+10	20.123456	30.123	test
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1
+AS
+rec1 ROW(a INT,b DOUBLE,c DECIMAL(10,3),d VARCHAR(10)) :=
+ROW(10,20.123456,30.123,'test');
+rec2 ROW(a INT,b DOUBLE,c DECIMAL(10,3),d VARCHAR(10)) := rec1;
+BEGIN
+SELECT rec2.a, rec2.b, rec2.c, rec2.d;
+END;
+$$
+SHOW PROCEDURE CODE p1;
+Pos	Instruction
+0	set rec1@0 (10,20.123456,30.123,'test')
+1	set rec2@1 rec1@0
+2	stmt 0 "SELECT rec2.a, rec2.b, rec2.c, rec2.d"
+CALL p1;
+rec2.a	rec2.b	rec2.c	rec2.d
+10	20.123456	30.123	test
+DROP PROCEDURE p1;
+#
+# End of MDEV-10914 ROW data type for stored routine variables
+#
