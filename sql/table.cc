@@ -6088,7 +6088,7 @@ void TABLE::mark_columns_used_by_index(uint index)
   file->ha_start_keyread();
   bitmap_clear_all(bitmap);
   mark_columns_used_by_index_no_reset(index, bitmap);
-  column_bitmaps_set(bitmap, bitmap);
+  column_bitmaps_set(bitmap);
   DBUG_VOID_RETURN;
 }
 

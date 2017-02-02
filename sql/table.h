@@ -1321,6 +1321,12 @@ public:
   void mark_columns_used_by_check_constraints(void);
   void mark_check_constraint_columns_for_read(void);
   int verify_constraints(bool ignore_failure);
+  inline void column_bitmaps_set(MY_BITMAP *read_set_arg)
+  {
+    read_set= read_set_arg;
+    if (file)
+      file->column_bitmaps_signal();
+  }
   inline void column_bitmaps_set(MY_BITMAP *read_set_arg,
                                  MY_BITMAP *write_set_arg)
   {
