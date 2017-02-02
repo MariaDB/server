@@ -1278,21 +1278,19 @@ NULL
 # ----------------------------------------------------------------------
 select json_extract( '{ "one potato" : 1 }', '$."one potato"' );
 json_extract( '{ "one potato" : 1 }', '$."one potato"' )
-NULL
+1
 select json_extract( '{ "a.b" : 1 }', '$."a.b"' );
 json_extract( '{ "a.b" : 1 }', '$."a.b"' )
-NULL
+1
 select json_extract( '{ "\\"a\\"": 1}', '$."a"' );
 json_extract( '{ "\\"a\\"": 1}', '$."a"' )
 NULL
 select json_extract( '{ "\\"a\\"": 1}', '$."\\"a\\""' );
 json_extract( '{ "\\"a\\"": 1}', '$."\\"a\\""' )
-NULL
-Warnings:
-Warning	4042	Syntax error in JSON path in argument 2 to function 'json_extract' at position 7
+1
 select json_extract( '{ "a": 1}', '$."a"' );
 json_extract( '{ "a": 1}', '$."a"' )
-NULL
+1
 select json_extract( '{ "a": 1}', '$.a' );
 json_extract( '{ "a": 1}', '$.a' )
 1
@@ -1313,13 +1311,13 @@ json_extract( '{ "a": [ [ 3, 2 ], [ { "c" : "d" }, 1 ] ], "b": { "c" : 6 }, "one
 "d"
 select json_extract( '{ "a": [ [ 3, 2 ], [ { "c" : "d" }, 1 ] ], "b": { "c" : 6 }, "one potato": 7, "b.c" : 8 }', '$."one potato"' );
 json_extract( '{ "a": [ [ 3, 2 ], [ { "c" : "d" }, 1 ] ], "b": { "c" : 6 }, "one potato": 7, "b.c" : 8 }', '$."one potato"' )
-NULL
+7
 select json_extract( '{ "a": [ [ 3, 2 ], [ { "c" : "d" }, 1 ] ], "b": { "c" : 6 }, "one potato": 7, "b.c" : 8 }', '$.b.c' );
 json_extract( '{ "a": [ [ 3, 2 ], [ { "c" : "d" }, 1 ] ], "b": { "c" : 6 }, "one potato": 7, "b.c" : 8 }', '$.b.c' )
 6
 select json_extract( '{ "a": [ [ 3, 2 ], [ { "c" : "d" }, 1 ] ], "b": { "c" : 6 }, "one potato": 7, "b.c" : 8 }', '$."b.c"' );
 json_extract( '{ "a": [ [ 3, 2 ], [ { "c" : "d" }, 1 ] ], "b": { "c" : 6 }, "one potato": 7, "b.c" : 8 }', '$."b.c"' )
-NULL
+8
 # ----------------------------------------------------------------------
 # Test of JSON_EXTRACT function.
 # ----------------------------------------------------------------------
@@ -2572,7 +2570,7 @@ json_search( '[ "footbar", "foo%bar" ]', 'all', 'foo%bar' )
 ["$[0]", "$[1]"]
 select json_search( '[ "footbar", "foo%bar" ]', 'all', 'foo\%bar' );
 json_search( '[ "footbar", "foo%bar" ]', 'all', 'foo\%bar' )
-NULL
+"$[1]"
 select json_search( '[ "footbar", "foo%bar" ]', 'all', 'foo|%bar', '|' );
 json_search( '[ "footbar", "foo%bar" ]', 'all', 'foo|%bar', '|' )
 "$[1]"

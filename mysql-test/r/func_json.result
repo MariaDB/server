@@ -494,3 +494,12 @@ json_set('{"a":12}', '$[0][1].a', 100)
 NULL
 Warnings:
 Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_set'
+select json_value('{"\\"key1":123}', '$."\\"key1"');
+json_value('{"\\"key1":123}', '$."\\"key1"')
+123
+select json_value('{"\\"key1\\"":123}', '$."\\"key1\\""');
+json_value('{"\\"key1\\"":123}', '$."\\"key1\\""')
+123
+select json_value('{"key 1":123}', '$."key 1"');
+json_value('{"key 1":123}', '$."key 1"')
+123

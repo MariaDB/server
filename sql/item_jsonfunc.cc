@@ -2422,7 +2422,10 @@ bool Item_func_json_search::fix_fields(THD *thd, Item **ref)
     return TRUE;
 
   if (arg_count < 4)
+  {
+    escape= '\\';
     return FALSE;
+  }
 
   return fix_escape_item(thd, args[3], &tmp_js, true,
                          args[0]->collation.collation, &escape);

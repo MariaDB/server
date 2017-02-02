@@ -197,3 +197,6 @@ select json_set('{"a":12}', '$[0].a', 100);
 select json_set('{"a":12}', '$[0][0].a', 100);
 select json_set('{"a":12}', '$[0][1].a', 100);
 
+select json_value('{"\\"key1":123}', '$."\\"key1"');
+select json_value('{"\\"key1\\"":123}', '$."\\"key1\\""');
+select json_value('{"key 1":123}', '$."key 1"');
