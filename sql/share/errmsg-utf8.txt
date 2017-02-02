@@ -7460,3 +7460,5 @@ ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
 ER_WRONG_PARAMCOUNT_TO_CURSOR 42000
         eng "Incorrect parameter count to cursor '%-.192s'"
         rus "Некорректное количество параметров для курсора '%-.192s'"
+ER_UNKNOWN_STRUCTURED_VARIABLE
+        eng "Unknown structured system variable or ROW routine variable '%-.*s'"

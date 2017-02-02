@@ -141,7 +141,7 @@ INSERT INTO t1 VALUES (NULL, NULL, '');
 INSERT INTO t1 VALUES (NULL, NULL, 'c');
 INSERT INTO t1 VALUES (NULL, NULL, NULL);
 SELECT LENGTH(a||b||c), a||b||c FROM t1 ORDER BY a,b,c;
-LENGTH(a||b||c)	a||b||c 
+LENGTH(a||b||c)	a||b||c
 NULL	NULL
 0	
 1	c

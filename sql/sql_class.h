@@ -5522,6 +5522,22 @@ public:
   bool set(THD *thd, Item *val);
 };
 
+/*
+  This class handles fields of a ROW SP variable when it's used as a OUT
+  parameter in a stored procedure.
+*/
+class my_var_sp_row_field: public my_var_sp
+{
+  uint m_field_offset;
+public:
+  my_var_sp_row_field(const LEX_STRING &varname, const LEX_STRING &fieldname,
+                      uint var_idx, uint field_idx, sp_head *s)
+   :my_var_sp(varname, var_idx, MYSQL_TYPE_DOUBLE/*Not really used*/, s),
+    m_field_offset(field_idx)
+  { }
+  bool set(THD *thd, Item *val);
+};
+
 class my_var_user: public my_var {
 public:
   my_var_user(const LEX_STRING& j)

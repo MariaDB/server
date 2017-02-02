@@ -187,7 +187,9 @@ public:
   /////////////////////////////////////////////////////////////////////////
 
   int set_variable(THD *thd, uint var_idx, Item **value);
-
+  void set_variable_row_field_to_null(THD *thd, uint var_idx, uint field_idx);
+  int set_variable_row_field(THD *thd, uint var_idx, uint field_idx,
+                             Item **value);
   Item *get_item(uint var_idx) const
   { return m_var_items[var_idx]; }
 

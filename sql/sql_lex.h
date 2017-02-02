@@ -96,6 +96,7 @@ class Key_part_spec;
 class Item_window_func;
 struct sql_digest_state;
 class With_clause;
+class my_var;
 
 
 #define ALLOC_ROOT_SET 1024
@@ -2226,6 +2227,20 @@ public:
     return m_cpp_tok_end;
   }
 
+  /**
+    Get the token end position in the pre-processed buffer,
+    with trailing spaces removed.
+  */
+  const char *get_cpp_tok_end_rtrim()
+  {
+    const char *p;
+    for (p= m_cpp_tok_end;
+         p > m_cpp_buf && my_isspace(system_charset_info, p[-1]);
+         p--)
+    { }
+    return p;
+  }
+
   /** Get the current stream pointer, in the pre-processed buffer. */
   const char *get_cpp_ptr()
   {
@@ -2923,6 +2938,8 @@ public:
 
   void start(THD *thd);
 
+  const char *substatement_query(THD *thd) const;
+
   inline bool is_ps_or_view_context_analysis()
   {
     return (context_analysis_only &
@@ -3108,10 +3125,25 @@ public:
   bool init_default_internal_variable(struct sys_var_with_base *variable,
                                       LEX_STRING name);
   bool set_variable(struct sys_var_with_base *variable, Item *item);
+  bool set_variable(const LEX_STRING &name1, const LEX_STRING &name2,
+                    Item *item);
   void sp_variable_declarations_init(THD *thd, int nvars);
   bool sp_variable_declarations_finalize(THD *thd, int nvars,
                                          const Column_definition *cdef,
+                                         Row_definition_list *row,
                                          Item *def);
+  bool sp_variable_declarations_finalize(THD *thd, int nvars,
+                                         const Column_definition *cdef,
+                                         Item *def)
+  {
+    return sp_variable_declarations_finalize(thd, nvars, cdef, NULL, def);
+  }
+  bool sp_variable_declarations_row_finalize(THD *thd, int nvars,
+                                             Row_definition_list *row,
+                                             Item *def)
+  {
+    return sp_variable_declarations_finalize(thd, nvars, NULL, row, def);
+  }
   bool sp_variable_declarations_with_ref_finalize(THD *thd, int nvars,
                                                   Qualified_column_ident *col,
                                                   Item *def);
@@ -3141,6 +3173,98 @@ public:
            create_item_ident_sp(thd, name, start_in_q, end_in_q) :
            create_item_ident_nosp(thd, name);
   }
+
+  /*
+    Create an Item corresponding to a qualified name: a.b
+    when the parser is out of an SP context.
+      @param THD        - THD, for mem_root
+      @param a          - the first name
+      @param b          - the second name
+      @retval           - a pointer to a created item, or NULL on error.
+
+    Possible Item types that can be created:
+    - Item_trigger_field
+    - Item_field
+    - Item_ref
+  */
+  Item *create_item_ident_nospvar(THD *thd,
+                                  const LEX_STRING &a,
+                                  const LEX_STRING &b);
+  /*
+    Create an Item corresponding to a ROW field valiable:  var.field
+      @param THD        - THD, for mem_root
+      @param var        - the ROW variable name
+      @param field      - the ROW variable field name
+      @param spvar      - the variable that was previously found by name
+                          using "var_name".
+      @pos_in_q         - position in the query (for binary log)
+      @length_in_q      - length in the query (for binary log)
+  */
+  Item_splocal_row_field *create_item_spvar_row_field(THD *thd,
+                                                      const LEX_STRING &var,
+                                                      const LEX_STRING &field,
+                                                      sp_variable *spvar,
+                                                      uint pos_in_q,
+                                                      uint length_in_q);
+  /*
+    Create an item from its qualified name.
+    Depending on context, it can be either a ROW variable field,
+    or trigger, table field, table field reference.
+    See comments to create_item_spvar_row_field() and
+    create_item_ident_nospvar().
+      @param thd         - THD, for mem_root
+      @param a           - the first name
+      @param b           - the second name
+      @param pos_in_q    - position in the query (for binary log)
+      @param length_in_q - length in the query (for binary log)
+      @retval            - NULL on error, or a pointer to a new Item.
+  */
+  Item *create_item_ident(THD *thd,
+                          const LEX_STRING &a,
+                          const LEX_STRING &b,
+                          uint pos_in_q, uint length_in_q);
+  /*
+    Create an item for a name in LIMIT clause: LIMIT var
+      @param THD         - THD, for mem_root
+      @param var_name    - the variable name
+      @param pos_in_q    - position in the query (for binary log)
+      @param length_in_q - length in the query (for binary log)
+      @retval            - a new Item corresponding to the SP variable,
+                           or NULL on error
+                           (non in SP, unknown variable, wrong data type).
+  */
+  Item *create_item_limit(THD *thd,
+                          const LEX_STRING &var_name,
+                          uint pos_in_q, uint length_in_q);
+
+  /*
+    Create an item for a qualified name in LIMIT clause: LIMIT var.field
+      @param THD         - THD, for mem_root
+      @param var_name    - the variable name
+      @param field_name  - the variable field name
+      @param pos_in_q    - position in the query (for binary log)
+      @param length_in_q - length in the query (for binary log)
+      @retval            - a new Item corresponding to the SP variable,
+                           or NULL on error
+                           (non in SP, unknown variable, unknown ROW field,
+                            wrong data type).
+  */
+  Item *create_item_limit(THD *thd,
+                          const LEX_STRING &var_name,
+                          const LEX_STRING &field_name,
+                          uint pos_in_q, uint length_in_q);
+
+  /*
+    Create a my_var instance for a ROW field variable that was used
+    as an OUT SP parameter: CALL p1(var.field);
+      @param THD        - THD, for mem_root
+      @param var_name   - the variable name
+      @param field_name - the variable field name
+  */
+  my_var *create_outvar(THD *thd,
+                        const LEX_STRING &var_name,
+                        const LEX_STRING &field_name);
+
   bool is_trigger_new_or_old_reference(const LEX_STRING name);
 
   Item *create_and_link_Item_trigger_field(THD *thd, const char *name,
@@ -3209,8 +3333,10 @@ public:
   Item_param *add_placeholder(THD *thd, char *name,
                               uint pos_in_query, uint len_in_query);
   Item_param *add_placeholder(THD *thd, char *name,
-                              const char *pos, const char *end);
-
+                              const char *pos, const char *end)
+  {
+    return add_placeholder(thd, name, pos - substatement_query(thd), end - pos);
+  }
   sp_variable *sp_add_for_loop_variable(THD *thd, const LEX_STRING name,
                                         Item *value);
   sp_variable *sp_add_for_loop_upper_bound(THD *thd, Item *value)

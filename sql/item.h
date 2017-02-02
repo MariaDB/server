@@ -1843,6 +1843,94 @@ inline Item* get_item_copy (THD *thd, MEM_ROOT *mem_root, T* item)
 bool cmp_items(Item *a, Item *b);
 
 
+/**
+  Array of items, e.g. function or aggerate function arguments.
+*/
+class Item_args
+{
+protected:
+  Item **args, *tmp_arg[2];
+  uint arg_count;
+  bool alloc_arguments(THD *thd, uint count);
+  void set_arguments(THD *thd, List<Item> &list);
+  bool walk_args(Item_processor processor, bool walk_subquery, void *arg)
+  {
+    for (uint i= 0; i < arg_count; i++)
+    {
+      if (args[i]->walk(processor, walk_subquery, arg))
+        return true;
+    }
+    return false;
+  }
+  bool transform_args(THD *thd, Item_transformer transformer, uchar *arg);
+  void propagate_equal_fields(THD *, const Item::Context &, COND_EQUAL *);
+public:
+  Item_args(void)
+    :args(NULL), arg_count(0)
+  { }
+  Item_args(Item *a)
+    :args(tmp_arg), arg_count(1)
+  {
+    args[0]= a;
+  }
+  Item_args(Item *a, Item *b)
+    :args(tmp_arg), arg_count(2)
+  {
+    args[0]= a; args[1]= b;
+  }
+  Item_args(THD *thd, Item *a, Item *b, Item *c)
+  {
+    arg_count= 0;
+    if ((args= (Item**) thd_alloc(thd, sizeof(Item*) * 3)))
+    {
+      arg_count= 3;
+      args[0]= a; args[1]= b; args[2]= c;
+    }
+  }
+  Item_args(THD *thd, Item *a, Item *b, Item *c, Item *d)
+  {
+    arg_count= 0;
+    if ((args= (Item**) thd_alloc(thd, sizeof(Item*) * 4)))
+    {
+      arg_count= 4;
+      args[0]= a; args[1]= b; args[2]= c; args[3]= d;
+    }
+  }
+  Item_args(THD *thd, Item *a, Item *b, Item *c, Item *d, Item* e)
+  {
+    arg_count= 5;
+    if ((args= (Item**) thd_alloc(thd, sizeof(Item*) * 5)))
+    {
+      arg_count= 5;
+      args[0]= a; args[1]= b; args[2]= c; args[3]= d; args[4]= e;
+    }
+  }
+  Item_args(THD *thd, List<Item> &list)
+  {
+    set_arguments(thd, list);
+  }
+  Item_args(THD *thd, const Item_args *other);
+  inline Item **arguments() const { return args; }
+  inline uint argument_count() const { return arg_count; }
+  inline void remove_arguments() { arg_count=0; }
+};
+
+
+class Item_spvar_args: public Item_args
+{
+  TABLE *m_table;
+public:
+  Item_spvar_args():Item_args(), m_table(NULL) { }
+  ~Item_spvar_args();
+  bool row_create_items(THD *thd, List<Spvar_definition> *list);
+  Field *get_row_field(uint i) const
+  {
+    DBUG_ASSERT(m_table);
+    return m_table->field[i];
+  }
+};
+
+
 /*
   Class to be used to enumerate all field references in an item tree. This
   includes references to outside but not fields of the tables within a
@@ -2076,9 +2164,12 @@ class Item_splocal :public Item_sp_variable,
                     public Rewritable_query_parameter,
                     public Type_handler_hybrid_field_type
 {
+protected:
   uint m_var_idx;
 
   Type m_type;
+
+  bool append_value_for_log(THD *thd, String *str);
 public:
   Item_splocal(THD *thd, const LEX_STRING &sp_var_name, uint sp_var_idx,
                enum_field_types sp_var_type,
@@ -2104,6 +2195,10 @@ public:
   { return Type_handler_hybrid_field_type::result_type(); }
   enum Item_result cmp_type () const
   { return Type_handler_hybrid_field_type::cmp_type(); }
+  uint cols() { return this_item()->cols(); }
+  Item* element_index(uint i) { return this_item()->element_index(i); }
+  Item** addr(uint i) { return this_item()->addr(i); }
+  bool check_cols(uint c);
 
 private:
   bool set_value(THD *thd, sp_rcontext *ctx, Item **it);
@@ -2120,6 +2215,20 @@ public:
   bool append_for_log(THD *thd, String *str);
   
   Item *get_copy(THD *thd, MEM_ROOT *mem_root) { return 0; }
+};
+
+
+class Item_splocal_row: public Item_splocal
+{
+public:
+  Item_splocal_row(THD *thd, const LEX_STRING &sp_var_name,
+                   uint sp_var_idx, uint pos_in_q, uint len_in_q)
+   :Item_splocal(thd, sp_var_name, sp_var_idx, MYSQL_TYPE_NULL,
+                 pos_in_q, len_in_q)
+  {
+    set_handler(&type_handler_row);
+  }
+  enum Type type() const { return ROW_ITEM; }
 };
 
 
@@ -2155,6 +2264,37 @@ public:
   Field *create_field_for_create_select(TABLE *table)
   { return tmp_table_field_from_field_type(table, false, true); }
 };
+
+
+/**
+  SP variables that are fields of a ROW.
+  DELCARE r ROW(a INT,b INT);
+  SELECT r.a; -- This is handled by Item_splocal_row_field
+*/
+class Item_splocal_row_field :public Item_splocal
+{
+  LEX_STRING m_field_name;
+  uint m_field_idx;
+  bool set_value(THD *thd, sp_rcontext *ctx, Item **it);
+public:
+  Item_splocal_row_field(THD *thd,
+                         const LEX_STRING &sp_var_name,
+                         const LEX_STRING &sp_field_name,
+                         uint sp_var_idx, uint sp_field_idx,
+                         enum_field_types sp_var_type,
+                         uint pos_in_q= 0, uint len_in_q= 0)
+   :Item_splocal(thd, sp_var_name, sp_var_idx, sp_var_type,
+                 pos_in_q, len_in_q),
+    m_field_name(sp_field_name),
+    m_field_idx(sp_field_idx)
+  { }
+  Item *this_item();
+  const Item *this_item() const;
+  Item **this_item_addr(THD *thd, Item **);
+  bool append_for_log(THD *thd, String *str);
+  void print(String *str, enum_query_type query_type);
+};
+
 
 /*****************************************************************************
   Item_splocal inline implementation.
@@ -2596,6 +2736,39 @@ public:
   friend class Item_default_value;
   friend class Item_insert_value;
   friend class st_select_lex_unit;
+};
+
+
+/**
+  Item_field for the ROW data type
+*/
+class Item_field_row: public Item_field,
+                      public Item_spvar_args
+{
+public:
+  Item_field_row(THD *thd, Field *field)
+   :Item_field(thd, field),
+    Item_spvar_args()
+  { }
+
+  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
+  { return get_item_copy<Item_field_row>(thd, mem_root, this); }
+
+  const Type_handler *type_handler() const { return &type_handler_row; }
+  Item_result result_type() const{ return ROW_RESULT ; }
+  Item_result cmp_type() const { return ROW_RESULT; }
+  uint cols() { return arg_count; }
+  Item* element_index(uint i) { return arg_count ? args[i] : this; }
+  Item** addr(uint i) { return arg_count ? args + i : NULL; }
+  bool check_cols(uint c)
+  {
+    if (cols() != c)
+    {
+      my_error(ER_OPERAND_COLUMNS, MYF(0), c);
+      return true;
+    }
+    return false;
+  }
 };
 
 
@@ -3782,78 +3955,6 @@ public:
     *ltime= cached_time;
     return (null_value= false);
   }
-};
-
-
-/**
-  Array of items, e.g. function or aggerate function arguments.
-*/
-class Item_args
-{
-protected:
-  Item **args, *tmp_arg[2];
-  uint arg_count;
-  void set_arguments(THD *thd, List<Item> &list);
-  bool walk_args(Item_processor processor, bool walk_subquery, void *arg)
-  {
-    for (uint i= 0; i < arg_count; i++)
-    {
-      if (args[i]->walk(processor, walk_subquery, arg))
-        return true;
-    }
-    return false;
-  }
-  bool transform_args(THD *thd, Item_transformer transformer, uchar *arg);
-  void propagate_equal_fields(THD *, const Item::Context &, COND_EQUAL *);
-public:
-  Item_args(void)
-    :args(NULL), arg_count(0)
-  { }
-  Item_args(Item *a)
-    :args(tmp_arg), arg_count(1)
-  {
-    args[0]= a;
-  }
-  Item_args(Item *a, Item *b)
-    :args(tmp_arg), arg_count(2)
-  {
-    args[0]= a; args[1]= b;
-  }
-  Item_args(THD *thd, Item *a, Item *b, Item *c)
-  {
-    arg_count= 0;
-    if ((args= (Item**) thd_alloc(thd, sizeof(Item*) * 3)))
-    {
-      arg_count= 3;
-      args[0]= a; args[1]= b; args[2]= c;
-    }
-  }
-  Item_args(THD *thd, Item *a, Item *b, Item *c, Item *d)
-  {
-    arg_count= 0;
-    if ((args= (Item**) thd_alloc(thd, sizeof(Item*) * 4)))
-    {
-      arg_count= 4;
-      args[0]= a; args[1]= b; args[2]= c; args[3]= d;
-    }
-  }
-  Item_args(THD *thd, Item *a, Item *b, Item *c, Item *d, Item* e)
-  {
-    arg_count= 5;
-    if ((args= (Item**) thd_alloc(thd, sizeof(Item*) * 5)))
-    {
-      arg_count= 5;
-      args[0]= a; args[1]= b; args[2]= c; args[3]= d; args[4]= e;
-    }
-  }
-  Item_args(THD *thd, List<Item> &list)
-  {
-    set_arguments(thd, list);
-  }
-  Item_args(THD *thd, const Item_args *other);
-  inline Item **arguments() const { return args; }
-  inline uint argument_count() const { return arg_count; }
-  inline void remove_arguments() { arg_count=0; }
 };
 
 

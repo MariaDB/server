@@ -3958,11 +3958,47 @@ public:
 
 
 /**
+  List of ROW element definitions, e.g.:
+    DECLARE a ROW(a INT,b VARCHAR(10))
+*/
+class Row_definition_list: public List<class Spvar_definition>
+{
+public:
+  inline bool eq_name(const Spvar_definition *def, const char *name) const;
+  /**
+    Find a ROW field by name.
+    @param [IN]  name   - the name
+    @param [OUT] offset - if the ROW field found, its offset it returned here
+    @retval NULL        - the ROW field was not found
+    @retval !NULL       - the pointer to the found ROW field
+  */
+  Spvar_definition *find_row_field_by_name(const char *name, uint *offset) const
+  {
+    // Cast-off the "const" qualifier
+    List_iterator<Spvar_definition> it(*((List<Spvar_definition>*)this));
+    Spvar_definition *def;
+    for (*offset= 0; (def= it++); (*offset)++)
+    {
+      if (eq_name(def, name))
+        return def;
+    }
+    return 0;
+  }
+};
+
+
+/**
   This class is used during a stored routine or a trigger execution,
   at sp_rcontext::create() time.
   Currently it can represent:
   - variables with explicit data types:   DECLARE a INT;
   - variables with data type references:  DECLARE a t1.a%TYPE;
+  - ROW type variables
+
+  Notes:
+  - Scalar variables have m_field_definitions==NULL.
+  - ROW variables are defined as having MYSQL_TYPE_NULL,
+    with a non-empty m_field_definitions.
 
   Data type references to other object types will be added soon, e.g.:
   - DECLARE a table_name%ROWTYPE;
@@ -3973,9 +4009,11 @@ public:
 class Spvar_definition: public Column_definition
 {
   class Qualified_column_ident *m_column_type_ref; // for %TYPE
+  Row_definition_list *m_row_field_definitions;    // for ROW
 public:
   Spvar_definition()
-   :m_column_type_ref(NULL) { }
+   :m_column_type_ref(NULL),
+    m_row_field_definitions(NULL) { }
   bool is_column_type_ref() const { return m_column_type_ref != 0; }
   class Qualified_column_ident *column_type_ref() const
   {
@@ -3985,7 +4023,37 @@ public:
   {
     m_column_type_ref= ref;
   }
+
+  /*
+    Find a ROW field by name.
+    See Row_field_list::find_row_field_by_name() for details.
+  */
+  Spvar_definition *find_row_field_by_name(const char *name, uint *offset) const
+  {
+    DBUG_ASSERT(m_row_field_definitions);
+    return m_row_field_definitions->find_row_field_by_name(name, offset);
+  }
+  uint is_row() const
+  {
+    return m_row_field_definitions != NULL;
+  }
+  Row_definition_list *row_field_definitions() const
+  {
+    return m_row_field_definitions;
+  }
+  void set_row_field_definitions(Row_definition_list *list)
+  {
+    m_row_field_definitions= list;
+  }
+
 };
+
+
+inline bool Row_definition_list::eq_name(const Spvar_definition *def,
+                                         const char *name) const
+{
+  return my_strcasecmp(system_charset_info, def->field_name, name) == 0;
+}
 
 
 class Create_field :public Column_definition

@@ -1653,6 +1653,126 @@ bool Item_splocal::set_value(THD *thd, sp_rcontext *ctx, Item **it)
 }
 
 
+/**
+  These two declarations are different:
+    x INT;
+    ROW(x INT);
+  A ROW with one elements should not be comparable to scalar value.
+
+  TODO: Currently we don't support one argument with the function ROW(), so
+  this query returns a syntax error, meaning that more arguments are expected:
+    SELECT ROW(1);
+
+  Therefore, all around the code we assume that cols()==1 means a scalar value
+  and cols()>1 means a ROW value. With adding ROW SP variables this
+  assumption is not true any more. ROW variables with one element are
+  now possible.
+
+  To implement Item::check_cols() correctly, we now should extend it to
+  know if a ROW or a scalar value is being tested. For example,
+  these new prototypes should work:
+    virtual bool check_cols(Item_result result, uint c);
+  or
+    virtual bool check_cols(const Type_handler *type, uint c);
+
+  The current implementation of Item_splocal::check_cols() is a compromise
+  that should be more or less fine until we extend check_cols().
+  It disallows ROW variables to appear in a scalar context.
+  The "|| n == 1" part of the conditon is responsible for this.
+  For example, it disallows ROW variables to appear in SELECT list:
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+AS
+  a ROW (a INT);
+BEGIN
+  SELECT a;
+END;
+$$
+DELIMITER ;$$
+--error ER_OPERAND_COLUMNS
+CALL p1();
+
+  But is produces false negatives with ROW variables consisting of one element.
+  For example, this script fails:
+
+SET sql_mode=ORACLE;
+DROP PROCEDURE IF EXISTS p1;
+DELIMITER $$
+CREATE PROCEDURE p1
+AS
+  a ROW(a INT);
+  b ROW(a INT);
+BEGIN
+  SELECT a=b;
+END;
+$$
+DELIMITER ;
+CALL p1();
+
+  and returns "ERROR 1241 (21000): Operand should contain 1 column(s)".
+  This will be fixed that we change check_cols().
+*/
+
+bool Item_splocal::check_cols(uint n)
+{
+  DBUG_ASSERT(m_thd->spcont);
+  if (cmp_type() != ROW_RESULT)
+    return Item::check_cols(n);
+
+  if (n != this_item()->cols() || n == 1)
+  {
+    my_error(ER_OPERAND_COLUMNS, MYF(0), n);
+    return true;
+  }
+  return false;
+}
+
+
+Item *
+Item_splocal_row_field::this_item()
+{
+  DBUG_ASSERT(m_sp == m_thd->spcont->sp);
+  return m_thd->spcont->get_item(m_var_idx)->element_index(m_field_idx);
+}
+
+
+const Item *
+Item_splocal_row_field::this_item() const
+{
+  DBUG_ASSERT(m_sp == m_thd->spcont->sp);
+  return m_thd->spcont->get_item(m_var_idx)->element_index(m_field_idx);
+}
+
+
+Item **
+Item_splocal_row_field::this_item_addr(THD *thd, Item **)
+{
+  DBUG_ASSERT(m_sp == thd->spcont->sp);
+  return thd->spcont->get_item(m_var_idx)->addr(m_field_idx);
+}
+
+
+void Item_splocal_row_field::print(String *str, enum_query_type)
+{
+  str->reserve(m_name.length + m_field_name.length + 8);
+  str->append(m_name.str, m_name.length);
+  str->append('.');
+  str->append(m_field_name.str, m_field_name.length);
+  str->append('@');
+  str->qs_append(m_var_idx);
+  str->append('[');
+  str->qs_append(m_field_idx);
+  str->append(']');
+}
+
+
+bool Item_splocal_row_field::set_value(THD *thd, sp_rcontext *ctx, Item **it)
+{
+  return ctx->set_variable_row_field(thd, m_var_idx, m_field_idx, it);
+}
+
+
 /*****************************************************************************
   Item_case_expr methods
 *****************************************************************************/

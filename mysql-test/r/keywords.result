@@ -274,7 +274,7 @@ drop table option;
 set option=1;
 ERROR HY000: Unknown system variable 'option'
 set option option=1;
-ERROR HY000: Unknown system variable 'option'
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'option=1' at line 1
 #
 # MDEV-9979 Keywords UNBOUNDED, PRECEDING, FOLLOWING, TIES, OTHERS should be non-reserved
 #

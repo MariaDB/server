@@ -657,3 +657,88 @@ DROP PROCEDURE p1;
 --echo #
 --echo # End of MDEV-10597 Cursors with parameters
 --echo #
+
+
+--echo #
+--echo # MDEV-10914 ROW data type for stored routine variables
+--echo #
+DELIMITER $$;
+CREATE FUNCTION f1() RETURN INT
+AS
+  a ROW(a INT, b INT);
+BEGIN
+  a.b:= 200;
+  RETURN a.b;
+END;
+$$
+DELIMITER ;$$
+SHOW FUNCTION CODE f1;
+SELECT f1();
+DROP FUNCTION f1;
+
+
+DELIMITER $$;
+CREATE PROCEDURE p1
+AS
+  rec ROW(a INT,b DOUBLE,c DECIMAL(10,3),d VARCHAR(10));
+BEGIN
+  rec:= ROW(10,20.123456,30.123,'test');
+  SELECT rec.a, rec.b, rec.c, rec.d;
+END;
+$$
+DELIMITER ;$$
+SHOW PROCEDURE CODE p1;
+CALL p1;
+DROP PROCEDURE p1;
+
+
+DELIMITER $$;
+CREATE PROCEDURE p1
+AS
+  rec ROW(a INT,b DOUBLE,c DECIMAL(10,3),d VARCHAR(10)) :=
+      ROW(10,20.123456,30.123,'test');
+BEGIN
+  SELECT rec.a, rec.b, rec.c, rec.d;
+END;
+$$
+DELIMITER ;$$
+SHOW PROCEDURE CODE p1;
+CALL p1;
+DROP PROCEDURE p1;
+
+
+DELIMITER $$;
+CREATE PROCEDURE p1
+AS
+  rec1 ROW(a INT,b DOUBLE,c DECIMAL(10,3),d VARCHAR(10));
+  rec2 ROW(a INT,b DOUBLE,c DECIMAL(10,3),d VARCHAR(10));
+BEGIN
+  rec1:= ROW(10,20.123456,30.123,'test');
+  rec2:= rec1;
+  SELECT rec2.a, rec2.b, rec2.c, rec2.d;
+END;
+$$
+DELIMITER ;$$
+SHOW PROCEDURE CODE p1;
+CALL p1;
+DROP PROCEDURE p1;
+
+
+DELIMITER $$;
+CREATE PROCEDURE p1
+AS
+  rec1 ROW(a INT,b DOUBLE,c DECIMAL(10,3),d VARCHAR(10)) :=
+       ROW(10,20.123456,30.123,'test');
+  rec2 ROW(a INT,b DOUBLE,c DECIMAL(10,3),d VARCHAR(10)) := rec1;
+BEGIN
+  SELECT rec2.a, rec2.b, rec2.c, rec2.d;
+END;
+$$
+DELIMITER ;$$
+SHOW PROCEDURE CODE p1;
+CALL p1;
+DROP PROCEDURE p1;
+
+--echo #
+--echo # End of MDEV-10914 ROW data type for stored routine variables
+--echo #

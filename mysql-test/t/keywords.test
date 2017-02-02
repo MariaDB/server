@@ -171,7 +171,7 @@ create table option (option int not null);
 drop table option;
 --error 1193
 set option=1;
---error 1193
+--error ER_PARSE_ERROR
 set option option=1;
 
 --echo #

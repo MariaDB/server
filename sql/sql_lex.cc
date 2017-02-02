@@ -5153,7 +5153,8 @@ bool LEX::init_internal_variable(struct sys_var_with_base *variable,
 {
   if (check_reserved_words(&dbname))
   {
-    thd->parse_error();
+    my_error(ER_UNKNOWN_STRUCTURED_VARIABLE, MYF(0),
+             (int) dbname.length, dbname.str);
     return true;
   }
   if (is_trigger_new_or_old_reference(dbname))
@@ -5179,9 +5180,13 @@ bool LEX::init_internal_variable(struct sys_var_with_base *variable,
     return false;
   }
 
-  sys_var *tmp= find_sys_var(thd, name.str, name.length);
+  sys_var *tmp= find_sys_var_ex(thd, name.str, name.length, true, false);
   if (!tmp)
+  {
+    my_error(ER_UNKNOWN_STRUCTURED_VARIABLE, MYF(0),
+             (int) dbname.length, dbname.str);
     return true;
+  }
   if (!tmp->is_struct())
     my_error(ER_VARIABLE_IS_NOT_STRUCT, MYF(0), name.str);
   variable->var= tmp;
@@ -5219,6 +5224,7 @@ void LEX::sp_variable_declarations_init(THD *thd, int nvars)
 
 bool LEX::sp_variable_declarations_finalize(THD *thd, int nvars,
                                             const Column_definition *cdef,
+                                            Row_definition_list *row,
                                             Item *dflt_value_item)
 {
   uint num_vars= spcont->context_var_count();
@@ -5226,7 +5232,31 @@ bool LEX::sp_variable_declarations_finalize(THD *thd, int nvars,
   if (!dflt_value_item &&
       !(dflt_value_item= new (thd->mem_root) Item_null(thd)))
     return true;
-  /* QQ Set to the var_type with null_value? */
+
+  if (row)
+  {
+    /*
+      Prepare all row fields. This will (among other things)
+      - convert VARCHAR lengths from character length to octet length
+      - calculate interval lengths for SET and ENUM
+      Note, we do it only one time outside of the below loop.
+      The converted list in "row" is further reused by all variable
+      declarations processed by the current call.
+      Example:
+        DECLARE
+          a, b, c ROW(x VARCHAR(10) CHARACTER SET utf8);
+        BEGIN
+          ...
+        END;
+    */
+    List_iterator<Spvar_definition> it(*row);
+    for (Spvar_definition *def= it++; def; def= it++)
+    {
+      def->pack_flag|= FIELDFLAG_MAYBE_NULL;
+      if (sphead->fill_field_definition(thd, def))
+        return true;
+    }
+  }
 
   for (uint i= num_vars - nvars ; i < num_vars ; i++)
   {
@@ -5246,6 +5276,7 @@ bool LEX::sp_variable_declarations_finalize(THD *thd, int nvars,
       if (sphead->fill_spvar_definition(thd, &spvar->field_def, spvar->name.str))
         return true;
     }
+    spvar->field_def.set_row_field_definitions(row);
 
     /* The last instruction is responsible for freeing LEX. */
     sp_instr_set *is= new (this->thd->mem_root)
@@ -5274,7 +5305,7 @@ LEX::sp_variable_declarations_with_ref_finalize(THD *thd, int nvars,
     spvar->field_def.field_name= spvar->name.str;
   }
   sphead->m_flags|= sp_head::HAS_COLUMN_TYPE_REFS;
-  return sp_variable_declarations_finalize(thd, nvars, NULL, def);
+  return sp_variable_declarations_finalize(thd, nvars, NULL, NULL, def);
 }
 
 
@@ -5315,7 +5346,7 @@ sp_variable *LEX::sp_add_for_loop_variable(THD *thd, const LEX_STRING name,
   */
   spvar->field_def.pack_flag= (FIELDFLAG_NUMBER |
                                f_settype((uint) MYSQL_TYPE_LONGLONG));
-  if (sp_variable_declarations_finalize(thd, 1, NULL, value))
+  if (sp_variable_declarations_finalize(thd, 1, NULL, NULL, value))
     return NULL;
   return spvar;
 }
@@ -5953,11 +5984,9 @@ Item_param *LEX::add_placeholder(THD *thd, char *name,
 }
 
 
-Item_param *LEX::add_placeholder(THD *thd, char *name,
-                                 const char *pos, const char *end)
+const char *LEX::substatement_query(THD *thd) const
 {
-  const char *query_start= sphead ? sphead->m_tmp_query : thd->query();
-  return add_placeholder(thd, name, pos - query_start, end - pos);
+  return sphead ? sphead->m_tmp_query : thd->query();
 }
 
 
@@ -5976,6 +6005,160 @@ bool LEX::add_resignal_statement(THD *thd, const sp_condition_value *v)
   sql_command= SQLCOM_RESIGNAL;
   m_sql_cmd= new (thd->mem_root) Sql_cmd_resignal(v, state->m_set_signal_info);
   return m_sql_cmd == NULL;
+}
+
+
+Item *LEX::create_item_ident_nospvar(THD *thd,
+                                     const LEX_STRING &a,
+                                     const LEX_STRING &b)
+{
+  DBUG_ASSERT(this == thd->lex);
+  /*
+    FIXME This will work ok in simple_ident_nospvar case because
+    we can't meet simple_ident_nospvar in trigger now. But it
+    should be changed in future.
+  */
+  if (is_trigger_new_or_old_reference(a))
+  {
+    bool new_row= (a.str[0]=='N' || a.str[0]=='n');
+
+    return create_and_link_Item_trigger_field(thd, b.str, new_row);
+  }
+
+  if (current_select->no_table_names_allowed)
+  {
+    my_error(ER_TABLENAME_NOT_ALLOWED_HERE, MYF(0), a.str, thd->where);
+    return NULL;
+  }
+  if ((current_select->parsing_place != IN_HAVING) ||
+      (current_select->get_in_sum_expr() > 0))
+    return new (thd->mem_root) Item_field(thd, current_context(),
+                                          NullS, a.str, b.str);
+  return new (thd->mem_root) Item_ref(thd, current_context(),
+                                      NullS, a.str, b.str);
+}
+
+
+Item_splocal_row_field *LEX::create_item_spvar_row_field(THD *thd,
+                                                         const LEX_STRING &a,
+                                                         const LEX_STRING &b,
+                                                         sp_variable *spv,
+                                                         uint pos_in_q,
+                                                         uint length_in_q)
+{
+  if (!parsing_options.allows_variable)
+  {
+    my_error(ER_VIEW_SELECT_VARIABLE, MYF(0));
+    return NULL;
+  }
+
+  uint row_field_offset;
+  const Spvar_definition *def;
+  if (!(def= spv->find_row_field(a, b, &row_field_offset)))
+    return NULL;
+
+  Item_splocal_row_field *item;
+  if (!(item= new (thd->mem_root)
+              Item_splocal_row_field(thd, a, b,
+                                     spv->offset, row_field_offset,
+                                     def->sql_type, pos_in_q, length_in_q)))
+    return NULL;
+#ifndef DBUG_OFF
+  item->m_sp= sphead;
+#endif
+  safe_to_cache_query=0;
+  return item;
+}
+
+
+my_var *LEX::create_outvar(THD *thd,
+                           const LEX_STRING &a,
+                           const LEX_STRING &b)
+{
+  sp_variable *t;
+  if (!spcont || !(t= spcont->find_variable(a, false)))
+  {
+    my_error(ER_SP_UNDECLARED_VAR, MYF(0), a.str);
+    return NULL;
+  }
+  uint row_field_offset;
+  if (!t->find_row_field(a, b, &row_field_offset))
+    return NULL;
+  return result ?
+    new (thd->mem_root) my_var_sp_row_field(a, b, t->offset,
+                                            row_field_offset, sphead) :
+    NULL;
+}
+
+
+Item *LEX::create_item_ident(THD *thd,
+                             const LEX_STRING &a,
+                             const LEX_STRING &b,
+                             uint pos_in_q, uint length_in_q)
+{
+  sp_variable *spv;
+  if (spcont && (spv= spcont->find_variable(a, false)))
+    return create_item_spvar_row_field(thd, a, b, spv, pos_in_q, length_in_q);
+  return create_item_ident_nospvar(thd, a, b);
+}
+
+
+
+Item *LEX::create_item_limit(THD *thd,
+                             const LEX_STRING &a,
+                             uint pos_in_q, uint length_in_q)
+{
+  sp_variable *spv;
+  if (!spcont || !(spv= spcont->find_variable(a, false)))
+  {
+    my_error(ER_SP_UNDECLARED_VAR, MYF(0), a.str);
+    return NULL;
+  }
+
+  Item_splocal *item;
+  if (!(item= new (thd->mem_root) Item_splocal(thd, a,
+                                               spv->offset, spv->sql_type(),
+                                               pos_in_q, length_in_q)))
+    return NULL;
+#ifndef DBUG_OFF
+  item->m_sp= sphead;
+#endif
+  safe_to_cache_query= 0;
+
+  if (item->type() != Item::INT_ITEM)
+  {
+    my_error(ER_WRONG_SPVAR_TYPE_IN_LIMIT, MYF(0));
+    return NULL;
+  }
+  item->limit_clause_param= true;
+  return item;
+}
+
+
+Item *LEX::create_item_limit(THD *thd,
+                             const LEX_STRING &a,
+                             const LEX_STRING &b,
+                             uint pos_in_q, uint length_in_q)
+{
+  sp_variable *spv;
+  if (!spcont || !(spv= spcont->find_variable(a, false)))
+  {
+    my_error(ER_SP_UNDECLARED_VAR, MYF(0), a.str);
+    return NULL;
+  }
+  // Qualified %TYPE variables are not possible
+  DBUG_ASSERT(!spv->field_def.column_type_ref());
+  Item_splocal *item;
+  if (!(item= create_item_spvar_row_field(thd, a, b, spv,
+                                          pos_in_q, length_in_q)))
+    return NULL;
+  if (item->type() != Item::INT_ITEM)
+  {
+    my_error(ER_WRONG_SPVAR_TYPE_IN_LIMIT, MYF(0));
+    return NULL;
+  }
+  item->limit_clause_param= true;
+  return item;
 }
 
 
@@ -6040,6 +6223,9 @@ Item *LEX::create_item_ident_sp(THD *thd, LEX_STRING name,
                                                               spv->offset,
                                                               start_in_q,
                                                               length_in_q) :
+      spv->field_def.is_row() ?
+      new (thd->mem_root) Item_splocal_row(thd, name, spv->offset,
+                                           start_in_q, length_in_q) :
       new (thd->mem_root) Item_splocal(thd, name,
                                        spv->offset, spv->sql_type(),
                                        start_in_q, length_in_q);
@@ -6070,6 +6256,32 @@ Item *LEX::create_item_ident_sp(THD *thd, LEX_STRING name,
   DBUG_ASSERT(sphead);
   return create_item_ident_sp(thd, name, start_in_q - sphead->m_tmp_query,
                                          end_in_q - start_in_q);
+}
+
+
+/**
+  Generate instructions for:
+    SET x.y= expr;
+*/
+bool LEX::set_variable(const LEX_STRING &name1,
+                       const LEX_STRING &name2,
+                       Item *item)
+{
+  sp_variable *spv;
+  if (spcont && (spv= spcont->find_variable(name1, false)))
+  {
+    // A field of a ROW variable
+    uint row_field_offset;
+    return !spv->find_row_field(name1, name2, &row_field_offset) ||
+           sphead->set_local_variable_row_field(thd, spcont,
+                                                spv, row_field_offset,
+                                                item, this);
+  }
+
+  // A trigger field or a system variable
+  sys_var_with_base sysvar;
+  return init_internal_variable(&sysvar, name1, name2) ||
+         set_variable(&sysvar, item);
 }
 
 

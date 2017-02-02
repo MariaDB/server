@@ -53,6 +53,7 @@ protected:
       set_if_bigger(res, item[i]->decimals);
     return res;
   }
+  virtual bool check_allowed_arg_cols(uint argno);
 public:
   void aggregate_attributes_int(Item **items, uint nitems)
   {
@@ -2547,7 +2548,12 @@ private:
 protected:
   bool is_expensive_processor(void *arg)
   { return is_expensive(); }
-  
+
+  bool check_allowed_arg_cols(uint n)
+  {
+    // sp_prepare_func_item() checks that the number of columns is correct
+    return false;
+  } 
 public:
 
   Item_func_sp(THD *thd, Name_resolution_context *context_arg, sp_name *name);

@@ -171,6 +171,7 @@ void ORAerror(THD *thd, const char *s)
   LEX_SYMBOL symbol;
   Lex_string_with_metadata_st lex_string_with_metadata;
   struct sys_var_with_base variable;
+  Lex_string_with_pos_st lex_string_with_pos;
   Lex_spblock_st spblock;
   Lex_spblock_handlers_st spblock_handlers;
   Lex_length_and_dec_st Lex_length_and_dec;
@@ -186,6 +187,8 @@ void ORAerror(THD *thd, const char *s)
 
   /* pointers */
   Create_field *create_field;
+  Spvar_definition *spvar_definition;
+  Row_definition_list *spvar_definition_list;
   CHARSET_INFO *charset;
   Condition_information_item *cond_info_item;
   DYNCALL_CREATE_DEF *dyncol_def;
@@ -997,7 +1000,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %type <lex_str>
         IDENT IDENT_QUOTED DECIMAL_NUM FLOAT_NUM NUM LONG_NUM
         HEX_NUM HEX_STRING
-        LEX_HOSTNAME ULONGLONG_NUM field_ident select_alias ident ident_or_text
+        LEX_HOSTNAME ULONGLONG_NUM field_ident select_alias ident_or_text
         IDENT_sys TEXT_STRING_sys TEXT_STRING_literal
         opt_component key_cache_name
         sp_opt_label BIN_NUM label_ident TEXT_STRING_filesystem ident_or_empty
@@ -1012,6 +1015,9 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 
 %type <lex_str_ptr>
         opt_table_alias
+
+%type <lex_string_with_pos>
+        ident ident_with_tok_start
 
 %type <table>
         table_ident table_ident_nodb references xid
@@ -1113,7 +1119,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
         geometry_function signed_literal expr_or_literal
         opt_escape
         sp_opt_default
-        simple_ident_nospvar simple_ident_q
+        simple_ident_nospvar simple_ident_q simple_ident_q2
         field_or_var limit_option
         part_func_expr
         window_func_expr
@@ -1345,6 +1351,9 @@ END_OF_INPUT
 %type <cond_info_item> condition_information_item;
 %type <cond_info_item_name> condition_information_item_name;
 %type <cond_info_list> condition_information;
+
+%type <spvar_definition> row_field_name row_field_definition
+%type <spvar_definition_list> row_field_definition_list field_type_row
 
 %type <NONE> opt_window_clause window_def_list window_def window_spec
 %type <lex_str_ptr> window_name
@@ -2318,6 +2327,12 @@ sp_param_name_and_type:
           {
             Lex->sphead->fill_spvar_using_type_reference($$= $1, $2);
           }
+        | sp_param_name field_type_row
+          {
+            $$= $1;
+            $$->field_def.field_name= $$->name.str;
+            $$->field_def.set_row_field_definitions($2);
+          }
         ;
 
 /* Stored PROCEDURE parameter declaration list */
@@ -2341,6 +2356,12 @@ sp_pdparam:
         | sp_param_name sp_opt_inout qualified_column_ident '%' TYPE_SYM
           {
             Lex->sphead->fill_spvar_using_type_reference($1, $3);
+          }
+        | sp_param_name sp_opt_inout field_type_row
+          {
+            $1->mode= $2;
+            $1->field_def.field_name= $1->name.str;
+            $1->field_def.set_row_field_definitions($3);
           }
         ;
 
@@ -2435,6 +2456,44 @@ qualified_column_ident:
           }
         ;
 
+row_field_name:
+          ident_directly_assignable
+          {
+            if (check_string_char_length(&$1, 0, NAME_CHAR_LEN,
+                                         system_charset_info, 1))
+              my_yyabort_error((ER_TOO_LONG_IDENT, MYF(0), $1.str));
+            if (!($$= new (thd->mem_root) Spvar_definition()))
+              MYSQL_YYABORT;
+            Lex->init_last_field($$, $1.str, thd->variables.collation_database);
+          }
+        ;
+
+row_field_definition:
+          row_field_name type_with_opt_collate
+        ;
+
+row_field_definition_list:
+          row_field_definition
+          {
+            if (!($$= new (thd->mem_root) Row_definition_list()))
+              MYSQL_YYABORT;
+            $$->push_back($1, thd->mem_root);
+          }
+        | row_field_definition_list ',' row_field_definition
+          {
+            uint unused;
+            if ($1->find_row_field_by_name($3->field_name, &unused))
+              my_yyabort_error((ER_DUP_FIELDNAME, MYF(0), $3->field_name));
+            $$= $1;
+            $$->push_back($3, thd->mem_root);
+          }
+        ;
+
+field_type_row:
+          ROW_SYM '(' row_field_definition_list ')' { $$= $3; }
+        ;
+
+
 sp_decl_body:
           sp_decl_idents
           {
@@ -2456,6 +2515,17 @@ sp_decl_body:
           sp_opt_default
           {
             if (Lex->sp_variable_declarations_with_ref_finalize(thd, $1, $3, $6))
+              MYSQL_YYABORT;
+            $$.init_using_vars($1);
+          }
+        | sp_decl_idents
+          {
+            Lex->sp_variable_declarations_init(thd, $1);
+          }
+          field_type_row
+          sp_opt_default
+          {
+            if (Lex->sp_variable_declarations_row_finalize(thd, $1, $3, $4))
               MYSQL_YYABORT;
             $$.init_using_vars($1);
           }
@@ -8360,7 +8430,7 @@ remember_name:
 
 remember_end:
           {
-            $$= (char*) YYLIP->get_cpp_tok_end();
+            $$= (char*) YYLIP->get_cpp_tok_end_rtrim();
           }
         ;
 
@@ -11516,32 +11586,25 @@ limit_options:
         ;
 
 limit_option:
-        ident
+        ident_with_tok_start
         {
-          Item_splocal *splocal;
           LEX *lex= thd->lex;
           Lex_input_stream *lip= & thd->m_parser_state->m_lip;
-          sp_variable *spv;
-          sp_pcontext *spc = lex->spcont;
-          if (spc && (spv = spc->find_variable($1, false)))
-          {
-            splocal= new (thd->mem_root)
-              Item_splocal(thd, $1, spv->offset, spv->sql_type(),
-                  lip->get_tok_start() - lex->sphead->m_tmp_query,
-                  lip->get_ptr() - lip->get_tok_start());
-            if (splocal == NULL)
-              MYSQL_YYABORT;
-#ifndef DBUG_OFF
-            splocal->m_sp= lex->sphead;
-#endif
-            lex->safe_to_cache_query=0;
-          }
-          else
-            my_yyabort_error((ER_SP_UNDECLARED_VAR, MYF(0), $1.str));
-          if (splocal->type() != Item::INT_ITEM)
-            my_yyabort_error((ER_WRONG_SPVAR_TYPE_IN_LIMIT, MYF(0)));
-          splocal->limit_clause_param= TRUE;
-          $$= splocal;
+          if (!($$= lex->create_item_limit(thd, $1,
+                                           $1.m_pos -
+                                           lex->substatement_query(thd),
+                                           lip->get_tok_end() - $1.m_pos)))
+            MYSQL_YYABORT;
+        }
+        | ident_with_tok_start '.' ident
+        {
+          LEX *lex= thd->lex;
+          Lex_input_stream *lip= & thd->m_parser_state->m_lip;
+          if (!($$= lex->create_item_limit(thd, $1, $3,
+                                           $1.m_pos -
+                                           lex->substatement_query(thd),
+                                           lip->get_ptr() - $1.m_pos)))
+            MYSQL_YYABORT;
         }
         | param_marker
         {
@@ -11749,6 +11812,11 @@ select_outvar:
                                 my_var_sp($1, t->offset, t->sql_type(),
                                           Lex->sphead)) :
                                 NULL;
+          }
+        | ident '.' ident
+          {
+            if (!($$= Lex->create_outvar(thd, $1, $3)))
+              MYSQL_YYABORT;
           }
         ;
 
@@ -13820,7 +13888,16 @@ simple_ident:
                                              lip->get_tok_end())))
               MYSQL_YYABORT;
           }
-        | simple_ident_q { $$= $1; }
+        | simple_ident_q2
+        | ident '.' ident
+          {
+            LEX *lex= thd->lex;
+            if (!($$= lex->create_item_ident(thd, $1, $3,
+                                             $1.m_pos -
+                                             lex->substatement_query(thd),
+                                             YYLIP->get_tok_end() - $1.m_pos)))
+              MYSQL_YYABORT;
+          }
         ;
 
 simple_ident_nospvar:
@@ -13835,45 +13912,14 @@ simple_ident_nospvar:
 simple_ident_q:
           ident '.' ident
           {
-            LEX *lex= thd->lex;
-
-            /*
-              FIXME This will work ok in simple_ident_nospvar case because
-              we can't meet simple_ident_nospvar in trigger now. But it
-              should be changed in future.
-            */
-            if (lex->is_trigger_new_or_old_reference($1))
-            {
-              bool new_row= ($1.str[0]=='N' || $1.str[0]=='n');
-
-              if (!($$= lex->create_and_link_Item_trigger_field(thd, $3.str,
-                                                                new_row)))
-                MYSQL_YYABORT;
-            }
-            else
-            {
-              SELECT_LEX *sel= lex->current_select;
-              if (sel->no_table_names_allowed)
-              {
-                my_error(ER_TABLENAME_NOT_ALLOWED_HERE,
-                         MYF(0), $1.str, thd->where);
-              }
-              if ((sel->parsing_place != IN_HAVING) ||
-                  (sel->get_in_sum_expr() > 0))
-              {
-                $$= new (thd->mem_root) Item_field(thd, Lex->current_context(),
-                                                   NullS, $1.str, $3.str);
-              }
-              else
-              {
-                $$= new (thd->mem_root) Item_ref(thd, Lex->current_context(),
-                                                 NullS, $1.str, $3.str);
-              }
-              if ($$ == NULL)
-                MYSQL_YYABORT;
-            }
+            if (!($$= Lex->create_item_ident_nospvar(thd, $1, $3)))
+              MYSQL_YYABORT;
           }
-        | colon_with_pos ident '.' ident
+        | simple_ident_q2
+        ;
+
+simple_ident_q2:
+          colon_with_pos ident '.' ident
           {
             LEX *lex= Lex;
             if (lex->is_trigger_new_or_old_reference($2))
@@ -14082,16 +14128,35 @@ TEXT_STRING_filesystem:
         ;
 
 ident:
-          IDENT_sys    { $$=$1; }
+          IDENT_sys
+          {
+            (LEX_STRING &)$$= $1;
+            $$.m_pos= (char *) YYLIP->get_tok_start_prev();
+          }
         | keyword
           {
             $$.str= thd->strmake($1.str, $1.length);
             if ($$.str == NULL)
               MYSQL_YYABORT;
             $$.length= $1.length;
+            $$.m_pos= (char *) YYLIP->get_tok_start_prev();
           }
         ;
 
+ident_with_tok_start:
+          IDENT_sys
+          {
+            (LEX_STRING &)$$= $1;
+            $$.m_pos= (char *) YYLIP->get_tok_start();
+          }
+        | keyword
+          {
+            if (!($$.str= thd->strmake($1.str, $1.length)))
+              MYSQL_YYABORT;
+            $$.length= $1.length;
+            $$.m_pos= (char *) YYLIP->get_tok_start();
+          }
+        ;
 
 ident_directly_assignable:
           IDENT_sys    { $$=$1; }
@@ -14358,6 +14423,7 @@ keyword_sp_data_type:
         | POINT_SYM                {}
         | POLYGON                  {}
         | RAW                      {} /* Oracle-R */
+        | ROW_SYM                  {}
         | SERIAL_SYM               {}
         | TEXT_SYM                 {}
         | TIMESTAMP                {}
@@ -14593,7 +14659,6 @@ keyword_sp_not_data_type:
         | ROWCOUNT_SYM             {}
         | ROW_COUNT_SYM            {}
         | ROW_FORMAT_SYM           {}
-        | ROW_SYM                  {}
         | RTREE_SYM                {}
         | SCHEDULE_SYM             {}
         | SCHEMA_NAME_SYM          {}
@@ -14709,6 +14774,21 @@ set_assign:
           {
             if (Lex->set_variable(&$1, $4) ||
                 sp_create_assignment_instr(thd, yychar == YYEMPTY))
+              MYSQL_YYABORT;
+          }
+        | ident_directly_assignable '.' ident SET_VAR
+          {
+            LEX *lex=Lex;
+            lex->set_stmt_init();
+            lex->var_list.empty();
+            sp_create_assignment_lex(thd, yychar == YYEMPTY);
+          }
+          set_expr_or_default
+          {
+            LEX *lex= Lex;
+            DBUG_ASSERT(lex->var_list.is_empty());
+            if (lex->set_variable($1, $3, $6) ||
+                lex->sphead->restore_lex(thd))
               MYSQL_YYABORT;
           }
         ;
@@ -14845,11 +14925,26 @@ option_value_following_option_type:
 
 // Option values without preceding option_type.
 option_value_no_option_type:
-          internal_variable_name equal set_expr_or_default
+          ident equal set_expr_or_default
           {
-            if (Lex->set_variable(&$1, $3))
+            struct sys_var_with_base var;
+            if (Lex->init_internal_variable(&var, $1) ||
+                Lex->set_variable(&var, $3))
               MYSQL_YYABORT;
           }
+        | ident '.' ident equal set_expr_or_default
+          {
+            DBUG_ASSERT(Lex->var_list.is_empty());
+            if (Lex->set_variable($1, $3, $5))
+              MYSQL_YYABORT;
+          }
+        | DEFAULT '.' ident equal set_expr_or_default
+          {
+            struct sys_var_with_base var;
+            if (Lex->init_default_internal_variable(&var, $3) ||
+                Lex->set_variable(&var, $5))
+              MYSQL_YYABORT;
+           }
         | '@' ident_or_text equal expr
           {
             Item_func_set_user_var *item;
@@ -14996,11 +15091,6 @@ internal_variable_name_directly_assignable:
           ident_directly_assignable
           {
             if (Lex->init_internal_variable(&$$, $1))
-              MYSQL_YYABORT;
-          }
-        | ident_directly_assignable '.' ident
-          {
-            if (Lex->init_internal_variable(&$$, $1, $3))
               MYSQL_YYABORT;
           }
         | DEFAULT '.' ident

@@ -3839,6 +3839,11 @@ bool my_var_sp::set(THD *thd, Item *item)
   return thd->spcont->set_variable(thd, offset, &item);
 }
 
+bool my_var_sp_row_field::set(THD *thd, Item *item)
+{
+  return thd->spcont->set_variable_row_field(thd, offset, m_field_offset, &item);
+}
+
 int select_dumpvar::send_data(List<Item> &items)
 {
   List_iterator_fast<my_var> var_li(var_list);

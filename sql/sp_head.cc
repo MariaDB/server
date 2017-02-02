@@ -100,19 +100,51 @@ bool Item_splocal::append_for_log(THD *thd, String *str)
   if (limit_clause_param)
     return str->append_ulonglong(val_uint());
 
+  /*
+    ROW variables are currently not allowed in select_list, e.g.:
+      SELECT row_variable;
+    ROW variables can appear in query parts where name is not important, e.g.:
+      SELECT ROW(1,2)=row_variable FROM t1;
+    So we can skip using NAME_CONST() and use ROW() constants directly.
+  */
+  if (type_handler() == &type_handler_row)
+    return append_value_for_log(thd, str);
+
   if (str->append(STRING_WITH_LEN(" NAME_CONST('")) ||
       str->append(&m_name) ||
       str->append(STRING_WITH_LEN("',")))
     return true;
+  return append_value_for_log(thd, str) || str->append(')');
+}
 
+
+bool Item_splocal::append_value_for_log(THD *thd, String *str)
+{
   StringBuffer<STRING_BUFFER_USUAL_SIZE> str_value_holder(&my_charset_latin1);
   Item *item= this_item();
   String *str_value= item->type_handler()->print_item_value(thd, item,
                                                             &str_value_holder);
-  if (str_value)
-    return str->append(*str_value) || str->append(')');
-  else
-    return str->append(STRING_WITH_LEN("NULL)"));
+  return str_value ?
+         str->append(*str_value) :
+         str->append(STRING_WITH_LEN("NULL"));
+}
+
+
+bool Item_splocal_row_field::append_for_log(THD *thd, String *str)
+{
+  if (fix_fields(thd, NULL))
+    return true;
+
+  if (limit_clause_param)
+    return str->append_ulonglong(val_uint());
+
+  if (str->append(STRING_WITH_LEN(" NAME_CONST('")) ||
+      str->append(&m_name) ||
+      str->append(".") ||
+      str->append(&m_field_name) ||
+      str->append(STRING_WITH_LEN("',")))
+    return true;
+  return append_value_for_log(thd, str) || str->append(')');
 }
 
 
@@ -308,14 +340,14 @@ sp_get_flags_for_command(LEX *lex)
 */
 
 Item *
-sp_prepare_func_item(THD* thd, Item **it_addr)
+sp_prepare_func_item(THD* thd, Item **it_addr, uint cols)
 {
   DBUG_ENTER("sp_prepare_func_item");
   it_addr= (*it_addr)->this_item_addr(thd, it_addr);
 
-  if (!(*it_addr)->fixed &&
-      ((*it_addr)->fix_fields(thd, it_addr) ||
-       (*it_addr)->check_cols(1)))
+  if ((!(*it_addr)->fixed &&
+       (*it_addr)->fix_fields(thd, it_addr)) ||
+      (*it_addr)->check_cols(cols))
   {
     DBUG_PRINT("info", ("fix_fields() failed"));
     DBUG_RETURN(NULL);
@@ -338,7 +370,8 @@ sp_prepare_func_item(THD* thd, Item **it_addr)
 */
 
 bool
-sp_eval_expr(THD *thd, Field *result_field, Item **expr_item_ptr)
+sp_eval_expr(THD *thd, Item *result_item, Field *result_field,
+             Item **expr_item_ptr)
 {
   Item *expr_item;
   enum_check_fields save_count_cuted_fields= thd->count_cuted_fields;
@@ -351,8 +384,19 @@ sp_eval_expr(THD *thd, Field *result_field, Item **expr_item_ptr)
   if (!*expr_item_ptr)
     goto error;
 
-  if (!(expr_item= sp_prepare_func_item(thd, expr_item_ptr)))
+  if (!(expr_item= sp_prepare_func_item(thd, expr_item_ptr,
+                                        result_item ? result_item->cols() : 1)))
     goto error;
+
+  /*
+    expr_item is now fixed, it's safe to call cmp_type()
+    If result_item is NULL, then we're setting the RETURN value.
+  */
+  if (!result_item && expr_item->cmp_type() == ROW_RESULT)
+  {
+    my_error(ER_OPERAND_COLUMNS, MYF(0), 1);
+    goto error;
+  }
 
   /*
     Set THD flags to emit warnings/errors in case of overflow/type errors
@@ -3185,6 +3229,56 @@ sp_instr_set::print(String *str)
 
 
 /*
+  sp_instr_set_field class functions
+*/
+
+int
+sp_instr_set_row_field::exec_core(THD *thd, uint *nextp)
+{
+  int res= thd->spcont->set_variable_row_field(thd, m_offset, m_field_offset,
+                                               &m_value);
+  if (res)
+  {
+    /* Failed to evaluate the value. Reset the variable to NULL. */
+    thd->spcont->set_variable_row_field_to_null(thd, m_offset, m_field_offset);
+  }
+  delete_explain_query(thd->lex);
+  *nextp= m_ip + 1;
+  return res;
+}
+
+
+void
+sp_instr_set_row_field::print(String *str)
+{
+  /* set name@offset[field_offset] ... */
+  int rsrv= SP_INSTR_UINT_MAXLEN + 6 + 6 + 3;
+  sp_variable *var= m_ctx->find_variable(m_offset);
+  DBUG_ASSERT(var);
+  DBUG_ASSERT(var->field_def.is_row());
+  const Column_definition *def=
+    var->field_def.row_field_definitions()->elem(m_field_offset);
+  DBUG_ASSERT(def);
+
+  rsrv+= var->name.length + strlen(def->field_name);
+  if (str->reserve(rsrv))
+    return;
+  str->qs_append(STRING_WITH_LEN("set "));
+    str->qs_append(var->name.str, var->name.length);
+  str->qs_append('.');
+  str->qs_append(def->field_name);
+  str->qs_append('@');
+  str->qs_append(m_offset);
+  str->qs_append('[');
+  str->qs_append(m_field_offset);
+  str->qs_append(']');
+  str->qs_append(' ');
+  m_value->print(str, enum_query_type(QT_ORDINARY |
+                                      QT_ITEM_ORIGINAL_FUNC_NULLIF));
+}
+
+
+/*
   sp_instr_set_trigger_field class functions
 */
 
@@ -4209,6 +4303,11 @@ sp_add_to_query_tables(THD *thd, LEX *lex,
 }
 
 
+Item *sp_head::adjust_assignment_source(THD *thd, Item *val, Item *val2)
+{
+  return val ? val : val2 ? val2 : new (thd->mem_root) Item_null(thd);
+}
+
 /**
   Helper action for a SET statement.
   Used to push a SP local variable into the assignment list.
@@ -4223,24 +4322,36 @@ bool
 sp_head::set_local_variable(THD *thd, sp_pcontext *spcont,
                             sp_variable *spv, Item *val, LEX *lex)
 {
-  Item *it;
-
-  if (val)
-    it= val;
-  else if (spv->default_value)
-    it= spv->default_value;
-  else
-  {
-    it= new (thd->mem_root) Item_null(thd);
-    if (it == NULL)
-      return TRUE;
-  }
+  if (!(val= adjust_assignment_source(thd, val, spv->default_value)))
+    return true;
 
   sp_instr_set *sp_set= new (thd->mem_root)
                         sp_instr_set(instructions(), spcont,
-                                     spv->offset, it, spv->sql_type(),
+                                     spv->offset, val, spv->sql_type(),
                                      lex, true);
 
+  return sp_set == NULL || add_instr(sp_set);
+}
+
+
+/**
+  Similar to set_local_variable(), but for ROW variable fields.
+*/
+bool
+sp_head::set_local_variable_row_field(THD *thd, sp_pcontext *spcont,
+                                      sp_variable *spv, uint field_idx,
+                                      Item *val, LEX *lex)
+{
+  if (!(val= adjust_assignment_source(thd, val, NULL)))
+    return true;
+
+  sp_instr_set_row_field *sp_set= new (thd->mem_root)
+                                  sp_instr_set_row_field(instructions(),
+                                                         spcont,
+                                                         spv->offset,
+                                                         field_idx, val,
+                                                         spv->sql_type(),
+                                                         lex, true);
   return sp_set == NULL || add_instr(sp_set);
 }
 

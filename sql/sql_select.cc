@@ -12955,6 +12955,14 @@ static bool check_row_equality(THD *thd, const Arg_comparator *comparators,
     if (left_item->type() == Item::ROW_ITEM &&
         right_item->type() == Item::ROW_ITEM)
     {
+      /*
+        Item_splocal for ROW SP variables return Item::ROW_ITEM.
+        Here we know that left_item and right_item are not Item_splocal,
+        because ROW SP variables with nested ROWs are not supported yet.
+        It's safe to cast left_item and right_item to Item_row.
+      */
+      DBUG_ASSERT(!left_item->get_item_splocal());
+      DBUG_ASSERT(!right_item->get_item_splocal());
       is_converted= check_row_equality(thd,
                                        comparators[i].subcomparators(),
                                        (Item_row *) left_item,
@@ -13025,6 +13033,15 @@ bool Item_func_eq::check_equality(THD *thd, COND_EQUAL *cond_equal,
   if (left_item->type() == Item::ROW_ITEM &&
       right_item->type() == Item::ROW_ITEM)
   {
+    /*
+      Item_splocal::type() for ROW variables returns Item::ROW_ITEM.
+      Distinguish ROW-type Item_splocal from Item_row.
+      Example query:
+        SELECT 1 FROM DUAL WHERE row_sp_variable=ROW(100,200);
+    */
+    if (left_item->get_item_splocal() ||
+        right_item->get_item_splocal())
+      return false;
     return check_row_equality(thd,
                               cmp.subcomparators(),
                               (Item_row *) left_item,
