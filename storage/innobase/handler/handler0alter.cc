@@ -588,21 +588,6 @@ ha_innobase::check_if_supported_inplace_alter(
 		DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
 	}
 
-#ifdef MYSQL_ENCRYPTION
-	/* We don't support change encryption attribute with
-	inplace algorithm. */
-	char*	old_encryption = this->table->s->encrypt_type.str;
-	char*	new_encryption = altered_table->s->encrypt_type.str;
-
-	if (Encryption::is_none(old_encryption)
-	    != Encryption::is_none(new_encryption)) {
-		ha_alter_info->unsupported_reason =
-			innobase_get_err_msg(
-				ER_UNSUPPORTED_ALTER_ENCRYPTION_INPLACE);
-		DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
-	}
-#endif /* MYSQL_ENCRYPTION */
-
 	update_thd();
 	trx_search_latch_release_if_reserved(m_prebuilt->trx);
 
@@ -4373,7 +4358,6 @@ prepare_inplace_alter_table_dict(
 	dict_index_t*		fts_index	= NULL;
 	ulint			new_clustered	= 0;
 	dberr_t			error;
-	const char*		punch_hole_warning = NULL;
 	ulint			num_fts_index;
 	dict_add_v_col_t*	add_v = NULL;
 	ha_innobase_inplace_ctx*ctx;
@@ -4549,7 +4533,6 @@ prepare_inplace_alter_table_dict(
 		ulint		z = 0;
 		ulint		key_id = FIL_DEFAULT_ENCRYPTION_KEY;
 		fil_encryption_t mode = FIL_SPACE_ENCRYPTION_DEFAULT;
-		const char*	compression=NULL;
 
 		crypt_data = fil_space_get_crypt_data(ctx->prebuilt->table->space);
 
@@ -4594,20 +4577,6 @@ prepare_inplace_alter_table_dict(
 			my_error(ER_TABLE_EXISTS_ERROR, MYF(0),
 				 new_table_name);
 			goto new_clustered_failed;
-		}
-
-		/* Use the old tablespace unless the tablespace
-		is changing. */
-		if (DICT_TF_HAS_SHARED_SPACE(user_table->flags)
-		    && (ha_alter_info->create_info->tablespace == NULL
-			|| (0 == strcmp(ha_alter_info->create_info->tablespace,
-					user_table->tablespace)))) {
-			space_id = user_table->space;
-		} else if (tablespace_is_shared_space(
-				ha_alter_info->create_info)) {
-			space_id = fil_space_get_id_by_name(
-				ha_alter_info->create_info->tablespace);
-			ut_a(space_id != ULINT_UNDEFINED);
 		}
 
 		/* The initial space id 0 may be overridden later if this
@@ -4747,39 +4716,11 @@ prepare_inplace_alter_table_dict(
 			ctx->new_table->fts->doc_col = fts_doc_id_col;
 		}
 
-#ifdef MYSQL_COMPRESSION
-		compression = ha_alter_info->create_info->compress.str;
-
-		if (Compression::validate(compression) != DB_SUCCESS) {
-
-			compression = NULL;
-		}
-#endif /* MYSQL_COMPRESSION */
-
 		error = row_create_table_for_mysql(
-			ctx->new_table, compression, ctx->trx, false, mode, key_id);
-
-		punch_hole_warning =
-			(error == DB_IO_NO_PUNCH_HOLE_FS)
-			? "Punch hole is not supported by the file system"
-			: "Page Compression is not supported for this"
-			  " tablespace";
+			ctx->new_table, ctx->trx, false, mode, key_id);
 
 		switch (error) {
 			dict_table_t*	temp_table;
-		case DB_IO_NO_PUNCH_HOLE_FS:
-		case DB_IO_NO_PUNCH_HOLE_TABLESPACE:
-			push_warning_printf(
-				ctx->prebuilt->trx->mysql_thd,
-				Sql_condition::WARN_LEVEL_WARN,
-				HA_ERR_UNSUPPORTED,
-				"%s. Compression disabled for '%s'",
-				punch_hole_warning,
-				ctx->new_table->name.m_name);
-
-			error = DB_SUCCESS;
-
-
 		case DB_SUCCESS:
 			/* We need to bump up the table ref count and
 			before we can use it we need to open the
@@ -5225,9 +5166,6 @@ innobase_check_foreign_key_index(
 	ulint			n_drop_fk)	/*!< in: Number of foreign keys
 						to drop */
 {
-	ut_ad(index != NULL);
-	ut_ad(indexed_table != NULL);
-
 	const dict_foreign_set*	fks = &indexed_table->referenced_set;
 
 	/* Check for all FK references from other tables to the index. */
@@ -5641,37 +5579,15 @@ ha_innobase::prepare_inplace_alter_table(
 	/* ALTER TABLE will not implicitly move a table from a single-table
 	tablespace to the system tablespace when innodb_file_per_table=OFF.
 	But it will implicitly move a table from the system tablespace to a
-	single-table tablespace if innodb_file_per_table = ON.
-	Tables found in a general tablespace will stay there unless ALTER
-	TABLE contains another TABLESPACE=name.  If that is found it will
-	explicitly move a table to the named tablespace.
-	So if you specify TABLESPACE=`innodb_system` a table can be moved
-	into the system tablespace from either a general or file-per-table
-	tablespace. But from then on, it is labeled as using a shared space
-	(the create options have tablespace=='innodb_system' and the
-	SHARED_SPACE flag is set in the table flags) so it can no longer be
-	implicitly moved to a file-per-table tablespace. */
-	bool	in_system_space = is_system_tablespace(indexed_table->space);
-	bool	is_file_per_table = !in_system_space
-			&& !DICT_TF_HAS_SHARED_SPACE(indexed_table->flags);
-#ifdef UNIV_DEBUG
-	bool	in_general_space = !in_system_space
-			&& DICT_TF_HAS_SHARED_SPACE(indexed_table->flags);
-
-	/* The table being altered can only be in a system tablespace,
-	or its own file-per-table tablespace, or a general tablespace. */
-	ut_ad(1 == in_system_space + is_file_per_table + in_general_space);
-#endif /* UNIV_DEBUG */
+	single-table tablespace if innodb_file_per_table = ON. */
 
 	create_table_info_t	info(m_user_thd,
 				     altered_table,
 				     ha_alter_info->create_info,
 				     NULL,
-				     NULL,
-				     NULL,
 				     NULL);
 
-	info.set_tablespace_type(is_file_per_table);
+	info.set_tablespace_type(indexed_table->space != TRX_SYS_SPACE);
 
 	if (ha_alter_info->handler_flags & Alter_inplace_info::ADD_INDEX) {
 		if (info.gcols_in_fulltext_or_spatial()) {
@@ -7338,7 +7254,7 @@ innobase_enlarge_columns_try(
 				    == IS_EQUAL_PACK_LENGTH
 				    && innobase_enlarge_column_try(
 					    user_table, trx, table_name,
-					    idx, cf->length, is_v)) {
+					    idx, static_cast<ulint>(cf->length), is_v)) {
 					return(true);
 				}
 
@@ -9092,10 +9008,6 @@ foreign_fail:
 					  crash_inject_count++);
 		}
 	}
-
-	/* We don't support compression for the system tablespace nor
-	the temporary tablespace. Only because they are shared tablespaces.
-	There is no other technical reason. */
 
 	innobase_parse_hint_from_comment(
 		m_user_thd, m_prebuilt->table, altered_table->s);

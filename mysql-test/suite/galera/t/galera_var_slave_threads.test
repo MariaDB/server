@@ -22,7 +22,8 @@ SELECT @@wsrep_slave_threads = 1;
 
 SET GLOBAL wsrep_slave_threads = 1;
 # There is a separate wsrep_aborter thread at all times
-SELECT COUNT(*) = 2 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user';
+SELECT COUNT(*) = 2 FROM INFORMATION_SCHEMA.PROCESSLIST
+  WHERE USER = 'system user' AND NOT STATE <=> 'InnoDB background thread';
 SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND STATE LIKE '%wsrep aborter%';
 
 #
@@ -38,7 +39,8 @@ INSERT INTO t1 VALUES (1);
 --connection node_2
 SELECT COUNT(*) = 1 FROM t1;
 
-SELECT COUNT(*) = @@wsrep_slave_threads + 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user';
+SELECT COUNT(*) = @@wsrep_slave_threads + 1 FROM INFORMATION_SCHEMA.PROCESSLIST
+  WHERE USER = 'system user' AND NOT STATE <=> 'InnoDB background thread';
 SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND STATE LIKE '%wsrep aborter%';
 
 #
@@ -60,7 +62,8 @@ while ($count)
 --connection node_2
 SELECT COUNT(*) = 64 FROM t2;
 
-SELECT COUNT(*) = @@wsrep_slave_threads + 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user';
+SELECT COUNT(*) = @@wsrep_slave_threads + 1 FROM INFORMATION_SCHEMA.PROCESSLIST
+  WHERE USER = 'system user' AND NOT STATE <=> 'InnoDB background thread';
 SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND STATE LIKE '%wsrep aborter%';
 
 

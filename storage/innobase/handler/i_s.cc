@@ -6050,8 +6050,6 @@ i_s_dict_fill_sys_tables(
 
 	if (is_system_tablespace(table->space)) {
 		space_type = "System";
-	} else if (DICT_TF_HAS_SHARED_SPACE(table->flags)) {
-		space_type = "General";
 	} else {
 		space_type = "Single";
 	}
@@ -8045,9 +8043,6 @@ i_s_dict_fill_sys_tablespaces(
 	file_format = trx_sys_file_format_id_to_name(atomic_blobs);
 	if (is_system_tablespace(space)) {
 		row_format = "Compact or Redundant";
-	} else if (fsp_is_shared_tablespace(flags) && !is_compressed) {
-		file_format = "Any";
-		row_format = "Any";
 	} else if (is_compressed) {
 		row_format = "Compressed";
 	} else if (atomic_blobs) {
@@ -8058,8 +8053,6 @@ i_s_dict_fill_sys_tablespaces(
 
 	if (is_system_tablespace(space)) {
 		space_type = "System";
-	} else if (fsp_is_shared_tablespace(flags)) {
-		space_type = "General";
 	} else  {
 		space_type = "Single";
 	}
@@ -8089,8 +8082,7 @@ i_s_dict_fill_sys_tablespaces(
 			      space_type));
 
 	char*	filepath = NULL;
-	if (FSP_FLAGS_HAS_DATA_DIR(flags)
-	    || FSP_FLAGS_GET_SHARED(flags)) {
+	if (FSP_FLAGS_HAS_DATA_DIR(flags)) {
 		mutex_enter(&dict_sys->mutex);
 		filepath = dict_get_first_path(space);
 		mutex_exit(&dict_sys->mutex);

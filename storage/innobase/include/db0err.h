@@ -146,24 +146,6 @@ enum dberr_t {
 
 	DB_IO_ERROR = 100,		/*!< Generic IO error */
 
-	DB_IO_DECOMPRESS_FAIL,		/*!< Failure to decompress a page
-					after reading it from disk */
-
-	DB_IO_NO_PUNCH_HOLE,		/*!< Punch hole not supported by
-					InnoDB */
-
-	DB_IO_NO_PUNCH_HOLE_FS,		/*!< The file system doesn't support
-					punch hole */
-
-	DB_IO_NO_PUNCH_HOLE_TABLESPACE,	/*!< The tablespace doesn't support
-					punch hole */
-
-	DB_IO_DECRYPT_FAIL,		/*!< Failure to decrypt a page
-					after reading it from disk */
-
-	DB_IO_NO_ENCRYPT_TABLESPACE,	/*!< The tablespace doesn't support
-					encrypt */
-
 	DB_IO_PARTIAL_FAILED,		/*!< Partial IO request failed */
 
 	DB_FORCED_ABORT,		/*!< Transaction was forced to rollback
@@ -172,13 +154,14 @@ enum dberr_t {
 	DB_TABLE_CORRUPT,		/*!< Table/clustered index is
 					corrupted */
 
-	DB_WRONG_FILE_NAME,		/*!< Invalid Filename */
-
 	DB_COMPUTE_VALUE_FAILED,	/*!< Compute generated value failed */
 
 	DB_NO_FK_ON_S_BASE_COL,		/*!< Cannot add foreign constrain
 					placed on the base column of
 					stored column */
+
+	DB_IO_NO_PUNCH_HOLE,		/*!< Punch hole not supported by
+					file system. */
 
 	/* The following are partial failure codes */
 	DB_FAIL = 1000,

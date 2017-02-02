@@ -1,14 +1,8 @@
 --source include/have_innodb.inc
 --source include/not_embedded.inc
 
---disable_query_log
 let $innodb_compression_algorithm_orig=`SELECT @@innodb_compression_algorithm`;
-let $innodb_file_format_orig = `SELECT @@innodb_file_format`;
-let $innodb_file_per_table_orig = `SELECT @@innodb_file_per_table`;
---enable_query_log
 
-SET GLOBAL innodb_file_format = `Barracuda`;
-SET GLOBAL innodb_file_per_table = ON;
 # zlib
 set global innodb_compression_algorithm = 1;
 
@@ -75,8 +69,6 @@ update innodb_dynamic set c1 = c1 + 1;
 select count(*) from innodb_compact where c1 < 1500000;
 select count(*) from innodb_dynamic where c1 < 1500000;
 
-SET GLOBAL innodb_file_format = `Barracuda`;
-SET GLOBAL innodb_file_per_table = ON;
 # none
 set global innodb_compression_algorithm = 0;
 
@@ -112,6 +104,4 @@ SET SESSION innodb_compression_default = 0;
 # reset system
 --disable_query_log
 EVAL SET GLOBAL innodb_compression_algorithm = $innodb_compression_algorithm_orig;
-EVAL SET GLOBAL innodb_file_per_table = $innodb_file_per_table_orig;
-EVAL SET GLOBAL innodb_file_format = $innodb_file_format_orig;
 --enable_query_log

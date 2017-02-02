@@ -142,14 +142,13 @@ log_crypt_print_checkpoint_keys(
 	ib_uint64_t checkpoint_no = log_block_get_checkpoint_no(log_block);
 
 	if (crypt_info.size()) {
-		fprintf(stderr, "InnoDB: redo log checkpoint: %lu [ chk key ]: ", (ulong) checkpoint_no);
+		ib::info() << "Redo log checkpoint encryption: " << checkpoint_no << " [ chk key ]: ";
 		for (size_t i = 0; i < crypt_info.size(); i++) {
 			struct crypt_info_t* it = &crypt_info[i];
-			fprintf(stderr, "[ %lu %u ] ",
-				(ulong) it->checkpoint_no,
-				it->key_version);
+			ib::info() << "[" << it->checkpoint_no
+				   << "," << it->key_version
+				   << "]";
 		}
-		fprintf(stderr, "\n");
 	}
 }
 
@@ -498,7 +497,7 @@ log_crypt_write_checkpoint_buf(
 	buf += 2;
 	for (size_t i = 0; i < crypt_info.size(); i++) {
 		struct crypt_info_t* it = &crypt_info[i];
-		mach_write_to_4(buf + 0, it->checkpoint_no);
+		mach_write_to_4(buf + 0, static_cast<ulint>(it->checkpoint_no));
 		mach_write_to_4(buf + 4, it->key_version);
 		memcpy(buf + 8, it->crypt_msg, MY_AES_BLOCK_SIZE);
 		memcpy(buf + 24, it->crypt_nonce, MY_AES_BLOCK_SIZE);

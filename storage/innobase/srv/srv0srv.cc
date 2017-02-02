@@ -184,7 +184,7 @@ my_bool	srv_use_native_aio = TRUE;
 my_bool	srv_numa_interleave = FALSE;
 /* If this flag is TRUE, then we will use fallocate(PUCH_HOLE)
 to the pages */
-UNIV_INTERN my_bool	srv_use_trim = FALSE;
+UNIV_INTERN my_bool	srv_use_trim;
 /* If this flag is TRUE, then we disable doublewrite buffer */
 UNIV_INTERN my_bool	srv_use_atomic_writes = FALSE;
 /* If this flag IS TRUE, then we use this algorithm for page compressing the pages */
@@ -195,8 +195,6 @@ UNIV_INTERN long srv_mtflush_threads = MTFLUSH_DEFAULT_WORKER;
 UNIV_INTERN my_bool	srv_use_mtflush                 = FALSE;
 
 #ifdef UNIV_DEBUG
-/** Force all user tables to use page compression. */
-ulong	srv_debug_compress;
 /** Used by SET GLOBAL innodb_master_thread_disabled_debug = X. */
 my_bool	srv_master_thread_disabled_debug;
 /** Event used to inform that master thread is disabled. */
@@ -361,11 +359,6 @@ starting from SRV_FORCE_IGNORE_CORRUPT, so that data can be recovered
 by SELECT or mysqldump. When this is nonzero, we do not allow any user
 modifications to the data. */
 ulong	srv_force_recovery;
-#ifndef DBUG_OFF
-/** Inject a crash at different steps of the recovery process.
-This is for testing and debugging only. */
-ulong	srv_force_recovery_crash;
-#endif /* !DBUG_OFF */
 
 /** Print all user-level transactions deadlocks to mysqld stderr */
 
@@ -1014,11 +1007,10 @@ srv_free_slot(
 	srv_sys_mutex_exit();
 }
 
-/*********************************************************************//**
-Initializes the server. */
+/** Initialize the server. */
+static
 void
-srv_init(void)
-/*==========*/
+srv_init()
 {
 	ulint	n_sys_threads = 0;
 	ulint	srv_sys_sz = sizeof(*srv_sys);
@@ -1104,6 +1096,10 @@ void
 srv_free(void)
 /*==========*/
 {
+	if (!srv_sys) {
+		return;
+	}
+
 	mutex_free(&srv_innodb_monitor_mutex);
 	mutex_free(&page_zip_stat_per_index_mutex);
 
@@ -1138,22 +1134,6 @@ srv_free(void)
 }
 
 /*********************************************************************//**
-Initializes the synchronization primitives, memory system, and the thread
-local storage. */
-void
-srv_general_init(void)
-/*==================*/
-{
-	sync_check_init();
-	/* Reset the system variables in the recovery module. */
-	recv_sys_var_init();
-	os_thread_init();
-	trx_pool_init();
-	que_init();
-	row_mysql_init();
-}
-
-/*********************************************************************//**
 Normalizes init parameter values to use units we use inside InnoDB. */
 static
 void
@@ -1182,10 +1162,12 @@ srv_boot(void)
 
 	srv_normalize_init_values();
 
-	/* Initialize synchronization primitives, memory management, and thread
-	local storage */
-
-	srv_general_init();
+	sync_check_init();
+	os_thread_init();
+	/* Reset the system variables in the recovery module. */
+	recv_sys_var_init();
+	trx_pool_init();
+	row_mysql_init();
 
 	/* Initialize this module */
 
@@ -1619,13 +1601,10 @@ srv_export_innodb_status(void)
 
 	export_vars.innodb_available_undo_logs = srv_available_undo_logs;
 	export_vars.innodb_page_compression_saved = srv_stats.page_compression_saved;
-	export_vars.innodb_page_compression_trim_sect512 = srv_stats.page_compression_trim_sect512;
-	export_vars.innodb_page_compression_trim_sect4096 = srv_stats.page_compression_trim_sect4096;
 	export_vars.innodb_index_pages_written = srv_stats.index_pages_written;
 	export_vars.innodb_non_index_pages_written = srv_stats.non_index_pages_written;
 	export_vars.innodb_pages_page_compressed = srv_stats.pages_page_compressed;
 	export_vars.innodb_page_compressed_trim_op = srv_stats.page_compressed_trim_op;
-	export_vars.innodb_page_compressed_trim_op_saved = srv_stats.page_compressed_trim_op_saved;
 	export_vars.innodb_pages_page_decompressed = srv_stats.pages_page_decompressed;
 	export_vars.innodb_pages_page_compression_error = srv_stats.pages_page_compression_error;
 	export_vars.innodb_pages_decrypted = srv_stats.pages_decrypted;
@@ -2023,13 +2002,19 @@ srv_get_active_thread_type(void)
 
 	srv_sys_mutex_exit();
 
-	/* Check only on shutdown. */
-	if (ret == SRV_NONE
-	    && srv_shutdown_state != SRV_SHUTDOWN_NONE
-	    && trx_purge_state() != PURGE_STATE_DISABLED
-	    && trx_purge_state() != PURGE_STATE_EXIT) {
-
-		ret = SRV_PURGE;
+	if (ret == SRV_NONE && srv_shutdown_state != SRV_SHUTDOWN_NONE
+	    && purge_sys != NULL) {
+		/* Check only on shutdown. */
+		switch (trx_purge_state()) {
+		case PURGE_STATE_RUN:
+		case PURGE_STATE_STOP:
+			ret = SRV_PURGE;
+			break;
+		case PURGE_STATE_INIT:
+		case PURGE_STATE_DISABLED:
+		case PURGE_STATE_EXIT:
+			break;
+		}
 	}
 
 	return(ret);
@@ -2725,7 +2710,6 @@ DECLARE_THREAD(srv_worker_thread)(
 
 	ut_a(!purge_sys->running);
 	ut_a(purge_sys->state == PURGE_STATE_EXIT);
-	ut_a(srv_shutdown_state > SRV_SHUTDOWN_NONE || thd_kill_level(thd));
 
 	rw_lock_x_unlock(&purge_sys->latch);
 
@@ -3159,11 +3143,6 @@ srv_was_tablespace_truncated(const fil_space_t* space)
 		return(false);
 	}
 
-	bool	has_shared_space = FSP_FLAGS_GET_SHARED(space->flags);
-
-	if (is_system_tablespace(space->id) || has_shared_space) {
-		return(false);
-	}
-
-	return(truncate_t::was_tablespace_truncated(space->id));
+	return (!is_system_tablespace(space->id)
+		&& truncate_t::was_tablespace_truncated(space->id));
 }

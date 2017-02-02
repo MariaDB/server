@@ -197,6 +197,7 @@ protected:
   String *tmp_paths;
   bool mode_one;
   bool ooa_constant, ooa_parsed;
+  bool *p_found;
 
 public:
   Item_func_json_contains_path(THD *thd, List<Item> &list):

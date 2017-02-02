@@ -37,7 +37,6 @@ call mtr.add_suppression("InnoDB: Error number 17 means 'File exists'");
 # create test-bed
 #
 let $per_table = `select @@innodb_file_per_table`;
-let $format = `select @@innodb_file_format`;
 
 eval set global innodb_file_per_table = on;
 let $WL6501_TMP_DIR = `select @@tmpdir`;
@@ -51,7 +50,6 @@ let SEARCH_FILE = $MYSQLTEST_VARDIR/log/my_restart.err;
 --echo "1. Hit crash point while writing redo log."
 use test;
 eval set global innodb_file_per_table = $wl6501_file_per_table;
-eval set global innodb_file_format = $wl6501_file_format;
 SET innodb_strict_mode=OFF;
 --disable_warnings
 eval create $wl6501_temp table t (
@@ -82,7 +80,6 @@ drop table t;
 --echo "2. Hit crash point on completion of redo log write."
 use test;
 eval set global innodb_file_per_table = $wl6501_file_per_table;
-eval set global innodb_file_format = $wl6501_file_format;
 SET innodb_strict_mode=OFF;
 --disable_warnings
 eval create $wl6501_temp table t (
@@ -115,7 +112,6 @@ drop table t;
 --echo "3. Hit crash point while dropping indexes."
 use test;
 eval set global innodb_file_per_table = $wl6501_file_per_table;
-eval set global innodb_file_format = $wl6501_file_format;
 SET innodb_strict_mode=OFF;
 --disable_warnings
 eval create $wl6501_temp table t (
@@ -144,7 +140,6 @@ drop table t;
 #
 use test;
 eval set global innodb_file_per_table = $wl6501_file_per_table;
-eval set global innodb_file_format = $wl6501_file_format;
 SET innodb_strict_mode=OFF;
 --disable_warnings
 eval create $wl6501_temp table t (
@@ -174,7 +169,6 @@ drop table t;
 #
 use test;
 eval set global innodb_file_per_table = $wl6501_file_per_table;
-eval set global innodb_file_format = $wl6501_file_format;
 SET innodb_strict_mode=OFF;
 --disable_warnings
 eval create $wl6501_temp table t (
@@ -209,7 +203,6 @@ drop table t;
 --echo "   of index is commenced."
 use test;
 eval set global innodb_file_per_table = $wl6501_file_per_table;
-eval set global innodb_file_format = $wl6501_file_format;
 SET innodb_strict_mode=OFF;
 --disable_warnings
 eval create $wl6501_temp table t (
@@ -242,7 +235,6 @@ drop table t;
 --echo "5. Hit crash point while creating indexes."
 use test;
 eval set global innodb_file_per_table = $wl6501_file_per_table;
-eval set global innodb_file_format = $wl6501_file_format;
 SET innodb_strict_mode=OFF;
 --disable_warnings
 eval create $wl6501_temp table t (
@@ -271,7 +263,6 @@ drop table t;
 #
 use test;
 eval set global innodb_file_per_table = $wl6501_file_per_table;
-eval set global innodb_file_format = $wl6501_file_format;
 SET innodb_strict_mode=OFF;
 --disable_warnings
 eval create $wl6501_temp table t (
@@ -300,7 +291,6 @@ drop table t;
 #
 use test;
 eval set global innodb_file_per_table = $wl6501_file_per_table;
-eval set global innodb_file_format = $wl6501_file_format;
 SET innodb_strict_mode=OFF;
 --disable_warnings
 eval create $wl6501_temp table t (
@@ -334,7 +324,6 @@ drop table t;
 --echo "   in-memory dict."
 use test;
 eval set global innodb_file_per_table = $wl6501_file_per_table;
-eval set global innodb_file_format = $wl6501_file_format;
 SET innodb_strict_mode=OFF;
 --disable_warnings
 eval create $wl6501_temp table t (
@@ -367,7 +356,6 @@ drop table t;
 --echo "7. Hit crash point before/after log checkpoint is done."
 use test;
 eval set global innodb_file_per_table = $wl6501_file_per_table;
-eval set global innodb_file_format = $wl6501_file_format;
 SET innodb_strict_mode=OFF;
 --disable_warnings
 eval create $wl6501_temp table t (
@@ -395,7 +383,6 @@ drop table t;
 #
 use test;
 eval set global innodb_file_per_table = $wl6501_file_per_table;
-eval set global innodb_file_format = $wl6501_file_format;
 SET innodb_strict_mode=OFF;
 --disable_warnings
 eval create $wl6501_temp table t (
@@ -426,5 +413,4 @@ drop table t;
 #
 # remove test-bed
 #
-eval set global innodb_file_format = $format;
 eval set global innodb_file_per_table = $per_table;

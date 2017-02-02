@@ -9,22 +9,7 @@
 
 call mtr.add_suppression("InnoDB: Unable to import tablespace .* because it already exists.  Please DISCARD the tablespace before IMPORT.");
 
---disable_warnings
-DROP TABLE IF EXISTS t1;
---enable_warnings
-
-let $innodb_file_per_table = `SELECT @@innodb_file_per_table`;
-let $innodb_file_format = `SELECT @@innodb_file_format`;
-let $innodb_strict_mode_orig=`select @@session.innodb_strict_mode`;
-
-SET GLOBAL innodb_file_per_table = 1;
-SELECT @@innodb_file_per_table;
-
-SET GLOBAL innodb_file_format = `Barracuda`;
-SELECT @@innodb_file_format;
-
 SET SESSION innodb_strict_mode=1;
-SELECT @@SESSION.innodb_strict_mode;
 
 let $MYSQLD_TMPDIR = `SELECT @@tmpdir`;
 let $MYSQLD_DATADIR = `SELECT @@datadir`;
@@ -87,15 +72,8 @@ DROP TABLE t1;
 --remove_file $MYSQLD_TMPDIR/t1.cfg
 --remove_file $MYSQLD_TMPDIR/t1.ibd
 
-SET GLOBAL innodb_file_per_table = 1;
-SELECT @@innodb_file_per_table;
-
-SET GLOBAL innodb_file_format = `Barracuda`;
-SELECT @@innodb_file_format;
-
 # restore session variable
 SET SESSION innodb_strict_mode=1;
-SELECT @@SESSION.innodb_strict_mode;
 
 let MYSQLD_DATADIR =`SELECT @@datadir`;
 
@@ -218,7 +196,7 @@ DROP TABLE t1;
 # table and restore, this time the table has a secondary index too.
 CREATE TABLE t1(
 	c1 INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
-	c2 INT, INDEX(c2)) ENGINE=InnoDB  
+	c2 INT, INDEX(c2)) ENGINE=InnoDB
         ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8;
 
 INSERT INTO t1(c2) VALUES(1);
@@ -540,7 +518,3 @@ call mtr.add_suppression("InnoDB: The table .* doesn't have a corresponding tabl
 # cleanup
 --remove_file $MYSQLTEST_VARDIR/tmp/t1.cfg
 --remove_file $MYSQLTEST_VARDIR/tmp/t1.ibd
-
-eval SET GLOBAL INNODB_FILE_FORMAT=$innodb_file_format;
-eval SET GLOBAL INNODB_FILE_PER_TABLE=$innodb_file_per_table;
-eval SET SESSION innodb_strict_mode=$innodb_strict_mode_orig;

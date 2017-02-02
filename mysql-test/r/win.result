@@ -2382,3 +2382,81 @@ pk	c	CNT
 10	2	0.5000
 drop view v1,v2,v3,v4;
 drop table t0,t1;
+#
+# MDEV-10875: window function in subquery
+#
+CREATE TABLE t1 (i INT);
+INSERT INTO t1 VALUES (3),(1);
+CREATE TABLE t2 (c VARCHAR(8));
+INSERT INTO t2 VALUES ('foo'),('bar'),('foo');
+SELECT COUNT(*) OVER (PARTITION BY c) FROM t2;
+COUNT(*) OVER (PARTITION BY c)
+2
+1
+2
+SELECT * FROM t1 WHERE i IN ( SELECT COUNT(*) OVER (PARTITION BY c) FROM t2 );
+i
+1
+DROP TABLE t1, t2;
+#
+# MDEV-9976: window function without PARTITION BY and ORDER BY
+#
+CREATE TABLE t1  (id int, a int);
+INSERT INTO t1 VALUES
+(1,1000), (2,1100), (3,1800), (4,1500), (5,1700), (6,1200),
+(7,2000), (8,2100), (9,1600);
+SELECT id, sum(a) OVER (PARTITION BY id 
+ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING)
+FROM t1;
+id	sum(a) OVER (PARTITION BY id 
+1	1000
+2	1100
+3	1800
+4	1500
+5	1700
+6	1200
+7	2000
+8	2100
+9	1600
+ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING)
+SELECT id, sum(a) OVER (ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING)
+FROM t1;
+id	sum(a) OVER (ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING)
+1	14000
+2	13000
+3	5900
+4	10700
+5	7600
+6	11900
+7	4100
+8	2100
+9	9200
+DROP TABLE t1;
+#
+# MDEV-11867: window function with aggregation
+#             over the result of grouping
+#
+create table t1 (
+username  varchar(32),
+amount int
+);
+insert into t1 values
+('user1',1),
+('user1',5),
+('user1',3),
+('user2',10),
+('user2',20),
+('user2',30);
+select username, sum(amount) as s, avg(sum(amount)) over (order by s desc)
+from t1
+group by username;
+username	s	avg(sum(amount)) over (order by s desc)
+user1	9	34.5000
+user2	60	60.0000
+select username, sum(amount), avg(sum(amount)) over (order by sum(amount) desc)
+from t1
+group by username;
+username	sum(amount)	avg(sum(amount)) over (order by sum(amount) desc)
+user1	9	34.5000
+user2	60	60.0000
+drop table t1;

@@ -78,6 +78,8 @@ select json_extract('[10, 20, [30, 40]]', '$[2][*]');
 select json_extract('[10, 20, [{"a":3}, 30, 40]]', '$[2][*]');
 select json_extract('1', '$');
 select json_extract('[10, 20, [30, 40], 1, 10]', '$[1]');
+select json_extract('[10, 20, [30, 40], 1, 10]', '$[1]', '$[25]');
+select json_extract( '[{"a": [3, 4]}, {"b": 2}]', '$[0].a', '$[1].a');
 
 select json_insert('{"a":1, "b":{"c":1}, "d":[1, 2]}', '$.b.k1', 'word');
 select json_insert('{"a":1, "b":{"c":1}, "d":[1, 2]}', '$.d[3]', 3);
@@ -176,4 +178,22 @@ select json_length('{"a": 1, "b": {"c": 30}}');
 create table json (j INT);
 show create table json;
 drop table json;
+
+select json_length( '[ 1, [ 2, 3, 4 ], 5 ]', '$[2]' );
+select json_length( '[ 1, [ 2, 3, 4 ], 5 ]', '$[2][0]' );
+select json_length( '[ 1, [ 2, 3, 4 ], 5 ]', '$[2][0][0]' );
+select json_length( '[ 1, [ 2, 3, 4 ], 5 ]', '$[2][0][0][0]' );
+select json_length( '[ 1, [ 2, 3, 4 ], {"a":5, "b":6} ]', '$[2]' );
+select json_length( '[ 1, [ 2, 3, 4 ], {"a":5, "b":6} ]', '$[2][0]' );
+select json_length( '[ 1, [ 2, 3, 4 ], {"a":5, "b":6} ]', '$[2][0][0]' );
+select json_length( '[ 1, [ 2, 3, 4 ], {"a":5, "b":6} ]', '$[2][0][0][0]' );
+select json_length( '{"a":{"b":{"d":1}}, "a":{"c":{"d":1, "j":2}}}', '$.a[0][0][0].c' );
+
+select json_set('1', '$[0]', 100);
+select json_set('1', '$[0][0]', 100);
+select json_set('1', '$[1]', 100);
+select json_set('{"a":12}', '$[0]', 100);
+select json_set('{"a":12}', '$[0].a', 100);
+select json_set('{"a":12}', '$[0][0].a', 100);
+select json_set('{"a":12}', '$[0][1].a', 100);
 

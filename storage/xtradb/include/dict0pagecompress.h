@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (C) 2013 SkySQL Ab. All Rights Reserved.
+Copyright (C) 2013, 2017, MariaDB Corporation. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -54,17 +54,6 @@ ulint
 dict_table_page_compression_level(
 /*==============================*/
 	const dict_table_t*	table)	/*!< in: table */
-	__attribute__((const));
-
-/********************************************************************//**
-Verify that dictionary flags match tablespace flags
-@return	true if flags match, false if not */
-UNIV_INLINE
-ibool
-dict_tf_verify_flags(
-/*=================*/
-	ulint	table_flags,	/*!< in: dict_table_t::flags */
-	ulint   fsp_flags)     /*!< in: fil_space_t::flags  */
 	__attribute__((const));
 
 /********************************************************************//**

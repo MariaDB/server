@@ -609,3 +609,15 @@ where
               and T2.name <> T1.name);
 
 drop table employees;
+
+--echo #
+--echo # MDEV-11818: EXPLAIN EXTENDED for a query with optimized away CTE table
+--echo #
+
+CREATE TABLE t1 (i INT, c VARCHAR(3));
+INSERT INTO t1 VALUES (1,'foo');
+
+EXPLAIN EXTENDED
+WITH cte AS ( SELECT * FROM t1 ) SELECT i FROM cte;
+
+DROP TABLE t1;

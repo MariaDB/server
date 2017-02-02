@@ -1,10 +1,5 @@
 -- source include/have_innodb.inc
 
-let $file_format=`select @@innodb_file_format`;
-let $file_per_table=`select @@innodb_file_per_table`;
-SET GLOBAL innodb_file_format='Barracuda';
-SET GLOBAL innodb_file_per_table=on;
-
 CREATE TABLE bug52745 (
   a2 int(10) unsigned DEFAULT NULL,
   col37 time DEFAULT NULL,
@@ -102,6 +97,3 @@ col90=repeat('gale',48);
 SHOW WARNINGS;
 
 DROP TABLE bug52745;
-
-EVAL SET GLOBAL innodb_file_format=$file_format;
-EVAL SET GLOBAL innodb_file_per_table=$file_per_table;

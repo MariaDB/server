@@ -1346,10 +1346,8 @@ static struct my_option innochecksum_options[] = {
     0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"verbose", 'v', "Verbose (prints progress every 5 seconds).",
     &verbose, &verbose, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
-#ifndef DBUG_OFF
   {"debug", '#', "Output debug log. See " REFMAN "dbug-package.html",
     &dbug_setting, &dbug_setting, 0, GET_STR, OPT_ARG, 0, 0, 0, 0, 0, 0},
-#endif /* !DBUG_OFF */
   {"count", 'c', "Print the count of pages in the file and exits.",
     &just_count, &just_count, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"start_page", 's', "Start on this page number (0 based).",
@@ -1381,7 +1379,7 @@ static struct my_option innochecksum_options[] = {
    {"log", 'l', "log output.",
      &log_filename, &log_filename, 0,
       GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
-  {"leaf", 'l', "Examine leaf index pages",
+  {"leaf", 'e', "Examine leaf index pages",
     &do_leaf, &do_leaf, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"merge", 'm', "leaf page count if merge given number of consecutive pages",
    &n_merge, &n_merge, 0, GET_ULONG, REQUIRED_ARG, 0, 0, (longlong)10L, 0, 1, 0},
@@ -1411,7 +1409,7 @@ static void usage(void)
 	printf("Usage: %s [-c] [-s <start page>] [-e <end page>] "
 		"[-p <page>] [-v]  [-a <allow mismatches>] [-n] "
 		"[-C <strict-check>] [-w <write>] [-S] [-D <page type dump>] "
-		"[-l <log>] <filename or [-]>\n", my_progname);
+		"[-l <log>] [-e] <filename or [-]>\n", my_progname);
 	printf("See " REFMAN "innochecksum.html for usage hints.\n");
 	my_print_help(innochecksum_options);
 	my_print_variables(innochecksum_options);

@@ -1,0 +1,66 @@
+select st_asgeojson(geomfromtext('POINT(1 1)'));
+st_asgeojson(geomfromtext('POINT(1 1)'))
+{"type": "Point", "coordinates": [1, 1]}
+select st_asgeojson(geomfromtext('LINESTRING(10 10,20 10,20 20,10 20,10 10)'));
+st_asgeojson(geomfromtext('LINESTRING(10 10,20 10,20 20,10 20,10 10)'))
+{"type": "LineString", "coordinates": [[10, 10], [20, 10], [20, 20], [10, 20], [10, 10]]}
+select st_asgeojson(geomfromtext('POLYGON((10 10,20 10,20 20,10 20,10 10))'));
+st_asgeojson(geomfromtext('POLYGON((10 10,20 10,20 20,10 20,10 10))'))
+{"type": "Polygon", "coordinates": [[[10, 10], [20, 10], [20, 20], [10, 20], [10, 10]]]}
+select st_asgeojson(geomfromtext('MULTIPOLYGON(((10 10,20 10,20 20,10 20,10 10)))'));
+st_asgeojson(geomfromtext('MULTIPOLYGON(((10 10,20 10,20 20,10 20,10 10)))'))
+{"type": "MultiPolygon", "coordinates": [[[[10, 10], [20, 10], [20, 20], [10, 20], [10, 10]]]]}
+select st_asgeojson(geomfromtext('multilinestring((10 10,20 10,20 20,10 20,10 10))'));
+st_asgeojson(geomfromtext('multilinestring((10 10,20 10,20 20,10 20,10 10))'))
+{"type": "MultiLineString", "coordinates": [[[10, 10], [20, 10], [20, 20], [10, 20], [10, 10]]]}
+select st_asgeojson(geomfromtext('multipoint(10 10,20 10,20 20,10 20,10 10)'));
+st_asgeojson(geomfromtext('multipoint(10 10,20 10,20 20,10 20,10 10)'))
+{"type": "MultiPoint", "coordinates": [[10, 10], [20, 10], [20, 20], [10, 20], [10, 10]]}
+select st_asgeojson(st_geomfromtext('GEOMETRYCOLLECTION(POINT(100 0),LINESTRING(101 0,102 1))'));
+st_asgeojson(st_geomfromtext('GEOMETRYCOLLECTION(POINT(100 0),LINESTRING(101 0,102 1))'))
+{"type": "GeometryCollection", "geometries": [{"type": "Point", "coordinates": [100, 0]}, {"type": "LineString", "coordinates": [[101, 0], [102, 1]]}]}
+SELECT st_astext(st_geomfromgeojson('{"type":"point","coordinates":[1,2]}'));
+st_astext(st_geomfromgeojson('{"type":"point","coordinates":[1,2]}'))
+POINT(1 2)
+SELECT st_astext(st_geomfromgeojson('{"type":"LineString","coordinates":[[1,2],[4,5],[7,8]]}'));
+st_astext(st_geomfromgeojson('{"type":"LineString","coordinates":[[1,2],[4,5],[7,8]]}'))
+LINESTRING(1 2,4 5,7 8)
+SELECT st_astext(st_geomfromgeojson('{"type": "polygon", "coordinates": [[[10, 10], [20, 10], [20, 20], [10, 20], [10, 10]]]}'));
+st_astext(st_geomfromgeojson('{"type": "polygon", "coordinates": [[[10, 10], [20, 10], [20, 20], [10, 20], [10, 10]]]}'))
+POLYGON((10 10,20 10,20 20,10 20,10 10))
+SELECT st_astext(st_geomfromgeojson('{"type":"multipoint","coordinates":[[1,2],[4,5],[7,8]]}'));
+st_astext(st_geomfromgeojson('{"type":"multipoint","coordinates":[[1,2],[4,5],[7,8]]}'))
+MULTIPOINT(1 2,4 5,7 8)
+SELECT st_astext(st_geomfromgeojson('{"type": "multilinestring", "coordinates": [[[10, 10], [20, 10], [20, 20], [10, 20], [10, 10]]]}'));
+st_astext(st_geomfromgeojson('{"type": "multilinestring", "coordinates": [[[10, 10], [20, 10], [20, 20], [10, 20], [10, 10]]]}'))
+MULTILINESTRING((10 10,20 10,20 20,10 20,10 10))
+SELECT st_astext(st_geomfromgeojson('{"type": "multipolygon", "coordinates": [[[[10, 10], [20, 10], [20, 20], [10, 20], [10, 10]]]]}'));
+st_astext(st_geomfromgeojson('{"type": "multipolygon", "coordinates": [[[[10, 10], [20, 10], [20, 20], [10, 20], [10, 10]]]]}'))
+MULTIPOLYGON(((10 10,20 10,20 20,10 20,10 10)))
+SELECT st_astext(st_geomfromgeojson('{"type": "GeometryCollection", "geometries": [{"type": "Point","coordinates": [100.0, 0.0]}, {"type": "LineString","coordinates": [[101.0, 0.0],[102.0, 1.0]]}]}'));
+st_astext(st_geomfromgeojson('{"type": "GeometryCollection", "geometries": [{"type": "Point","coordinates": [100.0, 0.0]}, {"type": "LineString","coordinates": [[101.0, 0.0],[102.0, 1.0]]}]}'))
+GEOMETRYCOLLECTION(POINT(100 0),LINESTRING(101 0,102 1))
+SELECT st_astext(st_geomfromgeojson('{"type":"point"}'));
+st_astext(st_geomfromgeojson('{"type":"point"}'))
+NULL
+Warnings:
+Warning	4048	Incorrect GeoJSON format specified for st_geomfromgeojson function.
+SELECT st_astext(st_geomfromgeojson('{"type":"point"'));
+st_astext(st_geomfromgeojson('{"type":"point"'))
+NULL
+Warnings:
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'st_geomfromgeojson'
+SELECT st_astext(st_geomfromgeojson('{"type""point"}'));
+st_astext(st_geomfromgeojson('{"type""point"}'))
+NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 1 to function 'st_geomfromgeojson' at position 7
+SELECT st_astext(st_geomfromgeojson('{ "type": "Feature", "geometry": { "type": "Point", "coordinates": [102.0, 0.5] } }'));
+st_astext(st_geomfromgeojson('{ "type": "Feature", "geometry": { "type": "Point", "coordinates": [102.0, 0.5] } }'))
+POINT(102 0.5)
+SELECT st_astext(st_geomfromgeojson('{ "type": "FeatureCollection", "features": [{ "type": "Feature", "geometry": { "type": "Point", "coordinates": [102.0, 0.5] }, "properties": { "prop0": "value0" } }]}'));
+st_astext(st_geomfromgeojson('{ "type": "FeatureCollection", "features": [{ "type": "Feature", "geometry": { "type": "Point", "coordinates": [102.0, 0.5] }, "properties": { "prop0": "value0" } }]}'))
+GEOMETRYCOLLECTION(POINT(102 0.5))
+#
+# End of 10.2 tests
+#

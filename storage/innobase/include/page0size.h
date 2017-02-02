@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2013, 2015, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -139,9 +140,7 @@ public:
 	@param[in]	src	page size object whose values to fetch */
 	inline void copy_from(const page_size_t& src)
 	{
-		m_physical = src.physical();
-		m_logical = src.logical();
-		m_is_compressed = src.is_compressed();
+		*this = src;
 	}
 
 	/** Check if a given page_size_t object is equal to the current one.
@@ -155,9 +154,6 @@ public:
 	}
 
 private:
-
-	/* Disable implicit copying. */
-	void operator=(const page_size_t&);
 
 	/* For non compressed tablespaces, physical page size is equal to
 	the logical page size and the data is stored in buf_page_t::frame

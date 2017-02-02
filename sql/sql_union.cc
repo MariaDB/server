@@ -283,7 +283,14 @@ void select_union_recursive::cleanup()
       tab->file->extra(HA_EXTRA_RESET_STATE);
       tab->file->ha_delete_all_rows();
     }
-    free_tmp_table(thd, tab);
+    /* 
+      The table will be closed later in close_thread_tables(),
+      because it might be used in the statements like
+      ANALYZE WITH r AS (...) SELECT * from r
+      where r is defined through recursion. 
+    */
+    tab->next= thd->rec_tables;
+    thd->rec_tables= tab;
   }
 }
 

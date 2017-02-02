@@ -892,8 +892,7 @@ lock_trx_handle_wait(
 /*=================*/
 	trx_t*	trx,	/*!< in/out: trx lock state */
 	bool	lock_mutex_taken,
-	bool	trx_mutex_taken)
-	MY_ATTRIBUTE((nonnull(1), warn_unused_result));
+	bool	trx_mutex_taken);
 /*********************************************************************//**
 Get the number of locks on a table.
 @return number of locks */

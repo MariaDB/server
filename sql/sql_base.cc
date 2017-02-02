@@ -769,6 +769,23 @@ void close_thread_tables(THD *thd)
     thd->derived_tables= 0;
   }
 
+  if (thd->rec_tables)
+  {
+    TABLE *next;
+    /*
+      Close all temporary tables created for recursive table references.
+      This action was postponed because the table could be used in the
+      statements like  ANALYZE WITH r AS (...) SELECT * from r
+      where r is defined through recursion. 
+    */
+    for (table= thd->rec_tables ; table ; table= next)
+    {
+      next= table->next;
+      free_tmp_table(thd, table);
+    }
+    thd->rec_tables= 0;
+  }
+
   /*
     Mark all temporary tables used by this statement as free for reuse.
   */

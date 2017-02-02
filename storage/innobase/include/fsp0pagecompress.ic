@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (C) 2013, 2015, MariaDB Corporation. All Rights Reserved.
+Copyright (C) 2013, 2017, MariaDB Corporation. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -24,18 +24,6 @@ compression and atomic writes information to file space.
 Created 11/12/2013 Jan Lindström jan.lindstrom@mariadb.com
 
 ***********************************************************************/
-
-/********************************************************************//**
-Determine if the tablespace is page compressed from dict_table_t::flags.
-@return	TRUE if page compressed, FALSE if not page compressed */
-UNIV_INLINE
-bool
-fsp_flags_is_page_compressed(
-/*=========================*/
-	ulint	flags)	/*!< in: tablespace flags */
-{
-	return(FSP_FLAGS_GET_PAGE_COMPRESSION(flags));
-}
 
 /********************************************************************//**
 Determine the tablespace is page compression level from dict_table_t::flags.
@@ -119,16 +107,10 @@ fil_space_is_page_compressed(
 /*=========================*/
 	ulint	id)	/*!< in: space id */
 {
-	ulint	flags;
+	ulint	flags = fil_space_get_flags(id);
 
-	flags = fil_space_get_flags(id);
-
-	if (flags && flags != ULINT_UNDEFINED) {
-
-		return(fsp_flags_is_page_compressed(flags));
-	}
-
-	return(0);
+	return(flags != ULINT_UNDEFINED
+	       && FSP_FLAGS_HAS_PAGE_COMPRESSION(flags));
 }
 
 #endif /* UNIV_INNOCHECKSUM */

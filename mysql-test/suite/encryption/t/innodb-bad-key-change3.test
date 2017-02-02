@@ -12,11 +12,6 @@
 call mtr.add_suppression("InnoDB: Tablespace for table .* is set as discarded.");
 call mtr.add_suppression("InnoDB: Cannot calculate statistics for table .* because the .ibd file is missing. Please refer to .* for how to resolve the issue.");
 
---disable_query_log
-let $innodb_file_format_orig = `SELECT @@innodb_file_format`;
-let $innodb_file_per_table_orig = `SELECT @@innodb_file_per_table`;
---enable_query_log
-
 --let $MYSQLD_TMPDIR = `SELECT @@tmpdir`
 --let $MYSQLD_DATADIR = `SELECT @@datadir`
 --let SEARCH_RANGE = 10000000
@@ -34,11 +29,7 @@ EOF
 --enable_reconnect
 --source include/wait_until_connected_again.inc
 
---disable_warnings
-SET GLOBAL innodb_file_format = `Barracuda`;
-SET GLOBAL innodb_file_per_table = ON;
 set global innodb_compression_algorithm = 1;
---enable_warnings
 
 CREATE TABLE t1 (pk INT PRIMARY KEY, f VARCHAR(255)) ENGINE=InnoDB PAGE_COMPRESSED=1 ENCRYPTED=YES ENCRYPTION_KEY_ID=4;
 SHOW WARNINGS;
@@ -76,11 +67,6 @@ EOF
 --source include/wait_until_connected_again.inc
 --source include/restart_mysqld.inc
 
---disable_warnings
-SET GLOBAL innodb_file_format = `Barracuda`;
-SET GLOBAL innodb_file_per_table = ON;
---enable_warnings
-
 --error ER_GET_ERRMSG
 ALTER TABLE t1 IMPORT TABLESPACE;
 SHOW CREATE TABLE t1;
@@ -109,12 +95,6 @@ EOF
 DROP TABLE t1;
 
 # reset system
---disable_warnings
---disable_query_log
-EVAL SET GLOBAL innodb_file_per_table = $innodb_file_per_table_orig;
-EVAL SET GLOBAL innodb_file_format = $innodb_file_format_orig;
---enable_query_log
---enable_warnings
 
 --remove_file $MYSQLTEST_VARDIR/keys1.txt
 --remove_file $MYSQLTEST_VARDIR/keys2.txt

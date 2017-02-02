@@ -114,20 +114,6 @@ struct srv_stats_t {
 
 	/** Number of bytes saved by page compression */
 	ulint_ctr_64_t          page_compression_saved;
-	/** Number of 512Byte TRIM by page compression */
-	ulint_ctr_64_t          page_compression_trim_sect512;
-	/** Number of 1K TRIM by page compression */
-	ulint_ctr_64_t          page_compression_trim_sect1024;
-	/** Number of 2K TRIM by page compression */
-	ulint_ctr_64_t          page_compression_trim_sect2048;
-	/** Number of 4K TRIM  by page compression */
-	ulint_ctr_64_t          page_compression_trim_sect4096;
-	/** Number of 8K TRIM by page compression */
-	ulint_ctr_64_t          page_compression_trim_sect8192;
-	/** Number of 16K TRIM by page compression */
-	ulint_ctr_64_t          page_compression_trim_sect16384;
-	/** Number of 32K TRIM by page compression */
-	ulint_ctr_64_t          page_compression_trim_sect32768;
 	/* Number of index pages written */
 	ulint_ctr_64_t          index_pages_written;
 	/* Number of non index pages written */
@@ -136,8 +122,6 @@ struct srv_stats_t {
         ulint_ctr_64_t          pages_page_compressed;
 	/* Number of TRIM operations induced by page compression */
         ulint_ctr_64_t          page_compressed_trim_op;
-	/* Number of TRIM operations saved by using actual write size knowledge */
-        ulint_ctr_64_t          page_compressed_trim_op_saved;
 	/* Number of pages decompressed with page compression */
         ulint_ctr_64_t          pages_page_decompressed;
 	/* Number of page compression errors */
@@ -466,9 +450,6 @@ extern double	srv_adaptive_flushing_lwm;
 extern ulong	srv_flushing_avg_loops;
 
 extern ulong	srv_force_recovery;
-#ifndef DBUG_OFF
-extern ulong	srv_force_recovery_crash;
-#endif /* !DBUG_OFF */
 
 extern ulint	srv_fast_shutdown;	/*!< If this is 1, do not do a
 					purge and index buffer merge.
@@ -731,11 +712,6 @@ enum srv_stats_method_name_enum {
 
 typedef enum srv_stats_method_name_enum		srv_stats_method_name_t;
 
-#ifdef UNIV_DEBUG
-/** Force all user tables to use page compression. */
-extern ulong	srv_debug_compress;
-#endif /* UNIV_DEBUG */
-
 /** Types of threads existing in the system. */
 enum srv_thread_type {
 	SRV_NONE,			/*!< None */
@@ -753,21 +729,10 @@ void
 srv_boot(void);
 /*==========*/
 /*********************************************************************//**
-Initializes the server. */
-void
-srv_init(void);
-/*==========*/
-/*********************************************************************//**
 Frees the data structures created in srv_init(). */
 void
 srv_free(void);
 /*==========*/
-/*********************************************************************//**
-Initializes the synchronization primitives, memory system, and the thread
-local storage. */
-void
-srv_general_init(void);
-/*==================*/
 /*********************************************************************//**
 Sets the info describing an i/o thread current state. */
 void
@@ -1064,20 +1029,6 @@ struct export_var_t{
 
 	int64_t innodb_page_compression_saved;/*!< Number of bytes saved
 						by page compression */
-	int64_t innodb_page_compression_trim_sect512;/*!< Number of 512b TRIM
-						by page compression */
-	int64_t innodb_page_compression_trim_sect1024;/*!< Number of 1K TRIM
-						by page compression */
-	int64_t innodb_page_compression_trim_sect2048;/*!< Number of 2K TRIM
-						by page compression */
-	int64_t innodb_page_compression_trim_sect4096;/*!< Number of 4K byte TRIM
-						by page compression */
-	int64_t innodb_page_compression_trim_sect8192;/*!< Number of 8K TRIM
-						by page compression */
-	int64_t innodb_page_compression_trim_sect16384;/*!< Number of 16K TRIM
-						by page compression */
-	int64_t innodb_page_compression_trim_sect32768;/*!< Number of 32K TRIM
-						by page compression */
 	int64_t innodb_index_pages_written;  /*!< Number of index pages
 						written */
 	int64_t innodb_non_index_pages_written;  /*!< Number of non index pages
@@ -1086,8 +1037,6 @@ struct export_var_t{
 						compressed by page compression */
 	int64_t innodb_page_compressed_trim_op;/*!< Number of TRIM operations
 						induced by page compression */
-	int64_t innodb_page_compressed_trim_op_saved;/*!< Number of TRIM operations
-						saved by page compression */
 	int64_t innodb_pages_page_decompressed;/*!< Number of pages
 						decompressed by page
 						compression */

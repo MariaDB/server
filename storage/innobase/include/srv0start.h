@@ -34,19 +34,6 @@ Created 10/10/1995 Heikki Tuuri
 // Forward declaration
 struct dict_table_t;
 
-#ifdef DBUG_OFF
-# define RECOVERY_CRASH(x) do {} while(0)
-#else
-# define RECOVERY_CRASH(x) do {						\
-	if (srv_force_recovery_crash == x) {				\
-		fprintf(stderr, "innodb_force_recovery_crash=%lu\n",	\
-			srv_force_recovery_crash);			\
-		fflush(stderr);						\
-		abort();						\
-	}								\
-} while (0)
-#endif /* DBUG_OFF */
-
 /** If buffer pool is less than the size,
 only one buffer pool instance is used. */
 #define BUF_POOL_SIZE_THRESHOLD		(1024 * 1024 * 1024)
@@ -80,11 +67,9 @@ are not found and the user wants.
 dberr_t
 innobase_start_or_create_for_mysql(void);
 /*====================================*/
-/****************************************************************//**
-Shuts down the Innobase database.
-@return DB_SUCCESS or error code */
-dberr_t
-innobase_shutdown_for_mysql(void);
+/** Shut down InnoDB. */
+void
+innodb_shutdown();
 
 /****************************************************************//**
 Shuts down background threads that can generate undo pages. */

@@ -1019,7 +1019,7 @@ log_group_file_header_flush(
 	       page_id_t(group->space_id, page_no),
 	       univ_page_size,
 	       (ulint) (dest_offset % univ_page_size.physical()),
-	       OS_FILE_LOG_BLOCK_SIZE, buf, group, NULL);
+	       OS_FILE_LOG_BLOCK_SIZE, buf, group);
 
 	srv_stats.os_log_pending_writes.dec();
 }
@@ -1144,7 +1144,7 @@ loop:
 	       page_id_t(group->space_id, page_no),
 	       univ_page_size,
 	       (ulint) (next_offset % UNIV_PAGE_SIZE), write_len, buf,
-	       group, NULL);
+	       group);
 
 	srv_stats.os_log_pending_writes.dec();
 
@@ -1664,7 +1664,7 @@ log_group_checkpoint(
 	       (log_sys->next_checkpoint_no & 1)
 	       ? LOG_CHECKPOINT_2 : LOG_CHECKPOINT_1,
 	       OS_FILE_LOG_BLOCK_SIZE,
-	       buf, (byte*) group + 1, NULL);
+	       buf, (byte*) group + 1);
 
 	ut_ad(((ulint) group & 0x1UL) == 0);
 }
@@ -1686,7 +1686,7 @@ log_group_header_read(
 	fil_io(IORequestLogRead, true,
 	       page_id_t(group->space_id, header / univ_page_size.physical()),
 	       univ_page_size, header % univ_page_size.physical(),
-	       OS_FILE_LOG_BLOCK_SIZE, log_sys->checkpoint_buf, NULL, NULL);
+	       OS_FILE_LOG_BLOCK_SIZE, log_sys->checkpoint_buf, NULL);
 }
 
 /** Write checkpoint info to the log header and invoke log_mutex_exit().
@@ -2038,7 +2038,7 @@ loop:
 	       page_id_t(group->space_id, page_no),
 	       univ_page_size,
 	       (ulint) (source_offset % univ_page_size.physical()),
-	       len, buf, NULL, NULL);
+	       len, buf, NULL);
 
 #ifdef DEBUG_CRYPT
 	fprintf(stderr, "BEFORE DECRYPT: block: %lu checkpoint: %lu %.8lx %.8lx offset %lu\n",
@@ -2097,7 +2097,6 @@ logs_empty_and_mark_files_at_shutdown(void)
 {
 	lsn_t			lsn;
 	ulint			count = 0;
-	ulint			total_trx;
 	ulint			pending_io;
 
 	ib::info() << "Starting shutdown...";
@@ -2120,7 +2119,11 @@ loop:
 		os_event_set(srv_monitor_event);
 		os_event_set(srv_buf_dump_event);
 		os_event_set(lock_sys->timeout_event);
-		os_event_set(dict_stats_event);
+		if (dict_stats_event) {
+			os_event_set(dict_stats_event);
+		} else {
+			ut_ad(!srv_dict_stats_thread_active);
+		}
 	}
 	os_thread_sleep(100000);
 
@@ -2131,9 +2134,8 @@ loop:
 	shutdown, because the InnoDB layer may have committed or
 	prepared transactions and we don't want to lose them. */
 
-	total_trx = trx_sys_any_active_transactions();
-
-	if (total_trx > 0) {
+	if (ulint total_trx = srv_was_started
+	    ? trx_sys_any_active_transactions() : 0) {
 
 		if (srv_print_verbose_log && count > 600) {
 			ib::info() << "Waiting for " << total_trx << " active"
@@ -2253,8 +2255,8 @@ wait_suspend_loop:
 		goto loop;
 	}
 
-	if (srv_fast_shutdown == 2) {
-		if (!srv_read_only_mode) {
+	if (srv_fast_shutdown == 2 || !srv_was_started) {
+		if (!srv_read_only_mode && srv_was_started) {
 			ib::info() << "MySQL has requested a very fast"
 				" shutdown without flushing the InnoDB buffer"
 				" pool to data files. At the next mysqld"
@@ -2318,8 +2320,7 @@ wait_suspend_loop:
 	srv_shutdown_state = SRV_SHUTDOWN_LAST_PHASE;
 
 	/* Make some checks that the server really is quiet */
-	srv_thread_type	type = srv_get_active_thread_type();
-	ut_a(type == SRV_NONE);
+	ut_a(srv_get_active_thread_type() == SRV_NONE);
 
 	bool	freed = buf_all_freed();
 	ut_a(freed);
@@ -2327,9 +2328,8 @@ wait_suspend_loop:
 	ut_a(lsn == log_sys->lsn);
 
 	if (lsn < srv_start_lsn) {
-		ib::error() << "Log sequence number at shutdown " << lsn
-			<< " is lower than at startup " << srv_start_lsn
-			<< "!";
+		ib::error() << "Shutdown LSN=" << lsn
+			<< " is less than start LSN=" << srv_start_lsn;
 	}
 
 	srv_shutdown_lsn = lsn;
@@ -2339,15 +2339,14 @@ wait_suspend_loop:
 
 		if (err != DB_SUCCESS) {
 			ib::error() << "Writing flushed lsn " << lsn
-				    << " failed at shutdown error " << err;
+				<< " failed; error=" << err;
 		}
 	}
 
 	fil_close_all_files();
 
 	/* Make some checks that the server really is quiet */
-	type = srv_get_active_thread_type();
-	ut_a(type == SRV_NONE);
+	ut_a(srv_get_active_thread_type() == SRV_NONE);
 
 	freed = buf_all_freed();
 	ut_a(freed);
@@ -2596,7 +2595,7 @@ DECLARE_THREAD(log_scrub_thread)(void*)
 		/* log scrubbing interval in µs. */
 		ulonglong interval = 1000*1000*512/innodb_scrub_log_speed;
 
-		os_event_wait_time(log_scrub_event, interval);
+		os_event_wait_time(log_scrub_event, static_cast<ulint>(interval));
 
 		log_scrub();
 

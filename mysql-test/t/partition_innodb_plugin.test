@@ -36,11 +36,9 @@ call mtr.add_suppression("InnoDB: Error: table `test`.`t1` .* InnoDB internal");
 --echo #
 --echo # Bug#55091: Server crashes on ADD PARTITION after a failed attempt
 --echo #
-SET @old_innodb_file_format = @@global.innodb_file_format;
 SET @old_innodb_file_per_table = @@global.innodb_file_per_table;
 SET @old_innodb_strict_mode = @@global.innodb_strict_mode;
-SET @@global.innodb_file_format = Barracuda,
-@@global.innodb_file_per_table = ON,
+SET @@global.innodb_file_per_table = ON,
 @@global.innodb_strict_mode = ON;
 
 --connect(con1,localhost,root,,)
@@ -90,7 +88,6 @@ DROP TABLE t1;
 --disconnect con2
 --connection default
 SET @@global.innodb_strict_mode = @old_innodb_strict_mode;
-SET @@global.innodb_file_format = @old_innodb_file_format;
 SET @@global.innodb_file_per_table = @old_innodb_file_per_table;
 
 #
@@ -153,4 +150,3 @@ ROLLBACK;
 disconnect con1;
 connection default;
 DROP TABLE `t``\""e`;
-SET NAMES DEFAULT;

@@ -1,0 +1,34 @@
+#
+# Bug#13955083 ALLOW IN-PLACE DDL OPERATIONS ON MISSING
+# OR DISCARDED TABLESPACES
+#
+SET GLOBAL innodb_file_per_table=1;
+CREATE TABLE t(a INT)ENGINE=InnoDB;
+CREATE TABLE `x..d` (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
+SELECT * FROM t;
+ERROR 42S02: Table 'test.t' doesn't exist in engine
+ALTER TABLE t ADD INDEX (a), ALGORITHM=INPLACE;
+ERROR 42S02: Table 'test.t' doesn't exist in engine
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1812	Tablespace is missing for table 'test/t'
+Error	1932	Table 'test.t' doesn't exist in engine
+ALTER TABLE t1 ADD INDEX (a), ALGORITHM=COPY;
+ERROR 42S02: Table 'test.t1' doesn't exist
+SHOW WARNINGS;
+Level	Code	Message
+Error	1146	Table 'test.t1' doesn't exist
+ALTER TABLE t ALGORITHM=INPLACE, DISCARD TABLESPACE;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'DISCARD TABLESPACE' at line 1
+ALTER TABLE t ALGORITHM=COPY, DISCARD TABLESPACE;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'DISCARD TABLESPACE' at line 1
+ALTER TABLE t ALGORITHM=DEFAULT, DISCARD TABLESPACE;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'DISCARD TABLESPACE' at line 1
+ALTER TABLE t DISCARD TABLESPACE;
+Warnings:
+Warning	1812	Tablespace is missing for table 'test/t'
+Warning	1812	Tablespace is missing for table 'test/t'
+DROP TABLE t;
+SELECT * FROM `x..d`;
+ERROR 42S02: Table 'test.x..d' doesn't exist in engine
+DROP TABLE `x..d`;

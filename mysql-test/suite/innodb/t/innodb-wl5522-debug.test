@@ -19,13 +19,13 @@ call mtr.add_suppression("InnoDB: Operating system error number .* in a file ope
 call mtr.add_suppression("InnoDB: The error means the system cannot find the path specified.");
 call mtr.add_suppression("InnoDB: If you are installing InnoDB, remember that you must create directories yourself, InnoDB does not create them.");
 call mtr.add_suppression("InnoDB: Cannot open datafile for read-only: .*");
-call mtr.add_suppression("InnoDB: Tablespace flags: .*");
 call mtr.add_suppression("InnoDB: Ignoring tablespace .* because it could not be opened.");
 call mtr.add_suppression("InnoDB: Tablespace for table .* is set as discarded.");
 call mtr.add_suppression("InnoDB: Cannot calculate statistics for table .*");
-call mtr.add_suppression("InnoDB: Page 0 at offset 0 looks corrupted in file .*");
-call mtr.add_suppression("InnoDB: Page for tablespace .* ");
-flush tables;
+call mtr.add_suppression("InnoDB: Page 0 at offset 0 looks corrupted in file");
+call mtr.add_suppression("InnoDB: Page for tablespace ");
+call mtr.add_suppression("InnoDB: Invalid FSP_SPACE_FLAGS=");
+FLUSH TABLES;
 
 let MYSQLD_DATADIR =`SELECT @@datadir`;
 let $innodb_file_per_table = `SELECT @@innodb_file_per_table`;

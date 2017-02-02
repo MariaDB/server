@@ -546,6 +546,7 @@ typedef struct system_variables
   ulonglong sortbuff_size;
   ulonglong group_concat_max_len;
   ulonglong default_regex_flags;
+  ulonglong max_mem_used;
 
   /**
      Place holders to store Multi-source variables in sys_var.cc during
@@ -1380,6 +1381,11 @@ public:
   */
   TABLE *derived_tables;
 
+  /* 
+    Temporary tables created for recursive table references.
+  */
+  TABLE *rec_tables;
+
   /*
     During a MySQL session, one can lock tables in two modes: automatic
     or manual. In automatic mode all necessary tables are locked just before
@@ -1460,6 +1466,7 @@ public:
     open_tables= 0;
     temporary_tables= 0;
     derived_tables= 0;
+    rec_tables= 0;
     extra_lock= 0;
     lock= 0;
     locked_tables_mode= LTM_NONE;

@@ -39,6 +39,8 @@ set global innodb_buf_flush_list_now = 1;
 # Kill the server
 # Make the first page (page_no=0) of the user tablespace
 # full of zeroes.
+#
+# MDEV-11623: Use old FSP_SPACE_FLAGS in the doublewrite buffer.
 check table t1;
 Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK

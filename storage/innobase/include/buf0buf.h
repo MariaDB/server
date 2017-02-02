@@ -1615,7 +1615,6 @@ public:
 					if written again we check is TRIM
 					operation needed. */
 
-	ulint           space;          /*!< space id */
 	unsigned        key_version;	/*!< key version for this block */
 	bool            page_encrypted; /*!< page is page encrypted */
 	bool            page_compressed;/*!< page is page compressed */

@@ -137,12 +137,8 @@ This flag prevents older engines from attempting to open the table and
 allows InnoDB to update_create_info() accordingly. */
 #define DICT_TF_WIDTH_DATA_DIR		1
 
-/** Width of the SHARED tablespace flag.
-It is used to identify tables that exist inside a shared general tablespace.
-If a table is created with the TABLESPACE=tsname option, an older engine will
-not be able to find that table. This flag prevents older engines from attempting
-to open the table and allows InnoDB to quickly find the tablespace. */
-
+/** Width of the SHARED tablespace flag (Oracle MYSQL 5.7).
+Not supported by MariaDB. */
 #define DICT_TF_WIDTH_SHARED_SPACE	1
 
 /**
@@ -226,10 +222,6 @@ DEFAULT=0, ON = 1, OFF = 2
 #define DICT_TF_MASK_DATA_DIR				\
 		((~(~0U << DICT_TF_WIDTH_DATA_DIR))	\
 		<< DICT_TF_POS_DATA_DIR)
-/** Bit mask of the SHARED_SPACE field */
-#define DICT_TF_MASK_SHARED_SPACE			\
-		((~(~0U << DICT_TF_WIDTH_SHARED_SPACE))	\
-		<< DICT_TF_POS_SHARED_SPACE)
 /** Bit mask of the PAGE_COMPRESSION field */
 #define DICT_TF_MASK_PAGE_COMPRESSION			\
 		((~(~0U << DICT_TF_WIDTH_PAGE_COMPRESSION)) \
@@ -267,10 +259,6 @@ DEFAULT=0, ON = 1, OFF = 2
 #define DICT_TF_HAS_DATA_DIR(flags)			\
 		((flags & DICT_TF_MASK_DATA_DIR)	\
 		>> DICT_TF_POS_DATA_DIR)
-/** Return the value of the SHARED_SPACE field */
-#define DICT_TF_HAS_SHARED_SPACE(flags)			\
-		((flags & DICT_TF_MASK_SHARED_SPACE)	\
-		>> DICT_TF_POS_SHARED_SPACE)
 /** Return the value of the PAGE_COMPRESSION field */
 #define DICT_TF_GET_PAGE_COMPRESSION(flags)	       \
 		((flags & DICT_TF_MASK_PAGE_COMPRESSION) \
@@ -307,7 +295,8 @@ for unknown bits in order to protect backward incompatibility. */
 /* @{ */
 /** Total number of bits in table->flags2. */
 #define DICT_TF2_BITS			9
-#define DICT_TF2_UNUSED_BIT_MASK	(~0U << DICT_TF2_BITS)
+#define DICT_TF2_UNUSED_BIT_MASK	(~0U << DICT_TF2_BITS | \
+					 1U << DICT_TF_POS_SHARED_SPACE)
 #define DICT_TF2_BIT_MASK		~DICT_TF2_UNUSED_BIT_MASK
 
 /** TEMPORARY; TRUE for tables from CREATE TEMPORARY TABLE. */
@@ -333,9 +322,6 @@ use its own tablespace instead of the system tablespace. */
 /** This bit is set if all aux table names (both common tables and
 index tables) of a FTS table are in HEX format. */
 #define DICT_TF2_FTS_AUX_HEX_NAME	64
-
-/** Encryption table bit. */
-#define DICT_TF2_ENCRYPTION		256
 
 /* @} */
 
@@ -1389,18 +1375,8 @@ struct dict_table_t {
 	/** Table name. */
 	table_name_t				name;
 
-	/** NULL or the directory path where a TEMPORARY table that was
-	explicitly created by a user should be placed if innodb_file_per_table
-	is defined in my.cnf. In Unix this is usually "/tmp/...",
-	in Windows "temp\...". */
-	const char*				dir_path_of_temp_table;
-
 	/** NULL or the directory path specified by DATA DIRECTORY. */
 	char*					data_dir_path;
-
-	/** NULL or the tablespace name that this table is assigned to,
-	specified by the TABLESPACE option.*/
-	id_name_t				tablespace;
 
 	/** Space where the clustered index of the table is placed. */
 	uint32_t				space;
@@ -1779,12 +1755,6 @@ public:
 	/** mysql_row_templ_t for base columns used for compute the virtual
 	columns */
 	dict_vcol_templ_t*			vc_templ;
-
-	/** encryption key, it's only for export/import */
-	byte*					encryption_key;
-
-	/** encryption iv, it's only for export/import */
-	byte*					encryption_iv;
 };
 
 /*******************************************************************//**

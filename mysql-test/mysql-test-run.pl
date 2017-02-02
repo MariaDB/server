@@ -182,6 +182,7 @@ my @DEFAULT_SUITES= qw(
     innodb_fts-
     innodb_gis-
     innodb_zip-
+    json-
     maria-
     multi_source-
     optimizer_unfixed_bugs-

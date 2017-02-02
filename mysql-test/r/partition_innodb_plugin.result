@@ -37,14 +37,10 @@ call mtr.add_suppression("InnoDB: Error: table `test`.`t1` .* InnoDB internal");
 #
 # Bug#55091: Server crashes on ADD PARTITION after a failed attempt
 #
-SET @old_innodb_file_format = @@global.innodb_file_format;
 SET @old_innodb_file_per_table = @@global.innodb_file_per_table;
 SET @old_innodb_strict_mode = @@global.innodb_strict_mode;
-SET @@global.innodb_file_format = Barracuda,
-@@global.innodb_file_per_table = ON,
+SET @@global.innodb_file_per_table = ON,
 @@global.innodb_strict_mode = ON;
-Warnings:
-Warning	131	Using innodb_file_format is deprecated and the parameter may be removed in future releases. See http://dev.mysql.com/doc/refman/5.7/en/innodb-file-format.html
 connect con1,localhost,root,,;
 CREATE TABLE t1 (id INT NOT NULL
 PRIMARY KEY,
@@ -106,9 +102,6 @@ DROP TABLE t1;
 disconnect con2;
 connection default;
 SET @@global.innodb_strict_mode = @old_innodb_strict_mode;
-SET @@global.innodb_file_format = @old_innodb_file_format;
-Warnings:
-Warning	131	Using innodb_file_format is deprecated and the parameter may be removed in future releases. See http://dev.mysql.com/doc/refman/5.7/en/innodb-file-format.html
 SET @@global.innodb_file_per_table = @old_innodb_file_per_table;
 SET NAMES utf8;
 CREATE TABLE `t``\""e` (a INT, PRIMARY KEY (a))
@@ -160,4 +153,3 @@ ROLLBACK;
 disconnect con1;
 connection default;
 DROP TABLE `t``\""e`;
-SET NAMES DEFAULT;
