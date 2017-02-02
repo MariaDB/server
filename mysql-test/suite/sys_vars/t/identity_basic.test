@@ -163,12 +163,8 @@ SELECT @@session.identity = @@local.identity;
 
 SET identity = 1;
 SELECT @@identity;
---Error ER_PARSE_ERROR
-SET local.identity = 1;
 --Error ER_UNKNOWN_TABLE
 SELECT local.identity;
---Error ER_PARSE_ERROR
-SET session.identity = 1;
 --Error ER_UNKNOWN_TABLE
 SELECT session.identity;
 --Error ER_BAD_FIELD_ERROR

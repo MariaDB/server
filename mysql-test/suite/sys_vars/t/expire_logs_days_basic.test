@@ -153,12 +153,8 @@ SELECT @@expire_logs_days = @@global.expire_logs_days;
 --Error ER_GLOBAL_VARIABLE
 SET expire_logs_days = 1;
 SELECT @@expire_logs_days;
---Error ER_PARSE_ERROR
-SET local.expire_logs_days = 1;
 --Error ER_UNKNOWN_TABLE
 SELECT local.expire_logs_days;
---Error ER_PARSE_ERROR
-SET global.expire_logs_days = 1;
 --Error ER_UNKNOWN_TABLE
 SELECT global.expire_logs_days;
 --Error ER_BAD_FIELD_ERROR

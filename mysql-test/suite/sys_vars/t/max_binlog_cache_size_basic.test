@@ -165,12 +165,8 @@ SELECT @@max_binlog_cache_size = @@global.max_binlog_cache_size;
 --Error ER_GLOBAL_VARIABLE
 SET max_binlog_cache_size = 6000;
 SELECT @@max_binlog_cache_size;
---Error ER_PARSE_ERROR
-SET local.max_binlog_cache_size = 7000;
 --Error ER_UNKNOWN_TABLE
 SELECT local.max_binlog_cache_size;
---Error ER_PARSE_ERROR
-SET global.max_binlog_cache_size = 8000;
 --Error ER_UNKNOWN_TABLE
 SELECT global.max_binlog_cache_size;
 --Error ER_BAD_FIELD_ERROR

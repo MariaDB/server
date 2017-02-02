@@ -151,12 +151,8 @@ SELECT @@slow_launch_time = @@global.slow_launch_time;
 --Error ER_GLOBAL_VARIABLE
 SET slow_launch_time = 1;
 SELECT @@slow_launch_time;
---Error ER_PARSE_ERROR
-SET local.slow_launch_time = 1;
 --Error ER_UNKNOWN_TABLE
 SELECT local.slow_launch_time;
---Error ER_PARSE_ERROR
-SET global.slow_launch_time = 1;
 --Error ER_UNKNOWN_TABLE
 SELECT global.slow_launch_time;
 --Error ER_BAD_FIELD_ERROR

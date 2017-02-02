@@ -152,12 +152,8 @@ SELECT @@max_connect_errors = @@global.max_connect_errors;
 --Error ER_GLOBAL_VARIABLE
 SET max_connect_errors = 6000;
 SELECT @@max_connect_errors;
---Error ER_PARSE_ERROR
-SET local.max_connect_errors = 7000;
 --Error ER_UNKNOWN_TABLE
 SELECT local.max_connect_errors;
---Error ER_PARSE_ERROR
-SET global.max_connect_errors = 8000;
 --Error ER_UNKNOWN_TABLE
 SELECT global.max_connect_errors;
 --Error ER_BAD_FIELD_ERROR

@@ -143,12 +143,8 @@ SELECT @@key_cache_file_hash_size = @@global.key_cache_file_hash_size;
 --Error ER_GLOBAL_VARIABLE
 SET key_cache_file_hash_size = 8000;
 SELECT @@key_cache_file_hash_size;
---Error ER_PARSE_ERROR
-SET local.key_cache_file_hash_size = 10;
 --Error ER_UNKNOWN_TABLE
 SELECT local.key_cache_file_hash_size;
---Error ER_PARSE_ERROR
-SET global.key_cache_file_hash_size = 10;
 --Error ER_UNKNOWN_TABLE
 SELECT global.key_cache_file_hash_size;
 --Error ER_BAD_FIELD_ERROR

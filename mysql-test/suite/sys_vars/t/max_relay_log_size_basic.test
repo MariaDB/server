@@ -150,12 +150,8 @@ SELECT @@max_relay_log_size = @@global.max_relay_log_size;
 
 SET max_relay_log_size = 6000;
 SELECT @@max_relay_log_size;
---Error ER_PARSE_ERROR
-SET local.max_relay_log_size = 7000;
 --Error ER_UNKNOWN_TABLE
 SELECT local.max_relay_log_size;
---Error ER_PARSE_ERROR
-SET global.max_relay_log_size = 8000;
 --Error ER_UNKNOWN_TABLE
 SELECT global.max_relay_log_size;
 --Error ER_BAD_FIELD_ERROR

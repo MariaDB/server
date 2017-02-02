@@ -84,12 +84,8 @@ SELECT @@slow_query_log = @@global.slow_query_log;
 @@slow_query_log = @@global.slow_query_log
 0
 '#---------------------FN_DYNVARS_004_09----------------------#'
-SET local.slow_query_log = OFF;
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'slow_query_log = OFF' at line 1
 SELECT local.slow_query_log;
 ERROR 42S02: Unknown table 'local' in field list
-SET global.slow_query_log = ON;
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'slow_query_log = ON' at line 1
 SELECT global.slow_query_log;
 ERROR 42S02: Unknown table 'global' in field list
 SELECT slow_query_log = @@session.slow_query_log;

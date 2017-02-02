@@ -152,12 +152,8 @@ SELECT @@automatic_sp_privileges = @@global.automatic_sp_privileges;
 ###############################################################################
 --Error ER_GLOBAL_VARIABLE
 SET automatic_sp_privileges = 1;
---Error ER_PARSE_ERROR
-SET local.automatic_sp_privileges = 1;
 --Error ER_UNKNOWN_TABLE
 SELECT local.automatic_sp_privileges;
---Error ER_PARSE_ERROR
-SET global.automatic_sp_privileges = 1;
 --Error ER_UNKNOWN_TABLE
 SELECT global.automatic_sp_privileges;
 --Error ER_BAD_FIELD_ERROR

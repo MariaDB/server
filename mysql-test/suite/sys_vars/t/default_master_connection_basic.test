@@ -102,12 +102,8 @@ SELECT @@local.default_master_connection = @@session.default_master_connection;
 
 SET default_master_connection = 'foo';
 SELECT @@default_master_connection;
---Error ER_PARSE_ERROR
-SET local.default_master_connection = 'foo';
 --Error ER_UNKNOWN_TABLE
 SELECT local.default_master_connection;
---Error ER_PARSE_ERROR
-SET session.default_master_connection = 'foo';
 --Error ER_UNKNOWN_TABLE
 SELECT session.default_master_connection;
 --Error ER_BAD_FIELD_ERROR

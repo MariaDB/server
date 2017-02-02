@@ -179,12 +179,8 @@ SELECT @@local.div_precision_increment = @@session.div_precision_increment;
 
 SET div_precision_increment = 1;
 SELECT @@div_precision_increment;
---Error ER_PARSE_ERROR
-SET local.div_precision_increment = 1;
 --Error ER_UNKNOWN_TABLE
 SELECT local.div_precision_increment;
---Error ER_PARSE_ERROR
-SET session.div_precision_increment = 1;
 --Error ER_UNKNOWN_TABLE
 SELECT session.div_precision_increment;
 --Error ER_BAD_FIELD_ERROR

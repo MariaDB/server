@@ -132,10 +132,6 @@ SELECT @@global.old_mode;
 
 '#---------------------FN_DYNVARS_152_09----------------------#'
 SET old_mode = 'NO_PROGRESS_INFO';
-SET session.old_mode = 'ANSI';
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'old_mode = 'ANSI'' at line 1
-SET global.old_mode = 'ANSI';
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'old_mode = 'ANSI'' at line 1
 SET session old_mode = 1;
 SELECT @@old_mode;
 @@old_mode

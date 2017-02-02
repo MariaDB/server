@@ -336,11 +336,6 @@ SELECT @@global.sql_mode;
 
 SET sql_mode = 'ANSI';
 
---Error ER_PARSE_ERROR
-SET session.sql_mode = 'ANSI';
---Error ER_PARSE_ERROR
-SET global.sql_mode = 'ANSI';
-
 SET session sql_mode = 1;
 SELECT @@sql_mode;
 

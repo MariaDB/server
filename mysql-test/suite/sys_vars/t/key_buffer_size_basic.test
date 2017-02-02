@@ -128,12 +128,8 @@ SELECT @@key_buffer_size = @@global.key_buffer_size;
 
 --Error ER_GLOBAL_VARIABLE
 SET key_buffer_size = 8 ;
---Error ER_PARSE_ERROR
-SET local.key_buffer_size = 10;
 --Error ER_UNKNOWN_TABLE
 SELECT local.key_buffer_size;
---Error ER_PARSE_ERROR
-SET global.key_buffer_size = 10;
 --Error ER_UNKNOWN_TABLE
 SELECT global.key_buffer_size;
 --Error ER_BAD_FIELD_ERROR

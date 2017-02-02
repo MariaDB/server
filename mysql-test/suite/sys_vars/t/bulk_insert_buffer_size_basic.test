@@ -181,12 +181,8 @@ SELECT @@local.bulk_insert_buffer_size = @@session.bulk_insert_buffer_size;
 
 SET bulk_insert_buffer_size = 1;
 SELECT @@bulk_insert_buffer_size;
---Error ER_PARSE_ERROR
-SET local.bulk_insert_buffer_size = 1;
 --Error ER_UNKNOWN_TABLE
 SELECT local.bulk_insert_buffer_size;
---Error ER_PARSE_ERROR
-SET session.bulk_insert_buffer_size = 1;
 --Error ER_UNKNOWN_TABLE
 SELECT session.bulk_insert_buffer_size;
 --Error ER_BAD_FIELD_ERROR

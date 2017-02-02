@@ -56,9 +56,6 @@ SELECT lc_time_names;
 # assign value without @@
 SET lc_time_names=ar_AE;
 SELECT @@session.lc_time_names;
-# assign global variable without @@
---Error ER_PARSE_ERROR
-SET global.lc_time_names=ar_AE;
 # using another syntax for accessing session variable
 SET session lc_time_names=ar_AE;
 # accessing variable with scope the wrong way

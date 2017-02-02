@@ -189,10 +189,6 @@ SELECT @@global.tx_isolation;
 
 SET tx_isolation = 'REPEATABLE-READ';
 
---Error ER_PARSE_ERROR
-SET session.tx_isolation = 'REPEATABLE-READ';
---Error ER_PARSE_ERROR
-SET global.tx_isolation = 'REPEATABLE-READ';
 #using SET SESSION|GLOBAL syntax
 SET session tx_isolation = 'REPEATABLE-READ';
 SELECT @@tx_isolation;

@@ -148,12 +148,8 @@ SELECT @@big_tables = @@local.big_tables and @@local.big_tables = @@session.big_
 
 SET big_tables = 1;
 SELECT @@big_tables;
---Error ER_PARSE_ERROR
-SET local.big_tables = 1;
 --Error ER_UNKNOWN_TABLE
 SELECT local.big_tables;
---Error ER_PARSE_ERROR
-SET session.big_tables = 1;
 --Error ER_UNKNOWN_TABLE
 SELECT session.big_tables;
 --Error ER_BAD_FIELD_ERROR

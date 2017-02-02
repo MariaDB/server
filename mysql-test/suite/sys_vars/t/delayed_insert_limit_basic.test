@@ -141,12 +141,8 @@ SELECT @@delayed_insert_limit = @@global.delayed_insert_limit;
 --Error ER_GLOBAL_VARIABLE
 SET delayed_insert_limit = 1;
 SELECT @@delayed_insert_limit;
---Error ER_PARSE_ERROR
-SET local.delayed_insert_limit = 1;
 --Error ER_UNKNOWN_TABLE
 SELECT local.delayed_insert_limit;
---Error ER_PARSE_ERROR
-SET global.delayed_insert_limit = 1;
 --Error ER_UNKNOWN_TABLE
 SELECT global.delayed_insert_limit;
 --Error ER_BAD_FIELD_ERROR

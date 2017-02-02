@@ -137,8 +137,6 @@ SELECT @@table_definition_cache = @@global.table_definition_cache;
 
 --Error ER_GLOBAL_VARIABLE
 SET table_definition_cache = 1;
---Error ER_PARSE_ERROR
-SET global.table_definition_cache = 1;
 --Error ER_UNKNOWN_TABLE
 SELECT global.table_definition_cache;
 --Error ER_BAD_FIELD_ERROR

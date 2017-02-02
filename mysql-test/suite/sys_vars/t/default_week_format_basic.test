@@ -170,12 +170,8 @@ SELECT @@local.default_week_format = @@session.default_week_format;
 
 SET default_week_format = 1;
 SELECT @@default_week_format;
---Error ER_PARSE_ERROR
-SET local.default_week_format = 1;
 --Error ER_UNKNOWN_TABLE
 SELECT local.default_week_format;
---Error ER_PARSE_ERROR
-SET session.default_week_format = 1;
 --Error ER_UNKNOWN_TABLE
 SELECT session.default_week_format;
 --Error ER_BAD_FIELD_ERROR

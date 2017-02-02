@@ -178,11 +178,6 @@ SELECT @@global.myisam_stats_method;
 
 SET myisam_stats_method = 'nulls_equal';
 
---Error ER_PARSE_ERROR
-SET session.myisam_stats_method = 'nulls_equal';
---Error ER_PARSE_ERROR
-SET global.myisam_stats_method = 'nulls_equal';
-
 SET session myisam_stats_method = 'nulls_equal';
 SELECT @@myisam_stats_method;
 
