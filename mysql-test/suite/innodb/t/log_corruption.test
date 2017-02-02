@@ -1,33 +1,35 @@
 --source include/have_innodb.inc
 --source include/have_innodb_16k.inc
 
+--disable_query_log
+call mtr.add_suppression("InnoDB: Upgrade after a crash is not supported");
+call mtr.add_suppression("InnoDB: Plugin initialization aborted");
+call mtr.add_suppression("Plugin 'InnoDB' init function returned error");
+call mtr.add_suppression("Plugin 'InnoDB' registration as a STORAGE ENGINE failed");
+call mtr.add_suppression("InnoDB: Unsupported redo log format");
+call mtr.add_suppression("InnoDB: No valid checkpoint found");
+call mtr.add_suppression("InnoDB: Invalid (log block|redo log header) checksum");
+call mtr.add_suppression("InnoDB: Ignoring the redo log due to missing MLOG_CHECKPOINT");
+call mtr.add_suppression("InnoDB: MLOG_FILE_NAME incorrect");
+call mtr.add_suppression("InnoDB: ############### CORRUPT LOG RECORD FOUND");
+call mtr.add_suppression("InnoDB: Found corrupted log");
+--enable_query_log
+
 let bugdir= $MYSQLTEST_VARDIR/tmp/log_corruption;
 --mkdir $bugdir
 --let SEARCH_RANGE = -50000
---let SEARCH_FILE = $bugdir/my_restart.err
---let SEARCH_ABORT=NOT FOUND
---let $args=--defaults-file=$bugdir/my.cnf --loose-console >> $SEARCH_FILE 2>&1
+--let SEARCH_FILE = $MYSQLTEST_VARDIR/log/mysqld.1.err
+
+let $check_no_innodb=SELECT * FROM INFORMATION_SCHEMA.ENGINES
+WHERE engine = 'innodb'
+AND support IN ('YES', 'DEFAULT', 'ENABLED');
+
+write_file $bugdir/ib_buffer_pool;
+EOF
+
+--let $dirs= --innodb-data-home-dir=$bugdir --innodb-log-group-home-dir=$bugdir
 
 perl;
-die unless open IN, "<", "$ENV{MYSQLTEST_VARDIR}/my.cnf";
-my $found;
-while (<IN>) { $found=$1 if /^(lc-messages-dir=.*)/ }
-close IN;
-
-die unless defined $found;
-die unless open OUT, ">", "$ENV{bugdir}/my.cnf";
-print OUT "[mysqld]
-$found
-innodb_data_home_dir = $ENV{bugdir}
-datadir = $ENV{bugdir}
-secure_file_priv=
-skip_aria
-core_file
-";
-close OUT or die;
-die unless open OUT, ">", "$ENV{bugdir}/ib_buffer_pool";
-close OUT or die;
-
 # Create a dummy system tablespace file using the default innodb_page_size=16k
 die unless open OUT, ">", "$ENV{bugdir}/ibdata1";
 binmode OUT;
@@ -99,16 +101,21 @@ close OUT or die;
 EOF
 
 --echo # redo log from before MySQL 5.7.9
---error 1
---exec $MYSQLD $args
+--let $restart_parameters= $dirs
+--source include/restart_mysqld.inc
+eval $check_no_innodb;
+--source include/shutdown_mysqld.inc
+
 let SEARCH_PATTERN=InnoDB: Upgrade after a crash is not supported. This redo log was created before MySQL 5\\.7\\.9\\.;
 --source include/search_pattern_in_file.inc
 
 --echo # redo log from before MySQL 5.7.9, with corrupted log checkpoint
 --move_file $bugdir/ib_logfile0 $bugdir/ib_logfile
 --copy_file $bugdir/ib_logfile1 $bugdir/ib_logfile0
---error 1
---exec $MYSQLD $args
+--source include/start_mysqld.inc
+eval $check_no_innodb;
+--source include/shutdown_mysqld.inc
+
 let SEARCH_PATTERN=InnoDB: Upgrade after a crash is not supported. This redo log was created before MySQL 5\\.7\\.9, and we did not find a valid checkpoint;
 --source include/search_pattern_in_file.inc
 let SEARCH_PATTERN=Plugin 'InnoDB' registration as a STORAGE ENGINE failed;
@@ -127,8 +134,9 @@ print OUT pack("Nx[508]", 0xc0deba5e);
 close OUT or die;
 EOF
 
---error 1
---exec $MYSQLD $args
+--source include/start_mysqld.inc
+eval $check_no_innodb;
+--source include/shutdown_mysqld.inc
 let SEARCH_PATTERN=InnoDB: Upgrade after a crash is not supported. This redo log was created before MySQL 5\\.7\\.9, and it appears corrupted;
 --source include/search_pattern_in_file.inc
 
@@ -139,8 +147,9 @@ binmode OUT;
 print OUT pack("N",2);
 close OUT or die;
 EOF
---error 1
---exec $MYSQLD $args
+--source include/start_mysqld.inc
+eval $check_no_innodb;
+--source include/shutdown_mysqld.inc
 let SEARCH_PATTERN=InnoDB: Invalid redo log header checksum;
 --source include/search_pattern_in_file.inc
 
@@ -153,8 +162,9 @@ print OUT "malicious intentions, or perhaps not";
 print OUT pack("x[456]N", 0x8a1bb475);
 close OUT or die;
 EOF
---error 1
---exec $MYSQLD $args
+--source include/start_mysqld.inc
+eval $check_no_innodb;
+--source include/shutdown_mysqld.inc
 let SEARCH_PATTERN=InnoDB: Unsupported redo log format. The redo log was created with malicious intentions, or perhaps\. Please follow the instructions at http://dev.mysql.com/doc/refman/5.7/en/upgrading-downgrading.html;
 --source include/search_pattern_in_file.inc
 
@@ -173,8 +183,9 @@ print OUT pack("H*x[5]", "800009440022000c0000000138");
 print OUT pack("H*x[475]H*", "12860cb7809781e80006626f677573", "089C0ADA");
 close OUT or die;
 EOF
---error 1
---exec $MYSQLD $args
+--source include/start_mysqld.inc
+eval $check_no_innodb;
+--source include/shutdown_mysqld.inc
 let SEARCH_PATTERN=InnoDB: No valid checkpoint found .corrupted redo log;
 --source include/search_pattern_in_file.inc
 
@@ -189,18 +200,20 @@ close OUT or die;
 EOF
 # Anything below innodb_force_recovery=6 must find a valid redo log.
 # Missing tablespace files are tolerated already with innodb_force_recovery=1.
---error 1
---exec $MYSQLD $args --innodb-force-recovery=5
+--let $restart_parameters= $dirs --innodb-force-recovery=5
+--source include/start_mysqld.inc
+eval $check_no_innodb;
+--source include/shutdown_mysqld.inc
 let SEARCH_PATTERN=InnoDB: Invalid log block checksum. block: 2372 checkpoint no: 1 expected: 3362026715 found: 144444122;
 --source include/search_pattern_in_file.inc
 let SEARCH_PATTERN=InnoDB: Ignoring the redo log due to missing MLOG_CHECKPOINT between the checkpoint 1213964 and the end 1213952\.;
 --source include/search_pattern_in_file.inc
 --echo # --innodb-force-recovery=6 (skip the entire redo log)
---error 2
---exec $MYSQLD $args --innodb-force-recovery=6 --unknown-option
+--let $restart_parameters= $dirs --innodb-force-recovery=6
+--source include/start_mysqld.inc
+eval $check_no_innodb;
+--source include/shutdown_mysqld.inc
 --let SEARCH_PATTERN=\\[Note\\] InnoDB: .* started; log sequence number 0
---source include/search_pattern_in_file.inc
---let SEARCH_PATTERN=\\[ERROR\\] Aborting
 --source include/search_pattern_in_file.inc
 
 --echo # valid header, valid checkpoint 1, all-zero (invalid) checkpoint 2, invalid block number
@@ -221,13 +234,17 @@ EOF
 --copy_file $bugdir/ib_logfile0 $bugdir/ib_logfile
 # Anything below innodb_force_recovery=6 must find a valid redo log.
 # Missing tablespace files are tolerated already with innodb_force_recovery=1.
---error 1
---exec $MYSQLD $args --innodb-force-recovery=5
+--let $restart_parameters= $dirs --innodb-force-recovery=5
+--source include/start_mysqld.inc
+eval $check_no_innodb;
+--source include/shutdown_mysqld.inc
 let SEARCH_PATTERN=InnoDB: Ignoring the redo log due to missing MLOG_CHECKPOINT between the checkpoint 1213964 and the end 1213952\.;
 --source include/search_pattern_in_file.inc
 --echo # --innodb-force-recovery=6 (skip the entire redo log)
---error 2
---exec $MYSQLD $args --innodb-force-recovery=6 --unknown-option
+--let $restart_parameters= $dirs --innodb-force-recovery=6
+--source include/start_mysqld.inc
+eval $check_no_innodb;
+--source include/shutdown_mysqld.inc
 
 --echo # Test a corrupted MLOG_FILE_NAME record.
 --echo # valid header, valid checkpoint 1, all-zero (invalid) checkpoint 2
@@ -242,8 +259,10 @@ die unless seek(OUT, 0x9fc, 0);
 print OUT pack("N", 0xc86474db);
 close OUT or die;
 EOF
---error 1
---exec $MYSQLD $args
+--let $restart_parameters= $dirs
+--source include/start_mysqld.inc
+eval $check_no_innodb;
+--source include/shutdown_mysqld.inc
 let SEARCH_PATTERN=InnoDB: Log scan progressed past the checkpoint lsn 1213964;
 --source include/search_pattern_in_file.inc
 let SEARCH_PATTERN=InnoDB: ############### CORRUPT LOG RECORD FOUND ##################;
@@ -279,8 +298,9 @@ print OUT pack("H*", "b7809781e80006"), "bigot";
 print OUT pack("x[475]N", 150151);
 close OUT or die;
 EOF
---error 1
---exec $MYSQLD $args
+--source include/start_mysqld.inc
+eval $check_no_innodb;
+--source include/shutdown_mysqld.inc
 let SEARCH_PATTERN=InnoDB: Invalid log block checksum. block: 2372 checkpoint no: 1 expected: 2454333373 found: 150151;
 --source include/search_pattern_in_file.inc
 --echo # valid header, invalid checkpoint 1, valid checkpoint 2, invalid log record
@@ -292,16 +312,14 @@ print OUT pack("N", 2454333373);
 close OUT or die;
 EOF
 
---error 1
---exec $MYSQLD $args
+--source include/start_mysqld.inc
+eval $check_no_innodb;
+--source include/shutdown_mysqld.inc
 --let SEARCH_PATTERN= len 22; hex 38000000000012860cb7809781e800066269676f7400; asc 8               bigot ;
---source include/search_pattern_in_file.inc
-
-# Catch errors when built with one of the sanitizers
---let SEARCH_ABORT=FOUND
---let SEARCH_PATTERN=Sanitizer
 --source include/search_pattern_in_file.inc
 
 --list_files $bugdir
 --remove_files_wildcard $bugdir
 --rmdir $bugdir
+--let $restart_parameters=
+--source include/start_mysqld.inc
