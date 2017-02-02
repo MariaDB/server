@@ -6146,13 +6146,7 @@ void TABLE::mark_columns_used_by_index_no_reset(uint index, MY_BITMAP *bitmap)
   KEY_PART_INFO *key_part_end= (key_part +
                                 key_info[index].user_defined_key_parts);
   for (;key_part != key_part_end; key_part++)
-  {
     bitmap_set_bit(bitmap, key_part->fieldnr-1);
-    if (key_part->field->vcol_info &&
-        key_part->field->vcol_info->expr)
-      key_part->field->vcol_info->
-               expr->walk(&Item::register_field_in_bitmap, 1, bitmap);
-  }
 }
 
 
