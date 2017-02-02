@@ -61,9 +61,6 @@ SELECT character_set_results;
 # assign value without @@
 SET character_set_results=utf8;
 SELECT @@session.character_set_results;
-# assign global variable without @@
---Error ER_PARSE_ERROR
-SET global.character_set_results=utf8;
 # using another syntax for accessing session variable
 SET session character_set_results=utf8;
 # accessing variable with scope the wrong way

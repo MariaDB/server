@@ -144,8 +144,6 @@ SELECT @@sync_frm = @@global.sync_frm;
 --Error ER_GLOBAL_VARIABLE
 SET sync_frm = 1;
 SELECT @@sync_frm;
---Error ER_PARSE_ERROR
-SET global.sync_frm = 1;
 --Error ER_UNKNOWN_TABLE
 SELECT global.sync_frm;
 --Error ER_BAD_FIELD_ERROR

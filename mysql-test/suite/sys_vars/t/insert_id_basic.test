@@ -164,12 +164,8 @@ SELECT @@session.insert_id = @@local.insert_id;
 
 SET insert_id = 1;
 SELECT @@insert_id;
---Error ER_PARSE_ERROR
-SET local.insert_id = 1;
 --Error ER_UNKNOWN_TABLE
 SELECT local.insert_id;
---Error ER_PARSE_ERROR
-SET session.insert_id = 1;
 --Error ER_UNKNOWN_TABLE
 SELECT session.insert_id;
 --Error ER_BAD_FIELD_ERROR

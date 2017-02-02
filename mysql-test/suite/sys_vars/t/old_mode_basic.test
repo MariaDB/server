@@ -197,11 +197,6 @@ SELECT @@global.old_mode;
 
 SET old_mode = 'NO_PROGRESS_INFO';
 
---Error ER_PARSE_ERROR
-SET session.old_mode = 'ANSI';
---Error ER_PARSE_ERROR
-SET global.old_mode = 'ANSI';
-
 SET session old_mode = 1;
 SELECT @@old_mode;
 

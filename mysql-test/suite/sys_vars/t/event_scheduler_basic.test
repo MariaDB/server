@@ -147,12 +147,8 @@ SELECT @@event_scheduler = @@global.event_scheduler;
 #######################################################################
 --Error ER_GLOBAL_VARIABLE
 SET event_scheduler = ON;
---Error ER_PARSE_ERROR
-SET local.event_scheduler = OFF;
 --Error ER_UNKNOWN_TABLE
 SELECT local.event_scheduler;
---Error ER_PARSE_ERROR
-SET global.event_scheduler = ON;
 --Error ER_UNKNOWN_TABLE
 SELECT global.event_scheduler;
 --Error ER_BAD_FIELD_ERROR

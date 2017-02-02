@@ -146,12 +146,8 @@ SELECT @@read_only = @@global.read_only;
 --Error ER_GLOBAL_VARIABLE
 SET read_only = 1;
 SELECT @@read_only;
---Error ER_PARSE_ERROR
-SET local.read_only = 1;
 --Error ER_UNKNOWN_TABLE
 SELECT local.read_only;
---Error ER_PARSE_ERROR
-SET global.read_only = 1;
 --Error ER_UNKNOWN_TABLE
 SELECT global.read_only;
 --Error ER_BAD_FIELD_ERROR

@@ -153,12 +153,8 @@ SELECT @@max_connections = @@global.max_connections;
 --Error ER_GLOBAL_VARIABLE
 SET max_connections = 6000;
 SELECT @@max_connections;
---Error ER_PARSE_ERROR
-SET local.max_connections = 7000;
 --Error ER_UNKNOWN_TABLE
 SELECT local.max_connections;
---Error ER_PARSE_ERROR
-SET global.max_connections = 8000;
 --Error ER_UNKNOWN_TABLE
 SELECT global.max_connections;
 --Error ER_BAD_FIELD_ERROR

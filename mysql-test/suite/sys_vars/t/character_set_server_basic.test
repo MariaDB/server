@@ -59,9 +59,6 @@ SELECT character_set_server;
 # assign value without @@
 SET character_set_server=utf8;
 SELECT @@session.character_set_server;
-# assign global variable without @@
---Error ER_PARSE_ERROR
-SET global.character_set_server=utf8;
 # using another syntax for accessing session variable
 SET session character_set_server=utf8;
 # accessing variable with scope the wrong way
