@@ -19,6 +19,7 @@
 #include <errno.h>
 #include <ctype.h>
 #include <stdio.h>
+#include <string.h>
 
 #include "wsrep_api.h"
 
@@ -80,4 +81,14 @@ wsrep_uuid_print (const wsrep_uuid_t* uuid, char* str, size_t str_len)
     else {
         return -EMSGSIZE;
     }
+}
+
+/*!
+ * Compare two UUIDs
+ * @return -1, 0, 1 if lhs is respectively smaller, equal, or greater than rhs
+ */
+int
+wsrep_uuid_compare (const wsrep_uuid_t* lhs, const wsrep_uuid_t* rhs)
+{
+    return memcmp(lhs, rhs, sizeof(wsrep_uuid_t));
 }

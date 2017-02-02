@@ -156,3 +156,14 @@ bool wsrep_get_SE_checkpoint(wsrep_uuid_t& uuid, wsrep_seqno_t& seqno)
 
   return false;
 }
+
+void
+wsrep_thd_xid(const void *thd_ptr, void *xid, size_t xid_size)
+{
+  const THD *thd= (const THD*)thd_ptr;
+  DBUG_ASSERT(xid_size == sizeof(xid_t));
+  if (xid_size == sizeof(xid_t))
+  {
+    *(xid_t*) xid = thd->wsrep_xid;
+  }
+}

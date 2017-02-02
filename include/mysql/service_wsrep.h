@@ -151,6 +151,7 @@ extern struct wsrep_service_st {
 #define wsrep_trx_is_aborting(T) wsrep_service->wsrep_trx_is_aborting_func(T)
 #define wsrep_trx_order_before(T1,T2) wsrep_service->wsrep_trx_order_before_func(T1,T2)
 #define wsrep_unlock_rollback() wsrep_service->wsrep_unlock_rollback_func()
+#define wsrep_thd_thread_id(T) wsrep_service->wsrep_thd_thread_id(T)
 
 #define wsrep_debug get_wsrep_debug()
 #define wsrep_log_conflicts get_wsrep_log_conflicts()
@@ -169,6 +170,7 @@ extern my_bool wsrep_load_data_splitting;
 extern my_bool wsrep_drupal_282555_workaround;
 extern my_bool wsrep_recovery;
 extern long wsrep_protocol_version;
+extern my_thread_id wsrep_thd_thread_id(THD *thd);
 
 bool wsrep_consistency_check(THD *thd);
 bool wsrep_prepare_key(const unsigned char* cache_key, size_t cache_key_len, const unsigned char* row_id, size_t row_id_len, struct wsrep_buf* key, size_t* key_len);

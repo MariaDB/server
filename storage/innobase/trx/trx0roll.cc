@@ -155,6 +155,11 @@ trx_rollback_to_savepoint(
 				partial rollback requested, or NULL for
 				complete rollback */
 {
+#ifdef WITH_WSREP
+	if (savept == NULL) {
+		wsrep_handle_SR_rollback(NULL, trx->mysql_thd);
+	}
+#endif /* WITH_WSREP */
 	ut_ad(!trx_mutex_own(trx));
 
 	trx_start_if_not_started_xa(trx, true);

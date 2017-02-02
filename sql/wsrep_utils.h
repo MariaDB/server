@@ -314,6 +314,17 @@ private:
     char* string_;
 };
 
+/* scope level lock */
+class auto_lock
+{
+public:
+  auto_lock(mysql_mutex_t* m) : m_(m) { mysql_mutex_lock(m_); }
+  ~auto_lock() { mysql_mutex_unlock(m_); }
+private:
+  mysql_mutex_t& operator =(mysql_mutex_t&);
+  mysql_mutex_t* const m_;
+};
+
 #ifdef REMOVED
 class lock
 {

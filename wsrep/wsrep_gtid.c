@@ -53,7 +53,7 @@ wsrep_gtid_scan(const char* str, size_t str_len, wsrep_gtid_t* gtid)
 
 /*!
  * Write GTID to string
- * @return length of GTID stirng representation of -EMSGSIZE if string is too
+ * @return length of GTID string representation or -EMSGSIZE if string is too
  *         short
  */
 int

@@ -159,7 +159,7 @@ extern MYSQL_PLUGIN_IMPORT MYSQL_BIN_LOG mysql_bin_log;
 static inline wsrep_ws_handle_t*
 wsrep_ws_handle(THD* thd, const trx_t* trx) {
 	return wsrep_ws_handle_for_trx(wsrep_thd_ws_handle(thd),
-				       (wsrep_trx_id_t)trx->id);
+				       wsrep_thd_next_trx_id(thd));
 }
 
 extern TC_LOG* tc_log;
@@ -8205,20 +8205,8 @@ ha_innobase::write_row(
 	if ((sql_command == SQLCOM_ALTER_TABLE
 	     || sql_command == SQLCOM_OPTIMIZE
 	     || sql_command == SQLCOM_CREATE_INDEX
-#ifdef WITH_WSREP
-	     || (sql_command == SQLCOM_LOAD
-		 && wsrep_load_data_splitting && wsrep_on(m_user_thd)
-		 && !thd_test_options(
-			 m_user_thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN))
-#endif /* WITH_WSREP */
 	     || sql_command == SQLCOM_DROP_INDEX)
 	    && m_num_write_row >= 10000) {
-#ifdef WITH_WSREP
-		if (sql_command == SQLCOM_LOAD && wsrep_on(m_user_thd)) {
-			WSREP_DEBUG("forced trx split for LOAD: %s",
-				    wsrep_thd_query(m_user_thd));
-		}
-#endif /* WITH_WSREP */
 		/* ALTER TABLE is COMMITted at every 10000 copied rows.
 		The IX table lock for the original table has to be re-issued.
 		As this method will be called on a temporary table where the
@@ -8245,28 +8233,6 @@ no_commit:
 			/* Unknown situation: do not commit */
 			;
 		} else if (src_table == m_prebuilt->table) {
-#ifdef WITH_WSREP
-			if (wsrep_on(m_user_thd)                            &&
-			    wsrep_load_data_splitting                       &&
-			    sql_command == SQLCOM_LOAD                      &&
-			    !thd_test_options(m_user_thd,
-			                      OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN))
-			{
-				switch (wsrep_run_wsrep_commit(m_user_thd, 1)) {
-				case WSREP_TRX_OK:
-				  break;
-				case WSREP_TRX_SIZE_EXCEEDED:
-				case WSREP_TRX_CERT_FAIL:
-				case WSREP_TRX_ERROR:
-				  DBUG_RETURN(1);
-				}
-
-				if (binlog_hton->commit(binlog_hton, m_user_thd, 1)) {
-					DBUG_RETURN(1);
-				}
-				wsrep_post_commit(m_user_thd, TRUE);
-			}
-#endif /* WITH_WSREP */
 			/* Source table is not in InnoDB format:
 			no need to re-acquire locks on it. */
 
@@ -8277,28 +8243,6 @@ no_commit:
 			/* We will need an IX lock on the destination table. */
 			m_prebuilt->sql_stat_start = TRUE;
 		} else {
-#ifdef WITH_WSREP
-			if (wsrep_on(m_user_thd)                            &&
-			    wsrep_load_data_splitting                       &&
-			    sql_command == SQLCOM_LOAD                      &&
-			    !thd_test_options(m_user_thd,
-			                      OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN)) {
-				switch (wsrep_run_wsrep_commit(m_user_thd, 1)) {
-				case WSREP_TRX_OK:
-					break;
-				case WSREP_TRX_SIZE_EXCEEDED:
-				case WSREP_TRX_CERT_FAIL:
-				case WSREP_TRX_ERROR:
-					DBUG_RETURN(1);
-				}
-
-				if (binlog_hton->commit(binlog_hton, m_user_thd, 1)) {
-					DBUG_RETURN(1);
-				}
-
-				wsrep_post_commit(m_user_thd, TRUE);
-			}
-#endif /* WITH_WSREP */
 			/* Ensure that there are no other table locks than
 			LOCK_IX and LOCK_AUTO_INC on the destination table. */
 
@@ -10795,6 +10739,9 @@ wsrep_append_key(
 {
 	DBUG_ENTER("wsrep_append_key");
 	bool const copy = true;
+        DBUG_PRINT("enter",
+                   ("thd: %lu trx: %lld", wsrep_thd_thread_id(thd),
+                    (long long)trx->id));
 #ifdef WSREP_DEBUG_PRINT
 	fprintf(stderr, "%s conn %ld, trx %llu, keylen %d, table %s\n Query: %s ",
 		(shared) ? "Shared" : "Exclusive",
@@ -19628,8 +19575,7 @@ wsrep_innobase_kill_one_trx(
 			wsrep_t *wsrep= get_wsrep();
 			rcode = wsrep->abort_pre_commit(
 				wsrep, bf_seqno,
-				(wsrep_trx_id_t)victim_trx->id
-			);
+                                wsrep_thd_trx_id(thd));
 
 			switch (rcode) {
 			case WSREP_WARNING:
@@ -19654,7 +19600,7 @@ wsrep_innobase_kill_one_trx(
 				abort();
 				break;
 			}
-		}
+                }
 		wsrep_thd_UNLOCK(thd);
 		wsrep_thd_awake(thd, signal);
 		break;
@@ -19710,35 +19656,15 @@ wsrep_innobase_kill_one_trx(
 					      wsrep_thd_trx_seqno(thd));
 			DBUG_RETURN(0);
 		}
-                /* This will lock thd from proceeding after net_read() */
-		wsrep_thd_set_conflict_state(thd, ABORTING);
-
-		wsrep_lock_rollback();
-
-		if (wsrep_aborting_thd_contains(thd)) {
-			WSREP_WARN("duplicate thd aborter %lu",
-			           (ulong) thd_get_thread_id(thd));
-		} else {
-			wsrep_aborting_thd_enqueue(thd);
-			DBUG_PRINT("wsrep",("enqueuing trx abort for %lu",
-			                    thd_get_thread_id(thd)));
-			WSREP_DEBUG("enqueuing trx abort for (%lu)",
-			            thd_get_thread_id(thd));
-		}
-
-		DBUG_PRINT("wsrep",("signalling wsrep rollbacker"));
-		WSREP_DEBUG("signaling aborter");
-		wsrep_unlock_rollback();
-		wsrep_thd_UNLOCK(thd);
-
+                wsrep_fire_rollbacker(thd);
 		break;
 	}
 	default:
 		WSREP_WARN("bad wsrep query state: %d",
 			  wsrep_thd_query_state(thd));
-		wsrep_thd_UNLOCK(thd);
 		break;
 	}
+	wsrep_thd_UNLOCK(thd);
 
 	DBUG_RETURN(0);
 }

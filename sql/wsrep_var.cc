@@ -149,15 +149,15 @@ bool wsrep_start_position_verify (const char* start_str)
 
 
 static
-bool wsrep_set_local_position(const char* const value, size_t length,
-                              bool const sst)
+bool wsrep_set_local_position(THD* thd, const char* const value,
+                              size_t length, bool const sst)
 {
   wsrep_uuid_t uuid;
   size_t const uuid_len = wsrep_uuid_scan(value, length, &uuid);
   wsrep_seqno_t const seqno = strtoll(value + uuid_len + 1, NULL, 10);
 
   if (sst) {
-    return wsrep_sst_received (wsrep, uuid, seqno, NULL, 0, false);
+    return wsrep_sst_received (thd, wsrep, uuid, seqno, NULL, 0, false);
   } else {
     // initialization
     local_uuid = uuid;
@@ -186,7 +186,7 @@ bool wsrep_start_position_check (sys_var *self, THD* thd, set_var* var)
     As part of further verification, we try to update the value and catch
     errors (if any).
   */
-  if (wsrep_set_local_position(var->save_result.string_value.str,
+  if (wsrep_set_local_position(thd, var->save_result.string_value.str,
                                var->save_result.string_value.length,
                                true))
   {
@@ -218,7 +218,7 @@ bool wsrep_start_position_init (const char* val)
     return true;
   }
 
-  if (wsrep_set_local_position (val, strlen(val), false))
+  if (wsrep_set_local_position (NULL, val, strlen(val), false))
   {
     WSREP_ERROR("Failed to set initial wsep_start_position: %s", val);
     return true;
@@ -324,8 +324,6 @@ bool wsrep_provider_update (sys_var *self, THD* thd, enum_var_type type)
 {
   bool rcode= false;
 
-  bool wsrep_on_saved= thd->variables.wsrep_on;
-  thd->variables.wsrep_on= false;
 
   WSREP_DEBUG("wsrep_provider_update: %s", wsrep_provider);
 
@@ -356,9 +354,6 @@ bool wsrep_provider_update (sys_var *self, THD* thd, enum_var_type type)
   // we sure don't want to use old address with new provider
   wsrep_cluster_address_init(NULL);
   wsrep_provider_options_init(NULL);
-
-  thd->variables.wsrep_on= wsrep_on_saved;
-
   refresh_provider_options();
 
   return rcode;
@@ -439,17 +434,12 @@ bool wsrep_cluster_address_check (sys_var *self, THD* thd, set_var* var)
 
 bool wsrep_cluster_address_update (sys_var *self, THD* thd, enum_var_type type)
 {
-  bool wsrep_on_saved;
-
   /* Do not proceed if wsrep provider is not loaded. */
   if (!wsrep)
   {
     WSREP_INFO("wsrep provider is not loaded, can't re(start) replication.");
     return false;
   }
-
-  wsrep_on_saved= thd->variables.wsrep_on;
-  thd->variables.wsrep_on= false;
 
   /* stop replication is heavy operation, and includes closing all client 
      connections. Closing clients may need to get LOCK_global_system_variables
@@ -466,7 +456,6 @@ bool wsrep_cluster_address_update (sys_var *self, THD* thd, enum_var_type type)
     any potential deadlock.
   */
   mysql_mutex_unlock(&LOCK_wsrep_slave_threads);
-  mysql_mutex_lock(&LOCK_global_system_variables);
   mysql_mutex_lock(&LOCK_wsrep_slave_threads);
 
   if (wsrep_start_replication())
@@ -474,8 +463,7 @@ bool wsrep_cluster_address_update (sys_var *self, THD* thd, enum_var_type type)
     wsrep_create_rollbacker();
     wsrep_create_appliers(wsrep_slave_threads);
   }
-
-  thd->variables.wsrep_on= wsrep_on_saved;
+  mysql_mutex_lock(&LOCK_global_system_variables);
 
   return false;
 }

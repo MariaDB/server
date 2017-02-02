@@ -243,6 +243,10 @@ wsrep_innobase_kill_one_trx(void * const thd_ptr,
 int wsrep_innobase_mysql_sort(int mysql_type, uint charset_number,
                              unsigned char* str, unsigned int str_length,
                              unsigned int buf_length);
+my_bool wsrep_thd_is_SR(void *thd_ptr);
+void wsrep_handle_SR_rollback(void *BF_thd_ptr, void *victim_thd_ptr);
+void wsrep_thd_xid(const void *thd_ptr, void *xid, size_t xid_size);
+my_bool wsrep_thd_no_gaps(const void *thd_ptr);
 #endif /* WITH_WSREP */
 
 /**********************************************************************//**

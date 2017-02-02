@@ -1409,7 +1409,7 @@ wsrep_kill_victim(
 				} else {
 					ib::info() << "*** Victim TRANSACTION:";
 				}
-                                wsrep_trx_print_locking(stderr, lock->trx, 3000);
+				wsrep_trx_print_locking(stderr, lock->trx, 3000
 
 				ib::info() << "*** WAITING FOR THIS LOCK TO BE GRANTED:";
 
@@ -8422,6 +8422,9 @@ DeadlockChecker::trx_rollback()
 	trx_t*	trx = m_wait_lock->trx;
 
 	print("*** WE ROLL BACK TRANSACTION (1)\n");
+#ifdef WITH_WSREP
+        wsrep_handle_SR_rollback(ctx->start->mysql_thd, trx->mysql_thd);
+#endif
 
 	trx_mutex_enter(trx);
 

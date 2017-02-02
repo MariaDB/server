@@ -18,17 +18,23 @@
 IF(WITH_WSREP AND NOT EMBEDDED_LIBRARY)
   SET(WSREP_INCLUDES ${CMAKE_SOURCE_DIR}/wsrep)
   SET(WSREP_SOURCES
+    wsrep_utils.cc
+    wsrep_xid.cc
     wsrep_check_opts.cc
-    wsrep_hton.cc
-    wsrep_mysqld.cc 
+    wsrep_mysqld.cc
     wsrep_notify.cc
     wsrep_sst.cc
-    wsrep_utils.cc
     wsrep_var.cc
     wsrep_binlog.cc
     wsrep_applier.cc
     wsrep_thd.cc
-    wsrep_xid.cc
+    wsrep_sr_file.cc
+    wsrep_sr_table.cc
+    wsrep_thd_pool.cc
+    wsrep_schema.cc
+    wsrep_sr.cc
+    wsrep_trans_observer.cc
+    wsrep_plugin.cc
   )
   SET(WSREP_LIB wsrep)
 ELSE()
