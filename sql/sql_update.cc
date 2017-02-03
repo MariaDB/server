@@ -534,16 +534,9 @@ int mysql_update(THD *thd,
     /*
       We can't update table directly;  We must first search after all
       matching rows before updating the table!
+
+      note: We avoid sorting if we sort on the used index
     */
-    MY_BITMAP *save_read_set= table->read_set;
-    MY_BITMAP *save_write_set= table->write_set;
-
-    if (query_plan.index < MAX_KEY && old_covering_keys.is_set(query_plan.index))
-      table->prepare_for_keyread(query_plan.index);
-    else
-      table->use_all_columns();
-
-    /* note: We avoid sorting if we sort on the used index */
     if (query_plan.using_filesort)
     {
       /*
@@ -569,6 +562,14 @@ int mysql_update(THD *thd,
     }
     else
     {
+      MY_BITMAP *save_read_set= table->read_set;
+      MY_BITMAP *save_write_set= table->write_set;
+
+      if (query_plan.index < MAX_KEY && old_covering_keys.is_set(query_plan.index))
+        table->prepare_for_keyread(query_plan.index);
+      else
+        table->use_all_columns();
+
       /*
 	We are doing a search on a key that is updated. In this case
 	we go trough the matching rows, save a pointer to them and
@@ -681,9 +682,10 @@ int mysql_update(THD *thd,
       select->file=tempfile;			// Read row ptrs from this file
       if (error >= 0)
 	goto err;
+
+      table->file->ha_end_keyread();
+      table->column_bitmaps_set(save_read_set, save_write_set);
     }
-    table->file->ha_end_keyread();
-    table->column_bitmaps_set(save_read_set, save_write_set);
   }
 
   if (ignore)
