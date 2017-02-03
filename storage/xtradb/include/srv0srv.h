@@ -3,7 +3,7 @@
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All rights reserved.
 Copyright (c) 2008, 2009, Google Inc.
 Copyright (c) 2009, Percona Inc.
-Copyright (c) 2013, 2014, SkySQL Ab. All Rights Reserved.
+Copyright (c) 2013, 2017, MariaDB Corporation Ab. All Rights Reserved.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -968,17 +968,12 @@ ulint
 srv_get_task_queue_length(void);
 /*===========================*/
 
-/*********************************************************************//**
-Releases threads of the type given from suspension in the thread table.
-NOTE! The server mutex has to be reserved by the caller!
-@return number of threads released: this may be less than n if not
-enough threads were suspended at the moment */
-UNIV_INTERN
-ulint
-srv_release_threads(
-/*================*/
-	enum srv_thread_type	type,	/*!< in: thread type */
-	ulint			n);	/*!< in: number of threads to release */
+/** Ensure that a given number of threads of the type given are running
+(or are already terminated).
+@param[in]	type	thread type
+@param[in]	n	number of threads that have to run */
+void
+srv_release_threads(enum srv_thread_type type, ulint n);
 
 /**********************************************************************//**
 Check whether any background thread are active. If so print which thread
@@ -989,12 +984,10 @@ const char*
 srv_any_background_threads_are_active(void);
 /*=======================================*/
 
-/**********************************************************************//**
-Wakeup the purge threads. */
+/** Wake up the purge threads. */
 UNIV_INTERN
 void
-srv_purge_wakeup(void);
-/*==================*/
+srv_purge_wakeup();
 
 /** Status variables to be passed to MySQL */
 struct export_var_t{
