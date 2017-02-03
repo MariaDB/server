@@ -467,11 +467,8 @@ Datafile::validate_for_recovery()
 		close();
 		err = open_read_write(srv_read_only_mode);
 		if (err != DB_SUCCESS) {
-			ib::error() << "Datafile '" << m_filepath << "' could not"
-				" be opened in read-write mode so that the"
-				" doublewrite pages could be restored.";
 			return(err);
-		};
+		}
 
 		err = find_space_id();
 		if (err != DB_SUCCESS || m_space_id == 0) {
