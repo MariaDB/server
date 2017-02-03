@@ -33,19 +33,20 @@ CONSTRAINT `fk_crewRoleAssigned_crewId` FOREIGN KEY (`crew_id`) REFERENCES `repr
 CONSTRAINT `fk_crewRoleAssigned_pilotId` FOREIGN KEY (`crew_id`) REFERENCES `repro`.`pilot` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB COMMENT="This is a comment about tables";
 
---echo # Restart mysqld --innodb_read_only_mode=1
--- let $restart_parameters=--innodb-read-only-mode=1
+-- let $restart_parameters=--innodb-read-only
 -- source include/restart_mysqld.inc
 
+--error ER_CANT_LOCK
+ALTER TABLE `repro`.`crew_role_assigned` COMMENT = 'innodb_read_only';
 SHOW CREATE TABLE `repro`.`crew_role_assigned`;
 
+-- let $restart_parameters=
 -- source include/restart_mysqld.inc
 
 ALTER TABLE `repro`.`crew_role_assigned` COMMENT = "This is a new comment about tables";
 SHOW CREATE TABLE `repro`.`crew_role_assigned`;
 
---echo # Restart mysqld --innodb_read_only_mode=1
--- let $restart_parameters=--innodb-read-only-mode=1
+-- let $restart_parameters=--innodb-read-only
 -- source include/restart_mysqld.inc
 
 #
@@ -53,6 +54,7 @@ SHOW CREATE TABLE `repro`.`crew_role_assigned`;
 #
 SHOW CREATE TABLE `repro`.`crew_role_assigned`;
 
+-- let $restart_parameters=
 -- source include/restart_mysqld.inc
 
 DROP TABLE `repro`.`crew_role_assigned`;

@@ -35,7 +35,14 @@ if ($shutdown_timeout == 0)
 shutdown_server $server_shutdown_timeout;
 
 # Write file to make mysql-test-run.pl start up the server again
---exec echo "restart" > $_expect_file_name
+if ($restart_parameters)
+{
+  --exec echo "restart: $restart_parameters" > $_expect_file_name
+}
+if (!$restart_parameters)
+{
+  --exec echo "restart" > $_expect_file_name
+}
 
 # Turn on reconnect
 --enable_reconnect
