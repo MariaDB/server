@@ -2015,7 +2015,19 @@ trx_undo_free_prepared(
 	ut_ad(srv_shutdown_state == SRV_SHUTDOWN_EXIT_THREADS);
 
 	if (trx->rsegs.m_redo.update_undo) {
-		ut_a(trx->rsegs.m_redo.update_undo->state == TRX_UNDO_PREPARED);
+		switch (trx->rsegs.m_redo.update_undo->state) {
+		case TRX_UNDO_PREPARED:
+			break;
+		case TRX_UNDO_ACTIVE:
+			/* lock_trx_release_locks() assigns
+			trx->is_recovered=false */
+			ut_a(srv_read_only_mode
+			     || srv_force_recovery >= SRV_FORCE_NO_TRX_UNDO);
+			break;
+		default:
+			ut_error;
+		}
+
 		UT_LIST_REMOVE(trx->rsegs.m_redo.rseg->update_undo_list,
 			       trx->rsegs.m_redo.update_undo);
 		trx_undo_mem_free(trx->rsegs.m_redo.update_undo);
@@ -2024,7 +2036,19 @@ trx_undo_free_prepared(
 	}
 
 	if (trx->rsegs.m_redo.insert_undo) {
-		ut_a(trx->rsegs.m_redo.insert_undo->state == TRX_UNDO_PREPARED);
+		switch (trx->rsegs.m_redo.insert_undo->state) {
+		case TRX_UNDO_PREPARED:
+			break;
+		case TRX_UNDO_ACTIVE:
+			/* lock_trx_release_locks() assigns
+			trx->is_recovered=false */
+			ut_a(srv_read_only_mode
+			     || srv_force_recovery >= SRV_FORCE_NO_TRX_UNDO);
+			break;
+		default:
+			ut_error;
+		}
+
 		UT_LIST_REMOVE(trx->rsegs.m_redo.rseg->insert_undo_list,
 			       trx->rsegs.m_redo.insert_undo);
 		trx_undo_mem_free(trx->rsegs.m_redo.insert_undo);

@@ -2134,7 +2134,8 @@ loop:
 	shutdown, because the InnoDB layer may have committed or
 	prepared transactions and we don't want to lose them. */
 
-	if (ulint total_trx = srv_was_started
+	if (ulint total_trx = srv_was_started && !srv_read_only_mode
+	    && srv_force_recovery < SRV_FORCE_NO_TRX_UNDO
 	    ? trx_sys_any_active_transactions() : 0) {
 
 		if (srv_print_verbose_log && count > 600) {
@@ -2143,13 +2144,6 @@ loop:
 
 			count = 0;
 		}
-
-		/* Wake up purge threads to die - they have MYSQL_THD's and
-		thus might keep open transactions. In particular, this is
-		needed in embedded server and when one uses UNINSTALL PLUGIN.
-		In the normal server shutdown purge threads should've been
-		already notified by the thd_destructor_proxy thread. */
-		srv_purge_wakeup();
 
 		goto loop;
 	}
@@ -2196,14 +2190,12 @@ wait_suspend_loop:
 		thread_name = "fil_crypt_thread";
 		goto wait_suspend_loop;
 	case SRV_PURGE:
+	case SRV_WORKER:
 		srv_purge_wakeup();
 		thread_name = "purge thread";
 		goto wait_suspend_loop;
 	case SRV_MASTER:
 		thread_name = "master thread";
-		goto wait_suspend_loop;
-	case SRV_WORKER:
-		thread_name = "worker threads";
 		goto wait_suspend_loop;
 	}
 
