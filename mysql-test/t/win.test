@@ -1504,3 +1504,16 @@ select sum(sum(id)) over (order by sum(id)) from t1;
 
 drop table t1;
 
+--echo #
+--echo # MDEV-9923: integer constant in order by list 
+--echo #            of window specification
+--echo #
+
+create table test.t1 (id int);
+insert into test.t1 values (1), (2), (3), (2);
+
+select rank() over (order by 1) from t1;
+select rank() over (order by 2) from t1;
+select rank() over (partition by id order by 2) from t1;
+
+drop table t1;

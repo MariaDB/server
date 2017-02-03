@@ -2472,3 +2472,28 @@ select sum(sum(id)) over (order by sum(id)) from t1;
 sum(sum(id)) over (order by sum(id))
 8
 drop table t1;
+#
+# MDEV-9923: integer constant in order by list 
+#            of window specification
+#
+create table test.t1 (id int);
+insert into test.t1 values (1), (2), (3), (2);
+select rank() over (order by 1) from t1;
+rank() over (order by 1)
+1
+1
+1
+1
+select rank() over (order by 2) from t1;
+rank() over (order by 2)
+1
+1
+1
+1
+select rank() over (partition by id order by 2) from t1;
+rank() over (partition by id order by 2)
+1
+1
+1
+1
+drop table t1;

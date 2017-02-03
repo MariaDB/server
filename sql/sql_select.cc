@@ -21917,7 +21917,7 @@ cp_buffer_from_ref(THD *thd, TABLE *table, TABLE_REF *ref)
   @param[in,out] all_fields         All select, group and order by fields
   @param[in] is_group_field         True if order is a GROUP field, false if
     ORDER by field
-  @param[in] search_in_all_fields   If true then search in all_fields
+  @param[in] from_window_spec       If true then order is from a window spec
 
   @retval
     FALSE if OK
@@ -21928,7 +21928,7 @@ cp_buffer_from_ref(THD *thd, TABLE *table, TABLE_REF *ref)
 static bool
 find_order_in_list(THD *thd, Ref_ptr_array ref_pointer_array, TABLE_LIST *tables,
                    ORDER *order, List<Item> &fields, List<Item> &all_fields,
-                   bool is_group_field, bool search_in_all_fields)
+                   bool is_group_field, bool from_window_spec)
 {
   Item *order_item= *order->item; /* The item from the GROUP/ORDER caluse. */
   Item::Type order_item_type;
@@ -21941,7 +21941,8 @@ find_order_in_list(THD *thd, Ref_ptr_array ref_pointer_array, TABLE_LIST *tables
     Local SP variables may be int but are expressions, not positions.
     (And they can't be used before fix_fields is called for them).
   */
-  if (order_item->type() == Item::INT_ITEM && order_item->basic_const_item())
+  if (order_item->type() == Item::INT_ITEM && order_item->basic_const_item() &&
+      !from_window_spec)
   {						/* Order by position */
     uint count;
     if (order->counter_used)
@@ -22033,7 +22034,7 @@ find_order_in_list(THD *thd, Ref_ptr_array ref_pointer_array, TABLE_LIST *tables
                           thd->where);
     }
   }
-  else if (search_in_all_fields)
+  else if (from_window_spec)
   {
     Item **found_item= find_item_in_list(order_item, all_fields, &counter,
                                          REPORT_EXCEPT_NOT_FOUND, &resolution,
@@ -22093,14 +22094,14 @@ find_order_in_list(THD *thd, Ref_ptr_array ref_pointer_array, TABLE_LIST *tables
 
 int setup_order(THD *thd, Ref_ptr_array ref_pointer_array, TABLE_LIST *tables,
 		List<Item> &fields, List<Item> &all_fields, ORDER *order,
-                bool search_in_all_fields)
+                bool from_window_spec)
 { 
   enum_parsing_place parsing_place= thd->lex->current_select->parsing_place;
   thd->where="order clause";
   for (; order; order=order->next)
   {
     if (find_order_in_list(thd, ref_pointer_array, tables, order, fields,
-			   all_fields, FALSE, search_in_all_fields))
+			   all_fields, FALSE, from_window_spec))
       return 1;
     if ((*order->item)->with_window_func && parsing_place != IN_ORDER_BY)
     {
@@ -22127,7 +22128,7 @@ int setup_order(THD *thd, Ref_ptr_array ref_pointer_array, TABLE_LIST *tables,
   @param order		       The fields we should do GROUP/PARTITION BY on 
   @param hidden_group_fields   Pointer to flag that is set to 1 if we added
                                any fields to all_fields.
-  @param search_in_all_fields  If true then search in all_fields
+  @param from_window_spec      If true then list is from a window spec
 
   @todo
     change ER_WRONG_FIELD_WITH_GROUP to more detailed
@@ -22142,7 +22143,7 @@ int setup_order(THD *thd, Ref_ptr_array ref_pointer_array, TABLE_LIST *tables,
 int
 setup_group(THD *thd, Ref_ptr_array ref_pointer_array, TABLE_LIST *tables,
 	    List<Item> &fields, List<Item> &all_fields, ORDER *order,
-	    bool *hidden_group_fields, bool search_in_all_fields)
+	    bool *hidden_group_fields, bool from_window_spec)
 {
   enum_parsing_place parsing_place= thd->lex->current_select->parsing_place;
   *hidden_group_fields=0;
@@ -22157,7 +22158,7 @@ setup_group(THD *thd, Ref_ptr_array ref_pointer_array, TABLE_LIST *tables,
   for (ord= order; ord; ord= ord->next)
   {
     if (find_order_in_list(thd, ref_pointer_array, tables, ord, fields,
-			   all_fields, TRUE, search_in_all_fields))
+			   all_fields, TRUE, from_window_spec))
       return 1;
     (*ord->item)->marker= UNDEF_POS;		/* Mark found */
     if ((*ord->item)->with_sum_func && parsing_place == IN_GROUP_BY)
