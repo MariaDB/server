@@ -1491,4 +1491,16 @@ group by username;
 
 drop table t1;
 
+--echo #
+--echo # MDEV-11594: window function over implicit grouping
+--echo #
+
+create table test.t1 (id int);
+insert into test.t1 values (1), (2), (3), (2);
+
+select sum(id) over (order by sum(id)) from t1;
+
+select sum(sum(id)) over (order by sum(id)) from t1;
+
+drop table t1;
 

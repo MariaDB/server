@@ -2177,6 +2177,9 @@ bool JOIN::make_aggr_tables_info()
   const bool has_group_by= this->group;
   
   sort_and_group_aggr_tab= NULL;
+
+  bool implicit_grouping_with_window_funcs= implicit_grouping &&
+                                            select_lex->have_window_funcs();
   
 
   /*
@@ -2338,9 +2341,11 @@ bool JOIN::make_aggr_tables_info()
     distinct= select_distinct && !group_list && 
               !select_lex->have_window_funcs();
     keep_row_order= false;
+    bool save_sum_fields= (group_list && simple_group) ||
+                           implicit_grouping_with_window_funcs;
     if (create_postjoin_aggr_table(curr_tab,
-                                   &all_fields, tmp_group, 
-                                   group_list && simple_group,
+                                   &all_fields, tmp_group,
+                                   save_sum_fields,
                                    distinct, keep_row_order))
       DBUG_RETURN(true);
     exec_tmp_table= curr_tab->table;
@@ -2540,7 +2545,9 @@ bool JOIN::make_aggr_tables_info()
     count_field_types(select_lex, &tmp_table_param, *curr_all_fields, false);
   }
 
-  if (group || implicit_grouping || tmp_table_param.sum_func_count)
+  if (group ||
+      (implicit_grouping  && !implicit_grouping_with_window_funcs) ||
+      tmp_table_param.sum_func_count)
   {
     if (make_group_fields(this, this))
       DBUG_RETURN(true);
@@ -2772,13 +2779,15 @@ JOIN::create_postjoin_aggr_table(JOIN_TAB *tab, List<Item> *table_fields,
   table->reginfo.join_tab= tab;
 
   /* if group or order on first table, sort first */
-  if (group_list && simple_group)
+  if ((group_list && simple_group) ||
+      (implicit_grouping && select_lex->have_window_funcs()))
   {
     DBUG_PRINT("info",("Sorting for group"));
     THD_STAGE_INFO(thd, stage_sorting_for_group);
 
     if (ordered_index_usage != ordered_index_group_by &&
         (join_tab + const_tables)->type != JT_CONST && // Don't sort 1 row
+        !implicit_grouping &&
         add_sorting_to_table(join_tab + const_tables, group_list))
       goto err;
 

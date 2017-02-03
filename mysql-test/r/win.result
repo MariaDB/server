@@ -2460,3 +2460,15 @@ username	sum(amount)	avg(sum(amount)) over (order by sum(amount) desc)
 user1	9	34.5000
 user2	60	60.0000
 drop table t1;
+#
+# MDEV-11594: window function over implicit grouping
+#
+create table test.t1 (id int);
+insert into test.t1 values (1), (2), (3), (2);
+select sum(id) over (order by sum(id)) from t1;
+sum(id) over (order by sum(id))
+1
+select sum(sum(id)) over (order by sum(id)) from t1;
+sum(sum(id)) over (order by sum(id))
+8
+drop table t1;
