@@ -127,7 +127,7 @@ public:
   }
   const char*func_name() const
   {
-    return "row_number(";
+    return "row_number";
   }
 
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)

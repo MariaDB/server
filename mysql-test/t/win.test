@@ -1495,8 +1495,8 @@ drop table t1;
 --echo # MDEV-11594: window function over implicit grouping
 --echo #
 
-create table test.t1 (id int);
-insert into test.t1 values (1), (2), (3), (2);
+create table t1 (id int);
+insert into t1 values (1), (2), (3), (2);
 
 select sum(id) over (order by sum(id)) from t1;
 
@@ -1509,11 +1509,29 @@ drop table t1;
 --echo #            of window specification
 --echo #
 
-create table test.t1 (id int);
-insert into test.t1 values (1), (2), (3), (2);
+create table t1 (id int);
+insert into t1 values (1), (2), (3), (2);
 
 select rank() over (order by 1) from t1;
 select rank() over (order by 2) from t1;
 select rank() over (partition by id order by 2) from t1;
 
+drop table t1;
+
+--echo #
+--echo # MDEV-10660: view using a simple window function 
+--echo #
+
+create table t1 (id int);
+insert into t1 values (1), (2), (3), (2);
+
+create view v1(id,rnk) as
+  select id, rank() over (order by id) from t1;
+
+show create view v1;
+
+select id, rank() over (order by id) from t1;
+select * from v1;
+
+drop view v1;
 drop table t1;

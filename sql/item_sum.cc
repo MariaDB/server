@@ -471,6 +471,13 @@ void Item_sum::print(String *str, enum_query_type query_type)
   /* orig_args is not filled with valid values until fix_fields() */
   Item **pargs= fixed ? orig_args : args;
   str->append(func_name());
+  /*
+    TODO:
+    The fact that func_name() may return a name with an extra '('
+    is really annoying. This shoud be fixed.
+  */
+  if (!is_aggr_sum_func())
+    str->append('(');
   for (uint i=0 ; i < arg_count ; i++)
   {
     if (i)
@@ -594,7 +601,9 @@ Item *Item_sum::result_item(THD *thd, Field *field)
 
 bool Item_sum::check_vcol_func_processor(void *arg)
 {
-  return mark_unsupported_function(func_name(), ")", arg, VCOL_IMPOSSIBLE);
+  return mark_unsupported_function(func_name(), 
+                                   is_aggr_sum_func() ? ")" : "()",
+                                   arg, VCOL_IMPOSSIBLE);
 }
 
 
