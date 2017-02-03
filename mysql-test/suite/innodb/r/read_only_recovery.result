@@ -1,0 +1,29 @@
+CREATE TABLE t(a INT PRIMARY KEY) ENGINE=InnoDB;
+BEGIN;
+INSERT INTO t VALUES(1),(2);
+DELETE FROM t WHERE a=2;
+# Normal MariaDB shutdown would roll back the above transaction.
+# We want the transaction to remain open, so we will kill the server
+# after ensuring that any non-transactional files are clean.
+FLUSH TABLES;
+# Ensure that the above incomplete transaction becomes durable.
+SET GLOBAL innodb_flush_log_at_trx_commit=1;
+BEGIN;
+INSERT INTO t VALUES(0);
+ROLLBACK;
+# Kill and restart: --innodb-force-recovery=3
+SELECT * FROM t;
+a
+SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
+SELECT * FROM t;
+a
+1
+SELECT * FROM t;
+a
+SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
+SELECT * FROM t;
+a
+1
+SELECT * FROM t;
+a
+DROP TABLE t;

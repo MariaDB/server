@@ -2,6 +2,7 @@
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2009, Google Inc.
+Copyright (c) 2017, MariaDB Corporation. All Rights Reserved.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -3556,10 +3557,9 @@ loop:
 	shutdown, because the InnoDB layer may have committed or
 	prepared transactions and we don't want to lose them. */
 
-	total_trx = trx_sys_any_active_transactions();
-
-	if (total_trx > 0) {
-
+	if (ulint total_trx = srv_was_started && !srv_read_only_mode
+	    && srv_force_recovery < SRV_FORCE_NO_TRX_UNDO
+	    ? trx_sys_any_active_transactions() : 0) {
 		if (srv_print_verbose_log && count > 600) {
 			ib_logf(IB_LOG_LEVEL_INFO,
 				"Waiting for %lu active transactions to finish",
