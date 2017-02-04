@@ -22553,6 +22553,12 @@ ha_innobase::idx_cond_push(
 	DBUG_ASSERT(keyno != MAX_KEY);
 	DBUG_ASSERT(idx_cond != NULL);
 
+	/* We can only evaluate the condition if all columns are stored.*/
+	dict_index_t* idx  = innobase_get_index(keyno);
+	if (idx && dict_index_has_virtual(idx)) {
+		DBUG_RETURN(idx_cond);
+	}
+
 	pushed_idx_cond = idx_cond;
 	pushed_idx_cond_keyno = keyno;
 	in_range_check_pushed_down = TRUE;
