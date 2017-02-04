@@ -2633,8 +2633,7 @@ int collect_statistics_for_index(THD *thd, TABLE *table, uint index)
     DBUG_RETURN(rc);
   }
 
-  table->file->ha_start_keyread();
-
+  table->file->ha_start_keyread(index);
   table->file->ha_index_init(index, TRUE);
   rc= table->file->ha_index_first(table->record[0]);
   while (rc != HA_ERR_END_OF_FILE)

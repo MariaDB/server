@@ -968,7 +968,7 @@ static bool find_key_for_maxmin(bool max_fl, TABLE_REF *ref,
             converted (for example to upper case)
           */
           if (field->part_of_key.is_set(idx))
-            table->file->ha_start_keyread();
+            table->file->ha_start_keyread(idx);
           DBUG_RETURN(TRUE);
         }
       }

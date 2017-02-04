@@ -4436,7 +4436,7 @@ void TABLE::init(THD *thd, TABLE_LIST *tl)
     (*f_ptr)->cond_selectivity= 1.0;
   }
 
-  DBUG_ASSERT(file->key_read == 0);
+  DBUG_ASSERT(!file->keyread_enabled());
 
   /* mark the record[0] uninitialized */
   TRASH_ALLOC(record[0], s->reclength);
@@ -6075,7 +6075,7 @@ MY_BITMAP *TABLE::prepare_for_keyread(uint index, MY_BITMAP *map)
   MY_BITMAP *backup= read_set;
   DBUG_ENTER("TABLE::prepare_for_keyread");
   if (!no_keyread)
-    file->ha_start_keyread();
+    file->ha_start_keyread(index);
   mark_columns_used_by_index(index, map);
   column_bitmaps_set(map);
   DBUG_RETURN(backup);
@@ -7310,7 +7310,7 @@ int TABLE::update_virtual_fields(handler *h, enum_vcol_update_mode update_mode)
   bool handler_pushed= 0;
   DBUG_ASSERT(vfield);
 
-  if (h->key_read)
+  if (h->keyread_enabled())
     DBUG_RETURN(0);
 
   error= 0;
@@ -7364,9 +7364,8 @@ int TABLE::update_virtual_fields(handler *h, enum_vcol_update_mode update_mode)
     case VCOL_UPDATE_INDEXED:
     case VCOL_UPDATE_INDEXED_FOR_UPDATE:
       /* Read indexed fields that was not updated in VCOL_UPDATE_FOR_READ */
-      update= (!vcol_info->stored_in_db && (vf->flags & PART_KEY_FLAG) &&
-               bitmap_is_set(vcol_set, vf->field_index) &&
-               (h->key_read && vf->part_of_key.is_set(h->active_index)));
+      update= !vcol_info->stored_in_db && (vf->flags & PART_KEY_FLAG) &&
+               bitmap_is_set(vcol_set, vf->field_index);
       swap_values= 1;
       break;
     }

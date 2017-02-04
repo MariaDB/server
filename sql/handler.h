@@ -2653,8 +2653,7 @@ public:
 
   uint errkey;                             /* Last dup key */
   uint key_used_on_scan;
-  uint active_index;
-  bool key_read;
+  uint active_index, keyread;
 
   /** Length of ref (1-8 or the clustered key length) */
   uint ref_length;
@@ -2750,8 +2749,7 @@ public:
     check_table_binlog_row_based_result(0),
     in_range_check_pushed_down(FALSE),
     key_used_on_scan(MAX_KEY),
-    active_index(MAX_KEY),
-    key_read(false),
+    active_index(MAX_KEY), keyread(MAX_KEY),
     ref_length(sizeof(my_off_t)),
     ft_handler(0), inited(NONE),
     pushed_cond(0), next_insert_id(0), insert_id_for_cur_row(0),
@@ -2856,18 +2854,19 @@ public:
   int ha_delete_row(const uchar * buf);
   void ha_release_auto_increment();
 
-  int ha_start_keyread()
+  bool keyread_enabled() { return keyread < MAX_KEY; }
+  int ha_start_keyread(uint idx)
   {
-    if (key_read)
+    if (keyread_enabled())
       return 0;
-    key_read= 1;
+    keyread= idx;
     return extra(HA_EXTRA_KEYREAD);
   }
   int ha_end_keyread()
   {
-    if (!key_read)
+    if (!keyread_enabled())
       return 0;
-    key_read= 0;
+    keyread= MAX_KEY;
     return extra(HA_EXTRA_NO_KEYREAD);
   }
 

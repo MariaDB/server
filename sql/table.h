@@ -1402,7 +1402,7 @@ public:
   {
     if (created)
       return;
-    if (file->key_read)
+    if (file->keyread_enabled())
       file->extra(HA_EXTRA_KEYREAD);
     created= true;
   }

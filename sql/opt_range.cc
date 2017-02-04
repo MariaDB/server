@@ -10617,7 +10617,7 @@ QUICK_RANGE_SELECT *get_quick_select_for_ref(THD *thd, TABLE *table,
 
   /* Call multi_range_read_info() to get the MRR flags and buffer size */
   quick->mrr_flags= HA_MRR_NO_ASSOCIATION | 
-                    (table->file->key_read ? HA_MRR_INDEX_ONLY : 0);
+                    (table->file->keyread_enabled() ? HA_MRR_INDEX_ONLY : 0);
   if (thd->lex->sql_command != SQLCOM_SELECT)
     quick->mrr_flags |= HA_MRR_USE_DEFAULT_IMPL;
 
@@ -10670,7 +10670,7 @@ int read_keys_and_merge_scans(THD *thd,
   DBUG_ENTER("read_keys_and_merge");
 
   /* We're going to just read rowids. */
-  head->file->ha_start_keyread();
+  head->file->ha_start_keyread(head->s->primary_key);
   head->prepare_for_position();
 
   cur_quick_it.rewind();
@@ -13649,7 +13649,7 @@ int QUICK_GROUP_MIN_MAX_SELECT::reset(void)
   DBUG_ENTER("QUICK_GROUP_MIN_MAX_SELECT::reset");
 
   seen_first_key= FALSE;
-  head->file->ha_start_keyread(); /* We need only the key attributes */
+  head->file->ha_start_keyread(index); /* We need only the key attributes */
 
   if ((result= file->ha_index_init(index,1)))
   {

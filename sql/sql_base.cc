@@ -859,7 +859,7 @@ void close_thread_table(THD *thd, TABLE **table_ptr)
   DBUG_ENTER("close_thread_table");
   DBUG_PRINT("tcache", ("table: '%s'.'%s' 0x%lx", table->s->db.str,
                         table->s->table_name.str, (long) table));
-  DBUG_ASSERT(table->file->key_read == 0);
+  DBUG_ASSERT(!table->file->keyread_enabled());
   DBUG_ASSERT(!table->file || table->file->inited == handler::NONE);
 
   /*
