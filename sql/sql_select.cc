@@ -1439,6 +1439,13 @@ JOIN::optimize_inner()
   {
     DBUG_PRINT("info",("No tables"));
     error= 0;
+    if (select_lex->have_window_funcs())
+    {
+      if (!join_tab && 
+          !(join_tab= (JOIN_TAB*) thd->alloc(sizeof(JOIN_TAB))))
+        DBUG_RETURN(1);
+      need_tmp= 1;
+    }
     if (make_aggr_tables_info())
       DBUG_RETURN(1);
     goto setup_subq_exit;
@@ -2186,7 +2193,7 @@ bool JOIN::make_aggr_tables_info()
     Setup last table to provide fields and all_fields lists to the next
     node in the plan.
   */
-  if (join_tab)
+  if (join_tab && top_join_tab_count)
   {
     join_tab[top_join_tab_count - 1].fields= &fields_list;
     join_tab[top_join_tab_count - 1].all_fields= &all_fields;
@@ -2310,7 +2317,8 @@ bool JOIN::make_aggr_tables_info()
     single table queries, thus it is sufficient to test only the first
     join_tab element of the plan for its access method.
   */
-  if (join_tab && join_tab->is_using_loose_index_scan())
+  if (join_tab && top_join_tab_count &&
+      join_tab->is_using_loose_index_scan())
     tmp_table_param.precomputed_group_by=
       !join_tab->is_using_agg_loose_index_scan();
 
@@ -2770,7 +2778,7 @@ JOIN::create_postjoin_aggr_table(JOIN_TAB *tab, List<Item> *table_fields,
   tmp_table_param.using_outer_summary_function=
     tab->tmp_table_param->using_outer_summary_function;
   tab->join= this;
-  DBUG_ASSERT(tab > tab->join->join_tab);
+  DBUG_ASSERT(tab > tab->join->join_tab || !top_join_tab_count);
   (tab - 1)->next_select= sub_select_postjoin_aggr;
   tab->aggr= new (thd->mem_root) AGGR_OP(tab);
   if (!tab->aggr)
@@ -3424,7 +3432,6 @@ JOIN::destroy()
 
   if (join_tab)
   {
-    DBUG_ASSERT(table_count+aggr_tables > 0);
     for (JOIN_TAB *tab= first_linear_tab(this, WITH_BUSH_ROOTS,
                                          WITH_CONST_TABLES);
          tab; tab= next_linear_tab(this, tab, WITH_BUSH_ROOTS))

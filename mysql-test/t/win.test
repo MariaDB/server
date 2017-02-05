@@ -1535,3 +1535,15 @@ select * from v1;
 
 drop view v1;
 drop table t1;
+
+--echo #
+--echo # MDEV-11138: window function in the query without tables 
+--echo #
+
+select row_number() over ();
+select count(*) over ();
+select sum(5) over ();
+select row_number() over (), sum(5) over ();
+select row_number() over (order by 2);
+select row_number() over (partition by 2);
+select row_number() over (partition by 4 order by 1+2);

@@ -2801,6 +2801,11 @@ bool Window_funcs_sort::setup(THD *thd, SQL_SELECT *sel,
     sort_order= order;
   }
   filesort= new (thd->mem_root) Filesort(sort_order, HA_POS_ERROR, true, NULL);
+  if (!join_tab->join->top_join_tab_count)
+  {
+    filesort->tracker=
+      new (thd->mem_root) Filesort_tracker(thd->lex->analyze_stmt);
+  }
 
   /* Apply the same condition that the subsequent sort has. */
   filesort->select= sel;

@@ -2521,3 +2521,27 @@ id	rnk
 2	2
 drop view v1;
 drop table t1;
+#
+# MDEV-11138: window function in the query without tables 
+#
+select row_number() over ();
+row_number() over ()
+1
+select count(*) over ();
+count(*) over ()
+1
+select sum(5) over ();
+sum(5) over ()
+5
+select row_number() over (), sum(5) over ();
+row_number() over ()	sum(5) over ()
+1	5
+select row_number() over (order by 2);
+row_number() over (order by 2)
+1
+select row_number() over (partition by 2);
+row_number() over (partition by 2)
+1
+select row_number() over (partition by 4 order by 1+2);
+row_number() over (partition by 4 order by 1+2)
+1
