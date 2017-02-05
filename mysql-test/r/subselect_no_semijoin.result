@@ -6005,26 +6005,26 @@ SELECT table1.f1, table2.f1_key FROM t1 AS table1, t2 AS table2
 WHERE EXISTS (SELECT DISTINCT f1_key FROM t2 
 WHERE f1_key != table2.f1_key AND f1_key >= table1.f1);
 f1	f1_key
-v	j
-s	j
-v	v
-s	v
-v	c
 s	c
-v	m
+s	d
+s	d
+s	d
+s	j
 s	m
-v	d
-s	d
-v	d
-s	d
-v	y
-s	y
-v	t
-s	t
-v	d
-s	d
-v	s
 s	s
+s	t
+s	v
+s	y
+v	c
+v	d
+v	d
+v	d
+v	j
+v	m
+v	s
+v	t
+v	v
+v	y
 DROP TABLE t1,t2;
 #
 # LP bug 919427: EXPLAIN for a query over a single-row table 
@@ -6353,26 +6353,26 @@ SELECT DISTINCT f1_key
 FROM t2 
 WHERE f1_key != table2.f1_key AND f1_key >= table1.f1 );
 f1	f1_key
-v	j
-s	j
-v	v
-s	v
-v	c
 s	c
-v	m
+s	d
+s	d
+s	d
+s	j
 s	m
-v	d
-s	d
-v	d
-s	d
-v	y
-s	y
-v	t
-s	t
-v	d
-s	d
-v	s
 s	s
+s	t
+s	v
+s	y
+v	c
+v	d
+v	d
+v	d
+v	j
+v	m
+v	s
+v	t
+v	v
+v	y
 explain SELECT table1.f1, table2.f1_key
 FROM t1 AS table1, t2 AS table2
 WHERE EXISTS 

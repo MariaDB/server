@@ -5031,6 +5031,7 @@ EXPLAIN
 SELECT table1.f1, table2.f1_key FROM t1 AS table1, t2 AS table2
   WHERE EXISTS (SELECT DISTINCT f1_key FROM t2 
                   WHERE f1_key != table2.f1_key AND f1_key >= table1.f1);
+--sorted_result
 SELECT table1.f1, table2.f1_key FROM t1 AS table1, t2 AS table2
   WHERE EXISTS (SELECT DISTINCT f1_key FROM t2 
                   WHERE f1_key != table2.f1_key AND f1_key >= table1.f1);
@@ -5330,6 +5331,7 @@ SELECT DISTINCT f1_key
 FROM t2 
 WHERE f1_key != table2.f1_key AND f1_key >= table1.f1 );
 
+--sorted_result
 eval $query;
 eval explain $query;
 
