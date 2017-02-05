@@ -432,7 +432,7 @@ Failed to open the existing relay log info file '%s' (errno %d)",
   }
   rli->inited= 1;
   mysql_mutex_unlock(&rli->data_lock);
-  DBUG_RETURN(error);
+  DBUG_RETURN(0);
 
 err:
   sql_print_error("%s", msg);
@@ -1304,9 +1304,10 @@ bool Relay_log_info::is_until_satisfied(THD *thd, Log_event *ev)
 }
 
 
-void Relay_log_info::stmt_done(my_off_t event_master_log_pos, THD *thd,
+bool Relay_log_info::stmt_done(my_off_t event_master_log_pos, THD *thd,
                                rpl_group_info *rgi)
 {
+  int error= 0;
   DBUG_ENTER("Relay_log_info::stmt_done");
 
   DBUG_ASSERT(rgi->rli == this);
@@ -1358,10 +1359,11 @@ void Relay_log_info::stmt_done(my_off_t event_master_log_pos, THD *thd,
     }
     DBUG_EXECUTE_IF("inject_crash_before_flush_rli", DBUG_SUICIDE(););
     if (mi->using_gtid == Master_info::USE_GTID_NO)
-      flush_relay_log_info(this);
+      if (flush_relay_log_info(this))
+        error= 1;
     DBUG_EXECUTE_IF("inject_crash_after_flush_rli", DBUG_SUICIDE(););
   }
-  DBUG_VOID_RETURN;
+  DBUG_RETURN(error);
 }
 
 

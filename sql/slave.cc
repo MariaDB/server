@@ -4788,8 +4788,15 @@ log '%s' at position %s, relay log '%s' position: %s%s", RPL_LOG_NAME,
   if (rli->mi->using_gtid != Master_info::USE_GTID_NO)
   {
     ulong domain_count;
+    my_bool save_log_all_errors= thd->log_all_errors;
 
+    /*
+      We don't need to check return value for flush_relay_log_info()
+      as any errors should be logged to stderr
+    */
+    thd->log_all_errors= 1;
     flush_relay_log_info(rli);
+    thd->log_all_errors= save_log_all_errors;
     if (mi->using_parallel())
     {
       /*
@@ -6715,9 +6722,12 @@ static Log_event* next_event(rpl_group_info *rgi, ulonglong *event_size)
         }
         rli->event_relay_log_pos = BIN_LOG_HEADER_SIZE;
         strmake_buf(rli->event_relay_log_name,rli->linfo.log_file_name);
-        flush_relay_log_info(rli);
+        if (flush_relay_log_info(rli))
+        {
+          errmsg= "error flushing relay log";
+          goto err;
+        }
       }
-
       /*
         Now we want to open this next log. To know if it's a hot log (the one
         being written by the I/O thread now) or a cold log, we can use

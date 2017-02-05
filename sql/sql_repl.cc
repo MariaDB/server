@@ -3619,7 +3619,8 @@ bool change_master(THD* thd, Master_info* mi, bool *master_info_added)
     in-memory value at restart (thus causing errors, as the old relay log does
     not exist anymore).
   */
-  flush_relay_log_info(&mi->rli);
+  if (flush_relay_log_info(&mi->rli))
+    ret= 1;
   mysql_cond_broadcast(&mi->data_cond);
   mysql_mutex_unlock(&mi->rli.data_lock);
 

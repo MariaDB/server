@@ -6244,9 +6244,11 @@ bool Rotate_log_event::write(IO_CACHE* file)
 
   @retval
     0	ok
+    1   error
 */
 int Rotate_log_event::do_update_pos(rpl_group_info *rgi)
 {
+  int error= 0;
   Relay_log_info *rli= rgi->rli;
   DBUG_ENTER("Rotate_log_event::do_update_pos");
 #ifndef DBUG_OFF
@@ -6298,7 +6300,7 @@ int Rotate_log_event::do_update_pos(rpl_group_info *rgi)
                         (ulong) rli->group_master_log_pos));
     mysql_mutex_unlock(&rli->data_lock);
     rpl_global_gtid_slave_state->record_and_update_gtid(thd, rgi);
-    flush_relay_log_info(rli);
+    error= flush_relay_log_info(rli);
     
     /*
       Reset thd->variables.option_bits and sql_mode etc, because this could
@@ -6316,8 +6318,7 @@ int Rotate_log_event::do_update_pos(rpl_group_info *rgi)
   else
     rgi->inc_event_relay_log_pos();
 
-
-  DBUG_RETURN(0);
+  DBUG_RETURN(error);
 }
 
 
@@ -8174,6 +8175,7 @@ void Stop_log_event::print(FILE* file, PRINT_EVENT_INFO* print_event_info)
 
 int Stop_log_event::do_update_pos(rpl_group_info *rgi)
 {
+  int error= 0;
   Relay_log_info *rli= rgi->rli;
   DBUG_ENTER("Stop_log_event::do_update_pos");
   /*
@@ -8189,9 +8191,10 @@ int Stop_log_event::do_update_pos(rpl_group_info *rgi)
   {
     rpl_global_gtid_slave_state->record_and_update_gtid(thd, rgi);
     rli->inc_group_relay_log_pos(0, rgi);
-    flush_relay_log_info(rli);
+    if (flush_relay_log_info(rli))
+      error= 1;
   }
-  DBUG_RETURN(0);
+  DBUG_RETURN(error);
 }
 
 #endif /* !MYSQL_CLIENT */
@@ -10178,8 +10181,8 @@ int
 Rows_log_event::do_update_pos(rpl_group_info *rgi)
 {
   Relay_log_info *rli= rgi->rli;
-  DBUG_ENTER("Rows_log_event::do_update_pos");
   int error= 0;
+  DBUG_ENTER("Rows_log_event::do_update_pos");
 
   DBUG_PRINT("info", ("flags: %s",
                       get_flags(STMT_END_F) ? "STMT_END_F " : ""));
@@ -10191,7 +10194,7 @@ Rows_log_event::do_update_pos(rpl_group_info *rgi)
       Step the group log position if we are not in a transaction,
       otherwise increase the event log position.
     */
-    rli->stmt_done(log_pos, thd, rgi);
+    error= rli->stmt_done(log_pos, thd, rgi);
     /*
       Clear any errors in thd->net.last_err*. It is not known if this is
       needed or not. It is believed that any errors that may exist in

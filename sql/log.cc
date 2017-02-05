@@ -4129,7 +4129,7 @@ err:
 
 int MYSQL_BIN_LOG::purge_first_log(Relay_log_info* rli, bool included)
 {
-  int error;
+  int error, errcode;
   char *to_purge_if_included= NULL;
   inuse_relaylog *ir;
   ulonglong log_space_reclaimed= 0;
@@ -4200,7 +4200,8 @@ int MYSQL_BIN_LOG::purge_first_log(Relay_log_info* rli, bool included)
   }
 
   /* Store where we are in the new file for the execution thread */
-  flush_relay_log_info(rli);
+  if (flush_relay_log_info(rli))
+    error= LOG_INFO_IO;
 
   DBUG_EXECUTE_IF("crash_before_purge_logs", DBUG_SUICIDE(););
 
@@ -4216,11 +4217,13 @@ int MYSQL_BIN_LOG::purge_first_log(Relay_log_info* rli, bool included)
    * Need to update the log pos because purge logs has been called 
    * after fetching initially the log pos at the begining of the method.
    */
-  if((error=find_log_pos(&rli->linfo, rli->event_relay_log_name, 0)))
+  if ((errcode= find_log_pos(&rli->linfo, rli->event_relay_log_name, 0)))
   {
     char buff[22];
+    if (!error)
+      error= errcode;
     sql_print_error("next log error: %d  offset: %s  log: %s included: %d",
-                    error,
+                    errcode,
                     llstr(rli->linfo.index_file_offset,buff),
                     rli->group_relay_log_name,
                     included);
