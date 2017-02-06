@@ -86,11 +86,10 @@ AND support IN ('YES', 'DEFAULT', 'ENABLED');
 ENGINE	SUPPORT	COMMENT	TRANSACTIONS	XA	SAVEPOINTS
 FOUND /len 22; hex 38000000000012860cb7809781e800066269676f7400; asc 8               bigot ;/ in mysqld.1.err
 # Minimal MariaDB 10.1.21 encrypted redo log
-# FIXME: Upgrade from a clean encrypted redo log should actually work!
 SELECT COUNT(*) `1` FROM INFORMATION_SCHEMA.ENGINES WHERE engine='innodb'
 AND support IN ('YES', 'DEFAULT', 'ENABLED');
 1
-0
+1
 ib_buffer_pool
 ib_logfile0
 ib_logfile1

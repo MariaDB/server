@@ -1,8 +1,6 @@
 --let $no_cleanup=1
 --source ../../innodb/t/log_corruption.test
 
---echo # FIXME: Upgrade from a clean encrypted redo log should actually work!
-
 SELECT COUNT(*) `1` FROM INFORMATION_SCHEMA.ENGINES WHERE engine='innodb'
 AND support IN ('YES', 'DEFAULT', 'ENABLED');
 

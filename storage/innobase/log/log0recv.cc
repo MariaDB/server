@@ -872,6 +872,8 @@ recv_log_format_0_recover(lsn_t lsn)
 			% univ_page_size.physical()),
 		OS_FILE_LOG_BLOCK_SIZE, buf, NULL);
 
+	log_decrypt_after_read(buf, OS_FILE_LOG_BLOCK_SIZE);
+
 	if (log_block_calc_checksum_format_0(buf)
 	    != log_block_get_checksum(buf)) {
 		ib::error() << NO_UPGRADE_RECOVERY_MSG
