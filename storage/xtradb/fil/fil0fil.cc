@@ -2309,7 +2309,7 @@ fil_check_first_page(const page_t* page, ulint space_id, ulint flags)
 	}
 
 	if (buf_page_is_corrupted(
-		    false, page, fsp_flags_get_zip_size(flags))) {
+			false, page, fsp_flags_get_zip_size(flags), NULL)) {
 		return("checksum mismatch");
 	}
 
@@ -4547,13 +4547,13 @@ fil_user_tablespace_find_space_id(
 			to UNIV_PAGE_SIZE. */
 			if (page_size == UNIV_PAGE_SIZE) {
 				uncompressed_ok = !buf_page_is_corrupted(
-					false, page, 0);
+					false, page, 0, NULL);
 			}
 
 			bool compressed_ok = false;
 			if (page_size <= UNIV_PAGE_SIZE_DEF) {
 				compressed_ok = !buf_page_is_corrupted(
-					false, page, page_size);
+					false, page, page_size, NULL);
 			}
 
 			if (uncompressed_ok || compressed_ok) {

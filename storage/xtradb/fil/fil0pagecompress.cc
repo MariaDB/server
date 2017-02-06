@@ -366,7 +366,7 @@ fil_compress_page(
 
 		fil_decompress_page(uncomp_page, comp_page, len, NULL);
 
-		if(buf_page_is_corrupted(false, uncomp_page, 0)) {
+		if(buf_page_is_corrupted(false, uncomp_page, 0, space)) {
 			buf_page_print(uncomp_page, 0, BUF_PAGE_PRINT_NO_CRASH);
 			ut_error;
 		}

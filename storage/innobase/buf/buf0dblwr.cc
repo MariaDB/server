@@ -383,10 +383,11 @@ buf_dblwr_init_or_load_pages(
 	doublewrite = read_buf + TRX_SYS_DOUBLEWRITE;
 
 	if (mach_read_from_4(read_buf + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION) != 0) {
+		bool decrypted = false;
 		byte* tmp = fil_space_decrypt((ulint)TRX_SYS_SPACE,
 						read_buf + UNIV_PAGE_SIZE,
 						UNIV_PAGE_SIZE, /* page size */
-						read_buf);
+						read_buf, &decrypted);
 		doublewrite = tmp + TRX_SYS_DOUBLEWRITE;
 	}
 
@@ -487,6 +488,7 @@ buf_dblwr_process()
 	byte*	read_buf;
 	byte*	unaligned_read_buf;
 	recv_dblwr_t& recv_dblwr = recv_sys->dblwr;
+	fil_space_t* space=NULL;
 
 	unaligned_read_buf = static_cast<byte*>(ut_malloc(2 * UNIV_PAGE_SIZE));
 
@@ -512,6 +514,10 @@ buf_dblwr_process()
 				" is not within space bounds",
 				space_id, page_no, page_no_dblwr);
 			continue;
+		}
+
+		if (!space) {
+			space = fil_space_found_by_id(space_id);
 		}
 
 		ulint	zip_size = fil_space_get_zip_size(space_id);
@@ -548,9 +554,9 @@ buf_dblwr_process()
 			}
 
 			if (fil_space_verify_crypt_checksum(
-				   read_buf, zip_size)
+					read_buf, zip_size, NULL, page_no)
 			   || !buf_page_is_corrupted(
-				   true, read_buf, zip_size)) {
+				   true, read_buf, zip_size, space)) {
 				/* The page is good; there is no need
 				to consult the doublewrite buffer. */
 				continue;
@@ -573,8 +579,8 @@ buf_dblwr_process()
 				NULL, page, UNIV_PAGE_SIZE, NULL, true);
 		}
 
-		if (!fil_space_verify_crypt_checksum(page, zip_size)
-		    && buf_page_is_corrupted(true, page, zip_size)) {
+		if (!fil_space_verify_crypt_checksum(page, zip_size, NULL, page_no)
+		    && buf_page_is_corrupted(true, page, zip_size, space)) {
 			if (!is_all_zero) {
 				ib_logf(IB_LOG_LEVEL_WARN,
 					"A doublewrite copy of page "

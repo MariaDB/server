@@ -59,6 +59,8 @@ fil_get_page_type_name(
 	switch(page_type) {
 	case FIL_PAGE_PAGE_COMPRESSED:
 		return (const char*)"PAGE_COMPRESSED";
+	case FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED:
+		return (const char*)"PAGE_COMPRESSED_ENCRYPTED";
 	case FIL_PAGE_INDEX:
 		return (const char*)"INDEX";
 	case FIL_PAGE_UNDO_LOG:
@@ -87,9 +89,13 @@ fil_get_page_type_name(
 		return (const char*)"ZBLOB2";
 	case FIL_PAGE_TYPE_COMPRESSED:
 		return (const char*)"ORACLE PAGE COMPRESSED";
-	default:
-		return (const char*)"PAGE TYPE CORRUPTED";
+
+	/* No default to make compiler generate warning if
+	new page type is added but not handled here. */
 	}
+
+	return (const char*)"PAGE TYPE CORRUPTED";
+
 }
 
 /****************************************************************//**

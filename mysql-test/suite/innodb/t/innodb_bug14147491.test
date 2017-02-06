@@ -5,6 +5,8 @@
 -- source include/not_encrypted.inc
 
 call mtr.add_suppression("InnoDB: Database page corruption on disk or a failed.*");
+call mtr.add_suppression("InnoDB: Corruption: Block in space_id .* in file .* corrupted.");
+call mtr.add_suppression("InnoDB: Based on page type .*");
 
 # Don't test under valgrind, memory leaks will occur
 source include/not_valgrind.inc;
@@ -31,6 +33,7 @@ CALL mtr.add_suppression("InnoDB: fix the corruption by dumping, dropping, and r
 CALL mtr.add_suppression("InnoDB: the corrupt table. You can use CHECK");
 CALL mtr.add_suppression("InnoDB: TABLE to scan your table for corruption.");
 CALL mtr.add_suppression("InnoDB: See also .* about forcing recovery.");
+flush tables;
 
 
 --echo # Create and populate the table to be corrupted
