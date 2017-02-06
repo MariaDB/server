@@ -1762,6 +1762,46 @@ protected:
 };
 
 
+class Create_func_json_compact : public Create_func_arg1
+{
+public:
+  virtual Item *create_1_arg(THD *thd, Item *arg1);
+
+  static Create_func_json_compact s_singleton;
+
+protected:
+  Create_func_json_compact() {}
+  virtual ~Create_func_json_compact() {}
+};
+
+
+class Create_func_json_loose : public Create_func_arg1
+{
+public:
+  virtual Item *create_1_arg(THD *thd, Item *arg1);
+
+  static Create_func_json_loose s_singleton;
+
+protected:
+  Create_func_json_loose() {}
+  virtual ~Create_func_json_loose() {}
+};
+
+
+class Create_func_json_detailed : public Create_func_arg2
+{
+public:
+  virtual Item *create_2_arg(THD *thd, Item *arg1, Item *arg2);
+
+  static Create_func_json_detailed s_singleton;
+
+protected:
+  Create_func_json_detailed() {}
+  virtual ~Create_func_json_detailed() {}
+};
+
+
+
 class Create_func_json_type : public Create_func_arg1
 {
 public:
@@ -5003,6 +5043,35 @@ Create_func_json_exists::create_2_arg(THD *thd, Item *arg1, Item *arg2)
 }
 
 
+Create_func_json_detailed Create_func_json_detailed::s_singleton;
+
+Item*
+Create_func_json_detailed::create_2_arg(THD *thd, Item *arg1, Item *arg2)
+{
+  return new (thd->mem_root) Item_func_json_format(thd, arg1, arg2);
+}
+
+
+Create_func_json_loose Create_func_json_loose::s_singleton;
+
+Item*
+Create_func_json_loose::create_1_arg(THD *thd, Item *arg1)
+{
+  return new (thd->mem_root) Item_func_json_format(thd, arg1,
+               Item_func_json_format::LOOSE);
+}
+
+
+Create_func_json_compact Create_func_json_compact::s_singleton;
+
+Item*
+Create_func_json_compact::create_1_arg(THD *thd, Item *arg1)
+{
+  return new (thd->mem_root) Item_func_json_format(thd, arg1,
+               Item_func_json_format::COMPACT);
+}
+
+
 Create_func_json_valid Create_func_json_valid::s_singleton;
 
 Item*
@@ -6728,14 +6797,17 @@ static Native_func_registry func_array[] =
   { { C_STRING_WITH_LEN("JSON_ARRAY") }, BUILDER(Create_func_json_array)},
   { { C_STRING_WITH_LEN("JSON_ARRAY_APPEND") }, BUILDER(Create_func_json_array_append)},
   { { C_STRING_WITH_LEN("JSON_ARRAY_INSERT") }, BUILDER(Create_func_json_array_insert)},
+  { { C_STRING_WITH_LEN("JSON_COMPACT") }, BUILDER(Create_func_json_compact)},
   { { C_STRING_WITH_LEN("JSON_CONTAINS") }, BUILDER(Create_func_json_contains)},
   { { C_STRING_WITH_LEN("JSON_CONTAINS_PATH") }, BUILDER(Create_func_json_contains_path)},
   { { C_STRING_WITH_LEN("JSON_DEPTH") }, BUILDER(Create_func_json_depth)},
+  { { C_STRING_WITH_LEN("JSON_DETAILED") }, BUILDER(Create_func_json_detailed)},
   { { C_STRING_WITH_LEN("JSON_EXISTS") }, BUILDER(Create_func_json_exists)},
   { { C_STRING_WITH_LEN("JSON_EXTRACT") }, BUILDER(Create_func_json_extract)},
   { { C_STRING_WITH_LEN("JSON_INSERT") }, BUILDER(Create_func_json_insert)},
   { { C_STRING_WITH_LEN("JSON_KEYS") }, BUILDER(Create_func_json_keys)},
   { { C_STRING_WITH_LEN("JSON_LENGTH") }, BUILDER(Create_func_json_length)},
+  { { C_STRING_WITH_LEN("JSON_LOOSE") }, BUILDER(Create_func_json_loose)},
   { { C_STRING_WITH_LEN("JSON_MERGE") }, BUILDER(Create_func_json_merge)},
   { { C_STRING_WITH_LEN("JSON_QUERY") }, BUILDER(Create_func_json_query)},
   { { C_STRING_WITH_LEN("JSON_QUOTE") }, BUILDER(Create_func_json_quote)},

@@ -1001,6 +1001,7 @@ enum json_path_states {
   PS_LAX, /* Parse the 'lax' keyword. */
   PS_PT,  /* New path's step begins. */
   PS_AR,  /* Parse array step. */
+  PS_SAR, /* space after the '['. */
   PS_AWD, /* Array wildcard. */
   PS_Z,   /* '0' (as an array item number). */
   PS_INT, /* Parse integer (as an array item number). */
@@ -1041,7 +1042,10 @@ static int json_path_transitions[N_PATH_STATES][N_PATH_CLASSES]=
             JE_SYN, JE_SYN, JE_SYN, JE_SYN, JE_SYN, JE_SYN,
             JE_NOT_JSON_CHR, JE_BAD_CHR},
 /* AR */  { JE_EOS, JE_SYN, PS_AWD, JE_SYN, PS_PT,  JE_SYN, PS_Z,
-            PS_INT, JE_SYN, JE_SYN, PS_AR,  JE_SYN, JE_SYN, JE_SYN,
+            PS_INT, JE_SYN, JE_SYN, PS_SAR, JE_SYN, JE_SYN, JE_SYN,
+            JE_NOT_JSON_CHR, JE_BAD_CHR},
+/* SAR */ { JE_EOS, JE_SYN, PS_AWD, JE_SYN, PS_PT,  JE_SYN, PS_Z,
+            PS_INT, JE_SYN, JE_SYN, PS_SAR, JE_SYN, JE_SYN, JE_SYN,
             JE_NOT_JSON_CHR, JE_BAD_CHR},
 /* AWD */ { JE_EOS, JE_SYN, JE_SYN, JE_SYN, PS_PT,  JE_SYN, JE_SYN,
             JE_SYN, JE_SYN, JE_SYN, PS_AS,  JE_SYN, JE_SYN, JE_SYN,
@@ -1722,45 +1726,103 @@ int json_get_path_next(json_engine_t *je, json_path_t *p)
 }
 
 
-int json_path_compare(const json_path_t *a, const json_path_t *b)
+int json_path_parts_compare(
+    const json_path_step_t *a, const json_path_step_t *a_end,
+    const json_path_step_t *b, const json_path_step_t *b_end,
+    enum json_value_types vt)
 {
-  const json_path_step_t *sa= a->steps + 1;
-  const json_path_step_t *sb= b->steps + 1;
+  int res, res2;
 
-  if (a->last_step - sa > b->last_step - sb)
-    return -2;
-
-  while (sa <= a->last_step)
+  while (a <= a_end)
   {
-    if (sb > b->last_step)
-      return -2;
-    
-    if (!((sa->type & sb->type) & JSON_PATH_KEY_OR_ARRAY))
-      goto step_failed;
-    
-    if (sa->type & JSON_PATH_ARRAY)
+    if (b > b_end)
     {
-      if (!(sa->type & JSON_PATH_WILD) && sa->n_item != sb->n_item)
+      while (vt != JSON_VALUE_ARRAY &&
+             (a->type & JSON_PATH_ARRAY_WILD) == JSON_PATH_ARRAY &&
+             a->n_item == 0)
+      {
+        if (++a > a_end)
+          return 0;
+      }
+      return -2;
+    }
+
+    DBUG_ASSERT((b->type & (JSON_PATH_WILD | JSON_PATH_DOUBLE_WILD)) == 0);
+
+    
+    if (a->type & JSON_PATH_ARRAY)
+    {
+      if (b->type & JSON_PATH_ARRAY)
+      {
+        if ((a->type & JSON_PATH_WILD) || a->n_item == b->n_item)
+          goto step_fits;
         goto step_failed;
+      }
+      if (a->n_item == 0)
+        goto step_fits_autowrap;
+      goto step_failed;
     }
     else /* JSON_PATH_KEY */
     {
-      if (!(sa->type & JSON_PATH_WILD) &&
-          (sa->key_end - sa->key != sb->key_end - sb->key ||
-           memcmp(sa->key, sb->key, sa->key_end - sa->key) != 0))
+      if (!(b->type & JSON_PATH_KEY))
         goto step_failed;
+    
+      if (!(a->type & JSON_PATH_WILD) &&
+          (a->key_end - a->key != b->key_end - b->key ||
+           memcmp(a->key, b->key, a->key_end - a->key) != 0))
+        goto step_failed;
+
+      goto step_fits;
     }
-    sb++;
-    sa++;
+step_failed:
+    if (!(a->type & JSON_PATH_DOUBLE_WILD))
+      return -1;
+    b++;
     continue;
 
-step_failed:
-    if (!(sa->type & JSON_PATH_DOUBLE_WILD))
-      return -1;
-    sb++;
+step_fits:
+    b++;
+    if (!(a->type & JSON_PATH_DOUBLE_WILD))
+    {
+      a++;
+      continue;
+    }
+
+    /* Double wild handling needs recursions. */
+    res= json_path_parts_compare(a+1, a_end, b, b_end, vt);
+    if (res == 0)
+      return 0;
+
+    res2= json_path_parts_compare(a, a_end, b, b_end, vt);
+
+    return (res2 >= 0) ? res2 : res;
+
+step_fits_autowrap:
+    if (!(a->type & JSON_PATH_DOUBLE_WILD))
+    {
+      a++;
+      continue;
+    }
+
+    /* Double wild handling needs recursions. */
+    res= json_path_parts_compare(a+1, a_end, b+1, b_end, vt);
+    if (res == 0)
+      return 0;
+
+    res2= json_path_parts_compare(a, a_end, b+1, b_end, vt);
+
+    return (res2 >= 0) ? res2 : res;
+
   }
 
-  return sb <= b->last_step;
+  return b <= b_end;
 }
 
+
+int json_path_compare(const json_path_t *a, const json_path_t *b,
+                      enum json_value_types vt)
+{
+  return json_path_parts_compare(a->steps+1, a->last_step,
+                                 b->steps+1, b->last_step, vt);
+}
 

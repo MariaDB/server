@@ -427,4 +427,30 @@ public:
 };
 
 
+class Item_func_json_format: public Item_str_func
+{
+public:
+  enum formats
+  {
+    NONE,
+    COMPACT,
+    LOOSE,
+    DETAILED
+  };
+protected:
+  formats fmt;
+  String tmp_js;
+public:
+  Item_func_json_format(THD *thd, Item *js, formats format):
+    Item_str_func(thd, js), fmt(format) {}
+  Item_func_json_format(THD *thd, Item *js, Item *tabsize):
+    Item_str_func(thd, js, tabsize), fmt(DETAILED) {}
+  const char *func_name() const;
+  void fix_length_and_dec();
+  String *val_str(String *str);
+  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
+  { return get_item_copy<Item_func_json_format>(thd, mem_root, this); }
+};
+
+
 #endif /* ITEM_JSONFUNC_INCLUDED */
