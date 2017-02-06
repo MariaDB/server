@@ -46,33 +46,32 @@ namespace myrocks {
   - CFs are created in a synchronized way. We can't remove them, yet.
 */
 
-class Rdb_cf_manager
-{
-  std::map<std::string, rocksdb::ColumnFamilyHandle*> m_cf_name_map;
-  std::map<uint32_t, rocksdb::ColumnFamilyHandle*> m_cf_id_map;
+class Rdb_cf_manager {
+  std::map<std::string, rocksdb::ColumnFamilyHandle *> m_cf_name_map;
+  std::map<uint32_t, rocksdb::ColumnFamilyHandle *> m_cf_id_map;
 
   mutable mysql_mutex_t m_mutex;
 
-  static
-  void get_per_index_cf_name(const std::string& db_table_name,
-                             const char* const index_name,
-                             std::string* const res);
+  static void get_per_index_cf_name(const std::string &db_table_name,
+                                    const char *const index_name,
+                                    std::string *const res);
 
-  Rdb_cf_options* m_cf_options= nullptr;
+  Rdb_cf_options *m_cf_options = nullptr;
 
 public:
-  Rdb_cf_manager(const Rdb_cf_manager&) = delete;
-  Rdb_cf_manager& operator=(const Rdb_cf_manager&) = delete;
+  Rdb_cf_manager(const Rdb_cf_manager &) = delete;
+  Rdb_cf_manager &operator=(const Rdb_cf_manager &) = delete;
   Rdb_cf_manager() = default;
 
-  static bool is_cf_name_reverse(const char* const name);
+  static bool is_cf_name_reverse(const char *const name);
 
   /*
-    This is called right after the DB::Open() call. The parameters describe column
+    This is called right after the DB::Open() call. The parameters describe
+    column
     families that are present in the database. The first CF is the default CF.
   */
-  void init(Rdb_cf_options* cf_options,
-            std::vector<rocksdb::ColumnFamilyHandle*>* const handles);
+  void init(Rdb_cf_options *cf_options,
+            std::vector<rocksdb::ColumnFamilyHandle *> *const handles);
   void cleanup();
 
   /*
@@ -80,33 +79,33 @@ public:
     - cf_name=nullptr means use default column family
     - cf_name=_auto_ means use 'dbname.tablename.indexname'
   */
-  rocksdb::ColumnFamilyHandle* get_or_create_cf(
-      rocksdb::DB* const rdb, const char *cf_name,
-      const std::string& db_table_name, const char* const index_name,
-      bool* const is_automatic);
+  rocksdb::ColumnFamilyHandle *
+  get_or_create_cf(rocksdb::DB *const rdb, const char *cf_name,
+                   const std::string &db_table_name,
+                   const char *const index_name, bool *const is_automatic);
 
   /* Used by table open */
-  rocksdb::ColumnFamilyHandle* get_cf(const char *cf_name,
-                                      const std::string& db_table_name,
-                                      const char* const index_name,
-                                      bool* const is_automatic) const;
+  rocksdb::ColumnFamilyHandle *get_cf(const char *cf_name,
+                                      const std::string &db_table_name,
+                                      const char *const index_name,
+                                      bool *const is_automatic) const;
 
   /* Look up cf by id; used by datadic */
-  rocksdb::ColumnFamilyHandle* get_cf(const uint32_t &id) const;
+  rocksdb::ColumnFamilyHandle *get_cf(const uint32_t &id) const;
 
   /* Used to iterate over column families for show status */
   std::vector<std::string> get_cf_names(void) const;
 
   /* Used to iterate over column families */
-  std::vector<rocksdb::ColumnFamilyHandle*> get_all_cf(void) const;
+  std::vector<rocksdb::ColumnFamilyHandle *> get_all_cf(void) const;
 
   // void drop_cf(); -- not implemented so far.
 
-  void get_cf_options(
-    const std::string &cf_name,
-    rocksdb::ColumnFamilyOptions* const opts) __attribute__((__nonnull__)) {
-      m_cf_options->get_cf_options(cf_name, opts);
+  void get_cf_options(const std::string &cf_name,
+                      rocksdb::ColumnFamilyOptions *const opts)
+      MY_ATTRIBUTE((__nonnull__)) {
+    m_cf_options->get_cf_options(cf_name, opts);
   }
 };
 
-}  // namespace myrocks
+} // namespace myrocks

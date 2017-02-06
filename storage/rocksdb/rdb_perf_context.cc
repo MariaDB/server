@@ -35,71 +35,68 @@ namespace myrocks {
 //   2. Update sections (A), (B), and (C) below
 //   3. Update perf_context.test and show_engine.test
 
-std::string rdb_pc_stat_types[]=
-{
-  // (A) These should be in the same order as the PC enum
-  "USER_KEY_COMPARISON_COUNT",
-  "BLOCK_CACHE_HIT_COUNT",
-  "BLOCK_READ_COUNT",
-  "BLOCK_READ_BYTE",
-  "BLOCK_READ_TIME",
-  "BLOCK_CHECKSUM_TIME",
-  "BLOCK_DECOMPRESS_TIME",
-  "INTERNAL_KEY_SKIPPED_COUNT",
-  "INTERNAL_DELETE_SKIPPED_COUNT",
-  "GET_SNAPSHOT_TIME",
-  "GET_FROM_MEMTABLE_TIME",
-  "GET_FROM_MEMTABLE_COUNT",
-  "GET_POST_PROCESS_TIME",
-  "GET_FROM_OUTPUT_FILES_TIME",
-  "SEEK_ON_MEMTABLE_TIME",
-  "SEEK_ON_MEMTABLE_COUNT",
-  "SEEK_CHILD_SEEK_TIME",
-  "SEEK_CHILD_SEEK_COUNT",
-  "SEEK_IN_HEAP_TIME",
-  "SEEK_INTERNAL_SEEK_TIME",
-  "FIND_NEXT_USER_ENTRY_TIME",
-  "WRITE_WAL_TIME",
-  "WRITE_MEMTABLE_TIME",
-  "WRITE_DELAY_TIME",
-  "WRITE_PRE_AND_POST_PROCESS_TIME",
-  "DB_MUTEX_LOCK_NANOS",
-  "DB_CONDITION_WAIT_NANOS",
-  "MERGE_OPERATOR_TIME_NANOS",
-  "READ_INDEX_BLOCK_NANOS",
-  "READ_FILTER_BLOCK_NANOS",
-  "NEW_TABLE_BLOCK_ITER_NANOS",
-  "NEW_TABLE_ITERATOR_NANOS",
-  "BLOCK_SEEK_NANOS",
-  "FIND_TABLE_NANOS",
-  "IO_THREAD_POOL_ID",
-  "IO_BYTES_WRITTEN",
-  "IO_BYTES_READ",
-  "IO_OPEN_NANOS",
-  "IO_ALLOCATE_NANOS",
-  "IO_WRITE_NANOS",
-  "IO_READ_NANOS",
-  "IO_RANGE_SYNC_NANOS",
-  "IO_LOGGER_NANOS"
-};
+std::string rdb_pc_stat_types[] = {
+    // (A) These should be in the same order as the PC enum
+    "USER_KEY_COMPARISON_COUNT",
+    "BLOCK_CACHE_HIT_COUNT",
+    "BLOCK_READ_COUNT",
+    "BLOCK_READ_BYTE",
+    "BLOCK_READ_TIME",
+    "BLOCK_CHECKSUM_TIME",
+    "BLOCK_DECOMPRESS_TIME",
+    "INTERNAL_KEY_SKIPPED_COUNT",
+    "INTERNAL_DELETE_SKIPPED_COUNT",
+    "GET_SNAPSHOT_TIME",
+    "GET_FROM_MEMTABLE_TIME",
+    "GET_FROM_MEMTABLE_COUNT",
+    "GET_POST_PROCESS_TIME",
+    "GET_FROM_OUTPUT_FILES_TIME",
+    "SEEK_ON_MEMTABLE_TIME",
+    "SEEK_ON_MEMTABLE_COUNT",
+    "SEEK_CHILD_SEEK_TIME",
+    "SEEK_CHILD_SEEK_COUNT",
+    "SEEK_IN_HEAP_TIME",
+    "SEEK_INTERNAL_SEEK_TIME",
+    "FIND_NEXT_USER_ENTRY_TIME",
+    "WRITE_WAL_TIME",
+    "WRITE_MEMTABLE_TIME",
+    "WRITE_DELAY_TIME",
+    "WRITE_PRE_AND_POST_PROCESS_TIME",
+    "DB_MUTEX_LOCK_NANOS",
+    "DB_CONDITION_WAIT_NANOS",
+    "MERGE_OPERATOR_TIME_NANOS",
+    "READ_INDEX_BLOCK_NANOS",
+    "READ_FILTER_BLOCK_NANOS",
+    "NEW_TABLE_BLOCK_ITER_NANOS",
+    "NEW_TABLE_ITERATOR_NANOS",
+    "BLOCK_SEEK_NANOS",
+    "FIND_TABLE_NANOS",
+    "IO_THREAD_POOL_ID",
+    "IO_BYTES_WRITTEN",
+    "IO_BYTES_READ",
+    "IO_OPEN_NANOS",
+    "IO_ALLOCATE_NANOS",
+    "IO_WRITE_NANOS",
+    "IO_READ_NANOS",
+    "IO_RANGE_SYNC_NANOS",
+    "IO_LOGGER_NANOS"};
 
-#define IO_PERF_RECORD(_field_)                                     \
-  do {                                                              \
-    if (rocksdb::perf_context._field_ > 0)                          \
-      counters->m_value[idx] += rocksdb::perf_context._field_;      \
-    idx++;                                                          \
+#define IO_PERF_RECORD(_field_)                                                \
+  do {                                                                         \
+    if (rocksdb::perf_context._field_ > 0)                                     \
+      counters->m_value[idx] += rocksdb::perf_context._field_;                 \
+    idx++;                                                                     \
   } while (0)
-#define IO_STAT_RECORD(_field_)                                     \
-  do {                                                              \
-    if (rocksdb::iostats_context._field_ > 0)                       \
-      counters->m_value[idx] += rocksdb::iostats_context._field_;   \
-    idx++;                                                          \
+#define IO_STAT_RECORD(_field_)                                                \
+  do {                                                                         \
+    if (rocksdb::iostats_context._field_ > 0)                                  \
+      counters->m_value[idx] += rocksdb::iostats_context._field_;              \
+    idx++;                                                                     \
   } while (0)
 
-static void harvest_diffs(Rdb_atomic_perf_counters * const counters)
-{
+static void harvest_diffs(Rdb_atomic_perf_counters *const counters) {
   // (C) These should be in the same order as the PC enum
-  size_t idx= 0;
+  size_t idx = 0;
   IO_PERF_RECORD(user_key_comparison_count);
   IO_PERF_RECORD(block_cache_hit_count);
   IO_PERF_RECORD(block_read_count);
@@ -148,35 +145,29 @@ static void harvest_diffs(Rdb_atomic_perf_counters * const counters)
 #undef IO_PERF_DIFF
 #undef IO_STAT_DIFF
 
-
 static Rdb_atomic_perf_counters rdb_global_perf_counters;
 
-void rdb_get_global_perf_counters(Rdb_perf_counters* const counters)
-{
+void rdb_get_global_perf_counters(Rdb_perf_counters *const counters) {
   DBUG_ASSERT(counters != nullptr);
 
   counters->load(rdb_global_perf_counters);
 }
 
-void Rdb_perf_counters::load(const Rdb_atomic_perf_counters &atomic_counters)
-{
-  for (int i= 0; i < PC_MAX_IDX; i++) {
-    m_value[i]= atomic_counters.m_value[i].load(std::memory_order_relaxed);
+void Rdb_perf_counters::load(const Rdb_atomic_perf_counters &atomic_counters) {
+  for (int i = 0; i < PC_MAX_IDX; i++) {
+    m_value[i] = atomic_counters.m_value[i].load(std::memory_order_relaxed);
   }
 }
 
-bool Rdb_io_perf::start(const uint32_t perf_context_level)
-{
-  const rocksdb::PerfLevel perf_level=
-    static_cast<rocksdb::PerfLevel>(perf_context_level);
+bool Rdb_io_perf::start(const uint32_t perf_context_level) {
+  const rocksdb::PerfLevel perf_level =
+      static_cast<rocksdb::PerfLevel>(perf_context_level);
 
-  if (rocksdb::GetPerfLevel() != perf_level)
-  {
+  if (rocksdb::GetPerfLevel() != perf_level) {
     rocksdb::SetPerfLevel(perf_level);
   }
 
-  if (perf_level == rocksdb::kDisable)
-  {
+  if (perf_level == rocksdb::kDisable) {
     return false;
   }
 
@@ -185,38 +176,33 @@ bool Rdb_io_perf::start(const uint32_t perf_context_level)
   return true;
 }
 
-void Rdb_io_perf::end_and_record(const uint32_t perf_context_level)
-{
-  const rocksdb::PerfLevel perf_level=
-    static_cast<rocksdb::PerfLevel>(perf_context_level);
+void Rdb_io_perf::end_and_record(const uint32_t perf_context_level) {
+  const rocksdb::PerfLevel perf_level =
+      static_cast<rocksdb::PerfLevel>(perf_context_level);
 
-  if (perf_level == rocksdb::kDisable)
-  {
+  if (perf_level == rocksdb::kDisable) {
     return;
   }
 
-  if (m_atomic_counters)
-  {
+  if (m_atomic_counters) {
     harvest_diffs(m_atomic_counters);
   }
   harvest_diffs(&rdb_global_perf_counters);
 
-  if (m_shared_io_perf_read &&
-      (rocksdb::perf_context.block_read_byte != 0 ||
-       rocksdb::perf_context.block_read_count != 0 ||
-       rocksdb::perf_context.block_read_time != 0))
-  {
+  if (m_shared_io_perf_read && (rocksdb::perf_context.block_read_byte != 0 ||
+                                rocksdb::perf_context.block_read_count != 0 ||
+                                rocksdb::perf_context.block_read_time != 0)) {
     my_io_perf_t io_perf_read;
 
     io_perf_read.init();
-    io_perf_read.bytes= rocksdb::perf_context.block_read_byte;
-    io_perf_read.requests= rocksdb::perf_context.block_read_count;
+    io_perf_read.bytes = rocksdb::perf_context.block_read_byte;
+    io_perf_read.requests = rocksdb::perf_context.block_read_count;
 
     /*
       Rocksdb does not distinguish between I/O service and wait time, so just
       use svc time.
      */
-    io_perf_read.svc_time_max= io_perf_read.svc_time=
+    io_perf_read.svc_time_max = io_perf_read.svc_time =
         rocksdb::perf_context.block_read_time;
 
     m_shared_io_perf_read->sum(io_perf_read);
@@ -224,17 +210,15 @@ void Rdb_io_perf::end_and_record(const uint32_t perf_context_level)
   }
 
   if (m_stats) {
-    if (rocksdb::perf_context.internal_key_skipped_count != 0)
-    {
+    if (rocksdb::perf_context.internal_key_skipped_count != 0) {
       m_stats->key_skipped += rocksdb::perf_context.internal_key_skipped_count;
     }
 
-    if (rocksdb::perf_context.internal_delete_skipped_count != 0)
-    {
+    if (rocksdb::perf_context.internal_delete_skipped_count != 0) {
       m_stats->delete_skipped +=
           rocksdb::perf_context.internal_delete_skipped_count;
     }
   }
 }
 
-}  // namespace myrocks
+} // namespace myrocks

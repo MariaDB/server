@@ -1768,7 +1768,7 @@ DROP DATABASE test_db;
 --echo # Issue #143: Split rocksdb_bulk_load option into two
 --echo #
 CREATE TABLE t1 (id int primary key, value int) engine=RocksDB;
-SET rocksdb_skip_unique_check=1;
+SET unique_checks=0;
 INSERT INTO t1 VALUES(1, 1);
 INSERT INTO t1 VALUES(1, 2);
 INSERT INTO t1 VALUES(1, 3);
@@ -1779,7 +1779,7 @@ REPLACE INTO t1 VALUES(4, 4);
 INSERT INTO t1 VALUES(5, 5) ON DUPLICATE KEY UPDATE value=value+1;
 TRUNCATE TABLE t1;
 SET @save_rocksdb_bulk_load_size= @@rocksdb_bulk_load_size;
-SET rocksdb_skip_unique_check=0;
+SET unique_checks=1;
 SET rocksdb_commit_in_the_middle=1;
 SET rocksdb_bulk_load_size=10;
 BEGIN;

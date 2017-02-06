@@ -17,7 +17,7 @@ while ($aa < 1000) {
 --enable_query_log
 
 connection slave;
-show variables like 'rocksdb_rpl_skip_tx_api';
+show variables like 'rpl_skip_tx_api';
 --source include/start_slave.inc
 
 --let $it=0

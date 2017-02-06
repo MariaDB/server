@@ -22,8 +22,8 @@
 #include <vector>
 
 /* MySQL includes */
-#include <mysql/plugin.h>
 #include <my_global.h>
+#include <mysql/plugin.h>
 
 /* MyRocks includes */
 #include "./ha_rocksdb.h"
@@ -33,10 +33,8 @@
 namespace myrocks {
 
 static std::vector<Rdb_index_stats>
-extract_index_stats(
-  const std::vector<std::string>& files,
-  const rocksdb::TablePropertiesCollection& props
-) {
+extract_index_stats(const std::vector<std::string> &files,
+                    const rocksdb::TablePropertiesCollection &props) {
   std::vector<Rdb_index_stats> ret;
   for (auto fn : files) {
     const auto it = props.find(fn);
@@ -49,11 +47,10 @@ extract_index_stats(
 }
 
 void Rdb_event_listener::update_index_stats(
-  const rocksdb::TableProperties& props
-) {
+    const rocksdb::TableProperties &props) {
   DBUG_ASSERT(m_ddl_manager != nullptr);
   const auto tbl_props =
-    std::make_shared<const rocksdb::TableProperties>(props);
+      std::make_shared<const rocksdb::TableProperties>(props);
 
   std::vector<Rdb_index_stats> stats;
   Rdb_tbl_prop_coll::read_stats_from_tbl_props(tbl_props, &stats);
@@ -62,32 +59,26 @@ void Rdb_event_listener::update_index_stats(
 }
 
 void Rdb_event_listener::OnCompactionCompleted(
-  rocksdb::DB *db,
-  const rocksdb::CompactionJobInfo& ci
-) {
+    rocksdb::DB *db, const rocksdb::CompactionJobInfo &ci) {
   DBUG_ASSERT(db != nullptr);
   DBUG_ASSERT(m_ddl_manager != nullptr);
 
   if (ci.status.ok()) {
     m_ddl_manager->adjust_stats(
-      extract_index_stats(ci.output_files, ci.table_properties),
-      extract_index_stats(ci.input_files, ci.table_properties));
+        extract_index_stats(ci.output_files, ci.table_properties),
+        extract_index_stats(ci.input_files, ci.table_properties));
   }
 }
 
 void Rdb_event_listener::OnFlushCompleted(
-  rocksdb::DB* db,
-  const rocksdb::FlushJobInfo& flush_job_info
-) {
+    rocksdb::DB *db, const rocksdb::FlushJobInfo &flush_job_info) {
   DBUG_ASSERT(db != nullptr);
   update_index_stats(flush_job_info.table_properties);
 }
 
 void Rdb_event_listener::OnExternalFileIngested(
-  rocksdb::DB* db,
-  const rocksdb::ExternalFileIngestionInfo& info
-) {
+    rocksdb::DB *db, const rocksdb::ExternalFileIngestionInfo &info) {
   DBUG_ASSERT(db != nullptr);
   update_index_stats(info.table_properties);
 }
-}  // namespace myrocks
+} // namespace myrocks

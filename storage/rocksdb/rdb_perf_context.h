@@ -80,8 +80,7 @@ class Rdb_perf_counters;
   A collection of performance counters that can be safely incremented by
   multiple threads since it stores atomic datapoints.
 */
-struct Rdb_atomic_perf_counters
-{
+struct Rdb_atomic_perf_counters {
   std::atomic_ullong m_value[PC_MAX_IDX];
 };
 
@@ -89,11 +88,11 @@ struct Rdb_atomic_perf_counters
   A collection of performance counters that is meant to be incremented by
   a single thread.
 */
-class Rdb_perf_counters
-{
-  Rdb_perf_counters(const Rdb_perf_counters&) = delete;
-  Rdb_perf_counters& operator=(const Rdb_perf_counters&) = delete;
- public:
+class Rdb_perf_counters {
+  Rdb_perf_counters(const Rdb_perf_counters &) = delete;
+  Rdb_perf_counters &operator=(const Rdb_perf_counters &) = delete;
+
+public:
   Rdb_perf_counters() = default;
   uint64_t m_value[PC_MAX_IDX];
 
@@ -105,36 +104,34 @@ extern std::string rdb_pc_stat_types[PC_MAX_IDX];
 /*
   Perf timers for data reads
  */
-class Rdb_io_perf
-{
+class Rdb_io_perf {
   // Context management
-  Rdb_atomic_perf_counters *m_atomic_counters= nullptr;
-  my_io_perf_atomic_t *m_shared_io_perf_read= nullptr;
-  ha_statistics *m_stats= nullptr;
+  Rdb_atomic_perf_counters *m_atomic_counters = nullptr;
+  my_io_perf_atomic_t *m_shared_io_perf_read = nullptr;
+  ha_statistics *m_stats = nullptr;
 
- public:
-  Rdb_io_perf(const Rdb_io_perf&) = delete;
-  Rdb_io_perf& operator=(const Rdb_io_perf&) = delete;
+public:
+  Rdb_io_perf(const Rdb_io_perf &) = delete;
+  Rdb_io_perf &operator=(const Rdb_io_perf &) = delete;
 
-  void init(Rdb_atomic_perf_counters* const atomic_counters,
-            my_io_perf_atomic_t* const shared_io_perf_read,
-            ha_statistics* const stats)
-  {
+  void init(Rdb_atomic_perf_counters *const atomic_counters,
+            my_io_perf_atomic_t *const shared_io_perf_read,
+            ha_statistics *const stats) {
     DBUG_ASSERT(atomic_counters != nullptr);
     DBUG_ASSERT(shared_io_perf_read != nullptr);
     DBUG_ASSERT(stats != nullptr);
 
-    m_atomic_counters= atomic_counters;
-    m_shared_io_perf_read= shared_io_perf_read;
-    m_stats= stats;
+    m_atomic_counters = atomic_counters;
+    m_shared_io_perf_read = shared_io_perf_read;
+    m_stats = stats;
   }
 
   bool start(const uint32_t perf_context_level);
   void end_and_record(const uint32_t perf_context_level);
 
-  explicit Rdb_io_perf() : m_atomic_counters(nullptr),
-                           m_shared_io_perf_read(nullptr),
-                           m_stats(nullptr) {}
+  explicit Rdb_io_perf()
+      : m_atomic_counters(nullptr), m_shared_io_perf_read(nullptr),
+        m_stats(nullptr) {}
 };
 
-}  // namespace myrocks
+} // namespace myrocks

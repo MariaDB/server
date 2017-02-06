@@ -183,3 +183,24 @@ ERROR 23000: Duplicate entry '1-1' for key 'PRIMARY'
 INSERT INTO t2 VALUES (2,1);
 ERROR 23000: Duplicate entry '1' for key 'a'
 DROP TABLE t2;
+#
+# Issue #491 (https://github.com/facebook/mysql-5.6/issues/491)
+#
+CREATE TABLE t (a BLOB, PRIMARY KEY(a(2)), UNIQUE KEY (a(1))) engine=rocksdb;
+INSERT INTO t VALUES('a');
+CHECK TABLE t EXTENDED;
+Table	Op	Msg_type	Msg_text
+test.t	check	status	OK
+DROP TABLE t;
+CREATE TABLE t (a VARCHAR(255), PRIMARY KEY(a), UNIQUE KEY (a(1))) engine=rocksdb;
+INSERT INTO t VALUES('a');
+CHECK TABLE t EXTENDED;
+Table	Op	Msg_type	Msg_text
+test.t	check	status	OK
+DROP TABLE t;
+CREATE TABLE t (a VARCHAR(255), PRIMARY KEY(a(2)), UNIQUE KEY (a(1))) engine=rocksdb;
+INSERT INTO t VALUES('a');
+CHECK TABLE t EXTENDED;
+Table	Op	Msg_type	Msg_text
+test.t	check	status	OK
+DROP TABLE t;

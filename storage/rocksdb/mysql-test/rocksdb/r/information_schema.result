@@ -9,6 +9,7 @@ CF_FLAGS	1	__system__ [0]
 select count(*) from INFORMATION_SCHEMA.ROCKSDB_GLOBAL_INFO;
 count(*)
 3
+select VALUE into @keysIn from INFORMATION_SCHEMA.ROCKSDB_COMPACTION_STATS where CF_NAME = 'default' and LEVEL = 'Sum' and TYPE = 'KeyIn';
 CREATE TABLE t1 (i1 INT, i2 INT, PRIMARY KEY (i1)) ENGINE = ROCKSDB;
 INSERT INTO t1 VALUES (1, 1), (2, 2), (3, 3);
 select * from INFORMATION_SCHEMA.ROCKSDB_GLOBAL_INFO;
@@ -22,6 +23,11 @@ CF_FLAGS	1	__system__ [0]
 select count(*) from INFORMATION_SCHEMA.ROCKSDB_GLOBAL_INFO;
 count(*)
 6
+set global rocksdb_force_flush_memtable_now = true;
+set global rocksdb_compact_cf='default';
+select case when VALUE-@keysIn >= 3 then 'true' else 'false' end from INFORMATION_SCHEMA.ROCKSDB_COMPACTION_STATS where CF_NAME = 'default' and LEVEL = 'Sum' and TYPE = 'KeyIn';
+case when VALUE-@keysIn >= 3 then 'true' else 'false' end
+true
 CREATE INDEX tindex1 on t1 (i1);
 CREATE INDEX tindex2 on t1 (i2);
 select * from INFORMATION_SCHEMA.ROCKSDB_GLOBAL_INFO where TYPE = 'CF_FLAGS';

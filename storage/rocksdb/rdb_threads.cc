@@ -16,7 +16,7 @@
    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
 
 #ifdef USE_PRAGMA_IMPLEMENTATION
-#pragma implementation        // gcc: Class implementation
+#pragma implementation // gcc: Class implementation
 #endif
 
 /* The C++ file's header */
@@ -24,58 +24,64 @@
 
 namespace myrocks {
 
-void* Rdb_thread::thread_func(void* const thread_ptr)
-{
+void *Rdb_thread::thread_func(void *const thread_ptr) {
   DBUG_ASSERT(thread_ptr != nullptr);
-  Rdb_thread* const thread= static_cast<Rdb_thread* const>(thread_ptr);
-  if (!thread->m_run_once.exchange(true))
-  {
+  Rdb_thread *const thread = static_cast<Rdb_thread *const>(thread_ptr);
+  if (!thread->m_run_once.exchange(true)) {
     thread->run();
     thread->uninit();
   }
   return nullptr;
 }
 
-
 void Rdb_thread::init(
 #ifdef HAVE_PSI_INTERFACE
-      my_core::PSI_mutex_key  stop_bg_psi_mutex_key,
-      my_core::PSI_cond_key   stop_bg_psi_cond_key
+    my_core::PSI_mutex_key stop_bg_psi_mutex_key,
+    my_core::PSI_cond_key stop_bg_psi_cond_key
 #endif
-  )
-{
+    ) {
   DBUG_ASSERT(!m_run_once);
   mysql_mutex_init(stop_bg_psi_mutex_key, &m_signal_mutex, MY_MUTEX_INIT_FAST);
   mysql_cond_init(stop_bg_psi_cond_key, &m_signal_cond, nullptr);
 }
 
-
-void Rdb_thread::uninit()
-{
+void Rdb_thread::uninit() {
   mysql_mutex_destroy(&m_signal_mutex);
   mysql_cond_destroy(&m_signal_cond);
 }
 
-
-int Rdb_thread::create_thread(
+int Rdb_thread::create_thread(const std::string &thread_name
 #ifdef HAVE_PSI_INTERFACE
-    PSI_thread_key background_psi_thread_key
+                              ,
+                              PSI_thread_key background_psi_thread_key
 #endif
-  )
-{
-  return mysql_thread_create(background_psi_thread_key,
-                             &m_handle, nullptr, thread_func, this);
+                              ) {
+  DBUG_ASSERT(!thread_name.empty());
+
+  int err = mysql_thread_create(background_psi_thread_key, &m_handle, nullptr,
+                                thread_func, this);
+
+  if (!err) {
+    /*
+      mysql_thread_create() ends up doing some work underneath and setting the
+      thread name as "my-func". This isn't what we want. Our intent is to name
+      the threads according to their purpose so that when displayed under the
+      debugger then they'll be more easily identifiable. Therefore we'll reset
+      the name if thread was successfully created.
+    */
+    err = pthread_setname_np(m_handle, thread_name.c_str());
+  }
+
+  return err;
 }
 
-
-void Rdb_thread::signal(const bool &stop_thread)
-{
+void Rdb_thread::signal(const bool &stop_thread) {
   mysql_mutex_lock(&m_signal_mutex);
   if (stop_thread) {
-    m_stop= true;
+    m_stop = true;
   }
   mysql_cond_signal(&m_signal_cond);
   mysql_mutex_unlock(&m_signal_mutex);
 }
 
-}  // namespace myrocks
+} // namespace myrocks

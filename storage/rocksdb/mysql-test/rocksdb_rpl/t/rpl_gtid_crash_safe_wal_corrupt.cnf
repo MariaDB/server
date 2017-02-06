@@ -4,6 +4,7 @@
 log_slave_updates
 gtid_mode=ON
 enforce_gtid_consistency=ON
+rocksdb_enable_2pc=OFF
 
 [mysqld.2]
 sync_relay_log_info=100
@@ -12,3 +13,4 @@ relay_log_info_repository=FILE
 log_slave_updates
 gtid_mode=ON
 enforce_gtid_consistency=ON
+rocksdb_enable_2pc=OFF

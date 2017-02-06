@@ -60,11 +60,8 @@ CREATE TABLE t1 (i INT, j INT, k INT, PRIMARY KEY (i), KEY(j)) ENGINE = ROCKSDB 
 # crash_during_index_creation_partition
 flush logs;
 SET SESSION debug="+d,myrocks_simulate_index_create_rollback";
-# expected assertion failure from sql layer here for alter rollback
-call mtr.add_suppression("Assertion `0' failed.");
-call mtr.add_suppression("Attempting backtrace. You can use the following information to find out");
 ALTER TABLE t1 ADD INDEX kij(i,j), ALGORITHM=INPLACE;
-ERROR HY000: Lost connection to MySQL server during query
+ERROR HY000: Intentional failure in inplace alter occurred.
 SET SESSION debug="-d,myrocks_simulate_index_create_rollback";
 SHOW CREATE TABLE t1;
 Table	Create Table

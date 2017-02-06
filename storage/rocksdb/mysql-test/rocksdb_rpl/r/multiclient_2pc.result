@@ -1,5 +1,5 @@
 DROP TABLE IF EXISTS t1;
-SET GLOBAL ROCKSDB_DISABLE_2PC = OFF;
+SET GLOBAL ROCKSDB_ENABLE_2PC = ON;
 create table t1 (a int primary key, b int, c varchar(255)) engine=rocksdb;
 'con1'
 SET SESSION debug="d,crash_commit_after_log";
@@ -7,11 +7,11 @@ SET DEBUG_SYNC='rocksdb.prepared SIGNAL parked WAIT_FOR go';
 insert into t1 values (1, 1, "iamtheogthealphaandomega");;
 'con2'
 insert into t1 values (2, 1, "i_am_just_here_to_trigger_a_flush");
-SET GLOBAL ROCKSDB_DISABLE_2PC = ON;
+SET GLOBAL ROCKSDB_ENABLE_2PC = OFF;
 SET GLOBAL ROCKSDB_WRITE_SYNC = OFF;
 SET GLOBAL SYNC_BINLOG = 0;
 SET DEBUG_SYNC='now WAIT_FOR parked';
-SET GLOBAL ROCKSDB_DISABLE_2PC = OFF;
+SET GLOBAL ROCKSDB_ENABLE_2PC = ON;
 SET GLOBAL ROCKSDB_WRITE_SYNC = ON;
 SET GLOBAL SYNC_BINLOG = 1;
 insert into t1 values (1000000, 1, "i_am_just_here_to_trigger_a_flush");

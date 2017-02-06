@@ -38,47 +38,47 @@ namespace myrocks {
     and also there is a default value which applies to column
     families not found in the map.
 */
-class Rdb_cf_options
-{
- public:
-  Rdb_cf_options(const Rdb_cf_options&) = delete;
-  Rdb_cf_options& operator=(const Rdb_cf_options&) = delete;
+class Rdb_cf_options {
+public:
+  Rdb_cf_options(const Rdb_cf_options &) = delete;
+  Rdb_cf_options &operator=(const Rdb_cf_options &) = delete;
   Rdb_cf_options() = default;
 
-  void get(const std::string &cf_name, rocksdb::ColumnFamilyOptions* const opts);
+  void get(const std::string &cf_name,
+           rocksdb::ColumnFamilyOptions *const opts);
 
-  bool init(
-    const rocksdb::BlockBasedTableOptions& table_options,
-    std::shared_ptr<rocksdb::TablePropertiesCollectorFactory> prop_coll_factory,
-    const char* const default_cf_options,
-    const char* const override_cf_options);
+  bool init(const rocksdb::BlockBasedTableOptions &table_options,
+            std::shared_ptr<rocksdb::TablePropertiesCollectorFactory>
+                prop_coll_factory,
+            const char *const default_cf_options,
+            const char *const override_cf_options);
 
-  const rocksdb::ColumnFamilyOptions& get_defaults() const {
+  const rocksdb::ColumnFamilyOptions &get_defaults() const {
     return m_default_cf_opts;
   }
 
-  static const rocksdb::Comparator* get_cf_comparator(
-    const std::string& cf_name);
+  static const rocksdb::Comparator *
+  get_cf_comparator(const std::string &cf_name);
 
-  void get_cf_options(
-    const std::string &cf_name,
-    rocksdb::ColumnFamilyOptions* const opts) __attribute__((__nonnull__));
+  void get_cf_options(const std::string &cf_name,
+                      rocksdb::ColumnFamilyOptions *const opts)
+      MY_ATTRIBUTE((__nonnull__));
 
- private:
+private:
   bool set_default(const std::string &default_config);
   bool set_override(const std::string &overide_config);
 
   /* Helper string manipulation functions */
-  static void skip_spaces(const std::string& input, size_t* const pos);
-  static bool find_column_family(const std::string& input, size_t* const pos,
-                                 std::string* const key);
-  static bool find_options(const std::string& input, size_t* const pos,
-                           std::string* const options);
-  static bool find_cf_options_pair(const std::string& input, size_t* const pos,
-                                   std::string* const cf,
-                                   std::string* const opt_str);
+  static void skip_spaces(const std::string &input, size_t *const pos);
+  static bool find_column_family(const std::string &input, size_t *const pos,
+                                 std::string *const key);
+  static bool find_options(const std::string &input, size_t *const pos,
+                           std::string *const options);
+  static bool find_cf_options_pair(const std::string &input, size_t *const pos,
+                                   std::string *const cf,
+                                   std::string *const opt_str);
 
- private:
+private:
   static Rdb_pk_comparator s_pk_comparator;
   static Rdb_rev_comparator s_rev_pk_comparator;
 
@@ -93,4 +93,4 @@ class Rdb_cf_options
   rocksdb::ColumnFamilyOptions m_default_cf_opts;
 };
 
-}  // namespace myrocks
+} // namespace myrocks

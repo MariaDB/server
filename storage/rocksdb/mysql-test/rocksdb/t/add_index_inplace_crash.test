@@ -89,22 +89,11 @@ while ($i <= $max) {
 --echo # crash_during_index_creation_partition
 flush logs;
 
---exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 SET SESSION debug="+d,myrocks_simulate_index_create_rollback";
 
---echo # expected assertion failure from sql layer here for alter rollback
-call mtr.add_suppression("Assertion `0' failed.");
-call mtr.add_suppression("Attempting backtrace. You can use the following information to find out");
-
---error 2013
-
+--error 1105
 ALTER TABLE t1 ADD INDEX kij(i,j), ALGORITHM=INPLACE;
-
---enable_reconnect
---source include/wait_until_connected_again.inc
-
 SET SESSION debug="-d,myrocks_simulate_index_create_rollback";
-
 SHOW CREATE TABLE t1;
 
 # here, the index numbers should be higher because previously 4 index numbers

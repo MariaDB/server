@@ -26,10 +26,10 @@ extern struct st_mysql_plugin rdb_i_s_dbstats;
 extern struct st_mysql_plugin rdb_i_s_perf_context;
 extern struct st_mysql_plugin rdb_i_s_perf_context_global;
 extern struct st_mysql_plugin rdb_i_s_cfoptions;
+extern struct st_mysql_plugin rdb_i_s_compact_stats;
 extern struct st_mysql_plugin rdb_i_s_global_info;
 extern struct st_mysql_plugin rdb_i_s_ddl;
 extern struct st_mysql_plugin rdb_i_s_index_file_map;
 extern struct st_mysql_plugin rdb_i_s_lock_info;
 extern struct st_mysql_plugin rdb_i_s_trx_info;
-}  // namespace myrocks
-
+} // namespace myrocks
