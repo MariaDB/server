@@ -773,6 +773,7 @@ SELECT space(date_add(101, INTERVAL CHAR('1' USING utf16) hour_second));
 --echo #
 
 SET NAMES utf8, @@character_set_connection=utf16;
+SET STATEMENT group_concat_max_len=1024 FOR
 SELECT id, CHAR_LENGTH(GROUP_CONCAT(body)) AS l
 FROM (SELECT 'a' AS id, REPEAT('foo bar', 100) AS body
 UNION ALL
@@ -780,6 +781,7 @@ SELECT 'a' AS id, REPEAT('bla bla', 100) AS body) t1
 GROUP BY id
 ORDER BY l DESC;
 
+SET STATEMENT group_concat_max_len=1024 FOR
 SELECT id, CHAR_LENGTH(GROUP_CONCAT(body)) AS l
 FROM (SELECT 'a' AS id, REPEAT('foo bar', 100) AS body
 UNION ALL

@@ -357,8 +357,9 @@ if ($CRC_RET_stmt_sidef) {
     SHOW BINLOG EVENTS;
     --die Wrong events in binlog.
   }
-  # The first event is format_description, the second is Binlog_checkpoint,
-  # the third is Query_event('BEGIN'), and the fourth should be our Table_map
+  # The first event is format_description, the second is Gtid list,
+  # the third is Binlog_checkpoint, the fourth is Query_event('BEGIN'),
+  # the fifth is Annotate_rows, and the sixth should be our Table_map
   # for unsafe statement.
   if (`SELECT $unsafe_type != 3 AND '$event_type' != 'Table_map'`) {
     --enable_query_log

@@ -1560,6 +1560,7 @@ Warning	1301	Result of space() was larger than max_allowed_packet (16777216) - t
 # Bug#11750518 41090: ORDER BY TRUNCATES GROUP_CONCAT RESULT
 #
 SET NAMES utf8, @@character_set_connection=utf16;
+SET STATEMENT group_concat_max_len=1024 FOR
 SELECT id, CHAR_LENGTH(GROUP_CONCAT(body)) AS l
 FROM (SELECT 'a' AS id, REPEAT('foo bar', 100) AS body
 UNION ALL
@@ -1567,13 +1568,18 @@ SELECT 'a' AS id, REPEAT('bla bla', 100) AS body) t1
 GROUP BY id
 ORDER BY l DESC;
 id	l
-a	1401
+a	512
+Warnings:
+Warning	1260	Row 1 was cut by GROUP_CONCAT()
+SET STATEMENT group_concat_max_len=1024 FOR
 SELECT id, CHAR_LENGTH(GROUP_CONCAT(body)) AS l
 FROM (SELECT 'a' AS id, REPEAT('foo bar', 100) AS body
 UNION ALL
 SELECT 'a' AS id, REPEAT('bla bla', 100) AS body) t1;
 id	l
-a	1401
+a	512
+Warnings:
+Warning	1260	Row 1 was cut by GROUP_CONCAT()
 #
 # MDEV-6865 Merge Bug#18935421 RPAD DIES WITH CERTAIN PADSTR INTPUTS..
 #

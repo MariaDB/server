@@ -861,6 +861,7 @@ DROP TABLE t1;
 --echo #
 
 SET NAMES utf8, @@character_set_connection=utf32;
+SET STATEMENT group_concat_max_len=1024 FOR
 SELECT id, CHAR_LENGTH(GROUP_CONCAT(body)) AS l
 FROM (SELECT 'a' AS id, REPEAT('foo bar', 100) AS body
 UNION ALL
