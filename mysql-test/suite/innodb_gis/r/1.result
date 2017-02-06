@@ -652,11 +652,11 @@ insert into t1 values ('85984',ST_GeomFromText('MULTIPOLYGON(((-115.006363
 select object_id, ST_geometrytype(geo), ST_ISSIMPLE(GEO), ST_ASTEXT(ST_centroid(geo)) from
 t1 where object_id=85998;
 object_id	ST_geometrytype(geo)	ST_ISSIMPLE(GEO)	ST_ASTEXT(ST_centroid(geo))
-85998	MULTIPOLYGON	1	POINT(115.31877315203187 -36.23747282102153)
+85998	MULTIPOLYGON	1	POINT(115.318773152 -36.237472821)
 select object_id, ST_geometrytype(geo), ST_ISSIMPLE(GEO), ST_ASTEXT(ST_centroid(geo)) from
 t1 where object_id=85984;
 object_id	ST_geometrytype(geo)	ST_ISSIMPLE(GEO)	ST_ASTEXT(ST_centroid(geo))
-85984	MULTIPOLYGON	1	POINT(-114.87787186923313 36.33101763469059)
+85984	MULTIPOLYGON	1	POINT(-114.8778718692 36.3310176347)
 drop table t1;
 create table t1 (fl geometry not null);
 insert into t1 values (1);
