@@ -6076,8 +6076,11 @@ MY_BITMAP *TABLE::prepare_for_keyread(uint index, MY_BITMAP *map)
   DBUG_ENTER("TABLE::prepare_for_keyread");
   if (!no_keyread)
     file->ha_start_keyread(index);
-  mark_columns_used_by_index(index, map);
-  column_bitmaps_set(map);
+  if (map != read_set || !(file->index_flags(index, 0, 1) & HA_CLUSTERED_INDEX))
+  {
+    mark_columns_used_by_index(index, map);
+    column_bitmaps_set(map);
+  }
   DBUG_RETURN(backup);
 }
 

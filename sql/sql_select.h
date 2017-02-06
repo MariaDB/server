@@ -1512,6 +1512,7 @@ public:
   bool flatten_subqueries();
   bool optimize_unflattened_subqueries();
   bool optimize_constant_subqueries();
+  int init_join_caches();
   bool make_sum_func_list(List<Item> &all_fields, List<Item> &send_fields,
 			  bool before_group_by, bool recompute= FALSE);
 

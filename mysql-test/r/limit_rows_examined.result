@@ -752,15 +752,15 @@ LIMIT ROWS EXAMINED 120;
 ERROR HY000: Sort aborted: 
 SHOW STATUS LIKE 'Handler_read%';
 Variable_name	Value
-Handler_read_first	0
+Handler_read_first	1
 Handler_read_key	5
 Handler_read_last	0
-Handler_read_next	0
+Handler_read_next	7
 Handler_read_prev	0
 Handler_read_retry	0
 Handler_read_rnd	0
 Handler_read_rnd_deleted	0
-Handler_read_rnd_next	46
+Handler_read_rnd_next	38
 SHOW STATUS LIKE 'Handler_tmp%';
 Variable_name	Value
 Handler_tmp_update	0
@@ -777,15 +777,15 @@ Warnings:
 Warning	1931	Query execution was interrupted. The query examined at least 125 rows, which exceeds LIMIT ROWS EXAMINED (124). The query result may be incomplete
 SHOW STATUS LIKE 'Handler_read%';
 Variable_name	Value
-Handler_read_first	0
+Handler_read_first	1
 Handler_read_key	5
 Handler_read_last	0
-Handler_read_next	0
+Handler_read_next	7
 Handler_read_prev	0
 Handler_read_retry	0
 Handler_read_rnd	2
 Handler_read_rnd_deleted	1
-Handler_read_rnd_next	47
+Handler_read_rnd_next	39
 SHOW STATUS LIKE 'Handler_tmp%';
 Variable_name	Value
 Handler_tmp_update	0

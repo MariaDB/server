@@ -1184,7 +1184,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ref	PRIMARY	PRIMARY	5	const	1	Using where; Using index
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	1	Start temporary; Using join buffer (flat, BNL join)
 1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	2	Using where; Using join buffer (incremental, BNL join)
-1	PRIMARY	t4	hash_index	NULL	#hash#$hj:PRIMARY	54:59	test.t3.t3_c	2	Using where; End temporary; Using join buffer (incremental, BNLH join)
+1	PRIMARY	t4	hash_index	NULL	#hash#$hj:PRIMARY	54:59	test.t3.t3_c	2	Using where; Using index; End temporary; Using join buffer (incremental, BNLH join)
 DROP TABLE t1,t2,t3,t4;
 #
 # MDEV-6263: Wrong result when using IN subquery with order by

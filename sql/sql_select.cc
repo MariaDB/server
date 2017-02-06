@@ -1111,6 +1111,34 @@ int JOIN::optimize()
 }
 
 
+int JOIN::init_join_caches()
+{
+  JOIN_TAB *tab;
+
+  for (tab= first_linear_tab(this, WITH_BUSH_ROOTS, WITHOUT_CONST_TABLES);
+       tab;
+       tab= next_linear_tab(this, tab, WITH_BUSH_ROOTS))
+  {
+    TABLE *table= tab->table;
+    if (table->file->keyread_enabled())
+    {
+      if (!(table->file->index_flags(table->file->keyread, 0, 1) & HA_CLUSTERED_INDEX))
+        table->mark_columns_used_by_index(table->file->keyread, table->read_set);
+    }
+    else if ((tab->read_first_record == join_read_first ||
+              tab->read_first_record == join_read_last) &&
+             !tab->filesort && table->covering_keys.is_set(tab->index) &&
+             !table->no_keyread)
+    {
+      table->prepare_for_keyread(tab->index, table->read_set);
+    }
+    if (tab->cache && tab->cache->init(select_options & SELECT_DESCRIBE))
+      revise_cache_usage(tab);
+  }
+  return 0;
+}
+
+
 /**
   global select optimisation.
 
@@ -2120,6 +2148,9 @@ JOIN::optimize_inner()
   }
 
   if (make_aggr_tables_info())
+    DBUG_RETURN(1);
+
+  if (init_join_caches())
     DBUG_RETURN(1);
 
   error= 0;
@@ -10408,11 +10439,10 @@ void set_join_cache_denial(JOIN_TAB *join_tab)
     if (join_tab->cache->prev_cache)
       join_tab->cache->prev_cache->next_cache= 0;
     /*
-      No need to do the same for next_cache since cache denial is done
-      backwards starting from the latest cache in the linked list (see
-      revise_cache_usage()).
+      Same for the next_cache
     */
-    DBUG_ASSERT(!join_tab->cache->next_cache);
+    if (join_tab->cache->next_cache)
+      join_tab->cache->next_cache->prev_cache= 0;
 
     join_tab->cache->free();
     join_tab->cache= 0;
@@ -10872,8 +10902,7 @@ uint check_join_cache_usage(JOIN_TAB *tab,
   case JT_ALL:
     if (cache_level == 1)
       prev_cache= 0;
-    if ((tab->cache= new (root) JOIN_CACHE_BNL(join, tab, prev_cache)) &&
-         !tab->cache->init(options & SELECT_DESCRIBE))
+    if ((tab->cache= new (root) JOIN_CACHE_BNL(join, tab, prev_cache)))
     {
       tab->icp_other_tables_ok= FALSE;
       return (2 - MY_TEST(!prev_cache));
@@ -10907,8 +10936,7 @@ uint check_join_cache_usage(JOIN_TAB *tab,
         goto no_join_cache;
       if (cache_level == 3)
         prev_cache= 0;
-      if ((tab->cache= new (root) JOIN_CACHE_BNLH(join, tab, prev_cache)) &&
-          !tab->cache->init(options & SELECT_DESCRIBE))
+      if ((tab->cache= new (root) JOIN_CACHE_BNLH(join, tab, prev_cache)))
       {
         tab->icp_other_tables_ok= FALSE;        
         return (4 - MY_TEST(!prev_cache));
@@ -10928,8 +10956,7 @@ uint check_join_cache_usage(JOIN_TAB *tab,
       {
         if (cache_level == 5)
           prev_cache= 0;
-        if ((tab->cache= new (root) JOIN_CACHE_BKA(join, tab, flags, prev_cache)) &&
-            !tab->cache->init(options & SELECT_DESCRIBE))
+        if ((tab->cache= new (root) JOIN_CACHE_BKA(join, tab, flags, prev_cache)))
           return (6 - MY_TEST(!prev_cache));
         goto no_join_cache;
       }
@@ -10937,8 +10964,7 @@ uint check_join_cache_usage(JOIN_TAB *tab,
       {
         if (cache_level == 7)
           prev_cache= 0;
-        if ((tab->cache= new (root) JOIN_CACHE_BKAH(join, tab, flags, prev_cache)) &&
-            !tab->cache->init(options & SELECT_DESCRIBE))
+        if ((tab->cache= new (root) JOIN_CACHE_BKAH(join, tab, flags, prev_cache)))
 	{
           tab->idx_cond_fact_out= FALSE;
           return (8 - MY_TEST(!prev_cache));
@@ -19347,8 +19373,9 @@ join_read_first(JOIN_TAB *tab)
   TABLE *table=tab->table;
   DBUG_ENTER("join_read_first");
 
-  if (table->covering_keys.is_set(tab->index) && !table->no_keyread)
-    table->file->ha_start_keyread(tab->index);
+  DBUG_ASSERT(table->no_keyread ||
+              !table->covering_keys.is_set(tab->index) ||
+              table->file->keyread == tab->index);
   tab->table->status=0;
   tab->read_record.read_record=join_read_next;
   tab->read_record.table=table;
@@ -19386,8 +19413,9 @@ join_read_last(JOIN_TAB *tab)
   int error= 0;
   DBUG_ENTER("join_read_first");
 
-  if (table->covering_keys.is_set(tab->index) && !table->no_keyread)
-    table->file->ha_start_keyread(tab->index);
+  DBUG_ASSERT(table->no_keyread ||
+              !table->covering_keys.is_set(tab->index) ||
+              table->file->keyread == tab->index);
   tab->table->status=0;
   tab->read_record.read_record=join_read_prev;
   tab->read_record.table=table;
