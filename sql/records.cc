@@ -279,6 +279,18 @@ bool init_read_record(READ_RECORD *info,THD *thd, TABLE *table,
     info->read_record= (addon_field ?
                         rr_unpack_from_buffer : rr_from_pointers);
   }
+  else if (table->file->keyread_enabled())
+  {
+    int error;
+    info->read_record= rr_index_first;
+    if (!table->file->inited &&
+        (error= table->file->ha_index_init(table->file->keyread, 1)))
+    {
+      if (print_error)
+        table->file->print_error(error, MYF(0));
+      DBUG_RETURN(1);
+    }
+  }
   else
   {
     DBUG_PRINT("info",("using rr_sequential"));
