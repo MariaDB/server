@@ -1246,6 +1246,12 @@ bool st_select_lex::check_subqueries_with_recursive_references()
 
 void With_clause::print(String *str, enum_query_type query_type)
 {
+  /*
+    Any with clause contains just definitions of CTE tables.
+    No data expansion is applied to these definitions.
+  */
+  query_type= (enum_query_type) (query_type | QT_NO_DATA_EXPANSION);
+
   str->append(STRING_WITH_LEN("with "));
   if (with_recursive)
     str->append(STRING_WITH_LEN("recursive "));

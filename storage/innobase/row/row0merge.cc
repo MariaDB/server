@@ -378,9 +378,9 @@ row_merge_insert_index_tuples(
 	const row_merge_buf_t*	row_buf,
 	BtrBulk*		btr_bulk,
 	const ib_uint64_t	table_total_rows, /*!< in: total rows of old table */
-	const float		pct_progress,	/*!< in: total progress
+	const double		pct_progress,	/*!< in: total progress
 						percent until now */
-	const float		pct_cost, /*!< in: current progress percent
+	const double		pct_cost, /*!< in: current progress percent
 					  */
 	fil_space_crypt_t*	crypt_data,/*!< in: table crypt data */
 	row_merge_block_t*	crypt_block, /*!< in: crypt buf or NULL */
@@ -1182,9 +1182,6 @@ row_merge_read(
 
 	IORequest	request;
 
-	/* Merge sort pages are never compressed. */
-	request.disable_compression();
-
 	dberr_t	err = os_file_read_no_error_handling(
 		request,
 		OS_FILE_FROM_FD(fd), buf, ofs, srv_sort_buf_size, NULL);
@@ -1238,8 +1235,6 @@ row_merge_write(
 		/* Mark block unencrypted */
 		mach_write_to_4((byte *)out_buf, 0);
 	}
-
-	request.disable_compression();
 
 	dberr_t	err = os_file_write(
 		request,
@@ -1825,7 +1820,7 @@ row_merge_read_clustered_index(
 	bool			skip_pk_sort,
 	int*			tmpfd,
 	ut_stage_alter_t*	stage,
-	float 			pct_cost,
+	double 			pct_cost,
 	fil_space_crypt_t*	crypt_data,
 	row_merge_block_t*	crypt_block,
 	struct TABLE*		eval_table)
@@ -1860,7 +1855,7 @@ row_merge_read_clustered_index(
 	mtuple_t		prev_mtuple;
 	mem_heap_t*		conv_heap = NULL;
 	FlushObserver*		observer = trx->flush_observer;
-	float 			curr_progress = 0.0;
+	double 			curr_progress = 0.0;
 	ib_uint64_t		read_rows = 0;
 	ib_uint64_t		table_total_rows = 0;
 
@@ -3273,10 +3268,10 @@ row_merge_sort(
 	const bool		update_progress,
 					/*!< in: update progress
 					status variable or not */
-	const float 		pct_progress,
+	const double 		pct_progress,
 					/*!< in: total progress percent
 					until now */
-	const float		pct_cost, /*!< in: current progress percent */
+	const double		pct_cost, /*!< in: current progress percent */
 	fil_space_crypt_t*	crypt_data,/*!< in: table crypt data */
 	row_merge_block_t*	crypt_block, /*!< in: crypt buf or NULL */
 	ulint			space,	   /*!< in: space id */
@@ -3288,7 +3283,7 @@ row_merge_sort(
 	dberr_t		error	= DB_SUCCESS;
 	ulint		merge_count = 0;
 	ulint		total_merge_sort_count;
-	float		curr_progress = 0;
+	double		curr_progress = 0;
 
 	DBUG_ENTER("row_merge_sort");
 
@@ -3301,7 +3296,7 @@ row_merge_sort(
 
 	/* Find the number N which 2^N is greater or equal than num_runs */
 	/* N is merge sort running count */
-	total_merge_sort_count = (ulint) ceil(my_log2f(num_runs));
+	total_merge_sort_count = (ulint) ceil(my_log2f((float)num_runs));
 	if(total_merge_sort_count <= 0) {
 		total_merge_sort_count=1;
 	}
@@ -3487,9 +3482,9 @@ row_merge_insert_index_tuples(
 	const row_merge_buf_t*	row_buf,
 	BtrBulk*		btr_bulk,
 	const ib_uint64_t	table_total_rows, /*!< in: total rows of old table */
-	const float		pct_progress,	/*!< in: total progress
+	const double		pct_progress,	/*!< in: total progress
 						percent until now */
-	const float		pct_cost, /*!< in: current progress percent
+	const double		pct_cost, /*!< in: current progress percent
 					  */
 	fil_space_crypt_t*	crypt_data,/*!< in: table crypt data */
 	row_merge_block_t*	crypt_block, /*!< in: crypt buf or NULL */
@@ -3506,7 +3501,7 @@ row_merge_insert_index_tuples(
 	ulint			n_rows = 0;
 	dtuple_t*		dtuple;
 	ib_uint64_t		inserted_rows = 0;
-	float			curr_progress = 0;
+	double			curr_progress = 0;
 	dict_index_t*		old_index = NULL;
 	const mrec_t*		mrec  = NULL;
 	ulint			n_ext = 0;
@@ -4666,11 +4661,11 @@ row_merge_build_indexes(
 	bool			fts_psort_initiated = false;
 	fil_space_crypt_t *	crypt_data = NULL;
 
-	float total_static_cost = 0;
-	float total_dynamic_cost = 0;
+	double total_static_cost = 0;
+	double total_dynamic_cost = 0;
 	uint total_index_blocks = 0;
-	float pct_cost=0;
-	float pct_progress=0;
+	double pct_cost=0;
+	double pct_progress=0;
 
 	DBUG_ENTER("row_merge_build_indexes");
 

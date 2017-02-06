@@ -1825,19 +1825,21 @@ public:
   /**
     Add a new element into m_comparators[], using a {pred,valueN} pair.
 
+    @param funcname        - the name of the operation, for error reporting
     @param args            - the owner function's argument list
     @param value_index     - the value position in args
     @retval true           - could not add an element because of non-comparable
                              arguments (e.g. ROWs with size)
     @retval false          - a new element was successfully added.
   */
-  bool add_value(Item_args *args, uint value_index);
+  bool add_value(const char *funcname, Item_args *args, uint value_index);
 
   /**
     Add a new element into m_comparators[], ignoring explicit NULL values.
     If the value appeared to be an explicit NULL, nulls_found[0] is set to true.
   */
-  bool add_value_skip_null(Item_args *args, uint value_index,
+  bool add_value_skip_null(const char *funcname,
+                           Item_args *args, uint value_index,
                            bool *nulls_found);
 
   /**

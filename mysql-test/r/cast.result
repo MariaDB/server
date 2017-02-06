@@ -583,7 +583,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `cast(1 as unsigned)` int(1) unsigned NOT NULL,
-  `cast(1 as signed)` int(1) NOT NULL,
+  `cast(1 as signed)` int(2) NOT NULL,
   `cast(1 as double(5,2))` double(5,2) DEFAULT NULL,
   `cast(1 as decimal(5,3))` decimal(5,3) NOT NULL,
   `cast("A" as binary)` varbinary(1) NOT NULL,
@@ -822,3 +822,74 @@ utf8_bin
 select collation(cast("a" as char(10) binary ascii));
 collation(cast("a" as char(10) binary ascii))
 latin1_bin
+#
+# MDEV-11030 Assertion `precision > 0' failed in decimal_bin_size
+#
+SELECT * FROM (SELECT IFNULL(CONVERT(NULL, UNSIGNED), NULL)) sq;
+IFNULL(CONVERT(NULL, UNSIGNED), NULL)
+NULL
+CREATE TABLE t1 AS SELECT IFNULL(CONVERT(NULL, UNSIGNED), NULL);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `IFNULL(CONVERT(NULL, UNSIGNED), NULL)` decimal(1,0) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 AS SELECT COALESCE(CONVERT(NULL, UNSIGNED), NULL);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `COALESCE(CONVERT(NULL, UNSIGNED), NULL)` decimal(1,0) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 AS SELECT CASE WHEN TRUE THEN CONVERT(NULL, UNSIGNED) ELSE NULL END;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `CASE WHEN TRUE THEN CONVERT(NULL, UNSIGNED) ELSE NULL END` decimal(1,0) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 AS SELECT IFNULL(CONVERT(NULL,SIGNED),CONVERT(NULL,UNSIGNED)) AS a;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` decimal(1,0) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 AS SELECT
+-1,
+CONVERT(NULL,SIGNED),
+CONCAT(CONVERT(NULL,SIGNED)),
+1,
+CONVERT(NULL,UNSIGNED),
+CONCAT(CONVERT(NULL,UNSIGNED));
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `-1` int(2) NOT NULL,
+  `CONVERT(NULL,SIGNED)` int(2) DEFAULT NULL,
+  `CONCAT(CONVERT(NULL,SIGNED))` varchar(2) DEFAULT NULL,
+  `1` int(1) NOT NULL,
+  `CONVERT(NULL,UNSIGNED)` int(1) unsigned DEFAULT NULL,
+  `CONCAT(CONVERT(NULL,UNSIGNED))` varchar(1) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 AS SELECT
+CONVERT('',SIGNED),
+CONCAT(CONVERT('',SIGNED)),
+CONVERT('',UNSIGNED),
+CONCAT(CONVERT('',UNSIGNED));
+Warnings:
+Warning	1292	Truncated incorrect INTEGER value: ''
+Warning	1292	Truncated incorrect INTEGER value: ''
+Warning	1292	Truncated incorrect INTEGER value: ''
+Warning	1292	Truncated incorrect INTEGER value: ''
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `CONVERT('',SIGNED)` int(2) NOT NULL,
+  `CONCAT(CONVERT('',SIGNED))` varchar(2) NOT NULL,
+  `CONVERT('',UNSIGNED)` int(1) unsigned NOT NULL,
+  `CONCAT(CONVERT('',UNSIGNED))` varchar(1) NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;

@@ -1,6 +1,6 @@
 /*****************************************************************************
 Copyright (C) 2013, 2015, Google Inc. All Rights Reserved.
-Copyright (C) 2014, 2016, MariaDB Corporation. All Rights Reserved.
+Copyright (c) 2014, 2017, MariaDB Corporation. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -56,7 +56,7 @@ UNIV_INTERN ulong srv_encrypt_tables = 0;
 UNIV_INTERN uint srv_n_fil_crypt_threads = 0;
 
 /** No of key rotation threads started */
-static uint srv_n_fil_crypt_threads_started = 0;
+UNIV_INTERN uint srv_n_fil_crypt_threads_started = 0;
 
 /** At this age or older a space/page will be rotated */
 UNIV_INTERN uint srv_fil_crypt_rotate_key_age = 1;
@@ -65,7 +65,7 @@ UNIV_INTERN uint srv_fil_crypt_rotate_key_age = 1;
 static os_event_t fil_crypt_event;
 
 /** Event to signal TO the key rotation threads. */
-static os_event_t fil_crypt_threads_event;
+UNIV_INTERN os_event_t fil_crypt_threads_event;
 
 /** Event for waking up threads throttle */
 static os_event_t fil_crypt_throttle_sleep_event;
@@ -1303,10 +1303,20 @@ struct rotate_thread_t {
 	btr_scrub_t scrub_data;      /* thread local data used by btr_scrub-functions
 				     * when iterating pages of tablespace */
 
-	/* check if this thread should shutdown */
+	/** @return whether this thread should terminate */
 	bool should_shutdown() const {
-		return ! (srv_shutdown_state == SRV_SHUTDOWN_NONE &&
-			  thread_no < srv_n_fil_crypt_threads);
+		switch (srv_shutdown_state) {
+		case SRV_SHUTDOWN_NONE:
+		case SRV_SHUTDOWN_CLEANUP:
+			return thread_no >= srv_n_fil_crypt_threads;
+		case SRV_SHUTDOWN_FLUSH_PHASE:
+			return true;
+		case SRV_SHUTDOWN_LAST_PHASE:
+		case SRV_SHUTDOWN_EXIT_THREADS:
+			break;
+		}
+		ut_ad(0);
+		return true;
 	}
 };
 
@@ -2459,23 +2469,16 @@ fil_crypt_threads_init()
 }
 
 /*********************************************************************
-End threads for key rotation */
-UNIV_INTERN
-void
-fil_crypt_threads_end()
-/*===================*/
-{
-	/* stop threads */
-	fil_crypt_set_thread_cnt(0);
-}
-
-/*********************************************************************
 Clean up key rotation threads resources */
 UNIV_INTERN
 void
 fil_crypt_threads_cleanup()
 /*=======================*/
 {
+	if (!fil_crypt_threads_inited) {
+		return;
+	}
+	ut_a(!srv_n_fil_crypt_threads_started);
 	os_event_free(fil_crypt_event);
 	os_event_free(fil_crypt_threads_event);
 	mutex_free(&fil_crypt_threads_mutex);

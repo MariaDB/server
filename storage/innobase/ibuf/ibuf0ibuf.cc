@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1997, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, MariaDB Corporation.
+Copyright (c) 2016, 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1227,8 +1227,9 @@ ibuf_rec_get_page_no_func(
 	const byte*	field;
 	ulint		len;
 
-	ut_ad(mtr_memo_contains_page(mtr, rec, MTR_MEMO_PAGE_X_FIX)
-	      || mtr_memo_contains_page(mtr, rec, MTR_MEMO_PAGE_S_FIX));
+	ut_ad(mtr_memo_contains_page_flagged(mtr, rec,
+					     MTR_MEMO_PAGE_X_FIX
+					     | MTR_MEMO_PAGE_S_FIX));
 	ut_ad(ibuf_inside(mtr));
 	ut_ad(rec_get_n_fields_old(rec) > 2);
 
@@ -1265,8 +1266,8 @@ ibuf_rec_get_space_func(
 	const byte*	field;
 	ulint		len;
 
-	ut_ad(mtr_memo_contains_page(mtr, rec, MTR_MEMO_PAGE_X_FIX)
-	      || mtr_memo_contains_page(mtr, rec, MTR_MEMO_PAGE_S_FIX));
+	ut_ad(mtr_memo_contains_page_flagged(mtr, rec, MTR_MEMO_PAGE_X_FIX
+					     | MTR_MEMO_PAGE_S_FIX));
 	ut_ad(ibuf_inside(mtr));
 	ut_ad(rec_get_n_fields_old(rec) > 2);
 
@@ -1315,8 +1316,8 @@ ibuf_rec_get_info_func(
 	ulint		info_len_local;
 	ulint		counter_local;
 
-	ut_ad(mtr_memo_contains_page(mtr, rec, MTR_MEMO_PAGE_X_FIX)
-	      || mtr_memo_contains_page(mtr, rec, MTR_MEMO_PAGE_S_FIX));
+	ut_ad(mtr_memo_contains_page_flagged(mtr, rec, MTR_MEMO_PAGE_X_FIX
+					     | MTR_MEMO_PAGE_S_FIX));
 	ut_ad(ibuf_inside(mtr));
 	fields = rec_get_n_fields_old(rec);
 	ut_a(fields > IBUF_REC_FIELD_USER);
@@ -1387,8 +1388,8 @@ ibuf_rec_get_op_type_func(
 {
 	ulint		len;
 
-	ut_ad(mtr_memo_contains_page(mtr, rec, MTR_MEMO_PAGE_X_FIX)
-	      || mtr_memo_contains_page(mtr, rec, MTR_MEMO_PAGE_S_FIX));
+	ut_ad(mtr_memo_contains_page_flagged(mtr, rec, MTR_MEMO_PAGE_X_FIX
+					     | MTR_MEMO_PAGE_S_FIX));
 	ut_ad(ibuf_inside(mtr));
 	ut_ad(rec_get_n_fields_old(rec) > 2);
 
@@ -1586,8 +1587,8 @@ ibuf_build_entry_from_ibuf_rec_func(
 	ulint		comp;
 	dict_index_t*	index;
 
-	ut_ad(mtr_memo_contains_page(mtr, ibuf_rec, MTR_MEMO_PAGE_X_FIX)
-	      || mtr_memo_contains_page(mtr, ibuf_rec, MTR_MEMO_PAGE_S_FIX));
+	ut_ad(mtr_memo_contains_page_flagged(mtr, ibuf_rec, MTR_MEMO_PAGE_X_FIX
+					     | MTR_MEMO_PAGE_S_FIX));
 	ut_ad(ibuf_inside(mtr));
 
 	data = rec_get_nth_field_old(ibuf_rec, IBUF_REC_FIELD_MARKER, &len);
@@ -1708,8 +1709,8 @@ ibuf_rec_get_volume_func(
 	ibuf_op_t	op;
 	ulint		info_len;
 
-	ut_ad(mtr_memo_contains_page(mtr, ibuf_rec, MTR_MEMO_PAGE_X_FIX)
-	      || mtr_memo_contains_page(mtr, ibuf_rec, MTR_MEMO_PAGE_S_FIX));
+	ut_ad(mtr_memo_contains_page_flagged(mtr, ibuf_rec, MTR_MEMO_PAGE_X_FIX
+					     | MTR_MEMO_PAGE_S_FIX));
 	ut_ad(ibuf_inside(mtr));
 	ut_ad(rec_get_n_fields_old(ibuf_rec) > 2);
 
@@ -2291,8 +2292,8 @@ ibuf_get_merge_page_nos_func(
 	ulint	limit;
 	ulint	n_pages;
 
-	ut_ad(mtr_memo_contains_page(mtr, rec, MTR_MEMO_PAGE_X_FIX)
-	      || mtr_memo_contains_page(mtr, rec, MTR_MEMO_PAGE_S_FIX));
+	ut_ad(mtr_memo_contains_page_flagged(mtr, rec, MTR_MEMO_PAGE_X_FIX
+					     | MTR_MEMO_PAGE_S_FIX));
 	ut_ad(ibuf_inside(mtr));
 
 	*n_stored = 0;
@@ -2875,8 +2876,8 @@ ibuf_get_volume_buffered_count_func(
 	const byte*	types;
 	ulint		n_fields;
 
-	ut_ad(mtr_memo_contains_page(mtr, rec, MTR_MEMO_PAGE_X_FIX)
-	      || mtr_memo_contains_page(mtr, rec, MTR_MEMO_PAGE_S_FIX));
+	ut_ad(mtr_memo_contains_page_flagged(mtr, rec, MTR_MEMO_PAGE_X_FIX
+					     | MTR_MEMO_PAGE_S_FIX));
 	ut_ad(ibuf_inside(mtr));
 
 	n_fields = rec_get_n_fields_old(rec);
@@ -3248,8 +3249,8 @@ ibuf_get_entry_counter_low_func(
 	ulint		len;
 
 	ut_ad(ibuf_inside(mtr));
-	ut_ad(mtr_memo_contains_page(mtr, rec, MTR_MEMO_PAGE_X_FIX)
-	      || mtr_memo_contains_page(mtr, rec, MTR_MEMO_PAGE_S_FIX));
+	ut_ad(mtr_memo_contains_page_flagged(mtr, rec, MTR_MEMO_PAGE_X_FIX
+					     | MTR_MEMO_PAGE_S_FIX));
 	ut_ad(rec_get_n_fields_old(rec) > 2);
 
 	field = rec_get_nth_field_old(rec, IBUF_REC_FIELD_MARKER, &len);

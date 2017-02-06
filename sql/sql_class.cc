@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2016, MariaDB
+   Copyright (c) 2008, 2017, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -640,7 +640,7 @@ char *thd_security_context(THD *thd,
 bool Drop_table_error_handler::handle_condition(THD *thd,
                                                 uint sql_errno,
                                                 const char* sqlstate,
-                                                Sql_condition::enum_warning_level level,
+                                                Sql_condition::enum_warning_level *level,
                                                 const char* msg,
                                                 Sql_condition ** cond_hdl)
 {
@@ -660,7 +660,7 @@ MDL_deadlock_and_lock_abort_error_handler::
 handle_condition(THD *thd,
                  uint sql_errno,
                  const char *sqlstate,
-                 Sql_condition::enum_warning_level level,
+                 Sql_condition::enum_warning_level *level,
                  const char* msg,
                  Sql_condition **cond_hdl)
 {
@@ -742,8 +742,8 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
 #endif
 {
   ulong tmp;
+  bzero(&variables, sizeof(variables));
 
-  mdl_context.init(this);
   /*
     We set THR_THD to temporally point to this THD to register all the
     variables that allocates memory for this THD
@@ -753,7 +753,10 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
   status_var.local_memory_used= sizeof(THD);
   status_var.global_memory_used= 0;
   variables.pseudo_thread_id= thread_id;
+  variables.max_mem_used= global_system_variables.max_mem_used;
   main_da.init();
+
+  mdl_context.init(this);
 
   /*
     Pass nominal parameters to init_alloc_root only to ensure that
@@ -800,7 +803,6 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
   connection_name.str= 0;
   connection_name.length= 0;
 
-  bzero(&variables, sizeof(variables));
   file_id = 0;
   query_id= 0;
   query_name_consts= 0;
@@ -945,7 +947,7 @@ void THD::push_internal_handler(Internal_error_handler *handler)
 
 bool THD::handle_condition(uint sql_errno,
                            const char* sqlstate,
-                           Sql_condition::enum_warning_level level,
+                           Sql_condition::enum_warning_level *level,
                            const char* msg,
                            Sql_condition ** cond_hdl)
 {
@@ -1072,6 +1074,7 @@ Sql_condition* THD::raise_condition(uint sql_errno,
   Diagnostics_area *da= get_stmt_da();
   Sql_condition *cond= NULL;
   DBUG_ENTER("THD::raise_condition");
+  DBUG_ASSERT(level < Sql_condition::WARN_LEVEL_END);
 
   if (!(variables.option_bits & OPTION_SQL_NOTES) &&
       (level == Sql_condition::WARN_LEVEL_NOTE))
@@ -1099,23 +1102,22 @@ Sql_condition* THD::raise_condition(uint sql_errno,
       push_warning and strict SQL_MODE case.
     */
     level= Sql_condition::WARN_LEVEL_ERROR;
-    killed= KILL_BAD_DATA;
   }
 
-  switch (level)
-  {
+  if (handle_condition(sql_errno, sqlstate, &level, msg, &cond))
+    DBUG_RETURN(cond);
+
+  switch (level) {
   case Sql_condition::WARN_LEVEL_NOTE:
   case Sql_condition::WARN_LEVEL_WARN:
     got_warning= 1;
     break;
   case Sql_condition::WARN_LEVEL_ERROR:
     break;
-  default:
-    DBUG_ASSERT(FALSE);
+  case Sql_condition::WARN_LEVEL_END:
+    /* Impossible */
+    break;
   }
-
-  if (handle_condition(sql_errno, sqlstate, level, msg, &cond))
-    DBUG_RETURN(cond);
 
   if (level == Sql_condition::WARN_LEVEL_ERROR)
   {

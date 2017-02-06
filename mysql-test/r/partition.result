@@ -2439,7 +2439,7 @@ SELECT 1 FROM t1 WHERE b < SOME
 GROUP BY b WITH ROLLUP
 HAVING b > geomfromtext("")
 );
-1
+ERROR HY000: Illegal parameter data types mediumint and geometry for operation '>'
 DROP TABLE t1;
 
 MDEV-612  Valgrind error in  ha_maria::check_if_incompatible_data

@@ -104,7 +104,6 @@ use IO::Select;
 
 require "mtr_process.pl";
 require "mtr_io.pl";
-require "mtr_gcov.pl";
 require "mtr_gprof.pl";
 require "mtr_misc.pl";
 
@@ -183,6 +182,7 @@ my @DEFAULT_SUITES= qw(
     innodb_fts-
     innodb_gis-
     innodb_zip-
+    json-
     maria-
     multi_source-
     optimizer_unfixed_bugs-
@@ -248,11 +248,6 @@ our $opt_mem= $ENV{'MTR_MEM'};
 our $opt_clean_vardir= $ENV{'MTR_CLEAN_VARDIR'};
 
 our $opt_gcov;
-our $opt_gcov_src_dir;
-our $opt_gcov_exe= "gcov";
-our $opt_gcov_err= "mysql-test-gcov.err";
-our $opt_gcov_msg= "mysql-test-gcov.msg";
-
 our $opt_gprof;
 our %gprof_dirs;
 
@@ -383,11 +378,6 @@ sub main {
   # --help will not reach here, so now it's safe to assume we have binaries
   My::SafeProcess::find_bin();
 
-  if ( $opt_gcov ) {
-    gcov_prepare($basedir . "/" . $opt_gcov_src_dir);
-  }
-
-  
   print "vardir: $opt_vardir\n";
   initialize_servers();
   init_timers();
@@ -431,6 +421,10 @@ sub main {
     exit 0;
   }
 
+  if ($opt_gcov) {
+    system './dgcov.pl --purge';
+  }
+  
   #######################################################################
   my $num_tests= @$tests;
   if ( $opt_parallel eq "auto" ) {
@@ -555,14 +549,14 @@ sub main {
 
   mtr_print_line();
 
-  if ( $opt_gcov ) {
-    gcov_collect($basedir . "/" . $opt_gcov_src_dir, $opt_gcov_exe,
-		 $opt_gcov_msg, $opt_gcov_err);
-  }
-
   print_total_times($opt_parallel) if $opt_report_times;
 
   mtr_report_stats($prefix, $fail, $completed, $extra_warnings);
+
+  if ($opt_gcov) {
+    mtr_report("Running dgcov");
+    system "./dgcov.pl --generate > $opt_vardir/last_changes.dgcov";
+  }
 
   if ( @$completed != $num_tests)
   {
@@ -1148,7 +1142,6 @@ sub command_line_setup {
 
              # Coverage, profiling etc
              'gcov'                     => \$opt_gcov,
-             'gcov-src-dir=s'           => \$opt_gcov_src_dir,
              'gprof'                    => \$opt_gprof,
              'valgrind|valgrind-all'    => \$opt_valgrind,
              'valgrind-mysqltest'       => \$opt_valgrind_mysqltest,
@@ -6180,9 +6173,6 @@ Misc options
                         actions. Disable facility with NUM=0.
   gcov                  Collect coverage information after the test.
                         The result is a gcov file per source and header file.
-  gcov-src-dir=subdir   Collect coverage only within the given subdirectory.
-                        For example, if you're only developing the SQL layer, 
-                        it makes sense to use --gcov-src-dir=sql
   gprof                 Collect profiling information using gprof.
   experimental=<file>   Refer to list of tests considered experimental;
                         failures will be marked exp-fail instead of fail.

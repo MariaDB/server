@@ -669,6 +669,7 @@ INSERT INTO t1 VALUES
     'multipolygon(((1 2,3 4,5 6,7 8,9 8),(7 6,5 4,3 2,1 2,3 4)))'));
 
 --echo # must not crash
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
 SELECT 1 FROM t1 WHERE a <> (SELECT GEOMETRYCOLLECTIONFROMWKB(b) FROM t1);
 
 DROP TABLE t1;
@@ -1395,6 +1396,7 @@ INSERT INTO g1 VALUES (geomfromtext('point(1 2)'));
 
 FLUSH TABLES;
 
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
 SELECT 1 FROM g1 
 FORCE INDEX(i) WHERE a = date_sub(now(), interval 2808.4 year_month)
 ;
@@ -1798,6 +1800,73 @@ DROP TABLE t1;
 DROP PROCEDURE p1;
 DROP PROCEDURE p2;
 
+
+--echo #
+--echo # MDEV-11692 Comparison data type aggregation for pluggable data types
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE p2(query TEXT)
+BEGIN
+  DECLARE errcount INT DEFAULT 0;
+  DECLARE CONTINUE HANDLER FOR SQLEXCEPTION
+  BEGIN
+    SET errcount = errcount+1;
+    GET DIAGNOSTICS CONDITION 1 @p= MESSAGE_TEXT;
+    SELECT @p AS `ERROR: `;
+  END;
+  SELECT query AS ``;
+  EXECUTE IMMEDIATE query;
+END;
+$$
+CREATE PROCEDURE p1(query TEXT)
+BEGIN
+  SELECT query AS `-------------------------------------`;
+  EXECUTE IMMEDIATE query;
+  CALL p2('SELECT a=b FROM t1');
+  CALL p2('SELECT b=a FROM t1');
+  CALL p2('SELECT a BETWEEN b AND c FROM t1');
+  CALL p2('SELECT a IN (b,c) FROM t1');
+  CALL p2('SELECT CASE a WHEN b THEN "a" WHEN c THEN "b" END FROM t1');
+  CALL p2('SELECT a=POINT(1,1) FROM t1');
+  CALL p2('SELECT POINT(1,1)=a FROM t1');
+  CALL p2('SELECT a BETWEEN POINT(1,1) AND POINT(1,2) FROM t1');
+  CALL p2('SELECT a IN (POINT(1,1),POINT(1,2)) FROM t1');
+  CALL p2('SELECT CASE a WHEN POINT(1,1) THEN "a" WHEN POINT(1,2) THEN "b" END FROM t1');
+  DROP TABLE t1;
+END;
+$$
+DELIMITER ;$$
+
+CALL p1('CREATE TABLE t1 (a CHAR(10), b Point, c Point)');
+CALL p1('CREATE TABLE t1 (a VARCHAR(10), b Point, c Point)');
+CALL p1('CREATE TABLE t1 (a TINYTEXT, b Point, c Point)');
+CALL p1('CREATE TABLE t1 (a TEXT, b Point, c Point)');
+CALL p1('CREATE TABLE t1 (a MEDIUMTEXT, b Point, c Point)');
+CALL p1('CREATE TABLE t1 (a LONGTEXT, b Point, c Point)');
+CALL p1('CREATE TABLE t1 (a ENUM("a","b"), b Point, c Point)');
+
+CALL p1('CREATE TABLE t1 (a TINYINT, b Point, c Point)');
+CALL p1('CREATE TABLE t1 (a SMALLINT, b Point, c Point)');
+CALL p1('CREATE TABLE t1 (a MEDIUMINT, b Point, c Point)');
+CALL p1('CREATE TABLE t1 (a INT, b Point, c Point)');
+CALL p1('CREATE TABLE t1 (a BIGINT, b Point, c Point)');
+CALL p1('CREATE TABLE t1 (a FLOAT, b Point, c Point)');
+CALL p1('CREATE TABLE t1 (a DOUBLE, b Point, c Point)');
+CALL p1('CREATE TABLE t1 (a DECIMAL(10,2), b Point, c Point)');
+CALL p1('CREATE TABLE t1 (a BIT(8), b Point, c Point)');
+
+CALL p1('CREATE TABLE t1 (a TIME, b Point, c Point)');
+CALL p1('CREATE TABLE t1 (a DATE, b Point, c Point)');
+CALL p1('CREATE TABLE t1 (a DATETIME, b Point, c Point)');
+CALL p1('CREATE TABLE t1 (a TIMESTAMP, b Point, c Point)');
+CALL p1('CREATE TABLE t1 (a YEAR, b Point, c Point)');
+
+CALL p1('CREATE TABLE t1 (a Point, b Point, c Point)');
+
+
+DROP PROCEDURE p1;
+DROP PROCEDURE p2;
 
 --echo #
 --echo # End of 10.3 tests

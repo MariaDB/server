@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, MariaDB Corporation.
+Copyright (c) 2016, 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -57,9 +57,7 @@ static const char* SYSTEM_TABLE_NAME[] = {
 	"SYS_FOREIGN",
 	"SYS_FOREIGN_COLS",
 	"SYS_TABLESPACES",
-	"SYS_DATAFILES",
-	"SYS_ZIP_DICT",
-	"SYS_ZIP_DICT_COLS"
+	"SYS_DATAFILES"
 };
 
 /* If this flag is TRUE, then we will load the cluster index's (and tables')
@@ -731,161 +729,6 @@ err_len:
 	return(NULL);
 }
 
-/** This function parses a SYS_ZIP_DICT record, extracts necessary
-information from the record and returns to caller.
-@return error message, or NULL on success */
-UNIV_INTERN
-const char*
-dict_process_sys_zip_dict(
-	mem_heap_t*	heap,		/*!< in/out: heap memory */
-	ulint		zip_size,	/*!< in: nonzero=compressed BLOB page size */
-	const rec_t*	rec,		/*!< in: current SYS_ZIP_DICT rec */
-	ulint*		id,		/*!< out: dict id */
-	const char**	name,		/*!< out: dict name */
-	const char**	data,		/*!< out: dict data */
-	ulint*		data_len)	/*!< out: dict data length */
-{
-	ulint		len;
-	const byte*	field;
-
-	/* Initialize the output values */
-	*id = ULINT_UNDEFINED;
-	*name = NULL;
-	*data = NULL;
-	*data_len = 0;
-
-	if (UNIV_UNLIKELY(rec_get_deleted_flag(rec, 0))) {
-		return("delete-marked record in SYS_ZIP_DICT");
-	}
-
-	if (UNIV_UNLIKELY(
-		rec_get_n_fields_old(rec)!= DICT_NUM_FIELDS__SYS_ZIP_DICT)) {
-		return("wrong number of columns in SYS_ZIP_DICT record");
-	}
-
-	field = rec_get_nth_field_old(
-		rec, DICT_FLD__SYS_ZIP_DICT__ID, &len);
-	if (UNIV_UNLIKELY(len != DICT_FLD_LEN_SPACE)) {
-		goto err_len;
-	}
-	*id = mach_read_from_4(field);
-
-	rec_get_nth_field_offs_old(
-		rec, DICT_FLD__SYS_ZIP_DICT__DB_TRX_ID, &len);
-	if (UNIV_UNLIKELY(len != DATA_TRX_ID_LEN && len != UNIV_SQL_NULL)) {
-		goto err_len;
-	}
-
-	rec_get_nth_field_offs_old(
-		rec, DICT_FLD__SYS_ZIP_DICT__DB_ROLL_PTR, &len);
-	if (UNIV_UNLIKELY(len != DATA_ROLL_PTR_LEN && len != UNIV_SQL_NULL)) {
-		goto err_len;
-	}
-
-	field = rec_get_nth_field_old(
-		rec, DICT_FLD__SYS_ZIP_DICT__NAME, &len);
-	if (UNIV_UNLIKELY(len == 0 || len == UNIV_SQL_NULL)) {
-		goto err_len;
-	}
-	*name = mem_heap_strdupl(heap, (char*) field, len);
-
-	field = rec_get_nth_field_old(
-		rec, DICT_FLD__SYS_ZIP_DICT__DATA, &len);
-	if (UNIV_UNLIKELY(len == UNIV_SQL_NULL)) {
-		goto err_len;
-	}
-
-	if (rec_get_1byte_offs_flag(rec) == 0 &&
-		rec_2_is_field_extern(rec, DICT_FLD__SYS_ZIP_DICT__DATA)) {
-		ut_a(len >= BTR_EXTERN_FIELD_REF_SIZE);
-
-		if (UNIV_UNLIKELY
-			(!memcmp(field + len - BTR_EXTERN_FIELD_REF_SIZE,
-				field_ref_zero,
-				BTR_EXTERN_FIELD_REF_SIZE))) {
-			goto err_len;
-		}
-		*data = reinterpret_cast<char*>(
-			btr_copy_externally_stored_field(data_len, field,
-							zip_size, len, heap, 0));
-	}
-	else {
-		*data_len = len;
-		*data = static_cast<char*>(mem_heap_dup(heap, field, len));
-	}
-
-	return(NULL);
-
-err_len:
-	return("incorrect column length in SYS_ZIP_DICT");
-}
-
-/** This function parses a SYS_ZIP_DICT_COLS record, extracts necessary
-information from the record and returns to caller.
-@return error message, or NULL on success */
-UNIV_INTERN
-const char*
-dict_process_sys_zip_dict_cols(
-	mem_heap_t*	heap,		/*!< in/out: heap memory */
-	const rec_t*	rec,		/*!< in: current SYS_ZIP_DICT rec */
-	ulint*		table_id,	/*!< out: table id */
-	ulint*		column_pos,	/*!< out: column position */
-	ulint*		dict_id)	/*!< out: dict id */
-{
-	ulint		len;
-	const byte*	field;
-
-	/* Initialize the output values */
-	*table_id = ULINT_UNDEFINED;
-	*column_pos = ULINT_UNDEFINED;
-	*dict_id = ULINT_UNDEFINED;
-
-	if (UNIV_UNLIKELY(rec_get_deleted_flag(rec, 0))) {
-		return("delete-marked record in SYS_ZIP_DICT_COLS");
-	}
-
-	if (UNIV_UNLIKELY(rec_get_n_fields_old(rec) !=
-		DICT_NUM_FIELDS__SYS_ZIP_DICT_COLS)) {
-		return("wrong number of columns in SYS_ZIP_DICT_COLS"
-			" record");
-	}
-
-	field = rec_get_nth_field_old(
-		rec, DICT_FLD__SYS_ZIP_DICT_COLS__TABLE_ID, &len);
-	if (UNIV_UNLIKELY(len != DICT_FLD_LEN_SPACE)) {
-err_len:
-		return("incorrect column length in SYS_ZIP_DICT_COLS");
-	}
-	*table_id = mach_read_from_4(field);
-
-	field = rec_get_nth_field_old(
-		rec, DICT_FLD__SYS_ZIP_DICT_COLS__COLUMN_POS, &len);
-	if (UNIV_UNLIKELY(len != DICT_FLD_LEN_SPACE)) {
-		goto err_len;
-	}
-	*column_pos = mach_read_from_4(field);
-
-	rec_get_nth_field_offs_old(
-		rec, DICT_FLD__SYS_ZIP_DICT_COLS__DB_TRX_ID, &len);
-	if (UNIV_UNLIKELY(len != DATA_TRX_ID_LEN && len != UNIV_SQL_NULL)) {
-		goto err_len;
-	}
-
-	rec_get_nth_field_offs_old(
-		rec, DICT_FLD__SYS_ZIP_DICT_COLS__DB_ROLL_PTR, &len);
-	if (UNIV_UNLIKELY(len != DATA_ROLL_PTR_LEN && len != UNIV_SQL_NULL)) {
-		goto err_len;
-	}
-
-	field = rec_get_nth_field_old(
-		rec, DICT_FLD__SYS_ZIP_DICT_COLS__DICT_ID, &len);
-	if (UNIV_UNLIKELY(len != DICT_FLD_LEN_SPACE)) {
-		goto err_len;
-	}
-	*dict_id = mach_read_from_4(field);
-
-	return(NULL);
-}
 /********************************************************************//**
 Determine the flags of a table as stored in SYS_TABLES.TYPE and N_COLS.
 @return  ULINT_UNDEFINED if error, else a valid dict_table_t::flags. */
@@ -1209,8 +1052,6 @@ loop:
 
 		btr_pcur_store_position(&pcur, &mtr);
 
-		mtr_commit(&mtr);
-
 		/* For tables created with old versions of InnoDB,
 		SYS_TABLES.MIX_LEN may contain garbage.  Such tables
 		would always be in ROW_FORMAT=REDUNDANT. Pretend that
@@ -1244,16 +1085,19 @@ loop:
 		if (space_id == 0) {
 			/* The system tablespace always exists. */
 			ut_ad(!discarded);
-			goto next_tablespace;
+			mem_free(name);
+			goto loop;
 		}
+
+		mtr_commit(&mtr);
 
 		switch (dict_check) {
 		case DICT_CHECK_ALL_LOADED:
 			/* All tablespaces should have been found in
 			fil_load_single_table_tablespaces(). */
 			if (fil_space_for_table_exists_in_mem(
-				space_id, name, TRUE, !(is_temp || discarded),
-				false, NULL, 0)
+				space_id, name, !(is_temp || discarded),
+				false, NULL, 0, flags)
 			    && !(is_temp || discarded)) {
 				/* If user changes the path of .ibd files in
 				   *.isl files before doing crash recovery ,
@@ -1285,8 +1129,8 @@ loop:
 			/* Some tablespaces may have been opened in
 			trx_resurrect_table_locks(). */
 			if (fil_space_for_table_exists_in_mem(
-				    space_id, name, FALSE, FALSE,
-				    false, NULL, 0)) {
+				    space_id, name, false,
+				    false, NULL, 0, flags)) {
 				break;
 			}
 			/* fall through */
@@ -1348,7 +1192,6 @@ loop:
 			max_space_id = space_id;
 		}
 
-next_tablespace:
 		mem_free(name);
 		mtr_start(&mtr);
 
@@ -2540,8 +2383,8 @@ err_exit:
 		table->ibd_file_missing = TRUE;
 
 	} else if (!fil_space_for_table_exists_in_mem(
-			table->space, name, FALSE, FALSE, true, heap,
-			table->id)) {
+			table->space, name, false, true, heap,
+			table->id, table->flags)) {
 
 		if (DICT_TF2_FLAG_IS_SET(table, DICT_TF2_TEMPORARY)) {
 			/* Do not bother to retry opening temporary tables. */

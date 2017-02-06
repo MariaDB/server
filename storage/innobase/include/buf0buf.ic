@@ -734,9 +734,6 @@ buf_block_get_frame(
 	case BUF_BLOCK_ZIP_PAGE:
 	case BUF_BLOCK_ZIP_DIRTY:
 	case BUF_BLOCK_NOT_USED:
-		if (block->page.encrypted) {
-			goto ok;
-		}
 		ut_error;
 		break;
 	case BUF_BLOCK_FILE_PAGE:

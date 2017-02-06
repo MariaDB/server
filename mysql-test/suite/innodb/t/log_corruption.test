@@ -1,0 +1,149 @@
+--source include/have_unzip.inc
+--source include/have_innodb.inc
+--source include/have_innodb_16k.inc
+
+let bugdir= $MYSQLTEST_VARDIR/tmp/log_corruption;
+--mkdir $bugdir
+--let SEARCH_RANGE = -50000
+--let SEARCH_FILE = $bugdir/my_restart.err
+--let SEARCH_ABORT=NOT FOUND
+--let $args=--defaults-file=$bugdir/my.cnf --loose-console >> $SEARCH_FILE 2>&1
+
+perl;
+die unless open IN, "<", "$ENV{MYSQLTEST_VARDIR}/my.cnf";
+my $found;
+while (<IN>) { $found=$1 if /^(lc-messages-dir=.*)/ }
+close IN;
+
+die unless defined $found;
+die unless open OUT, ">", "$ENV{bugdir}/my.cnf";
+print OUT "[mysqld]
+$found
+innodb_data_home_dir = $ENV{bugdir}
+datadir = $ENV{bugdir}
+secure_file_priv=
+skip_aria
+core_file
+";
+EOF
+
+--echo # redo log from before MySQL 5.7.9
+--exec unzip $MTR_SUITE_DIR/std_data/log_corruption.zip -d $bugdir > $SEARCH_FILE
+--error 1
+--exec $MYSQLD $args
+let SEARCH_PATTERN=InnoDB: Upgrade after a crash is not supported. This redo log was created before MySQL 5\\.7\\.9\\.;
+--source include/search_pattern_in_file.inc
+
+--echo # redo log from before MySQL 5.7.9, with corrupted log checkpoint
+--remove_file $bugdir/ib_logfile0
+--copy_file $bugdir/ib_logfile1  $bugdir/ib_logfile0
+--error 1
+--exec $MYSQLD $args
+let SEARCH_PATTERN=InnoDB: Upgrade after a crash is not supported. This redo log was created before MySQL 5\\.7\\.9, and we did not find a valid checkpoint;
+--source include/search_pattern_in_file.inc
+
+--echo # redo log from before MySQL 5.7.9, with corrupted log block
+--remove_file $bugdir/ib_logfile0
+--exec unzip $MTR_SUITE_DIR/std_data/log_corruption0.zip -d $bugdir > $SEARCH_FILE
+--error 1
+--exec $MYSQLD $args
+let SEARCH_PATTERN=InnoDB: Upgrade after a crash is not supported. This redo log was created before MySQL 5\\.7\\.9, and it appears corrupted;
+--source include/search_pattern_in_file.inc
+
+--echo # redo log from "after" MySQL 5.7.9, but with invalid header checksum
+--remove_file $bugdir/ib_logfile0
+--exec unzip $MTR_SUITE_DIR/std_data/log_corruption1.zip -d $bugdir > $SEARCH_FILE
+--error 1
+--exec $MYSQLD $args
+let SEARCH_PATTERN=InnoDB: Invalid redo log header checksum;
+--source include/search_pattern_in_file.inc
+
+--echo # distant future redo log format, with valid header checksum
+--remove_file $bugdir/ib_logfile0
+--exec unzip $MTR_SUITE_DIR/std_data/log_corruption2.zip -d $bugdir > $SEARCH_FILE
+--error 1
+--exec $MYSQLD $args
+let SEARCH_PATTERN=InnoDB: Unsupported redo log format. The redo log was created with malicious intentions, or perhaps\. Please follow the instructions at http://dev.mysql.com/doc/refman/5.7/en/upgrading-downgrading.html;
+--source include/search_pattern_in_file.inc
+
+--echo # valid header, but old-format checkpoint blocks
+--remove_file $bugdir/ib_logfile0
+--exec unzip $MTR_SUITE_DIR/std_data/log_corruption3.zip -d $bugdir > $SEARCH_FILE
+--error 1
+--exec $MYSQLD $args
+let SEARCH_PATTERN=InnoDB: No valid checkpoint found .corrupted redo log;
+--source include/search_pattern_in_file.inc
+
+--echo # valid header, valid checkpoint 1, all-zero (invalid) checkpoint 2, invalid block checksum
+--remove_file $bugdir/ib_logfile0
+--exec unzip $MTR_SUITE_DIR/std_data/log_corruption4.zip -d $bugdir > $SEARCH_FILE
+# Anything below innodb_force_recovery=6 must find a valid redo log.
+# Missing tablespace files are tolerated already with innodb_force_recovery=1.
+--error 1
+--exec $MYSQLD $args --innodb-force-recovery=5
+let SEARCH_PATTERN=InnoDB: Log block 2372 at lsn 1213952 has valid header, but checksum field contains 144444122, should be 3362026715;
+--source include/search_pattern_in_file.inc
+let SEARCH_PATTERN=InnoDB: Ignoring the redo log due to missing MLOG_CHECKPOINT between the checkpoint 1213964 and the end 1213952\.;
+--source include/search_pattern_in_file.inc
+let SEARCH_PATTERN=Plugin 'InnoDB' registration as a STORAGE ENGINE failed;
+--source include/search_pattern_in_file.inc
+--echo # --innodb-force-recovery=6 (skip the entire redo log)
+--error 1
+--exec $MYSQLD $args --innodb-force-recovery=6
+let SEARCH_PATTERN=InnoDB: Cannot create sys_virtual system tables. running in read-only mode;
+--source include/search_pattern_in_file.inc
+
+--echo # valid header, valid checkpoint 1, all-zero (invalid) checkpoint 2, invalid block number
+--remove_file $bugdir/ib_logfile0
+--exec unzip $MTR_SUITE_DIR/std_data/log_corruption4a.zip -d $bugdir > $SEARCH_FILE
+# Anything below innodb_force_recovery=6 must find a valid redo log.
+# Missing tablespace files are tolerated already with innodb_force_recovery=1.
+--error 1
+--exec $MYSQLD $args --innodb-force-recovery=5
+let SEARCH_PATTERN=InnoDB: Ignoring the redo log due to missing MLOG_CHECKPOINT between the checkpoint 1213964 and the end 1213952\.;
+--source include/search_pattern_in_file.inc
+let SEARCH_PATTERN=Plugin 'InnoDB' registration as a STORAGE ENGINE failed;
+--source include/search_pattern_in_file.inc
+--echo # --innodb-force-recovery=6 (skip the entire redo log)
+--error 1
+--exec $MYSQLD $args --innodb-force-recovery=6
+let SEARCH_PATTERN=InnoDB: Cannot create sys_virtual system tables. running in read-only mode;
+--source include/search_pattern_in_file.inc
+
+--echo # Test a corrupted MLOG_FILE_NAME record.
+--echo # valid header, valid checkpoint 1, all-zero (invalid) checkpoint 2
+--remove_file $bugdir/ib_logfile0
+--exec unzip $MTR_SUITE_DIR/std_data/log_corruption5.zip -d $bugdir > $SEARCH_FILE
+--error 1
+--exec $MYSQLD $args
+let SEARCH_PATTERN=InnoDB: Log scan progressed past the checkpoint lsn 1213964;
+--source include/search_pattern_in_file.inc
+let SEARCH_PATTERN=InnoDB: ############### CORRUPT LOG RECORD FOUND ##################;
+--source include/search_pattern_in_file.inc
+let SEARCH_PATTERN=InnoDB: Log record type 55, page 151:488\. Log parsing proceeded successfully up to 1213973\. Previous log record type 56, is multi 0 Recv offset 9, prev 0;
+--source include/search_pattern_in_file.inc
+let SEARCH_PATTERN= len 22. hex 38000000000012860cb7809781e80006626f67757300. asc 8               bogus ;
+--source include/search_pattern_in_file.inc
+let SEARCH_PATTERN=InnoDB: Set innodb_force_recovery to ignore this error;
+--source include/search_pattern_in_file.inc
+
+--echo # Test a corrupted MLOG_FILE_NAME record.
+--echo # valid header, invalid checkpoint 1, valid checkpoint 2
+--remove_file $bugdir/ib_logfile0
+--exec unzip $MTR_SUITE_DIR/std_data/log_corruption6.zip -d $bugdir > $SEARCH_FILE
+--error 1
+--exec $MYSQLD $args
+let SEARCH_PATTERN=InnoDB: ############### CORRUPT LOG RECORD FOUND ##################;
+--source include/search_pattern_in_file.inc
+let SEARCH_PATTERN=InnoDB: Log record type 55, page 151:488\. Log parsing proceeded successfully up to 1213973\. Previous log record type 56, is multi 0 Recv offset 9, prev 0;
+--source include/search_pattern_in_file.inc
+let SEARCH_PATTERN=InnoDB: Hex dump starting 0 bytes before and ending 13 bytes after the corrupted record;
+--source include/search_pattern_in_file.inc
+let SEARCH_PATTERN= len 22. hex 38000000000012860cb7809781e80006626f67757300. asc 8               bogus ;
+--source include/search_pattern_in_file.inc
+let SEARCH_PATTERN=InnoDB: Set innodb_force_recovery to ignore this error;
+--source include/search_pattern_in_file.inc
+
+--list_files $bugdir
+--remove_files_wildcard $bugdir
+--rmdir $bugdir

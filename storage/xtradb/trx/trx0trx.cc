@@ -1572,7 +1572,7 @@ trx_commit_in_memory(
 	ut_ad(!trx->in_rw_trx_list);
 
 #ifdef WITH_WSREP
-	if (wsrep_on(trx->mysql_thd)) {
+	if (trx->mysql_thd && wsrep_on(trx->mysql_thd)) {
 		trx->lock.was_chosen_as_deadlock_victim = FALSE;
 	}
 #endif

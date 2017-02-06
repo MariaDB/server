@@ -3,7 +3,7 @@
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All rights reserved.
 Copyright (c) 2008, 2009, Google Inc.
 Copyright (c) 2009, Percona Inc.
-Copyright (c) 2013, 2016, MariaDB Corporation
+Copyright (c) 2013, 2017, MariaDB Corporation
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -346,7 +346,6 @@ extern char**	srv_data_file_names;
 extern ulint*	srv_data_file_sizes;
 extern ulint*	srv_data_file_is_raw_partition;
 
-
 /** Whether the redo log tracking is currently enabled. Note that it is
 possible for the log tracker thread to be running and the tracking to be
 disabled */
@@ -355,6 +354,9 @@ extern ulonglong	srv_max_bitmap_file_size;
 
 extern
 ulonglong       srv_max_changed_pages;
+
+extern uint	srv_n_fil_crypt_threads;
+extern uint	srv_n_fil_crypt_threads_started;
 
 extern ibool	srv_auto_extend_last_data_file;
 extern ulint	srv_last_file_size_max;
@@ -574,19 +576,17 @@ extern ibool	srv_print_verbose_log;
 	"tables instead, see " REFMAN "innodb-i_s-tables.html"
 extern ibool	srv_print_innodb_table_monitor;
 
-extern ibool	srv_monitor_active;
-extern ibool	srv_error_monitor_active;
+extern bool	srv_monitor_active;
+extern bool	srv_error_monitor_active;
 
 /* TRUE during the lifetime of the buffer pool dump/load thread */
-extern ibool	srv_buf_dump_thread_active;
+extern bool	srv_buf_dump_thread_active;
 
 /* TRUE during the lifetime of the stats thread */
-extern ibool	srv_dict_stats_thread_active;
+extern bool	srv_dict_stats_thread_active;
 
 /* TRUE if enable log scrubbing */
 extern my_bool	srv_scrub_log;
-/* TRUE during the lifetime of the log scrub thread */
-extern ibool	srv_log_scrub_thread_active;
 
 extern ulong	srv_n_spin_wait_rounds;
 extern ulong	srv_n_free_tickets_to_enter;
@@ -623,7 +623,7 @@ extern my_bool	srv_ibuf_disable_background_merge;
 
 #ifdef UNIV_DEBUG
 extern my_bool	srv_purge_view_update_only_debug;
-extern ulong	srv_sys_space_size_debug;
+extern uint	srv_sys_space_size_debug;
 #endif /* UNIV_DEBUG */
 
 #define SRV_SEMAPHORE_WAIT_EXTENSION	7200
@@ -1081,15 +1081,6 @@ srv_release_threads(
 /*================*/
 	enum srv_thread_type	type,	/*!< in: thread type */
 	ulint			n);	/*!< in: number of threads to release */
-
-/**********************************************************************//**
-Check whether any background thread are active. If so print which thread
-is active. Send the threads wakeup signal.
-@return name of thread that is active or NULL */
-UNIV_INTERN
-const char*
-srv_any_background_threads_are_active(void);
-/*=======================================*/
 
 /**********************************************************************//**
 Wakeup the purge threads. */

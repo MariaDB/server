@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, MariaDB Corporation.
+Copyright (c) 2016, 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -811,102 +811,6 @@ dict_get_first_path(
 	return(filepath);
 }
 
-/** Gets the space name from SYS_TABLESPACES for a given space ID.
-@param[in]	space_id	Tablespace ID
-@param[in]	callers_heap	A heap to allocate from, may be NULL
-@return Tablespace name (caller is responsible to free it)
-@retval NULL if no dictionary entry was found. */
-static
-char*
-dict_space_get_name(
-	ulint		space_id,
-	mem_heap_t*	callers_heap)
-{
-	mtr_t		mtr;
-	dict_table_t*	sys_tablespaces;
-	dict_index_t*	sys_index;
-	dtuple_t*	tuple;
-	dfield_t*	dfield;
-	byte*		buf;
-	btr_pcur_t	pcur;
-	const rec_t*	rec;
-	const byte*	field;
-	ulint		len;
-	char*		space_name = NULL;
-	mem_heap_t*	heap = mem_heap_create(1024);
-
-	ut_ad(mutex_own(&dict_sys->mutex));
-
-	sys_tablespaces = dict_table_get_low("SYS_TABLESPACES");
-	if (sys_tablespaces == NULL) {
-		ut_a(!srv_sys_tablespaces_open);
-		return(NULL);
-	}
-
-	sys_index = UT_LIST_GET_FIRST(sys_tablespaces->indexes);
-
-	ut_ad(!dict_table_is_comp(sys_tablespaces));
-	ut_ad(name_of_col_is(sys_tablespaces, sys_index,
-			     DICT_FLD__SYS_TABLESPACES__SPACE, "SPACE"));
-	ut_ad(name_of_col_is(sys_tablespaces, sys_index,
-			     DICT_FLD__SYS_TABLESPACES__NAME, "NAME"));
-
-	tuple = dtuple_create(heap, 1);
-	dfield = dtuple_get_nth_field(tuple, DICT_FLD__SYS_TABLESPACES__SPACE);
-
-	buf = static_cast<byte*>(mem_heap_alloc(heap, 4));
-	mach_write_to_4(buf, space_id);
-
-	dfield_set_data(dfield, buf, 4);
-	dict_index_copy_types(tuple, sys_index, 1);
-
-	mtr_start(&mtr);
-
-	btr_pcur_open_on_user_rec(sys_index, tuple, PAGE_CUR_GE,
-				  BTR_SEARCH_LEAF, &pcur, &mtr);
-
-	rec = btr_pcur_get_rec(&pcur);
-
-	/* Get the tablespace name from this SYS_TABLESPACES record. */
-	if (btr_pcur_is_on_user_rec(&pcur)) {
-		field = rec_get_nth_field_old(
-			rec, DICT_FLD__SYS_TABLESPACES__SPACE, &len);
-		ut_a(len == 4);
-
-		if (space_id == mach_read_from_4(field)) {
-			/* A record for this space ID was found. */
-			field = rec_get_nth_field_old(
-				rec, DICT_FLD__SYS_TABLESPACES__NAME, &len);
-
-			ut_ad(len > 0);
-			ut_ad(len < OS_FILE_MAX_PATH);
-
-			if (len > 0 && len != UNIV_SQL_NULL) {
-				/* Found a tablespace name. */
-				if (callers_heap == NULL) {
-					space_name = mem_strdupl(
-						reinterpret_cast<
-							const char*>(field),
-						len);
-				} else {
-					space_name = mem_heap_strdupl(
-						callers_heap,
-						reinterpret_cast<
-							const char*>(field),
-						len);
-				}
-				ut_ad(space_name);
-			}
-		}
-	}
-
-	btr_pcur_close(&pcur);
-	mtr_commit(&mtr);
-	mem_heap_free(heap);
-
-	return(space_name);
-}
-
 /** Update the record for space_id in SYS_TABLESPACES to this filepath.
 @param[in]	space_id	Tablespace ID
 @param[in]	filepath	Tablespace filepath
@@ -1144,106 +1048,6 @@ dict_sys_tablespaces_rec_read(
 	return(true);
 }
 
-/** Load and check each general tablespace mentioned in the SYS_TABLESPACES.
-Ignore system and file-per-table tablespaces.
-If it is valid, add it to the file_system list.
-@param[in]	validate	true when the previous shutdown was not clean
-@return the highest space ID found. */
-UNIV_INLINE
-ulint
-dict_check_sys_tablespaces(
-	bool		validate)
-{
-	ulint		max_space_id = 0;
-	btr_pcur_t	pcur;
-	const rec_t*	rec;
-	mtr_t		mtr;
-
-	DBUG_ENTER("dict_check_sys_tablespaces");
-
-	ut_ad(rw_lock_own(dict_operation_lock, RW_LOCK_X));
-	ut_ad(mutex_own(&dict_sys->mutex));
-
-	/* Before traversing it, let's make sure we have
-	SYS_TABLESPACES and SYS_DATAFILES loaded. */
-	dict_table_get_low("SYS_TABLESPACES");
-	dict_table_get_low("SYS_DATAFILES");
-
-	mtr_start(&mtr);
-
-	for (rec = dict_startscan_system(&pcur, &mtr, SYS_TABLESPACES);
-	     rec != NULL;
-	     rec = dict_getnext_system(&pcur, &mtr))
-	{
-		char	space_name[NAME_LEN];
-		ulint	space_id = 0;
-		ulint	fsp_flags;
-
-		if (!dict_sys_tablespaces_rec_read(rec, &space_id,
-						   space_name, &fsp_flags)) {
-			continue;
-		}
-
-		/* Ignore system and file-per-table tablespaces. */
-		if (is_system_tablespace(space_id)
-		    || !fsp_is_shared_tablespace(fsp_flags)) {
-			continue;
-		}
-
-		/* Ignore tablespaces that already are in the tablespace
-		cache. */
-		if (fil_space_for_table_exists_in_mem(
-				space_id, space_name, false, true, NULL, 0, NULL)) {
-			/* Recovery can open a datafile that does not
-			match SYS_DATAFILES.  If they don't match, update
-			SYS_DATAFILES. */
-			char *dict_path = dict_get_first_path(space_id);
-			char *fil_path = fil_space_get_first_path(space_id);
-			if (dict_path && fil_path
-			    && strcmp(dict_path, fil_path)) {
-				dict_update_filepath(space_id, fil_path);
-			}
-			ut_free(dict_path);
-			ut_free(fil_path);
-			continue;
-		}
-
-		/* Set the expected filepath from the data dictionary.
-		If the file is found elsewhere (from an ISL or the default
-		location) or this path is the same file but looks different,
-		fil_ibd_open() will update the dictionary with what is
-		opened. */
-		char*	filepath = dict_get_first_path(space_id);
-
-		validate = true; /* Encryption */
-
-		/* Check that the .ibd file exists. */
-		dberr_t	err = fil_ibd_open(
-			validate,
-			!srv_read_only_mode && srv_log_file_size != 0,
-			FIL_TYPE_TABLESPACE,
-			space_id,
-			fsp_flags,
-			space_name,
-			filepath,
-			NULL);
-
-		if (err != DB_SUCCESS) {
-			ib::warn() << "Ignoring tablespace "
-				<< id_name_t(space_name)
-				<< " because it could not be opened.";
-		}
-
-		max_space_id = ut_max(max_space_id, space_id);
-
-		ut_free(filepath);
-	}
-
-	mtr_commit(&mtr);
-
-	DBUG_RETURN(max_space_id);
-}
-
 /** Read and return 5 integer fields from a SYS_TABLES record.
 @param[in]	rec		A record of SYS_TABLES
 @param[in]	name		Table Name, the same as SYS_TABLES.NAME
@@ -1363,7 +1167,6 @@ dict_check_sys_tables(
 	     rec = dict_getnext_system(&pcur, &mtr)) {
 		const byte*	field;
 		ulint		len;
-		char*		space_name;
 		table_name_t	table_name;
 		table_id_t	table_id;
 		ulint		space_id;
@@ -1395,39 +1198,24 @@ dict_check_sys_tables(
 		}
 
 		if (flags2 & DICT_TF2_DISCARDED) {
-			ib::info() << "Ignoring tablespace " << table_name
+			ib::info() << "Ignoring tablespace for " << table_name
 				<< " because the DISCARD flag is set .";
 			ut_free(table_name.m_name);
 			continue;
 		}
 
 		/* If the table is not a predefined tablespace then it must
-		be in a file-per-table or shared tablespace.
+		be in a file-per-table tablespace.
 		Note that flags2 is not available for REDUNDANT tables,
 		so don't check those. */
-		ut_ad(DICT_TF_HAS_SHARED_SPACE(flags)
-		      || !DICT_TF_GET_COMPACT(flags)
+		ut_ad(!DICT_TF_GET_COMPACT(flags)
 		      || flags2 & DICT_TF2_USE_FILE_PER_TABLE);
 
-		/* Look up the tablespace name in the data dictionary if this
-		is a shared tablespace.  For file-per-table, the table_name
-		and the tablespace_name are the same.
-		Some hidden tables like FTS AUX tables may not be found in
-		the dictionary since they can always be found in the default
-		location. If so, then dict_space_get_name() will return NULL,
-		the space name must be the table_name, and the filepath can be
-		discovered in the default location.*/
-		char*	shared_space_name = dict_space_get_name(space_id, NULL);
-		space_name = shared_space_name == NULL
-			? table_name.m_name
-			: shared_space_name;
-
 		/* Now that we have the proper name for this tablespace,
-		whether it is a shared tablespace or a single table
-		tablespace, look to see if it is already in the tablespace
-		cache. */
+		look to see if it is already in the tablespace cache. */
 		if (fil_space_for_table_exists_in_mem(
-				space_id, space_name, false, true, NULL, 0, NULL)) {
+			    space_id, table_name.m_name,
+			    false, true, NULL, 0, NULL, flags)) {
 			/* Recovery can open a datafile that does not
 			match SYS_DATAFILES.  If they don't match, update
 			SYS_DATAFILES. */
@@ -1440,7 +1228,6 @@ dict_check_sys_tables(
 			ut_free(dict_path);
 			ut_free(fil_path);
 			ut_free(table_name.m_name);
-			ut_free(shared_space_name);
 			continue;
 		}
 
@@ -1452,33 +1239,26 @@ dict_check_sys_tables(
 		char*	filepath = dict_get_first_path(space_id);
 
 		/* Check that the .ibd file exists. */
-		bool	is_temp = flags2 & DICT_TF2_TEMPORARY;
-		bool	is_encrypted = flags2 & DICT_TF2_ENCRYPTION;
-		ulint	fsp_flags = dict_tf_to_fsp_flags(flags,
-							 is_temp,
-							 is_encrypted);
 		validate = true; /* Encryption */
 
 		dberr_t	err = fil_ibd_open(
 			validate,
 			!srv_read_only_mode && srv_log_file_size != 0,
 			FIL_TYPE_TABLESPACE,
-			space_id,
-			fsp_flags,
-			space_name,
+			space_id, dict_tf_to_fsp_flags(flags),
+			table_name.m_name,
 			filepath,
 			NULL);
 
 		if (err != DB_SUCCESS) {
-			ib::warn() << "Ignoring tablespace "
-				<< id_name_t(space_name)
+			ib::warn() << "Ignoring tablespace for "
+				<< table_name
 				<< " because it could not be opened.";
 		}
 
 		max_space_id = ut_max(max_space_id, space_id);
 
 		ut_free(table_name.m_name);
-		ut_free(shared_space_name);
 		ut_free(filepath);
 	}
 
@@ -1488,7 +1268,6 @@ dict_check_sys_tables(
 }
 
 /** Check each tablespace found in the data dictionary.
-Look at each general tablespace found in SYS_TABLESPACES.
 Then look at each table defined in SYS_TABLES that has a space_id > 0
 to find all the file-per-table tablespaces.
 
@@ -1521,16 +1300,10 @@ dict_check_tablespaces_and_store_max_id(
 
 	fil_set_max_space_id_if_bigger(max_space_id);
 
-	/* Open all general tablespaces found in SYS_TABLESPACES. */
-	ulint	max1 = dict_check_sys_tablespaces(validate);
-
 	/* Open all tablespaces referenced in SYS_TABLES.
 	This will update SYS_TABLESPACES and SYS_DATAFILES if it
 	finds any file-per-table tablespaces not already there. */
-	ulint	max2 = dict_check_sys_tables(validate);
-
-	/* Store the max space_id found */
-	max_space_id = ut_max(max1, max2);
+	max_space_id = dict_check_sys_tables(validate);
 	fil_set_max_space_id_if_bigger(max_space_id);
 
 	mutex_exit(&dict_sys->mutex);
@@ -2737,9 +2510,9 @@ dict_get_and_save_data_dir_path(
 	dict_table_t*	table,
 	bool		dict_mutex_own)
 {
-	bool is_temp = DICT_TF2_FLAG_IS_SET(table, DICT_TF2_TEMPORARY);
+	ut_ad(!dict_table_is_temporary(table));
 
-	if (!is_temp && !table->data_dir_path && table->space) {
+	if (!table->data_dir_path && table->space) {
 		char*	path = fil_space_get_first_path(table->space);
 
 		if (!dict_mutex_own) {
@@ -2763,72 +2536,6 @@ dict_get_and_save_data_dir_path(
 			tablespace, but it makes dict_table_t consistent. */
 			table->flags &= ~DICT_TF_MASK_DATA_DIR;
 		}
-
-		if (!dict_mutex_own) {
-			dict_mutex_exit_for_mysql();
-		}
-	}
-}
-
-/** Make sure the tablespace name is saved in dict_table_t if the table
-uses a general tablespace.
-Try to read it from the fil_system_t first, then from SYS_TABLESPACES.
-@param[in]	table		Table object
-@param[in]	dict_mutex_own)	true if dict_sys->mutex is owned already */
-void
-dict_get_and_save_space_name(
-	dict_table_t*	table,
-	bool		dict_mutex_own)
-{
-	/* Do this only for general tablespaces. */
-	if (!DICT_TF_HAS_SHARED_SPACE(table->flags)) {
-		return;
-	}
-
-	bool	use_cache = true;
-	if (table->tablespace != NULL) {
-
-		if (srv_sys_tablespaces_open
-		    && dict_table_has_temp_general_tablespace_name(
-			    table->tablespace)) {
-			/* We previous saved the temporary name,
-			get the real one now. */
-			use_cache = false;
-		} else {
-			/* Keep and use this name */
-			return;
-		}
-	}
-
-	if (use_cache) {
-		fil_space_t* space = fil_space_acquire_silent(table->space);
-
-		if (space != NULL) {
-			/* Use this name unless it is a temporary general
-			tablespace name and we can now replace it. */
-			if (!srv_sys_tablespaces_open
-			    || !dict_table_has_temp_general_tablespace_name(
-				    space->name)) {
-
-				/* Use this tablespace name */
-				table->tablespace = mem_heap_strdup(
-					table->heap, space->name);
-
-				fil_space_release(space);
-				return;
-			}
-			fil_space_release(space);
-		}
-	}
-
-	/* Read it from the dictionary. */
-	if (srv_sys_tablespaces_open) {
-		if (!dict_mutex_own) {
-			dict_mutex_enter_for_mysql();
-		}
-
-		table->tablespace = dict_space_get_name(
-			table->space, table->heap);
 
 		if (!dict_mutex_own) {
 			dict_mutex_exit_for_mysql();
@@ -2900,6 +2607,8 @@ dict_load_tablespace(
 	mem_heap_t*		heap,
 	dict_err_ignore_t	ignore_err)
 {
+	ut_ad(!dict_table_is_temporary(table));
+
 	/* The system tablespace is always available. */
 	if (is_system_tablespace(table->space)) {
 		return;
@@ -2912,43 +2621,12 @@ dict_load_tablespace(
 		return;
 	}
 
-	if (dict_table_is_temporary(table)) {
-		/* Do not bother to retry opening temporary tables. */
-		table->ibd_file_missing = TRUE;
-		return;
-	}
-
-	/* A file-per-table table name is also the tablespace name.
-	A general tablespace name is not the same as the table name.
-	Use the general tablespace name if it can be read from the
-	dictionary, if not use 'innodb_general_##. */
-	char*	shared_space_name = NULL;
-	char*	space_name;
-	if (DICT_TF_HAS_SHARED_SPACE(table->flags)) {
-		if (srv_sys_tablespaces_open) {
-			shared_space_name =
-				dict_space_get_name(table->space, NULL);
-
-		} else {
-			/* Make the temporary tablespace name. */
-			shared_space_name = static_cast<char*>(
-				ut_malloc_nokey(
-					strlen(general_space_name) + 20));
-
-			sprintf(shared_space_name, "%s_" ULINTPF,
-				general_space_name,
-				static_cast<ulint>(table->space));
-		}
-		space_name = shared_space_name;
-	} else {
-		space_name = table->name.m_name;
-	}
+	char*	space_name = table->name.m_name;
 
 	/* The tablespace may already be open. */
 	if (fil_space_for_table_exists_in_mem(
 		    table->space, space_name, false,
-		    true, heap, table->id, table)) {
-		ut_free(shared_space_name);
+		    true, heap, table->id, table, table->flags)) {
 		return;
 	}
 
@@ -2973,37 +2651,20 @@ dict_load_tablespace(
 				table->data_dir_path,
 				table->name.m_name, IBD, true);
 		}
-
-	} else if (DICT_TF_HAS_SHARED_SPACE(table->flags)) {
-		/* Set table->tablespace from either
-		fil_system or SYS_TABLESPACES */
-		dict_get_and_save_space_name(table, true);
-
-		/* Set the filepath from either
-		fil_system or SYS_DATAFILES. */
-		filepath = dict_get_first_path(table->space);
-		if (filepath == NULL) {
-			ib::warn() << "Could not find the filepath"
-				" for table " << table->name <<
-				", space ID " << table->space;
-		}
 	}
 
 	/* Try to open the tablespace.  We set the 2nd param (fix_dict) to
 	false because we do not have an x-lock on dict_operation_lock */
-	ulint fsp_flags = dict_tf_to_fsp_flags(table->flags,
-					       false,
-					       dict_table_is_encrypted(table));
 	dberr_t err = fil_ibd_open(
 		true, false, FIL_TYPE_TABLESPACE, table->space,
-		fsp_flags, space_name, filepath, table);
+		dict_tf_to_fsp_flags(table->flags),
+		space_name, filepath, table);
 
 	if (err != DB_SUCCESS) {
 		/* We failed to find a sensible tablespace file */
 		table->ibd_file_missing = TRUE;
 	}
 
-	ut_free(shared_space_name);
 	ut_free(filepath);
 }
 

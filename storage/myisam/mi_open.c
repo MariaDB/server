@@ -740,6 +740,7 @@ uchar *mi_alloc_rec_buff(MI_INFO *info, ulong length, uchar **buf)
       else
         length= info->s->base.pack_reclength;
       length= MY_MAX(length, info->s->base.max_key_length);
+      length= MY_MAX(length, info->s->vreclength);
       /* Avoid unnecessary realloc */
       if (newptr && length == old_length)
 	return newptr;

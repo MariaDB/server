@@ -168,6 +168,9 @@ public:
     */
     if (!ctx.encrypt)
     {
+      /* encrypted string must contain authenticaton tag (see MDEV-11174) */
+      if (slen < MY_AES_BLOCK_SIZE)
+        return MY_AES_BAD_DATA;
       slen-= MY_AES_BLOCK_SIZE;
       if(!EVP_CIPHER_CTX_ctrl(&ctx, EVP_CTRL_GCM_SET_TAG, MY_AES_BLOCK_SIZE,
                               (void*)(src + slen)))

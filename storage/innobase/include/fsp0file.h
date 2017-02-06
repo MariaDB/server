@@ -65,11 +65,8 @@ public:
 		m_is_valid(),
 		m_first_page_buf(),
 		m_first_page(),
-		m_atomic_write(),
 		m_last_os_error(),
 		m_file_info(),
-		m_encryption_key(NULL),
-		m_encryption_iv(NULL),
 		m_crypt_info()
 	{
 		/* No op */
@@ -91,11 +88,8 @@ public:
 		m_is_valid(),
 		m_first_page_buf(),
 		m_first_page(),
-		m_atomic_write(),
 		m_last_os_error(),
 		m_file_info(),
-		m_encryption_key(NULL),
-		m_encryption_iv(NULL),
 		m_crypt_info()
 	{
 		ut_ad(m_name != NULL);
@@ -115,11 +109,8 @@ public:
 		m_is_valid(file.m_is_valid),
 		m_first_page_buf(),
 		m_first_page(),
-		m_atomic_write(file.m_atomic_write),
 		m_last_os_error(),
 		m_file_info(),
-		m_encryption_key(NULL),
-		m_encryption_iv(NULL),
 		m_crypt_info()
 	{
 		m_name = mem_strdup(file.m_name);
@@ -178,12 +169,8 @@ public:
 		it should be reread if needed */
 		m_first_page_buf = NULL;
 		m_first_page = NULL;
-		m_encryption_key = NULL;
-		m_encryption_iv = NULL;
 		/* Do not copy crypt info it is read from first page */
 		m_crypt_info = NULL;
-
-		m_atomic_write = file.m_atomic_write;
 
 		return(*this);
 	}
@@ -233,9 +220,8 @@ public:
 	void set_filepath(const char* filepath);
 
 	/** Allocate and set the datafile or tablespace name in m_name.
-	If a name is provided, use it; else if the datafile is file-per-table,
-	extract a file-per-table tablespace name from m_filepath; else it is a
-	general tablespace, so just call it that for now. The value of m_name
+	If a name is provided, use it; else extract a file-per-table
+	tablespace name from m_filepath. The value of m_name
 	will be freed in the destructor.
 	@param[in]	name	Tablespace Name if known, NULL if not */
 	void set_name(const char*	name);
@@ -245,13 +231,9 @@ public:
 	successfully opened in order for this function to validate it.
 	@param[in]	space_id	The expected tablespace ID.
 	@param[in]	flags		The expected tablespace flags.
-	@param[in]	for_import	is it for importing
 	@retval DB_SUCCESS if tablespace is valid, DB_ERROR if not.
 	m_is_valid is also set true on success, else false. */
-	dberr_t validate_to_dd(
-		ulint		space_id,
-		ulint		flags,
-		bool		for_import)
+	dberr_t validate_to_dd(ulint space_id, ulint flags)
 		MY_ATTRIBUTE((warn_unused_result));
 
 	/** Validates this datafile for the purpose of recovery.
@@ -270,13 +252,10 @@ public:
 	so the Space ID found here must not already be open.
 	m_is_valid is set true on success, else false.
 	@param[out]	flush_lsn	contents of FIL_PAGE_FILE_FLUSH_LSN
-	@param[in]	for_import	if it is for importing
-	(only valid for the first file of the system tablespace)
 	@retval DB_SUCCESS on if the datafile is valid
 	@retval DB_CORRUPTION if the datafile is not readable
 	@retval DB_TABLESPACE_EXISTS if there is a duplicate space_id */
-	dberr_t validate_first_page(lsn_t*	flush_lsn,
-				    bool	for_import)
+	dberr_t validate_first_page(lsn_t* flush_lsn)
 		MY_ATTRIBUTE((warn_unused_result));
 
 	/** Get Datafile::m_name.
@@ -428,12 +407,10 @@ private:
 	else DB_ERROR. */
 	dberr_t find_space_id();
 
-	/** Finds a given page of the given space id from the double write
-	buffer and copies it to the corresponding .ibd file.
-	@param[in]	page_no		Page number to restore
-	@return DB_SUCCESS if page was restored, else DB_ERROR */
-	dberr_t restore_from_doublewrite(
-		ulint	restore_page_no);
+	/** Restore the first page of the tablespace from
+	the double write buffer.
+	@return whether the operation failed */
+	bool restore_from_doublewrite();
 
 	/** Points into m_filepath to the file name with extension */
 	char*			m_filename;
@@ -475,9 +452,6 @@ private:
 	/** Pointer to the first page held in the buffer above */
 	byte*			m_first_page;
 
-	/** true if atomic writes enabled for this file */
-	bool			m_atomic_write;
-
 protected:
 	/** Last OS error received so it can be reported if needed. */
 	ulint			m_last_os_error;
@@ -491,12 +465,6 @@ public:
 	/* Use field st_ino. */
 	struct stat			m_file_info;
 #endif	/* WIN32 */
-
-	/** Encryption key read from first page */
-	byte*			m_encryption_key;
-
-	/** Encryption iv read from first page */
-	byte*			m_encryption_iv;
 
 	/** Encryption information */
 	fil_space_crypt_t* 	m_crypt_info;
@@ -581,13 +549,10 @@ public:
 	the path ".".
 	@param[in]	name		tablespace name
 	@param[in]	filepath	remote filepath of tablespace datafile
-	@param[in]	is_shared	true for general tablespace,
-					false for file-per-table
 	@return DB_SUCCESS or error code */
 	static dberr_t create_link_file(
 		const char*	name,
-		const char*	filepath,
-		bool		is_shared = false);
+		const char*	filepath);
 
 	/** Delete an InnoDB Symbolic Link (ISL) file by name.
 	@param[in]	name	tablespace name */
@@ -597,8 +562,6 @@ public:
 	It is always created under the datadir of MySQL.
 	For file-per-table tablespaces, the isl file is expected to be
 	in a 'database' directory and called 'tablename.isl'.
-	For general tablespaces, there will be no 'database' directory.
-	The 'basename.isl' will be in the datadir.
 	The caller must free the memory returned if it is not null.
 	@param[in]	link_filepath	filepath of the ISL file
 	@return Filepath of the IBD file read from the ISL file */

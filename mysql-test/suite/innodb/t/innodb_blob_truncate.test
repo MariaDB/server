@@ -1,14 +1,6 @@
 --source include/have_innodb.inc
 --source include/have_innodb_16k.inc
 
---disable_query_log
-let $innodb_file_format_orig = `SELECT @@innodb_file_format`;
-let $innodb_file_per_table_orig = `SELECT @@innodb_file_per_table`;
---enable_query_log
-
-SET GLOBAL innodb_file_format = `Barracuda`;
-SET GLOBAL innodb_file_per_table = ON;
-
 create table t1(a blob) engine=innodb key_block_size=8;
 delimiter //;
 create function generate_blob()
@@ -38,8 +30,3 @@ if ($x) {
 }
 drop table t1;
 drop function generate_blob;
-
---disable_query_log
-EVAL SET GLOBAL innodb_file_per_table = $innodb_file_per_table_orig;
-EVAL SET GLOBAL innodb_file_format = $innodb_file_format_orig;
---enable_query_log

@@ -992,7 +992,9 @@ dict_tf_get_format(
 @param[in]	format,		File Format
 @param[in]	zip_ssize	Zip Shift Size
 @param[in]	use_data_dir	Table uses DATA DIRECTORY
-@param[in]	shared_space	Table uses a General Shared Tablespace */
+@param[in]	page_compressed Table uses page compression
+@param[in]	page_compression_level Page compression level
+@param[in]	not_used        For future */
 UNIV_INLINE
 void
 dict_tf_set(
@@ -1000,28 +1002,9 @@ dict_tf_set(
 	rec_format_t	format,
 	ulint		zip_ssize,
 	bool		use_data_dir,
-	bool		shared_space,
 	bool		page_compressed,
 	ulint		page_compression_level,
-	ulint		atomic_writes);
-
-/** Initialize a dict_table_t::flags pointer.
-@param[in]	compact,	Table uses Compact or greater
-@param[in]	zip_ssize	Zip Shift Size (log 2 minus 9)
-@param[in]	atomic_blobs	Table uses Compressed or Dynamic
-@param[in]	data_dir	Table uses DATA DIRECTORY
-@param[in]	shared_space	Table uses a General Shared Tablespace */
-UNIV_INLINE
-ulint
-dict_tf_init(
-	bool		compact,
-	ulint		zip_ssize,
-	bool		atomic_blobs,
-	bool		data_dir,
-	bool		shared_space,
-	bool		page_compressed,
-	ulint		page_compression_level,
-	ulint		atomic_writes);
+	ulint		not_used);
 
 /** Convert a 32 bit integer table flags to the 32 bit FSP Flags.
 Fsp Flags are written into the tablespace header at the offset
@@ -1034,14 +1017,10 @@ dict_table_t::flags |     0     |    1    |     1      |    1
 fil_space_t::flags  |     0     |    0    |     1      |    1
 ==================================================================
 @param[in]	table_flags	dict_table_t::flags
-@param[in]	is_temp		whether the tablespace is temporary
-@param[in]	is_encrypted	whether the tablespace is encrypted
 @return tablespace flags (fil_space_t::flags) */
+UNIV_INLINE
 ulint
-dict_tf_to_fsp_flags(
-	ulint	table_flags,
-	bool	is_temp,
-	bool	is_encrypted = false)
+dict_tf_to_fsp_flags(ulint table_flags)
 	MY_ATTRIBUTE((const));
 
 /** Extract the page size from table flags.
@@ -1973,25 +1952,6 @@ bool
 dict_table_is_temporary(
 /*====================*/
 	const dict_table_t*	table)	/*!< in: table to check */
-	MY_ATTRIBUTE((warn_unused_result));
-
-/********************************************************************//**
-Check if it is a encrypted table.
-@return true if table encryption flag is set. */
-UNIV_INLINE
-bool
-dict_table_is_encrypted(
-/*====================*/
-	const dict_table_t*	table)	/*!< in: table to check */
-	MY_ATTRIBUTE((warn_unused_result));
-
-/** Check if the table is in a shared tablespace (System or General).
-@param[in]	id	Space ID to check
-@return true if id is a shared tablespace, false if not. */
-UNIV_INLINE
-bool
-dict_table_in_shared_tablespace(
-	const dict_table_t*	table)
 	MY_ATTRIBUTE((warn_unused_result));
 
 /********************************************************************//**

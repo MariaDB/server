@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2016, MariaDB
+   Copyright (c) 2008, 2017, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -385,7 +385,7 @@ bool opt_bin_log_compress;
 uint opt_bin_log_compress_min_len;
 my_bool opt_log, debug_assert_if_crashed_table= 0, opt_help= 0;
 my_bool debug_assert_on_not_freed_memory= 0;
-my_bool disable_log_notes;
+my_bool disable_log_notes, opt_support_flashback= 0;
 static my_bool opt_abort;
 ulonglong log_output_options;
 my_bool opt_userstat_running;
@@ -4079,8 +4079,8 @@ extern "C" {
 static void my_malloc_size_cb_func(long long size, my_bool is_thread_specific)
 {
   THD *thd= current_thd;
- 
-  if (likely(is_thread_specific))  /* If thread specific memory */
+
+  if (is_thread_specific)  /* If thread specific memory */
   {
     /*
       When thread specfic is set, both mysqld_server_initialized and thd
@@ -4092,14 +4092,22 @@ static void my_malloc_size_cb_func(long long size, my_bool is_thread_specific)
                         (longlong) thd->status_var.local_memory_used,
                         size));
     thd->status_var.local_memory_used+= size;
+    if (thd->status_var.local_memory_used > (int64)thd->variables.max_mem_used &&
+        !thd->killed)
+    {
+      char buf[1024];
+      thd->killed= KILL_QUERY;
+      my_snprintf(buf, sizeof(buf), "--max-thread-mem-used=%llu",
+                  thd->variables.max_mem_used);
+      my_error(ER_OPTION_PREVENTS_STATEMENT, MYF(0), buf);
+    }
     DBUG_ASSERT((longlong) thd->status_var.local_memory_used >= 0 ||
                 !debug_assert_on_not_freed_memory);
   }
   else if (likely(thd))
   {
     DBUG_PRINT("info", ("global thd memory_used: %lld  size: %lld",
-                        (longlong) thd->status_var.global_memory_used,
-                        size));
+                        (longlong) thd->status_var.global_memory_used, size));
     thd->status_var.global_memory_used+= size;
   }
   else
@@ -5854,6 +5862,9 @@ int mysqld_main(int argc, char **argv)
   if (my_setwd(mysql_real_data_home, opt_abort ? 0 : MYF(MY_WME)) && !opt_abort)
     unireg_abort(1);				/* purecov: inspected */
 
+  /* Atomic write initialization must be done as root */
+  my_init_atomic_write();
+
   if ((user_info= check_user(mysqld_user)))
   {
 #if defined(HAVE_MLOCKALL) && defined(MCL_CURRENT)
@@ -7394,6 +7405,10 @@ struct my_option my_long_options[]=
    0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   /* We must always support the next option to make scripts like mysqltest
      easier to do */
+  {"flashback", 0,
+   "Setup the server to use flashback. This enables binary log in row mode and will enable extra logging for DDL's needed by flashback feature",
+   &opt_support_flashback, &opt_support_flashback,
+   0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"gdb", 0,
    "Set up signals usable for debugging. Deprecated, use --debug-gdb instead.",
    &opt_debugging, &opt_debugging,
@@ -9567,6 +9582,18 @@ static int get_options(int *argc_ptr, char ***argv_ptr)
     global_system_variables.option_bits|= OPTION_BIG_SELECTS;
   else
     global_system_variables.option_bits&= ~OPTION_BIG_SELECTS;
+
+  if (opt_support_flashback)
+  {
+    /* Force binary logging */
+    if (!opt_bin_logname)
+      opt_bin_logname= (char*) "";                  // Use default name
+    opt_bin_log= opt_bin_log_used= 1;
+
+    /* Force format to row */
+    binlog_format_used= 1;
+    global_system_variables.binlog_format= BINLOG_FORMAT_ROW;
+  }
 
   if (!opt_bootstrap && WSREP_PROVIDER_EXISTS &&
       global_system_variables.binlog_format != BINLOG_FORMAT_ROW)

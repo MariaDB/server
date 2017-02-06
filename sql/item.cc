@@ -544,7 +544,14 @@ uint Item::decimal_precision() const
                                      unsigned_flag);
     return MY_MIN(prec, DECIMAL_MAX_PRECISION);
   }
-  return MY_MIN(max_char_length(), DECIMAL_MAX_PRECISION);
+  uint res= max_char_length();
+  /*
+    Return at least one decimal digit, even if Item::max_char_length()
+    returned  0. This is important to avoid attempts to create fields of types
+    INT(0) or DECIMAL(0,0) when converting NULL or empty strings to INT/DECIMAL:
+      CREATE TABLE t1 AS SELECT CONVERT(NULL,SIGNED) AS a;
+  */
+  return res ? MY_MIN(res, DECIMAL_MAX_PRECISION) : 1;
 }
 
 
@@ -3297,11 +3304,19 @@ Item_param::Item_param(THD *thd, uint pos_in_query_arg):
   Rewritable_query_parameter(pos_in_query_arg, 1),
   Type_handler_hybrid_field_type(MYSQL_TYPE_VARCHAR),
   state(NO_VALUE),
-  indicators(0), indicator(STMT_INDICATOR_NONE),
   /* Don't pretend to be a literal unless value for this item is set. */
   item_type(PARAM_ITEM),
+  indicators(0), indicator(STMT_INDICATOR_NONE),
   set_param_func(default_set_param_func),
-  m_out_param_info(NULL)
+  m_out_param_info(NULL),
+  /*
+    Set m_is_settable_routine_parameter to "true" by default.
+    This is needed for client-server protocol,
+    whose parameters are always settable.
+    For dynamic SQL, settability depends on the type of Item passed
+    as an actual parameter. See Item_param::set_from_item().
+  */
+  m_is_settable_routine_parameter(true)
 {
   name= (char*) "?";
   /* 
@@ -3326,7 +3341,7 @@ void Item_param::set_null()
   max_length= 0;
   decimals= 0;
   state= NULL_VALUE;
-  item_type= Item::NULL_ITEM;
+  fix_type(Item::NULL_ITEM);
   DBUG_VOID_RETURN;
 }
 
@@ -3338,6 +3353,7 @@ void Item_param::set_int(longlong i, uint32 max_length_arg)
   max_length= max_length_arg;
   decimals= 0;
   maybe_null= 0;
+  fix_type(Item::INT_ITEM);
   DBUG_VOID_RETURN;
 }
 
@@ -3349,6 +3365,7 @@ void Item_param::set_double(double d)
   max_length= DBL_DIG + 8;
   decimals= NOT_FIXED_DEC;
   maybe_null= 0;
+  fix_type(Item::REAL_ITEM);
   DBUG_VOID_RETURN;
 }
 
@@ -3378,20 +3395,40 @@ void Item_param::set_decimal(const char *str, ulong length)
     my_decimal_precision_to_length_no_truncation(decimal_value.precision(),
                                                  decimals, unsigned_flag);
   maybe_null= 0;
+  fix_type(Item::DECIMAL_ITEM);
   DBUG_VOID_RETURN;
 }
 
-void Item_param::set_decimal(const my_decimal *dv)
+void Item_param::set_decimal(const my_decimal *dv, bool unsigned_arg)
 {
   state= DECIMAL_VALUE;
 
   my_decimal2decimal(dv, &decimal_value);
 
   decimals= (uint8) decimal_value.frac;
-  unsigned_flag= !decimal_value.sign();
+  unsigned_flag= unsigned_arg;
   max_length= my_decimal_precision_to_length(decimal_value.intg + decimals,
                                              decimals, unsigned_flag);
+  fix_type(Item::DECIMAL_ITEM);
 }
+
+
+void Item_param::fix_temporal(uint32 max_length_arg, uint decimals_arg)
+{
+  state= TIME_VALUE;
+  max_length= max_length_arg;
+  decimals= decimals_arg;
+  fix_type(Item::DATE_ITEM);
+}
+
+
+void Item_param::set_time(const MYSQL_TIME *tm,
+                          uint32 max_length_arg, uint decimals_arg)
+{
+  value.time= *tm;
+  fix_temporal(max_length_arg, decimals_arg);
+}
+
 
 /**
   Set parameter value from MYSQL_TIME value.
@@ -3421,11 +3458,9 @@ void Item_param::set_time(MYSQL_TIME *tm, timestamp_type time_type,
                                  &str, time_type, 0);
     set_zero_time(&value.time, MYSQL_TIMESTAMP_ERROR);
   }
-
-  state= TIME_VALUE;
   maybe_null= 0;
-  max_length= max_length_arg;
-  decimals= tm->second_part > 0 ? TIME_SECOND_PART_DIGITS : 0;
+  fix_temporal(max_length_arg,
+               tm->second_part > 0 ? TIME_SECOND_PART_DIGITS : 0);
   DBUG_VOID_RETURN;
 }
 
@@ -3446,6 +3481,7 @@ bool Item_param::set_str(const char *str, ulong length)
   maybe_null= 0;
   /* max_length and decimals are set after charset conversion */
   /* sic: str may be not null-terminated, don't add DBUG_PRINT here */
+  fix_type(Item::STRING_ITEM);
   DBUG_RETURN(FALSE);
 }
 
@@ -3477,6 +3513,7 @@ bool Item_param::set_longdata(const char *str, ulong length)
     DBUG_RETURN(TRUE);
   state= LONG_DATA_VALUE;
   maybe_null= 0;
+  fix_type(Item::STRING_ITEM);
 
   DBUG_RETURN(FALSE);
 }
@@ -3523,6 +3560,7 @@ bool Item_param::CONVERSION_INFO::convert(THD *thd, String *str)
 bool Item_param::set_from_item(THD *thd, Item *item)
 {
   DBUG_ENTER("Item_param::set_from_item");
+  m_is_settable_routine_parameter= item->get_settable_routine_parameter();
   if (limit_clause_param)
   {
     longlong val= item->val_int();
@@ -3535,7 +3573,6 @@ bool Item_param::set_from_item(THD *thd, Item *item)
     {
       unsigned_flag= item->unsigned_flag;
       set_int(val, MY_INT64_NUM_DECIMAL_DIGITS);
-      item_type= Item::INT_ITEM;
       set_handler_by_result_type(item->result_type());
       DBUG_RETURN(!unsigned_flag && value.integer < 0 ? 1 : 0);
     }
@@ -3547,12 +3584,10 @@ bool Item_param::set_from_item(THD *thd, Item *item)
     switch (item->cmp_type()) {
     case REAL_RESULT:
       set_double(tmp.value.m_double);
-      item_type= Item::REAL_ITEM;
       set_handler_by_field_type(MYSQL_TYPE_DOUBLE);
       break;
     case INT_RESULT:
       set_int(tmp.value.m_longlong, MY_INT64_NUM_DECIMAL_DIGITS);
-      item_type= Item::INT_ITEM;
       set_handler_by_field_type(MYSQL_TYPE_LONGLONG);
       break;
     case STRING_RESULT:
@@ -3562,7 +3597,6 @@ bool Item_param::set_from_item(THD *thd, Item *item)
         Exact value of max_length is not known unless data is converted to
         charset of connection, so we have to set it later.
       */
-      item_type= Item::STRING_ITEM;
       set_handler_by_field_type(MYSQL_TYPE_VARCHAR);
 
       if (set_str(tmp.m_string.ptr(), tmp.m_string.length()))
@@ -3571,24 +3605,13 @@ bool Item_param::set_from_item(THD *thd, Item *item)
     }
     case DECIMAL_RESULT:
     {
-      const my_decimal *ent_value= &tmp.m_decimal;
-      my_decimal2decimal(ent_value, &decimal_value);
-      state= DECIMAL_VALUE;
-      decimals= ent_value->frac;
-      max_length=
-        my_decimal_precision_to_length_no_truncation(ent_value->precision(),
-                                                     decimals, unsigned_flag);
-      item_type= Item::DECIMAL_ITEM;
+      set_decimal(&tmp.m_decimal, unsigned_flag);
       set_handler_by_field_type(MYSQL_TYPE_NEWDECIMAL);
       break;
     }
     case TIME_RESULT:
     {
-      value.time= tmp.value.m_time;
-      state= TIME_VALUE;
-      max_length= item->max_length;
-      decimals= item->decimals;
-      item_type= Item::DATE_ITEM;
+      set_time(&tmp.value.m_time, item->max_length, item->decimals);
       set_handler(item->type_handler());
       break;
     }
@@ -3629,6 +3652,7 @@ void Item_param::reset()
   state= NO_VALUE;
   maybe_null= 1;
   null_value= 0;
+  fixed= false;
   /*
     Don't reset item_type to PARAM_ITEM: it's only needed to guard
     us from item optimizations at prepare stage, when item doesn't yet
@@ -3966,6 +3990,7 @@ bool Item_param::convert_str_value(THD *thd)
 
 bool Item_param::basic_const_item() const
 {
+  DBUG_ASSERT(fixed || state == NO_VALUE);
   if (state == NO_VALUE || state == TIME_VALUE)
     return FALSE;
   return TRUE;
@@ -4100,6 +4125,7 @@ Item_param::set_param_type_and_swap_value(Item_param *src)
   maybe_null= src->maybe_null;
   null_value= src->null_value;
   state= src->state;
+  fixed= src->fixed;
   value= src->value;
 
   decimal_value.swap(src->decimal_value);
@@ -4110,7 +4136,9 @@ Item_param::set_param_type_and_swap_value(Item_param *src)
 
 void Item_param::set_default()
 {
+  m_is_settable_routine_parameter= false;
   state= DEFAULT_VALUE;
+  fixed= true;
   /*
     When Item_param is set to DEFAULT_VALUE:
     - its val_str() and val_decimal() return NULL
@@ -4124,7 +4152,9 @@ void Item_param::set_default()
 
 void Item_param::set_ignore()
 {
+  m_is_settable_routine_parameter= false;
   state= IGNORE_VALUE;
+  fixed= true;
   null_value= true;
 }
 
@@ -4170,18 +4200,15 @@ Item_param::set_value(THD *thd, sp_rcontext *ctx, Item **it)
                       str_value.charset());
     collation.set(str_value.charset(), DERIVATION_COERCIBLE);
     decimals= 0;
-    item_type= Item::STRING_ITEM;
     break;
   }
 
   case REAL_RESULT:
     set_double(arg->val_real());
-    item_type= Item::REAL_ITEM;
     break;
 
   case INT_RESULT:
     set_int(arg->val_int(), arg->max_length);
-    item_type= Item::INT_ITEM;
     break;
 
   case DECIMAL_RESULT:
@@ -4192,8 +4219,7 @@ Item_param::set_value(THD *thd, sp_rcontext *ctx, Item **it)
     if (!dv)
       return TRUE;
 
-    set_decimal(dv);
-    item_type= Item::DECIMAL_ITEM;
+    set_decimal(dv, !dv->sign());
     break;
   }
 
@@ -4203,7 +4229,6 @@ Item_param::set_value(THD *thd, sp_rcontext *ctx, Item **it)
     DBUG_ASSERT(TRUE);  // Abort in debug mode.
 
     set_null();         // Set to NULL in release mode.
-    item_type= Item::NULL_ITEM;
     return FALSE;
   }
 

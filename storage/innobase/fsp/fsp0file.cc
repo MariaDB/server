@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2013, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -47,8 +48,6 @@ Datafile::init(
 
 	m_name = mem_strdup(name);
 	m_flags = flags;
-	m_encryption_key = NULL;
-	m_encryption_iv = NULL;
 }
 
 /** Release the resources. */
@@ -60,15 +59,9 @@ Datafile::shutdown()
 	ut_free(m_name);
 	m_name = NULL;
 
-	ut_free(m_encryption_key);
-	m_encryption_key = NULL;
-
 	/* The fil_space_t::crypt_data was freed in
 	fil_space_free_low(). Invalidate our redundant pointer. */
 	m_crypt_info = NULL;
-
-	ut_free(m_encryption_iv);
-	m_encryption_iv = NULL;
 
 	free_filepath();
 	free_first_page();
@@ -276,9 +269,8 @@ Datafile::same_as(
 }
 
 /** Allocate and set the datafile or tablespace name in m_name.
-If a name is provided, use it; else if the datafile is file-per-table,
-extract a file-per-table tablespace name from m_filepath; else it is a
-general tablespace, so just call it that for now. The value of m_name
+If a name is provided, use it; else extract a file-per-table
+tablespace name from m_filepath. The value of m_name
 will be freed in the destructor.
 @param[in]	name	tablespace name if known, NULL if not */
 void
@@ -288,14 +280,8 @@ Datafile::set_name(const char*	name)
 
 	if (name != NULL) {
 		m_name = mem_strdup(name);
-	} else if (fsp_is_file_per_table(m_space_id, m_flags)) {
-		m_name = fil_path_to_space_name(m_filepath);
 	} else {
-		/* Give this general tablespace a temporary name. */
-		m_name = static_cast<char*>(
-			ut_malloc_nokey(strlen(general_space_name) + 20));
-
-		sprintf(m_name, "%s_" ULINTPF, general_space_name, m_space_id);
+		m_name = fil_path_to_space_name(m_filepath);
 	}
 }
 
@@ -358,17 +344,37 @@ Datafile::read_first_page(bool read_only_mode)
 		}
 	}
 
-	if (err == DB_SUCCESS && m_order == 0) {
+	if (err != DB_SUCCESS) {
+		return(err);
+	}
 
-		m_flags = fsp_header_get_flags(m_first_page);
-
+	if (m_order == 0) {
 		m_space_id = fsp_header_get_space_id(m_first_page);
+		m_flags = fsp_header_get_flags(m_first_page);
+		if (!fsp_flags_is_valid(m_flags)) {
+			ulint cflags = fsp_flags_convert_from_101(m_flags);
+			if (cflags == ULINT_UNDEFINED) {
+				ib::error()
+					<< "Invalid flags " << ib::hex(m_flags)
+					<< " in " << m_filepath;
+				return(DB_CORRUPTION);
+			} else {
+				m_flags = cflags;
+			}
+		}
+	}
+
+	const page_size_t ps(m_flags);
+	if (ps.physical() > page_size) {
+		ib::error() << "File " << m_filepath
+			<< " should be longer than "
+			<< page_size << " bytes";
+		return(DB_CORRUPTION);
 	}
 
 	m_crypt_info = fil_space_read_crypt_data(
 		m_space_id, m_first_page,
-		FSP_HEADER_OFFSET + fsp_header_get_encryption_offset(
-			fsp_header_get_page_size(m_first_page)));
+		FSP_HEADER_OFFSET + fsp_header_get_encryption_offset(ps));
 
 	return(err);
 }
@@ -389,14 +395,10 @@ space ID and flags.  The file should exist and be successfully opened
 in order for this function to validate it.
 @param[in]	space_id	The expected tablespace ID.
 @param[in]	flags		The expected tablespace flags.
-@param[in]	for_import	if it is for importing
 @retval DB_SUCCESS if tablespace is valid, DB_ERROR if not.
 m_is_valid is also set true on success, else false. */
 dberr_t
-Datafile::validate_to_dd(
-	ulint		space_id,
-	ulint		flags,
-	bool		for_import)
+Datafile::validate_to_dd(ulint space_id, ulint flags)
 {
 	dberr_t err;
 
@@ -407,18 +409,17 @@ Datafile::validate_to_dd(
 	/* Validate this single-table-tablespace with the data dictionary,
 	but do not compare the DATA_DIR flag, in case the tablespace was
 	remotely located. */
-	err = validate_first_page(0, for_import);
+	err = validate_first_page(0);
 	if (err != DB_SUCCESS) {
 		return(err);
 	}
 
+	flags &= ~FSP_FLAGS_MEM_MASK;
+
 	/* Make sure the datafile we found matched the space ID.
 	If the datafile is a file-per-table tablespace then also match
 	the row format and zip page size. */
-	if (m_space_id == space_id
-	    && (m_flags & FSP_FLAGS_MASK_SHARED
-	        || (m_flags & ~FSP_FLAGS_MASK_DATA_DIR)
-	            == (flags & ~FSP_FLAGS_MASK_DATA_DIR))) {
+	if (m_space_id == space_id && m_flags == flags) {
 		/* Datafile matches the tablespace expected. */
 		return(DB_SUCCESS);
 	}
@@ -427,9 +428,10 @@ Datafile::validate_to_dd(
 	m_is_valid = false;
 
 	ib::error() << "In file '" << m_filepath << "', tablespace id and"
-		" flags are " << m_space_id << " and " << m_flags << ", but in"
-		" the InnoDB data dictionary they are " << space_id << " and "
-		<< flags << ". Have you moved InnoDB .ibd files around without"
+		" flags are " << m_space_id << " and " << ib::hex(m_flags)
+		<< ", but in the InnoDB data dictionary they are "
+		<< space_id << " and " << ib::hex(flags)
+		<< ". Have you moved InnoDB .ibd files around without"
 		" using the commands DISCARD TABLESPACE and IMPORT TABLESPACE?"
 		" " << TROUBLESHOOT_DATADICT_MSG;
 
@@ -451,7 +453,7 @@ Datafile::validate_for_recovery()
 	ut_ad(is_open());
 	ut_ad(!srv_read_only_mode);
 
-	err = validate_first_page(0, false);
+	err = validate_first_page(0);
 
 	switch (err) {
 	case DB_SUCCESS:
@@ -459,11 +461,6 @@ Datafile::validate_for_recovery()
 		break;
 
 	default:
-		/* For encryption tablespace, we skip the retry step,
-		since it is only because the keyring is not ready. */
-		if (FSP_FLAGS_GET_ENCRYPTION(m_flags)) {
-			return(err);
-		}
 		/* Re-open the file in read-write mode  Attempt to restore
 		page 0 from doublewrite and read the space ID from a survey
 		of the first few pages. */
@@ -484,14 +481,13 @@ Datafile::validate_for_recovery()
 			return(err);
 		}
 
-		err = restore_from_doublewrite(0);
-		if (err != DB_SUCCESS) {
-			return(err);
+		if (restore_from_doublewrite()) {
+			return(DB_CORRUPTION);
 		}
 
 		/* Free the previously read first page and then re-validate. */
 		free_first_page();
-		err = validate_first_page(0, false);
+		err = validate_first_page(0);
 	}
 
 	if (err == DB_SUCCESS) {
@@ -506,14 +502,11 @@ tablespace is opened.  This occurs before the fil_space_t is created
 so the Space ID found here must not already be open.
 m_is_valid is set true on success, else false.
 @param[out]	flush_lsn	contents of FIL_PAGE_FILE_FLUSH_LSN
-@param[in]	for_import	if it is for importing
-(only valid for the first file of the system tablespace)
 @retval DB_SUCCESS on if the datafile is valid
 @retval DB_CORRUPTION if the datafile is not readable
 @retval DB_TABLESPACE_EXISTS if there is a duplicate space_id */
 dberr_t
-Datafile::validate_first_page(lsn_t*	flush_lsn,
-			      bool	for_import)
+Datafile::validate_first_page(lsn_t* flush_lsn)
 {
 	char*		prev_name;
 	char*		prev_filepath;
@@ -571,7 +564,9 @@ Datafile::validate_first_page(lsn_t*	flush_lsn,
 		free_first_page();
 
 		return(DB_ERROR);
-
+	} else if (!fsp_flags_is_valid(m_flags)) {
+		/* Tablespace flags must be valid. */
+		error_txt = "Tablespace flags are invalid";
 	} else if (page_get_page_no(m_first_page) != 0) {
 
 		/* First page must be number 0 */
@@ -601,51 +596,6 @@ Datafile::validate_first_page(lsn_t*	flush_lsn,
 		return(DB_CORRUPTION);
 
 	}
-
-#ifdef MYSQL_ENCRYPTION
-	/* For encrypted tablespace, check the encryption info in the
-	first page can be decrypt by master key, otherwise, this table
-	can't be open. And for importing, we skip checking it. */
-	if (FSP_FLAGS_GET_ENCRYPTION(m_flags) && !for_import) {
-		m_encryption_key = static_cast<byte*>(
-			ut_zalloc_nokey(ENCRYPTION_KEY_LEN));
-		m_encryption_iv = static_cast<byte*>(
-			ut_zalloc_nokey(ENCRYPTION_KEY_LEN));
-#ifdef	UNIV_ENCRYPT_DEBUG
-                fprintf(stderr, "Got from file %lu:", m_space_id);
-#endif
-		if (!fsp_header_get_encryption_key(m_flags,
-						   m_encryption_key,
-						   m_encryption_iv,
-						   m_first_page)) {
-			ib::error()
-				<< "Encryption information in"
-				<< " datafile: " << m_filepath
-				<< " can't be decrypted"
-				<< " , please confirm the keyfile"
-				<< " is match and keyring plugin"
-				<< " is loaded.";
-
-			m_is_valid = false;
-			free_first_page();
-			ut_free(m_encryption_key);
-			ut_free(m_encryption_iv);
-			m_encryption_key = NULL;
-			m_encryption_iv = NULL;
-			return(DB_CORRUPTION);
-		}
-
-		if (recv_recovery_is_on()
-		    && memcmp(m_encryption_key,
-			      m_encryption_iv,
-			      ENCRYPTION_KEY_LEN) == 0) {
-			ut_free(m_encryption_key);
-			ut_free(m_encryption_iv);
-			m_encryption_key = NULL;
-			m_encryption_iv = NULL;
-		}
-	}
-#endif /* MYSQL_ENCRYPTION */
 
 	if (fil_space_read_name_and_filepath(
 		m_space_id, &prev_name, &prev_filepath)) {
@@ -740,30 +690,7 @@ Datafile::find_space_id()
 			err = os_file_read(
 				request, m_handle, page, n_bytes, page_size);
 
-			if (err == DB_IO_DECOMPRESS_FAIL) {
-
-				/* If the page was compressed on the fly then
-				try and decompress the page */
-
-				n_bytes = os_file_compressed_page_size(page);
-
-				if (n_bytes != ULINT_UNDEFINED) {
-
-					err = os_file_read(
-						request,
-						m_handle, page, page_size,
-						UNIV_PAGE_SIZE_MAX);
-
-					if (err != DB_SUCCESS) {
-
-						ib::info()
-							<< "READ FAIL: "
-							<< "page_no:" << j;
-						continue;
-					}
-				}
-
-			} else if (err != DB_SUCCESS) {
+			if (err != DB_SUCCESS) {
 
 				ib::info()
 					<< "READ FAIL: page_no:" << j;
@@ -854,17 +781,15 @@ Datafile::find_space_id()
 }
 
 
-/** Finds a given page of the given space id from the double write buffer
-and copies it to the corresponding .ibd file.
-@param[in]	page_no		Page number to restore
-@return DB_SUCCESS if page was restored from doublewrite, else DB_ERROR */
-dberr_t
-Datafile::restore_from_doublewrite(
-	ulint	restore_page_no)
+/** Restore the first page of the tablespace from
+the double write buffer.
+@return whether the operation failed */
+bool
+Datafile::restore_from_doublewrite()
 {
 	/* Find if double write buffer contains page_no of given space id. */
-	const byte*	page = recv_sys->dblwr.find_page(
-		m_space_id, restore_page_no);
+	const byte*	page = recv_sys->dblwr.find_page(m_space_id, 0);
+	const page_id_t	page_id(m_space_id, 0);
 
 	if (page == NULL) {
 		/* If the first page of the given user tablespace is not there
@@ -872,23 +797,34 @@ Datafile::restore_from_doublewrite(
 		now. Hence this is treated as an error. */
 
 		ib::error()
-			<< "Corrupted page "
-			<< page_id_t(m_space_id, restore_page_no)
+			<< "Corrupted page " << page_id
 			<< " of datafile '" << m_filepath
 			<< "' could not be found in the doublewrite buffer.";
 
-		return(DB_CORRUPTION);
+		return(true);
 	}
 
-	const ulint		flags = mach_read_from_4(
+	ulint	flags = mach_read_from_4(
 		FSP_HEADER_OFFSET + FSP_SPACE_FLAGS + page);
+
+	if (!fsp_flags_is_valid(flags)) {
+		ulint cflags = fsp_flags_convert_from_101(flags);
+		if (cflags == ULINT_UNDEFINED) {
+			ib::warn()
+				<< "Ignoring a doublewrite copy of page "
+				<< page_id
+				<< " due to invalid flags " << ib::hex(flags);
+			return(true);
+		}
+		flags = cflags;
+		/* The flags on the page should be converted later. */
+	}
 
 	const page_size_t	page_size(flags);
 
-	ut_a(page_get_page_no(page) == restore_page_no);
+	ut_a(page_get_page_no(page) == page_id.page_no());
 
-	ib::info() << "Restoring page "
-		<< page_id_t(m_space_id, restore_page_no)
+	ib::info() << "Restoring page " << page_id
 		<< " of datafile '" << m_filepath
 		<< "' from the doublewrite buffer. Writing "
 		<< page_size.physical() << " bytes into file '"
@@ -896,14 +832,10 @@ Datafile::restore_from_doublewrite(
 
 	IORequest	request(IORequest::WRITE);
 
-	/* Note: The pages are written out as uncompressed because we don't
-	have the compression algorithm information at this point. */
-
-	request.disable_compression();
-
 	return(os_file_write(
 			request,
-			m_filepath, m_handle, page, 0, page_size.physical()));
+			m_filepath, m_handle, page, 0, page_size.physical())
+	       != DB_SUCCESS);
 }
 
 /** Create a link filename based on the contents of m_name,
@@ -986,19 +918,7 @@ the path provided without its suffix, plus DOT_ISL.
 void
 RemoteDatafile::set_link_filepath(const char* path)
 {
-	if (m_link_filepath != NULL) {
-		return;
-	}
-
-	if (path != NULL && FSP_FLAGS_GET_SHARED(flags())) {
-		/* Make the link_filepath based on the basename. */
-		ut_ad(strcmp(&path[strlen(path) - strlen(DOT_IBD)],
-		      DOT_IBD) == 0);
-
-		m_link_filepath = fil_make_filepath(NULL, base_name(path),
-						    ISL, false);
-	} else {
-		/* Make the link_filepath based on the m_name. */
+	if (m_link_filepath == NULL) {
 		m_link_filepath = fil_make_filepath(NULL, name(), ISL, false);
 	}
 }
@@ -1008,14 +928,11 @@ under the 'datadir' of MySQL. The datadir is the directory of a
 running mysqld program. We can refer to it by simply using the path ".".
 @param[in]	name		tablespace name
 @param[in]	filepath	remote filepath of tablespace datafile
-@param[in]	is_shared	true for general tablespace,
-				false for file-per-table
 @return DB_SUCCESS or error code */
 dberr_t
 RemoteDatafile::create_link_file(
 	const char*	name,
-	const char*	filepath,
-	bool		is_shared)
+	const char*	filepath)
 {
 	bool		success;
 	dberr_t		err = DB_SUCCESS;
@@ -1025,31 +942,8 @@ RemoteDatafile::create_link_file(
 	ut_ad(!srv_read_only_mode);
 	ut_ad(0 == strcmp(&filepath[strlen(filepath) - 4], DOT_IBD));
 
-	if (is_shared) {
-		/* The default location for a shared tablespace is the
-		datadir. We previously made sure that this filepath is
-		not under the datadir.  If it is in the datadir there
-		is no need for a link file. */
+	link_filepath = fil_make_filepath(NULL, name, ISL, false);
 
-		size_t	len = dirname_length(filepath);
-		if (len == 0) {
-			/* File is in the datadir. */
-			return(DB_SUCCESS);
-		}
-
-		Folder	folder(filepath, len);
-
-		if (folder_mysql_datadir == folder) {
-			/* File is in the datadir. */
-			return(DB_SUCCESS);
-		}
-
-		/* Use the file basename to build the ISL filepath. */
-		link_filepath = fil_make_filepath(NULL, base_name(filepath),
-						  ISL, false);
-	} else {
-		link_filepath = fil_make_filepath(NULL, name, ISL, false);
-	}
 	if (link_filepath == NULL) {
 		return(DB_ERROR);
 	}
@@ -1156,8 +1050,6 @@ RemoteDatafile::delete_link_file(
 It is always created under the datadir of MySQL.
 For file-per-table tablespaces, the isl file is expected to be
 in a 'database' directory and called 'tablename.isl'.
-For general tablespaces, there will be no 'database' directory.
-The 'basename.isl' will be in the datadir.
 The caller must free the memory returned if it is not null.
 @param[in]	link_filepath	filepath of the ISL file
 @return Filepath of the IBD file read from the ISL file */
@@ -1165,16 +1057,12 @@ char*
 RemoteDatafile::read_link_file(
 	const char*	link_filepath)
 {
-	char*		filepath = NULL;
-	FILE*		file = NULL;
-
-	file = fopen(link_filepath, "r+b");
+	FILE* file = fopen(link_filepath, "r+b");
 	if (file == NULL) {
 		return(NULL);
 	}
 
-	filepath = static_cast<char*>(
-		ut_malloc_nokey(OS_FILE_MAX_PATH));
+	char* filepath = static_cast<char*>(ut_malloc_nokey(OS_FILE_MAX_PATH));
 
 	os_file_read_string(file, filepath, OS_FILE_MAX_PATH);
 	fclose(file);

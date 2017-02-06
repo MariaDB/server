@@ -21,6 +21,7 @@
 
 /* Instead of including sql_lex.h we add this typedef here */
 typedef List<Item> List_item;
+typedef struct st_copy_info COPY_INFO;
 
 bool mysql_prepare_insert(THD *thd, TABLE_LIST *table_list, TABLE *table,
                           List<Item> &fields, List_item *values,

@@ -1,8 +1,8 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2013, 2017, MariaDB Corporation.
 Copyright (c) 2008, Google Inc.
-Copyright (c) 2013, 2016, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -184,7 +184,7 @@ command. */
 #define UNIV_ENABLE_UNIT_TEST_ROW_RAW_FORMAT_INT
 */
 
-#if defined HAVE_VALGRIND
+#if defined HAVE_valgrind && defined HAVE_VALGRIND
 # define UNIV_DEBUG_VALGRIND
 #endif /* HAVE_VALGRIND */
 #if 0
@@ -364,6 +364,12 @@ typedef enum innodb_file_formats_enum innodb_file_formats_t;
 #define IF_SNAPPY(A,B) A
 #else
 #define IF_SNAPPY(A,B) B
+#endif
+
+#if defined (HAVE_FALLOC_PUNCH_HOLE_AND_KEEP_SIZE) || defined(_WIN32)
+#define IF_PUNCH_HOLE(A,B) A
+#else
+#define IF_PUNCH_HOLE(A,B) B
 #endif
 
 /** The universal page size of the database */

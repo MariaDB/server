@@ -4365,6 +4365,8 @@ table_hash_search(const char *host, const char *ip, const char *db,
 static GRANT_COLUMN *
 column_hash_search(GRANT_TABLE *t, const char *cname, uint length)
 {
+  if (!my_hash_inited(&t->hash_columns))
+    return (GRANT_COLUMN*) 0;
   return (GRANT_COLUMN*) my_hash_search(&t->hash_columns,
                                         (uchar*) cname, length);
 }
@@ -10153,7 +10155,7 @@ public:
   virtual bool handle_condition(THD *thd,
                                 uint sql_errno,
                                 const char* sqlstate,
-                                Sql_condition::enum_warning_level level,
+                                Sql_condition::enum_warning_level *level,
                                 const char* msg,
                                 Sql_condition ** cond_hdl);
 
@@ -10168,12 +10170,12 @@ Silence_routine_definer_errors::handle_condition(
   THD *thd,
   uint sql_errno,
   const char*,
-  Sql_condition::enum_warning_level level,
+  Sql_condition::enum_warning_level *level,
   const char* msg,
   Sql_condition ** cond_hdl)
 {
   *cond_hdl= NULL;
-  if (level == Sql_condition::WARN_LEVEL_ERROR)
+  if (*level == Sql_condition::WARN_LEVEL_ERROR)
   {
     switch (sql_errno)
     {

@@ -39,7 +39,8 @@ SET GLOBAL wsrep_slave_threads = 4;
 --reap
 SELECT COUNT(*) = 30000 FROM t1;
 SELECT COUNT(DISTINCT f1) = 30000 FROM t1;
-SELECT COUNT(*) = 5 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user';
+SELECT COUNT(*) = 5 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE
+  USER = 'system user' AND NOT STATE <=> 'InnoDB background thread';
 
 --disable_query_log
 --eval SET GLOBAL wsrep_slave_threads = $wsrep_slave_threads_orig;

@@ -1,4 +1,5 @@
 # Copyright (c) 2006, 2016, Oracle and/or its affiliates. All rights reserved.
+# Copyright (c) 2017, MariaDB Corporation.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -133,24 +134,6 @@ ENDIF()
 CHECK_FUNCTION_EXISTS(nanosleep HAVE_NANOSLEEP)
 IF(HAVE_NANOSLEEP)
  ADD_DEFINITIONS(-DHAVE_NANOSLEEP=1)
-ENDIF()
-
-IF(NOT MSVC)
-  CHECK_C_SOURCE_RUNS(
-  "
-  #define _GNU_SOURCE
-  #include <fcntl.h>
-  #include <linux/falloc.h>
-  int main()
-  {
-    /* Ignore the return value for now. Check if the flags exist.
-    The return value is checked  at runtime. */
-    fallocate(0, FALLOC_FL_PUNCH_HOLE | FALLOC_FL_KEEP_SIZE, 0, 0);
-
-    return(0);
-  }"
-  HAVE_FALLOC_PUNCH_HOLE_AND_KEEP_SIZE
-  )
 ENDIF()
 
 IF(HAVE_FALLOC_PUNCH_HOLE_AND_KEEP_SIZE)

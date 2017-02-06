@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2012, 2015, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -28,9 +29,8 @@ Created 2012-03-24 Sunny Bains.
 #ifndef ut0mutex_h
 #define ut0mutex_h
 
-extern ulong	srv_spin_wait_delay;
+extern uint	srv_spin_wait_delay;
 extern ulong	srv_n_spin_wait_rounds;
-extern ulong	srv_force_recovery_crash;
 
 #include "sync0policy.h"
 #include "ib0mutex.h"
@@ -75,7 +75,7 @@ typedef BlockSyncArrayMutex ib_bpmutex_t;
 #error "ib_mutex_t type is unknown"
 #endif /* MUTEX_FUTEX */
 
-extern ulong	srv_spin_wait_delay;
+extern uint	srv_spin_wait_delay;
 extern ulong	srv_n_spin_wait_rounds;
 
 #define mutex_create(I, M)		mutex_init((M), (I), __FILE__, __LINE__)

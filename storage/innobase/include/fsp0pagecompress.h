@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (C) 2013, 2015, MariaDB Corporation. All Rights Reserved.
+Copyright (C) 2013, 2017, MariaDB Corporation. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -48,15 +48,6 @@ fsp_header_get_compression_level(
 	const page_t*	page);	/*!< in: first page of a tablespace */
 
 /********************************************************************//**
-Determine if the tablespace is page compressed from dict_table_t::flags.
-@return	TRUE if page compressed, FALSE if not compressed */
-UNIV_INLINE
-bool
-fsp_flags_is_page_compressed(
-/*=========================*/
-	ulint	flags);	/*!< in: tablespace flags */
-
-/********************************************************************//**
 Extract the page compression level from tablespace flags.
 A tablespace has only one physical page compression level
 whether that page is compressed or not.
@@ -66,15 +57,6 @@ UNIV_INLINE
 ulint
 fsp_flags_get_page_compression_level(
 /*=================================*/
-	ulint	flags);	/*!< in: tablespace flags */
-
-/********************************************************************//**
-Determine the tablespace is using atomic writes from dict_table_t::flags.
-@return	true if atomic writes is used, false if not */
-UNIV_INLINE
-atomic_writes_t
-fsp_flags_get_atomic_writes(
-/*========================*/
 	ulint	flags);	/*!< in: tablespace flags */
 
 #ifndef UNIV_NONINL

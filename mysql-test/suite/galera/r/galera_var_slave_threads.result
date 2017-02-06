@@ -12,7 +12,8 @@ SELECT @@wsrep_slave_threads = 1;
 @@wsrep_slave_threads = 1
 1
 SET GLOBAL wsrep_slave_threads = 1;
-SELECT COUNT(*) = 2 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user';
+SELECT COUNT(*) = 2 FROM INFORMATION_SCHEMA.PROCESSLIST
+WHERE USER = 'system user' AND NOT STATE <=> 'InnoDB background thread';
 COUNT(*) = 2
 1
 SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND STATE LIKE '%wsrep aborter%';
@@ -25,7 +26,8 @@ connection node_2;
 SELECT COUNT(*) = 1 FROM t1;
 COUNT(*) = 1
 1
-SELECT COUNT(*) = @@wsrep_slave_threads + 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user';
+SELECT COUNT(*) = @@wsrep_slave_threads + 1 FROM INFORMATION_SCHEMA.PROCESSLIST
+WHERE USER = 'system user' AND NOT STATE <=> 'InnoDB background thread';
 COUNT(*) = @@wsrep_slave_threads + 1
 1
 SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND STATE LIKE '%wsrep aborter%';
@@ -101,7 +103,8 @@ connection node_2;
 SELECT COUNT(*) = 64 FROM t2;
 COUNT(*) = 64
 1
-SELECT COUNT(*) = @@wsrep_slave_threads + 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user';
+SELECT COUNT(*) = @@wsrep_slave_threads + 1 FROM INFORMATION_SCHEMA.PROCESSLIST
+WHERE USER = 'system user' AND NOT STATE <=> 'InnoDB background thread';
 COUNT(*) = @@wsrep_slave_threads + 1
 1
 SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND STATE LIKE '%wsrep aborter%';

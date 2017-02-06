@@ -201,99 +201,6 @@ typedef struct st_user_var_events
   bool unsigned_flag;
 } BINLOG_USER_VAR_EVENT;
 
-
-/*
-  When updating a table with virtual BLOB columns, the following might happen:
-  - an old record is read from the table, it has no vcol blob.
-  - update_virtual_fields() is run, vcol blob gets its value into the
-    record. But only a pointer to the value is in the table->record[0],
-    the value is in Field_blob::value String (or, it can be elsewhere!)
-  - store_record(table,record[1]), old record now is in record[1]
-  - fill_record() prepares new values in record[0], vcol blob is updated,
-    new value replaces the old one in the Field_blob::value
-  - now both record[1] and record[0] have a pointer that points to the
-    *new* vcol blob value. Or record[1] has a pointer to nowhere if
-    Field_blob::value had to realloc.
-
-  To resolve this we unlink vcol blobs from the pointer to the
-  data (in the record[1]). The orphan memory must be freed manually
-  (but, again, only if it was owned by Field_blob::value String).
-
-  With REPLACE and INSERT ... ON DUP KEY UPATE it's even more complex.
-  There is no store_record(table,record[1]), instead the row is read
-  directly into record[1].
-*/
-struct BLOB_VALUE_ORPHANAGE {
-  MY_BITMAP map;
-  TABLE *table;
-  BLOB_VALUE_ORPHANAGE() { map.bitmap= NULL; }
-  ~BLOB_VALUE_ORPHANAGE() { free(); }
-  bool init(TABLE *table_arg)
-  {
-    table= table_arg;
-    if (table->s->virtual_fields && table->s->blob_fields)
-      return bitmap_init(&map, NULL, table->s->virtual_fields, FALSE);
-    map.bitmap= NULL;
-    return 0;
-  }
-  void free() { bitmap_free(&map); }
-
-  /** Remove blob's ownership from blob value memory
-
-    @note the memory becomes orphaned, it needs to be freed using
-    free_orphans() or re-attached back to blobs using adopt_orphans()
-  */
-  void make_orphans()
-  {
-    DBUG_ASSERT(!table || !table->s->virtual_fields || !table->s->blob_fields || map.bitmap);
-    if (!map.bitmap)
-      return;
-    for (Field **ptr=table->vfield; *ptr; ptr++)
-    {
-      Field_blob *vb= (Field_blob*)(*ptr);
-      if (!(vb->flags & BLOB_FLAG) || !vb->owns_ptr(vb->get_ptr()))
-        continue;
-      bitmap_set_bit(&map, ptr - table->vfield);
-      vb->clear_temporary();
-    }
-  }
-
-  /** Frees orphaned blob values
-
-    @note It is assumed that value pointers are in table->record[1], while
-    Field_blob::ptr's point to table->record[0] as usual
-  */
-  void free_orphans()
-  {
-    DBUG_ASSERT(!table || !table->s->virtual_fields || !table->s->blob_fields || map.bitmap);
-    if (!map.bitmap)
-      return;
-    for (Field **ptr=table->vfield; *ptr; ptr++)
-    {
-      Field_blob *vb= (Field_blob*)(*ptr);
-      if (vb->flags & BLOB_FLAG && bitmap_fast_test_and_clear(&map, ptr - table->vfield))
-        my_free(vb->get_ptr(table->s->rec_buff_length));
-    }
-    DBUG_ASSERT(bitmap_is_clear_all(&map));
-  }
-
-  /** Restores blob's ownership over previously orphaned values */
-  void adopt_orphans()
-  {
-    DBUG_ASSERT(!table || !table->s->virtual_fields || !table->s->blob_fields || map.bitmap);
-    if (!map.bitmap)
-      return;
-    for (Field **ptr=table->vfield; *ptr; ptr++)
-    {
-      Field_blob *vb= (Field_blob*)(*ptr);
-      if (vb->flags & BLOB_FLAG && bitmap_fast_test_and_clear(&map, ptr - table->vfield))
-        vb->own_value_ptr();
-    }
-    DBUG_ASSERT(bitmap_is_clear_all(&map));
-  }
-};
-
-
 /*
   The COPY_INFO structure is used by INSERT/REPLACE code.
   The schema of the row counting by the INSERT/INSERT ... ON DUPLICATE KEY
@@ -306,7 +213,7 @@ struct BLOB_VALUE_ORPHANAGE {
       of the INSERT ... ON DUPLICATE KEY UPDATE no matter whether the row
       was actually changed or not.
 */
-struct COPY_INFO {
+typedef struct st_copy_info {
   ha_rows records; /**< Number of processed records */
   ha_rows deleted; /**< Number of deleted records */
   ha_rows updated; /**< Number of updated records */
@@ -322,8 +229,7 @@ struct COPY_INFO {
   /* for VIEW ... WITH CHECK OPTION */
   TABLE_LIST *view;
   TABLE_LIST *table_list;                       /* Normal table */
-  BLOB_VALUE_ORPHANAGE vblobs0, vblobs1; // vcol blobs of record[0] and record[1]
-};
+} COPY_INFO;
 
 
 class Key_part_spec :public Sql_alloc {
@@ -640,6 +546,7 @@ typedef struct system_variables
   ulonglong sortbuff_size;
   ulonglong group_concat_max_len;
   ulonglong default_regex_flags;
+  ulonglong max_mem_used;
 
   /**
      Place holders to store Multi-source variables in sys_var.cc during
@@ -1474,6 +1381,11 @@ public:
   */
   TABLE *derived_tables;
 
+  /* 
+    Temporary tables created for recursive table references.
+  */
+  TABLE *rec_tables;
+
   /*
     During a MySQL session, one can lock tables in two modes: automatic
     or manual. In automatic mode all necessary tables are locked just before
@@ -1554,6 +1466,7 @@ public:
     open_tables= 0;
     temporary_tables= 0;
     derived_tables= 0;
+    rec_tables= 0;
     extra_lock= 0;
     lock= 0;
     locked_tables_mode= LTM_NONE;
@@ -1652,6 +1565,7 @@ show_system_thread(enum_thread_type thread)
   Internal error handlers are exception handlers used by the server
   implementation.
 */
+
 class Internal_error_handler
 {
 protected:
@@ -1689,7 +1603,7 @@ public:
   virtual bool handle_condition(THD *thd,
                                 uint sql_errno,
                                 const char* sqlstate,
-                                Sql_condition::enum_warning_level level,
+                                Sql_condition::enum_warning_level *level,
                                 const char* msg,
                                 Sql_condition ** cond_hdl) = 0;
 
@@ -1710,7 +1624,7 @@ public:
   bool handle_condition(THD *thd,
                         uint sql_errno,
                         const char* sqlstate,
-                        Sql_condition::enum_warning_level level,
+                        Sql_condition::enum_warning_level *level,
                         const char* msg,
                         Sql_condition ** cond_hdl)
   {
@@ -1737,7 +1651,7 @@ public:
   bool handle_condition(THD *thd,
                         uint sql_errno,
                         const char* sqlstate,
-                        Sql_condition::enum_warning_level level,
+                        Sql_condition::enum_warning_level *level,
                         const char* msg,
                         Sql_condition ** cond_hdl);
 
@@ -1758,7 +1672,7 @@ public:
   bool handle_condition(THD *thd,
                         uint sql_errno,
                         const char *sqlstate,
-                        Sql_condition::enum_warning_level level,
+                        Sql_condition::enum_warning_level *level,
                         const char* msg,
                         Sql_condition **cond_hdl);
 
@@ -3912,7 +3826,7 @@ private:
   */
   bool handle_condition(uint sql_errno,
                         const char* sqlstate,
-                        Sql_condition::enum_warning_level level,
+                        Sql_condition::enum_warning_level *level,
                         const char* msg,
                         Sql_condition ** cond_hdl);
 
@@ -5435,7 +5349,6 @@ class multi_update :public select_result_interceptor
   TABLE_LIST *update_tables, *table_being_updated;
   TABLE **tmp_tables, *main_table, *table_to_update;
   TMP_TABLE_PARAM *tmp_table_param;
-  BLOB_VALUE_ORPHANAGE *vblobs;
   ha_rows updated, found;
   List <Item> *fields, *values;
   List <Item> **fields_for_table, **values_for_table;

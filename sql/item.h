@@ -2601,7 +2601,47 @@ class Item_param :public Item_basic_value,
                   public Rewritable_query_parameter,
                   public Type_handler_hybrid_field_type
 {
-public:
+  /*
+    NO_VALUE is a special value meaning that the parameter has not been
+    assigned yet. Item_param::state is assigned to NO_VALUE in constructor
+    and is used at prepare time.
+
+    1. At prepare time
+      Item_param::fix_fields() sets "fixed" to true,
+      but as Item_param::state is still NO_VALUE,
+      Item_param::basic_const_item() returns false. This prevents various
+      optimizations to happen at prepare time fix_fields().
+      For example, in this query:
+        PREPARE stmt FROM 'SELECT FORMAT(10000,2,?)';
+      Item_param::basic_const_item() is tested from
+      Item_func_format::fix_length_and_dec().
+
+    2. At execute time:
+      When Item_param gets a value
+      (or a pseudo-value like DEFAULT_VALUE or IGNORE_VALUE):
+      - Item_param::state changes from NO_VALUE to something else
+      - Item_param::fixed is changed to true
+      All Item_param::set_xxx() make sure to do so.
+      In the state with an assigned value:
+      - Item_param::basic_const_item() returns true
+      - Item::type() returns NULL_ITEM, INT_ITEM, REAL_ITEM, DECIMAL_ITEM,
+        DATE_ITEM, STRING_ITEM, depending on the value assigned.
+      So in this state Item_param behaves in many cases like a literal.
+
+      When Item_param::cleanup() is called:
+      - Item_param::state does not change
+      - Item_param::fixed changes to false
+      Note, this puts Item_param into an inconsistent state:
+      - Item_param::basic_const_item() still returns "true"
+      - Item_param::type() still pretends to be a basic constant Item
+      Both are not expected in combination with fixed==false.
+      However, these methods are not really called in this state,
+      see asserts in Item_param::basic_const_item() and Item_param::type().
+
+      When Item_param::reset() is called:
+      - Item_param::state changes to NO_VALUE
+      - Item_param::fixed changes to false
+  */
   enum enum_item_param_state
   {
     NO_VALUE, NULL_VALUE, INT_VALUE, REAL_VALUE,
@@ -2609,6 +2649,17 @@ public:
     DECIMAL_VALUE, DEFAULT_VALUE, IGNORE_VALUE
   } state;
 
+  enum Type item_type;
+
+  void fix_type(Type type)
+  {
+    item_type= type;
+    fixed= true;
+  }
+
+  void fix_temporal(uint32 max_length_arg, uint decimals_arg);
+
+public:
   struct CONVERSION_INFO
   {
     /*
@@ -2677,8 +2728,6 @@ public:
     MYSQL_TIME     time;
   } value;
 
-  enum Type item_type;
-
   const Type_handler *type_handler() const
   { return Type_handler_hybrid_field_type::type_handler(); }
   enum_field_types field_type() const
@@ -2690,7 +2739,11 @@ public:
 
   Item_param(THD *thd, uint pos_in_query_arg);
 
-  enum Type type() const { return item_type; }
+  enum Type type() const
+  {
+    DBUG_ASSERT(fixed || state == NO_VALUE);
+    return item_type;
+  }
 
   double val_real();
   longlong val_int();
@@ -2705,10 +2758,11 @@ public:
   void set_int(longlong i, uint32 max_length_arg);
   void set_double(double i);
   void set_decimal(const char *str, ulong length);
-  void set_decimal(const my_decimal *dv);
+  void set_decimal(const my_decimal *dv, bool unsigned_arg);
   bool set_str(const char *str, ulong length);
   bool set_longdata(const char *str, ulong length);
   void set_time(MYSQL_TIME *tm, timestamp_type type, uint32 max_length_arg);
+  void set_time(const MYSQL_TIME *tm, uint32 max_length_arg, uint decimals_arg);
   bool set_from_item(THD *thd, Item *item);
   void reset();
   /*
@@ -2734,6 +2788,18 @@ public:
   bool is_null()
   { DBUG_ASSERT(state != NO_VALUE); return state == NULL_VALUE; }
   bool basic_const_item() const;
+  bool has_no_value() const
+  {
+    return state == NO_VALUE;
+  }
+  bool has_long_data_value() const
+  {
+    return state == LONG_DATA_VALUE;
+  }
+  bool has_int_value() const
+  {
+    return state == INT_VALUE;
+  }
   /*
     This method is used to make a copy of a basic constant item when
     propagating constants in the optimizer. The reason to create a new
@@ -2757,7 +2823,7 @@ public:
   Rewritable_query_parameter *get_rewritable_query_parameter()
   { return this; }
   Settable_routine_parameter *get_settable_routine_parameter()
-  { return this; }
+  { return m_is_settable_routine_parameter ? this : NULL; }
 
   bool append_for_log(THD *thd, String *str);
   bool check_vcol_func_processor(void *int_arg) {return FALSE;}
@@ -2777,6 +2843,7 @@ public:
 
 private:
   Send_field *m_out_param_info;
+  bool m_is_settable_routine_parameter;
 };
 
 

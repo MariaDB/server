@@ -5,9 +5,6 @@ set global innodb_file_per_table = on;
 "1. Hit crash point while writing redo log."
 use test;
 set global innodb_file_per_table = 1;
-set global innodb_file_format = 'Barracuda';
-Warnings:
-Warning	131	Using innodb_file_format is deprecated and the parameter may be removed in future releases. See http://dev.mysql.com/doc/refman/5.7/en/innodb-file-format.html
 SET innodb_strict_mode=OFF;
 create  table t (
 i int, f float, c char,
@@ -24,9 +21,10 @@ check table t;
 Table	Op	Msg_type	Msg_text
 test.t	check	status	OK
 set session debug = "+d,ib_trunc_crash_while_writing_redo_log";
+Warnings:
+Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
 truncate table t;
 ERROR HY000: Lost connection to MySQL server during query
-# restart
 check table t;
 Table	Op	Msg_type	Msg_text
 test.t	check	status	OK
@@ -43,9 +41,6 @@ drop table t;
 "2. Hit crash point on completion of redo log write."
 use test;
 set global innodb_file_per_table = 1;
-set global innodb_file_format = 'Barracuda';
-Warnings:
-Warning	131	Using innodb_file_format is deprecated and the parameter may be removed in future releases. See http://dev.mysql.com/doc/refman/5.7/en/innodb-file-format.html
 SET innodb_strict_mode=OFF;
 create  table t (
 i int, f float, c char,
@@ -62,9 +57,10 @@ check table t;
 Table	Op	Msg_type	Msg_text
 test.t	check	status	OK
 set session debug = "+d,ib_trunc_crash_after_redo_log_write_complete";
+Warnings:
+Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
 truncate table t;
 ERROR HY000: Lost connection to MySQL server during query
-# restart
 check table t;
 Table	Op	Msg_type	Msg_text
 test.t	check	status	OK
@@ -84,9 +80,6 @@ drop table t;
 "3. Hit crash point while dropping indexes."
 use test;
 set global innodb_file_per_table = 1;
-set global innodb_file_format = 'Barracuda';
-Warnings:
-Warning	131	Using innodb_file_format is deprecated and the parameter may be removed in future releases. See http://dev.mysql.com/doc/refman/5.7/en/innodb-file-format.html
 SET innodb_strict_mode=OFF;
 create  table t (
 i int, f float, c char,
@@ -103,9 +96,10 @@ check table t;
 Table	Op	Msg_type	Msg_text
 test.t	check	status	OK
 set session debug = "+d,ib_trunc_crash_on_drop_of_clust_index";
+Warnings:
+Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
 truncate table t;
 ERROR HY000: Lost connection to MySQL server during query
-# restart
 check table t;
 Table	Op	Msg_type	Msg_text
 test.t	check	status	OK
@@ -124,9 +118,6 @@ i	f	c
 drop table t;
 use test;
 set global innodb_file_per_table = 1;
-set global innodb_file_format = 'Barracuda';
-Warnings:
-Warning	131	Using innodb_file_format is deprecated and the parameter may be removed in future releases. See http://dev.mysql.com/doc/refman/5.7/en/innodb-file-format.html
 SET innodb_strict_mode=OFF;
 create  table t (
 i int, f float, c char,
@@ -143,9 +134,10 @@ check table t;
 Table	Op	Msg_type	Msg_text
 test.t	check	status	OK
 set session debug = "+d,ib_trunc_crash_on_drop_of_uniq_index";
+Warnings:
+Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
 truncate table t;
 ERROR HY000: Lost connection to MySQL server during query
-# restart
 check table t;
 Table	Op	Msg_type	Msg_text
 test.t	check	status	OK
@@ -164,9 +156,6 @@ i	f	c
 drop table t;
 use test;
 set global innodb_file_per_table = 1;
-set global innodb_file_format = 'Barracuda';
-Warnings:
-Warning	131	Using innodb_file_format is deprecated and the parameter may be removed in future releases. See http://dev.mysql.com/doc/refman/5.7/en/innodb-file-format.html
 SET innodb_strict_mode=OFF;
 create  table t (
 i int, f float, c char,
@@ -183,9 +172,10 @@ check table t;
 Table	Op	Msg_type	Msg_text
 test.t	check	status	OK
 set session debug = "+d,ib_trunc_crash_on_drop_of_sec_index";
+Warnings:
+Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
 truncate table t;
 ERROR HY000: Lost connection to MySQL server during query
-# restart
 check table t;
 Table	Op	Msg_type	Msg_text
 test.t	check	status	OK
@@ -206,9 +196,6 @@ drop table t;
 "   of index is commenced."
 use test;
 set global innodb_file_per_table = 1;
-set global innodb_file_format = 'Barracuda';
-Warnings:
-Warning	131	Using innodb_file_format is deprecated and the parameter may be removed in future releases. See http://dev.mysql.com/doc/refman/5.7/en/innodb-file-format.html
 SET innodb_strict_mode=OFF;
 create  table t (
 i int, f float, c char,
@@ -225,9 +212,10 @@ check table t;
 Table	Op	Msg_type	Msg_text
 test.t	check	status	OK
 set session debug = "+d,ib_trunc_crash_drop_reinit_done_create_to_start";
+Warnings:
+Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
 truncate table t;
 ERROR HY000: Lost connection to MySQL server during query
-# restart
 check table t;
 Table	Op	Msg_type	Msg_text
 test.t	check	status	OK
@@ -247,9 +235,6 @@ drop table t;
 "5. Hit crash point while creating indexes."
 use test;
 set global innodb_file_per_table = 1;
-set global innodb_file_format = 'Barracuda';
-Warnings:
-Warning	131	Using innodb_file_format is deprecated and the parameter may be removed in future releases. See http://dev.mysql.com/doc/refman/5.7/en/innodb-file-format.html
 SET innodb_strict_mode=OFF;
 create  table t (
 i int, f float, c char,
@@ -266,9 +251,10 @@ check table t;
 Table	Op	Msg_type	Msg_text
 test.t	check	status	OK
 set session debug = "+d,ib_trunc_crash_on_create_of_clust_index";
+Warnings:
+Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
 truncate table t;
 ERROR HY000: Lost connection to MySQL server during query
-# restart
 check table t;
 Table	Op	Msg_type	Msg_text
 test.t	check	status	OK
@@ -287,9 +273,6 @@ i	f	c
 drop table t;
 use test;
 set global innodb_file_per_table = 1;
-set global innodb_file_format = 'Barracuda';
-Warnings:
-Warning	131	Using innodb_file_format is deprecated and the parameter may be removed in future releases. See http://dev.mysql.com/doc/refman/5.7/en/innodb-file-format.html
 SET innodb_strict_mode=OFF;
 create  table t (
 i int, f float, c char,
@@ -306,9 +289,10 @@ check table t;
 Table	Op	Msg_type	Msg_text
 test.t	check	status	OK
 set session debug = "+d,ib_trunc_crash_on_create_of_uniq_index";
+Warnings:
+Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
 truncate table t;
 ERROR HY000: Lost connection to MySQL server during query
-# restart
 check table t;
 Table	Op	Msg_type	Msg_text
 test.t	check	status	OK
@@ -327,9 +311,6 @@ i	f	c
 drop table t;
 use test;
 set global innodb_file_per_table = 1;
-set global innodb_file_format = 'Barracuda';
-Warnings:
-Warning	131	Using innodb_file_format is deprecated and the parameter may be removed in future releases. See http://dev.mysql.com/doc/refman/5.7/en/innodb-file-format.html
 SET innodb_strict_mode=OFF;
 create  table t (
 i int, f float, c char,
@@ -346,9 +327,10 @@ check table t;
 Table	Op	Msg_type	Msg_text
 test.t	check	status	OK
 set session debug = "+d,ib_trunc_crash_on_create_of_sec_index";
+Warnings:
+Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
 truncate table t;
 ERROR HY000: Lost connection to MySQL server during query
-# restart
 check table t;
 Table	Op	Msg_type	Msg_text
 test.t	check	status	OK
@@ -369,9 +351,6 @@ drop table t;
 "   in-memory dict."
 use test;
 set global innodb_file_per_table = 1;
-set global innodb_file_format = 'Barracuda';
-Warnings:
-Warning	131	Using innodb_file_format is deprecated and the parameter may be removed in future releases. See http://dev.mysql.com/doc/refman/5.7/en/innodb-file-format.html
 SET innodb_strict_mode=OFF;
 create  table t (
 i int, f float, c char,
@@ -388,9 +367,10 @@ check table t;
 Table	Op	Msg_type	Msg_text
 test.t	check	status	OK
 set session debug = "+d,ib_trunc_crash_on_updating_dict_sys_info";
+Warnings:
+Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
 truncate table t;
 ERROR HY000: Lost connection to MySQL server during query
-# restart
 check table t;
 Table	Op	Msg_type	Msg_text
 test.t	check	status	OK
@@ -410,9 +390,6 @@ drop table t;
 "7. Hit crash point before/after log checkpoint is done."
 use test;
 set global innodb_file_per_table = 1;
-set global innodb_file_format = 'Barracuda';
-Warnings:
-Warning	131	Using innodb_file_format is deprecated and the parameter may be removed in future releases. See http://dev.mysql.com/doc/refman/5.7/en/innodb-file-format.html
 SET innodb_strict_mode=OFF;
 create  table t (
 i int, f float, c char,
@@ -429,9 +406,10 @@ check table t;
 Table	Op	Msg_type	Msg_text
 test.t	check	status	OK
 set session debug = "+d,ib_trunc_crash_before_log_removal";
+Warnings:
+Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
 truncate table t;
 ERROR HY000: Lost connection to MySQL server during query
-# restart
 check table t;
 Table	Op	Msg_type	Msg_text
 test.t	check	status	OK
@@ -445,9 +423,6 @@ i	f	c
 drop table t;
 use test;
 set global innodb_file_per_table = 1;
-set global innodb_file_format = 'Barracuda';
-Warnings:
-Warning	131	Using innodb_file_format is deprecated and the parameter may be removed in future releases. See http://dev.mysql.com/doc/refman/5.7/en/innodb-file-format.html
 SET innodb_strict_mode=OFF;
 create  table t (
 i int, f float, c char,
@@ -464,9 +439,10 @@ check table t;
 Table	Op	Msg_type	Msg_text
 test.t	check	status	OK
 set session debug = "+d,ib_trunc_crash_after_truncate_done";
+Warnings:
+Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
 truncate table t;
 ERROR HY000: Lost connection to MySQL server during query
-# restart
 check table t;
 Table	Op	Msg_type	Msg_text
 test.t	check	status	OK
@@ -483,18 +459,16 @@ i	f	c
 1	1.1	a
 2	2.2	b
 drop table t;
-set global innodb_file_format = Barracuda;
-Warnings:
-Warning	131	Using innodb_file_format is deprecated and the parameter may be removed in future releases. See http://dev.mysql.com/doc/refman/5.7/en/innodb-file-format.html
 set global innodb_file_per_table = 1;
 call mtr.add_suppression("does not exist in the InnoDB internal");
+Warnings:
+Error	145	Table './mtr/test_suppressions' is marked as crashed and should be repaired
+Error	1194	Table 'test_suppressions' is marked as crashed and should be repaired
+Error	1034	1 client is using or hasn't closed the table properly
 set global innodb_file_per_table = on;
 "1. Hit crash point on completing drop of all indexes before creation"
 "   of index is commenced."
 set global innodb_file_per_table = 1;
-set global innodb_file_format = 'Barracuda';
-Warnings:
-Warning	131	Using innodb_file_format is deprecated and the parameter may be removed in future releases. See http://dev.mysql.com/doc/refman/5.7/en/innodb-file-format.html
 set innodb_strict_mode=off;
 create temporary table t (
 i int, f float, c char,
@@ -511,9 +485,10 @@ check table t;
 Table	Op	Msg_type	Msg_text
 test.t	check	status	OK
 set session debug = "+d,ib_trunc_crash_drop_reinit_done_create_to_start";
+Warnings:
+Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
 truncate table t;
 ERROR HY000: Lost connection to MySQL server during query
-# restart
 check table t;
 Table	Op	Msg_type	Msg_text
 test.t	check	Error	Table 'test.t' doesn't exist
@@ -521,9 +496,6 @@ test.t	check	status	Operation failed
 "2. Hit crash point after data is updated to system-table and"
 "   in-memory dict."
 set global innodb_file_per_table = 1;
-set global innodb_file_format = 'Barracuda';
-Warnings:
-Warning	131	Using innodb_file_format is deprecated and the parameter may be removed in future releases. See http://dev.mysql.com/doc/refman/5.7/en/innodb-file-format.html
 set innodb_strict_mode=off;
 create temporary table t (
 i int, f float, c char,
@@ -540,14 +512,11 @@ check table t;
 Table	Op	Msg_type	Msg_text
 test.t	check	status	OK
 set session debug = "+d,ib_trunc_crash_on_updating_dict_sys_info";
+Warnings:
+Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
 truncate table t;
 ERROR HY000: Lost connection to MySQL server during query
-# restart
 check table t;
 Table	Op	Msg_type	Msg_text
 test.t	check	Error	Table 'test.t' doesn't exist
 test.t	check	status	Operation failed
-set global innodb_file_format = Barracuda;
-Warnings:
-Warning	131	Using innodb_file_format is deprecated and the parameter may be removed in future releases. See http://dev.mysql.com/doc/refman/5.7/en/innodb-file-format.html
-set global innodb_file_per_table = 1;

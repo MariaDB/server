@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -120,6 +121,8 @@ struct FindPage
 	FindPage(const void* ptr, ulint flags)
 		: m_ptr(ptr), m_flags(flags), m_slot(NULL)
 	{
+		/* There must be some flags to look for. */
+		ut_ad(flags);
 		/* We can only look for page-related flags. */
 		ut_ad(!(flags & ~(MTR_MEMO_PAGE_S_FIX
 				  | MTR_MEMO_PAGE_X_FIX
@@ -147,6 +150,11 @@ struct FindPage
 		    || m_ptr >= block->frame + block->page.size.logical()) {
 			return(true);
 		}
+
+		ut_ad(!(m_flags & (MTR_MEMO_PAGE_S_FIX
+				   | MTR_MEMO_PAGE_SX_FIX
+				   | MTR_MEMO_PAGE_X_FIX))
+		      || rw_lock_own_flagged(&block->lock, m_flags));
 
 		m_slot = slot;
 		return(false);
@@ -1009,14 +1017,30 @@ mtr_t::release_free_extents(ulint n_reserved)
 @return	true if contains */
 bool
 mtr_t::memo_contains(
-	mtr_buf_t*	memo,
-	const void*	object,
-	ulint		type)
+	const mtr_buf_t*	memo,
+	const void*		object,
+	ulint			type)
 {
 	Find		find(object, type);
 	Iterate<Find>	iterator(find);
 
-	return(!memo->for_each_block_in_reverse(iterator));
+	if (memo->for_each_block_in_reverse(iterator)) {
+		return(false);
+	}
+
+	switch (type) {
+	case MTR_MEMO_X_LOCK:
+		ut_ad(rw_lock_own((rw_lock_t*) object, RW_LOCK_X));
+		break;
+	case MTR_MEMO_SX_LOCK:
+		ut_ad(rw_lock_own((rw_lock_t*) object, RW_LOCK_SX));
+		break;
+	case MTR_MEMO_S_LOCK:
+		ut_ad(rw_lock_own((rw_lock_t*) object, RW_LOCK_S));
+		break;
+	}
+
+	return(true);
 }
 
 /** Debug check for flags */
@@ -1026,20 +1050,56 @@ struct FlaggedCheck {
 		m_ptr(ptr),
 		m_flags(flags)
 	{
-		// Do nothing
+		/* There must be some flags to look for. */
+		ut_ad(flags);
+		/* Look for rw-lock-related and page-related flags. */
+		ut_ad(!(flags & ~(MTR_MEMO_PAGE_S_FIX
+				  | MTR_MEMO_PAGE_X_FIX
+				  | MTR_MEMO_PAGE_SX_FIX
+				  | MTR_MEMO_BUF_FIX
+				  | MTR_MEMO_MODIFY
+				  | MTR_MEMO_X_LOCK
+				  | MTR_MEMO_SX_LOCK
+				  | MTR_MEMO_S_LOCK)));
+		/* Either some rw-lock-related or page-related flags
+		must be specified, but not both at the same time. */
+		ut_ad(!(flags & (MTR_MEMO_PAGE_S_FIX
+				 | MTR_MEMO_PAGE_X_FIX
+				 | MTR_MEMO_PAGE_SX_FIX
+				 | MTR_MEMO_BUF_FIX
+				 | MTR_MEMO_MODIFY))
+		      == !!(flags & (MTR_MEMO_X_LOCK
+				     | MTR_MEMO_SX_LOCK
+				     | MTR_MEMO_S_LOCK)));
 	}
 
+	/** Visit a memo entry.
+	@param[in]	slot	memo entry to visit
+	@retval	false	if m_ptr was found
+	@retval	true	if the iteration should continue */
 	bool operator()(const mtr_memo_slot_t* slot) const
 	{
-		if (m_ptr == slot->object && (m_flags & slot->type)) {
-			return(false);
+		if (m_ptr != slot->object || !(m_flags & slot->type)) {
+			return(true);
 		}
 
-		return(true);
+		if (ulint flags = m_flags & (MTR_MEMO_PAGE_S_FIX
+					     | MTR_MEMO_PAGE_SX_FIX
+					     | MTR_MEMO_PAGE_X_FIX)) {
+			rw_lock_t* lock = &static_cast<buf_block_t*>(
+				const_cast<void*>(m_ptr))->lock;
+			ut_ad(rw_lock_own_flagged(lock, flags));
+		} else {
+			rw_lock_t* lock = static_cast<rw_lock_t*>(
+				const_cast<void*>(m_ptr));
+			ut_ad(rw_lock_own_flagged(lock, m_flags >> 5));
+		}
+
+		return(false);
 	}
 
-	const void*	m_ptr;
-	ulint		m_flags;
+	const void*const	m_ptr;
+	const ulint		m_flags;
 };
 
 /** Check if memo contains the given item.

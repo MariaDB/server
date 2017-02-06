@@ -259,6 +259,9 @@ public:
 class Type_handler
 {
 protected:
+  String *print_item_value_csstr(THD *thd, Item *item, String *str) const;
+  String *print_item_value_temporal(THD *thd, Item *item, String *str,
+                                     const Name &type_name, String *buf) const;
   void make_sort_key_longlong(uchar *to,
                               bool maybe_null, bool null_value,
                               bool unsigned_flag,
@@ -347,6 +350,24 @@ public:
   virtual uint32 max_display_length(const Item *item) const= 0;
   virtual int Item_save_in_field(Item *item, Field *field,
                                  bool no_conversions) const= 0;
+
+  /**
+    Return a string representation of the Item value.
+
+    @param thd     thread handle
+    @param str     string buffer for representation of the value
+
+    @note
+      If the item has a string result type, the string is escaped
+      according to its character set.
+
+    @retval
+      NULL      on error
+    @retval
+      non-NULL  a pointer to a a valid string on success
+  */
+  virtual String *print_item_value(THD *thd, Item *item, String *str) const= 0;
+
   /**
     Check if
       WHERE expr=value AND expr=const
@@ -481,6 +502,7 @@ public:
     DBUG_ASSERT(0);
     return 1;
   }
+  String *print_item_value(THD *thd, Item *item, String *str) const;
   bool can_change_cond_ref_to_const(Item_bool_func2 *target,
                                    Item *target_expr, Item *target_value,
                                    Item_bool_func2 *source,
@@ -585,6 +607,7 @@ protected:
                                                   const Type_handler *handler)
                                                   const;
 public:
+  String *print_item_value(THD *thd, Item *item, String *str) const;
   double Item_func_min_max_val_real(Item_func_min_max *) const;
   longlong Item_func_min_max_val_int(Item_func_min_max *) const;
   my_decimal *Item_func_min_max_val_decimal(Item_func_min_max *,
@@ -788,6 +811,10 @@ public:
                   SORT_FIELD_ATTR *attr) const;
   uint32 max_display_length(const Item *item) const;
   int Item_save_in_field(Item *item, Field *field, bool no_conversions) const;
+  String *print_item_value(THD *thd, Item *item, String *str) const
+  {
+    return print_item_value_csstr(thd, item, str);
+  }
   bool can_change_cond_ref_to_const(Item_bool_func2 *target,
                                    Item *target_expr, Item *target_value,
                                    Item_bool_func2 *source,
@@ -934,6 +961,10 @@ public:
   const Name name() const { return m_name_bit; }
   enum_field_types field_type() const { return MYSQL_TYPE_BIT; }
   uint32 max_display_length(const Item *item) const;
+  String *print_item_value(THD *thd, Item *item, String *str) const
+  {
+    return print_item_value_csstr(thd, item, str);
+  }
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
 };
@@ -975,6 +1006,7 @@ public:
   enum_field_types field_type() const { return MYSQL_TYPE_TIME; }
   const Type_handler *type_handler_for_comparison() const;
   int Item_save_in_field(Item *item, Field *field, bool no_conversions) const;
+  String *print_item_value(THD *thd, Item *item, String *str) const;
   bool Item_hybrid_func_fix_attributes(THD *thd, Item_hybrid_func *func,
                                        Item **items, uint nitems) const;
   cmp_item *make_cmp_item(THD *thd, CHARSET_INFO *cs) const;
@@ -1019,6 +1051,7 @@ public:
   virtual ~Type_handler_date_common() {}
   const Name name() const { return m_name_date; }
   enum_field_types field_type() const { return MYSQL_TYPE_DATE; }
+  String *print_item_value(THD *thd, Item *item, String *str) const;
   bool Item_hybrid_func_fix_attributes(THD *thd, Item_hybrid_func *func,
                                        Item **items, uint nitems) const;
 };
@@ -1048,6 +1081,7 @@ public:
   virtual ~Type_handler_datetime_common() {}
   const Name name() const { return m_name_datetime; }
   enum_field_types field_type() const { return MYSQL_TYPE_DATETIME; }
+  String *print_item_value(THD *thd, Item *item, String *str) const;
   bool Item_hybrid_func_fix_attributes(THD *thd, Item_hybrid_func *func,
                                        Item **items, uint nitems) const;
 };
@@ -1079,6 +1113,7 @@ public:
   virtual ~Type_handler_timestamp_common() {}
   const Name name() const { return m_name_timestamp; }
   enum_field_types field_type() const { return MYSQL_TYPE_TIMESTAMP; }
+  String *print_item_value(THD *thd, Item *item, String *str) const;
   bool Item_hybrid_func_fix_attributes(THD *thd, Item_hybrid_func *func,
                                        Item **items, uint nitems) const;
 };
@@ -1134,6 +1169,7 @@ public:
   virtual ~Type_handler_null() {}
   const Name name() const { return m_name_null; }
   enum_field_types field_type() const { return MYSQL_TYPE_NULL; }
+  const Type_handler *type_handler_for_comparison() const;
   uint32 max_display_length(const Item *item) const { return 0; }
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
@@ -1220,6 +1256,7 @@ public:
   virtual ~Type_handler_geometry() {}
   const Name name() const { return m_name_geometry; }
   enum_field_types field_type() const { return MYSQL_TYPE_GEOMETRY; }
+  const Type_handler *type_handler_for_comparison() const;
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
   bool is_traditional_type() const
@@ -1316,8 +1353,10 @@ public:
   {
     return (m_type_handler= Type_handler::get_handler_by_real_type(type));
   }
-  void aggregate_for_comparison(const Type_handler *other);
-  bool aggregate_for_comparison(Item **items, uint nitems);
+  bool aggregate_for_comparison(const Type_handler *other);
+  bool aggregate_for_comparison(const char *funcname,
+                                Item **items, uint nitems,
+                                bool treat_int_to_uint_as_decimal);
   bool aggregate_for_result(const Type_handler *other);
   bool aggregate_for_result(const char *funcname,
                             Item **item, uint nitems, bool treat_bit_as_number);
@@ -1396,5 +1435,6 @@ public:
 };
 
 extern Type_aggregator type_aggregator_for_result;
+extern Type_aggregator type_aggregator_for_comparison;
 
 #endif /* SQL_TYPE_H_INCLUDED */

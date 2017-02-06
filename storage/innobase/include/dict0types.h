@@ -80,13 +80,6 @@ enum ib_quiesce_t {
 	QUIESCE_COMPLETE		/*!< All done */
 };
 
-/** Enum values for atomic_writes table option */
-typedef enum {
-	ATOMIC_WRITES_DEFAULT = 0,
-	ATOMIC_WRITES_ON = 1,
-	ATOMIC_WRITES_OFF = 2
-} atomic_writes_t;
-
 #ifndef UNIV_INNOCHECKSUM
 typedef ib_mutex_t DictSysMutex;
 #endif /* !UNIV_INNOCHECKSUM */

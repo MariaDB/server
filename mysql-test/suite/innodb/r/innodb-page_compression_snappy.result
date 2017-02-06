@@ -1,102 +1,98 @@
-call mtr.add_suppression("Compression failed for space*");
-set global innodb_file_format = `barracuda`;
-Warnings:
-Warning	131	Using innodb_file_format is deprecated and the parameter may be removed in future releases. See http://dev.mysql.com/doc/refman/5.7/en/innodb-file-format.html
-set global innodb_file_per_table = on;
+call mtr.add_suppression("InnoDB: Compression failed for space.*");
 set global innodb_compression_algorithm = 6;
-create table innodb_compressed(c1 int, b char(20)) engine=innodb row_format=compressed key_block_size=8;
+create table innodb_compressed(c1 int, b char(200)) engine=innodb row_format=compressed key_block_size=8;
 show warnings;
 Level	Code	Message
-create table innodb_normal (c1 int, b char(20)) engine=innodb;
+create table innodb_normal (c1 int, b char(200)) engine=innodb;
 show warnings;
 Level	Code	Message
-create table innodb_page_compressed1 (c1 int, b char(20)) engine=innodb page_compressed=1 page_compression_level=1;
+create table innodb_page_compressed1 (c1 int, b char(200)) engine=innodb page_compressed=1 page_compression_level=1;
 show warnings;
 Level	Code	Message
 show create table innodb_page_compressed1;
 Table	Create Table
 innodb_page_compressed1	CREATE TABLE `innodb_page_compressed1` (
   `c1` int(11) DEFAULT NULL,
-  `b` char(20) DEFAULT NULL
+  `b` char(200) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 `page_compressed`=1 `page_compression_level`=1
-create table innodb_page_compressed2 (c1 int, b char(20)) engine=innodb page_compressed=1 page_compression_level=2;
+create table innodb_page_compressed2 (c1 int, b char(200)) engine=innodb page_compressed=1 page_compression_level=2;
 show warnings;
 Level	Code	Message
 show create table innodb_page_compressed2;
 Table	Create Table
 innodb_page_compressed2	CREATE TABLE `innodb_page_compressed2` (
   `c1` int(11) DEFAULT NULL,
-  `b` char(20) DEFAULT NULL
+  `b` char(200) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 `page_compressed`=1 `page_compression_level`=2
-create table innodb_page_compressed3 (c1 int, b char(20)) engine=innodb page_compressed=1 page_compression_level=3;
+create table innodb_page_compressed3 (c1 int, b char(200)) engine=innodb page_compressed=1 page_compression_level=3;
 show warnings;
 Level	Code	Message
 show create table innodb_page_compressed3;
 Table	Create Table
 innodb_page_compressed3	CREATE TABLE `innodb_page_compressed3` (
   `c1` int(11) DEFAULT NULL,
-  `b` char(20) DEFAULT NULL
+  `b` char(200) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 `page_compressed`=1 `page_compression_level`=3
-create table innodb_page_compressed4 (c1 int, b char(20)) engine=innodb page_compressed=1 page_compression_level=4;
+create table innodb_page_compressed4 (c1 int, b char(200)) engine=innodb page_compressed=1 page_compression_level=4;
 show warnings;
 Level	Code	Message
 show create table innodb_page_compressed4;
 Table	Create Table
 innodb_page_compressed4	CREATE TABLE `innodb_page_compressed4` (
   `c1` int(11) DEFAULT NULL,
-  `b` char(20) DEFAULT NULL
+  `b` char(200) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 `page_compressed`=1 `page_compression_level`=4
-create table innodb_page_compressed5 (c1 int, b char(20)) engine=innodb page_compressed=1 page_compression_level=5;
+create table innodb_page_compressed5 (c1 int, b char(200)) engine=innodb page_compressed=1 page_compression_level=5;
 show warnings;
 Level	Code	Message
 show create table innodb_page_compressed5;
 Table	Create Table
 innodb_page_compressed5	CREATE TABLE `innodb_page_compressed5` (
   `c1` int(11) DEFAULT NULL,
-  `b` char(20) DEFAULT NULL
+  `b` char(200) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 `page_compressed`=1 `page_compression_level`=5
-create table innodb_page_compressed6 (c1 int, b char(20)) engine=innodb page_compressed=1 page_compression_level=6;
+create table innodb_page_compressed6 (c1 int, b char(200)) engine=innodb page_compressed=1 page_compression_level=6;
 show warnings;
 Level	Code	Message
 show create table innodb_page_compressed6;
 Table	Create Table
 innodb_page_compressed6	CREATE TABLE `innodb_page_compressed6` (
   `c1` int(11) DEFAULT NULL,
-  `b` char(20) DEFAULT NULL
+  `b` char(200) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 `page_compressed`=1 `page_compression_level`=6
-create table innodb_page_compressed7 (c1 int, b char(20)) engine=innodb page_compressed=1 page_compression_level=7;
+create table innodb_page_compressed7 (c1 int, b char(200)) engine=innodb page_compressed=1 page_compression_level=7;
 show warnings;
 Level	Code	Message
 show create table innodb_page_compressed7;
 Table	Create Table
 innodb_page_compressed7	CREATE TABLE `innodb_page_compressed7` (
   `c1` int(11) DEFAULT NULL,
-  `b` char(20) DEFAULT NULL
+  `b` char(200) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 `page_compressed`=1 `page_compression_level`=7
-create table innodb_page_compressed8 (c1 int, b char(20)) engine=innodb page_compressed=1 page_compression_level=8;
+create table innodb_page_compressed8 (c1 int, b char(200)) engine=innodb page_compressed=1 page_compression_level=8;
 show warnings;
 Level	Code	Message
 show create table innodb_page_compressed8;
 Table	Create Table
 innodb_page_compressed8	CREATE TABLE `innodb_page_compressed8` (
   `c1` int(11) DEFAULT NULL,
-  `b` char(20) DEFAULT NULL
+  `b` char(200) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 `page_compressed`=1 `page_compression_level`=8
-create table innodb_page_compressed9 (c1 int, b char(20)) engine=innodb page_compressed=1 page_compression_level=9;
+create table innodb_page_compressed9 (c1 int, b char(200)) engine=innodb page_compressed=1 page_compression_level=9;
 show warnings;
 Level	Code	Message
 show create table innodb_page_compressed9;
 Table	Create Table
 innodb_page_compressed9	CREATE TABLE `innodb_page_compressed9` (
   `c1` int(11) DEFAULT NULL,
-  `b` char(20) DEFAULT NULL
+  `b` char(200) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 `page_compressed`=1 `page_compression_level`=9
 create procedure innodb_insert_proc (repeat_count int)
 begin
 declare current_num int;
 set current_num = 0;
 while current_num < repeat_count do
-insert into innodb_normal values(current_num,'testing..');
+insert into innodb_normal values(current_num,'aaaaaaaaaaaaaaaaaaabbbbbbbbbbbbbbbbbbbbbbbccccccccccccccccccccccc');
 set current_num = current_num + 1;
 end while;
 end//
@@ -159,7 +155,7 @@ show create table innodb_normal;
 Table	Create Table
 innodb_normal	CREATE TABLE `innodb_normal` (
   `c1` int(11) DEFAULT NULL,
-  `b` char(20) DEFAULT NULL
+  `b` char(200) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 `page_compressed`=1 `page_compression_level`=8
 alter table innodb_compressed row_format=default page_compressed=1 page_compression_level=8 key_block_size=0;
 show warnings;
@@ -168,7 +164,7 @@ show create table innodb_compressed;
 Table	Create Table
 innodb_compressed	CREATE TABLE `innodb_compressed` (
   `c1` int(11) DEFAULT NULL,
-  `b` char(20) DEFAULT NULL
+  `b` char(200) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 `page_compressed`=1 `page_compression_level`=8
 update innodb_page_compressed1 set c1 = c1 + 1;
 update innodb_page_compressed2 set c1 = c1 + 1;
@@ -438,5 +434,3 @@ drop table innodb_page_compressed6;
 drop table innodb_page_compressed7;
 drop table innodb_page_compressed8;
 drop table innodb_page_compressed9;
-Warnings:
-Warning	131	Using innodb_file_format is deprecated and the parameter may be removed in future releases. See http://dev.mysql.com/doc/refman/5.7/en/innodb-file-format.html

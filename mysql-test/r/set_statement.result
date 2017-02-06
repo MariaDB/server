@@ -652,7 +652,9 @@ v1	v2
 3	4
 ALTER TABLE t1 ADD COLUMN v3 int;
 execute stmt;
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '.* FROM t1' at line 1
+v1	v2	v3
+1	2	NULL
+3	4	NULL
 ALTER TABLE t1 drop COLUMN v3;
 deallocate prepare stmt;
 ''
@@ -670,7 +672,9 @@ v1	v2
 3	4
 ALTER TABLE t1 ADD COLUMN v3 int;
 execute stmt;
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '.* FROM t1' at line 1
+v1	v2	v3
+1	2	NULL
+3	4	NULL
 ALTER TABLE t1 drop COLUMN v3;
 deallocate prepare stmt;
 SELECT @@sql_mode;

@@ -2,6 +2,7 @@
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All rights reserved.
 Copyright (c) 2009, Google Inc.
+Copyright (c) 2017, MariaDB Corporation
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -38,6 +39,7 @@ Created 12/9/1995 Heikki Tuuri
 #include "sync0rw.h"
 #include "log0crypt.h"
 #include "log0types.h"
+#include "os0event.h"
 
 /** Redo log buffer */
 struct log_t;
@@ -804,21 +806,13 @@ log_group_calc_lsn_offset(
 	lsn_t			lsn,
 	const log_group_t*	group);
 
-extern os_event_t log_scrub_event;
 /* log scrubbing speed, in bytes/sec */
 extern ulonglong innodb_scrub_log_speed;
 
-/*****************************************************************//**
-This is the main thread for log scrub. It waits for an event and
-when waked up fills current log block with dummy records and
-sleeps again.
-@return this function does not return, it calls os_thread_exit() */
-extern "C" UNIV_INTERN
-os_thread_ret_t
-DECLARE_THREAD(log_scrub_thread)(
-/*===============================*/
-	void* arg);				/*!< in: a dummy parameter
-						required by os_thread_create */
+/** Event to wake up log_scrub_thread */
+extern os_event_t	log_scrub_event;
+/** Whether log_scrub_thread is active */
+extern bool		log_scrub_thread_active;
 
 #ifndef UNIV_NONINL
 #include "log0log.ic"

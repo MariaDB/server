@@ -273,7 +273,6 @@ int mysql_update(THD *thd,
   SORT_INFO     *file_sort= 0;
   READ_RECORD	info;
   SELECT_LEX    *select_lex= &thd->lex->select_lex;
-  BLOB_VALUE_ORPHANAGE vblobs;
   ulonglong     id;
   List<Item> all_fields;
   killed_state killed_status= NOT_KILLED;
@@ -619,8 +618,6 @@ int mysql_update(THD *thd,
       while (!(error=info.read_record(&info)) && !thd->killed)
       {
         explain->buf_tracker.on_record_read();
-        if (table->vfield)
-          table->update_virtual_fields(VCOL_UPDATE_FOR_READ_WRITE);
         thd->inc_examined_row_count(1);
 	if (!select || (error= select->skip_record(thd)) > 0)
 	{
@@ -725,8 +722,6 @@ int mysql_update(THD *thd,
 
   table->reset_default_fields();
 
-  vblobs.init(table);
-
   /*
     We can use compare_record() to optimize away updates if
     the table handler is returning all columns OR if
@@ -738,8 +733,6 @@ int mysql_update(THD *thd,
   while (!(error=info.read_record(&info)) && !thd->killed)
   {
     explain->tracker.on_record_read();
-    if (table->vfield)
-      table->update_virtual_fields(VCOL_UPDATE_FOR_READ_WRITE);
     thd->inc_examined_row_count(1);
     if (!select || select->skip_record(thd) > 0)
     {
@@ -748,9 +741,6 @@ int mysql_update(THD *thd,
 
       explain->tracker.on_record_after_where();
       store_record(table,record[1]);
-
-      vblobs.make_orphans();
-
       if (fill_record_n_invoke_before_triggers(thd, table, fields, values, 0,
                                                TRG_EVENT_UPDATE))
         break; /* purecov: inspected */
@@ -910,9 +900,7 @@ int mysql_update(THD *thd,
       error= 1;
       break;
     }
-    vblobs.free_orphans();
   }
-  vblobs.free_orphans();
   ANALYZE_STOP_TRACKING(&explain->command_tracker);
   table->auto_increment_field_not_null= FALSE;
   dup_key_found= 0;
@@ -1760,8 +1748,6 @@ int multi_update::prepare(List<Item> &not_used_values,
 					      table_count);
   values_for_table= (List_item **) thd->alloc(sizeof(List_item *) *
 					      table_count);
-  vblobs= (BLOB_VALUE_ORPHANAGE *)thd->calloc(sizeof(*vblobs) * table_count);
-
   if (thd->is_fatal_error)
     DBUG_RETURN(1);
   for (i=0 ; i < table_count ; i++)
@@ -1794,7 +1780,6 @@ int multi_update::prepare(List<Item> &not_used_values,
       TABLE *table= ((Item_field*)(fields_for_table[i]->head()))->field->table;
       switch_to_nullable_trigger_fields(*fields_for_table[i], table);
       switch_to_nullable_trigger_fields(*values_for_table[i], table);
-      vblobs[i].init(table);
     }
   }
   copy_field= new Copy_field[max_fields];
@@ -2076,8 +2061,6 @@ multi_update::~multi_update()
 	free_tmp_table(thd, tmp_tables[cnt]);
 	tmp_table_param[cnt].cleanup();
       }
-      vblobs[cnt].free_orphans();
-      vblobs[cnt].free();
     }
   }
   if (copy_field)
@@ -2123,9 +2106,7 @@ int multi_update::send_data(List<Item> &not_used_values)
       can_compare_record= records_are_comparable(table);
 
       table->status|= STATUS_UPDATED;
-      vblobs[offset].free_orphans();
       store_record(table,record[1]);
-      vblobs[offset].make_orphans();
       if (fill_record_n_invoke_before_triggers(thd, table,
                                                *fields_for_table[offset],
                                                *values_for_table[offset], 0,
@@ -2342,7 +2323,17 @@ int multi_update::do_updates()
       goto err;
     }
     table->file->extra(HA_EXTRA_NO_CACHE);
-    empty_record(table);
+    /*
+      We have to clear the base record, if we have virtual indexed
+      blob fields, as some storage engines will access the blob fields
+      to calculate the keys to see if they have changed. Without
+      clearing the blob pointers will contain random values which can
+      cause a crash.
+      This is a workaround for engines that access columns not present in
+      either read or write set.
+    */
+    if (table->vfield)
+      empty_record(table);
 
     check_opt_it.rewind();
     while(TABLE *tbl= check_opt_it++)
@@ -2412,13 +2403,12 @@ int multi_update::do_updates()
         field_num++;
       } while ((tbl= check_opt_it++));
 
-      if (table->vfield && table->update_virtual_fields(VCOL_UPDATE_INDEXED))
+      if (table->vfield &&
+          table->update_virtual_fields(VCOL_UPDATE_INDEXED_FOR_UPDATE))
         goto err2;
 
       table->status|= STATUS_UPDATED;
-      vblobs[offset].free_orphans();
       store_record(table,record[1]);
-      vblobs[offset].make_orphans();
 
       /* Copy data from temporary table to current table */
       for (copy_field_ptr=copy_field;

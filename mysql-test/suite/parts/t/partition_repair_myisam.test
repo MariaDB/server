@@ -190,7 +190,7 @@ eval INSERT INTO t1_will_crash VALUES
   ('6 row 7 (crash before completely written to datafile)', 27, '$lt$lt');
 --enable_query_log
 SELECT COUNT(*) FROM t1_will_crash;
-SELECT (b % 7) AS `partition`, COUNT(*) AS rows FROM t1_will_crash GROUP BY (b % 7);
+SELECT (b % 7) AS `partition`, COUNT(*) AS rows_cnt FROM t1_will_crash GROUP BY (b % 7);
 SELECT (b % 7) AS `partition`, b, a, length(c) FROM t1_will_crash ORDER BY `partition`, b, a;
 FLUSH TABLES;
 # testing p0, p1, p3, p6(1)
@@ -216,7 +216,7 @@ OPTIMIZE TABLE t1_will_crash;
 CHECK TABLE t1_will_crash;
 REPAIR TABLE t1_will_crash;
 SELECT COUNT(*) FROM t1_will_crash;
-SELECT (b % 7) AS `partition`, COUNT(*) AS rows FROM t1_will_crash GROUP BY (b % 7);
+SELECT (b % 7) AS `partition`, COUNT(*) AS rows_cnt FROM t1_will_crash GROUP BY (b % 7);
 SELECT (b % 7) AS `partition`, b, a, length(c) FROM t1_will_crash ORDER BY `partition`, b, a;
 FLUSH TABLES;
 
@@ -282,7 +282,7 @@ SET @@optimizer_switch=@save_optimizer_switch;
 ALTER TABLE t1_will_crash CHECK PARTITION p6;
 ALTER TABLE t1_will_crash REPAIR PARTITION p6;
 SELECT COUNT(*) FROM t1_will_crash;
-SELECT (b % 7) AS `partition`, COUNT(*) AS rows FROM t1_will_crash GROUP BY (b % 7);
+SELECT (b % 7) AS `partition`, COUNT(*) AS rows_cnt FROM t1_will_crash GROUP BY (b % 7);
 SELECT (b % 7) AS `partition`, b, a, length(c) FROM t1_will_crash ORDER BY `partition`, b, a;
 ALTER TABLE t1_will_crash CHECK PARTITION all EXTENDED;
 DROP TABLE t1_will_crash;

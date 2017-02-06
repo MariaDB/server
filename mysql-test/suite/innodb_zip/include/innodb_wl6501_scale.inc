@@ -45,7 +45,6 @@ delimiter ;|
 # create and load the tables.
 #
 eval set global innodb_file_per_table = $wl6501_file_per_table;
-eval set global innodb_file_format = $wl6501_file_format;
 --replace_regex /[0-9]+/NUMBER/
 eval create table t1
 	(i int, c1 char(100), c2 char(100),

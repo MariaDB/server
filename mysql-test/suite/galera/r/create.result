@@ -7,6 +7,8 @@ SHOW VARIABLES LIKE '%log%bin%';
 Variable_name	Value
 log_bin	OFF
 log_bin_basename	
+log_bin_compress	OFF
+log_bin_compress_min_len	256
 log_bin_index	
 log_bin_trust_function_creators	ON
 sql_log_bin	ON

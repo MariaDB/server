@@ -1,49 +1,42 @@
 -- source include/have_innodb.inc
 -- source include/have_innodb_snappy.inc
 
-call mtr.add_suppression("Compression failed for space*");
+call mtr.add_suppression("InnoDB: Compression failed for space.*");
 
---disable_query_log
 let $innodb_compression_algorithm_orig=`select @@innodb_compression_algorithm`;
-let $innodb_file_format_orig = `select @@innodb_file_format`;
-let $innodb_file_per_table_orig = `select @@innodb_file_per_table`;
---enable_query_log
-
-set global innodb_file_format = `barracuda`;
-set global innodb_file_per_table = on;
 
 # snappy
 set global innodb_compression_algorithm = 6;
 
-create table innodb_compressed(c1 int, b char(20)) engine=innodb row_format=compressed key_block_size=8;
+create table innodb_compressed(c1 int, b char(200)) engine=innodb row_format=compressed key_block_size=8;
 show warnings;
-create table innodb_normal (c1 int, b char(20)) engine=innodb;
+create table innodb_normal (c1 int, b char(200)) engine=innodb;
 show warnings;
-create table innodb_page_compressed1 (c1 int, b char(20)) engine=innodb page_compressed=1 page_compression_level=1;
+create table innodb_page_compressed1 (c1 int, b char(200)) engine=innodb page_compressed=1 page_compression_level=1;
 show warnings;
 show create table innodb_page_compressed1;
-create table innodb_page_compressed2 (c1 int, b char(20)) engine=innodb page_compressed=1 page_compression_level=2;
+create table innodb_page_compressed2 (c1 int, b char(200)) engine=innodb page_compressed=1 page_compression_level=2;
 show warnings;
 show create table innodb_page_compressed2;
-create table innodb_page_compressed3 (c1 int, b char(20)) engine=innodb page_compressed=1 page_compression_level=3;
+create table innodb_page_compressed3 (c1 int, b char(200)) engine=innodb page_compressed=1 page_compression_level=3;
 show warnings;
 show create table innodb_page_compressed3;
-create table innodb_page_compressed4 (c1 int, b char(20)) engine=innodb page_compressed=1 page_compression_level=4;
+create table innodb_page_compressed4 (c1 int, b char(200)) engine=innodb page_compressed=1 page_compression_level=4;
 show warnings;
 show create table innodb_page_compressed4;
-create table innodb_page_compressed5 (c1 int, b char(20)) engine=innodb page_compressed=1 page_compression_level=5;
+create table innodb_page_compressed5 (c1 int, b char(200)) engine=innodb page_compressed=1 page_compression_level=5;
 show warnings;
 show create table innodb_page_compressed5;
-create table innodb_page_compressed6 (c1 int, b char(20)) engine=innodb page_compressed=1 page_compression_level=6;
+create table innodb_page_compressed6 (c1 int, b char(200)) engine=innodb page_compressed=1 page_compression_level=6;
 show warnings;
 show create table innodb_page_compressed6;
-create table innodb_page_compressed7 (c1 int, b char(20)) engine=innodb page_compressed=1 page_compression_level=7;
+create table innodb_page_compressed7 (c1 int, b char(200)) engine=innodb page_compressed=1 page_compression_level=7;
 show warnings;
 show create table innodb_page_compressed7;
-create table innodb_page_compressed8 (c1 int, b char(20)) engine=innodb page_compressed=1 page_compression_level=8;
+create table innodb_page_compressed8 (c1 int, b char(200)) engine=innodb page_compressed=1 page_compression_level=8;
 show warnings;
 show create table innodb_page_compressed8;
-create table innodb_page_compressed9 (c1 int, b char(20)) engine=innodb page_compressed=1 page_compression_level=9;
+create table innodb_page_compressed9 (c1 int, b char(200)) engine=innodb page_compressed=1 page_compression_level=9;
 show warnings;
 show create table innodb_page_compressed9;
 delimiter //;
@@ -52,7 +45,7 @@ begin
   declare current_num int;
   set current_num = 0;
   while current_num < repeat_count do
-    insert into innodb_normal values(current_num,'testing..');
+    insert into innodb_normal values(current_num,'aaaaaaaaaaaaaaaaaaabbbbbbbbbbbbbbbbbbbbbbbccccccccccccccccccccccc');
     set current_num = current_num + 1;
   end while;
 end//
@@ -248,6 +241,4 @@ drop table innodb_page_compressed9;
 # reset system
 --disable_query_log
 EVAL SET GLOBAL innodb_compression_algorithm = $innodb_compression_algorithm_orig;
-EVAL SET GLOBAL innodb_file_per_table = $innodb_file_per_table_orig;
-EVAL SET GLOBAL innodb_file_format = $innodb_file_format_orig;
 --enable_query_log

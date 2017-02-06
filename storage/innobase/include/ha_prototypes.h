@@ -41,8 +41,6 @@ struct fts_string_t;
 
 // JAN: TODO missing features:
 #undef MYSQL_57_SELECT_COUNT_OPTIMIZATION
-#undef MYSQL_COMPRESSION
-#undef MYSQL_ENCRYPTION
 #undef MYSQL_FT_INIT_EXT
 #undef MYSQL_INNODB_API_CB
 #undef MYSQL_INNODB_PARTITIONING
@@ -51,7 +49,6 @@ struct fts_string_t;
 #undef MYSQL_REPLACE_TRX_IN_THD
 #undef MYSQL_SPATIAL_INDEX
 #undef MYSQL_STORE_FTS_DOC_ID
-#undef MYSQL_TABLESPACES
 
 /*********************************************************************//**
 Wrapper around MySQL's copy_and_convert function.

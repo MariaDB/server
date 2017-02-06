@@ -34,9 +34,9 @@ ON SCHEDULE AT CURRENT_TIMESTAMP + INTERVAL 1 DAY
 DO INSERT INTO test.t1 VALUES (1);
 CREATE FUNCTION f1 () RETURNS INT DETERMINISTIC
 RETURN 1;
-CREATE PROCEDURE p1 (OUT rows INT)
+CREATE PROCEDURE p1 (OUT rows_cnt INT)
 BEGIN
-SELECT COUNT(*) INTO rows FROM t1;
+SELECT COUNT(*) INTO rows_cnt FROM t1;
 END;
 //
 CREATE SERVER s1
@@ -125,9 +125,9 @@ connection master;
 include/rpl_diff.inc
 connection master;
 connection master1;
-CREATE PROCEDURE p2 (OUT rows INT)
+CREATE PROCEDURE p2 (OUT rows_cnt INT)
 BEGIN
-SELECT COUNT(*) INTO rows FROM t2;
+SELECT COUNT(*) INTO rows_cnt FROM t2;
 END;
 //
 source include/kill_query.inc;
@@ -135,7 +135,7 @@ connection master;
 include/rpl_diff.inc
 connection master;
 connection master1;
-ALTER PROCEDURE p1 SQL SECURITY INVOKER COMMENT 'return rows of table t1';
+ALTER PROCEDURE p1 SQL SECURITY INVOKER COMMENT 'return rows_cnt of table t1';
 source include/kill_query.inc;
 connection master;
 include/rpl_diff.inc

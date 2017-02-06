@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2014, 2016, MariaDB Corporation.
+Copyright (c) 2014, 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -187,18 +187,6 @@ every XDES_DESCRIBED_PER_PAGE pages in every tablespace. */
 /*--------------------------------------*/
 /* @} */
 
-/** Validate the tablespace flags.
-These flags are stored in the tablespace header at offset FSP_SPACE_FLAGS.
-They should be 0 for ROW_FORMAT=COMPACT and ROW_FORMAT=REDUNDANT.
-The newer row formats, COMPRESSED and DYNAMIC, use a file format > Antelope
-so they should have a file format number plus the DICT_TF_COMPACT bit set.
-@param[in]	flags	Tablespace flags
-@return true if valid, false if not */
-bool
-fsp_flags_is_valid(
-	ulint	flags)
-	MY_ATTRIBUTE((warn_unused_result, const));
-
 /** Check if tablespace is system temporary.
 @param[in]      space_id        verify is checksum is enabled for given space.
 @return true if tablespace is system temporary. */
@@ -215,15 +203,6 @@ fsp_is_system_temporary(ulint	space_id)
 bool
 fsp_is_checksum_disabled(
 	ulint	space_id);
-
-/** Check if tablespace is file-per-table.
-@param[in]	space_id	Tablespace ID
-@param[in]	fsp_flags	Tablespace Flags
-@return true if tablespace is file-per-table. */
-bool
-fsp_is_file_per_table(
-	ulint	space_id,
-	ulint	fsp_flags);
 
 #ifdef UNIV_DEBUG
 /** Skip some of the sanity checks that are time consuming even in debug mode
@@ -249,42 +228,67 @@ to the two Barracuda row formats COMPRESSED and DYNAMIC. */
 #define FSP_FLAGS_WIDTH_ATOMIC_BLOBS	1
 /** Number of flag bits used to indicate the tablespace page size */
 #define FSP_FLAGS_WIDTH_PAGE_SSIZE	4
-/** Width of the DATA_DIR flag.  This flag indicates that the tablespace
-is found in a remote location, not the default data directory. */
-#define FSP_FLAGS_WIDTH_DATA_DIR	1
-/** Width of the SHARED flag.  This flag indicates that the tablespace
-was created with CREATE TABLESPACE and can be shared by multiple tables. */
-#define FSP_FLAGS_WIDTH_SHARED		1
-/** Width of the TEMPORARY flag.  This flag indicates that the tablespace
-is a temporary tablespace and everything in it is temporary, meaning that
-it is for a single client and should be deleted upon startup if it exists. */
-#define FSP_FLAGS_WIDTH_TEMPORARY	1
-/** Width of the encryption flag.  This flag indicates that the tablespace
-is a tablespace with encryption. */
-#define FSP_FLAGS_WIDTH_ENCRYPTION	1
+/** Number of reserved bits */
+#define FSP_FLAGS_WIDTH_RESERVED 6
+/** Number of flag bits used to indicate the page compression */
+#define FSP_FLAGS_WIDTH_PAGE_COMPRESSION 1
 
-/** Number of flag bits used to indicate the page compression and compression level */
-#define FSP_FLAGS_WIDTH_PAGE_COMPRESSION  1
-#define FSP_FLAGS_WIDTH_PAGE_COMPRESSION_LEVEL 4
-
-/** Number of flag bits used to indicate atomic writes for this tablespace */
-#define FSP_FLAGS_WIDTH_ATOMIC_WRITES  2
-
-/** Width of all the currently known tablespace flags */
+/** Width of all the currently known persistent tablespace flags */
 #define FSP_FLAGS_WIDTH		(FSP_FLAGS_WIDTH_POST_ANTELOPE	\
 				+ FSP_FLAGS_WIDTH_ZIP_SSIZE	\
 				+ FSP_FLAGS_WIDTH_ATOMIC_BLOBS	\
 				+ FSP_FLAGS_WIDTH_PAGE_SSIZE	\
-				+ FSP_FLAGS_WIDTH_DATA_DIR	\
-				+ FSP_FLAGS_WIDTH_SHARED	\
-				+ FSP_FLAGS_WIDTH_TEMPORARY	\
-				+ FSP_FLAGS_WIDTH_ENCRYPTION	\
-				+ FSP_FLAGS_WIDTH_PAGE_COMPRESSION \
-				+ FSP_FLAGS_WIDTH_PAGE_COMPRESSION_LEVEL \
-				+ FSP_FLAGS_WIDTH_ATOMIC_WRITES )
+				+ FSP_FLAGS_WIDTH_RESERVED	\
+				+ FSP_FLAGS_WIDTH_PAGE_COMPRESSION)
 
-/** A mask of all the known/used bits in tablespace flags */
+/** A mask of all the known/used bits in FSP_SPACE_FLAGS */
 #define FSP_FLAGS_MASK		(~(~0U << FSP_FLAGS_WIDTH))
+
+/* FSP_SPACE_FLAGS position and name in MySQL 5.6/MariaDB 10.0 or older
+and MariaDB 10.1.20 or older MariaDB 10.1 and in MariaDB 10.1.21
+or newer.
+MySQL 5.6		MariaDB 10.1.x		MariaDB 10.1.21
+====================================================================
+Below flags in same offset
+====================================================================
+0: POST_ANTELOPE	0:POST_ANTELOPE		0: POST_ANTELOPE
+1..4: ZIP_SSIZE(0..5)	1..4:ZIP_SSIZE(0..5)	1..4: ZIP_SSIZE(0..5)
+(NOTE: bit 4 is always 0)
+5: ATOMIC_BLOBS    	5:ATOMIC_BLOBS		5: ATOMIC_BLOBS
+=====================================================================
+Below note the order difference:
+=====================================================================
+6..9: PAGE_SSIZE(3..7)	6: COMPRESSION		6..9: PAGE_SSIZE(3..7)
+10: DATA_DIR		7..10: COMP_LEVEL(0..9)	10: RESERVED (5.6 DATA_DIR)
+=====================================================================
+The flags below were in incorrect position in MariaDB 10.1,
+or have been introduced in MySQL 5.7 or 8.0:
+=====================================================================
+11: UNUSED		11..12:ATOMIC_WRITES	11: RESERVED (5.7 SHARED)
+						12: RESERVED (5.7 TEMPORARY)
+			13..15:PAGE_SSIZE(3..7)	13: RESERVED (5.7 ENCRYPTION)
+						14: RESERVED (8.0 SDI)
+						15: RESERVED
+			16: PAGE_SSIZE_msb(0)	16: COMPRESSION
+			17: DATA_DIR		17: UNUSED
+			18: UNUSED
+=====================================================================
+The flags below only exist in fil_space_t::flags, not in FSP_SPACE_FLAGS:
+=====================================================================
+						25: DATA_DIR
+						26..27: ATOMIC_WRITES
+						28..31: COMPRESSION_LEVEL
+*/
+
+/** A mask of the memory-only flags in fil_space_t::flags */
+#define FSP_FLAGS_MEM_MASK		(~0U << FSP_FLAGS_MEM_DATA_DIR)
+
+/** Zero relative shift position of the DATA_DIR flag */
+#define FSP_FLAGS_MEM_DATA_DIR		25
+/** Zero relative shift position of the ATOMIC_WRITES field */
+#define FSP_FLAGS_MEM_ATOMIC_WRITES	26
+/** Zero relative shift position of the COMPRESSION_LEVEL field */
+#define FSP_FLAGS_MEM_COMPRESSION_LEVEL	28
 
 /** Zero relative shift position of the POST_ANTELOPE field */
 #define FSP_FLAGS_POS_POST_ANTELOPE	0
@@ -294,34 +298,16 @@ is a tablespace with encryption. */
 /** Zero relative shift position of the ATOMIC_BLOBS field */
 #define FSP_FLAGS_POS_ATOMIC_BLOBS	(FSP_FLAGS_POS_ZIP_SSIZE	\
 					+ FSP_FLAGS_WIDTH_ZIP_SSIZE)
-/** Zero relative shift position of the PAGE_SSIZE field */
+/** Zero relative shift position of the start of the PAGE_SSIZE bits */
 #define FSP_FLAGS_POS_PAGE_SSIZE	(FSP_FLAGS_POS_ATOMIC_BLOBS	\
-					+ FSP_FLAGS_WIDTH_ATOMIC_BLOBS)
-/** Zero relative shift position of the start of the DATA_DIR bit */
-#define FSP_FLAGS_POS_DATA_DIR		(FSP_FLAGS_POS_PAGE_SSIZE	\
+                                        + FSP_FLAGS_WIDTH_ATOMIC_BLOBS)
+/** Zero relative shift position of the start of the RESERVED bits
+these are only used in MySQL 5.7 and used for compatibility. */
+#define FSP_FLAGS_POS_RESERVED		(FSP_FLAGS_POS_PAGE_SSIZE	\
 					+ FSP_FLAGS_WIDTH_PAGE_SSIZE)
-/** Zero relative shift position of the start of the SHARED bit */
-#define FSP_FLAGS_POS_SHARED		(FSP_FLAGS_POS_DATA_DIR		\
-					+ FSP_FLAGS_WIDTH_DATA_DIR)
-/** Zero relative shift position of the start of the TEMPORARY bit */
-#define FSP_FLAGS_POS_TEMPORARY		(FSP_FLAGS_POS_SHARED		\
-					+ FSP_FLAGS_WIDTH_SHARED)
-/** Zero relative shift position of the start of the ENCRYPTION bit */
-#define FSP_FLAGS_POS_ENCRYPTION	(FSP_FLAGS_POS_TEMPORARY	\
-					+ FSP_FLAGS_WIDTH_TEMPORARY)
 /** Zero relative shift position of the PAGE_COMPRESSION field */
-#define FSP_FLAGS_POS_PAGE_COMPRESSION	(FSP_FLAGS_POS_ENCRYPTION	\
-					+ FSP_FLAGS_WIDTH_ENCRYPTION)
-/** Zero relative shift position of the PAGE_COMPRESSION_LEVEL field */
-#define FSP_FLAGS_POS_PAGE_COMPRESSION_LEVEL	(FSP_FLAGS_POS_PAGE_COMPRESSION	\
-					+ FSP_FLAGS_WIDTH_PAGE_COMPRESSION)
-/** Zero relative shift position of the ATOMIC_WRITES field */
-#define FSP_FLAGS_POS_ATOMIC_WRITES	(FSP_FLAGS_POS_PAGE_COMPRESSION_LEVEL	\
-					+ FSP_FLAGS_WIDTH_PAGE_COMPRESSION_LEVEL)
-/** Zero relative shift position of the start of the UNUSED bits */
-#define FSP_FLAGS_POS_UNUSED		(FSP_FLAGS_POS_ATOMIC_WRITES	\
-					+ FSP_FLAGS_WIDTH_ATOMIC_WRITES)
-
+#define FSP_FLAGS_POS_PAGE_COMPRESSION	(FSP_FLAGS_POS_RESERVED \
+					+ FSP_FLAGS_WIDTH_RESERVED)
 
 /** Bit mask of the POST_ANTELOPE field */
 #define FSP_FLAGS_MASK_POST_ANTELOPE				\
@@ -339,34 +325,22 @@ is a tablespace with encryption. */
 #define FSP_FLAGS_MASK_PAGE_SSIZE				\
 		((~(~0U << FSP_FLAGS_WIDTH_PAGE_SSIZE))		\
 		<< FSP_FLAGS_POS_PAGE_SSIZE)
-/** Bit mask of the DATA_DIR field */
-#define FSP_FLAGS_MASK_DATA_DIR					\
-		((~(~0U << FSP_FLAGS_WIDTH_DATA_DIR))		\
-		<< FSP_FLAGS_POS_DATA_DIR)
-/** Bit mask of the SHARED field */
-#define FSP_FLAGS_MASK_SHARED					\
-		((~(~0U << FSP_FLAGS_WIDTH_SHARED))		\
-		<< FSP_FLAGS_POS_SHARED)
-/** Bit mask of the TEMPORARY field */
-#define FSP_FLAGS_MASK_TEMPORARY				\
-		((~(~0U << FSP_FLAGS_WIDTH_TEMPORARY))		\
-		<< FSP_FLAGS_POS_TEMPORARY)
-/** Bit mask of the ENCRYPTION field */
-#define FSP_FLAGS_MASK_ENCRYPTION				\
-		((~(~0U << FSP_FLAGS_WIDTH_ENCRYPTION))		\
-		<< FSP_FLAGS_POS_ENCRYPTION)
+/** Bit mask of the RESERVED1 field */
+#define FSP_FLAGS_MASK_RESERVED					\
+		((~(~0U << FSP_FLAGS_WIDTH_RESERVED))		\
+		<< FSP_FLAGS_POS_RESERVED)
 /** Bit mask of the PAGE_COMPRESSION field */
-#define FSP_FLAGS_MASK_PAGE_COMPRESSION			\
+#define FSP_FLAGS_MASK_PAGE_COMPRESSION				\
 		((~(~0U << FSP_FLAGS_WIDTH_PAGE_COMPRESSION))	\
 		<< FSP_FLAGS_POS_PAGE_COMPRESSION)
-/** Bit mask of the PAGE_COMPRESSION_LEVEL field */
-#define FSP_FLAGS_MASK_PAGE_COMPRESSION_LEVEL		\
-		((~(~0U << FSP_FLAGS_WIDTH_PAGE_COMPRESSION_LEVEL))	\
-		<< FSP_FLAGS_POS_PAGE_COMPRESSION_LEVEL)
-/** Bit mask of the ATOMIC_WRITES field */
-#define FSP_FLAGS_MASK_ATOMIC_WRITES		\
-		((~(~0U << FSP_FLAGS_WIDTH_ATOMIC_WRITES))	\
-		<< FSP_FLAGS_POS_ATOMIC_WRITES)
+
+/** Bit mask of the in-memory ATOMIC_WRITES field */
+#define FSP_FLAGS_MASK_MEM_ATOMIC_WRITES			\
+		(3U << FSP_FLAGS_MEM_ATOMIC_WRITES)
+
+/** Bit mask of the in-memory COMPRESSION_LEVEL field */
+#define FSP_FLAGS_MASK_MEM_COMPRESSION_LEVEL			\
+		(15U << FSP_FLAGS_MEM_COMPRESSION_LEVEL)
 
 /** Return the value of the POST_ANTELOPE field */
 #define FSP_FLAGS_GET_POST_ANTELOPE(flags)			\
@@ -384,53 +358,88 @@ is a tablespace with encryption. */
 #define FSP_FLAGS_GET_PAGE_SSIZE(flags)				\
 		((flags & FSP_FLAGS_MASK_PAGE_SSIZE)		\
 		>> FSP_FLAGS_POS_PAGE_SSIZE)
-/** Return the value of the DATA_DIR field */
-#define FSP_FLAGS_HAS_DATA_DIR(flags)				\
-		((flags & FSP_FLAGS_MASK_DATA_DIR)		\
-		>> FSP_FLAGS_POS_DATA_DIR)
-/** Return the contents of the SHARED field */
-#define FSP_FLAGS_GET_SHARED(flags)				\
-		((flags & FSP_FLAGS_MASK_SHARED)		\
-		>> FSP_FLAGS_POS_SHARED)
-/** Return the contents of the TEMPORARY field */
-#define FSP_FLAGS_GET_TEMPORARY(flags)				\
-		((flags & FSP_FLAGS_MASK_TEMPORARY)		\
-		>> FSP_FLAGS_POS_TEMPORARY)
-/** Return the contents of the ENCRYPTION field */
-#define FSP_FLAGS_GET_ENCRYPTION(flags)				\
-		((flags & FSP_FLAGS_MASK_ENCRYPTION)		\
-		>> FSP_FLAGS_POS_ENCRYPTION)
+/** @return the RESERVED flags */
+#define FSP_FLAGS_GET_RESERVED(flags)				\
+		((flags & FSP_FLAGS_MASK_RESERVED)		\
+		>> FSP_FLAGS_POS_RESERVED)
+/** @return the PAGE_COMPRESSION flag */
+#define FSP_FLAGS_HAS_PAGE_COMPRESSION(flags)			\
+		((flags & FSP_FLAGS_MASK_PAGE_COMPRESSION)	\
+		>> FSP_FLAGS_POS_PAGE_COMPRESSION)
+
 /** Return the contents of the UNUSED bits */
 #define FSP_FLAGS_GET_UNUSED(flags)				\
 		(flags >> FSP_FLAGS_POS_UNUSED)
-/** Return the value of the PAGE_COMPRESSION field */
-#define FSP_FLAGS_GET_PAGE_COMPRESSION(flags)		\
-		((flags & FSP_FLAGS_MASK_PAGE_COMPRESSION)	\
-		>> FSP_FLAGS_POS_PAGE_COMPRESSION)
-/** Return the value of the PAGE_COMPRESSION_LEVEL field */
+
+/** @return the value of the DATA_DIR field */
+#define FSP_FLAGS_HAS_DATA_DIR(flags)				\
+	(flags & 1U << FSP_FLAGS_MEM_DATA_DIR)
+/** @return the COMPRESSION_LEVEL field */
 #define FSP_FLAGS_GET_PAGE_COMPRESSION_LEVEL(flags)		\
-		((flags & FSP_FLAGS_MASK_PAGE_COMPRESSION_LEVEL) \
-		>> FSP_FLAGS_POS_PAGE_COMPRESSION_LEVEL)
-/** Return the value of the ATOMIC_WRITES field */
+	((flags & FSP_FLAGS_MASK_MEM_COMPRESSION_LEVEL)		\
+	 >> FSP_FLAGS_MEM_COMPRESSION_LEVEL)
+/** @return the ATOMIC_WRITES field */
 #define FSP_FLAGS_GET_ATOMIC_WRITES(flags)		\
-		((flags & FSP_FLAGS_MASK_ATOMIC_WRITES) \
-		>> FSP_FLAGS_POS_ATOMIC_WRITES)
-/** Use an alias in the code for FSP_FLAGS_GET_SHARED() */
-#define fsp_is_shared_tablespace FSP_FLAGS_GET_SHARED
+	((flags & FSP_FLAGS_MASK_MEM_ATOMIC_WRITES)	\
+	 >> FSP_FLAGS_MEM_ATOMIC_WRITES)
+
 /* @} */
 
-/** Set a PAGE_COMPRESSION into the correct bits in a given
-tablespace flags. */
-#define FSP_FLAGS_SET_PAGE_COMPRESSION(flags, compression)	\
-		(flags | (compression << FSP_FLAGS_POS_PAGE_COMPRESSION))
+/** Validate the tablespace flags, which are stored in the
+tablespace header at offset FSP_SPACE_FLAGS.
+@param[in]	flags	the contents of FSP_SPACE_FLAGS
+@return	whether the flags are correct (not in the buggy 10.1) format */
+MY_ATTRIBUTE((warn_unused_result, const))
+UNIV_INLINE
+bool
+fsp_flags_is_valid(ulint flags)
+{
+	DBUG_EXECUTE_IF("fsp_flags_is_valid_failure",
+			return(false););
+	if (flags == 0) {
+		return(true);
+	}
+	if (flags & ~FSP_FLAGS_MASK) {
+		return(false);
+	}
+	if ((flags & (FSP_FLAGS_MASK_POST_ANTELOPE | FSP_FLAGS_MASK_ATOMIC_BLOBS))
+	    == FSP_FLAGS_MASK_ATOMIC_BLOBS) {
+		/* If the "atomic blobs" flag (indicating
+		ROW_FORMAT=DYNAMIC or ROW_FORMAT=COMPRESSED) flag
+		is set, then the "post Antelope" (ROW_FORMAT!=REDUNDANT) flag
+		must also be set. */
+		return(false);
+	}
+	/* Bits 10..14 should be 0b0000d where d is the DATA_DIR flag
+	of MySQL 5.6 and MariaDB 10.0, which we ignore.
+	In the buggy FSP_SPACE_FLAGS written by MariaDB 10.1.0 to 10.1.20,
+	bits 10..14 would be nonzero 0bsssaa where sss is
+	nonzero PAGE_SSIZE (3, 4, 6, or 7)
+	and aa is ATOMIC_WRITES (not 0b11). */
+	if (FSP_FLAGS_GET_RESERVED(flags) & ~1) {
+		return(false);
+	}
 
-/** Set a PAGE_COMPRESSION_LEVEL into the correct bits in a given
-tablespace flags. */
-#define FSP_FLAGS_SET_PAGE_COMPRESSION_LEVEL(flags, level)	\
-		(flags | (level << FSP_FLAGS_POS_PAGE_COMPRESSION_LEVEL))
+	const ulint	ssize = FSP_FLAGS_GET_PAGE_SSIZE(flags);
+	if (ssize == 1 || ssize == 2 || ssize == 5 || ssize & 8) {
+		/* the page_size is not between 4k and 64k;
+		16k should be encoded as 0, not 5 */
+		return(false);
+	}
+	const ulint	zssize = FSP_FLAGS_GET_ZIP_SSIZE(flags);
+	if (zssize == 0) {
+		/* not ROW_FORMAT=COMPRESSED */
+	} else if (zssize > (ssize ? ssize : 5)) {
+		/* invalid KEY_BLOCK_SIZE */
+		return(false);
+	} else if (~flags & (FSP_FLAGS_MASK_POST_ANTELOPE
+			     | FSP_FLAGS_MASK_ATOMIC_BLOBS)) {
+		/* both these flags should be set for
+		ROW_FORMAT=COMPRESSED */
+		return(false);
+	}
 
-/** Set a ATOMIC_WRITES into the correct bits in a given
-tablespace flags. */
-#define FSP_FLAGS_SET_ATOMIC_WRITES(flags, atomics)	\
-		(flags | (atomics << FSP_FLAGS_POS_ATOMIC_WRITES))
+	return(true);
+}
+
 #endif /* fsp0types_h */

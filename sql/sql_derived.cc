@@ -969,7 +969,10 @@ bool TABLE_LIST::fill_recursive(THD *thd)
   if (!rc)
   {
     TABLE *src= with->rec_result->table;
-    rc =src->insert_all_rows_into(thd, table, true);
+    rc =src->insert_all_rows_into_tmp_table(thd,
+                                            table,
+                                            &with->rec_result->tmp_table_param,
+                                            true);
   } 
   return rc;
 }
@@ -1096,6 +1099,11 @@ bool mysql_derived_reinit(THD *thd, LEX *lex, TABLE_LIST *derived)
   unit->types.empty();
   /* for derived tables & PS (which can't be reset by Item_subselect) */
   unit->reinit_exec_mechanism();
+  for (st_select_lex *sl= unit->first_select(); sl; sl= sl->next_select())
+  {
+    sl->cond_pushed_into_where= NULL;
+    sl->cond_pushed_into_having= NULL;
+  }
   unit->set_thd(thd);
   DBUG_RETURN(FALSE);
 }
@@ -1126,23 +1134,24 @@ bool mysql_derived_reinit(THD *thd, LEX *lex, TABLE_LIST *derived)
 
 bool pushdown_cond_for_derived(THD *thd, Item *cond, TABLE_LIST *derived)
 {
+  DBUG_ENTER("pushdown_cond_for_derived");
   if (!cond)
-    return false;
+    DBUG_RETURN(false);
 
   st_select_lex_unit *unit= derived->get_unit();
   st_select_lex *sl= unit->first_select();
 
   /* Do not push conditions into constant derived */
   if (unit->executed)
-    return false;
+    DBUG_RETURN(false);
 
   /* Do not push conditions into recursive with tables */
   if (derived->is_recursive_with_table())
-    return false;
+    DBUG_RETURN(false);
 
   /* Do not push conditions into unit with global ORDER BY ... LIMIT */
   if (unit->fake_select_lex && unit->fake_select_lex->explicit_limit)
-    return false;
+    DBUG_RETURN(false);
 
   /* Check whether any select of 'unit' allows condition pushdown */
   bool some_select_allows_cond_pushdown= false;
@@ -1155,7 +1164,7 @@ bool pushdown_cond_for_derived(THD *thd, Item *cond, TABLE_LIST *derived)
     }
   }
   if (!some_select_allows_cond_pushdown)
-    return false; 
+    DBUG_RETURN(false);
 
   /*
     Build the most restrictive condition extractable from 'cond'
@@ -1170,7 +1179,7 @@ bool pushdown_cond_for_derived(THD *thd, Item *cond, TABLE_LIST *derived)
   if (!extracted_cond)
   {
     /* Nothing can be pushed into the derived table */
-    return false;
+    DBUG_RETURN(false);
   }
   /* Push extracted_cond into every select of the unit specifying 'derived' */
   st_select_lex *save_curr_select= thd->lex->current_select;
@@ -1254,6 +1263,6 @@ bool pushdown_cond_for_derived(THD *thd, Item *cond, TABLE_LIST *derived)
     sl->cond_pushed_into_having= extracted_cond_copy;
   }
   thd->lex->current_select= save_curr_select;
-  return false;
+  DBUG_RETURN(false);
 }
 

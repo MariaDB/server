@@ -373,9 +373,6 @@ row_create_table_for_mysql(
 	dict_table_t*	table,	/*!< in, own: table definition
 				(will be freed, or on DB_SUCCESS
 				added to the data dictionary cache) */
-	const char*	compression,
-				/*!< in: compression algorithm to use,
-				can be NULL */
 	trx_t*		trx,	/*!< in/out: transaction */
 	bool		commit,	/*!< in: if true, commit the transaction */
 	fil_encryption_t mode,	/*!< in: encryption mode */
@@ -484,11 +481,6 @@ row_drop_table_for_mysql(
 	bool		nonatomic = true);
 				/*!< in: whether it is permitted
 				to release and reacquire dict_operation_lock */
-/*********************************************************************//**
-Drop all temporary tables during crash recovery. */
-void
-row_mysql_drop_temp_tables(void);
-/*============================*/
 
 /*********************************************************************//**
 Discards the tablespace of a table which stored in an .ibd file. Discarding

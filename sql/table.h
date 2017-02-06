@@ -53,6 +53,7 @@ class With_element;
 struct TDC_element;
 class Virtual_column_info;
 class Table_triggers_list;
+class TMP_TABLE_PARAM;
 
 /*
   Used to identify NESTED_JOIN structures within a join (applicable only to
@@ -326,9 +327,11 @@ enum release_type { RELEASE_NORMAL, RELEASE_WAIT_FOR_DROP };
 enum enum_vcol_update_mode
 {
   VCOL_UPDATE_FOR_READ= 0,
-  VCOL_UPDATE_FOR_READ_WRITE,
   VCOL_UPDATE_FOR_WRITE,
-  VCOL_UPDATE_INDEXED
+  VCOL_UPDATE_FOR_DELETE,
+  VCOL_UPDATE_INDEXED,
+  VCOL_UPDATE_INDEXED_FOR_UPDATE,
+  VCOL_UPDATE_FOR_REPLACE
 };
 
 
@@ -1447,7 +1450,10 @@ public:
   inline Field **field_to_fill();
   bool validate_default_values_of_unset_fields(THD *thd) const;
 
-  bool insert_all_rows_into(THD *thd, TABLE *dest, bool with_cleanup);
+  bool insert_all_rows_into_tmp_table(THD *thd, 
+                                      TABLE *tmp_table,
+                                      TMP_TABLE_PARAM *tmp_table_param,
+                                      bool with_cleanup);
 };
 
 

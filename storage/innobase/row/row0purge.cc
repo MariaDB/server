@@ -515,22 +515,22 @@ row_purge_remove_sec_if_poss_leaf(
 				page = btr_cur_get_page(btr_cur);
 
 				if (!lock_test_prdt_page_lock(
-					trx,
-					page_get_space_id(page),
-					page_get_page_no(page))
-				     && page_get_n_recs(page) < 2
-				     && page_get_page_no(page) !=
-					dict_index_get_page(index)) {
+					    trx,
+					    page_get_space_id(page),
+					    page_get_page_no(page))
+				    && page_get_n_recs(page) < 2
+				    && btr_cur_get_block(btr_cur)
+				    ->page.id.page_no() !=
+				    dict_index_get_page(index)) {
 					/* this is the last record on page,
 					and it has a "page" lock on it,
 					which mean search is still depending
 					on it, so do not delete */
-#ifdef UNIV_DEBUG
-					ib::info() << "skip purging last"
-						" record on page "
-						<< page_get_page_no(page)
-						<< ".";
-#endif /* UNIV_DEBUG */
+					DBUG_LOG("purge",
+						 "skip purging last"
+						 " record on page "
+						 << btr_cur_get_block(btr_cur)
+						 ->page.id);
 
 					btr_pcur_close(&pcur);
 					mtr_commit(&mtr);

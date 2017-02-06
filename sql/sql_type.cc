@@ -57,6 +57,7 @@ Type_handler_bit         type_handler_bit;
 
 
 Type_aggregator type_aggregator_for_result;
+Type_aggregator type_aggregator_for_comparison;
 
 
 class Static_data_initializer
@@ -81,6 +82,16 @@ public:
     type_aggregator_for_result.add(&type_handler_geometry,
                                    &type_handler_string,
                                    &type_handler_long_blob);
+
+    type_aggregator_for_comparison.add(&type_handler_geometry,
+                                       &type_handler_geometry,
+                                       &type_handler_geometry);
+    type_aggregator_for_comparison.add(&type_handler_geometry,
+                                       &type_handler_null,
+                                       &type_handler_geometry);
+    type_aggregator_for_comparison.add(&type_handler_geometry,
+                                       &type_handler_long_blob,
+                                       &type_handler_long_blob);
 #endif
   }
 };
@@ -222,6 +233,12 @@ const Name
   Type_handler_timestamp_common::m_name_timestamp(C_STRING_WITH_LEN("timestamp"));
 
 /***************************************************************************/
+
+const Type_handler *Type_handler_null::type_handler_for_comparison() const
+{
+  return &type_handler_null;
+}
+
 
 const Type_handler *Type_handler_int_result::type_handler_for_comparison() const
 {
@@ -380,11 +397,23 @@ Type_handler_hybrid_field_type::aggregate_for_result(const char *funcname,
   is needed after this call.
 */
 
-void
+bool
 Type_handler_hybrid_field_type::aggregate_for_comparison(const Type_handler *h)
 {
   DBUG_ASSERT(m_type_handler == m_type_handler->type_handler_for_comparison());
   DBUG_ASSERT(h == h->type_handler_for_comparison());
+
+  if (!m_type_handler->is_traditional_type() ||
+      !h->is_traditional_type())
+  {
+    h= type_aggregator_for_comparison.find_handler(m_type_handler, h);
+    if (!h)
+      return true;
+    m_type_handler= h;
+    DBUG_ASSERT(m_type_handler == m_type_handler->type_handler_for_comparison());
+    return false;
+  }
+
   Item_result a= cmp_type();
   Item_result b= h->cmp_type();
   if (a == STRING_RESULT && b == STRING_RESULT)
@@ -421,6 +450,7 @@ Type_handler_hybrid_field_type::aggregate_for_comparison(const Type_handler *h)
   else
     m_type_handler= &type_handler_double;
   DBUG_ASSERT(m_type_handler == m_type_handler->type_handler_for_comparison());
+  return false;
 }
 
 
@@ -899,6 +929,13 @@ Field *Type_handler_long_blob::make_conversion_table_field(TABLE *table,
 
 #ifdef HAVE_SPATIAL
 const Name Type_handler_geometry::m_name_geometry(C_STRING_WITH_LEN("geometry"));
+
+
+const Type_handler *Type_handler_geometry::type_handler_for_comparison() const
+{
+  return &type_handler_geometry;
+}
+
 
 Field *Type_handler_geometry::make_conversion_table_field(TABLE *table,
                                                           uint metadata,
@@ -2013,3 +2050,108 @@ bool Type_handler_temporal_result::
   return func->get_date_native(ltime, fuzzydate);
 }
 
+/***************************************************************************/
+
+/**
+  Get a string representation of the Item value.
+  See sql_type.h for details.
+*/
+String *Type_handler_row::
+          print_item_value(THD *thd, Item *item, String *str) const
+{
+  DBUG_ASSERT(0);
+  return NULL;
+}
+
+
+/**
+  Get a string representation of the Item value,
+  using the character string format with its charset and collation, e.g.
+    latin1 'string' COLLATE latin1_german2_ci
+*/
+String *Type_handler::
+          print_item_value_csstr(THD *thd, Item *item, String *str) const
+{
+  String *result= item->val_str(str);
+
+  if (!result)
+    return NULL;
+
+  StringBuffer<STRING_BUFFER_USUAL_SIZE> buf(result->charset());
+  CHARSET_INFO *cs= thd->variables.character_set_client;
+
+  buf.append('_');
+  buf.append(result->charset()->csname);
+  if (cs->escape_with_backslash_is_dangerous)
+    buf.append(' ');
+  append_query_string(cs, &buf, result->ptr(), result->length(),
+                     thd->variables.sql_mode & MODE_NO_BACKSLASH_ESCAPES);
+  buf.append(" COLLATE '");
+  buf.append(item->collation.collation->name);
+  buf.append('\'');
+  str->copy(buf);
+
+  return str;
+}
+
+
+String *Type_handler_numeric::
+          print_item_value(THD *thd, Item *item, String *str) const
+{
+  return item->val_str(str);
+}
+
+
+String *Type_handler::
+          print_item_value_temporal(THD *thd, Item *item, String *str,
+                                    const Name &type_name, String *buf) const
+{
+  String *result= item->val_str(buf);
+  return !result ||
+         str->realloc(type_name.length() + result->length() + 2) ||
+         str->copy(type_name.ptr(), type_name.length(), &my_charset_latin1) ||
+         str->append('\'') ||
+         str->append(result->ptr(), result->length()) ||
+         str->append('\'') ?
+         NULL :
+         str;
+}
+
+
+String *Type_handler_time_common::
+          print_item_value(THD *thd, Item *item, String *str) const
+{
+  StringBuffer<MAX_TIME_FULL_WIDTH+1> buf;
+  return print_item_value_temporal(thd, item, str,
+                                   Name(C_STRING_WITH_LEN("TIME")), &buf);
+}
+
+
+String *Type_handler_date_common::
+          print_item_value(THD *thd, Item *item, String *str) const
+{
+  StringBuffer<MAX_DATE_WIDTH+1> buf;
+  return print_item_value_temporal(thd, item, str,
+                                   Name(C_STRING_WITH_LEN("DATE")), &buf);
+}
+
+
+String *Type_handler_datetime_common::
+          print_item_value(THD *thd, Item *item, String *str) const
+{
+  StringBuffer<MAX_DATETIME_FULL_WIDTH+1> buf;
+  return print_item_value_temporal(thd, item, str,
+                                   Name(C_STRING_WITH_LEN("TIMESTAMP")), &buf);
+}
+
+
+String *Type_handler_timestamp_common::
+          print_item_value(THD *thd, Item *item, String *str) const
+{
+  StringBuffer<MAX_DATETIME_FULL_WIDTH+1> buf;
+  return print_item_value_temporal(thd, item, str,
+                                   Name(C_STRING_WITH_LEN("TIMESTAMP")), &buf);
+}
+
+
+/***************************************************************************/
