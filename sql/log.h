@@ -97,7 +97,7 @@ extern PSI_mutex_key key_LOCK_after_binlog_sync;
 extern PSI_cond_key key_COND_prepare_ordered;
 #endif
 #ifdef WITH_WSREP
-TC_LOG::enum_result wsrep_thd_binlog_commit(THD *thd, bool all);
+int wsrep_thd_binlog_commit(THD *thd, bool all);
 int wsrep_thd_binlog_rollback(THD *thd, bool all);
 int wsrep_thd_binlog_prepare(THD *thd, bool all);
 #endif /* WITH_WSREP */
@@ -108,6 +108,11 @@ public:
   TC_LOG_DUMMY() {}
   int open(const char *opt_name)        { return 0; }
   void close()                          { }
+#ifdef WITH_WSREP
+  int commit(THD *thd, bool all) {
+    return wsrep_thd_binlog_commit(thd, all);
+  }
+#endif /* WITH_WSREP */
   /*
     TC_LOG_DUMMY is only used when there are <= 1 XA-capable engines, and we
     only use internal XA during commit when >= 2 XA-capable engines

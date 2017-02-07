@@ -78,7 +78,7 @@ extern const char* wsrep_start_position;
 extern ulong       wsrep_max_ws_size;
 extern ulong       wsrep_max_ws_rows;
 extern const char* wsrep_notify_cmd;
-extern int        wsrep_protocol_version;
+//extern int        wsrep_protocol_version;
 extern ulong       wsrep_forced_binlog_format;
 extern my_bool     wsrep_desync;
 extern my_bool     wsrep_replicate_myisam;
@@ -257,13 +257,14 @@ void wsrep_log(void (*fun)(const char *, ...), const char *format, ...);
 
 extern void wsrep_ready_wait();
 
+#ifdef OUT
 enum wsrep_trx_status {
     WSREP_TRX_OK,
     WSREP_TRX_CERT_FAIL,      /* certification failure, must abort */
     WSREP_TRX_SIZE_EXCEEDED,  /* trx size exceeded */
     WSREP_TRX_ERROR,          /* native mysql error */
 };
-
+#endif
 static inline
 wsrep_status_t wsrep_trx_status_to_wsrep_status(wsrep_trx_status status)
 {
@@ -289,7 +290,7 @@ void wsrep_post_rollback(THD* thd);
 void wsrep_brute_force_killer(THD *thd);
 int  wsrep_hire_brute_force_killer(THD *thd, uint64_t trx_id);
 
-extern "C" bool wsrep_consistency_check(void *thd_ptr);
+//extern "C" bool wsrep_consistency_check(void *thd_ptr);
 
 /* this is visible for client build so that innodb plugin gets this */
 typedef struct wsrep_aborting_thd {
@@ -313,7 +314,7 @@ extern mysql_mutex_t LOCK_wsrep_desync;
 extern mysql_mutex_t LOCK_wsrep_SR_pool;
 extern mysql_mutex_t LOCK_wsrep_SR_store;
 extern mysql_mutex_t LOCK_wsrep_thd_pool;
-exteextern mysql_mutex_t LOCK_wsrep_config_state;
+extern mysql_mutex_t LOCK_wsrep_config_state;
 extern wsrep_aborting_thd_t wsrep_aborting_thd;
 extern my_bool       wsrep_emulate_bin_log;
 extern int           wsrep_to_isolation;
@@ -497,8 +498,6 @@ bool wsrep_trans_cache_is_empty(THD *thd);
 void thd_binlog_flush_pending_rows_event(THD *thd, bool stmt_end);
 void thd_binlog_rollback_stmt(THD * thd);
 void thd_binlog_trx_reset(THD * thd);
-
-typedef void (*wsrep_thd_processor_fun)(THD *);
 
 typedef void (*wsrep_thd_processor_fun)(THD*, void *);
 class Wsrep_thd_args

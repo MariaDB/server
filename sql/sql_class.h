@@ -48,6 +48,10 @@
 #include <mysql_com_server.h>
 #include "session_tracker.h"
 
+#ifdef WITH_WSREP
+#include <vector>
+#endif /* WITH_WSREP */
+
 extern "C"
 void set_thd_stage_info(void *thd,
                         const PSI_stage_info *new_stage,
@@ -62,6 +66,7 @@ void set_thd_stage_info(void *thd,
 #include "my_apc.h"
 #include "rpl_gtid.h"
 #include "wsrep_mysqld.h"
+typedef std::vector<wsrep_trx_meta_t> wsrep_fragment_set;
 
 class Reprepare_observer;
 class Relay_log_info;
@@ -4790,7 +4795,6 @@ private:
   wsrep_trx_id_t m_wsrep_next_trx_id; /* cast from query_id_t */
 public:
 #endif /* WITH_WSREP */
-  /**
 
   /* Handling of timeouts for commands */
   thr_timer_t query_timer;

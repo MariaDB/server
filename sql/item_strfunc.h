@@ -1663,7 +1663,7 @@ class Item_func_wsrep_last_written_gtid: public Item_str_ascii_func
 {
   String gtid_str;
 public:
-  Item_func_wsrep_last_written_gtid(): Item_str_ascii_func() {}
+  Item_func_wsrep_last_written_gtid(THD *thd): Item_str_ascii_func(thd) {}
   const char *func_name() const { return "wsrep_last_written_gtid"; }
   String *val_str_ascii(String *);
   void fix_length_and_dec()
@@ -1677,7 +1677,7 @@ class Item_func_wsrep_last_seen_gtid: public Item_str_ascii_func
 {
   String gtid_str;
 public:
-  Item_func_wsrep_last_seen_gtid(): Item_str_ascii_func() {}
+  Item_func_wsrep_last_seen_gtid(THD *thd): Item_str_ascii_func(thd) {}
   const char *func_name() const { return "wsrep_last_seen_gtid"; }
   String *val_str_ascii(String *);
   void fix_length_and_dec()
@@ -1691,8 +1691,8 @@ class Item_func_wsrep_sync_wait_upto: public Item_int_func
 {
   String value;
 public:
-  Item_func_wsrep_sync_wait_upto(Item *a): Item_int_func(a) {}
-  Item_func_wsrep_sync_wait_upto(Item *a, Item* b): Item_int_func(a, b) {}
+ Item_func_wsrep_sync_wait_upto(THD *thd, Item *a): Item_int_func(thd, a) {}
+ Item_func_wsrep_sync_wait_upto(THD *thd, Item *a, Item* b): Item_int_func(thd, a, b) {}
   const char *func_name() const { return "wsrep_sync_wait_upto_gtid"; }
   longlong val_int();
 };

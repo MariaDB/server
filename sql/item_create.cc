@@ -6795,7 +6795,7 @@ Item*
 Create_func_wsrep_last_written_gtid::create(THD *thd)
 {
   current_thd->lex->safe_to_cache_query= 0;
-  return new (thd->mem_root) Item_func_wsrep_last_written_gtid();
+  return new (thd->mem_root) Item_func_wsrep_last_written_gtid(thd);
 }
 
 
@@ -6806,7 +6806,7 @@ Item*
 Create_func_wsrep_last_seen_gtid::create(THD *thd)
 {
   current_thd->lex->safe_to_cache_query= 0;
-  return new (thd->mem_root) Item_func_wsrep_last_seen_gtid();
+  return new (thd->mem_root) Item_func_wsrep_last_seen_gtid(thd);
 }
 
 
@@ -6829,12 +6829,12 @@ Create_func_wsrep_sync_wait_upto::create_native(THD *thd,
   {
   case 1:
     param_1= item_list->pop();
-    func= new (thd->mem_root) Item_func_wsrep_sync_wait_upto(param_1);
+    func= new (thd->mem_root) Item_func_wsrep_sync_wait_upto(thd, param_1);
     break;
   case 2:
     param_1= item_list->pop();
     param_2= item_list->pop();
-    func= new (thd->mem_root) Item_func_wsrep_sync_wait_upto(param_1, param_2);
+    func= new (thd->mem_root) Item_func_wsrep_sync_wait_upto(thd, param_1, param_2);
     break;
   default:
     my_error(ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT, MYF(0), name.str);
