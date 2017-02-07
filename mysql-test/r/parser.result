@@ -951,13 +951,23 @@ a
 10
 20
 SELECT 1 AS a UNION (SELECT a FROM t1 GROUP BY a ORDER BY GROUP_CONCAT(a));
-ERROR HY000: Invalid use of group function
+a
+1
+10
+20
+30
 SELECT 1 AS a UNION (SELECT a FROM t1 GROUP BY a ORDER BY GROUP_CONCAT(a)) LIMIT 1;
-ERROR HY000: Invalid use of group function
+a
+1
 SELECT 1 AS a UNION (SELECT a FROM t1 GROUP BY a ORDER BY GROUP_CONCAT(a)) ORDER BY a;
-ERROR HY000: Invalid use of group function
+a
+1
+10
+20
+30
 SELECT 1 AS a UNION (SELECT a FROM t1 GROUP BY a ORDER BY GROUP_CONCAT(a)) ORDER BY a LIMIT 1;
-ERROR HY000: Invalid use of group function
+a
+1
 DROP TABLE t1;
 # UNION with a parenthesized term with ROLLUP
 CREATE TABLE t1 (a INT);

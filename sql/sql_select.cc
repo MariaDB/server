@@ -820,9 +820,12 @@ JOIN::prepare(TABLE_LIST *tables_init,
   if (skip_order_by && select_lex !=
                        select_lex->master_unit()->global_parameters())
   {
+    nesting_map save_allow_sum_func= thd->lex->allow_sum_func;
+    thd->lex->allow_sum_func|= (nesting_map)1 << select_lex->nest_level;
     if (setup_order(thd, ref_ptrs, tables_list, fields_list,
                     all_fields, select_lex->order_list.first))
       DBUG_RETURN(-1);
+    thd->lex->allow_sum_func= save_allow_sum_func;
     select_lex->order_list.empty();
   }
 
