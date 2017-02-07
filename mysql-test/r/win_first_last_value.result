@@ -113,17 +113,19 @@ last_value(i) OVER (order by i rows between CURRENT ROW and 1 FOLLOWING) as last
 first_value(i) OVER (order by i rows between 1 PRECEDING AND 1 FOLLOWING) as fst_1p1f,
 last_value(i) OVER (order by i rows between 1 PRECEDING AND 1 FOLLOWING) as fst_1p1f,
 first_value(i) OVER (order by i rows between 2 PRECEDING AND 1 PRECEDING) as fst_2p1p,
-last_value(i) OVER (order by i rows between 2 PRECEDING AND 1 PRECEDING) as fst_2p1p
+last_value(i) OVER (order by i rows between 2 PRECEDING AND 1 PRECEDING) as fst_2p1p,
+first_value(i) OVER (order by i rows between 1 FOLLOWING AND 2 FOLLOWING) as fst_1f2f,
+last_value(i) OVER (order by i rows between 1 FOLLOWING AND 2 FOLLOWING) as fst_1f2f
 from t1;
-i	fst_1f	last_1f	fst_1p1f	fst_1p1f	fst_2p1p	fst_2p1p
-1	1	2	1	2	NULL	NULL
-2	2	3	1	3	1	1
-3	3	4	2	4	1	2
-4	4	5	3	5	2	3
-5	5	6	4	6	3	4
-6	6	7	5	7	4	5
-7	7	8	6	8	5	6
-8	8	9	7	9	6	7
-9	9	10	8	10	7	8
-10	10	10	9	10	8	9
+i	fst_1f	last_1f	fst_1p1f	fst_1p1f	fst_2p1p	fst_2p1p	fst_1f2f	fst_1f2f
+1	1	2	1	2	NULL	NULL	2	3
+2	2	3	1	3	1	1	3	4
+3	3	4	2	4	1	2	4	5
+4	4	5	3	5	2	3	5	6
+5	5	6	4	6	3	4	6	7
+6	6	7	5	7	4	5	7	8
+7	7	8	6	8	5	6	8	9
+8	8	9	7	9	6	7	9	10
+9	9	10	8	10	7	8	10	10
+10	10	10	9	10	8	9	NULL	NULL
 drop table t1;

@@ -2311,11 +2311,6 @@ void add_special_frame_cursors(THD *thd, Cursor_manager *cursor_manager,
       fc->add_sum_func(item_sum);
       cursor_manager->add_cursor(fc);
       break;
-    case Item_sum::LAST_VALUE_FUNC:
-      fc= get_frame_cursor(thd, spec, false);
-      fc->add_sum_func(item_sum);
-      cursor_manager->add_cursor(fc);
-      break;
     case Item_sum::LEAD_FUNC:
     case Item_sum::LAG_FUNC:
     {
@@ -2349,6 +2344,22 @@ void add_special_frame_cursors(THD *thd, Cursor_manager *cursor_manager,
       Item *offset_item= new (thd->mem_root) Item_int(thd, 0);
       offset_item->fix_fields(thd, &offset_item);
       fc= new Frame_positional_cursor(*top_bound,
+                                      *top_bound, *bottom_bound,
+                                      *offset_item, false);
+      fc->add_sum_func(item_sum);
+      cursor_manager->add_cursor(fc);
+      break;
+    }
+    case Item_sum::LAST_VALUE_FUNC:
+    {
+      Frame_cursor *bottom_bound= get_frame_cursor(thd, spec, false);
+      Frame_cursor *top_bound= get_frame_cursor(thd, spec, true);
+      cursor_manager->add_cursor(bottom_bound);
+      cursor_manager->add_cursor(top_bound);
+      DBUG_ASSERT(item_sum->fixed);
+      Item *offset_item= new (thd->mem_root) Item_int(thd, 0);
+      offset_item->fix_fields(thd, &offset_item);
+      fc= new Frame_positional_cursor(*bottom_bound,
                                       *top_bound, *bottom_bound,
                                       *offset_item, false);
       fc->add_sum_func(item_sum);
