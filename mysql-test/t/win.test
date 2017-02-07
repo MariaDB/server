@@ -1547,3 +1547,15 @@ select row_number() over (), sum(5) over ();
 select row_number() over (order by 2);
 select row_number() over (partition by 2);
 select row_number() over (partition by 4 order by 1+2);
+
+--echo #
+--echo # MDEV-11999: execution of prepared statement for  
+--echo #             tableless query with window functions
+--echo #
+
+prepare stmt from
+"select row_number() over (partition by 4 order by 1+2)";
+execute stmt;
+execute stmt;
+deallocate prepare stmt;
+

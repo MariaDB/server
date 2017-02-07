@@ -1439,15 +1439,6 @@ JOIN::optimize_inner()
   {
     DBUG_PRINT("info",("No tables"));
     error= 0;
-    if (select_lex->have_window_funcs())
-    {
-      if (!join_tab && 
-          !(join_tab= (JOIN_TAB*) thd->alloc(sizeof(JOIN_TAB))))
-        DBUG_RETURN(1);
-      need_tmp= 1;
-    }
-    if (make_aggr_tables_info())
-      DBUG_RETURN(1);
     goto setup_subq_exit;
   }
   error= -1;					// Error is sent to client
@@ -2135,7 +2126,17 @@ JOIN::optimize_inner()
 setup_subq_exit:
   /* Choose an execution strategy for this JOIN. */
   if (!tables_list || !table_count)
+  {
     choose_tableless_subquery_plan();
+    if (select_lex->have_window_funcs())
+    {
+      if (!(join_tab= (JOIN_TAB*) thd->alloc(sizeof(JOIN_TAB))))
+        DBUG_RETURN(1);
+      need_tmp= 1;
+    }
+    if (make_aggr_tables_info())
+      DBUG_RETURN(1);
+  }
   /*
     Even with zero matching rows, subqueries in the HAVING clause may
     need to be evaluated if there are aggregate functions in the query.
@@ -2778,8 +2779,9 @@ JOIN::create_postjoin_aggr_table(JOIN_TAB *tab, List<Item> *table_fields,
   tmp_table_param.using_outer_summary_function=
     tab->tmp_table_param->using_outer_summary_function;
   tab->join= this;
-  DBUG_ASSERT(tab > tab->join->join_tab || !top_join_tab_count);
-  (tab - 1)->next_select= sub_select_postjoin_aggr;
+  DBUG_ASSERT(tab > tab->join->join_tab || !tables_list);
+  if (tables_list)
+    (tab - 1)->next_select= sub_select_postjoin_aggr;
   tab->aggr= new (thd->mem_root) AGGR_OP(tab);
   if (!tab->aggr)
     goto err;

@@ -2545,3 +2545,16 @@ row_number() over (partition by 2)
 select row_number() over (partition by 4 order by 1+2);
 row_number() over (partition by 4 order by 1+2)
 1
+#
+# MDEV-11999: execution of prepared statement for  
+#             tableless query with window functions
+#
+prepare stmt from
+"select row_number() over (partition by 4 order by 1+2)";
+execute stmt;
+row_number() over (partition by 4 order by 1+2)
+1
+execute stmt;
+row_number() over (partition by 4 order by 1+2)
+1
+deallocate prepare stmt;
