@@ -12415,6 +12415,21 @@ create_table_info_t::check_table_options()
 	enum row_type	row_format = m_form->s->row_type;
 	ha_table_option_struct *options= m_form->s->option_struct;
 	fil_encryption_t encrypt = (fil_encryption_t)options->encryption;
+	bool should_encrypt = (encrypt == FIL_SPACE_ENCRYPTION_ON);
+
+	/* Currently we do not support encryption for
+	spatial indexes thus do not allow creating table with forced
+	encryption */
+	for(ulint i = 0; i < m_form->s->keys; i++) {
+		const KEY* key = m_form->key_info + i;
+		if (key->flags & HA_SPATIAL && should_encrypt) {
+			push_warning_printf(m_thd, Sql_condition::WARN_LEVEL_WARN,
+				HA_ERR_UNSUPPORTED,
+				"InnoDB: ENCRYPTED=ON not supported for table because "
+				"it contains spatial index.");
+			return "ENCRYPTED";
+		}
+	}
 
 	if (encrypt != FIL_SPACE_ENCRYPTION_DEFAULT && !m_allow_file_per_table) {
 		push_warning(
