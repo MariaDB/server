@@ -190,6 +190,7 @@ public:
   void set_variable_row_field_to_null(THD *thd, uint var_idx, uint field_idx);
   int set_variable_row_field(THD *thd, uint var_idx, uint field_idx,
                              Item **value);
+  int set_variable_row(THD *thd, uint var_idx, List<Item> &items);
   Item *get_item(uint var_idx) const
   { return m_var_items[var_idx]; }
 
@@ -419,6 +420,7 @@ private:
   {
     List<sp_variable> *spvar_list;
     uint field_count;
+    bool send_data_to_variable_list(List<sp_variable> &vars, List<Item> &items);
   public:
     Select_fetch_into_spvars(THD *thd_arg): select_result_interceptor(thd_arg) {}
     uint get_field_count() { return field_count; }

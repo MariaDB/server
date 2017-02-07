@@ -4037,6 +4037,12 @@ public:
   {
     return m_row_field_definitions != NULL;
   }
+  // Check if "this" defines a ROW variable with n elements
+  uint is_row(uint n) const
+  {
+    return m_row_field_definitions != NULL &&
+           m_row_field_definitions->elements == n;
+  }
   Row_definition_list *row_field_definitions() const
   {
     return m_row_field_definitions;
