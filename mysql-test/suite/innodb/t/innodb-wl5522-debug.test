@@ -17,6 +17,8 @@
 
 call mtr.add_suppression("InnoDB: Page for tablespace .* ");
 call mtr.add_suppression("InnoDB: Invalid FSP_SPACE_FLAGS=");
+call mtr.add_suppression("InnoDB: Corruption: Block in space_id .* in file .* corrupted");
+call mtr.add_suppression("InnoDB: Based on page type .*");
 FLUSH TABLES;
 
 let MYSQLD_DATADIR =`SELECT @@datadir`;
