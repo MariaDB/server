@@ -981,8 +981,9 @@ fil_space_verify_crypt_checksum(
 
 	/* Declare empty pages non-corrupted */
 	if (checksum == 0
-	    && *reinterpret_cast<const ib_uint64_t*>(page + FIL_PAGE_LSN) == 0) {
-		return (true);
+	    && *reinterpret_cast<const ib_uint64_t*>(page + FIL_PAGE_LSN) == 0
+	    && buf_page_is_zeroes(page, zip_size)) {
+		return(true);
 	}
 
 	/* Compressed and encrypted pages do not have checksum. Assume not
@@ -1016,16 +1017,30 @@ fil_space_verify_crypt_checksum(
 	bool encrypted = (checksum == cchecksum1 || checksum == cchecksum2
 		|| checksum == BUF_NO_CHECKSUM_MAGIC);
 
-	/* Old InnoDB versions did not initialize
-	FIL_PAGE_FILE_FLUSH_LSN field so there could be garbage
-	and above checksum check could produce false positive.
-	Thus we also check does the traditional stored
-	checksum fields match the calculated one. Both of these
-	could naturally produce false positive but then
-	we just decrypt the page and after that corrupted
-	pages very probable stay corrupted and valid
-	pages very probable stay valid.
+	/* MySQL 5.6 and MariaDB 10.0 and 10.1 will write an LSN to the
+	first page of each system tablespace file at
+	FIL_PAGE_FILE_FLUSH_LSN offset. On other pages and in other files,
+	the field might have been uninitialized until MySQL 5.5. In MySQL 5.7
+	(and MariaDB Server 10.2.2) WL#7990 stopped writing the field for other
+	than page 0 of the system tablespace.
+
+	Starting from MariaDB 10.1 the field has been repurposed for
+	encryption key_version.
+
+	Starting with MySQL 5.7 (and MariaDB Server 10.2), the
+	field has been repurposed for SPATIAL INDEX pages for
+	FIL_RTREE_SPLIT_SEQ_NUM.
+
+	Note that FIL_PAGE_FILE_FLUSH_LSN is not included in the InnoDB page
+	checksum.
+
+	Thus, FIL_PAGE_FILE_FLUSH_LSN could contain any value. While the
+	field would usually be 0 for pages that are not encrypted, we cannot
+	assume that a nonzero value means that the page is encrypted.
+	Therefore we must validate the page both as encrypted and unencrypted
+	when FIL_PAGE_FILE_FLUSH_LSN does not contain 0.
 	*/
+
 	ulint checksum1 = mach_read_from_4(
 		page + FIL_PAGE_SPACE_OR_CHKSUM);
 

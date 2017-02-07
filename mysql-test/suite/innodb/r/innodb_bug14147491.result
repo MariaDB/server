@@ -12,22 +12,14 @@ CALL mtr.add_suppression("InnoDB: fix the corruption by dumping, dropping, and r
 CALL mtr.add_suppression("InnoDB: the corrupt table. You can use CHECK");
 CALL mtr.add_suppression("InnoDB: TABLE to scan your table for corruption.");
 CALL mtr.add_suppression("InnoDB: See also .* about forcing recovery.");
-flush tables;
 # Create and populate the table to be corrupted
 CREATE TABLE t1 (a INT AUTO_INCREMENT PRIMARY KEY, b TEXT) ENGINE=InnoDB;
 INSERT INTO t1 (b) VALUES ('corrupt me');
 INSERT INTO t1 (b) VALUES ('corrupt me');
-# Write file to make mysql-test-run.pl expect the "crash", but don't
-# start it until it's told to
-# We give 30 seconds to do a clean shutdown because we do not want
-# to redo apply the pages of t1.ibd at the time of recovery.
-# We want SQL to initiate the first access to t1.ibd.
-# Wait until disconnected.
 # Backup the t1.ibd before corrupting
 # Corrupt the table
 Munged a string.
 Munged a string.
-# Write file to make mysql-test-run.pl start up the server again
 SET DEBUG_DBUG = '+d,innodb_page_corruption_retries';
 # Write file to make mysql-test-run.pl expect the "crash", but don't
 # start it until it's told to
@@ -36,6 +28,5 @@ SET DEBUG_DBUG = '+d,innodb_page_corruption_retries';
 SELECT * FROM t1;
 ERROR HY000: Lost connection to MySQL server during query
 # Restore the original t1.ibd
-# Write file to make mysql-test-run.pl start up the server again
 # Cleanup
 DROP TABLE t1;

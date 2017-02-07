@@ -585,8 +585,9 @@ buf_page_is_checksum_valid_crc32(
 
 	if (!(checksum_field1 == crc32 && checksum_field2 == crc32)) {
 		DBUG_PRINT("buf_checksum",
-			("Page checksum crc32 not valid field1 %lu field2 %lu crc32 %lu.",
-				checksum_field1, checksum_field2, (ulint)crc32));
+			("Page checksum crc32 not valid field1 " ULINTPF
+			 " field2 " ULINTPF " crc32 %u.",
+				checksum_field1, checksum_field2, crc32));
 	}
 
 	return(checksum_field1 == crc32 && checksum_field2 == crc32);
@@ -618,7 +619,8 @@ buf_page_is_checksum_valid_innodb(
 	    && checksum_field2 != buf_calc_page_old_checksum(read_buf)) {
 
 		DBUG_PRINT("buf_checksum",
-			("Page checksum innodb not valid field1 %lu field2 %lu crc32 %lu lsn %lu.",
+			("Page checksum innodb not valid field1 " ULINTPF
+				" field2 " ULINTPF "crc32 " ULINTPF " lsn " ULINTPF ".",
 			checksum_field1, checksum_field2, buf_calc_page_old_checksum(read_buf),
 				mach_read_from_4(read_buf + FIL_PAGE_LSN)));
 
@@ -634,7 +636,8 @@ buf_page_is_checksum_valid_innodb(
 	    && checksum_field1 != buf_calc_page_new_checksum(read_buf)) {
 
 		DBUG_PRINT("buf_checksum",
-			("Page checksum innodb not valid field1 %lu field2 %lu crc32 %lu lsn %lu.",
+			("Page checksum innodb not valid field1 " ULINTPF
+				" field2 " ULINTPF "crc32 " ULINTPF " lsn " ULINTPF ".",
 			checksum_field1, checksum_field2, buf_calc_page_new_checksum(read_buf),
 				mach_read_from_4(read_buf + FIL_PAGE_LSN)));
 
@@ -659,7 +662,8 @@ buf_page_is_checksum_valid_none(
 
 	if (!(checksum_field1 == checksum_field2 && checksum_field1 == BUF_NO_CHECKSUM_MAGIC)) {
 		DBUG_PRINT("buf_checksum",
-			("Page checksum none not valid field1 %lu field2 %lu crc32 %lu lsn %lu.",
+			("Page checksum none not valid field1 " ULINTPF
+				" field2 " ULINTPF "crc32 " ULINTPF " lsn " ULINTPF ".",
 			checksum_field1, checksum_field2, BUF_NO_CHECKSUM_MAGIC,
 				mach_read_from_4(read_buf + FIL_PAGE_LSN)));
 	}
