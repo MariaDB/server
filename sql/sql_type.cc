@@ -26,7 +26,6 @@ static Type_handler_long        type_handler_long;
 static Type_handler_int24       type_handler_int24;
 static Type_handler_year        type_handler_year;
 static Type_handler_float       type_handler_float;
-static Type_handler_double      type_handler_double;
 static Type_handler_time        type_handler_time;
 static Type_handler_time2       type_handler_time2;
 static Type_handler_date        type_handler_date;
@@ -51,6 +50,7 @@ Type_handler_null        type_handler_null;
 Type_handler_row         type_handler_row;
 Type_handler_varchar     type_handler_varchar;
 Type_handler_longlong    type_handler_longlong;
+Type_handler_double      type_handler_double;
 Type_handler_newdecimal  type_handler_newdecimal;
 Type_handler_datetime    type_handler_datetime;
 Type_handler_bit         type_handler_bit;
@@ -2153,5 +2153,65 @@ String *Type_handler_timestamp_common::
                                    Name(C_STRING_WITH_LEN("TIMESTAMP")), &buf);
 }
 
+
+/***************************************************************************/
+
+bool Type_handler_row::
+       Item_func_round_fix_length_and_dec(Item_func_round *item) const
+{
+  DBUG_ASSERT(0);
+  return false;
+}
+
+
+bool Type_handler_int_result::
+       Item_func_round_fix_length_and_dec(Item_func_round *item) const
+{
+  item->fix_arg_int();
+  return false;
+}
+
+
+bool Type_handler_real_result::
+       Item_func_round_fix_length_and_dec(Item_func_round *item) const
+{
+  item->fix_arg_double();
+  return false;
+}
+
+
+bool Type_handler_decimal_result::
+       Item_func_round_fix_length_and_dec(Item_func_round *item) const
+{
+  item->fix_arg_decimal();
+  return false;
+}
+
+
+bool Type_handler_temporal_result::
+       Item_func_round_fix_length_and_dec(Item_func_round *item) const
+{
+  item->fix_arg_double();
+  return false;
+}
+
+
+bool Type_handler_string_result::
+       Item_func_round_fix_length_and_dec(Item_func_round *item) const
+{
+  item->fix_arg_double();
+  return false;
+}
+
+
+#ifdef HAVE_SPATIAL
+bool Type_handler_geometry::
+       Item_func_round_fix_length_and_dec(Item_func_round *item) const
+{
+  my_error(ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION, MYF(0),
+           type_handler_geometry.name().ptr(), item->func_name());
+  return false;
+}
+#endif
 
 /***************************************************************************/

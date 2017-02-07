@@ -1868,6 +1868,18 @@ CALL p1('CREATE TABLE t1 (a Point, b Point, c Point)');
 DROP PROCEDURE p1;
 DROP PROCEDURE p2;
 
+
+--echo #
+--echo # MDEV-12001 Split Item_func_round::fix_length_and_dec to virtual methods in Type_handler
+--echo #
+
+CREATE TABLE t1 (a GEOMETRY);
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+SELECT ROUND(a) FROM t1;
+DROP TABLE t1;
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+SELECT ROUND(POINT(1,1));
+
 --echo #
 --echo # End of 10.3 tests
 --echo #

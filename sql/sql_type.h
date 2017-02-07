@@ -35,6 +35,7 @@ class Item_func_hybrid_field_type;
 class Item_bool_func2;
 class Item_func_between;
 class Item_func_in;
+class Item_func_round;
 class cmp_item;
 class in_vector;
 class Type_std_attributes;
@@ -443,6 +444,9 @@ public:
   virtual bool
   Item_func_in_fix_comparator_compatible_types(THD *thd, Item_func_in *)
                                                                const= 0;
+
+  virtual bool
+  Item_func_round_fix_length_and_dec(Item_func_round *round) const= 0;
 };
 
 
@@ -594,6 +598,7 @@ public:
   in_vector *make_in_vector(THD *thd, const Item_func_in *f, uint nargs) const;
   bool Item_func_in_fix_comparator_compatible_types(THD *thd,
                                                     Item_func_in *) const;
+  bool Item_func_round_fix_length_and_dec(Item_func_round *) const;
 };
 
 
@@ -662,6 +667,7 @@ public:
   bool Item_func_in_fix_comparator_compatible_types(THD *thd,
                                                     Item_func_in *) const;
 
+  bool Item_func_round_fix_length_and_dec(Item_func_round *) const;
 };
 
 
@@ -704,6 +710,7 @@ public:
   in_vector *make_in_vector(THD *, const Item_func_in *, uint nargs) const;
   bool Item_func_in_fix_comparator_compatible_types(THD *thd,
                                                     Item_func_in *) const;
+  bool Item_func_round_fix_length_and_dec(Item_func_round *) const;
 };
 
 
@@ -745,6 +752,7 @@ public:
   in_vector *make_in_vector(THD *, const Item_func_in *, uint nargs) const;
   bool Item_func_in_fix_comparator_compatible_types(THD *thd,
                                                     Item_func_in *) const;
+  bool Item_func_round_fix_length_and_dec(Item_func_round *) const;
 };
 
 
@@ -790,6 +798,7 @@ public:
   longlong Item_func_between_val_int(Item_func_between *func) const;
   bool Item_func_in_fix_comparator_compatible_types(THD *thd,
                                                     Item_func_in *) const;
+  bool Item_func_round_fix_length_and_dec(Item_func_round *) const;
 };
 
 
@@ -849,6 +858,7 @@ public:
   in_vector *make_in_vector(THD *, const Item_func_in *, uint nargs) const;
   bool Item_func_in_fix_comparator_compatible_types(THD *thd,
                                                     Item_func_in *) const;
+  bool Item_func_round_fix_length_and_dec(Item_func_round *) const;
 };
 
 
@@ -1263,6 +1273,7 @@ public:
   {
     return false;
   }
+  bool Item_func_round_fix_length_and_dec(Item_func_round *) const;
 };
 #endif
 
@@ -1381,6 +1392,7 @@ extern Type_handler_row   type_handler_row;
 extern Type_handler_null  type_handler_null;
 extern Type_handler_varchar type_handler_varchar;
 extern Type_handler_longlong type_handler_longlong;
+extern Type_handler_double type_handler_double;
 extern Type_handler_newdecimal type_handler_newdecimal;
 extern Type_handler_datetime type_handler_datetime;
 extern Type_handler_longlong type_handler_longlong;
