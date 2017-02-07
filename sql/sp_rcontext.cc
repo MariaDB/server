@@ -688,7 +688,9 @@ int sp_cursor::fetch(THD *thd, List<sp_variable> *vars)
                MYF(0));
     return -1;
   }
-  if (vars->elements != result.get_field_count())
+  if (vars->elements != result.get_field_count() &&
+      (vars->elements != 1 ||
+       !vars->head()->field_def.is_row(result.get_field_count())))
   {
     my_message(ER_SP_WRONG_NO_OF_FETCH_ARGS,
                ER_THD(thd, ER_SP_WRONG_NO_OF_FETCH_ARGS), MYF(0));
@@ -743,15 +745,16 @@ int sp_cursor::Select_fetch_into_spvars::prepare(List<Item> &fields,
 }
 
 
-int sp_cursor::Select_fetch_into_spvars::send_data(List<Item> &items)
+bool sp_cursor::Select_fetch_into_spvars::
+       send_data_to_variable_list(List<sp_variable> &vars, List<Item> &items)
 {
-  List_iterator_fast<sp_variable> spvar_iter(*spvar_list);
+  List_iterator_fast<sp_variable> spvar_iter(vars);
   List_iterator_fast<Item> item_iter(items);
   sp_variable *spvar;
   Item *item;
 
   /* Must be ensured by the caller */
-  DBUG_ASSERT(spvar_list->elements == items.elements);
+  DBUG_ASSERT(vars.elements == items.elements);
 
   /*
     Assign the row fetched from a server side cursor to stored
@@ -763,4 +766,28 @@ int sp_cursor::Select_fetch_into_spvars::send_data(List<Item> &items)
       return true;
   }
   return false;
+}
+
+
+bool sp_cursor::Select_fetch_into_spvars::
+       send_data_to_row_variable(sp_variable *spvar, List<Item> &items)
+{
+  DBUG_ASSERT(spvar->field_def.is_row(items.elements));
+  List_iterator_fast<Item> item_iter(items);
+  Item *item;
+  for (uint i= 0 ; (item= item_iter++); i++)
+  {
+    if (thd->spcont->set_variable_row_field(thd, spvar->offset, i, &item))
+      return true;
+  }
+  return false;
+}
+
+
+int sp_cursor::Select_fetch_into_spvars::send_data(List<Item> &items)
+{
+  return (spvar_list->elements == 1 &&
+          (spvar_list->head())->field_def.is_row(items.elements)) ?
+    send_data_to_row_variable(spvar_list->head(), items) :
+    send_data_to_variable_list(*spvar_list, items);
 }

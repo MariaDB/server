@@ -419,6 +419,8 @@ private:
   {
     List<sp_variable> *spvar_list;
     uint field_count;
+    bool send_data_to_row_variable(sp_variable *var, List<Item> &items);
+    bool send_data_to_variable_list(List<sp_variable> &vars, List<Item> &items);
   public:
     Select_fetch_into_spvars(THD *thd_arg): select_result_interceptor(thd_arg) {}
     uint get_field_count() { return field_count; }

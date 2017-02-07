@@ -8089,3 +8089,109 @@ v_name	v_total
 c	1
 DROP PROCEDURE p1;
 DROP TABLE t1;
+#
+# Start of 10.3 tests
+#
+#
+# MDEV-12007 Allow ROW variables as a cursor FETCH target
+#
+# The cursor and the ROW variable in FETCH must have the same number of fields
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE done INT DEFAULT FALSE;
+DECLARE rec ROW(aa INT, bb VARCHAR(32), cc INT);
+DECLARE cur CURSOR FOR SELECT 10 AS a,'b10' AS b;
+DECLARE CONTINUE HANDLER FOR NOT FOUND SET done = TRUE;
+OPEN cur;
+read_loop:
+LOOP
+FETCH cur INTO rec;
+IF done THEN
+LEAVE read_loop;
+END IF;
+END LOOP;
+CLOSE cur;
+END;
+$$
+CALL p1();
+ERROR HY000: Incorrect number of FETCH variables
+DROP PROCEDURE p1;
+# Multiple ROW variables in FETCH
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE done INT DEFAULT FALSE;
+DECLARE rec1 ROW(aa INT);
+DECLARE rec2 ROW(aa INT);
+DECLARE cur CURSOR FOR SELECT 10 AS a, 20 AS b;
+DECLARE CONTINUE HANDLER FOR NOT FOUND SET done = TRUE;
+OPEN cur;
+read_loop:
+LOOP
+FETCH cur INTO rec1, rec2;
+IF done THEN
+LEAVE read_loop;
+END IF;
+END LOOP;
+CLOSE cur;
+END;
+$$
+CALL p1();
+ERROR 21000: Operand should contain 1 column(s)
+DROP PROCEDURE p1;
+# A complete working example
+CREATE TABLE t1 (a INT, b VARCHAR(32));
+INSERT INTO t1 VALUES (10,'b10');
+INSERT INTO t1 VALUES (20,'b20');
+INSERT INTO t1 VALUES (30,'b30');
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE done INT DEFAULT FALSE;
+DECLARE rec ROW(aa INT, bb VARCHAR(32));
+DECLARE cur CURSOR FOR SELECT a,b FROM t1;
+DECLARE CONTINUE HANDLER FOR NOT FOUND SET done = TRUE;
+OPEN cur;
+read_loop:
+LOOP
+FETCH cur INTO rec;
+IF done THEN
+LEAVE read_loop;
+END IF;
+SELECT CONCAT('rec=(',rec.aa,',',rec.bb,')') AS c;
+END LOOP;
+CLOSE cur;
+END;
+$$
+CALL p1();
+c
+rec=(10,b10)
+c
+rec=(20,b20)
+c
+rec=(30,b30)
+DROP PROCEDURE p1;
+DROP TABLE t1;
+# A ROW variable with a single field
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE done INT DEFAULT FALSE;
+DECLARE rec ROW(aa INT);
+DECLARE cur CURSOR FOR SELECT 10 AS a UNION SELECT 20;
+DECLARE CONTINUE HANDLER FOR NOT FOUND SET done = TRUE;
+OPEN cur;
+read_loop:
+LOOP
+FETCH cur INTO rec;
+IF done THEN
+LEAVE read_loop;
+END IF;
+SELECT CONCAT('rec=(',rec.aa,')') AS c;
+END LOOP;
+CLOSE cur;
+END;
+$$
+CALL p1();
+c
+rec=(10)
+c
+rec=(20)
+DROP PROCEDURE p1;

@@ -9548,3 +9548,117 @@ DELIMITER ;|
 CALL p1();
 DROP PROCEDURE p1;
 DROP TABLE t1;
+
+--echo #
+--echo # Start of 10.3 tests
+--echo #
+
+--echo #
+--echo # MDEV-12007 Allow ROW variables as a cursor FETCH target
+--echo #
+
+
+--echo # The cursor and the ROW variable in FETCH must have the same number of fields
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE done INT DEFAULT FALSE;
+  DECLARE rec ROW(aa INT, bb VARCHAR(32), cc INT);
+  DECLARE cur CURSOR FOR SELECT 10 AS a,'b10' AS b;
+  DECLARE CONTINUE HANDLER FOR NOT FOUND SET done = TRUE;
+  OPEN cur;
+read_loop:
+  LOOP
+    FETCH cur INTO rec;
+    IF done THEN
+      LEAVE read_loop;
+    END IF;
+  END LOOP;
+  CLOSE cur;
+END;
+$$
+DELIMITER ;$$
+--error ER_SP_WRONG_NO_OF_FETCH_ARGS
+CALL p1();
+DROP PROCEDURE p1;
+
+
+--echo # Multiple ROW variables in FETCH
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE done INT DEFAULT FALSE;
+  DECLARE rec1 ROW(aa INT);
+  DECLARE rec2 ROW(aa INT);
+  DECLARE cur CURSOR FOR SELECT 10 AS a, 20 AS b;
+  DECLARE CONTINUE HANDLER FOR NOT FOUND SET done = TRUE;
+  OPEN cur;
+read_loop:
+  LOOP
+    FETCH cur INTO rec1, rec2;
+    IF done THEN
+      LEAVE read_loop;
+    END IF;
+  END LOOP;
+  CLOSE cur;
+END;
+$$
+DELIMITER ;$$
+--error ER_OPERAND_COLUMNS
+CALL p1();
+DROP PROCEDURE p1;
+
+
+--echo # A complete working example
+CREATE TABLE t1 (a INT, b VARCHAR(32));
+INSERT INTO t1 VALUES (10,'b10');
+INSERT INTO t1 VALUES (20,'b20');
+INSERT INTO t1 VALUES (30,'b30');
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE done INT DEFAULT FALSE;
+  DECLARE rec ROW(aa INT, bb VARCHAR(32));
+  DECLARE cur CURSOR FOR SELECT a,b FROM t1;
+  DECLARE CONTINUE HANDLER FOR NOT FOUND SET done = TRUE;
+  OPEN cur;
+read_loop:
+  LOOP
+    FETCH cur INTO rec;
+    IF done THEN
+      LEAVE read_loop;
+    END IF;
+    SELECT CONCAT('rec=(',rec.aa,',',rec.bb,')') AS c;
+  END LOOP;
+  CLOSE cur;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+
+--echo # A ROW variable with a single field
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE done INT DEFAULT FALSE;
+  DECLARE rec ROW(aa INT);
+  DECLARE cur CURSOR FOR SELECT 10 AS a UNION SELECT 20;
+  DECLARE CONTINUE HANDLER FOR NOT FOUND SET done = TRUE;
+  OPEN cur;
+read_loop:
+  LOOP
+    FETCH cur INTO rec;
+    IF done THEN
+      LEAVE read_loop;
+    END IF;
+    SELECT CONCAT('rec=(',rec.aa,')') AS c;
+  END LOOP;
+  CLOSE cur;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+DROP PROCEDURE p1;
