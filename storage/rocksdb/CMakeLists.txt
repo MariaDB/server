@@ -32,7 +32,7 @@ ELSEIF (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
      (CLANG_VERSION_STRING AND CLANG_VERSION_STRING VERSION_LESS  3.3))
     SKIP_ROCKSDB_PLUGIN("${OLD_COMPILER_MSG}")
   ENDIF()
-  SET(CXX11_FLAGS "-stdlib=libc++ -std=c++11")
+  SET(CXX11_FLAGS "-std=c++11 -stdlib=libstdc++")
 ELSEIF(MSVC)
   IF (MSVC_VERSION LESS 1900)
     SKIP_ROCKSDB_PLUGIN("${OLD_COMPILER_MSG}")
@@ -96,7 +96,8 @@ ADD_DEPENDENCIES(rocksdb_aux_lib GenError)
 TARGET_LINK_LIBRARIES(rocksdb_aux_lib rocksdblib ${ZLIB_LIBRARY})
 TARGET_LINK_LIBRARIES(rocksdb_se rocksdb_aux_lib)
 
-IF(CMAKE_COMPILER_IS_GNUCXX)
+IF(CMAKE_CXX_COMPILER_ID MATCHES "GNU" OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+
   # MARIAROCKS_NOT_YET: Add -frtti flag when compiling RocksDB files.
   # TODO: is this the right way to do this?
   #  - SQL layer and storage/rocksdb/*.cc are compiled with -fnortti
@@ -139,7 +140,7 @@ TARGET_LINK_LIBRARIES(ldb rocksdb_tools rocksdblib)
 MYSQL_ADD_EXECUTABLE(mysql_ldb tools/mysql_ldb.cc)
 TARGET_LINK_LIBRARIES(mysql_ldb rocksdb_tools rocksdb_aux_lib)
 
-IF(CMAKE_COMPILER_IS_GNUCXX)
+IF(CMAKE_CXX_COMPILER_ID MATCHES "GNU" OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   SET_TARGET_PROPERTIES(rocksdb_tools sst_dump ldb mysql_ldb PROPERTIES COMPILE_FLAGS -frtti)
 ENDIF()
 IF(MSVC)

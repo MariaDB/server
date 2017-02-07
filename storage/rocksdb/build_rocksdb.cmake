@@ -332,6 +332,6 @@ list(APPEND SOURCES ${CMAKE_CURRENT_BINARY_DIR}/build_version.cc)
 
 ADD_CONVENIENCE_LIBRARY(rocksdblib STATIC ${SOURCES})
 target_link_libraries(rocksdblib ${THIRDPARTY_LIBS} ${SYSTEM_LIBS})
-if(CMAKE_COMPILER_IS_GNUCXX)
-  set_target_properties(rocksdblib PROPERTIES COMPILE_FLAGS "-fno-builtin-memcmp -frtti")
+IF(CMAKE_CXX_COMPILER_ID MATCHES "GNU" OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+  set_target_properties(rocksdblib PROPERTIES COMPILE_FLAGS "-fPIC -fno-builtin-memcmp -frtti")
 endif()
