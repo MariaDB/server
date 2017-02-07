@@ -331,16 +331,8 @@ class Item_sum_first_value : public Item_sum_hybrid_simple
 {
  public:
   Item_sum_first_value(THD* thd, Item* arg_expr) :
-    Item_sum_hybrid_simple(thd, arg_expr),
-    value_added(false) {}
+    Item_sum_hybrid_simple(thd, arg_expr) {}
 
-  bool add();
-
-  void clear()
-  {
-    value_added= false;
-    Item_sum_hybrid_simple::clear();
-  }
 
   enum Sumfunctype sum_func () const
   {
@@ -354,9 +346,6 @@ class Item_sum_first_value : public Item_sum_hybrid_simple
 
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_sum_first_value>(thd, mem_root, this); }
-
- private:
-  bool value_added;
 };
 
 /*
