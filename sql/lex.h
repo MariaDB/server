@@ -409,6 +409,7 @@ static SYMBOL symbols[] = {
   { "NEXT",		SYM(NEXT_SYM)},
   { "NO",		SYM(NO_SYM)},
   { "NO_WAIT",		SYM(NO_WAIT_SYM)},
+  { "NOWAIT",		SYM(NOWAIT_SYM)},
   { "NODEGROUP",	SYM(NODEGROUP_SYM)},
   { "NONE",		SYM(NONE_SYM)},
   { "NOT",		SYM(NOT_SYM)},

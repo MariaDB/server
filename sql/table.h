@@ -2078,9 +2078,6 @@ struct TABLE_LIST
     /* Don't associate a table share. */
     OPEN_STUB
   } open_strategy;
-  /* For transactional locking. */
-  int           lock_timeout;           /* NOWAIT or WAIT [X]               */
-  bool          lock_transactional;     /* If transactional lock requested. */
   /** TRUE if an alias for this table was specified in the SQL. */
   bool          is_alias;
   /** TRUE if the table is referred to in the statement using a fully

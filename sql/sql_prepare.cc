@@ -3701,7 +3701,7 @@ void Prepared_statement::cleanup_stmt()
 {
   DBUG_ENTER("Prepared_statement::cleanup_stmt");
   DBUG_PRINT("enter",("stmt: 0x%lx", (long) this));
-  thd->restore_set_statement_var();
+  lex->restore_set_statement_var();
   cleanup_items(free_list);
   thd->cleanup_after_query();
   thd->rollback_item_tree_changes();

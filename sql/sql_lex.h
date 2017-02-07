@@ -3351,6 +3351,8 @@ extern bool is_lex_native_function(const LEX_STRING *name);
 
 void my_missing_function_error(const LEX_STRING &token, const char *name);
 bool is_keyword(const char *name, uint len);
+int set_statement_var_if_exists(THD *thd, const char *var_name,
+                                size_t var_name_length, ulonglong value);
 
 #endif /* MYSQL_SERVER */
 #endif /* SQL_LEX_INCLUDED */

@@ -536,11 +536,6 @@ UNIV_INTERN ulong srv_buf_dump_status_frequency = 0;
 	mutex_exit(&srv_sys->mutex);			\
 } while (0)
 
-#define fetch_lock_wait_timeout(trx)			\
-	((trx)->lock.allowed_to_wait			\
-	 ? thd_lock_wait_timeout((trx)->mysql_thd)	\
-	 : 0)
-
 /*
 	IMPLEMENTATION OF THE SERVER MAIN PROGRAM
 	=========================================

@@ -299,32 +299,6 @@ lock_rec_insert_check_and_lock(
 				record */
 	MY_ATTRIBUTE((warn_unused_result));
 
-/*********************************************************************//**
-Enqueues a waiting request for a lock which cannot be granted immediately.
-Checks for deadlocks.
-@return DB_LOCK_WAIT, DB_DEADLOCK, or DB_QUE_THR_SUSPENDED, or
-DB_SUCCESS_LOCKED_REC; DB_SUCCESS_LOCKED_REC means that
-there was a deadlock, but another transaction was chosen as a victim,
-and we got the lock immediately: no need to wait then */
-dberr_t
-lock_rec_enqueue_waiting(
-/*=====================*/
-	ulint			type_mode,/*!< in: lock mode this
-					transaction is requesting:
-					LOCK_S or LOCK_X, possibly
-					ORed with LOCK_GAP or
-					LOCK_REC_NOT_GAP, ORed with
-					LOCK_INSERT_INTENTION if this
-					waiting lock request is set
-					when performing an insert of
-					an index record */
-	const buf_block_t*	block,	/*!< in: buffer block containing
-					the record */
-	ulint			heap_no,/*!< in: heap number of the record */
-	dict_index_t*		index,	/*!< in: index of record */
-	que_thr_t*		thr,	/*!< in: query thread */
-	lock_prdt_t*		prdt);	/*!< in: Minimum Bounding Box */
-
 /*************************************************************//**
 Removes a record lock request, waiting or granted, from the queue and
 grants locks to other transactions in the queue if they now are entitled

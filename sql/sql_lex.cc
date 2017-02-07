@@ -5334,3 +5334,33 @@ Item *st_select_lex::build_cond_for_grouping_fields(THD *thd, Item *cond,
   }
   return 0;
 }
+
+
+int set_statement_var_if_exists(THD *thd, const char *var_name,
+                                size_t var_name_length, ulonglong value)
+{
+  sys_var *sysvar;
+  if (thd->lex->sql_command == SQLCOM_CREATE_VIEW)
+  {
+    my_error(ER_VIEW_SELECT_CLAUSE, MYF(0), "[NO]WAIT");
+    return 1;
+  }
+  if (thd->lex->sphead)
+  {
+    my_error(ER_SP_BADSTATEMENT, MYF(0), "[NO]WAIT");
+    return 1;
+  }
+  if ((sysvar= find_sys_var_ex(thd, var_name, var_name_length, true, false)))
+  {
+    Item *item= new (thd->mem_root) Item_uint(thd, value);
+    set_var *var= new (thd->mem_root) set_var(thd, OPT_SESSION, sysvar,
+                                              &null_lex_str, item);
+
+    if (!item || !var || thd->lex->stmt_var_list.push_back(var, thd->mem_root))
+    {
+      my_error(ER_OUT_OF_RESOURCES, MYF(0));
+      return 1;
+    }
+  }
+  return 0;
+}

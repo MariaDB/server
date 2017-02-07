@@ -1145,7 +1145,7 @@ static Sys_var_ulong Sys_lock_wait_timeout(
        "lock_wait_timeout",
        "Timeout in seconds to wait for a lock before returning an error.",
        SESSION_VAR(lock_wait_timeout), CMD_LINE(REQUIRED_ARG),
-       VALID_RANGE(1, LONG_TIMEOUT), DEFAULT(24 * 60 * 60), BLOCK_SIZE(1));
+       VALID_RANGE(0, LONG_TIMEOUT), DEFAULT(24 * 60 * 60), BLOCK_SIZE(1));
 
 #ifdef HAVE_MLOCKALL
 static Sys_var_mybool Sys_locked_in_memory(

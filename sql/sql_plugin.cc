@@ -2813,7 +2813,8 @@ sys_var *find_sys_var_ex(THD *thd, const char *str, size_t length,
     mysql_mutex_unlock(&LOCK_plugin);
 
   if (!throw_error && !var)
-    my_error(ER_UNKNOWN_SYSTEM_VARIABLE, MYF(0), (int)length, (char*) str);
+    my_error(ER_UNKNOWN_SYSTEM_VARIABLE, MYF(0),
+             (int) (length ? length : strlen(str)), (char*) str);
   DBUG_RETURN(var);
 }
 

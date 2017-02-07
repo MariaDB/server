@@ -2232,17 +2232,22 @@ queue is itself waiting roll it back, also do a deadlock check and resolve.
 @param[in, out] wait_for	The lock that the joining transaction is
 				waiting for
 @param[in] prdt			Predicate [optional]
-@return DB_LOCK_WAIT, DB_DEADLOCK, or DB_QUE_THR_SUSPENDED, or
-	DB_SUCCESS_LOCKED_REC; DB_SUCCESS_LOCKED_REC means that
-	there was a deadlock, but another transaction was chosen
-	as a victim, and we got the lock immediately: no need to
-	wait then */
+@return DB_LOCK_WAIT, DB_LOCK_WAIT_TIMEOUT, DB_DEADLOCK, or
+	DB_QUE_THR_SUSPENDED, or DB_SUCCESS_LOCKED_REC; DB_SUCCESS_LOCKED_REC
+	means that there was a deadlock, but another transaction was chosen
+	as a victim, and we got the lock immediately: no need to wait then;
+	DB_LOCK_WAIT_TIMEOUT means no need to wait */
 dberr_t
 RecLock::add_to_waitq(const lock_t* wait_for, const lock_prdt_t* prdt)
 {
 	ut_ad(lock_mutex_own());
 	ut_ad(m_trx == thr_get_trx(m_thr));
 	ut_ad(trx_mutex_own(m_trx));
+
+	if (m_trx->mysql_thd && thd_lock_wait_timeout(m_trx->mysql_thd) == 0) {
+		m_trx->error_state = DB_LOCK_WAIT_TIMEOUT;
+		return(DB_LOCK_WAIT_TIMEOUT);
+	}
 
 	DEBUG_SYNC_C("rec_lock_add_to_waitq");
 

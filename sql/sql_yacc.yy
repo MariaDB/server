@@ -1407,6 +1407,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  NOW_SYM
 %token  NO_SYM                        /* SQL-2003-R */
 %token  NO_WAIT_SYM
+%token  NOWAIT_SYM
 %token  NO_WRITE_TO_BINLOG
 %token  NTILE_SYM
 %token  NULL_SYM                      /* SQL-2003-R */
@@ -1982,7 +1983,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
         parse_vcol_expr vcol_opt_specifier vcol_opt_attribute
         vcol_opt_attribute_list vcol_attribute
         opt_serial_attribute opt_serial_attribute_list serial_attribute
-        explainable_command
+        explainable_command opt_lock_wait_timeout
 END_OF_INPUT
 
 %type <NONE> call sp_proc_stmts sp_proc_stmts1 sp_proc_stmt
@@ -2565,7 +2566,7 @@ create:
             if (Lex->add_create_index($2, $5, $6, $1 | $4))
               MYSQL_YYABORT;
           }
-          '(' key_list ')' normal_key_options
+          '(' key_list ')' opt_lock_wait_timeout normal_key_options
           opt_index_lock_algorithm { }
         | create_or_replace fulltext INDEX_SYM opt_if_not_exists ident
           ON table_ident
@@ -2575,7 +2576,7 @@ create:
             if (Lex->add_create_index($2, $5, HA_KEY_ALG_UNDEF, $1 | $4))
               MYSQL_YYABORT;
           }
-          '(' key_list ')' fulltext_key_options
+          '(' key_list ')' opt_lock_wait_timeout fulltext_key_options
           opt_index_lock_algorithm { }
         | create_or_replace spatial INDEX_SYM opt_if_not_exists ident
           ON table_ident
@@ -2585,7 +2586,7 @@ create:
             if (Lex->add_create_index($2, $5, HA_KEY_ALG_UNDEF, $1 | $4))
               MYSQL_YYABORT;
           }
-          '(' key_list ')' spatial_key_options
+          '(' key_list ')' opt_lock_wait_timeout spatial_key_options
           opt_index_lock_algorithm { }
         | create_or_replace DATABASE opt_if_not_exists ident
           {
@@ -7131,7 +7132,7 @@ alter:
             Lex->create_info.storage_media= HA_SM_DEFAULT;
             DBUG_ASSERT(!Lex->m_sql_cmd);
           }
-          alter_options TABLE_SYM table_ident
+          alter_options TABLE_SYM table_ident opt_lock_wait_timeout
           {
             if (!Lex->select_lex.add_table_to_list(thd, $5, NULL,
                                                    TL_OPTION_UPDATING,
@@ -8221,7 +8222,7 @@ optimize:
             /* Will be overridden during execution. */
             YYPS->m_lock_type= TL_UNLOCK;
           }
-          table_list
+          table_list opt_lock_wait_timeout
           {
             LEX* lex= thd->lex;
             DBUG_ASSERT(!lex->m_sql_cmd);
@@ -8271,13 +8272,13 @@ table_to_table_list:
         ;
 
 table_to_table:
-          table_ident TO_SYM table_ident
+          table_ident opt_lock_wait_timeout TO_SYM table_ident
           {
             LEX *lex=Lex;
             SELECT_LEX *sl= lex->current_select;
             if (!sl->add_table_to_list(thd, $1,NULL,TL_OPTION_UPDATING,
                                        TL_IGNORE, MDL_EXCLUSIVE) ||
-                !sl->add_table_to_list(thd, $3,NULL,TL_OPTION_UPDATING,
+                !sl->add_table_to_list(thd, $4, NULL, TL_OPTION_UPDATING,
                                        TL_IGNORE, MDL_EXCLUSIVE))
               MYSQL_YYABORT;
           }
@@ -8684,14 +8685,14 @@ select_option:
 
 opt_select_lock_type:
           /* empty */
-        | FOR_SYM UPDATE_SYM
+        | FOR_SYM UPDATE_SYM opt_lock_wait_timeout
           {
             LEX *lex=Lex;
             lex->current_select->lock_type= TL_WRITE;
             lex->current_select->set_lock_for_tables(TL_WRITE);
             lex->safe_to_cache_query=0;
           }
-        | LOCK_SYM IN_SYM SHARE_SYM MODE_SYM
+        | LOCK_SYM IN_SYM SHARE_SYM MODE_SYM opt_lock_wait_timeout
           {
             LEX *lex=Lex;
             lex->current_select->lock_type= TL_READ_WITH_SHARED_LOCKS;
@@ -12118,9 +12119,9 @@ drop:
             YYPS->m_lock_type= TL_UNLOCK;
             YYPS->m_mdl_type= MDL_EXCLUSIVE;
           }
-          table_list opt_restrict
+          table_list opt_lock_wait_timeout opt_restrict
           {}
-        | DROP INDEX_SYM opt_if_exists_table_element ident ON table_ident {}
+        | DROP INDEX_SYM opt_if_exists_table_element ident ON table_ident opt_lock_wait_timeout
           {
             LEX *lex=Lex;
             Alter_drop *ad= (new (thd->mem_root)
@@ -12686,7 +12687,7 @@ truncate:
             YYPS->m_lock_type= TL_WRITE;
             YYPS->m_mdl_type= MDL_EXCLUSIVE;
           }
-          table_name
+          table_name opt_lock_wait_timeout
           {
             LEX* lex= thd->lex;
             DBUG_ASSERT(!lex->m_sql_cmd);
@@ -14794,6 +14795,7 @@ keyword_sp:
         | NEXT_SYM                 {}
         | NEW_SYM                  {}
         | NO_WAIT_SYM              {}
+        | NOWAIT_SYM               {}
         | NODEGROUP_SYM            {}
         | NONE_SYM                 {}
         | NUMBER_SYM               {}
@@ -15444,9 +15446,26 @@ lock:
               my_yyabort_error((ER_SP_BADSTATEMENT, MYF(0), "LOCK"));
             lex->sql_command= SQLCOM_LOCK_TABLES;
           }
-          table_lock_list
+          table_lock_list opt_lock_wait_timeout
           {}
         ;
+
+opt_lock_wait_timeout:
+        /* empty */
+        {}
+        | WAIT_SYM ulong_num
+        {
+          if (set_statement_var_if_exists(thd, C_STRING_WITH_LEN("lock_wait_timeout"), $2) ||
+              set_statement_var_if_exists(thd, C_STRING_WITH_LEN("innodb_lock_wait_timeout"), $2))
+            MYSQL_YYABORT;
+        }
+        | NOWAIT_SYM
+        {
+          if (set_statement_var_if_exists(thd, C_STRING_WITH_LEN("lock_wait_timeout"), 0) ||
+              set_statement_var_if_exists(thd, C_STRING_WITH_LEN("innodb_lock_wait_timeout"), 0))
+            MYSQL_YYABORT;
+        }
+      ;
 
 table_or_tables:
           TABLE_SYM        { }
