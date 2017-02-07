@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2005, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2016, MariaDB Corporation. All Rights Reserved.
+Copyright (c) 2013, 2017, MariaDB Corporation. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -6569,9 +6569,10 @@ innobase_online_rebuild_log_free(
 /** For each user column, which is part of an index which is not going to be
 dropped, it checks if the column number of the column is same as col_no
 argument passed.
-@param[in]	table	table object
-@param[in]	col_no	column number of the column which is to be checked
-@param[in]	is_v	if this is a virtual column
+@param[in]	table		table
+@param[in]	col_no		column number
+@param[in]	is_v		if this is a virtual column
+@param[in]	only_committed	whether to consider only committed indexes
 @retval true column exists
 @retval false column does not exist, true if column is system column or
 it is in the index. */
@@ -6580,17 +6581,21 @@ bool
 check_col_exists_in_indexes(
 	const dict_table_t*	table,
 	ulint			col_no,
-	bool			is_v)
+	bool			is_v,
+	bool			only_committed = false)
 {
 	/* This function does not check system columns */
 	if (!is_v && dict_table_get_nth_col(table, col_no)->mtype == DATA_SYS) {
 		return(true);
 	}
 
-	for (dict_index_t* index = dict_table_get_first_index(table); index;
+	for (const dict_index_t* index = dict_table_get_first_index(table);
+	     index;
 	     index = dict_table_get_next_index(index)) {
 
-		if (index->to_be_dropped) {
+		if (only_committed
+		    ? !index->is_committed()
+		    : index->to_be_dropped) {
 			continue;
 		}
 
@@ -6769,14 +6774,24 @@ func_exit:
 	we do this by checking every existing column, if any current
 	index would index them */
 	for (ulint i = 0; i < dict_table_get_n_cols(prebuilt->table); i++) {
-		if (!check_col_exists_in_indexes(prebuilt->table, i, false)) {
-			prebuilt->table->cols[i].ord_part = 0;
+		dict_col_t& col = prebuilt->table->cols[i];
+		if (!col.ord_part) {
+			continue;
+		}
+		if (!check_col_exists_in_indexes(prebuilt->table, i, false,
+						 true)) {
+			col.ord_part = 0;
 		}
 	}
 
 	for (ulint i = 0; i < dict_table_get_n_v_cols(prebuilt->table); i++) {
-		if (!check_col_exists_in_indexes(prebuilt->table, i, true)) {
-			prebuilt->table->v_cols[i].m_col.ord_part = 0;
+		dict_col_t& col = prebuilt->table->v_cols[i].m_col;
+		if (!col.ord_part) {
+			continue;
+		}
+		if (!check_col_exists_in_indexes(prebuilt->table, i, true,
+						 true)) {
+			col.ord_part = 0;
 		}
 	}
 
