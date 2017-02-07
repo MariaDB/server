@@ -756,7 +756,6 @@ static void print_conn_args(const char *tool_name)
     verbose("Running '%s with default connection arguments", tool_name);
 }  
 
-
 /*
   Check and upgrade(if neccessary) all tables
   in the server using "mysqlcheck --check-upgrade .."
@@ -923,6 +922,52 @@ static void print_line(char* line)
     line++;
   }
   fputc('\n', stderr);
+}
+
+
+/*
+  Check for entries with "Unknown storage engine" in I_S.TABLES,
+  try to load plugins for these tables if available (MDEV-11942)
+*/
+static int run_mysqlcheck_engines(void)
+{
+  DYNAMIC_STRING ds_query;
+  DYNAMIC_STRING ds_result;
+
+  /* Trying to identify existing tables with unknown storage engine
+     Does not work with all engine types yet, and doesn't produce
+     results for BLACKHOLE without the dummy "WHERE row_format IS NULL"
+     condition yet. See MDEV-11943 */
+  const char *query = "SELECT DISTINCT LOWER(REPLACE(REPLACE(table_comment, 'Unknown storage engine ', ''), '\\'', '')) AS engine FROM information_schema.tables WHERE row_format IS NULL AND table_comment LIKE 'Unknown storage engine%'";
+
+  if (init_dynamic_string(&ds_query, "", 512, 512))
+    die("Out of memory");
+
+  if (init_dynamic_string(&ds_result, "", 512, 512))
+    die("Out of memory");
+
+  verbose("Checking for tables with unknown storage engine");
+
+  run_query(query, &ds_result, TRUE);
+
+  {
+    char *line= ds_result.str;
+    if (line && *line) {
+      do
+      {
+        line[strlen(line)-1]='\0';
+        verbose("installing missing plugin for '%s' storage engine", line);
+
+        dynstr_set(&ds_query, "INSTALL SONAME 'ha_");
+        dynstr_append(&ds_query, line); // we simply assume SONAME=ha_ENGINENAME
+        dynstr_append(&ds_query, "'");
+
+        if (run_query(ds_query.str, NULL, TRUE)) {
+          fprintf(stderr, "... can't install plugin 'ha_%s'\n", line);
+        }
+      } while ((line= get_line(line)) && *line);
+    }
+  }
 }
 
 
@@ -1131,7 +1176,8 @@ int main(int argc, char **argv)
   /*
     Run "mysqlcheck" and "mysql_fix_privilege_tables.sql"
   */
-  if (run_mysqlcheck_upgrade(TRUE) ||
+  if (run_mysqlcheck_engines() ||
+      run_mysqlcheck_upgrade(TRUE) ||
       run_mysqlcheck_views() ||
       run_sql_fix_privilege_tables() ||
       run_mysqlcheck_fixnames() ||
