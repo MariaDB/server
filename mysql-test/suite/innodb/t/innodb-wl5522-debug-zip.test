@@ -85,7 +85,6 @@ ALTER TABLE test_wl5522.t1 IMPORT TABLESPACE;
 --source include/wait_until_connected_again.inc
 --disable_reconnect
 
-SET SESSION debug_dbug="-d,ib_import_before_commit_crash";
 #### Before commit crash
 
 # Check that the DD is consistent after recovery
@@ -118,7 +117,6 @@ EOF
 --source include/wait_until_connected_again.inc
 --disable_reconnect
 
-SET SESSION debug_dbug="-d,ib_import_before_checkpoint_crash";
 #### Before checkpoint crash
 
 # After the above test the results are non-deterministic, recreate the table
@@ -165,6 +163,7 @@ ib_restore_tablespaces("test_wl5522", "t1");
 EOF
 
 # Test failure after reset of space id and LSN in the tablespace
+SET @saved_debug_dbug = @@SESSION.debug_dbug;
 SET SESSION debug_dbug="+d,ib_import_internal_error";
 
 --replace_regex /'.*t1.cfg'/'t1.cfg'/
@@ -172,7 +171,7 @@ SET SESSION debug_dbug="+d,ib_import_internal_error";
 --error ER_INTERNAL_ERROR
 ALTER TABLE test_wl5522.t1 IMPORT TABLESPACE;
 
-SET SESSION debug_dbug="-d,ib_import_internal_error";
+SET SESSION debug_dbug=@saved_debug_dbug;
 
 # Restore files
 perl;
@@ -214,7 +213,7 @@ do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
 ib_restore_tablespaces("test_wl5522", "t1");
 EOF
 
-SET SESSION debug_dbug="-d,ib_import_reset_space_and_lsn_failure";
+SET SESSION debug_dbug=@saved_debug_dbug;
 
 # Test failure after attempting a tablespace open
 SET SESSION debug_dbug="+d,ib_import_open_tablespace_failure";
@@ -223,7 +222,7 @@ SET SESSION debug_dbug="+d,ib_import_open_tablespace_failure";
 --error ER_GET_ERRMSG
 ALTER TABLE test_wl5522.t1 IMPORT TABLESPACE;
 
-SET SESSION debug_dbug="-d,ib_import_open_tablespace_failure";
+SET SESSION debug_dbug=@saved_debug_dbug;
 
 # Restore files
 perl;
@@ -238,7 +237,7 @@ SET SESSION debug_dbug="+d,ib_import_check_bitmap_failure";
 --error ER_NOT_KEYFILE
 ALTER TABLE test_wl5522.t1 IMPORT TABLESPACE;
 
-SET SESSION debug_dbug="-d,ib_import_check_bitmap_failure";
+SET SESSION debug_dbug=@saved_debug_dbug;
 
 # Restore files
 perl;
@@ -252,7 +251,7 @@ SET SESSION debug_dbug="+d,ib_import_cluster_root_adjust_failure";
 --error ER_NOT_KEYFILE
 ALTER TABLE test_wl5522.t1 IMPORT TABLESPACE;
 
-SET SESSION debug_dbug="-d,ib_import_cluster_root_adjust_failure";
+SET SESSION debug_dbug=@saved_debug_dbug;
 
 # Restore files
 perl;
@@ -266,7 +265,7 @@ SET SESSION debug_dbug="+d,ib_import_cluster_failure";
 --error ER_NOT_KEYFILE
 ALTER TABLE test_wl5522.t1 IMPORT TABLESPACE;
 
-SET SESSION debug_dbug="-d,ib_import_cluster_failure";
+SET SESSION debug_dbug=@saved_debug_dbug;
 
 # Restore files
 perl;
@@ -280,7 +279,7 @@ SET SESSION debug_dbug="+d,ib_import_sec_root_adjust_failure";
 --error ER_NOT_KEYFILE
 ALTER TABLE test_wl5522.t1 IMPORT TABLESPACE;
 
-SET SESSION debug_dbug="-d,ib_import_sec_root_adjust_failure";
+SET SESSION debug_dbug=@saved_debug_dbug;
 
 # Restore files
 perl;
@@ -294,7 +293,7 @@ SET SESSION debug_dbug="+d,ib_import_set_max_rowid_failure";
 --error ER_NOT_KEYFILE
 ALTER TABLE test_wl5522.t1 IMPORT TABLESPACE;
 
-SET SESSION debug_dbug="-d,ib_import_set_max_rowid_failure";
+SET SESSION debug_dbug=@saved_debug_dbug;
 
 # Left over from the failed IMPORT
 perl;
@@ -481,7 +480,7 @@ SET SESSION debug_dbug="+d,ib_import_trigger_corruption_1";
 --error ER_INTERNAL_ERROR
 ALTER TABLE test_wl5522.t1 IMPORT TABLESPACE;
 
-SET SESSION debug_dbug="-d,ib_import_trigger_corruption_1";
+SET SESSION debug_dbug=@saved_debug_dbug;
 
 DROP TABLE test_wl5522.t1;
 
@@ -514,7 +513,7 @@ SET SESSION debug_dbug="+d,buf_page_is_corrupt_failure";
 --error ER_INTERNAL_ERROR
 ALTER TABLE test_wl5522.t1 IMPORT TABLESPACE;
 
-SET SESSION debug_dbug="-d,buf_page_is_corrupt_failure";
+SET SESSION debug_dbug=@saved_debug_dbug;
 
 DROP TABLE test_wl5522.t1;
 
@@ -544,7 +543,7 @@ SET SESSION debug_dbug="+d,ib_import_trigger_corruption_2";
 --error ER_INNODB_INDEX_CORRUPT
 ALTER TABLE test_wl5522.t1 IMPORT TABLESPACE;
 
-SET SESSION debug_dbug="-d,ib_import_trigger_corruption_2";
+SET SESSION debug_dbug=@saved_debug_dbug;
 
 DROP TABLE test_wl5522.t1;
 
@@ -574,7 +573,7 @@ SET SESSION debug_dbug="+d,ib_import_trigger_corruption_3";
 --error ER_NOT_KEYFILE
 ALTER TABLE test_wl5522.t1 IMPORT TABLESPACE;
 
-SET SESSION debug_dbug="-d,ib_import_trigger_corruption_3";
+SET SESSION debug_dbug=@saved_debug_dbug;
 
 DROP TABLE test_wl5522.t1;
 
@@ -595,7 +594,7 @@ SET SESSION debug_dbug="+d,ib_import_create_index_failure_1";
 
 ALTER TABLE test_wl5522.t1 ADD INDEX idx(c1);
 
-SET SESSION debug_dbug="-d,ib_import_create_index_failure_1";
+SET SESSION debug_dbug=@saved_debug_dbug;
 
 DROP TABLE test_wl5522.t1;
 
@@ -626,7 +625,7 @@ SET SESSION debug_dbug="+d,fil_space_create_failure";
 --error ER_GET_ERRMSG
 ALTER TABLE test_wl5522.t1 IMPORT TABLESPACE;
 
-SET SESSION debug_dbug="-d,fil_space_create_failure";
+SET SESSION debug_dbug=@saved_debug_dbug;
 
 DROP TABLE test_wl5522.t1;
 
@@ -657,7 +656,7 @@ SET SESSION debug_dbug="+d,dict_tf_to_fsp_flags_failure";
 --error ER_GET_ERRMSG
 ALTER TABLE test_wl5522.t1 IMPORT TABLESPACE;
 
-SET SESSION debug_dbug="-d,dict_tf_to_fsp_flags_failure";
+SET SESSION debug_dbug=@saved_debug_dbug;
 
 DROP TABLE test_wl5522.t1;
 
@@ -689,7 +688,7 @@ SET SESSION debug_dbug="+d,fsp_flags_is_valid_failure";
 --error ER_INTERNAL_ERROR
 ALTER TABLE test_wl5522.t1 IMPORT TABLESPACE;
 
-SET SESSION debug_dbug="-d,fsp_flags_is_valid_failure";
+SET SESSION debug_dbug=@saved_debug_dbug;
 
 DROP TABLE test_wl5522.t1;
 
