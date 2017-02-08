@@ -9533,7 +9533,10 @@ static int get_options(int *argc_ptr, char ***argv_ptr)
   if ((opt_log_slow_admin_statements || opt_log_queries_not_using_indexes ||
        opt_log_slow_slave_statements) &&
       !global_system_variables.sql_log_slow)
-    sql_print_warning("options --log-slow-admin-statements, --log-queries-not-using-indexes and --log-slow-slave-statements have no effect if --log_slow_queries is not set");
+    sql_print_information("options --log-slow-admin-statements, "
+                          "--log-queries-not-using-indexes and "
+                          "--log-slow-slave-statements have no "
+                          "effect if --log_slow_queries is not set");
   if (global_system_variables.net_buffer_length > 
       global_system_variables.max_allowed_packet)
   {
