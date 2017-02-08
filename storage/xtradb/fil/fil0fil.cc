@@ -697,11 +697,6 @@ fil_node_open_file(
 			return(false);
 		}
 
-		if (size_bytes >= (1024*1024)) {
-			/* Truncate the size to whole extent size. */
-			size_bytes = ut_2pow_round(size_bytes, (1024*1024));
-		}
-
 		if (!fsp_flags_is_compressed(flags)) {
 			node->size = (ulint) (size_bytes / UNIV_PAGE_SIZE);
 		} else {
