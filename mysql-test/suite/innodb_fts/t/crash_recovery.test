@@ -38,6 +38,15 @@ BEGIN;
 INSERT INTO articles (title,body) VALUES
         ('MySQL Tutorial','DBMS stands for DataBase ...');
 
+--echo # Make durable the AUTO_INCREMENT in the above incomplete transaction.
+--connect (flush_redo_log,localhost,root,,)
+SET GLOBAL innodb_flush_log_at_trx_commit=1;
+BEGIN;
+DELETE FROM articles LIMIT 1;
+ROLLBACK;
+--disconnect flush_redo_log
+--connection default
+
 --source include/kill_and_restart_mysqld.inc
 
 # This insert will re-initialize the Doc ID counter, it should not crash
@@ -66,6 +75,15 @@ BEGIN;
 
 INSERT INTO articles (title,body) VALUES
         ('MySQL Tutorial','DBMS stands for DataBase ...');
+
+--echo # Make durable the AUTO_INCREMENT in the above incomplete transaction.
+--connect (flush_redo_log,localhost,root,,)
+SET GLOBAL innodb_flush_log_at_trx_commit=1;
+BEGIN;
+DELETE FROM articles LIMIT 1;
+ROLLBACK;
+--disconnect flush_redo_log
+--connection default
 
 --source include/kill_and_restart_mysqld.inc
 
@@ -103,6 +121,8 @@ INSERT INTO articles VALUES
 
 BEGIN;
 
+# Below we do not depend on the durability of the AUTO_INCREMENT sequence,
+# so we can skip the above flush_redo_log trick.
 INSERT INTO articles VALUES
         (100, 200, 'MySQL Tutorial','DBMS stands for DataBase ...');
 

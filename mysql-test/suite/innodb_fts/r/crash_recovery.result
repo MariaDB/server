@@ -15,6 +15,14 @@ INSERT INTO articles (title,body) VALUES
 BEGIN;
 INSERT INTO articles (title,body) VALUES
 ('MySQL Tutorial','DBMS stands for DataBase ...');
+# Make durable the AUTO_INCREMENT in the above incomplete transaction.
+connect  flush_redo_log,localhost,root,,;
+SET GLOBAL innodb_flush_log_at_trx_commit=1;
+BEGIN;
+DELETE FROM articles LIMIT 1;
+ROLLBACK;
+disconnect flush_redo_log;
+connection default;
 # Kill and restart
 INSERT INTO articles (title,body) VALUES
 ('MySQL Tutorial','DBMS stands for DataBase ...');
@@ -25,7 +33,7 @@ AGAINST ('Database' IN NATURAL LANGUAGE MODE);
 id	title	body
 1	MySQL Tutorial	DBMS stands for DataBase ...
 5	MySQL vs. YourSQL	In the following database comparison ...
-7	MySQL Tutorial	DBMS stands for DataBase ...
+8	MySQL Tutorial	DBMS stands for DataBase ...
 INSERT INTO articles (title,body) VALUES
 ('MySQL Tutorial','DBMS stands for DataBase ...')  ,
 ('How To Use MySQL Well','After you went through a ...'),
@@ -36,6 +44,14 @@ INSERT INTO articles (title,body) VALUES
 BEGIN;
 INSERT INTO articles (title,body) VALUES
 ('MySQL Tutorial','DBMS stands for DataBase ...');
+# Make durable the AUTO_INCREMENT in the above incomplete transaction.
+connect  flush_redo_log,localhost,root,,;
+SET GLOBAL innodb_flush_log_at_trx_commit=1;
+BEGIN;
+DELETE FROM articles LIMIT 1;
+ROLLBACK;
+disconnect flush_redo_log;
+connection default;
 # Kill and restart
 INSERT INTO articles (title,body) VALUES
 ('MySQL Tutorial','DBMS stands for DataBase ...');
@@ -45,10 +61,10 @@ AGAINST ('Database' IN NATURAL LANGUAGE MODE);
 id	title	body
 1	MySQL Tutorial	DBMS stands for DataBase ...
 5	MySQL vs. YourSQL	In the following database comparison ...
-7	MySQL Tutorial	DBMS stands for DataBase ...
 8	MySQL Tutorial	DBMS stands for DataBase ...
-12	MySQL vs. YourSQL	In the following database comparison ...
-14	MySQL Tutorial	DBMS stands for DataBase ...
+9	MySQL Tutorial	DBMS stands for DataBase ...
+13	MySQL vs. YourSQL	In the following database comparison ...
+16	MySQL Tutorial	DBMS stands for DataBase ...
 DROP TABLE articles;
 CREATE TABLE articles (
 id int PRIMARY KEY,
