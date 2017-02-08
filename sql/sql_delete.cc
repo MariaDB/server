@@ -607,9 +607,12 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
     if (table->versioned())
     {
       bool row_is_alive= table->vers_end_field()->is_max();
-      if (truncate_history && row_is_alive)
-        continue;
-      if (!truncate_history && !row_is_alive)
+      if (truncate_history)
+      {
+        if (row_is_alive)
+          continue;
+      }
+      else if (!row_is_alive)
         continue;
     }
 
