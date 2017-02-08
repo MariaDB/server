@@ -10494,7 +10494,7 @@ DELETE FROM t1;
 LOAD DATA INFILE '../../std_data/loaddata/mdev9824.txt' INTO TABLE t1 CHARACTER SET utf8 LINES TERMINATED BY 'ёё' IGNORE 1 LINES;
 Warnings:
 Warning	1638	Non-ASCII separator arguments are not fully supported
-SELECT c1 FROM t1;
+SELECT c1 FROM t1 ORDER BY c1;
 c1
 b
 c

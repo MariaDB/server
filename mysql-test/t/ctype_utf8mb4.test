@@ -1491,20 +1491,20 @@ create table t1 (utf8mb4 char(1) character set utf8mb4);
 insert into t1 values (0xF0908080);
 insert into t1 values (0xF0BFBFBF);
 insert into t1 values (0xF08F8080);
-select hex(utf8mb4) from t1;
+select hex(utf8mb4) from t1 order by binary utf8mb4;
 delete from t1;
 
 --echo Testing [F2..F3][80..BF][80..BF][80..BF]
 insert into t1 values (0xF2808080);
 insert into t1 values (0xF2BFBFBF);
-select hex(utf8mb4) from t1;
+select hex(utf8mb4) from t1 order by binary utf8mb4;
 delete from t1;
 
 --echo Testing [F4][80..8F][80..BF][80..BF]
 insert into t1 values (0xF4808080);
 insert into t1 values (0xF48F8080);
 insert into t1 values (0xF4908080);
-select hex(utf8mb4) from t1;
+select hex(utf8mb4) from t1 order by binary utf8mb4;
 drop table t1;
 
 

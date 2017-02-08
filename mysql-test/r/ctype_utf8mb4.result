@@ -2323,16 +2323,16 @@ insert into t1 values (0xF0BFBFBF);
 insert into t1 values (0xF08F8080);
 Warnings:
 Warning	1366	Incorrect string value: '\xF0\x8F\x80\x80' for column 'utf8mb4' at row 1
-select hex(utf8mb4) from t1;
+select hex(utf8mb4) from t1 order by binary utf8mb4;
 hex(utf8mb4)
+3F
 F0908080
 F0BFBFBF
-3F
 delete from t1;
 Testing [F2..F3][80..BF][80..BF][80..BF]
 insert into t1 values (0xF2808080);
 insert into t1 values (0xF2BFBFBF);
-select hex(utf8mb4) from t1;
+select hex(utf8mb4) from t1 order by binary utf8mb4;
 hex(utf8mb4)
 F2808080
 F2BFBFBF
@@ -2343,11 +2343,11 @@ insert into t1 values (0xF48F8080);
 insert into t1 values (0xF4908080);
 Warnings:
 Warning	1366	Incorrect string value: '\xF4\x90\x80\x80' for column 'utf8mb4' at row 1
-select hex(utf8mb4) from t1;
+select hex(utf8mb4) from t1 order by binary utf8mb4;
 hex(utf8mb4)
+3F
 F4808080
 F48F8080
-3F
 drop table t1;
 #
 # Check strnxfrm() with odd length
