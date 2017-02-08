@@ -1,0 +1,41 @@
+# Miscellanous FULLTEXT INDEX tests for debug-instrumented servers.
+# Note: These tests used to be part of a larger test, innodb_fts_misc_debug
+# or innodb_fts.misc_debug. A large part of that test can be run on a
+# non-debug server and has been renamed to innodb_fts.crash_recovery.
+
+--source include/have_innodb.inc
+--source include/have_debug.inc
+
+# Following test is for Bug 14668777 - ASSERT ON IB_VECTOR_SIZE(
+# TABLE->FTS->INDEXES, ALTER TABLE
+CREATE TABLE articles (
+        id INT UNSIGNED AUTO_INCREMENT NOT NULL PRIMARY KEY,
+        title VARCHAR(200),
+        body TEXT,
+        FULLTEXT (title,body)
+        ) ENGINE=InnoDB;
+
+# Abort the operation in dict_create_index_step by setting
+# return status of dict_create_index_tree_step() to DB_OUT_OF_MEMORY
+# The newly create dict_index_t should be removed from fts cache
+SET @saved_debug_dbug = @@SESSION.debug_dbug;
+SET SESSION debug_dbug="+d,ib_dict_create_index_tree_fail";
+--error ER_OUT_OF_RESOURCES
+CREATE FULLTEXT INDEX idx ON articles(body);
+SET SESSION debug_dbug=@saved_debug_dbug;
+
+# This simply go through ha_innobase::commit_inplace_alter_table
+# and do a fts_check_cached_index()
+ALTER TABLE articles STATS_PERSISTENT=DEFAULT;
+
+DROP TABLE articles;
+
+# This test used to be called innodb_fts.innobase_drop_fts_index_table:
+
+CREATE TABLE t (a INT, b TEXT) engine=innodb;
+SET debug_dbug='+d,alter_table_rollback_new_index';
+-- error ER_UNKNOWN_ERROR
+ALTER TABLE t ADD FULLTEXT INDEX (b(64));
+SET SESSION debug_dbug=@saved_debug_dbug;
+
+DROP TABLE t;

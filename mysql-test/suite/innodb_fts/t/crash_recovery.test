@@ -1,19 +1,11 @@
-#------------------------------------------------------------------------------
-# Misc FTS test on debug servers only
-#------------------------------------------------------------------------------
+# Crash recovery tests for FULLTEXT INDEX.
+# Note: These tests used to be part of a larger test, innodb_fts_misc_debug
+# or innodb_fts.misc_debug. The part of the test that actually needs debug
+# instrumentation been moved to innodb_fts.misc_debug.
+
 --source include/have_innodb.inc
-
-# Must have debug code to use SET SESSION debug
---source include/have_debug.inc
-
-# Valgrind would complain about memory leaks when we crash on purpose.
---source include/not_valgrind.inc
-
-# Embedded server does not support crashing
+# The embedded server tests do not support restarting.
 --source include/not_embedded.inc
-
-# Avoid CrashReporter popup on Mac
---source include/not_crashrep.inc
 
 # Following are test for crash recovery on FTS index, the first scenario
 # is for bug Bug #14586855 INNODB: FAILING ASSERTION: (DICT_INDEX_GET_N_UNIQUE(
@@ -46,27 +38,7 @@ BEGIN;
 INSERT INTO articles (title,body) VALUES
         ('MySQL Tutorial','DBMS stands for DataBase ...');
 
-# Request a crash on next execution of commit.
-SET SESSION debug_dbug="+d,crash_commit_before";
-#
-# Write file to make mysql-test-run.pl start up the server again
---exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
-#
-# Execute the statement that causes the crash.
---error 2013
-COMMIT;
-
---source include/wait_until_disconnected.inc
---sleep 2
-
-# Turn on reconnect
---enable_reconnect
-#
-# Call script that will poll the server waiting for it to be back online again
---source include/wait_until_connected_again.inc
-#
-# Turn off reconnect again
---disable_reconnect
+--source include/kill_and_restart_mysqld.inc
 
 # This insert will re-initialize the Doc ID counter, it should not crash
 INSERT INTO articles (title,body) VALUES
@@ -90,33 +62,12 @@ INSERT INTO articles (title,body) VALUES
         ('MySQL vs. YourSQL','In the following database comparison ...'),
         ('MySQL Security','When configured properly, MySQL ...');
 
-# Now let's crash the server with "crash_commit_before"
 BEGIN;
 
 INSERT INTO articles (title,body) VALUES
         ('MySQL Tutorial','DBMS stands for DataBase ...');
 
-# Request a crash on next execution of commit.
-SET SESSION debug_dbug="+d,crash_commit_before";
-#
-# Write file to make mysql-test-run.pl start up the server again
---exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
-#
-# Execute the statement that causes the crash.
---error 2013
-COMMIT;
-
---source include/wait_until_disconnected.inc
---sleep 2
-
-# Turn on reconnect
---enable_reconnect
-#
-# Call script that will poll the server waiting for it to be back online again
---source include/wait_until_connected_again.inc
-#
-# Turn off reconnect again
---disable_reconnect
+--source include/kill_and_restart_mysqld.inc
 
 # This insert will re-initialize the Doc ID counter, it should not crash
 INSERT INTO articles (title,body) VALUES
@@ -150,31 +101,12 @@ INSERT INTO articles VALUES
         (5, 6, 'MySQL vs. YourSQL','In the following database comparison ...'),
         (7, 4, 'MySQL Security','When configured properly, MySQL ...');
 
-# Now let's crash the server with "crash_commit_before"
 BEGIN;
 
 INSERT INTO articles VALUES
         (100, 200, 'MySQL Tutorial','DBMS stands for DataBase ...');
 
-# Request a crash on next execution of commit.
-SET SESSION debug_dbug="+d,crash_commit_before";
-#
-# Write file to make mysql-test-run.pl start up the server again
---exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
-#
-# Execute the statement that causes the crash.
---error 2013
-COMMIT;
-
---source include/wait_until_disconnected.inc
---sleep 2
-
-# Turn on reconnect
---enable_reconnect
-#
-# Call script that will poll the server waiting for it to be back online again
---source include/wait_until_connected_again.inc
-#
+--source include/kill_and_restart_mysqld.inc
 
 # This would re-initialize the FTS index and do the re-tokenization
 # of above records
@@ -182,28 +114,5 @@ INSERT INTO articles VALUES         (8, 12, 'MySQL Tutorial','DBMS stands for Da
 
 SELECT * FROM articles WHERE MATCH (title, body)
         AGAINST ('Tutorial' IN NATURAL LANGUAGE MODE);
-
-DROP TABLE articles;
-
-# Following test is for Bug 14668777 - ASSERT ON IB_VECTOR_SIZE(
-# TABLE->FTS->INDEXES, ALTER TABLE
-CREATE TABLE articles (
-        id INT UNSIGNED AUTO_INCREMENT NOT NULL PRIMARY KEY,
-        title VARCHAR(200),
-        body TEXT,
-        FULLTEXT (title,body)
-        ) ENGINE=InnoDB;
-
-# Abort the operation in dict_create_index_step by setting
-# return status of dict_create_index_tree_step() to DB_OUT_OF_MEMORY
-# The newly create dict_index_t should be removed from fts cache
-SET SESSION debug_dbug="+d,ib_dict_create_index_tree_fail";
---error ER_OUT_OF_RESOURCES
-CREATE FULLTEXT INDEX idx ON articles(body);
-SET SESSION debug_dbug="-d,ib_dict_create_index_tree_fail";
-
-# This simply go through ha_innobase::commit_inplace_alter_table
-# and do a fts_check_cached_index()
-ALTER TABLE articles STATS_PERSISTENT=DEFAULT;
 
 DROP TABLE articles;
