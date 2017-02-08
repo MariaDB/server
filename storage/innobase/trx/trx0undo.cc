@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2014, 2017, MariaDB Corporation. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -2011,13 +2012,37 @@ trx_undo_free_prepared(
 	ut_ad(srv_shutdown_state == SRV_SHUTDOWN_EXIT_THREADS);
 
 	if (trx->update_undo) {
-		ut_a(trx->update_undo->state == TRX_UNDO_PREPARED);
+		switch (trx->update_undo->state) {
+		case TRX_UNDO_PREPARED:
+			break;
+		case TRX_UNDO_ACTIVE:
+			/* lock_trx_release_locks() assigns
+			trx->is_recovered=false */
+			ut_a(srv_read_only_mode
+			     || srv_force_recovery >= SRV_FORCE_NO_TRX_UNDO);
+			break;
+		default:
+			ut_error;
+		}
+
 		UT_LIST_REMOVE(undo_list, trx->rseg->update_undo_list,
 			       trx->update_undo);
 		trx_undo_mem_free(trx->update_undo);
 	}
 	if (trx->insert_undo) {
-		ut_a(trx->insert_undo->state == TRX_UNDO_PREPARED);
+		switch (trx->insert_undo->state) {
+		case TRX_UNDO_PREPARED:
+			break;
+		case TRX_UNDO_ACTIVE:
+			/* lock_trx_release_locks() assigns
+			trx->is_recovered=false */
+			ut_a(srv_read_only_mode
+			     || srv_force_recovery >= SRV_FORCE_NO_TRX_UNDO);
+			break;
+		default:
+			ut_error;
+		}
+
 		UT_LIST_REMOVE(undo_list, trx->rseg->insert_undo_list,
 			       trx->insert_undo);
 		trx_undo_mem_free(trx->insert_undo);

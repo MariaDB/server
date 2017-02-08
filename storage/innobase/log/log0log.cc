@@ -3246,7 +3246,6 @@ logs_empty_and_mark_files_at_shutdown(void)
 	lsn_t			lsn;
 	ulint			arch_log_no;
 	ulint			count = 0;
-	ulint			total_trx;
 	ulint			pending_io;
 	ibool			server_busy;
 
@@ -3279,10 +3278,9 @@ loop:
 	shutdown, because the InnoDB layer may have committed or
 	prepared transactions and we don't want to lose them. */
 
-	total_trx = trx_sys_any_active_transactions();
-
-	if (total_trx > 0) {
-
+	if (ulint total_trx = srv_was_started && !srv_read_only_mode
+	    && srv_force_recovery < SRV_FORCE_NO_TRX_UNDO
+	    ? trx_sys_any_active_transactions() : 0) {
 		if (srv_print_verbose_log && count > 600) {
 			ib_logf(IB_LOG_LEVEL_INFO,
 				"Waiting for %lu active transactions to finish",

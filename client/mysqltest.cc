@@ -3339,6 +3339,8 @@ void do_exec(struct st_command *command)
   DBUG_ENTER("do_exec");
   DBUG_PRINT("enter", ("cmd: '%s'", cmd));
 
+  var_set_int("$sys_errno",0);
+
   /* Skip leading space */
   while (*cmd && my_isspace(charset_info, *cmd))
     cmd++;
@@ -3455,6 +3457,7 @@ void do_exec(struct st_command *command)
         report_or_die("command \"%s\" failed with wrong error: %d",
                       command->first_argument, status);
     }
+    var_set_int("$sys_errno",status);
   }
   else if (command->expected_errors.err[0].type == ERR_ERRNO &&
            command->expected_errors.err[0].code.errnum != 0)

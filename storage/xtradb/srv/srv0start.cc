@@ -623,19 +623,6 @@ create_log_file(
 /** Initial number of the first redo log file */
 #define INIT_LOG_FILE0	(SRV_N_LOG_FILES_MAX + 1)
 
-#ifdef DBUG_OFF
-# define RECOVERY_CRASH(x) do {} while(0)
-#else
-# define RECOVERY_CRASH(x) do {						\
-	if (srv_force_recovery_crash == x) {				\
-		fprintf(stderr, "innodb_force_recovery_crash=%lu\n",	\
-			srv_force_recovery_crash);			\
-		fflush(stderr);						\
-		exit(3);						\
-	}								\
-} while (0)
-#endif
-
 /*********************************************************************//**
 Creates all log files.
 @return	DB_SUCCESS or error code */
@@ -676,13 +663,14 @@ create_log_files(
 			file should be recoverable. The buffer
 			pool was clean, and we can simply create
 			all log files from the scratch. */
-			RECOVERY_CRASH(6);
+			DBUG_EXECUTE_IF("innodb_log_abort_6",
+					return(DB_ERROR););
 		}
 	}
 
 	ut_ad(!buf_pool_check_no_pending_io());
 
-	RECOVERY_CRASH(7);
+	DBUG_EXECUTE_IF("innodb_log_abort_7", return(DB_ERROR););
 
 	for (unsigned i = 0; i < srv_n_log_files; i++) {
 		sprintf(logfilename + dirnamelen,
@@ -695,7 +683,7 @@ create_log_files(
 		}
 	}
 
-	RECOVERY_CRASH(8);
+	DBUG_EXECUTE_IF("innodb_log_abort_8", return(DB_ERROR););
 
 	/* We did not create the first log file initially as
 	ib_logfile0, so that crash recovery cannot find it until it
@@ -751,10 +739,16 @@ create_log_files(
 	return(DB_SUCCESS);
 }
 
-/*********************************************************************//**
-Renames the first log file. */
+/** Rename the first redo log file.
+@param[in,out]	logfilename	buffer for the log file name
+@param[in]	dirnamelen	length of the directory path
+@param[in]	lsn		FIL_PAGE_FILE_FLUSH_LSN value
+@param[in,out]	logfile0	name of the first log file
+@return	error code
+@retval	DB_SUCCESS	on successful operation */
+MY_ATTRIBUTE((warn_unused_result, nonnull))
 static
-void
+dberr_t
 create_log_files_rename(
 /*====================*/
 	char*	logfilename,	/*!< in/out: buffer for log file name */
@@ -765,6 +759,9 @@ create_log_files_rename(
 	/* If innodb_flush_method=O_DSYNC,
 	we need to explicitly flush the log buffers. */
 	fil_flush(SRV_LOG_SPACE_FIRST_ID);
+
+	DBUG_EXECUTE_IF("innodb_log_abort_9", return(DB_ERROR););
+
 	/* Close the log files, so that we can rename
 	the first one. */
 	fil_close_log_files(false);
@@ -773,26 +770,28 @@ create_log_files_rename(
 	checkpoint has been created. */
 	sprintf(logfilename + dirnamelen, "ib_logfile%u", 0);
 
-	RECOVERY_CRASH(9);
-
 	ib_logf(IB_LOG_LEVEL_INFO,
 		"Renaming log file %s to %s", logfile0, logfilename);
 
 	mutex_enter(&log_sys->mutex);
 	ut_ad(strlen(logfile0) == 2 + strlen(logfilename));
-	ibool success = os_file_rename(
-		innodb_file_log_key, logfile0, logfilename);
-	ut_a(success);
-
-	RECOVERY_CRASH(10);
+	dberr_t err = os_file_rename(
+		innodb_file_log_key, logfile0, logfilename)
+		? DB_SUCCESS : DB_ERROR;
 
 	/* Replace the first file with ib_logfile0. */
 	strcpy(logfile0, logfilename);
 	mutex_exit(&log_sys->mutex);
 
-	fil_open_log_and_system_tablespace_files();
+	DBUG_EXECUTE_IF("innodb_log_abort_10", err = DB_ERROR;);
 
-	ib_logf(IB_LOG_LEVEL_WARN, "New log files created, LSN=" LSN_PF, lsn);
+	if (err == DB_SUCCESS) {
+		fil_open_log_and_system_tablespace_files();
+		ib_logf(IB_LOG_LEVEL_WARN,
+			"New log files created, LSN=" LSN_PF, lsn);
+	}
+
+	return(err);
 }
 
 /*********************************************************************//**
@@ -2299,13 +2298,17 @@ innobase_start_or_create_for_mysql(void)
 						dirnamelen, max_flushed_lsn,
 						logfile0);
 
+					if (err == DB_SUCCESS) {
+						err = create_log_files_rename(
+							logfilename,
+							dirnamelen,
+							max_flushed_lsn,
+							logfile0);
+					}
+
 					if (err != DB_SUCCESS) {
 						return(err);
 					}
-
-					create_log_files_rename(
-						logfilename, dirnamelen,
-						max_flushed_lsn, logfile0);
 
 					/* Suppress the message about
 					crash recovery. */
@@ -2476,8 +2479,12 @@ files_checked:
 
 		fil_flush_file_spaces(FIL_TABLESPACE);
 
-		create_log_files_rename(logfilename, dirnamelen,
-					max_flushed_lsn, logfile0);
+		err = create_log_files_rename(logfilename, dirnamelen,
+					      max_flushed_lsn, logfile0);
+
+		if (err != DB_SUCCESS) {
+			return(err);
+		}
 	} else {
 
 		/* Check if we support the max format that is stamped
@@ -2679,7 +2686,8 @@ files_checked:
 				ULINT_MAX, LSN_MAX, NULL);
 			ut_a(success);
 
-			RECOVERY_CRASH(1);
+			DBUG_EXECUTE_IF("innodb_log_abort_1",
+					return(DB_ERROR););
 
 			min_flushed_lsn = max_flushed_lsn = log_get_lsn();
 
@@ -2693,8 +2701,6 @@ files_checked:
 				max_flushed_lsn);
 
 			buf_flush_wait_batch_end(NULL, BUF_FLUSH_LIST);
-
-			RECOVERY_CRASH(2);
 
 			/* Flush the old log files. */
 			log_buffer_flush_to_disk();
@@ -2710,21 +2716,27 @@ files_checked:
 			ut_d(recv_no_log_write = TRUE);
 			ut_ad(!buf_pool_check_no_pending_io());
 
-			RECOVERY_CRASH(3);
+			DBUG_EXECUTE_IF("innodb_log_abort_3",
+					return(DB_ERROR););
 
 			/* Stamp the LSN to the data files. */
 			fil_write_flushed_lsn_to_data_files(
 				max_flushed_lsn, 0);
 
-			fil_flush_file_spaces(FIL_TABLESPACE);
+			DBUG_EXECUTE_IF("innodb_log_abort_4", err = DB_ERROR;);
 
-			RECOVERY_CRASH(4);
+			if (err != DB_SUCCESS) {
+				return(err);
+			}
+
+			fil_flush_file_spaces(FIL_TABLESPACE);
 
 			/* Close and free the redo log files, so that
 			we can replace them. */
 			fil_close_log_files(true);
 
-			RECOVERY_CRASH(5);
+			DBUG_EXECUTE_IF("innodb_log_abort_5",
+					return(DB_ERROR););
 
 			/* Free the old log file space. */
 			log_group_close_all();
@@ -2748,8 +2760,11 @@ files_checked:
 			fil_write_flushed_lsn_to_data_files(min_flushed_lsn, 0);
 			fil_flush_file_spaces(FIL_TABLESPACE);
 
-			create_log_files_rename(logfilename, dirnamelen,
-						log_get_lsn(), logfile0);
+			err = create_log_files_rename(logfilename, dirnamelen,
+						      log_get_lsn(), logfile0);
+			if (err != DB_SUCCESS) {
+				return(err);
+			}
 		}
 
 		srv_startup_is_before_trx_rollback_phase = FALSE;
