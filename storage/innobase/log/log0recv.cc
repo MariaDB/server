@@ -174,7 +174,7 @@ UNIV_INTERN mysql_pfs_key_t	recv_writer_mutex_key;
 # endif /* UNIV_PFS_MUTEX */
 
 /** Flag indicating if recv_writer thread is active. */
-UNIV_INTERN bool		recv_writer_thread_active = false;
+static volatile bool		recv_writer_thread_active;
 UNIV_INTERN os_thread_t		recv_writer_thread_handle = 0;
 #endif /* !UNIV_HOTBACKUP */
 
@@ -343,8 +343,6 @@ DECLARE_THREAD(recv_writer_thread)(
 	fprintf(stderr, "InnoDB: recv_writer thread running, id %lu\n",
 		os_thread_pf(os_thread_get_curr_id()));
 #endif /* UNIV_DEBUG_THREAD_CREATION */
-
-	recv_writer_thread_active = true;
 
 	while (srv_shutdown_state == SRV_SHUTDOWN_NONE) {
 
@@ -2988,6 +2986,7 @@ recv_init_crash_recovery(void)
 
 		/* Spawn the background thread to flush dirty pages
 		from the buffer pools. */
+		recv_writer_thread_active = true;
 		recv_writer_thread_handle = os_thread_create(
 			recv_writer_thread, 0, 0);
 	}
