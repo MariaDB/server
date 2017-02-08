@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1997, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -287,9 +288,6 @@ extern bool		recv_no_log_write;
 number (FIL_PAGE_LSN) is in the future.  Initially FALSE, and set by
 recv_recovery_from_checkpoint_start(). */
 extern bool		recv_lsn_checks_on;
-
-/** Flag indicating if recv_writer thread is active. */
-extern volatile bool	recv_writer_thread_active;
 
 /** Size of the parsing buffer; it must accommodate RECV_SCAN_SIZE many
 times! */

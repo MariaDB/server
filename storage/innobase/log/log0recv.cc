@@ -128,7 +128,7 @@ mysql_pfs_key_t	recv_writer_thread_key;
 #endif /* UNIV_PFS_THREAD */
 
 /** Flag indicating if recv_writer thread is active. */
-volatile bool	recv_writer_thread_active = false;
+static volatile bool	recv_writer_thread_active;
 
 #ifndef	DBUG_OFF
 /** Return string name of the redo log record type.
@@ -558,8 +558,6 @@ DECLARE_THREAD(recv_writer_thread)(
 	ib::info() << "recv_writer thread running, id "
 		<< os_thread_pf(os_thread_get_curr_id());
 #endif /* UNIV_DEBUG_THREAD_CREATION */
-
-	recv_writer_thread_active = true;
 
 	while (srv_shutdown_state == SRV_SHUTDOWN_NONE) {
 
@@ -3167,6 +3165,7 @@ recv_init_crash_recovery_spaces(void)
 	if (srv_force_recovery < SRV_FORCE_NO_LOG_REDO) {
 		/* Spawn the background thread to flush dirty pages
 		from the buffer pools. */
+		recv_writer_thread_active = true;
 		os_thread_create(recv_writer_thread, 0, 0);
 	}
 
