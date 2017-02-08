@@ -19,6 +19,6 @@ CREATE TABLE `r8kmb_redirect_links` (
   KEY `idx_link_modifed` (`modified_date`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
-INSERT INTO r8kmb_redirect_links VALUES (550,'http://mysite.com/images/download/ÃƒÂÃ…Â¸Ãƒâ€˜Ã†â€™ÃƒÂÃ‚Â±ÃƒÂÃ‚Â»Ãƒâ€˜Ã¢â‚¬â€œÃƒâ€˜Ã¢â‚¬Â¡ÃƒÂÃ‚Â½ÃƒÂÃ‚Â¸ÃƒÂÃ‚Â¹_ÃƒÂÃ‚Â´ÃƒÂÃ‚Â¾ÃƒÂÃ‚Â³ÃƒÂÃ‚Â¾ÃƒÂÃ‚Â²Ãƒâ€˜Ã¢â‚¬â€œÃƒâ€˜Ã¢â€šÂ¬_ÃƒÂÃ‚Â¾Ãƒâ€˜Ã¢â‚¬Å¾ÃƒÂÃ‚ÂµÃƒâ€˜.doc','','','',0,'2013-07-15 14:29:42','0000-00-00 00:00:00');
+INSERT IGNORE INTO r8kmb_redirect_links VALUES (550,'http://mysite.com/images/download/ÃƒÂÃ…Â¸Ãƒâ€˜Ã†â€™ÃƒÂÃ‚Â±ÃƒÂÃ‚Â»Ãƒâ€˜Ã¢â‚¬â€œÃƒâ€˜Ã¢â‚¬Â¡ÃƒÂÃ‚Â½ÃƒÂÃ‚Â¸ÃƒÂÃ‚Â¹_ÃƒÂÃ‚Â´ÃƒÂÃ‚Â¾ÃƒÂÃ‚Â³ÃƒÂÃ‚Â¾ÃƒÂÃ‚Â²Ãƒâ€˜Ã¢â‚¬â€œÃƒâ€˜Ã¢â€šÂ¬_ÃƒÂÃ‚Â¾Ãƒâ€˜Ã¢â‚¬Å¾ÃƒÂÃ‚ÂµÃƒâ€˜.doc','','','',0,'2013-07-15 14:29:42','0000-00-00 00:00:00');
 
 DROP TABLE r8kmb_redirect_links;

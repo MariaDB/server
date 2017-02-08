@@ -103,7 +103,7 @@ WHERE (head BETWEEN '80' AND 'FF') AND (tail BETWEEN '20' AND 'FF')
 ORDER BY head, tail;
 DROP TEMPORARY TABLE head, tail;
 SHOW CREATE TABLE t1;
-UPDATE t1 SET a=unhex(code) ORDER BY code;
+UPDATE IGNORE t1 SET a=unhex(code) ORDER BY code;
 SELECT COUNT(*) FROM t1 WHERE a<>'?';
 #
 # Display all characters that have upper or lower case mapping.
@@ -256,7 +256,7 @@ DELETE FROM t3;
 --echo # Sequences that start with a tail or a bad byte,
 --echo # or end with a bad byte, all should be fixed.
 --echo #
-INSERT INTO t3 (b,c,comment) SELECT b,b,comment FROM t2
+INSERT IGNORE INTO t3 (b,c,comment) SELECT b,b,comment FROM t2
 WHERE type1='tail' OR type1='bad' OR type2='bad'
 ORDER BY b;
 SELECT COUNT(*) FROM t3;
@@ -269,7 +269,7 @@ DELETE FROM t3;
 --echo # Sequences that start with an ASCII or an MB2 character,
 --echo # followed by a non-ASCII tail, all should be fixed.
 --echo #
-INSERT INTO t3 (b,c,comment) SELECT b,b,comment FROM t2
+INSERT IGNORE INTO t3 (b,c,comment) SELECT b,b,comment FROM t2
 WHERE (FIND_IN_SET('mb2',type1) OR FIND_IN_SET('ascii',type1))
       AND (FIND_IN_SET('tail',type2) AND NOT FIND_IN_SET('ascii',type2))
 ORDER BY b;
@@ -325,7 +325,7 @@ DELETE FROM t3;
 --echo # Sequences that start with a tail or a bad byte,
 --echo # or have a bad byte, all should be fixed.
 --echo #
-INSERT INTO t3 (b,c,comment) SELECT b,b,comment FROM t2
+INSERT IGNORE INTO t3 (b,c,comment) SELECT b,b,comment FROM t2
 WHERE type1='tail' OR type1='bad' OR type2='bad' OR type3='bad'
 ORDER BY b;
 SELECT COUNT(*) FROM t3;
@@ -338,7 +338,7 @@ DELETE FROM t3;
 --echo # Sequences that start with an ASCII or an MB2 character,
 --echo # followed by a pure non-ASCII tail, all should be fixed.
 --echo #
-INSERT INTO t3 (b,c,comment) SELECT b,b,comment FROM t2
+INSERT IGNORE INTO t3 (b,c,comment) SELECT b,b,comment FROM t2
 WHERE (FIND_IN_SET('mb2',type1) OR FIND_IN_SET('ascii',type1))
       AND type2='tail'
 ORDER BY b;
@@ -352,7 +352,7 @@ DELETE FROM t3;
 --echo # Sequences that consist of two ASCII or MB2 characters,
 --echo # followed by a pure non-ASCII tail, all should be fixed.
 --echo #
-INSERT INTO t3 (b,c,comment) SELECT b,b,comment FROM t2
+INSERT IGNORE INTO t3 (b,c,comment) SELECT b,b,comment FROM t2
 WHERE (FIND_IN_SET('mb2',type1) OR FIND_IN_SET('ascii',type1)) AND
       (FIND_IN_SET('mb2',type2) OR FIND_IN_SET('ascii',type2)) AND
       type3='tail'
@@ -368,7 +368,7 @@ DELETE FROM t3;
 --echo # Sequences that consist of two MB2 characters,
 --echo # followed by a non-ASCII head or tail, all should be fixed.
 --echo #
-INSERT INTO t3 (b,c,comment) SELECT b,b,comment FROM t2
+INSERT IGNORE INTO t3 (b,c,comment) SELECT b,b,comment FROM t2
 WHERE FIND_IN_SET('mb2',type1) AND FIND_IN_SET('mb2',type2)
       AND NOT FIND_IN_SET('ascii',type3)
       AND NOT FIND_IN_SET('mb2',type3)
@@ -412,7 +412,7 @@ DELETE FROM t3;
 #--echo #
 #--echo # Other sequences
 #--echo #
-INSERT INTO t3 (b,c,comment) SELECT b,b,comment FROM t2 ORDER BY b;
+INSERT IGNORE INTO t3 (b,c,comment) SELECT b,b,comment FROM t2 ORDER BY b;
 SELECT COUNT(*) FROM t3;
 SELECT HEX(c),comment FROM t3 WHERE b=c ORDER BY b;
 SELECT HEX(c),HEX(b),comment FROM t3 WHERE b<>c ORDER BY b;
@@ -428,8 +428,10 @@ DROP TABLE t1;
 --echo #
 --echo # MDEV-7661 Unexpected result for: CAST(0xHHHH AS CHAR CHARACTER SET xxx) for incorrect byte sequences
 --echo #
+set sql_mode='';
 SELECT HEX(CAST(0xA341 AS CHAR CHARACTER SET gb2312));
 SELECT HEX(CONVERT(CAST(0xA341 AS CHAR CHARACTER SET gb2312) USING utf8));
+set sql_mode=default;
 
 
 --echo #

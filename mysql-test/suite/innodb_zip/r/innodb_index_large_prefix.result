@@ -98,6 +98,7 @@ create table worklog5743_2(a1 int, a2 TEXT not null) KEY_BLOCK_SIZE=2;
 create table worklog5743_4(a1 int, a2 TEXT not null) KEY_BLOCK_SIZE=4;
 create table worklog5743_8(a1 int, a2 TEXT, a3 TEXT) KEY_BLOCK_SIZE=8;
 create table worklog5743_16(a1 int, a2 TEXT, a3 TEXT) KEY_BLOCK_SIZE=16;
+set sql_mode='';
 set global innodb_large_prefix=0;
 Warnings:
 Warning	131	Using innodb_large_prefix is deprecated and the parameter may be removed in future releases. See http://dev.mysql.com/doc/refman/5.7/en/innodb-file-format.html
@@ -280,6 +281,7 @@ Error	1071	Specified key was too long; max key length is 3072 bytes
 create index idx7 on worklog5743_16(a1, a2(2000), a3(1068));
 show warnings;
 Level	Code	Message
+set sql_mode=default;
 insert into worklog5743_1 values(9, repeat("a", 10000));
 insert into worklog5743_2 values(9, repeat("a", 10000));
 insert into worklog5743_4 values(9, repeat("a", 10000));
@@ -406,6 +408,7 @@ a4 varchar(3072),
 a5 varchar(3069),
 a6 varchar(3068))
 ROW_FORMAT=DYNAMIC;
+set sql_mode='';
 create index idx1 on worklog5743(a2);
 Warnings:
 Warning	1071	Specified key was too long; max key length is 3072 bytes
@@ -443,6 +446,7 @@ worklog5743	CREATE TABLE `worklog5743` (
   KEY `idx3` (`a4`),
   KEY `idx6` (`a1`,`a6`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=DYNAMIC
+set sql_mode=default;
 insert into worklog5743 values(9,
 repeat("a", 20000), repeat("a", 3073),
 repeat("a", 3072), repeat("a", 3069),
@@ -503,6 +507,7 @@ rollback;
 drop table worklog5743;
 ### Test 7 ###
 create table worklog5743(a TEXT not null) ROW_FORMAT=DYNAMIC;
+set statement sql_mode = '' for
 create index idx1 on worklog5743(a(3073));
 Warnings:
 Warning	1071	Specified key was too long; max key length is 3072 bytes

@@ -22,7 +22,7 @@ Jiro Yamada	27
 Taro Yamada	-12
 Taro Yamada	10
 Taro Yamada	29
-update scores set name = "Taro Yamada" where name = "Jiro Yamada" and score = 27;
+update ignore scores set name = "Taro Yamada" where name = "Jiro Yamada" and score = 27;
 Warnings:
 Warning	1265	data truncated for primary key column: <name>
 select * from scores where name = "Taro Yamada" and (score >= -12 and score < 29);

@@ -27,7 +27,7 @@ CREATE TABLE shops (
   location GEOMETRY NOT NULL
 );
 
-INSERT INTO shops VALUES (NULL), (NULL);
+INSERT IGNORE INTO shops VALUES (NULL), (NULL);
 
 SELECT ST_AsText(location) FROM shops;
 

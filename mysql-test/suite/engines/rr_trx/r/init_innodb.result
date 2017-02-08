@@ -43,7 +43,7 @@ t1	CREATE TABLE `t1` (
   `int2_key` int(11) DEFAULT NULL,
   `int2_unique` int(11) DEFAULT NULL,
   `for_update` tinyint(1) DEFAULT 0,
-  `timestamp` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `timestamp` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   `connection_id` int(11) DEFAULT NULL,
   `thread_id` int(11) DEFAULT 0,
   `is_uncommitted` tinyint(1) DEFAULT 0,

@@ -152,7 +152,7 @@ DROP TABLE t1,t2;
 --echo #
 --echo # Examine the number of times triggers are recalculated for updates
 --echo #
-
+SET sql_mode = 'NO_ENGINE_SUBSTITUTION';
 CREATE TABLE t1 (
   a INTEGER UNSIGNED NULL DEFAULT NULL,
   b CHAR(10) NULL DEFAULT NULL,
@@ -216,10 +216,12 @@ drop trigger t1_ins;
 drop trigger t1_update;
 drop table t1;
 
+SET sql_mode = DEFAULT;
+
 --echo #
 --echo # Same test, but with virtual keys
 --echo #
-
+SET sql_mode = 'NO_ENGINE_SUBSTITUTION';
 CREATE TABLE t1 (
   a INTEGER UNSIGNED NULL DEFAULT NULL,
   b CHAR(10) NULL DEFAULT NULL,
@@ -281,3 +283,4 @@ select * from t1;
 drop trigger t1_ins;
 drop trigger t1_update;
 drop table t1;
+SET sql_mode = DEFAULT;

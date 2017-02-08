@@ -243,7 +243,9 @@ INSERT INTO t1 (col_date,col_datetime,col_int,col_varchar,col_timestamp,col_bit,
 ;
 --enable_query_log
 --disable_warnings
+SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 ALTER TABLE t1 ADD INDEX(col_enum,vcol_int);
+SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 ALTER TABLE t1 ADD INDEX(col_year);
 --enable_warnings
 DROP TABLE t1;

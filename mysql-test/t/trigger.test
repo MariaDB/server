@@ -2367,7 +2367,7 @@ DROP TABLE t1, t2;
 CREATE TABLE t1 (id INT NOT NULL);
 CREATE TABLE t2 (id INT NOT NULL);
 INSERT t1 VALUES (1),(2),(3);
-UPDATE t1 SET id=NULL;
+UPDATE IGNORE t1 SET id=NULL;
 CREATE TRIGGER t1_bu BEFORE UPDATE ON t1 FOR EACH ROW
   INSERT INTO t2 VALUES (3);
 UPDATE t1 SET id=NULL;
@@ -2463,6 +2463,7 @@ DROP TEMPORARY TABLE t2;
 # Bug#36649: Condition area is not properly cleaned up after stored routine invocation
 #
 
+SET sql_mode = 'NO_ENGINE_SUBSTITUTION';
 --disable_warnings
 DROP TRIGGER IF EXISTS trg1;
 DROP TABLE IF EXISTS t1;
@@ -2512,6 +2513,7 @@ BEGIN
 END|
 
 delimiter ;|
+SET sql_mode = DEFAULT;
 
 INSERT INTO t1 VALUES (0);
 SELECT * FROM t1;

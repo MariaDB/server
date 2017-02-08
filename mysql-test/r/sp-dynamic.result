@@ -220,6 +220,7 @@ id	name
 call p1()|
 ERROR HY000: Unknown prepared statement handler (stmt) given to EXECUTE
 drop procedure p1|
+set sql_mode= ''|
 create procedure p1()
 begin
 declare a char(10);
@@ -232,6 +233,7 @@ call p1()|
 ERROR 42S22: Unknown column 'a' in 'field list'
 call p1()|
 ERROR 42S22: Unknown column 'a' in 'field list'
+set sql_mode= DEFAULT|
 drop procedure p1|
 create procedure p1()
 begin

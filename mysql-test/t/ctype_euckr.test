@@ -46,12 +46,12 @@ insert into t1 values (0xA17A);
 insert into t1 values (0xA181);
 insert into t1 values (0xA1FE);
 # Insert some invalid characters
-insert into t1 values (0xA140);
-insert into t1 values (0xA15B);
-insert into t1 values (0xA160);
-insert into t1 values (0xA17B);
-insert into t1 values (0xA180);
-insert into t1 values (0xA1FF);
+insert ignore into t1 values (0xA140);
+insert ignore into t1 values (0xA15B);
+insert ignore into t1 values (0xA160);
+insert ignore into t1 values (0xA17B);
+insert ignore into t1 values (0xA180);
+insert ignore into t1 values (0xA1FF);
 select hex(s1), hex(convert(s1 using utf8)) from t1 order by binary s1;
 drop table t1;
 
@@ -99,7 +99,7 @@ SELECT s as bad_code FROM t2 WHERE a='?' ORDER BY s;
 DELETE FROM t2 WHERE a='?';
 ALTER TABLE t2 ADD u VARCHAR(1) CHARACTER SET utf8, ADD a2 VARCHAR(1) CHARACTER SET euckr;
 --disable_warnings
-UPDATE t2 SET u=a, a2=u;
+UPDATE IGNORE t2 SET u=a, a2=u;
 --enable_warnings
 SELECT s as unassigned_code FROM t2 WHERE u='?';
 DELETE FROM t2 WHERE u='?';
@@ -144,7 +144,7 @@ WHERE (head BETWEEN '80' AND 'FF') AND (tail BETWEEN '20' AND 'FF')
 ORDER BY head, tail;
 DROP TEMPORARY TABLE head, tail;
 SHOW CREATE TABLE t1;
-UPDATE t1 SET a=unhex(code) ORDER BY code;
+UPDATE IGNORE t1 SET a=unhex(code) ORDER BY code;
 SELECT COUNT(*) FROM t1 WHERE a<>'?';
 #
 # Display all characters that have upper or lower case mapping.

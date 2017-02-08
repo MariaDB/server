@@ -18,7 +18,7 @@ Note	1265	Data truncated for column 'c3' at row 1
 INSERT INTO t1 VALUES('2008-01-01',NULL,'08-01-02','08/01/03');
 INSERT INTO t1(c1,c2) VALUES('08/01/17',NULL);
 DELETE FROM t1 WHERE c1='08/01/17' AND c2 IS NULL;
-INSERT INTO t1 VALUES('','','08-01-04','08/01/05') /* Inserts zero dates for '' strings */;
+INSERT IGNORE INTO t1 VALUES('','','08-01-04','08/01/05') /* Inserts zero dates for '' strings */;
 Warnings:
 Warning	1265	Data truncated for column 'c1' at row 1
 Warning	1265	Data truncated for column 'c2' at row 1

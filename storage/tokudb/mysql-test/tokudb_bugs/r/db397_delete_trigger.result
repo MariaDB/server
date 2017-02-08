@@ -12,6 +12,7 @@ ts timestamp not null default now());
 insert into t1 (col1,col2) values (0,0);
 insert into t1_audit (col1,action) values (0,'DUMMY');
 set local tokudb_prelock_empty=0;
+set statement sql_mode = '' for
 create trigger t1_trigger before delete on t1
 for each row
 insert into t1_audit (col1, action) values (old.col1, 'BEFORE DELETE');
@@ -32,6 +33,7 @@ locks_dname	locks_key_left	locks_key_right
 ./test/t1_audit-main	0200000000000000	0200000000000000
 commit;
 drop trigger t1_trigger;
+set statement sql_mode = '' for
 create trigger t1_trigger after delete on t1
 for each row
 insert into t1_audit (col1, action) values (old.col1, 'AFTER DELETE');

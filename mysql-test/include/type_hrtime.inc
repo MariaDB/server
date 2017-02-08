@@ -15,7 +15,7 @@ insert t1 values ('2010-12-11 00:20:03.1234');
 insert t1 values ('2010-12-11 15:47:11.1234');
 insert t1 values (20101211010203.45678);
 insert t1 values (20101211030405.789e0);
-insert t1 values (99991231235959e1);
+insert ignore t1 values (99991231235959e1);
 select * from t1;
 --replace_regex /121000/121094/ /457000/457031/ /789000/789062/
 select truncate(a, 6) from t1; # Field::val_real()
@@ -50,7 +50,7 @@ select a, a+interval 9876543 microsecond from t1;
 update t1 set a=a+interval 9876543 microsecond;
 select * from t1;
 select a, a + interval 2 year from t1;
-insert t1 select a + interval 2 year from t1;
+insert ignore t1 select a + interval 2 year from t1;
 select * from t1;
 delete from t1 where a < 20110101;
 select * from t1;

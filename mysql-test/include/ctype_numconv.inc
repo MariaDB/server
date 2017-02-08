@@ -739,6 +739,7 @@ show create table t1;
 drop table t1;
 
 select hex(concat(period_diff(200902, 200802)));
+SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 create table t1 as select concat(period_add(200902, 200802)) as c1;
 show create table t1;
 drop table t1;

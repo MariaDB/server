@@ -26,8 +26,8 @@ INSERT INTO t SET t=REPEAT(_utf8 0xefbc91,84);
 INSERT INTO t SET t=REPEAT('after',17); # too long, will not be indexed
 INSERT INTO t SET t=REPEAT(_utf8mb3 0xe794b2e9aaa8e69687, 15);
 --echo # The data below is not 3-byte UTF-8, but 4-byte chars.
-INSERT INTO t SET t=REPEAT(_utf8mb4 0xf09f9695, 84);
-INSERT INTO t SET t=REPEAT(_utf8mb4 0xf09f9696, 85);
+INSERT IGNORE INTO t SET t=REPEAT(_utf8mb4 0xf09f9695, 84);
+INSERT IGNORE INTO t SET t=REPEAT(_utf8mb4 0xf09f9696, 85);
 SELECT COUNT(*) FROM t WHERE MATCH t AGAINST
 (REPEAT(CONCAT(REPEAT(_utf8mb3 0xE0B987, 4), REPEAT(_utf8mb3 0xE0B989, 5)), 5));
 SELECT COUNT(*) FROM t WHERE MATCH t AGAINST ('BeforeTheIndexCreation');

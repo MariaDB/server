@@ -1286,9 +1286,11 @@ a	b
 2	two
 set @arg00=NULL;
 set @arg01=2;
+set sql_mode = '';
 execute stmt1 using @arg00, @arg01;
 Warnings:
 Warning	1048	Column 'a' cannot be null
+set sql_mode = default;
 select a,b from t1 order by a;
 a	b
 0	two
@@ -1767,7 +1769,7 @@ t5	CREATE TABLE `t5` (
   `param03` double DEFAULT NULL,
   `const04` varchar(3) NOT NULL,
   `param04` longtext DEFAULT NULL,
-  `const05` varbinary(3) NOT NULL,
+  `const05` varbinary(3) DEFAULT NULL,
   `param05` longblob DEFAULT NULL,
   `const06` varchar(10) NOT NULL,
   `param06` longtext DEFAULT NULL,
@@ -1797,7 +1799,7 @@ def	test	t5	t5	const03	const03	5	17	1	N	36865	31	63
 def	test	t5	t5	param03	param03	5	23	1	Y	32768	31	63
 def	test	t5	t5	const04	const04	253	3	3	N	4097	0	8
 def	test	t5	t5	param04	param04	252	4294967295	3	Y	16	0	8
-def	test	t5	t5	const05	const05	253	3	3	N	4225	0	63
+def	test	t5	t5	const05	const05	253	3	3	Y	128	0	63
 def	test	t5	t5	param05	param05	252	4294967295	3	Y	144	0	63
 def	test	t5	t5	const06	const06	253	10	10	N	4097	0	8
 def	test	t5	t5	param06	param06	252	4294967295	10	Y	16	0	8
@@ -2553,6 +2555,7 @@ prepare my_select from "select c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c12
 from t9 where c21 = 'O' ";
 prepare my_delete from "delete from t9 where c21 = 'O' ";
 set @arg00= 9223372036854775807 ;
+set statement sql_mode = '' for
 execute my_insert using @arg00, @arg00, @arg00, @arg00, @arg00, @arg00,
 @arg00, @arg00, @arg00, @arg00, @arg00 ;
 Warnings:
@@ -2576,6 +2579,7 @@ c10	9.223372036854776e18
 c12	9999.9999
 execute my_delete ;
 set @arg00= '9223372036854775807' ;
+set statement sql_mode = '' for
 execute my_insert using @arg00, @arg00, @arg00, @arg00, @arg00, @arg00,
 @arg00, @arg00, @arg00, @arg00, @arg00 ;
 Warnings:
@@ -2599,6 +2603,7 @@ c10	9.223372036854776e18
 c12	9999.9999
 execute my_delete ;
 set @arg00= -9223372036854775808 ;
+set statement sql_mode = '' for
 execute my_insert using @arg00, @arg00, @arg00, @arg00, @arg00, @arg00,
 @arg00, @arg00, @arg00, @arg00, @arg00 ;
 Warnings:
@@ -2622,6 +2627,7 @@ c10	-9.223372036854776e18
 c12	-9999.9999
 execute my_delete ;
 set @arg00= '-9223372036854775808' ;
+set statement sql_mode = '' for
 execute my_insert using @arg00, @arg00, @arg00, @arg00, @arg00, @arg00,
 @arg00, @arg00, @arg00, @arg00, @arg00 ;
 Warnings:
@@ -2645,6 +2651,7 @@ c10	-9.223372036854776e18
 c12	-9999.9999
 execute my_delete ;
 set @arg00= 1.11111111111111111111e+50 ;
+set statement sql_mode = '' for
 execute my_insert using @arg00, @arg00, @arg00, @arg00, @arg00, @arg00,
 @arg00, @arg00, @arg00, @arg00, @arg00 ;
 Warnings:
@@ -2670,6 +2677,7 @@ c10	1.111111111111111e50
 c12	9999.9999
 execute my_delete ;
 set @arg00= '1.11111111111111111111e+50' ;
+set statement sql_mode = '' for
 execute my_insert using @arg00, @arg00, @arg00, @arg00, @arg00, @arg00,
 @arg00, @arg00, @arg00, @arg00, @arg00 ;
 Warnings:
@@ -2695,6 +2703,7 @@ c10	1.111111111111111e50
 c12	9999.9999
 execute my_delete ;
 set @arg00= -1.11111111111111111111e+50 ;
+set statement sql_mode = '' for
 execute my_insert using @arg00, @arg00, @arg00, @arg00, @arg00, @arg00,
 @arg00, @arg00, @arg00, @arg00, @arg00 ;
 Warnings:
@@ -2720,6 +2729,7 @@ c10	-1.111111111111111e50
 c12	-9999.9999
 execute my_delete ;
 set @arg00= '-1.11111111111111111111e+50' ;
+set statement sql_mode = '' for
 execute my_insert using @arg00, @arg00, @arg00, @arg00, @arg00, @arg00,
 @arg00, @arg00, @arg00, @arg00, @arg00 ;
 Warnings:
@@ -2746,6 +2756,7 @@ c12	-9999.9999
 execute my_delete ;
 test_sequence
 -- insert into string columns --
+set sql_mode = '';
 insert into t9 
 ( c1, c20, c21, c22, c23, c24, c25, c26, c27, c28, c29, c30 )
 values
@@ -2904,6 +2915,7 @@ execute stmt2 using @arg00, @arg00, @arg00, @arg00, @arg00, @arg00, @arg00,
 @arg00, @arg00, @arg00, @arg00 ;
 Warnings:
 Warning	1265	Data truncated for column 'c20' at row 1
+set sql_mode = default;
 set @arg00= 'abc' ;
 set @arg00= NULL ;
 insert into t9
@@ -3110,6 +3122,7 @@ true
 delete from t9 ;
 test_sequence
 -- insert into date/time columns --
+set sql_mode = '';
 set @arg00= '1991-01-01 01:01:01' ;
 insert into t9
 ( c1, c13, c14, c15, c16, c17 )
@@ -3268,6 +3281,7 @@ Warnings:
 Warning	1265	Data truncated for column 'c15' at row 1
 Note	1265	Data truncated for column 'c16' at row 1
 Warning	1264	Out of range value for column 'c17' at row 1
+set sql_mode = default;
 set @arg00= 'abc' ;
 set @arg00= NULL ;
 insert into t9

@@ -70348,7 +70348,7 @@ DROP TABLE t3,t4,t5;
 CREATE TABLE t6 (a char(2) not null primary key, b varchar(20) not null, key (b));
 CREATE TABLE t7 (a char(2) not null primary key, b varchar(20) not null, key (b));
 INSERT INTO t6 values ('AB','MySQLAB'),('JA','Sun Microsystems'),('MS','Microsoft'),('IB','IBM- Inc.'),('GO','Google Inc.');
-INSERT INTO t7 values ('AB','Sweden'),('JA','USA'),('MS','United States of Amercica'),('IB','North America'),('GO','South America');
+INSERT IGNORE INTO t7 values ('AB','Sweden'),('JA','USA'),('MS','United States of Amercica'),('IB','North America'),('GO','South America');
 Warnings:
 Warning	1265	Data truncated for column 'b' at row 3
 update t6,t7 set t6.a=LCASE(t6.a);
@@ -70423,7 +70423,7 @@ INSERT INTO t16 VALUES (('d,a,d,d'));
 SELECT c1 FROM t16;
 c1
 a,d
-INSERT INTO t16 (c1) VALUES ('a,b,d'),('d,A ,b');
+INSERT IGNORE INTO t16 (c1) VALUES ('a,b,d'),('d,A ,b');
 Warnings:
 Warning	1265	Data truncated for column 'c1' at row 2
 SELECT c1 FROM t16;
@@ -70431,7 +70431,7 @@ c1
 a,b,d
 a,d
 b,d
-INSERT INTO t16 (c1) VALUES ('f,a,b');
+INSERT IGNORE INTO t16 (c1) VALUES ('f,a,b');
 Warnings:
 Warning	1265	Data truncated for column 'c1' at row 1
 SHOW WARNINGS;
@@ -70443,6 +70443,7 @@ a,b
 a,b,d
 a,d
 b,d
+SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 CREATE TABLE t17 (c1 SET('a','b','a','b'));
 Warnings:
 Note	1291	Column 'c1' has duplicated value 'a' in SET
@@ -70453,7 +70454,7 @@ Note	1291	Column 'c1' has duplicated value 'a' in SET
 Note	1291	Column 'c1' has duplicated value 'b' in SET
 CREATE TABLE t18 (c1 CHAR(4),c2 enum('SMALL','MEDIUM','LARGE','VERY LARGE'));
 INSERT INTO t18 VALUES('SIZE', 'SMALL');
-INSERT INTO t18 VALUES('SIZE', 'SMALL1');
+INSERT IGNORE INTO t18 VALUES('SIZE', 'SMALL1');
 Warnings:
 Warning	1265	Data truncated for column 'c2' at row 1
 SELECT * FROM t18 WHERE c2=0;

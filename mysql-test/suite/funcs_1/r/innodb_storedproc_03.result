@@ -27,7 +27,7 @@ load data infile '<MYSQLTEST_VARDIR>/std_data/funcs_1/t4.txt' into table t6;
 USE db_storedproc;
 create table t7 (f1 char(20), f2 char(25), f3 date, f4 int)
 engine = <engine_to_be_tested>;
-load data infile '<MYSQLTEST_VARDIR>/std_data/funcs_1/t7.txt' into table t7;
+load data infile '<MYSQLTEST_VARDIR>/std_data/funcs_1/t7.txt' ignore into table t7;
 Warnings:
 Warning	1265	Data truncated for column 'f3' at row 1
 Warning	1265	Data truncated for column 'f3' at row 2
@@ -41,7 +41,7 @@ Warning	1265	Data truncated for column 'f3' at row 9
 Warning	1265	Data truncated for column 'f3' at row 10
 create table t8 (f1 char(20), f2 char(25), f3 date, f4 int)
 engine = <engine_to_be_tested>;
-load data infile '<MYSQLTEST_VARDIR>/std_data/funcs_1/t7.txt' into table t8;
+load data infile '<MYSQLTEST_VARDIR>/std_data/funcs_1/t7.txt' ignore into table t8;
 Warnings:
 Warning	1265	Data truncated for column 'f3' at row 1
 Warning	1265	Data truncated for column 'f3' at row 2

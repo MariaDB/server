@@ -271,6 +271,7 @@ select * from t1 where a = 1 order by b desc;
 # Test things when we don't have NULL keys
 #
 
+SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 alter table t1 modify b int not null, modify c varchar(10) not null;
 explain select * from t1 order by a, b, c;
 select * from t1 order by a, b, c;

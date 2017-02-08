@@ -239,6 +239,7 @@ DELIMITER ;//
 call   sp_bug26199(b'1110');
 call   sp_bug26199('\0');
 select sf_bug26199(b'1111111');
+SET STATEMENT sql_mode = '' FOR
 select sf_bug26199(b'101111111');
 select sf_bug26199('\'');
 select hex(b) from t2;

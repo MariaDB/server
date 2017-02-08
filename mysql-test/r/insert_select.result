@@ -608,7 +608,7 @@ NULL	Field	Count
 NULL	1	100
 NULL	2	100
 create table t2(No int not null, Field int not null, Count int not null);
-insert into t2 Select null, Field, Count From t1 Where Month=20030901 and Type=2;
+insert ignore into t2 Select null, Field, Count From t1 Where Month=20030901 and Type=2;
 Warnings:
 Warning	1048	Column 'No' cannot be null
 Warning	1048	Column 'No' cannot be null
@@ -772,11 +772,13 @@ f1	f2
 101	1
 2	2
 DROP TABLE t1, t2;
+SET sql_mode = 'NO_ENGINE_SUBSTITUTION';
 CREATE TABLE t1 ( a INT KEY, b INT );
 INSERT INTO t1 VALUES ( 0, 1 );
 INSERT INTO t1 ( b ) SELECT MAX( b ) FROM t1 WHERE b = 2;
 ERROR 23000: Duplicate entry '0' for key 'PRIMARY'
 DROP TABLE t1;
+SET sql_mode = DEFAULT;
 SET SQL_MODE='STRICT_TRANS_TABLES,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION';
 CREATE TABLE t1 (c VARCHAR(30), INDEX ix_c (c(10)));
 CREATE TABLE t2 (d VARCHAR(10));

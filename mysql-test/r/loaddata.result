@@ -1,6 +1,6 @@
 drop table if exists t1, t2;
 create table t1 (a date, b date, c date not null, d date);
-load data infile '../../std_data/loaddata1.dat' into table t1 fields terminated by ',';
+load data infile '../../std_data/loaddata1.dat' ignore into table t1 fields terminated by ',';
 Warnings:
 Warning	1265	Data truncated for column 'a' at row 1
 Warning	1265	Data truncated for column 'c' at row 1
@@ -16,7 +16,7 @@ a	b	c	d
 2003-03-03	2003-03-03	2003-03-03	NULL
 2003-03-03	2003-03-03	2003-03-03	NULL
 truncate table t1;
-load data infile '../../std_data/loaddata1.dat' into table t1 fields terminated by ',' LINES STARTING BY ',' (b,c,d);
+load data infile '../../std_data/loaddata1.dat' ignore into table t1 fields terminated by ',' LINES STARTING BY ',' (b,c,d);
 Warnings:
 Warning	1265	Data truncated for column 'c' at row 1
 Warning	1265	Data truncated for column 'd' at row 1
@@ -178,7 +178,7 @@ select @a, @b;
 @a	@b
 NULL	15
 truncate table t1;
-load data infile '../../std_data/rpl_loaddata.dat' into table t1 set c=b;
+load data infile '../../std_data/rpl_loaddata.dat' ignore into table t1 set c=b;
 Warnings:
 Warning	1261	Row 1 doesn't contain data for all columns
 Warning	1261	Row 2 doesn't contain data for all columns
@@ -581,7 +581,7 @@ C38322525420406E696F757A656368756E3A20E98198E2889AF58081AEE7B99DE4B88AE383A3E7B9
 CREATE DATABASE d2 CHARSET utf8;
 USE d2;
 CREATE TABLE t1 (val TEXT);
-LOAD DATA INFILE '../../std_data/bug20683959loaddata.txt' INTO TABLE t1;
+LOAD DATA INFILE '../../std_data/bug20683959loaddata.txt' IGNORE INTO TABLE t1;
 Warnings:
 Warning	1366	Incorrect string value: '\xF5\x80\x81\xAE\xE7\xB9...' for column 'val' at row 1
 SELECT COUNT(*) FROM t1;

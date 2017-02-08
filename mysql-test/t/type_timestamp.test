@@ -78,7 +78,7 @@ truncate table t1;
 insert into t1 values ("00000000000000"),("20030101010160"),("20030101016001"),("20030101240101"),("20030132010101"),("20031301010101"),("20031200000000"),("20030000000000");
 select ix+0 from t1;
 truncate table t1;
-insert into t1 values ("0000-00-00 00:00:00 some trailer"),("2003-01-01 00:00:00 some trailer");
+insert ignore into t1 values ("0000-00-00 00:00:00 some trailer"),("2003-01-01 00:00:00 some trailer");
 select ix+0 from t1;
 drop table t1;
 

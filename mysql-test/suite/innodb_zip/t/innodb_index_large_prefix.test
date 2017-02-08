@@ -136,6 +136,7 @@ create table worklog5743_16(a1 int, a2 TEXT, a3 TEXT) KEY_BLOCK_SIZE=16;
 # See page_zip_empty_size() and Bug #47495 for more detail.
 
 # Test edge cases for indexes using key_block_size=1
+set sql_mode='';
 set global innodb_large_prefix=0;
 -- error ER_TOO_BIG_ROWSIZE
 create index idx1 on worklog5743_1(a2(4000));
@@ -238,6 +239,7 @@ create index idx6 on worklog5743_16(a1, a2(2000), a3(1069));
 show warnings;
 create index idx7 on worklog5743_16(a1, a2(2000), a3(1068));
 show warnings;
+set sql_mode=default;
 
 # Insert a large record into each of these tables.
 insert into worklog5743_1 values(9, repeat("a", 10000));
@@ -321,6 +323,7 @@ create table worklog5743(a1 int,
    a5 varchar(3069),
    a6 varchar(3068))
    ROW_FORMAT=DYNAMIC;
+set sql_mode='';
 create index idx1 on worklog5743(a2);
 create index idx2 on worklog5743(a3);
 create index idx3 on worklog5743(a4);
@@ -334,6 +337,7 @@ show warnings;
 create index idx6 on worklog5743(a1, a6);
 show warnings;
 show create table worklog5743;
+set sql_mode=default;
 
 insert into worklog5743 values(9,
    repeat("a", 20000), repeat("a", 3073),
@@ -407,6 +411,7 @@ create table worklog5743(a TEXT not null) ROW_FORMAT=DYNAMIC;
 
 # Length exceeds maximum supported key length
 # It will be auto-truncated to 3072
+set statement sql_mode = '' for
 create index idx1 on worklog5743(a(3073));
 create index idx2 on worklog5743(a(3072));
 show create table worklog5743;

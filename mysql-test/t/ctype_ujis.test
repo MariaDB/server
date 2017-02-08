@@ -1254,13 +1254,13 @@ CREATE TABLE t1 AS SELECT 'XXXXXX' AS code, ' ' AS a LIMIT 0;
 # Pupulate JIS-X-0201 range (Half Width Kana)
 # Valid characters: [8E][A1-DF]
 #
-INSERT INTO t1 (code) SELECT concat('8E', head) FROM head
+INSERT IGNORE INTO t1 (code) SELECT concat('8E', head) FROM head
 WHERE (head BETWEEN 'A1' AND 'DF') ORDER BY head;
 #
 # Populate JIS-X-0208 range
 # Expected valid range: [A1..FE][A1..FE]
 #
-INSERT INTO t1 (code) SELECT concat(head, tail)
+INSERT IGNORE INTO t1 (code) SELECT concat(head, tail)
 FROM head, tail
 WHERE (head BETWEEN '80' AND 'FF') AND (head NOT BETWEEN '8E' AND '8F')
 AND   (tail BETWEEN '20' AND 'FF')
@@ -1269,14 +1269,14 @@ ORDER BY head, tail;
 # Populate JIS-X-0212 range
 # Expected valid range: [8F][A1..FE][A1..FE]
 #
-INSERT INTO t1 (code) SELECT concat('8F', head, tail)
+INSERT IGNORE INTO t1 (code) SELECT concat('8F', head, tail)
 FROM head, tail
 WHERE (head BETWEEN '80' AND 'FF') AND (tail BETWEEN '80' AND 'FF')
 ORDER BY head, tail;
 DROP TEMPORARY TABLE head, tail;
 SHOW CREATE TABLE t1;
 
-UPDATE t1 SET a=unhex(code) ORDER BY code;
+UPDATE IGNORE t1 SET a=unhex(code) ORDER BY code;
 SELECT COUNT(*) FROM t1;
 SELECT COUNT(*) FROM t1 WHERE a<>'?';
 SELECT COUNT(*) FROM t1 WHERE a<>'' AND OCTET_LENGTH(a)=2;
@@ -1361,7 +1361,7 @@ set collation_connection=ujis_bin;
 --echo # MDEV-6776 ujis and eucjmps erroneously accept 0x8EA0 as a valid byte sequence
 --echo #
 CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET ujis);
-INSERT INTO t1 VALUES (0x8EA0);
+INSERT IGNORE INTO t1 VALUES (0x8EA0);
 SELECT HEX(a), CHAR_LENGTH(a) FROM t1;
 DROP TABLE t1;
 --error ER_INVALID_CHARACTER_STRING
@@ -1406,7 +1406,7 @@ SELECT HEX(a) FROM t1 ORDER BY a;DROP TABLE t1;
 --echo # MDEV-9842 LOAD DATA INFILE does not work well with a TEXT column when using sjis
 --echo #
 CREATE TABLE t1 (a TEXT CHARACTER SET ujis);
-LOAD DATA INFILE '../../std_data/loaddata/mdev9823.ujis.txt' INTO TABLE t1 CHARACTER SET ujis IGNORE 4 LINES;
+LOAD DATA INFILE '../../std_data/loaddata/mdev9823.ujis.txt' IGNORE INTO TABLE t1 CHARACTER SET ujis IGNORE 4 LINES;
 SELECT HEX(a) FROM t1;
 DROP TABLE t1;
 

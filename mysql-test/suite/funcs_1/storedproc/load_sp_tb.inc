@@ -70,7 +70,7 @@ create table t7 (f1 char(20), f2 char(25), f3 date, f4 int)
 engine = $engine_type;
 --replace_result $MYSQLTEST_VARDIR <MYSQLTEST_VARDIR>
 eval
-load data infile '$MYSQLTEST_VARDIR/std_data/funcs_1/t7.txt' into table t7;
+load data infile '$MYSQLTEST_VARDIR/std_data/funcs_1/t7.txt' ignore into table t7;
 
 --replace_result $engine_type <engine_to_be_tested>
 eval
@@ -78,7 +78,7 @@ create table t8 (f1 char(20), f2 char(25), f3 date, f4 int)
 engine = $engine_type;
 --replace_result $MYSQLTEST_VARDIR <MYSQLTEST_VARDIR>
 eval
-load data infile '$MYSQLTEST_VARDIR/std_data/funcs_1/t7.txt' into table t8;
+load data infile '$MYSQLTEST_VARDIR/std_data/funcs_1/t7.txt' ignore into table t8;
 
 --replace_result $engine_type <engine_to_be_tested>
 eval

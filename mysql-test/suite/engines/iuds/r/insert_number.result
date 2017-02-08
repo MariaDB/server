@@ -10,25 +10,25 @@ INSERT INTO t3 VALUES(101,-102,103,104,105,106,101),(101,-102,103,104,105,106,10
 INSERT INTO t1 VALUES(105,NULL,102,103,104,105,106);
 INSERT INTO t2 VALUES(105,NULL,102,103,104,105,106);
 INSERT INTO t3 VALUES(105,NULL,102,103,104,105,106);
-INSERT INTO t1 VALUES('','',17,18,19,20,21);
+INSERT IGNORE INTO t1 VALUES('','',17,18,19,20,21);
 Warnings:
 Warning	1366	Incorrect integer value: '' for column 'c1' at row 1
 Warning	1366	Incorrect integer value: '' for column 'c2' at row 1
-INSERT INTO t2 VALUES('','',17,18,19,20,21);
+INSERT IGNORE INTO t2 VALUES('','',17,18,19,20,21);
 Warnings:
 Warning	1366	Incorrect integer value: '' for column 'c1' at row 1
 Warning	1366	Incorrect integer value: '' for column 'c2' at row 1
-INSERT INTO t3 VALUES('','',17,18,19,20,21);
+INSERT IGNORE INTO t3 VALUES('','',17,18,19,20,21);
 Warnings:
 Warning	1366	Incorrect integer value: '' for column 'c1' at row 1
 Warning	1366	Incorrect integer value: '' for column 'c2' at row 1
-INSERT INTO t1 VALUES(-1,124,22,23,24,25,26);
+INSERT IGNORE INTO t1 VALUES(-1,124,22,23,24,25,26);
 Warnings:
 Warning	1264	Out of range value for column 'c1' at row 1
-INSERT INTO t2 VALUES(-1,124,22,23,24,25,26);
+INSERT IGNORE INTO t2 VALUES(-1,124,22,23,24,25,26);
 Warnings:
 Warning	1264	Out of range value for column 'c1' at row 1
-INSERT INTO t3 VALUES(-1,124,22,23,24,25,26);
+INSERT IGNORE INTO t3 VALUES(-1,124,22,23,24,25,26);
 Warnings:
 Warning	1264	Out of range value for column 'c1' at row 1
 INSERT INTO t1 VALUES(0,124,27,28,29,30,31);
@@ -37,15 +37,15 @@ INSERT INTO t3 VALUES(0,124,27,28,29,30,31);
 INSERT INTO t1 VALUES(0,0,32,32,34,35,36);
 INSERT INTO t2 VALUES(0,0,32,32,34,35,36);
 INSERT INTO t3 VALUES(0,0,32,32,34,35,36);
-INSERT INTO t1 VALUES('101.34 a','a',37,38,39,40,41);
+INSERT IGNORE INTO t1 VALUES('101.34 a','a',37,38,39,40,41);
 Warnings:
 Warning	1265	Data truncated for column 'c1' at row 1
 Warning	1366	Incorrect integer value: 'a' for column 'c2' at row 1
-INSERT INTO t2 VALUES('101.34 a','a',37,38,39,40,41);
+INSERT IGNORE INTO t2 VALUES('101.34 a','a',37,38,39,40,41);
 Warnings:
 Warning	1265	Data truncated for column 'c1' at row 1
 Warning	1366	Incorrect integer value: 'a' for column 'c2' at row 1
-INSERT INTO t3 VALUES('101.34 a','a',37,38,39,40,41);
+INSERT IGNORE INTO t3 VALUES('101.34 a','a',37,38,39,40,41);
 Warnings:
 Warning	1265	Data truncated for column 'c1' at row 1
 Warning	1366	Incorrect integer value: 'a' for column 'c2' at row 1
@@ -1373,29 +1373,29 @@ INSERT INTO t5 VALUES(101,-102,-103,-104,105,106,107,108),(108,-109,-110,111,112
 INSERT INTO t4 VALUES(0,32,33,34,35,36,37,38);
 INSERT INTO t5 VALUES(0,-32,-32,33,34,35,36,37);
 INSERT INTO t4(c1,c3,c4) VALUES(NULL,104,LAST_INSERT_ID());
-INSERT INTO t5(c1,c3,c4) VALUES(NULL,-104,LAST_INSERT_ID());
+INSERT IGNORE INTO t5(c1,c3,c4) VALUES(NULL,-104,LAST_INSERT_ID());
 Warnings:
 Warning	1364	Field 'c2' doesn't have a default value
-INSERT INTO t4 VALUES('','',17,18,19,20,21,22);
+INSERT IGNORE INTO t4 VALUES('','',17,18,19,20,21,22);
 Warnings:
 Warning	1366	Incorrect integer value: '' for column 'c1' at row 1
 Warning	1366	Incorrect integer value: '' for column 'c2' at row 1
-INSERT INTO t5 VALUES('','',-17,18,19,20,21,22);
+INSERT IGNORE INTO t5 VALUES('','',-17,18,19,20,21,22);
 Warnings:
 Warning	1366	Incorrect integer value: '' for column 'c1' at row 1
 Warning	1366	Incorrect integer value: '' for column 'c2' at row 1
-INSERT INTO t4 VALUES('102.34 a','a','a',37,38,39,40,41);
+INSERT IGNORE INTO t4 VALUES('102.34 a','a','a',37,38,39,40,41);
 Warnings:
 Warning	1265	Data truncated for column 'c1' at row 1
 Warning	1366	Incorrect integer value: 'a' for column 'c2' at row 1
 Warning	1366	Incorrect integer value: 'a' for column 'c3' at row 1
-INSERT INTO t5 VALUES('102.34 a','a','a',37,38,39,40,41);
+INSERT IGNORE INTO t5 VALUES('102.34 a','a','a',37,38,39,40,41);
 Warnings:
 Warning	1265	Data truncated for column 'c1' at row 1
 Warning	1366	Incorrect integer value: 'a' for column 'c2' at row 1
 Warning	1366	Incorrect integer value: 'a' for column 'c3' at row 1
 INSERT INTO t4 VALUES(4,7,8,9,10,11,12,13);
-INSERT INTO t5 VALUES(-1,-1,-1,8,9,10,11,12);
+INSERT IGNORE INTO t5 VALUES(-1,-1,-1,8,9,10,11,12);
 Warnings:
 Warning	1264	Out of range value for column 'c1' at row 1
 INSERT INTO t4(c2,c3,c4,c5,c6,c7,c8) VALUES(101,102,104,105,106,107,108),(108,109,111,112,113,114,115),(115,116,118,119,120,121,122),(122,123,125,126,127,128,128);
@@ -2310,12 +2310,14 @@ c2	MIN(c3)
 32	33
 7	8
 NULL	104
+SET STATEMENT sql_mode = '' FOR
 INSERT INTO t2(c1) VALUES(NULL);
 ERROR 23000: Column 'c1' cannot be null
 INSERT INTO t3 VALUES(NULL,1,2,3,4,5,6);
 ERROR 23000: Column 'c1' cannot be null
 INSERT INTO t4(c3) VALUES(NULL);
 ERROR 23000: Column 'c3' cannot be null
+SET STATEMENT sql_mode = '' FOR
 INSERT INTO t5(c3) VALUES(NULL);
 ERROR 23000: Column 'c3' cannot be null
 INSERT INTO t4(c1,c3) VALUES(-101,105) /*throws error as the row with c1=-101 exists */;
@@ -2324,6 +2326,7 @@ INSERT INTO t2(c1,c6) VALUES(101,106) /*throws error as the row with c1=101,c6=1
 ERROR 23000: Duplicate entry '101-106' for key 'PRIMARY'
 INSERT INTO t5(c1,c2,c3) VALUES(101,-102,4) /*throws error as the row with c1=101,c2=-102 exists */;
 ERROR 23000: Duplicate entry '101--102' for key 'PRIMARY'
+SET STATEMENT sql_mode = '' FOR
 INSERT INTO t5(c3) VALUES(-103) /*throws error as the row with c3=-103 exists */;
 ERROR 23000: Duplicate entry '-103' for key 'c3'
 INSERT INTO t4(c2,c3) VALUES(102,103) /*throws error as the row with c2=102,c3=103 exists */;
@@ -2368,7 +2371,7 @@ INSERT INTO t6(c1) VALUES(0),(1),(2),(3),(3),(4),(4),(5);
 INSERT INTO t7(c1) SELECT c1 FROM t6;
 ERROR 23000: Duplicate entry '3' for key 'PRIMARY'
 TRUNCATE TABLE t6;
-INSERT INTO t6 VALUES(5,-1,1,1,1,1,1),(6,-2,2,2,2,2,2),(0,-4,4,4,4,4,4),(NULL,-5,5,5,5,5,5);
+INSERT IGNORE INTO t6 VALUES(5,-1,1,1,1,1,1),(6,-2,2,2,2,2,2),(0,-4,4,4,4,4,4),(NULL,-5,5,5,5,5,5);
 Warnings:
 Warning	1048	Column 'c1' cannot be null
 INSERT INTO t8 SELECT * FROM t6;
@@ -2388,7 +2391,7 @@ SELECT * FROM t8;
 c1	c2	c3	c4	c5	c6	c7
 1	-2	NULL	NULL	NULL	NULL	NULL
 DROP TABLE t6,t7,t8;
-INSERT INTO t2 SET c3=5,c4=6;
+INSERT IGNORE INTO t2 SET c3=5,c4=6;
 Warnings:
 Warning	1364	Field 'c1' doesn't have a default value
 Warning	1364	Field 'c6' doesn't have a default value

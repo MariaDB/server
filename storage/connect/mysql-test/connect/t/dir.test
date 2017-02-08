@@ -26,6 +26,7 @@ SELECT fname, ftype, size FROM t1 ORDER BY fname, ftype, size;
 
 # TODO: add a better error message
 --error ER_GET_ERRMSG
+SET STATEMENT sql_mode = '' FOR
 INSERT INTO t1 VALUES ('','','','');
 
 DROP TABLE t1;

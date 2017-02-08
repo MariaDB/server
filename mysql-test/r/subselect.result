@@ -1203,11 +1203,11 @@ CREATE TABLE `t3` (
 PRIMARY KEY  (`numeropost`),
 UNIQUE KEY `maxnumrep` (`maxnumrep`)
 ) ENGINE=MyISAM CHARSET=latin1;
-INSERT INTO t1 VALUES ('joce','1','','joce'),('test','2','','test');
+INSERT IGNORE INTO t1 VALUES ('joce','1','','joce'),('test','2','','test');
 Warnings:
 Warning	1265	Data truncated for column 'date' at row 1
 Warning	1265	Data truncated for column 'date' at row 2
-INSERT INTO t2 VALUES ('joce','1','','joce'),('test','2','','test');
+INSERT IGNORE INTO t2 VALUES ('joce','1','','joce'),('test','2','','test');
 Warnings:
 Warning	1265	Data truncated for column 'date' at row 1
 Warning	1265	Data truncated for column 'date' at row 2
@@ -4464,7 +4464,7 @@ insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
 create table t1(f11 int, f12 int);
 create table t2(f21 int unsigned not null, f22 int, f23 varchar(10));
 insert into t1 values(1,1),(2,2), (3, 3);
-insert into t2
+insert ignore into t2
 select -1 , (@a:=(A.a + 10 * (B.a + 10 * (C.a+10*D.a))))/5000 + 1, @a
 from t0 A, t0 B, t0 C, t0 D;
 set session sort_buffer_size= 33*1024;

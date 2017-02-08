@@ -1702,7 +1702,7 @@ DROP TABLE t1,t2,t3,t4,t5;
 # BUG#836532: Crash in Item_equal_fields_iterator::get_curr_field with semijoin+materialization
 #
 CREATE TABLE t2 (a int);
-INSERT INTO t2 VALUES ('a'),('a');
+INSERT IGNORE INTO t2 VALUES ('a'),('a');
 Warnings:
 Warning	1366	Incorrect integer value: 'a' for column 'a' at row 1
 Warning	1366	Incorrect integer value: 'a' for column 'a' at row 2

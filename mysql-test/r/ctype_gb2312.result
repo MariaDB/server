@@ -55,7 +55,7 @@ want1result
 location
 DROP TABLE t1;
 create table t1 (a set('a') not null);
-insert into t1 values (),();
+insert ignore into t1 values (),();
 Warnings:
 Warning	1364	Field 'a' doesn't have a default value
 select cast(a as char(1)) from t1;
@@ -224,30 +224,18 @@ CREATE TABLE t1 AS
 SELECT 10 AS a, REPEAT('a',20) AS b, REPEAT('a',8) AS c, REPEAT('a',8) AS d;
 ALTER TABLE t1 ADD PRIMARY KEY(a), ADD KEY(b);
 INSERT INTO t1 (a, b) VALUES (1, repeat(0xF1F2,5));
-Warnings:
-Warning	1364	Field 'c' doesn't have a default value
-Warning	1364	Field 'd' doesn't have a default value
 INSERT INTO t1 (a, b) VALUES (2, repeat(0xF1F2,10));
-Warnings:
-Warning	1364	Field 'c' doesn't have a default value
-Warning	1364	Field 'd' doesn't have a default value
 INSERT INTO t1 (a, b) VALUES (3, repeat(0xF1F2,11));
-Warnings:
-Warning	1364	Field 'c' doesn't have a default value
-Warning	1364	Field 'd' doesn't have a default value
 INSERT INTO t1 (a, b) VALUES (4, repeat(0xF1F2,12));
-Warnings:
-Warning	1364	Field 'c' doesn't have a default value
-Warning	1364	Field 'd' doesn't have a default value
 SELECT hex(concat(repeat(0xF1F2, 10), '%'));
 hex(concat(repeat(0xF1F2, 10), '%'))
 F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F225
 3 rows expected
 SELECT a, hex(b), c FROM t1 WHERE b LIKE concat(repeat(0xF1F2,10), '%');
 a	hex(b)	c
-2	F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2	
-3	F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2	
-4	F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2	
+2	F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2	NULL
+3	F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2	NULL
+4	F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2	NULL
 DROP TABLE t1;
 drop table if exists t1;
 create table t1 select repeat('a',10) as c1;
@@ -452,30 +440,18 @@ CREATE TABLE t1 AS
 SELECT 10 AS a, REPEAT('a',20) AS b, REPEAT('a',8) AS c, REPEAT('a',8) AS d;
 ALTER TABLE t1 ADD PRIMARY KEY(a), ADD KEY(b);
 INSERT INTO t1 (a, b) VALUES (1, repeat(0xF1F2,5));
-Warnings:
-Warning	1364	Field 'c' doesn't have a default value
-Warning	1364	Field 'd' doesn't have a default value
 INSERT INTO t1 (a, b) VALUES (2, repeat(0xF1F2,10));
-Warnings:
-Warning	1364	Field 'c' doesn't have a default value
-Warning	1364	Field 'd' doesn't have a default value
 INSERT INTO t1 (a, b) VALUES (3, repeat(0xF1F2,11));
-Warnings:
-Warning	1364	Field 'c' doesn't have a default value
-Warning	1364	Field 'd' doesn't have a default value
 INSERT INTO t1 (a, b) VALUES (4, repeat(0xF1F2,12));
-Warnings:
-Warning	1364	Field 'c' doesn't have a default value
-Warning	1364	Field 'd' doesn't have a default value
 SELECT hex(concat(repeat(0xF1F2, 10), '%'));
 hex(concat(repeat(0xF1F2, 10), '%'))
 F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F225
 3 rows expected
 SELECT a, hex(b), c FROM t1 WHERE b LIKE concat(repeat(0xF1F2,10), '%');
 a	hex(b)	c
-2	F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2	
-3	F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2	
-4	F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2	
+2	F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2	NULL
+3	F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2	NULL
+4	F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2	NULL
 DROP TABLE t1;
 SET NAMES gb2312;
 CREATE TABLE t1 (a text) character set gb2312;
@@ -511,7 +487,7 @@ t1	CREATE TABLE `t1` (
   `code` varchar(8) DEFAULT NULL,
   `a` varchar(1) CHARACTER SET gb2312 NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
-UPDATE t1 SET a=unhex(code) ORDER BY code;
+UPDATE IGNORE t1 SET a=unhex(code) ORDER BY code;
 Warnings:
 Warning	1366	Incorrect string value: '\x80 ' for column 'a' at row 1
 Warning	1366	Incorrect string value: '\x80!' for column 'a' at row 2
@@ -766,69 +742,69 @@ A2FB	Ⅺ
 A2FC	Ⅻ
 Warnings:
 Warning	1977	Cannot convert 'gb2312' character 0xA2A1 to 'utf8'
-Warning	1977	Cannot convert 'gb2312' character 0xA2A1 to 'utf8'
-Warning	1977	Cannot convert 'gb2312' character 0xA2A2 to 'utf8'
 Warning	1977	Cannot convert 'gb2312' character 0xA2A2 to 'utf8'
 Warning	1977	Cannot convert 'gb2312' character 0xA2A3 to 'utf8'
-Warning	1977	Cannot convert 'gb2312' character 0xA2A3 to 'utf8'
-Warning	1977	Cannot convert 'gb2312' character 0xA2A4 to 'utf8'
 Warning	1977	Cannot convert 'gb2312' character 0xA2A4 to 'utf8'
 Warning	1977	Cannot convert 'gb2312' character 0xA2A5 to 'utf8'
-Warning	1977	Cannot convert 'gb2312' character 0xA2A5 to 'utf8'
-Warning	1977	Cannot convert 'gb2312' character 0xA2A6 to 'utf8'
 Warning	1977	Cannot convert 'gb2312' character 0xA2A6 to 'utf8'
 Warning	1977	Cannot convert 'gb2312' character 0xA2A7 to 'utf8'
-Warning	1977	Cannot convert 'gb2312' character 0xA2A7 to 'utf8'
-Warning	1977	Cannot convert 'gb2312' character 0xA2A8 to 'utf8'
 Warning	1977	Cannot convert 'gb2312' character 0xA2A8 to 'utf8'
 Warning	1977	Cannot convert 'gb2312' character 0xA2A9 to 'utf8'
-Warning	1977	Cannot convert 'gb2312' character 0xA2A9 to 'utf8'
-Warning	1977	Cannot convert 'gb2312' character 0xA2AA to 'utf8'
 Warning	1977	Cannot convert 'gb2312' character 0xA2AA to 'utf8'
 Warning	1977	Cannot convert 'gb2312' character 0xA2AB to 'utf8'
-Warning	1977	Cannot convert 'gb2312' character 0xA2AB to 'utf8'
-Warning	1977	Cannot convert 'gb2312' character 0xA2AC to 'utf8'
 Warning	1977	Cannot convert 'gb2312' character 0xA2AC to 'utf8'
 Warning	1977	Cannot convert 'gb2312' character 0xA2AD to 'utf8'
-Warning	1977	Cannot convert 'gb2312' character 0xA2AD to 'utf8'
-Warning	1977	Cannot convert 'gb2312' character 0xA2AE to 'utf8'
 Warning	1977	Cannot convert 'gb2312' character 0xA2AE to 'utf8'
 Warning	1977	Cannot convert 'gb2312' character 0xA2AF to 'utf8'
-Warning	1977	Cannot convert 'gb2312' character 0xA2AF to 'utf8'
-Warning	1977	Cannot convert 'gb2312' character 0xA2B0 to 'utf8'
 Warning	1977	Cannot convert 'gb2312' character 0xA2B0 to 'utf8'
 Warning	1977	Cannot convert 'gb2312' character 0xA2E3 to 'utf8'
-Warning	1977	Cannot convert 'gb2312' character 0xA2E3 to 'utf8'
-Warning	1977	Cannot convert 'gb2312' character 0xA2E4 to 'utf8'
 Warning	1977	Cannot convert 'gb2312' character 0xA2E4 to 'utf8'
 Warning	1977	Cannot convert 'gb2312' character 0xA2EF to 'utf8'
-Warning	1977	Cannot convert 'gb2312' character 0xA2EF to 'utf8'
-Warning	1977	Cannot convert 'gb2312' character 0xA2F0 to 'utf8'
 Warning	1977	Cannot convert 'gb2312' character 0xA2F0 to 'utf8'
 Warning	1977	Cannot convert 'gb2312' character 0xA2FD to 'utf8'
-Warning	1977	Cannot convert 'gb2312' character 0xA2FD to 'utf8'
-Warning	1977	Cannot convert 'gb2312' character 0xA2FE to 'utf8'
 Warning	1977	Cannot convert 'gb2312' character 0xA2FE to 'utf8'
 Warning	1977	Cannot convert 'gb2312' character 0xA4F4 to 'utf8'
-Warning	1977	Cannot convert 'gb2312' character 0xA4F4 to 'utf8'
-Warning	1977	Cannot convert 'gb2312' character 0xA4F5 to 'utf8'
 Warning	1977	Cannot convert 'gb2312' character 0xA4F5 to 'utf8'
 Warning	1977	Cannot convert 'gb2312' character 0xA4F6 to 'utf8'
-Warning	1977	Cannot convert 'gb2312' character 0xA4F6 to 'utf8'
-Warning	1977	Cannot convert 'gb2312' character 0xA4F7 to 'utf8'
 Warning	1977	Cannot convert 'gb2312' character 0xA4F7 to 'utf8'
 Warning	1977	Cannot convert 'gb2312' character 0xA4F8 to 'utf8'
-Warning	1977	Cannot convert 'gb2312' character 0xA4F8 to 'utf8'
-Warning	1977	Cannot convert 'gb2312' character 0xA4F9 to 'utf8'
 Warning	1977	Cannot convert 'gb2312' character 0xA4F9 to 'utf8'
 Warning	1977	Cannot convert 'gb2312' character 0xA4FA to 'utf8'
-Warning	1977	Cannot convert 'gb2312' character 0xA4FA to 'utf8'
-Warning	1977	Cannot convert 'gb2312' character 0xA4FB to 'utf8'
 Warning	1977	Cannot convert 'gb2312' character 0xA4FB to 'utf8'
 Warning	1977	Cannot convert 'gb2312' character 0xA4FC to 'utf8'
-Warning	1977	Cannot convert 'gb2312' character 0xA4FC to 'utf8'
 Warning	1977	Cannot convert 'gb2312' character 0xA4FD to 'utf8'
-Warning	1977	Cannot convert 'gb2312' character 0xA4FD to 'utf8'
+Warning	1977	Cannot convert 'gb2312' character 0xA4FE to 'utf8'
+Warning	1977	Cannot convert 'gb2312' character 0xA5F7 to 'utf8'
+Warning	1977	Cannot convert 'gb2312' character 0xA5F8 to 'utf8'
+Warning	1977	Cannot convert 'gb2312' character 0xA5F9 to 'utf8'
+Warning	1977	Cannot convert 'gb2312' character 0xA5FA to 'utf8'
+Warning	1977	Cannot convert 'gb2312' character 0xA5FB to 'utf8'
+Warning	1977	Cannot convert 'gb2312' character 0xA5FC to 'utf8'
+Warning	1977	Cannot convert 'gb2312' character 0xA5FD to 'utf8'
+Warning	1977	Cannot convert 'gb2312' character 0xA5FE to 'utf8'
+Warning	1977	Cannot convert 'gb2312' character 0xA6B9 to 'utf8'
+Warning	1977	Cannot convert 'gb2312' character 0xA6BA to 'utf8'
+Warning	1977	Cannot convert 'gb2312' character 0xA6BB to 'utf8'
+Warning	1977	Cannot convert 'gb2312' character 0xA6BC to 'utf8'
+Warning	1977	Cannot convert 'gb2312' character 0xA6BD to 'utf8'
+Warning	1977	Cannot convert 'gb2312' character 0xA6BE to 'utf8'
+Warning	1977	Cannot convert 'gb2312' character 0xA6BF to 'utf8'
+Warning	1977	Cannot convert 'gb2312' character 0xA6C0 to 'utf8'
+Warning	1977	Cannot convert 'gb2312' character 0xA6D9 to 'utf8'
+Warning	1977	Cannot convert 'gb2312' character 0xA6DA to 'utf8'
+Warning	1977	Cannot convert 'gb2312' character 0xA6DB to 'utf8'
+Warning	1977	Cannot convert 'gb2312' character 0xA6DC to 'utf8'
+Warning	1977	Cannot convert 'gb2312' character 0xA6DD to 'utf8'
+Warning	1977	Cannot convert 'gb2312' character 0xA6DE to 'utf8'
+Warning	1977	Cannot convert 'gb2312' character 0xA6DF to 'utf8'
+Warning	1977	Cannot convert 'gb2312' character 0xA6E0 to 'utf8'
+Warning	1977	Cannot convert 'gb2312' character 0xA6E1 to 'utf8'
+Warning	1977	Cannot convert 'gb2312' character 0xA6E2 to 'utf8'
+Warning	1977	Cannot convert 'gb2312' character 0xA6E3 to 'utf8'
+Warning	1977	Cannot convert 'gb2312' character 0xA6E4 to 'utf8'
+Warning	1977	Cannot convert 'gb2312' character 0xA6E5 to 'utf8'
+Warning	1977	Cannot convert 'gb2312' character 0xA6E6 to 'utf8'
+Warning	1977	Cannot convert 'gb2312' character 0xA6E7 to 'utf8'
 SELECT * FROM t1
 WHERE HEX(CAST(UPPER(a) AS CHAR CHARACTER SET utf8)) <>
 HEX(UPPER(CAST(a AS CHAR CHARACTER SET utf8))) ORDER BY code;
@@ -861,69 +837,69 @@ A8B9	ü
 A8BA	ê
 Warnings:
 Warning	1977	Cannot convert 'gb2312' character 0xA2A1 to 'utf8'
-Warning	1977	Cannot convert 'gb2312' character 0xA2A1 to 'utf8'
-Warning	1977	Cannot convert 'gb2312' character 0xA2A2 to 'utf8'
 Warning	1977	Cannot convert 'gb2312' character 0xA2A2 to 'utf8'
 Warning	1977	Cannot convert 'gb2312' character 0xA2A3 to 'utf8'
-Warning	1977	Cannot convert 'gb2312' character 0xA2A3 to 'utf8'
-Warning	1977	Cannot convert 'gb2312' character 0xA2A4 to 'utf8'
 Warning	1977	Cannot convert 'gb2312' character 0xA2A4 to 'utf8'
 Warning	1977	Cannot convert 'gb2312' character 0xA2A5 to 'utf8'
-Warning	1977	Cannot convert 'gb2312' character 0xA2A5 to 'utf8'
-Warning	1977	Cannot convert 'gb2312' character 0xA2A6 to 'utf8'
 Warning	1977	Cannot convert 'gb2312' character 0xA2A6 to 'utf8'
 Warning	1977	Cannot convert 'gb2312' character 0xA2A7 to 'utf8'
-Warning	1977	Cannot convert 'gb2312' character 0xA2A7 to 'utf8'
-Warning	1977	Cannot convert 'gb2312' character 0xA2A8 to 'utf8'
 Warning	1977	Cannot convert 'gb2312' character 0xA2A8 to 'utf8'
 Warning	1977	Cannot convert 'gb2312' character 0xA2A9 to 'utf8'
-Warning	1977	Cannot convert 'gb2312' character 0xA2A9 to 'utf8'
-Warning	1977	Cannot convert 'gb2312' character 0xA2AA to 'utf8'
 Warning	1977	Cannot convert 'gb2312' character 0xA2AA to 'utf8'
 Warning	1977	Cannot convert 'gb2312' character 0xA2AB to 'utf8'
-Warning	1977	Cannot convert 'gb2312' character 0xA2AB to 'utf8'
-Warning	1977	Cannot convert 'gb2312' character 0xA2AC to 'utf8'
 Warning	1977	Cannot convert 'gb2312' character 0xA2AC to 'utf8'
 Warning	1977	Cannot convert 'gb2312' character 0xA2AD to 'utf8'
-Warning	1977	Cannot convert 'gb2312' character 0xA2AD to 'utf8'
-Warning	1977	Cannot convert 'gb2312' character 0xA2AE to 'utf8'
 Warning	1977	Cannot convert 'gb2312' character 0xA2AE to 'utf8'
 Warning	1977	Cannot convert 'gb2312' character 0xA2AF to 'utf8'
-Warning	1977	Cannot convert 'gb2312' character 0xA2AF to 'utf8'
-Warning	1977	Cannot convert 'gb2312' character 0xA2B0 to 'utf8'
 Warning	1977	Cannot convert 'gb2312' character 0xA2B0 to 'utf8'
 Warning	1977	Cannot convert 'gb2312' character 0xA2E3 to 'utf8'
-Warning	1977	Cannot convert 'gb2312' character 0xA2E3 to 'utf8'
-Warning	1977	Cannot convert 'gb2312' character 0xA2E4 to 'utf8'
 Warning	1977	Cannot convert 'gb2312' character 0xA2E4 to 'utf8'
 Warning	1977	Cannot convert 'gb2312' character 0xA2EF to 'utf8'
-Warning	1977	Cannot convert 'gb2312' character 0xA2EF to 'utf8'
-Warning	1977	Cannot convert 'gb2312' character 0xA2F0 to 'utf8'
 Warning	1977	Cannot convert 'gb2312' character 0xA2F0 to 'utf8'
 Warning	1977	Cannot convert 'gb2312' character 0xA2FD to 'utf8'
-Warning	1977	Cannot convert 'gb2312' character 0xA2FD to 'utf8'
-Warning	1977	Cannot convert 'gb2312' character 0xA2FE to 'utf8'
 Warning	1977	Cannot convert 'gb2312' character 0xA2FE to 'utf8'
 Warning	1977	Cannot convert 'gb2312' character 0xA4F4 to 'utf8'
-Warning	1977	Cannot convert 'gb2312' character 0xA4F4 to 'utf8'
-Warning	1977	Cannot convert 'gb2312' character 0xA4F5 to 'utf8'
 Warning	1977	Cannot convert 'gb2312' character 0xA4F5 to 'utf8'
 Warning	1977	Cannot convert 'gb2312' character 0xA4F6 to 'utf8'
-Warning	1977	Cannot convert 'gb2312' character 0xA4F6 to 'utf8'
-Warning	1977	Cannot convert 'gb2312' character 0xA4F7 to 'utf8'
 Warning	1977	Cannot convert 'gb2312' character 0xA4F7 to 'utf8'
 Warning	1977	Cannot convert 'gb2312' character 0xA4F8 to 'utf8'
-Warning	1977	Cannot convert 'gb2312' character 0xA4F8 to 'utf8'
-Warning	1977	Cannot convert 'gb2312' character 0xA4F9 to 'utf8'
 Warning	1977	Cannot convert 'gb2312' character 0xA4F9 to 'utf8'
 Warning	1977	Cannot convert 'gb2312' character 0xA4FA to 'utf8'
-Warning	1977	Cannot convert 'gb2312' character 0xA4FA to 'utf8'
-Warning	1977	Cannot convert 'gb2312' character 0xA4FB to 'utf8'
 Warning	1977	Cannot convert 'gb2312' character 0xA4FB to 'utf8'
 Warning	1977	Cannot convert 'gb2312' character 0xA4FC to 'utf8'
-Warning	1977	Cannot convert 'gb2312' character 0xA4FC to 'utf8'
 Warning	1977	Cannot convert 'gb2312' character 0xA4FD to 'utf8'
-Warning	1977	Cannot convert 'gb2312' character 0xA4FD to 'utf8'
+Warning	1977	Cannot convert 'gb2312' character 0xA4FE to 'utf8'
+Warning	1977	Cannot convert 'gb2312' character 0xA5F7 to 'utf8'
+Warning	1977	Cannot convert 'gb2312' character 0xA5F8 to 'utf8'
+Warning	1977	Cannot convert 'gb2312' character 0xA5F9 to 'utf8'
+Warning	1977	Cannot convert 'gb2312' character 0xA5FA to 'utf8'
+Warning	1977	Cannot convert 'gb2312' character 0xA5FB to 'utf8'
+Warning	1977	Cannot convert 'gb2312' character 0xA5FC to 'utf8'
+Warning	1977	Cannot convert 'gb2312' character 0xA5FD to 'utf8'
+Warning	1977	Cannot convert 'gb2312' character 0xA5FE to 'utf8'
+Warning	1977	Cannot convert 'gb2312' character 0xA6B9 to 'utf8'
+Warning	1977	Cannot convert 'gb2312' character 0xA6BA to 'utf8'
+Warning	1977	Cannot convert 'gb2312' character 0xA6BB to 'utf8'
+Warning	1977	Cannot convert 'gb2312' character 0xA6BC to 'utf8'
+Warning	1977	Cannot convert 'gb2312' character 0xA6BD to 'utf8'
+Warning	1977	Cannot convert 'gb2312' character 0xA6BE to 'utf8'
+Warning	1977	Cannot convert 'gb2312' character 0xA6BF to 'utf8'
+Warning	1977	Cannot convert 'gb2312' character 0xA6C0 to 'utf8'
+Warning	1977	Cannot convert 'gb2312' character 0xA6D9 to 'utf8'
+Warning	1977	Cannot convert 'gb2312' character 0xA6DA to 'utf8'
+Warning	1977	Cannot convert 'gb2312' character 0xA6DB to 'utf8'
+Warning	1977	Cannot convert 'gb2312' character 0xA6DC to 'utf8'
+Warning	1977	Cannot convert 'gb2312' character 0xA6DD to 'utf8'
+Warning	1977	Cannot convert 'gb2312' character 0xA6DE to 'utf8'
+Warning	1977	Cannot convert 'gb2312' character 0xA6DF to 'utf8'
+Warning	1977	Cannot convert 'gb2312' character 0xA6E0 to 'utf8'
+Warning	1977	Cannot convert 'gb2312' character 0xA6E1 to 'utf8'
+Warning	1977	Cannot convert 'gb2312' character 0xA6E2 to 'utf8'
+Warning	1977	Cannot convert 'gb2312' character 0xA6E3 to 'utf8'
+Warning	1977	Cannot convert 'gb2312' character 0xA6E4 to 'utf8'
+Warning	1977	Cannot convert 'gb2312' character 0xA6E5 to 'utf8'
+Warning	1977	Cannot convert 'gb2312' character 0xA6E6 to 'utf8'
+Warning	1977	Cannot convert 'gb2312' character 0xA6E7 to 'utf8'
 DROP TABLE t1;
 #
 # End of 5.5 tests
@@ -962,7 +938,7 @@ CREATE TABLE t1 AS SELECT REPEAT('a',5) AS a;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varchar(5) CHARACTER SET gb2312 NOT NULL
+  `a` varchar(5) CHARACTER SET gb2312 DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 CREATE TABLE t2 AS SELECT WEIGHT_STRING(a) AS ws FROM t1;
 SHOW CREATE TABLE t2;
@@ -1221,7 +1197,7 @@ CREATE TABLE t1 AS SELECT REPEAT('a',5) AS a;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varchar(5) CHARACTER SET gb2312 COLLATE gb2312_bin NOT NULL
+  `a` varchar(5) CHARACTER SET gb2312 COLLATE gb2312_bin DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 CREATE TABLE t2 AS SELECT WEIGHT_STRING(a) AS ws FROM t1;
 SHOW CREATE TABLE t2;
@@ -1459,6 +1435,7 @@ A1A1A1A1A1A120202020202020202020202020202020202020
 # Start of 10.0 tests
 #
 # Start of ctype_unescape.inc
+SET sql_mode = '';
 SET @query=_binary'SELECT CHARSET(\'test\'),@@character_set_client,@@character_set_connection';
 PREPARE stmt FROM @query;
 EXECUTE stmt;
@@ -4521,6 +4498,7 @@ DROP FUNCTION wellformedness;
 DROP FUNCTION mysql_real_escape_string_generated;
 DROP FUNCTION iswellformed;
 DROP TABLE allbytes;
+SET sql_mode = DEFAULT;
 # End of ctype_backslash.inc
 #
 # End of 10.0 tests

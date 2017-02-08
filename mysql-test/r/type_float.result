@@ -135,10 +135,10 @@ drop table t1;
 create table t1 (a float(200,100), b double(200,100));
 ERROR 42000: Too big scale 100 specified for 'a'. Maximum is 30
 create table t1 (c20 char);
-insert into t1 values (5000.0);
+insert ignore into t1 values (5000.0);
 Warnings:
 Warning	1265	Data truncated for column 'c20' at row 1
-insert into t1 values (0.5e4);
+insert ignore into t1 values (0.5e4);
 Warnings:
 Warning	1265	Data truncated for column 'c20' at row 1
 drop table t1;
@@ -147,7 +147,7 @@ ERROR 42000: Incorrect column specifier for column 'f'
 drop table if exists t1;
 create table t1 (d1 double, d2 double unsigned);
 insert into t1 set d1 = -1.0;
-update t1 set d2 = d1;
+update ignore t1 set d2 = d1;
 Warnings:
 Warning	1264	Out of range value for column 'd2' at row 1
 select * from t1;
@@ -155,7 +155,7 @@ d1	d2
 -1	0
 drop table t1;
 create table t1 (f float(4,3));
-insert into t1 values (-11.0),(-11),("-11"),(11.0),(11),("11");
+insert ignore into t1 values (-11.0),(-11),("-11"),(11.0),(11),("11");
 Warnings:
 Warning	1264	Out of range value for column 'f' at row 1
 Warning	1264	Out of range value for column 'f' at row 2
@@ -173,7 +173,7 @@ f
 9.999
 drop table if exists t1;
 create table t1 (f double(4,3));
-insert into t1 values (-11.0),(-11),("-11"),(11.0),(11),("11");
+insert ignore into t1 values (-11.0),(-11),("-11"),(11.0),(11),("11");
 Warnings:
 Warning	1264	Out of range value for column 'f' at row 1
 Warning	1264	Out of range value for column 'f' at row 2
@@ -363,7 +363,7 @@ DROP TABLE t1;
 create table t1 (f1 double(200, 0));
 insert into t1 values (1e199), (-1e199);
 insert into t1 values (1e200), (-1e200);
-insert into t1 values (2e200), (-2e200);
+insert ignore into t1 values (2e200), (-2e200);
 Warnings:
 Warning	1264	Out of range value for column 'f1' at row 1
 Warning	1264	Out of range value for column 'f1' at row 2
@@ -379,7 +379,7 @@ drop table t1;
 create table t1 (f1 float(30, 0));
 insert into t1 values (1e29), (-1e29);
 insert into t1 values (1e30), (-1e30);
-insert into t1 values (2e30), (-2e30);
+insert ignore into t1 values (2e30), (-2e30);
 Warnings:
 Warning	1264	Out of range value for column 'f1' at row 1
 Warning	1264	Out of range value for column 'f1' at row 2
@@ -453,10 +453,10 @@ foo
 #
 CREATE TABLE t1 (f FLOAT);
 INSERT INTO t1 VALUES ('1.');
-INSERT INTO t1 VALUES ('2.0.');
+INSERT IGNORE INTO t1 VALUES ('2.0.');
 Warnings:
 Warning	1265	Data truncated for column 'f' at row 1
-INSERT INTO t1 VALUES ('.');
+INSERT IGNORE INTO t1 VALUES ('.');
 Warnings:
 Warning	1366	Incorrect double value: '.' for column 'f' at row 1
 SELECT * FROM t1 ORDER BY f;
@@ -645,10 +645,10 @@ DROP TABLE t1;
 # MDEV-4102 Limitation on DOUBLE or REAL length is ignored with INSERT .. SELECT
 #
 CREATE TABLE t1 (d1 DOUBLE(5,2), d2 DOUBLE(10,2));
-INSERT INTO t1 VALUES (10000000.55, 10000000.55);
+INSERT IGNORE INTO t1 VALUES (10000000.55, 10000000.55);
 Warnings:
 Warning	1264	Out of range value for column 'd1' at row 1
-INSERT INTO t1 SELECT d2, d2 FROM t1;
+INSERT IGNORE INTO t1 SELECT d2, d2 FROM t1;
 Warnings:
 Warning	1264	Out of range value for column 'd1' at row 1
 SELECT * FROM t1;
@@ -664,7 +664,7 @@ f FLOAT,
 d10_10 DOUBLE PRECISION (10,10),
 d53_10 DOUBLE(53,10)
 );
-INSERT INTO t1 (f,d10_10,d53_10) VALUES (
+INSERT IGNORE INTO t1 (f,d10_10,d53_10) VALUES (
 -9999999999999999999999999999999999999999999.9999999999,
 -9999999999999999999999999999999999999999999.9999999999,
 -9999999999999999999999999999999999999999999.9999999999
@@ -676,7 +676,7 @@ SELECT * FROM t1;
 f	-3.40282e38
 d10_10	-0.9999999999
 d53_10	-10000000000000000000000000000000000000000000.0000000000
-INSERT INTO t1 (f,d10_10,d53_10) SELECT d53_10, d53_10, d53_10 FROM t1;
+INSERT IGNORE INTO t1 (f,d10_10,d53_10) SELECT d53_10, d53_10, d53_10 FROM t1;
 Warnings:
 Level	Warning
 Code	1264
@@ -705,7 +705,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (d10_10 DOUBLE (10,10));
 CREATE TABLE t2 (d53_10 DOUBLE (53,10));
 INSERT INTO t2 VALUES (-9999999999999999999999999999999999999999999.9999999999);
-INSERT INTO t1 (d10_10) SELECT d53_10 FROM t2;
+INSERT IGNORE INTO t1 (d10_10) SELECT d53_10 FROM t2;
 Warnings:
 Warning	1264	Out of range value for column 'd10_10' at row 1
 SELECT * FROM t1;
@@ -715,7 +715,7 @@ DROP TABLE t1,t2;
 CREATE TABLE t1 (d2_2 FLOAT (2,2));
 CREATE TABLE t2 (d4_2 FLOAT (4,2));
 INSERT INTO t2 VALUES (99.99);
-INSERT INTO t1 (d2_2) SELECT d4_2 FROM t2;
+INSERT IGNORE INTO t1 (d2_2) SELECT d4_2 FROM t2;
 Warnings:
 Warning	1264	Out of range value for column 'd2_2' at row 1
 SELECT * FROM t1;

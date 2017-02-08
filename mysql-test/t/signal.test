@@ -1346,6 +1346,7 @@ end $$
 call test_signal() $$
 drop procedure test_signal $$
 
+SET sql_mode= '' $$
 create procedure test_signal()
 begin
   DECLARE aaax VARCHAR(65);
@@ -1400,6 +1401,7 @@ end $$
 
 call test_signal() $$
 drop procedure test_signal $$
+set sql_mode = DEFAULT $$
 
 # Test that HANDLER can catch conditions raised by SIGNAL
 
@@ -1785,7 +1787,7 @@ begin
     select "after RESIGNAL";
   end;
 
-  insert into t_warn set a= 9999999999999999;
+  insert ignore into t_warn set a= 9999999999999999;
 end $$
 
 call test_resignal() $$
@@ -1904,7 +1906,7 @@ begin
     select "after RESIGNAL";
   end;
 
-  insert into t_warn set a= 9999999999999999;
+  insert ignore into t_warn set a= 9999999999999999;
 end $$
 
 call test_resignal() $$
@@ -2171,7 +2173,7 @@ begin
     select "after RESIGNAL";
   end;
 
-  insert into t_warn set a= 9999999999999999;
+  insert ignore into t_warn set a= 9999999999999999;
 end $$
 
 call test_resignal() $$
@@ -2188,7 +2190,7 @@ begin
     select "after RESIGNAL";
   end;
 
-  insert into t_warn set a= 9999999999999999;
+  insert ignore into t_warn set a= 9999999999999999;
 end $$
 
 --error 5555
@@ -2207,7 +2209,7 @@ begin
     select "after RESIGNAL";
   end;
 
-  insert into t_warn set a= 9999999999999999;
+  insert ignore into t_warn set a= 9999999999999999;
 end $$
 
 --error 5555

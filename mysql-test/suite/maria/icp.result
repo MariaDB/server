@@ -474,7 +474,7 @@ CREATE TABLE t2 (
 t2_int int PRIMARY KEY,
 t2_int2 INT
 );
-INSERT INTO t2 VALUES ();
+INSERT IGNORE INTO t2 VALUES ();
 INSERT INTO t1 VALUES ();
 SELECT * FROM t1 AS t1a 
 WHERE NOT EXISTS (SELECT * FROM t1 AS t1b
@@ -568,7 +568,7 @@ COL1000 VARBINARY(179) NOT NULL,
 col1003 DATE DEFAULT NULL,
 KEY idx4267 (col1000, col1003)
 );
-INSERT INTO t1 VALUES (),();
+INSERT IGNORE INTO t1 VALUES (),();
 Warnings:
 Warning	1364	Field 'col999' doesn't have a default value
 Warning	1364	Field 'COL1000' doesn't have a default value
@@ -849,7 +849,7 @@ Handler_icp_attempts	2
 Handler_icp_match	1
 DROP TABLE t1;
 create table t1 (a int,b char(5),primary key (a), key (b(1)));
-insert into t1 values ('a','b');
+insert ignore into t1 values ('a','b');
 Warnings:
 Warning	1366	Incorrect integer value: 'a' for column 'a' at row 1
 select 1 from t1 where a and b >= 'aa';

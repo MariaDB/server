@@ -1222,6 +1222,7 @@ drop table t1;
 #
 # changing value by trigger and CHECK OPTION
 #
+SET sql_mode = 'NO_ENGINE_SUBSTITUTION';
 create table t1 (s1 tinyint);
 create trigger t1_bi before insert on t1 for each row set new.s1 = 500;
 create view v1 as select * from t1 where s1 <> 127 with check option;
@@ -1232,6 +1233,7 @@ select * from t1;
 drop trigger t1_bi;
 drop view v1;
 drop table t1;
+SET sql_mode = default;
 
 #
 # CASCADED should be used for all underlaying VIEWs
@@ -2678,7 +2680,7 @@ DROP TABLE t1,t2;
 CREATE TABLE t1 (a INT NOT NULL, b INT NULL DEFAULT NULL);
 CREATE VIEW v1 AS SELECT a, b FROM t1;
 
-INSERT INTO v1 (b) VALUES (2);
+INSERT IGNORE INTO v1 (b) VALUES (2);
 
 SET SQL_MODE = STRICT_ALL_TABLES;
 --error ER_NO_DEFAULT_FOR_VIEW_FIELD
@@ -3571,7 +3573,7 @@ DROP TABLE t1;
 --echo #
 create table t1(f1 int, f2 int not null);
 create view v1 as select f1 from t1;
-insert into v1 values(1);
+insert ignore into v1 values(1);
 set @old_mode=@@sql_mode;
 set @@sql_mode=traditional;
 --error ER_NO_DEFAULT_FOR_VIEW_FIELD

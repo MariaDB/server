@@ -26,10 +26,12 @@ select * from performance_schema.setup_objects
 select * from performance_schema.setup_objects
   order by object_type, object_schema, object_name;
 
+set sql_mode= '';
 --error ER_NO_REFERENCED_ROW_2
 insert into performance_schema.setup_objects
   set object_type='ILLEGAL', object_schema='FOO', object_name='BAR',
   enabled='YES', timed='YES';
+set sql_mode= DEFAULT;
 
 insert into performance_schema.setup_objects
   set object_type='TABLE', object_schema='FOO', object_name='BAR',
@@ -54,6 +56,7 @@ select * from performance_schema.setup_objects
   order by object_type, object_schema, object_name;
 
 --error ER_WRONG_PERFSCHEMA_USAGE
+set statement sql_mode = '' for
 update performance_schema.setup_objects
   set object_type='ILLEGAL';
 

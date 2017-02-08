@@ -3,7 +3,7 @@ insert into t1 values ("a" , "b", 1),   ("a" , "b", 2);
 create table t2 like t1 ;
 alter table t2 add column c4 bigint unsigned as (CONV(LEFT(MD5(concat(c1,c2,c3)), 16), 16, 10)) persistent unique key;
 select * into outfile 't1.csv' from t1;
-load data infile 't1.csv' into table t2 ;
+load data infile 't1.csv' ignore into table t2 ;
 Warnings:
 Warning	1261	Row 1 doesn't contain data for all columns
 Warning	1261	Row 2 doesn't contain data for all columns

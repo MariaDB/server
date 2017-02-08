@@ -1220,7 +1220,9 @@ Warning	4042	Syntax error in JSON path in argument 2 to function 'json_keys' at 
 error ER_INVALID_JSON_PATH
 SELECT JSON_KEYS('{"a":1}', '1010') IS NULL;
 JSON_KEYS('{"a":1}', '1010') IS NULL
-0
+1
+Warnings:
+Warning	4042	Syntax error in JSON path in argument 2 to function 'json_keys' at position 1
 SELECT JSON_KEYS
 (
 '{ "a" : "foo", "b" : [ true, { "c" : "123" } ] }'
@@ -3181,7 +3183,9 @@ json_remove( '[ 1, { "a": true, "b": false, "c": null }, 5 ]', null ) is null
 error ER_INVALID_JSON_PATH
 select json_remove( '[ 1, { "a": true, "b": false, "c": null }, 5 ]', '$.' ) is null;
 json_remove( '[ 1, { "a": true, "b": false, "c": null }, 5 ]', '$.' ) is null
-0
+1
+Warnings:
+Warning	4041	Unexpected end of JSON path in argument 2 to function 'json_remove'
 error ER_INVALID_JSON_PATH
 prepare stmt1 from 'select json_remove( ''[ 1, { "a": true, "b": false, "c": null }, 5 ]'', ''$.'' ) is null';
 # ----------------------------------------------------------------------

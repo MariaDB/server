@@ -107,11 +107,11 @@ a	b	c	d	e	f	g	h	i	j	k	l	m	n	o	p	q	r	s	t	u	v	w	x	y	z	a1	b1
 drop table t1;
 drop table t2;
 create table bug20691 (i int, d datetime NOT NULL, dn datetime not null default '0000-00-00 00:00:00');
-insert into bug20691 values (1, DEFAULT, DEFAULT), (1, '1975-07-10 07:10:03', '1978-01-13 14:08:51'), (1, DEFAULT, DEFAULT);
+insert ignore into bug20691 values (1, DEFAULT, DEFAULT), (1, '1975-07-10 07:10:03', '1978-01-13 14:08:51'), (1, DEFAULT, DEFAULT);
 Warnings:
 Warning	1364	Field 'd' doesn't have a default value
 Warning	1364	Field 'd' doesn't have a default value
-insert into bug20691 (i) values (2);
+insert ignore into bug20691 (i) values (2);
 Warnings:
 Warning	1364	Field 'd' doesn't have a default value
 desc bug20691;
@@ -119,14 +119,14 @@ Field	Type	Null	Key	Default	Extra
 i	int(11)	YES		NULL	
 d	datetime	NO		NULL	
 dn	datetime	NO		0000-00-00 00:00:00	
-insert into bug20691 values (3, DEFAULT, DEFAULT), (3, '1975-07-10 07:10:03', '1978-01-13 14:08:51'), (3, DEFAULT, DEFAULT);
+insert ignore into bug20691 values (3, DEFAULT, DEFAULT), (3, '1975-07-10 07:10:03', '1978-01-13 14:08:51'), (3, DEFAULT, DEFAULT);
 Warnings:
 Warning	1364	Field 'd' doesn't have a default value
 Warning	1364	Field 'd' doesn't have a default value
-insert into bug20691 (i) values (4);
+insert ignore into bug20691 (i) values (4);
 Warnings:
 Warning	1364	Field 'd' doesn't have a default value
-insert into bug20691 values (5, DEFAULT, DEFAULT), (5, '1975-07-10 07:10:03', '1978-01-13 14:08:51'), (5, DEFAULT, DEFAULT);
+insert ignore into bug20691 values (5, DEFAULT, DEFAULT), (5, '1975-07-10 07:10:03', '1978-01-13 14:08:51'), (5, DEFAULT, DEFAULT);
 Warnings:
 Warning	1364	Field 'd' doesn't have a default value
 Warning	1364	Field 'd' doesn't have a default value
@@ -1054,7 +1054,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` decimal(30,6) DEFAULT coalesce(curtime(6))
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
-INSERT INTO t1 VALUES();
+INSERT IGNORE INTO t1 VALUES();
 Warnings:
 Warning	1265	Data truncated for column 'a' at row 1
 DROP TABLE t1;
@@ -1067,7 +1067,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` decimal(30,6) DEFAULT coalesce(curdate())
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
-INSERT INTO t1 VALUES();
+INSERT IGNORE INTO t1 VALUES();
 Warnings:
 Warning	1265	Data truncated for column 'a' at row 1
 DROP TABLE t1;
@@ -1123,7 +1123,7 @@ t1	CREATE TABLE `t1` (
   `a` decimal(30,0) DEFAULT current_timestamp(6),
   `b` decimal(30,0) DEFAULT coalesce(current_timestamp(6))
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
-INSERT INTO t1 VALUES ();
+INSERT IGNORE INTO t1 VALUES ();
 Warnings:
 Note	1265	Data truncated for column 'a' at row 1
 Warning	1265	Data truncated for column 'b' at row 1
@@ -2181,7 +2181,7 @@ t1	CREATE TABLE `t1` (
   `b` varchar(10) DEFAULT (cast(`a` as char(10) charset latin1)),
   `c` varchar(10) DEFAULT (cast(`a` as char(4) charset latin1))
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
-INSERT INTO t1 (a) VALUES (123.456);
+INSERT IGNORE INTO t1 (a) VALUES (123.456);
 Warnings:
 Warning	1292	Truncated incorrect CHAR(4) value: '123.456'
 SELECT * FROM t1;
@@ -2195,7 +2195,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(10) unsigned DEFAULT (cast(`a` as unsigned))
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
-INSERT INTO t1 (a) VALUES (-1);
+INSERT IGNORE INTO t1 (a) VALUES (-1);
 Warnings:
 Note	1105	Cast to unsigned converted negative integer to it's positive complement
 Warning	1264	Out of range value for column 'b' at row 1
@@ -2644,7 +2644,7 @@ t1	CREATE TABLE `t1` (
   `number_of_bits` int(11) DEFAULT NULL,
   `x` varchar(30) DEFAULT export_set(`bits`,`v_on`,`v_off`,`v_separator`,`number_of_bits`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
-INSERT INTO t1 VALUES (0x50006,'Y','N','',64,DEFAULT);
+INSERT IGNORE INTO t1 VALUES (0x50006,'Y','N','',64,DEFAULT);
 Warnings:
 Warning	1265	Data truncated for column 'x' at row 1
 SELECT * FROM t1;

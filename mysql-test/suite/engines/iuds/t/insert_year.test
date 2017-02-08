@@ -31,27 +31,27 @@ INSERT INTO t4 VALUES(1,1,'98-12-9','98.12.9 11:30:45'),(20,20,'98-12-8','98.12.
 
 # As the result of a function
 SET TIMESTAMP=1233216687; # 2009-01-29 13:41:27 
-INSERT INTO t1 VALUES(NOW(),CURRENT_DATE,NOW(),CURRENT_DATE);
-INSERT INTO t2 VALUES(NOW(),CURRENT_DATE,NOW(),CURRENT_DATE);
-INSERT INTO t3 VALUES(NOW(),CURRENT_DATE,NOW(),CURRENT_DATE);
-INSERT INTO t4 VALUES(NOW(),CURRENT_DATE,NOW(),CURRENT_DATE);
+INSERT IGNORE INTO t1 VALUES(NOW(),CURRENT_DATE,NOW(),CURRENT_DATE);
+INSERT IGNORE INTO t2 VALUES(NOW(),CURRENT_DATE,NOW(),CURRENT_DATE);
+INSERT IGNORE INTO t3 VALUES(NOW(),CURRENT_DATE,NOW(),CURRENT_DATE);
+INSERT IGNORE INTO t4 VALUES(NOW(),CURRENT_DATE,NOW(),CURRENT_DATE);
 
 # Insert other valid year values one digit strings, '0', '000'
 INSERT INTO t1(c1) VALUES('5');
-INSERT INTO t2(c1) VALUES('5');
+INSERT IGNORE INTO t2(c1) VALUES('5');
 INSERT INTO t3(c1) VALUES('5');
 INSERT INTO t4(c1,c2) VALUES('0','000');
 
 # Insert invalid year values, outside range, would be converted to zero value
-INSERT INTO t2 VALUES(1900,2156,'08-01-06','08/01/07');
-INSERT INTO t3 VALUES('1900','2156','08-01-08','08/1/9');
-INSERT INTO t4 VALUES('1900','2156','08-01-08','08/1/9'),(1900,2156,'08-01-08','08/1/9'),(0,00,'08-01-08','08/1/9'),(000,000,'08-01-08','08/1/9'),('-20','100','08-01-08','08/1/9'),(-20,100,'08-01-08','08/1/9');
+INSERT IGNORE INTO t2 VALUES(1900,2156,'08-01-06','08/01/07');
+INSERT IGNORE INTO t3 VALUES('1900','2156','08-01-08','08/1/9');
+INSERT IGNORE INTO t4 VALUES('1900','2156','08-01-08','08/1/9'),(1900,2156,'08-01-08','08/1/9'),(0,00,'08-01-08','08/1/9'),(000,000,'08-01-08','08/1/9'),('-20','100','08-01-08','08/1/9'),(-20,100,'08-01-08','08/1/9');
 
 # Insert empty string '', would be converted to zero
-INSERT INTO t1 VALUES('','','08-01-04','08/01/05') /* Inserts zero dates for '' strings */;
+INSERT IGNORE INTO t1 VALUES('','','08-01-04','08/01/05') /* Inserts zero dates for '' strings */;
 
 # Insert non-date value(absurd values), would be converted to zero
-INSERT INTO t4 VALUES('abcd','abcd','08-01-10','08/01/11'),(1234,1234,'08-01-12','08/01/13') /* Inserts zero dates for absurd dates */;
+INSERT IGNORE INTO t4 VALUES('abcd','abcd','08-01-10','08/01/11'),(1234,1234,'08-01-12','08/01/13') /* Inserts zero dates for absurd dates */;
 
 # Insert duplicates for parts of the clustered key/unique index
 INSERT INTO t2 VALUES('20','30','98-12-16','98.12.16 11:30:45'),('40','20','98-12-15','98.12.15 11:30:45');
@@ -745,9 +745,9 @@ DROP TABLE t5;
 
 # Test 'INSERT SET'
 INSERT INTO t1 SET c1='00'; 
-INSERT INTO t2 SET c1=69;
+INSERT IGNORE INTO t2 SET c1=69;
 INSERT INTO t3 SET c1=70;
-INSERT INTO t4 SET c2=99;
+INSERT IGNORE INTO t4 SET c2=99;
 --sorted_result
 SELECT * FROM t1 WHERE c1=0;
 --sorted_result
@@ -787,27 +787,27 @@ INSERT INTO t4 VALUES(1,1,'98-12-9','98.12.9 11:30:45'),(20,20,'98-12-8','98.12.
 
 # As the result of a function
 SET TIMESTAMP=1233216687; # 2009-01-29 13:41:27 
-INSERT INTO t1 VALUES(NOW(),CURRENT_DATE,NOW(),CURRENT_DATE);
-INSERT INTO t2 VALUES(NOW(),CURRENT_DATE,NOW(),CURRENT_DATE);
-INSERT INTO t3 VALUES(NOW(),CURRENT_DATE,NOW(),CURRENT_DATE);
-INSERT INTO t4 VALUES(NOW(),CURRENT_DATE,NOW(),CURRENT_DATE);
+INSERT IGNORE INTO t1 VALUES(NOW(),CURRENT_DATE,NOW(),CURRENT_DATE);
+INSERT IGNORE INTO t2 VALUES(NOW(),CURRENT_DATE,NOW(),CURRENT_DATE);
+INSERT IGNORE INTO t3 VALUES(NOW(),CURRENT_DATE,NOW(),CURRENT_DATE);
+INSERT IGNORE INTO t4 VALUES(NOW(),CURRENT_DATE,NOW(),CURRENT_DATE);
 
 # Insert other valid year values one digit strings, '0', '000'
 INSERT INTO t1(c1) VALUES('5');
-INSERT INTO t2(c1) VALUES('5');
+INSERT IGNORE INTO t2(c1) VALUES('5');
 INSERT INTO t3(c1) VALUES('5');
 INSERT INTO t4(c1,c2) VALUES('0','000');
 
 # Insert invalid year values, outside range, would be converted to zero value
-INSERT INTO t2 VALUES(1900,2156,'08-01-06','08/01/07');
-INSERT INTO t3 VALUES('1900','2156','08-01-08','08/1/9');
-INSERT INTO t4 VALUES('1900','2156','08-01-08','08/1/9'),(1900,2156,'08-01-08','08/1/9'),(0,00,'08-01-08','08/1/9'),(000,000,'08-01-08','08/1/9'),('-20','100','08-01-08','08/1/9'),(-20,100,'08-01-08','08/1/9');
+INSERT IGNORE INTO t2 VALUES(1900,2156,'08-01-06','08/01/07');
+INSERT IGNORE INTO t3 VALUES('1900','2156','08-01-08','08/1/9');
+INSERT IGNORE INTO t4 VALUES('1900','2156','08-01-08','08/1/9'),(1900,2156,'08-01-08','08/1/9'),(0,00,'08-01-08','08/1/9'),(000,000,'08-01-08','08/1/9'),('-20','100','08-01-08','08/1/9'),(-20,100,'08-01-08','08/1/9');
 
 # Insert empty string '', would be converted to zero
-INSERT INTO t1 VALUES('','','08-01-04','08/01/05') /* Inserts zero dates for '' strings */;
+INSERT IGNORE INTO t1 VALUES('','','08-01-04','08/01/05') /* Inserts zero dates for '' strings */;
 
 # Insert non-date value(absurd values), would be converted to zero
-INSERT INTO t4 VALUES('abcd','abcd','08-01-10','08/01/11'),(1234,1234,'08-01-12','08/01/13') /* Inserts zero dates for absurd dates */;
+INSERT IGNORE INTO t4 VALUES('abcd','abcd','08-01-10','08/01/11'),(1234,1234,'08-01-12','08/01/13') /* Inserts zero dates for absurd dates */;
 
 # Insert duplicates for parts of the clustered key/unique index
 INSERT INTO t2 VALUES('20','30','98-12-16','98.12.16 11:30:45'),('40','20','98-12-15','98.12.15 11:30:45');
@@ -1491,9 +1491,9 @@ DROP TABLE t5;
 
 # Test 'INSERT SET'
 INSERT INTO t1 SET c1='00'; 
-INSERT INTO t2 SET c1=69;
+INSERT IGNORE INTO t2 SET c1=69;
 INSERT INTO t3 SET c1=70;
-INSERT INTO t4 SET c2=99;
+INSERT IGNORE INTO t4 SET c2=99;
 --sorted_result
 SELECT * FROM t1 WHERE c1=0;
 --sorted_result

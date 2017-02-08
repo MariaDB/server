@@ -18,7 +18,7 @@ connection addconroot;
 BEGIN;
 SELECT b FROM t2 WHERE b=7 FOR UPDATE;
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
-INSERT INTO t1 (a) VALUES ((SELECT a FROM t2 WHERE b=7));
+INSERT IGNORE INTO t1 (a) VALUES ((SELECT a FROM t2 WHERE b=7));
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 UPDATE t1 SET a='7000000' WHERE a=(SELECT a FROM t2 WHERE b=7);
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction

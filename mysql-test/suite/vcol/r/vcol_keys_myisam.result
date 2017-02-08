@@ -360,6 +360,8 @@ vcol_enum SET('','a','b','c','d','e','f','foo','bar') AS (col_enum) VIRTUAL,
 UNIQUE(pk),
 PRIMARY KEY(pk)
 ) ENGINE=MyISAM;
+SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 ALTER TABLE t1 ADD INDEX(col_enum,vcol_int);
+SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 ALTER TABLE t1 ADD INDEX(col_year);
 DROP TABLE t1;

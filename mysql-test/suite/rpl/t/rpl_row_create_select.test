@@ -11,9 +11,11 @@
 connection master;
 --echo #After the patch, the display width is set to a default
 --echo #value of 21.
+SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 CREATE TABLE t1 AS SELECT REPEAT('A', 1000) DIV 1 AS a;
 SHOW CREATE TABLE t1;
 
+SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 CREATE TABLE t2 AS SELECT CONVERT(REPEAT('A', 255) USING UCS2) DIV 1 AS a;
 SHOW CREATE TABLE t2;
 

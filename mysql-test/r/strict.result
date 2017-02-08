@@ -1374,6 +1374,7 @@ i int comment
  123456789*123456789*123456789*123456789*');
 ERROR HY000: Comment for field 'i' is too long (max = 1024)
 set @@sql_mode= @org_mode;
+SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 create table t1
 (i int comment
 '123456789*123456789*123456789*123456789*

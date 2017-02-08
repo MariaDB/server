@@ -354,12 +354,14 @@ ERROR 42000: Can't DROP INDEX `PRIMARY`; check that it exists
 DROP TABLE t1;
 # Bug#20949226:i CAN ASSIGN NON-DEFAULT() VALUE TO GENERATED COLUMN
 #
+SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 CREATE TABLE t1 (c1 INT, c2 INT AS (c1 * 2)) SELECT 1 AS c1, 5 AS c2;
 Warnings:
 Warning	1906	The value specified for generated column 'c2' in table 't1' ignored
 CREATE TABLE t2 (a int);
 INSERT INTO t2 values(1);
 DROP TABLE t1;
+SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 CREATE TABLE t1 (c1 INT, c2 INT AS (c1 * 2)) SELECT 1 AS c1, a AS c2 from t2;
 Warnings:
 Warning	1906	The value specified for generated column 'c2' in table 't1' ignored

@@ -26,7 +26,7 @@ ALTER TABLE test.t1 ADD code VARCHAR(16) NOT NULL;
 let $1= 221;
 while ($1)
 {
- eval INSERT INTO test.t1 VALUES(CHAR(254-$1), HEX(254-$1));
+ eval INSERT IGNORE INTO test.t1 VALUES(CHAR(254-$1), HEX(254-$1));
  dec $1;
 }
 DELETE FROM test.t1 WHERE CHAR_LENGTH(a) <> 1;

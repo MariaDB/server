@@ -21,7 +21,7 @@ binlog_format	ROW
 set global binlog_format=DEFAULT;
 show global variables like "binlog_format%";
 Variable_name	Value
-binlog_format	STATEMENT
+binlog_format	MIXED
 set global binlog_format=MIXED;
 show global variables like "binlog_format%";
 Variable_name	Value
@@ -135,11 +135,13 @@ insert into t1 values(concat("for_23_",UUID()));
 insert into t1 select "yesterday_24_";
 create table t2 ENGINE=MyISAM select rpad(UUID(),100,' ');
 create table t3 select 1 union select UUID();
+SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 create table t4 select * from t1 where 3 in (select 1 union select 2 union select UUID() union select 3);
+SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 create table t5 select * from t1 where 3 in (select 1 union select 2 union select curdate() union select 3);
 Warnings:
 Warning	1292	Incorrect datetime value: '3'
-insert into t5 select UUID() from t1 where 3 in (select 1 union select 2 union select 3 union select * from t4);
+insert ignore into t5 select UUID() from t1 where 3 in (select 1 union select 2 union select 3 union select * from t4);
 create procedure foo()
 begin
 insert into t1 values("work_25_");

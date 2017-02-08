@@ -98,23 +98,23 @@ use test;
 create table t1(number int auto_increment primary key, original_value varchar(50), f_double double, f_float float, f_double_7_2 double(7,2), f_float_4_3 float (4,3), f_double_u double unsigned, f_float_u float unsigned, f_double_15_1_u double(15,1) unsigned, f_float_3_1_u float (3,1) unsigned);
 
 set @value= "aa";
-insert into t1 values(null,@value,@value,@value,@value,@value,@value,@value,@value,@value);
+insert ignore into t1 values(null,@value,@value,@value,@value,@value,@value,@value,@value,@value);
 --query_vertical select * from t1 where number =last_insert_id()
 
 set @value= "1aa";
-insert into t1 values(null,@value,@value,@value,@value,@value,@value,@value,@value,@value);
+insert ignore into t1 values(null,@value,@value,@value,@value,@value,@value,@value,@value,@value);
 --query_vertical select * from t1 where number =last_insert_id()
 
 set @value= "aa1";
-insert into t1 values(null,@value,@value,@value,@value,@value,@value,@value,@value,@value);
+insert ignore into t1 values(null,@value,@value,@value,@value,@value,@value,@value,@value,@value);
 --query_vertical select * from t1 where number =last_insert_id()
 
 set @value= "1e+1111111111a";
-insert into t1 values(null,@value,@value,@value,@value,@value,@value,@value,@value,@value);
+insert ignore into t1 values(null,@value,@value,@value,@value,@value,@value,@value,@value,@value);
 --query_vertical select * from t1 where number =last_insert_id()
 
 set @value= "-1e+1111111111a";
-insert into t1 values(null,@value,@value,@value,@value,@value,@value,@value,@value,@value);
+insert ignore into t1 values(null,@value,@value,@value,@value,@value,@value,@value,@value,@value);
 --query_vertical select * from t1 where number =last_insert_id()
 
 --error 1367
@@ -124,11 +124,11 @@ set @value= -1e+1111111111;
 
 
 set @value= 1e+111;
-insert into t1 values(null,@value,@value,@value,@value,@value,@value,@value,@value,@value);
+insert ignore into t1 values(null,@value,@value,@value,@value,@value,@value,@value,@value,@value);
 --query_vertical select * from t1 where number =last_insert_id()
 
 set @value= -1e+111;
-insert into t1 values(null,@value,@value,@value,@value,@value,@value,@value,@value,@value);
+insert ignore into t1 values(null,@value,@value,@value,@value,@value,@value,@value,@value,@value);
 --query_vertical select * from t1 where number =last_insert_id()
 
 set @value= 1;
@@ -136,7 +136,7 @@ insert into t1 values(null,@value,@value,@value,@value,@value,@value,@value,@val
 --query_vertical select * from t1 where number =last_insert_id()
 
 set @value= -1;
-insert into t1 values(null,@value,@value,@value,@value,@value,@value,@value,@value,@value);
+insert ignore into t1 values(null,@value,@value,@value,@value,@value,@value,@value,@value,@value);
 --query_vertical select * from t1 where number =last_insert_id()
 
 drop table t1;
@@ -404,7 +404,7 @@ CREATE TABLE t1 (
 );
 
 INSERT INTO t1(a,b,c) VALUES (9.999999e+0, 9.999999e+0, 9.999e+0);
-INSERT INTO t1(a,b,c) VALUES (1.225e-05, 1.225e-05, 1.225e-05);
+INSERT IGNORE INTO t1(a,b,c) VALUES (1.225e-05, 1.225e-05, 1.225e-05);
 INSERT INTO t1(a,b) VALUES (1.225e-04, 1.225e-04);
 INSERT INTO t1(a,b) VALUES (1.225e-01, 1.225e-01);
 INSERT INTO t1(a,b) VALUES (1.225877e-01, 1.225877e-01);
@@ -421,7 +421,7 @@ INSERT INTO t1(a,b) VALUES (1.25e-175, 1.25e-175);
 INSERT INTO t1(a,c) VALUES (1.225e+0, 1.225e+0);
 INSERT INTO t1(a,c) VALUES (1.37e+0, 1.37e+0);
 INSERT INTO t1(a,c) VALUES (-1.37e+0, -1.37e+0);
-INSERT INTO t1(a,c) VALUES (1.87e-3, 1.87e-3);
+INSERT IGNORE INTO t1(a,c) VALUES (1.87e-3, 1.87e-3);
 INSERT INTO t1(a,c) VALUES (-1.87e-2, -1.87e-2);
 INSERT INTO t1(a,c) VALUES (5000e+0, 5000e+0);
 INSERT INTO t1(a,c) VALUES (-5000e+0, -5000e+0);

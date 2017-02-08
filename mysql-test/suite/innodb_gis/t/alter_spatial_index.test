@@ -303,7 +303,7 @@ ALTER TABLE tab DROP PRIMARY KEY;
 ALTER TABLE tab DROP INDEX idx2;
 
 # Check spatial index on temp tables
-
+SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 CREATE TEMPORARY TABLE temp_tab AS SELECT * FROM tab where c1 = c2;
 
 INSERT INTO temp_tab SELECT * FROM tab;

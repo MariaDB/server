@@ -433,17 +433,17 @@ CREATE TABLE t1 (
 );
 
 INSERT INTO t1 VALUES ('1 ','1 ','1 ','1 ','1 ','1 ','1 ');
-INSERT INTO t1 VALUES ('','','','','','','');
-INSERT INTO t1 VALUES ('x','x','x','x','x','x','x');
-INSERT INTO t1 VALUES (' x',' x',' x',' x',' x',' x',' x');
-INSERT INTO t1 VALUES ('.','.','.','.','.','.','.');
-INSERT INTO t1 VALUES ('-','-','-','-','-','-','-');
-INSERT INTO t1 VALUES ('+','+','+','+','+','+','+');
-INSERT INTO t1 VALUES ('1x','1x','1x','1x','1x','1x','1x');
-INSERT INTO t1 VALUES ('1e','1e','1e','1e','1e','1e','1e');
-INSERT INTO t1 VALUES ('1e-','1e-','1e-','1e-','1e-','1e-','1e-');
-INSERT INTO t1 VALUES ('1E+','1E+','1E+','1E+','1E+','1E+','1E+');
-INSERT INTO t1 VALUES ('1e1000','1e1000','1e1000','1e1000','1e1000','1e1000','1e1000');
+INSERT IGNORE INTO t1 VALUES ('','','','','','','');
+INSERT IGNORE INTO t1 VALUES ('x','x','x','x','x','x','x');
+INSERT IGNORE INTO t1 VALUES (' x',' x',' x',' x',' x',' x',' x');
+INSERT IGNORE INTO t1 VALUES ('.','.','.','.','.','.','.');
+INSERT IGNORE INTO t1 VALUES ('-','-','-','-','-','-','-');
+INSERT IGNORE INTO t1 VALUES ('+','+','+','+','+','+','+');
+INSERT IGNORE INTO t1 VALUES ('1x','1x','1x','1x','1x','1x','1x');
+INSERT IGNORE INTO t1 VALUES ('1e','1e','1e','1e','1e','1e','1e');
+INSERT IGNORE INTO t1 VALUES ('1e-','1e-','1e-','1e-','1e-','1e-','1e-');
+INSERT IGNORE INTO t1 VALUES ('1E+','1E+','1E+','1E+','1E+','1E+','1E+');
+INSERT IGNORE INTO t1 VALUES ('1e1000','1e1000','1e1000','1e1000','1e1000','1e1000','1e1000');
 
 DELETE FROM t1;
 INSERT INTO t1 VALUES (0,0,0,0,0,0,0);

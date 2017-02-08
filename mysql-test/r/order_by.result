@@ -370,6 +370,7 @@ a	b	c
 1	1	NULL
 1	NULL	b
 1	NULL	NULL
+SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 alter table t1 modify b int not null, modify c varchar(10) not null;
 Warnings:
 Warning	1265	Data truncated for column 'b' at row 1

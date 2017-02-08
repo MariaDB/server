@@ -927,6 +927,8 @@ INSERT INTO t VALUES (13, 4,  "ss");
 INSERT INTO t VALUES (14, 0,  "ss");
 alter table t add  c INT GENERATED ALWAYS AS(a/b);
 create index idx on t(c);
+Warnings:
+Warning	1365	Division by 0
 DROP TABLE t;
 CREATE TABLE t (
 pk INTEGER AUTO_INCREMENT,

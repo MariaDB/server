@@ -211,6 +211,7 @@ DROP PROCEDURE IF EXISTS sp1;
 --enable_warnings
 
 delimiter //;
+SET STATEMENT sql_mode = '' FOR
 CREATE PROCEDURE sp1( )
 begin_label: BEGIN
    declare x char DEFAULT 'x';
@@ -994,6 +995,7 @@ CREATE TABLE temp( f1 CHAR, f2 CHAR);
 
 delimiter //;
 # 0 - without handler
+SET STATEMENT sql_mode = '' FOR
 CREATE PROCEDURE sp0()
 BEGIN
    set @done=0;
@@ -1003,6 +1005,7 @@ BEGIN
 END//
 
 # 1st one with SQLSTATE + CONTINUE
+SET STATEMENT sql_mode = '' FOR
 CREATE PROCEDURE sp1()
 BEGIN
    declare continue handler for sqlstate '01000' set @done = 1;
@@ -1013,6 +1016,7 @@ BEGIN
 END//
 
 # 2nd one with SQLWARNING + CONTINUE
+SET STATEMENT sql_mode = '' FOR
 CREATE PROCEDURE sp2()
 BEGIN
    declare continue handler for sqlwarning set @done = 1;
@@ -1023,6 +1027,7 @@ BEGIN
 END//
 
 # 3 with SQLSTATE + EXIT
+SET STATEMENT sql_mode = '' FOR
 CREATE PROCEDURE sp3()
 BEGIN
    declare exit handler for sqlstate '01000' set @done = 1;
@@ -1033,6 +1038,7 @@ BEGIN
 END//
 
 # 4 with SQLWARNING + EXIT
+SET STATEMENT sql_mode = '' FOR
 CREATE PROCEDURE sp4()
 BEGIN
    declare exit handler for sqlwarning set @done = 1;

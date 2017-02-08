@@ -598,19 +598,19 @@ drop table t1;
 #
 create table t1 (utf32 varchar(2) character set utf32);
 --echo Wrong character with pad
-insert into t1 values (0x110000);
+insert ignore into t1 values (0x110000);
 --echo Wrong chsaracter without pad
-insert into t1 values (0x00110000);
+insert ignore into t1 values (0x00110000);
 --echo Wrong character with pad followed by another wrong character
-insert into t1 values (0x11000000110000);
+insert ignore into t1 values (0x11000000110000);
 --echo Good character with pad followed by bad character
-insert into t1 values (0x10000000110000);
+insert ignore into t1 values (0x10000000110000);
 --echo Good character without pad followed by bad character
-insert into t1 values (0x0010000000110000);
+insert ignore into t1 values (0x0010000000110000);
 --echo Wrong character with the second byte higher than 0x10
-insert into t1 values (0x00800037);
+insert ignore into t1 values (0x00800037);
 --echo Wrong character with pad with the second byte higher than 0x10
-insert into t1 values (0x00800037);
+insert ignore into t1 values (0x00800037);
 drop table t1;
 
 #
@@ -700,7 +700,7 @@ select left('aaa','1');
 #
 create table t1 (a int);
 insert into t1 values ('-1234.1e2');
-insert into t1 values ('-1234.1e2xxxx');
+insert ignore into t1 values ('-1234.1e2xxxx');
 insert into t1 values ('-1234.1e2    ');
 select * from t1;
 drop table t1;
@@ -710,13 +710,14 @@ drop table t1;
 #
 create table t1 (a int);
 insert into t1 values ('1 ');
-insert into t1 values ('1 x');
+insert ignore into t1 values ('1 x');
 select * from t1;
 drop table t1;
 
 #
 # Testing auto-conversion to TEXT
 #
+SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 create table t1 (a varchar(17000) character set utf32);
 show create table t1;
 drop table t1;
@@ -819,10 +820,10 @@ DROP TABLE t1;
 --echo #
 CREATE TABLE t1 (utf32 CHAR(5) CHARACTER SET utf32, latin1 CHAR(5) CHARACTER SET latin1);
 INSERT INTO t1 (utf32) VALUES (0xc581);
-UPDATE t1 SET latin1 = utf32;
+UPDATE IGNORE t1 SET latin1 = utf32;
 DELETE FROM t1;
 INSERT INTO t1 (utf32) VALUES (0x100cc);
-UPDATE t1 SET latin1 = utf32;
+UPDATE IGNORE t1 SET latin1 = utf32;
 DROP TABLE t1;
 
 --echo #

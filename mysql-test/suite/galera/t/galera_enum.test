@@ -14,7 +14,7 @@ CREATE TABLE t1 (f1 ENUM('', 'one', 'two'), KEY (f1)) ENGINE=InnoDB;
 
 INSERT INTO t1 VALUES ('');
 INSERT INTO t1 VALUES ('one'), ('two');
-INSERT INTO t1 VALUES (0), (1), (2);
+INSERT IGNORE INTO t1 VALUES (0), (1), (2);
 
 --connection node_2
 SELECT COUNT(*) = 6 FROM t1;

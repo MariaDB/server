@@ -814,7 +814,7 @@ c2
 838:59:57
 838:59:58
 838:59:59
-UPDATE t4 SET c2='-838:59:60' WHERE c1='100:04:04';
+UPDATE IGNORE t4 SET c2='-838:59:60' WHERE c1='100:04:04';
 Warnings:
 Warning	1265	Data truncated for column 'c2' at row 12
 SELECT c2 FROM t4;
@@ -861,7 +861,7 @@ c2
 838:59:59
 NULL
 NULL
-UPDATE t4 SET c2='838:59:60' WHERE c1='100:04:04';
+UPDATE IGNORE t4 SET c2='838:59:60' WHERE c1='100:04:04';
 Warnings:
 Warning	1265	Data truncated for column 'c2' at row 12
 SELECT c2 FROM t4;
@@ -953,7 +953,7 @@ c2
 838:59:59
 NULL
 NULL
-UPDATE t4 SET c2='11:11:60' WHERE c1='100:04:04';
+UPDATE IGNORE t4 SET c2='11:11:60' WHERE c1='100:04:04';
 Warnings:
 Warning	1265	Data truncated for column 'c2' at row 12
 SELECT c2 FROM t4;
@@ -1000,7 +1000,7 @@ c2
 838:59:59
 NULL
 NULL
-UPDATE t4 SET c2='11:60:11' WHERE c1='100:04:04';
+UPDATE IGNORE t4 SET c2='11:60:11' WHERE c1='100:04:04';
 Warnings:
 Warning	1265	Data truncated for column 'c2' at row 12
 SELECT c2 FROM t4;
@@ -1074,7 +1074,7 @@ c1
 SET SQL_MODE=DEFAULT;
 UPDATE t1 SET c1=8385958 WHERE c2='34 22:59:59';
 ERROR 23000: Duplicate entry '838:59:58' for key 'PRIMARY'
-UPDATE t1 SET c2='def' WHERE c1=59;
+UPDATE IGNORE t1 SET c2='def' WHERE c1=59;
 Warnings:
 Warning	1265	Data truncated for column 'c2' at row 1
 SELECT c2 FROM t1;
@@ -1213,7 +1213,7 @@ c1	c2
 838:59:57	838:59:57
 838:59:58	838:59:58
 838:59:59	838:59:59
-UPDATE t1 SET t1.c2='99999.99999' WHERE c1 BETWEEN 080000 AND 100000;
+UPDATE IGNORE t1 SET t1.c2='99999.99999' WHERE c1 BETWEEN 080000 AND 100000;
 Warnings:
 Warning	1265	Data truncated for column 'c2' at row 1
 SELECT * FROM t1;
@@ -1260,7 +1260,7 @@ c1	c2
 838:59:57	838:59:57
 838:59:58	838:59:58
 838:59:59	838:59:59
-UPDATE t1 SET c1=c1+1,c2=c2-1 WHERE c1 IN (222222,8385955,1500000) ORDER BY c1;
+UPDATE IGNORE t1 SET c1=c1+1,c2=c2-1 WHERE c1 IN (222222,8385955,1500000) ORDER BY c1;
 Warnings:
 Warning	1265	Data truncated for column 'c2' at row 2
 SELECT * FROM t1;

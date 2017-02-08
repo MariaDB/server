@@ -183,7 +183,7 @@ create table t1 (
   index (id),
   index (id2)
 );
-insert into t1 values(null,null),(1,1);
+insert ignore into t1 values(null,null),(1,1);
 select * from t1;
 select * from t1 where id <=> null;
 select * from t1 where id <=> null or id > 0;

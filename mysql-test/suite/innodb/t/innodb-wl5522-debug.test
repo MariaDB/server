@@ -1207,7 +1207,7 @@ DROP TABLE test_wl5522.t1;
 # a Btree that has several levels
 CREATE TABLE test_wl5522.t1 (c1 INT, c2 VARCHAR(1024), c3 BLOB) ENGINE = Innodb;
 
-INSERT INTO test_wl5522.t1 VALUES
+INSERT IGNORE INTO test_wl5522.t1 VALUES
 	(100, REPEAT('Karanbir', 899), REPEAT('Ajeeth', 1200));
 
 INSERT INTO test_wl5522.t1 SELECT * FROM test_wl5522.t1;
@@ -1496,6 +1496,7 @@ call mtr.add_suppression("but tablespace with that id or name does not exist");
 call mtr.add_suppression("Failed to find tablespace for table '\"test_wl5522\".\"t1\"' in the cache");
 call mtr.add_suppression("Could not find a valid tablespace file for 'test_wl5522.*t1'");
 call mtr.add_suppression("while reading index meta-data, expected to read 44 bytes but read only 0 bytes");
+call mtr.add_suppression("Index for table 't1' is corrupt; try to repair it");
 --enable_query_log
 
 #cleanup

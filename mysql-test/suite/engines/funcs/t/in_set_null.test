@@ -6,7 +6,7 @@ INSERT INTO t7(c1) VALUES(NULL);
 INSERT INTO t7(c1) VALUES('');
 INSERT INTO t7(c1) VALUES('a');
 INSERT INTO t7(c1) VALUES('abcdefghijabcdefghijabcdefghijabcdefghijabcdefghij');
-INSERT INTO t7(c1) VALUES('abcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghij');
+INSERT IGNORE INTO t7(c1) VALUES('abcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghij');
 INSERT INTO t7(c1) VALUES('a,abcdefghijabcdefghijabcdefghijabcdefghijabcdefghij');
 SELECT * FROM t7;
 SELECT COUNT(c1) AS null_rows FROM t7 WHERE c1 IS NULL;

@@ -7,10 +7,12 @@ b	text	YES		NULL
 c	tinyblob	YES		NULL	
 d	mediumtext	YES		NULL	
 e	longtext	YES		NULL	
+SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 CREATE TABLE t2 (a char(255), b varbinary(70000), c varchar(70000000));
 Warnings:
 Note	1246	Converting column 'b' from VARBINARY to BLOB
 Note	1246	Converting column 'c' from VARCHAR to TEXT
+SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 CREATE TABLE t4 (c varchar(65530) character set utf8 not null);
 Warnings:
 Note	1246	Converting column 'c' from VARCHAR to TEXT
@@ -36,6 +38,7 @@ CREATE TABLE t1 (a char(257) default "hello");
 ERROR 42000: Column length too big for column 'a' (max = 255); use BLOB or TEXT instead
 CREATE TABLE t2 (a char(256));
 ERROR 42000: Column length too big for column 'a' (max = 255); use BLOB or TEXT instead
+SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 CREATE TABLE t1 (a varchar(70000) default "hello");
 Warnings:
 Note	1246	Converting column 'a' from VARCHAR to TEXT

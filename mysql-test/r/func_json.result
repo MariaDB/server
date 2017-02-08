@@ -266,7 +266,7 @@ create table t1 as select json_object('id', 87, 'name', 'carrot') as f;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f` varchar(32) NOT NULL
+  `f` varchar(32) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 select * from t1;
 f
@@ -291,7 +291,7 @@ json_quote('foo')
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `json_quote('foo')` varchar(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL
+  `json_quote('foo')` varchar(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table t1;
 select json_merge('string');

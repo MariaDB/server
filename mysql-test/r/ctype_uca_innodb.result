@@ -15,7 +15,7 @@ ADD KEY(ch);
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `ch` varchar(60) CHARACTER SET utf8 COLLATE utf8_unicode_ci NOT NULL,
+  `ch` varchar(60) CHARACTER SET utf8 COLLATE utf8_unicode_ci DEFAULT NULL,
   `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
   PRIMARY KEY (`id`),
   KEY `ch` (`ch`)
@@ -103,7 +103,7 @@ aր
 EXPLAIN
 SELECT ch FROM t1 FORCE KEY (ch) WHERE ch<'a𝌆' ORDER BY ch;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	ch	ch	182	NULL	#	Using where; Using index
+1	SIMPLE	t1	index	ch	ch	183	NULL	#	Using where; Using index
 Warnings:
 Warning	1366	Incorrect string value: '\xF0\x9D\x8C\x86' for column 'ch' at row 1
 SELECT ch FROM t1 FORCE KEY (ch) WHERE ch<'a𝌆' ORDER BY ch;
@@ -130,7 +130,7 @@ Warning	1366	Incorrect string value: '\xF0\x9D\x8C\x86' for column 'ch' at row 1
 EXPLAIN
 SELECT ch FROM t1 FORCE KEY (ch) WHERE ch<'a𝌆b' ORDER BY ch;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	ch	ch	182	NULL	#	Using where; Using index
+1	SIMPLE	t1	index	ch	ch	183	NULL	#	Using where; Using index
 Warnings:
 Warning	1366	Incorrect string value: '\xF0\x9D\x8C\x86b' for column 'ch' at row 1
 SELECT ch FROM t1 FORCE KEY (ch) WHERE ch<'a𝌆b' ORDER BY ch;
@@ -163,7 +163,7 @@ z
 EXPLAIN
 SELECT ch FROM t1 FORCE KEY (ch) WHERE ch>'a𝌆' ORDER BY ch;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	ch	ch	182	NULL	#	Using where; Using index
+1	SIMPLE	t1	index	ch	ch	183	NULL	#	Using where; Using index
 Warnings:
 Warning	1366	Incorrect string value: '\xF0\x9D\x8C\x86' for column 'ch' at row 1
 SELECT ch FROM t1 FORCE KEY (ch) WHERE ch>'a𝌆' ORDER BY ch;
@@ -174,7 +174,7 @@ Warning	1366	Incorrect string value: '\xF0\x9D\x8C\x86' for column 'ch' at row 1
 EXPLAIN
 SELECT ch FROM t1 FORCE KEY (ch) WHERE ch>'a𝌆b' ORDER BY ch;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	ch	ch	182	NULL	#	Using where; Using index
+1	SIMPLE	t1	index	ch	ch	183	NULL	#	Using where; Using index
 Warnings:
 Warning	1366	Incorrect string value: '\xF0\x9D\x8C\x86b' for column 'ch' at row 1
 SELECT ch FROM t1 FORCE KEY (ch) WHERE ch>'a𝌆b' ORDER BY ch;

@@ -45,6 +45,10 @@ Note	1003	select abs(-10) AS `abs(-10)`,sign(-5) AS `sign(-5)`,sign(5) AS `sign(
 select log(exp(10)),exp(log(sqrt(10))*2),log(-1),log(NULL),log(1,1),log(3,9),log(-1,2),log(NULL,2);
 log(exp(10))	exp(log(sqrt(10))*2)	log(-1)	log(NULL)	log(1,1)	log(3,9)	log(-1,2)	log(NULL,2)
 10	10.000000000000002	NULL	NULL	NULL	2	NULL	NULL
+Warnings:
+Warning	1365	Division by 0
+Warning	1365	Division by 0
+Warning	1365	Division by 0
 explain extended select log(exp(10)),exp(log(sqrt(10))*2),log(-1),log(NULL),log(1,1),log(3,9),log(-1,2),log(NULL,2);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
@@ -53,6 +57,9 @@ Note	1003	select log(exp(10)) AS `log(exp(10))`,exp(log(sqrt(10)) * 2) AS `exp(l
 select ln(exp(10)),exp(ln(sqrt(10))*2),ln(-1),ln(0),ln(NULL);
 ln(exp(10))	exp(ln(sqrt(10))*2)	ln(-1)	ln(0)	ln(NULL)
 10	10.000000000000002	NULL	NULL	NULL
+Warnings:
+Warning	1365	Division by 0
+Warning	1365	Division by 0
 explain extended select ln(exp(10)),exp(ln(sqrt(10))*2),ln(-1),ln(0),ln(NULL);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
@@ -61,6 +68,9 @@ Note	1003	select ln(exp(10)) AS `ln(exp(10))`,exp(ln(sqrt(10)) * 2) AS `exp(ln(s
 select log2(8),log2(15),log2(-2),log2(0),log2(NULL);
 log2(8)	log2(15)	log2(-2)	log2(0)	log2(NULL)
 3	3.9068905956085187	NULL	NULL	NULL
+Warnings:
+Warning	1365	Division by 0
+Warning	1365	Division by 0
 explain extended select log2(8),log2(15),log2(-2),log2(0),log2(NULL);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
@@ -69,6 +79,9 @@ Note	1003	select log2(8) AS `log2(8)`,log2(15) AS `log2(15)`,log2(-2) AS `log2(-
 select log10(100),log10(18),log10(-4),log10(0),log10(NULL);
 log10(100)	log10(18)	log10(-4)	log10(0)	log10(NULL)
 2	1.255272505103306	NULL	NULL	NULL
+Warnings:
+Warning	1365	Division by 0
+Warning	1365	Division by 0
 explain extended select log10(100),log10(18),log10(-4),log10(0),log10(NULL);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
@@ -688,6 +701,8 @@ ERROR 22003: DECIMAL value is out of range in '@`a` / 0.5'
 SELECT COT(1/0);
 COT(1/0)
 NULL
+Warnings:
+Warning	1365	Division by 0
 SELECT -1 + 9223372036854775808;
 -1 + 9223372036854775808
 9223372036854775807
@@ -697,6 +712,9 @@ SELECT 2 DIV -2;
 SELECT -(1 DIV 0);
 -(1 DIV 0)
 NULL
+Warnings:
+Warning	1365	Division by 0
+Warning	1365	Division by 0
 SELECT -9223372036854775808 MOD -1;
 -9223372036854775808 MOD -1
 0
@@ -715,7 +733,7 @@ Warning	1292	Truncated incorrect DOUBLE value: '179,769,313,486,231,570,000,000,
 #            my_gcvt: Assertion `width > 0 && to != ((void *)0)' failed
 #
 CREATE TABLE t1(a char(0));
-INSERT INTO t1 (SELECT -pi());
+INSERT IGNORE INTO t1 (SELECT -pi());
 Warnings:
 Warning	1265	Data truncated for column 'a' at row 1
 DROP TABLE t1;
@@ -728,6 +746,7 @@ SELECT ((@a:=@b:=1.0) div (@b:=@a:=get_format(datetime, 'usa')));
 NULL
 Warnings:
 Warning	1918	Encountered illegal value '' when converting to DECIMAL
+Warning	1365	Division by 0
 #
 # Bug #59498 div function broken in mysql-trunk
 #
@@ -767,6 +786,8 @@ foo
 select 999999999999999999999999999999999999999999999999999999999999999999999999999999999 % 0.0 as foo;
 foo
 NULL
+Warnings:
+Warning	1365	Division by 0
 #
 # Bug#12711164 - 61676:
 # RESULT OF DIV WITH DECIMAL AND INTEGER DOES NOT MAKE SENSE 

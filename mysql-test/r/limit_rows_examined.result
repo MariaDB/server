@@ -628,7 +628,7 @@ INSERT/DELETE/UPDATE
 INSERT ... SELECT
 CREATE TABLE t4 (a int);
 INSERT INTO t4 values (1), (2);
-INSERT INTO t4 SELECT a + 2 FROM t4 LIMIT ROWS EXAMINED 0;
+INSERT IGNORE INTO t4 SELECT a + 2 FROM t4 LIMIT ROWS EXAMINED 0;
 Warnings:
 Warning	1931	Query execution was interrupted. The query examined at least 1 rows, which exceeds LIMIT ROWS EXAMINED (0). The query result may be incomplete
 select * from t4;

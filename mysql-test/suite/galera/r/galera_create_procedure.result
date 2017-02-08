@@ -20,7 +20,7 @@ SQL SECURITY INVOKER BEGIN END ;
 connection node_1;
 SHOW CREATE PROCEDURE p1;
 Procedure	sql_mode	Create Procedure	character_set_client	collation_connection	Database Collation
-p1	NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`user1`@`%` PROCEDURE `p1`(IN param1 INTEGER, OUT param2 INTEGER, INOUT param3 INTEGER)
+p1	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`user1`@`%` PROCEDURE `p1`(IN param1 INTEGER, OUT param2 INTEGER, INOUT param3 INTEGER)
     MODIFIES SQL DATA
     COMMENT 'p1_comment'
 INSERT INTO t1 VALUES (1)	latin1	latin1_swedish_ci	latin1_swedish_ci
@@ -30,14 +30,14 @@ SELECT 1 FROM DUAL;
 1
 SHOW CREATE PROCEDURE p1;
 Procedure	sql_mode	Create Procedure	character_set_client	collation_connection	Database Collation
-p1	NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`user1`@`%` PROCEDURE `p1`(IN param1 INTEGER, OUT param2 INTEGER, INOUT param3 INTEGER)
+p1	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`user1`@`%` PROCEDURE `p1`(IN param1 INTEGER, OUT param2 INTEGER, INOUT param3 INTEGER)
     MODIFIES SQL DATA
     COMMENT 'p1_comment'
 INSERT INTO t1 VALUES (1)	latin1	latin1_swedish_ci	latin1_swedish_ci
 connection node_1;
 SHOW CREATE PROCEDURE p2;
 Procedure	sql_mode	Create Procedure	character_set_client	collation_connection	Database Collation
-p2	NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` PROCEDURE `p2`(param VARCHAR(100))
+p2	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` PROCEDURE `p2`(param VARCHAR(100))
     NO SQL
     DETERMINISTIC
     SQL SECURITY INVOKER
@@ -45,7 +45,7 @@ BEGIN END	latin1	latin1_swedish_ci	latin1_swedish_ci
 connection node_2;
 SHOW CREATE PROCEDURE p2;
 Procedure	sql_mode	Create Procedure	character_set_client	collation_connection	Database Collation
-p2	NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` PROCEDURE `p2`(param VARCHAR(100))
+p2	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` PROCEDURE `p2`(param VARCHAR(100))
     NO SQL
     DETERMINISTIC
     SQL SECURITY INVOKER

@@ -403,7 +403,7 @@ INSERT INTO t1 VALUES
 ('IB','IBM- Inc.'),
 ('GO','Google Inc.');
 
-INSERT INTO t2 VALUES
+INSERT IGNORE INTO t2 VALUES
 ('AB','Sweden'),
 ('JA','USA'),
 ('MS','United States of America'),

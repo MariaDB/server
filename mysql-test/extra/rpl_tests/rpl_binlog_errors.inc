@@ -192,6 +192,11 @@ RESET MASTER;
 ###            is written to the current binary log.
 
 SET GLOBAL debug_dbug="+d,error_unique_log_filename";
+
+# Disable logging Annotate_rows events to preserve events count.
+let $binlog_annotate_row_events_saved= `SELECT @@binlog_annotate_row_events`;
+SET @@binlog_annotate_row_events= 0;
+
 SELECT count(*) FROM t4;
 -- replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
 -- error ER_NO_UNIQUE_LOGFILE
@@ -210,6 +215,11 @@ if (!$binlog_limit)
 
 # clean up and move to next test
 DELETE FROM t4;
+
+--disable_query_log
+eval SET @@binlog_annotate_row_events= $binlog_annotate_row_events_saved;
+--enable_query_log
+
 RESET MASTER;
 
 -- echo ###################### TEST #8

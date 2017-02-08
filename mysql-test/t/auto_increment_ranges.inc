@@ -29,7 +29,7 @@ truncate table t1;
 --error HA_ERR_AUTOINC_ERANGE
 eval insert into t1 values($range_max-1),(NULL),(NULL);
 truncate table t1;
-eval insert into t1 values($range_max+1);
+eval insert ignore into t1 values($range_max+1);
 select * from t1;
 --error HA_ERR_AUTOINC_ERANGE
 eval insert into t1 values(NULL);
@@ -60,7 +60,7 @@ truncate table t1;
 --error HA_ERR_AUTOINC_ERANGE
 eval insert into t1 values($range_max-1),(NULL),(NULL);
 truncate table t1;
-eval insert into t1 values($range_max+1);
+eval insert ignore into t1 values($range_max+1);
 select * from t1;
 --error HA_ERR_AUTOINC_ERANGE
 eval insert into t1 values(NULL);
@@ -91,7 +91,7 @@ truncate table t1;
 --error HA_ERR_AUTOINC_ERANGE
 eval insert into t1 values($range_max-1),(NULL),(NULL);
 truncate table t1;
-eval insert into t1 values($range_max+1);
+eval insert ignore into t1 values($range_max+1);
 select * from t1;
 --error HA_ERR_AUTOINC_ERANGE
 eval insert into t1 values(NULL);
@@ -122,7 +122,7 @@ truncate table t1;
 --error HA_ERR_AUTOINC_ERANGE
 eval insert into t1 values($range_max-1),(NULL),(NULL);
 truncate table t1;
-eval insert into t1 values($range_max+1);
+eval insert ignore into t1 values($range_max+1);
 select * from t1;
 --error HA_ERR_AUTOINC_ERANGE
 eval insert into t1 values(NULL);
@@ -153,7 +153,7 @@ truncate table t1;
 --error HA_ERR_AUTOINC_ERANGE
 eval insert into t1 values($range_max-1),(NULL),(NULL);
 truncate table t1;
-eval insert into t1 values($range_max+1);
+eval insert ignore into t1 values($range_max+1);
 select * from t1;
 --error HA_ERR_AUTOINC_ERANGE
 eval insert into t1 values(NULL);
@@ -222,7 +222,7 @@ DROP TABLE t1;
 --echo #
 CREATE TABLE t1 (a smallint AUTO_INCREMENT, PRIMARY KEY (a));
 INSERT INTO t1 VALUES (2);
-INSERT INTO t1 VALUES (32768);
+INSERT IGNORE INTO t1 VALUES (32768);
 --error HA_ERR_AUTOINC_ERANGE
 INSERT INTO t1 VALUES (NULL);
 SELECT * FROM t1;

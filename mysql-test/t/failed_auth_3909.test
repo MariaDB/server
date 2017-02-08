@@ -7,7 +7,7 @@ source include/not_embedded.inc;
 # the server requests a plugin
 #
 optimize table mysql.user;
-insert mysql.user (user,plugin) values ('foo','bar'),('bar','bar'),('baz','bar');
+insert ignore mysql.user (user,plugin) values ('foo','bar'),('bar','bar'),('baz','bar');
 flush privileges;
 
 --replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
