@@ -1701,8 +1701,10 @@ int json_get_path_next(json_engine_t *je, json_path_t *p)
     {
     case JST_KEY:
       p->last_step->key= je->s.c_str;
-      while (json_read_keyname_chr(je) == 0)
+      do
+      {
         p->last_step->key_end= je->s.c_str;
+      } while (json_read_keyname_chr(je) == 0);
       if (je->s.error)
         return 1;
       /* Now we have je.state == JST_VALUE, so let's handle it. */

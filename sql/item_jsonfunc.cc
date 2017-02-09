@@ -147,8 +147,10 @@ static int json_nice(json_engine_t *je, String *nice_js,
         const uchar *key_start= je->s.c_str;
         const uchar *key_end;
 
-        while (json_read_keyname_chr(je) == 0)
+        do
+        {
           key_end= je->s.c_str;
+        } while (json_read_keyname_chr(je) == 0);
         
         if (je->s.error)
           goto error;
@@ -892,8 +894,10 @@ static int check_contains(json_engine_t *js, json_engine_t *value)
 
       DBUG_ASSERT(value->state == JST_KEY);
       k_start= value->s.c_str;
-      while (json_read_keyname_chr(value) == 0)
+      do
+      {
         k_end= value->s.c_str;
+      } while (json_read_keyname_chr(value) == 0);
 
       if (value->s.error || json_read_value(value))
         return FALSE;
@@ -2527,10 +2531,10 @@ skip_search:
     {
     case JST_KEY:
       key_start= je.s.c_str;
-      while (json_read_keyname_chr(&je) == 0)
+      do
       {
         key_end= je.s.c_str;
-      }
+      } while (json_read_keyname_chr(&je) == 0);
       if (je.s.error ||
           (n_keys > 0 && str->append(", ", 2)) ||
           str->append("\"", 1) ||

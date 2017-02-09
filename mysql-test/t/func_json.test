@@ -220,3 +220,8 @@ SELECT json_replace('1', '$[0][0]', 100);
 SELECT json_replace('[]', '$[0][0]', 100);
 SELECT json_set('[]', '$[0][0]', 100);
 SELECT json_set('[]', '$[0][0][0]', 100);
+
+#
+# MDEV-11857 json_search() shows "Out of memory" with empty key.
+#
+SELECT JSON_search( '{"": "a"}', "one", 'a');
