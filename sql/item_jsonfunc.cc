@@ -1721,6 +1721,203 @@ err_return:
 }
 
 
+static int do_merge(String *str, json_engine_t *je1, json_engine_t *je2)
+{
+  if (json_read_value(je1) || json_read_value(je2))
+    return 1;
+
+  if (je1->value_type == JSON_VALUE_OBJECT &&
+      je2->value_type == JSON_VALUE_OBJECT)
+  {
+    json_engine_t sav_je1= *je1;
+    json_engine_t sav_je2= *je2;
+
+    int first_key= 1;
+    json_string_t key_name;
+  
+    json_string_set_cs(&key_name, je1->s.cs);
+
+    if (str->append("{", 1))
+      return 3;
+    while (json_scan_next(je1) == 0 &&
+           je1->state != JST_OBJ_END)
+    {
+      const uchar *key_start, *key_end;
+      /* Loop through the Json_1 keys and compare with the Json_2 keys. */
+      DBUG_ASSERT(je1->state == JST_KEY);
+      key_start= je1->s.c_str;
+      do
+      {
+        key_end= je1->s.c_str;
+      } while (json_read_keyname_chr(je1) == 0);
+
+      if (je1->s.error)
+        return 1;
+
+      if (first_key)
+        first_key= 0;
+      else
+      {
+        if (str->append(", ", 2))
+          return 3;
+        *je2= sav_je2;
+      }
+
+      if (str->append("\"", 1) ||
+          append_simple(str, key_start, key_end - key_start) ||
+          str->append("\":", 2))
+        return 3;
+
+      while (json_scan_next(je2) == 0 &&
+          je2->state != JST_OBJ_END)
+      {
+        int ires;
+        DBUG_ASSERT(je2->state == JST_KEY);
+        json_string_set_str(&key_name, key_start, key_end);
+        if (!json_key_matches(je2, &key_name))
+        {
+          if (je2->s.error || json_skip_key(je2))
+            return 2;
+          continue;
+        }
+
+        /* Json_2 has same key as Json_1. Merge them. */
+        if ((ires= do_merge(str, je1, je2)))
+          return ires;
+        goto merged_j1;
+      }
+      if (je2->s.error)
+        return 2;
+
+      key_start= je1->s.c_str;
+      /* Just append the Json_1 key value. */
+      if (json_skip_key(je1))
+        return 1;
+      if (append_simple(str, key_start, je1->s.c_str - key_start))
+        return 3;
+
+merged_j1:
+      continue;
+    }
+
+    *je2= sav_je2;
+    /*
+      Now loop through the Json_2 keys.
+      Skip if there is same key in Json_1
+    */
+    while (json_scan_next(je2) == 0 &&
+           je2->state != JST_OBJ_END)
+    {
+      const uchar *key_start, *key_end;
+      DBUG_ASSERT(je2->state == JST_KEY);
+      key_start= je2->s.c_str;
+      do
+      {
+        key_end= je2->s.c_str;
+      } while (json_read_keyname_chr(je2) == 0);
+
+      if (je2->s.error)
+        return 1;
+
+      *je1= sav_je1;
+      while (json_scan_next(je1) == 0 &&
+             je1->state != JST_OBJ_END)
+      {
+        DBUG_ASSERT(je1->state == JST_KEY);
+        json_string_set_str(&key_name, key_start, key_end);
+        if (!json_key_matches(je1, &key_name))
+        {
+          if (je1->s.error || json_skip_key(je1))
+            return 2;
+          continue;
+        }
+        if (json_skip_key(je2) ||
+            json_skip_level(je1))
+          return 1;
+        goto continue_j2;
+      }
+
+      if (je1->s.error)
+        return 2;
+
+      if (first_key)
+        first_key= 0;
+      else if (str->append(", ", 2))
+        return 3;
+
+      if (json_skip_key(je2))
+        return 1;
+
+      if (str->append("\"", 1) ||
+          append_simple(str, key_start, je2->s.c_str - key_start))
+        return 3;
+
+continue_j2:
+      continue;
+    }
+
+    if (str->append("}", 1))
+      return 3;
+  }
+  else
+  {
+    const uchar *end1, *beg1, *end2, *beg2;
+
+    beg1= je1->value_begin;
+
+    /* Merge as a single array. */
+    if (je1->value_type == JSON_VALUE_ARRAY)
+    {
+      if (json_skip_level(je1))
+        return 1;
+      end1= je1->s.c_str - je1->sav_c_len;
+    }
+    else
+    {
+      if (str->append("[", 1))
+        return 3;
+      if (je1->value_type == JSON_VALUE_OBJECT)
+      {
+        if (json_skip_level(je1))
+          return 1;
+        end1= je1->s.c_str;
+      }
+      else
+        end1= je1->value_end;
+    }
+
+    if (str->append((const char*) beg1, end1 - beg1),
+        str->append(", ", 2))
+      return 3;
+
+    if (json_value_scalar(je2))
+    {
+      beg2= je2->value_begin;
+      end2= je2->value_end;
+    }
+    else
+    {
+      if (je2->value_type == JSON_VALUE_OBJECT)
+        beg2= je2->value_begin;
+      else
+        beg2= je2->s.c_str;
+      if (json_skip_level(je2))
+        return 2;
+      end2= je2->s.c_str;
+    }
+
+    if (str->append((const char*) beg2, end2 - beg2))
+      return 3;
+
+    if (je2->value_type != JSON_VALUE_ARRAY &&
+        str->append("]", 1))
+      return 3;
+  }
+
+  return 0;
+}
+
+
 String *Item_func_json_merge::val_str(String *str)
 {
   DBUG_ASSERT(fixed == 1);
@@ -1733,6 +1930,9 @@ String *Item_func_json_merge::val_str(String *str)
 
   for (n_arg=1; n_arg < arg_count; n_arg++)
   {
+    str->set_charset(js1->charset());
+    str->length(0);
+
     js2= args[n_arg]->val_str(&tmp_js2);
     if (args[n_arg]->null_value)
       goto null_return;
@@ -1743,57 +1943,8 @@ String *Item_func_json_merge::val_str(String *str)
     json_scan_start(&je2, js2->charset(),(const uchar *) js2->ptr(),
                     (const uchar *) js2->ptr() + js2->length());
 
-    if (json_read_value(&je1) || json_read_value(&je2))
+    if (do_merge(str, &je1, &je2))
       goto error_return;
-
-    str->length(0);
-    if (je1.value_type == JSON_VALUE_OBJECT &&
-        je2.value_type == JSON_VALUE_OBJECT)
-    {
-      /* Wrap as a single objects. */
-      if (json_skip_level(&je1))
-        goto error_return;
-      if (str->append(js1->ptr(),
-                 ((const char *)je1.s.c_str - js1->ptr()) - je1.sav_c_len) ||
-          str->append(", ", 2) ||
-          str->append((const char *)je2.s.c_str,
-                 js2->length() - ((const char *)je2.s.c_str - js2->ptr())))
-        goto error_return;
-    }
-    else
-    {
-      const char *end1, *beg2;
-
-      /* Merge as a single array. */
-      if (je1.value_type == JSON_VALUE_ARRAY)
-      {
-        if (json_skip_level(&je1))
-          goto error_return;
-        end1= (const char *) (je1.s.c_str - je1.sav_c_len);
-      }
-      else
-      {
-        if (str->append("[", 1))
-          goto error_return;
-        end1= js1->end();
-      }
-
-      if (str->append(js1->ptr(), end1 - js1->ptr()),
-          str->append(", ", 2))
-        goto error_return;
-
-      if (je2.value_type == JSON_VALUE_ARRAY)
-        beg2= (const char *) je2.s.c_str;
-      else
-        beg2= js2->ptr();
-
-      if (str->append(beg2, js2->end() - beg2))
-        goto error_return;
-
-      if (je2.value_type != JSON_VALUE_ARRAY &&
-          str->append("]", 1))
-        goto error_return;
-    }
 
     {
       /* Swap str and js1. */

@@ -225,3 +225,12 @@ SELECT json_set('[]', '$[0][0][0]', 100);
 # MDEV-11857 json_search() shows "Out of memory" with empty key.
 #
 SELECT JSON_search( '{"": "a"}', "one", 'a');
+
+#
+# MDEV-11858 json_merge() concatenates instead of merging.
+#
+
+select json_merge('{"a":"b"}', '{"a":"c"}') ;
+select json_merge('{"a":{"x":"b"}}', '{"a":"c"}') ;
+select json_merge('{"a":{"u":12, "x":"b"}}', '{"a":{"x":"c"}}') ;
+select json_merge('{"a":{"u":12, "x":"b", "r":1}}', '{"a":{"x":"c", "r":2}}') ;

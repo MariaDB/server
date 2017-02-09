@@ -555,3 +555,15 @@ json_set('[]', '$[0][0][0]', 100)
 SELECT JSON_search( '{"": "a"}', "one", 'a');
 JSON_search( '{"": "a"}', "one", 'a')
 "$."
+select json_merge('{"a":"b"}', '{"a":"c"}') ;
+json_merge('{"a":"b"}', '{"a":"c"}')
+{"a": ["b", "c"]}
+select json_merge('{"a":{"x":"b"}}', '{"a":"c"}') ;
+json_merge('{"a":{"x":"b"}}', '{"a":"c"}')
+{"a": [{"x": "b"}, "c"]}
+select json_merge('{"a":{"u":12, "x":"b"}}', '{"a":{"x":"c"}}') ;
+json_merge('{"a":{"u":12, "x":"b"}}', '{"a":{"x":"c"}}')
+{"a": {"u": 12, "x": ["b", "c"]}}
+select json_merge('{"a":{"u":12, "x":"b", "r":1}}', '{"a":{"x":"c", "r":2}}') ;
+json_merge('{"a":{"u":12, "x":"b", "r":1}}', '{"a":{"x":"c", "r":2}}')
+{"a": {"u": 12, "x": ["b", "c"], "r": [1, 2]}}
