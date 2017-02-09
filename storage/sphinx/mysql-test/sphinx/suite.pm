@@ -18,24 +18,14 @@ sub locate_sphinx_binary {
 
 # Look for Sphinx binaries
 my $exe_sphinx_indexer = &locate_sphinx_binary('indexer');
+return "'indexer' binary not found" unless $exe_sphinx_indexer;
 
-unless ($exe_sphinx_indexer) {
-  mtr_report("Sphinx 'indexer' binary not found, sphinx suite will be skipped");
-  return "No Sphinx";
-}
 my $exe_sphinx_searchd = &locate_sphinx_binary('searchd');
-
-unless ($exe_sphinx_searchd) {
-  mtr_report("Sphinx 'searchd' binary not found, sphinx suite will be skipped");
-  return "No Sphinx";
-}
+return "'searchd' binary not found" unless $exe_sphinx_searchd;
 
 # Check for Sphinx engine
 
-unless ($ENV{HA_SPHINX_SO} or $::mysqld_variables{'sphinx'} eq "ON") {
-  mtr_report("Sphinx engine not found, sphinx suite will be skipped");
-  return "No SphinxSE";
-}
+return "SphinxSE not found" unless $ENV{HA_SPHINX_SO} or $::mysqld_variables{'sphinx'} eq "ON";
 
 {
   local $_ = `"$exe_sphinx_searchd" --help`;
