@@ -596,7 +596,6 @@ fil_node_open_file(
 	ibool		success;
 	byte*		buf2;
 	byte*		page;
-	ulint		page_size;
 
 	ut_ad(mutex_own(&(system->mutex)));
 	ut_a(node->n_pending == 0);
@@ -681,8 +680,6 @@ fil_node_open_file(
 
 			flags = cflags;
 		}
-
-		page_size = fsp_flags_get_page_size(flags);
 
 		if (UNIV_UNLIKELY(space_id != space->id)) {
 			ib_logf(IB_LOG_LEVEL_ERROR,
