@@ -10271,7 +10271,8 @@ void Item_cache_row::set_null()
 Item_type_holder::Item_type_holder(THD *thd, Item *item)
   :Item(thd, item),
    Type_handler_hybrid_field_type(item->real_type_handler()),
-   enum_set_typelib(0)
+   enum_set_typelib(0),
+   flags(0)
 {
   DBUG_ASSERT(item->fixed);
   maybe_null= item->maybe_null;
@@ -10282,6 +10283,12 @@ Item_type_holder::Item_type_holder(THD *thd, Item *item)
   if (item->field_type() == MYSQL_TYPE_GEOMETRY)
     geometry_type= item->get_geometry_type();
 #endif /* HAVE_SPATIAL */
+  if (item->real_type() == Item::FIELD_ITEM)
+  {
+    Item_field *item_field= (Item_field*)item->real_item();
+    flags|=
+        (item_field->field->flags & (VERS_SYS_START_FLAG | VERS_SYS_END_FLAG));
+  }
 }
 
 

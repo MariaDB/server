@@ -807,12 +807,20 @@ int vers_setup_select(THD *thd, TABLE_LIST *tables, COND **where_expr,
       Field *fstart= table->table->vers_start_field();
       Field *fend= table->table->vers_end_field();
 
-      DBUG_ASSERT(slex->parent_lex);
-      Name_resolution_context *context= slex->parent_lex->current_context();
-      DBUG_ASSERT(context);
-
-      Item *row_start= newx Item_field(thd, context, fstart);
-      Item *row_end= newx Item_field(thd, context, fend);
+      Item *row_start= NULL;
+      Item *row_end= NULL;
+      if (table->is_derived() && !table->is_recursive_with_table())
+      {
+        row_start= newx Item_field(thd, &slex->context, NULL, NULL,
+                                   fstart->field_name);
+        row_end=
+            newx Item_field(thd, &slex->context, NULL, NULL, fend->field_name);
+      }
+      else
+      {
+        row_start= newx Item_field(thd, &slex->context, fstart);
+        row_end= newx Item_field(thd, &slex->context, fend);
+      }
       Item *row_end2= row_end;
 
       if (table->table->versioned_by_sql())
@@ -16858,6 +16866,14 @@ create_tmp_table(THD *thd, TMP_TABLE_PARAM *param, List<Item> &fields,
           else if (field->flags & VERS_SYS_END_FLAG)
             sys_trx_end= new_field;
         }
+      }
+      if (type == Item::TYPE_HOLDER)
+      {
+        Item_type_holder *ith= (Item_type_holder*)item;
+        if (ith->flags & VERS_SYS_START_FLAG)
+          sys_trx_start= new_field;
+        else if (ith->flags & VERS_SYS_END_FLAG)
+          sys_trx_end= new_field;
       }
       if (type == Item::SUM_FUNC_ITEM)
       {

@@ -5892,6 +5892,8 @@ public:
   Field *make_field_by_type(TABLE *table);
   Field::geometry_type get_geometry_type() const { return geometry_type; };
   Item* get_copy(THD *thd, MEM_ROOT *mem_root) { return 0; }
+
+  uint flags;
 };
 
 
