@@ -5485,7 +5485,8 @@ void TABLE_LIST::set_check_merged()
     It is not simple to check all, but at least this should be checked:
     this select is not excluded or the exclusion came from above.
   */
-  DBUG_ASSERT(!derived->first_select()->exclude_from_table_unique_test ||
+  DBUG_ASSERT(derived->is_excluded() ||
+              !derived->first_select()->exclude_from_table_unique_test ||
               derived->outer_select()->
               exclude_from_table_unique_test);
 }
@@ -5498,6 +5499,7 @@ void TABLE_LIST::set_check_materialized()
   if (view)
     derived= &view->unit;
   DBUG_ASSERT(derived);
+  DBUG_ASSERT(!derived->is_excluded());
   if (!derived->first_select()->exclude_from_table_unique_test)
     derived->set_unique_exclude();
   else

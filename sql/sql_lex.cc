@@ -2375,6 +2375,8 @@ void st_select_lex_unit::exclude_level()
     if (next)
       next->prev= prev;
   }
+  // Mark it excluded
+  prev= NULL;
 }
 
 

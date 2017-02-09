@@ -698,6 +698,7 @@ public:
   st_select_lex* return_after_parsing() { return return_to; }
   void exclude_level();
   void exclude_tree();
+  bool is_excluded() { return prev == NULL; }
 
   /* UNION methods */
   bool prepare(THD *thd, select_result *result, ulong additional_options);
