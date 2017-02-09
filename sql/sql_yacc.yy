@@ -1993,6 +1993,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
         definer_opt no_definer definer get_diagnostics
         parse_vcol_expr vcol_opt_specifier vcol_opt_attribute
         vcol_opt_attribute_list vcol_attribute
+        opt_serial_attribute opt_serial_attribute_list serial_attribute
         explainable_command
 END_OF_INPUT
 
@@ -6151,8 +6152,7 @@ field_spec:
             lex->init_last_field(f, $1.str, NULL);
             $<create_field>$= f;
           }
-          field_type  { Lex->set_last_field_type($3); }
-          field_def
+          field_type_or_serial
           {
             LEX *lex=Lex;
             $$= $<create_field>2;
@@ -6169,6 +6169,30 @@ field_spec:
               add_key_to_list(lex, &$1, Key::UNIQUE, Lex->check_exists);
           }
         ;
+
+field_type_or_serial:
+          field_type  { Lex->set_last_field_type($1); } field_def
+        | SERIAL_SYM
+          {
+            Lex_field_type_st type;
+            type.set(MYSQL_TYPE_LONGLONG);
+            Lex->set_last_field_type(type);
+            Lex->last_field->flags|= AUTO_INCREMENT_FLAG | NOT_NULL_FLAG
+                                     | UNSIGNED_FLAG | UNIQUE_KEY_FLAG;
+          }
+          opt_serial_attribute
+        ;
+
+opt_serial_attribute:
+          /* empty */ {}
+        | opt_serial_attribute_list {}
+        ;
+
+opt_serial_attribute_list:
+          opt_serial_attribute_list serial_attribute {}
+        | serial_attribute
+        ;
+
 
 field_def:
           opt_attribute
@@ -6447,12 +6471,6 @@ field_type:
           { $$.set(MYSQL_TYPE_SET); }
         | LONG_SYM opt_binary
           { $$.set(MYSQL_TYPE_MEDIUM_BLOB); }
-        | SERIAL_SYM
-          {
-            $$.set(MYSQL_TYPE_LONGLONG);
-            Lex->last_field->flags|= (AUTO_INCREMENT_FLAG | NOT_NULL_FLAG | UNSIGNED_FLAG |
-              UNIQUE_KEY_FLAG);
-          }
         ;
 
 spatial_type:
@@ -6575,7 +6593,6 @@ opt_attribute_list:
 
 attribute:
           NULL_SYM { Lex->last_field->flags&= ~ NOT_NULL_FLAG; }
-        | not NULL_SYM { Lex->last_field->flags|= NOT_NULL_FLAG; }
         | DEFAULT column_default_expr { Lex->last_field->default_value= $2; }
         | ON UPDATE_SYM NOW_SYM opt_default_time_precision
           {
@@ -6591,6 +6608,18 @@ attribute:
             lex->last_field->flags|= AUTO_INCREMENT_FLAG | NOT_NULL_FLAG | UNIQUE_KEY_FLAG;
             lex->alter_info.flags|= Alter_info::ALTER_ADD_INDEX;
           }
+        | COLLATE_SYM collation_name
+          {
+            if (Lex->charset && !my_charset_same(Lex->charset,$2))
+              my_yyabort_error((ER_COLLATION_CHARSET_MISMATCH, MYF(0),
+                                $2->name,Lex->charset->csname));
+            Lex->last_field->charset= $2;
+          }
+        | serial_attribute
+        ;
+
+serial_attribute:
+          not NULL_SYM { Lex->last_field->flags|= NOT_NULL_FLAG; }
         | opt_primary KEY_SYM
           {
             LEX *lex=Lex;
@@ -6610,13 +6639,6 @@ attribute:
             lex->alter_info.flags|= Alter_info::ALTER_ADD_INDEX; 
           }
         | COMMENT_SYM TEXT_STRING_sys { Lex->last_field->comment= $2; }
-        | COLLATE_SYM collation_name
-          {
-            if (Lex->charset && !my_charset_same(Lex->charset,$2))
-              my_yyabort_error((ER_COLLATION_CHARSET_MISMATCH, MYF(0),
-                                $2->name,Lex->charset->csname));
-            Lex->last_field->charset= $2;
-          }
         | IDENT_sys equal TEXT_STRING_sys
           {
             if ($3.length > ENGINE_OPTION_MAX_LENGTH)
