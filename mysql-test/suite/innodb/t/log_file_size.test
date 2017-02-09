@@ -1,11 +1,7 @@
 # Test resizing the InnoDB redo log.
-
 --source include/have_innodb.inc
-
-# Embedded server does not support crashing
+# Embedded server tests do not support restarting
 --source include/not_embedded.inc
-# Avoid CrashReporter popup on Mac
---source include/not_crashrep.inc
 # DBUG_EXECUTE_IF is needed
 --source include/have_debug.inc
 
