@@ -129,7 +129,8 @@ row_build_index_entry_low(
 			ut_ad(v_col->v_pos < dtuple_get_n_v_fields(row));
 			dfield2 = dtuple_get_nth_v_field(row, v_col->v_pos);
 
-			ut_ad(dfield_is_null(dfield2) || dfield2->data);
+			ut_ad(dfield_is_null(dfield2) ||
+			      dfield_get_len(dfield2) == 0 || dfield2->data);
 		} else {
 			dfield2 = dtuple_get_nth_field(row, col_no);
 			ut_ad(dfield_get_type(dfield2)->mtype == DATA_MISSING
