@@ -9367,8 +9367,6 @@ static void add_not_null_conds(JOIN *join)
             UPDATE t1 SET t1.f2=(SELECT MAX(t2.f4) FROM t2 WHERE t2.f3=t1.f1);
             not_null_item is the t1.f1, but it's referred_tab is 0.
           */
-          if (!referred_tab)
-            continue;
           if (!(notnull= new (join->thd->mem_root)
                 Item_func_isnotnull(join->thd, item)))
             DBUG_VOID_RETURN;
@@ -9380,16 +9378,19 @@ static void add_not_null_conds(JOIN *join)
           */
           if (notnull->fix_fields(join->thd, &notnull))
             DBUG_VOID_RETURN;
+
           DBUG_EXECUTE("where",print_where(notnull,
-                                           referred_tab->table->alias.c_ptr(),
-                                           QT_ORDINARY););
+                                            (referred_tab ?
+                                            referred_tab->table->alias.c_ptr() :
+                                            "outer_ref_cond"),
+                                            QT_ORDINARY););
           if (!tab->first_inner)
-	  {
-            COND *new_cond= referred_tab->join == join ? 
+          {
+            COND *new_cond= (referred_tab && referred_tab->join == join) ?
                               referred_tab->select_cond :
                               join->outer_ref_cond;
             add_cond_and_fix(join->thd, &new_cond, notnull);
-            if (referred_tab->join == join)
+            if (referred_tab && referred_tab->join == join)
               referred_tab->set_select_cond(new_cond, __LINE__);
             else 
               join->outer_ref_cond= new_cond;
