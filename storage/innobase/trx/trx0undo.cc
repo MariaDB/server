@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -2021,7 +2022,8 @@ trx_undo_free_prepared(
 		case TRX_UNDO_ACTIVE:
 			/* lock_trx_release_locks() assigns
 			trx->is_recovered=false */
-			ut_a(srv_read_only_mode
+			ut_a(!srv_was_started
+			     || srv_read_only_mode
 			     || srv_force_recovery >= SRV_FORCE_NO_TRX_UNDO);
 			break;
 		default:
@@ -2042,7 +2044,8 @@ trx_undo_free_prepared(
 		case TRX_UNDO_ACTIVE:
 			/* lock_trx_release_locks() assigns
 			trx->is_recovered=false */
-			ut_a(srv_read_only_mode
+			ut_a(!srv_was_started
+			     || srv_read_only_mode
 			     || srv_force_recovery >= SRV_FORCE_NO_TRX_UNDO);
 			break;
 		default:

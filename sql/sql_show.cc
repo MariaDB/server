@@ -7609,7 +7609,8 @@ TABLE *create_schema_table(THD *thd, TABLE_LIST *table_list)
     case MYSQL_TYPE_BLOB:
       if (!(item= new (mem_root)
             Item_blob(thd, fields_info->field_name,
-                      fields_info->field_length)))
+                      std::min(unsigned (strlen(fields_info->field_name)),
+                               fields_info->field_length))))
       {
         DBUG_RETURN(0);
       }

@@ -49,7 +49,7 @@ let $restart_parameters = --innodb-log-files-in-group=3 --innodb-log-file-size=5
 
 SELECT * FROM t1;
 
-INSERT INTO t1 VALUES (123);
+INSERT INTO t1 VALUES (0),(123);
 
 let MYSQLD_DATADIR= `select @@datadir`;
 let SEARCH_ABORT = NOT FOUND;
@@ -57,7 +57,15 @@ let SEARCH_RANGE= -50000;
 let SEARCH_FILE= $MYSQLTEST_VARDIR/log/mysqld.1.err;
 
 BEGIN;
-DELETE FROM t1;
+DELETE FROM t1 WHERE a>0;
+
+--echo # Persist the state of the above incomplete transaction by
+--echo # causing a redo log write for another transaction.
+--connect(con1, localhost, root)
+SET GLOBAL innodb_flush_log_at_trx_commit=1;
+DELETE FROM t1 WHERE a=0;
+--disconnect con1
+--connection default
 
 --source include/kill_mysqld.inc
 
