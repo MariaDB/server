@@ -552,3 +552,6 @@ json_set('[]', '$[0][0]', 100)
 SELECT json_set('[]', '$[0][0][0]', 100);
 json_set('[]', '$[0][0][0]', 100)
 []
+SELECT JSON_search( '{"": "a"}', "one", 'a');
+JSON_search( '{"": "a"}', "one", 'a')
+"$."
