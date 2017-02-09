@@ -6197,7 +6197,10 @@ opt_serial_attribute_list:
 field_def:
           opt_attribute
         | opt_generated_always AS virtual_column_func
-         {  Lex->last_field->vcol_info= $3; }
+         {
+           Lex->last_field->vcol_info= $3;
+           Lex->last_field->flags&= ~NOT_NULL_FLAG; // undo automatic NOT NULL for timestamps
+         }
           vcol_opt_specifier vcol_opt_attribute
         ;
 
