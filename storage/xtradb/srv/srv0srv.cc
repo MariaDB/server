@@ -1058,7 +1058,7 @@ srv_suspend_thread(
 @return	whether the wait timed out */
 static
 bool
-srv_resume_thread(srv_slot_t* slot, int64_t sig_count = 0, bool wait = true,
+srv_resume_thread(srv_slot_t* slot, ib_int64_t sig_count = 0, bool wait = true,
 		  ulint timeout_usec = 0)
 {
 	bool	timeout;
