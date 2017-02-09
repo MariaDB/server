@@ -2380,6 +2380,7 @@ void st_select_lex_unit::exclude_level()
 }
 
 
+#if 0
 /*
   Exclude subtree of current unit from tree of SELECTs
 
@@ -2405,6 +2406,7 @@ void st_select_lex_unit::exclude_tree()
   if (next)
     next->prev= prev;
 }
+#endif
 
 
 /*

@@ -697,7 +697,7 @@ public:
   }
   st_select_lex* return_after_parsing() { return return_to; }
   void exclude_level();
-  void exclude_tree();
+  // void exclude_tree(); // it is not used for long time
   bool is_excluded() { return prev == NULL; }
 
   /* UNION methods */
