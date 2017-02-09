@@ -152,34 +152,3 @@ IF(MSVC)
   # Some checks in C++ runtime that make debug build much slower
   ADD_DEFINITIONS(-D_ITERATOR_DEBUG_LEVEL=0)
 ENDIF()
-
-# Optional compression libraries.
-#
-# TODO: search compression libraries properly.
-# Use FIND_PACKAGE, CHECK_LIBRARY_EXISTS etc
-IF(MARIAROCKS_NOT_YET)
-IF (NOT "$ENV{WITH_SNAPPY}" STREQUAL "")
-  SET(rocksdb_static_libs ${rocksdb_static_libs}
-  $ENV{WITH_SNAPPY}/libsnappy${PIC_EXT}.a)
-  ADD_DEFINITIONS(-DSNAPPY)
-ENDIF()
-
-IF (NOT "$ENV{WITH_LZ4}" STREQUAL "")
-  SET(rocksdb_static_libs ${rocksdb_static_libs}
-  $ENV{WITH_LZ4}/liblz4${PIC_EXT}.a)
-  ADD_DEFINITIONS(-DLZ4)
-ENDIF()
-
-IF (NOT "$ENV{WITH_BZ2}" STREQUAL "")
-  SET(rocksdb_static_libs ${rocksdb_static_libs}
-  $ENV{WITH_BZ2}/libbz2${PIC_EXT}.a)
-  ADD_DEFINITIONS(-DBZIP2)
-ENDIF()
-
-# link ZSTD only if instructed
-IF (NOT "$ENV{WITH_ZSTD}" STREQUAL "")
-  SET(rocksdb_static_libs ${rocksdb_static_libs}
-  $ENV{WITH_ZSTD}/libzstd${PIC_EXT}.a)
-  ADD_DEFINITIONS(-DZSTD)
-ENDIF()
-ENDIF(MARIAROCKS_NOT_YET)

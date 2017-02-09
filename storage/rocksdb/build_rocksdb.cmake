@@ -11,8 +11,6 @@ INCLUDE_DIRECTORIES(
   ${ROCKSDB_SOURCE_DIR}/third-party/gtest-1.7.0/fused-src
 )
 
-
-
 list(APPEND CMAKE_MODULE_PATH "${ROCKSDB_SOURCE_DIR}/cmake/modules/")
 
 if(WIN32)
@@ -29,18 +27,49 @@ else()
     add_definitions(-DROCKSDB_JEMALLOC)
     set(WITH_JEMALLOC ON)
   endif()
-  option(WITH_ROCKSDB_SNAPPY "build RocksDB with SNAPPY" OFF)
-  if(WITH_ROCKSDB_SNAPPY)
-    find_package(snappy REQUIRED)
-    add_definitions(-DSNAPPY)
-    include_directories(${SNAPPY_INCLUDE_DIR})
-    list(APPEND THIRDPARTY_LIBS ${SNAPPY_LIBRARIES})
-  endif()
 endif()
 
+# Optional compression libraries.
 
+foreach(compression_lib LZ4 BZIP2 ZSTD snappy)
+  FIND_PACKAGE(${compression_lib} QUIET)
 
+  SET(WITH_ROCKSDB_${compression_lib} AUTO CACHE STRING
+  "Build RocksDB  with ${compression_lib} compression. Possible values are 'ON', 'OFF', 'AUTO' and default is 'AUTO'")
 
+  if(${WITH_ROCKSDB_${compression_lib}} STREQUAL "ON"  AND NOT ${${compression_lib}_FOUND})
+    MESSAGE(FATAL_ERROR
+      "${compression_lib} library was not found, but WITH_ROCKSDB${compression_lib} option is ON.\
+      Either set WITH_ROCKSDB${compression_lib} to OFF, or make sure ${compression_lib} is installed")
+  endif()
+endforeach()
+
+if(LZ4_FOUND AND (NOT WITH_ROCKSDB_LZ4 STREQUAL "OFF"))
+  add_definitions(-DLZ4)
+  include_directories(${LZ4_INCLUDE_DIR})
+  list(APPEND THIRDPARTY_LIBS ${LZ4_LIBRARY})
+endif()
+
+if(BZIP2_FOUND AND (NOT WITH_ROCKSDB_BZIP2 STREQUAL "OFF"))
+  add_definitions(-DBZIP2)
+  include_directories(${BZIP2_INCLUDE_DIR})
+  list(APPEND THIRDPARTY_LIBS ${BZIP2_LIBRARIES})
+endif()
+
+if(SNAPPY_FOUND  AND (NOT WITH_ROCKSDB_SNAPPY STREQUAL "OFF"))
+  add_definitions(-DSNAPPY)
+  include_directories(${SNAPPY_INCLUDE_DIR})
+  list(APPEND THIRDPARTY_LIBS ${SNAPPY_LIBRARIES})
+endif()
+
+if(ZSTD_FOUND AND (NOT WITH_ROCKSDB_ZSTD STREQUAL "OFF"))
+  add_definitions(-DZSTD)
+  include_directories(${ZSTD_INCLUDE_DIR})
+  list(APPEND THIRDPARTY_LIBS ${ZSTD_LIBRARY})
+endif()
+
+add_definitions(-DZLIB)
+list(APPEND THIRDPARTY_LIBS ${ZLIB_LIBRARY})
 
 if(CMAKE_SYSTEM_NAME MATCHES "Cygwin")
   add_definitions(-fno-builtin-memcmp -DCYGWIN)
@@ -330,7 +359,7 @@ CONFIGURE_FILE(${ROCKSDB_SOURCE_DIR}/util/build_version.cc.in build_version.cc @
 INCLUDE_DIRECTORIES(${ROCKSDB_SOURCE_DIR}/util)
 list(APPEND SOURCES ${CMAKE_CURRENT_BINARY_DIR}/build_version.cc)
 
-ADD_CONVENIENCE_LIBRARY(rocksdblib STATIC ${SOURCES})
+ADD_CONVENIENCE_LIBRARY(rocksdblib ${SOURCES})
 target_link_libraries(rocksdblib ${THIRDPARTY_LIBS} ${SYSTEM_LIBS})
 IF(CMAKE_CXX_COMPILER_ID MATCHES "GNU" OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   set_target_properties(rocksdblib PROPERTIES COMPILE_FLAGS "-fPIC -fno-builtin-memcmp -frtti")
