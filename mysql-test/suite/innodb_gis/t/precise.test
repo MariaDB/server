@@ -72,6 +72,7 @@ select ST_astext(ST_Intersection(ST_GeomFromText('LINESTRING(0 0, 50 45, 40 50, 
 select ST_astext(ST_Intersection(ST_GeomFromText('LINESTRING(0 0, 50 45, 40 50)'), ST_GeomFromText('LINESTRING(50 5, 55 10, 0 45)')));
 select ST_astext(ST_Intersection(ST_GeomFromText('POLYGON((0 0, 50 45, 40 50, 0 0))'), ST_GeomFromText('POINT(20 20)')));
 select ST_astext(ST_Intersection(ST_GeomFromText('POLYGON((0 0, 50 45, 40 50, 0 0))'), ST_GeomFromText('LINESTRING(-10 -10, 200 200)')));
+--replace_result 7.999999999999999 8
 select ST_astext(ST_Intersection(ST_GeomFromText('POLYGON((0 0, 50 45, 40 50, 0 0))'), ST_GeomFromText('LINESTRING(-10 -10, 200 200, 199 201, -11 -9)')));
 --replace_result 7.999999999999999 8
 select ST_astext(ST_UNION(ST_GeomFromText('POLYGON((0 0, 50 45, 40 50, 0 0))'), ST_GeomFromText('LINESTRING(-10 -10, 200 200, 199 201, -11 -9)')));
