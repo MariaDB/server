@@ -1092,10 +1092,6 @@ trx_sys_close(void)
 		trx_dummy_sess = NULL;
 	}
 
-	if (purge_sys) {
-		trx_purge_sys_close();
-	}
-
 	/* Only prepared transactions may be left in the system. Free them. */
 	ut_a(UT_LIST_GET_LEN(trx_sys->rw_trx_list) == trx_sys->n_prepared_trx
 	     || !srv_was_started

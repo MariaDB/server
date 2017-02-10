@@ -2206,6 +2206,7 @@ files_checked:
 			DBUG_PRINT("ib_log", ("apply completed"));
 
 			if (err != DB_SUCCESS) {
+				UT_DELETE(purge_queue);
 				return(srv_init_abort(err));
 			}
 
@@ -2280,6 +2281,7 @@ files_checked:
 					" a startup if you are trying to"
 					" recover a badly corrupt database.";
 
+				UT_DELETE(purge_queue);
 				return(srv_init_abort(DB_ERROR));
 			}
 		}
@@ -2795,6 +2797,9 @@ innodb_shutdown()
 	if (trx_sys) {
 		trx_sys_file_format_close();
 		trx_sys_close();
+	}
+	if (purge_sys) {
+		trx_purge_sys_close();
 	}
 	if (buf_dblwr) {
 		buf_dblwr_free();
