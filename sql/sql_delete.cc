@@ -1346,4 +1346,3 @@ bool multi_delete::send_eof()
   }
   return 0;
 }
-

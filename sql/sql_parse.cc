@@ -1568,7 +1568,9 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
     {
       wsrep_client_rollback(thd);
     }
-    if (thd->wsrep_conflict_state== ABORTED)
+    /* We let COM_QUIT and COM_STMT_CLOSE to execute even if wsrep aborted. */
+    if (thd->wsrep_conflict_state == ABORTED &&
+        command != COM_STMT_CLOSE && command != COM_QUIT)
     {
       my_error(ER_LOCK_DEADLOCK, MYF(0), "wsrep aborted transaction");
       WSREP_DEBUG("Deadlock error for: %s", thd->query());
@@ -2318,6 +2320,12 @@ com_multi_end:
 
   if (WSREP(thd))
   {
+    /*
+      MDEV-10812
+      In the case of COM_QUIT/COM_STMT_CLOSE thread status should be disabled.
+    */
+    DBUG_ASSERT((command != COM_QUIT && command != COM_STMT_CLOSE)
+                  || thd->get_stmt_da()->is_disabled());
     /* wsrep BF abort in query exec phase */
     mysql_mutex_lock(&thd->LOCK_wsrep_thd);
     do_end_of_statement= thd->wsrep_conflict_state != REPLAYING &&
@@ -5964,11 +5972,8 @@ end_with_restore_list:
     }
   case SQLCOM_SHOW_CREATE_TRIGGER:
     {
-      if (lex->spname->m_name.length > NAME_LEN)
-      {
-        my_error(ER_TOO_LONG_IDENT, MYF(0), lex->spname->m_name.str);
+      if (check_ident_length(&lex->spname->m_name))
         goto error;
-      }
 
 #ifdef WITH_WSREP
       if (WSREP_CLIENT(thd) && wsrep_sync_wait(thd)) goto error;
@@ -9667,6 +9672,18 @@ bool check_string_char_length(LEX_STRING *str, uint err_msg,
   }
   return TRUE;
 }
+
+
+bool check_ident_length(LEX_STRING *ident)
+{
+  if (check_string_char_length(ident, 0, NAME_CHAR_LEN, system_charset_info, 1))
+  {
+    my_error(ER_TOO_LONG_IDENT, MYF(0), ident->str);
+    return 1;
+  }
+  return 0;
+}
+
 
 C_MODE_START
 

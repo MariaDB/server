@@ -35,11 +35,26 @@ force=0
 in_rpm=0
 ip_only=0
 cross_bootstrap=0
+install_params=""
+auth_root_authentication_method=normal
+auth_root_socket_user='root'
 
 usage()
 {
   cat <<EOF
 Usage: $0 [OPTIONS]
+  --auth-root-authentication-method=normal|socket
+                       Chooses the authentication method for the created initial
+                       root user. The default is 'normal' to creates a root user
+                       that can login without password, which can be insecure.
+                       The alternative 'socket' allows only the system root user
+                       to login as MariaDB root; this requires the unix socket
+                       authentication plugin.
+  --auth-root-socket-user=user
+                       Used with --auth-root-authentication-method=socket. It
+                       specifies the name of the MariaDB root account, as well
+                       as of the system account allowed to access it. Defaults
+                       to 'root'.
   --basedir=path       The path to the MariaDB installation directory.
   --builddir=path      If using --srcdir with out-of-directory builds, you
                        will need to set this to the location of the build
@@ -60,6 +75,8 @@ Usage: $0 [OPTIONS]
   --defaults-file=path Read only this configuration file.
   --rpm                For internal use.  This option is used by RPM files
                        during the MariaDB installation process.
+  --skip-auth-anonymous-user
+                       Do not install an unprivileged anonymous user.
   --skip-name-resolve  Use IP addresses rather than hostnames when creating
                        grant table entries.  This option can be useful if
                        your DNS does not work.
@@ -142,6 +159,17 @@ parse_arguments()
         #
         # --windows is a deprecated alias
         cross_bootstrap=1 ;;
+      --skip-auth-anonymous-user)
+	install_params="$install_params
+SET @skip_auth_anonymous=1;" ;;
+      --auth-root-authentication-method=normal)
+	auth_root_authentication_method=normal ;;
+      --auth-root-authentication-method=socket)
+	auth_root_authentication_method=socket ;;
+      --auth-root-authentication-method=*)
+        usage ;;
+      --auth-root-socket-user=*)
+        auth_root_socket_user="$(parse_arg "$arg")" ;;
 
       *)
         if test -n "$pick_args"
@@ -431,7 +459,17 @@ mysqld_install_cmd_line()
 
 # Create the system and help tables by passing them to "mysqld --bootstrap"
 s_echo "Installing MariaDB/MySQL system tables in '$ldata' ..."
-if { echo "use mysql;"; cat "$create_system_tables" "$create_system_tables2" "$fill_system_tables" "$fill_help_tables" "$maria_add_gis_sp"; } | eval "$filter_cmd_line" | mysqld_install_cmd_line > /dev/null
+case "$auth_root_authentication_method" in
+  normal)
+    install_params="$install_params
+SET @skip_auth_root_nopasswd=NULL;
+SET @auth_root_socket=NULL;" ;;
+  socket)
+    install_params="$install_params
+SET @skip_auth_root_nopasswd=1;
+SET @auth_root_socket='$auth_root_socket_user';" ;;
+esac
+if { echo "use mysql;$install_params"; cat "$create_system_tables" "$create_system_tables2" "$fill_system_tables" "$fill_help_tables" "$maria_add_gis_sp"; } | eval "$filter_cmd_line" | mysqld_install_cmd_line > /dev/null
 then
   s_echo "OK"
 else

@@ -1104,7 +1104,7 @@ public:
   /* Set if using virtual fields */
   MY_BITMAP     *vcol_set, *def_vcol_set;
   /* On INSERT: fields that the user specified a value for */
-  MY_BITMAP	*has_value_set;
+  MY_BITMAP	has_value_set;
 
   /*
    The ID of the query that opened and is using this table. Has different

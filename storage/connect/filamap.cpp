@@ -87,7 +87,7 @@ int MAPFAM::GetFileLength(PGLOBAL g)
   {
   int len;
 
-  len = (To_Fb) ? To_Fb->Length : TXTFAM::GetFileLength(g);
+  len = (To_Fb && To_Fb->Count) ? To_Fb->Length : TXTFAM::GetFileLength(g);
 
   if (trace)
     htrc("Mapped file length=%d\n", len);
@@ -319,11 +319,13 @@ int MAPFAM::SkipRecord(PGLOBAL g, bool header)
 /***********************************************************************/
 int MAPFAM::ReadBuffer(PGLOBAL g)
   {
-  int len;
+  int rc, len;
 
   // Are we at the end of the memory
-  if (Mempos >= Top)
-    return RC_EF;
+	if (Mempos >= Top)
+		if ((rc = GetNext(g)) != RC_OK)
+			return rc;
+
 
   if (!Placed) {
     /*******************************************************************/
@@ -341,8 +343,10 @@ int MAPFAM::ReadBuffer(PGLOBAL g)
     /*******************************************************************/
     switch (Tdbp->TestBlock(g)) {
       case RC_EF:
-        return RC_EF;
-      case RC_NF:
+				if ((rc = GetNext(g)) != RC_OK)
+					return rc;
+
+			case RC_NF:
         // Skip this record
         if ((rc = SkipRecord(g, false)) != RC_OK)
           return rc;
@@ -498,7 +502,7 @@ int MAPFAM::DeleteRecords(PGLOBAL g, int irc)
 void MAPFAM::CloseTableFile(PGLOBAL g, bool)
   {
   PlugCloseFile(g, To_Fb);
-  To_Fb = NULL;              // To get correct file size in Cardinality
+//To_Fb = NULL;              // To get correct file size in Cardinality
 
   if (trace)
     htrc("MAP Close: closing %s count=%d\n",
@@ -569,7 +573,7 @@ int MBKFAM::GetRowID(void)
 /***********************************************************************/
 int MBKFAM::ReadBuffer(PGLOBAL g)
   {
-  int len;
+  int rc, len;
 
   /*********************************************************************/
   /*  Sequential block reading when Placed is not true.                */
@@ -577,8 +581,10 @@ int MBKFAM::ReadBuffer(PGLOBAL g)
   if (Placed) {
     Placed = false;
   } else if (Mempos >= Top) {        // Are we at the end of the memory
-    return RC_EF;
-  } else if (++CurNum < Nrec) {
+		if ((rc = GetNext(g)) != RC_OK)
+			return rc;
+
+	} else if (++CurNum < Nrec) {
     Fpos = Mempos;
   } else {
     /*******************************************************************/
@@ -588,7 +594,8 @@ int MBKFAM::ReadBuffer(PGLOBAL g)
 
    next:
     if (++CurBlk >= Block)
-      return RC_EF;
+			if ((rc = GetNext(g)) != RC_OK)
+				return rc;
 
     /*******************************************************************/
     /*  Before reading a new block, check whether block optimization   */
@@ -596,8 +603,11 @@ int MBKFAM::ReadBuffer(PGLOBAL g)
     /*******************************************************************/
     switch (Tdbp->TestBlock(g)) {
       case RC_EF:
-        return RC_EF;
-      case RC_NF:
+				if ((rc = GetNext(g)) != RC_OK)
+					return rc;
+
+				break;
+			case RC_NF:
         goto next;
       } // endswitch rc
 
@@ -697,14 +707,18 @@ int MPXFAM::InitDelete(PGLOBAL, int fpos, int)
 /***********************************************************************/
 int MPXFAM::ReadBuffer(PGLOBAL g)
   {
+	int rc;
+
   /*********************************************************************/
   /*  Sequential block reading when Placed is not true.                */
   /*********************************************************************/
   if (Placed) {
     Placed = false;
   } else if (Mempos >= Top) {        // Are we at the end of the memory
-    return RC_EF;
-  } else if (++CurNum < Nrec) {
+		if ((rc = GetNext(g)) != RC_OK)
+			return rc;
+
+	} else if (++CurNum < Nrec) {
     Fpos = Mempos;
   } else {
     /*******************************************************************/
@@ -714,7 +728,7 @@ int MPXFAM::ReadBuffer(PGLOBAL g)
 
    next:
     if (++CurBlk >= Block)
-      return RC_EF;
+			return GetNext(g);
 
     /*******************************************************************/
     /*  Before reading a new block, check whether block optimization   */
@@ -722,8 +736,11 @@ int MPXFAM::ReadBuffer(PGLOBAL g)
     /*******************************************************************/
     switch (Tdbp->TestBlock(g)) {
       case RC_EF:
-        return RC_EF;
-      case RC_NF:
+				if ((rc = GetNext(g)) != RC_OK)
+					return rc;
+
+				break;
+			case RC_NF:
         goto next;
       } // endswitch rc
 

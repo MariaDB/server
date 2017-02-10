@@ -242,14 +242,16 @@ ERROR 42S22: Unknown column 'a' in 'field list'
 DROP TABLE t1,t2;
 SET SQL_MODE = 'TRADITIONAL';
 CREATE TABLE t1 (a INT PRIMARY KEY, b INT NOT NULL);
+INSERT INTO t1 VALUES (1,1);
 INSERT INTO t1 (a) VALUES (1);
 ERROR HY000: Field 'b' doesn't have a default value
 INSERT INTO t1 (a) VALUES (1) ON DUPLICATE KEY UPDATE a = b;
 ERROR HY000: Field 'b' doesn't have a default value
+INSERT INTO t1 (a) VALUES (1) ON DUPLICATE KEY UPDATE b = a;
 INSERT INTO t1 (a) VALUES (1) ON DUPLICATE KEY UPDATE b = b;
-ERROR HY000: Field 'b' doesn't have a default value
 SELECT * FROM t1;
 a	b
+1	1
 DROP TABLE t1;
 CREATE TABLE t1 (f1 INT AUTO_INCREMENT PRIMARY KEY,
 f2 VARCHAR(5) NOT NULL UNIQUE);

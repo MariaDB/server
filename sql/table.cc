@@ -3214,10 +3214,8 @@ partititon_err:
   /* Allocate bitmaps */
 
   bitmap_size= share->column_bitmap_size;
-  bitmap_count= 6;
+  bitmap_count= 7;
   if (share->virtual_fields)
-    bitmap_count++;
-  if (outparam->default_field)
     bitmap_count++;
 
   if (!(bitmaps= (uchar*) alloc_root(&outparam->mem_root,
@@ -3231,7 +3229,7 @@ partititon_err:
                  (my_bitmap_map*) bitmaps, share->fields, FALSE);
   bitmaps+= bitmap_size;
 
-  /* Don't allocate vcol_bitmap or explicit_value if we don't need it */
+  /* Don't allocate vcol_bitmap if we don't need it */
   if (share->virtual_fields)
   {
     if (!(outparam->def_vcol_set= (MY_BITMAP*)
@@ -3241,16 +3239,10 @@ partititon_err:
                    (my_bitmap_map*) bitmaps, share->fields, FALSE);
     bitmaps+= bitmap_size;
   }
-  if (outparam->default_field)
-  {
-    if (!(outparam->has_value_set= (MY_BITMAP*)
-          alloc_root(&outparam->mem_root, sizeof(*outparam->has_value_set))))
-      goto err;
-    my_bitmap_init(outparam->has_value_set,
-                   (my_bitmap_map*) bitmaps, share->fields, FALSE);
-    bitmaps+= bitmap_size;
-  }
 
+  my_bitmap_init(&outparam->has_value_set,
+                 (my_bitmap_map*) bitmaps, share->fields, FALSE);
+  bitmaps+= bitmap_size;
   my_bitmap_init(&outparam->tmp_set,
                  (my_bitmap_map*) bitmaps, share->fields, FALSE);
   bitmaps+= bitmap_size;
@@ -7346,13 +7338,14 @@ int TABLE::update_virtual_fields(enum_vcol_update_mode update_mode)
   DBUG_ENTER("TABLE::update_virtual_fields");
   DBUG_PRINT("enter", ("update_mode: %d", update_mode));
   Field **vfield_ptr, *vf;
+  Query_arena backup_arena;
   Turn_errors_to_warnings_handler Suppress_errors;
   int error;
   bool handler_pushed= 0;
   DBUG_ASSERT(vfield);
 
   error= 0;
-  in_use->reset_arena_for_cached_items(expr_arena);
+  in_use->set_n_backup_active_arena(expr_arena, &backup_arena);
 
   /* When reading or deleting row, ignore errors from virtual columns */
   if (update_mode == VCOL_UPDATE_FOR_READ ||
@@ -7362,6 +7355,7 @@ int TABLE::update_virtual_fields(enum_vcol_update_mode update_mode)
     in_use->push_internal_handler(&Suppress_errors);
     handler_pushed= 1;
   }
+
   /* Iterate over virtual fields in the table */
   for (vfield_ptr= vfield; *vfield_ptr; vfield_ptr++)
   {
@@ -7435,7 +7429,7 @@ int TABLE::update_virtual_fields(enum_vcol_update_mode update_mode)
   }
   if (handler_pushed)
     in_use->pop_internal_handler();
-  in_use->reset_arena_for_cached_items(0);
+  in_use->restore_active_arena(expr_arena, &backup_arena);
   
   /* Return 1 only of we got a fatal error, not a warning */
   DBUG_RETURN(in_use->is_error());
@@ -7443,13 +7437,13 @@ int TABLE::update_virtual_fields(enum_vcol_update_mode update_mode)
 
 int TABLE::update_virtual_field(Field *vf)
 {
+  Query_arena backup_arena;
   DBUG_ENTER("TABLE::update_virtual_field");
-
-  in_use->reset_arena_for_cached_items(expr_arena);
+  in_use->set_n_backup_active_arena(expr_arena, &backup_arena);
   bitmap_clear_all(&tmp_set);
   vf->vcol_info->expr->walk(&Item::update_vcol_processor, 0, &tmp_set);
   vf->vcol_info->expr->save_in_field(vf, 0);
-  in_use->reset_arena_for_cached_items(0);
+  in_use->restore_active_arena(expr_arena, &backup_arena);
   DBUG_RETURN(0);
 }
 
@@ -7476,12 +7470,13 @@ int TABLE::update_virtual_field(Field *vf)
 
 int TABLE::update_default_fields(bool update_command, bool ignore_errors)
 {
-  DBUG_ENTER("TABLE::update_default_fields");
+  Query_arena backup_arena;
   Field **field_ptr;
   int res= 0;
+  DBUG_ENTER("TABLE::update_default_fields");
   DBUG_ASSERT(default_field);
 
-  in_use->reset_arena_for_cached_items(expr_arena);
+  in_use->set_n_backup_active_arena(expr_arena, &backup_arena);
 
   /* Iterate over fields with default functions in the table */
   for (field_ptr= default_field; *field_ptr ; field_ptr++)
@@ -7509,7 +7504,7 @@ int TABLE::update_default_fields(bool update_command, bool ignore_errors)
       res= 0;
     }
   }
-  in_use->reset_arena_for_cached_items(0);
+  in_use->restore_active_arena(expr_arena, &backup_arena);
   DBUG_RETURN(res);
 }
 
@@ -7520,8 +7515,7 @@ int TABLE::update_default_fields(bool update_command, bool ignore_errors)
 void TABLE::reset_default_fields()
 {
   DBUG_ENTER("reset_default_fields");
-  if (has_value_set)
-    bitmap_clear_all(has_value_set);
+  bitmap_clear_all(&has_value_set);
   DBUG_VOID_RETURN;
 }
 

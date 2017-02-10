@@ -8,8 +8,8 @@
 ## DP: http://bugs.mysql.com/bug.php?id=6901
 
 @DPATCH@
---- old/scripts/mysql_system_tables_data.sql	2008-12-04 22:59:44.000000000 +0100
-+++ new/scripts/mysql_system_tables_data.sql	2008-12-04 23:00:07.000000000 +0100
+--- a/scripts/mysql_system_tables_data.sql
++++ b/scripts/mysql_system_tables_data.sql
 @@ -26,16 +26,6 @@
  -- a plain character
  SELECT LOWER( REPLACE((SELECT REPLACE(@@hostname,'_','\_')),'%','\%') )INTO @current_hostname;
@@ -26,14 +26,14 @@
 -
  -- Fill "user" table with default users allowing root access
  -- from local machine if "user" table didn't exist before
- CREATE TEMPORARY TABLE tmp_user LIKE user;
-@@ -43,8 +33,6 @@ INSERT INTO tmp_user VALUES ('localhost','root','','Y','Y','Y','Y','Y','Y','Y','
- REPLACE INTO tmp_user SELECT @current_hostname,'root','','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','','','','',0,0,0,0,'','','N','N','',0 FROM dual WHERE @current_hostname != 'localhost';
- REPLACE INTO tmp_user VALUES ('127.0.0.1','root','','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','','','','',0,0,0,0,'','','N','N','',0);
- REPLACE INTO tmp_user VALUES ('::1','root','','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','','','','',0,0,0,0,'','','N','N', '', 0);
--INSERT INTO tmp_user (host,user) VALUES ('localhost','');
--INSERT INTO tmp_user (host,user) SELECT @current_hostname,'' FROM dual WHERE @current_hostname != 'localhost';
- INSERT INTO user SELECT * FROM tmp_user WHERE @had_user_table=0;
- DROP TABLE tmp_user;
+ CREATE TEMPORARY TABLE tmp_user_nopasswd LIKE user;
+@@ -48,9 +38,6 @@ REPLACE INTO tmp_user_nopasswd VALUES ('127.0.0.1','root','','Y','Y','Y','Y','Y'
+ REPLACE INTO tmp_user_nopasswd VALUES ('::1','root','','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','','','','',0,0,0,0,'','','N','N', '', 0);
+ -- More secure root account using unix sucket auth.
+ INSERT INTO tmp_user_socket VALUES ('localhost',IFNULL(@auth_root_socket, 'root'),'','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','','','','',0,0,0,0,'unix_socket','','N', 'N','', 0);
+--- Anonymous user with no privileges.
+-INSERT INTO tmp_user_anonymous (host,user) VALUES ('localhost','');
+-INSERT INTO tmp_user_anonymous (host,user) SELECT @current_hostname,'' FROM dual WHERE @current_hostname != 'localhost';
  
-
+ INSERT INTO user SELECT * FROM tmp_user_nopasswd WHERE @had_user_table=0 AND @skip_auth_root_nopasswd IS NULL;
+ INSERT INTO user SELECT * FROM tmp_user_socket WHERE @had_user_table=0 AND @auth_root_socket IS NOT NULL;

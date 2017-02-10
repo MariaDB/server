@@ -1,7 +1,7 @@
 /*************** TabFmt H Declares Source Code File (.H) ***************/
-/*  Name: TABFMT.H    Version 2.4                                      */
+/*  Name: TABFMT.H    Version 2.5                                      */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          2001-2014    */
+/*  (C) Copyright to the author Olivier BERTRAND          2001-2016    */
 /*                                                                     */
 /*  This file contains the CSV and FMT classes declares.               */
 /***********************************************************************/
@@ -13,8 +13,7 @@ typedef class  TDBFMT    *PTDBFMT;
 /***********************************************************************/
 /*  Functions used externally.                                         */
 /***********************************************************************/
-PQRYRES CSVColumns(PGLOBAL g, char *dp, const char *fn, char sep,
-                   char q, int hdr, int mxr, bool info);
+PQRYRES CSVColumns(PGLOBAL g, char *dp, PTOS topt, bool info);
 
 /***********************************************************************/
 /*  CSV table.                                                         */
@@ -22,7 +21,8 @@ PQRYRES CSVColumns(PGLOBAL g, char *dp, const char *fn, char sep,
 class DllExport CSVDEF : public DOSDEF { /* Logical table description  */
   friend class TDBCSV;
   friend class TDBCCL;
- public:
+	friend PQRYRES CSVColumns(PGLOBAL, char *, PTOS, bool);
+public:
   // Constructor
   CSVDEF(void);
 
@@ -50,9 +50,10 @@ class DllExport CSVDEF : public DOSDEF { /* Logical table description  */
 /*  This is the DOS/UNIX Access Method class declaration for files     */
 /*  that are CSV files with columns separated by the Sep character.    */
 /***********************************************************************/
-class TDBCSV : public TDBDOS {
+class DllExport TDBCSV : public TDBDOS {
   friend class CSVCOL;
- public:
+	friend PQRYRES CSVColumns(PGLOBAL, char *, PTOS, bool);
+public:
   // Constructor
   TDBCSV(PCSVDEF tdp, PTXF txfp);
   TDBCSV(PGLOBAL g, PTDBCSV tdbp);
@@ -101,7 +102,7 @@ class TDBCSV : public TDBDOS {
 /*  Class CSVCOL: CSV access method column descriptor.                 */
 /*  This A.M. is used for Comma Separated V(?) files.                  */
 /***********************************************************************/
-class CSVCOL : public DOSCOL {
+class DllExport CSVCOL : public DOSCOL {
   friend class TDBCSV;
   friend class TDBFMT;
  public:
@@ -129,7 +130,7 @@ class CSVCOL : public DOSCOL {
 /*  This is the DOS/UNIX Access Method class declaration for files     */
 /*  whose record format is described by a Format keyword.              */
 /***********************************************************************/
-class TDBFMT : public TDBCSV {
+class DllExport TDBFMT : public TDBCSV {
   friend class CSVCOL;
 //friend class FMTCOL;
  public:
@@ -173,7 +174,7 @@ class TDBFMT : public TDBCSV {
 /***********************************************************************/
 /*  This is the class declaration for the CSV catalog table.           */
 /***********************************************************************/
-class TDBCCL : public TDBCAT {
+class DllExport TDBCCL : public TDBCAT {
  public:
   // Constructor
   TDBCCL(PCSVDEF tdp);
@@ -183,11 +184,7 @@ class TDBCCL : public TDBCAT {
   virtual PQRYRES GetResult(PGLOBAL g);
 
   // Members
-  char   *Fn;                     // The CSV file (path) name
-  bool    Hdr;                    // true if first line contains headers
-  int     Mxr;                    // Maximum number of bad records
-  int     Qtd;                    // Quoting level for quoted fields
-  char    Sep;                    // Separator for standard CSV files
-  }; // end of class TDBCCL
+	PTOS  Topt;
+}; // end of class TDBCCL
 
 /* ------------------------- End of TabFmt.H ------------------------- */

@@ -949,15 +949,39 @@ my_bool getopt_compare_strings(register const char *s, register const char *t,
 /*
   function: eval_num_suffix
 
+  Transforms suffix like k/m/g to their real value.
+*/
+
+static inline long eval_num_suffix(char *suffix, int *error)
+{
+  long num= 1;
+  if (*suffix == 'k' || *suffix == 'K')
+    num*= 1024L;
+  else if (*suffix == 'm' || *suffix == 'M')
+    num*= 1024L * 1024L;
+  else if (*suffix == 'g' || *suffix == 'G')
+    num*= 1024L * 1024L * 1024L;
+  else if (*suffix)
+  {
+    *error= 1;
+    return 0;
+  }
+ return num;
+}
+
+/*
+  function: eval_num_suffix_ll
+
   Transforms a number with a suffix to real number. Suffix can
   be k|K for kilo, m|M for mega or g|G for giga.
 */
 
-static longlong eval_num_suffix(char *argument, int *error, char *option_name)
+static longlong eval_num_suffix_ll(char *argument,
+                                   int *error, char *option_name)
 {
   char *endchar;
   longlong num;
-  DBUG_ENTER("eval_num_suffix");
+  DBUG_ENTER("eval_num_suffix_ll");
 
   
   *error= 0;
@@ -970,22 +994,46 @@ static longlong eval_num_suffix(char *argument, int *error, char *option_name)
     *error= 1;
     DBUG_RETURN(0);
   }
-  if (*endchar == 'k' || *endchar == 'K')
-    num*= 1024L;
-  else if (*endchar == 'm' || *endchar == 'M')
-    num*= 1024L * 1024L;
-  else if (*endchar == 'g' || *endchar == 'G')
-    num*= 1024L * 1024L * 1024L;
-  else if (*endchar)
-  {
+  num*= eval_num_suffix(endchar, error);
+  if (*error)
     fprintf(stderr,
 	    "Unknown suffix '%c' used for variable '%s' (value '%s')\n",
 	    *endchar, option_name, argument);
+  DBUG_RETURN(num);
+}
+
+/*
+  function: eval_num_suffix_ull
+
+  Transforms a number with a suffix to positive Integer. Suffix can
+  be k|K for kilo, m|M for mega or g|G for giga.
+*/
+
+static ulonglong eval_num_suffix_ull(char *argument,
+                                     int *error, char *option_name)
+{
+  char *endchar;
+  ulonglong num;
+  DBUG_ENTER("eval_num_suffix_ull");
+
+  *error= 0;
+  errno= 0;
+  num= strtoull(argument, &endchar, 10);
+  if (errno == ERANGE)
+  {
+    my_getopt_error_reporter(ERROR_LEVEL,
+                             "Incorrect integer value: '%s'", argument);
     *error= 1;
     DBUG_RETURN(0);
   }
+  num*= eval_num_suffix(endchar, error);
+  if (*error)
+    fprintf(stderr,
+	    "Unknown suffix '%c' used for variable '%s' (value '%s')\n",
+	    *endchar, option_name, argument);
   DBUG_RETURN(num);
 }
+
 
 /*
   function: getopt_ll
@@ -1000,7 +1048,7 @@ static longlong eval_num_suffix(char *argument, int *error, char *option_name)
 
 static longlong getopt_ll(char *arg, const struct my_option *optp, int *err)
 {
-  longlong num=eval_num_suffix(arg, err, (char*) optp->name);
+  longlong num=eval_num_suffix_ll(arg, err, (char*) optp->name);
   return getopt_ll_limit_value(num, optp, NULL);
 }
 
@@ -1077,7 +1125,7 @@ longlong getopt_ll_limit_value(longlong num, const struct my_option *optp,
 
 static ulonglong getopt_ull(char *arg, const struct my_option *optp, int *err)
 {
-  ulonglong num= eval_num_suffix(arg, err, (char*) optp->name);
+  ulonglong num= eval_num_suffix_ull(arg, err, (char*) optp->name);
   return getopt_ull_limit_value(num, optp, NULL);
 }
 

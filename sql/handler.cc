@@ -4549,7 +4549,7 @@ void handler::get_dynamic_partition_info(PARTITION_STATS *stat_info,
   stat_info->update_time=          stats.update_time;
   stat_info->check_time=           stats.check_time;
   stat_info->check_sum=            0;
-  if (table_flags() & (HA_HAS_OLD_CHECKSUM | HA_HAS_OLD_CHECKSUM))
+  if (table_flags() & (HA_HAS_OLD_CHECKSUM | HA_HAS_NEW_CHECKSUM))
     stat_info->check_sum= checksum();
   return;
 }
@@ -5773,7 +5773,7 @@ static int write_locked_table_maps(THD *thd)
 
 typedef bool Log_func(THD*, TABLE*, bool, const uchar*, const uchar*);
 
-
+static int check_wsrep_max_ws_rows();
 
 static int binlog_log_row_internal(TABLE* table,
                                    const uchar *before_record,
@@ -5802,6 +5802,13 @@ static int binlog_log_row_internal(TABLE* table,
     bool const has_trans= thd->lex->sql_command == SQLCOM_CREATE_TABLE ||
       table->file->has_transactions();
     error= (*log_func)(thd, table, has_trans, before_record, after_record);
+
+    /*
+      Now that the record has been logged, increment wsrep_affected_rows and
+      also check whether its within the allowable limits (wsrep_max_ws_rows).
+    */
+    if (error == 0)
+      error= check_wsrep_max_ws_rows();
   }
   return error ? HA_ERR_RBR_LOGGING_FAILED : 0;
 }
@@ -5967,7 +5974,7 @@ int handler::ha_write_row(uchar *buf)
     error= binlog_log_row(table, 0, buf, log_func);
   }
   DEBUG_SYNC_C("ha_write_row_end");
-  DBUG_RETURN(error ? error : check_wsrep_max_ws_rows());
+  DBUG_RETURN(error);
 }
 
 
@@ -5998,7 +6005,7 @@ int handler::ha_update_row(const uchar *old_data, uchar *new_data)
     rows_changed++;
     error= binlog_log_row(table, old_data, new_data, log_func);
   }
-  return error ? error : check_wsrep_max_ws_rows();
+  return error;
 }
 
 int handler::ha_delete_row(const uchar *buf)
@@ -6025,7 +6032,7 @@ int handler::ha_delete_row(const uchar *buf)
     rows_changed++;
     error= binlog_log_row(table, buf, 0, log_func);
   }
-  return error ? error : check_wsrep_max_ws_rows();
+  return error;
 }
 
 

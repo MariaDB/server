@@ -1,6 +1,6 @@
 /******************************************************************/
 /*  Implementation of XML document processing using libxml2       */
-/*  Author: Olivier Bertrand                2007-2015             */
+/*  Author: Olivier Bertrand                2007-2016             */
 /******************************************************************/
 #include "my_global.h"
 #include <string.h>
@@ -68,8 +68,8 @@ class LIBXMLDOC : public XMLDOCUMENT {
   virtual void   SetNofree(bool b) {Nofreelist = b;}
 
   // Methods
-  virtual bool    Initialize(PGLOBAL g);
-  virtual bool    ParseFile(char *fn);
+	virtual bool    Initialize(PGLOBAL g, char *entry, bool zipped);
+  virtual bool    ParseFile(PGLOBAL g, char *fn);
   virtual bool    NewDoc(PGLOBAL g, char *ver);
   virtual void    AddComment(PGLOBAL g, char *com);
   virtual PXNODE  GetRoot(PGLOBAL g);
@@ -373,22 +373,33 @@ LIBXMLDOC::LIBXMLDOC(char *nsl, char *nsdf, char *enc, PFBLOCK fp)
 /******************************************************************/
 /*  Initialize XML parser and check library compatibility.        */
 /******************************************************************/
-bool LIBXMLDOC::Initialize(PGLOBAL g)
-  {
+bool LIBXMLDOC::Initialize(PGLOBAL g, char *entry, bool zipped)
+{
+	if (zipped && InitZip(g, entry))
+		return true;
+
   int n = xmlKeepBlanksDefault(1);
   return MakeNSlist(g);
-  } // end of Initialize
+} // end of Initialize
 
 /******************************************************************/
 /* Parse the XML file and construct node tree in memory.          */
 /******************************************************************/
-bool LIBXMLDOC::ParseFile(char *fn)
+bool LIBXMLDOC::ParseFile(PGLOBAL g, char *fn)
   {
   if (trace)
     htrc("ParseFile\n");
 
-  if ((Docp = xmlParseFile(fn))) {
-    if (Docp->encoding)
+	if (zip) {
+		// Parse an in memory document
+		char *xdoc = GetMemDoc(g, fn);
+
+		Docp = (xdoc) ? xmlParseDoc((const xmlChar *)xdoc) : NULL;
+	} else
+		Docp = xmlParseFile(fn);
+
+	if (Docp) {
+		if (Docp->encoding)
       Encoding = (char*)Docp->encoding;
 
     return false;
@@ -609,6 +620,7 @@ void LIBXMLDOC::CloseDoc(PGLOBAL g, PFBLOCK xp)
     } // endif xp
 
   CloseXML2File(g, xp, false);
+	CloseZip();
   } // end of Close
 
 /******************************************************************/

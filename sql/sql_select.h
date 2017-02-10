@@ -1149,6 +1149,10 @@ public:
     (if sql_calc_found_rows is used, LIMIT is ignored)
   */
   ha_rows select_limit;
+  /*
+    Number of duplicate rows found in UNION.
+  */
+  ha_rows duplicate_rows;
   /**
     Used to fetch no more than given amount of rows per one
     fetch operation of server side cursor.
@@ -1420,7 +1424,7 @@ public:
     sort_and_group= 0;
     first_record= 0;
     do_send_rows= 1;
-    send_records= 0;
+    duplicate_rows= send_records= 0;
     found_records= 0;
     fetch_limit= HA_POS_ERROR;
     thd= thd_arg;

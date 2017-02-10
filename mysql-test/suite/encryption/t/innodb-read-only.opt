@@ -1,0 +1,3 @@
+--innodb-encrypt-tables=1
+--innodb-encryption-threads=4
+--innodb-tablespaces-encryption
