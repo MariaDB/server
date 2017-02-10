@@ -58,8 +58,8 @@ INSERT INTO t1 (b_id, c_id) VALUES (NULL, NULL);
 INSERT INTO t2 (c_id) VALUES (NULL);
 INSERT INTO t2 (c_id) VALUES (NULL);
 
-SELECT * FROM T1;
+SELECT * FROM t1;
 SELECT t2.b_id FROM t1,t2 WHERE t2.c_id = t1.c_id;
 UPDATE t1 SET b_id = (SELECT t2.b_id FROM t2 t2 WHERE t2.c_id = t1.c_id);
-SELECT * FROM T1;
+SELECT * FROM t1;
 drop table t1,t2;

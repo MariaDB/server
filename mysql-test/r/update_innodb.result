@@ -45,13 +45,13 @@ INDEX idx_c_id (c_id))COLLATE = 'utf8_general_ci' ENGINE = InnoDB;
 INSERT INTO t1 (b_id, c_id) VALUES (NULL, NULL);
 INSERT INTO t2 (c_id) VALUES (NULL);
 INSERT INTO t2 (c_id) VALUES (NULL);
-SELECT * FROM T1;
+SELECT * FROM t1;
 a_id	b_id	c_id
 1	NULL	NULL
 SELECT t2.b_id FROM t1,t2 WHERE t2.c_id = t1.c_id;
 b_id
 UPDATE t1 SET b_id = (SELECT t2.b_id FROM t2 t2 WHERE t2.c_id = t1.c_id);
-SELECT * FROM T1;
+SELECT * FROM t1;
 a_id	b_id	c_id
 1	NULL	NULL
 drop table t1,t2;
