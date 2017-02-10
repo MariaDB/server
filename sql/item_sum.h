@@ -576,6 +576,8 @@ public:
   bool check_vcol_func_processor(void *arg);
   virtual void setup_window_func(THD *thd, Window_spec *window_spec) {}
   void mark_as_window_func_sum_expr() { window_func_sum_expr_flag= true; }
+  bool is_window_func_sum_expr() { return window_func_sum_expr_flag; }
+  virtual void setup_caches(THD *thd) {};
 };
 
 
@@ -1053,6 +1055,7 @@ protected:
   void no_rows_in_result();
   void restore_to_before_no_rows_in_result();
   Field *create_tmp_field(bool group, TABLE *table);
+  void setup_caches(THD *thd) { setup_hybrid(thd, arguments()[0], NULL); }
 };
 
 

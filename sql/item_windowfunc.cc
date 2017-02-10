@@ -150,6 +150,7 @@ void Item_window_func::split_sum_func(THD *thd, Ref_ptr_array ref_pointer_array,
     Item **p_item= &window_func()->arguments()[i];
     (*p_item)->split_sum_func2(thd, ref_pointer_array, fields, p_item, flags);
   }
+  window_func()->setup_caches(thd);
 }
 
 

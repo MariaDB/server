@@ -1161,7 +1161,8 @@ Item_sum_hybrid::fix_fields(THD *thd, Item **ref)
   case TIME_RESULT:
     DBUG_ASSERT(0);
   };
-  setup_hybrid(thd, args[0], NULL);
+  if (!is_window_func_sum_expr())
+    setup_hybrid(thd, args[0], NULL);
   /* MIN/MAX can return NULL for empty set indepedent of the used column */
   maybe_null= 1;
   result_field=0;
