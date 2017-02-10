@@ -588,9 +588,10 @@ buf_page_is_checksum_valid_crc32(
 			("Page checksum crc32 not valid field1 " ULINTPF
 			 " field2 " ULINTPF " crc32 %u.",
 				checksum_field1, checksum_field2, crc32));
+		return (false);
 	}
 
-	return(checksum_field1 == crc32 && checksum_field2 == crc32);
+	return (true);
 }
 
 /** Checks if the page is in innodb checksum format.
@@ -700,7 +701,9 @@ buf_page_is_corrupted(
 	compressed tables do not contain post compression checksum and
 	FIL_PAGE_END_LSN_OLD_CHKSUM field stored. Note that space can
 	be null if we are in fil_check_first_page() and first page
-	is not compressed or encrypted. */
+	is not compressed or encrypted. Page checksum is verified
+	after decompression (i.e. normally pages are already
+	decompressed at this stage). */
 	if ((page_type == FIL_PAGE_PAGE_COMPRESSED ||
 	     page_type == FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED)
 	    && space && FSP_FLAGS_HAS_PAGE_COMPRESSION(space->flags)) {
@@ -1178,7 +1181,6 @@ buf_block_init(
 	block->page.buf_fix_count = 0;
 	block->page.io_fix = BUF_IO_NONE;
 	block->page.encrypted = false;
-	block->page.corrupted = false;
 	block->page.key_version = 0;
 	block->page.real_size = 0;
 	block->page.write_size = 0;
@@ -3854,7 +3856,6 @@ buf_page_init_low(
 	bpage->oldest_modification = 0;
 	bpage->write_size = 0;
 	bpage->encrypted = false;
-	bpage->corrupted = false;
 	bpage->key_version = 0;
 	bpage->real_size = 0;
 
@@ -4578,8 +4579,7 @@ buf_page_check_corrupt(
 	ulint zip_size = buf_page_get_zip_size(bpage);
 	byte* dst_frame = (zip_size) ? bpage->zip.data :
 		((buf_block_t*) bpage)->frame;
-	ulint space_id = mach_read_from_4(
-		dst_frame + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID);
+	ulint space_id = bpage->space;
 	fil_space_t* space = fil_space_found_by_id(space_id);
 	fil_space_crypt_t* crypt_data = space->crypt_data;
 	bool still_encrypted = false;
@@ -4611,9 +4611,8 @@ buf_page_check_corrupt(
 	/* Pages that we think are unencrypted but do not match the checksum
 	checks could be corrupted or encrypted or both. */
 	if (corrupted && !bpage->encrypted) {
-		bpage->corrupted = true;
 		ib_logf(IB_LOG_LEVEL_ERROR,
-			"%s: Block in space_id %lu in file %s corrupted.",
+			"%s: Block in space_id " ULINTPF " in file %s corrupted.",
 			page_type ==  FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED ? "Maybe corruption" : "Corruption",
 			space_id, space ? space->name : "NULL");
 		ib_logf(IB_LOG_LEVEL_ERROR,
@@ -4621,11 +4620,10 @@ buf_page_check_corrupt(
 			fil_get_page_type_name(page_type), page_type);
 	} else if (still_encrypted || (bpage->encrypted && corrupted)) {
 		bpage->encrypted = true;
-		bpage->corrupted = false;
 		corrupted = true;
 
 		ib_logf(IB_LOG_LEVEL_ERROR,
-			"Block in space_id %lu in file %s encrypted.",
+			"Block in space_id " ULINTPF " in file %s encrypted.",
 			space_id, space ? space->name : "NULL");
 		ib_logf(IB_LOG_LEVEL_ERROR,
 				"However key management plugin or used key_version %u is not found or"
@@ -4698,7 +4696,6 @@ buf_page_io_complete(
 					bpage->offset, bpage->space);
 
 				corrupted = true;
-				bpage->corrupted = true;
 
 				goto database_corrupted;
 			}
@@ -4738,7 +4735,7 @@ buf_page_io_complete(
 			fprintf(stderr,
 				"  InnoDB: Error: space id and page n:o"
 				" stored in the page\n"
-				"InnoDB: read in are %lu:%lu,"
+				"InnoDB: read in are " ULINTPF ":" ULINTPF ","
 				" should be %u:%u!\n",
 				read_space_id,
 				read_page_no,
@@ -4872,20 +4869,6 @@ database_corrupted:
 		    && fil_page_get_type(frame) == FIL_PAGE_INDEX
 		    && page_is_leaf(frame)) {
 
-			buf_block_t*	block;
-			ibool		update_ibuf_bitmap;
-
-			if (UNIV_UNLIKELY(bpage->is_corrupt &&
-					  srv_pass_corrupt_table)) {
-
-				block = NULL;
-				update_ibuf_bitmap = FALSE;
-			} else {
-
-				block = (buf_block_t *) bpage;
-				update_ibuf_bitmap = TRUE;
-			}
-
 			if (bpage && bpage->encrypted) {
 				ib_logf(IB_LOG_LEVEL_WARN,
 					"Table in tablespace %lu encrypted."
@@ -4894,10 +4877,11 @@ database_corrupted:
 					" Can't continue opening the table.\n",
 					(ulint)bpage->space, bpage->key_version);
 			} else {
+
 				ibuf_merge_or_delete_for_page(
-					block, bpage->space,
+					(buf_block_t*)bpage, bpage->space,
 					bpage->offset, buf_page_get_zip_size(bpage),
-					update_ibuf_bitmap);
+					TRUE);
 			}
 
 		}
@@ -6418,7 +6402,7 @@ buf_page_decrypt_after_read(
 	/* Page is encrypted if encryption information is found from
 	tablespace and page contains used key_version. This is true
 	also for pages first compressed and then encrypted. */
-	if (!crypt_data && key_version != 0) {
+	if (!crypt_data) {
 		key_version = 0;
 	}
 

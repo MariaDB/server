@@ -1644,7 +1644,6 @@ struct buf_page_t{
 
 	unsigned        key_version;	/*!< key version for this block */
 	bool            encrypted;	/*!< page is still encrypted */
-	bool            corrupted;	/*!< page is corrupted */
 
 	ulint           real_size;	/*!< Real size of the page
 					Normal pages == UNIV_PAGE_SIZE

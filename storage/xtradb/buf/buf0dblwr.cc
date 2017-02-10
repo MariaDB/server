@@ -382,14 +382,7 @@ buf_dblwr_init_or_load_pages(
 
 	doublewrite = read_buf + TRX_SYS_DOUBLEWRITE;
 
-	if (mach_read_from_4(read_buf + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION) != 0) {
-		bool decrypted = false;
-		byte* tmp = fil_space_decrypt((ulint)TRX_SYS_SPACE,
-						read_buf + UNIV_PAGE_SIZE,
-						UNIV_PAGE_SIZE, /* page size */
-						read_buf, &decrypted);
-		doublewrite = tmp + TRX_SYS_DOUBLEWRITE;
-	}
+	/* TRX_SYS_PAGE_NO is not encrypted see fil_crypt_rotate_page() */
 
 	if (mach_read_from_4(doublewrite + TRX_SYS_DOUBLEWRITE_MAGIC)
 	    == TRX_SYS_DOUBLEWRITE_MAGIC_N) {
@@ -488,7 +481,6 @@ buf_dblwr_process()
 	byte*	read_buf;
 	byte*	unaligned_read_buf;
 	recv_dblwr_t& recv_dblwr = recv_sys->dblwr;
-	fil_space_t* space=NULL;
 
 	unaligned_read_buf = static_cast<byte*>(ut_malloc(2 * UNIV_PAGE_SIZE));
 
@@ -497,6 +489,7 @@ buf_dblwr_process()
 
 	for (std::list<byte*>::iterator i = recv_dblwr.pages.begin();
 	     i != recv_dblwr.pages.end(); ++i, ++page_no_dblwr ) {
+		fil_space_t* space=NULL;
 		page = *i;
 		page_no  = mach_read_from_4(page + FIL_PAGE_OFFSET);
 		space_id = mach_read_from_4(page + FIL_PAGE_SPACE_ID);
@@ -516,10 +509,7 @@ buf_dblwr_process()
 			continue;
 		}
 
-		if (!space) {
-			space = fil_space_found_by_id(space_id);
-		}
-
+		space = fil_space_found_by_id(space_id);
 		ulint	zip_size = fil_space_get_zip_size(space_id);
 		ut_ad(!buf_page_is_zeroes(page, zip_size));
 

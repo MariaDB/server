@@ -970,8 +970,10 @@ fil_space_verify_crypt_checksum(
 		return false;
 	}
 
+	srv_checksum_algorithm_t algorithm =
+			static_cast<srv_checksum_algorithm_t>(srv_checksum_algorithm);
 	/* If no checksum is used, can't continue checking. */
-	if (srv_checksum_algorithm == SRV_CHECKSUM_ALGORITHM_NONE) {
+	if (algorithm == SRV_CHECKSUM_ALGORITHM_NONE) {
 		return(true);
 	}
 
@@ -987,7 +989,8 @@ fil_space_verify_crypt_checksum(
 	}
 
 	/* Compressed and encrypted pages do not have checksum. Assume not
-	corrupted. */
+	corrupted. Page verification happens after decompression in
+	buf_page_io_complete() using buf_page_is_corrupted(). */
 	if (mach_read_from_2(page+FIL_PAGE_TYPE) == FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED) {
 		return (true);
 	}
