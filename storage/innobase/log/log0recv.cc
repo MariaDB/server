@@ -474,7 +474,6 @@ recv_sys_close(void)
 		}
 
 		ut_free(recv_sys->buf);
-		ut_free(recv_sys->last_block_buf_start);
 
 		ut_ad(!recv_writer_thread_active);
 		mutex_free(&recv_sys->writer_mutex);
@@ -512,7 +511,6 @@ recv_sys_mem_free(void)
 		}
 
 		ut_free(recv_sys->buf);
-		ut_free(recv_sys->last_block_buf_start);
 		ut_free(recv_sys);
 		recv_sys = NULL;
 	}
@@ -631,12 +629,6 @@ recv_sys_init(
 	recv_sys->apply_log_recs = FALSE;
 	recv_sys->apply_batch_on = FALSE;
 
-	recv_sys->last_block_buf_start = static_cast<byte*>(
-		ut_malloc_nokey(2 * OS_FILE_LOG_BLOCK_SIZE));
-
-	recv_sys->last_block = static_cast<byte*>(ut_align(
-		recv_sys->last_block_buf_start, OS_FILE_LOG_BLOCK_SIZE));
-
 	recv_sys->found_corrupt_log = false;
 	recv_sys->found_corrupt_fs = false;
 	recv_sys->mlog_checkpoint_lsn = 0;
@@ -680,12 +672,10 @@ recv_sys_debug_free(void)
 	hash_table_free(recv_sys->addr_hash);
 	mem_heap_free(recv_sys->heap);
 	ut_free(recv_sys->buf);
-	ut_free(recv_sys->last_block_buf_start);
 
 	recv_sys->buf = NULL;
 	recv_sys->heap = NULL;
 	recv_sys->addr_hash = NULL;
-	recv_sys->last_block_buf_start = NULL;
 
 	/* wake page cleaner up to progress */
 	if (!srv_read_only_mode) {
@@ -708,24 +698,23 @@ void
 recv_synchronize_groups(void)
 /*=========================*/
 {
-	lsn_t		start_lsn;
-	lsn_t		end_lsn;
-	lsn_t		recovered_lsn;
-
-	recovered_lsn = recv_sys->recovered_lsn;
+	const lsn_t recovered_lsn = recv_sys->recovered_lsn;
 
 	/* Read the last recovered log block to the recovery system buffer:
 	the block is always incomplete */
 
-	start_lsn = ut_uint64_align_down(recovered_lsn,
-					 OS_FILE_LOG_BLOCK_SIZE);
-	end_lsn = ut_uint64_align_up(recovered_lsn, OS_FILE_LOG_BLOCK_SIZE);
+	const lsn_t start_lsn = ut_uint64_align_down(recovered_lsn,
+						     OS_FILE_LOG_BLOCK_SIZE);
+	const lsn_t end_lsn = ut_uint64_align_up(recovered_lsn,
+						 OS_FILE_LOG_BLOCK_SIZE);
 
-	ut_a(start_lsn != end_lsn);
+	ut_ad(start_lsn != end_lsn);
 
-	log_group_read_log_seg(recv_sys->last_block,
+	log_group_read_log_seg(log_sys->buf,
 			       UT_LIST_GET_FIRST(log_sys->log_groups),
 			       start_lsn, end_lsn);
+
+	ut_ad(UT_LIST_GET_LEN(log_sys->log_groups) == 1);
 
 	for (log_group_t* group = UT_LIST_GET_FIRST(log_sys->log_groups);
 	     group;
@@ -3403,8 +3392,6 @@ recv_recovery_from_checkpoint_start(
 	} else {
 		srv_start_lsn = recv_sys->recovered_lsn;
 	}
-
-	ut_memcpy(log_sys->buf, recv_sys->last_block, OS_FILE_LOG_BLOCK_SIZE);
 
 	log_sys->buf_free = (ulint) log_sys->lsn % OS_FILE_LOG_BLOCK_SIZE;
 	log_sys->buf_next_to_write = log_sys->buf_free;

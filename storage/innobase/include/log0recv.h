@@ -214,12 +214,6 @@ struct recv_sys_t{
 	ibool		apply_batch_on;
 				/*!< this is TRUE when a log rec application
 				batch is running */
-	byte*		last_block;
-				/*!< possible incomplete last recovered log
-				block */
-	byte*		last_block_buf_start;
-				/*!< the nonaligned start address of the
-				preceding buffer */
 	byte*		buf;	/*!< buffer for parsing log records */
 	ulint		len;	/*!< amount of data in buf */
 	lsn_t		parse_start_lsn;
