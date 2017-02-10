@@ -13,7 +13,7 @@
 #
 # You should have received a copy of the GNU Lesser General Public
 # License along with this library; if not, write to the Free Software
-# Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA
 
 --disable_query_log
 let $VERSION_COMPILE_OS_WIN=`SELECT IF(@@version_compile_os like 'Win%', 1, 0)`;
