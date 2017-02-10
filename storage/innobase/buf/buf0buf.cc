@@ -4513,7 +4513,7 @@ buf_page_check_corrupt(
 		ib_logf(IB_LOG_LEVEL_ERROR,
 			"%s: Block in space_id " ULINTPF " in file %s corrupted.",
 			page_type ==  FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED ? "Maybe corruption" : "Corruption",
-			space_id, space ? space->name : "NULL");
+			space_id, space->name ? space->name : "NULL");
 		ib_logf(IB_LOG_LEVEL_ERROR,
 			"Based on page type %s (" ULINTPF ")",
 			fil_get_page_type_name(page_type), page_type);
@@ -4523,7 +4523,7 @@ buf_page_check_corrupt(
 
 		ib_logf(IB_LOG_LEVEL_ERROR,
 			"Block in space_id " ULINTPF " in file %s encrypted.",
-			space_id, space ? space->name : "NULL");
+			space_id, space->name ? space->name : "NULL");
 		ib_logf(IB_LOG_LEVEL_ERROR,
 				"However key management plugin or used key_version %u is not found or"
 				" used encryption algorithm or method does not match.",
@@ -4669,7 +4669,7 @@ database_corrupted:
 				ib_logf(IB_LOG_LEVEL_ERROR,
 					"Space %u file %s read of page %u.",
 					bpage->space,
-					space ? space->name : "NULL",
+					space->name ? space->name : "NULL",
 					bpage->offset);
 				ib_logf(IB_LOG_LEVEL_ERROR,
 					"You may have to recover"
@@ -4894,7 +4894,7 @@ buf_all_freed_instance(
 				ib_logf(IB_LOG_LEVEL_ERROR,
 					"Page space_id %u name %s.",
 					block->page.space,
-					(space && space->name) ? space->name : "NULL");
+					space->name ? space->name : "NULL");
 				ut_error;
 			}
 		}

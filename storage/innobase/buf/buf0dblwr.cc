@@ -489,7 +489,6 @@ buf_dblwr_process()
 
 	for (std::list<byte*>::iterator i = recv_dblwr.pages.begin();
 	     i != recv_dblwr.pages.end(); ++i, ++page_no_dblwr ) {
-		fil_space_t* space=NULL;
 		page = *i;
 		page_no  = mach_read_from_4(page + FIL_PAGE_OFFSET);
 		space_id = mach_read_from_4(page + FIL_PAGE_SPACE_ID);
@@ -509,7 +508,7 @@ buf_dblwr_process()
 			continue;
 		}
 
-		space = fil_space_found_by_id(space_id);
+		fil_space_t* space = fil_space_found_by_id(space_id);
 		ulint	zip_size = fil_space_get_zip_size(space_id);
 		ut_ad(!buf_page_is_zeroes(page, zip_size));
 
