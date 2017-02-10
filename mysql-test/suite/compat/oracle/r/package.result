@@ -87,6 +87,54 @@ DROP VIEW test2.v1;
 DROP PACKAGE BODY test2;
 DROP PACKAGE test2;
 #
+# Syntax error inside a CREATE PACKAGE, inside a routine definition
+#
+CREATE PACKAGE test2 AS
+FUNCTION f1 RETURN INT;
+FUNCTION f2 RETURN INT;
+FUNCTION f3;
+FUNCTION f4 RETURN INT;
+END
+$$
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ';
+FUNCTION f4 RETURN INT;
+END' at line 3
+#
+# Syntax error inside a CREATE PACKAGE, outside of a routine definition
+#
+CREATE PACKAGE test2 AS
+FUNCTION f1 RETURN INT;
+FUNCTION f2 RETURN INT;
+FUNCTION f3 RETURN INT AS BEGIN RETURN 10; END;
+FUNCTION f4 RETURN INT;
+END
+$$
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'AS BEGIN RETURN 10; END;
+FUNCTION f4 RETURN INT;
+END' at line 3
+#
+# Syntax error inside a CREATE PACKAGE BODY, inside a routine definition
+#
+CREATE PACKAGE BODY test2 AS
+FUNCTION f1 RETURN INT AS BEGIN RETURN 10; END;
+FUNCTION f2 RETURN INT; -- Missing "AS BEGIN..END;"
+END
+$$
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '; -- Missing "AS BEGIN..END;"
+END' at line 2
+#
+# Syntax error inside a CREATE PACKAGE BODY, outside a routine definition
+#
+CREATE PACKAGE BODY test2 AS
+FUNCTION f1 RETURN INT AS BEGIN RETURN 10; END;
+SOME SYNTAX ERROR;
+FUNCTION f2 RETURN INT AS BEGIN RETURN 10; END;
+END
+$$
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'SOME SYNTAX ERROR;
+FUNCTION f2 RETURN INT AS BEGIN RETURN 10; END;
+END' at line 2
+#
 # Creating a new package
 #
 CREATE PACKAGE test2 AS

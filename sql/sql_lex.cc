@@ -809,7 +809,17 @@ void lex_end_stage1(LEX *lex)
 
   if (lex->package_body)
   {
-    lex->package_body->cleanup();
+    /*
+      Cleanup package_body only if we're cleaning up the top level LEX
+      corresponging to the "CREATE PACKAGE [BODY]" statement.
+      Otherwise, we're cleaning up a package routine sublex corresponding to a
+      package PROCEDURE/FUNCTION definition, e.g. in Package_body::cleanup().
+      The top-level LEX::package_body and the sub-LEX::package_body point to
+      the same Package_body instance, it should be left intact at this point.
+      It will be cleaned up later, during cleanup for the top-level LEX.
+    */
+    if (lex->package_body->m_top_level_lex == lex)
+      lex->package_body->cleanup();
     lex->package_body= NULL;
   }
 
@@ -2909,6 +2919,20 @@ void LEX::cleanup_lex_after_parse_error(THD *thd)
     thd->lex->sphead->restore_thd_mem_root(thd);
     delete thd->lex->sphead;
     thd->lex->sphead= NULL;
+  }
+  if (thd->lex->package_body)
+  {
+    /*
+      If a syntax error happened inside a package routine definition,
+      then thd->lex points to the routine sublex. We need to restore to
+      the top level LEX.
+      No needs to cleanup the current sub-lex: it's referenced from
+      package_body and will be cleaned during Package_body::cleanup().
+    */
+    LEX *top_level_lex= thd->lex->package_body->m_top_level_lex;
+    DBUG_ASSERT(top_level_lex);
+    DBUG_ASSERT(thd->lex->package_body == top_level_lex->package_body);
+    thd->lex= top_level_lex;
   }
 }
 

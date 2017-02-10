@@ -1960,7 +1960,7 @@ create:
             lex->create_info.used_fields= 0;
             if (lex->set_command_with_check(SQLCOM_CREATE_PACKAGE, 0, $3))
                MYSQL_YYABORT;
-            if (!(lex->package_body= new (thd->mem_root) Package_body()))
+            if (!(lex->package_body= new (thd->mem_root) Package_body(lex)))
               MYSQL_YYABORT;
           }
           package_declaration_element_list END opt_ident
@@ -1971,7 +1971,7 @@ create:
             lex->name= $4;
             lex->sql_command= SQLCOM_CREATE_PACKAGE_BODY;
             lex->definer= NULL;
-            if (!(lex->package_body= new (thd->mem_root) Package_body()))
+            if (!(lex->package_body= new (thd->mem_root) Package_body(lex)))
               MYSQL_YYABORT;
           }
           package_implementation_element_list END opt_ident
@@ -1996,11 +1996,11 @@ package_implementation_element:
           remember_lex package_routine_lex
           {
             thd->lex= $2;
+            if (($1)->package_body->m_lex_list.push_back($2, thd->mem_root))
+              MYSQL_YYABORT;
           }
           package_implementation_element_routine
           {
-            if (($1)->package_body->m_lex_list.push_back($2, thd->mem_root))
-              MYSQL_YYABORT;
             thd->lex= $1;
           }
         ;
@@ -2025,6 +2025,8 @@ package_declaration_function:
           FUNCTION_SYM remember_lex package_routine_lex sp_name
           {
             thd->lex= $3;
+            if (($2)->package_body->m_lex_list.push_back($3, thd->mem_root))
+              MYSQL_YYABORT;
             if (!Lex->make_sp_head_no_recursive(thd, DDL_options(), $4,
                                                 TYPE_ENUM_FUNCTION))
               MYSQL_YYABORT;
@@ -2040,8 +2042,6 @@ package_declaration_function:
             sp->set_body_start(thd, YYLIP->get_cpp_tok_start());
             sp->set_stmt_end(thd);
             sp->restore_thd_mem_root(thd);
-            if (($2)->package_body->m_lex_list.push_back($3, thd->mem_root))
-              MYSQL_YYABORT;
             thd->lex= $2;
           }
         ;
@@ -2050,6 +2050,8 @@ package_declaration_procedure:
           PROCEDURE_SYM remember_lex package_routine_lex sp_name
           {
             thd->lex= $3;
+            if (($2)->package_body->m_lex_list.push_back($3, thd->mem_root))
+              MYSQL_YYABORT;
             if (!Lex->make_sp_head_no_recursive(thd, DDL_options(), $4,
                                                 TYPE_ENUM_PROCEDURE))
               MYSQL_YYABORT;
@@ -2063,8 +2065,6 @@ package_declaration_procedure:
             sp->set_body_start(thd, YYLIP->get_cpp_tok_start());
             sp->set_stmt_end(thd);
             sp->restore_thd_mem_root(thd);
-            if (($2)->package_body->m_lex_list.push_back($3, thd->mem_root))
-              MYSQL_YYABORT;
             thd->lex= $2;
           }
         ;

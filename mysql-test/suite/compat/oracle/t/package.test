@@ -113,6 +113,71 @@ DROP PACKAGE test2;
 
 
 --echo #
+--echo # Syntax error inside a CREATE PACKAGE, inside a routine definition
+--echo #
+
+DELIMITER $$;
+--error ER_PARSE_ERROR
+CREATE PACKAGE test2 AS
+  FUNCTION f1 RETURN INT;
+  FUNCTION f2 RETURN INT;
+  FUNCTION f3;
+  FUNCTION f4 RETURN INT;
+END
+$$
+DELIMITER ;$$
+
+
+--echo #
+--echo # Syntax error inside a CREATE PACKAGE, outside of a routine definition
+--echo #
+
+# The definition "FUNCTION f3 RETURN INT AS BEGIN RETURN 10; END;"
+# is valid in CREATE PACKAGE BODY, but not in CREATE PACKAGE.
+# Syntax error happens after parsing "FUNCTION f3 RETURN INT".
+
+DELIMITER $$;
+--error ER_PARSE_ERROR
+CREATE PACKAGE test2 AS
+  FUNCTION f1 RETURN INT;
+  FUNCTION f2 RETURN INT;
+  FUNCTION f3 RETURN INT AS BEGIN RETURN 10; END;
+  FUNCTION f4 RETURN INT;
+END
+$$
+DELIMITER ;$$
+
+
+--echo #
+--echo # Syntax error inside a CREATE PACKAGE BODY, inside a routine definition
+--echo #
+
+DELIMITER $$;
+--error ER_PARSE_ERROR
+CREATE PACKAGE BODY test2 AS
+  FUNCTION f1 RETURN INT AS BEGIN RETURN 10; END;
+  FUNCTION f2 RETURN INT; -- Missing "AS BEGIN..END;"
+END
+$$
+DELIMITER ;$$
+
+
+--echo #
+--echo # Syntax error inside a CREATE PACKAGE BODY, outside a routine definition
+--echo #
+
+DELIMITER $$;
+--error ER_PARSE_ERROR
+CREATE PACKAGE BODY test2 AS
+  FUNCTION f1 RETURN INT AS BEGIN RETURN 10; END;
+  SOME SYNTAX ERROR;
+  FUNCTION f2 RETURN INT AS BEGIN RETURN 10; END;
+END
+$$
+DELIMITER ;$$
+
+
+--echo #
 --echo # Creating a new package
 --echo #
 
