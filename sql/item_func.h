@@ -1202,17 +1202,25 @@ public:
 
 /* This handles round and truncate */
 
-class Item_func_round :public Item_func_num1
+class Item_func_round :public Item_func_numhybrid
 {
   bool truncate;
+  void fix_length_and_dec_decimal(uint decimals_to_set);
+  void fix_length_and_dec_double(uint decimals_to_set);
 public:
   Item_func_round(THD *thd, Item *a, Item *b, bool trunc_arg)
-    :Item_func_num1(thd, a, b), truncate(trunc_arg) {}
+    :Item_func_numhybrid(thd, a, b), truncate(trunc_arg) {}
   const char *func_name() const { return truncate ? "truncate" : "round"; }
   double real_op();
   longlong int_op();
   my_decimal *decimal_op(my_decimal *);
-  void fix_length_and_dec();
+  void fix_arg_decimal();
+  void fix_arg_int();
+  void fix_arg_double();
+  void fix_length_and_dec()
+  {
+    args[0]->type_handler()->Item_func_round_fix_length_and_dec(this);
+  }
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_func_round>(thd, mem_root, this); }
 };

@@ -3711,5 +3711,14 @@ CASE a WHEN POINT(1,1) THEN "a" WHEN POINT(1,2) THEN "b" END
 DROP PROCEDURE p1;
 DROP PROCEDURE p2;
 #
+# MDEV-12001 Split Item_func_round::fix_length_and_dec to virtual methods in Type_handler
+#
+CREATE TABLE t1 (a GEOMETRY);
+SELECT ROUND(a) FROM t1;
+ERROR HY000: Illegal parameter data type geometry for operation 'round'
+DROP TABLE t1;
+SELECT ROUND(POINT(1,1));
+ERROR HY000: Illegal parameter data type geometry for operation 'round'
+#
 # End of 10.3 tests
 #
