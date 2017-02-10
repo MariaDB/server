@@ -160,7 +160,7 @@ call mtr.add_suppression("InnoDB: Cannot read first page in datafile: .*test.*ib
 call mtr.add_suppression("InnoDB: Datafile '.*test.*ibd' is corrupted");
 call mtr.add_suppression("InnoDB:  Cannot replay file rename. Remove either file and try again");
 call mtr.add_suppression("InnoDB: Cannot rename.*because the target file exists");
-call mtr.add_suppression("InnoDB: Found corrupted log");
+call mtr.add_suppression("InnoDB: Log scan aborted at LSN");
 # The following are for the --innodb-force-recovery=1 with broken u* tables:
 call mtr.add_suppression("InnoDB: Header page consists of zero bytes in datafile: .*u1.ibd");
 call mtr.add_suppression("InnoDB: The error means the system cannot find the path specified");

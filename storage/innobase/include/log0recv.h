@@ -297,13 +297,4 @@ use these free frames to read in pages when we start applying the
 log records to the database. */
 extern ulint	recv_n_pool_free_frames;
 
-/******************************************************//**
-Checks the 4-byte checksum to the trailer checksum field of a log
-block.  */
-bool
-log_block_checksum_is_ok(
-/*===================================*/
-	const byte*	block,	/*!< in: pointer to a log block */
-	bool            print_err); /*!< in print error ? */
-
 #endif

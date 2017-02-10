@@ -10,9 +10,6 @@ if (`SELECT @@innodb_log_file_size = 1048576`) {
 }
 
 --disable_query_log
-call mtr.add_suppression("InnoDB: Resizing redo log");
-call mtr.add_suppression("InnoDB: Starting to delete and rewrite log files");
-call mtr.add_suppression("InnoDB: New log files created");
 call mtr.add_suppression("InnoDB: The log sequence numbers [0-9]+ and [0-9]+ in ibdata files do not match the log sequence number [0-9]+ in the ib_logfiles");
 call mtr.add_suppression("syntax error in innodb_log_group_home_dir");
 call mtr.add_suppression("Plugin 'InnoDB' init function returned error");
@@ -100,7 +97,7 @@ let SEARCH_PATTERN= InnoDB: innodb_read_only prevents crash recovery;
 SELECT * FROM t1;
 let SEARCH_PATTERN= InnoDB: Starting an apply batch of log records;
 --source include/search_pattern_in_file.inc
-let SEARCH_PATTERN= InnoDB: Resizing redo log from 3\*[0-9]+ to 2\*[0-9]+ pages;
+let SEARCH_PATTERN= redo log from 3\*[0-9]+ to 2\*[0-9]+ pages;
 --source include/search_pattern_in_file.inc
 
 --let $restart_parameters= --debug=d,innodb_log_abort_5
@@ -109,7 +106,7 @@ let SEARCH_PATTERN= InnoDB: Resizing redo log from 3\*[0-9]+ to 2\*[0-9]+ pages;
 SELECT * FROM t1;
 let SEARCH_PATTERN= InnoDB: Starting an apply batch of log records;
 --source include/search_pattern_in_file.inc
-let SEARCH_PATTERN= InnoDB: Resizing redo log from 3\*[0-9]+ to 2\*[0-9]+ pages;
+let SEARCH_PATTERN= redo log from 3\*[0-9]+ to 2\*[0-9]+ pages;
 --source include/search_pattern_in_file.inc
 
 --let $restart_parameters= --innodb-read-only
@@ -126,7 +123,7 @@ SELECT * FROM t1;
 
 let SEARCH_PATTERN= InnoDB: Starting an apply batch of log records;
 --source include/search_pattern_in_file.inc
-let SEARCH_PATTERN= InnoDB: Resizing redo log from 3\*[0-9]+ to 2\*[0-9]+ pages;
+let SEARCH_PATTERN= redo log from 3\*[0-9]+ to 2\*[0-9]+ pages;
 --source include/search_pattern_in_file.inc
 
 --let $restart_parameters= --debug=d,innodb_log_abort_7

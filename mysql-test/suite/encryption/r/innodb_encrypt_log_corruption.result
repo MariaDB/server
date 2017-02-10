@@ -41,7 +41,7 @@ WHERE engine = 'innodb'
 AND support IN ('YES', 'DEFAULT', 'ENABLED');
 ENGINE	SUPPORT	COMMENT	TRANSACTIONS	XA	SAVEPOINTS
 FOUND /InnoDB: Invalid log block checksum. block: 2372 checkpoint no: 1 expected: 3362026715 found: 144444122/ in mysqld.1.err
-FOUND /InnoDB: Ignoring the redo log due to missing MLOG_CHECKPOINT between the checkpoint 1213964 and the end 1213952\./ in mysqld.1.err
+FOUND /InnoDB: Missing MLOG_CHECKPOINT between the checkpoint 1213964 and the end 1213952\./ in mysqld.1.err
 # --innodb-force-recovery=6 (skip the entire redo log)
 SELECT * FROM INFORMATION_SCHEMA.ENGINES
 WHERE engine = 'innodb'
@@ -54,7 +54,6 @@ SELECT * FROM INFORMATION_SCHEMA.ENGINES
 WHERE engine = 'innodb'
 AND support IN ('YES', 'DEFAULT', 'ENABLED');
 ENGINE	SUPPORT	COMMENT	TRANSACTIONS	XA	SAVEPOINTS
-FOUND /InnoDB: Ignoring the redo log due to missing MLOG_CHECKPOINT between the checkpoint 1213964 and the end 1213952\./ in mysqld.1.err
 # --innodb-force-recovery=6 (skip the entire redo log)
 SELECT * FROM INFORMATION_SCHEMA.ENGINES
 WHERE engine = 'innodb'
@@ -90,6 +89,7 @@ SELECT COUNT(*) `1` FROM INFORMATION_SCHEMA.ENGINES WHERE engine='innodb'
 AND support IN ('YES', 'DEFAULT', 'ENABLED');
 1
 1
+FOUND /InnoDB: Encrypting redo log/ in mysqld.1.err
 ib_buffer_pool
 ib_logfile0
 ib_logfile1

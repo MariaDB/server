@@ -6,11 +6,6 @@
 let $status_orig=`SELECT @@innodb_status_output`;
 --enable_query_log
 
-call mtr.add_suppression("Resizing redo log from *");
-call mtr.add_suppression("Starting to delete and rewrite log files.");
-call mtr.add_suppression("New log files created, LSN=*");
-call mtr.add_suppression("Writer thread is waiting this semaphore");
-
 create table foo (id varchar(37) not null, content longblob) engine=INNODB;
 insert into foo (id, content) values('xyz', '');
 update foo set content=repeat('a', 43941888) where id='xyz';

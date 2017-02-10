@@ -89,7 +89,7 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include "fts0types.h"
 #include "ibuf0ibuf.h"
 #include "lock0lock.h"
-#include "log0log.h"
+#include "log0crypt.h"
 #include "mem0mem.h"
 #include "mtr0mtr.h"
 #include "os0file.h"
@@ -3748,14 +3748,42 @@ static const char*	deprecated_use_trim
 
 /** Update log_checksum_algorithm_ptr with a pointer to the function
 corresponding to whether checksums are enabled.
-@param[in]	check	whether redo log block checksums are enabled */
-static
-void
-innodb_log_checksums_func_update(bool	check)
+@param[in,out]	thd	client session, or NULL if at startup
+@param[in]	check	whether redo log block checksums are enabled
+@return whether redo log block checksums are enabled */
+static inline
+bool
+innodb_log_checksums_func_update(THD* thd, bool check)
 {
-	log_checksum_algorithm_ptr = check
-		? log_block_calc_checksum_crc32
-		: log_block_calc_checksum_none;
+	static const char msg[] = "innodb_encrypt_log implies"
+		" innodb_log_checksums";
+
+	ut_ad(!thd == !srv_was_started);
+
+	if (!check) {
+		check = srv_encrypt_log;
+		if (!check) {
+		} else if (thd) {
+			push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+					    HA_ERR_UNSUPPORTED, msg);
+		} else {
+			sql_print_warning(msg);
+		}
+	}
+
+	if (thd) {
+		log_mutex_enter();
+		log_checksum_algorithm_ptr = check
+			? log_block_calc_checksum_crc32
+			: log_block_calc_checksum_none;
+		log_mutex_exit();
+	} else {
+		log_checksum_algorithm_ptr = check
+			? log_block_calc_checksum_crc32
+			: log_block_calc_checksum_none;
+	}
+
+	return(check);
 }
 
 /****************************************************************//**
@@ -4244,7 +4272,8 @@ innobase_change_buffering_inited_ok:
 		srv_checksum_algorithm = SRV_CHECKSUM_ALGORITHM_NONE;
 	}
 
-	innodb_log_checksums_func_update(innodb_log_checksums);
+	innodb_log_checksums = innodb_log_checksums_func_update(
+		NULL, innodb_log_checksums);
 
 #ifdef HAVE_LINUX_LARGE_PAGES
 	if ((os_use_large_pages = my_use_large_pages)) {
@@ -20229,13 +20258,8 @@ innodb_log_checksums_update(
 	void*				var_ptr,
 	const void*			save)
 {
-	my_bool	check = *static_cast<my_bool*>(var_ptr)
-		= *static_cast<const my_bool*>(save);
-
-	/* Make sure we are the only log user */
-	mutex_enter(&log_sys->mutex);
-	innodb_log_checksums_func_update(check);
-	mutex_exit(&log_sys->mutex);
+	*static_cast<my_bool*>(var_ptr) = innodb_log_checksums_func_update(
+		thd, *static_cast<const my_bool*>(save));
 }
 
 static SHOW_VAR innodb_status_variables_export[]= {

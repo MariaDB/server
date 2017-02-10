@@ -63,7 +63,7 @@ Created 2/16/1996 Heikki Tuuri
 #include "fsp0fsp.h"
 #include "rem0rec.h"
 #include "mtr0mtr.h"
-#include "log0log.h"
+#include "log0crypt.h"
 #include "log0recv.h"
 #include "page0page.h"
 #include "page0cur.h"
@@ -481,6 +481,9 @@ create_log_files(
 
 	/* Create a log checkpoint. */
 	log_mutex_enter();
+	if (log_sys->is_encrypted() && !log_crypt_init()) {
+		return(DB_ERROR);
+	}
 	ut_d(recv_no_log_write = false);
 	recv_reset_logs(lsn);
 	log_mutex_exit();
@@ -536,7 +539,7 @@ create_log_files_rename(
 
 	fil_open_log_and_system_tablespace_files();
 
-	ib::warn() << "New log files created, LSN=" << lsn;
+	ib::info() << "New log files created, LSN=" << lsn;
 
 	return(err);
 }
@@ -1362,17 +1365,35 @@ srv_prepare_to_delete_redo_log_files(
 		flushed_lsn = log_sys->lsn;
 
 		{
-			ib::warn	warning;
+			ib::info	info;
 			if (srv_log_file_size == 0) {
-				warning << "Upgrading redo log: ";
+				info << "Upgrading redo log: ";
+			} else if (n_files != srv_n_log_files
+				   || srv_log_file_size
+				   != srv_log_file_size_requested) {
+				if (srv_encrypt_log
+				    == log_sys->is_encrypted()) {
+					info << (srv_encrypt_log
+						 ? "Resizing encrypted"
+						 : "Resizing");
+				} else if (srv_encrypt_log) {
+					info << "Encrypting and resizing";
+				} else {
+					info << "Removing encryption"
+						" and resizing";
+				}
+
+				info << " redo log from " << n_files
+				     << "*" << srv_log_file_size << " to ";
+			} else if (srv_encrypt_log) {
+				info << "Encrypting redo log: ";
 			} else {
-				warning << "Resizing redo log from "
-					<< n_files << "*"
-					<< srv_log_file_size << " to ";
+				info << "Removing redo log encryption: ";
 			}
-			warning << srv_n_log_files << "*"
-				<< srv_log_file_size_requested
-				<< " pages, LSN=" << flushed_lsn;
+
+			info << srv_n_log_files << "*"
+			     << srv_log_file_size_requested
+			     << " pages; LSN=" << flushed_lsn;
 		}
 
 		/* Flush the old log files. */
@@ -2180,6 +2201,14 @@ files_checked:
 
 		recv_sys->dblwr.pages.clear();
 
+		if (err == DB_SUCCESS && !srv_read_only_mode) {
+			log_mutex_enter();
+			if (log_sys->is_encrypted() && !log_crypt_init()) {
+				err = DB_ERROR;
+			}
+			log_mutex_exit();
+		}
+
 		if (err == DB_SUCCESS) {
 			/* Initialize the change buffer. */
 			err = dict_boot();
@@ -2291,6 +2320,115 @@ files_checked:
 
 		recv_recovery_from_checkpoint_finish();
 
+		/* Upgrade or resize or rebuild the redo logs before
+		generating any dirty pages, so that the old redo log
+		files will not be written to. */
+
+		if (srv_force_recovery == SRV_FORCE_NO_LOG_REDO) {
+			/* Completely ignore the redo log. */
+		} else if (srv_read_only_mode) {
+			/* Leave the redo log alone. */
+		} else if (srv_log_file_size_requested == srv_log_file_size
+			   && srv_n_log_files_found == srv_n_log_files
+			   && log_sys->is_encrypted() == srv_encrypt_log) {
+			/* No need to upgrade or resize the redo log. */
+		} else {
+			/* Prepare to delete the old redo log files */
+			flushed_lsn = srv_prepare_to_delete_redo_log_files(i);
+
+			DBUG_EXECUTE_IF("innodb_log_abort_1",
+					return(srv_init_abort(DB_ERROR)););
+			/* Prohibit redo log writes from any other
+			threads until creating a log checkpoint at the
+			end of create_log_files(). */
+			ut_d(recv_no_log_write = true);
+			ut_ad(!buf_pool_check_no_pending_io());
+
+			DBUG_EXECUTE_IF("innodb_log_abort_3",
+					return(srv_init_abort(DB_ERROR)););
+
+			/* Stamp the LSN to the data files. */
+			err = fil_write_flushed_lsn(flushed_lsn);
+
+			DBUG_EXECUTE_IF("innodb_log_abort_4", err = DB_ERROR;);
+
+			if (err != DB_SUCCESS) {
+				return(srv_init_abort(err));
+			}
+
+			/* Close and free the redo log files, so that
+			we can replace them. */
+			fil_close_log_files(true);
+
+			DBUG_EXECUTE_IF("innodb_log_abort_5",
+					return(srv_init_abort(DB_ERROR)););
+
+			/* Free the old log file space. */
+			log_group_close_all();
+
+			ib::info() << "Starting to delete and rewrite log"
+				" files.";
+
+			srv_log_file_size = srv_log_file_size_requested;
+
+			err = create_log_files(
+				logfilename, dirnamelen, flushed_lsn,
+				logfile0);
+
+			if (err == DB_SUCCESS) {
+				err = create_log_files_rename(
+					logfilename, dirnamelen, flushed_lsn,
+					logfile0);
+			}
+
+			if (err != DB_SUCCESS) {
+				return(srv_init_abort(err));
+			}
+		}
+
+
+		/* Validate a few system page types that were left
+		uninitialized by older versions of MySQL. */
+		if (!high_level_read_only) {
+			mtr_t		mtr;
+			buf_block_t*	block;
+			mtr.start();
+			mtr.set_sys_modified();
+			/* Bitmap page types will be reset in
+			buf_dblwr_check_block() without redo logging. */
+			block = buf_page_get(
+				page_id_t(IBUF_SPACE_ID,
+					  FSP_IBUF_HEADER_PAGE_NO),
+				univ_page_size, RW_X_LATCH, &mtr);
+			fil_block_check_type(block, FIL_PAGE_TYPE_SYS, &mtr);
+			/* Already MySQL 3.23.53 initialized
+			FSP_IBUF_TREE_ROOT_PAGE_NO to
+			FIL_PAGE_INDEX. No need to reset that one. */
+			block = buf_page_get(
+				page_id_t(TRX_SYS_SPACE, TRX_SYS_PAGE_NO),
+				univ_page_size, RW_X_LATCH, &mtr);
+			fil_block_check_type(block, FIL_PAGE_TYPE_TRX_SYS,
+					     &mtr);
+			block = buf_page_get(
+				page_id_t(TRX_SYS_SPACE,
+					  FSP_FIRST_RSEG_PAGE_NO),
+				univ_page_size, RW_X_LATCH, &mtr);
+			fil_block_check_type(block, FIL_PAGE_TYPE_SYS, &mtr);
+			block = buf_page_get(
+				page_id_t(TRX_SYS_SPACE, FSP_DICT_HDR_PAGE_NO),
+				univ_page_size, RW_X_LATCH, &mtr);
+			fil_block_check_type(block, FIL_PAGE_TYPE_SYS, &mtr);
+			mtr.commit();
+		}
+
+		/* Roll back any recovered data dictionary transactions, so
+		that the data dictionary tables will be free of any locks.
+		The data dictionary latch should guarantee that there is at
+		most one data dictionary transaction active at a time. */
+		if (srv_force_recovery < SRV_FORCE_NO_TRX_UNDO) {
+			trx_rollback_or_clean_recovered(FALSE);
+		}
+
 		/* Fix-up truncate of tables in the system tablespace
 		if server crashed while truncate was active. The non-
 		system tables are done after tablespace discovery. Do
@@ -2342,71 +2480,6 @@ files_checked:
 
 		if (err != DB_SUCCESS) {
 			return(srv_init_abort(err));
-		}
-
-		if (!srv_force_recovery
-		    && !recv_sys->found_corrupt_log
-		    && (srv_log_file_size_requested != srv_log_file_size
-			|| srv_n_log_files_found != srv_n_log_files)) {
-			/* Prepare to replace the redo log files. */
-
-			if (srv_read_only_mode) {
-				ib::error() << "Cannot resize log files"
-					" in read-only mode.";
-				return(srv_init_abort(DB_READ_ONLY));
-			}
-
-			/* Prepare to delete the old redo log files */
-			flushed_lsn = srv_prepare_to_delete_redo_log_files(i);
-
-			DBUG_EXECUTE_IF("innodb_log_abort_1",
-					return(srv_init_abort(DB_ERROR)););
-			/* Prohibit redo log writes from any other
-			threads until creating a log checkpoint at the
-			end of create_log_files(). */
-			ut_d(recv_no_log_write = true);
-			ut_ad(!buf_pool_check_no_pending_io());
-
-			DBUG_EXECUTE_IF("innodb_log_abort_3",
-					return(srv_init_abort(DB_ERROR)););
-
-			/* Stamp the LSN to the data files. */
-			err = fil_write_flushed_lsn(flushed_lsn);
-
-			DBUG_EXECUTE_IF("innodb_log_abort_4", err = DB_ERROR;);
-
-			if (err != DB_SUCCESS) {
-				return(srv_init_abort(err));
-			}
-
-			/* Close and free the redo log files, so that
-			we can replace them. */
-			fil_close_log_files(true);
-
-			DBUG_EXECUTE_IF("innodb_log_abort_5",
-					return(srv_init_abort(DB_ERROR)););
-
-			/* Free the old log file space. */
-			log_group_close_all();
-
-			ib::warn() << "Starting to delete and rewrite log"
-				" files.";
-
-			srv_log_file_size = srv_log_file_size_requested;
-
-			err = create_log_files(
-				logfilename, dirnamelen, flushed_lsn,
-				logfile0);
-
-			if (err == DB_SUCCESS) {
-				err = create_log_files_rename(
-					logfilename, dirnamelen, flushed_lsn,
-					logfile0);
-			}
-
-			if (err != DB_SUCCESS) {
-				return(srv_init_abort(err));
-			}
 		}
 
 		recv_recovery_rollback_active();

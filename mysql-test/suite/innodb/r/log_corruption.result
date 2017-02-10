@@ -41,7 +41,7 @@ WHERE engine = 'innodb'
 AND support IN ('YES', 'DEFAULT', 'ENABLED');
 ENGINE	SUPPORT	COMMENT	TRANSACTIONS	XA	SAVEPOINTS
 FOUND /InnoDB: Invalid log block checksum. block: 2372 checkpoint no: 1 expected: 3362026715 found: 144444122/ in mysqld.1.err
-FOUND /InnoDB: Ignoring the redo log due to missing MLOG_CHECKPOINT between the checkpoint 1213964 and the end 1213952\./ in mysqld.1.err
+FOUND /InnoDB: Missing MLOG_CHECKPOINT between the checkpoint 1213964 and the end 1213952\./ in mysqld.1.err
 # --innodb-force-recovery=6 (skip the entire redo log)
 SELECT * FROM INFORMATION_SCHEMA.ENGINES
 WHERE engine = 'innodb'
@@ -54,7 +54,6 @@ SELECT * FROM INFORMATION_SCHEMA.ENGINES
 WHERE engine = 'innodb'
 AND support IN ('YES', 'DEFAULT', 'ENABLED');
 ENGINE	SUPPORT	COMMENT	TRANSACTIONS	XA	SAVEPOINTS
-FOUND /InnoDB: Ignoring the redo log due to missing MLOG_CHECKPOINT between the checkpoint 1213964 and the end 1213952\./ in mysqld.1.err
 # --innodb-force-recovery=6 (skip the entire redo log)
 SELECT * FROM INFORMATION_SCHEMA.ENGINES
 WHERE engine = 'innodb'
@@ -90,7 +89,7 @@ SELECT * FROM INFORMATION_SCHEMA.ENGINES
 WHERE engine = 'innodb'
 AND support IN ('YES', 'DEFAULT', 'ENABLED');
 ENGINE	SUPPORT	COMMENT	TRANSACTIONS	XA	SAVEPOINTS
-FOUND /InnoDB: Redo log crypto: getting mysqld crypto key from key version failed err = 4294967295/ in mysqld.1.err
+FOUND /InnoDB: Obtaining redo log encryption key version 1 failed/ in mysqld.1.err
 FOUND /InnoDB: Decrypting checkpoint failed/ in mysqld.1.err
 ib_buffer_pool
 ib_logfile0
