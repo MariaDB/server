@@ -1253,39 +1253,16 @@ handle_rpl_parallel_thread(void *arg)
     */
     rpt->batch_free();
 
-    for (;;)
+    if ((events= rpt->event_queue) != NULL)
     {
-      if ((events= rpt->event_queue) != NULL)
-      {
-        /*
-          Take next group of events from the replication pool.
-          This is faster than having to wakeup the pool manager thread to give
-          us a new event.
-        */
-        rpt->dequeue1(events);
-        mysql_mutex_unlock(&rpt->LOCK_rpl_thread);
-        goto more_events;
-      }
-      if (!rpt->pause_for_ftwrl ||
-          (in_event_group && !group_rgi->parallel_entry->force_abort))
-        break;
       /*
-        We are currently in the delicate process of pausing parallel
-        replication while FLUSH TABLES WITH READ LOCK is starting. We must
-        not de-allocate the thread (setting rpt->current_owner= NULL) until
-        rpl_unpause_after_ftwrl() has woken us up.
+        Take next group of events from the replication pool.
+        This is faster than having to wakeup the pool manager thread to give
+        us a new event.
       */
-      mysql_mutex_lock(&rpt->current_entry->LOCK_parallel_entry);
+      rpt->dequeue1(events);
       mysql_mutex_unlock(&rpt->LOCK_rpl_thread);
-      if (rpt->pause_for_ftwrl)
-        mysql_cond_wait(&rpt->current_entry->COND_parallel_entry,
-                        &rpt->current_entry->LOCK_parallel_entry);
-      mysql_mutex_unlock(&rpt->current_entry->LOCK_parallel_entry);
-      mysql_mutex_lock(&rpt->LOCK_rpl_thread);
-      /*
-        Now loop to check again for more events available, since we released
-        and re-aquired the LOCK_rpl_thread mutex.
-      */
+      goto more_events;
     }
 
     rpt->inuse_relaylog_refcount_update();
@@ -1335,11 +1312,13 @@ handle_rpl_parallel_thread(void *arg)
         mysql_mutex_unlock(&e->LOCK_parallel_entry);
         mysql_mutex_lock(&rpt->LOCK_rpl_thread);
       }
+
       rpt->current_owner= NULL;
       /* Tell wait_for_done() that we are done, if it is waiting. */
       if (likely(rpt->current_entry) &&
           unlikely(rpt->current_entry->force_abort))
         mysql_cond_broadcast(&rpt->COND_rpl_thread_stop);
+
       rpt->current_entry= NULL;
       if (!rpt->stop)
         rpt->pool->release_thread(rpt);
@@ -2116,6 +2095,11 @@ rpl_parallel::find(uint32 domain_id)
   return e;
 }
 
+/**
+  Wait until all sql worker threads has stopped processing
+
+  This is called when sql thread has been killed/stopped
+*/
 
 void
 rpl_parallel::wait_for_done(THD *thd, Relay_log_info *rli)
