@@ -5990,6 +5990,7 @@ err:
 
 void end_relay_log_info(Relay_log_info* rli)
 {
+  mysql_mutex_t *log_lock;
   DBUG_ENTER("end_relay_log_info");
 
   if (!rli->inited)
@@ -6007,8 +6008,11 @@ void end_relay_log_info(Relay_log_info* rli)
     rli->cur_log_fd = -1;
   }
   rli->inited = 0;
+  log_lock= rli->relay_log.get_log_lock();
+  mysql_mutex_lock(log_lock);
   rli->relay_log.close(LOG_CLOSE_INDEX | LOG_CLOSE_STOP_EVENT);
   rli->relay_log.harvest_bytes_written(&rli->log_space_total);
+  mysql_mutex_unlock(log_lock);
   /*
     Delete the slave's temporary tables from memory.
     In the future there will be other actions than this, to ensure persistance

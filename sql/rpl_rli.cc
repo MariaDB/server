@@ -208,6 +208,7 @@ a file name for --relay-log-index option", opt_relaylog_index_name);
     Master_info* mi= rli->mi;
     char buf_relay_logname[FN_REFLEN], buf_relaylog_index_name_buff[FN_REFLEN];
     char *buf_relaylog_index_name= opt_relaylog_index_name;
+    mysql_mutex_t *log_lock;
 
     create_logfile_name_with_suffix(buf_relay_logname,
                                     sizeof(buf_relay_logname),
@@ -227,14 +228,18 @@ a file name for --relay-log-index option", opt_relaylog_index_name);
       note, that if open() fails, we'll still have index file open
       but a destructor will take care of that
     */
+    log_lock= rli->relay_log.get_log_lock();
+    mysql_mutex_lock(log_lock);
     if (rli->relay_log.open_index_file(buf_relaylog_index_name, ln, TRUE) ||
         rli->relay_log.open(ln, LOG_BIN, 0, SEQ_READ_APPEND,
                             mi->rli.max_relay_log_size, 1, TRUE))
     {
+      mysql_mutex_unlock(log_lock);
       mysql_mutex_unlock(&rli->data_lock);
       sql_print_error("Failed when trying to open logs for '%s' in init_relay_log_info(). Error: %M", ln, my_errno);
       DBUG_RETURN(1);
     }
+    mysql_mutex_unlock(log_lock);
   }
 
   /* if file does not exist */
