@@ -798,7 +798,7 @@ recv_find_max_checkpoint_0(
 		checkpoint_no = mach_read_from_8(
 			buf + LOG_CHECKPOINT_NO);
 
-		if (!log_crypt_read_checkpoint_buf(buf)) {
+		if (!log_crypt_101_read_checkpoint(buf)) {
 			ib::warn() << "Decrypting checkpoint failed";
 			continue;
 		}
@@ -859,10 +859,9 @@ recv_log_format_0_recover(lsn_t lsn)
 			% univ_page_size.physical()),
 		OS_FILE_LOG_BLOCK_SIZE, buf, NULL);
 
-	log_decrypt_after_read(buf, OS_FILE_LOG_BLOCK_SIZE);
-
 	if (log_block_calc_checksum_format_0(buf)
-	    != log_block_get_checksum(buf)) {
+	    != log_block_get_checksum(buf)
+	    && !log_crypt_101_read_block(buf)) {
 		ib::error() << NO_UPGRADE_RECOVERY_MSG
 			<< ", and it appears corrupted"
 			<< NO_UPGRADE_RTFM_MSG;

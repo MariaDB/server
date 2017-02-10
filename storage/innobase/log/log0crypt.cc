@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (C) 2013, 2015, Google Inc. All Rights Reserved.
-Copyright (C) 2014, 2016, MariaDB Corporation. All Rights Reserved.
+Copyright (C) 2014, 2017, MariaDB Corporation. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -453,6 +453,86 @@ log_decrypt_after_read(
 	if (unlikely(result != MY_AES_OK)) {
 		ut_error;
 	}
+}
+
+/** Read the MariaDB 10.1 checkpoint crypto (version, msg and iv) info.
+@param[in]	buf	checkpoint buffer
+@return	whether the operation was successful */
+UNIV_INTERN
+bool
+log_crypt_101_read_checkpoint(const byte* buf)
+{
+	buf += 20 + 32 * 9;
+
+	const size_t n = *buf++ == 2 ? std::min(unsigned(*buf++), 5U) : 0;
+
+	for (size_t i = 0; i < n; i++) {
+		struct crypt_info_t info;
+		info.checkpoint_no = mach_read_from_4(buf);
+		info.key_version = mach_read_from_4(buf + 4);
+		memcpy(info.crypt_msg, buf + 8, MY_AES_BLOCK_SIZE);
+		memcpy(info.crypt_nonce, buf + 24, MY_AES_BLOCK_SIZE);
+
+		if (!add_crypt_info(&info, true)) {
+			return false;
+		}
+		buf += 4 + 4 + 2 * MY_AES_BLOCK_SIZE;
+	}
+
+	return true;
+}
+
+/** Decrypt a MariaDB 10.1 redo log block.
+@param[in,out]	buf	log block
+@return	whether the decryption was successful */
+UNIV_INTERN
+bool
+log_crypt_101_read_block(byte* buf)
+{
+	ut_ad(log_block_calc_checksum_format_0(buf)
+	      != log_block_get_checksum(buf));
+	const crypt_info_t* info = get_crypt_info(buf);
+
+	if (!info || info->key_version == 0) {
+		return false;
+	}
+
+	byte dst[OS_FILE_LOG_BLOCK_SIZE];
+	uint dst_len;
+	byte aes_ctr_counter[MY_AES_BLOCK_SIZE];
+
+	const uint src_len = OS_FILE_LOG_BLOCK_SIZE - LOG_BLOCK_HDR_SIZE;
+
+	ulint log_block_no = log_block_get_hdr_no(buf);
+	lsn_t log_block_start_lsn = log_block_get_start_lsn(
+		srv_start_lsn, log_block_no);
+
+	/* The log block header is not encrypted. */
+	memcpy(dst, buf, LOG_BLOCK_HDR_SIZE);
+
+	memcpy(aes_ctr_counter, info->crypt_nonce, 3);
+	mach_write_to_8(aes_ctr_counter + 3, log_block_start_lsn);
+	mach_write_to_4(aes_ctr_counter + 11, log_block_no);
+	aes_ctr_counter[15] = 0;
+
+	int rc = encryption_crypt(buf + LOG_BLOCK_HDR_SIZE, src_len,
+				  dst + LOG_BLOCK_HDR_SIZE, &dst_len,
+				  const_cast<byte*>(info->crypt_key),
+				  MY_AES_BLOCK_SIZE,
+				  aes_ctr_counter, MY_AES_BLOCK_SIZE,
+				  ENCRYPTION_FLAG_DECRYPT
+				  | ENCRYPTION_FLAG_NOPAD,
+				  LOG_DEFAULT_ENCRYPTION_KEY,
+				  info->key_version);
+
+	if (rc != MY_AES_OK || dst_len != src_len
+	    || log_block_calc_checksum_format_0(dst)
+	    != log_block_get_checksum(dst)) {
+		return false;
+	}
+
+	memcpy(buf, dst, sizeof dst);
+	return true;
 }
 
 /*********************************************************************//**
