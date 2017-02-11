@@ -32,7 +32,6 @@ push @::global_suppressions,
      qr(WSREP:.*down context.*),
      qr(WSREP: Failed to send state UUID:),
      qr(WSREP: last inactive check more than .* skipping check),
-     qr(WSREP: SQL statement was ineffective),
      qr(WSREP: Releasing seqno [0-9]* before [0-9]* was assigned.),
      qr|WSREP: access file\(.*gvwstate.dat\) failed\(No such file or directory\)|,
      qr(WSREP: Quorum: No node with complete state),
@@ -67,6 +66,7 @@ push @::global_suppressions,
      qr|WSREP: gcs_caused\(\) returned .*|,
      qr|WSREP: Protocol violation. JOIN message sender .* is not in state transfer \(SYNCED\). Message ignored.|,
      qr(WSREP: Action message in non-primary configuration from member [0-9]*),
+     qr(WSREP: discarding established .*),
    );
 
 

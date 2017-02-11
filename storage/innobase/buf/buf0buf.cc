@@ -841,11 +841,15 @@ buf_page_is_corrupted(
 {
 	ulint		checksum_field1;
 	ulint		checksum_field2;
-	bool page_encrypted = false;
+	bool		no_checksum = false;
 
 #ifndef UNIV_INNOCHECKSUM
 	ulint 		space_id = mach_read_from_4(
 		read_buf + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID);
+	ulint page_type = mach_read_from_4(
+		read_buf + FIL_PAGE_TYPE);
+	no_checksum = (page_type == FIL_PAGE_PAGE_COMPRESSED ||
+		page_type == FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED);
 	fil_space_crypt_t* crypt_data = fil_space_get_crypt_data(space_id);
 
 	/* Page is encrypted if encryption information is found from
@@ -854,19 +858,24 @@ buf_page_is_corrupted(
 	if (crypt_data &&
 	    crypt_data->type != CRYPT_SCHEME_UNENCRYPTED &&
 	    fil_page_is_encrypted(read_buf)) {
-		page_encrypted = true;
+		no_checksum = true;
+	}
+
+	/* Return early if there is no checksum or END_LSN */
+	if (no_checksum) {
+		return (FALSE);
 	}
 #else
 	if (mach_read_from_4(read_buf+FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION) != 0
 	    || mach_read_from_2(read_buf+FIL_PAGE_TYPE) == FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED) {
-		page_encrypted = true;
+		no_checksum= true;
 	}
 
 #endif
 
 	DBUG_EXECUTE_IF("buf_page_is_corrupt_failure", return(TRUE); );
 
-	if (!page_encrypted && !page_size.is_compressed()
+	if (!no_checksum && !page_size.is_compressed()
 	    && memcmp(read_buf + FIL_PAGE_LSN + 4,
 		      read_buf + page_size.logical()
 		      - FIL_PAGE_END_LSN_OLD_CHKSUM + 4, 4)) {
@@ -933,9 +942,6 @@ buf_page_is_corrupted(
 		return(!page_zip_verify_checksum(read_buf,
 						 page_size.physical()));
 #endif /* UNIV_INNOCHECKSUM */
-	}
-	if (page_encrypted) {
-		return (FALSE);
 	}
 
 	checksum_field1 = mach_read_from_4(
@@ -1969,7 +1975,7 @@ buf_pool_init_instance(
 	/* Initialize the temporal memory array and slots */
 	buf_pool->tmp_arr = (buf_tmp_array_t *)ut_malloc_nokey(sizeof(buf_tmp_array_t));
 	memset(buf_pool->tmp_arr, 0, sizeof(buf_tmp_array_t));
-	ulint n_slots = srv_n_read_io_threads * srv_n_write_io_threads * (8 * OS_AIO_N_PENDING_IOS_PER_THREAD);
+	ulint n_slots = (srv_n_read_io_threads + srv_n_write_io_threads) * (8 * OS_AIO_N_PENDING_IOS_PER_THREAD);
 	buf_pool->tmp_arr->n_slots = n_slots;
 	buf_pool->tmp_arr->slots = (buf_tmp_buffer_t*)ut_malloc_nokey(sizeof(buf_tmp_buffer_t) * n_slots);
 	memset(buf_pool->tmp_arr->slots, 0, (sizeof(buf_tmp_buffer_t) * n_slots));

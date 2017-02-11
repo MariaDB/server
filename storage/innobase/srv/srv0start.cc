@@ -1427,11 +1427,11 @@ innobase_start_or_create_for_mysql(void)
 	size_t		dirnamelen;
 	unsigned	i = 0;
 
-	/* Reset the start state. */
-	srv_start_state = SRV_START_STATE_NONE;
-
 	high_level_read_only = srv_read_only_mode
 		|| srv_force_recovery > SRV_FORCE_NO_TRX_UNDO;
+
+	/* Reset the start state. */
+	srv_start_state = SRV_START_STATE_NONE;
 
 	if (srv_read_only_mode) {
 		ib::info() << "Started in read only mode";

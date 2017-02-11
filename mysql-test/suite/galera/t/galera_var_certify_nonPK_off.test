@@ -37,3 +37,7 @@ SELECT COUNT(*) = 1 FROM t2 WHERE f1 = 3;
 DROP TABLE t1;
 DROP TABLE t2;
 
+--connection node_1
+call mtr.add_suppression("SQL statement was ineffective");
+
+--source include/galera_end.inc

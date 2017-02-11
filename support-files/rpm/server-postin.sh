@@ -93,7 +93,12 @@ if [ -f /etc/redhat-release ] ; then
      echo '       make load'
      echo
      echo
-  fi
+   fi
+   if grep 'CentOS release 6' /etc/redhat-release >/dev/null 2>&1; then
+     if [ -x /usr/sbin/semodule ] ; then
+       /usr/sbin/semodule -i /usr/share/mysql/policy/selinux/mariadb.pp
+     fi
+   fi
 fi
 
 if [ -x sbin/restorecon ] ; then

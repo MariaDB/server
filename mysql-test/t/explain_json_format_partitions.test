@@ -8,10 +8,10 @@ create table t1 (
 insert into t1 select a from t2;
 explain partitions select * from t1 where a in (2,3,4);
 explain format=json select * from t1 where a in (2,3,4);
---replace_regex /"r_total_time_ms": [0-9]*[.]?[0-9]*/"r_total_time_ms": "REPLACED"/
+--source include/analyze-format.inc
 analyze format=json select * from t1 where a in (2,3,4);
---replace_regex /"r_total_time_ms": [0-9]*[.]?[0-9]*/"r_total_time_ms": "REPLACED"/
+--source include/analyze-format.inc
 analyze format=json update t1 set a=a+10 where a in (2,3,4);
---replace_regex /"r_total_time_ms": [0-9]*[.]?[0-9]*/"r_total_time_ms": "REPLACED"/
+--source include/analyze-format.inc
 analyze format=json delete from t1 where a in (20,30,40);
 drop table t1,t2;

@@ -45,3 +45,4 @@ CALL mtr.add_suppression("gcs connect failed: Connection timed out");
 CALL mtr.add_suppression("WSREP: wsrep::connect\\(foo://\\) failed: 7");
 disconnect node_2;
 disconnect node_1;
+# End of test

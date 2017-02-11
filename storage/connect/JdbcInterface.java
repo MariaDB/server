@@ -82,6 +82,9 @@ public class JdbcInterface {
 		  System.out.println("URL=" + parms[1]);
 	    
 	    CheckURL(parms[1], null);
+	    
+	    // This is required for drivers using context class loaders
+	    Thread.currentThread().setContextClassLoader(getClass().getClassLoader());
 	      
     	if (parms[2] != null && !parms[2].isEmpty()) {
   	      if (DEBUG)
@@ -219,6 +222,19 @@ public class JdbcInterface {
     	} // end try/catch
     	
     } // end of SetTimestampParm
+    
+    public int SetNullParm(int i, int typ) {
+    	int rc = 0;
+    	
+    	try {
+    		pstmt.setNull(i, typ);
+    	} catch (Exception e) {
+    		SetErrmsg(e);
+    		rc = -1;
+    	} // end try/catch
+    	
+    	return rc;
+    } // end of SetNullParm
     
     public int ExecutePrep() {
         int n = -3;

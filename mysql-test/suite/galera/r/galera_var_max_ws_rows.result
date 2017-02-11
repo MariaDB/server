@@ -113,3 +113,23 @@ INSERT INTO t1 (f2) VALUES (2);
 ERROR HY000: wsrep_max_ws_rows exceeded
 DROP TABLE t1;
 DROP TABLE ten;
+#
+# MDEV-11817: Altering a table with more rows than
+# wsrep_max_ws_rows causes cluster to break when running
+# Galera cluster in TOI mode
+#
+CREATE TABLE t1(c1 INT)ENGINE = INNODB;
+SET GLOBAL wsrep_max_ws_rows= DEFAULT;
+INSERT INTO t1 VALUES(1);
+INSERT INTO t1 SELECT * FROM t1;
+SET GLOBAL wsrep_max_ws_rows= 1;
+ALTER TABLE t1 CHANGE COLUMN c1 c1 BIGINT;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` bigint(20) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+2
+DROP TABLE t1;

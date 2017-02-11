@@ -1,11 +1,11 @@
 /************* TabFix C++ Program Source Code File (.CPP) **************/
 /* PROGRAM NAME: TABFIX                                                */
 /* -------------                                                       */
-/*  Version 4.9                                                        */
+/*  Version 4.9.1                                                      */
 /*                                                                     */
 /* COPYRIGHT:                                                          */
 /* ----------                                                          */
-/*  (C) Copyright to the author Olivier BERTRAND          1998-2015    */
+/*  (C) Copyright to the author Olivier BERTRAND          1998-2016    */
 /*                                                                     */
 /* WHAT THIS PROGRAM DOES:                                             */
 /* -----------------------                                             */
@@ -589,9 +589,10 @@ void BINCOL::WriteColumn(PGLOBAL g)
   switch (Fmt) {
     case 'X':
       // Standard not converted values
-      if (Eds && IsTypeChar(Buf_Type))
-        *(longlong *)p = Value->GetBigintValue();
-      else if (Value->GetBinValue(p, Long, Status)) {
+			if (Eds && IsTypeChar(Buf_Type)) {
+				if (Status)
+					Value->GetValueNonAligned<longlong>(p, Value->GetBigintValue());
+			} else if (Value->GetBinValue(p, Long, Status)) {
         sprintf(g->Message, MSG(BIN_F_TOO_LONG),
                             Name, Value->GetSize(), Long);
         longjmp(g->jumper[g->jump_level], 31);
@@ -605,7 +606,7 @@ void BINCOL::WriteColumn(PGLOBAL g)
         sprintf(g->Message, MSG(VALUE_TOO_BIG), n, Name);
         longjmp(g->jumper[g->jump_level], 31);
       } else if (Status)
-        *(short *)p = (short)n;
+				Value->GetValueNonAligned<short>(p, (short)n);
 
       break;
     case 'T':                 // Tiny integer
@@ -625,7 +626,7 @@ void BINCOL::WriteColumn(PGLOBAL g)
         sprintf(g->Message, MSG(VALUE_TOO_BIG), n, Name);
         longjmp(g->jumper[g->jump_level], 31);
       } else if (Status)
-        *(int *)p = Value->GetIntValue();
+				Value->GetValueNonAligned<int>(p, (int)n);
 
       break;
     case 'G':                 // Large (great) integer
@@ -636,12 +637,12 @@ void BINCOL::WriteColumn(PGLOBAL g)
     case 'F':                 // Float
     case 'R':                 // Real
       if (Status)
-        *(float *)p = (float)Value->GetFloatValue();
+				Value->GetValueNonAligned<float>(p, (float)Value->GetFloatValue());
 
       break;
     case 'D':                 // Double
       if (Status)
-        *(double *)p = Value->GetFloatValue();
+				Value->GetValueNonAligned<double>(p, Value->GetFloatValue());
 
       break;
     case 'C':                 // Characters

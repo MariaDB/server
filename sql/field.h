@@ -948,14 +948,11 @@ public:
   */
   void set_has_explicit_value()
   {
-    if (table->has_value_set)             /* If we have default functions */
-      bitmap_set_bit(table->has_value_set, field_index);
+    bitmap_set_bit(&table->has_value_set, field_index);
   }
   bool has_explicit_value()
   {
-    /* This function is only called when we have default functions */
-    DBUG_ASSERT(table->has_value_set);
-    return bitmap_is_set(table->has_value_set, field_index);
+    return bitmap_is_set(&table->has_value_set, field_index);
   }
   virtual void set_explicit_default(Item *value);
 

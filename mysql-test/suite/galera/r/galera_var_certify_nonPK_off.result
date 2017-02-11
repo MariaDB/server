@@ -24,3 +24,4 @@ connection node_2;
 SET GLOBAL wsrep_certify_nonPK = 1;
 DROP TABLE t1;
 DROP TABLE t2;
+call mtr.add_suppression("SQL statement was ineffective");

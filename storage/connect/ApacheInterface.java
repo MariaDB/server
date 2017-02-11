@@ -35,7 +35,10 @@ public class ApacheInterface extends JdbcInterface {
                 ds.setPassword(parms[3]);
                 pool.put(url, ds);
             } // endif ds
-                
+            
+          	// if (parms.length > 4 && parms[4] != null)
+          	//  ds.setConnectionProperties(parms[4]);
+          		
             // Get a connection from the data source
             conn = ds.getConnection();
         	    

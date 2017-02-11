@@ -110,6 +110,7 @@ bool JDBCDEF::SetParms(PJPARM sjp)
 	sjp->Url= Url;
 	sjp->User= Username;
 	sjp->Pwd= Password;
+//sjp->Properties = Prop;
 	return true;
 }  // end of SetParms
 
@@ -234,6 +235,7 @@ bool JDBCDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
 		Read_Only = true;
 
 	Wrapname = GetStringCatInfo(g, "Wrapper", NULL);
+//Prop = GetStringCatInfo(g, "Properties", NULL);
 	Tabcat = GetStringCatInfo(g, "Qualifier", NULL);
 	Tabcat = GetStringCatInfo(g, "Catalog", Tabcat);
 	Tabschema = GetStringCatInfo(g, "Dbname", NULL);
@@ -337,6 +339,7 @@ TDBJDBC::TDBJDBC(PJDBCDEF tdp) : TDBASE(tdp)
 		Schema = tdp->Tabschema;
 		Ops.User = tdp->Username;
 		Ops.Pwd = tdp->Password;
+//	Ops.Properties = tdp->Prop;
 		Catalog = tdp->Tabcat;
 		Srcdef = tdp->Srcdef;
 		Qrystr = tdp->Qrystr;
@@ -356,6 +359,7 @@ TDBJDBC::TDBJDBC(PJDBCDEF tdp) : TDBASE(tdp)
 		Ops.Url = NULL;
 		Ops.User = NULL;
 		Ops.Pwd = NULL;
+//	Ops.Properties = NULL;
 		Catalog = NULL;
 		Srcdef = NULL;
 		Qrystr = NULL;
