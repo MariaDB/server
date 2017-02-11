@@ -15071,7 +15071,7 @@ option_value_no_option_type:
             if (Lex->init_default_internal_variable(&var, $3) ||
                 Lex->set_variable(&var, $5))
               MYSQL_YYABORT;
-           }
+          }
         | '@' ident_or_text equal expr
           {
             Item_func_set_user_var *item;
