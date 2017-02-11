@@ -2842,3 +2842,14 @@ max(i)	min(i)	f
 16	14	2
 20	17	3
 drop table t1;
+#
+# MDEV-12015: window function over select with WHERE  
+#             that is always FALSE
+#
+CREATE TABLE t1 (i INT);
+INSERT INTO t1 VALUES (3), (1), (2);
+SELECT i, ROW_NUMBER() OVER () FROM t1 WHERE 1 = 2;
+i	ROW_NUMBER() OVER ()
+SELECT i, COUNT(*) OVER () FROM t1 WHERE 1 = 2;
+i	COUNT(*) OVER ()
+DROP TABLE t1;

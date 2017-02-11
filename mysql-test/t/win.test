@@ -1636,3 +1636,18 @@ select max(i), min(i), min(max(i)-min(i)) over (partition by count(i)) f
 group by b;
 
 drop table t1;
+
+--echo #
+--echo # MDEV-12015: window function over select with WHERE  
+--echo #             that is always FALSE
+--echo #
+
+CREATE TABLE t1 (i INT);
+INSERT INTO t1 VALUES (3), (1), (2);
+
+SELECT i, ROW_NUMBER() OVER () FROM t1 WHERE 1 = 2;
+
+SELECT i, COUNT(*) OVER () FROM t1 WHERE 1 = 2;
+
+DROP TABLE t1;
+

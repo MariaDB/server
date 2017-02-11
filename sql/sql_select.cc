@@ -2779,8 +2779,8 @@ JOIN::create_postjoin_aggr_table(JOIN_TAB *tab, List<Item> *table_fields,
   tmp_table_param.using_outer_summary_function=
     tab->tmp_table_param->using_outer_summary_function;
   tab->join= this;
-  DBUG_ASSERT(tab > tab->join->join_tab || !tables_list);
-  if (tables_list)
+  DBUG_ASSERT(tab > join_tab || select_lex->have_window_funcs());
+  if (tab > join_tab)
     (tab - 1)->next_select= sub_select_postjoin_aggr;
   tab->aggr= new (thd->mem_root) AGGR_OP(tab);
   if (!tab->aggr)
