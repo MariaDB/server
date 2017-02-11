@@ -525,11 +525,19 @@ public:
   /// Put the instruction on the backpatch list, associated with the label.
   int
   push_backpatch(THD *thd, sp_instr *, sp_label *);
+  int
+  push_backpatch_goto(THD *thd, sp_pcontext *ctx, sp_label *lab);
 
   /// Update all instruction with this label in the backpatch list to
   /// the current position.
   void
   backpatch(sp_label *);
+  void
+  backpatch_goto(THD *thd, sp_label *, sp_label *);
+
+  /// Check for unresolved goto label
+  bool
+  check_unresolved_goto();
 
   /// Start a new cont. backpatch level. If 'i' is NULL, the level is just incr.
   int
@@ -704,12 +712,17 @@ private:
   sp_pcontext *m_pcont;		///< Parse context
   List<LEX> m_lex;		///< Temp. store for the other lex
   DYNAMIC_ARRAY m_instr;	///< The "instructions"
+
+  enum backpatch_instr_type { GOTO, CPOP, HPOP };
   typedef struct
   {
     sp_label *lab;
     sp_instr *instr;
+    backpatch_instr_type instr_type;
   } bp_t;
   List<bp_t> m_backpatch;	///< Instructions needing backpatching
+  List<bp_t> m_backpatch_goto; // Instructions needing backpatching (for goto)
+
   /**
     We need a special list for backpatching of instructions with a continue
     destination (in the case of a continue handler catching an error in
@@ -747,6 +760,12 @@ private:
     by routine.
   */
   bool merge_table_list(THD *thd, TABLE_LIST *table, LEX *lex_for_tmp_check);
+
+  /// Put the instruction on the a backpatch list, associated with the label.
+  int
+  push_backpatch(THD *thd, sp_instr *, sp_label *, List<bp_t> *list,
+                 backpatch_instr_type itype);
+
 }; // class sp_head : public Sql_alloc
 
 
@@ -1368,6 +1387,11 @@ public:
   virtual ~sp_instr_hpop()
   {}
 
+  void update_count(uint count)
+  {
+    m_count= count;
+  }
+
   virtual int execute(THD *thd, uint *nextp);
 
   virtual void print(String *str);
@@ -1459,6 +1483,11 @@ public:
 
   virtual ~sp_instr_cpop()
   {}
+
+  void update_count(uint count)
+  {
+    m_count= count;
+  }
 
   virtual int execute(THD *thd, uint *nextp);
 
