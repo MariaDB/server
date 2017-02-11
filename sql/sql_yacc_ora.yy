@@ -512,7 +512,6 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  GET_FORMAT                    /* MYSQL-FUNC */
 %token  GET_SYM                       /* SQL-2003-R */
 %token  GLOBAL_SYM                    /* SQL-2003-R */
-%token  GOTO_SYM                      /* Oracle, reserved in PL/SQL*/
 %token  GRANT                         /* SQL-2003-R */
 %token  GRANTS
 %token  GROUP_SYM                     /* SQL-2003-R */
@@ -1002,8 +1001,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
         NCHAR_STRING opt_component key_cache_name
         sp_opt_label BIN_NUM label_ident TEXT_STRING_filesystem ident_or_empty
         opt_constraint constraint opt_ident
-        label_declaration_oracle labels_declaration_oracle
-        ident_directly_assignable
+        label_declaration_oracle ident_directly_assignable
         sp_decl_ident
         sp_block_label
 
@@ -1299,16 +1297,15 @@ END_OF_INPUT
 
 %type <NONE> call sp_proc_stmts sp_proc_stmts1 sp_proc_stmt
 %type <NONE> sp_proc_stmt_statement sp_proc_stmt_return
+             sp_proc_stmt_in_returns_clause
 %type <NONE> sp_proc_stmt_compound_ok
 %type <NONE> sp_proc_stmt_if
 %type <NONE> sp_labeled_control sp_unlabeled_control
 %type <NONE> sp_labeled_block sp_unlabeled_block
-%type <NONE> sp_labelable_stmt
 %type <NONE> sp_proc_stmt_continue
 %type <NONE> sp_proc_stmt_exit
 %type <NONE> sp_proc_stmt_leave
 %type <NONE> sp_proc_stmt_iterate
-%type <NONE> sp_proc_stmt_goto
 %type <NONE> sp_proc_stmt_open sp_proc_stmt_fetch sp_proc_stmt_close
 %type <NONE> case_stmt_specification
 %type <NONE> loop_body while_body repeat_body
@@ -2535,17 +2532,6 @@ sp_proc_stmts1:
         | sp_proc_stmts1  sp_proc_stmt ';'
         ;
 
-sp_proc_stmts1_implicit_block:
-          {
-            Lex->sp_block_init(thd);
-          }
-          sp_proc_stmts1
-          {
-            if (Lex->sp_block_finalize(thd))
-              MYSQL_YYABORT;
-          }
-        ;
-
 opt_sp_decl_body_list:
           /* Empty */
           {
@@ -3155,28 +3141,32 @@ sp_opt_default:
         | SET_VAR expr { $$ = $2; }
         ;
 
-sp_proc_stmt:
-          sp_labeled_block
-        | sp_unlabeled_block
+/*
+  ps_proc_stmt_in_returns_clause is a statement that is allowed
+  in the RETURNS clause of a stored function definition directly,
+  without the BEGIN..END  block.
+  It should not include any syntax structures starting with '(', to avoid
+  shift/reduce conflicts with the rule "field_type" and its sub-rules
+  that scan an optional length, like CHAR(1) or YEAR(4).
+  See MDEV-9166.
+*/
+sp_proc_stmt_in_returns_clause:
+          sp_proc_stmt_return
+        | sp_labeled_block
         | sp_labeled_control
-        | sp_unlabeled_control
-        | sp_labelable_stmt
-        | labels_declaration_oracle sp_labelable_stmt {}
+        | sp_proc_stmt_compound_ok
         ;
 
-sp_labelable_stmt:
-          sp_proc_stmt_statement
+sp_proc_stmt:
+          sp_proc_stmt_in_returns_clause
+        | sp_proc_stmt_statement
         | sp_proc_stmt_continue
         | sp_proc_stmt_exit
         | sp_proc_stmt_leave
         | sp_proc_stmt_iterate
-        | sp_proc_stmt_goto
         | sp_proc_stmt_open
         | sp_proc_stmt_fetch
         | sp_proc_stmt_close
-        | sp_proc_stmt_return
-        | sp_proc_stmt_if
-        | case_stmt_specification
         | NULL_SYM { }
         ;
 
@@ -3362,15 +3352,6 @@ sp_proc_stmt_iterate:
           }
         ;
 
-sp_proc_stmt_goto:
-          GOTO_SYM label_ident
-          {
-            if (Lex->sp_goto_statement(thd, $2))
-              MYSQL_YYABORT;
-          }
-        ;
-
-
 remember_lex:
           {
             $$= thd->lex;
@@ -3522,7 +3503,7 @@ sp_if:
             if (sp->restore_lex(thd))
               MYSQL_YYABORT;
           }
-          sp_proc_stmts1_implicit_block
+          sp_proc_stmts1
           {
             sp_head *sp= Lex->sphead;
             sp_pcontext *ctx= Lex->spcont;
@@ -3545,7 +3526,7 @@ sp_if:
 sp_elseifs:
           /* Empty */
         | ELSIF_SYM sp_if
-        | ELSE sp_proc_stmts1_implicit_block
+        | ELSE sp_proc_stmts1
         ;
 
 case_stmt_specification:
@@ -3661,7 +3642,7 @@ simple_when_clause:
               MYSQL_YYABORT;
           }
           THEN_SYM
-          sp_proc_stmts1_implicit_block
+          sp_proc_stmts1
           {
             if (Lex->case_stmt_action_then())
               MYSQL_YYABORT;
@@ -3683,7 +3664,7 @@ searched_when_clause:
               MYSQL_YYABORT;
           }
           THEN_SYM
-          sp_proc_stmts1_implicit_block
+          sp_proc_stmts1
           {
             if (Lex->case_stmt_action_then())
               MYSQL_YYABORT;
@@ -3702,7 +3683,7 @@ else_clause_opt:
                 sp->add_instr(i))
               MYSQL_YYABORT;
           }
-        | ELSE sp_proc_stmts1_implicit_block
+        | ELSE sp_proc_stmts1
         ;
 
 sp_opt_label:
@@ -3711,7 +3692,7 @@ sp_opt_label:
         ;
 
 sp_block_label:
-          labels_declaration_oracle
+          label_declaration_oracle
           {
             if (Lex->spcont->block_label_declare($1))
               MYSQL_YYABORT;
@@ -3945,14 +3926,14 @@ pop_sp_loop_label:
         ;
 
 sp_labeled_control:
-          labels_declaration_oracle LOOP_SYM
+          label_declaration_oracle LOOP_SYM
           {
             if (Lex->sp_push_loop_label(thd, $1))
               MYSQL_YYABORT;
           }
           loop_body pop_sp_loop_label
           { }
-        | labels_declaration_oracle WHILE_SYM
+        | label_declaration_oracle WHILE_SYM
           {
             if (Lex->sp_push_loop_label(thd, $1))
               MYSQL_YYABORT;
@@ -3960,7 +3941,7 @@ sp_labeled_control:
           }
           while_body pop_sp_loop_label
           { }
-        | labels_declaration_oracle FOR_SYM
+        | label_declaration_oracle FOR_SYM
           {
             // See "The FOR LOOP statement" comments in sql_lex.cc
             Lex->sp_block_init(thd); // The outer DECLARE..BEGIN..END block
@@ -3984,7 +3965,7 @@ sp_labeled_control:
             if (Lex->sp_block_finalize(thd))   // The outer DECLARE..BEGIN..END
               MYSQL_YYABORT;
           }
-        | labels_declaration_oracle REPEAT_SYM
+        | label_declaration_oracle REPEAT_SYM
           {
             if (Lex->sp_push_loop_label(thd, $1))
               MYSQL_YYABORT;
@@ -14305,18 +14286,8 @@ label_ident:
           }
         ;
 
-labels_declaration_oracle:
-          label_declaration_oracle { $$= $1; }
-        | labels_declaration_oracle label_declaration_oracle { $$= $2; }
-        ;
-
 label_declaration_oracle:
-          SHIFT_LEFT label_ident SHIFT_RIGHT
-          {
-            if (Lex->sp_push_goto_label(thd, $2))
-              MYSQL_YYABORT;
-            $$= $2;
-          }
+          SHIFT_LEFT label_ident SHIFT_RIGHT { $$= $2; }
         ;
 
 ident_or_text:
@@ -15071,7 +15042,7 @@ option_value_no_option_type:
             if (Lex->init_default_internal_variable(&var, $3) ||
                 Lex->set_variable(&var, $5))
               MYSQL_YYABORT;
-          }
+           }
         | '@' ident_or_text equal expr
           {
             Item_func_set_user_var *item;
@@ -16552,8 +16523,6 @@ trigger_tail:
           { /* $21 */
             LEX *lex= Lex;
             sp_head *sp= lex->sphead;
-            if (sp->check_unresolved_goto())
-              MYSQL_YYABORT;
 
             lex->sql_command= SQLCOM_CREATE_TRIGGER;
             sp->set_stmt_end(thd);
@@ -16641,8 +16610,6 @@ sf_tail:
           {
             LEX *lex= thd->lex;
             sp_head *sp= lex->sphead;
-            if (sp->check_unresolved_goto())
-              MYSQL_YYABORT;
 
             if (sp->is_not_allowed_in_function("function"))
               MYSQL_YYABORT;
@@ -16674,8 +16641,7 @@ sp_tail:
           {
             LEX *lex= Lex;
             sp_head *sp= lex->sphead;
-            if (sp->check_unresolved_goto())
-              MYSQL_YYABORT;
+
             sp->set_stmt_end(thd);
             lex->sql_command= SQLCOM_CREATE_PROCEDURE;
             sp->restore_thd_mem_root(thd);

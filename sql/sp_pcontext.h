@@ -94,7 +94,6 @@ public:
 /// IF/WHILE/REPEAT/LOOP, when such statement is rewritten into a
 /// combination of low-level jump/jump_if instructions and labels.
 
-
 class sp_label : public Sql_alloc
 {
 public:
@@ -107,10 +106,7 @@ public:
     BEGIN,
 
     /// Label at iteration control
-    ITERATION,
-
-    /// Label for jump
-    GOTO
+    ITERATION
   };
 
   /// Name of the label.
@@ -135,7 +131,6 @@ public:
     ctx(_ctx)
   { }
 };
-
 
 ///////////////////////////////////////////////////////////////////////////
 
@@ -512,28 +507,14 @@ public:
   /////////////////////////////////////////////////////////////////////////
 
   sp_label *push_label(THD *thd, const LEX_STRING name, uint ip,
-                       sp_label::enum_type type, List<sp_label> * list);
-
-  sp_label *push_label(THD *thd, LEX_STRING name, uint ip,
-                                    sp_label::enum_type type)
-  { return push_label(thd, name, ip, type, &m_labels); }
-
-  sp_label *push_goto_label(THD *thd, LEX_STRING name, uint ip,
-                                         sp_label::enum_type type)
-  { return push_label(thd, name, ip, type, &m_goto_labels); }
+                       sp_label::enum_type type);
 
   sp_label *push_label(THD *thd, const LEX_STRING name, uint ip)
-  { return push_label(thd, name, ip, sp_label::IMPLICIT); }
-
-  sp_label *push_goto_label(THD *thd, const LEX_STRING name, uint ip)
-  { return push_goto_label(thd, name, ip, sp_label::GOTO); }
+  {
+    return push_label(thd, name, ip, sp_label::IMPLICIT);
+  }
 
   sp_label *find_label(const LEX_STRING name);
-
-  sp_label *find_goto_label(const LEX_STRING name, bool recusive);
-
-  sp_label *find_goto_label(const LEX_STRING name)
-  { return find_goto_label(name, true); }
 
   sp_label *find_label_current_loop_start();
 
@@ -545,11 +526,6 @@ public:
       label= m_parent->last_label();
 
     return label;
-  }
-
-  sp_label *last_goto_label()
-  {
-    return m_goto_labels.head();
   }
 
   sp_label *pop_label()
@@ -721,27 +697,8 @@ private:
   /// Stack of SQL-handlers.
   Dynamic_array<sp_handler *> m_handlers;
 
-  /*
-   In the below example the label <<lab>> has two meanings:
-   - GOTO lab : must go before the beginning of the loop
-   - CONTINUE lab : must go to the beginning of the loop
-   We solve this by storing block labels and goto labels into separate lists.
-
-   BEGIN
-     <<lab>>
-     FOR i IN a..10 LOOP
-       ...
-       GOTO lab;
-       ...
-       CONTINUE lab;
-       ...
-     END LOOP;
-   END;
-  */
-  /// List of block labels
+  /// List of labels.
   List<sp_label> m_labels;
-  /// List of goto labels
-  List<sp_label> m_goto_labels;
 
   /// Children contexts, used for destruction.
   Dynamic_array<sp_pcontext *> m_children;
