@@ -871,31 +871,6 @@ mach_swap_byte_order(
 }
 
 /*************************************************************
-Convert integral type from host byte order (big-endian) storage
-byte order. */
-UNIV_INLINE
-void
-mach_write_int_type(
-/*================*/
-	byte*		dest,		/*!< in: where to write */
-	const byte*	src,		/*!< in: where to read from */
-	ulint		len,		/*!< in: length of src */
-	bool		usign)		/*!< in: signed or unsigned flag */
-{
-	ut_ad(len >= 1 && len <= 8);
-
-#ifdef WORDS_BIGENDIAN
-        memcpy(dest, src, len);
-#else
-        mach_swap_byte_order(dest, src, len);
-#endif /* WORDS_BIGENDIAN */
-
-	if (!usign) {
-		*dest ^=  0x80;
-	}
-}
-
-/*************************************************************
 Convert a ulonglong integer from host byte order to (big-endian)
 storage byte order. */
 UNIV_INLINE

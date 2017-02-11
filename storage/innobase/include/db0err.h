@@ -173,16 +173,6 @@ enum dberr_t {
 	DB_END_OF_INDEX,
 	DB_NOT_FOUND,			/*!< Generic error code for "Not found"
 					type of errors */
-
-	/* The following are API only error codes. */
-	DB_DATA_MISMATCH = 2000,	/*!< Column update or read failed
-					because the types mismatch */
-
-	DB_SCHEMA_NOT_LOCKED		/*!< If an API function expects the
-					schema to be locked in exclusive mode
-					and if it's not then that API function
-					will return this error code */
-
 };
 
 #endif

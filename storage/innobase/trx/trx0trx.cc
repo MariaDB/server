@@ -462,10 +462,6 @@ trx_create_low()
 	/* We just got trx from pool, it should be non locking */
 	ut_ad(trx->will_lock == 0);
 
-	trx->api_trx = false;
-
-	trx->api_auto_commit = false;
-
 	trx->read_write = true;
 
 	/* Background trx should not be forced to rollback,
@@ -1359,14 +1355,11 @@ trx_start_low(
 	++trx->version;
 
 	/* Check whether it is an AUTOCOMMIT SELECT */
-	trx->auto_commit = (trx->api_trx && trx->api_auto_commit)
-			   || thd_trx_is_auto_commit(trx->mysql_thd);
+	trx->auto_commit = thd_trx_is_auto_commit(trx->mysql_thd);
 
-	trx->read_only =
-		(trx->api_trx && !trx->read_write)
+	trx->read_only = srv_read_only_mode
 		|| (!trx->ddl && !trx->internal
-		    && thd_trx_is_read_only(trx->mysql_thd))
-		|| srv_read_only_mode;
+		    && thd_trx_is_read_only(trx->mysql_thd));
 
 	if (!trx->auto_commit) {
 		++trx->will_lock;

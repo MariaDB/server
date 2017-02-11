@@ -7791,25 +7791,10 @@ commit_try_rebuild(
 		user_table, rebuilt_table, ctx->tmp_name, trx);
 
 	/* We must be still holding a table handle. */
-	DBUG_ASSERT(user_table->get_ref_count() >= 1);
+	DBUG_ASSERT(user_table->get_ref_count() == 1);
 
 	DBUG_EXECUTE_IF("ib_ddl_crash_after_rename", DBUG_SUICIDE(););
 	DBUG_EXECUTE_IF("ib_rebuild_cannot_rename", error = DB_ERROR;);
-
-	if (user_table->get_ref_count() > 1) {
-		/* This should only occur when an innodb_memcached
-		connection with innodb_api_enable_mdl=off was started
-		before commit_inplace_alter_table() locked the data
-		dictionary. We must roll back the ALTER TABLE, because
-		we cannot drop a table while it is being used. */
-
-		/* Normally, n_ref_count must be 1, because purge
-		cannot be executing on this very table as we are
-		holding dict_operation_lock X-latch. */
-		my_printf_error(ER_ILLEGAL_HA, "Cannot complete the operation "
-			"because table is referenced by another connection.", MYF(0));
-		DBUG_RETURN(true);
-	}
 
 	switch (error) {
 	case DB_SUCCESS:
@@ -8814,15 +8799,7 @@ foreign_fail:
 	}
 
 	if (ctx0->num_to_drop_vcol || ctx0->num_to_add_vcol) {
-
-		if (ctx0->old_table->get_ref_count() > 1) {
-
-			row_mysql_unlock_data_dictionary(trx);
-			trx_free_for_mysql(trx);
-			my_printf_error(ER_ILLEGAL_HA, "Cannot complete the operation "
-				"because table is referenced by another connection.", MYF(0));
-			DBUG_RETURN(true);
-		}
+		DBUG_ASSERT(ctx0->old_table->get_ref_count() == 1);
 
 		trx_commit_for_mysql(m_prebuilt->trx);
 

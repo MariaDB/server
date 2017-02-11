@@ -864,10 +864,6 @@ struct row_prebuilt_t {
 	ulint		idx_cond_n_cols;/*!< Number of fields in idx_cond_cols.
 					0 if and only if idx_cond == NULL. */
 	/*----------------------*/
-	unsigned	innodb_api:1;	/*!< whether this is a InnoDB API
-					query */
-	const rec_t*	innodb_api_rec;	/*!< InnoDB API search result */
-	/*----------------------*/
 
 	/*----------------------*/
 	rtr_info_t*	rtr_info;	/*!< R-tree Search Info */

@@ -2,7 +2,7 @@
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2016, MariaDB Corporation.
+Copyright (c) 2013, 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1322,11 +1322,6 @@ struct dict_vcol_templ_t {
 	dict_vcol_templ_t() : vtempl(0), mysql_table_query_id(-1) {}
 };
 
-/* This flag is for sync SQL DDL and memcached DML.
-if table->memcached_sync_count == DICT_TABLE_IN_DDL means there's DDL running on
-the table, DML from memcached will be blocked. */
-#define DICT_TABLE_IN_DDL -1
-
 /** These are used when MySQL FRM and InnoDB data dictionary are
 in inconsistent state. */
 typedef enum {
@@ -1708,12 +1703,6 @@ struct dict_table_t {
 	const trx_t*				autoinc_trx;
 
 	/* @} */
-
-	/** Count of how many handles are opened to this table from memcached.
-	DDL on the table is NOT allowed until this count goes to zero. If
-	it is -1, then there's DDL on the table, DML from memcached will be
-	blocked. */
-	lint					memcached_sync_count;
 
 	/** FTS specific state variables. */
 	fts_t*					fts;

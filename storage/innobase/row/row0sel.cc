@@ -3615,10 +3615,7 @@ row_sel_get_clust_rec_for_mysql(
 func_exit:
 	*out_rec = clust_rec;
 
-	/* Store the current position if select_lock_type is not
-	LOCK_NONE or if we are scanning using InnoDB APIs */
-	if (prebuilt->select_lock_type != LOCK_NONE
-	    || prebuilt->innodb_api) {
+	if (prebuilt->select_lock_type != LOCK_NONE) {
 		/* We may use the cursor in update or in unlock_row():
 		store its position */
 
@@ -4397,8 +4394,7 @@ row_search_mvcc(
 	    && dict_index_is_clust(index)
 	    && !prebuilt->templ_contains_blob
 	    && !prebuilt->used_in_HANDLER
-	    && (prebuilt->mysql_row_len < UNIV_PAGE_SIZE / 8)
-	    && !prebuilt->innodb_api) {
+	    && (prebuilt->mysql_row_len < UNIV_PAGE_SIZE / 8)) {
 
 		mode = PAGE_CUR_GE;
 
@@ -5441,7 +5437,6 @@ requires_clust_rec:
 	    && !prebuilt->templ_contains_fixed_point
 	    && !prebuilt->clust_index_was_generated
 	    && !prebuilt->used_in_HANDLER
-	    && !prebuilt->innodb_api
 	    && prebuilt->template_type != ROW_MYSQL_DUMMY_TEMPLATE
 	    && !prebuilt->in_fts_query) {
 
@@ -5531,7 +5526,7 @@ requires_clust_rec:
 			       rec_offs_size(offsets));
 			mach_write_to_4(buf,
 					rec_offs_extra_size(offsets) + 4);
-		} else if (!prebuilt->idx_cond && !prebuilt->innodb_api) {
+		} else if (!prebuilt->idx_cond) {
 			/* The record was not yet converted to MySQL format. */
 			if (!row_sel_store_mysql_rec(
 				    buf, prebuilt, result_rec, vrow,
@@ -5574,17 +5569,12 @@ idx_cond_failed:
 	    || !dict_index_is_clust(index)
 	    || direction != 0
 	    || prebuilt->select_lock_type != LOCK_NONE
-	    || prebuilt->used_in_HANDLER
-	    || prebuilt->innodb_api) {
+	    || prebuilt->used_in_HANDLER) {
 
 		/* Inside an update always store the cursor position */
 
 		if (!spatial_search) {
 			btr_pcur_store_position(pcur, &mtr);
-		}
-
-		if (prebuilt->innodb_api) {
-			prebuilt->innodb_api_rec = result_rec;
 		}
 	}
 
