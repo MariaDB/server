@@ -5839,7 +5839,7 @@ void mysql_init_multi_delete(LEX *lex)
 
 
 /*
-  When you modify mysql_parse(), you may need to mofify
+  When you modify mysql_parse(), you may need to modify
   mysql_test_parse_for_slave() in this same file.
 */
 
