@@ -1651,3 +1651,63 @@ SELECT i, COUNT(*) OVER () FROM t1 WHERE 1 = 2;
 
 DROP TABLE t1;
 
+--echo #
+--echo # MDEV-12051: window function in query with implicit grouping 
+--echo #             on always empty set
+--echo #
+
+create table t1 (a int, b varchar(8));
+insert into t1 values (1,'foo'),(2,'bar');
+
+select max(a), row_number() over () from t1 where a > 10;
+select max(a), sum(max(a)) over () from t1 where a > 10;
+select max(a), sum(max(a)) over (partition by max(a)) from t1 where a > 10;
+
+select max(a), row_number() over () from t1 where 1 = 2;
+select max(a), sum(max(a)) over () from t1 where 1 = 2;
+select max(a), sum(max(a)) over (partition by max(a)) from t1 where 1 = 2;
+
+select max(a), row_number() over () from t1 where 1 = 2
+  having max(a) is not null;
+select max(a), sum(max(a)) over () from t1 where 1 = 2
+  having max(a) is not null;
+
+drop table t1;
+
+--echo #
+--echo # MDEV-10885: window function in query with implicit grouping 
+--echo #             with constant condition evaluated to false
+--echo #
+
+CREATE TABLE t1 (a INT, b VARCHAR(8));
+INSERT INTO t1 VALUES (1,'foo'),(2,'bar');
+
+CREATE TABLE t2 (c INT);
+INSERT INTO t2 VALUES (3),(4);
+ 
+CREATE TABLE t3 (d INT);
+INSERT INTO t3 VALUES (5),(6);
+
+SELECT MAX(a), ROW_NUMBER() OVER (PARTITION BY MAX(a)) FROM t1
+WHERE EXISTS ( SELECT * FROM t2 WHERE c IN ( SELECT MAX(d) FROM t3 ) );
+
+SELECT MAX(a), COUNT(MAX(a)) OVER (PARTITION BY MAX(a)) FROM t1
+WHERE EXISTS ( SELECT * FROM t2 WHERE c IN ( SELECT MAX(d) FROM t3 ) );
+
+SELECT MAX(a), SUM(MAX(a)) OVER (PARTITION BY MAX(a)) FROM t1
+WHERE EXISTS ( SELECT * FROM t2 WHERE c IN ( SELECT MAX(d) FROM t3 ) );
+
+SELECT MAX(a), ROW_NUMBER() OVER (PARTITION BY MAX(a)) FROM t1
+WHERE EXISTS ( SELECT * FROM t2 WHERE c IN ( SELECT MAX(d) FROM t3 ) )
+HAVING MAX(a) IS NOT NULL;
+
+SELECT a, MAX(a), ROW_NUMBER() OVER (PARTITION BY b) FROM t1
+WHERE EXISTS ( SELECT * FROM t2 WHERE c IN ( SELECT MAX(d) FROM t3 ) );
+
+SELECT a, COUNT(a), AVG(a) OVER (PARTITION BY b) FROM t1
+WHERE EXISTS ( SELECT * FROM t2 WHERE c IN ( SELECT MAX(d) FROM t3 ) );
+
+SELECT a, MAX(a), AVG(a) OVER (PARTITION BY b) FROM t1
+WHERE EXISTS ( SELECT * FROM t2 WHERE c IN ( SELECT MAX(d) FROM t3 ) );
+
+DROP TABLE t1,t2,t3;

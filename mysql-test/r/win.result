@@ -2850,6 +2850,78 @@ CREATE TABLE t1 (i INT);
 INSERT INTO t1 VALUES (3), (1), (2);
 SELECT i, ROW_NUMBER() OVER () FROM t1 WHERE 1 = 2;
 i	ROW_NUMBER() OVER ()
+NULL	1
 SELECT i, COUNT(*) OVER () FROM t1 WHERE 1 = 2;
 i	COUNT(*) OVER ()
+NULL	1
 DROP TABLE t1;
+#
+# MDEV-12051: window function in query with implicit grouping 
+#             on always empty set
+#
+create table t1 (a int, b varchar(8));
+insert into t1 values (1,'foo'),(2,'bar');
+select max(a), row_number() over () from t1 where a > 10;
+max(a)	row_number() over ()
+NULL	1
+select max(a), sum(max(a)) over () from t1 where a > 10;
+max(a)	sum(max(a)) over ()
+NULL	NULL
+select max(a), sum(max(a)) over (partition by max(a)) from t1 where a > 10;
+max(a)	sum(max(a)) over (partition by max(a))
+NULL	NULL
+select max(a), row_number() over () from t1 where 1 = 2;
+max(a)	row_number() over ()
+NULL	1
+select max(a), sum(max(a)) over () from t1 where 1 = 2;
+max(a)	sum(max(a)) over ()
+NULL	NULL
+select max(a), sum(max(a)) over (partition by max(a)) from t1 where 1 = 2;
+max(a)	sum(max(a)) over (partition by max(a))
+NULL	NULL
+select max(a), row_number() over () from t1 where 1 = 2
+having max(a) is not null;
+max(a)	row_number() over ()
+select max(a), sum(max(a)) over () from t1 where 1 = 2
+having max(a) is not null;
+max(a)	sum(max(a)) over ()
+drop table t1;
+#
+# MDEV-10885: window function in query with implicit grouping 
+#             with constant condition evaluated to false
+#
+CREATE TABLE t1 (a INT, b VARCHAR(8));
+INSERT INTO t1 VALUES (1,'foo'),(2,'bar');
+CREATE TABLE t2 (c INT);
+INSERT INTO t2 VALUES (3),(4);
+CREATE TABLE t3 (d INT);
+INSERT INTO t3 VALUES (5),(6);
+SELECT MAX(a), ROW_NUMBER() OVER (PARTITION BY MAX(a)) FROM t1
+WHERE EXISTS ( SELECT * FROM t2 WHERE c IN ( SELECT MAX(d) FROM t3 ) );
+MAX(a)	ROW_NUMBER() OVER (PARTITION BY MAX(a))
+NULL	1
+SELECT MAX(a), COUNT(MAX(a)) OVER (PARTITION BY MAX(a)) FROM t1
+WHERE EXISTS ( SELECT * FROM t2 WHERE c IN ( SELECT MAX(d) FROM t3 ) );
+MAX(a)	COUNT(MAX(a)) OVER (PARTITION BY MAX(a))
+NULL	0
+SELECT MAX(a), SUM(MAX(a)) OVER (PARTITION BY MAX(a)) FROM t1
+WHERE EXISTS ( SELECT * FROM t2 WHERE c IN ( SELECT MAX(d) FROM t3 ) );
+MAX(a)	SUM(MAX(a)) OVER (PARTITION BY MAX(a))
+NULL	NULL
+SELECT MAX(a), ROW_NUMBER() OVER (PARTITION BY MAX(a)) FROM t1
+WHERE EXISTS ( SELECT * FROM t2 WHERE c IN ( SELECT MAX(d) FROM t3 ) )
+HAVING MAX(a) IS NOT NULL;
+MAX(a)	ROW_NUMBER() OVER (PARTITION BY MAX(a))
+SELECT a, MAX(a), ROW_NUMBER() OVER (PARTITION BY b) FROM t1
+WHERE EXISTS ( SELECT * FROM t2 WHERE c IN ( SELECT MAX(d) FROM t3 ) );
+a	MAX(a)	ROW_NUMBER() OVER (PARTITION BY b)
+NULL	NULL	1
+SELECT a, COUNT(a), AVG(a) OVER (PARTITION BY b) FROM t1
+WHERE EXISTS ( SELECT * FROM t2 WHERE c IN ( SELECT MAX(d) FROM t3 ) );
+a	COUNT(a)	AVG(a) OVER (PARTITION BY b)
+NULL	0	NULL
+SELECT a, MAX(a), AVG(a) OVER (PARTITION BY b) FROM t1
+WHERE EXISTS ( SELECT * FROM t2 WHERE c IN ( SELECT MAX(d) FROM t3 ) );
+a	MAX(a)	AVG(a) OVER (PARTITION BY b)
+NULL	NULL	NULL
+DROP TABLE t1,t2,t3;

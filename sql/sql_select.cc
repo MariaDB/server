@@ -3342,13 +3342,21 @@ void JOIN::exec_inner()
 
   if (zero_result_cause)
   {
-    (void) return_zero_rows(this, result, select_lex->leaf_tables,
-                            *columns_list,
-			    send_row_on_empty_set(),
-			    select_options,
-			    zero_result_cause,
-			    having ? having : tmp_having, all_fields);
-    DBUG_VOID_RETURN;
+    if (select_lex->have_window_funcs())
+    {
+      const_tables= table_count;
+      first_select= sub_select_postjoin_aggr;
+    }
+    else
+    {
+      (void) return_zero_rows(this, result, select_lex->leaf_tables,
+                              *columns_list,
+			      send_row_on_empty_set(),
+			      select_options,
+			      zero_result_cause,
+			      having ? having : tmp_having, all_fields);
+      DBUG_VOID_RETURN;
+    }
   }
   
   /*
