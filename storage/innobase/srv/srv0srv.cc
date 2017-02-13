@@ -371,7 +371,7 @@ my_bool	srv_cmp_per_index_enabled = FALSE;
 merge to completion before shutdown. If it is set to 2, do not even flush the
 buffer pool to data files at the shutdown: we effectively 'crash'
 InnoDB (but lose no committed transactions). */
-ulint	srv_fast_shutdown	= 0;
+uint	srv_fast_shutdown;
 
 /* Generate a innodb_status.<pid> file */
 ibool	srv_innodb_status	= FALSE;
@@ -2608,15 +2608,14 @@ srv_purge_should_exit(
 	MYSQL_THD	thd,
 	ulint		n_purged)	/*!< in: pages purged in last batch */
 {
-	if (thd_kill_level(thd)) {
-		return(srv_fast_shutdown != 0 || n_purged == 0);
-	}
-
 	switch (srv_shutdown_state) {
 	case SRV_SHUTDOWN_NONE:
-		/* Normal operation. */
-		break;
-
+		if ((!srv_was_started || srv_running)
+		    && !thd_kill_level(thd)) {
+			/* Normal operation. */
+			break;
+		}
+		/* close_connections() was called; fall through */
 	case SRV_SHUTDOWN_CLEANUP:
 	case SRV_SHUTDOWN_EXIT_THREADS:
 		/* Exit unless slow shutdown requested or all done. */

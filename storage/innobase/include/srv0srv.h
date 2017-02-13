@@ -451,13 +451,18 @@ extern ulong	srv_flushing_avg_loops;
 
 extern ulong	srv_force_recovery;
 
-extern ulint	srv_fast_shutdown;	/*!< If this is 1, do not do a
+extern uint	srv_fast_shutdown;	/*!< If this is 1, do not do a
 					purge and index buffer merge.
 					If this 2, do not even flush the
 					buffer pool to data files at the
 					shutdown: we effectively 'crash'
 					InnoDB (but lose no committed
 					transactions). */
+
+/** Signal to shut down InnoDB (NULL if shutdown was signaled, or if
+running in innodb_read_only mode, srv_read_only_mode) */
+extern volatile st_my_thread_var *srv_running;
+
 extern ibool	srv_innodb_status;
 
 extern unsigned long long	srv_stats_transient_sample_pages;

@@ -188,7 +188,6 @@ static ulong commit_threads = 0;
 static mysql_cond_t commit_cond;
 static mysql_mutex_t commit_cond_m;
 static mysql_mutex_t pending_checkpoint_mutex;
-static bool innodb_inited = 0;
 
 #define INSIDE_HA_INNOBASE_CC
 
@@ -245,7 +244,6 @@ static char*	innobase_server_stopword_table		= NULL;
 /* Below we have boolean-valued start-up parameters, and their default
 values */
 
-static ulong	innobase_fast_shutdown			= 1;
 static my_bool	innobase_file_format_check		= TRUE;
 static my_bool	innobase_use_atomic_writes		= TRUE;
 static my_bool	innobase_use_fallocate;
@@ -305,13 +303,15 @@ is_partition(
 #endif /* _WIN32 */
 }
 
+/** Signal to shut down InnoDB (NULL if shutdown was signaled, or if
+running in innodb_read_only mode, srv_read_only_mode) */
+volatile st_my_thread_var *srv_running;
 /** Service thread that waits for the server shutdown and stops purge threads.
 Purge workers have THDs that are needed to calculate virtual columns.
 This THDs must be destroyed rather early in the server shutdown sequence.
 This service thread creates a THD and idly waits for it to get a signal to
 die. Then it notifies all purge workers to shutdown.
 */
-static volatile st_my_thread_var *thd_destructor_myvar= NULL;
 static pthread_t thd_destructor_thread;
 
 pthread_handler_t
@@ -332,14 +332,13 @@ thd_destructor_proxy(void *)
 	myvar->current_cond = &thd_destructor_cond;
 
 	mysql_mutex_lock(&thd_destructor_mutex);
-	thd_destructor_myvar = myvar;
+	srv_running = myvar;
 	/* wait until the server wakes the THD to abort and die */
-	while (!thd_destructor_myvar->abort)
+	while (!srv_running->abort)
 		mysql_cond_wait(&thd_destructor_cond, &thd_destructor_mutex);
 	mysql_mutex_unlock(&thd_destructor_mutex);
-	thd_destructor_myvar = NULL;
+	srv_running = NULL;
 
-	srv_fast_shutdown = (ulint) innobase_fast_shutdown;
 	if (srv_fast_shutdown == 0) {
 		while (trx_sys_any_active_transactions()) {
 			os_thread_sleep(1000);
@@ -1998,14 +1997,8 @@ innobase_release_temporary_latches(
 {
 	DBUG_ASSERT(hton == innodb_hton_ptr);
 
-	if (!innodb_inited) {
-
-		return(0);
-	}
-
-	trx_t*	trx = thd_to_trx(thd);
-
-	if (trx != NULL) {
+	if (!srv_was_started) {
+	} else if (trx_t* trx = thd_to_trx(thd)) {
 		trx_search_latch_release_if_reserved(trx);
 	}
 
@@ -4407,10 +4400,11 @@ innobase_change_buffering_inited_ok:
 		mysql_thread_create(thd_destructor_thread_key,
 				    &thd_destructor_thread,
 				    NULL, thd_destructor_proxy, NULL);
-		while (!thd_destructor_myvar)
+		while (!srv_running)
 			os_thread_sleep(20);
 	}
 
+	srv_was_started = TRUE;
 	/* Adjust the innodb_undo_logs config object */
 	innobase_undo_logs_init_default_max();
 
@@ -4429,7 +4423,6 @@ innobase_change_buffering_inited_ok:
 	mysql_mutex_init(pending_checkpoint_mutex_key,
 			 &pending_checkpoint_mutex,
 			 MY_MUTEX_INIT_FAST);
-	innodb_inited= 1;
 #ifdef MYSQL_DYNAMIC_PLUGIN
 	if (innobase_hton != p) {
 		innobase_hton = reinterpret_cast<handlerton*>(p);
@@ -4498,8 +4491,7 @@ innobase_end(
 	DBUG_ENTER("innobase_end");
 	DBUG_ASSERT(hton == innodb_hton_ptr);
 
-	if (innodb_inited) {
-
+	if (srv_was_started) {
 		THD *thd= current_thd;
 		if (thd) { // may be UNINSTALL PLUGIN statement
 		 	trx_t* trx = thd_to_trx(thd);
@@ -4508,23 +4500,21 @@ innobase_end(
 		 	}
 		}
 
-		srv_fast_shutdown = (ulint) innobase_fast_shutdown;
-
-		innodb_inited = 0;
 		hash_table_free(innobase_open_tables);
 		innobase_open_tables = NULL;
 
-		if (!abort_loop && thd_destructor_myvar) {
+		if (!abort_loop && srv_running) {
 			// may be UNINSTALL PLUGIN statement
-			thd_destructor_myvar->abort = 1;
-			mysql_cond_broadcast(thd_destructor_myvar->current_cond);
+			srv_running->abort = 1;
+			mysql_cond_broadcast(srv_running->current_cond);
+		}
+
+		if (!srv_read_only_mode) {
+			pthread_join(thd_destructor_thread, NULL);
 		}
 
 		innodb_shutdown();
 		innobase_space_shutdown();
-		if (!srv_read_only_mode) {
-			pthread_join(thd_destructor_thread, NULL);
-		}
 
 		mysql_mutex_destroy(&innobase_share_mutex);
 		mysql_mutex_destroy(&commit_cond_m);
@@ -16637,7 +16627,7 @@ void
 innodb_export_status()
 /*==================*/
 {
-	if (innodb_inited) {
+	if (srv_was_started) {
 		srv_export_innodb_status();
 	}
 }
@@ -20743,7 +20733,7 @@ static MYSQL_SYSVAR_ULONG(sync_array_size, srv_sync_array_size,
   1,			/* Minimum value */
   1024, 0);		/* Maximum value */
 
-static MYSQL_SYSVAR_ULONG(fast_shutdown, innobase_fast_shutdown,
+static MYSQL_SYSVAR_UINT(fast_shutdown, srv_fast_shutdown,
   PLUGIN_VAR_OPCMDARG,
   "Speeds up the shutdown process of the InnoDB storage engine. Possible"
   " values are 0, 1 (faster) or 2 (fastest - crash-like).",

@@ -2668,7 +2668,6 @@ files_checked:
 	srv_buf_resize_thread_active = true;
 	os_thread_create(buf_resize_thread, NULL, NULL);
 
-	srv_was_started = TRUE;
 	return(DB_SUCCESS);
 }
 
@@ -2719,6 +2718,8 @@ srv_shutdown_bg_undo_sources(void)
 void
 innodb_shutdown()
 {
+	ut_ad(!srv_running);
+
 	if (srv_fast_shutdown) {
 		srv_shutdown_bg_undo_sources();
 	}
