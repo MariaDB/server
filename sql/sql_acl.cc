@@ -932,41 +932,44 @@ class Grant_table_base
 class User_table: public Grant_table_base
 {
  public:
+  /* Field getters return NULL if the column is not present in the table.
+     This is consistent only if the table is in a supported version. We do
+     not guard against corrupt tables. (yet) */
   Field* host() const
-  { return tl.table->field[0]; }
+  { return get_field(0); }
   Field* user() const
-  { return tl.table->field[1]; }
+  { return get_field(1); }
   Field* password() const
-  { return tl.table->field[2]; }
+  { return have_password() ? NULL : tl.table->field[2]; }
   /* Columns after privilege columns. */
   Field* ssl_type() const
-  { return tl.table->field[start_privilege_column + num_privileges()]; }
+  { return get_field(start_privilege_column + num_privileges()); }
   Field* ssl_cipher() const
-  { return tl.table->field[start_privilege_column + num_privileges() + 1]; }
+  { return get_field(start_privilege_column + num_privileges() + 1); }
   Field* x509_issuer() const
-  { return tl.table->field[start_privilege_column + num_privileges() + 2]; }
+  { return get_field(start_privilege_column + num_privileges() + 2); }
   Field* x509_subject() const
-  { return tl.table->field[start_privilege_column + num_privileges() + 3]; }
+  { return get_field(start_privilege_column + num_privileges() + 3); }
   Field* max_questions() const
-  { return tl.table->field[start_privilege_column + num_privileges() + 4]; }
+  { return get_field(start_privilege_column + num_privileges() + 4); }
   Field* max_updates() const
-  { return tl.table->field[start_privilege_column + num_privileges() + 5]; }
+  { return get_field(start_privilege_column + num_privileges() + 5); }
   Field* max_connections() const
-  { return tl.table->field[start_privilege_column + num_privileges() + 6]; }
+  { return get_field(start_privilege_column + num_privileges() + 6); }
   Field* max_user_connections() const
-  { return tl.table->field[start_privilege_column + num_privileges() + 7]; }
+  { return get_field(start_privilege_column + num_privileges() + 7); }
   Field* plugin() const
-  { return tl.table->field[start_privilege_column + num_privileges() + 8]; }
+  { return get_field(start_privilege_column + num_privileges() + 8); }
   Field* authentication_string() const
-  { return tl.table->field[start_privilege_column + num_privileges() + 9]; }
+  { return get_field(start_privilege_column + num_privileges() + 9); }
   Field* password_expired() const
-  { return tl.table->field[start_privilege_column + num_privileges() + 10]; }
+  { return get_field(start_privilege_column + num_privileges() + 10); }
   Field* is_role() const
-  { return tl.table->field[start_privilege_column + num_privileges() + 11]; }
+  { return get_field(start_privilege_column + num_privileges() + 11); }
   Field* default_role() const
-  { return tl.table->field[start_privilege_column + num_privileges() + 12]; }
+  { return get_field(start_privilege_column + num_privileges() + 12); }
   Field* max_statement_time() const
-  { return tl.table->field[start_privilege_column + num_privileges() + 13]; }
+  { return get_field(start_privilege_column + num_privileges() + 13); }
 
   /*
     Check if a user entry in the user table is marked as being a role entry
@@ -987,7 +990,7 @@ class User_table: public Grant_table_base
   bool check_is_role() const
   {
     /* Table version does not support roles */
-    if (num_fields() < 44)
+    if (!is_role())
       return false;
 
     return get_YN_as_bool(is_role());
@@ -1008,6 +1011,30 @@ class User_table: public Grant_table_base
                       NULL, lock_type);
     Grant_table_base::init(lock_type, false);
   }
+
+  /* The user table is a bit different compared to the other Grant tables.
+     Usually, we only add columns to the grant tables when adding functionality.
+     This makes it easy to test which version of the table we are using, by
+     just looking at the number of fields present in the table.
+
+     In MySQL 5.7.6 the Password column was removed. We need to guard for that.
+     The field-fetching methods for the User table return NULL if the field
+     doesn't exist. This simplifies checking of table "version", as we don't
+     have to make use of num_fields() any more.
+  */
+  inline Field* get_field(uint field_num) const
+  {
+    if (field_num >= num_fields())
+      return NULL;
+
+    return tl.table->field[field_num];
+  }
+
+  /* Normally password column is the third column in the table. If privileges
+     start on the third column instead, we are missing the password column.
+     This means we are using a MySQL 5.7.6+ data directory. */
+  bool have_password() const { return start_privilege_column == 2; }
+
 };
 
 class Db_table: public Grant_table_base
@@ -1849,47 +1876,50 @@ static bool acl_load(THD *thd, const Grant_tables& tables)
 
   username_char_length= MY_MIN(user_table.user()->char_length(),
                                USERNAME_CHAR_LENGTH);
-  password_length= user_table.password()->field_length /
-                   user_table.password()->charset()->mbmaxlen;
-  if (password_length < SCRAMBLED_PASSWORD_CHAR_LENGTH_323)
+  if (user_table.password()) // Password column might be missing. (MySQL 5.7.6+)
   {
-    sql_print_error("Fatal error: mysql.user table is damaged or in "
-                    "unsupported 3.20 format.");
-    DBUG_RETURN(TRUE);
-  }
-
-  DBUG_PRINT("info",("user table fields: %d, password length: %d",
-                     user_table.num_fields(), password_length));
-
-  mysql_mutex_lock(&LOCK_global_system_variables);
-  if (password_length < SCRAMBLED_PASSWORD_CHAR_LENGTH)
-  {
-    if (opt_secure_auth)
+    password_length= user_table.password()->field_length /
+                     user_table.password()->charset()->mbmaxlen;
+    if (password_length < SCRAMBLED_PASSWORD_CHAR_LENGTH_323)
     {
-      mysql_mutex_unlock(&LOCK_global_system_variables);
-      sql_print_error("Fatal error: mysql.user table is in old format, "
-                      "but server started with --secure-auth option.");
+      sql_print_error("Fatal error: mysql.user table is damaged or in "
+                      "unsupported 3.20 format.");
       DBUG_RETURN(TRUE);
     }
-    mysql_user_table_is_in_short_password_format= true;
-    if (global_system_variables.old_passwords)
-      mysql_mutex_unlock(&LOCK_global_system_variables);
+
+    DBUG_PRINT("info",("user table fields: %d, password length: %d",
+                       user_table.num_fields(), password_length));
+
+    mysql_mutex_lock(&LOCK_global_system_variables);
+    if (password_length < SCRAMBLED_PASSWORD_CHAR_LENGTH)
+    {
+      if (opt_secure_auth)
+      {
+        mysql_mutex_unlock(&LOCK_global_system_variables);
+        sql_print_error("Fatal error: mysql.user table is in old format, "
+                        "but server started with --secure-auth option.");
+        DBUG_RETURN(TRUE);
+      }
+      mysql_user_table_is_in_short_password_format= true;
+      if (global_system_variables.old_passwords)
+        mysql_mutex_unlock(&LOCK_global_system_variables);
+      else
+      {
+        extern sys_var *Sys_old_passwords_ptr;
+        Sys_old_passwords_ptr->value_origin= sys_var::AUTO;
+        global_system_variables.old_passwords= 1;
+        mysql_mutex_unlock(&LOCK_global_system_variables);
+        sql_print_warning("mysql.user table is not updated to new password format; "
+                          "Disabling new password usage until "
+                          "mysql_fix_privilege_tables is run");
+      }
+      thd->variables.old_passwords= 1;
+    }
     else
     {
-      extern sys_var *Sys_old_passwords_ptr;
-      Sys_old_passwords_ptr->value_origin= sys_var::AUTO;
-      global_system_variables.old_passwords= 1;
+      mysql_user_table_is_in_short_password_format= false;
       mysql_mutex_unlock(&LOCK_global_system_variables);
-      sql_print_warning("mysql.user table is not updated to new password format; "
-                        "Disabling new password usage until "
-                        "mysql_fix_privilege_tables is run");
     }
-    thd->variables.old_passwords= 1;
-  }
-  else
-  {
-    mysql_user_table_is_in_short_password_format= false;
-    mysql_mutex_unlock(&LOCK_global_system_variables);
   }
 
   allow_all_hosts=0;
@@ -1925,7 +1955,9 @@ static bool acl_load(THD *thd, const Grant_tables& tables)
       continue;
     }
 
-    char *password= get_field(&acl_memroot, user_table.password());
+    char *password= const_cast<char*>("");
+    if (user_table.password())
+      password= get_field(&acl_memroot, user_table.password());
     uint password_len= safe_strlen(password);
     user.auth_string.str= safe_str(password);
     user.auth_string.length= password_len;
@@ -1978,7 +2010,7 @@ static bool acl_load(THD *thd, const Grant_tables& tables)
       user.user_resource.max_statement_time= 0.0;
 
       /* Starting from 4.0.2 we have more fields */
-      if (user_table.num_fields() >= 31)
+      if (user_table.ssl_type())
       {
         char *ssl_type=get_field(thd->mem_root, user_table.ssl_type());
         if (!ssl_type)
@@ -2004,14 +2036,14 @@ static bool acl_load(THD *thd, const Grant_tables& tables)
             user.user_resource.conn_per_hour)
           mqh_used=1;
 
-        if (user_table.num_fields() >= 36)
+        if (user_table.max_user_connections())
         {
           /* Starting from 5.0.3 we have max_user_connections field */
           ptr= get_field(thd->mem_root, user_table.max_user_connections());
           user.user_resource.user_conn= ptr ? atoi(ptr) : 0;
         }
 
-        if (!is_role && user_table.num_fields() >= 41)
+        if (!is_role && user_table.plugin())
         {
           /* We may have plugin & auth_String fields */
           char *tmpstr= get_field(&acl_memroot, user_table.plugin());
@@ -2037,7 +2069,7 @@ static bool acl_load(THD *thd, const Grant_tables& tables)
           }
         }
 
-        if (user_table.num_fields() > MAX_STATEMENT_TIME_COLUMN_IDX)
+        if (user_table.max_statement_time())
         {
           /* Starting from 10.1.1 we can have max_statement_time */
           ptr= get_field(thd->mem_root,
@@ -2067,7 +2099,7 @@ static bool acl_load(THD *thd, const Grant_tables& tables)
                                    8, 8, MYF(0));
 
       /* check default role, if any */
-      if (!is_role && user_table.num_fields() > DEFAULT_ROLE_COLUMN_IDX)
+      if (!is_role && user_table.default_role())
       {
         user.default_rolename.str=
           get_field(&acl_memroot, user_table.default_role());
@@ -3503,10 +3535,11 @@ int acl_set_default_role(THD *thd, const char *host, const char *user,
 
     /* update the mysql.user table with the new default role */
     tables.user_table().table()->use_all_columns();
-    if (tables.user_table().num_fields() <= DEFAULT_ROLE_COLUMN_IDX)
+    if (!tables.user_table().default_role())
     {
       my_error(ER_COL_COUNT_DOESNT_MATCH_PLEASE_UPDATE, MYF(0),
-               table->alias.c_ptr(), DEFAULT_ROLE_COLUMN_IDX + 1, table->s->fields,
+               table->alias.c_ptr(), DEFAULT_ROLE_COLUMN_IDX + 1,
+               tables.user_table().num_fields(),
                static_cast<int>(table->s->mysql_version), MYSQL_VERSION_ID);
       mysql_mutex_unlock(&acl_cache->lock);
       goto end;
@@ -3821,6 +3854,27 @@ bool hostname_requires_resolving(const char *hostname)
 }
 
 
+void set_authentication_plugin_from_password(const User_table& user_table,
+                                             const char* password,
+                                             uint password_length)
+{
+  if (password_length == SCRAMBLED_PASSWORD_CHAR_LENGTH)
+  {
+    user_table.plugin()->store(native_password_plugin_name.str,
+                               native_password_plugin_name.length,
+                               system_charset_info);
+  }
+  else
+  {
+    DBUG_ASSERT(password_length == SCRAMBLED_PASSWORD_CHAR_LENGTH_323);
+    user_table.plugin()->store(old_password_plugin_name.str,
+                               old_password_plugin_name.length,
+                               system_charset_info);
+  }
+  user_table.authentication_string()->store(password,
+                                            password_length,
+                                            system_charset_info);
+}
 /**
   Update record for user in mysql.user privilege table with new password.
 
@@ -3859,7 +3913,15 @@ static bool update_user_table(THD *thd, const User_table& user_table,
     DBUG_RETURN(1);      /* purecov: deadcode */
   }
   store_record(table,record[1]);
-  user_table.password()->store(new_password, new_password_len, system_charset_info);
+  /* If the password column is missing, we use the
+     authentication_string column. */
+  if (user_table.password())
+    user_table.password()->store(new_password, new_password_len, system_charset_info);
+  else
+    set_authentication_plugin_from_password(user_table, new_password,
+                                            new_password_len);
+
+
   if ((error=table->file->ha_update_row(table->record[1],table->record[0])) &&
       error != HA_ERR_RECORD_IS_THE_SAME)
   {
@@ -3939,7 +4001,7 @@ static int replace_user_table(THD *thd, const User_table &user_table,
     combo.pwhash= empty_lex_str;
 
   /* if the user table is not up to date, we can't handle role updates */
-  if (user_table.num_fields() <= ROLE_ASSIGN_COLUMN_IDX && handle_as_role)
+  if (!user_table.is_role() && handle_as_role)
   {
     my_error(ER_COL_COUNT_DOESNT_MATCH_PLEASE_UPDATE, MYF(0),
              "user", ROLE_ASSIGN_COLUMN_IDX + 1, user_table.num_fields(),
@@ -4026,11 +4088,16 @@ static int replace_user_table(THD *thd, const User_table &user_table,
 
   rights= user_table.get_access();
 
-  DBUG_PRINT("info",("table fields: %d",user_table.num_fields()));
-  if (combo.pwhash.str[0])
+  DBUG_PRINT("info",("table fields: %d", user_table.num_fields()));
+  /* If we don't have a password column, we'll use the authentication_string
+     column later. */
+  if (combo.pwhash.str[0] && user_table.password())
     user_table.password()->store(combo.pwhash.str, combo.pwhash.length,
                                  system_charset_info);
-  if (user_table.num_fields() >= 31)    /* From 4.0.0 we have more fields */
+  /* We either have the password column, the plugin column, or both. Otherwise
+     we have a corrupt user table. */
+  DBUG_ASSERT(user_table.password() || user_table.plugin());
+  if (user_table.ssl_type())    /* From 4.0.0 we have more fields */
   {
     /* We write down SSL related ACL stuff */
     switch (lex->ssl_type) {
@@ -4084,17 +4151,18 @@ static int replace_user_table(THD *thd, const User_table &user_table,
       user_table.max_updates()->store((longlong) mqh.updates, TRUE);
     if (mqh.specified_limits & USER_RESOURCES::CONNECTIONS_PER_HOUR)
       user_table.max_connections()->store((longlong) mqh.conn_per_hour, TRUE);
-    if (user_table.num_fields() >= 36 &&
+    if (user_table.max_user_connections() &&
         (mqh.specified_limits & USER_RESOURCES::USER_CONNECTIONS))
       user_table.max_user_connections()->store((longlong) mqh.user_conn, FALSE);
-    if (user_table.num_fields() >= 41)
+    if (user_table.plugin())
     {
       user_table.plugin()->set_notnull();
       user_table.authentication_string()->set_notnull();
       if (combo.plugin.str[0])
       {
         DBUG_ASSERT(combo.pwhash.str[0] == 0);
-        user_table.password()->reset();
+        if (user_table.password())
+          user_table.password()->reset();
         user_table.plugin()->store(combo.plugin.str, combo.plugin.length,
                                    system_charset_info);
         user_table.authentication_string()->store(combo.auth.str, combo.auth.length,
@@ -4103,11 +4171,23 @@ static int replace_user_table(THD *thd, const User_table &user_table,
       if (combo.pwhash.str[0])
       {
         DBUG_ASSERT(combo.plugin.str[0] == 0);
-        user_table.plugin()->reset();
-        user_table.authentication_string()->reset();
+        /* We have Password column. */
+        if (user_table.password())
+        {
+          user_table.plugin()->reset();
+          user_table.authentication_string()->reset();
+        }
+        else
+        {
+          /* We do not have Password column. Use PLUGIN && Authentication_string
+             columns instead. */
+          set_authentication_plugin_from_password(user_table,
+                                                  combo.pwhash.str,
+                                                  combo.pwhash.length);
+        }
       }
 
-      if (user_table.num_fields() > MAX_STATEMENT_TIME_COLUMN_IDX)
+      if (user_table.max_statement_time())
       {
         if (mqh.specified_limits & USER_RESOURCES::MAX_STATEMENT_TIME)
           user_table.max_statement_time()->store(mqh.max_statement_time);
