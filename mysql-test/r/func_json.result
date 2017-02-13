@@ -402,6 +402,15 @@ json_object("a", json_object("b", "abcd"))
 select json_object("a", '{"b": "abcd"}');
 json_object("a", '{"b": "abcd"}')
 {"a": "{\"b\": \"abcd\"}"}
+select json_object("a", cast('{"b": "abcd"}' as json));
+json_object("a", cast('{"b": "abcd"}' as json))
+{"a": {"b": "abcd"}}
+select cast(NULL AS JSON);
+cast(NULL AS JSON)
+NULL
+select json_depth(cast(NULL as JSON));
+json_depth(cast(NULL as JSON))
+NULL
 select json_depth('[[], {}]');
 json_depth('[[], {}]')
 2

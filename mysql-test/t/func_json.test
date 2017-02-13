@@ -161,10 +161,10 @@ select json_unquote('abc');
 
 select json_object("a", json_object("b", "abcd"));
 select json_object("a", '{"b": "abcd"}');
-#select json_object("a", cast('{"b": "abcd"}' as json));
+select json_object("a", cast('{"b": "abcd"}' as json));
 
-#select cast(NULL AS JSON);
-#select json_depth(cast(NULL as JSON));
+select cast(NULL AS JSON);
+select json_depth(cast(NULL as JSON));
 select json_depth('[[], {}]');
 select json_depth('[[[1,2,3],"s"], {}, []]');
 select json_depth('[10, {"a": 20}]');
