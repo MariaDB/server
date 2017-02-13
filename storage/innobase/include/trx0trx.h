@@ -1261,9 +1261,6 @@ struct trx_t {
 					transaction branch */
 	trx_mod_tables_t mod_tables;	/*!< List of tables that were modified
 					by this transaction */
-        /*------------------------------*/
-	bool		read_write;	/*!< if read and write operation */
-
 	/*------------------------------*/
 	char*		detailed_error;	/*!< detailed error message for last
 					error, or empty. */

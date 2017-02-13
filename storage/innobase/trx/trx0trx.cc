@@ -462,8 +462,6 @@ trx_create_low()
 	/* We just got trx from pool, it should be non locking */
 	ut_ad(trx->will_lock == 0);
 
-	trx->read_write = true;
-
 	/* Background trx should not be forced to rollback,
 	we will unset the flag for user trx. */
 	trx->in_innodb |= TRX_FORCE_ROLLBACK_DISABLE;
