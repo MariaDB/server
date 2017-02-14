@@ -1833,6 +1833,9 @@ sub collect_mysqld_features {
   mtr_add_arg($args, "--lc-messages-dir=%s", $path_language);
   mtr_add_arg($args, "--skip-grant-tables");
   mtr_add_arg($args, "--log-warnings=0");
+  mtr_add_arg($args, "--log-slow-admin-statements=0");
+  mtr_add_arg($args, "--log-queries-not-using-indexes=0");
+  mtr_add_arg($args, "--log-slow-slave-statements=0");
   mtr_add_arg($args, "--verbose");
   mtr_add_arg($args, "--help");
 
