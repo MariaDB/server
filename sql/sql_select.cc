@@ -20037,8 +20037,11 @@ end_write_group(JOIN *join, JOIN_TAB *join_tab __attribute__((unused)),
         }
         if (join->rollup.state != ROLLUP::STATE_NONE)
 	{
-	  if (join->rollup_write_data((uint) (idx+1), table))
+          if (join->rollup_write_data((uint) (idx+1),
+                                      join_tab->tmp_table_param, table))
+          {
 	    DBUG_RETURN(NESTED_LOOP_ERROR);
+          }
 	}
 	if (end_of_records)
 	  goto end;
@@ -23844,7 +23847,7 @@ int JOIN::rollup_send_data(uint idx)
     1   if write_data_failed()
 */
 
-int JOIN::rollup_write_data(uint idx, TABLE *table_arg)
+int JOIN::rollup_write_data(uint idx, TMP_TABLE_PARAM *tmp_table_param_arg, TABLE *table_arg)
 {
   uint i;
   for (i= send_group_parts ; i-- > idx ; )
@@ -23865,8 +23868,8 @@ int JOIN::rollup_write_data(uint idx, TABLE *table_arg)
       if ((write_error= table_arg->file->ha_write_tmp_row(table_arg->record[0])))
       {
 	if (create_internal_tmp_table_from_heap(thd, table_arg, 
-                                                tmp_table_param.start_recinfo,
-                                                &tmp_table_param.recinfo,
+                                                tmp_table_param_arg->start_recinfo,
+                                                &tmp_table_param_arg->recinfo,
                                                 write_error, 0, NULL))
 	  return 1;		     
       }
