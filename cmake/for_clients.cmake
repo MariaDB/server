@@ -45,10 +45,10 @@ MACRO(EXTRACT_LINK_LIBRARIES target var)
   ENDIF()
 ENDMACRO()
 
-EXTRACT_LINK_LIBRARIES(mysqlclient LIBS)
+EXTRACT_LINK_LIBRARIES(mariadb LIBS)
 EXTRACT_LINK_LIBRARIES(mysqlserver EMB_LIBS)
 
-SET(LIBS     "-lmysqlclient ${ZLIB_DEPS} ${LIBS} ${openssl_libs}")
+SET(LIBS     "-lmariadb ${ZLIB_DEPS} ${LIBS} ${openssl_libs}")
 SET(EMB_LIBS "-lmysqld ${ZLIB_DEPS} ${EMB_LIBS} ${openssl_libs}")
 
 MACRO(REPLACE_FOR_CLIENTS VAR)
