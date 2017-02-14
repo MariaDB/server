@@ -87,6 +87,7 @@ void sp_pcontext::init(uint var_offset,
   m_num_case_exprs= num_case_expressions;
 
   m_labels.empty();
+  m_goto_labels.empty();
 }
 
 
@@ -129,6 +130,12 @@ sp_pcontext *sp_pcontext::push_context(THD *thd, sp_pcontext::enum_scope scope)
 }
 
 
+bool cmp_labels(sp_label *a, sp_label *b)
+{
+  return (my_strcasecmp(system_charset_info, a->name.str, b->name.str) == 0
+          && a->type == b->type);
+}
+
 sp_pcontext *sp_pcontext::pop_context()
 {
   m_parent->m_max_var_index+= m_max_var_index;
@@ -140,6 +147,18 @@ sp_pcontext *sp_pcontext::pop_context()
   if (m_num_case_exprs > m_parent->m_num_case_exprs)
     m_parent->m_num_case_exprs= m_num_case_exprs;
 
+  /*
+  ** Push unresolved goto label to parent context
+  */
+  sp_label *label;
+  List_iterator_fast<sp_label> li(m_goto_labels);
+  while ((label= li++))
+  {
+    if (label->ip == 0)
+    {
+      m_parent->m_goto_labels.add_unique(label, &cmp_labels);
+    }
+  }
   return m_parent;
 }
 
@@ -227,9 +246,9 @@ sp_variable *sp_pcontext::add_variable(THD *thd, LEX_STRING name)
   return m_vars.append(p) ? NULL : p;
 }
 
-
 sp_label *sp_pcontext::push_label(THD *thd, LEX_STRING name, uint ip,
-                                  sp_label::enum_type type)
+                                  sp_label::enum_type type,
+                                  List<sp_label> *list)
 {
   sp_label *label=
     new (thd->mem_root) sp_label(name, ip, type, this);
@@ -237,9 +256,45 @@ sp_label *sp_pcontext::push_label(THD *thd, LEX_STRING name, uint ip,
   if (!label)
     return NULL;
 
-  m_labels.push_front(label, thd->mem_root);
+  list->push_front(label, thd->mem_root);
 
   return label;
+}
+
+sp_label *sp_pcontext::find_goto_label(const LEX_STRING name, bool recusive)
+{
+  List_iterator_fast<sp_label> li(m_goto_labels);
+  sp_label *lab;
+
+  while ((lab= li++))
+  {
+    if (my_strcasecmp(system_charset_info, name.str, lab->name.str) == 0)
+      return lab;
+  }
+
+  if (!recusive)
+    return NULL;
+
+  /*
+    Note about exception handlers.
+    See SQL:2003 SQL/PSM (ISO/IEC 9075-4:2003),
+    section 13.1 <compound statement>,
+    syntax rule 4.
+    In short, a DECLARE HANDLER block can not refer
+    to labels from the parent context, as they are out of scope.
+  */
+  if (m_scope == HANDLER_SCOPE && m_parent)
+  {
+    if (m_parent->m_parent)
+    {
+      // Skip the parent context
+      return m_parent->m_parent->find_goto_label(name);
+    }
+  }
+
+  return m_parent && (m_scope == REGULAR_SCOPE) ?
+         m_parent->find_goto_label(name) :
+         NULL;
 }
 
 
