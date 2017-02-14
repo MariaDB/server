@@ -632,9 +632,10 @@ private:
   /* If io_cache=!NULL, use it */
   IO_CACHE *io_cache;
   uchar *ref_buffer;   /* Buffer for the last returned rowid */
-  uint rownum;     /* Number of the rowid that is about to be returned */
-  bool cache_eof; /* whether we've reached EOF */
-  
+  ha_rows rownum;     /* Number of the rowid that is about to be returned */
+  ha_rows current_ref_buffer_rownum;
+  bool ref_buffer_valid;
+
   /* The following are used when we are reading from an array of pointers */
   uchar *cache_start;
   uchar *cache_pos;
@@ -655,34 +656,26 @@ public:
     {
       //DBUG_ASSERT(info->read_record == rr_from_tempfile);
       rownum= 0;
-      cache_eof= false;
       io_cache= (IO_CACHE*)my_malloc(sizeof(IO_CACHE), MYF(0));
       init_slave_io_cache(info->io_cache, io_cache);
 
       ref_buffer= (uchar*)my_malloc(ref_length, MYF(0));
+      ref_buffer_valid= false;
     }
   }
 
   virtual int next()
   {
+    /* Allow multiple next() calls in EOF state. */
+    if (at_eof())
+        return -1;
+
     if (io_cache)
     {
-      if (cache_eof)
-        return 1;
-
-      if (my_b_read(io_cache,ref_buffer,ref_length))
-      {
-        cache_eof= 1; // TODO: remove cache_eof
-        return -1;
-      }
       rownum++;
-      return 0;
     }
     else
     {
-      /* Allow multiple next() calls in EOF state. */
-      if (cache_pos == cache_end)
-        return -1;
       cache_pos+= ref_length;
       DBUG_ASSERT(cache_pos <= cache_end);
     }
@@ -696,7 +689,7 @@ public:
       if (rownum == 0)
         return -1;
 
-      move_to(rownum - 1);
+      rownum--;
       return 0;
     }
     else
@@ -722,9 +715,7 @@ public:
   {
     if (io_cache)
     {
-      seek_io_cache(io_cache, row_number * ref_length);
       rownum= row_number;
-      Rowid_seq_cursor::next();
     }
     else
     {
@@ -738,18 +729,36 @@ protected:
   {
     if (io_cache)
     {
-      return cache_eof;
+      return rownum * ref_length >= io_cache->end_of_file;
     }
     else
       return (cache_pos == cache_end);
   }
 
-  uchar *get_curr_rowid()
+  bool get_curr_rowid(uchar **row_id)
   {
     if (io_cache)
-      return ref_buffer;
+    {
+      DBUG_ASSERT(!at_eof());
+      if (!ref_buffer_valid || current_ref_buffer_rownum != rownum)
+      {
+        seek_io_cache(io_cache, rownum * ref_length);
+        if (my_b_read(io_cache,ref_buffer,ref_length))
+        {
+          /* Error reading from file. */
+          return true;
+        }
+        ref_buffer_valid= true;
+        current_ref_buffer_rownum = rownum;
+      }
+      *row_id = ref_buffer;
+      return false;
+    }
     else
-      return cache_pos;
+    {
+      *row_id= cache_pos;
+      return false;
+    }
   }
 };
 
@@ -775,7 +784,9 @@ public:
     if (at_eof())
       return -1;
 
-    uchar* curr_rowid= get_curr_rowid();
+    uchar* curr_rowid;
+    if (get_curr_rowid(&curr_rowid))
+      return -1;
     return table->file->ha_rnd_pos(record, curr_rowid);
   }
 

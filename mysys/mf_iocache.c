@@ -397,8 +397,9 @@ void end_slave_io_cache(IO_CACHE *cache)
 void seek_io_cache(IO_CACHE *cache, my_off_t needed_offset)
 {
   my_off_t cached_data_start= cache->pos_in_file;
-  my_off_t cached_data_end= cache->pos_in_file + (cache->read_pos -
+  my_off_t cached_data_end= cache->pos_in_file + (cache->read_end -
                                                   cache->buffer);
+
   if (needed_offset >= cached_data_start &&
       needed_offset < cached_data_end)
   {
@@ -416,11 +417,17 @@ void seek_io_cache(IO_CACHE *cache, my_off_t needed_offset)
       The offset we're seeking to is not in the buffer.
       - Set the buffer to be exhausted.
       - Make the next read to a mysql_file_seek() call to the required 
-        offset (but still use aligned reads).
+        offset.
+      TODO(cvicentiu, spetrunia) properly implement aligned seeks for
+      efficiency.
     */
-    cache->read_pos= cache->read_end;
     cache->seek_not_done= 1;
-    cache->pos_in_file= (needed_offset / IO_SIZE) * IO_SIZE;
+    cache->pos_in_file= needed_offset;
+    /* When reading it must appear as if we've started from  the offset
+       that we've seeked here. We must let _my_b_cache_read assume that
+       by implying "no reading starting from pos_in_file" has happened. */
+    cache->read_pos= cache->buffer;
+    cache->read_end= cache->buffer;
   }
 }
 
