@@ -2840,6 +2840,12 @@ bool Window_funcs_computation::setup(THD *thd,
   order_window_funcs_by_window_specs(window_funcs);
 
   SQL_SELECT *sel= NULL;
+  /*
+     If the tmp table is filtered during sorting
+     (ex: SELECT with HAVING && ORDER BY), we must make sure to keep the
+     filtering conditions when we perform sorting for window function
+     computation.
+  */
   if (tab->filesort && tab->filesort->select)
   {
     sel= tab->filesort->select;

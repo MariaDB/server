@@ -1711,3 +1711,26 @@ SELECT a, MAX(a), AVG(a) OVER (PARTITION BY b) FROM t1
 WHERE EXISTS ( SELECT * FROM t2 WHERE c IN ( SELECT MAX(d) FROM t3 ) );
 
 DROP TABLE t1,t2,t3;
+
+--echo #
+--echo # MDEV-10859: Wrong result of aggregate window function in query
+--echo #                  with HAVING and no ORDER BY
+--echo #
+
+create table empsalary (depname varchar(32), empno smallint primary key, salary int);
+insert into empsalary values
+  ('develop', 1, 5000), ('develop', 2, 4000),('sales', 3, '6000'),('sales', 4, 5000);
+
+--sorted_result
+SELECT depname, empno, salary, avg(salary) OVER (PARTITION BY depname) FROM empsalary;
+--sorted_result
+SELECT depname, empno, salary, avg(salary) OVER (PARTITION BY depname) FROM empsalary ORDER BY depname;
+--echo #
+--echo # These last 2 should have the same row results, ignoring order.
+--echo #
+--sorted_result
+SELECT depname, empno, salary, avg(salary) OVER (PARTITION BY depname) FROM empsalary HAVING empno > 1;
+--sorted_result
+SELECT depname, empno, salary, avg(salary) OVER (PARTITION BY depname) FROM empsalary HAVING empno > 1 ORDER BY depname;
+
+drop table empsalary;

@@ -2411,13 +2411,18 @@ bool JOIN::make_aggr_tables_info()
 
       If having is not handled here, it will be checked before the row
       is sent to the client.
+
+      In the case of window functions however, we *must* make sure to not
+      store any rows which don't match HAVING within the temp table,
+      as rows will end up being used during their computation.
     */
     if (having &&
-        (sort_and_group || (exec_tmp_table->distinct && !group_list)))
+        (sort_and_group || (exec_tmp_table->distinct && !group_list) ||
+         select_lex->have_window_funcs()))
     {
-      // Attach HAVING to tmp table's condition
+      /* Attach HAVING to tmp table's condition */
       curr_tab->having= having;
-      having= NULL; // Already done
+      having= NULL; /* Already done */
     }
 
    /* Change sum_fields reference to calculated fields in tmp_table */

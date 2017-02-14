@@ -2925,3 +2925,36 @@ WHERE EXISTS ( SELECT * FROM t2 WHERE c IN ( SELECT MAX(d) FROM t3 ) );
 a	MAX(a)	AVG(a) OVER (PARTITION BY b)
 NULL	NULL	NULL
 DROP TABLE t1,t2,t3;
+#
+# MDEV-10859: Wrong result of aggregate window function in query
+#                  with HAVING and no ORDER BY
+#
+create table empsalary (depname varchar(32), empno smallint primary key, salary int);
+insert into empsalary values
+('develop', 1, 5000), ('develop', 2, 4000),('sales', 3, '6000'),('sales', 4, 5000);
+SELECT depname, empno, salary, avg(salary) OVER (PARTITION BY depname) FROM empsalary;
+depname	empno	salary	avg(salary) OVER (PARTITION BY depname)
+develop	1	5000	4500.0000
+develop	2	4000	4500.0000
+sales	3	6000	5500.0000
+sales	4	5000	5500.0000
+SELECT depname, empno, salary, avg(salary) OVER (PARTITION BY depname) FROM empsalary ORDER BY depname;
+depname	empno	salary	avg(salary) OVER (PARTITION BY depname)
+develop	1	5000	4500.0000
+develop	2	4000	4500.0000
+sales	3	6000	5500.0000
+sales	4	5000	5500.0000
+#
+# These last 2 should have the same row results, ignoring order.
+#
+SELECT depname, empno, salary, avg(salary) OVER (PARTITION BY depname) FROM empsalary HAVING empno > 1;
+depname	empno	salary	avg(salary) OVER (PARTITION BY depname)
+develop	2	4000	4000.0000
+sales	3	6000	5500.0000
+sales	4	5000	5500.0000
+SELECT depname, empno, salary, avg(salary) OVER (PARTITION BY depname) FROM empsalary HAVING empno > 1 ORDER BY depname;
+depname	empno	salary	avg(salary) OVER (PARTITION BY depname)
+develop	2	4000	4000.0000
+sales	3	6000	5500.0000
+sales	4	5000	5500.0000
+drop table empsalary;
