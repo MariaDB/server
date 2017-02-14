@@ -189,6 +189,7 @@ INSERT INTO t2 VALUES ('aaaaa');
 DELETE FROM t4;
 DELETE FROM t2;
 DROP TABLE t5;
+flush tables;
 ###################### TEST #11
 include/rpl_restart_server.inc [server_number=1]
 SET GLOBAL debug_dbug="+d,fault_injection_openning_index";
@@ -203,6 +204,7 @@ INSERT INTO t2 VALUES ('aaaaa');
 DELETE FROM t4;
 DELETE FROM t2;
 DROP TABLE t5;
+flush tables;
 include/rpl_restart_server.inc [server_number=1]
 ###################### TEST #12
 SET GLOBAL debug_dbug="+d,fault_injection_new_file_rotate_event";
@@ -217,6 +219,7 @@ INSERT INTO t2 VALUES ('aaaaa');
 DELETE FROM t4;
 DELETE FROM t2;
 DROP TABLE t5;
+flush tables;
 include/rpl_restart_server.inc [server_number=1]
 DROP TABLE t1, t2, t4;
 RESET MASTER;

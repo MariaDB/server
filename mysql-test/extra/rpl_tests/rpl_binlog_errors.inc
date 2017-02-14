@@ -308,6 +308,7 @@ INSERT INTO t2 VALUES ('aaaaa');
 DELETE FROM t4;
 DELETE FROM t2;
 DROP TABLE t5;
+flush tables;
 
 -- echo ###################### TEST #11
 
@@ -336,6 +337,7 @@ INSERT INTO t2 VALUES ('aaaaa');
 DELETE FROM t4;
 DELETE FROM t2;
 DROP TABLE t5;
+flush tables;
 
 # restart the server so that we have binlog again
 --let $rpl_server_number= 1
@@ -363,6 +365,7 @@ INSERT INTO t2 VALUES ('aaaaa');
 DELETE FROM t4;
 DELETE FROM t2;
 DROP TABLE t5;
+flush tables;
 
 # restart the server so that we have binlog again
 --let $rpl_server_number= 1
