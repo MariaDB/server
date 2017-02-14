@@ -1788,10 +1788,10 @@ protected:
 };
 
 
-class Create_func_json_detailed : public Create_func_arg2
+class Create_func_json_detailed: public Create_native_func
 {
 public:
-  virtual Item *create_2_arg(THD *thd, Item *arg1, Item *arg2);
+  virtual Item *create_native(THD *thd, LEX_STRING name, List<Item> *item_list);
 
   static Create_func_json_detailed s_singleton;
 
@@ -1799,7 +1799,6 @@ protected:
   Create_func_json_detailed() {}
   virtual ~Create_func_json_detailed() {}
 };
-
 
 
 class Create_func_json_type : public Create_func_arg1
@@ -5046,9 +5045,25 @@ Create_func_json_exists::create_2_arg(THD *thd, Item *arg1, Item *arg2)
 Create_func_json_detailed Create_func_json_detailed::s_singleton;
 
 Item*
-Create_func_json_detailed::create_2_arg(THD *thd, Item *arg1, Item *arg2)
+Create_func_json_detailed::create_native(THD *thd, LEX_STRING name,
+                                     List<Item> *item_list)
 {
-  return new (thd->mem_root) Item_func_json_format(thd, arg1, arg2);
+  Item *func= NULL;
+  int arg_count= 0;
+
+  if (item_list != NULL)
+    arg_count= item_list->elements;
+
+  if (arg_count < 1 || arg_count > 2 /* json_doc, [path]...*/)
+  {
+    my_error(ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT, MYF(0), name.str);
+  }
+  else
+  {
+    func= new (thd->mem_root) Item_func_json_format(thd, *item_list);
+  }
+
+  return func;
 }
 
 
