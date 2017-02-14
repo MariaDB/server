@@ -26,7 +26,7 @@ let bugdir= $MYSQLTEST_VARDIR/tmp/log_file;
 --mkdir $bugdir
 
 let SEARCH_FILE= $MYSQLTEST_VARDIR/log/mysqld.1.err;
-let SEARCH_RANGE = -50000;
+let SEARCH_RANGE = -100000;
 let $check_no_innodb=SELECT * FROM INFORMATION_SCHEMA.ENGINES
 WHERE engine = 'innodb'
 AND support IN ('YES', 'DEFAULT', 'ENABLED');
@@ -217,21 +217,9 @@ eval $check_no_innodb;
 --remove_file $bugdir/ib_logfile1
 --list_files $bugdir
 --source include/start_mysqld.inc
-eval $check_no_innodb;
---source include/shutdown_mysqld.inc
-let SEARCH_PATTERN=Only one log file found;
---source include/search_pattern_in_file.inc
-
-# clean up & Restore
---source ../include/log_file_cleanup.inc
-
---echo # 12. With ibdata*, without ib_logfile2
---remove_file $bugdir/ib_logfile2
---list_files $bugdir
---source include/start_mysqld.inc
 eval $check_yes_innodb;
 --source include/shutdown_mysqld.inc
-let SEARCH_PATTERN=Resizing redo log from 2\*\d+ to 3\*\d+ pages, LSN=\d+;
+--let SEARCH_PATTERN=Resizing redo log from 1\*\d+ to 3\*\d+ pages, LSN=\d+
 --source include/search_pattern_in_file.inc
 
 --let $restart_parameters=

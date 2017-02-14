@@ -21265,7 +21265,7 @@ static MYSQL_SYSVAR_LONGLONG(log_file_size, innobase_log_file_size,
 static MYSQL_SYSVAR_ULONG(log_files_in_group, srv_n_log_files,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
   "Number of log files in the log group. InnoDB writes to the files in a circular fashion.",
-  NULL, NULL, 2, 2, SRV_N_LOG_FILES_MAX, 0);
+  NULL, NULL, 2, 1, SRV_N_LOG_FILES_MAX, 0);
 
 static MYSQL_SYSVAR_ULONG(log_write_ahead_size, srv_log_write_ahead_size,
   PLUGIN_VAR_RQCMDARG,

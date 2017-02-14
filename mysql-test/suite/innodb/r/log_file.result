@@ -335,50 +335,12 @@ ibdata2
 undo001
 undo002
 undo003
-SELECT * FROM INFORMATION_SCHEMA.ENGINES
-WHERE engine = 'innodb'
-AND support IN ('YES', 'DEFAULT', 'ENABLED');
-ENGINE	SUPPORT	COMMENT	TRANSACTIONS	XA	SAVEPOINTS
-FOUND /Only one log file found/ in mysqld.1.err
-bak_ib_logfile0
-bak_ib_logfile1
-bak_ib_logfile2
-bak_ibdata1
-bak_ibdata2
-bak_undo001
-bak_undo002
-bak_undo003
-ib_buffer_pool
-ib_logfile0
-ib_logfile2
-ibdata1
-ibdata2
-undo001
-undo002
-undo003
-# 12. With ibdata*, without ib_logfile2
-bak_ib_logfile0
-bak_ib_logfile1
-bak_ib_logfile2
-bak_ibdata1
-bak_ibdata2
-bak_undo001
-bak_undo002
-bak_undo003
-ib_buffer_pool
-ib_logfile0
-ib_logfile1
-ibdata1
-ibdata2
-undo001
-undo002
-undo003
 SELECT COUNT(*) `1` FROM INFORMATION_SCHEMA.ENGINES
 WHERE engine='innodb'
 AND support IN ('YES', 'DEFAULT', 'ENABLED');
 1
 1
-FOUND /Resizing redo log from 2\*\d+ to 3\*\d+ pages, LSN=\d+/ in mysqld.1.err
+FOUND /Resizing redo log from 1\*\d+ to 3\*\d+ pages, LSN=\d+/ in mysqld.1.err
 # Cleanup
 bak_ib_logfile0
 bak_ib_logfile1

@@ -53,8 +53,6 @@ ERROR 42000: Unknown storage engine 'InnoDB'
 SELECT * FROM t1;
 ERROR 42000: Unknown storage engine 'InnoDB'
 SELECT * FROM t1;
-ERROR 42000: Unknown storage engine 'InnoDB'
-SELECT * FROM t1;
 a
 42
 123

@@ -1977,11 +1977,6 @@ innobase_start_or_create_for_mysql(void)
 					crash recovery. */
 					flushed_lsn = log_get_lsn();
 					goto files_checked;
-				} else if (i < 2) {
-					/* must have at least 2 log files */
-					ib::error() << "Only one log file"
-						" found.";
-					return(srv_init_abort(err));
 				}
 
 				/* opened all files */
