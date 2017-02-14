@@ -1095,6 +1095,8 @@ public:
     Returns the val_str() value converted to the given character set.
   */
   String *val_str(String *str, String *converter, CHARSET_INFO *to);
+
+  virtual String *val_json(String *str) { return val_str(str); }
   /*
     Return decimal representation of item with fixed point.
 

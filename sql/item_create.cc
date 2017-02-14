@@ -7228,9 +7228,6 @@ create_func_cast(THD *thd, Item *a, Cast_target cast_type,
     res= new (thd->mem_root) Item_char_typecast(thd, a, len, real_cs);
     break;
   }
-  case ITEM_CAST_JSON:
-    res= new (thd->mem_root) Item_json_typecast(thd, a);
-    break;
   default:
   {
     DBUG_ASSERT(0);

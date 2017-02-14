@@ -402,14 +402,14 @@ json_object("a", json_object("b", "abcd"))
 select json_object("a", '{"b": "abcd"}');
 json_object("a", '{"b": "abcd"}')
 {"a": "{\"b\": \"abcd\"}"}
-select json_object("a", cast('{"b": "abcd"}' as json));
-json_object("a", cast('{"b": "abcd"}' as json))
+select json_object("a", json_compact('{"b": "abcd"}'));
+json_object("a", json_compact('{"b": "abcd"}'))
 {"a": {"b": "abcd"}}
-select cast(NULL AS JSON);
-cast(NULL AS JSON)
+select json_compact(NULL);
+json_compact(NULL)
 NULL
-select json_depth(cast(NULL as JSON));
-json_depth(cast(NULL as JSON))
+select json_depth(json_compact(NULL));
+json_depth(json_compact(NULL))
 NULL
 select json_depth('[[], {}]');
 json_depth('[[], {}]')

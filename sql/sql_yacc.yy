@@ -10714,7 +10714,6 @@ cast_type:
           }
         | cast_type_numeric  { $$= $1; Lex->charset= NULL; }
         | cast_type_temporal { $$= $1; Lex->charset= NULL; }
-        | JSON_SYM           { $$.set(ITEM_CAST_JSON); }
         ;
 
 cast_type_numeric:

@@ -7417,7 +7417,7 @@ ER_BINLOG_UNCOMPRESS_ERROR
 ER_JSON_BAD_CHR
         eng "Broken JSON string in argument %d to function '%s' at position %d"
 ER_JSON_NOT_JSON_CHR
-        eng "Character disallowd in JSON in argument %d to function '%s' at position %d"
+        eng "Character disallowed in JSON in argument %d to function '%s' at position %d"
 ER_JSON_EOS
         eng "Unexpected end of JSON text in argument %d to function '%s'"
 ER_JSON_SYNTAX
