@@ -556,6 +556,7 @@ sp_head::sp_head()
   DBUG_ENTER("sp_head::sp_head");
 
   m_backpatch.empty();
+  m_backpatch_goto.empty();
   m_cont_backpatch.empty();
   m_lex.empty();
   my_hash_init(&m_sptabs, system_charset_info, 0, 0, 0, sp_table_key, 0, 0);
@@ -2212,7 +2213,8 @@ sp_head::merge_lex(THD *thd, LEX *oldlex, LEX *sublex)
   Put the instruction on the backpatch list, associated with the label.
 */
 int
-sp_head::push_backpatch(THD *thd, sp_instr *i, sp_label *lab)
+sp_head::push_backpatch(THD *thd, sp_instr *i, sp_label *lab,
+                        List<bp_t> *list, backpatch_instr_type itype)
 {
   bp_t *bp= (bp_t *) thd->alloc(sizeof(bp_t));
 
@@ -2220,7 +2222,45 @@ sp_head::push_backpatch(THD *thd, sp_instr *i, sp_label *lab)
     return 1;
   bp->lab= lab;
   bp->instr= i;
-  return m_backpatch.push_front(bp);
+  bp->instr_type= itype;
+  return list->push_front(bp);
+}
+
+int
+sp_head::push_backpatch(THD *thd, sp_instr *i, sp_label *lab)
+{
+  return push_backpatch(thd, i, lab, &m_backpatch, GOTO);
+}
+
+int
+sp_head::push_backpatch_goto(THD *thd, sp_pcontext *ctx, sp_label *lab)
+{
+  uint ip= instructions();
+
+  /*
+    Add cpop/hpop : they will be removed or updated later if target is in
+    the same block or not
+  */
+  sp_instr_hpop *hpop= new (thd->mem_root) sp_instr_hpop(ip++, ctx, 0);
+  if (hpop == NULL || add_instr(hpop))
+    return true;
+  if (push_backpatch(thd, hpop, lab, &m_backpatch_goto, HPOP))
+    return true;
+
+  sp_instr_cpop *cpop= new (thd->mem_root) sp_instr_cpop(ip++, ctx, 0);
+  if (cpop == NULL || add_instr(cpop))
+    return true;
+  if (push_backpatch(thd, cpop, lab, &m_backpatch_goto, CPOP))
+    return true;
+
+  // Add jump with ip=0. IP will be updated when label is found.
+  sp_instr_jump *i= new (thd->mem_root) sp_instr_jump(ip, ctx);
+  if (i == NULL || add_instr(i))
+    return true;
+  if (push_backpatch(thd, i, lab, &m_backpatch_goto, GOTO))
+    return true;
+
+  return false;
 }
 
 /**
@@ -2247,6 +2287,97 @@ sp_head::backpatch(sp_label *lab)
   DBUG_VOID_RETURN;
 }
 
+void
+sp_head::backpatch_goto(THD *thd, sp_label *lab,sp_label *lab_begin_block)
+{
+  bp_t *bp;
+  uint dest= instructions();
+  List_iterator<bp_t> li(m_backpatch_goto);
+
+  DBUG_ENTER("sp_head::backpatch_goto");
+  while ((bp= li++))
+  {
+    if (bp->instr->m_ip < lab_begin_block->ip || bp->instr->m_ip > lab->ip)
+    {
+      /*
+        Update only jump target from the beginning of the block where the
+        label is defined.
+      */
+      continue;
+    }
+    if (my_strcasecmp(system_charset_info,
+                      bp->lab->name.str,
+                      lab->name.str) == 0)
+    {
+      if (bp->instr_type == GOTO)
+      {
+        DBUG_PRINT("info",
+                   ("backpatch_goto: (m_ip %d, label 0x%lx <%s>) to dest %d",
+                    bp->instr->m_ip, (ulong) lab, lab->name.str, dest));
+        bp->instr->backpatch(dest, lab->ctx);
+        // Jump resolved, remove from the list
+        li.remove();
+        continue;
+      }
+      if (bp->instr_type == CPOP)
+      {
+        int n= lab->ctx->diff_cursors(lab_begin_block->ctx, true);
+        if (n == 0)
+        {
+          // Remove cpop instr
+          replace_instr_to_nop(thd,bp->instr->m_ip);
+        }
+        else
+        {
+          // update count of cpop
+          static_cast<sp_instr_cpop*>(bp->instr)->update_count(n);
+          n= 1;
+        }
+        li.remove();
+        continue;
+      }
+      if (bp->instr_type == HPOP)
+      {
+        int n= lab->ctx->diff_handlers(lab_begin_block->ctx, true);
+        if (n == 0)
+        {
+          // Remove hpop instr
+          replace_instr_to_nop(thd,bp->instr->m_ip);
+        }
+        else
+        {
+          // update count of cpop
+          static_cast<sp_instr_hpop*>(bp->instr)->update_count(n);
+          n= 1;
+        }
+        li.remove();
+        continue;
+      }
+    }
+  }
+  DBUG_VOID_RETURN;
+}
+
+bool
+sp_head::check_unresolved_goto()
+{
+  DBUG_ENTER("sp_head::check_unresolved_goto");
+  bool has_unresolved_label=false;
+  if (m_backpatch_goto.elements > 0)
+  {
+    List_iterator_fast<bp_t> li(m_backpatch_goto);
+    bp_t *bp;
+    while ((bp= li++))
+    {
+      if ((bp->instr_type == GOTO))
+      {
+        my_error(ER_SP_LILABEL_MISMATCH, MYF(0), "GOTO", bp->lab->name);
+        has_unresolved_label=true;
+      }
+    }
+  }
+  DBUG_RETURN(has_unresolved_label);
+}
 
 int
 sp_head::new_cont_backpatch(sp_instr_opt_meta *i)

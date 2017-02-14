@@ -261,6 +261,7 @@ static SYMBOL symbols[] = {
   { "GET_FORMAT",       SYM(GET_FORMAT)},
   { "GET",              SYM(GET_SYM)},
   { "GLOBAL",		SYM(GLOBAL_SYM)},
+  { "GOTO",            SYM(GOTO_SYM)},
   { "GRANT",		SYM(GRANT)},
   { "GRANTS",	        SYM(GRANTS)},
   { "GROUP",		SYM(GROUP_SYM)},

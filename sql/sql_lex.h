@@ -3317,6 +3317,7 @@ public:
   bool sp_exit_statement(THD *thd, Item *when);
   bool sp_exit_statement(THD *thd, const LEX_STRING label_name, Item *item);
   bool sp_leave_statement(THD *thd, const LEX_STRING label_name);
+  bool sp_goto_statement(THD *thd, const LEX_STRING label_name);
 
   bool sp_continue_statement(THD *thd, Item *when);
   bool sp_continue_statement(THD *thd, const LEX_STRING label_name, Item *when);
@@ -3329,6 +3330,7 @@ public:
   void sp_pop_loop_empty_label(THD *thd);
   bool sp_while_loop_expression(THD *thd, Item *expr);
   bool sp_while_loop_finalize(THD *thd);
+  bool sp_push_goto_label(THD *thd, LEX_STRING label_name);
 
   Item_param *add_placeholder(THD *thd, char *name,
                               uint pos_in_query, uint len_in_query);

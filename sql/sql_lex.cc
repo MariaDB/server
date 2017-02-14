@@ -5704,6 +5704,54 @@ bool LEX::sp_leave_statement(THD *thd, const LEX_STRING label_name)
   return sp_exit_block(thd, lab, NULL);
 }
 
+bool LEX::sp_goto_statement(THD *thd, const LEX_STRING label_name)
+{
+  sp_label *lab= spcont->find_goto_label(label_name);
+  if (!lab || lab->ip == 0)
+  {
+    sp_label *delayedlabel;
+    if (!lab)
+    {
+      // Label not found --> add forward jump to an unknown label
+      spcont->push_goto_label(thd, label_name, 0, sp_label::GOTO);
+      delayedlabel= spcont->last_goto_label();
+    }
+    else
+    {
+      delayedlabel= lab;
+    }
+    return sphead->push_backpatch_goto(thd, spcont, delayedlabel);
+  }
+  else
+  {
+    // Label found (backward goto)
+    return sp_change_context(thd, lab->ctx, false) ||
+           sphead->add_instr_jump(thd, spcont, lab->ip); /* Jump back */
+  }
+  return false;
+}
+
+bool LEX::sp_push_goto_label(THD *thd, const LEX_STRING label_name)
+{
+  sp_label *lab= spcont->find_goto_label(label_name, false);
+  if (lab)
+  {
+    if  (lab->ip != 0)
+    {
+      my_error(ER_SP_LABEL_REDEFINE, MYF(0), label_name.str);
+      return true;
+    }
+    lab->ip= sphead->instructions();
+
+    sp_label *beginblocklabel= spcont->find_label(empty_lex_str);
+    sphead->backpatch_goto(thd, lab, beginblocklabel);
+  }
+  else
+  {
+    spcont->push_goto_label(thd, label_name, sphead->instructions());
+  }
+  return false;
+}
 
 bool LEX::sp_exit_block(THD *thd, sp_label *lab)
 {
