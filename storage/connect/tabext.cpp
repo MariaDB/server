@@ -7,13 +7,16 @@
 /***********************************************************************/
 
 /***********************************************************************/
-/*  Include relevant MariaDB header file.                  */
+/*  Include relevant MariaDB header file.                              */
 /***********************************************************************/
 #define MYSQL_SERVER 1
 #include "my_global.h"
 #include "sql_class.h"
 #include "sql_servers.h"
 #include "sql_string.h"
+#if !defined(__WIN__)
+#include "osutil.h"
+#endif
 
 /***********************************************************************/
 /*  Include required application header files                          */
