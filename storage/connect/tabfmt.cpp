@@ -661,7 +661,7 @@ TDBCSV::TDBCSV(PGLOBAL g, PTDBCSV tdbp) : TDBDOS(g, tdbp)
   } // end of TDBCSV copy constructor
 
 // Method
-PTDB TDBCSV::CopyOne(PTABS t)
+PTDB TDBCSV::Clone(PTABS t)
   {
   PTDB    tp;
   PCSVCOL cp1, cp2;
@@ -675,7 +675,7 @@ PTDB TDBCSV::CopyOne(PTABS t)
     } // endfor cp1
 
   return tp;
-  } // end of CopyOne
+  } // end of Clone
 
 /***********************************************************************/
 /*  Allocate CSV column description block.                             */
@@ -1169,7 +1169,7 @@ TDBFMT::TDBFMT(PGLOBAL g, PTDBFMT tdbp) : TDBCSV(g, tdbp)
   } // end of TDBFMT copy constructor
 
 // Method
-PTDB TDBFMT::CopyOne(PTABS t)
+PTDB TDBFMT::Clone(PTABS t)
   {
   PTDB    tp;
   PCSVCOL cp1, cp2;
@@ -1186,7 +1186,7 @@ PTDB TDBFMT::CopyOne(PTABS t)
     } // endfor cp1
 
   return tp;
-  } // end of CopyOne
+  } // end of Clone
 
 /***********************************************************************/
 /*  Allocate FMT column description block.                             */

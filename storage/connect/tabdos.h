@@ -142,7 +142,7 @@ class DllExport TDBDOS : public TDBASE {
                 {return (PTDB)new(g) TDBDOS(g, this);}
 
   // Methods
-  virtual PTDB  CopyOne(PTABS t);
+  virtual PTDB  Clone(PTABS t);
   virtual void  ResetDB(void) {Txfp->Reset();}
   virtual bool  IsUsingTemp(PGLOBAL g);
   virtual bool  IsIndexed(void) {return Indxd;}

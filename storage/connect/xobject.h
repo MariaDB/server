@@ -127,7 +127,8 @@ class DllExport STRING : public BLOCK {
 
   // Implementation
   inline int    GetLength(void) {return (int)Length;}
-  inline PSZ    GetStr(void) {return Strp;}
+	inline void   SetLength(uint n) {Length = n;}
+	inline PSZ    GetStr(void) {return Strp;}
   inline uint32 GetSize(void) {return Size;}
 
   // Methods

@@ -5,7 +5,7 @@
 /*                                                                          */
 /* COPYRIGHT:                                                               */
 /* ----------                                                               */
-/*  (C) Copyright to the author Olivier BERTRAND          2005-2015         */
+/*  (C) Copyright to the author Olivier BERTRAND          2005-2017         */
 /*                                                                          */
 /* WHAT THIS PROGRAM DOES:                                                  */
 /* -----------------------                                                  */
@@ -593,6 +593,7 @@ bool DBFFAM::AllocateBuffer(PGLOBAL g)
 
 				if (Accept) {
 					Lrecl = reclen;
+					Blksize = Nrec * Lrecl;
 					PushWarning(g, Tdbp);
 				}	else
 					return true;
@@ -609,7 +610,7 @@ bool DBFFAM::AllocateBuffer(PGLOBAL g)
       header->Filedate[1] = datm->tm_mon + 1;
       header->Filedate[2] = datm->tm_mday;
       header->SetHeadlen((ushort)hlen);
-      header->SetReclen((ushort)reclen);
+      header->SetReclen(reclen);
       descp = (DESCRIPTOR*)header;
 
       // Currently only standard Xbase types are supported
@@ -675,6 +676,7 @@ bool DBFFAM::AllocateBuffer(PGLOBAL g)
 
 				if (Accept) {
 					Lrecl = header.Reclen();
+					Blksize = Nrec * Lrecl;
 					PushWarning(g, Tdbp);
 				} else
 					return true;
@@ -967,6 +969,7 @@ int DBMFAM::Cardinality(PGLOBAL g)
 
 			if (Accept) {
 				Lrecl = rln;
+				Blksize = Nrec * Lrecl;
 				PushWarning(g, Tdbp);
 			} else
 				return -1;
@@ -1019,6 +1022,7 @@ bool DBMFAM::AllocateBuffer(PGLOBAL g)
 
 			if (Accept) {
 				Lrecl = hp->Reclen();
+				Blksize = Nrec * Lrecl;
 				PushWarning(g, Tdbp);
 			} else
 				return true;

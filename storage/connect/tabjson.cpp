@@ -574,7 +574,7 @@ TDBJSN::TDBJSN(TDBJSN *tdbp) : TDBDOS(NULL, tdbp)
   } // end of TDBJSN copy constructor
 
 // Used for update
-PTDB TDBJSN::CopyOne(PTABS t)
+PTDB TDBJSN::Clone(PTABS t)
   {
 	G = NULL;
   PTDB    tp;
@@ -589,7 +589,7 @@ PTDB TDBJSN::CopyOne(PTABS t)
     } // endfor cp1
 
   return tp;
-  } // end of CopyOne
+  } // end of Clone
 
 /***********************************************************************/
 /*  Allocate JSN column description block.                             */
@@ -1578,7 +1578,7 @@ TDBJSON::TDBJSON(PJTDB tdbp) : TDBJSN(tdbp)
   } // end of TDBJSON copy constructor
 
 // Used for update
-PTDB TDBJSON::CopyOne(PTABS t)
+PTDB TDBJSON::Clone(PTABS t)
   {
   PTDB    tp;
   PJCOL   cp1, cp2;
@@ -1592,7 +1592,7 @@ PTDB TDBJSON::CopyOne(PTABS t)
     } // endfor cp1
 
   return tp;
-  } // end of CopyOne
+  } // end of Clone
 
 /***********************************************************************/
 /*  Make the document tree from the object path.                       */

@@ -67,7 +67,7 @@ class DllExport TDBPRX : public TDBASE {
                 {return (PTDB)new(g) TDBPRX(this);}
 
   // Methods
-  virtual PTDB  CopyOne(PTABS t);
+  virtual PTDB  Clone(PTABS t);
   virtual int   GetRecpos(void) {return Tdbp->GetRecpos();}
 	virtual void  ResetDB(void) {Tdbp->ResetDB();}
 	virtual int   RowNumber(PGLOBAL g, bool b = FALSE);
@@ -83,12 +83,12 @@ class DllExport TDBPRX : public TDBASE {
   virtual int   WriteDB(PGLOBAL g);
   virtual int   DeleteDB(PGLOBAL g, int irc);
   virtual void  CloseDB(PGLOBAL g) {if (Tdbp) Tdbp->CloseDB(g);}
-        PTDBASE GetSubTable(PGLOBAL g, PTABLE tabp, bool b = false);
+          PTDB  GetSubTable(PGLOBAL g, PTABLE tabp, bool b = false);
           void  RemoveNext(PTABLE tp);
 
  protected:
   // Members
-  PTDBASE Tdbp;                   // The object table
+  PTDB Tdbp;                      // The object table
   }; // end of class TDBPRX
 
 /***********************************************************************/
@@ -115,7 +115,7 @@ class DllExport PRXCOL : public COLBLK {
                 {return false;}
   virtual void ReadColumn(PGLOBAL g);
   virtual void WriteColumn(PGLOBAL g);
-  virtual bool Init(PGLOBAL g, PTDBASE tp);
+  virtual bool Init(PGLOBAL g, PTDB tp);
 
  protected:
           char *Decode(PGLOBAL g, const char *cnm);
