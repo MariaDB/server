@@ -2978,14 +2978,13 @@ String *Item_func_json_format::val_str(String *str)
 {
   String *js= args[0]->val_str(&tmp_js);
   json_engine_t je;
-  int tab_size;
+  int tab_size= 4;
 
   if ((null_value= args[0]->null_value))
     return 0;
 
   if (fmt == DETAILED)
   {
-    tab_size= 4;
     if (arg_count > 1)
     {
       tab_size= args[1]->val_int();
