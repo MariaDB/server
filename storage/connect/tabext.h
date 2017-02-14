@@ -53,7 +53,7 @@ class CONDFIL : public BLOCK {
 /*  tables of type MYSQL, ODBC, JDBC...                                */
 /***********************************************************************/
 class DllExport EXTDEF : public TABDEF {                  /* EXT table */
-	friend TDBEXT;
+	friend class TDBEXT;
 public:
 	// Constructor
 	EXTDEF(void);                  // Constructor
