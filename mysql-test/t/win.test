@@ -1734,3 +1734,43 @@ SELECT depname, empno, salary, avg(salary) OVER (PARTITION BY depname) FROM emps
 SELECT depname, empno, salary, avg(salary) OVER (PARTITION BY depname) FROM empsalary HAVING empno > 1 ORDER BY depname;
 
 drop table empsalary;
+
+--echo #
+--echo # MDEV-11868: min(distinct) over () returns wrong value
+--echo #
+
+create table TDEC (CDEC int, RNUM int);
+create view VDEC as select * from TDEC;
+insert into TDEC (CDEC) values (null),(-1),(0),(1),(0),(10);
+select TDEC.CDEC, min(TDEC.CDEC) over () from TDEC;
+select VDEC.CDEC, min(VDEC.CDEC) over () from VDEC;
+select TDEC.CDEC, max(TDEC.CDEC) over () from TDEC;
+select VDEC.CDEC, max(VDEC.CDEC) over () from VDEC;
+
+select TDEC.CDEC, min(distinct TDEC.CDEC) over () from TDEC;
+select VDEC.CDEC, min(distinct VDEC.CDEC) over () from VDEC;
+select TDEC.CDEC, max(distinct TDEC.CDEC) over () from TDEC;
+select VDEC.CDEC, max(distinct VDEC.CDEC) over () from VDEC;
+
+--echo #
+--echo # These should be removed once support for them is added.
+--echo #
+--error ER_NOT_SUPPORTED_YET
+select TDEC.CDEC, count(distinct TDEC.CDEC) over () from TDEC;
+--error ER_NOT_SUPPORTED_YET
+select VDEC.CDEC, count(distinct VDEC.CDEC) over () from VDEC;
+--error ER_NOT_SUPPORTED_YET
+select TDEC.CDEC, sum(distinct TDEC.CDEC) over () from TDEC;
+--error ER_NOT_SUPPORTED_YET
+select VDEC.CDEC, sum(distinct VDEC.CDEC) over () from VDEC;
+--error ER_NOT_SUPPORTED_YET
+select TDEC.CDEC, avg(distinct TDEC.CDEC) over () from TDEC;
+--error ER_NOT_SUPPORTED_YET
+select VDEC.CDEC, avg(distinct VDEC.CDEC) over () from VDEC;
+--error ER_NOT_SUPPORTED_YET
+select TDEC.CDEC, GROUP_CONCAT(TDEC.CDEC) over () from TDEC;
+--error ER_NOT_SUPPORTED_YET
+select VDEC.CDEC, GROUP_CONCAT(distinct VDEC.CDEC) over () from VDEC;
+
+drop table TDEC;
+drop view VDEC;

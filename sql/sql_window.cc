@@ -2699,10 +2699,20 @@ bool Window_func_runner::add_function_to_run(Item_window_func *win_func)
   {
     /* Distinct is not yet supported. */
     case Item_sum::GROUP_CONCAT_FUNC:
+      my_error(ER_NOT_SUPPORTED_YET, MYF(0),
+               "GROUP_CONCAT() aggregate as window function");
+      return true;
     case Item_sum::SUM_DISTINCT_FUNC:
+      my_error(ER_NOT_SUPPORTED_YET, MYF(0),
+               "SUM(DISTINCT) aggregate as window function");
+      return true;
     case Item_sum::AVG_DISTINCT_FUNC:
       my_error(ER_NOT_SUPPORTED_YET, MYF(0),
-               "This aggregate as window function");
+               "AVG(DISTINCT) aggregate as window function");
+      return true;
+    case Item_sum::COUNT_DISTINCT_FUNC:
+      my_error(ER_NOT_SUPPORTED_YET, MYF(0),
+               "COUNT(DISTINCT) aggregate as window function");
       return true;
     default:
       break;
