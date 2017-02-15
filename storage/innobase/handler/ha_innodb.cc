@@ -2465,8 +2465,8 @@ innobase_get_stmt_safe(
 	stmt =  thd ? thd_query_string(thd) : NULL;
 
 	if (stmt && stmt->str) {
-		length = stmt->length > buflen ? buflen : stmt->length;
-		memcpy(buf, stmt->str, length-1);
+		length = stmt->length >= buflen ? buflen - 1 : stmt->length;
+		memcpy(buf, stmt->str, length);
 		buf[length]='\0';
 	} else {
 		buf[0]='\0';
