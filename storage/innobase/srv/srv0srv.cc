@@ -1152,6 +1152,8 @@ srv_free(void)
 	srv_master_thread_disabled_event = NULL;
 #endif /* UNIV_DEBUG */
 
+	dict_ind_free();
+
 	trx_i_s_cache_free(trx_i_s_cache);
 
 	ut_free(srv_sys);

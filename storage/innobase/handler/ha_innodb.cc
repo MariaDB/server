@@ -3695,6 +3695,13 @@ innobase_space_shutdown()
 	}
 	srv_tmp_space.shutdown();
 
+#ifdef WITH_INNODB_DISALLOW_WRITES
+	if (srv_allow_writes_event) {
+		os_event_destroy(srv_allow_writes_event);
+		srv_allow_writes_event = NULL;
+	}
+#endif /* WITH_INNODB_DISALLOW_WRITES */
+
 	DBUG_VOID_RETURN;
 }
 

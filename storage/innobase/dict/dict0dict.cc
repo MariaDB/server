@@ -2,7 +2,7 @@
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2016, MariaDB Corporation.
+Copyright (c) 2013, 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -6342,11 +6342,9 @@ dict_set_merge_threshold_all_debug(
 
 #endif /* UNIV_DEBUG */
 
-/**********************************************************************//**
-Inits dict_ind_redundant. */
+/** Initialize dict_ind_redundant. */
 void
-dict_ind_init(void)
-/*===============*/
+dict_ind_init()
 {
 	dict_table_t*		table;
 
@@ -6364,16 +6362,11 @@ dict_ind_init(void)
 	dict_ind_redundant->cached = TRUE;
 }
 
-/**********************************************************************//**
-Frees dict_ind_redundant. */
-static
+/** Free dict_ind_redundant. */
 void
-dict_ind_free(void)
-/*===============*/
+dict_ind_free()
 {
-	dict_table_t*	table;
-
-	table = dict_ind_redundant->table;
+	dict_table_t*	table = dict_ind_redundant->table;
 	dict_mem_index_free(dict_ind_redundant);
 	dict_ind_redundant = NULL;
 	dict_mem_table_free(table);
@@ -6895,8 +6888,6 @@ dict_close(void)
 	/* The elements are the same instance as in dict_sys->table_hash,
 	therefore we don't delete the individual elements. */
 	hash_table_free(dict_sys->table_id_hash);
-
-	dict_ind_free();
 
 	mutex_free(&dict_sys->mutex);
 
