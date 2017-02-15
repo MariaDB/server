@@ -14231,116 +14231,6 @@ ha_innobase::rename_table(
 }
 
 /*********************************************************************//**
-Returns the exact number of records that this client can see using this
-handler object.
-@return Error code in case something goes wrong.
-These errors will abort the current query:
-      case HA_ERR_LOCK_DEADLOCK:
-      case HA_ERR_LOCK_TABLE_FULL:
-      case HA_ERR_LOCK_WAIT_TIMEOUT:
-      case HA_ERR_QUERY_INTERRUPTED:
-For other error codes, the server will fall back to counting records. */
-
-#ifdef MYSQL_57_SELECT_COUNT_OPTIMIZATION
-int
-ha_innobase::records(
-/*==================*/
-	ha_rows*			num_rows) /*!< out: number of rows */
-{
-	DBUG_ENTER("ha_innobase::records()");
-
-	dberr_t		ret;
-	ulint		n_rows = 0;	/* Record count in this view */
-
-	update_thd();
-
-	if (dict_table_is_discarded(m_prebuilt->table)) {
-		ib_senderrf(
-			m_user_thd,
-			IB_LOG_LEVEL_ERROR,
-			ER_TABLESPACE_DISCARDED,
-			table->s->table_name.str);
-
-		*num_rows = HA_POS_ERROR;
-		DBUG_RETURN(HA_ERR_NO_SUCH_TABLE);
-
-	} else if (m_prebuilt->table->ibd_file_missing) {
-		ib_senderrf(
-			m_user_thd, IB_LOG_LEVEL_ERROR,
-			ER_TABLESPACE_MISSING,
-			table->s->table_name.str);
-
-		*num_rows = HA_POS_ERROR;
-		DBUG_RETURN(HA_ERR_TABLESPACE_MISSING);
-
-	} else if (m_prebuilt->table->corrupted) {
-		ib_errf(m_user_thd, IB_LOG_LEVEL_WARN,
-			ER_INNODB_INDEX_CORRUPT,
-			"Table '%s' is corrupt.",
-			table->s->table_name.str);
-
-		*num_rows = HA_POS_ERROR;
-		DBUG_RETURN(HA_ERR_INDEX_CORRUPT);
-	}
-
-	TrxInInnoDB	trx_in_innodb(m_prebuilt->trx);
-
-	m_prebuilt->trx->op_info = "counting records";
-
-	dict_index_t*	index = dict_table_get_first_index(m_prebuilt->table);
-
-	ut_ad(dict_index_is_clust(index));
-
-	m_prebuilt->index_usable = row_merge_is_index_usable(
-		m_prebuilt->trx, index);
-
-	if (!m_prebuilt->index_usable) {
-		*num_rows = HA_POS_ERROR;
-		DBUG_RETURN(HA_ERR_TABLE_DEF_CHANGED);
-	}
-
-	/* (Re)Build the m_prebuilt->mysql_template if it is null to use
-	the clustered index and just the key, no off-record data. */
-	m_prebuilt->index = index;
-	dtuple_set_n_fields(m_prebuilt->search_tuple, 0);
-	m_prebuilt->read_just_key = 1;
-	build_template(false);
-
-	/* Count the records in the clustered index */
-	ret = row_scan_index_for_mysql(m_prebuilt, index, false, &n_rows);
-	reset_template();
-	switch (ret) {
-	case DB_SUCCESS:
-		break;
-	case DB_DEADLOCK:
-	case DB_LOCK_TABLE_FULL:
-	case DB_LOCK_WAIT_TIMEOUT:
-		*num_rows = HA_POS_ERROR;
-		DBUG_RETURN(convert_error_code_to_mysql(ret, 0, m_user_thd));
-	case DB_INTERRUPTED:
-		*num_rows = HA_POS_ERROR;
-		DBUG_RETURN(HA_ERR_QUERY_INTERRUPTED);
-	default:
-		/* No other error besides the three below is returned from
-		row_scan_index_for_mysql(). Make a debug catch. */
-		*num_rows = HA_POS_ERROR;
-		ut_ad(0);
-		DBUG_RETURN(-1);
-	}
-
-	m_prebuilt->trx->op_info = "";
-
-	if (thd_killed(m_user_thd)) {
-		*num_rows = HA_POS_ERROR;
-		DBUG_RETURN(HA_ERR_QUERY_INTERRUPTED);
-	}
-
-	*num_rows= n_rows;
-	DBUG_RETURN(0);
-}
-#endif /* MYSQL_57_SELECT_COUNT_OPTIMIZATION */
-
-/*********************************************************************//**
 Estimates the number of index records in a range.
 @return estimated number of rows */
 
@@ -15586,7 +15476,7 @@ ha_innobase::check(
 			ret = row_count_rtree_recs(m_prebuilt, &n_rows);
 		} else {
 			ret = row_scan_index_for_mysql(
-				m_prebuilt, index, true, &n_rows);
+				m_prebuilt, index, &n_rows);
 		}
 
 		DBUG_EXECUTE_IF(
