@@ -2908,6 +2908,7 @@ void handler::print_error(int error, myf errflag)
     textno=ER_FILE_USED;
     break;
   case ENOENT:
+  case ENOTDIR:
     textno=ER_FILE_NOT_FOUND;
     break;
   case ENOSPC:

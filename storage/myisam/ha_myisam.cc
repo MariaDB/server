@@ -1874,15 +1874,22 @@ int ha_myisam::info(uint flag)
      Set data_file_name and index_file_name to point at the symlink value
      if table is symlinked (Ie;  Real name is not same as generated name)
    */
+    char buf[FN_REFLEN];
     data_file_name= index_file_name= 0;
     fn_format(name_buff, file->filename, "", MI_NAME_DEXT,
               MY_APPEND_EXT | MY_UNPACK_FILENAME);
-    if (strcmp(name_buff, misam_info.data_file_name))
-      data_file_name=misam_info.data_file_name;
+    if (my_is_symlink(name_buff))
+    {
+      my_readlink(buf, name_buff, MYF(0));
+      data_file_name= ha_thd()->strdup(buf);
+    }
     fn_format(name_buff, file->filename, "", MI_NAME_IEXT,
               MY_APPEND_EXT | MY_UNPACK_FILENAME);
-    if (strcmp(name_buff, misam_info.index_file_name))
-      index_file_name=misam_info.index_file_name;
+    if (my_is_symlink(name_buff))
+    {
+      my_readlink(buf, name_buff, MYF(0));
+      index_file_name= ha_thd()->strdup(buf);
+    }
   }
   if (flag & HA_STATUS_ERRKEY)
   {

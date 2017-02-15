@@ -312,13 +312,16 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags)
                       my_errno= HA_ERR_CRASHED;
                       goto err;
                     });
+    DEBUG_SYNC_C("mi_open_kfile");
     if ((kfile=mysql_file_open(key_file_kfile, name_buff,
-                               (open_mode=O_RDWR) | O_SHARE,MYF(0))) < 0)
+                               (open_mode=O_RDWR) | O_SHARE | O_NOFOLLOW,
+                               MYF(MY_NOSYMLINKS))) < 0)
     {
       if ((errno != EROFS && errno != EACCES) ||
 	  mode != O_RDONLY ||
 	  (kfile=mysql_file_open(key_file_kfile, name_buff,
-                                 (open_mode=O_RDONLY) | O_SHARE,MYF(0))) < 0)
+                                 (open_mode=O_RDONLY) | O_SHARE | O_NOFOLLOW,
+                                 MYF(MY_NOSYMLINKS))) < 0)
 	goto err;
     }
     share->mode=open_mode;
@@ -363,7 +366,18 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags)
       (void) strmov(index_name, org_name);
     *strrchr(org_name, FN_EXTCHAR)= '\0';
     (void) fn_format(data_name,org_name,"",MARIA_NAME_DEXT,
-                     MY_APPEND_EXT|MY_UNPACK_FILENAME|MY_RESOLVE_SYMLINKS);
+                     MY_APPEND_EXT|MY_UNPACK_FILENAME);
+    if (my_is_symlink(data_name))
+    {
+      if (my_realpath(data_name, data_name, MYF(0)))
+        goto err;
+      if (mysys_test_invalid_symlink(data_name))
+      {
+        my_errno= HA_WRONG_CREATE_OPTION;
+        goto err;
+      }
+      share->mode|= O_NOFOLLOW; /* all symlinks are resolved by realpath() */
+    }
 
     info_length=mi_uint2korr(share->state.header.header_length);
     base_pos= mi_uint2korr(share->state.header.base_pos);
@@ -1867,27 +1881,11 @@ void _ma_set_index_pagecache_callbacks(PAGECACHE_FILE *file,
 
 int _ma_open_datafile(MARIA_HA *info, MARIA_SHARE *share, const char *org_name)
 {
-  char *data_name= share->data_file_name.str;
-  char real_data_name[FN_REFLEN];
-
-  if (org_name)
-  {
-    fn_format(real_data_name, org_name, "", MARIA_NAME_DEXT, 4);
-    if (my_is_symlink(real_data_name))
-    {
-      if (my_realpath(real_data_name, real_data_name, MYF(0)) ||
-          mysys_test_invalid_symlink(real_data_name))
-      {
-        my_errno= HA_WRONG_CREATE_OPTION;
-        return 1;
-      }
-      data_name= real_data_name;
-    }
-  }
-
+  myf flags= MY_WME | (share->mode & O_NOFOLLOW ? MY_NOSYMLINKS : 0);
+  DEBUG_SYNC_C("mi_open_datafile");
   info->dfile.file= share->bitmap.file.file=
-    mysql_file_open(key_file_dfile, data_name,
-                    share->mode | O_SHARE, MYF(MY_WME));
+    mysql_file_open(key_file_dfile, share->data_file_name.str,
+                    share->mode | O_SHARE, MYF(flags));
   return info->dfile.file >= 0 ? 0 : 1;
 }
 
@@ -1901,8 +1899,8 @@ int _ma_open_keyfile(MARIA_SHARE *share)
   mysql_mutex_lock(&share->intern_lock);
   share->kfile.file= mysql_file_open(key_file_kfile,
                                      share->unique_file_name.str,
-                                     share->mode | O_SHARE,
-                             MYF(MY_WME));
+                                     share->mode | O_SHARE | O_NOFOLLOW,
+                             MYF(MY_WME | MY_NOSYMLINKS));
   mysql_mutex_unlock(&share->intern_lock);
   return (share->kfile.file < 0);
 }

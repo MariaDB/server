@@ -61,10 +61,10 @@ let $MYSQLD_DATADIR= `SELECT @@datadir`;
 --echo #
 --echo # Trigger a MyISAM system error during an INFORMATION_SCHEMA.TABLES query
 --echo #
+--replace_result 20 2
 SELECT TABLE_SCHEMA, TABLE_NAME, TABLE_TYPE, ENGINE, ROW_FORMAT, TABLE_ROWS, DATA_LENGTH, TABLE_COMMENT
        FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't1';
 
-SHOW WARNINGS;
 --disable_warnings
 --error 1051
 DROP TABLE t1;

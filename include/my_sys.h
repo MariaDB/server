@@ -63,9 +63,9 @@ typedef struct my_aio_result {
 #define MY_FAE		8	/* Fatal if any error */
 #define MY_WME		16	/* Write message on error */
 #define MY_WAIT_IF_FULL 32	/* Wait and try again if disk full error */
-#define MY_IGNORE_BADFD 32      /* my_sync: ignore 'bad descriptor' errors */
-#define MY_UNUSED       64      /* Unused (was support for RAID) */
-#define MY_FULL_IO     512      /* For my_read - loop intil I/O is complete */
+#define MY_IGNORE_BADFD 32      /* my_sync(): ignore 'bad descriptor' errors */
+#define MY_NOSYMLINKS  512      /* my_open(): don't follow symlinks */
+#define MY_FULL_IO     512      /* my_read(): loop intil I/O is complete */
 #define MY_DONT_CHECK_FILESIZE 128 /* Option to init_io_cache() */
 #define MY_LINK_WARNING 32	/* my_redel() gives warning if links */
 #define MY_COPYTIME	64	/* my_redel() copys time */
