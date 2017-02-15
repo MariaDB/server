@@ -3049,3 +3049,29 @@ select VDEC.CDEC, GROUP_CONCAT(distinct VDEC.CDEC) over () from VDEC;
 ERROR 42000: This version of MariaDB doesn't yet support 'GROUP_CONCAT() aggregate as window function'
 drop table TDEC;
 drop view VDEC;
+#
+# MDEV-10700: 10.2.2 windowing function returns incorrect result
+#
+create table t(a int,b int, c int , d int);
+insert into t(a,b,c,d) values(1, rand(10)*1000, rand(10)*1000, rand(10)*1000);
+insert into t(a,b,c,d) values(1, rand(10)*1000, rand(10)*1000, rand(10)*1000);
+replace into t(a,b,c,d) select 1, rand(10)*1000, rand(10)*1000, rand(10)*1000 from t t1, t t2, t t3, t t4, t t5, t t6, t t7, t t8, t t9, t t10, t t11, t t12, t t13, t t14, t t15, t t16, t t17;
+select count(distinct s) from (select sum(d) over(partition by a,b,c) as s from t) Z where s > 0;
+count(distinct s)
+993
+select count(distinct s) from (select sum(d) as s from t group by a,b,c) Z where s > 0;
+count(distinct s)
+993
+select count(distinct s) from (select sum(d) over(partition by a,b) as s from t) Z where s > 0;
+count(distinct s)
+993
+select count(distinct s) from (select sum(d) as s from t group by a,b) Z where s > 0;
+count(distinct s)
+993
+select count(distinct s) from (select sum(d) over(partition by a) as s from t) Z where s > 0;
+count(distinct s)
+1
+select count(distinct s) from (select sum(d) as s from t group by a) Z where s > 0;
+count(distinct s)
+1
+drop table t;
