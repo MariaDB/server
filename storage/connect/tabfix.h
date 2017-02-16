@@ -34,7 +34,7 @@ class DllExport TDBFIX : public TDBDOS {
                 {return (PTDB)new(g) TDBFIX(g, this);}
 
   // Methods
-  virtual PTDB CopyOne(PTABS t);
+  virtual PTDB Clone(PTABS t);
   virtual void ResetDB(void);
   virtual bool IsUsingTemp(PGLOBAL g);
   virtual int  RowNumber(PGLOBAL g, bool b = false);

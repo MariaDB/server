@@ -1,7 +1,7 @@
 /************* TabXcl CPP Declares Source Code File (.CPP) *************/
 /*  Name: TABXCL.CPP   Version 1.0                                     */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          2013         */
+/*  (C) Copyright to the author Olivier BERTRAND          2013-2017    */
 /*                                                                     */
 /*  XCOL: Table having one column containing several values            */
 /*  comma separated. When creating the table, the name of the X        */
@@ -45,12 +45,12 @@
 #include "plgdbsem.h"
 #include "plgcnx.h"                       // For DB types
 #include "resource.h"
-#include "reldef.h"
+#include "xtable.h"
+#include "tabext.h"
 #include "filamtxt.h"
 #include "tabdos.h"
 #include "tabcol.h"
 #include "tabxcl.h"
-#include "xtable.h"
 #include "tabmysql.h"
 #include "ha_connect.h"
 
@@ -246,7 +246,7 @@ XCLCOL::XCLCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i)
 /*  XCLCOL initialization routine.                                     */
 /*  Allocate Cbuf that will contain the Colp value.                    */
 /***********************************************************************/
-bool XCLCOL::Init(PGLOBAL g, PTDBASE tp)
+bool XCLCOL::Init(PGLOBAL g, PTDB tp)
   {
   if (PRXCOL::Init(g, tp))
     return true;

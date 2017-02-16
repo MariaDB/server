@@ -621,8 +621,8 @@ bool OEMDEF::DefineAM(PGLOBAL g, LPCSTR, int)
 /***********************************************************************/
 PTDB OEMDEF::GetTable(PGLOBAL g, MODE mode)
   {
-  RECFM   rfm;
-  PTDBASE tdbp = NULL;
+  RECFM rfm;
+  PTDB  tdbp = NULL;
 
   // If define block not here yet, get it now
   if (!Pxdef && !(Pxdef = GetXdef(g)))
@@ -632,7 +632,7 @@ PTDB OEMDEF::GetTable(PGLOBAL g, MODE mode)
   /*  Allocate a TDB of the proper type.                               */
   /*  Column blocks will be allocated only when needed.                */
   /*********************************************************************/
-  if (!(tdbp = (PTDBASE)Pxdef->GetTable(g, mode)))
+  if (!(tdbp = Pxdef->GetTable(g, mode)))
     return NULL;
   else
     rfm = tdbp->GetFtype();

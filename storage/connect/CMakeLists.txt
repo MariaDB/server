@@ -22,16 +22,16 @@ fmdlex.c osutil.c plugutil.c rcmsg.c rcmsg.h
 array.cpp blkfil.cpp colblk.cpp csort.cpp
 filamap.cpp filamdbf.cpp filamfix.cpp filamgz.cpp filamtxt.cpp
 filter.cpp json.cpp jsonudf.cpp maputil.cpp myconn.cpp myutil.cpp plgdbutl.cpp
-reldef.cpp tabcol.cpp tabdos.cpp tabfix.cpp tabfmt.cpp tabjson.cpp table.cpp
-tabmul.cpp tabmysql.cpp taboccur.cpp tabpivot.cpp tabsys.cpp tabtbl.cpp tabutil.cpp
-tabvir.cpp tabxcl.cpp valblk.cpp value.cpp xindex.cpp xobject.cpp
+reldef.cpp tabcol.cpp tabdos.cpp tabext.cpp tabfix.cpp tabfmt.cpp tabjson.cpp
+table.cpp tabmul.cpp tabmysql.cpp taboccur.cpp tabpivot.cpp tabsys.cpp tabtbl.cpp
+tabutil.cpp tabvir.cpp tabxcl.cpp valblk.cpp value.cpp xindex.cpp xobject.cpp
 
 array.h blkfil.h block.h catalog.h checklvl.h colblk.h connect.h csort.h
 engmsg.h filamap.h filamdbf.h filamfix.h filamgz.h filamtxt.h
 filter.h global.h ha_connect.h inihandl.h json.h jsonudf.h maputil.h msgid.h
 mycat.h myconn.h myutil.h os.h osutil.h plgcnx.h plgdbsem.h preparse.h reldef.h
-resource.h tabcol.h tabdos.h tabfix.h tabfmt.h tabjson.h tabmul.h tabmysql.h
-taboccur.h tabpivot.h tabsys.h tabtbl.h tabutil.h tabvir.h tabxcl.h
+resource.h tabcol.h tabdos.h tabext.h tabfix.h tabfmt.h tabjson.h tabmul.h
+tabmysql.h taboccur.h tabpivot.h tabsys.h tabtbl.h tabutil.h tabvir.h tabxcl.h
 user_connect.h valblk.h value.h xindex.h xobject.h xtable.h)
 
 #

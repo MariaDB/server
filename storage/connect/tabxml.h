@@ -71,7 +71,7 @@ class DllExport TDBXML : public TDBASE {
   virtual PTDB  Duplicate(PGLOBAL g) {return (PTDB)new(g) TDBXML(this);}
 
   // Methods
-  virtual PTDB  CopyOne(PTABS t);
+  virtual PTDB  Clone(PTABS t);
   virtual int   GetRecpos(void);
   virtual int   GetProgCur(void) {return N;}
   virtual PSZ   GetFile(PGLOBAL g) {return Xfile;}

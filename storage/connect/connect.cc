@@ -159,7 +159,7 @@ bool CntCheckDB(PGLOBAL g, PHC handler, const char *pathname)
 bool CntInfo(PGLOBAL g, PTDB tp, PXF info)
 {
   if (tp) {
-		bool    b = ((PTDBASE)tp)->GetFtype() == RECFM_NAF;
+		bool    b = (tp->GetFtype() == RECFM_NAF);
 		PTDBDOS tdbp = b ? NULL : (PTDBDOS)tp;
 
 		info->data_file_length = (b) ? 0 : (ulonglong)tdbp->GetFileLength(g);
@@ -331,9 +331,9 @@ bool CntOpenTable(PGLOBAL g, PTDB tdbp, MODE mode, char *c1, char *c2,
       } // endfor colp
 
     // Attach the updated columns list to the main table
-    ((PTDBASE)tdbp)->SetSetCols(utp->GetColumns());
+    tdbp->SetSetCols(utp->GetColumns());
   } else if (tdbp && mode == MODE_INSERT)
-    ((PTDBASE)tdbp)->SetSetCols(tdbp->GetColumns());
+    tdbp->SetSetCols(tdbp->GetColumns());
 
   // Now do open the physical table
   if (trace)
@@ -342,7 +342,7 @@ bool CntOpenTable(PGLOBAL g, PTDB tdbp, MODE mode, char *c1, char *c2,
 
 //tdbp->SetMode(mode);
 
-  if (del/* && ((PTDBASE)tdbp)->GetFtype() != RECFM_NAF*/) {
+  if (del/* && (tdbp->GetFtype() != RECFM_NAF*/) {
     // To avoid erasing the table when doing a partial delete
     // make a fake Next
 //    PDOSDEF ddp= new(g) DOSDEF;
@@ -435,7 +435,7 @@ RCODE CntReadNext(PGLOBAL g, PTDB tdbp)
 
   if (!tdbp)
     return RC_FX;
-  else if (((PTDBASE)tdbp)->GetKindex()) {
+  else if (tdbp->GetKindex()) {
     // Reading sequencially an indexed table. This happens after the
     // handler function records_in_range was called and MySQL decides
     // to quit using the index (!!!) Drop the index.
@@ -482,7 +482,7 @@ RCODE  CntWriteRow(PGLOBAL g, PTDB tdbp)
   {
   RCODE   rc;
   PCOL    colp;
-  PTDBASE tp= (PTDBASE)tdbp;
+//PTDBASE tp= (PTDBASE)tdbp;
 
   if (!tdbp)
     return RC_FX;
@@ -500,13 +500,13 @@ RCODE  CntWriteRow(PGLOBAL g, PTDB tdbp)
     } // endif rc
 
   // Store column values in table write buffer(s)
-  for (colp= tp->GetSetCols(); colp; colp= colp->GetNext())
+  for (colp= tdbp->GetSetCols(); colp; colp= colp->GetNext())
     if (!colp->GetColUse(U_VIRTUAL))
       colp->WriteColumn(g);
 
-  if (tp->IsIndexed())
+  if (tdbp->IsIndexed())
     // Index values must be sorted before updating
-    rc= (RCODE)((PTDBDOS)tp)->GetTxfp()->StoreValues(g, true);
+    rc= (RCODE)((PTDBDOS)tdbp)->GetTxfp()->StoreValues(g, true);
   else
     // Return result code from write operation
     rc= (RCODE)tdbp->WriteDB(g);
@@ -534,7 +534,7 @@ RCODE CntUpdateRow(PGLOBAL g, PTDB tdbp)
 RCODE  CntDeleteRow(PGLOBAL g, PTDB tdbp, bool all)
   {
   RCODE   rc;
-  PTDBASE tp= (PTDBASE)tdbp;
+//PTDBASE tp= (PTDBASE)tdbp;
 
   if (!tdbp || tdbp->GetMode() != MODE_DELETE)
     return RC_FX;
@@ -542,16 +542,16 @@ RCODE  CntDeleteRow(PGLOBAL g, PTDB tdbp, bool all)
     return RC_NF;
 
   if (all) {
-    if (((PTDBASE)tdbp)->GetDef()->Indexable())
+    if (tdbp->GetDef()->Indexable())
       ((PTDBDOS)tdbp)->Cardinal= 0;
 
     // Note: if all, this call will be done when closing the table
     rc= (RCODE)tdbp->DeleteDB(g, RC_FX);
-//} else if (tp->GetKindex() && !tp->GetKindex()->IsSorted() &&
-//           tp->Txfp->GetAmType() != TYPE_AM_DBF) {
-  } else if(tp->IsIndexed()) {
+//} else if (tdbp->GetKindex() && !((PTDBASE)tdbp)->GetKindex()->IsSorted() &&
+//           ((PTDBASE)tdbp)->Txfp->GetAmType() != TYPE_AM_DBF) {
+  } else if(tdbp->IsIndexed()) {
     // Index values must be sorted before updating
-    rc= (RCODE)((PTDBDOS)tp)->GetTxfp()->StoreValues(g, false);
+    rc= (RCODE)((PTDBDOS)tdbp)->GetTxfp()->StoreValues(g, false);
   } else // Return result code from delete operation
     rc= (RCODE)tdbp->DeleteDB(g, RC_OK);
 
@@ -564,7 +564,7 @@ RCODE  CntDeleteRow(PGLOBAL g, PTDB tdbp, bool all)
 int CntCloseTable(PGLOBAL g, PTDB tdbp, bool nox, bool abort)
   {
   int     rc= RC_OK;
-  TDBASE *tbxp= (PTDBASE)tdbp;
+//TDBASE *tbxp= (PTDBASE)tdbp;
 
   if (!tdbp)
     return rc;                           // Nothing to do
@@ -580,13 +580,13 @@ int CntCloseTable(PGLOBAL g, PTDB tdbp, bool nox, bool abort)
                            tdbp, tdbp->GetMode(), nox, abort);
 
   if (tdbp->GetMode() == MODE_DELETE && tdbp->GetUse() == USE_OPEN) {
-    if (tbxp->IsIndexed())
+    if (tdbp->IsIndexed())
       rc= ((PTDBDOS)tdbp)->GetTxfp()->DeleteSortedRows(g);
 
     if (!rc)
       rc= tdbp->DeleteDB(g, RC_EF);    // Specific A.M. delete routine
 
-  } else if (tbxp->GetMode() == MODE_UPDATE && tbxp->IsIndexed())
+  } else if (tdbp->GetMode() == MODE_UPDATE && tdbp->IsIndexed())
     rc= ((PTDBDOX)tdbp)->Txfp->UpdateSortedRows(g);
 
   switch(rc) {
@@ -594,7 +594,7 @@ int CntCloseTable(PGLOBAL g, PTDB tdbp, bool nox, bool abort)
       abort= true;
       break;
     case RC_INFO:
-      PushWarning(g, tbxp);
+      PushWarning(g, tdbp);
       break;
     } // endswitch rc
 
@@ -630,11 +630,13 @@ int CntCloseTable(PGLOBAL g, PTDB tdbp, bool nox, bool abort)
   if (trace > 1)
     printf("About to reset opt\n");
 
-  // Make all the eventual indexes
-  tbxp= (TDBDOX*)tdbp;
-  tbxp->ResetKindex(g, NULL);
-  tbxp->SetKey_Col(NULL);
-  rc= tbxp->ResetTableOpt(g, true, tbxp->GetDef()->Indexable() == 1);
+	if (!tdbp->IsRemote()) {
+		// Make all the eventual indexes
+		PTDBDOX tbxp = (PTDBDOX)tdbp;
+		tbxp->ResetKindex(g, NULL);
+		tbxp->SetKey_Col(NULL);
+		rc = tbxp->ResetTableOpt(g, true, tbxp->GetDef()->Indexable() == 1);
+	  } // endif remote
 
  err:
   if (trace > 1)
@@ -656,10 +658,10 @@ int CntIndexInit(PGLOBAL g, PTDB ptdb, int id, bool sorted)
 
   if (!ptdb)
     return -1;
-  else if (!((PTDBASE)ptdb)->GetDef()->Indexable()) {
+  else if (!ptdb->GetDef()->Indexable()) {
     sprintf(g->Message, MSG(TABLE_NO_INDEX), ptdb->GetName());
     return 0;
-  } else if (((PTDBASE)ptdb)->GetDef()->Indexable() == 3) {
+  } else if (ptdb->GetDef()->Indexable() == 3) {
     return 1;
   } else
     tdbp= (PTDBDOX)ptdb;
@@ -744,7 +746,7 @@ RCODE CntIndexRead(PGLOBAL g, PTDB ptdb, OPVAL op,
   if (!ptdb)
     return RC_FX;
   else
-    x= ((PTDBASE)ptdb)->GetDef()->Indexable();
+    x= ptdb->GetDef()->Indexable();
 
   if (!x) {
     sprintf(g->Message, MSG(TABLE_NO_INDEX), ptdb->GetName());
@@ -874,7 +876,7 @@ int CntIndexRange(PGLOBAL g, PTDB ptdb, const uchar* *key, uint *len,
   if (!ptdb)
     return -1;
 
-  x= ((PTDBASE)ptdb)->GetDef()->Indexable();
+  x= ptdb->GetDef()->Indexable();
 
   if (!x) {
     sprintf(g->Message, MSG(TABLE_NO_INDEX), ptdb->GetName());
