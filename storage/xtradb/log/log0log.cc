@@ -3506,7 +3506,6 @@ logs_empty_and_mark_files_at_shutdown(void)
 	lsn_t			lsn;
 	lsn_t			tracked_lsn;
 	ulint			count = 0;
-	ulint			total_trx;
 	ulint			pending_io;
 	enum srv_thread_type	active_thd;
 	const char*		thread_name;

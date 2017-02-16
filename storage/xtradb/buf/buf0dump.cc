@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2011, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -52,8 +53,8 @@ enum status_severity {
 
 /* Flags that tell the buffer pool dump/load thread which action should it
 take after being waked up. */
-static ibool	buf_dump_should_start = FALSE;
-static ibool	buf_load_should_start = FALSE;
+static volatile bool	buf_dump_should_start;
+static volatile bool	buf_load_should_start;
 
 static ibool	buf_load_abort_flag = FALSE;
 
@@ -78,7 +79,7 @@ void
 buf_dump_start()
 /*============*/
 {
-	buf_dump_should_start = TRUE;
+	buf_dump_should_start = true;
 	os_event_set(srv_buf_dump_event);
 }
 
@@ -92,7 +93,7 @@ void
 buf_load_start()
 /*============*/
 {
-	buf_load_should_start = TRUE;
+	buf_load_should_start = true;
 	os_event_set(srv_buf_dump_event);
 }
 
@@ -695,15 +696,18 @@ DECLARE_THREAD(buf_dump_thread)(
 		os_event_wait(srv_buf_dump_event);
 
 		if (buf_dump_should_start) {
-			buf_dump_should_start = FALSE;
+			buf_dump_should_start = false;
 			buf_dump(TRUE /* quit on shutdown */);
 		}
 
 		if (buf_load_should_start) {
-			buf_load_should_start = FALSE;
+			buf_load_should_start = false;
 			buf_load();
 		}
 
+		if (buf_dump_should_start || buf_load_should_start) {
+			continue;
+		}
 		os_event_reset(srv_buf_dump_event);
 	}
 
