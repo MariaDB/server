@@ -3308,7 +3308,7 @@ fil_open_single_table_tablespace(
 	}
 
 	if (space_id != id
-	    || space_flags != (flags & ~(~0 << DICT_TF_BITS))) {
+	    || space_flags != (flags & ~(~0U << DICT_TF_BITS))) {
 		ut_print_timestamp(stderr);
 
 		fputs("  InnoDB: Error: tablespace id and flags in file ",

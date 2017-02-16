@@ -289,7 +289,6 @@ mtr_commit(
 /*=======*/
 	mtr_t*	mtr)	/*!< in: mini-transaction */
 {
-	ut_ad(mtr);
 	ut_ad(mtr->magic_n == MTR_MAGIC_N);
 	ut_ad(mtr->state == MTR_ACTIVE);
 	ut_ad(!mtr->inside_ibuf);

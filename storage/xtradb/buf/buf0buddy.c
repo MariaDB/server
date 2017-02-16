@@ -288,7 +288,6 @@ buf_buddy_alloc_low(
 {
 	buf_block_t*	block;
 
-	ut_ad(lru);
 	//ut_ad(buf_pool_mutex_own(buf_pool));
 	ut_ad(mutex_own(&buf_pool->LRU_list_mutex));
 	ut_ad(!mutex_own(&buf_pool->zip_mutex));

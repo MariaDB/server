@@ -1285,7 +1285,6 @@ fsp_fill_free_list(
 	ulint	i;
 	mtr_t	ibuf_mtr;
 
-	ut_ad(header && mtr);
 	ut_ad(page_offset(header) == FSP_HEADER_OFFSET);
 
 	/* Check if we can fill free list from above the free list limit */
@@ -1583,9 +1582,6 @@ fsp_alloc_free_page(
 	ulint		free;
 	ulint		page_no;
 	ulint		space_size;
-
-	ut_ad(mtr);
-	ut_ad(init_mtr);
 
 	header = fsp_get_space_header(space, zip_size, mtr);
 
@@ -2602,7 +2598,6 @@ fseg_alloc_free_page_low(
 	ibool		success;
 	ulint		n;
 
-	ut_ad(mtr);
 	ut_ad((direction >= FSP_UP) && (direction <= FSP_NO_DIR));
 	ut_ad(mach_read_from_4(seg_inode + FSEG_MAGIC_N)
 	      == FSEG_MAGIC_N_VALUE);

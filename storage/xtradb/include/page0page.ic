@@ -154,7 +154,6 @@ page_header_get_offs(
 {
 	ulint	offs;
 
-	ut_ad(page);
 	ut_ad((field == PAGE_FREE)
 	      || (field == PAGE_LAST_INSERT)
 	      || (field == PAGE_HEAP_TOP));

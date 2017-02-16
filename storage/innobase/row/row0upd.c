@@ -1066,8 +1066,6 @@ row_upd_index_replace_new_col_vals_index_pos(
 	ulint		n_fields;
 	const ulint	zip_size	= dict_table_zip_size(index->table);
 
-	ut_ad(index);
-
 	dtuple_set_info_bits(entry, update->info_bits);
 
 	if (order_only) {
@@ -1250,8 +1248,6 @@ row_upd_changes_ord_field_binary_func(
 	ulint			i;
 	const dict_index_t*	clust_index;
 
-	ut_ad(index);
-	ut_ad(update);
 	ut_ad(thr);
 	ut_ad(thr->graph);
 	ut_ad(thr->graph->trx);

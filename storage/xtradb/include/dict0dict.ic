@@ -247,7 +247,6 @@ dict_index_is_clust(
 /*================*/
 	const dict_index_t*	index)	/*!< in: index */
 {
-	ut_ad(index);
 	ut_ad(index->magic_n == DICT_INDEX_MAGIC_N);
 
 	return(UNIV_UNLIKELY(index->type & DICT_CLUSTERED));
@@ -261,7 +260,6 @@ dict_index_is_unique(
 /*=================*/
 	const dict_index_t*	index)	/*!< in: index */
 {
-	ut_ad(index);
 	ut_ad(index->magic_n == DICT_INDEX_MAGIC_N);
 
 	return(UNIV_UNLIKELY(index->type & DICT_UNIQUE));
@@ -276,7 +274,6 @@ dict_index_is_ibuf(
 /*===============*/
 	const dict_index_t*	index)	/*!< in: index */
 {
-	ut_ad(index);
 	ut_ad(index->magic_n == DICT_INDEX_MAGIC_N);
 
 	return(UNIV_UNLIKELY(index->type & DICT_IBUF));
@@ -293,7 +290,6 @@ dict_index_is_sec_or_ibuf(
 {
 	ulint	type;
 
-	ut_ad(index);
 	ut_ad(index->magic_n == DICT_INDEX_MAGIC_N);
 
 	type = index->type;
@@ -311,7 +307,6 @@ dict_table_get_n_user_cols(
 /*=======================*/
 	const dict_table_t*	table)	/*!< in: table */
 {
-	ut_ad(table);
 	ut_ad(table->magic_n == DICT_TABLE_MAGIC_N);
 
 	return(table->n_cols - DATA_N_SYS_COLS);
@@ -343,7 +338,6 @@ dict_table_get_n_cols(
 /*==================*/
 	const dict_table_t*	table)	/*!< in: table */
 {
-	ut_ad(table);
 	ut_ad(table->magic_n == DICT_TABLE_MAGIC_N);
 
 	return(table->n_cols);
@@ -950,7 +944,6 @@ dict_index_is_corrupted(
 /*====================*/
 	const dict_index_t*	index)	/*!< in: index */
 {
-	ut_ad(index);
 	ut_ad(index->magic_n == DICT_INDEX_MAGIC_N);
 
 	return(UNIV_UNLIKELY((index->type & DICT_CORRUPT)

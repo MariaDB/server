@@ -88,7 +88,6 @@ Adds the node as the first element in a two-way linked list.
 */
 #define UT_LIST_ADD_FIRST(NAME, BASE, N)\
 {\
-	ut_ad(N);\
 	((BASE).count)++;\
 	((N)->NAME).next = (BASE).start;\
 	((N)->NAME).prev = NULL;\
@@ -134,7 +133,6 @@ Inserts a NODE2 after NODE1 in a list.
 #define UT_LIST_INSERT_AFTER(NAME, BASE, NODE1, NODE2)\
 {\
 	ut_ad(NODE1);\
-	ut_ad(NODE2);\
 	ut_ad((NODE1) != (NODE2));\
 	((BASE).count)++;\
 	((NODE2)->NAME).prev = (NODE1);\
@@ -169,7 +167,6 @@ Removes a node from a two-way linked list.
 */
 #define UT_LIST_REMOVE(NAME, BASE, N)					\
 do {									\
-	ut_ad(N);							\
 	ut_a((BASE).count > 0);						\
 	((BASE).count)--;						\
 	if (((N)->NAME).next != NULL) {					\

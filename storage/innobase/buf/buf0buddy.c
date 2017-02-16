@@ -276,7 +276,6 @@ buf_buddy_alloc_low(
 {
 	buf_block_t*	block;
 
-	ut_ad(lru);
 	ut_ad(buf_pool_mutex_own(buf_pool));
 	ut_ad(!mutex_own(&buf_pool->zip_mutex));
 	ut_ad(i >= buf_buddy_get_slot(PAGE_ZIP_MIN_SIZE));

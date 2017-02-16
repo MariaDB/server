@@ -791,8 +791,7 @@ rec_get_converted_size_comp_prefix_low(
 	ulint	extra_size;
 	ulint	data_size;
 	ulint	i;
-	ut_ad(index);
-	ut_ad(fields);
+
 	ut_ad(n_fields > 0);
 	ut_ad(n_fields <= dict_index_get_n_fields(index));
 	ut_ad(!temp || extra);

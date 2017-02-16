@@ -42,7 +42,7 @@ Created 12/18/1995 Heikki Tuuri
 #define FSP_FLAGS_POS_PAGE_SSIZE	6
 /** Bit mask of the PAGE_SSIZE field */
 #define FSP_FLAGS_MASK_PAGE_SSIZE				\
-		((~(~0 << FSP_FLAGS_WIDTH_PAGE_SSIZE))		\
+		((~(~0U << FSP_FLAGS_WIDTH_PAGE_SSIZE))		\
 		<< FSP_FLAGS_POS_PAGE_SSIZE)
 /** Return the value of the PAGE_SSIZE field */
 #define FSP_FLAGS_GET_PAGE_SSIZE(flags)				\
