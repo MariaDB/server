@@ -3075,3 +3075,24 @@ select count(distinct s) from (select sum(d) as s from t group by a) Z where s >
 count(distinct s)
 1
 drop table t;
+#
+# MDEV-9924: window function in query with group by optimized away 
+#
+create table t1 (i int);
+insert into t1 values (2),(3),(1);
+select row_number() over () from t1 group by 1+2;
+row_number() over ()
+1
+select max(i), row_number() over () from t1 group by 1+2;
+max(i)	row_number() over ()
+3	1
+select rank() over (order by max(i)) from t1 group by 1+2;
+rank() over (order by max(i))
+1
+select i, row_number() over () from t1 group by 1+2;
+i	row_number() over ()
+2	1
+select i, rank() over (order by i) rnk from t1 group by 1+2;
+i	rnk
+2	1
+drop table t1;

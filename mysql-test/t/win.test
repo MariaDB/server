@@ -1793,3 +1793,19 @@ select count(distinct s) from (select sum(d) over(partition by a) as s from t) Z
 select count(distinct s) from (select sum(d) as s from t group by a) Z where s > 0;
 
 drop table t;
+
+--echo #
+--echo # MDEV-9924: window function in query with group by optimized away 
+--echo #
+
+create table t1 (i int);
+insert into t1 values (2),(3),(1);
+
+select row_number() over () from t1 group by 1+2;
+select max(i), row_number() over () from t1 group by 1+2;
+select rank() over (order by max(i)) from t1 group by 1+2;
+
+select i, row_number() over () from t1 group by 1+2;
+select i, rank() over (order by i) rnk from t1 group by 1+2;
+
+drop table t1;

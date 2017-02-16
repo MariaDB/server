@@ -2226,6 +2226,9 @@ bool JOIN::make_aggr_tables_info()
   
   sort_and_group_aggr_tab= NULL;
 
+  if (group_optimized_away)
+    implicit_grouping= true;
+
   bool implicit_grouping_with_window_funcs= implicit_grouping &&
                                             select_lex->have_window_funcs();
   
@@ -2574,7 +2577,7 @@ bool JOIN::make_aggr_tables_info()
     tmp_table_param.copy_field= tmp_table_param.copy_field_end=0;
     first_record= sort_and_group=0;
 
-    if (!group_optimized_away)
+    if (!group_optimized_away || implicit_grouping_with_window_funcs)
     {
       group= false;
     }
