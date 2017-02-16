@@ -504,7 +504,7 @@ TDBDOS::TDBDOS(PGLOBAL g, PTDBDOS tdbp) : TDBASE(tdbp)
   } // end of TDBDOS copy constructor
 
 // Method
-PTDB TDBDOS::CopyOne(PTABS t)
+PTDB TDBDOS::Clone(PTABS t)
   {
   PTDB    tp;
   PDOSCOL cp1, cp2;
@@ -518,7 +518,7 @@ PTDB TDBDOS::CopyOne(PTABS t)
     } // endfor cp1
 
   return tp;
-  } // end of CopyOne
+  } // end of Clone
 
 /***********************************************************************/
 /*  Allocate DOS column description block.                             */

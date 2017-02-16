@@ -1,7 +1,7 @@
 /**************** Array H Declares Source Code File (.H) ***************/
 /*  Name: ARRAY.H    Version 3.1                                       */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          2005-2014    */
+/*  (C) Copyright to the author Olivier BERTRAND          2005-2017    */
 /*                                                                     */
 /*  This file contains the ARRAY and VALBASE derived classes declares. */
 /***********************************************************************/
@@ -53,8 +53,8 @@ class DllExport ARRAY : public XOBJECT, public CSORT { // Array descblock
   using XOBJECT::GetIntValue;
   virtual void  Reset(void) {Bot = -1;}
   virtual int   Qcompare(int *, int *);
-  virtual bool  Compare(PXOB) {assert(FALSE); return FALSE;}
-  virtual bool  SetFormat(PGLOBAL, FORMAT&) {assert(FALSE); return FALSE;}
+  virtual bool  Compare(PXOB) {assert(false); return false;}
+  virtual bool  SetFormat(PGLOBAL, FORMAT&) {assert(false); return false;}
 //virtual int   CheckSpcCol(PTDB, int) {return 0;}
   virtual void  Print(PGLOBAL g, FILE *f, uint n);
   virtual void  Print(PGLOBAL g, char *ps, uint z);

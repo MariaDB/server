@@ -77,7 +77,7 @@ TDBFIX::TDBFIX(PGLOBAL g, PTDBFIX tdbp) : TDBDOS(g, tdbp)
   } // end of TDBFIX copy constructor
 
 // Method
-PTDB TDBFIX::CopyOne(PTABS t)
+PTDB TDBFIX::Clone(PTABS t)
   {
   PTDB    tp;
   PGLOBAL g = t->G;
@@ -105,7 +105,7 @@ PTDB TDBFIX::CopyOne(PTABS t)
   } // endif Ftype
 
   return tp;
-  } // end of CopyOne
+  } // end of Clone
 
 /***********************************************************************/
 /*  Reset read/write position values.                                  */

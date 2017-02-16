@@ -42,7 +42,7 @@
 /***********************************************************************/
 #include "global.h"
 #include "plgdbsem.h"
-#include "reldef.h"
+//#include "reldef.h"
 #include "xtable.h"
 #include "colblk.h"
 #include "mycat.h"
@@ -660,7 +660,7 @@ TDBXML::TDBXML(PTDBXML tdbp) : TDBASE(tdbp)
   } // end of TDBXML copy constructor
 
 // Used for update
-PTDB TDBXML::CopyOne(PTABS t)
+PTDB TDBXML::Clone(PTABS t)
   {
   PTDB    tp;
   PXMLCOL cp1, cp2;
@@ -674,7 +674,7 @@ PTDB TDBXML::CopyOne(PTABS t)
     } // endfor cp1
 
   return tp;
-  } // end of CopyOne
+  } // end of Clone
 
 /***********************************************************************/
 /*  Allocate XML column description block.                             */

@@ -1,5 +1,5 @@
 /***********************************************************************/
-/*  TABWMI: Author Olivier Bertrand -- PlugDB -- 2012 - 2013           */
+/*  TABWMI: Author Olivier Bertrand -- PlugDB -- 2012 - 2017           */
 /*  TABWMI: Virtual table to get WMI information.                      */
 /***********************************************************************/
 #if !defined(__WIN__)
@@ -11,8 +11,9 @@
 #include "global.h"
 #include "plgdbsem.h"
 #include "mycat.h"
-#include "reldef.h"
+//#include "reldef.h"
 #include "xtable.h"
+#include "tabext.h"
 #include "colblk.h"
 //#include "filter.h"
 //#include "xindex.h"

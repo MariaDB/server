@@ -159,7 +159,7 @@ TDBINI::TDBINI(PTDBINI tdbp) : TDBASE(tdbp)
   } // end of TDBINI copy constructor
 
 // Is this really useful ???
-PTDB TDBINI::CopyOne(PTABS t)
+PTDB TDBINI::Clone(PTABS t)
   {
   PTDB    tp;
   PINICOL cp1, cp2;
@@ -173,7 +173,7 @@ PTDB TDBINI::CopyOne(PTABS t)
     } // endfor cp1
 
   return tp;
-  } // end of CopyOne
+  } // end of Clone
 
 /***********************************************************************/
 /*  Get the section list from the INI file.                            */
@@ -565,7 +565,7 @@ TDBXIN::TDBXIN(PTDBXIN tdbp) : TDBINI(tdbp)
   } // end of TDBXIN copy constructor
 
 // Is this really useful ???
-PTDB TDBXIN::CopyOne(PTABS t)
+PTDB TDBXIN::Clone(PTABS t)
   {
   PTDB    tp;
   PXINCOL cp1, cp2;
@@ -579,7 +579,7 @@ PTDB TDBXIN::CopyOne(PTABS t)
     } // endfor cp1
 
   return tp;
-  } // end of CopyOne
+  } // end of Clone
 
 /***********************************************************************/
 /*  Get the key list from the INI file.                                */
