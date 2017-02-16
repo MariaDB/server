@@ -1,5 +1,5 @@
-/* Copyright (c) 2002, 2012, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2012, Monty Program Ab
+/* Copyright (c) 2002, 2014, Oracle and/or its affiliates.
+   Copyright (c) 2008, 2017, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -19031,6 +19031,49 @@ static void test_mdev4326()
   myquery(rc);
 }
 
+
+/**
+   BUG#17512527: LIST HANDLING INCORRECT IN MYSQL_PRUNE_STMT_LIST()
+*/
+static void test_bug17512527()
+{
+  MYSQL *conn;
+  MYSQL_STMT *stmt1, *stmt2;
+  unsigned long thread_id;
+  char query[MAX_TEST_QUERY_LENGTH];
+  int rc;
+
+  conn= client_connect(0, MYSQL_PROTOCOL_SOCKET, 1);
+
+  stmt1 = mysql_stmt_init(conn);
+  check_stmt(stmt1);
+  rc= mysql_stmt_prepare(stmt1, STRING_WITH_LEN("SELECT 1"));
+  check_execute(stmt1, rc);
+
+  stmt2 = mysql_stmt_init(conn);
+  check_stmt(stmt2);
+
+  thread_id= mysql_thread_id(conn);
+  sprintf(query, "KILL %lu", thread_id);
+  if (thread_query(query))
+    exit(1);
+
+  rc= mysql_stmt_prepare(stmt2, STRING_WITH_LEN("SELECT 2"));
+  check_execute(stmt2, rc);
+
+  rc= mysql_stmt_execute(stmt1);
+  check_execute_r(stmt1, rc);
+
+  rc= mysql_stmt_execute(stmt2);
+  check_execute(stmt2, rc);
+
+  mysql_close(conn);
+
+  mysql_stmt_close(stmt2);
+  mysql_stmt_close(stmt1);
+}
+
+
 static struct my_tests_st my_tests[]= {
   { "disable_query_logs", disable_query_logs },
   { "test_view_sp_list_fields", test_view_sp_list_fields },
@@ -19297,6 +19340,9 @@ static struct my_tests_st my_tests[]= {
   { "test_bug13001491", test_bug13001491 },
   { "test_mdev4326", test_mdev4326 },
   { "test_ps_sp_out_params", test_ps_sp_out_params },
+#ifndef _WIN32
+  { "test_bug17512527", test_bug17512527},
+#endif
   { 0, 0 }
 };
 
