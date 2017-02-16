@@ -1211,7 +1211,7 @@ create_view_query(THD *thd, uchar** buf, size_t* buf_len)
    1: TOI replication was skipped
   -1: TOI replication failed 
  */
-static int wsrep_TOI_begin(THD *thd, char *db_, char *table_,
+static int wsrep_TOI_begin(THD *thd, const char *query, char *db_, char *table_,
                            const TABLE_LIST* table_list)
 {
   wsrep_status_t ret(WSREP_WARNING);
@@ -1247,8 +1247,9 @@ static int wsrep_TOI_begin(THD *thd, char *db_, char *table_,
     }
     /* fallthrough */
   default:
-    buf_err= wsrep_to_buf_helper(thd, thd->query(), thd->query_length(), &buf,
-                                 &buf_len);
+    buf_err= wsrep_to_buf_helper(thd, (query) ? query : thd->query(),
+                                 (query) ? strlen(query) : thd->query_length(),
+                                 &buf, &buf_len);
     break;
   }
 
@@ -1397,7 +1398,7 @@ static void wsrep_RSU_end(THD *thd)
   thd->variables.wsrep_on = 1;
 }
 
-int wsrep_to_isolation_begin(THD *thd, char *db_, char *table_,
+int wsrep_to_isolation_begin(THD *thd, const char *query, char *db_, char *table_,
                              const TABLE_LIST* table_list)
 {
 
@@ -1452,7 +1453,7 @@ int wsrep_to_isolation_begin(THD *thd, char *db_, char *table_,
   if (thd->variables.wsrep_on && thd->wsrep_exec_mode==LOCAL_STATE)
   {
     switch (thd->variables.wsrep_OSU_method) {
-    case WSREP_OSU_TOI: ret =  wsrep_TOI_begin(thd, db_, table_,
+    case WSREP_OSU_TOI: ret =  wsrep_TOI_begin(thd, query, db_, table_,
                                                table_list); break;
     case WSREP_OSU_RSU: ret =  wsrep_RSU_begin(thd, db_, table_); break;
     default:

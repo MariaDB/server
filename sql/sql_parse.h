@@ -208,31 +208,13 @@ inline bool is_supported_parser_charset(CHARSET_INFO *cs)
 {
   return MY_TEST(cs->mbminlen == 1);
 }
-#ifdef WITH_WSREP
 
-#define WSREP_MYSQL_DB (char *)"mysql"
-#define WSREP_TO_ISOLATION_BEGIN(db_, table_, table_list_)                   \
-  if (WSREP(thd) && wsrep_to_isolation_begin(thd, db_, table_, table_list_)) goto error;
-
-#define WSREP_TO_ISOLATION_END                                              \
-  if (WSREP(thd) || (thd && thd->wsrep_exec_mode==TOTAL_ORDER))             \
-    wsrep_to_isolation_end(thd);
-
-/*
-  Checks if lex->no_write_to_binlog is set for statements that use LOCAL or
-  NO_WRITE_TO_BINLOG.
-*/
-#define WSREP_TO_ISOLATION_BEGIN_WRTCHK(db_, table_, table_list_)                   \
-  if (WSREP(thd) && !thd->lex->no_write_to_binlog                                   \
-         && wsrep_to_isolation_begin(thd, db_, table_, table_list_)) goto error;
-
-#else
-
+#ifndef WITH_WSREP
 #define WSREP_TO_ISOLATION_BEGIN(db_, table_, table_list_)
+#define WSREP_TO_ISOLATION_BEGIN_QUERY(db_, query_, table_, table_list_)
 #define WSREP_TO_ISOLATION_END
-#define WSREP_TO_ISOLATION_BEGIN_WRTCHK(db_, table_, table_list_)
-
-#endif /* WITH_WSREP */
+#define WSREP_TO_ISOLATION_BEGIN_WRTCHK(db_, query_, table_, table_list_)
+#endif /* !WITH_WSREP */
 
 
 #endif /* SQL_PARSE_INCLUDED */

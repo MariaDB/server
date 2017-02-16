@@ -487,7 +487,7 @@ bool Sql_cmd_truncate_table::truncate_table(THD *thd, TABLE_LIST *table_ref)
     bool hton_can_recreate;
 
 #ifdef WITH_WSREP
-    if (WSREP(thd) && wsrep_to_isolation_begin(thd, 
+    if (WSREP(thd) && wsrep_to_isolation_begin(thd, NULL, 
                                                 table_ref->db, 
                                                 table_ref->table_name, NULL))
         DBUG_RETURN(TRUE);

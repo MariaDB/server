@@ -4031,16 +4031,24 @@ end_with_restore_list:
       thd->variables.option_bits|= OPTION_KEEP_LOG;
     }
 #ifdef WITH_WSREP
-   for (TABLE_LIST *table= all_tables; table; table= table->next_global)
-   {
-     if (!lex->drop_temporary                       &&
-	 (!thd->is_current_stmt_binlog_format_row() ||
-	  !find_temporary_table(thd, table)))
-     {
-       WSREP_TO_ISOLATION_BEGIN(NULL, NULL, all_tables);
-       break;
-     }
-   }
+    bool has_tmp_tables= false;
+    for (TABLE_LIST *table= all_tables; table; table= table->next_global)
+    {
+      if (lex->drop_temporary  || find_temporary_table(thd, table))
+      {
+        has_tmp_tables= true;
+        break;
+      }
+    }
+    if (has_tmp_tables)
+    {
+      wsrep_replicate_drop_query(thd, first_table, lex->check_exists,
+                                 lex->drop_temporary, false);
+    }
+    else
+    {
+      WSREP_TO_ISOLATION_BEGIN(NULL, NULL, all_tables);
+    }
 #endif /* WITH_WSREP */
     /*
       If we are a slave, we should add IF EXISTS if the query executed

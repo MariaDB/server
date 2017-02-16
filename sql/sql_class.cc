@@ -1213,6 +1213,8 @@ THD::THD()
   wsrep_TOI_pre_query_len = 0;
   wsrep_sync_wait_gtid    = WSREP_GTID_UNDEFINED;
   wsrep_affected_rows     = 0;
+  wsrep_replicate_GTID    = false;
+  wsrep_skip_wsrep_GTID   = false;
 #endif
   /* Call to init() below requires fully initialized Open_tables_state. */
   reset_open_tables_state(this);
@@ -1631,7 +1633,8 @@ void THD::init(void)
   wsrep_TOI_pre_query_len = 0;
   wsrep_sync_wait_gtid    = WSREP_GTID_UNDEFINED;
   wsrep_affected_rows     = 0;
-
+  wsrep_replicate_GTID    = false;
+  wsrep_skip_wsrep_GTID   = false;
   /*
     @@wsrep_causal_reads is now being handled via wsrep_sync_wait, update it
     appropriately.
