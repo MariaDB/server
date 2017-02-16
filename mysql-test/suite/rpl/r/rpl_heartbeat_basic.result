@@ -7,7 +7,6 @@ RESET SLAVE;
 SET @restore_slave_net_timeout=@@global.slave_net_timeout;
 RESET MASTER;
 SET @restore_slave_net_timeout=@@global.slave_net_timeout;
-SET @restore_event_scheduler=@@global.event_scheduler;
 
 *** Default value ***
 CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_PORT=MASTER_PORT, MASTER_USER='root';
@@ -223,7 +222,7 @@ RESET SLAVE;
 CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_PORT=MASTER_PORT, MASTER_USER='root', MASTER_CONNECT_RETRY=20, MASTER_HEARTBEAT_PERIOD=5;
 include/start_slave.inc
 SET @@global.event_scheduler=1;
-Number of received heartbeat events: 0
+Received heartbeats meet expectations: TRUE
 DELETE FROM t1;
 DROP EVENT e1;
 
