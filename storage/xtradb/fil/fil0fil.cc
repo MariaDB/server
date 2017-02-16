@@ -1059,6 +1059,8 @@ fil_space_extend_must_retry(
 		? OS_FILE_READ : OS_FILE_WRITE;
 
 	if (srv_use_posix_fallocate) {
+		pages_added = size - space->size;
+
 		const os_offset_t start_offset	= static_cast<os_offset_t>(
 			start_page_no) * page_size;
 		const os_offset_t len		= static_cast<os_offset_t>(
