@@ -421,9 +421,11 @@ create_log_files(
 		DBUG_EXECUTE_IF("innodb_log_abort_6", return(DB_ERROR););
 	}
 
+	DBUG_PRINT("ib_log", ("After innodb_log_abort_6"));
 	ut_ad(!buf_pool_check_no_pending_io());
 
 	DBUG_EXECUTE_IF("innodb_log_abort_7", return(DB_ERROR););
+	DBUG_PRINT("ib_log", ("After innodb_log_abort_7"));
 
 	for (unsigned i = 0; i < srv_n_log_files; i++) {
 		sprintf(logfilename + dirnamelen,
@@ -437,6 +439,7 @@ create_log_files(
 	}
 
 	DBUG_EXECUTE_IF("innodb_log_abort_8", return(DB_ERROR););
+	DBUG_PRINT("ib_log", ("After innodb_log_abort_8"));
 
 	/* We did not create the first log file initially as
 	ib_logfile0, so that crash recovery cannot find it until it
@@ -445,7 +448,7 @@ create_log_files(
 
 	fil_space_t*	log_space = fil_space_create(
 		"innodb_redo_log", SRV_LOG_SPACE_FIRST_ID, 0, FIL_TYPE_LOG,
-		NULL, /* No encryption yet */
+		NULL, /* innodb_encrypt_log works at a different level */
 		true /* this is create */);
 	ut_a(fil_validate());
 	ut_a(log_space != NULL);
@@ -513,6 +516,7 @@ create_log_files_rename(
 	fil_flush(SRV_LOG_SPACE_FIRST_ID);
 
 	DBUG_EXECUTE_IF("innodb_log_abort_9", return(DB_ERROR););
+	DBUG_PRINT("ib_log", ("After innodb_log_abort_9"));
 
 	/* Close the log files, so that we can rename
 	the first one. */
@@ -1348,6 +1352,8 @@ lsn_t
 srv_prepare_to_delete_redo_log_files(
 	ulint	n_files)
 {
+	DBUG_ENTER("srv_prepare_to_delete_redo_log_files");
+
 	lsn_t	flushed_lsn;
 	ulint	pending_io = 0;
 	ulint	count = 0;
@@ -1356,7 +1362,8 @@ srv_prepare_to_delete_redo_log_files(
 		/* Clean the buffer pool. */
 		buf_flush_sync_all_buf_pools();
 
-		DBUG_EXECUTE_IF("innodb_log_abort_1", return(0););
+		DBUG_EXECUTE_IF("innodb_log_abort_1", DBUG_RETURN(0););
+		DBUG_PRINT("ib_log", ("After innodb_log_abort_1"));
 
 		log_mutex_enter();
 
@@ -1426,7 +1433,7 @@ srv_prepare_to_delete_redo_log_files(
 
 	} while (buf_pool_check_no_pending_io());
 
-	return(flushed_lsn);
+	DBUG_RETURN(flushed_lsn);
 }
 
 /********************************************************************
@@ -2346,11 +2353,13 @@ files_checked:
 
 			DBUG_EXECUTE_IF("innodb_log_abort_3",
 					return(srv_init_abort(DB_ERROR)););
+			DBUG_PRINT("ib_log", ("After innodb_log_abort_3"));
 
 			/* Stamp the LSN to the data files. */
 			err = fil_write_flushed_lsn(flushed_lsn);
 
 			DBUG_EXECUTE_IF("innodb_log_abort_4", err = DB_ERROR;);
+			DBUG_PRINT("ib_log", ("After innodb_log_abort_4"));
 
 			if (err != DB_SUCCESS) {
 				return(srv_init_abort(err));
@@ -2362,6 +2371,7 @@ files_checked:
 
 			DBUG_EXECUTE_IF("innodb_log_abort_5",
 					return(srv_init_abort(DB_ERROR)););
+			DBUG_PRINT("ib_log", ("After innodb_log_abort_5"));
 
 			/* Free the old log file space. */
 			log_group_close_all();
