@@ -1,4 +1,4 @@
-#!/bin/bash -ue
+#!/bin/sh -ue
 
 # Copyright (C) 2010-2014 Codership Oy
 #
@@ -23,7 +23,7 @@ RSYNC_CONF=                                     # rsync configuration file
 RSYNC_REAL_PID=                                 # rsync process id
 
 OS=$(uname)
-[ "$OS" == "Darwin" ] && export -n LD_LIBRARY_PATH
+[ "$OS" = "Darwin" ] && export -n LD_LIBRARY_PATH
 
 # Setting the path for lsof on CentOS
 export PATH="/usr/sbin:/sbin:$PATH"
@@ -62,15 +62,25 @@ check_pid_and_port()
     local rsync_pid=$2
     local rsync_port=$3
 
-    if ! which lsof > /dev/null; then
-      wsrep_log_error "lsof tool not found in PATH! Make sure you have it installed."
-      exit 2 # ENOENT
-    fi
+    case $OS in
+    FreeBSD)
+        local port_info=$(netstat -46lp ${rsync_port} 2>/dev/null | \
+        grep ":${rsync_port}")
+        local is_rsync=$(echo $port_info | \
+        grep -w '[[:space:]]\+rsync[[:space:]]\+'"$rsync_pid" 2>/dev/null)
+        ;;
+    *) 
+        if ! which lsof > /dev/null; then
+          wsrep_log_error "lsof tool not found in PATH! Make sure you have it installed."
+          exit 2 # ENOENT
+        fi
 
-    local port_info=$(lsof -i :$rsync_port -Pn 2>/dev/null | \
-        grep "(LISTEN)")
-    local is_rsync=$(echo $port_info | \
-        grep -w '^rsync[[:space:]]\+'"$rsync_pid" 2>/dev/null)
+        local port_info=$(lsof -i :$rsync_port -Pn 2>/dev/null | \
+            grep "(LISTEN)")
+        local is_rsync=$(echo $port_info | \
+            grep -w '^rsync[[:space:]]\+'"$rsync_pid" 2>/dev/null)
+        ;;
+    esac
 
     if [ -n "$port_info" -a -z "$is_rsync" ]; then
         wsrep_log_error "rsync daemon port '$rsync_port' has been taken"
@@ -117,8 +127,8 @@ fi
 #         --exclude '*.[0-9][0-9][0-9][0-9][0-9][0-9]' --exclude '*.index')
 
 # New filter - exclude everything except dirs (schemas) and innodb files
-FILTER=(-f '- /lost+found' -f '- /.fseventsd' -f '- /.Trashes'
-        -f '+ /wsrep_sst_binlog.tar' -f '+ /ib_lru_dump' -f '+ /ibdata*' -f '+ /*/' -f '- /*')
+FILTER="-f '- /lost+found' -f '- /.fseventsd' -f '- /.Trashes'
+        -f '+ /wsrep_sst_binlog.tar' -f '+ /ib_lru_dump' -f '+ /ibdata*' -f '+ /*/' -f '- /*'"
 
 if [ "$WSREP_SST_OPT_ROLE" = "donor" ]
 then
@@ -184,7 +194,7 @@ then
         RC=0
         rsync --owner --group --perms --links --specials \
               --ignore-times --inplace --dirs --delete --quiet \
-              $WHOLE_FILE_OPT "${FILTER[@]}" "$WSREP_SST_OPT_DATA/" \
+              $WHOLE_FILE_OPT "${FILTER}" "$WSREP_SST_OPT_DATA/" \
               rsync://$WSREP_SST_OPT_ADDR >&2 || RC=$?
 
         if [ "$RC" -ne 0 ]; then
@@ -219,8 +229,8 @@ then
         pushd "$WSREP_SST_OPT_DATA" >/dev/null
 
         count=1
-        [ "$OS" == "Linux" ] && count=$(grep -c processor /proc/cpuinfo)
-        [ "$OS" == "Darwin" -o "$OS" == "FreeBSD" ] && count=$(sysctl -n hw.ncpu)
+        [ "$OS" = "Linux" ] && count=$(grep -c processor /proc/cpuinfo)
+        [ "$OS" = "Darwin" -o "$OS" = "FreeBSD" ] && count=$(sysctl -n hw.ncpu)
 
         find . -maxdepth 1 -mindepth 1 -type d -not -name "lost+found" -print0 | \
              xargs -I{} -0 -P $count \
