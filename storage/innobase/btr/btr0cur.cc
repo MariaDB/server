@@ -3012,18 +3012,10 @@ fail_err:
 
 	page_cursor = btr_cur_get_page_cur(cursor);
 
-#ifdef UNIV_DEBUG
-	{
-		rec_printer p(entry);
-		DBUG_PRINT("ib_cur", ("insert %s (" IB_ID_FMT ") by " IB_ID_FMT " %s",
-			      index->name(), index->id,
-			      thr != NULL
-			      ? trx_get_id_for_print(thr_get_trx(thr))
-			      : 0,
-			      p.str().c_str()));
-	}
-#endif
-
+	DBUG_LOG("ib_cur",
+		 "insert " << index->name << " (" << index->id << ") by "
+		 << ib::hex(thr ? trx_get_id_for_print(thr_get_trx(thr)) : 0)
+		 << ' ' << rec_printer(entry).str());
 	DBUG_EXECUTE_IF("do_page_reorganize",
 			btr_page_reorganize(page_cursor, index, mtr););
 
@@ -3635,14 +3627,10 @@ btr_cur_update_in_place(
 	ut_ad(fil_page_index_page_check(btr_cur_get_page(cursor)));
 	ut_ad(btr_page_get_index_id(btr_cur_get_page(cursor)) == index->id);
 
-#ifdef UNIV_DEBUG
-	{
-		rec_printer p(rec, offsets);
-		DBUG_PRINT("ib_cur", ("update-in-place %s (" IB_ID_FMT ") by " IB_ID_FMT ": %s",
-				index->name(), index->id, trx_id,
-				p.str().c_str()));
-	}
-#endif
+	DBUG_LOG("ib_cur",
+		 "update-in-place " << index->name << " (" << index->id
+		 << ") by " << ib::hex(trx_id) << ": "
+		 << rec_printer(rec, offsets).str());
 
 	block = btr_cur_get_block(cursor);
 	page_zip = buf_block_get_page_zip(block);
@@ -3842,14 +3830,10 @@ any_extern:
 		}
 	}
 
-#ifdef UNIV_DEBUG
-	{
-		rec_printer p(rec, *offsets);
-		DBUG_PRINT("ib_cur", ("update %s (" IB_ID_FMT ") by " IB_ID_FMT ": %s",
-				index->name(), index->id, trx_id,
-			p.str().c_str()));
-	}
-#endif
+	DBUG_LOG("ib_cur",
+		 "update " << index->name << " (" << index->id << ") by "
+		 << ib::hex(trx_id) << ": "
+		 << rec_printer(rec, *offsets).str());
 
 	page_cursor = btr_cur_get_page_cur(cursor);
 
@@ -4669,15 +4653,11 @@ btr_cur_del_mark_set_clust_rec(
 	ut_ad(trx_state_eq(trx, TRX_STATE_ACTIVE));
 	ut_ad(!trx->in_rollback);
 
-#ifdef UNIV_DEBUG
-	{
-		rec_printer p(rec, offsets);
-		DBUG_PRINT("ib_cur", ("delete-mark clust %s (" IB_ID_FMT ") by " IB_ID_FMT ": %s",
-				index->table_name, index->id,
-				trx_get_id_for_print(trx),
-				p.str().c_str()));
-	}
-#endif
+	DBUG_LOG("ib_cur",
+		 "delete-mark clust " << index->table->name
+		 << " (" << index->id << ") by "
+		 << ib::hex(trx_get_id_for_print(trx)) << ": "
+		 << rec_printer(rec, offsets).str());
 
 	if (dict_index_is_online_ddl(index)) {
 		row_log_table_delete(rec, entry, index, offsets, NULL);
