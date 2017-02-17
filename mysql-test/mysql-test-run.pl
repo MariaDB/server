@@ -4797,6 +4797,7 @@ sub extract_warning_lines ($$) {
      qr/InnoDB: Error: table `test`.`t[12]` .*does not exist in the InnoDB internal/,
      qr/InnoDB: Warning: Setting innodb_use_sys_malloc/,
      qr/InnoDB: Warning: a long semaphore wait:/,
+     qr/InnoDB: Warning: Writer thread is waiting this semaphore:/,
      qr/Slave: Unknown table 't1' .* 1051/,
      qr/Slave SQL:.*(Internal MariaDB error code: [[:digit:]]+|Query:.*)/,
      qr/slave SQL thread aborted/,
