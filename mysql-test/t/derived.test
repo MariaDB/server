@@ -842,4 +842,27 @@ SELECT Customer, Success, SUM(OrderSize)
 DROP TABLE example1463;
 set sql_mode= @save_sql_mode;
 
+--echo #
+--echo # MDEV-9028: SELECT DISTINCT constant column of  derived  table
+--echo #            used as the second operand of LEFT JOIN
+--echo #
+
+create table t1 (id int, data varchar(255));
+insert into t1 values (1,'yes'),(2,'yes');
+
+select distinct t1.id, tt.id, tt.data
+  from t1
+       left join
+       (select t1.id, 'yes' as data from t1) as tt
+       on t1.id = tt.id;
+
+select distinct t1.id, tt.id, tt.data
+  from t1
+       left join
+       (select t1.id, 'yes' as data from t1 where id > 1) as tt
+       on t1.id = tt.id;
+
+drop table t1;
+
+
 --echo # end of 5.5
