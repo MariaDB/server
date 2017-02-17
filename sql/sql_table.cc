@@ -2225,7 +2225,6 @@ int wsrep_replicate_drop_query(THD *thd, TABLE_LIST *tables, bool if_exists,
     }
   }
 
-err:
   if (non_tmp_table_deleted)
   {
     /* Chop of the last comma */
