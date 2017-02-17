@@ -1166,11 +1166,14 @@ loop:
 	}
 }
 
-/** Flush the log has been written to the log file. */
+/** Flush the recently written changes to the log file.
+and invoke log_mutex_enter(). */
 static
 void
 log_write_flush_to_disk_low()
 {
+	/* FIXME: This is not holding log_sys->mutex while
+	calling os_event_set()! */
 	ut_a(log_sys->n_pending_flushes == 1); /* No other threads here */
 
 #ifndef _WIN32
@@ -1179,13 +1182,17 @@ log_write_flush_to_disk_low()
 	bool	do_flush = true;
 #endif
 	if (do_flush) {
-		log_group_t*	group = UT_LIST_GET_FIRST(log_sys->log_groups);
-		fil_flush(group->space_id);
+		fil_flush(SRV_LOG_SPACE_FIRST_ID);
+	}
+
+	MONITOR_DEC(MONITOR_PENDING_LOG_FLUSH);
+
+	log_mutex_enter();
+	if (do_flush) {
 		log_sys->flushed_to_disk_lsn = log_sys->current_flush_lsn;
 	}
 
 	log_sys->n_pending_flushes--;
-	MONITOR_DEC(MONITOR_PENDING_LOG_FLUSH);
 
 	os_event_set(log_sys->flush_event);
 }
@@ -1340,6 +1347,7 @@ loop:
 			/* Nothing to write, flush only */
 			log_mutex_exit_all();
 			log_write_flush_to_disk_low();
+			log_mutex_exit();
 			return;
 		}
 	}
@@ -1419,6 +1427,7 @@ loop:
 		log_write_flush_to_disk_low();
 		ib_uint64_t write_lsn = log_sys->write_lsn;
 		ib_uint64_t flush_lsn = log_sys->flushed_to_disk_lsn;
+		log_mutex_exit();
 
 		innobase_mysql_log_notify(write_lsn, flush_lsn);
 	}

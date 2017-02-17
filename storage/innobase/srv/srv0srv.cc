@@ -3,7 +3,7 @@
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, 2009 Google Inc.
 Copyright (c) 2009, Percona Inc.
-Copyright (c) 2013, 2017, MariaDB Corporation.
+Copyright (c) 2013, 2017, MariaDB Corporation. All Rights Reserved.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -631,7 +631,11 @@ struct srv_sys_t{
 	ulint		n_sys_threads;		/*!< size of the sys_threads
 						array */
 
-	srv_slot_t*	sys_threads;		/*!< server thread table */
+	srv_slot_t*	sys_threads;		/*!< server thread table;
+						os_event_set() and
+						os_event_reset() on
+						sys_threads[]->event are
+						covered by srv_sys_t::mutex */
 
 	ulint		n_threads_active[SRV_MASTER + 1];
 						/*!< number of threads active
@@ -644,13 +648,16 @@ struct srv_sys_t{
 
 static srv_sys_t*	srv_sys	= NULL;
 
-/** Event to signal the monitor thread. */
+/** Event to signal srv_monitor_thread. Not protected by a mutex.
+Set after setting srv_print_innodb_monitor. */
 os_event_t	srv_monitor_event;
 
-/** Event to signal the error thread */
+/** Event to signal the shutdown of srv_error_monitor_thread.
+Not protected by a mutex. */
 os_event_t	srv_error_event;
 
-/** Event to signal the buffer pool dump/load thread */
+/** Event for waking up buf_dump_thread. Not protected by a mutex.
+Set on shutdown or by buf_dump_start() or buf_load_start(). */
 os_event_t	srv_buf_dump_event;
 
 /** Event to signal the buffer pool resize thread */

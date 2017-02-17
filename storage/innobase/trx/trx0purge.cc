@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -282,22 +283,15 @@ trx_purge_sys_close(void)
 
 	sess_close(purge_sys->sess);
 
-	purge_sys->sess = NULL;
-
 	purge_sys->view.close();
 	purge_sys->view.~ReadView();
 
 	rw_lock_free(&purge_sys->latch);
 	mutex_free(&purge_sys->pq_mutex);
 
-	if (purge_sys->purge_queue != NULL) {
-		UT_DELETE(purge_sys->purge_queue);
-		purge_sys->purge_queue = NULL;
-	}
+	UT_DELETE(purge_sys->purge_queue);
 
 	os_event_destroy(purge_sys->event);
-
-	purge_sys->event = NULL;
 
 	UT_DELETE(purge_sys->rseg_iter);
 
@@ -1910,20 +1904,16 @@ void
 trx_purge_stop(void)
 /*================*/
 {
-	purge_state_t	state;
-	int64_t		sig_count = os_event_reset(purge_sys->event);
-
 	ut_a(srv_n_purge_threads > 0);
 
 	rw_lock_x_lock(&purge_sys->latch);
 
-	ut_a(purge_sys->state != PURGE_STATE_INIT);
-	ut_a(purge_sys->state != PURGE_STATE_EXIT);
-	ut_a(purge_sys->state != PURGE_STATE_DISABLED);
+	const int64_t		sig_count = os_event_reset(purge_sys->event);
+	const purge_state_t	state = purge_sys->state;
+
+	ut_a(state == PURGE_STATE_RUN || state == PURGE_STATE_STOP);
 
 	++purge_sys->n_stop;
-
-	state = purge_sys->state;
 
 	if (state == PURGE_STATE_RUN) {
 		ib::info() << "Stopping purge";
@@ -1936,17 +1926,13 @@ trx_purge_stop(void)
 
 	purge_sys->state = PURGE_STATE_STOP;
 
-	rw_lock_x_unlock(&purge_sys->latch);
-
 	if (state != PURGE_STATE_STOP) {
-
+		rw_lock_x_unlock(&purge_sys->latch);
 		/* Wait for purge coordinator to signal that it
 		is suspended. */
 		os_event_wait_low(purge_sys->event, sig_count);
 	} else {
 		bool	once = true;
-
-		rw_lock_x_lock(&purge_sys->latch);
 
 		/* Wait for purge to signal that it has actually stopped. */
 		while (purge_sys->running) {
@@ -1984,17 +1970,11 @@ trx_purge_run(void)
 		ut_error;
 
 	case PURGE_STATE_RUN:
-	case PURGE_STATE_STOP:
+		ut_a(!purge_sys->n_stop);
 		break;
-	}
-
-	if (purge_sys->n_stop > 0) {
-
-		ut_a(purge_sys->state == PURGE_STATE_STOP);
-
-		--purge_sys->n_stop;
-
-		if (purge_sys->n_stop == 0) {
+	case PURGE_STATE_STOP:
+		ut_a(purge_sys->n_stop);
+		if (--purge_sys->n_stop == 0) {
 
 			ib::info() << "Resuming purge";
 
@@ -2002,8 +1982,6 @@ trx_purge_run(void)
 		}
 
 		MONITOR_INC_VALUE(MONITOR_PURGE_RESUME_COUNT, 1);
-	} else {
-		ut_a(purge_sys->state == PURGE_STATE_RUN);
 	}
 
 	rw_lock_x_unlock(&purge_sys->latch);
