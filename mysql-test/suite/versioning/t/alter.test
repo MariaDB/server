@@ -134,9 +134,6 @@ alter table t
 show create table t;
 alter table t without system versioning;
 
---error ER_ALTER_OPERATION_NOT_SUPPORTED
-alter table t with system versioning, algorithm=inplace;
-
 alter table t with system versioning, algorithm=copy;
 show create table t;
 
@@ -158,9 +155,6 @@ select * from t;
 alter table t drop column b, algorithm=inplace;
 show create table t;
 select * from t for system_time all;
-
---error ER_ALTER_OPERATION_NOT_SUPPORTED
-alter table t without system versioning, algorithm=inplace;
 
 alter table t without system versioning, algorithm=copy;
 show create table t;
@@ -196,6 +190,17 @@ alter table t add b tinyint auto_increment unique;
 select * from t for system_time all;
 insert into t values (4, NULL);
 select * from t for system_time all;
+
+create or replace table t (a int) engine innodb;
+insert into t values (1);
+alter table t with system versioning, algorithm=inplace;
+select * from t for system_time all;
+update t set a=2;
+select * from t for system_time all;
+alter table t add column b int, algorithm=inplace;
+select * from t for system_time all;
+alter table t without system versioning, algorithm=inplace;
+select * from t;
 
 call verify_vtq;
 drop table t;

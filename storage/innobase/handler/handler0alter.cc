@@ -588,15 +588,6 @@ ha_innobase::check_if_supported_inplace_alter(
 		DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
 	}
 
-	// It looks like it's actually possible to do this INPLACE, but we
-	// disallow this for now.
-	if (ha_alter_info->create_info->vers_info
-			.declared_with_system_versioning ||
-		ha_alter_info->create_info->vers_info
-			.declared_without_system_versioning) {
-		DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
-	}
-
 	update_thd();
 	trx_assert_no_search_latch(m_prebuilt->trx);
 
