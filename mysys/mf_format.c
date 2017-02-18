@@ -97,13 +97,8 @@ char * fn_format(char * to, const char *name, const char *dir,
     pos=strmake(strmov(to,dev),name,length);
     (void) strmov(pos,ext);			/* Don't convert extension */
   }
-  /*
-    If MY_RETURN_REAL_PATH and MY_RESOLVE_SYMLINK is given, only do
-    realpath if the file is a symbolic link
-  */
   if (flag & MY_RETURN_REAL_PATH)
-    (void) my_realpath(to, to, MYF(flag & MY_RESOLVE_SYMLINKS ?
-				   MY_RESOLVE_LINK: 0));
+    (void) my_realpath(to, to, MYF(0));
   else if (flag & MY_RESOLVE_SYMLINKS)
   {
     strmov(buff,to);
