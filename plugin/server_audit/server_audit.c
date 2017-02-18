@@ -158,10 +158,8 @@ static File loc_open(const char *FileName, int Flags)
   File fd;
 #if defined(_WIN32)
   fd= my_win_open(FileName, Flags);
-#elif !defined(NO_OPEN_3)
-  fd = open(FileName, Flags, my_umask);     /* Normal unix */
 #else
-  fd = open((char *) FileName, Flags);
+  fd = open(FileName, Flags, my_umask);
 #endif
   my_errno= errno;
   return fd;
