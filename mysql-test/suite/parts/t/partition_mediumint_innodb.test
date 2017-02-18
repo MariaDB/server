@@ -1,8 +1,8 @@
 ################################################################################
-# t/partition_float_innodb.test                                                #
+# t/partition_mediumint_innodb.test                                            #
 #                                                                              #
 # Purpose:                                                                     #
-#  Tests around float type                                                     #
+#  Tests around integer type                                                   #
 #        INNODB branch                                                         #
 #                                                                              #
 #------------------------------------------------------------------------------#
@@ -10,7 +10,7 @@
 # Original Date: 2006-08-01                                                    #
 # Change Author: Elena Stepanova                                               #
 # Change Date: 2017-02-18                                                      #
-# Change: The test for double type has been spawned into a separate test file  #
+# Change: The test file is spawned from the mega-test partition_int_innodb     #
 ################################################################################
 
 #
@@ -38,9 +38,9 @@ let $debug= 0;
 --source include/have_innodb.inc
 let $engine= 'InnoDB';
 
-##### Number of row to be inserted.
+##### max rows to be inserted
 let $maxrows=1024;
 
 #------------------------------------------------------------------------------#
 # Execute the tests to be applied to all storage engines
---source suite/parts/inc/partition_float.inc
+--source suite/parts/inc/partition_mediumint.inc

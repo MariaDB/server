@@ -1,5 +1,5 @@
 ################################################################################
-# t/partition_float_innodb.test                                                #
+# t/partition_double_innodb.test                                               #
 #                                                                              #
 # Purpose:                                                                     #
 #  Tests around float type                                                     #
@@ -10,7 +10,7 @@
 # Original Date: 2006-08-01                                                    #
 # Change Author: Elena Stepanova                                               #
 # Change Date: 2017-02-18                                                      #
-# Change: The test for double type has been spawned into a separate test file  #
+# Change: The test file is spawned from the mega-test partition_float_innodb   #
 ################################################################################
 
 #
@@ -43,4 +43,4 @@ let $maxrows=1024;
 
 #------------------------------------------------------------------------------#
 # Execute the tests to be applied to all storage engines
---source suite/parts/inc/partition_float.inc
+--source suite/parts/inc/partition_double.inc

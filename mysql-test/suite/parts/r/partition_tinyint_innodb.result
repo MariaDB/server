@@ -1,4 +1,4 @@
-create table t1 (a int unsigned not null, primary key(a)) engine='InnoDB' 
+create table t1 (a tinyint unsigned not null, primary key(a)) engine='InnoDB' 
 partition by key (a) (
 partition pa1 max_rows=20 min_rows=2,
 partition pa2 max_rows=30 min_rows=3,
@@ -7,7 +7,7 @@ partition pa4 max_rows=40 min_rows=2);
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` int(10) unsigned NOT NULL,
+  `a` tinyint(3) unsigned NOT NULL,
   PRIMARY KEY (`a`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 /*!50100 PARTITION BY KEY (a)
@@ -15,95 +15,95 @@ t1	CREATE TABLE `t1` (
  PARTITION pa2 MAX_ROWS = 30 MIN_ROWS = 3 ENGINE = InnoDB,
  PARTITION pa3 MAX_ROWS = 30 MIN_ROWS = 4 ENGINE = InnoDB,
  PARTITION pa4 MAX_ROWS = 40 MIN_ROWS = 2 ENGINE = InnoDB) */
-insert into t1 values (4294967295), (4294967294), (4294967293), (4294967292), (1), (2), (65535);
+insert into t1 values (255), (254), (253), (252), (1), (2), (128);
 select * from t1;
 a
 1
+128
 2
-4294967292
-4294967293
-4294967294
-4294967295
-65535
-select * from t1 where a=4294967293;
+252
+253
+254
+255
+select * from t1 where a=253;
 a
-4294967293
-delete from t1 where a=4294967293;
+253
+delete from t1 where a=253;
 select * from t1;
 a
 1
+128
 2
-4294967292
-4294967294
-4294967295
-65535
+252
+254
+255
 drop table t1;
-create table t2 (a int unsigned not null, primary key(a)) engine='InnoDB' 
+create table t2 (a tinyint unsigned not null, primary key(a)) engine='InnoDB' 
 partition by key (a) partitions 8;
 show create table t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `a` int(10) unsigned NOT NULL,
+  `a` tinyint(3) unsigned NOT NULL,
   PRIMARY KEY (`a`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 /*!50100 PARTITION BY KEY (a)
 PARTITIONS 8 */
-insert into t2 values (4294967295), (4294967294), (4294967293), (4294967292);
+insert into t2 values (255), (254), (253), (252);
 select * from t2;
 a
-4294967292
-4294967293
-4294967294
-4294967295
-select * from t2 where a=4294967293;
+252
+253
+254
+255
+select * from t2 where a=253;
 a
-4294967293
-delete from t2 where a=4294967293;
+253
+delete from t2 where a=253;
 select * from t2;
 a
-4294967292
-4294967294
-4294967295
+252
+254
+255
 delete from t2;
-1024 inserts;
+255 inserts;
 select count(*) from t2;
 count(*)
-1024
+255
 drop table t2;
-create table t3 (a int not null, primary key(a)) engine='InnoDB' 
+create table t3 (a tinyint not null, primary key(a)) engine='InnoDB' 
 partition by key (a) partitions 7;
 show create table t3;
 Table	Create Table
 t3	CREATE TABLE `t3` (
-  `a` int(11) NOT NULL,
+  `a` tinyint(4) NOT NULL,
   PRIMARY KEY (`a`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 /*!50100 PARTITION BY KEY (a)
 PARTITIONS 7 */
-insert into t3 values (2147483647), (2147483646), (2147483645), (2147483644), (-2147483648), (-2147483647), (1), (-1), (0);
+insert into t3 values (127), (126), (125), (124), (-128), (-127), (1), (-1), (0);
 select * from t3;
 a
 -1
--2147483647
--2147483648
+-127
+-128
 0
 1
-2147483644
-2147483645
-2147483646
-2147483647
-select * from t3 where a=2147483645;
+124
+125
+126
+127
+select * from t3 where a=125;
 a
-2147483645
-delete from t3 where a=2147483645;
+125
+delete from t3 where a=125;
 select * from t3;
 a
 -1
--2147483647
--2147483648
+-127
+-128
 0
 1
-2147483644
-2147483646
-2147483647
+124
+126
+127
 drop table t3;
