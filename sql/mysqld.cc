@@ -7267,7 +7267,7 @@ static int mysql_init_variables(void)
   mysql_home[0]= pidfile_name[0]= log_error_file[0]= 0;
 #if defined(HAVE_REALPATH) && !defined(HAVE_valgrind) && !defined(HAVE_BROKEN_REALPATH)
   /*  We can only test for sub paths if my_symlink.c is using realpath */
-  myisam_test_invalid_symlink= test_if_data_home_dir;
+  mysys_test_invalid_symlink= test_if_data_home_dir;
 #endif
   opt_log= opt_slow_log= 0;
   opt_bin_log= opt_bin_log_used= 0;

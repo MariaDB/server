@@ -1,5 +1,6 @@
 /*
    Copyright (c) 2001, 2011, Oracle and/or its affiliates
+   Copyright (c) 2010, 2017, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -22,6 +23,14 @@
 #include <sys/param.h>
 #include <sys/stat.h>
 #endif
+
+static int always_valid(const char *filename __attribute__((unused)))
+{
+  return 0;
+}
+
+int (*mysys_test_invalid_symlink)(const char *filename)= always_valid;
+
 
 /*
   Reads the content of a symbolic link

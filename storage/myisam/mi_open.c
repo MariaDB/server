@@ -93,7 +93,7 @@ MI_INFO *mi_open(const char *name, int mode, uint open_flags)
   realpath_err= my_realpath(name_buff,
                             fn_format(org_name,name,"",MI_NAME_IEXT,4),MYF(0));
   if (my_is_symlink(org_name) &&
-      (realpath_err || (*myisam_test_invalid_symlink)(name_buff)))
+      (realpath_err || mysys_test_invalid_symlink(name_buff)))
   {
     my_errno= HA_WRONG_CREATE_OPTION;
     DBUG_RETURN (NULL);
@@ -1246,7 +1246,7 @@ int mi_open_datafile(MI_INFO *info, MYISAM_SHARE *share, const char *org_name,
     if (my_is_symlink(real_data_name))
     {
       if (my_realpath(real_data_name, real_data_name, MYF(0)) ||
-          (*myisam_test_invalid_symlink)(real_data_name))
+          mysys_test_invalid_symlink(real_data_name))
       {
         my_errno= HA_WRONG_CREATE_OPTION;
         return 1;

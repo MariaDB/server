@@ -106,12 +106,6 @@ uint32 maria_readnext_vec[]=
   SEARCH_BIGGER, SEARCH_SMALLER, SEARCH_SMALLER
 };
 
-static int always_valid(const char *filename __attribute__((unused)))
-{
-  return 0;
-}
-
-int (*maria_test_invalid_symlink)(const char *filename)= always_valid;
 my_bool (*ma_killed)(MARIA_HA *)= ma_killed_standalone;
 
 #ifdef HAVE_PSI_INTERFACE

@@ -548,6 +548,8 @@ extern ulong my_crc_dbug_check;
 typedef int (*Process_option_func)(void *ctx, const char *group_name,
                                    const char *option);
 
+extern int (*mysys_test_invalid_symlink)(const char *filename);
+
 #include <my_alloc.h>
 
 

@@ -288,7 +288,7 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags)
                                                  MARIA_NAME_IEXT,
                                                  MY_UNPACK_FILENAME),MYF(0));
   if (my_is_symlink(org_name) &&
-      (realpath_err || (*maria_test_invalid_symlink)(name_buff)))
+      (realpath_err || mysys_test_invalid_symlink(name_buff)))
   {
     my_errno= HA_WRONG_CREATE_OPTION;
     DBUG_RETURN(0);
@@ -1880,7 +1880,7 @@ int _ma_open_datafile(MARIA_HA *info, MARIA_SHARE *share, const char *org_name,
     if (my_is_symlink(real_data_name))
     {
       if (my_realpath(real_data_name, real_data_name, MYF(0)) ||
-          (*maria_test_invalid_symlink)(real_data_name))
+          mysys_test_invalid_symlink(real_data_name))
       {
         my_errno= HA_WRONG_CREATE_OPTION;
         return 1;
