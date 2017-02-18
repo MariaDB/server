@@ -1374,6 +1374,9 @@ Item_in_subselect::Item_in_subselect(Item * left_exp,
 {
   DBUG_ENTER("Item_in_subselect::Item_in_subselect");
   left_expr_orig= left_expr= left_exp;
+  /* prepare to possible disassembling the item in convert_subq_to_sj() */
+  if (left_exp->type() == Item::ROW_ITEM)
+    left_expr_orig= new Item_row(left_exp);
   func= &eq_creator;
   init(select_lex, new select_exists_subselect(this));
   max_columns= UINT_MAX;
@@ -1398,6 +1401,9 @@ Item_allany_subselect::Item_allany_subselect(Item * left_exp,
 {
   DBUG_ENTER("Item_allany_subselect::Item_allany_subselect");
   left_expr_orig= left_expr= left_exp;
+  /* prepare to possible disassembling the item in convert_subq_to_sj() */
+  if (left_exp->type() == Item::ROW_ITEM)
+    left_expr_orig= new Item_row(left_exp);
   func= func_creator(all_arg);
   init(select_lex, new select_exists_subselect(this));
   max_columns= 1;

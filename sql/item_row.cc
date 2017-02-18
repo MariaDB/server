@@ -44,7 +44,14 @@ Item_row::Item_row(List<Item> &arg):
 
   //TODO: think placing 2-3 component items in item (as it done for function)
   if ((arg_count= arg.elements))
+  {
     items= (Item**) sql_alloc(sizeof(Item*)*arg_count);
+    if (!items)
+    {
+      arg_count= 0;
+      return;
+    }
+  }
   else
     items= 0;
   List_iterator<Item> li(arg);
@@ -53,7 +60,28 @@ Item_row::Item_row(List<Item> &arg):
   while ((item= li++))
   {
     items[i]= item;
-    i++;    
+    i++;
+  }
+}
+
+
+Item_row::Item_row(Item *item):
+  Item(),
+  used_tables_cache(0),
+  not_null_tables_cache(0),
+  arg_count(item->cols()),
+  const_item_cache(1),
+  with_null(0)
+{
+  items= (Item**) sql_alloc(sizeof(Item*) * arg_count);
+  if (!items)
+  {
+    arg_count= 0;
+    return;
+  }
+  for (uint i= 0; i < arg_count; i++)
+  {
+    items[i]= item->element_index(i);
   }
 }
 
