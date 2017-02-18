@@ -85,7 +85,7 @@ MARIA_HA *_ma_test_if_reopen(const char *filename)
 */
 
 
-static MARIA_HA *maria_clone_internal(MARIA_SHARE *share, const char *name,
+static MARIA_HA *maria_clone_internal(MARIA_SHARE *share,
                                       int mode, File data_file)
 {
   int save_errno;
@@ -104,7 +104,7 @@ static MARIA_HA *maria_clone_internal(MARIA_SHARE *share, const char *name,
   }
   if (data_file >= 0)
     info.dfile.file= data_file;
-  else if (_ma_open_datafile(&info, share, name))
+  else if (_ma_open_datafile(&info, share))
     goto err;
   errpos= 5;
 
@@ -242,7 +242,7 @@ MARIA_HA *maria_clone(MARIA_SHARE *share, int mode)
 {
   MARIA_HA *new_info;
   mysql_mutex_lock(&THR_LOCK_maria);
-  new_info= maria_clone_internal(share, NullS, mode,
+  new_info= maria_clone_internal(share, mode,
                                  share->data_file_type == BLOCK_RECORD ?
                                  share->bitmap.file.file : -1);
   mysql_mutex_unlock(&THR_LOCK_maria);
@@ -834,7 +834,7 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags)
     if ((share->data_file_type == BLOCK_RECORD ||
          share->data_file_type == COMPRESSED_RECORD))
     {
-      if (_ma_open_datafile(&info, share, name))
+      if (_ma_open_datafile(&info, share))
         goto err;
       data_file= info.dfile.file;
     }
@@ -1006,7 +1006,7 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags)
       data_file= share->bitmap.file.file;       /* Only opened once */
   }
 
-  if (!(m_info= maria_clone_internal(share, name, mode, data_file)))
+  if (!(m_info= maria_clone_internal(share, mode, data_file)))
     goto err;
 
   if (maria_is_crashed(m_info))
@@ -1879,7 +1879,7 @@ void _ma_set_index_pagecache_callbacks(PAGECACHE_FILE *file,
   active seek-positions.
 *************************************************************************/
 
-int _ma_open_datafile(MARIA_HA *info, MARIA_SHARE *share, const char *org_name)
+int _ma_open_datafile(MARIA_HA *info, MARIA_SHARE *share)
 {
   myf flags= MY_WME | (share->mode & O_NOFOLLOW ? MY_NOSYMLINKS : 0);
   DEBUG_SYNC_C("mi_open_datafile");
