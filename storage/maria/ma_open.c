@@ -104,7 +104,7 @@ static MARIA_HA *maria_clone_internal(MARIA_SHARE *share, const char *name,
   }
   if (data_file >= 0)
     info.dfile.file= data_file;
-  else if (_ma_open_datafile(&info, share, name, -1))
+  else if (_ma_open_datafile(&info, share, name))
     goto err;
   errpos= 5;
 
@@ -820,7 +820,7 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags)
     if ((share->data_file_type == BLOCK_RECORD ||
          share->data_file_type == COMPRESSED_RECORD))
     {
-      if (_ma_open_datafile(&info, share, name, -1))
+      if (_ma_open_datafile(&info, share, name))
         goto err;
       data_file= info.dfile.file;
     }
@@ -1863,13 +1863,9 @@ void _ma_set_index_pagecache_callbacks(PAGECACHE_FILE *file,
  Open data file
   We can't use dup() here as the data file descriptors need to have different
   active seek-positions.
-
-  The argument file_to_dup is here for the future if there would on some OS
-  exist a dup()-like call that would give us two different file descriptors.
 *************************************************************************/
 
-int _ma_open_datafile(MARIA_HA *info, MARIA_SHARE *share, const char *org_name,
-                      File file_to_dup __attribute__((unused)))
+int _ma_open_datafile(MARIA_HA *info, MARIA_SHARE *share, const char *org_name)
 {
   char *data_name= share->data_file_name.str;
   char real_data_name[FN_REFLEN];

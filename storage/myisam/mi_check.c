@@ -2538,7 +2538,7 @@ err:
       (void) mysql_file_delete(mi_key_file_datatmp,
                                param->temp_filename, MYF(MY_WME));
       if (info->dfile == new_file) /* Retry with key cache */
-        if (unlikely(mi_open_datafile(info, share, name, -1)))
+        if (unlikely(mi_open_datafile(info, share, name)))
           param->retry_repair= 0; /* Safety */
     }
     mi_mark_crashed_on_repair(info);
@@ -3072,7 +3072,7 @@ err:
       (void) mysql_file_delete(mi_key_file_datatmp,
                                param->temp_filename, MYF(MY_WME));
       if (info->dfile == new_file) /* Retry with key cache */
-        if (unlikely(mi_open_datafile(info, share, name, -1)))
+        if (unlikely(mi_open_datafile(info, share, name)))
           param->retry_repair= 0; /* Safety */
     }
     mi_mark_crashed_on_repair(info);
@@ -4785,7 +4785,7 @@ static int replace_data_file(HA_CHECK *param, MI_INFO *info,
                         DATA_TMP_EXT, param->backup_time,
                         (param->testflag & T_BACKUP_DATA ?
                          MYF(MY_REDEL_MAKE_BACKUP): MYF(0))) ||
-      mi_open_datafile(info, share, name, -1))
+      mi_open_datafile(info, share, name))
     return 1;
   return 0;
 }

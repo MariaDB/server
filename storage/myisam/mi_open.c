@@ -480,7 +480,7 @@ MI_INFO *mi_open(const char *name, int mode, uint open_flags)
       lock_error=1;			/* Database unlocked */
     }
 
-    if (mi_open_datafile(&info, share, name, -1))
+    if (mi_open_datafile(&info, share, name))
       goto err;
     errpos=5;
 
@@ -561,7 +561,7 @@ MI_INFO *mi_open(const char *name, int mode, uint open_flags)
       my_errno=EACCES;				/* Can't open in write mode */
       goto err;
     }
-    if (mi_open_datafile(&info, share, name, old_info->dfile))
+    if (mi_open_datafile(&info, share, name))
       goto err;
     errpos=5;
     have_rtree= old_info->rtree_recursion_state != NULL;
@@ -1229,13 +1229,9 @@ uchar *mi_recinfo_read(uchar *ptr, MI_COLUMNDEF *recinfo)
 Open data file.
 We can't use dup() here as the data file descriptors need to have different
 active seek-positions.
-
-The argument file_to_dup is here for the future if there would on some OS
-exist a dup()-like call that would give us two different file descriptors.
 *************************************************************************/
 
-int mi_open_datafile(MI_INFO *info, MYISAM_SHARE *share, const char *org_name,
-                     File file_to_dup __attribute__((unused)))
+int mi_open_datafile(MI_INFO *info, MYISAM_SHARE *share, const char *org_name)
 {
   char *data_name= share->data_file_name;
   char real_data_name[FN_REFLEN];
