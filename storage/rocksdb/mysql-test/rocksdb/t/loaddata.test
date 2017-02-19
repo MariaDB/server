@@ -3,6 +3,5 @@
 let $skip_unique_check = 0;
 --source loaddata.inc
 let $skip_unique_check = 1;
-set session rocksdb_skip_unique_check=1;
+set session unique_checks=0;
 --source loaddata.inc
-

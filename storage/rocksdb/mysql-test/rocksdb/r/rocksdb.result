@@ -903,8 +903,8 @@ rocksdb_deadlock_detect	OFF
 rocksdb_debug_optimizer_no_zero_cardinality	ON
 rocksdb_default_cf_options	
 rocksdb_delete_obsolete_files_period_micros	21600000000
-rocksdb_disable_2pc	ON
 rocksdb_disabledatasync	OFF
+rocksdb_enable_2pc	ON
 rocksdb_enable_bulk_load_api	ON
 rocksdb_enable_thread_tracking	OFF
 rocksdb_enable_write_thread_adaptive_yield	OFF
@@ -937,17 +937,17 @@ rocksdb_override_cf_options
 rocksdb_paranoid_checks	ON
 rocksdb_pause_background_work	ON
 rocksdb_perf_context_level	0
+rocksdb_persistent_cache_path	
+rocksdb_persistent_cache_size	0
 rocksdb_pin_l0_filter_and_index_blocks_in_cache	ON
 rocksdb_print_snapshot_conflict_queries	OFF
 rocksdb_rate_limiter_bytes_per_sec	0
 rocksdb_read_free_rpl_tables	
 rocksdb_records_in_range	50
-rocksdb_rpl_skip_tx_api	OFF
 rocksdb_seconds_between_stat_computes	3600
 rocksdb_signal_drop_index_thread	OFF
 rocksdb_skip_bloom_filter_on_read	OFF
 rocksdb_skip_fill_cache	OFF
-rocksdb_skip_unique_check	OFF
 rocksdb_skip_unique_check_tables	.*
 rocksdb_stats_dump_period_sec	600
 rocksdb_store_row_debug_checksums	OFF
@@ -2242,7 +2242,7 @@ DROP DATABASE test_db;
 # Issue #143: Split rocksdb_bulk_load option into two
 #
 CREATE TABLE t1 (id int primary key, value int) engine=RocksDB;
-SET rocksdb_skip_unique_check=1;
+SET unique_checks=0;
 INSERT INTO t1 VALUES(1, 1);
 INSERT INTO t1 VALUES(1, 2);
 INSERT INTO t1 VALUES(1, 3);
@@ -2254,7 +2254,7 @@ INSERT INTO t1 VALUES(5, 5) ON DUPLICATE KEY UPDATE value=value+1;
 ERROR HY000: When unique checking is disabled in MyRocks, INSERT,UPDATE,LOAD statements with clauses that update or replace the key (i.e. INSERT ON DUPLICATE KEY UPDATE, REPLACE) are not allowed. Query: INSERT INTO t1 VALUES(5, 5) ON DUPLICATE KEY UPDATE value=value+1
 TRUNCATE TABLE t1;
 SET @save_rocksdb_bulk_load_size= @@rocksdb_bulk_load_size;
-SET rocksdb_skip_unique_check=0;
+SET unique_checks=1;
 SET rocksdb_commit_in_the_middle=1;
 SET rocksdb_bulk_load_size=10;
 BEGIN;

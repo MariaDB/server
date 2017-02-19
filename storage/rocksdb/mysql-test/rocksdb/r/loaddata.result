@@ -121,7 +121,7 @@ a	b
 5	loaded
 7	test
 DROP TABLE t1;
-set session rocksdb_skip_unique_check=1;
+set session unique_checks=0;
 DROP TABLE IF EXISTS t1;
 CREATE TABLE t1 (a INT, b CHAR(8), pk INT AUTO_INCREMENT PRIMARY KEY) ENGINE=rocksdb;
 LOAD DATA INFILE '<DATADIR>/se_loaddata.dat' INTO TABLE t1 

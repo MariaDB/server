@@ -10,7 +10,7 @@ CREATE TABLE invalid_values (value varchar(255)) ENGINE=myisam;
 INSERT INTO invalid_values VALUES('\'aaa\'');
 INSERT INTO invalid_values VALUES('\'bbb\'');
 
---let $sys_var=ROCKSDB_DISABLE_2PC
+--let $sys_var=ROCKSDB_ENABLE_2PC
 --let $read_only=0
 --let $session=0
 --let $sticky=1

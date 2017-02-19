@@ -39,6 +39,11 @@ elif [ "$STREAM_TYPE" == 'xbstream' ]; then
     --stream=xbstream --checkpoint_dir=$checkpoint_dir 2> \
     $COPY_LOG | xbstream -x \
     --directory=$backup_dir"
+elif [ "$STREAM_TYPE" == "xbstream_socket" ]; then
+  BACKUP_CMD="$MYSQL_MYROCKS_HOTBACKUP --user='root' --socket=${MASTER_MYSOCK} \
+    --stream=xbstream --checkpoint_dir=$checkpoint_dir 2> \
+    $COPY_LOG | xbstream -x \
+    --directory=$backup_dir"
 else
   BACKUP_CMD="$MYSQL_MYROCKS_HOTBACKUP --user='root' --stream=wdt \
     --port=${MASTER_MYPORT} --destination=localhost --backup_dir=$backup_dir \

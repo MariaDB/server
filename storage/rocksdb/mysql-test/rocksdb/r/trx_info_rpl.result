@@ -6,9 +6,9 @@ include/stop_slave.inc
 connection master;
 create table t1 (a int) engine=rocksdb;
 connection slave;
-show variables like 'rocksdb_rpl_skip_tx_api';
+show variables like 'rpl_skip_tx_api';
 Variable_name	Value
-rocksdb_rpl_skip_tx_api	ON
+rpl_skip_tx_api	ON
 include/start_slave.inc
 found
 connection master;

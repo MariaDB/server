@@ -8,6 +8,15 @@
 #include "my_global.h"                   /* ulonglong */
 #include "atomic_stat.h"
 
+/* The following is copied from storage/innobase/univ.i: */
+#ifndef MY_ATTRIBUTE
+#if defined(__GNUC__)
+#  define MY_ATTRIBUTE(A) __attribute__(A)
+#else
+#  define MY_ATTRIBUTE(A)
+#endif
+#endif
+
 /* Struct used for IO performance counters, shared among multiple threads */
 struct my_io_perf_atomic_struct {
   atomic_stat<ulonglong> bytes;
