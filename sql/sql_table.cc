@@ -4492,7 +4492,10 @@ handler *mysql_create_frm_image(THD *thd,
     part_info->part_info_string= part_syntax_buf;
     part_info->part_info_len= syntax_len;
     if ((!(engine_type->partition_flags &&
-           engine_type->partition_flags() & HA_CAN_PARTITION)) ||
+           ((engine_type->partition_flags() & HA_CAN_PARTITION) ||
+            (part_info->part_type == VERSIONING_PARTITION &&
+            engine_type->partition_flags() & HA_ONLY_VERS_PARTITION))
+          )) ||
         create_info->db_type == partition_hton)
     {
       /*

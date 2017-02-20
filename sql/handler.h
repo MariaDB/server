@@ -1393,6 +1393,7 @@ struct handlerton
    bool (*vers_query_trx_id)(THD* thd, void *out, ulonglong trx_id, vtq_field_t field);
    bool (*vers_query_commit_ts)(THD* thd, void *out, const MYSQL_TIME &commit_ts, vtq_field_t field, bool backwards);
    bool (*vers_trx_sees)(THD *thd, bool &result, ulonglong trx_id1, ulonglong trx_id0, ulonglong commit_id1, uchar iso_level1, ulonglong commit_id0);
+   handler *(*vers_upgrade_handler)(handler *hnd, MEM_ROOT *mem_root);
 };
 
 
@@ -3271,6 +3272,18 @@ protected:
   virtual int index_last(uchar * buf)
    { return  HA_ERR_WRONG_COMMAND; }
   virtual int index_next_same(uchar *buf, const uchar *key, uint keylen);
+  /**
+     @brief
+     The following functions works like index_read, but it find the last
+     row with the current key value or prefix.
+     @returns @see index_read_map().
+  */
+  virtual int index_read_last_map(uchar * buf, const uchar * key,
+                                  key_part_map keypart_map)
+  {
+    uint key_len= calculate_key_len(table, active_index, key, keypart_map);
+    return index_read_last(buf, key, key_len);
+  }
   virtual int close(void)=0;
   inline void update_rows_read()
   {
@@ -3350,7 +3363,7 @@ public:
   void ft_end() { ft_handler=NULL; }
   virtual FT_INFO *ft_init_ext(uint flags, uint inx,String *key)
     { return NULL; }
-private:
+public:
   virtual int ft_read(uchar *buf) { return HA_ERR_WRONG_COMMAND; }
   virtual int rnd_next(uchar *buf)=0;
   virtual int rnd_pos(uchar * buf, uchar *pos)=0;
@@ -4057,6 +4070,7 @@ public:
   TABLE_SHARE* get_table_share() { return table_share; }
 protected:
   /* Service methods for use by storage engines. */
+  void ha_statistic_increment(ulong SSV::*offset) const;
   void **ha_data(THD *) const;
   THD *ha_thd(void) const;
 
@@ -4082,7 +4096,7 @@ protected:
 
 public:
   bool check_table_binlog_row_based(bool binlog_row);
-private:
+
   /* Cache result to avoid extra calls */
   inline void mark_trx_read_write()
   {
@@ -4092,6 +4106,8 @@ private:
       mark_trx_read_write_internal();
     }
   }
+
+private:
   void mark_trx_read_write_internal();
   bool check_table_binlog_row_based_internal(bool binlog_row);
 
@@ -4210,6 +4226,11 @@ protected:
   virtual int index_read(uchar * buf, const uchar * key, uint key_len,
                          enum ha_rkey_function find_flag)
    { return  HA_ERR_WRONG_COMMAND; }
+  virtual int index_read_last(uchar * buf, const uchar * key, uint key_len)
+  {
+    my_errno= HA_ERR_WRONG_COMMAND;
+    return HA_ERR_WRONG_COMMAND;
+  }
   friend class ha_partition;
   friend class ha_sequence;
 public:
@@ -4340,6 +4361,8 @@ public:
   { DBUG_ASSERT(0); return false; }
   virtual handler* part_handler(uint32 part_id)
   { DBUG_ASSERT(0); return NULL; }
+  virtual void update_partition(uint	part_id)
+  {}
 protected:
   Handler_share *get_ha_share_ptr();
   void set_ha_share_ptr(Handler_share *arg_ha_share);

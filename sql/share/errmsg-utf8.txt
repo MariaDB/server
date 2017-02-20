@@ -7523,8 +7523,17 @@ WARN_VERS_PARAMETERS
 WARN_VERS_PART_ROTATION
         eng "Switching from partition %`s to %`s"
 
+WARN_VERS_TRX_MISSING
+        eng "VTQ missing transaction ID %lu"
+
+WARN_VERS_PART_NON_HISTORICAL
+        eng "Partition %`s contains non-historical data"
+
 ER_VERS_NOT_ALLOWED
         eng "%`s is not allowed for versioned table"
 
 ER_VERS_WRONG_QUERY_TYPE
         eng "%`s works only with %`s query type"
+
+ER_WRONG_TABLESPACE_NAME 42000
+  eng "Incorrect tablespace name `%-.192s`"

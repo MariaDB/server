@@ -234,6 +234,15 @@ row_lock_table_for_mysql(
 					(ignored if table==NULL) */
 	MY_ATTRIBUTE((nonnull(1)));
 
+/* System Versioning: row_insert_for_mysql() modes */
+enum ins_mode_t {
+	ROW_INS_NORMAL = 0,
+	// insert versioned row: sys_trx_start = TRX_ID, sys_trx_end = MAX
+	ROW_INS_VERSIONED,
+	// insert historical row: sys_trx_end = TRX_ID
+	ROW_INS_HISTORICAL
+};
+
 /** Does an insert for MySQL.
 @param[in]	mysql_rec	row in the MySQL format
 @param[in,out]	prebuilt	prebuilt struct in MySQL handle
@@ -242,9 +251,7 @@ dberr_t
 row_insert_for_mysql(
 	const byte*		mysql_rec,
 	row_prebuilt_t*		prebuilt,
-	bool			historical
-					/*!< in: System Versioning, row is */
-			= false)	/* historical */
+	ins_mode_t		ins_mode)
 	MY_ATTRIBUTE((warn_unused_result));
 
 /*********************************************************************//**
@@ -281,7 +288,7 @@ dberr_t
 row_update_for_mysql(
 	const byte*		mysql_rec,
 	row_prebuilt_t*		prebuilt,
-	bool			delete_history_row = false)
+	bool			vers_set_fields)
 	MY_ATTRIBUTE((warn_unused_result));
 
 /** This can only be used when srv_locks_unsafe_for_binlog is TRUE or this

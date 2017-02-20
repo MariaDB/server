@@ -23,6 +23,7 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #define ha_innopart_h
 
 #include "partitioning/partition_handler.h"
+#include "ha_partition.h"
 
 /* Forward declarations */
 class Altered_partitions;
@@ -185,13 +186,15 @@ truncate_partition.
 InnoDB specific functions related to partitioning is implemented here. */
 class ha_innopart:
 	public ha_innobase,
-	public Partition_helper,
-	public Partition_handler
+	public Partition_helper
 {
 public:
 	ha_innopart(
 		handlerton*	hton,
 		TABLE_SHARE*	table_arg);
+
+	ha_innopart(
+		ha_innobase*	innobase);
 
 	~ha_innopart();
 
@@ -218,7 +221,7 @@ public:
 	register_query_cache_table(
 		THD*			thd,
 		char*			table_key,
-		size_t			key_length,
+		uint			key_length,
 		qc_engine_callback*	call_back,
 		ulonglong*		engine_data)
 	{
@@ -350,9 +353,9 @@ public:
 		int	error,
 		myf	errflag);
 
-	bool
-	is_ignorable_error(
-		int	error);
+// 	bool
+// 	is_ignorable_error(
+// 		int	error);
 
 	int
 	start_stmt(
@@ -506,7 +509,7 @@ public:
 	ft_init_ext_with_hints(
 		uint		inx,
 		String*		key,
-		Ft_hints*	hints)
+		void*	hints)
 	{
 		ut_ad(0);
 		return(NULL);
@@ -596,13 +599,13 @@ public:
 	/** See Partition_handler. */
 	void
 	get_dynamic_partition_info(
-		ha_statistics*	stat_info,
-		ha_checksum*	check_sum,
+		PARTITION_STATS*	stat_info,
 		uint		part_id)
 	{
+        ha_checksum check_sum;
 		Partition_helper::get_dynamic_partition_info_low(
 			stat_info,
-			check_sum,
+			&check_sum,
 			part_id);
 	}
 
@@ -614,18 +617,11 @@ public:
 		       | HA_FAST_CHANGE_PARTITION);
 	}
 
-	Partition_handler*
-	get_partition_handler()
-	{
-		return(static_cast<Partition_handler*>(this));
-	}
-
 	void
 	set_part_info(
-		partition_info*	part_info,
-		bool		early)
+		partition_info*	part_info)
 	{
-		Partition_helper::set_part_info_low(part_info, early);
+		Partition_helper::set_part_info_low(part_info, false);
 	}
 
 	void
@@ -752,9 +748,15 @@ private:
 	/** Update active partition.
 	Copies needed info from m_prebuilt into the partition specific memory.
 	@param[in]	part_id	Partition to set as active. */
-	void
+	virtual void
 	update_partition(
 		uint	part_id);
+
+	virtual handler* part_handler(uint32 part_id)
+	{
+		set_partition(part_id);
+		return this;
+	}
 
 	/** Helpers needed by Partition_helper, @see partition_handler.h @{ */
 
@@ -1132,6 +1134,20 @@ private:
 	delete_row(
 		const uchar*	record)
 	{
+		ut_a(table);
+		if (table->versioned() && table->vers_end_field()->is_max()) {
+			int err = rnd_pos_by_record(const_cast<uchar *>(record));
+			if (err)
+				return err;
+			trx_t* trx = thd_to_trx(ha_thd());
+			if (!trx->id)
+				trx_start_if_not_started_xa(trx, true);
+			ut_a(table->record[0] == record);
+			store_record(table, record[1]);
+			ut_a(trx->id);
+			table->vers_end_field()->store(trx->id, true);
+			return Partition_helper::ph_update_row(table->record[1], table->record[0]);
+		}
 		return(Partition_helper::ph_delete_row(record));
 	}
 	/** @} */
@@ -1162,6 +1178,148 @@ private:
 						deleted));
 	}
 
+public:
+	/**
+	Truncate partitions.
+
+	Truncate all partitions matching table->part_info->read_partitions.
+	Handler level wrapper for truncating partitions, will ensure that
+	mark_trx_read_write() is called and also checks locking assertions.
+
+	@return Operation status.
+	@retval    0  Success.
+	@retval != 0  Error code.
+	*/
+	int truncate_partition()
+	{
+		handler *file= get_handler();
+		if (!file)
+		{
+			return HA_ERR_WRONG_COMMAND;
+		}
+		DBUG_ASSERT(file->get_table_share()->tmp_table != NO_TMP_TABLE ||
+				file->get_lock_type() == F_WRLCK);
+		file->mark_trx_read_write();
+		return truncate_partition_low();
+	}
+	/**
+	Change partitions.
+
+	Change partitions according to their partition_element::part_state set up
+	in prep_alter_part_table(). Will create new partitions and copy requested
+	partitions there. Also updating part_state to reflect current state.
+
+	Handler level wrapper for changing partitions.
+	This is the reason for having Partition_handler a friend class of handler,
+	mark_trx_read_write() is called and also checks locking assertions.
+	to ensure that mark_trx_read_write() is called and checking the asserts.
+
+	@param[in]     create_info  Table create info.
+	@param[in]     path         Path including table name.
+	@param[out]    copied       Number of rows copied.
+	@param[out]    deleted      Number of rows deleted.
+	*/
+	int change_partitions(HA_CREATE_INFO *create_info,
+				const char *path,
+				ulonglong * const copied,
+				ulonglong * const deleted,
+				const uchar *pack_frm_data,
+				size_t pack_frm_len)
+	{
+		handler *file= get_handler();
+		if (!file)
+		{
+			my_error(ER_ILLEGAL_HA, MYF(0), create_info->alias);
+			return HA_ERR_WRONG_COMMAND;
+		}
+		DBUG_ASSERT(file->get_table_share()->tmp_table != NO_TMP_TABLE ||
+				file->get_lock_type() != F_UNLCK);
+		file->mark_trx_read_write();
+		return change_partitions_low(create_info, path, copied, deleted);
+	}
+
+	// FIXME: duplicate of ha_partition::drop_partitions
+	int drop_partitions(const char *path)
+	{
+		List_iterator<partition_element> part_it(m_part_info->partitions);
+		char part_name_buff[FN_REFLEN];
+		uint num_parts= m_part_info->partitions.elements;
+		uint num_subparts= m_part_info->num_subparts;
+		uint i= 0;
+		uint name_variant;
+		int	ret_error;
+		int	error= 0;
+		DBUG_ENTER("ha_partition::drop_partitions");
+
+		/*
+			Assert that it works without HA_FILE_BASED and lower_case_table_name = 2.
+			We use m_file[0] as long as all partitions have the same storage engine.
+		*/
+		DBUG_ASSERT(!strcmp(path, get_canonical_filename(this, path,
+																										part_name_buff)));
+		do
+		{
+			partition_element *part_elem= part_it++;
+			if (part_elem->part_state == PART_TO_BE_DROPPED)
+			{
+				handler *file = this;
+				/*
+					This part is to be dropped, meaning the part or all its subparts.
+				*/
+				name_variant= NORMAL_PART_NAME;
+				if (m_is_sub_partitioned)
+				{
+					List_iterator<partition_element> sub_it(part_elem->subpartitions);
+					uint j= 0/*, part*/;
+					do
+					{
+						partition_element *sub_elem= sub_it++;
+						//part= i * num_subparts + j;
+						create_subpartition_name(part_name_buff, path,
+							part_elem->partition_name,
+							sub_elem->partition_name, name_variant);
+						// set_partition(part);
+						DBUG_PRINT("info", ("Drop subpartition %s", part_name_buff));
+						if ((ret_error= file->ha_delete_table(part_name_buff)))
+							error= ret_error;
+						if (deactivate_ddl_log_entry(sub_elem->log_entry->entry_pos))
+							error= 1;
+						// update_partition(part);
+					} while (++j < num_subparts);
+				}
+				else
+				{
+					create_partition_name(part_name_buff, path,
+						part_elem->partition_name, name_variant,
+						TRUE);
+					// set_partition(i);
+					DBUG_PRINT("info", ("Drop partition %s", part_name_buff));
+					if ((ret_error= file->ha_delete_table(part_name_buff)))
+						error= ret_error;
+					if (deactivate_ddl_log_entry(part_elem->log_entry->entry_pos))
+						error= 1;
+					// update_partition(i);
+				}
+				if (part_elem->part_state == PART_IS_CHANGED)
+					part_elem->part_state= PART_NORMAL;
+				else
+					part_elem->part_state= PART_IS_DROPPED;
+			}
+		} while (++i < num_parts);
+		(void) sync_ddl_log();
+		DBUG_RETURN(error);
+	}
+
+	int rename_partitions(const char *path)
+	{
+		return 0;
+	}
+
+	virtual ha_rows
+	part_recs_slow(void *_part_elem);
+
+
+private:
 	/** Access methods to protected areas in handler to avoid adding
 	friend class Partition_helper in class handler.
 	@see partition_handler.h @{ */
@@ -1221,9 +1379,8 @@ protected:
 		uchar*	record,
 		uchar*	pos);
 
-	int
-	records(
-		ha_rows*	num_rows);
+	ha_rows
+	records();
 
 	int
 	index_next(

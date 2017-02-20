@@ -22,6 +22,7 @@
 
 #include "sql_class.h"
 #include "partition_element.h"
+#include "sql_partition.h"
 
 class partition_info;
 struct TABLE_LIST;
@@ -382,6 +383,28 @@ public:
                                    uint32 *part_id);
   void report_part_expr_error(bool use_subpart_expr);
   bool has_same_partitioning(partition_info *new_part_info);
+  inline bool is_partition_used(uint part_id) const
+  {
+    return bitmap_is_set(&read_partitions, part_id);
+  }
+  inline bool is_partition_locked(uint part_id) const
+  {
+    return bitmap_is_set(&lock_partitions, part_id);
+  }
+  inline uint num_partitions_used()
+  {
+    return bitmap_bits_set(&read_partitions);
+  }
+  inline uint get_first_used_partition() const
+  {
+    return bitmap_get_first_set(&read_partitions);
+  }
+  inline uint get_next_used_partition(uint part_id) const
+  {
+    return bitmap_get_next_set(&read_partitions, part_id);
+  }
+  bool same_key_column_order(List<Create_field> *create_list);
+
 private:
   static int list_part_cmp(const void* a, const void* b);
   bool set_up_default_partitions(THD *thd, handler *file, HA_CREATE_INFO *info,
@@ -392,9 +415,11 @@ private:
                                        uint start_no);
   char *create_default_subpartition_name(THD *thd, uint subpart_no,
                                          const char *part_name);
+  // FIXME: prune_partition_bitmaps() is duplicate of set_read_partitions()
   bool prune_partition_bitmaps(TABLE_LIST *table_list);
   bool add_named_partition(const char *part_name, uint length);
 public:
+  bool set_read_partitions(List<char> *partition_names);
   bool has_unique_name(partition_element *element);
 
   bool vers_init_info(THD *thd);
@@ -475,8 +500,8 @@ public:
       DBUG_ASSERT(vers_info->initialized());
       part= vers_hist_part();
     }
-    max_time-= vers_stat_trx(STAT_TRX_END, part).min_time();
-    return max_time > vers_info->interval;
+    my_time_t min_time= vers_stat_trx(STAT_TRX_END, part).min_time();
+    return max_time - min_time > vers_info->interval;
   }
   bool vers_interval_exceed(partition_element *part)
   {
@@ -486,15 +511,31 @@ public:
   {
     return vers_interval_exceed(vers_hist_part());
   }
+  bool vers_trx_id_to_ts(THD *thd, Field *in_trx_id, Field_timestamp &out_ts);
   void vers_update_stats(THD *thd, partition_element *el)
   {
     DBUG_ASSERT(vers_info && vers_info->initialized());
     DBUG_ASSERT(table && table->s);
     DBUG_ASSERT(el && el->type == partition_element::VERSIONING);
+    bool updated;
     mysql_rwlock_wrlock(&table->s->LOCK_stat_serial);
     el->empty= false;
-    bool updated=
-      vers_stat_trx(STAT_TRX_END, el->id).update(table->vers_end_field());
+    if (table->versioned_by_engine())
+    {
+      // transaction is not yet pushed to VTQ, so we use now-time
+      my_time_t end_ts= my_time(0);
+
+      uchar buf[8];
+      Field_timestampf fld(buf, NULL, 0, Field::NONE, table->vers_end_field()->field_name, NULL, 6);
+      fld.store_TIME(end_ts, 0);
+      updated=
+        vers_stat_trx(STAT_TRX_END, el->id).update(&fld);
+    }
+    else
+    {
+      updated=
+        vers_stat_trx(STAT_TRX_END, el->id).update(table->vers_end_field());
+    }
     if (updated)
       table->s->stat_serial++;
     mysql_rwlock_unlock(&table->s->LOCK_stat_serial);

@@ -67,6 +67,7 @@
 #include "opt_range.h"                  // store_key_image_to_rec
 #include "sql_alter.h"                  // Alter_table_ctx
 #include "sql_select.h"
+#include "sql_tablespace.h"             // check_tablespace_name
 
 #include <algorithm>
 using std::max;
@@ -3458,7 +3459,10 @@ int vers_get_partition_id(partition_info *part_info,
       {
         table->s->busy_rotation= true;
         mysql_mutex_unlock(&table->s->LOCK_rotation);
-        if (part_info->vers_limit_exceed() || part_info->vers_interval_exceed(sys_trx_end->get_timestamp()))
+        // transaction is not yet pushed to VTQ, so we use now-time
+        my_time_t end_ts= sys_trx_end->table->versioned_by_engine() ?
+          my_time(0) : sys_trx_end->get_timestamp();
+        if (part_info->vers_limit_exceed() || part_info->vers_interval_exceed(end_ts))
         {
           part_info->vers_part_rotate(thd);
         }
@@ -7388,6 +7392,39 @@ err:
 }
 #endif
 
+
+/*
+  Prepare for calling val_int on partition function by setting fields to
+  point to the record where the values of the PF-fields are stored.
+
+  SYNOPSIS
+    set_field_ptr()
+    ptr                 Array of fields to change ptr
+    new_buf             New record pointer
+    old_buf             Old record pointer
+
+  DESCRIPTION
+    Set ptr in field objects of field array to refer to new_buf record
+    instead of previously old_buf. Used before calling val_int and after
+    it is used to restore pointers to table->record[0].
+    This routine is placed outside of partition code since it can be useful
+    also for other programs.
+*/
+
+void set_field_ptr(Field **ptr, const uchar *new_buf,
+                   const uchar *old_buf)
+{
+  my_ptrdiff_t diff= (new_buf - old_buf);
+  DBUG_ENTER("set_field_ptr");
+
+  do
+  {
+    (*ptr)->move_field_offset(diff);
+  } while (*(++ptr));
+  DBUG_VOID_RETURN;
+}
+
+
 /*
   Prepare for calling val_int on partition function by setting fields to
   point to the record where the values of the PF-fields are stored.
@@ -7423,6 +7460,61 @@ void set_key_field_ptr(KEY *key_info, const uchar *new_buf,
     key_part++;
   } while (++i < key_parts);
   DBUG_VOID_RETURN;
+}
+
+
+/**
+  Append all fields in read_set to string
+
+  @param[in,out] str   String to append to.
+  @param[in]     row   Row to append.
+  @param[in]     table Table containing read_set and fields for the row.
+*/
+void append_row_to_str(String &str, const uchar *row, TABLE *table)
+{
+  Field **fields, **field_ptr;
+  const uchar *rec;
+  uint num_fields= bitmap_bits_set(table->read_set);
+  uint curr_field_index= 0;
+  bool is_rec0= !row || row == table->record[0];
+  if (!row)
+    rec= table->record[0];
+  else
+    rec= row;
+
+  /* Create a new array of all read fields. */
+  fields= (Field**) my_malloc(sizeof(void*) * (num_fields + 1),
+                              MYF(0));
+  if (!fields)
+    return;
+  fields[num_fields]= NULL;
+  for (field_ptr= table->field;
+       *field_ptr;
+       field_ptr++)
+  {
+    if (!bitmap_is_set(table->read_set, (*field_ptr)->field_index))
+      continue;
+    fields[curr_field_index++]= *field_ptr;
+  }
+
+
+  if (!is_rec0)
+    set_field_ptr(fields, rec, table->record[0]);
+
+  for (field_ptr= fields;
+       *field_ptr;
+       field_ptr++)
+  {
+    Field *field= *field_ptr;
+    str.append(" ");
+    str.append(field->field_name);
+    str.append(":");
+    field_unpack(&str, field, rec, 0, false);
+  }
+
+  if (!is_rec0)
+    set_field_ptr(fields, table->record[0], rec);
+  my_free(fields);
 }
 
 
@@ -8594,5 +8686,53 @@ uint get_partition_field_store_length(Field *field)
   if (field->real_type() == MYSQL_TYPE_VARCHAR)
     store_length+= HA_KEY_BLOB_LENGTH;
   return store_length;
+}
+
+// FIXME: duplicate of ha_partition::set_up_table_before_create
+bool set_up_table_before_create(THD *thd,
+                                TABLE_SHARE *share,
+                                const char *partition_name_with_path,
+                                HA_CREATE_INFO *info,
+                                partition_element *part_elem)
+{
+  bool error= false;
+  const char *partition_name;
+  DBUG_ENTER("set_up_table_before_create");
+
+  DBUG_ASSERT(part_elem);
+
+  if (!part_elem)
+    DBUG_RETURN(true);
+  share->max_rows= part_elem->part_max_rows;
+  share->min_rows= part_elem->part_min_rows;
+  partition_name= strrchr(partition_name_with_path, FN_LIBCHAR);
+  if ((part_elem->index_file_name &&
+      (error= append_file_to_dir(thd,
+                                 const_cast<const char**>(&part_elem->index_file_name),
+                                 partition_name+1))) ||
+      (part_elem->data_file_name &&
+      (error= append_file_to_dir(thd,
+                                 const_cast<const char**>(&part_elem->data_file_name),
+                                 partition_name+1))))
+  {
+    DBUG_RETURN(error);
+  }
+  if (part_elem->index_file_name != NULL)
+  {
+    info->index_file_name= part_elem->index_file_name;
+  }
+  if (part_elem->data_file_name != NULL)
+  {
+    info->data_file_name= part_elem->data_file_name;
+  }
+  if (part_elem->tablespace_name != NULL)
+  {
+    if (check_tablespace_name(part_elem->tablespace_name) != IDENT_NAME_OK)
+    {
+	    DBUG_RETURN(true);
+    }
+    info->tablespace= part_elem->tablespace_name;
+  }
+  DBUG_RETURN(error);
 }
 #endif

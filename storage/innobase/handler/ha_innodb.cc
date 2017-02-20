@@ -147,10 +147,7 @@ TABLE *open_purge_table(THD *thd, const char *db, size_t dblen,
 #include <sstream>
 
 /* for ha_innopart, Native InnoDB Partitioning. */
-/* JAN: TODO: MySQL 5.7 Native InnoDB Partitioning */
-#ifdef HAVE_HA_INNOPART_H
 #include "ha_innopart.h"
-#endif
 
 #include <mysql/plugin.h>
 #include <mysql/service_wsrep.h>
@@ -1620,6 +1617,22 @@ innobase_create_handler(
 #endif
 
 	return(new (mem_root) ha_innobase(hton, table));
+}
+
+static
+handler*
+innobase_upgrade_handler(
+	handler*	hnd,
+	MEM_ROOT*	mem_root)
+{
+	ha_innopart* file = new (mem_root) ha_innopart(
+		static_cast<ha_innobase *>(hnd));
+	if (file && file->init_partitioning(mem_root))
+	{
+		delete file;
+		return(NULL);
+	}
+	return file;
 }
 
 /* General functions */
@@ -3737,10 +3750,7 @@ innobase_init_abort()
 /** Return partitioning flags. */
 static uint innobase_partition_flags()
 {
-	/* JAN: TODO: MYSQL 5.7
-	return(HA_CAN_EXCHANGE_PARTITION | HA_CANNOT_PARTITION_FK);
-	*/
-	return (0);
+	return(HA_ONLY_VERS_PARTITION);
 }
 
 /** Deprecation message about InnoDB file format related parameters */
@@ -3893,6 +3903,7 @@ innobase_init(
 	innobase_hton->vers_query_trx_id = vtq_query_trx_id;
 	innobase_hton->vers_query_commit_ts = vtq_query_commit_ts;
 	innobase_hton->vers_trx_sees = vtq_trx_sees;
+	innobase_hton->vers_upgrade_handler = innobase_upgrade_handler;
 
 	innodb_remember_check_sysvar_funcs();
 
@@ -8522,6 +8533,7 @@ ha_innobase::write_row(
 
 	trx_t*		trx = thd_to_trx(m_user_thd);
 	TrxInInnoDB	trx_in_innodb(trx);
+	ins_mode_t	vers_set_fields;
 
 	if (trx_in_innodb.is_aborted()) {
 
@@ -8722,8 +8734,14 @@ no_commit:
 
 	innobase_srv_conc_enter_innodb(m_prebuilt);
 
+	vers_set_fields = table->versioned() &&
+		(sql_command != SQLCOM_DELETE ||
+		(m_int_table_flags & HA_INNOPART_DISABLED_TABLE_FLAGS)) ?
+			ROW_INS_VERSIONED :
+			ROW_INS_NORMAL;
+
 	/* Step-5: Execute insert graph that will result in actual insert. */
-	error = row_insert_for_mysql((byte*) record, m_prebuilt);
+	error = row_insert_for_mysql((byte*) record, m_prebuilt, vers_set_fields);
 
 	DEBUG_SYNC(m_user_thd, "ib_after_row_insert");
 
@@ -9499,6 +9517,7 @@ ha_innobase::update_row(
 
 	upd_t*		uvect = row_get_prebuilt_update_vector(m_prebuilt);
 	ib_uint64_t	autoinc;
+	bool		vers_set_fields;
 
 	/* Build an update vector from the modified fields in the rows
 	(uses m_upd_buf of the handle) */
@@ -9524,11 +9543,14 @@ ha_innobase::update_row(
 
 	innobase_srv_conc_enter_innodb(m_prebuilt);
 
-	error = row_update_for_mysql((byte*) old_row, m_prebuilt);
+	vers_set_fields = m_prebuilt->upd_node->versioned &&
+		(m_int_table_flags & HA_INNOPART_DISABLED_TABLE_FLAGS);
 
-	if (error == DB_SUCCESS && m_prebuilt->upd_node->versioned) {
+	error = row_update_for_mysql((byte*) old_row, m_prebuilt, vers_set_fields);
+
+	if (error == DB_SUCCESS && vers_set_fields) {
 		if (trx->id != static_cast<trx_id_t>(table->vers_start_field()->val_int()))
-			error = row_insert_for_mysql((byte*) old_row, m_prebuilt, true);
+			error = row_insert_for_mysql((byte*) old_row, m_prebuilt, ROW_INS_HISTORICAL);
 	}
 
 	if (error == DB_SUCCESS && autoinc) {
@@ -9644,11 +9666,13 @@ ha_innobase::delete_row(
 
 	innobase_srv_conc_enter_innodb(m_prebuilt);
 
-	bool delete_history_row =
-		table->versioned() && !table->vers_end_field()->is_max();
+	bool vers_set_fields =
+		table->versioned() &&
+		(m_int_table_flags & HA_INNOPART_DISABLED_TABLE_FLAGS) &&
+		table->vers_end_field()->is_max();
 
 	error = row_update_for_mysql(
-		(byte *)record, m_prebuilt, delete_history_row);
+		(byte *)record, m_prebuilt, vers_set_fields);
 
 	innobase_srv_conc_exit_innodb(m_prebuilt);
 
@@ -14276,16 +14300,14 @@ These errors will abort the current query:
       case HA_ERR_QUERY_INTERRUPTED:
 For other error codes, the server will fall back to counting records. */
 
-#ifdef MYSQL_57_SELECT_COUNT_OPTIMIZATION
-int
-ha_innobase::records(
-/*==================*/
-	ha_rows*			num_rows) /*!< out: number of rows */
+ha_rows
+ha_innobase::records_new() /*!< out: number of rows */
 {
 	DBUG_ENTER("ha_innobase::records()");
 
 	dberr_t		ret;
 	ulint		n_rows = 0;	/* Record count in this view */
+	ha_rows    	num_rows;
 
 	update_thd();
 
@@ -14296,8 +14318,8 @@ ha_innobase::records(
 			ER_TABLESPACE_DISCARDED,
 			table->s->table_name.str);
 
-		*num_rows = HA_POS_ERROR;
-		DBUG_RETURN(HA_ERR_NO_SUCH_TABLE);
+		num_rows = HA_POS_ERROR;
+		DBUG_RETURN(num_rows);
 
 	} else if (m_prebuilt->table->ibd_file_missing) {
 		ib_senderrf(
@@ -14305,8 +14327,8 @@ ha_innobase::records(
 			ER_TABLESPACE_MISSING,
 			table->s->table_name.str);
 
-		*num_rows = HA_POS_ERROR;
-		DBUG_RETURN(HA_ERR_TABLESPACE_MISSING);
+		num_rows = HA_POS_ERROR;
+		DBUG_RETURN(num_rows);
 
 	} else if (m_prebuilt->table->corrupted) {
 		ib_errf(m_user_thd, IB_LOG_LEVEL_WARN,
@@ -14314,8 +14336,8 @@ ha_innobase::records(
 			"Table '%s' is corrupt.",
 			table->s->table_name.str);
 
-		*num_rows = HA_POS_ERROR;
-		DBUG_RETURN(HA_ERR_INDEX_CORRUPT);
+		num_rows = HA_POS_ERROR;
+		DBUG_RETURN(num_rows);
 	}
 
 	TrxInInnoDB	trx_in_innodb(m_prebuilt->trx);
@@ -14330,8 +14352,8 @@ ha_innobase::records(
 		m_prebuilt->trx, index);
 
 	if (!m_prebuilt->index_usable) {
-		*num_rows = HA_POS_ERROR;
-		DBUG_RETURN(HA_ERR_TABLE_DEF_CHANGED);
+		num_rows = HA_POS_ERROR;
+		DBUG_RETURN(num_rows);
 	}
 
 	/* (Re)Build the m_prebuilt->mysql_template if it is null to use
@@ -14350,30 +14372,29 @@ ha_innobase::records(
 	case DB_DEADLOCK:
 	case DB_LOCK_TABLE_FULL:
 	case DB_LOCK_WAIT_TIMEOUT:
-		*num_rows = HA_POS_ERROR;
-		DBUG_RETURN(convert_error_code_to_mysql(ret, 0, m_user_thd));
+		num_rows = HA_POS_ERROR;
+		DBUG_RETURN(num_rows);
 	case DB_INTERRUPTED:
-		*num_rows = HA_POS_ERROR;
-		DBUG_RETURN(HA_ERR_QUERY_INTERRUPTED);
+		num_rows = HA_POS_ERROR;
+		DBUG_RETURN(num_rows);
 	default:
 		/* No other error besides the three below is returned from
 		row_scan_index_for_mysql(). Make a debug catch. */
-		*num_rows = HA_POS_ERROR;
+		num_rows = HA_POS_ERROR;
 		ut_ad(0);
-		DBUG_RETURN(-1);
+		DBUG_RETURN(num_rows);
 	}
 
 	m_prebuilt->trx->op_info = "";
 
 	if (thd_killed(m_user_thd)) {
-		*num_rows = HA_POS_ERROR;
-		DBUG_RETURN(HA_ERR_QUERY_INTERRUPTED);
+		num_rows = HA_POS_ERROR;
+		DBUG_RETURN(num_rows);
 	}
 
-	*num_rows= n_rows;
-	DBUG_RETURN(0);
+	num_rows= n_rows;
+	DBUG_RETURN(num_rows);
 }
-#endif /* MYSQL_57_SELECT_COUNT_OPTIMIZATION */
 
 /*********************************************************************//**
 Estimates the number of index records in a range.
