@@ -16194,6 +16194,7 @@ query_expression_option:
             Select->options|= SELECT_HIGH_PRIORITY;
           }
         | DISTINCT         { Select->options|= SELECT_DISTINCT; }
+        | UNIQUE_SYM       { Select->options|= SELECT_DISTINCT; }
         | SQL_SMALL_RESULT { Select->options|= SELECT_SMALL_RESULT; }
         | SQL_BIG_RESULT   { Select->options|= SELECT_BIG_RESULT; }
         | SQL_BUFFER_RESULT
