@@ -3378,12 +3378,10 @@ int handler::delete_table(const char *name)
   int saved_error= 0;
   int error= 0;
   int enoent_or_zero= ENOENT;                   // Error if no file was deleted
-  char buff[FN_REFLEN];
 
   for (const char **ext=bas_ext(); *ext ; ext++)
   {
-    fn_format(buff, name, "", *ext, MY_UNPACK_FILENAME|MY_APPEND_EXT);
-    if (mysql_file_delete_with_symlink(key_file_misc, buff, MYF(0)))
+    if (my_handler_delete_with_symlink(key_file_misc, name, *ext, 0))
     {
       if (my_errno != ENOENT)
       {

@@ -92,27 +92,6 @@ File my_create_with_symlink(const char *linkname, const char *filename,
 }
 
 /*
-  If the file was a symlink, delete both symlink and the file which the
-  symlink pointed to.
-*/
-
-int my_delete_with_symlink(const char *name, myf MyFlags)
-{
-  char link_name[FN_REFLEN];
-  int was_symlink= (!my_disable_symlinks &&
-		    !my_readlink(link_name, name, MYF(0)));
-  int result;
-  DBUG_ENTER("my_delete_with_symlink");
-
-  if (!(result=my_delete(name, MyFlags)))
-  {
-    if (was_symlink)
-      result=my_delete(link_name, MyFlags);
-  }
-  DBUG_RETURN(result);
-}
-
-/*
   If the file is a normal file, just rename it.
   If the file is a symlink:
    - Create a new file with the name 'to' that points at

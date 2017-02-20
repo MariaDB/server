@@ -435,20 +435,6 @@
 #endif
 
 /**
-  @def mysql_file_delete_with_symlink(K, P1, P2)
-  Instrumented delete with symbolic link.
-  @c mysql_file_delete_with_symlink is a replacement
-  for @c my_delete_with_symlink.
-*/
-#ifdef HAVE_PSI_INTERFACE
-  #define mysql_file_delete_with_symlink(K, P1, P2) \
-  inline_mysql_file_delete_with_symlink(K, __FILE__, __LINE__, P1, P2)
-#else
-  #define mysql_file_delete_with_symlink(K, P1, P2) \
-  inline_mysql_file_delete_with_symlink(P1, P2)
-#endif
-
-/**
   @def mysql_file_rename_with_symlink(K, P1, P2, P3)
   Instrumented rename with symbolic link.
   @c mysql_file_rename_with_symlink is a replacement
@@ -1346,33 +1332,6 @@ inline_mysql_file_create_with_symlink(
     PSI_server->end_file_open_wait_and_bind_to_descriptor(locker, file);
 #endif
   return file;
-}
-
-static inline int
-inline_mysql_file_delete_with_symlink(
-#ifdef HAVE_PSI_INTERFACE
-  PSI_file_key key, const char *src_file, uint src_line,
-#endif
-  const char *name, myf flags)
-{
-  int result;
-#ifdef HAVE_PSI_INTERFACE
-  struct PSI_file_locker *locker= NULL;
-  PSI_file_locker_state state;
-  if (likely(PSI_server != NULL))
-  {
-    locker= PSI_server->get_thread_file_name_locker(&state, key, PSI_FILE_DELETE,
-                                                    name, &locker);
-    if (likely(locker != NULL))
-      PSI_server->start_file_wait(locker, (size_t) 0, src_file, src_line);
-  }
-#endif
-  result= my_delete_with_symlink(name, flags);
-#ifdef HAVE_PSI_INTERFACE
-  if (likely(locker != NULL))
-    PSI_server->end_file_wait(locker, (size_t) 0);
-#endif
-  return result;
 }
 
 static inline int
