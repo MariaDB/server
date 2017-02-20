@@ -3734,8 +3734,8 @@ opt_exception_clause:
         ;
 
 exception_handlers:
-           exception_handler ';'                    { $$= 1; }
-         | exception_handlers exception_handler ';' { $$= $1 + 1; }
+           exception_handler                    { $$= 1; }
+         | exception_handlers exception_handler { $$= $1 + 1; }
         ;
 
 exception_handler:
@@ -3746,7 +3746,7 @@ exception_handler:
           }
           sp_hcond_list
           THEN_SYM
-          sp_proc_stmt
+          sp_proc_stmts1_implicit_block
           {
             if (Lex->sp_handler_declaration_finalize(thd, sp_handler::EXIT))
               MYSQL_YYABORT;

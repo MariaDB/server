@@ -431,3 +431,27 @@ DROP FUNCTION f1;
 --echo #
 --echo # End of MDEV-10587 sql_mode=ORACLE: User defined exceptions
 --echo #
+
+--echo #
+--echo # MDEV-12088 sql_mode=ORACLE: Do not require BEGIN..END in multi-statement exception handlers in THEN clause
+--echo #
+CREATE TABLE t1 (a INT PRIMARY KEY);
+INSERT INTO t1 VALUES (10),(20),(30);
+DELIMITER $$;
+CREATE PROCEDURE p1(a INT) AS
+BEGIN
+  INSERT INTO t1 (a) VALUES (a);
+EXCEPTION
+  WHEN DUP_VAL_ON_INDEX THEN
+    a:= a+1;
+    INSERT INTO t1 VALUES (a);
+  WHEN OTHERS THEN
+    NULL;
+    NULL;
+END;
+$$
+DELIMITER ;$$
+CALL p1(30);
+SELECT * FROM t1;
+DROP PROCEDURE p1;
+DROP TABLE t1;
