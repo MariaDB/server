@@ -337,9 +337,6 @@ void wsrep_init_sidno(const wsrep_uuid_t&);
 
 bool wsrep_node_is_donor();
 bool wsrep_node_is_synced();
-int wsrep_replicate_drop_query(THD *thd, TABLE_LIST *tables, bool if_exists,
-                               bool drop_temporary, bool dont_log_query);
-
 
 #define WSREP_MYSQL_DB (char *)"mysql"
 #define WSREP_TO_ISOLATION_BEGIN(db_, table_, table_list_)                   \
