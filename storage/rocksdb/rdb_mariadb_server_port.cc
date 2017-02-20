@@ -64,7 +64,7 @@ bool Regex_list_handler::set_patterns(const std::string& pattern_str)
     delete m_pattern;
     m_pattern= pattern;
   }
-  catch (const std::regex_error& e)
+  catch (const std::regex_error&)
   {
     // This pattern is invalid.
     pattern_valid= false;

@@ -3,6 +3,10 @@
 # following check is commented out:
 # --source include/have_fullregex.inc
 
+# Unixisms (exec grep)
+--source include/not_windows.inc
+
+
 SET @start_global_value = @@global.ROCKSDB_STRICT_COLLATION_EXCEPTIONS;
 
 --disable_warnings

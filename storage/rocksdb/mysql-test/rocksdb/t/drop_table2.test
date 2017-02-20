@@ -1,5 +1,8 @@
 --source include/have_rocksdb.inc
 
+#Unixisms (--exec truncate, du, grep ,sed)
+--source include/not_windows.inc
+
 --disable_warnings
 DROP TABLE IF EXISTS t1;
 DROP TABLE IF EXISTS t2;

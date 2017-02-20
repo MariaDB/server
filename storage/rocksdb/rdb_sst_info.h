@@ -67,7 +67,7 @@ private:
   const rocksdb::DBOptions &m_db_options;
   uint64_t m_curr_size;
   uint64_t m_max_size;
-  uint m_sst_count;
+  uint32_t m_sst_count;
   std::string m_error_msg;
   std::string m_prefix;
   static std::string m_suffix;

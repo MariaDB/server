@@ -1,5 +1,6 @@
 --source include/have_rocksdb.inc
-
+# Unixisms (exec ls | wc -l)
+--source include/not_windows.inc
 let $ddir = $MYSQL_TMP_DIR/.rocksdb_datadir.test.install.db;
 let $rdb_ddir = $MYSQL_TMP_DIR/.rocksdb_datadir.test;
 let $sql_file = $MYSQL_TMP_DIR/rocksdb_datadir.sql;

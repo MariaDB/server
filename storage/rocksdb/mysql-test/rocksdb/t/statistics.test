@@ -60,7 +60,7 @@ SELECT table_name, data_length>0, index_length>0 FROM information_schema.tables 
 --source include/restart_mysqld.inc
 
 # give the server a chance to load in statistics
---exec sleep 5
+--sleep 5
 
 SELECT table_name, table_rows FROM information_schema.tables WHERE table_schema = DATABASE();
 SELECT table_name, data_length>0, index_length>0 FROM information_schema.tables WHERE table_schema = DATABASE();

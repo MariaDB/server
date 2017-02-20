@@ -1,4 +1,7 @@
 --source include/have_rocksdb.inc
+#Unixism (exec awk)
+-- source include/not_windows.inc
+
 SET @cur_long_query_time = @@long_query_time;
 # Set the long query time to something big so that nothing unexpected gets into it
 SET @@long_query_time = 600;

@@ -7,10 +7,10 @@ INSERT INTO t values (1), (2), (3);
 --error ER_TABLE_EXISTS_ERROR 
 CREATE TABLE t(id int primary key) engine=rocksdb;
 FLUSH TABLES;
---exec mv $MYSQLTEST_VARDIR/mysqld.1/data/test/t.frm $MYSQLTEST_VARDIR/mysqld.1/data/test/t.frm.tmp
---error ER_UNKNOWN_ERROR 
+move_file $MYSQLTEST_VARDIR/mysqld.1/data/test/t.frm $MYSQLTEST_VARDIR/mysqld.1/data/test/t.frm.tmp;
+--error ER_UNKNOWN_ERROR
 CREATE TABLE t(id int primary key) engine=rocksdb;
---exec mv $MYSQLTEST_VARDIR/mysqld.1/data/test/t.frm.tmp $MYSQLTEST_VARDIR/mysqld.1/data/test/t.frm
+move_file $MYSQLTEST_VARDIR/mysqld.1/data/test/t.frm.tmp $MYSQLTEST_VARDIR/mysqld.1/data/test/t.frm;
 FLUSH TABLES;
 SELECT * FROM t;
 DROP TABLE t;

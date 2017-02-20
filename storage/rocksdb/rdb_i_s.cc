@@ -750,7 +750,7 @@ static int rdb_i_s_global_info_fill_table(
   char gtid_buf[GTID_BUF_LEN] = {0};
 
   if (blm->read(file_buf, &pos, gtid_buf)) {
-    snprintf(pos_buf, INT_BUF_LEN, "%lu", (uint64_t)pos);
+    snprintf(pos_buf, INT_BUF_LEN, "%llu", (ulonglong)pos);
     ret |= rdb_global_info_fill_row(thd, tables, "BINLOG", "FILE", file_buf);
     ret |= rdb_global_info_fill_row(thd, tables, "BINLOG", "POS", pos_buf);
     ret |= rdb_global_info_fill_row(thd, tables, "BINLOG", "GTID", gtid_buf);
@@ -1552,7 +1552,7 @@ struct st_maria_plugin rdb_i_s_index_file_map = {
     0,       /* flags */
 };
 
-struct st_mysql_plugin rdb_i_s_lock_info = {
+struct st_maria_plugin rdb_i_s_lock_info = {
     MYSQL_INFORMATION_SCHEMA_PLUGIN,
     &rdb_i_s_info,
     "ROCKSDB_LOCKS",
@@ -1568,7 +1568,7 @@ struct st_mysql_plugin rdb_i_s_lock_info = {
     0,       /* flags */
 };
 
-struct st_mysql_plugin rdb_i_s_trx_info = {
+struct st_maria_plugin rdb_i_s_trx_info = {
     MYSQL_INFORMATION_SCHEMA_PLUGIN,
     &rdb_i_s_info,
     "ROCKSDB_TRX",

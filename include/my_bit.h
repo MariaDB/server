@@ -25,7 +25,6 @@
 
 C_MODE_START
 
-extern const char _my_bits_nbits[256];
 extern const uchar _my_bits_reverse_table[256];
 
 /*
@@ -40,35 +39,30 @@ static inline uint my_bit_log2(ulong value)
   return bit;
 }
 
-static inline uint my_count_bits(ulonglong v)
-{
-#if SIZEOF_LONG_LONG > 4
-  /* The following code is a bit faster on 16 bit machines than if we would
-     only shift v */
-  ulong v2=(ulong) (v >> 32);
-  return (uint) (uchar) (_my_bits_nbits[(uchar)  v] +
-                         _my_bits_nbits[(uchar) (v >> 8)] +
-                         _my_bits_nbits[(uchar) (v >> 16)] +
-                         _my_bits_nbits[(uchar) (v >> 24)] +
-                         _my_bits_nbits[(uchar) (v2)] +
-                         _my_bits_nbits[(uchar) (v2 >> 8)] +
-                         _my_bits_nbits[(uchar) (v2 >> 16)] +
-                         _my_bits_nbits[(uchar) (v2 >> 24)]);
-#else
-  return (uint) (uchar) (_my_bits_nbits[(uchar)  v] +
-                         _my_bits_nbits[(uchar) (v >> 8)] +
-                         _my_bits_nbits[(uchar) (v >> 16)] +
-                         _my_bits_nbits[(uchar) (v >> 24)]);
-#endif
-}
 
+/*
+Count bits in 32bit integer
+
+  Algorithm by Sean Anderson, according to:
+  http://graphics.stanford.edu/~seander/bithacks.html
+  under "Counting bits set, in parallel"
+
+ (Orignal code public domain).
+*/
 static inline uint my_count_bits_uint32(uint32 v)
 {
-  return (uint) (uchar) (_my_bits_nbits[(uchar)  v] +
-                         _my_bits_nbits[(uchar) (v >> 8)] +
-                         _my_bits_nbits[(uchar) (v >> 16)] +
-                         _my_bits_nbits[(uchar) (v >> 24)]);
+  v = v - ((v >> 1) & 0x55555555);
+  v = (v & 0x33333333) + ((v >> 2) & 0x33333333);
+  return (((v + (v >> 4)) & 0xF0F0F0F) * 0x1010101) >> 24;
 }
+
+
+static inline uint my_count_bits(ulonglong x)
+{
+  return my_count_bits_uint32((uint32)x) + my_count_bits_uint32((uint32)(x >> 32));
+}
+
+
 
 
 /*
