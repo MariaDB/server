@@ -18,11 +18,11 @@
 #include <m_string.h>
 #include <errno.h>
 
-#if !defined(O_PATH) && defined(O_EXEC) /* FreeBSD */
-#define O_PATH O_EXEC
-#endif
-
-static int open_nosymlinks(const char *pathname, int flags, int mode);
+CREATE_NOSYMLINK_FUNCTION(
+  open_nosymlinks(const char *pathname, int flags, int mode),
+  openat(dfd, filename, O_NOFOLLOW | flags, mode),
+  open(pathname, O_NOFOLLOW | flags, mode)
+);
 
 /*
   Open a file
@@ -182,81 +182,3 @@ void my_print_open_files(void)
 }
 
 #endif
-
-/**
-  like open(), but with symlinks are not accepted anywhere in the path
-
-  This is used for opening symlinked tables for DATA/INDEX DIRECTORY.
-  The paths there have been realpath()-ed. So, we can assume here that
-
-  * `pathname` is an absolute path
-  * no '.', '..', and '//' in the path
-  * file exists
-*/
-static int open_nosymlinks(const char *pathname, int flags, int mode)
-{
-#ifndef O_PATH
-#ifdef HAVE_REALPATH
-  char buf[PATH_MAX+1];
-  if (realpath(pathname, buf) == NULL)
-    return -1;
-  if (strcmp(pathname, buf))
-  {
-    errno= ENOTDIR;
-    return -1;
-  }
-#endif
-  return open(pathname, flags, mode | O_NOFOLLOW);
-#else
-
-  char buf[PATH_MAX+1];
-  char *s= buf, *e= buf+1, *end= strnmov(buf, pathname, sizeof(buf));
-  int fd, dfd= -1;
-
-  if (*end)
-  {
-    errno= ENAMETOOLONG;
-    return -1;
-  }
-
-  if (*s != '/') /* not an absolute path */
-  {
-    errno= ENOENT;
-    return -1;
-  }
-
-  for (;;)
-  {
-    if (*e == '/') /* '//' in the path */
-    {
-      errno= ENOENT;
-      goto err;
-    }
-    while (*e && *e != '/')
-      e++;
-    *e= 0;
-    if (!memcmp(s, ".", 2) || !memcmp(s, "..", 3))
-    {
-      errno= ENOENT;
-      goto err;
-    }
-
-    fd = openat(dfd, s, O_NOFOLLOW | (e < end ? O_PATH : flags), mode);
-    if (fd < 0)
-      goto err;
-
-    if (dfd >= 0)
-      close(dfd);
-
-    dfd= fd;
-    s= ++e;
-
-    if (e >= end)
-      return fd;
-  }
-err:
-  if (dfd >= 0)
-    close(dfd);
-  return -1;
-#endif
-}

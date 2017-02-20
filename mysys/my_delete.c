@@ -21,6 +21,12 @@
 static int my_win_unlink(const char *name);
 #endif
 
+CREATE_NOSYMLINK_FUNCTION(
+  unlink_nosymlinks(const char *pathname),
+  unlinkat(dfd, filename, 0),
+  unlink(pathname)
+);
+
 int my_delete(const char *name, myf MyFlags)
 {
   int err;
@@ -30,7 +36,10 @@ int my_delete(const char *name, myf MyFlags)
 #ifdef _WIN32
   err = my_win_unlink(name);
 #else
-  err = unlink(name);
+  if (MyFlags & MY_NOSYMLINKS)
+    err= unlink_nosymlinks(name);
+  else
+    err= unlink(name);
 #endif
 
   if(err)
