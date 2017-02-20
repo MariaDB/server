@@ -182,3 +182,31 @@ int my_rename_with_symlink(const char *from, const char *to, myf MyFlags)
   DBUG_RETURN(result);
 #endif /* HAVE_READLINK */
 }
+
+/** delete a - possibly symlinked - table file
+
+  This is used to delete a file that is part of a table (e.g. MYI or MYD
+  file of MyISAM) when dropping a table. A file might be a symlink -
+  if the table was created with DATA DIRECTORY or INDEX DIRECTORY -
+  in this case both the symlink and the symlinked file are deleted,
+  but only if the symlinked file is not in the datadir.
+*/
+int my_handler_delete_with_symlink(PSI_file_key key, const char *name,
+                                   const char *ext, myf sync_dir)
+{
+  char orig[FN_REFLEN], real[FN_REFLEN];
+  int res= 0;
+  DBUG_ENTER("my_handler_delete_with_symlink");
+
+  fn_format(orig, name, "", ext, MY_UNPACK_FILENAME | MY_APPEND_EXT);
+  if (my_is_symlink(orig))
+  {
+    /*
+      Delete the symlinked file only if the symlink is not
+      pointing into datadir.
+    */
+    if (!(my_realpath(real, orig, MYF(0)) || mysys_test_invalid_symlink(real)))
+      res= mysql_file_delete(key, real, MYF(MY_NOSYMLINKS | MY_WME | sync_dir));
+  }
+  DBUG_RETURN(mysql_file_delete(key, orig, MYF(MY_WME | sync_dir)) || res);
+}

@@ -581,6 +581,9 @@ extern File my_create_with_symlink(const char *linkname, const char *filename,
 extern int my_delete_with_symlink(const char *name, myf MyFlags);
 extern int my_rename_with_symlink(const char *from,const char *to,myf MyFlags);
 extern int my_symlink(const char *content, const char *linkname, myf MyFlags);
+extern int my_handler_delete_with_symlink(PSI_file_key key, const char *name,
+                                          const char *ext, myf sync_dir);
+
 extern size_t my_read(File Filedes,uchar *Buffer,size_t Count,myf MyFlags);
 extern size_t my_pread(File Filedes,uchar *Buffer,size_t Count,my_off_t offset,
 		     myf MyFlags);

@@ -199,7 +199,7 @@ int my_sync_dir_by_file(const char *file_name __attribute__((unused)),
   char dir_name[FN_REFLEN];
   size_t dir_name_length;
   dirname_part(dir_name, file_name, &dir_name_length);
-  return my_sync_dir(dir_name, my_flags);
+  return my_sync_dir(dir_name, my_flags & ~MY_NOSYMLINKS);
 #else
   return 0;
 #endif
