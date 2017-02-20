@@ -2817,6 +2817,7 @@ try_again:
 		}
 	} else {
 		ut_a(alloc_type == FSP_CLEANING);
+		reserve = 0;
 	}
 
 	success = fil_space_reserve_free_extents(space, n_free, n_ext);

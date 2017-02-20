@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -171,10 +172,6 @@ trx_purge_sys_close(void)
 
 	sess_close(purge_sys->sess);
 
-	purge_sys->sess = NULL;
-
-	purge_sys->view = NULL;
-
 	rw_lock_free(&purge_sys->latch);
 	mutex_free(&purge_sys->bh_mutex);
 
@@ -183,9 +180,6 @@ trx_purge_sys_close(void)
 	ib_bh_free(purge_sys->ib_bh);
 
 	os_event_free(purge_sys->event);
-
-	purge_sys->event = NULL;
-
 	mem_free(purge_sys);
 
 	purge_sys = NULL;
@@ -1300,20 +1294,16 @@ void
 trx_purge_stop(void)
 /*================*/
 {
-	purge_state_t	state;
-	ib_int64_t	sig_count = os_event_reset(purge_sys->event);
-
 	ut_a(srv_n_purge_threads > 0);
 
 	rw_lock_x_lock(&purge_sys->latch);
 
-	ut_a(purge_sys->state != PURGE_STATE_INIT);
-	ut_a(purge_sys->state != PURGE_STATE_EXIT);
-	ut_a(purge_sys->state != PURGE_STATE_DISABLED);
+	const ib_int64_t	sig_count = os_event_reset(purge_sys->event);
+	const purge_state_t	state = purge_sys->state;
+
+	ut_a(state == PURGE_STATE_RUN || state == PURGE_STATE_STOP);
 
 	++purge_sys->n_stop;
-
-	state = purge_sys->state;
 
 	if (state == PURGE_STATE_RUN) {
 		ib_logf(IB_LOG_LEVEL_INFO, "Stopping purge");
@@ -1326,33 +1316,29 @@ trx_purge_stop(void)
 
 	purge_sys->state = PURGE_STATE_STOP;
 
-	rw_lock_x_unlock(&purge_sys->latch);
-
 	if (state != PURGE_STATE_STOP) {
-
+		rw_lock_x_unlock(&purge_sys->latch);
 		/* Wait for purge coordinator to signal that it
 		is suspended. */
 		os_event_wait_low(purge_sys->event, sig_count);
-	} else { 
-		bool	once = true; 
+	} else {
+		bool	once = true;
 
-		rw_lock_x_lock(&purge_sys->latch);
+		/* Wait for purge to signal that it has actually stopped. */
+		while (purge_sys->running) {
 
-		/* Wait for purge to signal that it has actually stopped. */ 
-		while (purge_sys->running) { 
-
-			if (once) { 
+			if (once) {
 				ib_logf(IB_LOG_LEVEL_INFO,
 					"Waiting for purge to stop");
-				once = false; 
+				once = false;
 			}
 
 			rw_lock_x_unlock(&purge_sys->latch);
 
-			os_thread_sleep(10000); 
+			os_thread_sleep(10000);
 
 			rw_lock_x_lock(&purge_sys->latch);
-		} 
+		}
 
 		rw_lock_x_unlock(&purge_sys->latch);
 	}

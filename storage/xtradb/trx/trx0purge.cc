@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -172,12 +173,8 @@ trx_purge_sys_close(void)
 
 	sess_close(purge_sys->sess);
 
-	purge_sys->sess = NULL;
-
 	read_view_free(purge_sys->prebuilt_view);
 	read_view_free(purge_sys->prebuilt_clone);
-
-	purge_sys->view = NULL;
 
 	rw_lock_free(&purge_sys->latch);
 	mutex_free(&purge_sys->bh_mutex);
@@ -187,9 +184,6 @@ trx_purge_sys_close(void)
 	ib_bh_free(purge_sys->ib_bh);
 
 	os_event_free(purge_sys->event);
-
-	purge_sys->event = NULL;
-
 	mem_free(purge_sys);
 
 	purge_sys = NULL;
@@ -1301,20 +1295,16 @@ void
 trx_purge_stop(void)
 /*================*/
 {
-	purge_state_t	state;
-	ib_int64_t	sig_count = os_event_reset(purge_sys->event);
-
 	ut_a(srv_n_purge_threads > 0);
 
 	rw_lock_x_lock(&purge_sys->latch);
 
-	ut_a(purge_sys->state != PURGE_STATE_INIT);
-	ut_a(purge_sys->state != PURGE_STATE_EXIT);
-	ut_a(purge_sys->state != PURGE_STATE_DISABLED);
+	const ib_int64_t	sig_count = os_event_reset(purge_sys->event);
+	const purge_state_t	state = purge_sys->state;
+
+	ut_a(state == PURGE_STATE_RUN || state == PURGE_STATE_STOP);
 
 	++purge_sys->n_stop;
-
-	state = purge_sys->state;
 
 	if (state == PURGE_STATE_RUN) {
 		ib_logf(IB_LOG_LEVEL_INFO, "Stopping purge");

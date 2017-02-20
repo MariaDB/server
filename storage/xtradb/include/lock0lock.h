@@ -962,7 +962,12 @@ struct lock_sys_t{
 	srv_slot_t*	waiting_threads;	/*!< Array  of user threads
 						suspended while waiting for
 						locks within InnoDB, protected
-						by the lock_sys->wait_mutex */
+						by the lock_sys->wait_mutex;
+						os_event_set() and
+						os_event_reset() on
+						waiting_threads[]->event
+						are protected by
+						trx_t::mutex */
 	srv_slot_t*	last_slot;		/*!< highest slot ever used
 						in the waiting_threads array,
 						protected by
@@ -975,10 +980,11 @@ struct lock_sys_t{
 
 	ulint		n_lock_max_wait_time;	/*!< Max wait time */
 
-	os_event_t	timeout_event;		/*!< Set to the event that is
-						created in the lock wait monitor
-						thread. A value of 0 means the
-						thread is not active */
+	os_event_t	timeout_event;		/*!< An event waited for by
+						lock_wait_timeout_thread.
+						Not protected by a mutex,
+						but the waits are timed.
+						Signaled on shutdown only. */
 
 	bool		timeout_thread_active;	/*!< True if the timeout thread
 						is running */

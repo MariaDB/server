@@ -1032,7 +1032,7 @@ sub print_global_resfile {
   resfile_global("gprof", $opt_gprof ? 1 : 0);
   resfile_global("valgrind", $opt_valgrind ? 1 : 0);
   resfile_global("callgrind", $opt_callgrind ? 1 : 0);
-  resfile_global("mem", $opt_mem ? 1 : 0);
+  resfile_global("mem", $opt_mem);
   resfile_global("tmpdir", $opt_tmpdir);
   resfile_global("vardir", $opt_vardir);
   resfile_global("fast", $opt_fast ? 1 : 0);
@@ -1170,7 +1170,7 @@ sub command_line_setup {
 	     # Directories
              'tmpdir=s'                 => \$opt_tmpdir,
              'vardir=s'                 => \$opt_vardir,
-             'mem'                      => \$opt_mem,
+             'mem:s'                    => \$opt_mem,
 	     'clean-vardir'             => \$opt_clean_vardir,
              'client-bindir=s'          => \$path_client_bindir,
              'client-libdir=s'          => \$path_client_libdir,
@@ -1428,12 +1428,17 @@ sub command_line_setup {
 
     # Search through list of locations that are known
     # to be "fast disks" to find a suitable location
-    # Use --mem=<dir> as first location to look.
-    my @tmpfs_locations= ($opt_mem,"/run/shm", "/dev/shm", "/tmp");
+    my @tmpfs_locations= ("/run/shm", "/dev/shm", "/tmp");
+
+    # Use $ENV{'MTR_MEM'} as first location to look (if defined)
+    unshift(@tmpfs_locations, $ENV{'MTR_MEM'}) if defined $ENV{'MTR_MEM'};
+
+    # however if the opt_mem was given a value, use this first
+    unshift(@tmpfs_locations, $opt_mem) if $opt_mem ne '';
 
     foreach my $fs (@tmpfs_locations)
     {
-      if ( -d $fs )
+      if ( -d $fs && ! -l $fs )
       {
 	my $template= "var_${opt_build_thread}_XXXX";
 	$opt_mem= tempdir( $template, DIR => $fs, CLEANUP => 0);
@@ -4372,11 +4377,9 @@ sub extract_warning_lines ($$) {
      qr/InnoDB: Error: table `test`.`t[12]` .*does not exist in the InnoDB internal/,
      qr/InnoDB: Warning: Setting innodb_use_sys_malloc/,
      qr/InnoDB: Warning: a long semaphore wait:/,
-     qr/InnoDB: Disabling redo log encryption/,
-     qr/InnoDB: Redo log crypto: Can't initialize to key version -1u/,
      qr/InnoDB: Dumping buffer pool.*/,
      qr/InnoDB: Buffer pool.*/,
-     qr/InnoDB: Warning: Writer thread is waiting this semaphore/,
+     qr/InnoDB: Warning: Writer thread is waiting this semaphore:/,
      qr/Slave: Unknown table 't1' .* 1051/,
      qr/Slave SQL:.*(Internal MariaDB error code: [[:digit:]]+|Query:.*)/,
      qr/slave SQL thread aborted/,
@@ -6000,9 +6003,9 @@ Options to control directories to use
   vardir=DIR            The directory where files generated from the test run
                         is stored (default: ./var). Specifying a ramdisk or
                         tmpfs will speed up tests.
-  mem                   Run testsuite in "memory" using tmpfs or ramdisk
-                        Attempts to find a suitable location
-                        using a builtin list of standard locations
+  mem[=DIR]             Run testsuite in "memory" using tmpfs or ramdisk
+                        Attempts to use DIR first if specified else
+                        uses a builtin list of standard locations
                         for tmpfs (/run/shm, /dev/shm, /tmp)
                         The option can also be set using environment
                         variable MTR_MEM=[DIR]

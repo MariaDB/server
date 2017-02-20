@@ -1,7 +1,4 @@
-drop table if exists t1;
-call mtr.add_suppression("option 'innodb-purge-threads': unsigned value 0 adjusted to*");
-set global innodb_stats_persistent = false;
-CREATE TABLE t1 (a int not null primary key) engine=InnoDB;
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB STATS_PERSISTENT=0;
 set global innodb_limit_optimistic_insert_debug = 2;
 insert into t1 values (1);
 insert into t1 values (5);

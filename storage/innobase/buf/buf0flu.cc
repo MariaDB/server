@@ -1,7 +1,7 @@
 /*****************************************************************************
 
-Copyright (c) 1995, 2016, Oracle and/or its affiliates
-Copyright (c) 2013, 2016, MariaDB Corporation
+Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2013, 2017, MariaDB Corporation. All Rights Reserved.
 Copyright (c) 2013, 2014, Fusion-io
 
 This program is free software; you can redistribute it and/or modify it under
@@ -679,10 +679,7 @@ buf_flush_write_complete(
 	flush_type = buf_page_get_flush_type(bpage);
 	buf_pool->n_flush[flush_type]--;
 
-#ifdef UNIV_DEBUG
-	/* fprintf(stderr, "n pending flush %lu\n",
-	buf_pool->n_flush[flush_type]); */
-#endif
+	ut_ad(buf_pool_mutex_own(buf_pool));
 
 	if (buf_pool->n_flush[flush_type] == 0
 	    && buf_pool->init_flush[flush_type] == FALSE) {
