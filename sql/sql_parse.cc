@@ -1631,12 +1631,12 @@ int prepare_schema_table(THD *thd, LEX *lex, Table_ident *table_ident,
 #endif
   case SCH_COLUMNS:
   case SCH_STATISTICS:
-  {
 #ifdef DONT_ALLOW_SHOW_COMMANDS
     my_message(ER_NOT_ALLOWED_COMMAND,
                ER(ER_NOT_ALLOWED_COMMAND), MYF(0)); /* purecov: inspected */
     DBUG_RETURN(1);
 #else
+  {
     DBUG_ASSERT(table_ident);
     TABLE_LIST **query_tables_last= lex->query_tables_last;
     schema_select_lex= new SELECT_LEX();
