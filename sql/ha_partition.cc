@@ -6667,6 +6667,7 @@ int ha_partition::reset(void)
   DBUG_ENTER("ha_partition::reset");
   if (m_part_info)
     bitmap_set_all(&m_part_info->used_partitions);
+  m_extra_prepare_for_update= FALSE;
   file= m_file;
   do
   {
