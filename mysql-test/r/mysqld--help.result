@@ -271,6 +271,15 @@ The following options may be given as the first argument:
  height-balanced.
  --host-cache-size=# How many host names should be cached to avoid resolving.
  (Automatically configured unless set explicitly)
+ --idle-readonly-transaction-timeout=# 
+ The number of seconds the server waits for read-only idle
+ transaction
+ --idle-readwrite-transaction-timeout=# 
+ The number of seconds the server waits for read-write
+ idle transaction
+ --idle-transaction-timeout=# 
+ The number of seconds the server waits for idle
+ transaction
  --ignore-builtin-innodb 
  Disable initialization of builtin InnoDB plugin
  --ignore-db-dirs=name 
@@ -1259,6 +1268,9 @@ help TRUE
 histogram-size 0
 histogram-type SINGLE_PREC_HB
 host-cache-size 279
+idle-readonly-transaction-timeout 0
+idle-readwrite-transaction-timeout 0
+idle-transaction-timeout 0
 ignore-builtin-innodb FALSE
 ignore-db-dirs 
 init-connect 

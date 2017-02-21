@@ -695,6 +695,10 @@ typedef struct system_variables
   my_bool session_track_state_change;
 
   ulong threadpool_priority;
+
+  uint idle_transaction_timeout;
+  uint idle_readonly_transaction_timeout;
+  uint idle_readwrite_transaction_timeout;
 } SV;
 
 /**
@@ -4286,6 +4290,29 @@ public:
     mysql_mutex_lock(&LOCK_thread_count);
     current_linfo= 0;
     mysql_mutex_unlock(&LOCK_thread_count);
+  }
+
+
+  uint get_net_wait_timeout()
+  {
+    if (in_active_multi_stmt_transaction())
+    {
+      if (transaction.all.is_trx_read_write())
+      {
+        if (variables.idle_readwrite_transaction_timeout > 0)
+          return variables.idle_readwrite_transaction_timeout;
+      }
+      else
+      {
+        if (variables.idle_readonly_transaction_timeout > 0)
+          return variables.idle_readonly_transaction_timeout;
+      }
+
+      if (variables.idle_transaction_timeout > 0)
+        return variables.idle_transaction_timeout;
+    }
+
+    return variables.net_wait_timeout;
   }
 };
 

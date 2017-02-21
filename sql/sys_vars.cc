@@ -3519,6 +3519,27 @@ static Sys_var_ulong Sys_net_wait_timeout(
        VALID_RANGE(1, IF_WIN(INT_MAX32/1000, LONG_TIMEOUT)),
        DEFAULT(NET_WAIT_TIMEOUT), BLOCK_SIZE(1));
 
+static Sys_var_uint Sys_idle_transaction_timeout(
+       "idle_transaction_timeout",
+       "The number of seconds the server waits for idle transaction",
+       SESSION_VAR(idle_transaction_timeout), CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(0, IF_WIN(INT_MAX32/1000, LONG_TIMEOUT)),
+       DEFAULT(0), BLOCK_SIZE(1));
+
+static Sys_var_uint Sys_idle_readonly_transaction_timeout(
+       "idle_readonly_transaction_timeout",
+       "The number of seconds the server waits for read-only idle transaction",
+       SESSION_VAR(idle_readonly_transaction_timeout), CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(0, IF_WIN(INT_MAX32/1000, LONG_TIMEOUT)),
+       DEFAULT(0), BLOCK_SIZE(1));
+
+static Sys_var_uint Sys_idle_readwrite_transaction_timeout(
+       "idle_readwrite_transaction_timeout",
+       "The number of seconds the server waits for read-write idle transaction",
+       SESSION_VAR(idle_readwrite_transaction_timeout), CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(0, IF_WIN(INT_MAX32/1000, LONG_TIMEOUT)),
+       DEFAULT(0), BLOCK_SIZE(1));
+
 static Sys_var_plugin Sys_default_storage_engine(
        "default_storage_engine", "The default storage engine for new tables",
        SESSION_VAR(table_plugin), NO_CMD_LINE,

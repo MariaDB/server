@@ -1476,7 +1476,7 @@ struct THD_TRANS
   bool trans_did_wait() const {
     return (m_unsafe_rollback_flags & DID_WAIT) != 0;
   }
-
+  bool is_trx_read_write() const;
 };
 
 
@@ -1574,6 +1574,16 @@ private:
   */
   uchar       m_flags;
 };
+
+
+inline bool THD_TRANS::is_trx_read_write() const
+{
+  Ha_trx_info *ha_info;
+  for (ha_info= ha_list; ha_info; ha_info= ha_info->next())
+    if (ha_info->is_trx_read_write())
+      return TRUE;
+  return FALSE;
+}
 
 
 enum enum_tx_isolation { ISO_READ_UNCOMMITTED, ISO_READ_COMMITTED,

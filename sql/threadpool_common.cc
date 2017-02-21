@@ -199,7 +199,7 @@ void tp_callback(TP_connection *c)
   c->priority= get_priority(c);
 
   /* Read next command from client. */
-  c->set_io_timeout(thd->variables.net_wait_timeout);
+  c->set_io_timeout(thd->get_net_wait_timeout());
   c->state= TP_STATE_IDLE;
   if (c->start_io())
     goto error;

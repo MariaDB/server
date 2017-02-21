@@ -1210,8 +1210,8 @@ bool do_command(THD *thd)
     the client, the connection is closed or "net_wait_timeout"
     number of seconds has passed.
   */
-  if(!thd->skip_wait_timeout)
-    my_net_set_read_timeout(net, thd->variables.net_wait_timeout);
+  if (!thd->skip_wait_timeout)
+    my_net_set_read_timeout(net, thd->get_net_wait_timeout());
 
   /*
     XXX: this code is here only to clear possible errors of init_connect. 
