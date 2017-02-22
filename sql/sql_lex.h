@@ -3099,6 +3099,8 @@ public:
   bool set_system_variable(struct sys_var_with_base *tmp,
                            enum enum_var_type var_type, Item *val);
   void set_stmt_init();
+  sp_name *make_sp_name(THD *thd, LEX_STRING &name);
+  sp_name *make_sp_name(THD *thd, LEX_STRING &name1, LEX_STRING &name2);
   sp_head *make_sp_head(THD *thd, sp_name *name,
                         enum stored_procedure_type type);
   sp_head *make_sp_head_no_recursive(THD *thd, sp_name *name,

@@ -2197,26 +2197,12 @@ clear_privileges:
 sp_name:
           ident '.' ident
           {
-            if (!$1.str || check_db_name(&$1))
-              my_yyabort_error((ER_WRONG_DB_NAME, MYF(0), $1.str));
-            if (check_routine_name(&$3))
-              MYSQL_YYABORT;
-            $$= new (thd->mem_root) sp_name($1, $3, true);
-            if ($$ == NULL)
+            if (!($$= Lex->make_sp_name(thd, $1, $3)))
               MYSQL_YYABORT;
           }
         | ident
           {
-            LEX *lex= thd->lex;
-            LEX_STRING db;
-            if (check_routine_name(&$1))
-            {
-              MYSQL_YYABORT;
-            }
-            if (lex->copy_db_to(&db.str, &db.length))
-              MYSQL_YYABORT;
-            $$= new (thd->mem_root) sp_name(db, $1, false);
-            if ($$ == NULL)
+            if (!($$= Lex->make_sp_name(thd, $1)))
               MYSQL_YYABORT;
           }
         ;
@@ -3090,7 +3076,22 @@ sp_proc_stmt_if:
           sp_if END IF_SYM
           { Lex->sphead->do_cont_backpatch(); }
         ;
-        
+
+sp_statement:
+          statement
+        | IDENT_sys
+          {
+            // Direct procedure call (without the CALL keyword)
+            LEX *lex = Lex;
+            if (!(lex->spname= lex->make_sp_name(thd, $1)))
+              MYSQL_YYABORT;
+            lex->sql_command= SQLCOM_CALL;
+            lex->value_list.empty();
+            sp_add_used_routine(lex, thd, lex->spname, TYPE_ENUM_PROCEDURE);
+          }
+          opt_sp_cparam_list
+        ;
+
 sp_proc_stmt_statement:
           {
             LEX *lex= thd->lex;
@@ -3099,7 +3100,7 @@ sp_proc_stmt_statement:
             lex->sphead->reset_lex(thd);
             lex->sphead->m_tmp_query= lip->get_tok_start();
           }
-          statement
+          sp_statement
           {
             LEX *lex= thd->lex;
             Lex_input_stream *lip= YYLIP;

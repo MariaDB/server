@@ -1966,3 +1966,35 @@ DELIMITER ;$$
 --echo #
 --echo # End of MDEV-10577 sql_mode=ORACLE: %TYPE in variable declarations
 --echo #
+
+
+--echo #
+--echo # MDEV-12107 sql_mode=ORACLE: Inside routines the CALL keywoard is optional
+--echo #
+DELIMITER /;
+CREATE OR REPLACE PROCEDURE p1(a INT) AS
+BEGIN
+  SELECT 'This is p1' AS "comment";
+END;
+/
+CREATE OR REPLACE PROCEDURE p2 AS
+BEGIN
+  SELECT 'This is p2' AS "comment";
+END;
+/
+BEGIN
+  p1(10);
+  p2;
+END;
+/
+CREATE PROCEDURE p3 AS
+BEGIN
+  p1(10);
+  p2;
+END
+/
+DELIMITER ;/
+CALL p3;
+DROP PROCEDURE p3;
+DROP PROCEDURE p2;
+DROP PROCEDURE p1;

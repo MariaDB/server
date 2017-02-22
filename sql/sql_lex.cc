@@ -5588,6 +5588,33 @@ bool LEX::sp_block_finalize(THD *thd, const Lex_spblock_st spblock,
 }
 
 
+sp_name *LEX::make_sp_name(THD *thd, LEX_STRING &name)
+{
+  sp_name *res;
+  LEX_STRING db;
+  if (check_routine_name(&name) ||
+      copy_db_to(&db.str, &db.length) ||
+      (!(res= new (thd->mem_root) sp_name(db, name, false))))
+    return NULL;
+  return res;
+}
+
+
+sp_name *LEX::make_sp_name(THD *thd, LEX_STRING &name1, LEX_STRING &name2)
+{
+  sp_name *res;
+  if (!name1.str || check_db_name(&name1))
+  {
+    my_error(ER_WRONG_DB_NAME, MYF(0), name1.str);
+    return NULL;
+  }
+  if (check_routine_name(&name2) ||
+      (!(res= new (thd->mem_root) sp_name(name1, name2, true))))
+    return NULL;
+  return res;
+}
+
+
 sp_head *LEX::make_sp_head(THD *thd, sp_name *name,
                            enum stored_procedure_type type)
 {

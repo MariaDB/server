@@ -777,7 +777,7 @@ LOOP
 NULL
 END LOOP;
 RETURN total;
-END' at line 2
+END' at line 5
 CREATE FUNCTION f1 (lower_bound INT, upper_bound INT, lim INT) RETURN INT
 AS
 total INT := 0;
@@ -2150,3 +2150,39 @@ END' at line 1
 #
 # End of MDEV-10577 sql_mode=ORACLE: %TYPE in variable declarations
 #
+#
+# MDEV-12107 sql_mode=ORACLE: Inside routines the CALL keywoard is optional
+#
+CREATE OR REPLACE PROCEDURE p1(a INT) AS
+BEGIN
+SELECT 'This is p1' AS "comment";
+END;
+/
+CREATE OR REPLACE PROCEDURE p2 AS
+BEGIN
+SELECT 'This is p2' AS "comment";
+END;
+/
+BEGIN
+p1(10);
+p2;
+END;
+/
+comment
+This is p1
+comment
+This is p2
+CREATE PROCEDURE p3 AS
+BEGIN
+p1(10);
+p2;
+END
+/
+CALL p3;
+comment
+This is p1
+comment
+This is p2
+DROP PROCEDURE p3;
+DROP PROCEDURE p2;
+DROP PROCEDURE p1;

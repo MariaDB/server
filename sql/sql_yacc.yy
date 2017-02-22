@@ -2734,26 +2734,12 @@ clear_privileges:
 sp_name:
           ident '.' ident
           {
-            if (!$1.str || check_db_name(&$1))
-              my_yyabort_error((ER_WRONG_DB_NAME, MYF(0), $1.str));
-            if (check_routine_name(&$3))
-              MYSQL_YYABORT;
-            $$= new (thd->mem_root) sp_name($1, $3, true);
-            if ($$ == NULL)
+            if (!($$= Lex->make_sp_name(thd, $1, $3)))
               MYSQL_YYABORT;
           }
         | ident
           {
-            LEX *lex= thd->lex;
-            LEX_STRING db;
-            if (check_routine_name(&$1))
-            {
-              MYSQL_YYABORT;
-            }
-            if (lex->copy_db_to(&db.str, &db.length))
-              MYSQL_YYABORT;
-            $$= new (thd->mem_root) sp_name(db, $1, false);
-            if ($$ == NULL)
+            if (!($$= Lex->make_sp_name(thd, $1)))
               MYSQL_YYABORT;
           }
         ;
