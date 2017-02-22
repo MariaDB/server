@@ -200,8 +200,6 @@ CREATE PROCEDURE p1 (column_delete OUT INT) AS BEGIN column_delete:=10; END;/
 DROP PROCEDURE p1/
 CREATE PROCEDURE p1 (column_get OUT INT) AS BEGIN column_get:=10; END;/
 DROP PROCEDURE p1/
-CREATE PROCEDURE p1 (commit OUT INT) AS BEGIN commit:=10; END;/
-DROP PROCEDURE p1/
 CREATE PROCEDURE p1 (deallocate OUT INT) AS BEGIN deallocate:=10; END;/
 DROP PROCEDURE p1/
 CREATE PROCEDURE p1 (examined OUT INT) AS BEGIN examined:=10; END;/
@@ -238,13 +236,9 @@ CREATE PROCEDURE p1 (reset OUT INT) AS BEGIN reset:=10; END;/
 DROP PROCEDURE p1/
 CREATE PROCEDURE p1 (restore OUT INT) AS BEGIN restore:=10; END;/
 DROP PROCEDURE p1/
-CREATE PROCEDURE p1 (rollback OUT INT) AS BEGIN rollback:=10; END;/
-DROP PROCEDURE p1/
 CREATE PROCEDURE p1 (security OUT INT) AS BEGIN security:=10; END;/
 DROP PROCEDURE p1/
 CREATE PROCEDURE p1 (server OUT INT) AS BEGIN server:=10; END;/
-DROP PROCEDURE p1/
-CREATE PROCEDURE p1 (shutdown OUT INT) AS BEGIN shutdown:=10; END;/
 DROP PROCEDURE p1/
 CREATE PROCEDURE p1 (signed OUT INT) AS BEGIN signed:=10; END;/
 DROP PROCEDURE p1/
@@ -272,6 +266,13 @@ CREATE PROCEDURE p1 (wrapper OUT INT) AS BEGIN wrapper:=10; END;/
 DROP PROCEDURE p1/
 CREATE PROCEDURE p1 (xa OUT INT) AS BEGIN xa:=10; END;/
 DROP PROCEDURE p1/
+# Testing that keyword_directly_not_assignable does not work in :=
+CREATE PROCEDURE p1 (commit OUT INT) AS BEGIN commit:=10; END;/
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ':=10; END' at line 1
+CREATE PROCEDURE p1 (rollback OUT INT) AS BEGIN rollback:=10; END;/
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ':=10; END' at line 1
+CREATE PROCEDURE p1 (shutdown OUT INT) AS BEGIN shutdown:=10; END;/
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ':=10; END' at line 1
 # Testing that keyword_directly_not_assignable works in SET statements.
 CREATE PROCEDURE p1 (contains OUT INT) AS BEGIN SET contains=10; END;/
 DROP PROCEDURE p1/
@@ -2166,8 +2167,14 @@ END;
 BEGIN
 p1(10);
 p2;
+test.p1(10);
+test.p2;
 END;
 /
+comment
+This is p1
+comment
+This is p2
 comment
 This is p1
 comment
@@ -2176,9 +2183,15 @@ CREATE PROCEDURE p3 AS
 BEGIN
 p1(10);
 p2;
+test.p1(10);
+test.p2;
 END
 /
 CALL p3;
+comment
+This is p1
+comment
+This is p2
 comment
 This is p1
 comment

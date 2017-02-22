@@ -3079,11 +3079,21 @@ sp_proc_stmt_if:
 
 sp_statement:
           statement
-        | IDENT_sys
+        | ident_directly_assignable
           {
             // Direct procedure call (without the CALL keyword)
             LEX *lex = Lex;
             if (!(lex->spname= lex->make_sp_name(thd, $1)))
+              MYSQL_YYABORT;
+            lex->sql_command= SQLCOM_CALL;
+            lex->value_list.empty();
+            sp_add_used_routine(lex, thd, lex->spname, TYPE_ENUM_PROCEDURE);
+          }
+          opt_sp_cparam_list
+        | ident_directly_assignable '.' ident
+          {
+            LEX *lex = Lex;
+            if (!(lex->spname= lex->make_sp_name(thd, $1, $3)))
               MYSQL_YYABORT;
             lex->sql_command= SQLCOM_CALL;
             lex->value_list.empty();
@@ -14317,7 +14327,6 @@ keyword_directly_assignable:
         | COLUMN_CREATE_SYM     {}
         | COLUMN_DELETE_SYM     {}
         | COLUMN_GET_SYM        {}
-        | COMMIT_SYM            {}
         | DEALLOCATE_SYM        {}
         | EXAMINED_SYM          {}
         | EXCLUDE_SYM           {}
@@ -14339,10 +14348,8 @@ keyword_directly_assignable:
         | REMOVE_SYM            {}
         | RESET_SYM             {}
         | RESTORE_SYM           {}
-        | ROLLBACK_SYM          {}
         | SECURITY_SYM          {}
         | SERVER_SYM            {}
-        | SHUTDOWN              {}
         | SIGNED_SYM            {}
         | SOCKET_SYM            {}
         | SLAVE                 {}
@@ -14412,6 +14419,9 @@ keyword_directly_not_assignable:
         | END                   { /* Compound.    Reserved in Oracle */ }
         | FOLLOWS_SYM           { /* Conflicts with assignment in FOR EACH */}
         | PRECEDES_SYM          { /* Conflicts with assignment in FOR EACH */}
+        | COMMIT_SYM            { /* Verb clause. Reserved in Oracle */ }
+        | ROLLBACK_SYM          { /* Verb clause. Reserver in Oracle */ }
+        | SHUTDOWN              { /* Verb clause                     */ }
         ;
 
 /*
