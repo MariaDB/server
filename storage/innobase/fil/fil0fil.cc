@@ -1,7 +1,7 @@
 /*****************************************************************************
 
-Copyright (c) 1995, 2016, Oracle and/or its affiliates.
-Copyright (c) 2013, 2017, MariaDB Corporation.
+Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2014, 2017, MariaDB Corporation. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1028,8 +1028,8 @@ fil_space_extend_must_retry(
 	we have set the node->being_extended flag. */
 	mutex_exit(&fil_system->mutex);
 
-	ulint	start_page_no		= space->size;
-	ulint	file_start_page_no	= start_page_no - node->size;
+	ulint		start_page_no		= space->size;
+	const ulint	file_start_page_no	= start_page_no - node->size;
 
 	/* Determine correct file block size */
 	if (node->file_block_size == 0) {
@@ -1039,7 +1039,6 @@ fil_space_extend_must_retry(
 	}
 
 	ulint	page_size	= fsp_flags_get_zip_size(space->flags);
-	ulint	pages_added	= 0;
 
 	if (!page_size) {
 		page_size = UNIV_PAGE_SIZE;
@@ -1054,51 +1053,56 @@ fil_space_extend_must_retry(
 		? OS_FILE_READ : OS_FILE_WRITE;
 
 	if (srv_use_posix_fallocate) {
-		pages_added = size - space->size;
+		const os_offset_t	start_offset
+			= os_offset_t(start_page_no - file_start_page_no)
+			* page_size;
+		const ulint		n_pages = size - start_page_no;
+		const os_offset_t	len = os_offset_t(n_pages) * page_size;
 
-		const os_offset_t start_offset	= static_cast<os_offset_t>(
-			start_page_no) * page_size;
-		const os_offset_t len		= static_cast<os_offset_t>(
-			pages_added) * page_size;
-
-		*success = !posix_fallocate(node->handle, start_offset, len);
+		int err = posix_fallocate(node->handle, start_offset, len);
+		*success = !err;
 		if (!*success) {
-			ib_logf(IB_LOG_LEVEL_ERROR, "preallocating file "
-				"space for file \'%s\' failed.  Current size "
-				INT64PF ", desired size " INT64PF,
-				node->name, start_offset, len+start_offset);
-			os_file_handle_error_no_exit(
-				node->name, "posix_fallocate",
-				FALSE, __FILE__, __LINE__);
+			ib_logf(IB_LOG_LEVEL_ERROR, "extending file %s"
+				" from " INT64PF " to " INT64PF " bytes"
+				" failed with error %d",
+				node->name, start_offset, len + start_offset,
+				err);
 		}
 
 		DBUG_EXECUTE_IF("ib_os_aio_func_io_failure_28",
-				*success = FALSE; errno = 28;
+				*success = FALSE;
 				os_has_said_disk_full = TRUE;);
 
 		if (*success) {
 			os_has_said_disk_full = FALSE;
-		} else {
-			pages_added = 0;
+			start_page_no = size;
 		}
 	} else
 #else
 	const ulint io_completion_type = OS_FILE_WRITE;
 #endif
 	{
-		byte*	buf2;
-		byte*	buf;
-		ulint	buf_size;
-
+#ifdef _WIN32
+		/* Write 1 page of zeroes at the desired end. */
+		ulint	buf_size = page_size;
+		start_page_no = size - 1;
+#else
 		/* Extend at most 64 pages at a time */
-		buf_size = ut_min(64, size - start_page_no)
+		ulint	buf_size = ut_min(64, size - start_page_no)
 			* page_size;
-		buf2 = static_cast<byte*>(mem_alloc(buf_size + page_size));
-		buf = static_cast<byte*>(ut_align(buf2, page_size));
+#endif
+		byte*	buf2 = static_cast<byte*>(
+			calloc(1, buf_size + page_size));
+		*success = buf2 != NULL;
+		if (!buf2) {
+			ib_logf(IB_LOG_LEVEL_ERROR, "Cannot allocate " ULINTPF
+				" bytes to extend file",
+				buf_size + page_size);
+		}
+		byte* const	buf = static_cast<byte*>(
+			ut_align(buf2, page_size));
 
-		memset(buf, 0, buf_size);
-
-		while (start_page_no < size) {
+		while (*success && start_page_no < size) {
 			ulint		n_pages
 				= ut_min(buf_size / page_size,
 					 size - start_page_no);
@@ -1107,49 +1111,39 @@ fil_space_extend_must_retry(
 				start_page_no - file_start_page_no)
 				* page_size;
 
-			const char* name = node->name == NULL
-				? space->name : node->name;
-
 			*success = os_aio(OS_FILE_WRITE, 0, OS_AIO_SYNC,
-					  name, node->handle, buf,
+					  node->name, node->handle, buf,
 					  offset, page_size * n_pages,
 					  page_size, node, NULL, 0);
 
 			DBUG_EXECUTE_IF("ib_os_aio_func_io_failure_28",
-					*success = FALSE; errno = 28;
+					*success = FALSE;
 					os_has_said_disk_full = TRUE;);
 
 			if (*success) {
 				os_has_said_disk_full = FALSE;
-			} else {
-				/* Let us measure the size of the file
-				to determine how much we were able to
-				extend it */
-				os_offset_t	size;
-
-				size = os_file_get_size(node->handle);
-				ut_a(size != (os_offset_t) -1);
-
-				n_pages = ((ulint) (size / page_size))
-					- node->size - pages_added;
-
-				pages_added += n_pages;
-				break;
 			}
+			/* Let us measure the size of the file
+			to determine how much we were able to
+			extend it */
+			os_offset_t	fsize = os_file_get_size(node->handle);
+			ut_a(fsize != os_offset_t(-1));
 
-			start_page_no += n_pages;
-			pages_added += n_pages;
+			start_page_no = ulint(fsize / page_size)
+				+ file_start_page_no;
 		}
 
-		mem_free(buf2);
+		free(buf2);
 	}
 
 	mutex_enter(&fil_system->mutex);
 
 	ut_a(node->being_extended);
+	ut_a(start_page_no - file_start_page_no >= node->size);
 
-	space->size += pages_added;
-	node->size += pages_added;
+	ulint file_size = start_page_no - file_start_page_no;
+	space->size += file_size - node->size;
+	node->size = file_size;
 
 	fil_node_complete_io(node, fil_system, io_completion_type);
 

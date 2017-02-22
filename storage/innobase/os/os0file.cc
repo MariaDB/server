@@ -2,7 +2,7 @@
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2009, Percona Inc.
-Copyright (c) 2013, 2017, MariaDB Corporation. All Rights Reserved.
+Copyright (c) 2012, 2017, MariaDB Corporation. All Rights Reserved.
 
 Portions of this file contain modifications contributed and copyrighted
 by Percona Inc.. Those modifications are
@@ -2367,48 +2367,47 @@ os_file_set_size(
 	os_file_t	file,	/*!< in: handle to a file */
 	os_offset_t	size)	/*!< in: file size */
 {
-	os_offset_t	current_size;
 	ibool		ret;
 	byte*		buf;
 	byte*		buf2;
 	ulint		buf_size;
 
-	current_size = 0;
-
 #ifdef HAVE_POSIX_FALLOCATE
 	if (srv_use_posix_fallocate) {
-
-		if (posix_fallocate(file, current_size, size) == -1) {
-
-			fprintf(stderr, "InnoDB: Error: preallocating file "
-				"space for file \'%s\' failed.  Current size "
-				"%lu, desired size %lu\n",
-				name, current_size, size);
-			os_file_handle_error_no_exit(name, "posix_fallocate", FALSE, __FILE__, __LINE__);
-
-			return(FALSE);
+		int err = posix_fallocate(file, 0, size);
+		if (err) {
+			ib_logf(IB_LOG_LEVEL_ERROR,
+				"preallocating " INT64PF " bytes for"
+				"file %s failed with error %d",
+				size, name, err);
 		}
-		return(TRUE);
+		return(!err);
 	}
 #endif
 
+#ifdef _WIN32
+	/* Write 1 page of zeroes at the desired end. */
+	buf_size = UNIV_PAGE_SIZE;
+	os_offset_t	current_size = size - buf_size;
+#else
 	/* Write up to 1 megabyte at a time. */
 	buf_size = ut_min(64, (ulint) (size / UNIV_PAGE_SIZE))
 		* UNIV_PAGE_SIZE;
-	buf2 = static_cast<byte*>(ut_malloc(buf_size + UNIV_PAGE_SIZE));
+	os_offset_t	current_size = 0;
+#endif
+	buf2 = static_cast<byte*>(calloc(1, buf_size + UNIV_PAGE_SIZE));
+
+	if (!buf2) {
+		ib_logf(IB_LOG_LEVEL_ERROR,
+			"Cannot allocate " ULINTPF " bytes to extend file\n",
+			buf_size + UNIV_PAGE_SIZE);
+		return(FALSE);
+	}
 
 	/* Align the buffer for possible raw i/o */
 	buf = static_cast<byte*>(ut_align(buf2, UNIV_PAGE_SIZE));
 
-	/* Write buffer full of zeros */
-	memset(buf, 0, buf_size);
-
-	if (size >= (os_offset_t) 100 << 20) {
-
-		fprintf(stderr, "InnoDB: Progress in MB:");
-	}
-
-	while (current_size < size) {
+	do {
 		ulint	n_bytes;
 
 		if (size - current_size < (os_offset_t) buf_size) {
@@ -2420,37 +2419,15 @@ os_file_set_size(
 		ret = os_file_write(name, file, buf, current_size, n_bytes);
 
 		if (!ret) {
-			ut_free(buf2);
-			goto error_handling;
-		}
-
-		/* Print about progress for each 100 MB written */
-		if ((current_size + n_bytes) / (100 << 20)
-		    != current_size / (100 << 20)) {
-
-			fprintf(stderr, " %lu00",
-				(ulong) ((current_size + n_bytes)
-					 / (100 << 20)));
+			break;
 		}
 
 		current_size += n_bytes;
-	}
+	} while (current_size < size);
 
-	if (size >= (os_offset_t) 100 << 20) {
+	free(buf2);
 
-		fprintf(stderr, "\n");
-	}
-
-	ut_free(buf2);
-
-	ret = os_file_flush(file);
-
-	if (ret) {
-		return(TRUE);
-	}
-
-error_handling:
-	return(FALSE);
+	return(ret && os_file_flush(file));
 }
 
 /***********************************************************************//**
