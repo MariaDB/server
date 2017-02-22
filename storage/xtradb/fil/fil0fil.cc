@@ -5056,10 +5056,12 @@ retry:
 	const ulint	file_start_page_no = space->size - node->size;
 #ifdef HAVE_POSIX_FALLOCATE
 	if (srv_use_posix_fallocate) {
-		os_offset_t	start_offset
-			= (start_page_no - file_start_page_no) * page_size;
-		ulint		n_pages = size_after_extend - start_page_no;
-		os_offset_t	len = os_offset_t(n_pages) * page_size;
+		const os_offset_t	start_offset
+			= os_offset_t(start_page_no - file_start_page_no)
+			* page_size;
+		const ulint		n_pages
+			= size_after_extend - start_page_no;
+		const os_offset_t	len = os_offset_t(n_pages) * page_size;
 
 		int err = posix_fallocate(node->handle, start_offset, len);
 		success = !err;
