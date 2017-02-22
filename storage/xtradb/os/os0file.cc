@@ -2009,10 +2009,6 @@ os_file_create_func(
 	attributes |= FILE_FLAG_NO_BUFFERING;
 #else
 	if (purpose == OS_FILE_AIO) {
-
-	bool            encrypt_later;  /*!< should the page be encrypted
-					before write */
-
 #ifdef WIN_ASYNC_IO
 		/* If specified, use asynchronous (overlapped) io and no
 		buffering of writes in the OS */
