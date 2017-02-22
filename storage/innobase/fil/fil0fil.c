@@ -4136,13 +4136,11 @@ fil_extend_space_to_desired_size(
 
 #ifdef HAVE_POSIX_FALLOCATE
 	if (srv_use_posix_fallocate) {
-
 		ib_int64_t	start_offset
 			= (start_page_no - file_start_page_no) * page_size;
-		ib_int64_t	end_offset
-			= (size_after_extend - file_start_page_no) * page_size;
-		int err = posix_fallocate(
-			node->handle, start_offset, end_offset);
+		ib_int64_t	len
+			= (size_after_extend - start_page_no) * page_size;
+		int err = posix_fallocate(node->handle, start_offset, len);
 
 		success = !err;
 
@@ -4151,7 +4149,8 @@ fil_extend_space_to_desired_size(
 				"InnoDB: Error: extending file %s"
 				" from %lld to %lld bytes"
 				" failed with error %d\n",
-				node->name, start_offset, end_offset, err);
+				node->name,
+				start_offset, len + start_offset, err);
 		}
 
 		mutex_enter(&fil_system->mutex);
