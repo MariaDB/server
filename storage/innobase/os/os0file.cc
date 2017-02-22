@@ -355,7 +355,7 @@ UNIV_INTERN ulint	os_n_pending_writes = 0;
 UNIV_INTERN ulint	os_n_pending_reads = 0;
 
 /** After first fallocate failure we will disable os_file_trim */
-UNIV_INTERN ibool       os_fallocate_failed = FALSE;
+static ibool       os_fallocate_failed;
 
 /**********************************************************************//**
 Directly manipulate the allocated disk space by deallocating for the file referred to
@@ -364,7 +364,7 @@ Within the specified range, partial file system blocks are zeroed, and whole
 file system blocks are removed from the file.  After a successful call,
 subsequent reads from  this range will return zeroes.
 @return	true if success, false if error */
-UNIV_INTERN
+static
 ibool
 os_file_trim(
 /*=========*/
@@ -2355,24 +2355,44 @@ os_file_get_size(
 #endif /* __WIN__ */
 }
 
-/***********************************************************************//**
-Write the specified number of zeros to a newly created file.
-@return	TRUE if success */
+/** Set the size of a newly created file.
+@param[in]	name	file name
+@param[in]	file	file handle
+@param[in]	size	desired file size
+@param[in]	sparse	whether to create a sparse file (no preallocating)
+@return	whether the operation succeeded */
 UNIV_INTERN
-ibool
+bool
 os_file_set_size(
-/*=============*/
-	const char*	name,	/*!< in: name of the file or path as a
-				null-terminated string */
-	os_file_t	file,	/*!< in: handle to a file */
-	os_offset_t	size)	/*!< in: file size */
+	const char*	name,
+	os_file_t	file,
+	os_offset_t	size,
+	bool		is_sparse)
 {
-	ibool		ret;
-	byte*		buf;
-	byte*		buf2;
-	ulint		buf_size;
+#ifdef _WIN32
+	FILE_END_OF_FILE_INFO feof;
+	feof.EndOfFile.QuadPart = size;
+	bool success = SetFileInformationByHandle(file,
+						  FileEndOfFileInfo,
+						  &feof, sizeof feof);
+	if (!success) {
+		ib_logf(IB_LOG_LEVEL_ERROR, "os_file_set_size() of file %s"
+			" to " INT64PF " bytes failed with %u",
+			name, size, GetLastError());
+	}
+	return(success);
+#else
+	if (is_sparse) {
+		bool success = !ftruncate(file, size);
+		if (!success) {
+			ib_logf(IB_LOG_LEVEL_ERROR, "ftruncate of file %s"
+				" to " INT64PF " bytes failed with error %d",
+				name, size, errno);
+		}
+		return(success);
+	}
 
-#ifdef HAVE_POSIX_FALLOCATE
+# ifdef HAVE_POSIX_FALLOCATE
 	if (srv_use_posix_fallocate) {
 		int err = posix_fallocate(file, 0, size);
 		if (err) {
@@ -2383,29 +2403,25 @@ os_file_set_size(
 		}
 		return(!err);
 	}
-#endif
+# endif
 
-#ifdef _WIN32
-	/* Write 1 page of zeroes at the desired end. */
-	buf_size = UNIV_PAGE_SIZE;
-	os_offset_t	current_size = size - buf_size;
-#else
 	/* Write up to 1 megabyte at a time. */
-	buf_size = ut_min(64, (ulint) (size / UNIV_PAGE_SIZE))
+	ulint buf_size = ut_min(64, (ulint) (size / UNIV_PAGE_SIZE))
 		* UNIV_PAGE_SIZE;
 	os_offset_t	current_size = 0;
-#endif
-	buf2 = static_cast<byte*>(calloc(1, buf_size + UNIV_PAGE_SIZE));
+
+	byte* buf2 = static_cast<byte*>(calloc(1, buf_size + UNIV_PAGE_SIZE));
 
 	if (!buf2) {
 		ib_logf(IB_LOG_LEVEL_ERROR,
 			"Cannot allocate " ULINTPF " bytes to extend file\n",
 			buf_size + UNIV_PAGE_SIZE);
-		return(FALSE);
+		return(false);
 	}
 
 	/* Align the buffer for possible raw i/o */
-	buf = static_cast<byte*>(ut_align(buf2, UNIV_PAGE_SIZE));
+	byte* buf = static_cast<byte*>(ut_align(buf2, UNIV_PAGE_SIZE));
+	bool ret;
 
 	do {
 		ulint	n_bytes;
@@ -2428,6 +2444,7 @@ os_file_set_size(
 	free(buf2);
 
 	return(ret && os_file_flush(file));
+#endif
 }
 
 /***********************************************************************//**

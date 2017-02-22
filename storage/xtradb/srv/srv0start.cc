@@ -1162,14 +1162,13 @@ check_first_page:
 				(ulong) (srv_data_file_sizes[i]
 					 >> (20 - UNIV_PAGE_SIZE_SHIFT)));
 
-			ib_logf(IB_LOG_LEVEL_INFO,
-				"Database physically writes the"
-				" file full: wait...");
-
 			ret = os_file_set_size(
 				name, files[i],
 				(os_offset_t) srv_data_file_sizes[i]
-				<< UNIV_PAGE_SIZE_SHIFT);
+				<< UNIV_PAGE_SIZE_SHIFT
+				/* TODO: enable page_compression on the
+				system tablespace and add
+				, FSP_FLAGS_HAS_PAGE_COMPRESSION(flags)*/);
 
 			if (!ret) {
 				ib_logf(IB_LOG_LEVEL_ERROR,
@@ -1266,10 +1265,11 @@ srv_undo_tablespace_create(
 			"Setting file %s size to %lu MB",
 			name, size >> (20 - UNIV_PAGE_SIZE_SHIFT));
 
-		ib_logf(IB_LOG_LEVEL_INFO,
-			"Database physically writes the file full: wait...");
-
-		ret = os_file_set_size(name, fh, size << UNIV_PAGE_SIZE_SHIFT);
+		ret = os_file_set_size(name, fh, size << UNIV_PAGE_SIZE_SHIFT
+				       /* TODO: enable page_compression on the
+				       system tablespace and add
+				       FSP_FLAGS_HAS_PAGE_COMPRESSION(flags)
+				       */);
 
 		if (!ret) {
 			ib_logf(IB_LOG_LEVEL_INFO,
