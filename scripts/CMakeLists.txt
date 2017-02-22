@@ -295,6 +295,7 @@ ELSE()
       wsrep_sst_rsync
       wsrep_sst_xtrabackup
       wsrep_sst_xtrabackup-v2
+      wsrep_sst_mariabackup
     )
   ENDIF()
   IF (NOT WITHOUT_SERVER)
