@@ -320,7 +320,7 @@ extern PSI_mutex_key key_LOCK_wsrep_slave_threads;
 extern PSI_mutex_key key_LOCK_wsrep_desync;
 #endif /* HAVE_PSI_INTERFACE */
 struct TABLE_LIST;
-int wsrep_to_isolation_begin(THD *thd, const char * query, char *db_, char *table_,
+int wsrep_to_isolation_begin(THD *thd, char *db_, char *table_,
                              const TABLE_LIST* table_list);
 void wsrep_to_isolation_end(THD *thd);
 void wsrep_cleanup_transaction(THD *thd);
@@ -337,23 +337,5 @@ void wsrep_init_sidno(const wsrep_uuid_t&);
 
 bool wsrep_node_is_donor();
 bool wsrep_node_is_synced();
-
-#define WSREP_MYSQL_DB (char *)"mysql"
-#define WSREP_TO_ISOLATION_BEGIN(db_, table_, table_list_)                   \
-  if (WSREP(thd) && wsrep_to_isolation_begin(thd, NULL, db_, table_, table_list_)) goto error;
-
-#define WSREP_TO_ISOLATION_BEGIN_QUERY(query, db_, table_, table_list_)         \
-  (WSREP(thd) && wsrep_to_isolation_begin(thd, query, db_, table_, table_list_))
-
-#define WSREP_TO_ISOLATION_END                                              \
-  if (WSREP(thd) || (thd && thd->wsrep_exec_mode==TOTAL_ORDER))             \
-    wsrep_to_isolation_end(thd);
-
-/* Checks if lex->no_write_to_binlog is set for statements that use
-  LOCAL or NO_WRITE_TO_BINLOG
-*/
-#define WSREP_TO_ISOLATION_BEGIN_WRTCHK(db_, table_, table_list_)                   \
-  if (WSREP(thd) && !thd->lex->no_write_to_binlog                                   \
-      && wsrep_to_isolation_begin(thd, NULL, db_, table_, table_list_)) goto error;
 
 #endif /* WSREP_MYSQLD_H */

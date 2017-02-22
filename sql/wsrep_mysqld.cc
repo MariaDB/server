@@ -1523,7 +1523,7 @@ static void wsrep_RSU_end(THD *thd)
   thd->variables.wsrep_on = 1;
 }
 
-int wsrep_to_isolation_begin(THD *thd, const char *query, char *db_, char *table_,
+int wsrep_to_isolation_begin(THD *thd, char *db_, char *table_,
                              const TABLE_LIST* table_list)
 {
 
@@ -1579,7 +1579,7 @@ int wsrep_to_isolation_begin(THD *thd, const char *query, char *db_, char *table
   {
     switch (thd->variables.wsrep_OSU_method) {
     case WSREP_OSU_TOI:
-      ret =  wsrep_TOI_begin(thd, query, db_, table_, table_list);
+      ret =  wsrep_TOI_begin(thd, thd->query(), db_, table_, table_list);
       break;
     case WSREP_OSU_RSU:
       ret =  wsrep_RSU_begin(thd, db_, table_);
