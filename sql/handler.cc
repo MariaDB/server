@@ -4209,7 +4209,7 @@ enum_alter_inplace_result
 handler::check_if_supported_inplace_alter(TABLE *altered_table,
                                           Alter_inplace_info *ha_alter_info)
 {
-  DBUG_ENTER("check_if_supported_alter");
+  DBUG_ENTER("handler::check_if_supported_inplace_alter");
 
   HA_CREATE_INFO *create_info= ha_alter_info->create_info;
 
