@@ -80,11 +80,10 @@ if [ -f /etc/redhat-release ] ; then
      echo
      echo
    fi
-   if grep 'CentOS release 6' /etc/redhat-release >/dev/null 2>&1; then
-     if [ -x /usr/sbin/semodule ] ; then
-       /usr/sbin/semodule -i /usr/share/mysql/SELinux/mariadb.pp
-     fi
-   fi
+fi
+
+if [ -x /usr/sbin/semodule ] ; then
+  /usr/sbin/semodule -i /usr/share/mysql/SELinux/mariadb.pp
 fi
 
 if [ -x sbin/restorecon ] ; then
