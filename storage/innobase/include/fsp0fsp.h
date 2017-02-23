@@ -579,14 +579,22 @@ fsp_get_available_space_in_free_extents(
 /**********************************************************************//**
 Frees a single page of a segment. */
 void
-fseg_free_page(
-/*===========*/
+fseg_free_page_func(
 	fseg_header_t*	seg_header, /*!< in: segment header */
 	ulint		space_id, /*!< in: space id */
 	ulint		page,	/*!< in: page offset */
+#ifdef BTR_CUR_HASH_ADAPT
 	bool		ahi,	/*!< in: whether we may need to drop
 				the adaptive hash index */
+#endif /* BTR_CUR_HASH_ADAPT */
 	mtr_t*		mtr);	/*!< in/out: mini-transaction */
+#ifdef BTR_CUR_HASH_ADAPT
+# define fseg_free_page(header, space_id, page, ahi, mtr)	\
+	fseg_free_page_func(header, space_id, page, ahi, mtr)
+#else /* BTR_CUR_HASH_ADAPT */
+# define fseg_free_page(header, space_id, page, ahi, mtr)	\
+	fseg_free_page_func(header, space_id, page, mtr)
+#endif /* BTR_CUR_HASH_ADAPT */
 /**********************************************************************//**
 Checks if a single page of a segment is free.
 @return true if free */
@@ -604,29 +612,43 @@ Doing the freeing in a single mini-transaction might result in
 too big a mini-transaction.
 @return TRUE if freeing completed */
 ibool
-fseg_free_step(
-/*===========*/
+fseg_free_step_func(
 	fseg_header_t*	header,	/*!< in, own: segment header; NOTE: if the header
 				resides on the first page of the frag list
 				of the segment, this pointer becomes obsolete
 				after the last freeing step */
+#ifdef BTR_CUR_HASH_ADAPT
 	bool		ahi,	/*!< in: whether we may need to drop
 				the adaptive hash index */
+#endif /* BTR_CUR_HASH_ADAPT */
 	mtr_t*		mtr)	/*!< in/out: mini-transaction */
 	MY_ATTRIBUTE((warn_unused_result));
+#ifdef BTR_CUR_HASH_ADAPT
+# define fseg_free_step(header, ahi, mtr) fseg_free_step_func(header, ahi, mtr)
+#else /* BTR_CUR_HASH_ADAPT */
+# define fseg_free_step(header, ahi, mtr) fseg_free_step_func(header, mtr)
+#endif /* BTR_CUR_HASH_ADAPT */
 /**********************************************************************//**
 Frees part of a segment. Differs from fseg_free_step because this function
 leaves the header page unfreed.
 @return TRUE if freeing completed, except the header page */
 ibool
-fseg_free_step_not_header(
-/*======================*/
+fseg_free_step_not_header_func(
 	fseg_header_t*	header,	/*!< in: segment header which must reside on
 				the first fragment page of the segment */
+#ifdef BTR_CUR_HASH_ADAPT
 	bool		ahi,	/*!< in: whether we may need to drop
 				the adaptive hash index */
+#endif /* BTR_CUR_HASH_ADAPT */
 	mtr_t*		mtr)	/*!< in/out: mini-transaction */
 	MY_ATTRIBUTE((warn_unused_result));
+#ifdef BTR_CUR_HASH_ADAPT
+# define fseg_free_step_not_header(header, ahi, mtr)	\
+	fseg_free_step_not_header_func(header, ahi, mtr)
+#else /* BTR_CUR_HASH_ADAPT */
+# define fseg_free_step_not_header(header, ahi, mtr)	\
+	fseg_free_step_not_header_func(header, mtr)
+#endif /* BTR_CUR_HASH_ADAPT */
 
 /** Checks if a page address is an extent descriptor page address.
 @param[in]	page_id		page id

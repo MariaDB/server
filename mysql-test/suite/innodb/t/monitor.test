@@ -1,12 +1,16 @@
-# This is the test for Metrics Monitor Table feature.
-# Test the metrics monitor system's control system
-# and counter accuracy.
+# This test used to be duplicated in the following:
+# sys_vars.innodb_monitor_reset_basic
+# sys_vars.innodb_monitor_reset_all_basic
+# sys_vars.innodb_monitor_disable_basic
+# sys_vars.innodb_monitor_enable_basic
 
 --source include/have_innodb.inc
 set global innodb_monitor_disable = All;
 # Test turn on/off the monitor counter  with "all" option
-# By default, they will be off
-select name, status from information_schema.innodb_metrics;
+# By default, they will be off.
+# Skip the adaptive_hash fields, because they depend on WITH_INNODB_AHI.
+select name, status from information_schema.innodb_metrics
+where name NOT LIKE 'adaptive_hash_%';
 
 # Turn on all monitor counters
 set global innodb_monitor_enable = all;
@@ -370,9 +374,66 @@ drop table monitor_test;
 set global innodb_monitor_disable = All;
 set global innodb_monitor_reset_all = all;
 
+# Test for bug #13966091
+select 1 from `information_schema`.`INNODB_METRICS`
+where case (1) when (1) then (AVG_COUNT_RESET) else (1) end;
+
 -- disable_warnings
 set global innodb_monitor_enable = default;
 set global innodb_monitor_disable = default;
 set global innodb_monitor_reset = default;
 set global innodb_monitor_reset_all = default;
 -- enable_warnings
+
+--echo #
+--echo # Bug#22576241 SETTING INNODB_MONITOR_ENABLE TO ALL DOES NOT ENABLE ALL
+--echo # MONITORS
+--echo #
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+
+let $innodb_monitor_enable = `SELECT @@innodb_monitor_enable`;
+
+--replace_regex /[1-9]/NNNN/
+SELECT NAME, COUNT FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME
+LIKE 'buffer_page_written_index_leaf';
+
+SET GLOBAL innodb_monitor_enable='module_buffer_page';
+INSERT INTO t1 VALUES (1), (2), (3), (4); FLUSH TABLES t1 FOR EXPORT;
+UNLOCK TABLES;
+--replace_regex /[1-9]/NNNN/
+SELECT NAME, COUNT FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME
+LIKE 'buffer_page_written_index_leaf';
+
+SET GLOBAL innodb_monitor_disable='module_buffer_page';
+SET GLOBAL innodb_monitor_reset_all='module_buffer_page';
+--replace_regex /[1-9]/NNNN/
+SELECT NAME, COUNT FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME
+LIKE 'buffer_page_written_index_leaf';
+
+SET GLOBAL innodb_monitor_enable='%';
+INSERT INTO t1 VALUES (5), (6), (7), (8); FLUSH TABLES t1 FOR EXPORT;
+UNLOCK TABLES;
+--replace_regex /[1-9]/NNNN/
+SELECT NAME, COUNT FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME
+LIKE 'buffer_page_written_index_leaf';
+
+SET GLOBAL innodb_monitor_disable='%';
+SET GLOBAL innodb_monitor_reset_all='%';
+--replace_regex /[1-9]/NNNN/
+SELECT NAME, COUNT FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME
+LIKE 'buffer_page_written_index_leaf';
+
+SET GLOBAL innodb_monitor_enable='ALL';
+INSERT INTO t1 VALUES (9), (10), (11), (12); FLUSH TABLES t1 FOR EXPORT;
+UNLOCK TABLES;
+--replace_regex /[1-9]/NNNN/
+SELECT NAME, COUNT FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME
+LIKE 'buffer_page_written_index_leaf';
+
+--disable_warnings
+SET GLOBAL innodb_monitor_enable=default;
+SET GLOBAL innodb_monitor_disable=default;
+SET GLOBAL innodb_monitor_reset_all=default;
+--enable_warnings
+
+DROP TABLE t1;

@@ -1536,7 +1536,9 @@ buf_block_init(
 
 	ut_d(block->page.file_page_was_freed = FALSE);
 
+#ifdef BTR_CUR_HASH_ADAPT
 	block->index = NULL;
+#endif /* BTR_CUR_HASH_ADAPT */
 	block->skip_flush_check = false;
 
 	ut_d(block->page.in_page_hash = FALSE);
@@ -1547,9 +1549,11 @@ buf_block_init(
 	ut_d(block->in_unzip_LRU_list = FALSE);
 	ut_d(block->in_withdraw_list = FALSE);
 
-#if defined UNIV_AHI_DEBUG || defined UNIV_DEBUG
+#ifdef BTR_CUR_HASH_ADAPT
+# if defined UNIV_AHI_DEBUG || defined UNIV_DEBUG
 	block->n_pointers = 0;
-#endif /* UNIV_AHI_DEBUG || UNIV_DEBUG */
+# endif /* UNIV_AHI_DEBUG || UNIV_DEBUG */
+#endif /* BTR_CUR_HASH_ADAPT */
 	page_zip_des_init(&block->page.zip);
 
 	mutex_create(LATCH_ID_BUF_BLOCK_MUTEX, &block->mutex);
@@ -2260,11 +2264,13 @@ buf_page_realloc(
 
 		/* set other flags of buf_block_t */
 
+#ifdef BTR_CUR_HASH_ADAPT
 		ut_ad(!block->index);
 		new_block->index	= NULL;
 		new_block->n_hash_helps	= 0;
 		new_block->n_fields	= 1;
 		new_block->left_side	= TRUE;
+#endif /* BTR_CUR_HASH_ADAPT */
 
 		new_block->lock_hash_val = block->lock_hash_val;
 		ut_ad(new_block->lock_hash_val == lock_rec_hash(
@@ -2726,7 +2732,7 @@ buf_pool_resize()
 
 		buf_pool_mutex_exit(buf_pool);
 	}
-
+#ifdef BTR_CUR_HASH_ADAPT
 	/* disable AHI if needed */
 	bool	btr_search_disabled = false;
 
@@ -2745,6 +2751,7 @@ buf_pool_resize()
 	if (btr_search_disabled) {
 		ib::info() << "disabled adaptive hash index.";
 	}
+#endif /* BTR_CUR_HASH_ADAPT */
 
 	/* set withdraw target */
 	for (ulint i = 0; i < srv_buf_pool_instances; i++) {
@@ -3116,7 +3123,10 @@ calc_buf_pool_size:
 		dict_resize();
 
 		ib::info() << "Resized hash tables at lock_sys,"
-			" adaptive hash index, dictionary.";
+#ifdef BTR_CUR_HASH_ADAPT
+			" adaptive hash index,"
+#endif /* BTR_CUR_HASH_ADAPT */
+			" dictionary.";
 	}
 
 	/* normalize ibuf->max_size */
@@ -3130,11 +3140,13 @@ calc_buf_pool_size:
 		srv_buf_pool_old_size = srv_buf_pool_size;
 	}
 
+#ifdef BTR_CUR_HASH_ADAPT
 	/* enable AHI if needed */
 	if (btr_search_disabled) {
 		btr_search_enable();
 		ib::info() << "Re-enabled adaptive hash index.";
 	}
+#endif /* BTR_CUR_HASH_ADAPT */
 
 	char	now[32];
 
@@ -3196,11 +3208,10 @@ DECLARE_THREAD(buf_resize_thread)(void*)
 	OS_THREAD_DUMMY_RETURN;
 }
 
-/********************************************************************//**
-Clears the adaptive hash index on all pages in the buffer pool. */
+#ifdef BTR_CUR_HASH_ADAPT
+/** Clear the adaptive hash index on all pages in the buffer pool. */
 void
-buf_pool_clear_hash_index(void)
-/*===========================*/
+buf_pool_clear_hash_index()
 {
 	ulint	p;
 
@@ -3237,6 +3248,7 @@ buf_pool_clear_hash_index(void)
 		}
 	}
 }
+#endif /* BTR_CUR_HASH_ADAPT */
 
 /********************************************************************//**
 Relocate a buffer control block.  Relocates the block on the LRU list
@@ -3920,13 +3932,15 @@ buf_block_init_low(
 /*===============*/
 	buf_block_t*	block)	/*!< in: block to init */
 {
-	block->index		= NULL;
 	block->skip_flush_check = false;
+#ifdef BTR_CUR_HASH_ADAPT
+	block->index		= NULL;
 
 	block->n_hash_helps	= 0;
 	block->n_fields		= 1;
 	block->n_bytes		= 0;
 	block->left_side	= TRUE;
+#endif /* BTR_CUR_HASH_ADAPT */
 }
 
 /********************************************************************//**
@@ -3998,6 +4012,7 @@ buf_zip_decompress(
 	return(FALSE);
 }
 
+#ifdef BTR_CUR_HASH_ADAPT
 /** Get a buffer block from an adaptive hash index pointer.
 This function does not return if the block is not identified.
 @param[in]	ptr	pointer to within a page frame
@@ -4040,6 +4055,7 @@ buf_block_from_ahi(const byte* ptr)
 	ut_ad(state == BUF_BLOCK_FILE_PAGE || state == BUF_BLOCK_REMOVE_HASH);
 	return(block);
 }
+#endif /* BTR_CUR_HASH_ADAPT */
 
 /********************************************************************//**
 Find out if a pointer belongs to a buf_block_t. It can be a pointer to

@@ -64,9 +64,6 @@ struct btr_latch_leaves_t {
 #include "row0types.h"
 #include "ha0ha.h"
 
-#define BTR_CUR_ADAPT
-#define BTR_CUR_HASH_ADAPT
-
 #ifdef UNIV_DEBUG
 /*********************************************************//**
 Returns the page cursor component of a tree cursor.
@@ -980,17 +977,19 @@ inherited external field. */
 
 /** Number of searches down the B-tree in btr_cur_search_to_nth_level(). */
 extern ulint	btr_cur_n_non_sea;
-/** Number of successful adaptive hash index lookups in
-btr_cur_search_to_nth_level(). */
-extern ulint	btr_cur_n_sea;
 /** Old value of btr_cur_n_non_sea.  Copied by
 srv_refresh_innodb_monitor_stats().  Referenced by
 srv_printf_innodb_monitor(). */
 extern ulint	btr_cur_n_non_sea_old;
+#ifdef BTR_CUR_HASH_ADAPT
+/** Number of successful adaptive hash index lookups in
+btr_cur_search_to_nth_level(). */
+extern ulint	btr_cur_n_sea;
 /** Old value of btr_cur_n_sea.  Copied by
 srv_refresh_innodb_monitor_stats().  Referenced by
 srv_printf_innodb_monitor(). */
 extern ulint	btr_cur_n_sea_old;
+#endif /* BTR_CUR_HASH_ADAPT */
 
 #ifdef UNIV_DEBUG
 /* Flag to limit optimistic insert records */

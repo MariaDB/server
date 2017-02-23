@@ -31,6 +31,7 @@ Created 2/17/1996 Heikki Tuuri
 *************************************************************************/
 
 #include "btr0sea.h"
+#ifdef BTR_CUR_HASH_ADAPT
 #ifdef UNIV_NONINL
 #include "btr0sea.ic"
 #endif /* UNIV_NOINL */
@@ -373,43 +374,6 @@ btr_search_enable()
 	btr_search_x_lock_all();
 	btr_search_enabled = true;
 	btr_search_x_unlock_all();
-}
-
-/** Creates and initializes a search info struct.
-@param[in]	heap		heap where created.
-@return own: search info struct */
-btr_search_t*
-btr_search_info_create(mem_heap_t* heap)
-{
-	btr_search_t*	info;
-
-	info = (btr_search_t*) mem_heap_alloc(heap, sizeof(btr_search_t));
-
-	ut_d(info->magic_n = BTR_SEARCH_MAGIC_N);
-
-	info->ref_count = 0;
-	info->root_guess = NULL;
-	info->withdraw_clock = 0;
-
-	info->hash_analysis = 0;
-	info->n_hash_potential = 0;
-
-	info->last_hash_succ = FALSE;
-
-#ifdef UNIV_SEARCH_PERF_STAT
-	info->n_hash_succ = 0;
-	info->n_hash_fail = 0;
-	info->n_patt_succ = 0;
-	info->n_searches = 0;
-#endif /* UNIV_SEARCH_PERF_STAT */
-
-	/* Set some sensible values */
-	info->n_fields = 1;
-	info->n_bytes = 0;
-
-	info->left_side = TRUE;
-
-	return(info);
 }
 
 /** Returns the value of ref_count. The value is protected by latch.
@@ -2177,3 +2141,4 @@ btr_search_validate()
 }
 
 #endif /* defined UNIV_AHI_DEBUG || defined UNIV_DEBUG */
+#endif /* BTR_CUR_HASH_ADAPT */

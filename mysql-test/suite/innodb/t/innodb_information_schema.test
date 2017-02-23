@@ -17,10 +17,6 @@
 
 SET storage_engine=InnoDB;
 
--- disable_warnings
-DROP TABLE IF EXISTS t_min, t_max;
--- enable_warnings
-
 let $table_def =
 (
 	c01 TINYINT,
@@ -182,13 +178,13 @@ DROP TABLE t_min, t_max, ```t'\"_str`;
 # INFORMATION_SCHEMA.INNODB_TRX
 #
 
+CREATE TABLE t1 LIKE INFORMATION_SCHEMA.INNODB_TRX;
+-- error 0,ER_CANT_DROP_FIELD_OR_KEY
+ALTER TABLE t1 DROP COLUMN trx_adaptive_hash_latched;
 -- enable_result_log
-DESCRIBE INFORMATION_SCHEMA.INNODB_TRX;
+DESCRIBE t1;
 -- disable_result_log
-
--- disable_warnings
-DROP TABLE IF EXISTS t1;
--- enable_warnings
+DROP TABLE t1;
 
 CREATE TABLE t1 (
 	c01 INT,

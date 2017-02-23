@@ -105,22 +105,24 @@ throughput clearly from about 100000. */
 #define BTR_CUR_FINE_HISTORY_LENGTH	100000
 
 /** Number of searches down the B-tree in btr_cur_search_to_nth_level(). */
-ulint	btr_cur_n_non_sea	= 0;
-/** Number of successful adaptive hash index lookups in
-btr_cur_search_to_nth_level(). */
-ulint	btr_cur_n_sea		= 0;
+ulint	btr_cur_n_non_sea;
 /** Old value of btr_cur_n_non_sea.  Copied by
 srv_refresh_innodb_monitor_stats().  Referenced by
 srv_printf_innodb_monitor(). */
-ulint	btr_cur_n_non_sea_old	= 0;
+ulint	btr_cur_n_non_sea_old;
+#ifdef BTR_CUR_HASH_ADAPT
+/** Number of successful adaptive hash index lookups in
+btr_cur_search_to_nth_level(). */
+ulint	btr_cur_n_sea;
 /** Old value of btr_cur_n_sea.  Copied by
 srv_refresh_innodb_monitor_stats().  Referenced by
 srv_printf_innodb_monitor(). */
-ulint	btr_cur_n_sea_old	= 0;
+ulint	btr_cur_n_sea_old;
+#endif /* BTR_CUR_HASH_ADAPT */
 
 #ifdef UNIV_DEBUG
 /* Flag to limit optimistic insert records */
-uint	btr_cur_limit_optimistic_insert_debug = 0;
+uint	btr_cur_limit_optimistic_insert_debug;
 #endif /* UNIV_DEBUG */
 
 /** In the optimistic insert, if the insert does not fit, but this much space
@@ -953,7 +955,7 @@ btr_cur_search_to_nth_level(
 
 	if (has_search_latch) {
 		/* Release possible search latch to obey latching order */
-		rw_lock_s_unlock(btr_get_search_latch(index));
+		btr_search_s_unlock(index);
 	}
 
 	/* Store the position of the tree latch we push to mtr so that we
@@ -1477,6 +1479,7 @@ retry_page_get:
 			cursor->low_match =
 				DICT_INDEX_SPATIAL_NODEPTR_SIZE + 1;
 		}
+#ifdef BTR_CUR_HASH_ADAPT
 	} else if (height == 0 && btr_search_enabled
 		   && !dict_index_is_spatial(index)) {
 		/* The adaptive hash index is only used when searching
@@ -1486,6 +1489,7 @@ retry_page_get:
 		page_cur_search_with_match_bytes(
 			block, index, tuple, page_mode, &up_match, &up_bytes,
 			&low_match, &low_bytes, page_cursor);
+#endif /* BTR_CUR_HASH_ADAPT */
 	} else {
 		/* Search for complete index fields. */
 		up_bytes = low_bytes = 0;
@@ -1966,7 +1970,7 @@ need_opposite_intention:
 					 index, autoinc, mtr, false);
 		}
 
-#ifdef BTR_CUR_ADAPT
+#ifdef BTR_CUR_HASH_ADAPT
 		/* We do a dirty read of btr_search_enabled here.  We
 		will properly check btr_search_enabled again in
 		btr_search_build_page_hash_index() before building a
@@ -1978,7 +1982,7 @@ need_opposite_intention:
 		    ) {
 			btr_search_info_update(index, cursor);
 		}
-#endif
+#endif /* BTR_CUR_HASH_ADAPT */
 		ut_ad(cursor->up_match != ULINT_UNDEFINED
 		      || mode != PAGE_CUR_GE);
 		ut_ad(cursor->up_match != ULINT_UNDEFINED
@@ -2014,8 +2018,7 @@ func_exit:
 	}
 
 	if (has_search_latch) {
-
-		rw_lock_s_lock(btr_get_search_latch(index));
+		btr_search_s_lock(index);
 	}
 
 	if (mbr_adj) {
@@ -3271,12 +3274,12 @@ btr_cur_pessimistic_insert(
 		}
 	}
 
-#ifdef BTR_CUR_ADAPT
+#ifdef BTR_CUR_HASH_ADAPT
 # ifdef MYSQL_INDEX_DISABLE_AHI
 	if (index->disable_ahi); else
 # endif
 	btr_search_update_hash_on_insert(cursor);
-#endif
+#endif /* BTR_CUR_HASH_ADAPT */
 	if (inherit && !(flags & BTR_NO_LOCKING_FLAG)) {
 
 		lock_update_insert(btr_cur_get_block(cursor), *rec);
@@ -3609,7 +3612,6 @@ btr_cur_update_in_place(
 	rec_t*		rec;
 	roll_ptr_t	roll_ptr	= 0;
 	ulint		was_delete_marked;
-	ibool		is_hashed;
 
 	rec = btr_cur_get_rec(cursor);
 	index = cursor->index;
@@ -3668,9 +3670,8 @@ btr_cur_update_in_place(
 	was_delete_marked = rec_get_deleted_flag(
 		rec, page_is_comp(buf_block_get_frame(block)));
 
-	is_hashed = (block->index != NULL);
-
-	if (is_hashed) {
+#ifdef BTR_CUR_HASH_ADAPT
+	if (block->index) {
 		/* TO DO: Can we skip this if none of the fields
 		index->search_info->curr_n_fields
 		are being updated? */
@@ -3687,14 +3688,17 @@ btr_cur_update_in_place(
 			btr_search_update_hash_on_delete(cursor);
 		}
 
-		rw_lock_x_lock(btr_get_search_latch(index));
+		btr_search_x_lock(index);
 	}
+#endif /* BTR_CUR_HASH_ADAPT */
 
 	row_upd_rec_in_place(rec, index, offsets, update, page_zip);
 
-	if (is_hashed) {
-		rw_lock_x_unlock(btr_get_search_latch(index));
+#ifdef BTR_CUR_HASH_ADAPT
+	if (block->index) {
+		btr_search_x_unlock(index);
 	}
+#endif /* BTR_CUR_HASH_ADAPT */
 
 	btr_cur_update_in_place_log(flags, rec, index, update,
 				    trx_id, roll_ptr, mtr);

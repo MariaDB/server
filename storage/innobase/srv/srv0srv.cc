@@ -1219,7 +1219,9 @@ srv_refresh_innodb_monitor_stats(void)
 
 	os_aio_refresh_stats();
 
+#ifdef BTR_CUR_HASH_ADAPT
 	btr_cur_n_sea_old = btr_cur_n_sea;
+#endif /* BTR_CUR_HASH_ADAPT */
 	btr_cur_n_non_sea_old = btr_cur_n_non_sea;
 
 	log_refresh_stats();
@@ -1350,6 +1352,7 @@ srv_printf_innodb_monitor(
 	      "-------------------------------------\n", file);
 	ibuf_print(file);
 
+#ifdef BTR_CUR_HASH_ADAPT
 	for (ulint i = 0; i < btr_ahi_parts; ++i) {
 		rw_lock_s_lock(btr_search_latches[i]);
 		ha_print_info(file, btr_search_sys->hash_tables[i]);
@@ -1363,6 +1366,12 @@ srv_printf_innodb_monitor(
 		(btr_cur_n_non_sea - btr_cur_n_non_sea_old)
 		/ time_elapsed);
 	btr_cur_n_sea_old = btr_cur_n_sea;
+#else /* BTR_CUR_HASH_ADAPT */
+	fprintf(file,
+		"%.2f non-hash searches/s\n",
+		(btr_cur_n_non_sea - btr_cur_n_non_sea_old)
+		/ time_elapsed);
+#endif /* BTR_CUR_HASH_ADAPT */
 	btr_cur_n_non_sea_old = btr_cur_n_non_sea;
 
 	fputs("---\n"

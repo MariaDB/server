@@ -571,7 +571,9 @@ ibuf_init_at_db_start(void)
 	ibuf->index->n_uniq = REC_MAX_N_FIELDS;
 	rw_lock_create(index_tree_rw_lock_key, &ibuf->index->lock,
 		       SYNC_IBUF_INDEX_TREE);
+#ifdef BTR_CUR_ADAPT
 	ibuf->index->search_info = btr_search_info_create(ibuf->index->heap);
+#endif /* BTR_CUR_ADAPT */
 	ibuf->index->page = FSP_IBUF_TREE_ROOT_PAGE_NO;
 	ut_d(ibuf->index->cached = TRUE);
 	return (error);
@@ -3954,7 +3956,9 @@ ibuf_insert_to_index_page(
 	ut_ad(!dict_index_is_online_ddl(index));// this is an ibuf_dummy index
 	ut_ad(ibuf_inside(mtr));
 	ut_ad(dtuple_check_typed(entry));
+#ifdef BTR_CUR_HASH_ADAPT
 	ut_ad(!block->index);
+#endif /* BTR_CUR_HASH_ADAPT */
 	ut_ad(mtr->is_named_space(block->page.id.space()));
 
 	if (UNIV_UNLIKELY(dict_table_is_comp(index->table)

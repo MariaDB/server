@@ -395,11 +395,11 @@ extern "C"
 os_thread_ret_t
 DECLARE_THREAD(buf_resize_thread)(void*);
 
-/********************************************************************//**
-Clears the adaptive hash index on all pages in the buffer pool. */
+#ifdef BTR_CUR_HASH_ADAPT
+/** Clear the adaptive hash index on all pages in the buffer pool. */
 void
-buf_pool_clear_hash_index(void);
-/*===========================*/
+buf_pool_clear_hash_index();
+#endif /* BTR_CUR_HASH_ADAPT */
 
 /*********************************************************************//**
 Gets the current size of buffer buf_pool in bytes.
@@ -1210,12 +1210,14 @@ if applicable. */
 #define buf_block_get_page_zip(block) \
 	((block)->page.zip.data ? &(block)->page.zip : NULL)
 
+#ifdef BTR_CUR_HASH_ADAPT
 /** Get a buffer block from an adaptive hash index pointer.
 This function does not return if the block is not identified.
 @param[in]	ptr	pointer to within a page frame
 @return pointer to block, never NULL */
 buf_block_t*
 buf_block_from_ahi(const byte* ptr);
+#endif /* BTR_CUR_HASH_ADAPT */
 
 /********************************************************************//**
 Find out if a pointer belongs to a buf_block_t. It can be a pointer to
@@ -1799,6 +1801,7 @@ struct buf_block_t{
 					bufferfixed, or (2) the thread has an
 					x-latch on the block */
 	/* @} */
+#ifdef BTR_CUR_HASH_ADAPT
 	/** @name Hash search fields (unprotected)
 	NOTE that these fields are NOT protected by any semaphore! */
 	/* @{ */
@@ -1830,11 +1833,11 @@ struct buf_block_t{
 
 	/* @{ */
 
-#if defined UNIV_AHI_DEBUG || defined UNIV_DEBUG
+# if defined UNIV_AHI_DEBUG || defined UNIV_DEBUG
 	ulint		n_pointers;	/*!< used in debugging: the number of
 					pointers in the adaptive hash index
 					pointing to this frame */
-#endif /* UNIV_AHI_DEBUG || UNIV_DEBUG */
+# endif /* UNIV_AHI_DEBUG || UNIV_DEBUG */
 	unsigned	curr_n_fields:10;/*!< prefix length for hash indexing:
 					number of full fields */
 	unsigned	curr_n_bytes:15;/*!< number of bytes in hash
@@ -1849,6 +1852,7 @@ struct buf_block_t{
 					complete, though: there may
 					have been hash collisions,
 					record deletions, etc. */
+#endif /* BTR_CUR_HASH_ADAPT */
 	bool		skip_flush_check;
 					/*!< Skip check in buf_dblwr_check_block
 					during bulk load, protected by lock.*/

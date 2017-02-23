@@ -878,6 +878,7 @@ struct dict_index_t{
 				representation we add more columns */
 	unsigned	nulls_equal:1;
 				/*!< if true, SQL NULL == SQL NULL */
+#ifdef BTR_CUR_HASH_ADAPT
 #ifdef MYSQL_INDEX_DISABLE_AHI
  	unsigned	disable_ahi:1;
 				/*!< whether to disable the
@@ -885,6 +886,7 @@ struct dict_index_t{
 				Maybe this could be disabled for
 				temporary tables? */
 #endif
+#endif /* BTR_CUR_HASH_ADAPT */
 	unsigned	n_uniq:10;/*!< number of fields from the beginning
 				which are enough to determine an index
 				entry uniquely */
@@ -923,8 +925,10 @@ struct dict_index_t{
 				column in ALTER */
 	UT_LIST_NODE_T(dict_index_t)
 			indexes;/*!< list of indexes of the table */
+#ifdef BTR_CUR_ADAPT
 	btr_search_t*	search_info;
 				/*!< info used in optimistic searches */
+#endif /* BTR_CUR_ADAPT */
 	row_log_t*	online_log;
 				/*!< the log of modifications
 				during online index creation;

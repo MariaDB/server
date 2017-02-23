@@ -2843,7 +2843,9 @@ innodb_shutdown()
 	ut_ad(buf_dblwr || !srv_was_started || srv_read_only_mode
 	      || srv_force_recovery >= SRV_FORCE_NO_TRX_UNDO);
 	ut_ad(lock_sys || !srv_was_started);
+#ifdef BTR_CUR_HASH_ADAPT
 	ut_ad(btr_search_sys || !srv_was_started);
+#endif /* BTR_CUR_HASH_ADAPT */
 	ut_ad(ibuf || !srv_was_started);
 	ut_ad(log_sys || !srv_was_started);
 
@@ -2864,9 +2866,11 @@ innodb_shutdown()
 	/* This must be disabled before closing the buffer pool
 	and closing the data dictionary.  */
 
+#ifdef BTR_CUR_HASH_ADAPT
 	if (dict_sys) {
 		btr_search_disable(true);
 	}
+#endif /* BTR_CUR_HASH_ADAPT */
 	if (ibuf) {
 		ibuf_close();
 	}
@@ -2901,9 +2905,11 @@ innodb_shutdown()
 		dict_close();
 	}
 
+#ifdef BTR_CUR_HASH_ADAPT
 	if (btr_search_sys) {
 		btr_search_sys_free();
 	}
+#endif /* BTR_CUR_HASH_ADAPT */
 
 	/* 3. Free all InnoDB's own mutexes and the os_fast_mutexes inside
 	them */

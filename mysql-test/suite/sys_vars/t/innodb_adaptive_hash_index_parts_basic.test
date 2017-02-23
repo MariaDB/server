@@ -1,4 +1,5 @@
 --source include/have_innodb.inc
+--source include/have_innodb_ahi.inc
 
 ####################################################################
 #   Displaying default value                                       #

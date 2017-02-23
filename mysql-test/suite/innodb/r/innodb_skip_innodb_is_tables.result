@@ -1,5 +1,6 @@
-select * from information_schema.innodb_trx;
-trx_id	trx_state	trx_started	trx_requested_lock_id	trx_wait_started	trx_weight	trx_mysql_thread_id	trx_query	trx_operation_state	trx_tables_in_use	trx_tables_locked	trx_lock_structs	trx_lock_memory_bytes	trx_rows_locked	trx_rows_modified	trx_concurrency_tickets	trx_isolation_level	trx_unique_checks	trx_foreign_key_checks	trx_last_foreign_key_error	trx_adaptive_hash_latched	trx_adaptive_hash_timeout	trx_is_read_only	trx_autocommit_non_locking
+select count(*) from information_schema.innodb_trx;
+count(*)
+0
 Warnings:
 Warning	1012	InnoDB: SELECTing from INFORMATION_SCHEMA.innodb_trx but the InnoDB storage engine is not installed
 select * from information_schema.innodb_locks;
@@ -34,7 +35,8 @@ select * from information_schema.innodb_cmpmem_reset;
 page_size	buffer_pool_instance	pages_used	pages_free	relocation_ops	relocation_time
 Warnings:
 Warning	1012	InnoDB: SELECTing from INFORMATION_SCHEMA.innodb_cmpmem_reset but the InnoDB storage engine is not installed
-select * from information_schema.innodb_metrics;
+select * from information_schema.innodb_metrics
+WHERE name NOT LIKE 'adaptive_hash_%';
 NAME	SUBSYSTEM	COUNT	MAX_COUNT	MIN_COUNT	AVG_COUNT	COUNT_RESET	MAX_COUNT_RESET	MIN_COUNT_RESET	AVG_COUNT_RESET	TIME_ENABLED	TIME_DISABLED	TIME_ELAPSED	TIME_RESET	STATUS	TYPE	COMMENT
 metadata_table_handles_opened	metadata	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	disabled	counter	Number of table handles opened
 metadata_table_handles_closed	metadata	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	disabled	counter	Number of table handles closed
@@ -228,14 +230,6 @@ index_page_merge_successful	index	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NU
 index_page_reorg_attempts	index	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	disabled	counter	Number of index page reorganization attempts
 index_page_reorg_successful	index	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	disabled	counter	Number of successful index page reorganizations
 index_page_discards	index	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	disabled	counter	Number of index pages discarded
-adaptive_hash_searches	adaptive_hash_index	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	disabled	status_counter	Number of successful searches using Adaptive Hash Index
-adaptive_hash_searches_btree	adaptive_hash_index	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	disabled	status_counter	Number of searches using B-tree on an index search
-adaptive_hash_pages_added	adaptive_hash_index	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	disabled	counter	Number of index pages on which the Adaptive Hash Index is built
-adaptive_hash_pages_removed	adaptive_hash_index	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	disabled	counter	Number of index pages whose corresponding Adaptive Hash Index entries were removed
-adaptive_hash_rows_added	adaptive_hash_index	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	disabled	counter	Number of Adaptive Hash Index rows added
-adaptive_hash_rows_removed	adaptive_hash_index	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	disabled	counter	Number of Adaptive Hash Index rows removed
-adaptive_hash_rows_deleted_no_hash_entry	adaptive_hash_index	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	disabled	counter	Number of rows deleted that did not have corresponding Adaptive Hash Index entries
-adaptive_hash_rows_updated	adaptive_hash_index	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	disabled	counter	Number of Adaptive Hash Index rows updated
 file_num_open_files	file_system	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	disabled	value	Number of files currently open (innodb_num_open_files)
 ibuf_merges_insert	change_buffer	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	disabled	status_counter	Number of inserted records merged by change buffering
 ibuf_merges_delete_mark	change_buffer	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	disabled	status_counter	Number of deleted records merged by change buffering
@@ -336,12 +330,14 @@ select * from information_schema.innodb_ft_index_table;
 WORD	FIRST_DOC_ID	LAST_DOC_ID	DOC_COUNT	DOC_ID	POSITION
 select * from information_schema.innodb_ft_config;
 KEY	VALUE
-select * from information_schema.innodb_buffer_page;
-POOL_ID	BLOCK_ID	SPACE	PAGE_NUMBER	PAGE_TYPE	FLUSH_TYPE	FIX_COUNT	IS_HASHED	NEWEST_MODIFICATION	OLDEST_MODIFICATION	ACCESS_TIME	TABLE_NAME	INDEX_NAME	NUMBER_RECORDS	DATA_SIZE	COMPRESSED_SIZE	PAGE_STATE	IO_FIX	IS_OLD	FREE_PAGE_CLOCK
+select count(*) from information_schema.innodb_buffer_page;
+count(*)
+0
 Warnings:
 Warning	1012	InnoDB: SELECTing from INFORMATION_SCHEMA.innodb_buffer_page but the InnoDB storage engine is not installed
-select * from information_schema.innodb_buffer_page_lru;
-POOL_ID	LRU_POSITION	SPACE	PAGE_NUMBER	PAGE_TYPE	FLUSH_TYPE	FIX_COUNT	IS_HASHED	NEWEST_MODIFICATION	OLDEST_MODIFICATION	ACCESS_TIME	TABLE_NAME	INDEX_NAME	NUMBER_RECORDS	DATA_SIZE	COMPRESSED_SIZE	COMPRESSED	IO_FIX	IS_OLD	FREE_PAGE_CLOCK
+select count(*) from information_schema.innodb_buffer_page_lru;
+count(*)
+0
 Warnings:
 Warning	1012	InnoDB: SELECTing from INFORMATION_SCHEMA.innodb_buffer_page_lru but the InnoDB storage engine is not installed
 select * from information_schema.innodb_buffer_stats;

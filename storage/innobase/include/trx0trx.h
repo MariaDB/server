@@ -58,12 +58,14 @@ class FlushObserver;
 /** Dummy session used currently in MySQL interface */
 extern sess_t*	trx_dummy_sess;
 
-/**
-Releases the search latch if trx has reserved it.
-@param[in,out] trx		Transaction that may own the AHI latch */
-UNIV_INLINE
-void
-trx_search_latch_release_if_reserved(trx_t* trx);
+#ifdef BTR_CUR_HASH_ADAPT
+/** Assert that the transaction is not holding the adaptive hash index latch.
+@param[in] trx		transaction */
+# define trx_assert_no_search_latch(trx) \
+	ut_ad(!trx->has_search_latch)
+#else /* BTR_CUR_HASH_ADAPT */
+# define trx_assert_no_search_latch(trx)
+#endif
 
 /** Set flush observer for the transaction
 @param[in/out]	trx		transaction struct
@@ -1075,9 +1077,11 @@ struct trx_t {
 					flush the log in
 					trx_commit_complete_for_mysql() */
 	ulint		duplicates;	/*!< TRX_DUP_IGNORE | TRX_DUP_REPLACE */
+#ifdef BTR_CUR_HASH_ADAPT
 	bool		has_search_latch;
 					/*!< TRUE if this trx has latched the
 					search system latch in S-mode */
+#endif /* BTR_CUR_HASH_ADAPT */
 	trx_dict_op_t	dict_operation;	/**< @see enum trx_dict_op_t */
 
 	/* Fields protected by the srv_conc_mutex. */
@@ -1478,7 +1482,7 @@ private:
 
 		/* Only the owning thread should release the latch. */
 
-		trx_search_latch_release_if_reserved(trx);
+		trx_assert_no_search_latch(trx);
 
 		trx_mutex_enter(trx);
 
@@ -1531,7 +1535,7 @@ private:
 
 		/* Only the owning thread should release the latch. */
 
-		trx_search_latch_release_if_reserved(trx);
+		trx_assert_no_search_latch(trx);
 
 		trx_mutex_enter(trx);
 

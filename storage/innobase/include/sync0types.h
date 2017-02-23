@@ -1070,6 +1070,7 @@ struct sync_check_functor_t {
 	virtual bool result() const = 0;
 };
 
+#ifdef BTR_CUR_HASH_ADAPT
 /** Functor to check whether the calling thread owns the btr search mutex. */
 struct btrsea_sync_check : public sync_check_functor_t {
 
@@ -1116,6 +1117,7 @@ private:
 	/** If the caller owns the search latch */
 	const bool	m_has_search_latch;
 };
+#endif /* BTR_CUR_HASH_ADAPT */
 
 /** Functor to check for dictionay latching constraints. */
 struct dict_sync_check : public sync_check_functor_t {

@@ -1553,6 +1553,7 @@ rtr_copy_buf(
 	/* Skip buf_block_t::lock */
 	matches->block.lock_hash_val = block->lock_hash_val;
 	matches->block.modify_clock = block->modify_clock;
+#ifdef BTR_CUR_HASH_ADAPT
 	matches->block.n_hash_helps = block->n_hash_helps;
 	matches->block.n_fields = block->n_fields;
 	matches->block.left_side = block->left_side;
@@ -1562,7 +1563,7 @@ rtr_copy_buf(
 	matches->block.curr_n_fields = block->curr_n_fields;
 	matches->block.curr_left_side = block->curr_left_side;
 	matches->block.index = block->index;
-
+#endif /* BTR_CUR_HASH_ADAPT */
 	ut_d(matches->block.debug_latch = block->debug_latch);
 
 }
