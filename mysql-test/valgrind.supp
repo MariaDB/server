@@ -1089,6 +1089,15 @@
    fun:SSL_library_init
 }
 
+{
+   OpenSSL still reachable.
+   Memcheck:Leak
+   fun:*alloc
+   fun:CRYPTO_malloc
+   fun:sk_new
+   fun:SSL_COMP_get_compression_methods
+   fun:SSL_library_init
+}
 
 {
    OpenSSL still reachable.
