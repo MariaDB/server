@@ -22,8 +22,14 @@ include_directories(
   ${ONIGMO_INCLUDE_DIRS}
   ${MRUBY_INCLUDE_DIRS}
   ${LIBLZ4_INCLUDE_DIRS})
-link_directories(
-  ${LIBLZ4_LIBRARY_DIRS})
+if (LIBLZ4_LIBRARY_DIRS)
+  find_library(LZ4_LIBS
+    NAMES ${LIBLZ4_LIBRARIES}
+    PATHS ${LIBLZ4_LIBRARY_DIRS}
+    NO_DEFAULT_PATH)
+else()
+  set(LZ4_LIBS ${LIBLZ4_LIBRARIES})
+endif()
 
 read_file_list(${CMAKE_CURRENT_SOURCE_DIR}/sources.am LIBGROONGA_SOURCES)
 read_file_list(${CMAKE_CURRENT_SOURCE_DIR}/dat/sources.am LIBGRNDAT_SOURCES)
@@ -60,7 +66,7 @@ set(GRN_ALL_LIBRARIES
     ${RT_LIBS}
     ${PTHREAD_LIBS}
     ${Z_LIBS}
-    ${LIBLZ4_LIBRARIES}
+    ${LZ4_LIBS}
     ${DL_LIBS}
     ${M_LIBS}
     ${WS2_32_LIBS}
