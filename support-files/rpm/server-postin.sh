@@ -82,7 +82,7 @@ if [ -f /etc/redhat-release ] ; then
    fi
    if grep 'CentOS release 6' /etc/redhat-release >/dev/null 2>&1; then
      if [ -x /usr/sbin/semodule ] ; then
-       /usr/sbin/semodule -i /usr/share/mysql/SELinux/centos6-mariadb.pp
+       /usr/sbin/semodule -i /usr/share/mysql/SELinux/mariadb.pp
      fi
    fi
 fi
