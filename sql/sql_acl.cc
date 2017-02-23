@@ -6285,12 +6285,12 @@ static int handle_grant_struct(enum enum_acl_lists struct_no, bool drop,
       switch ( struct_no ) {
       case USER_ACL:
         acl_user->user= strdup_root(&mem, user_to->user.str);
-        acl_user->host.hostname= strdup_root(&mem, user_to->host.str);
+        update_hostname(&acl_user->host, strdup_root(&mem, user_to->host.str));
         break;
 
       case DB_ACL:
         acl_db->user= strdup_root(&mem, user_to->user.str);
-        acl_db->host.hostname= strdup_root(&mem, user_to->host.str);
+        update_hostname(&acl_db->host, strdup_root(&mem, user_to->host.str));
         break;
 
       case COLUMN_PRIVILEGES_HASH:
