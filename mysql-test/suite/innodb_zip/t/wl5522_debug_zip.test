@@ -1,21 +1,17 @@
-# Not supported in embedded
+# mysql-test-run.pl --embedded cannot restart the server.
 --source include/not_embedded.inc
 
 # This test case needs to crash the server. Needs a debug server.
 --source include/have_debug.inc
 
-# Don't test this under valgrind, memory leaks will occur.
+# Valgrind can hang or return spurious messages on DBUG_SUICIDE
 --source include/not_valgrind.inc
 
 # Avoid CrashReporter popup on Mac
 --source include/not_crashrep.inc
 
 -- source include/have_innodb.inc
-
-# compressed table in tests are with sizes KEY_BLOCK_SIZE 1,2,4,8,16 
-# Table creatation fails if KEY_BLOCK_SIZE > innodb-page-size,so 
-# allow test to run only when innodb-page-size=16  
---source include/have_innodb_16k.inc
+-- source include/have_innodb_zip.inc
 
 call mtr.add_suppression("InnoDB: Tablespace for table .* is set as discarded.");
 call mtr.add_suppression("InnoDB: Cannot calculate statistics for table .* because the .ibd file is missing. Please refer to .* for how to resolve the issue.");
@@ -41,7 +37,7 @@ INSERT INTO test_wl5522.t1 VALUES (1), (2), (3), (4);
 FLUSH TABLES test_wl5522.t1 FOR EXPORT;
 
 perl;
-do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+do "$ENV{MTR_SUITE_DIR}/../innodb/include/innodb-util.pl";
 ib_backup_tablespaces("test_wl5522", "t1");
 EOF
 UNLOCK TABLES;
@@ -55,7 +51,7 @@ INSERT INTO test_wl5522.t1 VALUES (1);
 ALTER TABLE test_wl5522.t1 DISCARD TABLESPACE;
 
 perl;
-do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+do "$ENV{MTR_SUITE_DIR}/../innodb/include/innodb-util.pl";
 ib_discard_tablespaces("test_wl5522", "t1");
 EOF
 
@@ -64,7 +60,7 @@ SELECT COUNT(*) FROM test_wl5522.t1;
 
 # Restore files
 perl;
-do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+do "$ENV{MTR_SUITE_DIR}/../innodb/include/innodb-util.pl";
 ib_restore_tablespaces("test_wl5522", "t1");
 EOF
 
@@ -107,7 +103,7 @@ ALTER TABLE test_wl5522.t1 IMPORT TABLESPACE;
 # recreate the table and do a proper import.
 -- source include/wait_until_disconnected.inc
 perl;
-do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+do "$ENV{MTR_SUITE_DIR}/../innodb/include/innodb-util.pl";
 ib_unlink_tablespace("test_wl5522", "t1");
 EOF
 
@@ -132,7 +128,7 @@ ROW_FORMAT=COMPRESSED;
 ALTER TABLE test_wl5522.t1 DISCARD TABLESPACE;
 
 perl;
-do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+do "$ENV{MTR_SUITE_DIR}/../innodb/include/innodb-util.pl";
 ib_restore_tablespaces("test_wl5522", "t1");
 EOF
 
@@ -158,7 +154,7 @@ SELECT COUNT(*) FROM test_wl5522.t1;
 
 # Restore files
 perl;
-do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+do "$ENV{MTR_SUITE_DIR}/../innodb/include/innodb-util.pl";
 ib_restore_tablespaces("test_wl5522", "t1");
 EOF
 
@@ -175,7 +171,7 @@ SET SESSION debug_dbug=@saved_debug_dbug;
 
 # Restore files
 perl;
-do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+do "$ENV{MTR_SUITE_DIR}/../innodb/include/innodb-util.pl";
 ib_restore_tablespaces("test_wl5522", "t1");
 EOF
 
@@ -195,7 +191,7 @@ SELECT COUNT(*) FROM test_wl5522.t1;
 
 # Restore files
 perl;
-do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+do "$ENV{MTR_SUITE_DIR}/../innodb/include/innodb-util.pl";
 ib_restore_tablespaces("test_wl5522", "t1");
 EOF
 
@@ -209,7 +205,7 @@ ALTER TABLE test_wl5522.t1 IMPORT TABLESPACE;
 
 # Restore files
 perl;
-do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+do "$ENV{MTR_SUITE_DIR}/../innodb/include/innodb-util.pl";
 ib_restore_tablespaces("test_wl5522", "t1");
 EOF
 
@@ -226,7 +222,7 @@ SET SESSION debug_dbug=@saved_debug_dbug;
 
 # Restore files
 perl;
-do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+do "$ENV{MTR_SUITE_DIR}/../innodb/include/innodb-util.pl";
 ib_restore_tablespaces("test_wl5522", "t1");
 EOF
 
@@ -241,7 +237,7 @@ SET SESSION debug_dbug=@saved_debug_dbug;
 
 # Restore files
 perl;
-do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+do "$ENV{MTR_SUITE_DIR}/../innodb/include/innodb-util.pl";
 ib_restore_tablespaces("test_wl5522", "t1");
 EOF
 
@@ -255,7 +251,7 @@ SET SESSION debug_dbug=@saved_debug_dbug;
 
 # Restore files
 perl;
-do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+do "$ENV{MTR_SUITE_DIR}/../innodb/include/innodb-util.pl";
 ib_restore_tablespaces("test_wl5522", "t1");
 EOF
 
@@ -269,7 +265,7 @@ SET SESSION debug_dbug=@saved_debug_dbug;
 
 # Restore files
 perl;
-do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+do "$ENV{MTR_SUITE_DIR}/../innodb/include/innodb-util.pl";
 ib_restore_tablespaces("test_wl5522", "t1");
 EOF
 
@@ -283,7 +279,7 @@ SET SESSION debug_dbug=@saved_debug_dbug;
 
 # Restore files
 perl;
-do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+do "$ENV{MTR_SUITE_DIR}/../innodb/include/innodb-util.pl";
 ib_restore_tablespaces("test_wl5522", "t1");
 EOF
 
@@ -297,7 +293,7 @@ SET SESSION debug_dbug=@saved_debug_dbug;
 
 # Left over from the failed IMPORT
 perl;
-do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+do "$ENV{MTR_SUITE_DIR}/../innodb/include/innodb-util.pl";
 ib_unlink_tablespace("test_wl5522", "t1");
 EOF
 
@@ -323,7 +319,7 @@ CREATE TABLE test_wl5522.t1 (
 	INDEX idx1(c2),
 	INDEX idx2(c3(512)),
 	INDEX idx3(c4(512))) Engine=InnoDB
-        ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8;
+        ROW_FORMAT=COMPRESSED;
 
 # Stop purge so that it doesn't remove the delete marked entries.
 SET GLOBAL INNODB_PURGE_STOP_NOW=ON;
@@ -379,7 +375,7 @@ SELECT name
 FLUSH TABLES test_wl5522.t1 FOR EXPORT;
 
 perl;
-do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+do "$ENV{MTR_SUITE_DIR}/../innodb/include/innodb-util.pl";
 ib_backup_tablespaces("test_wl5522", "t1");
 EOF
 
@@ -408,14 +404,14 @@ CREATE TABLE test_wl5522.t1 (
 	INDEX idx1(c2),
 	INDEX idx2(c3(512)),
 	INDEX idx3(c4(512))) Engine=InnoDB
-        ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8;
+        ROW_FORMAT=COMPRESSED;
 
 SELECT c1, c2 FROM test_wl5522.t1;
 
 ALTER TABLE test_wl5522.t1 DISCARD TABLESPACE;
 
 perl;
-do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+do "$ENV{MTR_SUITE_DIR}/../innodb/include/innodb-util.pl";
 ib_restore_tablespaces("test_wl5522", "t1");
 EOF
 
@@ -451,7 +447,7 @@ SELECT COUNT(*) FROM test_wl5522.t1;
 FLUSH TABLES test_wl5522.t1 FOR EXPORT;
 
 perl;
-do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+do "$ENV{MTR_SUITE_DIR}/../innodb/include/innodb-util.pl";
 ib_backup_tablespaces("test_wl5522", "t1");
 EOF
 
@@ -469,7 +465,7 @@ SELECT COUNT(*) FROM test_wl5522.t1;
 
 # Restore files
 perl;
-do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+do "$ENV{MTR_SUITE_DIR}/../innodb/include/innodb-util.pl";
 ib_restore_tablespaces("test_wl5522", "t1");
 EOF
 
@@ -485,7 +481,7 @@ SET SESSION debug_dbug=@saved_debug_dbug;
 DROP TABLE test_wl5522.t1;
 
 perl;
-do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+do "$ENV{MTR_SUITE_DIR}/../innodb/include/innodb-util.pl";
 ib_unlink_tablespace("test_wl5522", "t1");
 EOF
 
@@ -501,15 +497,15 @@ SELECT COUNT(*) FROM test_wl5522.t1;
 
 # Restore files
 perl;
-do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+do "$ENV{MTR_SUITE_DIR}/../innodb/include/innodb-util.pl";
 ib_restore_tablespaces("test_wl5522", "t1");
 EOF
 
-SET SESSION debug_dbug="+d,buf_page_is_corrupt_failure";
+SET SESSION debug_dbug="+d,buf_page_import_corrupt_failure";
 
 --replace_regex /'.*t1.cfg'/'t1.cfg'/
 
-# Following alter is failing 
+# Following alter is failing
 --error ER_INTERNAL_ERROR
 ALTER TABLE test_wl5522.t1 IMPORT TABLESPACE;
 
@@ -518,7 +514,7 @@ SET SESSION debug_dbug=@saved_debug_dbug;
 DROP TABLE test_wl5522.t1;
 
 perl;
-do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+do "$ENV{MTR_SUITE_DIR}/../innodb/include/innodb-util.pl";
 ib_unlink_tablespace("test_wl5522", "t1");
 EOF
 
@@ -532,7 +528,7 @@ SELECT COUNT(*) FROM test_wl5522.t1;
 
 # Restore files
 perl;
-do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+do "$ENV{MTR_SUITE_DIR}/../innodb/include/innodb-util.pl";
 ib_restore_tablespaces("test_wl5522", "t1");
 EOF
 
@@ -548,7 +544,7 @@ SET SESSION debug_dbug=@saved_debug_dbug;
 DROP TABLE test_wl5522.t1;
 
 perl;
-do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+do "$ENV{MTR_SUITE_DIR}/../innodb/include/innodb-util.pl";
 ib_unlink_tablespace("test_wl5522", "t1");
 EOF
 
@@ -562,7 +558,7 @@ SELECT COUNT(*) FROM test_wl5522.t1;
 
 # Restore files
 perl;
-do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+do "$ENV{MTR_SUITE_DIR}/../innodb/include/innodb-util.pl";
 ib_restore_tablespaces("test_wl5522", "t1");
 EOF
 
@@ -578,7 +574,7 @@ SET SESSION debug_dbug=@saved_debug_dbug;
 DROP TABLE test_wl5522.t1;
 
 perl;
-do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+do "$ENV{MTR_SUITE_DIR}/../innodb/include/innodb-util.pl";
 ib_unlink_tablespace("test_wl5522", "t1");
 EOF
 
@@ -599,7 +595,7 @@ SET SESSION debug_dbug=@saved_debug_dbug;
 DROP TABLE test_wl5522.t1;
 
 perl;
-do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+do "$ENV{MTR_SUITE_DIR}/../innodb/include/innodb-util.pl";
 ib_unlink_tablespace("test_wl5522", "t1");
 EOF
 
@@ -615,7 +611,7 @@ SELECT COUNT(*) FROM test_wl5522.t1;
 
 # Restore files
 perl;
-do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+do "$ENV{MTR_SUITE_DIR}/../innodb/include/innodb-util.pl";
 ib_restore_tablespaces("test_wl5522", "t1");
 EOF
 
@@ -630,7 +626,7 @@ SET SESSION debug_dbug=@saved_debug_dbug;
 DROP TABLE test_wl5522.t1;
 
 perl;
-do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+do "$ENV{MTR_SUITE_DIR}/../innodb/include/innodb-util.pl";
 ib_unlink_tablespace("test_wl5522", "t1");
 EOF
 
@@ -646,7 +642,7 @@ SELECT COUNT(*) FROM test_wl5522.t1;
 
 # Restore files
 perl;
-do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+do "$ENV{MTR_SUITE_DIR}/../innodb/include/innodb-util.pl";
 ib_restore_tablespaces("test_wl5522", "t1");
 EOF
 
@@ -661,7 +657,7 @@ SET SESSION debug_dbug=@saved_debug_dbug;
 DROP TABLE test_wl5522.t1;
 
 perl;
-do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+do "$ENV{MTR_SUITE_DIR}/../innodb/include/innodb-util.pl";
 ib_unlink_tablespace("test_wl5522", "t1");
 EOF
 
@@ -677,7 +673,7 @@ SELECT COUNT(*) FROM test_wl5522.t1;
 
 # Restore files
 perl;
-do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+do "$ENV{MTR_SUITE_DIR}/../innodb/include/innodb-util.pl";
 ib_restore_tablespaces("test_wl5522", "t1");
 EOF
 
@@ -693,7 +689,7 @@ SET SESSION debug_dbug=@saved_debug_dbug;
 DROP TABLE test_wl5522.t1;
 
 perl;
-do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+do "$ENV{MTR_SUITE_DIR}/../innodb/include/innodb-util.pl";
 ib_unlink_tablespace("test_wl5522", "t1");
 EOF
 

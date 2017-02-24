@@ -1,4 +1,5 @@
 call mtr.add_suppression("InnoDB: Unable to import tablespace .* because it already exists.  Please DISCARD the tablespace before IMPORT.");
+call mtr.add_suppression("Index for table 't2' is corrupt; try to repair it");
 FLUSH TABLES;
 CREATE TABLE t1
 (a INT AUTO_INCREMENT PRIMARY KEY,
@@ -29,15 +30,19 @@ a	b	c
 823	Evolution	lsjndofiabsoibeg
 822	Devotion	asdfuihknaskdf
 821	Cavalry	..asdasdfaeraf
+CREATE TABLE t2(a INT PRIMARY KEY) ENGINE=InnoDB ROW_FORMAT=COMPACT;
 t1.frm
 t1.ibd
-# Restarting server
-# Done restarting server
-FLUSH TABLE t1 FOR EXPORT;
+t2.frm
+t2.ibd
+FLUSH TABLE t1, t2 FOR EXPORT;
 # List before copying files
 t1.cfg
 t1.frm
 t1.ibd
+t2.cfg
+t2.frm
+t2.ibd
 UNLOCK TABLES;
 INSERT INTO t1 (b, c) SELECT b,c FROM t1 ORDER BY a;
 SELECT COUNT(*) FROM t1;
@@ -58,9 +63,13 @@ a	b	c
 # List before t1 DISCARD
 t1.frm
 t1.ibd
+t2.frm
+t2.ibd
 ALTER TABLE t1 DISCARD TABLESPACE;
 # List after t1 DISCARD
 t1.frm
+t2.frm
+t2.ibd
 ALTER TABLE t1 IMPORT TABLESPACE;
 ALTER TABLE t1 ENGINE InnoDB;
 SELECT COUNT(*) FROM t1;
@@ -79,6 +88,8 @@ a	b	c
 t1.cfg
 t1.frm
 t1.ibd
+t2.frm
+t2.ibd
 SELECT COUNT(*) FROM t1;
 COUNT(*)
 640
@@ -93,6 +104,19 @@ a	b	c
 822	Devotion	asdfuihknaskdf
 821	Cavalry	..asdasdfaeraf
 DROP TABLE t1;
+ALTER TABLE t2 ROW_FORMAT=DYNAMIC;
+ALTER TABLE t2 DISCARD TABLESPACE;
+# List after t2 DISCARD
+t2.frm
+ALTER TABLE t2 IMPORT TABLESPACE;
+ERROR HY000: Schema mismatch (Table flags don't match, server table has 0x4 and the meta-data file has 0x1)
+ALTER TABLE t2 IMPORT TABLESPACE;
+ERROR HY000: Schema mismatch (Expected FSP_SPACE_FLAGS=0x*, .ibd file contains 0x*.)
+DROP TABLE t2;
+SET GLOBAL innodb_file_per_table = 1;
+SELECT @@innodb_file_per_table;
+@@innodb_file_per_table
+1
 CREATE TABLE t1(
 c1 INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
 c2 INT) ENGINE=InnoDB;

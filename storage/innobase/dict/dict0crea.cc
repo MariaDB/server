@@ -474,16 +474,11 @@ dict_build_tablespace_for_table(
 			return(DB_ERROR);
 		}
 	} else {
+		ut_ad(dict_tf_get_rec_format(table->flags)
+		      != REC_FORMAT_COMPRESSED);
 		if (dict_table_is_temporary(table)) {
-			/* Use the shared temporary tablespace.
-			Note: The temp tablespace supports all non-Compressed
-			row formats whereas the system tablespace only
-			supports Redundant and Compact */
-			ut_ad(dict_tf_get_rec_format(table->flags)
-				!= REC_FORMAT_COMPRESSED);
 			table->space = SRV_TMP_SPACE_ID;
 		} else {
-			/* Create in the system tablespace. */
 			ut_ad(table->space == srv_sys_space.space_id());
 		}
 

@@ -1186,9 +1186,8 @@ fil_space_extend_must_retry(
 		fil_flush_low(space);
 		return(false);
 	default:
-		// TODO: reject CREATE TEMPORARY TABLE...ROW_FORMAT=COMPRESSED
 		ut_ad(space->purpose == FIL_TYPE_TABLESPACE
-		      || space->purpose == FIL_TYPE_TEMPORARY);
+		      || space->purpose == FIL_TYPE_IMPORT);
 		if (space->purpose == FIL_TYPE_TABLESPACE) {
 			fil_flush_low(space);
 		}

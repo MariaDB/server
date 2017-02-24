@@ -42,5 +42,3 @@ galera_sst_xtrabackup-v2 : MDEV-11208
 galera_sst_xtrabackup-v2_encrypt_with_key : MDEV-11208
 mysql-wsrep#33 : TODO: investigate
 galera_var_innodb_disallow_writes : MDEV-10949
-galera_many_tables_pk : MDEV-11927
-galera_many_tables_nopk : MDEV-11927

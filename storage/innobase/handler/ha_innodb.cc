@@ -12174,7 +12174,7 @@ create_table_info_t::create_option_data_directory_is_valid()
 }
 
 /** Validate the create options. Check that the options KEY_BLOCK_SIZE,
-ROW_FORMAT, DATA DIRECTORY, TEMPORARY & TABLESPACE are compatible with
+ROW_FORMAT, DATA DIRECTORY, TEMPORARY are compatible with
 each other and other settings.  These CREATE OPTIONS are not validated
 here unless innodb_strict_mode is on. With strict mode, this function
 will report each problem it finds using a custom message with error

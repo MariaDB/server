@@ -2,10 +2,7 @@
 --source include/not_embedded.inc
 
 -- source include/have_innodb.inc
-# compressed table in tests are with sizes KEY_BLOCK_SIZE 1,2,4,8,16 
-# Table creatation fails if KEY_BLOCK_SIZE > innodb-page-size,so 
-# allow test to run only when innodb-page-size=16  
---source include/have_innodb_16k.inc
+-- source include/have_innodb_zip.inc
 
 call mtr.add_suppression("InnoDB: Unable to import tablespace .* because it already exists.  Please DISCARD the tablespace before IMPORT.");
 
@@ -104,7 +101,7 @@ INSERT INTO t1(c2) SELECT c2 FROM t1;
 FLUSH TABLES t1 FOR EXPORT;
 SELECT COUNT(*) FROM t1;
 perl;
-do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+do "$ENV{MTR_SUITE_DIR}/../innodb/include/innodb-util.pl";
 ib_backup_tablespaces("test", "t1");
 EOF
 
@@ -123,7 +120,7 @@ ALTER TABLE t1 DISCARD TABLESPACE;
 SELECT * FROM t1;
 
 perl;
-do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+do "$ENV{MTR_SUITE_DIR}/../innodb/include/innodb-util.pl";
 ib_discard_tablespaces("test", "t1");
 ib_restore_tablespaces("test", "t1");
 EOF
@@ -154,7 +151,7 @@ INSERT INTO t1(c2) SELECT c2 FROM t1;
 FLUSH TABLES t1 FOR EXPORT;
 SELECT COUNT(*) FROM t1;
 perl;
-do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+do "$ENV{MTR_SUITE_DIR}/../innodb/include/innodb-util.pl";
 ib_backup_tablespaces("test", "t1");
 EOF
 --list_files $MYSQLD_DATADIR/test
@@ -177,7 +174,7 @@ ALTER TABLE t1 DISCARD TABLESPACE;
 SELECT * FROM t1;
 
 perl;
-do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+do "$ENV{MTR_SUITE_DIR}/../innodb/include/innodb-util.pl";
 ib_discard_tablespaces("test", "t1");
 ib_restore_tablespaces("test", "t1");
 EOF
@@ -197,7 +194,7 @@ DROP TABLE t1;
 CREATE TABLE t1(
 	c1 INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
 	c2 INT, INDEX(c2)) ENGINE=InnoDB
-        ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8;
+        ROW_FORMAT=COMPRESSED;
 
 INSERT INTO t1(c2) VALUES(1);
 INSERT INTO t1(c2) SELECT c2 FROM t1;
@@ -208,7 +205,7 @@ INSERT INTO t1(c2) SELECT c2 FROM t1;
 FLUSH TABLES t1 FOR EXPORT;
 SELECT COUNT(*) FROM t1 WHERE c2 = 1;
 perl;
-do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+do "$ENV{MTR_SUITE_DIR}/../innodb/include/innodb-util.pl";
 ib_backup_tablespaces("test", "t1");
 EOF
 --list_files $MYSQLD_DATADIR/test
@@ -222,15 +219,15 @@ DROP TABLE t1;
 
 CREATE TABLE t1(
 	c1 INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
-	c2 INT, INDEX(c2)) ENGINE=InnoDB 
-        ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8;
+	c2 INT, INDEX(c2)) ENGINE=InnoDB
+        ROW_FORMAT=COMPRESSED;
 
 ALTER TABLE t1 DISCARD TABLESPACE;
 --error ER_TABLESPACE_DISCARDED
 SELECT * FROM t1;
 
 perl;
-do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+do "$ENV{MTR_SUITE_DIR}/../innodb/include/innodb-util.pl";
 ib_discard_tablespaces("test", "t1");
 ib_restore_tablespaces("test", "t1");
 EOF
@@ -247,10 +244,12 @@ DROP TABLE t1;
 # table and restore, this time the table has a secondary index too.
 # Rename the index on the create so that the IMPORT fails, drop index
 # Create with proper name and then do an IMPORT.
-CREATE TABLE t1(
+let $KEY_BLOCK_SIZE=`SELECT CONCAT('KEY_BLOCK_SIZE=', FLOOR(@@innodb_page_size/1024))`;
+--replace_result $KEY_BLOCK_SIZE KEY_BLOCK_SIZE=16
+eval CREATE TABLE t1(
 	c1 INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
 	c2 INT, INDEX idx(c2)) ENGINE=InnoDB
-        ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=16;
+        ROW_FORMAT=COMPRESSED $KEY_BLOCK_SIZE;
 
 INSERT INTO t1(c2) VALUES(1);
 INSERT INTO t1(c2) SELECT c2 FROM t1;
@@ -261,7 +260,7 @@ INSERT INTO t1(c2) SELECT c2 FROM t1;
 FLUSH TABLES t1 FOR EXPORT;
 SELECT COUNT(*) FROM t1 WHERE c2 = 1;
 perl;
-do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+do "$ENV{MTR_SUITE_DIR}/../innodb/include/innodb-util.pl";
 ib_backup_tablespaces("test", "t1");
 EOF
 UNLOCK TABLES;
@@ -272,17 +271,18 @@ INSERT INTO t1(c2) SELECT c2 FROM t1;
 
 DROP TABLE t1;
 
-CREATE TABLE t1(
+--replace_result $KEY_BLOCK_SIZE KEY_BLOCK_SIZE=16
+eval CREATE TABLE t1(
 	c1 INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
 	c2 INT, INDEX x(c2)) ENGINE=InnoDB
-        ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=16;
+        ROW_FORMAT=COMPRESSED $KEY_BLOCK_SIZE;
 
 ALTER TABLE t1 DISCARD TABLESPACE;
 --error ER_TABLESPACE_DISCARDED
 SELECT * FROM t1;
 
 perl;
-do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+do "$ENV{MTR_SUITE_DIR}/../innodb/include/innodb-util.pl";
 ib_discard_tablespaces("test", "t1");
 ib_restore_tablespaces("test", "t1");
 EOF
@@ -295,7 +295,7 @@ ALTER TABLE t1 DROP INDEX x;
 ALTER TABLE t1 ADD INDEX idx(c2);
 
 perl;
-do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+do "$ENV{MTR_SUITE_DIR}/../innodb/include/innodb-util.pl";
 ib_restore_tablespaces("test", "t1");
 EOF
 
@@ -305,7 +305,7 @@ CHECK TABLE t1;
 SELECT * FROM t1;
 
 perl;
-do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+do "$ENV{MTR_SUITE_DIR}/../innodb/include/innodb-util.pl";
 ib_cleanup("test", "t1");
 EOF
 
@@ -361,7 +361,7 @@ SELECT * FROM t1;
 FLUSH TABLES t1 FOR EXPORT;
 
 perl;
-do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+do "$ENV{MTR_SUITE_DIR}/../innodb/include/innodb-util.pl";
 ib_backup_tablespaces("test", "t1");
 EOF
 
@@ -380,7 +380,7 @@ ALTER TABLE t1 DISCARD TABLESPACE;
 SELECT * FROM t1;
 
 perl;
-do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+do "$ENV{MTR_SUITE_DIR}/../innodb/include/innodb-util.pl";
 ib_discard_tablespaces("test", "t1");
 ib_restore_tablespaces("test", "t1");
 EOF
@@ -390,7 +390,7 @@ EOF
 ALTER TABLE t1 IMPORT TABLESPACE;
 
 perl;
-do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+do "$ENV{MTR_SUITE_DIR}/../innodb/include/innodb-util.pl";
 ib_unlink_tablespace("test", "t1");
 EOF
 
@@ -408,7 +408,7 @@ ALTER TABLE t1 DISCARD TABLESPACE;
 SELECT * FROM t1;
 
 perl;
-do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+do "$ENV{MTR_SUITE_DIR}/../innodb/include/innodb-util.pl";
 ib_discard_tablespaces("test", "t1");
 ib_restore_tablespaces("test", "t1");
 EOF
@@ -418,7 +418,7 @@ EOF
 ALTER TABLE t1 IMPORT TABLESPACE;
 
 perl;
-do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+do "$ENV{MTR_SUITE_DIR}/../innodb/include/innodb-util.pl";
 ib_unlink_tablespace("test", "t1");
 EOF
 
@@ -435,7 +435,7 @@ ALTER TABLE t1 DISCARD TABLESPACE;
 SELECT * FROM t1;
 
 perl;
-do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+do "$ENV{MTR_SUITE_DIR}/../innodb/include/innodb-util.pl";
 ib_discard_tablespaces("test", "t1");
 ib_restore_tablespaces("test", "t1");
 EOF
@@ -445,7 +445,7 @@ EOF
 ALTER TABLE t1 IMPORT TABLESPACE;
 
 perl;
-do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+do "$ENV{MTR_SUITE_DIR}/../innodb/include/innodb-util.pl";
 ib_unlink_tablespace("test", "t1");
 EOF
 
@@ -455,27 +455,27 @@ DROP TABLE t1;
 CREATE TABLE t1(
         c1 INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
         c2 INT, INDEX idx(c2)) ENGINE=InnoDB
-        ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=4;
+        ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=1;
 
 ALTER TABLE t1 DISCARD TABLESPACE;
 --error ER_TABLESPACE_DISCARDED
 SELECT * FROM t1;
 
 perl;
-do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+do "$ENV{MTR_SUITE_DIR}/../innodb/include/innodb-util.pl";
 ib_discard_tablespaces("test", "t1");
 ib_restore_tablespaces("test", "t1");
 EOF
 
-# This should fail because is KEY_BLOCK_SIZE=4 
-# but KEY_BLOCK_SIZE=8 is exported table
+# This should fail because KEY_BLOCK_SIZE=1
+# does not match the implicit KEY_BLOCK_SIZE of the exported table.
 # Need better error message for following
 --replace_regex /\(.*\)//
 -- error ER_TABLE_SCHEMA_MISMATCH
 ALTER TABLE t1 IMPORT TABLESPACE;
 
 perl;
-do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+do "$ENV{MTR_SUITE_DIR}/../innodb/include/innodb-util.pl";
 ib_unlink_tablespace("test", "t1");
 EOF
 
@@ -493,7 +493,7 @@ ALTER TABLE t1 DISCARD TABLESPACE;
 SELECT * FROM t1;
 
 perl;
-do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+do "$ENV{MTR_SUITE_DIR}/../innodb/include/innodb-util.pl";
 ib_discard_tablespaces("test", "t1");
 ib_restore_tablespaces("test", "t1");
 EOF
@@ -502,7 +502,7 @@ ALTER TABLE t1 IMPORT TABLESPACE;
 CHECK TABLE t1;
 
 perl;
-do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+do "$ENV{MTR_SUITE_DIR}/../innodb/include/innodb-util.pl";
 ib_cleanup("test", "t1");
 EOF
 

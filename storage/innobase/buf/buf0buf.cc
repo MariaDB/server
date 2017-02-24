@@ -872,8 +872,7 @@ buf_page_is_corrupted(
 	}
 
 #endif
-
-	DBUG_EXECUTE_IF("buf_page_is_corrupt_failure", return(TRUE); );
+	DBUG_EXECUTE_IF("buf_page_import_corrupt_failure", return(TRUE); );
 
 	if (!no_checksum && !page_size.is_compressed()
 	    && memcmp(read_buf + FIL_PAGE_LSN + 4,
@@ -1002,7 +1001,6 @@ buf_page_is_corrupted(
 					read_buf + FIL_PAGE_OFFSET));
 #endif /* UNIV_INNOCHECKSUM */
 
-	DBUG_EXECUTE_IF("buf_page_import_corrupt_failure", return(TRUE); );
 	const srv_checksum_algorithm_t	curr_algo =
 		static_cast<srv_checksum_algorithm_t>(srv_checksum_algorithm);
 
@@ -6033,29 +6031,17 @@ buf_page_io_complete(
 
 			/* Not a real corruption if it was triggered by
 			error injection */
-			DBUG_EXECUTE_IF("buf_page_is_corrupt_failure",
-				if (bpage->id.space() != TRX_SYS_SPACE
-				    && buf_mark_space_corrupt(bpage)) {
-					ib::info() <<
-						"Simulated page corruption";
-					return(true);
-				}
-				goto page_not_corrupt_1;
-				;);
-			/* Not a real corruption if it was triggered by
-			error injection */
 			DBUG_EXECUTE_IF(
 				"buf_page_import_corrupt_failure",
-				if (bpage->id.space() > TRX_SYS_SPACE
-				    && !Tablespace::is_undo_tablespace(
-					    bpage->id.space())
+				if (bpage->id.space()
+				    > srv_undo_tablespaces_open
+				    && bpage->id.space() != SRV_TMP_SPACE_ID
 				    && buf_mark_space_corrupt(bpage)) {
 					ib::info() << "Simulated IMPORT "
 						"corruption";
 					return(true);
 				}
-				goto page_not_corrupt;
-				;);
+				goto page_not_corrupt;);
 database_corrupted:
 			bool corrupted = buf_page_check_corrupt(bpage);
 
@@ -6123,10 +6109,7 @@ database_corrupted:
 		}
 
 		DBUG_EXECUTE_IF("buf_page_import_corrupt_failure",
-				page_not_corrupt:  bpage = bpage; );
-
-		DBUG_EXECUTE_IF("buf_page_is_corrupt_failure",
-				page_not_corrupt_1:  bpage = bpage; );
+				page_not_corrupt: bpage = bpage; );
 
 		if (recv_recovery_is_on()) {
 			/* Pages must be uncompressed for crash recovery. */
@@ -6138,8 +6121,9 @@ database_corrupted:
 		During re-init we have already freed ibuf entries. */
 		if (uncompressed
 		    && !recv_no_ibuf_operations
-		    && !Tablespace::is_undo_tablespace(bpage->id.space())
-		    && bpage->id.space() != SRV_TMP_SPACE_ID
+		    && (bpage->id.space() == 0
+			|| (bpage->id.space() > srv_undo_tablespaces_open
+			    && bpage->id.space() != SRV_TMP_SPACE_ID))
 		    && !srv_is_tablespace_truncated(bpage->id.space())
 		    && fil_page_get_type(frame) == FIL_PAGE_INDEX
 		    && page_is_leaf(frame)) {
