@@ -1,0 +1,54 @@
+# populate with data
+CREATE TABLE t1 (
+c01 blob, c02 blob, c03 blob, c04 blob, c05 blob,
+c06 blob, c07 blob, c08 blob, c09 blob, c10 blob,
+c11 blob, c12 blob, c13 blob, c14 blob, c15 blob,
+c16 blob, c17 blob, c18 blob, c19 blob, c20 blob,
+c21 blob, c22 blob, c23 blob, c24 blob, c25 blob,
+c26 blob, c27 blob, c28 blob, c29 blob, c30 blob,
+c31 blob, c32 blob, c33 blob, c34 blob, c35 blob,
+c36 blob, c37 blob, c38 blob, c39 blob, c40 blob,
+c41 blob, c42 blob, c43 blob, c44 blob, c45 blob,
+c46 blob, c47 blob, c48 blob, c49 blob, c50 blob,
+c51 blob, c52 blob, c53 blob, c54 blob, c55 blob,
+c56 blob, c57 blob, c58 blob, c59 blob, c60 blob,
+c61 blob, c62 blob, c63 blob, c64 blob
+) ROW_FORMAT=dynamic;
+SET @a = repeat('a', 16 * 1024);
+INSERT INTO t1 VALUES (@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,
+@a,@a,@a,@a
+);
+insert into t1 select * from t1;
+SET GLOBAL innodb_buffer_pool_dump_pct=25,GLOBAL innodb_fast_shutdown=0, GLOBAL innodb_buffer_pool_dump_at_shutdown=1;
+# Restart server
+SET GLOBAL innodb_buffer_pool_load_now=1;
+# Case 1: Limit from innodb_buffer_pool_dump_pct
+SELECT 256 as 'Previous pool pages',
+ROUND(25 / 100 * @@innodb_buffer_pool_size / @@innodb_page_size) as 'Limit',
+128 as 'Pages saved';
+Previous pool pages	Limit	Pages saved
+256	128	128
+# Case 2: blog_pages is the minimum.
+# load buffer pool with entire table.
+select * from t1;
+SET GLOBAL innodb_buffer_pool_dump_pct=75, global innodb_buffer_pool_dump_at_shutdown=1;
+# Restart server
+SET GLOBAL innodb_buffer_pool_load_now=1;
+# now loaded
+SELECT 256 as 'Previous pool pages',
+ROUND(75 / 100 * @@innodb_buffer_pool_size / @@innodb_page_size) as 'Limit',
+256 as 'Pages saved';
+Previous pool pages	Limit	Pages saved
+256	384	256
+DROP TABLE t1;

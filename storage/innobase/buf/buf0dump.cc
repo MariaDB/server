@@ -314,9 +314,21 @@ buf_dump(
 		}
 
 		if (srv_buf_pool_dump_pct != 100) {
+			ulint		t_pages;
+
 			ut_ad(srv_buf_pool_dump_pct < 100);
 
-			n_pages = n_pages * srv_buf_pool_dump_pct / 100;
+			/* limit the number of total pages dumped to X% of the
+			 * total number of pages */
+			t_pages = buf_pool->curr_size
+					*  srv_buf_pool_dump_pct / 100;
+			if (n_pages > t_pages) {
+				buf_dump_status(STATUS_INFO,
+					"Instance %d, restricted to %u pages " \
+					"due to innodb_buf_pool_dump_pct (%d)",
+					i, t_pages, srv_buf_pool_dump_pct);
+				n_pages = t_pages;
+			}
 
 			if (n_pages == 0) {
 				n_pages = 1;

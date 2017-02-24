@@ -1,0 +1,107 @@
+#
+# Functional test for innodb_buffer_pool_dump_pct
+#
+# From MDEV-11454 the amount dumped is the minimum of:
+# * innodb_buffer_pool_dump_pct * Innodb_buffer_pool_pages_total * innodb_page_size
+# * innodb_buffer_pool_pages_data * innodb_page_size
+
+-- source include/have_innodb.inc
+
+--echo # populate with data
+
+CREATE TABLE t1 (
+c01 blob, c02 blob, c03 blob, c04 blob, c05 blob,
+c06 blob, c07 blob, c08 blob, c09 blob, c10 blob,
+c11 blob, c12 blob, c13 blob, c14 blob, c15 blob,
+c16 blob, c17 blob, c18 blob, c19 blob, c20 blob,
+c21 blob, c22 blob, c23 blob, c24 blob, c25 blob,
+c26 blob, c27 blob, c28 blob, c29 blob, c30 blob,
+c31 blob, c32 blob, c33 blob, c34 blob, c35 blob,
+c36 blob, c37 blob, c38 blob, c39 blob, c40 blob,
+c41 blob, c42 blob, c43 blob, c44 blob, c45 blob,
+c46 blob, c47 blob, c48 blob, c49 blob, c50 blob,
+c51 blob, c52 blob, c53 blob, c54 blob, c55 blob,
+c56 blob, c57 blob, c58 blob, c59 blob, c60 blob,
+c61 blob, c62 blob, c63 blob, c64 blob
+) ROW_FORMAT=dynamic;
+
+SET @a = repeat('a', 16 * 1024);
+INSERT INTO t1 VALUES (@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,
+@a,@a,@a,@a
+);
+
+insert into t1 select * from t1;
+
+--let $blob_pages=`select count(*)  from information_schema.INNODB_BUFFER_PAGE WHERE PAGE_TYPE='BLOB' group by PAGE_TYPE`
+
+--let $PCT=25
+--eval SET GLOBAL innodb_buffer_pool_dump_pct=$PCT,GLOBAL innodb_fast_shutdown=0, GLOBAL innodb_buffer_pool_dump_at_shutdown=1
+
+# Dump on shutdown has been set - shutdown now
+
+--echo # Restart server
+--source include/restart_mysqld.inc
+
+SET GLOBAL innodb_buffer_pool_load_now=1;
+
+# Wait fit for the load to complete
+let $wait_condition =
+  SELECT SUBSTR(variable_value, 1, 33) = 'Buffer pool(s) load completed at '
+    FROM information_schema.global_status
+    WHERE LOWER(variable_name) = 'innodb_buffer_pool_load_status';
+-- source include/wait_condition.inc
+
+
+--let $loaded_blob_pages=`select count(*)  from information_schema.INNODB_BUFFER_PAGE WHERE PAGE_TYPE='BLOB' group by PAGE_TYPE`
+
+--echo # Case 1: Limit from innodb_buffer_pool_dump_pct
+
+eval SELECT $blob_pages as 'Previous pool pages',
+	ROUND($PCT / 100 * @@innodb_buffer_pool_size / @@innodb_page_size) as 'Limit',
+	$loaded_blob_pages as 'Pages saved';
+
+--echo # Case 2: blog_pages is the minimum.
+
+--echo # load buffer pool with entire table.
+--disable_result_log
+select * from t1;
+--enable_result_log
+
+--let $PCT=75
+eval SET GLOBAL innodb_buffer_pool_dump_pct=$PCT, global innodb_buffer_pool_dump_at_shutdown=1;
+
+--let $blob_pages=`select count(*)  from information_schema.INNODB_BUFFER_PAGE WHERE PAGE_TYPE='BLOB' group by PAGE_TYPE`
+
+--echo # Restart server
+--source include/restart_mysqld.inc
+
+
+SET GLOBAL innodb_buffer_pool_load_now=1;
+
+# Wait for load
+-- source include/wait_condition.inc
+
+--echo # now loaded
+
+--let $loaded_blob_pages=`select count(*)  from information_schema.INNODB_BUFFER_PAGE WHERE PAGE_TYPE='BLOB' group by PAGE_TYPE`
+
+eval SELECT $blob_pages as 'Previous pool pages',
+	ROUND($PCT / 100 * @@innodb_buffer_pool_size / @@innodb_page_size) as 'Limit',
+	$loaded_blob_pages as 'Pages saved';
+
+# Clean up
+#
+#
+--remove_file $MYSQLTEST_VARDIR/mysqld.1/data/ib_buffer_pool
+DROP TABLE t1;
