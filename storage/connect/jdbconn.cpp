@@ -1165,6 +1165,9 @@ void JDBConn::Close()
 		jint      rc;
 		jmethodID did = nullptr;
 
+		// Could have been detached in case of join
+		rc = jvm->AttachCurrentThread((void**)&env, nullptr);
+
 		if (gmID(m_G, did, "JdbcDisconnect", "()I"))
 			printf("%s\n", Msg);
 		else if (Check(env->CallIntMethod(job, did)))
