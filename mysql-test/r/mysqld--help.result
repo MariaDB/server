@@ -1496,7 +1496,7 @@ thread-pool-oversubscribe 3
 thread-pool-prio-kickup-timer 1000
 thread-pool-priority auto
 thread-pool-stall-limit 500
-thread-stack 297984
+thread-stack 299008
 time-format %H:%i:%s
 timed-mutexes FALSE
 tmp-table-size 16777216
