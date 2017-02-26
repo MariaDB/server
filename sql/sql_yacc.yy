@@ -7643,7 +7643,7 @@ alter_list_item:
             LEX *lex= Lex;
             if (lex->create_info.add_alter_list_item_convert_to_charset($5))
               MYSQL_YYABORT;
-            lex->alter_info.flags|= Alter_info::ALTER_CONVERT;
+            lex->alter_info.flags|= Alter_info::ALTER_OPTIONS;
           }
         | create_table_options_space_separated
           {
