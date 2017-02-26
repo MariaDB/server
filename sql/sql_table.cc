@@ -2110,6 +2110,7 @@ bool mysql_rm_table(THD *thd,TABLE_LIST *tables, my_bool if_exists,
     DBUG_RETURN(TRUE);
   my_ok(thd);
   DBUG_RETURN(FALSE);
+
 }
 
 
@@ -2674,7 +2675,7 @@ err:
 
 end:
 #ifdef WITH_WSREP
-        thd->wsrep_skip_wsrep_GTID = false;
+  thd->wsrep_skip_wsrep_GTID = false;
 #endif /* WITH_WSREP */
   DBUG_RETURN(error);
 }
