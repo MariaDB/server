@@ -17,7 +17,7 @@
 /*
   Advanced symlink handling.
   This is used in MyISAM to let users symlinks tables to different disk.
-  The main idea with these functions is to automaticly create, delete and
+  The main idea with these functions is to automatically create, delete and
   rename files and symlinks like they would be one unit.
 */
 

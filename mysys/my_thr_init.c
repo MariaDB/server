@@ -262,7 +262,7 @@ my_bool my_thread_init(void)
   my_bool error=0;
 
   if (!my_thread_global_init_done)
-    return 1; /* cannot proceed with unintialized library */
+    return 1; /* cannot proceed with uninitialized library */
 
 #ifdef EXTRA_DEBUG_THREADS
   fprintf(stderr,"my_thread_init(): pthread_self: %p\n", pthread_self());

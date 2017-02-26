@@ -223,7 +223,7 @@ my_bool is_filename_allowed(const char *name __attribute__((unused)),
 
 
 /*
-  Check if a path will access a reserverd file name that may cause problems
+  Check if a path will access a reserved file name that may cause problems
  
   SYNOPSIS
     check_if_legal_filename

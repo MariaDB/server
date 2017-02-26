@@ -82,7 +82,7 @@ int (*_my_b_encr_write)(IO_CACHE *info,const uchar *Buffer,size_t Count)= 0;
     info		IO_CACHE handler
 
   NOTES
-    This is called on automaticly on init or reinit of IO_CACHE
+    This is called on automatically on init or reinit of IO_CACHE
     It must be called externally if one moves or copies an IO_CACHE
     object.
 */
@@ -166,7 +166,7 @@ init_functions(IO_CACHE* info)
 			If == 0 then use my_default_record_cache_size
     type		Type of cache
     seek_offset		Where cache should start reading/writing
-    use_async_io	Set to 1 of we should use async_io (if avaiable)
+    use_async_io	Set to 1 of we should use async_io (if available)
     cache_myflags	Bitmap of different flags
 			MY_WME | MY_FAE | MY_NABP | MY_FNABP |
 			MY_DONT_CHECK_FILESIZE
@@ -343,7 +343,7 @@ static void my_aiowait(my_aio_result *result)
 	if (errno == EINTR)
 	  continue;
 	DBUG_PRINT("error",("No aio request, error: %d",errno));
-	result->pending=0;			/* Assume everythings is ok */
+	result->pending=0;			/* Assume everything is ok */
 	break;
       }
       ((my_aio_result*) tmp)->pending=0;
@@ -1999,7 +1999,7 @@ int main(int argc, char** argv)
   /* check correctness of tests */
   if (total_bytes != status.st_size)
   {
-    fprintf(stderr,"Not the same number of bytes acutally  in file as bytes \
+    fprintf(stderr,"Not the same number of bytes actually  in file as bytes \
 supposedly written\n");
     error=1;
   }
