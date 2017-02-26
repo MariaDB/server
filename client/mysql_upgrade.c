@@ -545,7 +545,7 @@ static int run_query(const char *query, DYNAMIC_STRING *ds_res,
     But mysql_upgrade is tightly bound to a specific server version
     anyway - it was mysql_fix_privilege_tables_sql script embedded
     into its binary - so even if it won't assume anything about server
-    wsrep-ness, it won't be any less server-dependend.
+    wsrep-ness, it won't be any less server-dependent.
   */
   const uchar sql_log_bin[]= "SET SQL_LOG_BIN=0, WSREP_ON=OFF;";
 #else
@@ -758,7 +758,7 @@ static void print_conn_args(const char *tool_name)
 
 
 /*
-  Check and upgrade(if neccessary) all tables
+  Check and upgrade(if necessary) all tables
   in the server using "mysqlcheck --check-upgrade .."
 */
 

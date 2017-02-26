@@ -136,7 +136,7 @@
 
   Status
   ^^^^^^
-  We calculate the number of successfull waits (WT_OK returned from
+  We calculate the number of successful waits (WT_OK returned from
   wt_thd_cond_timedwait()), a number of timeouts, a deadlock cycle
   length distribution - number of deadlocks with every length from
   1 to WT_CYCLE_STATS, and a wait time distribution - number

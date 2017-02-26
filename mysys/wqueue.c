@@ -211,7 +211,7 @@ void wqueue_release_one_locktype_from_queue(WQUEUE *wqueue)
 /*
   Add thread and wait
 
-  SYNOPSYS
+  SYNOPSIS
     wqueue_add_and_wait()
     wqueue               queue to add to
     thread               thread which is waiting

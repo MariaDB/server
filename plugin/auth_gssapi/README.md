@@ -108,7 +108,7 @@ mysql --plugin-dir=/path/to/plugin-dir -u usr1
 -	**gssapi-mech-name** (Windows only) - Name of the SSPI package used by server. Can be either 'Kerberos' or 'Negotiate'.
  Defaults to 'Negotiate' (both Kerberos and NTLM users can connect)
  Set it to 'Kerberos', to prevent less secure NTLM in domain environments,  but leave it as default(Negotiate)
- to allow non-domain environment (e.g if server does not run in domain enviroment).
+ to allow non-domain environment (e.g if server does not run in domain environment).
 
 
 #Implementation
@@ -124,6 +124,6 @@ Send resulting GSSAPI blob to server.
 
 3. Server : receive blob from client, execute ```gss_accept_sec_context()/ AcceptSecurityContext()```, send resulting blob back to client
 
-4. Perform  2. and 3. can until both client and server decide that authentication is done, or until some error occured. If authentication was successful, GSSAPI context (an opaque structure) is generated on both client and server sides.
+4. Perform  2. and 3. can until both client and server decide that authentication is done, or until some error occurred. If authentication was successful, GSSAPI context (an opaque structure) is generated on both client and server sides.
 
 5. Server : Client name is extracted from the context, and compared to the name provided by client(with or without realm). If name matches, plugin returns success.

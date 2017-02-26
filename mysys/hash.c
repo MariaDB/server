@@ -61,7 +61,7 @@ my_hash_value_type my_hash_sort(CHARSET_INFO *cs, const uchar *key,
 
   @param[in,out] hash         The hash that is initialized
   @param[in[     growth_size  size incrememnt for the underlying dynarray
-  @param[in]     charset      The charater set information
+  @param[in]     charset      The character set information
   @param[in]     size         The hash size
   @param[in]     key_offest   The key offset for the hash
   @param[in]     key_length   The length of the key used in
@@ -610,7 +610,7 @@ exit:
 
 /**
    Update keys when record has changed.
-   This is much more efficent than using a delete & insert.
+   This is much more efficient than using a delete & insert.
 */
 
 my_bool my_hash_update(HASH *hash, uchar *record, uchar *old_key,

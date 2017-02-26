@@ -1,4 +1,4 @@
-# Multi instance version of mariadb. For if you run mutiple verions at once.
+# Multi instance version of mariadb. For if you run multiple versions at once.
 # Also used for mariadb@bootstrap to bootstrap Galera.
 #
 # create config file @INSTALL_SYSCONF2DIR@/my{instancename}.cnf
@@ -157,7 +157,7 @@ LimitNOFILE=16364
 # Timezone. previously [mysqld_safe] timezone
 # Environment="TZ=UTC"
 
-# Library substitutions. previously [mysqld_safe] malloc-lib with explict paths
+# Library substitutions. previously [mysqld_safe] malloc-lib with explicit paths
 # (in LD_LIBRARY_PATH) and library name (in LD_PRELOAD).
 # Environment="LD_LIBRARY_PATH=/path1 /path2" "LD_PRELOAD=
 

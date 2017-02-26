@@ -48,7 +48,7 @@ datadir=
 
 # Default value, in seconds, afterwhich the script should timeout waiting
 # for server start. 
-# Value here is overriden by value in my.cnf. 
+# Value here is overridden by value in my.cnf. 
 # 0 means don't wait at all
 # Negative numbers mean to wait indefinitely
 service_startup_timeout=900

@@ -10,7 +10,7 @@
 
 
 # Give message why the building this plugin is skipped (only if -DVERBOSE is defined)
-# or if plugin is explicitely requested to build. Then bail out.
+# or if plugin is explicitly requested to build. Then bail out.
 MACRO(SKIP_AWS_PLUGIN msg)
   IF(VERBOSE OR "${PLUGIN_AWS_KEY_MANAGEMENT}" MATCHES "^(STATIC|DYNAMIC)$")
     MESSAGE(STATUS "Can't build aws_key_management - ${msg}")
