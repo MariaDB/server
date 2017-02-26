@@ -534,12 +534,12 @@ INSERT IGNORE INTO t1 VALUES (0,'g');
 CREATE TABLE t3 ( a varchar(1)) ;
 INSERT IGNORE INTO t3 VALUES ('g');
 
-CREATE TABLE t2 ( a int(11) NOT NULL, PRIMARY KEY (a)) ;
+CREATE TABLE t2 ( a int(11) NOT NULL, PRIMARY KEY (a));
+INSERT INTO t2 VALUES (9), (10);
 create view v1 as SELECT t1.* FROM t1 LEFT JOIN t2 ON ( t1.a = t2.a ) WHERE t2.a <> 0;
 
 SELECT alias1.* FROM t3 LEFT JOIN v1 as alias1 ON ( t3.a = alias1.b );
 EXPLAIN SELECT alias1.* FROM t3 LEFT JOIN v1 as alias1 ON ( t3.a = alias1.b );
-
 drop view v1;
 DROP TABLE t1,t2,t3;
 
