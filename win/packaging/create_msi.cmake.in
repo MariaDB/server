@@ -425,7 +425,7 @@ EXECUTE_PROCESS(
 )
 
 EXECUTE_PROCESS(
- COMMAND ${LIGHT_EXECUTABLE} -ext WixUIExtension -ext WixUtilExtension 
+ COMMAND ${LIGHT_EXECUTABLE} -v -ext WixUIExtension -ext WixUtilExtension
  -ext WixFirewallExtension -sice:ICE61
   mysql_server.wixobj  extra.wixobj -out  ${CPACK_PACKAGE_FILE_NAME}.msi
   ${EXTRA_LIGHT_ARGS}

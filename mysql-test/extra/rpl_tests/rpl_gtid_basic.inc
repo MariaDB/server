@@ -455,9 +455,13 @@ SELECT IF(LOCATE("2-1-1022", @@GLOBAL.gtid_slave_pos)>0, "Ok", CONCAT("ERROR! ex
 --connection server_1
 SET gtid_domain_id=2;
 SET gtid_seq_no=1030;
+# Disable logging Annotate_rows events to preserve events count.
+let $binlog_annotate_row_events_saved= `SELECT @@binlog_annotate_row_events`;
+SET @@binlog_annotate_row_events= 0;
 INSERT INTO t1 VALUES (17);
 INSERT INTO t1 VALUES (18);
 INSERT INTO t1 VALUES (19);
+eval SET @@binlog_annotate_row_events= $binlog_annotate_row_events_saved;
 --save_master_pos
 
 --connection server_2

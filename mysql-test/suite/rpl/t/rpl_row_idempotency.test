@@ -13,6 +13,9 @@ call mtr.add_suppression("Can.t find record in .t[12].* error.* 1032");
 call mtr.add_suppression("Cannot delete or update a parent row: a foreign key constraint fails .* error.* 1451");
 call mtr.add_suppression("Cannot add or update a child row: a foreign key constraint fails .* error.* 1452");
 call mtr.add_suppression("Duplicate entry .1. for key .PRIMARY.* error.* 1062");
+call mtr.add_suppression("Can't find record in 't1'");
+call mtr.add_suppression("Can't find record in 't2'");
+
 
 # bug#31609 Not all RBR slave errors reported as errors
 # bug#31552 Replication breaks when deleting rows from out-of-sync table

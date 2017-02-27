@@ -1294,7 +1294,6 @@ class Item_func_min_max :public Item_hybrid_func
 {
   String tmp_value;
   int cmp_sign;
-  THD *thd;
 public:
   Item_func_min_max(THD *thd, List<Item> &list, int cmp_sign_arg):
     Item_hybrid_func(thd, list), cmp_sign(cmp_sign_arg)
@@ -2384,7 +2383,7 @@ enum Cast_target
 {
   ITEM_CAST_BINARY, ITEM_CAST_SIGNED_INT, ITEM_CAST_UNSIGNED_INT,
   ITEM_CAST_DATE, ITEM_CAST_TIME, ITEM_CAST_DATETIME, ITEM_CAST_CHAR,
-  ITEM_CAST_DECIMAL, ITEM_CAST_DOUBLE, ITEM_CAST_JSON
+  ITEM_CAST_DECIMAL, ITEM_CAST_DOUBLE
 };
 
 

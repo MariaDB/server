@@ -1189,7 +1189,8 @@ Item *Item_cache::safe_charset_converter(THD *thd, CHARSET_INFO *tocs)
   if (conv == example)
     return this;
   Item_cache *cache;
-  if (!conv || !(cache= new (thd->mem_root) Item_cache_str(thd, conv)))
+  if (!conv || conv->fix_fields(thd, (Item **) NULL) ||
+      !(cache= new (thd->mem_root) Item_cache_str(thd, conv)))
     return NULL; // Safe conversion is not possible, or OEM
   cache->setup(thd, conv);
   cache->fixed= false; // Make Item::fix_fields() happy
@@ -2880,6 +2881,44 @@ void Item_field::fix_after_pullout(st_select_lex *new_parent, Item **ref)
     depended_from= NULL;
   if (context)
   {
+    bool need_change= false;
+    /*
+      Suppose there are nested selects:
+
+       select_id=1
+         select_id=2
+           select_id=3  <----+
+             select_id=4    -+
+               select_id=5 --+
+
+      Suppose, pullout operation has moved anything that had select_id=4 or 5
+      in to select_id=3.
+
+      If this Item_field had a name resolution context pointing into select_lex
+      with id=4 or id=5, it needs a new name resolution context.
+
+      However, it could also be that this object is a part of outer reference:
+      Item_ref(Item_field(field in select with select_id=1))).
+      - The Item_ref object has a context with select_id=5, and so needs a new
+        name resolution context.
+      - The Item_field object has a context with select_id=1, and doesn't need
+        a new name resolution context.
+
+      So, the following loop walks from Item_field's current context upwards.
+      If we find that the select we've been pulled out to is up there, we
+      create the new name resolution context. Otherwise, we don't.
+    */
+    for (Name_resolution_context *ct= context; ct; ct= ct->outer_context)
+    {
+      if (new_parent == ct->select_lex)
+      {
+        need_change= true;
+        break;
+      }
+    }
+    if (!need_change)
+      return;
+
     Name_resolution_context *ctx= new Name_resolution_context();
     if (context->select_lex == new_parent)
     {
@@ -8720,17 +8759,22 @@ bool Item_default_value::fix_fields(THD *thd, Item **items)
     goto error;
   memcpy((void *)def_field, (void *)field_arg->field,
          field_arg->field->size_of());
-  def_field->move_field_offset((my_ptrdiff_t)
-                               (def_field->table->s->default_values -
-                                def_field->table->record[0]));
-  set_field(def_field);
-  if (field->default_value)
+  IF_DBUG(def_field->is_stat_field=1,); // a hack to fool ASSERT_COLUMN_MARKED_FOR_WRITE_OR_COMPUTED
+  if (def_field->default_value && def_field->default_value->flags)
   {
-    fix_session_vcol_expr_for_read(thd, field, field->default_value);
+    uchar *newptr= (uchar*) thd->alloc(1+def_field->pack_length());
+    if (!newptr)
+      goto error;
+    fix_session_vcol_expr_for_read(thd, def_field, def_field->default_value);
     if (thd->mark_used_columns != MARK_COLUMNS_NONE)
-      field->default_value->expr->walk(&Item::register_field_in_read_map, 1, 0);
-    IF_DBUG(def_field->is_stat_field=1,); // a hack to fool ASSERT_COLUMN_MARKED_FOR_WRITE_OR_COMPUTED
+      def_field->default_value->expr->walk(&Item::register_field_in_read_map, 1, 0);
+    def_field->move_field(newptr+1, def_field->maybe_null() ? newptr : 0, 1);
   }
+  else
+    def_field->move_field_offset((my_ptrdiff_t)
+                                 (def_field->table->s->default_values -
+                                  def_field->table->record[0]));
+  set_field(def_field);
   return FALSE;
 
 error:
@@ -8755,6 +8799,7 @@ void Item_default_value::calculate()
 {
   if (field->default_value)
     field->set_default();
+  DEBUG_SYNC(field->table->in_use, "after_Item_default_value_calculate");
 }
 
 String *Item_default_value::val_str(String *str)
@@ -8796,15 +8841,25 @@ bool Item_default_value::send(Protocol *protocol, String *buffer)
 int Item_default_value::save_in_field(Field *field_arg, bool no_conversions)
 {
   if (arg)
-    calculate();
-  else
   {
-    return field_arg->save_in_field_default_value(context->error_processor ==
-                                                  &view_error_processor);
+    calculate();
+    return Item_field::save_in_field(field_arg, no_conversions);
   }
-  return Item_field::save_in_field(field_arg, no_conversions);
+
+  if (field_arg->default_value && field_arg->default_value->flags)
+    return 0; // defaut fields will be set later, no need to do it twice
+  return field_arg->save_in_field_default_value(context->error_processor ==
+                                                &view_error_processor);
 }
 
+table_map Item_default_value::used_tables() const
+{
+  if (!field || !field->default_value)
+    return static_cast<table_map>(0);
+  if (!field->default_value->expr)                      // not fully parsed field
+    return static_cast<table_map>(RAND_TABLE_BIT);
+  return field->default_value->expr->used_tables();
+}
 
 /**
   This method like the walk method traverses the item tree, but at the

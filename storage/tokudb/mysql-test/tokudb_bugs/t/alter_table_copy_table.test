@@ -8,5 +8,6 @@ set default_storage_engine=tokudb;
 create table t (id int, x char(2), primary key (id), unique key (x));
 insert into t values (1,'aa'),(2,'ab');
 --error 1062
+set statement sql_mode = '' for
 alter table t modify x char(1);
 drop table t;

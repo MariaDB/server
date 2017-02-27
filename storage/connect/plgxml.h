@@ -1,3 +1,7 @@
+#if defined(ZIP_SUPPORT)
+#include "filamzip.h"
+#endif   //	ZIP_SUPPORT
+
 /******************************************************************/
 /*  Dual XML implementation base classes defines.                 */
 /******************************************************************/
@@ -72,8 +76,8 @@ class XMLDOCUMENT : public BLOCK {
   virtual void    SetNofree(bool b) = 0;
 
   // Methods
-  virtual bool    Initialize(PGLOBAL) = 0;
-  virtual bool    ParseFile(char *) = 0;
+	virtual bool    Initialize(PGLOBAL, char *, bool) = 0;
+  virtual bool    ParseFile(PGLOBAL, char *) = 0;
   virtual bool    NewDoc(PGLOBAL, char *) = 0;
   virtual void    AddComment(PGLOBAL, char *) = 0;
   virtual PXNODE  GetRoot(PGLOBAL) = 0;
@@ -91,8 +95,16 @@ class XMLDOCUMENT : public BLOCK {
 
   // Utility
   bool  MakeNSlist(PGLOBAL g);
+	bool  InitZip(PGLOBAL g, char *entry);
+	char *GetMemDoc(PGLOBAL g, char *fn);
+	void  CloseZip(void);
 
   // Members
+#if defined(ZIP_SUPPORT)
+	ZIPUTIL *zip;													 /* Used for zipped file  */
+#else   // !ZIP_SUPPORT
+	bool     zip;													 /* Always false          */
+#endif  //	!ZIP_SUPPORT
   PNS   Namespaces;                      /* To the namespaces     */
   char *Encoding;                        /* The document encoding */
   char *Nslist;                          /* Namespace list        */

@@ -1064,3 +1064,21 @@ DROP TABLE t1;
 #
 # End of 10.1 tests
 #
+#
+# MDEV-10554: Assertion `!derived->first_select()->
+# exclude_from_table_unique_test || derived->outer_select()->
+# exclude_from_table_unique_test'
+# failed in TABLE_LIST::set_check_merged()
+#
+CREATE TABLE t1 (f INT);
+CREATE ALGORITHM = TEMPTABLE VIEW v1 AS SELECT * FROM ( SELECT * FROM t1 ) AS sq;
+PREPARE stmt FROM 'SELECT * FROM v1';
+EXECUTE stmt;
+f
+EXECUTE stmt;
+f
+drop view v1;
+drop table t1;
+#
+# End of 10.2 tests
+#

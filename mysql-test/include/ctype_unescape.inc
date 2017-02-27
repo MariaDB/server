@@ -1,5 +1,7 @@
 --echo # Start of ctype_unescape.inc
 
+SET sql_mode = '';
+
 #
 # Testing how string literals with backslash and quote-quote are unescaped.
 # The tests assume that single quote (') is used as a delimiter.
@@ -323,5 +325,6 @@ DROP FUNCTION wellformedness;
 DROP FUNCTION mysql_real_escape_string_generated;
 DROP FUNCTION iswellformed;
 DROP TABLE allbytes;
+SET sql_mode = DEFAULT;
 
 --echo # End of ctype_backslash.inc

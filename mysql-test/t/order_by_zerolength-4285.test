@@ -3,6 +3,13 @@
 #
 create table t1 (pk int primary key);
 insert into t1 values (1),(2),(3),(4),(5),(6),(7),(8),(9),(10);
-select * from t1 order by now(), cast(pk as char(0));
-drop table t1;
 
+# In strict mode the query produces result in a different order
+# (not ordered implicitly by PK and indeterministic), so we force sorting.
+# However, sorting also affects warnings, so we'll check them separately.
+--disable_warnings
+--sorted_result
+select * from t1 order by now(), cast(pk as char(0));
+--enable_warnings
+show warnings;
+drop table t1;

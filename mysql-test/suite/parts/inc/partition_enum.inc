@@ -32,7 +32,7 @@ let $letter=26;
 begin;
 while ($letter)
 {
-eval insert into t2 values (char(ascii('A')+$letter));
+eval insert ignore into t2 values (char(ascii('A')+$letter));
 dec $letter;
 }
 commit;

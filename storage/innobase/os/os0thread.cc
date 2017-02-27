@@ -279,4 +279,3 @@ os_thread_free()
 
 	mutex_destroy(&thread_mutex);
 }
-

@@ -4,6 +4,8 @@ call mtr.add_suppression("Slave SQL.*Can.t find record in .t[12].* error.* 1032"
 call mtr.add_suppression("Slave SQL.*Cannot delete or update a parent row: a foreign key constraint fails .* error.* 1451");
 call mtr.add_suppression("Slave SQL.*Cannot add or update a child row: a foreign key constraint fails .* error.* 1452");
 call mtr.add_suppression("Slave SQL.*Could not execute Write_rows event on table test.* Duplicate entry .1. for key .PRIMARY.* error.* 1062");
+call mtr.add_suppression("Can't find record in 't1'");
+call mtr.add_suppression("Can't find record in 't2'");
 connection master;
 CREATE TABLE t1 (a INT PRIMARY KEY);
 CREATE TABLE t2 (a INT);

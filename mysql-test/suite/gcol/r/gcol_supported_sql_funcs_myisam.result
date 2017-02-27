@@ -273,10 +273,14 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 insert into t1 values (2,default);
 insert into t1 values (-2,default);
+Warnings:
+Warning	1365	Division by 0
 select * from t1;
 a	b
 -2	NULL
 2	0.693147
+Warning	1365	Division by 0
+Warnings:
 drop table t1;
 set sql_warnings = 0;
 # LOG()
@@ -292,11 +296,15 @@ t1	CREATE TABLE `t1` (
 insert into t1 values (2,65536,default);
 insert into t1 values (10,100,default);
 insert into t1 values (1,100,default);
+Warnings:
+Warning	1365	Division by 0
 select * from t1;
 a	b	c
 1	100	NULL
 10	100	2
 2	65536	16
+Warning	1365	Division by 0
+Warnings:
 drop table t1;
 set sql_warnings = 0;
 set sql_warnings = 1;
@@ -309,10 +317,14 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 insert into t1 values (2,default);
 insert into t1 values (-2,default);
+Warnings:
+Warning	1365	Division by 0
 select * from t1;
 a	b
 -2	NULL
 2	0.693147
+Warning	1365	Division by 0
+Warnings:
 drop table t1;
 set sql_warnings = 0;
 # LOG2()
@@ -326,10 +338,14 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 insert into t1 values (65536,default);
 insert into t1 values (-100,default);
+Warnings:
+Warning	1365	Division by 0
 select * from t1;
 a	b
 -100	NULL
 65536	16
+Warning	1365	Division by 0
+Warnings:
 drop table t1;
 set sql_warnings = 0;
 # LOG10()
@@ -344,11 +360,15 @@ t1	CREATE TABLE `t1` (
 insert into t1 values (2,default);
 insert into t1 values (100,default);
 insert into t1 values (-100,default);
+Warnings:
+Warning	1365	Division by 0
 select * from t1;
 a	b
 -100	NULL
 100	2
 2	0.30103
+Warning	1365	Division by 0
+Warnings:
 drop table t1;
 set sql_warnings = 0;
 # -
@@ -2264,11 +2284,8 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 insert into t1 values ('2003-02-05',default);
 insert into t1 values ('2003-02-32',default);
-Warnings:
-Warning	1265	Data truncated for column 'a' at row 1
 select * from t1;
 a	b
-0000-00-00 00:00:00	NULL
 2003-02-05 00:00:00	2003-02-28 00:00:00
 drop table t1;
 set sql_warnings = 0;

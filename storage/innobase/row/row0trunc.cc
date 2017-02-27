@@ -1224,12 +1224,6 @@ row_truncate_complete(
 {
 	bool	is_file_per_table = dict_table_is_file_per_table(table);
 
-	if (table->memcached_sync_count == DICT_TABLE_IN_DDL) {
-		/* We need to set the memcached sync back to 0, unblock
-		memcached operations. */
-		table->memcached_sync_count = 0;
-	}
-
 	row_mysql_unlock_data_dictionary(trx);
 
 	DEBUG_SYNC_C("ib_trunc_table_trunc_completing");
@@ -1827,23 +1821,6 @@ row_truncate_table_for_mysql(
 		return(row_truncate_complete(
 				table, trx, fsp_flags, logger, err));
 	}
-
-	/* Check if memcached DML is running on this table. if is, we don't
-	allow truncate this table. */
-	if (table->memcached_sync_count != 0) {
-		ib::error() << "Cannot truncate table "
-			<< table->name
-			<< " by DROP+CREATE because there are memcached"
-			" operations running on it.";
-		err = DB_ERROR;
-		trx_rollback_to_savepoint(trx, NULL);
-		return(row_truncate_complete(
-				table, trx, fsp_flags, logger, err));
-	} else {
-                /* We need to set this counter to -1 for blocking
-                memcached operations. */
-		table->memcached_sync_count = DICT_TABLE_IN_DDL;
-        }
 
 	/* Remove all locks except the table-level X lock. */
 	lock_remove_all_on_table(table, FALSE);

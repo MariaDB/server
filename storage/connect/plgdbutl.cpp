@@ -68,6 +68,9 @@
 #include "tabcol.h"    // header of XTAB and COLUMN classes
 #include "valblk.h"
 #include "rcmsg.h"
+#ifdef ZIP_SUPPORT
+#include "filamzip.h"
+#endif   // ZIP_SUPPORT
 
 /***********************************************************************/
 /*  DB static variables.                                               */
@@ -934,7 +937,16 @@ int PlugCloseFile(PGLOBAL g __attribute__((unused)), PFBLOCK fp, bool all)
       CloseXML2File(g, fp, all);
       break;
 #endif   // LIBXML2_SUPPORT
-    default:
+#ifdef ZIP_SUPPORT
+		case TYPE_FB_ZIP:
+			((ZIPUTIL*)fp->File)->close();
+			fp->Memory = NULL;
+			fp->Mode = MODE_ANY;
+			fp->Count = 0;
+			fp->File = NULL;
+			break;
+#endif   // ZIP_SUPPORT
+		default:
       rc = RC_FX;
     } // endswitch Type
 

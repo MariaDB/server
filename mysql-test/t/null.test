@@ -61,29 +61,29 @@ drop table t1;
 # Test inserting and updating with NULL
 #
 CREATE TABLE t1 (a varchar(16) NOT NULL default '', b smallint(6) NOT NULL default 0, c datetime NOT NULL default '0000-00-00 00:00:00', d smallint(6) NOT NULL default 0);
-INSERT INTO t1 SET a = "", d= "2003-01-14 03:54:55";
-UPDATE t1 SET d=1/NULL;
-UPDATE t1 SET d=NULL;
+INSERT IGNORE INTO t1 SET a = "", d= "2003-01-14 03:54:55";
+UPDATE IGNORE t1 SET d=1/NULL;
+UPDATE IGNORE t1 SET d=NULL;
 --error 1048
 INSERT INTO t1 (a) values (null);
 --error 1048
 INSERT INTO t1 (a) values (1/null);
-INSERT INTO t1 (a) values (null),(null);
+INSERT IGNORE INTO t1 (a) values (null),(null);
 --error 1048
 INSERT INTO t1 (b) values (null);
 --error 1048
 INSERT INTO t1 (b) values (1/null);
-INSERT INTO t1 (b) values (null),(null);
+INSERT IGNORE INTO t1 (b) values (null),(null);
 --error 1048
 INSERT INTO t1 (c) values (null);
 --error 1048
 INSERT INTO t1 (c) values (1/null);
-INSERT INTO t1 (c) values (null),(null);
+INSERT IGNORE INTO t1 (c) values (null),(null);
 --error 1048
 INSERT INTO t1 (d) values (null);
 --error 1048
 INSERT INTO t1 (d) values (1/null);
-INSERT INTO t1 (d) values (null),(null);
+INSERT IGNORE INTO t1 (d) values (null),(null);
 select * from t1;
 drop table t1;
 
@@ -118,6 +118,7 @@ insert into t1 select i*2 from t1;
 insert into t1 values(null);
 explain select * from t1 where i=2 or i is null;
 select count(*) from t1 where i=2 or i is null;
+SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 alter table t1 change i i int not null;
 explain select * from t1 where i=2 or i is null;
 select count(*) from t1 where i=2 or i is null;
@@ -335,6 +336,7 @@ DROP TABLE t1,t2;
 --error ER_CANT_AGGREGATE_2COLLATIONS
 SELECT NULLIF(_latin1'a' COLLATE latin1_general_ci, _latin1'a' COLLATE latin1_bin);
 
+SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 CREATE TABLE t1 AS SELECT
   NULLIF(1,1),
   NULLIF(1,1.0),
@@ -344,6 +346,7 @@ CREATE TABLE t1 AS SELECT
 SHOW CREATE TABLE t1;
 DROP TABLE t1;
 
+SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 CREATE TABLE t1 AS SELECT
   NULLIF(1.0,1),
   NULLIF(1.0,1.0),
@@ -353,6 +356,7 @@ CREATE TABLE t1 AS SELECT
 SHOW CREATE TABLE t1;
 DROP TABLE t1;
 
+SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 CREATE TABLE t1 AS SELECT
   NULLIF(1e0,1),
   NULLIF(1e0,1.0),
@@ -371,6 +375,7 @@ CREATE TABLE t1 AS SELECT
 SHOW CREATE TABLE t1;
 DROP TABLE t1;
 
+SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 CREATE TABLE t1 AS SELECT
   NULLIF(TIMESTAMP'2001-01-01 00:00:00',1),
   NULLIF(TIMESTAMP'2001-01-01 00:00:00',1.0),
@@ -380,6 +385,7 @@ CREATE TABLE t1 AS SELECT
 SHOW CREATE TABLE t1;
 DROP TABLE t1;
 
+SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 CREATE TABLE t1 AS SELECT
   NULLIF(DATE'2001-01-01',1),
   NULLIF(DATE'2001-01-01',1.0),
@@ -862,6 +868,7 @@ EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=2010 AND CASE WHEN 10.1=a THEN NULL EL
 DROP TABLE t1;
 
 --echo # Two warnings expected
+SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 CREATE TABLE t1 AS SELECT
   NULLIF(TIMESTAMP'2001-01-01 00:00:00',1) AS a,
   CASE WHEN TIMESTAMP'2001-01-01 00:00:00'=1 THEN NULL

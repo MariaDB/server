@@ -164,6 +164,7 @@ Testcase 3.5.10.6: (implemented in trig_frkey.test)
 
 Testcase 3.5.10.extra:
 ----------------------
+set sql_mode = 'NO_ENGINE_SUBSTITUTION';
 create table t1_sp (var136 tinyint, var151 decimal) engine = <engine_to_be_used>;
 create trigger trg before insert on t1_sp
 for each row set @counter=@counter+1;
@@ -200,6 +201,7 @@ count(*)
 drop procedure trig_sp;
 drop trigger trg;
 drop table t1_sp;
+set sql_mode = default;
 
 Testcase 3.5.11.1 (implemented in trig_perf.test)
 -------------------------------------------------
@@ -295,7 +297,7 @@ drop table t4;
 
 Testcase y.y.y.4: Recursive trigger/SP references
 -------------------------------------------------
-set @sql_mode='traditional';
+set sql_mode = 'NO_ENGINE_SUBSTITUTION';
 create table t1_sp (
 count integer,
 var136 tinyint,
@@ -352,6 +354,7 @@ count(*)
 drop procedure trig_sp;
 drop trigger trg;
 drop table t1_sp;
+set sql_mode = default;
 
 Testcase y.y.y.5: Rollback of nested trigger references
 -------------------------------------------------------

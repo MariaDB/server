@@ -1,9 +1,9 @@
 /************* Tabxml C++ Program Source Code File (.CPP) **************/
 /* PROGRAM NAME: TABXML                                                */
 /* -------------                                                       */
-/*  Version 2.8                                                        */
+/*  Version 2.9                                                        */
 /*                                                                     */
-/*  Author Olivier BERTRAND          2007 - 2015                       */
+/*  Author Olivier BERTRAND          2007 - 2016                       */
 /*                                                                     */
 /*  This program are the XML tables classes using MS-DOM or libxml2.   */
 /***********************************************************************/
@@ -136,7 +136,12 @@ PQRYRES XMLColumns(PGLOBAL g, char *db, char *tab, PTOS topt, bool info)
     goto skipit;
     } // endif info
 
-  /*********************************************************************/
+	if (GetIntegerTableOption(g, topt, "Multiple", 0)) {
+		strcpy(g->Message, "Cannot find column definition for multiple table");
+		return NULL;
+	}	// endif Multiple
+
+	/*********************************************************************/
   /*  Open the input file.                                             */
   /*********************************************************************/
   if (!(fn = GetStringTableOption(g, topt, "Filename", NULL))) {
@@ -154,6 +159,8 @@ PQRYRES XMLColumns(PGLOBAL g, char *db, char *tab, PTOS topt, bool info)
   tdp->Fn = fn;
   tdp->Database = SetPath(g, db);
   tdp->Tabname = tab;
+	tdp->Zipped = GetBooleanTableOption(g, topt, "Zipped", false);
+	tdp->Entry = GetStringTableOption(g, topt, "Entry", NULL);
 
   if (!(op = GetStringTableOption(g, topt, "Xmlsup", NULL)))
 #if defined(__WIN__)
@@ -204,7 +211,8 @@ PQRYRES XMLColumns(PGLOBAL g, char *db, char *tab, PTOS topt, bool info)
 
     while (true) {
       if (!vp->atp &&
-          !(node = (vp->nl) ? vp->nl->GetItem(g, vp->k++, node) : NULL))
+				!(node = (vp->nl) ? vp->nl->GetItem(g, vp->k++, tdp->Usedom ? node : NULL)
+				                  : NULL))
         if (j) {
           vp = lvlp[--j];
 
@@ -254,7 +262,8 @@ PQRYRES XMLColumns(PGLOBAL g, char *db, char *tab, PTOS topt, bool info)
         if (j < lvl && ok) {
           vp = lvlp[j+1];
           vp->k = 0;
-          vp->atp = node->GetAttribute(g, NULL);
+					vp->pn = node;
+					vp->atp = node->GetAttribute(g, NULL);
           vp->nl = node->GetChildElements(g);
 
           if (tdp->Usedom && vp->nl->GetLength() == 1) {
@@ -265,7 +274,7 @@ PQRYRES XMLColumns(PGLOBAL g, char *db, char *tab, PTOS topt, bool info)
 
           if (vp->atp || vp->b) {
             if (!vp->atp)
-              node = vp->nl->GetItem(g, vp->k++, node);
+							node = vp->nl->GetItem(g, vp->k++, tdp->Usedom ? node : NULL);
 
 						strncat(fmt, colname, XLEN(fmt));
 						strncat(fmt, "/", XLEN(fmt));
@@ -424,11 +433,14 @@ XMLDEF::XMLDEF(void)
   DefNs = NULL;
   Attrib = NULL;
   Hdattr = NULL;
+	Entry = NULL;
   Coltype = 1;
   Limit = 0;
   Header = 0;
   Xpand = false;
   Usedom = false;
+	Zipped = false;
+	Mulentries = false;
   } // end of XMLDEF constructor
 
 /***********************************************************************/
@@ -507,7 +519,14 @@ bool XMLDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
   // Get eventual table node attribute
   Attrib = GetStringCatInfo(g, "Attribute", NULL);
   Hdattr = GetStringCatInfo(g, "HeadAttr", NULL);
-  return false;
+
+	// Specific for zipped files
+	if ((Zipped = GetBoolCatInfo("Zipped", false)))
+		Mulentries = ((Entry = GetStringCatInfo(g, "Entry", NULL)))
+		? strchr(Entry, '*') || strchr(Entry, '?')
+		: GetBoolCatInfo("Mulentries", false);
+
+	return false;
   } // end of DefineAM
 
 /***********************************************************************/
@@ -547,6 +566,7 @@ TDBXML::TDBXML(PXMLDEF tdp) : TDBASE(tdp)
   Xfile = tdp->Fn;
   Enc = tdp->Encoding;
   Tabname = tdp->Tabname;
+#if 0 // why all these?
   Rowname = (tdp->Rowname) ? tdp->Rowname : NULL;
   Colname = (tdp->Colname) ? tdp->Colname : NULL;
   Mulnode = (tdp->Mulnode) ? tdp->Mulnode : NULL;
@@ -555,10 +575,22 @@ TDBXML::TDBXML(PXMLDEF tdp) : TDBASE(tdp)
   DefNs = (tdp->DefNs) ? tdp->DefNs : NULL;
   Attrib = (tdp->Attrib) ? tdp->Attrib : NULL;
   Hdattr = (tdp->Hdattr) ? tdp->Hdattr : NULL;
-  Coltype = tdp->Coltype;
+#endif // 0
+	Rowname = tdp->Rowname;
+	Colname = tdp->Colname;
+	Mulnode = tdp->Mulnode;
+	XmlDB = tdp->XmlDB;
+	Nslist = tdp->Nslist;
+	DefNs = tdp->DefNs;
+	Attrib = tdp->Attrib;
+	Hdattr = tdp->Hdattr;
+	Entry = tdp->Entry;
+	Coltype = tdp->Coltype;
   Limit = tdp->Limit;
   Xpand = tdp->Xpand;
-  Changed = false;
+	Zipped = tdp->Zipped;
+	Mulentries = tdp->Mulentries;
+	Changed = false;
   Checked = false;
   NextSame = false;
   NewRow = false;
@@ -600,10 +632,13 @@ TDBXML::TDBXML(PTDBXML tdbp) : TDBASE(tdbp)
   DefNs = tdbp->DefNs;
   Attrib = tdbp->Attrib;
   Hdattr = tdbp->Hdattr;
-  Coltype = tdbp->Coltype;
+	Entry = tdbp->Entry;
+	Coltype = tdbp->Coltype;
   Limit = tdbp->Limit;
   Xpand = tdbp->Xpand;
-  Changed = tdbp->Changed;
+	Zipped = tdbp->Zipped;
+	Mulentries = tdbp->Mulentries;
+	Changed = tdbp->Changed;
   Checked = tdbp->Checked;
   NextSame = tdbp->NextSame;
   NewRow = tdbp->NewRow;
@@ -681,7 +716,7 @@ int TDBXML::LoadTableFile(PGLOBAL g, char *filename)
   /*********************************************************************/
   /*  Firstly we check whether this file have been already loaded.     */
   /*********************************************************************/
-  if (Mode == MODE_READ || Mode == MODE_ANY)
+  if ((Mode == MODE_READ || Mode == MODE_ANY) && !Zipped) 
     for (fp = dup->Openlist; fp; fp = fp->Next)
       if (fp->Type == type && fp->Length && fp->Count)
         if (!stricmp(fp->Fname, filename))
@@ -703,7 +738,7 @@ int TDBXML::LoadTableFile(PGLOBAL g, char *filename)
       return RC_FX;
 
     // Initialize the implementation
-    if (Docp->Initialize(g)) {
+    if (Docp->Initialize(g, Entry, Zipped)) {
       sprintf(g->Message, MSG(INIT_FAILED), (Usedom) ? "DOM" : "libxml2");
       return RC_FX;
       } // endif init
@@ -712,7 +747,7 @@ int TDBXML::LoadTableFile(PGLOBAL g, char *filename)
       htrc("TDBXML: parsing %s rc=%d\n", filename, rc);
 
     // Parse the XML file
-    if (Docp->ParseFile(filename)) {
+    if (Docp->ParseFile(g, filename)) {
       // Does the file exist?
       int h= global_open(g, MSGID_NONE, filename, _O_RDONLY);
 

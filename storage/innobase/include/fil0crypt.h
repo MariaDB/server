@@ -27,6 +27,7 @@ Created 04/01/2015 Jan Lindström
 #define fil0crypt_h
 
 #include "os0event.h"
+#include "my_crypt.h"
 
 /**
 * Magic pattern in start of crypt data on page 0

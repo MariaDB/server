@@ -2095,7 +2095,7 @@ DROP TABLE t1, t2;
 CREATE TABLE t1 (id INT NOT NULL);
 CREATE TABLE t2 (id INT NOT NULL);
 INSERT t1 VALUES (1),(2),(3);
-UPDATE t1 SET id=NULL;
+UPDATE IGNORE t1 SET id=NULL;
 Warnings:
 Warning	1048	Column 'id' cannot be null
 Warning	1048	Column 'id' cannot be null
@@ -2123,7 +2123,7 @@ CREATE TRIGGER trg1 BEFORE INSERT ON t2 FOR EACH ROW INSERT/*!INTO*/t1 VALUES (1
 # Used to crash
 SHOW TRIGGERS IN db1;
 Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
-trg1	INSERT	t2	CREATE DEFINER=`root`@`localhost` TRIGGER trg1 BEFORE INSERT ON t2 FOR EACH ROW INSERTINTOt1 VALUES (1)	BEFORE	#	NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION		latin1	latin1_swedish_ci	latin1_swedish_ci
+trg1	INSERT	t2	CREATE DEFINER=`root`@`localhost` TRIGGER trg1 BEFORE INSERT ON t2 FOR EACH ROW INSERTINTOt1 VALUES (1)	BEFORE	#	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION		latin1	latin1_swedish_ci	latin1_swedish_ci
 INSERT INTO t2 VALUES (1);
 ERROR 42000: Trigger 'trg1' has an error in its body: 'You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'VALUES (1)' at line 1'
 SELECT * FROM t1;
@@ -2178,6 +2178,7 @@ s1
 DELETE FROM t1;
 DROP TABLE t1;
 DROP TEMPORARY TABLE t2;
+SET sql_mode = 'NO_ENGINE_SUBSTITUTION';
 DROP TRIGGER IF EXISTS trg1;
 DROP TABLE IF EXISTS t1;
 CREATE TABLE t1 (a INT);
@@ -2205,6 +2206,7 @@ BEGIN
 DECLARE trg2 CHAR;
 SELECT 'ab' INTO trg2;
 END|
+SET sql_mode = DEFAULT;
 INSERT INTO t1 VALUES (0);
 SELECT * FROM t1;
 a

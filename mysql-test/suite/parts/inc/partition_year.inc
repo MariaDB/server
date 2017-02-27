@@ -27,7 +27,7 @@ let $count=255;
 begin;
 while ($count)
 {
-eval insert into t2 values (1901+$count);
+eval insert ignore into t2 values (1901+$count);
 dec $count;
 }
 commit;

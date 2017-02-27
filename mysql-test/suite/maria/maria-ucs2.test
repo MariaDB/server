@@ -26,6 +26,7 @@ INSERT INTO t1 SELECT * FROM t1;
 # check table is not needed to reproduce the problem,
 # but shows that by this time the table appears to be okay.
 CHECK TABLE t1;
+SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 ALTER TABLE t1 MODIFY a VARCHAR(800) CHARSET `ucs2`;
 CHECK TABLE t1;
 SHOW CREATE table t1;

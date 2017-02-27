@@ -442,19 +442,19 @@ connection con1root;
 USE mysqltest;
 SHOW CREATE PROCEDURE wl2897_p1;
 Procedure	sql_mode	Create Procedure	character_set_client	collation_connection	Database Collation
-wl2897_p1	NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`mysqltest_2`@`localhost` PROCEDURE `wl2897_p1`()
+wl2897_p1	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`mysqltest_2`@`localhost` PROCEDURE `wl2897_p1`()
 SELECT 1	latin1	latin1_swedish_ci	latin1_swedish_ci
 SHOW CREATE PROCEDURE wl2897_p3;
 Procedure	sql_mode	Create Procedure	character_set_client	collation_connection	Database Collation
-wl2897_p3	NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`a @ b @ c`@`localhost` PROCEDURE `wl2897_p3`()
+wl2897_p3	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`a @ b @ c`@`localhost` PROCEDURE `wl2897_p3`()
 SELECT 3	latin1	latin1_swedish_ci	latin1_swedish_ci
 SHOW CREATE FUNCTION wl2897_f1;
 Function	sql_mode	Create Function	character_set_client	collation_connection	Database Collation
-wl2897_f1	NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`mysqltest_2`@`localhost` FUNCTION `wl2897_f1`() RETURNS int(11)
+wl2897_f1	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`mysqltest_2`@`localhost` FUNCTION `wl2897_f1`() RETURNS int(11)
 RETURN 1	latin1	latin1_swedish_ci	latin1_swedish_ci
 SHOW CREATE FUNCTION wl2897_f3;
 Function	sql_mode	Create Function	character_set_client	collation_connection	Database Collation
-wl2897_f3	NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`a @ b @ c`@`localhost` FUNCTION `wl2897_f3`() RETURNS int(11)
+wl2897_f3	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`a @ b @ c`@`localhost` FUNCTION `wl2897_f3`() RETURNS int(11)
 RETURN 3	latin1	latin1_swedish_ci	latin1_swedish_ci
 DROP USER mysqltest_1@localhost;
 DROP USER mysqltest_2@localhost;
@@ -520,7 +520,7 @@ SELECT a;
 END //
 SHOW CREATE PROCEDURE test.sp19857;
 Procedure	sql_mode	Create Procedure	character_set_client	collation_connection	Database Collation
-sp19857	NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`user19857`@`localhost` PROCEDURE `sp19857`()
+sp19857	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`user19857`@`localhost` PROCEDURE `sp19857`()
     DETERMINISTIC
 BEGIN
 DECLARE a INT;
@@ -704,7 +704,7 @@ connection con2;
 # This should work
 SHOW CREATE PROCEDURE db1.p1;
 Procedure	sql_mode	Create Procedure	character_set_client	collation_connection	Database Collation
-p1	NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` PROCEDURE `p1`()
+p1	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` PROCEDURE `p1`()
 SELECT 1	latin1	latin1_swedish_ci	latin1_swedish_ci
 connection default;
 disconnect con2;

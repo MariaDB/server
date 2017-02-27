@@ -200,13 +200,6 @@ public:
 		ut_a(!m_files.empty());
 		return(&m_files.front());
 	}
-
-	/** Check if undo tablespace.
-	@return true if undo tablespace */
-	static bool is_undo_tablespace(ulint id)
-	{
-		return(id <= srv_undo_tablespaces_open);
-	}
 private:
 	/**
 	@param[in]	filename	Name to lookup in the data files.

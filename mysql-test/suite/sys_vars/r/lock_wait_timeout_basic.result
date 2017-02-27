@@ -1,31 +1,31 @@
 SET @start_global_value = @@global.lock_wait_timeout;
 SELECT @start_global_value;
 @start_global_value
-31536000
+86400
 SET @start_session_value = @@session.lock_wait_timeout;
 SELECT @start_session_value;
 @start_session_value
-31536000
+86400
 '#--------------------FN_DYNVARS_002_01-------------------------#'
 SET @@global.lock_wait_timeout = 100;
 SET @@global.lock_wait_timeout = DEFAULT;
 SELECT @@global.lock_wait_timeout;
 @@global.lock_wait_timeout
-31536000
+86400
 SET @@session.lock_wait_timeout = 200;
 SET @@session.lock_wait_timeout = DEFAULT;
 SELECT @@session.lock_wait_timeout;
 @@session.lock_wait_timeout
-31536000
+86400
 '#--------------------FN_DYNVARS_002_02-------------------------#'
 SET @@global.lock_wait_timeout = @start_global_value;
 SELECT @@global.lock_wait_timeout = 31536000;
 @@global.lock_wait_timeout = 31536000
-1
+0
 SET @@session.lock_wait_timeout = @start_session_value;
 SELECT @@session.lock_wait_timeout = 31536000;
 @@session.lock_wait_timeout = 31536000
-1
+0
 '#--------------------FN_DYNVARS_002_03-------------------------#'
 SET @@global.lock_wait_timeout = 1;
 SELECT @@global.lock_wait_timeout;
@@ -170,8 +170,8 @@ ERROR 42S22: Unknown column 'lock_wait_timeout' in 'field list'
 SET @@global.lock_wait_timeout = @start_global_value;
 SELECT @@global.lock_wait_timeout;
 @@global.lock_wait_timeout
-31536000
+86400
 SET @@session.lock_wait_timeout = @start_session_value;
 SELECT @@session.lock_wait_timeout;
 @@session.lock_wait_timeout
-31536000
+86400

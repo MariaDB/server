@@ -14,41 +14,41 @@ INSERT INTO t3 VALUES('00','10','98-12-17','98.12.17 11:30:45'),('20','20','98-1
 INSERT INTO t4 VALUES('00','00','98-12-17','98.12.17 11:30:45'),('20','20','98-12-16','98.12.16 11:30:45'),('40','40','98-12-15','98.12.15 11:30:45'),('60','60','98-12-14','98.12.14 11:30:45'),('69','69','98-12-13','98.12.13 11:30:45'),('70','70','98-12-12','98.12.12 11:30:45'),('90','90','98-12-11','98.12.11 11:30:45'),('99','99','98-12-10','98.12.10 11:30:45');
 INSERT INTO t4 VALUES(1,1,'98-12-9','98.12.9 11:30:45'),(20,20,'98-12-8','98.12.8 11:30:45'),(40,40,'98-12-7','98.12.7 11:30:45'),(60,60,'98-12-6','98.12.6 11:30:45'),(69,69,'98-12-5','98.12.5 11:30:45'),(70,70,'98-12-4','98.12.4 11:30:45'),(90,90,'98-12-3','98.12.3 11:30:45'),(99,99,'98-12-2','98.12.2 11:30:45');
 SET TIMESTAMP=1233216687;
-INSERT INTO t1 VALUES(NOW(),CURRENT_DATE,NOW(),CURRENT_DATE);
+INSERT IGNORE INTO t1 VALUES(NOW(),CURRENT_DATE,NOW(),CURRENT_DATE);
 Warnings:
 Warning	1265	Data truncated for column 'c1' at row 1
 Warning	1265	Data truncated for column 'c2' at row 1
 Note	1265	Data truncated for column 'c3' at row 1
-INSERT INTO t2 VALUES(NOW(),CURRENT_DATE,NOW(),CURRENT_DATE);
+INSERT IGNORE INTO t2 VALUES(NOW(),CURRENT_DATE,NOW(),CURRENT_DATE);
 Warnings:
 Warning	1265	Data truncated for column 'c1' at row 1
 Warning	1265	Data truncated for column 'c2' at row 1
 Note	1265	Data truncated for column 'c3' at row 1
-INSERT INTO t3 VALUES(NOW(),CURRENT_DATE,NOW(),CURRENT_DATE);
+INSERT IGNORE INTO t3 VALUES(NOW(),CURRENT_DATE,NOW(),CURRENT_DATE);
 Warnings:
 Warning	1265	Data truncated for column 'c1' at row 1
 Warning	1265	Data truncated for column 'c2' at row 1
 Note	1265	Data truncated for column 'c3' at row 1
-INSERT INTO t4 VALUES(NOW(),CURRENT_DATE,NOW(),CURRENT_DATE);
+INSERT IGNORE INTO t4 VALUES(NOW(),CURRENT_DATE,NOW(),CURRENT_DATE);
 Warnings:
 Warning	1265	Data truncated for column 'c1' at row 1
 Warning	1265	Data truncated for column 'c2' at row 1
 Note	1265	Data truncated for column 'c3' at row 1
 INSERT INTO t1(c1) VALUES('5');
-INSERT INTO t2(c1) VALUES('5');
+INSERT IGNORE INTO t2(c1) VALUES('5');
 Warnings:
 Warning	1364	Field 'c2' doesn't have a default value
 INSERT INTO t3(c1) VALUES('5');
 INSERT INTO t4(c1,c2) VALUES('0','000');
-INSERT INTO t2 VALUES(1900,2156,'08-01-06','08/01/07');
+INSERT IGNORE INTO t2 VALUES(1900,2156,'08-01-06','08/01/07');
 Warnings:
 Warning	1264	Out of range value for column 'c1' at row 1
 Warning	1264	Out of range value for column 'c2' at row 1
-INSERT INTO t3 VALUES('1900','2156','08-01-08','08/1/9');
+INSERT IGNORE INTO t3 VALUES('1900','2156','08-01-08','08/1/9');
 Warnings:
 Warning	1264	Out of range value for column 'c1' at row 1
 Warning	1264	Out of range value for column 'c2' at row 1
-INSERT INTO t4 VALUES('1900','2156','08-01-08','08/1/9'),(1900,2156,'08-01-08','08/1/9'),(0,00,'08-01-08','08/1/9'),(000,000,'08-01-08','08/1/9'),('-20','100','08-01-08','08/1/9'),(-20,100,'08-01-08','08/1/9');
+INSERT IGNORE INTO t4 VALUES('1900','2156','08-01-08','08/1/9'),(1900,2156,'08-01-08','08/1/9'),(0,00,'08-01-08','08/1/9'),(000,000,'08-01-08','08/1/9'),('-20','100','08-01-08','08/1/9'),(-20,100,'08-01-08','08/1/9');
 Warnings:
 Warning	1264	Out of range value for column 'c1' at row 1
 Warning	1264	Out of range value for column 'c2' at row 1
@@ -58,11 +58,11 @@ Warning	1264	Out of range value for column 'c1' at row 5
 Warning	1264	Out of range value for column 'c2' at row 5
 Warning	1264	Out of range value for column 'c1' at row 6
 Warning	1264	Out of range value for column 'c2' at row 6
-INSERT INTO t1 VALUES('','','08-01-04','08/01/05') /* Inserts zero dates for '' strings */;
+INSERT IGNORE INTO t1 VALUES('','','08-01-04','08/01/05') /* Inserts zero dates for '' strings */;
 Warnings:
 Warning	1366	Incorrect integer value: '' for column 'c1' at row 1
 Warning	1366	Incorrect integer value: '' for column 'c2' at row 1
-INSERT INTO t4 VALUES('abcd','abcd','08-01-10','08/01/11'),(1234,1234,'08-01-12','08/01/13') /* Inserts zero dates for absurd dates */;
+INSERT IGNORE INTO t4 VALUES('abcd','abcd','08-01-10','08/01/11'),(1234,1234,'08-01-12','08/01/13') /* Inserts zero dates for absurd dates */;
 Warnings:
 Warning	1366	Incorrect integer value: 'abcd' for column 'c1' at row 1
 Warning	1366	Incorrect integer value: 'abcd' for column 'c2' at row 1
@@ -3219,11 +3219,11 @@ c1	c2	c3	c4
 TRUNCATE TABLE t5;
 DROP TABLE t5;
 INSERT INTO t1 SET c1='00';
-INSERT INTO t2 SET c1=69;
+INSERT IGNORE INTO t2 SET c1=69;
 Warnings:
 Warning	1364	Field 'c2' doesn't have a default value
 INSERT INTO t3 SET c1=70;
-INSERT INTO t4 SET c2=99;
+INSERT IGNORE INTO t4 SET c2=99;
 Warnings:
 Warning	1364	Field 'c1' doesn't have a default value
 SELECT * FROM t1 WHERE c1=0;
@@ -3273,41 +3273,41 @@ INSERT INTO t3 VALUES('00','10','98-12-17','98.12.17 11:30:45'),('20','20','98-1
 INSERT INTO t4 VALUES('00','00','98-12-17','98.12.17 11:30:45'),('20','20','98-12-16','98.12.16 11:30:45'),('40','40','98-12-15','98.12.15 11:30:45'),('60','60','98-12-14','98.12.14 11:30:45'),('69','69','98-12-13','98.12.13 11:30:45'),('70','70','98-12-12','98.12.12 11:30:45'),('90','90','98-12-11','98.12.11 11:30:45'),('99','99','98-12-10','98.12.10 11:30:45');
 INSERT INTO t4 VALUES(1,1,'98-12-9','98.12.9 11:30:45'),(20,20,'98-12-8','98.12.8 11:30:45'),(40,40,'98-12-7','98.12.7 11:30:45'),(60,60,'98-12-6','98.12.6 11:30:45'),(69,69,'98-12-5','98.12.5 11:30:45'),(70,70,'98-12-4','98.12.4 11:30:45'),(90,90,'98-12-3','98.12.3 11:30:45'),(99,99,'98-12-2','98.12.2 11:30:45');
 SET TIMESTAMP=1233216687;
-INSERT INTO t1 VALUES(NOW(),CURRENT_DATE,NOW(),CURRENT_DATE);
+INSERT IGNORE INTO t1 VALUES(NOW(),CURRENT_DATE,NOW(),CURRENT_DATE);
 Warnings:
 Warning	1265	Data truncated for column 'c1' at row 1
 Warning	1265	Data truncated for column 'c2' at row 1
 Note	1265	Data truncated for column 'c3' at row 1
-INSERT INTO t2 VALUES(NOW(),CURRENT_DATE,NOW(),CURRENT_DATE);
+INSERT IGNORE INTO t2 VALUES(NOW(),CURRENT_DATE,NOW(),CURRENT_DATE);
 Warnings:
 Warning	1265	Data truncated for column 'c1' at row 1
 Warning	1265	Data truncated for column 'c2' at row 1
 Note	1265	Data truncated for column 'c3' at row 1
-INSERT INTO t3 VALUES(NOW(),CURRENT_DATE,NOW(),CURRENT_DATE);
+INSERT IGNORE INTO t3 VALUES(NOW(),CURRENT_DATE,NOW(),CURRENT_DATE);
 Warnings:
 Warning	1265	Data truncated for column 'c1' at row 1
 Warning	1265	Data truncated for column 'c2' at row 1
 Note	1265	Data truncated for column 'c3' at row 1
-INSERT INTO t4 VALUES(NOW(),CURRENT_DATE,NOW(),CURRENT_DATE);
+INSERT IGNORE INTO t4 VALUES(NOW(),CURRENT_DATE,NOW(),CURRENT_DATE);
 Warnings:
 Warning	1265	Data truncated for column 'c1' at row 1
 Warning	1265	Data truncated for column 'c2' at row 1
 Note	1265	Data truncated for column 'c3' at row 1
 INSERT INTO t1(c1) VALUES('5');
-INSERT INTO t2(c1) VALUES('5');
+INSERT IGNORE INTO t2(c1) VALUES('5');
 Warnings:
 Warning	1364	Field 'c2' doesn't have a default value
 INSERT INTO t3(c1) VALUES('5');
 INSERT INTO t4(c1,c2) VALUES('0','000');
-INSERT INTO t2 VALUES(1900,2156,'08-01-06','08/01/07');
+INSERT IGNORE INTO t2 VALUES(1900,2156,'08-01-06','08/01/07');
 Warnings:
 Warning	1264	Out of range value for column 'c1' at row 1
 Warning	1264	Out of range value for column 'c2' at row 1
-INSERT INTO t3 VALUES('1900','2156','08-01-08','08/1/9');
+INSERT IGNORE INTO t3 VALUES('1900','2156','08-01-08','08/1/9');
 Warnings:
 Warning	1264	Out of range value for column 'c1' at row 1
 Warning	1264	Out of range value for column 'c2' at row 1
-INSERT INTO t4 VALUES('1900','2156','08-01-08','08/1/9'),(1900,2156,'08-01-08','08/1/9'),(0,00,'08-01-08','08/1/9'),(000,000,'08-01-08','08/1/9'),('-20','100','08-01-08','08/1/9'),(-20,100,'08-01-08','08/1/9');
+INSERT IGNORE INTO t4 VALUES('1900','2156','08-01-08','08/1/9'),(1900,2156,'08-01-08','08/1/9'),(0,00,'08-01-08','08/1/9'),(000,000,'08-01-08','08/1/9'),('-20','100','08-01-08','08/1/9'),(-20,100,'08-01-08','08/1/9');
 Warnings:
 Warning	1264	Out of range value for column 'c1' at row 1
 Warning	1264	Out of range value for column 'c2' at row 1
@@ -3317,11 +3317,11 @@ Warning	1264	Out of range value for column 'c1' at row 5
 Warning	1264	Out of range value for column 'c2' at row 5
 Warning	1264	Out of range value for column 'c1' at row 6
 Warning	1264	Out of range value for column 'c2' at row 6
-INSERT INTO t1 VALUES('','','08-01-04','08/01/05') /* Inserts zero dates for '' strings */;
+INSERT IGNORE INTO t1 VALUES('','','08-01-04','08/01/05') /* Inserts zero dates for '' strings */;
 Warnings:
 Warning	1366	Incorrect integer value: '' for column 'c1' at row 1
 Warning	1366	Incorrect integer value: '' for column 'c2' at row 1
-INSERT INTO t4 VALUES('abcd','abcd','08-01-10','08/01/11'),(1234,1234,'08-01-12','08/01/13') /* Inserts zero dates for absurd dates */;
+INSERT IGNORE INTO t4 VALUES('abcd','abcd','08-01-10','08/01/11'),(1234,1234,'08-01-12','08/01/13') /* Inserts zero dates for absurd dates */;
 Warnings:
 Warning	1366	Incorrect integer value: 'abcd' for column 'c1' at row 1
 Warning	1366	Incorrect integer value: 'abcd' for column 'c2' at row 1
@@ -6188,11 +6188,11 @@ c1	c2	c3	c4
 TRUNCATE TABLE t5;
 DROP TABLE t5;
 INSERT INTO t1 SET c1='00';
-INSERT INTO t2 SET c1=69;
+INSERT IGNORE INTO t2 SET c1=69;
 Warnings:
 Warning	1364	Field 'c2' doesn't have a default value
 INSERT INTO t3 SET c1=70;
-INSERT INTO t4 SET c2=99;
+INSERT IGNORE INTO t4 SET c2=99;
 Warnings:
 Warning	1364	Field 'c1' doesn't have a default value
 SELECT * FROM t1 WHERE c1=0;

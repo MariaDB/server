@@ -51,7 +51,7 @@ while ($trial)
     let $query = `SELECT CASE rnd3() 
       WHEN 1 THEN 'INSERT INTO A (pk) VALUES (NULL)'
       WHEN 2 THEN 'DELETE FROM A LIMIT 1'
-      ELSE 'UPDATE A SET fdate = 2 LIMIT 1' END`;
+      ELSE 'UPDATE IGNORE A SET fdate = 2 LIMIT 1' END`;
     --eval $query
     --disconnect con3
     --dec $run

@@ -9,8 +9,8 @@
 #    --source include/wait_innodb_all_purged.inc
 #
 --source include/have_innodb.inc
---source include/have_debug.inc
 
+if (`select version() like '%debug%'`) {
 --disable_query_log
 
 let $wait_counter_init= 300;
@@ -57,3 +57,4 @@ if (!$success)
 }
 
 --enable_query_log
+}

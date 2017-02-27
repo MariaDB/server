@@ -28,3 +28,5 @@ DELETE FROM t1 WHERE col_int_key IN (1, 40000000);
 --disconnect con1
 drop table t1;
 SET GLOBAL innodb_lock_wait_timeout=default;
+
+call mtr.add_suppression("Deadlock found when trying to get lock; try restarting transaction");

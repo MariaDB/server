@@ -747,8 +747,7 @@ static ha_rows find_all_keys(THD *thd, Sort_param *param, SQL_SELECT *select,
                     DBUG_SET("+d,ha_rnd_init_fail"););
     if (file->ha_rnd_init_with_error(1))
       DBUG_RETURN(HA_POS_ERROR);
-    file->extra_opt(HA_EXTRA_CACHE,
-		    current_thd->variables.read_buff_size);
+    file->extra_opt(HA_EXTRA_CACHE, thd->variables.read_buff_size);
   }
 
   /* Remember original bitmaps */
@@ -757,6 +756,7 @@ static ha_rows find_all_keys(THD *thd, Sort_param *param, SQL_SELECT *select,
   save_vcol_set=  sort_form->vcol_set;
 
   /* Set up temporary column read map for columns used by sort */
+  DBUG_ASSERT(save_read_set != &sort_form->tmp_set);
   bitmap_clear_all(&sort_form->tmp_set);
   sort_form->column_bitmaps_set(&sort_form->tmp_set, &sort_form->tmp_set, 
                                 &sort_form->tmp_set);
@@ -1673,7 +1673,7 @@ int merge_buffers(Sort_param *param, IO_CACHE *from_file,
       if (!(error= (int) read_to_buffer(from_file, buffpek,
                                         rec_length)))
       {
-        queue_remove(&queue,0);
+        (void) queue_remove_top(&queue);
         reuse_freed_buff(&queue, buffpek, rec_length);
       }
       else if (error == -1)

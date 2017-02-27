@@ -55,7 +55,7 @@ want1result
 location
 DROP TABLE t1;
 create table t1 (a set('a') not null);
-insert into t1 values (),();
+insert ignore into t1 values (),();
 Warnings:
 Warning	1364	Field 'a' doesn't have a default value
 select cast(a as char(1)) from t1;
@@ -224,30 +224,18 @@ CREATE TABLE t1 AS
 SELECT 10 AS a, REPEAT('a',20) AS b, REPEAT('a',8) AS c, REPEAT('a',8) AS d;
 ALTER TABLE t1 ADD PRIMARY KEY(a), ADD KEY(b);
 INSERT INTO t1 (a, b) VALUES (1, repeat(0xF1F2,5));
-Warnings:
-Warning	1364	Field 'c' doesn't have a default value
-Warning	1364	Field 'd' doesn't have a default value
 INSERT INTO t1 (a, b) VALUES (2, repeat(0xF1F2,10));
-Warnings:
-Warning	1364	Field 'c' doesn't have a default value
-Warning	1364	Field 'd' doesn't have a default value
 INSERT INTO t1 (a, b) VALUES (3, repeat(0xF1F2,11));
-Warnings:
-Warning	1364	Field 'c' doesn't have a default value
-Warning	1364	Field 'd' doesn't have a default value
 INSERT INTO t1 (a, b) VALUES (4, repeat(0xF1F2,12));
-Warnings:
-Warning	1364	Field 'c' doesn't have a default value
-Warning	1364	Field 'd' doesn't have a default value
 SELECT hex(concat(repeat(0xF1F2, 10), '%'));
 hex(concat(repeat(0xF1F2, 10), '%'))
 F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F225
 3 rows expected
 SELECT a, hex(b), c FROM t1 WHERE b LIKE concat(repeat(0xF1F2,10), '%');
 a	hex(b)	c
-2	F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2	
-3	F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2	
-4	F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2	
+2	F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2	NULL
+3	F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2	NULL
+4	F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2	NULL
 DROP TABLE t1;
 SET collation_connection='euckr_bin';
 create table t1 select repeat('a',4000) a;
@@ -371,30 +359,18 @@ CREATE TABLE t1 AS
 SELECT 10 AS a, REPEAT('a',20) AS b, REPEAT('a',8) AS c, REPEAT('a',8) AS d;
 ALTER TABLE t1 ADD PRIMARY KEY(a), ADD KEY(b);
 INSERT INTO t1 (a, b) VALUES (1, repeat(0xF1F2,5));
-Warnings:
-Warning	1364	Field 'c' doesn't have a default value
-Warning	1364	Field 'd' doesn't have a default value
 INSERT INTO t1 (a, b) VALUES (2, repeat(0xF1F2,10));
-Warnings:
-Warning	1364	Field 'c' doesn't have a default value
-Warning	1364	Field 'd' doesn't have a default value
 INSERT INTO t1 (a, b) VALUES (3, repeat(0xF1F2,11));
-Warnings:
-Warning	1364	Field 'c' doesn't have a default value
-Warning	1364	Field 'd' doesn't have a default value
 INSERT INTO t1 (a, b) VALUES (4, repeat(0xF1F2,12));
-Warnings:
-Warning	1364	Field 'c' doesn't have a default value
-Warning	1364	Field 'd' doesn't have a default value
 SELECT hex(concat(repeat(0xF1F2, 10), '%'));
 hex(concat(repeat(0xF1F2, 10), '%'))
 F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F225
 3 rows expected
 SELECT a, hex(b), c FROM t1 WHERE b LIKE concat(repeat(0xF1F2,10), '%');
 a	hex(b)	c
-2	F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2	
-3	F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2	
-4	F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2	
+2	F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2	NULL
+3	F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2	NULL
+4	F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2	NULL
 DROP TABLE t1;
 SET NAMES euckr;
 CREATE TABLE t1 (a text) character set euckr;
@@ -411,22 +387,22 @@ insert into t1 values (0xA161);
 insert into t1 values (0xA17A);
 insert into t1 values (0xA181);
 insert into t1 values (0xA1FE);
-insert into t1 values (0xA140);
+insert ignore into t1 values (0xA140);
 Warnings:
 Warning	1366	Incorrect string value: '\xA1@' for column 's1' at row 1
-insert into t1 values (0xA15B);
+insert ignore into t1 values (0xA15B);
 Warnings:
 Warning	1366	Incorrect string value: '\xA1[' for column 's1' at row 1
-insert into t1 values (0xA160);
+insert ignore into t1 values (0xA160);
 Warnings:
 Warning	1366	Incorrect string value: '\xA1`' for column 's1' at row 1
-insert into t1 values (0xA17B);
+insert ignore into t1 values (0xA17B);
 Warnings:
 Warning	1366	Incorrect string value: '\xA1{' for column 's1' at row 1
-insert into t1 values (0xA180);
+insert ignore into t1 values (0xA180);
 Warnings:
 Warning	1366	Incorrect string value: '\xA1\x80' for column 's1' at row 1
-insert into t1 values (0xA1FF);
+insert ignore into t1 values (0xA1FF);
 Warnings:
 Warning	1366	Incorrect string value: '\xA1\xFF' for column 's1' at row 1
 select hex(s1), hex(convert(s1 using utf8)) from t1 order by binary s1;
@@ -1985,7 +1961,7 @@ FE7F
 FE80
 DELETE FROM t2 WHERE a='?';
 ALTER TABLE t2 ADD u VARCHAR(1) CHARACTER SET utf8, ADD a2 VARCHAR(1) CHARACTER SET euckr;
-UPDATE t2 SET u=a, a2=u;
+UPDATE IGNORE t2 SET u=a, a2=u;
 SELECT s as unassigned_code FROM t2 WHERE u='?';
 unassigned_code
 A2E8
@@ -24450,7 +24426,7 @@ t1	CREATE TABLE `t1` (
   `code` varchar(8) DEFAULT NULL,
   `a` varchar(1) CHARACTER SET euckr NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
-UPDATE t1 SET a=unhex(code) ORDER BY code;
+UPDATE IGNORE t1 SET a=unhex(code) ORDER BY code;
 Warnings:
 Warning	1366	Incorrect string value: '\x80 ' for column 'a' at row 1
 Warning	1366	Incorrect string value: '\x80!' for column 'a' at row 2
@@ -24738,69 +24714,69 @@ code	a
 A1CA	Å
 Warnings:
 Warning	1977	Cannot convert 'euckr' character 0xA2E8 to 'utf8'
-Warning	1977	Cannot convert 'euckr' character 0xA2E8 to 'utf8'
-Warning	1977	Cannot convert 'euckr' character 0xA2E9 to 'utf8'
 Warning	1977	Cannot convert 'euckr' character 0xA2E9 to 'utf8'
 Warning	1977	Cannot convert 'euckr' character 0xA2EA to 'utf8'
-Warning	1977	Cannot convert 'euckr' character 0xA2EA to 'utf8'
-Warning	1977	Cannot convert 'euckr' character 0xA2EB to 'utf8'
 Warning	1977	Cannot convert 'euckr' character 0xA2EB to 'utf8'
 Warning	1977	Cannot convert 'euckr' character 0xA2EC to 'utf8'
-Warning	1977	Cannot convert 'euckr' character 0xA2EC to 'utf8'
-Warning	1977	Cannot convert 'euckr' character 0xA2ED to 'utf8'
 Warning	1977	Cannot convert 'euckr' character 0xA2ED to 'utf8'
 Warning	1977	Cannot convert 'euckr' character 0xA2EE to 'utf8'
-Warning	1977	Cannot convert 'euckr' character 0xA2EE to 'utf8'
-Warning	1977	Cannot convert 'euckr' character 0xA2EF to 'utf8'
 Warning	1977	Cannot convert 'euckr' character 0xA2EF to 'utf8'
 Warning	1977	Cannot convert 'euckr' character 0xA2F0 to 'utf8'
-Warning	1977	Cannot convert 'euckr' character 0xA2F0 to 'utf8'
-Warning	1977	Cannot convert 'euckr' character 0xA2F1 to 'utf8'
 Warning	1977	Cannot convert 'euckr' character 0xA2F1 to 'utf8'
 Warning	1977	Cannot convert 'euckr' character 0xA2F2 to 'utf8'
-Warning	1977	Cannot convert 'euckr' character 0xA2F2 to 'utf8'
-Warning	1977	Cannot convert 'euckr' character 0xA2F3 to 'utf8'
 Warning	1977	Cannot convert 'euckr' character 0xA2F3 to 'utf8'
 Warning	1977	Cannot convert 'euckr' character 0xA2F4 to 'utf8'
-Warning	1977	Cannot convert 'euckr' character 0xA2F4 to 'utf8'
-Warning	1977	Cannot convert 'euckr' character 0xA2F5 to 'utf8'
 Warning	1977	Cannot convert 'euckr' character 0xA2F5 to 'utf8'
 Warning	1977	Cannot convert 'euckr' character 0xA2F6 to 'utf8'
-Warning	1977	Cannot convert 'euckr' character 0xA2F6 to 'utf8'
-Warning	1977	Cannot convert 'euckr' character 0xA2F7 to 'utf8'
 Warning	1977	Cannot convert 'euckr' character 0xA2F7 to 'utf8'
 Warning	1977	Cannot convert 'euckr' character 0xA2F8 to 'utf8'
-Warning	1977	Cannot convert 'euckr' character 0xA2F8 to 'utf8'
-Warning	1977	Cannot convert 'euckr' character 0xA2F9 to 'utf8'
 Warning	1977	Cannot convert 'euckr' character 0xA2F9 to 'utf8'
 Warning	1977	Cannot convert 'euckr' character 0xA2FA to 'utf8'
-Warning	1977	Cannot convert 'euckr' character 0xA2FA to 'utf8'
-Warning	1977	Cannot convert 'euckr' character 0xA2FB to 'utf8'
 Warning	1977	Cannot convert 'euckr' character 0xA2FB to 'utf8'
 Warning	1977	Cannot convert 'euckr' character 0xA2FC to 'utf8'
-Warning	1977	Cannot convert 'euckr' character 0xA2FC to 'utf8'
-Warning	1977	Cannot convert 'euckr' character 0xA2FD to 'utf8'
 Warning	1977	Cannot convert 'euckr' character 0xA2FD to 'utf8'
 Warning	1977	Cannot convert 'euckr' character 0xA2FE to 'utf8'
-Warning	1977	Cannot convert 'euckr' character 0xA2FE to 'utf8'
-Warning	1977	Cannot convert 'euckr' character 0xA5AB to 'utf8'
 Warning	1977	Cannot convert 'euckr' character 0xA5AB to 'utf8'
 Warning	1977	Cannot convert 'euckr' character 0xA5AC to 'utf8'
-Warning	1977	Cannot convert 'euckr' character 0xA5AC to 'utf8'
-Warning	1977	Cannot convert 'euckr' character 0xA5AD to 'utf8'
 Warning	1977	Cannot convert 'euckr' character 0xA5AD to 'utf8'
 Warning	1977	Cannot convert 'euckr' character 0xA5AE to 'utf8'
-Warning	1977	Cannot convert 'euckr' character 0xA5AE to 'utf8'
-Warning	1977	Cannot convert 'euckr' character 0xA5AF to 'utf8'
 Warning	1977	Cannot convert 'euckr' character 0xA5AF to 'utf8'
 Warning	1977	Cannot convert 'euckr' character 0xA5BA to 'utf8'
-Warning	1977	Cannot convert 'euckr' character 0xA5BA to 'utf8'
-Warning	1977	Cannot convert 'euckr' character 0xA5BB to 'utf8'
 Warning	1977	Cannot convert 'euckr' character 0xA5BB to 'utf8'
 Warning	1977	Cannot convert 'euckr' character 0xA5BC to 'utf8'
-Warning	1977	Cannot convert 'euckr' character 0xA5BC to 'utf8'
 Warning	1977	Cannot convert 'euckr' character 0xA5BD to 'utf8'
-Warning	1977	Cannot convert 'euckr' character 0xA5BD to 'utf8'
+Warning	1977	Cannot convert 'euckr' character 0xA5BE to 'utf8'
+Warning	1977	Cannot convert 'euckr' character 0xA5BF to 'utf8'
+Warning	1977	Cannot convert 'euckr' character 0xA5C0 to 'utf8'
+Warning	1977	Cannot convert 'euckr' character 0xA5D9 to 'utf8'
+Warning	1977	Cannot convert 'euckr' character 0xA5DA to 'utf8'
+Warning	1977	Cannot convert 'euckr' character 0xA5DB to 'utf8'
+Warning	1977	Cannot convert 'euckr' character 0xA5DC to 'utf8'
+Warning	1977	Cannot convert 'euckr' character 0xA5DD to 'utf8'
+Warning	1977	Cannot convert 'euckr' character 0xA5DE to 'utf8'
+Warning	1977	Cannot convert 'euckr' character 0xA5DF to 'utf8'
+Warning	1977	Cannot convert 'euckr' character 0xA5E0 to 'utf8'
+Warning	1977	Cannot convert 'euckr' character 0xA5F9 to 'utf8'
+Warning	1977	Cannot convert 'euckr' character 0xA5FA to 'utf8'
+Warning	1977	Cannot convert 'euckr' character 0xA5FB to 'utf8'
+Warning	1977	Cannot convert 'euckr' character 0xA5FC to 'utf8'
+Warning	1977	Cannot convert 'euckr' character 0xA5FD to 'utf8'
+Warning	1977	Cannot convert 'euckr' character 0xA5FE to 'utf8'
+Warning	1977	Cannot convert 'euckr' character 0xA6E5 to 'utf8'
+Warning	1977	Cannot convert 'euckr' character 0xA6E6 to 'utf8'
+Warning	1977	Cannot convert 'euckr' character 0xA6E7 to 'utf8'
+Warning	1977	Cannot convert 'euckr' character 0xA6E8 to 'utf8'
+Warning	1977	Cannot convert 'euckr' character 0xA6E9 to 'utf8'
+Warning	1977	Cannot convert 'euckr' character 0xA6EA to 'utf8'
+Warning	1977	Cannot convert 'euckr' character 0xA6EB to 'utf8'
+Warning	1977	Cannot convert 'euckr' character 0xA6EC to 'utf8'
+Warning	1977	Cannot convert 'euckr' character 0xA6ED to 'utf8'
+Warning	1977	Cannot convert 'euckr' character 0xA6EE to 'utf8'
+Warning	1977	Cannot convert 'euckr' character 0xA6EF to 'utf8'
+Warning	1977	Cannot convert 'euckr' character 0xA6F0 to 'utf8'
+Warning	1977	Cannot convert 'euckr' character 0xA6F1 to 'utf8'
+Warning	1977	Cannot convert 'euckr' character 0xA6F2 to 'utf8'
+Warning	1977	Cannot convert 'euckr' character 0xA6F3 to 'utf8'
 SELECT * FROM t1
 WHERE HEX(CAST(UPPER(a) AS CHAR CHARACTER SET utf8)) <>
 HEX(UPPER(CAST(a AS CHAR CHARACTER SET utf8))) ORDER BY code;
@@ -24834,69 +24810,69 @@ A8E6	ⓩ
 A9A2	đ
 Warnings:
 Warning	1977	Cannot convert 'euckr' character 0xA2E8 to 'utf8'
-Warning	1977	Cannot convert 'euckr' character 0xA2E8 to 'utf8'
-Warning	1977	Cannot convert 'euckr' character 0xA2E9 to 'utf8'
 Warning	1977	Cannot convert 'euckr' character 0xA2E9 to 'utf8'
 Warning	1977	Cannot convert 'euckr' character 0xA2EA to 'utf8'
-Warning	1977	Cannot convert 'euckr' character 0xA2EA to 'utf8'
-Warning	1977	Cannot convert 'euckr' character 0xA2EB to 'utf8'
 Warning	1977	Cannot convert 'euckr' character 0xA2EB to 'utf8'
 Warning	1977	Cannot convert 'euckr' character 0xA2EC to 'utf8'
-Warning	1977	Cannot convert 'euckr' character 0xA2EC to 'utf8'
-Warning	1977	Cannot convert 'euckr' character 0xA2ED to 'utf8'
 Warning	1977	Cannot convert 'euckr' character 0xA2ED to 'utf8'
 Warning	1977	Cannot convert 'euckr' character 0xA2EE to 'utf8'
-Warning	1977	Cannot convert 'euckr' character 0xA2EE to 'utf8'
-Warning	1977	Cannot convert 'euckr' character 0xA2EF to 'utf8'
 Warning	1977	Cannot convert 'euckr' character 0xA2EF to 'utf8'
 Warning	1977	Cannot convert 'euckr' character 0xA2F0 to 'utf8'
-Warning	1977	Cannot convert 'euckr' character 0xA2F0 to 'utf8'
-Warning	1977	Cannot convert 'euckr' character 0xA2F1 to 'utf8'
 Warning	1977	Cannot convert 'euckr' character 0xA2F1 to 'utf8'
 Warning	1977	Cannot convert 'euckr' character 0xA2F2 to 'utf8'
-Warning	1977	Cannot convert 'euckr' character 0xA2F2 to 'utf8'
-Warning	1977	Cannot convert 'euckr' character 0xA2F3 to 'utf8'
 Warning	1977	Cannot convert 'euckr' character 0xA2F3 to 'utf8'
 Warning	1977	Cannot convert 'euckr' character 0xA2F4 to 'utf8'
-Warning	1977	Cannot convert 'euckr' character 0xA2F4 to 'utf8'
-Warning	1977	Cannot convert 'euckr' character 0xA2F5 to 'utf8'
 Warning	1977	Cannot convert 'euckr' character 0xA2F5 to 'utf8'
 Warning	1977	Cannot convert 'euckr' character 0xA2F6 to 'utf8'
-Warning	1977	Cannot convert 'euckr' character 0xA2F6 to 'utf8'
-Warning	1977	Cannot convert 'euckr' character 0xA2F7 to 'utf8'
 Warning	1977	Cannot convert 'euckr' character 0xA2F7 to 'utf8'
 Warning	1977	Cannot convert 'euckr' character 0xA2F8 to 'utf8'
-Warning	1977	Cannot convert 'euckr' character 0xA2F8 to 'utf8'
-Warning	1977	Cannot convert 'euckr' character 0xA2F9 to 'utf8'
 Warning	1977	Cannot convert 'euckr' character 0xA2F9 to 'utf8'
 Warning	1977	Cannot convert 'euckr' character 0xA2FA to 'utf8'
-Warning	1977	Cannot convert 'euckr' character 0xA2FA to 'utf8'
-Warning	1977	Cannot convert 'euckr' character 0xA2FB to 'utf8'
 Warning	1977	Cannot convert 'euckr' character 0xA2FB to 'utf8'
 Warning	1977	Cannot convert 'euckr' character 0xA2FC to 'utf8'
-Warning	1977	Cannot convert 'euckr' character 0xA2FC to 'utf8'
-Warning	1977	Cannot convert 'euckr' character 0xA2FD to 'utf8'
 Warning	1977	Cannot convert 'euckr' character 0xA2FD to 'utf8'
 Warning	1977	Cannot convert 'euckr' character 0xA2FE to 'utf8'
-Warning	1977	Cannot convert 'euckr' character 0xA2FE to 'utf8'
-Warning	1977	Cannot convert 'euckr' character 0xA5AB to 'utf8'
 Warning	1977	Cannot convert 'euckr' character 0xA5AB to 'utf8'
 Warning	1977	Cannot convert 'euckr' character 0xA5AC to 'utf8'
-Warning	1977	Cannot convert 'euckr' character 0xA5AC to 'utf8'
-Warning	1977	Cannot convert 'euckr' character 0xA5AD to 'utf8'
 Warning	1977	Cannot convert 'euckr' character 0xA5AD to 'utf8'
 Warning	1977	Cannot convert 'euckr' character 0xA5AE to 'utf8'
-Warning	1977	Cannot convert 'euckr' character 0xA5AE to 'utf8'
-Warning	1977	Cannot convert 'euckr' character 0xA5AF to 'utf8'
 Warning	1977	Cannot convert 'euckr' character 0xA5AF to 'utf8'
 Warning	1977	Cannot convert 'euckr' character 0xA5BA to 'utf8'
-Warning	1977	Cannot convert 'euckr' character 0xA5BA to 'utf8'
-Warning	1977	Cannot convert 'euckr' character 0xA5BB to 'utf8'
 Warning	1977	Cannot convert 'euckr' character 0xA5BB to 'utf8'
 Warning	1977	Cannot convert 'euckr' character 0xA5BC to 'utf8'
-Warning	1977	Cannot convert 'euckr' character 0xA5BC to 'utf8'
 Warning	1977	Cannot convert 'euckr' character 0xA5BD to 'utf8'
-Warning	1977	Cannot convert 'euckr' character 0xA5BD to 'utf8'
+Warning	1977	Cannot convert 'euckr' character 0xA5BE to 'utf8'
+Warning	1977	Cannot convert 'euckr' character 0xA5BF to 'utf8'
+Warning	1977	Cannot convert 'euckr' character 0xA5C0 to 'utf8'
+Warning	1977	Cannot convert 'euckr' character 0xA5D9 to 'utf8'
+Warning	1977	Cannot convert 'euckr' character 0xA5DA to 'utf8'
+Warning	1977	Cannot convert 'euckr' character 0xA5DB to 'utf8'
+Warning	1977	Cannot convert 'euckr' character 0xA5DC to 'utf8'
+Warning	1977	Cannot convert 'euckr' character 0xA5DD to 'utf8'
+Warning	1977	Cannot convert 'euckr' character 0xA5DE to 'utf8'
+Warning	1977	Cannot convert 'euckr' character 0xA5DF to 'utf8'
+Warning	1977	Cannot convert 'euckr' character 0xA5E0 to 'utf8'
+Warning	1977	Cannot convert 'euckr' character 0xA5F9 to 'utf8'
+Warning	1977	Cannot convert 'euckr' character 0xA5FA to 'utf8'
+Warning	1977	Cannot convert 'euckr' character 0xA5FB to 'utf8'
+Warning	1977	Cannot convert 'euckr' character 0xA5FC to 'utf8'
+Warning	1977	Cannot convert 'euckr' character 0xA5FD to 'utf8'
+Warning	1977	Cannot convert 'euckr' character 0xA5FE to 'utf8'
+Warning	1977	Cannot convert 'euckr' character 0xA6E5 to 'utf8'
+Warning	1977	Cannot convert 'euckr' character 0xA6E6 to 'utf8'
+Warning	1977	Cannot convert 'euckr' character 0xA6E7 to 'utf8'
+Warning	1977	Cannot convert 'euckr' character 0xA6E8 to 'utf8'
+Warning	1977	Cannot convert 'euckr' character 0xA6E9 to 'utf8'
+Warning	1977	Cannot convert 'euckr' character 0xA6EA to 'utf8'
+Warning	1977	Cannot convert 'euckr' character 0xA6EB to 'utf8'
+Warning	1977	Cannot convert 'euckr' character 0xA6EC to 'utf8'
+Warning	1977	Cannot convert 'euckr' character 0xA6ED to 'utf8'
+Warning	1977	Cannot convert 'euckr' character 0xA6EE to 'utf8'
+Warning	1977	Cannot convert 'euckr' character 0xA6EF to 'utf8'
+Warning	1977	Cannot convert 'euckr' character 0xA6F0 to 'utf8'
+Warning	1977	Cannot convert 'euckr' character 0xA6F1 to 'utf8'
+Warning	1977	Cannot convert 'euckr' character 0xA6F2 to 'utf8'
+Warning	1977	Cannot convert 'euckr' character 0xA6F3 to 'utf8'
 DROP TABLE t1;
 #
 # End of 5.5 tests
@@ -24935,7 +24911,7 @@ CREATE TABLE t1 AS SELECT REPEAT('a',5) AS a;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varchar(5) CHARACTER SET euckr NOT NULL
+  `a` varchar(5) CHARACTER SET euckr DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 CREATE TABLE t2 AS SELECT WEIGHT_STRING(a) AS ws FROM t1;
 SHOW CREATE TABLE t2;
@@ -25194,7 +25170,7 @@ CREATE TABLE t1 AS SELECT REPEAT('a',5) AS a;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varchar(5) CHARACTER SET euckr COLLATE euckr_bin NOT NULL
+  `a` varchar(5) CHARACTER SET euckr COLLATE euckr_bin DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 CREATE TABLE t2 AS SELECT WEIGHT_STRING(a) AS ws FROM t1;
 SHOW CREATE TABLE t2;

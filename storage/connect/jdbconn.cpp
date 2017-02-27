@@ -55,9 +55,8 @@
 
 #if defined(__WIN__)
 extern "C" HINSTANCE s_hModule;           // Saved module handle
-#else   // !__WIN__
+#endif   // __WIN__
 #define nullptr 0
-#endif  // !__WIN__
 
 TYPCONV GetTypeConv();
 int GetConvSize();
@@ -525,10 +524,10 @@ JDBConn::JDBConn(PGLOBAL g, TDBJDBC *tdbp)
 		m_Wrap = strcat(strcpy(wn, "wrappers/"), m_Wrap);
 	} // endif m_Wrap
 
-	m_Driver = NULL;
-	m_Url = NULL;
-	m_User = NULL;
-	m_Pwd = NULL;
+//m_Driver = NULL;
+//m_Url = NULL;
+//m_User = NULL;
+//m_Pwd = NULL;
 	m_Ncol = 0;
 	m_Aff = 0;
 	m_Rows = 0;
@@ -772,7 +771,7 @@ bool JDBConn::GetJVM(PGLOBAL g)
 /***********************************************************************/
 int JDBConn::Open(PJPARM sop)
 {
-
+	int      irc = RC_FX;
 	bool		 err = false;
 	jboolean jt = (trace > 0);
 	PGLOBAL& g = m_G;
@@ -865,29 +864,36 @@ int JDBConn::Open(PJPARM sop)
 		switch (rc) {
 		case JNI_OK:
 			strcpy(g->Message, "VM successfully created");
+			irc = RC_OK;
 			break;
 		case JNI_ERR:
 			strcpy(g->Message, "Initialising JVM failed: unknown error");
-			return RC_FX;
+			break;
 		case JNI_EDETACHED:
 			strcpy(g->Message, "Thread detached from the VM");
-			return RC_FX;
+			break;
 		case JNI_EVERSION:
 			strcpy(g->Message, "JNI version error");
-			return RC_FX;
+			break;
 		case JNI_ENOMEM:
 			strcpy(g->Message, "Not enough memory");
-			return RC_FX;
+			break;
 		case JNI_EEXIST:
 			strcpy(g->Message, "VM already created");
-			return RC_FX;
+			break;
 		case JNI_EINVAL:
 			strcpy(g->Message, "Invalid arguments");
-			return RC_FX;
+			break;
 		default:
-			sprintf(g->Message, "Unknown return code %d", rc);
-			return RC_FX;
+			sprintf(g->Message, "Unknown return code %d", (int)rc);
+			break;
 		} // endswitch rc
+
+		if (trace)
+			htrc("%s\n", g->Message);
+
+		if (irc != RC_OK)
+			return irc;
 
 		//=============== Display JVM version ===============
 		jint ver = env->GetVersion();
@@ -978,10 +984,10 @@ int JDBConn::Open(PJPARM sop)
 	jobjectArray parms = env->NewObjectArray(4,    // constructs java array of 4
 		env->FindClass("java/lang/String"), NULL);   // Strings
 
-	m_Driver = sop->Driver;
-	m_Url = sop->Url;
-	m_User = sop->User;
-	m_Pwd = sop->Pwd;
+//m_Driver = sop->Driver;
+//m_Url = sop->Url;
+//m_User = sop->User;
+//m_Pwd = sop->Pwd;
 	m_Scrollable = sop->Scrollable;
 	m_RowsetSize = sop->Fsize;
 	//m_LoginTimeout = sop->Cto;
@@ -989,17 +995,20 @@ int JDBConn::Open(PJPARM sop)
 	//m_UseCnc = sop->UseCnc;
 
 	// change some elements
-	if (m_Driver)
-		env->SetObjectArrayElement(parms, 0, env->NewStringUTF(m_Driver));
+	if (sop->Driver)
+		env->SetObjectArrayElement(parms, 0, env->NewStringUTF(sop->Driver));
 
-	if (m_Url)
-		env->SetObjectArrayElement(parms, 1, env->NewStringUTF(m_Url));
+	if (sop->Url)
+		env->SetObjectArrayElement(parms, 1, env->NewStringUTF(sop->Url));
 
-	if (m_User)
-		env->SetObjectArrayElement(parms, 2, env->NewStringUTF(m_User));
+	if (sop->User)
+		env->SetObjectArrayElement(parms, 2, env->NewStringUTF(sop->User));
 
-	if (m_Pwd)
-		env->SetObjectArrayElement(parms, 3, env->NewStringUTF(m_Pwd));
+	if (sop->Pwd)
+		env->SetObjectArrayElement(parms, 3, env->NewStringUTF(sop->Pwd));
+
+//if (sop->Properties)
+//	env->SetObjectArrayElement(parms, 4, env->NewStringUTF(sop->Properties));
 
 	// call method
 	rc = env->CallIntMethod(job, cid, parms, m_RowsetSize, m_Scrollable);
@@ -1432,7 +1441,7 @@ bool JDBConn::SetParam(JDBCCOL *colp)
 	PGLOBAL&   g = m_G;
 	bool       rc = false;
 	PVAL       val = colp->GetValue();
-	jint       n, i = (jint)colp->GetRank();
+	jint       n, jrc = 0, i = (jint)colp->GetRank();
 	jshort     s;
 	jlong      lg;
 //jfloat     f;
@@ -1442,69 +1451,74 @@ bool JDBConn::SetParam(JDBCCOL *colp)
 	jstring    jst = nullptr;
 	jmethodID  dtc, setid = nullptr;
 
-	switch (val->GetType()) {
-	case TYPE_STRING:
-		if (gmID(g, setid, "SetStringParm", "(ILjava/lang/String;)V"))
+	if (val->GetNullable() && val->IsNull()) {
+		if (gmID(g, setid, "SetNullParm", "(II)I"))
 			return true;
 
-		jst = env->NewStringUTF(val->GetCharValue());
-		env->CallVoidMethod(job, setid, i, jst);
-		break;
-	case TYPE_INT:
-		if (gmID(g, setid, "SetIntParm", "(II)V"))
-			return true;
+		jrc = env->CallIntMethod(job, setid, i, (jint)GetJDBCType(val->GetType()));
+	} else switch (val->GetType()) {
+		case TYPE_STRING:
+			if (gmID(g, setid, "SetStringParm", "(ILjava/lang/String;)V"))
+				return true;
 
-		n = (jint)val->GetIntValue();
-		env->CallVoidMethod(job, setid, i, n);
-		break;
-	case TYPE_TINY:
-	case TYPE_SHORT:
-		if (gmID(g, setid, "SetShortParm", "(IS)V"))
-			return true;
+			jst = env->NewStringUTF(val->GetCharValue());
+			env->CallVoidMethod(job, setid, i, jst);
+			break;
+		case TYPE_INT:
+			if (gmID(g, setid, "SetIntParm", "(II)V"))
+				return true;
 
-		s = (jshort)val->GetShortValue();
-		env->CallVoidMethod(job, setid, i, s);
-		break;
-	case TYPE_BIGINT:
-		if (gmID(g, setid, "SetBigintParm", "(IJ)V"))
-			return true;
+			n = (jint)val->GetIntValue();
+			env->CallVoidMethod(job, setid, i, n);
+			break;
+		case TYPE_TINY:
+		case TYPE_SHORT:
+			if (gmID(g, setid, "SetShortParm", "(IS)V"))
+				return true;
 
-		lg = (jlong)val->GetBigintValue();
-		env->CallVoidMethod(job, setid, i, lg);
-		break;
-	case TYPE_DOUBLE:
-	case TYPE_DECIM:
-		if (gmID(g, setid, "SetDoubleParm", "(ID)V"))
-			return true;
+			s = (jshort)val->GetShortValue();
+			env->CallVoidMethod(job, setid, i, s);
+			break;
+		case TYPE_BIGINT:
+			if (gmID(g, setid, "SetBigintParm", "(IJ)V"))
+				return true;
 
-		d = (jdouble)val->GetFloatValue();
-		env->CallVoidMethod(job, setid, i, d);
-		break;
-	case TYPE_DATE:
-		if ((dat = env->FindClass("java/sql/Timestamp")) == nullptr) {
-			strcpy(g->Message, "Cannot find Timestamp class");
-			return true;
-		} else if (!(dtc = env->GetMethodID(dat, "<init>", "(J)V"))) {
-			strcpy(g->Message, "Cannot find Timestamp class constructor");
-			return true;
-		}	// endif's
+			lg = (jlong)val->GetBigintValue();
+			env->CallVoidMethod(job, setid, i, lg);
+			break;
+		case TYPE_DOUBLE:
+		case TYPE_DECIM:
+			if (gmID(g, setid, "SetDoubleParm", "(ID)V"))
+				return true;
 
-		lg = (jlong)val->GetBigintValue() * 1000;
+			d = (jdouble)val->GetFloatValue();
+			env->CallVoidMethod(job, setid, i, d);
+			break;
+		case TYPE_DATE:
+			if ((dat = env->FindClass("java/sql/Timestamp")) == nullptr) {
+				strcpy(g->Message, "Cannot find Timestamp class");
+				return true;
+			} else if (!(dtc = env->GetMethodID(dat, "<init>", "(J)V"))) {
+				strcpy(g->Message, "Cannot find Timestamp class constructor");
+				return true;
+			}	// endif's
 
-		if ((datobj = env->NewObject(dat, dtc, lg)) == nullptr) {
-			strcpy(g->Message, "Cannot make Timestamp object");
+			lg = (jlong)val->GetBigintValue() * 1000;
+
+			if ((datobj = env->NewObject(dat, dtc, lg)) == nullptr) {
+				strcpy(g->Message, "Cannot make Timestamp object");
+				return true;
+			} else if (gmID(g, setid, "SetTimestampParm", "(ILjava/sql/Timestamp;)V"))
+				return true;
+
+			env->CallVoidMethod(job, setid, i, datobj);
+			break;
+		default:
+			sprintf(g->Message, "Parm type %d not supported", val->GetType());
 			return true;
-		} else if (gmID(g, setid, "SetTimestampParm", "(ILjava/sql/Timestamp;)V"))
-			return true;
+		}	// endswitch Type
 
-		env->CallVoidMethod(job, setid, i, datobj);
-		break;
-	default:
-		sprintf(g->Message, "Parm type %d not supported", val->GetType());
-		return true;
-	}	// endswitch Type
-
-	if (Check()) {
+	if (Check(jrc)) {
 		sprintf(g->Message, "SetParam: col=%s msg=%s", colp->GetName(), Msg);
 		rc = true;
 	} // endif msg

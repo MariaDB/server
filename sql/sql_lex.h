@@ -698,7 +698,8 @@ public:
   }
   st_select_lex* return_after_parsing() { return return_to; }
   void exclude_level();
-  void exclude_tree();
+  // void exclude_tree(); // it is not used for long time
+  bool is_excluded() { return prev == NULL; }
 
   /* UNION methods */
   bool prepare(THD *thd, select_result *result, ulong additional_options);
@@ -1129,7 +1130,7 @@ public:
     return master_unit()->with_element;
   }
   With_element *find_table_def_in_with_clauses(TABLE_LIST *table);
-  bool check_unrestricted_recursive(bool only_standards_compliant); 
+  bool check_unrestricted_recursive(bool only_standard_compliant);
   bool check_subqueries_with_recursive_references();
   void collect_grouping_fields(THD *thd); 
   void check_cond_extraction_for_grouping_fields(Item *cond,

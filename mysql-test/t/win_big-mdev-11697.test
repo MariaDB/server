@@ -1,0 +1,50 @@
+create table test_table (id int, random_data varchar(36), static_int int, static_varchar varchar(10));
+
+insert into test_table(id, random_data, static_int, static_varchar)
+select id, random_data, 42, 'Hello'
+    from (
+        with recursive data_generator(id, random_data) as (
+                select 1 as id, uuid() as random_data
+                union all
+                select id + 1, uuid() from data_generator where id < 1000
+            )
+        select * from data_generator
+    ) as a;
+
+commit;
+
+analyze table test_table;
+
+explain select * from (select id, lead(id) over(order by id) next_id from test_table order by id) a limit 10;
+
+select * from (select id, lead(id) over(order by id) next_id from test_table order by id) a limit 10;
+
+drop table if exists test_table;
+
+create table test_table (id int, random_data varchar(36), static_int int, static_varchar varchar(10));
+
+insert into test_table(id, random_data, static_int, static_varchar)
+select id, random_data, 42, 'Hello'
+    from (
+        with recursive data_generator(id, random_data) as (
+                select 1 as id, uuid() as random_data
+                union all
+                select id + 1, uuid() from data_generator where id < 100000
+            )
+        select * from data_generator
+    ) as a;
+
+commit;
+
+analyze table test_table;
+
+explain select * from (select id, lead(id) over(order by id) next_id from test_table order by id) a limit 10;
+
+flush status;
+select * from (select id, lead(id) over(order by id) next_id from test_table order by id) a limit 10;
+select variable_name,
+       case when variable_value > 0 then 'WITH PASSES' else 'NO PASSES' end
+from information_schema.session_status
+where variable_name like 'Sort_merge_passes';
+
+drop table test_table;

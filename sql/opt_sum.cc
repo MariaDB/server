@@ -406,7 +406,7 @@ int opt_sum_query(THD *thd,
 	  if (!error && reckey_in_range(is_max, &ref, item_field->field, 
 			                conds, range_fl, prefix_len))
 	    error= HA_ERR_KEY_NOT_FOUND;
-          table->set_keyread(false);
+          table->file->ha_end_keyread();
           table->file->ha_index_end();
           if (error)
 	  {
@@ -968,7 +968,7 @@ static bool find_key_for_maxmin(bool max_fl, TABLE_REF *ref,
             converted (for example to upper case)
           */
           if (field->part_of_key.is_set(idx))
-            table->set_keyread(true);
+            table->file->ha_start_keyread(idx);
           DBUG_RETURN(TRUE);
         }
       }

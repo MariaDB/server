@@ -1041,7 +1041,7 @@ FROM dual;
 SELECT 1, 2 INTO OUTFILE 't5.dat' FROM dual;
 # Mon Aug 1 15:11:19 2011 UTC
 SET TIMESTAMP = 1312211479.918273;
-LOAD DATA INFILE 't3.dat' INTO TABLE t1;
+LOAD DATA INFILE 't3.dat' IGNORE INTO TABLE t1;
 Warnings:
 Warning	1261	Row 1 doesn't contain data for all columns
 Warning	1261	Row 1 doesn't contain data for all columns
@@ -1061,7 +1061,7 @@ f	NULL
 g	NULL
 h	NULL
 i	NULL
-LOAD DATA INFILE 't4.dat' INTO TABLE t2;
+LOAD DATA INFILE 't4.dat' IGNORE INTO TABLE t2;
 Warnings:
 Warning	1263	Column set to default value; NULL supplied to NOT NULL column 'e' at row 1
 Warning	1263	Column set to default value; NULL supplied to NOT NULL column 'f' at row 1
@@ -1111,7 +1111,7 @@ DELETE FROM t2;
 # (read_fixed_length()) than under the LOAD ... INTO TABLE t1 command
 # above. The code in this path is copy-pasted code from the path taken
 # under the syntax used in the previous LOAD command.
-LOAD DATA INFILE 't3.dat' INTO TABLE t1
+LOAD DATA INFILE 't3.dat' IGNORE INTO TABLE t1
 FIELDS TERMINATED BY '' ENCLOSED BY '';
 Warnings:
 Warning	1261	Row 1 doesn't contain data for all columns
@@ -1235,7 +1235,7 @@ t1	CREATE TABLE `t1` (
   `h` int(11) DEFAULT NULL,
   `i` int(11) NOT NULL DEFAULT 42
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
-LOAD DATA INFILE "file1.dat" INTO table t1;
+LOAD DATA INFILE "file1.dat" IGNORE INTO table t1;
 Warnings:
 Warning	1261	Row 1 doesn't contain data for all columns
 Warning	1261	Row 1 doesn't contain data for all columns
@@ -1287,7 +1287,7 @@ t1	CREATE TABLE `t1` (
   `h` int(11) DEFAULT NULL,
   `i` int(11) NOT NULL DEFAULT 42
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
-LOAD DATA INFILE "file1.dat" INTO table t1;
+LOAD DATA INFILE "file1.dat" IGNORE INTO table t1;
 Warnings:
 Warning	1261	Row 1 doesn't contain data for all columns
 Warning	1261	Row 1 doesn't contain data for all columns
@@ -1354,7 +1354,7 @@ t1	CREATE TABLE `t1` (
   `h` int(11) DEFAULT NULL,
   `i` int(11) NOT NULL DEFAULT 42
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
-LOAD DATA INFILE "file2.dat" INTO table t1;
+LOAD DATA INFILE "file2.dat" IGNORE INTO table t1;
 Warnings:
 Warning	1263	Column set to default value; NULL supplied to NOT NULL column 'c' at row 1
 Warning	1263	Column set to default value; NULL supplied to NOT NULL column 'like_c' at row 1
@@ -1392,7 +1392,7 @@ t1	CREATE TABLE `t1` (
   `h` int(11) DEFAULT NULL,
   `i` int(11) NOT NULL DEFAULT 42
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
-LOAD DATA INFILE "file2.dat" INTO table t1;
+LOAD DATA INFILE "file2.dat" IGNORE INTO table t1;
 Warnings:
 Warning	1263	Column set to default value; NULL supplied to NOT NULL column 'c' at row 1
 Warning	1263	Column set to default value; NULL supplied to NOT NULL column 'like_c' at row 1
@@ -2587,7 +2587,7 @@ FROM dual;
 SELECT 1, 2 INTO OUTFILE 't5.dat' FROM dual;
 # Mon Aug 1 15:11:19 2011 UTC
 SET TIMESTAMP = 1312211479.918273;
-LOAD DATA INFILE 't3.dat' INTO TABLE t1;
+LOAD DATA INFILE 't3.dat' IGNORE INTO TABLE t1;
 Warnings:
 Warning	1261	Row 1 doesn't contain data for all columns
 Warning	1261	Row 1 doesn't contain data for all columns
@@ -2607,7 +2607,7 @@ f	NULL
 g	NULL
 h	NULL
 i	NULL
-LOAD DATA INFILE 't4.dat' INTO TABLE t2;
+LOAD DATA INFILE 't4.dat' IGNORE INTO TABLE t2;
 Warnings:
 Warning	1263	Column set to default value; NULL supplied to NOT NULL column 'e' at row 1
 Warning	1263	Column set to default value; NULL supplied to NOT NULL column 'f' at row 1
@@ -2657,7 +2657,7 @@ DELETE FROM t2;
 # (read_fixed_length()) than under the LOAD ... INTO TABLE t1 command
 # above. The code in this path is copy-pasted code from the path taken
 # under the syntax used in the previous LOAD command.
-LOAD DATA INFILE 't3.dat' INTO TABLE t1
+LOAD DATA INFILE 't3.dat' IGNORE INTO TABLE t1
 FIELDS TERMINATED BY '' ENCLOSED BY '';
 Warnings:
 Warning	1261	Row 1 doesn't contain data for all columns
@@ -2781,7 +2781,7 @@ t1	CREATE TABLE `t1` (
   `h` int(11) DEFAULT NULL,
   `i` int(11) NOT NULL DEFAULT 42
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
-LOAD DATA INFILE "file1.dat" INTO table t1;
+LOAD DATA INFILE "file1.dat" IGNORE INTO table t1;
 Warnings:
 Warning	1261	Row 1 doesn't contain data for all columns
 Warning	1261	Row 1 doesn't contain data for all columns
@@ -2833,7 +2833,7 @@ t1	CREATE TABLE `t1` (
   `h` int(11) DEFAULT NULL,
   `i` int(11) NOT NULL DEFAULT 42
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
-LOAD DATA INFILE "file1.dat" INTO table t1;
+LOAD DATA INFILE "file1.dat" IGNORE INTO table t1;
 Warnings:
 Warning	1261	Row 1 doesn't contain data for all columns
 Warning	1261	Row 1 doesn't contain data for all columns
@@ -2900,7 +2900,7 @@ t1	CREATE TABLE `t1` (
   `h` int(11) DEFAULT NULL,
   `i` int(11) NOT NULL DEFAULT 42
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
-LOAD DATA INFILE "file2.dat" INTO table t1;
+LOAD DATA INFILE "file2.dat" IGNORE INTO table t1;
 Warnings:
 Warning	1263	Column set to default value; NULL supplied to NOT NULL column 'c' at row 1
 Warning	1263	Column set to default value; NULL supplied to NOT NULL column 'like_c' at row 1
@@ -2938,7 +2938,7 @@ t1	CREATE TABLE `t1` (
   `h` int(11) DEFAULT NULL,
   `i` int(11) NOT NULL DEFAULT 42
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
-LOAD DATA INFILE "file2.dat" INTO table t1;
+LOAD DATA INFILE "file2.dat" IGNORE INTO table t1;
 Warnings:
 Warning	1263	Column set to default value; NULL supplied to NOT NULL column 'c' at row 1
 Warning	1263	Column set to default value; NULL supplied to NOT NULL column 'like_c' at row 1

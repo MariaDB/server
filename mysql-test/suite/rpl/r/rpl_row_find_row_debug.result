@@ -18,6 +18,6 @@ connection slave;
 Occurrences: update=1, delete=1
 include/stop_slave.inc
 SET GLOBAL debug_dbug = '';
-SET GLOBAL log_warnings = 1;
+SET GLOBAL log_warnings = 2;
 include/start_slave.inc
 include/rpl_end.inc

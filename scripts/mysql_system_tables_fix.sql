@@ -164,6 +164,12 @@ ALTER TABLE user
   MODIFY Host char(60) NOT NULL default '',
   MODIFY User char(80) NOT NULL default '',
   ENGINE=MyISAM, CONVERT TO CHARACTER SET utf8 COLLATE utf8_bin;
+
+# In MySQL 5.7.6 the Password column is removed. Recreate it to preserve the number
+# of columns MariaDB expects in the user table.
+ALTER TABLE user
+  ADD Password char(41) character set latin1 collate latin1_bin NOT NULL default '' AFTER User;
+
 ALTER TABLE user
   MODIFY Password char(41) character set latin1 collate latin1_bin NOT NULL default '',
   MODIFY Select_priv enum('N','Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL,

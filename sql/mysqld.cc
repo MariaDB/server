@@ -130,10 +130,7 @@ extern "C" {					// Because of SCO 3.2V4.2
 #include <sysent.h>
 #endif
 #ifdef HAVE_PWD_H
-#include <pwd.h>				// For getpwent
-#endif
-#ifdef HAVE_GRP_H
-#include <grp.h>
+#include <pwd.h>				// For struct passwd
 #endif
 #include <my_net.h>
 
@@ -477,9 +474,7 @@ ulong opt_binlog_rows_event_max_size;
 my_bool opt_master_verify_checksum= 0;
 my_bool opt_slave_sql_verify_checksum= 1;
 const char *binlog_format_names[]= {"MIXED", "STATEMENT", "ROW", NullS};
-#ifdef HAVE_INITGROUPS
 volatile sig_atomic_t calling_initgroups= 0; /**< Used in SIGSEGV handler. */
-#endif
 uint mysqld_port, test_flags, select_errors, dropping_tables, ha_open_options;
 uint mysqld_extra_port;
 uint mysqld_port_timeout;
@@ -2413,59 +2408,18 @@ static void set_ports()
 
 static struct passwd *check_user(const char *user)
 {
-#if !defined(__WIN__)
-  struct passwd *tmp_user_info;
-  uid_t user_id= geteuid();
+  myf flags= 0;
+  if (global_system_variables.log_warnings)
+    flags|= MY_WME;
+  if (!opt_bootstrap && !opt_help)
+    flags|= MY_FAE;
 
-  // Don't bother if we aren't superuser
-  if (user_id)
-  {
-    if (user)
-    {
-      /* Don't give a warning, if real user is same as given with --user */
-      /* purecov: begin tested */
-      tmp_user_info= getpwnam(user);
-      if ((!tmp_user_info || user_id != tmp_user_info->pw_uid) &&
-	  global_system_variables.log_warnings)
-        sql_print_warning(
-                    "One can only use the --user switch if running as root\n");
-      /* purecov: end */
-    }
-    return NULL;
-  }
-  if (!user)
-  {
-    if (!opt_bootstrap && !opt_help)
-    {
-      sql_print_error("Fatal error: Please consult the Knowledge Base "
-                      "to find out how to run mysqld as root!\n");
-      unireg_abort(1);
-    }
-    return NULL;
-  }
-  /* purecov: begin tested */
-  if (!strcmp(user,"root"))
-    return NULL;                        // Avoid problem with dynamic libraries
+  struct passwd *tmp_user_info= my_check_user(user, MYF(flags));
 
-  if (!(tmp_user_info= getpwnam(user)))
-  {
-    // Allow a numeric uid to be used
-    const char *pos;
-    for (pos= user; my_isdigit(mysqld_charset,*pos); pos++) ;
-    if (*pos)                                   // Not numeric id
-      goto err;
-    if (!(tmp_user_info= getpwuid(atoi(user))))
-      goto err;
-  }
+  if (!tmp_user_info && my_errno==EINVAL && (flags & MY_FAE))
+    unireg_abort(1);
 
   return tmp_user_info;
-  /* purecov: end */
-
-err:
-  sql_print_error("Fatal error: Can't change to run as user '%s' ;  Please check that the user exists!\n",user);
-  unireg_abort(1);
-#endif
-  return NULL;
 }
 
 static inline void allow_coredumps()
@@ -2482,10 +2436,6 @@ static inline void allow_coredumps()
 
 static void set_user(const char *user, struct passwd *user_info_arg)
 {
-  /* purecov: begin tested */
-#if !defined(__WIN__)
-  DBUG_ASSERT(user_info_arg != 0);
-#ifdef HAVE_INITGROUPS
   /*
     We can get a SIGSEGV when calling initgroups() on some systems when NSS
     is configured to use LDAP and the server is statically linked.  We set
@@ -2493,22 +2443,11 @@ static void set_user(const char *user, struct passwd *user_info_arg)
     output a specific message to help the user resolve this problem.
   */
   calling_initgroups= 1;
-  initgroups((char*) user, user_info_arg->pw_gid);
+  int res= my_set_user(user, user_info_arg, MYF(MY_WME));
   calling_initgroups= 0;
-#endif
-  if (setgid(user_info_arg->pw_gid) == -1)
-  {
-    sql_perror("setgid");
+  if (res)
     unireg_abort(1);
-  }
-  if (setuid(user_info_arg->pw_uid) == -1)
-  {
-    sql_perror("setuid");
-    unireg_abort(1);
-  }
   allow_coredumps();
-#endif
-  /* purecov: end */
 }
 
 
@@ -4580,19 +4519,24 @@ static int init_common_variables()
     default_charset_info= default_collation;
   }
   /* Set collactions that depends on the default collation */
-  global_system_variables.collation_server=	 default_charset_info;
-  global_system_variables.collation_database=	 default_charset_info;
-  global_system_variables.collation_connection=  default_charset_info;
-  global_system_variables.character_set_results= default_charset_info;
-  if (default_charset_info->mbminlen > 1)
+  global_system_variables.collation_server= default_charset_info;
+  global_system_variables.collation_database= default_charset_info;
+  if (is_supported_parser_charset(default_charset_info))
   {
-    global_system_variables.character_set_client=  &my_charset_latin1;
-    sql_print_warning("Cannot use %s as character_set_client, %s will be used instead",
-                      default_charset_info->csname,
-                      global_system_variables.character_set_client->csname);
+    global_system_variables.collation_connection= default_charset_info;
+    global_system_variables.character_set_results= default_charset_info;
+    global_system_variables.character_set_client= default_charset_info;
   }
   else
-    global_system_variables.character_set_client=  default_charset_info;
+  {
+    sql_print_warning("'%s' can not be used as client character set. "
+                      "'%s' will be used as default client character set.",
+                      default_charset_info->csname,
+                      my_charset_latin1.csname);
+    global_system_variables.collation_connection= &my_charset_latin1;
+    global_system_variables.character_set_results= &my_charset_latin1;
+    global_system_variables.character_set_client= &my_charset_latin1;
+  }
 
   if (!(character_set_filesystem=
         get_charset_by_csname(character_set_filesystem_name,
@@ -7269,8 +7213,8 @@ struct my_option my_long_options[]=
    "The value has to be a multiple of 256.",
    &opt_binlog_rows_event_max_size, &opt_binlog_rows_event_max_size,
    0, GET_ULONG, REQUIRED_ARG,
-   /* def_value */ 1024, /* min_value */  256, /* max_value */ ULONG_MAX, 
-   /* sub_size */     0, /* block_size */ 256, 
+   /* def_value */ 8192, /* min_value */  256, /* max_value */ ULONG_MAX,
+   /* sub_size */     0, /* block_size */ 256,
    /* app_type */ 0
   },
 #ifndef DISABLE_GRANT_OPTIONS
@@ -9525,7 +9469,10 @@ static int get_options(int *argc_ptr, char ***argv_ptr)
   if ((opt_log_slow_admin_statements || opt_log_queries_not_using_indexes ||
        opt_log_slow_slave_statements) &&
       !global_system_variables.sql_log_slow)
-    sql_print_warning("options --log-slow-admin-statements, --log-queries-not-using-indexes and --log-slow-slave-statements have no effect if --log_slow_queries is not set");
+    sql_print_information("options --log-slow-admin-statements, "
+                          "--log-queries-not-using-indexes and "
+                          "--log-slow-slave-statements have no "
+                          "effect if --log-slow-queries is not set");
   if (global_system_variables.net_buffer_length > 
       global_system_variables.max_allowed_packet)
   {

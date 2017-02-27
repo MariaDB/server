@@ -629,10 +629,11 @@ fil_space_encrypt(
 
 	ulint orig_page_type = mach_read_from_2(src_frame+FIL_PAGE_TYPE);
 
-	if (orig_page_type==FIL_PAGE_TYPE_FSP_HDR
-		|| orig_page_type==FIL_PAGE_TYPE_XDES) {
-		/* File space header or extent descriptor do not need to be
-		encrypted. */
+	if (orig_page_type == FIL_PAGE_TYPE_FSP_HDR ||
+	    orig_page_type == FIL_PAGE_TYPE_XDES ||
+	    orig_page_type == FIL_PAGE_RTREE) {
+		/* File space header, extent descriptor or spatial index
+		are not encrypted. */
 		return src_frame;
 	}
 

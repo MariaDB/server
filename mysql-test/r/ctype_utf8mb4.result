@@ -157,7 +157,7 @@ drop table t1;
 set LC_TIME_NAMES='en_US';
 set names koi8r;
 create table t1 (s1 char(1) character set utf8mb4);
-insert into t1 values (_koi8r'��');
+insert ignore into t1 values (_koi8r'��');
 Warnings:
 Warning	1265	Data truncated for column 's1' at row 1
 select s1,hex(s1),char_length(s1),octet_length(s1) from t1;
@@ -165,19 +165,19 @@ s1	hex(s1)	char_length(s1)	octet_length(s1)
 �	D0B0	1	2
 drop table t1;
 create table t1 (s1 tinytext character set utf8mb4);
-insert into t1 select repeat('a',300);
+insert ignore into t1 select repeat('a',300);
 Warnings:
 Warning	1265	Data truncated for column 's1' at row 1
-insert into t1 select repeat('�',300);
+insert ignore into t1 select repeat('�',300);
 Warnings:
 Warning	1265	Data truncated for column 's1' at row 1
-insert into t1 select repeat('a�',300);
+insert ignore into t1 select repeat('a�',300);
 Warnings:
 Warning	1265	Data truncated for column 's1' at row 1
-insert into t1 select repeat('�a',300);
+insert ignore into t1 select repeat('�a',300);
 Warnings:
 Warning	1265	Data truncated for column 's1' at row 1
-insert into t1 select repeat('��',300);
+insert ignore into t1 select repeat('��',300);
 Warnings:
 Warning	1265	Data truncated for column 's1' at row 1
 select hex(s1) from t1;
@@ -196,19 +196,19 @@ length(s1)	char_length(s1)
 254	127
 drop table t1;
 create table t1 (s1 text character set utf8mb4);
-insert into t1 select repeat('a',66000);
+insert ignore into t1 select repeat('a',66000);
 Warnings:
 Warning	1265	Data truncated for column 's1' at row 1
-insert into t1 select repeat('�',66000);
+insert ignore into t1 select repeat('�',66000);
 Warnings:
 Warning	1265	Data truncated for column 's1' at row 1
-insert into t1 select repeat('a�',66000);
+insert ignore into t1 select repeat('a�',66000);
 Warnings:
 Warning	1265	Data truncated for column 's1' at row 1
-insert into t1 select repeat('�a',66000);
+insert ignore into t1 select repeat('�a',66000);
 Warnings:
 Warning	1265	Data truncated for column 's1' at row 1
-insert into t1 select repeat('��',66000);
+insert ignore into t1 select repeat('��',66000);
 Warnings:
 Warning	1265	Data truncated for column 's1' at row 1
 select length(s1),char_length(s1) from t1;
@@ -220,7 +220,7 @@ length(s1)	char_length(s1)
 65534	32767
 drop table t1;
 create table t1 (s1 char(10) character set utf8mb4);
-insert into t1 values (0x41FF);
+insert ignore into t1 values (0x41FF);
 Warnings:
 Warning	1366	Incorrect string value: '\xFF' for column 's1' at row 1
 select hex(s1) from t1;
@@ -228,7 +228,7 @@ hex(s1)
 413F
 drop table t1;
 create table t1 (s1 varchar(10) character set utf8mb4);
-insert into t1 values (0x41FF);
+insert ignore into t1 values (0x41FF);
 Warnings:
 Warning	1366	Incorrect string value: '\xFF' for column 's1' at row 1
 select hex(s1) from t1;
@@ -236,7 +236,7 @@ hex(s1)
 413F
 drop table t1;
 create table t1 (s1 text character set utf8mb4);
-insert into t1 values (0x41FF);
+insert ignore into t1 values (0x41FF);
 Warnings:
 Warning	1366	Incorrect string value: '\xFF' for column 's1' at row 1
 select hex(s1) from t1;
@@ -901,8 +901,8 @@ create table t2 select concat(a,_utf8mb4'') as a, concat(b,_utf8mb4'')as b from 
 show create table t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `a` varchar(5) CHARACTER SET utf8mb4 NOT NULL,
-  `b` varchar(15) CHARACTER SET utf8mb4 NOT NULL
+  `a` varchar(5) CHARACTER SET utf8mb4 DEFAULT NULL,
+  `b` varchar(15) CHARACTER SET utf8mb4 DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table t2;
 drop table t1;
@@ -1126,7 +1126,7 @@ CREATE TABLE t1 AS SELECT REPEAT('a',1) AS a, 1 AS b LIMIT 0;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varchar(1) CHARACTER SET utf8mb4 NOT NULL,
+  `a` varchar(1) CHARACTER SET utf8mb4 DEFAULT NULL,
   `b` int(1) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT INTO t1 VALUES ('s',0),(_latin1 0xDF,1);
@@ -1233,7 +1233,7 @@ CREATE TABLE t1 AS SELECT REPEAT('a',1) AS a LIMIT 0;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varchar(1) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL
+  `a` varchar(1) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT INTO t1 VALUES (_utf8mb4 0xEFBE9D),(_utf8mb4 0xF0908E84);
 INSERT INTO t1 VALUES (_utf8mb4 0xCE85),(_utf8mb4 0xF4808080);
@@ -1408,6 +1408,7 @@ ERR Имри.Афимим.Аеимимримдмримрмрирор имрим�
 DROP TABLE t1,t2;
 create table t1 (a char(20) character set utf8mb4);
 insert into t1 values ('123456'),('андрей');
+SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 alter table t1 modify a char(2) character set utf8mb4;
 Warnings:
 Warning	1265	Data truncated for column 'a' at row 1
@@ -1888,24 +1889,28 @@ insert into t1 (a) values ('abcdefghijklmnopqrstuvwxyz');
 select * from t1;
 a
 abcdefghijklmnopqrstuvwxyz
+SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 alter table t1 change a a varchar(20) character set utf8mb4 not null;
 Warnings:
 Warning	1265	Data truncated for column 'a' at row 1
 select * from t1;
 a
 abcdefghijklmnopqrst
+SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 alter table t1 change a a char(15) character set utf8mb4 not null;
 Warnings:
 Warning	1265	Data truncated for column 'a' at row 1
 select * from t1;
 a
 abcdefghijklmno
+SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 alter table t1 change a a char(10) character set utf8mb4 not null;
 Warnings:
 Warning	1265	Data truncated for column 'a' at row 1
 select * from t1;
 a
 abcdefghij
+SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 alter table t1 change a a varchar(5) character set utf8mb4 not null;
 Warnings:
 Warning	1265	Data truncated for column 'a' at row 1
@@ -1917,6 +1922,7 @@ create table t1 (
 a varchar(4000) not null
 ) default character set utf8mb4;
 insert into t1 values (repeat('a',4000));
+SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 alter table t1 change a a varchar(3000) character set utf8mb4 not null;
 Warnings:
 Warning	1265	Data truncated for column 'a' at row 1
@@ -1939,12 +1945,12 @@ char(53647 using utf8mb4)
 я
 select char(0xff,0x8f using utf8mb4);
 char(0xff,0x8f using utf8mb4)
-
+NULL
 Warnings:
 Warning	1300	Invalid utf8mb4 character string: 'FF8F'
 select convert(char(0xff,0x8f) using utf8mb4);
 convert(char(0xff,0x8f) using utf8mb4)
-??
+NULL
 Warnings:
 Warning	1300	Invalid utf8mb4 character string: '\xFF\x8F'
 set sql_mode=traditional;
@@ -2153,12 +2159,12 @@ ERROR HY000: Invalid utf8mb4 character string: 'FF'
 set sql_mode=default;
 select hex(char(0xFF using utf8mb4));
 hex(char(0xFF using utf8mb4))
-
+NULL
 Warnings:
 Warning	1300	Invalid utf8mb4 character string: 'FF'
 select hex(convert(0xFF using utf8mb4));
 hex(convert(0xFF using utf8mb4))
-3F
+NULL
 Warnings:
 Warning	1300	Invalid utf8mb4 character string: '\xFF'
 select hex(_utf8mb4 0x616263FF);
@@ -2320,19 +2326,19 @@ create table t1 (utf8mb4 char(1) character set utf8mb4);
 Testing [F0][90..BF][80..BF][80..BF]
 insert into t1 values (0xF0908080);
 insert into t1 values (0xF0BFBFBF);
-insert into t1 values (0xF08F8080);
+insert ignore into t1 values (0xF08F8080);
 Warnings:
 Warning	1366	Incorrect string value: '\xF0\x8F\x80\x80' for column 'utf8mb4' at row 1
-select hex(utf8mb4) from t1;
+select hex(utf8mb4) from t1 order by binary utf8mb4;
 hex(utf8mb4)
+3F
 F0908080
 F0BFBFBF
-3F
 delete from t1;
 Testing [F2..F3][80..BF][80..BF][80..BF]
 insert into t1 values (0xF2808080);
 insert into t1 values (0xF2BFBFBF);
-select hex(utf8mb4) from t1;
+select hex(utf8mb4) from t1 order by binary utf8mb4;
 hex(utf8mb4)
 F2808080
 F2BFBFBF
@@ -2340,14 +2346,14 @@ delete from t1;
 Testing [F4][80..8F][80..BF][80..BF]
 insert into t1 values (0xF4808080);
 insert into t1 values (0xF48F8080);
-insert into t1 values (0xF4908080);
+insert ignore into t1 values (0xF4908080);
 Warnings:
 Warning	1366	Incorrect string value: '\xF4\x90\x80\x80' for column 'utf8mb4' at row 1
-select hex(utf8mb4) from t1;
+select hex(utf8mb4) from t1 order by binary utf8mb4;
 hex(utf8mb4)
+3F
 F4808080
 F48F8080
-3F
 drop table t1;
 #
 # Check strnxfrm() with odd length
@@ -2418,7 +2424,7 @@ INSERT INTO t1 VALUES (119040, x'f09d8480'),
 (917999, x'f3a087af');
 INSERT INTO t1 VALUES (119070, x'f09d849ef09d859ef09d859ef09d8480f09d859ff09d859ff09d859ff09d85a0f09d85a0f09d8480');
 INSERT INTO t1 VALUES (65131, x'efb9abf09d849ef09d859ef09d859ef09d8480f09d859fefb9abefb9abf09d85a0efb9ab');
-INSERT INTO t1 VALUES (119070, x'f09d849ef09d859ef09d859ef09d8480f09d859ff09d859ff09d859ff09d85a0f09d85a0f09d8480f09d85a0');
+INSERT IGNORE INTO t1 VALUES (119070, x'f09d849ef09d859ef09d859ef09d8480f09d859ff09d859ff09d859ff09d85a0f09d85a0f09d8480f09d85a0');
 Warnings:
 Warning	1265	Data truncated for column 'utf8mb4_encoding' at row 1
 SELECT u_decimal, hex(utf8mb4_encoding) FROM t1 ORDER BY utf8mb4_encoding COLLATE utf8mb4_general_ci, BINARY utf8mb4_encoding;
@@ -2434,7 +2440,7 @@ u_decimal	hex(utf8mb4_encoding)
 1114111	F48FBFBF
 119070	F09D849EF09D859EF09D859EF09D8480F09D859FF09D859FF09D859FF09D85A0F09D85A0F09D8480
 119070	F09D849EF09D859EF09D859EF09D8480F09D859FF09D859FF09D859FF09D85A0F09D85A0F09D8480
-INSERT INTO t1 VALUES (1114111, x'f5808080');
+INSERT IGNORE INTO t1 VALUES (1114111, x'f5808080');
 Warnings:
 Warning	1366	Incorrect string value: '\xF5\x80\x80\x80' for column 'utf8mb4_encoding' at row 1
 SELECT character_maximum_length, character_octet_length FROM information_schema.columns WHERE
@@ -2448,14 +2454,14 @@ utf8mb3_encoding VARCHAR(10) NOT NULL
 ) CHARACTER SET utf8mb3;
 INSERT INTO t2 VALUES (42856, x'ea9da8');
 INSERT INTO t2 VALUES (65131, x'efb9ab');
-INSERT INTO t2 VALUES (1114111, x'f48fbfbf');
+INSERT IGNORE INTO t2 VALUES (1114111, x'f48fbfbf');
 Warnings:
 Warning	1366	Incorrect string value: '\xF4\x8F\xBF\xBF' for column 'utf8mb3_encoding' at row 1
 SELECT character_maximum_length, character_octet_length FROM information_schema.columns WHERE
 table_name= 't2' AND column_name= 'utf8mb3_encoding';
 character_maximum_length	character_octet_length
 10	30
-UPDATE t2 SET utf8mb3_encoding= x'f48fbfbd' where u_decimal= 42856;
+UPDATE IGNORE t2 SET utf8mb3_encoding= x'f48fbfbd' where u_decimal= 42856;
 Warnings:
 Warning	1366	Incorrect string value: '\xF4\x8F\xBF\xBD' for column 'utf8mb3_encoding' at row 1
 UPDATE t2 SET utf8mb3_encoding= _utf8mb4 x'ea9da8' where u_decimal= 42856;
@@ -2515,6 +2521,7 @@ SELECT count(*) FROM t1, t2
 WHERE t1.utf8mb4_encoding > t2.utf8mb3_encoding;
 count(*)
 33
+SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 ALTER TABLE t1 CONVERT TO CHARACTER SET utf8;
 Warnings:
 Warning	1366	Incorrect string value: '\xF0\x9D\x84\x80' for column 'utf8mb4_encoding' at row 1
@@ -2667,7 +2674,7 @@ Table	Create Table
 t3	CREATE TEMPORARY TABLE `t3` (
   `utf8mb4` varchar(10) CHARACTER SET utf8mb4 NOT NULL,
   `utf8mb3` varchar(10) CHARACTER SET utf8 NOT NULL,
-  `concat(utf8mb4,utf8mb3)` varchar(20) CHARACTER SET utf8mb4 NOT NULL
+  `concat(utf8mb4,utf8mb3)` varchar(20) CHARACTER SET utf8mb4 DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TEMPORARY TABLE t3;
 SELECT * FROM t1, t2 WHERE t1.utf8mb4 > t2.utf8mb3;
@@ -2700,6 +2707,7 @@ subject varchar(255) CHARACTER SET utf8 COLLATE utf8_unicode_ci,
 p VARCHAR(15) CHARACTER SET utf8 
 ) DEFAULT CHARSET=latin1;
 ALTER TABLE t1 ADD INDEX (subject);
+SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 ALTER TABLE t1
 DEFAULT CHARACTER SET utf8,
 MODIFY subject varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
@@ -2817,6 +2825,7 @@ INSERT INTO t1 VALUES (REPEAT('😎',100));
 SELECT OCTET_LENGTH(a) FROM t1;
 OCTET_LENGTH(a)
 400
+SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 ALTER TABLE t1 MODIFY a TINYTEXT CHARACTER SET utf8mb4;
 Warnings:
 Warning	1265	Data truncated for column 'a' at row 1
@@ -2892,7 +2901,7 @@ CREATE TABLE t1 AS SELECT REPEAT('a',5) AS a;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varchar(5) CHARACTER SET utf8mb4 NOT NULL
+  `a` varchar(5) CHARACTER SET utf8mb4 DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 CREATE TABLE t2 AS SELECT WEIGHT_STRING(a) AS ws FROM t1;
 SHOW CREATE TABLE t2;
@@ -3136,7 +3145,7 @@ CREATE TABLE t1 AS SELECT REPEAT('a',5) AS a;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varchar(5) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL
+  `a` varchar(5) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 CREATE TABLE t2 AS SELECT WEIGHT_STRING(a) AS ws FROM t1;
 SHOW CREATE TABLE t2;
@@ -3393,7 +3402,7 @@ CREATE TABLE t1 (
 a VARCHAR(32) CHARACTER SET utf8mb4,
 b VARCHAR(32) CHARACTER SET utf8
 );
-INSERT INTO t1 SELECT 'a 😁 b', 'a 😁 b';
+INSERT IGNORE INTO t1 SELECT 'a 😁 b', 'a 😁 b';
 Warnings:
 Warning	1366	Incorrect string value: '\xF0\x9F\x98\x81 b' for column 'a' at row 1
 Warning	1366	Incorrect string value: '\xF0\x9F\x98\x81 b' for column 'b' at row 1
@@ -3413,7 +3422,7 @@ CREATE TABLE t1 (
 a VARCHAR(32) CHARACTER SET utf8mb4,
 b VARCHAR(32) CHARACTER SET utf8
 );
-INSERT INTO t1 SELECT 'a 😁 b', 'a 😁 b';
+INSERT IGNORE INTO t1 SELECT 'a 😁 b', 'a 😁 b';
 Warnings:
 Warning	1366	Incorrect string value: '\xF0\x9F\x98\x81 b' for column 'b' at row 1
 SELECT * FROM t1;
@@ -3456,7 +3465,7 @@ DROP FUNCTION f1;
 # MDEV-9842 LOAD DATA INFILE does not work well with a TEXT column when using sjis
 #
 CREATE TABLE t1 (a TEXT CHARACTER SET utf8mb4);
-LOAD DATA INFILE '../../std_data/loaddata/mdev9823.utf8mb4.txt' INTO TABLE t1 CHARACTER SET utf8mb4 IGNORE 4 LINES;
+LOAD DATA INFILE '../../std_data/loaddata/mdev9823.utf8mb4.txt' IGNORE INTO TABLE t1 CHARACTER SET utf8mb4 IGNORE 4 LINES;
 Warnings:
 Warning	1366	Incorrect string value: '\xD0' for column 'a' at row 1
 Warning	1366	Incorrect string value: '\xE1\x80' for column 'a' at row 3

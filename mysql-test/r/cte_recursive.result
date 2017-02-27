@@ -955,7 +955,7 @@ where folks.id = ma.id and (mother not in (select id from ancestor_ids))
 select generation, name from ancestor_ids a, folks
 where a.id = folks.id;
 ERROR HY000: Restrictions imposed on recursive definitions are violated for table 'ancestor_ids'
-set standards_compliant_cte=0;
+set standard_compliant_cte=0;
 with recursive
 ancestor_ids (id, generation)
 as
@@ -999,7 +999,7 @@ generation	name
 2	Grandma Sally
 2	Grandpa Ben
 3	Grandgrandma Martha
-set standards_compliant_cte=1;
+set standard_compliant_cte=1;
 with recursive
 coupled_ancestor_ids (id)
 as
@@ -1023,7 +1023,7 @@ n.father is not null and n.mother is not null
 select p.* from coupled_ancestor_ids a, folks p
 where a.id = p.id;
 ERROR HY000: Restrictions imposed on recursive definitions are violated for table 'coupled_ancestor_ids'
-set statement standards_compliant_cte=0 for
+set statement standard_compliant_cte=0 for
 with recursive
 coupled_ancestor_ids (id)
 as
@@ -1073,7 +1073,7 @@ where p.id = a.id
 )
 select * from ancestors;
 ERROR HY000: Restrictions imposed on recursive definitions are violated for table 'ancestor_ids'
-set statement standards_compliant_cte=0 for
+set statement standard_compliant_cte=0 for
 with recursive
 ancestor_ids (id)
 as
@@ -1156,7 +1156,7 @@ where p.id = a.id
 )
 select * from ancestors;
 ERROR HY000: Restrictions imposed on recursive definitions are violated for table 'ancestor_ids'
-set statement standards_compliant_cte=0 for
+set statement standard_compliant_cte=0 for
 with recursive
 ancestor_ids (id, generation)
 as

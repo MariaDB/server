@@ -123,7 +123,7 @@ source include/wait_for_slave_sql_error.inc;
 --disable_query_log
 --eval SELECT "$err" as 'Last_SQL_Error (expected "Delete_rows_v1 event on table test1.t3; Can\'t find record in \'t3\'" error)'
 --enable_query_log
-call mtr.add_suppression("Slave: Can't find record in 't3' Error_code: 1032");
+call mtr.add_suppression("Can't find record in 't3'");
 
 SET GLOBAL sql_slave_skip_counter=1;
 START SLAVE;

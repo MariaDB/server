@@ -6,6 +6,8 @@
 # Save the initial number of concurrent sessions
 --source include/count_sessions.inc
 
+call mtr.add_suppression("Deadlock found when trying to get lock; try restarting transaction");
+
 --disable_warnings
 drop table if exists t1, t2;
 --enable_warnings

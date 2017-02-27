@@ -40,6 +40,7 @@ Created 12/9/1995 Heikki Tuuri
 #include "log0log.ic"
 #endif
 
+#include "log0crypt.h"
 #include "mem0mem.h"
 #include "buf0buf.h"
 #include "buf0flu.h"
@@ -55,9 +56,6 @@ Created 12/9/1995 Heikki Tuuri
 #include "trx0roll.h"
 #include "srv0mon.h"
 #include "sync0sync.h"
-
-/* Used for debugging */
-// #define DEBUG_CRYPT 1
 
 /*
 General philosophy of InnoDB redo-logs:
@@ -898,7 +896,9 @@ log_group_init(
 
 	group->id = id;
 	group->n_files = n_files;
-	group->format = LOG_HEADER_FORMAT_CURRENT;
+	group->format = srv_encrypt_log
+		? LOG_HEADER_FORMAT_CURRENT | LOG_HEADER_FORMAT_ENCRYPTED
+		: LOG_HEADER_FORMAT_CURRENT;
 	group->file_size = file_size;
 	group->space_id = space_id;
 	group->state = LOG_GROUP_OK;
@@ -987,11 +987,13 @@ log_group_file_header_flush(
 	ut_ad(!recv_no_log_write);
 	ut_ad(group->id == 0);
 	ut_a(nth_file < group->n_files);
+	ut_ad((group->format & ~LOG_HEADER_FORMAT_ENCRYPTED)
+	      == LOG_HEADER_FORMAT_CURRENT);
 
 	buf = *(group->file_header_bufs + nth_file);
 
 	memset(buf, 0, OS_FILE_LOG_BLOCK_SIZE);
-	mach_write_to_4(buf + LOG_HEADER_FORMAT, LOG_HEADER_FORMAT_CURRENT);
+	mach_write_to_4(buf + LOG_HEADER_FORMAT, group->format);
 	mach_write_to_8(buf + LOG_HEADER_START_LSN, start_lsn);
 	strcpy(reinterpret_cast<char*>(buf) + LOG_HEADER_CREATOR,
 	       LOG_HEADER_CREATOR_CURRENT);
@@ -1115,6 +1117,10 @@ loop:
 	      || log_block_get_hdr_no(buf)
 		 == log_block_convert_lsn_to_no(start_lsn));
 
+	if (log_sys->is_encrypted()) {
+		log_crypt(buf, write_len);
+	}
+
 	/* Calculate the checksums for each log block and write them to
 	the trailer fields of the log blocks */
 
@@ -1135,8 +1141,6 @@ loop:
 
 	ut_a(next_offset / UNIV_PAGE_SIZE <= ULINT_MAX);
 
-	log_encrypt_before_write(log_sys->next_checkpoint_no,
-				buf, write_len);
 	const ulint	page_no
 		= (ulint) (next_offset / univ_page_size.physical());
 
@@ -1162,11 +1166,14 @@ loop:
 	}
 }
 
-/** Flush the log has been written to the log file. */
+/** Flush the recently written changes to the log file.
+and invoke log_mutex_enter(). */
 static
 void
 log_write_flush_to_disk_low()
 {
+	/* FIXME: This is not holding log_sys->mutex while
+	calling os_event_set()! */
 	ut_a(log_sys->n_pending_flushes == 1); /* No other threads here */
 
 #ifndef _WIN32
@@ -1175,13 +1182,17 @@ log_write_flush_to_disk_low()
 	bool	do_flush = true;
 #endif
 	if (do_flush) {
-		log_group_t*	group = UT_LIST_GET_FIRST(log_sys->log_groups);
-		fil_flush(group->space_id);
+		fil_flush(SRV_LOG_SPACE_FIRST_ID);
+	}
+
+	MONITOR_DEC(MONITOR_PENDING_LOG_FLUSH);
+
+	log_mutex_enter();
+	if (do_flush) {
 		log_sys->flushed_to_disk_lsn = log_sys->current_flush_lsn;
 	}
 
 	log_sys->n_pending_flushes--;
-	MONITOR_DEC(MONITOR_PENDING_LOG_FLUSH);
 
 	os_event_set(log_sys->flush_event);
 }
@@ -1336,6 +1347,7 @@ loop:
 			/* Nothing to write, flush only */
 			log_mutex_exit_all();
 			log_write_flush_to_disk_low();
+			log_mutex_exit();
 			return;
 		}
 	}
@@ -1415,6 +1427,7 @@ loop:
 		log_write_flush_to_disk_low();
 		ib_uint64_t write_lsn = log_sys->write_lsn;
 		ib_uint64_t flush_lsn = log_sys->flushed_to_disk_lsn;
+		log_mutex_exit();
 
 		innobase_mysql_log_notify(write_lsn, flush_lsn);
 	}
@@ -1612,9 +1625,6 @@ log_group_checkpoint(
 
 	ut_ad(!srv_read_only_mode);
 	ut_ad(log_mutex_own());
-#if LOG_CHECKPOINT_SIZE > OS_FILE_LOG_BLOCK_SIZE
-# error "LOG_CHECKPOINT_SIZE > OS_FILE_LOG_BLOCK_SIZE"
-#endif
 
 	DBUG_PRINT("ib_log", ("checkpoint " UINT64PF " at " LSN_PF
 			      " written to group " ULINTPF,
@@ -1628,7 +1638,9 @@ log_group_checkpoint(
 	mach_write_to_8(buf + LOG_CHECKPOINT_NO, log_sys->next_checkpoint_no);
 	mach_write_to_8(buf + LOG_CHECKPOINT_LSN, log_sys->next_checkpoint_lsn);
 
-	log_crypt_write_checkpoint_buf(buf);
+	if (log_sys->is_encrypted()) {
+		log_crypt_write_checkpoint_buf(buf);
+	}
 
 	lsn_offset = log_group_calc_lsn_offset(log_sys->next_checkpoint_lsn,
 					       group);
@@ -1692,30 +1704,16 @@ log_group_header_read(
 /** Write checkpoint info to the log header and invoke log_mutex_exit().
 @param[in]	sync	whether to wait for the write to complete */
 void
-log_write_checkpoint_info(
-	bool	sync)
+log_write_checkpoint_info(bool sync)
 {
-	log_group_t*	group;
-
 	ut_ad(log_mutex_own());
+	ut_ad(!srv_read_only_mode);
 
-	if (!srv_read_only_mode) {
-		for (group = UT_LIST_GET_FIRST(log_sys->log_groups);
-		     group;
-		     group = UT_LIST_GET_NEXT(log_groups, group)) {
+	for (log_group_t* group = UT_LIST_GET_FIRST(log_sys->log_groups);
+	     group;
+	     group = UT_LIST_GET_NEXT(log_groups, group)) {
 
-			log_group_checkpoint(group);
-		}
-	}
-
-	/* generate key version and key used to encrypt future blocks,
-	*
-	* NOTE: the +1 is as the next_checkpoint_no will be updated once
-	* the checkpoint info has been written and THEN blocks will be encrypted
-	* with new key
-	*/
-	if (srv_encrypt_log) {
-		log_crypt_set_ver_and_key(log_sys->next_checkpoint_no + 1);
+		log_group_checkpoint(group);
 	}
 
 	log_mutex_exit();
@@ -1994,78 +1992,6 @@ loop:
 	}
 }
 
-/******************************************************//**
-Reads a specified log segment to a buffer. */
-void
-log_group_read_log_seg(
-/*===================*/
-	byte*		buf,		/*!< in: buffer where to read */
-	log_group_t*	group,		/*!< in: log group */
-	lsn_t		start_lsn,	/*!< in: read area start */
-	lsn_t		end_lsn)	/*!< in: read area end */
-{
-	ulint	len;
-	lsn_t	source_offset;
-
-	ut_ad(log_mutex_own());
-
-loop:
-	source_offset = log_group_calc_lsn_offset(start_lsn, group);
-
-	ut_a(end_lsn - start_lsn <= ULINT_MAX);
-	len = (ulint) (end_lsn - start_lsn);
-
-	ut_ad(len != 0);
-
-	if ((source_offset % group->file_size) + len > group->file_size) {
-
-		/* If the above condition is true then len (which is ulint)
-		is > the expression below, so the typecast is ok */
-		len = (ulint) (group->file_size -
-			(source_offset % group->file_size));
-	}
-
-	log_sys->n_log_ios++;
-
-	MONITOR_INC(MONITOR_LOG_IO);
-
-	ut_a(source_offset / UNIV_PAGE_SIZE <= ULINT_MAX);
-
-	const ulint	page_no
-		= (ulint) (source_offset / univ_page_size.physical());
-
-	fil_io(IORequestLogRead, true,
-	       page_id_t(group->space_id, page_no),
-	       univ_page_size,
-	       (ulint) (source_offset % univ_page_size.physical()),
-	       len, buf, NULL);
-
-#ifdef DEBUG_CRYPT
-	fprintf(stderr, "BEFORE DECRYPT: block: %lu checkpoint: %lu %.8lx %.8lx offset %lu\n",
-		log_block_get_hdr_no(buf),
-			log_block_get_checkpoint_no(buf),
-			log_block_calc_checksum(buf),
-		log_block_get_checksum(buf), source_offset);
-#endif
-
-	log_decrypt_after_read(buf, len);
-
-#ifdef DEBUG_CRYPT
-	fprintf(stderr, "AFTER DECRYPT: block: %lu checkpoint: %lu %.8lx %.8lx\n",
-			log_block_get_hdr_no(buf),
-			log_block_get_checkpoint_no(buf),
-			log_block_calc_checksum(buf),
-			log_block_get_checksum(buf));
-#endif
-	start_lsn += len;
-	buf += len;
-
-	if (start_lsn != end_lsn) {
-
-		goto loop;
-	}
-}
-
 /**
 Checks that there is enough free space in the log to start a new query step.
 Flushes the log buffer or makes a new checkpoint if necessary. NOTE: this
@@ -2134,7 +2060,8 @@ loop:
 	shutdown, because the InnoDB layer may have committed or
 	prepared transactions and we don't want to lose them. */
 
-	if (ulint total_trx = srv_was_started
+	if (ulint total_trx = srv_was_started && !srv_read_only_mode
+	    && srv_force_recovery < SRV_FORCE_NO_TRX_UNDO
 	    ? trx_sys_any_active_transactions() : 0) {
 
 		if (srv_print_verbose_log && count > 600) {
@@ -2143,13 +2070,6 @@ loop:
 
 			count = 0;
 		}
-
-		/* Wake up purge threads to die - they have MYSQL_THD's and
-		thus might keep open transactions. In particular, this is
-		needed in embedded server and when one uses UNINSTALL PLUGIN.
-		In the normal server shutdown purge threads should've been
-		already notified by the thd_destructor_proxy thread. */
-		srv_purge_wakeup();
 
 		goto loop;
 	}
@@ -2196,14 +2116,12 @@ wait_suspend_loop:
 		thread_name = "fil_crypt_thread";
 		goto wait_suspend_loop;
 	case SRV_PURGE:
+	case SRV_WORKER:
 		srv_purge_wakeup();
 		thread_name = "purge thread";
 		goto wait_suspend_loop;
 	case SRV_MASTER:
 		thread_name = "master thread";
-		goto wait_suspend_loop;
-	case SRV_WORKER:
-		thread_name = "worker threads";
 		goto wait_suspend_loop;
 	}
 

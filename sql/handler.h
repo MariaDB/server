@@ -2653,7 +2653,7 @@ public:
 
   uint errkey;                             /* Last dup key */
   uint key_used_on_scan;
-  uint active_index;
+  uint active_index, keyread;
 
   /** Length of ref (1-8 or the clustered key length) */
   uint ref_length;
@@ -2694,7 +2694,6 @@ private:
   Exec_time_tracker *tracker;
 public:
   void set_time_tracker(Exec_time_tracker *tracker_arg) { tracker=tracker_arg;}
-
 
   Item *pushed_idx_cond;
   uint pushed_idx_cond_keyno;  /* The index which the above condition is for */
@@ -2750,7 +2749,7 @@ public:
     check_table_binlog_row_based_result(0),
     in_range_check_pushed_down(FALSE),
     key_used_on_scan(MAX_KEY),
-    active_index(MAX_KEY),
+    active_index(MAX_KEY), keyread(MAX_KEY),
     ref_length(sizeof(my_off_t)),
     ft_handler(0), inited(NONE),
     pushed_cond(0), next_insert_id(0), insert_id_for_cur_row(0),
@@ -2854,6 +2853,22 @@ public:
   int ha_update_row(const uchar * old_data, uchar * new_data);
   int ha_delete_row(const uchar * buf);
   void ha_release_auto_increment();
+
+  bool keyread_enabled() { return keyread < MAX_KEY; }
+  int ha_start_keyread(uint idx)
+  {
+    if (keyread_enabled())
+      return 0;
+    keyread= idx;
+    return extra(HA_EXTRA_KEYREAD);
+  }
+  int ha_end_keyread()
+  {
+    if (!keyread_enabled())
+      return 0;
+    keyread= MAX_KEY;
+    return extra(HA_EXTRA_NO_KEYREAD);
+  }
 
   int check_collation_compatibility();
   int ha_check_for_upgrade(HA_CHECK_OPT *check_opt);

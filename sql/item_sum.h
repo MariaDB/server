@@ -409,10 +409,31 @@ public:
   Item_sum(THD *thd, Item_sum *item);
   enum Type type() const { return SUM_FUNC_ITEM; }
   virtual enum Sumfunctype sum_func () const=0;
+  bool is_aggr_sum_func()
+  {
+    switch (sum_func()) {
+    case COUNT_FUNC:
+    case COUNT_DISTINCT_FUNC:
+    case SUM_FUNC:
+    case SUM_DISTINCT_FUNC:
+    case AVG_FUNC:
+    case AVG_DISTINCT_FUNC:
+    case MIN_FUNC:
+    case MAX_FUNC:
+    case STD_FUNC:
+    case VARIANCE_FUNC:
+    case SUM_BIT_FUNC:
+    case UDF_SUM_FUNC:
+    case GROUP_CONCAT_FUNC:
+      return true;
+    default:
+      return false;
+    }
+  }
   /**
     Resets the aggregate value to its default and aggregates the current
     value of its attribute(s).
-  */  
+  */
   inline bool reset_and_add() 
   { 
     aggregator_clear();
@@ -555,6 +576,8 @@ public:
   bool check_vcol_func_processor(void *arg);
   virtual void setup_window_func(THD *thd, Window_spec *window_spec) {}
   void mark_as_window_func_sum_expr() { window_func_sum_expr_flag= true; }
+  bool is_window_func_sum_expr() { return window_func_sum_expr_flag; }
+  virtual void setup_caches(THD *thd) {};
 };
 
 
@@ -1037,6 +1060,7 @@ protected:
   void no_rows_in_result();
   void restore_to_before_no_rows_in_result();
   Field *create_tmp_field(bool group, TABLE *table);
+  void setup_caches(THD *thd) { setup_hybrid(thd, arguments()[0], NULL); }
 };
 
 

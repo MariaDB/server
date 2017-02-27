@@ -55,7 +55,6 @@ class Arg_comparator: public Sql_alloc
   Arg_comparator *comparators;   // used only for compare_row()
   double precision;
   /* Fields used in DATE/DATETIME comparison. */
-  THD *thd;
   Item *a_cache, *b_cache;         // Cached values of a and b items
                                    //   when one of arguments is NULL.
 
@@ -71,12 +70,12 @@ public:
   Arg_comparator():
     m_compare_handler(&type_handler_null),
     m_compare_collation(&my_charset_bin),
-    set_null(TRUE), comparators(0), thd(0),
+    set_null(TRUE), comparators(0),
     a_cache(0), b_cache(0) {};
   Arg_comparator(Item **a1, Item **a2): a(a1), b(a2),
     m_compare_handler(&type_handler_null),
     m_compare_collation(&my_charset_bin),
-    set_null(TRUE), comparators(0), thd(0),
+    set_null(TRUE), comparators(0),
     a_cache(0), b_cache(0) {};
 
 public:
@@ -1290,13 +1289,11 @@ class in_temporal :public in_longlong
 protected:
   uchar *get_value_internal(Item *item, enum_field_types f_type);
 public:
-  THD *thd;
   /* Cache for the left item. */
   Item *lval_cache;
 
   in_temporal(THD *thd, uint elements)
-    :in_longlong(thd, elements), thd(current_thd),
-     lval_cache(0) {};
+    :in_longlong(thd, elements), lval_cache(0) {};
   Item *create_item(THD *thd);
   void value_to_item(uint pos, Item *item)
   {
@@ -1489,12 +1486,11 @@ protected:
   longlong value;
   void store_value_internal(Item *item, enum_field_types type);
 public:
-  THD *thd;
   /* Cache for the left item. */
   Item *lval_cache;
 
   cmp_item_temporal()
-    :thd(current_thd), lval_cache(0) {}
+    :lval_cache(0) {}
   int compare(cmp_item *ci);
 };
 

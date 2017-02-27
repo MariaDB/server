@@ -1,34 +1,36 @@
-SELECT CAST(0.0e0 AS JSON) = -0.0e0;
-CAST(0.0e0 AS JSON) = -0.0e0
+SELECT JSON_COMPACT(0.0e0) = -0.0e0;
+JSON_COMPACT(0.0e0) = -0.0e0
 1
-SELECT CAST(CAST(0 AS DECIMAL) AS JSON) = CAST(-0.0e0 AS DECIMAL);
-CAST(CAST(0 AS DECIMAL) AS JSON) = CAST(-0.0e0 AS DECIMAL)
+SELECT JSON_COMPACT(CAST(0 AS DECIMAL)) = CAST(-0.0e0 AS DECIMAL);
+JSON_COMPACT(CAST(0 AS DECIMAL)) = CAST(-0.0e0 AS DECIMAL)
 1
-SELECT CAST(0.0e0 AS JSON) = CAST(-0.0e0 AS DECIMAL);
-CAST(0.0e0 AS JSON) = CAST(-0.0e0 AS DECIMAL)
+SELECT JSON_COMPACT(0.0e0) = CAST(-0.0e0 AS DECIMAL);
+JSON_COMPACT(0.0e0) = CAST(-0.0e0 AS DECIMAL)
 1
-SELECT CAST(CAST(0 AS DECIMAL) AS JSON) = -0.0e0;
-CAST(CAST(0 AS DECIMAL) AS JSON) = -0.0e0
+SELECT JSON_COMPACT(CAST(0 AS DECIMAL)) = -0.0e0;
+JSON_COMPACT(CAST(0 AS DECIMAL)) = -0.0e0
 1
-SELECT CAST(CAST(0 AS SIGNED) AS JSON) = -0.0e0;
-CAST(CAST(0 AS SIGNED) AS JSON) = -0.0e0
+SELECT JSON_COMPACT(CAST(0 AS SIGNED)) = -0.0e0;
+JSON_COMPACT(CAST(0 AS SIGNED)) = -0.0e0
 1
-SELECT CAST(CAST(0 AS SIGNED) AS JSON) = CAST(-0.0e0 AS DECIMAL);
-CAST(CAST(0 AS SIGNED) AS JSON) = CAST(-0.0e0 AS DECIMAL)
+SELECT JSON_COMPACT(CAST(0 AS SIGNED)) = CAST(-0.0e0 AS DECIMAL);
+JSON_COMPACT(CAST(0 AS SIGNED)) = CAST(-0.0e0 AS DECIMAL)
 1
-SELECT CAST(CAST(0 AS UNSIGNED) AS JSON) = -0.0e0;
-CAST(CAST(0 AS UNSIGNED) AS JSON) = -0.0e0
+SELECT JSON_COMPACT(CAST(0 AS UNSIGNED)) = -0.0e0;
+JSON_COMPACT(CAST(0 AS UNSIGNED)) = -0.0e0
 1
-SELECT CAST(CAST(0 AS UNSIGNED) AS JSON) = CAST(-0.0e0 AS DECIMAL);
-CAST(CAST(0 AS UNSIGNED) AS JSON) = CAST(-0.0e0 AS DECIMAL)
+SELECT JSON_COMPACT(CAST(0 AS UNSIGNED)) = CAST(-0.0e0 AS DECIMAL);
+JSON_COMPACT(CAST(0 AS UNSIGNED)) = CAST(-0.0e0 AS DECIMAL)
 1
-select cast('"abc"' as json);
-cast('"abc"' as json)
+select json_compact('"abc"');
+json_compact('"abc"')
 "abc"
 error ER_INVALID_JSON_TEXT_IN_PARAM
-select cast('abc' as json);
-cast('abc' as json)
-abc
+select json_compact('abc');
+json_compact('abc')
+NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_compact' at position 1
 
 # String literal - valid JSON
 select JSON_VALID('123');
@@ -75,13 +77,13 @@ JSON_VALID('123')
 set names 'utf8';
 
 # Json expression
-select JSON_VALID(cast('[123]' as JSON ));
-JSON_VALID(cast('[123]' as JSON ))
+select JSON_VALID(json_compact('[123]'));
+JSON_VALID(json_compact('[123]'))
 1
 
 # Json expression NULL
-select JSON_VALID(cast(NULL as JSON ));
-JSON_VALID(cast(NULL as JSON ))
+select JSON_VALID(json_compact(NULL));
+JSON_VALID(json_compact(NULL))
 NULL
 
 # Bare NULL
@@ -111,8 +113,8 @@ select JSON_VALID( CAST(CAST('2015-01-15' AS DATE) as CHAR CHARACTER SET 'utf8')
 JSON_VALID( CAST(CAST('2015-01-15' AS DATE) as CHAR CHARACTER SET 'utf8') )
 0
 # OK, though:
-select JSON_VALID( CAST(CURDATE() as JSON) );
-JSON_VALID( CAST(CURDATE() as JSON) )
+select JSON_VALID( json_compact(CURDATE()) );
+JSON_VALID( json_compact(CURDATE()) )
 0
 
 # Function result - NULL
@@ -485,20 +487,20 @@ NULL
 select json_depth(null);
 json_depth(null)
 NULL
-select json_depth(cast(null as json));
-json_depth(cast(null as json))
+select json_depth(json_compact(null));
+json_depth(json_compact(null))
 NULL
-select json_depth(cast('[]' as json)),
-json_depth(cast('{}' as json)),
-json_depth(cast('null' as json)),
+select json_depth(json_compact('[]')),
+json_depth(json_compact('{}')),
+json_depth(json_compact('null')),
 json_depth(json_quote('foo'));
-json_depth(cast('[]' as json))	json_depth(cast('{}' as json))	json_depth(cast('null' as json))	json_depth(json_quote('foo'))
+json_depth(json_compact('[]'))	json_depth(json_compact('{}'))	json_depth(json_compact('null'))	json_depth(json_quote('foo'))
 1	1	1	1
-select json_depth(cast('[[2], 3, [[[4]]]]' as json));
-json_depth(cast('[[2], 3, [[[4]]]]' as json))
+select json_depth(json_compact('[[2], 3, [[[4]]]]'));
+json_depth(json_compact('[[2], 3, [[[4]]]]'))
 5
-select json_depth(cast('{"a": {"a1": [3]}, "b": {"b1": {"c": {"d": [5]}}}}' as json));
-json_depth(cast('{"a": {"a1": [3]}, "b": {"b1": {"c": {"d": [5]}}}}' as json))
+select json_depth(json_compact('{"a": {"a1": [3]}, "b": {"b1": {"c": {"d": [5]}}}}'));
+json_depth(json_compact('{"a": {"a1": [3]}, "b": {"b1": {"c": {"d": [5]}}}}'))
 6
 SELECT JSON_DEPTH
 (
@@ -521,8 +523,8 @@ JSON_DEPTH
 SELECT JSON_DEPTH( '"abc"' );
 JSON_DEPTH( '"abc"' )
 1
-SELECT JSON_DEPTH( CAST( '"abc"' AS JSON ) );
-JSON_DEPTH( CAST( '"abc"' AS JSON ) )
+SELECT JSON_DEPTH( json_compact( '"abc"') );
+JSON_DEPTH( json_compact( '"abc"') )
 1
 error ER_INVALID_TYPE_FOR_JSON
 SELECT JSON_DEPTH( 1 );
@@ -534,8 +536,8 @@ JSON_DEPTH( 'abc' )
 NULL
 Warnings:
 Warning	4038	Syntax error in JSON text in argument 1 to function 'json_depth' at position 1
-SELECT JSON_DEPTH( CAST( 1 AS JSON ) );
-JSON_DEPTH( CAST( 1 AS JSON ) )
+SELECT JSON_DEPTH( json_compact( 1) );
+JSON_DEPTH( json_compact( 1) )
 1
 SELECT JSON_DEPTH
 (
@@ -710,19 +712,19 @@ Warnings:
 Warning	4044	Wildcards in JSON path not allowed in argument 3 to function 'json_remove'
 select json_remove( '[ 1, 2, 3 ]', '$[0]' );
 json_remove( '[ 1, 2, 3 ]', '$[0]' )
-[  2, 3 ]
+[2, 3]
 select json_remove( '[ 1, 2, 3 ]', '$[1]' );
 json_remove( '[ 1, 2, 3 ]', '$[1]' )
-[ 1, 3 ]
+[1, 3]
 select json_remove( '[ 1, 2, 3 ]', '$[2]' );
 json_remove( '[ 1, 2, 3 ]', '$[2]' )
-[ 1, 2]
+[1, 2]
 select json_remove( '[ 1, 2, 3 ]', '$[3]' );
 json_remove( '[ 1, 2, 3 ]', '$[3]' )
-[ 1, 2, 3 ]
+[1, 2, 3]
 select json_remove( '[ 1, { "a": true, "b": false, "c": null }, 5 ]', '$[1]' );
 json_remove( '[ 1, { "a": true, "b": false, "c": null }, 5 ]', '$[1]' )
-[ 1, 5 ]
+[1, 5]
 error ER_INVALID_JSON_PATH_WILDCARD
 select json_remove( '[ { "a": { "a": true } } ]', '$**.a' );
 json_remove( '[ { "a": { "a": true } } ]', '$**.a' )
@@ -731,7 +733,7 @@ Warnings:
 Warning	4044	Wildcards in JSON path not allowed in argument 2 to function 'json_remove'
 select json_remove( '[ { "a": true }, { "b": false }, { "c": null }, { "a": null } ]', '$[0].a', '$[2].c' );
 json_remove( '[ { "a": true }, { "b": false }, { "c": null }, { "a": null } ]', '$[0].a', '$[2].c' )
-[ { }, { "b": false }, { }, { "a": null } ]
+[{}, {"b": false}, {}, {"a": null}]
 error ER_INVALID_JSON_PATH_WILDCARD
 select json_remove( '[ { "a": true }, { "b": [ { "c": { "a": true } }  ] }, { "c": null }, { "a": null } ]', '$**.a' );
 json_remove( '[ { "a": true }, { "b": [ { "c": { "a": true } }  ] }, { "c": null }, { "a": null } ]', '$**.a' )
@@ -751,7 +753,7 @@ JSON_REMOVE
 '{"a" : "foo", "b" : [true, {"c" : 123}]}',
 '$.b[ 1 ]'
 )
-{"a" : "foo", "b" : [true, {"c" : 123}]}
+{"a": "foo", "b": [true]}
 SELECT JSON_REMOVE
 (
 '{ "a" : "foo", "b" : [ true, { "c" : 123, "c" : 456 } ] }',
@@ -762,9 +764,7 @@ JSON_REMOVE
 '{ "a" : "foo", "b" : [ true, { "c" : 123, "c" : 456 } ] }',
 '$.b[ 1 ].c'
 )
-NULL
-Warnings:
-Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_remove'
+{"a": "foo", "b": [true, {"c": 456}]}
 SELECT JSON_REMOVE
 (
 '{ "a" : "foo", "b" : [ true, { "c" : 123 } ] }',
@@ -775,9 +775,7 @@ JSON_REMOVE
 '{ "a" : "foo", "b" : [ true, { "c" : 123 } ] }',
 '$.b[ 1 ].c'
 )
-NULL
-Warnings:
-Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_remove'
+{"a": "foo", "b": [true, {}]}
 SELECT JSON_REMOVE
 (
 '{ "a" : "foo", "b" : [ true, { "c" : 123, "d" : 456 } ] }',
@@ -788,9 +786,7 @@ JSON_REMOVE
 '{ "a" : "foo", "b" : [ true, { "c" : 123, "d" : 456 } ] }',
 '$.b[ 1 ].e'
 )
-NULL
-Warnings:
-Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_remove'
+{"a": "foo", "b": [true, {"c": 123, "d": 456}]}
 # ----------------------------------------------------------------------
 # Test of JSON_MERGE function.
 # ----------------------------------------------------------------------
@@ -823,7 +819,9 @@ NULL
 error ER_INVALID_JSON_TEXT_IN_PARAM
 select json_merge( '[1, 2]', '[3, 4' );
 json_merge( '[1, 2]', '[3, 4' )
-[1, 2, 3, 4
+NULL
+Warnings:
+Warning	4037	Unexpected end of JSON text in argument 2 to function 'json_merge'
 error ER_INVALID_JSON_TEXT_IN_PARAM
 select json_merge( '[1, 2', '[3, 4]' );
 json_merge( '[1, 2', '[3, 4]' )
@@ -841,55 +839,55 @@ json_merge( '[1, 2]', '3' )
 [1, 2, 3]
 select json_merge( '1', '{ "a": 2 }' );
 json_merge( '1', '{ "a": 2 }' )
-[1, { "a": 2 }]
+[1, {"a": 2}]
 select json_merge( '{ "a": 2 }', '1' );
 json_merge( '{ "a": 2 }', '1' )
-[{ "a": 2 }, 1]
+[{"a": 2}, 1]
 select json_merge( '[1, 2]', '[3, 4]' );
 json_merge( '[1, 2]', '[3, 4]' )
 [1, 2, 3, 4]
 select json_merge( '{ "a": 2 }', '{ "b": 3}' );
 json_merge( '{ "a": 2 }', '{ "b": 3}' )
-{ "a": 2 ,  "b": 3}
+{"a": 2, "b": 3}
 select json_merge( '[1, 2]', '{ "a": 2 }' );
 json_merge( '[1, 2]', '{ "a": 2 }' )
-[1, 2, { "a": 2 }]
+[1, 2, {"a": 2}]
 select json_merge( '{ "a": 2 }', '[1, 2]' );
 json_merge( '{ "a": 2 }', '[1, 2]' )
-[{ "a": 2 }, 1, 2]
+[{"a": 2}, 1, 2]
 select json_merge( '{"a": 1, "b": 2 }', '{"b": 3, "d": 4 }' );
 json_merge( '{"a": 1, "b": 2 }', '{"b": 3, "d": 4 }' )
-{"a": 1, "b": 2 , "b": 3, "d": 4 }
+{"a": 1, "b": [2, 3], "d": 4}
 select json_merge( '{"a": 1, "b": 2 }', '{"b": [3, 4], "d": 4 }' );
 json_merge( '{"a": 1, "b": 2 }', '{"b": [3, 4], "d": 4 }' )
-{"a": 1, "b": 2 , "b": [3, 4], "d": 4 }
+{"a": 1, "b": [2, 3, 4], "d": 4}
 select json_merge( '{"a": 1, "b": [2, 3] }', '{"b": 4, "d": 4 }' );
 json_merge( '{"a": 1, "b": [2, 3] }', '{"b": 4, "d": 4 }' )
-{"a": 1, "b": [2, 3] , "b": 4, "d": 4 }
+{"a": 1, "b": [2, 3, 4], "d": 4}
 select json_merge( '{"a": 1, "b": 2 }', '{"b": {"e": 7, "f": 8}, "d": 4 }' );
 json_merge( '{"a": 1, "b": 2 }', '{"b": {"e": 7, "f": 8}, "d": 4 }' )
-{"a": 1, "b": 2 , "b": {"e": 7, "f": 8}, "d": 4 }
+{"a": 1, "b": [2, {"e": 7, "f": 8}], "d": 4}
 select json_merge( '{"b": {"e": 7, "f": 8}, "d": 4 }', '{"a": 1, "b": 2 }' );
 json_merge( '{"b": {"e": 7, "f": 8}, "d": 4 }', '{"a": 1, "b": 2 }' )
-{"b": {"e": 7, "f": 8}, "d": 4 , "a": 1, "b": 2 }
+{"b": [{"e": 7, "f": 8}, 2], "d": 4, "a": 1}
 select json_merge( '{"a": 1, "b": [2, 9] }', '{"b": [10, 11], "d": 4 }' );
 json_merge( '{"a": 1, "b": [2, 9] }', '{"b": [10, 11], "d": 4 }' )
-{"a": 1, "b": [2, 9] , "b": [10, 11], "d": 4 }
+{"a": 1, "b": [2, 9, 10, 11], "d": 4}
 select json_merge( '{"a": 1, "b": [2, 9] }', '{"b": {"e": 7, "f": 8}, "d": 4 }' );
 json_merge( '{"a": 1, "b": [2, 9] }', '{"b": {"e": 7, "f": 8}, "d": 4 }' )
-{"a": 1, "b": [2, 9] , "b": {"e": 7, "f": 8}, "d": 4 }
+{"a": 1, "b": [2, 9, {"e": 7, "f": 8}], "d": 4}
 select json_merge( '{"b": {"e": 7, "f": 8}, "d": 4 }', '{"a": 1, "b": [2, 9] }' );
 json_merge( '{"b": {"e": 7, "f": 8}, "d": 4 }', '{"a": 1, "b": [2, 9] }' )
-{"b": {"e": 7, "f": 8}, "d": 4 , "a": 1, "b": [2, 9] }
+{"b": [{"e": 7, "f": 8}, 2, 9], "d": 4, "a": 1}
 select json_merge( '{"b": {"e": 7, "f": 8}, "d": 4 }', '{ "a": 1, "b": {"e": 20, "g": 21 } }' );
 json_merge( '{"b": {"e": 7, "f": 8}, "d": 4 }', '{ "a": 1, "b": {"e": 20, "g": 21 } }' )
-{"b": {"e": 7, "f": 8}, "d": 4 ,  "a": 1, "b": {"e": 20, "g": 21 } }
+{"b": {"e": [7, 20], "f": 8, "g": 21}, "d": 4, "a": 1}
 select json_merge( '1', '2', '3' );
 json_merge( '1', '2', '3' )
 [1, 2, 3]
 select json_merge( '[1, 2 ]', '3', '[4, 5]' );
 json_merge( '[1, 2 ]', '3', '[4, 5]' )
-[1, 2 , 3, 4, 5]
+[1, 2, 3, 4, 5]
 select json_merge
 (
 '{ "a": true, "b": { "c": 3, "d": 4 }, "e": [ 1, 2 ] }',
@@ -902,7 +900,7 @@ json_merge
 '{ "d": false, "b": { "g": 3, "d": 5 }, "f": [ 1, 2 ] }',
 '{ "m": true, "b": { "h": 8, "d": 4 }, "e": [ 3, 4 ] }'
 )
-{ "a": true, "b": { "c": 3, "d": 4 }, "e": [ 1, 2 ] ,  "d": false, "b": { "g": 3, "d": 5 }, "f": [ 1, 2 ] ,  "m": true, "b": { "h": 8, "d": 4 }, "e": [ 3, 4 ] }
+{"a": true, "b": {"c": 3, "d": [4, 5, 4], "g": 3, "h": 8}, "e": [1, 2, 3, 4], "d": false, "f": [1, 2], "m": true}
 SELECT JSON_MERGE
 (
 '{ "a" : "foo", "b" : [ true, { "c" : 123 } ] }',
@@ -913,7 +911,7 @@ JSON_MERGE
 '{ "a" : "foo", "b" : [ true, { "c" : 123 } ] }',
 '[ 5, 6]'
 )
-[{ "a" : "foo", "b" : [ true, { "c" : 123 } ] },  5, 6]
+[{"a": "foo", "b": [true, {"c": 123}]}, 5, 6]
 SELECT JSON_MERGE
 (
 '{ "a" : "foo", "b" : [ true, { "c" : 123 } ] }',
@@ -924,7 +922,7 @@ JSON_MERGE
 '{ "a" : "foo", "b" : [ true, { "c" : 123 } ] }',
 '{ "b": [ false, 34 ] }'
 )
-{ "a" : "foo", "b" : [ true, { "c" : 123 } ] ,  "b": [ false, 34 ] }
+{"a": "foo", "b": [true, {"c": 123}, false, 34]}
 SELECT JSON_MERGE
 (
 '{ "a" : "foo", "b" : [ true, { "c" : 123 } ] }',
@@ -935,7 +933,7 @@ JSON_MERGE
 '{ "a" : "foo", "b" : [ true, { "c" : 123 } ] }',
 '{ "b": "bar" }'
 )
-{ "a" : "foo", "b" : [ true, { "c" : 123 } ] ,  "b": "bar" }
+{"a": "foo", "b": [true, {"c": 123}, "bar"]}
 SELECT JSON_MERGE
 (
 '{ "a" : { "b" : 1 } }',
@@ -946,7 +944,7 @@ JSON_MERGE
 '{ "a" : { "b" : 1 } }',
 '{ "a" : { "c" : 1 } }'
 )
-{ "a" : { "b" : 1 } ,  "a" : { "c" : 1 } }
+{"a": {"b": 1, "c": 1}}
 # ----------------------------------------------------------------------
 # Test of JSON_TYPE function.
 # ----------------------------------------------------------------------
@@ -1006,168 +1004,184 @@ select json_type(CAST(CAST('2015-01-15' AS DATE) as CHAR CHARACTER SET 'utf8'));
 json_type(CAST(CAST('2015-01-15' AS DATE) as CHAR CHARACTER SET 'utf8'))
 INTEGER
 # ----------------------------------------------------------------------
-# Test of CAST(literal AS JSON)
+# Test of json_compact(literal)
 # ----------------------------------------------------------------------
-select json_type(cast(cast('2014-11-25 18:00' as datetime) as json));
-json_type(cast(cast('2014-11-25 18:00' as datetime) as json))
+select json_type(json_compact(cast('2014-11-25 18:00' as datetime)));
+json_type(json_compact(cast('2014-11-25 18:00' as datetime)))
 INTEGER
-select json_type(cast(cast('2014-11-25' as date) as json));
-json_type(cast(cast('2014-11-25' as date) as json))
+select json_type(json_compact(cast('2014-11-25' as date)));
+json_type(json_compact(cast('2014-11-25' as date)))
 INTEGER
-select json_type(cast(cast('18:00:59' as time) as json));
-json_type(cast(cast('18:00:59' as time) as json))
+select json_type(json_compact(cast('18:00:59' as time)));
+json_type(json_compact(cast('18:00:59' as time)))
 INTEGER
-select json_type(cast(127 as json));
-json_type(cast(127 as json))
+select json_type(json_compact(127));
+json_type(json_compact(127))
 INTEGER
-select json_type(cast(255 as json));
-json_type(cast(255 as json))
+select json_type(json_compact(255));
+json_type(json_compact(255))
 INTEGER
-select json_type(cast(32767 as json));
-json_type(cast(32767 as json))
+select json_type(json_compact(32767));
+json_type(json_compact(32767))
 INTEGER
-select json_type(cast(65535 as json));
-json_type(cast(65535 as json))
+select json_type(json_compact(65535));
+json_type(json_compact(65535))
 INTEGER
-select json_type(cast(8388607 as json));
-json_type(cast(8388607 as json))
+select json_type(json_compact(8388607));
+json_type(json_compact(8388607))
 INTEGER
-select json_type(cast(16777215 as json));
-json_type(cast(16777215 as json))
+select json_type(json_compact(16777215));
+json_type(json_compact(16777215))
 INTEGER
-select json_type(cast(2147483647 as json));
-json_type(cast(2147483647 as json))
+select json_type(json_compact(2147483647));
+json_type(json_compact(2147483647))
 INTEGER
-select json_type(cast(4294967295 as json));
-json_type(cast(4294967295 as json))
+select json_type(json_compact(4294967295));
+json_type(json_compact(4294967295))
 INTEGER
-select json_type(cast(9223372036854775807 as json));
-json_type(cast(9223372036854775807 as json))
+select json_type(json_compact(9223372036854775807));
+json_type(json_compact(9223372036854775807))
 INTEGER
-select json_type(cast(18446744073709551615 as json));
-json_type(cast(18446744073709551615 as json))
+select json_type(json_compact(18446744073709551615));
+json_type(json_compact(18446744073709551615))
 INTEGER
-select json_type(cast(true as json));
-json_type(cast(true as json))
+select json_type(json_compact(true));
+json_type(json_compact(true))
 INTEGER
-select json_type(cast(b'10101' as json));
-json_type(cast(b'10101' as json))
+select json_type(json_compact(b'10101'));
+json_type(json_compact(b'10101'))
 NULL
 Warnings:
-Warning	4036	Character disallowd in JSON in argument 1 to function 'json_type' at position 1
-select json_type(cast(cast(3.14 as decimal(5,2)) as json));
-json_type(cast(cast(3.14 as decimal(5,2)) as json))
+Warning	4036	Character disallowed in JSON in argument 1 to function 'json_type' at position 1
+select json_type(json_compact(cast(3.14 as decimal(5,2))));
+json_type(json_compact(cast(3.14 as decimal(5,2))))
 DOUBLE
-select json_type(cast(3.14 as json));
-json_type(cast(3.14 as json))
+select json_type(json_compact(3.14));
+json_type(json_compact(3.14))
 DOUBLE
-select json_type(cast(3.14E30 as json));
-json_type(cast(3.14E30 as json))
+select json_type(json_compact(3.14E30));
+json_type(json_compact(3.14E30))
 NULL
 Warnings:
 Warning	4038	Syntax error in JSON text in argument 1 to function 'json_type' at position 7
-select json_type(cast(cast('10101abcde' as binary) as json));
-json_type(cast(cast('10101abcde' as binary) as json))
+select json_type(json_compact(cast('10101abcde' as binary)));
+json_type(json_compact(cast('10101abcde' as binary)))
 INTEGER
-select json_type(cast(ST_GeomFromText('POINT(1 1)') as json));
-json_type(cast(ST_GeomFromText('POINT(1 1)') as json))
+select json_type(json_compact(ST_GeomFromText('POINT(1 1)')));
+json_type(json_compact(ST_GeomFromText('POINT(1 1)')))
 NULL
 Warnings:
-Warning	4036	Character disallowd in JSON in argument 1 to function 'json_type' at position 1
-select json_type(cast(ST_GeomFromText('LINESTRING(0 0,1 1,2 2)') as json));
-json_type(cast(ST_GeomFromText('LINESTRING(0 0,1 1,2 2)') as json))
+Warning	4036	Character disallowed in JSON in argument 1 to function 'json_type' at position 1
+select json_type(json_compact(ST_GeomFromText('LINESTRING(0 0,1 1,2 2)')));
+json_type(json_compact(ST_GeomFromText('LINESTRING(0 0,1 1,2 2)')))
 NULL
 Warnings:
-Warning	4036	Character disallowd in JSON in argument 1 to function 'json_type' at position 1
-select json_type(cast(ST_GeomFromText('POLYGON((0 0,10 0,10 10,0 10,0 0),
-                                     (5 5,7 5,7 7,5 7, 5 5))') as json));
-json_type(cast(ST_GeomFromText('POLYGON((0 0,10 0,10 10,0 10,0 0),
-                                     (5 5,7 5,7 7,5 7, 5 5))') as json))
+Warning	4036	Character disallowed in JSON in argument 1 to function 'json_type' at position 1
+select json_type(json_compact(ST_GeomFromText('POLYGON((0 0,10 0,10 10,0 10,0 0),
+                                     (5 5,7 5,7 7,5 7, 5 5))')));
+json_type(json_compact(ST_GeomFromText('POLYGON((0 0,10 0,10 10,0 10,0 0),
+                                     (5 5,7 5,7 7,5 7, 5 5))')))
 NULL
 Warnings:
-Warning	4036	Character disallowd in JSON in argument 1 to function 'json_type' at position 1
-select json_type(cast(null as json));
-json_type(cast(null as json))
+Warning	4036	Character disallowed in JSON in argument 1 to function 'json_type' at position 1
+select json_type(json_compact(null));
+json_type(json_compact(null))
 NULL
-select json_type(cast(null as json)) is null;
-json_type(cast(null as json)) is null
+select json_type(json_compact(null)) is null;
+json_type(json_compact(null)) is null
 1
 select json_type(null) is null;
 json_type(null) is null
 1
-select cast(cast('2014-11-25 18:00' as datetime) as json);
-cast(cast('2014-11-25 18:00' as datetime) as json)
-2014-11-25 18:00:00
-select cast(cast('2014-11-25' as date) as json);
-cast(cast('2014-11-25' as date) as json)
-2014-11-25
-select cast(cast('18:00:59' as time) as json);
-cast(cast('18:00:59' as time) as json)
-18:00:59
-select cast(127 as json);
-cast(127 as json)
-127
-select cast(255 as json);
-cast(255 as json)
-255
-select cast(32767 as json);
-cast(32767 as json)
-32767
-select cast(65535 as json);
-cast(65535 as json)
-65535
-select cast(8388607 as json);
-cast(8388607 as json)
-8388607
-select cast(16777215 as json);
-cast(16777215 as json)
-16777215
-select cast(2147483647 as json);
-cast(2147483647 as json)
-2147483647
-select cast(4294967295 as json);
-cast(4294967295 as json)
-4294967295
-select cast(9223372036854775807 as json);
-cast(9223372036854775807 as json)
-9223372036854775807
-select cast(18446744073709551615 as json);
-cast(18446744073709551615 as json)
-18446744073709551615
-select cast(true as json);
-cast(true as json)
-1
-select cast(b'10101' as json);
-cast(b'10101' as json)
-
-select cast(cast(3.14 as decimal(5,2)) as json);
-cast(cast(3.14 as decimal(5,2)) as json)
-3.14
-select cast(3.14 as json);
-cast(3.14 as json)
-3.14
-select cast(3.14e0 as json);
-cast(3.14e0 as json)
-3.14
-select cast(cast('10101abcde' as binary) as json);
-cast(cast('10101abcde' as binary) as json)
-10101abcde
-select cast(ST_GeomFromText('POINT(1 1)') as json);
-cast(ST_GeomFromText('POINT(1 1)') as json)
-             ð?      ð?
-select cast(ST_GeomFromText('LINESTRING(0 0,1 1,2 2)') as json);
-cast(ST_GeomFromText('LINESTRING(0 0,1 1,2 2)') as json)
-                                ð?      ð?       @       @
-select cast(ST_GeomFromText('POLYGON((0 0,10 0,10 10,0 10,0 0),
-                                     (5 5,7 5,7 7,5 7, 5 5))') as json);
-cast(ST_GeomFromText('POLYGON((0 0,10 0,10 10,0 10,0 0),
-                                     (5 5,7 5,7 7,5 7, 5 5))') as json)
-                                   $@              $@      $@              $@                         @      @      @      @      @      @      @      @      @      @
-select cast(null as json);
-cast(null as json)
+select json_compact(cast('2014-11-25 18:00' as datetime));
+json_compact(cast('2014-11-25 18:00' as datetime))
 NULL
-select cast(null as json) is null;
-cast(null as json) is null
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_compact' at position 5
+select json_compact(cast('2014-11-25' as date));
+json_compact(cast('2014-11-25' as date))
+NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_compact' at position 5
+select json_compact(cast('18:00:59' as time));
+json_compact(cast('18:00:59' as time))
+NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_compact' at position 3
+select json_compact(127);
+json_compact(127)
+127
+select json_compact(255);
+json_compact(255)
+255
+select json_compact(32767);
+json_compact(32767)
+32767
+select json_compact(65535);
+json_compact(65535)
+65535
+select json_compact(8388607);
+json_compact(8388607)
+8388607
+select json_compact(16777215);
+json_compact(16777215)
+16777215
+select json_compact(2147483647);
+json_compact(2147483647)
+2147483647
+select json_compact(4294967295);
+json_compact(4294967295)
+4294967295
+select json_compact(9223372036854775807);
+json_compact(9223372036854775807)
+9223372036854775807
+select json_compact(18446744073709551615);
+json_compact(18446744073709551615)
+18446744073709551615
+select json_compact(true);
+json_compact(true)
+1
+select json_compact(b'10101');
+json_compact(b'10101')
+NULL
+Warnings:
+Warning	4036	Character disallowed in JSON in argument 1 to function 'json_compact' at position 1
+select json_compact(cast(3.14 as decimal(5,2)));
+json_compact(cast(3.14 as decimal(5,2)))
+3.14
+select json_compact(3.14);
+json_compact(3.14)
+3.14
+select json_compact(3.14e0);
+json_compact(3.14e0)
+3.14
+select json_compact(cast('10101abcde' as binary));
+json_compact(cast('10101abcde' as binary))
+NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_compact' at position 6
+select json_compact(ST_GeomFromText('POINT(1 1)'));
+json_compact(ST_GeomFromText('POINT(1 1)'))
+NULL
+Warnings:
+Warning	4036	Character disallowed in JSON in argument 1 to function 'json_compact' at position 1
+select json_compact(ST_GeomFromText('LINESTRING(0 0,1 1,2 2)'));
+json_compact(ST_GeomFromText('LINESTRING(0 0,1 1,2 2)'))
+NULL
+Warnings:
+Warning	4036	Character disallowed in JSON in argument 1 to function 'json_compact' at position 1
+select json_compact(ST_GeomFromText('POLYGON((0 0,10 0,10 10,0 10,0 0),
+                                     (5 5,7 5,7 7,5 7, 5 5))'));
+json_compact(ST_GeomFromText('POLYGON((0 0,10 0,10 10,0 10,0 0),
+                                     (5 5,7 5,7 7,5 7, 5 5))'))
+NULL
+Warnings:
+Warning	4036	Character disallowed in JSON in argument 1 to function 'json_compact' at position 1
+select json_compact(null);
+json_compact(null)
+NULL
+select json_compact(null) is null;
+json_compact(null) is null
 1
 # ----------------------------------------------------------------------
 # Test of JSON_KEYS function.
@@ -1224,7 +1238,9 @@ Warning	4042	Syntax error in JSON path in argument 2 to function 'json_keys' at 
 error ER_INVALID_JSON_PATH
 SELECT JSON_KEYS('{"a":1}', '1010') IS NULL;
 JSON_KEYS('{"a":1}', '1010') IS NULL
-0
+1
+Warnings:
+Warning	4042	Syntax error in JSON path in argument 2 to function 'json_keys' at position 1
 SELECT JSON_KEYS
 (
 '{ "a" : "foo", "b" : [ true, { "c" : "123" } ] }'
@@ -1267,8 +1283,8 @@ ERROR 42000: Incorrect parameter count in the call to native function 'JSON_KEYS
 select cast(json_keys('{"a": 1}') as char);
 cast(json_keys('{"a": 1}') as char)
 ["a"]
-select cast(cast(1 as json) as char);
-cast(cast(1 as json) as char)
+select cast(json_compact(1) as char);
+cast(json_compact(1) as char)
 1
 select cast(json_keys(NULL) as char);
 cast(json_keys(NULL) as char)
@@ -1278,48 +1294,46 @@ NULL
 # ----------------------------------------------------------------------
 select json_extract( '{ "one potato" : 1 }', '$."one potato"' );
 json_extract( '{ "one potato" : 1 }', '$."one potato"' )
-NULL
+1
 select json_extract( '{ "a.b" : 1 }', '$."a.b"' );
 json_extract( '{ "a.b" : 1 }', '$."a.b"' )
-NULL
+1
 select json_extract( '{ "\\"a\\"": 1}', '$."a"' );
 json_extract( '{ "\\"a\\"": 1}', '$."a"' )
 NULL
 select json_extract( '{ "\\"a\\"": 1}', '$."\\"a\\""' );
 json_extract( '{ "\\"a\\"": 1}', '$."\\"a\\""' )
-NULL
-Warnings:
-Warning	4042	Syntax error in JSON path in argument 2 to function 'json_extract' at position 7
+1
 select json_extract( '{ "a": 1}', '$."a"' );
 json_extract( '{ "a": 1}', '$."a"' )
-NULL
+1
 select json_extract( '{ "a": 1}', '$.a' );
 json_extract( '{ "a": 1}', '$.a' )
 1
 select json_extract( '{ "a": [ [ 3, 2 ], [ { "c" : "d" }, 1 ] ], "b": { "c" : 6 }, "one potato": 7, "b.c" : 8 }', '$.a[0]' );
 json_extract( '{ "a": [ [ 3, 2 ], [ { "c" : "d" }, 1 ] ], "b": { "c" : 6 }, "one potato": 7, "b.c" : 8 }', '$.a[0]' )
-[ 3, 2 ]
+[3, 2]
 select json_extract( '{ "a": [ [ 3, 2 ], [ { "c" : "d" }, 1 ] ], "b": { "c" : 6 }, "one potato": 7, "b.c" : 8 }', '$.a[0][1]' );
 json_extract( '{ "a": [ [ 3, 2 ], [ { "c" : "d" }, 1 ] ], "b": { "c" : 6 }, "one potato": 7, "b.c" : 8 }', '$.a[0][1]' )
 2
 select json_extract( '{ "a": [ [ 3, 2 ], [ { "c" : "d" }, 1 ] ], "b": { "c" : 6 }, "one potato": 7, "b.c" : 8 }', '$.a[1]' );
 json_extract( '{ "a": [ [ 3, 2 ], [ { "c" : "d" }, 1 ] ], "b": { "c" : 6 }, "one potato": 7, "b.c" : 8 }', '$.a[1]' )
-[ { "c" : "d" }, 1 ]
+[{"c": "d"}, 1]
 select json_extract( '{ "a": [ [ 3, 2 ], [ { "c" : "d" }, 1 ] ], "b": { "c" : 6 }, "one potato": 7, "b.c" : 8 }', '$.a[1][0]' );
 json_extract( '{ "a": [ [ 3, 2 ], [ { "c" : "d" }, 1 ] ], "b": { "c" : 6 }, "one potato": 7, "b.c" : 8 }', '$.a[1][0]' )
-{ "c" : "d" }
+{"c": "d"}
 select json_extract( '{ "a": [ [ 3, 2 ], [ { "c" : "d" }, 1 ] ], "b": { "c" : 6 }, "one potato": 7, "b.c" : 8 }', '$.a[1][0].c' );
 json_extract( '{ "a": [ [ 3, 2 ], [ { "c" : "d" }, 1 ] ], "b": { "c" : 6 }, "one potato": 7, "b.c" : 8 }', '$.a[1][0].c' )
 "d"
 select json_extract( '{ "a": [ [ 3, 2 ], [ { "c" : "d" }, 1 ] ], "b": { "c" : 6 }, "one potato": 7, "b.c" : 8 }', '$."one potato"' );
 json_extract( '{ "a": [ [ 3, 2 ], [ { "c" : "d" }, 1 ] ], "b": { "c" : 6 }, "one potato": 7, "b.c" : 8 }', '$."one potato"' )
-NULL
+7
 select json_extract( '{ "a": [ [ 3, 2 ], [ { "c" : "d" }, 1 ] ], "b": { "c" : 6 }, "one potato": 7, "b.c" : 8 }', '$.b.c' );
 json_extract( '{ "a": [ [ 3, 2 ], [ { "c" : "d" }, 1 ] ], "b": { "c" : 6 }, "one potato": 7, "b.c" : 8 }', '$.b.c' )
 6
 select json_extract( '{ "a": [ [ 3, 2 ], [ { "c" : "d" }, 1 ] ], "b": { "c" : 6 }, "one potato": 7, "b.c" : 8 }', '$."b.c"' );
 json_extract( '{ "a": [ [ 3, 2 ], [ { "c" : "d" }, 1 ] ], "b": { "c" : 6 }, "one potato": 7, "b.c" : 8 }', '$."b.c"' )
-NULL
+8
 # ----------------------------------------------------------------------
 # Test of JSON_EXTRACT function.
 # ----------------------------------------------------------------------
@@ -1361,13 +1375,13 @@ SELECT JSON_EXTRACT('{ "a" : "foo", "b" : [ true, { "c" : "123" } ] }',
 '$.b[ 1 ].c');
 JSON_EXTRACT('{ "a" : "foo", "b" : [ true, { "c" : "123" } ] }',
 '$.b[ 1 ].c')
-NULL
+"123"
 # returns a JSON value containing just the number 123
 SELECT JSON_EXTRACT('{ "a" : "foo", "b" : [ true, { "c" : 123 } ] }',
 '$.b[ 1 ].c');
 JSON_EXTRACT('{ "a" : "foo", "b" : [ true, { "c" : 123 } ] }',
 '$.b[ 1 ].c')
-NULL
+123
 # raises an error because the document is not valid
 error ER_INVALID_JSON_TEXT_IN_PARAM
 SELECT JSON_EXTRACT('{ "a" : [ }',
@@ -1392,13 +1406,13 @@ SELECT JSON_EXTRACT('{ "a" : "foo", "b" : [ true, { "c" : 123 } ] }',
 '$.b[ 1 ].c[ 0 ]');
 JSON_EXTRACT('{ "a" : "foo", "b" : [ true, { "c" : 123 } ] }',
 '$.b[ 1 ].c[ 0 ]')
-NULL
+123
 # returns a JSON value containing the object because of auto-wrapping
 SELECT JSON_EXTRACT('{ "a" : "foo", "b" : [ true, { "c" : {"not array": 4} } ] }',
 '$.b[ 1 ].c[ 0 ]');
 JSON_EXTRACT('{ "a" : "foo", "b" : [ true, { "c" : {"not array": 4} } ] }',
 '$.b[ 1 ].c[ 0 ]')
-NULL
+{"not array": 4}
 # returns null because the path, although valid, does not identify a value
 SELECT JSON_EXTRACT('{ "a" : "foo", "b" : [ true, { "c" : 123 } ] }',
 '$.b[ 1 ].c[ 1 ]');
@@ -1410,7 +1424,7 @@ SELECT JSON_EXTRACT('{ "a" : "foo", "b" : [ true, { "c" : 123, "c" : 456 } ] }',
 '$.b[ 1 ].c');
 JSON_EXTRACT('{ "a" : "foo", "b" : [ true, { "c" : 123, "c" : 456 } ] }',
 '$.b[ 1 ].c')
-NULL
+123
 # returns a JSON array [ "foo", true ]
 SELECT JSON_EXTRACT('{ "a" : "foo", "b" : [ true, { "c" : 123, "c" : 456 } ] }',
 '$.a', '$.b[0]');
@@ -1425,48 +1439,48 @@ JSON_EXTRACT('{ "a" : "foo", "b" : [ true, { "c" : 123, "c" : 456 } ] }',
 [true]
 select json_extract( '[1]', '$[0][0]' );
 json_extract( '[1]', '$[0][0]' )
-NULL
+1
 select json_extract( '[1]', '$**[0]' );
 json_extract( '[1]', '$**[0]' )
 [1]
 select json_extract( '{ "a": 1 }', '$.a[0]' );
 json_extract( '{ "a": 1 }', '$.a[0]' )
-NULL
+1
 select json_extract( '{ "a": 1 }', '$**[0]' );
 json_extract( '{ "a": 1 }', '$**[0]' )
-NULL
+[{"a": 1}, 1]
 select json_extract( '{ "a": 1 }', '$[0].a' );
 json_extract( '{ "a": 1 }', '$[0].a' )
-NULL
+1
 select json_extract( '{ "a": 1 }', '$**.a' );
 json_extract( '{ "a": 1 }', '$**.a' )
 [1]
 select json_extract( '{ "a": 1 }', '$[0].a[0]' );
 json_extract( '{ "a": 1 }', '$[0].a[0]' )
-NULL
+1
 select json_extract( '{ "a": 1 }', '$**[0]' );
 json_extract( '{ "a": 1 }', '$**[0]' )
-NULL
+[{"a": 1}, 1]
 select json_extract( '{ "a": 1 }', '$[0].a' );
 json_extract( '{ "a": 1 }', '$[0].a' )
-NULL
+1
 select json_extract( '{ "a": 1 }', '$**.a' );
 json_extract( '{ "a": 1 }', '$**.a' )
 [1]
 select json_extract( '{ "a": 1 }', '$[0][0].a' );
 json_extract( '{ "a": 1 }', '$[0][0].a' )
-NULL
+1
 select json_extract( '{ "a": 1 }', '$[0][0][0].a' );
 json_extract( '{ "a": 1 }', '$[0][0][0].a' )
-NULL
+1
 SELECT JSON_EXTRACT('[1, [[{"x": [{"a":{"b":{"c":42}}}]}]]]', '$**.a.*');
 JSON_EXTRACT('[1, [[{"x": [{"a":{"b":{"c":42}}}]}]]]', '$**.a.*')
-[{"c":42}]
+[{"c": 42}]
 SELECT JSON_EXTRACT('[1, [[{"x": [{"a":{"b":{"c":42}}}]}]]]',
 '$[1][0][0].x[0].a.*');
 JSON_EXTRACT('[1, [[{"x": [{"a":{"b":{"c":42}}}]}]]]',
 '$[1][0][0].x[0].a.*')
-[{"c":42}]
+[{"c": 42}]
 SELECT JSON_EXTRACT
 (
 '{ "a" : "foo", "b" : [ true, { "c" : "123" } ] }',
@@ -1477,7 +1491,7 @@ JSON_EXTRACT
 '{ "a" : "foo", "b" : [ true, { "c" : "123" } ] }',
 '$.b[ 1 ].c'
 )
-NULL
+"123"
 SELECT JSON_EXTRACT
 (
 '{ "a" : "foo", "b" : [ true, { "c" : 123 } ] }',
@@ -1488,7 +1502,7 @@ JSON_EXTRACT
 '{ "a" : "foo", "b" : [ true, { "c" : 123 } ] }',
 '$.b[ 1 ].c'
 )
-NULL
+123
 error ER_INVALID_JSON_TEXT_IN_PARAM
 SELECT JSON_EXTRACT
 (
@@ -1527,7 +1541,7 @@ JSON_EXTRACT
 '{ "a" : "foo", "b" : [ true, { "c" : 123 } ] }',
 '$.b[ 1 ].c[ 0 ]'
 )
-NULL
+123
 SELECT JSON_EXTRACT
 (
 '{ "a" : "foo", "b" : [ true, { "c" : 123 } ] }',
@@ -1549,7 +1563,7 @@ JSON_EXTRACT
 '{ "a" : "foo", "b" : [ true, { "c" : 123, "c" : 456 } ] }',
 '$.b[ 1 ].c'
 )
-NULL
+123
 SELECT JSON_EXTRACT
 (
 '{ "a" : "foo", "b" : [ true, { "c" : 123, "c" : 456 } ] }',
@@ -1589,68 +1603,68 @@ jdoc
 [1]
 select json_extract( '[ { "a": [3,4] }, { "b": 2 } ]', '$[0].a' ) jdoc;
 jdoc
-[3,4]
+[3, 4]
 select json_extract( '[ { "a": [3,4] }, { "b": 2 } ]', '$[*].a' ) jdoc;
 jdoc
-[[3,4]]
+[[3, 4]]
 select json_extract( '[ { "a": [3,4] }, { "b": 2 } ]', '$[0].a', '$[1].a' ) jdoc;
 jdoc
-[[3,4]]
+[[3, 4]]
 # ----------------------------------------------------------------------
 # Test of JSON_ARRAY_APPEND function.
 # ----------------------------------------------------------------------
-select json_array_append(NULL, '$.b', cast(1 as json));
-json_array_append(NULL, '$.b', cast(1 as json))
+select json_array_append(NULL, '$.b', json_compact(1));
+json_array_append(NULL, '$.b', json_compact(1))
 NULL
-select json_array_append('[1,2,3]', NULL, cast(1 as json));
-json_array_append('[1,2,3]', NULL, cast(1 as json))
+select json_array_append('[1,2,3]', NULL, json_compact(1));
+json_array_append('[1,2,3]', NULL, json_compact(1))
 NULL
 select json_array_append('[1,2,3]', '$', NULL);
 json_array_append('[1,2,3]', '$', NULL)
-[1,2,3, null]
+[1, 2, 3, null]
 select json_array_append(NULL);
 ERROR 42000: Incorrect parameter count in the call to native function 'json_array_append'
 select json_array_append(NULL, NULL);
 ERROR 42000: Incorrect parameter count in the call to native function 'json_array_append'
 select json_array_append(NULL, NULL, NULL, NULL);
 ERROR 42000: Incorrect parameter count in the call to native function 'json_array_append'
-SELECT JSON_ARRAY_APPEND(cast('1' as json), '$', 3);
-JSON_ARRAY_APPEND(cast('1' as json), '$', 3)
+SELECT JSON_ARRAY_APPEND(json_compact('1'), '$', 3);
+JSON_ARRAY_APPEND(json_compact('1'), '$', 3)
 [1, 3]
-SELECT JSON_ARRAY_APPEND(cast('{"a": 3}' as json), '$', 3);
-JSON_ARRAY_APPEND(cast('{"a": 3}' as json), '$', 3)
+SELECT JSON_ARRAY_APPEND(json_compact('{"a": 3}'), '$', 3);
+JSON_ARRAY_APPEND(json_compact('{"a": 3}'), '$', 3)
 [{"a": 3}, 3]
 error ER_INVALID_JSON_PATH_WILDCARD
-select json_array_append(cast('{"a": {"b": [3]}}' as json), '$**[0]', 6);
-json_array_append(cast('{"a": {"b": [3]}}' as json), '$**[0]', 6)
+select json_array_append(json_compact('{"a": {"b": [3]}}'), '$**[0]', 6);
+json_array_append(json_compact('{"a": {"b": [3]}}'), '$**[0]', 6)
 NULL
 Warnings:
 Warning	4044	Wildcards in JSON path not allowed in argument 2 to function 'json_array_append'
 # Auto-wrapping, since because the paths identify scalars.
 # should return {"a": "foo", "b": ["bar", 4], "c": ["wibble", "grape"]}
 SELECT JSON_ARRAY_APPEND('{"a": "foo", "b": "bar", "c": "wibble"}',
-'$.b', cast(4 as json),
-'$.c', cast('"grape"' as json));
+'$.b', json_compact(4),
+'$.c', json_compact('"grape"'));
 JSON_ARRAY_APPEND('{"a": "foo", "b": "bar", "c": "wibble"}',
-'$.b', cast(4 as json),
-'$.c', cast('"grape"' as json))
+'$.b', json_compact(4),
+'$.c', json_compact('"grape"'))
 {"a": "foo", "b": ["bar", 4], "c": ["wibble", "grape"]}
 # should return {"a": "foo", "b": [1, 2, 3, 4],
 #                "c": ["apple", "pear", "grape"]}
 SELECT JSON_ARRAY_APPEND('{"a" : "foo","b": [1, 2, 3], "c": ["apple", "pear"]}',
-'$.b', cast(4 as json),
-'$.c', cast('"grape"' as json));
+'$.b', json_compact(4),
+'$.c', json_compact('"grape"'));
 JSON_ARRAY_APPEND('{"a" : "foo","b": [1, 2, 3], "c": ["apple", "pear"]}',
-'$.b', cast(4 as json),
-'$.c', cast('"grape"' as json))
-{"a" : "foo","b": [1, 2, 3, 4], "c": ["apple", "pear", "grape"]}
+'$.b', json_compact(4),
+'$.c', json_compact('"grape"'))
+{"a": "foo", "b": [1, 2, 3, 4], "c": ["apple", "pear", "grape"]}
 SELECT JSON_ARRAY_APPEND('{"a" : "foo","b": [1, 2, 3], "c": ["apple", "pear"]}',
 '$.b', 4,
 '$.c', 'grape');
 JSON_ARRAY_APPEND('{"a" : "foo","b": [1, 2, 3], "c": ["apple", "pear"]}',
 '$.b', 4,
 '$.c', 'grape')
-{"a" : "foo","b": [1, 2, 3, 4], "c": ["apple", "pear", "grape"]}
+{"a": "foo", "b": [1, 2, 3, 4], "c": ["apple", "pear", "grape"]}
 error ER_INVALID_JSON_PATH_WILDCARD
 select json_array_append( '[[], [], []]', '$[*]', 3, '$[*]', 4);
 json_array_append( '[[], [], []]', '$[*]', 3, '$[*]', 4)
@@ -1675,7 +1689,7 @@ JSON_ARRAY_APPEND
 '$.b', 4,
 '$.c', "grape"
 )
-{ "a" : "foo", "b" : ["bar", 4], "c" : ["wibble", "grape"] }
+{"a": "foo", "b": ["bar", 4], "c": ["wibble", "grape"]}
 SELECT JSON_ARRAY_APPEND
 (
 '{ "a" : "foo", "b" : [ 1, 2, 3 ], "c" : [ "apple", "pear" ] }',
@@ -1688,13 +1702,13 @@ JSON_ARRAY_APPEND
 '$.b', 4,
 '$.c', "grape"
 )
-{ "a" : "foo", "b" : [ 1, 2, 3 , 4], "c" : [ "apple", "pear" , "grape"] }
+{"a": "foo", "b": [1, 2, 3, 4], "c": ["apple", "pear", "grape"]}
 # ----------------------------------------------------------------------
 # Bug#21373874 ASSERTION `PARENT' FAILED
 # ----------------------------------------------------------------------
 select json_array_append('{"a":1}', '$[0]', 100);
 json_array_append('{"a":1}', '$[0]', 100)
-[{"a":1}, 100]
+[{"a": 1}, 100]
 select json_array_append('3', '$[0]', 100);
 json_array_append('3', '$[0]', 100)
 [3, 100]
@@ -1704,15 +1718,15 @@ json_array_append('3', '$[0][0][0][0]', 100)
 # ----------------------------------------------------------------------
 # Test of JSON_INSERT function.
 # ----------------------------------------------------------------------
-select json_insert(NULL, '$.b', cast(1 as json));
-json_insert(NULL, '$.b', cast(1 as json))
+select json_insert(NULL, '$.b', json_compact(1));
+json_insert(NULL, '$.b', json_compact(1))
 NULL
-select json_insert('[1,2,3]', NULL, cast(1 as json));
-json_insert('[1,2,3]', NULL, cast(1 as json))
+select json_insert('[1,2,3]', NULL, json_compact(1));
+json_insert('[1,2,3]', NULL, json_compact(1))
 NULL
 select json_insert('[1,2,3]', '$[3]', NULL);
 json_insert('[1,2,3]', '$[3]', NULL)
-[1,2,3, null]
+[1, 2, 3, null]
 select json_insert(NULL);
 ERROR 42000: Incorrect parameter count in the call to native function 'json_insert'
 select json_insert(NULL, NULL);
@@ -1721,25 +1735,25 @@ select json_insert(NULL, NULL, NULL, NULL);
 ERROR 42000: Incorrect parameter count in the call to native function 'json_insert'
 select json_insert('[1,2,3]', '$[2]', 4);
 json_insert('[1,2,3]', '$[2]', 4)
-[1,2,3]
+[1, 2, 3]
 select json_insert('[1,2,3]', '$[3]', 4);
 json_insert('[1,2,3]', '$[3]', 4)
-[1,2,3, 4]
+[1, 2, 3, 4]
 select json_insert('[1,2,3]', '$[10]', 4);
 json_insert('[1,2,3]', '$[10]', 4)
-[1,2,3, 4]
+[1, 2, 3, 4]
 select json_insert('{"c":4}', '$.c', 4);
 json_insert('{"c":4}', '$.c', 4)
-{"c":4}
+{"c": 4}
 select json_insert('{"c":4}', '$.a', 4);
 json_insert('{"c":4}', '$.a', 4)
-{"c":4, "a":4}
+{"c": 4, "a": 4}
 select json_insert('1', '$', 4);
 json_insert('1', '$', 4)
 1
 select json_insert('1', '$[0]', 4);
 json_insert('1', '$[0]', 4)
-[1, 4]
+1
 select json_insert('1', '$[1]', 4);
 json_insert('1', '$[1]', 4)
 [1, 4]
@@ -1748,106 +1762,106 @@ json_insert('1', '$[10]', '4', '$[11]', 5)
 [1, "4", 5]
 select json_insert('[1,2,3]', '$[2][0]', 4);
 json_insert('[1,2,3]', '$[2][0]', 4)
-[1,2,[3, 4]]
+[1, 2, 3]
 select json_insert('[1,2,3]', '$[2][2]', 4);
 json_insert('[1,2,3]', '$[2][2]', 4)
-[1,2,[3, 4]]
+[1, 2, [3, 4]]
 select json_insert('{"a": 3}', '$.a[0]', 4);
 json_insert('{"a": 3}', '$.a[0]', 4)
-{"a": [3, 4]}
+{"a": 3}
 select json_insert('{"a": 3}', '$.a[1]', 4, '$.a[2]', '5');
 json_insert('{"a": 3}', '$.a[1]', 4, '$.a[2]', '5')
 {"a": [3, 4, "5"]}
 error ER_INVALID_JSON_PATH_WILDCARD
-select json_insert(cast('{"a": [1], "b": 2}' as json), '$.*[1]', 6);
-json_insert(cast('{"a": [1], "b": 2}' as json), '$.*[1]', 6)
+select json_insert(json_compact('{"a": [1], "b": 2}'), '$.*[1]', 6);
+json_insert(json_compact('{"a": [1], "b": 2}'), '$.*[1]', 6)
 NULL
 Warnings:
 Warning	4044	Wildcards in JSON path not allowed in argument 2 to function 'json_insert'
 error ER_INVALID_JSON_PATH_WILDCARD
-select json_insert(cast('{"a": 1, "b": 2}' as json), '$.*[1]', 6);
-json_insert(cast('{"a": 1, "b": 2}' as json), '$.*[1]', 6)
+select json_insert(json_compact('{"a": 1, "b": 2}'), '$.*[1]', 6);
+json_insert(json_compact('{"a": 1, "b": 2}'), '$.*[1]', 6)
 NULL
 Warnings:
 Warning	4044	Wildcards in JSON path not allowed in argument 2 to function 'json_insert'
 error ER_INVALID_JSON_PATH_WILDCARD
-select json_insert(cast('{"a": {"b": 3}}' as json),   '$.a.*[1]', 6);
-json_insert(cast('{"a": {"b": 3}}' as json),   '$.a.*[1]', 6)
+select json_insert(json_compact('{"a": {"b": 3}}'),   '$.a.*[1]', 6);
+json_insert(json_compact('{"a": {"b": 3}}'),   '$.a.*[1]', 6)
 NULL
 Warnings:
 Warning	4044	Wildcards in JSON path not allowed in argument 2 to function 'json_insert'
 error ER_INVALID_JSON_PATH_WILDCARD
-select json_insert(cast('{"a": {"b": [3]}}' as json), '$.a.*[1]', 6);
-json_insert(cast('{"a": {"b": [3]}}' as json), '$.a.*[1]', 6)
+select json_insert(json_compact('{"a": {"b": [3]}}'), '$.a.*[1]', 6);
+json_insert(json_compact('{"a": {"b": [3]}}'), '$.a.*[1]', 6)
 NULL
 Warnings:
 Warning	4044	Wildcards in JSON path not allowed in argument 2 to function 'json_insert'
 error ER_INVALID_JSON_PATH_WILDCARD
-select json_insert(cast('{"a": {"b": 3}}' as json),   '$**[1]', 6);
-json_insert(cast('{"a": {"b": 3}}' as json),   '$**[1]', 6)
+select json_insert(json_compact('{"a": {"b": 3}}'),   '$**[1]', 6);
+json_insert(json_compact('{"a": {"b": 3}}'),   '$**[1]', 6)
 NULL
 Warnings:
 Warning	4044	Wildcards in JSON path not allowed in argument 2 to function 'json_insert'
 error ER_INVALID_JSON_PATH_WILDCARD
-select json_insert(cast('{"a": {"b": [3]}}' as json), '$**[1]', 6);
-json_insert(cast('{"a": {"b": [3]}}' as json), '$**[1]', 6)
+select json_insert(json_compact('{"a": {"b": [3]}}'), '$**[1]', 6);
+json_insert(json_compact('{"a": {"b": [3]}}'), '$**[1]', 6)
 NULL
 Warnings:
 Warning	4044	Wildcards in JSON path not allowed in argument 2 to function 'json_insert'
 error ER_INVALID_JSON_PATH_WILDCARD
-select json_insert(cast('[1]' as json), '$[*][1]', 6);
-json_insert(cast('[1]' as json), '$[*][1]', 6)
+select json_insert(json_compact('[1]'), '$[*][1]', 6);
+json_insert(json_compact('[1]'), '$[*][1]', 6)
 NULL
 Warnings:
 Warning	4044	Wildcards in JSON path not allowed in argument 2 to function 'json_insert'
 error ER_INVALID_JSON_PATH_WILDCARD
-select json_insert(cast('[1]' as json), '$**[1]', 6);
-json_insert(cast('[1]' as json), '$**[1]', 6)
+select json_insert(json_compact('[1]'), '$**[1]', 6);
+json_insert(json_compact('[1]'), '$**[1]', 6)
 NULL
 Warnings:
 Warning	4044	Wildcards in JSON path not allowed in argument 2 to function 'json_insert'
 error ER_INVALID_JSON_PATH_WILDCARD
-select json_insert(cast('[1, [2], 3]' as json), '$[*][1]', 6);
-json_insert(cast('[1, [2], 3]' as json), '$[*][1]', 6)
+select json_insert(json_compact('[1, [2], 3]'), '$[*][1]', 6);
+json_insert(json_compact('[1, [2], 3]'), '$[*][1]', 6)
 NULL
 Warnings:
 Warning	4044	Wildcards in JSON path not allowed in argument 2 to function 'json_insert'
 error ER_INVALID_JSON_PATH_WILDCARD
-select json_insert(cast('[1, [2], 3]' as json), '$**[1]', 6);
-json_insert(cast('[1, [2], 3]' as json), '$**[1]', 6)
+select json_insert(json_compact('[1, [2], 3]'), '$**[1]', 6);
+json_insert(json_compact('[1, [2], 3]'), '$**[1]', 6)
 NULL
 Warnings:
 Warning	4044	Wildcards in JSON path not allowed in argument 2 to function 'json_insert'
 error ER_INVALID_JSON_PATH_WILDCARD
-select json_insert(cast('[[1]]' as json), '$[*][1]', 6);
-json_insert(cast('[[1]]' as json), '$[*][1]', 6)
+select json_insert(json_compact('[[1]]'), '$[*][1]', 6);
+json_insert(json_compact('[[1]]'), '$[*][1]', 6)
 NULL
 Warnings:
 Warning	4044	Wildcards in JSON path not allowed in argument 2 to function 'json_insert'
 error ER_INVALID_JSON_PATH_WILDCARD
-select json_insert(cast('[[1]]' as json), '$**[1]', 6);
-json_insert(cast('[[1]]' as json), '$**[1]', 6)
+select json_insert(json_compact('[[1]]'), '$**[1]', 6);
+json_insert(json_compact('[[1]]'), '$**[1]', 6)
 NULL
 Warnings:
 Warning	4044	Wildcards in JSON path not allowed in argument 2 to function 'json_insert'
-select json_insert(cast('{"a": 3}' as json), '$[1]', 6);
-json_insert(cast('{"a": 3}' as json), '$[1]', 6)
+select json_insert(json_compact('{"a": 3}'), '$[1]', 6);
+json_insert(json_compact('{"a": 3}'), '$[1]', 6)
 [{"a": 3}, 6]
 SELECT JSON_INSERT('{ "a" : "foo", "b" : [ 1, 2, 3 ] }', '$.a', true);
 JSON_INSERT('{ "a" : "foo", "b" : [ 1, 2, 3 ] }', '$.a', true)
-{ "a" : "foo", "b" : [ 1, 2, 3 ] }
+{"a": "foo", "b": [1, 2, 3]}
 SELECT JSON_INSERT('{ "a" : "foo", "b" : [ 1, 2, 3 ] }', '$.c', 123);
 JSON_INSERT('{ "a" : "foo", "b" : [ 1, 2, 3 ] }', '$.c', 123)
-{ "a" : "foo", "b" : [ 1, 2, 3 ] , "c":123}
+{"a": "foo", "b": [1, 2, 3], "c": 123}
 SELECT JSON_INSERT('{ "a" : "foo", "b" : [ 1, 2, 3 ] }', '$.c', '123');
 JSON_INSERT('{ "a" : "foo", "b" : [ 1, 2, 3 ] }', '$.c', '123')
-{ "a" : "foo", "b" : [ 1, 2, 3 ] , "c":"123"}
+{"a": "foo", "b": [1, 2, 3], "c": "123"}
 SELECT JSON_INSERT('{ "a" : "foo", "b" : [ 1, 2, 3 ] }', '$.a[1]', true);
 JSON_INSERT('{ "a" : "foo", "b" : [ 1, 2, 3 ] }', '$.a[1]', true)
-{ "a" : ["foo", true], "b" : [ 1, 2, 3 ] }
+{"a": ["foo", true], "b": [1, 2, 3]}
 SELECT JSON_INSERT('{ "a" : "foo"}', '$.b', true, '$.b', false);
 JSON_INSERT('{ "a" : "foo"}', '$.b', true, '$.b', false)
-{ "a" : "foo", "b":true}
+{"a": "foo", "b": true}
 SELECT JSON_INSERT
 (
 '{ "a" : "foo", "b" : [ 1, 2, 3 ] }',
@@ -1860,7 +1874,7 @@ JSON_INSERT
 '$.a',
 true
 )
-{ "a" : "foo", "b" : [ 1, 2, 3 ] }
+{"a": "foo", "b": [1, 2, 3]}
 SELECT JSON_INSERT
 (
 '{ "a" : "foo", "b" : [ 1, 2, 3 ] }',
@@ -1873,7 +1887,7 @@ JSON_INSERT
 '$.c',
 123
 )
-{ "a" : "foo", "b" : [ 1, 2, 3 ] , "c":123}
+{"a": "foo", "b": [1, 2, 3], "c": 123}
 SELECT JSON_INSERT
 (
 '{ "a" : "foo", "b" : [ 1, 2, 3 ] }',
@@ -1886,7 +1900,7 @@ JSON_INSERT
 '$.c',
 '123'
 )
-{ "a" : "foo", "b" : [ 1, 2, 3 ] , "c":"123"}
+{"a": "foo", "b": [1, 2, 3], "c": "123"}
 SELECT JSON_INSERT
 (
 '{ "a" : "foo", "b" : [ 1, 2, 3 ] }',
@@ -1899,7 +1913,7 @@ JSON_INSERT
 '$.a[1]',
 true
 )
-{ "a" : ["foo", true], "b" : [ 1, 2, 3 ] }
+{"a": ["foo", true], "b": [1, 2, 3]}
 SELECT JSON_INSERT
 (
 '{ "a" : "foo"}',
@@ -1912,7 +1926,7 @@ JSON_INSERT
 '$.b', true,
 '$.b', false
 )
-{ "a" : "foo", "b":true}
+{"a": "foo", "b": true}
 # ----------------------------------------------------------------------
 # Test of JSON_ARRAY_INSERT function.
 # ----------------------------------------------------------------------
@@ -1924,7 +1938,7 @@ json_array_insert('[1,2,3]', NULL, 1)
 NULL
 select json_array_insert('[1,2,3]', '$[3]', NULL);
 json_array_insert('[1,2,3]', '$[3]', NULL)
-[1,2,3, null]
+[1, 2, 3, null]
 select json_array_insert(NULL);
 ERROR 42000: Incorrect parameter count in the call to native function 'json_array_insert'
 select json_array_insert(NULL, NULL);
@@ -1951,10 +1965,10 @@ json_array_insert( 'true', '$[1]', false )
 true
 select json_array_insert( '{ "a": true }', '$.a[0]', false );
 json_array_insert( '{ "a": true }', '$.a[0]', false )
-{ "a": true }
+{"a": true}
 select json_array_insert( '{ "a": true }', '$.a[1]', false );
 json_array_insert( '{ "a": true }', '$.a[1]', false )
-{ "a": true }
+{"a": true}
 select json_array_insert( '[]', '$[0]', false );
 json_array_insert( '[]', '$[0]', false )
 [false]
@@ -1972,19 +1986,19 @@ json_array_insert( '[true]', '$[2]', false )
 [true, false]
 select json_array_insert( '{ "a": [] }', '$.a[0]', false );
 json_array_insert( '{ "a": [] }', '$.a[0]', false )
-{ "a": [false] }
+{"a": [false]}
 select json_array_insert( '{ "a": [] }', '$.a[1]', false );
 json_array_insert( '{ "a": [] }', '$.a[1]', false )
-{ "a": [false] }
+{"a": [false]}
 select json_array_insert( '{ "a": [true] }', '$.a[0]', false );
 json_array_insert( '{ "a": [true] }', '$.a[0]', false )
-{ "a": [false, true] }
+{"a": [false, true]}
 select json_array_insert( '{ "a": [true] }', '$.a[1]', false );
 json_array_insert( '{ "a": [true] }', '$.a[1]', false )
-{ "a": [true, false] }
+{"a": [true, false]}
 select json_array_insert( '{ "a": [true] }', '$.a[2]', false );
 json_array_insert( '{ "a": [true] }', '$.a[2]', false )
-{ "a": [true, false] }
+{"a": [true, false]}
 select json_array_insert( '[1, 2, 3, 4]', '$[0]', false );
 json_array_insert( '[1, 2, 3, 4]', '$[0]', false )
 [false, 1, 2, 3, 4]
@@ -2005,34 +2019,34 @@ json_array_insert( '[1, 2, 3, 4]', '$[5]', false )
 [1, 2, 3, 4, false]
 select json_array_insert( '{ "a": [1, 2, 3, 4] }', '$.a[0]', false );
 json_array_insert( '{ "a": [1, 2, 3, 4] }', '$.a[0]', false )
-{ "a": [false, 1, 2, 3, 4] }
+{"a": [false, 1, 2, 3, 4]}
 select json_array_insert( '{ "a": [1, 2, 3, 4] }', '$.a[1]', false );
 json_array_insert( '{ "a": [1, 2, 3, 4] }', '$.a[1]', false )
-{ "a": [1, false, 2, 3, 4] }
+{"a": [1, false, 2, 3, 4]}
 select json_array_insert( '{ "a": [1, 2, 3, 4] }', '$.a[2]', false );
 json_array_insert( '{ "a": [1, 2, 3, 4] }', '$.a[2]', false )
-{ "a": [1, 2, false, 3, 4] }
+{"a": [1, 2, false, 3, 4]}
 select json_array_insert( '{ "a": [1, 2, 3, 4] }', '$.a[3]', false );
 json_array_insert( '{ "a": [1, 2, 3, 4] }', '$.a[3]', false )
-{ "a": [1, 2, 3, false, 4] }
+{"a": [1, 2, 3, false, 4]}
 select json_array_insert( '{ "a": [1, 2, 3, 4] }', '$.a[4]', false );
 json_array_insert( '{ "a": [1, 2, 3, 4] }', '$.a[4]', false )
-{ "a": [1, 2, 3, 4, false] }
+{"a": [1, 2, 3, 4, false]}
 select json_array_insert( '{ "a": [1, 2, 3, 4] }', '$.a[5]', false );
 json_array_insert( '{ "a": [1, 2, 3, 4] }', '$.a[5]', false )
-{ "a": [1, 2, 3, 4, false] }
+{"a": [1, 2, 3, 4, false]}
 select json_array_insert( '{ "a": [1, 2, 3, 4] }', '$.b[0]', false );
 json_array_insert( '{ "a": [1, 2, 3, 4] }', '$.b[0]', false )
-{ "a": [1, 2, 3, 4] }
+{"a": [1, 2, 3, 4]}
 select json_array_insert( '{ "a": [1, 2, 3, 4] }', '$.b[1]', false );
 json_array_insert( '{ "a": [1, 2, 3, 4] }', '$.b[1]', false )
-{ "a": [1, 2, 3, 4] }
+{"a": [1, 2, 3, 4]}
 select json_array_insert( '"a"', '$[0]', true );
 json_array_insert( '"a"', '$[0]', true )
 "a"
 select json_array_insert( '[ "a" ]', '$[0][0]', true );
 json_array_insert( '[ "a" ]', '$[0][0]', true )
-[ "a" ]
+["a"]
 select json_array_insert( '"a"', '$[1]', true );
 json_array_insert( '"a"', '$[1]', true )
 "a"
@@ -2056,12 +2070,12 @@ Warnings:
 Warning	4044	Wildcards in JSON path not allowed in argument 2 to function 'json_insert'
 select json_array_insert( '[ 1, 2, 3 ]', '$[1]', true, '$[1]', false );
 json_array_insert( '[ 1, 2, 3 ]', '$[1]', true, '$[1]', false )
-[ 1, false, true, 2, 3 ]
+[1, false, true, 2, 3]
 select json_array_insert( '[ 1, 2, 3 ]', '$[1]',
-cast( '[ "a", "b", "c", "d" ]' as json ), '$[1][2]', false );
+json_compact( '[ "a", "b", "c", "d" ]'), '$[1][2]', false );
 json_array_insert( '[ 1, 2, 3 ]', '$[1]',
-cast( '[ "a", "b", "c", "d" ]' as json ), '$[1][2]', false )
-[ 1, [ "a", "b", false, "c", "d" ], 2, 3 ]
+json_compact( '[ "a", "b", "c", "d" ]'), '$[1][2]', false )
+[1, ["a", "b", false, "c", "d"], 2, 3]
 error ER_INVALID_JSON_TEXT_IN_PARAM
 SELECT JSON_ARRAY_INSERT(JSON_EXTRACT('[1', '$'), '$[0]', 1);
 JSON_ARRAY_INSERT(JSON_EXTRACT('[1', '$'), '$[0]', 1)
@@ -2071,21 +2085,21 @@ Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_extract
 error ER_INVALID_JSON_TEXT_IN_PARAM
 select json_array_insert( '[ 1, 2, 3 ]', '$[1]', json_extract( '[', '$' ) );
 json_array_insert( '[ 1, 2, 3 ]', '$[1]', json_extract( '[', '$' ) )
-[ 1, null, 2, 3 ]
+[1, null, 2, 3]
 Warnings:
 Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_extract'
 # ----------------------------------------------------------------------
 # Test of JSON_SET function.
 # ----------------------------------------------------------------------
-select json_set(NULL, '$.b', cast(1 as json));
-json_set(NULL, '$.b', cast(1 as json))
+select json_set(NULL, '$.b', json_compact(1));
+json_set(NULL, '$.b', json_compact(1))
 NULL
-select json_set('[1,2,3]', NULL, cast(1 as json));
-json_set('[1,2,3]', NULL, cast(1 as json))
+select json_set('[1,2,3]', NULL, json_compact(1));
+json_set('[1,2,3]', NULL, json_compact(1))
 NULL
 select json_set('[1,2,3]', '$[3]', NULL);
 json_set('[1,2,3]', '$[3]', NULL)
-[1,2,3, null]
+[1, 2, 3, null]
 select json_set(NULL);
 ERROR 42000: Incorrect parameter count in the call to native function 'json_set'
 select json_set(NULL, NULL);
@@ -2095,24 +2109,25 @@ ERROR 42000: Incorrect parameter count in the call to native function 'json_set'
 error ER_INVALID_JSON_TEXT_IN_PARAM
 SELECT JSON_SET('{}', '$.name', JSON_EXTRACT('', '$'));
 JSON_SET('{}', '$.name', JSON_EXTRACT('', '$'))
-{, "name":null}
+NULL
 Warnings:
 Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_extract'
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_set' at position 2
 select json_set('[1,2,3]', '$[2]', 4);
 json_set('[1,2,3]', '$[2]', 4)
-[1,2,4]
+[1, 2, 4]
 select json_set('[1,2,3]', '$[3]', 4);
 json_set('[1,2,3]', '$[3]', 4)
-[1,2,3, 4]
+[1, 2, 3, 4]
 select json_set('[1,2,3]', '$[10]', 4);
 json_set('[1,2,3]', '$[10]', 4)
-[1,2,3, 4]
+[1, 2, 3, 4]
 select json_set('{"c":4}', '$.c', 5);
 json_set('{"c":4}', '$.c', 5)
-{"c":5}
+{"c": 5}
 select json_set('{"c":4}', '$.a', 5);
 json_set('{"c":4}', '$.a', 5)
-{"c":4, "a":5}
+{"c": 4, "a": 5}
 select json_set('1', '$', 4);
 json_set('1', '$', 4)
 4
@@ -2127,10 +2142,10 @@ json_set('1', '$[10]', '4', '$[11]', 5)
 [1, "4", 5]
 select json_set('[1,2,3]', '$[2][0]', 4);
 json_set('[1,2,3]', '$[2][0]', 4)
-[1,2,4]
+[1, 2, 4]
 select json_set('[1,2,3]', '$[2][2]', 4);
 json_set('[1,2,3]', '$[2][2]', 4)
-[1,2,[3, 4]]
+[1, 2, [3, 4]]
 select json_set('{"a": 3}', '$.a[0]', 4);
 json_set('{"a": 3}', '$.a[0]', 4)
 {"a": 4}
@@ -2138,8 +2153,8 @@ select json_set('{"a": 3}', '$.a[1]', 4, '$.a[2]', '5');
 json_set('{"a": 3}', '$.a[1]', 4, '$.a[2]', '5')
 {"a": [3, 4, "5"]}
 error ER_INVALID_JSON_PATH_WILDCARD
-select json_set(cast('{"a": {"b": [3]}}' as json), '$**[1]', 6);
-json_set(cast('{"a": {"b": [3]}}' as json), '$**[1]', 6)
+select json_set(json_compact('{"a": {"b": [3]}}'), '$**[1]', 6);
+json_set(json_compact('{"a": {"b": [3]}}'), '$**[1]', 6)
 NULL
 Warnings:
 Warning	4044	Wildcards in JSON path not allowed in argument 2 to function 'json_set'
@@ -2149,34 +2164,34 @@ JSON_OBJECT());
 JSON_SET('{ "a" : "foo", "b" : [ 1, 2, 3 ] }',
 '$.a',
 JSON_OBJECT())
-{ "a" : {}, "b" : [ 1, 2, 3 ] }
+{"a": {}, "b": [1, 2, 3]}
 SELECT JSON_SET('{ "a" : "foo"}', '$.a',
 JSON_OBJECT( 'b', false ), '$.a.c', true);
 JSON_SET('{ "a" : "foo"}', '$.a',
 JSON_OBJECT( 'b', false ), '$.a.c', true)
-{ "a" : {"b": false, "c":true}}
+{"a": {"b": false, "c": true}}
 select json_set('{ "a" : "foo", "b" : [ 1, 2, 3 ] }',
 '$.a',
-cast('{}' as json));
+json_compact('{}'));
 json_set('{ "a" : "foo", "b" : [ 1, 2, 3 ] }',
 '$.a',
-cast('{}' as json))
-{ "a" : {}, "b" : [ 1, 2, 3 ] }
+json_compact('{}'))
+{"a": {}, "b": [1, 2, 3]}
 select json_set('{ "a" : "foo", "b" : [ 1, 2, 3 ] }',
 '$.c',
-cast('[true, false]' as json));
+json_compact('[true, false]'));
 json_set('{ "a" : "foo", "b" : [ 1, 2, 3 ] }',
 '$.c',
-cast('[true, false]' as json))
-{ "a" : "foo", "b" : [ 1, 2, 3 ] , "c":[true, false]}
+json_compact('[true, false]'))
+{"a": "foo", "b": [1, 2, 3], "c": [true, false]}
 select json_set('1', '$[3]', 2);
 json_set('1', '$[3]', 2)
 [1, 2]
 select json_set('{ "a" : "foo"}', '$.a',
-cast('{"b": false}' as json), '$.a.c', true);
+json_compact('{"b": false}'), '$.a.c', true);
 json_set('{ "a" : "foo"}', '$.a',
-cast('{"b": false}' as json), '$.a.c', true)
-{ "a" : {"b": false, "c":true}}
+json_compact('{"b": false}'), '$.a.c', true)
+{"a": {"b": false, "c": true}}
 SELECT JSON_SET
 (
 '{ "a" : "foo", "b" : [ 1, 2, 3 ] }',
@@ -2189,7 +2204,7 @@ JSON_SET
 '$.a',
 JSON_OBJECT()
 )
-{ "a" : {}, "b" : [ 1, 2, 3 ] }
+{"a": {}, "b": [1, 2, 3]}
 SELECT JSON_SET
 (
 '{ "a" : "foo", "b" : [ 1, 2, 3 ] }',
@@ -2202,20 +2217,20 @@ JSON_SET
 '$.c',
 JSON_ARRAY( true, false )
 )
-{ "a" : "foo", "b" : [ 1, 2, 3 ] , "c":[true, false]}
+{"a": "foo", "b": [1, 2, 3], "c": [true, false]}
 SELECT JSON_SET
 (
 '{ "a" : "foo", "b" : [ 1, 2, 3 ] }',
 '$.c',
-JSON_ARRAY( CAST( 'true' AS JSON ), CAST( 'false' AS JSON ) )
+JSON_ARRAY( json_compact( 'true'), json_compact( 'false') )
 );
 JSON_SET
 (
 '{ "a" : "foo", "b" : [ 1, 2, 3 ] }',
 '$.c',
-JSON_ARRAY( CAST( 'true' AS JSON ), CAST( 'false' AS JSON ) )
+JSON_ARRAY( json_compact( 'true'), json_compact( 'false') )
 )
-{ "a" : "foo", "b" : [ 1, 2, 3 ] , "c":[true, false]}
+{"a": "foo", "b": [1, 2, 3], "c": [true, false]}
 SELECT JSON_SET
 (
 '1',
@@ -2241,19 +2256,19 @@ JSON_SET
 '$.a', JSON_OBJECT( 'b', false ),
 '$.a.c', true
 )
-{ "a" : {"b": false, "c":true}}
+{"a": {"b": false, "c": true}}
 # ----------------------------------------------------------------------
 # Test of JSON_REPLACE function.
 # ----------------------------------------------------------------------
-select json_replace(NULL, '$.b', cast(1 as json));
-json_replace(NULL, '$.b', cast(1 as json))
+select json_replace(NULL, '$.b', json_compact(1));
+json_replace(NULL, '$.b', json_compact(1))
 NULL
-select json_replace('[1,2,3]', NULL, cast(1 as json));
-json_replace('[1,2,3]', NULL, cast(1 as json))
+select json_replace('[1,2,3]', NULL, json_compact(1));
+json_replace('[1,2,3]', NULL, json_compact(1))
 NULL
 select json_replace('[1,2,3]', '$[2]', NULL);
 json_replace('[1,2,3]', '$[2]', NULL)
-[1,2,null]
+[1, 2, null]
 select json_replace(NULL);
 ERROR 42000: Incorrect parameter count in the call to native function 'json_replace'
 select json_replace(NULL, NULL);
@@ -2262,19 +2277,19 @@ select json_replace(NULL, NULL, NULL, NULL);
 ERROR 42000: Incorrect parameter count in the call to native function 'json_replace'
 select json_replace('[1,2,3]', '$[2]', 4);
 json_replace('[1,2,3]', '$[2]', 4)
-[1,2,4]
+[1, 2, 4]
 select json_replace('[1,2,3]', '$[3]', 4);
 json_replace('[1,2,3]', '$[3]', 4)
-[1,2,3]
+[1, 2, 3]
 select json_replace('[1,2,3]', '$[10]', 4);
 json_replace('[1,2,3]', '$[10]', 4)
-[1,2,3]
+[1, 2, 3]
 select json_replace('{"c":4}', '$.c', 5);
 json_replace('{"c":4}', '$.c', 5)
-{"c":5}
+{"c": 5}
 select json_replace('{"c":4}', '$.a', 5);
 json_replace('{"c":4}', '$.a', 5)
-{"c":4}
+{"c": 4}
 select json_replace('1', '$', 4);
 json_replace('1', '$', 4)
 4
@@ -2289,10 +2304,10 @@ json_replace('1', '$[10]', '4', '$[11]', 5)
 1
 select json_replace('[1,2,3]', '$[2][0]', 4);
 json_replace('[1,2,3]', '$[2][0]', 4)
-[1,2,4]
+[1, 2, 4]
 select json_replace('[1,2,3]', '$[2][2]', 4);
 json_replace('[1,2,3]', '$[2][2]', 4)
-[1,2,3]
+[1, 2, 3]
 select json_replace('{"a": 3}', '$.a[0]', 4);
 json_replace('{"a": 3}', '$.a[0]', 4)
 {"a": 4}
@@ -2305,29 +2320,29 @@ true);
 JSON_REPLACE('{ "a" : "foo", "b" : [ 1, 2, 3 ] }',
 '$.c',
 true)
-{ "a" : "foo", "b" : [ 1, 2, 3 ] }
+{"a": "foo", "b": [1, 2, 3]}
 SELECT JSON_REPLACE('{ "a" : "foo", "b" : [ 1, 2, 3 ] }',
 '$.a[0]',
 true);
 JSON_REPLACE('{ "a" : "foo", "b" : [ 1, 2, 3 ] }',
 '$.a[0]',
 true)
-{ "a" : true, "b" : [ 1, 2, 3 ] }
+{"a": true, "b": [1, 2, 3]}
 SELECT JSON_REPLACE('{ "a" : "foo", "b" : [ 1, 2, 3 ] }',
 '$.b[5]',
 true);
 JSON_REPLACE('{ "a" : "foo", "b" : [ 1, 2, 3 ] }',
 '$.b[5]',
 true)
-{ "a" : "foo", "b" : [ 1, 2, 3 ] }
+{"a": "foo", "b": [1, 2, 3]}
 # ----------------------------------------------------------------------
 # Test of JSON_ARRAY function.
 # ----------------------------------------------------------------------
-select json_array(NULL, '$.b', cast(1 as json));
-json_array(NULL, '$.b', cast(1 as json))
+select json_array(NULL, '$.b', json_compact(1));
+json_array(NULL, '$.b', json_compact(1))
 [null, "$.b", 1]
-select json_array('[1,2,3]', NULL, cast(1 as json));
-json_array('[1,2,3]', NULL, cast(1 as json))
+select json_array('[1,2,3]', NULL, json_compact(1));
+json_array('[1,2,3]', NULL, json_compact(1))
 ["[1,2,3]", null, 1]
 select json_array('[1,2,3]', '$[3]', NULL);
 json_array('[1,2,3]', '$[3]', NULL)
@@ -2341,8 +2356,8 @@ json_array(3.14)
 select json_array('[1,2,3]');
 json_array('[1,2,3]')
 ["[1,2,3]"]
-select json_array(cast('[1,2,3]' as json));
-json_array(cast('[1,2,3]' as json))
+select json_array(json_compact('[1,2,3]'));
+json_array(json_compact('[1,2,3]'))
 [[1,2,3]]
 select json_array(1,2,3);
 json_array(1,2,3)
@@ -2376,11 +2391,11 @@ json_object( 'a', 1 )
 select json_object( 'a', 1, 'b', 'foo' );
 json_object( 'a', 1, 'b', 'foo' )
 {"a": 1, "b": "foo"}
-select json_object( 'a', 1, 'b', 'foo', 'c', cast( '{ "d": "wibble" }' as json ) );
-json_object( 'a', 1, 'b', 'foo', 'c', cast( '{ "d": "wibble" }' as json ) )
+select json_object( 'a', 1, 'b', 'foo', 'c', json_compact( '{ "d": "wibble" }') );
+json_object( 'a', 1, 'b', 'foo', 'c', json_compact( '{ "d": "wibble" }') )
 {"a": 1, "b": "foo", "c": { "d": "wibble" }}
-select json_object( 'a', true, 'b', false, 'c', cast( 'null' as json) );
-json_object( 'a', true, 'b', false, 'c', cast( 'null' as json) )
+select json_object( 'a', true, 'b', false, 'c', json_compact( 'null') );
+json_object( 'a', true, 'b', false, 'c', json_compact( 'null') )
 {"a": true, "b": false, "c": null}
 select json_valid( json_object( '"a"', 1 ) );
 json_valid( json_object( '"a"', 1 ) )
@@ -2572,7 +2587,7 @@ json_search( '[ "footbar", "foo%bar" ]', 'all', 'foo%bar' )
 ["$[0]", "$[1]"]
 select json_search( '[ "footbar", "foo%bar" ]', 'all', 'foo\%bar' );
 json_search( '[ "footbar", "foo%bar" ]', 'all', 'foo\%bar' )
-NULL
+"$[1]"
 select json_search( '[ "footbar", "foo%bar" ]', 'all', 'foo|%bar', '|' );
 json_search( '[ "footbar", "foo%bar" ]', 'all', 'foo|%bar', '|' )
 "$[1]"
@@ -2720,43 +2735,43 @@ JSON_SEARCH
 )
 $.one potato
 select json_type(case (null is null) when 1 then
-cast('null' as json) else
-cast('[1,2,3]' as json) end);
+json_compact('null') else
+json_compact('[1,2,3]') end);
 json_type(case (null is null) when 1 then
-cast('null' as json) else
-cast('[1,2,3]' as json) end)
+json_compact('null') else
+json_compact('[1,2,3]') end)
 NULL
 select json_type(case (null is not null) when 1 then
-cast('null' as json) else
-cast('[1,2,3]' as json) end);
+json_compact('null') else
+json_compact('[1,2,3]') end);
 json_type(case (null is not null) when 1 then
-cast('null' as json) else
-cast('[1,2,3]' as json) end)
+json_compact('null') else
+json_compact('[1,2,3]') end)
 ARRAY
 select json_type( if(null is null,
-cast('null' as json),
-cast('[1,2,3]' as json)) );
+json_compact('null'),
+json_compact('[1,2,3]')) );
 json_type( if(null is null,
-cast('null' as json),
-cast('[1,2,3]' as json)) )
+json_compact('null'),
+json_compact('[1,2,3]')) )
 NULL
 select json_type( if(null is not null,
-cast('null' as json),
-cast('[1,2,3]' as json)));
+json_compact('null'),
+json_compact('[1,2,3]')));
 json_type( if(null is not null,
-cast('null' as json),
-cast('[1,2,3]' as json)))
+json_compact('null'),
+json_compact('[1,2,3]')))
 ARRAY
-select cast(json_extract(cast(concat('[', cast('["A",2]' as json), ']') as json),
+select cast(json_extract(json_compact(concat('[', json_compact('["A",2]'), ']')),
 '$[0][1]') as char) = 2;
-cast(json_extract(cast(concat('[', cast('["A",2]' as json), ']') as json),
+cast(json_extract(json_compact(concat('[', json_compact('["A",2]'), ']')),
 '$[0][1]') as char) = 2
 1
 # ----------------------------------------------------------------------
 # Test of aggregate function MAX, MIN.
 # ----------------------------------------------------------------------
-select max(cast('[1,2,3]' as json));
-max(cast('[1,2,3]' as json))
+select max(json_compact('[1,2,3]'));
+max(json_compact('[1,2,3]'))
 [1,2,3]
 # ----------------------------------------------------------------------
 # Test of JSON_QUOTE, JSON_UNQUOTE
@@ -2841,26 +2856,26 @@ char_length(json_unquote('""'))
 select json_unquote('"" ');
 json_unquote('"" ')
 
-select json_unquote(cast(json_quote('abc') as json));
-json_unquote(cast(json_quote('abc') as json))
+select json_unquote(json_compact(json_quote('abc')));
+json_unquote(json_compact(json_quote('abc')))
 abc
-select cast('{"abc": "foo"}' as json);
-cast('{"abc": "foo"}' as json)
+select json_compact('{"abc": "foo"}');
+json_compact('{"abc": "foo"}')
+{"abc":"foo"}
+select json_unquote(json_compact('{"abc": "foo"}'));
+json_unquote(json_compact('{"abc": "foo"}'))
 {"abc": "foo"}
-select json_unquote(cast('{"abc": "foo"}' as json));
-json_unquote(cast('{"abc": "foo"}' as json))
-{"abc": "foo"}
-select json_extract(cast('{"abc": "foo"}' as json), '$.abc');
-json_extract(cast('{"abc": "foo"}' as json), '$.abc')
+select json_extract(json_compact('{"abc": "foo"}'), '$.abc');
+json_extract(json_compact('{"abc": "foo"}'), '$.abc')
 "foo"
-select json_unquote(json_extract(cast('{"abc": "foo"}' as json), '$.abc'));
-json_unquote(json_extract(cast('{"abc": "foo"}' as json), '$.abc'))
+select json_unquote(json_extract(json_compact('{"abc": "foo"}'), '$.abc'));
+json_unquote(json_extract(json_compact('{"abc": "foo"}'), '$.abc'))
 foo
 select json_unquote('["a", "b", "c"]');
 json_unquote('["a", "b", "c"]')
 ["a", "b", "c"]
-select json_unquote(cast('["a", "b", "c"]' as json));
-json_unquote(cast('["a", "b", "c"]' as json))
+select json_unquote(json_compact('["a", "b", "c"]'));
+json_unquote(json_compact('["a", "b", "c"]'))
 ["a", "b", "c"]
 select charset(json_unquote('"abc"'));
 charset(json_unquote('"abc"'))
@@ -2871,8 +2886,8 @@ json_quote(convert(X'e68891' using utf8))
 select json_quote(convert(X'e68891' using utf8mb4));
 json_quote(convert(X'e68891' using utf8mb4))
 "æˆ‘"
-select cast(json_quote(convert(X'e68891' using utf8)) as json);
-cast(json_quote(convert(X'e68891' using utf8)) as json)
+select json_compact(json_quote(convert(X'e68891' using utf8)));
+json_compact(json_quote(convert(X'e68891' using utf8)))
 "æˆ‘"
 select json_unquote(convert(X'e68891' using utf8));
 json_unquote(convert(X'e68891' using utf8))
@@ -2885,17 +2900,21 @@ json_quote(json_quote(json_quote('abc'))))));
 json_unquote(json_unquote(json_unquote(        # long round trip of it
 json_quote(json_quote(json_quote('abc'))))))
 abc
-select cast(cast('2015-01-15 23:24:25' as datetime) as json);
-cast(cast('2015-01-15 23:24:25' as datetime) as json)
+select json_compact(cast('2015-01-15 23:24:25' as datetime));
+json_compact(cast('2015-01-15 23:24:25' as datetime))
+NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_compact' at position 5
+select json_unquote(json_compact(cast('2015-01-15 23:24:25' as datetime)));
+json_unquote(json_compact(cast('2015-01-15 23:24:25' as datetime)))
 2015-01-15 23:24:25
-select json_unquote(cast(cast('2015-01-15 23:24:25' as datetime) as json));
-json_unquote(cast(cast('2015-01-15 23:24:25' as datetime) as json))
-2015-01-15 23:24:25
-select cast(st_geomfromtext('point(1 1)') as json);
-cast(st_geomfromtext('point(1 1)') as json)
-             ð?      ð?
-select json_unquote(cast(st_geomfromtext('point(1 1)') as json));
-json_unquote(cast(st_geomfromtext('point(1 1)') as json))
+select json_compact(st_geomfromtext('point(1 1)'));
+json_compact(st_geomfromtext('point(1 1)'))
+NULL
+Warnings:
+Warning	4036	Character disallowed in JSON in argument 1 to function 'json_compact' at position 1
+select json_unquote(json_compact(st_geomfromtext('point(1 1)')));
+json_unquote(json_compact(st_geomfromtext('point(1 1)')))
              ð?      ð?
 SELECT JSON_UNQUOTE( '"abc"' );
 JSON_UNQUOTE( '"abc"' )
@@ -2910,9 +2929,9 @@ SELECT JSON_UNQUOTE( 123 );
 JSON_UNQUOTE( 123 )
 123
 SELECT JSON_UNQUOTE
-( CAST( CAST( '"abc"' AS JSON ) AS CHAR ) );
+( CAST( json_compact( '"abc"') AS CHAR ) );
 JSON_UNQUOTE
-( CAST( CAST( '"abc"' AS JSON ) AS CHAR ) )
+( CAST( json_compact( '"abc"') AS CHAR ) )
 abc
 SELECT JSON_UNQUOTE
 (
@@ -2946,8 +2965,8 @@ error ER_INCORRECT_TYPE
 SELECT JSON_QUOTE( 123 );
 JSON_QUOTE( 123 )
 NULL
-SELECT CAST( JSON_QUOTE( '123' ) AS JSON );
-CAST( JSON_QUOTE( '123' ) AS JSON )
+SELECT json_compact( JSON_QUOTE( '123' ));
+json_compact( JSON_QUOTE( '123' ))
 "123"
 # ----------------------------------------------------------------------
 # Test of JSON_CONTAINS
@@ -2956,78 +2975,78 @@ CAST( JSON_QUOTE( '123' ) AS JSON )
 select json_contains(NULL, NULL);
 json_contains(NULL, NULL)
 NULL
-select json_contains(cast('{"a": 1, "b": 2}' as json), NULL);
-json_contains(cast('{"a": 1, "b": 2}' as json), NULL)
+select json_contains(json_compact('{"a": 1, "b": 2}'), NULL);
+json_contains(json_compact('{"a": 1, "b": 2}'), NULL)
 NULL
-select json_contains(NULL, cast('null' as json));
-json_contains(NULL, cast('null' as json))
+select json_contains(NULL, json_compact('null'));
+json_contains(NULL, json_compact('null'))
 NULL
-select json_contains(cast('[1]' as json), cast('[1]' as json), NULL);
-json_contains(cast('[1]' as json), cast('[1]' as json), NULL)
+select json_contains(json_compact('[1]'), json_compact('[1]'), NULL);
+json_contains(json_compact('[1]'), json_compact('[1]'), NULL)
 NULL
 # should give 0:
-select json_contains(cast(3.14 as json), cast(3 as json));
-json_contains(cast(3.14 as json), cast(3 as json))
+select json_contains(json_compact(3.14), json_compact(3));
+json_contains(json_compact(3.14), json_compact(3))
 0
 # should give 0: not at top level
-select json_contains(cast('{"a": {"b": 7}}' as json), cast('{"b": 7}' as json));
-json_contains(cast('{"a": {"b": 7}}' as json), cast('{"b": 7}' as json))
+select json_contains(json_compact('{"a": {"b": 7}}'), json_compact('{"b": 7}'));
+json_contains(json_compact('{"a": {"b": 7}}'), json_compact('{"b": 7}'))
 0
 # but path argument will fix it:
-select json_contains(cast('{"a": {"b": 7}}' as json), cast('{"b": 7}' as json), '$.a');
-json_contains(cast('{"a": {"b": 7}}' as json), cast('{"b": 7}' as json), '$.a')
+select json_contains(json_compact('{"a": {"b": 7}}'), json_compact('{"b": 7}'), '$.a');
+json_contains(json_compact('{"a": {"b": 7}}'), json_compact('{"b": 7}'), '$.a')
 1
 # but arrays "introspect"
-select json_contains(cast('[1,[2.0, 3.0]]' as json), cast('[2.0]' as json));
-json_contains(cast('[1,[2.0, 3.0]]' as json), cast('[2.0]' as json))
+select json_contains(json_compact('[1,[2.0, 3.0]]'), json_compact('[2.0]'));
+json_contains(json_compact('[1,[2.0, 3.0]]'), json_compact('[2.0]'))
 1
-select json_contains(cast('[1, 2, [3, [4, 5]], 6, 7]' as json), cast('5' as json));
-json_contains(cast('[1, 2, [3, [4, 5]], 6, 7]' as json), cast('5' as json))
+select json_contains(json_compact('[1, 2, [3, [4, 5]], 6, 7]'), json_compact('5'));
+json_contains(json_compact('[1, 2, [3, [4, 5]], 6, 7]'), json_compact('5'))
 1
 # should give 0: just a key
-select json_contains(cast('{"a": 1, "b": 2}' as json), cast('"a"' as json));
-json_contains(cast('{"a": 1, "b": 2}' as json), cast('"a"' as json))
+select json_contains(json_compact('{"a": 1, "b": 2}'), json_compact('"a"'));
+json_contains(json_compact('{"a": 1, "b": 2}'), json_compact('"a"'))
 0
 # should give 0: one candidate element doesn't match
-select json_contains(cast('[1]' as json), cast('[1,2]' as json));
-json_contains(cast('[1]' as json), cast('[1,2]' as json))
+select json_contains(json_compact('[1]'), json_compact('[1,2]'));
+json_contains(json_compact('[1]'), json_compact('[1,2]'))
 0
 # should all give 1
-select json_contains(cast('null' as json), cast('null' as json));
-json_contains(cast('null' as json), cast('null' as json))
+select json_contains(json_compact('null'), json_compact('null'));
+json_contains(json_compact('null'), json_compact('null'))
 1
 # simple object subset
-select json_contains(cast('{"a": 1, "b": 2}' as json), cast( '{"a": 1}' as json));
-json_contains(cast('{"a": 1, "b": 2}' as json), cast( '{"a": 1}' as json))
+select json_contains(json_compact('{"a": 1, "b": 2}'), json_compact( '{"a": 1}'));
+json_contains(json_compact('{"a": 1, "b": 2}'), json_compact( '{"a": 1}'))
 1
 # simple vector subset
-select json_contains(cast('[1, 2, 3]' as json), cast('[1, 3]' as json));
-json_contains(cast('[1, 2, 3]' as json), cast('[1, 3]' as json))
+select json_contains(json_compact('[1, 2, 3]'), json_compact('[1, 3]'));
+json_contains(json_compact('[1, 2, 3]'), json_compact('[1, 3]'))
 1
 # auto-wrap, should give 1
-select json_contains(cast('[1, 2, 3]' as json), cast(3 as json));
-json_contains(cast('[1, 2, 3]' as json), cast(3 as json))
+select json_contains(json_compact('[1, 2, 3]'), json_compact(3));
+json_contains(json_compact('[1, 2, 3]'), json_compact(3))
 1
 # ok even with nested cast off elements
-select json_contains(cast('{"person": {"id": 1, "country": "norway"}}' as json),
-cast('{"person": {"country": "norway"}}' as json));
-json_contains(cast('{"person": {"id": 1, "country": "norway"}}' as json),
-cast('{"person": {"country": "norway"}}' as json))
+select json_contains(json_compact('{"person": {"id": 1, "country": "norway"}}'),
+json_compact('{"person": {"country": "norway"}}'));
+json_contains(json_compact('{"person": {"id": 1, "country": "norway"}}'),
+json_compact('{"person": {"country": "norway"}}'))
 1
 # vector reordering and duplicates is ok
-select json_contains(cast('[1,3,5]' as json), cast('[5,3,1,5]' as json));
-json_contains(cast('[1,3,5]' as json), cast('[5,3,1,5]' as json))
+select json_contains(json_compact('[1,3,5]'), json_compact('[5,3,1,5]'));
+json_contains(json_compact('[1,3,5]'), json_compact('[5,3,1,5]'))
 1
 # ok even with more elts in candidate than in doc
-select json_contains(cast('[{"b": 4, "a":7}]' as json), cast('[{"a":7},{"b":4}]' as json));
-json_contains(cast('[{"b": 4, "a":7}]' as json), cast('[{"a":7},{"b":4}]' as json))
+select json_contains(json_compact('[{"b": 4, "a":7}]'), json_compact('[{"a":7},{"b":4}]'));
+json_contains(json_compact('[{"b": 4, "a":7}]'), json_compact('[{"a":7},{"b":4}]'))
 1
-select json_contains(cast('[{"b": 4, "a":7}, 5]' as json), cast('[5, {"a":7, "b":4}]' as json));
-json_contains(cast('[{"b": 4, "a":7}, 5]' as json), cast('[5, {"a":7, "b":4}]' as json))
+select json_contains(json_compact('[{"b": 4, "a":7}, 5]'), json_compact('[5, {"a":7, "b":4}]'));
+json_contains(json_compact('[{"b": 4, "a":7}, 5]'), json_compact('[5, {"a":7, "b":4}]'))
 1
 # ok even with mixed number types that compare equal
-select json_contains(cast('[{"b": 4, "a":7}, 5.0]' as json), cast('[5, {"a":7.0E0, "b":4}]' as json));
-json_contains(cast('[{"b": 4, "a":7}, 5.0]' as json), cast('[5, {"a":7.0E0, "b":4}]' as json))
+select json_contains(json_compact('[{"b": 4, "a":7}, 5.0]'), json_compact('[5, {"a":7.0E0, "b":4}]'));
+json_contains(json_compact('[{"b": 4, "a":7}, 5.0]'), json_compact('[5, {"a":7.0E0, "b":4}]'))
 1
 select json_contains( '{"customer": "cust3"}', '{"customer": "cust1"}' );
 json_contains( '{"customer": "cust3"}', '{"customer": "cust1"}' )
@@ -3058,57 +3077,57 @@ JSON_CONTAINS('{"a":1}', '{"a":1,"b":2}')
 0
 SELECT JSON_CONTAINS
 (
-CAST('[1, 4, 6]' AS JSON),
-CAST('[1, 6]' AS JSON)
+json_compact('[1, 4, 6]'),
+json_compact('[1, 6]')
 );
 JSON_CONTAINS
 (
-CAST('[1, 4, 6]' AS JSON),
-CAST('[1, 6]' AS JSON)
+json_compact('[1, 4, 6]'),
+json_compact('[1, 6]')
 )
 1
 SELECT JSON_CONTAINS
 (
-CAST('{"person": {"id": 1, "country": "norway"}}' AS JSON),
-CAST('{"person": {"country": "norway"}}' AS JSON)
+json_compact('{"person": {"id": 1, "country": "norway"}}'),
+json_compact('{"person": {"country": "norway"}}')
 );
 JSON_CONTAINS
 (
-CAST('{"person": {"id": 1, "country": "norway"}}' AS JSON),
-CAST('{"person": {"country": "norway"}}' AS JSON)
+json_compact('{"person": {"id": 1, "country": "norway"}}'),
+json_compact('{"person": {"country": "norway"}}')
 )
 1
 SELECT JSON_CONTAINS
 (
-CAST('[1,3,5]' AS JSON),
-CAST('[5,3,1,5]' AS JSON)
+json_compact('[1,3,5]'),
+json_compact('[5,3,1,5]')
 );
 JSON_CONTAINS
 (
-CAST('[1,3,5]' AS JSON),
-CAST('[5,3,1,5]' AS JSON)
+json_compact('[1,3,5]'),
+json_compact('[5,3,1,5]')
 )
 1
 SELECT JSON_CONTAINS
 (
-CAST('[3.14]' AS JSON),
-CAST('[3]' AS JSON)
+json_compact('[3.14]'),
+json_compact('[3]')
 );
 JSON_CONTAINS
 (
-CAST('[3.14]' AS JSON),
-CAST('[3]' AS JSON)
+json_compact('[3.14]'),
+json_compact('[3]')
 )
 0
 SELECT JSON_CONTAINS
 (
-CAST('[1, 2, 3]' AS JSON),
-CAST(3 AS JSON)
+json_compact('[1, 2, 3]'),
+json_compact(3)
 );
 JSON_CONTAINS
 (
-CAST('[1, 2, 3]' AS JSON),
-CAST(3 AS JSON)
+json_compact('[1, 2, 3]'),
+json_compact(3)
 )
 1
 SELECT JSON_CONTAINS();
@@ -3122,17 +3141,17 @@ ERROR 42000: Incorrect parameter count in the call to native function 'JSON_CONT
 # Item_func_json_quote::fix_length_and_dec.   Bug found by Knut.
 # Similar issue for JSON_UNQUOTE and JSON_TYPE.
 # ----------------------------------------------------------------------
-select json_object("a", ifnull(json_quote('test'), cast('null' as json)));
-json_object("a", ifnull(json_quote('test'), cast('null' as json)))
+select json_object("a", ifnull(json_quote('test'), json_compact('null')));
+json_object("a", ifnull(json_quote('test'), json_compact('null')))
 {"a": "\"test\""}
-select cast(concat('[', json_quote('ab'), ']') as json);
-cast(concat('[', json_quote('ab'), ']') as json)
+select json_compact(concat('[', json_quote('ab'), ']'));
+json_compact(concat('[', json_quote('ab'), ']'))
 ["ab"]
-select cast(concat('[', json_unquote('"12"'), ']') as json);
-cast(concat('[', json_unquote('"12"'), ']') as json)
+select json_compact(concat('[', json_unquote('"12"'), ']'));
+json_compact(concat('[', json_unquote('"12"'), ']'))
 [12]
-select cast(concat('["', json_type(cast(1 as json)), '"]') as json);
-cast(concat('["', json_type(cast(1 as json)), '"]') as json)
+select json_compact(concat('["', json_type( json_compact(1)), '"]'));
+json_compact(concat('["', json_type( json_compact(1)), '"]'))
 ["INTEGER"]
 #
 # Bug#20912438: ITEM_TYPE_HOLDER::DISPLAY_LENGTH(ITEM*): ASSERTION `0' FAILED
@@ -3141,12 +3160,12 @@ cast(concat('["', json_type(cast(1 as json)), '"]') as json)
 (SELECT JSON_KEYS('{ "key80": "2015-04-20 11:53:55" }') LIMIT 0);
 JSON_KEYS('{ "key80": "2015-04-20 11:53:55"}')
 ["key80"]
-SELECT CAST(1 AS JSON) UNION ALL SELECT CAST(1 AS JSON);
-CAST(1 AS JSON)
+SELECT json_compact(1) UNION ALL SELECT json_compact(1);
+json_compact(1)
 1
 1
-SELECT COUNT(*), CAST(NULL AS JSON);
-COUNT(*)	CAST(NULL AS JSON)
+SELECT COUNT(*), json_compact(NULL);
+COUNT(*)	json_compact(NULL)
 1	NULL
 error ER_INVALID_JSON_TEXT_IN_PARAM
 SELECT COUNT(*), JSON_EXTRACT('not valid json!', '$');
@@ -3186,7 +3205,9 @@ json_remove( '[ 1, { "a": true, "b": false, "c": null }, 5 ]', null ) is null
 error ER_INVALID_JSON_PATH
 select json_remove( '[ 1, { "a": true, "b": false, "c": null }, 5 ]', '$.' ) is null;
 json_remove( '[ 1, { "a": true, "b": false, "c": null }, 5 ]', '$.' ) is null
-0
+1
+Warnings:
+Warning	4041	Unexpected end of JSON path in argument 2 to function 'json_remove'
 error ER_INVALID_JSON_PATH
 prepare stmt1 from 'select json_remove( ''[ 1, { "a": true, "b": false, "c": null }, 5 ]'', ''$.'' ) is null';
 # ----------------------------------------------------------------------
@@ -3233,38 +3254,38 @@ prepare json_stmt5 FROM 'select json_array_append( ''{ "keyA": [1, 2], "keyB": [
 set @mypath = '$.keyA';
 execute json_stmt5 USING @mypath;
 json_array_append( '{ "keyA": [1, 2], "keyB": [3, 4] }', ?, 5 )
-{ "keyA": [1, 2, 5], "keyB": [3, 4] }
+{"keyA": [1, 2, 5], "keyB": [3, 4]}
 set @mypath = '$.keyB';
 execute json_stmt5 USING @mypath;
 json_array_append( '{ "keyA": [1, 2], "keyB": [3, 4] }', ?, 5 )
-{ "keyA": [1, 2], "keyB": [3, 4, 5] }
+{"keyA": [1, 2], "keyB": [3, 4, 5]}
 prepare json_stmt6 FROM 'select json_insert( ''{ "keyA": [1, 2], "keyB": [3, 4] }'', ?, 5 )';
 set @mypath = '$.keyA[2]';
 execute json_stmt6 USING @mypath;
 json_insert( '{ "keyA": [1, 2], "keyB": [3, 4] }', ?, 5 )
-{ "keyA": [1, 2, 5], "keyB": [3, 4] }
+{"keyA": [1, 2, 5], "keyB": [3, 4]}
 set @mypath = '$.keyB[2]';
 execute json_stmt6 USING @mypath;
 json_insert( '{ "keyA": [1, 2], "keyB": [3, 4] }', ?, 5 )
-{ "keyA": [1, 2], "keyB": [3, 4, 5] }
+{"keyA": [1, 2], "keyB": [3, 4, 5]}
 prepare json_stmt7 FROM 'select json_set( ''{ "keyA": [1, 2], "keyB": [3, 4] }'', ?, 5 )';
 set @mypath = '$.keyA[2]';
 execute json_stmt7 USING @mypath;
 json_set( '{ "keyA": [1, 2], "keyB": [3, 4] }', ?, 5 )
-{ "keyA": [1, 2, 5], "keyB": [3, 4] }
+{"keyA": [1, 2, 5], "keyB": [3, 4]}
 set @mypath = '$.keyB[2]';
 execute json_stmt7 USING @mypath;
 json_set( '{ "keyA": [1, 2], "keyB": [3, 4] }', ?, 5 )
-{ "keyA": [1, 2], "keyB": [3, 4, 5] }
+{"keyA": [1, 2], "keyB": [3, 4, 5]}
 prepare json_stmt8 FROM 'select json_replace( ''{ "keyA": [1, 2], "keyB": [3, 4] }'', ?, 5 )';
 set @mypath = '$.keyA[1]';
 execute json_stmt8 USING @mypath;
 json_replace( '{ "keyA": [1, 2], "keyB": [3, 4] }', ?, 5 )
-{ "keyA": [1, 5], "keyB": [3, 4] }
+{"keyA": [1, 5], "keyB": [3, 4]}
 set @mypath = '$.keyB[1]';
 execute json_stmt8 USING @mypath;
 json_replace( '{ "keyA": [1, 2], "keyB": [3, 4] }', ?, 5 )
-{ "keyA": [1, 2], "keyB": [3, 5] }
+{"keyA": [1, 2], "keyB": [3, 5]}
 prepare json_stmt9 FROM 'select json_search( ''{ "keyA": [ "foot" ], "keyB": [ "food" ] }'', ''all'', ''foo%'', null, ? )';
 set @mypath = '$.keyA';
 execute json_stmt9 USING @mypath;
@@ -3278,11 +3299,11 @@ prepare json_stmt10 FROM 'select json_remove( ''{ "keyA": [ "foot" ], "keyB": [ 
 set @mypath = '$.keyA';
 execute json_stmt10 USING @mypath;
 json_remove( '{ "keyA": [ "foot" ], "keyB": [ "food" ] }', ? )
-{ "keyB": [ "food" ] }
+{"keyB": ["food"]}
 set @mypath = '$.keyB';
 execute json_stmt10 USING @mypath;
 json_remove( '{ "keyA": [ "foot" ], "keyB": [ "food" ] }', ? )
-{ "keyA": [ "foot" ]}
+{"keyA": ["foot"]}
 prepare json_stmt11 FROM 'select json_contains_path( ''{ "keyA": true }'', ?, ''$.keyA'', ''$.keyB'' )';
 set @mypath = 'one';
 execute json_stmt11 USING @mypath;
@@ -3307,8 +3328,8 @@ json_search( '{ "keyA": [ "foot" ], "keyB": [ "food" ] }', ?, 'foo%' )
 select json_quote( json_type( json_object() ) );
 json_quote( json_type( json_object() ) )
 "OBJECT"
-select json_quote( json_type( cast('{}' as json) ) );
-json_quote( json_type( cast('{}' as json) ) )
+select json_quote( json_type( json_compact('{}') ) );
+json_quote( json_type( json_compact('{}') ) )
 "OBJECT"
 #
 # Bug#21148020 OUTPUT FROM JSON_TYPE() IS TRUNCATED
@@ -3504,14 +3525,10 @@ JSON_SET('[]', '$[0]', 100)
 [100]
 SELECT JSON_SET('[]', '$[0][0]', 100);
 JSON_SET('[]', '$[0][0]', 100)
-NULL
-Warnings:
-Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_set'
+[]
 SELECT JSON_SET('[]', '$[0][0][0]', 100);
 JSON_SET('[]', '$[0][0][0]', 100)
-NULL
-Warnings:
-Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_set'
+[]
 SELECT JSON_SET('[1]', '$', 100);
 JSON_SET('[1]', '$', 100)
 100
@@ -3568,14 +3585,10 @@ JSON_REPLACE('[]', '$[0]', 100)
 []
 SELECT JSON_REPLACE('[]', '$[0][0]', 100);
 JSON_REPLACE('[]', '$[0][0]', 100)
-NULL
-Warnings:
-Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_update'
+[]
 SELECT JSON_REPLACE('[]', '$[0][0][0]', 100);
 JSON_REPLACE('[]', '$[0][0][0]', 100)
-NULL
-Warnings:
-Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_update'
+[]
 SELECT JSON_REPLACE('[1]', '$', 100);
 JSON_REPLACE('[1]', '$', 100)
 100
@@ -3617,6 +3630,6 @@ JSON_REPLACE('[[[1]]]', '$[0][0][0]', 100)
 #
 SELECT JSON_ARRAY(LEAST(NULL, NULL), GREATEST(NULL, NULL), LEAST(j1, NULL),
 GREATEST(NULL, j2), LEAST(j1, j2), GREATEST(j1, j2)) AS j
-FROM (SELECT CAST('1' AS JSON) AS j1, CAST('2' AS JSON) AS j2) t;
+FROM (SELECT json_compact('1') AS j1, json_compact('2') AS j2) t;
 j
 [null, null, null, null, "1", "2"]

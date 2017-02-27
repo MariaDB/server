@@ -1,3 +1,4 @@
+-- source windows.inc
 -- source jdbconn.inc
 SET GLOBAL time_zone='+1:00';
 

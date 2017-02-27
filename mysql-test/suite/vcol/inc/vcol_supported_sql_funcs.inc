@@ -24,7 +24,7 @@ if ($rows)
 }
 if ($rows)
 {
-  eval insert into t1 values ($values2);
+  eval insert ignore into t1 values ($values2);
   dec $rows;
 }
 if ($rows)

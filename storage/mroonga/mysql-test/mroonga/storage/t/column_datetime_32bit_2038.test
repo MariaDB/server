@@ -30,7 +30,7 @@ SHOW CREATE TABLE diaries;
 
 INSERT INTO diaries (title, created_at)
        VALUES ('2038-01-18 03:14:07', '2038-01-18 03:14:07');
-INSERT INTO diaries (title, created_at)
+INSERT IGNORE INTO diaries (title, created_at)
        VALUES ('2038-01-20 03:14:08', '2038-01-20 03:14:08');
 
 SELECT * FROM diaries;

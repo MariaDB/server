@@ -34,7 +34,7 @@ ALTER TABLE diaries
   CHANGE id internal_id INT;
 SHOW CREATE TABLE diaries;
 
-INSERT INTO diaries (subject, description)
+INSERT IGNORE INTO diaries (subject, description)
        VALUES ("groonga (1)", "starting groonga.");
 SELECT * FROM diaries;
 

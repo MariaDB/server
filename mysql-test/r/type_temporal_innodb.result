@@ -7,7 +7,7 @@ TIME'00:00:00'=''
 Warnings:
 Warning	1292	Truncated incorrect time value: ''
 CREATE TABLE t1 (a ENUM('a'), b TIME, c INT, KEY(b)) ENGINE=InnoDB;
-INSERT INTO t1 VALUES ('','00:00:00',0);
+INSERT IGNORE INTO t1 VALUES ('','00:00:00',0);
 Warnings:
 Warning	1265	Data truncated for column 'a' at row 1
 SELECT * FROM t1 WHERE b='';
@@ -58,7 +58,7 @@ DATE'0000-00-00'=''
 Warnings:
 Warning	1292	Incorrect datetime value: ''
 CREATE TABLE t1 (a ENUM('a'), b DATE, c INT, KEY(b)) ENGINE=InnoDB;
-INSERT INTO t1 VALUES ('','0000-00-00',0);
+INSERT IGNORE INTO t1 VALUES ('','0000-00-00',0);
 Warnings:
 Warning	1265	Data truncated for column 'a' at row 1
 SELECT * FROM t1 WHERE b='';
@@ -109,7 +109,7 @@ TIMESTAMP'0000-00-00 00:00:00'=''
 Warnings:
 Warning	1292	Incorrect datetime value: ''
 CREATE TABLE t1 (a ENUM('a'), b DATETIME, c INT, KEY(b)) ENGINE=InnoDB;
-INSERT INTO t1 VALUES ('','0000-00-00 00:00:00',0);
+INSERT IGNORE INTO t1 VALUES ('','0000-00-00 00:00:00',0);
 Warnings:
 Warning	1265	Data truncated for column 'a' at row 1
 SELECT * FROM t1 WHERE b='';

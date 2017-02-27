@@ -69,7 +69,7 @@ static int rr_index_desc(READ_RECORD *info);
 bool init_read_record_idx(READ_RECORD *info, THD *thd, TABLE *table,
                           bool print_error, uint idx, bool reverse)
 {
-  int error;
+  int error= 0;
   DBUG_ENTER("init_read_record_idx");
 
   empty_record(table);
@@ -278,6 +278,18 @@ bool init_read_record(READ_RECORD *info,THD *thd, TABLE *table,
                       filesort->return_rows * info->ref_length);
     info->read_record= (addon_field ?
                         rr_unpack_from_buffer : rr_from_pointers);
+  }
+  else if (table->file->keyread_enabled())
+  {
+    int error;
+    info->read_record= rr_index_first;
+    if (!table->file->inited &&
+        (error= table->file->ha_index_init(table->file->keyread, 1)))
+    {
+      if (print_error)
+        table->file->print_error(error, MYF(0));
+      DBUG_RETURN(1);
+    }
   }
   else
   {

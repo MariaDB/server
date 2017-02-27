@@ -1,0 +1,71 @@
+create table test_table (id int, random_data varchar(36), static_int int, static_varchar varchar(10));
+insert into test_table(id, random_data, static_int, static_varchar)
+select id, random_data, 42, 'Hello'
+    from (
+with recursive data_generator(id, random_data) as (
+select 1 as id, uuid() as random_data
+union all
+select id + 1, uuid() from data_generator where id < 1000
+)
+select * from data_generator
+) as a;
+commit;
+analyze table test_table;
+Table	Op	Msg_type	Msg_text
+test.test_table	analyze	status	OK
+explain select * from (select id, lead(id) over(order by id) next_id from test_table order by id) a limit 10;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	1000	
+2	DERIVED	test_table	ALL	NULL	NULL	NULL	NULL	1000	Using temporary; Using filesort
+select * from (select id, lead(id) over(order by id) next_id from test_table order by id) a limit 10;
+id	next_id
+1	2
+2	3
+3	4
+4	5
+5	6
+6	7
+7	8
+8	9
+9	10
+10	11
+drop table if exists test_table;
+create table test_table (id int, random_data varchar(36), static_int int, static_varchar varchar(10));
+insert into test_table(id, random_data, static_int, static_varchar)
+select id, random_data, 42, 'Hello'
+    from (
+with recursive data_generator(id, random_data) as (
+select 1 as id, uuid() as random_data
+union all
+select id + 1, uuid() from data_generator where id < 100000
+)
+select * from data_generator
+) as a;
+commit;
+analyze table test_table;
+Table	Op	Msg_type	Msg_text
+test.test_table	analyze	status	OK
+explain select * from (select id, lead(id) over(order by id) next_id from test_table order by id) a limit 10;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	100000	
+2	DERIVED	test_table	ALL	NULL	NULL	NULL	NULL	100000	Using temporary; Using filesort
+flush status;
+select * from (select id, lead(id) over(order by id) next_id from test_table order by id) a limit 10;
+id	next_id
+1	2
+2	3
+3	4
+4	5
+5	6
+6	7
+7	8
+8	9
+9	10
+10	11
+select variable_name,
+case when variable_value > 0 then 'WITH PASSES' else 'NO PASSES' end
+from information_schema.session_status
+where variable_name like 'Sort_merge_passes';
+variable_name	case when variable_value > 0 then 'WITH PASSES' else 'NO PASSES' end
+SORT_MERGE_PASSES	WITH PASSES
+drop table test_table;

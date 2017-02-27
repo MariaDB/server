@@ -212,7 +212,7 @@ SELECT * FROM t6 ORDER BY a;
 save_master_pos;
 
 connection slave;
-SET GLOBAL SQL_SLAVE_SKIP_COUNTER=10;
+SET GLOBAL SQL_SLAVE_SKIP_COUNTER=12;
 source include/start_slave.inc;
 sync_with_master;
 

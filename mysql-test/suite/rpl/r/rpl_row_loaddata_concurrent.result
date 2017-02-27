@@ -6,10 +6,12 @@ Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
 master-bin.000001	#	Query	#	#	use `test`; CREATE TABLE t1 (c1 char(50)) engine=myisam
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	LOAD DATA INFILE '../../std_data/words.dat' INTO TABLE t1
 master-bin.000001	#	Table_map	#	#	table_id: # (test.t1)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	LOAD DATA CONCURRENT INFILE '../../std_data/words.dat' INTO TABLE t1
 master-bin.000001	#	Table_map	#	#	table_id: # (test.t1)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT

@@ -3,11 +3,6 @@
 --source include/have_innodb.inc
 --source include/have_innodb_64k.inc
 
-call mtr.add_suppression("InnoDB: Warning: innodb_page_size has been changed from default value *");
-call mtr.add_suppression("InnoDB: Resizing redo log from *");
-call mtr.add_suppression("InnoDB: Starting to delete and rewrite log files.");
-call mtr.add_suppression("InnoDB: New log files created, LSN=*");
-
 let $MYSQLD_DATADIR= `select @@datadir`;
 
 --echo # Test 1) Show the page size from Information Schema

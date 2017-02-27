@@ -54,8 +54,8 @@ enum status_severity {
 
 /* Flags that tell the buffer pool dump/load thread which action should it
 take after being waked up. */
-static ibool	buf_dump_should_start = FALSE;
-static ibool	buf_load_should_start = FALSE;
+static volatile bool	buf_dump_should_start;
+static volatile bool	buf_load_should_start;
 
 static ibool	buf_load_abort_flag = FALSE;
 
@@ -79,7 +79,7 @@ void
 buf_dump_start()
 /*============*/
 {
-	buf_dump_should_start = TRUE;
+	buf_dump_should_start = true;
 	os_event_set(srv_buf_dump_event);
 }
 
@@ -92,7 +92,7 @@ void
 buf_load_start()
 /*============*/
 {
-	buf_load_should_start = TRUE;
+	buf_load_should_start = true;
 	os_event_set(srv_buf_dump_event);
 }
 
@@ -314,9 +314,24 @@ buf_dump(
 		}
 
 		if (srv_buf_pool_dump_pct != 100) {
+			ulint		t_pages;
+
 			ut_ad(srv_buf_pool_dump_pct < 100);
 
-			n_pages = n_pages * srv_buf_pool_dump_pct / 100;
+			/* limit the number of total pages dumped to X% of the
+			 * total number of pages */
+			t_pages = buf_pool->curr_size
+					*  srv_buf_pool_dump_pct / 100;
+			if (n_pages > t_pages) {
+				buf_dump_status(STATUS_INFO,
+						"Instance " ULINTPF
+						", restricted to " ULINTPF
+						" pages due to "
+						"innodb_buf_pool_dump_pct=%lu",
+						i, t_pages,
+						srv_buf_pool_dump_pct);
+				n_pages = t_pages;
+			}
 
 			if (n_pages == 0) {
 				n_pages = 1;
@@ -799,15 +814,18 @@ DECLARE_THREAD(buf_dump_thread)(void*)
 		os_event_wait(srv_buf_dump_event);
 
 		if (buf_dump_should_start) {
-			buf_dump_should_start = FALSE;
+			buf_dump_should_start = false;
 			buf_dump(TRUE /* quit on shutdown */);
 		}
 
 		if (buf_load_should_start) {
-			buf_load_should_start = FALSE;
+			buf_load_should_start = false;
 			buf_load();
 		}
 
+		if (buf_dump_should_start || buf_load_should_start) {
+			continue;
+		}
 		os_event_reset(srv_buf_dump_event);
 	}
 

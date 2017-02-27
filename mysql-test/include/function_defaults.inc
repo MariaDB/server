@@ -835,10 +835,10 @@ SELECT 1, 2 INTO OUTFILE 't5.dat' FROM dual;
 --echo # Mon Aug 1 15:11:19 2011 UTC
 SET TIMESTAMP = 1312211479.918273;
 
-LOAD DATA INFILE 't3.dat' INTO TABLE t1;
+LOAD DATA INFILE 't3.dat' IGNORE INTO TABLE t1;
 --query_vertical SELECT * FROM t1
 
-LOAD DATA INFILE 't4.dat' INTO TABLE t2;
+LOAD DATA INFILE 't4.dat' IGNORE INTO TABLE t2;
 SELECT a FROM t2;
 SELECT b FROM t2;
 SELECT c FROM t2;
@@ -866,7 +866,7 @@ DELETE FROM t2;
 --echo # (read_fixed_length()) than under the LOAD ... INTO TABLE t1 command
 --echo # above. The code in this path is copy-pasted code from the path taken
 --echo # under the syntax used in the previous LOAD command.
-LOAD DATA INFILE 't3.dat' INTO TABLE t1
+LOAD DATA INFILE 't3.dat' IGNORE INTO TABLE t1
 FIELDS TERMINATED BY '' ENCLOSED BY '';
 
 SELECT b FROM t1;
@@ -954,7 +954,7 @@ CREATE TABLE t1 (
 --echo # There is no promotion
 SHOW CREATE TABLE t1;
 
-LOAD DATA INFILE "file1.dat" INTO table t1;
+LOAD DATA INFILE "file1.dat" IGNORE INTO table t1;
 
 --echo # It is strange that "like_b" gets NULL when "b" gets 0. But
 --echo # this is consistent with how "a" gets NULL when "b" gets 0,
@@ -971,7 +971,7 @@ modify f TIMESTAMP NULL default CURRENT_TIMESTAMP;
 --echo # There is no promotion
 SHOW CREATE TABLE t1;
 
-LOAD DATA INFILE "file1.dat" INTO table t1;
+LOAD DATA INFILE "file1.dat" IGNORE INTO table t1;
 
 --query_vertical SELECT * FROM t1
 delete from t1;
@@ -1007,7 +1007,7 @@ CREATE TABLE t1 (
 --echo # There is no promotion
 SHOW CREATE TABLE t1;
 
-LOAD DATA INFILE "file2.dat" INTO table t1;
+LOAD DATA INFILE "file2.dat" IGNORE INTO table t1;
 
 --query_vertical SELECT * FROM t1
 delete from t1;
@@ -1018,7 +1018,7 @@ modify f TIMESTAMP NULL default CURRENT_TIMESTAMP;
 --echo # There is no promotion
 SHOW CREATE TABLE t1;
 
-LOAD DATA INFILE "file2.dat" INTO table t1;
+LOAD DATA INFILE "file2.dat" IGNORE INTO table t1;
 
 --query_vertical SELECT * FROM t1
 delete from t1;

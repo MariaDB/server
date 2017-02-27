@@ -41,9 +41,5 @@ let $default_char_type = CHAR(8);
 # e.g. creation of an additional schema or table, etc.
 # The cleanup part should be defined in cleanup_engine.inc
 
-CALL mtr.add_suppression("InnoDB: Resizing redo log from .* to .* pages, LSN=.*");
-CALL mtr.add_suppression("InnoDB: Starting to delete and rewrite log files.");
-CALL mtr.add_suppression("InnoDB: New log files created, LSN=.*");
-
 --enable_query_log
 --enable_result_log

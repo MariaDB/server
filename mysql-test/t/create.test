@@ -71,6 +71,7 @@ create table t1 (a varchar(5) default 'abcde');
 insert into t1 values();
 select * from t1;
 --error 1067
+SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 alter table t1 alter column a set default 'abcdef';
 drop table t1;
 
@@ -431,7 +432,9 @@ drop table t1, t2;
 #
 
 create table t1(cenum enum('a'), cset set('b'));
+SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 create table t2(cenum enum('a','a'), cset set('b','b'));
+SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 create table t3(cenum enum('a','A','a','c','c'), cset set('b','B','b','d','d'));
 drop table t1, t2, t3;
 
@@ -613,6 +616,7 @@ show create table t1;
 drop table t1;
 
 #--warning 1364
+SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 create table t1 ( 
   a varchar(12) charset utf8 collate utf8_bin not null, 
   b int not null, primary key (a)
@@ -1731,6 +1735,7 @@ drop table t1;
 # MDEV-7050: MySQL#74603 - Assertion `comma_length > 0' failed in mysql_prepare_create_table
 #
 set @@session.collation_server=filename;
+SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 create table t1(a enum('',''));
 drop table t1;
 set @@session.collation_server=default;
@@ -1753,6 +1758,15 @@ DELIMITER ;|
 -- error ER_NO_SUCH_TABLE
 create table t1 as select f1();
 drop function f1;
+
+--echo #
+--echo # MDEV-10274 Bundling insert with create statement
+--echo #  for table with unsigned Decimal primary key issues warning 1194
+--echo #
+
+create table t1(ID decimal(2,1) unsigned NOT NULL, PRIMARY KEY (ID))engine=memory
+        select  2.1 ID;
+drop table t1;
 
 --echo End of 5.5 tests
 

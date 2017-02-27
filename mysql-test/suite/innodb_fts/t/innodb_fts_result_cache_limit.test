@@ -27,6 +27,7 @@ INSERT INTO t1 (a,b) VALUES
         ('when To Use MySQL Well','After that you went through a ...'),
         ('where will Optimizing MySQL','what In this tutorial we will show ...');
 
+SET @saved_debug_dbug = @@SESSION.debug_dbug;
 SET SESSION debug_dbug="+d,fts_instrument_result_cache_limit";
 
 # Simple term search
@@ -44,7 +45,7 @@ SELECT COUNT(*) FROM t1 WHERE MATCH (a,b) AGAINST ('"mysql database"' IN BOOLEAN
 --error 128
 SELECT COUNT(*) FROM t1 WHERE MATCH (a,b) AGAINST ('"mysql database" @ 5' IN BOOLEAN MODE);
 
-SET SESSION debug_dbug="-d,fts_instrument_result_cache_limit";
+SET SESSION debug_dbug=@saved_debug_dbug;
 
 DROP TABLE t1;
 

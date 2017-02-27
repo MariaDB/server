@@ -1,18 +1,33 @@
 # Testcase for the following bugs
 # Bug#16691130 - ASSERT WHEN INNODB_LOG_GROUP_HOME_DIR DOES NOT EXIST
 # Bug#16418661 - CHANGING NAME IN FOR INNODB_DATA_FILE_PATH SHOULD NOT SUCCEED WITH LOG FILES
-# Write tmp/log_file/my.cnf
 # Start mysqld without the possibility to create innodb_undo_tablespaces
+SELECT * FROM INFORMATION_SCHEMA.ENGINES
+WHERE engine = 'innodb'
+AND support IN ('YES', 'DEFAULT', 'ENABLED');
+ENGINE	SUPPORT	COMMENT	TRANSACTIONS	XA	SAVEPOINTS
+FOUND /\[ERROR\] InnoDB: Could not create undo tablespace '.*undo002'/ in mysqld.1.err
 # Remove  undo001,undo002,ibdata1,ibdata2,ib_logfile1,ib_logfile2,ib_logfile101
-my.cnf
-my_restart.err
 # Start mysqld with non existent innodb_log_group_home_dir
+SELECT * FROM INFORMATION_SCHEMA.ENGINES
+WHERE engine = 'innodb'
+AND support IN ('YES', 'DEFAULT', 'ENABLED');
+ENGINE	SUPPORT	COMMENT	TRANSACTIONS	XA	SAVEPOINTS
+FOUND /File .path.to.non-existent.*ib_logfile101: 'create' returned OS error \d+/ in mysqld.1.err
 # Remove ibdata1 & ibdata2
-my.cnf
-my_restart.err
-# Start mysqld to create tablespaces according to my.cnf
+# Successfully let InnoDB create tablespaces
+SELECT COUNT(*) `1` FROM INFORMATION_SCHEMA.ENGINES
+WHERE engine='innodb'
+AND support IN ('YES', 'DEFAULT', 'ENABLED');
+1
+1
 # Backup tmp/logfile/*
 # 1. With ibdata2, Without ibdata1
+SELECT * FROM INFORMATION_SCHEMA.ENGINES
+WHERE engine = 'innodb'
+AND support IN ('YES', 'DEFAULT', 'ENABLED');
+ENGINE	SUPPORT	COMMENT	TRANSACTIONS	XA	SAVEPOINTS
+FOUND /The innodb_system data file 'ibdata1' was not found but one of the other data files 'ibdata2' exists/ in mysqld.1.err
 bak_ib_logfile0
 bak_ib_logfile1
 bak_ib_logfile2
@@ -26,12 +41,16 @@ ib_logfile0
 ib_logfile1
 ib_logfile2
 ibdata2
-my.cnf
-my_restart.err
 undo001
 undo002
 undo003
 # 2. With ibdata1, without ibdata2
+SELECT * FROM INFORMATION_SCHEMA.ENGINES
+WHERE engine = 'innodb'
+AND support IN ('YES', 'DEFAULT', 'ENABLED');
+ENGINE	SUPPORT	COMMENT	TRANSACTIONS	XA	SAVEPOINTS
+FOUND /InnoDB: Tablespace size stored in header is \d+ pages, but the sum of data file sizes is \d+ pages/ in mysqld.1.err
+FOUND /InnoDB: Cannot start InnoDB. The tail of the system tablespace is missing/ in mysqld.1.err
 bak_ib_logfile0
 bak_ib_logfile1
 bak_ib_logfile2
@@ -46,8 +65,6 @@ ib_logfile1
 ib_logfile2
 ibdata1
 ibdata2
-my.cnf
-my_restart.err
 undo001
 undo002
 undo003
@@ -64,11 +81,14 @@ ib_buffer_pool
 ib_logfile0
 ib_logfile1
 ib_logfile2
-my.cnf
-my_restart.err
 undo001
 undo002
 undo003
+SELECT * FROM INFORMATION_SCHEMA.ENGINES
+WHERE engine = 'innodb'
+AND support IN ('YES', 'DEFAULT', 'ENABLED');
+ENGINE	SUPPORT	COMMENT	TRANSACTIONS	XA	SAVEPOINTS
+FOUND /InnoDB: undo tablespace .*undo001.* exists\. Creating system tablespace with existing undo tablespaces is not supported\. Please delete all undo tablespaces before creating new system tablespace\./ in mysqld.1.err
 bak_ib_logfile0
 bak_ib_logfile1
 bak_ib_logfile2
@@ -81,8 +101,6 @@ ib_buffer_pool
 ib_logfile0
 ib_logfile1
 ib_logfile2
-my.cnf
-my_restart.err
 undo001
 undo002
 undo003
@@ -96,11 +114,13 @@ bak_undo001
 bak_undo002
 bak_undo003
 ib_buffer_pool
-my.cnf
-my_restart.err
 undo001
 undo002
 undo003
+SELECT * FROM INFORMATION_SCHEMA.ENGINES
+WHERE engine = 'innodb'
+AND support IN ('YES', 'DEFAULT', 'ENABLED');
+ENGINE	SUPPORT	COMMENT	TRANSACTIONS	XA	SAVEPOINTS
 bak_ib_logfile0
 bak_ib_logfile1
 bak_ib_logfile2
@@ -110,8 +130,6 @@ bak_undo001
 bak_undo002
 bak_undo003
 ib_buffer_pool
-my.cnf
-my_restart.err
 undo001
 undo002
 undo003
@@ -125,10 +143,12 @@ bak_undo001
 bak_undo002
 bak_undo003
 ib_buffer_pool
-my.cnf
-my_restart.err
 undo001
 undo003
+SELECT * FROM INFORMATION_SCHEMA.ENGINES
+WHERE engine = 'innodb'
+AND support IN ('YES', 'DEFAULT', 'ENABLED');
+ENGINE	SUPPORT	COMMENT	TRANSACTIONS	XA	SAVEPOINTS
 bak_ib_logfile0
 bak_ib_logfile1
 bak_ib_logfile2
@@ -138,8 +158,6 @@ bak_undo001
 bak_undo002
 bak_undo003
 ib_buffer_pool
-my.cnf
-my_restart.err
 undo001
 undo003
 # 6. Without ibdata*,ib_logfile* files & Without undo001, undo002
@@ -152,9 +170,12 @@ bak_undo001
 bak_undo002
 bak_undo003
 ib_buffer_pool
-my.cnf
-my_restart.err
 undo003
+SELECT * FROM INFORMATION_SCHEMA.ENGINES
+WHERE engine = 'innodb'
+AND support IN ('YES', 'DEFAULT', 'ENABLED');
+ENGINE	SUPPORT	COMMENT	TRANSACTIONS	XA	SAVEPOINTS
+FOUND /undo tablespace .*undo003.* exists\. Creating system tablespace with existing undo tablespaces is not supported\. Please delete all undo tablespaces before creating new system tablespace\./ in mysqld.1.err
 bak_ib_logfile0
 bak_ib_logfile1
 bak_ib_logfile2
@@ -164,8 +185,6 @@ bak_undo001
 bak_undo002
 bak_undo003
 ib_buffer_pool
-my.cnf
-my_restart.err
 undo003
 # 7. With ibdata files & Without undo002
 bak_ib_logfile0
@@ -182,10 +201,13 @@ ib_logfile1
 ib_logfile2
 ibdata1
 ibdata2
-my.cnf
-my_restart.err
 undo001
 undo003
+SELECT * FROM INFORMATION_SCHEMA.ENGINES
+WHERE engine = 'innodb'
+AND support IN ('YES', 'DEFAULT', 'ENABLED');
+ENGINE	SUPPORT	COMMENT	TRANSACTIONS	XA	SAVEPOINTS
+FOUND /Expected to open 3 undo tablespaces but was able to find only 1 undo tablespaces/ in mysqld.1.err
 bak_ib_logfile0
 bak_ib_logfile1
 bak_ib_logfile2
@@ -200,8 +222,6 @@ ib_logfile1
 ib_logfile2
 ibdata1
 ibdata2
-my.cnf
-my_restart.err
 undo001
 undo003
 # 8. With ibdata files & Without undo001, undo002
@@ -219,9 +239,12 @@ ib_logfile1
 ib_logfile2
 ibdata1
 ibdata2
-my.cnf
-my_restart.err
 undo003
+SELECT * FROM INFORMATION_SCHEMA.ENGINES
+WHERE engine = 'innodb'
+AND support IN ('YES', 'DEFAULT', 'ENABLED');
+ENGINE	SUPPORT	COMMENT	TRANSACTIONS	XA	SAVEPOINTS
+FOUND /Expected to open 3 undo tablespaces but was able to find only 0 undo tablespaces/ in mysqld.1.err
 bak_ib_logfile0
 bak_ib_logfile1
 bak_ib_logfile2
@@ -236,8 +259,6 @@ ib_logfile1
 ib_logfile2
 ibdata1
 ibdata2
-my.cnf
-my_restart.err
 undo003
 # 9. Without ibdata*, without undo*, Without ib_logfile1 and with ib_logfile2
 bak_ib_logfile0
@@ -251,8 +272,12 @@ bak_undo003
 ib_buffer_pool
 ib_logfile0
 ib_logfile2
-my.cnf
-my_restart.err
+SELECT * FROM INFORMATION_SCHEMA.ENGINES
+WHERE engine = 'innodb'
+AND support IN ('YES', 'DEFAULT', 'ENABLED');
+ENGINE	SUPPORT	COMMENT	TRANSACTIONS	XA	SAVEPOINTS
+InnoDB	YES	Supports transactions, row-level locking, foreign keys and encryption for tables	YES	YES	YES
+NOT FOUND /redo log file .*ib_logfile0.* exists\. Creating system tablespace with existing redo log files is not recommended\. Please delete all redo log files before creating new system tablespace\./ in mysqld.1.err
 bak_ib_logfile0
 bak_ib_logfile1
 bak_ib_logfile2
@@ -263,9 +288,36 @@ bak_undo002
 bak_undo003
 ib_buffer_pool
 ib_logfile0
+ib_logfile1
 ib_logfile2
-my.cnf
-my_restart.err
+ibdata1
+ibdata2
+undo001
+undo002
+undo003
+# 10. With ibdata*, without ib_logfile0
+SELECT * FROM INFORMATION_SCHEMA.ENGINES
+WHERE engine = 'innodb'
+AND support IN ('YES', 'DEFAULT', 'ENABLED');
+ENGINE	SUPPORT	COMMENT	TRANSACTIONS	XA	SAVEPOINTS
+InnoDB	YES	Supports transactions, row-level locking, foreign keys and encryption for tables	YES	YES	YES
+bak_ib_logfile0
+bak_ib_logfile1
+bak_ib_logfile2
+bak_ibdata1
+bak_ibdata2
+bak_undo001
+bak_undo002
+bak_undo003
+ib_buffer_pool
+ib_logfile0
+ib_logfile1
+ib_logfile2
+ibdata1
+ibdata2
+undo001
+undo002
+undo003
 # 11. With ibdata*, without ib_logfile1
 bak_ib_logfile0
 bak_ib_logfile1
@@ -280,48 +332,15 @@ ib_logfile0
 ib_logfile2
 ibdata1
 ibdata2
-my.cnf
-my_restart.err
 undo001
 undo002
 undo003
-bak_ib_logfile0
-bak_ib_logfile1
-bak_ib_logfile2
-bak_ibdata1
-bak_ibdata2
-bak_undo001
-bak_undo002
-bak_undo003
-ib_buffer_pool
-ib_logfile0
-ib_logfile2
-ibdata1
-ibdata2
-my.cnf
-my_restart.err
-undo001
-undo002
-undo003
-# 12. With ibdata*, without ib_logfile2
-bak_ib_logfile0
-bak_ib_logfile1
-bak_ib_logfile2
-bak_ibdata1
-bak_ibdata2
-bak_undo001
-bak_undo002
-bak_undo003
-ib_buffer_pool
-ib_logfile0
-ib_logfile1
-ibdata1
-ibdata2
-my.cnf
-my_restart.err
-undo001
-undo002
-undo003
+SELECT COUNT(*) `1` FROM INFORMATION_SCHEMA.ENGINES
+WHERE engine='innodb'
+AND support IN ('YES', 'DEFAULT', 'ENABLED');
+1
+1
+FOUND /Resizing redo log from 1\*\d+ to 3\*\d+ pages; LSN=\d+/ in mysqld.1.err
 # Cleanup
 bak_ib_logfile0
 bak_ib_logfile1
@@ -337,8 +356,6 @@ ib_logfile1
 ib_logfile2
 ibdata1
 ibdata2
-my.cnf
-my_restart.err
 undo001
 undo002
 undo003

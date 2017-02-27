@@ -16,10 +16,10 @@ INSERT INTO t SET t=REPEAT(_utf8 0xefbc91,84);
 INSERT INTO t SET t=REPEAT('after',17);
 INSERT INTO t SET t=REPEAT(_utf8mb3 0xe794b2e9aaa8e69687, 15);
 # The data below is not 3-byte UTF-8, but 4-byte chars.
-INSERT INTO t SET t=REPEAT(_utf8mb4 0xf09f9695, 84);
+INSERT IGNORE INTO t SET t=REPEAT(_utf8mb4 0xf09f9695, 84);
 Warnings:
 Warning	1366	Incorrect string value: '\xF0\x9F\x96\x95\xF0\x9F...' for column 't' at row 1
-INSERT INTO t SET t=REPEAT(_utf8mb4 0xf09f9696, 85);
+INSERT IGNORE INTO t SET t=REPEAT(_utf8mb4 0xf09f9696, 85);
 Warnings:
 Warning	1366	Incorrect string value: '\xF0\x9F\x96\x96\xF0\x9F...' for column 't' at row 1
 SELECT COUNT(*) FROM t WHERE MATCH t AGAINST

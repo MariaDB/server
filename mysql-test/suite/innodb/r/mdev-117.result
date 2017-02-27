@@ -15,3 +15,4 @@ connection default;
 disconnect con1;
 drop table t1;
 SET GLOBAL innodb_lock_wait_timeout=default;
+call mtr.add_suppression("Deadlock found when trying to get lock; try restarting transaction");
