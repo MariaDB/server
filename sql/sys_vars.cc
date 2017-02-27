@@ -382,6 +382,11 @@ static Sys_var_charptr Sys_basedir(
        READ_ONLY GLOBAL_VAR(mysql_home_ptr), CMD_LINE(REQUIRED_ARG, 'b'),
        IN_FS_CHARSET, DEFAULT(0));
 
+static Sys_var_charptr sys_temporal_current_timestamp(
+       "temporal_current_timestamp", "Default AS OF value for versioned tables",
+       GLOBAL_VAR(temporal_current_timestamp), CMD_LINE(REQUIRED_ARG, 'b'),
+       IN_FS_CHARSET, DEFAULT("now"));
+
 static Sys_var_ulonglong Sys_binlog_cache_size(
        "binlog_cache_size", "The size of the transactional cache for "
        "updates to transactional engines for the binary log. "

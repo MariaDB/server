@@ -62,6 +62,7 @@
 #include <my_bit.h>
 #include <hash.h>
 #include <ft_global.h>
+#include "sys_vars_shared.h"
 
 /*
   A key part number that means we're using a fulltext scan.
@@ -773,6 +774,28 @@ int vers_setup_select(THD *thd, TABLE_LIST *tables, COND **where_expr,
         my_error(ER_VERS_WRONG_QUERY_TYPE, MYF(0), "FOR SYSTEM_TIME BEFORE",
                  "TRUNCATE");
         DBUG_RETURN(-1);
+      }
+
+      if (vers_conditions.type == FOR_SYSTEM_TIME_UNSPECIFIED)
+      {
+        const char var[]= "temporal_current_timestamp";
+        sys_var *sv= intern_find_sys_var(var, sizeof(var) - 1);
+        DBUG_ASSERT(sv);
+        const char *data= *(char **)sv->option.value;
+        DBUG_ASSERT(data);
+        if (0 == strcmp(data, "all"))
+        {
+          vers_conditions.init(FOR_SYSTEM_TIME_ALL, UNIT_TIMESTAMP);
+        }
+        else if (0 != strcmp(data, "now"))
+        {
+          Item *ts= create_temporal_literal(thd, data, strlen(data),
+                                            system_charset_info,
+                                            MYSQL_TYPE_DATETIME, true);
+          if (!ts)
+            DBUG_RETURN(-1);
+          vers_conditions.init(FOR_SYSTEM_TIME_AS_OF, UNIT_TIMESTAMP, ts);
+        }
       }
 
       if (vers_conditions.type != FOR_SYSTEM_TIME_UNSPECIFIED)
