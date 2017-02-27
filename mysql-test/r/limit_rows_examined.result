@@ -1,3 +1,4 @@
+call mtr.add_suppression("Sort aborted.*");
 set @save_join_cache_level = @@join_cache_level;
 create table t1 (c1 char(2));
 create table t2 (c2 char(2));
@@ -627,7 +628,7 @@ INSERT/DELETE/UPDATE
 INSERT ... SELECT
 CREATE TABLE t4 (a int);
 INSERT INTO t4 values (1), (2);
-INSERT INTO t4 SELECT a + 2 FROM t4 LIMIT ROWS EXAMINED 0;
+INSERT IGNORE INTO t4 SELECT a + 2 FROM t4 LIMIT ROWS EXAMINED 0;
 Warnings:
 Warning	1931	Query execution was interrupted. The query examined at least 1 rows, which exceeds LIMIT ROWS EXAMINED (0). The query result may be incomplete
 select * from t4;
@@ -751,15 +752,15 @@ LIMIT ROWS EXAMINED 120;
 ERROR HY000: Sort aborted: 
 SHOW STATUS LIKE 'Handler_read%';
 Variable_name	Value
-Handler_read_first	0
+Handler_read_first	1
 Handler_read_key	5
 Handler_read_last	0
-Handler_read_next	0
+Handler_read_next	7
 Handler_read_prev	0
 Handler_read_retry	0
 Handler_read_rnd	0
 Handler_read_rnd_deleted	0
-Handler_read_rnd_next	46
+Handler_read_rnd_next	38
 SHOW STATUS LIKE 'Handler_tmp%';
 Variable_name	Value
 Handler_tmp_update	0
@@ -776,15 +777,15 @@ Warnings:
 Warning	1931	Query execution was interrupted. The query examined at least 125 rows, which exceeds LIMIT ROWS EXAMINED (124). The query result may be incomplete
 SHOW STATUS LIKE 'Handler_read%';
 Variable_name	Value
-Handler_read_first	0
+Handler_read_first	1
 Handler_read_key	5
 Handler_read_last	0
-Handler_read_next	0
+Handler_read_next	7
 Handler_read_prev	0
 Handler_read_retry	0
 Handler_read_rnd	2
 Handler_read_rnd_deleted	1
-Handler_read_rnd_next	47
+Handler_read_rnd_next	39
 SHOW STATUS LIKE 'Handler_tmp%';
 Variable_name	Value
 Handler_tmp_update	0

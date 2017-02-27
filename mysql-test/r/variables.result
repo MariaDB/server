@@ -1278,12 +1278,12 @@ ERROR HY000: Variable 'lower_case_table_names' is a read only variable
 #
 SHOW VARIABLES like 'myisam_recover_options';
 Variable_name	Value
-myisam_recover_options	DEFAULT
+myisam_recover_options	BACKUP,QUICK
 SELECT @@session.myisam_recover_options;
 ERROR HY000: Variable 'myisam_recover_options' is a GLOBAL variable
 SELECT @@global.myisam_recover_options;
 @@global.myisam_recover_options
-DEFAULT
+BACKUP,QUICK
 SET @@session.myisam_recover_options= 'x';
 ERROR HY000: Variable 'myisam_recover_options' is a read only variable
 SET @@global.myisam_recover_options= 'x';
@@ -1532,7 +1532,7 @@ SET @@global.key_buffer_size=@kbs;
 SET @@global.key_cache_block_size=@kcbs;
 select @@max_long_data_size;
 @@max_long_data_size
-4194304
+16777216
 #
 # Bug#11766424  59527:
 # Assert in DECIMAL_BIN_SIZE: 

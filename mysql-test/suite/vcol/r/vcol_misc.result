@@ -106,10 +106,10 @@ t2	CREATE TABLE `t2` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t1,t2;
 CREATE TABLE t1 (p int, a double NOT NULL, v double AS (ROUND(a,p)) VIRTUAL);
-INSERT INTO t1 VALUES (0,1,0);
+INSERT IGNORE INTO t1 VALUES (0,1,0);
 Warnings:
 Warning	1906	The value specified for generated column 'v' in table 't1' ignored
-INSERT INTO t1 VALUES (NULL,0,0);
+INSERT IGNORE INTO t1 VALUES (NULL,0,0);
 Warnings:
 Warning	1906	The value specified for generated column 'v' in table 't1' ignored
 SELECT a, p, v, ROUND(a,p), ROUND(a,p+NULL) FROM t1;
@@ -300,10 +300,10 @@ b	varchar(32)	latin1_swedish_ci	YES		NULL		#
 c	int(11)	NULL	YES		NULL	VIRTUAL GENERATED	#	
 d	varchar(5)	latin1_swedish_ci	YES		NULL	STORED GENERATED	#	
 INSERT INTO `test`.`t1`(`a`,`b`,`c`,`d`) VALUES ( '1','a',NULL,NULL);
-UPDATE `test`.`t1` SET `d`='b' WHERE `a`='1' AND `b`='a' AND `c`='1' AND  `d`='a';
+UPDATE IGNORE `test`.`t1` SET `d`='b' WHERE `a`='1' AND `b`='a' AND `c`='1' AND  `d`='a';
 Warnings:
 Warning	1906	The value specified for generated column 'd' in table 't1' ignored
-INSERT INTO `test`.`t1`(`a`,`b`,`c`,`d`) VALUES ( '1','a',NULL,'a');
+INSERT IGNORE INTO `test`.`t1`(`a`,`b`,`c`,`d`) VALUES ( '1','a',NULL,'a');
 Warnings:
 Warning	1906	The value specified for generated column 'd' in table 't1' ignored
 set sql_mode='strict_all_tables';
@@ -328,6 +328,13 @@ t1	CREATE TABLE `t1` (
   `c1` varchar(50) COLLATE latin1_general_ci DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_general_ci
 drop table t1;
+set sql_mode='no_zero_date';
+create table t1 (
+ts timestamp not null default current_timestamp,
+tsv timestamp as (adddate(ts, interval 1 day)) virtual
+);
+drop table t1;
+set sql_mode=default;
 #
 # Start of 10.1 tests
 #

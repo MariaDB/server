@@ -4,6 +4,7 @@ alter table bug53592 add column b text charset utf8;
 alter table bug53592 add column c blob not null;
 create index bug53592_b on bug53592(b(81));
 create unique index bug53592_c on bug53592(c(1));
+set statement sql_mode = '' for
 replace into bug53592 values (),();
 Warnings:
 Warning	1364	Field 'c' doesn't have a default value
@@ -17,6 +18,7 @@ alter table bug53592 add column b text charset utf8;
 alter table bug53592 add column c blob not null;
 create index bug53592_b on bug53592(b(81));
 create unique index bug53592_c on bug53592(c(1));
+set statement sql_mode = '' for
 replace into bug53592 values (),();
 Warnings:
 Warning	1364	Field 'c' doesn't have a default value

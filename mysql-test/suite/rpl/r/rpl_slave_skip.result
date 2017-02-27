@@ -17,14 +17,17 @@ master-bin.000001	#	Query	#	#	use `test`; CREATE TABLE t1 (a INT, b INT) ENGINE=
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
 master-bin.000001	#	Query	#	#	use `test`; CREATE TABLE t2 (c INT, d INT) ENGINE=MyISAM
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO t1 VALUES (1,1),(2,4),(3,9)
 master-bin.000001	#	Table_map	#	#	table_id: # (test.t1)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO t2 VALUES (1,1),(2,8),(3,27)
 master-bin.000001	#	Table_map	#	#	table_id: # (test.t2)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	UPDATE t1,t2 SET b = d, d = b * 2 WHERE a = c
 master-bin.000001	#	Table_map	#	#	table_id: # (test.t1)
 master-bin.000001	#	Table_map	#	#	table_id: # (test.t2)
 master-bin.000001	#	Update_rows_v1	#	#	table_id: #
@@ -213,7 +216,7 @@ a	b
 6	master only
 7	master only
 connection slave;
-SET GLOBAL SQL_SLAVE_SKIP_COUNTER=10;
+SET GLOBAL SQL_SLAVE_SKIP_COUNTER=12;
 include/start_slave.inc
 SELECT * FROM t4 ORDER BY a;
 a	b

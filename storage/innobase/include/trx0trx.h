@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, MariaDB Corporation. All Rights Reserved.
+Copyright (c) 2016, 2017, MariaDB Corporation. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1261,11 +1261,6 @@ struct trx_t {
 					transaction branch */
 	trx_mod_tables_t mod_tables;	/*!< List of tables that were modified
 					by this transaction */
-        /*------------------------------*/
-	bool		api_trx;	/*!< trx started by InnoDB API */
-	bool		api_auto_commit;/*!< automatic commit */
-	bool		read_write;	/*!< if read and write operation */
-
 	/*------------------------------*/
 	char*		detailed_error;	/*!< detailed error message for last
 					error, or empty. */

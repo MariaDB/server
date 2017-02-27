@@ -129,26 +129,26 @@ set LC_TIME_NAMES='en_US';
 #
 set names koi8r;
 create table t1 (s1 char(1) character set utf8);
-insert into t1 values (_koi8r'¡¬');
+insert ignore into t1 values (_koi8r'¡¬');
 select s1,hex(s1),char_length(s1),octet_length(s1) from t1;
 drop table t1;
 
 create table t1 (s1 tinytext character set utf8);
-insert into t1 select repeat('a',300);
-insert into t1 select repeat('—',300);
-insert into t1 select repeat('a—',300);
-insert into t1 select repeat('—a',300);
-insert into t1 select repeat('——',300);
+insert ignore into t1 select repeat('a',300);
+insert ignore into t1 select repeat('—',300);
+insert ignore into t1 select repeat('a—',300);
+insert ignore into t1 select repeat('—a',300);
+insert ignore into t1 select repeat('——',300);
 select hex(s1) from t1;
 select length(s1),char_length(s1) from t1;
 drop table t1;
 
 create table t1 (s1 text character set utf8);
-insert into t1 select repeat('a',66000);
-insert into t1 select repeat('—',66000);
-insert into t1 select repeat('a—',66000);
-insert into t1 select repeat('—a',66000);
-insert into t1 select repeat('——',66000);
+insert ignore into t1 select repeat('a',66000);
+insert ignore into t1 select repeat('—',66000);
+insert ignore into t1 select repeat('a—',66000);
+insert ignore into t1 select repeat('—a',66000);
+insert ignore into t1 select repeat('——',66000);
 select length(s1),char_length(s1) from t1;
 drop table t1;
 
@@ -156,17 +156,17 @@ drop table t1;
 # Bug #2368 Multibyte charsets do not check that incoming data is well-formed
 #
 create table t1 (s1 char(10) character set utf8);
-insert into t1 values (0x41FF);
+insert ignore into t1 values (0x41FF);
 select hex(s1) from t1;
 drop table t1;
 
 create table t1 (s1 varchar(10) character set utf8);
-insert into t1 values (0x41FF);
+insert ignore into t1 values (0x41FF);
 select hex(s1) from t1;
 drop table t1;
 
 create table t1 (s1 text character set utf8);
-insert into t1 values (0x41FF);
+insert ignore into t1 values (0x41FF);
 select hex(s1) from t1;
 drop table t1;
 
@@ -837,6 +837,7 @@ DROP TABLE t1,t2;
 #
 create table t1 (a char(20) character set utf8);
 insert into t1 values ('123456'),('–∞–Ω–¥—Ä–µ–π');
+SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 alter table t1 modify a char(2) character set utf8;
 select char_length(a), length(a), a from t1 order by a;
 drop table t1;
@@ -1215,15 +1216,19 @@ create table t1 (
 insert into t1 (a) values ('abcdefghijklmnopqrstuvwxyz');
 select * from t1;
 # varchar to varchar
+SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 alter table t1 change a a varchar(20) character set utf8 not null;
 select * from t1;
 # varchar to char
+SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 alter table t1 change a a char(15) character set utf8 not null;
 select * from t1;
 # char to char
+SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 alter table t1 change a a char(10) character set utf8 not null;
 select * from t1;
 # char to varchar
+SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 alter table t1 change a a varchar(5) character set utf8 not null;
 select * from t1;
 drop table t1;
@@ -1235,6 +1240,7 @@ create table t1 (
   a varchar(4000) not null
 ) default character set utf8;
 insert into t1 values (repeat('a',4000));
+SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 alter table t1 change a a varchar(3000) character set utf8 not null;
 select length(a) from t1;
 drop table t1;
@@ -1674,6 +1680,7 @@ SET NAMES utf8;
 CREATE TABLE t1 (a TEXT CHARACTER SET utf8);
 INSERT INTO t1 VALUES (REPEAT('Ôº°',100));
 SELECT OCTET_LENGTH(a) FROM t1;
+SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 ALTER TABLE t1 MODIFY a TINYTEXT CHARACTER SET utf8;
 SELECT OCTET_LENGTH(a),a FROM t1;
 DROP TABLE t1;
@@ -2000,14 +2007,14 @@ LOAD DATA INFILE '../../std_data/loaddata/mdev9824.txt' INTO TABLE t1 CHARACTER 
 SELECT c1 FROM t1;
 DELETE FROM t1;
 LOAD DATA INFILE '../../std_data/loaddata/mdev9824.txt' INTO TABLE t1 CHARACTER SET utf8 LINES TERMINATED BY '—ë—ë' IGNORE 1 LINES;
-SELECT c1 FROM t1;
+SELECT c1 FROM t1 ORDER BY c1;
 DROP TABLE t1;
 
 --echo #
 --echo # MDEV-9842 LOAD DATA INFILE does not work well with a TEXT column when using sjis
 --echo #
 CREATE TABLE t1 (a TEXT CHARACTER SET utf8);
-LOAD DATA INFILE '../../std_data/loaddata/mdev9823.utf8mb4.txt' INTO TABLE t1 CHARACTER SET utf8 IGNORE 4 LINES;
+LOAD DATA INFILE '../../std_data/loaddata/mdev9823.utf8mb4.txt' IGNORE INTO TABLE t1 CHARACTER SET utf8 IGNORE 4 LINES;
 SELECT HEX(a) FROM t1;
 DROP TABLE t1;
 
@@ -2015,7 +2022,7 @@ DROP TABLE t1;
 --echo # MDEV-9874 LOAD XML INFILE does not handle well broken multi-byte characters
 --echo #
 CREATE TABLE t1 (a TEXT CHARACTER SET utf8);
-LOAD XML INFILE '../../std_data/loaddata/mdev9874.xml' INTO TABLE t1 CHARACTER SET utf8 ROWS IDENTIFIED BY '<row>';
+LOAD XML INFILE '../../std_data/loaddata/mdev9874.xml' IGNORE INTO TABLE t1 CHARACTER SET utf8 ROWS IDENTIFIED BY '<row>';
 SELECT HEX(a) FROM t1;
 DROP TABLE t1;
 

@@ -945,16 +945,13 @@ public:
   */
   void set_has_explicit_value()
   {
-    if (table->has_value_set)             /* If we have default functions */
-      bitmap_set_bit(table->has_value_set, field_index);
+    bitmap_set_bit(&table->has_value_set, field_index);
   }
   bool has_explicit_value()
   {
-    /* This function is only called when we have default functions */
-    DBUG_ASSERT(table->has_value_set);
-    return bitmap_is_set(table->has_value_set, field_index);
+    return bitmap_is_set(&table->has_value_set, field_index);
   }
-  virtual void set_explicit_default(Item *value);
+  virtual bool set_explicit_default(Item *value);
 
   /**
      Evaluates the @c UPDATE default function, if one exists, and stores the
@@ -2379,9 +2376,9 @@ public:
   uint32 pack_length() const { return 4; }
   void sql_type(String &str) const;
   bool zero_pack() const { return 0; }
-  virtual int set_time();
-  virtual void set_explicit_default(Item *value);
-  virtual int evaluate_update_default_function()
+  int set_time();
+  bool set_explicit_default(Item *value);
+  int evaluate_update_default_function()
   {
     int res= 0;
     if (has_update_default_function())
@@ -2813,8 +2810,8 @@ public:
   void sql_type(String &str) const;
   bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
   { return Field_datetime::get_TIME(ltime, ptr, fuzzydate); }
-  virtual int set_time();
-  virtual int evaluate_update_default_function()
+  int set_time();
+  int evaluate_update_default_function()
   {
     int res= 0;
     if (has_update_default_function())

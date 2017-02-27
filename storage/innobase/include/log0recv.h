@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1997, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -213,12 +214,6 @@ struct recv_sys_t{
 	ibool		apply_batch_on;
 				/*!< this is TRUE when a log rec application
 				batch is running */
-	byte*		last_block;
-				/*!< possible incomplete last recovered log
-				block */
-	byte*		last_block_buf_start;
-				/*!< the nonaligned start address of the
-				preceding buffer */
 	byte*		buf;	/*!< buffer for parsing log records */
 	ulint		len;	/*!< amount of data in buf */
 	lsn_t		parse_start_lsn;
@@ -288,9 +283,6 @@ number (FIL_PAGE_LSN) is in the future.  Initially FALSE, and set by
 recv_recovery_from_checkpoint_start(). */
 extern bool		recv_lsn_checks_on;
 
-/** Flag indicating if recv_writer thread is active. */
-extern volatile bool	recv_writer_thread_active;
-
 /** Size of the parsing buffer; it must accommodate RECV_SCAN_SIZE many
 times! */
 #define RECV_PARSING_BUF_SIZE	(2 * 1024 * 1024)
@@ -304,14 +296,5 @@ the log and store the scanned log records in the buffer pool: we will
 use these free frames to read in pages when we start applying the
 log records to the database. */
 extern ulint	recv_n_pool_free_frames;
-
-/******************************************************//**
-Checks the 4-byte checksum to the trailer checksum field of a log
-block.  */
-bool
-log_block_checksum_is_ok(
-/*===================================*/
-	const byte*	block,	/*!< in: pointer to a log block */
-	bool            print_err); /*!< in print error ? */
 
 #endif

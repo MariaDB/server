@@ -4,7 +4,7 @@
 
 # Table Country
 
-INSERT INTO Country VALUES
+INSERT IGNORE INTO Country VALUES
 ('AFG','Afghanistan',652090.00,22720000,1),
 ('NLD','Netherlands',41526.00,15864000,5),
 ('ANT','Netherlands Antilles',800.00,217000,33),
@@ -649,7 +649,7 @@ INSERT INTO City VALUES
 (398,'Franco da Rocha','BRA',108964),
 (399,'Teixeira de Freitas','BRA',108441),
 (400,'Varginha','BRA',108314);
-INSERT INTO City VALUES
+INSERT IGNORE INTO City VALUES
 (401,'Ribeirão Pires','BRA',108121),
 (402,'Sabará','BRA',107781),
 (403,'Catanduva','BRA',107761),
@@ -1855,7 +1855,7 @@ INSERT INTO City VALUES
 (1598,'Aomori','JPN',295969),
 (1599,'Hakodate','JPN',294788),
 (1600,'Akashi','JPN',292253);
-INSERT INTO City VALUES
+INSERT IGNORE INTO City VALUES
 (1601,'Yokkaichi','JPN',288173),
 (1602,'Fukushima','JPN',287525),
 (1603,'Morioka','JPN',287353),
@@ -2056,7 +2056,7 @@ INSERT INTO City VALUES
 (1798,'Subotica','YUG',100386),
 (1799,'Prizren','YUG',92303),
 (1800,'Phnom Penh','KHM',570155);
-INSERT INTO City VALUES
+INSERT IGNORE INTO City VALUES
 (1801,'Battambang','KHM',129800),
 (1802,'Siem Reap','KHM',105100),
 (1803,'Douala','CMR',1448300),
@@ -2659,7 +2659,7 @@ INSERT INTO City VALUES
 (2398,'Namwon','KOR',103544),
 (2399,'Tonghae','KOR',95472),
 (2400,'Mun-gyong','KOR',92239);
-INSERT INTO City VALUES
+INSERT IGNORE INTO City VALUES
 (2401,'Athenai','GRC',772072),
 (2402,'Thessaloniki','GRC',383967),
 (2403,'Pireus','GRC',182671),
@@ -3463,7 +3463,7 @@ INSERT INTO City VALUES
 (3198,'Dakar','SEN',785071),
 (3199,'Thiès','SEN',248000),
 (3200,'Kaolack','SEN',199000);
-INSERT INTO City VALUES
+INSERT IGNORE INTO City VALUES
 (3201,'Ziguinchor','SEN',192000),
 (3202,'Rufisque','SEN',150000),
 (3203,'Saint-Louis','SEN',132400),
@@ -3664,7 +3664,7 @@ INSERT INTO City VALUES
 (3398,'Çorlu','TUR',123300),
 (3399,'Isparta','TUR',121911),
 (3400,'Karabük','TUR',118285);
-INSERT INTO City VALUES
+INSERT IGNORE INTO City VALUES
 (3401,'Kilis','TUR',118245),
 (3402,'Alanya','TUR',117300),
 (3403,'Kiziltepe','TUR',112000),
@@ -3865,7 +3865,7 @@ INSERT INTO City VALUES
 (3598,'Izevsk','RUS',652800),
 (3599,'Krasnodar','RUS',639000),
 (3600,'Jaroslavl','RUS',616700);
-INSERT INTO City VALUES
+INSERT IGNORE INTO City VALUES
 (3601,'Habarovsk','RUS',609400),
 (3602,'Vladivostok','RUS',606200),
 (3603,'Irkutsk','RUS',593700),
@@ -4350,7 +4350,7 @@ INSERT INTO City VALUES
 
 # Table CountryLanguage
 
-INSERT INTO CountryLanguage VALUES 
+INSERT IGNORE INTO CountryLanguage VALUES 
 ('AFG','Pashto',52.4),
 ('NLD','Dutch',95.6),
 ('ANT','Papiamento',86.2),
@@ -4551,7 +4551,7 @@ INSERT INTO CountryLanguage VALUES
 ('TJK','Tadzhik',62.2),
 ('TWN','Min',66.7),
 ('TZA','Nyamwesi',21.1);
-INSERT INTO CountryLanguage VALUES 
+INSERT IGNORE INTO CountryLanguage VALUES 
 ('DNK','Danish',93.5),
 ('THA','Thai',52.6),
 ('TGO','Ewe',23.2),
@@ -4752,7 +4752,7 @@ INSERT INTO CountryLanguage VALUES
 ('WSM','Samoan',47.5),
 ('STP','French',0.7),
 ('SEN','Ful',21.7);
-INSERT INTO CountryLanguage VALUES 
+INSERT IGNORE INTO CountryLanguage VALUES 
 ('SYC','English',3.8),
 ('SLE','Temne',31.8),
 ('SGP','Malay',14.1),
@@ -4953,7 +4953,7 @@ INSERT INTO CountryLanguage VALUES
 ('AGO','Luimbe-nganguela',5.4),
 ('ABW','Dutch',5.3),
 ('AUS','Canton Chinese',1.1);
-INSERT INTO CountryLanguage VALUES 
+INSERT IGNORE INTO CountryLanguage VALUES 
 ('AZE','Armenian',2.0),
 ('BGD','Garo',0.1),
 ('BEL','Arabic',1.6),

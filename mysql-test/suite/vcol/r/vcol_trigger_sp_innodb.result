@@ -86,7 +86,7 @@ a	b	c
 drop table t1,t2;
 drop procedure p1;
 #
-# Bug mdev-3845: values of virtual columns are not computed for triggers
+# MDEV-3845 values of virtual columns are not computed for triggers
 #
 CREATE TABLE t1 (
 a INTEGER UNSIGNED NULL DEFAULT NULL,
@@ -125,9 +125,16 @@ c
 DROP TRIGGER t1_ins_aft;
 DROP TRIGGER t1_del_bef;
 DROP TABLE t1,t2;
+create table t1 (i int, t time not null, vt time(4) as (t) virtual);
+create trigger trg before update on t1 for each row set @a = 1;
+insert ignore into t1 (i) values (1);
+Warnings:
+Warning	1364	Field 't' doesn't have a default value
+drop table t1;
 #
 # Examine the number of times triggers are recalculated for updates
 #
+SET sql_mode = 'NO_ENGINE_SUBSTITUTION';
 CREATE TABLE t1 (
 a INTEGER UNSIGNED NULL DEFAULT NULL,
 b CHAR(10) NULL DEFAULT NULL,
@@ -215,9 +222,11 @@ a	b	c	blob_a	blob_b	blob_c
 drop trigger t1_ins;
 drop trigger t1_update;
 drop table t1;
+SET sql_mode = DEFAULT;
 #
 # Same test, but with virtual keys
 #
+SET sql_mode = 'NO_ENGINE_SUBSTITUTION';
 CREATE TABLE t1 (
 a INTEGER UNSIGNED NULL DEFAULT NULL,
 b CHAR(10) NULL DEFAULT NULL,
@@ -304,3 +313,4 @@ a	b	c	blob_a	blob_b	blob_c
 drop trigger t1_ins;
 drop trigger t1_update;
 drop table t1;
+SET sql_mode = DEFAULT;

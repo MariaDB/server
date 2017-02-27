@@ -80,7 +80,7 @@ disable_warnings;
 DROP TABLE IF EXISTS t1;
 enable_warnings;
 CREATE TEMPORARY TABLE `t1`(`a` tinyint,`b` char(1))engine=myisam;
-INSERT INTO `t1` set `a`=128,`b`='128';
+INSERT IGNORE INTO `t1` set `a`=128,`b`='128';
 
 sync_slave_with_master;
 
@@ -88,7 +88,7 @@ source include/stop_slave.inc;
 source include/start_slave.inc;
 
 connection master;
-INSERT INTO `t1` set `a`=128,`b`='128';
+INSERT IGNORE INTO `t1` set `a`=128,`b`='128';
 sync_slave_with_master;
 
 # cleanup

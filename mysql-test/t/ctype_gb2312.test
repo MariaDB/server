@@ -68,7 +68,7 @@ WHERE (head BETWEEN '80' AND 'FF') AND (tail BETWEEN '20' AND 'FF')
 ORDER BY head, tail;
 DROP TEMPORARY TABLE head, tail;
 SHOW CREATE TABLE t1;
-UPDATE t1 SET a=unhex(code) ORDER BY code;
+UPDATE IGNORE t1 SET a=unhex(code) ORDER BY code;
 SELECT COUNT(*) FROM t1 WHERE a<>'?';
 #
 # Display all characters that have upper or lower case mapping.

@@ -191,7 +191,7 @@ static void prepare_record_for_error_message(int error, TABLE *table)
 
   /* Create unique_map with all fields used by that index. */
   my_bitmap_init(&unique_map, unique_map_buf, table->s->fields, FALSE);
-  table->mark_columns_used_by_index_no_reset(keynr, &unique_map);
+  table->mark_columns_used_by_index(keynr, &unique_map);
 
   /* Subtract read_set and write_set. */
   bitmap_subtract(&unique_map, table->read_set);
@@ -534,16 +534,9 @@ int mysql_update(THD *thd,
     /*
       We can't update table directly;  We must first search after all
       matching rows before updating the table!
+
+      note: We avoid sorting if we sort on the used index
     */
-    MY_BITMAP *save_read_set= table->read_set;
-    MY_BITMAP *save_write_set= table->write_set;
-
-    if (query_plan.index < MAX_KEY && old_covering_keys.is_set(query_plan.index))
-      table->add_read_columns_used_by_index(query_plan.index);
-    else
-      table->use_all_columns();
-
-    /* note: We avoid sorting if we sort on the used index */
     if (query_plan.using_filesort)
     {
       /*
@@ -569,6 +562,14 @@ int mysql_update(THD *thd,
     }
     else
     {
+      MY_BITMAP *save_read_set= table->read_set;
+      MY_BITMAP *save_write_set= table->write_set;
+
+      if (query_plan.index < MAX_KEY && old_covering_keys.is_set(query_plan.index))
+        table->prepare_for_keyread(query_plan.index);
+      else
+        table->use_all_columns();
+
       /*
 	We are doing a search on a key that is updated. In this case
 	we go trough the matching rows, save a pointer to them and
@@ -681,9 +682,10 @@ int mysql_update(THD *thd,
       select->file=tempfile;			// Read row ptrs from this file
       if (error >= 0)
 	goto err;
+
+      table->file->ha_end_keyread();
+      table->column_bitmaps_set(save_read_set, save_write_set);
     }
-    table->set_keyread(false);
-    table->column_bitmaps_set(save_read_set, save_write_set);
   }
 
   if (ignore)
@@ -1032,7 +1034,7 @@ err:
   delete select;
   delete file_sort;
   free_underlaid_joins(thd, select_lex);
-  table->set_keyread(false);
+  table->file->ha_end_keyread();
   thd->abort_on_warning= 0;
   DBUG_RETURN(1);
 
@@ -2404,7 +2406,8 @@ int multi_update::do_updates()
       } while ((tbl= check_opt_it++));
 
       if (table->vfield &&
-          table->update_virtual_fields(VCOL_UPDATE_INDEXED_FOR_UPDATE))
+          table->update_virtual_fields(table->file,
+                                       VCOL_UPDATE_INDEXED_FOR_UPDATE))
         goto err2;
 
       table->status|= STATUS_UPDATED;
@@ -2431,7 +2434,7 @@ int multi_update::do_updates()
             (error= table->update_default_fields(1, ignore)))
           goto err2;
         if (table->vfield &&
-            table->update_virtual_fields(VCOL_UPDATE_FOR_WRITE))
+            table->update_virtual_fields(table->file, VCOL_UPDATE_FOR_WRITE))
           goto err2;
         if ((error= cur_table->view_check_option(thd, ignore)) !=
             VIEW_CHECK_OK)

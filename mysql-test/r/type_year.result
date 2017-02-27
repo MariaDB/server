@@ -29,7 +29,7 @@ y	y2
 2069	69
 drop table t1;
 create table t1 (y year);
-insert into t1 values (now());
+insert ignore into t1 values (now());
 Warnings:
 Warning	1265	Data truncated for column 'y' at row 1
 select if(y = now(), 1, 0) from t1;
@@ -316,7 +316,7 @@ DROP TABLE t2, t4;
 # Bug #49910: Behavioural change in SELECT/WHERE on YEAR(4) data type
 #
 CREATE TABLE t1 (y YEAR NOT NULL, s VARCHAR(4));
-INSERT INTO t1 (s) VALUES ('bad');
+INSERT IGNORE INTO t1 (s) VALUES ('bad');
 Warnings:
 Warning	1364	Field 'y' doesn't have a default value
 INSERT INTO t1 (y, s) VALUES (0, 0), (2000, 2000), (2001, 2001);
@@ -446,37 +446,39 @@ DROP TABLE t1;
 # MDEV-9392 Copying from DECIMAL to YEAR is not consistent about warnings
 #
 CREATE TABLE t1 (a YEAR);
-INSERT INTO t1 VALUES (-0.1);
+INSERT IGNORE INTO t1 VALUES (-0.1);
 Warnings:
 Warning	1264	Out of range value for column 'a' at row 1
 DROP TABLE t1;
 CREATE TABLE t1 (a YEAR);
 CREATE TABLE t2 (a DECIMAL(10,1));
 INSERT INTO t2 VALUES (-0.1);
-INSERT INTO t1 SELECT * FROM t2;
+INSERT IGNORE INTO t1 SELECT * FROM t2;
 Warnings:
 Warning	1264	Out of range value for column 'a' at row 1
 DROP TABLE t1,t2;
 CREATE TABLE t1 (a DECIMAL(10,1));
 INSERT INTO t1 VALUES (-0.1);
+SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 ALTER TABLE t1 MODIFY a YEAR;
 Warnings:
 Warning	1264	Out of range value for column 'a' at row 1
 DROP TABLE t1;
 CREATE TABLE t1 (a YEAR);
-INSERT INTO t1 VALUES (-0.1e0);
+INSERT IGNORE INTO t1 VALUES (-0.1e0);
 Warnings:
 Warning	1264	Out of range value for column 'a' at row 1
 DROP TABLE t1;
 CREATE TABLE t1 (a YEAR);
 CREATE TABLE t2 (a DOUBLE);
 INSERT INTO t2 VALUES (-0.1);
-INSERT INTO t1 SELECT * FROM t2;
+INSERT IGNORE INTO t1 SELECT * FROM t2;
 Warnings:
 Warning	1264	Out of range value for column 'a' at row 1
 DROP TABLE t1,t2;
 CREATE TABLE t1 (a DOUBLE);
 INSERT INTO t1 VALUES (-0.1);
+SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 ALTER TABLE t1 MODIFY a YEAR;
 Warnings:
 Warning	1264	Out of range value for column 'a' at row 1

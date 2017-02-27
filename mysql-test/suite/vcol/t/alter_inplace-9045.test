@@ -19,6 +19,7 @@ alter table t1 modify column hash varchar(32) as (md5(handle+1)) persistent, alg
 select * from t1;
 --error ER_ALTER_OPERATION_NOT_SUPPORTED
 alter table t1 modify column handle int not null, algorithm=inplace;
+SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 alter table t1 modify column handle int not null, algorithm=copy;
 select * from t1;
 alter table t1 drop index handle, algorithm=inplace;

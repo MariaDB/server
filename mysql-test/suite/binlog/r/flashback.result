@@ -61,7 +61,7 @@ use `test`/*!*/;
 SET TIMESTAMP=1000000000/*!*/;
 SET @@session.pseudo_thread_id=#/*!*/;
 SET @@session.foreign_key_checks=1, @@session.sql_auto_is_null=0, @@session.unique_checks=1, @@session.autocommit=1, @@session.check_constraint_checks=1/*!*/;
-SET @@session.sql_mode=1342177280/*!*/;
+SET @@session.sql_mode=1411383296/*!*/;
 SET @@session.auto_increment_increment=1, @@session.auto_increment_offset=1/*!*/;
 /*!\C latin1 *//*!*/;
 SET @@session.character_set_client=8,@@session.collation_connection=8,@@session.collation_server=8/*!*/;
@@ -84,6 +84,9 @@ c08 TEXT
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  9:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> INSERT INTO t1 VALUES(0,0,0,0,0,'','','')
 #010909  9:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  9:46:40 server id 1  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
@@ -106,6 +109,9 @@ COMMIT/*!*/;
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  9:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> INSERT INTO t1 VALUES(1,2,3,4,5, "abc", "abcdefg", "abcedfghijklmnopqrstuvwxyz")
 #010909  9:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  9:46:40 server id 1  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
@@ -128,6 +134,9 @@ COMMIT/*!*/;
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  9:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> INSERT INTO t1 VALUES(127, 32767, 8388607, 2147483647, 9223372036854775807, repeat('a', 10), repeat('a', 20), repeat('a', 255))
 #010909  9:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  9:46:40 server id 1  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
@@ -150,6 +159,9 @@ COMMIT/*!*/;
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  9:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> UPDATE t1 SET c01=100 WHERE c02=0 OR c03=3
 #010909  9:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  9:46:40 server id 1  end_log_pos # CRC32 XXX 	Update_rows: table id # flags: STMT_END_F
@@ -200,6 +212,9 @@ COMMIT/*!*/;
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  9:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> DELETE FROM t1
 #010909  9:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  9:46:40 server id 1  end_log_pos # CRC32 XXX 	Delete_rows: table id # flags: STMT_END_F
@@ -254,10 +269,20 @@ DELIMITER /*!*/;
 ROLLBACK/*!*/;
 #010909  9:46:40 server id 1  end_log_pos # CRC32 XXX 	Gtid list []
 #010909  9:46:40 server id 1  end_log_pos # CRC32 XXX 	Binlog checkpoint master-bin.000001
+#010909  9:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> INSERT INTO t1 VALUES(0,0,0,0,0,'','','')
 #010909  9:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
+#010909  9:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> INSERT INTO t1 VALUES(1,2,3,4,5, "abc", "abcdefg", "abcedfghijklmnopqrstuvwxyz")
 #010909  9:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
+#010909  9:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> INSERT INTO t1 VALUES(127, 32767, 8388607, 2147483647, 9223372036854775807, repeat('a', 10), repeat('a', 20), repeat('a', 255))
 #010909  9:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
+#010909  9:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> UPDATE t1 SET c01=100 WHERE c02=0 OR c03=3
 #010909  9:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
+#010909  9:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> DELETE FROM t1
 #010909  9:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 #010909  9:46:40 server id 1  end_log_pos # CRC32 XXX 	Rotate to master-bin.000002  pos: 4
 #010909  9:46:40 server id 1  end_log_pos # CRC32 XXX 	Xid = #
@@ -388,7 +413,7 @@ use `test`/*!*/;
 SET TIMESTAMP=1000000000/*!*/;
 SET @@session.pseudo_thread_id=#/*!*/;
 SET @@session.foreign_key_checks=1, @@session.sql_auto_is_null=0, @@session.unique_checks=1, @@session.autocommit=1, @@session.check_constraint_checks=1/*!*/;
-SET @@session.sql_mode=1342177280/*!*/;
+SET @@session.sql_mode=1411383296/*!*/;
 SET @@session.auto_increment_increment=1, @@session.auto_increment_offset=1/*!*/;
 /*!\C latin1 *//*!*/;
 SET @@session.character_set_client=8,@@session.collation_connection=8,@@session.collation_server=8/*!*/;

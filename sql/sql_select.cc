@@ -788,10 +788,15 @@ JOIN::prepare(TABLE_LIST *tables_init,
     if (mixed_implicit_grouping && tbl->table)
       tbl->table->maybe_null= 1;
   }
+ 
+  uint real_og_num= og_num;
+  if (skip_order_by && 
+      select_lex != select_lex->master_unit()->global_parameters())
+    real_og_num+= select_lex->order_list.elements;
 
   if (setup_wild(thd, tables_list, fields_list, &all_fields, wild_num))
     DBUG_RETURN(-1);
-  if (select_lex->setup_ref_array(thd, og_num))
+  if (select_lex->setup_ref_array(thd, real_og_num))
     DBUG_RETURN(-1);
 
   ref_ptrs= ref_ptr_array_slice(0);
@@ -815,9 +820,12 @@ JOIN::prepare(TABLE_LIST *tables_init,
   if (skip_order_by && select_lex !=
                        select_lex->master_unit()->global_parameters())
   {
+    nesting_map save_allow_sum_func= thd->lex->allow_sum_func;
+    thd->lex->allow_sum_func|= (nesting_map)1 << select_lex->nest_level;
     if (setup_order(thd, ref_ptrs, tables_list, fields_list,
                     all_fields, select_lex->order_list.first))
       DBUG_RETURN(-1);
+    thd->lex->allow_sum_func= save_allow_sum_func;
     select_lex->order_list.empty();
   }
 
@@ -858,7 +866,7 @@ JOIN::prepare(TABLE_LIST *tables_init,
   With_element *with_elem= select_lex->get_with_element();
   if (with_elem &&
       select_lex->check_unrestricted_recursive(
-                      thd->variables.only_standards_compliant_cte))
+                      thd->variables.only_standard_compliant_cte))
     DBUG_RETURN(-1);
   select_lex->check_subqueries_with_recursive_references();
   
@@ -1103,6 +1111,34 @@ int JOIN::optimize()
   }
   optimization_state= JOIN::OPTIMIZATION_DONE;
   return res;
+}
+
+
+int JOIN::init_join_caches()
+{
+  JOIN_TAB *tab;
+
+  for (tab= first_linear_tab(this, WITH_BUSH_ROOTS, WITHOUT_CONST_TABLES);
+       tab;
+       tab= next_linear_tab(this, tab, WITH_BUSH_ROOTS))
+  {
+    TABLE *table= tab->table;
+    if (table->file->keyread_enabled())
+    {
+      if (!(table->file->index_flags(table->file->keyread, 0, 1) & HA_CLUSTERED_INDEX))
+        table->mark_columns_used_by_index(table->file->keyread, table->read_set);
+    }
+    else if ((tab->read_first_record == join_read_first ||
+              tab->read_first_record == join_read_last) &&
+             !tab->filesort && table->covering_keys.is_set(tab->index) &&
+             !table->no_keyread)
+    {
+      table->prepare_for_keyread(tab->index, table->read_set);
+    }
+    if (tab->cache && tab->cache->init(select_options & SELECT_DESCRIBE))
+      revise_cache_usage(tab);
+  }
+  return 0;
 }
 
 
@@ -1439,8 +1475,6 @@ JOIN::optimize_inner()
   {
     DBUG_PRINT("info",("No tables"));
     error= 0;
-    if (make_aggr_tables_info())
-      DBUG_RETURN(1);
     goto setup_subq_exit;
   }
   error= -1;					// Error is sent to client
@@ -1724,7 +1758,8 @@ JOIN::optimize_inner()
         <fields> to ORDER BY <fields>. There are three exceptions:
         - if skip_sort_order is set (see above), then we can simply skip
           GROUP BY;
-        - if we are in a subquery, we don't have to maintain order
+        - if we are in a subquery, we don't have to maintain order unless there
+	  is a limit clause in the subquery.
         - we can only rewrite ORDER BY if the ORDER BY fields are 'compatible'
           with the GROUP BY ones, i.e. either one is a prefix of another.
           We only check if the ORDER BY is a prefix of GROUP BY. In this case
@@ -1736,7 +1771,7 @@ JOIN::optimize_inner()
       if (!order || test_if_subpart(group_list, order))
       {
         if (skip_sort_order ||
-            select_lex->master_unit()->item) // This is a subquery
+            (select_lex->master_unit()->item && select_limit == HA_POS_ERROR)) // This is a subquery
           order= NULL;
         else
           order= group_list;
@@ -2118,6 +2153,9 @@ JOIN::optimize_inner()
   if (make_aggr_tables_info())
     DBUG_RETURN(1);
 
+  if (init_join_caches())
+    DBUG_RETURN(1);
+
   error= 0;
 
   if (select_options & SELECT_DESCRIBE)
@@ -2128,7 +2166,17 @@ JOIN::optimize_inner()
 setup_subq_exit:
   /* Choose an execution strategy for this JOIN. */
   if (!tables_list || !table_count)
+  {
     choose_tableless_subquery_plan();
+    if (select_lex->have_window_funcs())
+    {
+      if (!(join_tab= (JOIN_TAB*) thd->alloc(sizeof(JOIN_TAB))))
+        DBUG_RETURN(1);
+      need_tmp= 1;
+    }
+    if (make_aggr_tables_info())
+      DBUG_RETURN(1);
+  }
   /*
     Even with zero matching rows, subqueries in the HAVING clause may
     need to be evaluated if there are aggregate functions in the query.
@@ -2177,13 +2225,19 @@ bool JOIN::make_aggr_tables_info()
   const bool has_group_by= this->group;
   
   sort_and_group_aggr_tab= NULL;
+
+  if (group_optimized_away)
+    implicit_grouping= true;
+
+  bool implicit_grouping_with_window_funcs= implicit_grouping &&
+                                            select_lex->have_window_funcs();
   
 
   /*
     Setup last table to provide fields and all_fields lists to the next
     node in the plan.
   */
-  if (join_tab)
+  if (join_tab && top_join_tab_count)
   {
     join_tab[top_join_tab_count - 1].fields= &fields_list;
     join_tab[top_join_tab_count - 1].all_fields= &all_fields;
@@ -2307,7 +2361,8 @@ bool JOIN::make_aggr_tables_info()
     single table queries, thus it is sufficient to test only the first
     join_tab element of the plan for its access method.
   */
-  if (join_tab && join_tab->is_using_loose_index_scan())
+  if (join_tab && top_join_tab_count &&
+      join_tab->is_using_loose_index_scan())
     tmp_table_param.precomputed_group_by=
       !join_tab->is_using_agg_loose_index_scan();
 
@@ -2338,9 +2393,11 @@ bool JOIN::make_aggr_tables_info()
     distinct= select_distinct && !group_list && 
               !select_lex->have_window_funcs();
     keep_row_order= false;
+    bool save_sum_fields= (group_list && simple_group) ||
+                           implicit_grouping_with_window_funcs;
     if (create_postjoin_aggr_table(curr_tab,
-                                   &all_fields, tmp_group, 
-                                   group_list && simple_group,
+                                   &all_fields, tmp_group,
+                                   save_sum_fields,
                                    distinct, keep_row_order))
       DBUG_RETURN(true);
     exec_tmp_table= curr_tab->table;
@@ -2357,13 +2414,18 @@ bool JOIN::make_aggr_tables_info()
 
       If having is not handled here, it will be checked before the row
       is sent to the client.
+
+      In the case of window functions however, we *must* make sure to not
+      store any rows which don't match HAVING within the temp table,
+      as rows will end up being used during their computation.
     */
     if (having &&
-        (sort_and_group || (exec_tmp_table->distinct && !group_list)))
+        (sort_and_group || (exec_tmp_table->distinct && !group_list) ||
+         select_lex->have_window_funcs()))
     {
-      // Attach HAVING to tmp table's condition
+      /* Attach HAVING to tmp table's condition */
       curr_tab->having= having;
-      having= NULL; // Already done
+      having= NULL; /* Already done */
     }
 
    /* Change sum_fields reference to calculated fields in tmp_table */
@@ -2515,7 +2577,7 @@ bool JOIN::make_aggr_tables_info()
     tmp_table_param.copy_field= tmp_table_param.copy_field_end=0;
     first_record= sort_and_group=0;
 
-    if (!group_optimized_away)
+    if (!group_optimized_away || implicit_grouping_with_window_funcs)
     {
       group= false;
     }
@@ -2540,7 +2602,9 @@ bool JOIN::make_aggr_tables_info()
     count_field_types(select_lex, &tmp_table_param, *curr_all_fields, false);
   }
 
-  if (group || implicit_grouping || tmp_table_param.sum_func_count)
+  if (group ||
+      (implicit_grouping  && !implicit_grouping_with_window_funcs) ||
+      tmp_table_param.sum_func_count)
   {
     if (make_group_fields(this, this))
       DBUG_RETURN(true);
@@ -2763,8 +2827,9 @@ JOIN::create_postjoin_aggr_table(JOIN_TAB *tab, List<Item> *table_fields,
   tmp_table_param.using_outer_summary_function=
     tab->tmp_table_param->using_outer_summary_function;
   tab->join= this;
-  DBUG_ASSERT(tab > tab->join->join_tab);
-  (tab - 1)->next_select= sub_select_postjoin_aggr;
+  DBUG_ASSERT(tab > join_tab || select_lex->have_window_funcs());
+  if (tab > join_tab)
+    (tab - 1)->next_select= sub_select_postjoin_aggr;
   tab->aggr= new (thd->mem_root) AGGR_OP(tab);
   if (!tab->aggr)
     goto err;
@@ -2772,13 +2837,15 @@ JOIN::create_postjoin_aggr_table(JOIN_TAB *tab, List<Item> *table_fields,
   table->reginfo.join_tab= tab;
 
   /* if group or order on first table, sort first */
-  if (group_list && simple_group)
+  if ((group_list && simple_group) ||
+      (implicit_grouping && select_lex->have_window_funcs()))
   {
     DBUG_PRINT("info",("Sorting for group"));
     THD_STAGE_INFO(thd, stage_sorting_for_group);
 
     if (ordered_index_usage != ordered_index_group_by &&
         (join_tab + const_tables)->type != JT_CONST && // Don't sort 1 row
+        !implicit_grouping &&
         add_sorting_to_table(join_tab + const_tables, group_list))
       goto err;
 
@@ -3317,13 +3384,21 @@ void JOIN::exec_inner()
 
   if (zero_result_cause)
   {
-    (void) return_zero_rows(this, result, select_lex->leaf_tables,
-                            *columns_list,
-			    send_row_on_empty_set(),
-			    select_options,
-			    zero_result_cause,
-			    having ? having : tmp_having, all_fields);
-    DBUG_VOID_RETURN;
+    if (select_lex->have_window_funcs())
+    {
+      const_tables= table_count;
+      first_select= sub_select_postjoin_aggr;
+    }
+    else
+    {
+      (void) return_zero_rows(this, result, select_lex->leaf_tables,
+                              *columns_list,
+			      send_row_on_empty_set(),
+			      select_options,
+			      zero_result_cause,
+			      having ? having : tmp_having, all_fields);
+      DBUG_VOID_RETURN;
+    }
   }
   
   /*
@@ -3415,7 +3490,6 @@ JOIN::destroy()
 
   if (join_tab)
   {
-    DBUG_ASSERT(table_count+aggr_tables > 0);
     for (JOIN_TAB *tab= first_linear_tab(this, WITH_BUSH_ROOTS,
                                          WITH_CONST_TABLES);
          tab; tab= next_linear_tab(this, tab, WITH_BUSH_ROOTS))
@@ -10376,11 +10450,10 @@ void set_join_cache_denial(JOIN_TAB *join_tab)
     if (join_tab->cache->prev_cache)
       join_tab->cache->prev_cache->next_cache= 0;
     /*
-      No need to do the same for next_cache since cache denial is done
-      backwards starting from the latest cache in the linked list (see
-      revise_cache_usage()).
+      Same for the next_cache
     */
-    DBUG_ASSERT(!join_tab->cache->next_cache);
+    if (join_tab->cache->next_cache)
+      join_tab->cache->next_cache->prev_cache= 0;
 
     join_tab->cache->free();
     join_tab->cache= 0;
@@ -10720,6 +10793,7 @@ uint check_join_cache_usage(JOIN_TAB *tab,
   uint bufsz= 4096;
   JOIN_CACHE *prev_cache=0;
   JOIN *join= tab->join;
+  MEM_ROOT *root= join->thd->mem_root;
   uint cache_level= tab->used_join_cache_level;
   bool force_unlinked_cache=
          !(join->allowed_join_cache_types & JOIN_CACHE_INCREMENTAL_BIT);
@@ -10839,8 +10913,7 @@ uint check_join_cache_usage(JOIN_TAB *tab,
   case JT_ALL:
     if (cache_level == 1)
       prev_cache= 0;
-    if ((tab->cache= new JOIN_CACHE_BNL(join, tab, prev_cache)) &&
-         !tab->cache->init(options & SELECT_DESCRIBE))
+    if ((tab->cache= new (root) JOIN_CACHE_BNL(join, tab, prev_cache)))
     {
       tab->icp_other_tables_ok= FALSE;
       return (2 - MY_TEST(!prev_cache));
@@ -10874,8 +10947,7 @@ uint check_join_cache_usage(JOIN_TAB *tab,
         goto no_join_cache;
       if (cache_level == 3)
         prev_cache= 0;
-      if ((tab->cache= new JOIN_CACHE_BNLH(join, tab, prev_cache)) &&
-          !tab->cache->init(options & SELECT_DESCRIBE))
+      if ((tab->cache= new (root) JOIN_CACHE_BNLH(join, tab, prev_cache)))
       {
         tab->icp_other_tables_ok= FALSE;        
         return (4 - MY_TEST(!prev_cache));
@@ -10895,8 +10967,7 @@ uint check_join_cache_usage(JOIN_TAB *tab,
       {
         if (cache_level == 5)
           prev_cache= 0;
-        if ((tab->cache= new JOIN_CACHE_BKA(join, tab, flags, prev_cache)) &&
-            !tab->cache->init(options & SELECT_DESCRIBE))
+        if ((tab->cache= new (root) JOIN_CACHE_BKA(join, tab, flags, prev_cache)))
           return (6 - MY_TEST(!prev_cache));
         goto no_join_cache;
       }
@@ -10904,10 +10975,9 @@ uint check_join_cache_usage(JOIN_TAB *tab,
       {
         if (cache_level == 7)
           prev_cache= 0;
-        if ((tab->cache= new JOIN_CACHE_BKAH(join, tab, flags, prev_cache)) &&
-            !tab->cache->init(options & SELECT_DESCRIBE))
+        if ((tab->cache= new (root) JOIN_CACHE_BKAH(join, tab, flags, prev_cache)))
 	{
-         tab->idx_cond_fact_out= FALSE;
+          tab->idx_cond_fact_out= FALSE;
           return (8 - MY_TEST(!prev_cache));
         }
         goto no_join_cache;
@@ -11224,20 +11294,18 @@ make_join_readinfo(JOIN *join, ulonglong options, uint no_jbuf_after)
     case JT_SYSTEM:				// Only happens with left join 
     case JT_CONST:				// Only happens with left join
       /* Only happens with outer joins */
-      tab->read_first_record= tab->type == JT_SYSTEM ?
-                                join_read_system :join_read_const;
-      if (table->covering_keys.is_set(tab->ref.key) &&
-          !table->no_keyread)
-        table->set_keyread(true);
+      tab->read_first_record= tab->type == JT_SYSTEM ? join_read_system
+                                                     : join_read_const;
+      if (table->covering_keys.is_set(tab->ref.key) && !table->no_keyread)
+        table->file->ha_start_keyread(tab->ref.key);
       else if ((!jcl || jcl > 4) && !tab->ref.is_access_triggered())
         push_index_cond(tab, tab->ref.key);
       break;
     case JT_EQ_REF:
       tab->read_record.unlock_row= join_read_key_unlock_row;
       /* fall through */
-      if (table->covering_keys.is_set(tab->ref.key) &&
-	  !table->no_keyread)
-        table->set_keyread(true);
+      if (table->covering_keys.is_set(tab->ref.key) && !table->no_keyread)
+        table->file->ha_start_keyread(tab->ref.key);
       else if ((!jcl || jcl > 4) && !tab->ref.is_access_triggered())
         push_index_cond(tab, tab->ref.key);
       break;
@@ -11250,9 +11318,8 @@ make_join_readinfo(JOIN *join, ulonglong options, uint no_jbuf_after)
       }
       delete tab->quick;
       tab->quick=0;
-      if (table->covering_keys.is_set(tab->ref.key) &&
-	  !table->no_keyread)
-        table->set_keyread(true);
+      if (table->covering_keys.is_set(tab->ref.key) && !table->no_keyread)
+        table->file->ha_start_keyread(tab->ref.key);
       else if ((!jcl || jcl > 4) && !tab->ref.is_access_triggered())
         push_index_cond(tab, tab->ref.key);
       break;
@@ -11315,7 +11382,7 @@ make_join_readinfo(JOIN *join, ulonglong options, uint no_jbuf_after)
 	  if (tab->select && tab->select->quick &&
               tab->select->quick->index != MAX_KEY && //not index_merge
 	      table->covering_keys.is_set(tab->select->quick->index))
-            table->set_keyread(true);
+            table->file->ha_start_keyread(tab->select->quick->index);
 	  else if (!table->covering_keys.is_clear_all() &&
 		   !(tab->select && tab->select->quick))
 	  {					// Only read index tree
@@ -11344,7 +11411,8 @@ make_join_readinfo(JOIN *join, ulonglong options, uint no_jbuf_after)
 	  }
 	}
         if (tab->select && tab->select->quick &&
-            tab->select->quick->index != MAX_KEY && ! tab->table->key_read)
+            tab->select->quick->index != MAX_KEY &&
+            !tab->table->file->keyread_enabled())
           push_index_cond(tab, tab->select->quick->index);
       }
       break;
@@ -11497,12 +11565,12 @@ void JOIN_TAB::cleanup()
   if (table &&
       (table->s->tmp_table != INTERNAL_TMP_TABLE || table->is_created()))
   {
-    table->set_keyread(FALSE);
+    table->file->ha_end_keyread();
     table->file->ha_index_or_rnd_end();
   }
   if (table)
   {
-    table->set_keyread(false);
+    table->file->ha_end_keyread();
     table->file->ha_index_or_rnd_end();
     preread_init_done= FALSE;
     if (table->pos_in_table_list && 
@@ -13010,9 +13078,12 @@ COND *Item_cond_and::build_equal_items(THD *thd,
   COND_EQUAL cond_equal;
   cond_equal.upper_levels= inherited;
 
+  if (check_stack_overrun(thd, STACK_MIN_SIZE, NULL))
+    return this;                          // Fatal error flag is set!
+
   List<Item> eq_list;
   List<Item> *cond_args= argument_list();
-  
+
   List_iterator<Item> li(*cond_args);
   Item *item;
 
@@ -13022,7 +13093,7 @@ COND *Item_cond_and::build_equal_items(THD *thd,
      that are subject to substitution by multiple equality items and
      removing each such predicate from the conjunction after having 
      found/created a multiple equality whose inference the predicate is.
- */      
+ */
   while ((item= li++))
   {
     /*
@@ -16056,6 +16127,9 @@ setup_tmp_table_column_bitmaps(TABLE *table, uchar *bitmaps, uint field_count)
   bitmaps+= bitmap_size;
   my_bitmap_init(&table->cond_set,
                  (my_bitmap_map*) bitmaps, field_count, FALSE);
+  bitmaps+= bitmap_size;
+  my_bitmap_init(&table->has_value_set,
+                 (my_bitmap_map*) bitmaps, field_count, FALSE);
   /* write_set and all_set are copies of read_set */
   table->def_write_set= table->def_read_set;
   table->s->all_set= table->def_read_set;
@@ -16231,7 +16305,7 @@ create_tmp_table(THD *thd, TMP_TABLE_PARAM *param, List<Item> &fields,
                         &tmpname, (uint) strlen(path)+1,
                         &group_buff, (group && ! using_unique_constraint ?
                                       param->group_length : 0),
-                        &bitmaps, bitmap_buffer_size(field_count)*5,
+                        &bitmaps, bitmap_buffer_size(field_count)*6,
                         NullS))
   {
     if (temp_pool_slot != MY_BIT_NONE)
@@ -16961,7 +17035,7 @@ bool Virtual_tmp_table::init(uint field_count)
                         &s, sizeof(*s),
                         &field, (field_count + 1) * sizeof(Field*),
                         &blob_field, (field_count + 1) * sizeof(uint),
-                        &bitmaps, bitmap_buffer_size(field_count) * 5,
+                        &bitmaps, bitmap_buffer_size(field_count) * 6,
                         NullS))
     return true;
   bzero(s, sizeof(*s));
@@ -17766,7 +17840,7 @@ do_select(JOIN *join, Procedure *procedure)
   }
   
   join->procedure= procedure;
-  join->send_records=0;
+  join->duplicate_rows= join->send_records=0;
   if (join->only_const_tables() && !join->need_tmp)
   {
     Next_select_func end_select= setup_end_select_func(join, NULL);
@@ -17829,7 +17903,7 @@ do_select(JOIN *join, Procedure *procedure)
       error= join->first_select(join,join_tab,1);
   }
 
-  join->thd->limit_found_rows= join->send_records;
+  join->thd->limit_found_rows= join->send_records - join->duplicate_rows;
 
   if (error == NESTED_LOOP_NO_MORE_ROWS || join->thd->killed == ABORT_QUERY)
     error= NESTED_LOOP_OK;
@@ -18727,15 +18801,15 @@ join_read_const_table(THD *thd, JOIN_TAB *tab, POSITION *pos)
   }
   else
   {
-    if (!table->key_read && table->covering_keys.is_set(tab->ref.key) &&
-	!table->no_keyread &&
+    if (/*!table->file->key_read && */
+        table->covering_keys.is_set(tab->ref.key) && !table->no_keyread &&
         (int) table->reginfo.lock_type <= (int) TL_READ_HIGH_PRIORITY)
     {
-      table->set_keyread(true);
+      table->file->ha_start_keyread(tab->ref.key);
       tab->index= tab->ref.key;
     }
     error=join_read_const(tab);
-    table->set_keyread(false);
+    table->file->ha_end_keyread();
     if (error)
     {
       tab->info= ET_UNIQUE_ROW_NOT_FOUND;
@@ -19250,9 +19324,9 @@ join_read_first(JOIN_TAB *tab)
   TABLE *table=tab->table;
   DBUG_ENTER("join_read_first");
 
-  if (table->covering_keys.is_set(tab->index) && !table->no_keyread &&
-      !table->key_read)
-    table->set_keyread(true);
+  DBUG_ASSERT(table->no_keyread ||
+              !table->covering_keys.is_set(tab->index) ||
+              table->file->keyread == tab->index);
   tab->table->status=0;
   tab->read_record.read_record=join_read_next;
   tab->read_record.table=table;
@@ -19290,9 +19364,9 @@ join_read_last(JOIN_TAB *tab)
   int error= 0;
   DBUG_ENTER("join_read_first");
 
-  if (table->covering_keys.is_set(tab->index) && !table->no_keyread &&
-      !table->key_read)
-    table->set_keyread(true);
+  DBUG_ASSERT(table->no_keyread ||
+              !table->covering_keys.is_set(tab->index) ||
+              table->file->keyread == tab->index);
   tab->table->status=0;
   tab->read_record.read_record=join_read_prev;
   tab->read_record.table=table;
@@ -19446,7 +19520,12 @@ end_send(JOIN *join, JOIN_TAB *join_tab __attribute__((unused)),
       int error;
       /* result < 0 if row was not accepted and should not be counted */
       if ((error= join->result->send_data(*fields)))
-        DBUG_RETURN(error < 0 ? NESTED_LOOP_OK : NESTED_LOOP_ERROR);
+      {
+        if (error > 0)
+          DBUG_RETURN(NESTED_LOOP_ERROR);
+        // error < 0 => duplicate row
+        join->duplicate_rows++;
+      }
     }
 
     ++join->send_records;
@@ -19592,7 +19671,7 @@ end_send_group(JOIN *join, JOIN_TAB *join_tab __attribute__((unused)),
               if (error < 0)
               {
                 /* Duplicate row, don't count */
-                join->send_records--;
+                join->duplicate_rows++;
                 error= 0;
               }
             }
@@ -19901,8 +19980,11 @@ end_write_group(JOIN *join, JOIN_TAB *join_tab __attribute__((unused)),
         }
         if (join->rollup.state != ROLLUP::STATE_NONE)
 	{
-	  if (join->rollup_write_data((uint) (idx+1), table))
+          if (join->rollup_write_data((uint) (idx+1),
+                                      join_tab->tmp_table_param, table))
+          {
 	    DBUG_RETURN(NESTED_LOOP_ERROR);
+          }
 	}
 	if (end_of_records)
 	  goto end;
@@ -21152,13 +21234,10 @@ check_reverse_order:
          If ref_key used index tree reading only ('Using index' in EXPLAIN),
          and best_key doesn't, then revert the decision.
       */
-      if (!table->covering_keys.is_set(best_key))
-        table->set_keyread(false);
+      if (table->covering_keys.is_set(best_key))
+        table->file->ha_start_keyread(best_key);
       else
-      {
-        if (!table->key_read)
-          table->set_keyread(true);
-      }
+        table->file->ha_end_keyread();
 
       if (!quick_created)
       {
@@ -21188,7 +21267,7 @@ check_reverse_order:
           tab->ref.key_parts= 0;
           if (select_limit < table->stat_records())
             tab->limit= select_limit;
-          table->set_keyread(false);
+          table->file->ha_end_keyread();
         }
       }
       else if (tab->type != JT_ALL || tab->select->quick)
@@ -21362,7 +21441,7 @@ create_sort_index(THD *thd, JOIN *join, JOIN_TAB *tab, Filesort *fsort)
         and in index_merge 'Only index' cannot be used
       */
       if (((uint) tab->ref.key != select->quick->index))
-        table->set_keyread(FALSE);
+        table->file->ha_end_keyread();
       }
       else
       {
@@ -21415,7 +21494,7 @@ create_sort_index(THD *thd, JOIN *join, JOIN_TAB *tab, Filesort *fsort)
     select->cleanup();
   }
  
-  table->set_keyread(FALSE); // Restore if we used indexes
+  table->file->ha_end_keyread();
   if (tab->type == JT_FT)
     table->file->ft_end();
   else
@@ -21848,7 +21927,7 @@ cp_buffer_from_ref(THD *thd, TABLE *table, TABLE_REF *ref)
   @param[in,out] all_fields         All select, group and order by fields
   @param[in] is_group_field         True if order is a GROUP field, false if
     ORDER by field
-  @param[in] search_in_all_fields   If true then search in all_fields
+  @param[in] from_window_spec       If true then order is from a window spec
 
   @retval
     FALSE if OK
@@ -21859,7 +21938,7 @@ cp_buffer_from_ref(THD *thd, TABLE *table, TABLE_REF *ref)
 static bool
 find_order_in_list(THD *thd, Ref_ptr_array ref_pointer_array, TABLE_LIST *tables,
                    ORDER *order, List<Item> &fields, List<Item> &all_fields,
-                   bool is_group_field, bool search_in_all_fields)
+                   bool is_group_field, bool from_window_spec)
 {
   Item *order_item= *order->item; /* The item from the GROUP/ORDER caluse. */
   Item::Type order_item_type;
@@ -21872,7 +21951,8 @@ find_order_in_list(THD *thd, Ref_ptr_array ref_pointer_array, TABLE_LIST *tables
     Local SP variables may be int but are expressions, not positions.
     (And they can't be used before fix_fields is called for them).
   */
-  if (order_item->type() == Item::INT_ITEM && order_item->basic_const_item())
+  if (order_item->type() == Item::INT_ITEM && order_item->basic_const_item() &&
+      !from_window_spec)
   {						/* Order by position */
     uint count;
     if (order->counter_used)
@@ -21964,7 +22044,7 @@ find_order_in_list(THD *thd, Ref_ptr_array ref_pointer_array, TABLE_LIST *tables
                           thd->where);
     }
   }
-  else if (search_in_all_fields)
+  else if (from_window_spec)
   {
     Item **found_item= find_item_in_list(order_item, all_fields, &counter,
                                          REPORT_EXCEPT_NOT_FOUND, &resolution,
@@ -22024,14 +22104,14 @@ find_order_in_list(THD *thd, Ref_ptr_array ref_pointer_array, TABLE_LIST *tables
 
 int setup_order(THD *thd, Ref_ptr_array ref_pointer_array, TABLE_LIST *tables,
 		List<Item> &fields, List<Item> &all_fields, ORDER *order,
-                bool search_in_all_fields)
+                bool from_window_spec)
 { 
   enum_parsing_place parsing_place= thd->lex->current_select->parsing_place;
   thd->where="order clause";
   for (; order; order=order->next)
   {
     if (find_order_in_list(thd, ref_pointer_array, tables, order, fields,
-			   all_fields, FALSE, search_in_all_fields))
+			   all_fields, FALSE, from_window_spec))
       return 1;
     if ((*order->item)->with_window_func && parsing_place != IN_ORDER_BY)
     {
@@ -22058,7 +22138,7 @@ int setup_order(THD *thd, Ref_ptr_array ref_pointer_array, TABLE_LIST *tables,
   @param order		       The fields we should do GROUP/PARTITION BY on 
   @param hidden_group_fields   Pointer to flag that is set to 1 if we added
                                any fields to all_fields.
-  @param search_in_all_fields  If true then search in all_fields
+  @param from_window_spec      If true then list is from a window spec
 
   @todo
     change ER_WRONG_FIELD_WITH_GROUP to more detailed
@@ -22073,7 +22153,7 @@ int setup_order(THD *thd, Ref_ptr_array ref_pointer_array, TABLE_LIST *tables,
 int
 setup_group(THD *thd, Ref_ptr_array ref_pointer_array, TABLE_LIST *tables,
 	    List<Item> &fields, List<Item> &all_fields, ORDER *order,
-	    bool *hidden_group_fields, bool search_in_all_fields)
+	    bool *hidden_group_fields, bool from_window_spec)
 {
   enum_parsing_place parsing_place= thd->lex->current_select->parsing_place;
   *hidden_group_fields=0;
@@ -22088,7 +22168,7 @@ setup_group(THD *thd, Ref_ptr_array ref_pointer_array, TABLE_LIST *tables,
   for (ord= order; ord; ord= ord->next)
   {
     if (find_order_in_list(thd, ref_pointer_array, tables, ord, fields,
-			   all_fields, TRUE, search_in_all_fields))
+			   all_fields, TRUE, from_window_spec))
       return 1;
     (*ord->item)->marker= UNDEF_POS;		/* Mark found */
     if ((*ord->item)->with_sum_func && parsing_place == IN_GROUP_BY)
@@ -23710,7 +23790,7 @@ int JOIN::rollup_send_data(uint idx)
     1   if write_data_failed()
 */
 
-int JOIN::rollup_write_data(uint idx, TABLE *table_arg)
+int JOIN::rollup_write_data(uint idx, TMP_TABLE_PARAM *tmp_table_param_arg, TABLE *table_arg)
 {
   uint i;
   for (i= send_group_parts ; i-- > idx ; )
@@ -23731,8 +23811,8 @@ int JOIN::rollup_write_data(uint idx, TABLE *table_arg)
       if ((write_error= table_arg->file->ha_write_tmp_row(table_arg->record[0])))
       {
 	if (create_internal_tmp_table_from_heap(thd, table_arg, 
-                                                tmp_table_param.start_recinfo,
-                                                &tmp_table_param.recinfo,
+                                                tmp_table_param_arg->start_recinfo,
+                                                &tmp_table_param_arg->recinfo,
                                                 write_error, 0, NULL))
 	  return 1;		     
       }
@@ -24109,7 +24189,7 @@ void JOIN_TAB::save_explain_data(Explain_table_access *eta,
   }
 
   /* Build "Extra" field and save it */
-  key_read=table->key_read;
+  key_read= table->file->keyread_enabled();
   if ((tab_type == JT_NEXT || tab_type == JT_CONST) &&
       table->covering_keys.is_set(index))
     key_read=1;

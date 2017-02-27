@@ -409,7 +409,12 @@ int json_get_path_start(json_engine_t *je, CHARSET_INFO *i_cs,
 int json_get_path_next(json_engine_t *je, json_path_t *p);
 
 
-int json_path_compare(const json_path_t *a, const json_path_t *b);
+int json_path_parts_compare(
+        const json_path_step_t *a, const json_path_step_t *a_end,
+        const json_path_step_t *b, const json_path_step_t *b_end,
+        enum json_value_types vt);
+int json_path_compare(const json_path_t *a, const json_path_t *b,
+                      enum json_value_types vt);
 
 
 #ifdef  __cplusplus

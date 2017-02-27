@@ -157,6 +157,7 @@ slave-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 slave-bin.000001	#	Query	#	#	use `test`; CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL
 )
+slave-bin.000001	#	Annotate_rows	#	#	create table t2 select * from t9
 slave-bin.000001	#	Table_map	#	#	table_id: # (test.t2)
 slave-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 slave-bin.000001	#	Query	#	#	COMMIT
@@ -168,6 +169,7 @@ slave-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 slave-bin.000001	#	Query	#	#	use `test`; CREATE TABLE `t5` (
   `a` int(11) DEFAULT NULL
 )
+slave-bin.000001	#	Annotate_rows	#	#	create table t5 select * from t9
 slave-bin.000001	#	Table_map	#	#	table_id: # (test.t5)
 slave-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 slave-bin.000001	#	Query	#	#	COMMIT
@@ -221,6 +223,7 @@ Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 slave-bin.000001	#	Gtid	#	#	GTID #-#-#
 slave-bin.000001	#	Query	#	#	use `test`; create table t1 (a int)
 slave-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+slave-bin.000001	#	Annotate_rows	#	#	insert into t1 values (0),(1),(2)
 slave-bin.000001	#	Table_map	#	#	table_id: # (test.t1)
 slave-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 slave-bin.000001	#	Query	#	#	COMMIT
@@ -228,6 +231,7 @@ slave-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 slave-bin.000001	#	Query	#	#	use `test`; CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL
 ) ENGINE=MyISAM
+slave-bin.000001	#	Annotate_rows	#	#	create table t2 engine=myisam select * from t1
 slave-bin.000001	#	Table_map	#	#	table_id: # (test.t2)
 slave-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 slave-bin.000001	#	Query	#	#	COMMIT
@@ -235,6 +239,7 @@ slave-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 slave-bin.000001	#	Query	#	#	use `test`; CREATE OR REPLACE TABLE `t2` (
   `a` int(11) DEFAULT NULL
 ) ENGINE=InnoDB
+slave-bin.000001	#	Annotate_rows	#	#	create or replace table t2 engine=innodb select * from t1
 slave-bin.000001	#	Table_map	#	#	table_id: # (test.t2)
 slave-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 slave-bin.000001	#	Xid	#	#	COMMIT /* XID */

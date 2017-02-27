@@ -22,3 +22,5 @@ binlog_edge_stmt: needs slave_relay_log_info
 binlog_ok_mix: needs slave_relay_log_info
 binlog_ok_row: needs slave_relay_log_info
 binlog_ok_stmt: needs slave_relay_log_info
+
+server_init : Nirbhay TODO: Fix the test

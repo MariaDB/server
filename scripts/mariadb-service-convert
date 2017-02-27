@@ -16,7 +16,7 @@
 #
 # PURPOSE:
 #
-# Used to generate a mariadb.service file based on the curent mysql/maridb settings
+# Used to generate a mariadb.service file based on the current mysql/mariadb settings
 #
 # This is to assist distro maintainers in migrating to systemd service definations from
 # a user mysqld_safe settings in the my.cnf files.

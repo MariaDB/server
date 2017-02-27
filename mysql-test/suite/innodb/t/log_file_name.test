@@ -31,7 +31,6 @@ COMMIT;
 
 let SEARCH_FILE= $MYSQLTEST_VARDIR/log/mysqld.1.err;
 let SEARCH_RANGE= -50000;
-let SEARCH_ABORT= NOT FOUND;
 let $check_no_innodb=SELECT * FROM INFORMATION_SCHEMA.ENGINES
 WHERE engine = 'innodb'
 AND support IN ('YES', 'DEFAULT', 'ENABLED');
@@ -94,31 +93,37 @@ let SEARCH_PATTERN= InnoDB: Set innodb_force_recovery=1 to ignore this and to pe
 
 --source include/start_mysqld.inc
 eval $check_no_innodb;
+--source include/shutdown_mysqld.inc
 
 let SEARCH_PATTERN= InnoDB: Tablespace \d+ was not found at .*t[12].ibd.
 .*InnoDB: Set innodb_force_recovery=1 to ignore this and to permanently lose all changes to the tablespace;
 --source include/search_pattern_in_file.inc
 
---source include/shutdown_mysqld.inc
-
 --echo # Fault 5: Wrong type of data file
 
-# TODO: Test the following as well once
-# Bug#18131883 IMPROVE INNODB ERROR MESSAGES REGARDING FILES
-# has been fixed:
-#  A file containing 16384 zero bytes.
-#  --mkdir $MYSQLD_DATADIR/test/t2.ibd
-
-# Create a short file.
---exec echo "" > $MYSQLD_DATADIR/test/t2.ibd
+--mkdir $MYSQLD_DATADIR/test/t2.ibd
 
 --source include/start_mysqld.inc
 eval $check_no_innodb;
+--source include/shutdown_mysqld.inc
+# On Windows, this error message is not output when t2.ibd is a directory!
+#let SEARCH_PATTERN= \[ERROR\] InnoDB: Cannot read first page of .*t2.ibd;
+#--source include/search_pattern_in_file.inc
 
+--rmdir $MYSQLD_DATADIR/test/t2.ibd
+
+# Create a short file.
+--write_file $MYSQLD_DATADIR/test/t2.ibd
+EOF
+
+--source include/start_mysqld.inc
+eval $check_no_innodb;
+--source include/shutdown_mysqld.inc
+
+let SEARCH_PATTERN= \[ERROR\] InnoDB: Cannot read first page of .*t2.ibd;
+--source include/search_pattern_in_file.inc
 let SEARCH_PATTERN= \[ERROR\] InnoDB: Datafile .*t2.*\. Cannot determine the space ID from the first 64 pages;
 --source include/search_pattern_in_file.inc
-
---source include/shutdown_mysqld.inc
 
 # Restore t2.ibd
 --remove_file $MYSQLD_DATADIR/test/t2.ibd
@@ -141,11 +146,12 @@ CREATE TABLE t0(a INT PRIMARY KEY) ENGINE=InnoDB;
 DROP TABLE t0;
 
 --disable_query_log
-# The following are for the orphan file t0.ibd:
+# The following are for the orphan file t0.ibd or for the directory t2.ibd:
 call mtr.add_suppression("InnoDB: Operating system error number [0-9]* in a file operation");
-call mtr.add_suppression("InnoDB: Error number [0-9]* means 'File exists'");
+call mtr.add_suppression("InnoDB: Error number [0-9]* means '(File exists|Is a directory)'");
 call mtr.add_suppression("InnoDB: Cannot create file '.*t0.ibd'");
 call mtr.add_suppression("InnoDB: The file '.*t0\.ibd' already exists");
+call mtr.add_suppression("InnoDB: Cannot open datafile for read-write: '.*t2\.ibd'");
 # The following are for aborted startup without --innodb-force-recovery:
 call mtr.add_suppression("InnoDB: Tablespace .* was not found at .*test");
 call mtr.add_suppression("InnoDB: Set innodb_force_recovery=1 to ignore this and to permanently lose all changes to the tablespace");
@@ -154,7 +160,7 @@ call mtr.add_suppression("InnoDB: Cannot read first page in datafile: .*test.*ib
 call mtr.add_suppression("InnoDB: Datafile '.*test.*ibd' is corrupted");
 call mtr.add_suppression("InnoDB:  Cannot replay file rename. Remove either file and try again");
 call mtr.add_suppression("InnoDB: Cannot rename.*because the target file exists");
-call mtr.add_suppression("InnoDB: Found corrupted log");
+call mtr.add_suppression("InnoDB: Log scan aborted at LSN");
 # The following are for the --innodb-force-recovery=1 with broken u* tables:
 call mtr.add_suppression("InnoDB: Header page consists of zero bytes in datafile: .*u1.ibd");
 call mtr.add_suppression("InnoDB: The error means the system cannot find the path specified");
@@ -189,7 +195,7 @@ INSERT INTO u6 VALUES(2);
 --remove_file $MYSQLD_DATADIR/test/u3.ibd
 
 # InnoDB: Header page consists of zero bytes
-perl;
+--perl
 die unless open(FILE, ">$ENV{MYSQLD_DATADIR}/test/u1.ibd");
 print FILE "\0" x 16384;
 close(FILE);
@@ -218,7 +224,7 @@ let SEARCH_PATTERN= \[ERROR\] InnoDB: Datafile .*u1.*\. Cannot determine the spa
 # in innodb-force-recovery mode once
 # Bug#18131883 IMPROVE INNODB ERROR MESSAGES REGARDING FILES
 # has been fixed:
-let SEARCH_PATTERN= \[ERROR\] InnoDB: Cannot read first page of .*u2.ibd.*;
+let SEARCH_PATTERN= \[ERROR\] InnoDB: Cannot read first page of .*u2.ibd;
 --source include/search_pattern_in_file.inc
 
 --source include/shutdown_mysqld.inc

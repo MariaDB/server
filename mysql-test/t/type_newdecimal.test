@@ -50,13 +50,13 @@ drop table t1;
 #
 
 create table t1 (a decimal(4,2));
-insert into t1 value (10000), (1.1e10), ("11111"), (100000.1);
-insert into t1 value (-10000), (-1.1e10), ("-11111"), (-100000.1);
+insert ignore into t1 value (10000), (1.1e10), ("11111"), (100000.1);
+insert ignore into t1 value (-10000), (-1.1e10), ("-11111"), (-100000.1);
 select a from t1;
 drop table t1;
 create table t1 (a decimal(4,2) unsigned);
-insert into t1 value (10000), (1.1e10), ("11111"), (100000.1);
-insert into t1 value (-10000), (-1.1e10), ("-11111"), (-100000.1);
+insert ignore into t1 value (10000), (1.1e10), ("11111"), (100000.1);
+insert ignore into t1 value (-10000), (-1.1e10), ("-11111"), (-100000.1);
 select a from t1;
 drop table t1;
 
@@ -65,21 +65,21 @@ drop table t1;
 # saving in field with overflow from decimal
 #
 create table t1 (a bigint);
-insert into t1 values (18446744073709551615.0);
-insert into t1 values (9223372036854775808.0);
-insert into t1 values (-18446744073709551615.0);
+insert ignore into t1 values (18446744073709551615.0);
+insert ignore into t1 values (9223372036854775808.0);
+insert ignore into t1 values (-18446744073709551615.0);
 select * from t1;
 drop table t1;
 create table t1 (a bigint unsigned);
 insert into t1 values (18446744073709551615.0);
 insert into t1 values (9223372036854775808.0);
-insert into t1 values (9999999999999999999999999.000);
-insert into t1 values (-1.0);
+insert ignore into t1 values (9999999999999999999999999.000);
+insert ignore into t1 values (-1.0);
 select * from t1;
 drop table t1;
 create table t1 (a tinyint);
-insert into t1 values (18446744073709551615.0);
-insert into t1 values (9223372036854775808.0);
+insert ignore into t1 values (18446744073709551615.0);
+insert ignore into t1 values (9223372036854775808.0);
 select * from t1;
 drop table t1;
 

@@ -1,20 +1,20 @@
 select @@global.replicate_annotate_row_events;
 @@global.replicate_annotate_row_events
-0
+1
 select @@session.replicate_annotate_row_events;
 ERROR HY000: Variable 'replicate_annotate_row_events' is a GLOBAL variable
 show global variables like 'replicate_annotate_row_events';
 Variable_name	Value
-replicate_annotate_row_events	OFF
+replicate_annotate_row_events	ON
 show session variables like 'replicate_annotate_row_events';
 Variable_name	Value
-replicate_annotate_row_events	OFF
+replicate_annotate_row_events	ON
 select * from information_schema.global_variables where variable_name='replicate_annotate_row_events';
 VARIABLE_NAME	VARIABLE_VALUE
-REPLICATE_ANNOTATE_ROW_EVENTS	OFF
+REPLICATE_ANNOTATE_ROW_EVENTS	ON
 select * from information_schema.session_variables where variable_name='replicate_annotate_row_events';
 VARIABLE_NAME	VARIABLE_VALUE
-REPLICATE_ANNOTATE_ROW_EVENTS	OFF
+REPLICATE_ANNOTATE_ROW_EVENTS	ON
 set global replicate_annotate_row_events=1;
 ERROR HY000: Variable 'replicate_annotate_row_events' is a read only variable
 set session replicate_annotate_row_events=1;

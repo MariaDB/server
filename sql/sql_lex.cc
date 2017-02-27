@@ -2375,9 +2375,12 @@ void st_select_lex_unit::exclude_level()
     if (next)
       next->prev= prev;
   }
+  // Mark it excluded
+  prev= NULL;
 }
 
 
+#if 0
 /*
   Exclude subtree of current unit from tree of SELECTs
 
@@ -2403,6 +2406,7 @@ void st_select_lex_unit::exclude_tree()
   if (next)
     next->prev= prev;
 }
+#endif
 
 
 /*
@@ -4587,6 +4591,12 @@ bool st_select_lex::is_merged_child_of(st_select_lex *ancestor)
     if (subs && subs->type() == Item::SUBSELECT_ITEM && 
         ((Item_subselect*)subs)->substype() == Item_subselect::IN_SUBS &&
         ((Item_in_subselect*)subs)->test_strategy(SUBS_SEMI_JOIN))
+    {
+      continue;
+    }
+
+    if (sl->master_unit()->derived &&
+      sl->master_unit()->derived->is_merged_derived())
     {
       continue;
     }

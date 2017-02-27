@@ -562,7 +562,7 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
     explain->tracker.on_record_read();
     thd->inc_examined_row_count(1);
     if (table->vfield)
-      (void) table->update_virtual_fields(VCOL_UPDATE_FOR_DELETE);
+      (void) table->update_virtual_fields(table->file, VCOL_UPDATE_FOR_DELETE);
     if (!select || select->skip_record(thd) > 0)
     {
       explain->tracker.on_record_after_where();
@@ -1346,4 +1346,3 @@ bool multi_delete::send_eof()
   }
   return 0;
 }
-

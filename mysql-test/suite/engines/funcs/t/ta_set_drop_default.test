@@ -13,7 +13,7 @@ let $ENGINE=`select variable_value from information_schema.global_variables wher
 --replace_result $ENGINE ENGINE " PAGE_CHECKSUM=0" ""
  SHOW CREATE TABLE t1;
 ALTER TABLE t1 ALTER   c2 DROP DEFAULT;
-INSERT INTO t1(c1) VALUES(2);
+INSERT IGNORE INTO t1(c1) VALUES(2);
 SELECT * FROM t1 ORDER BY c1;
 let $ENGINE=`select variable_value from information_schema.global_variables where variable_name='STORAGE_ENGINE'`; 
 --replace_result $ENGINE ENGINE " PAGE_CHECKSUM=0" ""
@@ -30,7 +30,7 @@ let $ENGINE=`select variable_value from information_schema.global_variables wher
 --replace_result $ENGINE ENGINE " PAGE_CHECKSUM=0" ""
  SHOW CREATE TABLE t1;
 ALTER TABLE t1 ALTER   c2 DROP DEFAULT;
-INSERT INTO t1(c1) VALUES(2);
+INSERT IGNORE INTO t1(c1) VALUES(2);
 SELECT * FROM t1 ORDER BY c1;
 let $ENGINE=`select variable_value from information_schema.global_variables where variable_name='STORAGE_ENGINE'`; 
 --replace_result $ENGINE ENGINE " PAGE_CHECKSUM=0" ""
@@ -47,7 +47,7 @@ let $ENGINE=`select variable_value from information_schema.global_variables wher
 --replace_result $ENGINE ENGINE " PAGE_CHECKSUM=0" ""
  SHOW CREATE TABLE t1;
 ALTER TABLE t1 ALTER   c2 DROP DEFAULT;
-INSERT INTO t1(c1) VALUES(2);
+INSERT IGNORE INTO t1(c1) VALUES(2);
 SELECT * FROM t1 ORDER BY c1;
 let $ENGINE=`select variable_value from information_schema.global_variables where variable_name='STORAGE_ENGINE'`; 
 --replace_result $ENGINE ENGINE " PAGE_CHECKSUM=0" ""
@@ -64,7 +64,7 @@ let $ENGINE=`select variable_value from information_schema.global_variables wher
 --replace_result $ENGINE ENGINE " PAGE_CHECKSUM=0" ""
  SHOW CREATE TABLE t1;
 ALTER TABLE t1 ALTER   c2 DROP DEFAULT;
-INSERT INTO t1(c1) VALUES(2);
+INSERT IGNORE INTO t1(c1) VALUES(2);
 SELECT * FROM t1 ORDER BY c1;
 let $ENGINE=`select variable_value from information_schema.global_variables where variable_name='STORAGE_ENGINE'`; 
 --replace_result $ENGINE ENGINE " PAGE_CHECKSUM=0" ""
@@ -81,7 +81,7 @@ let $ENGINE=`select variable_value from information_schema.global_variables wher
 --replace_result $ENGINE ENGINE " PAGE_CHECKSUM=0" ""
  SHOW CREATE TABLE t1;
 ALTER TABLE t1 ALTER   c2 DROP DEFAULT;
-INSERT INTO t1(c1) VALUES(2);
+INSERT IGNORE INTO t1(c1) VALUES(2);
 SELECT * FROM t1 ORDER BY c1;
 let $ENGINE=`select variable_value from information_schema.global_variables where variable_name='STORAGE_ENGINE'`; 
 --replace_result $ENGINE ENGINE " PAGE_CHECKSUM=0" ""
@@ -98,7 +98,7 @@ let $ENGINE=`select variable_value from information_schema.global_variables wher
 --replace_result $ENGINE ENGINE " PAGE_CHECKSUM=0" ""
  SHOW CREATE TABLE t1;
 ALTER TABLE t1 ALTER   c2 DROP DEFAULT;
-INSERT INTO t1(c1) VALUES(2);
+INSERT IGNORE INTO t1(c1) VALUES(2);
 SELECT * FROM t1 ORDER BY c1;
 let $ENGINE=`select variable_value from information_schema.global_variables where variable_name='STORAGE_ENGINE'`; 
 --replace_result $ENGINE ENGINE " PAGE_CHECKSUM=0" ""
@@ -115,7 +115,7 @@ let $ENGINE=`select variable_value from information_schema.global_variables wher
 --replace_result $ENGINE ENGINE " PAGE_CHECKSUM=0" ""
  SHOW CREATE TABLE t1;
 ALTER TABLE t1 ALTER   c2 DROP DEFAULT;
-INSERT INTO t1(c1) VALUES(2);
+INSERT IGNORE INTO t1(c1) VALUES(2);
 SELECT * FROM t1 ORDER BY c1;
 let $ENGINE=`select variable_value from information_schema.global_variables where variable_name='STORAGE_ENGINE'`; 
 --replace_result $ENGINE ENGINE " PAGE_CHECKSUM=0" ""
@@ -132,7 +132,7 @@ let $ENGINE=`select variable_value from information_schema.global_variables wher
 --replace_result $ENGINE ENGINE " PAGE_CHECKSUM=0" ""
  SHOW CREATE TABLE t1;
 ALTER TABLE t1 ALTER   c2 DROP DEFAULT;
-INSERT INTO t1(c1) VALUES(2);
+INSERT IGNORE INTO t1(c1) VALUES(2);
 SELECT * FROM t1 ORDER BY c1;
 let $ENGINE=`select variable_value from information_schema.global_variables where variable_name='STORAGE_ENGINE'`; 
 --replace_result $ENGINE ENGINE " PAGE_CHECKSUM=0" ""
@@ -149,7 +149,7 @@ let $ENGINE=`select variable_value from information_schema.global_variables wher
 --replace_result $ENGINE ENGINE " PAGE_CHECKSUM=0" ""
  SHOW CREATE TABLE t1;
 ALTER TABLE t1 ALTER   c2 DROP DEFAULT;
-INSERT INTO t1(c1) VALUES(2);
+INSERT IGNORE INTO t1(c1) VALUES(2);
 SELECT * FROM t1 ORDER BY c1;
 let $ENGINE=`select variable_value from information_schema.global_variables where variable_name='STORAGE_ENGINE'`; 
 --replace_result $ENGINE ENGINE " PAGE_CHECKSUM=0" ""
@@ -166,7 +166,7 @@ let $ENGINE=`select variable_value from information_schema.global_variables wher
 --replace_result $ENGINE ENGINE " PAGE_CHECKSUM=0" ""
  SHOW CREATE TABLE t1;
 ALTER TABLE t1 ALTER   c2 DROP DEFAULT;
-INSERT INTO t1(c1) VALUES(2);
+INSERT IGNORE INTO t1(c1) VALUES(2);
 SELECT * FROM t1 ORDER BY c1;
 let $ENGINE=`select variable_value from information_schema.global_variables where variable_name='STORAGE_ENGINE'`; 
 --replace_result $ENGINE ENGINE " PAGE_CHECKSUM=0" ""
@@ -183,7 +183,7 @@ let $ENGINE=`select variable_value from information_schema.global_variables wher
 --replace_result $ENGINE ENGINE " PAGE_CHECKSUM=0" ""
  SHOW CREATE TABLE t1;
 ALTER TABLE t1 ALTER   c2 DROP DEFAULT;
-INSERT INTO t1(c1) VALUES(2);
+INSERT IGNORE INTO t1(c1) VALUES(2);
 SELECT * FROM t1 ORDER BY c1;
 let $ENGINE=`select variable_value from information_schema.global_variables where variable_name='STORAGE_ENGINE'`; 
 --replace_result $ENGINE ENGINE " PAGE_CHECKSUM=0" ""
@@ -200,7 +200,7 @@ let $ENGINE=`select variable_value from information_schema.global_variables wher
 --replace_result $ENGINE ENGINE " PAGE_CHECKSUM=0" ""
  SHOW CREATE TABLE t1;
 ALTER TABLE t1 ALTER COLUMN c2 DROP DEFAULT;
-INSERT INTO t1(c1) VALUES(2);
+INSERT IGNORE INTO t1(c1) VALUES(2);
 SELECT * FROM t1 ORDER BY c1;
 let $ENGINE=`select variable_value from information_schema.global_variables where variable_name='STORAGE_ENGINE'`; 
 --replace_result $ENGINE ENGINE " PAGE_CHECKSUM=0" ""
@@ -217,7 +217,7 @@ let $ENGINE=`select variable_value from information_schema.global_variables wher
 --replace_result $ENGINE ENGINE " PAGE_CHECKSUM=0" ""
  SHOW CREATE TABLE t1;
 ALTER TABLE t1 ALTER COLUMN c2 DROP DEFAULT;
-INSERT INTO t1(c1) VALUES(2);
+INSERT IGNORE INTO t1(c1) VALUES(2);
 SELECT * FROM t1 ORDER BY c1;
 let $ENGINE=`select variable_value from information_schema.global_variables where variable_name='STORAGE_ENGINE'`; 
 --replace_result $ENGINE ENGINE " PAGE_CHECKSUM=0" ""
@@ -234,7 +234,7 @@ let $ENGINE=`select variable_value from information_schema.global_variables wher
 --replace_result $ENGINE ENGINE " PAGE_CHECKSUM=0" ""
  SHOW CREATE TABLE t1;
 ALTER TABLE t1 ALTER COLUMN c2 DROP DEFAULT;
-INSERT INTO t1(c1) VALUES(2);
+INSERT IGNORE INTO t1(c1) VALUES(2);
 SELECT * FROM t1 ORDER BY c1;
 let $ENGINE=`select variable_value from information_schema.global_variables where variable_name='STORAGE_ENGINE'`; 
 --replace_result $ENGINE ENGINE " PAGE_CHECKSUM=0" ""
@@ -251,7 +251,7 @@ let $ENGINE=`select variable_value from information_schema.global_variables wher
 --replace_result $ENGINE ENGINE " PAGE_CHECKSUM=0" ""
  SHOW CREATE TABLE t1;
 ALTER TABLE t1 ALTER COLUMN c2 DROP DEFAULT;
-INSERT INTO t1(c1) VALUES(2);
+INSERT IGNORE INTO t1(c1) VALUES(2);
 SELECT * FROM t1 ORDER BY c1;
 let $ENGINE=`select variable_value from information_schema.global_variables where variable_name='STORAGE_ENGINE'`; 
 --replace_result $ENGINE ENGINE " PAGE_CHECKSUM=0" ""
@@ -268,7 +268,7 @@ let $ENGINE=`select variable_value from information_schema.global_variables wher
 --replace_result $ENGINE ENGINE " PAGE_CHECKSUM=0" ""
  SHOW CREATE TABLE t1;
 ALTER TABLE t1 ALTER COLUMN c2 DROP DEFAULT;
-INSERT INTO t1(c1) VALUES(2);
+INSERT IGNORE INTO t1(c1) VALUES(2);
 SELECT * FROM t1 ORDER BY c1;
 let $ENGINE=`select variable_value from information_schema.global_variables where variable_name='STORAGE_ENGINE'`; 
 --replace_result $ENGINE ENGINE " PAGE_CHECKSUM=0" ""
@@ -285,7 +285,7 @@ let $ENGINE=`select variable_value from information_schema.global_variables wher
 --replace_result $ENGINE ENGINE " PAGE_CHECKSUM=0" ""
  SHOW CREATE TABLE t1;
 ALTER TABLE t1 ALTER COLUMN c2 DROP DEFAULT;
-INSERT INTO t1(c1) VALUES(2);
+INSERT IGNORE INTO t1(c1) VALUES(2);
 SELECT * FROM t1 ORDER BY c1;
 let $ENGINE=`select variable_value from information_schema.global_variables where variable_name='STORAGE_ENGINE'`; 
 --replace_result $ENGINE ENGINE " PAGE_CHECKSUM=0" ""
@@ -302,7 +302,7 @@ let $ENGINE=`select variable_value from information_schema.global_variables wher
 --replace_result $ENGINE ENGINE " PAGE_CHECKSUM=0" ""
  SHOW CREATE TABLE t1;
 ALTER TABLE t1 ALTER COLUMN c2 DROP DEFAULT;
-INSERT INTO t1(c1) VALUES(2);
+INSERT IGNORE INTO t1(c1) VALUES(2);
 SELECT * FROM t1 ORDER BY c1;
 let $ENGINE=`select variable_value from information_schema.global_variables where variable_name='STORAGE_ENGINE'`; 
 --replace_result $ENGINE ENGINE " PAGE_CHECKSUM=0" ""
@@ -319,7 +319,7 @@ let $ENGINE=`select variable_value from information_schema.global_variables wher
 --replace_result $ENGINE ENGINE " PAGE_CHECKSUM=0" ""
  SHOW CREATE TABLE t1;
 ALTER TABLE t1 ALTER COLUMN c2 DROP DEFAULT;
-INSERT INTO t1(c1) VALUES(2);
+INSERT IGNORE INTO t1(c1) VALUES(2);
 SELECT * FROM t1 ORDER BY c1;
 let $ENGINE=`select variable_value from information_schema.global_variables where variable_name='STORAGE_ENGINE'`; 
 --replace_result $ENGINE ENGINE " PAGE_CHECKSUM=0" ""
@@ -336,7 +336,7 @@ let $ENGINE=`select variable_value from information_schema.global_variables wher
 --replace_result $ENGINE ENGINE " PAGE_CHECKSUM=0" ""
  SHOW CREATE TABLE t1;
 ALTER TABLE t1 ALTER COLUMN c2 DROP DEFAULT;
-INSERT INTO t1(c1) VALUES(2);
+INSERT IGNORE INTO t1(c1) VALUES(2);
 SELECT * FROM t1 ORDER BY c1;
 let $ENGINE=`select variable_value from information_schema.global_variables where variable_name='STORAGE_ENGINE'`; 
 --replace_result $ENGINE ENGINE " PAGE_CHECKSUM=0" ""
@@ -353,7 +353,7 @@ let $ENGINE=`select variable_value from information_schema.global_variables wher
 --replace_result $ENGINE ENGINE " PAGE_CHECKSUM=0" ""
  SHOW CREATE TABLE t1;
 ALTER TABLE t1 ALTER COLUMN c2 DROP DEFAULT;
-INSERT INTO t1(c1) VALUES(2);
+INSERT IGNORE INTO t1(c1) VALUES(2);
 SELECT * FROM t1 ORDER BY c1;
 let $ENGINE=`select variable_value from information_schema.global_variables where variable_name='STORAGE_ENGINE'`; 
 --replace_result $ENGINE ENGINE " PAGE_CHECKSUM=0" ""
@@ -370,7 +370,7 @@ let $ENGINE=`select variable_value from information_schema.global_variables wher
 --replace_result $ENGINE ENGINE " PAGE_CHECKSUM=0" ""
  SHOW CREATE TABLE t1;
 ALTER TABLE t1 ALTER COLUMN c2 DROP DEFAULT;
-INSERT INTO t1(c1) VALUES(2);
+INSERT IGNORE INTO t1(c1) VALUES(2);
 SELECT * FROM t1 ORDER BY c1;
 let $ENGINE=`select variable_value from information_schema.global_variables where variable_name='STORAGE_ENGINE'`; 
 --replace_result $ENGINE ENGINE " PAGE_CHECKSUM=0" ""

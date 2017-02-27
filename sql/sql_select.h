@@ -1149,6 +1149,10 @@ public:
     (if sql_calc_found_rows is used, LIMIT is ignored)
   */
   ha_rows select_limit;
+  /*
+    Number of duplicate rows found in UNION.
+  */
+  ha_rows duplicate_rows;
   /**
     Used to fetch no more than given amount of rows per one
     fetch operation of server side cursor.
@@ -1420,7 +1424,7 @@ public:
     sort_and_group= 0;
     first_record= 0;
     do_send_rows= 1;
-    send_records= 0;
+    duplicate_rows= send_records= 0;
     found_records= 0;
     fetch_limit= HA_POS_ERROR;
     thd= thd_arg;
@@ -1508,6 +1512,7 @@ public:
   bool flatten_subqueries();
   bool optimize_unflattened_subqueries();
   bool optimize_constant_subqueries();
+  int init_join_caches();
   bool make_sum_func_list(List<Item> &all_fields, List<Item> &send_fields,
 			  bool before_group_by, bool recompute= FALSE);
 
@@ -1554,7 +1559,7 @@ public:
   bool rollup_make_fields(List<Item> &all_fields, List<Item> &fields,
 			  Item_sum ***func);
   int rollup_send_data(uint idx);
-  int rollup_write_data(uint idx, TABLE *table);
+  int rollup_write_data(uint idx, TMP_TABLE_PARAM *tmp_table_param, TABLE *table);
   void join_free();
   /** Cleanup this JOIN, possibly for reuse */
   void cleanup(bool full);
@@ -1943,10 +1948,10 @@ int safe_index_read(JOIN_TAB *tab);
 int get_quick_record(SQL_SELECT *select);
 int setup_order(THD *thd, Ref_ptr_array ref_pointer_array, TABLE_LIST *tables,
 		List<Item> &fields, List <Item> &all_fields, ORDER *order,
-                bool search_in_all_fields= true);
+                bool from_window_spec= false);
 int setup_group(THD *thd,  Ref_ptr_array ref_pointer_array, TABLE_LIST *tables,
 		List<Item> &fields, List<Item> &all_fields, ORDER *order,
-		bool *hidden_group_fields, bool search_in_all_fields= true);
+		bool *hidden_group_fields, bool from_window_spec= false);
 bool fix_inner_refs(THD *thd, List<Item> &all_fields, SELECT_LEX *select,
                     Ref_ptr_array ref_pointer_array);
 int join_read_key2(THD *thd, struct st_join_table *tab, TABLE *table,

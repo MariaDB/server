@@ -174,6 +174,7 @@ select
   hex(cast(_latin1'a'   AS char(2))) as c5;
 select cast(1000 as CHAR(3));
 
+SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 create table t1 select
   cast(_latin1'ab'  AS char)    as c1,
   cast(_latin1'a '  AS char)    as c2,
@@ -194,6 +195,7 @@ select
   cast(_koi8r'Æ  ' AS nchar(2)) as c4,
   cast(_koi8r'Æ'   AS nchar(2)) as c5;
 
+SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 create table t1 select
   cast(_koi8r'ÆÇ'  AS nchar)    as c1,
   cast(_koi8r'Æ '  AS nchar)    as c2,
@@ -421,6 +423,7 @@ DROP TABLE t1;
 --echo # Bug#14096619 UNABLE TO RESTORE DATABASE DUMP
 --echo #
 
+SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 CREATE TABLE t1 AS SELECT CONCAT(CAST(REPEAT('9', 1000) AS SIGNED)),
                           CONCAT(CAST(REPEAT('9', 1000) AS UNSIGNED));
 SHOW CREATE TABLE t1;

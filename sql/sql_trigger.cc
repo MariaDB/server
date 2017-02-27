@@ -2504,4 +2504,3 @@ bool load_table_name_for_trigger(THD *thd,
 
   DBUG_RETURN(FALSE);
 }
-

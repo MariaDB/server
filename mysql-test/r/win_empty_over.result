@@ -138,8 +138,8 @@ create view win_view
 as (select a, max(a + 1) over () from t1 where a = 1);
 select * from win_view;
 a	max(a + 1) over ()
-1	3
-1	3
-1	3
+1	2
+1	2
+1	2
 drop view win_view;
 drop table t1;

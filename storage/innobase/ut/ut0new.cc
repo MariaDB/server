@@ -97,7 +97,6 @@ ut_new_boot()
 #ifdef UNIV_PFS_MEMORY
 	static const char*	auto_event_names[] = {
 		/* Keep this list alphabetically sorted. */
-		"api0api",
 		"btr0btr",
 		"btr0bulk",
 		"btr0cur",

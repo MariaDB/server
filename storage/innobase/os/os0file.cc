@@ -2,7 +2,7 @@
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2009, Percona Inc.
-Copyright (c) 2013, 2017, MariaDB Corporation.
+Copyright (c) 2013, 2017, MariaDB Corporation. All Rights Reserved.
 
 Portions of this file contain modifications contributed and copyrighted
 by Percona Inc.. Those modifications are
@@ -469,8 +469,6 @@ public:
 	must call os_aio_simulated_wake_handler_threads later to ensure the
 	threads are not left sleeping! */
 	static void simulated_put_read_threads_to_sleep();
-
-	
 #endif /* _WIN32 */
 
 	/** Create an instance using new(std::nothrow)
@@ -616,11 +614,13 @@ private:
 	ulint			m_n_segments;
 
 	/** The event which is set to the signaled state when
-	there is space in the aio outside the ibuf segment */
+	there is space in the aio outside the ibuf segment;
+	os_event_set() and os_event_reset() are protected by AIO::m_mutex */
 	os_event_t		m_not_full;
 
 	/** The event which is set to the signaled state when
-	there are no pending i/os in this array */
+	there are no pending i/os in this array;
+	os_event_set() and os_event_reset() are protected by AIO::m_mutex */
 	os_event_t		m_is_empty;
 
 	/** Number of reserved slots in the AIO array outside
@@ -680,7 +680,7 @@ static const int	OS_AIO_IO_SETUP_RETRY_ATTEMPTS = 5;
 #endif /* LINUX_NATIVE_AIO */
 
 /** Array of events used in simulated AIO */
-static os_event_t*	os_aio_segment_wait_events = NULL;
+static os_event_t*	os_aio_segment_wait_events;
 
 /** Number of asynchronous I/O segments.  Set by os_aio_init(). */
 static ulint		os_aio_n_segments = ULINT_UNDEFINED;
@@ -1227,6 +1227,7 @@ os_file_create_tmpfile(
 	const char*	path)
 {
 	FILE*	file	= NULL;
+	WAIT_ALLOW_WRITES();
 	int	fd	= innobase_mysql_tmpfile(path);
 
 	if (fd >= 0) {
@@ -2552,6 +2553,7 @@ os_file_flush_func(
 {
 	int	ret;
 
+	WAIT_ALLOW_WRITES();
 	ret = os_file_fsync_posix(file);
 
 	if (ret == 0) {
@@ -2602,6 +2604,10 @@ os_file_create_simple_func(
 
 	int		create_flag;
 	const char*	mode_str	= NULL;
+
+	if (create_mode != OS_FILE_OPEN && create_mode != OS_FILE_OPEN_RAW) {
+		WAIT_ALLOW_WRITES();
+	}
 
 	ut_a(!(create_mode & OS_FILE_ON_ERROR_SILENT));
 	ut_a(!(create_mode & OS_FILE_ON_ERROR_NO_EXIT));
@@ -2718,7 +2724,10 @@ os_file_create_directory(
 	const char*	pathname,
 	bool		fail_if_exists)
 {
-	int	rcode = mkdir(pathname, 0770);
+	int	rcode;
+
+	WAIT_ALLOW_WRITES();
+	rcode = mkdir(pathname, 0770);
 
 	if (!(rcode == 0 || (errno == EEXIST && !fail_if_exists))) {
 		/* failure */
@@ -3051,6 +3060,10 @@ os_file_create_simple_no_error_handling_func(
 	os_file_t	file;
 	int		create_flag;
 
+	if (create_mode != OS_FILE_OPEN && create_mode != OS_FILE_OPEN_RAW) {
+		WAIT_ALLOW_WRITES();
+	}
+
 	ut_a(!(create_mode & OS_FILE_ON_ERROR_SILENT));
 	ut_a(!(create_mode & OS_FILE_ON_ERROR_NO_EXIT));
 
@@ -3124,7 +3137,10 @@ os_file_delete_if_exists_func(
 		*exist = true;
 	}
 
-	int	ret = unlink(name);
+	int	ret;
+	WAIT_ALLOW_WRITES();
+
+	ret = unlink(name);
 
 	if (ret != 0 && errno == ENOENT) {
 		if (exist != NULL) {
@@ -3146,7 +3162,10 @@ bool
 os_file_delete_func(
 	const char*	name)
 {
-	int	ret = unlink(name);
+	int	ret;
+	WAIT_ALLOW_WRITES();
+
+	ret = unlink(name);
 
 	if (ret != 0) {
 		os_file_handle_error_no_exit(name, "delete", FALSE);
@@ -3182,7 +3201,10 @@ os_file_rename_func(
 	ut_ad(exists);
 #endif /* UNIV_DEBUG */
 
-	int	ret = rename(oldpath, newpath);
+	int	ret;
+	WAIT_ALLOW_WRITES();
+
+	ret = rename(oldpath, newpath);
 
 	if (ret != 0) {
 		os_file_handle_error_no_exit(oldpath, "rename", FALSE);
@@ -3367,17 +3389,8 @@ bool
 os_file_set_eof(
 	FILE*		file)	/*!< in: file to be truncated */
 {
+	WAIT_ALLOW_WRITES();
 	return(!ftruncate(fileno(file), ftell(file)));
-}
-
-/** This function can be called if one wants to post a batch of reads and
-prefers an i/o-handler thread to handle them all at once later. You must
-call os_aio_simulated_wake_handler_threads later to ensure the threads
-are not left sleeping! */
-void
-os_aio_simulated_put_read_threads_to_sleep()
-{
-	/* No op on non Windows */
 }
 
 #else /* !_WIN32 */
@@ -4127,6 +4140,10 @@ os_file_create_func(
 
 	DWORD		create_flag;
 	DWORD		share_mode = FILE_SHARE_READ;
+
+	if (create_mode != OS_FILE_OPEN && create_mode != OS_FILE_OPEN_RAW) {
+		WAIT_ALLOW_WRITES();
+	}
 
 	on_error_no_exit = create_mode & OS_FILE_ON_ERROR_NO_EXIT
 		? true : false;
@@ -4936,6 +4953,8 @@ os_file_write_page(
 	ut_ad(type.is_write());
 	ut_ad(type.validate());
 	ut_ad(n > 0);
+
+	WAIT_ALLOW_WRITES();
 
 	ssize_t	n_bytes = os_file_pwrite(type, file, (byte*)buf, n, offset, &err);
 
@@ -5953,6 +5972,12 @@ AIO::start(
 
 	os_aio_validate();
 
+	os_last_printout = ut_time();
+
+	if (srv_use_native_aio) {
+		return(true);
+	}
+
 	os_aio_segment_wait_events = static_cast<os_event_t*>(
 		ut_zalloc_nokey(
 			n_segments * sizeof *os_aio_segment_wait_events));
@@ -5965,8 +5990,6 @@ AIO::start(
 	for (ulint i = 0; i < n_segments; ++i) {
 		os_aio_segment_wait_events[i] = os_event_create(0);
 	}
-
-	os_last_printout = ut_time();
 
 	return(true);
 }
@@ -6018,12 +6041,14 @@ os_aio_free()
 {
 	AIO::shutdown();
 
-	for (ulint i = 0; i < os_aio_n_segments; i++) {
-		os_event_destroy(os_aio_segment_wait_events[i]);
-	}
+	if (!srv_use_native_aio) {
+		for (ulint i = 0; i < os_aio_n_segments; i++) {
+			os_event_destroy(os_aio_segment_wait_events[i]);
+		}
 
-	ut_free(os_aio_segment_wait_events);
-	os_aio_segment_wait_events = 0;
+		ut_free(os_aio_segment_wait_events);
+		os_aio_segment_wait_events = 0;
+	}
 	os_aio_n_segments = 0;
 }
 
@@ -6037,20 +6062,15 @@ os_aio_wake_all_threads_at_shutdown()
 	AIO::wake_at_shutdown();
 
 #elif defined(LINUX_NATIVE_AIO)
-
 	/* When using native AIO interface the io helper threads
 	wait on io_getevents with a timeout value of 500ms. At
 	each wake up these threads check the server status.
 	No need to do anything to wake them up. */
+#endif /* !WIN_ASYNC_AIO */
 
 	if (srv_use_native_aio) {
 		return;
 	}
-
-#endif /* !WIN_ASYNC_AIO */
-
-	/* Fall through to simulated AIO handler wakeup if we are
-	not using native AIO. */
 
 	/* This loop wakes up all simulated ai/o threads */
 
@@ -7404,7 +7424,8 @@ os_aio_print(FILE*	file)
 			srv_io_thread_function[i]);
 
 #ifndef _WIN32
-		if (os_event_is_set(os_aio_segment_wait_events[i])) {
+		if (!srv_use_native_aio
+		    && os_event_is_set(os_aio_segment_wait_events[i])) {
 			fprintf(file, " ev set");
 		}
 #endif /* _WIN32 */

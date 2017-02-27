@@ -185,12 +185,18 @@ select 5 mod 3, 5 mod -3, -5 mod 3, -5 mod -3;
 select (12%0) <=> null      as '1';
 1
 1
+Warnings:
+Warning	1365	Division by 0
 select (12%0) is null       as '1';
 1
 1
+Warnings:
+Warning	1365	Division by 0
 select 12%0                 as 'NULL';
 NULL
 NULL
+Warnings:
+Warning	1365	Division by 0
 select 12%2                 as '0';
 0
 0
@@ -215,12 +221,18 @@ NULL
 select (12 mod 0) <=> null  as '1';
 1
 1
+Warnings:
+Warning	1365	Division by 0
 select (12 mod 0) is null   as '1';
 1
 1
+Warnings:
+Warning	1365	Division by 0
 select 12 mod 0             as 'NULL';
 NULL
 NULL
+Warnings:
+Warning	1365	Division by 0
 select 12 mod 2             as '0';
 0
 0
@@ -242,9 +254,13 @@ NULL
 select mod(12.0, 0)         as 'NULL';
 NULL
 NULL
+Warnings:
+Warning	1365	Division by 0
 select mod(12, 0.0)         as 'NULL';
 NULL
 NULL
+Warnings:
+Warning	1365	Division by 0
 select mod(12, NULL)        as 'NULL';
 NULL
 NULL

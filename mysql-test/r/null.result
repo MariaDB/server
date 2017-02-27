@@ -2,6 +2,10 @@ drop table if exists t1, t2;
 select null,\N,isnull(null),isnull(1/0),isnull(1/0 = null),ifnull(null,1),ifnull(null,"TRUE"),ifnull("TRUE","ERROR"),1/0 is null,1 is not null;
 NULL	NULL	isnull(null)	isnull(1/0)	isnull(1/0 = null)	ifnull(null,1)	ifnull(null,"TRUE")	ifnull("TRUE","ERROR")	1/0 is null	1 is not null
 NULL	NULL	1	1	1	1	TRUE	TRUE	1	1
+Warnings:
+Warning	1365	Division by 0
+Warning	1365	Division by 0
+Warning	1365	Division by 0
 explain extended select null,\N,isnull(null),isnull(1/0),isnull(1/0 = null),ifnull(null,1),ifnull(null,"TRUE"),ifnull("TRUE","ERROR"),1/0 is null,1 is not null;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
@@ -92,20 +96,20 @@ NULL	this is null
 NULL	this is null
 drop table t1;
 CREATE TABLE t1 (a varchar(16) NOT NULL default '', b smallint(6) NOT NULL default 0, c datetime NOT NULL default '0000-00-00 00:00:00', d smallint(6) NOT NULL default 0);
-INSERT INTO t1 SET a = "", d= "2003-01-14 03:54:55";
+INSERT IGNORE INTO t1 SET a = "", d= "2003-01-14 03:54:55";
 Warnings:
 Warning	1265	Data truncated for column 'd' at row 1
-UPDATE t1 SET d=1/NULL;
+UPDATE IGNORE t1 SET d=1/NULL;
 Warnings:
 Warning	1048	Column 'd' cannot be null
-UPDATE t1 SET d=NULL;
+UPDATE IGNORE t1 SET d=NULL;
 Warnings:
 Warning	1048	Column 'd' cannot be null
 INSERT INTO t1 (a) values (null);
 ERROR 23000: Column 'a' cannot be null
 INSERT INTO t1 (a) values (1/null);
 ERROR 23000: Column 'a' cannot be null
-INSERT INTO t1 (a) values (null),(null);
+INSERT IGNORE INTO t1 (a) values (null),(null);
 Warnings:
 Warning	1048	Column 'a' cannot be null
 Warning	1048	Column 'a' cannot be null
@@ -113,7 +117,7 @@ INSERT INTO t1 (b) values (null);
 ERROR 23000: Column 'b' cannot be null
 INSERT INTO t1 (b) values (1/null);
 ERROR 23000: Column 'b' cannot be null
-INSERT INTO t1 (b) values (null),(null);
+INSERT IGNORE INTO t1 (b) values (null),(null);
 Warnings:
 Warning	1048	Column 'b' cannot be null
 Warning	1048	Column 'b' cannot be null
@@ -121,7 +125,7 @@ INSERT INTO t1 (c) values (null);
 ERROR 23000: Column 'c' cannot be null
 INSERT INTO t1 (c) values (1/null);
 ERROR 23000: Column 'c' cannot be null
-INSERT INTO t1 (c) values (null),(null);
+INSERT IGNORE INTO t1 (c) values (null),(null);
 Warnings:
 Warning	1048	Column 'c' cannot be null
 Warning	1048	Column 'c' cannot be null
@@ -129,7 +133,7 @@ INSERT INTO t1 (d) values (null);
 ERROR 23000: Column 'd' cannot be null
 INSERT INTO t1 (d) values (1/null);
 ERROR 23000: Column 'd' cannot be null
-INSERT INTO t1 (d) values (null),(null);
+INSERT IGNORE INTO t1 (d) values (null),(null);
 Warnings:
 Warning	1048	Column 'd' cannot be null
 Warning	1048	Column 'd' cannot be null
@@ -177,6 +181,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 select count(*) from t1 where i=2 or i is null;
 count(*)
 10
+SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 alter table t1 change i i int not null;
 Warnings:
 Warning	1265	Data truncated for column 'i' at row 513
@@ -354,7 +359,7 @@ INSERT INTO t1 VALUES (NOW()),(NOW());
 EXPLAIN
 SELECT * FROM t1 WHERE concat( dt, '2012-12-21 12:12:12' ) IS NULL;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	Using where
 SELECT * FROM t1 WHERE concat( dt, '2012-12-21 12:12:12' ) IS NULL;
 dt
 DROP TABLE t1;
@@ -363,7 +368,7 @@ INSERT INTO t1 VALUES (1),(2);
 EXPLAIN
 SELECT * FROM t1 WHERE concat( dt, '1' ) IS NULL;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	Using where
 SELECT * FROM t1 WHERE concat( dt, '1' ) IS NULL;
 dt
 DROP TABLE t1;
@@ -372,7 +377,7 @@ INSERT INTO t1 VALUES (1),(2);
 EXPLAIN
 SELECT * FROM t1 WHERE NOT (concat( dt, '1' ) IS NOT NULL);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	Using where
 SELECT * FROM t1 WHERE NOT (concat( dt, '1' ) IS NOT NULL);
 dt
 DROP TABLE t1;
@@ -429,6 +434,7 @@ t2	CREATE TABLE `t2` (
 DROP TABLE t1,t2;
 SELECT NULLIF(_latin1'a' COLLATE latin1_general_ci, _latin1'a' COLLATE latin1_bin);
 ERROR HY000: Illegal mix of collations (latin1_general_ci,EXPLICIT) and (latin1_bin,EXPLICIT) for operation 'nullif'
+SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 CREATE TABLE t1 AS SELECT
 NULLIF(1,1),
 NULLIF(1,1.0),
@@ -447,6 +453,7 @@ t1	CREATE TABLE `t1` (
   `NULLIF(1,TIME'00:00:00')` int(1) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t1;
+SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 CREATE TABLE t1 AS SELECT
 NULLIF(1.0,1),
 NULLIF(1.0,1.0),
@@ -465,6 +472,7 @@ t1	CREATE TABLE `t1` (
   `NULLIF(1.0,TIME'00:00:00')` decimal(2,1) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t1;
+SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 CREATE TABLE t1 AS SELECT
 NULLIF(1e0,1),
 NULLIF(1e0,1.0),
@@ -499,6 +507,7 @@ t1	CREATE TABLE `t1` (
   `NULLIF('1',TIME'00:00:00')` varchar(1) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t1;
+SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 CREATE TABLE t1 AS SELECT
 NULLIF(TIMESTAMP'2001-01-01 00:00:00',1),
 NULLIF(TIMESTAMP'2001-01-01 00:00:00',1.0),
@@ -519,6 +528,7 @@ t1	CREATE TABLE `t1` (
   `NULLIF(TIMESTAMP'2001-01-01 00:00:00',TIME'00:00:00')` datetime DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t1;
+SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 CREATE TABLE t1 AS SELECT
 NULLIF(DATE'2001-01-01',1),
 NULLIF(DATE'2001-01-01',1.0),
@@ -1383,6 +1393,7 @@ Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = 2010
 DROP TABLE t1;
 # Two warnings expected
+SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 CREATE TABLE t1 AS SELECT
 NULLIF(TIMESTAMP'2001-01-01 00:00:00',1) AS a,
 CASE WHEN TIMESTAMP'2001-01-01 00:00:00'=1 THEN NULL

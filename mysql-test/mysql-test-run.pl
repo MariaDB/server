@@ -1833,6 +1833,9 @@ sub collect_mysqld_features {
   mtr_add_arg($args, "--lc-messages-dir=%s", $path_language);
   mtr_add_arg($args, "--skip-grant-tables");
   mtr_add_arg($args, "--log-warnings=0");
+  mtr_add_arg($args, "--log-slow-admin-statements=0");
+  mtr_add_arg($args, "--log-queries-not-using-indexes=0");
+  mtr_add_arg($args, "--log-slow-slave-statements=0");
   mtr_add_arg($args, "--verbose");
   mtr_add_arg($args, "--help");
 
@@ -4342,10 +4345,7 @@ sub extract_warning_lines ($$) {
      qr/error .*connecting to master/,
      qr/InnoDB: Error: in ALTER TABLE `test`.`t[12]`/,
      qr/InnoDB: Error: table `test`.`t[12]` .*does not exist in the InnoDB internal/,
-     qr/InnoDB: Warning: Setting innodb_use_sys_malloc/,
      qr/InnoDB: Warning: a long semaphore wait:/,
-     qr/InnoDB: Disabling redo log encryption/,
-     qr/InnoDB: Redo log crypto: Can't initialize to key version -1u/,
      qr/InnoDB: Dumping buffer pool.*/,
      qr/InnoDB: Buffer pool.*/,
      qr/InnoDB: Warning: Writer thread is waiting this semaphore/,
@@ -4382,6 +4382,7 @@ sub extract_warning_lines ($$) {
      qr|Checking table:   '\..mtr.test_suppressions'|,
      qr|Table \./test/bug53592 has a primary key in InnoDB data dictionary, but not in MySQL|,
      qr|Table '\..mtr.test_suppressions' is marked as crashed and should be repaired|,
+     qr|Table 'test_suppressions' is marked as crashed and should be repaired|,
      qr|Can't open shared library|,
      qr|Couldn't load plugin named .*EXAMPLE.*|,
      qr|InnoDB: Error: table 'test/bug39438'|,
@@ -4418,9 +4419,6 @@ sub extract_warning_lines ($$) {
      qr|InnoDB: TABLE to scan your table for corruption|,
      qr/InnoDB: See also */,
      qr/InnoDB: Cannot open .*ib_buffer_pool.* for reading: No such file or directory*/,
-     qr/InnoDB: Upgrading redo log:*/,
-     qr|InnoDB: Starting to delete and rewrite log files.|,
-     qr/InnoDB: New log files created, LSN=*/,
      qr|InnoDB: Creating foreign key constraint system tables.|,
      qr/InnoDB: Table .*mysql.*innodb_table_stats.* not found./,
      qr/InnoDB: User stopword table .* does not exist./

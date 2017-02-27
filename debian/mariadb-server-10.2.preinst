@@ -50,7 +50,7 @@ stop_server() {
 ################################ main() ##########################
 
 this_version=10.2
-max_upgradeable_version=5.6
+max_upgradeable_version=5.7
 
 # Check if a flag file is found that indicates a previous MariaDB or MySQL
 # version was installed. If multiple flags are found, check which one was

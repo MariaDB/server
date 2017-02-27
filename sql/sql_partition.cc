@@ -7703,6 +7703,9 @@ int get_part_iter_for_interval_cols_via_map(partition_info *part_info,
   }
   else if (part_info->part_type == LIST_PARTITION)
   {
+    if (part_info->has_default_partititon() &&
+        part_info->num_parts == 1)
+      DBUG_RETURN(-1); //only DEFAULT partition
     get_col_endpoint= get_partition_id_cols_list_for_endpoint;
     part_iter->get_next= get_next_partition_id_list;
     part_iter->part_info= part_info;

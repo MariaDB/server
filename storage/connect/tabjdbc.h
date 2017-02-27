@@ -58,6 +58,7 @@ protected:
 	PSZ     Tabschema;          /* External table schema                 */
 	PSZ     Username;           /* User connect name                     */
 	PSZ     Password;           /* Password connect info                 */
+//PSZ     Prop;               /* Connection Properties                 */
 	PSZ     Tabcat;             /* External table catalog                */
 	PSZ     Tabtype;            /* External table type                   */
 	PSZ     Colpat;             /* Catalog column pattern                */

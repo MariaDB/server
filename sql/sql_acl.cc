@@ -365,6 +365,10 @@ static bool show_table_and_column_privileges(THD *, const char *, const char *,
 static int show_routine_grants(THD *, const char *, const char *, HASH *,
                                const char *, int, char *, int);
 
+class Grant_tables;
+class User_table;
+class Proxies_priv_table;
+
 class ACL_PROXY_USER :public ACL_ACCESS
 {
   acl_host_and_ip host;
@@ -412,14 +416,7 @@ public:
           with_grant_arg);
   }
 
-  void init(TABLE *table, MEM_ROOT *mem)
-  {
-    init (get_field(mem, table->field[MYSQL_PROXIES_PRIV_HOST]),
-          get_field(mem, table->field[MYSQL_PROXIES_PRIV_USER]),
-          get_field(mem, table->field[MYSQL_PROXIES_PRIV_PROXIED_HOST]),
-          get_field(mem, table->field[MYSQL_PROXIES_PRIV_PROXIED_USER]),
-          table->field[MYSQL_PROXIES_PRIV_WITH_GRANT]->val_int() != 0);
-  }
+  void init(const Proxies_priv_table& proxies_priv_table, MEM_ROOT *mem);
 
   bool get_with_grant() { return with_grant; }
   const char *get_user() { return user; }
@@ -731,7 +728,6 @@ static DYNAMIC_ARRAY acl_wild_hosts;
 static Hash_filo<acl_entry> *acl_cache;
 static uint grant_version=0; /* Version of priv tables. incremented by acl_load */
 static ulong get_access(TABLE *form,uint fieldnr, uint *next_field=0);
-static bool check_is_role(TABLE *form);
 static int acl_compare(ACL_ACCESS *a,ACL_ACCESS *b);
 static ulong get_sort(uint count,...);
 static void init_check_host(void);
@@ -742,12 +738,12 @@ static ACL_USER *find_user_wild(const char *host, const char *user, const char *
 static ACL_ROLE *find_acl_role(const char *user);
 static ROLE_GRANT_PAIR *find_role_grant_pair(const LEX_STRING *u, const LEX_STRING *h, const LEX_STRING *r);
 static ACL_USER_BASE *find_acl_user_base(const char *user, const char *host);
-static bool update_user_table(THD *, TABLE *, const char *, const char *, const
+static bool update_user_table(THD *, const User_table &, const char *, const char *, const
                               char *, uint);
-static bool acl_load(THD *thd, TABLE_LIST *tables);
-static bool grant_load(THD *thd, TABLE_LIST *tables);
+static bool acl_load(THD *thd, const Grant_tables& grant_tables);
 static inline void get_grantor(THD *thd, char* grantor);
 static bool add_role_user_mapping(const char *uname, const char *hname, const char *rname);
+static bool get_YN_as_bool(Field *field);
 
 #define ROLE_CYCLE_FOUND 2
 static int traverse_role_graph_up(ACL_ROLE *, void *,
@@ -784,30 +780,640 @@ static const int Table_procs_priv= 1 << PROCS_PRIV_TABLE;
 static const int Table_proxies_priv= 1 << PROXIES_PRIV_TABLE;
 static const int Table_roles_mapping= 1 << ROLES_MAPPING_TABLE;
 
-static int open_grant_tables(THD *thd, TABLE_LIST *tables,
-                             enum thr_lock_type lock_type, int tables_to_open);
+/**
+  Base class representing a generic grant table from the mysql database.
 
-const LEX_STRING acl_table_names[]=     //  matches enum_acl_tables
+  The potential tables that this class can represent are:
+  user, db, columns_priv, tables_priv, host, procs_priv, proxies_priv,
+  roles_mapping
+
+  Objects belonging to this parent class can only be constructed by the
+  Grants_table class. This ensures the correct initialization of the objects.
+*/
+class Grant_table_base
 {
-  { C_STRING_WITH_LEN("user") },
-  { C_STRING_WITH_LEN("db") },
-  { C_STRING_WITH_LEN("tables_priv") },
-  { C_STRING_WITH_LEN("columns_priv") },
-  { C_STRING_WITH_LEN("host") },
-  { C_STRING_WITH_LEN("procs_priv") },
-  { C_STRING_WITH_LEN("proxies_priv") },
-  { C_STRING_WITH_LEN("roles_mapping") }
+ public:
+  /* Number of fields for this Grant Table. */
+  uint num_fields() const { return tl.table->s->fields; }
+  /* Check if the table exists after an attempt to open it was made.
+     Some tables, such as the host table in MySQL 5.6.7+ are missing. */
+  bool table_exists() const { return tl.table; };
+  /* Initializes the READ_RECORD structure provided as a parameter
+     to read through the whole table, with all columns available. Cleaning up
+     is the caller's job. */
+  bool init_read_record(READ_RECORD* info, THD* thd) const
+  {
+    DBUG_ASSERT(tl.table);
+    bool result= ::init_read_record(info, thd, tl.table, NULL, NULL, 1,
+                                    true, false);
+    if (!result)
+      tl.table->use_all_columns();
+    return result;
+  }
+
+  /* Return the number of privilege columns for this table. */
+  uint num_privileges() const { return num_privilege_cols; }
+  /* Return a privilege column by index. */
+  Field* priv_field(uint privilege_idx) const
+  {
+    DBUG_ASSERT(privilege_idx < num_privileges());
+    return tl.table->field[start_privilege_column + privilege_idx];
+  }
+
+  /* Fetch the privileges from the table as a set of bits. The first column
+     is represented by the first bit in the result, the second column by the
+     second bit, etc. */
+  ulong get_access() const
+  {
+    return get_access(start_privilege_column,
+                      start_privilege_column + num_privileges() - 1);
+  }
+
+  /* Return the underlying TABLE handle. */
+  TABLE* table() const
+  {
+    return tl.table;
+  }
+
+  /** Check if the table was opened, issue an error otherwise. */
+  int no_such_table() const
+  {
+    if (table_exists())
+      return 0;
+
+    my_error(ER_NO_SUCH_TABLE, MYF(0), tl.db, tl.alias);
+    return 1;
+  }
+
+
+ protected:
+  friend class Grant_tables;
+
+  Grant_table_base() : start_privilege_column(0), num_privilege_cols(0)
+  {
+    bzero(&tl, sizeof(tl));
+  };
+
+  /* Initialization sequence common for all grant tables. This should be called
+     after all table-specific initialization is performed. */
+  void init(enum thr_lock_type lock_type, bool is_optional)
+  {
+    tl.open_type= OT_BASE_ONLY;
+    if (lock_type >= TL_WRITE_ALLOW_WRITE)
+      tl.updating= 1;
+    if (is_optional)
+      tl.open_strategy= TABLE_LIST::OPEN_IF_EXISTS;
+  }
+
+  /*
+    Get all access bits from table between start_field and end_field indices.
+
+    IMPLEMENTATION
+    The record should be already read in table->record[0]. All privileges
+    are specified as an ENUM(Y,N).
+
+    SYNOPSIS
+      get_access()
+      start_field_idx   The field index at which the first privilege
+                        specification begins.
+      end_field_idx     The field index at which the last privilege
+                        specification is located.
+
+    RETURN VALUE
+      privilege mask
+  */
+  ulong get_access(uint start_field_idx, uint end_field_idx) const
+  {
+    ulong access_bits= 0, bit= 1;
+    for (uint i = start_field_idx; i <= end_field_idx; i++, bit<<=1)
+    {
+      if (get_YN_as_bool(tl.table->field[i]))
+        access_bits|= bit;
+    }
+    return access_bits;
+  }
+
+  /* Compute how many privilege columns this table has. This method
+     can only be called after the table has been opened.
+
+     IMPLEMENTATION
+     A privilege column is of type enum('Y', 'N'). Privilege columns are
+     expected to be one after another.
+  */
+  void compute_num_privilege_cols()
+  {
+    if (!table_exists()) // Table does not exist or not opened.
+      return;
+
+    num_privilege_cols= 0;
+    for (uint i= 0; i < num_fields(); i++)
+    {
+      Field *field= tl.table->field[i];
+      if (num_privilege_cols > 0 && field->real_type() != MYSQL_TYPE_ENUM)
+        return;
+      if (field->real_type() == MYSQL_TYPE_ENUM &&
+          static_cast<Field_enum*>(field)->typelib->count == 2)
+      {
+        num_privilege_cols++;
+        if (num_privilege_cols == 1)
+          start_privilege_column= i;
+      }
+    }
+  }
+
+  /* The index at which privilege columns start. */
+  uint start_privilege_column;
+  /* The number of privilege columns in the table. */
+  uint num_privilege_cols;
+
+  TABLE_LIST tl;
 };
 
-/** check if the table was opened, issue an error otherwise */
-static int no_such_table(TABLE_LIST *tl)
+class User_table: public Grant_table_base
 {
-  if (tl->table)
-    return 0;
+ public:
+  /* Field getters return NULL if the column is not present in the table.
+     This is consistent only if the table is in a supported version. We do
+     not guard against corrupt tables. (yet) */
+  Field* host() const
+  { return get_field(0); }
+  Field* user() const
+  { return get_field(1); }
+  Field* password() const
+  { return have_password() ? NULL : tl.table->field[2]; }
+  /* Columns after privilege columns. */
+  Field* ssl_type() const
+  { return get_field(start_privilege_column + num_privileges()); }
+  Field* ssl_cipher() const
+  { return get_field(start_privilege_column + num_privileges() + 1); }
+  Field* x509_issuer() const
+  { return get_field(start_privilege_column + num_privileges() + 2); }
+  Field* x509_subject() const
+  { return get_field(start_privilege_column + num_privileges() + 3); }
+  Field* max_questions() const
+  { return get_field(start_privilege_column + num_privileges() + 4); }
+  Field* max_updates() const
+  { return get_field(start_privilege_column + num_privileges() + 5); }
+  Field* max_connections() const
+  { return get_field(start_privilege_column + num_privileges() + 6); }
+  Field* max_user_connections() const
+  { return get_field(start_privilege_column + num_privileges() + 7); }
+  Field* plugin() const
+  { return get_field(start_privilege_column + num_privileges() + 8); }
+  Field* authentication_string() const
+  { return get_field(start_privilege_column + num_privileges() + 9); }
+  Field* password_expired() const
+  { return get_field(start_privilege_column + num_privileges() + 10); }
+  Field* is_role() const
+  { return get_field(start_privilege_column + num_privileges() + 11); }
+  Field* default_role() const
+  { return get_field(start_privilege_column + num_privileges() + 12); }
+  Field* max_statement_time() const
+  { return get_field(start_privilege_column + num_privileges() + 13); }
 
-  my_error(ER_NO_SUCH_TABLE, MYF(0), tl->db, tl->alias);
-  return 1;
+  /*
+    Check if a user entry in the user table is marked as being a role entry
+
+    IMPLEMENTATION
+    Access the coresponding column and check the coresponding ENUM of the form
+    ENUM('N', 'Y')
+
+    SYNOPSIS
+      check_is_role()
+      form      an open table to read the entry from.
+                The record should be already read in table->record[0]
+
+    RETURN VALUE
+      TRUE      if the user is marked as a role
+      FALSE     otherwise
+  */
+  bool check_is_role() const
+  {
+    /* Table version does not support roles */
+    if (!is_role())
+      return false;
+
+    return get_YN_as_bool(is_role());
+  }
+
+
+ private:
+  friend class Grant_tables;
+
+  /* Only Grant_tables can instantiate this class. */
+  User_table() {};
+
+  void init(enum thr_lock_type lock_type)
+  {
+    /* We are relying on init_one_table zeroing out the TABLE_LIST structure. */
+    tl.init_one_table(C_STRING_WITH_LEN("mysql"),
+                      C_STRING_WITH_LEN("user"),
+                      NULL, lock_type);
+    Grant_table_base::init(lock_type, false);
+  }
+
+  /* The user table is a bit different compared to the other Grant tables.
+     Usually, we only add columns to the grant tables when adding functionality.
+     This makes it easy to test which version of the table we are using, by
+     just looking at the number of fields present in the table.
+
+     In MySQL 5.7.6 the Password column was removed. We need to guard for that.
+     The field-fetching methods for the User table return NULL if the field
+     doesn't exist. This simplifies checking of table "version", as we don't
+     have to make use of num_fields() any more.
+  */
+  inline Field* get_field(uint field_num) const
+  {
+    if (field_num >= num_fields())
+      return NULL;
+
+    return tl.table->field[field_num];
+  }
+
+  /* Normally password column is the third column in the table. If privileges
+     start on the third column instead, we are missing the password column.
+     This means we are using a MySQL 5.7.6+ data directory. */
+  bool have_password() const { return start_privilege_column == 2; }
+
+};
+
+class Db_table: public Grant_table_base
+{
+ public:
+  Field* host() const { return tl.table->field[0]; }
+  Field* db() const { return tl.table->field[1]; }
+  Field* user() const { return tl.table->field[2]; }
+
+ private:
+  friend class Grant_tables;
+
+  Db_table() {};
+
+  void init(enum thr_lock_type lock_type)
+  {
+    /* We are relying on init_one_table zeroing out the TABLE_LIST structure. */
+    tl.init_one_table(C_STRING_WITH_LEN("mysql"),
+                      C_STRING_WITH_LEN("db"),
+                      NULL, lock_type);
+    Grant_table_base::init(lock_type, false);
+  }
+};
+
+class Tables_priv_table: public Grant_table_base
+{
+ public:
+  Field* host() const { return tl.table->field[0]; }
+  Field* db() const { return tl.table->field[1]; }
+  Field* user() const { return tl.table->field[2]; }
+  Field* table_name() const { return tl.table->field[3]; }
+  Field* grantor() const { return tl.table->field[4]; }
+  Field* timestamp() const { return tl.table->field[5]; }
+  Field* table_priv() const { return tl.table->field[6]; }
+  Field* column_priv() const { return tl.table->field[7]; }
+
+ private:
+  friend class Grant_tables;
+
+  Tables_priv_table() {};
+
+  void init(enum thr_lock_type lock_type, Grant_table_base *next_table= NULL)
+  {
+    /* We are relying on init_one_table zeroing out the TABLE_LIST structure. */
+    tl.init_one_table(C_STRING_WITH_LEN("mysql"),
+                      C_STRING_WITH_LEN("tables_priv"),
+                      NULL, lock_type);
+    Grant_table_base::init(lock_type, false);
+  }
+};
+
+class Columns_priv_table: public Grant_table_base
+{
+ public:
+  Field* host() const { return tl.table->field[0]; }
+  Field* db() const { return tl.table->field[1]; }
+  Field* user() const { return tl.table->field[2]; }
+  Field* table_name() const { return tl.table->field[3]; }
+  Field* column_name() const { return tl.table->field[4]; }
+  Field* timestamp() const { return tl.table->field[5]; }
+  Field* column_priv() const { return tl.table->field[6]; }
+
+ private:
+  friend class Grant_tables;
+
+  Columns_priv_table() {};
+
+  void init(enum thr_lock_type lock_type)
+  {
+    /* We are relying on init_one_table zeroing out the TABLE_LIST structure. */
+    tl.init_one_table(C_STRING_WITH_LEN("mysql"),
+                      C_STRING_WITH_LEN("columns_priv"),
+                      NULL, lock_type);
+    Grant_table_base::init(lock_type, false);
+  }
+};
+
+class Host_table: public Grant_table_base
+{
+ public:
+  Field* host() const { return tl.table->field[0]; }
+  Field* db() const { return tl.table->field[1]; }
+
+ private:
+  friend class Grant_tables;
+
+  Host_table() {}
+
+  void init(enum thr_lock_type lock_type)
+  {
+    /* We are relying on init_one_table zeroing out the TABLE_LIST structure. */
+    tl.init_one_table(C_STRING_WITH_LEN("mysql"),
+                      C_STRING_WITH_LEN("host"),
+                      NULL, lock_type);
+    Grant_table_base::init(lock_type, true);
+  }
+};
+
+class Procs_priv_table: public Grant_table_base
+{
+ public:
+  Field* host() const { return tl.table->field[0]; }
+  Field* db() const { return tl.table->field[1]; }
+  Field* user() const { return tl.table->field[2]; }
+  Field* routine_name() const { return tl.table->field[3]; }
+  Field* routine_type() const { return tl.table->field[4]; }
+  Field* grantor() const { return tl.table->field[5]; }
+  Field* proc_priv() const { return tl.table->field[6]; }
+  Field* timestamp() const { return tl.table->field[7]; }
+
+ private:
+  friend class Grant_tables;
+
+  Procs_priv_table() {}
+
+  void init(enum thr_lock_type lock_type)
+  {
+    /* We are relying on init_one_table zeroing out the TABLE_LIST structure. */
+    tl.init_one_table(C_STRING_WITH_LEN("mysql"),
+                      C_STRING_WITH_LEN("procs_priv"),
+                      NULL, lock_type);
+    Grant_table_base::init(lock_type, true);
+  }
+};
+
+class Proxies_priv_table: public Grant_table_base
+{
+ public:
+  Field* host() const { return tl.table->field[0]; }
+  Field* user() const { return tl.table->field[1]; }
+  Field* proxied_host() const { return tl.table->field[2]; }
+  Field* proxied_user() const { return tl.table->field[3]; }
+  Field* with_grant() const { return tl.table->field[4]; }
+  Field* grantor() const { return tl.table->field[5]; }
+  Field* timestamp() const { return tl.table->field[6]; }
+
+ private:
+  friend class Grant_tables;
+
+  Proxies_priv_table() {}
+
+  void init(enum thr_lock_type lock_type)
+  {
+    /* We are relying on init_one_table zeroing out the TABLE_LIST structure. */
+    tl.init_one_table(C_STRING_WITH_LEN("mysql"),
+                      C_STRING_WITH_LEN("proxies_priv"),
+                      NULL, lock_type);
+    Grant_table_base::init(lock_type, true);
+  }
+};
+
+class Roles_mapping_table: public Grant_table_base
+{
+ public:
+  Field* host() const { return tl.table->field[0]; }
+  Field* user() const { return tl.table->field[1]; }
+  Field* role() const { return tl.table->field[2]; }
+  Field* admin_option() const { return tl.table->field[3]; }
+
+ private:
+  friend class Grant_tables;
+
+  Roles_mapping_table() {}
+
+  void init(enum thr_lock_type lock_type)
+  {
+    /* We are relying on init_one_table zeroing out the TABLE_LIST structure. */
+    tl.init_one_table(C_STRING_WITH_LEN("mysql"),
+                      C_STRING_WITH_LEN("roles_mapping"),
+                      NULL, lock_type);
+    Grant_table_base::init(lock_type, true);
+  }
+};
+
+/**
+  Class that represents a collection of grant tables.
+*/
+class Grant_tables
+{
+ public:
+  /* When constructing the Grant_tables object, we initialize only
+     the tables which are going to be opened.
+     @param which_tables   Bitmap of which tables to open.
+     @param lock_type      Lock type to use when opening tables.
+  */
+  Grant_tables(int which_tables, enum thr_lock_type lock_type)
+  {
+    DBUG_ENTER("Grant_tables::Grant_tables");
+    DBUG_PRINT("info", ("which_tables: %x, lock_type: %u",
+                        which_tables, lock_type));
+    DBUG_ASSERT(which_tables); /* At least one table must be opened. */
+    Grant_table_base* prev= NULL;
+    /* We start from the last table, Table_roles_mapping, such that
+       the first one in the linked list is Table_user. */
+    if (which_tables & Table_roles_mapping)
+    {
+      m_roles_mapping_table.init(lock_type);
+      prev= &m_roles_mapping_table;
+    }
+    if (which_tables & Table_proxies_priv)
+    {
+      m_proxies_priv_table.init(lock_type);
+      link_tables(&m_proxies_priv_table, prev);
+      prev= &m_proxies_priv_table;
+    }
+    if (which_tables & Table_procs_priv)
+    {
+      m_procs_priv_table.init(lock_type);
+      link_tables(&m_procs_priv_table, prev);
+      prev= &m_procs_priv_table;
+    }
+    if (which_tables & Table_host)
+    {
+      m_host_table.init(lock_type);
+      link_tables(&m_host_table, prev);
+      prev= &m_host_table;
+    }
+    if (which_tables & Table_columns_priv)
+    {
+      m_columns_priv_table.init(lock_type);
+      link_tables(&m_columns_priv_table, prev);
+      prev= &m_columns_priv_table;
+    }
+    if (which_tables & Table_tables_priv)
+    {
+      m_tables_priv_table.init(lock_type);
+      link_tables(&m_tables_priv_table, prev);
+      prev= &m_tables_priv_table;
+    }
+    if (which_tables & Table_db)
+    {
+      m_db_table.init(lock_type);
+      link_tables(&m_db_table, prev);
+      prev= &m_db_table;
+    }
+    if (which_tables & Table_user)
+    {
+      m_user_table.init(lock_type);
+      link_tables(&m_user_table, prev);
+      prev= &m_user_table;
+    }
+
+    first_table_in_list= prev;
+    DBUG_VOID_RETURN;
+  }
+
+  /* Before any operation is possible on grant tables, they must be opened.
+     This opens the tables according to the lock type specified during
+     construction.
+
+     @retval  1 replication filters matched. Abort the operation,
+                but return OK (!)
+     @retval  0 tables were opened successfully
+     @retval -1 error, tables could not be opened
+  */
+  int open_and_lock(THD *thd)
+  {
+    DBUG_ENTER("Grant_tables::open_and_lock");
+    DBUG_ASSERT(first_table_in_list);
+#ifdef HAVE_REPLICATION
+    if (first_table_in_list->tl.lock_type >= TL_WRITE_ALLOW_WRITE &&
+        thd->slave_thread && !thd->spcont)
+    {
+      /*
+        GRANT and REVOKE are applied the slave in/exclusion rules as they are
+        some kind of updates to the mysql.% tables.
+      */
+      Rpl_filter *rpl_filter= thd->system_thread_info.rpl_sql_info->rpl_filter;
+      if (rpl_filter->is_on() &&
+          !rpl_filter->tables_ok(0, &first_table_in_list->tl))
+        DBUG_RETURN(1);
+    }
+#endif
+    if (open_and_lock_tables(thd, &first_table_in_list->tl, FALSE,
+                             MYSQL_LOCK_IGNORE_TIMEOUT))
+      DBUG_RETURN(-1);
+
+    /*
+       We can read privilege tables even when !initialized.
+       This can be acl_load() - server startup or FLUSH PRIVILEGES
+       */
+    if (first_table_in_list->tl.lock_type >= TL_WRITE_ALLOW_WRITE &&
+        !initialized)
+    {
+      my_error(ER_OPTION_PREVENTS_STATEMENT, MYF(0), "--skip-grant-tables");
+      DBUG_RETURN(-1);
+    }
+
+    /* The privilge columns vary based on MariaDB version. Figure out
+       how many we have after we've opened the table. */
+    m_user_table.compute_num_privilege_cols();
+    m_db_table.compute_num_privilege_cols();
+    m_tables_priv_table.compute_num_privilege_cols();
+    m_columns_priv_table.compute_num_privilege_cols();
+    m_host_table.compute_num_privilege_cols();
+    m_procs_priv_table.compute_num_privilege_cols();
+    m_proxies_priv_table.compute_num_privilege_cols();
+    m_roles_mapping_table.compute_num_privilege_cols();
+    DBUG_RETURN(0);
+  }
+
+  inline const User_table& user_table() const
+  {
+    return m_user_table;
+  }
+
+  inline const Db_table& db_table() const
+  {
+    return m_db_table;
+  }
+
+
+  inline const Tables_priv_table& tables_priv_table() const
+  {
+    return m_tables_priv_table;
+  }
+
+  inline const Columns_priv_table& columns_priv_table() const
+  {
+    return m_columns_priv_table;
+  }
+
+  inline const Host_table& host_table() const
+  {
+    return m_host_table;
+  }
+
+  inline const Procs_priv_table& procs_priv_table() const
+  {
+    return m_procs_priv_table;
+  }
+
+  inline const Proxies_priv_table& proxies_priv_table() const
+  {
+    return m_proxies_priv_table;
+  }
+
+  inline const Roles_mapping_table& roles_mapping_table() const
+  {
+    return m_roles_mapping_table;
+  }
+
+ private:
+  User_table m_user_table;
+  Db_table m_db_table;
+  Tables_priv_table m_tables_priv_table;
+  Columns_priv_table m_columns_priv_table;
+  Host_table m_host_table;
+  Procs_priv_table m_procs_priv_table;
+  Proxies_priv_table m_proxies_priv_table;
+  Roles_mapping_table m_roles_mapping_table;
+
+  /* The grant tables are set-up in a linked list. We keep the head of it. */
+  Grant_table_base *first_table_in_list;
+  /**
+    Chain two grant tables' TABLE_LIST members.
+  */
+  static void link_tables(Grant_table_base *from, Grant_table_base *to)
+  {
+    DBUG_ASSERT(from);
+    if (to)
+      from->tl.next_local= from->tl.next_global= &to->tl;
+    else
+      from->tl.next_local= from->tl.next_global= NULL;
+  }
+};
+
+
+void ACL_PROXY_USER::init(const Proxies_priv_table& proxies_priv_table,
+                          MEM_ROOT *mem)
+{
+  init(get_field(mem, proxies_priv_table.host()),
+       get_field(mem, proxies_priv_table.user()),
+       get_field(mem, proxies_priv_table.proxied_host()),
+       get_field(mem, proxies_priv_table.proxied_user()),
+       proxies_priv_table.with_grant()->val_int() != 0);
 }
+
+
 
 /*
  Enumeration of various ACL's and Hashes used in handle_grant_struct()
@@ -892,7 +1498,7 @@ static my_bool do_validate(THD *, plugin_ref plugin, void *arg)
 }
 
 
-static bool validate_password(LEX_USER *user)
+static bool validate_password(LEX_USER *user, THD *thd)
 {
   if (user->pwtext.length || !user->pwhash.length)
   {
@@ -908,7 +1514,8 @@ static bool validate_password(LEX_USER *user)
   }
   else
   {
-    if (strict_password_validation && has_validation_plugins())
+    if (!thd->slave_thread &&
+        strict_password_validation && has_validation_plugins())
     {
       my_error(ER_OPTION_PREVENTS_STATEMENT, MYF(0), "--strict-password-validation");
       return true;
@@ -1193,33 +1800,30 @@ static bool set_user_plugin (ACL_USER *user, int password_len)
     TRUE   Error
 */
 
-static bool acl_load(THD *thd, TABLE_LIST *tables)
+static bool acl_load(THD *thd, const Grant_tables& tables)
 {
-  TABLE *table;
   READ_RECORD read_record_info;
-  bool return_val= TRUE;
   bool check_no_resolve= specialflag & SPECIAL_NO_RESOLVE;
   char tmp_name[SAFE_NAME_LEN+1];
   int password_length;
-  sql_mode_t old_sql_mode= thd->variables.sql_mode;
+  Sql_mode_save old_mode_save(thd);
   DBUG_ENTER("acl_load");
 
   thd->variables.sql_mode&= ~MODE_PAD_CHAR_TO_FULL_LENGTH;
 
   grant_version++; /* Privileges updated */
 
+  const Host_table& host_table= tables.host_table();
   init_sql_alloc(&acl_memroot, ACL_ALLOC_BLOCK_SIZE, 0, MYF(0));
-  if ((table= tables[HOST_TABLE].table)) // "host" table may not exist (e.g. in MySQL 5.6.7+)
+  if (host_table.table_exists()) // "host" table may not exist (e.g. in MySQL 5.6.7+)
   {
-    if (init_read_record(&read_record_info, thd, table, NULL, NULL,
-                         1, 1, FALSE))
-      goto end;
-    table->use_all_columns();
+    if (host_table.init_read_record(&read_record_info, thd))
+      DBUG_RETURN(true);
     while (!(read_record_info.read_record(&read_record_info)))
     {
       ACL_HOST host;
-      update_hostname(&host.host,get_field(&acl_memroot, table->field[0]));
-      host.db=	 get_field(&acl_memroot, table->field[1]);
+      update_hostname(&host.host, get_field(&acl_memroot, host_table.host()));
+      host.db= get_field(&acl_memroot, host_table.db());
       if (lower_case_table_names && host.db)
       {
         /*
@@ -1240,9 +1844,9 @@ static bool acl_load(THD *thd, TABLE_LIST *tables)
                             "possible to remove this privilege using REVOKE.",
                             host.host.hostname, host.db);
       }
-      host.access= get_access(table,2);
+      host.access= host_table.get_access();
       host.access= fix_rights_for_db(host.access);
-      host.sort=	 get_sort(2,host.host.hostname,host.db);
+      host.sort= get_sort(2, host.host.hostname, host.db);
       if (check_no_resolve && hostname_requires_resolving(host.host.hostname))
       {
         sql_print_warning("'host' entry '%s|%s' "
@@ -1252,7 +1856,7 @@ static bool acl_load(THD *thd, TABLE_LIST *tables)
         continue;
       }
 #ifndef TO_BE_REMOVED
-      if (table->s->fields == 8)
+      if (host_table.num_fields() == 8)
       {						// Without grant
         if (host.access & CREATE_ACL)
           host.access|=REFERENCES_ACL | INDEX_ACL | ALTER_ACL | CREATE_TMP_ACL;
@@ -1260,60 +1864,62 @@ static bool acl_load(THD *thd, TABLE_LIST *tables)
 #endif
       (void) push_dynamic(&acl_hosts,(uchar*) &host);
     }
-    my_qsort((uchar*) dynamic_element(&acl_hosts,0,ACL_HOST*),acl_hosts.elements,
-             sizeof(ACL_HOST),(qsort_cmp) acl_compare);
+    my_qsort((uchar*) dynamic_element(&acl_hosts, 0, ACL_HOST*),
+             acl_hosts.elements, sizeof(ACL_HOST),(qsort_cmp) acl_compare);
     end_read_record(&read_record_info);
   }
   freeze_size(&acl_hosts);
 
-  if (init_read_record(&read_record_info, thd, table=tables[USER_TABLE].table,
-                       NULL, NULL, 1, 1, FALSE))
-    goto end;
-  table->use_all_columns();
+  const User_table& user_table= tables.user_table();
+  if (user_table.init_read_record(&read_record_info, thd))
+    DBUG_RETURN(true);
 
-  username_char_length= MY_MIN(table->field[1]->char_length(),
+  username_char_length= MY_MIN(user_table.user()->char_length(),
                                USERNAME_CHAR_LENGTH);
-  password_length= table->field[2]->field_length /
-    table->field[2]->charset()->mbmaxlen;
-  if (password_length < SCRAMBLED_PASSWORD_CHAR_LENGTH_323)
+  if (user_table.password()) // Password column might be missing. (MySQL 5.7.6+)
   {
-    sql_print_error("Fatal error: mysql.user table is damaged or in "
-                    "unsupported 3.20 format.");
-    goto end;
-  }
-
-  DBUG_PRINT("info",("user table fields: %d, password length: %d",
-		     table->s->fields, password_length));
-
-  mysql_mutex_lock(&LOCK_global_system_variables);
-  if (password_length < SCRAMBLED_PASSWORD_CHAR_LENGTH)
-  {
-    if (opt_secure_auth)
+    password_length= user_table.password()->field_length /
+                     user_table.password()->charset()->mbmaxlen;
+    if (password_length < SCRAMBLED_PASSWORD_CHAR_LENGTH_323)
     {
-      mysql_mutex_unlock(&LOCK_global_system_variables);
-      sql_print_error("Fatal error: mysql.user table is in old format, "
-                      "but server started with --secure-auth option.");
-      goto end;
+      sql_print_error("Fatal error: mysql.user table is damaged or in "
+                      "unsupported 3.20 format.");
+      DBUG_RETURN(TRUE);
     }
-    mysql_user_table_is_in_short_password_format= true;
-    if (global_system_variables.old_passwords)
-      mysql_mutex_unlock(&LOCK_global_system_variables);
+
+    DBUG_PRINT("info",("user table fields: %d, password length: %d",
+                       user_table.num_fields(), password_length));
+
+    mysql_mutex_lock(&LOCK_global_system_variables);
+    if (password_length < SCRAMBLED_PASSWORD_CHAR_LENGTH)
+    {
+      if (opt_secure_auth)
+      {
+        mysql_mutex_unlock(&LOCK_global_system_variables);
+        sql_print_error("Fatal error: mysql.user table is in old format, "
+                        "but server started with --secure-auth option.");
+        DBUG_RETURN(TRUE);
+      }
+      mysql_user_table_is_in_short_password_format= true;
+      if (global_system_variables.old_passwords)
+        mysql_mutex_unlock(&LOCK_global_system_variables);
+      else
+      {
+        extern sys_var *Sys_old_passwords_ptr;
+        Sys_old_passwords_ptr->value_origin= sys_var::AUTO;
+        global_system_variables.old_passwords= 1;
+        mysql_mutex_unlock(&LOCK_global_system_variables);
+        sql_print_warning("mysql.user table is not updated to new password format; "
+                          "Disabling new password usage until "
+                          "mysql_fix_privilege_tables is run");
+      }
+      thd->variables.old_passwords= 1;
+    }
     else
     {
-      extern sys_var *Sys_old_passwords_ptr;
-      Sys_old_passwords_ptr->value_origin= sys_var::AUTO;
-      global_system_variables.old_passwords= 1;
+      mysql_user_table_is_in_short_password_format= false;
       mysql_mutex_unlock(&LOCK_global_system_variables);
-      sql_print_warning("mysql.user table is not updated to new password format; "
-                        "Disabling new password usage until "
-                        "mysql_fix_privilege_tables is run");
     }
-    thd->variables.old_passwords= 1;
-  }
-  else
-  {
-    mysql_user_table_is_in_short_password_format= false;
-    mysql_mutex_unlock(&LOCK_global_system_variables);
   }
 
   allow_all_hosts=0;
@@ -1322,8 +1928,8 @@ static bool acl_load(THD *thd, TABLE_LIST *tables)
     ACL_USER user;
     bool is_role= FALSE;
     bzero(&user, sizeof(user));
-    update_hostname(&user.host, get_field(&acl_memroot, table->field[0]));
-    char *username= get_field(&acl_memroot, table->field[1]);
+    update_hostname(&user.host, get_field(&acl_memroot, user_table.host()));
+    char *username= get_field(&acl_memroot, user_table.user());
     user.user.str= username;
     user.user.length= safe_strlen(username);
 
@@ -1331,7 +1937,7 @@ static bool acl_load(THD *thd, TABLE_LIST *tables)
        If the user entry is a role, skip password and hostname checks
        A user can not log in with a role so some checks are not necessary
     */
-    is_role= check_is_role(table);
+    is_role= user_table.check_is_role();
 
     if (is_role && is_invalid_role_name(username))
     {
@@ -1349,7 +1955,9 @@ static bool acl_load(THD *thd, TABLE_LIST *tables)
       continue;
     }
 
-    char *password= get_field(&acl_memroot, table->field[2]);
+    char *password= const_cast<char*>("");
+    if (user_table.password())
+      password= get_field(&acl_memroot, user_table.password());
     uint password_len= safe_strlen(password);
     user.auth_string.str= safe_str(password);
     user.auth_string.length= password_len;
@@ -1357,30 +1965,29 @@ static bool acl_load(THD *thd, TABLE_LIST *tables)
 
     if (!is_role && set_user_plugin(&user, password_len))
       continue;
-    
+
     {
-      uint next_field;
-      user.access= get_access(table,3,&next_field) & GLOBAL_ACLS;
+      user.access= user_table.get_access() & GLOBAL_ACLS;
       /*
         if it is pre 5.0.1 privilege table then map CREATE privilege on
         CREATE VIEW & SHOW VIEW privileges
       */
-      if (table->s->fields <= 31 && (user.access & CREATE_ACL))
+      if (user_table.num_fields() <= 31 && (user.access & CREATE_ACL))
         user.access|= (CREATE_VIEW_ACL | SHOW_VIEW_ACL);
 
       /*
         if it is pre 5.0.2 privilege table then map CREATE/ALTER privilege on
         CREATE PROCEDURE & ALTER PROCEDURE privileges
       */
-      if (table->s->fields <= 33 && (user.access & CREATE_ACL))
+      if (user_table.num_fields() <= 33 && (user.access & CREATE_ACL))
         user.access|= CREATE_PROC_ACL;
-      if (table->s->fields <= 33 && (user.access & ALTER_ACL))
+      if (user_table.num_fields() <= 33 && (user.access & ALTER_ACL))
         user.access|= ALTER_PROC_ACL;
 
       /*
         pre 5.0.3 did not have CREATE_USER_ACL
       */
-      if (table->s->fields <= 36 && (user.access & GRANT_ACL))
+      if (user_table.num_fields() <= 36 && (user.access & GRANT_ACL))
         user.access|= CREATE_USER_ACL;
 
 
@@ -1388,13 +1995,13 @@ static bool acl_load(THD *thd, TABLE_LIST *tables)
         if it is pre 5.1.6 privilege table then map CREATE privilege on
         CREATE|ALTER|DROP|EXECUTE EVENT
       */
-      if (table->s->fields <= 37 && (user.access & SUPER_ACL))
+      if (user_table.num_fields() <= 37 && (user.access & SUPER_ACL))
         user.access|= EVENT_ACL;
 
       /*
         if it is pre 5.1.6 privilege then map TRIGGER privilege on CREATE.
       */
-      if (table->s->fields <= 38 && (user.access & SUPER_ACL))
+      if (user_table.num_fields() <= 38 && (user.access & SUPER_ACL))
         user.access|= TRIGGER_ACL;
 
       user.sort= get_sort(2, user.host.hostname, user.user.str);
@@ -1403,9 +2010,9 @@ static bool acl_load(THD *thd, TABLE_LIST *tables)
       user.user_resource.max_statement_time= 0.0;
 
       /* Starting from 4.0.2 we have more fields */
-      if (table->s->fields >= 31)
+      if (user_table.ssl_type())
       {
-        char *ssl_type=get_field(thd->mem_root, table->field[next_field++]);
+        char *ssl_type=get_field(thd->mem_root, user_table.ssl_type());
         if (!ssl_type)
           user.ssl_type=SSL_TYPE_NONE;
         else if (!strcmp(ssl_type, "ANY"))
@@ -1415,37 +2022,38 @@ static bool acl_load(THD *thd, TABLE_LIST *tables)
         else  /* !strcmp(ssl_type, "SPECIFIED") */
           user.ssl_type=SSL_TYPE_SPECIFIED;
 
-        user.ssl_cipher=   get_field(&acl_memroot, table->field[next_field++]);
-        user.x509_issuer=  get_field(&acl_memroot, table->field[next_field++]);
-        user.x509_subject= get_field(&acl_memroot, table->field[next_field++]);
+        user.ssl_cipher=   get_field(&acl_memroot, user_table.ssl_cipher());
+        user.x509_issuer=  get_field(&acl_memroot, user_table.x509_issuer());
+        user.x509_subject= get_field(&acl_memroot, user_table.x509_subject());
 
-        char *ptr = get_field(thd->mem_root, table->field[next_field++]);
+        char *ptr = get_field(thd->mem_root, user_table.max_questions());
         user.user_resource.questions=ptr ? atoi(ptr) : 0;
-        ptr = get_field(thd->mem_root, table->field[next_field++]);
+        ptr = get_field(thd->mem_root, user_table.max_updates());
         user.user_resource.updates=ptr ? atoi(ptr) : 0;
-        ptr = get_field(thd->mem_root, table->field[next_field++]);
+        ptr = get_field(thd->mem_root, user_table.max_connections());
         user.user_resource.conn_per_hour= ptr ? atoi(ptr) : 0;
         if (user.user_resource.questions || user.user_resource.updates ||
             user.user_resource.conn_per_hour)
           mqh_used=1;
 
-        if (table->s->fields >= 36)
+        if (user_table.max_user_connections())
         {
           /* Starting from 5.0.3 we have max_user_connections field */
-          ptr= get_field(thd->mem_root, table->field[next_field++]);
+          ptr= get_field(thd->mem_root, user_table.max_user_connections());
           user.user_resource.user_conn= ptr ? atoi(ptr) : 0;
         }
 
-        if (!is_role && table->s->fields >= 41)
+        if (!is_role && user_table.plugin())
         {
           /* We may have plugin & auth_String fields */
-          char *tmpstr= get_field(&acl_memroot, table->field[next_field++]);
+          char *tmpstr= get_field(&acl_memroot, user_table.plugin());
           if (tmpstr)
           {
             user.plugin.str= tmpstr;
             user.plugin.length= strlen(user.plugin.str);
             user.auth_string.str=
-              safe_str(get_field(&acl_memroot, table->field[next_field++]));
+              safe_str(get_field(&acl_memroot,
+                                 user_table.authentication_string()));
             user.auth_string.length= strlen(user.auth_string.str);
 
             if (user.auth_string.length && password_len)
@@ -1461,11 +2069,11 @@ static bool acl_load(THD *thd, TABLE_LIST *tables)
           }
         }
 
-        if (table->s->fields > MAX_STATEMENT_TIME_COLUMN_IDX)
+        if (user_table.max_statement_time())
         {
           /* Starting from 10.1.1 we can have max_statement_time */
           ptr= get_field(thd->mem_root,
-                         table->field[MAX_STATEMENT_TIME_COLUMN_IDX]);
+                         user_table.max_statement_time());
           user.user_resource.max_statement_time= ptr ? atof(ptr) : 0.0;
         }
       }
@@ -1473,7 +2081,7 @@ static bool acl_load(THD *thd, TABLE_LIST *tables)
       {
         user.ssl_type=SSL_TYPE_NONE;
 #ifndef TO_BE_REMOVED
-        if (table->s->fields <= 13)
+        if (user_table.num_fields() <= 13)
         {						// Without grant
           if (user.access & CREATE_ACL)
             user.access|=REFERENCES_ACL | INDEX_ACL | ALTER_ACL;
@@ -1491,10 +2099,10 @@ static bool acl_load(THD *thd, TABLE_LIST *tables)
                                    8, 8, MYF(0));
 
       /* check default role, if any */
-      if (!is_role && table->s->fields > DEFAULT_ROLE_COLUMN_IDX)
+      if (!is_role && user_table.default_role())
       {
         user.default_rolename.str=
-          get_field(&acl_memroot, table->field[DEFAULT_ROLE_COLUMN_IDX]);
+          get_field(&acl_memroot, user_table.default_role());
         user.default_rolename.length= safe_strlen(user.default_rolename.str);
       }
 
@@ -1524,19 +2132,18 @@ static bool acl_load(THD *thd, TABLE_LIST *tables)
   end_read_record(&read_record_info);
   freeze_size(&acl_users);
 
-  if (init_read_record(&read_record_info, thd, table=tables[DB_TABLE].table,
-                       NULL, NULL, 1, 1, FALSE))
-    goto end;
-  table->use_all_columns();
+  const Db_table& db_table= tables.db_table();
+  if (db_table.init_read_record(&read_record_info, thd))
+    DBUG_RETURN(TRUE);
   while (!(read_record_info.read_record(&read_record_info)))
   {
     ACL_DB db;
-    db.user=get_field(&acl_memroot, table->field[MYSQL_DB_FIELD_USER]);
-    const char *hostname= get_field(&acl_memroot, table->field[MYSQL_DB_FIELD_HOST]);
+    db.user=get_field(&acl_memroot, db_table.user());
+    const char *hostname= get_field(&acl_memroot, db_table.host());
     if (!hostname && find_acl_role(db.user))
       hostname= "";
     update_hostname(&db.host, hostname);
-    db.db=get_field(&acl_memroot, table->field[MYSQL_DB_FIELD_DB]);
+    db.db=get_field(&acl_memroot, db_table.db());
     if (!db.db)
     {
       sql_print_warning("Found an entry in the 'db' table with empty database name; Skipped");
@@ -1545,11 +2152,11 @@ static bool acl_load(THD *thd, TABLE_LIST *tables)
     if (check_no_resolve && hostname_requires_resolving(db.host.hostname))
     {
       sql_print_warning("'db' entry '%s %s@%s' "
-		        "ignored in --skip-name-resolve mode.",
+                        "ignored in --skip-name-resolve mode.",
 		        db.db, safe_str(db.user), safe_str(db.host.hostname));
       continue;
     }
-    db.access=get_access(table,3);
+    db.access= db_table.get_access();
     db.access=fix_rights_for_db(db.access);
     db.initial_access= db.access;
     if (lower_case_table_names)
@@ -1576,7 +2183,7 @@ static bool acl_load(THD *thd, TABLE_LIST *tables)
     }
     db.sort=get_sort(3,db.host.hostname,db.db,db.user);
 #ifndef TO_BE_REMOVED
-    if (table->s->fields <=  9)
+    if (db_table.num_fields() <=  9)
     {						// Without grant
       if (db.access & CREATE_ACL)
 	db.access|=REFERENCES_ACL | INDEX_ACL | ALTER_ACL;
@@ -1589,23 +2196,19 @@ static bool acl_load(THD *thd, TABLE_LIST *tables)
   end_read_record(&read_record_info);
   freeze_size(&acl_dbs);
 
-  if ((table= tables[PROXIES_PRIV_TABLE].table))
+  const Proxies_priv_table& proxies_priv_table= tables.proxies_priv_table();
+  if (proxies_priv_table.table_exists())
   {
-    if (init_read_record(&read_record_info, thd, table,
-                         NULL, NULL, 1, 1, FALSE))
-      goto end;
-    table->use_all_columns();
+    if (proxies_priv_table.init_read_record(&read_record_info, thd))
+      DBUG_RETURN(TRUE);
     while (!(read_record_info.read_record(&read_record_info)))
     {
       ACL_PROXY_USER proxy;
-      proxy.init(table, &acl_memroot);
+      proxy.init(proxies_priv_table, &acl_memroot);
       if (proxy.check_validity(check_no_resolve))
         continue;
       if (push_dynamic(&acl_proxy_users, (uchar*) &proxy))
-      {
-        end_read_record(&read_record_info);
-        goto end;
-      }
+        DBUG_RETURN(TRUE);
     }
     my_qsort((uchar*) dynamic_element(&acl_proxy_users, 0, ACL_PROXY_USER*),
              acl_proxy_users.elements,
@@ -1619,21 +2222,20 @@ static bool acl_load(THD *thd, TABLE_LIST *tables)
   }
   freeze_size(&acl_proxy_users);
 
-  if ((table= tables[ROLES_MAPPING_TABLE].table))
+  const Roles_mapping_table& roles_mapping_table= tables.roles_mapping_table();
+  if (roles_mapping_table.table_exists())
   {
-    if (init_read_record(&read_record_info, thd, table, NULL, NULL, 1, 1,
-                         FALSE))
-      goto end;
-    table->use_all_columns();
+    if (roles_mapping_table.init_read_record(&read_record_info, thd))
+      DBUG_RETURN(TRUE);
 
     MEM_ROOT temp_root;
     init_alloc_root(&temp_root, ACL_ALLOC_BLOCK_SIZE, 0, MYF(0));
     while (!(read_record_info.read_record(&read_record_info)))
     {
-      char *hostname= safe_str(get_field(&temp_root, table->field[0]));
-      char *username= safe_str(get_field(&temp_root, table->field[1]));
-      char *rolename= safe_str(get_field(&temp_root, table->field[2]));
-      bool with_grant_option= get_YN_as_bool(table->field[3]);
+      char *hostname= safe_str(get_field(&temp_root, roles_mapping_table.host()));
+      char *username= safe_str(get_field(&temp_root, roles_mapping_table.user()));
+      char *rolename= safe_str(get_field(&temp_root, roles_mapping_table.role()));
+      bool with_grant_option= get_YN_as_bool(roles_mapping_table.admin_option());
 
       if (add_role_user_mapping(username, hostname, rolename)) {
         sql_print_error("Invalid roles_mapping table entry user:'%s@%s', rolename:'%s'",
@@ -1661,12 +2263,7 @@ static bool acl_load(THD *thd, TABLE_LIST *tables)
   init_check_host();
 
   initialized=1;
-  return_val= FALSE;
-
-end:
-  end_read_record(&read_record_info);
-  thd->variables.sql_mode= old_sql_mode;
-  DBUG_RETURN(return_val);
+  DBUG_RETURN(FALSE);
 }
 
 
@@ -1714,19 +2311,19 @@ void acl_free(bool end)
 
 bool acl_reload(THD *thd)
 {
-  TABLE_LIST tables[TABLES_MAX];
   DYNAMIC_ARRAY old_acl_hosts, old_acl_users, old_acl_dbs, old_acl_proxy_users;
   HASH old_acl_roles, old_acl_roles_mappings;
   MEM_ROOT old_mem;
   int result;
   DBUG_ENTER("acl_reload");
 
+  Grant_tables tables(Table_host | Table_user | Table_db | Table_proxies_priv |
+                      Table_roles_mapping, TL_READ);
   /*
     To avoid deadlocks we should obtain table locks before
     obtaining acl_cache->lock mutex.
   */
-  if ((result= open_grant_tables(thd, tables, TL_READ, Table_host |
-            Table_user | Table_db | Table_proxies_priv | Table_roles_mapping)))
+  if ((result= tables.open_and_lock(thd)))
   {
     DBUG_ASSERT(result <= 0);
     /*
@@ -1827,34 +2424,6 @@ static ulong get_access(TABLE *form, uint fieldnr, uint *next_field)
   if (next_field)
     *next_field=fieldnr;
   return access_bits;
-}
-
-/*
-  Check if a user entry in the user table is marked as being a role entry
-
-  IMPLEMENTATION
-  Access the coresponding column and check the coresponding ENUM of the form
-  ENUM('N', 'Y')
-
-  SYNOPSIS
-    check_is_role()
-    form      an open table to read the entry from.
-              The record should be already read in table->record[0]
-
-  RETURN VALUE
-    TRUE      if the user is marked as a role
-    FALSE     otherwise
-*/
-
-static bool check_is_role(TABLE *form)
-{
-  char buff[2];
-  String res(buff, sizeof(buff), &my_charset_latin1);
-  /* Table version does not support roles */
-  if (form->s->fields <= ROLE_ASSIGN_COLUMN_IDX)
-    return FALSE;
-
-  return get_YN_as_bool(form->field[ROLE_ASSIGN_COLUMN_IDX]);
 }
 
 
@@ -2748,7 +3317,7 @@ bool check_change_password(THD *thd, LEX_USER *user)
   LEX_USER *real_user= get_current_user(thd, user);
 
   if (fix_and_copy_user(real_user, user, thd) ||
-      validate_password(real_user))
+      validate_password(real_user, thd))
     return true;
 
   *user= *real_user;
@@ -2769,7 +3338,7 @@ bool check_change_password(THD *thd, LEX_USER *user)
 */
 bool change_password(THD *thd, LEX_USER *user)
 {
-  TABLE_LIST tables[TABLES_MAX];
+  Grant_tables tables(Table_user, TL_WRITE);
   /* Buffer should be extended when password length is extended. */
   char buff[512];
   ulong query_length= 0;
@@ -2804,7 +3373,7 @@ bool change_password(THD *thd, LEX_USER *user)
     WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, (char*)"user", NULL);
   }
 
-  if ((result= open_grant_tables(thd, tables, TL_WRITE, Table_user)))
+  if ((result= tables.open_and_lock(thd)))
     DBUG_RETURN(result != 1);
 
   result= 1;
@@ -2833,7 +3402,7 @@ bool change_password(THD *thd, LEX_USER *user)
                  ER_SET_PASSWORD_AUTH_PLUGIN,
                  ER_THD(thd, ER_SET_PASSWORD_AUTH_PLUGIN));
 
-  if (update_user_table(thd, tables[USER_TABLE].table,
+  if (update_user_table(thd, tables.user_table(),
                         safe_str(acl_user->host.hostname),
                         safe_str(acl_user->user.str),
                         user->pwhash.str, user->pwhash.length))
@@ -2878,8 +3447,7 @@ int acl_check_set_default_role(THD *thd, const char *host, const char *user)
 int acl_set_default_role(THD *thd, const char *host, const char *user,
                          const char *rolename)
 {
-  TABLE_LIST tables[TABLES_MAX];
-  TABLE *table;
+  Grant_tables tables(Table_user, TL_WRITE);
   char user_key[MAX_KEY_LENGTH];
   int result= 1;
   int error;
@@ -2929,82 +3497,92 @@ int acl_set_default_role(THD *thd, const char *host, const char *user,
     WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, (char*)"user", NULL);
   }
 
-  if ((result= open_grant_tables(thd, tables, TL_WRITE, Table_user)))
-    DBUG_RETURN(result != 1);
-
-  table= tables[USER_TABLE].table;
-  result= 1;
-
-  mysql_mutex_lock(&acl_cache->lock);
-  ACL_USER *acl_user;
-  if (!(acl_user= find_user_exact(host, user)))
+  /*
+    Extra block due to WSREP_TO_ISOLATION_BEGIN using goto.
+    TODO(cvicentiu) Should move  this block out in a new function.
+  */
   {
+    if ((result= tables.open_and_lock(thd)))
+      DBUG_RETURN(result != 1);
+
+    const User_table& user_table= tables.user_table();
+    TABLE *table= user_table.table();
+
+    result= 1;
+
+    mysql_mutex_lock(&acl_cache->lock);
+    ACL_USER *acl_user;
+    if (!(acl_user= find_user_exact(host, user)))
+    {
+      mysql_mutex_unlock(&acl_cache->lock);
+      my_message(ER_PASSWORD_NO_MATCH, ER_THD(thd, ER_PASSWORD_NO_MATCH),
+                 MYF(0));
+      goto end;
+    }
+
+    if (!clear_role)
+    {
+      /* set new default_rolename */
+      acl_user->default_rolename.str= safe_strdup_root(&acl_memroot, rolename);
+      acl_user->default_rolename.length= strlen(rolename);
+    }
+    else
+    {
+      /* clear the default_rolename */
+      acl_user->default_rolename.str = NULL;
+      acl_user->default_rolename.length = 0;
+    }
+
+    /* update the mysql.user table with the new default role */
+    tables.user_table().table()->use_all_columns();
+    if (!tables.user_table().default_role())
+    {
+      my_error(ER_COL_COUNT_DOESNT_MATCH_PLEASE_UPDATE, MYF(0),
+               table->alias.c_ptr(), DEFAULT_ROLE_COLUMN_IDX + 1,
+               tables.user_table().num_fields(),
+               static_cast<int>(table->s->mysql_version), MYSQL_VERSION_ID);
+      mysql_mutex_unlock(&acl_cache->lock);
+      goto end;
+    }
+    user_table.host()->store(host,(uint) strlen(host), system_charset_info);
+    user_table.user()->store(user,(uint) strlen(user), system_charset_info);
+    key_copy((uchar *) user_key, table->record[0], table->key_info,
+             table->key_info->key_length);
+
+    if (table->file->ha_index_read_idx_map(table->record[0], 0,
+                                           (uchar *) user_key, HA_WHOLE_KEY,
+                                           HA_READ_KEY_EXACT))
+    {
+      mysql_mutex_unlock(&acl_cache->lock);
+      my_message(ER_PASSWORD_NO_MATCH, ER_THD(thd, ER_PASSWORD_NO_MATCH),
+                 MYF(0));
+      goto end;
+    }
+    store_record(table, record[1]);
+    user_table.default_role()->store(acl_user->default_rolename.str,
+                                     acl_user->default_rolename.length,
+                                     system_charset_info);
+    if ((error=table->file->ha_update_row(table->record[1],table->record[0])) &&
+        error != HA_ERR_RECORD_IS_THE_SAME)
+    {
+      mysql_mutex_unlock(&acl_cache->lock);
+      table->file->print_error(error,MYF(0));	/* purecov: deadcode */
+      goto end;
+    }
+
+    acl_cache->clear(1);
     mysql_mutex_unlock(&acl_cache->lock);
-    my_message(ER_PASSWORD_NO_MATCH, ER_THD(thd, ER_PASSWORD_NO_MATCH),
-               MYF(0));
-    goto end;
+    result= 0;
+    if (mysql_bin_log.is_open())
+    {
+      DBUG_ASSERT(query_length);
+      thd->clear_error();
+      result= thd->binlog_query(THD::STMT_QUERY_TYPE, buff, query_length,
+                                FALSE, FALSE, FALSE, 0);
+    }
+  end:
+    close_mysql_tables(thd);
   }
-
-  if (!clear_role) {
-    /* set new default_rolename */
-    acl_user->default_rolename.str= safe_strdup_root(&acl_memroot, rolename);
-    acl_user->default_rolename.length= strlen(rolename);
-  }
-  else
-  {
-    /* clear the default_rolename */
-    acl_user->default_rolename.str = NULL;
-    acl_user->default_rolename.length = 0;
-  }
-
-  /* update the mysql.user table with the new default role */
-  table->use_all_columns();
-  if (table->s->fields <= DEFAULT_ROLE_COLUMN_IDX)
-  {
-    my_error(ER_COL_COUNT_DOESNT_MATCH_PLEASE_UPDATE, MYF(0),
-             table->alias.c_ptr(), DEFAULT_ROLE_COLUMN_IDX + 1, table->s->fields,
-             static_cast<int>(table->s->mysql_version), MYSQL_VERSION_ID);
-    mysql_mutex_unlock(&acl_cache->lock);
-    goto end;
-  }
-  table->field[0]->store(host,(uint) strlen(host), system_charset_info);
-  table->field[1]->store(user,(uint) strlen(user), system_charset_info);
-  key_copy((uchar *) user_key, table->record[0], table->key_info,
-           table->key_info->key_length);
-
-  if (table->file->ha_index_read_idx_map(table->record[0], 0,
-                                         (uchar *) user_key, HA_WHOLE_KEY,
-                                         HA_READ_KEY_EXACT))
-  {
-    mysql_mutex_unlock(&acl_cache->lock);
-    my_message(ER_PASSWORD_NO_MATCH, ER_THD(thd, ER_PASSWORD_NO_MATCH),
-               MYF(0));
-    goto end;
-  }
-  store_record(table, record[1]);
-  table->field[DEFAULT_ROLE_COLUMN_IDX]->store(acl_user->default_rolename.str,
-                                               acl_user->default_rolename.length,
-                                               system_charset_info);
-  if ((error=table->file->ha_update_row(table->record[1],table->record[0])) &&
-      error != HA_ERR_RECORD_IS_THE_SAME)
-  {
-    mysql_mutex_unlock(&acl_cache->lock);
-    table->file->print_error(error,MYF(0));	/* purecov: deadcode */
-    goto end;
-  }
-
-  acl_cache->clear(1);
-  mysql_mutex_unlock(&acl_cache->lock);
-  result= 0;
-  if (mysql_bin_log.is_open())
-  {
-    DBUG_ASSERT(query_length);
-    thd->clear_error();
-    result= thd->binlog_query(THD::STMT_QUERY_TYPE, buff, query_length,
-                              FALSE, FALSE, FALSE, 0);
-  }
-end:
-  close_mysql_tables(thd);
 
 #ifdef WITH_WSREP
 error: // this label is used in WSREP_TO_ISOLATION_END
@@ -3276,6 +3854,27 @@ bool hostname_requires_resolving(const char *hostname)
 }
 
 
+void set_authentication_plugin_from_password(const User_table& user_table,
+                                             const char* password,
+                                             uint password_length)
+{
+  if (password_length == SCRAMBLED_PASSWORD_CHAR_LENGTH)
+  {
+    user_table.plugin()->store(native_password_plugin_name.str,
+                               native_password_plugin_name.length,
+                               system_charset_info);
+  }
+  else
+  {
+    DBUG_ASSERT(password_length == SCRAMBLED_PASSWORD_CHAR_LENGTH_323);
+    user_table.plugin()->store(old_password_plugin_name.str,
+                               old_password_plugin_name.length,
+                               system_charset_info);
+  }
+  user_table.authentication_string()->store(password,
+                                            password_length,
+                                            system_charset_info);
+}
 /**
   Update record for user in mysql.user privilege table with new password.
 
@@ -3289,18 +3888,19 @@ bool hostname_requires_resolving(const char *hostname)
   @see change_password
 */
 
-static bool update_user_table(THD *thd, TABLE *table,
+static bool update_user_table(THD *thd, const User_table& user_table,
                               const char *host, const char *user,
-			      const char *new_password, uint new_password_len)
+                              const char *new_password, uint new_password_len)
 {
   char user_key[MAX_KEY_LENGTH];
   int error;
   DBUG_ENTER("update_user_table");
   DBUG_PRINT("enter",("user: %s  host: %s",user,host));
 
+  TABLE *table= user_table.table();
   table->use_all_columns();
-  table->field[0]->store(host,(uint) strlen(host), system_charset_info);
-  table->field[1]->store(user,(uint) strlen(user), system_charset_info);
+  user_table.host()->store(host,(uint) strlen(host), system_charset_info);
+  user_table.user()->store(user,(uint) strlen(user), system_charset_info);
   key_copy((uchar *) user_key, table->record[0], table->key_info,
            table->key_info->key_length);
 
@@ -3309,15 +3909,23 @@ static bool update_user_table(THD *thd, TABLE *table,
                                          HA_READ_KEY_EXACT))
   {
     my_message(ER_PASSWORD_NO_MATCH, ER_THD(thd, ER_PASSWORD_NO_MATCH),
-               MYF(0));	/* purecov: deadcode */
-    DBUG_RETURN(1);				/* purecov: deadcode */
+               MYF(0));  /* purecov: deadcode */
+    DBUG_RETURN(1);      /* purecov: deadcode */
   }
   store_record(table,record[1]);
-  table->field[2]->store(new_password, new_password_len, system_charset_info);
+  /* If the password column is missing, we use the
+     authentication_string column. */
+  if (user_table.password())
+    user_table.password()->store(new_password, new_password_len, system_charset_info);
+  else
+    set_authentication_plugin_from_password(user_table, new_password,
+                                            new_password_len);
+
+
   if ((error=table->file->ha_update_row(table->record[1],table->record[0])) &&
       error != HA_ERR_RECORD_IS_THE_SAME)
   {
-    table->file->print_error(error,MYF(0));	/* purecov: deadcode */
+    table->file->print_error(error,MYF(0));  /* purecov: deadcode */
     DBUG_RETURN(1);
   }
   DBUG_RETURN(0);
@@ -3363,8 +3971,9 @@ static bool test_if_create_new_users(THD *thd)
   Handle GRANT commands
 ****************************************************************************/
 
-static int replace_user_table(THD *thd, TABLE *table, LEX_USER &combo,
-			      ulong rights, bool revoke_grant,
+static int replace_user_table(THD *thd, const User_table &user_table,
+                              LEX_USER &combo,
+                              ulong rights, bool revoke_grant,
                               bool can_create_user, bool no_auto_create)
 {
   int error = -1;
@@ -3373,6 +3982,7 @@ static int replace_user_table(THD *thd, TABLE *table, LEX_USER &combo,
   uchar user_key[MAX_KEY_LENGTH];
   bool handle_as_role= combo.is_role();
   LEX *lex= thd->lex;
+  TABLE *table= user_table.table();
   DBUG_ENTER("replace_user_table");
 
   mysql_mutex_assert_owner(&acl_cache->lock);
@@ -3391,18 +4001,18 @@ static int replace_user_table(THD *thd, TABLE *table, LEX_USER &combo,
     combo.pwhash= empty_lex_str;
 
   /* if the user table is not up to date, we can't handle role updates */
-  if (table->s->fields <= ROLE_ASSIGN_COLUMN_IDX && handle_as_role)
+  if (!user_table.is_role() && handle_as_role)
   {
     my_error(ER_COL_COUNT_DOESNT_MATCH_PLEASE_UPDATE, MYF(0),
-             table->alias.c_ptr(), ROLE_ASSIGN_COLUMN_IDX + 1, table->s->fields,
+             "user", ROLE_ASSIGN_COLUMN_IDX + 1, user_table.num_fields(),
              static_cast<int>(table->s->mysql_version), MYSQL_VERSION_ID);
     DBUG_RETURN(-1);
   }
 
   table->use_all_columns();
-  table->field[0]->store(combo.host.str,combo.host.length,
+  user_table.host()->store(combo.host.str,combo.host.length,
                          system_charset_info);
-  table->field[1]->store(combo.user.str,combo.user.length,
+  user_table.user()->store(combo.user.str,combo.user.length,
                          system_charset_info);
   key_copy(user_key, table->record[0], table->key_info,
            table->key_info->key_length);
@@ -3451,9 +4061,9 @@ static int replace_user_table(THD *thd, TABLE *table, LEX_USER &combo,
 
     old_row_exists = 0;
     restore_record(table,s->default_values);
-    table->field[0]->store(combo.host.str,combo.host.length,
+    user_table.host()->store(combo.host.str,combo.host.length,
                            system_charset_info);
-    table->field[1]->store(combo.user.str,combo.user.length,
+    user_table.user()->store(combo.user.str,combo.user.length,
                            system_charset_info);
   }
   else
@@ -3463,107 +4073,124 @@ static int replace_user_table(THD *thd, TABLE *table, LEX_USER &combo,
   }
 
   if (!old_row_exists || combo.pwtext.length || combo.pwhash.length)
-    if (!handle_as_role && validate_password(&combo))
+    if (!handle_as_role && validate_password(&combo, thd))
       goto end;
 
   /* Update table columns with new privileges */
 
-  Field **tmp_field;
   ulong priv;
-  uint next_field;
-  for (tmp_field= table->field+3, priv = SELECT_ACL;
-       *tmp_field && (*tmp_field)->real_type() == MYSQL_TYPE_ENUM &&
-	 ((Field_enum*) (*tmp_field))->typelib->count == 2 ;
-       tmp_field++, priv <<= 1)
+  priv = SELECT_ACL;
+  for (uint i= 0; i < user_table.num_privileges(); i++, priv <<= 1)
   {
-    if (priv & rights)				 // set requested privileges
-      (*tmp_field)->store(&what, 1, &my_charset_latin1);
+    if (priv & rights)
+      user_table.priv_field(i)->store(&what, 1, &my_charset_latin1);
   }
-  rights= get_access(table, 3, &next_field);
-  DBUG_PRINT("info",("table fields: %d",table->s->fields));
-  if (combo.pwhash.str[0])
-    table->field[2]->store(combo.pwhash.str, combo.pwhash.length, system_charset_info);
-  if (table->s->fields >= 31)		/* From 4.0.0 we have more fields */
+
+  rights= user_table.get_access();
+
+  DBUG_PRINT("info",("table fields: %d", user_table.num_fields()));
+  /* If we don't have a password column, we'll use the authentication_string
+     column later. */
+  if (combo.pwhash.str[0] && user_table.password())
+    user_table.password()->store(combo.pwhash.str, combo.pwhash.length,
+                                 system_charset_info);
+  /* We either have the password column, the plugin column, or both. Otherwise
+     we have a corrupt user table. */
+  DBUG_ASSERT(user_table.password() || user_table.plugin());
+  if (user_table.ssl_type())    /* From 4.0.0 we have more fields */
   {
     /* We write down SSL related ACL stuff */
     switch (lex->ssl_type) {
     case SSL_TYPE_ANY:
-      table->field[next_field]->store(STRING_WITH_LEN("ANY"),
-                                      &my_charset_latin1);
-      table->field[next_field+1]->store("", 0, &my_charset_latin1);
-      table->field[next_field+2]->store("", 0, &my_charset_latin1);
-      table->field[next_field+3]->store("", 0, &my_charset_latin1);
+      user_table.ssl_type()->store(STRING_WITH_LEN("ANY"),
+                                   &my_charset_latin1);
+      user_table.ssl_cipher()->store("", 0, &my_charset_latin1);
+      user_table.x509_issuer()->store("", 0, &my_charset_latin1);
+      user_table.x509_subject()->store("", 0, &my_charset_latin1);
       break;
     case SSL_TYPE_X509:
-      table->field[next_field]->store(STRING_WITH_LEN("X509"),
-                                      &my_charset_latin1);
-      table->field[next_field+1]->store("", 0, &my_charset_latin1);
-      table->field[next_field+2]->store("", 0, &my_charset_latin1);
-      table->field[next_field+3]->store("", 0, &my_charset_latin1);
+      user_table.ssl_type()->store(STRING_WITH_LEN("X509"),
+                                   &my_charset_latin1);
+      user_table.ssl_cipher()->store("", 0, &my_charset_latin1);
+      user_table.x509_issuer()->store("", 0, &my_charset_latin1);
+      user_table.x509_subject()->store("", 0, &my_charset_latin1);
       break;
     case SSL_TYPE_SPECIFIED:
-      table->field[next_field]->store(STRING_WITH_LEN("SPECIFIED"),
-                                      &my_charset_latin1);
-      table->field[next_field+1]->store("", 0, &my_charset_latin1);
-      table->field[next_field+2]->store("", 0, &my_charset_latin1);
-      table->field[next_field+3]->store("", 0, &my_charset_latin1);
+      user_table.ssl_type()->store(STRING_WITH_LEN("SPECIFIED"),
+                                   &my_charset_latin1);
+      user_table.ssl_cipher()->store("", 0, &my_charset_latin1);
+      user_table.x509_issuer()->store("", 0, &my_charset_latin1);
+      user_table.x509_subject()->store("", 0, &my_charset_latin1);
       if (lex->ssl_cipher)
-        table->field[next_field+1]->store(lex->ssl_cipher,
-                                strlen(lex->ssl_cipher), system_charset_info);
+        user_table.ssl_cipher()->store(lex->ssl_cipher,
+                                       strlen(lex->ssl_cipher),
+                                       system_charset_info);
       if (lex->x509_issuer)
-        table->field[next_field+2]->store(lex->x509_issuer,
-                                strlen(lex->x509_issuer), system_charset_info);
+        user_table.x509_issuer()->store(lex->x509_issuer,
+                                        strlen(lex->x509_issuer),
+                                        system_charset_info);
       if (lex->x509_subject)
-        table->field[next_field+3]->store(lex->x509_subject,
-                                strlen(lex->x509_subject), system_charset_info);
+        user_table.x509_subject()->store(lex->x509_subject,
+                                         strlen(lex->x509_subject),
+                                         system_charset_info);
       break;
     case SSL_TYPE_NOT_SPECIFIED:
       break;
     case SSL_TYPE_NONE:
-      table->field[next_field]->store("", 0, &my_charset_latin1);
-      table->field[next_field+1]->store("", 0, &my_charset_latin1);
-      table->field[next_field+2]->store("", 0, &my_charset_latin1);
-      table->field[next_field+3]->store("", 0, &my_charset_latin1);
+      user_table.ssl_type()->store("", 0, &my_charset_latin1);
+      user_table.ssl_cipher()->store("", 0, &my_charset_latin1);
+      user_table.x509_issuer()->store("", 0, &my_charset_latin1);
+      user_table.x509_subject()->store("", 0, &my_charset_latin1);
       break;
     }
-    next_field+=4;
 
     USER_RESOURCES mqh= lex->mqh;
     if (mqh.specified_limits & USER_RESOURCES::QUERIES_PER_HOUR)
-      table->field[next_field]->store((longlong) mqh.questions, TRUE);
+      user_table.max_questions()->store((longlong) mqh.questions, TRUE);
     if (mqh.specified_limits & USER_RESOURCES::UPDATES_PER_HOUR)
-      table->field[next_field+1]->store((longlong) mqh.updates, TRUE);
+      user_table.max_updates()->store((longlong) mqh.updates, TRUE);
     if (mqh.specified_limits & USER_RESOURCES::CONNECTIONS_PER_HOUR)
-      table->field[next_field+2]->store((longlong) mqh.conn_per_hour, TRUE);
-    if (table->s->fields >= 36 &&
+      user_table.max_connections()->store((longlong) mqh.conn_per_hour, TRUE);
+    if (user_table.max_user_connections() &&
         (mqh.specified_limits & USER_RESOURCES::USER_CONNECTIONS))
-      table->field[next_field+3]->store((longlong) mqh.user_conn, FALSE);
-    next_field+= 4;
-    if (table->s->fields >= 41)
+      user_table.max_user_connections()->store((longlong) mqh.user_conn, FALSE);
+    if (user_table.plugin())
     {
-      table->field[next_field]->set_notnull();
-      table->field[next_field + 1]->set_notnull();
+      user_table.plugin()->set_notnull();
+      user_table.authentication_string()->set_notnull();
       if (combo.plugin.str[0])
       {
         DBUG_ASSERT(combo.pwhash.str[0] == 0);
-        table->field[2]->reset();
-        table->field[next_field]->store(combo.plugin.str, combo.plugin.length,
-                                        system_charset_info);
-        table->field[next_field + 1]->store(combo.auth.str, combo.auth.length,
-                                            system_charset_info);
+        if (user_table.password())
+          user_table.password()->reset();
+        user_table.plugin()->store(combo.plugin.str, combo.plugin.length,
+                                   system_charset_info);
+        user_table.authentication_string()->store(combo.auth.str, combo.auth.length,
+                                                  system_charset_info);
       }
       if (combo.pwhash.str[0])
       {
         DBUG_ASSERT(combo.plugin.str[0] == 0);
-        table->field[next_field]->reset();
-        table->field[next_field + 1]->reset();
+        /* We have Password column. */
+        if (user_table.password())
+        {
+          user_table.plugin()->reset();
+          user_table.authentication_string()->reset();
+        }
+        else
+        {
+          /* We do not have Password column. Use PLUGIN && Authentication_string
+             columns instead. */
+          set_authentication_plugin_from_password(user_table,
+                                                  combo.pwhash.str,
+                                                  combo.pwhash.length);
+        }
       }
 
-      if (table->s->fields > MAX_STATEMENT_TIME_COLUMN_IDX)
+      if (user_table.max_statement_time())
       {
         if (mqh.specified_limits & USER_RESOURCES::MAX_STATEMENT_TIME)
-          table->field[MAX_STATEMENT_TIME_COLUMN_IDX]->
-            store(mqh.max_statement_time);
+          user_table.max_statement_time()->store(mqh.max_statement_time);
       }
     }
     mqh_used= (mqh_used || mqh.questions || mqh.updates || mqh.conn_per_hour ||
@@ -3572,11 +4199,11 @@ static int replace_user_table(THD *thd, TABLE *table, LEX_USER &combo,
     /* table format checked earlier */
     if (handle_as_role)
     {
-      if (old_row_exists && !check_is_role(table))
+      if (old_row_exists && !user_table.check_is_role())
       {
         goto end;
       }
-      table->field[ROLE_ASSIGN_COLUMN_IDX]->store("Y", 1, system_charset_info);
+      user_table.is_role()->store("Y", 1, system_charset_info);
     }
   }
 
@@ -3586,7 +4213,7 @@ static int replace_user_table(THD *thd, TABLE *table, LEX_USER &combo,
       We should NEVER delete from the user table, as a uses can still
       use mysqld even if he doesn't have any privileges in the user table!
     */
-    if (cmp_record(table,record[1]))
+    if (cmp_record(table, record[1]))
     {
       if ((error=
            table->file->ha_update_row(table->record[1],table->record[0])) &&
@@ -5764,7 +6391,6 @@ int mysql_table_grant(THD *thd, TABLE_LIST *table_list,
   int result;
   List_iterator <LEX_USER> str_list (user_list);
   LEX_USER *Str, *tmp_Str;
-  TABLE_LIST tables[TABLES_MAX];
   bool create_new_users=0;
   char *db_name, *table_name;
   DBUG_ENTER("mysql_table_grant");
@@ -5853,8 +6479,9 @@ int mysql_table_grant(THD *thd, TABLE_LIST *table_list,
   */
   thd->lex->sql_command= backup.sql_command;
 
-  if ((result= open_grant_tables(thd, tables, TL_WRITE, Table_user |
-                                 Table_tables_priv | maybe_columns_priv)))
+  Grant_tables tables(Table_user | Table_tables_priv | maybe_columns_priv,
+                      TL_WRITE);
+  if ((result= tables.open_and_lock(thd)))
   {
     thd->lex->restore_backup_query_tables_list(&backup);
     DBUG_RETURN(result != 1);
@@ -5879,7 +6506,7 @@ int mysql_table_grant(THD *thd, TABLE_LIST *table_list,
     }
     /* Create user if needed */
     error= copy_and_check_auth(Str, tmp_Str, thd) ||
-           replace_user_table(thd, tables[USER_TABLE].table, *Str,
+           replace_user_table(thd, tables.user_table(), *Str,
                                0, revoke_grant, create_new_users,
                                MY_TEST(thd->variables.sql_mode &
                                        MODE_NO_AUTO_CREATE_USER));
@@ -5950,16 +6577,20 @@ int mysql_table_grant(THD *thd, TABLE_LIST *table_list,
 
     /* update table and columns */
 
-    if (replace_table_table(thd, grant_table, tables[TABLES_PRIV_TABLE].table,
+    /* TODO(cvicentiu) refactor replace_table_table to use Tables_priv_table
+       instead of TABLE directly. */
+    if (replace_table_table(thd, grant_table, tables.tables_priv_table().table(),
                             *Str, db_name, table_name,
 			    rights, column_priv, revoke_grant))
     {
       /* Should only happen if table is crashed */
       result= TRUE;			       /* purecov: deadcode */
     }
-    else if (tables[COLUMNS_PRIV_TABLE].table)
+    else if (tables.columns_priv_table().table_exists())
     {
-      if (replace_column_table(grant_table, tables[COLUMNS_PRIV_TABLE].table,
+      /* TODO(cvicentiu) refactor replace_column_table to use Columns_priv_table
+         instead of TABLE directly. */
+      if (replace_column_table(grant_table, tables.columns_priv_table().table(),
                                *Str, columns, db_name, table_name, rights,
                                revoke_grant))
       {
@@ -6010,7 +6641,6 @@ bool mysql_routine_grant(THD *thd, TABLE_LIST *table_list, bool is_proc,
 {
   List_iterator <LEX_USER> str_list (user_list);
   LEX_USER *Str, *tmp_Str;
-  TABLE_LIST tables[TABLES_MAX];
   bool create_new_users= 0, result;
   char *db_name, *table_name;
   DBUG_ENTER("mysql_routine_grant");
@@ -6029,8 +6659,8 @@ bool mysql_routine_grant(THD *thd, TABLE_LIST *table_list, bool is_proc,
       DBUG_RETURN(TRUE);
   }
 
-  if ((result= open_grant_tables(thd, tables, TL_WRITE, Table_user |
-                                 Table_procs_priv)))
+  Grant_tables tables(Table_user | Table_procs_priv, TL_WRITE);
+  if ((result= tables.open_and_lock(thd)))
     DBUG_RETURN(result != 1);
 
   DBUG_ASSERT(!thd->is_current_stmt_binlog_format_row());
@@ -6054,7 +6684,7 @@ bool mysql_routine_grant(THD *thd, TABLE_LIST *table_list, bool is_proc,
     }
     /* Create user if needed */
     if (copy_and_check_auth(Str, tmp_Str, thd) ||
-        replace_user_table(thd, tables[USER_TABLE].table, *Str,
+        replace_user_table(thd, tables.user_table(), *Str,
 			   0, revoke_grant, create_new_users,
                            MY_TEST(thd->variables.sql_mode &
                                      MODE_NO_AUTO_CREATE_USER)))
@@ -6088,8 +6718,10 @@ bool mysql_routine_grant(THD *thd, TABLE_LIST *table_list, bool is_proc,
       }
     }
 
-    if (no_such_table(tables + PROCS_PRIV_TABLE) ||
-        replace_routine_table(thd, grant_name, tables[PROCS_PRIV_TABLE].table,
+    /* TODO(cvicentiu) refactor replace_routine_table to use Tables_procs_priv
+       instead of TABLE directly. */
+    if (tables.procs_priv_table().no_such_table() ||
+        replace_routine_table(thd, grant_name, tables.procs_priv_table().table(),
                               *Str, db_name, table_name, is_proc, rights,
                               revoke_grant) != 0)
     {
@@ -6229,9 +6861,8 @@ bool mysql_grant_role(THD *thd, List <LEX_USER> &list, bool revoke)
   no_auto_create_user= MY_TEST(thd->variables.sql_mode &
                                MODE_NO_AUTO_CREATE_USER);
 
-  TABLE_LIST tables[TABLES_MAX];
-  if ((result= open_grant_tables(thd, tables, TL_WRITE,
-                                 Table_user | Table_roles_mapping)))
+  Grant_tables tables(Table_user | Table_roles_mapping, TL_WRITE);
+  if ((result= tables.open_and_lock(thd)))
     DBUG_RETURN(result != 1);
 
   mysql_rwlock_wrlock(&LOCK_grant);
@@ -6330,7 +6961,7 @@ bool mysql_grant_role(THD *thd, List <LEX_USER> &list, bool revoke)
       user_combo.user = username;
 
       if (copy_and_check_auth(&user_combo, &user_combo, thd) ||
-          replace_user_table(thd, tables[USER_TABLE].table, user_combo, 0,
+          replace_user_table(thd, tables.user_table(), user_combo, 0,
                              false, create_new_user,
                              no_auto_create_user))
       {
@@ -6396,7 +7027,9 @@ bool mysql_grant_role(THD *thd, List <LEX_USER> &list, bool revoke)
     }
 
     /* write into the roles_mapping table */
-    if (replace_roles_mapping_table(tables[ROLES_MAPPING_TABLE].table,
+    /* TODO(cvicentiu) refactor replace_roles_mapping_table to use
+       Roles_mapping_table instead of TABLE directly. */
+    if (replace_roles_mapping_table(tables.roles_mapping_table().table(),
                                     &username, &hostname, &rolename,
                                     thd->lex->with_admin_option,
                                     hash_entry, revoke))
@@ -6447,7 +7080,6 @@ bool mysql_grant(THD *thd, const char *db, List <LEX_USER> &list,
   LEX_USER *Str, *tmp_Str, *proxied_user= NULL;
   char tmp_db[SAFE_NAME_LEN+1];
   bool create_new_users=0, result;
-  TABLE_LIST tables[TABLES_MAX];
   DBUG_ENTER("mysql_grant");
 
   if (lower_case_table_names && db)
@@ -6468,8 +7100,9 @@ bool mysql_grant(THD *thd, const char *db, List <LEX_USER> &list,
     proxied_user= str_list++;
   }
 
-  if ((result= open_grant_tables(thd, tables, TL_WRITE, Table_user |
-                                 (is_proxy ? Table_proxies_priv : Table_db))))
+  Grant_tables tables(Table_user | (is_proxy ? Table_proxies_priv : Table_db),
+                      TL_WRITE);
+  if ((result= tables.open_and_lock(thd)))
     DBUG_RETURN(result != 1);
 
   DBUG_ASSERT(!thd->is_current_stmt_binlog_format_row());
@@ -6498,7 +7131,7 @@ bool mysql_grant(THD *thd, const char *db, List <LEX_USER> &list,
     }
 
     if (copy_and_check_auth(Str, tmp_Str, thd) ||
-        replace_user_table(thd, tables[USER_TABLE].table, *Str,
+        replace_user_table(thd, tables.user_table(), *Str,
                            (!db ? rights : 0), revoke_grant, create_new_users,
                            MY_TEST(thd->variables.sql_mode &
                                    MODE_NO_AUTO_CREATE_USER)))
@@ -6508,7 +7141,7 @@ bool mysql_grant(THD *thd, const char *db, List <LEX_USER> &list,
       ulong db_rights= rights & DB_ACLS;
       if (db_rights  == rights)
       {
-	if (replace_db_table(tables[DB_TABLE].table, db, *Str, db_rights,
+	if (replace_db_table(tables.db_table().table(), db, *Str, db_rights,
 			     revoke_grant))
 	  result= true;
       }
@@ -6520,8 +7153,10 @@ bool mysql_grant(THD *thd, const char *db, List <LEX_USER> &list,
     }
     else if (is_proxy)
     {
-      if (no_such_table(tables + PROXIES_PRIV_TABLE) ||
-          replace_proxies_priv_table (thd, tables[PROXIES_PRIV_TABLE].table,
+    /* TODO(cvicentiu) refactor replace_proxies_priv_table to use
+       Proxies_priv_table  instead of TABLE directly. */
+      if (tables.proxies_priv_table().no_such_table() ||
+          replace_proxies_priv_table (thd, tables.proxies_priv_table().table(),
                                       Str, proxied_user,
                                       rights & GRANT_ACL ? TRUE : FALSE,
                                       revoke_grant))
@@ -6601,7 +7236,10 @@ bool grant_init()
     @retval TRUE Error
 */
 
-static bool grant_load(THD *thd, TABLE_LIST *tables)
+static bool grant_load(THD *thd,
+                       const Tables_priv_table& tables_priv,
+                       const Columns_priv_table& columns_priv,
+                       const Procs_priv_table& procs_priv)
 {
   bool return_val= 1;
   TABLE *t_table, *c_table, *p_table;
@@ -6621,9 +7259,9 @@ static bool grant_load(THD *thd, TABLE_LIST *tables)
                       0,0,0, (my_hash_get_key) get_grant_table, 0,0);
   init_sql_alloc(&grant_memroot, ACL_ALLOC_BLOCK_SIZE, 0, MYF(0));
 
-  t_table= tables[TABLES_PRIV_TABLE].table;
-  c_table= tables[COLUMNS_PRIV_TABLE].table;
-  p_table= tables[PROCS_PRIV_TABLE].table; // this can be NULL
+  t_table= tables_priv.table();
+  c_table= columns_priv.table();
+  p_table= procs_priv.table(); // this can be NULL
 
   if (t_table->file->ha_index_init(0, 1))
     goto end_index_init;
@@ -6638,6 +7276,7 @@ static bool grant_load(THD *thd, TABLE_LIST *tables)
     do
     {
       GRANT_TABLE *mem_check;
+      /* TODO(cvicentiu) convert this to use tables_priv and columns_priv. */
       if (!(mem_check= new (&grant_memroot) GRANT_TABLE(t_table, c_table)))
       {
 	/* This could only happen if we are out memory */
@@ -6700,12 +7339,12 @@ static bool grant_load(THD *thd, TABLE_LIST *tables)
             continue;
           }
         }
-        if (p_table->field[4]->val_int() == TYPE_ENUM_PROCEDURE)
+        if (procs_priv.routine_type()->val_int() == TYPE_ENUM_PROCEDURE)
         {
           hash= &proc_priv_hash;
         }
         else
-        if (p_table->field[4]->val_int() == TYPE_ENUM_FUNCTION)
+        if (procs_priv.routine_type()->val_int() == TYPE_ENUM_FUNCTION)
         {
           hash= &func_priv_hash;
         }
@@ -6774,7 +7413,6 @@ static my_bool role_propagate_grants_action(void *ptr,
 
 bool grant_reload(THD *thd)
 {
-  TABLE_LIST tables[TABLES_MAX];
   HASH old_column_priv_hash, old_proc_priv_hash, old_func_priv_hash;
   MEM_ROOT old_mem;
   int result;
@@ -6785,8 +7423,9 @@ bool grant_reload(THD *thd)
     obtaining LOCK_grant rwlock.
   */
 
-  if ((result= open_grant_tables(thd, tables, TL_READ, Table_tables_priv |
-                                 Table_columns_priv | Table_procs_priv)))
+  Grant_tables tables(Table_tables_priv | Table_columns_priv| Table_procs_priv,
+                      TL_READ);
+  if ((result= tables.open_and_lock(thd)))
     DBUG_RETURN(result != 1);
 
   mysql_rwlock_wrlock(&LOCK_grant);
@@ -6801,7 +7440,10 @@ bool grant_reload(THD *thd)
   */
   old_mem= grant_memroot;
 
-  if ((result= grant_load(thd, tables)))
+  if ((result= grant_load(thd,
+                          tables.tables_priv_table(),
+                          tables.columns_priv_table(),
+                          tables.procs_priv_table())))
   {						// Error. Revert to old hash
     DBUG_PRINT("error",("Reverting to old privileges"));
     grant_free();				/* purecov: deadcode */
@@ -8549,70 +9191,6 @@ void get_mqh(const char *user, const char *host, USER_CONN *uc)
   mysql_mutex_unlock(&acl_cache->lock);
 }
 
-/*
-  Initialize a TABLE_LIST array and open grant tables
-
-  All tables will be opened with the same lock type, either read or write.
-
-  @retval  1 replication filters matched. Abort the operation, but return OK (!)
-  @retval  0 tables were opened successfully
-  @retval -1 error, tables could not be opened
-*/
-
-static int open_grant_tables(THD *thd, TABLE_LIST *tables,
-                             enum thr_lock_type lock_type, int tables_to_open)
-{
-  DBUG_ENTER("open_grant_tables");
-
-  /*
-    We can read privilege tables even when !initialized.
-    This can be acl_load() - server startup or FLUSH PRIVILEGES
-  */
-  if (lock_type >= TL_WRITE_ALLOW_WRITE && !initialized)
-  {
-    my_error(ER_OPTION_PREVENTS_STATEMENT, MYF(0), "--skip-grant-tables");
-    DBUG_RETURN(-1);
-  }
-
-  int prev= -1;
-  bzero(tables, sizeof(TABLE_LIST) * TABLES_MAX);
-  for (int cur=TABLES_MAX-1, mask= 1 << cur; mask; cur--, mask >>= 1)
-  {
-    if ((tables_to_open & mask) == 0)
-      continue;
-    tables[cur].init_one_table(C_STRING_WITH_LEN("mysql"),
-                               acl_table_names[cur].str,
-                               acl_table_names[cur].length,
-                               acl_table_names[cur].str, lock_type);
-    tables[cur].open_type= OT_BASE_ONLY;
-    if (lock_type >= TL_WRITE_ALLOW_WRITE)
-      tables[cur].updating= 1;
-    if (cur >= FIRST_OPTIONAL_TABLE)
-      tables[cur].open_strategy= TABLE_LIST::OPEN_IF_EXISTS;
-    if (prev != -1)
-      tables[cur].next_local= tables[cur].next_global= & tables[prev];
-    prev= cur;
-  }
-
-#ifdef HAVE_REPLICATION
-  if (lock_type >= TL_WRITE_ALLOW_WRITE && thd->slave_thread && !thd->spcont)
-  {
-    /*
-      GRANT and REVOKE are applied the slave in/exclusion rules as they are
-      some kind of updates to the mysql.% tables.
-    */
-    Rpl_filter *rpl_filter= thd->system_thread_info.rpl_sql_info->rpl_filter;
-    if (rpl_filter->is_on() && !rpl_filter->tables_ok(0, tables))
-      DBUG_RETURN(1);
-  }
-#endif
-
-  if (open_and_lock_tables(thd, tables + prev, FALSE,
-                           MYSQL_LOCK_IGNORE_TIMEOUT))
-    DBUG_RETURN(-1);
-
-  DBUG_RETURN(0);
-}
 
 /*
   Modify a privilege table.
@@ -8753,8 +9331,8 @@ static int handle_roles_mappings_table(TABLE *table, bool drop,
 
   SYNOPSIS
     handle_grant_table()
-    tables                      The array with the four open tables.
-    table_no                    The number of the table to handle (0..4).
+    grant_table                 An open grant table handle.
+    which_table                 Which grant table to handle.
     drop                        If user_from is to be dropped.
     user_from                   The the user to be searched/dropped/renamed.
     user_to                     The new name for the user if to be renamed,
@@ -8772,18 +9350,21 @@ static int handle_roles_mappings_table(TABLE *table, bool drop,
     > 0         At least one record matched.
     0           OK, but no record matched.
     < 0         Error.
+
+   TODO(cvicentiu) refactor handle_grant_table to use
+   Grant_table_base instead of TABLE directly.
 */
 
-static int handle_grant_table(THD *thd, TABLE_LIST *tables,
-                              enum enum_acl_tables table_no, bool drop,
+static int handle_grant_table(THD *thd, const Grant_table_base& grant_table,
+                              enum enum_acl_tables which_table, bool drop,
                               LEX_USER *user_from, LEX_USER *user_to)
 {
   int result= 0;
   int error;
-  TABLE *table= tables[table_no].table;
+  TABLE *table= grant_table.table();
   Field *host_field= table->field[0];
-  Field *user_field= table->field[table_no == USER_TABLE ||
-                                  table_no == PROXIES_PRIV_TABLE ? 1 : 2];
+  Field *user_field= table->field[which_table == USER_TABLE ||
+                                  which_table == PROXIES_PRIV_TABLE ? 1 : 2];
   const char *host_str= user_from->host.str;
   const char *user_str= user_from->user.str;
   const char *host;
@@ -8792,14 +9373,14 @@ static int handle_grant_table(THD *thd, TABLE_LIST *tables,
   uint key_prefix_length;
   DBUG_ENTER("handle_grant_table");
 
-  if (table_no == ROLES_MAPPING_TABLE)
+  if (which_table == ROLES_MAPPING_TABLE)
   {
     result= handle_roles_mappings_table(table, drop, user_from, user_to);
     DBUG_RETURN(result);
   }
 
   table->use_all_columns();
-  if (table_no == USER_TABLE) // mysql.user table
+  if (which_table == USER_TABLE) // mysql.user table
   {
     /*
       The 'user' table has an unique index on (host, user).
@@ -8824,7 +9405,8 @@ static int handle_grant_table(THD *thd, TABLE_LIST *tables,
                                               HA_READ_KEY_EXACT);
     if (!error && !*host_str)
     { // verify that we got a role or a user, as needed
-      if (check_is_role(table) != user_from->is_role())
+      if (static_cast<const User_table&>(grant_table).check_is_role() !=
+          user_from->is_role())
         error= HA_ERR_KEY_NOT_FOUND;
     }
     if (error)
@@ -8875,7 +9457,7 @@ static int handle_grant_table(THD *thd, TABLE_LIST *tables,
         user= safe_str(get_field(thd->mem_root, user_field));
 
 #ifdef EXTRA_DEBUG
-        if (table_no != PROXIES_PRIV_TABLE)
+        if (which_table != PROXIES_PRIV_TABLE)
         {
           DBUG_PRINT("loop",("scan fields: '%s'@'%s' '%s' '%s' '%s'",
                              user, host,
@@ -9294,7 +9876,7 @@ static int handle_grant_struct(enum enum_acl_lists struct_no, bool drop,
     < 0         Error.
 */
 
-static int handle_grant_data(THD *thd, TABLE_LIST *tables, bool drop,
+static int handle_grant_data(THD *thd, Grant_tables& tables, bool drop,
                              LEX_USER *user_from, LEX_USER *user_to)
 {
   int result= 0;
@@ -9317,7 +9899,8 @@ static int handle_grant_data(THD *thd, TABLE_LIST *tables, bool drop,
   }
 
   /* Handle db table. */
-  if ((found= handle_grant_table(thd, tables, DB_TABLE, drop, user_from,
+  if ((found= handle_grant_table(thd, tables.db_table(),
+                                 DB_TABLE, drop, user_from,
                                  user_to)) < 0)
   {
     /* Handle of table failed, don't touch the in-memory array. */
@@ -9338,7 +9921,8 @@ static int handle_grant_data(THD *thd, TABLE_LIST *tables, bool drop,
   }
 
   /* Handle stored routines table. */
-  if ((found= handle_grant_table(thd, tables, PROCS_PRIV_TABLE, drop,
+  if ((found= handle_grant_table(thd, tables.procs_priv_table(),
+                                 PROCS_PRIV_TABLE, drop,
                                  user_from, user_to)) < 0)
   {
     /* Handle of table failed, don't touch in-memory array. */
@@ -9367,7 +9951,8 @@ static int handle_grant_data(THD *thd, TABLE_LIST *tables, bool drop,
   }
 
   /* Handle tables table. */
-  if ((found= handle_grant_table(thd, tables, TABLES_PRIV_TABLE, drop,
+  if ((found= handle_grant_table(thd, tables.tables_priv_table(),
+                                 TABLES_PRIV_TABLE, drop,
                                  user_from, user_to)) < 0)
   {
     /* Handle of table failed, don't touch columns and in-memory array. */
@@ -9384,7 +9969,8 @@ static int handle_grant_data(THD *thd, TABLE_LIST *tables, bool drop,
     }
 
     /* Handle columns table. */
-    if ((found= handle_grant_table(thd, tables, COLUMNS_PRIV_TABLE, drop,
+    if ((found= handle_grant_table(thd, tables.columns_priv_table(),
+                                   COLUMNS_PRIV_TABLE, drop,
                                    user_from, user_to)) < 0)
     {
       /* Handle of table failed, don't touch the in-memory array. */
@@ -9402,9 +9988,10 @@ static int handle_grant_data(THD *thd, TABLE_LIST *tables, bool drop,
   }
 
   /* Handle proxies_priv table. */
-  if (tables[PROXIES_PRIV_TABLE].table)
+  if (tables.proxies_priv_table().table_exists())
   {
-    if ((found= handle_grant_table(thd, tables, PROXIES_PRIV_TABLE, drop,
+    if ((found= handle_grant_table(thd, tables.proxies_priv_table(),
+                                   PROXIES_PRIV_TABLE, drop,
                                    user_from, user_to)) < 0)
     {
       /* Handle of table failed, don't touch the in-memory array. */
@@ -9422,9 +10009,10 @@ static int handle_grant_data(THD *thd, TABLE_LIST *tables, bool drop,
   }
 
   /* Handle roles_mapping table. */
-  if (tables[ROLES_MAPPING_TABLE].table)
+  if (tables.roles_mapping_table().table_exists())
   {
-    if ((found= handle_grant_table(thd, tables, ROLES_MAPPING_TABLE, drop,
+    if ((found= handle_grant_table(thd, tables.roles_mapping_table(),
+                                   ROLES_MAPPING_TABLE, drop,
                                    user_from, user_to)) < 0)
     {
       /* Handle of table failed, don't touch the in-memory array. */
@@ -9442,8 +10030,8 @@ static int handle_grant_data(THD *thd, TABLE_LIST *tables, bool drop,
   }
 
   /* Handle user table. */
-  if ((found= handle_grant_table(thd, tables, USER_TABLE, drop, user_from,
-                                 user_to)) < 0)
+  if ((found= handle_grant_table(thd, tables.user_table(), USER_TABLE,
+                                 drop, user_from, user_to)) < 0)
   {
     /* Handle of table failed, don't touch the in-memory array. */
     result= -1;
@@ -9482,7 +10070,6 @@ bool mysql_create_user(THD *thd, List <LEX_USER> &list, bool handle_as_role)
   String wrong_users;
   LEX_USER *user_name;
   List_iterator <LEX_USER> user_list(list);
-  TABLE_LIST tables[TABLES_MAX];
   bool binlog= false;
   DBUG_ENTER("mysql_create_user");
   DBUG_PRINT("entry", ("Handle as %s", handle_as_role ? "role" : "user"));
@@ -9491,10 +10078,11 @@ bool mysql_create_user(THD *thd, List <LEX_USER> &list, bool handle_as_role)
     DBUG_RETURN(TRUE);
 
   /* CREATE USER may be skipped on replication client. */
-  if ((result= open_grant_tables(thd, tables, TL_WRITE, Table_user | Table_db |
-                       Table_tables_priv | Table_columns_priv |
-                       Table_procs_priv | Table_proxies_priv |
-                       Table_roles_mapping)))
+  Grant_tables tables(Table_user | Table_db |
+                      Table_tables_priv | Table_columns_priv |
+                      Table_procs_priv | Table_proxies_priv |
+                      Table_roles_mapping, TL_WRITE);
+  if ((result= tables.open_and_lock(thd)))
     DBUG_RETURN(result != 1);
 
   mysql_rwlock_wrlock(&LOCK_grant);
@@ -9576,7 +10164,7 @@ bool mysql_create_user(THD *thd, List <LEX_USER> &list, bool handle_as_role)
     }
 
     binlog= true;
-    if (replace_user_table(thd, tables[USER_TABLE].table, *user_name, 0, 0, 1, 0))
+    if (replace_user_table(thd, tables.user_table(), *user_name, 0, 0, 1, 0))
     {
       append_user(thd, &wrong_users, user_name);
       result= TRUE;
@@ -9597,7 +10185,9 @@ bool mysql_create_user(THD *thd, List <LEX_USER> &list, bool handle_as_role)
       if (grantee)
         add_role_user_mapping(grantee, role);
 
-      if (replace_roles_mapping_table(tables[ROLES_MAPPING_TABLE].table,
+      /* TODO(cvicentiu) refactor replace_roles_mapping_table to use
+         Roles_mapping_table instead of TABLE directly. */
+      if (replace_roles_mapping_table(tables.roles_mapping_table().table(),
                                       &thd->lex->definer->user,
                                       &thd->lex->definer->host,
                                       &user_name->user, true,
@@ -9648,17 +10238,17 @@ bool mysql_drop_user(THD *thd, List <LEX_USER> &list, bool handle_as_role)
   String wrong_users;
   LEX_USER *user_name, *tmp_user_name;
   List_iterator <LEX_USER> user_list(list);
-  TABLE_LIST tables[TABLES_MAX];
   bool binlog= false;
   sql_mode_t old_sql_mode= thd->variables.sql_mode;
   DBUG_ENTER("mysql_drop_user");
   DBUG_PRINT("entry", ("Handle as %s", handle_as_role ? "role" : "user"));
 
   /* DROP USER may be skipped on replication client. */
-  if ((result= open_grant_tables(thd, tables, TL_WRITE, Table_user | Table_db |
-                       Table_tables_priv | Table_columns_priv |
-                       Table_procs_priv | Table_proxies_priv |
-                       Table_roles_mapping)))
+  Grant_tables tables(Table_user | Table_db |
+                      Table_tables_priv | Table_columns_priv |
+                      Table_procs_priv | Table_proxies_priv |
+                      Table_roles_mapping, TL_WRITE);
+  if ((result= tables.open_and_lock(thd)))
     DBUG_RETURN(result != 1);
 
   thd->variables.sql_mode&= ~MODE_PAD_CHAR_TO_FULL_LENGTH;
@@ -9760,15 +10350,15 @@ bool mysql_rename_user(THD *thd, List <LEX_USER> &list)
   LEX_USER *user_from, *tmp_user_from;
   LEX_USER *user_to, *tmp_user_to;
   List_iterator <LEX_USER> user_list(list);
-  TABLE_LIST tables[TABLES_MAX];
   bool some_users_renamed= FALSE;
   DBUG_ENTER("mysql_rename_user");
 
   /* RENAME USER may be skipped on replication client. */
-  if ((result= open_grant_tables(thd, tables, TL_WRITE, Table_user | Table_db |
-                       Table_tables_priv | Table_columns_priv |
-                       Table_procs_priv | Table_proxies_priv |
-                       Table_roles_mapping)))
+  Grant_tables tables(Table_user | Table_db |
+                      Table_tables_priv | Table_columns_priv |
+                      Table_procs_priv | Table_proxies_priv |
+                      Table_roles_mapping, TL_WRITE);
+  if ((result= tables.open_and_lock(thd)))
     DBUG_RETURN(result != 1);
 
   DBUG_ASSERT(!thd->is_current_stmt_binlog_format_row());
@@ -9846,13 +10436,14 @@ int mysql_alter_user(THD* thd, List<LEX_USER> &users_list)
 {
   DBUG_ENTER("mysql_alter_user");
   int result= 0;
-  TABLE_LIST tables[TABLES_MAX];
   String wrong_users;
-  // The only table we're altering is the user table.
-  if ((result= open_grant_tables(thd, tables, TL_WRITE, Table_user)))
-    DBUG_RETURN(result);
 
-  // Lock ACL data structures until we finish altering all users.
+  /* The only table we're altering is the user table. */
+  Grant_tables tables(Table_user, TL_WRITE);
+  if ((result= tables.open_and_lock(thd)))
+    DBUG_RETURN(result != 1);
+
+  /* Lock ACL data structures until we finish altering all users. */
   mysql_rwlock_wrlock(&LOCK_grant);
   mysql_mutex_lock(&acl_cache->lock);
 
@@ -9863,7 +10454,7 @@ int mysql_alter_user(THD* thd, List<LEX_USER> &users_list)
     LEX_USER* lex_user= get_current_user(thd, tmp_lex_user, false);
     if (!lex_user ||
         fix_lex_user(thd, lex_user) ||
-        replace_user_table(thd, tables[USER_TABLE].table, *lex_user,0,
+        replace_user_table(thd, tables.user_table(), *lex_user, 0,
                            false, false, true))
     {
       thd->clear_error();
@@ -9873,13 +10464,13 @@ int mysql_alter_user(THD* thd, List<LEX_USER> &users_list)
     }
   }
 
-  // Unlock ACL data structures.
+  /* Unlock ACL data structures. */
   mysql_mutex_unlock(&acl_cache->lock);
   mysql_rwlock_unlock(&LOCK_grant);
 
   if (result)
   {
-    // 'if exists' flag leads to warnings instead of errors.
+    /* 'if exists' flag leads to warnings instead of errors. */
     if (thd->lex->create_info.if_exists())
     {
       push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
@@ -9917,13 +10508,13 @@ bool mysql_revoke_all(THD *thd,  List <LEX_USER> &list)
   uint counter, revoked, is_proc;
   int result;
   ACL_DB *acl_db;
-  TABLE_LIST tables[TABLES_MAX];
   DBUG_ENTER("mysql_revoke_all");
 
-  if ((result= open_grant_tables(thd, tables, TL_WRITE, Table_user | Table_db |
-                       Table_tables_priv | Table_columns_priv |
-                       Table_procs_priv | Table_proxies_priv |
-                       Table_roles_mapping)))
+  Grant_tables tables(Table_user | Table_db |
+                      Table_tables_priv | Table_columns_priv |
+                      Table_procs_priv | Table_proxies_priv |
+                      Table_roles_mapping, TL_WRITE);
+  if ((result= tables.open_and_lock(thd)))
     DBUG_RETURN(result != 1);
 
   DBUG_ASSERT(!thd->is_current_stmt_binlog_format_row());
@@ -9949,7 +10540,7 @@ bool mysql_revoke_all(THD *thd,  List <LEX_USER> &list)
       continue;
     }
 
-    if (replace_user_table(thd, tables[USER_TABLE].table, *lex_user,
+    if (replace_user_table(thd, tables.user_table(), *lex_user,
                            ~(ulong)0, 1, 0, 0))
     {
       result= -1;
@@ -9976,8 +10567,10 @@ bool mysql_revoke_all(THD *thd,  List <LEX_USER> &list)
 	if (!strcmp(lex_user->user.str, user) &&
             !strcmp(lex_user->host.str, host))
 	{
-	  if (!replace_db_table(tables[DB_TABLE].table, acl_db->db, *lex_user,
-                                ~(ulong)0, 1))
+      /* TODO(cvicentiu) refactor replace_db_table to use
+         Db_table instead of TABLE directly. */
+	  if (!replace_db_table(tables.db_table().table(), acl_db->db, *lex_user,
+                            ~(ulong)0, 1))
 	  {
 	    /*
 	      Don't increment counter as replace_db_table deleted the
@@ -10006,9 +10599,11 @@ bool mysql_revoke_all(THD *thd,  List <LEX_USER> &list)
 	if (!strcmp(lex_user->user.str,user) &&
             !strcmp(lex_user->host.str, host))
 	{
+      /* TODO(cvicentiu) refactor replace_db_table to use
+         Db_table instead of TABLE directly. */
 	  if (replace_table_table(thd, grant_table,
-                                  tables[TABLES_PRIV_TABLE].table,
-                                  *lex_user, grant_table->db,
+                              tables.tables_priv_table().table(),
+                              *lex_user, grant_table->db,
 				  grant_table->tname, ~(ulong)0, 0, 1))
 	  {
 	    result= -1;
@@ -10021,8 +10616,10 @@ bool mysql_revoke_all(THD *thd,  List <LEX_USER> &list)
 	      continue;
 	    }
 	    List<LEX_COLUMN> columns;
+        /* TODO(cvicentiu) refactor replace_db_table to use
+           Db_table instead of TABLE directly. */
 	    if (!replace_column_table(grant_table,
-                                      tables[COLUMNS_PRIV_TABLE].table,
+                                      tables.columns_priv_table().table(),
                                       *lex_user, columns, grant_table->db,
 				      grant_table->tname, ~(ulong)0, 1))
 	    {
@@ -10046,20 +10643,21 @@ bool mysql_revoke_all(THD *thd,  List <LEX_USER> &list)
         user= safe_str(grant_proc->user);
         host= safe_str(grant_proc->host.hostname);
 
-	if (!strcmp(lex_user->user.str,user) &&
+        if (!strcmp(lex_user->user.str,user) &&
             !strcmp(lex_user->host.str, host))
-	{
-	  if (replace_routine_table(thd, grant_proc,
-                                    tables[PROCS_PRIV_TABLE].table, *lex_user,
+        {
+          if (replace_routine_table(thd, grant_proc,
+                                    tables.procs_priv_table().table(),
+                                    *lex_user,
                                     grant_proc->db, grant_proc->tname,
                                     is_proc, ~(ulong)0, 1) == 0)
-	  {
-	    revoked= 1;
-	    continue;
-	  }
-	  result= -1;	// Something went wrong
-	}
-	counter++;
+          {
+            revoked= 1;
+            continue;
+          }
+          result= -1;	// Something went wrong
+        }
+        counter++;
       }
     } while (revoked);
 
@@ -10085,7 +10683,9 @@ bool mysql_revoke_all(THD *thd,  List <LEX_USER> &list)
       ROLE_GRANT_PAIR *pair = find_role_grant_pair(&lex_user->user,
                                                    &lex_user->host,
                                                    &role_grant->user);
-      if (replace_roles_mapping_table(tables[ROLES_MAPPING_TABLE].table,
+      /* TODO(cvicentiu) refactor replace_roles_mapping_table to use
+         Roles_mapping_table instead of TABLE directly. */
+      if (replace_roles_mapping_table(tables.roles_mapping_table().table(),
                                       &lex_user->user, &lex_user->host,
                                       &role_grant->user, false, pair, true))
       {
@@ -10215,15 +10815,15 @@ bool sp_revoke_privileges(THD *thd, const char *sp_db, const char *sp_name,
 {
   uint counter, revoked;
   int result;
-  TABLE_LIST tables[TABLES_MAX];
   HASH *hash= is_proc ? &proc_priv_hash : &func_priv_hash;
   Silence_routine_definer_errors error_handler;
   DBUG_ENTER("sp_revoke_privileges");
 
-  if ((result= open_grant_tables(thd, tables, TL_WRITE, Table_user | Table_db |
-                       Table_tables_priv | Table_columns_priv |
-                       Table_procs_priv | Table_proxies_priv |
-                       Table_roles_mapping)))
+  Grant_tables tables(Table_user | Table_db |
+                      Table_tables_priv | Table_columns_priv |
+                      Table_procs_priv | Table_proxies_priv |
+                      Table_roles_mapping, TL_WRITE);
+  if ((result= tables.open_and_lock(thd)))
     DBUG_RETURN(result != 1);
 
   DBUG_ASSERT(!thd->is_current_stmt_binlog_format_row());
@@ -10248,9 +10848,9 @@ bool sp_revoke_privileges(THD *thd, const char *sp_db, const char *sp_name,
 	lex_user.user.length= strlen(grant_proc->user);
         lex_user.host.str= safe_str(grant_proc->host.hostname);
         lex_user.host.length= strlen(lex_user.host.str);
-	if (replace_routine_table(thd, grant_proc,
-                                  tables[PROCS_PRIV_TABLE].table, lex_user,
-				  grant_proc->db, grant_proc->tname,
+        if (replace_routine_table(thd, grant_proc,
+                                  tables.procs_priv_table().table(), lex_user,
+                                  grant_proc->db, grant_proc->tname,
                                   is_proc, ~(ulong)0, 1) == 0)
 	{
 	  revoked= 1;

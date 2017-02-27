@@ -62,6 +62,7 @@ struct ha_table_option_struct {
   bool split;
   bool readonly;
   bool sepindex;
+	bool zipped;
   };
 
 // Possible value for catalog functions

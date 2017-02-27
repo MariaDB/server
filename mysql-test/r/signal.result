@@ -1118,6 +1118,7 @@ end $$
 call test_signal() $$
 ERROR 42000: Variable 'MYSQL_ERRNO' can't be set to the value of '999999999999999999999999999999999999999999999999999'
 drop procedure test_signal $$
+SET sql_mode= '' $$
 create procedure test_signal()
 begin
 DECLARE aaax VARCHAR(65);
@@ -1177,6 +1178,7 @@ Warning	1647	Data truncated for condition item 'CURSOR_NAME'
 Warning	1647	Data truncated for condition item 'MESSAGE_TEXT'
 Warning	10000	11111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111112222222222222222222288888888
 drop procedure test_signal $$
+set sql_mode = DEFAULT $$
 create procedure test_signal()
 begin
 DECLARE warn CONDITION FOR SQLSTATE "01234";
@@ -1501,7 +1503,7 @@ select "before RESIGNAL";
 RESIGNAL;
 select "after RESIGNAL";
 end;
-insert into t_warn set a= 9999999999999999;
+insert ignore into t_warn set a= 9999999999999999;
 end $$
 call test_resignal() $$
 before RESIGNAL
@@ -1618,7 +1620,7 @@ MESSAGE_TEXT = "RESIGNAL of a warning",
 MYSQL_ERRNO = 5555 ;
 select "after RESIGNAL";
 end;
-insert into t_warn set a= 9999999999999999;
+insert ignore into t_warn set a= 9999999999999999;
 end $$
 call test_resignal() $$
 before RESIGNAL
@@ -1892,7 +1894,7 @@ MESSAGE_TEXT = "RESIGNAL to a warning",
 MYSQL_ERRNO = 5555 ;
 select "after RESIGNAL";
 end;
-insert into t_warn set a= 9999999999999999;
+insert ignore into t_warn set a= 9999999999999999;
 end $$
 call test_resignal() $$
 before RESIGNAL
@@ -1913,7 +1915,7 @@ MESSAGE_TEXT = "RESIGNAL to a not found",
 MYSQL_ERRNO = 5555 ;
 select "after RESIGNAL";
 end;
-insert into t_warn set a= 9999999999999999;
+insert ignore into t_warn set a= 9999999999999999;
 end $$
 call test_resignal() $$
 before RESIGNAL
@@ -1934,7 +1936,7 @@ MESSAGE_TEXT = "RESIGNAL to an error",
 MYSQL_ERRNO = 5555 ;
 select "after RESIGNAL";
 end;
-insert into t_warn set a= 9999999999999999;
+insert ignore into t_warn set a= 9999999999999999;
 end $$
 call test_resignal() $$
 before RESIGNAL

@@ -1104,7 +1104,7 @@ public:
   /* Set if using virtual fields */
   MY_BITMAP     *vcol_set, *def_vcol_set;
   /* On INSERT: fields that the user specified a value for */
-  MY_BITMAP	*has_value_set;
+  MY_BITMAP	has_value_set;
 
   /*
    The ID of the query that opened and is using this table. Has different
@@ -1245,11 +1245,6 @@ public:
   */
   bool keep_row_order;
 
-  /**
-     If set, the optimizer has found that row retrieval should access index 
-     tree only.
-   */
-  bool key_read;
   bool no_keyread;
   /**
     If set, indicate that the table is not replicated by the server.
@@ -1311,10 +1306,12 @@ public:
   void reset_item_list(List<Item> *item_list) const;
   void clear_column_bitmaps(void);
   void prepare_for_position(void);
+  MY_BITMAP *prepare_for_keyread(uint index, MY_BITMAP *map);
+  MY_BITMAP *prepare_for_keyread(uint index)
+  { return prepare_for_keyread(index, &tmp_set); }
+  void mark_columns_used_by_index(uint index, MY_BITMAP *map);
   void mark_columns_used_by_index_no_reset(uint index, MY_BITMAP *map);
-  void mark_columns_used_by_index(uint index);
-  void add_read_columns_used_by_index(uint index);
-  void restore_column_maps_after_mark_index();
+  void restore_column_maps_after_keyread(MY_BITMAP *backup);
   void mark_auto_increment_column(void);
   void mark_columns_needed_for_update(void);
   void mark_columns_needed_for_delete(void);
@@ -1326,6 +1323,12 @@ public:
   void mark_columns_used_by_check_constraints(void);
   void mark_check_constraint_columns_for_read(void);
   int verify_constraints(bool ignore_failure);
+  inline void column_bitmaps_set(MY_BITMAP *read_set_arg)
+  {
+    read_set= read_set_arg;
+    if (file)
+      file->column_bitmaps_signal();
+  }
   inline void column_bitmaps_set(MY_BITMAP *read_set_arg,
                                  MY_BITMAP *write_set_arg)
   {
@@ -1388,23 +1391,6 @@ public:
     tablenr= tablenr_arg;
   }
 
-  void set_keyread(bool flag)
-  {
-    DBUG_ASSERT(file);
-    if (flag && !key_read)
-    {
-      key_read= 1;
-      if (is_created())
-        file->extra(HA_EXTRA_KEYREAD);
-    }
-    else if (!flag && key_read)
-    {
-      key_read= 0;
-      if (is_created())
-        file->extra(HA_EXTRA_NO_KEYREAD);
-    }
-  }
-
   /// Return true if table is instantiated, and false otherwise.
   bool is_created() const { return created; }
 
@@ -1416,7 +1402,7 @@ public:
   {
     if (created)
       return;
-    if (key_read)
+    if (file->keyread_enabled())
       file->extra(HA_EXTRA_KEYREAD);
     created= true;
   }
@@ -1438,7 +1424,7 @@ public:
   uint actual_n_key_parts(KEY *keyinfo);
   ulong actual_key_flags(KEY *keyinfo);
   int update_virtual_field(Field *vf);
-  int update_virtual_fields(enum_vcol_update_mode update_mode);
+  int update_virtual_fields(handler *h, enum_vcol_update_mode update_mode);
   int update_default_fields(bool update, bool ignore_errors);
   void reset_default_fields();
   inline ha_rows stat_records() { return used_stat_records; }

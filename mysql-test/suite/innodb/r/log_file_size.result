@@ -11,12 +11,17 @@ DELETE FROM t1;
 SELECT * FROM t1;
 a
 42
-INSERT INTO t1 VALUES (123);
+INSERT INTO t1 VALUES (0),(123);
 BEGIN;
-DELETE FROM t1;
+DELETE FROM t1 WHERE a>0;
+# Persist the state of the above incomplete transaction by
+# causing a redo log write for another transaction.
+connect con1, localhost, root;
+SET GLOBAL innodb_flush_log_at_trx_commit=1;
+DELETE FROM t1 WHERE a=0;
+disconnect con1;
+connection default;
 # Kill the server
-SELECT * FROM t1;
-ERROR 42000: Unknown storage engine 'InnoDB'
 SELECT * FROM t1;
 ERROR 42000: Unknown storage engine 'InnoDB'
 SELECT * FROM t1;

@@ -47,7 +47,7 @@ delete from t1;
 select * from t1;
 
 --echo # INSERT INTO tbl_name VALUES... a non-NULL value is specified against gcols
-insert into t1 values (1,2,3);
+insert ignore into t1 values (1,2,3);
 select * from t1;
 delete from t1;
 select * from t1;
@@ -73,7 +73,7 @@ select * from t1;
 
 --echo # INSERT INTO tbl_name (<normal+gcols>) VALUES... a non-NULL value is specified
 --echo # against gcols
-insert into t1 (a,b) values (1,3), (2,4);
+insert ignore into t1 (a,b) values (1,3), (2,4);
 select * from t1;
 delete from t1;
 select * from t1;
@@ -131,7 +131,7 @@ select * from t1;
 --echo # UPDATE tbl_name SET gcol=expr WHERE non-gcol=expr
 insert into t1 (a) values (1), (2);
 select * from t1 order by a;
-update t1 set c=3 where a=2;
+update ignore t1 set c=3 where a=2;
 select * from t1 order by a;
 delete from t1;
 select * from t1;
@@ -147,7 +147,7 @@ select * from t1;
 --echo # UPDATE tbl_name SET gcol=expr WHERE gcol=expr
 insert into t1 (a) values (1), (2);
 select * from t1 order by a;
-update t1 set c=3 where b=-2;
+update ignore t1 set c=3 where b=-2;
 select * from t1 order by a;
 delete from t1;
 select * from t1;
@@ -493,7 +493,7 @@ b TIMESTAMP(4) GENERATED ALWAYS AS ('') VIRTUAL,
 KEY (a(183),b)
 );
 
-INSERT INTO t VALUES(), (), ();
+INSERT IGNORE INTO t VALUES(), (), ();
 
 DELETE IGNORE FROM t;
 
@@ -512,7 +512,7 @@ CREATE TABLE t (
   UNIQUE(b),
   UNIQUE(b1)
 );
-INSERT INTO t VALUES();
+INSERT IGNORE INTO t VALUES();
 SELECT b from t;
 SELECT b1 from t;
 SELECT * from t;

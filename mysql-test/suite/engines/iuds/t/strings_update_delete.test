@@ -79,7 +79,7 @@ DROP TABLE t3,t4,t5;
 CREATE TABLE t6 (a char(2) not null primary key, b varchar(20) not null, key (b));
 CREATE TABLE t7 (a char(2) not null primary key, b varchar(20) not null, key (b));
 INSERT INTO t6 values ('AB','MySQLAB'),('JA','Sun Microsystems'),('MS','Microsoft'),('IB','IBM- Inc.'),('GO','Google Inc.');
-INSERT INTO t7 values ('AB','Sweden'),('JA','USA'),('MS','United States of Amercica'),('IB','North America'),('GO','South America'); 
+INSERT IGNORE INTO t7 values ('AB','Sweden'),('JA','USA'),('MS','United States of Amercica'),('IB','North America'),('GO','South America'); 
 update t6,t7 set t6.a=LCASE(t6.a);
 --sorted_result
 select * from t6;
@@ -117,22 +117,23 @@ CREATE TABLE t16 (c1 SET('a', 'b', 'c', 'd', 'e'));
 eval INSERT INTO t16 VALUES (('d,a,d,d'));
 --sorted_result
 SELECT c1 FROM t16;
-eval INSERT INTO t16 (c1) VALUES ('a,b,d'),('d,A ,b');
+eval INSERT IGNORE INTO t16 (c1) VALUES ('a,b,d'),('d,A ,b');
 --sorted_result
 SELECT c1 FROM t16; 
 #--warning WARN_DATA_TRUNCATED
-eval INSERT INTO t16 (c1) VALUES ('f,a,b'); 
+eval INSERT IGNORE INTO t16 (c1) VALUES ('f,a,b'); 
 SHOW WARNINGS;
 --sorted_result
 SELECT c1 FROM t16;   
 #--warning ER_DUPLICATED_VALUE_IN_TYPE
+SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 CREATE TABLE t17 (c1 SET('a','b','a','b'));
 SHOW WARNINGS;
 # Tests for ENUM datatype
 # Invalid ENUM value insert behavior
 CREATE TABLE t18 (c1 CHAR(4),c2 enum('SMALL','MEDIUM','LARGE','VERY LARGE'));
 eval INSERT INTO t18 VALUES('SIZE', 'SMALL');
-eval INSERT INTO t18 VALUES('SIZE', 'SMALL1'); 
+eval INSERT IGNORE INTO t18 VALUES('SIZE', 'SMALL1'); 
 --sorted_result
 SELECT * FROM t18 WHERE c2=0;
  EXPLAIN SELECT * FROM t18 WHERE c2=0; 

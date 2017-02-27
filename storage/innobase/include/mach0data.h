@@ -353,17 +353,6 @@ mach_read_int_type(
 	const byte*	src,		/*!< in: where to read from */
 	ulint		len,		/*!< in: length of src */
 	ibool		unsigned_type);	/*!< in: signed or unsigned flag */
-/***********************************************************//**
-Convert integral type from host byte order to (big-endian) storage
-byte order. */
-UNIV_INLINE
-void
-mach_write_int_type(
-/*================*/
-	byte*		dest,		/*!< in: where to write*/
-	const byte*	src,		/*!< in: where to read from */
-	ulint		len,		/*!< in: length of src */
-	bool		usign);		/*!< in: signed or unsigned flag */
 
 /*************************************************************
 Convert a ulonglong integer from host byte order to (big-endian)

@@ -1048,7 +1048,7 @@ bool TABLE_LIST::is_with_table_recursive_reference()
     false   otherwise
 */
 
-bool st_select_lex::check_unrestricted_recursive(bool only_standards_compliant)
+bool st_select_lex::check_unrestricted_recursive(bool only_standard_compliant)
 {
   With_element *with_elem= get_with_element();
   if (!with_elem ||!with_elem->is_recursive)
@@ -1077,9 +1077,9 @@ bool st_select_lex::check_unrestricted_recursive(bool only_standards_compliant)
                               with_elem->get_mutually_recursive());
 
   /* Report an error on unrestricted specification if this is required */
-  if (only_standards_compliant && with_elem->is_unrestricted())
+  if (only_standard_compliant && with_elem->is_unrestricted())
   {
-    my_error(ER_NOT_STANDARDS_COMPLIANT_RECURSIVE,
+    my_error(ER_NOT_STANDARD_COMPLIANT_RECURSIVE,
 	     MYF(0), with_elem->query_name->str);
     return true;
   }

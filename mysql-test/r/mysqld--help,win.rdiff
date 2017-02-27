@@ -42,7 +42,7 @@
   --stack-trace       Print a symbolic stack trace on failure
   (Defaults to on; use --skip-stack-trace to disable.)
 + --standalone        Dummy option to start as a standalone program (NT).
-  --standards-compliant-cte 
+  --standard-compliant-cte 
   Allow only standards compiant CTE
   (Defaults to on; use --skip-standards-compliant-cte to disable.)
 @@ -1109,6 +1117,11 @@

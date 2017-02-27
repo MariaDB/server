@@ -4450,7 +4450,7 @@ EXPLAIN
 SELECT t2.i FROM t1,t2 WHERE t1.cu = t2.cl ;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	6	
-1	SIMPLE	t1	hash_index	cu	#hash#cu:cu	33:33	func	10	Using where; Using join buffer (flat, BNLH join)
+1	SIMPLE	t1	hash_index	cu	#hash#cu:cu	33:33	func	10	Using where; Using index; Using join buffer (flat, BNLH join)
 SELECT t2.i FROM t1,t2 WHERE t1.cu = t2.cl ;
 i
 6
@@ -5242,7 +5242,7 @@ EXPLAIN
 SELECT * FROM t1 WHERE (t1.b) IN (SELECT c FROM t2);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	Using where
-1	PRIMARY	t2	hash_index	c	#hash#c:c	5:5	test.t1.b	8	Start temporary; End temporary; Using join buffer (flat, BNLH join)
+1	PRIMARY	t2	hash_index	c	#hash#c:c	5:5	test.t1.b	8	Using index; Start temporary; End temporary; Using join buffer (flat, BNLH join)
 SELECT * FROM t1 WHERE (t1.b) IN (SELECT c FROM t2);
 a	b
 3914	17
@@ -5609,8 +5609,8 @@ set join_cache_level = default;
 set optimizer_switch=@tmp_optimizer_switch;
 DROP TABLE t1,t2,t3;
 #
-# Bug #925985: LEFT JOIN with optimize_join_buffer_size=off +
-#              join_buffer_size > join_buffer_space_limit
+# lp:925985 LEFT JOIN with optimize_join_buffer_size=off +
+#           join_buffer_size > join_buffer_space_limit
 #
 CREATE TABLE t1 (a int);
 INSERT INTO t1 VALUES (5), (3);
@@ -5755,11 +5755,13 @@ LEFT JOIN t2 c1 ON c1.parent_id = t.id AND c1.col2 = "val"
   LEFT JOIN t2 c23 ON c23.parent_id = t.id AND c23.col2 = "val"
   LEFT JOIN t2 c24 ON c24.parent_id = t.id AND c24.col2 = "val"
   LEFT JOIN t2 c25 ON c25.parent_id = t.id AND c25.col2 = "val"
+  LEFT JOIN t2 c26 ON c26.parent_id = t.id AND c26.col2 = "val"
+  LEFT JOIN t2 c27 ON c27.parent_id = t.id AND c27.col2 = "val"
 ORDER BY 
 col1;
 id	col1
-select timestampdiff(second, @init_time, now()) <= 1;
-timestampdiff(second, @init_time, now()) <= 1
+select timestampdiff(second, @init_time, now()) <= 5;
+timestampdiff(second, @init_time, now()) <= 5
 1
 set join_cache_level=2;
 set @init_time:=now();
@@ -5791,11 +5793,13 @@ LEFT JOIN t2 c1 ON c1.parent_id = t.id AND c1.col2 = "val"
   LEFT JOIN t2 c23 ON c23.parent_id = t.id AND c23.col2 = "val"
   LEFT JOIN t2 c24 ON c24.parent_id = t.id AND c24.col2 = "val"
   LEFT JOIN t2 c25 ON c25.parent_id = t.id AND c25.col2 = "val"
+  LEFT JOIN t2 c26 ON c26.parent_id = t.id AND c26.col2 = "val"
+  LEFT JOIN t2 c27 ON c27.parent_id = t.id AND c27.col2 = "val"
 ORDER BY 
 col1;
 id	col1
-select timestampdiff(second, @init_time, now()) <= 1;
-timestampdiff(second, @init_time, now()) <= 1
+select timestampdiff(second, @init_time, now()) <= 5;
+timestampdiff(second, @init_time, now()) <= 5
 1
 EXPLAIN
 SELECT t.* 
@@ -5826,6 +5830,8 @@ LEFT JOIN t2 c1 ON c1.parent_id = t.id AND c1.col2 = "val"
   LEFT JOIN t2 c23 ON c23.parent_id = t.id AND c23.col2 = "val"
   LEFT JOIN t2 c24 ON c24.parent_id = t.id AND c24.col2 = "val"
   LEFT JOIN t2 c25 ON c25.parent_id = t.id AND c25.col2 = "val"
+  LEFT JOIN t2 c26 ON c26.parent_id = t.id AND c26.col2 = "val"
+  LEFT JOIN t2 c27 ON c27.parent_id = t.id AND c27.col2 = "val"
 ORDER BY 
 col1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -5855,6 +5861,8 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	c23	ALL	NULL	NULL	NULL	NULL	1	Using where; Using join buffer (incremental, BNL join)
 1	SIMPLE	c24	ALL	NULL	NULL	NULL	NULL	1	Using where; Using join buffer (incremental, BNL join)
 1	SIMPLE	c25	ALL	NULL	NULL	NULL	NULL	1	Using where; Using join buffer (incremental, BNL join)
+1	SIMPLE	c26	ALL	NULL	NULL	NULL	NULL	1	Using where; Using join buffer (incremental, BNL join)
+1	SIMPLE	c27	ALL	NULL	NULL	NULL	NULL	1	Using where; Using join buffer (incremental, BNL join)
 set join_buffer_size=default;
 set join_cache_level = default;
 DROP TABLE t1,t2;

@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2015, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1091,12 +1092,11 @@ trx_sys_close(void)
 		trx_dummy_sess = NULL;
 	}
 
-	if (purge_sys) {
-		trx_purge_sys_close();
-	}
-
 	/* Only prepared transactions may be left in the system. Free them. */
-	ut_a(UT_LIST_GET_LEN(trx_sys->rw_trx_list) == trx_sys->n_prepared_trx);
+	ut_a(UT_LIST_GET_LEN(trx_sys->rw_trx_list) == trx_sys->n_prepared_trx
+	     || !srv_was_started
+	     || srv_read_only_mode
+	     || srv_force_recovery >= SRV_FORCE_NO_TRX_UNDO);
 
 	for (trx_t* trx = UT_LIST_GET_FIRST(trx_sys->rw_trx_list);
 	     trx != NULL;
@@ -1151,33 +1151,6 @@ trx_sys_close(void)
 	trx_sys = NULL;
 }
 
-/** @brief Convert an undo log to TRX_UNDO_PREPARED state on shutdown.
-
-If any prepared ACTIVE transactions exist, and their rollback was
-prevented by innodb_force_recovery, we convert these transactions to
-XA PREPARE state in the main-memory data structures, so that shutdown
-will proceed normally. These transactions will again recover as ACTIVE
-on the next restart, and they will be rolled back unless
-innodb_force_recovery prevents it again.
-
-@param[in]	trx	transaction
-@param[in,out]	undo	undo log to convert to TRX_UNDO_PREPARED */
-static
-void
-trx_undo_fake_prepared(
-	const trx_t*	trx,
-	trx_undo_t*	undo)
-{
-	ut_ad(srv_force_recovery >= SRV_FORCE_NO_TRX_UNDO);
-	ut_ad(trx_state_eq(trx, TRX_STATE_ACTIVE));
-	ut_ad(trx->is_recovered);
-
-	if (undo != NULL) {
-		ut_ad(undo->state == TRX_UNDO_ACTIVE);
-		undo->state = TRX_UNDO_PREPARED;
-	}
-}
-
 /*********************************************************************
 Check if there are any active (non-prepared) transactions.
 @return total number of active transactions or 0 if none */
@@ -1185,46 +1158,15 @@ ulint
 trx_sys_any_active_transactions(void)
 /*=================================*/
 {
+	ulint	total_trx = 0;
+
 	trx_sys_mutex_enter();
 
-	ulint	total_trx = UT_LIST_GET_LEN(trx_sys->mysql_trx_list);
+	total_trx = UT_LIST_GET_LEN(trx_sys->rw_trx_list)
+		  + UT_LIST_GET_LEN(trx_sys->mysql_trx_list);
 
-	if (total_trx == 0) {
-		total_trx = UT_LIST_GET_LEN(trx_sys->rw_trx_list);
-		ut_a(total_trx >= trx_sys->n_prepared_trx);
-
-		if (total_trx > trx_sys->n_prepared_trx
-		    && srv_force_recovery >= SRV_FORCE_NO_TRX_UNDO) {
-			for (trx_t* trx = UT_LIST_GET_FIRST(
-				     trx_sys->rw_trx_list);
-			     trx != NULL;
-			     trx = UT_LIST_GET_NEXT(trx_list, trx)) {
-				if (!trx_state_eq(trx, TRX_STATE_ACTIVE)
-				    || !trx->is_recovered) {
-					continue;
-				}
-				/* This was a recovered transaction
-				whose rollback was disabled by
-				the innodb_force_recovery setting.
-				Pretend that it is in XA PREPARE
-				state so that shutdown will work. */
-				trx_undo_fake_prepared(
-					trx, trx->rsegs.m_redo.insert_undo);
-				trx_undo_fake_prepared(
-					trx, trx->rsegs.m_redo.update_undo);
-				trx_undo_fake_prepared(
-					trx, trx->rsegs.m_noredo.insert_undo);
-				trx_undo_fake_prepared(
-					trx, trx->rsegs.m_noredo.update_undo);
-				trx->state = TRX_STATE_PREPARED;
-				trx_sys->n_prepared_trx++;
-				trx_sys->n_prepared_recovered_trx++;
-			}
-		}
-
-		ut_a(total_trx >= trx_sys->n_prepared_trx);
-		total_trx -= trx_sys->n_prepared_trx;
-	}
+	ut_a(total_trx >= trx_sys->n_prepared_trx);
+	total_trx -= trx_sys->n_prepared_trx;
 
 	trx_sys_mutex_exit();
 

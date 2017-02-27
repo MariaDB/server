@@ -12,26 +12,26 @@ SELECT @@wsrep_slave_threads = 1;
 @@wsrep_slave_threads = 1
 1
 SET GLOBAL wsrep_slave_threads = 1;
-SELECT COUNT(*) = 2 FROM INFORMATION_SCHEMA.PROCESSLIST
+SELECT COUNT(*) FROM INFORMATION_SCHEMA.PROCESSLIST
 WHERE USER = 'system user' AND NOT STATE <=> 'InnoDB background thread';
-COUNT(*) = 2
-1
-SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND STATE LIKE '%wsrep aborter%';
-COUNT(*) = 1
+COUNT(*)
+2
+SELECT COUNT(*) FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND STATE LIKE '%wsrep aborter%';
+COUNT(*)
 1
 SET GLOBAL wsrep_slave_threads = 64;
 connection node_1;
 INSERT INTO t1 VALUES (1);
 connection node_2;
-SELECT COUNT(*) = 1 FROM t1;
-COUNT(*) = 1
+SELECT COUNT(*) FROM t1;
+COUNT(*)
 1
-SELECT COUNT(*) = @@wsrep_slave_threads + 1 FROM INFORMATION_SCHEMA.PROCESSLIST
+SELECT COUNT(*) - @@wsrep_slave_threads FROM INFORMATION_SCHEMA.PROCESSLIST
 WHERE USER = 'system user' AND NOT STATE <=> 'InnoDB background thread';
-COUNT(*) = @@wsrep_slave_threads + 1
+COUNT(*) - @@wsrep_slave_threads
 1
-SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND STATE LIKE '%wsrep aborter%';
-COUNT(*) = 1
+SELECT COUNT(*) FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND STATE LIKE '%wsrep aborter%';
+COUNT(*)
 1
 SET GLOBAL wsrep_slave_threads = 1;
 connection node_1;
@@ -100,15 +100,15 @@ INSERT INTO t2 VALUES (DEFAULT);
 INSERT INTO t2 VALUES (DEFAULT);
 INSERT INTO t2 VALUES (DEFAULT);
 connection node_2;
-SELECT COUNT(*) = 64 FROM t2;
-COUNT(*) = 64
-1
-SELECT COUNT(*) = @@wsrep_slave_threads + 1 FROM INFORMATION_SCHEMA.PROCESSLIST
+SELECT COUNT(*) FROM t2;
+COUNT(*)
+64
+SELECT COUNT(*) - @@wsrep_slave_threads FROM INFORMATION_SCHEMA.PROCESSLIST
 WHERE USER = 'system user' AND NOT STATE <=> 'InnoDB background thread';
-COUNT(*) = @@wsrep_slave_threads + 1
+COUNT(*) - @@wsrep_slave_threads
 1
-SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND STATE LIKE '%wsrep aborter%';
-COUNT(*) = 1
+SELECT COUNT(*) FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND STATE LIKE '%wsrep aborter%';
+COUNT(*)
 1
 SET GLOBAL wsrep_slave_threads = 1;
 DROP TABLE t1;

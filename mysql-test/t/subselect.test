@@ -12,6 +12,8 @@ drop table if exists t1,t2,t3,t4,t5,t6,t7,t8,t11,t12;
 drop view if exists v2;
 --enable_warnings
 
+call mtr.add_suppression("Sort aborted.*");
+
 set @subselect_tmp=@@optimizer_switch;
 set @@optimizer_switch=ifnull(@optimizer_switch_for_subselect_test,
                               "semijoin=on,firstmatch=on,loosescan=on,semijoin_with_cache=on,partial_match_rowid_merge=off,partial_match_table_scan=off");
@@ -676,9 +678,9 @@ CREATE TABLE `t3` (
   PRIMARY KEY  (`numeropost`),
   UNIQUE KEY `maxnumrep` (`maxnumrep`)
 ) ENGINE=MyISAM CHARSET=latin1;
-INSERT INTO t1 VALUES ('joce','1','','joce'),('test','2','','test');
+INSERT IGNORE INTO t1 VALUES ('joce','1','','joce'),('test','2','','test');
 
-INSERT INTO t2 VALUES ('joce','1','','joce'),('test','2','','test');
+INSERT IGNORE INTO t2 VALUES ('joce','1','','joce'),('test','2','','test');
 
 INSERT INTO t3 VALUES (1,1);
 
@@ -3339,7 +3341,7 @@ create table t1(f11 int, f12 int);
 create table t2(f21 int unsigned not null, f22 int, f23 varchar(10));
 insert into t1 values(1,1),(2,2), (3, 3);
 --disable_warnings
-insert into t2
+insert ignore into t2
 select -1 , (@a:=(A.a + 10 * (B.a + 10 * (C.a+10*D.a))))/5000 + 1, @a
 from t0 A, t0 B, t0 C, t0 D;
 --enable_warnings
@@ -5029,6 +5031,7 @@ EXPLAIN
 SELECT table1.f1, table2.f1_key FROM t1 AS table1, t2 AS table2
   WHERE EXISTS (SELECT DISTINCT f1_key FROM t2 
                   WHERE f1_key != table2.f1_key AND f1_key >= table1.f1);
+--sorted_result
 SELECT table1.f1, table2.f1_key FROM t1 AS table1, t2 AS table2
   WHERE EXISTS (SELECT DISTINCT f1_key FROM t2 
                   WHERE f1_key != table2.f1_key AND f1_key >= table1.f1);
@@ -5328,6 +5331,7 @@ SELECT DISTINCT f1_key
 FROM t2 
 WHERE f1_key != table2.f1_key AND f1_key >= table1.f1 );
 
+--sorted_result
 eval $query;
 eval explain $query;
 
@@ -6013,6 +6017,17 @@ SELECT ( SELECT MIN(v2.f2) FROM t1 ) AS sq FROM v2 GROUP BY sq;
 
 drop view v2;
 drop table t1,t2;
+
+--echo #
+--echo # MDEV-10386 Assertion `fixed == 1' failed in virtual String* Item_func_conv_charset::val_str(String*)
+--echo #
+
+CREATE TABLE t1 (f1 CHAR(3) CHARACTER SET utf8 NULL, f2 CHAR(3) CHARACTER SET latin1 NULL);
+INSERT INTO t1 VALUES ('foo','bar');
+SELECT * FROM t1 WHERE f2 >= SOME ( SELECT f1 FROM t1 );
+SELECT * FROM t1 WHERE f2 <= SOME ( SELECT f1 FROM t1 );
+DROP TABLE t1;
+
 
 --echo #
 --echo # MDEV-9487: Server crashes in Time_and_counter_tracker::incr_loops

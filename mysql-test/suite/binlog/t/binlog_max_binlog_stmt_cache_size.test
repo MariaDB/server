@@ -1,0 +1,36 @@
+
+--echo #
+--echo # MDEV-4774: Strangeness with max_binlog_stmt_cache_size Settings
+--echo #
+
+CALL mtr.add_suppression("unsigned value 18446744073709547520 adjusted to 4294963200");
+
+--replace_result 18446744073709547520 MAX_BINLOG_STMT_CACHE_SIZE 4294963200 MAX_BINLOG_STMT_CACHE_SIZE
+SELECT @@global.max_binlog_stmt_cache_size;
+
+# Save the initial value of @@global.max_binlog_stmt_cache_size.
+--replace_result 18446744073709547520 MAX_BINLOG_STMT_CACHE_SIZE 4294963200 MAX_BINLOG_STMT_CACHE_SIZE
+SET @cache_size= @@max_binlog_stmt_cache_size;
+
+--disable_warnings
+SET @@global.max_binlog_stmt_cache_size= @cache_size+1;
+--enable_warnings
+--replace_result 18446744073709547520 MAX_BINLOG_STMT_CACHE_SIZE 4294963200 MAX_BINLOG_STMT_CACHE_SIZE
+SELECT @@global.max_binlog_stmt_cache_size;
+
+--disable_warnings
+SET @@global.max_binlog_stmt_cache_size = @cache_size+4095;
+--enable_warnings
+--replace_result 4294963200 MAX_BINLOG_STMT_CACHE_SIZE 18446744073709547520 MAX_BINLOG_STMT_CACHE_SIZE
+SELECT @@global.max_binlog_stmt_cache_size;
+
+--disable_warnings
+SET @@global.max_binlog_stmt_cache_size= @cache_size-1;
+--enable_warnings
+SELECT @@global.max_binlog_stmt_cache_size = @cache_size-4096;
+
+# Restore @@global.max_binlog_stmt_cache_size to its initial value.
+SET @@global.max_binlog_stmt_cache_size= @cache_size;
+
+--echo # End of test
+

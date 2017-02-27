@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2017, MariaDB Corporation.
+Copyright (c) 2017, MariaDB Corporation. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -203,7 +203,9 @@ struct fil_node_t {
 	char*		name;
 	/** file handle (valid if is_open) */
 	os_file_t	handle;
-	/** event that groups and serializes calls to fsync */
+	/** event that groups and serializes calls to fsync;
+	os_event_set() and os_event_reset() are protected by
+	fil_system_t::mutex */
 	os_event_t	sync_event;
 	/** whether the file actually is a raw device or disk partition */
 	bool		is_raw_disk;

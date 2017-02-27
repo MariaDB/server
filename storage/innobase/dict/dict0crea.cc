@@ -474,16 +474,11 @@ dict_build_tablespace_for_table(
 			return(DB_ERROR);
 		}
 	} else {
+		ut_ad(dict_tf_get_rec_format(table->flags)
+		      != REC_FORMAT_COMPRESSED);
 		if (dict_table_is_temporary(table)) {
-			/* Use the shared temporary tablespace.
-			Note: The temp tablespace supports all non-Compressed
-			row formats whereas the system tablespace only
-			supports Redundant and Compact */
-			ut_ad(dict_tf_get_rec_format(table->flags)
-				!= REC_FORMAT_COMPRESSED);
 			table->space = SRV_TMP_SPACE_ID;
 		} else {
-			/* Create in the system tablespace. */
 			ut_ad(table->space == srv_sys_space.space_id());
 		}
 
@@ -1679,6 +1674,11 @@ dict_create_or_check_foreign_constraint_tables(void)
 		return(DB_SUCCESS);
 	}
 
+	if (srv_read_only_mode
+	    || srv_force_recovery >= SRV_FORCE_NO_TRX_UNDO) {
+		return(DB_READ_ONLY);
+	}
+
 	trx = trx_allocate_for_mysql();
 
 	trx_set_dict_operation(trx, TRX_DICT_OP_TABLE);
@@ -1808,11 +1808,9 @@ dict_create_or_check_sys_virtual()
 		return(DB_SUCCESS);
 	}
 
-	if (srv_force_recovery >= SRV_FORCE_NO_TRX_UNDO
-	    || srv_read_only_mode) {
-		ib::error() << "Cannot create sys_virtual system tables;"
-			" running in read-only mode.";
-		return(DB_ERROR);
+	if (srv_read_only_mode
+	    || srv_force_recovery >= SRV_FORCE_NO_TRX_UNDO) {
+		return(DB_READ_ONLY);
 	}
 
 	trx = trx_allocate_for_mysql();
@@ -2465,7 +2463,13 @@ dict_create_or_check_sys_tablespace(void)
 
 	if (sys_tablespaces_err == DB_SUCCESS
 	    && sys_datafiles_err == DB_SUCCESS) {
+		srv_sys_tablespaces_open = true;
 		return(DB_SUCCESS);
+	}
+
+	if (srv_read_only_mode
+	    || srv_force_recovery >= SRV_FORCE_NO_TRX_UNDO) {
+		return(DB_READ_ONLY);
 	}
 
 	trx = trx_allocate_for_mysql();
@@ -2540,6 +2544,7 @@ dict_create_or_check_sys_tablespace(void)
 
 	if (err == DB_SUCCESS) {
 		ib::info() << "Tablespace and datafile system tables created.";
+		srv_sys_tablespaces_open = true;
 	}
 
 	/* Note: The master thread has not been started at this point. */

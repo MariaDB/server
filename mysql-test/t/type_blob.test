@@ -17,7 +17,9 @@ drop table if exists t1,t2,t3,t4,t5,t6,t7;
 CREATE TABLE t1 (a blob, b text, c blob(250), d text(70000), e text(70000000));
 show columns from t1;
 # PS doesn't give errors on prepare yet
+SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 CREATE TABLE t2 (a char(255), b varbinary(70000), c varchar(70000000));
+SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 CREATE TABLE t4 (c varchar(65530) character set utf8 not null);
 show columns from t2;
 create table t3 (a long, b long byte);
@@ -33,6 +35,7 @@ drop table t1,t2,t3,t4;
 CREATE TABLE t1 (a char(257) default "hello");
 --error 1074
 CREATE TABLE t2 (a char(256));
+SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 CREATE TABLE t1 (a varchar(70000) default "hello");
 SHOW CREATE TABLE t1;
 CREATE TABLE t2 (a blob default "hello");

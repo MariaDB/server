@@ -43,8 +43,9 @@ Created Apr 25, 2012 Vasil Dimov
 
 #define SHUTTING_DOWN()		(srv_shutdown_state != SRV_SHUTDOWN_NONE)
 
-/** Event to wake up the stats thread */
-os_event_t			dict_stats_event = NULL;
+/** Event to wake up dict_stats_thread on dict_stats_recalc_pool_add()
+or shutdown. Not protected by any mutex. */
+os_event_t			dict_stats_event;
 
 /** Variable to initiate shutdown the dict stats thread. Note we don't
 use 'srv_shutdown_state' because we want to shutdown dict stats thread

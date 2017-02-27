@@ -1329,7 +1329,7 @@ DROP TABLE t1,t2,t3,t4,t5;
 --echo #
 
 CREATE TABLE t2 (a int);
-INSERT INTO t2 VALUES ('a'),('a');
+INSERT IGNORE INTO t2 VALUES ('a'),('a');
 
 CREATE TABLE t4 (a varchar(1));
 INSERT INTO t4 VALUES ('m'),('o');

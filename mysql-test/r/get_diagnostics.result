@@ -625,9 +625,10 @@ END|
 CREATE TABLE t1 (a INT);
 CALL p1();
 v
-T
+NULL
 Warnings:
 Note	1050	Table 't1' already exists
+Error	1406	Data too long for column 'v' at row 1
 DROP TABLE t1;
 DROP PROCEDURE p1;
 

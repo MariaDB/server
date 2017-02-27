@@ -2,7 +2,7 @@
 DROP TABLE IF EXISTS t1;
 --enable_warnings
 CREATE TABLE t1 (c1 TINYINT NULL, c2 CHAR(5)) PARTITION BY HASH(c1);
-INSERT INTO t1 VALUES(0,'abc'),(100,'abc'),(200,'abc'),(300,'abc'),(400,'abc');
+INSERT IGNORE INTO t1 VALUES(0,'abc'),(100,'abc'),(200,'abc'),(300,'abc'),(400,'abc');
 SELECT * FROM t1 ORDER BY c1;
 SHOW TABLES; 
 let $ENGINE=`select variable_value from information_schema.global_variables where variable_name='STORAGE_ENGINE'`; 
@@ -80,7 +80,7 @@ let $ENGINE=`select variable_value from information_schema.global_variables wher
 --replace_result $ENGINE ENGINE " PAGE_CHECKSUM=0" ""
  SHOW CREATE TABLE t1; DROP TABLE t1; SHOW TABLES;
 CREATE TABLE t1 (c1 TINYINT NOT NULL, c2 CHAR(5)) PARTITION BY HASH(c1);
-INSERT INTO t1 VALUES(0,'abc'),(100,'abc'),(200,'abc'),(300,'abc'),(400,'abc');
+INSERT IGNORE INTO t1 VALUES(0,'abc'),(100,'abc'),(200,'abc'),(300,'abc'),(400,'abc');
 SELECT * FROM t1 ORDER BY c1;
 SHOW TABLES; 
 let $ENGINE=`select variable_value from information_schema.global_variables where variable_name='STORAGE_ENGINE'`; 

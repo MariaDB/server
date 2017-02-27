@@ -1091,13 +1091,9 @@ INSERT INTO t1 VALUES (10),(20),(30);
 
 SELECT 1 AS a UNION (SELECT a FROM t1 GROUP BY a ORDER BY GROUP_CONCAT(a ORDER BY a) LIMIT 2);
 
---error ER_INVALID_GROUP_FUNC_USE
 SELECT 1 AS a UNION (SELECT a FROM t1 GROUP BY a ORDER BY GROUP_CONCAT(a));
---error ER_INVALID_GROUP_FUNC_USE
 SELECT 1 AS a UNION (SELECT a FROM t1 GROUP BY a ORDER BY GROUP_CONCAT(a)) LIMIT 1;
---error ER_INVALID_GROUP_FUNC_USE
 SELECT 1 AS a UNION (SELECT a FROM t1 GROUP BY a ORDER BY GROUP_CONCAT(a)) ORDER BY a;
---error ER_INVALID_GROUP_FUNC_USE
 SELECT 1 AS a UNION (SELECT a FROM t1 GROUP BY a ORDER BY GROUP_CONCAT(a)) ORDER BY a LIMIT 1;
 DROP TABLE t1;
 
@@ -1321,3 +1317,23 @@ UNION
 SELECT 1;
 
 DROP TABLE t1;
+
+#
+# MDEV-11582 InnoDB: Failing assertion: !((field)->vcol_info && !(field)->stored_in_db())
+#
+--error ER_PARSE_ERROR
+create table t1 (a serial null);
+--error ER_PARSE_ERROR
+create table t1 (a serial auto_increment);
+--error ER_PARSE_ERROR
+create table t1 (a serial serial default value);
+--error ER_PARSE_ERROR
+create table t1 (a serial collate binary);
+--error ER_PARSE_ERROR
+create table t1 (i int, vc serial as (i));
+--error ER_PARSE_ERROR
+create function fs() returns serial return 1;
+
+create table t1 ( id serial );
+show create table t1;
+drop table t1;

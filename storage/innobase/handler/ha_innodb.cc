@@ -65,8 +65,6 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include <key.h>
 
 /* Include necessary InnoDB headers */
-#include "api0api.h"
-#include "api0misc.h"
 #include "btr0btr.h"
 #include "btr0cur.h"
 #include "btr0bulk.h"
@@ -91,7 +89,7 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include "fts0types.h"
 #include "ibuf0ibuf.h"
 #include "lock0lock.h"
-#include "log0log.h"
+#include "log0crypt.h"
 #include "mem0mem.h"
 #include "mtr0mtr.h"
 #include "os0file.h"
@@ -190,7 +188,6 @@ static ulong commit_threads = 0;
 static mysql_cond_t commit_cond;
 static mysql_mutex_t commit_cond_m;
 static mysql_mutex_t pending_checkpoint_mutex;
-static bool innodb_inited = 0;
 
 #define INSIDE_HA_INNOBASE_CC
 
@@ -247,7 +244,6 @@ static char*	innobase_server_stopword_table		= NULL;
 /* Below we have boolean-valued start-up parameters, and their default
 values */
 
-static ulong	innobase_fast_shutdown			= 1;
 static my_bool	innobase_file_format_check		= TRUE;
 static my_bool	innobase_use_atomic_writes		= TRUE;
 static my_bool	innobase_use_fallocate;
@@ -307,13 +303,15 @@ is_partition(
 #endif /* _WIN32 */
 }
 
+/** Signal to shut down InnoDB (NULL if shutdown was signaled, or if
+running in innodb_read_only mode, srv_read_only_mode) */
+volatile st_my_thread_var *srv_running;
 /** Service thread that waits for the server shutdown and stops purge threads.
 Purge workers have THDs that are needed to calculate virtual columns.
 This THDs must be destroyed rather early in the server shutdown sequence.
 This service thread creates a THD and idly waits for it to get a signal to
 die. Then it notifies all purge workers to shutdown.
 */
-static volatile st_my_thread_var *thd_destructor_myvar= NULL;
 static pthread_t thd_destructor_thread;
 
 pthread_handler_t
@@ -334,14 +332,13 @@ thd_destructor_proxy(void *)
 	myvar->current_cond = &thd_destructor_cond;
 
 	mysql_mutex_lock(&thd_destructor_mutex);
-	thd_destructor_myvar = myvar;
+	srv_running = myvar;
 	/* wait until the server wakes the THD to abort and die */
-	while (!thd_destructor_myvar->abort)
+	while (!srv_running->abort)
 		mysql_cond_wait(&thd_destructor_cond, &thd_destructor_mutex);
 	mysql_mutex_unlock(&thd_destructor_mutex);
-	thd_destructor_myvar = NULL;
+	srv_running = NULL;
 
-	srv_fast_shutdown = (ulint) innobase_fast_shutdown;
 	if (srv_fast_shutdown == 0) {
 		while (trx_sys_any_active_transactions()) {
 			os_thread_sleep(1000);
@@ -642,74 +639,6 @@ static PSI_file_info	all_innodb_files[] = {
 };
 # endif /* UNIV_PFS_IO */
 #endif /* HAVE_PSI_INTERFACE */
-
-/** Set up InnoDB API callback function array */
-ib_cb_t innodb_api_cb[] = {
-	(ib_cb_t) ib_cursor_open_table,
-	(ib_cb_t) ib_cursor_read_row,
-	(ib_cb_t) ib_cursor_insert_row,
-	(ib_cb_t) ib_cursor_delete_row,
-	(ib_cb_t) ib_cursor_update_row,
-	(ib_cb_t) ib_cursor_moveto,
-	(ib_cb_t) ib_cursor_first,
-	(ib_cb_t) ib_cursor_next,
-	(ib_cb_t) ib_cursor_set_match_mode,
-	(ib_cb_t) ib_sec_search_tuple_create,
-	(ib_cb_t) ib_clust_read_tuple_create,
-	(ib_cb_t) ib_tuple_delete,
-	(ib_cb_t) ib_tuple_read_u8,
-	(ib_cb_t) ib_tuple_read_u16,
-	(ib_cb_t) ib_tuple_read_u32,
-	(ib_cb_t) ib_tuple_read_u64,
-	(ib_cb_t) ib_tuple_read_i8,
-	(ib_cb_t) ib_tuple_read_i16,
-	(ib_cb_t) ib_tuple_read_i32,
-	(ib_cb_t) ib_tuple_read_i64,
-	(ib_cb_t) ib_tuple_get_n_cols,
-	(ib_cb_t) ib_col_set_value,
-	(ib_cb_t) ib_col_get_value,
-	(ib_cb_t) ib_col_get_meta,
-	(ib_cb_t) ib_trx_begin,
-	(ib_cb_t) ib_trx_commit,
-	(ib_cb_t) ib_trx_rollback,
-	(ib_cb_t) ib_trx_start,
-	(ib_cb_t) ib_trx_release,
-	(ib_cb_t) ib_cursor_lock,
-	(ib_cb_t) ib_cursor_close,
-	(ib_cb_t) ib_cursor_new_trx,
-	(ib_cb_t) ib_cursor_reset,
-	(ib_cb_t) ib_col_get_name,
-	(ib_cb_t) ib_table_truncate,
-	(ib_cb_t) ib_cursor_open_index_using_name,
-	(ib_cb_t) ib_cfg_get_cfg,
-	(ib_cb_t) ib_cursor_set_memcached_sync,
-	(ib_cb_t) ib_cursor_set_cluster_access,
-	(ib_cb_t) ib_cursor_commit_trx,
-	(ib_cb_t) ib_cfg_trx_level,
-	(ib_cb_t) ib_tuple_get_n_user_cols,
-	(ib_cb_t) ib_cursor_set_lock_mode,
-	(ib_cb_t) ib_get_idx_field_name,
-	(ib_cb_t) ib_trx_get_start_time,
-	(ib_cb_t) ib_cfg_bk_commit_interval,
-	(ib_cb_t) ib_ut_strerr,
-	(ib_cb_t) ib_cursor_stmt_begin,
-	(ib_cb_t) ib_trx_read_only,
-	(ib_cb_t) ib_is_virtual_table
-};
-
-/******************************************************************//**
-Function used to loop a thread (for debugging/instrumentation
-purpose). */
-void
-srv_debug_loop(void)
-/*================*/
-{
-        ibool set = TRUE;
-
-        while (set) {
-                os_thread_yield();
-        }
-}
 
 /******************************************************************//**
 Debug function used to read a MBR data */
@@ -2068,14 +1997,8 @@ innobase_release_temporary_latches(
 {
 	DBUG_ASSERT(hton == innodb_hton_ptr);
 
-	if (!innodb_inited) {
-
-		return(0);
-	}
-
-	trx_t*	trx = thd_to_trx(thd);
-
-	if (trx != NULL) {
+	if (!srv_was_started) {
+	} else if (trx_t* trx = thd_to_trx(thd)) {
 		trx_search_latch_release_if_reserved(trx);
 	}
 
@@ -2542,8 +2465,8 @@ innobase_get_stmt_safe(
 	stmt =  thd ? thd_query_string(thd) : NULL;
 
 	if (stmt && stmt->str) {
-		length = stmt->length > buflen ? buflen : stmt->length;
-		memcpy(buf, stmt->str, length-1);
+		length = stmt->length >= buflen ? buflen - 1 : stmt->length;
+		memcpy(buf, stmt->str, length);
 		buf[length]='\0';
 	} else {
 		buf[0]='\0';
@@ -3772,6 +3695,13 @@ innobase_space_shutdown()
 	}
 	srv_tmp_space.shutdown();
 
+#ifdef WITH_INNODB_DISALLOW_WRITES
+	if (srv_allow_writes_event) {
+		os_event_destroy(srv_allow_writes_event);
+		srv_allow_writes_event = NULL;
+	}
+#endif /* WITH_INNODB_DISALLOW_WRITES */
+
 	DBUG_VOID_RETURN;
 }
 
@@ -3825,14 +3755,42 @@ static const char*	deprecated_use_trim
 
 /** Update log_checksum_algorithm_ptr with a pointer to the function
 corresponding to whether checksums are enabled.
-@param[in]	check	whether redo log block checksums are enabled */
-static
-void
-innodb_log_checksums_func_update(bool	check)
+@param[in,out]	thd	client session, or NULL if at startup
+@param[in]	check	whether redo log block checksums are enabled
+@return whether redo log block checksums are enabled */
+static inline
+bool
+innodb_log_checksums_func_update(THD* thd, bool check)
 {
-	log_checksum_algorithm_ptr = check
-		? log_block_calc_checksum_crc32
-		: log_block_calc_checksum_none;
+	static const char msg[] = "innodb_encrypt_log implies"
+		" innodb_log_checksums";
+
+	ut_ad(!thd == !srv_was_started);
+
+	if (!check) {
+		check = srv_encrypt_log;
+		if (!check) {
+		} else if (thd) {
+			push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+					    HA_ERR_UNSUPPORTED, msg);
+		} else {
+			sql_print_warning(msg);
+		}
+	}
+
+	if (thd) {
+		log_mutex_enter();
+		log_checksum_algorithm_ptr = check
+			? log_block_calc_checksum_crc32
+			: log_block_calc_checksum_none;
+		log_mutex_exit();
+	} else {
+		log_checksum_algorithm_ptr = check
+			? log_block_calc_checksum_crc32
+			: log_block_calc_checksum_none;
+	}
+
+	return(check);
 }
 
 /****************************************************************//**
@@ -3916,11 +3874,6 @@ innobase_init(
         if (srv_file_per_table) {
 		innobase_hton->tablefile_extensions = ha_innobase_exts;
 	}
-
-#ifdef MYSQL_INNODB_API_CB
-	/* JAN: TODO: MySQL 5.7 */
-	innobase_hton->data = &innodb_api_cb;
-#endif
 
 	innobase_hton->table_options = innodb_table_option_list;
 
@@ -4326,7 +4279,8 @@ innobase_change_buffering_inited_ok:
 		srv_checksum_algorithm = SRV_CHECKSUM_ALGORITHM_NONE;
 	}
 
-	innodb_log_checksums_func_update(innodb_log_checksums);
+	innodb_log_checksums = innodb_log_checksums_func_update(
+		NULL, innodb_log_checksums);
 
 #ifdef HAVE_LINUX_LARGE_PAGES
 	if ((os_use_large_pages = my_use_large_pages)) {
@@ -4482,10 +4436,11 @@ innobase_change_buffering_inited_ok:
 		mysql_thread_create(thd_destructor_thread_key,
 				    &thd_destructor_thread,
 				    NULL, thd_destructor_proxy, NULL);
-		while (!thd_destructor_myvar)
+		while (!srv_running)
 			os_thread_sleep(20);
 	}
 
+	srv_was_started = TRUE;
 	/* Adjust the innodb_undo_logs config object */
 	innobase_undo_logs_init_default_max();
 
@@ -4504,7 +4459,6 @@ innobase_change_buffering_inited_ok:
 	mysql_mutex_init(pending_checkpoint_mutex_key,
 			 &pending_checkpoint_mutex,
 			 MY_MUTEX_INIT_FAST);
-	innodb_inited= 1;
 #ifdef MYSQL_DYNAMIC_PLUGIN
 	if (innobase_hton != p) {
 		innobase_hton = reinterpret_cast<handlerton*>(p);
@@ -4573,8 +4527,7 @@ innobase_end(
 	DBUG_ENTER("innobase_end");
 	DBUG_ASSERT(hton == innodb_hton_ptr);
 
-	if (innodb_inited) {
-
+	if (srv_was_started) {
 		THD *thd= current_thd;
 		if (thd) { // may be UNINSTALL PLUGIN statement
 		 	trx_t* trx = thd_to_trx(thd);
@@ -4583,23 +4536,21 @@ innobase_end(
 		 	}
 		}
 
-		srv_fast_shutdown = (ulint) innobase_fast_shutdown;
-
-		innodb_inited = 0;
 		hash_table_free(innobase_open_tables);
 		innobase_open_tables = NULL;
 
-		if (!abort_loop && thd_destructor_myvar) {
+		if (!abort_loop && srv_running) {
 			// may be UNINSTALL PLUGIN statement
-			thd_destructor_myvar->abort = 1;
-			mysql_cond_broadcast(thd_destructor_myvar->current_cond);
+			srv_running->abort = 1;
+			mysql_cond_broadcast(srv_running->current_cond);
+		}
+
+		if (!srv_read_only_mode) {
+			pthread_join(thd_destructor_thread, NULL);
 		}
 
 		innodb_shutdown();
 		innobase_space_shutdown();
-		if (!srv_read_only_mode) {
-			pthread_join(thd_destructor_thread, NULL);
-		}
 
 		mysql_mutex_destroy(&innobase_share_mutex);
 		mysql_mutex_destroy(&commit_cond_m);
@@ -12223,7 +12174,7 @@ create_table_info_t::create_option_data_directory_is_valid()
 }
 
 /** Validate the create options. Check that the options KEY_BLOCK_SIZE,
-ROW_FORMAT, DATA DIRECTORY, TEMPORARY & TABLESPACE are compatible with
+ROW_FORMAT, DATA DIRECTORY, TEMPORARY are compatible with
 each other and other settings.  These CREATE OPTIONS are not validated
 here unless innodb_strict_mode is on. With strict mode, this function
 will report each problem it finds using a custom message with error
@@ -12415,6 +12366,21 @@ create_table_info_t::check_table_options()
 	enum row_type	row_format = m_form->s->row_type;
 	ha_table_option_struct *options= m_form->s->option_struct;
 	fil_encryption_t encrypt = (fil_encryption_t)options->encryption;
+	bool should_encrypt = (encrypt == FIL_SPACE_ENCRYPTION_ON);
+
+	/* Currently we do not support encryption for
+	spatial indexes thus do not allow creating table with forced
+	encryption */
+	for(ulint i = 0; i < m_form->s->keys; i++) {
+		const KEY* key = m_form->key_info + i;
+		if (key->flags & HA_SPATIAL && should_encrypt) {
+			push_warning_printf(m_thd, Sql_condition::WARN_LEVEL_WARN,
+				HA_ERR_UNSUPPORTED,
+				"InnoDB: ENCRYPTED=ON not supported for table because "
+				"it contains spatial index.");
+			return "ENCRYPTED";
+		}
+	}
 
 	if (encrypt != FIL_SPACE_ENCRYPTION_DEFAULT && !m_allow_file_per_table) {
 		push_warning(
@@ -16697,7 +16663,7 @@ void
 innodb_export_status()
 /*==================*/
 {
-	if (innodb_inited) {
+	if (srv_was_started) {
 		srv_export_innodb_status();
 	}
 }
@@ -20299,13 +20265,8 @@ innodb_log_checksums_update(
 	void*				var_ptr,
 	const void*			save)
 {
-	my_bool	check = *static_cast<my_bool*>(var_ptr)
-		= *static_cast<const my_bool*>(save);
-
-	/* Make sure we are the only log user */
-	mutex_enter(&log_sys->mutex);
-	innodb_log_checksums_func_update(check);
-	mutex_exit(&log_sys->mutex);
+	*static_cast<my_bool*>(var_ptr) = innodb_log_checksums_func_update(
+		thd, *static_cast<const my_bool*>(save));
 }
 
 static SHOW_VAR innodb_status_variables_export[]= {
@@ -20803,7 +20764,7 @@ static MYSQL_SYSVAR_ULONG(sync_array_size, srv_sync_array_size,
   1,			/* Minimum value */
   1024, 0);		/* Maximum value */
 
-static MYSQL_SYSVAR_ULONG(fast_shutdown, innobase_fast_shutdown,
+static MYSQL_SYSVAR_UINT(fast_shutdown, srv_fast_shutdown,
   PLUGIN_VAR_OPCMDARG,
   "Speeds up the shutdown process of the InnoDB storage engine. Possible"
   " values are 0, 1 (faster) or 2 (fastest - crash-like).",
@@ -21035,7 +20996,7 @@ static MYSQL_SYSVAR_BOOL(log_compressed_pages, page_zip_log_pages,
   " the zlib compression algorithm changes."
   " When turned OFF, InnoDB will assume that the zlib"
   " compression algorithm doesn't change.",
-  NULL, NULL, FALSE);
+  NULL, NULL, TRUE);
 
 static MYSQL_SYSVAR_ULONG(autoextend_increment,
   sys_tablespace_auto_extend_increment,
@@ -21335,7 +21296,7 @@ static MYSQL_SYSVAR_LONGLONG(log_file_size, innobase_log_file_size,
 static MYSQL_SYSVAR_ULONG(log_files_in_group, srv_n_log_files,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
   "Number of log files in the log group. InnoDB writes to the files in a circular fashion.",
-  NULL, NULL, 2, 2, SRV_N_LOG_FILES_MAX, 0);
+  NULL, NULL, 2, 1, SRV_N_LOG_FILES_MAX, 0);
 
 static MYSQL_SYSVAR_ULONG(log_write_ahead_size, srv_log_write_ahead_size,
   PLUGIN_VAR_RQCMDARG,
@@ -21488,37 +21449,6 @@ static MYSQL_SYSVAR_BOOL(numa_interleave, srv_numa_interleave,
   NULL, NULL, FALSE);
 #endif /* HAVE_LIBNUMA */
 
-static MYSQL_SYSVAR_BOOL(api_enable_binlog, ib_binlog_enabled,
-  PLUGIN_VAR_NOCMDARG | PLUGIN_VAR_READONLY,
-  "Enable binlog for applications direct access InnoDB through InnoDB APIs",
-  NULL, NULL, FALSE);
-
-static MYSQL_SYSVAR_BOOL(api_enable_mdl, ib_mdl_enabled,
-  PLUGIN_VAR_NOCMDARG | PLUGIN_VAR_READONLY,
-  "Enable MDL for applications direct access InnoDB through InnoDB APIs",
-  NULL, NULL, FALSE);
-
-static MYSQL_SYSVAR_BOOL(api_disable_rowlock, ib_disable_row_lock,
-  PLUGIN_VAR_NOCMDARG | PLUGIN_VAR_READONLY,
-  "Disable row lock when direct access InnoDB through InnoDB APIs",
-  NULL, NULL, FALSE);
-
-static MYSQL_SYSVAR_ULONG(api_trx_level, ib_trx_level_setting,
-  PLUGIN_VAR_OPCMDARG,
-  "InnoDB API transaction isolation level",
-  NULL, NULL,
-  0,		/* Default setting */
-  0,		/* Minimum value */
-  3, 0);	/* Maximum value */
-
-static MYSQL_SYSVAR_ULONG(api_bk_commit_interval, ib_bk_commit_interval,
-  PLUGIN_VAR_OPCMDARG,
-  "Background commit interval in seconds",
-  NULL, NULL,
-  5,		/* Default setting */
-  1,		/* Minimum value */
-  1024 * 1024 * 1024, 0);	/* Maximum value */
-
 static MYSQL_SYSVAR_STR(change_buffering, innobase_change_buffering,
   PLUGIN_VAR_RQCMDARG,
   "Buffer changes to reduce random access:"
@@ -21585,10 +21515,11 @@ innobase_disallow_writes_update(
 {
 	*(my_bool*)var_ptr = *(my_bool*)save;
 	ut_a(srv_allow_writes_event);
-	if (*(my_bool*)var_ptr)
+	if (*(my_bool*)var_ptr) {
 		os_event_reset(srv_allow_writes_event);
-	else
+	} else {
 		os_event_set(srv_allow_writes_event);
+	}
 }
 
 static MYSQL_SYSVAR_BOOL(disallow_writes, innobase_disallow_writes,
@@ -21596,6 +21527,7 @@ static MYSQL_SYSVAR_BOOL(disallow_writes, innobase_disallow_writes,
   "Tell InnoDB to stop any writes to disk",
   NULL, innobase_disallow_writes_update, FALSE);
 #endif /* WITH_INNODB_DISALLOW_WRITES */
+
 static MYSQL_SYSVAR_BOOL(random_read_ahead, srv_random_read_ahead,
   PLUGIN_VAR_NOCMDARG,
   "Whether to use read ahead for random access within an extent.",
@@ -21769,7 +21701,7 @@ static MYSQL_SYSVAR_ENUM(compression_algorithm, innodb_compression_algorithm,
   /* We use here the largest number of supported compression method to
   enable all those methods that are available. Availability of compression
   method is verified on innodb_compression_algorithm_validate function. */
-  PAGE_UNCOMPRESSED,
+  PAGE_ZLIB_ALGORITHM,
   &page_compression_algorithms_typelib);
 
 static MYSQL_SYSVAR_LONG(mtflush_threads, srv_mtflush_threads,
@@ -21908,8 +21840,6 @@ static MYSQL_SYSVAR_BOOL(instrument_semaphores, srv_instrument_semaphores,
   0, 0, FALSE);
 
 static struct st_mysql_sys_var* innobase_system_variables[]= {
-  MYSQL_SYSVAR(api_trx_level),
-  MYSQL_SYSVAR(api_bk_commit_interval),
   MYSQL_SYSVAR(autoextend_increment),
   MYSQL_SYSVAR(buffer_pool_size),
   MYSQL_SYSVAR(buffer_pool_chunk_size),
@@ -21944,9 +21874,6 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(doublewrite),
   MYSQL_SYSVAR(use_atomic_writes),
   MYSQL_SYSVAR(use_fallocate),
-  MYSQL_SYSVAR(api_enable_binlog),
-  MYSQL_SYSVAR(api_enable_mdl),
-  MYSQL_SYSVAR(api_disable_rowlock),
   MYSQL_SYSVAR(fast_shutdown),
   MYSQL_SYSVAR(read_io_threads),
   MYSQL_SYSVAR(write_io_threads),
@@ -22646,6 +22573,12 @@ ha_innobase::idx_cond_push(
 	DBUG_ENTER("ha_innobase::idx_cond_push");
 	DBUG_ASSERT(keyno != MAX_KEY);
 	DBUG_ASSERT(idx_cond != NULL);
+
+	/* We can only evaluate the condition if all columns are stored.*/
+	dict_index_t* idx  = innobase_get_index(keyno);
+	if (idx && dict_index_has_virtual(idx)) {
+		DBUG_RETURN(idx_cond);
+	}
 
 	pushed_idx_cond = idx_cond;
 	pushed_idx_cond_keyno = keyno;
