@@ -1453,7 +1453,13 @@ sub command_line_setup {
 
     if ($opt_mem ne '')
     {
-      if ( -d $opt_mem )
+      # 'plugin' is a specific case of a directory that is passed
+      # to mtr. The plugin cannot be specified as ./plugin or any other
+      # path indirection hence the strict string patch. It is the only
+      # directory that can be passed as a mtr argument. Looks like an
+      # ugly hack and to some extent it is. Sorry to whoever needs to
+      # read this comment in the future.
+      if ( -d $opt_mem && $opt_mem != 'plugin' )
       {
         # however if the opt_mem was given a value and it was a directory
         # use this as the first tmpfs_location
