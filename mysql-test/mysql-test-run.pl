@@ -1392,12 +1392,6 @@ sub command_line_setup {
     }
   }
 
-  if ( @opt_cases )
-  {
-    # Run big tests if explicitely specified on command line
-    $opt_big_test= 1;
-  }
-
   # --------------------------------------------------------------------------
   # Find out type of logging that are being used
   # --------------------------------------------------------------------------
@@ -1457,8 +1451,27 @@ sub command_line_setup {
     # Use $ENV{'MTR_MEM'} as first location to look (if defined)
     unshift(@tmpfs_locations, $ENV{'MTR_MEM'}) if defined $ENV{'MTR_MEM'};
 
-    # however if the opt_mem was given a value, use this first
-    unshift(@tmpfs_locations, $opt_mem) if $opt_mem ne '';
+    if ($opt_mem ne '')
+    {
+      # 'plugin' is a specific case of a directory that is passed
+      # to mtr. The plugin cannot be specified as ./plugin or any other
+      # path indirection hence the strict string patch. It is the only
+      # directory that can be passed as a mtr argument. Looks like an
+      # ugly hack and to some extent it is. Sorry to whoever needs to
+      # read this comment in the future.
+      if ( -d $opt_mem && $opt_mem != 'plugin' )
+      {
+        # however if the opt_mem was given a value and it was a directory
+        # use this as the first tmpfs_location
+        unshift(@tmpfs_locations, $opt_mem);
+      }
+      else
+      {
+        # we assume it is a test case so put it back
+        # mtr --mtr  test1 test2
+        unshift(@opt_cases, $opt_mem);
+      }
+    }
 
     foreach my $fs (@tmpfs_locations)
     {
@@ -1469,6 +1482,15 @@ sub command_line_setup {
 	last;
       }
     }
+  }
+
+  # --------------------------------------------------------------------------
+  # Now that we have handled the potentially extra test case
+  # --------------------------------------------------------------------------
+  if ( @opt_cases )
+  {
+    # Run big tests if explicitly specified on command line
+    $opt_big_test= 1;
   }
 
   # --------------------------------------------------------------------------
