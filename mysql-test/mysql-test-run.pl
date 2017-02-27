@@ -1194,7 +1194,7 @@ sub command_line_setup {
 	     # Directories
              'tmpdir=s'                 => \$opt_tmpdir,
              'vardir=s'                 => \$opt_vardir,
-             'mem:s'                    => \$opt_mem,
+             'mem'                      => \$opt_mem,
 	     'clean-vardir'             => \$opt_clean_vardir,
              'client-bindir=s'          => \$path_client_bindir,
              'client-libdir=s'          => \$path_client_libdir,
@@ -1456,9 +1456,6 @@ sub command_line_setup {
 
     # Use $ENV{'MTR_MEM'} as first location to look (if defined)
     unshift(@tmpfs_locations, $ENV{'MTR_MEM'}) if defined $ENV{'MTR_MEM'};
-
-    # however if the opt_mem was given a value, use this first
-    unshift(@tmpfs_locations, $opt_mem) if $opt_mem ne '';
 
     foreach my $fs (@tmpfs_locations)
     {
