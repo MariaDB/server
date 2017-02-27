@@ -4,6 +4,11 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
 Note	1003	select 'a' || 'b' || 'c' AS "'a'||'b'||'c'"
+EXPLAIN EXTENDED SELECT CONCAT('a'||'b'||'c');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Warnings:
+Note	1003	select 'a' || 'b' || 'c' AS "CONCAT('a'||'b'||'c')"
 SELECT ''   || '';
 ''   || ''
 
@@ -142,6 +147,35 @@ INSERT INTO t1 VALUES (NULL, NULL, 'c');
 INSERT INTO t1 VALUES (NULL, NULL, NULL);
 SELECT LENGTH(a||b||c), a||b||c FROM t1 ORDER BY a,b,c;
 LENGTH(a||b||c)	a||b||c
+NULL	NULL
+0	
+1	c
+0	
+0	
+1	c
+1	b
+1	b
+2	bc
+0	
+0	
+1	c
+0	
+0	
+1	c
+1	b
+1	b
+2	bc
+1	a
+1	a
+2	ac
+1	a
+1	a
+2	ac
+2	ab
+2	ab
+3	abc
+SELECT LENGTH(CONCAT(a||b||c)), CONCAT(a||b||c) FROM t1 ORDER BY a,b,c;
+LENGTH(CONCAT(a||b||c))	CONCAT(a||b||c)
 NULL	NULL
 0	
 1	c

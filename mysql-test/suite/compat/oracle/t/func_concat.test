@@ -5,6 +5,7 @@
 SET sql_mode=ORACLE;
 
 EXPLAIN EXTENDED SELECT 'a'||'b'||'c';
+EXPLAIN EXTENDED SELECT CONCAT('a'||'b'||'c');
 
 SELECT ''   || '';
 SELECT ''   || 'b';
@@ -79,5 +80,6 @@ INSERT INTO t1 VALUES (NULL, NULL, 'c');
 INSERT INTO t1 VALUES (NULL, NULL, NULL);
 
 SELECT LENGTH(a||b||c), a||b||c FROM t1 ORDER BY a,b,c;
+SELECT LENGTH(CONCAT(a||b||c)), CONCAT(a||b||c) FROM t1 ORDER BY a,b,c;
 
 DROP TABLE t1;

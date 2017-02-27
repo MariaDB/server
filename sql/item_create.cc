@@ -3857,7 +3857,9 @@ Create_func_concat::create_native(THD *thd, LEX_STRING name,
     return NULL;
   }
 
-  return new (thd->mem_root) Item_func_concat(thd, *item_list);
+  return thd->variables.sql_mode & MODE_ORACLE ?
+    new (thd->mem_root) Item_func_concat_operator_oracle(thd, *item_list) :
+    new (thd->mem_root) Item_func_concat(thd, *item_list);
 }
 
 Create_func_decode_histogram Create_func_decode_histogram::s_singleton;

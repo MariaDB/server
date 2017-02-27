@@ -297,6 +297,9 @@ public:
 class Item_func_concat_operator_oracle :public Item_func_concat
 {
 public:
+  Item_func_concat_operator_oracle(THD *thd, List<Item> &list)
+   :Item_func_concat(thd, list)
+  { }
   Item_func_concat_operator_oracle(THD *thd, Item *a, Item *b)
    :Item_func_concat(thd, a, b)
   { }
