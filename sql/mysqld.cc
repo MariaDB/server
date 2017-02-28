@@ -1414,7 +1414,7 @@ ulong query_cache_min_res_unit= QUERY_CACHE_MIN_RESULT_DATA_SIZE;
 Query_cache query_cache;
 #endif
 #ifdef HAVE_SMEM
-char *shared_memory_base_name= default_shared_memory_base_name;
+const char *shared_memory_base_name= default_shared_memory_base_name;
 my_bool opt_enable_shared_memory;
 HANDLE smem_event_connect_request= 0;
 #endif

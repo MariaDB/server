@@ -106,7 +106,7 @@ static const char* sock= 0;
 static char *opt_plugindir= 0, *opt_default_auth= 0;
 
 #ifdef HAVE_SMEM
-static char *shared_memory_base_name= 0;
+static const char *shared_memory_base_name= 0;
 #endif
 static char* user = 0;
 static char* pass = 0;
