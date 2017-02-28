@@ -59,7 +59,6 @@ void kill_mysql(void);
 void close_connection(THD *thd, uint sql_errno= 0);
 void handle_connection_in_main_thread(THD *thd);
 void create_thread_to_handle_connection(THD *thd);
-void delete_running_thd(THD *thd);
 void signal_thd_deleted();
 void unlink_thd(THD *thd);
 bool one_thread_per_connection_end(THD *thd, bool put_in_cache);

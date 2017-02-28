@@ -2648,23 +2648,6 @@ void dec_connection_count(THD *thd)
 
 
 /*
-  Delete THD and decrement thread counters, including thread_running
-*/
-
-void delete_running_thd(THD *thd)
-{
-  mysql_mutex_lock(&LOCK_thread_count);
-  thd->unlink();
-  mysql_mutex_unlock(&LOCK_thread_count);
-
-  delete thd;
-  dec_thread_running();
-  thread_safe_decrement32(&thread_count, &thread_count_lock);
-  signal_thd_deleted();
-}
-
-
-/*
   Send a signal to unblock close_conneciton() if there is no more
   threads running with a THD attached
 
