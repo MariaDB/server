@@ -38,8 +38,8 @@ char ex_var_names[MAX_MYSQL_VAR][FN_REFLEN];
 ulonglong last_values[MAX_MYSQL_VAR];
 static int interval=0;
 static my_bool option_force=0,interrupted=0,new_line=0,
-               opt_compress=0, opt_relative=0, opt_verbose=0, opt_vertical=0,
-               tty_password= 0, opt_nobeep;
+               opt_compress= 0, opt_local= 0, opt_relative= 0, opt_verbose= 0,
+               opt_vertical= 0, tty_password= 0, opt_nobeep;
 static my_bool debug_info_flag= 0, debug_check_flag= 0;
 static uint tcp_port = 0, option_wait = 0, option_silent=0, nr_iterations;
 static uint opt_count_iterations= 0, my_end_arg;
@@ -160,6 +160,9 @@ static struct my_option my_long_options[] =
    NO_ARG, 0, 0, 0, 0, 0, 0},
   {"host", 'h', "Connect to host.", &host, &host, 0, GET_STR,
    REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+  {"local", 'l', "Local command, don't write to binlog.",
+   &opt_local, &opt_local, 0, GET_BOOL, NO_ARG, 0, 0, 0,
+   0, 0, 0},
   {"no-beep", 'b', "Turn off beep on error.", &opt_nobeep,
    &opt_nobeep, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0}, 
   {"password", 'p',
@@ -617,6 +620,18 @@ static int execute_commands(MYSQL *mysql,int argc, char **argv)
   */
 
   struct my_rnd_struct rand_st;
+  char buff[FN_REFLEN + 20];
+
+  if (opt_local)
+  {
+    sprintf(buff, "set local sql_log_bin=0");
+    if (mysql_query(mysql, buff))
+    {
+      my_printf_error(0, "SET LOCAL SQL_LOG_BIN=0 failed; error: '%-.200s'",
+                      error_flags, mysql_error(mysql));
+      return -1;
+    }
+  }
 
   for (; argc > 0 ; argv++,argc--)
   {
@@ -624,7 +639,6 @@ static int execute_commands(MYSQL *mysql,int argc, char **argv)
     switch ((command= find_type(argv[0],&command_typelib,FIND_TYPE_BASIC))) {
     case ADMIN_CREATE:
     {
-      char buff[FN_REFLEN+20];
       if (argc < 2)
       {
 	my_printf_error(0, "Too few arguments to create", error_flags);
