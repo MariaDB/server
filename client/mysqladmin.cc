@@ -102,9 +102,12 @@ enum commands {
   ADMIN_PING,             ADMIN_EXTENDED_STATUS, ADMIN_FLUSH_STATUS,
   ADMIN_FLUSH_PRIVILEGES, ADMIN_START_SLAVE,     ADMIN_STOP_SLAVE,
   ADMIN_START_ALL_SLAVES, ADMIN_STOP_ALL_SLAVES,
-  ADMIN_FLUSH_THREADS,    ADMIN_OLD_PASSWORD,    ADMIN_FLUSH_SLOW_LOG,
+  ADMIN_FLUSH_THREADS,    ADMIN_OLD_PASSWORD,    ADMIN_FLUSH_BINARY_LOG,
+  ADMIN_FLUSH_ENGINE_LOG, ADMIN_FLUSH_ERROR_LOG, ADMIN_FLUSH_GENERAL_LOG,
+  ADMIN_FLUSH_RELAY_LOG,  ADMIN_FLUSH_SLOW_LOG,
   ADMIN_FLUSH_TABLE_STATISTICS, ADMIN_FLUSH_INDEX_STATISTICS,
   ADMIN_FLUSH_USER_STATISTICS, ADMIN_FLUSH_CLIENT_STATISTICS,
+  ADMIN_FLUSH_USER_RESOURCES,
   ADMIN_FLUSH_ALL_STATUS, ADMIN_FLUSH_ALL_STATISTICS
 };
 static const char *command_names[]= {
@@ -116,9 +119,10 @@ static const char *command_names[]= {
   "ping",                 "extended-status",     "flush-status",
   "flush-privileges",     "start-slave",         "stop-slave",
   "start-all-slaves", "stop-all-slaves",
-  "flush-threads", "old-password", "flush-slow-log",
+  "flush-threads", "old-password", "flush-binary-log", "flush-engine-log",
+  "flush-error-log", "flush-general-log", "flush-relay-log", "flush-slow-log",
   "flush-table-statistics", "flush-index-statistics",
-  "flush-user-statistics", "flush-client-statistics",
+  "flush-user-statistics", "flush-client-statistics", "flush-user-resources",
   "flush-all-status", "flush-all-statistics",
   NullS
 };
@@ -916,6 +920,56 @@ static int execute_commands(MYSQL *mysql,int argc, char **argv)
       }
       break;
     }
+    case ADMIN_FLUSH_BINARY_LOG:
+    {
+      if (mysql_query(mysql,"flush binary logs"))
+      {
+	my_printf_error(0, "flush failed; error: '%s'", error_flags,
+			mysql_error(mysql));
+	return -1;
+      }
+      break;
+    }
+    case ADMIN_FLUSH_ENGINE_LOG:
+    {
+      if (mysql_query(mysql,"flush engine logs"))
+      {
+	my_printf_error(0, "flush failed; error: '%s'", error_flags,
+			mysql_error(mysql));
+	return -1;
+      }
+      break;
+    }
+    case ADMIN_FLUSH_ERROR_LOG:
+    {
+      if (mysql_query(mysql,"flush error logs"))
+      {
+	my_printf_error(0, "flush failed; error: '%s'", error_flags,
+			mysql_error(mysql));
+	return -1;
+      }
+      break;
+    }
+    case ADMIN_FLUSH_GENERAL_LOG:
+    {
+      if (mysql_query(mysql,"flush general logs"))
+      {
+	my_printf_error(0, "flush failed; error: '%s'", error_flags,
+			mysql_error(mysql));
+	return -1;
+      }
+      break;
+    }
+    case ADMIN_FLUSH_RELAY_LOG:
+    {
+      if (mysql_query(mysql,"flush relay logs"))
+      {
+	my_printf_error(0, "flush failed; error: '%s'", error_flags,
+			mysql_error(mysql));
+	return -1;
+      }
+      break;
+    }
     case ADMIN_FLUSH_SLOW_LOG:
     {
       if (mysql_query(mysql,"flush slow logs"))
@@ -979,6 +1033,16 @@ static int execute_commands(MYSQL *mysql,int argc, char **argv)
     case ADMIN_FLUSH_USER_STATISTICS:
     {
       if (mysql_query(mysql,"flush user_statistics"))
+      {
+	my_printf_error(0, "flush failed; error: '%s'", error_flags,
+			mysql_error(mysql));
+	return -1;
+      }
+      break;
+    }
+    case ADMIN_FLUSH_USER_RESOURCES:
+    {
+      if (mysql_query(mysql,"flush user_resources"))
       {
 	my_printf_error(0, "flush failed; error: '%s'", error_flags,
 			mysql_error(mysql));
@@ -1309,12 +1373,18 @@ static void usage(void)
   flush-index-statistics  Flush index statistics\n\
   flush-logs              Flush all logs\n\
   flush-privileges        Reload grant tables (same as reload)\n\
+  flush-binary-log        Flush binary log\n\
+  flush-engine-log        Flush engine log(s)\n\
+  flush-error-log         Flush error log\n\
+  flush-general-log       Flush general log\n\
+  flush-relay-log         Flush relay log\n\
   flush-slow-log          Flush slow query log\n\
-  flush-status		  Clear status variables\n\
+  flush-status            Clear status variables\n\
   flush-table-statistics  Clear table statistics\n\
   flush-tables            Flush all tables\n\
   flush-threads           Flush the thread cache\n\
   flush-user-statistics   Flush user statistics\n\
+  flush-user-resources    Flush user resources\n\
   kill id,id,...	Kill mysql threads");
 #if MYSQL_VERSION_ID >= 32200
   puts("\
