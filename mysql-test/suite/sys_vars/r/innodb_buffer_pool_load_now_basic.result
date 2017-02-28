@@ -8,4 +8,4 @@ SELECT variable_value
 FROM information_schema.global_status
 WHERE LOWER(variable_name) = 'innodb_buffer_pool_load_status';
 variable_value
-Buffer pool(s) load completed at TIMESTAMP_NOW
+Buffer pool(s) load completed at TIMESTAMP_NOW - X pages loaded

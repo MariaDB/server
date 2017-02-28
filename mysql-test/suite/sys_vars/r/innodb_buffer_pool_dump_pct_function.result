@@ -36,8 +36,8 @@ SET GLOBAL innodb_buffer_pool_load_now=1;
 # Case 1: Limit from innodb_buffer_pool_dump_pct
 SELECT 256 as 'Previous pool pages',
 ROUND(25 / 100 * @@innodb_buffer_pool_size / @@innodb_page_size) as 'Limit',
-128 as 'Pages saved';
-Previous pool pages	Limit	Pages saved
+128 as 'Pages loaded';
+Previous pool pages	Limit	Pages loaded
 256	128	128
 # Case 2: blog_pages is the minimum.
 # load buffer pool with entire table.
@@ -48,7 +48,7 @@ SET GLOBAL innodb_buffer_pool_load_now=1;
 # now loaded
 SELECT 256 as 'Previous pool pages',
 ROUND(75 / 100 * @@innodb_buffer_pool_size / @@innodb_page_size) as 'Limit',
-256 as 'Pages saved';
-Previous pool pages	Limit	Pages saved
+256 as 'Pages loaded';
+Previous pool pages	Limit	Pages loaded
 256	384	256
 DROP TABLE t1;

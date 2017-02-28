@@ -271,6 +271,7 @@ buf_dump(
 	FILE*	f;
 	ulint	i;
 	int	ret;
+	ulint	total_pages = 0;
 
 	buf_dump_generate_path(full_filename, sizeof(full_filename));
 
@@ -337,6 +338,8 @@ buf_dump(
 				n_pages = 1;
 			}
 		}
+
+		total_pages += n_pages;
 
 		dump = static_cast<buf_dump_t*>(ut_malloc_nokey(
 				n_pages * sizeof(*dump)));
@@ -439,7 +442,8 @@ buf_dump(
 	ut_sprintf_timestamp(now);
 
 	buf_dump_status(STATUS_INFO,
-			"Buffer pool(s) dump completed at %s", now);
+			"Buffer pool(s) dump completed at %s -"
+			" " ULINTPF " pages dumped", now, total_pages);
 }
 
 /*****************************************************************//**
@@ -766,7 +770,8 @@ buf_load()
 	ut_sprintf_timestamp(now);
 
 	buf_load_status(STATUS_INFO,
-			"Buffer pool(s) load completed at %s", now);
+			"Buffer pool(s) load completed at %s - "
+			ULINTPF " pages loaded", now, dump_n);
 
 	/* Make sure that estimated = completed when we end. */
 	/* mysql_stage_set_work_completed(pfs_stage_progress, dump_n); */
