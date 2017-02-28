@@ -1460,17 +1460,7 @@ log_write_up_to(
 	}
 
 loop:
-#ifdef UNIV_DEBUG
-	loop_count++;
-
-	ut_ad(loop_count < 5);
-
-# if 0
-	if (loop_count > 2) {
-		fprintf(stderr, "Log loop count %lu\n", loop_count);
-	}
-# endif
-#endif
+	ut_ad(++loop_count < 100);
 
 	mutex_enter(&(log_sys->mutex));
 	ut_ad(!recv_no_log_write);
