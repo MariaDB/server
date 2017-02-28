@@ -571,9 +571,6 @@ that semaphore times out in InnoDB */
 #define DEFAULT_SRV_FATAL_SEMAPHORE_TIMEOUT 600
 extern ulong	srv_fatal_semaphore_wait_threshold;
 
-/** Enable semaphore request instrumentation */
-extern my_bool srv_instrument_semaphores;
-
 /** Buffer pool dump status frequence in percentages */
 extern ulong srv_buf_dump_status_frequency;
 

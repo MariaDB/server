@@ -202,7 +202,6 @@ rw_lock_create_func(
 #ifdef UNIV_DEBUG
 	latch_level_t	level,		/*!< in: level */
 #endif /* UNIV_DEBUG */
-	const char*	cmutex_name,	/*!< in: mutex name */
 	const char*	cfile_name,	/*!< in: file name where created */
 	ulint		cline)		/*!< in: file line where created */
 {
@@ -238,10 +237,7 @@ rw_lock_create_func(
 	less than 8192. cline is unsigned:13. */
 	ut_ad(cline <= 8192);
 	lock->cline = (unsigned int) cline;
-	lock->lock_name = cmutex_name;
 	lock->count_os_wait = 0;
-	lock->file_name = "not yet reserved";
-	lock->line = 0;
 	lock->last_s_file_name = "not yet reserved";
 	lock->last_x_file_name = "not yet reserved";
 	lock->last_s_line = 0;
@@ -479,12 +475,6 @@ rw_lock_x_lock_wait_func(
 			ut_d(rw_lock_remove_debug_info(
 					lock, pass, RW_LOCK_X_WAIT));
 
-			if (srv_instrument_semaphores) {
-				lock->thread_id = os_thread_get_curr_id();
-				lock->file_name = file_name;
-				lock->line = line;
-			}
-
 			/* It is possible to wake when lock_word < 0.
 			We must pass the while-loop check to proceed.*/
 
@@ -586,13 +576,6 @@ rw_lock_x_lock_low(
 	}
 
 	ut_d(rw_lock_add_debug_info(lock, pass, RW_LOCK_X, file_name, line));
-
-
-	if (srv_instrument_semaphores) {
-		lock->thread_id = os_thread_get_curr_id();
-		lock->file_name = file_name;
-		lock->line = line;
-	}
 
 	lock->last_x_file_name = file_name;
 	lock->last_x_line = (unsigned int) line;
