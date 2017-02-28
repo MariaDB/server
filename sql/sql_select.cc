@@ -9422,7 +9422,7 @@ void JOIN::drop_unused_derived_keys()
       continue;
     if (!table->pos_in_table_list->is_materialized_derived())
       continue;
-    if (table->max_keys > 1)
+    if (table->max_keys > 1 && !tab->is_ref_for_hash_join())
       table->use_index(tab->ref.key);
     if (table->s->keys)
     {
