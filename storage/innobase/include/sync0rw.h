@@ -2,6 +2,7 @@
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, Google Inc.
+Copyright (c) 2017, MariaDB Corporation. All Rights Reserved.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -37,9 +38,6 @@ Created 9/11/1995 Heikki Tuuri
 #include "ut0counter.h"
 #include "os0event.h"
 #include "ut0mutex.h"
-
-/** Enable semaphore request instrumentation */
-extern my_bool srv_instrument_semaphores;
 
 /** Counters for RW locks. */
 struct rw_lock_stats_t {
@@ -127,10 +125,10 @@ if MySQL performance schema is enabled and "UNIV_PFS_RWLOCK" is
 defined, the rwlock are instrumented with performance schema probes. */
 # ifdef UNIV_DEBUG
 #  define rw_lock_create(K, L, level)				\
-	rw_lock_create_func((L), (level), #L, __FILE__, __LINE__)
+	rw_lock_create_func((L), (level), __FILE__, __LINE__)
 # else /* UNIV_DEBUG */
 #  define rw_lock_create(K, L, level)				\
-	rw_lock_create_func((L), #L, __FILE__, __LINE__)
+	rw_lock_create_func((L), __FILE__, __LINE__)
 # endif	/* UNIV_DEBUG */
 
 /**************************************************************//**
@@ -215,10 +213,10 @@ unlocking, not the corresponding function. */
 /* Following macros point to Performance Schema instrumented functions. */
 # ifdef UNIV_DEBUG
 #   define rw_lock_create(K, L, level)				\
-	pfs_rw_lock_create_func((K), (L), (level), #L, __FILE__, __LINE__)
+	pfs_rw_lock_create_func((K), (L), (level), __FILE__, __LINE__)
 # else	/* UNIV_DEBUG */
 #  define rw_lock_create(K, L, level)				\
-	pfs_rw_lock_create_func((K), (L), #L, __FILE__, __LINE__)
+	pfs_rw_lock_create_func((K), (L), __FILE__, __LINE__)
 # endif	/* UNIV_DEBUG */
 
 /******************************************************************
@@ -303,7 +301,6 @@ rw_lock_create_func(
 #ifdef UNIV_DEBUG
 	latch_level_t	level,		/*!< in: level */
 #endif /* UNIV_DEBUG */
-	const char*	cmutex_name,	/*!< in: mutex name */
 	const char*	cfile_name,	/*!< in: file name where created */
 	ulint		cline);		/*!< in: file line where created */
 /******************************************************************//**
@@ -637,11 +634,6 @@ struct rw_lock_t
 	/** Line number where last time x-locked */
 	unsigned	last_x_line:14;
 
-	const char*	lock_name;
-	const char*	file_name;/*!< File name where the lock was obtained */
-	ulint	line;		/*!< Line where the rw-lock was locked */
-	os_thread_id_t	thread_id;
-
 	/** Count of os_waits. May not be accurate */
 	uint32_t	count_os_wait;
 
@@ -744,7 +736,6 @@ pfs_rw_lock_create_func(
 #ifdef UNIV_DEBUG
 	latch_level_t	level,		/*!< in: level */
 #endif /* UNIV_DEBUG */
-	const char*	cmutex_name,	/*!< in: mutex name */
 	const char*	cfile_name,	/*!< in: file name where created */
 	ulint		cline);		/*!< in: file line where created */
 

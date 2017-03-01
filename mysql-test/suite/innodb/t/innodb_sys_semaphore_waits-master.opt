@@ -1,3 +1,2 @@
 --innodb-fatal-semaphore-wait-threshold=1 
 --innodb-sys-semaphore-waits=1
---innodb-instrument-semaphores=1

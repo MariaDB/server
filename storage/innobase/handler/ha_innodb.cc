@@ -3750,7 +3750,15 @@ static const char*	deprecated_file_format_max
 
 /** Deprecation message about innodb_use_trim */
 static const char*	deprecated_use_trim
-	= DEPRECATED_FORMAT_PARAMETER("innodb_use_trim");
+	= "Using innodb_use_trim is deprecated"
+	" and the parameter will be removed in MariaDB 10.3.";
+
+/** Deprecation message about innodb_instrument_semaphores */
+static const char*	deprecated_instrument_semaphores
+	= "Using innodb_instrument_semaphores is deprecated"
+	" and the parameter will be removed in MariaDB 10.3.";
+
+static my_bool innodb_instrument_semaphores;
 
 /** Update log_checksum_algorithm_ptr with a pointer to the function
 corresponding to whether checksums are enabled.
@@ -4105,6 +4113,10 @@ innobase_init(
 
 	if (innobase_file_format_name != innodb_file_format_default) {
 		ib::warn() << deprecated_file_format;
+	}
+
+	if (innodb_instrument_semaphores) {
+		ib::warn() << deprecated_instrument_semaphores;
 	}
 
 	/* Validate the file format by animal name */
@@ -20613,6 +20625,25 @@ innodb_use_trim_update(
 		     HA_ERR_WRONG_COMMAND, deprecated_use_trim);
 }
 
+/** Update the innodb_instrument_sempahores parameter.
+@param[in]	thd	thread handle
+@param[in]	var	system variable
+@param[out]	var_ptr	current value
+@param[in]	save	immediate result from check function */
+static
+void
+innodb_instrument_semaphores_update(
+	THD*				thd,
+	struct st_mysql_sys_var*	var,
+	void*				var_ptr,
+	const void*			save)
+{
+	innodb_instrument_semaphores = *static_cast<const my_bool*>(save);
+
+	push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
+		     HA_ERR_WRONG_COMMAND, deprecated_instrument_semaphores);
+}
+
 /* plugin options */
 
 static MYSQL_SYSVAR_ENUM(checksum_algorithm, srv_checksum_algorithm,
@@ -21821,11 +21852,10 @@ static MYSQL_SYSVAR_BOOL(debug_force_scrubbing,
 			 NULL, NULL, FALSE);
 #endif /* UNIV_DEBUG */
 
-static MYSQL_SYSVAR_BOOL(instrument_semaphores, srv_instrument_semaphores,
+static MYSQL_SYSVAR_BOOL(instrument_semaphores, innodb_instrument_semaphores,
   PLUGIN_VAR_OPCMDARG,
-  "Enable semaphore request instrumentation. This could have some effect on performance but allows better"
-  " information on long semaphore wait problems. (Default: not enabled)",
-  0, 0, FALSE);
+  "DEPRECATED. This setting has no effect.",
+  NULL, innodb_instrument_semaphores_update, FALSE);
 
 static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(autoextend_increment),

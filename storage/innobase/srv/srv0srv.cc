@@ -507,9 +507,6 @@ thread ensures that we flush the log files at least once per
 second. */
 static time_t	srv_last_log_flush_time;
 
-/** Enable semaphore request instrumentation */
-UNIV_INTERN my_bool 	srv_instrument_semaphores = FALSE;
-
 /* Interval in seconds at which various tasks are performed by the
 master thread when server is active. In order to balance the workload,
 we should try to keep intervals such that they are not multiple of

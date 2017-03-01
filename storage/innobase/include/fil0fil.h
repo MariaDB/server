@@ -484,14 +484,6 @@ struct fil_system_t {
 					startup we scan the data dictionary
 					and set here the maximum of the
 					space id's of the tables there */
-	int64_t		tablespace_version;
-					/*!< a counter which is incremented for
-					every space object memory creation;
-					every space mem object gets a
-					'timestamp' from this; in DISCARD/
-					IMPORT this is used to check if we
-					should ignore an insert buffer merge
-					request */
 	UT_LIST_BASE_NODE_T(fil_space_t) space_list;
 					/*!< list of all file spaces */
 	UT_LIST_BASE_NODE_T(fil_space_t) named_spaces;
