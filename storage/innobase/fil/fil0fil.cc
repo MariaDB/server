@@ -584,7 +584,9 @@ fil_node_open_file(
 	read_only_mode = !fsp_is_system_temporary(space->id)
 		&& srv_read_only_mode;
 
-	if (node->size == 0
+	const bool first_time_open = node->size == 0;
+
+	if (first_time_open
 	    || (space->purpose == FIL_TYPE_TABLESPACE
 		&& node == UT_LIST_GET_FIRST(space->chain)
 		&& !undo::Truncate::was_tablespace_truncated(space->id)
@@ -689,7 +691,7 @@ retry:
 		space->free_limit = free_limit;
 		space->free_len = free_len;
 
-		if (node->size == 0) {
+		if (first_time_open) {
 			ulint	extent_size;
 
 			extent_size = psize * FSP_EXTENT_SIZE;
@@ -727,24 +729,21 @@ retry:
 			innodb_data_file_key, node->name, OS_FILE_OPEN,
 			OS_FILE_AIO, OS_DATA_FILE, read_only_mode, &success);
 
-                if (!space->atomic_write_tested)
-                {
-                  const page_size_t page_size(space->flags);
-
-                  space->atomic_write_tested= 1;
-                  /*
-                    Atomic writes is supported if the file can be used
-                    with atomic_writes (not log file), O_DIRECT is
-                    used (tested in ha_innodbc.cc) and the file is
-                    device and file system that supports atomic writes
-                    for the given block size
-                  */
-                  space->atomic_write_supported=
-                    srv_use_atomic_writes &&
-                    node->atomic_write &&
-                    my_test_if_atomic_write(node->handle,
-                                            page_size.physical()) ?
-                    true : false;
+                if (first_time_open) {
+			/*
+			Atomic writes is supported if the file can be used
+			with atomic_writes (not log file), O_DIRECT is
+			used (tested in ha_innodb.cc) and the file is
+			device and file system that supports atomic writes
+			for the given block size
+			*/
+			space->atomic_write_supported
+				= srv_use_atomic_writes
+				&& node->atomic_write
+				&& my_test_if_atomic_write(
+					node->handle,
+					int(page_size_t(space->flags)
+					    .physical()));
                 }
         }
 
@@ -1302,7 +1301,7 @@ fil_mutex_enter_and_prepare_for_io(
 			}
 		}
 
-		if (ulint size = UNIV_UNLIKELY(space->recv_size)) {
+		if (ulint size = ulint(UNIV_UNLIKELY(space->recv_size))) {
 			ut_ad(node);
 			bool	success;
 			if (fil_space_extend_must_retry(space, node, size,

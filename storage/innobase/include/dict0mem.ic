@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2015, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -59,7 +60,7 @@ dict_mem_fill_index_struct(
 
 	/* Assign a ulint to a 4-bit-mapped field.
 	Only the low-order 4 bits are assigned. */
-	index->type = type;
+	index->type = unsigned(type);
 	index->space = (unsigned int) space;
 	index->page = FIL_NULL;
 	index->merge_threshold = DICT_INDEX_MERGE_THRESHOLD_DEFAULT;

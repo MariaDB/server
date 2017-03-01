@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2014, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -137,23 +138,6 @@ dtype_is_non_binary_string_type(
 	}
 
 	return(FALSE);
-}
-
-/*********************************************************************//**
-Forms a precise type from the < 4.1.2 format precise type plus the
-charset-collation code.
-@return precise type, including the charset-collation code */
-ulint
-dtype_form_prtype(
-/*==============*/
-	ulint	old_prtype,	/*!< in: the MySQL type code and the flags
-				DATA_BINARY_TYPE etc. */
-	ulint	charset_coll)	/*!< in: MySQL charset-collation code */
-{
-	ut_a(old_prtype < 256 * 256);
-	ut_a(charset_coll <= MAX_CHAR_COLL_NUM);
-
-	return(old_prtype + (charset_coll << 16));
 }
 
 /*********************************************************************//**

@@ -810,7 +810,7 @@ ibuf_bitmap_get_map_page_func(
 	const page_id_t&	page_id,
 	const page_size_t&	page_size,
 	const char*		file,
-	ulint			line,
+	unsigned		line,
 	mtr_t*			mtr)
 {
 	buf_block_t*	block = NULL;
@@ -1138,7 +1138,7 @@ ibuf_page_low(
 	ibool			x_latch,
 #endif /* UNIV_DEBUG */
 	const char*		file,
-	ulint			line,
+	unsigned		line,
 	mtr_t*			mtr)
 {
 	ibool	ret;

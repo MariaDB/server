@@ -2,6 +2,7 @@
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, Google Inc.
+Copyright (c) 2017, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -1547,9 +1548,9 @@ btr_search_build_page_hash_index(
 
 	block->n_hash_helps = 0;
 
-	block->curr_n_fields = n_fields;
-	block->curr_n_bytes = n_bytes;
-	block->curr_left_side = left_side;
+	block->curr_n_fields = unsigned(n_fields);
+	block->curr_n_bytes = unsigned(n_bytes);
+	block->curr_left_side = unsigned(left_side);
 	block->index = index;
 
 	for (i = 0; i < n_cached; i++) {

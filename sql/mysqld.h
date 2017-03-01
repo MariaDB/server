@@ -1,5 +1,5 @@
 /* Copyright (c) 2006, 2016, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2016, MariaDB
+   Copyright (c) 2010, 2017, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -49,16 +49,16 @@ typedef Bitmap<((MAX_INDEXES+7)/8*8)> key_map; /* Used for finding keys */
 #endif
 
 	/* Bits from testflag */
-#define TEST_PRINT_CACHED_TABLES 1
-#define TEST_NO_KEY_GROUP	 2
-#define TEST_MIT_THREAD		4
-#define TEST_BLOCKING		8
-#define TEST_KEEP_TMP_TABLES	16
-#define TEST_READCHECK		64	/**< Force use of readcheck */
-#define TEST_NO_EXTRA		128
-#define TEST_CORE_ON_SIGNAL	256	/**< Give core if signal */
-#define TEST_SIGINT		1024	/**< Allow sigint on threads */
-#define TEST_SYNCHRONIZATION    2048    /**< get server to do sleep in
+#define TEST_PRINT_CACHED_TABLES 1U
+#define TEST_NO_KEY_GROUP	 2U
+#define TEST_MIT_THREAD		4U
+#define TEST_BLOCKING		8U
+#define TEST_KEEP_TMP_TABLES	16U
+#define TEST_READCHECK		64U	/**< Force use of readcheck */
+#define TEST_NO_EXTRA		128U
+#define TEST_CORE_ON_SIGNAL	256U	/**< Give core if signal */
+#define TEST_SIGINT		1024U	/**< Allow sigint on threads */
+#define TEST_SYNCHRONIZATION    2048U   /**< get server to do sleep in
                                            some places */
 
 /* Keep things compatible */
@@ -721,7 +721,7 @@ inline query_id_t get_query_id()
 /* increment global_thread_id and return it.  */
 inline __attribute__((warn_unused_result)) my_thread_id next_thread_id()
 {
-  return my_atomic_add64_explicit(&global_thread_id, 1, MY_MEMORY_ORDER_RELAXED);
+  return my_atomic_add64_explicit((int64*) &global_thread_id, 1, MY_MEMORY_ORDER_RELAXED);
 }
 
 #if defined(MYSQL_DYNAMIC_PLUGIN) && defined(_WIN32)

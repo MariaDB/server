@@ -1558,7 +1558,7 @@ row_truncate_update_system_tables(
 			fts_update_next_doc_id(trx, table, NULL, 0);
 			fts_cache_clear(table->fts->cache);
 			fts_cache_init(table->fts->cache);
-			table->fts->fts_status &= ~TABLE_DICT_LOCKED;
+			table->fts->fts_status &= uint(~TABLE_DICT_LOCKED);
 		}
 	}
 

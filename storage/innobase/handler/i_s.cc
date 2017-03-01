@@ -950,8 +950,7 @@ fill_innodb_locks_from_cache(
 					       strlen(row->lock_table),
 					       thd);
 		OK(fields[IDX_LOCK_TABLE]->store(
-			buf, static_cast<size_t>(bufend - buf),
-			system_charset_info));
+			buf, uint(bufend - buf), system_charset_info));
 
 		/* lock_index */
 		if (row->lock_index != NULL) {
@@ -2594,7 +2593,7 @@ i_s_metrics_fill(
 		} else if (!(monitor_info->monitor_type & MONITOR_NO_AVERAGE)
 			   && !(monitor_info->monitor_type
 				& MONITOR_DISPLAY_CURRENT)) {
-			if (time_diff) {
+			if (time_diff != 0) {
 				OK(fields[METRIC_AVG_VALUE_START]->store(
 					(double) MONITOR_VALUE_SINCE_START(
 						count) / time_diff));
@@ -2619,7 +2618,7 @@ i_s_metrics_fill(
 				time_diff = 0;
 			}
 
-			if (time_diff) {
+			if (time_diff != 0) {
 				OK(fields[METRIC_AVG_VALUE_RESET]->store(
 					static_cast<double>(
 						MONITOR_VALUE(count) / time_diff)));
@@ -4931,7 +4930,7 @@ i_s_innodb_buffer_page_fill(
 
 				OK(fields[IDX_BUFFER_PAGE_TABLE_NAME]->store(
 					table_name,
-					static_cast<size_t>(table_name_end - table_name),
+					uint(table_name_end - table_name),
 					system_charset_info));
 				fields[IDX_BUFFER_PAGE_TABLE_NAME]->set_notnull();
 
@@ -5053,7 +5052,7 @@ i_s_innodb_set_page_type(
 			page_info->page_type = I_S_PAGE_TYPE_INDEX;
 		}
 
-		page_info->data_size = (ulint)(page_header_get_field(
+		page_info->data_size = unsigned(page_header_get_field(
 			page, PAGE_HEAP_TOP) - (page_is_comp(page)
 						? PAGE_NEW_SUPREMUM_END
 						: PAGE_OLD_SUPREMUM_END)
@@ -5651,7 +5650,7 @@ i_s_innodb_buf_page_lru_fill(
 
 				OK(fields[IDX_BUF_LRU_PAGE_TABLE_NAME]->store(
 					table_name,
-					static_cast<size_t>(table_name_end - table_name),
+					uint(table_name_end - table_name),
 					system_charset_info));
 				fields[IDX_BUF_LRU_PAGE_TABLE_NAME]->set_notnull();
 
@@ -9155,7 +9154,8 @@ i_s_innodb_mutexes_fill_table(
 
 		OK(field_store_string(fields[MUTEXES_NAME], mutex->cmutex_name));
 		OK(field_store_string(fields[MUTEXES_CREATE_FILE], innobase_basename(mutex->cfile_name)));
-		OK(field_store_ulint(fields[MUTEXES_CREATE_LINE], mutex->cline));
+		OK(fields[MUTEXES_CREATE_LINE]->store(mutex->cline, true));
+		fields[MUTEXES_CREATE_LINE]->set_notnull();
 		OK(field_store_ulint(fields[MUTEXES_OS_WAITS], (longlong)mutex->count_os_wait));
 		OK(schema_table_store_record(thd, tables->table));
 	}
@@ -9168,7 +9168,8 @@ i_s_innodb_mutexes_fill_table(
 
 		OK(field_store_string(fields[MUTEXES_NAME], block_mutex->cmutex_name));
 		OK(field_store_string(fields[MUTEXES_CREATE_FILE], buf1));
-		OK(field_store_ulint(fields[MUTEXES_CREATE_LINE], block_mutex->cline));
+		OK(fields[MUTEXES_CREATE_LINE]->store(block_mutex->cline, true));
+		fields[MUTEXES_CREATE_LINE]->set_notnull();
 		OK(field_store_ulint(fields[MUTEXES_OS_WAITS], (longlong)block_mutex_oswait_count));
 		OK(schema_table_store_record(thd, tables->table));
 	}
@@ -9192,7 +9193,8 @@ i_s_innodb_mutexes_fill_table(
 
 		//OK(field_store_string(fields[MUTEXES_NAME], lock->lock_name));
 		OK(field_store_string(fields[MUTEXES_CREATE_FILE], innobase_basename(lock->cfile_name)));
-		OK(field_store_ulint(fields[MUTEXES_CREATE_LINE], lock->cline));
+		OK(fields[MUTEXES_CREATE_LINE]->store(lock->cline, true));
+		fields[MUTEXES_CREATE_LINE]->set_notnull();
 		OK(field_store_ulint(fields[MUTEXES_OS_WAITS], (longlong)lock->count_os_wait));
 		OK(schema_table_store_record(thd, tables->table));
 	}
@@ -9205,7 +9207,8 @@ i_s_innodb_mutexes_fill_table(
 
 		//OK(field_store_string(fields[MUTEXES_NAME], block_lock->lock_name));
 		OK(field_store_string(fields[MUTEXES_CREATE_FILE], buf1));
-		OK(field_store_ulint(fields[MUTEXES_CREATE_LINE], block_lock->cline));
+		OK(fields[MUTEXES_CREATE_LINE]->store(block_lock->cline, true));
+		fields[MUTEXES_CREATE_LINE]->set_notnull();
 		OK(field_store_ulint(fields[MUTEXES_OS_WAITS], (longlong)block_lock_oswait_count));
 		OK(schema_table_store_record(thd, tables->table));
 	}

@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2014, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -118,15 +119,15 @@ ut_raw_to_hex(
 
 #define MK_UINT16(a, b) (((uint16) (a)) << 8 | (uint16) (b))
 
-#define UINT16_GET_A(u)	((unsigned char) ((u) >> 8))
-#define UINT16_GET_B(u)	((unsigned char) ((u) & 0xFF))
+#define UINT16_GET_A(u)	((char) ((u) >> 8))
+#define UINT16_GET_B(u)	((char) ((u) & 0xFF))
 
 #else /* WORDS_BIGENDIAN */
 
 #define MK_UINT16(a, b) (((uint16) (b)) << 8 | (uint16) (a))
 
-#define UINT16_GET_A(u)	((unsigned char) ((u) & 0xFF))
-#define UINT16_GET_B(u)	((unsigned char) ((u) >> 8))
+#define UINT16_GET_A(u)	((char) ((u) & 0xFF))
+#define UINT16_GET_B(u)	((char) ((u) >> 8))
 
 #endif /* WORDS_BIGENDIAN */
 

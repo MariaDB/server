@@ -2,6 +2,7 @@
 #define SQL_AUDIT_INCLUDED
 
 /* Copyright (c) 2007, 2013, Oracle and/or its affiliates. All rights reserved.
+   Copyright (c) 2017, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -160,7 +161,7 @@ void mysql_audit_general(THD *thd, uint event_subtype,
       event.general_user_length= make_user_name(thd, user_buff);
       event.general_thread_id= (unsigned long)thd->thread_id;
       event.general_query= thd->query_string.str();
-      event.general_query_length= thd->query_string.length();
+      event.general_query_length= (unsigned) thd->query_string.length();
       event.general_charset= thd->query_string.charset();
       event.general_rows= thd->get_stmt_da()->current_row_for_warning();
       event.database= thd->db;

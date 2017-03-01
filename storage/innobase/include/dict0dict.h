@@ -399,7 +399,7 @@ void
 dict_table_add_to_cache(
 /*====================*/
 	dict_table_t*	table,		/*!< in: table */
-	ibool		can_be_evicted,	/*!< in: TRUE if can be evicted*/
+	bool		can_be_evicted,	/*!< in: whether can be evicted*/
 	mem_heap_t*	heap)		/*!< in: temporary heap */
 	MY_ATTRIBUTE((nonnull));
 /**********************************************************************//**
@@ -1567,11 +1567,9 @@ dict_index_calc_min_rec_len(
 /*========================*/
 	const dict_index_t*	index)	/*!< in: index */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
-/********************************************************************//**
-Reserves the dictionary system mutex for MySQL. */
+/** Reserve the dictionary system mutex. */
 void
-dict_mutex_enter_for_mysql_func(const char * file, ulint line);
-/*============================*/
+dict_mutex_enter_for_mysql_func(const char *file, unsigned line);
 
 #define dict_mutex_enter_for_mysql() \
   dict_mutex_enter_for_mysql_func(__FILE__, __LINE__)

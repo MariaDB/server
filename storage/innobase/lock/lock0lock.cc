@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2014, 2016, MariaDB Corporation
+Copyright (c) 2014, 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1109,7 +1109,7 @@ lock_rec_reset_nth_bit(
 	ut_ad(i < lock->un_member.rec_lock.n_bits);
 
 	byte*	b = reinterpret_cast<byte*>(&lock[1]) + (i >> 3);
-	byte	mask = 1 << (i & 7);
+	byte	mask = static_cast<byte>(1U << (i & 7));
 	byte	bit = *b & mask;
 	*b &= ~mask;
 
@@ -1717,7 +1717,7 @@ RecLock::lock_alloc(
 
 	/* Setup the lock attributes */
 
-	lock->type_mode = LOCK_REC | (mode & ~LOCK_TYPE_MASK);
+	lock->type_mode = uint32_t(LOCK_REC | (mode & ~LOCK_TYPE_MASK));
 
 	lock_rec_t&	rec_lock = lock->un_member.rec_lock;
 

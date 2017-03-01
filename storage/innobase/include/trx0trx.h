@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, 2017, MariaDB Corporation. All Rights Reserved.
+Copyright (c) 2016, 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1242,7 +1242,7 @@ struct trx_t {
 					read-write. */
 	/*------------------------------*/
 #ifdef UNIV_DEBUG
-	ulint		start_line;	/*!< Track where it was started from */
+	unsigned	start_line;	/*!< Track where it was started from */
 	const char*	start_file;	/*!< Filename where it was started */
 #endif /* UNIV_DEBUG */
 
@@ -1347,8 +1347,8 @@ trx_is_started(
 
 /* Treatment of duplicate values (trx->duplicates; for example, in inserts).
 Multiple flags can be combined with bitwise OR. */
-#define TRX_DUP_IGNORE	1	/* duplicate rows are to be updated */
-#define TRX_DUP_REPLACE	2	/* duplicate rows are to be replaced */
+#define TRX_DUP_IGNORE	1U	/* duplicate rows are to be updated */
+#define TRX_DUP_REPLACE	2U	/* duplicate rows are to be replaced */
 
 
 /** Commit node states */

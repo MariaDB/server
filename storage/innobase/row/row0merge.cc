@@ -4511,7 +4511,7 @@ row_merge_create_index(
 
 /*********************************************************************//**
 Check if a transaction can use an index. */
-ibool
+bool
 row_merge_is_index_usable(
 /*======================*/
 	const trx_t*		trx,	/*!< in: transaction */
@@ -4520,7 +4520,7 @@ row_merge_is_index_usable(
 	if (!dict_index_is_clust(index)
 	    && dict_index_is_online_ddl(index)) {
 		/* Indexes that are being created are not useable. */
-		return(FALSE);
+		return(false);
 	}
 
 	return(!dict_index_is_corrupted(index)

@@ -3,6 +3,7 @@
 
 /*
    Copyright (c) 2004, 2011, Oracle and/or its affiliates.
+   Copyright (c) 2017, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -273,8 +274,8 @@ public:
   Field **nullable_fields() { return record0_field; }
   void reset_extra_null_bitmap()
   {
-    int null_bytes= (trigger_table->s->stored_fields -
-                     trigger_table->s->null_fields + 7)/8;
+    size_t null_bytes= (trigger_table->s->stored_fields -
+                        trigger_table->s->null_fields + 7)/8;
     bzero(extra_null_bitmap, null_bytes);
   }
 

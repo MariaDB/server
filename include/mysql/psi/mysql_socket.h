@@ -1,4 +1,5 @@
 /* Copyright (c) 2010, 2012, Oracle and/or its affiliates. All rights reserved.
+   Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License as
@@ -241,7 +242,7 @@ inline_mysql_start_socket_wait(PSI_socket_locker_state *state,
                                MYSQL_SOCKET mysql_socket,
                                enum PSI_socket_operation op,
                                size_t byte_count,
-                               const char *src_file, int src_line)
+                               const char *src_file, uint src_line)
 {
   struct PSI_socket_locker *locker;
   if (mysql_socket.m_psi != NULL)
@@ -744,8 +745,7 @@ inline_mysql_socket_send
     /* Instrumentation end */
     if (locker != NULL)
     {
-      size_t bytes_written;
-      bytes_written= (result > -1) ? result : 0;
+      size_t bytes_written= (result > 0) ? (size_t) result : 0;
       PSI_SOCKET_CALL(end_socket_wait)(locker, bytes_written);
     }
 
@@ -786,8 +786,7 @@ inline_mysql_socket_recv
     /* Instrumentation end */
     if (locker != NULL)
     {
-      size_t bytes_read;
-      bytes_read= (result > -1) ? result : 0;
+      size_t bytes_read= (result > 0) ? (size_t) result : 0;
       PSI_SOCKET_CALL(end_socket_wait)(locker, bytes_read);
     }
 
@@ -828,8 +827,7 @@ inline_mysql_socket_sendto
     /* Instrumentation end */
     if (locker != NULL)
     {
-      size_t bytes_written;
-      bytes_written = (result > -1) ? result : 0;
+      size_t bytes_written = (result > 0) ? (size_t) result : 0;
       PSI_SOCKET_CALL(end_socket_wait)(locker, bytes_written);
     }
 
@@ -871,8 +869,7 @@ inline_mysql_socket_recvfrom
     /* Instrumentation end */
     if (locker != NULL)
     {
-      size_t bytes_read;
-      bytes_read = (result > -1) ? result : 0;
+      size_t bytes_read= (result > 0) ? (size_t) result : 0;
       PSI_SOCKET_CALL(end_socket_wait)(locker, bytes_read);
     }
 

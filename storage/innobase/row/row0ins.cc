@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, MariaDB Corporation.
+Copyright (c) 2016, 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -2836,7 +2836,7 @@ row_ins_sec_index_entry_low(
 			rtr_info_update_btr(&cursor, &rtr_info);
 			mtr_start(&mtr);
 			mtr.set_named_space(index->space);
-			search_mode &= ~BTR_MODIFY_LEAF;
+			search_mode &= ulint(~BTR_MODIFY_LEAF);
 			search_mode |= BTR_MODIFY_TREE;
 			err = btr_cur_search_to_nth_level(
 				index, 0, entry, PAGE_CUR_RTREE_INSERT,
@@ -3086,7 +3086,7 @@ row_ins_index_entry_big_rec_func(
 #ifndef DBUG_OFF
 	const void*		thd,    /*!< in: connection, or NULL */
 #endif /* DBUG_OFF */
-	ulint			line)	/*!< in: line number of caller */
+	unsigned		line)	/*!< in: line number of caller */
 {
 	mtr_t		mtr;
 	btr_pcur_t	pcur;

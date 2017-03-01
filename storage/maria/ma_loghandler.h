@@ -33,9 +33,9 @@
   We allow all kind protections to be switched on together for people who
   really unsure in their hardware/OS.
 */
-#define TRANSLOG_PAGE_CRC              1
-#define TRANSLOG_SECTOR_PROTECTION     (1<<1)
-#define TRANSLOG_RECORD_CRC            (1<<2)
+#define TRANSLOG_PAGE_CRC              1U
+#define TRANSLOG_SECTOR_PROTECTION     (1U<<1)
+#define TRANSLOG_RECORD_CRC            (1U<<2)
 #define TRANSLOG_FLAGS_NUM ((TRANSLOG_PAGE_CRC | TRANSLOG_SECTOR_PROTECTION | \
                            TRANSLOG_RECORD_CRC) + 1)
 

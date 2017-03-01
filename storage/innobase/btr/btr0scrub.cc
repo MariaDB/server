@@ -254,11 +254,10 @@ btr_page_needs_scrubbing(
 		return BTR_SCRUB_SKIP_PAGE_AND_CLOSE_TABLE;
 	}
 
-	page_t*	page = buf_block_get_frame(block);
-	uint type = fil_page_get_type(page);
+	const page_t*	page = buf_block_get_frame(block);
 
 	if (allocated == BTR_SCRUB_PAGE_ALLOCATED) {
-		if (type != FIL_PAGE_INDEX) {
+		if (fil_page_get_type(page) != FIL_PAGE_INDEX) {
 			/* this function is called from fil-crypt-threads.
 			* these threads iterate all pages of all tablespaces
 			* and don't know about fil_page_type.
@@ -275,7 +274,7 @@ btr_page_needs_scrubbing(
 			return BTR_SCRUB_SKIP_PAGE_AND_CLOSE_TABLE;
 		}
 
-		if (page_has_garbage(page) == false) {
+		if (!page_has_garbage(page)) {
 			/* no garbage (from deleted/shrunken records) */
 			return BTR_SCRUB_SKIP_PAGE_AND_CLOSE_TABLE;
 		}
@@ -283,11 +282,12 @@ btr_page_needs_scrubbing(
 	} else if (allocated == BTR_SCRUB_PAGE_FREE ||
 		   allocated == BTR_SCRUB_PAGE_ALLOCATION_UNKNOWN) {
 
-		if (! (type == FIL_PAGE_INDEX ||
-		       type == FIL_PAGE_TYPE_BLOB ||
-		       type == FIL_PAGE_TYPE_ZBLOB ||
-		       type == FIL_PAGE_TYPE_ZBLOB2)) {
-
+		switch (fil_page_get_type(page)) {
+		case FIL_PAGE_INDEX:
+		case FIL_PAGE_TYPE_ZBLOB:
+		case FIL_PAGE_TYPE_ZBLOB2:
+			break;
+		default:
 			/**
 			* If this is a dropped page, we also need to scrub
 			* BLOB pages
@@ -299,7 +299,8 @@ btr_page_needs_scrubbing(
 		}
 	}
 
-	if (btr_page_get_index_id(page) == IBUF_INDEX_ID) {
+	if (block->page.id.space() == TRX_SYS_SPACE
+	    && btr_page_get_index_id(page) == IBUF_INDEX_ID) {
 		/* skip ibuf */
 		return BTR_SCRUB_SKIP_PAGE_AND_CLOSE_TABLE;
 	}

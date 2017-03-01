@@ -640,25 +640,6 @@ static PSI_file_info	all_innodb_files[] = {
 # endif /* UNIV_PFS_IO */
 #endif /* HAVE_PSI_INTERFACE */
 
-/******************************************************************//**
-Debug function used to read a MBR data */
-
-#ifdef UNIV_DEBUG
-void
-srv_mbr_debug(const byte* data)
-{
-	double a, b, c , d;
-	a = mach_double_read(data);
-	data += sizeof(double);
-	b = mach_double_read(data);
-	data += sizeof(double);
-	c = mach_double_read(data);
-	data += sizeof(double);
-	d = mach_double_read(data);
-	ut_ad(a && b && c &&d);
-}
-#endif
-
 static void innodb_remember_check_sysvar_funcs();
 mysql_var_check_func check_sysvar_enum;
 
@@ -4338,8 +4319,8 @@ innobase_change_buffering_inited_ok:
 			" It will be removed in MariaDB 10.3.";
 	}
 
-	srv_use_atomic_writes = (ibool) (innobase_use_atomic_writes &&
-                                         my_may_have_atomic_write);
+	srv_use_atomic_writes
+		= innobase_use_atomic_writes && my_may_have_atomic_write;
         if (srv_use_atomic_writes && !srv_file_per_table)
         {
           fprintf(stderr, "InnoDB: Disabling atomic_writes as file_per_table is not used.\n");
@@ -10069,7 +10050,7 @@ ha_innobase::innobase_get_index(
 					    << " InnoDB name " << index->name()
 					    << " for table " << m_prebuilt->table->name.m_name;
 
-				for(ulint i=0; i < table->s->keys; i++) {
+				for(uint i=0; i < table->s->keys; i++) {
 					index = innobase_index_lookup(m_share, i);
 					key = table->key_info + keynr;
 

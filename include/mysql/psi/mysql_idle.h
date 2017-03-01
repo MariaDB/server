@@ -1,4 +1,5 @@
 /* Copyright (c) 2011, 2012, Oracle and/or its affiliates. All rights reserved.   
+   Copyright (c) 2017, MariaDB Corporation.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -67,7 +68,7 @@
 */
 static inline struct PSI_idle_locker *
 inline_mysql_start_idle_wait(PSI_idle_locker_state *state,
-                             const char *src_file, int src_line)
+                             const char *src_file, uint src_line)
 {
   struct PSI_idle_locker *locker;
   locker= PSI_IDLE_CALL(start_idle_wait)(state, src_file, src_line);

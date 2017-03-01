@@ -2,6 +2,7 @@
 
 Copyright (c) 2005, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -69,11 +70,11 @@ extern uint	page_zip_level;
 		+ DATA_TRX_ID_LEN		\
 		+ DATA_ROLL_PTR_LEN)
 /** Mask of record offsets */
-#define PAGE_ZIP_DIR_SLOT_MASK		0x3fff
+#define PAGE_ZIP_DIR_SLOT_MASK		0x3fffU
 /** 'owned' flag */
-#define PAGE_ZIP_DIR_SLOT_OWNED		0x4000
+#define PAGE_ZIP_DIR_SLOT_OWNED		0x4000U
 /** 'deleted' flag */
-#define PAGE_ZIP_DIR_SLOT_DEL		0x8000
+#define PAGE_ZIP_DIR_SLOT_DEL		0x8000U
 
 /* Whether or not to log compressed page images to avoid possible
 compression algorithm changes in zlib. */

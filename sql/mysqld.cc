@@ -8770,7 +8770,7 @@ static int mysql_init_variables(void)
   mysql_home_ptr= mysql_home;
   log_error_file_ptr= log_error_file;
   protocol_version= PROTOCOL_VERSION;
-  what_to_log= ~ (1L << (uint) COM_TIME);
+  what_to_log= ~(1UL << COM_TIME);
   denied_connections= 0;
   executed_events= 0;
   global_query_id= 1;

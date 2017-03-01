@@ -1319,7 +1319,7 @@ srv_init_abort_low(
 	bool		create_new_db,
 #ifdef UNIV_DEBUG
 	const char*	file,
-	ulint		line,
+	unsigned	line,
 #endif /* UNIV_DEBUG */
 	dberr_t		err)
 {

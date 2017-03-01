@@ -5019,7 +5019,7 @@ op_ok:
 				ctx->prebuilt->trx->mysql_thd)
 				? DB_SUCCESS : DB_ERROR;
 			ctx->new_table->fts->fts_status
-				&= ~TABLE_DICT_LOCKED;
+				&= ulint(~TABLE_DICT_LOCKED);
 
 			if (error != DB_SUCCESS) {
 				goto error_handling;

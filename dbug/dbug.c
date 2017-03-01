@@ -115,18 +115,18 @@
  *      (until we add flags to _db_stack_frame_, increasing it by 4 bytes)
  */
 
-#define DEBUG_ON        (1 <<  1)  /* Debug enabled */
-#define FILE_ON         (1 <<  2)  /* File name print enabled */
-#define LINE_ON         (1 <<  3)  /* Line number print enabled */
-#define DEPTH_ON        (1 <<  4)  /* Function nest level print enabled */
-#define PROCESS_ON      (1 <<  5)  /* Process name print enabled */
-#define NUMBER_ON       (1 <<  6)  /* Number each line of output */
-#define PID_ON          (1 <<  8)  /* Identify each line with process id */
-#define TIMESTAMP_ON    (1 <<  9)  /* timestamp every line of output */
-#define FLUSH_ON_WRITE  (1 << 10)  /* Flush on every write */
-#define OPEN_APPEND     (1 << 11)  /* Open for append      */
-#define SANITY_CHECK_ON (1 << 12)  /* Check memory on every DBUG_ENTER/RETURN */
-#define TRACE_ON        ((uint)1 << 31)  /* Trace enabled. MUST be the highest bit!*/
+#define DEBUG_ON        (1U <<  1) /* Debug enabled */
+#define FILE_ON         (1U <<  2) /* File name print enabled */
+#define LINE_ON         (1U <<  3) /* Line number print enabled */
+#define DEPTH_ON        (1U <<  4) /* Function nest level print enabled */
+#define PROCESS_ON      (1U <<  5) /* Process name print enabled */
+#define NUMBER_ON       (1U <<  6) /* Number each line of output */
+#define PID_ON          (1U <<  8) /* Identify each line with process id */
+#define TIMESTAMP_ON    (1U <<  9) /* timestamp every line of output */
+#define FLUSH_ON_WRITE  (1U << 10) /* Flush on every write */
+#define OPEN_APPEND     (1U << 11) /* Open for append      */
+#define SANITY_CHECK_ON (1U << 12) /* Check memory on every DBUG_ENTER/RETURN */
+#define TRACE_ON        (1U << 31) /* Trace enabled. MUST be the highest bit!*/
 
 #define sf_sanity() (0)
 #define TRACING (cs->stack->flags & TRACE_ON)

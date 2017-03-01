@@ -300,28 +300,28 @@ for unknown bits in order to protect backward incompatibility. */
 #define DICT_TF2_BIT_MASK		~DICT_TF2_UNUSED_BIT_MASK
 
 /** TEMPORARY; TRUE for tables from CREATE TEMPORARY TABLE. */
-#define DICT_TF2_TEMPORARY		1
+#define DICT_TF2_TEMPORARY		1U
 
 /** The table has an internal defined DOC ID column */
-#define DICT_TF2_FTS_HAS_DOC_ID		2
+#define DICT_TF2_FTS_HAS_DOC_ID		2U
 
 /** The table has an FTS index */
-#define DICT_TF2_FTS			4
+#define DICT_TF2_FTS			4U
 
 /** Need to add Doc ID column for FTS index build.
 This is a transient bit for index build */
-#define DICT_TF2_FTS_ADD_DOC_ID		8
+#define DICT_TF2_FTS_ADD_DOC_ID		8U
 
 /** This bit is used during table creation to indicate that it will
 use its own tablespace instead of the system tablespace. */
-#define DICT_TF2_USE_FILE_PER_TABLE	16
+#define DICT_TF2_USE_FILE_PER_TABLE	16U
 
 /** Set when we discard/detach the tablespace */
-#define DICT_TF2_DISCARDED		32
+#define DICT_TF2_DISCARDED		32U
 
 /** This bit is set if all aux table names (both common tables and
 index tables) of a FTS table are in HEX format. */
-#define DICT_TF2_FTS_AUX_HEX_NAME	64
+#define DICT_TF2_FTS_AUX_HEX_NAME	64U
 
 /* @} */
 
@@ -1257,12 +1257,12 @@ struct dict_foreign_set_free {
 /** The flags for ON_UPDATE and ON_DELETE can be ORed; the default is that
 a foreign key constraint is enforced, therefore RESTRICT just means no flag */
 /* @{ */
-#define DICT_FOREIGN_ON_DELETE_CASCADE	1	/*!< ON DELETE CASCADE */
-#define DICT_FOREIGN_ON_DELETE_SET_NULL	2	/*!< ON UPDATE SET NULL */
-#define DICT_FOREIGN_ON_UPDATE_CASCADE	4	/*!< ON DELETE CASCADE */
-#define DICT_FOREIGN_ON_UPDATE_SET_NULL	8	/*!< ON UPDATE SET NULL */
-#define DICT_FOREIGN_ON_DELETE_NO_ACTION 16	/*!< ON DELETE NO ACTION */
-#define DICT_FOREIGN_ON_UPDATE_NO_ACTION 32	/*!< ON UPDATE NO ACTION */
+#define DICT_FOREIGN_ON_DELETE_CASCADE	1U	/*!< ON DELETE CASCADE */
+#define DICT_FOREIGN_ON_DELETE_SET_NULL	2U	/*!< ON UPDATE SET NULL */
+#define DICT_FOREIGN_ON_UPDATE_CASCADE	4U	/*!< ON DELETE CASCADE */
+#define DICT_FOREIGN_ON_UPDATE_SET_NULL	8U	/*!< ON UPDATE SET NULL */
+#define DICT_FOREIGN_ON_DELETE_NO_ACTION 16U	/*!< ON DELETE NO ACTION */
+#define DICT_FOREIGN_ON_UPDATE_NO_ACTION 32U	/*!< ON UPDATE NO ACTION */
 /* @} */
 
 /** Display an identifier.
@@ -1323,7 +1323,7 @@ struct dict_vcol_templ_t {
 	/** when mysql_table was cached */
 	uint64_t		mysql_table_query_id;
 
-	dict_vcol_templ_t() : vtempl(0), mysql_table_query_id(-1) {}
+	dict_vcol_templ_t() : vtempl(0), mysql_table_query_id(~0ULL) {}
 };
 
 /** These are used when MySQL FRM and InnoDB data dictionary are

@@ -1,5 +1,6 @@
 /*
    Copyright (c) 2005, 2012, Oracle and/or its affiliates. All rights reserved.
+   Copyright (c) 2017, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -599,8 +600,8 @@ inline word16 UnalignedGetWordNonTemplate(ByteOrder order, const byte* block,
                                           word16*)
 {
     return (order == BigEndianOrder)
-        ? block[1] | (block[0] << 8)
-        : block[0] | (block[1] << 8);
+        ? word16(block[1] | (word16(block[0]) << 8))
+        : word16(block[0] | (word16(block[1]) << 8));
 }
 
 inline word32 UnalignedGetWordNonTemplate(ByteOrder order, const byte* block,
@@ -625,7 +626,7 @@ inline void UnalignedPutWord(ByteOrder order, byte *block, byte value,
     block[0] = xorBlock ? (value ^ xorBlock[0]) : value;
 }
 
-#define GETBYTE(x, y) (unsigned int)byte((x)>>(8*(y)))
+#define GETBYTE(x, y) byte((x)>>(8*(y)))
 
 inline void UnalignedPutWord(ByteOrder order, byte *block, word16 value,
                              const byte *xorBlock = 0)
@@ -827,7 +828,7 @@ word ShiftWordsLeftByBits(word* r, unsigned int n, unsigned int shiftBits)
 
 
 inline
-word ShiftWordsRightByBits(word* r, unsigned int n, unsigned int shiftBits)
+word ShiftWordsRightByBits(word* r, int n, unsigned int shiftBits)
 {
     word u, carry=0;
     if (shiftBits)

@@ -862,7 +862,7 @@ fsp_page_is_free_func(
 	ulint		page,		/*!< in: page offset */
 	mtr_t*		mtr,		/*!< in/out: mini-transaction */
 	const char *file,
-	ulint line);
+	unsigned line);
 
 #define fsp_page_is_free(space,page,mtr)				\
 	fsp_page_is_free_func(space,page,mtr, __FILE__, __LINE__)

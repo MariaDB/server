@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2017, MariaDB Corporation. All Rights Reserved.
+Copyright (c) 2013, 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -493,7 +493,7 @@ buf_page_optimistic_get(
 	buf_block_t*	block,	/*!< in: guessed block */
 	ib_uint64_t	modify_clock,/*!< in: modify clock value */
 	const char*	file,	/*!< in: file name */
-	ulint		line,	/*!< in: line where called */
+	unsigned	line,	/*!< in: line where called */
 	mtr_t*		mtr);	/*!< in: mini-transaction */
 /********************************************************************//**
 This is used to get access to a known database page, when no waiting can be
@@ -506,7 +506,7 @@ buf_page_get_known_nowait(
 	buf_block_t*	block,	/*!< in: the known page */
 	ulint		mode,	/*!< in: BUF_MAKE_YOUNG or BUF_KEEP_OLD */
 	const char*	file,	/*!< in: file name */
-	ulint		line,	/*!< in: line where called */
+	unsigned	line,	/*!< in: line where called */
 	mtr_t*		mtr);	/*!< in: mini-transaction */
 
 /** Given a tablespace id and page number tries to get that page. If the
@@ -521,7 +521,7 @@ buf_block_t*
 buf_page_try_get_func(
 	const page_id_t&	page_id,
 	const char*		file,
-	ulint			line,
+	unsigned		line,
 	mtr_t*			mtr);
 
 /** Tries to get a page.
@@ -567,7 +567,7 @@ buf_page_get_gen(
 	buf_block_t*		guess,
 	ulint			mode,
 	const char*		file,
-	ulint			line,
+	unsigned		line,
 	mtr_t*			mtr,
 	dberr_t*		err);
 
@@ -647,7 +647,7 @@ buf_page_reset_file_page_was_freed(
 Reads the freed_page_clock of a buffer block.
 @return freed_page_clock */
 UNIV_INLINE
-ulint
+unsigned
 buf_page_get_freed_page_clock(
 /*==========================*/
 	const buf_page_t*	bpage)	/*!< in: block */
@@ -656,7 +656,7 @@ buf_page_get_freed_page_clock(
 Reads the freed_page_clock of a buffer block.
 @return freed_page_clock */
 UNIV_INLINE
-ulint
+unsigned
 buf_block_get_freed_page_clock(
 /*===========================*/
 	const buf_block_t*	block)	/*!< in: block */
@@ -720,7 +720,7 @@ buf_block_buf_fix_inc_func(
 /*=======================*/
 # ifdef UNIV_DEBUG
 	const char*	file,	/*!< in: file name */
-	ulint		line,	/*!< in: line */
+	unsigned	line,	/*!< in: line */
 # endif /* UNIV_DEBUG */
 	buf_block_t*	block)	/*!< in/out: block to bufferfix */
 	MY_ATTRIBUTE((nonnull));
@@ -820,7 +820,7 @@ Gets the hash value of a block. This can be used in searches in the
 lock hash table.
 @return lock hash value */
 UNIV_INLINE
-ulint
+unsigned
 buf_block_get_lock_hash_val(
 /*========================*/
 	const buf_block_t*	block)	/*!< in: block */
@@ -1160,7 +1160,7 @@ void
 buf_page_set_old(
 /*=============*/
 	buf_page_t*	bpage,	/*!< in/out: control block */
-	ibool		old);	/*!< in: old */
+	bool		old);	/*!< in: old */
 /*********************************************************************//**
 Determine the time of first access of a block in the buffer pool.
 @return ut_time_ms() at the time of first access, 0 if not accessed */
@@ -1274,7 +1274,7 @@ buf_page_io_complete(
 Calculates the index of a buffer pool to the buf_pool[] array.
 @return the position of the buffer pool in buf_pool[] */
 UNIV_INLINE
-ulint
+unsigned
 buf_pool_index(
 /*===========*/
 	const buf_pool_t*	buf_pool)	/*!< in: buffer pool */
@@ -2204,7 +2204,7 @@ struct buf_pool_t{
 					recovery and is set to NULL
 					once the recovery is over.
 					Protected by flush_list_mutex */
-	ulint		freed_page_clock;/*!< a sequence number used
+	unsigned	freed_page_clock;/*!< a sequence number used
 					to count the number of buffer
 					blocks removed from the end of
 					the LRU list; NOTE that this

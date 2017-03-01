@@ -3755,7 +3755,7 @@ fsp_page_is_free_func(
 	ulint		page_no,	/*!< in: page offset */
 	mtr_t*		mtr,		/*!< in/out: mini-transaction */
 	const char *file,
-	ulint line)
+	unsigned line)
 {
 	ut_ad(mtr);
 

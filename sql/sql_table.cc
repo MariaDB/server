@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2016, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2016, MariaDB
+   Copyright (c) 2010, 2017, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -2888,7 +2888,7 @@ void calculate_interval_lengths(CHARSET_INFO *cs, TYPELIB *interval,
 
 int prepare_create_field(Column_definition *sql_field,
 			 uint *blob_columns, 
-			 longlong table_flags)
+			 ulonglong table_flags)
 {
   uint dup_val_count;
   uint decimals= sql_field->decimals;

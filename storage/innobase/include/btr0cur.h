@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -142,7 +143,7 @@ btr_cur_optimistic_latch_leaves(
 	ulint*		latch_mode,
 	btr_cur_t*	cursor,
 	const char*	file,
-	ulint		line,
+	unsigned	line,
 	mtr_t*		mtr);
 
 /********************************************************************//**
@@ -185,7 +186,7 @@ btr_cur_search_to_nth_level(
 				currently has on search system:
 				RW_S_LATCH, or 0 */
 	const char*	file,	/*!< in: file name */
-	ulint		line,	/*!< in: line where called */
+	unsigned	line,	/*!< in: line where called */
 	mtr_t*		mtr,	/*!< in/out: mini-transaction */
 	ib_uint64_t	autoinc = 0);
 				/*!< in: PAGE_ROOT_AUTO_INC to be written
@@ -205,7 +206,7 @@ btr_cur_open_at_index_side_func(
 	ulint		level,		/*!< in: level to search for
 					(0=leaf) */
 	const char*	file,		/*!< in: file name */
-	ulint		line,		/*!< in: line where called */
+	unsigned	line,		/*!< in: line where called */
 	mtr_t*		mtr)		/*!< in/out: mini-transaction */
 	MY_ATTRIBUTE((nonnull));
 
@@ -223,7 +224,7 @@ btr_cur_open_at_rnd_pos_func(
 	ulint		latch_mode,	/*!< in: BTR_SEARCH_LEAF, ... */
 	btr_cur_t*	cursor,		/*!< in/out: B-tree cursor */
 	const char*	file,		/*!< in: file name */
-	ulint		line,		/*!< in: line where called */
+	unsigned	line,		/*!< in: line where called */
 	mtr_t*		mtr);		/*!< in: mtr */
 #define btr_cur_open_at_rnd_pos(i,l,c,m)				\
 	btr_cur_open_at_rnd_pos_func(i,l,c,__FILE__,__LINE__,m)
@@ -967,13 +968,13 @@ stored part. */
 significant bit of the byte at smallest address) is set to 1 if this
 field does not 'own' the externally stored field; only the owner field
 is allowed to free the field in purge! */
-#define BTR_EXTERN_OWNER_FLAG		128
+#define BTR_EXTERN_OWNER_FLAG		128U
 /** If the second most significant bit of BTR_EXTERN_LEN (i.e., the
 second most significant bit of the byte at smallest address) is 1 then
 it means that the externally stored field was inherited from an
 earlier version of the row.  In rollback we are not allowed to free an
 inherited external field. */
-#define BTR_EXTERN_INHERITED_FLAG	64
+#define BTR_EXTERN_INHERITED_FLAG	64U
 
 /** Number of searches down the B-tree in btr_cur_search_to_nth_level(). */
 extern ulint	btr_cur_n_non_sea;
