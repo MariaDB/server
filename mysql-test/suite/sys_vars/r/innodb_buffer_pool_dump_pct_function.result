@@ -30,9 +30,33 @@ INSERT INTO t1 VALUES (@a,@a,@a,@a,@a,
 @a,@a,@a,@a
 );
 insert into t1 select * from t1;
+# Before dump
+select PAGE_TYPE, count(*) as count  from information_schema.INNODB_BUFFER_PAGE WHERE PAGE_TYPE!='UNKNOWN' group by PAGE_TYPE ORDER BY PAGE_TYPE;
+PAGE_TYPE	count
+BLOB	256
+FILE_SPACE_HEADER	5
+IBUF_BITMAP	2
+IBUF_INDEX	1
+INDEX	10
+INODE	3
+SYSTEM	130
+TRX_SYSTEM	1
+UNDO_LOG	17
 SET GLOBAL innodb_buffer_pool_dump_pct=25,GLOBAL innodb_fast_shutdown=0, GLOBAL innodb_buffer_pool_dump_at_shutdown=1;
 # Restart server
 SET GLOBAL innodb_buffer_pool_load_now=1;
+# After load
+select PAGE_TYPE, count(*) as count  from information_schema.INNODB_BUFFER_PAGE WHERE PAGE_TYPE!='UNKNOWN' group by PAGE_TYPE ORDER BY PAGE_TYPE;
+PAGE_TYPE	count
+BLOB	128
+FILE_SPACE_HEADER	5
+IBUF_BITMAP	1
+IBUF_INDEX	1
+INDEX	7
+INODE	2
+SYSTEM	130
+TRX_SYSTEM	1
+UNDO_LOG	17
 # Case 1: Limit from innodb_buffer_pool_dump_pct
 SELECT 256 as 'Previous pool pages',
 ROUND(25 / 100 * @@innodb_buffer_pool_size / @@innodb_page_size) as 'Limit',

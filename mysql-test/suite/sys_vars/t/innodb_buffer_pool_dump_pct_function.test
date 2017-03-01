@@ -43,6 +43,9 @@ INSERT INTO t1 VALUES (@a,@a,@a,@a,@a,
 
 insert into t1 select * from t1;
 
+--echo # Before dump
+select PAGE_TYPE, count(*) as count  from information_schema.INNODB_BUFFER_PAGE WHERE PAGE_TYPE!='UNKNOWN' group by PAGE_TYPE ORDER BY PAGE_TYPE;
+
 --let $blob_pages=`select count(*)  from information_schema.INNODB_BUFFER_PAGE WHERE PAGE_TYPE='BLOB' group by PAGE_TYPE`
 
 --let $PCT=25
@@ -62,6 +65,9 @@ let $wait_condition =
     WHERE LOWER(variable_name) = 'innodb_buffer_pool_load_status';
 -- source include/wait_condition.inc
 
+--echo # After load
+
+select PAGE_TYPE, count(*) as count  from information_schema.INNODB_BUFFER_PAGE WHERE PAGE_TYPE!='UNKNOWN' group by PAGE_TYPE ORDER BY PAGE_TYPE;
 
 --let $loaded_blob_pages=`select count(*)  from information_schema.INNODB_BUFFER_PAGE WHERE PAGE_TYPE='BLOB' group by PAGE_TYPE`
 
