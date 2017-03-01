@@ -1612,19 +1612,22 @@ log_io_complete_checkpoint(void)
 	log_mutex_exit();
 }
 
-/******************************************************//**
-Writes the checkpoint info to a log group header. */
+/** Write checkpoint info to the log header.
+@param[in,out]	group	redo log
+@param[in]	end_lsn	start LSN of the MLOG_CHECKPOINT mini-transaction */
 static
 void
-log_group_checkpoint(
-/*=================*/
-	log_group_t*	group)	/*!< in: log group */
+log_group_checkpoint(log_group_t* group, lsn_t end_lsn)
 {
 	lsn_t		lsn_offset;
 	byte*		buf;
 
 	ut_ad(!srv_read_only_mode);
 	ut_ad(log_mutex_own());
+	ut_ad(end_lsn == 0 || end_lsn >= log_sys->next_checkpoint_lsn);
+	ut_ad(end_lsn <= log_sys->lsn);
+	ut_ad(end_lsn + SIZE_OF_MLOG_CHECKPOINT <= log_sys->lsn
+	      || srv_shutdown_state != SRV_SHUTDOWN_NONE);
 
 	DBUG_PRINT("ib_log", ("checkpoint " UINT64PF " at " LSN_PF
 			      " written to group " ULINTPF,
@@ -1646,6 +1649,7 @@ log_group_checkpoint(
 					       group);
 	mach_write_to_8(buf + LOG_CHECKPOINT_OFFSET, lsn_offset);
 	mach_write_to_8(buf + LOG_CHECKPOINT_LOG_BUF_SIZE, log_sys->buf_size);
+	mach_write_to_8(buf + LOG_CHECKPOINT_END_LSN, end_lsn);
 
 	log_block_set_checksum(buf, log_block_calc_checksum_crc32(buf));
 
@@ -1702,9 +1706,10 @@ log_group_header_read(
 }
 
 /** Write checkpoint info to the log header and invoke log_mutex_exit().
-@param[in]	sync	whether to wait for the write to complete */
+@param[in]	sync	whether to wait for the write to complete
+@param[in]	end_lsn	start LSN of the MLOG_CHECKPOINT mini-transaction */
 void
-log_write_checkpoint_info(bool sync)
+log_write_checkpoint_info(bool sync, lsn_t end_lsn)
 {
 	ut_ad(log_mutex_own());
 	ut_ad(!srv_read_only_mode);
@@ -1713,7 +1718,7 @@ log_write_checkpoint_info(bool sync)
 	     group;
 	     group = UT_LIST_GET_NEXT(log_groups, group)) {
 
-		log_group_checkpoint(group);
+		log_group_checkpoint(group, end_lsn);
 	}
 
 	log_mutex_exit();
@@ -1827,12 +1832,13 @@ log_checkpoint(
 	threads will be blocked, and no pages can be added to the
 	flush lists. */
 	lsn_t		flush_lsn	= oldest_lsn;
+	const lsn_t	end_lsn		= log_sys->lsn;
 	const bool	do_write
 		= srv_shutdown_state == SRV_SHUTDOWN_NONE
-		|| flush_lsn != log_sys->lsn;
+		|| flush_lsn != end_lsn;
 
 	if (fil_names_clear(flush_lsn, do_write)) {
-		ut_ad(log_sys->lsn >= flush_lsn + SIZE_OF_MLOG_CHECKPOINT);
+		ut_ad(log_sys->lsn >= end_lsn + SIZE_OF_MLOG_CHECKPOINT);
 		flush_lsn = log_sys->lsn;
 	}
 
@@ -1878,7 +1884,7 @@ log_checkpoint(
 	}
 
 	log_sys->next_checkpoint_lsn = oldest_lsn;
-	log_write_checkpoint_info(sync);
+	log_write_checkpoint_info(sync, end_lsn);
 	ut_ad(!log_mutex_own());
 
 	return(true);

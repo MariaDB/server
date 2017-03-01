@@ -138,16 +138,6 @@ const char*
 get_mlog_string(mlog_id_t type);
 #endif /* !DBUG_OFF */
 
-/* prototypes */
-
-/*******************************************************//**
-Initialize crash recovery environment. Can be called iff
-recv_needed_recovery == false. */
-static
-void
-recv_init_crash_recovery(void);
-/*===========================*/
-
 /** Tablespace item during recovery */
 struct file_name_t {
 	/** Tablespace file name (MLOG_FILE_NAME) */
@@ -818,7 +808,7 @@ recv_synchronize_groups()
 	checkpoint info on disk certain */
 
 	if (!srv_read_only_mode) {
-		log_write_checkpoint_info(true);
+		log_write_checkpoint_info(true, 0);
 		log_mutex_enter();
 	}
 }
@@ -1042,14 +1032,17 @@ recv_find_max_checkpoint(
 
 			log_group_header_read(group, field);
 
-			if (!recv_check_log_header_checksum(buf)) {
+			const ulint crc32 = log_block_calc_checksum_crc32(buf);
+			const ulint cksum = log_block_get_checksum(buf);
+
+			if (crc32 != cksum) {
 				DBUG_PRINT("ib_log",
 					   ("invalid checkpoint,"
 					    " group " ULINTPF " at " ULINTPF
-					    ", checksum %x",
+					    ", checksum %x expected %x",
 					    group->id, field,
-					    (unsigned) log_block_get_checksum(
-						    buf)));
+					    (unsigned) cksum,
+					    (unsigned) crc32));
 				continue;
 			}
 
@@ -1167,12 +1160,24 @@ recv_parse_or_apply_log_rec_body(
 	} else if (apply
 		   && !is_predefined_tablespace(space_id)
 		   && recv_spaces.find(space_id) == recv_spaces.end()) {
-		ib::fatal() << "Missing MLOG_FILE_NAME or MLOG_FILE_DELETE"
+		if (recv_sys->recovered_lsn < recv_sys->mlog_checkpoint_lsn) {
+			/* We have not seen all records between the
+			checkpoint and MLOG_CHECKPOINT. There should be
+			a MLOG_FILE_DELETE for this tablespace later. */
+			recv_spaces.insert(
+				std::make_pair(space_id,
+					       file_name_t("", false)));
+			goto parse_log;
+		}
+
+		ib::error() << "Missing MLOG_FILE_NAME or MLOG_FILE_DELETE"
 			" for redo log record " << type << " (page "
-			<< space_id << ":" << page_no << ") at "
-			<< recv_sys->recovered_lsn << ".";
+			    << space_id << ":" << page_no << ") at "
+			    << recv_sys->recovered_lsn << ".";
+		recv_sys->found_corrupt_log = true;
 		return(NULL);
 	} else {
+parse_log:
 		/* Parsing a page log record. */
 		page = NULL;
 		page_zip = NULL;
@@ -2485,15 +2490,6 @@ loop:
 				return(true);
 			}
 			break;
-		case MLOG_FILE_NAME:
-		case MLOG_FILE_DELETE:
-		case MLOG_FILE_CREATE2:
-		case MLOG_FILE_RENAME2:
-		case MLOG_TRUNCATE:
-			/* These were already handled by
-			recv_parse_log_rec() and
-			recv_parse_or_apply_log_rec_body(). */
-			break;
 #ifdef UNIV_LOG_LSN_DEBUG
 		case MLOG_LSN:
 			/* Do not add these records to the hash table.
@@ -2518,6 +2514,14 @@ loop:
 					recv_sys->recovered_lsn);
 			}
 			/* fall through */
+		case MLOG_FILE_NAME:
+		case MLOG_FILE_DELETE:
+		case MLOG_FILE_CREATE2:
+		case MLOG_FILE_RENAME2:
+		case MLOG_TRUNCATE:
+			/* These were already handled by
+			recv_parse_log_rec() and
+			recv_parse_or_apply_log_rec_body(). */
 		case MLOG_INDEX_LOAD:
 			DBUG_PRINT("ib_log",
 				("scan " LSN_PF ": log rec %s"
@@ -2851,19 +2855,17 @@ recv_scan_log_recs(
 			environment before parsing these log records. */
 
 			if (!recv_needed_recovery) {
+				recv_needed_recovery = true;
 
-				if (!srv_read_only_mode) {
-					ib::info() << "Log scan progressed"
-						" past the checkpoint lsn "
-						<< recv_sys->scanned_lsn;
-
-					recv_init_crash_recovery();
-				} else {
+				if (srv_read_only_mode) {
 					ib::warn() << "innodb_read_only"
 						" prevents crash recovery";
-					recv_needed_recovery = true;
 					return(true);
 				}
+
+				ib::info() << "Log scan progressed "
+					"past the checkpoint lsn "
+					<< recv_sys->scanned_lsn;
 			}
 
 			/* We were able to find more log data: add it to the
@@ -2944,6 +2946,7 @@ recv_scan_log_recs(
 /** Scans log from a buffer and stores new log data to the parsing buffer.
 Parses and hashes the log records if new data found.
 @param[in,out]	group			log group
+@param[in]	checkpoint_lsn		latest checkpoint log sequence number
 @param[in,out]	contiguous_lsn		log sequence number
 until which all redo log has been scanned
 @param[in]	last_phase		whether changes
@@ -2953,6 +2956,7 @@ static
 bool
 recv_group_scan_log_recs(
 	log_group_t*	group,
+	lsn_t		checkpoint_lsn,
 	lsn_t*		contiguous_lsn,
 	bool		last_phase)
 {
@@ -2976,7 +2980,6 @@ recv_group_scan_log_recs(
 	ut_ad(last_phase || !recv_writer_thread_active);
 	mutex_exit(&recv_sys->mutex);
 
-	lsn_t	checkpoint_lsn	= *contiguous_lsn;
 	lsn_t	start_lsn;
 	lsn_t	end_lsn;
 	store_t	store_to_hash	= recv_sys->mlog_checkpoint_lsn == 0
@@ -3021,19 +3024,6 @@ recv_group_scan_log_recs(
 			      group->scanned_lsn, group->id));
 
 	DBUG_RETURN(store_to_hash == STORE_NO);
-}
-
-/*******************************************************//**
-Initialize crash recovery environment. Can be called iff
-recv_needed_recovery == false. */
-static
-void
-recv_init_crash_recovery(void)
-{
-	ut_ad(!srv_read_only_mode);
-	ut_a(!recv_needed_recovery);
-
-	recv_needed_recovery = true;
 }
 
 /** Report a missing tablespace for which page-redo log exists.
@@ -3083,6 +3073,8 @@ recv_init_crash_recovery_spaces(void)
 	for (recv_spaces_t::iterator i = recv_spaces.begin();
 	     i != recv_spaces.end(); i++) {
 		ut_ad(!is_predefined_tablespace(i->first));
+		ut_ad(i->second.deleted || i->second.name != "");
+		ut_ad(!i->second.deleted || !i->second.space);
 
 		if (i->second.deleted) {
 			/* The tablespace was deleted,
@@ -3092,6 +3084,13 @@ recv_init_crash_recovery_spaces(void)
 			/* The tablespace was found, and there
 			are some redo log records for it. */
 			fil_names_dirty(i->second.space);
+		} else if (i->second.name == "") {
+			ib::error() << "Missing MLOG_FILE_NAME"
+				" or MLOG_FILE_DELETE"
+				" before MLOG_CHECKPOINT for tablespace "
+				<< i->first;
+			recv_sys->found_corrupt_log = true;
+			return(DB_CORRUPTION);
 		} else {
 			missing_spaces.insert(i->first);
 			flag_deleted = true;
@@ -3208,9 +3207,7 @@ recv_recovery_from_checkpoint_start(
 	err = recv_find_max_checkpoint(&max_cp_group, &max_cp_field);
 
 	if (err != DB_SUCCESS) {
-
 		log_mutex_exit();
-
 		return(err);
 	}
 
@@ -3231,6 +3228,8 @@ recv_recovery_from_checkpoint_start(
 
 	ut_ad(UT_LIST_GET_LEN(log_sys->log_groups) == 1);
 	group = UT_LIST_GET_FIRST(log_sys->log_groups);
+	const lsn_t	end_lsn = mach_read_from_8(
+		buf + LOG_CHECKPOINT_END_LSN);
 
 	ut_ad(recv_sys->n_addrs == 0);
 	contiguous_lsn = checkpoint_lsn;
@@ -3240,16 +3239,23 @@ recv_recovery_from_checkpoint_start(
 		return(recv_log_format_0_recover(checkpoint_lsn));
 	case LOG_HEADER_FORMAT_CURRENT:
 	case LOG_HEADER_FORMAT_CURRENT | LOG_HEADER_FORMAT_ENCRYPTED:
-		break;
+		if (end_lsn == 0) {
+			break;
+		}
+		if (end_lsn >= checkpoint_lsn) {
+			contiguous_lsn = end_lsn;
+			break;
+		}
+		/* fall through */
 	default:
-		ut_ad(0);
 		recv_sys->found_corrupt_log = true;
 		log_mutex_exit();
 		return(DB_ERROR);
 	}
 
 	/* Look for MLOG_CHECKPOINT. */
-	recv_group_scan_log_recs(group, &contiguous_lsn, false);
+	recv_group_scan_log_recs(group, checkpoint_lsn, &contiguous_lsn,
+				 false);
 	/* The first scan should not have stored or applied any records. */
 	ut_ad(recv_sys->n_addrs == 0);
 	ut_ad(!recv_sys->found_corrupt_fs);
@@ -3268,11 +3274,15 @@ recv_recovery_from_checkpoint_start(
 	if (recv_sys->mlog_checkpoint_lsn == 0) {
 		if (!srv_read_only_mode
 		    && group->scanned_lsn != checkpoint_lsn) {
-			ib::error() << "Missing"
-				" MLOG_CHECKPOINT between the checkpoint "
-				<< checkpoint_lsn << " and the end "
-				<< group->scanned_lsn << ".";
+			lsn_t scan_lsn = group->scanned_lsn;
 			log_mutex_exit();
+			ib::error err;
+			err << "Missing MLOG_CHECKPOINT";
+			if (end_lsn) {
+				err << " at " << end_lsn;
+			}
+			err << " between the checkpoint " << checkpoint_lsn
+			    << " and the end " << scan_lsn << ".";
 			return(DB_ERROR);
 		}
 
@@ -3281,7 +3291,7 @@ recv_recovery_from_checkpoint_start(
 	} else {
 		contiguous_lsn = checkpoint_lsn;
 		rescan = recv_group_scan_log_recs(
-			group, &contiguous_lsn, false);
+			group, checkpoint_lsn, &contiguous_lsn, false);
 
 		if ((recv_sys->found_corrupt_log && !srv_force_recovery)
 		    || recv_sys->found_corrupt_fs) {
@@ -3313,13 +3323,13 @@ recv_recovery_from_checkpoint_start(
 				<< " in the ib_logfiles!";
 
 			if (srv_read_only_mode) {
-				ib::error() << "Can't initiate database"
-					" recovery, running in read-only-mode.";
+				ib::error() << "innodb_read_only"
+					" prevents crash recovery";
 				log_mutex_exit();
 				return(DB_READ_ONLY);
 			}
 
-			recv_init_crash_recovery();
+			recv_needed_recovery = true;
 		}
 	}
 
@@ -3336,7 +3346,8 @@ recv_recovery_from_checkpoint_start(
 		if (rescan) {
 			contiguous_lsn = checkpoint_lsn;
 
-			recv_group_scan_log_recs(group, &contiguous_lsn, true);
+			recv_group_scan_log_recs(group, checkpoint_lsn,
+						 &contiguous_lsn, true);
 
 			if ((recv_sys->found_corrupt_log
 			     && !srv_force_recovery)
@@ -3366,11 +3377,6 @@ recv_recovery_from_checkpoint_start(
 
 		ib::error() << "Recovered only to lsn:"
 			    << recv_sys->recovered_lsn << " checkpoint_lsn: " << checkpoint_lsn;
-
-		/* No harm in trying to do RO access. */
-		if (!srv_read_only_mode) {
-			ut_error;
-		}
 
 		return(DB_ERROR);
 	}
