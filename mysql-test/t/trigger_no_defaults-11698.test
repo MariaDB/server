@@ -23,3 +23,18 @@ insert t1 (b) values (20);
 insert t1 (b) values (30);
 select * from t1;
 drop table t1;
+set sql_mode=default;
+
+#
+# MDEV-11842 Fail to insert on a table where a field has no default
+#
+create table t1 (
+  id int(11) not null auto_increment primary key,
+  data1 varchar(10) not null,
+  data2 varchar(10) not null
+);
+insert into t1 (data2) values ('x');
+create trigger test_trigger before insert on t1 for each row begin end;
+insert into t1 (data2) values ('y');
+select * from t1;
+drop table t1;
