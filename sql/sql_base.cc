@@ -4823,9 +4823,9 @@ static bool fix_all_session_vcol_exprs(THD *thd, TABLE_LIST *tables)
             fix_session_vcol_expr(thd, (*df)->default_value))
           goto err;
 
-        for (Virtual_column_info **cc= t->check_constraints; cc && *cc; cc++)
-          if (fix_session_vcol_expr(thd, (*cc)))
-            goto err;
+      for (Virtual_column_info **cc= t->check_constraints; cc && *cc; cc++)
+        if (fix_session_vcol_expr(thd, (*cc)))
+          goto err;
 
       thd->security_ctx= save_security_ctx;
     }
