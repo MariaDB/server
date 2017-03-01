@@ -182,9 +182,6 @@ use simulated aio we build below with threads.
 Currently we support native aio on windows and linux */
 my_bool	srv_use_native_aio = TRUE;
 my_bool	srv_numa_interleave = FALSE;
-/* If this flag is TRUE, then we will use fallocate(PUCH_HOLE)
-to the pages */
-UNIV_INTERN my_bool	srv_use_trim;
 /* If this flag is TRUE, then we disable doublewrite buffer */
 UNIV_INTERN my_bool	srv_use_atomic_writes = FALSE;
 /* If this flag IS TRUE, then we use this algorithm for page compressing the pages */

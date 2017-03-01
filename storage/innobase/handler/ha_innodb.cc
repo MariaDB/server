@@ -3748,18 +3748,6 @@ static const char*	deprecated_file_format_check
 static const char*	deprecated_file_format_max
 	= DEPRECATED_FORMAT_PARAMETER("innodb_file_format_max");
 
-/** Deprecation message about innodb_use_trim */
-static const char*	deprecated_use_trim
-	= "Using innodb_use_trim is deprecated"
-	" and the parameter will be removed in MariaDB 10.3.";
-
-/** Deprecation message about innodb_instrument_semaphores */
-static const char*	deprecated_instrument_semaphores
-	= "Using innodb_instrument_semaphores is deprecated"
-	" and the parameter will be removed in MariaDB 10.3.";
-
-static my_bool innodb_instrument_semaphores;
-
 /** Update log_checksum_algorithm_ptr with a pointer to the function
 corresponding to whether checksums are enabled.
 @param[in,out]	thd	client session, or NULL if at startup
@@ -4113,10 +4101,6 @@ innobase_init(
 
 	if (innobase_file_format_name != innodb_file_format_default) {
 		ib::warn() << deprecated_file_format;
-	}
-
-	if (innodb_instrument_semaphores) {
-		ib::warn() << deprecated_instrument_semaphores;
 	}
 
 	/* Validate the file format by animal name */
@@ -20606,44 +20590,6 @@ wsrep_fake_trx_id(
 
 #endif /* WITH_WSREP */
 
-/** Update the innodb_use_trim parameter.
-@param[in]	thd	thread handle
-@param[in]	var	system variable
-@param[out]	var_ptr	current value
-@param[in]	save	immediate result from check function */
-static
-void
-innodb_use_trim_update(
-	THD*				thd,
-	struct st_mysql_sys_var*	var,
-	void*				var_ptr,
-	const void*			save)
-{
-	srv_use_trim = *static_cast<const my_bool*>(save);
-
-	push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
-		     HA_ERR_WRONG_COMMAND, deprecated_use_trim);
-}
-
-/** Update the innodb_instrument_sempahores parameter.
-@param[in]	thd	thread handle
-@param[in]	var	system variable
-@param[out]	var_ptr	current value
-@param[in]	save	immediate result from check function */
-static
-void
-innodb_instrument_semaphores_update(
-	THD*				thd,
-	struct st_mysql_sys_var*	var,
-	void*				var_ptr,
-	const void*			save)
-{
-	innodb_instrument_semaphores = *static_cast<const my_bool*>(save);
-
-	push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
-		     HA_ERR_WRONG_COMMAND, deprecated_instrument_semaphores);
-}
-
 /* plugin options */
 
 static MYSQL_SYSVAR_ENUM(checksum_algorithm, srv_checksum_algorithm,
@@ -20699,7 +20645,7 @@ static MYSQL_SYSVAR_BOOL(use_atomic_writes, innobase_use_atomic_writes,
   "Enable atomic writes, instead of using the doublewrite buffer, for files "
   "on devices that supports atomic writes. "
   "To use this option one must use "
-  "file_per_table=1, flush_method=O_DIRECT and use_fallocate=1. "
+  "innodb_file_per_table=1, innodb_flush_method=O_DIRECT. "
   "This option only works on Linux with either FusionIO cards using "
   "the directFS filesystem or with Shannon cards using any file system.",
   NULL, NULL, TRUE);
@@ -21702,11 +21648,6 @@ static MYSQL_SYSVAR_BOOL(force_primary_key,
   "Do not allow to create table without primary key (off by default)",
   NULL, NULL, FALSE);
 
-static MYSQL_SYSVAR_BOOL(use_trim, srv_use_trim,
-  PLUGIN_VAR_OPCMDARG,
-  "Deallocate (punch_hole|trim) unused portions of the page compressed page (on by default)",
-  NULL, innodb_use_trim_update, TRUE);
-
 static const char *page_compression_algorithms[]= { "none", "zlib", "lz4", "lzo", "lzma", "bzip2", "snappy", 0 };
 static TYPELIB page_compression_algorithms_typelib=
 {
@@ -21851,11 +21792,6 @@ static MYSQL_SYSVAR_BOOL(debug_force_scrubbing,
 			 "Perform extra scrubbing to increase test exposure",
 			 NULL, NULL, FALSE);
 #endif /* UNIV_DEBUG */
-
-static MYSQL_SYSVAR_BOOL(instrument_semaphores, innodb_instrument_semaphores,
-  PLUGIN_VAR_OPCMDARG,
-  "DEPRECATED. This setting has no effect.",
-  NULL, innodb_instrument_semaphores_update, FALSE);
 
 static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(autoextend_increment),
@@ -22038,7 +21974,6 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(force_primary_key),
   MYSQL_SYSVAR(fatal_semaphore_wait_threshold),
   /* Table page compression feature */
-  MYSQL_SYSVAR(use_trim),
   MYSQL_SYSVAR(compression_default),
   MYSQL_SYSVAR(compression_algorithm),
   MYSQL_SYSVAR(mtflush_threads),
@@ -22061,7 +21996,6 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
 #ifdef UNIV_DEBUG
   MYSQL_SYSVAR(debug_force_scrubbing),
 #endif
-  MYSQL_SYSVAR(instrument_semaphores),
   MYSQL_SYSVAR(buf_dump_status_frequency),
   MYSQL_SYSVAR(background_thread),
   NULL

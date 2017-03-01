@@ -5533,7 +5533,7 @@ IORequest::punch_hole(
 
 	/* Check does file system support punching holes for this
 	tablespace. */
-	if (!should_punch_hole() || !srv_use_trim) {
+	if (!should_punch_hole()) {
 		return DB_IO_NO_PUNCH_HOLE;
 	}
 

@@ -279,9 +279,6 @@ Currently we support native aio on windows and linux */
 extern my_bool	srv_use_native_aio;
 extern my_bool	srv_numa_interleave;
 
-/* Use trim operation */
-extern my_bool srv_use_trim;
-
 /* Use atomic writes i.e disable doublewrite buffer */
 extern my_bool srv_use_atomic_writes;
 

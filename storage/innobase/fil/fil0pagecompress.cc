@@ -349,13 +349,6 @@ fil_compress_page(
 	srv_stats.page_compression_saved.add((len - write_size));
 	srv_stats.pages_page_compressed.inc();
 
-	/* If we do not persistently trim rest of page, we need to write it
-	all */
-	if (!srv_use_trim) {
-		memset(out_buf+write_size,0,len-write_size);
-		write_size = len;
-	}
-
 	*out_len = write_size;
 
 	if (allocated) {

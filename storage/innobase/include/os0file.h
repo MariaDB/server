@@ -50,7 +50,6 @@ struct fil_node_t;
 struct fil_space_t;
 
 extern bool	os_has_said_disk_full;
-extern my_bool	srv_use_trim;
 
 /** Number of pending read operations */
 extern ulint	os_n_pending_reads;
@@ -240,7 +239,7 @@ public:
 		m_fil_node(NULL),
 		m_type(static_cast<uint16_t>(type))
 	{
-		if (!is_punch_hole_supported() || !srv_use_trim) {
+		if (!is_punch_hole_supported()) {
 			clear_punch_hole();
 		}
 	}
@@ -259,7 +258,7 @@ public:
 			set_punch_hole();
 		}
 
-		if (!is_punch_hole_supported() || !srv_use_trim) {
+		if (!is_punch_hole_supported()) {
 			clear_punch_hole();
 		}
 	}
@@ -346,7 +345,7 @@ public:
 	/** Set the punch hole flag */
 	void set_punch_hole()
 	{
-		if (is_punch_hole_supported() && srv_use_trim) {
+		if (is_punch_hole_supported()) {
 			m_type |= PUNCH_HOLE;
 		}
 	}
@@ -361,8 +360,7 @@ public:
 	@param[in] node			File node */
 	void set_fil_node(fil_node_t* node)
 	{
-		if (!srv_use_trim ||
-		   (node && !fil_node_should_punch_hole(node))) {
+		if (node && !fil_node_should_punch_hole(node)) {
 			clear_punch_hole();
 		}
 
