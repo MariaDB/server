@@ -91,7 +91,7 @@ private:
 # elif defined(__powerpc__)
 #include <sys/platform/ppc.h>
 #  define UT_RELAX_CPU() do { \
-     volatile lint      volatile_var = __ppc_get_timebase(); \
+     lint  __attribute__((unused)) volatile_var = __ppc_get_timebase(); \
    } while (0)
 # else
 #  define UT_RELAX_CPU() ((void)0) /* avoid warning for an empty statement */
