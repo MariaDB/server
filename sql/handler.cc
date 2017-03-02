@@ -5025,14 +5025,16 @@ bool ha_table_exists(THD *thd, const char *db, const char *table_name,
     bool exists= true;
     if (hton)
     {
-      enum legacy_db_type db_type;
-      if (dd_frm_type(thd, path, &db_type) != FRMTYPE_VIEW)
+      char engine_buf[NAME_CHAR_LEN + 1];
+      LEX_STRING engine= { engine_buf, 0 };
+
+      if (dd_frm_type(thd, path, &engine) != FRMTYPE_VIEW)
       {
-        handlerton *ht= ha_resolve_by_legacy_type(thd, db_type);
-        if ((*hton= ht))
+        plugin_ref p=  plugin_lock_by_name(thd, &engine,  MYSQL_STORAGE_ENGINE_PLUGIN);
+        *hton= p ? plugin_hton(p) : NULL;
+        if (*hton)
           // verify that the table really exists
-          exists= discover_existence(thd,
-                             plugin_int_to_ref(hton2plugin[ht->slot]), &args);
+          exists= discover_existence(thd, p, &args);
       }
       else
         *hton= view_pseudo_hton;
