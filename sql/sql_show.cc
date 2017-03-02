@@ -4518,7 +4518,17 @@ static int fill_schema_table_from_frm(THD *thd, TABLE *table,
   share= tdc_acquire_share_shortlived(thd, &table_list, GTS_TABLE | GTS_VIEW);
   if (!share)
   {
-    res= 0;
+    if (thd->get_stmt_da()->sql_errno() == ER_NO_SUCH_TABLE ||
+        thd->get_stmt_da()->sql_errno() == ER_WRONG_OBJECT)
+    {
+      res= 0;
+    }
+    else
+    {
+      table_list.table= &tbl;
+      res= schema_table->process_table(thd, &table_list, table,
+                                       true, db_name, table_name);
+    }
     goto end;
   }
 
