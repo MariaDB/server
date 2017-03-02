@@ -61,7 +61,7 @@ is found in a remote location, not the default data directory. */
 				+ FSP_FLAGS_WIDTH_DATA_DIR)
 
 /** A mask of all the known/used bits in tablespace flags */
-#define FSP_FLAGS_MASK		(~(~0 << FSP_FLAGS_WIDTH))
+#define FSP_FLAGS_MASK		(~(~0U << FSP_FLAGS_WIDTH))
 
 /** Zero relative shift position of the POST_ANTELOPE field */
 #define FSP_FLAGS_POS_POST_ANTELOPE	0

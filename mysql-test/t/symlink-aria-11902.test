@@ -1,0 +1,6 @@
+#
+# MDEV-11902 mi_open race condition
+#
+source include/have_maria.inc;
+set default_storage_engine=Aria;
+source symlink-myisam-11902.test;

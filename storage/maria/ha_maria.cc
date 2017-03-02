@@ -3609,10 +3609,6 @@ static int ha_maria_init(void *p)
   maria_pagecache->extra_debug= 1;
   maria_assert_if_crashed_table= debug_assert_if_crashed_table;
 
-#if defined(HAVE_REALPATH) && !defined(HAVE_valgrind) && !defined(HAVE_BROKEN_REALPATH)
-  /*  We can only test for sub paths if my_symlink.c is using realpath */
-  maria_test_invalid_symlink= test_if_data_home_dir;
-#endif
   if (res)
     maria_hton= 0;
 

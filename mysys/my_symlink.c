@@ -1,5 +1,6 @@
 /*
    Copyright (c) 2001, 2011, Oracle and/or its affiliates
+   Copyright (c) 2010, 2017, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -22,6 +23,14 @@
 #include <sys/param.h>
 #include <sys/stat.h>
 #endif
+
+static int always_valid(const char *filename __attribute__((unused)))
+{
+  return 0;
+}
+
+int (*mysys_test_invalid_symlink)(const char *filename)= always_valid;
+
 
 /*
   Reads the content of a symbolic link
@@ -168,3 +177,78 @@ int my_realpath(char *to, const char *filename, myf MyFlags)
 #endif
   return 0;
 }
+
+#ifdef HAVE_OPEN_PARENT_DIR_NOSYMLINKS
+/** opens the parent dir. walks the path, and does not resolve symlinks
+
+   returns the pointer to the file name (basename) within the pathname
+   or NULL in case of an error
+
+   stores the parent dir (dirname) file descriptor in pdfd.
+   It can be -1 even if there was no error!
+
+   This is used for symlinked tables for DATA/INDEX DIRECTORY.
+   The paths there have been realpath()-ed. So, we can assume here that
+
+    * `pathname` is an absolute path
+    * no '.', '..', and '//' in the path
+    * file exists
+*/
+
+const char *my_open_parent_dir_nosymlinks(const char *pathname, int *pdfd)
+{
+  char buf[PATH_MAX+1];
+  char *s= buf, *e= buf+1, *end= strnmov(buf, pathname, sizeof(buf));
+  int fd, dfd= -1;
+
+  if (*end)
+  {
+    errno= ENAMETOOLONG;
+    return NULL;
+  }
+
+  if (*s != '/') /* not an absolute path */
+  {
+    errno= ENOENT;
+    return NULL;
+  }
+
+  for (;;)
+  {
+    if (*e == '/') /* '//' in the path */
+    {
+      errno= ENOENT;
+      goto err;
+    }
+    while (*e && *e != '/')
+      e++;
+    *e= 0;
+
+    if (!memcmp(s, ".", 2) || !memcmp(s, "..", 3))
+    {
+      errno= ENOENT;
+      goto err;
+    }
+
+    if (++e >= end)
+    {
+      *pdfd= dfd;
+      return pathname + (s - buf);
+    }
+
+    fd = openat(dfd, s, O_NOFOLLOW | O_PATH);
+    if (fd < 0)
+      goto err;
+
+    if (dfd >= 0)
+      close(dfd);
+
+    dfd= fd;
+    s= e;
+  }
+err:
+  if (dfd >= 0)
+    close(dfd);
+  return NULL;
+}
+#endif

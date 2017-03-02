@@ -944,14 +944,8 @@ row_merge_read_rec(
 	ulint	data_size;
 	ulint	avail_size;
 
-	ut_ad(block);
-	ut_ad(buf);
 	ut_ad(b >= &block[0]);
 	ut_ad(b < &block[srv_sort_buf_size]);
-	ut_ad(index);
-	ut_ad(foffs);
-	ut_ad(mrec);
-	ut_ad(offsets);
 
 	ut_ad(*offsets == 1 + REC_OFFS_HEADER_SIZE
 	      + dict_index_get_n_fields(index));

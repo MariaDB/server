@@ -5340,3 +5340,4 @@ DELIMITER ;
 /*!50003 SET collation_connection  = @saved_col_connection */ ;
 ALTER DATABASE `a\"'``b` CHARACTER SET utf8 COLLATE utf8_general_ci ;
 DROP DATABASE `a\"'``b`;
+FOUND /Database: mysql/ in bug11505.sql

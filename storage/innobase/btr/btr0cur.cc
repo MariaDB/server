@@ -1880,7 +1880,6 @@ btr_cur_update_alloc_zip_func(
 	const page_t*	page = page_cur_get_page(cursor);
 
 	ut_ad(page_zip == page_cur_get_page_zip(cursor));
-	ut_ad(page_zip);
 	ut_ad(!dict_index_is_ibuf(index));
 	ut_ad(rec_offs_validate(page_cur_get_rec(cursor), index, offsets));
 
@@ -2962,7 +2961,7 @@ btr_cur_del_mark_set_clust_rec(
 	ut_ad(page_is_leaf(page_align(rec)));
 
 #ifdef UNIV_DEBUG
-	if (btr_cur_print_record_ops && (thr != NULL)) {
+	if (btr_cur_print_record_ops) {
 		btr_cur_trx_report(thr_get_trx(thr)->id, index, "del mark ");
 		rec_print_new(stderr, rec, offsets);
 	}
@@ -4278,7 +4277,6 @@ btr_cur_disown_inherited_fields(
 	ut_ad(rec_offs_validate(rec, index, offsets));
 	ut_ad(!rec_offs_comp(offsets) || !rec_get_node_ptr_flag(rec));
 	ut_ad(rec_offs_any_extern(offsets));
-	ut_ad(mtr);
 
 	for (i = 0; i < rec_offs_n_fields(offsets); i++) {
 		if (rec_offs_nth_extern(offsets, i)
@@ -4340,9 +4338,6 @@ btr_push_update_extern_fields(
 	ulint			n_pushed	= 0;
 	ulint			n;
 	const upd_field_t*	uf;
-
-	ut_ad(tuple);
-	ut_ad(update);
 
 	uf = update->fields;
 	n = upd_get_n_fields(update);
@@ -4515,7 +4510,6 @@ btr_store_big_rec_extern_fields(
 
 	ut_ad(rec_offs_validate(rec, index, offsets));
 	ut_ad(rec_offs_any_extern(offsets));
-	ut_ad(btr_mtr);
 	ut_ad(mtr_memo_contains(btr_mtr, dict_index_get_lock(index),
 				MTR_MEMO_X_LOCK));
 	ut_ad(mtr_memo_contains(btr_mtr, rec_block, MTR_MEMO_PAGE_X_FIX));

@@ -5505,6 +5505,66 @@ SHOW CREATE VIEW v1;
 
 drop view v1;
 drop table t1,t2;
+
+--echo #
+--echo # MDEV-12099: usage of mergeable view with LEFT JOIN 
+--echo #             that can be converted to INNER JOIN
+--echo #
+
+create table t1 (a int, b int, key(a)) engine=myisam;
+insert into t1 values
+ (3,20), (7,10), (2,10), (4,30), (8,70), 
+ (7,70), (9,100), (9,60), (8,80), (7,60);
+
+create table t2 (c int, d int, key (c)) engine=myisam;
+insert into t2 values
+  (50,100), (20, 200), (10,300),
+  (150,100), (120, 200), (110,300),
+  (250,100), (220, 200), (210,300);
+  
+create table t3(e int, f int not null, key(e), unique (f)) engine=myisam;
+insert into t3 values
+  (100, 3), (300, 5), (400, 4), (300,7),
+  (300,2), (600, 13), (800, 15), (700, 14),
+  (600, 23), (800, 25), (700, 24); 
+
+create view v1 as
+  select * from t2 left join t3 on t3.e=t2.d where t3.f is not null;
+
+select *
+  from t1 left join v1 on v1.c=t1.b 
+    where t1.a < 5;
+
+select *
+  from t1 left join ( t2 left join t3 on t3.e=t2.d )
+          on t2.c=t1.b and  t3.f is not null
+    where t1.a < 5;
+
+explain extended
+select *
+  from t1 left join v1 on v1.c=t1.b 
+    where t1.a < 5;
+
+explain extended
+select *
+  from t1 left join ( t2 left join t3 on t3.e=t2.d )
+          on t2.c=t1.b and  t3.f is not null
+    where t1.a < 5;
+
+explain extended
+select *
+  from t1 left join v1 on v1.c=t1.b and v1.f=t1.a
+    where t1.a < 5;
+
+explain extended
+select *
+  from t1 left join ( t2 left join t3 on t3.e=t2.d )
+       on t2.c=t1.b and t3.f=t1.a and t3.f is not null
+    where t1.a < 5;
+
+drop view v1;
+drop table t1,t2,t3;
+
 --echo # -----------------------------------------------------------------
 --echo # -- End of 5.5 tests.
 --echo # -----------------------------------------------------------------
