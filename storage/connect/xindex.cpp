@@ -2738,7 +2738,7 @@ bool XHUGE::Read(PGLOBAL g, void *buf, int n, int size)
       } // endif nbr
 
   } else {
-    char *buf[256];
+    char  buf[256];
     DWORD drc = GetLastError();
 
     FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM |

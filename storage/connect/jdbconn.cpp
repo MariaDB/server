@@ -826,6 +826,11 @@ int JDBConn::Open(PJPARM sop)
 		jpop->Append(GetPluginDir());
 		jpop->Append("JdbcInterface.jar");
 
+		// All wrappers are pre-compiled in JavaWrappers.jar in the plugin dir
+		jpop->Append(sep);
+		jpop->Append(GetPluginDir());
+		jpop->Append("JavaWrappers.jar");
+
 		//================== prepare loading of Java VM ============================
 		JavaVMInitArgs vm_args;                        // Initialization arguments
 		JavaVMOption* options = new JavaVMOption[N];   // JVM invocation options

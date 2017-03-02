@@ -931,7 +931,7 @@ bool TDBXML::Initialize(PGLOBAL g)
     if (rc)
       sprintf(g->Message, "%s: %s", MSG(COM_ERROR), buf);
     else
-      sprintf(g->Message, "%s hr=%p", MSG(COM_ERROR), e.Error());
+      sprintf(g->Message, "%s hr=%x", MSG(COM_ERROR), e.Error());
 
     goto error;
 #endif   // __WIN__

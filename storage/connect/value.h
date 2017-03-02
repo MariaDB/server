@@ -271,7 +271,7 @@ class DllExport TYPVAL<PSZ>: public VALUE {
   virtual void   Reset(void) {*Strp = 0;}
   virtual int    GetValLen(void) {return Len;};
   virtual int    GetValPrec() {return (Ci) ? 1 : 0;}
-  virtual int    GetSize(void) {return (Strp) ? strlen(Strp) : 0;}
+  virtual int    GetSize(void) {return (Strp) ? (int)strlen(Strp) : 0;}
   virtual PSZ    GetCharValue(void) {return Strp;}
   virtual char   GetTinyValue(void);
   virtual uchar  GetUTinyValue(void);
