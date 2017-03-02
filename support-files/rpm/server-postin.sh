@@ -31,6 +31,14 @@ if [ $1 = 1 ] ; then
   # The user may already exist, make sure it has the proper group nevertheless (BUG#12823)
   usermod --gid %{mysqld_group} %{mysqld_user} 2> /dev/null || true
 
+  # Temporary Workaround for MDEV-11386 - will be corrected in Advance Toolchain 10.0-3 and 8.0-8
+  if compgen -G "/opt/at*/sbin/ldconfig" > /dev/null  ; then
+    for ldconfig in /opt/at*/sbin/ldconfig; do
+      $ldconfig
+    done
+
+  fi
+
   # Change permissions so that the user that will run the MySQL daemon
   # owns all database files.
   chown -R %{mysqld_user}:%{mysqld_group} $datadir
