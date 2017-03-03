@@ -3585,7 +3585,7 @@ print_table_data(MYSQL_RES *result)
       length= MY_MAX(length,field->max_length);
     if (length < 4 && !IS_NOT_NULL(field->flags))
       length=4;					// Room for "NULL"
-    if (opt_binhex && is_binary_field(field))
+    if (opt_binhex && is_binary_field(field) && IS_NOT_NULL(field->flags))
       length= 2+length*2;
     field->max_length=length;
     num_flag[mysql_field_tell(result) - 1]= IS_NUM(field->type);
@@ -3656,7 +3656,7 @@ print_table_data(MYSQL_RES *result)
       visible_length= charset_info->cset->numcells(charset_info, buffer, buffer + data_length);
       extra_padding= data_length - visible_length;
 
-      if (opt_binhex && is_binary_field(field))
+      if (opt_binhex && is_binary_field(field) && IS_NOT_NULL(field->flags))
       {
         print_as_hex(PAGER, buffer, data_length, field_max_length);
       }
@@ -3877,7 +3877,7 @@ print_table_data_vertically(MYSQL_RES *result)
       field= mysql_fetch_field(result);
       if (column_names)
         tee_fprintf(PAGER, "%*s: ",(int) max_length,field->name);
-      if (opt_binhex && is_binary_field(field))
+      if (opt_binhex && is_binary_field(field) && IS_NOT_NULL(field->flags))
       {
         print_as_hex(PAGER, cur[off], lengths[off], lengths[off]);
         tee_putc('\n', PAGER);
