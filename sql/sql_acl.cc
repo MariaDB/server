@@ -12122,7 +12122,7 @@ static bool secure_auth(THD *thd)
   else
   {
     my_error(ER_NOT_SUPPORTED_AUTH_MODE, MYF(0));
-    general_log_print(thd, COM_CONNECT,
+    general_log_print(thd, COM_CONNECT, "%s",
                       ER_THD(thd, ER_NOT_SUPPORTED_AUTH_MODE));
   }
   return 1;
@@ -12195,7 +12195,7 @@ static bool send_plugin_request_packet(MPVIO_EXT *mpvio,
   if (switch_from_short_to_long_scramble)
   {
     my_error(ER_NOT_SUPPORTED_AUTH_MODE, MYF(0));
-    general_log_print(mpvio->thd, COM_CONNECT,
+    general_log_print(mpvio->thd, COM_CONNECT, "%s",
                       ER_THD(mpvio->thd, ER_NOT_SUPPORTED_AUTH_MODE));
     DBUG_RETURN (1);
   }
@@ -12273,7 +12273,7 @@ static bool find_mpvio_user(MPVIO_EXT *mpvio)
     DBUG_ASSERT(my_strcasecmp(system_charset_info, mpvio->acl_user->plugin.str,
                               old_password_plugin_name.str));
     my_error(ER_NOT_SUPPORTED_AUTH_MODE, MYF(0));
-    general_log_print(mpvio->thd, COM_CONNECT,
+    general_log_print(mpvio->thd, COM_CONNECT, "%s",
                       ER_THD(mpvio->thd, ER_NOT_SUPPORTED_AUTH_MODE));
     DBUG_RETURN (1);
   }
