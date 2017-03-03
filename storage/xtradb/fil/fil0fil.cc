@@ -1099,7 +1099,12 @@ fil_space_extend_must_retry(
 		const ulint		n_pages = size - start_page_no;
 		const os_offset_t	len = os_offset_t(n_pages) * page_size;
 
-		int err = posix_fallocate(node->handle, start_offset, len);
+		int err;
+		do {
+			err = posix_fallocate(node->handle, start_offset, len);
+		} while (err == EINTR
+			 && srv_shutdown_state == SRV_SHUTDOWN_NONE);
+
 		*success = !err;
 		if (!*success) {
 			ib_logf(IB_LOG_LEVEL_ERROR, "extending file %s"

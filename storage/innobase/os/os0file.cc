@@ -2394,7 +2394,12 @@ os_file_set_size(
 
 # ifdef HAVE_POSIX_FALLOCATE
 	if (srv_use_posix_fallocate) {
-		int err = posix_fallocate(file, 0, size);
+		int err;
+		do {
+			err = posix_fallocate(file, 0, size);
+		} while (err == EINTR
+			 && srv_shutdown_state == SRV_SHUTDOWN_NONE);
+
 		if (err) {
 			ib_logf(IB_LOG_LEVEL_ERROR,
 				"preallocating " INT64PF " bytes for"

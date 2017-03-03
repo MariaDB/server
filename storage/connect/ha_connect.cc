@@ -5173,7 +5173,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
                                       TABLE_SHARE *table_s,
                                       HA_CREATE_INFO *create_info)
 {
-  char        v=0, spc= ',', qch= 0;
+  char        v=0;
   const char *fncn= "?";
   const char *user, *fn, *db, *host, *pwd, *sep, *tbl, *src;
   const char *col, *ocl, *rnk, *pic, *fcl, *skc, *zfn;
@@ -5225,10 +5225,6 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
   fncn= topt->catfunc;
   fnc= GetFuncID(fncn);
   sep= topt->separator;
-  spc= (!sep) ? ',' : *sep;
-  qch= topt->qchar ? *topt->qchar : (signed)topt->quoted >= 0 ? '"' : 0;
-	mul = (int)topt->multiple;
-	tbl= topt->tablist;
   col= topt->colist;
 
   if (topt->oplist) {
