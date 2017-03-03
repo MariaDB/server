@@ -1430,7 +1430,7 @@ uint any_slave_sql_running()
   if (unlikely(shutdown_in_progress || !master_info_index))
   {
     mysql_mutex_unlock(&LOCK_active_mi);
-    return 1;
+    DBUG_RETURN(1);
   }
   hash= &master_info_index->master_info_hash;
   for (uint i= 0; i< hash->records; ++i)
