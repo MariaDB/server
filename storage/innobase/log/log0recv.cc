@@ -3073,7 +3073,6 @@ recv_init_crash_recovery_spaces(void)
 	for (recv_spaces_t::iterator i = recv_spaces.begin();
 	     i != recv_spaces.end(); i++) {
 		ut_ad(!is_predefined_tablespace(i->first));
-		ut_ad(i->second.deleted || i->second.name != "");
 		ut_ad(!i->second.deleted || !i->second.space);
 
 		if (i->second.deleted) {
@@ -3095,6 +3094,8 @@ recv_init_crash_recovery_spaces(void)
 			missing_spaces.insert(i->first);
 			flag_deleted = true;
 		}
+
+		ut_ad(i->second.deleted || i->second.name != "");
 	}
 
 	if (flag_deleted) {
