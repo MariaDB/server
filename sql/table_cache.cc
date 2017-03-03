@@ -123,7 +123,8 @@ struct Table_cache_instance
     records, Share_free_tables::List (TABLE::prev and TABLE::next),
     TABLE::in_use.
   */
-  mysql_mutex_t LOCK_table_cache;
+  /** Avoid false sharing between instances */
+  mysql_mutex_t LOCK_table_cache MY_ALIGNED(CPU_LEVEL1_DCACHE_LINESIZE);
   I_P_List <TABLE, I_P_List_adapter<TABLE, &TABLE::global_free_next,
                                     &TABLE::global_free_prev>,
             I_P_List_null_counter, I_P_List_fast_push_back<TABLE> >
@@ -131,8 +132,6 @@ struct Table_cache_instance
   ulong records;
   uint mutex_waits;
   uint mutex_nowaits;
-  /** Avoid false sharing between instances */
-  char pad[CPU_LEVEL1_DCACHE_LINESIZE];
 
   Table_cache_instance(): records(0), mutex_waits(0), mutex_nowaits(0)
   {
