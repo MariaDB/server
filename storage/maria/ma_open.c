@@ -298,6 +298,11 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags)
   realpath_err= my_realpath(name_buff, fn_format(org_name, name, "",
                                                  MARIA_NAME_IEXT,
                                                  MY_UNPACK_FILENAME),MYF(0));
+  if (realpath_err > 0) /* File not found, no point in looking further. */
+  {
+    DBUG_RETURN(NULL);
+  }
+
   if (my_is_symlink(org_name) &&
       (realpath_err || mysys_test_invalid_symlink(name_buff)))
   {

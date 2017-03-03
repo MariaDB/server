@@ -129,6 +129,11 @@ int my_is_symlink(const char *filename __attribute__((unused)))
 
   to is guaranteed to never set to a string longer than FN_REFLEN
   (including the end \0)
+
+  On error returns -1, unless error is file not found, in which case it
+  is 1.
+
+  Sets my_errno to specific error number.
 */
 
 int my_realpath(char *to, const char *filename, myf MyFlags)
@@ -154,7 +159,10 @@ int my_realpath(char *to, const char *filename, myf MyFlags)
     if (MyFlags & MY_WME)
       my_error(EE_REALPATH, MYF(0), filename, my_errno);
     my_load_path(to, filename, NullS);
-    result= -1;
+    if (my_errno == ENOENT)
+      result= 1;
+    else
+      result= -1;
   }
   DBUG_RETURN(result);
 #elif defined(_WIN32)

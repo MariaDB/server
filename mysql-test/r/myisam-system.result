@@ -5,7 +5,7 @@ Warnings:
 Warning	2	Can't find file: './test/t1.MYI' (errno: 2 "No such file or directory")
 create table t1 (a int) engine=myisam;
 select * from t1;
-ERROR HY000: Can't find file: './test/t1.MYI' (errno: 20 "Not a directory")
+ERROR HY000: Can't find file: './test/t1.MYI' (errno: 2 "No such file or directory")
 drop table t1;
 Warnings:
 Warning	2	Can't find file: './test/t1.MYI' (errno: 2 "No such file or directory")

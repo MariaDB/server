@@ -104,6 +104,11 @@ MI_INFO *mi_open(const char *name, int mode, uint open_flags)
 
   realpath_err= my_realpath(name_buff,
                             fn_format(org_name,name,"",MI_NAME_IEXT,4),MYF(0));
+  if (realpath_err > 0) /* File not found, no point in looking further. */
+  {
+    DBUG_RETURN(NULL);
+  }
+
   if (my_is_symlink(org_name) &&
       (realpath_err || mysys_test_invalid_symlink(name_buff)))
   {

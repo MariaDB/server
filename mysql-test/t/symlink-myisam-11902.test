@@ -49,7 +49,7 @@ exec rm -r $MYSQLTEST_VARDIR/tmp/foo;
 exec ln -s $datadir/mysql $MYSQLTEST_VARDIR/tmp/foo;
 set debug_sync='now SIGNAL run';
 connection default;
-replace_regex / '.*\/tmp\// 'MYSQLTEST_VARDIR\/tmp\// /31/20/;
+replace_regex / '.*\/test\// '.\/test\// /31/20/;
 error ER_FILE_NOT_FOUND;
 reap;
 flush tables;
