@@ -366,6 +366,10 @@ public:
   bool set_local_variable_row_field(THD *thd, sp_pcontext *spcont,
                                     sp_variable *spv, uint field_idx,
                                     Item *val, LEX *lex);
+  bool set_local_variable_row_field_by_name(THD *thd, sp_pcontext *spcont,
+                                            sp_variable *spv,
+                                            const LEX_STRING &field_name,
+                                            Item *val, LEX *lex);
 private:
   /**
     Generate a code to set a single cursor parameter variable.
@@ -1002,9 +1006,9 @@ class sp_instr_set : public sp_instr
 public:
 
   sp_instr_set(uint ip, sp_pcontext *ctx,
-	       uint offset, Item *val, enum enum_field_types type_arg,
+	       uint offset, Item *val,
                LEX *lex, bool lex_resp)
-    : sp_instr(ip, ctx), m_offset(offset), m_value(val), m_type(type_arg),
+    : sp_instr(ip, ctx), m_offset(offset), m_value(val),
       m_lex_keeper(lex, lex_resp)
   {}
 
@@ -1021,7 +1025,6 @@ protected:
 
   uint m_offset;		///< Frame offset
   Item *m_value;
-  enum enum_field_types m_type;	///< The declared type
   sp_lex_keeper m_lex_keeper;
 
 }; // class sp_instr_set : public sp_instr
@@ -1042,9 +1045,9 @@ public:
 
   sp_instr_set_row_field(uint ip, sp_pcontext *ctx,
                          uint offset, uint field_offset,
-                         Item *val, enum enum_field_types type_arg,
+                         Item *val,
                          LEX *lex, bool lex_resp)
-    : sp_instr_set(ip, ctx, offset, val, type_arg, lex, lex_resp),
+    : sp_instr_set(ip, ctx, offset, val, lex, lex_resp),
       m_field_offset(field_offset)
   {}
 
@@ -1055,6 +1058,32 @@ public:
 
   virtual void print(String *str);
 }; // class sp_instr_set_field : public sp_instr_set
+
+
+class sp_instr_set_row_field_by_name : public sp_instr_set
+{
+  // Prevent use of this
+  sp_instr_set_row_field_by_name(const sp_instr_set_row_field &);
+  void operator=(sp_instr_set_row_field_by_name &);
+  const LEX_STRING m_field_name;
+
+public:
+
+  sp_instr_set_row_field_by_name(uint ip, sp_pcontext *ctx,
+                                 uint offset, const LEX_STRING &field_name,
+                                 Item *val,
+                                 LEX *lex, bool lex_resp)
+    : sp_instr_set(ip, ctx, offset, val, lex, lex_resp),
+      m_field_name(field_name)
+  {}
+
+  virtual ~sp_instr_set_row_field_by_name()
+  {}
+
+  virtual int exec_core(THD *thd, uint *nextp);
+
+  virtual void print(String *str);
+}; // class sp_instr_set_field_by_name : public sp_instr_set
 
 
 /**

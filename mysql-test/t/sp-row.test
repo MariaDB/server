@@ -548,7 +548,7 @@ DELIMITER ;$$
 --echo # Referencing a non-existing row field
 --echo #
 DELIMITER $$;
---error ER_UNKNOWN_ERROR
+--error ER_ROW_VARIABLE_DOES_NOT_HAVE_FIELD
 CREATE PROCEDURE p1()
 BEGIN
   DECLARE a ROW(a INT,b INT);

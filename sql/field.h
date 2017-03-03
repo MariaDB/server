@@ -4009,12 +4009,21 @@ public:
 class Spvar_definition: public Column_definition
 {
   class Qualified_column_ident *m_column_type_ref; // for %TYPE
+  class Table_ident *m_table_rowtype_ref;          // for table%ROWTYPE
   Row_definition_list *m_row_field_definitions;    // for ROW
 public:
   Spvar_definition()
    :m_column_type_ref(NULL),
+    m_table_rowtype_ref(NULL),
     m_row_field_definitions(NULL) { }
+  Spvar_definition(THD *thd, Field *field)
+   :Column_definition(thd, field, NULL),
+    m_column_type_ref(NULL),
+    m_table_rowtype_ref(NULL),
+    m_row_field_definitions(NULL)
+  { }
   bool is_column_type_ref() const { return m_column_type_ref != 0; }
+  bool is_table_rowtype_ref() const { return m_table_rowtype_ref != 0; }
   class Qualified_column_ident *column_type_ref() const
   {
     return m_column_type_ref;
@@ -4022,6 +4031,15 @@ public:
   void set_column_type_ref(class Qualified_column_ident *ref)
   {
     m_column_type_ref= ref;
+  }
+
+  class Table_ident *table_rowtype_ref() const
+  {
+    return m_table_rowtype_ref;
+  }
+  void set_table_rowtype_ref(class Table_ident *ref)
+  {
+    m_table_rowtype_ref= ref;
   }
 
   /*

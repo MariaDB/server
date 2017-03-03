@@ -63,6 +63,16 @@ $$
 CALL p1;
 ERROR 42000: SELECT command denied to user 'user1'@'localhost' for table 't1'
 DROP PROCEDURE p1;
+CREATE PROCEDURE p1()
+AS
+a db1.t1%ROWTYPE;
+BEGIN
+SELECT a.a;
+END;
+$$
+CALL p1;
+ERROR 42000: SELECT command denied to user 'user1'@'localhost' for table 't1'
+DROP PROCEDURE p1;
 #
 # Stored procedure: Using %TYPE for with a table that we don't have access to
 # DEFINER root, SQL SECURITY INVOKER
@@ -74,6 +84,19 @@ AS
 a db1.t1.a%TYPE := 10;
 BEGIN
 SELECT a;
+END;
+$$
+connection conn1;
+CALL p1;
+ERROR 42000: SELECT command denied to user 'user1'@'localhost' for table 't1'
+DROP PROCEDURE p1;
+connection default;
+CREATE PROCEDURE p1()
+SQL SECURITY INVOKER
+AS
+a db1.t1%ROWTYPE;
+BEGIN
+SELECT a.a;
 END;
 $$
 connection conn1;
@@ -96,6 +119,21 @@ $$
 connection conn1;
 CALL p1;
 a
+10
+DROP PROCEDURE p1;
+connection default;
+CREATE PROCEDURE p1()
+SQL SECURITY DEFINER
+AS
+a db1.t1%ROWTYPE;
+BEGIN
+a.a:= 10;
+SELECT a.a;
+END;
+$$
+connection conn1;
+CALL p1;
+a.a
 10
 DROP PROCEDURE p1;
 #
@@ -222,6 +260,17 @@ AS
 b db1.t1.b%TYPE := 10;
 BEGIN
 SELECT b;
+END;
+$$
+CALL p1;
+ERROR 42000: SELECT command denied to user 'user1'@'localhost' for column 'b' in table 't1'
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1()
+AS
+b db1.t1%ROWTYPE;
+BEGIN
+b.b:=10;
+SELECT b.b;
 END;
 $$
 CALL p1;

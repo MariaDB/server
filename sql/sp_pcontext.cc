@@ -634,8 +634,7 @@ sp_variable::find_row_field(const LEX_STRING &var_name,
   const Spvar_definition *def;
   if ((def= field_def.find_row_field_by_name(field_name.str, row_field_offset)))
     return def;
-  my_printf_error(ER_UNKNOWN_ERROR,
-                  "Row variable '%s' does not have a field '%s'",
-                  MYF(0), var_name.str, field_name.str);
+  my_error(ER_ROW_VARIABLE_DOES_NOT_HAVE_FIELD, MYF(0),
+           var_name.str, field_name.str);
   return NULL;
 }

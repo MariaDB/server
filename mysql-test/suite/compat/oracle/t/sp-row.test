@@ -598,7 +598,7 @@ DELIMITER ;$$
 --echo # Referencing a non-existing row field
 --echo #
 DELIMITER $$;
---error ER_UNKNOWN_ERROR
+--error ER_ROW_VARIABLE_DOES_NOT_HAVE_FIELD
 CREATE PROCEDURE p1()
 AS
   a ROW(a INT,b INT);
@@ -1396,3 +1396,682 @@ DROP PROCEDURE p1;
 --echo #
 --echo # End of MDEV-10914 ROW data type for stored routine variables
 --echo #
+
+
+--echo #
+--echo # MDEV-12133 sql_mode=ORACLE: table%ROWTYPE in variable declarations
+--echo #
+
+--echo #
+--echo # Referring to a table in a non-existing database
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+AS
+  rec test2.t1%ROWTYPE;
+BEGIN
+  NULL;
+END;
+$$
+DELIMITER ;$$
+--error ER_NO_SUCH_TABLE
+CALL p1();
+CREATE TABLE t1 (a INT, b VARCHAR(10), c DOUBLE, d DECIMAL(10));
+--error ER_NO_SUCH_TABLE
+CALL p1();
+DROP TABLE t1;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # Referring to a table in the current database
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+AS
+  rec t1%ROWTYPE;
+BEGIN
+  CREATE TABLE t2 AS SELECT rec.a, rec.b, rec.c, rec.d;
+  SHOW CREATE TABLE t2;
+  DROP TABLE t2;
+END;
+$$
+DELIMITER ;$$
+--error ER_NO_SUCH_TABLE
+CALL p1();
+CREATE TABLE t1 (a INT, b VARCHAR(10), c DOUBLE, d DECIMAL(10));
+CALL p1();
+DROP TABLE t1;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # Referring to a table in an explicitly specified database
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+AS
+  rec test.t1%ROWTYPE;
+BEGIN
+  CREATE TABLE t2 AS SELECT rec.a, rec.b, rec.c, rec.d;
+  SHOW CREATE TABLE t2;
+  DROP TABLE t2;
+END;
+$$
+DELIMITER ;$$
+--error ER_NO_SUCH_TABLE
+CALL p1();
+CREATE TABLE t1 (a INT, b VARCHAR(10), c DOUBLE, d DECIMAL(10));
+CALL p1();
+DROP TABLE t1;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # Referring to a view in the current database
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+AS
+  rec v1%ROWTYPE;
+BEGIN
+  CREATE TABLE t2 AS SELECT rec.a, rec.b, rec.c, rec.d;
+  SHOW CREATE TABLE t2;
+  DROP TABLE t2;
+END;
+$$
+DELIMITER ;$$
+--error ER_NO_SUCH_TABLE
+CALL p1();
+CREATE TABLE t1 (a INT, b VARCHAR(10), c DOUBLE, d DECIMAL(10));
+CREATE VIEW v1 AS SELECT * FROM t1;
+CALL p1();
+DROP VIEW v1;
+DROP TABLE t1;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # Referring to a view in an explicitly specified database
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+AS
+  rec test.v1%ROWTYPE;
+BEGIN
+  CREATE TABLE t2 AS SELECT rec.a, rec.b, rec.c, rec.d;
+  SHOW CREATE TABLE t2;
+  DROP TABLE t2;
+END;
+$$
+DELIMITER ;$$
+--error ER_NO_SUCH_TABLE
+CALL p1();
+CREATE TABLE t1 (a INT, b VARCHAR(10), c DOUBLE, d DECIMAL(10));
+CREATE VIEW v1 AS SELECT * FROM t1;
+CALL p1();
+DROP VIEW v1;
+DROP TABLE t1;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # Checking that all table%ROWTYPE fields are NULL by default
+--echo #
+CREATE TABLE t1 (a INT, b VARCHAR(10), c DOUBLE, d DECIMAL(10,2));
+DELIMITER $$;
+CREATE PROCEDURE p1()
+AS
+  rec1 t1%ROWTYPE;
+BEGIN
+  SELECT rec1.a, rec1.b, rec1.c, rec1.d;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+DROP TABLE t1;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # A table%ROWTYPE variable with a ROW expression as a default
+--echo #
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+DELIMITER $$;
+CREATE PROCEDURE p1()
+AS
+  rec1 t1%ROWTYPE DEFAULT ROW(10,'bbb');
+BEGIN
+  SELECT rec1.a, rec1.b;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+DROP TABLE t1;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # A table%ROWTYPE variable with an incompatible ROW expression as a default
+--echo #
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+DELIMITER $$;
+CREATE PROCEDURE p1()
+AS
+  rec1 t1%ROWTYPE DEFAULT ROW(10,'bbb','ccc');
+BEGIN
+  SELECT rec1.a, rec1.b;
+END;
+$$
+DELIMITER ;$$
+--error ER_OPERAND_COLUMNS
+CALL p1();
+DROP TABLE t1;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # A table%ROWTYPE variable with a ROW variable as a default
+--echo #
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+DELIMITER $$;
+CREATE PROCEDURE p1()
+AS
+  rec1 ROW(a INT, b VARCHAR(10)):= ROW(10,'bbb');
+  rec2 t1%ROWTYPE DEFAULT rec1;
+BEGIN
+  SELECT rec2.a, rec2.b;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+DROP TABLE t1;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # A ROW variable using a table%ROWTYPE variable as a default
+--echo #
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+DELIMITER $$;
+CREATE PROCEDURE p1()
+AS
+  rec1 t1%ROWTYPE := ROW(10,'bbb');
+  rec2 ROW(a INT, b VARCHAR(10)):= rec1;
+BEGIN
+  SELECT rec2.a, rec2.b;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+DROP TABLE t1;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # Assigning table%ROWTYPE variables with a different column count
+--echo #
+CREATE TABLE t1 (a INT, b VARCHAR(10), c DOUBLE);
+CREATE TABLE t2 (a INT, b VARCHAR(10));
+DELIMITER $$;
+CREATE PROCEDURE p1()
+AS
+  rec1 t1%ROWTYPE;
+  rec2 t2%ROWTYPE;
+BEGIN
+  rec2:=rec1;
+END;
+$$
+DELIMITER ;$$
+--error ER_OPERAND_COLUMNS
+CALL p1();
+DROP PROCEDURE p1;
+DELIMITER $$;
+CREATE PROCEDURE p1()
+AS
+  rec1 t1%ROWTYPE;
+  rec2 t2%ROWTYPE;
+BEGIN
+  rec1:=rec2;
+END;
+$$
+DELIMITER ;$$
+--error ER_OPERAND_COLUMNS
+CALL p1();
+DROP TABLE t2;
+DROP TABLE t1;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # Assigning compatible table%ROWTYPE variables (equal number of fields)
+--echo #
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+CREATE TABLE t2 (x INT, y VARCHAR(10));
+DELIMITER $$;
+CREATE PROCEDURE p1()
+AS
+  rec1 t1%ROWTYPE;
+  rec2 t2%ROWTYPE;
+BEGIN
+  rec1.a:= 10;
+  rec1.b:= 'bbb';
+  rec2:=rec1;
+  SELECT rec2.x, rec2.y;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+DROP TABLE t2;
+DROP TABLE t1;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # Assigning between incompatible table%ROWTYPE and explicit ROW variables
+--echo #
+
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+DELIMITER $$;
+CREATE PROCEDURE p1()
+AS
+  rec1 t1%ROWTYPE;
+  rec2 ROW(x INT,y INT,z INT);
+BEGIN
+  rec2.x:= 10;
+  rec2.y:= 20;
+  rec2.z:= 30;
+  rec1:= rec2;
+END;
+$$
+DELIMITER ;$$
+--error ER_OPERAND_COLUMNS
+CALL p1();
+DROP TABLE t1;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # Assigning between compatible table%ROWTYPE and explicit ROW variables
+--echo #
+
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+DELIMITER $$;
+CREATE PROCEDURE p1()
+AS
+  rec1 t1%ROWTYPE;
+  rec2 ROW(x INT,y INT);
+BEGIN
+  rec2.x:= 10;
+  rec2.y:= 20;
+  rec1:= rec2;
+  SELECT rec1.a, rec1.b;
+  rec1.a:= 11;
+  rec1.b:= 21;
+  rec2:= rec1;
+  SELECT rec2.x, rec2.y;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+DROP TABLE t1;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # Assigning table%ROWTYPE from a ROW expression
+--echo #
+
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+DELIMITER $$;
+CREATE PROCEDURE p1()
+AS
+  rec1 t1%ROWTYPE;
+BEGIN
+  rec1:= ROW(10,20);
+  SELECT rec1.a, rec1.b;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+DROP TABLE t1;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # Fetching a cursor into a table%ROWTYPE variable with a wrong field count
+--echo #
+
+CREATE TABLE t1 (a INT, b VARCHAR(10), c DOUBLE, d DECIMAL(10,2));
+CREATE TABLE t2 (a INT, b VARCHAR(10));
+INSERT INTO t1 VALUES (10,'bb1',111.111e2, 12.31);
+DELIMITER $$;
+CREATE PROCEDURE p1()
+AS
+  rec2 t2%ROWTYPE;
+  CURSOR cur1 IS SELECT * FROM t1;
+BEGIN
+  OPEN cur1;
+  FETCH cur1 INTO rec2;
+  CLOSE cur1;
+END;
+$$
+DELIMITER ;$$
+--error ER_SP_WRONG_NO_OF_FETCH_ARGS
+CALL p1();
+DROP TABLE t2;
+DROP TABLE t1;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # Fetching a cursor into a table%ROWTYPE variable
+--echo #
+
+CREATE TABLE t1 (a INT, b VARCHAR(10), c DOUBLE, d DECIMAL(10,2));
+CREATE TABLE t2 LIKE t1;
+INSERT INTO t1 VALUES (10,'bb1',111.111e2, 12.31);
+INSERT INTO t1 VALUES (20,'bb2',222.222e2, 12.32);
+INSERT INTO t1 VALUES (30,'bb3',333.333e2, 12.33);
+DELIMITER $$;
+CREATE PROCEDURE p1()
+AS
+  rec t1%ROWTYPE;
+  CURSOR cur IS SELECT * FROM t1;
+BEGIN
+  OPEN cur;
+  LOOP
+    FETCH cur INTO rec;
+    EXIT WHEN cur%NOTFOUND;
+    SELECT rec.a, rec.b, rec.c, rec.d;
+    INSERT INTO t2 VALUES (rec.a, rec.b, rec.c, rec.d);
+  END LOOP;
+  CLOSE cur;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+SELECT * FROM t2;
+DROP TABLE t2;
+DROP TABLE t1;
+DROP PROCEDURE p1;
+
+--echo #
+--echo # Fetching a cursor into a table%ROWTYPE variable with different column names
+--echo #
+
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+CREATE TABLE t2 (x INT, y VARCHAR(10));
+INSERT INTO t1 VALUES (10,'bbb');
+DELIMITER $$;
+CREATE PROCEDURE p1()
+AS
+  rec2 t2%ROWTYPE;
+  CURSOR cur1 IS SELECT * FROM t1;
+BEGIN
+  OPEN cur1;
+  FETCH cur1 INTO rec2;
+  SELECT rec2.x, rec2.y;
+  CLOSE cur1;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+DROP TABLE t2;
+DROP TABLE t1;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # Fetching a cursor into a table%ROWTYPE variable, with truncation
+--echo #
+
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+CREATE TABLE t2 (a INT, b INT);
+INSERT INTO t1 VALUES (10,'11x');
+DELIMITER $$;
+CREATE PROCEDURE p1()
+AS
+  rec2 t2%ROWTYPE;
+  CURSOR cur1 IS SELECT * FROM t1;
+BEGIN
+  OPEN cur1;
+  FETCH cur1 INTO rec2;
+  SELECT rec2.a, rec2.b;
+  CLOSE cur1;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+DROP TABLE t2;
+DROP TABLE t1;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # table%ROWTYPE variables are not allowed in LIMIT
+--echo #
+CREATE TABLE t1 (a INT, b INT);
+INSERT INTO t1 VALUES (1,2);
+DELIMITER $$;
+--error ER_WRONG_SPVAR_TYPE_IN_LIMIT
+CREATE PROCEDURE p1()
+AS
+  rec1 t1%ROWTYPE:=(1,2);
+BEGIN
+  SELECT * FROM t1 LIMIT rec1.a;
+END;
+$$
+DELIMITER ;$$
+DROP TABLE t1;
+
+
+--echo #
+--echo # table%ROWTYPE variable fields as OUT parameters
+--echo #
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+DELIMITER $$;
+CREATE PROCEDURE p1(a OUT INT,b OUT VARCHAR(10))
+AS
+BEGIN
+  a:=10;
+  b:='bb';
+END;
+$$
+CREATE PROCEDURE p2()
+AS
+  rec1 t1%ROWTYPE;
+BEGIN
+  CALL p1(rec1.a, rec1.b);
+  SELECT rec1.a, rec1.b;
+END;
+$$
+DELIMITER ;$$
+CALL p2();
+DROP PROCEDURE p2;
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # Passing the entire table%ROWTYPE variable
+--echo #
+
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+DELIMITER $$;
+CREATE PROCEDURE p1(a ROW(a INT, b VARCHAR(10)))
+AS
+BEGIN
+  SELECT a.a, a.b;
+END;
+$$
+CREATE PROCEDURE p2()
+AS
+  rec1 t1%ROWTYPE:= ROW(10,'bb');
+BEGIN
+  CALL p1(rec1);
+END;
+$$
+DELIMITER ;$$
+CALL p2();
+DROP PROCEDURE p2;
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # Passing the entire table%ROWTYPE variable as an OUT parameter
+--echo #
+
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+DELIMITER $$;
+CREATE PROCEDURE p1(a OUT ROW(a INT, b VARCHAR(10)))
+AS
+BEGIN
+  a:= ROW(10,'bb');
+END;
+$$
+CREATE PROCEDURE p2()
+AS
+  rec1 t1%ROWTYPE;
+BEGIN
+  CALL p1(rec1);
+  SELECT rec1.a, rec1.b;
+END;
+$$
+DELIMITER ;$$
+CALL p2();
+DROP PROCEDURE p2;
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # Assigning a table%ROWTYPE field to an OUT parameter
+--echo #
+
+DELIMITER $$;
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+CREATE PROCEDURE p1 (res IN OUT INTEGER)
+AS
+  rec1 t1%ROWTYPE:=ROW(10,'b0');
+BEGIN
+  res:=rec1.a;
+END;
+$$
+DELIMITER ;$$
+CALL p1(@res);
+SELECT @res;
+SET @res=NULL;
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # Testing Item_splocal_row_field_by_name::print
+--echo #
+
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+DELIMITER $$;
+CREATE PROCEDURE p1
+AS
+  rec t1%ROWTYPE:=ROW(10,'bb');
+BEGIN
+  EXPLAIN EXTENDED SELECT rec.a, rec.b;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+--echo #
+--echo # Non-existing field
+--echo #
+
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+DELIMITER $$;
+CREATE PROCEDURE p1
+AS
+  rec t1%ROWTYPE;
+BEGIN
+  SELECT rec.c;
+END;
+$$
+DELIMITER ;$$
+--error ER_ROW_VARIABLE_DOES_NOT_HAVE_FIELD
+CALL p1();
+ALTER TABLE t1 ADD c INT;
+CALL p1();
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # Testing that field names are case insensitive
+--echo #
+
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+DELIMITER $$;
+CREATE PROCEDURE p1
+AS
+  rec t1%ROWTYPE:=ROW(10,'bb');
+BEGIN
+  SELECT rec.A, rec.B;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # Testing that table%ROWTYPE uses temporary tables vs shadowed real tables
+--echo #
+
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+CREATE TEMPORARY TABLE t1 (x INT, y VARCHAR(10));
+DELIMITER $$;
+CREATE PROCEDURE p1
+AS
+  rec t1%ROWTYPE:=ROW(10,'bb');
+BEGIN
+  SELECT rec.A, rec.B;
+END;
+$$
+DELIMITER ;$$
+--error ER_ROW_VARIABLE_DOES_NOT_HAVE_FIELD
+CALL p1();
+DROP TEMPORARY TABLE t1;
+CALL p1();
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+--echo #
+--echo # Testing that the structure of table%ROWTYPE variables is determined at the very beginning and is not changed after ALTER
+--echo #
+
+CREATE TABLE t1 (a INT, b VARCHAR(32));
+INSERT INTO t1 VALUES (10,'b10');
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+BEGIN
+  ALTER TABLE t1 ADD c INT;
+  DECLARE
+    rec t1%ROWTYPE; -- this will not have column "c"
+  BEGIN
+    rec.c:=10;
+  END;
+END;
+$$
+DELIMITER ;$$
+--error ER_ROW_VARIABLE_DOES_NOT_HAVE_FIELD
+CALL p1();
+DROP TABLE t1;
+DROP PROCEDURE p1;

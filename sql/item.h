@@ -1622,6 +1622,10 @@ public:
   // Row emulation
   virtual uint cols() { return 1; }
   virtual Item* element_index(uint i) { return this; }
+  virtual bool element_index_by_name(uint *idx, const LEX_STRING &name) const
+  {
+    return true;
+  }
   virtual Item** addr(uint i) { return 0; }
   virtual bool check_cols(uint c);
   // It is not row => null inside is impossible
@@ -2086,6 +2090,7 @@ protected:
   */
   THD *m_thd;
 
+  bool fix_fields_from_item(THD *thd, Item **, const Item *);
 public:
   LEX_STRING m_name;
 
@@ -2102,7 +2107,7 @@ public:
   Item_sp_variable(THD *thd, char *sp_var_name_str, uint sp_var_name_length);
 
 public:
-  bool fix_fields(THD *thd, Item **);
+  bool fix_fields(THD *thd, Item **)= 0;
 
   double val_real();
   longlong val_int();
@@ -2175,6 +2180,7 @@ public:
                enum_field_types sp_var_type,
                uint pos_in_q= 0, uint len_in_q= 0);
 
+  bool fix_fields(THD *, Item **);
   Item *this_item();
   const Item *this_item() const;
   Item **this_item_addr(THD *thd, Item **);
@@ -2273,6 +2279,7 @@ public:
 */
 class Item_splocal_row_field :public Item_splocal
 {
+protected:
   LEX_STRING m_field_name;
   uint m_field_idx;
   bool set_value(THD *thd, sp_rcontext *ctx, Item **it);
@@ -2288,10 +2295,30 @@ public:
     m_field_name(sp_field_name),
     m_field_idx(sp_field_idx)
   { }
+  bool fix_fields(THD *thd, Item **);
   Item *this_item();
   const Item *this_item() const;
   Item **this_item_addr(THD *thd, Item **);
   bool append_for_log(THD *thd, String *str);
+  void print(String *str, enum_query_type query_type);
+};
+
+
+class Item_splocal_row_field_by_name :public Item_splocal_row_field
+{
+  bool set_value(THD *thd, sp_rcontext *ctx, Item **it);
+public:
+  Item_splocal_row_field_by_name(THD *thd,
+                                 const LEX_STRING &sp_var_name,
+                                 const LEX_STRING &sp_field_name,
+                                 uint sp_var_idx,
+                                 enum_field_types sp_var_type,
+                                 uint pos_in_q= 0, uint len_in_q= 0)
+   :Item_splocal_row_field(thd, sp_var_name, sp_field_name,
+                           sp_var_idx, 0 /* field index will be set later */,
+                           sp_var_type, pos_in_q, len_in_q)
+  { }
+  bool fix_fields(THD *thd, Item **it);
   void print(String *str, enum_query_type query_type);
 };
 
@@ -2325,6 +2352,7 @@ public:
   Item_case_expr(THD *thd, uint case_expr_id);
 
 public:
+  bool fix_fields(THD *thd, Item **);
   Item *this_item();
   const Item *this_item() const;
   Item **this_item_addr(THD *thd, Item **);
@@ -2758,6 +2786,7 @@ public:
   Item_result result_type() const{ return ROW_RESULT ; }
   Item_result cmp_type() const { return ROW_RESULT; }
   uint cols() { return arg_count; }
+  bool element_index_by_name(uint *idx, const LEX_STRING &name) const;
   Item* element_index(uint i) { return arg_count ? args[i] : this; }
   Item** addr(uint i) { return arg_count ? args + i : NULL; }
   bool check_cols(uint c)

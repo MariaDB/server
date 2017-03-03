@@ -79,3 +79,43 @@ source include/show_binlog_events.inc;
 --echo #
 --echo # End of MDEV-10914 ROW data type for stored routine variables
 --echo #
+
+
+--echo #
+--echo #  MDEV-12133 sql_mode=ORACLE: table%ROWTYPE in variable declarations
+--echo #
+
+CREATE TABLE t1 (a INT, b INT);
+DELIMITER $$;
+CREATE PROCEDURE p1
+AS
+  rec t1%ROWTYPE;
+BEGIN
+  rec.a:=100;
+  rec.b:=200;
+  INSERT INTO t1 VALUES (rec.a,rec.b);
+  INSERT INTO t1 VALUES (10, rec=ROW(100,200));
+  INSERT INTO t1 VALUES (10, ROW(100,200)=rec);
+  INSERT INTO t1 SELECT 10, 20 FROM DUAL WHERE rec=ROW(100,200);
+  INSERT INTO t1 SELECT 10, 21 FROM DUAL WHERE ROW(100,200)=rec;
+  rec.a:=NULL;
+  INSERT INTO t1 VALUES (11, rec=ROW(100,200));
+  INSERT INTO t1 VALUES (11, rec=ROW(100,201));
+  INSERT INTO t1 VALUES (11, ROW(100,200)=rec);
+  INSERT INTO t1 VALUES (11, ROW(100,201)=rec);
+  INSERT INTO t1 SELECT 11, 20 FROM DUAL WHERE rec=ROW(100,200);
+  INSERT INTO t1 SELECT 11, 21 FROM DUAL WHERE ROW(100,200)=rec;
+  rec.b:=NULL;
+  INSERT INTO t1 VALUES (12, rec=ROW(100,200));
+  INSERT INTO t1 VALUES (12, ROW(100,200)=rec);
+  INSERT INTO t1 SELECT 12, 20 FROM DUAL WHERE rec=ROW(100,200);
+  INSERT INTO t1 SELECT 12, 21 FROM DUAL WHERE ROW(100,200)=rec;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+SELECT * FROM t1;
+DROP TABLE t1;
+DROP PROCEDURE p1;
+--let $binlog_file = LAST
+source include/show_binlog_events.inc;

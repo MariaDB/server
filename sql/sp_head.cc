@@ -343,6 +343,12 @@ Item *
 sp_prepare_func_item(THD* thd, Item **it_addr, uint cols)
 {
   DBUG_ENTER("sp_prepare_func_item");
+  if (!(*it_addr)->fixed &&
+      (*it_addr)->fix_fields(thd, it_addr))
+  {
+    DBUG_PRINT("info", ("fix_fields() failed"));
+    DBUG_RETURN(NULL);
+  }
   it_addr= (*it_addr)->this_item_addr(thd, it_addr);
 
   if ((!(*it_addr)->fixed &&
@@ -3413,6 +3419,63 @@ sp_instr_set_row_field::print(String *str)
 
 
 /*
+  sp_instr_set_field_by_name class functions
+*/
+
+int
+sp_instr_set_row_field_by_name::exec_core(THD *thd, uint *nextp)
+{
+  int res;
+  uint idx;
+  Item_field_row *row= (Item_field_row*) thd->spcont->get_item(m_offset);
+  if ((res= row->element_index_by_name(&idx, m_field_name)))
+  {
+    sp_variable *var= m_ctx->find_variable(m_offset);
+    my_error(ER_ROW_VARIABLE_DOES_NOT_HAVE_FIELD, MYF(0),
+             var->name.str, m_field_name.str);
+    goto error;
+  }
+  res= thd->spcont->set_variable_row_field(thd, m_offset, idx, &m_value);
+  if (res)
+  {
+    /* Failed to evaluate the value. Reset the variable to NULL. */
+    thd->spcont->set_variable_row_field_to_null(thd, m_offset, idx);
+  }
+error:
+  delete_explain_query(thd->lex);
+  *nextp= m_ip + 1;
+  return res;
+}
+
+
+void
+sp_instr_set_row_field_by_name::print(String *str)
+{
+  /* set name.field@offset["field"] ... */
+  int rsrv= SP_INSTR_UINT_MAXLEN + 6 + 6 + 3 + 2;
+  sp_variable *var= m_ctx->find_variable(m_offset);
+  DBUG_ASSERT(var);
+  DBUG_ASSERT(var->field_def.is_table_rowtype_ref());
+
+  rsrv+= var->name.length + 2 * m_field_name.length;
+  if (str->reserve(rsrv))
+    return;
+  str->qs_append(STRING_WITH_LEN("set "));
+    str->qs_append(var->name.str, var->name.length);
+  str->qs_append('.');
+  str->qs_append(m_field_name.str);
+  str->qs_append('@');
+  str->qs_append(m_offset);
+  str->qs_append("[\"",2);
+  str->qs_append(m_field_name.str);
+  str->qs_append("\"]",2);
+  str->qs_append(' ');
+  m_value->print(str, enum_query_type(QT_ORDINARY |
+                                      QT_ITEM_ORIGINAL_FUNC_NULLIF));
+}
+
+
+/*
   sp_instr_set_trigger_field class functions
 */
 
@@ -4461,8 +4524,7 @@ sp_head::set_local_variable(THD *thd, sp_pcontext *spcont,
 
   sp_instr_set *sp_set= new (thd->mem_root)
                         sp_instr_set(instructions(), spcont,
-                                     spv->offset, val, spv->sql_type(),
-                                     lex, true);
+                                     spv->offset, val, lex, true);
 
   return sp_set == NULL || add_instr(sp_set);
 }
@@ -4484,8 +4546,27 @@ sp_head::set_local_variable_row_field(THD *thd, sp_pcontext *spcont,
                                                          spcont,
                                                          spv->offset,
                                                          field_idx, val,
-                                                         spv->sql_type(),
                                                          lex, true);
+  return sp_set == NULL || add_instr(sp_set);
+}
+
+
+bool
+sp_head::set_local_variable_row_field_by_name(THD *thd, sp_pcontext *spcont,
+                                              sp_variable *spv,
+                                              const LEX_STRING &field_name,
+                                              Item *val, LEX *lex)
+{
+  if (!(val= adjust_assignment_source(thd, val, NULL)))
+    return true;
+
+  sp_instr_set_row_field_by_name *sp_set=
+    new (thd->mem_root) sp_instr_set_row_field_by_name(instructions(),
+                                                       spcont,
+                                                       spv->offset,
+                                                       field_name,
+                                                       val,
+                                                       lex, true);
   return sp_set == NULL || add_instr(sp_set);
 }
 

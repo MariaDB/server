@@ -802,6 +802,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  ROWCOUNT_SYM                  /* Oracle-N   */
 %token  ROW_SYM                       /* SQL-2003-R */
 %token  ROWS_SYM                      /* SQL-2003-R */
+%token  ROWTYPE_SYM                   /* Oracle-PLSQL-R */
 %token  ROW_COUNT_SYM                 /* SQL-2003-N */
 %token  ROW_FORMAT_SYM
 %token  ROW_NUMBER_SYM
@@ -1027,6 +1028,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 
 %type <qualified_column_ident>
         qualified_column_ident
+        optionally_qualified_column_ident
 
 %type <simple_string>
         remember_name remember_end opt_db remember_tok_start
@@ -1077,6 +1079,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
         case_stmt_body opt_bin_mod
         opt_if_exists_table_element opt_if_not_exists_table_element
 	opt_recursive
+        type_or_rowtype
 
 %type <object_ddl_options>
         create_or_replace 
@@ -2456,6 +2459,25 @@ qualified_column_ident:
           }
         ;
 
+optionally_qualified_column_ident:
+          sp_decl_ident
+          {
+            if (!($$= new (thd->mem_root) Qualified_column_ident($1)))
+              MYSQL_YYABORT;
+          }
+        | sp_decl_ident '.' ident
+          {
+            if (!($$= new (thd->mem_root) Qualified_column_ident($1, $3)))
+              MYSQL_YYABORT;
+          }
+        | sp_decl_ident '.' ident '.' ident
+          {
+            if (!($$= new (thd->mem_root) Qualified_column_ident(thd,
+                                                                 $1, $3, $5)))
+              MYSQL_YYABORT;
+          }
+        ;
+
 row_field_name:
           ident_directly_assignable
           {
@@ -2493,6 +2515,10 @@ field_type_row:
           ROW_SYM '(' row_field_definition_list ')' { $$= $3; }
         ;
 
+type_or_rowtype:
+          TYPE_SYM     { $$= 0; }
+        | ROWTYPE_SYM  { $$= 1; }
+        ;
 
 sp_decl_body:
           sp_decl_idents
@@ -2511,10 +2537,12 @@ sp_decl_body:
           {
             Lex->sp_variable_declarations_init(thd, $1);
           }
-          qualified_column_ident '%' TYPE_SYM
+          optionally_qualified_column_ident '%' type_or_rowtype
           sp_opt_default
           {
-            if (Lex->sp_variable_declarations_with_ref_finalize(thd, $1, $3, $6))
+            if ($5 ?
+                Lex->sp_variable_declarations_rowtype_finalize(thd, $1, $3, $6) :
+                Lex->sp_variable_declarations_with_ref_finalize(thd, $1, $3, $6))
               MYSQL_YYABORT;
             $$.init_using_vars($1);
           }

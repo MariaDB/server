@@ -982,3 +982,28 @@ DROP PROCEDURE p1;
 #
 # End of MDEV-10914 ROW data type for stored routine variables
 #
+#
+# MDEV-12133 sql_mode=ORACLE: table%ROWTYPE in variable declarations
+#
+CREATE TABLE t1 (a INT, b VARCHAR(10), c DOUBLE, d DECIMAL(10,2));
+CREATE PROCEDURE p1()
+AS
+rec1 t1%ROWTYPE;
+BEGIN
+rec1.a:= 10;
+rec1.b:= 'bbb';
+rec1.c:= 10e2;
+rec1.d:= 10.12;
+rec1.c:= rec1.d;
+END;
+$$
+SHOW PROCEDURE CODE p1;
+Pos	Instruction
+0	set rec1@0 NULL
+1	set rec1.a@0["a"] 10
+2	set rec1.b@0["b"] 'bbb'
+3	set rec1.c@0["c"] 10e2
+4	set rec1.d@0["d"] 10.12
+5	set rec1.c@0["c"] rec1.d@0["d"]
+DROP PROCEDURE p1;
+DROP TABLE t1;

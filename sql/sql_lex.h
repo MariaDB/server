@@ -3149,6 +3149,9 @@ public:
   bool sp_variable_declarations_with_ref_finalize(THD *thd, int nvars,
                                                   Qualified_column_ident *col,
                                                   Item *def);
+  bool sp_variable_declarations_rowtype_finalize(THD *thd, int nvars,
+                                                 Qualified_column_ident *,
+                                                 Item *def);
   bool sp_handler_declaration_init(THD *thd, int type);
   bool sp_handler_declaration_finalize(THD *thd, int type);
 
@@ -3202,12 +3205,12 @@ public:
       @pos_in_q         - position in the query (for binary log)
       @length_in_q      - length in the query (for binary log)
   */
-  Item_splocal_row_field *create_item_spvar_row_field(THD *thd,
-                                                      const LEX_STRING &var,
-                                                      const LEX_STRING &field,
-                                                      sp_variable *spvar,
-                                                      uint pos_in_q,
-                                                      uint length_in_q);
+  Item_splocal *create_item_spvar_row_field(THD *thd,
+                                            const LEX_STRING &var,
+                                            const LEX_STRING &field,
+                                            sp_variable *spvar,
+                                            uint pos_in_q,
+                                            uint length_in_q);
   /*
     Create an item from its qualified name.
     Depending on context, it can be either a ROW variable field,

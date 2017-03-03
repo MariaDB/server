@@ -1384,6 +1384,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  ROWCOUNT_SYM                  /* Oracle-N   */
 %token  ROW_SYM                       /* SQL-2003-R */
 %token  ROWS_SYM                      /* SQL-2003-R */
+%token  ROWTYPE_SYM                   /* Oracle-PLSQL-R */
 %token  ROW_COUNT_SYM                 /* SQL-2003-N */
 %token  ROW_FORMAT_SYM
 %token  ROW_NUMBER_SYM
@@ -14419,6 +14420,7 @@ keyword_sp:
         | ROLLUP_SYM               {}
         | ROUTINE_SYM              {}
         | ROWCOUNT_SYM             {}
+        | ROWTYPE_SYM              {}
         | ROW_COUNT_SYM            {}
         | ROW_FORMAT_SYM           {}
         | ROW_SYM                  {}

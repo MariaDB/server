@@ -5280,13 +5280,63 @@ bool LEX::sp_variable_declarations_finalize(THD *thd, int nvars,
 
     /* The last instruction is responsible for freeing LEX. */
     sp_instr_set *is= new (this->thd->mem_root)
-                       sp_instr_set(sphead->instructions(),
-                                    spcont, var_idx, dflt_value_item,
-                                    spvar->field_def.sql_type, this, last);
+                      sp_instr_set(sphead->instructions(),
+                                   spcont, var_idx, dflt_value_item,
+                                   this, last);
     if (is == NULL || sphead->add_instr(is))
       return true;
   }
 
+  spcont->declare_var_boundary(0);
+  return sphead->restore_lex(thd);
+}
+
+
+bool
+LEX::sp_variable_declarations_rowtype_finalize(THD *thd, int nvars,
+                                               Qualified_column_ident *ref,
+                                               Item *def)
+{
+  uint num_vars= spcont->context_var_count();
+
+  if (!def && !(def= new (thd->mem_root) Item_null(thd)))
+    return true;
+
+  for (uint i= num_vars - nvars; i < num_vars; i++)
+  {
+    bool last= i == num_vars - 1;
+    uint var_idx= spcont->var_context2runtime(i);
+    sp_variable *spvar= spcont->find_context_variable(i);
+    /*
+      When parsing a qualified identifier chain, the parser does not know yet
+      if it's going to be a qualified column name (for %TYPE),
+      or a qualified table name (for %ROWTYPE). So it collects the chain
+      into Qualified_column_ident.
+      Now we know that it was actually a qualified table name (%ROWTYPE).
+      Create a new Table_ident from Qualified_column_ident,
+      shifting fields as follows:
+      - ref->m_column becomes table_ref->table
+      - ref->table    becomes table_ref->db
+    */
+    Table_ident *table_ref;
+    if (!(table_ref= new (thd->mem_root) Table_ident(thd,
+                                                     ref->table,
+                                                     ref->m_column,
+                                                     false)))
+      return true;
+    spvar->field_def.set_table_rowtype_ref(table_ref);
+    spvar->field_def.field_name= spvar->name.str;
+    spvar->default_value= def;
+    /* The last instruction is responsible for freeing LEX. */
+    sp_instr_set *is= new (this->thd->mem_root)
+                      sp_instr_set(sphead->instructions(),
+                                   spcont, var_idx, def,
+                                   this, last);
+    if (is == NULL || sphead->add_instr(is))
+      return true;
+  }
+  // Make sure sp_rcontext is created using the invoker security context:
+  sphead->m_flags|= sp_head::HAS_COLUMN_TYPE_REFS;
   spcont->declare_var_boundary(0);
   return sphead->restore_lex(thd);
 }
@@ -6114,12 +6164,12 @@ Item *LEX::create_item_ident_nospvar(THD *thd,
 }
 
 
-Item_splocal_row_field *LEX::create_item_spvar_row_field(THD *thd,
-                                                         const LEX_STRING &a,
-                                                         const LEX_STRING &b,
-                                                         sp_variable *spv,
-                                                         uint pos_in_q,
-                                                         uint length_in_q)
+Item_splocal *LEX::create_item_spvar_row_field(THD *thd,
+                                               const LEX_STRING &a,
+                                               const LEX_STRING &b,
+                                               sp_variable *spv,
+                                               uint pos_in_q,
+                                               uint length_in_q)
 {
   if (!parsing_options.allows_variable)
   {
@@ -6127,17 +6177,28 @@ Item_splocal_row_field *LEX::create_item_spvar_row_field(THD *thd,
     return NULL;
   }
 
-  uint row_field_offset;
-  const Spvar_definition *def;
-  if (!(def= spv->find_row_field(a, b, &row_field_offset)))
-    return NULL;
+  Item_splocal *item;
+  if (spv->field_def.is_table_rowtype_ref())
+  {
+    if (!(item= new (thd->mem_root)
+                Item_splocal_row_field_by_name(thd, a, b, spv->offset,
+                                               MYSQL_TYPE_NULL,
+                                               pos_in_q, length_in_q)))
+      return NULL;
+  }
+  else
+  {
+    uint row_field_offset;
+    const Spvar_definition *def;
+    if (!(def= spv->find_row_field(a, b, &row_field_offset)))
+      return NULL;
 
-  Item_splocal_row_field *item;
-  if (!(item= new (thd->mem_root)
-              Item_splocal_row_field(thd, a, b,
-                                     spv->offset, row_field_offset,
-                                     def->sql_type, pos_in_q, length_in_q)))
-    return NULL;
+    if (!(item= new (thd->mem_root)
+                Item_splocal_row_field(thd, a, b,
+                                       spv->offset, row_field_offset,
+                                       def->sql_type, pos_in_q, length_in_q)))
+      return NULL;
+  }
 #ifndef DBUG_OFF
   item->m_sp= sphead;
 #endif
@@ -6298,7 +6359,7 @@ Item *LEX::create_item_ident_sp(THD *thd, LEX_STRING name,
                                                               spv->offset,
                                                               start_in_q,
                                                               length_in_q) :
-      spv->field_def.is_row() ?
+      spv->field_def.is_row() || spv->field_def.is_table_rowtype_ref() ?
       new (thd->mem_root) Item_splocal_row(thd, name, spv->offset,
                                            start_in_q, length_in_q) :
       new (thd->mem_root) Item_splocal(thd, name,
@@ -6345,6 +6406,10 @@ bool LEX::set_variable(const LEX_STRING &name1,
   sp_variable *spv;
   if (spcont && (spv= spcont->find_variable(name1, false)))
   {
+    if (spv->field_def.is_table_rowtype_ref())
+      return sphead->set_local_variable_row_field_by_name(thd, spcont,
+                                                          spv, name2,
+                                                          item, this);
     // A field of a ROW variable
     uint row_field_offset;
     return !spv->find_row_field(name1, name2, &row_field_offset) ||

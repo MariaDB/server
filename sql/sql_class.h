@@ -5376,6 +5376,10 @@ class Qualified_column_ident: public Table_ident
 public:
   LEX_STRING m_column;
 public:
+  Qualified_column_ident(const LEX_STRING column)
+   :Table_ident(null_lex_str),
+    m_column(column)
+  { }
   Qualified_column_ident(const LEX_STRING table, const LEX_STRING column)
    :Table_ident(table),
     m_column(column)

@@ -132,13 +132,11 @@ bool sp_rcontext::init_var_table(THD *thd,
 */
 static inline bool
 check_column_grant_for_type_ref(THD *thd, TABLE_LIST *table_list,
-                                const Qualified_column_ident *col)
+                                const char *str, size_t length)
 {
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
   table_list->table->grant.want_privilege= SELECT_ACL;
-  return check_column_grant_in_table_ref(thd, table_list,
-                                         col->m_column.str,
-                                         col->m_column.length);
+  return check_column_grant_in_table_ref(thd, table_list, str, length);
 #else
   return false;
 #endif
@@ -175,7 +173,9 @@ bool sp_rcontext::resolve_type_ref(THD *thd, Column_definition *def,
   {
     if ((src= lex.query_tables->table->find_field_by_name(ref->m_column.str)))
     {
-      if (!(rc= check_column_grant_for_type_ref(thd, table_list, ref)))
+      if (!(rc= check_column_grant_for_type_ref(thd, table_list,
+                                                ref->m_column.str,
+                                                ref->m_column.length)))
       {
         *def= Column_definition(thd, src, NULL/*No defaults,no constraints*/);
         def->flags&= (uint) ~NOT_NULL_FLAG;
@@ -184,6 +184,54 @@ bool sp_rcontext::resolve_type_ref(THD *thd, Column_definition *def,
     }
     else
       my_error(ER_BAD_FIELD_ERROR, MYF(0), ref->m_column.str, ref->table.str);
+  }
+
+  lex.unit.cleanup();
+  thd->temporary_tables= NULL; // Avoid closing temporary tables
+  close_thread_tables(thd);
+  thd->lex= save_lex;
+  thd->restore_backup_open_tables_state(&open_tables_state_backup);
+  return rc;
+}
+
+
+bool sp_rcontext::resolve_table_rowtype_ref(THD *thd,
+                                            Row_definition_list &defs,
+                                            Table_ident *ref)
+{
+  Open_tables_backup open_tables_state_backup;
+  thd->reset_n_backup_open_tables_state(&open_tables_state_backup);
+
+  TABLE_LIST *table_list;
+  LEX *save_lex= thd->lex;
+  bool rc= true;
+
+  sp_lex_local lex(thd, thd->lex);
+  thd->lex= &lex;
+
+  lex.context_analysis_only= CONTEXT_ANALYSIS_ONLY_VIEW;
+  // Make %ROWTYPE variables see temporary tables that shadow permanent tables
+  thd->temporary_tables= open_tables_state_backup.temporary_tables;
+
+  if ((table_list= lex.select_lex.add_table_to_list(thd, ref, NULL, 0,
+                                                    TL_READ_NO_INSERT,
+                                                    MDL_SHARED_READ)) &&
+      !check_table_access(thd, SELECT_ACL, table_list, TRUE, UINT_MAX, FALSE) &&
+      !open_tables_only_view_structure(thd, table_list,
+                                       thd->mdl_context.has_locks()))
+  {
+    for (Field **src= lex.query_tables->table->field; *src; src++)
+    {
+      if ((rc= check_column_grant_for_type_ref(thd, table_list,
+                                               src[0]->field_name,
+                                               strlen(src[0]->field_name))))
+        break;
+      Spvar_definition *def= new (thd->mem_root) Spvar_definition(thd, *src);
+      def->flags&= (uint) ~NOT_NULL_FLAG;
+      if ((rc= def->sp_prepare_create_field(thd, thd->mem_root)))
+        break;
+      defs.push_back(def, thd->mem_root);
+    }
   }
 
   lex.unit.cleanup();
@@ -229,7 +277,16 @@ bool sp_rcontext::init_var_items(THD *thd,
   for (uint idx= 0; idx < num_vars; ++idx, def= it++)
   {
     Field *field= m_var_table->field[idx];
-    if (def->is_row())
+    if (def->is_table_rowtype_ref())
+    {
+      Row_definition_list defs;
+      Item_field_row *item= new (thd->mem_root) Item_field_row(thd, field);
+      if (!(m_var_items[idx]= item) ||
+          resolve_table_rowtype_ref(thd, defs, def->table_rowtype_ref()) ||
+          item->row_create_items(thd, &defs))
+        return true;
+    }
+    else if (def->is_row())
     {
       Item_field_row *item= new (thd->mem_root) Item_field_row(thd, field);
       if (!(m_var_items[idx]= item) ||
@@ -706,7 +763,8 @@ int sp_cursor::fetch(THD *thd, List<sp_variable> *vars)
   }
   if (vars->elements != result.get_field_count() &&
       (vars->elements != 1 ||
-       !vars->head()->field_def.is_row(result.get_field_count())))
+       result.get_field_count() !=
+       thd->spcont->get_item(vars->head()->offset)->cols()))
   {
     my_message(ER_SP_WRONG_NO_OF_FETCH_ARGS,
                ER_THD(thd, ER_SP_WRONG_NO_OF_FETCH_ARGS), MYF(0));
@@ -787,8 +845,11 @@ bool sp_cursor::Select_fetch_into_spvars::
 
 int sp_cursor::Select_fetch_into_spvars::send_data(List<Item> &items)
 {
-  return (spvar_list->elements == 1 &&
-          (spvar_list->head())->field_def.is_row(items.elements)) ?
+  Item *item;
+  return spvar_list->elements == 1 &&
+         (item= thd->spcont->get_item(spvar_list->head()->offset)) &&
+         item->type_handler() == &type_handler_row &&
+         item->cols() == items.elements ?
     thd->spcont->set_variable_row(thd, spvar_list->head()->offset, items) :
     send_data_to_variable_list(*spvar_list, items);
 }

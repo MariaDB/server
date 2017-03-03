@@ -1501,12 +1501,9 @@ Item_sp_variable::Item_sp_variable(THD *thd, char *sp_var_name_str,
 }
 
 
-bool Item_sp_variable::fix_fields(THD *thd, Item **)
+bool Item_sp_variable::fix_fields_from_item(THD *thd, Item **, const Item *it)
 {
-  Item *it;
-
   m_thd= thd; /* NOTE: this must be set before any this_xxx() */
-  it= this_item();
 
   DBUG_ASSERT(it->fixed);
 
@@ -1612,11 +1609,17 @@ Item_splocal::Item_splocal(THD *thd, const LEX_STRING &sp_var_name,
 }
 
 
+bool Item_splocal::fix_fields(THD *thd, Item **ref)
+{
+  return fix_fields_from_item(thd, ref, thd->spcont->get_item(m_var_idx));
+}
+
+
 Item *
 Item_splocal::this_item()
 {
   DBUG_ASSERT(m_sp == m_thd->spcont->sp);
-
+  DBUG_ASSERT(fixed);
   return m_thd->spcont->get_item(m_var_idx);
 }
 
@@ -1624,7 +1627,7 @@ const Item *
 Item_splocal::this_item() const
 {
   DBUG_ASSERT(m_sp == m_thd->spcont->sp);
-
+  DBUG_ASSERT(fixed);
   return m_thd->spcont->get_item(m_var_idx);
 }
 
@@ -1633,7 +1636,7 @@ Item **
 Item_splocal::this_item_addr(THD *thd, Item **)
 {
   DBUG_ASSERT(m_sp == thd->spcont->sp);
-
+  DBUG_ASSERT(fixed);
   return thd->spcont->get_item_addr(m_var_idx);
 }
 
@@ -1729,10 +1732,18 @@ bool Item_splocal::check_cols(uint n)
 }
 
 
+bool Item_splocal_row_field::fix_fields(THD *thd, Item **ref)
+{
+  Item *item= thd->spcont->get_item(m_var_idx)->element_index(m_field_idx);
+  return fix_fields_from_item(thd, ref, item);
+}
+
+
 Item *
 Item_splocal_row_field::this_item()
 {
   DBUG_ASSERT(m_sp == m_thd->spcont->sp);
+  DBUG_ASSERT(fixed);
   return m_thd->spcont->get_item(m_var_idx)->element_index(m_field_idx);
 }
 
@@ -1741,6 +1752,7 @@ const Item *
 Item_splocal_row_field::this_item() const
 {
   DBUG_ASSERT(m_sp == m_thd->spcont->sp);
+  DBUG_ASSERT(fixed);
   return m_thd->spcont->get_item(m_var_idx)->element_index(m_field_idx);
 }
 
@@ -1749,6 +1761,7 @@ Item **
 Item_splocal_row_field::this_item_addr(THD *thd, Item **)
 {
   DBUG_ASSERT(m_sp == thd->spcont->sp);
+  DBUG_ASSERT(fixed);
   return thd->spcont->get_item(m_var_idx)->addr(m_field_idx);
 }
 
@@ -1773,6 +1786,43 @@ bool Item_splocal_row_field::set_value(THD *thd, sp_rcontext *ctx, Item **it)
 }
 
 
+bool Item_splocal_row_field_by_name::fix_fields(THD *thd, Item **it)
+{
+  m_thd= thd;
+  Item *row= m_thd->spcont->get_item(m_var_idx);
+  if (row->element_index_by_name(&m_field_idx, m_field_name))
+  {
+    my_error(ER_ROW_VARIABLE_DOES_NOT_HAVE_FIELD, MYF(0),
+             m_name.str, m_field_name.str);
+    return true;
+  }
+  Item *item= row->element_index(m_field_idx);
+  set_handler(item->type_handler());
+  return fix_fields_from_item(thd, it, item);
+}
+
+
+void Item_splocal_row_field_by_name::print(String *str, enum_query_type)
+{
+  str->reserve(m_name.length + 2 * m_field_name.length + 8);
+  str->append(m_name.str, m_name.length);
+  str->append('.');
+  str->append(m_field_name.str, m_field_name.length);
+  str->append('@');
+  str->append_ulonglong(m_var_idx);
+  str->append("[\"", 2);
+  str->append(m_field_name.str, m_field_name.length);
+  str->append("\"]", 2);
+}
+
+
+bool Item_splocal_row_field_by_name::set_value(THD *thd, sp_rcontext *ctx, Item **it)
+{
+  DBUG_ASSERT(fixed); // Make sure m_field_idx is already set
+  return Item_splocal_row_field::set_value(thd, ctx, it);
+}
+
+
 /*****************************************************************************
   Item_case_expr methods
 *****************************************************************************/
@@ -1781,6 +1831,13 @@ Item_case_expr::Item_case_expr(THD *thd, uint case_expr_id):
   Item_sp_variable(thd, C_STRING_WITH_LEN("case_expr")),
   m_case_expr_id(case_expr_id)
 {
+}
+
+
+bool Item_case_expr::fix_fields(THD *thd, Item **ref)
+{
+  Item *item= thd->spcont->get_case_expr(m_case_expr_id);
+  return fix_fields_from_item(thd, ref, item);
 }
 
 
@@ -7395,6 +7452,26 @@ void Item_field::print(String *str, enum_query_type query_type)
     return;
   }
   Item_ident::print(str, query_type);
+}
+
+
+bool Item_field_row::element_index_by_name(uint *idx,
+                                           const LEX_STRING &name) const
+{
+  Field *field;
+  for (uint i= 0; (field= get_row_field(i)); i++)
+  {
+    // Use the same comparison style with sp_context::find_variable()
+    if (!my_strnncoll(system_charset_info,
+                      (const uchar *) field->field_name,
+                      strlen(field->field_name),
+                      (const uchar *) name.str, name.length))
+    {
+      *idx= i;
+      return false;
+    }
+  }
+  return true;
 }
 
 
