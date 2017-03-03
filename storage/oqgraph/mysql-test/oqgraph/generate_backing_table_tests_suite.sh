@@ -45,7 +45,8 @@ done
 # Intended to be run from build as ../storage/oqgraph/mysql-test/oqgraph/maintainer-general-record.sh
 
 MGFILE=maintainer-general-record.sh
-echo '# This is a maintainer generated file. Generated at '`date`'.' > $MGFILE
+echo '#!/bin/sh' > $MGFILE
+echo '# This is a maintainer generated file. Generated at '`date`'.' >> $MGFILE
 for ENGINE in $ENGINES $ENGINES2 ; do
   echo mysql-test/mysql-test-run --record oqgraph.general-$ENGINE >> $MGFILE
 done

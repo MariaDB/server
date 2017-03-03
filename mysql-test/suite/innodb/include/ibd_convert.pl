@@ -1,4 +1,3 @@
-#!/usr/bin/perl
 # Convert tablespace flags to the format understood by MariaDB 10.1.0..10.1.20,
 # with the assumption that the flags were correct.
 
