@@ -10,7 +10,7 @@ table_name	t1
 select table_schema, table_name, engine, version from information_schema.tables where table_name like 't1';
 table_schema	test
 table_name	t1
-engine	NULL
+engine	ARCHIVE
 version	NULL
 Warnings:
 Level	Warning
@@ -19,7 +19,7 @@ Message	Unknown storage engine 'ARCHIVE'
 select table_schema, table_name, engine, row_format from information_schema.tables where table_name like 't1';
 table_schema	test
 table_name	t1
-engine	NULL
+engine	ARCHIVE
 row_format	NULL
 Warnings:
 Level	Warning
