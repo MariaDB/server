@@ -36,6 +36,7 @@ GRANT SELECT (a) ON test1.t2 TO role1;
 --connect(foo_node_1,127.0.0.1,foo,,test,$port_1,)
 
 --let $port_2= \$NODE_MYPORT_2
+--sleep 1
 --connect(foo_node_2,127.0.0.1,foo,,test,$port_2,)
 
 --echo
@@ -107,7 +108,7 @@ CALL test1.pr1();
 --echo
 --echo # Connect with foo_node_2
 --connection foo_node_2
-
+--sleep 1
 --error ER_PROCACCESS_DENIED_ERROR
 CALL test1.pr1();
 

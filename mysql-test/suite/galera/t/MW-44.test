@@ -8,9 +8,11 @@
 --connection node_1
 TRUNCATE TABLE mysql.general_log;
 
+--sleep 1
 --connection node_2
 TRUNCATE TABLE mysql.general_log;
 
+--sleep 1
 --connection node_1
 SET SESSION wsrep_osu_method=TOI;
 CREATE TABLE t1 (f1 INTEGER) ENGINE=InnoDB;
