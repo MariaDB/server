@@ -8,9 +8,7 @@
 set global innodb_monitor_disable = All;
 # Test turn on/off the monitor counter  with "all" option
 # By default, they will be off.
-# Skip the adaptive_hash fields, because they depend on WITH_INNODB_AHI.
-select name, status from information_schema.innodb_metrics
-where name NOT LIKE 'adaptive_hash_%';
+select name, status from information_schema.innodb_metrics;
 
 # Turn on all monitor counters
 set global innodb_monitor_enable = all;

@@ -1,6 +1,5 @@
 set global innodb_monitor_disable = All;
-select name, status from information_schema.innodb_metrics
-where name NOT LIKE 'adaptive_hash_%';
+select name, status from information_schema.innodb_metrics;
 name	status
 metadata_table_handles_opened	disabled
 metadata_table_handles_closed	disabled
@@ -194,6 +193,14 @@ index_page_merge_successful	disabled
 index_page_reorg_attempts	disabled
 index_page_reorg_successful	disabled
 index_page_discards	disabled
+adaptive_hash_searches	disabled
+adaptive_hash_searches_btree	disabled
+adaptive_hash_pages_added	disabled
+adaptive_hash_pages_removed	disabled
+adaptive_hash_rows_added	disabled
+adaptive_hash_rows_removed	disabled
+adaptive_hash_rows_deleted_no_hash_entry	disabled
+adaptive_hash_rows_updated	disabled
 file_num_open_files	disabled
 ibuf_merges_insert	disabled
 ibuf_merges_delete_mark	disabled
