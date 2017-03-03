@@ -4140,7 +4140,11 @@ fil_extend_space_to_desired_size(
 			= (start_page_no - file_start_page_no) * page_size;
 		ib_int64_t	len
 			= (size_after_extend - start_page_no) * page_size;
-		int err = posix_fallocate(node->handle, start_offset, len);
+		int err;
+		do {
+			err = posix_fallocate(node->handle, start_offset, len);
+		} while (err == EINTR
+			 && srv_shutdown_state == SRV_SHUTDOWN_NONE);
 
 		success = !err;
 

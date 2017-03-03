@@ -2032,7 +2032,11 @@ os_file_set_size(
 
 #ifdef HAVE_POSIX_FALLOCATE
 	if (srv_use_posix_fallocate) {
-		int err = posix_fallocate(file, 0, desired_size);
+		int err;
+		do {
+			err = posix_fallocate(file, 0, desired_size);
+		} while (err == EINTR
+			 && srv_shutdown_state == SRV_SHUTDOWN_NONE);
 		if (err) {
 			fprintf(stderr,
 				"InnoDB: Error: preallocating %lld bytes for"
