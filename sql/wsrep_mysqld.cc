@@ -571,27 +571,17 @@ int wsrep_init()
       size_t const node_addr_len= strlen(node_addr);
       if (node_addr_len > 0)
       {
-        const char* const colon= strrchr(node_addr, ':');
-        if (strchr(node_addr, ':') == colon) // 1 or 0 ':'
+        size_t const ip_len= wsrep_host_len(node_addr, node_addr_len);
+        if (ip_len + 7 /* :55555\0 */ < inc_addr_max)
         {
-          size_t const ip_len= colon ? colon - node_addr : node_addr_len;
-          if (ip_len + 7 /* :55555\0 */ < inc_addr_max)
-          {
-            memcpy (inc_addr, node_addr, ip_len);
-            snprintf(inc_addr + ip_len, inc_addr_max - ip_len, ":%u",
-                     (int)mysqld_port);
-          }
-          else
-          {
-            WSREP_WARN("Guessing address for incoming client connections: "
-                       "address too long.");
-            inc_addr[0]= '\0';
-          }
+          memcpy (inc_addr, node_addr, ip_len);
+          snprintf(inc_addr + ip_len, inc_addr_max - ip_len, ":%u",
+                   (int)mysqld_port);
         }
         else
         {
           WSREP_WARN("Guessing address for incoming client connections: "
-                     "too many colons :) .");
+                     "address too long.");
           inc_addr[0]= '\0';
         }
       }

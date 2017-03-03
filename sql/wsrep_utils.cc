@@ -554,3 +554,18 @@ size_t wsrep_guess_ip (char* buf, size_t buf_len)
 
   return 0;
 }
+
+/* returns the length of the host part of the address string */
+size_t wsrep_host_len(const char* const addr, size_t const addr_len)
+{
+  // check for IPv6 notation first
+  const char* const bracket= ('[' == addr[0] ? strchr(addr, ']') : NULL);
+
+  if (bracket) { // IPv6
+    return (bracket - addr + 1);
+  }
+  else { // host part ends at ':' or end of string
+    const char* const colon= strchr(addr, ':');
+    return (colon ? colon - addr : addr_len);
+  }
+}
