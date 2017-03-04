@@ -37,7 +37,7 @@
 #endif
 
 static int phase = 0;
-static int phases_total = 6;
+static const int phases_total = 7;
 static char mysql_path[FN_REFLEN];
 static char mysqlcheck_path[FN_REFLEN];
 
@@ -68,6 +68,8 @@ static char *default_dbug_option= (char*) "d:t:O,/tmp/mysql_upgrade.trace";
 static char **defaults_argv;
 
 static my_bool not_used; /* Can't use GET_BOOL without a value pointer */
+
+char upgrade_from_version[sizeof("10.20.456-MariaDB")+1];
 
 static my_bool opt_write_binlog;
 
@@ -675,7 +677,6 @@ static int upgrade_already_done(void)
 {
   FILE *in;
   char upgrade_info_file[FN_REFLEN]= {0};
-  char buf[sizeof(MYSQL_SERVER_VERSION)+1];
 
   if (get_upgrade_info_file_name(upgrade_info_file))
     return 0; /* Could not get filename => not sure */
@@ -683,15 +684,15 @@ static int upgrade_already_done(void)
   if (!(in= my_fopen(upgrade_info_file, O_RDONLY, MYF(0))))
     return 0; /* Could not open file => not sure */
 
-  bzero(buf, sizeof(buf));
-  if (!fgets(buf, sizeof(buf), in))
+  bzero(upgrade_from_version, sizeof(upgrade_from_version));
+  if (!fgets(upgrade_from_version, sizeof(upgrade_from_version), in))
   {
     /* Ignore, will be detected by strncmp() below */
   }
 
   my_fclose(in, MYF(0));
 
-  return (strncmp(buf, MYSQL_SERVER_VERSION,
+  return (strncmp(upgrade_from_version, MYSQL_SERVER_VERSION,
                   sizeof(MYSQL_SERVER_VERSION)-1)==0);
 }
 
@@ -924,24 +925,48 @@ static void print_line(char* line)
   fputc('\n', stderr);
 }
 
+static my_bool from_before_10_1()
+{
+  my_bool ret= TRUE;
+  DYNAMIC_STRING ds_events_struct;
+
+  if (upgrade_from_version[0])
+  {
+    return upgrade_from_version[1] == '.' ||
+           strncmp(upgrade_from_version, "10.1.", 5) < 0;
+  }
+
+  if (init_dynamic_string(&ds_events_struct, NULL, 2048, 2048))
+    die("Out of memory");
+
+  if (run_query("show create table mysql.user", &ds_events_struct, FALSE) ||
+      strstr(ds_events_struct.str, "default_role") != NULL)
+    ret= FALSE;
+  else
+    verbose("Upgrading from a version before MariaDB-10.1");
+
+  dynstr_free(&ds_events_struct);
+  return ret;
+}
+
 
 /*
   Check for entries with "Unknown storage engine" in I_S.TABLES,
   try to load plugins for these tables if available (MDEV-11942)
 */
-static int run_mysqlcheck_engines(void)
+static int install_used_engines(void)
 {
-  DYNAMIC_STRING ds_query;
+  char buf[512];
   DYNAMIC_STRING ds_result;
+  const char *query = "SELECT DISTINCT LOWER(engine) FROM information_schema.tables"
+                      " WHERE table_comment LIKE 'Unknown storage engine%'";
 
-  /* Trying to identify existing tables with unknown storage engine
-     Does not work with all engine types yet, and doesn't produce
-     results for BLACKHOLE without the dummy "WHERE row_format IS NULL"
-     condition yet. See MDEV-11943 */
-  const char *query = "SELECT DISTINCT LOWER(REPLACE(REPLACE(table_comment, 'Unknown storage engine ', ''), '\\'', '')) AS engine FROM information_schema.tables WHERE row_format IS NULL AND table_comment LIKE 'Unknown storage engine%'";
-
-  if (init_dynamic_string(&ds_query, "", 512, 512))
-    die("Out of memory");
+  if (opt_systables_only || !from_before_10_1())
+  {
+    verbose("Phase %d/%d: Installing used storage engines... Skipped", ++phase, phases_total);
+    return 0;
+  }
+  verbose("Phase %d/%d: Installing used storage engines", ++phase, phases_total);
 
   if (init_dynamic_string(&ds_result, "", 512, 512))
     die("Out of memory");
@@ -950,24 +975,28 @@ static int run_mysqlcheck_engines(void)
 
   run_query(query, &ds_result, TRUE);
 
+  if (ds_result.length)
   {
-    char *line= ds_result.str;
-    if (line && *line) {
-      do
-      {
-        line[strlen(line)-1]='\0';
-        verbose("installing missing plugin for '%s' storage engine", line);
+    char *line= ds_result.str, *next=get_line(line);
+    do
+    {
+      if (next[-1] == '\n')
+        next[-1]=0;
 
-        dynstr_set(&ds_query, "INSTALL SONAME 'ha_");
-        dynstr_append(&ds_query, line); // we simply assume SONAME=ha_ENGINENAME
-        dynstr_append(&ds_query, "'");
+      verbose("installing plugin for '%s' storage engine", line);
 
-        if (run_query(ds_query.str, NULL, TRUE)) {
-          fprintf(stderr, "... can't install plugin 'ha_%s'\n", line);
-        }
-      } while ((line= get_line(line)) && *line);
-    }
+      // we simply assume soname=ha_enginename
+      strxnmov(buf, sizeof(buf)-1, "install soname 'ha_", line, "'", NULL);
+
+
+      if (run_query(buf, NULL, TRUE))
+        fprintf(stderr, "... can't %s\n", buf);
+      line=next;
+      next=get_line(line);
+    } while (*line);
   }
+  dynstr_free(&ds_result);
+  return 0;
 }
 
 
@@ -1176,8 +1205,8 @@ int main(int argc, char **argv)
   /*
     Run "mysqlcheck" and "mysql_fix_privilege_tables.sql"
   */
-  if (run_mysqlcheck_engines() ||
-      run_mysqlcheck_upgrade(TRUE) ||
+  if (run_mysqlcheck_upgrade(TRUE) ||
+      install_used_engines() ||
       run_mysqlcheck_views() ||
       run_sql_fix_privilege_tables() ||
       run_mysqlcheck_fixnames() ||
@@ -1200,4 +1229,3 @@ end:
   my_end(my_end_arg);
   exit(0);
 }
-
