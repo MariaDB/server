@@ -1,0 +1,4 @@
+--source include/have_tokudb.inc
+
+SET default_storage_engine=TokuDB;
+--source include/percona_kill_idle_trx.inc
