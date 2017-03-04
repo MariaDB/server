@@ -223,4 +223,6 @@ create or replace table t1 (
 A int
 ) without system versioning without system versioning;
 ERROR HY000: Wrong parameters for `t1`: Versioning specified more than once for the same table
+create or replace table t1 (a int) with system versioning;
+create temporary table tmp with system versioning select * from t1;
 drop table t1;

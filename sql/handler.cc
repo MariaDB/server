@@ -6724,7 +6724,8 @@ bool Vers_parse_info::check_and_fix_implicit(
       generated_as_row.start || generated_as_row.end ||
       period_for_system_time.start || period_for_system_time.end;
 
-  if (with == 0 && (not_set == 0 || !table_with_system_versioning))
+  if (!thd->lex->tmp_table() && with == 0 &&
+      (not_set == 0 || !table_with_system_versioning))
   {
     my_error(ER_VERS_WRONG_PARAMS, MYF(0), table_name,
              "versioned fields missing");
