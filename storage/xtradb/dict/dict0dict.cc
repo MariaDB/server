@@ -6269,6 +6269,20 @@ dict_table_schema_check(
 
 			return(DB_ERROR);
 		}
+
+		/* check whether column has the same COMPRESSED attriute */
+		if ((req_schema->columns[i].prtype_mask & DATA_COMPRESSED) !=
+			(table->cols[j].prtype & DATA_COMPRESSED)) {
+
+			ut_snprintf(errstr, errstr_sz,
+				"Column %s in table %s has "
+				"unexpected COMPRESSED attribute.",
+				req_schema->columns[i].name,
+				ut_format_name(req_schema->table_name,
+					TRUE, buf, sizeof(buf)));
+
+			return(DB_ERROR);
+		}
 	}
 
 	if (req_schema->n_foreign != table->foreign_set.size()) {

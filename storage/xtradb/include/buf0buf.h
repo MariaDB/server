@@ -242,8 +242,7 @@ buf_relocate(
 	buf_page_t*	bpage,	/*!< in/out: control block being relocated;
 				buf_page_get_state(bpage) must be
 				BUF_BLOCK_ZIP_DIRTY or BUF_BLOCK_ZIP_PAGE */
-	buf_page_t*	dpage)	/*!< in/out: destination control block */
-	MY_ATTRIBUTE((nonnull));
+	buf_page_t*	dpage);	/*!< in/out: destination control block */
 /*********************************************************************//**
 Gets the current size of buffer buf_pool in bytes.
 @return	size in bytes */
@@ -728,7 +727,7 @@ buf_page_print(
 	ulint		flags)		/*!< in: 0 or
 					BUF_PAGE_PRINT_NO_CRASH or
 					BUF_PAGE_PRINT_NO_FULL */
-	UNIV_COLD MY_ATTRIBUTE((nonnull));
+	UNIV_COLD;
 /********************************************************************//**
 Decompress a block.
 @return	TRUE if successful */

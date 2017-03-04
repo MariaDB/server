@@ -2057,6 +2057,7 @@ innobase_start_or_create_for_mysql(void)
 
 	fsp_init();
 	log_init();
+	log_online_init();
 
 	lock_sys_create(srv_lock_table_size);
 
@@ -2362,6 +2363,8 @@ files_checked:
 
 	trx_sys_create();
 
+	bool srv_monitor_thread_started = false;
+
 	if (create_new_db) {
 
 		ut_a(!srv_read_only_mode);
@@ -2436,6 +2439,20 @@ files_checked:
 		this point there will be only ONE page in the buf_LRU
 		and there must be no page in the buf_flush list. */
 		buf_pool_invalidate();
+
+		/* Start monitor thread early enough so that e.g. crash
+		recovery failing to find free pages in the buffer pool is
+		diagnosed. */
+		if (!srv_read_only_mode)
+		{
+			/* Create the thread which prints InnoDB monitor
+			info */
+			os_thread_create(
+				srv_monitor_thread,
+				NULL, thread_ids + 4 + SRV_MAX_N_IO_THREADS);
+
+			srv_monitor_thread_started = true;
+		}
 
 		/* We always try to do a recovery, even if the database had
 		been shut down normally: this is the normal startup path */
@@ -2697,9 +2714,14 @@ files_checked:
 			NULL, thread_ids + 3 + SRV_MAX_N_IO_THREADS);
 
 		/* Create the thread which prints InnoDB monitor info */
-		os_thread_create(
-			srv_monitor_thread,
-			NULL, thread_ids + 4 + SRV_MAX_N_IO_THREADS);
+		if (!srv_monitor_thread_started) {
+
+			os_thread_create(
+				srv_monitor_thread,
+				NULL, thread_ids + 4 + SRV_MAX_N_IO_THREADS);
+
+			srv_monitor_thread_started = true;
+		}
 	}
 
 	/* Create the SYS_FOREIGN and SYS_FOREIGN_COLS system tables */
@@ -3083,6 +3105,7 @@ innobase_shutdown_for_mysql(void)
 	btr_search_disable();
 
 	ibuf_close();
+	log_online_shutdown();
 	log_shutdown();
 	trx_sys_file_format_close();
 	trx_sys_close();

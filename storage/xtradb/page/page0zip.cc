@@ -527,7 +527,8 @@ page_zip_fields_encode(
 			const dict_col_t*	column
 				= dict_field_get_col(field);
 
-			if (UNIV_UNLIKELY(column->len > 255)
+			if (UNIV_UNLIKELY(column->len > 255 -
+				prtype_get_compression_extra(column->prtype))
 			    || UNIV_UNLIKELY(column->mtype == DATA_BLOB)) {
 				val |= 0x7e; /* max > 255 bytes */
 			}

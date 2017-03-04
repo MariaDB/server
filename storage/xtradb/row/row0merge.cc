@@ -3791,8 +3791,8 @@ wait_again:
 					for (j = 0; j < FTS_NUM_AUX_INDEX;
 					     j++) {
 
-					    os_thread_join(merge_info[j]
-							   .thread_hdl);
+						os_thread_join(merge_info[j]
+							       .thread_hdl);
 					}
 				}
 			} else {

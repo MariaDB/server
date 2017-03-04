@@ -1001,50 +1001,15 @@ next_file:
 	char*		full_path;
 	int		ret;
 	struct stat	statinfo;
-#ifdef HAVE_READDIR_R
-	char		dirent_buf[sizeof(struct dirent)
-				   + _POSIX_PATH_MAX + 100];
-	/* In /mysys/my_lib.c, _POSIX_PATH_MAX + 1 is used as
-	the max file name len; but in most standards, the
-	length is NAME_MAX; we add 100 to be even safer */
-#endif
 
 next_file:
 
-#ifdef HAVE_READDIR_R
-	ret = readdir_r(dir, (struct dirent*) dirent_buf, &ent);
-
-	if (ret != 0
-#ifdef UNIV_AIX
-	    /* On AIX, only if we got non-NULL 'ent' (result) value and
-	    a non-zero 'ret' (return) value, it indicates a failed
-	    readdir_r() call. An NULL 'ent' with an non-zero 'ret'
-	    would indicate the "end of the directory" is reached. */
-	    && ent != NULL
-#endif
-	   ) {
-		fprintf(stderr,
-			"InnoDB: cannot read directory %s, error %lu\n",
-			dirname, (ulong) ret);
-
-		return(-1);
-	}
-
-	if (ent == NULL) {
-		/* End of directory */
-
-		return(1);
-	}
-
-	ut_a(strlen(ent->d_name) < _POSIX_PATH_MAX + 100 - 1);
-#else
 	ent = readdir(dir);
 
 	if (ent == NULL) {
 
 		return(1);
 	}
-#endif
 	ut_a(strlen(ent->d_name) < OS_FILE_MAX_PATH);
 
 	if (strcmp(ent->d_name, ".") == 0 || strcmp(ent->d_name, "..") == 0) {
@@ -1368,7 +1333,11 @@ os_file_set_nocache_if_needed(os_file_t file, const char* name,
 		&& (srv_unix_file_flush_method == SRV_UNIX_O_DIRECT
 		    || (srv_unix_file_flush_method
 			== SRV_UNIX_O_DIRECT_NO_FSYNC))))
-		os_file_set_nocache(file, name, mode_str);
+		/* Do fsync() on log files when setting O_DIRECT fails.
+		See log_io_complete() */
+		if (!os_file_set_nocache(file, name, mode_str)
+		    && srv_unix_file_flush_method == SRV_UNIX_ALL_O_DIRECT)
+			srv_unix_file_flush_method = SRV_UNIX_O_DIRECT;
 }
 
 /****************************************************************//**
@@ -1537,9 +1506,10 @@ os_file_create_simple_no_error_handling_func(
 }
 
 /****************************************************************//**
-Tries to disable OS caching on an opened file descriptor. */
+Tries to disable OS caching on an opened file descriptor.
+@return TRUE if operation is success and FALSE otherwise */
 UNIV_INTERN
-void
+bool
 os_file_set_nocache(
 /*================*/
 	int		fd		/*!< in: file descriptor to alter */
@@ -1560,6 +1530,7 @@ os_file_set_nocache(
 			"Failed to set DIRECTIO_ON on file %s: %s: %s, "
 			"continuing anyway.",
 			file_name, operation_name, strerror(errno_save));
+		return false;
 	}
 #elif defined(O_DIRECT)
 	if (fcntl(fd, F_SETFL, O_DIRECT) == -1) {
@@ -1590,8 +1561,10 @@ short_warning:
 				"continuing anyway.",
 				file_name, operation_name, strerror(errno_save));
 		}
+		return false;
 	}
 #endif /* defined(UNIV_SOLARIS) && defined(DIRECTIO_ON) */
+	return true;
 }
 
 /****************************************************************//**

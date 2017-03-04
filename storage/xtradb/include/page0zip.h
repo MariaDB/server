@@ -132,7 +132,7 @@ page_zip_compress(
 	dict_index_t*	index,	/*!< in: index of the B-tree node */
 	ulint		level,	/*!< in: compression level */
 	mtr_t*		mtr)	/*!< in: mini-transaction, or NULL */
-	MY_ATTRIBUTE((nonnull(1,2,3)));
+	MY_ATTRIBUTE((warn_unused_result));
 
 /**********************************************************************//**
 Decompress a page.  This function should tolerate errors on the compressed
@@ -424,8 +424,7 @@ page_zip_reorganize(
 				out: data, n_blobs,
 				m_start, m_end, m_nonempty */
 	dict_index_t*	index,	/*!< in: index of the B-tree node */
-	mtr_t*		mtr)	/*!< in: mini-transaction */
-	MY_ATTRIBUTE((nonnull));
+	mtr_t*		mtr);	/*!< in: mini-transaction */
 #ifndef UNIV_HOTBACKUP
 /**********************************************************************//**
 Copy the records of a page byte for byte.  Do not copy the page header
@@ -458,7 +457,7 @@ page_zip_parse_compress(
 	byte*		end_ptr,/*!< in: buffer end */
 	page_t*		page,	/*!< out: uncompressed page */
 	page_zip_des_t*	page_zip)/*!< out: compressed page */
-	MY_ATTRIBUTE((nonnull(1,2)));
+	MY_ATTRIBUTE((warn_unused_result));
 
 #endif /* !UNIV_INNOCHECKSUM */
 
