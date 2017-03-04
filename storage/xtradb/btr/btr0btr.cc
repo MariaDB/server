@@ -3400,7 +3400,7 @@ Removes a page from the level list of pages.
 
 /*************************************************************//**
 Removes a page from the level list of pages. */
-static MY_ATTRIBUTE((nonnull))
+static
 void
 btr_level_list_remove_func(
 /*=======================*/
