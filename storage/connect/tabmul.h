@@ -134,7 +134,7 @@ class TDBDIR : public TDBASE {
   int  iFile;                   // Index of currently retrieved file
 #if defined(__WIN__)
   _finddata_t    FileData;      // Find data structure
-  int  Hsearch;                 // Search handle
+  intptr_t Hsearch;             // Search handle
   char Drive[_MAX_DRIVE];       // Drive name
 #else   // !__WIN__
   struct stat    Fileinfo;      // File info structure
@@ -184,7 +184,7 @@ class TDBSDR : public TDBDIR {
     struct _Sub_Dir *Next;
     struct _Sub_Dir *Prev;
 #if defined(__WIN__)
-    int H;               // Search handle
+    intptr_t H;               // Search handle
 #else   // !__WIN__
     DIR *D;
 #endif  // !__WIN__

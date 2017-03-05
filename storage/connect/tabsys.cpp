@@ -1,9 +1,9 @@
 /************* TabSys C++ Program Source Code File (.CPP) **************/
 /* PROGRAM NAME: TABSYS                                                */
 /* -------------                                                       */
-/*  Version 2.3                                                        */
+/*  Version 2.4                                                        */
 /*                                                                     */
-/*  Author Olivier BERTRAND                           2004-2015        */
+/*  Author Olivier BERTRAND                           2004-2017        */
 /*                                                                     */
 /*  This program are the INI/CFG tables classes.                       */
 /***********************************************************************/
@@ -511,12 +511,20 @@ void INICOL::WriteColumn(PGLOBAL g)
 
   if (strlen(p) > (unsigned)Long) {
     sprintf(g->Message, MSG(VALUE_TOO_LONG), p, Name, Long);
-    longjmp(g->jumper[g->jump_level], 31);
-  } else if (Flag == 1) {
+#if defined(USE_TRY)
+		throw 31;
+#else   // !USE_TRY
+		longjmp(g->jumper[g->jump_level], 31);
+#endif  // !USE_TRY
+	} else if (Flag == 1) {
     if (tdbp->Mode == MODE_UPDATE) {
       strcpy(g->Message, MSG(NO_SEC_UPDATE));
-      longjmp(g->jumper[g->jump_level], 31);
-    } else if (*p) {
+#if defined(USE_TRY)
+			throw 31;
+#else   // !USE_TRY
+			longjmp(g->jumper[g->jump_level], 31);
+#endif  // !USE_TRY
+		} else if (*p) {
       tdbp->Section = p;
     } else
       tdbp->Section = NULL;
@@ -524,8 +532,12 @@ void INICOL::WriteColumn(PGLOBAL g)
     return;
   } else if (!tdbp->Section) {
     strcpy(g->Message, MSG(SEC_NAME_FIRST));
-    longjmp(g->jumper[g->jump_level], 31);
-  } // endif's
+#if defined(USE_TRY)
+		throw 31;
+#else   // !USE_TRY
+		longjmp(g->jumper[g->jump_level], 31);
+#endif  // !USE_TRY
+	} // endif's
 
   /*********************************************************************/
   /*  Updating must be done only when not in checking pass.            */
@@ -536,8 +548,12 @@ void INICOL::WriteColumn(PGLOBAL g)
     if (!rc) {
       sprintf(g->Message, "Error %d writing to %s", 
                           GetLastError(), tdbp->Ifile);
-      longjmp(g->jumper[g->jump_level], 31);
-      } // endif rc
+#if defined(USE_TRY)
+			throw 31;
+#else   // !USE_TRY
+			longjmp(g->jumper[g->jump_level], 31);
+#endif  // !USE_TRY
+		} // endif rc
 
     } // endif Status
 
@@ -837,12 +853,20 @@ void XINCOL::WriteColumn(PGLOBAL g)
 
   if (strlen(p) > (unsigned)Long) {
     sprintf(g->Message, MSG(VALUE_TOO_LONG), p, Name, Long);
-    longjmp(g->jumper[g->jump_level], 31);
-  } else if (Flag == 1) {
+#if defined(USE_TRY)
+		throw 31;
+#else   // !USE_TRY
+		longjmp(g->jumper[g->jump_level], 31);
+#endif  // !USE_TRY
+	} else if (Flag == 1) {
     if (tdbp->Mode == MODE_UPDATE) {
       strcpy(g->Message, MSG(NO_SEC_UPDATE));
-      longjmp(g->jumper[g->jump_level], 31);
-    } else if (*p) {
+#if defined(USE_TRY)
+			throw 31;
+#else   // !USE_TRY
+			longjmp(g->jumper[g->jump_level], 31);
+#endif  // !USE_TRY
+		} else if (*p) {
       tdbp->Section = p;
     } else
       tdbp->Section = NULL;
@@ -851,8 +875,12 @@ void XINCOL::WriteColumn(PGLOBAL g)
   } else if (Flag == 2) {
     if (tdbp->Mode == MODE_UPDATE) {
       strcpy(g->Message, MSG(NO_KEY_UPDATE));
-      longjmp(g->jumper[g->jump_level], 31);
-    } else if (*p) {
+#if defined(USE_TRY)
+			throw 31;
+#else   // !USE_TRY
+			longjmp(g->jumper[g->jump_level], 31);
+#endif  // !USE_TRY
+		} else if (*p) {
       tdbp->Keycur = p;
     } else
       tdbp->Keycur = NULL;
@@ -860,8 +888,12 @@ void XINCOL::WriteColumn(PGLOBAL g)
     return;
   } else if (!tdbp->Section || !tdbp->Keycur) {
     strcpy(g->Message, MSG(SEC_KEY_FIRST));
-    longjmp(g->jumper[g->jump_level], 31);
-  } // endif's
+#if defined(USE_TRY)
+		throw 31;
+#else   // !USE_TRY
+		longjmp(g->jumper[g->jump_level], 31);
+#endif  // !USE_TRY
+	} // endif's
 
   /*********************************************************************/
   /*  Updating must be done only when not in checking pass.            */
@@ -872,8 +904,12 @@ void XINCOL::WriteColumn(PGLOBAL g)
     if (!rc) {
       sprintf(g->Message, "Error %d writing to %s", 
                           GetLastError(), tdbp->Ifile);
-      longjmp(g->jumper[g->jump_level], 31);
-      } // endif rc
+#if defined(USE_TRY)
+			throw 31;
+#else   // !USE_TRY
+			longjmp(g->jumper[g->jump_level], 31);
+#endif  // !USE_TRY
+		} // endif rc
 
     } // endif Status
 

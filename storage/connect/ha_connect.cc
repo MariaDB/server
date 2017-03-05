@@ -1895,40 +1895,62 @@ int ha_connect::OpenTable(PGLOBAL g, bool del)
 bool ha_connect::CheckColumnList(PGLOBAL g)
 {
   // Check the list of used fields (columns)
-  int        rc;
   bool       brc= false;
   PCOL       colp;
   Field*    *field;
   Field*     fp;
   MY_BITMAP *map= table->read_set;
 
-  // Save stack and allocation environment and prepare error return
-  if (g->jump_level == MAX_JUMP) {
-    strcpy(g->Message, MSG(TOO_MANY_JUMPS));
-    return true;
-    } // endif jump_level
+#if defined(USE_TRY)
+	try {
+#else   // !USE_TRY
+	// Save stack and allocation environment and prepare error return
+	if (g->jump_level == MAX_JUMP) {
+		strcpy(g->Message, MSG(TOO_MANY_JUMPS));
+		return true;
+	} // endif jump_level
 
-  if ((rc= setjmp(g->jumper[++g->jump_level])) == 0) {
+	if (!setjmp(g->jumper[++g->jump_level])) {
+#endif  // !USE_TRY
     for (field= table->field; fp= *field; field++)
       if (bitmap_is_set(map, fp->field_index)) {
         if (!(colp= tdbp->ColDB(g, (PSZ)fp->field_name, 0))) {
           sprintf(g->Message, "Column %s not found in %s", 
                   fp->field_name, tdbp->GetName());
-          brc= true;
-          goto fin;
-          } // endif colp
+#if defined(USE_TRY)
+					throw 1;
+#else   // !USE_TRY
+					brc = true;
+					goto fin;
+#endif  // !USE_TRY
+				} // endif colp
 
         if ((brc= colp->InitValue(g)))
-          goto fin;
+#if defined(USE_TRY)
+					throw 2;
+#else   // !USE_TRY
+					goto fin;
+#endif  // !USE_TRY
 
         colp->AddColUse(U_P);           // For PLG tables
         } // endif
 
-  } else
-    brc= true;
+#if defined(USE_TRY)
+	} catch (int n) {
+		if (trace)
+			htrc("Exception %d: %s\n", n, g->Message);
+		brc = true;
+	} catch (const char *msg) {
+		strcpy(g->Message, msg);
+		brc = true;
+	} // end catch
+#else   // !USE_TRY
+	    } else
+		    brc = true;
 
- fin:
-  g->jump_level--;
+	fin:
+		g->jump_level--;
+#endif  // !USE_TRY
   return brc;
 } // end of CheckColumnList
 
@@ -3054,7 +3076,6 @@ const COND *ha_connect::cond_push(const COND *cond)
   DBUG_ENTER("ha_connect::cond_push");
 
   if (tdbp) {
-    int      rc;
     PGLOBAL& g= xp->g;
     AMT      tty= tdbp->GetAmType();
     bool     x= (tty == TYPE_AM_MYX || tty == TYPE_AM_XDBC);
@@ -3062,15 +3083,19 @@ const COND *ha_connect::cond_push(const COND *cond)
                  tty == TYPE_AM_TBL || tty == TYPE_AM_MYSQL ||
 								 tty == TYPE_AM_PLG || tty == TYPE_AM_JDBC  || x);
 
-    // Save stack and allocation environment and prepare error return
-    if (g->jump_level == MAX_JUMP) {
-      strcpy(g->Message, MSG(TOO_MANY_JUMPS));
-      DBUG_RETURN(cond);      
-      } // endif jump_level
+		// This should never happen but is done to avoid crashing
+#if defined(USE_TRY)
+		try {
+#else   // !USE_TRY
+		// Save stack and allocation environment and prepare error return
+		if (g->jump_level == MAX_JUMP) {
+			strcpy(g->Message, MSG(TOO_MANY_JUMPS));
+			DBUG_RETURN(cond);
+		} // endif jump_level
 
-    // This should never happen but is done to avoid crashing
-    if ((rc= setjmp(g->jumper[++g->jump_level])) != 0)
-      goto fin;
+		if (setjmp(g->jumper[++g->jump_level]))
+			goto fin;
+#endif  // !USE_TRY
 
     if (b) {
 			PCFIL filp;
@@ -3078,7 +3103,7 @@ const COND *ha_connect::cond_push(const COND *cond)
 
 			if ((filp= tdbp->GetCondFil()) &&	filp->Cond == cond && 
 				   filp->Idx == active_index && filp->Type == tty)
-				goto fin;   // Already done
+				goto fin;
 
       filp= new(g) CONDFIL(cond, active_index, tty);
 			rc = filp->Init(g, this);
@@ -3111,9 +3136,20 @@ const COND *ha_connect::cond_push(const COND *cond)
     } else if (tty != TYPE_AM_JSN && tty != TYPE_AM_JSON)
       tdbp->SetFilter(CondFilter(g, (Item *)cond));
 
-   fin:
-    g->jump_level--;
-    } // endif tdbp
+#if defined(USE_TRY)
+		} catch (int n) {
+			if (trace)
+				htrc("Exception %d: %s\n", n, g->Message);
+		} catch (const char *msg) {
+			strcpy(g->Message, msg);
+		} // end catch
+
+	fin:;
+#else   // !USE_TRY
+	fin:
+		g->jump_level--;
+#endif  // !USE_TRY
+  } // endif tdbp
 
   // Let MySQL do the filtering
   DBUG_RETURN(cond);
@@ -3263,6 +3299,22 @@ int ha_connect::optimize(THD* thd, HA_CHECK_OPT*)
   PGLOBAL& g= xp->g;
   PDBUSER  dup= PlgGetUser(g);
 
+#if defined(USE_TRY)
+	try {
+#else   // !USE_TRY
+	//  Prepare error return
+	if (g->jump_level == MAX_JUMP) {
+		strcpy(g->Message, MSG(TOO_MANY_JUMPS));
+		rc = HA_ERR_INTERNAL_ERROR;
+		goto err;
+	} // endif
+
+	if (setjmp(g->jumper[++g->jump_level])) {
+		rc = HA_ERR_INTERNAL_ERROR;
+		goto err;
+	} // endif setjmp
+#endif  // !USE_TRY
+
   // Ignore error on the opt file
   dup->Check &= ~CHK_OPT;
   tdbp= GetTDB(g);
@@ -3283,6 +3335,20 @@ int ha_connect::optimize(THD* thd, HA_CHECK_OPT*)
 
 	} else if (!tdbp)
     rc= HA_ERR_INTERNAL_ERROR;
+
+#if defined(USE_TRY)
+	} catch (int n) {
+		if (trace)
+			htrc("Exception %d: %s\n", n, g->Message);
+		rc = HA_ERR_INTERNAL_ERROR;
+	} catch (const char *msg) {
+		strcpy(g->Message, msg);
+		rc = HA_ERR_INTERNAL_ERROR;
+	} // end catch
+#else   // !USE_TRY
+err:
+	g->jump_level--;
+#endif  // !USE_TRY
 
   return rc;
 } // end of optimize
@@ -5292,7 +5358,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
   if (topt->oplist) {
     host= GetListOption(g, "host", topt->oplist, "localhost");
     user= GetListOption(g, "user", topt->oplist, 
-                       (ttp == TAB_ODBC ? NULL : "root"));
+          ((ttp == TAB_ODBC || ttp == TAB_JDBC) ? NULL : "root"));
     // Default value db can come from the DBNAME=xxx option.
     db= GetListOption(g, "database", topt->oplist, db);
     col= GetListOption(g, "colist", topt->oplist, col);
@@ -5329,22 +5395,26 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 #endif   // ZIP_SUPPORT
 	} else {
     host= "localhost";
-    user= (ttp == TAB_ODBC ? NULL : "root");
+    user= ((ttp == TAB_ODBC || ttp == TAB_JDBC) ? NULL : "root");
   } // endif option_list
 
   if (!(shm= (char*)db))
     db= table_s->db.str;                   // Default value
 
+#if defined(USE_TRY)
+	try {
+#else   // !USE_TRY
 	// Save stack and allocation environment and prepare error return
 	if (g->jump_level == MAX_JUMP) {
 		strcpy(g->Message, MSG(TOO_MANY_JUMPS));
 		goto jer;
 	} // endif jump_level
 
-	if ((rc= setjmp(g->jumper[++g->jump_level])) != 0) {
-		my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
+	if (setjmp(g->jumper[++g->jump_level]) != 0) {
+		rc = HA_ERR_INTERNAL_ERROR;
 		goto err;
 	} // endif rc
+#endif  // !USE_TRY
 
 	// Check table type
   if (ttp == TAB_UNDEF) {
@@ -5354,7 +5424,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
     push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 0, g->Message);
   } else if (ttp == TAB_NIY) {
     sprintf(g->Message, "Unsupported table type %s", topt->type);
-    my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
+		rc = HA_ERR_INTERNAL_ERROR;
 		goto err;
   } // endif ttp
 
@@ -5365,8 +5435,8 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 
       if (!tbl) {
         strcpy(g->Message, "Missing table list");
-        my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
-        goto err;
+				rc = HA_ERR_INTERNAL_ERROR;
+				goto err;
         } // endif tbl
 
       tab= PlugDup(g, tbl);
@@ -5558,320 +5628,320 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
   if (src && fnc != FNC_NO) {
     strcpy(g->Message, "Cannot make catalog table from srcdef");
     ok= false;
-    } // endif src
+  } // endif src
 
-  if (ok) {
-    char   *cnm, *rem, *dft, *xtra, *key, *fmt;
-    int     i, len, prec, dec, typ, flg;
+	if (ok) {
+		char   *cnm, *rem, *dft, *xtra, *key, *fmt;
+		int     i, len, prec, dec, typ, flg;
 
-//  if (cat)
-//    cat->SetDataPath(g, table_s->db.str);
-//  else
-//    return HA_ERR_INTERNAL_ERROR;           // Should never happen
+		//  if (cat)
+		//    cat->SetDataPath(g, table_s->db.str);
+		//  else
+		//    return HA_ERR_INTERNAL_ERROR;           // Should never happen
 
-    dpath= SetPath(g, table_s->db.str);
+		dpath = SetPath(g, table_s->db.str);
 
 		if (src && ttp != TAB_PIVOT && ttp != TAB_ODBC && ttp != TAB_JDBC) {
-      qrp= SrcColumns(g, host, db, user, pwd, src, port);
+			qrp = SrcColumns(g, host, db, user, pwd, src, port);
 
-      if (qrp && ttp == TAB_OCCUR)
-        if (OcrSrcCols(g, qrp, col, ocl, rnk)) {
-          my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
-          goto err;
-          } // endif OcrSrcCols
+			if (qrp && ttp == TAB_OCCUR)
+				if (OcrSrcCols(g, qrp, col, ocl, rnk)) {
+					rc = HA_ERR_INTERNAL_ERROR;
+					goto err;
+				} // endif OcrSrcCols
 
-    } else switch (ttp) {
-      case TAB_DBF:
-        qrp= DBFColumns(g, dpath, fn, fnc == FNC_COL);
-        break;
+		} else switch (ttp) {
+			case TAB_DBF:
+				qrp = DBFColumns(g, dpath, fn, fnc == FNC_COL);
+				break;
 #if defined(ODBC_SUPPORT)
-      case TAB_ODBC:
-        switch (fnc) {
-          case FNC_NO:
-          case FNC_COL:
-            if (src) {
-              qrp= ODBCSrcCols(g, dsn, (char*)src, sop); 
-              src= NULL;     // for next tests
-            } else
-              qrp= ODBCColumns(g, dsn, shm, tab, NULL, 
-                               mxr, fnc == FNC_COL, sop);
+			case TAB_ODBC:
+				switch (fnc) {
+					case FNC_NO:
+					case FNC_COL:
+						if (src) {
+							qrp = ODBCSrcCols(g, dsn, (char*)src, sop);
+							src = NULL;     // for next tests
+						} else
+							qrp = ODBCColumns(g, dsn, shm, tab, NULL,
+								mxr, fnc == FNC_COL, sop);
 
-            break;
-          case FNC_TABLE:
-            qrp= ODBCTables(g, dsn, shm, tab, NULL, mxr, true, sop);
-            break;
-          case FNC_DSN:
-            qrp= ODBCDataSources(g, mxr, true);
-            break;
-          case FNC_DRIVER:
-            qrp= ODBCDrivers(g, mxr, true);
-            break;
-          default:
-            sprintf(g->Message, "invalid catfunc %s", fncn);
-            break;
-        } // endswitch info
+						break;
+					case FNC_TABLE:
+						qrp = ODBCTables(g, dsn, shm, tab, NULL, mxr, true, sop);
+						break;
+					case FNC_DSN:
+						qrp = ODBCDataSources(g, mxr, true);
+						break;
+					case FNC_DRIVER:
+						qrp = ODBCDrivers(g, mxr, true);
+						break;
+					default:
+						sprintf(g->Message, "invalid catfunc %s", fncn);
+						break;
+				} // endswitch info
 
-        break;
+				break;
 #endif   // ODBC_SUPPORT
 #if defined(JDBC_SUPPORT)
 			case TAB_JDBC:
 				switch (fnc) {
-				case FNC_NO:
-				case FNC_COL:
-					if (src) {
-						qrp= JDBCSrcCols(g, (char*)src, sjp);
-						src= NULL;     // for next tests
-					} else
-						qrp= JDBCColumns(g, shm, tab, NULL, mxr, fnc == FNC_COL, sjp);
+					case FNC_NO:
+					case FNC_COL:
+						if (src) {
+							qrp = JDBCSrcCols(g, (char*)src, sjp);
+							src = NULL;     // for next tests
+						} else
+							qrp = JDBCColumns(g, shm, tab, NULL, mxr, fnc == FNC_COL, sjp);
 
-					break;
-				case FNC_TABLE:
-					qrp= JDBCTables(g, shm, tab, tabtyp, mxr, true, sjp);
-					break;
+						break;
+					case FNC_TABLE:
+						qrp = JDBCTables(g, shm, tab, tabtyp, mxr, true, sjp);
+						break;
 #if 0
-				case FNC_DSN:
-					qrp= JDBCDataSources(g, mxr, true);
-					break;
+					case FNC_DSN:
+						qrp = JDBCDataSources(g, mxr, true);
+						break;
 #endif // 0
-				case FNC_DRIVER:
-					qrp= JDBCDrivers(g, mxr, true);
-					break;
-				default:
-					sprintf(g->Message, "invalid catfunc %s", fncn);
-					break;
+					case FNC_DRIVER:
+						qrp = JDBCDrivers(g, mxr, true);
+						break;
+					default:
+						sprintf(g->Message, "invalid catfunc %s", fncn);
+						break;
 				} // endswitch info
 
 				break;
 #endif   // JDBC_SUPPORT
 			case TAB_MYSQL:
-        qrp= MyColumns(g, thd, host, db, user, pwd, tab,
-                       NULL, port, fnc == FNC_COL);
-        break;
-      case TAB_CSV:
+				qrp = MyColumns(g, thd, host, db, user, pwd, tab,
+					NULL, port, fnc == FNC_COL);
+				break;
+			case TAB_CSV:
 				qrp = CSVColumns(g, dpath, topt, fnc == FNC_COL);
-        break;
+				break;
 #if defined(__WIN__)
-      case TAB_WMI:
-        qrp= WMIColumns(g, nsp, cls, fnc == FNC_COL);
-        break;
+			case TAB_WMI:
+				qrp = WMIColumns(g, nsp, cls, fnc == FNC_COL);
+				break;
 #endif   // __WIN__
-      case TAB_PRX:
-      case TAB_TBL:
-      case TAB_XCL:
-      case TAB_OCCUR:
-        bif= fnc == FNC_COL;
-        qrp= TabColumns(g, thd, db, tab, bif);
+			case TAB_PRX:
+			case TAB_TBL:
+			case TAB_XCL:
+			case TAB_OCCUR:
+				bif = fnc == FNC_COL;
+				qrp = TabColumns(g, thd, db, tab, bif);
 
-        if (!qrp && bif && fnc != FNC_COL)         // tab is a view
-          qrp= MyColumns(g, thd, host, db, user, pwd, tab, NULL, port, false);
+				if (!qrp && bif && fnc != FNC_COL)         // tab is a view
+					qrp = MyColumns(g, thd, host, db, user, pwd, tab, NULL, port, false);
 
-        if (qrp && ttp == TAB_OCCUR && fnc != FNC_COL)
-          if (OcrColumns(g, qrp, col, ocl, rnk)) {
-            my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
-            goto err;
-            } // endif OcrColumns
+				if (qrp && ttp == TAB_OCCUR && fnc != FNC_COL)
+					if (OcrColumns(g, qrp, col, ocl, rnk)) {
+						rc = HA_ERR_INTERNAL_ERROR;
+						goto err;
+					} // endif OcrColumns
 
-        break;
+				break;
 #if defined(PIVOT_SUPPORT)
-      case TAB_PIVOT:
-        qrp= PivotColumns(g, tab, src, pic, fcl, skc, host, db, user, pwd, port);
-        break;
+			case TAB_PIVOT:
+				qrp = PivotColumns(g, tab, src, pic, fcl, skc, host, db, user, pwd, port);
+				break;
 #endif   // PIVOT_SUPPORT
-      case TAB_VIR:
-        qrp= VirColumns(g, fnc == FNC_COL);
-        break;
-      case TAB_JSON:
-        qrp= JSONColumns(g, (char*)db, topt, fnc == FNC_COL);
-        break;
+			case TAB_VIR:
+				qrp = VirColumns(g, fnc == FNC_COL);
+				break;
+			case TAB_JSON:
+				qrp = JSONColumns(g, (char*)db, topt, fnc == FNC_COL);
+				break;
 #if defined(LIBXML2_SUPPORT) || defined(DOMDOC_SUPPORT)
-      case TAB_XML:
-        qrp= XMLColumns(g, (char*)db, tab, topt, fnc == FNC_COL);
-        break;
+			case TAB_XML:
+				qrp = XMLColumns(g, (char*)db, tab, topt, fnc == FNC_COL);
+				break;
 #endif   // LIBXML2_SUPPORT  ||         DOMDOC_SUPPORT
-      case TAB_OEM:
-        qrp= OEMColumns(g, topt, tab, (char*)db, fnc == FNC_COL);
-        break;
-      default:
-        strcpy(g->Message, "System error during assisted discovery");
-        break;
-      } // endswitch ttp
+			case TAB_OEM:
+				qrp = OEMColumns(g, topt, tab, (char*)db, fnc == FNC_COL);
+				break;
+			default:
+				strcpy(g->Message, "System error during assisted discovery");
+				break;
+		} // endswitch ttp
 
-    if (!qrp) {
-      my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
-      goto err;
-      } // endif !qrp
+		if (!qrp) {
+			rc = HA_ERR_INTERNAL_ERROR;
+			goto err;
+		} // endif !qrp
 
-    if (fnc != FNC_NO || src || ttp == TAB_PIVOT) {
-      // Catalog like table
-      for (crp= qrp->Colresp; !rc && crp; crp= crp->Next) {
-        cnm= (ttp == TAB_PIVOT) ? crp->Name : encode(g, crp->Name);
-        typ= crp->Type;
-        len= crp->Length;
-        dec= crp->Prec;
-        flg= crp->Flag;
-        v= (crp->Kdata->IsUnsigned()) ? 'U' : crp->Var;
-				tm= (crp->Kdata->IsNullable()) ? 0 : NOT_NULL_FLAG;
+		if (fnc != FNC_NO || src || ttp == TAB_PIVOT) {
+			// Catalog like table
+			for (crp = qrp->Colresp; !rc && crp; crp = crp->Next) {
+				cnm = (ttp == TAB_PIVOT) ? crp->Name : encode(g, crp->Name);
+				typ = crp->Type;
+				len = crp->Length;
+				dec = crp->Prec;
+				flg = crp->Flag;
+				v = (crp->Kdata->IsUnsigned()) ? 'U' : crp->Var;
+				tm = (crp->Kdata->IsNullable()) ? 0 : NOT_NULL_FLAG;
 
-        if (!len && typ == TYPE_STRING)
-          len= 256;      // STRBLK's have 0 length
+				if (!len && typ == TYPE_STRING)
+					len = 256;      // STRBLK's have 0 length
 
-        // Now add the field
-        if (add_field(&sql, cnm, typ, len, dec, NULL, tm,
-                      NULL, NULL, NULL, NULL, flg, dbf, v))
-          rc= HA_ERR_OUT_OF_MEM;
-      } // endfor crp
+				// Now add the field
+				if (add_field(&sql, cnm, typ, len, dec, NULL, tm,
+					NULL, NULL, NULL, NULL, flg, dbf, v))
+					rc = HA_ERR_OUT_OF_MEM;
+			} // endfor crp
 
-    } else {
-      char *schem= NULL;
-			char *tn= NULL;
+		} else {
+			char *schem = NULL;
+			char *tn = NULL;
 
-      // Not a catalog table
-      if (!qrp->Nblin) {
-        if (tab)
-          sprintf(g->Message, "Cannot get columns from %s", tab);
-        else
-          strcpy(g->Message, "Fail to retrieve columns");
+			// Not a catalog table
+			if (!qrp->Nblin) {
+				if (tab)
+					sprintf(g->Message, "Cannot get columns from %s", tab);
+				else
+					strcpy(g->Message, "Fail to retrieve columns");
 
-        my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
-        goto err;
-        } // endif !nblin
+				rc = HA_ERR_INTERNAL_ERROR;
+				goto err;
+			} // endif !nblin
 
-      for (i= 0; !rc && i < qrp->Nblin; i++) {
-        typ= len= prec= dec= 0;
-        tm= NOT_NULL_FLAG;
-        cnm= (char*)"noname";
-        dft= xtra= key= fmt= tn= NULL;
-        v= ' ';
-        rem= NULL;
+			for (i = 0; !rc && i < qrp->Nblin; i++) {
+				typ = len = prec = dec = 0;
+				tm = NOT_NULL_FLAG;
+				cnm = (char*)"noname";
+				dft = xtra = key = fmt = tn = NULL;
+				v = ' ';
+				rem = NULL;
 
-        for (crp= qrp->Colresp; crp; crp= crp->Next)
-          switch (crp->Fld) {
-            case FLD_NAME:
-              if (ttp == TAB_PRX || 
-                 (ttp == TAB_CSV && topt->data_charset &&
-                 (!stricmp(topt->data_charset, "UTF8") ||
-                  !stricmp(topt->data_charset, "UTF-8"))))
-                cnm= crp->Kdata->GetCharValue(i);
-              else
-                cnm= encode(g, crp->Kdata->GetCharValue(i));
+				for (crp = qrp->Colresp; crp; crp = crp->Next)
+					switch (crp->Fld) {
+						case FLD_NAME:
+							if (ttp == TAB_PRX ||
+								(ttp == TAB_CSV && topt->data_charset &&
+								(!stricmp(topt->data_charset, "UTF8") ||
+									!stricmp(topt->data_charset, "UTF-8"))))
+								cnm = crp->Kdata->GetCharValue(i);
+							else
+								cnm = encode(g, crp->Kdata->GetCharValue(i));
 
-              break;
-            case FLD_TYPE:
-              typ= crp->Kdata->GetIntValue(i);
-              v = (crp->Nulls) ? crp->Nulls[i] : 0;
-              break;
+							break;
+						case FLD_TYPE:
+							typ = crp->Kdata->GetIntValue(i);
+							v = (crp->Nulls) ? crp->Nulls[i] : 0;
+							break;
 						case FLD_TYPENAME:
-							tn= crp->Kdata->GetCharValue(i);
+							tn = crp->Kdata->GetCharValue(i);
 							break;
 						case FLD_PREC:
-              // PREC must be always before LENGTH
-              len= prec= crp->Kdata->GetIntValue(i);
-              break;
-            case FLD_LENGTH:
-              len= crp->Kdata->GetIntValue(i);
-              break;
-            case FLD_SCALE:
+							// PREC must be always before LENGTH
+							len = prec = crp->Kdata->GetIntValue(i);
+							break;
+						case FLD_LENGTH:
+							len = crp->Kdata->GetIntValue(i);
+							break;
+						case FLD_SCALE:
 							dec = (!crp->Kdata->IsNull(i)) ? crp->Kdata->GetIntValue(i) : -1;
-              break;
-            case FLD_NULL:
-              if (crp->Kdata->GetIntValue(i))
-                tm= 0;               // Nullable
+							break;
+						case FLD_NULL:
+							if (crp->Kdata->GetIntValue(i))
+								tm = 0;               // Nullable
 
-              break;
-            case FLD_FORMAT:
-              fmt= (crp->Kdata) ? crp->Kdata->GetCharValue(i) : NULL;
-              break;
-            case FLD_REM:
-              rem= crp->Kdata->GetCharValue(i);
-              break;
-//          case FLD_CHARSET:
-              // No good because remote table is already translated
-//            if (*(csn= crp->Kdata->GetCharValue(i)))
-//              cs= get_charset_by_name(csn, 0);
+							break;
+						case FLD_FORMAT:
+							fmt = (crp->Kdata) ? crp->Kdata->GetCharValue(i) : NULL;
+							break;
+						case FLD_REM:
+							rem = crp->Kdata->GetCharValue(i);
+							break;
+							//          case FLD_CHARSET:
+														// No good because remote table is already translated
+							//            if (*(csn= crp->Kdata->GetCharValue(i)))
+							//              cs= get_charset_by_name(csn, 0);
 
-//            break;
-            case FLD_DEFAULT:
-              dft= crp->Kdata->GetCharValue(i);
-              break;
-            case FLD_EXTRA:
-              xtra= crp->Kdata->GetCharValue(i);
+							//            break;
+						case FLD_DEFAULT:
+							dft = crp->Kdata->GetCharValue(i);
+							break;
+						case FLD_EXTRA:
+							xtra = crp->Kdata->GetCharValue(i);
 
-              // Auto_increment is not supported yet
-              if (!stricmp(xtra, "AUTO_INCREMENT"))
-                xtra= NULL;
+							// Auto_increment is not supported yet
+							if (!stricmp(xtra, "AUTO_INCREMENT"))
+								xtra = NULL;
 
-              break;
-            case FLD_KEY:
-              if (ttp == TAB_VIR)
-                key= crp->Kdata->GetCharValue(i);
+							break;
+						case FLD_KEY:
+							if (ttp == TAB_VIR)
+								key = crp->Kdata->GetCharValue(i);
 
-              break;
-            case FLD_SCHEM:
+							break;
+						case FLD_SCHEM:
 #if defined(ODBC_SUPPORT) || defined(JDBC_SUPPORT)
-              if ((ttp == TAB_ODBC || ttp == TAB_JDBC) && crp->Kdata) {
-                if (schem && stricmp(schem, crp->Kdata->GetCharValue(i))) {
-                  sprintf(g->Message, 
-                         "Several %s tables found, specify DBNAME", tab);
-                  my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
-                  goto err;
-                } else if (!schem)
-                  schem= crp->Kdata->GetCharValue(i);
+							if ((ttp == TAB_ODBC || ttp == TAB_JDBC) && crp->Kdata) {
+								if (schem && stricmp(schem, crp->Kdata->GetCharValue(i))) {
+									sprintf(g->Message,
+										"Several %s tables found, specify DBNAME", tab);
+									rc = HA_ERR_INTERNAL_ERROR;
+									goto err;
+								} else if (!schem)
+									schem = crp->Kdata->GetCharValue(i);
 
-              } // endif ttp
+							} // endif ttp
 #endif   // ODBC_SUPPORT	||				 JDBC_SUPPORT
-            default:
-              break;                 // Ignore
-            } // endswitch Fld
+						default:
+							break;                 // Ignore
+					} // endswitch Fld
 
 #if defined(ODBC_SUPPORT)
-        if (ttp == TAB_ODBC) {
-          int  plgtyp;
-          bool w= false;            // Wide character type
+				if (ttp == TAB_ODBC) {
+					int  plgtyp;
+					bool w = false;            // Wide character type
 
-          // typ must be PLG type, not SQL type
-          if (!(plgtyp= TranslateSQLType(typ, dec, prec, v, w))) {
-            if (GetTypeConv() == TPC_SKIP) {
-              // Skip this column
-              sprintf(g->Message, "Column %s skipped (unsupported type %d)",
-                      cnm, typ);
-              push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 0, g->Message);
-              continue;
-            } else {
-              sprintf(g->Message, "Unsupported SQL type %d", typ);
-              my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
-              goto err;
-            } // endif type_conv
+					// typ must be PLG type, not SQL type
+					if (!(plgtyp = TranslateSQLType(typ, dec, prec, v, w))) {
+						if (GetTypeConv() == TPC_SKIP) {
+							// Skip this column
+							sprintf(g->Message, "Column %s skipped (unsupported type %d)",
+								cnm, typ);
+							push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 0, g->Message);
+							continue;
+						} else {
+							sprintf(g->Message, "Unsupported SQL type %d", typ);
+							rc = HA_ERR_INTERNAL_ERROR;
+							goto err;
+						} // endif type_conv
 
-          } else
-            typ= plgtyp;
+					} else
+						typ = plgtyp;
 
-          switch (typ) {
-            case TYPE_STRING:
-              if (w) {
-                sprintf(g->Message, "Column %s is wide characters", cnm);
-                push_warning(thd, Sql_condition::WARN_LEVEL_NOTE, 0, g->Message);
-                } // endif w
+					switch (typ) {
+						case TYPE_STRING:
+							if (w) {
+								sprintf(g->Message, "Column %s is wide characters", cnm);
+								push_warning(thd, Sql_condition::WARN_LEVEL_NOTE, 0, g->Message);
+							} // endif w
 
-              break;
-            case TYPE_DOUBLE:
-              // Some data sources do not count dec in length (prec)
-              prec += (dec + 2);        // To be safe
-              break;
-            case TYPE_DECIM:
-              prec= len;
-              break;
-            default:
-              dec= 0;
-            } // endswitch typ
+							break;
+						case TYPE_DOUBLE:
+							// Some data sources do not count dec in length (prec)
+							prec += (dec + 2);        // To be safe
+							break;
+						case TYPE_DECIM:
+							prec = len;
+							break;
+						default:
+							dec = 0;
+					} // endswitch typ
 
-        } else
+				} else
 #endif   // ODBC_SUPPORT
 #if defined(JDBC_SUPPORT)
 					if (ttp == TAB_JDBC) {
 						int  plgtyp;
 
 						// typ must be PLG type, not SQL type
-						if (!(plgtyp= TranslateJDBCType(typ, tn, dec, prec, v))) {
+						if (!(plgtyp = TranslateJDBCType(typ, tn, dec, prec, v))) {
 							if (GetTypeConv() == TPC_SKIP) {
 								// Skip this column
 								sprintf(g->Message, "Column %s skipped (unsupported type %d)",
@@ -5880,55 +5950,73 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 								continue;
 							} else {
 								sprintf(g->Message, "Unsupported SQL type %d", typ);
-								my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
+								rc = HA_ERR_INTERNAL_ERROR;
 								goto err;
 							} // endif type_conv
 
 						} else
-							typ= plgtyp;
+							typ = plgtyp;
 
 						switch (typ) {
-						case TYPE_DOUBLE:
-						case TYPE_DECIM:
-							// Some data sources do not count dec in length (prec)
-							prec += (dec + 2);        // To be safe
-							break;
-						default:
-							dec= 0;
+							case TYPE_DOUBLE:
+							case TYPE_DECIM:
+								// Some data sources do not count dec in length (prec)
+								prec += (dec + 2);        // To be safe
+								break;
+							default:
+								dec = 0;
 						} // endswitch typ
 
 					} else
 #endif   // ODBC_SUPPORT
 						// Make the arguments as required by add_fields
-				if (typ == TYPE_DOUBLE)
-					prec= len;
+						if (typ == TYPE_DOUBLE)
+							prec = len;
 
-				if (typ == TYPE_DATE)
-          prec= 0;
+					if (typ == TYPE_DATE)
+						prec = 0;
 
-        // Now add the field
-        if (add_field(&sql, cnm, typ, prec, dec, key, tm, rem, dft, xtra,
-                      fmt, 0, dbf, v))
-          rc= HA_ERR_OUT_OF_MEM;
-        } // endfor i
+					// Now add the field
+					if (add_field(&sql, cnm, typ, prec, dec, key, tm, rem, dft, xtra,
+						fmt, 0, dbf, v))
+						rc = HA_ERR_OUT_OF_MEM;
+			} // endfor i
 
-    } // endif fnc
+		} // endif fnc
 
-    if (!rc)
-      rc= init_table_share(thd, table_s, create_info, &sql);
+		if (!rc)
+			rc = init_table_share(thd, table_s, create_info, &sql);
 
-    g->jump_level--;
-		PopUser(xp);
-    return rc;
-    } // endif ok
+		//g->jump_level--;
+		//PopUser(xp);
+		//return rc;
+	} else {
+	  rc = HA_ERR_UNSUPPORTED;
+  } // endif ok
 
-  my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
+#if defined(USE_TRY)
+	} catch (int n) {
+		if (trace)
+			htrc("Exception %d: %s\n", n, g->Message);
+		rc = HA_ERR_INTERNAL_ERROR;
+	} catch (const char *msg) {
+		strcpy(g->Message, msg);
+		rc = HA_ERR_INTERNAL_ERROR;
+	} // end catch
 
  err:
+#else   // !USE_TRY
+ err:
   g->jump_level--;
+#endif  // !USE_TRY
+  if (rc)
+    my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
+
+#if !defined(USE_TRY)
  jer:
+#endif   // !USE_TRY
 	PopUser(xp);
-	return HA_ERR_INTERNAL_ERROR;
+	return rc;
 } // end of connect_assisted_discovery
 
 /**

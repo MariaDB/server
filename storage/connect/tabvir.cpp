@@ -1,6 +1,6 @@
 /************* tdbvir C++ Program Source Code File (.CPP) **************/
-/* PROGRAM NAME: tdbvir.cpp  Version 1.1                               */
-/*  (C) Copyright to the author Olivier BERTRAND          2014         */
+/* PROGRAM NAME: tdbvir.cpp  Version 1.2                               */
+/*  (C) Copyright to the author Olivier BERTRAND          2014-2017    */
 /*  This program are the VIR classes DB execution routines.            */
 /***********************************************************************/
 
@@ -289,8 +289,12 @@ void VIRCOL::ReadColumn(PGLOBAL g)
   {
   // This should never be called
   sprintf(g->Message, "ReadColumn: Column %s is not virtual", Name);
-  longjmp(g->jumper[g->jump_level], TYPE_COLBLK);
-  } // end of ReadColumn
+#if defined(USE_TRY)
+	throw TYPE_COLBLK;
+#else   // !USE_TRY
+	longjmp(g->jumper[g->jump_level], TYPE_COLBLK);
+#endif  // !USE_TRY
+} // end of ReadColumn
 
 /* ---------------------------TDBVICL class -------------------------- */
 

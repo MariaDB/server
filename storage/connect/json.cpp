@@ -60,7 +60,7 @@ char *GetExceptionDesc(PGLOBAL g, unsigned int e);
 /***********************************************************************/
 PJSON ParseJson(PGLOBAL g, char *s, int len, int *ptyp, bool *comma)
 {
-	int   i, rc, pretty = (ptyp) ? *ptyp : 3;
+	int   i, pretty = (ptyp) ? *ptyp : 3;
 	bool  b = false, pty[3] = {true, true, true};
   PJSON jsp = NULL;
   STRG  src;
@@ -82,36 +82,40 @@ PJSON ParseJson(PGLOBAL g, char *s, int len, int *ptyp, bool *comma)
 		pty[0] = false;
 
 
-  // Save stack and allocation environment and prepare error return
-  if (g->jump_level == MAX_JUMP) {
-    strcpy(g->Message, MSG(TOO_MANY_JUMPS));
-    return NULL;
-    } // endif jump_level
+#if defined(USE_TRY)
+  try {
+#else   // !USE_TRY
+	// Save stack and allocation environment and prepare error return
+	if (g->jump_level == MAX_JUMP) {
+		strcpy(g->Message, MSG(TOO_MANY_JUMPS));
+		return NULL;
+	} // endif jump_level
 
 #if defined(SE_CATCH)
-	// Let's try to recover from any kind of interrupt
+		// Let's try to recover from any kind of interrupt
 	_se_translator_function f = _set_se_translator(trans_func);
 
 	try {
 #endif   // SE_CATCH  --------------------- try section --------------------
-		if ((rc = setjmp(g->jumper[++g->jump_level])) != 0) {
-			goto err;
+		if (setjmp(g->jumper[++g->jump_level])) {
+			goto fin;
 		} // endif rc
 
 #if defined(SE_CATCH) // ------------- end of try section -----------------
-	} catch (SE_Exception e) {
-		sprintf(g->Message, "ParseJson: exception doing setjmp: %s (rc=%hd)",
-			GetExceptionDesc(g, e.nSE), e.nSE);
-		_set_se_translator(f);
-		goto err;
-	} catch (...) {
-		strcpy(g->Message, "Exception doing setjmp");
-		_set_se_translator(f);
-		goto err;
-	} // end of try-catches
-
+} catch (SE_Exception e) {
+	sprintf(g->Message, "ParseJson: exception doing setjmp: %s (rc=%hd)",
+		GetExceptionDesc(g, e.nSE), e.nSE);
 	_set_se_translator(f);
+	goto err;
+} catch (...) {
+	strcpy(g->Message, "Exception doing setjmp");
+	_set_se_translator(f);
+	goto err;
+} // end of try-catches
+
+_set_se_translator(f);
 #endif   // SE_CATCH
+#endif  // !USE_TRY
 
 	for (i = 0; i < len; i++)
     switch (s[i]) {
@@ -119,14 +123,22 @@ PJSON ParseJson(PGLOBAL g, char *s, int len, int *ptyp, bool *comma)
         if (jsp)
 					goto tryit;
         else if (!(jsp = ParseArray(g, ++i, src, pty)))
-          goto err;
+#if defined(USE_TRY)
+					throw 1;
+#else   // !USE_TRY
+					goto fin;
+#endif  // !USE_TRY
 
         break;
       case '{':
         if (jsp)
 					goto tryit;
 				else if (!(jsp = ParseObject(g, ++i, src, pty)))
-          goto err;
+#if defined(USE_TRY)
+					throw 2;
+#else   // !USE_TRY
+					goto fin;
+#endif  // !USE_TRY
 
         break;
       case ' ':
@@ -144,7 +156,12 @@ PJSON ParseJson(PGLOBAL g, char *s, int len, int *ptyp, bool *comma)
           } // endif pretty
 
         sprintf(g->Message, "Unexpected ',' (pretty=%d)", pretty);
-        goto err;
+#if defined(USE_TRY)
+				throw 3;
+#else   // !USE_TRY
+				jsp = NULL;
+				goto fin;
+#endif  // !USE_TRY
       case '(':
         b = true;
         break;
@@ -158,7 +175,11 @@ PJSON ParseJson(PGLOBAL g, char *s, int len, int *ptyp, bool *comma)
 				if (jsp)
 					goto tryit;
 				else if (!(jsp = ParseValue(g, i, src, pty)))
-					goto err;
+#if defined(USE_TRY)
+					throw 4;
+#else   // !USE_TRY
+				  goto fin;
+#endif  // !USE_TRY
 
 				break;
 	}; // endswitch s[i]
@@ -176,22 +197,36 @@ PJSON ParseJson(PGLOBAL g, char *s, int len, int *ptyp, bool *comma)
 
 	} // endif ptyp
 
-  g->jump_level--;
-  return jsp;
+#if defined(USE_TRY)
+	} catch (int n) {
+		if (trace)
+			htrc("Exception %d: %s\n", n, g->Message);
+		jsp = NULL;
+	} catch (const char *msg) {
+		strcpy(g->Message, msg);
+		jsp = NULL;
+	} // end catch
+
+	return jsp;
+#else   // !USE_TRY
+fin:
+	g->jump_level--;
+	return jsp;
+#endif  // !USE_TRY
 
 tryit:
 	if (pty[0] && (!pretty || pretty > 2)) {
 		if ((jsp = ParseArray(g, (i = 0), src, pty)) && ptyp && pretty == 3)
 			*ptyp = (pty[0]) ? 0 : 3;
 
+#if !defined(USE_TRY)
 		g->jump_level--;
+#endif   // !USE_TRY
 		return jsp;
 	} else
 		strcpy(g->Message, "More than one item in file");
 
-err:
-	g->jump_level--;
-  return NULL;
+	return NULL;
 } // end of ParseJson
 
 /***********************************************************************/
@@ -591,6 +626,9 @@ PSZ Serialize(PGLOBAL g, PJSON jsp, char *fn, int pretty)
 
 	g->Message[0] = 0;
 
+#if defined(USE_TRY)
+	try {
+#else   // !USE_TRY
 	// Save stack and allocation environment and prepare error return
 	if (g->jump_level == MAX_JUMP) {
 		strcpy(g->Message, MSG(TOO_MANY_JUMPS));
@@ -601,11 +639,16 @@ PSZ Serialize(PGLOBAL g, PJSON jsp, char *fn, int pretty)
 		str = NULL;
 		goto fin;
 	} // endif jmp
+#endif  // !USE_TRY
 
 	if (!jsp) {
     strcpy(g->Message, "Null json tree");
-    goto fin;
-  } else if (!fn) {
+#if defined(USE_TRY)
+		throw 1;
+#else   // !USE_TRY
+		goto fin;
+#endif  // !USE_TRY
+	} else if (!fn) {
     // Serialize to a string
     jp = new(g) JOUTSTR(g);
     b = pretty == 1;
@@ -614,7 +657,11 @@ PSZ Serialize(PGLOBAL g, PJSON jsp, char *fn, int pretty)
 			sprintf(g->Message, MSG(OPEN_MODE_ERROR),
 				"w", (int)errno, fn);
 			strcat(strcat(g->Message, ": "), strerror(errno));
-			goto fin;;
+#if defined(USE_TRY)
+			throw 2;
+#else   // !USE_TRY
+			goto fin;
+#endif  // !USE_TRY
 		} else if (pretty >= 2) {
 			// Serialize to a pretty file
 			jp = new(g)JOUTPRT(g, fs);
@@ -655,8 +702,19 @@ PSZ Serialize(PGLOBAL g, PJSON jsp, char *fn, int pretty)
 
   } // endif's
 
+#if defined(USE_TRY)
+} catch (int n) {
+	if (trace)
+		htrc("Exception %d: %s\n", n, g->Message);
+	str = NULL;
+} catch (const char *msg) {
+	strcpy(g->Message, msg);
+	str = NULL;
+} // end catch
+#else   // !USE_TRY
 fin:
 	g->jump_level--;
+#endif  // !USE_TRY
 	return str;
 } // end of Serialize
 

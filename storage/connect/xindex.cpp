@@ -1,7 +1,7 @@
 /***************** Xindex C++ Class Xindex Code (.CPP) *****************/
-/*  Name: XINDEX.CPP  Version 2.9                                      */
+/*  Name: XINDEX.CPP  Version 3.0                                      */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          2004-2015    */
+/*  (C) Copyright to the author Olivier BERTRAND          2004-2017    */
 /*                                                                     */
 /*  This file contains the class XINDEX implementation code.           */
 /***********************************************************************/
@@ -446,8 +446,12 @@ bool XINDEX::Make(PGLOBAL g, PIXDEF sxp)
 #if 0
     if (!dup->Step) {
       strcpy(g->Message, MSG(QUERY_CANCELLED));
-      longjmp(g->jumper[g->jump_level], 99);
-      } // endif Step
+#if defined(USE_TRY)
+			throw 99;
+#else   // !USE_TRY
+			longjmp(g->jumper[g->jump_level], 99);
+#endif  // !USE_TRY
+	} // endif Step
 #endif // 0
 
     /*******************************************************************/

@@ -1,7 +1,7 @@
 /************ Xobject C++ Functions Source Code File (.CPP) ************/
-/*  Name: XOBJECT.CPP  Version 2.4                                     */
+/*  Name: XOBJECT.CPP  Version 2.5                                     */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          1998-2014    */
+/*  (C) Copyright to the author Olivier BERTRAND          1998-2017    */
 /*                                                                     */
 /*  This file contains base XOBJECT class functions.                   */
 /*  Also here is the implementation of the CONSTANT class.             */
@@ -84,7 +84,11 @@ double XOBJECT::GetFloatValue(void)
 CONSTANT::CONSTANT(PGLOBAL g, void *value, short type)
   {
   if (!(Value = AllocateValue(g, value, (int)type)))
-    longjmp(g->jumper[g->jump_level], TYPE_CONST);
+#if defined(USE_TRY)
+		throw TYPE_CONST;
+#else   // !USE_TRY
+		longjmp(g->jumper[g->jump_level], TYPE_CONST);
+#endif  // !USE_TRY
 
   Constant = true;
   } // end of CONSTANT constructor
@@ -95,7 +99,11 @@ CONSTANT::CONSTANT(PGLOBAL g, void *value, short type)
 CONSTANT::CONSTANT(PGLOBAL g, int n)
   {
   if (!(Value = AllocateValue(g, &n, TYPE_INT)))
-    longjmp(g->jumper[g->jump_level], TYPE_CONST);
+#if defined(USE_TRY)
+		throw TYPE_CONST;
+#else   // !USE_TRY
+		longjmp(g->jumper[g->jump_level], TYPE_CONST);
+#endif  // !USE_TRY
 
   Constant = true;
   } // end of CONSTANT constructor
@@ -117,7 +125,11 @@ void CONSTANT::Convert(PGLOBAL g, int newtype)
   {
   if (Value->GetType() != newtype)
     if (!(Value = AllocateValue(g, Value, newtype)))
-      longjmp(g->jumper[g->jump_level], TYPE_CONST);
+#if defined(USE_TRY)
+			throw TYPE_CONST;
+#else   // !USE_TRY
+			longjmp(g->jumper[g->jump_level], TYPE_CONST);
+#endif  // !USE_TRY
 
   } // end of Convert
 

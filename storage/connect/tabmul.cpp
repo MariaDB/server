@@ -958,8 +958,12 @@ void DIRCOL::ReadColumn(PGLOBAL g)
 #endif  // !__WIN__
     default:
       sprintf(g->Message, MSG(INV_DIRCOL_OFST), N);
-      longjmp(g->jumper[g->jump_level], GetAmType());
-    } // endswitch N
+#if defined(USE_TRY)
+			throw GetAmType();
+#else   // !USE_TRY
+			longjmp(g->jumper[g->jump_level], GetAmType());
+#endif  // !USE_TRY
+	} // endswitch N
 
   } // end of ReadColumn
 
@@ -1423,8 +1427,12 @@ void TDBDHR::CloseDB(PGLOBAL g)
   // Close the search handle.
   if (!FindClose(Hsearch)) {
     strcpy(g->Message, MSG(SRCH_CLOSE_ERR));
-    longjmp(g->jumper[g->jump_level], GetAmType());
-    } // endif FindClose
+#if defined(USE_TRY)
+		throw GetAmType();
+#else   // !USE_TRY
+		longjmp(g->jumper[g->jump_level], GetAmType());
+#endif  // !USE_TRY
+	} // endif FindClose
 
   iFile = 0;
   Hsearch = INVALID_HANDLE_VALUE;

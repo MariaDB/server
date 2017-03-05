@@ -1,11 +1,11 @@
 /*********** File AM Txt C++ Program Source Code File (.CPP) ***********/
 /* PROGRAM NAME: FILAMTXT                                              */
 /* -------------                                                       */
-/*  Version 1.6                                                        */
+/*  Version 1.7                                                        */
 /*                                                                     */
 /* COPYRIGHT:                                                          */
 /* ----------                                                          */
-/*  (C) Copyright to the author Olivier BERTRAND          2005-2015    */
+/*  (C) Copyright to the author Olivier BERTRAND          2005-2017    */
 /*                                                                     */
 /* WHAT THIS PROGRAM DOES:                                             */
 /* -----------------------                                             */
@@ -1161,13 +1161,21 @@ int DOSFAM::RenameTempFile(PGLOBAL g)
     if (rename(filename, filetemp)) {    // Save file for security
       sprintf(g->Message, MSG(RENAME_ERROR),
               filename, filetemp, strerror(errno));
-      longjmp(g->jumper[g->jump_level], 51);
-    } else if (rename(tempname, filename)) {
+#if defined(USE_TRY)
+			throw 51;
+#else   // !USE_TRY
+			longjmp(g->jumper[g->jump_level], 51);
+#endif  // !USE_TRY
+		} else if (rename(tempname, filename)) {
       sprintf(g->Message, MSG(RENAME_ERROR),
               tempname, filename, strerror(errno));
       rc = rename(filetemp, filename);   // Restore saved file
-      longjmp(g->jumper[g->jump_level], 52);
-    } else if (remove(filetemp)) {
+#if defined(USE_TRY)
+			throw 52;
+#else   // !USE_TRY
+			longjmp(g->jumper[g->jump_level], 52);
+#endif  // !USE_TRY
+		} else if (remove(filetemp)) {
       sprintf(g->Message, MSG(REMOVE_ERROR),
               filetemp, strerror(errno));
       rc = RC_INFO;                      // Acceptable

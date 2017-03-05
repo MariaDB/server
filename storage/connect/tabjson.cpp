@@ -1,6 +1,6 @@
 /************* tabjson C++ Program Source Code File (.CPP) *************/
-/* PROGRAM NAME: tabjson     Version 1.3                               */
-/*  (C) Copyright to the author Olivier BERTRAND          2014 - 2016  */
+/* PROGRAM NAME: tabjson     Version 1.4                               */
+/*  (C) Copyright to the author Olivier BERTRAND          2014 - 2017  */
 /*  This program are the JSON class DB execution routines.             */
 /***********************************************************************/
 
@@ -168,7 +168,7 @@ PQRYRES JSONColumns(PGLOBAL g, char *db, PTOS topt, bool info)
 		G->Sarea_Size = tdp->Lrecl * 10;
 		G->Sarea = PlugSubAlloc(g, NULL, G->Sarea_Size);
 		PlugSubSet(G, G->Sarea, G->Sarea_Size);
-		G->jump_level = -1;
+		G->jump_level = 0;
 		tjnp->SetG(G);
 #else
 		tjnp->SetG(g);
@@ -478,7 +478,7 @@ PTDB JSONDEF::GetTable(PGLOBAL g, MODE m)
 		G->Sarea_Size = Lrecl * 10;
 		G->Sarea = PlugSubAlloc(g, NULL, G->Sarea_Size);
 		PlugSubSet(G, G->Sarea, G->Sarea_Size);
-		G->jump_level = -1;
+		G->jump_level = 0;
 		((TDBJSN*)tdbp)->G = G;
 #else
 		((TDBJSN*)tdbp)->G = g;
@@ -1289,8 +1289,12 @@ PVAL JSONCOL::ExpandArray(PGLOBAL g, PJAR arp, int n)
 
   if (!(jvp = arp->GetValue((Nodes[n].Rx = Nodes[n].Nx)))) {
     strcpy(g->Message, "Logical error expanding array");
-    longjmp(g->jumper[g->jump_level], 666);
-    } // endif jvp
+#if defined(USE_TRY)
+		throw 666;
+#else   // !USE_TRY
+		longjmp(g->jumper[g->jump_level], 666);
+#endif  // !USE_TRY
+	} // endif jvp
 
   if (n < Nod - 1 && jvp->GetJson()) {
     jval.SetValue(GetColumnValue(g, jvp->GetJson(), n + 1));
@@ -1475,8 +1479,12 @@ void JSONCOL::WriteColumn(PGLOBAL g)
   {
 	if (Xpd && Tjp->Pretty < 2) {
 		strcpy(g->Message, "Cannot write expanded column when Pretty is not 2");
+#if defined(USE_TRY)
+		throw 666;
+#else   // !USE_TRY
 		longjmp(g->jumper[g->jump_level], 666);
-	  }	// endif Xpd
+#endif  // !USE_TRY
+	}	// endif Xpd
 
   /*********************************************************************/
   /*  Check whether this node must be written.                         */
@@ -1510,8 +1518,12 @@ void JSONCOL::WriteColumn(PGLOBAL g)
 
         if (!(jsp = ParseJson(G, s, (int)strlen(s)))) {
           strcpy(g->Message, s);
-          longjmp(g->jumper[g->jump_level], 666);
-          } // endif jsp
+#if defined(USE_TRY)
+					throw 666;
+#else   // !USE_TRY
+					longjmp(g->jumper[g->jump_level], 666);
+#endif  // !USE_TRY
+				} // endif jsp
 
         if (arp) {
           if (Nod > 1 && Nodes[Nod-2].Op == OP_EQ)

@@ -1,11 +1,11 @@
 /************* TabVct C++ Program Source Code File (.CPP) **************/
 /* PROGRAM NAME: TABVCT                                                */
 /* -------------                                                       */
-/*  Version 3.8                                                        */
+/*  Version 3.9                                                        */
 /*                                                                     */
 /* COPYRIGHT:                                                          */
 /* ----------                                                          */
-/*  (C) Copyright to the author Olivier BERTRAND          1999-2015    */
+/*  (C) Copyright to the author Olivier BERTRAND          1999-2017    */
 /*                                                                     */
 /* WHAT THIS PROGRAM DOES:                                             */
 /* -----------------------                                             */
@@ -490,15 +490,23 @@ void VCTCOL::ReadBlock(PGLOBAL g)
 #if defined(_DEBUG)
   if (!Blk) {
     strcpy(g->Message, MSG(TO_BLK_IS_NULL));
-    longjmp(g->jumper[g->jump_level], 58);
-    } // endif
+#if defined(USE_TRY)
+		throw 58;
+#else   // !USE_TRY
+		longjmp(g->jumper[g->jump_level], 58);
+#endif  // !USE_TRY
+	} // endif
 #endif
 
   /*********************************************************************/
   /*  Read column block according to used access method.               */
   /*********************************************************************/
   if (txfp->ReadBlock(g, this))
-    longjmp(g->jumper[g->jump_level], 6);
+#if defined(USE_TRY)
+		throw 6;
+#else   // !USE_TRY
+		longjmp(g->jumper[g->jump_level], 6);
+#endif  // !USE_TRY
 
   ColBlk = txfp->CurBlk;
   ColPos = -1;                       // Any invalid position
@@ -518,15 +526,23 @@ void VCTCOL::WriteBlock(PGLOBAL g)
 #if defined(_DEBUG)
     if (!Blk) {
       strcpy(g->Message, MSG(BLK_IS_NULL));
-      longjmp(g->jumper[g->jump_level], 56);
-      } // endif
+#if defined(USE_TRY)
+			throw 56;
+#else   // !USE_TRY
+			longjmp(g->jumper[g->jump_level], 56);
+#endif  // !USE_TRY
+		} // endif
 #endif
 
     /*******************************************************************/
     /*  Write column block according to used access method.            */
     /*******************************************************************/
     if (txfp->WriteBlock(g, this))
-      longjmp(g->jumper[g->jump_level], 6);
+#if defined(USE_TRY)
+			throw 6;
+#else   // !USE_TRY
+			longjmp(g->jumper[g->jump_level], 6);
+#endif  // !USE_TRY
 
     Modif = 0;
     } // endif Modif
