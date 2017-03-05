@@ -36,7 +36,6 @@ SET(MYSYS_SSL_SOURCES
     my_sha1.cc
     my_sha2.cc
     my_md5.cc
-    my_rnd.cc
     my_crypt.cc
    )
 
