@@ -5,7 +5,7 @@
 /*                                                                     */
 /* COPYRIGHT:                                                          */
 /* ----------                                                          */
-/*  (C) Copyright to the author Olivier BERTRAND          2005-2015    */
+/*  (C) Copyright to the author Olivier BERTRAND          2005-2017    */
 /*                                                                     */
 /* WHAT THIS PROGRAM DOES:                                             */
 /* -----------------------                                             */
@@ -45,6 +45,7 @@
 #include "maputil.h"
 #include "filamap.h"
 #include "tabdos.h"
+#include "tabfmt.h"
 
 /* --------------------------- Class MAPFAM -------------------------- */
 
@@ -322,17 +323,20 @@ int MAPFAM::ReadBuffer(PGLOBAL g)
   int rc, len;
 
   // Are we at the end of the memory
-	if (Mempos >= Top)
+	if (Mempos >= Top) {
 		if ((rc = GetNext(g)) != RC_OK)
 			return rc;
+		else if (Tdbp->GetAmType() == TYPE_AM_CSV && ((PTDBCSV)Tdbp)->Header)
+			if ((rc = SkipRecord(g, true)) != RC_OK)
+				return rc;
+
+	}	// endif Mempos
 
 
   if (!Placed) {
     /*******************************************************************/
     /*  Record file position in case of UPDATE or DELETE.              */
     /*******************************************************************/
-    int rc;
-
    next:
     Fpos = Mempos;
     CurBlk = (int)Rows++;

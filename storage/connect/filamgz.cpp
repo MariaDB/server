@@ -724,20 +724,20 @@ void ZBKFAM::Rewind(void)
 /***********************************************************************/
 /*  Constructors.                                                      */
 /***********************************************************************/
-ZIXFAM::ZIXFAM(PDOSDEF tdp) : ZBKFAM(tdp)
+GZXFAM::GZXFAM(PDOSDEF tdp) : ZBKFAM(tdp)
   {
 //Block = tdp->GetBlock();
 //Last = tdp->GetLast();
   Nrec = (tdp->GetElemt()) ? tdp->GetElemt() : DOS_BUFF_LEN;
   Blksize = Nrec * Lrecl;
-  } // end of ZIXFAM standard constructor
+  } // end of GZXFAM standard constructor
 
 /***********************************************************************/
 /*  ZIX Cardinality: returns table cardinality in number of rows.      */
 /*  This function can be called with a null argument to test the       */
 /*  availability of Cardinality implementation (1 yes, 0 no).          */
 /***********************************************************************/
-int ZIXFAM::Cardinality(PGLOBAL g)
+int GZXFAM::Cardinality(PGLOBAL g)
   {
   if (Last)
     return (g) ? (int)((Block - 1) * Nrec + Last) : 1;
@@ -750,7 +750,7 @@ int ZIXFAM::Cardinality(PGLOBAL g)
 /*  Allocate the line buffer. For mode Delete a bigger buffer has to   */
 /*  be allocated because is it also used to move lines into the file.  */
 /***********************************************************************/
-bool ZIXFAM::AllocateBuffer(PGLOBAL g)
+bool GZXFAM::AllocateBuffer(PGLOBAL g)
   {
   Buflen = Blksize;
   To_Buf = (char*)PlugSubAlloc(g, NULL, Buflen);
@@ -788,7 +788,7 @@ bool ZIXFAM::AllocateBuffer(PGLOBAL g)
 /***********************************************************************/
 /*  ReadBuffer: Read one line from a compressed text file.             */
 /***********************************************************************/
-int ZIXFAM::ReadBuffer(PGLOBAL g)
+int GZXFAM::ReadBuffer(PGLOBAL g)
   {
   int n, rc = RC_OK;
 
@@ -850,7 +850,7 @@ int ZIXFAM::ReadBuffer(PGLOBAL g)
 /*  WriteDB: Data Base write routine for ZDOS access method.           */
 /*  Update is not possible without using a temporary file (NIY).       */
 /***********************************************************************/
-int ZIXFAM::WriteBuffer(PGLOBAL g)
+int GZXFAM::WriteBuffer(PGLOBAL g)
   {
   /*********************************************************************/
   /*  In Insert mode, blocs are added sequentialy to the file end.     */

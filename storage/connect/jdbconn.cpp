@@ -1,7 +1,7 @@
 /************ Jdbconn C++ Functions Source Code File (.CPP) ************/
-/*  Name: JDBCONN.CPP  Version 1.0                                     */
+/*  Name: JDBCONN.CPP  Version 1.1                                     */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          2016         */
+/*  (C) Copyright to the author Olivier BERTRAND          2016-2017    */
 /*                                                                     */
 /*  This file contains the JDBC connection classes functions.          */
 /***********************************************************************/
@@ -45,9 +45,9 @@
 #include "plgdbsem.h"
 #include "xobject.h"
 #include "xtable.h"
+#include "tabext.h"
 #include "tabjdbc.h"
 //#include "jdbconn.h"
-//#include "plgcnx.h"                       // For DB types
 #include "resource.h"
 #include "valblk.h"
 #include "osutil.h"
@@ -318,13 +318,21 @@ PQRYRES JDBCColumns(PGLOBAL g, char *db, char *table, char *colpat,
 /**************************************************************************/
 PQRYRES JDBCSrcCols(PGLOBAL g, char *src, PJPARM sjp)
 {
+	char    *sqry;
 	PQRYRES  qrp;
 	JDBConn *jcp = new(g)JDBConn(g, NULL);
 
 	if (jcp->Open(sjp))
 		return NULL;
 
-	qrp = jcp->GetMetaData(g, src);
+	if (strstr(src, "%s")) {
+		// Place holder for an eventual where clause
+		sqry = (char*)PlugSubAlloc(g, NULL, strlen(src) + 2);
+		sprintf(sqry, src, "1=1");			 // dummy where clause
+	} else
+		sqry = src;
+
+	qrp = jcp->GetMetaData(g, sqry);
 	jcp->Close();
 	return qrp;
 } // end of JDBCSrcCols
@@ -818,6 +826,11 @@ int JDBConn::Open(PJPARM sop)
 		jpop->Append(GetPluginDir());
 		jpop->Append("JdbcInterface.jar");
 
+		// All wrappers are pre-compiled in JavaWrappers.jar in the plugin dir
+		jpop->Append(sep);
+		jpop->Append(GetPluginDir());
+		jpop->Append("JavaWrappers.jar");
+
 		//================== prepare loading of Java VM ============================
 		JavaVMInitArgs vm_args;                        // Initialization arguments
 		JavaVMOption* options = new JavaVMOption[N];   // JVM invocation options
@@ -1156,6 +1169,9 @@ void JDBConn::Close()
 	if (m_Opened) {
 		jint      rc;
 		jmethodID did = nullptr;
+
+		// Could have been detached in case of join
+		rc = jvm->AttachCurrentThread((void**)&env, nullptr);
 
 		if (gmID(m_G, did, "JdbcDisconnect", "()I"))
 			printf("%s\n", Msg);

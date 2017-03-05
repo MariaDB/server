@@ -1,7 +1,7 @@
 /*************** json CPP Declares Source Code File (.H) ***************/
-/*  Name: json.cpp   Version 1.2                                       */
+/*  Name: json.cpp   Version 1.3                                       */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          2014 - 2015  */
+/*  (C) Copyright to the author Olivier BERTRAND          2014 - 2017  */
 /*                                                                     */
 /*  This file contains the JSON classes functions.                     */
 /***********************************************************************/
@@ -27,7 +27,32 @@
 #define EL  "\r\n"
 #else
 #define EL  "\n"
+#undef     SE_CATCH                  // Does not work for Linux
 #endif
+
+#if defined(SE_CATCH)
+/**************************************************************************/
+/*  This is the support of catching C interrupts to prevent crashes.      */
+/**************************************************************************/
+#include <eh.h>
+
+class SE_Exception {
+public:
+	SE_Exception(unsigned int n, PEXCEPTION_RECORD p) : nSE(n), eRec(p) {}
+	~SE_Exception() {}
+
+	unsigned int      nSE;
+	PEXCEPTION_RECORD eRec;
+};  // end of class SE_Exception
+
+void trans_func(unsigned int u, _EXCEPTION_POINTERS* pExp)
+{
+	throw SE_Exception(u, pExp->ExceptionRecord);
+} // end of trans_func
+
+char *GetExceptionDesc(PGLOBAL g, unsigned int e);
+#endif   // SE_CATCH
+
 
 /***********************************************************************/
 /* Parse a json string.                                                */
@@ -39,6 +64,9 @@ PJSON ParseJson(PGLOBAL g, char *s, int len, int *ptyp, bool *comma)
 	bool  b = false, pty[3] = {true, true, true};
   PJSON jsp = NULL;
   STRG  src;
+
+	if (trace)
+		htrc("ParseJson: s=%.10s len=%d\n", s, len);
 
   if (!s || !len) {
     strcpy(g->Message, "Void JSON object");
@@ -53,15 +81,37 @@ PJSON ParseJson(PGLOBAL g, char *s, int len, int *ptyp, bool *comma)
 	if (s[0] == '[' && (s[1] == '\n' || (s[1] == '\r' && s[2] == '\n')))
 		pty[0] = false;
 
+
   // Save stack and allocation environment and prepare error return
   if (g->jump_level == MAX_JUMP) {
     strcpy(g->Message, MSG(TOO_MANY_JUMPS));
     return NULL;
     } // endif jump_level
 
-  if ((rc= setjmp(g->jumper[++g->jump_level])) != 0) {
-    goto err;
-    } // endif rc
+#if defined(SE_CATCH)
+	// Let's try to recover from any kind of interrupt
+	_se_translator_function f = _set_se_translator(trans_func);
+
+	try {
+#endif   // SE_CATCH  --------------------- try section --------------------
+		if ((rc = setjmp(g->jumper[++g->jump_level])) != 0) {
+			goto err;
+		} // endif rc
+
+#if defined(SE_CATCH) // ------------- end of try section -----------------
+	} catch (SE_Exception e) {
+		sprintf(g->Message, "ParseJson: exception doing setjmp: %s (rc=%hd)",
+			GetExceptionDesc(g, e.nSE), e.nSE);
+		_set_se_translator(f);
+		goto err;
+	} catch (...) {
+		strcpy(g->Message, "Exception doing setjmp");
+		_set_se_translator(f);
+		goto err;
+	} // end of try-catches
+
+	_set_se_translator(f);
+#endif   // SE_CATCH
 
 	for (i = 0; i < len; i++)
     switch (s[i]) {
@@ -140,7 +190,7 @@ tryit:
 		strcpy(g->Message, "More than one item in file");
 
 err:
-  g->jump_level--;
+	g->jump_level--;
   return NULL;
 } // end of ParseJson
 
@@ -390,14 +440,14 @@ char *ParseString(PGLOBAL g, int& i, STRG& src)
 //            if (charset == utf8) {
                 char xs[5];
                 uint hex;
-            
+
                 xs[0] = s[++i];
                 xs[1] = s[++i];
                 xs[2] = s[++i];
                 xs[3] = s[++i];
                 xs[4] = 0;
                 hex = strtoul(xs, NULL, 16);
-            
+
                 if (hex < 0x80) {
                   p[n] = (uchar)hex;
                 } else if (hex < 0x800) {
@@ -414,7 +464,7 @@ char *ParseString(PGLOBAL g, int& i, STRG& src)
               } else {
                 char xs[3];
                 UINT hex;
-            
+
                 i += 2;
                 xs[0] = s[++i];
                 xs[1] = s[++i];
@@ -468,7 +518,7 @@ PVAL ParseNumeric(PGLOBAL g, int& i, STRG& src)
       case '.':
         if (!found_digit || has_dot || has_e)
           goto err;
-        
+
         has_dot = true;
         break;
       case 'e':
@@ -769,7 +819,7 @@ bool JOUTSTR::Escape(const char *s)
 
   for (unsigned int i = 0; s[i]; i++)
     switch (s[i]) {
-      case '"':  
+      case '"':
       case '\\':
       case '\t':
       case '\n':
@@ -1057,7 +1107,7 @@ void JARRAY::InitArray(PGLOBAL g)
   int   i;
   PJVAL jvp, *pjvp = &First;
 
-  for (Size = 0, jvp = First; jvp; jvp = jvp->Next) 
+  for (Size = 0, jvp = First; jvp; jvp = jvp->Next)
     if (!jvp->Del)
       Size++;
 
@@ -1191,8 +1241,8 @@ bool JARRAY::IsNull(void)
 /***********************************************************************/
 JVALUE::JVALUE(PGLOBAL g, PVAL valp) : JSON()
 {
-  Jsp = NULL; 
-  Value = AllocateValue(g, valp); 
+  Jsp = NULL;
+  Value = AllocateValue(g, valp);
   Next = NULL;
   Del = false;
 } // end of JVALUE constructor
@@ -1297,7 +1347,7 @@ PSZ JVALUE::GetText(PGLOBAL g, PSZ text)
 } // end of GetText
 
 void JVALUE::SetValue(PJSON jsp)
-{ 
+{
 	if (jsp && jsp->GetType() == TYPE_JVAL) {
 		Jsp = jsp->GetJsp();
 		Value = jsp->GetValue();

@@ -1,7 +1,7 @@
 /************ TabOccur CPP Declares Source Code File (.CPP) ************/
-/*  Name: TABOCCUR.CPP   Version 1.1                                   */
+/*  Name: TABOCCUR.CPP   Version 1.2                                   */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          2013 - 2015  */
+/*  (C) Copyright to the author Olivier BERTRAND          2013 - 2017  */
 /*                                                                     */
 /*  OCCUR: Table that provides a view of a source table where the      */
 /*  contain of several columns of the source table is placed in only   */
@@ -39,12 +39,13 @@
 /***********************************************************************/
 #include "global.h"
 #include "plgdbsem.h"
-#include "reldef.h"
+#include "xtable.h"
+#include "tabext.h"
+//#include "reldef.h"
 #include "filamtxt.h"
 #include "tabdos.h"
 #include "tabcol.h"
 #include "taboccur.h"
-#include "xtable.h"
 #include "tabmysql.h"
 #include "ha_connect.h"
 
