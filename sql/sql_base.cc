@@ -6420,8 +6420,9 @@ mark_common_columns(THD *thd, TABLE_LIST *table_ref_1, TABLE_LIST *table_ref_2,
       if (!my_strcasecmp(system_charset_info, field_name_1, cur_field_name_2))
       {
         DBUG_PRINT ("info", ("match c1.is_common=%d", nj_col_1->is_common));
-        if (cur_nj_col_2->is_common ||
-            (found && (!using_fields || is_using_column_1)))
+        if ((!it_1.field() || !it_1.field()->vers_sys_field()) &&
+            (cur_nj_col_2->is_common ||
+             (found && (!using_fields || is_using_column_1))))
         {
           my_error(ER_NON_UNIQ_ERROR, MYF(0), field_name_1, thd->where);
           goto err;

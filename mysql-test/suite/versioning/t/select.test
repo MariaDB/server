@@ -131,6 +131,9 @@ insert into t1 values (1);
 --error ER_VERS_WRONG_PARAMS
 select * from t1 for system_time all for update;
 
+create or replace table t1 (a int not null auto_increment primary key) with system versioning;
+select * from (t1 as t2 left join t1 as t3 using (a)) natural left join t1;
+
 drop table t1;
 
 call verify_vtq;
