@@ -1,0 +1,12 @@
+This plugin uses public domain ed25519 code
+by Daniel J. Bernstein, Niels Duif, Tanja Lange, Peter Schwabe, Bo-Yin Yang.
+
+It is "ref10" implementation from the SUPERCOP:
+https://bench.cr.yp.to/supercop.html
+
+OpenSSH also uses ed25519 from SUPERCOP, but "ref" implementation.
+
+There are four ed25519 implementations in SUPERCOP, ref10 is faster then ref,
+and there are two that are even faster, written in amd64 assembler.
+Benchmarks are here: https://bench.cr.yp.to/impl-sign/ed25519.html
+
