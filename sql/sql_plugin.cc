@@ -723,7 +723,7 @@ static st_plugin_dl *plugin_dl_add(const LEX_STRING *dl, int report)
 {
 #ifdef HAVE_DLOPEN
   char dlpath[FN_REFLEN];
-  uint plugin_dir_len, dummy_errors, dlpathlen, i;
+  uint plugin_dir_len, dummy_errors, i;
   struct st_plugin_dl *tmp= 0, plugin_dl;
   void *sym;
   st_ptr_backup tmp_backup[array_elements(list_of_services)];
@@ -759,15 +759,7 @@ static st_plugin_dl *plugin_dl_add(const LEX_STRING *dl, int report)
   /* Open new dll handle */
   if (!(plugin_dl.handle= dlopen(dlpath, RTLD_NOW)))
   {
-    const char *errmsg=dlerror();
-    dlpathlen= strlen(dlpath);
-    if (!strncmp(dlpath, errmsg, dlpathlen))
-    { // if errmsg starts from dlpath, trim this prefix.
-      errmsg+=dlpathlen;
-      if (*errmsg == ':') errmsg++;
-      if (*errmsg == ' ') errmsg++;
-    }
-    report_error(report, ER_CANT_OPEN_LIBRARY, dlpath, errno, errmsg);
+    report_error(report, ER_CANT_OPEN_LIBRARY, dlpath, errno, my_dlerror(dlpath));
     goto ret;
   }
   dlopen_count++;

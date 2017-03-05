@@ -998,6 +998,8 @@ void my_uuid(uchar *guid);
 void my_uuid2str(const uchar *guid, char *s);
 void my_uuid_end(void);
 
+const char *my_dlerror(const char *dlpath);
+
 /* character sets */
 extern void my_charset_loader_init_mysys(MY_CHARSET_LOADER *loader);
 extern uint get_charset_number(const char *cs_name, uint cs_flags);
