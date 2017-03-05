@@ -99,6 +99,8 @@ of sljitConfigInternal.h */
 #define SLJIT_ERR_UNSUPPORTED		4
 /* An ivalid argument is passed to any SLJIT function. */
 #define SLJIT_ERR_BAD_ARGUMENT		5
+/* Dynamic code modification is not enabled. */
+#define SLJIT_ERR_DYN_CODE_MOD		6
 
 /* --------------------------------------------------------------------- */
 /*  Registers                                                            */
@@ -455,7 +457,19 @@ SLJIT_API_FUNC_ATTRIBUTE void* sljit_alloc_memory(struct sljit_compiler *compile
 SLJIT_API_FUNC_ATTRIBUTE void sljit_compiler_verbose(struct sljit_compiler *compiler, FILE* verbose);
 #endif
 
+/* Returns with non-zero if dynamic code modification is enabled. */
+
+SLJIT_API_FUNC_ATTRIBUTE sljit_s32 sljit_is_dyn_code_modification_enabled(void);
+
+/*
+   Create executable code from the sljit instruction stream. This is the final step
+   of the code generation so no more instructions can be added after this call.
+*/
+
 SLJIT_API_FUNC_ATTRIBUTE void* sljit_generate_code(struct sljit_compiler *compiler);
+
+/* Free executable code. */
+
 SLJIT_API_FUNC_ATTRIBUTE void sljit_free_code(void* code);
 
 /*

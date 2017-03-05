@@ -477,6 +477,7 @@ SLJIT_API_FUNC_ATTRIBUTE void* sljit_generate_code(struct sljit_compiler *compil
 
 	compiler->error = SLJIT_ERR_COMPILED;
 	compiler->executable_size = (code_ptr - code) * sizeof(sljit_ins);
+	SLJIT_ENABLE_EXEC(code, code_ptr);
 #ifndef __GNUC__
 	SLJIT_CACHE_FLUSH(code, code_ptr);
 #else
@@ -1625,6 +1626,7 @@ SLJIT_API_FUNC_ATTRIBUTE struct sljit_jump* sljit_emit_jump(struct sljit_compile
 	sljit_s32 delay_check = UNMOVABLE_INS;
 
 	CHECK_ERROR_PTR();
+	CHECK_DYN_CODE_MOD(type & SLJIT_REWRITABLE_JUMP);
 	CHECK_PTR(check_sljit_emit_jump(compiler, type));
 
 	jump = (struct sljit_jump*)ensure_abuf(compiler, sizeof(struct sljit_jump));
@@ -1742,6 +1744,7 @@ SLJIT_API_FUNC_ATTRIBUTE struct sljit_jump* sljit_emit_cmp(struct sljit_compiler
 	sljit_ins inst;
 
 	CHECK_ERROR_PTR();
+	CHECK_DYN_CODE_MOD(type & SLJIT_REWRITABLE_JUMP);
 	CHECK_PTR(check_sljit_emit_cmp(compiler, type, src1, src1w, src2, src2w));
 	ADJUST_LOCAL_OFFSET(src1, src1w);
 	ADJUST_LOCAL_OFFSET(src2, src2w);
@@ -1863,6 +1866,7 @@ SLJIT_API_FUNC_ATTRIBUTE struct sljit_jump* sljit_emit_fcmp(struct sljit_compile
 	sljit_s32 if_true;
 
 	CHECK_ERROR_PTR();
+	CHECK_DYN_CODE_MOD(type & SLJIT_REWRITABLE_JUMP);
 	CHECK_PTR(check_sljit_emit_fcmp(compiler, type, src1, src1w, src2, src2w));
 
 	compiler->cache_arg = 0;
@@ -2121,6 +2125,7 @@ SLJIT_API_FUNC_ATTRIBUTE struct sljit_const* sljit_emit_const(struct sljit_compi
 	sljit_s32 reg;
 
 	CHECK_ERROR_PTR();
+	CHECK_DYN_CODE_MOD(1);
 	CHECK_PTR(check_sljit_emit_const(compiler, dst, dstw, init_value));
 	ADJUST_LOCAL_OFFSET(dst, dstw);
 

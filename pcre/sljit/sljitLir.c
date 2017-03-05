@@ -242,7 +242,13 @@
 #if !(defined SLJIT_CONFIG_UNSUPPORTED && SLJIT_CONFIG_UNSUPPORTED)
 
 #if (defined SLJIT_EXECUTABLE_ALLOCATOR && SLJIT_EXECUTABLE_ALLOCATOR)
+
+#if (defined SLJIT_PROT_EXECUTABLE_ALLOCATOR && SLJIT_PROT_EXECUTABLE_ALLOCATOR)
+#include "sljitProtExecAllocator.c"
+#else
 #include "sljitExecAllocator.c"
+#endif
+
 #endif
 
 /* Argument checking features. */
@@ -283,6 +289,13 @@
 		} \
 	} while (0)
 
+#define CHECK_DYN_CODE_MOD(extra_check) \
+	if ((extra_check) && !sljit_is_dyn_code_modification_enabled()) \
+	{ \
+		compiler->error = SLJIT_ERR_DYN_CODE_MOD; \
+		return NULL; \
+	}
+
 #elif (defined SLJIT_DEBUG && SLJIT_DEBUG)
 
 /* Assertion failure occures if an invalid argument is passed. */
@@ -295,6 +308,7 @@
 #define CHECK(x) x
 #define CHECK_PTR(x) x
 #define CHECK_REG_INDEX(x) x
+#define CHECK_DYN_CODE_MOD(extra_check) SLJIT_ASSERT(!(extra_check) || sljit_is_dyn_code_modification_enabled())
 
 #elif (defined SLJIT_VERBOSE && SLJIT_VERBOSE)
 
@@ -304,6 +318,7 @@
 #define CHECK(x) x
 #define CHECK_PTR(x) x
 #define CHECK_REG_INDEX(x) x
+#define CHECK_DYN_CODE_MOD(extra_check)
 
 #else
 
@@ -311,6 +326,7 @@
 #define CHECK(x)
 #define CHECK_PTR(x)
 #define CHECK_REG_INDEX(x)
+#define CHECK_DYN_CODE_MOD(extra_check)
 
 #endif /* SLJIT_ARGUMENT_CHECKS */
 
@@ -439,6 +455,15 @@ SLJIT_API_FUNC_ATTRIBUTE void sljit_set_compiler_memory_error(struct sljit_compi
 {
 	if (compiler->error == SLJIT_SUCCESS)
 		compiler->error = SLJIT_ERR_ALLOC_FAILED;
+}
+
+SLJIT_API_FUNC_ATTRIBUTE sljit_s32 sljit_is_dyn_code_modification_enabled(void)
+{
+#if (defined SLJIT_EXECUTABLE_ALLOCATOR && SLJIT_EXECUTABLE_ALLOCATOR) \
+		&& (defined SLJIT_PROT_EXECUTABLE_ALLOCATOR && SLJIT_PROT_EXECUTABLE_ALLOCATOR)
+	return 0;
+#endif
+	return 1;
 }
 
 #if (defined SLJIT_CONFIG_ARM_THUMB2 && SLJIT_CONFIG_ARM_THUMB2)
@@ -1601,6 +1626,7 @@ SLJIT_API_FUNC_ATTRIBUTE struct sljit_jump* sljit_emit_cmp(struct sljit_compiler
 	sljit_sw tmp_srcw;
 
 	CHECK_ERROR_PTR();
+	CHECK_DYN_CODE_MOD(type & SLJIT_REWRITABLE_JUMP);
 	CHECK_PTR(check_sljit_emit_cmp(compiler, type, src1, src1w, src2, src2w));
 
 	condition = type & 0xff;
@@ -1681,6 +1707,7 @@ SLJIT_API_FUNC_ATTRIBUTE struct sljit_jump* sljit_emit_fcmp(struct sljit_compile
 	sljit_s32 flags, condition;
 
 	CHECK_ERROR_PTR();
+	CHECK_DYN_CODE_MOD(type & SLJIT_REWRITABLE_JUMP);
 	CHECK_PTR(check_sljit_emit_fcmp(compiler, type, src1, src1w, src2, src2w));
 
 	condition = type & 0xff;

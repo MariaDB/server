@@ -493,6 +493,7 @@ SLJIT_API_FUNC_ATTRIBUTE void* sljit_generate_code(struct sljit_compiler *compil
 
 	compiler->error = SLJIT_ERR_COMPILED;
 	compiler->executable_size = (code_ptr - code) * sizeof(sljit_ins);
+	SLJIT_ENABLE_EXEC(code, code_ptr);
 	SLJIT_CACHE_FLUSH(code, code_ptr);
 
 #if (defined SLJIT_INDIRECT_CALL && SLJIT_INDIRECT_CALL)
@@ -2138,6 +2139,7 @@ SLJIT_API_FUNC_ATTRIBUTE struct sljit_jump* sljit_emit_jump(struct sljit_compile
 	sljit_ins bo_bi_flags;
 
 	CHECK_ERROR_PTR();
+	CHECK_DYN_CODE_MOD(type & SLJIT_REWRITABLE_JUMP);
 	CHECK_PTR(check_sljit_emit_jump(compiler, type));
 
 	bo_bi_flags = get_bo_bi_flags(type & 0xff);
@@ -2362,6 +2364,7 @@ SLJIT_API_FUNC_ATTRIBUTE struct sljit_const* sljit_emit_const(struct sljit_compi
 	sljit_s32 reg;
 
 	CHECK_ERROR_PTR();
+	CHECK_DYN_CODE_MOD(1);
 	CHECK_PTR(check_sljit_emit_const(compiler, dst, dstw, init_value));
 	ADJUST_LOCAL_OFFSET(dst, dstw);
 
