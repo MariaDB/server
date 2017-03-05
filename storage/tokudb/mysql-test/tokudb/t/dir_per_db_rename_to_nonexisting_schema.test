@@ -1,4 +1,5 @@
 --source include/have_tokudb.inc
+--skip MariaDB mysqltest fails for this test providing no output.
 
 SET GLOBAL tokudb_dir_per_db=true;
 --let DATADIR=`SELECT @@datadir`
@@ -59,7 +60,7 @@ DROP DATABASE new_db;
 --echo ###
 CREATE TABLE t1 (id INT AUTO_INCREMENT PRIMARY KEY NOT NULL) ENGINE=tokudb;
 CALL mtr.add_suppression("because destination db does not exist");
---error ER_ERROR_ON_RENAME
+--error 192
 ALTER TABLE test.t1 RENAME foo.t1;
 DROP TABLE t1;
 
