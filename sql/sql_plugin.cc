@@ -1550,8 +1550,8 @@ int plugin_init(int *argc, char **argv, int flags)
   }
 
   /* prepare debug_sync service */
-  DBUG_ASSERT(strcmp(list_of_services[4].name, "debug_sync_service") == 0);
-  list_of_services[4].service= *(void**)&debug_sync_C_callback_ptr;
+  DBUG_ASSERT(strcmp(list_of_services[1].name, "debug_sync_service") == 0);
+  list_of_services[1].service= *(void**)&debug_sync_C_callback_ptr;
 
   /* prepare encryption_keys service */
   finalize_encryption_plugin(0);
