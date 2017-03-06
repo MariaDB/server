@@ -889,7 +889,7 @@ struct st_maria_handler
 #define PACK_TYPE_SELECTED	1	/* Bits in field->pack_type */
 #define PACK_TYPE_SPACE_FIELDS	2
 #define PACK_TYPE_ZERO_FILL	4
-#define MARIA_FOUND_WRONG_KEY 32738	/* Impossible value from ha_key_cmp */
+#define MARIA_FOUND_WRONG_KEY 32768	/* Impossible value from ha_key_cmp */
 
 #define MARIA_BLOCK_SIZE(key_length,data_pointer,key_pointer,block_size)  (((((key_length)+(data_pointer)+(key_pointer))*4+(key_pointer)+2)/(block_size)+1)*(block_size))
 #define MARIA_MAX_KEYPTR_SIZE	5	/* For calculating block lengths */
