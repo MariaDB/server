@@ -73,11 +73,6 @@ Created 10/21/1995 Heikki Tuuri
 # include <linux/falloc.h>
 #endif /* HAVE_FALLOC_PUNCH_HOLE_AND_KEEP_SIZE */
 
-#ifdef UNIV_DEBUG
-/** Set when InnoDB has invoked exit(). */
-bool	innodb_calling_exit;
-#endif /* UNIV_DEBUG */
-
 #if defined(UNIV_LINUX) && defined(HAVE_SYS_IOCTL_H)
 # include <sys/ioctl.h>
 # ifndef DFS_IOCTL_ATOMIC_WRITE_SET
