@@ -1435,8 +1435,12 @@ void CSVCOL::ReadColumn(PGLOBAL g)
       if (rc == RC_EF)
         sprintf(g->Message, MSG(INV_DEF_READ), rc);
 
-      longjmp(g->jumper[g->jump_level], 34);
-      } // endif
+#if defined(USE_TRY)
+			throw 34;
+#else   // !USE_TRY
+			longjmp(g->jumper[g->jump_level], 34);
+#endif  // !USE_TRY
+		} // endif
 
   if (tdbp->Mode != MODE_UPDATE) {
     int colen = Long;                    // Column length
@@ -1453,8 +1457,12 @@ void CSVCOL::ReadColumn(PGLOBAL g)
       Long = colen;                       // Restore column length
       sprintf(g->Message, MSG(FLD_TOO_LNG_FOR),
               Fldnum + 1, Name, To_Tdb->RowNumber(g), tdbp->GetFile(g));
-      longjmp(g->jumper[g->jump_level], 34);
-      } // endif Long
+#if defined(USE_TRY)
+			throw 34;
+#else   // !USE_TRY
+			longjmp(g->jumper[g->jump_level], 34);
+#endif  // !USE_TRY
+		} // endif Long
 
     // Now do the reading
     DOSCOL::ReadColumn(g);
@@ -1516,8 +1524,12 @@ void CSVCOL::WriteColumn(PGLOBAL g)
   if ((signed)strlen(p) > flen) {
     sprintf(g->Message, MSG(BAD_FLD_LENGTH), Name, p, flen,
                         tdbp->RowNumber(g), tdbp->GetFile(g));
-    longjmp(g->jumper[g->jump_level], 34);
-  } else if (Dsp)
+#if defined(USE_TRY)
+		throw 34;
+#else   // !USE_TRY
+		longjmp(g->jumper[g->jump_level], 34);
+#endif  // !USE_TRY
+	} else if (Dsp)
     for (int i = 0; p[i]; i++)
       if (p[i] == '.')
         p[i] = Dsp; 
@@ -1532,8 +1544,12 @@ void CSVCOL::WriteColumn(PGLOBAL g)
   if (Fldnum < 0) {
     // This can happen for wrong offset value in XDB files
     sprintf(g->Message, MSG(BAD_FIELD_RANK), Fldnum + 1, Name);
-    longjmp(g->jumper[g->jump_level], 34);
-  } else
+#if defined(USE_TRY)
+		throw 34;
+#else   // !USE_TRY
+		longjmp(g->jumper[g->jump_level], 34);
+#endif  // !USE_TRY
+	} else
     strncpy(tdbp->Field[Fldnum], p, flen);
 
   if (trace > 1)

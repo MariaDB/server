@@ -1,7 +1,7 @@
-/************ Odbconn C++ Functions Source Code File (.CPP) ************/
-/*  Name: ODBCONN.CPP  Version 2.2                                     */
+/***********************************************************************/
+/*  Name: ODBCONN.CPP  Version 2.3                                     */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          1998-2016    */
+/*  (C) Copyright to the author Olivier BERTRAND          1998-2017    */
 /*                                                                     */
 /*  This file contains the ODBC connection classes functions.          */
 /***********************************************************************/
@@ -249,17 +249,21 @@ static CATPARM *AllocCatInfo(PGLOBAL g, CATINFO fid, char *db,
   assert(qrp);
 #endif
 
-  // Save stack and allocation environment and prepare error return
-  if (g->jump_level == MAX_JUMP) {
-    strcpy(g->Message, MSG(TOO_MANY_JUMPS));
-    return NULL;
-    } // endif jump_level
+#if defined(USE_TRY)
+	try {
+#else   // !USE_TRY
+	// Save stack and allocation environment and prepare error return
+	if (g->jump_level == MAX_JUMP) {
+		strcpy(g->Message, MSG(TOO_MANY_JUMPS));
+		return NULL;
+	} // endif jump_level
 
-  if (setjmp(g->jumper[++g->jump_level]) != 0) {
-    printf("%s\n", g->Message);
-    cap = NULL;
-    goto fin;
-    } // endif rc
+	if (setjmp(g->jumper[++g->jump_level]) != 0) {
+		printf("%s\n", g->Message);
+		cap = NULL;
+		goto fin;
+	} // endif rc
+#endif  // !USE_TRY
 
   m = (size_t)qrp->Maxres;
   n = (size_t)qrp->Nbcol;
@@ -276,9 +280,20 @@ static CATPARM *AllocCatInfo(PGLOBAL g, CATINFO fid, char *db,
 
   cap->Status = (UWORD *)PlugSubAlloc(g, NULL, m * sizeof(UWORD));
 
+#if defined(USE_TRY)
+} catch (int n) {
+	htrc("Exeption %d: %s\n", n, g->Message);
+	cap = NULL;
+} catch (const char *msg) {
+	htrc(g->Message, msg);
+	printf("%s\n", g->Message);
+	cap = NULL;
+} // end catch
+#else   // !USE_TRY
  fin:
-  g->jump_level--;
-  return cap;
+	g->jump_level--;
+#endif  // !USE_TRY
+	return cap;
   } // end of AllocCatInfo
 
 #if 0

@@ -1,7 +1,7 @@
 /************* Value C++ Functions Source Code File (.CPP) *************/
-/*  Name: VALUE.CPP  Version 2.6                                       */
+/*  Name: VALUE.CPP  Version 2.7                                       */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          2001-2016    */
+/*  (C) Copyright to the author Olivier BERTRAND          2001-2017    */
 /*                                                                     */
 /*  This file contains the VALUE and derived classes family functions. */
 /*  These classes contain values of different types. They are used so  */
@@ -57,10 +57,17 @@
 /*  Check macro's.                                                     */
 /***********************************************************************/
 #if defined(_DEBUG)
+#if defined(USE_TRY)
 #define CheckType(V)    if (Type != V->GetType()) { \
     PGLOBAL& g = Global; \
     strcpy(g->Message, MSG(VALTYPE_NOMATCH)); \
-    longjmp(g->jumper[g->jump_level], Type); }
+    throw Type;
+#else   // !USE_TRY
+#define CheckType(V)    if (Type != V->GetType()) { \
+    PGLOBAL& g = Global; \
+    strcpy(g->Message, MSG(VALTYPE_NOMATCH)); \
+		longjmp(g->jumper[g->jump_level], Type);
+#endif  // !USE_TRY
 #else
 #define CheckType(V)
 #endif
@@ -1019,12 +1026,20 @@ TYPE TYPVAL<TYPE>::SafeAdd(TYPE n1, TYPE n2)
   if ((n2 > 0) && (n < n1)) {
     // Overflow
     strcpy(g->Message, MSG(FIX_OVFLW_ADD));
-    longjmp(g->jumper[g->jump_level], 138);
-  } else if ((n2 < 0) && (n > n1)) {
+#if defined(USE_TRY)
+		throw 138;
+#else   // !USE_TRY
+		longjmp(g->jumper[g->jump_level], 138);
+#endif  // !USE_TRY
+	} else if ((n2 < 0) && (n > n1)) {
     // Underflow
     strcpy(g->Message, MSG(FIX_UNFLW_ADD));
-    longjmp(g->jumper[g->jump_level], 138);
-  } // endif's n2
+#if defined(USE_TRY)
+		throw 138;
+#else   // !USE_TRY
+		longjmp(g->jumper[g->jump_level], 138);
+#endif  // !USE_TRY
+	} // endif's n2
 
   return n;
   } // end of SafeAdd
@@ -1047,12 +1062,20 @@ TYPE TYPVAL<TYPE>::SafeMult(TYPE n1, TYPE n2)
   if (n > MinMaxVal(true)) {
     // Overflow
     strcpy(g->Message, MSG(FIX_OVFLW_TIMES));
-    longjmp(g->jumper[g->jump_level], 138);
-  } else if (n < MinMaxVal(false)) {
+#if defined(USE_TRY)
+		throw 138;
+#else   // !USE_TRY
+		longjmp(g->jumper[g->jump_level], 138);
+#endif  // !USE_TRY
+	} else if (n < MinMaxVal(false)) {
     // Underflow
     strcpy(g->Message, MSG(FIX_UNFLW_TIMES));
-    longjmp(g->jumper[g->jump_level], 138);
-  } // endif's n2
+#if defined(USE_TRY)
+		throw 138;
+#else   // !USE_TRY
+		longjmp(g->jumper[g->jump_level], 138);
+#endif  // !USE_TRY
+	} // endif's n2
 
   return (TYPE)n;
   } // end of SafeMult
@@ -1432,8 +1455,16 @@ void TYPVAL<PSZ>::SetValue(int n)
 
   if (k > Len) {
     sprintf(g->Message, MSG(VALSTR_TOO_LONG), buf, Len);
-    longjmp(g->jumper[g->jump_level], 138);
-  } else
+#if defined(USE_TRY)
+		throw 138;
+#else   // !USE_TRY
+#if defined(USE_TRY)
+		throw 138;
+#else   // !USE_TRY
+		longjmp(g->jumper[g->jump_level], 138);
+#endif  // !USE_TRY
+#endif  // !USE_TRY
+	} else
     SetValue_psz(buf);
 
   Null = false;
@@ -1486,8 +1517,12 @@ void TYPVAL<PSZ>::SetValue(longlong n)
 
   if (k > Len) {
     sprintf(g->Message, MSG(VALSTR_TOO_LONG), buf, Len);
-    longjmp(g->jumper[g->jump_level], 138);
-  } else
+#if defined(USE_TRY)
+		throw 138;
+#else   // !USE_TRY
+		longjmp(g->jumper[g->jump_level], 138);
+#endif  // !USE_TRY
+	} else
     SetValue_psz(buf);
 
   Null = false;
@@ -1529,8 +1564,12 @@ void TYPVAL<PSZ>::SetValue(double f)
 
   if (k > Len) {
     sprintf(g->Message, MSG(VALSTR_TOO_LONG), buf, Len);
-    longjmp(g->jumper[g->jump_level], 138);
-  } else
+#if defined(USE_TRY)
+		throw 138;
+#else   // !USE_TRY
+		longjmp(g->jumper[g->jump_level], 138);
+#endif  // !USE_TRY
+	} else
     SetValue_psz(buf);
 
   Null = false;

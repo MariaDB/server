@@ -139,7 +139,7 @@ PGLOBAL PlugInit(LPCSTR Language, uint worksize)
     htrc("PlugInit: Language='%s'\n",
           ((!Language) ? "Null" : (char*)Language));
 
-  if (!(g = malloc(sizeof(GLOBAL)))) {
+  if (!(g = (PGLOBAL)malloc(sizeof(GLOBAL)))) {
     fprintf(stderr, MSG(GLOBAL_ERROR), (int)sizeof(GLOBAL));
     return NULL;
   } else {
@@ -147,9 +147,10 @@ PGLOBAL PlugInit(LPCSTR Language, uint worksize)
     g->Createas = 0;
     g->Alchecked = 0;
     g->Mrr = 0;
-    g->Activityp = g->ActivityStart = NULL;
+    g->Activityp = NULL;
     g->Xchk = NULL;
     g->N = 0;
+		g->More = 0;
     strcpy(g->Message, "");
 
     /*******************************************************************/
@@ -475,7 +476,7 @@ void *PlugAllocMem(PGLOBAL g, uint size)
 /***********************************************************************/
 BOOL PlugSubSet(PGLOBAL g __attribute__((unused)), void *memp, uint size)
   {
-  PPOOLHEADER pph = memp;
+  PPOOLHEADER pph = (PPOOLHEADER)memp;
 
   pph->To_Free = (OFFSET)sizeof(POOLHEADER);
   pph->FreeBlk = size - pph->To_Free;
@@ -501,7 +502,6 @@ void *PlugSubAlloc(PGLOBAL g, void *memp, size_t size)
     /*******************************************************************/
     memp = g->Sarea;
 
-//size = ((size + 3) / 4) * 4;       /* Round up size to multiple of 4 */
   size = ((size + 7) / 8) * 8;       /* Round up size to multiple of 8 */
   pph = (PPOOLHEADER)memp;
 
@@ -514,22 +514,26 @@ void *PlugSubAlloc(PGLOBAL g, void *memp, size_t size)
 
     sprintf(g->Message,
       "Not enough memory in %s area for request of %u (used=%d free=%d)",
-                          pname, (uint) size, pph->To_Free, pph->FreeBlk);
+                          pname, (uint)size, pph->To_Free, pph->FreeBlk);
 
     if (trace)
       htrc("PlugSubAlloc: %s\n", g->Message);
 
+#if defined(USE_TRY)
+		throw 1234;
+#else   // !USE_TRY
 		/* Nothing we can do if longjmp is not initialized.	*/
 		assert(g->jump_level >= 0);
-	  longjmp(g->jumper[g->jump_level], 1);
+		longjmp(g->jumper[g->jump_level], 1);
+#endif  // !USE_TRY
     } /* endif size OS32 code */
 
   /*********************************************************************/
   /*  Do the suballocation the simplest way.                           */
   /*********************************************************************/
   memp = MakePtr(memp, pph->To_Free); /* Points to suballocated block  */
-  pph->To_Free += size;               /* New offset of pool free block */
-  pph->FreeBlk -= size;               /* New size   of pool free block */
+  pph->To_Free += (OFFSET)size;       /* New offset of pool free block */
+  pph->FreeBlk -= (uint)size;         /* New size   of pool free block */
 
   if (trace > 3)
     htrc("Done memp=%p used=%d free=%d\n",

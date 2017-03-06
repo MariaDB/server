@@ -108,21 +108,25 @@ bool PIVAID::SkipColumn(PCOLRES crp, char *skc)
 PQRYRES PIVAID::MakePivotColumns(PGLOBAL g)
   {
   char    *p, *query, *colname, *skc, buf[64];
-  int      rc, ndif, nblin, w = 0;
+  int      ndif, nblin, w = 0;
   bool     b = false;
   PVAL     valp;   
   PQRYRES  qrp;
   PCOLRES *pcrp, crp, fncrp = NULL;
 
-  // Save stack and allocation environment and prepare error return
-  if (g->jump_level == MAX_JUMP) {
-    strcpy(g->Message, MSG(TOO_MANY_JUMPS));
-    return NULL;
-    } // endif jump_level
+#if defined(USE_TRY)
+	try {
+#else   // !USE_TRY
+	// Save stack and allocation environment and prepare error return
+	if (g->jump_level == MAX_JUMP) {
+		strcpy(g->Message, MSG(TOO_MANY_JUMPS));
+		return NULL;
+	} // endif jump_level
 
-  if ((rc= setjmp(g->jumper[++g->jump_level])) != 0) {
-    goto err;
-    } // endif rc
+	if (setjmp(g->jumper[++g->jump_level])) {
+		goto err;
+	} // endif rc
+#endif  // !USE_TRY
 
   // Are there columns to skip?
   if (Skcol) {
@@ -145,7 +149,7 @@ PQRYRES PIVAID::MakePivotColumns(PGLOBAL g)
     sprintf(query, "SELECT * FROM `%s` LIMIT 1", Tabname);
   } else if (!Tabsrc) {
     strcpy(g->Message, MSG(SRC_TABLE_UNDEF));
-    return NULL;
+    goto err;
   } else
     query = Tabsrc;
 
@@ -160,7 +164,7 @@ PQRYRES PIVAID::MakePivotColumns(PGLOBAL g)
       Myc.FreeResult();
 
   } else
-    return NULL;
+		goto err;
 
   // Send the source command to MySQL
   if (Myc.ExecSQL(g, query, &w) == RC_FX)
@@ -233,18 +237,18 @@ PQRYRES PIVAID::MakePivotColumns(PGLOBAL g)
     Index.Sub = TRUE;                  // Should be small enough
 
     if (!PlgDBalloc(g, NULL, Index))
-      return NULL;
+			goto err;
 
     Offset.Size = (nblin + 1) * sizeof(int);
     Offset.Sub = TRUE;                 // Should be small enough
 
     if (!PlgDBalloc(g, NULL, Offset))
-      return NULL;
+			goto err;
 
     ndif = Qsort(g, nblin);
 
     if (ndif < 0)           // error
-      return NULL;
+			goto err;
 
   } else {
     // The query was limited, we must get pivot column values
@@ -278,7 +282,7 @@ PQRYRES PIVAID::MakePivotColumns(PGLOBAL g)
   if (!(valp = AllocateValue(g, Rblkp->GetType(),
                                 Rblkp->GetVlen(),
                                 Rblkp->GetPrec())))
-    return NULL;
+		goto err;
 
   // Now make the functional columns
   for (int i = 0; i < ndif; i++) {
@@ -306,9 +310,25 @@ PQRYRES PIVAID::MakePivotColumns(PGLOBAL g)
 
   // We added ndif columns and removed 2 (picol and fncol)
   Qryp->Nbcol += (ndif - 2);
-  return Qryp;
+#if defined(USE_TRY)
+	return Qryp;
+
+	} catch (int n) {
+		if (trace)
+			htrc("Exception %d: %s\n", n, g->Message);
+	} catch (const char *msg) {
+		strcpy(g->Message, msg);
+	} // end catch
 
 err:
+#else   // !USE_TRY
+	g->jump_level--;
+	return Qryp;
+
+err:
+	g->jump_level--;
+#endif  // !USE_TRY
+
   if (b)
     Myc.Close();
 

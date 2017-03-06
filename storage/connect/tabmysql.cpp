@@ -1407,8 +1407,12 @@ void MYSQLCOL::ReadColumn(PGLOBAL g)
       if (rc == RC_EF)
         sprintf(g->Message, MSG(INV_DEF_READ), rc);
 
-      longjmp(g->jumper[g->jump_level], 11);
-    } else
+#if defined(USE_TRY)
+			throw 11;
+#else   // !USE_TRY
+			longjmp(g->jumper[g->jump_level], 11);
+#endif  // !USE_TRY
+		} else
       tdbp->Fetched = true;
 
   if ((buf = ((PTDBMY)To_Tdb)->Myc.GetCharField(Rank))) {
