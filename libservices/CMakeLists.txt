@@ -25,6 +25,7 @@ SET(MYSQLSERVICES_SOURCES
   thd_specifics_service.c
   progress_report_service.c
   debug_sync_service.c
+  my_sha2_service.c
   my_sha1_service.c
   my_md5_service.c
   wsrep_service.c

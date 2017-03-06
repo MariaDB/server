@@ -60,6 +60,33 @@ static struct thd_timezone_service_st thd_timezone_handler= {
   thd_gmt_sec_to_TIME
 };
 
+static struct my_sha2_service_st my_sha2_handler = {
+  my_sha224,
+  my_sha224_multi,
+  my_sha224_context_size,
+  my_sha224_init,
+  my_sha224_input,
+  my_sha224_result,
+  my_sha256,
+  my_sha256_multi,
+  my_sha256_context_size,
+  my_sha256_init,
+  my_sha256_input,
+  my_sha256_result,
+  my_sha384,
+  my_sha384_multi,
+  my_sha384_context_size,
+  my_sha384_init,
+  my_sha384_input,
+  my_sha384_result,
+  my_sha512,
+  my_sha512_multi,
+  my_sha512_context_size,
+  my_sha512_init,
+  my_sha512_input,
+  my_sha512_result,
+};
+
 static struct my_sha1_service_st my_sha1_handler = {
   my_sha1,
   my_sha1_multi,
@@ -164,6 +191,7 @@ static struct st_service_ref list_of_services[]=
   { "debug_sync_service",          VERSION_debug_sync,          0 }, // updated in plugin_init()
   { "thd_kill_statement_service",  VERSION_kill_statement,      &thd_kill_statement_handler },
   { "thd_timezone_service",        VERSION_thd_timezone,        &thd_timezone_handler },
+  { "my_sha2_service",             VERSION_my_sha2,             &my_sha2_handler},
   { "my_sha1_service",             VERSION_my_sha1,             &my_sha1_handler},
   { "my_md5_service",              VERSION_my_md5,              &my_md5_handler},
   { "logger_service",              VERSION_logger,              &logger_service_handler },
