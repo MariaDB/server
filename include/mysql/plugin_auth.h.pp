@@ -176,6 +176,22 @@ size_t my_md5_context_size();
 void my_md5_init(void *context);
 void my_md5_input(void *context, const unsigned char *buf, size_t len);
 void my_md5_result(void *context, unsigned char *digest);
+extern struct base64_service_st {
+  int (*base64_needed_encoded_length_ptr)(int length_of_data);
+  int (*base64_encode_max_arg_length_ptr)(void);
+  int (*base64_needed_decoded_length_ptr)(int length_of_encoded_data);
+  int (*base64_decode_max_arg_length_ptr)();
+  int (*base64_encode_ptr)(const void *src, size_t src_len, char *dst);
+  int (*base64_decode_ptr)(const char *src, size_t src_len,
+                           void *dst, const char **end_ptr, int flags);
+} *base64_service;
+int base64_needed_encoded_length(int length_of_data);
+int base64_encode_max_arg_length(void);
+int base64_needed_decoded_length(int length_of_encoded_data);
+int base64_decode_max_arg_length();
+int base64_encode(const void *src, size_t src_len, char *dst);
+int base64_decode(const char *src, size_t src_len,
+                  void *dst, const char **end_ptr, int flags);
 typedef struct logger_handle_st LOGGER_HANDLE;
 extern struct logger_service_st {
   void (*logger_init_mutexes)();

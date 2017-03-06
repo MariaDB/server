@@ -33,6 +33,7 @@
 #define VERSION_my_md5                  0x0100
 #define VERSION_wsrep                   0x0201
 #define VERSION_logger                  0x0100
+#define VERSION_base64                  0x0100
 #define VERSION_thd_autoinc             0x0100
 #define VERSION_thd_error_context       0x0100
 #define VERSION_thd_specifics           0x0100

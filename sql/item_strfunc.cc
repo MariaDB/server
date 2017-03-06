@@ -48,7 +48,6 @@
 #include "password.h"           // my_make_scrambled_password,
                                 // my_make_scrambled_password_323
 #include <m_ctype.h>
-#include <base64.h>
 #include <my_md5.h>
 #include <zlib.h>
 C_MODE_START

@@ -119,6 +119,15 @@ static struct thd_autoinc_service_st thd_autoinc_handler= {
   thd_get_autoinc
 };
 
+static struct base64_service_st base64_handler= {
+  base64_needed_encoded_length,
+  base64_encode_max_arg_length,
+  base64_needed_decoded_length,
+  base64_decode_max_arg_length,
+  base64_encode,
+  base64_decode
+};
+
 static struct thd_error_context_service_st thd_error_conext_handler= {
   thd_get_error_message,
   thd_get_error_number,
@@ -195,6 +204,7 @@ static struct st_service_ref list_of_services[]=
   { "my_sha1_service",             VERSION_my_sha1,             &my_sha1_handler},
   { "my_md5_service",              VERSION_my_md5,              &my_md5_handler},
   { "logger_service",              VERSION_logger,              &logger_service_handler },
+  { "base64_service",              VERSION_base64,              &base64_handler },
   { "thd_autoinc_service",         VERSION_thd_autoinc,         &thd_autoinc_handler },
   { "wsrep_service",               VERSION_wsrep,               &wsrep_handler },
   { "encryption_service",          VERSION_encryption,          &encryption_handler },

@@ -19,8 +19,6 @@
 #include <unistd.h>
 #endif
 
-#include <base64.h>
-
 #if defined (_WIN32)
 #define HAVE_SYS_UTSNAME_H
 
