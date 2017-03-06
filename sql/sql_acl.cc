@@ -11184,7 +11184,6 @@ get_cached_table_access(GRANT_INTERNAL_INFO *grant_internal_info,
 struct MPVIO_EXT :public MYSQL_PLUGIN_VIO
 {
   MYSQL_SERVER_AUTH_INFO auth_info;
-  THD *thd;
   ACL_USER *acl_user;       ///< a copy, independent from acl_users array
   plugin_ref plugin;        ///< what plugin we're under
   LEX_STRING db;            ///< db name from the handshake packet
@@ -11264,7 +11263,7 @@ static bool send_server_handshake_packet(MPVIO_EXT *mpvio,
   DBUG_ASSERT(mpvio->status == MPVIO_EXT::FAILURE);
   DBUG_ASSERT(data_len <= 255);
 
-  THD *thd= mpvio->thd;
+  THD *thd= mpvio->auth_info.thd;
   char *buff= (char *) my_alloca(1 + SERVER_VERSION_LENGTH + 1 + data_len + 64);
   char scramble_buf[SCRAMBLE_LENGTH];
   char *end= buff;
@@ -11321,7 +11320,7 @@ static bool send_server_handshake_packet(MPVIO_EXT *mpvio,
   }
 
   end= strxnmov(end, SERVER_VERSION_LENGTH, RPL_VERSION_HACK, server_version, NullS) + 1;
-  int4store((uchar*) end, mpvio->thd->thread_id);
+  int4store((uchar*) end, mpvio->auth_info.thd->thread_id);
   end+= 4;
 
   /*
@@ -11336,7 +11335,7 @@ static bool send_server_handshake_packet(MPVIO_EXT *mpvio,
   int2store(end, thd->client_capabilities);
   /* write server characteristics: up to 16 bytes allowed */
   end[2]= (char) default_charset_info->number;
-  int2store(end+3, mpvio->thd->server_status);
+  int2store(end+3, mpvio->auth_info.thd->server_status);
   int2store(end+5, thd->client_capabilities >> 16);
   end[7]= data_len;
   DBUG_EXECUTE_IF("poison_srv_handshake_scramble_len", end[7]= -100;);
@@ -11349,9 +11348,9 @@ static bool send_server_handshake_packet(MPVIO_EXT *mpvio,
   end= strmake(end, plugin_name(mpvio->plugin)->str,
                     plugin_name(mpvio->plugin)->length);
 
-  int res= my_net_write(&mpvio->thd->net, (uchar*) buff,
+  int res= my_net_write(&mpvio->auth_info.thd->net, (uchar*) buff,
                         (size_t) (end - buff + 1)) ||
-           net_flush(&mpvio->thd->net);
+           net_flush(&mpvio->auth_info.thd->net);
   my_afree(buff);
   DBUG_RETURN (res);
 }
@@ -11410,7 +11409,7 @@ static bool send_plugin_request_packet(MPVIO_EXT *mpvio,
 {
   DBUG_ASSERT(mpvio->packets_written == 1);
   DBUG_ASSERT(mpvio->packets_read == 1);
-  NET *net= &mpvio->thd->net;
+  NET *net= &mpvio->auth_info.thd->net;
   static uchar switch_plugin_request_buf[]= { 254 };
   DBUG_ENTER("send_plugin_request_packet");
 
@@ -11435,7 +11434,7 @@ static bool send_plugin_request_packet(MPVIO_EXT *mpvio,
     client_auth_plugin == old_password_plugin_name.str;
 
   if (switch_from_long_to_short_scramble)
-    DBUG_RETURN (secure_auth(mpvio->thd) ||
+    DBUG_RETURN (secure_auth(mpvio->auth_info.thd) ||
                  my_net_write(net, switch_plugin_request_buf, 1) ||
                  net_flush(net));
 
@@ -11451,8 +11450,8 @@ static bool send_plugin_request_packet(MPVIO_EXT *mpvio,
   if (switch_from_short_to_long_scramble)
   {
     my_error(ER_NOT_SUPPORTED_AUTH_MODE, MYF(0));
-    general_log_print(mpvio->thd, COM_CONNECT,
-                      ER_THD(mpvio->thd, ER_NOT_SUPPORTED_AUTH_MODE));
+    general_log_print(mpvio->auth_info.thd, COM_CONNECT,
+                      ER_THD(mpvio->auth_info.thd, ER_NOT_SUPPORTED_AUTH_MODE));
     DBUG_RETURN (1);
   }
 
@@ -11476,7 +11475,7 @@ static bool send_plugin_request_packet(MPVIO_EXT *mpvio,
 */
 static bool find_mpvio_user(MPVIO_EXT *mpvio)
 {
-  Security_context *sctx= mpvio->thd->security_ctx;
+  Security_context *sctx= mpvio->auth_info.thd->security_ctx;
   DBUG_ENTER("find_mpvio_user");
   DBUG_ASSERT(mpvio->acl_user == 0);
 
@@ -11484,7 +11483,7 @@ static bool find_mpvio_user(MPVIO_EXT *mpvio)
 
   ACL_USER *user= find_user_or_anon(sctx->host, sctx->user, sctx->ip);
   if (user)
-    mpvio->acl_user= user->copy(mpvio->thd->mem_root);
+    mpvio->acl_user= user->copy(mpvio->auth_info.thd->mem_root);
 
   mysql_mutex_unlock(&acl_cache->lock);
 
@@ -11508,12 +11507,12 @@ static bool find_mpvio_user(MPVIO_EXT *mpvio)
     if (!acl_users.elements)
     {
       mysql_mutex_unlock(&acl_cache->lock);
-      login_failed_error(mpvio->thd);
+      login_failed_error(mpvio->auth_info.thd);
       DBUG_RETURN(1);
     }
     uint i= nr1 % acl_users.elements;
     ACL_USER *acl_user_tmp= dynamic_element(&acl_users, i, ACL_USER*);
-    mpvio->acl_user= acl_user_tmp->copy(mpvio->thd->mem_root);
+    mpvio->acl_user= acl_user_tmp->copy(mpvio->auth_info.thd->mem_root);
     mysql_mutex_unlock(&acl_cache->lock);
 
     mpvio->make_it_fail= true;
@@ -11522,15 +11521,15 @@ static bool find_mpvio_user(MPVIO_EXT *mpvio)
   /* user account requires non-default plugin and the client is too old */
   if (mpvio->acl_user->plugin.str != native_password_plugin_name.str &&
       mpvio->acl_user->plugin.str != old_password_plugin_name.str &&
-      !(mpvio->thd->client_capabilities & CLIENT_PLUGIN_AUTH))
+      !(mpvio->auth_info.thd->client_capabilities & CLIENT_PLUGIN_AUTH))
   {
     DBUG_ASSERT(my_strcasecmp(system_charset_info, mpvio->acl_user->plugin.str,
                               native_password_plugin_name.str));
     DBUG_ASSERT(my_strcasecmp(system_charset_info, mpvio->acl_user->plugin.str,
                               old_password_plugin_name.str));
     my_error(ER_NOT_SUPPORTED_AUTH_MODE, MYF(0));
-    general_log_print(mpvio->thd, COM_CONNECT,
-                      ER_THD(mpvio->thd, ER_NOT_SUPPORTED_AUTH_MODE));
+    general_log_print(mpvio->auth_info.thd, COM_CONNECT,
+                      ER_THD(mpvio->auth_info.thd, ER_NOT_SUPPORTED_AUTH_MODE));
     DBUG_RETURN (1);
   }
 
@@ -11587,7 +11586,7 @@ read_client_connect_attrs(char **ptr, char *end, CHARSET_INFO *from_cs)
 /* the packet format is described in send_change_user_packet() */
 static bool parse_com_change_user_packet(MPVIO_EXT *mpvio, uint packet_length)
 {
-  THD *thd= mpvio->thd;
+  THD *thd= mpvio->auth_info.thd;
   NET *net= &thd->net;
   Security_context *sctx= thd->security_ctx;
 
@@ -11742,7 +11741,7 @@ static ulong parse_client_handshake_packet(MPVIO_EXT *mpvio,
                                            uchar **buff, ulong pkt_len)
 {
 #ifndef EMBEDDED_LIBRARY
-  THD *thd= mpvio->thd;
+  THD *thd= mpvio->auth_info.thd;
   NET *net= &thd->net;
   char *end;
   DBUG_ASSERT(mpvio->status == MPVIO_EXT::FAILURE);
@@ -11951,7 +11950,7 @@ static ulong parse_client_handshake_packet(MPVIO_EXT *mpvio,
 
   if ((thd->client_capabilities & CLIENT_CONNECT_ATTRS) &&
       read_client_connect_attrs(&next_field, ((char *)net->read_pos) + pkt_len,
-                                mpvio->thd->charset()))
+                                mpvio->auth_info.thd->charset()))
     return packet_error;
 
   /*
@@ -12036,13 +12035,13 @@ static int server_mpvio_write_packet(MYSQL_PLUGIN_VIO *param,
       We'll escape these bytes with \1. Consequently, we
       have to escape \1 byte too.
     */
-    res= net_write_command(&mpvio->thd->net, 1, (uchar*)"", 0,
+    res= net_write_command(&mpvio->auth_info.thd->net, 1, (uchar*)"", 0,
                            packet, packet_len);
   }
   else
   {
-    res= my_net_write(&mpvio->thd->net, packet, packet_len) ||
-         net_flush(&mpvio->thd->net);
+    res= my_net_write(&mpvio->auth_info.thd->net, packet, packet_len) ||
+         net_flush(&mpvio->auth_info.thd->net);
   }
   mpvio->packets_written++;
   DBUG_RETURN(res);
@@ -12072,7 +12071,7 @@ static int server_mpvio_read_packet(MYSQL_PLUGIN_VIO *param, uchar **buf)
     if (server_mpvio_write_packet(mpvio, 0, 0))
       pkt_len= packet_error;
     else
-      pkt_len= my_net_read(&mpvio->thd->net);
+      pkt_len= my_net_read(&mpvio->auth_info.thd->net);
   }
   else if (mpvio->cached_client_reply.pkt)
   {
@@ -12106,10 +12105,10 @@ static int server_mpvio_read_packet(MYSQL_PLUGIN_VIO *param, uchar **buf)
     if (server_mpvio_write_packet(mpvio, 0, 0))
       pkt_len= packet_error;
     else
-      pkt_len= my_net_read(&mpvio->thd->net);
+      pkt_len= my_net_read(&mpvio->auth_info.thd->net);
   }
   else
-    pkt_len= my_net_read(&mpvio->thd->net);
+    pkt_len= my_net_read(&mpvio->auth_info.thd->net);
 
   if (pkt_len == packet_error)
     goto err;
@@ -12127,14 +12126,14 @@ static int server_mpvio_read_packet(MYSQL_PLUGIN_VIO *param, uchar **buf)
       goto err;
   }
   else
-    *buf= mpvio->thd->net.read_pos;
+    *buf= mpvio->auth_info.thd->net.read_pos;
 
   DBUG_RETURN((int)pkt_len);
 
 err:
   if (mpvio->status == MPVIO_EXT::FAILURE)
   {
-    if (!mpvio->thd->is_error())
+    if (!mpvio->auth_info.thd->is_error())
       my_error(ER_HANDSHAKE_ERROR, MYF(0));
   }
   DBUG_RETURN(-1);
@@ -12148,7 +12147,7 @@ static void server_mpvio_info(MYSQL_PLUGIN_VIO *vio,
                               MYSQL_PLUGIN_VIO_INFO *info)
 {
   MPVIO_EXT *mpvio= (MPVIO_EXT *) vio;
-  mpvio_info(mpvio->thd->net.vio, info);
+  mpvio_info(mpvio->auth_info.thd->net.vio, info);
 }
 
 static bool acl_check_ssl(THD *thd, const ACL_USER *acl_user)
@@ -12283,11 +12282,11 @@ static int do_auth_once(THD *thd, const LEX_STRING *auth_plugin_name,
   if (plugin)
   {
     st_mysql_auth *auth= (st_mysql_auth *) plugin_decl(plugin)->info;
-    switch (auth->interface_version) {
-    case 0x0200:
+    switch (auth->interface_version >> 8) {
+    case 0x02:
       res= auth->authenticate_user(mpvio, &mpvio->auth_info);
       break;
-    case 0x0100:
+    case 0x01:
       {
         MYSQL_SERVER_AUTH_INFO_0x0100 compat;
         compat.downgrade(&mpvio->auth_info);
@@ -12306,7 +12305,7 @@ static int do_auth_once(THD *thd, const LEX_STRING *auth_plugin_name,
     /* Server cannot load the required plugin. */
     Host_errors errors;
     errors.m_no_auth_plugin= 1;
-    inc_host_errors(mpvio->thd->security_ctx->ip, &errors);
+    inc_host_errors(mpvio->auth_info.thd->security_ctx->ip, &errors);
     my_error(ER_PLUGIN_IS_NOT_LOADED, MYF(0), auth_plugin_name->str);
     res= CR_ERROR;
   }
@@ -12351,9 +12350,9 @@ bool acl_authenticate(THD *thd, uint com_change_user_pkt_len)
   mpvio.read_packet= server_mpvio_read_packet;
   mpvio.write_packet= server_mpvio_write_packet;
   mpvio.info= server_mpvio_info;
-  mpvio.thd= thd;
   mpvio.status= MPVIO_EXT::FAILURE;
   mpvio.make_it_fail= false;
+  mpvio.auth_info.thd= thd;
   mpvio.auth_info.host_or_ip= thd->security_ctx->host_or_ip;
   mpvio.auth_info.host_or_ip_length=
     (unsigned int) strlen(thd->security_ctx->host_or_ip);
@@ -12452,7 +12451,7 @@ bool acl_authenticate(THD *thd, uint com_change_user_pkt_len)
       errors.m_auth_plugin= 1;
       break;
     }
-    inc_host_errors(mpvio.thd->security_ctx->ip, &errors);
+    inc_host_errors(mpvio.auth_info.thd->security_ctx->ip, &errors);
     if (!thd->is_error())
       login_failed_error(thd);
     DBUG_RETURN(1);
@@ -12479,7 +12478,7 @@ bool acl_authenticate(THD *thd, uint com_change_user_pkt_len)
       {
         Host_errors errors;
         errors.m_proxy_user= 1;
-        inc_host_errors(mpvio.thd->security_ctx->ip, &errors);
+        inc_host_errors(mpvio.auth_info.thd->security_ctx->ip, &errors);
         if (!thd->is_error())
           login_failed_error(thd);
         DBUG_RETURN(1);
@@ -12499,7 +12498,7 @@ bool acl_authenticate(THD *thd, uint com_change_user_pkt_len)
 
         Host_errors errors;
         errors.m_proxy_user_acl= 1;
-        inc_host_errors(mpvio.thd->security_ctx->ip, &errors);
+        inc_host_errors(mpvio.auth_info.thd->security_ctx->ip, &errors);
         if (!thd->is_error())
           login_failed_error(thd);
         DBUG_RETURN(1);
@@ -12529,7 +12528,7 @@ bool acl_authenticate(THD *thd, uint com_change_user_pkt_len)
     {
       Host_errors errors;
       errors.m_ssl= 1;
-      inc_host_errors(mpvio.thd->security_ctx->ip, &errors);
+      inc_host_errors(mpvio.auth_info.thd->security_ctx->ip, &errors);
       login_failed_error(thd);
       DBUG_RETURN(1);
     }
@@ -12666,7 +12665,7 @@ static int native_password_authenticate(MYSQL_PLUGIN_VIO *vio,
   uchar *pkt;
   int pkt_len;
   MPVIO_EXT *mpvio= (MPVIO_EXT *) vio;
-  THD *thd=mpvio->thd;
+  THD *thd=info->thd;
   DBUG_ENTER("native_password_authenticate");
 
   /* generate the scramble, or reuse the old one */
@@ -12751,7 +12750,7 @@ static int old_password_authenticate(MYSQL_PLUGIN_VIO *vio,
   uchar *pkt;
   int pkt_len;
   MPVIO_EXT *mpvio= (MPVIO_EXT *) vio;
-  THD *thd=mpvio->thd;
+  THD *thd=info->thd;
 
   /* generate the scramble, or reuse the old one */
   if (thd->scramble[SCRAMBLE_LENGTH])
