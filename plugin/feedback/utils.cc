@@ -20,7 +20,6 @@
 #endif
 
 #include <base64.h>
-#include <sha1.h>
 
 #if defined (_WIN32)
 #define HAVE_SYS_UTSNAME_H
@@ -420,7 +419,7 @@ int fill_collation_statistics(THD *thd, TABLE_LIST *tables)
 int calculate_server_uid(char *dest)
 {
   uchar rawbuf[2 + 6];
-  uchar shabuf[SHA1_HASH_SIZE];
+  uchar shabuf[MY_SHA1_HASH_SIZE];
 
   int2store(rawbuf, mysqld_port);
   if (my_gethwaddr(rawbuf + 2))
@@ -429,7 +428,7 @@ int calculate_server_uid(char *dest)
     return 1;
   }
 
-  compute_sha1_hash((uint8*) shabuf, (char*) rawbuf, sizeof(rawbuf));
+  my_sha1((uint8*) shabuf, (char*) rawbuf, sizeof(rawbuf));
 
   assert(base64_needed_encoded_length(sizeof(shabuf)) <= SERVER_UID_SIZE);
   base64_encode(shabuf, sizeof(shabuf), dest);

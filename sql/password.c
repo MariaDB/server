@@ -66,7 +66,6 @@
 #include <password.h>
 #include <mysql.h>
 #include <my_rnd.h>
-#include <sha1.h>
 
 /************ MySQL 3.23-4.0 authentication routines: untouched ***********/
 
@@ -389,10 +388,10 @@ void compute_two_stage_sha1_hash(const char *password, size_t pass_len,
                                  uint8 *hash_stage1, uint8 *hash_stage2)
 {
   /* Stage 1: hash password */
-  compute_sha1_hash(hash_stage1, password, pass_len);
+  my_sha1(hash_stage1, password, pass_len);
 
   /* Stage 2 : hash first stage's output. */
-  compute_sha1_hash(hash_stage2, (const char *) hash_stage1, SHA1_HASH_SIZE);
+  my_sha1(hash_stage2, (const char *) hash_stage1, MY_SHA1_HASH_SIZE);
 }
 
 
@@ -404,7 +403,7 @@ void compute_two_stage_sha1_hash(const char *password, size_t pass_len,
     is stored in the database.
   SYNOPSIS
     my_make_scrambled_password()
-    buf       OUT buffer of size 2*SHA1_HASH_SIZE + 2 to store hex string
+    buf       OUT buffer of size 2*MY_SHA1_HASH_SIZE + 2 to store hex string
     password  IN  password string
     pass_len  IN  length of password string
 */
@@ -412,14 +411,14 @@ void compute_two_stage_sha1_hash(const char *password, size_t pass_len,
 void my_make_scrambled_password(char *to, const char *password,
                                 size_t pass_len)
 {
-  uint8 hash_stage2[SHA1_HASH_SIZE];
+  uint8 hash_stage2[MY_SHA1_HASH_SIZE];
 
   /* Two stage SHA1 hash of the password. */
   compute_two_stage_sha1_hash(password, pass_len, (uint8 *) to, hash_stage2);
 
   /* convert hash_stage2 to hex string */
   *to++= PVERSION41_CHAR;
-  octet2hex(to, (const char*) hash_stage2, SHA1_HASH_SIZE);
+  octet2hex(to, (const char*) hash_stage2, MY_SHA1_HASH_SIZE);
 }
   
 
@@ -430,7 +429,7 @@ void my_make_scrambled_password(char *to, const char *password,
   avoid strlen().
   SYNOPSIS
     make_scrambled_password()
-    buf       OUT buffer of size 2*SHA1_HASH_SIZE + 2 to store hex string
+    buf       OUT buffer of size 2*MY_SHA1_HASH_SIZE + 2 to store hex string
     password  IN  NULL-terminated password string
 */
 
@@ -451,7 +450,7 @@ void make_scrambled_password(char *to, const char *password)
   SYNOPSIS
     scramble()
     buf       OUT store scrambled string here. The buf must be at least 
-                  SHA1_HASH_SIZE bytes long. 
+                  MY_SHA1_HASH_SIZE bytes long. 
     message   IN  random message, must be exactly SCRAMBLE_LENGTH long and 
                   NULL-terminated.
     password  IN  users' password 
@@ -460,16 +459,16 @@ void make_scrambled_password(char *to, const char *password)
 void
 scramble(char *to, const char *message, const char *password)
 {
-  uint8 hash_stage1[SHA1_HASH_SIZE];
-  uint8 hash_stage2[SHA1_HASH_SIZE];
+  uint8 hash_stage1[MY_SHA1_HASH_SIZE];
+  uint8 hash_stage2[MY_SHA1_HASH_SIZE];
 
   /* Two stage SHA1 hash of the password. */
   compute_two_stage_sha1_hash(password, strlen(password), hash_stage1,
                               hash_stage2);
 
   /* create crypt string as sha1(message, hash_stage2) */;
-  compute_sha1_hash_multi((uint8 *) to, message, SCRAMBLE_LENGTH,
-                          (const char *) hash_stage2, SHA1_HASH_SIZE);
+  my_sha1_multi((uint8 *) to, message, SCRAMBLE_LENGTH,
+                (const char *) hash_stage2, MY_SHA1_HASH_SIZE, NULL);
   my_crypt(to, (const uchar *) to, hash_stage1, SCRAMBLE_LENGTH);
 }
 
@@ -478,7 +477,7 @@ scramble(char *to, const char *message, const char *password)
     Check that scrambled message corresponds to the password; the function
     is used by server to check that received reply is authentic.
     This function does not check lengths of given strings: message must be
-    null-terminated, reply and hash_stage2 must be at least SHA1_HASH_SIZE
+    null-terminated, reply and hash_stage2 must be at least MY_SHA1_HASH_SIZE
     long (if not, something fishy is going on).
   SYNOPSIS
     check_scramble()
@@ -498,19 +497,19 @@ my_bool
 check_scramble(const uchar *scramble_arg, const char *message,
                const uint8 *hash_stage2)
 {
-  uint8 buf[SHA1_HASH_SIZE];
-  uint8 hash_stage2_reassured[SHA1_HASH_SIZE];
+  uint8 buf[MY_SHA1_HASH_SIZE];
+  uint8 hash_stage2_reassured[MY_SHA1_HASH_SIZE];
 
   /* create key to encrypt scramble */
-  compute_sha1_hash_multi(buf, message, SCRAMBLE_LENGTH,
-                          (const char *) hash_stage2, SHA1_HASH_SIZE);
+  my_sha1_multi(buf, message, SCRAMBLE_LENGTH,
+                (const char *) hash_stage2, MY_SHA1_HASH_SIZE, NULL);
   /* encrypt scramble */
   my_crypt((char *) buf, buf, scramble_arg, SCRAMBLE_LENGTH);
 
   /* now buf supposedly contains hash_stage1: so we can get hash_stage2 */
-  compute_sha1_hash(hash_stage2_reassured, (const char *) buf, SHA1_HASH_SIZE);
+  my_sha1(hash_stage2_reassured, (const char *) buf, MY_SHA1_HASH_SIZE);
 
-  return MY_TEST(memcmp(hash_stage2, hash_stage2_reassured, SHA1_HASH_SIZE));
+  return MY_TEST(memcmp(hash_stage2, hash_stage2_reassured, MY_SHA1_HASH_SIZE));
 }
 
 /*
@@ -518,27 +517,27 @@ check_scramble(const uchar *scramble_arg, const char *message,
 
   SYNOPSIS
     get_salt_from_password()
-    res       OUT buf to hold password. Must be at least SHA1_HASH_SIZE
+    res       OUT buf to hold password. Must be at least MY_SHA1_HASH_SIZE
                   bytes long.
     password  IN  4.1.1 version value of user.password
 */
     
 void get_salt_from_password(uint8 *hash_stage2, const char *password)
 {
-  hex2octet(hash_stage2, password+1 /* skip '*' */, SHA1_HASH_SIZE * 2);
+  hex2octet(hash_stage2, password+1 /* skip '*' */, MY_SHA1_HASH_SIZE * 2);
 }
 
 /*
     Convert scrambled password from binary form to asciiz hex string.
   SYNOPSIS
     make_password_from_salt()
-    to    OUT store resulting string here, 2*SHA1_HASH_SIZE+2 bytes 
+    to    OUT store resulting string here, 2*MY_SHA1_HASH_SIZE+2 bytes 
     salt  IN  password in salt format
 */
 
 void make_password_from_salt(char *to, const uint8 *hash_stage2)
 {
   *to++= PVERSION41_CHAR;
-  octet2hex(to, (const char*) hash_stage2, SHA1_HASH_SIZE);
+  octet2hex(to, (const char*) hash_stage2, MY_SHA1_HASH_SIZE);
 }
 
