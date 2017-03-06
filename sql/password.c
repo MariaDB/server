@@ -38,7 +38,7 @@
 
   The new authentication is performed in following manner:
 
-  SERVER:  public_seed=create_random_string()
+  SERVER:  public_seed=thd_create_random_password()
            send(public_seed)
 
   CLIENT:  recv(public_seed)
@@ -278,6 +278,7 @@ void make_password_from_salt_323(char *to, const ulong *salt)
      **************** MySQL 4.1.1 authentication routines *************
 */
 
+#if MYSQL_VERSION_ID < 0x100200
 /**
     Generate string of printable random characters of requested length.
   
@@ -296,6 +297,9 @@ void create_random_string(char *to, uint length,
     *to= (char) (my_rnd(rand_st)*94+33);
   *to= '\0';
 }
+#else
+#error
+#endif
 
 
 /* Character to use as version identifier for version 4.1 */

@@ -119,6 +119,11 @@ static struct thd_autoinc_service_st thd_autoinc_handler= {
   thd_get_autoinc
 };
 
+static struct thd_rnd_service_st thd_rnd_handler= {
+  thd_rnd,
+  thd_create_random_password
+};
+
 static struct base64_service_st base64_handler= {
   base64_needed_encoded_length,
   base64_encode_max_arg_length,
@@ -205,6 +210,7 @@ static struct st_service_ref list_of_services[]=
   { "my_md5_service",              VERSION_my_md5,              &my_md5_handler},
   { "logger_service",              VERSION_logger,              &logger_service_handler },
   { "base64_service",              VERSION_base64,              &base64_handler },
+  { "thd_rnd_service",             VERSION_thd_rnd,             &thd_rnd_handler },
   { "thd_autoinc_service",         VERSION_thd_autoinc,         &thd_autoinc_handler },
   { "wsrep_service",               VERSION_wsrep,               &wsrep_handler },
   { "encryption_service",          VERSION_encryption,          &encryption_handler },

@@ -4475,6 +4475,28 @@ extern "C" int thd_is_connected(MYSQL_THD thd)
 }
 
 
+extern "C" double thd_rnd(MYSQL_THD thd)
+{
+  return my_rnd(&thd->rand);
+}
+
+
+/**
+  Generate string of printable random characters of requested length.
+
+  @param to[out]      Buffer for generation; must be at least length+1 bytes
+                      long; result string is always null-terminated
+  @param length[in]   How many random characters to put in buffer
+*/
+extern "C" void thd_create_random_password(MYSQL_THD thd,
+                                           char *to, size_t length)
+{
+  for (char *end= to + length; to < end; to++)
+    *to= (char) (my_rnd(&thd->rand)*94 + 33);
+  *to= '\0';
+}
+
+
 #ifdef INNODB_COMPATIBILITY_HOOKS
 extern "C" const struct charset_info_st *thd_charset(MYSQL_THD thd)
 {

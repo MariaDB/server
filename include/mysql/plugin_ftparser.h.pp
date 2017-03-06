@@ -219,6 +219,12 @@ extern struct thd_autoinc_service_st {
 } *thd_autoinc_service;
 void thd_get_autoinc(const void* thd,
                      unsigned long* off, unsigned long* inc);
+extern struct thd_rnd_service_st {
+  double (*thd_rnd_ptr)(void* thd);
+  void (*thd_c_r_p_ptr)(void* thd, char *to, size_t length);
+} *thd_rnd_service;
+double thd_rnd(void* thd);
+void thd_create_random_password(void* thd, char *to, size_t length);
 extern struct thd_error_context_service_st {
   const char *(*thd_get_error_message_func)(const void* thd);
   unsigned int (*thd_get_error_number_func)(const void* thd);

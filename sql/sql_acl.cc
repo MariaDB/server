@@ -11313,7 +11313,7 @@ static bool send_server_handshake_packet(MPVIO_EXT *mpvio,
         native_password_plugin will have to send it in a separate packet,
         adding one more round trip.
       */
-      create_random_string(thd->scramble, SCRAMBLE_LENGTH, &thd->rand);
+      thd_create_random_password(thd, thd->scramble, SCRAMBLE_LENGTH);
       data= thd->scramble;
     }
     data_len= SCRAMBLE_LENGTH;
@@ -12671,7 +12671,7 @@ static int native_password_authenticate(MYSQL_PLUGIN_VIO *vio,
   /* generate the scramble, or reuse the old one */
   if (thd->scramble[SCRAMBLE_LENGTH])
   {
-    create_random_string(thd->scramble, SCRAMBLE_LENGTH, &thd->rand);
+    thd_create_random_password(thd, thd->scramble, SCRAMBLE_LENGTH);
     /* and send it to the client */
     if (mpvio->write_packet(mpvio, (uchar*)thd->scramble, SCRAMBLE_LENGTH + 1))
       DBUG_RETURN(CR_AUTH_HANDSHAKE);
@@ -12755,7 +12755,7 @@ static int old_password_authenticate(MYSQL_PLUGIN_VIO *vio,
   /* generate the scramble, or reuse the old one */
   if (thd->scramble[SCRAMBLE_LENGTH])
   {
-    create_random_string(thd->scramble, SCRAMBLE_LENGTH, &thd->rand);
+    thd_create_random_password(thd, thd->scramble, SCRAMBLE_LENGTH);
     /* and send it to the client */
     if (mpvio->write_packet(mpvio, (uchar*)thd->scramble, SCRAMBLE_LENGTH + 1))
       return CR_AUTH_HANDSHAKE;
