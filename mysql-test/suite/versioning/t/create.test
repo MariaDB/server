@@ -207,4 +207,9 @@ create or replace table t1 (
 create or replace table t1 (a int) with system versioning;
 create temporary table tmp with system versioning select * from t1;
 
+create or replace table t1 (a int) with system versioning;
+create table tt1 like t1;
+show create table tt1;
+drop table tt1;
+
 drop table t1;

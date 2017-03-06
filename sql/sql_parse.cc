@@ -3877,10 +3877,11 @@ mysql_execute_command(THD *thd)
       create_info.use_default_db_type(thd);
 
     DBUG_ASSERT(create_info.db_type);
-    if (create_info.vers_info.check_and_fix_implicit(thd,
-      &alter_info,
-      create_info.db_type->flags & HTON_SUPPORTS_SYS_VERSIONING,
-      create_table->table_name))
+    if (!create_info.like() &&
+        create_info.vers_info.check_and_fix_implicit(
+            thd, &alter_info,
+            create_info.db_type->flags & HTON_SUPPORTS_SYS_VERSIONING,
+            create_table->table_name))
     {
       goto end_with_restore_list;
     }

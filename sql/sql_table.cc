@@ -5378,6 +5378,13 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
     thd->work_part_info= src_table->table->part_info->get_clone(thd);
 #endif
 
+  if (src_table->table->versioned() &&
+      local_create_info.vers_info.fix_create_like(thd, &local_alter_info,
+                                                  &local_create_info))
+  {
+    goto err;
+  }
+
   /*
     Adjust description of source table before using it for creation of
     target table.

@@ -6850,6 +6850,33 @@ bool Vers_parse_info::check_and_fix_alter(THD *thd, Alter_info *alter_info,
            check_generated_type(table_name, alter_info, integer_fields)));
 }
 
+bool Vers_parse_info::fix_create_like(THD *thd, Alter_info *alter_info,
+                                      HA_CREATE_INFO *create_info)
+{
+  List_iterator<Create_field> it(alter_info->create_list);
+  Create_field *f= NULL;
+
+  DBUG_ASSERT(alter_info->create_list.elements > 2);
+  for (uint i= 0; i < alter_info->create_list.elements - 1; ++i)
+    f= it++;
+  DBUG_ASSERT(f->flags & VERS_SYS_START_FLAG);
+  if (create_string(thd->mem_root, &generated_as_row.start, f->field_name) ||
+      create_string(thd->mem_root, &period_for_system_time.start,
+                    f->field_name))
+    return true;
+
+  f= it++;
+  DBUG_ASSERT(f->flags & VERS_SYS_END_FLAG);
+  if (create_string(thd->mem_root, &generated_as_row.end, f->field_name) ||
+      create_string(thd->mem_root, &period_for_system_time.end, f->field_name))
+    return true;
+
+  create_info->options|= HA_VERSIONED_TABLE;
+
+  return false;
+}
+
+
 bool Vers_parse_info::check_with_conditions(const char *table_name) const
 {
   if (!generated_as_row.start)

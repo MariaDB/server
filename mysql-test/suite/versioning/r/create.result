@@ -225,4 +225,15 @@ A int
 ERROR HY000: Wrong parameters for `t1`: Versioning specified more than once for the same table
 create or replace table t1 (a int) with system versioning;
 create temporary table tmp with system versioning select * from t1;
+create or replace table t1 (a int) with system versioning;
+create table tt1 like t1;
+show create table tt1;
+Table	Create Table
+tt1	CREATE TABLE `tt1` (
+  `a` int(11) DEFAULT NULL,
+  `sys_trx_start` timestamp(6) GENERATED ALWAYS AS ROW START,
+  `sys_trx_end` timestamp(6) GENERATED ALWAYS AS ROW END,
+  PERIOD FOR SYSTEM_TIME (`sys_trx_start`, `sys_trx_end`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+drop table tt1;
 drop table t1;
