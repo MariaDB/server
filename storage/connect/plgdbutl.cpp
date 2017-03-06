@@ -244,17 +244,21 @@ PQRYRES PlgAllocResult(PGLOBAL g, int ncol, int maxres, int ids,
   PCOLRES *pcrp, crp;
   PQRYRES  qrp;
 
-  // Save stack and allocation environment and prepare error return
-  if (g->jump_level == MAX_JUMP) {
-    strcpy(g->Message, MSG(TOO_MANY_JUMPS));
-    return NULL;
-    } // endif jump_level
+#if defined(USE_TRY)
+	try {
+#else   // !USE_TRY
+	// Save stack and allocation environment and prepare error return
+	if (g->jump_level == MAX_JUMP) {
+		strcpy(g->Message, MSG(TOO_MANY_JUMPS));
+		return NULL;
+	} // endif jump_level
 
-  if (setjmp(g->jumper[++g->jump_level]) != 0) {
-    printf("%s\n", g->Message);
-    qrp = NULL;
-    goto fin;
-    } // endif rc
+	if (setjmp(g->jumper[++g->jump_level]) != 0) {
+		printf("%s\n", g->Message);
+		qrp = NULL;
+		goto fin;
+	} // endif rc
+#endif  // !USE_TRY
 
   /************************************************************************/
   /*  Allocate the structure used to contain the result set.              */
@@ -316,9 +320,20 @@ PQRYRES PlgAllocResult(PGLOBAL g, int ncol, int maxres, int ids,
 
   *pcrp = NULL;
 
+#if defined(USE_TRY)
+  } catch (int n) {
+  	htrc("Exception %d: %s\n", n, g->Message);
+	  qrp = NULL;
+  } catch (const char *msg) {
+  	strcpy(g->Message, msg);
+	  htrc("%s\n", g->Message);
+	  qrp = NULL;
+  } // end catch
+#else   // !USE_TRY
  fin:
-  g->jump_level--;
-  return qrp;
+	g->jump_level--;
+#endif  // !USE_TRY
+	return qrp;
   } // end of PlgAllocResult
 
 /***********************************************************************/
@@ -365,8 +380,12 @@ PCATLG PlgGetCatalog(PGLOBAL g, bool jump)
   if (!cat && jump) {
     // Raise exception so caller doesn't have to check return value
     strcpy(g->Message, MSG(NO_ACTIVE_DB));
-    longjmp(g->jumper[g->jump_level], 1);
-    } // endif cat
+#if defined(USE_TRY)
+		throw 1;
+#else   // !USE_TRY
+		longjmp(g->jumper[g->jump_level], 1);
+#endif  // !USE_TRY
+	} // endif cat
 
   return cat;
   } // end of PlgGetCatalog
@@ -476,8 +495,12 @@ bool PlugEvalLike(PGLOBAL g, LPCSTR strg, LPCSTR pat, bool ci)
       tp = g->Message;
     else if (!(tp = new char[strlen(pat) + strlen(strg) + 2])) {
       strcpy(g->Message, MSG(NEW_RETURN_NULL));
-      longjmp(g->jumper[g->jump_level], OP_LIKE);
-      } /* endif tp */
+#if defined(USE_TRY)
+			throw OP_LIKE;
+#else   // !USE_TRY
+			longjmp(g->jumper[g->jump_level], OP_LIKE);
+#endif  // !USE_TRY
+		} /* endif tp */
     
     sp = tp + strlen(pat) + 1;
     strlwr(strcpy(tp, pat));      /* Make a lower case copy of pat     */
@@ -487,8 +510,12 @@ bool PlugEvalLike(PGLOBAL g, LPCSTR strg, LPCSTR pat, bool ci)
       tp = g->Message;            /* Use this as temporary work space. */
     else if (!(tp = new char[strlen(pat) + 1])) {
       strcpy(g->Message, MSG(NEW_RETURN_NULL));
-      longjmp(g->jumper[g->jump_level], OP_LIKE);
-      } /* endif tp */
+#if defined(USE_TRY)
+			throw OP_LIKE;
+#else   // !USE_TRY
+			longjmp(g->jumper[g->jump_level], OP_LIKE);
+#endif  // !USE_TRY
+		} /* endif tp */
     
     strcpy(tp, pat);                  /* Make a copy to be worked into */
     sp = (char*)strg;
@@ -1520,8 +1547,12 @@ DllExport void NewPointer(PTABS t, void *oldv, void *newv)
       PGLOBAL g = t->G;
 
       sprintf(g->Message, "NewPointer: %s", MSG(MEM_ALLOC_ERROR));
-      longjmp(g->jumper[g->jump_level], 3);
-    } else {
+#if defined(USE_TRY)
+			throw 3;
+#else   // !USE_TRY
+			longjmp(g->jumper[g->jump_level], 3);
+#endif  // !USE_TRY
+		} else {
       tp->Next = t->P1;
       tp->Num = 0;
       t->P1 = tp;
@@ -1557,15 +1588,23 @@ int FileComp(PGLOBAL g, char *file1, char *file2)
         sprintf(g->Message, MSG(OPEN_MODE_ERROR),
                 "rb", (int)errno, fn[i]);
         strcat(strcat(g->Message, ": "), strerror(errno));
-        longjmp(g->jumper[g->jump_level], 666);
-//      } else
+#if defined(USE_TRY)
+				throw 666;
+#else   // !USE_TRY
+				longjmp(g->jumper[g->jump_level], 666);
+#endif  // !USE_TRY
+				//      } else
 //        len[i] = 0;          // File does not exist yet
 
     } else {
       if ((len[i] = _filelength(h[i])) < 0) {
         sprintf(g->Message, MSG(FILELEN_ERROR), "_filelength", fn[i]);
-        longjmp(g->jumper[g->jump_level], 666);
-        } // endif len
+#if defined(USE_TRY)
+				throw 666;
+#else   // !USE_TRY
+				longjmp(g->jumper[g->jump_level], 666);
+#endif  // !USE_TRY
+			} // endif len
 
     } // endif h
 

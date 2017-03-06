@@ -197,8 +197,12 @@ int COLBLK::GetLengthEx(void)
 void COLBLK::ReadColumn(PGLOBAL g)
   {
   sprintf(g->Message, MSG(UNDEFINED_AM), "ReadColumn");
-  longjmp(g->jumper[g->jump_level], TYPE_COLBLK);
-  } // end of ReadColumn
+#if defined(USE_TRY)
+	throw TYPE_COLBLK;
+#else   // !USE_TRY
+	longjmp(g->jumper[g->jump_level], TYPE_COLBLK);
+#endif  // !USE_TRY
+} // end of ReadColumn
 
 /***********************************************************************/
 /*  WriteColumn: what this routine does is to access the last line     */
@@ -208,8 +212,12 @@ void COLBLK::ReadColumn(PGLOBAL g)
 void COLBLK::WriteColumn(PGLOBAL g)
   {
   sprintf(g->Message, MSG(UNDEFINED_AM), "WriteColumn");
-  longjmp(g->jumper[g->jump_level], TYPE_COLBLK);
-  } // end of WriteColumn
+#if defined(USE_TRY)
+	throw TYPE_COLBLK;
+#else   // !USE_TRY
+	longjmp(g->jumper[g->jump_level], TYPE_COLBLK);
+#endif  // !USE_TRY
+} // end of WriteColumn
 
 /***********************************************************************/
 /*  Make file output of a column descriptor block.                     */
@@ -262,8 +270,12 @@ SPCBLK::SPCBLK(PCOLUMN cp)
 void SPCBLK::WriteColumn(PGLOBAL g)
   {
   sprintf(g->Message, MSG(SPCOL_READONLY), Name);
-  longjmp(g->jumper[g->jump_level], TYPE_COLBLK);
-  } // end of WriteColumn
+#if defined(USE_TRY)
+	throw TYPE_COLBLK;
+#else   // !USE_TRY
+	longjmp(g->jumper[g->jump_level], TYPE_COLBLK);
+#endif  // !USE_TRY
+} // end of WriteColumn
 
 /***********************************************************************/
 /*  RIDBLK constructor for the ROWID special column.                   */

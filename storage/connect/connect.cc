@@ -1,4 +1,4 @@
-/* Copyright (C) Olivier Bertrand 2004 - 2015
+/* Copyright (C) Olivier Bertrand 2004 - 2017
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -15,10 +15,10 @@
    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
 
 /***********************************************************************/
-/*  Author Olivier BERTRAND  bertrandop@gmail.com         2004-2015    */
+/*  Author Olivier BERTRAND  bertrandop@gmail.com         2004-2017    */
 /*                                                                     */
-/* WHAT THIS PROGRAM DOES:                                             */
-/* -----------------------                                             */
+/*  WHAT THIS PROGRAM DOES:                                            */
+/*  -----------------------                                            */
 /*  This program are the CONNECT general purpose semantic routines.    */
 /***********************************************************************/
 #ifdef USE_PRAGMA_IMPLEMENTATION
@@ -188,47 +188,60 @@ bool CntInfo(PGLOBAL g, PTDB tp, PXF info)
 /*  GetTDB: Get the table description block of a CONNECT table.        */
 /***********************************************************************/
 PTDB CntGetTDB(PGLOBAL g, LPCSTR name, MODE mode, PHC h)
-  {
-  int     rc;
-  PTDB    tdbp;
-  PTABLE  tabp;
-  PDBUSER dup= PlgGetUser(g);
-  volatile PCATLG  cat= (dup) ? dup->Catalog : NULL;     // Safe over longjmp
+{
+	PTDB    tdbp;
+	PTABLE  tabp;
+	PDBUSER dup = PlgGetUser(g);
+	volatile PCATLG  cat = (dup) ? dup->Catalog : NULL;     // Safe over longjmp
 
-  if (trace)
-    printf("CntGetTDB: name=%s mode=%d cat=%p\n", name, mode, cat);
+	if (trace)
+		printf("CntGetTDB: name=%s mode=%d cat=%p\n", name, mode, cat);
 
-  if (!cat)
-    return NULL;
+	if (!cat)
+		return NULL;
 
-  // Save stack and allocation environment and prepare error return
-  if (g->jump_level == MAX_JUMP) {
-    strcpy(g->Message, MSG(TOO_MANY_JUMPS));
-    return NULL;
-    } // endif jump_level
+#if defined(USE_TRY)
+	try {
+#else   // !USE_TRY
+	// Save stack and allocation environment and prepare error return
+	if (g->jump_level == MAX_JUMP) {
+		strcpy(g->Message, MSG(TOO_MANY_JUMPS));
+		return NULL;
+	} // endif jump_level
 
-  if ((rc= setjmp(g->jumper[++g->jump_level])) != 0) {
-    tdbp= NULL;
-    goto err;
-    } // endif rc
+	if (setjmp(g->jumper[++g->jump_level])) {
+		tdbp = NULL;
+		goto err;
+	} // endif rc
+#endif  // !USE_TRY
 
-  // Get table object from the catalog
-  tabp= new(g) XTAB(name);
+	// Get table object from the catalog
+	tabp = new(g) XTAB(name);
 
-  if (trace)
-    printf("CntGetTDB: tabp=%p\n", tabp);
+	if (trace)
+		printf("CntGetTDB: tabp=%p\n", tabp);
 
-  // Perhaps this should be made thread safe
-  ((MYCAT*)cat)->SetHandler(h);
+	// Perhaps this should be made thread safe
+	((MYCAT*)cat)->SetHandler(h);
 
-  if (!(tdbp= cat->GetTable(g, tabp, mode)))
-    printf("CntGetTDB: %s\n", g->Message);
+	if (!(tdbp = cat->GetTable(g, tabp, mode)))
+		printf("CntGetTDB: %s\n", g->Message);
 
- err:
+#if defined(USE_TRY)
+	} catch (int n) {
+		if (trace)
+			htrc("Exception %d: %s\n", n, g->Message);
+  } catch (const char *msg) {
+		strcpy(g->Message, msg);
+	}	// end catch
+#else   // !USE_TRY
+err:
+	g->jump_level--;
+#endif  // !USE_TRY
+
   if (trace)
     printf("Returning tdbp=%p mode=%d\n", tdbp, mode);
 
-  g->jump_level--;
   return tdbp;
   } // end of CntGetTDB
 
@@ -239,7 +252,7 @@ bool CntOpenTable(PGLOBAL g, PTDB tdbp, MODE mode, char *c1, char *c2,
                                         bool del, PHC)
   {
   char   *p;
-  int     i, n, rc;
+  int     i, n;
   bool    rcop= true;
   PCOL    colp;
 //PCOLUMN cp;
@@ -254,15 +267,19 @@ bool CntOpenTable(PGLOBAL g, PTDB tdbp, MODE mode, char *c1, char *c2,
     return true;
     } // endif tdbp
 
-  // Save stack and allocation environment and prepare error return
-  if (g->jump_level == MAX_JUMP) {
-    strcpy(g->Message, MSG(TOO_MANY_JUMPS));
-    return true;
-    } // endif jump_level
+#if defined(USE_TRY)
+	try {
+#else   // !USE_TRY
+	// Save stack and allocation environment and prepare error return
+	if (g->jump_level == MAX_JUMP) {
+		strcpy(g->Message, MSG(TOO_MANY_JUMPS));
+		return true;
+	} // endif jump_level
 
-  if ((rc= setjmp(g->jumper[++g->jump_level])) != 0) {
-    goto err;
-    } // endif rc
+	if (setjmp(g->jumper[++g->jump_level])) {
+		goto err;
+	} // endif rc
+#endif  // !USE_TRY
 
   if (!c1) {
     if (mode == MODE_INSERT)
@@ -281,7 +298,11 @@ bool CntOpenTable(PGLOBAL g, PTDB tdbp, MODE mode, char *c1, char *c2,
       if (g->Message[0] == 0)
         sprintf(g->Message, MSG(COL_ISNOT_TABLE), p, tdbp->GetName());
 
-      goto err;
+#if defined(USE_TRY)
+			throw 1;
+#else   // !USE_TRY
+			goto err;
+#endif  // !USE_TRY
       } // endif colp
 
     n= strlen(p) + 1;
@@ -289,12 +310,20 @@ bool CntOpenTable(PGLOBAL g, PTDB tdbp, MODE mode, char *c1, char *c2,
 
   for (i= 0, colp= tdbp->GetColumns(); colp; i++, colp= colp->GetNext()) {
     if (colp->InitValue(g))
-      goto err;
+#if defined(USE_TRY)
+			throw 2;
+#else   // !USE_TRY
+			goto err;
+#endif  // !USE_TRY
 
     if (mode == MODE_INSERT)
       // Allow type conversion
       if (colp->SetBuffer(g, colp->GetValue(), true, false))
-        goto err;
+#if defined(USE_TRY)
+				throw 3;
+#else   // !USE_TRY
+				goto err;
+#endif  // !USE_TRY
 
     colp->AddColUse(U_P);           // For PLG tables
     } // endfor colp
@@ -309,8 +338,12 @@ bool CntOpenTable(PGLOBAL g, PTDB tdbp, MODE mode, char *c1, char *c2,
 
     if (!(utp= (PTDBASE)tdbp->Duplicate(g))) {
       sprintf(g->Message, MSG(INV_UPDT_TABLE), tdbp->GetName());
-      goto err;
-      } // endif tp
+#if defined(USE_TRY)
+			throw 4;
+#else   // !USE_TRY
+			goto err;
+#endif  // !USE_TRY
+		} // endif tp
 
     if (!c2)
       // Allocate all column blocks for that table
@@ -323,10 +356,18 @@ bool CntOpenTable(PGLOBAL g, PTDB tdbp, MODE mode, char *c1, char *c2,
 
     for (i= 0, colp= utp->GetColumns(); colp; i++, colp= colp->GetNext()) {
       if (colp->InitValue(g))
-        goto err;
+#if defined(USE_TRY)
+				throw 5;
+#else   // !USE_TRY
+				goto err;
+#endif  // !USE_TRY
 
       if (colp->SetBuffer(g, colp->GetValue(), true, false))
-        goto err;
+#if defined(USE_TRY)
+				throw 6;
+#else   // !USE_TRY
+				goto err;
+#endif  // !USE_TRY
 
       } // endfor colp
 
@@ -358,16 +399,29 @@ bool CntOpenTable(PGLOBAL g, PTDB tdbp, MODE mode, char *c1, char *c2,
   if (mode != MODE_ANY && mode != MODE_ALTER) {
     if (tdbp->OpenDB(g)) {
       printf("%s\n", g->Message);
-      goto err;
-    } else
+#if defined(USE_TRY)
+			throw 7;
+#else   // !USE_TRY
+			goto err;
+#endif  // !USE_TRY
+		} else
       tdbp->SetNext(NULL);
 
   } // endif mode
 
   rcop= false;
 
- err:
-  g->jump_level--;
+#if defined(USE_TRY)
+	} catch (int n) {
+		if (trace)
+			htrc("Exception %d: %s\n", n, g->Message);
+	} catch (const char *msg) {
+		strcpy(g->Message, msg);
+	} // end catch
+#else   // !USE_TRY
+err:
+	g->jump_level--;
+#endif  // !USE_TRY
   return rcop;
   } // end of CntOpenTable
 
@@ -391,23 +445,27 @@ RCODE EvalColumns(PGLOBAL g, PTDB tdbp, bool reset, bool mrr)
   RCODE rc= RC_OK;
   PCOL  colp;
 
-  // Save stack and allocation environment and prepare error return
-  if (g->jump_level == MAX_JUMP) {
-    if (trace) {
-      strcpy(g->Message, MSG(TOO_MANY_JUMPS));
-      printf("EvalColumns: %s\n", g->Message);
-      } // endif
+#if defined(USE_TRY)
+	try {
+#else   // !USE_TRY
+	// Save stack and allocation environment and prepare error return
+	if (g->jump_level == MAX_JUMP) {
+		if (trace) {
+			strcpy(g->Message, MSG(TOO_MANY_JUMPS));
+			printf("EvalColumns: %s\n", g->Message);
+		} // endif
 
-    return RC_FX;
-    } // endif jump_level
+		return RC_FX;
+	} // endif jump_level
 
-  if (setjmp(g->jumper[++g->jump_level]) != 0) {
-    if (trace)
-      printf("Error reading columns: %s\n", g->Message);
+	if (setjmp(g->jumper[++g->jump_level]) != 0) {
+		if (trace)
+			printf("Error reading columns: %s\n", g->Message);
 
-    rc= RC_FX;
-    goto err;
-    } // endif rc
+		rc = RC_FX;
+		goto err;
+	} // endif rc
+#endif  // !USE_TRY
 
   for (colp= tdbp->GetColumns(); rc == RC_OK && colp;
        colp= colp->GetNext()) {
@@ -421,8 +479,19 @@ RCODE EvalColumns(PGLOBAL g, PTDB tdbp, bool reset, bool mrr)
 
     } // endfor colp
 
- err:
-  g->jump_level--;
+#if defined(USE_TRY)
+} catch (int n) {
+	if (trace)
+		printf("Error %d reading columns: %s\n", n, g->Message);
+
+	rc = RC_FX;
+} catch (const char *msg) {
+	strcpy(g->Message, msg);
+} // end catch
+#else   // !USE_TRY
+err:
+	g->jump_level--;
+#endif  // !USE_TRY
   return rc;
   } // end of EvalColumns
 
@@ -445,16 +514,20 @@ RCODE CntReadNext(PGLOBAL g, PTDB tdbp)
     ((PTDBASE)tdbp)->ResetKindex(g, NULL);
     } // endif index
 
-  // Save stack and allocation environment and prepare error return
-  if (g->jump_level == MAX_JUMP) {
-    strcpy(g->Message, MSG(TOO_MANY_JUMPS));
-    return RC_FX;
-    } // endif jump_level
+#if defined(USE_TRY)
+	try {
+#else   // !USE_TRY
+	// Save stack and allocation environment and prepare error return
+	if (g->jump_level == MAX_JUMP) {
+		strcpy(g->Message, MSG(TOO_MANY_JUMPS));
+		return RC_FX;
+	} // endif jump_level
 
-  if ((setjmp(g->jumper[++g->jump_level])) != 0) {
-    rc= RC_FX;
-    goto err;
-    } // endif rc
+	if ((setjmp(g->jumper[++g->jump_level])) != 0) {
+		rc = RC_FX;
+		goto err;
+	} // endif rc
+#endif  // !USE_TRY
 
   // Do it now to avoid double eval when filtering
   for (PCOL colp= tdbp->GetColumns(); colp; colp= colp->GetNext())
@@ -470,8 +543,17 @@ RCODE CntReadNext(PGLOBAL g, PTDB tdbp)
   if (rc == RC_OK)
     rc= EvalColumns(g, tdbp, false);
 
- err:
-  g->jump_level--;
+#if defined(USE_TRY)
+  } catch (int) {
+	  rc = RC_FX;
+  } catch (const char *msg) {
+	  strcpy(g->Message, msg);
+		rc = RC_FX;
+  } // end catch
+#else   // !USE_TRY
+err:
+	g->jump_level--;
+#endif  // !USE_TRY
   return rc;
   } // end of CntReadNext
 
@@ -487,17 +569,21 @@ RCODE  CntWriteRow(PGLOBAL g, PTDB tdbp)
   if (!tdbp)
     return RC_FX;
 
-  // Save stack and allocation environment and prepare error return
-  if (g->jump_level == MAX_JUMP) {
-    strcpy(g->Message, MSG(TOO_MANY_JUMPS));
-    return RC_FX;
-    } // endif jump_level
+#if defined(USE_TRY)
+	try {
+#else   // !USE_TRY
+	// Save stack and allocation environment and prepare error return
+	if (g->jump_level == MAX_JUMP) {
+		strcpy(g->Message, MSG(TOO_MANY_JUMPS));
+		return RC_FX;
+	} // endif jump_level
 
-  if (setjmp(g->jumper[++g->jump_level]) != 0) {
-    printf("%s\n", g->Message);
-    rc= RC_FX;
-    goto err;
-    } // endif rc
+	if (setjmp(g->jumper[++g->jump_level]) != 0) {
+		printf("%s\n", g->Message);
+		rc = RC_FX;
+		goto err;
+	} // endif rc
+#endif  // !USE_TRY
 
   // Store column values in table write buffer(s)
   for (colp= tdbp->GetSetCols(); colp; colp= colp->GetNext())
@@ -511,8 +597,18 @@ RCODE  CntWriteRow(PGLOBAL g, PTDB tdbp)
     // Return result code from write operation
     rc= (RCODE)tdbp->WriteDB(g);
 
- err:
-  g->jump_level--;
+#if defined(USE_TRY)
+} catch (int n) {
+	printf("Exception %d: %s\n", n, g->Message);
+	rc = RC_FX;
+} catch (const char *msg) {
+	strcpy(g->Message, msg);
+	rc = RC_FX;
+} // end catch
+#else   // !USE_TRY
+err:
+	g->jump_level--;
+#endif  // !USE_TRY
   return rc;
   } // end of CntWriteRow
 
@@ -598,49 +694,59 @@ int CntCloseTable(PGLOBAL g, PTDB tdbp, bool nox, bool abort)
       break;
     } // endswitch rc
 
-  //  Prepare error return
-  if (g->jump_level == MAX_JUMP) {
-    strcpy(g->Message, MSG(TOO_MANY_JUMPS));
-    rc= RC_FX;
-    goto err;
-    } // endif
+#if defined(USE_TRY)
+	try {
+#else   // !USE_TRY
+	//  Prepare error return
+	if (g->jump_level == MAX_JUMP) {
+		strcpy(g->Message, MSG(TOO_MANY_JUMPS));
+		rc = RC_FX;
+		goto err;
+	} // endif
 
-  if ((rc = setjmp(g->jumper[++g->jump_level])) != 0) {
-    rc= RC_FX;
-    g->jump_level--;
-    goto err;
-    } // endif
+	if ((rc = setjmp(g->jumper[++g->jump_level])) != 0) {
+		rc = RC_FX;
+		goto err;
+	} // endif
+#endif  // !USE_TRY
 
   //  This will close the table file(s) and also finalize write
   //  operations such as Insert, Update, or Delete.
   tdbp->SetAbort(abort);
   tdbp->CloseDB(g);
   tdbp->SetAbort(false);
-  g->jump_level--;
 
   if (trace > 1)
     printf("Table %s closed\n", tdbp->GetName());
 
-//if (!((PTDBDOX)tdbp)->GetModified())
-//  return 0;
+	if (!nox && tdbp->GetMode() != MODE_READ && tdbp->GetMode() != MODE_ANY) {
+		if (trace > 1)
+			printf("About to reset opt\n");
 
-  if (nox || tdbp->GetMode() == MODE_READ || tdbp->GetMode() == MODE_ANY)
-    return 0;
+		if (!tdbp->IsRemote()) {
+			// Make all the eventual indexes
+			PTDBDOX tbxp = (PTDBDOX)tdbp;
+			tbxp->ResetKindex(g, NULL);
+			tbxp->SetKey_Col(NULL);
+			rc = tbxp->ResetTableOpt(g, true, tbxp->GetDef()->Indexable() == 1);
+		} // endif remote
+
+	} // endif nox
+
+#if defined(USE_TRY)
+} catch (int) {
+	rc = RC_FX;
+} catch (const char *msg) {
+	strcpy(g->Message, msg);
+	rc = RC_FX;
+} // end catch
+#else   // !USE_TRY
+err:
+	g->jump_level--;
+#endif  // !USE_TRY
 
   if (trace > 1)
-    printf("About to reset opt\n");
-
-	if (!tdbp->IsRemote()) {
-		// Make all the eventual indexes
-		PTDBDOX tbxp = (PTDBDOX)tdbp;
-		tbxp->ResetKindex(g, NULL);
-		tbxp->SetKey_Col(NULL);
-		rc = tbxp->ResetTableOpt(g, true, tbxp->GetDef()->Indexable() == 1);
-	  } // endif remote
-
- err:
-  if (trace > 1)
-    printf("Done rc=%d\n", rc);
+    htrc("Done rc=%d\n", rc);
 
   return (rc == RC_OK || rc == RC_INFO) ? 0 : rc;
   } // end of CntCloseTable

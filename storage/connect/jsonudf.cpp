@@ -1104,7 +1104,7 @@ static my_bool JsonInit(UDF_INIT *initid, UDF_ARGS *args,
   } // endif g
 
 	g->Mrr = (args->arg_count && args->args[0]) ? 1 : 0;
-	g->ActivityStart = (PACTIVITY)more;
+	g->More = more;
   initid->maybe_null = mbn;
   initid->max_length = reslen;
 	initid->ptr = (char*)g;
@@ -1449,7 +1449,7 @@ static my_bool CheckMemory(PGLOBAL g, UDF_INIT *initid, UDF_ARGS *args, uint n,
 
 			}	// endif b
 
-			ml += (unsigned long)g->ActivityStart;		 // more
+			ml += g->More;
 
 			if (ml > g->Sarea_Size) {
 				free(g->Sarea);
@@ -2914,7 +2914,6 @@ char *jsonget_string(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	unsigned long *res_length, char *is_null, char *)
 {
 	char   *p, *path, *str = NULL;
-	int     rc;
 	PJSON   jsp;
 	PJSNX   jsx;
 	PJVAL   jvp;
@@ -2926,6 +2925,9 @@ char *jsonget_string(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	} else if (initid->const_item)
 		g->N = 1;
 
+#if defined(USE_TRY)
+	try {
+#else   // !USE_TRY
 	// Save stack and allocation environment and prepare error return
 	if (g->jump_level == MAX_JUMP) {
 		PUSH_WARNING(MSG(TOO_MANY_JUMPS));
@@ -2933,11 +2935,12 @@ char *jsonget_string(UDF_INIT *initid, UDF_ARGS *args, char *result,
 		return NULL;
 	} // endif jump_level
 
-	if ((rc= setjmp(g->jumper[++g->jump_level])) != 0) {
+	if (setjmp(g->jumper[++g->jump_level])) {
 		PUSH_WARNING(g->Message);
 		str = NULL;
 		goto err;
 	} // endif rc
+#endif  // !USE_TRY
 
 	if (!g->Xchk) {
 		if (CheckMemory(g, initid, args, 1, true)) {
@@ -2980,8 +2983,23 @@ char *jsonget_string(UDF_INIT *initid, UDF_ARGS *args, char *result,
 		// Keep result of constant function
 		g->Activityp = (PACTIVITY)str;
 
+#if defined(USE_TRY)
+  } catch (int n) {
+	  if (trace)
+		  htrc("Exception %d: %s\n", n, g->Message);
+		PUSH_WARNING(g->Message);
+		str = NULL;
+	} catch (const char *msg) {
+	  strcpy(g->Message, msg);
+		PUSH_WARNING(g->Message);
+		str = NULL;
+  } // end catch
+
+ err:
+#else   // !USE_TRY
  err:
 	g->jump_level--;
+#endif  // !USE_TRY
 
  fin:
 	if (!str) {
@@ -3254,7 +3272,7 @@ char *jsonlocate(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	                unsigned long *res_length, char *is_null, char *error)
 {
 	char   *p, *path = NULL;
-	int     k, rc;
+	int     k;
 	PJVAL   jvp, jvp2;
 	PJSON   jsp;
 	PJSNX   jsx;
@@ -3274,6 +3292,9 @@ char *jsonlocate(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	} else if (initid->const_item)
 		g->N = 1;
 
+#if defined(USE_TRY)
+	try {
+#else   // !USE_TRY
 	// Save stack and allocation environment and prepare error return
 	if (g->jump_level == MAX_JUMP) {
 		PUSH_WARNING(MSG(TOO_MANY_JUMPS));
@@ -3282,12 +3303,13 @@ char *jsonlocate(UDF_INIT *initid, UDF_ARGS *args, char *result,
 		return NULL;
 	} // endif jump_level
 
-	if ((rc= setjmp(g->jumper[++g->jump_level])) != 0) {
+	if (setjmp(g->jumper[++g->jump_level])) {
 		PUSH_WARNING(g->Message);
 		*error = 1;
 		path = NULL;
 		goto err;
 	} // endif rc
+#endif  // !USE_TRY
 
 	if (!g->Xchk) {
 		if (CheckMemory(g, initid, args, 1, !g->Xchk)) {
@@ -3326,8 +3348,25 @@ char *jsonlocate(UDF_INIT *initid, UDF_ARGS *args, char *result,
 		// Keep result of constant function
 		g->Activityp = (PACTIVITY)path;
 
+#if defined(USE_TRY)
+  } catch (int n) {
+	  if (trace)
+		  htrc("Exception %d: %s\n", n, g->Message);
+		PUSH_WARNING(g->Message);
+		*error = 1;
+		path = NULL;
+	} catch (const char *msg) {
+		strcpy(g->Message, msg);
+		PUSH_WARNING(g->Message);
+		*error = 1;
+		path = NULL;
+	} // end catch
+
+ err:
+#else   // !USE_TRY
  err:
 	g->jump_level--;
+#endif  // !USE_TRY
 
 	if (!path) {
 		*res_length = 0;
@@ -3379,7 +3418,7 @@ char *json_locate_all(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	unsigned long *res_length, char *is_null, char *error)
 {
 	char   *p, *path = NULL;
-	int     rc, mx = 10;
+	int     mx = 10;
 	PJVAL   jvp, jvp2;
 	PJSON   jsp;
 	PJSNX   jsx;
@@ -3400,6 +3439,9 @@ char *json_locate_all(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	} else if (initid->const_item)
 		g->N = 1;
 
+#if defined(USE_TRY)
+	try {
+#else   // !USE_TRY
 	// Save stack and allocation environment and prepare error return
 	if (g->jump_level == MAX_JUMP) {
 		PUSH_WARNING(MSG(TOO_MANY_JUMPS));
@@ -3408,12 +3450,13 @@ char *json_locate_all(UDF_INIT *initid, UDF_ARGS *args, char *result,
 		return NULL;
 	} // endif jump_level
 
-	if ((rc= setjmp(g->jumper[++g->jump_level])) != 0) {
+	if (setjmp(g->jumper[++g->jump_level])) {
 		PUSH_WARNING(g->Message);
 		*error = 1;
 		path = NULL;
 		goto err;
 	} // endif rc
+#endif  // !USE_TRY
 
 	if (!g->Xchk) {
 		if (CheckMemory(g, initid, args, 1, true)) {
@@ -3453,8 +3496,25 @@ char *json_locate_all(UDF_INIT *initid, UDF_ARGS *args, char *result,
 		// Keep result of constant function
 		g->Activityp = (PACTIVITY)path;
 
+#if defined(USE_TRY)
+  } catch (int n) {
+		if (trace)
+			htrc("Exception %d: %s\n", n, g->Message);
+		PUSH_WARNING(g->Message);
+		*error = 1;
+		path = NULL;
+  } catch (const char *msg) {
+		strcpy(g->Message, msg);
+		PUSH_WARNING(g->Message);
+		*error = 1;
+		path = NULL;
+  } // end catch
+
+ err:
+#else   // !USE_TRY
  err:
 	g->jump_level--;
+#endif  // !USE_TRY
 
 	if (!path) {
 		*res_length = 0;
@@ -3637,7 +3697,7 @@ char *handle_item(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	unsigned long *res_length, char *is_null, char *error)
 {
 	char   *p, *path, *str = NULL;
-	int     w, rc;
+	int     w;
 	my_bool b = true;
 	PJSON   jsp;
 	PJSNX   jsx;
@@ -3659,33 +3719,45 @@ char *handle_item(UDF_INIT *initid, UDF_ARGS *args, char *result,
 		w = 2;
 	else {
 		PUSH_WARNING("Logical error, please contact CONNECT developer");
-		goto err;
+		goto fin;
 	}	// endelse
 
-	// Save stack and allocation environment and prepare error return
+#if defined(USE_TRY)
+	try {
+#else   // !USE_TRY
+		// Save stack and allocation environment and prepare error return
 	if (g->jump_level == MAX_JUMP) {
 		PUSH_WARNING(MSG(TOO_MANY_JUMPS));
 		*error = 1;
 		goto fin;
 	} // endif jump_level
 
-	if ((rc= setjmp(g->jumper[++g->jump_level])) != 0) {
+	if (setjmp(g->jumper[++g->jump_level])) {
 		PUSH_WARNING(g->Message);
 		str = NULL;
 		goto err;
 	} // endif rc
+#endif  // !USE_TRY
 
 	if (!g->Xchk) {
 		if (CheckMemory(g, initid, args, 1, true, false, true)) {
 			PUSH_WARNING("CheckMemory error");
+#if defined(USE_TRY)
+			throw 1;
+#else   // !USE_TRY
 			goto err;
+#endif  // !USE_TRY
 		} else
 			jvp = MakeValue(g, args, 0);
 
 		if ((p = jvp->GetString())) {
 			if (!(jsp = ParseJson(g, p, strlen(p)))) {
+#if defined(USE_TRY)
+				throw 2;
+#else   // !USE_TRY
 				PUSH_WARNING(g->Message);
 				goto err;
+#endif  // !USE_TRY
 			} // endif jsp
 
 		} else
@@ -3729,8 +3801,21 @@ char *handle_item(UDF_INIT *initid, UDF_ARGS *args, char *result,
 		// Keep result of constant function
 		g->Activityp = (PACTIVITY)str;
 
+#if defined(USE_TRY)
+  } catch (int n) {
+	  if (trace)
+		  htrc("Exception %d: %s\n", n, g->Message);
+		PUSH_WARNING(g->Message);
+		str = NULL;
+	} catch (const char *msg) {
+	  strcpy(g->Message, msg);
+		PUSH_WARNING(g->Message);
+		str = NULL;
+	} // end catch
+#else   // !USE_TRY
 err:
 	g->jump_level--;
+#endif  // !USE_TRY
 
 fin:
 	if (!str) {

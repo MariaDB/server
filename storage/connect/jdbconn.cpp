@@ -1200,7 +1200,11 @@ void JDBConn::SetColumnValue(int rank, PSZ name, PVAL val)
 	if (rank == 0)
 		if (!name || (jn = env->NewStringUTF(name)) == nullptr) {
 			sprintf(g->Message, "Fail to allocate jstring %s", SVP(name));
+#if defined(USE_TRY)
+			throw TYPE_AM_JDBC;
+#else   // !USE_TRY
 			longjmp(g->jumper[g->jump_level], TYPE_AM_JDBC);
+#endif  // !USE_TRY
 		}	// endif name
 
 	// Returns 666 is case of error
@@ -1208,7 +1212,11 @@ void JDBConn::SetColumnValue(int rank, PSZ name, PVAL val)
 
 	if (Check((ctyp == 666) ? -1 : 1)) {
 		sprintf(g->Message, "Getting ctyp: %s", Msg);
+#if defined(USE_TRY)
+		throw TYPE_AM_JDBC;
+#else   // !USE_TRY
 		longjmp(g->jumper[g->jump_level], TYPE_AM_JDBC);
+#endif  // !USE_TRY
 	} // endif Check
 
 	if (val->GetNullable())
@@ -1314,7 +1322,11 @@ void JDBConn::SetColumnValue(int rank, PSZ name, PVAL val)
 			env->DeleteLocalRef(jn);
 
 		sprintf(g->Message, "SetColumnValue: %s rank=%d ctyp=%d", Msg, rank, (int)ctyp);
+#if defined(USE_TRY)
+		throw TYPE_AM_JDBC;
+#else   // !USE_TRY
 		longjmp(g->jumper[g->jump_level], TYPE_AM_JDBC);
+#endif  // !USE_TRY
 	} // endif Check
 
 	if (rank == 0)

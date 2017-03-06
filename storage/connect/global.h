@@ -1,6 +1,6 @@
 /***********************************************************************/
 /*  GLOBAL.H: Declaration file used by all CONNECT implementations.    */
-/*  (C) Copyright Olivier Bertrand                       1993-2014     */
+/*  (C) Copyright Olivier Bertrand                       1993-2017     */
 /***********************************************************************/
 
 /***********************************************************************/
@@ -229,9 +229,10 @@ typedef struct _parm {
 typedef struct _global {            /* Global structure                */
   void     *Sarea;                  /* Points to work area             */
   uint      Sarea_Size;             /* Work area size                  */
-  PACTIVITY Activityp, ActivityStart;
+	PACTIVITY Activityp;
   char      Message[MAX_STR];
-  int       Createas;               /* To pass info to created table   */
+	ulong     More;										/* Used by jsonudf                 */
+	int       Createas;               /* To pass info to created table   */
   void     *Xchk;                   /* indexes in create/alter         */
   short     Alchecked;              /* Checked for ALTER               */
   short     Mrr;                    /* True when doing mrr             */

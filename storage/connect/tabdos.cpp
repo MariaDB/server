@@ -1,11 +1,11 @@
 /************* TabDos C++ Program Source Code File (.CPP) **************/
 /* PROGRAM NAME: TABDOS                                                */
 /* -------------                                                       */
-/*  Version 4.9.2                                                      */
+/*  Version 4.9.3                                                      */
 /*                                                                     */
 /* COPYRIGHT:                                                          */
 /* ----------                                                          */
-/*  (C) Copyright to the author Olivier BERTRAND          1998-2016    */
+/*  (C) Copyright to the author Olivier BERTRAND          1998-2017    */
 /*                                                                     */
 /* WHAT THIS PROGRAM DOES:                                             */
 /* -----------------------                                             */
@@ -1509,8 +1509,12 @@ PBF TDBDOS::CheckBlockFilari(PGLOBAL g, PXOB *arg, int op, bool *cnv)
     if (n == 8 && ctype != TYPE_LIST) {
       // Should never happen
       strcpy(g->Message, "Block opt: bad constant");
-      longjmp(g->jumper[g->jump_level], 99);
-      } // endif Conv
+#if defined(USE_TRY)
+			throw 99;
+#else   // !USE_TRY
+			longjmp(g->jumper[g->jump_level], 99);
+#endif  // !USE_TRY
+		} // endif Conv
 
     if (type[0] == 1) {
       // Make it always as Column-op-Value
@@ -1791,7 +1795,7 @@ err:
 /***********************************************************************/
 bool TDBDOS::InitialyzeIndex(PGLOBAL g, volatile PIXDEF xdp, bool sorted)
   {
-  int     k, rc;
+  int     k;
   volatile bool dynamic;
   bool    brc;
   PCOL    colp;
@@ -1861,13 +1865,17 @@ bool TDBDOS::InitialyzeIndex(PGLOBAL g, volatile PIXDEF xdp, bool sorted)
   } else                      // Column contains same values as ROWID
     kxp = new(g) XXROW(this);
 
-  //  Prepare error return
-  if (g->jump_level == MAX_JUMP) {
-    strcpy(g->Message, MSG(TOO_MANY_JUMPS));
-    return true;
-    } // endif
+#if defined(USE_TRY)
+	try {
+#else   // !USE_TRY
+	//  Prepare error return
+	if (g->jump_level == MAX_JUMP) {
+		strcpy(g->Message, MSG(TOO_MANY_JUMPS));
+		return true;
+	} // endif
 
-  if (!(rc = setjmp(g->jumper[++g->jump_level])) != 0) {
+	if (!setjmp(g->jumper[++g->jump_level])) {
+#endif  // !USE_TRY
     if (dynamic) {
       ResetBlockFilter(g);
       kxp->SetDynamic(dynamic);
@@ -1892,11 +1900,22 @@ bool TDBDOS::InitialyzeIndex(PGLOBAL g, volatile PIXDEF xdp, bool sorted)
 
       } // endif brc
 
-  } else
-    brc = true;
+#if defined(USE_TRY)
+	} catch (int n) {
+		if (trace)
+			htrc("Exception %d: %s\n", n, g->Message);
+		brc = true;
+	} catch (const char *msg) {
+		strcpy(g->Message, msg);
+		brc = true;
+	} // end catch
+#else   // !USE_TRY
+	} else
+		brc = true;
 
-  g->jump_level--;
-  return brc;
+	g->jump_level--;
+#endif  // !USE_TRY
+	return brc;
   } // end of InitialyzeIndex
 
 /***********************************************************************/
@@ -2156,16 +2175,18 @@ bool TDBDOS::OpenDB(PGLOBAL g)
   To_BlkFil = InitBlockFilter(g, To_Filter);
 
   /*********************************************************************/
-  /*  Allocate the line buffer plus a null character.                  */
-  /*********************************************************************/
-  To_Line = (char*)PlugSubAlloc(g, NULL, Lrecl + 1);
+	/*  Lrecl does not include line ending															 */
+	/*********************************************************************/
+	size_t linelen = Lrecl + ((PDOSDEF)To_Def)->Ending + 1;
+
+  To_Line = (char*)PlugSubAlloc(g, NULL, linelen);
 
   if (Mode == MODE_INSERT) {
     // Spaces between fields must be filled with blanks
     memset(To_Line, ' ', Lrecl);
     To_Line[Lrecl] = '\0';
   } else
-    memset(To_Line, 0, Lrecl + 1);
+    memset(To_Line, 0, linelen);
 
   if (trace)
     htrc("OpenDos: R%hd mode=%d To_Line=%p\n", Tdb_No, Mode, To_Line);
@@ -2514,8 +2535,12 @@ void DOSCOL::ReadColumn(PGLOBAL g)
       if (rc == RC_EF)
         sprintf(g->Message, MSG(INV_DEF_READ), rc);
 
-      longjmp(g->jumper[g->jump_level], 11);
-      } // endif
+#if defined(USE_TRY)
+			throw 11;
+#else   // !USE_TRY
+			longjmp(g->jumper[g->jump_level], 11);
+#endif  // !USE_TRY
+		} // endif
 
   p = tdbp->To_Line + Deplac;
   field = Long;
@@ -2570,8 +2595,12 @@ void DOSCOL::ReadColumn(PGLOBAL g)
       break;
     default:
       sprintf(g->Message, MSG(BAD_RECFM), tdbp->Ftype);
-      longjmp(g->jumper[g->jump_level], 34);
-    } // endswitch Ftype
+#if defined(USE_TRY)
+			throw 34;
+#else   // !USE_TRY
+			longjmp(g->jumper[g->jump_level], 34);
+#endif  // !USE_TRY
+	} // endswitch Ftype
 
   // Set null when applicable
   if (Nullable)
@@ -2679,8 +2708,12 @@ void DOSCOL::WriteColumn(PGLOBAL g)
           break;
         default:
           sprintf(g->Message, "Invalid field format for column %s", Name);
-          longjmp(g->jumper[g->jump_level], 31);
-        } // endswitch BufType
+#if defined(USE_TRY)
+					throw 31;
+#else   // !USE_TRY
+					longjmp(g->jumper[g->jump_level], 31);
+#endif  // !USE_TRY
+			} // endswitch BufType
 
       p2 = Buf;
     } else                 // Standard CONNECT format
@@ -2691,8 +2724,12 @@ void DOSCOL::WriteColumn(PGLOBAL g)
 
     if ((len = strlen(p2)) > field) {
       sprintf(g->Message, MSG(VALUE_TOO_LONG), p2, Name, field);
-      longjmp(g->jumper[g->jump_level], 31);
-    } else if (Dsp)
+#if defined(USE_TRY)
+			throw 31;
+#else   // !USE_TRY
+			longjmp(g->jumper[g->jump_level], 31);
+#endif  // !USE_TRY
+		} else if (Dsp)
       for (i = 0; i < len; i++)
         if (p2[i] == '.')
           p2[i] = Dsp; 
