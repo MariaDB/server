@@ -7146,27 +7146,6 @@ fil_mtr_rename_log(
 	return(err);
 }
 
-/****************************************************************//**
-Acquire fil_system mutex */
-void
-fil_system_enter(void)
-/*==================*/
-{
-	ut_ad(!mutex_own(&fil_system->mutex));
-	mutex_enter(&fil_system->mutex);
-}
-
-/****************************************************************//**
-Release fil_system mutex */
-void
-fil_system_exit(void)
-/*=================*/
-{
-	ut_ad(mutex_own(&fil_system->mutex));
-	mutex_exit(&fil_system->mutex);
-}
-
-
 /******************************************************************
 Get id of first tablespace or ULINT_UNDEFINED if none */
 UNIV_INTERN

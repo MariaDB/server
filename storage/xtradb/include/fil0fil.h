@@ -1314,16 +1314,10 @@ fil_space_set_corrupt(
 /*==================*/
 	ulint	space_id);
 
-/****************************************************************//**
-Acquire fil_system mutex */
-void
-fil_system_enter(void);
-/*==================*/
-/****************************************************************//**
-Release fil_system mutex */
-void
-fil_system_exit(void);
-/*==================*/
+/** Acquire the fil_system mutex. */
+#define fil_system_enter()	mutex_enter(&fil_system->mutex)
+/** Release the fil_system mutex. */
+#define fil_system_exit()	mutex_exit(&fil_system->mutex)
 
 #ifndef UNIV_INNOCHECKSUM
 /*******************************************************************//**
