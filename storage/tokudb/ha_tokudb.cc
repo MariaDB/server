@@ -7688,7 +7688,14 @@ int ha_tokudb::rename_table(const char *from, const char *to) {
             "destination db does not exist",
             from,
             to);
-        error = HA_ERR_DEST_SCHEMA_NOT_EXIST;
+#ifndef __WIN__
+        /* Small hack. tokudb_check_db_dir_exist_from_table_name calls
+         * my_access, which sets my_errno on Windows, but doesn't on
+         * unix. Set it for unix too.
+         */
+        my_errno= errno;
+#endif
+        error= my_errno;
     }
     else {
         error = delete_or_rename_table(from, to, false);

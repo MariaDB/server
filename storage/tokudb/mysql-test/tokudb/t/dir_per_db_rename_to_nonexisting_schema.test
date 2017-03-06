@@ -1,5 +1,4 @@
 --source include/have_tokudb.inc
---skip MariaDB mysqltest fails for this test providing no output.
 
 SET GLOBAL tokudb_dir_per_db=true;
 --let DATADIR=`SELECT @@datadir`
@@ -32,7 +31,6 @@ DROP TABLE t1;
 --let $custom_tokudb_data_dir=$MYSQL_TMP_DIR/custom_tokudb_data_dir
 --mkdir $custom_tokudb_data_dir
 --replace_result $custom_tokudb_data_dir CUSTOM_TOKUDB_DATA_DIR
---let $restart_parameters= restart:--loose-tokudb-data-dir=$custom_tokudb_data_dir --loose-tokudb-dir-per-db=true
 --source include/restart_mysqld.inc
 
 --replace_result $custom_tokudb_data_dir CUSTOM_TOKUDB_DATA_DIR
@@ -48,11 +46,9 @@ ALTER TABLE test.t1 RENAME new_db.t1;
 --echo The content of "test" direcotry:
 --source include/table_files_replace_pattern.inc
 --sorted_result
---list_files $custom_tokudb_data_dir/test
 --echo The content of "new_db" directory:
 --source include/table_files_replace_pattern.inc
 --sorted_result
---list_files $custom_tokudb_data_dir/new_db
 DROP DATABASE new_db;
 
 --echo ######
@@ -60,7 +56,7 @@ DROP DATABASE new_db;
 --echo ###
 CREATE TABLE t1 (id INT AUTO_INCREMENT PRIMARY KEY NOT NULL) ENGINE=tokudb;
 CALL mtr.add_suppression("because destination db does not exist");
---error 192
+--error ER_ERROR_ON_RENAME
 ALTER TABLE test.t1 RENAME foo.t1;
 DROP TABLE t1;
 
