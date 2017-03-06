@@ -14,3 +14,13 @@ optimizer_loose_index_scans: MariaDB doesnt support Skip Scan
 gap_lock_issue254: MDEV-11735: MyRocks: Gap Lock detector support
 gap_lock_raise_error: MDEV-11735: MyRocks: Gap Lock detector support
 
+#
+# The idea of including RQG as a submodule and running RQG as part of 
+# MTR tests doesn't seem to be a good fit in MariaDB atm.
+#
+# The objection is that MTR tests are deterministic and can be run in 
+# a constrained environment.
+#
+rqg_examples
+rqg_runtime
+rqg_transactions
