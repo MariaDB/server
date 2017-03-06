@@ -5350,7 +5350,7 @@ find_field_in_natural_join(THD *thd, TABLE_LIST *table_ref, const char *name,
   {
     if (!my_strcasecmp(system_charset_info, curr_nj_col->name(), name))
     {
-      if (nj_col)
+      if (nj_col && !curr_nj_col->table_field->field->vers_sys_field())
       {
         my_error(ER_NON_UNIQ_ERROR, MYF(0), name, thd->where);
         DBUG_RETURN(NULL);

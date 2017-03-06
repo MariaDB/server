@@ -134,7 +134,15 @@ select * from t1 for system_time all for update;
 create or replace table t1 (a int not null auto_increment primary key) with system versioning;
 select * from (t1 as t2 left join t1 as t3 using (a)) natural left join t1;
 
-drop table t1;
+create or replace table t1 (a int) with system versioning;
+create or replace table t2 (a int) with system versioning;
+insert into t1 values(1);
+insert into t2 values(1);
+create view v1 as select * from t2 inner join t1 using (a);
+select * from v1;
+drop view v1;
+
+drop table t1, t2;
 
 call verify_vtq;
 
