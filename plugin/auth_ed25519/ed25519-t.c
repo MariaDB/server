@@ -20,38 +20,35 @@
 
 int main()
 {
-  uchar sk[CRYPTO_SECRETKEYBYTES], pk[CRYPTO_PUBLICKEYBYTES];
-  uchar foobar_sk[CRYPTO_SECRETKEYBYTES]= {195, 171, 143, 241, 55, 32, 232,
-    173, 144, 71, 221, 57, 70, 107, 60, 137, 116, 229, 146, 194, 250, 56, 61,
-    74, 57, 96, 113, 76, 174, 240, 196, 242, 46, 6, 101, 50, 204, 79, 15, 14,
-    186, 168, 176, 159, 25, 100, 110, 224, 133, 74, 171, 60, 128, 170, 80, 53,
-    105, 116, 153, 109, 172, 121, 153, 161};
-  uchar foobar_sign[CRYPTO_BYTES]= {164, 116, 168, 41, 250, 169, 91, 205, 126,
-    71, 253, 70, 233, 228, 79, 70, 43, 157, 221, 169, 35, 130, 101, 62, 133,
-    50, 104, 50, 45, 168, 238, 198, 48, 243, 76, 167, 173, 56, 241, 81, 221,
-    197, 31, 60, 247, 225, 52, 158, 31, 82, 20, 6, 237, 68, 54, 32, 78, 244,
-    91, 49, 194, 238, 117, 5 };
+  uchar pk[CRYPTO_PUBLICKEYBYTES];
+  uchar foobar_pk[CRYPTO_PUBLICKEYBYTES]= {170, 253, 166, 27, 161, 214, 10,
+    236, 183, 217, 41, 91, 231, 24, 85, 225, 49, 210, 181, 236, 13, 207, 101,
+    72, 53, 83, 219, 130, 79, 151, 0, 159};
+  uchar foobar_sign[CRYPTO_BYTES]= {232, 61, 201, 63, 67, 63, 51, 53, 86, 73,
+    238, 35, 170, 117, 146, 214, 26, 17, 35, 9, 8, 132, 245, 141, 48, 99, 66,
+    58, 36, 228, 48, 84, 115, 254, 187, 168, 88, 162, 249, 57, 35, 85, 79, 238,
+    167, 106, 68, 117, 56, 135, 171, 47, 20, 14, 133, 79, 15, 229, 124, 160,
+    176, 100, 138, 14};
 
   uchar nonce[NONCE_BYTES];
   uchar reply[NONCE_BYTES+CRYPTO_BYTES];
-  unsigned long long reply_len, scramble_len;
   int r;
 
-  plan(6);
-  pw_to_sk_and_pk(STRING_WITH_LEN("foobar"), sk, pk);
-  ok(!memcmp(sk, foobar_sk, CRYPTO_SECRETKEYBYTES), "foobar sk");
+  plan(4);
+
+  crypto_sign_keypair(pk, USTRING_WITH_LEN("foobar"));
+  ok(!memcmp(pk, foobar_pk, CRYPTO_PUBLICKEYBYTES), "foobar pk");
 
   memset(nonce, 'A', sizeof(nonce));
-  crypto_sign(reply, &reply_len, nonce, sizeof(nonce), sk);
-  ok(reply_len == sizeof(reply), "reply_len");
+  crypto_sign(reply, nonce, sizeof(nonce), USTRING_WITH_LEN("foobar"));
   ok(!memcmp(reply, foobar_sign, CRYPTO_BYTES), "foobar sign");
 
-  r= crypto_sign_open(nonce, &scramble_len, reply, reply_len, pk);
-  ok(scramble_len == sizeof(nonce), "scramble_len");
+  r= crypto_sign_open(reply, sizeof(reply), pk);
   ok(!r, "good nonce");
 
+  crypto_sign(reply, nonce, sizeof(nonce), USTRING_WITH_LEN("foobar"));
   reply[CRYPTO_BYTES + 10]='B';
-  r= crypto_sign_open(nonce, &scramble_len, reply, reply_len, pk);
+  r= crypto_sign_open(reply, sizeof(reply), pk);
   ok(r, "bad nonce");
 
   return exit_status();

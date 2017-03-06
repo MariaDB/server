@@ -19,14 +19,5 @@
 
 #include "ref10/api.h"
 #include "crypto_sign.h"
-#include "crypto_hash_sha256.h"
 
 #define NONCE_BYTES 32
-
-static inline void pw_to_sk_and_pk(const char *pw, size_t pwlen,
-                                   unsigned char *sk, unsigned char *pk)
-{
-  crypto_hash_sha256(sk, pw, pwlen);
-  crypto_sign_keypair(pk, sk);
-}
-

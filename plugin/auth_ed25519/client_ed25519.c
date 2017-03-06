@@ -27,20 +27,16 @@
 
 static int do_auth(MYSQL_PLUGIN_VIO *vio, MYSQL *mysql)
 {
-  unsigned char sk[CRYPTO_SECRETKEYBYTES], pk[CRYPTO_PUBLICKEYBYTES];
   unsigned char reply[CRYPTO_BYTES + NONCE_BYTES], *pkt;
-  unsigned long long reply_len;  
   int pkt_len;
-
-  /* compute keys */
-  pw_to_sk_and_pk(mysql->passwd, strlen(mysql->passwd), sk, pk);
 
   /* read the nonce */
   if ((pkt_len= vio->read_packet(vio, &pkt)) != NONCE_BYTES)
     return CR_SERVER_HANDSHAKE_ERR;
 
   /* sign the nonce */
-  crypto_sign(reply, &reply_len, pkt, NONCE_BYTES, sk);  
+  crypto_sign(reply, pkt, NONCE_BYTES,
+              (unsigned char*)mysql->passwd, strlen(mysql->passwd));
 
   /* send the signature */
   if (vio->write_packet(vio, reply, CRYPTO_BYTES))

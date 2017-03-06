@@ -6,13 +6,10 @@
 #include "sc.h"
 
 int crypto_sign_open(
-  unsigned char *m,unsigned long long *mlen,
-  const unsigned char *sm,unsigned long long smlen,
+  unsigned char *sm, unsigned long long smlen,
   const unsigned char *pk
 )
 {
-  unsigned char pkcopy[32];
-  unsigned char rcopy[32];
   unsigned char scopy[32];
   unsigned char h[64];
   unsigned char rcheck[32];
@@ -23,26 +20,17 @@ int crypto_sign_open(
   if (sm[63] & 224) goto badsig;
   if (ge_frombytes_negate_vartime(&A,pk) != 0) goto badsig;
 
-  memmove(pkcopy,pk,32);
-  memmove(rcopy,sm,32);
   memmove(scopy,sm + 32,32);
 
-  memmove(m,sm,smlen);
-  memmove(m + 32,pkcopy,32);
-  crypto_hash_sha512(h,m,smlen);
+  memmove(sm + 32,pk,32);
+  crypto_hash_sha512(h,sm,smlen);
   sc_reduce(h);
 
   ge_double_scalarmult_vartime(&R,h,&A,scopy);
   ge_tobytes(rcheck,&R);
-  if (crypto_verify_32(rcheck,rcopy) == 0) {
-    memmove(m,m + 64,smlen - 64);
-    memset(m + smlen - 64,0,64);
-    *mlen = smlen - 64;
+  if (crypto_verify_32(rcheck,sm) == 0)
     return 0;
-  }
 
 badsig:
-  *mlen = -1;
-  memset(m,0,smlen);
   return -1;
 }
