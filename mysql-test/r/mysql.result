@@ -70,6 +70,13 @@ drop table t1;
 | >a   <               | 0123456789 |      4 |
 | >abcd<               |            |      4 |
 +----------------------+------------+--------+
++----------------------+------------+--------+
+| concat('>',col1,'<') | col2       | col3   |
++----------------------+------------+--------+
+| >a   <               | b          | 123421 |
+| >a   <               | 0123456789 |      4 |
+| >abcd<               |            |      4 |
++----------------------+------------+--------+
 +-------------------+
 | __taÃ±gÃ¨ Ã‘Ã£mÃ©      |
 +-------------------+
@@ -95,6 +102,24 @@ Field	Type	Null	Key	Default	Extra
 i	int(11)	YES		NULL	
 j	int(11)	NO		NULL	
 k	int(11)	YES		NULL	
+i	j	k
+NULL	1	NULL
+Field	Type	Null	Key	Default	Extra
+i	int(11)	YES		NULL	
+j	int(11)	NO		NULL	
+k	int(11)	YES		NULL	
++------+---+------+
+| i    | j | k    |
++------+---+------+
+| NULL | 1 | NULL |
++------+---+------+
++-------+---------+------+-----+---------+-------+
+| Field | Type    | Null | Key | Default | Extra |
++-------+---------+------+-----+---------+-------+
+| i     | int(11) | YES  |     | NULL    |       |
+| j     | int(11) | NO   |     | NULL    |       |
+| k     | int(11) | YES  |     | NULL    |       |
++-------+---------+------+-----+---------+-------+
 +------+---+------+
 | i    | j | k    |
 +------+---+------+
@@ -118,6 +143,13 @@ i	s1
 |    2 | NULL |
 |    3 |      |
 +------+------+
+unhex('zz')
+NULL
++-------------+
+| unhex('zz') |
++-------------+
+| NULL        |
++-------------+
 unhex('zz')
 NULL
 +-------------+
@@ -208,6 +240,7 @@ COUNT (*)
 1
 COUNT (*)
 1
+ERROR 2005 (HY000) at line 1: Unknown MySQL server host 'invalid_hostname' (errno)
 ERROR 2005 (HY000) at line 1: Unknown MySQL server host 'invalid_hostname' (errno)
 End of 5.0 tests
 WARNING: --server-arg option not supported in this configuration.
@@ -541,6 +574,44 @@ a
 ERROR 1300 (HY000): Invalid utf8 character string: 'test\xF0\x9F\x98\x81 '
 ERROR 1300 (HY000): Invalid binary character string: 'test\xF0\x9F\x98\x81 '
 ERROR 1300 (HY000) at line 2: Invalid utf8 character string: 'test\xF0\x9F\x98\x81'
+id	name
+õ»#)\0$ç¿1lˆ˜|H	test 1
+õ»#4\0$ç¿1lˆ˜|H	test 2
+õ»#8\0$ç¿1lˆ˜|H	test 3
+NULL	test null
+id	name
+õ»#)\0$ç¿1lˆ˜|H	test 1
+õ»#4\0$ç¿1lˆ˜|H	test 2
+õ»#8\0$ç¿1lˆ˜|H	test 3
+NULL	test null
+*************************** 1. row ***************************
+  id: õ»#) $ç¿1lˆ˜|H
+name: test 1
+*************************** 2. row ***************************
+  id: õ»#4 $ç¿1lˆ˜|H
+name: test 2
+*************************** 3. row ***************************
+  id: õ»#8 $ç¿1lˆ˜|H
+name: test 3
+*************************** 4. row ***************************
+  id: NULL
+name: test null
+*************************** 1. row ***************************
+  id: õ»#) $ç¿1lˆ˜|H
+name: test 1
+*************************** 2. row ***************************
+  id: õ»#4 $ç¿1lˆ˜|H
+name: test 2
+*************************** 3. row ***************************
+  id: õ»#8 $ç¿1lˆ˜|H
+name: test 3
+*************************** 4. row ***************************
+  id: NULL
+name: test null
+id	name
+õ»#4\0$ç¿1lˆ˜|H	test 2
+id	name
+õ»#4\0$ç¿1lˆ˜|H	test 2
 set GLOBAL sql_mode=default;
 
 End of tests
