@@ -1,0 +1,38 @@
+include/rpl_init.inc [topology=1->2]
+include/stop_slave.inc
+CHANGE MASTER TO master_use_gtid=slave_pos;
+include/start_slave.inc
+CREATE TABLE t1 (a INT PRIMARY KEY);
+INSERT INTO t1 VALUES (1);
+SELECT * FROM t1 ORDER BY a;
+a
+1
+SELECT * FROM t1 ORDER BY a;
+a
+1
+include/stop_slave.inc
+SET sql_log_bin=0;
+CREATE TABLE mysql.gtid_slave_pos_innodb LIKE mysql.gtid_slave_pos;
+ALTER TABLE mysql.gtid_slave_pos_innodb ENGINE=InnoDB;
+INSERT INTO mysql.gtid_slave_pos_innodb SELECT * FROM mysql.gtid_slave_pos;
+TRUNCATE mysql.gtid_slave_pos;
+SET sql_log_bin=1;
+INSERT INTO t1 VALUES (2);
+INSERT INTO t1 VALUES (3);
+SELECT * FROM t1 ORDER BY a;
+a
+1
+2
+3
+include/save_master_gtid.inc
+include/sync_with_master_gtid.inc
+SELECT * FROM t1 ORDER BY a;
+a
+1
+2
+3
+SET sql_log_bin=0;
+DROP TABLE mysql.gtid_slave_pos_innodb;
+SET sql_log_bin=1;
+DROP TABLE t1;
+include/rpl_end.inc
