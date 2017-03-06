@@ -27,7 +27,6 @@ SET(MYSYS_SSL_HIDDEN_SOURCES
     my_sha256.cc
     my_sha384.cc
     my_sha512.cc
-    my_sha2.cc
     my_md5.cc
    )
 
