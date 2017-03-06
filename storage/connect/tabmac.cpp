@@ -12,7 +12,7 @@
 #include "global.h"
 #include "plgdbsem.h"
 //#include "catalog.h"
-#include "reldef.h"
+//#include "reldef.h"
 #include "xtable.h"
 #include "colblk.h"
 #include "tabmac.h"

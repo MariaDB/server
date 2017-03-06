@@ -244,6 +244,9 @@ LPCSTR PlugSetPath(LPSTR pBuff, LPCSTR prefix, LPCSTR FileName, LPCSTR defpath)
   char *drive = NULL, *defdrv = NULL;
 #endif
 
+	if (trace > 1)
+		htrc("prefix=%s fn=%s path=%s\n", prefix, FileName, defpath);
+
   if (!strncmp(FileName, "//", 2) || !strncmp(FileName, "\\\\", 2)) {
     strcpy(pBuff, FileName);       // Remote file
     return pBuff;

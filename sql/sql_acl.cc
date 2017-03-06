@@ -8935,13 +8935,13 @@ static int handle_grant_struct(enum enum_acl_lists struct_no, bool drop,
       case USER_ACL:
         acl_user->user.str= strdup_root(&acl_memroot, user_to->user.str);
         acl_user->user.length= user_to->user.length;
-        acl_user->host.hostname= strdup_root(&acl_memroot, user_to->host.str);
-        acl_user->hostname_length= user_to->host.length;
+        update_hostname(&acl_user->host, strdup_root(&acl_memroot, user_to->host.str));
+        acl_user->hostname_length= strlen(acl_user->host.hostname);
         break;
 
       case DB_ACL:
         acl_db->user= strdup_root(&acl_memroot, user_to->user.str);
-        acl_db->host.hostname= strdup_root(&acl_memroot, user_to->host.str);
+        update_hostname(&acl_db->host, strdup_root(&acl_memroot, user_to->host.str));
         break;
 
       case COLUMN_PRIVILEGES_HASH:

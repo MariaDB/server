@@ -2573,4 +2573,12 @@ No match
     \x{20ac}
 No match
 
+/(?=.*b)\pL/
+    11bb
+ 0: b
+    
+/(?(?=.*b)(?=.*b)\pL|.*c)/
+    11bb
+ 0: b
+
 /-- End of testinput6 --/

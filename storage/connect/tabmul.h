@@ -1,7 +1,7 @@
 /*************** Tabmul H Declares Source Code File (.H) ***************/
-/*  Name: TABMUL.H   Version 1.4                                       */
+/*  Name: TABMUL.H   Version 1.5                                       */
 /*                                                                     */
-/*  (C) Copyright to PlugDB Software Development          2003-2012    */
+/*  (C) Copyright to PlugDB Software Development          2003-2017    */
 /*  Author: Olivier BERTRAND                                           */
 /*                                                                     */
 /*  This file contains the TDBMUL and TDBDIR classes declares.         */
@@ -28,7 +28,7 @@ class DllExport TDBMUL : public TDBASE {
 //friend class MULCOL;
  public:
   // Constructor
-  TDBMUL(PTDBASE tdbp);
+  TDBMUL(PTDB tdbp);
   TDBMUL(PTDBMUL tdbp);
 
   // Implementation
@@ -37,7 +37,7 @@ class DllExport TDBMUL : public TDBASE {
 
   // Methods
   virtual void ResetDB(void);
-  virtual PTDB CopyOne(PTABS t);
+  virtual PTDB Clone(PTABS t);
   virtual bool IsSame(PTDB tp) {return tp == (PTDB)Tdbp;}
   virtual PSZ  GetFile(PGLOBAL g) {return Tdbp->GetFile(g);}
   virtual int  GetRecpos(void) {return 0;}
@@ -61,7 +61,7 @@ class DllExport TDBMUL : public TDBASE {
  protected:
 
   // Members
-  TDBASE *Tdbp;               // Points to a (file) table class
+  PTDB    Tdbp;               // Points to a (file) table class
   char*  *Filenames;          // Points to file names
   int     Rows;               // Total rows of already read files
   int     Mul;                // Type of multiple file list
@@ -112,7 +112,7 @@ class TDBDIR : public TDBASE {
                 {return (PTDB)new(g) TDBDIR(this);}
 
   // Methods
-  virtual PTDB CopyOne(PTABS t);
+  virtual PTDB Clone(PTABS t);
   virtual int GetRecpos(void) {return iFile;}
 
   // Database routines
@@ -134,7 +134,7 @@ class TDBDIR : public TDBASE {
   int  iFile;                   // Index of currently retrieved file
 #if defined(__WIN__)
   _finddata_t    FileData;      // Find data structure
-  int  Hsearch;                 // Search handle
+  intptr_t Hsearch;             // Search handle
   char Drive[_MAX_DRIVE];       // Drive name
 #else   // !__WIN__
   struct stat    Fileinfo;      // File info structure
@@ -168,7 +168,7 @@ class TDBSDR : public TDBDIR {
                 {return (PTDB)new(g) TDBSDR(this);}
 
   // Methods
-  virtual PTDB CopyOne(PTABS t);
+  virtual PTDB Clone(PTABS t);
 
   // Database routines
   virtual int  GetMaxSize(PGLOBAL g);
@@ -184,7 +184,7 @@ class TDBSDR : public TDBDIR {
     struct _Sub_Dir *Next;
     struct _Sub_Dir *Prev;
 #if defined(__WIN__)
-    int H;               // Search handle
+    intptr_t H;               // Search handle
 #else   // !__WIN__
     DIR *D;
 #endif  // !__WIN__

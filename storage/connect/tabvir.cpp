@@ -20,7 +20,7 @@
 #include "plgdbsem.h"
 #include "filter.h"
 #include "xtable.h"
-#include "reldef.h"
+//#include "reldef.h"
 #include "colblk.h"
 #include "mycat.h"                           // for FNC_COL
 #include "tabvir.h"

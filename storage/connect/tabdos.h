@@ -28,7 +28,7 @@ class DllExport DOSDEF : public TABDEF {  /* Logical table description */
   friend class TDBFIX;
   friend class TXTFAM;
   friend class DBFBASE;
-	friend class ZIPUTIL;
+	friend class UNZIPUTL;
  public:
   // Constructor
   DOSDEF(void);
@@ -43,7 +43,8 @@ class DllExport DOSDEF : public TABDEF {  /* Logical table description */
   PSZ     GetOfn(void) {return Ofn;}
 	PSZ     GetEntry(void) {return Entry;}
 	bool    GetMul(void) {return Mulentries;}
-	void    SetBlock(int block) {Block = block;}
+	bool    GetAppend(void) {return Append;}
+	void    SetBlock(int block) { Block = block; }
   int     GetBlock(void) {return Block;}
   int     GetLast(void) {return Last;}
   void    SetLast(int last) {Last = last;}
@@ -81,6 +82,7 @@ class DllExport DOSDEF : public TABDEF {  /* Logical table description */
   bool    Mapped;             /* 0: disk file, 1: memory mapped file   */
 	bool    Zipped;             /* true for zipped table file            */
 	bool    Mulentries;         /* true for multiple entries             */
+	bool    Append;             /* Used when creating zipped table       */
 	bool    Padded;             /* true for padded table file            */
   bool    Huge;               /* true for files larger than 2GB        */
   bool    Accept;             /* true if wrong lines are accepted      */
@@ -140,7 +142,7 @@ class DllExport TDBDOS : public TDBASE {
                 {return (PTDB)new(g) TDBDOS(g, this);}
 
   // Methods
-  virtual PTDB  CopyOne(PTABS t);
+  virtual PTDB  Clone(PTABS t);
   virtual void  ResetDB(void) {Txfp->Reset();}
   virtual bool  IsUsingTemp(PGLOBAL g);
   virtual bool  IsIndexed(void) {return Indxd;}

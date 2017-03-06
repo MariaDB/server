@@ -1301,6 +1301,71 @@ buf_LRU_check_size_of_non_data_objects(
 	}
 }
 
+/** Diagnose failure to get a free page and request InnoDB monitor output in
+the error log if more than two seconds have been spent already.
+@param[in]	n_iterations	how many buf_LRU_get_free_page iterations
+                                already completed
+@param[in]	started_ms	timestamp in ms of when the attempt to get the
+                                free page started
+@param[in]	flush_failures	how many times single-page flush, if allowed,
+                                has failed
+@param[out]	mon_value_was	previous srv_print_innodb_monitor value
+@param[out]	started_monitor	whether InnoDB monitor print has been requested
+*/
+static
+void
+buf_LRU_handle_lack_of_free_blocks(ulint n_iterations, ulint started_ms,
+				   ulint flush_failures,
+				   ibool *mon_value_was,
+				   ibool *started_monitor)
+{
+	static ulint last_printout_ms = 0;
+
+	/* Legacy algorithm started warning after at least 2 seconds, we
+	emulate	this. */
+	const ulint current_ms = ut_time_ms();
+
+	if ((current_ms > started_ms + 2000)
+	    && (current_ms > last_printout_ms + 2000)) {
+
+		ut_print_timestamp(stderr);
+		fprintf(stderr,
+			"  InnoDB: Warning: difficult to find free blocks in\n"
+			"InnoDB: the buffer pool (%lu search iterations)!\n"
+			"InnoDB: %lu failed attempts to flush a page!"
+			" Consider\n"
+			"InnoDB: increasing the buffer pool size.\n"
+			"InnoDB: It is also possible that"
+			" in your Unix version\n"
+			"InnoDB: fsync is very slow, or"
+			" completely frozen inside\n"
+			"InnoDB: the OS kernel. Then upgrading to"
+			" a newer version\n"
+			"InnoDB: of your operating system may help."
+			" Look at the\n"
+			"InnoDB: number of fsyncs in diagnostic info below.\n"
+			"InnoDB: Pending flushes (fsync) log: %lu;"
+			" buffer pool: %lu\n"
+			"InnoDB: %lu OS file reads, %lu OS file writes,"
+			" %lu OS fsyncs\n"
+			"InnoDB: Starting InnoDB Monitor to print further\n"
+			"InnoDB: diagnostics to the standard output.\n",
+			(ulong) n_iterations,
+			(ulong)	flush_failures,
+			(ulong) fil_n_pending_log_flushes,
+			(ulong) fil_n_pending_tablespace_flushes,
+			(ulong) os_n_file_reads, (ulong) os_n_file_writes,
+			(ulong) os_n_fsyncs);
+
+		last_printout_ms = current_ms;
+		*mon_value_was = srv_print_innodb_monitor;
+		*started_monitor = TRUE;
+		srv_print_innodb_monitor = TRUE;
+		os_event_set(lock_sys->timeout_event);
+	}
+
+}
+
 /** The maximum allowed backoff sleep time duration, microseconds */
 #define MAX_FREE_LIST_BACKOFF_SLEEP 10000
 
@@ -1348,6 +1413,7 @@ buf_LRU_get_free_block(
 	ulint		flush_failures	= 0;
 	ibool		mon_value_was	= FALSE;
 	ibool		started_monitor	= FALSE;
+	ulint		started_ms	= 0;
 
 	ut_ad(!mutex_own(&buf_pool->LRU_list_mutex));
 
@@ -1356,7 +1422,24 @@ loop:
 	buf_LRU_check_size_of_non_data_objects(buf_pool);
 
 	/* If there is a block in the free list, take it */
-	block = buf_LRU_get_free_only(buf_pool);
+	if (DBUG_EVALUATE_IF("simulate_lack_of_pages", true, false)) {
+
+		block = NULL;
+
+		if (srv_debug_monitor_printed)
+			DBUG_SET("-d,simulate_lack_of_pages");
+
+	} else if (DBUG_EVALUATE_IF("simulate_recovery_lack_of_pages",
+				    recv_recovery_on, false)) {
+
+		block = NULL;
+
+		if (srv_debug_monitor_printed)
+			DBUG_SUICIDE();
+	} else {
+
+		block = buf_LRU_get_free_only(buf_pool);
+	}
 
 	if (block) {
 
@@ -1370,6 +1453,9 @@ loop:
 
 		return(block);
 	}
+
+	if (!started_ms)
+		started_ms = ut_time_ms();
 
 	if (srv_empty_free_list_algorithm == SRV_EMPTY_FREE_LIST_BACKOFF
 	    && buf_lru_manager_is_active
@@ -1408,11 +1494,17 @@ loop:
 				: FREE_LIST_BACKOFF_LOW_PRIO_DIVIDER));
 		}
 
-		/* In case of backoff, do not ever attempt single page flushes
-		and wait for the cleaner to free some pages instead.  */
+		buf_LRU_handle_lack_of_free_blocks(n_iterations, started_ms,
+						   flush_failures,
+						   &mon_value_was,
+						   &started_monitor);
 
 		n_iterations++;
 
+		srv_stats.buf_pool_wait_free.add(n_iterations, 1);
+
+		/* In case of backoff, do not ever attempt single page flushes
+		and wait for the cleaner to free some pages instead.  */
 		goto loop;
 	} else {
 
@@ -1444,6 +1536,12 @@ loop:
 
 	mutex_exit(&buf_pool->flush_state_mutex);
 
+	if (DBUG_EVALUATE_IF("simulate_recovery_lack_of_pages", true, false)
+	    || DBUG_EVALUATE_IF("simulate_lack_of_pages", true, false)) {
+
+		buf_pool->try_LRU_scan = false;
+	}
+
 	freed = FALSE;
 	if (buf_pool->try_LRU_scan || n_iterations > 0) {
 
@@ -1469,41 +1567,9 @@ loop:
 
 	}
 
-	if (n_iterations > 20) {
-		ut_print_timestamp(stderr);
-		fprintf(stderr,
-			"  InnoDB: Warning: difficult to find free blocks in\n"
-			"InnoDB: the buffer pool (%lu search iterations)!\n"
-			"InnoDB: %lu failed attempts to flush a page!"
-			" Consider\n"
-			"InnoDB: increasing the buffer pool size.\n"
-			"InnoDB: It is also possible that"
-			" in your Unix version\n"
-			"InnoDB: fsync is very slow, or"
-			" completely frozen inside\n"
-			"InnoDB: the OS kernel. Then upgrading to"
-			" a newer version\n"
-			"InnoDB: of your operating system may help."
-			" Look at the\n"
-			"InnoDB: number of fsyncs in diagnostic info below.\n"
-			"InnoDB: Pending flushes (fsync) log: %lu;"
-			" buffer pool: %lu\n"
-			"InnoDB: %lu OS file reads, %lu OS file writes,"
-			" %lu OS fsyncs\n"
-			"InnoDB: Starting InnoDB Monitor to print further\n"
-			"InnoDB: diagnostics to the standard output.\n",
-			(ulong) n_iterations,
-			(ulong)	flush_failures,
-			(ulong) fil_n_pending_log_flushes,
-			(ulong) fil_n_pending_tablespace_flushes,
-			(ulong) os_n_file_reads, (ulong) os_n_file_writes,
-			(ulong) os_n_fsyncs);
-
-		mon_value_was = srv_print_innodb_monitor;
-		started_monitor = TRUE;
-		srv_print_innodb_monitor = TRUE;
-		os_event_set(srv_monitor_event);
-	}
+	buf_LRU_handle_lack_of_free_blocks(n_iterations, started_ms,
+					   flush_failures, &mon_value_was,
+					   &started_monitor);
 
 	/* If we have scanned the whole LRU and still are unable to
 	find a free block then we should sleep here to let the
