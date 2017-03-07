@@ -113,7 +113,11 @@ namespace myrocks {
   contains the signature of the function as well as its bare name and provides
   therefore more context when interpreting the logs.
 */
-#define DBUG_ENTER_FUNC() DBUG_ENTER(__PRETTY_FUNCTION__)
+#ifdef __GNUC__
+#  define DBUG_ENTER_FUNC() DBUG_ENTER(__PRETTY_FUNCTION__)
+#else
+#  define DBUG_ENTER_FUNC() DBUG_ENTER(__func__)
+#endif
 
 /*
   Error handling pattern used across MySQL abides by the following rules: "All
