@@ -105,20 +105,12 @@ Reset the state of the recovery system variables. */
 void
 recv_sys_var_init(void);
 /*===================*/
-/*******************************************************************//**
-Empties the hash table of stored log records, applying them to appropriate
-pages. */
-dberr_t
-recv_apply_hashed_log_recs(
-/*=======================*/
-	ibool	allow_ibuf)	/*!< in: if TRUE, also ibuf operations are
-				allowed during the application; if FALSE,
-				no ibuf operations are allowed, and after
-				the application all file pages are flushed to
-				disk and invalidated in buffer pool: this
-				alternative means that no new log records
-				can be generated during the application */
-	__attribute__((warn_unused_result));
+
+/** Apply the hash table of stored log records to persistent data pages.
+@param[in]	last_batch	whether the change buffer merge will be
+				performed as part of the operation */
+void
+recv_apply_hashed_log_recs(bool last_batch);
 
 /** Block of log record data */
 struct recv_data_t{
@@ -244,6 +236,8 @@ struct recv_sys_t{
 	lsn_t		mlog_checkpoint_lsn;
 				/*!< the LSN of a MLOG_CHECKPOINT
 				record, or 0 if none was parsed */
+	/** the time when progress was last reported */
+	ib_time_t	progress_time;
 	mem_heap_t*	heap;	/*!< memory heap of log records and file
 				addresses*/
 	hash_table_t*	addr_hash;/*!< hash table of file addresses of pages */
@@ -251,6 +245,20 @@ struct recv_sys_t{
 				addresses in the hash table */
 
 	recv_dblwr_t	dblwr;
+
+	/** Determine whether redo log recovery progress should be reported.
+	@param[in]	time	the current time
+	@return	whether progress should be reported
+		(the last report was at least 15 seconds ago) */
+	bool report(ib_time_t time)
+	{
+		if (time - progress_time < 15) {
+			return false;
+		}
+
+		progress_time = time;
+		return true;
+	}
 };
 
 /** The recovery system */

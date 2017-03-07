@@ -66,7 +66,8 @@ SELECT * FROM INFORMATION_SCHEMA.ENGINES
 WHERE engine = 'innodb'
 AND support IN ('YES', 'DEFAULT', 'ENABLED');
 ENGINE	SUPPORT	COMMENT	TRANSACTIONS	XA	SAVEPOINTS
-FOUND /InnoDB: Log scan progressed past the checkpoint lsn 1213964/ in mysqld.1.err
+FOUND /InnoDB: Starting crash recovery from checkpoint LSN=1213964/ in mysqld.1.err
+FOUND /InnoDB: MLOG_FILE_NAME incorrect:bogus/ in mysqld.1.err
 FOUND /InnoDB: ############### CORRUPT LOG RECORD FOUND ##################/ in mysqld.1.err
 FOUND /InnoDB: Log record type 55, page 151:488\. Log parsing proceeded successfully up to 1213973\. Previous log record type 56, is multi 0 Recv offset 9, prev 0/ in mysqld.1.err
 FOUND /len 22. hex 38000000000012860cb7809781e80006626f67757300. asc 8               bogus / in mysqld.1.err
@@ -83,6 +84,7 @@ SELECT * FROM INFORMATION_SCHEMA.ENGINES
 WHERE engine = 'innodb'
 AND support IN ('YES', 'DEFAULT', 'ENABLED');
 ENGINE	SUPPORT	COMMENT	TRANSACTIONS	XA	SAVEPOINTS
+FOUND /InnoDB: MLOG_FILE_NAME incorrect:bigot/ in mysqld.1.err
 FOUND /len 22; hex 38000000000012860cb7809781e800066269676f7400; asc 8               bigot ;/ in mysqld.1.err
 # missing MLOG_FILE_NAME or MLOG_FILE_DELETE before MLOG_CHECKPOINT
 SELECT * FROM INFORMATION_SCHEMA.ENGINES

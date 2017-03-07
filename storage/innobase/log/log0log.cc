@@ -1515,7 +1515,6 @@ log_preflush_pool_modified_pages(
 	bool	success;
 
 	if (recv_recovery_on) {
-		dberr_t err = DB_SUCCESS;
 		/* If the recovery is running, we must first apply all
 		log records to their respective file pages to get the
 		right modify lsn values to these pages: otherwise, there
@@ -1524,13 +1523,7 @@ log_preflush_pool_modified_pages(
 		not know how up-to-date the disk version of the database is,
 		and we could not make a new checkpoint on the basis of the
 		info on the buffer pool only. */
-
-		err = recv_apply_hashed_log_recs(TRUE);
-
-		if (err != DB_SUCCESS) {
-			ib::warn() << "recv_apply_hashed_log_recs failed err: "
-				   << err << " file: " << __FILE__ << " line: " << __LINE__;
-		}
+		recv_apply_hashed_log_recs(true);
 	}
 
 	if (new_oldest == LSN_MAX
@@ -1775,14 +1768,7 @@ log_checkpoint(
 			os_thread_sleep(360000000););
 
 	if (recv_recovery_is_on()) {
-		dberr_t err = DB_SUCCESS;
-
-		err = recv_apply_hashed_log_recs(TRUE);
-
-		if (err != DB_SUCCESS) {
-			ib::warn() << "recv_apply_hashed_log_recs failed err: "
-				   << err << " file: " << __FILE__ << " line: " << __LINE__;
-		}
+		recv_apply_hashed_log_recs(true);
 	}
 
 #ifndef _WIN32

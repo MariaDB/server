@@ -2225,7 +2225,7 @@ files_checked:
 			return(srv_init_abort(err));
 		}
 
-		/* This must precede recv_apply_hashed_log_recs(TRUE). */
+		/* This must precede recv_apply_hashed_log_recs(true). */
 		purge_queue = trx_sys_init_at_db_start();
 
 		if (srv_force_recovery < SRV_FORCE_NO_LOG_REDO) {
@@ -2233,13 +2233,8 @@ files_checked:
 			respective file pages, for the last batch of
 			recv_group_scan_log_recs(). */
 
-			err = recv_apply_hashed_log_recs(TRUE);
+			recv_apply_hashed_log_recs(true);
 			DBUG_PRINT("ib_log", ("apply completed"));
-
-			if (err != DB_SUCCESS) {
-				UT_DELETE(purge_queue);
-				return(srv_init_abort(err));
-			}
 
 			if (recv_needed_recovery) {
 				trx_sys_print_mysql_binlog_offset();

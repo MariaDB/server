@@ -262,7 +262,9 @@ EOF
 --source include/start_mysqld.inc
 eval $check_no_innodb;
 --source include/shutdown_mysqld.inc
-let SEARCH_PATTERN=InnoDB: Log scan progressed past the checkpoint lsn 1213964;
+let SEARCH_PATTERN=InnoDB: Starting crash recovery from checkpoint LSN=1213964;
+--source include/search_pattern_in_file.inc
+let SEARCH_PATTERN=InnoDB: MLOG_FILE_NAME incorrect:bogus;
 --source include/search_pattern_in_file.inc
 let SEARCH_PATTERN=InnoDB: ############### CORRUPT LOG RECORD FOUND ##################;
 --source include/search_pattern_in_file.inc
@@ -314,6 +316,8 @@ EOF
 --source include/start_mysqld.inc
 eval $check_no_innodb;
 --source include/shutdown_mysqld.inc
+let SEARCH_PATTERN=InnoDB: MLOG_FILE_NAME incorrect:bigot;
+--source include/search_pattern_in_file.inc
 --let SEARCH_PATTERN= len 22; hex 38000000000012860cb7809781e800066269676f7400; asc 8               bigot ;
 --source include/search_pattern_in_file.inc
 

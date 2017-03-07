@@ -69,7 +69,7 @@ this must be less than UNIV_PAGE_SIZE as it is stored in the buffer pool */
 #define RECV_READ_AHEAD_AREA	32
 
 /** The recovery system */
-recv_sys_t*	recv_sys = NULL;
+recv_sys_t*	recv_sys;
 /** TRUE when applying redo log records during crash recovery; FALSE
 otherwise.  Note that this is FALSE while a background thread is
 rolling back incomplete transactions. */
@@ -98,9 +98,6 @@ buffer pool before the pages have been recovered to the up-to-date state.
 TRUE means that recovery is running and no operations on the log files
 are allowed yet: the variable name is misleading. */
 bool	recv_no_ibuf_operations;
-/** The following counter is used to decide when to print info on
-log scan */
-static ulint	recv_scan_print_counter;
 
 /** The type of the previous parsed redo log record */
 static mlog_id_t	recv_previous_parsed_rec_type;
@@ -516,7 +513,6 @@ recv_sys_var_init(void)
 	recv_needed_recovery = false;
 	recv_lsn_checks_on = false;
 	recv_no_ibuf_operations = false;
-	recv_scan_print_counter	= 0;
 	recv_previous_parsed_rec_type = MLOG_SINGLE_REC_FLAG;
 	recv_previous_parsed_rec_offset	= 0;
 	recv_previous_parsed_rec_is_multi = 0;
@@ -622,6 +618,7 @@ recv_sys_init(
 	recv_sys->found_corrupt_log = false;
 	recv_sys->found_corrupt_fs = false;
 	recv_sys->mlog_checkpoint_lsn = 0;
+	recv_sys->progress_time = ut_time();
 
 	recv_max_page_lsn = 0;
 
@@ -631,19 +628,13 @@ recv_sys_init(
 	mutex_exit(&(recv_sys->mutex));
 }
 
-/********************************************************//**
-Empties the hash table when it has been fully processed.*/
+/** Empty a fully processed hash table. */
 static
 void
-recv_sys_empty_hash(void)
-/*=====================*/
+recv_sys_empty_hash()
 {
 	ut_ad(mutex_own(&(recv_sys->mutex)));
-
-	if (recv_sys->n_addrs != 0) {
-		ib::fatal() << recv_sys->n_addrs << " pages with log records"
-			" were left unprocessed!";
-	}
+	ut_a(recv_sys->n_addrs == 0);
 
 	hash_table_free(recv_sys->addr_hash);
 	mem_heap_empty(recv_sys->heap);
@@ -740,7 +731,8 @@ loop:
 			happen when InnoDB was killed while it was
 			writing redo log. We simply treat this as an
 			abrupt end of the redo log. */
-			return(start_lsn);
+			end_lsn = start_lsn;
+			break;
 		}
 
 		if (innodb_log_checksums || group->is_encrypted()) {
@@ -754,7 +746,8 @@ loop:
 					    << log_block_get_checkpoint_no(buf)
 					    << " expected: " << crc
 					    << " found: " << cksum;
-				return(start_lsn);
+				end_lsn = start_lsn;
+				break;
 			}
 
 			if (group->is_encrypted()) {
@@ -763,8 +756,13 @@ loop:
 		}
 	}
 
-	if (start_lsn != end_lsn) {
+	if (recv_sys->report(ut_time())) {
+		ib::info() << "Read redo log up to LSN=" << start_lsn;
+		sd_notifyf(0, "STATUS=Read redo log up to LSN=" LSN_PF,
+			   start_lsn);
+	}
 
+	if (start_lsn != end_lsn) {
 		goto loop;
 	}
 
@@ -1911,6 +1909,8 @@ recv_recover_page(bool just_read_in, buf_block_t* block)
 
 	mtr_commit(&mtr);
 
+	ib_time_t time = ut_time();
+
 	mutex_enter(&(recv_sys->mutex));
 
 	if (recv_max_page_lsn < page_lsn) {
@@ -1919,11 +1919,16 @@ recv_recover_page(bool just_read_in, buf_block_t* block)
 
 	recv_addr->state = RECV_PROCESSED;
 
-	ut_a(recv_sys->n_addrs);
-	recv_sys->n_addrs--;
+	ut_a(recv_sys->n_addrs > 0);
+	if (ulint n = --recv_sys->n_addrs) {
+		if (recv_sys->report(time)) {
+			ib::info() << "To recover: " << n << " pages from log";
+			sd_notifyf(0, "STATUS=To recover: " ULINTPF
+				   " pages from log", n);
+		}
+	}
 
-	mutex_exit(&(recv_sys->mutex));
-
+	mutex_exit(&recv_sys->mutex);
 }
 
 /** Reads in pages which have hashed log records, from an area around a given
@@ -1970,61 +1975,48 @@ recv_read_in_area(
 	}
 
 	buf_read_recv_pages(FALSE, page_id.space(), page_nos, n);
-	/*
-	fprintf(stderr, "Recv pages at %lu n %lu\n", page_nos[0], n);
-	*/
 	return(n);
 }
 
-/*******************************************************************//**
-Empties the hash table of stored log records, applying them to appropriate
-pages.
-@return DB_SUCCESS when successfull or DB_ERROR when fails. */
-dberr_t
-recv_apply_hashed_log_recs(
-/*=======================*/
-	ibool	allow_ibuf)	/*!< in: if TRUE, also ibuf operations are
-				allowed during the application; if FALSE,
-				no ibuf operations are allowed, and after
-				the application all file pages are flushed to
-				disk and invalidated in buffer pool: this
-				alternative means that no new log records
-				can be generated during the application;
-				the caller must in this case own the log
-				mutex */
+/** Apply the hash table of stored log records to persistent data pages.
+@param[in]	last_batch	whether the change buffer merge will be
+				performed as part of the operation */
+void
+recv_apply_hashed_log_recs(bool last_batch)
 {
-	recv_addr_t* recv_addr;
-	ulint	i;
-	ibool	has_printed	= FALSE;
-	mtr_t	mtr;
-	ulint	progress = 0;
-	dberr_t err = DB_SUCCESS;
-loop:
-	mutex_enter(&(recv_sys->mutex));
+	for (;;) {
+		mutex_enter(&recv_sys->mutex);
 
-	if (recv_sys->apply_batch_on) {
+		if (!recv_sys->apply_batch_on) {
+			break;
+		}
 
-		mutex_exit(&(recv_sys->mutex));
-
+		mutex_exit(&recv_sys->mutex);
 		os_thread_sleep(500000);
-
-		goto loop;
 	}
 
-	ut_ad(!allow_ibuf == log_mutex_own());
+	ut_ad(!last_batch == log_mutex_own());
 
-	if (!allow_ibuf) {
+	if (!last_batch) {
 		recv_no_ibuf_operations = true;
 	}
 
+	if (ulint n = recv_sys->n_addrs) {
+		const char* msg = last_batch
+			? "Starting final batch to recover "
+			: "Starting a batch to recover ";
+		ib::info() << msg << n << " pages from redo log.";
+		sd_notifyf(0, "STATUS=%s" ULINTPF " pages from redo log",
+			   msg, n);
+	}
 	recv_sys->apply_log_recs = TRUE;
 	recv_sys->apply_batch_on = TRUE;
 
-	for (i = 0; i < hash_get_n_cells(recv_sys->addr_hash); i++) {
+	for (ulint i = 0; i < hash_get_n_cells(recv_sys->addr_hash); i++) {
 
-		for (recv_addr = static_cast<recv_addr_t*>(
+		for (recv_addr_t* recv_addr = static_cast<recv_addr_t*>(
 				HASH_GET_FIRST(recv_sys->addr_hash, i));
-		     recv_addr != 0;
+		     recv_addr;
 		     recv_addr = static_cast<recv_addr_t*>(
 				HASH_GET_NEXT(addr_hash, recv_addr))) {
 
@@ -2053,23 +2045,13 @@ loop:
 			ut_ad(found);
 
 			if (recv_addr->state == RECV_NOT_PROCESSED) {
-				if (!has_printed) {
-					ib::info() << "Starting an apply batch"
-						" of log records"
-						" to the database...";
-					fputs("InnoDB: Progress in percent: ",
-					      stderr);
-					has_printed = TRUE;
-				}
-
-				mutex_exit(&(recv_sys->mutex));
+				mutex_exit(&recv_sys->mutex);
 
 				if (buf_page_peek(page_id)) {
-					buf_block_t*	block;
+					mtr_t	mtr;
+					mtr.start();
 
-					mtr_start(&mtr);
-
-					block = buf_page_get(
+					buf_block_t* block = buf_page_get(
 						page_id, page_size,
 						RW_X_LATCH, &mtr);
 
@@ -2077,26 +2059,13 @@ loop:
 						block, SYNC_NO_ORDER_CHECK);
 
 					recv_recover_page(FALSE, block);
-					mtr_commit(&mtr);
+					mtr.commit();
 				} else {
 					recv_read_in_area(page_id);
 				}
 
 				mutex_enter(&(recv_sys->mutex));
 			}
-		}
-
-		progress = (ulint) ((i * 100) / hash_get_n_cells(recv_sys->addr_hash));
-
-		if (has_printed
-		    && progress
-		    && (i * 100) / hash_get_n_cells(recv_sys->addr_hash)
-		    != ((i + 1) * 100)
-		    / hash_get_n_cells(recv_sys->addr_hash)) {
-
-			fprintf(stderr, "%lu ", progress);
-			sd_notifyf(0, "STATUS=Applying batch of log records for"
-				   " InnoDB: Progress %lu", progress);
 		}
 	}
 
@@ -2111,13 +2080,7 @@ loop:
 		mutex_enter(&(recv_sys->mutex));
 	}
 
-	if (has_printed) {
-
-		fprintf(stderr, "\n");
-	}
-
-	if (!allow_ibuf) {
-
+	if (!last_batch) {
 		/* Flush all the file pages to disk and invalidate them in
 		the buffer pool */
 
@@ -2154,14 +2117,7 @@ loop:
 
 	recv_sys_empty_hash();
 
-	if (has_printed) {
-		ib::info() << "Apply batch completed";
-		sd_notify(0, "STATUS=InnoDB: Apply batch completed");
-	}
-
-	mutex_exit(&(recv_sys->mutex));
-
-	return err;
+	mutex_exit(&recv_sys->mutex);
 }
 
 /** Tries to parse a single log record.
@@ -2838,11 +2794,6 @@ recv_scan_log_recs(
 		scanned_lsn += data_len;
 
 		if (scanned_lsn > recv_sys->scanned_lsn) {
-
-			/* We have found more entries. If this scan is
-			of startup type, we must initiate crash recovery
-			environment before parsing these log records. */
-
 			if (!recv_needed_recovery) {
 				recv_needed_recovery = true;
 
@@ -2852,8 +2803,8 @@ recv_scan_log_recs(
 					return(true);
 				}
 
-				ib::info() << "Log scan progressed "
-					"past the checkpoint lsn "
+				ib::info() << "Starting crash recovery from"
+					" checkpoint LSN="
 					<< recv_sys->scanned_lsn;
 			}
 
@@ -2894,16 +2845,6 @@ recv_scan_log_recs(
 	} while (log_block < buf + len);
 
 	*group_scanned_lsn = scanned_lsn;
-
-	if (recv_needed_recovery) {
-		recv_scan_print_counter++;
-
-		if (finished || (recv_scan_print_counter % 80 == 0)) {
-
-			ib::info() << "Doing recovery: scanned up to"
-				" log sequence number " << scanned_lsn;
-		}
-	}
 
 	if (more_data && !recv_sys->found_corrupt_log) {
 		/* Try to parse more log records */
@@ -2987,9 +2928,7 @@ recv_group_scan_log_recs(
 			merge here, because it would generate
 			redo log records before we have
 			finished the redo log scan. */
-			if (recv_apply_hashed_log_recs(FALSE) != DB_SUCCESS) {
-				DBUG_RETURN(false);
-			}
+			recv_apply_hashed_log_recs(false);
 		}
 
 		start_lsn = end_lsn;
@@ -3055,9 +2994,6 @@ recv_init_crash_recovery_spaces(void)
 
 	ut_ad(!srv_read_only_mode);
 	ut_ad(recv_needed_recovery);
-
-	ib::info() << "Database was not shutdown normally!";
-	ib::info() << "Starting crash recovery.";
 
 	for (recv_spaces_t::iterator i = recv_spaces.begin();
 	     i != recv_spaces.end(); i++) {
@@ -3262,9 +3198,8 @@ recv_recovery_from_checkpoint_start(
 	}
 
 	if (recv_sys->mlog_checkpoint_lsn == 0) {
-		if (!srv_read_only_mode
-		    && group->scanned_lsn != checkpoint_lsn) {
-			lsn_t scan_lsn = group->scanned_lsn;
+		lsn_t scan_lsn = group->scanned_lsn;
+		if (!srv_read_only_mode && scan_lsn != checkpoint_lsn) {
 			log_mutex_exit();
 			ib::error err;
 			err << "Missing MLOG_CHECKPOINT";
