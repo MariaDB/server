@@ -570,7 +570,7 @@ SELECT COUNT(*) FROM t1 WHERE d='1 ';
 COUNT(*)
 2
 Warnings:
-Note	1292	Truncated incorrect DOUBLE value: '1 '
+Note	1292	Truncated incorrect DECIMAL value: '1 '
 SELECT COUNT(*) FROM t1 WHERE f4='';
 COUNT(*)
 2
@@ -605,7 +605,7 @@ SELECT COUNT(*) FROM t1 WHERE d='';
 COUNT(*)
 2
 Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: ''
+Warning	1292	Truncated incorrect DECIMAL value: ''
 SELECT COUNT(*) FROM t1 WHERE f4='x';
 COUNT(*)
 2
@@ -640,7 +640,7 @@ SELECT COUNT(*) FROM t1 WHERE d='x';
 COUNT(*)
 2
 Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: 'x'
+Warning	1292	Truncated incorrect DECIMAL value: 'x'
 SELECT COUNT(*) FROM t1 WHERE f4=' x';
 COUNT(*)
 2
@@ -675,7 +675,7 @@ SELECT COUNT(*) FROM t1 WHERE d=' x';
 COUNT(*)
 2
 Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: ' x'
+Warning	1292	Truncated incorrect DECIMAL value: ' x'
 SELECT COUNT(*) FROM t1 WHERE f4='.';
 COUNT(*)
 2
@@ -710,7 +710,7 @@ SELECT COUNT(*) FROM t1 WHERE d='.';
 COUNT(*)
 2
 Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: '.'
+Warning	1292	Truncated incorrect DECIMAL value: '.'
 SELECT COUNT(*) FROM t1 WHERE f4='-';
 COUNT(*)
 2
@@ -745,7 +745,7 @@ SELECT COUNT(*) FROM t1 WHERE d='-';
 COUNT(*)
 2
 Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: '-'
+Warning	1292	Truncated incorrect DECIMAL value: '-'
 SELECT COUNT(*) FROM t1 WHERE f4='+';
 COUNT(*)
 2
@@ -780,7 +780,7 @@ SELECT COUNT(*) FROM t1 WHERE d='+';
 COUNT(*)
 2
 Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: '+'
+Warning	1292	Truncated incorrect DECIMAL value: '+'
 SELECT COUNT(*) FROM t1 WHERE f4='1x';
 COUNT(*)
 2
@@ -815,7 +815,7 @@ SELECT COUNT(*) FROM t1 WHERE d='1x';
 COUNT(*)
 2
 Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: '1x'
+Warning	1292	Truncated incorrect DECIMAL value: '1x'
 SELECT COUNT(*) FROM t1 WHERE f4='1e';
 COUNT(*)
 2
@@ -850,7 +850,7 @@ SELECT COUNT(*) FROM t1 WHERE d='1e';
 COUNT(*)
 2
 Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: '1e'
+Warning	1292	Truncated incorrect DECIMAL value: '1e'
 SELECT COUNT(*) FROM t1 WHERE f4='1e+';
 COUNT(*)
 2
@@ -885,7 +885,7 @@ SELECT COUNT(*) FROM t1 WHERE d='1e+';
 COUNT(*)
 2
 Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: '1e+'
+Warning	1292	Truncated incorrect DECIMAL value: '1e+'
 SELECT COUNT(*) FROM t1 WHERE f4='1E-';
 COUNT(*)
 2
@@ -920,7 +920,7 @@ SELECT COUNT(*) FROM t1 WHERE d='1E-';
 COUNT(*)
 2
 Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: '1E-'
+Warning	1292	Truncated incorrect DECIMAL value: '1E-'
 SELECT COUNT(*) FROM t1 WHERE f4='1Ex';
 COUNT(*)
 2
@@ -955,7 +955,7 @@ SELECT COUNT(*) FROM t1 WHERE d='1Ex';
 COUNT(*)
 2
 Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: '1Ex'
+Warning	1292	Truncated incorrect DECIMAL value: '1Ex'
 SELECT COUNT(*) FROM t1 WHERE f4='1e+x';
 COUNT(*)
 2
@@ -990,7 +990,7 @@ SELECT COUNT(*) FROM t1 WHERE d='1e+x';
 COUNT(*)
 2
 Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: '1e+x'
+Warning	1292	Truncated incorrect DECIMAL value: '1e+x'
 SELECT COUNT(*) FROM t1 WHERE f4='1e1000';
 COUNT(*)
 0
@@ -1025,7 +1025,8 @@ SELECT COUNT(*) FROM t1 WHERE d='1e1000';
 COUNT(*)
 0
 Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: '1e1000'
+Warning	1916	Got overflow when converting '' to DECIMAL. Value truncated.
+Warning	1292	Truncated incorrect DECIMAL value: '1e1000'
 ALTER TABLE t1
 ADD KEY f4(f4),
 ADD KEY f8(f8),
