@@ -2520,6 +2520,12 @@ static MYSQL_SOCKET activate_tcp_port(uint port)
                                    (char*)&arg, sizeof(arg));
   }
 #endif
+
+#ifdef IP_FREEBIND
+  arg= 1;
+  (void) mysql_socket_setsockopt(ip_sock, IPPROTO_IP, IP_FREEBIND, (char*) &arg,
+                                 sizeof(arg));
+#endif
   /*
     Sometimes the port is not released fast enough when stopping and
     restarting the server. This happens quite often with the test suite
