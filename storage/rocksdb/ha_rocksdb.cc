@@ -7992,12 +7992,7 @@ int ha_rocksdb::info(uint flag) {
       uchar buf[Rdb_key_def::INDEX_NUMBER_SIZE * 2];
       auto r = get_range(pk_index(table, m_tbl_def), buf);
       uint64_t sz = 0;
-
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
       rdb->GetApproximateSizes(m_pk_descr->get_cf(), &r, 1, &sz, true);
-#pragma GCC diagnostic pop
-
       stats.records = sz / ROCKSDB_ASSUMED_KEY_VALUE_DISK_SIZE;
       stats.data_file_length = sz;
 
@@ -8838,11 +8833,8 @@ ha_rows ha_rocksdb::records_in_range(uint inx, key_range *const min_key,
     disk_size = ROCKSDB_ASSUMED_KEY_VALUE_DISK_SIZE;
   }
 
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
   // Getting statistics, including from Memtables
   rdb->GetApproximateSizes(kd.get_cf(), &r, 1, &sz, true);
-#pragma GCC diagnostic pop
 
   ret = rows * sz / disk_size;
 
@@ -10160,8 +10152,10 @@ const char *get_rdb_io_error_string(const RDB_IO_ERROR_TYPE err_type) {
 // In case of core dump generation we want this function NOT to be optimized
 // so that we can capture as much data as possible to debug the root cause
 // more efficiently.
+#ifdef __GNUC__
 #pragma GCC push_options
 #pragma GCC optimize("O0")
+#endif
 
 void rdb_handle_io_error(const rocksdb::Status status,
                          const RDB_IO_ERROR_TYPE err_type) {
@@ -10234,8 +10228,9 @@ void rdb_handle_io_error(const rocksdb::Status status,
     }
   }
 }
-
+#ifdef __GNUC__
 #pragma GCC pop_options
+#endif
 
 Rdb_dict_manager *rdb_get_dict_manager(void) { return &dict_manager; }
 

@@ -62,7 +62,7 @@ int Rdb_thread::create_thread(const std::string &thread_name
 
   int err = mysql_thread_create(background_psi_thread_key, &m_handle, nullptr,
                                 thread_func, this);
-
+#ifdef  __linux__
   if (!err) {
     /*
       mysql_thread_create() ends up doing some work underneath and setting the
@@ -73,6 +73,7 @@ int Rdb_thread::create_thread(const std::string &thread_name
     */
     err = pthread_setname_np(m_handle, thread_name.c_str());
   }
+#endif
 
   return err;
 }

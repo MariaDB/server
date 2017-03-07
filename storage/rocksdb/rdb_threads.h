@@ -75,8 +75,10 @@ public:
 
   void signal(const bool &stop_thread = false);
 
-  int join() { return pthread_join(m_handle, nullptr); }
+  int join()
+  {
 #ifndef _WIN32
+    return pthread_join(m_handle, nullptr);
 #else
     /*
       mysys on Windows creates "detached" threads in pthread_create().
@@ -88,9 +90,10 @@ public:
       If thread is already finished before pthread_join(),
       we get EINVAL, and it is safe to ignore and handle this as success.
     */
-    (void)pthread_join(m_handle, nullptr);
+    pthread_join(m_handle, nullptr);
     return 0;
 #endif
+  }
 
   void uninit();
 
