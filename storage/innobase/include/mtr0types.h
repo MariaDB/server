@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2015, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -167,11 +167,6 @@ enum mlog_id_t {
 
 	/** mark compact clustered index record deleted */
 	MLOG_COMP_REC_CLUST_DELETE_MARK = 39,
-
-	/** mark compact secondary index record deleted; this log
-	record type is redundant, as MLOG_REC_SEC_DELETE_MARK is
-	independent of the record format. */
-	MLOG_COMP_REC_SEC_DELETE_MARK = 40,
 
 	/** update of a compact record, preserves record field sizes */
 	MLOG_COMP_REC_UPDATE_IN_PLACE = 41,

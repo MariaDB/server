@@ -2,7 +2,7 @@
 
 Copyright (c) 1997, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2017, MariaDB Corporation. All Rights Reserved.
+Copyright (c) 2013, 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1331,17 +1331,6 @@ parse_log:
 				ptr, end_ptr, page, page_zip, index);
 		}
 		break;
-	case MLOG_COMP_REC_SEC_DELETE_MARK:
-		ut_ad(!page || fil_page_type_is_index(page_type));
-		/* This log record type is obsolete, but we process it for
-		backward compatibility with MySQL 5.0.3 and 5.0.4. */
-		ut_a(!page || page_is_comp(page));
-		ut_a(!page_zip);
-		ptr = mlog_parse_index(ptr, end_ptr, TRUE, &index);
-		if (!ptr) {
-			break;
-		}
-		/* Fall through */
 	case MLOG_REC_SEC_DELETE_MARK:
 		ut_ad(!page || fil_page_type_is_index(page_type));
 		ptr = btr_cur_parse_del_mark_set_sec_rec(ptr, end_ptr,
@@ -3700,9 +3689,6 @@ get_mlog_string(mlog_id_t type)
 
 	case MLOG_COMP_REC_CLUST_DELETE_MARK:
 		return("MLOG_COMP_REC_CLUST_DELETE_MARK");
-
-	case MLOG_COMP_REC_SEC_DELETE_MARK:
-		return("MLOG_COMP_REC_SEC_DELETE_MARK");
 
 	case MLOG_COMP_REC_UPDATE_IN_PLACE:
 		return("MLOG_COMP_REC_UPDATE_IN_PLACE");
