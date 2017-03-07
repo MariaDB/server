@@ -3169,7 +3169,7 @@ protected:
 class Create_func_wsrep_last_written_gtid : public Create_func_arg0
 {
 public:
-  virtual Item *create(THD *thd);
+  virtual Item *create_builder(THD *thd);
 
   static Create_func_wsrep_last_written_gtid s_singleton;
 
@@ -3182,7 +3182,7 @@ protected:
 class Create_func_wsrep_last_seen_gtid : public Create_func_arg0
 {
 public:
-  virtual Item *create(THD *thd);
+  virtual Item *create_builder(THD *thd);
 
   static Create_func_wsrep_last_seen_gtid s_singleton;
 
@@ -6792,7 +6792,7 @@ Create_func_wsrep_last_written_gtid
 Create_func_wsrep_last_written_gtid::s_singleton;
 
 Item*
-Create_func_wsrep_last_written_gtid::create(THD *thd)
+Create_func_wsrep_last_written_gtid::create_builder(THD *thd)
 {
   current_thd->lex->safe_to_cache_query= 0;
   return new (thd->mem_root) Item_func_wsrep_last_written_gtid(thd);
@@ -6803,7 +6803,7 @@ Create_func_wsrep_last_seen_gtid
 Create_func_wsrep_last_seen_gtid::s_singleton;
 
 Item*
-Create_func_wsrep_last_seen_gtid::create(THD *thd)
+Create_func_wsrep_last_seen_gtid::create_builder(THD *thd)
 {
   current_thd->lex->safe_to_cache_query= 0;
   return new (thd->mem_root) Item_func_wsrep_last_seen_gtid(thd);

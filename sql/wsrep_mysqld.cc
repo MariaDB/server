@@ -2741,8 +2741,7 @@ ignore_error:
              "Default database: '%s'. Query: '%s', Error_code: %d",
              thd->get_stmt_da()->message(),
              print_slave_db_safe(thd->db),
-             (!opt_log_raw && thd->rewritten_query.length())
-             ? thd->rewritten_query.c_ptr_safe() : thd->query(),
+             thd->query(),
              error);
   return 1;
 }

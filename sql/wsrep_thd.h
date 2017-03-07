@@ -21,6 +21,8 @@
 #ifdef WITH_WSREP
 
 #include "sql_class.h"
+#include "wsrep_utils.h"
+#include <deque>
 class Wsrep_thd_queue
 {
 public:
@@ -48,7 +50,7 @@ public:
     wsp::auto_lock lock(&LOCK_wsrep_thd_queue);
     while (queue.empty())
     {
-      if (thd->killed != THD::NOT_KILLED)
+      if (thd->killed != NOT_KILLED)
         return NULL;
 
       thd->mysys_var->current_mutex= &LOCK_wsrep_thd_queue;
@@ -161,7 +163,7 @@ static inline void wsrep_log_thd(THD *thd,
                                  const char *function)
 {
   WSREP_DEBUG("%s %s\n"
-              "    thd: %lu exec_mode: %s query_state: %s conflict_state: %s\n"
+              "    thd: %lld exec_mode: %s query_state: %s conflict_state: %s\n"
               "    next_trx_id: %lld trx_id: %lld seqno: %lld\n"
               "    is_streaming: %d fragments: %zu\n"
               "    sql_errno: %u message: %s\n"

@@ -55,6 +55,9 @@
 #include "wsrep_mysqld.h"
 #include "wsrep.h"
 #include "wsrep_xid.h"
+#include "wsrep_sr.h"
+#include "wsrep_thd.h"
+#include "log.h"
 
 /*
   While we have legacy_db_type, we have this array to
@@ -1167,7 +1170,7 @@ static int prepare_or_error(handlerton *ht, THD *thd, bool all)
     /* avoid sending error, if we're going to replay the transaction */
 #ifdef WITH_WSREP
     if (ht != wsrep_hton ||
-        err == EMSGSIZE || thd->wsrep_conflict_state != MUST_REPLAY)
+        err == EMSGSIZE || thd->wsrep_conflict_state() != MUST_REPLAY)
 #endif
       my_error(ER_ERROR_DURING_COMMIT, MYF(0), err);
   }
@@ -1714,7 +1717,7 @@ int ha_rollback_trans(THD *thd, bool all)
         my_error(ER_ERROR_DURING_ROLLBACK, MYF(0), err);
         error=1;
 #ifdef WITH_WSREP
-        WSREP_WARN("handlerton rollback failed, thd %lu %lld conf %d SQL %s",
+        WSREP_WARN("handlerton rollback failed, thd %lld %lld conf %d SQL %s",
                    thd->thread_id, thd->query_id, thd->wsrep_conflict_state(),
                    thd->query());
 #endif // WITH_WSREP
@@ -1737,7 +1740,7 @@ int ha_rollback_trans(THD *thd, bool all)
 
 #ifdef WITH_WSREP
   if (thd->is_error())
-    WSREP_DEBUG("ha_rollback_trans(%lu, %s) rolled back: %s: %s; is_real %d",
+    WSREP_DEBUG("ha_rollback_trans(%lld, %s) rolled back: %s: %s; is_real %d",
                 thd->thread_id, all?"TRUE":"FALSE", WSREP_QUERY(thd),
                 thd->get_stmt_da()->message(), is_real_trans);
 #endif
@@ -2324,12 +2327,38 @@ int ha_savepoint(THD *thd, SAVEPOINT *sv)
     Register binlog hton for savepoint processing if wsrep binlog
     emulation is on.
    */
+  wsrep_register_binlog_handler(thd, thd->in_multi_stmt_transaction_mode());
+#ifdef OUT
   if (WSREP_EMULATE_BINLOG(thd) && thd->wsrep_exec_mode != REPL_RECV)
   {
     WSREP_DEBUG("ha_savepoint: register binlog handler");
     thd->binlog_setup_trx_data();
-    register_binlog_handler(thd, thd->in_multi_stmt_transaction_mode());
+
+    //binlog_cache_mngr *cache_mngr= thd_get_cache_mngr(thd);
+    binlog_cache_mngr *cache_mngr= (binlog_cache_mngr*) thd_get_ha_data(thd, binlog_hton);
+  if (cache_mngr->trx_cache.get_prev_position() == MY_OFF_T_UNDEF)
+    {
+      /*
+        Set an implicit savepoint in order to be able to truncate a trx-cache.
+      */
+      my_off_t pos= 0;
+      binlog_trans_log_savepos(thd, &pos);
+      cache_mngr->trx_cache.set_prev_position(pos);
+
+      /*
+        Set callbacks in order to be able to call commmit or rollback.
+      */
+      if (trx)
+        trans_register_ha(thd, TRUE, binlog_hton);
+      trans_register_ha(thd, FALSE, binlog_hton);
+
+      /*
+        Set the binary log as read/write otherwise callbacks are not called.
+      */
+      thd->ha_data[binlog_hton->slot].ha_info[0].set_trx_read_write();
+    }
   }
+#endif
 #endif /* WITH_WSREP */
   int error=0;
   THD_TRANS *trans= (thd->in_sub_stmt ? &thd->transaction.stmt :

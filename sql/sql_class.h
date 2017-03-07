@@ -50,6 +50,8 @@
 
 #ifdef WITH_WSREP
 #include <vector>
+#include "wsrep_mysqld.h"
+#include "wsrep_binlog.h"
 #endif /* WITH_WSREP */
 
 extern "C"

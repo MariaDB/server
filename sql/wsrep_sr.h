@@ -84,7 +84,7 @@ private:
  public:
   ~wsrep_SR_trx_info ()
   {
-    WSREP_DEBUG("wsrep_SR_trx_info destructor: %lu",
+    WSREP_DEBUG("wsrep_SR_trx_info destructor: %lld",
                 (thd_) ? thd_->thread_id : -1);
     remove(NULL, true);
   }
@@ -96,7 +96,7 @@ private:
   void cleanup();
 
   wsrep_SR_trx_info(THD *thd) {
-    WSREP_DEBUG("wsrep_SR_trx_info construtor: %lu", (thd) ? thd->thread_id : -1);
+    WSREP_DEBUG("wsrep_SR_trx_info construtor: %lld", (thd) ? thd->thread_id : -1);
     thd_ = thd;
     applier_thread_ = 0;
   }

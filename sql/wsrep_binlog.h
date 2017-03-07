@@ -82,4 +82,6 @@ int wsrep_binlog_savepoint_set(THD *thd,  void *sv);
 int wsrep_binlog_savepoint_rollback(THD *thd, void *sv);
 uint wsrep_get_trans_cache_position(THD *thd);
 
+void wsrep_register_binlog_handler(THD *thd, bool trx);
+
 #endif /* WSREP_BINLOG_H */
