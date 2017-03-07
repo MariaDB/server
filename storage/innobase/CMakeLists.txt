@@ -149,7 +149,8 @@ SET(INNOBASE_SOURCES
 	ut/ut0ut.cc
 	ut/ut0vec.cc
 	ut/ut0wqueue.cc
-	ut/ut0timer.cc)
+	ut/ut0timer.cc
+	vers/vers0vtq.cc)
 
 IF(WITH_INNODB)
   # Legacy option

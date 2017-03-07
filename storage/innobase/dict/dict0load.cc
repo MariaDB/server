@@ -3797,4 +3797,3 @@ dict_table_open_on_index_id(
 	}
 	return table;
 }
-
