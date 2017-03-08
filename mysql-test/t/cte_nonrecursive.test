@@ -621,3 +621,24 @@ EXPLAIN EXTENDED
 WITH cte AS ( SELECT * FROM t1 ) SELECT i FROM cte;
 
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-12185: view defintion contains WITH clause with 
+--echo #             several specifications of CTE
+--echo #
+
+with
+  alias1 as (select 1 as one),
+  alias2 as (select 2 as two)
+select one, two from alias1, alias2;
+
+create view v1 as 
+with
+  alias1 as (select 1 as one),
+  alias2 as (select 2 as two)
+select one, two from alias1, alias2;
+
+select * from v1;
+show create view v1;
+
+drop view v1;

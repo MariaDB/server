@@ -939,3 +939,25 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 Warnings:
 Note	1003	with cte as (select `test`.`t1`.`i` AS `i`,`test`.`t1`.`c` AS `c` from `test`.`t1`)select 1 AS `i` from dual
 DROP TABLE t1;
+#
+# MDEV-12185: view defintion contains WITH clause with 
+#             several specifications of CTE
+#
+with
+alias1 as (select 1 as one),
+alias2 as (select 2 as two)
+select one, two from alias1, alias2;
+one	two
+1	2
+create view v1 as 
+with
+alias1 as (select 1 as one),
+alias2 as (select 2 as two)
+select one, two from alias1, alias2;
+select * from v1;
+one	two
+1	2
+show create view v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS with alias1 as (select 1 AS `one`), alias2 as (select 2 AS `two`)select `alias1`.`one` AS `one`,`alias2`.`two` AS `two` from (`alias1` join `alias2`)	latin1	latin1_swedish_ci
+drop view v1;
