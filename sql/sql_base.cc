@@ -1060,7 +1060,7 @@ next:
   {
     /* Try to fix */
     TABLE_LIST *derived=  res->belong_to_derived;
-    if (derived->is_merged_derived())
+    if (derived->is_merged_derived() && !derived->derived->is_excluded())
     {
       DBUG_PRINT("info",
                  ("convert merged to materialization to resolve the conflict"));

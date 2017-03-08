@@ -929,5 +929,24 @@ drop view v1;
 drop table t1;
 
 --echo #
+--echo # MDEV-11363: Assertion `!derived->first_sel ect()->first_inner_unit() ||
+--echo # derived->first_select()->first_inner_unit()->first_select()->
+--echo # exclude_from_table_unique_test' failed in
+--echo # TABLE_LIST::set_check_materialized()
+--echo #
+
+CREATE TABLE t1 (f1 INT);
+CREATE TABLE t2 (f2 INT);
+CREATE TABLE t3 (f3 INT);
+CREATE VIEW v1 AS ( SELECT f1 AS f FROM t1 ) UNION ( SELECT f2 AS f FROM t2 );
+CREATE VIEW v2 AS SELECT f3 AS f FROM t3;
+CREATE VIEW v3 AS SELECT f FROM ( SELECT f3 AS f FROM v1, t3 ) AS sq;
+CREATE VIEW v4 AS SELECT COUNT(*) as f FROM v3;
+REPLACE INTO v2 ( SELECT * FROM v4 ) UNION ( SELECT f FROM v2 );
+
+drop view v1,v2,v3,v4;
+drop table t1,t2,t3;
+
+--echo #
 --echo # End of 10.2 tests
 --echo #
