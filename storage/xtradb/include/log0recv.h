@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1997, 2010, Innobase Oy. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -465,6 +466,8 @@ struct recv_sys_struct{
 				scan find a corrupt log block, or a corrupt
 				log record, or there is a log parsing
 				buffer overflow */
+	/** the time when progress was last reported */
+	ib_time_t	progress_time;
 #ifdef UNIV_LOG_ARCHIVE
 	log_group_t*	archive_group;
 				/*!< in archive recovery: the log group whose
