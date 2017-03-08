@@ -575,6 +575,51 @@ SELECT * FROM t1;
 DROP TABLE t1;
 
 --echo #
+--echo # Checking str_to_time() for Conveting TimeZone
+--echo #
+select @@collation_connection;
+CREATE TABLE t1 (a time);
+INSERT INTO t1 VALUES ('10:10:10-05:00');
+SELECT * FROM t1;
+DROP TABLE t1;
+
+--echo #
+--echo # Checking str_to_time() for Conveting TimeZone
+--echo #
+select @@collation_connection;
+CREATE TABLE t1 (a time);
+INSERT INTO t1 VALUES ('10:10:10+04:30');
+SELECT * FROM t1;
+DROP TABLE t1;
+
+--echo #
+--echo # Checking str_to_time() for Conveting TimeZone
+--echo #
+select @@collation_connection;
+CREATE TABLE t1 (a time);
+INSERT INTO t1 VALUES ('10:10:10Z');
+SELECT * FROM t1;
+DROP TABLE t1;
+
+--echo #
+--echo # Checking str_to_time() for Conveting TimeZone
+--echo #
+select @@collation_connection;
+CREATE TABLE t1 (a time);
+INSERT INTO t1 VALUES ('2016-12-10T10:10:10Z');
+SELECT * FROM t1;
+DROP TABLE t1;
+
+--echo #
+--echo # Checking str_to_time() for Conveting TimeZone
+--echo #
+select @@collation_connection;
+CREATE TABLE t1 (a time);
+INSERT INTO t1 VALUES ('2016-12-10T10:10:10-05:00');
+SELECT * FROM t1;
+DROP TABLE t1;
+
+--echo #
 --echo # Testing cs->cset->ll10tostr
 --echo #
 CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET utf16le);

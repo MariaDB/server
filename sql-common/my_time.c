@@ -459,8 +459,8 @@ err:
   SYNOPSIS
    str_to_time()
    str                  A string in full TIMESTAMP format or
-                        [-] DAYS [H]H:MM:SS, [H]H:MM:SS, [M]M:SS, [H]HMMSS,
-                        [M]MSS or [S]S
+                        [-] DAYS [H]H:MM:SS[[Z|z]|[[-|+]hh[[:]mm]]], [H]H:MM:SS[[Z|z]|[[-|+]hh[[:]mm]]], [M]M:SS[[Z|z]|[[-|+]hh[[:]mm]]], [H]HMMSS[[Z|z]|[[-|+]hh[[:]mm]]],
+                        [M]MSS[[Z|z]|[[-|+]hh[[:]mm]]] or [S]S[[Z|z]|[[-|+]hh[[:]mm]]]
                         There may be an optional [.second_part] after seconds
    length               Length of str
    l_time               Store result here
@@ -642,6 +642,19 @@ fractional:
   /* Check if the value is valid and fits into MYSQL_TIME range */
   if (check_time_range(l_time, 6, &status->warnings))
     return TRUE;
+
+  /* Check for timezone offset */
+  if (!status->warnings && str < end && (*str == '-' || *str == '+'))
+  {
+    status->tz_offset_valid = (str_to_offset(str, 6, &status->tz_offset) == 0); //RFC3339 specifies the offset will be exactly 6 digits
+    str+=6;
+  }
+  else if (!status->warnings && str < end && (*str == 'Z' || *str == 'z'))
+  {
+    status->tz_offset_valid = 1;
+    status->tz_offset = 0;
+    str++;
+  }
 
   /* Check if there is garbage at end of the MYSQL_TIME specification */
   if (str != end)

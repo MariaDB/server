@@ -289,7 +289,21 @@ str_to_time(CHARSET_INFO *cs, const char *str,uint length,
     length= to_ascii(cs, str, length, cnv, sizeof(cnv));
     str= cnv;
   }
-  return str_to_time(str, length, l_time, fuzzydate, status);
+  bool ret = str_to_time(str, length, l_time, fuzzydate, status);
+  if(ret == 0 && status->tz_offset_valid)
+  {
+    MYSQL_TIME tz_convert_to_time;
+    calc_time_from_sec(&tz_convert_to_time, status->tz_offset, 0);
+    l_time->minute += tz_convert_to_time.minute;
+    l_time->hour += tz_convert_to_time.hour;
+    if(l_time->minute >= 60)
+    {
+      l_time->hour++;
+      l_time->minute -= 60;
+    }
+    check_time_range(l_time, 6, &status->warnings);
+  }
+  return ret;
 }
 
 
