@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -176,8 +176,6 @@ struct fil_space_t {
 	/** True if page 0 of tablespace is read */
 	bool		read_page0;
 
-        /** True if we have tested if this filespace supports atomic writes */
-        bool            atomic_write_tested;
         /** True if the device this filespace is on supports atomic writes */
         bool            atomic_write_supported;
 
@@ -484,14 +482,6 @@ struct fil_system_t {
 					startup we scan the data dictionary
 					and set here the maximum of the
 					space id's of the tables there */
-	int64_t		tablespace_version;
-					/*!< a counter which is incremented for
-					every space object memory creation;
-					every space mem object gets a
-					'timestamp' from this; in DISCARD/
-					IMPORT this is used to check if we
-					should ignore an insert buffer merge
-					request */
 	UT_LIST_BASE_NODE_T(fil_space_t) space_list;
 					/*!< list of all file spaces */
 	UT_LIST_BASE_NODE_T(fil_space_t) named_spaces;

@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2012, Oracle and/or its affiliates.
-   Copyright (c) 1995, 2012 Monty Program Ab
+   Copyright (c) 1995, 2017, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -34,25 +34,25 @@
 
 /* The following is bits in the flag parameter to ha_open() */
 
-#define HA_OPEN_ABORT_IF_LOCKED		0	/* default */
-#define HA_OPEN_WAIT_IF_LOCKED		1
-#define HA_OPEN_IGNORE_IF_LOCKED	2
-#define HA_OPEN_TMP_TABLE		4	/* Table is a temp table */
-#define HA_OPEN_DELAY_KEY_WRITE		8	/* Don't update index  */
-#define HA_OPEN_ABORT_IF_CRASHED	16
-#define HA_OPEN_FOR_REPAIR		32	/* open even if crashed */
-#define HA_OPEN_FROM_SQL_LAYER          64
-#define HA_OPEN_MMAP                    128     /* open memory mapped */
-#define HA_OPEN_COPY			256     /* Open copy (for repair) */
+#define HA_OPEN_ABORT_IF_LOCKED		0U	/* default */
+#define HA_OPEN_WAIT_IF_LOCKED		1U
+#define HA_OPEN_IGNORE_IF_LOCKED	2U
+#define HA_OPEN_TMP_TABLE		4U	/* Table is a temp table */
+#define HA_OPEN_DELAY_KEY_WRITE		8U	/* Don't update index  */
+#define HA_OPEN_ABORT_IF_CRASHED	16U
+#define HA_OPEN_FOR_REPAIR		32U	/* open even if crashed */
+#define HA_OPEN_FROM_SQL_LAYER          64U
+#define HA_OPEN_MMAP                    128U    /* open memory mapped */
+#define HA_OPEN_COPY			256U    /* Open copy (for repair) */
 /* Internal temp table, used for temporary results */
-#define HA_OPEN_INTERNAL_TABLE          512
-#define HA_OPEN_NO_PSI_CALL             1024    /* Don't call/connect PSI */
-#define HA_OPEN_MERGE_TABLE		2048
+#define HA_OPEN_INTERNAL_TABLE          512U
+#define HA_OPEN_NO_PSI_CALL             1024U   /* Don't call/connect PSI */
+#define HA_OPEN_MERGE_TABLE		2048U
 /*
   Allow opening even if table is incompatible as this is for ALTER TABLE which
   will fix the table structure.
 */
-#define HA_OPEN_FOR_ALTER		4096
+#define HA_OPEN_FOR_ALTER		4096U
 
 /* The following is parameter to ha_rkey() how to use key */
 
@@ -248,15 +248,15 @@ enum ha_base_keytype {
   Note that these can only be up to 16 bits!
 */
 
-#define HA_NOSAME		 1	/* Set if not dupplicated records */
-#define HA_PACK_KEY		 2	/* Pack string key to previous key */
-#define HA_AUTO_KEY		 16
-#define HA_BINARY_PACK_KEY	 32	/* Packing of all keys to prev key */
-#define HA_FULLTEXT		128     /* For full-text search */
-#define HA_UNIQUE_CHECK		256	/* Check the key for uniqueness */
-#define HA_SPATIAL		1024    /* For spatial search */
-#define HA_NULL_ARE_EQUAL	2048	/* NULL in key are cmp as equal */
-#define HA_GENERATED_KEY	8192	/* Automaticly generated key */
+#define HA_NOSAME		 1U	/* Set if not dupplicated records */
+#define HA_PACK_KEY		 2U	/* Pack string key to previous key */
+#define HA_AUTO_KEY		 16U
+#define HA_BINARY_PACK_KEY	 32U	/* Packing of all keys to prev key */
+#define HA_FULLTEXT		128U    /* For full-text search */
+#define HA_UNIQUE_CHECK		256U	/* Check the key for uniqueness */
+#define HA_SPATIAL		1024U   /* For spatial search */
+#define HA_NULL_ARE_EQUAL	2048U	/* NULL in key are cmp as equal */
+#define HA_GENERATED_KEY	8192U	/* Automaticly generated key */
 
         /* The combination of the above can be used for key type comparison. */
 #define HA_KEYFLAG_MASK (HA_NOSAME | HA_PACK_KEY | HA_AUTO_KEY | \
@@ -303,25 +303,25 @@ enum ha_base_keytype {
 #define HA_CAN_MEMCMP           2048 /* internal, never stored in frm */
 
 	/* optionbits for database */
-#define HA_OPTION_PACK_RECORD		1
-#define HA_OPTION_PACK_KEYS		2
-#define HA_OPTION_COMPRESS_RECORD	4
-#define HA_OPTION_LONG_BLOB_PTR		8 /* new ISAM format */
-#define HA_OPTION_TMP_TABLE		16
-#define HA_OPTION_CHECKSUM		32
-#define HA_OPTION_DELAY_KEY_WRITE	64
-#define HA_OPTION_NO_PACK_KEYS		128  /* Reserved for MySQL */
+#define HA_OPTION_PACK_RECORD		1U
+#define HA_OPTION_PACK_KEYS		2U
+#define HA_OPTION_COMPRESS_RECORD	4U
+#define HA_OPTION_LONG_BLOB_PTR		8U /* new ISAM format */
+#define HA_OPTION_TMP_TABLE		16U
+#define HA_OPTION_CHECKSUM		32U
+#define HA_OPTION_DELAY_KEY_WRITE	64U
+#define HA_OPTION_NO_PACK_KEYS		128U  /* Reserved for MySQL */
 /* unused                               256 */
-#define HA_OPTION_RELIES_ON_SQL_LAYER   512
-#define HA_OPTION_NULL_FIELDS		1024
-#define HA_OPTION_PAGE_CHECKSUM		2048
+#define HA_OPTION_RELIES_ON_SQL_LAYER   512U
+#define HA_OPTION_NULL_FIELDS		1024U
+#define HA_OPTION_PAGE_CHECKSUM		2048U
 /*
    STATS_PERSISTENT=1 has been specified in the SQL command (either CREATE
    or ALTER TABLE). Table and index statistics that are collected by the
    storage engine and used by the optimizer for query optimization will be
    stored on disk and will not change after a server restart.
 */
-#define HA_OPTION_STATS_PERSISTENT	4096
+#define HA_OPTION_STATS_PERSISTENT	4096U
 /*
   STATS_PERSISTENT=0 has been specified in CREATE/ALTER TABLE. Statistics
   for the table will be wiped away on server shutdown and new ones recalculated
@@ -330,31 +330,31 @@ enum ha_base_keytype {
   explicitly set at table level and the corresponding table will use whatever
   is the global server default.
 */
-#define HA_OPTION_NO_STATS_PERSISTENT	8192
+#define HA_OPTION_NO_STATS_PERSISTENT	8192U
 
 /* .frm has extra create options in linked-list format */
-#define HA_OPTION_TEXT_CREATE_OPTIONS_legacy (1L << 14) /* 5.2 to 5.5, unused since 10.0 */
-#define HA_OPTION_TEMP_COMPRESS_RECORD  (1L << 15)      /* set by isamchk */
-#define HA_OPTION_READ_ONLY_DATA        (1L << 16)      /* Set by isamchk */
-#define HA_OPTION_NO_CHECKSUM           (1L << 17)
-#define HA_OPTION_NO_DELAY_KEY_WRITE    (1L << 18)
+#define HA_OPTION_TEXT_CREATE_OPTIONS_legacy (1U << 14) /* 5.2 to 5.5, unused since 10.0 */
+#define HA_OPTION_TEMP_COMPRESS_RECORD  (1U << 15)      /* set by isamchk */
+#define HA_OPTION_READ_ONLY_DATA        (1U << 16)      /* Set by isamchk */
+#define HA_OPTION_NO_CHECKSUM           (1U << 17)
+#define HA_OPTION_NO_DELAY_KEY_WRITE    (1U << 18)
 
 	/* Bits in flag to create() */
 
-#define HA_DONT_TOUCH_DATA	1	/* Don't empty datafile (isamchk) */
-#define HA_PACK_RECORD		2	/* Request packed record format */
-#define HA_CREATE_TMP_TABLE	4
-#define HA_CREATE_CHECKSUM	8
-#define HA_CREATE_KEEP_FILES	16      /* don't overwrite .MYD and MYI */
-#define HA_CREATE_PAGE_CHECKSUM	32
-#define HA_CREATE_DELAY_KEY_WRITE 64
-#define HA_CREATE_RELIES_ON_SQL_LAYER 128
-#define HA_CREATE_INTERNAL_TABLE 256
-#define HA_PRESERVE_INSERT_ORDER 512
+#define HA_DONT_TOUCH_DATA	1U	/* Don't empty datafile (isamchk) */
+#define HA_PACK_RECORD		2U	/* Request packed record format */
+#define HA_CREATE_TMP_TABLE	4U
+#define HA_CREATE_CHECKSUM	8U
+#define HA_CREATE_KEEP_FILES	16U     /* don't overwrite .MYD and MYI */
+#define HA_CREATE_PAGE_CHECKSUM	32U
+#define HA_CREATE_DELAY_KEY_WRITE 64U
+#define HA_CREATE_RELIES_ON_SQL_LAYER 128U
+#define HA_CREATE_INTERNAL_TABLE 256U
+#define HA_PRESERVE_INSERT_ORDER 512U
 
 /* Flags used by start_bulk_insert */
 
-#define HA_CREATE_UNIQUE_INDEX_BY_SORT   1
+#define HA_CREATE_UNIQUE_INDEX_BY_SORT   1U
 
 
 /*
@@ -366,44 +366,44 @@ enum ha_base_keytype {
 */
 
 /* this one is not used */
-#define HA_STATUS_POS            1
+#define HA_STATUS_POS            1U
 /*
   assuming the table keeps shared actual copy of the 'info' and
   local, possibly outdated copy, the following flag means that
   it should not try to get the actual data (locking the shared structure)
   slightly outdated version will suffice
 */
-#define HA_STATUS_NO_LOCK        2
+#define HA_STATUS_NO_LOCK        2U
 /* update the time of the last modification (in handler::update_time) */
-#define HA_STATUS_TIME           4
+#define HA_STATUS_TIME           4U
 /*
   update the 'constant' part of the info:
   handler::max_data_file_length, max_index_file_length, create_time
   sortkey, ref_length, block_size, data_file_name, index_file_name.
   handler::table->s->keys_in_use, keys_for_keyread, rec_per_key
 */
-#define HA_STATUS_CONST          8
+#define HA_STATUS_CONST          8U
 /*
   update the 'variable' part of the info:
   handler::records, deleted, data_file_length, index_file_length,
   check_time, mean_rec_length
 */
-#define HA_STATUS_VARIABLE      16
+#define HA_STATUS_VARIABLE      16U
 /*
   get the information about the key that caused last duplicate value error
   update handler::errkey and handler::dupp_ref
   see handler::get_dup_key()
 */
-#define HA_STATUS_ERRKEY        32
+#define HA_STATUS_ERRKEY        32U
 /*
   update handler::auto_increment_value
 */
-#define HA_STATUS_AUTO          64
+#define HA_STATUS_AUTO          64U
 /*
   Get also delete_length when HA_STATUS_VARIABLE is called. It's ok to set it also
   when only HA_STATUS_VARIABLE but it won't be used.
 */
-#define HA_STATUS_VARIABLE_EXTRA 128
+#define HA_STATUS_VARIABLE_EXTRA 128U
 
 /*
   Errorcodes given by handler functions
@@ -521,23 +521,23 @@ typedef ulong key_part_map;
 	/* Intern constants in databases */
 
 	/* bits in _search */
-#define SEARCH_FIND	1
-#define SEARCH_NO_FIND	2
-#define SEARCH_SAME	4
-#define SEARCH_BIGGER	8
-#define SEARCH_SMALLER	16
-#define SEARCH_SAVE_BUFF	32
-#define SEARCH_UPDATE	64
-#define SEARCH_PREFIX	128
-#define SEARCH_LAST	256
-#define MBR_CONTAIN     512
-#define MBR_INTERSECT   1024
-#define MBR_WITHIN      2048
-#define MBR_DISJOINT    4096
-#define MBR_EQUAL       8192
-#define MBR_DATA        16384
-#define SEARCH_NULL_ARE_EQUAL 32768	/* NULL in keys are equal */
-#define SEARCH_NULL_ARE_NOT_EQUAL 65536	/* NULL in keys are not equal */
+#define SEARCH_FIND	1U
+#define SEARCH_NO_FIND	2U
+#define SEARCH_SAME	4U
+#define SEARCH_BIGGER	8U
+#define SEARCH_SMALLER	16U
+#define SEARCH_SAVE_BUFF	32U
+#define SEARCH_UPDATE	64U
+#define SEARCH_PREFIX	128U
+#define SEARCH_LAST	256U
+#define MBR_CONTAIN     512U
+#define MBR_INTERSECT   1024U
+#define MBR_WITHIN      2048U
+#define MBR_DISJOINT    4096U
+#define MBR_EQUAL       8192U
+#define MBR_DATA        16384U
+#define SEARCH_NULL_ARE_EQUAL 32768U	/* NULL in keys are equal */
+#define SEARCH_NULL_ARE_NOT_EQUAL 65536U/* NULL in keys are not equal */
 /* Use this when inserting a key in position order */
 #define SEARCH_INSERT   (SEARCH_NULL_ARE_NOT_EQUAL*2)
 /* Only part of the key is specified while reading */
@@ -548,27 +548,27 @@ typedef ulong key_part_map;
 #define SEARCH_PAGE_KEY_HAS_TRANSID (SEARCH_USER_KEY_HAS_TRANSID*2)
 
 	/* bits in opt_flag */
-#define QUICK_USED	1
-#define READ_CACHE_USED	2
-#define READ_CHECK_USED 4
-#define KEY_READ_USED	8
-#define WRITE_CACHE_USED 16
-#define OPT_NO_ROWS	32
+#define QUICK_USED	1U
+#define READ_CACHE_USED	2U
+#define READ_CHECK_USED 4U
+#define KEY_READ_USED	8U
+#define WRITE_CACHE_USED 16U
+#define OPT_NO_ROWS	32U
 
 	/* bits in update */
-#define HA_STATE_CHANGED	1	/* Database has changed */
-#define HA_STATE_AKTIV		2	/* Has a current record */
-#define HA_STATE_WRITTEN	4	/* Record is written */
-#define HA_STATE_DELETED	8
-#define HA_STATE_NEXT_FOUND	16	/* Next found record (record before) */
-#define HA_STATE_PREV_FOUND	32	/* Prev found record (record after) */
-#define HA_STATE_NO_KEY		64	/* Last read didn't find record */
-#define HA_STATE_KEY_CHANGED	128
-#define HA_STATE_WRITE_AT_END	256	/* set in _ps_find_writepos */
-#define HA_STATE_BUFF_SAVED	512	/* If current keybuff is info->buff */
-#define HA_STATE_ROW_CHANGED	1024	/* To invalidate ROW cache */
-#define HA_STATE_EXTEND_BLOCK	2048
-#define HA_STATE_RNEXT_SAME	4096	/* rnext_same occupied lastkey2 */
+#define HA_STATE_CHANGED	1U	/* Database has changed */
+#define HA_STATE_AKTIV		2U	/* Has a current record */
+#define HA_STATE_WRITTEN	4U	/* Record is written */
+#define HA_STATE_DELETED	8U
+#define HA_STATE_NEXT_FOUND	16U	/* Next found record (record before) */
+#define HA_STATE_PREV_FOUND	32U	/* Prev found record (record after) */
+#define HA_STATE_NO_KEY		64U	/* Last read didn't find record */
+#define HA_STATE_KEY_CHANGED	128U
+#define HA_STATE_WRITE_AT_END	256U	/* set in _ps_find_writepos */
+#define HA_STATE_BUFF_SAVED	512U	/* If current keybuff is info->buff */
+#define HA_STATE_ROW_CHANGED	1024U	/* To invalidate ROW cache */
+#define HA_STATE_EXTEND_BLOCK	2048U
+#define HA_STATE_RNEXT_SAME	4096U	/* rnext_same occupied lastkey2 */
 
 /* myisampack expects no more than 32 field types. */
 enum en_fieldtype {
@@ -584,15 +584,15 @@ enum data_file_type {
 
 /* For key ranges */
 
-#define NO_MIN_RANGE	1
-#define NO_MAX_RANGE	2
-#define NEAR_MIN	4
-#define NEAR_MAX	8
-#define UNIQUE_RANGE	16
-#define EQ_RANGE	32
-#define NULL_RANGE	64
-#define GEOM_FLAG      128
-#define SKIP_RANGE     256
+#define NO_MIN_RANGE	1U
+#define NO_MAX_RANGE	2U
+#define NEAR_MIN	4U
+#define NEAR_MAX	8U
+#define UNIQUE_RANGE	16U
+#define EQ_RANGE	32U
+#define NULL_RANGE	64U
+#define GEOM_FLAG      128U
+#define SKIP_RANGE     256U
 
 typedef struct st_key_range
 {

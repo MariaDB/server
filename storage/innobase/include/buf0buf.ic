@@ -2,7 +2,7 @@
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, Google Inc.
-Copyright (c) 2014, 2016, MariaDB Corporation.
+Copyright (c) 2014, 2017, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -71,12 +71,12 @@ buf_pool_get_curr_size(void)
 Calculates the index of a buffer pool to the buf_pool[] array.
 @return the position of the buffer pool in buf_pool[] */
 UNIV_INLINE
-ulint
+unsigned
 buf_pool_index(
 /*===========*/
 	const buf_pool_t*	buf_pool)	/*!< in: buffer pool */
 {
-	ulint	i = buf_pool - buf_pool_ptr;
+	unsigned	i = unsigned(buf_pool - buf_pool_ptr);
 	ut_ad(i < MAX_BUFFER_POOLS);
 	ut_ad(i < srv_buf_pool_instances);
 	return(i);
@@ -91,10 +91,8 @@ buf_pool_from_bpage(
 /*================*/
 	const buf_page_t*	bpage) /*!< in: buffer pool page */
 {
-	ulint	i;
-	i = bpage->buf_pool_index;
-	ut_ad(i < srv_buf_pool_instances);
-	return(&buf_pool_ptr[i]);
+	ut_ad(bpage->buf_pool_index < srv_buf_pool_instances);
+	return(&buf_pool_ptr[bpage->buf_pool_index]);
 }
 
 /******************************************************************//**
@@ -124,7 +122,7 @@ buf_pool_get_n_pages(void)
 Reads the freed_page_clock of a buffer block.
 @return freed_page_clock */
 UNIV_INLINE
-ulint
+unsigned
 buf_page_get_freed_page_clock(
 /*==========================*/
 	const buf_page_t*	bpage)	/*!< in: block */
@@ -137,7 +135,7 @@ buf_page_get_freed_page_clock(
 Reads the freed_page_clock of a buffer block.
 @return freed_page_clock */
 UNIV_INLINE
-ulint
+unsigned
 buf_block_get_freed_page_clock(
 /*===========================*/
 	const buf_block_t*	block)	/*!< in: block */
@@ -162,7 +160,7 @@ buf_page_peek_if_young(
 
 	/* FIXME: bpage->freed_page_clock is 31 bits */
 	return((buf_pool->freed_page_clock & ((1UL << 31) - 1))
-	       < ((ulint) bpage->freed_page_clock
+	       < (bpage->freed_page_clock
 		  + (buf_pool->curr_size
 		     * (BUF_LRU_OLD_RATIO_DIV - buf_pool->LRU_old_ratio)
 		     / (BUF_LRU_OLD_RATIO_DIV * 4))));
@@ -629,7 +627,7 @@ void
 buf_page_set_old(
 /*=============*/
 	buf_page_t*	bpage,	/*!< in/out: control block */
-	ibool		old)	/*!< in: old */
+	bool		old)	/*!< in: old */
 {
 #ifdef UNIV_DEBUG
 	buf_pool_t*	buf_pool = buf_pool_from_bpage(bpage);
@@ -792,7 +790,7 @@ Gets the hash value of the page the pointer is pointing to. This can be used
 in searches in the lock hash table.
 @return lock hash value */
 UNIV_INLINE
-ulint
+unsigned
 buf_block_get_lock_hash_val(
 /*========================*/
 	const buf_block_t*	block)	/*!< in: block */
@@ -978,7 +976,7 @@ buf_block_buf_fix_inc_func(
 /*=======================*/
 #ifdef UNIV_DEBUG
 	const char*	file,	/*!< in: file name */
-	ulint		line,	/*!< in: line */
+	unsigned	line,	/*!< in: line */
 #endif /* UNIV_DEBUG */
 	buf_block_t*	block)	/*!< in/out: block to bufferfix */
 {

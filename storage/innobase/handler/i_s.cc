@@ -129,8 +129,10 @@ struct buf_page_info_t{
 	unsigned	io_fix:2;	/*!< type of pending I/O operation */
 	unsigned	fix_count:19;	/*!< Count of how manyfold this block
 					is bufferfixed */
+#ifdef BTR_CUR_HASH_ADAPT
 	unsigned	hashed:1;	/*!< Whether hash index has been
 					built on this page */
+#endif /* BTR_CUR_HASH_ADAPT */
 	unsigned	is_old:1;	/*!< TRUE if the block is in the old
 					blocks in buf_pool->LRU_old */
 	unsigned	freed_page_clock:31; /*!< the value of
@@ -339,6 +341,12 @@ field_store_ulint(
 	return(ret);
 }
 
+#ifdef BTR_CUR_HASH_ADAPT
+# define I_S_AHI 1 /* Include the IS_HASHED column */
+#else
+# define I_S_AHI 0 /* Omit the IS_HASHED column */
+#endif
+
 /* Fields of the dynamic table INFORMATION_SCHEMA.innodb_trx */
 static ST_FIELD_INFO	innodb_trx_fields_info[] =
 {
@@ -522,6 +530,7 @@ static ST_FIELD_INFO	innodb_trx_fields_info[] =
 	 STRUCT_FLD(old_name,		""),
 	 STRUCT_FLD(open_method,	SKIP_OPEN_TABLE)},
 
+#ifdef BTR_CUR_HASH_ADAPT
 #define IDX_TRX_ADAPTIVE_HASH_LATCHED	20
 	{STRUCT_FLD(field_name,		"trx_adaptive_hash_latched"),
 	 STRUCT_FLD(field_length,	1),
@@ -530,17 +539,9 @@ static ST_FIELD_INFO	innodb_trx_fields_info[] =
 	 STRUCT_FLD(field_flags,	0),
 	 STRUCT_FLD(old_name,		""),
 	 STRUCT_FLD(open_method,	SKIP_OPEN_TABLE)},
+#endif /* BTR_CUR_HASH_ADAPT */
 
-#define IDX_TRX_ADAPTIVE_HASH_TIMEOUT	21
-	{STRUCT_FLD(field_name,		"trx_adaptive_hash_timeout"),
-	 STRUCT_FLD(field_length,	MY_INT64_NUM_DECIMAL_DIGITS),
-	 STRUCT_FLD(field_type,		MYSQL_TYPE_LONGLONG),
-	 STRUCT_FLD(value,		0),
-	 STRUCT_FLD(field_flags,	MY_I_S_UNSIGNED),
-	 STRUCT_FLD(old_name,		""),
-	 STRUCT_FLD(open_method,	SKIP_OPEN_TABLE)},
-
-#define IDX_TRX_READ_ONLY		22
+#define IDX_TRX_READ_ONLY		20 + I_S_AHI
 	{STRUCT_FLD(field_name,		"trx_is_read_only"),
 	 STRUCT_FLD(field_length,	1),
 	 STRUCT_FLD(field_type,		MYSQL_TYPE_LONG),
@@ -549,7 +550,7 @@ static ST_FIELD_INFO	innodb_trx_fields_info[] =
 	 STRUCT_FLD(old_name,		""),
 	 STRUCT_FLD(open_method,	SKIP_OPEN_TABLE)},
 
-#define IDX_TRX_AUTOCOMMIT_NON_LOCKING	23
+#define IDX_TRX_AUTOCOMMIT_NON_LOCKING	21 + I_S_AHI
 	{STRUCT_FLD(field_name,		"trx_autocommit_non_locking"),
 	 STRUCT_FLD(field_length,	1),
 	 STRUCT_FLD(field_type,		MYSQL_TYPE_LONG),
@@ -696,9 +697,11 @@ fill_innodb_trx_from_cache(
 		OK(field_store_string(fields[IDX_TRX_LAST_FOREIGN_KEY_ERROR],
 				      row->trx_foreign_key_error));
 
+#ifdef BTR_CUR_HASH_ADAPT
 		/* trx_adaptive_hash_latched */
 		OK(fields[IDX_TRX_ADAPTIVE_HASH_LATCHED]->store(
 			   row->trx_has_search_latch, true));
+#endif /* BTR_CUR_HASH_ADAPT */
 
 		/* trx_is_read_only*/
 		OK(fields[IDX_TRX_READ_ONLY]->store(
@@ -947,8 +950,7 @@ fill_innodb_locks_from_cache(
 					       strlen(row->lock_table),
 					       thd);
 		OK(fields[IDX_LOCK_TABLE]->store(
-			buf, static_cast<size_t>(bufend - buf),
-			system_charset_info));
+			buf, uint(bufend - buf), system_charset_info));
 
 		/* lock_index */
 		if (row->lock_index != NULL) {
@@ -2591,7 +2593,7 @@ i_s_metrics_fill(
 		} else if (!(monitor_info->monitor_type & MONITOR_NO_AVERAGE)
 			   && !(monitor_info->monitor_type
 				& MONITOR_DISPLAY_CURRENT)) {
-			if (time_diff) {
+			if (time_diff != 0) {
 				OK(fields[METRIC_AVG_VALUE_START]->store(
 					(double) MONITOR_VALUE_SINCE_START(
 						count) / time_diff));
@@ -2616,7 +2618,7 @@ i_s_metrics_fill(
 				time_diff = 0;
 			}
 
-			if (time_diff) {
+			if (time_diff != 0) {
 				OK(fields[METRIC_AVG_VALUE_RESET]->store(
 					static_cast<double>(
 						MONITOR_VALUE(count) / time_diff)));
@@ -4710,6 +4712,7 @@ static ST_FIELD_INFO	i_s_innodb_buffer_page_fields_info[] =
 	 STRUCT_FLD(old_name,		""),
 	 STRUCT_FLD(open_method,	SKIP_OPEN_TABLE)},
 
+#ifdef BTR_CUR_HASH_ADAPT
 #define IDX_BUFFER_PAGE_HASHED		7
 	{STRUCT_FLD(field_name,		"IS_HASHED"),
 	 STRUCT_FLD(field_length,	3),
@@ -4718,8 +4721,9 @@ static ST_FIELD_INFO	i_s_innodb_buffer_page_fields_info[] =
 	 STRUCT_FLD(field_flags,	MY_I_S_MAYBE_NULL),
 	 STRUCT_FLD(old_name,		""),
 	 STRUCT_FLD(open_method,	SKIP_OPEN_TABLE)},
+#endif /* BTR_CUR_HASH_ADAPT */
 
-#define IDX_BUFFER_PAGE_NEWEST_MOD	8
+#define IDX_BUFFER_PAGE_NEWEST_MOD	7 + I_S_AHI
 	{STRUCT_FLD(field_name,		"NEWEST_MODIFICATION"),
 	 STRUCT_FLD(field_length,	MY_INT64_NUM_DECIMAL_DIGITS),
 	 STRUCT_FLD(field_type,		MYSQL_TYPE_LONGLONG),
@@ -4728,7 +4732,7 @@ static ST_FIELD_INFO	i_s_innodb_buffer_page_fields_info[] =
 	 STRUCT_FLD(old_name,		""),
 	 STRUCT_FLD(open_method,	SKIP_OPEN_TABLE)},
 
-#define IDX_BUFFER_PAGE_OLDEST_MOD	9
+#define IDX_BUFFER_PAGE_OLDEST_MOD	8 + I_S_AHI
 	{STRUCT_FLD(field_name,		"OLDEST_MODIFICATION"),
 	 STRUCT_FLD(field_length,	MY_INT64_NUM_DECIMAL_DIGITS),
 	 STRUCT_FLD(field_type,		MYSQL_TYPE_LONGLONG),
@@ -4737,7 +4741,7 @@ static ST_FIELD_INFO	i_s_innodb_buffer_page_fields_info[] =
 	 STRUCT_FLD(old_name,		""),
 	 STRUCT_FLD(open_method,	SKIP_OPEN_TABLE)},
 
-#define IDX_BUFFER_PAGE_ACCESS_TIME	10
+#define IDX_BUFFER_PAGE_ACCESS_TIME	9 + I_S_AHI
 	{STRUCT_FLD(field_name,		"ACCESS_TIME"),
 	 STRUCT_FLD(field_length,	MY_INT64_NUM_DECIMAL_DIGITS),
 	 STRUCT_FLD(field_type,		MYSQL_TYPE_LONGLONG),
@@ -4746,7 +4750,7 @@ static ST_FIELD_INFO	i_s_innodb_buffer_page_fields_info[] =
 	 STRUCT_FLD(old_name,		""),
 	 STRUCT_FLD(open_method,	SKIP_OPEN_TABLE)},
 
-#define IDX_BUFFER_PAGE_TABLE_NAME	11
+#define IDX_BUFFER_PAGE_TABLE_NAME	10 + I_S_AHI
 	{STRUCT_FLD(field_name,		"TABLE_NAME"),
 	 STRUCT_FLD(field_length,	1024),
 	 STRUCT_FLD(field_type,		MYSQL_TYPE_STRING),
@@ -4755,7 +4759,7 @@ static ST_FIELD_INFO	i_s_innodb_buffer_page_fields_info[] =
 	 STRUCT_FLD(old_name,		""),
 	 STRUCT_FLD(open_method,	SKIP_OPEN_TABLE)},
 
-#define IDX_BUFFER_PAGE_INDEX_NAME	12
+#define IDX_BUFFER_PAGE_INDEX_NAME	11 + I_S_AHI
 	{STRUCT_FLD(field_name,		"INDEX_NAME"),
 	 STRUCT_FLD(field_length,	1024),
 	 STRUCT_FLD(field_type,		MYSQL_TYPE_STRING),
@@ -4764,7 +4768,7 @@ static ST_FIELD_INFO	i_s_innodb_buffer_page_fields_info[] =
 	 STRUCT_FLD(old_name,		""),
 	 STRUCT_FLD(open_method,	SKIP_OPEN_TABLE)},
 
-#define IDX_BUFFER_PAGE_NUM_RECS	13
+#define IDX_BUFFER_PAGE_NUM_RECS	12 + I_S_AHI
 	{STRUCT_FLD(field_name,		"NUMBER_RECORDS"),
 	 STRUCT_FLD(field_length,	MY_INT64_NUM_DECIMAL_DIGITS),
 	 STRUCT_FLD(field_type,		MYSQL_TYPE_LONGLONG),
@@ -4773,7 +4777,7 @@ static ST_FIELD_INFO	i_s_innodb_buffer_page_fields_info[] =
 	 STRUCT_FLD(old_name,		""),
 	 STRUCT_FLD(open_method,	SKIP_OPEN_TABLE)},
 
-#define IDX_BUFFER_PAGE_DATA_SIZE	14
+#define IDX_BUFFER_PAGE_DATA_SIZE	13 + I_S_AHI
 	{STRUCT_FLD(field_name,		"DATA_SIZE"),
 	 STRUCT_FLD(field_length,	MY_INT64_NUM_DECIMAL_DIGITS),
 	 STRUCT_FLD(field_type,		MYSQL_TYPE_LONGLONG),
@@ -4782,7 +4786,7 @@ static ST_FIELD_INFO	i_s_innodb_buffer_page_fields_info[] =
 	 STRUCT_FLD(old_name,		""),
 	 STRUCT_FLD(open_method,	SKIP_OPEN_TABLE)},
 
-#define IDX_BUFFER_PAGE_ZIP_SIZE	15
+#define IDX_BUFFER_PAGE_ZIP_SIZE	14 + I_S_AHI
 	{STRUCT_FLD(field_name,		"COMPRESSED_SIZE"),
 	 STRUCT_FLD(field_length,	MY_INT64_NUM_DECIMAL_DIGITS),
 	 STRUCT_FLD(field_type,		MYSQL_TYPE_LONGLONG),
@@ -4791,7 +4795,7 @@ static ST_FIELD_INFO	i_s_innodb_buffer_page_fields_info[] =
 	 STRUCT_FLD(old_name,		""),
 	 STRUCT_FLD(open_method,	SKIP_OPEN_TABLE)},
 
-#define IDX_BUFFER_PAGE_STATE		16
+#define IDX_BUFFER_PAGE_STATE		15 + I_S_AHI
 	{STRUCT_FLD(field_name,		"PAGE_STATE"),
 	 STRUCT_FLD(field_length,	64),
 	 STRUCT_FLD(field_type,		MYSQL_TYPE_STRING),
@@ -4800,7 +4804,7 @@ static ST_FIELD_INFO	i_s_innodb_buffer_page_fields_info[] =
 	 STRUCT_FLD(old_name,		""),
 	 STRUCT_FLD(open_method,	SKIP_OPEN_TABLE)},
 
-#define IDX_BUFFER_PAGE_IO_FIX		17
+#define IDX_BUFFER_PAGE_IO_FIX		16 + I_S_AHI
 	{STRUCT_FLD(field_name,		"IO_FIX"),
 	 STRUCT_FLD(field_length,	64),
 	 STRUCT_FLD(field_type,		MYSQL_TYPE_STRING),
@@ -4809,7 +4813,7 @@ static ST_FIELD_INFO	i_s_innodb_buffer_page_fields_info[] =
 	 STRUCT_FLD(old_name,		""),
 	 STRUCT_FLD(open_method,	SKIP_OPEN_TABLE)},
 
-#define IDX_BUFFER_PAGE_IS_OLD		18
+#define IDX_BUFFER_PAGE_IS_OLD		17 + I_S_AHI
 	{STRUCT_FLD(field_name,		"IS_OLD"),
 	 STRUCT_FLD(field_length,	3),
 	 STRUCT_FLD(field_type,		MYSQL_TYPE_STRING),
@@ -4818,7 +4822,7 @@ static ST_FIELD_INFO	i_s_innodb_buffer_page_fields_info[] =
 	 STRUCT_FLD(old_name,		""),
 	 STRUCT_FLD(open_method,	SKIP_OPEN_TABLE)},
 
-#define IDX_BUFFER_PAGE_FREE_CLOCK	19
+#define IDX_BUFFER_PAGE_FREE_CLOCK	18 + I_S_AHI
 	{STRUCT_FLD(field_name,		"FREE_PAGE_CLOCK"),
 	 STRUCT_FLD(field_length,	MY_INT64_NUM_DECIMAL_DIGITS),
 	 STRUCT_FLD(field_type,		MYSQL_TYPE_LONGLONG),
@@ -4888,13 +4892,11 @@ i_s_innodb_buffer_page_fill(
 		OK(fields[IDX_BUFFER_PAGE_FIX_COUNT]->store(
 			   page_info->fix_count));
 
-		if (page_info->hashed) {
-			OK(field_store_string(
-				   fields[IDX_BUFFER_PAGE_HASHED], "YES"));
-		} else {
-			OK(field_store_string(
-				   fields[IDX_BUFFER_PAGE_HASHED], "NO"));
-		}
+#ifdef BTR_CUR_HASH_ADAPT
+		OK(field_store_string(
+			   fields[IDX_BUFFER_PAGE_HASHED],
+			   page_info->hashed ? "YES" : "NO"));
+#endif /* BTR_CUR_HASH_ADAPT */
 
 		OK(fields[IDX_BUFFER_PAGE_NEWEST_MOD]->store(
 			   page_info->newest_mod, true));
@@ -4928,7 +4930,7 @@ i_s_innodb_buffer_page_fill(
 
 				OK(fields[IDX_BUFFER_PAGE_TABLE_NAME]->store(
 					table_name,
-					static_cast<size_t>(table_name_end - table_name),
+					uint(table_name_end - table_name),
 					system_charset_info));
 				fields[IDX_BUFFER_PAGE_TABLE_NAME]->set_notnull();
 
@@ -5050,7 +5052,7 @@ i_s_innodb_set_page_type(
 			page_info->page_type = I_S_PAGE_TYPE_INDEX;
 		}
 
-		page_info->data_size = (ulint)(page_header_get_field(
+		page_info->data_size = unsigned(page_header_get_field(
 			page, PAGE_HEAP_TOP) - (page_is_comp(page)
 						? PAGE_NEW_SUPREMUM_END
 						: PAGE_OLD_SUPREMUM_END)
@@ -5144,7 +5146,9 @@ i_s_innodb_buffer_page_get_info(
 
 			block = reinterpret_cast<const buf_block_t*>(bpage);
 			frame = block->frame;
+#ifdef BTR_CUR_HASH_ADAPT
 			page_info->hashed = (block->index != NULL);
+#endif /* BTR_CUR_HASH_ADAPT */
 		} else {
 			ut_ad(page_info->zip_ssize);
 			frame = bpage->zip.data;
@@ -5425,6 +5429,7 @@ static ST_FIELD_INFO	i_s_innodb_buf_page_lru_fields_info[] =
 	 STRUCT_FLD(old_name,		""),
 	 STRUCT_FLD(open_method,	SKIP_OPEN_TABLE)},
 
+#ifdef BTR_CUR_HASH_ADAPT
 #define IDX_BUF_LRU_PAGE_HASHED		7
 	{STRUCT_FLD(field_name,		"IS_HASHED"),
 	 STRUCT_FLD(field_length,	3),
@@ -5433,8 +5438,9 @@ static ST_FIELD_INFO	i_s_innodb_buf_page_lru_fields_info[] =
 	 STRUCT_FLD(field_flags,	MY_I_S_MAYBE_NULL),
 	 STRUCT_FLD(old_name,		""),
 	 STRUCT_FLD(open_method,	SKIP_OPEN_TABLE)},
+#endif /* BTR_CUR_HASH_ADAPT */
 
-#define IDX_BUF_LRU_PAGE_NEWEST_MOD	8
+#define IDX_BUF_LRU_PAGE_NEWEST_MOD	7 + I_S_AHI
 	{STRUCT_FLD(field_name,		"NEWEST_MODIFICATION"),
 	 STRUCT_FLD(field_length,	MY_INT64_NUM_DECIMAL_DIGITS),
 	 STRUCT_FLD(field_type,		MYSQL_TYPE_LONGLONG),
@@ -5443,7 +5449,7 @@ static ST_FIELD_INFO	i_s_innodb_buf_page_lru_fields_info[] =
 	 STRUCT_FLD(old_name,		""),
 	 STRUCT_FLD(open_method,	SKIP_OPEN_TABLE)},
 
-#define IDX_BUF_LRU_PAGE_OLDEST_MOD	9
+#define IDX_BUF_LRU_PAGE_OLDEST_MOD	8 + I_S_AHI
 	{STRUCT_FLD(field_name,		"OLDEST_MODIFICATION"),
 	 STRUCT_FLD(field_length,	MY_INT64_NUM_DECIMAL_DIGITS),
 	 STRUCT_FLD(field_type,		MYSQL_TYPE_LONGLONG),
@@ -5452,7 +5458,7 @@ static ST_FIELD_INFO	i_s_innodb_buf_page_lru_fields_info[] =
 	 STRUCT_FLD(old_name,		""),
 	 STRUCT_FLD(open_method,	SKIP_OPEN_TABLE)},
 
-#define IDX_BUF_LRU_PAGE_ACCESS_TIME	10
+#define IDX_BUF_LRU_PAGE_ACCESS_TIME	9 + I_S_AHI
 	{STRUCT_FLD(field_name,		"ACCESS_TIME"),
 	 STRUCT_FLD(field_length,	MY_INT64_NUM_DECIMAL_DIGITS),
 	 STRUCT_FLD(field_type,		MYSQL_TYPE_LONGLONG),
@@ -5461,7 +5467,7 @@ static ST_FIELD_INFO	i_s_innodb_buf_page_lru_fields_info[] =
 	 STRUCT_FLD(old_name,		""),
 	 STRUCT_FLD(open_method,	SKIP_OPEN_TABLE)},
 
-#define IDX_BUF_LRU_PAGE_TABLE_NAME	11
+#define IDX_BUF_LRU_PAGE_TABLE_NAME	10 + I_S_AHI
 	{STRUCT_FLD(field_name,		"TABLE_NAME"),
 	 STRUCT_FLD(field_length,	1024),
 	 STRUCT_FLD(field_type,		MYSQL_TYPE_STRING),
@@ -5470,7 +5476,7 @@ static ST_FIELD_INFO	i_s_innodb_buf_page_lru_fields_info[] =
 	 STRUCT_FLD(old_name,		""),
 	 STRUCT_FLD(open_method,	SKIP_OPEN_TABLE)},
 
-#define IDX_BUF_LRU_PAGE_INDEX_NAME	12
+#define IDX_BUF_LRU_PAGE_INDEX_NAME	11 + I_S_AHI
 	{STRUCT_FLD(field_name,		"INDEX_NAME"),
 	 STRUCT_FLD(field_length,	1024),
 	 STRUCT_FLD(field_type,		MYSQL_TYPE_STRING),
@@ -5479,7 +5485,7 @@ static ST_FIELD_INFO	i_s_innodb_buf_page_lru_fields_info[] =
 	 STRUCT_FLD(old_name,		""),
 	 STRUCT_FLD(open_method,	SKIP_OPEN_TABLE)},
 
-#define IDX_BUF_LRU_PAGE_NUM_RECS	13
+#define IDX_BUF_LRU_PAGE_NUM_RECS	12 + I_S_AHI
 	{STRUCT_FLD(field_name,		"NUMBER_RECORDS"),
 	 STRUCT_FLD(field_length,	MY_INT64_NUM_DECIMAL_DIGITS),
 	 STRUCT_FLD(field_type,		MYSQL_TYPE_LONGLONG),
@@ -5488,7 +5494,7 @@ static ST_FIELD_INFO	i_s_innodb_buf_page_lru_fields_info[] =
 	 STRUCT_FLD(old_name,		""),
 	 STRUCT_FLD(open_method,	SKIP_OPEN_TABLE)},
 
-#define IDX_BUF_LRU_PAGE_DATA_SIZE	14
+#define IDX_BUF_LRU_PAGE_DATA_SIZE	13 + I_S_AHI
 	{STRUCT_FLD(field_name,		"DATA_SIZE"),
 	 STRUCT_FLD(field_length,	MY_INT64_NUM_DECIMAL_DIGITS),
 	 STRUCT_FLD(field_type,		MYSQL_TYPE_LONGLONG),
@@ -5497,7 +5503,7 @@ static ST_FIELD_INFO	i_s_innodb_buf_page_lru_fields_info[] =
 	 STRUCT_FLD(old_name,		""),
 	 STRUCT_FLD(open_method,	SKIP_OPEN_TABLE)},
 
-#define IDX_BUF_LRU_PAGE_ZIP_SIZE	15
+#define IDX_BUF_LRU_PAGE_ZIP_SIZE	14 + I_S_AHI
 	{STRUCT_FLD(field_name,		"COMPRESSED_SIZE"),
 	 STRUCT_FLD(field_length,	MY_INT64_NUM_DECIMAL_DIGITS),
 	 STRUCT_FLD(field_type,		MYSQL_TYPE_LONGLONG),
@@ -5506,7 +5512,7 @@ static ST_FIELD_INFO	i_s_innodb_buf_page_lru_fields_info[] =
 	 STRUCT_FLD(old_name,		""),
 	 STRUCT_FLD(open_method,	SKIP_OPEN_TABLE)},
 
-#define IDX_BUF_LRU_PAGE_STATE		16
+#define IDX_BUF_LRU_PAGE_STATE		15 + I_S_AHI
 	{STRUCT_FLD(field_name,		"COMPRESSED"),
 	 STRUCT_FLD(field_length,	3),
 	 STRUCT_FLD(field_type,		MYSQL_TYPE_STRING),
@@ -5515,7 +5521,7 @@ static ST_FIELD_INFO	i_s_innodb_buf_page_lru_fields_info[] =
 	 STRUCT_FLD(old_name,		""),
 	 STRUCT_FLD(open_method,	SKIP_OPEN_TABLE)},
 
-#define IDX_BUF_LRU_PAGE_IO_FIX		17
+#define IDX_BUF_LRU_PAGE_IO_FIX		16 + I_S_AHI
 	{STRUCT_FLD(field_name,		"IO_FIX"),
 	 STRUCT_FLD(field_length,	64),
 	 STRUCT_FLD(field_type,		MYSQL_TYPE_STRING),
@@ -5524,7 +5530,7 @@ static ST_FIELD_INFO	i_s_innodb_buf_page_lru_fields_info[] =
 	 STRUCT_FLD(old_name,		""),
 	 STRUCT_FLD(open_method,	SKIP_OPEN_TABLE)},
 
-#define IDX_BUF_LRU_PAGE_IS_OLD		18
+#define IDX_BUF_LRU_PAGE_IS_OLD		17 + I_S_AHI
 	{STRUCT_FLD(field_name,		"IS_OLD"),
 	 STRUCT_FLD(field_length,	3),
 	 STRUCT_FLD(field_type,		MYSQL_TYPE_STRING),
@@ -5533,7 +5539,7 @@ static ST_FIELD_INFO	i_s_innodb_buf_page_lru_fields_info[] =
 	 STRUCT_FLD(old_name,		""),
 	 STRUCT_FLD(open_method,	SKIP_OPEN_TABLE)},
 
-#define IDX_BUF_LRU_PAGE_FREE_CLOCK	19
+#define IDX_BUF_LRU_PAGE_FREE_CLOCK	18 + I_S_AHI
 	{STRUCT_FLD(field_name,		"FREE_PAGE_CLOCK"),
 	 STRUCT_FLD(field_length,	MY_INT64_NUM_DECIMAL_DIGITS),
 	 STRUCT_FLD(field_type,		MYSQL_TYPE_LONGLONG),
@@ -5606,13 +5612,11 @@ i_s_innodb_buf_page_lru_fill(
 		OK(fields[IDX_BUF_LRU_PAGE_FIX_COUNT]->store(
 			   page_info->fix_count, true));
 
-		if (page_info->hashed) {
-			OK(field_store_string(
-				   fields[IDX_BUF_LRU_PAGE_HASHED], "YES"));
-		} else {
-			OK(field_store_string(
-				   fields[IDX_BUF_LRU_PAGE_HASHED], "NO"));
-		}
+#ifdef BTR_CUR_HASH_ADAPT
+		OK(field_store_string(
+			   fields[IDX_BUF_LRU_PAGE_HASHED],
+			   page_info->hashed ? "YES" : "NO"));
+#endif /* BTR_CUR_HASH_ADAPT */
 
 		OK(fields[IDX_BUF_LRU_PAGE_NEWEST_MOD]->store(
 			   page_info->newest_mod, true));
@@ -5646,7 +5650,7 @@ i_s_innodb_buf_page_lru_fill(
 
 				OK(fields[IDX_BUF_LRU_PAGE_TABLE_NAME]->store(
 					table_name,
-					static_cast<size_t>(table_name_end - table_name),
+					uint(table_name_end - table_name),
 					system_charset_info));
 				fields[IDX_BUF_LRU_PAGE_TABLE_NAME]->set_notnull();
 
@@ -9150,7 +9154,8 @@ i_s_innodb_mutexes_fill_table(
 
 		OK(field_store_string(fields[MUTEXES_NAME], mutex->cmutex_name));
 		OK(field_store_string(fields[MUTEXES_CREATE_FILE], innobase_basename(mutex->cfile_name)));
-		OK(field_store_ulint(fields[MUTEXES_CREATE_LINE], mutex->cline));
+		OK(fields[MUTEXES_CREATE_LINE]->store(mutex->cline, true));
+		fields[MUTEXES_CREATE_LINE]->set_notnull();
 		OK(field_store_ulint(fields[MUTEXES_OS_WAITS], (longlong)mutex->count_os_wait));
 		OK(schema_table_store_record(thd, tables->table));
 	}
@@ -9163,7 +9168,8 @@ i_s_innodb_mutexes_fill_table(
 
 		OK(field_store_string(fields[MUTEXES_NAME], block_mutex->cmutex_name));
 		OK(field_store_string(fields[MUTEXES_CREATE_FILE], buf1));
-		OK(field_store_ulint(fields[MUTEXES_CREATE_LINE], block_mutex->cline));
+		OK(fields[MUTEXES_CREATE_LINE]->store(block_mutex->cline, true));
+		fields[MUTEXES_CREATE_LINE]->set_notnull();
 		OK(field_store_ulint(fields[MUTEXES_OS_WAITS], (longlong)block_mutex_oswait_count));
 		OK(schema_table_store_record(thd, tables->table));
 	}
@@ -9187,7 +9193,8 @@ i_s_innodb_mutexes_fill_table(
 
 		//OK(field_store_string(fields[MUTEXES_NAME], lock->lock_name));
 		OK(field_store_string(fields[MUTEXES_CREATE_FILE], innobase_basename(lock->cfile_name)));
-		OK(field_store_ulint(fields[MUTEXES_CREATE_LINE], lock->cline));
+		OK(fields[MUTEXES_CREATE_LINE]->store(lock->cline, true));
+		fields[MUTEXES_CREATE_LINE]->set_notnull();
 		OK(field_store_ulint(fields[MUTEXES_OS_WAITS], (longlong)lock->count_os_wait));
 		OK(schema_table_store_record(thd, tables->table));
 	}
@@ -9200,7 +9207,8 @@ i_s_innodb_mutexes_fill_table(
 
 		//OK(field_store_string(fields[MUTEXES_NAME], block_lock->lock_name));
 		OK(field_store_string(fields[MUTEXES_CREATE_FILE], buf1));
-		OK(field_store_ulint(fields[MUTEXES_CREATE_LINE], block_lock->cline));
+		OK(fields[MUTEXES_CREATE_LINE]->store(block_lock->cline, true));
+		fields[MUTEXES_CREATE_LINE]->set_notnull();
 		OK(field_store_ulint(fields[MUTEXES_OS_WAITS], (longlong)block_lock_oswait_count));
 		OK(schema_table_store_record(thd, tables->table));
 	}

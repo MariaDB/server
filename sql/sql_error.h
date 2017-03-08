@@ -1,4 +1,5 @@
 /* Copyright (c) 2000, 2011, Oracle and/or its affiliates. All rights reserved.
+   Copyright (c) 2017, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -50,7 +51,7 @@ public:
     Convert a bitmask consisting of MYSQL_TIME_{NOTE|WARN}_XXX bits
     to WARN_LEVEL_XXX
   */
-  static enum_warning_level time_warn_level(int warnings)
+  static enum_warning_level time_warn_level(uint warnings)
   {
     return MYSQL_TIME_WARN_HAVE_WARNINGS(warnings) ?
            WARN_LEVEL_WARN : WARN_LEVEL_NOTE;

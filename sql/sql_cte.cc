@@ -1259,9 +1259,9 @@ void With_clause::print(String *str, enum_query_type query_type)
        with_elem;
        with_elem= with_elem->next)
   {
-    with_elem->print(str, query_type);
     if (with_elem != with_list.first)
       str->append(", ");
+    with_elem->print(str, query_type);
   }
 }
 

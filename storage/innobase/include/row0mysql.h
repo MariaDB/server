@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2000, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -337,7 +338,7 @@ row_mysql_lock_data_dictionary_func(
 /*================================*/
 	trx_t*		trx,	/*!< in/out: transaction */
 	const char*	file,	/*!< in: file name */
-	ulint		line);	/*!< in: line number */
+	unsigned	line);	/*!< in: line number */
 #define row_mysql_lock_data_dictionary(trx)				\
 	row_mysql_lock_data_dictionary_func(trx, __FILE__, __LINE__)
 /*********************************************************************//**
@@ -354,7 +355,7 @@ row_mysql_freeze_data_dictionary_func(
 /*==================================*/
 	trx_t*		trx,	/*!< in/out: transaction */
 	const char*	file,	/*!< in: file name */
-	ulint		line);	/*!< in: line number */
+	unsigned	line);	/*!< in: line number */
 #define row_mysql_freeze_data_dictionary(trx)				\
 	row_mysql_freeze_data_dictionary_func(trx, __FILE__, __LINE__)
 /*********************************************************************//**

@@ -640,25 +640,6 @@ static PSI_file_info	all_innodb_files[] = {
 # endif /* UNIV_PFS_IO */
 #endif /* HAVE_PSI_INTERFACE */
 
-/******************************************************************//**
-Debug function used to read a MBR data */
-
-#ifdef UNIV_DEBUG
-void
-srv_mbr_debug(const byte* data)
-{
-	double a, b, c , d;
-	a = mach_double_read(data);
-	data += sizeof(double);
-	b = mach_double_read(data);
-	data += sizeof(double);
-	c = mach_double_read(data);
-	data += sizeof(double);
-	d = mach_double_read(data);
-	ut_ad(a && b && c &&d);
-}
-#endif
-
 static void innodb_remember_check_sysvar_funcs();
 mysql_var_check_func check_sysvar_enum;
 
@@ -1839,11 +1820,13 @@ innobase_srv_conc_exit_innodb(
 #endif /* WITH_WSREP */
 
 	trx_t*			trx = prebuilt->trx;
-#ifdef UNIV_DEBUG
+#ifdef BTR_CUR_HASH_ADAPT
+# ifdef UNIV_DEBUG
 	btrsea_sync_check	check(trx->has_search_latch);
 
 	ut_ad(!sync_check_iterate(check));
-#endif /* UNIV_DEBUG */
+# endif /* UNIV_DEBUG */
+#endif /* BTR_CUR_HASH_ADAPT */
 
 	/* This is to avoid making an unnecessary function call. */
 	if (trx->declared_to_be_inside_innodb
@@ -1861,11 +1844,13 @@ innobase_srv_conc_force_exit_innodb(
 /*================================*/
 	trx_t*	trx)	/*!< in: transaction handle */
 {
-#ifdef UNIV_DEBUG
+#ifdef BTR_CUR_HASH_ADAPT
+# ifdef UNIV_DEBUG
 	btrsea_sync_check	check(trx->has_search_latch);
 
 	ut_ad(!sync_check_iterate(check));
-#endif /* UNIV_DEBUG */
+# endif /* UNIV_DEBUG */
+#endif /* BTR_CUR_HASH_ADAPT */
 
 	/* This is to avoid making an unnecessary function call. */
 	if (trx->declared_to_be_inside_innodb) {
@@ -1943,12 +1928,13 @@ const char*
 thd_innodb_tmpdir(
 	THD*	thd)
 {
-
-#ifdef UNIV_DEBUG
+#ifdef BTR_CUR_HASH_ADAPT
+# ifdef UNIV_DEBUG
 	trx_t*	trx = thd_to_trx(thd);
 	btrsea_sync_check	check(trx->has_search_latch);
 	ut_ad(!sync_check_iterate(check));
-#endif /* UNIV_DEBUG */
+# endif /* UNIV_DEBUG */
+#endif /* BTR_CUR_HASH_ADAPT */
 
 	const char*	tmp_dir = THDVAR(thd, tmpdir);
 
@@ -1999,7 +1985,7 @@ innobase_release_temporary_latches(
 
 	if (!srv_was_started) {
 	} else if (trx_t* trx = thd_to_trx(thd)) {
-		trx_search_latch_release_if_reserved(trx);
+		trx_assert_no_search_latch(trx);
 	}
 
 	return(0);
@@ -3324,7 +3310,6 @@ innobase_query_caching_of_table_permitted(
 				to the table */
 	ulonglong *unused)	/*!< unused for this engine */
 {
-	bool	is_autocommit;
 	char	norm_name[1000];
 	trx_t*	trx = check_trx_exists(thd);
 
@@ -3334,29 +3319,14 @@ innobase_query_caching_of_table_permitted(
 		/* In the SERIALIZABLE mode we add LOCK IN SHARE MODE to every
 		plain SELECT if AUTOCOMMIT is not on. */
 
-		return(static_cast<my_bool>(false));
+		return(false);
 	}
 
-	if (trx->has_search_latch) {
-		sql_print_error("The calling thread is holding the adaptive"
-				" search, latch though calling"
-				" innobase_query_caching_of_table_permitted.");
-		trx_print(stderr, trx, 1024);
-	}
-
-	trx_search_latch_release_if_reserved(trx);
-
+	trx_assert_no_search_latch(trx);
 	innobase_srv_conc_force_exit_innodb(trx);
 
-	if (!thd_test_options(thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN)) {
-
-		is_autocommit = true;
-	} else {
-		is_autocommit = false;
-
-	}
-
-	if (is_autocommit && trx->n_mysql_tables_in_use == 0) {
+	if (!thd_test_options(thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN)
+	    && trx->n_mysql_tables_in_use == 0) {
 		/* We are going to retrieve the query result from the query
 		cache. This cannot be a store operation to the query cache
 		because then MySQL would have locks on tables already.
@@ -3375,7 +3345,7 @@ innobase_query_caching_of_table_permitted(
 		then trx2 would have already invalidated the cache. Thus we
 		can trust the result in the cache is ok for this query. */
 
-		return((my_bool)TRUE);
+		return(true);
 	}
 
 	/* Normalize the table name to InnoDB format */
@@ -3383,12 +3353,7 @@ innobase_query_caching_of_table_permitted(
 
 	innobase_register_trx(innodb_hton_ptr, thd, trx);
 
-	if (row_search_check_if_query_cache_permitted(trx, norm_name)) {
-
-		return(static_cast<my_bool>(true));
-	}
-
-	return(static_cast<my_bool>(false));
+	return(row_search_check_if_query_cache_permitted(trx, norm_name));
 }
 
 /*****************************************************************//**
@@ -3640,7 +3605,7 @@ ha_innobase::init_table_handle_for_HANDLER(void)
 	/* Initialize the m_prebuilt struct much like it would be inited in
 	external_lock */
 
-	trx_search_latch_release_if_reserved(m_prebuilt->trx);
+	trx_assert_no_search_latch(m_prebuilt->trx);
 
 	innobase_srv_conc_force_exit_innodb(m_prebuilt->trx);
 
@@ -3751,7 +3716,15 @@ static const char*	deprecated_file_format_max
 
 /** Deprecation message about innodb_use_trim */
 static const char*	deprecated_use_trim
-	= DEPRECATED_FORMAT_PARAMETER("innodb_use_trim");
+	= "Using innodb_use_trim is deprecated"
+	" and the parameter will be removed in MariaDB 10.3.";
+
+/** Deprecation message about innodb_instrument_semaphores */
+static const char*	deprecated_instrument_semaphores
+	= "Using innodb_instrument_semaphores is deprecated"
+	" and the parameter will be removed in MariaDB 10.3.";
+
+static my_bool innodb_instrument_semaphores;
 
 /** Update log_checksum_algorithm_ptr with a pointer to the function
 corresponding to whether checksums are enabled.
@@ -4108,6 +4081,10 @@ innobase_init(
 		ib::warn() << deprecated_file_format;
 	}
 
+	if (innodb_instrument_semaphores) {
+		ib::warn() << deprecated_instrument_semaphores;
+	}
+
 	/* Validate the file format by animal name */
 	if (innobase_file_format_name != NULL) {
 
@@ -4342,8 +4319,8 @@ innobase_change_buffering_inited_ok:
 			" It will be removed in MariaDB 10.3.";
 	}
 
-	srv_use_atomic_writes = (ibool) (innobase_use_atomic_writes &&
-                                         my_may_have_atomic_write);
+	srv_use_atomic_writes
+		= innobase_use_atomic_writes && my_may_have_atomic_write;
         if (srv_use_atomic_writes && !srv_file_per_table)
         {
           fprintf(stderr, "InnoDB: Disabling atomic_writes as file_per_table is not used.\n");
@@ -4760,7 +4737,7 @@ innobase_commit_ordered(
 	search system latch, or we will disobey the latching order. But we
 	already released it in innobase_xa_prepare() (if not before), so just
 	have an assert here.*/
-	ut_ad(!trx->has_search_latch);
+	trx_assert_no_search_latch(trx);
 
 	if (!trx_is_registered_for_2pc(trx) && trx_is_started(trx)) {
 		/* We cannot throw error here; instead we will catch this error
@@ -4979,7 +4956,7 @@ innobase_rollback_trx(
 	reserve the trx_sys->mutex, we have to release the search system
 	latch first to obey the latching order. */
 
-	trx_search_latch_release_if_reserved(trx);
+	trx_assert_no_search_latch(trx);
 
 	innobase_srv_conc_force_exit_innodb(trx);
 
@@ -10073,7 +10050,7 @@ ha_innobase::innobase_get_index(
 					    << " InnoDB name " << index->name()
 					    << " for table " << m_prebuilt->table->name.m_name;
 
-				for(ulint i=0; i < table->s->keys; i++) {
+				for(uint i=0; i < table->s->keys; i++) {
 					index = innobase_index_lookup(m_share, i);
 					key = table->key_info + keynr;
 
@@ -13098,7 +13075,7 @@ create_table_info_t::initialize()
 	/* In case MySQL calls this in the middle of a SELECT query, release
 	possible adaptive hash latch to avoid deadlocks of threads */
 
-	trx_search_latch_release_if_reserved(parent_trx);
+	trx_assert_no_search_latch(parent_trx);
 	DBUG_RETURN(0);
 }
 
@@ -13946,16 +13923,11 @@ innobase_drop_database(
 
 	THD*	thd = current_thd;
 
-	/* In the Windows plugin, thd = current_thd is always NULL */
-	if (thd != NULL) {
-		trx_t*	parent_trx = check_trx_exists(thd);
+	/* In case MySQL calls this in the middle of a SELECT
+	query, release possible adaptive hash latch to avoid
+	deadlocks of threads */
 
-		/* In case MySQL calls this in the middle of a SELECT
-		query, release possible adaptive hash latch to avoid
-		deadlocks of threads */
-
-		trx_search_latch_release_if_reserved(parent_trx);
-	}
+	trx_assert_no_search_latch(check_trx_exists(thd));
 
 	ulint	len = 0;
 	char*	ptr = strend(path) - 2;
@@ -14805,7 +14777,7 @@ ha_innobase::info_low(
 
 	m_prebuilt->trx->op_info = (char*)"returning various info to MariaDB";
 
-	trx_search_latch_release_if_reserved(m_prebuilt->trx);
+	trx_assert_no_search_latch(m_prebuilt->trx);
 
 	ib_table = m_prebuilt->table;
 	DBUG_ASSERT(ib_table->n_ref_count > 0);
@@ -15590,7 +15562,8 @@ ha_innobase::check(
 
 	/* Restore the original isolation level */
 	m_prebuilt->trx->isolation_level = old_isolation_level;
-#if defined UNIV_AHI_DEBUG || defined UNIV_DEBUG
+#ifdef BTR_CUR_HASH_ADAPT
+# if defined UNIV_AHI_DEBUG || defined UNIV_DEBUG
 	/* We validate the whole adaptive hash index for all tables
 	at every CHECK TABLE only when QUICK flag is not present. */
 
@@ -15600,7 +15573,8 @@ ha_innobase::check(
 			     "InnoDB: The adaptive hash index is corrupted.");
 		is_ok = false;
 	}
-#endif /* defined UNIV_AHI_DEBUG || defined UNIV_DEBUG */
+# endif /* defined UNIV_AHI_DEBUG || defined UNIV_DEBUG */
+#endif /* BTR_CUR_HASH_ADAPT */
 	m_prebuilt->trx->op_info = "";
 
 	DBUG_RETURN(is_ok ? HA_ADMIN_OK : HA_ADMIN_CORRUPT);
@@ -15637,7 +15611,7 @@ ha_innobase::update_table_comment(
 	/* In case MySQL calls this in the middle of a SELECT query, release
 	possible adaptive hash latch to avoid deadlocks of threads */
 
-	trx_search_latch_release_if_reserved(m_prebuilt->trx);
+	trx_assert_no_search_latch(m_prebuilt->trx);
 
 #define SSTR( x ) reinterpret_cast< std::ostringstream & >(		\
         ( std::ostringstream() << std::dec << x ) ).str()
@@ -15699,7 +15673,7 @@ ha_innobase::get_foreign_key_create_info(void)
 	release possible adaptive hash latch to avoid
 	deadlocks of threads */
 
-	trx_search_latch_release_if_reserved(m_prebuilt->trx);
+	trx_assert_no_search_latch(m_prebuilt->trx);
 
 
 
@@ -16698,7 +16672,7 @@ innodb_show_status(
 
 	trx_t*	trx = check_trx_exists(thd);
 
-	trx_search_latch_release_if_reserved(trx);
+	trx_assert_no_search_latch(trx);
 
 	innobase_srv_conc_force_exit_innodb(trx);
 
@@ -17990,7 +17964,7 @@ innobase_xa_prepare(
 	reserve the trx_sys->mutex, we have to release the search system
 	latch first to obey the latching order. */
 
-	trx_search_latch_release_if_reserved(trx);
+	trx_assert_no_search_latch(trx);
 
 	innobase_srv_conc_force_exit_innodb(trx);
 
@@ -18733,6 +18707,7 @@ innodb_internal_table_validate(
 	return(ret);
 }
 
+#ifdef BTR_CUR_HASH_ADAPT
 /****************************************************************//**
 Update the system variable innodb_adaptive_hash_index using the "saved"
 value. This function is registered as a callback with MySQL. */
@@ -18754,6 +18729,7 @@ innodb_adaptive_hash_index_update(
 		btr_search_disable(true);
 	}
 }
+#endif /* BTR_CUR_HASH_ADAPT */
 
 /****************************************************************//**
 Update the system variable innodb_cmp_per_index using the "saved"
@@ -20620,6 +20596,25 @@ innodb_use_trim_update(
 		     HA_ERR_WRONG_COMMAND, deprecated_use_trim);
 }
 
+/** Update the innodb_instrument_sempahores parameter.
+@param[in]	thd	thread handle
+@param[in]	var	system variable
+@param[out]	var_ptr	current value
+@param[in]	save	immediate result from check function */
+static
+void
+innodb_instrument_semaphores_update(
+	THD*				thd,
+	struct st_mysql_sys_var*	var,
+	void*				var_ptr,
+	const void*			save)
+{
+	innodb_instrument_semaphores = *static_cast<const my_bool*>(save);
+
+	push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
+		     HA_ERR_WRONG_COMMAND, deprecated_instrument_semaphores);
+}
+
 /* plugin options */
 
 static MYSQL_SYSVAR_ENUM(checksum_algorithm, srv_checksum_algorithm,
@@ -20963,6 +20958,7 @@ static MYSQL_SYSVAR_BOOL(stats_traditional, srv_stats_sample_traditional,
   "Enable traditional statistic calculation based on number of configured pages (default true)",
   NULL, NULL, TRUE);
 
+#ifdef BTR_CUR_HASH_ADAPT
 static MYSQL_SYSVAR_BOOL(adaptive_hash_index, btr_search_enabled,
   PLUGIN_VAR_OPCMDARG,
   "Enable InnoDB adaptive hash index (enabled by default). "
@@ -20974,8 +20970,9 @@ Each partition is protected by its own latch and so we have parts number
 of latches protecting complete search system. */
 static MYSQL_SYSVAR_ULONG(adaptive_hash_index_parts, btr_ahi_parts,
   PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_READONLY,
-  "Number of InnoDB Adapative Hash Index Partitions. (default = 8). ",
+  "Number of InnoDB Adaptive Hash Index Partitions (default 8)",
   NULL, NULL, 8, 1, 512, 0);
+#endif /* BTR_CUR_HASH_ADAPT */
 
 static MYSQL_SYSVAR_ULONG(replication_delay, srv_replication_delay,
   PLUGIN_VAR_RQCMDARG,
@@ -21833,11 +21830,10 @@ static MYSQL_SYSVAR_BOOL(debug_force_scrubbing,
 			 NULL, NULL, FALSE);
 #endif /* UNIV_DEBUG */
 
-static MYSQL_SYSVAR_BOOL(instrument_semaphores, srv_instrument_semaphores,
+static MYSQL_SYSVAR_BOOL(instrument_semaphores, innodb_instrument_semaphores,
   PLUGIN_VAR_OPCMDARG,
-  "Enable semaphore request instrumentation. This could have some effect on performance but allows better"
-  " information on long semaphore wait problems. (Default: not enabled)",
-  0, 0, FALSE);
+  "DEPRECATED. This setting has no effect.",
+  NULL, innodb_instrument_semaphores_update, FALSE);
 
 static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(autoextend_increment),
@@ -21932,8 +21928,10 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(stats_auto_recalc),
   MYSQL_SYSVAR(stats_modified_counter),
   MYSQL_SYSVAR(stats_traditional),
+#ifdef BTR_CUR_HASH_ADAPT
   MYSQL_SYSVAR(adaptive_hash_index),
   MYSQL_SYSVAR(adaptive_hash_index_parts),
+#endif /* BTR_CUR_HASH_ADAPT */
   MYSQL_SYSVAR(stats_method),
   MYSQL_SYSVAR(replication_delay),
   MYSQL_SYSVAR(status_file),

@@ -6,7 +6,7 @@
  VARIABLE_SCOPE	GLOBAL
 -VARIABLE_TYPE	BIGINT UNSIGNED
 +VARIABLE_TYPE	INT UNSIGNED
- VARIABLE_COMMENT	Number of InnoDB Adapative Hash Index Partitions. (default = 8). 
+ VARIABLE_COMMENT	Number of InnoDB Adaptive Hash Index Partitions (default 8)
  NUMERIC_MIN_VALUE	1
  NUMERIC_MAX_VALUE	512
 @@ -68,7 +68,7 @@

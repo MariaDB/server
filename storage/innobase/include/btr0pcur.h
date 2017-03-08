@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -113,7 +114,7 @@ btr_pcur_open_low(
 	ulint		latch_mode,/*!< in: BTR_SEARCH_LEAF, ... */
 	btr_pcur_t*	cursor, /*!< in: memory buffer for persistent cursor */
 	const char*	file,	/*!< in: file name */
-	ulint		line,	/*!< in: line where called */
+	unsigned	line,	/*!< in: line where called */
 	ib_uint64_t	autoinc,/*!< in: PAGE_ROOT_AUTO_INC to be written
 				(0 if none) */
 	mtr_t*		mtr);	/*!< in: mtr */
@@ -145,7 +146,7 @@ btr_pcur_open_with_no_init_func(
 				currently has on search system:
 				RW_S_LATCH, or 0 */
 	const char*	file,	/*!< in: file name */
-	ulint		line,	/*!< in: line where called */
+	unsigned	line,	/*!< in: line where called */
 	mtr_t*		mtr);	/*!< in: mtr */
 #define btr_pcur_open_with_no_init(ix,t,md,l,cur,has,m)			\
 	btr_pcur_open_with_no_init_func(ix,t,md,l,cur,has,__FILE__,__LINE__,m)
@@ -202,7 +203,7 @@ btr_pcur_open_on_user_rec_func(
 	btr_pcur_t*	cursor,		/*!< in: memory buffer for persistent
 					cursor */
 	const char*	file,		/*!< in: file name */
-	ulint		line,		/*!< in: line where called */
+	unsigned	line,		/*!< in: line where called */
 	mtr_t*		mtr);		/*!< in: mtr */
 #define btr_pcur_open_on_user_rec(i,t,md,l,c,m)				\
 	btr_pcur_open_on_user_rec_func(i,t,md,l,c,__FILE__,__LINE__,m)
@@ -218,7 +219,7 @@ btr_pcur_open_at_rnd_pos_func(
 	ulint		latch_mode,	/*!< in: BTR_SEARCH_LEAF, ... */
 	btr_pcur_t*	cursor,		/*!< in/out: B-tree pcur */
 	const char*	file,		/*!< in: file name */
-	ulint		line,		/*!< in: line where called */
+	unsigned	line,		/*!< in: line where called */
 	mtr_t*		mtr);		/*!< in: mtr */
 #define btr_pcur_open_at_rnd_pos(i,l,c,m)				\
 	btr_pcur_open_at_rnd_pos_func(i,l,c,__FILE__,__LINE__,m)
@@ -272,7 +273,7 @@ btr_pcur_restore_position_func(
 	ulint		latch_mode,	/*!< in: BTR_SEARCH_LEAF, ... */
 	btr_pcur_t*	cursor,		/*!< in: detached persistent cursor */
 	const char*	file,		/*!< in: file name */
-	ulint		line,		/*!< in: line where called */
+	unsigned	line,		/*!< in: line where called */
 	mtr_t*		mtr);		/*!< in: mtr */
 #define btr_pcur_restore_position(l,cur,mtr)				\
 	btr_pcur_restore_position_func(l,cur,__FILE__,__LINE__,mtr)

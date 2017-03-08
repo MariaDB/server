@@ -412,7 +412,7 @@ void BLKFILMR2::MakeValueBitmap(void)
   Void = !Bmp[N];          // There are no good values in the file
 
   for (i = 0; i < N; i++) {
-    Bxp[i] = ~0;
+    Bxp[i] = ~0U;
 
     if (noteq)
       Bmp[i] = Bxp[i];
@@ -708,7 +708,7 @@ void BLKFILIN2::MakeValueBitmap(void)
   Void = !Bmp[N];          // There are no good values in the file
 
   for (i = 0; i < N; i++) {
-    Bxp[i] = ~0;
+    Bxp[i] = ~0U;
 
     if (noteq) {
       Bmp[i] = Bxp[i];
@@ -828,7 +828,7 @@ BLKFILIN2::BLKFILIN2(PGLOBAL g, PTDBDOS tdbp, int op, int opm, PXOB *xp)
         Bxp[i] |= btp;
 
       for (N = i--; i >= 0; i--)
-        Bxp[i] = ~0;
+        Bxp[i] = ~0U;
 
       break;
       } // endif Bmp

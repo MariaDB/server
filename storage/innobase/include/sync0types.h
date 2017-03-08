@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -32,11 +33,6 @@ Created 9/5/1995 Heikki Tuuri
 
 #include "ut0new.h"
 #include "ut0counter.h"
-
-#if defined(UNIV_DEBUG) && !defined(UNIV_INNOCHECKSUM)
-/** Set when InnoDB has invoked exit(). */
-extern bool	innodb_calling_exit;
-#endif /* UNIV_DEBUG && !UNIV_INNOCHECKSUM */
 
 #ifdef _WIN32
 /** Native mutex */
@@ -436,7 +432,7 @@ struct OSMutex {
 	void destroy()
 		UNIV_NOTHROW
 	{
-		ut_ad(innodb_calling_exit || !m_freed);
+		ut_ad(!m_freed);
 #ifdef _WIN32
 		DeleteCriticalSection((LPCRITICAL_SECTION) &m_mutex);
 #else
@@ -458,7 +454,7 @@ struct OSMutex {
 	void exit()
 		UNIV_NOTHROW
 	{
-		ut_ad(innodb_calling_exit || !m_freed);
+		ut_ad(!m_freed);
 #ifdef _WIN32
 		LeaveCriticalSection(&m_mutex);
 #else
@@ -471,7 +467,7 @@ struct OSMutex {
 	void enter()
 		UNIV_NOTHROW
 	{
-		ut_ad(innodb_calling_exit || !m_freed);
+		ut_ad(!m_freed);
 #ifdef _WIN32
 		EnterCriticalSection((LPCRITICAL_SECTION) &m_mutex);
 #else
@@ -484,7 +480,7 @@ struct OSMutex {
 	bool try_lock()
 		UNIV_NOTHROW
 	{
-		ut_ad(innodb_calling_exit || !m_freed);
+		ut_ad(!m_freed);
 #ifdef _WIN32
 		return(TryEnterCriticalSection(&m_mutex) != 0);
 #else
@@ -1070,6 +1066,7 @@ struct sync_check_functor_t {
 	virtual bool result() const = 0;
 };
 
+#ifdef BTR_CUR_HASH_ADAPT
 /** Functor to check whether the calling thread owns the btr search mutex. */
 struct btrsea_sync_check : public sync_check_functor_t {
 
@@ -1116,6 +1113,7 @@ private:
 	/** If the caller owns the search latch */
 	const bool	m_has_search_latch;
 };
+#endif /* BTR_CUR_HASH_ADAPT */
 
 /** Functor to check for dictionay latching constraints. */
 struct dict_sync_check : public sync_check_functor_t {

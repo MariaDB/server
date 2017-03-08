@@ -2,7 +2,7 @@
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2014, 2016, MariaDB Corporation
+Copyright (c) 2014, 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -725,7 +725,7 @@ btr_page_free_low(
 			offsets = rec_get_offsets(rec, index,
 						  offsets, ULINT_UNDEFINED,
 						  &heap);
-			uint size = rec_offs_data_size(offsets);
+			ulint size = rec_offs_data_size(offsets);
 			memset(rec, 0, size);
 			rec = page_rec_get_next(rec);
 			cnt++;
@@ -890,7 +890,7 @@ btr_page_get_father_node_ptr_func(
 	ulint		latch_mode,/*!< in: BTR_CONT_MODIFY_TREE
 				or BTR_CONT_SEARCH_TREE */
 	const char*	file,	/*!< in: file name */
-	ulint		line,	/*!< in: line where called */
+	unsigned	line,	/*!< in: line where called */
 	mtr_t*		mtr)	/*!< in: mtr */
 {
 	dtuple_t*	tuple;
@@ -2396,7 +2396,7 @@ btr_insert_on_non_leaf_level_func(
 	ulint		level,	/*!< in: level, must be > 0 */
 	dtuple_t*	tuple,	/*!< in: the record to be inserted */
 	const char*	file,	/*!< in: file name */
-	ulint		line,	/*!< in: line where called */
+	unsigned	line,	/*!< in: line where called */
 	mtr_t*		mtr)	/*!< in: mtr */
 {
 	big_rec_t*	dummy_big_rec;

@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2016, MariaDB
+   Copyright (c) 2010, 2017, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -199,12 +199,12 @@ const char *compatible_mode_names[]=
 };
 #define MASK_ANSI_QUOTES \
 (\
- (1<<2)  | /* POSTGRESQL */\
- (1<<3)  | /* ORACLE     */\
- (1<<4)  | /* MSSQL      */\
- (1<<5)  | /* DB2        */\
- (1<<6)  | /* MAXDB      */\
- (1<<10)   /* ANSI       */\
+ (1U<<2)  | /* POSTGRESQL */\
+ (1U<<3)  | /* ORACLE     */\
+ (1U<<4)  | /* MSSQL      */\
+ (1U<<5)  | /* DB2        */\
+ (1U<<6)  | /* MAXDB      */\
+ (1U<<10)   /* ANSI       */\
 )
 TYPELIB compatible_mode_typelib= {array_elements(compatible_mode_names) - 1,
                                   "", compatible_mode_names, NULL};
@@ -5476,7 +5476,7 @@ static ulong find_set(TYPELIB *lib, const char *x, size_t length,
         *err_len= var_len;
       }
       else
-        found|= ((longlong) 1 << (find - 1));
+        found|= 1UL << (find - 1);
       if (pos == end)
         break;
       start= pos + 1;

@@ -264,13 +264,11 @@ dict_get_db_name_len(
 	return(s - name);
 }
 
-/********************************************************************//**
-Reserves the dictionary system mutex for MySQL. */
+/** Reserve the dictionary system mutex. */
 void
-dict_mutex_enter_for_mysql_func(const char * file, ulint line)
-/*============================*/
+dict_mutex_enter_for_mysql_func(const char *file, unsigned line)
 {
-	mutex_enter(&dict_sys->mutex);
+	mutex_enter_loc(&dict_sys->mutex, file, line);
 }
 
 /********************************************************************//**
@@ -1316,7 +1314,7 @@ void
 dict_table_add_to_cache(
 /*====================*/
 	dict_table_t*	table,		/*!< in: table */
-	ibool		can_be_evicted,	/*!< in: TRUE if can be evicted */
+	bool		can_be_evicted,	/*!< in: whether can be evicted */
 	mem_heap_t*	heap)		/*!< in: temporary heap */
 {
 	ulint	fold;
@@ -1407,8 +1405,6 @@ dict_table_can_be_evicted(
 	ut_a(table->referenced_set.empty());
 
 	if (table->get_ref_count() == 0) {
-		dict_index_t*	index;
-
 		/* The transaction commit and rollback are called from
 		outside the handler interface. This means that there is
 		a window where the table->n_ref_count can be zero but
@@ -1418,7 +1414,8 @@ dict_table_can_be_evicted(
 			return(FALSE);
 		}
 
-		for (index = dict_table_get_first_index(table);
+#ifdef BTR_CUR_HASH_ADAPT
+		for (dict_index_t* index = dict_table_get_first_index(table);
 		     index != NULL;
 		     index = dict_table_get_next_index(index)) {
 
@@ -1440,6 +1437,7 @@ dict_table_can_be_evicted(
 				return(FALSE);
 			}
 		}
+#endif /* BTR_CUR_HASH_ADAPT */
 
 		return(TRUE);
 	}
@@ -2611,9 +2609,11 @@ dict_index_add_to_cache_w_vcol(
 	UT_LIST_ADD_LAST(table->indexes, new_index);
 	new_index->table = table;
 	new_index->table_name = table->name.m_name;
+#ifdef BTR_CUR_ADAPT
 	new_index->search_info = btr_search_info_create(new_index->heap);
+#endif /* BTR_CUR_ADAPT */
 
-	new_index->page = page_no;
+	new_index->page = unsigned(page_no);
 	rw_lock_create(index_tree_rw_lock_key, &new_index->lock,
 		       SYNC_INDEX_TREE);
 
@@ -2636,8 +2636,6 @@ dict_index_remove_from_cache_low(
 					to make room in the table LRU list */
 {
 	lint		size;
-	ulint		retries = 0;
-	btr_search_t*	info;
 
 	ut_ad(table && index);
 	ut_ad(table->magic_n == DICT_TABLE_MAGIC_N);
@@ -2652,9 +2650,11 @@ dict_index_remove_from_cache_low(
 		row_log_free(index->online_log);
 	}
 
+#ifdef BTR_CUR_HASH_ADAPT
 	/* We always create search info whether or not adaptive
 	hash index is enabled or not. */
-	info = btr_search_get_info(index);
+	btr_search_t*	info = btr_search_get_info(index);
+	ulint		retries = 0;
 	ut_ad(info);
 
 	/* We are not allowed to free the in-memory index struct
@@ -2688,10 +2688,9 @@ dict_index_remove_from_cache_low(
 
 		/* To avoid a hang here we commit suicide if the
 		ref_count doesn't drop to zero in 600 seconds. */
-		if (retries >= 60000) {
-			ut_error;
-		}
+		ut_a(retries < 60000);
 	} while (srv_shutdown_state == SRV_SHUTDOWN_NONE || !lru_evict);
+#endif /* BTR_CUR_HASH_ADAPT */
 
 	rw_lock_free(&index->lock);
 
@@ -3178,7 +3177,7 @@ dict_index_build_internal_clust(
 		can theoretically occur. Check for it. */
 		fixed_size += new_index->trx_id_offset;
 
-		new_index->trx_id_offset = fixed_size;
+		new_index->trx_id_offset = unsigned(fixed_size);
 
 		if (new_index->trx_id_offset != fixed_size) {
 			/* Overflow. Pretend that this is a

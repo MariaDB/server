@@ -252,7 +252,7 @@ page_header_set_ptr(
 	if (ptr == NULL) {
 		offs = 0;
 	} else {
-		offs = ptr - page;
+		offs = ulint(ptr - page);
 	}
 
 	ut_ad((field != PAGE_HEAP_TOP) || offs);
@@ -1248,11 +1248,9 @@ page_mem_free(
 	ut_ad(rec_offs_validate(rec, index, offsets));
 	free = page_header_get_ptr(page, PAGE_FREE);
 
-	bool scrub = srv_immediate_scrub_data_uncompressed;
-	if (scrub) {
+	if (srv_immediate_scrub_data_uncompressed) {
 		/* scrub record */
-		uint size = rec_offs_data_size(offsets);
-		memset(rec, 0, size);
+		memset(rec, 0, rec_offs_data_size(offsets));
 	}
 
 	page_rec_set_next(rec, free);

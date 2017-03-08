@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -549,7 +550,7 @@ rec_get_offsets_func(
 					 (ULINT_UNDEFINED if all fields) */
 #ifdef UNIV_DEBUG
 	const char*		file,	/*!< in: file name where called */
-	ulint			line,	/*!< in: line number where called */
+	unsigned		line,	/*!< in: line number where called */
 #endif /* UNIV_DEBUG */
 	mem_heap_t**		heap)	/*!< in/out: memory heap */
 {

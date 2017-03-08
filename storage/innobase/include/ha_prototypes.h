@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2006, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -317,16 +318,6 @@ innobase_get_at_most_n_mbchars(
 				number of CHARACTERS n in the prefix) */
 	ulint data_len,		/*!< in: length of the string in bytes */
 	const char* str);	/*!< in: character string */
-
-/******************************************************************//**
-Returns true if the thread supports XA,
-global value of innodb_supports_xa if thd is NULL.
-@return true if thd supports XA */
-ibool
-thd_supports_xa(
-/*============*/
-	THD*	thd);	/*!< in: thread handle, or NULL to query
-			the global innodb_supports_xa */
 
 /** Get status of innodb_tmpdir.
 @param[in]	thd	thread handle, or NULL to query

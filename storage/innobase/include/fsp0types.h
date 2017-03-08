@@ -416,7 +416,7 @@ fsp_flags_is_valid(ulint flags)
 	bits 10..14 would be nonzero 0bsssaa where sss is
 	nonzero PAGE_SSIZE (3, 4, 6, or 7)
 	and aa is ATOMIC_WRITES (not 0b11). */
-	if (FSP_FLAGS_GET_RESERVED(flags) & ~1) {
+	if (FSP_FLAGS_GET_RESERVED(flags) & ~1U) {
 		return(false);
 	}
 

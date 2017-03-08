@@ -1052,8 +1052,9 @@ static monitor_info_t	innodb_counter_info[] =
 	 MONITOR_NONE,
 	 MONITOR_DEFAULT_START, MONITOR_INDEX_DISCARD},
 
+#ifdef BTR_CUR_HASH_ADAPT
 	/* ========== Counters for Adaptive Hash Index ========== */
-	{"module_adaptive_hash", "adaptive_hash_index", "Adpative Hash Index",
+	{"module_adaptive_hash", "adaptive_hash_index", "Adaptive Hash Index",
 	 MONITOR_MODULE,
 	 MONITOR_DEFAULT_START, MONITOR_MODULE_ADAPTIVE_HASH},
 
@@ -1062,6 +1063,7 @@ static monitor_info_t	innodb_counter_info[] =
 	 static_cast<monitor_type_t>(
 	 MONITOR_EXISTING | MONITOR_DEFAULT_ON),
 	 MONITOR_DEFAULT_START, MONITOR_OVLD_ADAPTIVE_HASH_SEARCH},
+#endif /* BTR_CUR_HASH_ADAPT */
 
 	{"adaptive_hash_searches_btree", "adaptive_hash_index",
 	 "Number of searches using B-tree on an index search",
@@ -1069,6 +1071,7 @@ static monitor_info_t	innodb_counter_info[] =
 	 MONITOR_EXISTING | MONITOR_DEFAULT_ON),
 	 MONITOR_DEFAULT_START, MONITOR_OVLD_ADAPTIVE_HASH_SEARCH_BTREE},
 
+#ifdef BTR_CUR_HASH_ADAPT
 	{"adaptive_hash_pages_added", "adaptive_hash_index",
 	 "Number of index pages on which the Adaptive Hash Index is built",
 	 MONITOR_NONE,
@@ -1100,6 +1103,7 @@ static monitor_info_t	innodb_counter_info[] =
 	 "Number of Adaptive Hash Index rows updated",
 	 MONITOR_NONE,
 	 MONITOR_DEFAULT_START, MONITOR_ADAPTIVE_HASH_ROW_UPDATED},
+#endif /* BTR_CUR_HASH_ADAPT */
 
 	/* ========== Counters for tablespace ========== */
 	{"module_file", "file_system", "Tablespace and File System Manager",
@@ -2022,9 +2026,11 @@ srv_mon_process_existing_counter(
 		value = log_sys->max_modified_age_sync;
 		break;
 
+#ifdef BTR_CUR_HASH_ADAPT
 	case MONITOR_OVLD_ADAPTIVE_HASH_SEARCH:
 		value = btr_cur_n_sea;
 		break;
+#endif /* BTR_CUR_HASH_ADAPT */
 
 	case MONITOR_OVLD_ADAPTIVE_HASH_SEARCH_BTREE:
 		value = btr_cur_n_non_sea;

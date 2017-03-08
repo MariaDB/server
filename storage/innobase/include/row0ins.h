@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -153,7 +154,7 @@ row_ins_index_entry_big_rec_func(
 #ifndef DBUG_OFF
 	const void*		thd,	/*!< in: connection, or NULL */
 #endif /* DBUG_OFF */
-	ulint			line)	/*!< in: line number of caller */
+	unsigned		line)	/*!< in: line number of caller */
 	MY_ATTRIBUTE((nonnull(1,2,3,4,5,6), warn_unused_result));
 #ifdef DBUG_OFF
 # define row_ins_index_entry_big_rec(e,big,ofs,heap,index,thd,file,line) \

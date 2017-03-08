@@ -9,7 +9,7 @@ IF(ESSENTIALS)
  ENDIF()
 ELSE()
   SET(CPACK_COMPONENTS_USED 
-    "Server;Client;Development;SharedLibraries;Embedded;Documentation;IniFiles;Readme;Debuginfo;Common;connect-engine;ClientPlugins;gssapi-server;gssapi-client;aws-key-management")
+    "Server;Client;Development;SharedLibraries;Documentation;Readme;Debuginfo;Common;connect-engine;ClientPlugins;gssapi-server;gssapi-client;aws-key-management")
 ENDIF()
 
 SET( WIX_FEATURE_MySQLServer_EXTRA_FEATURES "DBInstance;SharedClientServerComponents")

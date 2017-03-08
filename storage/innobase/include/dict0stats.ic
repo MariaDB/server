@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2012, 2015, Oracle and/or its affiliates. All rights reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -60,14 +61,10 @@ dict_stats_set_persistent(
 	table->stat_persistent = stat_persistent;
 }
 
-/*********************************************************************//**
-Check whether persistent statistics is enabled for a given table.
-@return TRUE if enabled, FALSE otherwise */
+/** @return whether persistent statistics is enabled for a given table */
 UNIV_INLINE
-ibool
-dict_stats_is_persistent_enabled(
-/*=============================*/
-	const dict_table_t*	table)	/*!< in: table */
+bool
+dict_stats_is_persistent_enabled(const dict_table_t* table)
 {
 	/* Because of the nature of this check (non-locking) it is possible
 	that a table becomes:
@@ -89,9 +86,9 @@ dict_stats_is_persistent_enabled(
 
 	if (stat_persistent & DICT_STATS_PERSISTENT_ON) {
 		ut_ad(!(stat_persistent & DICT_STATS_PERSISTENT_OFF));
-		return(TRUE);
+		return(true);
 	} else if (stat_persistent & DICT_STATS_PERSISTENT_OFF) {
-		return(FALSE);
+		return(false);
 	} else {
 		return(srv_stats_persistent);
 	}
@@ -126,23 +123,19 @@ dict_stats_auto_recalc_set(
 	table->stats_auto_recalc = stats_auto_recalc;
 }
 
-/*********************************************************************//**
-Check whether auto recalc is enabled for a given table.
-@return TRUE if enabled, FALSE otherwise */
+/** @return whether auto recalc is enabled for a given table*/
 UNIV_INLINE
-ibool
-dict_stats_auto_recalc_is_enabled(
-/*==============================*/
-	const dict_table_t*	table)	/*!< in: table */
+bool
+dict_stats_auto_recalc_is_enabled(const dict_table_t* table)
 {
 	/* we rely on this read to be atomic */
 	ib_uint32_t	stats_auto_recalc = table->stats_auto_recalc;
 
 	if (stats_auto_recalc & DICT_STATS_AUTO_RECALC_ON) {
 		ut_ad(!(stats_auto_recalc & DICT_STATS_AUTO_RECALC_OFF));
-		return(TRUE);
+		return(true);
 	} else if (stats_auto_recalc & DICT_STATS_AUTO_RECALC_OFF) {
-		return(FALSE);
+		return(false);
 	} else {
 		return(srv_stats_auto_recalc);
 	}

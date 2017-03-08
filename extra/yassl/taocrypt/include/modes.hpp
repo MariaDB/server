@@ -1,5 +1,6 @@
 /*
    Copyright (c) 2005, 2012, Oracle and/or its affiliates. All rights reserved.
+   Copyright (c) 2017, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -57,7 +58,7 @@ class Mode_BASE : public virtual_base {
 public:
     enum { MaxBlockSz = 16 };
 
-    explicit Mode_BASE(int sz, CipherDir dir, Mode mode) 
+    explicit Mode_BASE(unsigned sz, CipherDir dir, Mode mode)
         : blockSz_(sz), reg_(reinterpret_cast<byte*>(r_)),
           tmp_(reinterpret_cast<byte*>(t_)), dir_(dir), mode_(mode)
     {}
@@ -67,7 +68,7 @@ public:
 
     void SetIV(const byte* iv) { memcpy(reg_, iv, blockSz_); }
 protected:
-    int   blockSz_;
+    unsigned blockSz_;
     byte* reg_;
     byte* tmp_;
 

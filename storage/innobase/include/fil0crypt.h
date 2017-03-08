@@ -114,7 +114,7 @@ struct fil_space_crypt_struct : st_encryption_scheme
 	The object is expected to be placed in a buffer that
 	has been zero-initialized. */
 	fil_space_crypt_struct(
-		ulint new_type,
+		uint new_type,
 		uint new_min_key_version,
 		uint new_key_id,
 		ulint offset,

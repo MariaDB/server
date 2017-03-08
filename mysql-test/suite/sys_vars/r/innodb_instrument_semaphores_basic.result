@@ -12,24 +12,34 @@ SELECT @@global.innodb_instrument_semaphores;
 SELECT @@session.innodb_instrument_semaphores;
 ERROR HY000: Variable 'innodb_instrument_semaphores' is a GLOBAL variable
 SET @@global.innodb_instrument_semaphores=OFF;
+Warnings:
+Warning	131	Using innodb_instrument_semaphores is deprecated and the parameter will be removed in MariaDB 10.3.
 SELECT @@global.innodb_instrument_semaphores;
 @@global.innodb_instrument_semaphores
 0
 SET @@global.innodb_instrument_semaphores=ON;
+Warnings:
+Warning	131	Using innodb_instrument_semaphores is deprecated and the parameter will be removed in MariaDB 10.3.
 SELECT @@global.innodb_instrument_semaphores;
 @@global.innodb_instrument_semaphores
 1
 
 # valid values
 SET @@global.innodb_instrument_semaphores='OFF';
+Warnings:
+Warning	131	Using innodb_instrument_semaphores is deprecated and the parameter will be removed in MariaDB 10.3.
 SELECT @@global.innodb_instrument_semaphores;
 @@global.innodb_instrument_semaphores
 0
 SET @@global.innodb_instrument_semaphores=ON;
+Warnings:
+Warning	131	Using innodb_instrument_semaphores is deprecated and the parameter will be removed in MariaDB 10.3.
 SELECT @@global.innodb_instrument_semaphores;
 @@global.innodb_instrument_semaphores
 1
 SET @@global.innodb_instrument_semaphores=default;
+Warnings:
+Warning	131	Using innodb_instrument_semaphores is deprecated and the parameter will be removed in MariaDB 10.3.
 SELECT @@global.innodb_instrument_semaphores;
 @@global.innodb_instrument_semaphores
 0
@@ -42,4 +52,6 @@ ERROR 42000: Variable 'innodb_instrument_semaphores' can't be set to the value o
 
 # restore the initial value
 SET @@global.innodb_instrument_semaphores = @innodb_instrument_semaphores_global_saved;
+Warnings:
+Warning	131	Using innodb_instrument_semaphores is deprecated and the parameter will be removed in MariaDB 10.3.
 # End of test

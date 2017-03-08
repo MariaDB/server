@@ -1727,7 +1727,7 @@ fil_crypt_get_page_throttle_func(
 	mtr_t*			mtr,		/*!< in/out: minitransaction */
 	ulint*			sleeptime_ms,	/*!< out: sleep time */
 	const char*		file,		/*!< in: file name */
-	ulint 			line)		/*!< in: file line */
+	unsigned		line)		/*!< in: file line */
 {
 	const page_id_t&	page_id = page_id_t(space, offset);
 	dberr_t			err = DB_SUCCESS;

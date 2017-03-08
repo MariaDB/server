@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2016, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2016, MariaDB
+   Copyright (c) 2010, 2017, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -2845,7 +2845,7 @@ bool check_duplicates_in_interval(const char *set_or_name,
 */
 
 bool Column_definition::prepare_create_field(uint *blob_columns,
-                                             longlong table_flags)
+                                             ulonglong table_flags)
 {
   uint dup_val_count;
   uint decimals_orig= decimals;
