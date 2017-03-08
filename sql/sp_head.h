@@ -341,6 +341,8 @@ public:
   bool
   show_create_routine(THD *thd, int type);
 
+  MEM_ROOT *get_main_mem_root() { return &main_mem_root; }
+
   int
   add_instr(sp_instr *instr);
 
@@ -767,6 +769,42 @@ private:
 }; // class sp_head : public Sql_alloc
 
 
+class sp_lex_cursor: public sp_lex_local, public Query_arena
+{
+public:
+  sp_lex_cursor(THD *thd, const LEX *oldlex, MEM_ROOT *mem_root_arg)
+   :sp_lex_local(thd, oldlex),
+    Query_arena(mem_root_arg, STMT_INITIALIZED_FOR_SP)
+  { }
+  sp_lex_cursor(THD *thd, const LEX *oldlex)
+   :sp_lex_local(thd, oldlex),
+    Query_arena(thd->lex->sphead->get_main_mem_root(), STMT_INITIALIZED_FOR_SP)
+  { }
+  ~sp_lex_cursor() { free_items(); }
+  void cleanup_stmt() { }
+  Query_arena *query_arena() { return this; }
+  bool validate()
+  {
+    DBUG_ASSERT(sql_command == SQLCOM_SELECT);
+    if (result)
+    {
+      my_error(ER_SP_BAD_CURSOR_SELECT, MYF(0));
+      return true;
+    }
+    return false;
+  }
+  bool stmt_finalize(THD *thd)
+  {
+    if (validate())
+      return true;
+    sp_lex_in_use= true;
+    free_list= thd->free_list;
+    thd->free_list= NULL;
+    return false;
+  }
+};
+
+
 //
 // "Instructions"...
 //
@@ -923,6 +961,9 @@ public:
   */
   int reset_lex_and_exec_core(THD *thd, uint *nextp, bool open_tables,
                               sp_instr* instr);
+
+  int cursor_reset_lex_and_exec_core(THD *thd, uint *nextp, bool open_tables,
+                                     sp_instr *instr);
 
   inline uint sql_command() const
   {
@@ -1548,6 +1589,30 @@ private:
   uint m_cursor;		///< Stack index
 
 }; // class sp_instr_copen : public sp_instr_stmt
+
+
+/**
+  Initialize the structure of a cursor%ROWTYPE variable
+  from the LEX containing the cursor SELECT statement.
+*/
+class sp_instr_cursor_copy_struct: public sp_instr
+{
+  /**< Prevent use of these */
+  sp_instr_cursor_copy_struct(const sp_instr_cursor_copy_struct &);
+  void operator=(sp_instr_cursor_copy_struct &);
+  sp_lex_keeper m_lex_keeper;
+  uint m_var;
+public:
+  sp_instr_cursor_copy_struct(uint ip, sp_pcontext *ctx,
+                              sp_lex_cursor *lex, uint voffs)
+    : sp_instr(ip, ctx), m_lex_keeper(lex, FALSE), m_var(voffs)
+  {}
+  virtual ~sp_instr_cursor_copy_struct()
+  {}
+  virtual int execute(THD *thd, uint *nextp);
+  virtual int exec_core(THD *thd, uint *nextp);
+  virtual void print(String *str);
+};
 
 
 class sp_instr_cclose : public sp_instr

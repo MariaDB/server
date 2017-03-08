@@ -3152,6 +3152,26 @@ sp_lex_keeper::reset_lex_and_exec_core(THD *thd, uint *nextp,
 }
 
 
+int sp_lex_keeper::cursor_reset_lex_and_exec_core(THD *thd, uint *nextp,
+                                                  bool open_tables,
+                                                  sp_instr *instr)
+{
+  Query_arena *old_arena= thd->stmt_arena;
+  /*
+    Get the Query_arena from the cursor statement LEX, which contains
+    the free_list of the query, so new items (if any) are stored in
+    the right free_list, and we can cleanup after each cursor operation,
+    e.g. open or cursor_copy_struct (for cursor%ROWTYPE variables).
+  */
+  thd->stmt_arena= m_lex->query_arena();
+  int res= reset_lex_and_exec_core(thd, nextp, open_tables, instr);
+  if (thd->stmt_arena->free_list)
+    cleanup_items(thd->stmt_arena->free_list);
+  thd->stmt_arena= old_arena;
+  return res;
+}
+
+
 /*
   sp_instr class functions
 */
@@ -3455,7 +3475,8 @@ sp_instr_set_row_field_by_name::print(String *str)
   int rsrv= SP_INSTR_UINT_MAXLEN + 6 + 6 + 3 + 2;
   sp_variable *var= m_ctx->find_variable(m_offset);
   DBUG_ASSERT(var);
-  DBUG_ASSERT(var->field_def.is_table_rowtype_ref());
+  DBUG_ASSERT(var->field_def.is_table_rowtype_ref() ||
+              var->field_def.is_cursor_rowtype_ref());
 
   rsrv+= var->name.length + 2 * m_field_name.length;
   if (str->reserve(rsrv))
@@ -3915,7 +3936,7 @@ sp_instr_cpush::execute(THD *thd, uint *nextp)
 {
   DBUG_ENTER("sp_instr_cpush::execute");
 
-  int ret= thd->spcont->push_cursor(thd, &m_lex_keeper, this);
+  int ret= thd->spcont->push_cursor(thd, &m_lex_keeper);
 
   *nextp= m_ip+1;
 
@@ -3995,19 +4016,7 @@ sp_instr_copen::execute(THD *thd, uint *nextp)
   else
   {
     sp_lex_keeper *lex_keeper= c->get_lex_keeper();
-    Query_arena *old_arena= thd->stmt_arena;
-
-    /*
-      Get the Query_arena from the cpush instruction, which contains
-      the free_list of the query, so new items (if any) are stored in
-      the right free_list, and we can cleanup after each open.
-    */
-    thd->stmt_arena= c->get_instr();
-    res= lex_keeper->reset_lex_and_exec_core(thd, nextp, FALSE, this);
-    /* Cleanup the query's items */
-    if (thd->stmt_arena->free_list)
-      cleanup_items(thd->stmt_arena->free_list);
-    thd->stmt_arena= old_arena;
+    res= lex_keeper->cursor_reset_lex_and_exec_core(thd, nextp, FALSE, this);
     /* TODO: Assert here that we either have an error or a cursor */
   }
   DBUG_RETURN(res);
@@ -4136,6 +4145,72 @@ sp_instr_cfetch::print(String *str)
     str->qs_append('@');
     str->qs_append(pv->offset);
   }
+}
+
+
+/*
+  sp_instr_cursor_copy_struct class functions
+*/
+
+int
+sp_instr_cursor_copy_struct::exec_core(THD *thd, uint *nextp)
+{
+  DBUG_ENTER("sp_instr_cusrot_copy_struct::exec_core");
+  int ret= 0;
+  Item_field_row *row= (Item_field_row*) thd->spcont->get_item(m_var);
+  DBUG_ASSERT(row->type_handler() == &type_handler_row);
+
+  /*
+    Copy structure only once. If the cursor%ROWTYPE variable is declared
+    inside a LOOP block, it gets its structure on the first loop interation
+    and remembers the structure for all consequent loop iterations.
+    It we recreated the structure on every iteration, we would get
+    potential memory leaks, and it would be less efficient.
+  */
+  if (!row->arguments())
+  {
+    sp_cursor tmp(thd, &m_lex_keeper);
+    if (!(ret= tmp.open_view_structure_only(thd)))
+    {
+      Row_definition_list defs;
+      if (!(ret= tmp.export_structure(thd, &defs)))
+      {
+        /*
+          Create row elements on the caller arena.
+          It's the same arena that was used during sp_rcontext::create().
+          This puts cursor%ROWTYPE elements on the same mem_root
+          where explicit ROW elements and table%ROWTYPE reside.
+        */
+        Query_arena current_arena;
+        thd->set_n_backup_active_arena(thd->spcont->callers_arena, &current_arena);
+        row->row_create_items(thd, &defs);
+        thd->restore_active_arena(thd->spcont->callers_arena, &current_arena);
+      }
+      tmp.close(thd);
+    }
+  }
+  *nextp= m_ip + 1;
+  DBUG_RETURN(ret);
+}
+
+
+int
+sp_instr_cursor_copy_struct::execute(THD *thd, uint *nextp)
+{
+  DBUG_ENTER("sp_instr_cursor_copy_struct::execute");
+  int ret= m_lex_keeper.cursor_reset_lex_and_exec_core(thd, nextp, FALSE, this);
+  DBUG_RETURN(ret);
+}
+
+
+void
+sp_instr_cursor_copy_struct::print(String *str)
+{
+  sp_variable *var= m_ctx->find_variable(m_var);
+  str->append(STRING_WITH_LEN("cursor_copy_struct "));
+  str->append(var->name.str, var->name.length);
+  str->append('@');
+  str->append_ulonglong(m_var);
 }
 
 

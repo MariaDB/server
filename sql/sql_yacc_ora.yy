@@ -199,6 +199,7 @@ void ORAerror(THD *thd, const char *s)
   Key_part_spec *key_part;
   LEX *lex;
   sp_assignment_lex *assignment_lex;
+  class sp_lex_cursor *sp_cursor_stmt;
   LEX_STRING *lex_str_ptr;
   LEX_USER *lex_user;
   List<Condition_information_item> *cond_info_list;
@@ -1150,6 +1151,10 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
         ident_list ident_list_arg opt_expr_list
         decode_when_list
 
+%type <sp_cursor_stmt>
+        sp_cursor_stmt_lex
+        sp_cursor_stmt
+
 %type <assignment_lex>
         assignment_source_lex
         assignment_source_expr
@@ -1333,7 +1338,6 @@ END_OF_INPUT
 %type <sp_instr_addr> sp_instr_addr
 %type <sp_cursor_name_and_offset> sp_cursor_name_and_offset
 %type <num> opt_exception_clause exception_handlers
-%type <lex> sp_cursor_stmt remember_lex
 %type <spname> sp_name
 %type <spvar> sp_param_name sp_param_name_and_type
 %type <for_loop> sp_for_loop_index_and_bounds
@@ -2609,22 +2613,27 @@ opt_parenthesized_cursor_formal_parameters:
         ;
 
 
-sp_cursor_stmt:
+sp_cursor_stmt_lex:
           {
-            Lex->sphead->reset_lex(thd);
+            DBUG_ASSERT(thd->lex->sphead);
+            if (!($$= new (thd->mem_root) sp_lex_cursor(thd, thd->lex)))
+              MYSQL_YYABORT;
+          }
+        ;
+
+sp_cursor_stmt:
+          sp_cursor_stmt_lex
+          {
+            DBUG_ASSERT(thd->free_list == NULL);
+            Lex->sphead->reset_lex(thd, $1);
           }
           select
           {
-            LEX *lex= Lex;
-
-            DBUG_ASSERT(lex->sql_command == SQLCOM_SELECT);
-
-            if (lex->result)
-              my_yyabort_error((ER_SP_BAD_CURSOR_SELECT, MYF(0)));
-            lex->sp_lex_in_use= TRUE;
-            $$= lex;
-            if (lex->sphead->restore_lex(thd))
+            DBUG_ASSERT(Lex == $1);
+            if ($1->stmt_finalize(thd) ||
+                $1->sphead->restore_lex(thd))
               MYSQL_YYABORT;
+            $$= $1;
           }
         ;
 
@@ -3302,12 +3311,6 @@ sp_proc_stmt_goto:
           }
         ;
 
-
-remember_lex:
-          {
-            $$= thd->lex;
-          }
-        ;
 
 assignment_source_lex:
           {

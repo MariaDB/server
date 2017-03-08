@@ -1007,3 +1007,37 @@ Pos	Instruction
 5	set rec1.c@0["c"] rec1.d@0["d"]
 DROP PROCEDURE p1;
 DROP TABLE t1;
+#
+# MDEV-12011 sql_mode=ORACLE: cursor%ROWTYPE in variable declarations
+#
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+CREATE PROCEDURE p1()
+AS
+CURSOR cur1 IS SELECT * FROM t1;
+CURSOR cur2 IS SELECT * FROM t1;
+BEGIN
+DECLARE
+rec1,rec2 cur1%ROWTYPE;
+rec3 cur2%ROWTYPE;
+BEGIN
+rec1.a:= 10;
+rec1.b:= 'bbb';
+END;
+END;
+$$
+SHOW PROCEDURE CODE p1;
+Pos	Instruction
+0	cpush cur1@0
+1	cpush cur2@1
+2	cursor_copy_struct rec1@0
+3	set rec1@0 NULL
+4	cursor_copy_struct rec2@1
+5	set rec2@1 NULL
+6	cursor_copy_struct rec3@2
+7	set rec3@2 NULL
+8	set rec1.a@0["a"] 10
+9	set rec1.b@0["b"] 'bbb'
+10	jump 11
+11	cpop 2
+DROP PROCEDURE p1;
+DROP TABLE t1;

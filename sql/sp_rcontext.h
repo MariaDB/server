@@ -272,7 +272,7 @@ public:
   /// @return error flag.
   /// @retval false on success.
   /// @retval true on error.
-  bool push_cursor(THD *thd, sp_lex_keeper *lex_keeper, sp_instr_cpush *i);
+  bool push_cursor(THD *thd, sp_lex_keeper *lex_keeper);
 
   /// Pop and delete given number of sp_cursor instance from the cursor stack.
   ///
@@ -434,7 +434,7 @@ private:
 };
 
 public:
-  sp_cursor(THD *thd_arg, sp_lex_keeper *lex_keeper, sp_instr_cpush *i);
+  sp_cursor(THD *thd_arg, sp_lex_keeper *lex_keeper);
 
   virtual ~sp_cursor()
   { destroy(); }
@@ -442,6 +442,8 @@ public:
   sp_lex_keeper *get_lex_keeper() { return m_lex_keeper; }
 
   int open(THD *thd);
+
+  int open_view_structure_only(THD *thd);
 
   int close(THD *thd);
 
@@ -459,14 +461,12 @@ public:
 
   int fetch(THD *, List<sp_variable> *vars);
 
-  sp_instr_cpush *get_instr()
-  { return m_i; }
+  bool export_structure(THD *thd, Row_definition_list *list);
 
 private:
   Select_fetch_into_spvars result;
   sp_lex_keeper *m_lex_keeper;
   Server_side_cursor *server_side_cursor;
-  sp_instr_cpush *m_i;     // My push instruction
   ulonglong m_fetch_count; // Number of FETCH commands since last OPEN
   ulonglong m_row_count;   // Number of successful FETCH since last OPEN
   bool m_found;            // If last FETCH fetched a row

@@ -1441,6 +1441,7 @@ public:
                                       TMP_TABLE_PARAM *tmp_table_param,
                                       bool with_cleanup);
   Field *find_field_by_name(const char *str) const;
+  bool export_structure(THD *thd, class Row_definition_list *defs);
 };
 
 

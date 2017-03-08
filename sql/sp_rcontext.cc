@@ -286,6 +286,13 @@ bool sp_rcontext::init_var_items(THD *thd,
           item->row_create_items(thd, &defs))
         return true;
     }
+    else if (def->is_cursor_rowtype_ref())
+    {
+      Row_definition_list defs;
+      Item_field_row *item= new (thd->mem_root) Item_field_row(thd, field);
+      if (!(m_var_items[idx]= item))
+        return true;
+    }
     else if (def->is_row())
     {
       Item_field_row *item= new (thd->mem_root) Item_field_row(thd, field);
@@ -341,14 +348,13 @@ bool sp_rcontext::set_return_value(THD *thd, Item **return_value_item)
 }
 
 
-bool sp_rcontext::push_cursor(THD *thd, sp_lex_keeper *lex_keeper,
-                              sp_instr_cpush *i)
+bool sp_rcontext::push_cursor(THD *thd, sp_lex_keeper *lex_keeper)
 {
   /*
     We should create cursors in the callers arena, as
     it could be (and usually is) used in several instructions.
   */
-  sp_cursor *c= new (callers_arena->mem_root) sp_cursor(thd, lex_keeper, i);
+  sp_cursor *c= new (callers_arena->mem_root) sp_cursor(thd, lex_keeper);
 
   if (c == NULL)
     return true;
@@ -687,11 +693,10 @@ bool sp_rcontext::set_case_expr(THD *thd, int case_expr_id,
 ///////////////////////////////////////////////////////////////////////////
 
 
-sp_cursor::sp_cursor(THD *thd_arg, sp_lex_keeper *lex_keeper, sp_instr_cpush *i):
+sp_cursor::sp_cursor(THD *thd_arg, sp_lex_keeper *lex_keeper):
    result(thd_arg),
    m_lex_keeper(lex_keeper),
    server_side_cursor(NULL),
-   m_i(i),
    m_fetch_count(0),
    m_row_count(0),
    m_found(false)
@@ -728,6 +733,21 @@ int sp_cursor::open(THD *thd)
   if (mysql_open_cursor(thd, &result, &server_side_cursor))
     return -1;
   return 0;
+}
+
+
+int sp_cursor::open_view_structure_only(THD *thd)
+{
+  int res;
+  int thd_no_errors_save= thd->no_errors;
+  Item *limit_rows_examined= thd->lex->limit_rows_examined;
+  if (!(thd->lex->limit_rows_examined= new (thd->mem_root) Item_uint(thd, 0)))
+    return -1;
+  thd->no_errors= true; // Suppress ER_QUERY_EXCEEDED_ROWS_EXAMINED_LIMIT
+  res= open(thd);
+  thd->no_errors= thd_no_errors_save;
+  thd->lex->limit_rows_examined= limit_rows_examined;
+  return res;
 }
 
 
@@ -801,6 +821,11 @@ int sp_cursor::fetch(THD *thd, List<sp_variable> *vars)
   return 0;
 }
 
+
+bool sp_cursor::export_structure(THD *thd, Row_definition_list *list)
+{
+  return server_side_cursor->export_structure(thd, list);
+}
 
 ///////////////////////////////////////////////////////////////////////////
 // sp_cursor::Select_fetch_into_spvars implementation.

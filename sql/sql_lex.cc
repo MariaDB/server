@@ -5297,6 +5297,9 @@ LEX::sp_variable_declarations_rowtype_finalize(THD *thd, int nvars,
                                                Qualified_column_ident *ref,
                                                Item *def)
 {
+  uint coffp;
+  const sp_pcursor *pcursor= ref->table.str && ref->db.str ? NULL :
+                             spcont->find_cursor(ref->m_column, &coffp, false);
   uint num_vars= spcont->context_var_count();
 
   if (!def && !(def= new (thd->mem_root) Item_null(thd)))
@@ -5307,24 +5310,41 @@ LEX::sp_variable_declarations_rowtype_finalize(THD *thd, int nvars,
     bool last= i == num_vars - 1;
     uint var_idx= spcont->var_context2runtime(i);
     sp_variable *spvar= spcont->find_context_variable(i);
-    /*
-      When parsing a qualified identifier chain, the parser does not know yet
-      if it's going to be a qualified column name (for %TYPE),
-      or a qualified table name (for %ROWTYPE). So it collects the chain
-      into Qualified_column_ident.
-      Now we know that it was actually a qualified table name (%ROWTYPE).
-      Create a new Table_ident from Qualified_column_ident,
-      shifting fields as follows:
-      - ref->m_column becomes table_ref->table
-      - ref->table    becomes table_ref->db
-    */
-    Table_ident *table_ref;
-    if (!(table_ref= new (thd->mem_root) Table_ident(thd,
-                                                     ref->table,
-                                                     ref->m_column,
-                                                     false)))
-      return true;
-    spvar->field_def.set_table_rowtype_ref(table_ref);
+
+    if (pcursor)
+    {
+      Cursor_rowtype *ref;
+      if (!(ref= new (thd->mem_root) Cursor_rowtype(coffp)))
+        return true;
+      spvar->field_def.set_cursor_rowtype_ref(ref);
+      sp_instr_cursor_copy_struct *instr=
+        new (thd->mem_root) sp_instr_cursor_copy_struct(sphead->instructions(),
+                                                        spcont, pcursor->lex(),
+                                                        spvar->offset);
+      if (instr == NULL || sphead->add_instr(instr))
+       return true;
+    }
+    else
+    {
+      /*
+        When parsing a qualified identifier chain, the parser does not know yet
+        if it's going to be a qualified column name (for %TYPE),
+        or a qualified table name (for %ROWTYPE). So it collects the chain
+        into Qualified_column_ident.
+        Now we know that it was actually a qualified table name (%ROWTYPE).
+        Create a new Table_ident from Qualified_column_ident,
+        shifting fields as follows:
+        - ref->m_column becomes table_ref->table
+        - ref->table    becomes table_ref->db
+      */
+      Table_ident *table_ref;
+      if (!(table_ref= new (thd->mem_root) Table_ident(thd,
+                                                       ref->table,
+                                                       ref->m_column,
+                                                       false)))
+        return true;
+      spvar->field_def.set_table_rowtype_ref(table_ref);
+    }
     spvar->field_def.field_name= spvar->name.str;
     spvar->default_value= def;
     /* The last instruction is responsible for freeing LEX. */
@@ -5485,7 +5505,8 @@ bool LEX::sp_for_loop_finalize(THD *thd, const Lex_for_loop_st &loop)
 
 /***************************************************************************/
 
-bool LEX::sp_declare_cursor(THD *thd, const LEX_STRING name, LEX *cursor_stmt,
+bool LEX::sp_declare_cursor(THD *thd, const LEX_STRING name,
+                            sp_lex_cursor *cursor_stmt,
                             sp_pcontext *param_ctx)
 {
   uint offp;
@@ -5501,7 +5522,7 @@ bool LEX::sp_declare_cursor(THD *thd, const LEX_STRING name, LEX *cursor_stmt,
                       spcont->current_cursor_count());
   return i == NULL ||
          sphead->add_instr(i) ||
-         spcont->add_cursor(name, param_ctx);
+         spcont->add_cursor(name, param_ctx, cursor_stmt);
 }
 
 
@@ -6178,7 +6199,8 @@ Item_splocal *LEX::create_item_spvar_row_field(THD *thd,
   }
 
   Item_splocal *item;
-  if (spv->field_def.is_table_rowtype_ref())
+  if (spv->field_def.is_table_rowtype_ref() ||
+      spv->field_def.is_cursor_rowtype_ref())
   {
     if (!(item= new (thd->mem_root)
                 Item_splocal_row_field_by_name(thd, a, b, spv->offset,
@@ -6406,7 +6428,8 @@ bool LEX::set_variable(const LEX_STRING &name1,
   sp_variable *spv;
   if (spcont && (spv= spcont->find_variable(name1, false)))
   {
-    if (spv->field_def.is_table_rowtype_ref())
+    if (spv->field_def.is_table_rowtype_ref() ||
+        spv->field_def.is_cursor_rowtype_ref())
       return sphead->set_local_variable_row_field_by_name(thd, spcont,
                                                           spv, name2,
                                                           item, this);

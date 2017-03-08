@@ -783,6 +783,7 @@ Virtual_column_info *add_virtual_expression(THD *thd, Item *expr)
   Item_param *item_param;
   Key_part_spec *key_part;
   LEX *lex;
+  class sp_lex_cursor *sp_cursor_stmt;
   LEX_STRING *lex_str_ptr;
   LEX_USER *lex_user;
   List<Condition_information_item> *cond_info_list;
@@ -1710,6 +1711,10 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
         expr_list opt_udf_expr_list udf_expr_list when_list
         ident_list ident_list_arg opt_expr_list
 
+%type <sp_cursor_stmt>
+        sp_cursor_stmt_lex
+        sp_cursor_stmt
+
 %type <var_type>
         option_type opt_var_type opt_var_ident_type
 
@@ -1871,7 +1876,6 @@ END_OF_INPUT
 %type <num>  sp_decl_idents sp_handler_type sp_hcond_list
 %type <spcondvalue> sp_cond sp_hcond sqlstate signal_value opt_signal_value
 %type <spblock> sp_decls sp_decl sp_decl_body
-%type <lex> sp_cursor_stmt
 %type <spname> sp_name
 %type <spvar> sp_param_name sp_param_name_and_type
 %type <spvar_mode> sp_opt_inout
@@ -3024,22 +3028,28 @@ sp_decl_body:
           }
         ;
 
-sp_cursor_stmt:
+
+sp_cursor_stmt_lex:
           {
-            Lex->sphead->reset_lex(thd);
+            DBUG_ASSERT(thd->lex->sphead);
+            if (!($$= new (thd->mem_root) sp_lex_cursor(thd, thd->lex)))
+              MYSQL_YYABORT;
+          }
+        ;
+
+sp_cursor_stmt:
+          sp_cursor_stmt_lex
+          {
+            DBUG_ASSERT(thd->free_list == NULL);
+            Lex->sphead->reset_lex(thd, $1);
           }
           select
           {
-            LEX *lex= Lex;
-
-            DBUG_ASSERT(lex->sql_command == SQLCOM_SELECT);
-
-            if (lex->result)
-              my_yyabort_error((ER_SP_BAD_CURSOR_SELECT, MYF(0)));
-            lex->sp_lex_in_use= TRUE;
-            $$= lex;
-            if (lex->sphead->restore_lex(thd))
+            DBUG_ASSERT(Lex == $1);
+            if ($1->stmt_finalize(thd) ||
+                $1->sphead->restore_lex(thd))
               MYSQL_YYABORT;
+            $$= $1;
           }
         ;
 

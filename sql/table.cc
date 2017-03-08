@@ -8213,3 +8213,25 @@ Field *TABLE::find_field_by_name(const char *str) const
   }
   return NULL;
 }
+
+
+bool TABLE::export_structure(THD *thd, Row_definition_list *defs)
+{
+  for (Field **src= field; *src; src++)
+  {
+    uint offs;
+    if (defs->find_row_field_by_name(src[0]->field_name, &offs))
+    {
+      my_error(ER_DUP_FIELDNAME, MYF(0), src[0]->field_name);
+      return true;
+    }
+    Spvar_definition *def= new (thd->mem_root) Spvar_definition(thd, *src);
+    if (!def)
+      return true;
+    def->flags&= (uint) ~NOT_NULL_FLAG;
+    if ((def->sp_prepare_create_field(thd, thd->mem_root)) ||
+        (defs->push_back(def, thd->mem_root)))
+      return true;
+  }
+  return false;
+}

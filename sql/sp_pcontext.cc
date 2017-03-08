@@ -553,12 +553,13 @@ sp_pcontext::find_handler(const Sql_condition_identity &value) const
 }
 
 
-bool sp_pcontext::add_cursor(const LEX_STRING name, sp_pcontext *param_ctx)
+bool sp_pcontext::add_cursor(const LEX_STRING name, sp_pcontext *param_ctx,
+                             sp_lex_cursor *lex)
 {
   if (m_cursors.elements() == m_max_cursor_index)
     ++m_max_cursor_index;
 
-  return m_cursors.append(sp_pcursor(name, param_ctx));
+  return m_cursors.append(sp_pcursor(name, param_ctx, lex));
 }
 
 

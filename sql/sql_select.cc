@@ -377,7 +377,7 @@ bool handle_select(THD *thd, LEX *lex, select_result *result,
   res|= thd->is_error();
   if (unlikely(res))
     result->abort_result_set();
-  if (thd->killed == ABORT_QUERY)
+  if (thd->killed == ABORT_QUERY && !thd->no_errors)
   {
     /*
       If LIMIT ROWS EXAMINED interrupted query execution, issue a warning,

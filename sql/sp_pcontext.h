@@ -288,11 +288,14 @@ public:
 class sp_pcursor: public LEX_STRING
 {
   class sp_pcontext *m_param_context; // Formal parameters
+  class sp_lex_cursor *m_lex;         // The cursor statement LEX
 public:
-  sp_pcursor(const LEX_STRING &name, class sp_pcontext *param_ctx)
-   :LEX_STRING(name), m_param_context(param_ctx)
+  sp_pcursor(const LEX_STRING &name, class sp_pcontext *param_ctx,
+             class sp_lex_cursor *lex)
+   :LEX_STRING(name), m_param_context(param_ctx), m_lex(lex)
   { }
   class sp_pcontext *param_context() const { return m_param_context; }
+  class sp_lex_cursor *lex() const { return m_lex; }
 };
 
 
@@ -633,7 +636,8 @@ public:
   // Cursors.
   /////////////////////////////////////////////////////////////////////////
 
-  bool add_cursor(const LEX_STRING name, sp_pcontext *param_ctx);
+  bool add_cursor(const LEX_STRING name, sp_pcontext *param_ctx,
+                  class sp_lex_cursor *lex);
 
   /// See comment for find_variable() above.
   const sp_pcursor *find_cursor(const LEX_STRING name,

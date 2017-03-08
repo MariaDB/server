@@ -54,6 +54,11 @@ public:
   virtual int open(JOIN *top_level_join)= 0;
   virtual void fetch(ulong num_rows)= 0;
   virtual void close()= 0;
+  virtual bool export_structure(THD *thd, Row_definition_list *defs)
+  {
+    DBUG_ASSERT(0);
+    return true;
+  }
   virtual ~Server_side_cursor();
 
   static void operator delete(void *ptr, size_t size);
