@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2009, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -77,14 +78,10 @@ dict_stats_set_persistent(
 	ibool		ps_off)	/*!< in: persistent stats explicitly disabled */
 	MY_ATTRIBUTE((nonnull));
 
-/*********************************************************************//**
-Check whether persistent statistics is enabled for a given table.
-@return TRUE if enabled, FALSE otherwise */
+/** @return whether persistent statistics is enabled for a given table */
 UNIV_INLINE
-ibool
-dict_stats_is_persistent_enabled(
-/*=============================*/
-	const dict_table_t*	table)	/*!< in: table */
+bool
+dict_stats_is_persistent_enabled(const dict_table_t* table)
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 
 /*********************************************************************//**
@@ -100,14 +97,11 @@ dict_stats_auto_recalc_set(
 	ibool		auto_recalc_on,		/*!< in: explicitly enabled */
 	ibool		auto_recalc_off);	/*!< in: explicitly disabled */
 
-/*********************************************************************//**
-Check whether auto recalc is enabled for a given table.
-@return TRUE if enabled, FALSE otherwise */
+/** @return whether auto recalc is enabled for a given table*/
 UNIV_INLINE
-ibool
-dict_stats_auto_recalc_is_enabled(
-/*==============================*/
-	const dict_table_t*	table);	/*!< in: table */
+bool
+dict_stats_auto_recalc_is_enabled(const dict_table_t* table)
+	MY_ATTRIBUTE((nonnull, warn_unused_result));
 
 /*********************************************************************//**
 Initialize table's stats for the first time when opening a table. */

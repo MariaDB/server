@@ -2344,7 +2344,7 @@ row_mysql_freeze_data_dictionary_func(
 /*==================================*/
 	trx_t*		trx,	/*!< in/out: transaction */
 	const char*	file,	/*!< in: file name */
-	ulint		line)	/*!< in: line number */
+	unsigned	line)	/*!< in: line number */
 {
 	ut_a(trx->dict_operation_lock_mode == 0);
 
@@ -2377,7 +2377,7 @@ row_mysql_lock_data_dictionary_func(
 /*================================*/
 	trx_t*		trx,	/*!< in/out: transaction */
 	const char*	file,	/*!< in: file name */
-	ulint		line)	/*!< in: line number */
+	unsigned	line)	/*!< in: line number */
 {
 	ut_a(trx->dict_operation_lock_mode == 0
 	     || trx->dict_operation_lock_mode == RW_X_LATCH);

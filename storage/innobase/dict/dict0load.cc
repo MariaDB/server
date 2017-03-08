@@ -1822,8 +1822,8 @@ dict_load_field_low(
 {
 	const byte*	field;
 	ulint		len;
-	ulint		pos_and_prefix_len;
-	ulint		prefix_len;
+	unsigned	pos_and_prefix_len;
+	unsigned	prefix_len;
 	ibool		first_field;
 	ulint		position;
 
@@ -2027,7 +2027,7 @@ dict_load_index_low(
 	ulint		n_fields;
 	ulint		type;
 	ulint		space;
-	ulint		merge_threshold;
+	unsigned	merge_threshold;
 
 	if (allocate) {
 		/* If allocate=TRUE, no dict_index_t will

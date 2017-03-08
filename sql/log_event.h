@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2014, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2014, Monty Program Ab.
+   Copyright (c) 2009, 2017, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -828,7 +828,7 @@ typedef struct st_print_event_info
   char time_zone_str[MAX_TIME_ZONE_NAME_LENGTH];
   uint lc_time_names_number;
   uint charset_database_number;
-  uint thread_id;
+  my_thread_id thread_id;
   bool thread_id_printed;
   uint32 server_id;
   bool server_id_printed;
@@ -2008,7 +2008,7 @@ public:
   uint32 q_len;
   uint32 db_len;
   uint16 error_code;
-  ulong thread_id;
+  my_thread_id thread_id;
   /*
     For events created by Query_log_event::do_apply_event (and
     Load_log_event::do_apply_event()) we need the *original* thread
@@ -2435,7 +2435,7 @@ public:
   void print_query(THD *thd, bool need_db, const char *cs, String *buf,
                    my_off_t *fn_start, my_off_t *fn_end,
                    const char *qualify_db);
-  ulong thread_id;
+  my_thread_id thread_id;
   ulong slave_proxy_id;
   uint32 table_name_len;
   /*

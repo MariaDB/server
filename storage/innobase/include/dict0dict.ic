@@ -1418,7 +1418,7 @@ dict_index_set_space(
 	ut_ad(index);
 	ut_ad(index->magic_n == DICT_INDEX_MAGIC_N);
 
-	index->space = space;
+	index->space = unsigned(space);
 }
 
 /*********************************************************************//**

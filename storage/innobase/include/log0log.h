@@ -252,10 +252,10 @@ log_group_header_read(
 	const log_group_t*	group,
 	ulint			header);
 /** Write checkpoint info to the log header and invoke log_mutex_exit().
-@param[in]	sync	whether to wait for the write to complete */
+@param[in]	sync	whether to wait for the write to complete
+@param[in]	end_lsn	start LSN of the MLOG_CHECKPOINT mini-transaction */
 void
-log_write_checkpoint_info(
-	bool	sync);
+log_write_checkpoint_info(bool sync, lsn_t end_lsn);
 
 /** Set extra data to be written to the redo log during checkpoint.
 @param[in]	buf	data to be appended on checkpoint, or NULL
@@ -487,10 +487,14 @@ extern my_bool	innodb_log_checksums;
 					.._HDR_NO */
 #define	LOG_BLOCK_TRL_SIZE	4	/* trailer size in bytes */
 
-/* Offsets inside the checkpoint pages (redo log format version 1) */
+/** Offsets inside the checkpoint pages (redo log format version 1) @{ */
+/** Checkpoint number */
 #define LOG_CHECKPOINT_NO		0
+/** Log sequence number up to which all changes have been flushed */
 #define LOG_CHECKPOINT_LSN		8
+/** Byte offset of the log record corresponding to LOG_CHECKPOINT_LSN */
 #define LOG_CHECKPOINT_OFFSET		16
+/** log_sys_t::buf_size at the time of the checkpoint (not used) */
 #define LOG_CHECKPOINT_LOG_BUF_SIZE	24
 /** MariaDB 10.2.5 encrypted redo log encryption key version (32 bits)*/
 #define LOG_CHECKPOINT_CRYPT_KEY	32
@@ -498,6 +502,11 @@ extern my_bool	innodb_log_checksums;
 #define LOG_CHECKPOINT_CRYPT_NONCE	36
 /** MariaDB 10.2.5 encrypted redo log random message (MY_AES_BLOCK_SIZE) */
 #define LOG_CHECKPOINT_CRYPT_MESSAGE	40
+/** start LSN of the MLOG_CHECKPOINT mini-transaction corresponding
+to this checkpoint, or 0 if the information has not been written */
+#define LOG_CHECKPOINT_END_LSN		OS_FILE_LOG_BLOCK_SIZE - 16
+
+/* @} */
 
 /** Offsets of a log file header */
 /* @{ */

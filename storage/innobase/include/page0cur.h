@@ -36,8 +36,6 @@ Created 10/4/1994 Heikki Tuuri
 #include "gis0type.h"
 
 
-#define PAGE_CUR_ADAPT
-
 #ifdef UNIV_DEBUG
 /*********************************************************//**
 Gets pointer to the page frame where the cursor is positioned.
@@ -297,6 +295,7 @@ page_cur_search_with_match(
 					fields in lower limit record */
 	page_cur_t*		cursor,	/*!< out: page cursor */
 	rtr_info_t*		rtr_info);/*!< in/out: rtree search stack */
+#ifdef BTR_CUR_HASH_ADAPT
 /** Search the right position for a page cursor.
 @param[in]	block			buffer block
 @param[in]	index			index tree
@@ -322,6 +321,7 @@ page_cur_search_with_match_bytes(
 	ulint*			ilow_matched_fields,
 	ulint*			ilow_matched_bytes,
 	page_cur_t*		cursor);
+#endif /* BTR_CUR_HASH_ADAPT */
 /***********************************************************//**
 Positions a page cursor on a randomly chosen user record on a page. If there
 are no user records, sets the cursor on the infimum record. */

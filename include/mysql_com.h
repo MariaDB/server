@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2011, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2013, Monty Program Ab
+   Copyright (c) 2010, 2017, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -25,8 +25,8 @@
 
 #define HOSTNAME_LENGTH 60
 #define SYSTEM_CHARSET_MBMAXLEN 3
-#define NAME_CHAR_LEN	64              /* Field/table name length */
-#define USERNAME_CHAR_LENGTH 128
+#define NAME_CHAR_LEN	64U             /* Field/table name length */
+#define USERNAME_CHAR_LENGTH 128U
 #define NAME_LEN                (NAME_CHAR_LEN*SYSTEM_CHARSET_MBMAXLEN)
 #define USERNAME_LENGTH         (USERNAME_CHAR_LENGTH*SYSTEM_CHARSET_MBMAXLEN)
 #define DEFINER_CHAR_LENGTH     (USERNAME_CHAR_LENGTH + HOSTNAME_LENGTH + 1)
@@ -149,40 +149,40 @@ enum enum_indicator_type
 #define SCRAMBLED_PASSWORD_CHAR_LENGTH_323 (SCRAMBLE_LENGTH_323*2)
 
 
-#define NOT_NULL_FLAG	1		/* Field can't be NULL */
-#define PRI_KEY_FLAG	2		/* Field is part of a primary key */
-#define UNIQUE_KEY_FLAG 4		/* Field is part of a unique key */
-#define MULTIPLE_KEY_FLAG 8		/* Field is part of a key */
-#define BLOB_FLAG	16		/* Field is a blob */
-#define UNSIGNED_FLAG	32		/* Field is unsigned */
-#define ZEROFILL_FLAG	64		/* Field is zerofill */
-#define BINARY_FLAG	128		/* Field is binary   */
+#define NOT_NULL_FLAG	1U		/* Field can't be NULL */
+#define PRI_KEY_FLAG	2U		/* Field is part of a primary key */
+#define UNIQUE_KEY_FLAG 4U		/* Field is part of a unique key */
+#define MULTIPLE_KEY_FLAG 8U		/* Field is part of a key */
+#define BLOB_FLAG	16U		/* Field is a blob */
+#define UNSIGNED_FLAG	32U		/* Field is unsigned */
+#define ZEROFILL_FLAG	64U		/* Field is zerofill */
+#define BINARY_FLAG	128U		/* Field is binary   */
 
 /* The following are only sent to new clients */
-#define ENUM_FLAG	256		/* field is an enum */
-#define AUTO_INCREMENT_FLAG 512		/* field is a autoincrement field */
-#define TIMESTAMP_FLAG	1024		/* Field is a timestamp */
-#define SET_FLAG	2048		/* field is a set */
-#define NO_DEFAULT_VALUE_FLAG 4096	/* Field doesn't have default value */
-#define ON_UPDATE_NOW_FLAG 8192         /* Field is set to NOW on UPDATE */
-#define NUM_FLAG	32768		/* Field is num (for clients) */
-#define PART_KEY_FLAG	16384		/* Intern; Part of some key */
-#define GROUP_FLAG	32768		/* Intern: Group field */
-#define BINCMP_FLAG	131072		/* Intern: Used by sql_yacc */
-#define GET_FIXED_FIELDS_FLAG (1 << 18) /* Used to get fields in item tree */
-#define FIELD_IN_PART_FUNC_FLAG (1 << 19)/* Field part of partition func */
+#define ENUM_FLAG	256U		/* field is an enum */
+#define AUTO_INCREMENT_FLAG 512U	/* field is a autoincrement field */
+#define TIMESTAMP_FLAG	1024U		/* Field is a timestamp */
+#define SET_FLAG	2048U		/* field is a set */
+#define NO_DEFAULT_VALUE_FLAG 4096U	/* Field doesn't have default value */
+#define ON_UPDATE_NOW_FLAG 8192U	/* Field is set to NOW on UPDATE */
+#define NUM_FLAG	32768U		/* Field is num (for clients) */
+#define PART_KEY_FLAG	16384U		/* Intern; Part of some key */
+#define GROUP_FLAG	32768U		/* Intern: Group field */
+#define BINCMP_FLAG	131072U		/* Intern: Used by sql_yacc */
+#define GET_FIXED_FIELDS_FLAG (1U << 18) /* Used to get fields in item tree */
+#define FIELD_IN_PART_FUNC_FLAG (1U << 19)/* Field part of partition func */
 
 /**
   Intern: Field in TABLE object for new version of altered table,
           which participates in a newly added index.
 */
-#define FIELD_IN_ADD_INDEX (1 << 20)
-#define FIELD_IS_RENAMED (1<< 21)       /* Intern: Field is being renamed */
+#define FIELD_IN_ADD_INDEX (1U << 20)
+#define FIELD_IS_RENAMED (1U << 21)     /* Intern: Field is being renamed */
 #define FIELD_FLAGS_STORAGE_MEDIA 22    /* Field storage media, bit 22-23 */
-#define FIELD_FLAGS_STORAGE_MEDIA_MASK (3 << FIELD_FLAGS_STORAGE_MEDIA)
+#define FIELD_FLAGS_STORAGE_MEDIA_MASK (3U << FIELD_FLAGS_STORAGE_MEDIA)
 #define FIELD_FLAGS_COLUMN_FORMAT 24    /* Field column format, bit 24-25 */
-#define FIELD_FLAGS_COLUMN_FORMAT_MASK (3 << FIELD_FLAGS_COLUMN_FORMAT)
-#define FIELD_IS_DROPPED (1<< 26)       /* Intern: Field is being dropped */
+#define FIELD_FLAGS_COLUMN_FORMAT_MASK (3U << FIELD_FLAGS_COLUMN_FORMAT)
+#define FIELD_IS_DROPPED (1U << 26)     /* Intern: Field is being dropped */
 
 #define REFRESH_GRANT           (1ULL << 0)  /* Refresh grant tables */
 #define REFRESH_LOG             (1ULL << 1)  /* Start on new log file */
@@ -335,36 +335,36 @@ enum enum_indicator_type
   implicitly, by the first transactional
   statement, when autocommit=off.
 */
-#define SERVER_STATUS_IN_TRANS     1
-#define SERVER_STATUS_AUTOCOMMIT   2	/* Server in auto_commit mode */
-#define SERVER_MORE_RESULTS_EXISTS 8    /* Multi query - next query exists */
-#define SERVER_QUERY_NO_GOOD_INDEX_USED 16
-#define SERVER_QUERY_NO_INDEX_USED      32
+#define SERVER_STATUS_IN_TRANS     1U
+#define SERVER_STATUS_AUTOCOMMIT   2U	/* Server in auto_commit mode */
+#define SERVER_MORE_RESULTS_EXISTS 8U   /* Multi query - next query exists */
+#define SERVER_QUERY_NO_GOOD_INDEX_USED 16U
+#define SERVER_QUERY_NO_INDEX_USED      32U
 /**
   The server was able to fulfill the clients request and opened a
   read-only non-scrollable cursor for a query. This flag comes
   in reply to COM_STMT_EXECUTE and COM_STMT_FETCH commands.
 */
-#define SERVER_STATUS_CURSOR_EXISTS 64
+#define SERVER_STATUS_CURSOR_EXISTS 64U
 /**
   This flag is sent when a read-only cursor is exhausted, in reply to
   COM_STMT_FETCH command.
 */
-#define SERVER_STATUS_LAST_ROW_SENT 128
-#define SERVER_STATUS_DB_DROPPED        256 /* A database was dropped */
-#define SERVER_STATUS_NO_BACKSLASH_ESCAPES 512
+#define SERVER_STATUS_LAST_ROW_SENT 128U
+#define SERVER_STATUS_DB_DROPPED        256U /* A database was dropped */
+#define SERVER_STATUS_NO_BACKSLASH_ESCAPES 512U
 /**
   Sent to the client if after a prepared statement reprepare
   we discovered that the new statement returns a different 
   number of result set columns.
 */
-#define SERVER_STATUS_METADATA_CHANGED 1024
-#define SERVER_QUERY_WAS_SLOW          2048
+#define SERVER_STATUS_METADATA_CHANGED 1024U
+#define SERVER_QUERY_WAS_SLOW          2048U
 
 /**
   To mark ResultSet containing output parameter values.
 */
-#define SERVER_PS_OUT_PARAMS            4096
+#define SERVER_PS_OUT_PARAMS            4096U
 
 /**
   Set at the same time as SERVER_STATUS_IN_TRANS if the started
@@ -373,7 +373,7 @@ enum enum_indicator_type
   to clients in OK and EOF packets, the flag indicates the
   transaction status at the end of command execution.
 */
-#define SERVER_STATUS_IN_TRANS_READONLY 8192
+#define SERVER_STATUS_IN_TRANS_READONLY 8192U
 
 /**
   This status flag, when on, implies that one of the state information has
@@ -455,7 +455,7 @@ typedef struct st_net {
 } NET;
 
 
-#define packet_error (~(unsigned long) 0)
+#define packet_error ~0UL
 
 enum enum_field_types { MYSQL_TYPE_DECIMAL, MYSQL_TYPE_TINY,
 			MYSQL_TYPE_SHORT,  MYSQL_TYPE_LONG,
@@ -706,9 +706,9 @@ void my_thread_end(void);
 }
 #endif
 
-#define NULL_LENGTH ((unsigned long) ~0) /* For net_store_length */
-#define MYSQL_STMT_HEADER       4
-#define MYSQL_LONG_DATA_HEADER  6
+#define NULL_LENGTH ~0UL /* For net_store_length */
+#define MYSQL_STMT_HEADER       4U
+#define MYSQL_LONG_DATA_HEADER  6U
 
 /*
   If a float or double field have more than this number of decimals,

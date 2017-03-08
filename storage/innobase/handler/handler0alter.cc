@@ -589,7 +589,7 @@ ha_innobase::check_if_supported_inplace_alter(
 	}
 
 	update_thd();
-	trx_search_latch_release_if_reserved(m_prebuilt->trx);
+	trx_assert_no_search_latch(m_prebuilt->trx);
 
 	/* Change on engine specific table options require rebuild of the
 	table */
@@ -5019,7 +5019,7 @@ op_ok:
 				ctx->prebuilt->trx->mysql_thd)
 				? DB_SUCCESS : DB_ERROR;
 			ctx->new_table->fts->fts_status
-				&= ~TABLE_DICT_LOCKED;
+				&= ulint(~TABLE_DICT_LOCKED);
 
 			if (error != DB_SUCCESS) {
 				goto error_handling;
@@ -8802,11 +8802,12 @@ foreign_fail:
 		DBUG_ASSERT(ctx0->old_table->get_ref_count() == 1);
 
 		trx_commit_for_mysql(m_prebuilt->trx);
-
+#ifdef BTR_CUR_HASH_ADAPT
 		if (btr_search_enabled) {
 			btr_search_disable(false);
 			btr_search_enable();
 		}
+#endif /* BTR_CUR_HASH_ADAPT */
 
 		char	tb_name[FN_REFLEN];
 		ut_strcpy(tb_name, m_prebuilt->table->name.m_name);

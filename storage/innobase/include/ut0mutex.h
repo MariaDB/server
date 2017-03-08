@@ -78,19 +78,22 @@ typedef BlockSyncArrayMutex ib_bpmutex_t;
 extern uint	srv_spin_wait_delay;
 extern ulong	srv_n_spin_wait_rounds;
 
-#define mutex_create(I, M)		mutex_init((M), (I), __FILE__, __LINE__)
+#define mutex_create(I, M)		mutex_init((M), (I),		\
+						   __FILE__, __LINE__)
 
-#define mutex_enter(M)			(M)->enter(			\
-					srv_n_spin_wait_rounds,		\
-					srv_spin_wait_delay,		\
-					__FILE__, __LINE__)
+#define mutex_enter_loc(M,file,line)	(M)->enter(			\
+					uint32_t(srv_n_spin_wait_rounds), \
+					uint32_t(srv_spin_wait_delay),	\
+					file, line)
+#define mutex_enter(M)			mutex_enter_loc(M, __FILE__, __LINE__)
 
 #define mutex_enter_nospin(M)		(M)->enter(			\
 					0,				\
 					0,				\
-					__FILE__, __LINE__)
+					__FILE__, uint32_t(__LINE__))
 
-#define mutex_enter_nowait(M)		(M)->trylock(__FILE__, __LINE__)
+#define mutex_enter_nowait(M)		(M)->trylock(__FILE__,		\
+						     uint32_t(__LINE__))
 
 #define mutex_exit(M)			(M)->exit()
 

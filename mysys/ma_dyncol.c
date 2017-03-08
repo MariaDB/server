@@ -1,4 +1,4 @@
-/* Copyright (c) 2011, 2013, Monty Program Ab
+/* Copyright (c) 2011, 2017, MariaDB Corporation.
    Copyright (c) 2011, 2012, Oleksandr Byelkin
 
    Redistribution and use in source and binary forms, with or without
@@ -74,15 +74,15 @@ uint32 copy_and_convert(char *to, uint32 to_length, CHARSET_INFO *to_cs,
   2 bits which determinate size of offset in the header -1
 */
 /* mask to get above bits */
-#define DYNCOL_FLG_OFFSET   (1|2)
-#define DYNCOL_FLG_NAMES    4
-#define DYNCOL_FLG_NMOFFSET (8|16)
+#define DYNCOL_FLG_OFFSET   (1U|2U)
+#define DYNCOL_FLG_NAMES    4U
+#define DYNCOL_FLG_NMOFFSET (8U|16U)
 /**
   All known flags mask that could be set.
 
   @note DYNCOL_FLG_NMOFFSET should be 0 for now.
 */
-#define DYNCOL_FLG_KNOWN  (1|2|4)
+#define DYNCOL_FLG_KNOWN  (1U|2U|4U)
 
 /* formats */
 enum enum_dyncol_format
@@ -294,7 +294,7 @@ static void set_fixed_header_named(DYNAMIC_COLUMN *str, DYN_HEADER *hdr)
   DBUG_ASSERT(hdr->offset_size <= MAX_OFFSET_LENGTH_NM);
   /* size of data offset, named format flag, size of names offset (0 means 2) */
   str->str[0]=
-    (char) ((str->str[0] & ~(DYNCOL_FLG_OFFSET | DYNCOL_FLG_NMOFFSET)) |
+    (char) (((uchar)str->str[0] & ~(DYNCOL_FLG_OFFSET | DYNCOL_FLG_NMOFFSET)) |
             (hdr->offset_size - 2) | DYNCOL_FLG_NAMES);
   int2store(str->str + 1, hdr->column_count);        /* columns number */
   int2store(str->str + 3, hdr->nmpool_size);
@@ -319,7 +319,7 @@ static my_bool type_and_offset_store_num(uchar *place, size_t offset_size,
 {
   ulong val = (((ulong) offset) << 3) | (type - 1);
   DBUG_ASSERT(type != DYN_COL_NULL);
-  DBUG_ASSERT(((type - 1) & (~7)) == 0); /* fit in 3 bits */
+  DBUG_ASSERT(((type - 1) & (~7U)) == 0); /* fit in 3 bits */
   DBUG_ASSERT(offset_size >= 1 && offset_size <= 4);
 
   /* Index entry starts with column number; jump over it */
@@ -359,7 +359,7 @@ static my_bool type_and_offset_store_named(uchar *place, size_t offset_size,
 {
   ulonglong val = (((ulong) offset) << 4) | (type - 1);
   DBUG_ASSERT(type != DYN_COL_NULL);
-  DBUG_ASSERT(((type - 1) & (~0xf)) == 0); /* fit in 4 bits */
+  DBUG_ASSERT(((type - 1) & (~0xfU)) == 0); /* fit in 4 bits */
   DBUG_ASSERT(offset_size >= 2 && offset_size <= 5);
 
   /* Index entry starts with name offset; jump over it */

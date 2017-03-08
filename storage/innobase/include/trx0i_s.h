@@ -162,8 +162,10 @@ struct i_s_trx_row_t {
 					/*!< check_foreigns in trx_t */
 	const char*	trx_foreign_key_error;
 					/*!< detailed_error in trx_t */
+#ifdef BTR_CUR_HASH_ADAPT
 	ibool		trx_has_search_latch;
 					/*!< has_search_latch in trx_t */
+#endif /* BTR_CUR_HASH_ADAPT */
 	ulint		trx_is_read_only;
 					/*!< trx_t::read_only */
 	ulint		trx_is_autocommit_non_locking;

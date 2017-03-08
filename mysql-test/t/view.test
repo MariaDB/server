@@ -6071,5 +6071,22 @@ drop view v1;
 drop table t1;
 
 --echo #
+--echo # MDEV-10704: Assertion `field->field->table == table_arg'
+--echo # failed in fill_record(THD*, TABLE*, List<Item>&, List<Item>&,
+--echo # bool, bool)
+--echo #
+
+CREATE TABLE t1 (i INT);
+CREATE TABLE t2 (j INT);
+CREATE TABLE t3 (k INT);
+
+CREATE ALGORITHM = MERGE VIEW v AS SELECT j AS f1, k AS f2 FROM ( SELECT j FROM t1, t2 ) sq, t3;
+--error ER_VIEW_MULTIUPDATE
+REPLACE INTO v (f1,f2) VALUES (1,1);
+
+drop view v;
+drop table t1,t2,t3;
+
+--echo #
 --echo # End of 10.2 tests
 --echo #

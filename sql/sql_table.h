@@ -1,5 +1,5 @@
 /* Copyright (c) 2006, 2014, Oracle and/or its affiliates.
-   Copyright (c) 2011, 2014, Monty Program Ab.
+   Copyright (c) 2011, 2017, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -251,6 +251,7 @@ bool quick_rm_table(THD *thd, handlerton *base, const char *db,
                     const char *table_name, uint flags,
                     const char *table_path=0);
 void close_cached_table(THD *thd, TABLE *table);
+void sp_prepare_create_field(THD *thd, Column_definition *sql_field);
 CHARSET_INFO* get_sql_field_charset(Create_field *sql_field,
                                     HA_CREATE_INFO *create_info);
 bool mysql_write_frm(ALTER_PARTITION_PARAM_TYPE *lpt, uint flags);

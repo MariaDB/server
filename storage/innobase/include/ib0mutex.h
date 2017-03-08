@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2013, 2015, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -74,7 +75,7 @@ struct OSTrackMutex {
 	void destroy() UNIV_NOTHROW
 	{
 		ut_ad(!m_locked);
-		ut_ad(innodb_calling_exit || !m_freed);
+		ut_ad(!m_freed);
 
 		m_mutex.destroy();
 
@@ -86,7 +87,7 @@ struct OSTrackMutex {
 	{
 		ut_ad(m_locked);
 		ut_d(m_locked = false);
-		ut_ad(innodb_calling_exit || !m_freed);
+		ut_ad(!m_freed);
 
 		m_mutex.exit();
 	}
@@ -103,7 +104,7 @@ struct OSTrackMutex {
 		uint32_t	line)
 		UNIV_NOTHROW
 	{
-		ut_ad(innodb_calling_exit || !m_freed);
+		ut_ad(!m_freed);
 
 		m_mutex.enter();
 
@@ -114,7 +115,7 @@ struct OSTrackMutex {
 	/** @return true if locking succeeded */
 	bool try_lock() UNIV_NOTHROW
 	{
-		ut_ad(innodb_calling_exit || !m_freed);
+		ut_ad(!m_freed);
 
 		bool	locked = m_mutex.try_lock();
 

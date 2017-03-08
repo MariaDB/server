@@ -273,9 +273,11 @@ hash_create(
 	table->type = HASH_TABLE_SYNC_NONE;
 	table->array = array;
 	table->n_cells = prime;
-#if defined UNIV_AHI_DEBUG || defined UNIV_DEBUG
+#ifdef BTR_CUR_HASH_ADAPT
+# if defined UNIV_AHI_DEBUG || defined UNIV_DEBUG
 	table->adaptive = FALSE;
-#endif /* UNIV_AHI_DEBUG || UNIV_DEBUG */
+# endif /* UNIV_AHI_DEBUG || UNIV_DEBUG */
+#endif /* BTR_CUR_HASH_ADAPT */
 	table->n_sync_obj = 0;
 	table->sync_obj.mutexes = NULL;
 	table->heaps = NULL;

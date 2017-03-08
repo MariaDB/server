@@ -1319,7 +1319,7 @@ srv_init_abort_low(
 	bool		create_new_db,
 #ifdef UNIV_DEBUG
 	const char*	file,
-	ulint		line,
+	unsigned	line,
 #endif /* UNIV_DEBUG */
 	dberr_t		err)
 {
@@ -2225,7 +2225,7 @@ files_checked:
 			return(srv_init_abort(err));
 		}
 
-		/* This must precede recv_apply_hashed_log_recs(TRUE). */
+		/* This must precede recv_apply_hashed_log_recs(true). */
 		purge_queue = trx_sys_init_at_db_start();
 
 		if (srv_force_recovery < SRV_FORCE_NO_LOG_REDO) {
@@ -2233,13 +2233,8 @@ files_checked:
 			respective file pages, for the last batch of
 			recv_group_scan_log_recs(). */
 
-			err = recv_apply_hashed_log_recs(TRUE);
+			recv_apply_hashed_log_recs(true);
 			DBUG_PRINT("ib_log", ("apply completed"));
-
-			if (err != DB_SUCCESS) {
-				UT_DELETE(purge_queue);
-				return(srv_init_abort(err));
-			}
 
 			if (recv_needed_recovery) {
 				trx_sys_print_mysql_binlog_offset();
@@ -2843,7 +2838,9 @@ innodb_shutdown()
 	ut_ad(buf_dblwr || !srv_was_started || srv_read_only_mode
 	      || srv_force_recovery >= SRV_FORCE_NO_TRX_UNDO);
 	ut_ad(lock_sys || !srv_was_started);
+#ifdef BTR_CUR_HASH_ADAPT
 	ut_ad(btr_search_sys || !srv_was_started);
+#endif /* BTR_CUR_HASH_ADAPT */
 	ut_ad(ibuf || !srv_was_started);
 	ut_ad(log_sys || !srv_was_started);
 
@@ -2864,9 +2861,11 @@ innodb_shutdown()
 	/* This must be disabled before closing the buffer pool
 	and closing the data dictionary.  */
 
+#ifdef BTR_CUR_HASH_ADAPT
 	if (dict_sys) {
 		btr_search_disable(true);
 	}
+#endif /* BTR_CUR_HASH_ADAPT */
 	if (ibuf) {
 		ibuf_close();
 	}
@@ -2901,9 +2900,11 @@ innodb_shutdown()
 		dict_close();
 	}
 
+#ifdef BTR_CUR_HASH_ADAPT
 	if (btr_search_sys) {
 		btr_search_sys_free();
 	}
+#endif /* BTR_CUR_HASH_ADAPT */
 
 	/* 3. Free all InnoDB's own mutexes and the os_fast_mutexes inside
 	them */

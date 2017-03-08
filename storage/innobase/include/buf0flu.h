@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2014, 2016, MariaDB Corporation
+Copyright (c) 2014, 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -376,7 +376,7 @@ public:
 
 	/** Check pages have been flushed and removed from the flush list
 	in a buffer pool instance.
-	@pram[in]	instance_no	buffer pool instance no
+	@param[in]	instance_no	buffer pool instance no
 	@return true if the pages were removed from the flush list */
 	bool is_complete(ulint	instance_no)
 	{

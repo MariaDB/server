@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, 2017, MariaDB Corporation. All Rights Reserved.
+Copyright (c) 2016, 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -58,12 +58,14 @@ class FlushObserver;
 /** Dummy session used currently in MySQL interface */
 extern sess_t*	trx_dummy_sess;
 
-/**
-Releases the search latch if trx has reserved it.
-@param[in,out] trx		Transaction that may own the AHI latch */
-UNIV_INLINE
-void
-trx_search_latch_release_if_reserved(trx_t* trx);
+#ifdef BTR_CUR_HASH_ADAPT
+/** Assert that the transaction is not holding the adaptive hash index latch.
+@param[in] trx		transaction */
+# define trx_assert_no_search_latch(trx) \
+	ut_ad(!trx->has_search_latch)
+#else /* BTR_CUR_HASH_ADAPT */
+# define trx_assert_no_search_latch(trx)
+#endif
 
 /** Set flush observer for the transaction
 @param[in/out]	trx		transaction struct
@@ -1075,9 +1077,11 @@ struct trx_t {
 					flush the log in
 					trx_commit_complete_for_mysql() */
 	ulint		duplicates;	/*!< TRX_DUP_IGNORE | TRX_DUP_REPLACE */
+#ifdef BTR_CUR_HASH_ADAPT
 	bool		has_search_latch;
 					/*!< TRUE if this trx has latched the
 					search system latch in S-mode */
+#endif /* BTR_CUR_HASH_ADAPT */
 	trx_dict_op_t	dict_operation;	/**< @see enum trx_dict_op_t */
 
 	/* Fields protected by the srv_conc_mutex. */
@@ -1238,7 +1242,7 @@ struct trx_t {
 					read-write. */
 	/*------------------------------*/
 #ifdef UNIV_DEBUG
-	ulint		start_line;	/*!< Track where it was started from */
+	unsigned	start_line;	/*!< Track where it was started from */
 	const char*	start_file;	/*!< Filename where it was started */
 #endif /* UNIV_DEBUG */
 
@@ -1343,8 +1347,8 @@ trx_is_started(
 
 /* Treatment of duplicate values (trx->duplicates; for example, in inserts).
 Multiple flags can be combined with bitwise OR. */
-#define TRX_DUP_IGNORE	1	/* duplicate rows are to be updated */
-#define TRX_DUP_REPLACE	2	/* duplicate rows are to be replaced */
+#define TRX_DUP_IGNORE	1U	/* duplicate rows are to be updated */
+#define TRX_DUP_REPLACE	2U	/* duplicate rows are to be replaced */
 
 
 /** Commit node states */
@@ -1478,7 +1482,7 @@ private:
 
 		/* Only the owning thread should release the latch. */
 
-		trx_search_latch_release_if_reserved(trx);
+		trx_assert_no_search_latch(trx);
 
 		trx_mutex_enter(trx);
 
@@ -1531,7 +1535,7 @@ private:
 
 		/* Only the owning thread should release the latch. */
 
-		trx_search_latch_release_if_reserved(trx);
+		trx_assert_no_search_latch(trx);
 
 		trx_mutex_enter(trx);
 

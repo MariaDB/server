@@ -13,6 +13,7 @@ call mtr.add_suppression("InnoDB: Missing MLOG_CHECKPOINT");
 call mtr.add_suppression("InnoDB: MLOG_FILE_NAME incorrect");
 call mtr.add_suppression("InnoDB: ############### CORRUPT LOG RECORD FOUND");
 call mtr.add_suppression("InnoDB: Log scan aborted at LSN");
+call mtr.add_suppression("InnoDB: Missing MLOG_FILE_NAME or MLOG_FILE_DELETE before MLOG_CHECKPOINT for tablespace 42\\r?$");
 call mtr.add_suppression("InnoDB: Obtaining redo log encryption key version 1 failed");
 call mtr.add_suppression("InnoDB: Decrypting checkpoint failed");
 --enable_query_log
@@ -261,7 +262,9 @@ EOF
 --source include/start_mysqld.inc
 eval $check_no_innodb;
 --source include/shutdown_mysqld.inc
-let SEARCH_PATTERN=InnoDB: Log scan progressed past the checkpoint lsn 1213964;
+let SEARCH_PATTERN=InnoDB: Starting crash recovery from checkpoint LSN=1213964;
+--source include/search_pattern_in_file.inc
+let SEARCH_PATTERN=InnoDB: MLOG_FILE_NAME incorrect:bogus;
 --source include/search_pattern_in_file.inc
 let SEARCH_PATTERN=InnoDB: ############### CORRUPT LOG RECORD FOUND ##################;
 --source include/search_pattern_in_file.inc
@@ -313,7 +316,40 @@ EOF
 --source include/start_mysqld.inc
 eval $check_no_innodb;
 --source include/shutdown_mysqld.inc
+let SEARCH_PATTERN=InnoDB: MLOG_FILE_NAME incorrect:bigot;
+--source include/search_pattern_in_file.inc
 --let SEARCH_PATTERN= len 22; hex 38000000000012860cb7809781e800066269676f7400; asc 8               bigot ;
+--source include/search_pattern_in_file.inc
+
+--echo # missing MLOG_FILE_NAME or MLOG_FILE_DELETE before MLOG_CHECKPOINT
+perl;
+die unless open OUT, "+<", "$ENV{bugdir}/ib_logfile0";
+binmode OUT;
+# header block
+print OUT pack("Nx[5]nx[5]", 1, 0x1286);
+print OUT "ibbackup was here!!!1!";
+print OUT pack("x[470]N", 0x52b54540);
+# invalid (all-zero) checkpoint page 1 and an empty log page
+print OUT chr(0) x 1024;
+# valid checkpoint block 2
+print OUT pack("x[12]NNNx[264]", 0x12860c, 0, 0x80c);
+# pointer to the MLOG_CHECKPOINT record, and checkpoint page checksum
+print OUT pack("H*x[204]NNN", "590DBAACFE922582", 0x128612, 0, 0x101741b);
+# log page
+print OUT pack("H*", "800009440022000c00000001");
+# MLOG_1BYTE record for missing tablespace 42 page 123
+print OUT pack("CCCnC", 128 | 1, 42, 123, 4567, 89);
+# MLOG_CHECKPOINT record
+print OUT pack("CNN", 56, 0, 0x12860c);
+# padding (MLOG_DUMMY_RECORD) and block checksum
+print OUT " " x 481, pack("N", 0x644e6db8);
+close OUT or die;
+EOF
+
+--source include/start_mysqld.inc
+eval $check_no_innodb;
+--source include/shutdown_mysqld.inc
+--let SEARCH_PATTERN= InnoDB: Missing MLOG_FILE_NAME or MLOG_FILE_DELETE before MLOG_CHECKPOINT for tablespace 42\$
 --source include/search_pattern_in_file.inc
 
 --echo # Minimal MariaDB 10.1.21 encrypted redo log

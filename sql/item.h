@@ -2,7 +2,7 @@
 #define SQL_ITEM_INCLUDED
 
 /* Copyright (c) 2000, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2016, MariaDB
+   Copyright (c) 2009, 2017, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -95,6 +95,13 @@ enum precedence {
 };
 
 typedef Bounds_checked_array<Item*> Ref_ptr_array;
+
+static inline uint32
+char_to_byte_length_safe(size_t char_length_arg, uint32 mbmaxlen_arg)
+{
+  ulonglong tmp= ((ulonglong) char_length_arg) * mbmaxlen_arg;
+  return tmp > UINT_MAX32 ? UINT_MAX32 : static_cast<uint32>(tmp);
+}
 
 bool mark_unsupported_function(const char *where, void *store, uint result);
 
@@ -403,7 +410,7 @@ class Copy_query_with_rewrite
   bool copy_up_to(size_t bytes)
   {
     DBUG_ASSERT(bytes >= from);
-    return dst->append(src + from, bytes - from);
+    return dst->append(src + from, uint32(bytes - from));
   }
 
 public:
@@ -1694,6 +1701,16 @@ public:
   bool eq_by_collation(Item *item, bool binary_cmp, CHARSET_INFO *cs); 
   bool too_big_for_varchar() const
   { return max_char_length() > CONVERT_IF_BIGGER_TO_BLOB; }
+  void fix_length_and_charset(uint32 max_char_length_arg, CHARSET_INFO *cs)
+  {
+    max_length= char_to_byte_length_safe(max_char_length_arg, cs->mbmaxlen);
+    collation.collation= cs;
+  }
+  void fix_char_length(size_t max_char_length_arg)
+  {
+    max_length= char_to_byte_length_safe(max_char_length_arg,
+                                         collation.collation->mbmaxlen);
+  }
   /*
     Return TRUE if the item points to a column of an outer-joined table.
   */

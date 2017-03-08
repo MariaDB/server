@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -728,7 +729,7 @@ skip_field:
 			DEBUG_SYNC_C("ib_mv_nonupdated_column_offpage");
 
 			upd_field_t	upd_field;
-			upd_field.field_no = longest_i;
+			upd_field.field_no = unsigned(longest_i);
 			upd_field.orig_len = 0;
 			upd_field.exp = NULL;
 			upd_field.old_v_val = NULL;

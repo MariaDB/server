@@ -73,11 +73,6 @@ Created 10/21/1995 Heikki Tuuri
 # include <linux/falloc.h>
 #endif /* HAVE_FALLOC_PUNCH_HOLE_AND_KEEP_SIZE */
 
-#ifdef UNIV_DEBUG
-/** Set when InnoDB has invoked exit(). */
-bool	innodb_calling_exit;
-#endif /* UNIV_DEBUG */
-
 #if defined(UNIV_LINUX) && defined(HAVE_SYS_IOCTL_H)
 # include <sys/ioctl.h>
 # ifndef DFS_IOCTL_ATOMIC_WRITE_SET
@@ -371,7 +366,7 @@ public:
 	void print(FILE* file);
 
 	/** @return the number of slots per segment */
-	ulint slots_per_segment() const
+	unsigned slots_per_segment() const
 		MY_ATTRIBUTE((warn_unused_result))
 	{
 		return(m_slots.size() / m_n_segments);
@@ -442,7 +437,7 @@ public:
 	@param[in]	max_events	number of events
 	@param[out]	io_ctx		io_ctx to initialize.
 	@return true on success. */
-	static bool linux_create_io_ctx(ulint max_events, io_context_t* io_ctx)
+	static bool linux_create_io_ctx(unsigned max_events, io_context_t* io_ctx)
 		MY_ATTRIBUTE((warn_unused_result));
 
 	/** Checks if the system supports native linux aio. On some kernel
@@ -2134,7 +2129,7 @@ AIO::linux_dispatch(Slot* slot)
 @return true on success. */
 bool
 AIO::linux_create_io_ctx(
-	ulint		max_events,
+	unsigned	max_events,
 	io_context_t*	io_ctx)
 {
 	ssize_t		n_retries = 0;
@@ -2912,8 +2907,8 @@ os_file_create_func(
 	on_error_silent = create_mode & OS_FILE_ON_ERROR_SILENT
 		? true : false;
 
-	create_mode &= ~OS_FILE_ON_ERROR_NO_EXIT;
-	create_mode &= ~OS_FILE_ON_ERROR_SILENT;
+	create_mode &= ulint(~(OS_FILE_ON_ERROR_NO_EXIT
+			       | OS_FILE_ON_ERROR_SILENT));
 
 	if (create_mode == OS_FILE_OPEN
 	    || create_mode == OS_FILE_OPEN_RAW
@@ -5764,7 +5759,7 @@ AIO::init_linux_native_aio()
 	}
 
 	io_context**	ctx = m_aio_ctx;
-	ulint		max_events = slots_per_segment();
+	unsigned	max_events = slots_per_segment();
 
 	for (ulint i = 0; i < m_n_segments; ++i, ++ctx) {
 

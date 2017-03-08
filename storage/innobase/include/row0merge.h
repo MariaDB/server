@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2005, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2016, MariaDB Corporation.
+Copyright (c) 2015, 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -283,8 +283,8 @@ row_merge_create_index(
 
 /*********************************************************************//**
 Check if a transaction can use an index.
-@return TRUE if index can be used by the transaction else FALSE */
-ibool
+@return whether the index can be used by the transaction */
+bool
 row_merge_is_index_usable(
 /*======================*/
 	const trx_t*		trx,	/*!< in: transaction */

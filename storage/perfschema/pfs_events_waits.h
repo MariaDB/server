@@ -1,4 +1,5 @@
 /* Copyright (c) 2008, 2011, Oracle and/or its affiliates. All rights reserved.
+   Copyright (c) 2017, MariaDB Corporation.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -97,13 +98,13 @@ struct PFS_events_waits : public PFS_events
 };
 
 /** TIMED bit in the state flags bitfield. */
-#define STATE_FLAG_TIMED (1<<0)
+#define STATE_FLAG_TIMED (1U<<0)
 /** THREAD bit in the state flags bitfield. */
-#define STATE_FLAG_THREAD (1<<1)
+#define STATE_FLAG_THREAD (1U<<1)
 /** EVENT bit in the state flags bitfield. */
-#define STATE_FLAG_EVENT (1<<2)
+#define STATE_FLAG_EVENT (1U<<2)
 /** DIGEST bit in the state flags bitfield. */
-#define STATE_FLAG_DIGEST (1<<3)
+#define STATE_FLAG_DIGEST (1U<<3)
 
 void insert_events_waits_history(PFS_thread *thread, PFS_events_waits *wait);
 

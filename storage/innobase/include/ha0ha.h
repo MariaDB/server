@@ -33,6 +33,7 @@ Created 8/18/1994 Heikki Tuuri
 #include "buf0types.h"
 #include "rem0types.h"
 
+#ifdef BTR_CUR_HASH_ADAPT
 /*************************************************************//**
 Looks for an element in a hash table.
 @return pointer to the data of the first hash table node in chain
@@ -79,6 +80,7 @@ updates the pointer to data if found.
 # define ha_search_and_update_if_found(table,fold,data,new_block,new_data) \
 	ha_search_and_update_if_found_func(table,fold,data,new_data)
 #endif /* UNIV_AHI_DEBUG || UNIV_DEBUG */
+#endif /* BTR_CUR_HASH_ADAPT */
 
 /*************************************************************//**
 Creates a hash table with at least n array cells.  The actual number
@@ -115,6 +117,7 @@ ha_clear(
 /*=====*/
 	hash_table_t*	table);	/*!< in, own: hash table */
 
+#ifdef BTR_CUR_HASH_ADAPT
 /*************************************************************//**
 Inserts an entry into a hash table. If an entry with the same fold number
 is found, its node is updated to point to the new data, and no new node
@@ -212,6 +215,7 @@ struct ha_node_t {
 #endif /* UNIV_AHI_DEBUG || UNIV_DEBUG */
 	const rec_t*	data;	/*!< pointer to the data */
 };
+#endif /* BTR_CUR_HASH_ADAPT */
 
 #ifdef UNIV_DEBUG
 /********************************************************************//**

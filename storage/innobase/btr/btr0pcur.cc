@@ -229,7 +229,7 @@ btr_pcur_restore_position_func(
 	ulint		latch_mode,	/*!< in: BTR_SEARCH_LEAF, ... */
 	btr_pcur_t*	cursor,		/*!< in: detached persistent cursor */
 	const char*	file,		/*!< in: file name */
-	ulint		line,		/*!< in: line where called */
+	unsigned	line,		/*!< in: line where called */
 	mtr_t*		mtr)		/*!< in: mtr */
 {
 	dict_index_t*	index;
@@ -586,7 +586,7 @@ btr_pcur_open_on_user_rec_func(
 	btr_pcur_t*	cursor,		/*!< in: memory buffer for persistent
 					cursor */
 	const char*	file,		/*!< in: file name */
-	ulint		line,		/*!< in: line where called */
+	unsigned	line,		/*!< in: line where called */
 	mtr_t*		mtr)		/*!< in: mtr */
 {
 	btr_pcur_open_low(index, 0, tuple, mode, latch_mode, cursor,

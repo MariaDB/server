@@ -2,7 +2,7 @@
 #define TABLE_INCLUDED
 /* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
    Copyright (c) 2009, 2014, SkySQL Ab.
-   Copyright (c) 2016, MariaDB Corporation
+   Copyright (c) 2016, 2017, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1500,13 +1500,13 @@ typedef struct st_foreign_key_info
 
 LEX_CSTRING *fk_option_name(enum_fk_option opt);
 
-#define MY_I_S_MAYBE_NULL 1
-#define MY_I_S_UNSIGNED   2
+#define MY_I_S_MAYBE_NULL 1U
+#define MY_I_S_UNSIGNED   2U
 
 
-#define SKIP_OPEN_TABLE 0                // do not open table
-#define OPEN_FRM_ONLY   1                // open FRM file only
-#define OPEN_FULL_TABLE 2                // open FRM,MYD, MYI files
+#define SKIP_OPEN_TABLE 0U               // do not open table
+#define OPEN_FRM_ONLY   1U               // open FRM file only
+#define OPEN_FULL_TABLE 2U               // open FRM,MYD, MYI files
 
 typedef struct st_field_info
 {
@@ -1570,27 +1570,27 @@ class IS_table_read_plan;
   Types of derived tables. The ending part is a bitmap of phases that are
   applicable to a derived table of the type.
 */
-#define DTYPE_ALGORITHM_UNDEFINED    0
-#define DTYPE_VIEW                   1
-#define DTYPE_TABLE                  2
-#define DTYPE_MERGE                  4
-#define DTYPE_MATERIALIZE            8
-#define DTYPE_MULTITABLE             16
-#define DTYPE_MASK                   19
+#define DTYPE_ALGORITHM_UNDEFINED    0U
+#define DTYPE_VIEW                   1U
+#define DTYPE_TABLE                  2U
+#define DTYPE_MERGE                  4U
+#define DTYPE_MATERIALIZE            8U
+#define DTYPE_MULTITABLE             16U
+#define DTYPE_MASK                   (DTYPE_VIEW|DTYPE_TABLE|DTYPE_MULTITABLE)
 
 /*
   Phases of derived tables/views handling, see sql_derived.cc
   Values are used as parts of a bitmap attached to derived table types.
 */
-#define DT_INIT             1
-#define DT_PREPARE          2
-#define DT_OPTIMIZE         4
-#define DT_MERGE            8
-#define DT_MERGE_FOR_INSERT 16
-#define DT_CREATE           32
-#define DT_FILL             64
-#define DT_REINIT           128
-#define DT_PHASES           8
+#define DT_INIT             1U
+#define DT_PREPARE          2U
+#define DT_OPTIMIZE         4U
+#define DT_MERGE            8U
+#define DT_MERGE_FOR_INSERT 16U
+#define DT_CREATE           32U
+#define DT_FILL             64U
+#define DT_REINIT           128U
+#define DT_PHASES           8U
 /* Phases that are applicable to all derived tables. */
 #define DT_COMMON       (DT_INIT + DT_PREPARE + DT_REINIT + DT_OPTIMIZE)
 /* Phases that are applicable only to materialized derived tables. */
@@ -1610,13 +1610,13 @@ class IS_table_read_plan;
   representation for backward compatibility.
 */
 
-#define VIEW_ALGORITHM_UNDEFINED_FRM  0
-#define VIEW_ALGORITHM_MERGE_FRM      1
-#define VIEW_ALGORITHM_TMPTABLE_FRM   2
+#define VIEW_ALGORITHM_UNDEFINED_FRM  0U
+#define VIEW_ALGORITHM_MERGE_FRM      1U
+#define VIEW_ALGORITHM_TMPTABLE_FRM   2U
 
-#define JOIN_TYPE_LEFT	1
-#define JOIN_TYPE_RIGHT	2
-#define JOIN_TYPE_OUTER 4	/* Marker that this is an outer join */
+#define JOIN_TYPE_LEFT	1U
+#define JOIN_TYPE_RIGHT	2U
+#define JOIN_TYPE_OUTER 4U	/* Marker that this is an outer join */
 
 #define VIEW_SUID_INVOKER               0
 #define VIEW_SUID_DEFINER               1

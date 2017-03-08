@@ -1,5 +1,5 @@
 /* Copyright (c) 2007, 2011, Oracle and/or its affiliates.
-   Copyright (c) 2009-2011, Monty Program Ab
+   Copyright (c) 2009, 2017, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -114,7 +114,7 @@ static inline uint32 my_clear_highest_bit(uint32 v)
 
 static inline uint32 my_reverse_bits(uint32 key)
 {
-  return
+  return (uint32)
     (_my_bits_reverse_table[ key      & 255] << 24) |
     (_my_bits_reverse_table[(key>> 8) & 255] << 16) |
     (_my_bits_reverse_table[(key>>16) & 255] <<  8) |

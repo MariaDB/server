@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2014, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -62,7 +63,7 @@ is set.  */
 static const ib_uint32_t TRX_FORCE_ROLLBACK_ASYNC = 1 << 30;
 
 /** Mark the transaction for forced rollback */
-static const ib_uint32_t TRX_FORCE_ROLLBACK = 1 << 31;
+static const ib_uint32_t TRX_FORCE_ROLLBACK = 1U << 31;
 
 /** For masking out the above four flags */
 static const ib_uint32_t TRX_FORCE_ROLLBACK_MASK = 0x1FFFFFFF;

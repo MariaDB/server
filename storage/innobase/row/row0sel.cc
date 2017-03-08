@@ -1456,6 +1456,7 @@ plan_reset_cursor(
 	plan->n_rows_prefetched = 0;
 }
 
+#ifdef BTR_CUR_HASH_ADAPT
 /*********************************************************************//**
 Tries to do a shortcut to fetch a clustered index record with a unique key,
 using the hash index if possible (not always).
@@ -1485,11 +1486,8 @@ row_sel_try_search_shortcut(
 	ut_ad(node->read_view);
 	ut_ad(plan->unique_search);
 	ut_ad(!plan->must_get_clust);
-#ifdef UNIV_DEBUG
-	if (search_latch_locked) {
-		ut_ad(rw_lock_own(btr_get_search_latch(index), RW_LOCK_S));
-	}
-#endif /* UNIV_DEBUG */
+	ut_ad(!search_latch_locked
+	      || rw_lock_own(btr_get_search_latch(index), RW_LOCK_S));
 
 	row_sel_open_pcur(plan, search_latch_locked, mtr);
 
@@ -1564,6 +1562,7 @@ func_exit:
 	}
 	return(ret);
 }
+#endif /* BTR_CUR_HASH_ADAPT */
 
 /*********************************************************************//**
 Performs a select step.
@@ -1582,7 +1581,6 @@ row_sel(
 	rec_t*		rec;
 	rec_t*		old_vers;
 	rec_t*		clust_rec;
-	ibool		search_latch_locked;
 	ibool		consistent_read;
 
 	/* The following flag becomes TRUE when we are doing a
@@ -1601,7 +1599,6 @@ row_sel(
 	contains a clustered index latch, and
 	&mtr must be committed before we move
 	to the next non-clustered record */
-	ulint		found_flag;
 	dberr_t		err;
 	mem_heap_t*	heap				= NULL;
 	ulint		offsets_[REC_OFFS_NORMAL_SIZE];
@@ -1610,7 +1607,11 @@ row_sel(
 
 	ut_ad(thr->run_node == node);
 
-	search_latch_locked = FALSE;
+#ifdef BTR_CUR_HASH_ADAPT
+	ibool		search_latch_locked = FALSE;
+#else /* BTR_CUR_HASH_ADAPT */
+# define search_latch_locked false
+#endif /* BTR_CUR_HASH_ADAPT */
 
 	if (node->read_view) {
 		/* In consistent reads, we try to do with the hash index and
@@ -1657,11 +1658,12 @@ table_loop:
 
 	mtr_start(&mtr);
 
+#ifdef BTR_CUR_HASH_ADAPT
 	if (consistent_read && plan->unique_search && !plan->pcur_is_open
 	    && !plan->must_get_clust
 	    && !plan->table->big_rows) {
 		if (!search_latch_locked) {
-			rw_lock_s_lock(btr_get_search_latch(index));
+			btr_search_s_lock(index);
 
 			search_latch_locked = TRUE;
 		} else if (rw_lock_get_writer(btr_get_search_latch(index))
@@ -1674,24 +1676,22 @@ table_loop:
 			from acquiring an s-latch for a long time, lowering
 			performance significantly in multiprocessors. */
 
-			rw_lock_s_unlock(btr_get_search_latch(index));
-			rw_lock_s_lock(btr_get_search_latch(index));
+			btr_search_s_unlock(index);
+			btr_search_s_lock(index);
 		}
 
-		found_flag = row_sel_try_search_shortcut(node, plan,
-							 search_latch_locked,
-							 &mtr);
-
-		if (found_flag == SEL_FOUND) {
-
+		switch (row_sel_try_search_shortcut(node, plan,
+						    search_latch_locked,
+						    &mtr)) {
+		case SEL_FOUND:
 			goto next_table;
-
-		} else if (found_flag == SEL_EXHAUSTED) {
-
+		case SEL_EXHAUSTED:
 			goto table_exhausted;
+		default:
+			ut_ad(0);
+		case SEL_RETRY:
+			break;
 		}
-
-		ut_ad(found_flag == SEL_RETRY);
 
 		plan_reset_cursor(plan);
 
@@ -1700,10 +1700,11 @@ table_loop:
 	}
 
 	if (search_latch_locked) {
-		rw_lock_s_unlock(btr_get_search_latch(index));
+		btr_search_s_unlock(index);
 
 		search_latch_locked = FALSE;
 	}
+#endif /* BTR_CUR_HASH_ADAPT */
 
 	if (!plan->pcur_is_open) {
 		/* Evaluate the expressions to build the search tuple and
@@ -2236,13 +2237,15 @@ stop_for_a_while:
 
 	mtr_commit(&mtr);
 
-#ifdef UNIV_DEBUG
+#ifdef BTR_CUR_HASH_ADAPT
+# ifdef UNIV_DEBUG
 	{
 		btrsea_sync_check	check(true);
 
 		ut_ad(!sync_check_iterate(check));
 	}
-#endif /* UNIV_DEBUG */
+# endif /* UNIV_DEBUG */
+#endif /* BTR_CUR_HASH_ADAPT */
 
 	err = DB_SUCCESS;
 	goto func_exit;
@@ -2291,9 +2294,11 @@ lock_wait_or_error:
 #endif /* UNIV_DEBUG */
 
 func_exit:
+#ifdef BTR_CUR_HASH_ADAPT
 	if (search_latch_locked) {
-		rw_lock_s_unlock(btr_get_search_latch(index));
+		btr_search_s_unlock(index);
 	}
+#endif /* BTR_CUR_HASH_ADAPT */
 
 	if (heap != NULL) {
 		mem_heap_free(heap);
@@ -3077,7 +3082,7 @@ row_sel_store_mysql_field_func(
 		mem_heap_t*	heap;
 		/* Copy an externally stored field to a temporary heap */
 
-		ut_a(!prebuilt->trx->has_search_latch);
+		trx_assert_no_search_latch(prebuilt->trx);
 		ut_ad(field_no == templ->clust_rec_field_no);
 		ut_ad(templ->type != DATA_POINT);
 
@@ -3929,6 +3934,7 @@ row_sel_enqueue_cache_row_for_mysql(
 	++prebuilt->n_fetch_cached;
 }
 
+#ifdef BTR_CUR_HASH_ADAPT
 /*********************************************************************//**
 Tries to do a shortcut to fetch a clustered index record with a unique key,
 using the hash index if possible (not always). We assume that the search
@@ -3997,6 +4003,7 @@ row_sel_try_search_shortcut_for_mysql(
 
 	return(SEL_FOUND);
 }
+#endif /* BTR_CUR_HASH_ADAPT */
 
 /*********************************************************************//**
 Check a pushed-down index condition.
@@ -4215,12 +4222,14 @@ row_search_mvcc(
 		DBUG_RETURN(DB_END_OF_INDEX);
 	}
 
-#ifdef UNIV_DEBUG
+#ifdef BTR_CUR_HASH_ADAPT
+# ifdef UNIV_DEBUG
 	{
 		btrsea_sync_check	check(trx->has_search_latch);
 		ut_ad(!sync_check_iterate(check));
 	}
-#endif /* UNIV_DEBUG */
+# endif /* UNIV_DEBUG */
+#endif /* BTR_CUR_HASH_ADAPT */
 
 	if (dict_table_is_discarded(prebuilt->table)) {
 
@@ -4248,19 +4257,7 @@ row_search_mvcc(
 		&& (prebuilt->read_just_key
 		    || prebuilt->m_read_virtual_key);
 
-	/*-------------------------------------------------------------*/
-	/* PHASE 0: Release a possible s-latch we are holding on the
-	adaptive hash index latch if there is someone waiting behind */
-
-	if (trx->has_search_latch) {
-
-		/* There is an x-latch request on the adaptive hash index:
-		release the s-latch to reduce starvation and wait for
-		BTR_SEA_TIMEOUT rounds before trying to keep it again over
-		calls from MySQL */
-
-		trx_search_latch_release_if_reserved(trx);
-	}
+	trx_assert_no_search_latch(trx);
 
 	/* Reset the new record lock info if srv_locks_unsafe_for_binlog
 	is set or session is using a READ COMMITED isolation level. Then
@@ -4379,6 +4376,7 @@ row_search_mvcc(
 
 	mtr_start(&mtr);
 
+#ifdef BTR_CUR_HASH_ADAPT
 	/*-------------------------------------------------------------*/
 	/* PHASE 2: Try fast adaptive hash index search if possible */
 
@@ -4415,7 +4413,7 @@ row_search_mvcc(
 			and if we try that, we can deadlock on the adaptive
 			hash index semaphore! */
 
-			ut_a(!trx->has_search_latch);
+			trx_assert_no_search_latch(trx);
 			rw_lock_s_lock(btr_get_search_latch(index));
 			trx->has_search_latch = true;
 
@@ -4503,11 +4501,12 @@ row_search_mvcc(
                         trx->has_search_latch = false;
 		}
 	}
+#endif /* BTR_CUR_HASH_ADAPT */
 
 	/*-------------------------------------------------------------*/
 	/* PHASE 3: Open or restore index cursor position */
 
-	trx_search_latch_release_if_reserved(trx);
+	trx_assert_no_search_latch(trx);
 
 	spatial_search = dict_index_is_spatial(index)
 			 && mode >= PAGE_CUR_CONTAIN;
@@ -5813,13 +5812,15 @@ func_exit:
 		}
 	}
 
-#ifdef UNIV_DEBUG
+#ifdef BTR_CUR_HASH_ADAPT
+# ifdef UNIV_DEBUG
 	{
 		btrsea_sync_check	check(trx->has_search_latch);
 
 		ut_ad(!sync_check_iterate(check));
 	}
-#endif /* UNIV_DEBUG */
+# endif /* UNIV_DEBUG */
+#endif /* BTR_CUR_HASH_ADAPT */
 
 	DEBUG_SYNC_C("innodb_row_search_for_mysql_exit");
 

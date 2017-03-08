@@ -2,7 +2,7 @@
 #define SQL_SELECT_INCLUDED
 
 /* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2015, MariaDB
+   Copyright (c) 2008, 2017, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -36,9 +36,9 @@
 
 typedef struct st_join_table JOIN_TAB;
 /* Values in optimize */
-#define KEY_OPTIMIZE_EXISTS		1
-#define KEY_OPTIMIZE_REF_OR_NULL	2
-#define KEY_OPTIMIZE_EQ	                4
+#define KEY_OPTIMIZE_EXISTS		1U
+#define KEY_OPTIMIZE_REF_OR_NULL	2U
+#define KEY_OPTIMIZE_EQ	                4U
 
 inline uint get_hash_join_key_no() { return MAX_KEY; }
 
@@ -178,10 +178,10 @@ enum sj_strategy_enum
 };
 
 /* Values for JOIN_TAB::packed_info */
-#define TAB_INFO_HAVE_VALUE 1
-#define TAB_INFO_USING_INDEX 2
-#define TAB_INFO_USING_WHERE 4
-#define TAB_INFO_FULL_SCAN_ON_NULL 8
+#define TAB_INFO_HAVE_VALUE 1U
+#define TAB_INFO_USING_INDEX 2U
+#define TAB_INFO_USING_WHERE 4U
+#define TAB_INFO_FULL_SCAN_ON_NULL 8U
 
 typedef enum_nested_loop_state
 (*Next_select_func)(JOIN *, struct st_join_table *, bool);
