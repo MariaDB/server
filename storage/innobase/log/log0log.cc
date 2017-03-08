@@ -2015,7 +2015,6 @@ logs_empty_and_mark_files_at_shutdown(void)
 {
 	lsn_t			lsn;
 	ulint			count = 0;
-	ulint			pending_io;
 
 	ib::info() << "Starting shutdown...";
 
@@ -2030,13 +2029,18 @@ logs_empty_and_mark_files_at_shutdown(void)
 
 	srv_shutdown_state = SRV_SHUTDOWN_CLEANUP;
 loop:
+	ut_ad(lock_sys || !srv_was_started);
+	ut_ad(log_sys || !srv_was_started);
+	ut_ad(fil_system || !srv_was_started);
 	os_event_set(srv_buf_resize_event);
 
 	if (!srv_read_only_mode) {
 		os_event_set(srv_error_event);
 		os_event_set(srv_monitor_event);
 		os_event_set(srv_buf_dump_event);
-		os_event_set(lock_sys->timeout_event);
+		if (lock_sys) {
+			os_event_set(lock_sys->timeout_event);
+		}
 		if (dict_stats_event) {
 			os_event_set(dict_stats_event);
 		} else {
@@ -2077,7 +2081,7 @@ loop:
 		thread_name = "buf_resize_thread";
 	} else if (srv_dict_stats_thread_active) {
 		thread_name = "dict_stats_thread";
-	} else if (lock_sys->timeout_thread_active) {
+	} else if (lock_sys && lock_sys->timeout_thread_active) {
 		thread_name = "lock_wait_timeout_thread";
 	} else if (srv_buf_dump_thread_active) {
 		thread_name = "buf_dump_thread";
@@ -2137,25 +2141,29 @@ wait_suspend_loop:
 		os_event_set(log_scrub_event);
 	}
 
-	log_mutex_enter();
-	const ulint	n_write	= log_sys->n_pending_checkpoint_writes;
-	const ulint	n_flush	= log_sys->n_pending_flushes;
-	log_mutex_exit();
+	if (log_sys) {
+		log_mutex_enter();
+		const ulint	n_write	= log_sys->n_pending_checkpoint_writes;
+		const ulint	n_flush	= log_sys->n_pending_flushes;
+		log_mutex_exit();
 
-	if (log_scrub_thread_active || n_write || n_flush) {
-		if (srv_print_verbose_log && count > 600) {
-			ib::info() << "Pending checkpoint_writes: " << n_write
-				<< ". Pending log flush writes: " << n_flush;
-			count = 0;
+		if (log_scrub_thread_active || n_write || n_flush) {
+			if (srv_print_verbose_log && count > 600) {
+				ib::info() << "Pending checkpoint_writes: "
+					<< n_write
+					<< ". Pending log flush writes: "
+					<< n_flush;
+				count = 0;
+			}
+			goto loop;
 		}
-		goto loop;
 	}
 
 	ut_ad(!log_scrub_thread_active);
 
-	pending_io = buf_pool_check_no_pending_io();
-
-	if (pending_io) {
+	if (!buf_pool_ptr) {
+		ut_ad(!srv_was_started);
+	} else if (ulint pending_io = buf_pool_check_no_pending_io()) {
 		if (srv_print_verbose_log && count > 600) {
 			ib::info() << "Waiting for " << pending_io << " buffer"
 				" page I/Os to complete";
@@ -2187,7 +2195,9 @@ wait_suspend_loop:
 
 		srv_shutdown_state = SRV_SHUTDOWN_LAST_PHASE;
 
-		fil_close_all_files();
+		if (fil_system) {
+			fil_close_all_files();
+		}
 		return;
 	}
 

@@ -6036,7 +6036,11 @@ os_aio_free()
 {
 	AIO::shutdown();
 
-	if (!srv_use_native_aio) {
+	ut_ad(!os_aio_segment_wait_events || !srv_use_native_aio);
+	ut_ad(srv_use_native_aio || os_aio_segment_wait_events
+	      || !srv_was_started);
+
+	if (!srv_use_native_aio && os_aio_segment_wait_events) {
 		for (ulint i = 0; i < os_aio_n_segments; i++) {
 			os_event_destroy(os_aio_segment_wait_events[i]);
 		}

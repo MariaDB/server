@@ -1688,10 +1688,6 @@ innobase_start_or_create_for_mysql(void)
 
 	srv_boot();
 
-	if (err != DB_SUCCESS) {
-		return(srv_init_abort(err));
-	}
-
 	ib::info() << ut_crc32_implementation;
 
 	if (!srv_read_only_mode) {
@@ -1717,15 +1713,17 @@ innobase_start_or_create_for_mysql(void)
 				ib::error() << "Unable to create "
 					<< srv_monitor_file_name << ": "
 					<< strerror(errno);
-				return(srv_init_abort(DB_ERROR));
+				if (err == DB_SUCCESS) {
+					err = DB_ERROR;
+				}
 			}
 		} else {
 
 			srv_monitor_file_name = NULL;
 			srv_monitor_file = os_file_create_tmpfile(NULL);
 
-			if (!srv_monitor_file) {
-				return(srv_init_abort(DB_ERROR));
+			if (!srv_monitor_file && err == DB_SUCCESS) {
+				err = DB_ERROR;
 			}
 		}
 
@@ -1734,8 +1732,8 @@ innobase_start_or_create_for_mysql(void)
 
 		srv_dict_tmpfile = os_file_create_tmpfile(NULL);
 
-		if (!srv_dict_tmpfile) {
-			return(srv_init_abort(DB_ERROR));
+		if (!srv_dict_tmpfile && err == DB_SUCCESS) {
+			err = DB_ERROR;
 		}
 
 		mutex_create(LATCH_ID_SRV_MISC_TMPFILE,
@@ -1743,9 +1741,13 @@ innobase_start_or_create_for_mysql(void)
 
 		srv_misc_tmpfile = os_file_create_tmpfile(NULL);
 
-		if (!srv_misc_tmpfile) {
-			return(srv_init_abort(DB_ERROR));
+		if (!srv_misc_tmpfile && err == DB_SUCCESS) {
+			err = DB_ERROR;
 		}
+	}
+
+	if (err != DB_SUCCESS) {
+		return(srv_init_abort(err));
 	}
 
 	srv_n_file_io_threads = srv_n_read_io_threads;
@@ -2917,7 +2919,10 @@ innodb_shutdown()
 
 	pars_lexer_close();
 	log_mem_free();
-	buf_pool_free(srv_buf_pool_instances);
+	ut_ad(buf_pool_ptr || !srv_was_started);
+	if (buf_pool_ptr) {
+		buf_pool_free(srv_buf_pool_instances);
+	}
 
 	/* 6. Free the thread management resoruces. */
 	os_thread_free();
