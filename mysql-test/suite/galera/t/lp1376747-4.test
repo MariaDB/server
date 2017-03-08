@@ -45,7 +45,7 @@ SHOW CREATE TABLE t1;
 --connection node_2a
 --reap
 UNLOCK TABLES;
---sleep 1
+--sleep 2
 SHOW CREATE TABLE t1;
 SELECT * from t1;
 
