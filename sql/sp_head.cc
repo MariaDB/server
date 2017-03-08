@@ -2144,20 +2144,23 @@ sp_head::execute_procedure(THD *thd, List<Item> *args)
 */
 
 bool
-sp_head::reset_lex(THD *thd)
+sp_head::reset_lex(THD *thd, sp_lex_local *sublex)
 {
   DBUG_ENTER("sp_head::reset_lex");
   LEX *oldlex= thd->lex;
 
-  sp_lex_local *sublex= new (thd->mem_root) sp_lex_local(thd, oldlex);
-  if (sublex == 0)
-    DBUG_RETURN(TRUE);
-
   thd->set_local_lex(sublex);
 
-  (void)m_lex.push_front(oldlex);
+  DBUG_RETURN(m_lex.push_front(oldlex));
+}
 
-  DBUG_RETURN(FALSE);
+
+bool
+sp_head::reset_lex(THD *thd)
+{
+  DBUG_ENTER("sp_head::reset_lex");
+  sp_lex_local *sublex= new (thd->mem_root) sp_lex_local(thd, thd->lex);
+  DBUG_RETURN(sublex ? reset_lex(thd, sublex) : true);
 }
 
 

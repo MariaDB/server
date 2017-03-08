@@ -751,6 +751,29 @@ DROP PROCEDURE p1;
 --echo # End of MDEV-10597 Cursors with parameters
 --echo #
 
+--echo #
+--echo # MDEV-12209 sql_mode=ORACLE: Syntax error in a OPEN cursor with parameters makes the server crash
+--echo #
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+INSERT INTO t1 VALUES (1,'A');
+DELIMITER $$;
+--error ER_PARSE_ERROR
+CREATE PROCEDURE p1(a INT,b VARCHAR)
+AS
+  CURSOR c (p_a INT, p_b VARCHAR) IS SELECT * FROM t1 WHERE a=p_a;
+BEGIN
+  OPEN c(a+, b);
+  LOOP
+    FETCH c INTO a, b;
+    EXIT WHEN c%NOTFOUND;
+    SELECT a, b;
+  END LOOP;
+  CLOSE c;
+END;
+$$
+DELIMITER ;$$
+DROP TABLE t1;
+
 
 --echo #
 --echo # MDEV-10577 sql_mode=ORACLE: %TYPE in variable declarations

@@ -474,6 +474,9 @@ public:
   bool
   reset_lex(THD *thd);
 
+  bool
+  reset_lex(THD *thd, sp_lex_local *sublex);
+
   /**
     Merge two LEX instances.
     @param oldlex - the upper level LEX we're going to restore to.

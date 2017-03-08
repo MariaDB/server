@@ -3290,19 +3290,20 @@ assignment_source_lex:
         ;
 
 assignment_source_expr:
-          remember_lex assignment_source_lex
+          assignment_source_lex
           {
             DBUG_ASSERT(thd->free_list == NULL);
-            thd->set_local_lex($2); // This changes thd->lex to $2
+            Lex->sphead->reset_lex(thd, $1);
           }
           expr
           {
-            DBUG_ASSERT($2 == thd->lex);
-            if (thd->restore_from_local_lex_to_old_lex($1)) // Restores thd->lex
-              MYSQL_YYABORT;
-            $$= $2;
-            $$->set_item_and_free_list($4, thd->free_list);
+            DBUG_ASSERT($1 == thd->lex);
+            $$= $1;
+            $$->sp_lex_in_use= true;
+            $$->set_item_and_free_list($3, thd->free_list);
             thd->free_list= NULL;
+            if ($$->sphead->restore_lex(thd))
+              MYSQL_YYABORT;
           }
         ;
 
