@@ -560,6 +560,33 @@ DROP TABLE t1;
 --echo # Checking str_to_datetime() for RFC3339
 --echo #
 select @@collation_connection;
+CREATE TABLE t1 (a timestamp);
+INSERT INTO t1 VALUES ('2016-12-10T10:10:10-05:00');
+SELECT * FROM t1;
+DROP TABLE t1;
+
+--echo #
+--echo # Checking str_to_datetime() for RFC3339
+--echo #
+select @@collation_connection;
+CREATE TABLE t1 (a timestamp);
+INSERT INTO t1 VALUES ('2016-12-10T10:10:10+01:30');
+SELECT * FROM t1;
+DROP TABLE t1;
+
+--echo #
+--echo # Checking str_to_datetime() for RFC3339
+--echo #
+select @@collation_connection;
+CREATE TABLE t1 (a timestamp);
+INSERT INTO t1 VALUES ('2016-12-10T10:10:10Z');
+SELECT * FROM t1;
+DROP TABLE t1;
+
+--echo #
+--echo # Checking str_to_datetime() for RFC3339
+--echo #
+select @@collation_connection;
 CREATE TABLE t1 (a datetime);
 INSERT INTO t1 VALUES ('1900-12-10T10:10:10Z');
 SELECT * FROM t1;
