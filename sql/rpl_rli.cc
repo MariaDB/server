@@ -1590,7 +1590,8 @@ end:
   into HASH.
 */
 static int
-scan_all_gtid_slave_pos_table(THD *thd, HASH *hash, DYNAMIC_ARRAY *array)
+scan_all_gtid_slave_pos_table(THD *thd, int (*cb)(THD *, LEX_STRING *, void *),
+                              void *cb_data)
 {
   static LEX_STRING mysql_db_name= {C_STRING_WITH_LEN("mysql")};
   char path[FN_REFLEN];
@@ -1628,13 +1629,26 @@ scan_all_gtid_slave_pos_table(THD *thd, HASH *hash, DYNAMIC_ARRAY *array)
                   rpl_gtid_slave_state_table_name.str,
                   rpl_gtid_slave_state_table_name.length) == 0)
       {
-        if ((err= scan_one_gtid_slave_pos_table(thd, hash, array, files.at(i))))
+        if ((err= (*cb)(thd, files.at(i), cb_data)))
           return err;
       }
     }
   }
 
   return 0;
+}
+
+
+struct load_gtid_state_cb_data {
+  HASH *hash;
+  DYNAMIC_ARRAY *array;
+};
+
+static int
+load_gtid_state_cb(THD *thd, LEX_STRING *table_name, void *arg)
+{
+  load_gtid_state_cb_data *data= static_cast<load_gtid_state_cb_data *>(arg);
+  return scan_one_gtid_slave_pos_table(thd, data->hash, data->array, table_name);
 }
 
 
@@ -1647,6 +1661,7 @@ rpl_load_gtid_slave_state(THD *thd)
   DYNAMIC_ARRAY array;
   int err= 0;
   uint32 i;
+  load_gtid_state_cb_data cb_data;
   DBUG_ENTER("rpl_load_gtid_slave_state");
 
   mysql_mutex_lock(&rpl_global_gtid_slave_state->LOCK_slave_state);
@@ -1662,7 +1677,9 @@ rpl_load_gtid_slave_state(THD *thd)
     goto end;
   array_inited= true;
 
-  if ((err= scan_all_gtid_slave_pos_table(thd, &hash, &array)))
+  cb_data.hash = &hash;
+  cb_data.array = &array;
+  if ((err= scan_all_gtid_slave_pos_table(thd, load_gtid_state_cb, &cb_data)))
     goto end;
 
   mysql_mutex_lock(&rpl_global_gtid_slave_state->LOCK_slave_state);
