@@ -17,17 +17,27 @@
 #include "vio_priv.h"
 
 #ifdef HAVE_OPENSSL
-#ifndef HAVE_YASSL
+#if defined(HAVE_YASSL) || defined(LIBRESSL_VERSION_NUMBER)
+#define OPENSSL_init_ssl(X,Y) SSL_library_init()
+#else
 #include <openssl/dh.h>
 #include <openssl/bn.h>
+
+#if OPENSSL_VERSION_NUMBER >= 0x10100000L
+#define ERR_remove_state(X)
+#else
+#define OPENSSL_init_ssl(X,Y) SSL_library_init()
+#endif
+
 #endif
 
 static my_bool     ssl_algorithms_added    = FALSE;
 static my_bool     ssl_error_strings_loaded= FALSE;
 
 /* the function below was generated with "openssl dhparam -2 -C 2048" */
-static
-DH *get_dh2048()
+
+/* {{{ get_dh_2048 */
+static DH *get_dh_2048()
 {
   static unsigned char dh2048_p[]={
     0xA1,0xBB,0x7C,0x20,0xC5,0x5B,0xC0,0x7B,0x21,0x8B,0xD6,0xA8,
@@ -57,18 +67,32 @@ DH *get_dh2048()
     0x02,
   };
   DH *dh;
-
-  if ((dh=DH_new()) == NULL) return(NULL);
-  dh->p=BN_bin2bn(dh2048_p,sizeof(dh2048_p),NULL);
-  dh->g=BN_bin2bn(dh2048_g,sizeof(dh2048_g),NULL);
-  if ((dh->p == NULL) || (dh->g == NULL))
-  { DH_free(dh); return(NULL); }
-  return(dh);
+  if ((dh=DH_new()) == NULL)
+    return(NULL);
+#if OPENSSL_VERSION_NUMBER < 0x10100000L || defined(LIBRESSL_VERSION_NUMBER)
+  (dh)->p=BN_bin2bn(dh2048_p,sizeof(dh2048_p),NULL);
+  (dh)->g=BN_bin2bn(dh2048_g,sizeof(dh2048_g),NULL);
+  if ((dh)->p == NULL || (dh)->g == NULL)
+  { DH_free(dh); return NULL; }
+#else
+  {
+    BIGNUM *dhp_bn= BN_bin2bn(dh2048_p,sizeof(dh2048_p),NULL),
+           *dhg_bn= BN_bin2bn(dh2048_g,sizeof(dh2048_g),NULL);
+    if (dhp_bn == NULL || dhg_bn == NULL ||
+        !DH_set0_pqg(dh, dhp_bn, NULL, dhg_bn))
+    {
+      DH_free(dh);
+      BN_free(dhp_bn);
+      BN_free(dhg_bn);
+      return NULL;
+    }
+  }
+#endif
+  return dh;
 }
 
-
 static const char*
-ssl_error_string[] = 
+ssl_error_string[] =
 {
   "No error",
   "Unable to get certificate",
@@ -148,9 +172,7 @@ static void check_ssl_init()
   if (!ssl_algorithms_added)
   {
     ssl_algorithms_added= TRUE;
-    SSL_library_init();
-    OpenSSL_add_all_algorithms();
-
+    OPENSSL_init_ssl(0, NULL);
   }
 
   if (!ssl_error_strings_loaded)
@@ -265,7 +287,7 @@ new_VioSSLFd(const char *key_file, const char *cert_file,
   /* DH stuff */
   if (!is_client_method)
   {
-    dh=get_dh2048();
+    dh=get_dh_2048();
     if (!SSL_CTX_set_tmp_dh(ssl_fd->ssl_context, dh))
     {
       *error= SSL_INITERR_DH;

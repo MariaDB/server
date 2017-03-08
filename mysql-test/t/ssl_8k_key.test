@@ -1,4 +1,5 @@
 # This test should work in embedded server after we fix mysqltest
+-- source include/require_openssl_client.inc
 -- source include/not_embedded.inc
 
 -- source include/have_ssl_communication.inc
