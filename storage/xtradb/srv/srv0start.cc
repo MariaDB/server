@@ -2410,8 +2410,6 @@ files_checked:
 
 	trx_sys_create();
 
-	bool srv_monitor_thread_started = false;
-
 	if (create_new_db) {
 		ut_a(!srv_read_only_mode);
 		init_log_online();
