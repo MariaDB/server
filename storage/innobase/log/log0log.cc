@@ -2,7 +2,7 @@
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2009, Google Inc.
-Copyright (c) 2017, MariaDB Corporation. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -1746,7 +1746,7 @@ log_preflush_pool_modified_pages(
 		and we could not make a new checkpoint on the basis of the
 		info on the buffer pool only. */
 
-		recv_apply_hashed_log_recs(TRUE);
+		recv_apply_hashed_log_recs(true);
 	}
 
 	success = buf_flush_list(ULINT_MAX, new_oldest, &n_pages);
@@ -2085,7 +2085,7 @@ log_checkpoint(
 	ut_ad(!srv_read_only_mode);
 
 	if (recv_recovery_is_on()) {
-		recv_apply_hashed_log_recs(TRUE);
+		recv_apply_hashed_log_recs(true);
 	}
 
 	if (srv_unix_file_flush_method != SRV_UNIX_NOSYNC) {
@@ -2335,6 +2335,11 @@ loop:
 
 	start_lsn += len;
 	buf += len;
+
+	if (recv_sys->report(ut_time())) {
+		ib_logf(IB_LOG_LEVEL_INFO, "Read redo log up to LSN=" LSN_PF,
+			start_lsn);
+	}
 
 	if (start_lsn != end_lsn) {
 
