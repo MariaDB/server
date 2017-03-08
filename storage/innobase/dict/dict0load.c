@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2013, Innobase Oy. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1838,7 +1839,7 @@ err_exit:
 			if (!fil_open_single_table_tablespace(
 				TRUE, table->space,
 				table->flags == DICT_TF_COMPACT ? 0 :
-				table->flags & ~(~0 << DICT_TF_BITS), name)) {
+				table->flags & ~(~0U << DICT_TF_BITS), name)) {
 				/* We failed to find a sensible
 				tablespace file */
 
