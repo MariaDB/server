@@ -6333,5 +6333,18 @@ v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VI
 drop view v1;
 drop table t1;
 #
+# MDEV-10704: Assertion `field->field->table == table_arg'
+# failed in fill_record(THD*, TABLE*, List<Item>&, List<Item>&,
+# bool, bool)
+#
+CREATE TABLE t1 (i INT);
+CREATE TABLE t2 (j INT);
+CREATE TABLE t3 (k INT);
+CREATE ALGORITHM = MERGE VIEW v AS SELECT j AS f1, k AS f2 FROM ( SELECT j FROM t1, t2 ) sq, t3;
+REPLACE INTO v (f1,f2) VALUES (1,1);
+ERROR HY000: Can not modify more than one base table through a join view 'test.v'
+drop view v;
+drop table t1,t2,t3;
+#
 # End of 10.2 tests
 #
