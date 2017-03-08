@@ -225,11 +225,16 @@ inline bool is_supported_parser_charset(CHARSET_INFO *cs)
   if (WSREP(thd) && !thd->lex->no_write_to_binlog                                   \
          && wsrep_to_isolation_begin(thd, db_, table_, table_list_)) goto error;
 
+#define WSREP_SYNC_WAIT(thd_, before_)                                           \
+    if (WSREP_CLIENT(thd_) &&                                                    \
+        wsrep_sync_wait(thd_, before_)) goto error;
+
 #else
 
 #define WSREP_TO_ISOLATION_BEGIN(db_, table_, table_list_)
 #define WSREP_TO_ISOLATION_END
 #define WSREP_TO_ISOLATION_BEGIN_WRTCHK(db_, table_, table_list_)
+#define WSREP_SYNC_WAIT(thd_, before_)
 
 #endif /* WITH_WSREP */
 
