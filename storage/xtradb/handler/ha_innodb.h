@@ -167,6 +167,8 @@ class ha_innobase: public handler
 	int index_first(uchar * buf);
 	int index_last(uchar * buf);
 
+	bool has_gap_locks() const { return true; }
+
 	int rnd_init(bool scan);
 	int rnd_end();
 	int rnd_next(uchar *buf);

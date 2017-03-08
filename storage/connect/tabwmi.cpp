@@ -1,5 +1,5 @@
 /***********************************************************************/
-/*  TABWMI: Author Olivier Bertrand -- PlugDB -- 2012 - 2013           */
+/*  TABWMI: Author Olivier Bertrand -- PlugDB -- 2012 - 2017           */
 /*  TABWMI: Virtual table to get WMI information.                      */
 /***********************************************************************/
 #if !defined(__WIN__)
@@ -11,8 +11,9 @@
 #include "global.h"
 #include "plgdbsem.h"
 #include "mycat.h"
-#include "reldef.h"
+//#include "reldef.h"
 #include "xtable.h"
+#include "tabext.h"
 #include "colblk.h"
 //#include "filter.h"
 //#include "xindex.h"
@@ -62,7 +63,7 @@ PWMIUT InitWMI(PGLOBAL g, char *nsp, char *classname)
 
   if (FAILED(res)) {
     sprintf(g->Message, "Failed to initialize COM library. " 
-            "Error code = %p", res);
+            "Error code = %x", res);
     return NULL;
     } // endif res
 
@@ -85,7 +86,7 @@ PWMIUT InitWMI(PGLOBAL g, char *nsp, char *classname)
                          (void**) &loc);
   if (FAILED(res)) {
     sprintf(g->Message, "Failed to create Locator. " 
-            "Error code = %p", res);
+            "Error code = %x", res);
     CoUninitialize();
     return NULL;
     }  // endif res
@@ -94,7 +95,7 @@ PWMIUT InitWMI(PGLOBAL g, char *nsp, char *classname)
                     NULL, NULL, NULL, 0, NULL, NULL, &wp->Svc);
 
   if (FAILED(res)) {
-    sprintf(g->Message, "Could not connect. Error code = %p", res); 
+    sprintf(g->Message, "Could not connect. Error code = %x", res); 
     loc->Release();     
     CoUninitialize();
     return NULL;
@@ -423,7 +424,7 @@ bool TDBWMI::Initialize(PGLOBAL g)
 
   if (FAILED(Res)) {
     sprintf(g->Message, "Failed to initialize COM library. " 
-            "Error code = %p", Res);
+            "Error code = %x", Res);
     return true;              // Program has failed.
     } // endif Res
 
@@ -436,7 +437,7 @@ bool TDBWMI::Initialize(PGLOBAL g)
  
   if (FAILED(Res)) {
     sprintf(g->Message, "Failed to create Locator. " 
-                        "Error code = %p", Res);
+                        "Error code = %x", Res);
     CoUninitialize();
     return true;       // Program has failed.
     }  // endif Res
@@ -448,7 +449,7 @@ bool TDBWMI::Initialize(PGLOBAL g)
                              NULL, NULL,0, NULL, 0, 0, &Svc);
   
   if (FAILED(Res)) {
-    sprintf(g->Message, "Could not connect. Error code = %p", Res); 
+    sprintf(g->Message, "Could not connect. Error code = %x", Res); 
     loc->Release();     
     CoUninitialize();
     return true;                // Program has failed.
@@ -463,7 +464,7 @@ bool TDBWMI::Initialize(PGLOBAL g)
                           RPC_C_IMP_LEVEL_IMPERSONATE, NULL, EOAC_NONE);
 
   if (FAILED(Res)) {
-    sprintf(g->Message, "Could not set proxy. Error code = 0x", Res);
+    sprintf(g->Message, "Could not set proxy. Error code = %x", Res);
     Svc->Release();
     CoUninitialize();
     return true;               // Program has failed.
@@ -573,7 +574,7 @@ bool TDBWMI::GetWMIInfo(PGLOBAL g)
       NULL, &Enumerator);
   
   if (FAILED(Rc)) {
-    sprintf(g->Message, "Query %s failed. Error code = %p", cmd, Rc); 
+    sprintf(g->Message, "Query %s failed. Error code = %x", cmd, Rc); 
     Svc->Release();
     CoUninitialize();
     return true;               // Program has failed.

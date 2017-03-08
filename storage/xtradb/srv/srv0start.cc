@@ -2120,6 +2120,7 @@ innobase_start_or_create_for_mysql(void)
 
 	fsp_init();
 	log_init();
+	log_online_init();
 
 	lock_sys_create(srv_lock_table_size);
 
@@ -2513,6 +2514,23 @@ files_checked:
 		and there must be no page in the buf_flush list. */
 		buf_pool_invalidate();
 
+		/* Start monitor thread early enough so that e.g. crash
+		recovery failing to find free pages in the buffer pool is
+		diagnosed. */
+		if (!srv_read_only_mode)
+		{
+			/* Create the thread which prints InnoDB monitor
+			info */
+			srv_monitor_active = true;
+			thread_handles[4 + SRV_MAX_N_IO_THREADS] =
+				os_thread_create(
+					srv_monitor_thread,
+					NULL,
+					thread_ids + 4 + SRV_MAX_N_IO_THREADS);
+
+			thread_started[4 + SRV_MAX_N_IO_THREADS] = true;
+		}
+
 		/* We always try to do a recovery, even if the database had
 		been shut down normally: this is the normal startup path */
 
@@ -2533,7 +2551,7 @@ files_checked:
 			return(err);
 		}
 
-		/* This must precede recv_apply_hashed_log_recs(TRUE). */
+		/* This must precede recv_apply_hashed_log_recs(true). */
 		ib_bh = trx_sys_init_at_db_start();
 
 		if (srv_force_recovery < SRV_FORCE_NO_LOG_REDO) {
@@ -2541,12 +2559,8 @@ files_checked:
 			respective file pages, for the last batch of
 			recv_group_scan_log_recs(). */
 
-			err = recv_apply_hashed_log_recs(TRUE);
+			recv_apply_hashed_log_recs(true);
 			DBUG_PRINT("ib_log", ("apply completed"));
-
-			if (err != DB_SUCCESS) {
-				return(err);
-			}
 		}
 
 		if (!srv_read_only_mode) {
@@ -2860,11 +2874,14 @@ files_checked:
 		thread_started[3 + SRV_MAX_N_IO_THREADS] = true;
 
 		/* Create the thread which prints InnoDB monitor info */
-		srv_monitor_active = true;
-		thread_handles[4 + SRV_MAX_N_IO_THREADS] = os_thread_create(
-			srv_monitor_thread,
-			NULL, thread_ids + 4 + SRV_MAX_N_IO_THREADS);
-		thread_started[4 + SRV_MAX_N_IO_THREADS] = true;
+		if (!thread_started[4 + SRV_MAX_N_IO_THREADS]) {
+			/* srv_monitor_thread not yet started */
+			srv_monitor_active = true;
+			thread_handles[4 + SRV_MAX_N_IO_THREADS] = os_thread_create(
+				srv_monitor_thread,
+				NULL, thread_ids + 4 + SRV_MAX_N_IO_THREADS);
+			thread_started[4 + SRV_MAX_N_IO_THREADS] = true;
+		}
 	}
 
 	/* Create the SYS_FOREIGN and SYS_FOREIGN_COLS system tables */
@@ -3235,6 +3252,7 @@ innobase_shutdown_for_mysql(void)
 	btr_search_disable();
 
 	ibuf_close();
+	log_online_shutdown();
 	log_shutdown();
 	trx_sys_file_format_close();
 	trx_sys_close();

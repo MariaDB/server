@@ -589,6 +589,11 @@ void JOIN_CACHE::create_remaining_fields()
   {
     MY_BITMAP *rem_field_set;
     TABLE *table= tab->table;
+#if MYSQL_VERSION_ID < 100204
+    empty_record(table);
+#else
+#error remove
+#endif
 
     if (all_read_fields)
       rem_field_set= table->read_set;

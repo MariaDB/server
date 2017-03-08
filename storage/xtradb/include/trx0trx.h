@@ -107,7 +107,7 @@ void
 trx_free_prepared(
 /*==============*/
 	trx_t*	trx)	/*!< in, own: trx object */
-	UNIV_COLD MY_ATTRIBUTE((nonnull));
+	UNIV_COLD;
 /********************************************************************//**
 Frees a transaction object for MySQL. */
 UNIV_INTERN

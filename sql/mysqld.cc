@@ -21,7 +21,7 @@
 #ifndef __WIN__
 #include <netdb.h>        // getservbyname, servent
 #endif
-#include "sql_parse.h"    // test_if_data_home_dir
+#include "sql_parse.h"    // path_starts_from_data_home_dir
 #include "sql_cache.h"    // query_cache, query_cache_*
 #include "sql_locale.h"   // MY_LOCALES, my_locales, my_locale_by_name
 #include "sql_show.h"     // free_status_vars, add_status_vars,
@@ -8612,7 +8612,7 @@ static int mysql_init_variables(void)
   mysql_home[0]= pidfile_name[0]= log_error_file[0]= 0;
 #if defined(HAVE_REALPATH) && !defined(HAVE_valgrind) && !defined(HAVE_BROKEN_REALPATH)
   /*  We can only test for sub paths if my_symlink.c is using realpath */
-  myisam_test_invalid_symlink= test_if_data_home_dir;
+  mysys_test_invalid_symlink= path_starts_from_data_home_dir;
 #endif
   opt_log= 0;
   opt_bin_log= opt_bin_log_used= 0;

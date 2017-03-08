@@ -20,28 +20,24 @@ ERROR 42000: Unknown storage engine 'InnoDB'
 FOUND /syntax error in innodb_log_group_home_dir/ in mysqld.1.err
 SELECT * FROM t1;
 ERROR 42000: Unknown storage engine 'InnoDB'
-FOUND /InnoDB: Starting an apply batch of log records/ in mysqld.1.err
+FOUND /InnoDB: Starting crash recovery from checkpoint LSN=/ in mysqld.1.err
 SELECT * FROM t1;
 ERROR 42000: Unknown storage engine 'InnoDB'
-FOUND /InnoDB: Starting an apply batch of log records/ in mysqld.1.err
-SELECT * FROM t1;
-ERROR 42000: Unknown storage engine 'InnoDB'
-FOUND /InnoDB: innodb_read_only prevents crash recovery/ in mysqld.1.err
-SELECT * FROM t1;
-ERROR 42000: Unknown storage engine 'InnoDB'
-FOUND /InnoDB: Starting an apply batch of log records/ in mysqld.1.err
-FOUND /InnoDB: Resizing redo log from 3\*[0-9]+ to 2\*[0-9]+ pages/ in mysqld.1.err
-SELECT * FROM t1;
-ERROR 42000: Unknown storage engine 'InnoDB'
-FOUND /InnoDB: Starting an apply batch of log records/ in mysqld.1.err
-FOUND /InnoDB: Resizing redo log from 3\*[0-9]+ to 2\*[0-9]+ pages/ in mysqld.1.err
 SELECT * FROM t1;
 ERROR 42000: Unknown storage engine 'InnoDB'
 FOUND /InnoDB: innodb_read_only prevents crash recovery/ in mysqld.1.err
 SELECT * FROM t1;
 ERROR 42000: Unknown storage engine 'InnoDB'
-FOUND /InnoDB: Starting an apply batch of log records/ in mysqld.1.err
-FOUND /InnoDB: Resizing redo log from 3\*[0-9]+ to 2\*[0-9]+ pages/ in mysqld.1.err
+FOUND /redo log from 3\*[0-9]+ to 2\*[0-9]+ pages/ in mysqld.1.err
+SELECT * FROM t1;
+ERROR 42000: Unknown storage engine 'InnoDB'
+FOUND /redo log from 3\*[0-9]+ to 2\*[0-9]+ pages/ in mysqld.1.err
+SELECT * FROM t1;
+ERROR 42000: Unknown storage engine 'InnoDB'
+FOUND /InnoDB: innodb_read_only prevents crash recovery/ in mysqld.1.err
+SELECT * FROM t1;
+ERROR 42000: Unknown storage engine 'InnoDB'
+FOUND /redo log from 3\*[0-9]+ to 2\*[0-9]+ pages/ in mysqld.1.err
 SELECT * FROM t1;
 ERROR 42000: Unknown storage engine 'InnoDB'
 SELECT * FROM t1;

@@ -1,6 +1,6 @@
 /******************************************************************/
 /*  Implementation of XML document processing using PdbXML.       */
-/*  Author: Olivier Bertrand                2007-2012             */
+/*  Author: Olivier Bertrand                2007-2017             */
 /******************************************************************/
 #include "my_global.h"
 #include "global.h"
@@ -49,7 +49,7 @@ bool XMLDOCUMENT::InitZip(PGLOBAL g, char *entry)
 {
 #if defined(ZIP_SUPPORT)
 	bool mul = (entry) ? strchr(entry, '*') || strchr(entry, '?') : false;
-	zip = new(g) ZIPUTIL(entry, mul);
+	zip = new(g) UNZIPUTL(entry, mul);
 	return zip == NULL;
 #else   // !ZIP_SUPPORT
 	sprintf(g->Message, MSG(NO_FEAT_SUPPORT), "ZIP");

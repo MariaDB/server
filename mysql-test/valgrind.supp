@@ -1129,6 +1129,17 @@
    ...
    fun:pthread_create*
 }
+<<<<<<< HEAD
+
+{
+   Memory Leak in loader and valgrind malloc
+   Memcheck:Leak
+   match-leak-kinds:reachable
+   obj:*/vgpreload_memcheck*.so
+   ...
+   obj:*/ld-*.so
+   ...
+}
 
 {
   ConnectSE: unixODBC SQLAllocEnv leaves some "still reachable" pointers

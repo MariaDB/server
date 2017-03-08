@@ -9,7 +9,7 @@
 eval create table t1 (a int) engine=myisam data directory='$MYSQL_TMP_DIR';
 insert t1 values (1);
 --system ln -s $MYSQL_TMP_DIR/foobar5543 $MYSQL_TMP_DIR/t1.TMD
---replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
+--replace_regex / '.*\/t1/ 'MYSQL_TMP_DIR\/t1/
 repair table t1;
 drop table t1;
 
@@ -17,7 +17,7 @@ drop table t1;
 eval create table t2 (a int) engine=aria data directory='$MYSQL_TMP_DIR';
 insert t2 values (1);
 --system ln -s $MYSQL_TMP_DIR/foobar5543 $MYSQL_TMP_DIR/t2.TMD
---replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
+--replace_regex / '.*\/t2/ 'MYSQL_TMP_DIR\/t2/
 repair table t2;
 drop table t2;
 

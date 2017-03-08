@@ -700,8 +700,9 @@ static void write_header(FILE *sql_file, char *db_name)
                   "-- MySQL dump %s  Distrib %s, for %s (%s)\n--\n",
                   DUMP_VERSION, MYSQL_SERVER_VERSION, SYSTEM_TYPE,
                   MACHINE_TYPE);
-    print_comment(sql_file, 0, "-- Host: %s    Database: %s\n",
-                  fix_for_comment(current_host ? current_host : "localhost"),
+    print_comment(sql_file, 0, "-- Host: %s    ",
+                  fix_for_comment(current_host ? current_host : "localhost"));
+    print_comment(sql_file, 0, "Database: %s\n",
                   fix_for_comment(db_name ? db_name : ""));
     print_comment(sql_file, 0,
                   "-- ------------------------------------------------------\n"

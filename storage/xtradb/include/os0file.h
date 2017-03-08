@@ -557,9 +557,10 @@ os_file_create_simple_no_error_handling_func(
 				      value */
 	__attribute__((nonnull, warn_unused_result));
 /****************************************************************//**
-Tries to disable OS caching on an opened file descriptor. */
+Tries to disable OS caching on an opened file descriptor.
+@return true if operation is success and false otherwise */
 UNIV_INTERN
-void
+bool
 os_file_set_nocache(
 /*================*/
 	os_file_t	fd,		/*!< in: file descriptor to alter */

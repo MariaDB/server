@@ -93,6 +93,7 @@ class DOMNODE : public XMLNODE {
   char               Name[64];
   WCHAR             *Ws;
   int                Len;
+	bool               Zip;
 }; // end of class DOMNODE
 
 /******************************************************************/

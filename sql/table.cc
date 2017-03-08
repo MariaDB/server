@@ -571,7 +571,7 @@ enum open_frm_error open_table_def(THD *thd, TABLE_SHARE *share, uint flags)
   {
     DBUG_ASSERT(flags & GTS_TABLE);
     DBUG_ASSERT(flags & GTS_USE_DISCOVERY);
-    mysql_file_delete_with_symlink(key_file_frm, path, MYF(0));
+    my_handler_delete_with_symlink(key_file_frm, path, "", MYF(0));
     file= -1;
   }
   else

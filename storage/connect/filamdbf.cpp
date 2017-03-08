@@ -5,7 +5,7 @@
 /*                                                                          */
 /* COPYRIGHT:                                                               */
 /* ----------                                                               */
-/*  (C) Copyright to the author Olivier BERTRAND          2005-2015         */
+/*  (C) Copyright to the author Olivier BERTRAND          2005-2017         */
 /*                                                                          */
 /* WHAT THIS PROGRAM DOES:                                                  */
 /* -----------------------                                                  */
@@ -281,15 +281,25 @@ PQRYRES DBFColumns(PGLOBAL g, char *dp, const char *fn, bool info)
     /************************************************************************/
     switch (thisfield.Type) {
       case 'C':                      // Characters
-      case 'L':                      // Logical 'T' or 'F'
-        type = TYPE_STRING;
+      case 'L':                      // Logical 'T' or 'F' or space
+				type = TYPE_STRING;
+				break;
+			case 'M':                      // Memo		a .DBT block number
+			case 'B':                      // Binary	a .DBT block number
+			case 'G':                      // Ole			a .DBT block number
+				type = TYPE_STRING;
         break;
+			//case 'I':											 // Long
+			//case '+':											 // Autoincrement
+			//	type = TYPE_INT;
+			//	break;
       case 'N':
         type = (thisfield.Decimals) ? TYPE_DOUBLE
              : (len > 10) ? TYPE_BIGINT : TYPE_INT;
         break;
-      case 'F':
-        type = TYPE_DOUBLE;
+      case 'F':											 // Float
+			//case 'O':											 // Double
+				type = TYPE_DOUBLE;
         break;
       case 'D':
         type = TYPE_DATE;            // Is this correct ???
@@ -441,6 +451,7 @@ int DBFFAM::Cardinality(PGLOBAL g)
 
 			if (Accept) {
 				Lrecl = rln;
+				Blksize = Nrec * rln;
 				PushWarning(g, Tdbp);
 			} else
 				return -1;
@@ -582,6 +593,7 @@ bool DBFFAM::AllocateBuffer(PGLOBAL g)
 
 				if (Accept) {
 					Lrecl = reclen;
+					Blksize = Nrec * Lrecl;
 					PushWarning(g, Tdbp);
 				}	else
 					return true;
@@ -598,7 +610,7 @@ bool DBFFAM::AllocateBuffer(PGLOBAL g)
       header->Filedate[1] = datm->tm_mon + 1;
       header->Filedate[2] = datm->tm_mday;
       header->SetHeadlen((ushort)hlen);
-      header->SetReclen((ushort)reclen);
+      header->SetReclen(reclen);
       descp = (DESCRIPTOR*)header;
 
       // Currently only standard Xbase types are supported
@@ -664,6 +676,7 @@ bool DBFFAM::AllocateBuffer(PGLOBAL g)
 
 				if (Accept) {
 					Lrecl = header.Reclen();
+					Blksize = Nrec * Lrecl;
 					PushWarning(g, Tdbp);
 				} else
 					return true;
@@ -956,6 +969,7 @@ int DBMFAM::Cardinality(PGLOBAL g)
 
 			if (Accept) {
 				Lrecl = rln;
+				Blksize = Nrec * Lrecl;
 				PushWarning(g, Tdbp);
 			} else
 				return -1;
@@ -1008,6 +1022,7 @@ bool DBMFAM::AllocateBuffer(PGLOBAL g)
 
 			if (Accept) {
 				Lrecl = hp->Reclen();
+				Blksize = Nrec * Lrecl;
 				PushWarning(g, Tdbp);
 			} else
 				return true;

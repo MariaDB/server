@@ -2440,6 +2440,40 @@ EXECUTE stmt;
 i
 6
 drop table t1, t2, t3;
+#
+# MDEV-11078: NULL NOT IN (non-empty subquery) should never return results
+#
+create table t1(a int,b int);
+create table t2(a int,b int);
+insert into t1 value (1,2);
+select (NULL)  in (select 1 from t1);
+(NULL)  in (select 1 from t1)
+NULL
+select (null)  in (select 1 from t2);
+(null)  in (select 1 from t2)
+0
+select 1 in (select 1 from t1);
+1 in (select 1 from t1)
+1
+select 1 in (select 1 from t2);
+1 in (select 1 from t2)
+0
+select 1 from dual where null in (select 1 from t1);
+1
+select 1 from dual where null in (select 1 from t2);
+1
+select (null,null) in (select * from t1);
+(null,null) in (select * from t1)
+NULL
+select (null,null) in (select * from t2);
+(null,null) in (select * from t2)
+0
+select 1 from dual where null not in (select 1 from t1);
+1
+select 1 from dual where null not in (select 1 from t2);
+1
+1
+drop table t1,t2;
 SET optimizer_switch= @@global.optimizer_switch;
 set @@tmp_table_size= @@global.tmp_table_size;
 #

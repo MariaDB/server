@@ -26,47 +26,22 @@
 #define mi_key_file_dfile 0
 #endif
 
-static int delete_one_file(const char *name, const char *ext,
-                           PSI_file_key pskey __attribute__((unused)),
-                           myf flags)
-{
-  char from[FN_REFLEN];
-  DBUG_ENTER("delete_one_file");
-  fn_format(from,name, "", ext, MY_UNPACK_FILENAME | MY_APPEND_EXT);
-  if (my_is_symlink(from) && (*myisam_test_invalid_symlink)(from))
-  {
-    /*
-      Symlink is pointing to file in data directory.
-      Remove symlink, keep file.
-    */
-    if (mysql_file_delete(pskey, from, flags))
-      DBUG_RETURN(my_errno);
-  }
-  else
-  {
-    if (mysql_file_delete_with_symlink(pskey, from, flags))
-      DBUG_RETURN(my_errno);
-  }
-  DBUG_RETURN(0);
-}
-
 int mi_delete_table(const char *name)
 {
-  int res;
   DBUG_ENTER("mi_delete_table");
 
 #ifdef EXTRA_DEBUG
   check_table_is_closed(name,"delete");
 #endif
 
-  if ((res= delete_one_file(name, MI_NAME_IEXT, mi_key_file_kfile, MYF(MY_WME))))
-    DBUG_RETURN(res);
-  if ((res= delete_one_file(name, MI_NAME_DEXT, mi_key_file_dfile, MYF(MY_WME))))
-    DBUG_RETURN(res);
+  if (my_handler_delete_with_symlink(mi_key_file_kfile, name, MI_NAME_IEXT, MYF(MY_WME)) ||
+      my_handler_delete_with_symlink(mi_key_file_dfile, name, MI_NAME_DEXT, MYF(MY_WME)))
+    DBUG_RETURN(my_errno);
+
 
   // optionally present:
-  delete_one_file(name, ".OLD", mi_key_file_dfile, MYF(0));
-  delete_one_file(name, ".TMD", mi_key_file_dfile, MYF(0));
+  my_handler_delete_with_symlink(mi_key_file_dfile, name, ".OLD", MYF(0));
+  my_handler_delete_with_symlink(mi_key_file_dfile, name, ".TMD", MYF(0));
 
   DBUG_RETURN(0);
 }
