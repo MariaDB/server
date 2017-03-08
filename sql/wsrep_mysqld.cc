@@ -970,9 +970,13 @@ static bool wsrep_prepare_keys_for_isolation(THD*              thd,
   for (const TABLE_LIST* table= table_list; table; table= table->next_global)
   {
     wsrep_key_t* tmp;
-    tmp= (wsrep_key_t*)my_realloc(ka->keys,
+    if (ka->keys)
+      tmp= (wsrep_key_t*)my_realloc(ka->keys,
                                   (ka->keys_len + 1) * sizeof(wsrep_key_t),
                                   MYF(0));
+    else
+      tmp= (wsrep_key_t*)my_malloc((ka->keys_len + 1) * sizeof(wsrep_key_t), MYF(0));
+
     if (!tmp)
     {
       WSREP_ERROR("Can't allocate memory for key_array");

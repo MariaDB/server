@@ -13,7 +13,10 @@ CREATE TABLE t1 (f1 INT PRIMARY KEY) Engine=InnoDB;
 --connection node_2
 SET GLOBAL wsrep_sync_wait = 1;
 # Those statements should see the table
-SHOW TABLES LIKE '%t1';
+
+# MW-86 SHOW commands have now their own bitmask
+# SHOW TABLES LIKE '%t1';
+
 SELECT COUNT(*) = 0 FROM t1;
 
 --connection node_1

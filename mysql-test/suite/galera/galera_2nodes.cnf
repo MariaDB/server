@@ -12,7 +12,7 @@ wsrep_provider_options='repl.causal_read_timeout=PT90S;base_port=@mysqld.1.#gale
 
 # enforce read-committed characteristics across the cluster
 wsrep-causal-reads=ON
-wsrep-sync-wait=7
+wsrep-sync-wait=15
 
 [mysqld.1]
 #galera_port=@OPT.port
