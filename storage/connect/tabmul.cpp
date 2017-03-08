@@ -124,9 +124,10 @@ bool TDBMUL::InitFileNames(PGLOBAL g)
   {
 #define PFNZ  4096
 #define FNSZ  (_MAX_DRIVE+_MAX_DIR+_MAX_FNAME+_MAX_EXT)
-  char *pfn[PFNZ];
-  char *filename;
-  int   rc, n = 0;
+	PTDBDIR dirp;
+	PSZ     pfn[PFNZ];
+  PSZ     filename;
+  int     rc, n = 0;
 
   if (trace)
     htrc("in InitFileName: fn[]=%d\n", FNSZ);
@@ -141,10 +142,35 @@ bool TDBMUL::InitFileNames(PGLOBAL g)
   if (trace)
     htrc("InitFileName: fn='%s'\n", filename);
 
-  if (Mul == 1) {
+  if (Mul != 2) {
     /*******************************************************************/
     /*  To_File is a multiple name with special characters             */
     /*******************************************************************/
+		if (Mul == 1)
+			dirp = new(g) TDBDIR(PlugDup(g, filename));
+		else
+		  dirp = new(g) TDBSDR(PlugDup(g, filename));
+
+		if (dirp->OpenDB(g))
+			return true;
+
+		while (true)
+			if ((rc = dirp->ReadDB(g)) == RC_OK) {
+#if defined(__WIN__)
+				strcat(strcpy(filename, dirp->Drive), dirp->Direc);
+#else   // !__WIN__
+				strcpy(filename, dirp->Direc);
+#endif  // !__WIN__
+				strcat(strcat(filename, dirp->Fname), dirp->Ftype);
+				pfn[n++] = PlugDup(g, filename);
+			} else
+				break;
+
+		dirp->CloseDB(g);
+
+		if (rc == RC_FX)
+			return true;
+#if 0
 #if defined(__WIN__)
     char   drive[_MAX_DRIVE], direc[_MAX_DIR];
     WIN32_FIND_DATA FileData;
@@ -250,6 +276,7 @@ bool TDBMUL::InitFileNames(PGLOBAL g)
     // Close the dir handle.
     closedir(dir);
 #endif  // !__WIN__
+#endif // 0
 
   } else {
     /*******************************************************************/
@@ -297,7 +324,7 @@ bool TDBMUL::InitFileNames(PGLOBAL g)
 
   } // endif Mul
 
-#if defined(__WIN__)
+#if 0
  suite:
 #endif
 
@@ -581,7 +608,95 @@ void TDBMUL::CloseDB(PGLOBAL g)
 
   } // end of CloseDB
 
-/* --------------------------- Class DIRDEF -------------------------- */
+#if 0
+/* ------------------------- Class TDBMSD ---------------------------- */
+
+	// Method
+PTDB TDBMSD::Clone(PTABS t)
+{
+	PTDBMSD tp;
+	PGLOBAL g = t->G;        // Is this really useful ???
+
+	tp = new(g) TDBMSD(this);
+	tp->Tdbp = Tdbp->Clone(t);
+	tp->Columns = tp->Tdbp->GetColumns();
+	return tp;
+} // end of Clone
+
+PTDB TDBMSD::Duplicate(PGLOBAL g)
+{
+	PTDBMSD tmup = new(g) TDBMSD(this);
+
+	tmup->Tdbp = Tdbp->Duplicate(g);
+	return tmup;
+} // end of Duplicate
+
+/***********************************************************************/
+/*  Initializes the table filename list.                               */
+/*  Note: tables created by concatenating the file components without  */
+/*  specifying the LRECL value (that should be restricted to _MAX_PATH)*/
+/*  have a LRECL that is the sum of the lengths of all components.     */
+/*  This is why we use a big filename array to take care of that.      */
+/***********************************************************************/
+bool TDBMSD::InitFileNames(PGLOBAL g)
+{
+#define PFNZ  4096
+#define FNSZ  (_MAX_DRIVE+_MAX_DIR+_MAX_FNAME+_MAX_EXT)
+	PTDBSDR dirp;
+	PSZ     pfn[PFNZ];
+	PSZ     filename;
+	int     rc, n = 0;
+
+	if (trace)
+		htrc("in InitFileName: fn[]=%d\n", FNSZ);
+
+	filename = (char*)PlugSubAlloc(g, NULL, FNSZ);
+
+	// The sub table may need to refer to the Table original block
+	Tdbp->SetTable(To_Table);         // Was not set at construction
+
+	PlugSetPath(filename, Tdbp->GetFile(g), Tdbp->GetPath());
+
+	if (trace)
+		htrc("InitFileName: fn='%s'\n", filename);
+
+	dirp = new(g) TDBSDR(filename);
+
+	if (dirp->OpenDB(g))
+		return true;
+
+	while (true)
+		if ((rc = dirp->ReadDB(g)) == RC_OK) {
+#if defined(__WIN__)
+			strcat(strcpy(filename, dirp->Drive), dirp->Direc);
+#else   // !__WIN__
+			strcpy(filename, dirp->Direc);
+#endif  // !__WIN__
+			strcat(strcat(filename, dirp->Fname), dirp->Ftype);
+			pfn[n++] = PlugDup(g, filename);
+		} else
+			break;
+
+	if (rc == RC_FX)
+		return true;
+
+	if (n) {
+	  Filenames = (char**)PlugSubAlloc(g, NULL, n * sizeof(char*));
+
+	  for (int i = 0; i < n; i++)
+		  Filenames[i] = pfn[i];
+
+	} else {
+	  Filenames = (char**)PlugSubAlloc(g, NULL, sizeof(char*));
+	  Filenames[0] = NULL;
+	} // endif n
+
+	NumFiles = n;
+	return false;
+} // end of InitFileNames
+#endif // 0
+
+	/* --------------------------- Class DIRDEF -------------------------- */
 
 /***********************************************************************/
 /*  DefineAM: define specific AM block values from XDB file.           */
@@ -616,26 +731,37 @@ PTDB DIRDEF::GetTable(PGLOBAL g, MODE)
 /***********************************************************************/
 /*  TABDIR constructors.                                               */
 /***********************************************************************/
-TDBDIR::TDBDIR(PDIRDEF tdp) : TDBASE(tdp)
-  {
-  To_File = tdp->Fn;
-  iFile = 0;
+void TDBDIR::Init(void)
+{
+	iFile = 0;
 #if defined(__WIN__)
-  memset(&FileData, 0, sizeof(_finddata_t));
-  Hsearch = -1;
-  *Drive = '\0';
+	memset(&FileData, 0, sizeof(_finddata_t));
+	hSearch = INVALID_HANDLE_VALUE;
+	*Drive = '\0';
 #else   // !__WIN__
-  memset(&Fileinfo, 0, sizeof(struct stat));
-  Entry = NULL;
-  Dir = NULL;
-  Done = false;
-  *Pattern = '\0';
+	memset(&Fileinfo, 0, sizeof(struct stat));
+	Entry = NULL;
+	Dir = NULL;
+	Done = false;
+	*Pattern = '\0';
 #endif  // !__WIN__
-  *Fpath = '\0';
-  *Direc = '\0';
-  *Fname = '\0';
-  *Ftype = '\0';
-  } // end of TDBDIR standard constructor
+	*Fpath = '\0';
+	*Direc = '\0';
+	*Fname = '\0';
+	*Ftype = '\0';
+}	// end of Init
+
+TDBDIR::TDBDIR(PDIRDEF tdp) : TDBASE(tdp)
+{
+  To_File = tdp->Fn;
+	Init();
+} // end of TDBDIR standard constructor
+
+TDBDIR::TDBDIR(PSZ fpat) : TDBASE((PTABDEF)NULL)
+{
+	To_File = fpat;
+	Init();
+} // end of TDBDIR constructor
 
 TDBDIR::TDBDIR(PTDBDIR tdbp) : TDBASE(tdbp)
   {
@@ -643,7 +769,7 @@ TDBDIR::TDBDIR(PTDBDIR tdbp) : TDBASE(tdbp)
   iFile = tdbp->iFile;
 #if defined(__WIN__)
   FileData = tdbp->FileData;
-  Hsearch = tdbp->Hsearch;
+  hSearch = tdbp->hSearch;
   strcpy(Drive, tdbp->Drive);
 #else   // !__WIN__
   Fileinfo = tdbp->Fileinfo;
@@ -674,18 +800,19 @@ PTDB TDBDIR::Clone(PTABS t)
 char* TDBDIR::Path(PGLOBAL g)
   {
   PCATLG cat = PlgGetCatalog(g);
+	PTABDEF defp = (PTABDEF)To_Def;
 
 #if defined(__WIN__)
   if (!*Drive) {
-    PlugSetPath(Fpath, To_File, ((PTABDEF)To_Def)->GetPath());
+    PlugSetPath(Fpath, To_File, defp ? defp->GetPath() : NULL);
     _splitpath(Fpath, Drive, Direc, Fname, Ftype);
   } else
-    _makepath(Fpath, Drive, Direc, Fname, Ftype);   // Usefull ???
+    _makepath(Fpath, Drive, Direc, Fname, Ftype); // Usefull for TDBSDR
 
   return Fpath;
 #else   // !__WIN__
   if (!Done) {
-    PlugSetPath(Fpath, To_File, ((PTABDEF)To_Def)->GetPath());
+    PlugSetPath(Fpath, To_File, defp ? defp->GetPath() : NULL);
     _splitpath(Fpath, NULL, Direc, Fname, Ftype);
     strcat(strcpy(Pattern, Fname), Ftype);
     Done = true;
@@ -709,23 +836,48 @@ PCOL TDBDIR::MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n)
 int TDBDIR::GetMaxSize(PGLOBAL g)
   {
   if (MaxSize < 0) {
-    int    n = -1;
+    int rc, n = -1;
 #if defined(__WIN__)
-    int    h;
 
     // Start searching files in the target directory.
-    h = _findfirst(Path(g), &FileData);
+		hSearch = FindFirstFile(Path(g), &FileData);
 
-    if (h != -1) {
-      for (n = 1;; n++)
-        if (_findnext(h, &FileData))
-          break;
+    if (hSearch == INVALID_HANDLE_VALUE) {
+			rc = GetLastError();
 
-      // Close the search handle.
-      _findclose(h);
-    } else
-      n = 0;
+			if (rc != ERROR_FILE_NOT_FOUND) {
+				char buf[512];
 
+				FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM |
+					            FORMAT_MESSAGE_IGNORE_INSERTS,
+					NULL, GetLastError(), 0, (LPTSTR)&buf, sizeof(buf), NULL);
+				sprintf(g->Message, MSG(BAD_FILE_HANDLE), buf);
+				return -1;
+			} // endif rc
+
+			return 0;
+		} // endif hSearch
+
+		while (true) {
+			if (!(FileData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY))
+				n++;
+
+			if (!FindNextFile(hSearch, &FileData)) {
+				rc = GetLastError();
+
+				if (rc != ERROR_NO_MORE_FILES) {
+					sprintf(g->Message, MSG(NEXT_FILE_ERROR), rc);
+					FindClose(hSearch);
+					return -1;
+				} // endif rc
+
+				break;
+			} // endif Next
+
+		} // endwhile
+
+    // Close the search handle.
+		FindClose(hSearch);
 #else   // !__WIN__
     Path(g);
 
@@ -791,30 +943,30 @@ int TDBDIR::ReadDB(PGLOBAL g)
   int rc = RC_OK;
 
 #if defined(__WIN__)
-  if (Hsearch == -1) {
+  if (hSearch == INVALID_HANDLE_VALUE) {
     /*******************************************************************/
     /*  Start searching files in the target directory. The use of the  */
     /*  Path function is required when called from TDBSDR.             */
     /*******************************************************************/
-    Hsearch = _findfirst(Path(g), &FileData);
+    hSearch = FindFirstFile(Path(g), &FileData);
 
-    if (Hsearch == -1)
+    if (hSearch == INVALID_HANDLE_VALUE)
       rc = RC_EF;
     else
       iFile++;
 
   } else {
-    if (_findnext(Hsearch, &FileData)) {
+    if (!FindNextFile(hSearch, &FileData)) {
       // Restore file name and type pattern
       _splitpath(To_File, NULL, NULL, Fname, Ftype);
       rc = RC_EF;
     } else
       iFile++;
 
-  } // endif Hsearch
+  } // endif hSearch
 
   if (rc == RC_OK)
-    _splitpath(FileData.name, NULL, NULL, Fname, Ftype);
+    _splitpath(FileData.cFileName, NULL, NULL, Fname, Ftype);
 
 #else   // !Win32
   rc = RC_NF;
@@ -878,8 +1030,8 @@ void TDBDIR::CloseDB(PGLOBAL)
   {
 #if defined(__WIN__)
   // Close the search handle.
-  _findclose(Hsearch);
-  Hsearch = -1;
+  FindClose(hSearch);
+	hSearch = INVALID_HANDLE_VALUE;
 #else   // !__WIN__
   // Close the DIR handle
   if (Dir) {
@@ -926,6 +1078,7 @@ DIRCOL::DIRCOL(DIRCOL *col1, PTDB tdbp) : COLBLK(col1, tdbp)
 void DIRCOL::ReadColumn(PGLOBAL g)
   {
   PTDBDIR tdbp = (PTDBDIR)To_Tdb;
+	PSYSTEMTIME	stp = NULL;
 
   if (trace)
     htrc("DIR ReadColumn: col %s R%d use=%.4X status=%.4X type=%d N=%d\n",
@@ -942,11 +1095,11 @@ void DIRCOL::ReadColumn(PGLOBAL g)
     case  2: Value->SetValue_psz(tdbp->Fname);                  break;
     case  3: Value->SetValue_psz(tdbp->Ftype);                  break;
 #if defined(__WIN__)
-    case  4: Value->SetValue((int)tdbp->FileData.attrib);      break;
-    case  5: Value->SetValue((int)tdbp->FileData.size);        break;
-    case  6: Value->SetValue((int)tdbp->FileData.time_write);  break;
-    case  7: Value->SetValue((int)tdbp->FileData.time_create); break;
-    case  8: Value->SetValue((int)tdbp->FileData.time_access); break;
+    case  4: Value->SetValue((int)tdbp->FileData.dwFileAttributes); break;
+		case  5: Value->SetValue((int)tdbp->FileData.nFileSizeLow);     break;
+    case  6: SetTimeValue(g, tdbp->FileData.ftLastWriteTime);       break;
+    case  7: SetTimeValue(g, tdbp->FileData.ftCreationTime);        break;
+    case  8: SetTimeValue(g, tdbp->FileData.ftLastAccessTime);      break;
 #else   // !__WIN__
     case  4: Value->SetValue((int)tdbp->Fileinfo.st_mode);     break;
     case  5: Value->SetValue((int)tdbp->Fileinfo.st_size);     break;
@@ -1002,47 +1155,59 @@ int TDBSDR::GetMaxSize(PGLOBAL g)
   } // end of GetMaxSize
 
 /***********************************************************************/
-/*  SDR GetMaxSize: returns the number of retrieved files.             */
+/*  SDR FindInDir: returns the number of retrieved files.              */
 /***********************************************************************/
 int TDBSDR::FindInDir(PGLOBAL g)
   {
-  int   n = 0;
+  int    rc, n = 0;
   size_t m = strlen(Direc);
+	PSZ    filename = Path(g);
 
   // Start searching files in the target directory.
 #if defined(__WIN__)
-  int h = _findfirst(Path(g), &FileData);
+	hSearch = FindFirstFile(filename, &FileData);
 
-  if (h != -1) {
-    for (n = 1;; n++)
-      if (_findnext(h, &FileData))
-        break;
+  if (hSearch == INVALID_HANDLE_VALUE) {
+		rc = GetLastError();
 
-    // Close the search handle.
-    _findclose(h);
-    } // endif h
+		if (rc != ERROR_FILE_NOT_FOUND) {
+			char buf[512];
 
-  // Now search files in sub-directories.
-  _makepath(Fpath, Drive, Direc, "*", "");
-  h = _findfirst(Fpath, &FileData);
+			FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM |
+				FORMAT_MESSAGE_IGNORE_INSERTS,
+				NULL, GetLastError(), 0, (LPTSTR)&buf, sizeof(buf), NULL);
+			sprintf(g->Message, MSG(BAD_FILE_HANDLE), buf);
+			return -1;
+		} // endif rc
 
-  if (h != -1) {
-    while (true) {
-      if (FileData.attrib & _A_SUBDIR && *FileData.name != '.') {
-        // Look in the name sub-directory
-        strcat(strcat(Direc, FileData.name), "\\");
-        n += FindInDir(g);
-        Direc[m] = '\0';         // Restore path
-        } // endif SUBDIR
+		return 0;
+	} // endif hSearch
 
-      if (_findnext(h, &FileData))
-        break;
+	while (true) {
+		if ((FileData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)) {
+			// Look in the name sub-directory
+			strcat(strcat(Direc, FileData.cFileName), "\\");
+			n += FindInDir(g);
+			Direc[m] = '\0';         // Restore path
+		} else
+			n++;
 
-      } // endwhile
+		if (!FindNextFile(hSearch, &FileData)) {
+			rc = GetLastError();
 
-    // Close the search handle.
-    _findclose(h);
-    } // endif h
+			if (rc != ERROR_NO_MORE_FILES) {
+				sprintf(g->Message, MSG(NEXT_FILE_ERROR), rc);
+				FindClose(hSearch);
+				return -1;
+			} // endif rc
+
+			break;
+		} // endif Next
+
+	} // endwhile
+
+  // Close the search handle.
+	FindClose(hSearch);
 #else   // !__WIN__
   int k;
   DIR *dir = opendir(Direc);
@@ -1094,7 +1259,7 @@ bool TDBSDR::OpenDB(PGLOBAL g)
     Sub->Next = NULL;
     Sub->Prev = NULL;
 #if defined(__WIN__)
-    Sub->H = -1;
+    Sub->H = INVALID_HANDLE_VALUE;
     Sub->Len = strlen(Direc);
 #else   // !__WIN__
     Sub->D = NULL;
@@ -1120,18 +1285,20 @@ int TDBSDR::ReadDB(PGLOBAL g)
     // Are there more files in sub-directories
    retry:
     do {
-      if (Sub->H == -1) {
-        _makepath(Fpath, Drive, Direc, "*", "");
-        Sub->H = _findfirst(Fpath, &FileData);
-      } else if (_findnext(Sub->H, &FileData)) {
-        _findclose(Sub->H);
-        Sub->H = -1;
-        *FileData.name = '\0';
-        } // endif findnext
+      if (Sub->H == INVALID_HANDLE_VALUE) {
+        _makepath(Fpath, Drive, Direc, "*", ".");
+        Sub->H = FindFirstFile(Fpath, &FileData);
+      } else if (!FindNextFile(Sub->H, &FileData)) {
+        FindClose(Sub->H);
+        Sub->H = INVALID_HANDLE_VALUE;
+        *FileData.cFileName= '\0';
+				break;
+      } // endif findnext
 
-      } while(*FileData.name == '.');
+    } while(!(FileData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+    			|| *FileData.cFileName== '.');
 
-    if (Sub->H == -1) {
+    if (Sub->H == INVALID_HANDLE_VALUE) {
       // No more sub-directories. Are we in a sub-directory?
       if (!Sub->Prev)
         return rc;               // No, all is finished
@@ -1149,17 +1316,17 @@ int TDBSDR::ReadDB(PGLOBAL g)
         sup = (PSUBDIR)PlugSubAlloc(g, NULL, sizeof(SUBDIR));
         sup->Next = NULL;
         sup->Prev = Sub;
-        sup->H = -1;
+        sup->H = INVALID_HANDLE_VALUE;
         Sub->Next = sup;
         } // endif Next
 
       Sub = Sub->Next;
-      strcat(strcat(Direc, FileData.name), "\\");
+      strcat(strcat(Direc, FileData.cFileName), "/");
       Sub->Len = strlen(Direc);
 
       // Reset Hsearch used by TDBDIR::ReadDB
-      _findclose(Hsearch);
-      Hsearch = -1;
+			FindClose(hSearch);
+			hSearch = INVALID_HANDLE_VALUE;
       goto again;
     } // endif H
 
