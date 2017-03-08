@@ -18,7 +18,6 @@
 #include "block.h"
 
 typedef class TDBMUL *PTDBMUL;
-//typedef class TDBMSD *PTDBMSD;
 typedef class TDBSDR *PTDBSDR;
 
 /***********************************************************************/
@@ -98,7 +97,7 @@ protected:
 }; // end of class TDBMSD
 #endif
 
-	 /***********************************************************************/
+/***********************************************************************/
 /*  Directory listing table.                                           */
 /***********************************************************************/
 class DllExport DIRDEF : public TABDEF {    /* Directory listing table */

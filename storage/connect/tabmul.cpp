@@ -1,7 +1,7 @@
 /************* TabMul C++ Program Source Code File (.CPP) **************/
 /* PROGRAM NAME: TABMUL                                                */
 /* -------------                                                       */
-/*  Version 1.8                                                        */
+/*  Version 1.9                                                        */
 /*                                                                     */
 /* COPYRIGHT:                                                          */
 /* ----------                                                          */
@@ -44,6 +44,11 @@
 #define __MFC_COMPAT__                   // To define min/max as macro
 #endif
 //#include <windows.h>
+#if defined(PATHMATCHSPEC) 
+#include "Shlwapi.h"
+//using namespace std;
+#pragma comment(lib,"shlwapi.lib")
+#endif   //	PATHMATCHSPEC
 #else
 #if defined(UNIX)
 #include <fnmatch.h>
@@ -148,11 +153,16 @@ bool TDBMUL::InitFileNames(PGLOBAL g)
     /*******************************************************************/
 		if (Mul == 1)
 			dirp = new(g) TDBDIR(PlugDup(g, filename));
-		else
+		else // Mul == 3 (Subdir)
 		  dirp = new(g) TDBSDR(PlugDup(g, filename));
 
 		if (dirp->OpenDB(g))
 			return true;
+
+		if (trace && Mul == 3) {
+			int nf = ((PTDBSDR)dirp)->FindInDir(g);
+			htrc("Number of files = %d\n", nf);
+		} // endif trace
 
 		while (true)
 			if ((rc = dirp->ReadDB(g)) == RC_OK) {
@@ -170,113 +180,6 @@ bool TDBMUL::InitFileNames(PGLOBAL g)
 
 		if (rc == RC_FX)
 			return true;
-#if 0
-#if defined(__WIN__)
-    char   drive[_MAX_DRIVE], direc[_MAX_DIR];
-    WIN32_FIND_DATA FileData;
-    HANDLE hSearch;
-
-    _splitpath(filename, drive, direc, NULL, NULL);
-
-    // Start searching files in the target directory.
-    hSearch = FindFirstFile(filename, &FileData);
-
-    if (hSearch == INVALID_HANDLE_VALUE) {
-      rc = GetLastError();
-
-      if (rc != ERROR_FILE_NOT_FOUND) {
-        FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM |
-                      FORMAT_MESSAGE_IGNORE_INSERTS,
-                      NULL, GetLastError(), 0,
-                      (LPTSTR)&filename, sizeof(filename), NULL);
-        sprintf(g->Message, MSG(BAD_FILE_HANDLE), filename);
-        return true;
-        } // endif rc
-
-      goto suite;
-      } // endif hSearch
-
-    while (n < PFNZ) {
-      if (!(FileData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)) {
-        strcat(strcat(strcpy(filename, drive), direc), FileData.cFileName);
-        pfn[n++] = PlugDup(g, filename);
-        } // endif dwFileAttributes
-
-      if (!FindNextFile(hSearch, &FileData)) {
-        rc = GetLastError();
-
-        if (rc != ERROR_NO_MORE_FILES) {
-          sprintf(g->Message, MSG(NEXT_FILE_ERROR), rc);
-          FindClose(hSearch);
-          return true;
-          } // endif rc
-
-        break;
-        } // endif FindNextFile
-
-      } // endwhile n
-
-    // Close the search handle.
-    if (!FindClose(hSearch)) {
-      strcpy(g->Message, MSG(SRCH_CLOSE_ERR));
-      return true;
-      } // endif FindClose
-
-#else   // !__WIN__
-    struct stat fileinfo;
-    char   fn[FN_REFLEN], direc[FN_REFLEN], pattern[FN_HEADLEN], ftype[FN_EXTLEN];
-    DIR   *dir;
-    struct dirent *entry;
-
-    _splitpath(filename, NULL, direc, pattern, ftype);
-    strcat(pattern, ftype);
-
-    if (trace)
-      htrc("direc=%s pattern=%s ftype=%s\n", direc, pattern, ftype);
-
-    // Start searching files in the target directory.
-    if (!(dir = opendir(direc))) {
-      sprintf(g->Message, MSG(BAD_DIRECTORY), direc, strerror(errno));
-
-      if (trace)
-        htrc("%s\n", g->Message);
-
-      return true;
-      } // endif dir
-
-    if (trace)
-      htrc("dir opened: reading files\n");
-
-    while ((entry = readdir(dir)) && n < PFNZ) {
-      strcat(strcpy(fn, direc), entry->d_name);
-
-      if (trace)
-        htrc("%s read\n", fn);
-
-      if (lstat(fn, &fileinfo) < 0) {
-        sprintf(g->Message, "%s: %s", fn, strerror(errno));
-        return true;
-      } else if (!S_ISREG(fileinfo.st_mode))
-        continue;      // Not a regular file (should test for links)
-
-      /*******************************************************************/
-      /*  Test whether the file name matches the table name filter.      */
-      /*******************************************************************/
-      if (fnmatch(pattern, entry->d_name, 0))
-        continue;      // Not a match
-
-      strcat(strcpy(filename, direc), entry->d_name);
-      pfn[n++] = PlugDup(g, filename);
-
-      if (trace)
-        htrc("Adding pfn[%d] %s\n", n, filename);
-
-      } // endwhile readdir
-
-    // Close the dir handle.
-    closedir(dir);
-#endif  // !__WIN__
-#endif // 0
 
   } else {
     /*******************************************************************/
@@ -323,10 +226,6 @@ bool TDBMUL::InitFileNames(PGLOBAL g)
     } // endfor n
 
   } // endif Mul
-
-#if 0
- suite:
-#endif
 
   if (n) {
     Filenames = (char**)PlugSubAlloc(g, NULL, n * sizeof(char*));
@@ -1078,7 +977,9 @@ DIRCOL::DIRCOL(DIRCOL *col1, PTDB tdbp) : COLBLK(col1, tdbp)
 void DIRCOL::ReadColumn(PGLOBAL g)
   {
   PTDBDIR tdbp = (PTDBDIR)To_Tdb;
-	PSYSTEMTIME	stp = NULL;
+#if defined(__WIN__)
+//PSYSTEMTIME	stp = NULL;
+#endif  // !__WIN__
 
   if (trace)
     htrc("DIR ReadColumn: col %s R%d use=%.4X status=%.4X type=%d N=%d\n",
@@ -1161,13 +1062,62 @@ int TDBSDR::FindInDir(PGLOBAL g)
   {
   int    rc, n = 0;
   size_t m = strlen(Direc);
-	PSZ    filename = Path(g);
 
   // Start searching files in the target directory.
 #if defined(__WIN__)
-	hSearch = FindFirstFile(filename, &FileData);
+	HANDLE h;
 
-  if (hSearch == INVALID_HANDLE_VALUE) {
+#if defined(PATHMATCHSPEC)
+	if (!*Drive)
+		Path(g);
+
+	_makepath(Fpath, Drive, Direc, "*", "*");
+
+	h = FindFirstFile(Fpath, &FileData);
+
+  if (h == INVALID_HANDLE_VALUE) {
+		rc = GetLastError();
+
+		if (rc != ERROR_FILE_NOT_FOUND) {
+			char buf[512];
+
+			FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM |
+				FORMAT_MESSAGE_IGNORE_INSERTS,
+				NULL, GetLastError(), 0, (LPTSTR)&buf, sizeof(buf), NULL);
+			sprintf(g->Message, MSG(BAD_FILE_HANDLE), buf);
+			return -1;
+		} // endif rc
+
+		return 0;
+	} // endif h
+
+	while (true) {
+		if ((FileData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) &&
+			  *FileData.cFileName != '.') {
+			// Look in the name sub-directory
+			strcat(strcat(Direc, FileData.cFileName), "/");
+			n += FindInDir(g);
+			Direc[m] = '\0';         // Restore path
+		} else if (PathMatchSpec(FileData.cFileName, Fpath))
+			n++;
+
+		if (!FindNextFile(h, &FileData)) {
+			rc = GetLastError();
+
+			if (rc != ERROR_NO_MORE_FILES) {
+				sprintf(g->Message, MSG(NEXT_FILE_ERROR), rc);
+				FindClose(h);
+				return -1;
+			} // endif rc
+
+			break;
+		} // endif Next
+
+	} // endwhile
+#else   // !PATHMATCHSPEC
+	h = FindFirstFile(Path(g), &FileData);
+
+	if (h == INVALID_HANDLE_VALUE) {
 		rc = GetLastError();
 
 		if (rc != ERROR_FILE_NOT_FOUND) {
@@ -1184,20 +1134,14 @@ int TDBSDR::FindInDir(PGLOBAL g)
 	} // endif hSearch
 
 	while (true) {
-		if ((FileData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)) {
-			// Look in the name sub-directory
-			strcat(strcat(Direc, FileData.cFileName), "\\");
-			n += FindInDir(g);
-			Direc[m] = '\0';         // Restore path
-		} else
-			n++;
+		n++;
 
-		if (!FindNextFile(hSearch, &FileData)) {
+		if (!FindNextFile(h, &FileData)) {
 			rc = GetLastError();
 
 			if (rc != ERROR_NO_MORE_FILES) {
 				sprintf(g->Message, MSG(NEXT_FILE_ERROR), rc);
-				FindClose(hSearch);
+				FindClose(h);
 				return -1;
 			} // endif rc
 
@@ -1206,8 +1150,30 @@ int TDBSDR::FindInDir(PGLOBAL g)
 
 	} // endwhile
 
+	// Now search files in sub-directories.
+	_makepath(Fpath, Drive, Direc, "*", ".");
+	h = FindFirstFile(Fpath, &FileData);
+
+	if (h != INVALID_HANDLE_VALUE) {
+		while (true) {
+			if ((FileData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) &&
+				  *FileData.cFileName != '.') {
+				// Look in the name sub-directory
+				strcat(strcat(Direc, FileData.cFileName), "/");
+				n += FindInDir(g);
+				Direc[m] = '\0';         // Restore path
+			} // endif SUBDIR
+
+			if (!FindNextFile(h, &FileData))
+				break;
+
+		} // endwhile
+
+	} // endif h
+#endif  // !PATHMATCHSPEC
+
   // Close the search handle.
-	FindClose(hSearch);
+	FindClose(h);
 #else   // !__WIN__
   int k;
   DIR *dir = opendir(Direc);
