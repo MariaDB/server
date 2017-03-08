@@ -1,0 +1,46 @@
+--source include/galera_cluster.inc
+
+#
+# Test 1: SHOW commands no longer obey wsrep_sync_wait = 1
+#
+
+--connection node_2
+SET SESSION wsrep_sync_wait = 1;
+SET GLOBAL DEBUG = "d,sync.wsrep_apply_cb";
+
+--connection node_1
+CREATE DATABASE db1;
+
+--connection node_2
+--error ER_BAD_DB_ERROR
+SHOW CREATE DATABASE db1;
+SET GLOBAL DEBUG = "";
+SET DEBUG_SYNC = "now SIGNAL signal.wsrep_apply_cb";
+
+SET SESSION wsrep_sync_wait = 8;
+DROP DATABASE db1;
+
+
+#
+# Test 2: SHOW commands now obey wsrep_sync_wait = 8
+#
+
+--connection node_2
+--let $wsrep_provider_options_orig = `SELECT @@wsrep_provider_options`
+SET SESSION wsrep_sync_wait = 8;
+SET GLOBAL DEBUG = "d,sync.wsrep_apply_cb";
+SET GLOBAL wsrep_provider_options = "repl.causal_read_timeout=PT0.1S";
+
+--connection node_1
+CREATE DATABASE db1;
+
+--connection node_2
+--error ER_LOCK_WAIT_TIMEOUT
+SHOW CREATE DATABASE db1;
+
+SET GLOBAL DEBUG = "";
+SET DEBUG_SYNC = "now SIGNAL signal.wsrep_apply_cb";
+DROP DATABASE db1;
+
+--disable_query_log
+--eval SET GLOBAL wsrep_provider_options = "$wsrep_provider_options_orig"

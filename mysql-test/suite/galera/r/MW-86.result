@@ -1,0 +1,18 @@
+SET SESSION wsrep_sync_wait = 1;
+SET GLOBAL DEBUG = "d,sync.wsrep_apply_cb";
+CREATE DATABASE db1;
+SHOW CREATE DATABASE db1;
+ERROR 42000: Unknown database 'db1'
+SET GLOBAL DEBUG = "";
+SET DEBUG_SYNC = "now SIGNAL signal.wsrep_apply_cb";
+SET SESSION wsrep_sync_wait = 8;
+DROP DATABASE db1;
+SET SESSION wsrep_sync_wait = 8;
+SET GLOBAL DEBUG = "d,sync.wsrep_apply_cb";
+SET GLOBAL wsrep_provider_options = "repl.causal_read_timeout=PT0.1S";
+CREATE DATABASE db1;
+SHOW CREATE DATABASE db1;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+SET GLOBAL DEBUG = "";
+SET DEBUG_SYNC = "now SIGNAL signal.wsrep_apply_cb";
+DROP DATABASE db1;
