@@ -1,4 +1,4 @@
-/* Copyright (C) 2009 Monty Program Ab
+/* Copyright (C) 2009, 2017, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -16,20 +16,19 @@
 /* Defining what to log to slow log */
 
 #define LOG_SLOW_VERBOSITY_INIT           0
-#define LOG_SLOW_VERBOSITY_INNODB         1 << 0
-#define LOG_SLOW_VERBOSITY_QUERY_PLAN     1 << 1
+#define LOG_SLOW_VERBOSITY_INNODB         (1U << 0)
+#define LOG_SLOW_VERBOSITY_QUERY_PLAN     (1U << 1)
 
 #define QPLAN_INIT            QPLAN_QC_NO
 
-#define QPLAN_ADMIN           1 << 0
-#define QPLAN_FILESORT        1 << 1
-#define QPLAN_FILESORT_DISK   1 << 2
-#define QPLAN_FULL_JOIN       1 << 3
-#define QPLAN_FULL_SCAN       1 << 4
-#define QPLAN_QC              1 << 5
-#define QPLAN_QC_NO           1 << 6
-#define QPLAN_TMP_DISK        1 << 7
-#define QPLAN_TMP_TABLE       1 << 8
+#define QPLAN_ADMIN           (1U << 0)
+#define QPLAN_FILESORT        (1U << 1)
+#define QPLAN_FILESORT_DISK   (1U << 2)
+#define QPLAN_FULL_JOIN       (1U << 3)
+#define QPLAN_FULL_SCAN       (1U << 4)
+#define QPLAN_QC              (1U << 5)
+#define QPLAN_QC_NO           (1U << 6)
+#define QPLAN_TMP_DISK        (1U << 7)
+#define QPLAN_TMP_TABLE       (1U << 8)
 /* ... */
-#define QPLAN_MAX             ((ulong) 1) << 31 /* reserved as placeholder */
-
+#define QPLAN_MAX             (1U << 31) /* reserved as placeholder */
