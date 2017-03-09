@@ -112,6 +112,7 @@ struct rpl_slave_state
     uint64 sub_id;
     uint64 seq_no;
     uint32 server_id;
+    void *hton;
   };
 
   /* Elements in the HASH that hold the state for one domain_id. */
@@ -158,7 +159,13 @@ struct rpl_slave_state
   /* Descriptor for mysql.gtid_slave_posXXX table in specific engine. */
   struct gtid_pos_table {
     struct gtid_pos_table *next;
-    handlerton *table_hton;
+    /*
+      Use a void * here, rather than handlerton *, to make explicit that we
+      are not using the value to access any functionality in the engine. It
+      is just used as an opaque value to identify which engine we are using
+      for each GTID row.
+    */
+    void *table_hton;
     LEX_STRING table_name;
   };
 
@@ -179,10 +186,10 @@ struct rpl_slave_state
   void truncate_hash();
   ulong count() const { return hash.records; }
   int update(uint32 domain_id, uint32 server_id, uint64 sub_id,
-             uint64 seq_no, rpl_group_info *rgi);
+             uint64 seq_no, void *hton, rpl_group_info *rgi);
   int truncate_state_table(THD *thd);
   int record_gtid(THD *thd, const rpl_gtid *gtid, uint64 sub_id,
-                  bool in_transaction, bool in_statement);
+                  bool in_transaction, bool in_statement, void **out_hton);
   uint64 next_sub_id(uint32 domain_id);
   int iterate(int (*cb)(rpl_gtid *, void *), void *data,
               rpl_gtid *extra_gtids, uint32 num_extra,
@@ -196,12 +203,13 @@ struct rpl_slave_state
   element *get_element(uint32 domain_id);
   int put_back_list(uint32 domain_id, list_element *list);
 
-  void update_state_hash(uint64 sub_id, rpl_gtid *gtid, rpl_group_info *rgi);
+  void update_state_hash(uint64 sub_id, rpl_gtid *gtid, void *hton,
+                         rpl_group_info *rgi);
   int record_and_update_gtid(THD *thd, struct rpl_group_info *rgi);
   int check_duplicate_gtid(rpl_gtid *gtid, rpl_group_info *rgi);
   void release_domain_owner(rpl_group_info *rgi);
   void set_gtid_pos_tables_list(struct gtid_pos_table *new_list);
-  struct gtid_pos_table *alloc_gtid_pos_table(LEX_STRING *table_name, handlerton *hton);
+  struct gtid_pos_table *alloc_gtid_pos_table(LEX_STRING *table_name, void *hton);
   void free_gtid_pos_tables(struct gtid_pos_table *list);
 };
 

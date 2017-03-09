@@ -1468,11 +1468,11 @@ Relay_log_info::update_relay_log_state(rpl_gtid *gtid_list, uint32 count)
 
 
 #if !defined(MYSQL_CLIENT) && defined(HAVE_REPLICATION)
-struct gtid_pos_element { uint64 sub_id; rpl_gtid gtid; };
+struct gtid_pos_element { uint64 sub_id; rpl_gtid gtid; void *hton; };
 
 static int
 scan_one_gtid_slave_pos_table(THD *thd, HASH *hash, DYNAMIC_ARRAY *array,
-                              LEX_STRING *tablename, handlerton **out_hton)
+                              LEX_STRING *tablename, void **out_hton)
 {
   TABLE_LIST tlist;
   TABLE *table;
@@ -1529,6 +1529,7 @@ scan_one_gtid_slave_pos_table(THD *thd, HASH *hash, DYNAMIC_ARRAY *array,
     tmp_entry.gtid.domain_id= domain_id;
     tmp_entry.gtid.server_id= server_id;
     tmp_entry.gtid.seq_no= seq_no;
+    tmp_entry.hton= table->s->db_type();
     if ((err= insert_dynamic(array, (uchar *)&tmp_entry)))
     {
       my_error(ER_OUT_OF_RESOURCES, MYF(0));
@@ -1544,6 +1545,7 @@ scan_one_gtid_slave_pos_table(THD *thd, HASH *hash, DYNAMIC_ARRAY *array,
       DBUG_ASSERT(entry->gtid.domain_id == domain_id);
       entry->gtid.server_id= server_id;
       entry->gtid.seq_no= seq_no;
+      entry->hton= table->s->db_type();
     }
     else
     {
@@ -1558,6 +1560,7 @@ scan_one_gtid_slave_pos_table(THD *thd, HASH *hash, DYNAMIC_ARRAY *array,
       entry->gtid.domain_id= domain_id;
       entry->gtid.server_id= server_id;
       entry->gtid.seq_no= seq_no;
+      entry->hton= table->s->db_type();
       if ((err= my_hash_insert(hash, (uchar *)entry)))
       {
         my_free(entry);
@@ -1652,7 +1655,7 @@ load_gtid_state_cb(THD *thd, LEX_STRING *table_name, void *arg)
   int err;
   load_gtid_state_cb_data *data= static_cast<load_gtid_state_cb_data *>(arg);
   struct rpl_slave_state::gtid_pos_table *p;
-  handlerton *hton;
+  void *hton;
 
   if ((err= scan_one_gtid_slave_pos_table(thd, data->hash, data->array,
                                           table_name, &hton)))
@@ -1707,10 +1710,11 @@ rpl_load_gtid_slave_state(THD *thd)
   {
     get_dynamic(&array, (uchar *)&tmp_entry, i);
     if ((err= rpl_global_gtid_slave_state->update(tmp_entry.gtid.domain_id,
-                                                 tmp_entry.gtid.server_id,
-                                                 tmp_entry.sub_id,
-                                                 tmp_entry.gtid.seq_no,
-                                                 NULL)))
+                                                  tmp_entry.gtid.server_id,
+                                                  tmp_entry.sub_id,
+                                                  tmp_entry.gtid.seq_no,
+                                                  tmp_entry.hton,
+                                                  NULL)))
     {
       mysql_mutex_unlock(&rpl_global_gtid_slave_state->LOCK_slave_state);
       my_error(ER_OUT_OF_RESOURCES, MYF(0));

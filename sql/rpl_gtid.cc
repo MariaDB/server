@@ -33,7 +33,7 @@ const LEX_STRING rpl_gtid_slave_state_table_name=
 
 
 void
-rpl_slave_state::update_state_hash(uint64 sub_id, rpl_gtid *gtid,
+rpl_slave_state::update_state_hash(uint64 sub_id, rpl_gtid *gtid, void *hton,
                                    rpl_group_info *rgi)
 {
   int err;
@@ -45,7 +45,7 @@ rpl_slave_state::update_state_hash(uint64 sub_id, rpl_gtid *gtid,
     it is even committed.
   */
   mysql_mutex_lock(&LOCK_slave_state);
-  err= update(gtid->domain_id, gtid->server_id, sub_id, gtid->seq_no, rgi);
+  err= update(gtid->domain_id, gtid->server_id, sub_id, gtid->seq_no, hton, rgi);
   mysql_mutex_unlock(&LOCK_slave_state);
   if (err)
   {
@@ -74,12 +74,14 @@ rpl_slave_state::record_and_update_gtid(THD *thd, rpl_group_info *rgi)
   if (rgi->gtid_pending)
   {
     uint64 sub_id= rgi->gtid_sub_id;
+    void *hton= NULL;
+
     rgi->gtid_pending= false;
     if (rgi->gtid_ignore_duplicate_state!=rpl_group_info::GTID_DUPLICATE_IGNORE)
     {
-      if (record_gtid(thd, &rgi->current_gtid, sub_id, false, false))
+      if (record_gtid(thd, &rgi->current_gtid, sub_id, false, false, &hton))
         DBUG_RETURN(1);
-      update_state_hash(sub_id, &rgi->current_gtid, rgi);
+      update_state_hash(sub_id, &rgi->current_gtid, hton, rgi);
     }
     rgi->gtid_ignore_duplicate_state= rpl_group_info::GTID_DUPLICATE_NULL;
   }
@@ -287,11 +289,12 @@ rpl_slave_state::truncate_hash()
 
 int
 rpl_slave_state::update(uint32 domain_id, uint32 server_id, uint64 sub_id,
-                        uint64 seq_no, rpl_group_info *rgi)
+                        uint64 seq_no, void *hton, rpl_group_info *rgi)
 {
   element *elem= NULL;
   list_element *list_elem= NULL;
 
+  DBUG_ASSERT(hton);
   if (!(elem= get_element(domain_id)))
     return 1;
 
@@ -336,6 +339,7 @@ rpl_slave_state::update(uint32 domain_id, uint32 server_id, uint64 sub_id,
   list_elem->server_id= server_id;
   list_elem->sub_id= sub_id;
   list_elem->seq_no= seq_no;
+  list_elem->hton= hton;
 
   elem->add(list_elem);
   if (last_sub_id < sub_id)
@@ -482,7 +486,8 @@ gtid_check_rpl_slave_state_table(TABLE *table)
 */
 int
 rpl_slave_state::record_gtid(THD *thd, const rpl_gtid *gtid, uint64 sub_id,
-                             bool in_transaction, bool in_statement)
+                             bool in_transaction, bool in_statement,
+                             void **out_hton)
 {
   TABLE_LIST tlist;
   int err= 0;
@@ -495,6 +500,7 @@ rpl_slave_state::record_gtid(THD *thd, const rpl_gtid *gtid, uint64 sub_id,
   wait_for_commit* suspended_wfc;
   DBUG_ENTER("record_gtid");
 
+  *out_hton= NULL;
   if (unlikely(!loaded))
   {
     /*
@@ -582,6 +588,7 @@ rpl_slave_state::record_gtid(THD *thd, const rpl_gtid *gtid, uint64 sub_id,
     table->file->print_error(err, MYF(0));
     goto end;
   }
+  *out_hton= table->s->db_type();
 
   if(opt_bin_log &&
      (err= mysql_bin_log.bump_seq_no_counter_if_needed(gtid->domain_id,
@@ -1078,11 +1085,12 @@ rpl_slave_state::load(THD *thd, char *state_from_master, size_t len,
   {
     rpl_gtid gtid;
     uint64 sub_id;
+    void *hton= NULL;
 
     if (gtid_parser_helper(&state_from_master, end, &gtid) ||
         !(sub_id= next_sub_id(gtid.domain_id)) ||
-        record_gtid(thd, &gtid, sub_id, false, in_statement) ||
-        update(gtid.domain_id, gtid.server_id, sub_id, gtid.seq_no, NULL))
+        record_gtid(thd, &gtid, sub_id, false, in_statement, &hton) ||
+        update(gtid.domain_id, gtid.server_id, sub_id, gtid.seq_no, hton, NULL))
       return 1;
     if (state_from_master == end)
       break;
@@ -1144,7 +1152,7 @@ rpl_slave_state::set_gtid_pos_tables_list(struct rpl_slave_state::gtid_pos_table
 
 
 struct rpl_slave_state::gtid_pos_table *
-rpl_slave_state::alloc_gtid_pos_table(LEX_STRING *table_name, handlerton *hton)
+rpl_slave_state::alloc_gtid_pos_table(LEX_STRING *table_name, void *hton)
 {
   struct gtid_pos_table *p;
   char *allocated_str;
