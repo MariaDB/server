@@ -1129,7 +1129,6 @@
    ...
    fun:pthread_create*
 }
-<<<<<<< HEAD
 
 {
    Memory Leak in loader and valgrind malloc
