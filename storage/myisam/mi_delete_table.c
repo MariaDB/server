@@ -28,7 +28,6 @@
 
 int mi_delete_table(const char *name)
 {
-  int res;
   DBUG_ENTER("mi_delete_table");
 
 #ifdef EXTRA_DEBUG
