@@ -856,6 +856,14 @@ struct trx_undo_ptr_t {
 					NULL if no update performed yet */
 };
 
+/** An instance of temporary rollback segment. */
+struct trx_temp_undo_t {
+	/** temporary rollback segment, or NULL if not assigned yet */
+	trx_rseg_t*	rseg;
+	/** pointer to the undo log, or NULL if nothing logged yet */
+	trx_undo_t*	undo;
+};
+
 /** Rollback segments assigned to a transaction for undo logging. */
 struct trx_rsegs_t {
 	/** undo log ptr holding reference to a rollback segment that resides in
@@ -863,10 +871,9 @@ struct trx_rsegs_t {
 	to be recovered on crash. */
 	trx_undo_ptr_t	m_redo;
 
-	/** undo log ptr holding reference to a rollback segment that resides in
-	temp tablespace used for undo logging of tables that doesn't need
-	to be recovered on crash. */
-	trx_undo_ptr_t	m_noredo;
+	/** undo log for temporary tables; discarded immediately after
+	transaction commit/rollback */
+	trx_temp_undo_t	m_noredo;
 };
 
 enum trx_rseg_type_t {

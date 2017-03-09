@@ -252,26 +252,15 @@ void
 trx_purge_add_update_undo_to_history(
 /*=================================*/
 	trx_t*		trx,		/*!< in: transaction */
-	trx_undo_ptr_t*	undo_ptr,	/*!< in/out: update undo log. */
 	page_t*		undo_page,	/*!< in: update undo log header page,
 					x-latched */
-	bool		update_rseg_history_len,
-					/*!< in: if true: update rseg history
-					len else skip updating it. */
-	ulint		n_added_logs,	/*!< in: number of logs added */
 	mtr_t*		mtr)		/*!< in: mtr */
 {
-	trx_undo_t*	undo;
-	trx_rseg_t*	rseg;
-	trx_rsegf_t*	rseg_header;
-	trx_ulogf_t*	undo_header;
-
-	undo = undo_ptr->update_undo;
-	rseg = undo->rseg;
-
-	rseg_header = trx_rsegf_get(rseg->space, rseg->page_no, mtr);
-
-	undo_header = undo_page + undo->hdr_offset;
+	trx_undo_t*	undo		= trx->rsegs.m_redo.update_undo;
+	trx_rseg_t*	rseg		= undo->rseg;
+	trx_rsegf_t*	rseg_header	= trx_rsegf_get(
+		rseg->space, rseg->page_no, mtr);
+	trx_ulogf_t*	undo_header	= undo_page + undo->hdr_offset;
 
 	if (undo->state != TRX_UNDO_CACHED) {
 		ulint		hist_size;
@@ -306,11 +295,8 @@ trx_purge_add_update_undo_to_history(
 	flst_add_first(rseg_header + TRX_RSEG_HISTORY,
 		       undo_header + TRX_UNDO_HISTORY_NODE, mtr);
 
-	if (update_rseg_history_len) {
-		my_atomic_addlint(
-			&trx_sys->rseg_history_len, n_added_logs);
-		srv_wake_purge_thread_if_not_active();
-	}
+	my_atomic_addlint(&trx_sys->rseg_history_len, 1);
+	srv_wake_purge_thread_if_not_active();
 
 	/* Write the trx number to the undo log header */
 	mlog_write_ull(undo_header + TRX_UNDO_TRX_NO, trx->no, mtr);

@@ -47,9 +47,9 @@ trx_undo_build_roll_ptr(
 	ut_ad(rseg_id < TRX_SYS_N_RSEGS);
 	ut_ad(offset < 65536);
 
-	roll_ptr = (roll_ptr_t) is_insert << 55
-		| (roll_ptr_t) rseg_id << 48
-		| (roll_ptr_t) page_no << 16
+	roll_ptr = (roll_ptr_t) is_insert << ROLL_PTR_INSERT_FLAG_POS
+		| (roll_ptr_t) rseg_id << ROLL_PTR_RSEG_ID_POS
+		| (roll_ptr_t) page_no << ROLL_PTR_PAGE_POS
 		| offset;
 	return(roll_ptr);
 }
