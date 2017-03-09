@@ -473,7 +473,7 @@ fil_parse_write_crypt_data(
 		4 +  // size of key_id
 		1; // fil_encryption_t
 
-	if (ptr + entry_size < end_ptr) {
+	if (ptr + entry_size > end_ptr) {
 		return NULL;
 	}
 
@@ -499,7 +499,7 @@ fil_parse_write_crypt_data(
 	fil_encryption_t encryption = (fil_encryption_t)mach_read_from_1(ptr);
 	ptr +=1;
 
-	if (ptr + len < end_ptr) {
+	if (ptr + len > end_ptr) {
 		return NULL;
 	}
 
