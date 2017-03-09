@@ -4937,6 +4937,7 @@ public:
 #include "item_xmlfunc.h"
 #include "item_jsonfunc.h"
 #include "item_create.h"
+#include "item_vers.h"
 #endif
 
 /**

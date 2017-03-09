@@ -143,6 +143,7 @@ SET (SQL_SOURCE
                rpl_gtid.cc rpl_parallel.cc
                sql_type.cc sql_type.h
                item_windowfunc.cc sql_window.cc
+               item_vers.cc
 	       sql_cte.cc sql_cte.h
                sql_sequence.cc sql_sequence.h ha_sequence.h
 	       ${WSREP_SOURCES}
