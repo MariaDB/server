@@ -672,6 +672,8 @@ typedef struct system_variables
 
   Time_zone *time_zone;
 
+  my_bool parse_rfc3339_timezones;
+
   my_bool sysdate_is_now;
 
   /* deadlock detection */

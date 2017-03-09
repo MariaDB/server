@@ -290,7 +290,7 @@ str_to_time(CHARSET_INFO *cs, const char *str,uint length,
     str= cnv;
   }
   bool ret = str_to_time(str, length, l_time, fuzzydate, status);
-  if(ret == 0 && status->tz_offset_valid)
+  if(ret == 0 && current_thd->variables.parse_rfc3339_timezones && status->tz_offset_valid)
   {
     MYSQL_TIME tz_convert_to_time;
     calc_time_from_sec(&tz_convert_to_time, status->tz_offset, 0);
@@ -319,7 +319,7 @@ bool str_to_datetime(CHARSET_INFO *cs, const char *str, uint length,
     str= cnv;
   }
   bool ret = str_to_datetime(str, length, l_time, flags, status);
-  if(ret == 0 && status->tz_offset_valid)
+  if(ret == 0 && current_thd->variables.parse_rfc3339_timezones && status->tz_offset_valid)
   {
     uint tz_convert_err;
     my_time_t tm= Time_zone_offset(status->tz_offset).TIME_to_gmt_sec(l_time, &tz_convert_err);
