@@ -219,17 +219,6 @@ trx_undo_report_row_operation(
 					0 if BTR_NO_UNDO_LOG
 					flag was specified */
 	MY_ATTRIBUTE((nonnull(3,4,10), warn_unused_result));
-/******************************************************************//**
-Copies an undo record to heap. This function can be called if we know that
-the undo log record exists.
-@return own: copy of the record */
-trx_undo_rec_t*
-trx_undo_get_undo_rec_low(
-/*======================*/
-	roll_ptr_t	roll_ptr,	/*!< in: roll pointer to record */
-	mem_heap_t*	heap,		/*!< in: memory heap where copied */
-	bool		is_redo_rseg)	/*!< in: true if redo rseg. */
-	MY_ATTRIBUTE((nonnull, warn_unused_result));
 
 /** status bit used for trx_undo_prev_version_build() */
 

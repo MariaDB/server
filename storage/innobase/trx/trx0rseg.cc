@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2015, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -116,14 +117,9 @@ trx_rseg_header_create(
 	return(page_no);
 }
 
-/***********************************************************************//**
-Free's an instance of the rollback segment in memory. */
+/** Free a rollback segment in memory. */
 void
-trx_rseg_mem_free(
-/*==============*/
-	trx_rseg_t*	rseg,		/* in, own: instance to free */
-	trx_rseg_t**	rseg_array)	/*!< out: add rseg reference to this
-					central array. */
+trx_rseg_mem_free(trx_rseg_t* rseg)
 {
 	trx_undo_t*	undo;
 	trx_undo_t*	next_undo;
@@ -159,9 +155,6 @@ trx_rseg_mem_free(
 
 		trx_undo_mem_free(undo);
 	}
-
-	ut_a(*((trx_rseg_t**) rseg_array + rseg->id) == rseg);
-	*((trx_rseg_t**) rseg_array + rseg->id) = NULL;
 
 	ut_free(rseg);
 }
@@ -270,49 +263,6 @@ trx_rseg_mem_create(
 }
 
 /********************************************************************
-Check if rseg in given slot needs to be scheduled for purge. */
-static
-void
-trx_rseg_schedule_pending_purge(
-/*============================*/
-	trx_sysf_t*	sys_header,	/*!< in: trx system header */
-	purge_pq_t*	purge_queue,	/*!< in/out: rseg queue */
-	ulint		slot,		/*!< in: check rseg from given slot. */
-	mtr_t*		mtr)		/*!< in: mtr */
-{
-	ulint	page_no;
-	ulint	space;
-
-	page_no = trx_sysf_rseg_get_page_no(sys_header, slot, mtr);
-	space = trx_sysf_rseg_get_space(sys_header, slot, mtr);
-
-	if (page_no != FIL_NULL
-	    && is_system_or_undo_tablespace(space)) {
-
-		/* rseg resides in system or undo tablespace and so
-		this is an upgrade scenario. trx_rseg_mem_create
-		will add rseg to purge queue if needed. */
-
-		trx_rseg_t*		rseg = NULL;
-		bool			found = true;
-		const page_size_t&	page_size
-			= is_system_tablespace(space)
-			? univ_page_size
-			: fil_space_get_page_size(space, &found);
-
-		ut_ad(found);
-
-		trx_rseg_t** rseg_array =
-			((trx_rseg_t**) trx_sys->pending_purge_rseg_array);
-		rseg = trx_rseg_mem_create(
-			slot, space, page_no, page_size,
-			purge_queue, rseg_array, mtr);
-
-		ut_a(rseg->id == slot);
-	}
-}
-
-/********************************************************************
 Creates the memory copies for the rollback segments and initializes the
 rseg array in trx_sys at a database startup. */
 static
@@ -332,22 +282,11 @@ trx_rseg_create_instance(
 
 		page_no = trx_sysf_rseg_get_page_no(sys_header, i, &mtr);
 
-		/* Slot-1....Slot-n are reserved for non-redo rsegs.
-		Non-redo rsegs are recreated on server re-start so
-		avoid initializing the existing non-redo rsegs. */
-		if (trx_sys_is_noredo_rseg_slot(i)) {
-
-			/* If this is an upgrade scenario then existing rsegs
-			in range from slot-1....slot-n needs to be scheduled
-			for purge if there are pending purge operation. */
-			trx_rseg_schedule_pending_purge(
-				sys_header, purge_queue, i, &mtr);
-
-		} else if (page_no != FIL_NULL) {
+		if (page_no != FIL_NULL) {
 			ulint		space;
 			trx_rseg_t*	rseg = NULL;
 
-			ut_a(!trx_rseg_get_on_id(i, true));
+			ut_a(!trx_rseg_get_on_id(i));
 
 			space = trx_sysf_rseg_get_space(sys_header, i, &mtr);
 

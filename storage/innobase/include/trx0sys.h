@@ -89,16 +89,6 @@ trx_sysf_rseg_find_free(
 					for temp-tablespace as free slots. */
 	ulint	nth_free_slots);	/*!< in: allocate nth free slot.
 					0 means next free slot. */
-/***************************************************************//**
-Gets the pointer in the nth slot of the rseg array.
-@return pointer to rseg object, NULL if slot not in use */
-UNIV_INLINE
-trx_rseg_t*
-trx_sys_get_nth_rseg(
-/*=================*/
-	trx_sys_t*	sys,		/*!< in: trx system */
-	ulint		n,		/*!< in: index of slot */
-	bool		is_redo_rseg);	/*!< in: true if redo rseg. */
 /**********************************************************************//**
 Gets a pointer to the transaction system file copy and x-locks its page.
 @return pointer to system file copy, page x-locked */
@@ -618,14 +608,6 @@ struct trx_sys_t {
 					list (update undo logs for committed
 					transactions), protected by
 					rseg->mutex */
-
-	trx_rseg_t*	const pending_purge_rseg_array[TRX_SYS_N_RSEGS];
-					/*!< Pointer array to rollback segments
-					between slot-1..slot-srv_tmp_undo_logs
-					that are now replaced by non-redo
-					rollback segments. We need them for
-					scheduling purge if any of the rollback
-					segment has pending records to purge. */
 
 	TrxIdSet	rw_trx_set;	/*!< Mapping from transaction id
 					to transaction instance */

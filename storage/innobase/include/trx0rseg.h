@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2015, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -26,7 +27,6 @@ Created 3/26/1996 Heikki Tuuri
 #ifndef trx0rseg_h
 #define trx0rseg_h
 
-#include "univ.i"
 #include "trx0types.h"
 #include "trx0sys.h"
 #include "fut0lst.h"
@@ -89,15 +89,16 @@ trx_rsegf_undo_find_free(
 /*=====================*/
 	trx_rsegf_t*	rsegf,	/*!< in: rollback segment header */
 	mtr_t*		mtr);	/*!< in: mtr */
-/******************************************************************//**
-Looks for a rollback segment, based on the rollback segment id.
+/** Get a rollback segment.
+@param[in]	id	rollback segment id
 @return rollback segment */
 UNIV_INLINE
 trx_rseg_t*
-trx_rseg_get_on_id(
-/*===============*/
-	ulint	id,		/*!< in: rollback segment id */
-	bool	is_redo_rseg);	/*!< in: true if redo rseg else false. */
+trx_rseg_get_on_id(ulint id)
+{
+	ut_a(id < TRX_SYS_N_RSEGS);
+	return(trx_sys->rseg_array[id]);
+}
 
 /** Creates a rollback segment header.
 This function is called only when a new rollback segment is created in
@@ -124,14 +125,10 @@ trx_rseg_array_init(
 /*================*/
 	purge_pq_t*	purge_queue);	/*!< in: rseg queue */
 
-/***************************************************************************
-Free's an instance of the rollback segment in memory. */
+/** Free a rollback segment in memory. */
 void
-trx_rseg_mem_free(
-/*==============*/
-	trx_rseg_t*	rseg,		/*!< in, own: instance to free */
-	trx_rseg_t**	rseg_array);	/*!< out: add rseg reference to this
-					central array. */
+trx_rseg_mem_free(trx_rseg_t* rseg);
+
 /*********************************************************************
 Creates a rollback segment. */
 trx_rseg_t*

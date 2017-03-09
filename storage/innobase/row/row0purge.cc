@@ -745,13 +745,7 @@ skip_secondaries:
 						 &is_insert, &rseg_id,
 						 &page_no, &offset);
 
-			/* If table is temp then it can't have its undo log
-			residing in rollback segment with REDO log enabled. */
-			bool is_redo_rseg =
-				dict_table_is_temporary(node->table)
-				? false : true;
-			rseg = trx_sys_get_nth_rseg(
-				trx_sys, rseg_id, is_redo_rseg);
+			rseg = trx_rseg_get_on_id(rseg_id);
 
 			ut_a(rseg != NULL);
 			ut_a(rseg->id == rseg_id);
