@@ -1661,12 +1661,8 @@ srv_export_innodb_status(void)
 
 #ifdef UNIV_DEBUG
 	rw_lock_s_lock(&purge_sys->latch);
-	trx_id_t	up_limit_id;
+	trx_id_t	up_limit_id	= purge_sys->view.up_limit_id();;
 	trx_id_t	done_trx_no	= purge_sys->done.trx_no;
-
-	up_limit_id	= purge_sys->view_active
-		? purge_sys->view.up_limit_id() : 0;
-
 	rw_lock_s_unlock(&purge_sys->latch);
 
 	mutex_enter(&trx_sys->mutex);

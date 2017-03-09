@@ -37,9 +37,6 @@ Created 3/26/1996 Heikki Tuuri
 #include "fil0fil.h"
 #include "read0types.h"
 
-/** The global data structure coordinating a purge */
-extern trx_purge_t*	purge_sys;
-
 /** A dummy undo record used as a return value when we have a whole undo log
 which needs no purge */
 extern trx_undo_rec_t	trx_purge_dummy_rec;
@@ -54,12 +51,6 @@ trx_purge_get_log_from_hist(
 /*========================*/
 	fil_addr_t	node_addr);	/*!< in: file address of the history
 					list node of the log */
-/** Create the global purge system data structure. */
-void
-trx_purge_sys_create();
-/** Free the global purge system data structure. */
-void
-trx_purge_sys_close();
 /************************************************************************
 Adds the update undo log as the first log in the history list. Removes the
 update undo log segment from the rseg slot if it is too big for reuse. */
@@ -216,9 +207,9 @@ Chooses the rollback segment with the smallest trx_no. */
 struct TrxUndoRsegsIterator {
 
 	/** Constructor */
-	TrxUndoRsegsIterator(trx_purge_t* purge_sys);
+	TrxUndoRsegsIterator();
 
-	/** Sets the next rseg to purge in m_purge_sys.
+	/** Sets the next rseg to purge in purge_sys.
 	@return page size of the table for which the log is.
 	NOTE: if rseg is NULL when this function returns this means that
 	there are no rollback segments to purge and then the returned page
@@ -229,9 +220,6 @@ private:
 	// Disable copying
 	TrxUndoRsegsIterator(const TrxUndoRsegsIterator&);
 	TrxUndoRsegsIterator& operator=(const TrxUndoRsegsIterator&);
-
-	/** The purge system pointer */
-	trx_purge_t*			m_purge_sys;
 
 	/** The current element to process */
 	TrxUndoRsegs			m_trx_undo_rsegs;
@@ -506,13 +494,16 @@ namespace undo {
 };	/* namespace undo */
 
 /** The control structure used in the purge operation */
-struct trx_purge_t{
+class purge_sys_t
+{
+public:
+	/** Construct the purge system. */
+	purge_sys_t();
+	/** Destruct the purge system. */
+	~purge_sys_t();
+
 	sess_t*		sess;		/*!< System session running the purge
 					query */
-	trx_t*		trx;		/*!< System transaction running the
-					purge query: this trx is not in the
-					trx list of the trx system and it
-					never ends */
 	rw_lock_t	latch;		/*!< The latch protecting the purge
 					view. A purge operation must acquire an
 					x-latch here for the instant at which
@@ -522,7 +513,7 @@ struct trx_purge_t{
 					protects state and running */
 	os_event_t	event;		/*!< State signal event;
 					os_event_set() and os_event_reset()
-					are protected by trx_purge_t::latch
+					are protected by purge_sys_t::latch
 					X-lock */
 	ulint		n_stop;		/*!< Counter to track number stops */
 	volatile bool	running;	/*!< true, if purge is active,
@@ -534,7 +525,6 @@ struct trx_purge_t{
 					parallelized purge operation */
 	ReadView	view;		/*!< The purge will not remove undo logs
 					which are >= this view (purge view) */
-	bool		view_active;	/*!< true if view is active */
 	volatile ulint	n_submitted;	/*!< Count of total tasks submitted
 					to the task queue */
 	volatile ulint	n_completed;	/*!< Count of total tasks completed */
@@ -557,11 +547,8 @@ struct trx_purge_t{
 					purged already accurately. */
 #endif /* UNIV_DEBUG */
 	/*-----------------------------*/
-	ibool		next_stored;	/*!< TRUE if the info of the next record
-					to purge is stored below: if yes, then
-					the transaction number and the undo
-					number of the record are stored in
-					purge_trx_no and purge_undo_no above */
+	bool		next_stored;	/*!< whether rseg holds the next record
+					to purge */
 	trx_rseg_t*	rseg;		/*!< Rollback segment for the next undo
 					record to purge */
 	ulint		page_no;	/*!< Page number for the next undo
@@ -575,11 +562,11 @@ struct trx_purge_t{
 	ulint		hdr_offset;	/*!< Header byte offset on the page */
 
 
-	TrxUndoRsegsIterator*
+	TrxUndoRsegsIterator
 			rseg_iter;	/*!< Iterator to get the next rseg
 					to process */
 
-	purge_pq_t*	purge_queue;	/*!< Binary min-heap, ordered on
+	purge_pq_t	purge_queue;	/*!< Binary min-heap, ordered on
 					TrxUndoRsegs::trx_no. It is protected
 					by the pq_mutex */
 	PQMutex		pq_mutex;	/*!< Mutex protecting purge_queue */
@@ -587,6 +574,9 @@ struct trx_purge_t{
 	undo::Truncate	undo_trunc;	/*!< Track UNDO tablespace marked
 					for truncate. */
 };
+
+/** The global data structure coordinating a purge */
+extern purge_sys_t*	purge_sys;
 
 /** Info required to purge a record */
 struct trx_purge_rec_t {

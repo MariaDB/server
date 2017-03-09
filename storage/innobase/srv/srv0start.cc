@@ -2857,9 +2857,8 @@ innodb_shutdown()
 		trx_sys_file_format_close();
 		trx_sys_close();
 	}
-	if (purge_sys) {
-		trx_purge_sys_close();
-	}
+	UT_DELETE(purge_sys);
+	purge_sys = NULL;
 	if (buf_dblwr) {
 		buf_dblwr_free();
 	}

@@ -123,8 +123,6 @@ struct trx_sig_t;
 struct trx_rseg_t;
 /** Transaction undo log */
 struct trx_undo_t;
-/** The control structure used in the purge operation */
-struct trx_purge_t;
 /** Rollback command node in a query graph */
 struct roll_node_t;
 /** Commit command node in a query graph */

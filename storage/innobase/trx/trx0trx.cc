@@ -1015,7 +1015,11 @@ trx_lists_init_at_db_start()
 	ut_ad(!srv_was_started);
 	ut_ad(!purge_sys);
 
-	trx_purge_sys_create();
+	purge_sys = UT_NEW_NOKEY(purge_sys_t());
+
+	if (srv_force_recovery < SRV_FORCE_NO_UNDO_LOG_SCAN) {
+		trx_rseg_array_init();
+	}
 
 	/* Look from the rollback segments if there exist undo logs for
 	transactions. */
@@ -1553,7 +1557,7 @@ trx_serialisation_number_get(
 
 		trx_sys_mutex_exit();
 
-		purge_sys->purge_queue->push(elem);
+		purge_sys->purge_queue.push(elem);
 
 		mutex_exit(&purge_sys->pq_mutex);
 	} else {

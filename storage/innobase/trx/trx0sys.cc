@@ -647,8 +647,6 @@ trx_sys_init_at_db_start()
 	trx_sys_mutex_exit();
 
 	trx_sys->mvcc->clone_oldest_view(&purge_sys->view);
-
-	purge_sys->view_active = true;
 }
 
 /*****************************************************************//**

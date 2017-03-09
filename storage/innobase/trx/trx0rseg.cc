@@ -167,7 +167,6 @@ array in the trx system object.
 @param[in]	space		space where the segment is placed
 @param[in]	page_no		page number of the segment header
 @param[in]	page_size	page size
-@param[in,out]	purge_queue	rseg queue
 @param[out]	rseg_array	add rseg reference to this central array
 @param[in,out]	mtr		mini-transaction
 @return own: rollback segment object */
@@ -178,7 +177,6 @@ trx_rseg_mem_create(
 	ulint			space,
 	ulint			page_no,
 	const page_size_t&	page_size,
-	purge_pq_t*		purge_queue,
 	trx_rseg_t**		rseg_array,
 	mtr_t*			mtr)
 {
@@ -253,7 +251,7 @@ trx_rseg_mem_create(
 			/* There is no need to cover this operation by the purge
 			mutex because we are still bootstrapping. */
 
-			purge_queue->push(elem);
+			purge_sys->purge_queue.push(elem);
 		}
 	} else {
 		rseg->last_page_no = FIL_NULL;
@@ -296,7 +294,7 @@ trx_rseg_array_init()
 
 			rseg = trx_rseg_mem_create(
 				i, space, page_no, page_size,
-				purge_sys->purge_queue, rseg_array, &mtr);
+				rseg_array, &mtr);
 
 			ut_a(rseg->id == i);
 		} else {
@@ -365,7 +363,7 @@ trx_rseg_create(
 
 		rseg = trx_rseg_mem_create(
 			slot_no, space_id, page_no, page_size,
-			purge_sys->purge_queue, rseg_array, &mtr);
+			rseg_array, &mtr);
 	}
 
 	mtr_commit(&mtr);
