@@ -113,8 +113,135 @@ purge_state_t
 trx_purge_state(void);
 /*=================*/
 
-// Forward declaration
-struct TrxUndoRsegsIterator;
+/** Rollback segements from a given transaction with trx-no
+scheduled for purge. */
+class TrxUndoRsegs {
+private:
+	typedef std::vector<trx_rseg_t*, ut_allocator<trx_rseg_t*> >
+		trx_rsegs_t;
+public:
+	typedef trx_rsegs_t::iterator iterator;
+
+	/** Default constructor */
+	TrxUndoRsegs() : m_trx_no() { }
+
+	explicit TrxUndoRsegs(trx_id_t trx_no)
+		:
+		m_trx_no(trx_no)
+	{
+		// Do nothing
+	}
+
+	/** Get transaction number
+	@return trx_id_t - get transaction number. */
+	trx_id_t get_trx_no() const
+	{
+		return(m_trx_no);
+	}
+
+	/** Add rollback segment.
+	@param rseg rollback segment to add. */
+	void push_back(trx_rseg_t* rseg)
+	{
+		m_rsegs.push_back(rseg);
+	}
+
+	/** Erase the element pointed by given iterator.
+	@param[in]	iterator	iterator */
+	void erase(iterator& it)
+	{
+		m_rsegs.erase(it);
+	}
+
+	/** Number of registered rsegs.
+	@return size of rseg list. */
+	ulint size() const
+	{
+		return(m_rsegs.size());
+	}
+
+	/**
+	@return an iterator to the first element */
+	iterator begin()
+	{
+		return(m_rsegs.begin());
+	}
+
+	/**
+	@return an iterator to the end */
+	iterator end()
+	{
+		return(m_rsegs.end());
+	}
+
+	/** Append rollback segments from referred instance to current
+	instance. */
+	void append(const TrxUndoRsegs& append_from)
+	{
+		ut_ad(get_trx_no() == append_from.get_trx_no());
+
+		m_rsegs.insert(m_rsegs.end(),
+			       append_from.m_rsegs.begin(),
+			       append_from.m_rsegs.end());
+	}
+
+	/** Compare two TrxUndoRsegs based on trx_no.
+	@param elem1 first element to compare
+	@param elem2 second element to compare
+	@return true if elem1 > elem2 else false.*/
+	bool operator()(const TrxUndoRsegs& lhs, const TrxUndoRsegs& rhs)
+	{
+		return(lhs.m_trx_no > rhs.m_trx_no);
+	}
+
+	/** Compiler defined copy-constructor/assignment operator
+	should be fine given that there is no reference to a memory
+	object outside scope of class object.*/
+
+private:
+	/** The rollback segments transaction number. */
+	trx_id_t		m_trx_no;
+
+	/** Rollback segments of a transaction, scheduled for purge. */
+	trx_rsegs_t		m_rsegs;
+};
+
+typedef std::priority_queue<
+	TrxUndoRsegs,
+	std::vector<TrxUndoRsegs, ut_allocator<TrxUndoRsegs> >,
+	TrxUndoRsegs>	purge_pq_t;
+
+/**
+Chooses the rollback segment with the smallest trx_no. */
+struct TrxUndoRsegsIterator {
+
+	/** Constructor */
+	TrxUndoRsegsIterator(trx_purge_t* purge_sys);
+
+	/** Sets the next rseg to purge in m_purge_sys.
+	@return page size of the table for which the log is.
+	NOTE: if rseg is NULL when this function returns this means that
+	there are no rollback segments to purge and then the returned page
+	size object should not be used. */
+	const page_size_t set_next();
+
+private:
+	// Disable copying
+	TrxUndoRsegsIterator(const TrxUndoRsegsIterator&);
+	TrxUndoRsegsIterator& operator=(const TrxUndoRsegsIterator&);
+
+	/** The purge system pointer */
+	trx_purge_t*			m_purge_sys;
+
+	/** The current element to process */
+	TrxUndoRsegs			m_trx_undo_rsegs;
+
+	/** Track the current element in m_trx_undo_rseg */
+	TrxUndoRsegs::iterator		m_iter;
+
+	/** Sentinel value */
+	static const TrxUndoRsegs	NullElement;
+};
 
 /** This is the purge pointer/iterator. We need both the undo no and the
 transaction no up to which purge has parsed and applied the records. */
@@ -465,38 +592,6 @@ struct trx_purge_t{
 struct trx_purge_rec_t {
 	trx_undo_rec_t*	undo_rec;	/*!< Record to purge */
 	roll_ptr_t	roll_ptr;	/*!< File pointr to UNDO record */
-};
-
-/**
-Chooses the rollback segment with the smallest trx_no. */
-struct TrxUndoRsegsIterator {
-
-	/** Constructor */
-	TrxUndoRsegsIterator(trx_purge_t* purge_sys);
-
-	/** Sets the next rseg to purge in m_purge_sys.
-	@return page size of the table for which the log is.
-	NOTE: if rseg is NULL when this function returns this means that
-	there are no rollback segments to purge and then the returned page
-	size object should not be used. */
-	const page_size_t set_next();
-
-private:
-	// Disable copying
-	TrxUndoRsegsIterator(const TrxUndoRsegsIterator&);
-	TrxUndoRsegsIterator& operator=(const TrxUndoRsegsIterator&);
-
-	/** The purge system pointer */
-	trx_purge_t*			m_purge_sys;
-
-	/** The current element to process */
-	TrxUndoRsegs			m_trx_undo_rsegs;
-
-	/** Track the current element in m_trx_undo_rseg */
-	TrxUndoRsegs::iterator		m_iter;
-
-	/** Sentinel value */
-	static const TrxUndoRsegs	NullElement;
 };
 
 #ifndef UNIV_NONINL
