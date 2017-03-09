@@ -1972,7 +1972,7 @@ trx_undo_report_row_operation(
 	page_no = undo->last_page_no;
 
 	undo_block = buf_page_get_gen(
-		page_id_t(undo->space, page_no), undo->page_size, RW_X_LATCH,
+		page_id_t(undo->space, page_no), univ_page_size, RW_X_LATCH,
 		buf_pool_is_obsolete(undo->withdraw_clock)
 		? NULL : undo->guess_block, BUF_GET, __FILE__, __LINE__,
 		&mtr, &err);
@@ -2127,8 +2127,7 @@ trx_undo_get_undo_rec_low(
 	mtr_start(&mtr);
 
 	undo_page = trx_undo_page_get_s_latched(
-		page_id_t(rseg->space, page_no), rseg->page_size,
-		&mtr);
+		page_id_t(rseg->space, page_no), &mtr);
 
 	undo_rec = trx_undo_rec_copy(undo_page + offset, heap);
 

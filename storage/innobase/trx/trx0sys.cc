@@ -224,10 +224,6 @@ trx_sys_update_mysql_binlog_offset(
 		return;
 	}
 
-	if (sys_header == NULL) {
-		sys_header = trx_sysf_get(mtr);
-	}
-
 	if (mach_read_from_4(sys_header + field
 			     + TRX_SYS_MYSQL_LOG_MAGIC_N_FLD)
 	    != TRX_SYS_MYSQL_LOG_MAGIC_N) {
@@ -571,7 +567,7 @@ trx_sysf_create(
 
 	/* Create the first rollback segment in the SYSTEM tablespace */
 	slot_no = trx_sysf_rseg_find_free(mtr, false, 0);
-	page_no = trx_rseg_header_create(TRX_SYS_SPACE, univ_page_size,
+	page_no = trx_rseg_header_create(TRX_SYS_SPACE,
 					 ULINT_MAX, slot_no, mtr);
 
 	ut_a(slot_no == TRX_SYS_SYSTEM_RSEG_ID);

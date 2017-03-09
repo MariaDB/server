@@ -750,8 +750,7 @@ trx_resurrect_table_locks(
 	/* trx_rseg_mem_create() may have acquired an X-latch on this
 	page, so we cannot acquire an S-latch. */
 	undo_page = trx_undo_page_get(
-		page_id_t(undo->space, undo->top_page_no), undo->page_size,
-		&mtr);
+		page_id_t(undo->space, undo->top_page_no), &mtr);
 
 	undo_rec = undo_page + undo->top_offset;
 
@@ -1577,8 +1576,6 @@ trx_write_serialisation_history(
 	trx_t*		trx,	/*!< in/out: transaction */
 	mtr_t*		mtr)	/*!< in/out: mini-transaction */
 {
-	trx_sysf_t* sys_header = NULL;
-
 	/* Change the undo log segment states from TRX_UNDO_ACTIVE to some
 	other state: these modifications to the file data structure define
 	the transaction as committed in the file based domain, at the
@@ -1698,8 +1695,8 @@ trx_write_serialisation_history(
 
 	MONITOR_INC(MONITOR_TRX_COMMIT_UNDO);
 
+	trx_sysf_t* sys_header = trx_sysf_get(mtr);
 #ifdef WITH_WSREP
-	sys_header = trx_sysf_get(mtr);
 	/* Update latest MySQL wsrep XID in trx sys header. */
 	if (wsrep_is_wsrep_xid(trx->xid)) {
 		trx_sys_update_wsrep_checkpoint(trx->xid, sys_header, mtr);

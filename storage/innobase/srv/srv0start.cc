@@ -1047,8 +1047,7 @@ srv_undo_tablespaces_init(
 
 				if (space_id == *it) {
 					trx_rseg_header_create(
-						*it, univ_page_size, ULINT_MAX,
-						i, &mtr);
+						*it, ULINT_MAX, i, &mtr);
 				}
 			}
 

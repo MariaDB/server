@@ -35,7 +35,6 @@ Created 3/26/1996 Heikki Tuuri
 /** Gets a rollback segment header.
 @param[in]	space		space where placed
 @param[in]	page_no		page number of the header
-@param[in]	page_size	page size
 @param[in,out]	mtr		mini-transaction
 @return rollback segment header, page x-latched */
 UNIV_INLINE
@@ -43,13 +42,11 @@ trx_rsegf_t*
 trx_rsegf_get(
 	ulint			space,
 	ulint			page_no,
-	const page_size_t&	page_size,
 	mtr_t*			mtr);
 
 /** Gets a newly created rollback segment header.
 @param[in]	space		space where placed
 @param[in]	page_no		page number of the header
-@param[in]	page_size	page size
 @param[in,out]	mtr		mini-transaction
 @return rollback segment header, page x-latched */
 UNIV_INLINE
@@ -57,7 +54,6 @@ trx_rsegf_t*
 trx_rsegf_get_new(
 	ulint			space,
 	ulint			page_no,
-	const page_size_t&	page_size,
 	mtr_t*			mtr);
 
 /***************************************************************//**
@@ -104,7 +100,6 @@ trx_rseg_get_on_id(ulint id)
 This function is called only when a new rollback segment is created in
 the database.
 @param[in]	space		space id
-@param[in]	page_size	page size
 @param[in]	max_size	max size in pages
 @param[in]	rseg_slot_no	rseg id == slot number in trx sys
 @param[in,out]	mtr		mini-transaction
@@ -112,7 +107,6 @@ the database.
 ulint
 trx_rseg_header_create(
 	ulint			space,
-	const page_size_t&	page_size,
 	ulint			max_size,
 	ulint			rseg_slot_no,
 	mtr_t*			mtr);
@@ -167,9 +161,6 @@ struct trx_rseg_t {
 
 	/** page number of the rollback segment header */
 	ulint				page_no;
-
-	/** page size of the relevant tablespace */
-	page_size_t			page_size;
 
 	/** maximum allowed size in pages */
 	ulint				max_size;

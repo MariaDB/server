@@ -210,11 +210,8 @@ struct TrxUndoRsegsIterator {
 	TrxUndoRsegsIterator();
 
 	/** Sets the next rseg to purge in purge_sys.
-	@return page size of the table for which the log is.
-	NOTE: if rseg is NULL when this function returns this means that
-	there are no rollback segments to purge and then the returned page
-	size object should not be used. */
-	const page_size_t set_next();
+	@return whether anything is to be purged */
+	bool set_next();
 
 private:
 	// Disable copying

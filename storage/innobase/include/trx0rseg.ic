@@ -30,7 +30,6 @@ Created 3/26/1996 Heikki Tuuri
 /** Gets a rollback segment header.
 @param[in]	space		space where placed
 @param[in]	page_no		page number of the header
-@param[in]	page_size	page size
 @param[in,out]	mtr		mini-transaction
 @return rollback segment header, page x-latched */
 UNIV_INLINE
@@ -38,14 +37,15 @@ trx_rsegf_t*
 trx_rsegf_get(
 	ulint			space,
 	ulint			page_no,
-	const page_size_t&	page_size,
 	mtr_t*			mtr)
 {
 	buf_block_t*	block;
 	trx_rsegf_t*	header;
 
+	ut_ad(space <= srv_undo_tablespaces || space == SRV_TMP_SPACE_ID);
+
 	block = buf_page_get(
-		page_id_t(space, page_no), page_size, RW_X_LATCH, mtr);
+		page_id_t(space, page_no), univ_page_size, RW_X_LATCH, mtr);
 
 	buf_block_dbg_add_level(block, SYNC_RSEG_HEADER);
 
@@ -57,7 +57,6 @@ trx_rsegf_get(
 /** Gets a newly created rollback segment header.
 @param[in]	space		space where placed
 @param[in]	page_no		page number of the header
-@param[in]	page_size	page size
 @param[in,out]	mtr		mini-transaction
 @return rollback segment header, page x-latched */
 UNIV_INLINE
@@ -65,14 +64,15 @@ trx_rsegf_t*
 trx_rsegf_get_new(
 	ulint			space,
 	ulint			page_no,
-	const page_size_t&	page_size,
 	mtr_t*			mtr)
 {
 	buf_block_t*	block;
 	trx_rsegf_t*	header;
 
+	ut_ad(space <= srv_undo_tablespaces || space == SRV_TMP_SPACE_ID);
+
 	block = buf_page_get(
-		page_id_t(space, page_no), page_size, RW_X_LATCH, mtr);
+		page_id_t(space, page_no), univ_page_size, RW_X_LATCH, mtr);
 
 	buf_block_dbg_add_level(block, SYNC_RSEG_HEADER_NEW);
 

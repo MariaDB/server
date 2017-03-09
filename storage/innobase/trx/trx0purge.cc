@@ -81,11 +81,9 @@ TrxUndoRsegsIterator::TrxUndoRsegsIterator()
 }
 
 /** Sets the next rseg to purge in purge_sys.
-@return page size of the table for which the log is.
-NOTE: if rseg is NULL when this function returns this means that
-there are no rollback segments to purge and then the returned page
-size object should not be used. */
-const page_size_t
+@return whether anything is to be purged */
+inline
+bool
 TrxUndoRsegsIterator::set_next()
 {
 	mutex_enter(&purge_sys->pq_mutex);
@@ -141,9 +139,7 @@ TrxUndoRsegsIterator::set_next()
 		mutex_exit(&purge_sys->pq_mutex);
 
 		purge_sys->rseg = NULL;
-
-		/* return a dummy object, not going to be used by the caller */
-		return(univ_page_size);
+		return false;
 	}
 
 	purge_sys->rseg = *m_iter++;
@@ -164,8 +160,6 @@ TrxUndoRsegsIterator::set_next()
 		|| is_system_tablespace(
 			purge_sys->rseg->space));
 
-	const page_size_t	page_size(purge_sys->rseg->page_size);
-
 	ut_a(purge_sys->iter.trx_no <= purge_sys->rseg->last_trx_no);
 
 	purge_sys->iter.trx_no = purge_sys->rseg->last_trx_no;
@@ -174,7 +168,7 @@ TrxUndoRsegsIterator::set_next()
 
 	mutex_exit(&purge_sys->rseg->mutex);
 
-	return(page_size);
+	return(true);
 }
 
 /** Build a purge 'query' graph. The actual purge is performed by executing
@@ -275,9 +269,7 @@ trx_purge_add_update_undo_to_history(
 	undo = undo_ptr->update_undo;
 	rseg = undo->rseg;
 
-	rseg_header = trx_rsegf_get(
-		undo->rseg->space, undo->rseg->page_no, undo->rseg->page_size,
-		mtr);
+	rseg_header = trx_rsegf_get(rseg->space, rseg->page_no, mtr);
 
 	undo_header = undo_page + undo->hdr_offset;
 
@@ -385,12 +377,10 @@ trx_purge_free_segment(
 
 		mutex_enter(&rseg->mutex);
 
-		rseg_hdr = trx_rsegf_get(
-			rseg->space, rseg->page_no, rseg->page_size, &mtr);
+		rseg_hdr = trx_rsegf_get(rseg->space, rseg->page_no, &mtr);
 
 		undo_page = trx_undo_page_get(
-			page_id_t(rseg->space, hdr_addr.page), rseg->page_size,
-			&mtr);
+			page_id_t(rseg->space, hdr_addr.page), &mtr);
 
 		seg_hdr = undo_page + TRX_UNDO_SEG_HDR;
 		log_hdr = undo_page + hdr_addr.boffset;
@@ -483,8 +473,7 @@ trx_purge_truncate_rseg_history(
 	}
 	mutex_enter(&(rseg->mutex));
 
-	rseg_hdr = trx_rsegf_get(rseg->space, rseg->page_no,
-				 rseg->page_size, &mtr);
+	rseg_hdr = trx_rsegf_get(rseg->space, rseg->page_no, &mtr);
 
 	hdr_addr = trx_purge_get_log_from_hist(
 		flst_get_last(rseg_hdr + TRX_RSEG_HISTORY, &mtr));
@@ -499,7 +488,7 @@ loop:
 	}
 
 	undo_page = trx_undo_page_get(page_id_t(rseg->space, hdr_addr.page),
-				      rseg->page_size, &mtr);
+				      &mtr);
 
 	log_hdr = undo_page + hdr_addr.boffset;
 
@@ -554,8 +543,7 @@ loop:
 	}
 	mutex_enter(&(rseg->mutex));
 
-	rseg_hdr = trx_rsegf_get(rseg->space, rseg->page_no,
-				 rseg->page_size, &mtr);
+	rseg_hdr = trx_rsegf_get(rseg->space, rseg->page_no, &mtr);
 
 	hdr_addr = prev_hdr_addr;
 
@@ -1189,8 +1177,7 @@ trx_purge_rseg_get_next_history_log(
 	mtr_start(&mtr);
 
 	undo_page = trx_undo_page_get_s_latched(
-		page_id_t(rseg->space, rseg->last_page_no),
-		rseg->page_size, &mtr);
+		page_id_t(rseg->space, rseg->last_page_no), &mtr);
 
 	log_hdr = undo_page + rseg->last_offset;
 
@@ -1242,7 +1229,7 @@ trx_purge_rseg_get_next_history_log(
 
 	log_hdr = trx_undo_page_get_s_latched(page_id_t(rseg->space,
 							prev_log_addr.page),
-					      rseg->page_size, &mtr)
+					      &mtr)
 		+ prev_log_addr.boffset;
 
 	trx_no = mach_read_from_8(log_hdr + TRX_UNDO_TRX_NO);
@@ -1275,12 +1262,10 @@ trx_purge_rseg_get_next_history_log(
 	mutex_exit(&rseg->mutex);
 }
 
-/** Position the purge sys "iterator" on the undo record to use for purging.
-@param[in]	page_size	page size */
+/** Position the purge sys "iterator" on the undo record to use for purging. */
 static
 void
-trx_purge_read_undo_rec(
-	const page_size_t&	page_size)
+trx_purge_read_undo_rec()
 {
 	ulint		offset;
 	ulint		page_no;
@@ -1298,7 +1283,6 @@ trx_purge_read_undo_rec(
 
 		undo_rec = trx_undo_get_first_rec(
 			purge_sys->rseg->space,
-			page_size,
 			purge_sys->hdr_page_no,
 			purge_sys->hdr_offset, RW_S_LATCH, &mtr);
 
@@ -1340,10 +1324,8 @@ trx_purge_choose_next_log(void)
 {
 	ut_ad(!purge_sys->next_stored);
 
-	const page_size_t&	page_size = purge_sys->rseg_iter.set_next();
-
-	if (purge_sys->rseg != NULL) {
-		trx_purge_read_undo_rec(page_size);
+	if (purge_sys->rseg_iter.set_next()) {
+		trx_purge_read_undo_rec();
 	} else {
 		/* There is nothing to do yet. */
 		os_thread_yield();
@@ -1378,8 +1360,6 @@ trx_purge_get_next_rec(
 	page_no = purge_sys->page_no;
 	offset = purge_sys->offset;
 
-	const page_size_t	page_size(purge_sys->rseg->page_size);
-
 	if (offset == 0) {
 		/* It is the dummy undo log record, which means that there is
 		no need to purge this undo log */
@@ -1397,7 +1377,7 @@ trx_purge_get_next_rec(
 	mtr_start(&mtr);
 
 	undo_page = trx_undo_page_get_s_latched(page_id_t(space, page_no),
-						page_size, &mtr);
+						&mtr);
 
 	rec = undo_page + offset;
 
@@ -1455,7 +1435,7 @@ trx_purge_get_next_rec(
 		mtr_start(&mtr);
 
 		undo_page = trx_undo_page_get_s_latched(
-			page_id_t(space, page_no), page_size, &mtr);
+			page_id_t(space, page_no), &mtr);
 
 		rec = undo_page + offset;
 	} else {
