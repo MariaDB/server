@@ -155,6 +155,13 @@ struct rpl_slave_state
     }
   };
 
+  /* Descriptor for mysql.gtid_slave_posXXX table in specific engine. */
+  struct gtid_pos_table {
+    struct gtid_pos_table *next;
+    handlerton *table_hton;
+    LEX_STRING table_name;
+  };
+
   /* Mapping from domain_id to its element. */
   HASH hash;
   /* Mutex protecting access to the state. */
@@ -163,6 +170,7 @@ struct rpl_slave_state
   DYNAMIC_ARRAY gtid_sort_array;
 
   uint64 last_sub_id;
+  struct gtid_pos_table *gtid_pos_tables;
   bool loaded;
 
   rpl_slave_state();
@@ -192,6 +200,9 @@ struct rpl_slave_state
   int record_and_update_gtid(THD *thd, struct rpl_group_info *rgi);
   int check_duplicate_gtid(rpl_gtid *gtid, rpl_group_info *rgi);
   void release_domain_owner(rpl_group_info *rgi);
+  void set_gtid_pos_tables_list(struct gtid_pos_table *new_list);
+  struct gtid_pos_table *alloc_gtid_pos_table(LEX_STRING *table_name, handlerton *hton);
+  void free_gtid_pos_tables(struct gtid_pos_table *list);
 };
 
 

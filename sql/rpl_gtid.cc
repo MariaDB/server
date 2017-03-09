@@ -243,7 +243,7 @@ rpl_slave_state_free_element(void *arg)
 
 
 rpl_slave_state::rpl_slave_state()
-  : last_sub_id(0), loaded(false)
+  : last_sub_id(0), gtid_pos_tables(0), loaded(false)
 {
   mysql_mutex_init(key_LOCK_slave_state, &LOCK_slave_state,
                    MY_MUTEX_INIT_SLOW);
@@ -255,6 +255,7 @@ rpl_slave_state::rpl_slave_state()
 
 rpl_slave_state::~rpl_slave_state()
 {
+  free_gtid_pos_tables(gtid_pos_tables);
   truncate_hash();
   my_hash_free(&hash);
   delete_dynamic(&gtid_sort_array);
@@ -1112,6 +1113,56 @@ rpl_slave_state::is_empty()
   mysql_mutex_unlock(&LOCK_slave_state);
 
   return result;
+}
+
+
+void
+rpl_slave_state::free_gtid_pos_tables(struct rpl_slave_state::gtid_pos_table *list)
+{
+  struct gtid_pos_table *cur, *next;
+
+  cur= list;
+  while (cur)
+  {
+    next= cur->next;
+    my_free(cur);
+    cur= next;
+  }
+}
+
+
+void
+rpl_slave_state::set_gtid_pos_tables_list(struct rpl_slave_state::gtid_pos_table *new_list)
+{
+  struct gtid_pos_table *old_list;
+
+  mysql_mutex_assert_owner(&LOCK_slave_state);
+  old_list= gtid_pos_tables;
+  gtid_pos_tables= new_list;
+  free_gtid_pos_tables(old_list);
+}
+
+
+struct rpl_slave_state::gtid_pos_table *
+rpl_slave_state::alloc_gtid_pos_table(LEX_STRING *table_name, handlerton *hton)
+{
+  struct gtid_pos_table *p;
+  char *allocated_str;
+
+  if (!my_multi_malloc(MYF(MY_WME),
+                       &p, sizeof(*p),
+                       &allocated_str, table_name->length+1,
+                       NULL))
+  {
+    my_error(ER_OUTOFMEMORY, MYF(0), (int)(sizeof(*p) + table_name->length+1));
+    return NULL;
+  }
+  memcpy(allocated_str, table_name->str, table_name->length+1); // Also copy '\0'
+  p->next = NULL;
+  p->table_hton= hton;
+  p->table_name.str= allocated_str;
+  p->table_name.length= table_name->length;
+  return p;
 }
 
 

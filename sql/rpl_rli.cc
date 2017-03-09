@@ -1472,7 +1472,7 @@ struct gtid_pos_element { uint64 sub_id; rpl_gtid gtid; };
 
 static int
 scan_one_gtid_slave_pos_table(THD *thd, HASH *hash, DYNAMIC_ARRAY *array,
-                              LEX_STRING *tablename)
+                              LEX_STRING *tablename, handlerton **out_hton)
 {
   TABLE_LIST tlist;
   TABLE *table;
@@ -1577,6 +1577,7 @@ end:
   }
   if (table_opened)
   {
+    *out_hton= table->s->db_type();
     close_thread_tables(thd);
     thd->mdl_context.release_transactional_locks();
   }
@@ -1642,13 +1643,25 @@ scan_all_gtid_slave_pos_table(THD *thd, int (*cb)(THD *, LEX_STRING *, void *),
 struct load_gtid_state_cb_data {
   HASH *hash;
   DYNAMIC_ARRAY *array;
+  struct rpl_slave_state::gtid_pos_table *table_list;
 };
 
 static int
 load_gtid_state_cb(THD *thd, LEX_STRING *table_name, void *arg)
 {
+  int err;
   load_gtid_state_cb_data *data= static_cast<load_gtid_state_cb_data *>(arg);
-  return scan_one_gtid_slave_pos_table(thd, data->hash, data->array, table_name);
+  struct rpl_slave_state::gtid_pos_table *p;
+  handlerton *hton;
+
+  if ((err= scan_one_gtid_slave_pos_table(thd, data->hash, data->array,
+                                          table_name, &hton)))
+    return err;
+  if (!(p= rpl_global_gtid_slave_state->alloc_gtid_pos_table(table_name, hton)))
+    return 1;
+  p->next= data->table_list;
+  data->table_list= p;
+  return 0;
 }
 
 
@@ -1670,6 +1683,7 @@ rpl_load_gtid_slave_state(THD *thd)
   if (loaded)
     DBUG_RETURN(0);
 
+  cb_data.table_list= NULL;
   my_hash_init(&hash, &my_charset_bin, 32,
                offsetof(gtid_pos_element, gtid) + offsetof(rpl_gtid, domain_id),
                sizeof(uint32), NULL, my_free, HASH_UNIQUE);
@@ -1717,6 +1731,8 @@ rpl_load_gtid_slave_state(THD *thd)
     }
   }
 
+  rpl_global_gtid_slave_state->set_gtid_pos_tables_list(cb_data.table_list);
+  cb_data.table_list= NULL;
   rpl_global_gtid_slave_state->loaded= true;
   mysql_mutex_unlock(&rpl_global_gtid_slave_state->LOCK_slave_state);
 
@@ -1724,7 +1740,84 @@ end:
   if (array_inited)
     delete_dynamic(&array);
   my_hash_free(&hash);
+  if (cb_data.table_list)
+    rpl_global_gtid_slave_state->free_gtid_pos_tables(cb_data.table_list);
   DBUG_RETURN(err);
+}
+
+
+static int
+find_gtid_pos_tables_cb(THD *thd, LEX_STRING *table_name, void *arg)
+{
+  struct rpl_slave_state::gtid_pos_table **table_list_ptr=
+    static_cast<struct rpl_slave_state::gtid_pos_table **>(arg);
+  TABLE_LIST tlist;
+  TABLE *table= NULL;
+  int err;
+  struct rpl_slave_state::gtid_pos_table *p;
+
+  thd->reset_for_next_command();
+  tlist.init_one_table(STRING_WITH_LEN("mysql"), table_name->str,
+                       table_name->length, NULL, TL_READ);
+  if ((err= open_and_lock_tables(thd, &tlist, FALSE, 0)))
+    goto end;
+  table= tlist.table;
+
+  if ((err= gtid_check_rpl_slave_state_table(table)))
+    goto end;
+
+  if (!(p= rpl_global_gtid_slave_state->alloc_gtid_pos_table(table_name, table->s->db_type())))
+    err= 1;
+  else
+  {
+    p->next= *table_list_ptr;
+    *table_list_ptr= p;
+  }
+
+end:
+  if (table)
+  {
+    ha_commit_trans(thd, FALSE);
+    ha_commit_trans(thd, TRUE);
+    close_thread_tables(thd);
+    thd->mdl_context.release_transactional_locks();
+  }
+
+  return err;
+}
+
+
+/*
+  Re-compute the list of available mysql.gtid_slave_posXXX tables.
+
+  This is done at START SLAVE to pick up any newly created tables without
+  requiring server restart.
+*/
+int
+find_gtid_slave_pos_tables(THD *thd)
+{
+  int err= 0;
+  struct rpl_slave_state::gtid_pos_table *table_list;
+
+  mysql_mutex_lock(&rpl_global_gtid_slave_state->LOCK_slave_state);
+  bool loaded= rpl_global_gtid_slave_state->loaded;
+  mysql_mutex_unlock(&rpl_global_gtid_slave_state->LOCK_slave_state);
+  if (!loaded)
+    return 0;
+
+  table_list= NULL;
+  if ((err= scan_all_gtid_slave_pos_table(thd, find_gtid_pos_tables_cb, &table_list)))
+    goto end;
+
+  mysql_mutex_lock(&rpl_global_gtid_slave_state->LOCK_slave_state);
+  rpl_global_gtid_slave_state->set_gtid_pos_tables_list(table_list);
+  table_list= NULL;
+  mysql_mutex_unlock(&rpl_global_gtid_slave_state->LOCK_slave_state);
+
+end:
+  if (table_list)
+    rpl_global_gtid_slave_state->free_gtid_pos_tables(table_list);
+  return err;
 }
 
 
