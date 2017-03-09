@@ -167,17 +167,14 @@ array in the trx system object.
 @param[in]	space		space where the segment is placed
 @param[in]	page_no		page number of the segment header
 @param[in]	page_size	page size
-@param[out]	rseg_array	add rseg reference to this central array
-@param[in,out]	mtr		mini-transaction
-@return own: rollback segment object */
+@param[in,out]	mtr		mini-transaction */
 static
-trx_rseg_t*
+void
 trx_rseg_mem_create(
 	ulint			id,
 	ulint			space,
 	ulint			page_no,
 	const page_size_t&	page_size,
-	trx_rseg_t**		rseg_array,
 	mtr_t*			mtr)
 {
 	ulint		len;
@@ -207,7 +204,7 @@ trx_rseg_mem_create(
 	UT_LIST_INIT(rseg->insert_undo_list, &trx_undo_t::undo_list);
 	UT_LIST_INIT(rseg->insert_undo_cached, &trx_undo_t::undo_list);
 
-	*((trx_rseg_t**) rseg_array + rseg->id) = rseg;
+	trx_sys->rseg_array[id] = rseg;
 
 	rseg_header = trx_rsegf_get_new(space, page_no, page_size, mtr);
 
@@ -256,18 +253,18 @@ trx_rseg_mem_create(
 	} else {
 		rseg->last_page_no = FIL_NULL;
 	}
-
-	return(rseg);
 }
 
 /** Initialize the rollback segments in memory at database startup. */
 void
 trx_rseg_array_init()
 {
+	mtr_t	mtr;
+
 	for (ulint i = 0; i < TRX_SYS_N_RSEGS; i++) {
+		ut_a(!trx_rseg_get_on_id(i));
 		ulint	page_no;
 
-		mtr_t	mtr;
 		mtr.start();
 		trx_sysf_t* sys_header = trx_sysf_get(&mtr);
 
@@ -275,9 +272,6 @@ trx_rseg_array_init()
 
 		if (page_no != FIL_NULL) {
 			ulint		space;
-			trx_rseg_t*	rseg = NULL;
-
-			ut_a(!trx_rseg_get_on_id(i));
 
 			space = trx_sysf_rseg_get_space(sys_header, i, &mtr);
 
@@ -289,17 +283,10 @@ trx_rseg_array_init()
 
 			ut_ad(found);
 
-			trx_rseg_t** rseg_array =
-				static_cast<trx_rseg_t**>(trx_sys->rseg_array);
-
-			rseg = trx_rseg_mem_create(
-				i, space, page_no, page_size,
-				rseg_array, &mtr);
-
-			ut_a(rseg->id == i);
-		} else {
-			ut_a(trx_sys->rseg_array[i] == NULL);
+			trx_rseg_mem_create(
+				i, space, page_no, page_size, &mtr);
 		}
+
 		mtr.commit();
 	}
 }
@@ -315,10 +302,8 @@ trx_rseg_create(
 				0 means next free slots. */
 {
 	mtr_t		mtr;
-	ulint		slot_no;
-	trx_rseg_t*	rseg = NULL;
 
-	mtr_start(&mtr);
+	mtr.start();
 
 	/* To obey the latching order, acquire the file space
 	x-latch before the trx_sys->mutex. */
@@ -329,46 +314,34 @@ trx_rseg_create(
 	case FIL_TYPE_IMPORT:
 		ut_ad(0);
 	case FIL_TYPE_TEMPORARY:
-		mtr_set_log_mode(&mtr, MTR_LOG_NO_REDO);
+		mtr.set_log_mode(MTR_LOG_NO_REDO);
 		break;
 	case FIL_TYPE_TABLESPACE:
 		break;
 	}
 
-	slot_no = trx_sysf_rseg_find_free(
+	page_size_t	page_size(space->flags);
+	ulint	slot_no = trx_sysf_rseg_find_free(
 		&mtr, space->purpose == FIL_TYPE_TEMPORARY, nth_free_slot);
-
-	if (slot_no != ULINT_UNDEFINED) {
-		ulint		id;
-		ulint		page_no;
-		trx_sysf_t*	sys_header;
-		page_size_t	page_size(space->flags);
-
-		page_no = trx_rseg_header_create(
+	ulint	page_no = slot_no == ULINT_UNDEFINED
+		? FIL_NULL
+		: trx_rseg_header_create(
 			space_id, page_size, ULINT_MAX, slot_no, &mtr);
 
-		if (page_no == FIL_NULL) {
-			mtr_commit(&mtr);
+	if (page_no != FIL_NULL) {
+		trx_sysf_t*	sys_header = trx_sysf_get(&mtr);
 
-			return(rseg);
-		}
-
-		sys_header = trx_sysf_get(&mtr);
-
-		id = trx_sysf_rseg_get_space(sys_header, slot_no, &mtr);
+		ulint		id = trx_sysf_rseg_get_space(
+			sys_header, slot_no, &mtr);
 		ut_a(id == space_id || trx_sys_is_noredo_rseg_slot(slot_no));
 
-		trx_rseg_t** rseg_array =
-			((trx_rseg_t**) trx_sys->rseg_array);
-
-		rseg = trx_rseg_mem_create(
-			slot_no, space_id, page_no, page_size,
-			rseg_array, &mtr);
+		trx_rseg_mem_create(
+			slot_no, space_id, page_no, page_size, &mtr);
 	}
 
-	mtr_commit(&mtr);
+	mtr.commit();
 
-	return(rseg);
+	return(page_no == FIL_NULL ? NULL : trx_sys->rseg_array[slot_no]);
 }
 
 /********************************************************************
