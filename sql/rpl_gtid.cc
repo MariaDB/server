@@ -493,11 +493,13 @@ rpl_slave_state::record_gtid(THD *thd, const rpl_gtid *gtid, uint64 sub_id,
   int err= 0;
   bool table_opened= false;
   TABLE *table;
-  list_element *elist= 0, *next;
+  list_element *delete_list= 0, *next, *cur, **next_ptr_ptr, **best_ptr_ptr;
+  uint64_t best_sub_id;
   element *elem;
   ulonglong thd_saved_option= thd->variables.option_bits;
   Query_tables_list lex_backup;
   wait_for_commit* suspended_wfc;
+  void *hton= NULL;
   DBUG_ENTER("record_gtid");
 
   *out_hton= NULL;
@@ -553,6 +555,7 @@ rpl_slave_state::record_gtid(THD *thd, const rpl_gtid *gtid, uint64 sub_id,
     goto end;
   table_opened= true;
   table= tlist.table;
+  hton= table->s->db_type();
 
   if ((err= gtid_check_rpl_slave_state_table(table)))
     goto end;
@@ -588,7 +591,7 @@ rpl_slave_state::record_gtid(THD *thd, const rpl_gtid *gtid, uint64 sub_id,
     table->file->print_error(err, MYF(0));
     goto end;
   }
-  *out_hton= table->s->db_type();
+  *out_hton= hton;
 
   if(opt_bin_log &&
      (err= mysql_bin_log.bump_seq_no_counter_if_needed(gtid->domain_id,
@@ -606,36 +609,62 @@ rpl_slave_state::record_gtid(THD *thd, const rpl_gtid *gtid, uint64 sub_id,
     err= 1;
     goto end;
   }
-  if ((elist= elem->grab_list()) != NULL)
+
+  /* Now pull out all GTIDs that were recorded in this engine. */
+  delete_list = NULL;
+  next_ptr_ptr= &elem->list;
+  cur= elem->list;
+  best_sub_id= 0;
+  best_ptr_ptr= NULL;
+  while (cur)
   {
-    /* Delete any old stuff, but keep around the most recent one. */
-    list_element *cur= elist;
-    uint64 best_sub_id= cur->sub_id;
-    list_element **best_ptr_ptr= &elist;
-    while ((next= cur->next))
+    list_element *next= cur->next;
+    if (cur->hton == hton)
     {
-      if (next->sub_id > best_sub_id)
+      /* Belongs to same engine, so move it to the delete list. */
+      cur->next= delete_list;
+      delete_list= cur;
+      if (cur->sub_id > best_sub_id)
       {
-        best_sub_id= next->sub_id;
-        best_ptr_ptr= &cur->next;
+        best_sub_id= cur->sub_id;
+        best_ptr_ptr= &delete_list;
       }
-      cur= next;
+      else if (best_ptr_ptr == &delete_list)
+        best_ptr_ptr= &cur->next;
     }
-    /*
-      Delete the highest sub_id element from the old list, and put it back as
-      the single-element new list.
-    */
+    else
+    {
+      /* Another engine, leave it in the list. */
+      if (cur->sub_id > best_sub_id)
+      {
+        best_sub_id= cur->sub_id;
+        /* Current best is not on the delete list. */
+        best_ptr_ptr= NULL;
+      }
+      *next_ptr_ptr= cur;
+      next_ptr_ptr= &cur->next;
+    }
+    cur= next;
+  }
+  *next_ptr_ptr= NULL;
+  /*
+    If the highest sub_id element is on the delete list, put it back on the
+    original list, to preserve the highest sub_id element in the table for
+    GTID position recovery.
+  */
+  if (best_ptr_ptr)
+  {
     cur= *best_ptr_ptr;
     *best_ptr_ptr= cur->next;
-    cur->next= NULL;
+    cur->next= elem->list;
     elem->list= cur;
   }
   mysql_mutex_unlock(&LOCK_slave_state);
 
-  if (!elist)
+  if (!delete_list)
     goto end;
 
-  /* Now delete any already committed rows. */
+  /* Now delete any already committed GTIDs. */
   bitmap_set_bit(table->read_set, table->field[0]->field_index);
   bitmap_set_bit(table->read_set, table->field[1]->field_index);
 
@@ -644,7 +673,7 @@ rpl_slave_state::record_gtid(THD *thd, const rpl_gtid *gtid, uint64 sub_id,
     table->file->print_error(err, MYF(0));
     goto end;
   }
-  while (elist)
+  while (delete_list)
   {
     uchar key_buffer[4+8];
 
@@ -654,9 +683,9 @@ rpl_slave_state::record_gtid(THD *thd, const rpl_gtid *gtid, uint64 sub_id,
                       /* `break' does not work inside DBUG_EXECUTE_IF */
                       goto dbug_break; });
 
-    next= elist->next;
+    next= delete_list->next;
 
-    table->field[1]->store(elist->sub_id, true);
+    table->field[1]->store(delete_list->sub_id, true);
     /* domain_id is already set in table->record[0] from write_row() above. */
     key_copy(key_buffer, table->record[0], &table->key_info[0], 0, false);
     if (table->file->ha_index_read_map(table->record[1], key_buffer,
@@ -670,8 +699,8 @@ rpl_slave_state::record_gtid(THD *thd, const rpl_gtid *gtid, uint64 sub_id,
       not want to endlessly error on the same element in case of table
       corruption or such.
     */
-    my_free(elist);
-    elist= next;
+    my_free(delete_list);
+    delete_list= next;
     if (err)
       break;
   }
@@ -689,13 +718,13 @@ end:
     if (err || (err= ha_commit_trans(thd, FALSE)))
     {
       /*
-        If error, we need to put any remaining elist back into the HASH so we
-        can do another delete attempt later.
+        If error, we need to put any remaining delete_list back into the HASH
+        so we can do another delete attempt later.
       */
-      if (elist)
+      if (delete_list)
       {
         mysql_mutex_lock(&LOCK_slave_state);
-        put_back_list(gtid->domain_id, elist);
+        put_back_list(gtid->domain_id, delete_list);
         mysql_mutex_unlock(&LOCK_slave_state);
       }
 
