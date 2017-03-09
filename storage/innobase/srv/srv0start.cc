@@ -1555,38 +1555,30 @@ innobase_start_or_create_for_mysql(void)
 
 	if (srv_file_flush_method_str == NULL) {
 		/* These are the default options */
-#ifndef _WIN32
-		srv_unix_file_flush_method = SRV_UNIX_FSYNC;
+		srv_file_flush_method = IF_WIN(SRV_ALL_O_DIRECT_FSYNC,SRV_FSYNC);
 	} else if (0 == ut_strcmp(srv_file_flush_method_str, "fsync")) {
-		srv_unix_file_flush_method = SRV_UNIX_FSYNC;
+		srv_file_flush_method = SRV_FSYNC;
 
 	} else if (0 == ut_strcmp(srv_file_flush_method_str, "O_DSYNC")) {
-		srv_unix_file_flush_method = SRV_UNIX_O_DSYNC;
+		srv_file_flush_method = SRV_O_DSYNC;
 
 	} else if (0 == ut_strcmp(srv_file_flush_method_str, "O_DIRECT")) {
-		srv_unix_file_flush_method = SRV_UNIX_O_DIRECT;
+		srv_file_flush_method = SRV_O_DIRECT;
 
 	} else if (0 == ut_strcmp(srv_file_flush_method_str, "O_DIRECT_NO_FSYNC")) {
-		srv_unix_file_flush_method = SRV_UNIX_O_DIRECT_NO_FSYNC;
+		srv_file_flush_method = SRV_O_DIRECT_NO_FSYNC;
 
 	} else if (0 == ut_strcmp(srv_file_flush_method_str, "littlesync")) {
-		srv_unix_file_flush_method = SRV_UNIX_LITTLESYNC;
+		srv_file_flush_method = SRV_LITTLESYNC;
 
 	} else if (0 == ut_strcmp(srv_file_flush_method_str, "nosync")) {
-		srv_unix_file_flush_method = SRV_UNIX_NOSYNC;
-#else
-		srv_win_file_flush_method = SRV_WIN_IO_UNBUFFERED;
+		srv_file_flush_method = SRV_NOSYNC;
+#ifdef _WIN32
 	} else if (0 == ut_strcmp(srv_file_flush_method_str, "normal")) {
-		srv_win_file_flush_method = SRV_WIN_IO_NORMAL;
-		srv_use_native_aio = FALSE;
-
+		srv_file_flush_method = SRV_FSYNC;
 	} else if (0 == ut_strcmp(srv_file_flush_method_str, "unbuffered")) {
-		srv_win_file_flush_method = SRV_WIN_IO_UNBUFFERED;
-		srv_use_native_aio = FALSE;
-
 	} else if (0 == ut_strcmp(srv_file_flush_method_str,
 				  "async_unbuffered")) {
-		srv_win_file_flush_method = SRV_WIN_IO_UNBUFFERED;
 #endif /* _WIN32 */
 	} else {
 		ib::error() << "Unrecognized value "

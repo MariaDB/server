@@ -1802,11 +1802,7 @@ trx_flush_log_if_needed_low(
 	lsn_t	lsn)	/*!< in: lsn up to which logs are to be
 			flushed. */
 {
-#ifdef _WIN32
-	bool	flush = true;
-#else
-	bool	flush = srv_unix_file_flush_method != SRV_UNIX_NOSYNC;
-#endif /* _WIN32 */
+	bool	flush = srv_file_flush_method != SRV_NOSYNC;
 
 	switch (srv_flush_log_at_trx_commit) {
 	case 3:

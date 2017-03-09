@@ -2683,8 +2683,8 @@ os_file_create_simple_func(
 	we open the same file in the same mode, see man page of open(2). */
        if (!srv_read_only_mode
 	   && *success
-	   && (srv_unix_file_flush_method == SRV_UNIX_O_DIRECT
-	       || srv_unix_file_flush_method == SRV_UNIX_O_DIRECT_NO_FSYNC)) {
+	   && (srv_file_flush_method == SRV_O_DIRECT
+	       || srv_file_flush_method == SRV_O_DIRECT_NO_FSYNC)) {
 
 	       os_file_set_nocache(file, name, mode_str);
 	}
@@ -2955,7 +2955,7 @@ os_file_create_func(
 
 	if (!read_only
 	    && type == OS_LOG_FILE
-	    && srv_unix_file_flush_method == SRV_UNIX_O_DSYNC) {
+	    && srv_file_flush_method == SRV_O_DSYNC) {
 
 		create_flag |= O_SYNC;
 	}
@@ -2992,8 +2992,8 @@ os_file_create_func(
 	if (!read_only
 	    && *success
 	    && (type != OS_LOG_FILE && type != OS_DATA_TEMP_FILE)
-	    && (srv_unix_file_flush_method == SRV_UNIX_O_DIRECT
-		|| srv_unix_file_flush_method == SRV_UNIX_O_DIRECT_NO_FSYNC)) {
+	    && (srv_file_flush_method == SRV_O_DIRECT
+		|| srv_file_flush_method == SRV_O_DIRECT_NO_FSYNC)) {
 
 	       os_file_set_nocache(file, name, mode_str);
 	}
@@ -4212,20 +4212,55 @@ os_file_create_func(
 		return(OS_FILE_CLOSED);
 	}
 
-#ifdef UNIV_NON_BUFFERED_IO
+	if (type == OS_LOG_FILE) {
+		/* There is not reason to use buffered write to logs.*/
+		attributes |= FILE_FLAG_NO_BUFFERING;
+	}
+
+	switch (srv_file_flush_method)
+	{
+	case SRV_O_DSYNC: 
+		if (type == OS_LOG_FILE) {
+			/* Map O_SYNC to FILE_WRITE_THROUGH */
+			attributes |= FILE_FLAG_WRITE_THROUGH;
+		}
+		break;
+
+	case SRV_O_DIRECT_NO_FSYNC:
+	case SRV_O_DIRECT:
+		if (type == OS_DATA_FILE) {
+			attributes |= FILE_FLAG_NO_BUFFERING;
+		}
+		break;
+
+	case SRV_ALL_O_DIRECT_FSYNC:
+		/*Traditional Windows behavior, no buffering for any files.*/
+		attributes |= FILE_FLAG_NO_BUFFERING;
+		break;
+
+	case SRV_FSYNC:
+	case SRV_LITTLESYNC:
+		break;
+
+	case SRV_NOSYNC:
+		/* Let Windows cache manager handle all writes.*/
+		attributes &= ~(FILE_FLAG_WRITE_THROUGH | FILE_FLAG_NO_BUFFERING);
+		break;
+
+	default:
+		ut_a(false); /* unknown flush mode.*/
+	}
+
+
 	// TODO: Create a bug, this looks wrong. The flush log
 	// parameter is dynamic.
 	if (type == OS_LOG_FILE && srv_flush_log_at_trx_commit == 2) {
-
 		/* Do not use unbuffered i/o for the log files because
 		value 2 denotes that we do not flush the log at every
 		commit, but only once per second */
-
-	} else if (srv_win_file_flush_method == SRV_WIN_IO_UNBUFFERED) {
-
-		attributes |= FILE_FLAG_NO_BUFFERING;
+		attributes &= ~(FILE_FLAG_WRITE_THROUGH | FILE_FLAG_NO_BUFFERING);
 	}
-#endif /* UNIV_NON_BUFFERED_IO */
+
 
 	DWORD	access = GENERIC_READ;
 

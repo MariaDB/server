@@ -942,20 +942,17 @@ log_io_complete(
 		/* It was a checkpoint write */
 		group = (log_group_t*)((ulint) group - 1);
 
-#ifdef _WIN32
-		fil_flush(group->space_id);
-#else
-		switch (srv_unix_file_flush_method) {
-		case SRV_UNIX_O_DSYNC:
-		case SRV_UNIX_NOSYNC:
+		switch (srv_file_flush_method) {
+		case SRV_O_DSYNC:
+		case SRV_NOSYNC:
 			break;
-		case SRV_UNIX_FSYNC:
-		case SRV_UNIX_LITTLESYNC:
-		case SRV_UNIX_O_DIRECT:
-		case SRV_UNIX_O_DIRECT_NO_FSYNC:
+		case SRV_FSYNC:
+		case SRV_LITTLESYNC:
+		case SRV_O_DIRECT:
+		case SRV_O_DIRECT_NO_FSYNC:
 			fil_flush(group->space_id);
 		}
-#endif /* _WIN32 */
+
 
 		DBUG_PRINT("ib_log", ("checkpoint info written to group %u",
 				      unsigned(group->id)));
@@ -1176,11 +1173,8 @@ log_write_flush_to_disk_low()
 	calling os_event_set()! */
 	ut_a(log_sys->n_pending_flushes == 1); /* No other threads here */
 
-#ifndef _WIN32
-	bool	do_flush = srv_unix_file_flush_method != SRV_UNIX_O_DSYNC;
-#else
-	bool	do_flush = true;
-#endif
+	bool	do_flush = srv_file_flush_method != SRV_O_DSYNC;
+
 	if (do_flush) {
 		fil_flush(SRV_LOG_SPACE_FIRST_ID);
 	}
@@ -1413,13 +1407,12 @@ loop:
 	srv_stats.log_padded.add(pad_size);
 	log_sys->write_lsn = write_lsn;
 
-#ifndef _WIN32
-	if (srv_unix_file_flush_method == SRV_UNIX_O_DSYNC) {
+
+	if (srv_file_flush_method == SRV_O_DSYNC) {
 		/* O_SYNC means the OS did not buffer the log file at all:
 		so we have also flushed to disk what we have written */
 		log_sys->flushed_to_disk_lsn = log_sys->write_lsn;
 	}
-#endif /* !_WIN32 */
 
 	log_write_mutex_exit();
 
@@ -1771,18 +1764,16 @@ log_checkpoint(
 		recv_apply_hashed_log_recs(true);
 	}
 
-#ifndef _WIN32
-	switch (srv_unix_file_flush_method) {
-	case SRV_UNIX_NOSYNC:
+	switch (srv_file_flush_method) {
+	case SRV_NOSYNC:
 		break;
-	case SRV_UNIX_O_DSYNC:
-	case SRV_UNIX_FSYNC:
-	case SRV_UNIX_LITTLESYNC:
-	case SRV_UNIX_O_DIRECT:
-	case SRV_UNIX_O_DIRECT_NO_FSYNC:
+	case SRV_O_DSYNC:
+	case SRV_FSYNC:
+	case SRV_LITTLESYNC:
+	case SRV_O_DIRECT:
+	case SRV_O_DIRECT_NO_FSYNC:
 		fil_flush_file_spaces(FIL_TYPE_TABLESPACE);
 	}
-#endif /* !_WIN32 */
 
 	log_mutex_enter();
 
