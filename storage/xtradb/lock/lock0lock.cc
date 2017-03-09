@@ -930,8 +930,10 @@ lock_reset_lock_and_trx_wait(
 		}
 
 		ib_logf(IB_LOG_LEVEL_INFO,
-			"Trx id %lu is waiting a lock in statement %s"
-			" for this trx id %lu and statement %s wait_lock %p",
+			"Trx id " TRX_ID_FMT
+			" is waiting a lock in statement %s"
+			" for this trx id " TRX_ID_FMT
+			" and statement %s wait_lock %p",
 			lock->trx->id,
 			stmt ? stmt : "NULL",
 			trx_id,
@@ -2654,7 +2656,8 @@ lock_rec_add_to_queue(
 			if (wsrep_thd_is_BF(trx->mysql_thd, FALSE)) {
 				if (wsrep_debug) {
 					fprintf(stderr,
-						"BF skipping wait: %lu\n",
+						"BF skipping wait: "
+						TRX_ID_FMT "\n",
 						trx->id);
 					lock_rec_print(stderr, lock);
 				}
@@ -5316,7 +5319,9 @@ lock_table_other_has_incompatible(
 #ifdef WITH_WSREP
 			if(wsrep_thd_is_wsrep(trx->mysql_thd)) {
 				if (wsrep_debug) {
-					fprintf(stderr, "WSREP: trx %ld table lock abort\n",
+					fprintf(stderr, "WSREP: trx "
+						TRX_ID_FMT
+						" table lock abort\n",
 						trx->id);
 				}
 				trx_mutex_enter(lock->trx);

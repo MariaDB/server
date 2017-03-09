@@ -346,16 +346,17 @@ static os_ib_mutex_t	os_file_count_mutex;
 #endif /* !UNIV_HOTBACKUP && (!HAVE_ATOMIC_BUILTINS || UNIV_WORD_SIZE < 8) */
 
 /** Number of pending os_file_pread() operations */
-UNIV_INTERN ulint	os_file_n_pending_preads  = 0;
+UNIV_INTERN ulint	os_file_n_pending_preads;
 /** Number of pending os_file_pwrite() operations */
-UNIV_INTERN ulint	os_file_n_pending_pwrites = 0;
+UNIV_INTERN ulint	os_file_n_pending_pwrites;
 /** Number of pending write operations */
-UNIV_INTERN ulint	os_n_pending_writes = 0;
+UNIV_INTERN ulint	os_n_pending_writes;
 /** Number of pending read operations */
-UNIV_INTERN ulint	os_n_pending_reads = 0;
+UNIV_INTERN ulint	os_n_pending_reads;
 
+#if defined(WIN_ASYNC_IO) || defined(LINUX_NATIVE_AIO)
 /** After first fallocate failure we will disable os_file_trim */
-static ibool       os_fallocate_failed;
+static bool		os_fallocate_failed;
 
 /**********************************************************************//**
 Directly manipulate the allocated disk space by deallocating for the file referred to
@@ -369,6 +370,7 @@ ibool
 os_file_trim(
 /*=========*/
 	os_aio_slot_t*	slot); /*!< in: slot structure     */
+#endif /* WIN_ASYNC_IO || LINUX_NATIVE_AIO */
 
 /****************************************************************//**
 Does error handling when a file operation fails.
@@ -5336,7 +5338,7 @@ os_aio_windows_handle(
 	}
 
 	if (slot->type == OS_FILE_WRITE) {
-		if (!slot->is_log && srv_use_trim && os_fallocate_failed == FALSE) {
+		if (!slot->is_log && srv_use_trim && !os_fallocate_failed) {
 			// Deallocate unused blocks from file system
 			os_file_trim(slot);
 		}
@@ -5432,7 +5434,8 @@ retry:
 			ut_a(slot->pos < end_pos);
 
 			if (slot->type == OS_FILE_WRITE) {
-				if (!slot->is_log && srv_use_trim && os_fallocate_failed == FALSE) {
+				if (!slot->is_log && srv_use_trim
+				    && !os_fallocate_failed) {
 					// Deallocate unused blocks from file system
 					os_file_trim(slot);
 				}
@@ -6334,6 +6337,7 @@ typedef struct _FILE_LEVEL_TRIM {
 #endif
 #endif
 
+#if defined(WIN_ASYNC_IO) || defined(LINUX_NATIVE_AIO)
 /**********************************************************************//**
 Directly manipulate the allocated disk space by deallocating for the file referred to
 by fd  for  the  byte range starting at offset and continuing for len bytes.
@@ -6341,7 +6345,7 @@ Within the specified range, partial file system blocks are zeroed, and whole
 file system blocks are removed from the file.  After a successful call,
 subsequent reads from  this range will return zeroes.
 @return	true if success, false if error */
-UNIV_INTERN
+static
 ibool
 os_file_trim(
 /*=========*/
@@ -6386,13 +6390,13 @@ os_file_trim(
 
 	if (ret) {
 		/* After first failure do not try to trim again */
-		os_fallocate_failed = TRUE;
+		os_fallocate_failed = true;
 		srv_use_trim = FALSE;
-		ut_print_timestamp(stderr);
-		fprintf(stderr,
-			"  InnoDB: Warning: fallocate call failed with error code %d.\n"
-			"  InnoDB: start: %lu len: %lu payload: %lu\n"
-			"  InnoDB: Disabling fallocate for now.\n", errno, off, trim_len, len);
+		ib_logf(IB_LOG_LEVEL_WARN,
+			"fallocate() failed with error %d."
+			" start: %llu len: " ULINTPF " payload: " ULINTPF "."
+			" Disabling fallocate for now.",
+			errno, off, ulint(trim_len), ulint(len));
 
 		os_file_handle_error_no_exit(slot->name,
 			" fallocate(FALLOC_PUNCH_HOLE | FALLOC_FL_KEEP_SIZE) ",
@@ -6413,7 +6417,7 @@ os_file_trim(
 	fprintf(stderr,
 		"  InnoDB: Warning: fallocate not supported on this installation."
 		"  InnoDB: Disabling fallocate for now.");
-	os_fallocate_failed = TRUE;
+	os_fallocate_failed = true;
 	srv_use_trim = FALSE;
 	if (slot->write_size) {
 		*slot->write_size = 0;
@@ -6433,7 +6437,7 @@ os_file_trim(
 
 	if (!ret) {
 		/* After first failure do not try to trim again */
-		os_fallocate_failed = TRUE;
+		os_fallocate_failed = true;
 		srv_use_trim = FALSE;
 		ut_print_timestamp(stderr);
 		fprintf(stderr,
@@ -6487,6 +6491,7 @@ os_file_trim(
 	return (TRUE);
 
 }
+#endif /* WIN_ASYNC_IO || LINUX_NATIVE_AIO */
 
 /***********************************************************************//**
 Try to get number of bytes per sector from file system.

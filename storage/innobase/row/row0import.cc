@@ -1870,10 +1870,10 @@ PageConverter::update_index_page(
 
 		if (index == 0) {
 			ib_logf(IB_LOG_LEVEL_ERROR,
-				"Page for tablespace %lu is "
-				" index page with id %lu but that"
+				"Page for tablespace " ULINTPF " is "
+				" index page with id " IB_ID_FMT " but that"
 				" index is not found from configuration file."
-				" Current index name %s and id %lu.",
+				" Current index name %s and id " IB_ID_FMT ".",
 				m_space,
 				id,
 				m_index->m_name,

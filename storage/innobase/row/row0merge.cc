@@ -111,9 +111,8 @@ row_merge_encrypt_buf(
 			"Unable to encrypt data-block "
 			" src: %p srclen: %lu buf: %p buflen: %d."
 			" return-code: %d. Can't continue!\n",
-			input_buf, (size_t)srv_sort_buf_size,
+			input_buf, srv_sort_buf_size,
 			crypted_buf, dstlen, rc);
-		ut_error;
 	}
 }
 
@@ -153,9 +152,8 @@ row_merge_decrypt_buf(
 			"Unable to encrypt data-block "
 			" src: %p srclen: %lu buf: %p buflen: %d."
 			" return-code: %d. Can't continue!\n",
-			input_buf, (size_t)srv_sort_buf_size,
+			input_buf, srv_sort_buf_size,
 			crypted_buf, dstlen, rc);
-		ut_error;
 	}
 
 	return true;

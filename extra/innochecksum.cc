@@ -394,7 +394,8 @@ parse_page(
                  size_range_id = SIZE_RANGES_FOR_PAGE + 1;
                }
                if (per_page_details) {
-                 printf("index %lu page %lu leaf %u n_recs %lu data_bytes %lu"
+                 printf("index " IB_ID_FMT " page " ULINTPF
+			" leaf %d n_recs " ULINTPF " data_bytes " ULINTPF
                          "\n", id, page_no, is_leaf, n_recs, data_bytes);
                }
                /* update per-index statistics */

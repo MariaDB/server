@@ -473,7 +473,7 @@ fil_parse_write_crypt_data(
 		4 +  // size of key_id
 		1; // fil_encryption_t
 
-	if (end_ptr - ptr < entry_size){
+	if (ptr + entry_size < end_ptr) {
 		return NULL;
 	}
 
@@ -499,7 +499,7 @@ fil_parse_write_crypt_data(
 	fil_encryption_t encryption = (fil_encryption_t)mach_read_from_1(ptr);
 	ptr +=1;
 
-	if (end_ptr - ptr < len) {
+	if (ptr + len < end_ptr) {
 		return NULL;
 	}
 
@@ -1479,7 +1479,8 @@ fil_crypt_space_needs_rotation(
 
 		bool need_scrubbing =
 			crypt_data->rotate_state.scrubbing.is_active
-			&& diff >= srv_background_scrub_data_interval;
+			&& diff >= 0
+			&& ulint(diff) >= srv_background_scrub_data_interval;
 
 		if (need_key_rotation == false && need_scrubbing == false) {
 			break;
@@ -2377,7 +2378,9 @@ DECLARE_THREAD(fil_crypt_thread)(
 
 			time_t waited = time(0) - wait_start;
 
-			if (waited >= srv_background_scrub_data_check_interval) {
+			if (waited >= 0
+			    && ulint(waited)
+			    >= srv_background_scrub_data_check_interval) {
 				break;
 			}
 		}

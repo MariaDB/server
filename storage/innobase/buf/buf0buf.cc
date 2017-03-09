@@ -4887,7 +4887,8 @@ buf_all_freed_instance(
 					block->page.space,
 					block->page.offset);
 				ib_logf(IB_LOG_LEVEL_ERROR,
-					"Page oldest_modification %lu fix_count %d io_fix %d.",
+					"Page oldest_modification " LSN_PF
+					" fix_count %d io_fix %d.",
 					block->page.oldest_modification,
 					block->page.buf_fix_count,
 					buf_page_get_io_fix(&block->page));
