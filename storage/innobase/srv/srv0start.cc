@@ -1449,7 +1449,6 @@ innobase_start_or_create_for_mysql(void)
 	dberr_t		err		= DB_SUCCESS;
 	ulint		srv_n_log_files_found = srv_n_log_files;
 	mtr_t		mtr;
-	purge_pq_t*	purge_queue;
 	char		logfilename[10000];
 	char*		logfile0	= NULL;
 	size_t		dirnamelen;
@@ -2137,13 +2136,7 @@ files_checked:
 		All the remaining rollback segments will be created later,
 		after the double write buffer has been created. */
 		trx_sys_create_sys_pages();
-
-		purge_queue = trx_sys_init_at_db_start();
-
-		/* The purge system needs to create the purge view and
-		therefore requires that the trx_sys is inited. */
-
-		trx_purge_sys_create(srv_n_purge_threads, purge_queue);
+		trx_sys_init_at_db_start();
 
 		err = dict_create();
 
@@ -2228,7 +2221,7 @@ files_checked:
 		}
 
 		/* This must precede recv_apply_hashed_log_recs(true). */
-		purge_queue = trx_sys_init_at_db_start();
+		trx_sys_init_at_db_start();
 
 		if (srv_force_recovery < SRV_FORCE_NO_LOG_REDO) {
 			/* Apply the hashed log records to the
@@ -2309,15 +2302,9 @@ files_checked:
 					" a startup if you are trying to"
 					" recover a badly corrupt database.";
 
-				UT_DELETE(purge_queue);
 				return(srv_init_abort(DB_ERROR));
 			}
 		}
-
-		/* The purge system needs to create the purge view and
-		therefore requires that the trx_sys is inited. */
-
-		trx_purge_sys_create(srv_n_purge_threads, purge_queue);
 
 		/* recv_recovery_from_checkpoint_finish needs trx lists which
 		are initialized in trx_sys_init_at_db_start(). */

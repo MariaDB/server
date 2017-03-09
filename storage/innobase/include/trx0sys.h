@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -61,13 +62,9 @@ bool
 trx_sys_hdr_page(
 	const page_id_t&	page_id);
 
-/*****************************************************************//**
-Creates and initializes the central memory structures for the transaction
-system. This is called when the database is started.
-@return min binary heap of rsegs to purge */
-purge_pq_t*
-trx_sys_init_at_db_start(void);
-/*==========================*/
+/** Initialize the transaction system main-memory data structures. */
+void trx_sys_init_at_db_start();
+
 /*****************************************************************//**
 Creates the trx_sys instance and initializes purge_queue and mutex. */
 void

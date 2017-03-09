@@ -262,18 +262,11 @@ trx_rseg_mem_create(
 	return(rseg);
 }
 
-/********************************************************************
-Creates the memory copies for the rollback segments and initializes the
-rseg array in trx_sys at a database startup. */
-static
+/** Initialize the rollback segments in memory at database startup. */
 void
-trx_rseg_create_instance(
-/*=====================*/
-	purge_pq_t*	purge_queue)	/*!< in/out: rseg queue */
+trx_rseg_array_init()
 {
-	ulint		i;
-
-	for (i = 0; i < TRX_SYS_N_RSEGS; i++) {
+	for (ulint i = 0; i < TRX_SYS_N_RSEGS; i++) {
 		ulint	page_no;
 
 		mtr_t	mtr;
@@ -303,7 +296,7 @@ trx_rseg_create_instance(
 
 			rseg = trx_rseg_mem_create(
 				i, space, page_no, page_size,
-				purge_queue, rseg_array, &mtr);
+				purge_sys->purge_queue, rseg_array, &mtr);
 
 			ut_a(rseg->id == i);
 		} else {
@@ -378,19 +371,6 @@ trx_rseg_create(
 	mtr_commit(&mtr);
 
 	return(rseg);
-}
-
-/*********************************************************************//**
-Creates the memory copies for rollback segments and initializes the
-rseg array in trx_sys at a database startup. */
-void
-trx_rseg_array_init(
-/*================*/
-	purge_pq_t*	purge_queue)	/*!< in: rseg queue */
-{
-	trx_sys->rseg_history_len = 0;
-
-	trx_rseg_create_instance(purge_queue);
 }
 
 /********************************************************************

@@ -54,19 +54,12 @@ trx_purge_get_log_from_hist(
 /*========================*/
 	fil_addr_t	node_addr);	/*!< in: file address of the history
 					list node of the log */
-/********************************************************************//**
-Creates the global purge system control structure and inits the history
-mutex. */
+/** Create the global purge system data structure. */
 void
-trx_purge_sys_create(
-/*=================*/
-	ulint		n_purge_threads,/*!< in: number of purge threads */
-	purge_pq_t*	purge_queue);	/*!< in/own: UNDO log min binary heap*/
-/********************************************************************//**
-Frees the global purge system control structure. */
+trx_purge_sys_create();
+/** Free the global purge system data structure. */
 void
-trx_purge_sys_close(void);
-/*======================*/
+trx_purge_sys_close();
 /************************************************************************
 Adds the update undo log as the first log in the history list. Removes the
 update undo log segment from the rseg slot if it is too big for reuse. */

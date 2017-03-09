@@ -117,13 +117,9 @@ trx_rseg_header_create(
 	ulint			rseg_slot_no,
 	mtr_t*			mtr);
 
-/*********************************************************************//**
-Creates the memory copies for rollback segments and initializes the
-rseg array in trx_sys at a database startup. */
+/** Initialize the rollback segments in memory at database startup. */
 void
-trx_rseg_array_init(
-/*================*/
-	purge_pq_t*	purge_queue);	/*!< in: rseg queue */
+trx_rseg_array_init();
 
 /** Free a rollback segment in memory. */
 void

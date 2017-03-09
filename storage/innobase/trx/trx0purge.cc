@@ -208,16 +208,9 @@ trx_purge_graph_build(
 	return(fork);
 }
 
-/********************************************************************//**
-Creates the global purge system control structure and inits the history
-mutex. */
+/** Create the global purge system data structure. */
 void
-trx_purge_sys_create(
-/*=================*/
-	ulint		n_purge_threads,	/*!< in: number of purge
-						threads */
-	purge_pq_t*	purge_queue)		/*!< in, own: UNDO log min
-						binary heap */
+trx_purge_sys_create()
 {
 	purge_sys = static_cast<trx_purge_t*>(
 		ut_zalloc_nokey(sizeof(*purge_sys)));
@@ -232,15 +225,18 @@ trx_purge_sys_create(
 	new (&purge_sys->done) purge_iter_t;
 #endif /* UNIV_DEBUG */
 
-	/* Take ownership of purge_queue, we are responsible for freeing it. */
-	purge_sys->purge_queue = purge_queue;
+	purge_sys->purge_queue = UT_NEW_NOKEY(purge_pq_t());
+	ut_a(purge_sys->purge_queue != NULL);
+	if (srv_force_recovery < SRV_FORCE_NO_UNDO_LOG_SCAN) {
+		trx_rseg_array_init();
+	}
 
 	rw_lock_create(trx_purge_latch_key,
 		       &purge_sys->latch, SYNC_PURGE_LATCH);
 
 	mutex_create(LATCH_ID_PURGE_SYS_PQ, &purge_sys->pq_mutex);
 
-	ut_a(n_purge_threads > 0);
+	ut_a(srv_n_purge_threads > 0);
 
 	purge_sys->sess = sess_open();
 
@@ -257,22 +253,16 @@ trx_purge_sys_create(
 	purge_sys->trx->op_info = "purge trx";
 
 	purge_sys->query = trx_purge_graph_build(
-		purge_sys->trx, n_purge_threads);
+		purge_sys->trx, srv_n_purge_threads);
 
 	new(&purge_sys->view) ReadView();
-
-	trx_sys->mvcc->clone_oldest_view(&purge_sys->view);
-
-	purge_sys->view_active = true;
 
 	purge_sys->rseg_iter = UT_NEW_NOKEY(TrxUndoRsegsIterator(purge_sys));
 }
 
-/************************************************************************
-Frees the global purge system control structure. */
+/** Free the global purge system data structure. */
 void
-trx_purge_sys_close(void)
-/*======================*/
+trx_purge_sys_close()
 {
 	que_graph_free(purge_sys->query);
 

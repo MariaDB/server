@@ -60,7 +60,7 @@ struct file_format_t {
 };
 
 /** The transaction system */
-trx_sys_t*		trx_sys		= NULL;
+trx_sys_t*		trx_sys;
 
 /** List of animal names representing file format. */
 static const char*	file_format_name_map[] = {
@@ -578,28 +578,13 @@ trx_sysf_create(
 	ut_a(page_no == FSP_FIRST_RSEG_PAGE_NO);
 }
 
-/*****************************************************************//**
-Creates and initializes the central memory structures for the transaction
-system. This is called when the database is started.
-@return min binary heap of rsegs to purge */
-purge_pq_t*
-trx_sys_init_at_db_start(void)
-/*==========================*/
+/** Initialize the transaction system main-memory data structures. */
+void
+trx_sys_init_at_db_start()
 {
-	purge_pq_t*	purge_queue;
 	trx_sysf_t*	sys_header;
 	ib_uint64_t	rows_to_undo	= 0;
 	const char*	unit		= "";
-
-	/* We create the min binary heap here and pass ownership to
-	purge when we init the purge sub-system. Purge is responsible
-	for freeing the binary heap. */
-	purge_queue = UT_NEW_NOKEY(purge_pq_t());
-	ut_a(purge_queue != NULL);
-
-	if (srv_force_recovery < SRV_FORCE_NO_UNDO_LOG_SCAN) {
-		trx_rseg_array_init(purge_queue);
-	}
 
 	/* VERY important: after the database is started, max_trx_id value is
 	divisible by TRX_SYS_TRX_ID_WRITE_MARGIN, and the 'if' in
@@ -661,7 +646,9 @@ trx_sys_init_at_db_start(void)
 
 	trx_sys_mutex_exit();
 
-	return(purge_queue);
+	trx_sys->mvcc->clone_oldest_view(&purge_sys->view);
+
+	purge_sys->view_active = true;
 }
 
 /*****************************************************************//**
