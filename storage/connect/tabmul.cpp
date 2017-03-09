@@ -634,6 +634,7 @@ void TDBDIR::Init(void)
 {
 	iFile = 0;
 #if defined(__WIN__)
+	Dvalp = NULL;
 	memset(&FileData, 0, sizeof(_finddata_t));
 	hSearch = INVALID_HANDLE_VALUE;
 	*Drive = '\0';
@@ -661,37 +662,6 @@ TDBDIR::TDBDIR(PSZ fpat) : TDBASE((PTABDEF)NULL)
 	To_File = fpat;
 	Init();
 } // end of TDBDIR constructor
-
-TDBDIR::TDBDIR(PTDBDIR tdbp) : TDBASE(tdbp)
-  {
-  To_File = tdbp->To_File;
-  iFile = tdbp->iFile;
-#if defined(__WIN__)
-  FileData = tdbp->FileData;
-  hSearch = tdbp->hSearch;
-  strcpy(Drive, tdbp->Drive);
-#else   // !__WIN__
-  Fileinfo = tdbp->Fileinfo;
-  Entry = tdbp->Entry;
-  Dir = tdbp->Dir;
-  Done = tdbp->Done;
-  strcpy(Pattern, tdbp->Pattern);
-#endif  // !__WIN__
-  strcpy(Direc, tdbp->Direc);
-  strcpy(Fname, tdbp->Fname);
-  strcpy(Ftype, tdbp->Ftype);
-  } // end of TDBDIR copy constructor
-
-// Method
-PTDB TDBDIR::Clone(PTABS t)
-  {
-  PTDB    tp;
-  PGLOBAL g = t->G;        // Is this really useful ???
-
-  tp = new(g) TDBDIR(this);
-  tp->SetColumns(Columns);
-  return tp;
-  } // end of Clone
 
 /***********************************************************************/
 /*  Initialize/get the components of the search file pattern.          */
@@ -958,6 +928,7 @@ DIRCOL::DIRCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PSZ)
   } // endif cprec
 
   // Set additional DIR access method information for column.
+	Tdbp = (PTDBDIR)tdbp;
   N = cdp->GetOffset();
   } // end of DIRCOL constructor
 
@@ -967,48 +938,73 @@ DIRCOL::DIRCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PSZ)
 /***********************************************************************/
 DIRCOL::DIRCOL(DIRCOL *col1, PTDB tdbp) : COLBLK(col1, tdbp)
   {
-  N = col1->N;
+	Tdbp = (PTDBDIR)tdbp;
+	N = col1->N;
   } // end of DIRCOL copy constructor
+
+#if defined(__WIN__)
+/***********************************************************************/
+/*  Retrieve time information from FileData.                           */
+/***********************************************************************/
+void DIRCOL::SetTimeValue(PGLOBAL g, FILETIME& ftime)
+{
+	char       tsp[24];
+	SYSTEMTIME stp;
+
+	if (FileTimeToSystemTime(&ftime, &stp)) {
+		sprintf(tsp, "%04d-%02d-%02d %02d:%02d:%02d",
+			stp.wYear, stp.wMonth, stp.wDay, stp.wHour, stp.wMinute, stp.wSecond);
+
+		if (Value->GetType() != TYPE_STRING) {
+			if (!Tdbp->Dvalp)
+				Tdbp->Dvalp = AllocateValue(g, TYPE_DATE, 20, 0, false,
+					"YYYY-MM-DD hh:mm:ss");
+
+			Tdbp->Dvalp->SetValue_psz(tsp);
+			Value->SetValue_pval(Tdbp->Dvalp);
+		} else
+			Value->SetValue_psz(tsp);
+
+	} else
+		Value->Reset();
+
+} // end of SetTimeValue
+#endif   // __WIN__
 
 /***********************************************************************/
 /*  ReadColumn: what this routine does is to access the information    */
 /*  corresponding to this column and convert it to buffer type.        */
 /***********************************************************************/
 void DIRCOL::ReadColumn(PGLOBAL g)
-  {
-  PTDBDIR tdbp = (PTDBDIR)To_Tdb;
-#if defined(__WIN__)
-//PSYSTEMTIME	stp = NULL;
-#endif  // !__WIN__
-
+	{
   if (trace)
     htrc("DIR ReadColumn: col %s R%d use=%.4X status=%.4X type=%d N=%d\n",
-      Name, tdbp->GetTdb_No(), ColUse, Status, Buf_Type, N);
+      Name, Tdbp->GetTdb_No(), ColUse, Status, Buf_Type, N);
 
   /*********************************************************************/
   /*  Retrieve the information corresponding to the column number.     */
   /*********************************************************************/
   switch (N) {
 #if defined(__WIN__)
-    case  0: Value->SetValue_psz(tdbp->Drive);                  break;
+    case  0: Value->SetValue_psz(Tdbp->Drive); break;
 #endif   // __WIN__
-    case  1: Value->SetValue_psz(tdbp->Direc);                  break;
-    case  2: Value->SetValue_psz(tdbp->Fname);                  break;
-    case  3: Value->SetValue_psz(tdbp->Ftype);                  break;
+    case  1: Value->SetValue_psz(Tdbp->Direc); break;
+    case  2: Value->SetValue_psz(Tdbp->Fname); break;
+    case  3: Value->SetValue_psz(Tdbp->Ftype); break;
 #if defined(__WIN__)
-    case  4: Value->SetValue((int)tdbp->FileData.dwFileAttributes); break;
-		case  5: Value->SetValue((int)tdbp->FileData.nFileSizeLow);     break;
-    case  6: SetTimeValue(g, tdbp->FileData.ftLastWriteTime);       break;
-    case  7: SetTimeValue(g, tdbp->FileData.ftCreationTime);        break;
-    case  8: SetTimeValue(g, tdbp->FileData.ftLastAccessTime);      break;
+    case  4: Value->SetValue((int)Tdbp->FileData.dwFileAttributes); break;
+		case  5: Value->SetValue((int)Tdbp->FileData.nFileSizeLow); break;
+    case  6: SetTimeValue(g, Tdbp->FileData.ftLastWriteTime);   break;
+    case  7: SetTimeValue(g, Tdbp->FileData.ftCreationTime);    break;
+    case  8: SetTimeValue(g, Tdbp->FileData.ftLastAccessTime);  break;
 #else   // !__WIN__
-    case  4: Value->SetValue((int)tdbp->Fileinfo.st_mode);     break;
-    case  5: Value->SetValue((int)tdbp->Fileinfo.st_size);     break;
-    case  6: Value->SetValue((int)tdbp->Fileinfo.st_mtime);    break;
-    case  7: Value->SetValue((int)tdbp->Fileinfo.st_ctime);    break;
-    case  8: Value->SetValue((int)tdbp->Fileinfo.st_atime);    break;
-    case  9: Value->SetValue((int)tdbp->Fileinfo.st_uid);      break;
-    case 10: Value->SetValue((int)tdbp->Fileinfo.st_gid);      break;
+    case  4: Value->SetValue((int)Tdbp->Fileinfo.st_mode);  break;
+    case  5: Value->SetValue((int)Tdbp->Fileinfo.st_size);  break;
+    case  6: Value->SetValue((int)Tdbp->Fileinfo.st_mtime); break;
+    case  7: Value->SetValue((int)Tdbp->Fileinfo.st_ctime); break;
+    case  8: Value->SetValue((int)Tdbp->Fileinfo.st_atime); break;
+    case  9: Value->SetValue((int)Tdbp->Fileinfo.st_uid);   break;
+    case 10: Value->SetValue((int)Tdbp->Fileinfo.st_gid);   break;
 #endif  // !__WIN__
     default:
       sprintf(g->Message, MSG(INV_DIRCOL_OFST), N);
@@ -1022,25 +1018,6 @@ void DIRCOL::ReadColumn(PGLOBAL g)
   } // end of ReadColumn
 
 /* ------------------------- Class TDBSDR ---------------------------- */
-
-/***********************************************************************/
-/*  TABSDR copy constructors.                                          */
-/***********************************************************************/
-TDBSDR::TDBSDR(PTDBSDR tdbp) : TDBDIR(tdbp)
-  {
-  Sub = tdbp->Sub;
-  } // end of TDBSDR copy constructor
-
-// Method
-PTDB TDBSDR::Clone(PTABS t)
-  {
-  PTDB    tp;
-  PGLOBAL g = t->G;        // Is this really useful ???
-
-  tp = new(g) TDBSDR(this);
-  tp->SetColumns(Columns);
-  return tp;
-  } // end of Clone
 
 /***********************************************************************/
 /*  SDR GetMaxSize: returns the number of retrieved files.             */

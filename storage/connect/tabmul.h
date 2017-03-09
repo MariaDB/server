@@ -134,15 +134,11 @@ public:
   // Constructor
   TDBDIR(PDIRDEF tdp);
 	TDBDIR(PSZ fpat);
-	TDBDIR(PTDBDIR tdbp);
 
   // Implementation
   virtual AMT  GetAmType(void) {return TYPE_AM_DIR;}
-  virtual PTDB Duplicate(PGLOBAL g)
-                {return (PTDB)new(g) TDBDIR(this);}
 
   // Methods
-  virtual PTDB Clone(PTABS t);
   virtual int GetRecpos(void) {return iFile;}
 
   // Database routines
@@ -164,7 +160,7 @@ public:
   PSZ  To_File;                 // Points to file search pathname
   int  iFile;                   // Index of currently retrieved file
 #if defined(__WIN__)
-//_finddata_t    FileData;      // Find data structure
+	PVAL Dvalp;							      // Used to retrieve file date values
 	WIN32_FIND_DATA FileData;			// Find data structure
 	HANDLE hSearch;               // Search handle
   char Drive[_MAX_DRIVE];       // Drive name
@@ -195,14 +191,6 @@ class TDBSDR : public TDBDIR {
   // Constructors
   TDBSDR(PDIRDEF tdp) : TDBDIR(tdp) {Sub = NULL;}
 	TDBSDR(PSZ fpat) : TDBDIR(fpat) {Sub = NULL;}
-	TDBSDR(PTDBSDR tdbp);
-
-  // Implementation
-  virtual PTDB Duplicate(PGLOBAL g)
-                {return (PTDB)new(g) TDBSDR(this);}
-
-  // Methods
-  virtual PTDB Clone(PTABS t);
 
   // Database routines
   virtual int  GetMaxSize(PGLOBAL g);
@@ -249,9 +237,10 @@ class DIRCOL : public COLBLK {
   // Default constructor not to be used
   DIRCOL(void) {}
 #if defined(__WIN__)
-	void SetTimeValue(PGLOBAL g, FILETIME& ftime) { Value->Reset(); }
+	void SetTimeValue(PGLOBAL g, FILETIME& ftime);
 #endif   // __WIN__
 
   // Members
+	PTDBDIR	Tdbp;								// To DIR table
   int     N;                  // Column number
   }; // end of class DIRCOL
