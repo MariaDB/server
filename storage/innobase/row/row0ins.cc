@@ -2087,7 +2087,7 @@ row_ins_scan_sec_index_for_duplicate(
 
 	btr_pcur_open(index, entry, PAGE_CUR_GE,
 		      s_latch
-		      ? BTR_SEARCH_LEAF | BTR_ALREADY_S_LATCHED
+		      ? BTR_SEARCH_LEAF_ALREADY_S_LATCHED
 		      : BTR_SEARCH_LEAF,
 		      &pcur, mtr);
 
@@ -2505,7 +2505,7 @@ row_ins_clust_index_entry_low(
 
 		if (mode == BTR_MODIFY_LEAF
 		    && dict_index_is_online_ddl(index)) {
-			mode = BTR_MODIFY_LEAF | BTR_ALREADY_S_LATCHED;
+			mode = BTR_MODIFY_LEAF_ALREADY_S_LATCHED;
 			mtr_s_lock(dict_index_get_lock(index), &mtr);
 		}
 

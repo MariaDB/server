@@ -1083,7 +1083,7 @@ dict_stats_analyze_index_level(
 	on the desired level. */
 
 	btr_pcur_open_at_index_side(
-		true, index, BTR_SEARCH_TREE | BTR_ALREADY_S_LATCHED,
+		true, index, BTR_SEARCH_TREE_ALREADY_S_LATCHED,
 		&pcur, true, level, mtr);
 	btr_pcur_move_to_next_on_page(&pcur);
 
@@ -1700,7 +1700,7 @@ dict_stats_analyze_index_for_n_prefix(
 	on the desired level. */
 
 	btr_pcur_open_at_index_side(
-		true, index, BTR_SEARCH_TREE | BTR_ALREADY_S_LATCHED,
+		true, index, BTR_SEARCH_TREE_ALREADY_S_LATCHED,
 		&pcur, true, n_diff_data->level, mtr);
 	btr_pcur_move_to_next_on_page(&pcur);
 

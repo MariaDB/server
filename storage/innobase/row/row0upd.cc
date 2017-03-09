@@ -2309,9 +2309,8 @@ row_upd_sec_index_entry(
 		spatial index. */
 		mode = (referenced || dict_table_is_temporary(index->table)
 			|| dict_index_is_spatial(index))
-			? BTR_MODIFY_LEAF | BTR_ALREADY_S_LATCHED
-			: BTR_MODIFY_LEAF | BTR_ALREADY_S_LATCHED
-			| BTR_DELETE_MARK;
+			? BTR_MODIFY_LEAF_ALREADY_S_LATCHED
+			: BTR_DELETE_MARK_LEAF_ALREADY_S_LATCHED;
 	} else {
 		/* For secondary indexes,
 		index->online_status==ONLINE_INDEX_COMPLETE if
@@ -2325,7 +2324,7 @@ row_upd_sec_index_entry(
 		mode = (referenced || dict_table_is_temporary(index->table)
 			|| dict_index_is_spatial(index))
 			? BTR_MODIFY_LEAF
-			: BTR_MODIFY_LEAF | BTR_DELETE_MARK;
+			: BTR_DELETE_MARK_LEAF;
 	}
 
 	if (dict_index_is_spatial(index)) {

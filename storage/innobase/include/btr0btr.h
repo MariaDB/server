@@ -71,15 +71,52 @@ enum btr_latch_mode {
 	/** Start searching the entire B-tree. */
 	BTR_SEARCH_TREE = 37,
 	/** Continue searching the entire B-tree. */
-	BTR_CONT_SEARCH_TREE = 38
+	BTR_CONT_SEARCH_TREE = 38,
+
+	/* BTR_INSERT, BTR_DELETE and BTR_DELETE_MARK are mutually
+	exclusive. */
+	/** The search tuple will be inserted to the secondary index
+	at the searched position.  When the leaf page is not in the
+	buffer pool, try to use the change buffer. */
+	BTR_INSERT = 512,
+
+	/** Try to delete mark a secondary index leaf page record at
+	the searched position using the change buffer when the page is
+	not in the buffer pool. */
+	BTR_DELETE_MARK	= 4096,
+
+	/** Try to purge the record using the change buffer when the
+	secondary index leaf page is not in the buffer pool. */
+	BTR_DELETE = 8192,
+
+	/** The caller is already holding dict_index_t::lock S-latch. */
+	BTR_ALREADY_S_LATCHED = 16384,
+	/** Search and S-latch a leaf page, assuming that the
+	dict_index_t::lock S-latch is being held. */
+	BTR_SEARCH_LEAF_ALREADY_S_LATCHED = BTR_SEARCH_LEAF
+	| BTR_ALREADY_S_LATCHED,
+	/** Search the entire index tree, assuming that the
+	dict_index_t::lock S-latch is being held. */
+	BTR_SEARCH_TREE_ALREADY_S_LATCHED = BTR_SEARCH_TREE
+	| BTR_ALREADY_S_LATCHED,
+	/** Search and X-latch a leaf page, assuming that the
+	dict_index_t::lock S-latch is being held. */
+	BTR_MODIFY_LEAF_ALREADY_S_LATCHED = BTR_MODIFY_LEAF
+	| BTR_ALREADY_S_LATCHED,
+
+	/** Attempt to delete-mark a secondary index record. */
+	BTR_DELETE_MARK_LEAF = BTR_MODIFY_LEAF | BTR_DELETE_MARK,
+	/** Attempt to delete-mark a secondary index record
+	while holding the dict_index_t::lock S-latch. */
+	BTR_DELETE_MARK_LEAF_ALREADY_S_LATCHED = BTR_DELETE_MARK_LEAF
+	| BTR_ALREADY_S_LATCHED,
+	/** Attempt to purge a secondary index record. */
+	BTR_PURGE_LEAF = BTR_MODIFY_LEAF | BTR_DELETE,
+	/** Attempt to purge a secondary index record
+	while holding the dict_index_t::lock S-latch. */
+	BTR_PURGE_LEAF_ALREADY_S_LATCHED = BTR_PURGE_LEAF
+	| BTR_ALREADY_S_LATCHED
 };
-
-/* BTR_INSERT, BTR_DELETE and BTR_DELETE_MARK are mutually exclusive. */
-
-/** If this is ORed to btr_latch_mode, it means that the search tuple
-will be inserted to the index, at the searched position.
-When the record is not in the buffer pool, try to use the insert buffer. */
-#define BTR_INSERT		512U
 
 /** This flag ORed to btr_latch_mode says that we do the search in query
 optimization */
@@ -89,18 +126,6 @@ optimization */
 UNIQUE definition on secondary indexes when we decide if we can use
 the insert buffer to speed up inserts */
 #define BTR_IGNORE_SEC_UNIQUE	2048U
-
-/** Try to delete mark the record at the searched position using the
-insert/delete buffer when the record is not in the buffer pool. */
-#define BTR_DELETE_MARK		4096U
-
-/** Try to purge the record at the searched position using the insert/delete
-buffer when the record is not in the buffer pool. */
-#define BTR_DELETE		8192U
-
-/** In the case of BTR_SEARCH_LEAF or BTR_MODIFY_LEAF, the caller is
-already holding an S latch on the index tree */
-#define BTR_ALREADY_S_LATCHED	16384U
 
 /** In the case of BTR_MODIFY_TREE, the caller specifies the intention
 to insert record only. It is used to optimize block->lock range.*/
