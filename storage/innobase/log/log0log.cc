@@ -950,6 +950,7 @@ log_io_complete(
 		case SRV_LITTLESYNC:
 		case SRV_O_DIRECT:
 		case SRV_O_DIRECT_NO_FSYNC:
+		case SRV_ALL_O_DIRECT_FSYNC:
 			fil_flush(group->space_id);
 		}
 
@@ -1772,6 +1773,7 @@ log_checkpoint(
 	case SRV_LITTLESYNC:
 	case SRV_O_DIRECT:
 	case SRV_O_DIRECT_NO_FSYNC:
+	case SRV_ALL_O_DIRECT_FSYNC:
 		fil_flush_file_spaces(FIL_TYPE_TABLESPACE);
 	}
 
