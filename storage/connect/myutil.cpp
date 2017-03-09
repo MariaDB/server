@@ -42,7 +42,8 @@ int MYSQLtoPLG(char *typname, char *var)
     type = TYPE_INT;
   else if (!stricmp(typname, "smallint"))
     type = TYPE_SHORT;
-  else if (!stricmp(typname, "char") || !stricmp(typname, "varchar"))
+  else if (!stricmp(typname, "char") || !stricmp(typname, "varchar")
+		                                 || !stricmp(typname, "enum"))
     type = TYPE_STRING;
   else if (!stricmp(typname, "double")  || !stricmp(typname, "float") ||
            !stricmp(typname, "real"))
@@ -87,9 +88,10 @@ int MYSQLtoPLG(char *typname, char *var)
       else if (!stricmp(typname, "year"))
         *var = 'Y';
 
-    } else if (type == TYPE_STRING && !stricmp(typname, "varchar"))
-      // This is to make the difference between CHAR and VARCHAR 
-      *var = 'V';
+		} else if (type == TYPE_STRING && stricmp(typname, "char"))
+			// This is to make the difference between CHAR and VARCHAR
+			// and translate ENUM to VARCHAR
+			*var = 'V';
     else if (type == TYPE_ERROR && xconv == TPC_SKIP)
       *var = 'K';
     else

@@ -135,8 +135,9 @@ PQRYRES MyColumns(PGLOBAL g, THD *thd, const char *host, const char *db,
                    FLD_KEY,  FLD_SCALE, FLD_RADIX,    FLD_NULL,
                    FLD_REM,  FLD_NO,    FLD_DEFAULT,  FLD_EXTRA,
                    FLD_CHARSET};
-  unsigned int length[] = {0, 4, 16, 4, 4, 4, 4, 4, 0, 0, 0, 0, 0};
-  char   *fld, *colname, *chset, *fmt, v, buf[128], uns[16], zero[16];
+  //unsigned int length[] = {0, 4, 16, 4, 4, 4, 4, 4, 0, 0, 0, 0, 0};
+	unsigned int length[] = {0, 4, 0, 4, 4, 4, 4, 4, 0, 0, 0, 0, 0};
+	char   *fld, *colname, *chset, *fmt, v, buf[128], uns[16], zero[16];
   int     i, n, nf, ncol = sizeof(buftyp) / sizeof(int);
   int     len, type, prec, rc, k = 0;
   PQRYRES qrp;
@@ -236,7 +237,18 @@ PQRYRES MyColumns(PGLOBAL g, THD *thd, const char *host, const char *db,
     *uns = 0;
     *zero = 0;
 
-    switch ((nf = sscanf(fld, "%[^(](%d,%d", buf, &len, &prec))) {
+		if (!strnicmp(fld, "enum", 4)) {
+			char *p2, *p1 = fld + 6;            // to skip enum('
+
+			while (true) {
+				p2 = strchr(p1, '\'');
+				len = MY_MAX(len, p2 - p1);
+				if (*++p2 != ',') break;
+				p1 = p2 + 2;
+			} // endwhile
+			
+			strcpy(buf, "enum");
+		} else switch ((nf = sscanf(fld, "%[^(](%d,%d", buf, &len, &prec))) {
       case 3:
         nf = sscanf(fld, "%[^(](%d,%d) %s %s", buf, &len, &prec, uns, zero);
         break;
@@ -271,7 +283,10 @@ PQRYRES MyColumns(PGLOBAL g, THD *thd, const char *host, const char *db,
                 colname, len);
         PushWarning(g, thd);
         v = 'V';
-      } else
+			} else if (v == 'N') {
+				len = (int)strlen(buf);
+				v = 0;
+			} else
         len = MY_MIN(len, 4096);
 
     } // endif type

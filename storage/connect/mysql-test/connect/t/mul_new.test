@@ -28,7 +28,7 @@ SELECT * FROM t3;
 CREATE TABLE t4 (
   Chiffre int(3) NOT NULL,
   Lettre char(16) NOT NULL)
-ENGINE=CONNECT TABLE_TYPE='CSV' FILE_NAME='Subdir/num4.csv' LRECL=20 HEADER=1;
+ENGINE=CONNECT TABLE_TYPE='CSV' FILE_NAME='subdir/num4.csv' LRECL=20 HEADER=1;
 INSERT INTO t4 VALUES(19,'Nineteen'),(20,'Twenty'),(21,'Twenty one'),(22,'Twenty two'),(23,'Tenty three'),(24,'Twenty four');
 SELECT * FROM t4;
 
