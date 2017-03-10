@@ -674,22 +674,37 @@ public:
 };
 
 
+struct Lex_for_loop_bounds_st
+{
+public:
+  class sp_assignment_lex *m_index;
+  class sp_assignment_lex *m_upper_bound;
+  int8 m_direction;
+  bool m_implicit_cursor;
+  bool is_for_loop_cursor() const { return m_upper_bound == NULL; }
+};
+
+
 struct Lex_for_loop_st
 {
 public:
   class sp_variable *m_index;
   class sp_variable *m_upper_bound;
-  int m_direction;
+  int m_cursor_offset;
+  int8 m_direction;
+  bool m_implicit_cursor;
   void init()
   {
     m_index= 0;
     m_upper_bound= 0;
     m_direction= 0;
+    m_implicit_cursor= false;
   }
   void init(const Lex_for_loop_st &other)
   {
     *this= other;
   }
+  bool is_for_loop_cursor() const { return m_upper_bound == NULL; }
 };
 
 

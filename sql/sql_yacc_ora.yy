@@ -179,6 +179,7 @@ void ORAerror(THD *thd, const char *s)
   Lex_field_type_st Lex_field_type;
   Lex_dyncol_type_st Lex_dyncol_type;
   Lex_for_loop_st for_loop;
+  Lex_for_loop_bounds_st for_loop_bounds;
   struct
   {
     LEX_STRING name;
@@ -273,10 +274,10 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %parse-param { THD *thd }
 %lex-param { THD *thd }
 /*
-  Currently there are 102 shift/reduce conflicts.
+  Currently there are 103 shift/reduce conflicts.
   We should not introduce new conflicts any more.
 */
-%expect 102
+%expect 103
 
 /*
    Comments for TOKENS.
@@ -1158,6 +1159,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %type <assignment_lex>
         assignment_source_lex
         assignment_source_expr
+        for_loop_bound_expr
 
 %type <sp_assignment_lex_list>
         cursor_actual_parameters
@@ -1341,6 +1343,7 @@ END_OF_INPUT
 %type <spname> sp_name
 %type <spvar> sp_param_name sp_param_name_and_type
 %type <for_loop> sp_for_loop_index_and_bounds
+%type <for_loop_bounds> sp_for_loop_bounds
 %type <num> opt_sp_for_loop_direction
 %type <spvar_mode> sp_opt_inout
 %type <index_hint> index_hint_type
@@ -3338,6 +3341,22 @@ assignment_source_expr:
           }
         ;
 
+for_loop_bound_expr:
+          assignment_source_lex
+          {
+            Lex->sphead->reset_lex(thd, $1);
+          }
+          expr
+          {
+            DBUG_ASSERT($1 == thd->lex);
+            $$= $1;
+            $$->sp_lex_in_use= true;
+            $$->set_item_and_free_list($3, NULL);
+            if ($$->sphead->restore_lex(thd))
+              MYSQL_YYABORT;
+          }
+        ;
+
 cursor_actual_parameters:
           assignment_source_expr
           {
@@ -3803,22 +3822,48 @@ opt_sp_for_loop_direction:
         ;
 
 sp_for_loop_index_and_bounds:
-          ident_directly_assignable
+          ident_directly_assignable sp_for_loop_bounds
           {
-            Lex->sphead->reset_lex(thd);
-          }
-          IN_SYM opt_sp_for_loop_direction expr
-          {
-            if (!($<spvar>$= Lex->sp_add_for_loop_variable(thd, $1, $5)))
+            if (Lex->sp_for_loop_declarations(thd, &$$, $1, $2))
               MYSQL_YYABORT;
-            Lex->sphead->reset_lex(thd);
           }
-          DOT_DOT_SYM expr
+        ;
+
+sp_for_loop_bounds:
+          IN_SYM opt_sp_for_loop_direction for_loop_bound_expr
+          DOT_DOT_SYM for_loop_bound_expr
           {
-            $$.m_index= $<spvar>6;
-            if (!($$.m_upper_bound= Lex->sp_add_for_loop_upper_bound(thd, $8)))
+            $$.m_direction= $2;
+            $$.m_index= $3;
+            $$.m_upper_bound= $5;
+            $$.m_implicit_cursor= false;
+          }
+        | IN_SYM opt_sp_for_loop_direction for_loop_bound_expr
+          {
+            $$.m_direction= $2;
+            $$.m_index= $3;
+            $$.m_upper_bound= NULL;
+            $$.m_implicit_cursor= false;
+          }
+        | IN_SYM opt_sp_for_loop_direction '(' sp_cursor_stmt ')'
+          {
+            DBUG_ASSERT(Lex->sphead);
+            LEX_STRING name= {C_STRING_WITH_LEN("[implicit_cursor]") };
+            if (Lex->sp_declare_cursor(thd, name, $4, NULL))
               MYSQL_YYABORT;
-            $$.m_direction= $4;
+            $$.m_direction= 1;
+            if (!($$.m_index= new (thd->mem_root) sp_assignment_lex(thd, thd->lex)))
+              MYSQL_YYABORT;
+            $$.m_index->sp_lex_in_use= true;
+            Lex->sphead->reset_lex(thd, $$.m_index);
+            Item *item= new (thd->mem_root) Item_field(thd,
+                                                       Lex->current_context(),
+                                                       NullS, NullS, name.str);
+            $$.m_index->set_item_and_free_list(item, NULL);
+            if (Lex->sphead->restore_lex(thd))
+              MYSQL_YYABORT;
+            $$.m_upper_bound= NULL;
+            $$.m_implicit_cursor= true;
           }
         ;
 
@@ -3905,7 +3950,7 @@ sp_labeled_control:
           {
             if (Lex->sp_push_loop_label(thd, $1)) // The inner WHILE block
               MYSQL_YYABORT;
-            if (Lex->sp_for_loop_index_and_bounds(thd, $4))
+            if (Lex->sp_for_loop_condition_test(thd, $4))
               MYSQL_YYABORT;
           }
           LOOP_SYM
@@ -3917,7 +3962,9 @@ sp_labeled_control:
           }
           pop_sp_loop_label                    // The inner WHILE block
           {
-            if (Lex->sp_block_finalize(thd))   // The outer DECLARE..BEGIN..END
+            Lex_spblock tmp;
+            tmp.curs= MY_TEST($4.m_implicit_cursor);
+            if (Lex->sp_block_finalize(thd, tmp)) // The outer DECLARE..BEGIN..END
               MYSQL_YYABORT;
           }
         | labels_declaration_oracle REPEAT_SYM
@@ -3960,17 +4007,19 @@ sp_unlabeled_control:
           {
             if (Lex->sp_push_loop_empty_label(thd)) // The inner WHILE block
               MYSQL_YYABORT;
-            if (Lex->sp_for_loop_index_and_bounds(thd, $3))
+            if (Lex->sp_for_loop_condition_test(thd, $3))
               MYSQL_YYABORT;
           }
           LOOP_SYM
           sp_proc_stmts1
           END LOOP_SYM
           {
+            Lex_spblock tmp;
+            tmp.curs= MY_TEST($3.m_implicit_cursor);
             if (Lex->sp_for_loop_finalize(thd, $3))
               MYSQL_YYABORT;
             Lex->sp_pop_loop_empty_label(thd); // The inner WHILE block
-            if (Lex->sp_block_finalize(thd))   // The outer DECLARE..BEGIN..END
+            if (Lex->sp_block_finalize(thd, tmp)) // The outer DECLARE..BEGIN..END
               MYSQL_YYABORT;
           }
         | REPEAT_SYM

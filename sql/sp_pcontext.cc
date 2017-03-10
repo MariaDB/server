@@ -621,6 +621,18 @@ const sp_pcursor *sp_pcontext::find_cursor(uint offset) const
 }
 
 
+bool sp_pcursor::check_param_count_with_error(uint param_count) const
+{
+  if (param_count != (m_param_context ?
+                      m_param_context->context_var_count() : 0))
+  {
+    my_error(ER_WRONG_PARAMCOUNT_TO_CURSOR, MYF(0), LEX_STRING::str);
+    return true;
+  }
+  return false;
+}
+
+
 const Spvar_definition *
 sp_variable::find_row_field(const LEX_STRING &var_name,
                             const LEX_STRING &field_name,

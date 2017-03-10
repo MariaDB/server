@@ -1029,11 +1029,11 @@ SHOW PROCEDURE CODE p1;
 Pos	Instruction
 0	cpush cur1@0
 1	cpush cur2@1
-2	cursor_copy_struct rec1@0
+2	cursor_copy_struct cur1 rec1@0
 3	set rec1@0 NULL
-4	cursor_copy_struct rec2@1
+4	cursor_copy_struct cur1 rec2@1
 5	set rec2@1 NULL
-6	cursor_copy_struct rec3@2
+6	cursor_copy_struct cur2 rec3@2
 7	set rec3@2 NULL
 8	set rec1.a@0["a"] 10
 9	set rec1.b@0["b"] 'bbb'
@@ -1041,3 +1041,239 @@ Pos	Instruction
 11	cpop 2
 DROP PROCEDURE p1;
 DROP TABLE t1;
+#
+# MDEV-10581 sql_mode=ORACLE: Explicit cursor FOR LOOP
+#
+CREATE PROCEDURE p1
+AS
+CURSOR cur0 IS SELECT 10 AS a, 'b0' AS b;
+CURSOR cur1 IS SELECT 10 AS a, 'b0' AS b;
+CURSOR cur2 IS SELECT 10 AS a, 'b0' AS b;
+BEGIN
+FOR rec1 IN cur1
+LOOP
+SELECT rec1.a, rec1.b;
+rec1.a:= 11;
+rec1.b:= 'b1';
+SELECT rec1.a, rec1.b;
+END LOOP;
+FOR rec0 IN cur0
+LOOP
+rec0.a:= 10;
+rec0.b:='b0';
+END LOOP;
+FOR rec2 IN cur2
+LOOP
+rec2.a:= 10;
+rec2.b:='b0';
+END LOOP;
+END;
+$$
+SHOW PROCEDURE CODE p1;
+Pos	Instruction
+0	cpush cur0@0
+1	cpush cur1@1
+2	cpush cur2@2
+3	cursor_copy_struct cur1 rec1@0
+4	copen cur1@1
+5	cfetch cur1@1 rec1@0
+6	jump_if_not 13(13) "cur1"%FOUND
+7	stmt 0 "SELECT rec1.a, rec1.b"
+8	set rec1.a@0["a"] 11
+9	set rec1.b@0["b"] 'b1'
+10	stmt 0 "SELECT rec1.a, rec1.b"
+11	cfetch cur1@1 rec1@0
+12	jump 6
+13	cursor_copy_struct cur0 rec0@1
+14	copen cur0@0
+15	cfetch cur0@0 rec0@1
+16	jump_if_not 21(21) "cur0"%FOUND
+17	set rec0.a@1["a"] 10
+18	set rec0.b@1["b"] 'b0'
+19	cfetch cur0@0 rec0@1
+20	jump 16
+21	cursor_copy_struct cur2 rec2@2
+22	copen cur2@2
+23	cfetch cur2@2 rec2@2
+24	jump_if_not 29(29) "cur2"%FOUND
+25	set rec2.a@2["a"] 10
+26	set rec2.b@2["b"] 'b0'
+27	cfetch cur2@2 rec2@2
+28	jump 24
+29	cpop 3
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1
+AS
+CURSOR cur0 IS SELECT 10 AS a, 'b0' AS b;
+BEGIN
+FOR rec0 IN cur0
+LOOP
+DECLARE
+CURSOR cur1 IS SELECT 11 AS a, 'b1' AS b;
+BEGIN
+rec0.a:= 11;
+rec0.b:= 'b0';
+FOR rec1 IN cur1
+LOOP
+rec1.a:= 11;
+rec1.b:= 'b1';
+DECLARE
+CURSOR cur2 IS SELECT 12 AS a, 'b2' AS b;
+BEGIN
+FOR rec2 IN cur2
+LOOP
+rec2.a:=12;
+rec2.b:='b2';
+END LOOP;
+END;
+END LOOP;
+END;
+END LOOP;
+END;
+$$
+SHOW PROCEDURE CODE p1;
+Pos	Instruction
+0	cpush cur0@0
+1	cursor_copy_struct cur0 rec0@0
+2	copen cur0@0
+3	cfetch cur0@0 rec0@0
+4	jump_if_not 29(29) "cur0"%FOUND
+5	cpush cur1@1
+6	set rec0.a@0["a"] 11
+7	set rec0.b@0["b"] 'b0'
+8	cursor_copy_struct cur1 rec1@1
+9	copen cur1@1
+10	cfetch cur1@1 rec1@1
+11	jump_if_not 26(26) "cur1"%FOUND
+12	set rec1.a@1["a"] 11
+13	set rec1.b@1["b"] 'b1'
+14	cpush cur2@2
+15	cursor_copy_struct cur2 rec2@2
+16	copen cur2@2
+17	cfetch cur2@2 rec2@2
+18	jump_if_not 23(23) "cur2"%FOUND
+19	set rec2.a@2["a"] 12
+20	set rec2.b@2["b"] 'b2'
+21	cfetch cur2@2 rec2@2
+22	jump 18
+23	cpop 1
+24	cfetch cur1@1 rec1@1
+25	jump 11
+26	cpop 1
+27	cfetch cur0@0 rec0@0
+28	jump 4
+29	cpop 1
+DROP PROCEDURE p1;
+#
+# MDEV-12098 sql_mode=ORACLE: Implicit cursor FOR loop
+#
+CREATE PROCEDURE p1
+AS
+BEGIN
+FOR rec1 IN (SELECT 11 AS a, 'b1' AS b)
+LOOP
+SELECT rec1.a, rec1.b;
+rec1.a:= 11;
+rec1.b:= 'b1';
+SELECT rec1.a, rec1.b;
+END LOOP;
+FOR rec0 IN (SELECT 10 AS a, 'b0' AS b)
+LOOP
+rec0.a:= 10;
+rec0.b:='b0';
+END LOOP;
+FOR rec2 IN (SELECT 12 AS a, 'b2' AS b)
+LOOP
+rec2.a:= 10;
+rec2.b:='b0';
+END LOOP;
+END;
+$$
+SHOW PROCEDURE CODE p1;
+Pos	Instruction
+0	cpush [implicit_cursor]@0
+1	cursor_copy_struct [implicit_cursor] rec1@0
+2	copen [implicit_cursor]@0
+3	cfetch [implicit_cursor]@0 rec1@0
+4	jump_if_not 11(11) "[implicit_cursor]"%FOUND
+5	stmt 0 "SELECT rec1.a, rec1.b"
+6	set rec1.a@0["a"] 11
+7	set rec1.b@0["b"] 'b1'
+8	stmt 0 "SELECT rec1.a, rec1.b"
+9	cfetch [implicit_cursor]@0 rec1@0
+10	jump 4
+11	cpop 1
+12	cpush [implicit_cursor]@0
+13	cursor_copy_struct [implicit_cursor] rec0@1
+14	copen [implicit_cursor]@0
+15	cfetch [implicit_cursor]@0 rec0@1
+16	jump_if_not 21(21) "[implicit_cursor]"%FOUND
+17	set rec0.a@1["a"] 10
+18	set rec0.b@1["b"] 'b0'
+19	cfetch [implicit_cursor]@0 rec0@1
+20	jump 16
+21	cpop 1
+22	cpush [implicit_cursor]@0
+23	cursor_copy_struct [implicit_cursor] rec2@2
+24	copen [implicit_cursor]@0
+25	cfetch [implicit_cursor]@0 rec2@2
+26	jump_if_not 31(31) "[implicit_cursor]"%FOUND
+27	set rec2.a@2["a"] 10
+28	set rec2.b@2["b"] 'b0'
+29	cfetch [implicit_cursor]@0 rec2@2
+30	jump 26
+31	cpop 1
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1
+AS
+BEGIN
+FOR rec0 IN (SELECT 10 AS a, 'b0' AS b)
+LOOP
+rec0.a:= 11;
+rec0.b:= 'b0';
+FOR rec1 IN (SELECT 11 AS a, 'b1' AS b)
+LOOP
+rec1.a:= 11;
+rec1.b:= 'b1';
+FOR rec2 IN (SELECT 12 AS a, 'b2' AS b)
+LOOP
+rec2.a:=12;
+rec2.b:='b2';
+END LOOP;
+END LOOP;
+END LOOP;
+END;
+$$
+SHOW PROCEDURE CODE p1;
+Pos	Instruction
+0	cpush [implicit_cursor]@0
+1	cursor_copy_struct [implicit_cursor] rec0@0
+2	copen [implicit_cursor]@0
+3	cfetch [implicit_cursor]@0 rec0@0
+4	jump_if_not 29(29) "[implicit_cursor]"%FOUND
+5	set rec0.a@0["a"] 11
+6	set rec0.b@0["b"] 'b0'
+7	cpush [implicit_cursor]@1
+8	cursor_copy_struct [implicit_cursor] rec1@1
+9	copen [implicit_cursor]@1
+10	cfetch [implicit_cursor]@1 rec1@1
+11	jump_if_not 26(26) "[implicit_cursor]"%FOUND
+12	set rec1.a@1["a"] 11
+13	set rec1.b@1["b"] 'b1'
+14	cpush [implicit_cursor]@2
+15	cursor_copy_struct [implicit_cursor] rec2@2
+16	copen [implicit_cursor]@2
+17	cfetch [implicit_cursor]@2 rec2@2
+18	jump_if_not 23(23) "[implicit_cursor]"%FOUND
+19	set rec2.a@2["a"] 12
+20	set rec2.b@2["b"] 'b2'
+21	cfetch [implicit_cursor]@2 rec2@2
+22	jump 18
+23	cpop 1
+24	cfetch [implicit_cursor]@1 rec1@1
+25	jump 11
+26	cpop 1
+27	cfetch [implicit_cursor]@0 rec0@0
+28	jump 4
+29	cpop 1
+DROP PROCEDURE p1;

@@ -769,6 +769,7 @@ Virtual_column_info *add_virtual_expression(THD *thd, Item *expr)
   Lex_field_type_st Lex_field_type;
   Lex_dyncol_type_st Lex_dyncol_type;
   Lex_for_loop_st for_loop;
+  Lex_for_loop_bounds_st for_loop_bounds;
 
   /* pointers */
   Create_field *create_field;

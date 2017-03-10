@@ -1055,3 +1055,342 @@ DELIMITER ;$$
 CALL p1();
 DROP PROCEDURE p1;
 DROP TABLE t1;
+
+
+--echo #
+--echo # MDEV-10581 sql_mode=ORACLE: Explicit cursor FOR LOOP
+--echo #
+
+--echo # IN followed by a non-identifier
+
+DELIMITER $$;
+--error ER_PARSE_ERROR
+CREATE PROCEDURE p1 AS
+  CURSOR c1 IS SELECT 'test' AS a FROM DUAL;
+BEGIN
+  FOR rec IN 10
+  LOOP
+    NULL;
+  END LOOP;
+END;
+$$
+DELIMITER ;$$
+
+
+--echo # IN followed by a quoted identifier: table.column
+
+DELIMITER $$;
+--error ER_PARSE_ERROR
+CREATE PROCEDURE p1 AS
+  CURSOR c1 IS SELECT 'test' AS a FROM DUAL;
+BEGIN
+  FOR rec IN c1.c2
+  LOOP
+    NULL;
+  END LOOP;
+END;
+$$
+DELIMITER ;$$
+
+
+--echo # IN followed by a quoted identifier: .table.column
+
+DELIMITER $$;
+--error ER_PARSE_ERROR
+CREATE PROCEDURE p1 AS
+  CURSOR c1 IS SELECT 'test' AS a FROM DUAL;
+BEGIN
+  FOR rec IN .c1.c2
+  LOOP
+    NULL;
+  END LOOP;
+END;
+$$
+DELIMITER ;$$
+
+
+--echo # IN followed by a quoted identifier: schema.table.column
+
+DELIMITER $$;
+--error ER_PARSE_ERROR
+CREATE PROCEDURE p1 AS
+  CURSOR c1 IS SELECT 'test' AS a FROM DUAL;
+BEGIN
+  FOR rec IN c1.c2.c3
+  LOOP
+    NULL;
+  END LOOP;
+END;
+$$
+DELIMITER ;$$
+
+
+--echo # IN followed by an unknown cursor name
+
+DELIMITER $$;
+--error ER_SP_CURSOR_MISMATCH
+CREATE PROCEDURE p1 AS
+  CURSOR c1 IS SELECT 'test' AS a FROM DUAL;
+BEGIN
+  FOR rec IN c2
+  LOOP
+    NULL;
+  END LOOP;
+END;
+$$
+DELIMITER ;$$
+
+
+--echo # Make sure "rec" shadows other declarations outside the loop
+
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+INSERT INTO t1 VALUES (10, 'b0');
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+  rec INT:=10;
+  CURSOR c1 IS SELECT a,b FROM t1;
+BEGIN
+  FOR rec IN c1
+  LOOP
+    SELECT rec.a;
+  END LOOP;
+  SELECT rec;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+
+--echo # Make sure "rec" is not visible after END LOOP
+
+DELIMITER $$;
+--error ER_UNKNOWN_STRUCTURED_VARIABLE
+CREATE PROCEDURE p1 AS
+  CURSOR c1 IS SELECT 'test' AS a FROM DUAL;
+BEGIN
+  FOR rec IN c1
+  LOOP
+    NULL;
+  END LOOP;
+  rec.a:= 10;
+END;
+$$
+DELIMITER ;$$
+
+
+--echo # Make sure that duplicate column names are not allowed
+
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+  CURSOR cur IS SELECT 'a' AS a, 'A' as a;
+BEGIN
+  FOR rec IN cur
+  LOOP
+    NULL;
+  END LOOP;
+END;
+$$
+DELIMITER ;$$
+--error ER_DUP_FIELDNAME
+CALL p1;
+DROP PROCEDURE p1;
+
+
+--echo # A complete working example
+
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+INSERT INTO t1 VALUES (10,'b0');
+INSERT INTO t1 VALUES (11,'b1');
+INSERT INTO t1 VALUES (12,'b2');
+CREATE TABLE t2 LIKE t1;
+CREATE TABLE t3 LIKE t1;
+DELIMITER $$;
+CREATE PROCEDURE p1 AS 
+  CURSOR cur IS SELECT a, b FROM t1;
+BEGIN
+  FOR rec IN cur
+  LOOP
+    SELECT rec.a, rec.b;
+    INSERT INTO t2 VALUES (rec.a, rec.b);
+    rec.a:= rec.a + 1000;
+    rec.b:= 'b' || rec.b;
+    INSERT INTO t3 VALUES (rec.a, rec.b);
+  END LOOP;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+SELECT * FROM t2;
+SELECT * FROM t3;
+DROP PROCEDURE p1;
+DROP TABLE t3;
+DROP TABLE t2;
+DROP TABLE t1;
+
+
+--echo #
+--echo # MDEV-12098 sql_mode=ORACLE: Implicit cursor FOR loop
+--echo #
+
+--echo # Parse error in the cursor SELECT statement
+DELIMITER $$;
+--error ER_PARSE_ERROR
+CREATE PROCEDURE p1 AS 
+BEGIN
+  FOR rec IN (SELECT a, b FROM)
+  LOOP
+    SELECT rec.a, rec.b;
+  END LOOP;
+END;
+$$
+DELIMITER ;$$
+
+
+--echo # Make sure "rec" is not visible after END LOOP
+
+DELIMITER $$;
+--error ER_UNKNOWN_STRUCTURED_VARIABLE
+CREATE PROCEDURE p1 AS
+BEGIN
+  FOR rec IN (SELECT 'test' AS a)
+  LOOP
+    NULL;
+  END LOOP;
+  rec.a:= 10;
+END;
+$$
+DELIMITER ;$$
+
+--echo # Make sure "rec" is not visible inside the SELECT statement
+
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+BEGIN
+  FOR rec IN (SELECT rec)
+  LOOP
+    NULL;
+  END LOOP;
+END;
+$$
+DELIMITER ;$$
+--error ER_BAD_FIELD_ERROR
+CALL p1;
+DROP PROCEDURE p1;
+
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+BEGIN
+  FOR rec IN (SELECT rec.a)
+  LOOP
+    NULL;
+  END LOOP;
+END;
+$$
+DELIMITER ;$$
+--error ER_UNKNOWN_TABLE
+CALL p1;
+DROP PROCEDURE p1;
+
+--echo # Totally confusing name mixture
+
+CREATE TABLE rec (rec INT);
+INSERT INTO rec VALUES (10);
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+BEGIN
+  FOR rec IN (SELECT rec FROM rec)
+  LOOP
+    SELECT rec.rec;
+  END LOOP;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;
+DROP TABLE rec;
+
+
+--echo # Make sure that duplicate column names are not allowed
+
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+BEGIN
+  FOR rec IN (SELECT 'a' AS a, 'A' as a)
+  LOOP
+    NULL;
+  END LOOP;
+END;
+$$
+DELIMITER ;$$
+--error ER_DUP_FIELDNAME
+CALL p1;
+DROP PROCEDURE p1;
+
+
+--echo # A complete working example
+
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+INSERT INTO t1 VALUES (10,'b0');
+INSERT INTO t1 VALUES (11,'b1');
+INSERT INTO t1 VALUES (12,'b2');
+CREATE TABLE t2 LIKE t1;
+CREATE TABLE t3 LIKE t1;
+DELIMITER $$;
+CREATE PROCEDURE p1 AS 
+BEGIN
+  FOR rec IN (SELECT a, b FROM t1)
+  LOOP
+    SELECT rec.a, rec.b;
+    INSERT INTO t2 VALUES (rec.a, rec.b);
+    rec.a:= rec.a + 1000;
+    rec.b:= 'b'|| rec.b;
+    INSERT INTO t3 VALUES (rec.a, rec.b);
+  END LOOP;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+SELECT * FROM t2;
+SELECT * FROM t3;
+DROP PROCEDURE p1;
+DROP TABLE t3;
+DROP TABLE t2;
+DROP TABLE t1;
+
+
+--echo # A combination of explicit and implicit cursors
+
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+INSERT INTO t1 VALUES (10,'b1');
+INSERT INTO t1 VALUES (11,'b2');
+INSERT INTO t1 VALUES (12,'b3');
+DELIMITER $$;
+CREATE PROCEDURE p1 AS 
+BEGIN
+  FOR rec1 IN (SELECT a, b FROM t1)
+  LOOP
+    DECLARE
+      CURSOR cur2 IS SELECT a+1000 AS a, 'bb'||b AS b FROM t1 WHERE a=rec1.a AND b=rec1.b;
+    BEGIN
+      SELECT rec1.a, rec1.b;
+      FOR rec2 IN cur2
+      LOOP
+        SELECT rec2.a, rec2.b;
+      END LOOP;
+    END;
+  END LOOP;
+  FOR rec1 IN (SELECT a,b FROM t1)
+  LOOP
+    FOR rec2 IN (SELECT a+2000 AS a,'bbb'||b AS b FROM t1 WHERE a=rec1.a AND b=rec1.b)
+    LOOP
+      SELECT rec2.a, rec2.b;
+    END LOOP;
+  END LOOP;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+DROP PROCEDURE p1;
+DROP TABLE t1;

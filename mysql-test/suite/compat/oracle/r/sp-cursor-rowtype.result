@@ -976,3 +976,328 @@ HEX(rec1.c)
 C3BF61
 DROP PROCEDURE p1;
 DROP TABLE t1;
+#
+# MDEV-10581 sql_mode=ORACLE: Explicit cursor FOR LOOP
+#
+# IN followed by a non-identifier
+CREATE PROCEDURE p1 AS
+CURSOR c1 IS SELECT 'test' AS a FROM DUAL;
+BEGIN
+FOR rec IN 10
+LOOP
+NULL;
+END LOOP;
+END;
+$$
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'LOOP
+NULL;
+END LOOP;
+END' at line 6
+# IN followed by a quoted identifier: table.column
+CREATE PROCEDURE p1 AS
+CURSOR c1 IS SELECT 'test' AS a FROM DUAL;
+BEGIN
+FOR rec IN c1.c2
+LOOP
+NULL;
+END LOOP;
+END;
+$$
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'LOOP
+NULL;
+END LOOP;
+END' at line 6
+# IN followed by a quoted identifier: .table.column
+CREATE PROCEDURE p1 AS
+CURSOR c1 IS SELECT 'test' AS a FROM DUAL;
+BEGIN
+FOR rec IN .c1.c2
+LOOP
+NULL;
+END LOOP;
+END;
+$$
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'LOOP
+NULL;
+END LOOP;
+END' at line 6
+# IN followed by a quoted identifier: schema.table.column
+CREATE PROCEDURE p1 AS
+CURSOR c1 IS SELECT 'test' AS a FROM DUAL;
+BEGIN
+FOR rec IN c1.c2.c3
+LOOP
+NULL;
+END LOOP;
+END;
+$$
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'LOOP
+NULL;
+END LOOP;
+END' at line 6
+# IN followed by an unknown cursor name
+CREATE PROCEDURE p1 AS
+CURSOR c1 IS SELECT 'test' AS a FROM DUAL;
+BEGIN
+FOR rec IN c2
+LOOP
+NULL;
+END LOOP;
+END;
+$$
+ERROR 42000: Undefined CURSOR: c2
+# Make sure "rec" shadows other declarations outside the loop
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+INSERT INTO t1 VALUES (10, 'b0');
+CREATE PROCEDURE p1 AS
+rec INT:=10;
+CURSOR c1 IS SELECT a,b FROM t1;
+BEGIN
+FOR rec IN c1
+LOOP
+SELECT rec.a;
+END LOOP;
+SELECT rec;
+END;
+$$
+CALL p1;
+rec.a
+10
+rec
+10
+DROP PROCEDURE p1;
+DROP TABLE t1;
+# Make sure "rec" is not visible after END LOOP
+CREATE PROCEDURE p1 AS
+CURSOR c1 IS SELECT 'test' AS a FROM DUAL;
+BEGIN
+FOR rec IN c1
+LOOP
+NULL;
+END LOOP;
+rec.a:= 10;
+END;
+$$
+ERROR HY000: Unknown structured system variable or ROW routine variable 'rec'
+# Make sure that duplicate column names are not allowed
+CREATE PROCEDURE p1 AS
+CURSOR cur IS SELECT 'a' AS a, 'A' as a;
+BEGIN
+FOR rec IN cur
+LOOP
+NULL;
+END LOOP;
+END;
+$$
+CALL p1;
+ERROR 42S21: Duplicate column name 'a'
+DROP PROCEDURE p1;
+# A complete working example
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+INSERT INTO t1 VALUES (10,'b0');
+INSERT INTO t1 VALUES (11,'b1');
+INSERT INTO t1 VALUES (12,'b2');
+CREATE TABLE t2 LIKE t1;
+CREATE TABLE t3 LIKE t1;
+CREATE PROCEDURE p1 AS 
+CURSOR cur IS SELECT a, b FROM t1;
+BEGIN
+FOR rec IN cur
+LOOP
+SELECT rec.a, rec.b;
+INSERT INTO t2 VALUES (rec.a, rec.b);
+rec.a:= rec.a + 1000;
+rec.b:= 'b' || rec.b;
+INSERT INTO t3 VALUES (rec.a, rec.b);
+END LOOP;
+END;
+$$
+CALL p1();
+rec.a	rec.b
+10	b0
+rec.a	rec.b
+11	b1
+rec.a	rec.b
+12	b2
+SELECT * FROM t2;
+a	b
+10	b0
+11	b1
+12	b2
+SELECT * FROM t3;
+a	b
+1010	bb0
+1011	bb1
+1012	bb2
+DROP PROCEDURE p1;
+DROP TABLE t3;
+DROP TABLE t2;
+DROP TABLE t1;
+#
+# MDEV-12098 sql_mode=ORACLE: Implicit cursor FOR loop
+#
+# Parse error in the cursor SELECT statement
+CREATE PROCEDURE p1 AS 
+BEGIN
+FOR rec IN (SELECT a, b FROM)
+LOOP
+SELECT rec.a, rec.b;
+END LOOP;
+END;
+$$
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ')
+LOOP
+SELECT rec.a, rec.b;
+END LOOP;
+END' at line 3
+# Make sure "rec" is not visible after END LOOP
+CREATE PROCEDURE p1 AS
+BEGIN
+FOR rec IN (SELECT 'test' AS a)
+LOOP
+NULL;
+END LOOP;
+rec.a:= 10;
+END;
+$$
+ERROR HY000: Unknown structured system variable or ROW routine variable 'rec'
+# Make sure "rec" is not visible inside the SELECT statement
+CREATE PROCEDURE p1 AS
+BEGIN
+FOR rec IN (SELECT rec)
+LOOP
+NULL;
+END LOOP;
+END;
+$$
+CALL p1;
+ERROR 42S22: Unknown column 'rec' in 'field list'
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1 AS
+BEGIN
+FOR rec IN (SELECT rec.a)
+LOOP
+NULL;
+END LOOP;
+END;
+$$
+CALL p1;
+ERROR 42S02: Unknown table 'rec' in field list
+DROP PROCEDURE p1;
+# Totally confusing name mixture
+CREATE TABLE rec (rec INT);
+INSERT INTO rec VALUES (10);
+CREATE PROCEDURE p1 AS
+BEGIN
+FOR rec IN (SELECT rec FROM rec)
+LOOP
+SELECT rec.rec;
+END LOOP;
+END;
+$$
+CALL p1;
+rec.rec
+10
+DROP PROCEDURE p1;
+DROP TABLE rec;
+# Make sure that duplicate column names are not allowed
+CREATE PROCEDURE p1 AS
+BEGIN
+FOR rec IN (SELECT 'a' AS a, 'A' as a)
+LOOP
+NULL;
+END LOOP;
+END;
+$$
+CALL p1;
+ERROR 42S21: Duplicate column name 'a'
+DROP PROCEDURE p1;
+# A complete working example
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+INSERT INTO t1 VALUES (10,'b0');
+INSERT INTO t1 VALUES (11,'b1');
+INSERT INTO t1 VALUES (12,'b2');
+CREATE TABLE t2 LIKE t1;
+CREATE TABLE t3 LIKE t1;
+CREATE PROCEDURE p1 AS 
+BEGIN
+FOR rec IN (SELECT a, b FROM t1)
+LOOP
+SELECT rec.a, rec.b;
+INSERT INTO t2 VALUES (rec.a, rec.b);
+rec.a:= rec.a + 1000;
+rec.b:= 'b'|| rec.b;
+INSERT INTO t3 VALUES (rec.a, rec.b);
+END LOOP;
+END;
+$$
+CALL p1();
+rec.a	rec.b
+10	b0
+rec.a	rec.b
+11	b1
+rec.a	rec.b
+12	b2
+SELECT * FROM t2;
+a	b
+10	b0
+11	b1
+12	b2
+SELECT * FROM t3;
+a	b
+1010	bb0
+1011	bb1
+1012	bb2
+DROP PROCEDURE p1;
+DROP TABLE t3;
+DROP TABLE t2;
+DROP TABLE t1;
+# A combination of explicit and implicit cursors
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+INSERT INTO t1 VALUES (10,'b1');
+INSERT INTO t1 VALUES (11,'b2');
+INSERT INTO t1 VALUES (12,'b3');
+CREATE PROCEDURE p1 AS 
+BEGIN
+FOR rec1 IN (SELECT a, b FROM t1)
+LOOP
+DECLARE
+CURSOR cur2 IS SELECT a+1000 AS a, 'bb'||b AS b FROM t1 WHERE a=rec1.a AND b=rec1.b;
+BEGIN
+SELECT rec1.a, rec1.b;
+FOR rec2 IN cur2
+LOOP
+SELECT rec2.a, rec2.b;
+END LOOP;
+END;
+END LOOP;
+FOR rec1 IN (SELECT a,b FROM t1)
+LOOP
+FOR rec2 IN (SELECT a+2000 AS a,'bbb'||b AS b FROM t1 WHERE a=rec1.a AND b=rec1.b)
+LOOP
+SELECT rec2.a, rec2.b;
+END LOOP;
+END LOOP;
+END;
+$$
+CALL p1();
+rec1.a	rec1.b
+10	b1
+rec2.a	rec2.b
+1010	bbb1
+rec1.a	rec1.b
+11	b2
+rec2.a	rec2.b
+1011	bbb2
+rec1.a	rec1.b
+12	b3
+rec2.a	rec2.b
+1012	bbb3
+rec2.a	rec2.b
+2010	bbbb1
+rec2.a	rec2.b
+2011	bbbb2
+rec2.a	rec2.b
+2012	bbbb3
+DROP PROCEDURE p1;
+DROP TABLE t1;

@@ -4207,7 +4207,10 @@ void
 sp_instr_cursor_copy_struct::print(String *str)
 {
   sp_variable *var= m_ctx->find_variable(m_var);
+  const LEX_STRING *name= m_lex_keeper.cursor_name();
   str->append(STRING_WITH_LEN("cursor_copy_struct "));
+  str->append(name->str, name->length);
+  str->append(' ');
   str->append(var->name.str, var->name.length);
   str->append('@');
   str->append_ulonglong(m_var);
@@ -4664,4 +4667,30 @@ bool sp_head::add_open_cursor(THD *thd, sp_pcontext *spcont, uint offset,
   sp_instr_copen *i= new (thd->mem_root)
                      sp_instr_copen(instructions(), spcont, offset);
   return i == NULL || add_instr(i);
+}
+
+
+bool sp_head::add_for_loop_open_cursor(THD *thd, sp_pcontext *spcont,
+                                       sp_variable *index,
+                                       const sp_pcursor *pcursor, uint coffset)
+{
+  sp_instr *instr_copy_struct=
+    new (thd->mem_root) sp_instr_cursor_copy_struct(instructions(),
+                                                    spcont, pcursor->lex(),
+                                                    index->offset);
+  if (instr_copy_struct == NULL || add_instr(instr_copy_struct))
+    return true;
+
+  sp_instr_copen *instr_copen=
+    new (thd->mem_root) sp_instr_copen(instructions(), spcont, coffset);
+  if (instr_copen == NULL || add_instr(instr_copen))
+    return true;
+
+  sp_instr_cfetch *instr_cfetch=
+    new (thd->mem_root) sp_instr_cfetch(instructions(),
+                                        spcont, coffset);
+  if (instr_cfetch == NULL || add_instr(instr_cfetch))
+    return true;
+  instr_cfetch->add_to_varlist(index);
+  return false;
 }

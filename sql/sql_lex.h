@@ -2942,6 +2942,8 @@ public:
     return NULL;
   }
 
+  virtual const LEX_STRING *cursor_name() const { return &null_lex_str; }
+
   void start(THD *thd);
 
   const char *substatement_query(THD *thd) const;
@@ -3351,6 +3353,8 @@ public:
   {
     return add_placeholder(thd, name, pos - substatement_query(thd), end - pos);
   }
+
+  /* Integer range FOR LOOP methods */
   sp_variable *sp_add_for_loop_variable(THD *thd, const LEX_STRING name,
                                         Item *value);
   sp_variable *sp_add_for_loop_upper_bound(THD *thd, Item *value)
@@ -3358,8 +3362,84 @@ public:
     LEX_STRING name= { C_STRING_WITH_LEN("[upper_bound]") };
     return sp_add_for_loop_variable(thd, name, value);
   }
-  bool sp_for_loop_index_and_bounds(THD *thd, const Lex_for_loop_st &loop);
-  bool sp_for_loop_finalize(THD *thd, const Lex_for_loop_st &loop);
+  bool sp_for_loop_intrange_declarations(THD *thd, Lex_for_loop_st *loop,
+                                        const LEX_STRING &index,
+                                        const Lex_for_loop_bounds_st &bounds);
+  bool sp_for_loop_intrange_condition_test(THD *thd, const Lex_for_loop_st &loop);
+  bool sp_for_loop_intrange_finalize(THD *thd, const Lex_for_loop_st &loop);
+
+  /* Cursor FOR LOOP methods */
+  bool sp_for_loop_cursor_declarations(THD *thd, Lex_for_loop_st *loop,
+                                       const LEX_STRING &index,
+                                       const Lex_for_loop_bounds_st &bounds);
+  sp_variable *sp_add_for_loop_cursor_variable(THD *thd,
+                                               const LEX_STRING name,
+                                               const class sp_pcursor *cur,
+                                               uint coffset);
+  bool sp_for_loop_cursor_condition_test(THD *thd, const Lex_for_loop_st &loop);
+  bool sp_for_loop_cursor_finalize(THD *thd, const Lex_for_loop_st &);
+
+  /* Generic FOR LOOP methods*/
+
+  /*
+    Generate FOR loop declarations and
+    initialize "loop" from "index" and "bounds".
+
+    @param [IN]  thd    - current THD, for mem_root and error reporting
+    @param [OUT] loop   - the loop generated SP variables are stored here,
+                          together with additional loop characteristics.
+    @param [IN]  index  - the loop index variable name
+    @param [IN]  bounds - the loop bounds (in sp_assignment_lex format)
+                          and additional loop characteristics,
+                          as created by the sp_for_loop_bounds rule.
+    @retval true        - on error
+    @retval false       - on success
+
+    This methods adds declarations:
+    - An explicit integer or cursor%ROWTYPE "index" variable
+    - An implicit ingeger upper bound variable, in case of integer range loops
+    - A CURSOR, in case of an implicit CURSOR loops
+    The generated variables are stored into "loop".
+    Additional loop characteristics are copies from "bounds" to "loop".
+  */
+  bool sp_for_loop_declarations(THD *thd, Lex_for_loop_st *loop,
+                                const LEX_STRING &index,
+                                const Lex_for_loop_bounds_st &bounds)
+  {
+    return bounds.is_for_loop_cursor() ?
+           sp_for_loop_cursor_declarations(thd, loop, index, bounds) :
+           sp_for_loop_intrange_declarations(thd, loop, index, bounds);
+  }
+
+  /*
+    Generate a conditional jump instruction to leave the loop,
+    using a proper condition depending on the loop type:
+    - Item_func_le            -- integer range loops
+    - Item_func_ge            -- integer range reverse loops
+    - Item_func_cursor_found  -- cursor loops
+  */
+  bool sp_for_loop_condition_test(THD *thd, const Lex_for_loop_st &loop)
+  {
+    return loop.is_for_loop_cursor() ?
+           sp_for_loop_cursor_condition_test(thd, loop) :
+           sp_for_loop_intrange_condition_test(thd, loop);
+  }
+
+  /*
+    Generate "increment" instructions followed by a jump to the
+    condition test in the beginnig of the loop.
+    "Increment" depends on the loop type and can be:
+    - index:= index + 1;       -- integer range loops
+    - index:= index - 1;       -- integer range reverse loops
+    - FETCH cursor INTO index; -- cursor loops
+  */
+  bool sp_for_loop_finalize(THD *thd, const Lex_for_loop_st &loop)
+  {
+    return loop.is_for_loop_cursor() ?
+           sp_for_loop_cursor_finalize(thd, loop) :
+           sp_for_loop_intrange_finalize(thd, loop);
+  }
+  /* End of FOR LOOP methods */
 
   bool add_signal_statement(THD *thd, const class sp_condition_value *value);
   bool add_resignal_statement(THD *thd, const class sp_condition_value *value);

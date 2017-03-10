@@ -296,6 +296,7 @@ public:
   { }
   class sp_pcontext *param_context() const { return m_param_context; }
   class sp_lex_cursor *lex() const { return m_lex; }
+  bool check_param_count_with_error(uint param_count) const;
 };
 
 
@@ -643,6 +644,18 @@ public:
   const sp_pcursor *find_cursor(const LEX_STRING name,
                                 uint *poff, bool current_scope_only) const;
 
+  const sp_pcursor *find_cursor_with_error(const LEX_STRING name,
+                                           uint *poff,
+                                           bool current_scope_only) const
+  {
+    const sp_pcursor *pcursor= find_cursor(name, poff, current_scope_only);
+    if (!pcursor)
+    {
+      my_error(ER_SP_CURSOR_MISMATCH, MYF(0), name.str);
+      return NULL;
+    }
+    return pcursor;
+  }
   /// Find cursor by offset (for SHOW {PROCEDURE|FUNCTION} CODE only).
   const sp_pcursor *find_cursor(uint offset) const;
 

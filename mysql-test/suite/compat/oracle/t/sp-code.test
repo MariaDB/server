@@ -789,3 +789,131 @@ DELIMITER ;$$
 SHOW PROCEDURE CODE p1;
 DROP PROCEDURE p1;
 DROP TABLE t1;
+
+
+--echo #
+--echo # MDEV-10581 sql_mode=ORACLE: Explicit cursor FOR LOOP
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE p1
+AS
+  CURSOR cur0 IS SELECT 10 AS a, 'b0' AS b;
+  CURSOR cur1 IS SELECT 10 AS a, 'b0' AS b;
+  CURSOR cur2 IS SELECT 10 AS a, 'b0' AS b;
+BEGIN
+  FOR rec1 IN cur1
+  LOOP
+    SELECT rec1.a, rec1.b;
+    rec1.a:= 11;
+    rec1.b:= 'b1';
+    SELECT rec1.a, rec1.b;
+  END LOOP;
+  FOR rec0 IN cur0
+  LOOP
+    rec0.a:= 10;
+    rec0.b:='b0';
+  END LOOP;
+  FOR rec2 IN cur2
+  LOOP
+    rec2.a:= 10;
+    rec2.b:='b0';
+  END LOOP;
+END;
+$$
+DELIMITER ;$$
+SHOW PROCEDURE CODE p1;
+DROP PROCEDURE p1;
+
+
+DELIMITER $$;
+CREATE PROCEDURE p1
+AS
+  CURSOR cur0 IS SELECT 10 AS a, 'b0' AS b;
+BEGIN
+  FOR rec0 IN cur0
+  LOOP
+    DECLARE
+      CURSOR cur1 IS SELECT 11 AS a, 'b1' AS b;
+    BEGIN
+      rec0.a:= 11;
+      rec0.b:= 'b0';
+      FOR rec1 IN cur1
+      LOOP
+        rec1.a:= 11;
+        rec1.b:= 'b1';
+        DECLARE
+          CURSOR cur2 IS SELECT 12 AS a, 'b2' AS b;
+        BEGIN
+          FOR rec2 IN cur2
+          LOOP
+            rec2.a:=12;
+            rec2.b:='b2';
+          END LOOP;
+        END;
+      END LOOP;
+    END;
+  END LOOP;
+END;
+$$
+DELIMITER ;$$
+SHOW PROCEDURE CODE p1;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # MDEV-12098 sql_mode=ORACLE: Implicit cursor FOR loop
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE p1
+AS
+BEGIN
+  FOR rec1 IN (SELECT 11 AS a, 'b1' AS b)
+  LOOP
+    SELECT rec1.a, rec1.b;
+    rec1.a:= 11;
+    rec1.b:= 'b1';
+    SELECT rec1.a, rec1.b;
+  END LOOP;
+  FOR rec0 IN (SELECT 10 AS a, 'b0' AS b)
+  LOOP
+    rec0.a:= 10;
+    rec0.b:='b0';
+  END LOOP;
+  FOR rec2 IN (SELECT 12 AS a, 'b2' AS b)
+  LOOP
+    rec2.a:= 10;
+    rec2.b:='b0';
+  END LOOP;
+END;
+$$
+DELIMITER ;$$
+SHOW PROCEDURE CODE p1;
+DROP PROCEDURE p1;
+
+
+DELIMITER $$;
+CREATE PROCEDURE p1
+AS
+BEGIN
+  FOR rec0 IN (SELECT 10 AS a, 'b0' AS b)
+  LOOP
+    rec0.a:= 11;
+    rec0.b:= 'b0';
+    FOR rec1 IN (SELECT 11 AS a, 'b1' AS b)
+    LOOP
+      rec1.a:= 11;
+      rec1.b:= 'b1';
+      FOR rec2 IN (SELECT 12 AS a, 'b2' AS b)
+      LOOP
+        rec2.a:=12;
+        rec2.b:='b2';
+      END LOOP;
+    END LOOP;
+  END LOOP;
+END;
+$$
+DELIMITER ;$$
+SHOW PROCEDURE CODE p1;
+DROP PROCEDURE p1;
