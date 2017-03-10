@@ -1720,7 +1720,8 @@ private:
 
 public:
   bool check_and_fix_implicit(THD *thd, Alter_info *alter_info,
-                              bool integer_fields, const char *table_name);
+                              HA_CREATE_INFO *create_info,
+                              const char *table_name);
   bool check_and_fix_alter(THD *thd, Alter_info *alter_info,
                            HA_CREATE_INFO *create_info, TABLE_SHARE *share);
   bool fix_create_like(THD *thd, Alter_info *alter_info,

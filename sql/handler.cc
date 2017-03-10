@@ -6669,9 +6669,17 @@ bool Vers_parse_info::fix_implicit(THD *thd, Alter_info *alter_info,
 bool Vers_parse_info::check_and_fix_implicit(
   THD *thd,
   Alter_info *alter_info,
-  bool integer_fields,
+  HA_CREATE_INFO *create_info,
   const char* table_name)
 {
+  bool integer_fields=
+      create_info->db_type->flags & HTON_SUPPORTS_SYS_VERSIONING;
+
+  if (vers_force) {
+    declared_with_system_versioning= true;
+    create_info->options|= HA_VERSIONED_TABLE;
+  }
+
   if (!need_to_check())
     return false;
 
