@@ -19460,23 +19460,31 @@ static void test_big_packet()
 }
 
 
-/* Test simple prepares of all DML statements */
-
 static void test_prepare_analyze()
 {
   MYSQL_STMT *stmt;
+  const char *query= "ANALYZE SELECT 1";
   int rc;
   myheader("test_prepare_analyze");
 
   stmt= mysql_stmt_init(mysql);
   check_stmt(stmt);
-  rc= mysql_stmt_prepare(stmt, "ANALYZE SELECT 1", -1);
+  rc= mysql_stmt_prepare(stmt, query, strlen(query));
   check_execute(stmt, rc);
-  verify_param_count(stmt, 0);
+
   rc= mysql_stmt_execute(stmt);
   check_execute(stmt, rc);
 
-  mysql_stmt_close(stmt);
+  rc= mysql_stmt_store_result(stmt);
+  check_execute(stmt, rc);
+
+  while (!(rc= mysql_stmt_fetch(stmt)))
+    ;
+
+  DIE_UNLESS(rc == MYSQL_NO_DATA);
+
+  rc= mysql_stmt_close(stmt);
+  check_execute(stmt, rc);
 }
 
 static struct my_tests_st my_tests[]= {
