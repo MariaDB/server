@@ -522,7 +522,7 @@ public:
   }
 
   int32 get_sql_delay() { return sql_delay; }
-  void set_sql_delay(time_t _sql_delay) { sql_delay= _sql_delay; }
+  void set_sql_delay(int32 _sql_delay) { sql_delay= _sql_delay; }
   time_t get_sql_delay_end() { return sql_delay_end; }
 
 private:

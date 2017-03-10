@@ -3119,7 +3119,7 @@ int dump_leaf_key(void* key_arg, element_count count __attribute__((unused)),
 {
   Item_func_group_concat *item= (Item_func_group_concat *) item_arg;
   TABLE *table= item->table;
-  uint max_length= table->in_use->variables.group_concat_max_len;
+  uint max_length= (uint)table->in_use->variables.group_concat_max_len;
   String tmp((char *)table->record[1], table->s->reclength,
              default_charset_info);
   String tmp2;
