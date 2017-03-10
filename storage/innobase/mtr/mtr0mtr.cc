@@ -495,15 +495,6 @@ mtr_write_log(
 @param sync		true if it is a synchronous mini-transaction
 @param read_only	true if read only mini-transaction */
 void
-mtr_t::start(bool sync, bool read_only)
-{
-	start(NULL, sync, read_only);
-}
-
-/** Start a mini-transaction.
-@param sync		true if it is a synchronous mini-transaction
-@param read_only	true if read only mini-transaction */
-void
 mtr_t::start(trx_t* trx, bool sync, bool read_only)
 {
 	UNIV_MEM_INVALID(this, sizeof(*this));

@@ -239,7 +239,10 @@ struct mtr_t {
 	/** Start a mini-transaction.
 	@param sync		true if it is a synchronous mini-transaction
 	@param read_only	true if read only mini-transaction */
-	void start(bool sync = true, bool read_only = false);
+	void start(bool sync = true, bool read_only = false)
+	{
+		start(NULL, sync, read_only);
+	}
 
 	/** Start a mini-transaction.
 	@param sync		true if it is a synchronous mini-transaction
