@@ -145,11 +145,11 @@ log_crypt_print_checkpoint_keys(
 
 	if (crypt_info.size()) {
 		fprintf(stderr,
-			"InnoDB: redo log checkpoint: %llu [ chk key ]: ",
+			"InnoDB: redo log checkpoint: " UINT64PF " [ chk key ]: ",
 			checkpoint_no);
 		for (size_t i = 0; i < crypt_info.size(); i++) {
 			struct crypt_info_t* it = &crypt_info[i];
-			fprintf(stderr, "[ %llu %u ] ",
+			fprintf(stderr, "[ " UINT64PF " %u ] ",
 				it->checkpoint_no,
 				it->key_version);
 		}

@@ -1034,15 +1034,15 @@ char *GetListOption(PGLOBAL g, const char *opname,
     pv= strchr(pk, '=');
 
     if (pv && (!pn || pv < pn)) {
-			n= MY_MIN(pv - pk, sizeof(key) - 1);
+      n= MY_MIN(static_cast<size_t>(pv - pk), sizeof(key) - 1);
       memcpy(key, pk, n);
       key[n]= 0;
       pv++;
-			n= MY_MIN((pn ? pn - pv : strlen(pv)), sizeof(val) - 1);
+      n= MY_MIN((pn ? pn - pv : strlen(pv)), sizeof(val) - 1);
       memcpy(val, pv, n);
       val[n]= 0;
     } else {
-			n= MY_MIN((pn ? pn - pk : strlen(pk)), sizeof(key) - 1);
+      n= MY_MIN((pn ? pn - pk : strlen(pk)), sizeof(key) - 1);
       memcpy(key, pk, n);
       key[n]= 0;
       val[0]= 0;

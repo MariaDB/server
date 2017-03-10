@@ -6280,7 +6280,7 @@ os_file_trim(
 		srv_use_trim = FALSE;
 		ib_logf(IB_LOG_LEVEL_WARN,
 			"fallocate() failed with error %d."
-			" start: %llu len: " ULINTPF " payload: " ULINTPF "."
+			" start: " UINT64PF " len: " ULINTPF " payload: " ULINTPF "."
 			" Disabling fallocate for now.",
 			errno, off, ulint(trim_len), ulint(len));
 
