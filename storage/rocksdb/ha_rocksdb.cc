@@ -4827,8 +4827,8 @@ bool ha_rocksdb::get_error_message(const int error, String *const buf) {
 }
 
 /* MyRocks supports only the following collations for indexed columns */
-static const std::set<const my_core::CHARSET_INFO *> RDB_INDEX_COLLATIONS = {
-    &my_charset_bin, &my_charset_utf8_bin, &my_charset_latin1_bin};
+static const std::set<uint> RDB_INDEX_COLLATIONS = {
+    COLLATION_BINARY, COLLATION_UTF8_BIN, COLLATION_LATIN1_BIN};
 
 static bool
 rdb_is_index_collation_supported(const my_core::Field *const field) {
@@ -4836,7 +4836,7 @@ rdb_is_index_collation_supported(const my_core::Field *const field) {
   /* Handle [VAR](CHAR|BINARY) or TEXT|BLOB */
   if (type == MYSQL_TYPE_VARCHAR || type == MYSQL_TYPE_STRING ||
       type == MYSQL_TYPE_BLOB) {
-    return RDB_INDEX_COLLATIONS.find(field->charset()) !=
+    return RDB_INDEX_COLLATIONS.find(field->charset()->number) !=
            RDB_INDEX_COLLATIONS.end();
   }
   return true;
@@ -4971,7 +4971,7 @@ int ha_rocksdb::create_cfs(
             if (collation_err != "") {
               collation_err += ", ";
             }
-            collation_err += coll->name;
+            collation_err += get_charset_name(coll);
           }
           my_printf_error(
               ER_UNKNOWN_ERROR, "Unsupported collation on string indexed "

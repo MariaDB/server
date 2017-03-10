@@ -3,9 +3,9 @@ DROP TABLE IF EXISTS t1;
 CREATE TABLE t1 (id INT primary key, value varchar(50), value2 varbinary(50), value3 text) engine=rocksdb charset utf8;
 DROP TABLE t1;
 CREATE TABLE t1 (id INT primary key, value varchar(50), value2 varbinary(50), value3 text, index(value)) engine=rocksdb charset utf8;
-ERROR HY000: Unsupported collation on string indexed column test.t1.value Use binary collation (binary, latin1_bin, utf8_bin).
+ERROR HY000: Unsupported collation on string indexed column test.t1.value Use binary collation (latin1_bin, binary, utf8_bin).
 CREATE TABLE t1 (id INT primary key, value varchar(50), value2 varbinary(50), value3 text, index(value3(50))) engine=rocksdb charset utf8;
-ERROR HY000: Unsupported collation on string indexed column test.t1.value3 Use binary collation (binary, latin1_bin, utf8_bin).
+ERROR HY000: Unsupported collation on string indexed column test.t1.value3 Use binary collation (latin1_bin, binary, utf8_bin).
 SET GLOBAL rocksdb_strict_collation_check=0;
 CREATE TABLE t1 (id INT primary key, value varchar(50), value2 varbinary(50), value3 text, index(value3(50))) engine=rocksdb charset utf8;
 DROP TABLE t1;
@@ -22,109 +22,109 @@ SET GLOBAL rocksdb_strict_collation_exceptions=t1;
 CREATE TABLE t1 (id INT primary key, value varchar(50), index(value)) engine=rocksdb charset utf8;
 DROP TABLE t1;
 CREATE TABLE t2 (id INT primary key, value varchar(50), index(value)) engine=rocksdb charset utf8;
-ERROR HY000: Unsupported collation on string indexed column test.t2.value Use binary collation (binary, latin1_bin, utf8_bin).
+ERROR HY000: Unsupported collation on string indexed column test.t2.value Use binary collation (latin1_bin, binary, utf8_bin).
 SET GLOBAL rocksdb_strict_collation_exceptions="t.*";
 CREATE TABLE t123 (id INT primary key, value varchar(50), index(value)) engine=rocksdb charset utf8;
 DROP TABLE t123;
 CREATE TABLE s123 (id INT primary key, value varchar(50), index(value)) engine=rocksdb charset utf8;
-ERROR HY000: Unsupported collation on string indexed column test.s123.value Use binary collation (binary, latin1_bin, utf8_bin).
+ERROR HY000: Unsupported collation on string indexed column test.s123.value Use binary collation (latin1_bin, binary, utf8_bin).
 SET GLOBAL rocksdb_strict_collation_exceptions=".t.*";
 CREATE TABLE xt123 (id INT primary key, value varchar(50), index(value)) engine=rocksdb charset utf8;
 DROP TABLE xt123;
 CREATE TABLE t123 (id INT primary key, value varchar(50), index(value)) engine=rocksdb charset utf8;
-ERROR HY000: Unsupported collation on string indexed column test.t123.value Use binary collation (binary, latin1_bin, utf8_bin).
+ERROR HY000: Unsupported collation on string indexed column test.t123.value Use binary collation (latin1_bin, binary, utf8_bin).
 SET GLOBAL rocksdb_strict_collation_exceptions="s.*,t.*";
 CREATE TABLE s1 (id INT primary key, value varchar(50), index(value)) engine=rocksdb charset utf8;
 DROP TABLE s1;
 CREATE TABLE t1 (id INT primary key, value varchar(50), index(value)) engine=rocksdb charset utf8;
 DROP TABLE t1;
 CREATE TABLE u1 (id INT primary key, value varchar(50), index(value)) engine=rocksdb charset utf8;
-ERROR HY000: Unsupported collation on string indexed column test.u1.value Use binary collation (binary, latin1_bin, utf8_bin).
+ERROR HY000: Unsupported collation on string indexed column test.u1.value Use binary collation (latin1_bin, binary, utf8_bin).
 SET GLOBAL rocksdb_strict_collation_exceptions="s.*|t.*";
 CREATE TABLE s1 (id INT primary key, value varchar(50), index(value)) engine=rocksdb charset utf8;
 DROP TABLE s1;
 CREATE TABLE t1 (id INT primary key, value varchar(50), index(value)) engine=rocksdb charset utf8;
 DROP TABLE t1;
 CREATE TABLE u1 (id INT primary key, value varchar(50), index(value)) engine=rocksdb charset utf8;
-ERROR HY000: Unsupported collation on string indexed column test.u1.value Use binary collation (binary, latin1_bin, utf8_bin).
+ERROR HY000: Unsupported collation on string indexed column test.u1.value Use binary collation (latin1_bin, binary, utf8_bin).
 SET GLOBAL rocksdb_strict_collation_exceptions=",s.*,t.*";
 CREATE TABLE s1 (id INT primary key, value varchar(50), index(value)) engine=rocksdb charset utf8;
 DROP TABLE s1;
 CREATE TABLE t1 (id INT primary key, value varchar(50), index(value)) engine=rocksdb charset utf8;
 DROP TABLE t1;
 CREATE TABLE u1 (id INT primary key, value varchar(50), index(value)) engine=rocksdb charset utf8;
-ERROR HY000: Unsupported collation on string indexed column test.u1.value Use binary collation (binary, latin1_bin, utf8_bin).
+ERROR HY000: Unsupported collation on string indexed column test.u1.value Use binary collation (latin1_bin, binary, utf8_bin).
 SET GLOBAL rocksdb_strict_collation_exceptions="|s.*|t.*";
 CREATE TABLE s1 (id INT primary key, value varchar(50), index(value)) engine=rocksdb charset utf8;
 DROP TABLE s1;
 CREATE TABLE t1 (id INT primary key, value varchar(50), index(value)) engine=rocksdb charset utf8;
 DROP TABLE t1;
 CREATE TABLE u1 (id INT primary key, value varchar(50), index(value)) engine=rocksdb charset utf8;
-ERROR HY000: Unsupported collation on string indexed column test.u1.value Use binary collation (binary, latin1_bin, utf8_bin).
+ERROR HY000: Unsupported collation on string indexed column test.u1.value Use binary collation (latin1_bin, binary, utf8_bin).
 SET GLOBAL rocksdb_strict_collation_exceptions="s.*,,t.*";
 CREATE TABLE s1 (id INT primary key, value varchar(50), index(value)) engine=rocksdb charset utf8;
 DROP TABLE s1;
 CREATE TABLE t1 (id INT primary key, value varchar(50), index(value)) engine=rocksdb charset utf8;
 DROP TABLE t1;
 CREATE TABLE u1 (id INT primary key, value varchar(50), index(value)) engine=rocksdb charset utf8;
-ERROR HY000: Unsupported collation on string indexed column test.u1.value Use binary collation (binary, latin1_bin, utf8_bin).
+ERROR HY000: Unsupported collation on string indexed column test.u1.value Use binary collation (latin1_bin, binary, utf8_bin).
 SET GLOBAL rocksdb_strict_collation_exceptions="s.*||t.*";
 CREATE TABLE s1 (id INT primary key, value varchar(50), index(value)) engine=rocksdb charset utf8;
 DROP TABLE s1;
 CREATE TABLE t1 (id INT primary key, value varchar(50), index(value)) engine=rocksdb charset utf8;
 DROP TABLE t1;
 CREATE TABLE u1 (id INT primary key, value varchar(50), index(value)) engine=rocksdb charset utf8;
-ERROR HY000: Unsupported collation on string indexed column test.u1.value Use binary collation (binary, latin1_bin, utf8_bin).
+ERROR HY000: Unsupported collation on string indexed column test.u1.value Use binary collation (latin1_bin, binary, utf8_bin).
 SET GLOBAL rocksdb_strict_collation_exceptions="s.*,t.*,";
 CREATE TABLE s1 (id INT primary key, value varchar(50), index(value)) engine=rocksdb charset utf8;
 DROP TABLE s1;
 CREATE TABLE t1 (id INT primary key, value varchar(50), index(value)) engine=rocksdb charset utf8;
 DROP TABLE t1;
 CREATE TABLE u1 (id INT primary key, value varchar(50), index(value)) engine=rocksdb charset utf8;
-ERROR HY000: Unsupported collation on string indexed column test.u1.value Use binary collation (binary, latin1_bin, utf8_bin).
+ERROR HY000: Unsupported collation on string indexed column test.u1.value Use binary collation (latin1_bin, binary, utf8_bin).
 SET GLOBAL rocksdb_strict_collation_exceptions="s.*|t.*|";
 CREATE TABLE s1 (id INT primary key, value varchar(50), index(value)) engine=rocksdb charset utf8;
 DROP TABLE s1;
 CREATE TABLE t1 (id INT primary key, value varchar(50), index(value)) engine=rocksdb charset utf8;
 DROP TABLE t1;
 CREATE TABLE u1 (id INT primary key, value varchar(50), index(value)) engine=rocksdb charset utf8;
-ERROR HY000: Unsupported collation on string indexed column test.u1.value Use binary collation (binary, latin1_bin, utf8_bin).
+ERROR HY000: Unsupported collation on string indexed column test.u1.value Use binary collation (latin1_bin, binary, utf8_bin).
 SET GLOBAL rocksdb_strict_collation_exceptions="||||,,,,s.*,,|,,||,t.*,,|||,,,";
 CREATE TABLE s1 (id INT primary key, value varchar(50), index(value)) engine=rocksdb charset utf8;
 DROP TABLE s1;
 CREATE TABLE t1 (id INT primary key, value varchar(50), index(value)) engine=rocksdb charset utf8;
 DROP TABLE t1;
 CREATE TABLE u1 (id INT primary key, value varchar(50), index(value)) engine=rocksdb charset utf8;
-ERROR HY000: Unsupported collation on string indexed column test.u1.value Use binary collation (binary, latin1_bin, utf8_bin).
+ERROR HY000: Unsupported collation on string indexed column test.u1.value Use binary collation (latin1_bin, binary, utf8_bin).
 SET GLOBAL rocksdb_strict_collation_exceptions='t1';
 CREATE TABLE t1 (id INT primary key, value varchar(50), index(value)) engine=rocksdb;
 ALTER TABLE t1 AUTO_INCREMENT=1;
 DROP TABLE t1;
 CREATE TABLE t2 (id INT primary key, value varchar(50), index(value)) engine=rocksdb;
-ERROR HY000: Unsupported collation on string indexed column test.t2.value Use binary collation (binary, latin1_bin, utf8_bin).
+ERROR HY000: Unsupported collation on string indexed column test.t2.value Use binary collation (latin1_bin, binary, utf8_bin).
 CREATE TABLE t2 (id INT primary key, value varchar(50)) engine=rocksdb;
 ALTER TABLE t2 ADD INDEX(value);
-ERROR HY000: Unsupported collation on string indexed column test.t2.value Use binary collation (binary, latin1_bin, utf8_bin).
+ERROR HY000: Unsupported collation on string indexed column test.t2.value Use binary collation (latin1_bin, binary, utf8_bin).
 DROP TABLE t2;
 SET GLOBAL rocksdb_strict_collation_exceptions="[a-b";
  Invalid pattern in strict_collation_exceptions: [a-b
 CREATE TABLE a (id INT PRIMARY KEY, value varchar(50), index(value)) engine=rocksdb charset utf8;
-ERROR HY000: Unsupported collation on string indexed column test.a.value Use binary collation (binary, latin1_bin, utf8_bin).
+ERROR HY000: Unsupported collation on string indexed column test.a.value Use binary collation (latin1_bin, binary, utf8_bin).
 SET GLOBAL rocksdb_strict_collation_exceptions="[a-b]";
 CREATE TABLE a (id INT PRIMARY KEY, value varchar(50), index(value)) engine=rocksdb charset utf8;
 CREATE TABLE b (id INT PRIMARY KEY, value varchar(50), index(value)) engine=rocksdb charset utf8;
 CREATE TABLE c (id INT PRIMARY KEY, value varchar(50), index(value)) engine=rocksdb charset utf8;
-ERROR HY000: Unsupported collation on string indexed column test.c.value Use binary collation (binary, latin1_bin, utf8_bin).
+ERROR HY000: Unsupported collation on string indexed column test.c.value Use binary collation (latin1_bin, binary, utf8_bin).
 DROP TABLE a, b;
 call mtr.add_suppression("Invalid pattern in strict_collation_exceptions:");
 SET GLOBAL rocksdb_strict_collation_exceptions="abc\\";
  Invalid pattern in strict_collation_exceptions: abc\
 CREATE TABLE abc (id INT PRIMARY KEY, value varchar(50), index(value)) engine=rocksdb charset utf8;
-ERROR HY000: Unsupported collation on string indexed column test.abc.value Use binary collation (binary, latin1_bin, utf8_bin).
+ERROR HY000: Unsupported collation on string indexed column test.abc.value Use binary collation (latin1_bin, binary, utf8_bin).
 SET GLOBAL rocksdb_strict_collation_exceptions="abc";
 CREATE TABLE abc (id INT PRIMARY KEY, value varchar(50), index(value)) engine=rocksdb charset utf8;
 CREATE TABLE abcd (id INT PRIMARY KEY, value varchar(50), index(value)) engine=rocksdb charset utf8;
-ERROR HY000: Unsupported collation on string indexed column test.abcd.value Use binary collation (binary, latin1_bin, utf8_bin).
+ERROR HY000: Unsupported collation on string indexed column test.abcd.value Use binary collation (latin1_bin, binary, utf8_bin).
 DROP TABLE abc;
 SET GLOBAL rocksdb_strict_collation_exceptions=null;
 SET GLOBAL rocksdb_strict_collation_exceptions=@start_global_value;

@@ -1690,7 +1690,7 @@ static int rdb_unpack_binary_or_utf8_varchar(
     /*
       Now, we need to decode used_bytes of data and append them to the value.
     */
-    if (fpi->m_varchar_charset == &my_charset_utf8_bin) {
+    if (fpi->m_varchar_charset->number == COLLATION_UTF8_BIN) {
       if (used_bytes & 1) {
         /*
           UTF-8 characters are encoded into two-byte entities. There is no way
@@ -1793,7 +1793,7 @@ static int rdb_unpack_binary_or_utf8_varchar_space_pad(
     }
 
     // Now, need to decode used_bytes of data and append them to the value.
-    if (fpi->m_varchar_charset == &my_charset_utf8_bin) {
+    if (fpi->m_varchar_charset->number == COLLATION_UTF8_BIN) {
       if (used_bytes & 1) {
         /*
           UTF-8 characters are encoded into two-byte entities. There is no way
@@ -2239,7 +2239,8 @@ std::array<const Rdb_collation_codec *, MY_ALL_CHARSETS_SIZE>
 mysql_mutex_t rdb_collation_data_mutex;
 
 static bool rdb_is_collation_supported(const my_core::CHARSET_INFO *const cs) {
-  return (cs->coll == &my_collation_8bit_simple_ci_handler);
+  return cs->strxfrm_multiply==1 && cs->mbmaxlen == 1 &&
+         !(cs->state & (MY_CS_BINSORT | MY_CS_NOPAD));
 }
 
 static const Rdb_collation_codec *
@@ -2255,7 +2256,7 @@ rdb_init_collation_mapping(const my_core::CHARSET_INFO *const cs) {
       Rdb_collation_codec *cur = nullptr;
 
       // Compute reverse mapping for simple collations.
-      if (cs->coll == &my_collation_8bit_simple_ci_handler) {
+      if (rdb_is_collation_supported(cs)) {
         cur = new Rdb_collation_codec;
         std::map<uchar, std::vector<uchar>> rev_map;
         size_t max_conflict_size = 0;
@@ -2302,8 +2303,8 @@ rdb_init_collation_mapping(const my_core::CHARSET_INFO *const cs) {
 
 static int get_segment_size_from_collation(const CHARSET_INFO *const cs) {
   int ret;
-  if (cs == &my_charset_utf8mb4_bin || cs == &my_charset_utf16_bin ||
-      cs == &my_charset_utf16le_bin || cs == &my_charset_utf32_bin) {
+  if (cs->number == COLLATION_UTF8MB4_BIN || cs->number == COLLATION_UTF16_BIN ||
+      cs->number == COLLATION_UTF16LE_BIN || cs->number == COLLATION_UTF32_BIN) {
     /*
       In these collations, a character produces one weight, which is 3 bytes.
       Segment has 3 characters, add one byte for VARCHAR_CMP_* marker, and we
@@ -2424,7 +2425,7 @@ bool Rdb_field_packing::setup(const Rdb_key_def *const key_descr,
       //
       // See Field_blob::make_sort_key for details.
       m_max_image_len =
-          key_length + (field->charset() == &my_charset_bin
+          key_length + (field->charset()->number == COLLATION_BINARY
                             ? reinterpret_cast<const Field_blob *>(field)
                                   ->pack_length_no_ptr()
                             : 0);
@@ -2475,7 +2476,7 @@ bool Rdb_field_packing::setup(const Rdb_key_def *const key_descr,
     DBUG_EXECUTE_IF("myrocks_enable_unknown_collation_index_only_scans",
                     use_unknown_collation = true;);
 
-    if (cs == &my_charset_bin) {
+    if (cs->number == COLLATION_BINARY) {
       // - SQL layer pads BINARY(N) so that it always is N bytes long.
       // - For VARBINARY(N), values may have different lengths, so we're using
       //   variable-length encoding. This is also the only charset where the
@@ -2483,7 +2484,7 @@ bool Rdb_field_packing::setup(const Rdb_key_def *const key_descr,
       m_unpack_func = is_varchar ? rdb_unpack_binary_or_utf8_varchar
                                  : rdb_unpack_binary_str;
       res = true;
-    } else if (cs == &my_charset_latin1_bin || cs == &my_charset_utf8_bin) {
+    } else if (cs->number == COLLATION_LATIN1_BIN || cs->number == COLLATION_UTF8_BIN) {
       // For _bin collations, mem-comparable form of the string is the string
       // itself.
 
@@ -2504,7 +2505,7 @@ bool Rdb_field_packing::setup(const Rdb_key_def *const key_descr,
       } else {
         // SQL layer pads CHAR(N) values to their maximum length.
         // We just store that and restore it back.
-        m_unpack_func = (cs == &my_charset_latin1_bin) ? rdb_unpack_binary_str
+        m_unpack_func = (cs->number == COLLATION_LATIN1_BIN) ? rdb_unpack_binary_str
                                                        : rdb_unpack_utf8_str;
       }
       res = true;

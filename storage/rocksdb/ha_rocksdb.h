@@ -201,6 +201,17 @@ const char *const RDB_CF_NAME_QUALIFIER = "cfname";
 #define RDB_BQUAL_SZ 1
 #define RDB_XIDHDR_LEN (RDB_FORMATID_SZ + RDB_GTRID_SZ + RDB_BQUAL_SZ)
 
+/* collations, used in MariaRocks */
+enum collations_used {
+  COLLATION_UTF8MB4_BIN = 46,
+  COLLATION_LATIN1_BIN  = 47,
+  COLLATION_UTF16LE_BIN = 55,
+  COLLATION_UTF32_BIN   = 61,
+  COLLATION_UTF16_BIN   = 62,
+  COLLATION_BINARY      = 63,
+  COLLATION_UTF8_BIN    = 83
+};
+
 /*
   To fix an unhandled exception we specify the upper bound as LONGLONGMAX
   instead of ULONGLONGMAX because the latter is -1 and causes an exception when
