@@ -18,6 +18,9 @@
 #pragma implementation // gcc: Class implementation
 #endif
 
+/* For use of 'PRIu64': */
+#define __STDC_FORMAT_MACROS
+
 #include <my_config.h>
 /* This C++ file's header file */
 #include "./rdb_datadic.h"
