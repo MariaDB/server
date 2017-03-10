@@ -49,7 +49,7 @@ SELECT * FROM t_all;
 --echo # Testing multiple 3
 --echo #
 ALTER TABLE t_all MULTIPLE=3;
-SELECT * FROM t_all;
+SELECT * FROM t_all ORDER BY Chiffre;
 
 DROP TABLE t1;
 DROP TABLE t2;

@@ -96,7 +96,7 @@ Chiffre	Lettre
 ALTER TABLE t_all MULTIPLE=3;
 Warnings:
 Warning	1105	This is an outward table, table data were not modified.
-SELECT * FROM t_all;
+SELECT * FROM t_all ORDER BY Chiffre;
 Chiffre	Lettre
 1	One
 2	Two
@@ -104,30 +104,30 @@ Chiffre	Lettre
 4	Four
 5	Five
 6	Six
-13	Thirteen
-14	Fourteen
-15	Fifteen
-16	Sixteen
-17	Seventeen
-18	Eighteen
-25	Twenty five
-26	Twenty six
-27	Twenty seven
-28	Twenty eight
-29	Tenty eight
-30	Thirty
 7	Seven
 8	Eight
 9	Nine
 10	Ten
 11	Eleven
 12	Twelve
+13	Thirteen
+14	Fourteen
+15	Fifteen
+16	Sixteen
+17	Seventeen
+18	Eighteen
 19	Nineteen
 20	Twenty
 21	Twenty one
 22	Twenty two
 23	Tenty three
 24	Twenty four
+25	Twenty five
+26	Twenty six
+27	Twenty seven
+28	Twenty eight
+29	Tenty eight
+30	Thirty
 DROP TABLE t1;
 DROP TABLE t2;
 DROP TABLE t3;

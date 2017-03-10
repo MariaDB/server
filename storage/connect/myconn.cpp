@@ -140,6 +140,7 @@ PQRYRES MyColumns(PGLOBAL g, THD *thd, const char *host, const char *db,
 	char   *fld, *colname, *chset, *fmt, v, buf[128], uns[16], zero[16];
   int     i, n, nf, ncol = sizeof(buftyp) / sizeof(int);
   int     len, type, prec, rc, k = 0;
+	bool    b;
   PQRYRES qrp;
   PCOLRES crp;
   MYSQLC  myc;
@@ -158,7 +159,7 @@ PQRYRES MyColumns(PGLOBAL g, THD *thd, const char *host, const char *db,
     /*  Do an evaluation of the result size.                            */
     /********************************************************************/
     STRING cmd(g, 64, "SHOW FULL COLUMNS FROM ");
-    bool   b = cmd.Append((PSZ)table);
+    b = cmd.Append((PSZ)table);
 
     b |= cmd.Append(" FROM ");
     b |= cmd.Append((PSZ)(db ? db : PlgGetUser(g)->DBName));
@@ -233,9 +234,11 @@ PQRYRES MyColumns(PGLOBAL g, THD *thd, const char *host, const char *db,
     fld = myc.GetCharField(1);
     prec = 0;
     len = 0;
-    v = (chset && !strcmp(chset, "binary")) ? 'B' : 0;
+//  v = (chset && !strcmp(chset, "binary")) ? 'B' : 0;
+		v = 0;
     *uns = 0;
     *zero = 0;
+		b = false;
 
 		if (!strnicmp(fld, "enum", 4)) {
 			char *p2, *p1 = fld + 6;            // to skip enum('
@@ -246,8 +249,15 @@ PQRYRES MyColumns(PGLOBAL g, THD *thd, const char *host, const char *db,
 				if (*++p2 != ',') break;
 				p1 = p2 + 2;
 			} // endwhile
-			
+
+			v = (len > 255) ? 'V' : 0;
 			strcpy(buf, "enum");
+			b = true;
+		} else if (!strnicmp(fld, "set", 3)) {
+			len = (int)strlen(fld) - 2;
+			v = 'V';
+			strcpy(buf, "set");
+			b = true;
 		} else switch ((nf = sscanf(fld, "%[^(](%d,%d", buf, &len, &prec))) {
       case 3:
         nf = sscanf(fld, "%[^(](%d,%d) %s %s", buf, &len, &prec, uns, zero);
@@ -283,9 +293,6 @@ PQRYRES MyColumns(PGLOBAL g, THD *thd, const char *host, const char *db,
                 colname, len);
         PushWarning(g, thd);
         v = 'V';
-			} else if (v == 'N') {
-				len = (int)strlen(buf);
-				v = 0;
 			} else
         len = MY_MIN(len, 4096);
 
@@ -300,6 +307,9 @@ PQRYRES MyColumns(PGLOBAL g, THD *thd, const char *host, const char *db,
       case 4:  crp->Nulls[i] = 'U'; break;
       default: crp->Nulls[i] = v;   break;
       } // endswitch nf
+
+		if (b)																 // enum or set
+  		nf = sscanf(fld, "%s ", buf);				 // get values
 
     crp = crp->Next;                       // Type_Name
     crp->Kdata->SetValue(buf, i);
