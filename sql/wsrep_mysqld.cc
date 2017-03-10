@@ -1324,7 +1324,7 @@ static bool wsrep_can_run_in_toi(THD *thd, const char *db, const char *table,
    1: TOI replication was skipped
   -1: TOI replication failed 
  */
-static int wsrep_TOI_begin(THD *thd, const char *query, char *db_, char *table_,
+static int wsrep_TOI_begin(THD *thd, char *db_, char *table_,
                            const TABLE_LIST* table_list)
 {
   wsrep_status_t ret(WSREP_WARNING);
@@ -1366,8 +1366,7 @@ static int wsrep_TOI_begin(THD *thd, const char *query, char *db_, char *table_,
     }
     /* fallthrough */
   default:
-    buf_err= wsrep_to_buf_helper(thd, (query) ? query : thd->query(),
-                                 (query) ? strlen(query) : thd->query_length(),
+    buf_err= wsrep_to_buf_helper(thd, thd->query(), thd->query_length(),
                                  &buf, &buf_len);
     break;
   }
@@ -1573,7 +1572,7 @@ int wsrep_to_isolation_begin(THD *thd, char *db_, char *table_,
   {
     switch (thd->variables.wsrep_OSU_method) {
     case WSREP_OSU_TOI:
-      ret =  wsrep_TOI_begin(thd, thd->query(), db_, table_, table_list);
+      ret =  wsrep_TOI_begin(thd, db_, table_, table_list);
       break;
     case WSREP_OSU_RSU:
       ret =  wsrep_RSU_begin(thd, db_, table_);
