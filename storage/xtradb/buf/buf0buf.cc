@@ -5016,25 +5016,22 @@ buf_all_freed_instance(
 
 		mutex_exit(&buf_pool->LRU_list_mutex);
 
-		if (UNIV_LIKELY_NULL(block)) {
-				if (block->page.key_version == 0) {
-				fil_space_t* space = fil_space_get(block->page.space);
-				ib_logf(IB_LOG_LEVEL_ERROR,
-					"Page %u %u still fixed or dirty.",
-					block->page.space,
-					block->page.offset);
-				ib_logf(IB_LOG_LEVEL_ERROR,
-					"Page oldest_modification " LSN_PF
-					" fix_count %d io_fix %d.",
-					block->page.oldest_modification,
-					block->page.buf_fix_count,
-					buf_page_get_io_fix(&block->page));
-				ib_logf(IB_LOG_LEVEL_ERROR,
-					"Page space_id %u name %s.",
-					block->page.space,
-					space->name ? space->name : "NULL");
-				ut_error;
-			}
+		if (UNIV_LIKELY_NULL(block) && block->page.key_version == 0) {
+			fil_space_t* space = fil_space_get(block->page.space);
+			ib_logf(IB_LOG_LEVEL_ERROR,
+				"Page %u %u still fixed or dirty.",
+				block->page.space,
+				block->page.offset);
+			ib_logf(IB_LOG_LEVEL_ERROR,
+				"Page oldest_modification " LSN_PF
+				" fix_count %d io_fix %d.",
+				block->page.oldest_modification,
+				block->page.buf_fix_count,
+				buf_page_get_io_fix(&block->page));
+			ib_logf(IB_LOG_LEVEL_FATAL,
+				"Page space_id %u name %s.",
+				block->page.space,
+				(space && space->name) ? space->name : "NULL");
 		}
 	}
 

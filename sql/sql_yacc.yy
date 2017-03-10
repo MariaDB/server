@@ -1022,7 +1022,7 @@ bool LEX::set_bincmp(CHARSET_INFO *cs, bool bin)
 bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %}
 
-%pure_parser                                    /* We have threads */
+%pure-parser                                    /* We have threads */
 %parse-param { THD *thd }
 %lex-param { THD *thd }
 /*
