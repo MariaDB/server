@@ -32,10 +32,12 @@ public:
     Constructs an empty hash. Does not allocate memory, it is done upon
     the first insert. Thus does not cause or return errors.
   */
-  Hash_set(uchar *(*K)(const T *, size_t *, my_bool))
+  Hash_set(uchar *(*K)(const T *, size_t *, my_bool),
+           CHARSET_INFO *cs= &my_charset_bin)
   {
     my_hash_clear(&m_hash);
     m_hash.get_key= (my_hash_get_key)K;
+    m_hash.charset= cs;
   }
   /**
     Destroy the hash by freeing the buckets table. Does
@@ -56,7 +58,7 @@ public:
   */
   bool insert(T *value)
   {
-    my_hash_init_opt(&m_hash, &my_charset_bin, START_SIZE, 0, 0,
+    my_hash_init_opt(&m_hash, m_hash.charset, START_SIZE, 0, 0,
                      m_hash.get_key, 0, MYF(0));
     size_t key_len;
     uchar *v= reinterpret_cast<uchar *>(value);
@@ -64,6 +66,10 @@ public:
     if (find(key, key_len) == NULL)
       return my_hash_insert(&m_hash, v);
     return FALSE;
+  }
+  bool remove(T *value)
+  {
+    return my_hash_delete(&m_hash, reinterpret_cast<uchar*>(value));
   }
   T *find(const void *key, size_t klen) const
   {
@@ -73,6 +79,10 @@ public:
   bool is_empty() const { return m_hash.records == 0; }
   /** Returns the number of unique elements. */
   size_t size() const { return static_cast<size_t>(m_hash.records); }
+  const T* at(size_t i) const
+  {
+    return reinterpret_cast<T*>(my_hash_element(const_cast<HASH*>(&m_hash), i));
+  }
   /** An iterator over hash elements. Is not insert-stable. */
   class Iterator
   {

@@ -756,14 +756,6 @@ uchar *my_hash_element(HASH *hash, ulong idx)
 }
 
 
-const uchar *my_hash_const_element(const HASH *hash, ulong idx)
-{
-  if (idx < hash->records)
-    return dynamic_element(&hash->array,idx,const HASH_LINK*)->data;
-  return 0;
-}
-
-
 /*
   Replace old row with new row.  This should only be used when key
   isn't changed

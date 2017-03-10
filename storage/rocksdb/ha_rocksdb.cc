@@ -43,6 +43,7 @@
 #include "./my_stacktrace.h"
 #include "./sql_audit.h"
 #include "./sql_table.h"
+#include "./sql_hset.h"
 #include <mysql/psi/mysql_table.h>
 #ifdef MARIAROCKS_NOT_YET
 #include <mysql/thread_pool_priv.h>
@@ -204,27 +205,22 @@ namespace // anonymous namespace = not visible outside this source file
 {
 
 const ulong TABLE_HASH_SIZE = 32;
+typedef Hash_set<Rdb_table_handler> Rdb_table_set;
 
 struct Rdb_open_tables_map {
   /* Hash table used to track the handlers of open tables */
-  my_core::HASH m_hash;
+  Rdb_table_set m_hash;
   /* The mutex used to protect the hash table */
   mutable mysql_mutex_t m_mutex;
 
-  void init_hash(void) {
-    (void)my_hash_init(&m_hash, my_core::system_charset_info, TABLE_HASH_SIZE,
-                       0, 0, (my_hash_get_key)Rdb_open_tables_map::get_hash_key,
-                       0, 0);
-  }
-
-  void free_hash(void) { my_hash_free(&m_hash); }
-
-  static uchar *get_hash_key(Rdb_table_handler *const table_handler,
+  static uchar *get_hash_key(const Rdb_table_handler *const table_handler,
                              size_t *const length,
                              my_bool not_used MY_ATTRIBUTE((__unused__)));
 
   Rdb_table_handler *get_table_handler(const char *const table_name);
   void release_table_handler(Rdb_table_handler *const table_handler);
+
+  Rdb_open_tables_map() : m_hash(get_hash_key, system_charset_info) { }
 
   std::vector<std::string> get_table_names(void) const;
 };
@@ -1336,7 +1332,7 @@ rdb_get_rocksdb_write_options(my_core::THD *const thd) {
 */
 
 uchar *
-Rdb_open_tables_map::get_hash_key(Rdb_table_handler *const table_handler,
+Rdb_open_tables_map::get_hash_key(const Rdb_table_handler *const table_handler,
                                   size_t *const length,
                                   my_bool not_used MY_ATTRIBUTE((__unused__))) {
   *length = table_handler->m_table_name_length;
@@ -2454,12 +2450,11 @@ static bool rocksdb_flush_wal(handlerton* hton __attribute__((__unused__)))
   replication progress.
 */
 static int rocksdb_prepare(handlerton* hton, THD* thd, bool prepare_tx)
+{
 #ifdef MARIAROCKS_NOT_YET
 // This is "ASYNC_COMMIT" feature which is only in webscalesql
-// for now, define async=false below:
-#endif
-{
   bool async=false;
+#endif
 
   Rdb_transaction *&tx = get_tx_from_thd(thd);
   if (!tx->can_prepare()) {
@@ -2805,10 +2800,9 @@ public:
       int64_t curr_time;
       rdb->GetEnv()->GetCurrentTime(&curr_time);
 
-      THD *thd = tx->get_thd();
       char buffer[1024];
 #ifdef MARIAROCKS_NOT_YET
-      thd_security_context(thd, buffer, sizeof buffer, 0);
+      thd_security_context(tx->get_thd(), buffer, sizeof buffer, 0);
 #endif
       m_data += format_string("---SNAPSHOT, ACTIVE %lld sec\n"
                               "%s\n"
@@ -2912,6 +2906,7 @@ std::vector<Rdb_trx_info> rdb_get_all_trx_info() {
   return trx_info;
 }
 
+#ifdef MARIAROCKS_NOT_YET
 /* Generate the snapshot status table */
 static bool rocksdb_show_snapshot_status(handlerton *const hton, THD *const thd,
                                          stat_print_fn *const stat_print) {
@@ -2923,6 +2918,7 @@ static bool rocksdb_show_snapshot_status(handlerton *const hton, THD *const thd,
   return print_stats(thd, "SNAPSHOTS", "rocksdb", showStatus.getResult(),
                      stat_print);
 }
+#endif
 
 /*
   This is called for SHOW ENGINE ROCKSDB STATUS|LOGS|etc.
@@ -3292,7 +3288,6 @@ static int rocksdb_init_func(void *const p) {
 
   mysql_mutex_init(rdb_sysvars_psi_mutex_key, &rdb_sysvars_mutex,
                    MY_MUTEX_INIT_FAST);
-  rdb_open_tables.init_hash();
   Rdb_transaction::init_mutex();
 
   rocksdb_hton->state = SHOW_OPTION_YES;
@@ -3362,7 +3357,6 @@ static int rocksdb_init_func(void *const p) {
     // mmap_reads and direct_reads are both on.   (NO_LINT_DEBUG)
     sql_print_error("RocksDB: Can't enable both use_direct_reads "
                     "and allow_mmap_reads\n");
-    rdb_open_tables.free_hash();
     DBUG_RETURN(HA_EXIT_FAILURE);
   }
 
@@ -3371,7 +3365,6 @@ static int rocksdb_init_func(void *const p) {
     // See above comment for allow_mmap_reads. (NO_LINT_DEBUG)
     sql_print_error("RocksDB: Can't enable both use_direct_writes "
                     "and allow_mmap_writes\n");
-    rdb_open_tables.free_hash();
     DBUG_RETURN(HA_EXIT_FAILURE);
   }
 
@@ -3397,7 +3390,6 @@ static int rocksdb_init_func(void *const p) {
       std::string err_text = status.ToString();
       sql_print_error("RocksDB: Error listing column families: %s",
                       err_text.c_str());
-      rdb_open_tables.free_hash();
       DBUG_RETURN(HA_EXIT_FAILURE);
     }
   } else
@@ -3453,7 +3445,6 @@ static int rocksdb_init_func(void *const p) {
           rocksdb_default_cf_options, rocksdb_override_cf_options)) {
     // NO_LINT_DEBUG
     sql_print_error("RocksDB: Failed to initialize CF options map.");
-    rdb_open_tables.free_hash();
     DBUG_RETURN(HA_EXIT_FAILURE);
   }
 
@@ -3509,7 +3500,6 @@ static int rocksdb_init_func(void *const p) {
     sql_print_error("RocksDB: compatibility check against existing database "
                     "options failed. %s",
                     status.ToString().c_str());
-    rdb_open_tables.free_hash();
     DBUG_RETURN(HA_EXIT_FAILURE);
   }
 
@@ -3519,7 +3509,6 @@ static int rocksdb_init_func(void *const p) {
   if (!status.ok()) {
     std::string err_text = status.ToString();
     sql_print_error("RocksDB: Error opening instance: %s", err_text.c_str());
-    rdb_open_tables.free_hash();
     DBUG_RETURN(HA_EXIT_FAILURE);
   }
   cf_manager.init(&rocksdb_cf_options_map, &cf_handles);
@@ -3527,21 +3516,18 @@ static int rocksdb_init_func(void *const p) {
   if (dict_manager.init(rdb->GetBaseDB(), &cf_manager)) {
     // NO_LINT_DEBUG
     sql_print_error("RocksDB: Failed to initialize data dictionary.");
-    rdb_open_tables.free_hash();
     DBUG_RETURN(HA_EXIT_FAILURE);
   }
 
   if (binlog_manager.init(&dict_manager)) {
     // NO_LINT_DEBUG
     sql_print_error("RocksDB: Failed to initialize binlog manager.");
-    rdb_open_tables.free_hash();
     DBUG_RETURN(HA_EXIT_FAILURE);
   }
 
   if (ddl_manager.init(&dict_manager, &cf_manager, rocksdb_validate_tables)) {
     // NO_LINT_DEBUG
     sql_print_error("RocksDB: Failed to initialize DDL manager.");
-    rdb_open_tables.free_hash();
     DBUG_RETURN(HA_EXIT_FAILURE);
   }
 
@@ -3563,7 +3549,6 @@ static int rocksdb_init_func(void *const p) {
     const std::string err_text = status.ToString();
     // NO_LINT_DEBUG
     sql_print_error("RocksDB: Error enabling compaction: %s", err_text.c_str());
-    rdb_open_tables.free_hash();
     DBUG_RETURN(HA_EXIT_FAILURE);
   }
 
@@ -3576,7 +3561,6 @@ static int rocksdb_init_func(void *const p) {
   if (err != 0) {
     sql_print_error("RocksDB: Couldn't start the background thread: (errno=%d)",
                     err);
-    rdb_open_tables.free_hash();
     DBUG_RETURN(HA_EXIT_FAILURE);
   }
 
@@ -3589,7 +3573,6 @@ static int rocksdb_init_func(void *const p) {
   if (err != 0) {
     sql_print_error("RocksDB: Couldn't start the drop index thread: (errno=%d)",
                     err);
-    rdb_open_tables.free_hash();
     DBUG_RETURN(HA_EXIT_FAILURE);
   }
 
@@ -3657,13 +3640,17 @@ static int rocksdb_done_func(void *const p) {
     sql_print_error("RocksDB: Couldn't stop the index thread: (errno=%d)", err);
   }
 
-  if (rdb_open_tables.m_hash.records) {
+  if (rdb_open_tables.m_hash.size()) {
     // Looks like we are getting unloaded and yet we have some open tables
     // left behind.
     error = 1;
   }
 
-  rdb_open_tables.free_hash();
+  /*
+    destructors for static objects can be called at _exit(),
+    but we want to free the memory at dlclose()
+  */
+  rdb_open_tables.m_hash.~Rdb_table_set();
   mysql_mutex_destroy(&rdb_open_tables.m_mutex);
   mysql_mutex_destroy(&rdb_sysvars_mutex);
 
@@ -3729,8 +3716,7 @@ Rdb_open_tables_map::get_table_handler(const char *const table_name) {
 
   // First, look up the table in the hash map.
   RDB_MUTEX_LOCK_CHECK(m_mutex);
-  if (!(table_handler = reinterpret_cast<Rdb_table_handler *>(my_hash_search(
-            &m_hash, reinterpret_cast<const uchar *>(table_name), length)))) {
+  if (!m_hash.size() || !(table_handler = m_hash.find(table_name, length))) {
     // Since we did not find it in the hash map, attempt to create and add it
     // to the hash map.
     if (!(table_handler = reinterpret_cast<Rdb_table_handler *>(my_multi_malloc(
@@ -3746,7 +3732,7 @@ Rdb_open_tables_map::get_table_handler(const char *const table_name) {
     table_handler->m_table_name = tmp_name;
     strmov(table_handler->m_table_name, table_name);
 
-    if (my_hash_insert(&m_hash, reinterpret_cast<uchar *>(table_handler))) {
+    if (m_hash.insert(table_handler)) {
       // Inserting into the hash map failed.
       RDB_MUTEX_UNLOCK_CHECK(m_mutex);
       my_free(table_handler);
@@ -3776,13 +3762,11 @@ std::vector<std::string> Rdb_open_tables_map::get_table_names(void) const {
   std::vector<std::string> names;
 
   RDB_MUTEX_LOCK_CHECK(m_mutex);
-  for (i = 0; (table_handler = reinterpret_cast<const Rdb_table_handler *>(
-                   my_hash_const_element(&m_hash, i)));
-       i++) {
+  for (i = 0; (table_handler = m_hash.at(i)); i++) {
     DBUG_ASSERT(table_handler != nullptr);
     names.push_back(table_handler->m_table_name);
   }
-  DBUG_ASSERT(i == m_hash.records);
+  DBUG_ASSERT(i == m_hash.size());
   RDB_MUTEX_UNLOCK_CHECK(m_mutex);
 
   return names;
@@ -3937,9 +3921,8 @@ void Rdb_open_tables_map::release_table_handler(
   DBUG_ASSERT(table_handler != nullptr);
   DBUG_ASSERT(table_handler->m_ref_count > 0);
   if (!--table_handler->m_ref_count) {
-    // Last rereference was released. Tear down the hash entry.
-    const auto ret MY_ATTRIBUTE((__unused__)) =
-        my_hash_delete(&m_hash, reinterpret_cast<uchar *>(table_handler));
+    // Last reference was released. Tear down the hash entry.
+    const auto ret MY_ATTRIBUTE((__unused__)) = m_hash.remove(table_handler);
     DBUG_ASSERT(!ret); // the hash entry must actually be found and deleted
     my_core::thr_lock_delete(&table_handler->m_thr_lock);
     my_free(table_handler);
