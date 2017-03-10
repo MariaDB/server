@@ -706,6 +706,10 @@ public:
   {
     return Type_handler::get_handler_by_field_type(field_type());
   }
+  virtual const Type_handler *cast_to_int_type_handler() const
+  {
+    return type_handler();
+  }
   /* result_type() of an item specifies how the value should be returned */
   virtual Item_result result_type() const
   {
@@ -716,7 +720,6 @@ public:
   {
     return type_handler()->cmp_type();
   }
-  virtual Item_result cast_to_int_type() const { return cmp_type(); }
   enum_field_types string_field_type() const
   {
     return Type_handler::string_type_handler(max_length)->field_type();
@@ -2405,9 +2408,9 @@ public:
   {
     return field->result_type();
   }
-  Item_result cast_to_int_type() const
+  const Type_handler *cast_to_int_type_handler() const
   {
-    return field->cmp_type();
+    return field->cast_to_int_type_handler();
   }
   enum_field_types field_type() const
   {
@@ -3425,7 +3428,7 @@ public:
   bool eq(const Item *item, bool binary_cmp) const
   {
     return item->basic_const_item() && item->type() == type() &&
-           item->cast_to_int_type() == cast_to_int_type() &&
+           item->cast_to_int_type_handler() == cast_to_int_type_handler() &&
            str_value.bin_eq(&((Item_hex_constant*)item)->str_value);
   }
   String *val_str(String*) { DBUG_ASSERT(fixed == 1); return &str_value; }
@@ -3467,7 +3470,10 @@ public:
     field->set_notnull();
     return field->store_hex_hybrid(str_value.ptr(), str_value.length());
   }
-  enum Item_result cast_to_int_type() const { return INT_RESULT; }
+  const Type_handler *cast_to_int_type_handler() const
+  {
+    return &type_handler_longlong;
+  }
   void print(String *str, enum_query_type query_type);
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_hex_hybrid>(thd, mem_root, this); }
@@ -3509,7 +3515,6 @@ public:
     return field->store(str_value.ptr(), str_value.length(), 
                         collation.collation);
   }
-  enum Item_result cast_to_int_type() const { return STRING_RESULT; }
   void print(String *str, enum_query_type query_type);
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_hex_string>(thd, mem_root, this); }

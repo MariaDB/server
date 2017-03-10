@@ -678,7 +678,8 @@ class Item_func_num1: public Item_func_numhybrid
 public:
   Item_func_num1(THD *thd, Item *a): Item_func_numhybrid(thd, a) {}
   Item_func_num1(THD *thd, Item *a, Item *b): Item_func_numhybrid(thd, a, b) {}
-  void fix_length_and_dec();
+  bool check_partition_func_processor(void *int_arg) { return FALSE; }
+  bool check_vcol_func_processor(void *arg) { return FALSE; }
 };
 
 
@@ -974,10 +975,11 @@ public:
     str->append(func_name());
     args[0]->print_parenthesised(str, query_type, precedence());
   }
+  void fix_length_and_dec_int();
+  void fix_length_and_dec_double();
+  void fix_length_and_dec_decimal();
   void fix_length_and_dec();
   uint decimal_precision() const { return args[0]->decimal_precision(); }
-  bool check_partition_func_processor(void *int_arg) {return FALSE;}
-  bool check_vcol_func_processor(void *arg) { return FALSE;}
   bool need_parentheses_in_default() { return true; }
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_func_neg>(thd, mem_root, this); }
@@ -992,9 +994,10 @@ public:
   longlong int_op();
   my_decimal *decimal_op(my_decimal *);
   const char *func_name() const { return "abs"; }
+  void fix_length_and_dec_int();
+  void fix_length_and_dec_double();
+  void fix_length_and_dec_decimal();
   void fix_length_and_dec();
-  bool check_partition_func_processor(void *int_arg) {return FALSE;}
-  bool check_vcol_func_processor(void *arg) { return FALSE;}
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_func_abs>(thd, mem_root, this); }
 };
@@ -1167,6 +1170,8 @@ class Item_func_int_val :public Item_func_num1
 {
 public:
   Item_func_int_val(THD *thd, Item *a): Item_func_num1(thd, a) {}
+  void fix_length_and_dec_double();
+  void fix_length_and_dec_int_or_decimal();
   void fix_length_and_dec();
 };
 
@@ -1179,8 +1184,6 @@ public:
   longlong int_op();
   double real_op();
   my_decimal *decimal_op(my_decimal *);
-  bool check_partition_func_processor(void *int_arg) {return FALSE;}
-  bool check_vcol_func_processor(void *arg) { return FALSE;}
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_func_ceiling>(thd, mem_root, this); }
 };
@@ -1194,8 +1197,6 @@ public:
   longlong int_op();
   double real_op();
   my_decimal *decimal_op(my_decimal *);
-  bool check_partition_func_processor(void *int_arg) {return FALSE;}
-  bool check_vcol_func_processor(void *arg) { return FALSE;}
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_func_floor>(thd, mem_root, this); }
 };

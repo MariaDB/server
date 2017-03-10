@@ -3720,5 +3720,34 @@ DROP TABLE t1;
 SELECT ROUND(POINT(1,1));
 ERROR HY000: Illegal parameter data type geometry for operation 'round'
 #
+# MDEV-12199 Split Item_func_{abs|neg|int_val}::fix_length_and_dec() into methods in Type_handler
+#
+CREATE TABLE t1 (a GEOMETRY);
+SELECT -a FROM t1;
+ERROR HY000: Illegal parameter data type geometry for operation '-'
+SELECT ABS(a) FROM t1;
+ERROR HY000: Illegal parameter data type geometry for operation 'abs'
+SELECT CEILING(a) FROM t1;
+ERROR HY000: Illegal parameter data type geometry for operation 'ceiling'
+SELECT FLOOR(a) FROM t1;
+ERROR HY000: Illegal parameter data type geometry for operation 'floor'
+SELECT -COALESCE(a) FROM t1;
+ERROR HY000: Illegal parameter data type geometry for operation '-'
+SELECT ABS(COALESCE(a)) FROM t1;
+ERROR HY000: Illegal parameter data type geometry for operation 'abs'
+SELECT CEILING(COALESCE(a)) FROM t1;
+ERROR HY000: Illegal parameter data type geometry for operation 'ceiling'
+SELECT FLOOR(COALESCE(a)) FROM t1;
+ERROR HY000: Illegal parameter data type geometry for operation 'floor'
+DROP TABLE t1;
+SELECT -POINT(1,1);
+ERROR HY000: Illegal parameter data type geometry for operation '-'
+SELECT ABS(POINT(1,1));
+ERROR HY000: Illegal parameter data type geometry for operation 'abs'
+SELECT CEILING(POINT(1,1));
+ERROR HY000: Illegal parameter data type geometry for operation 'ceiling'
+SELECT FLOOR(POINT(1,1));
+ERROR HY000: Illegal parameter data type geometry for operation 'floor'
+#
 # End of 10.3 tests
 #

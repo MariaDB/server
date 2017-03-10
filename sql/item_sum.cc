@@ -1295,7 +1295,7 @@ void Item_sum_sum::fix_length_and_dec()
   DBUG_ENTER("Item_sum_sum::fix_length_and_dec");
   maybe_null=null_value=1;
   decimals= args[0]->decimals;
-  switch (args[0]->cast_to_int_type()) {
+  switch (args[0]->cast_to_int_type_handler()->cmp_type()) {
   case REAL_RESULT:
   case STRING_RESULT:
     set_handler_by_field_type(MYSQL_TYPE_DOUBLE);

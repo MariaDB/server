@@ -36,6 +36,9 @@ class Item_bool_func2;
 class Item_func_between;
 class Item_func_in;
 class Item_func_round;
+class Item_func_int_val;
+class Item_func_abs;
+class Item_func_neg;
 class cmp_item;
 class in_vector;
 class Type_std_attributes;
@@ -447,6 +450,15 @@ public:
 
   virtual bool
   Item_func_round_fix_length_and_dec(Item_func_round *round) const= 0;
+
+  virtual bool
+  Item_func_int_val_fix_length_and_dec(Item_func_int_val *func) const= 0;
+
+  virtual bool
+  Item_func_abs_fix_length_and_dec(Item_func_abs *func) const= 0;
+
+  virtual bool
+  Item_func_neg_fix_length_and_dec(Item_func_neg *func) const= 0;
 };
 
 
@@ -599,6 +611,9 @@ public:
   bool Item_func_in_fix_comparator_compatible_types(THD *thd,
                                                     Item_func_in *) const;
   bool Item_func_round_fix_length_and_dec(Item_func_round *) const;
+  bool Item_func_int_val_fix_length_and_dec(Item_func_int_val *) const;
+  bool Item_func_abs_fix_length_and_dec(Item_func_abs *) const;
+  bool Item_func_neg_fix_length_and_dec(Item_func_neg *) const;
 };
 
 
@@ -668,6 +683,9 @@ public:
                                                     Item_func_in *) const;
 
   bool Item_func_round_fix_length_and_dec(Item_func_round *) const;
+  bool Item_func_int_val_fix_length_and_dec(Item_func_int_val *) const;
+  bool Item_func_abs_fix_length_and_dec(Item_func_abs *) const;
+  bool Item_func_neg_fix_length_and_dec(Item_func_neg *) const;
 };
 
 
@@ -711,6 +729,9 @@ public:
   bool Item_func_in_fix_comparator_compatible_types(THD *thd,
                                                     Item_func_in *) const;
   bool Item_func_round_fix_length_and_dec(Item_func_round *) const;
+  bool Item_func_int_val_fix_length_and_dec(Item_func_int_val *) const;
+  bool Item_func_abs_fix_length_and_dec(Item_func_abs *) const;
+  bool Item_func_neg_fix_length_and_dec(Item_func_neg *) const;
 };
 
 
@@ -753,6 +774,9 @@ public:
   bool Item_func_in_fix_comparator_compatible_types(THD *thd,
                                                     Item_func_in *) const;
   bool Item_func_round_fix_length_and_dec(Item_func_round *) const;
+  bool Item_func_int_val_fix_length_and_dec(Item_func_int_val *) const;
+  bool Item_func_abs_fix_length_and_dec(Item_func_abs *) const;
+  bool Item_func_neg_fix_length_and_dec(Item_func_neg *) const;
 };
 
 
@@ -799,6 +823,9 @@ public:
   bool Item_func_in_fix_comparator_compatible_types(THD *thd,
                                                     Item_func_in *) const;
   bool Item_func_round_fix_length_and_dec(Item_func_round *) const;
+  bool Item_func_int_val_fix_length_and_dec(Item_func_int_val *) const;
+  bool Item_func_abs_fix_length_and_dec(Item_func_abs *) const;
+  bool Item_func_neg_fix_length_and_dec(Item_func_neg *) const;
 };
 
 
@@ -859,6 +886,9 @@ public:
   bool Item_func_in_fix_comparator_compatible_types(THD *thd,
                                                     Item_func_in *) const;
   bool Item_func_round_fix_length_and_dec(Item_func_round *) const;
+  bool Item_func_int_val_fix_length_and_dec(Item_func_int_val *) const;
+  bool Item_func_abs_fix_length_and_dec(Item_func_abs *) const;
+  bool Item_func_neg_fix_length_and_dec(Item_func_neg *) const;
 };
 
 
@@ -1274,7 +1304,12 @@ public:
     return false;
   }
   bool Item_func_round_fix_length_and_dec(Item_func_round *) const;
+  bool Item_func_int_val_fix_length_and_dec(Item_func_int_val *) const;
+  bool Item_func_abs_fix_length_and_dec(Item_func_abs *) const;
+  bool Item_func_neg_fix_length_and_dec(Item_func_neg *) const;
 };
+
+extern Type_handler_geometry type_handler_geometry;
 #endif
 
 

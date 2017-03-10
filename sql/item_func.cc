@@ -723,8 +723,8 @@ void Item_num_op::fix_length_and_dec(void)
   DBUG_ENTER("Item_num_op::fix_length_and_dec");
   DBUG_PRINT("info", ("name %s", func_name()));
   DBUG_ASSERT(arg_count == 2);
-  Item_result r0= args[0]->cast_to_int_type();
-  Item_result r1= args[1]->cast_to_int_type();
+  Item_result r0= args[0]->cast_to_int_type_handler()->cmp_type();
+  Item_result r1= args[1]->cast_to_int_type_handler()->cmp_type();
 
   if (r0 == REAL_RESULT || r1 == REAL_RESULT ||
       r0 == STRING_RESULT || r1 ==STRING_RESULT)
@@ -754,47 +754,6 @@ void Item_num_op::fix_length_and_dec(void)
               result_type() == DECIMAL_RESULT ? "DECIMAL_RESULT" :
               result_type() == INT_RESULT ? "INT_RESULT" :
               "--ILLEGAL!!!--")));
-  DBUG_VOID_RETURN;
-}
-
-
-/**
-  Set result type for a numeric function of one argument
-  (can be also used by a numeric function of many arguments, if the result
-  type depends only on the first argument)
-*/
-
-void Item_func_num1::fix_length_and_dec()
-{
-  DBUG_ENTER("Item_func_num1::fix_length_and_dec");
-  DBUG_PRINT("info", ("name %s", func_name()));
-  // Note, cast_to_int_type() can return TIME_RESULT
-  switch (args[0]->cast_to_int_type()) {
-  case INT_RESULT:
-    set_handler_by_result_type(INT_RESULT);
-    max_length= args[0]->max_length;
-    unsigned_flag= args[0]->unsigned_flag;
-    break;
-  case STRING_RESULT:
-  case REAL_RESULT:
-    set_handler_by_result_type(REAL_RESULT);
-    decimals= args[0]->decimals; // Preserve NOT_FIXED_DEC
-    max_length= float_length(decimals);
-    break;
-  case TIME_RESULT:
-  case DECIMAL_RESULT:
-    set_handler_by_result_type(DECIMAL_RESULT);
-    decimals= args[0]->decimal_scale(); // Do not preserve NOT_FIXED_DEC
-    max_length= args[0]->max_length;
-    break;
-  case ROW_RESULT:
-    DBUG_ASSERT(0);
-  }
-  DBUG_PRINT("info", ("Type: %s",
-                      (result_type() == REAL_RESULT ? "REAL_RESULT" :
-                       result_type() == DECIMAL_RESULT ? "DECIMAL_RESULT" :
-                       result_type() == INT_RESULT ? "INT_RESULT" :
-                       "--ILLEGAL!!!--")));
   DBUG_VOID_RETURN;
 }
 
@@ -1025,7 +984,7 @@ longlong Item::val_int_from_str(int *error)
 
 longlong Item::val_int_signed_typecast()
 {
-  if (cast_to_int_type() != STRING_RESULT)
+  if (cast_to_int_type_handler()->cmp_type() != STRING_RESULT)
     return val_int();
 
   int error;
@@ -1047,7 +1006,7 @@ void Item_func_unsigned::print(String *str, enum_query_type query_type)
 
 longlong Item::val_int_unsigned_typecast()
 {
-  if (cast_to_int_type() == DECIMAL_RESULT)
+  if (cast_to_int_type_handler()->cmp_type() == DECIMAL_RESULT)
   {
     longlong value;
     my_decimal tmp, *dec= val_decimal(&tmp);
@@ -1057,7 +1016,7 @@ longlong Item::val_int_unsigned_typecast()
       value= 0;
     return value;
   }
-  else if (cast_to_int_type() != STRING_RESULT)
+  else if (cast_to_int_type_handler()->cmp_type() != STRING_RESULT)
   {
     longlong value= val_int();
     if (!null_value && unsigned_flag == 0 && value < 0)
@@ -1897,11 +1856,9 @@ my_decimal *Item_func_neg::decimal_op(my_decimal *decimal_value)
 }
 
 
-void Item_func_neg::fix_length_and_dec()
+void Item_func_neg::fix_length_and_dec_int()
 {
-  DBUG_ENTER("Item_func_neg::fix_length_and_dec");
-  Item_func_num1::fix_length_and_dec();
-  /* 1 add because sign can appear */
+  set_handler(&type_handler_longlong);
   max_length= args[0]->max_length + 1;
 
   /*
@@ -1910,7 +1867,7 @@ void Item_func_neg::fix_length_and_dec()
     Use val() to get value as arg_type doesn't mean that item is
     Item_int or Item_float due to existence of Item_param.
   */
-  if (Item_func_neg::result_type() == INT_RESULT && args[0]->const_item())
+  if (args[0]->const_item())
   {
     longlong val= args[0]->val_int();
     if ((ulonglong) val >= (ulonglong) LONGLONG_MIN &&
@@ -1925,7 +1882,34 @@ void Item_func_neg::fix_length_and_dec()
       DBUG_PRINT("info", ("Type changed: DECIMAL_RESULT"));
     }
   }
-  unsigned_flag= 0;
+  unsigned_flag= false;
+}
+
+
+void Item_func_neg::fix_length_and_dec_double()
+{
+  set_handler(&type_handler_double);
+  decimals= args[0]->decimals; // Preserve NOT_FIXED_DEC
+  max_length= args[0]->max_length + 1;
+  unsigned_flag= false;
+}
+
+
+void Item_func_neg::fix_length_and_dec_decimal()
+{
+  set_handler(&type_handler_newdecimal);
+  decimals= args[0]->decimal_scale(); // Do not preserve NOT_FIXED_DEC
+  max_length= args[0]->max_length + 1;
+  unsigned_flag= false;
+}
+
+
+void Item_func_neg::fix_length_and_dec()
+{
+  DBUG_ENTER("Item_func_neg::fix_length_and_dec");
+  DBUG_PRINT("info", ("name %s", func_name()));
+  args[0]->cast_to_int_type_handler()->Item_func_neg_fix_length_and_dec(this);
+  DBUG_PRINT("info", ("Type: %s", type_handler()->name().ptr()));
   DBUG_VOID_RETURN;
 }
 
@@ -1966,10 +1950,39 @@ my_decimal *Item_func_abs::decimal_op(my_decimal *decimal_value)
 }
 
 
+void Item_func_abs::fix_length_and_dec_int()
+{
+  set_handler(&type_handler_longlong);
+  max_length= args[0]->max_length;
+  unsigned_flag= args[0]->unsigned_flag;
+}
+
+
+void Item_func_abs::fix_length_and_dec_double()
+{
+  set_handler(&type_handler_double);
+  decimals= args[0]->decimals; // Preserve NOT_FIXED_DEC
+  max_length= float_length(decimals);
+  unsigned_flag= args[0]->unsigned_flag;
+}
+
+
+void Item_func_abs::fix_length_and_dec_decimal()
+{
+  set_handler(&type_handler_newdecimal);
+  decimals= args[0]->decimal_scale(); // Do not preserve NOT_FIXED_DEC
+  max_length= args[0]->max_length;
+  unsigned_flag= args[0]->unsigned_flag;
+}
+
+
 void Item_func_abs::fix_length_and_dec()
 {
-  Item_func_num1::fix_length_and_dec();
-  unsigned_flag= args[0]->unsigned_flag;
+  DBUG_ENTER("Item_func_abs::fix_length_and_dec");
+  DBUG_PRINT("info", ("name %s", func_name()));
+  args[0]->cast_to_int_type_handler()->Item_func_abs_fix_length_and_dec(this);
+  DBUG_PRINT("info", ("Type: %s", type_handler()->name().ptr()));
+  DBUG_VOID_RETURN;
 }
 
 
@@ -2201,11 +2214,8 @@ longlong Item_func_bit_neg::val_int()
 
 // Conversion functions
 
-void Item_func_int_val::fix_length_and_dec()
+void Item_func_int_val::fix_length_and_dec_int_or_decimal()
 {
-  DBUG_ENTER("Item_func_int_val::fix_length_and_dec");
-  DBUG_PRINT("info", ("name %s", func_name()));
-
   ulonglong tmp_max_length= (ulonglong ) args[0]->max_length - 
     (args[0]->decimals ? args[0]->decimals + 1 : 0) + 2;
   max_length= tmp_max_length > (ulonglong) 4294967295U ?
@@ -2214,41 +2224,37 @@ void Item_func_int_val::fix_length_and_dec()
   set_if_smaller(max_length,tmp);
   decimals= 0;
 
-  // Note, cast_to_int_type() can return TIME_RESULT
-  switch (args[0]->cast_to_int_type())
+  /*
+    -2 because in most high position can't be used any digit for longlong
+    and one position for increasing value during operation
+  */
+  if (args[0]->max_length - args[0]->decimals >= DECIMAL_LONGLONG_DIGITS - 2)
   {
-  case STRING_RESULT:
-  case REAL_RESULT:
-    set_handler_by_result_type(REAL_RESULT);
-    max_length= float_length(decimals);
-    break;
-  case INT_RESULT:
-  case TIME_RESULT:
-  case DECIMAL_RESULT:
-    /*
-      -2 because in most high position can't be used any digit for longlong
-      and one position for increasing value during operation
-    */
-    if ((args[0]->max_length - args[0]->decimals) >=
-        (DECIMAL_LONGLONG_DIGITS - 2))
-    {
-      set_handler_by_result_type(DECIMAL_RESULT);
-    }
-    else
-    {
-      unsigned_flag= args[0]->unsigned_flag;
-      set_handler_by_result_type(INT_RESULT);
-    }
-    break;
-  case ROW_RESULT:
-    DBUG_ASSERT(0);
+    set_handler(&type_handler_newdecimal);
   }
-  DBUG_PRINT("info", ("Type: %s",
-                      (result_type() == REAL_RESULT ? "REAL_RESULT" :
-                       result_type() == DECIMAL_RESULT ? "DECIMAL_RESULT" :
-                       result_type() == INT_RESULT ? "INT_RESULT" :
-                       "--ILLEGAL!!!--")));
+  else
+  {
+    unsigned_flag= args[0]->unsigned_flag;
+    set_handler(&type_handler_longlong);
+  }
+}
 
+
+void Item_func_int_val::fix_length_and_dec_double()
+{
+  set_handler(&type_handler_double);
+  max_length= float_length(0);
+  decimals= 0;
+}
+
+
+void Item_func_int_val::fix_length_and_dec()
+{
+  DBUG_ENTER("Item_func_int_val::fix_length_and_dec");
+  DBUG_PRINT("info", ("name %s", func_name()));
+  args[0]->cast_to_int_type_handler()->
+    Item_func_int_val_fix_length_and_dec(this);
+  DBUG_PRINT("info", ("Type: %s", type_handler()->name().ptr()));
   DBUG_VOID_RETURN;
 }
 

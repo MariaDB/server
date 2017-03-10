@@ -851,6 +851,10 @@ public:
   virtual bool str_needs_quotes() { return FALSE; }
   virtual Item_result result_type () const=0;
   virtual Item_result cmp_type () const { return result_type(); }
+  virtual const Type_handler *cast_to_int_type_handler() const
+  {
+    return Type_handler::get_handler_by_field_type(type());
+  }
   static bool type_can_have_key_part(enum_field_types);
   static enum_field_types field_type_merge(enum_field_types, enum_field_types);
   virtual bool eq(Field *field)
@@ -3463,6 +3467,10 @@ public:
   Field *make_new_field(MEM_ROOT *root, TABLE *new_table, bool keep_type);
   enum_field_types type() const { return MYSQL_TYPE_STRING; }
   enum Item_result cmp_type () const { return INT_RESULT; }
+  const Type_handler *cast_to_int_type_handler() const
+  {
+    return &type_handler_longlong;
+  }
   enum ha_base_keytype key_type() const;
   Copy_func *get_copy_func(const Field *from) const
   {
