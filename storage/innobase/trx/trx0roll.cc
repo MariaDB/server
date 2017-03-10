@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, MariaDB Corporation. All Rights Reserved.
+Copyright (c) 2016, 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -810,7 +810,7 @@ trx_rollback_or_clean_recovered(
 
 	if (all) {
 		ib::info() << "Starting in background the rollback"
-			" of uncommitted transactions";
+			" of recovered transactions";
 	}
 
 	/* Note: For XA recovered transactions, we rely on MySQL to
@@ -829,6 +829,12 @@ trx_rollback_or_clean_recovered(
 		     trx = UT_LIST_GET_NEXT(trx_list, trx)) {
 
 			assert_trx_in_rw_list(trx);
+
+			if (srv_shutdown_state != SRV_SHUTDOWN_NONE
+			    && srv_fast_shutdown != 0) {
+				all = FALSE;
+				break;
+			}
 
 			/* If this function does a cleanup or rollback
 			then it will release the trx_sys->mutex, therefore
