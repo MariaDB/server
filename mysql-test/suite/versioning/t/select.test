@@ -142,6 +142,12 @@ create view v1 as select * from t2 inner join t1 using (a);
 select * from v1;
 drop view v1;
 
+create or replace table t1 (a int) with system versioning;
+insert into t1 values (1);
+create view vt1 as select a from t1;
+select * from t1 natural join vt1;
+drop view vt1;
+
 drop table t1, t2;
 
 call verify_vtq;
