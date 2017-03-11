@@ -143,3 +143,29 @@ disconnect con1;
 disconnect con2;
 disconnect con3;
 drop table t1, t2;
+
+# skip_unique checks should skip checks only for tables that don't have
+# secondary indexes
+connection default;
+--disable_warnings
+drop table if exists t1,t2,t3;
+--enable_warnings
+
+# table with PK only
+create table t1 (id int, value int, primary key (id)) engine=rocksdb;
+# table with PK and SK
+create table t2 (id int, id2 int, value int, primary key (id), unique key (id2)) engine=rocksdb;
+# table with hidden PK
+create table t3 (id int, value int) engine=rocksdb;
+
+SET @old_val = @@session.unique_checks;
+set @@session.unique_checks = FALSE;
+
+insert into t1 values (1, 1), (1, 2);
+--error ER_DUP_ENTRY
+insert into t2 values (1, 1, 1), (1, 2, 1);
+insert into t3 values (1, 1), (1, 1);
+
+set @@session.unique_checks = @old_val;
+# cleanup
+drop table t1, t2, t3;

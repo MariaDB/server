@@ -1,37 +1,41 @@
 --source include/have_rocksdb.inc
 
-# 
-# Check whether DATA DIRECTORY and INDEX DIRECTORY
-# are supported in CREATE and ALTER TABLE
 #
-# Note: the test does not check whether the options
-#       have any real effect on the table, only 
-#       that they are accepted
-#       (and apparently ignored)
-# 
-
---let $data_dir = $MYSQLTEST_VARDIR/storage_engine_data_dir/
---let $index_dir = $MYSQLTEST_VARDIR/storage_engine_index_dir/
---mkdir $data_dir
---mkdir $index_dir
+# Check that when either DATA DIRECTORY or INDEX DIRECTORY are specified
+# then MyRocks returns an appropriate error. We don't support this
+# functionality and therefore shouldn't just silently accept the values.
+#
 
 --disable_warnings
 DROP TABLE IF EXISTS t1;
 --enable_warnings
 
---replace_result $data_dir <DATA_DIR> $index_dir <INDEX_DIR>
-eval CREATE TABLE t1 (a INT PRIMARY KEY, b CHAR(8)) ENGINE=rocksdb DATA DIRECTORY = '$data_dir' INDEX DIRECTORY = '$index_dir';
---replace_result $data_dir <DATA_DIR> $index_dir <INDEX_DIR>
-SHOW CREATE TABLE t1;
+--error 1296
+eval CREATE TABLE t1 (a INT PRIMARY KEY, b CHAR(8)) ENGINE=rocksdb DATA DIRECTORY = '/foo/bar/data';
 
---replace_result $data_dir <DATA_DIR> $index_dir <INDEX_DIR>
-eval ALTER TABLE t1 INDEX DIRECTORY = '$data_dir';
---replace_result $data_dir <DATA_DIR> $index_dir <INDEX_DIR> 
-SHOW CREATE TABLE t1;
+--error 1296
+eval CREATE TABLE t1 (a INT PRIMARY KEY, b CHAR(8)) ENGINE=rocksdb INDEX DIRECTORY = '/foo/bar/index';
 
-DROP TABLE t1;
+#
+# Verify that we'll get the same error codes when using the partitions.
+#
 
---rmdir $data_dir
---rmdir $index_dir
+--error 1296
+CREATE TABLE t1 (id INT NOT NULL PRIMARY KEY) ENGINE=rocksdb PARTITION BY RANGE (id)
+(
+    PARTITION P0 VALUES LESS THAN (1000)
+        DATA DIRECTORY =  '/foo/bar/data/',
+    PARTITION P1 VALUES LESS THAN (2000)
+        DATA DIRECTORY =  '/foo/bar/data/',
+    PARTITION P2 VALUES LESS THAN (MAXVALUE)
+);
 
-
+--error 1296
+CREATE TABLE t1 (id int not null primary key) ENGINE=rocksdb PARTITION BY RANGE (id)
+(
+   PARTITION P0 VALUES LESS THAN (1000)
+       INDEX DIRECTORY =  '/foo/bar/data/',
+   PARTITION P1 VALUES LESS THAN (2000)
+       INDEX DIRECTORY =  '/foo/bar/data/',
+   PARTITION P2 VALUES LESS THAN (MAXVALUE)
+);

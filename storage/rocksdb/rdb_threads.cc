@@ -30,6 +30,7 @@ void *Rdb_thread::thread_func(void *const thread_ptr) {
   DBUG_ASSERT(thread_ptr != nullptr);
   Rdb_thread *const thread = static_cast<Rdb_thread *const>(thread_ptr);
   if (!thread->m_run_once.exchange(true)) {
+    thread->setname();
     thread->run();
     thread->uninit();
   }
@@ -58,33 +59,25 @@ int Rdb_thread::create_thread(const std::string &thread_name
                               PSI_thread_key background_psi_thread_key
 #endif
                               ) {
-  DBUG_ASSERT(!thread_name.empty());
+  // Make a copy of the name so we can return without worrying that the
+  // caller will free the memory
+  m_name = thread_name;
 
-  int err = mysql_thread_create(background_psi_thread_key, &m_handle, nullptr,
-                                thread_func, this);
-#ifdef  __linux__
-  if (!err) {
-    /*
-      mysql_thread_create() ends up doing some work underneath and setting the
-      thread name as "my-func". This isn't what we want. Our intent is to name
-      the threads according to their purpose so that when displayed under the
-      debugger then they'll be more easily identifiable. Therefore we'll reset
-      the name if thread was successfully created.
-    */
-    err = pthread_setname_np(m_handle, thread_name.c_str());
-  }
-#endif
+  return mysql_thread_create(background_psi_thread_key, &m_handle, nullptr,
+                             thread_func, this);
 
-  return err;
 }
 
 void Rdb_thread::signal(const bool &stop_thread) {
-  mysql_mutex_lock(&m_signal_mutex);
+  RDB_MUTEX_LOCK_CHECK(m_signal_mutex);
+
   if (stop_thread) {
     m_stop = true;
   }
+
   mysql_cond_signal(&m_signal_cond);
-  mysql_mutex_unlock(&m_signal_mutex);
+
+  RDB_MUTEX_UNLOCK_CHECK(m_signal_mutex);
 }
 
 } // namespace myrocks

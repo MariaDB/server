@@ -53,6 +53,8 @@ private:
 
   pthread_t m_handle;
 
+  std::string m_name;
+
 protected:
   mysql_mutex_t m_signal_mutex;
   mysql_cond_t m_signal_cond;
@@ -95,6 +97,31 @@ public:
 #endif
   }
 
+  void setname() {
+    /*
+      mysql_thread_create() ends up doing some work underneath and setting the
+      thread name as "my-func". This isn't what we want. Our intent is to name
+      the threads according to their purpose so that when displayed under the
+      debugger then they'll be more easily identifiable. Therefore we'll reset
+      the name if thread was successfully created.
+    */
+
+    /*
+      We originally had the creator also set the thread name, but that seems to
+      not work correctly in all situations.  Having the created thread do the
+      pthread_setname_np resolves the issue.
+    */
+    DBUG_ASSERT(!m_name.empty());
+    int err = pthread_setname_np(m_handle, m_name.c_str());
+    if (err)
+    {
+      // NO_LINT_DEBUG
+      sql_print_warning(
+          "MyRocks: Failed to set name (%s) for current thread, errno=%d",
+          m_name.c_str(), errno);
+    }
+  }
+
   void uninit();
 
   virtual ~Rdb_thread() {}
@@ -123,9 +150,11 @@ public:
   virtual void run() override;
 
   void request_save_stats() {
-    mysql_mutex_lock(&m_signal_mutex);
+    RDB_MUTEX_LOCK_CHECK(m_signal_mutex);
+
     m_save_stats = true;
-    mysql_mutex_unlock(&m_signal_mutex);
+
+    RDB_MUTEX_UNLOCK_CHECK(m_signal_mutex);
   }
 };
 

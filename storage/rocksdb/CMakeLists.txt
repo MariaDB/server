@@ -65,6 +65,8 @@ SET(ROCKSDB_SE_SOURCES
   rdb_utils.cc rdb_utils.h
   rdb_threads.cc
   rdb_threads.h
+  rdb_psi.h
+  rdb_psi.cc
 )
 
 MYSQL_ADD_PLUGIN(rocksdb_se ${ROCKSDB_SE_SOURCES} STORAGE_ENGINE MODULE_OUTPUT_NAME ha_rocksdb)
@@ -72,6 +74,12 @@ MYSQL_ADD_PLUGIN(rocksdb_se ${ROCKSDB_SE_SOURCES} STORAGE_ENGINE MODULE_OUTPUT_N
 IF(NOT TARGET rocksdb_se)
   # Bail out if compilation with rocksdb engine is not requested
   RETURN()
+ENDIF()
+
+# MARIAROCKS-TODO: ???
+CHECK_FUNCTION_EXISTS(fallocate HAVE_FALLOCATE)
+IF(HAVE_FALLOCATE)
+  ADD_DEFINITIONS(-DROCKSDB_FALLOCATE_PRESENT)
 ENDIF()
 
 INCLUDE(build_rocksdb.cmake)
@@ -89,7 +97,8 @@ ADD_CONVENIENCE_LIBRARY(rocksdb_aux_lib
   rdb_sst_info.cc
   rdb_sst_info.h
   rdb_buff.h
-  rdb_mariadb_port.h)
+  rdb_mariadb_port.h
+)
 
 ADD_DEPENDENCIES(rocksdb_aux_lib GenError)
 

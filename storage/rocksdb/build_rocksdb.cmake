@@ -191,7 +191,6 @@ set(ROCKSDB_SOURCES
         db/write_batch_base.cc
         db/write_controller.cc
         db/write_thread.cc
-        db/xfunc_test_points.cc
         memtable/hash_cuckoo_rep.cc
         memtable/hash_linklist_rep.cc
         memtable/hash_skiplist_rep.cc
@@ -215,7 +214,7 @@ set(ROCKSDB_SOURCES
         table/full_filter_block.cc
         table/get_context.cc
         table/iterator.cc
-        table/merger.cc
+        table/merging_iterator.cc
         table/sst_file_writer.cc
         table/meta_blocks.cc
         table/plain_table_builder.cc
@@ -254,6 +253,7 @@ set(ROCKSDB_SOURCES
         util/histogram_windowing.cc
         util/instrumented_mutex.cc
         util/iostats_context.cc
+        
         util/lru_cache.cc
         tools/ldb_cmd.cc
         tools/ldb_tool.cc
@@ -284,7 +284,6 @@ set(ROCKSDB_SOURCES
         util/thread_status_util.cc
         util/thread_status_util_debug.cc
         util/transaction_test_util.cc
-        util/xfunc.cc
         util/xxhash.cc
         utilities/backupable/backupable_db.cc
         utilities/blob_db/blob_db.cc
@@ -295,7 +294,6 @@ set(ROCKSDB_SOURCES
         utilities/document/json_document.cc
         utilities/document/json_document_builder.cc
         utilities/env_mirror.cc
-        utilities/env_registry.cc
         utilities/geodb/geodb_impl.cc
         utilities/leveldb_options/leveldb_options.cc
         utilities/lua/rocks_lua_compaction_filter.cc

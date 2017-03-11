@@ -877,6 +877,7 @@ rocksdb_allow_mmap_reads	OFF
 rocksdb_allow_mmap_writes	OFF
 rocksdb_background_sync	OFF
 rocksdb_base_background_compactions	1
+rocksdb_blind_delete_primary_key	OFF
 rocksdb_block_cache_size	536870912
 rocksdb_block_restart_interval	16
 rocksdb_block_size	4096
@@ -902,14 +903,16 @@ rocksdb_db_write_buffer_size	0
 rocksdb_deadlock_detect	OFF
 rocksdb_debug_optimizer_no_zero_cardinality	ON
 rocksdb_default_cf_options	
+rocksdb_delayed_write_rate	16777216
 rocksdb_delete_obsolete_files_period_micros	21600000000
-rocksdb_disabledatasync	OFF
 rocksdb_enable_2pc	ON
 rocksdb_enable_bulk_load_api	ON
 rocksdb_enable_thread_tracking	OFF
 rocksdb_enable_write_thread_adaptive_yield	OFF
 rocksdb_error_if_exists	OFF
+rocksdb_flush_log_at_trx_commit	1
 rocksdb_flush_memtable_on_analyze	ON
+rocksdb_force_compute_memtable_stats	ON
 rocksdb_force_flush_memtable_now	OFF
 rocksdb_force_index_records_in_range	0
 rocksdb_hash_index_allow_collision	ON
@@ -921,6 +924,7 @@ rocksdb_lock_scanned_rows	OFF
 rocksdb_lock_wait_timeout	1
 rocksdb_log_file_time_to_roll	0
 rocksdb_manifest_preallocation_size	4194304
+rocksdb_master_skip_tx_api	OFF
 rocksdb_max_background_compactions	1
 rocksdb_max_background_flushes	1
 rocksdb_max_log_file_size	0
@@ -938,7 +942,7 @@ rocksdb_paranoid_checks	ON
 rocksdb_pause_background_work	ON
 rocksdb_perf_context_level	0
 rocksdb_persistent_cache_path	
-rocksdb_persistent_cache_size	0
+rocksdb_persistent_cache_size_mb	0
 rocksdb_pin_l0_filter_and_index_blocks_in_cache	ON
 rocksdb_print_snapshot_conflict_queries	OFF
 rocksdb_rate_limiter_bytes_per_sec	0
@@ -966,18 +970,26 @@ rocksdb_validate_tables	1
 rocksdb_verify_row_debug_checksums	OFF
 rocksdb_wal_bytes_per_sync	0
 rocksdb_wal_dir	
-rocksdb_wal_recovery_mode	2
+rocksdb_wal_recovery_mode	1
 rocksdb_wal_size_limit_mb	0
 rocksdb_wal_ttl_seconds	0
 rocksdb_whole_key_filtering	ON
 rocksdb_write_disable_wal	OFF
 rocksdb_write_ignore_missing_column_families	OFF
-rocksdb_write_sync	OFF
 create table t47 (pk int primary key, col1 varchar(12)) engine=rocksdb;
 insert into t47 values (1, 'row1');
 insert into t47 values (2, 'row2');
 set rocksdb_bulk_load=1;
 insert into t47 values (3, 'row3'),(4, 'row4');
+set rocksdb_bulk_load=0;
+connect  con1,localhost,root,,;
+set rocksdb_bulk_load=1;
+insert into t47 values (10, 'row10'),(11, 'row11');
+connection default;
+set rocksdb_bulk_load=1;
+insert into t47 values (100, 'row100'),(101, 'row101');
+disconnect con1;
+connection default;
 set rocksdb_bulk_load=0;
 select * from t47;
 pk	col1
@@ -985,6 +997,10 @@ pk	col1
 2	row2
 3	row3
 4	row4
+10	row10
+11	row11
+100	row100
+101	row101
 drop table t47;
 #
 # Fix TRUNCATE over empty table (transaction is committed when it wasn't
@@ -1425,6 +1441,7 @@ Rocksdb_rows_deleted	#
 Rocksdb_rows_inserted	#
 Rocksdb_rows_read	#
 Rocksdb_rows_updated	#
+Rocksdb_rows_deleted_blind	#
 Rocksdb_system_rows_deleted	#
 Rocksdb_system_rows_inserted	#
 Rocksdb_system_rows_read	#
@@ -1495,6 +1512,7 @@ ROCKSDB_ROWS_DELETED
 ROCKSDB_ROWS_INSERTED
 ROCKSDB_ROWS_READ
 ROCKSDB_ROWS_UPDATED
+ROCKSDB_ROWS_DELETED_BLIND
 ROCKSDB_SYSTEM_ROWS_DELETED
 ROCKSDB_SYSTEM_ROWS_INSERTED
 ROCKSDB_SYSTEM_ROWS_READ
@@ -1567,6 +1585,7 @@ ROCKSDB_ROWS_DELETED
 ROCKSDB_ROWS_INSERTED
 ROCKSDB_ROWS_READ
 ROCKSDB_ROWS_UPDATED
+ROCKSDB_ROWS_DELETED_BLIND
 ROCKSDB_SYSTEM_ROWS_DELETED
 ROCKSDB_SYSTEM_ROWS_INSERTED
 ROCKSDB_SYSTEM_ROWS_READ
@@ -1746,7 +1765,7 @@ key1 int,
 PRIMARY KEY (id),
 index (key1) comment 'test.t1.key1'
 ) engine=rocksdb;
-ERROR HY000: Column Family Flag is different from existing flag. Assign a new CF flag, or do not change existing CF flag.
+ERROR HY000: Column family ('test.t1.key1') flag (0) is different from an existing flag (2). Assign a new CF flag, or do not change existing CF flag.
 create table t1_err (
 id int not null,
 key1 int,
@@ -1772,7 +1791,7 @@ key1 int,
 PRIMARY KEY (id),
 index (key1) comment '$per_idnex_cf'
 )engine=rocksdb;
-ERROR 42000: This version of MariaDB doesn't yet support 'column family name looks like a typo of $per_index_cf'
+ERROR 42000: This version of MariaDB doesn't yet support 'column family name looks like a typo of $per_index_cf.'
 #
 # Issue #22: SELECT ... FOR UPDATE takes a long time
 #

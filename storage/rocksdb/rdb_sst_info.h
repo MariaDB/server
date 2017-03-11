@@ -17,6 +17,7 @@
 #pragma once
 
 /* C++ standard header files */
+#include <atomic>
 #include <condition_variable>
 #include <mutex>
 #include <queue>
@@ -55,6 +56,7 @@ public:
   rocksdb::Status open();
   rocksdb::Status put(const rocksdb::Slice &key, const rocksdb::Slice &value);
   rocksdb::Status commit();
+  const std::string get_name() const { return m_name; }
 };
 
 class Rdb_sst_info {
@@ -70,6 +72,7 @@ private:
   uint32_t m_sst_count;
   std::string m_error_msg;
   std::string m_prefix;
+  static std::atomic<uint64_t> m_prefix_counter;
   static std::string m_suffix;
 #if defined(RDB_SST_INFO_USE_THREAD)
   std::queue<Rdb_sst_file *> m_queue;
@@ -83,7 +86,7 @@ private:
 
   int open_new_sst_file();
   void close_curr_sst_file();
-  void set_error_msg(const std::string &msg);
+  void set_error_msg(const std::string &sst_file_name, const std::string &msg);
 
 #if defined(RDB_SST_INFO_USE_THREAD)
   void run_thread();

@@ -51,6 +51,7 @@ int rdb_split_normalized_tablename(const std::string &fullname, std::string *db,
 
 std::vector<std::string> rdb_get_open_table_names(void);
 
+class Rdb_perf_counters;
 int rdb_get_table_perf_counters(const char *tablename,
                                 Rdb_perf_counters *counters)
     MY_ATTRIBUTE((__nonnull__(2)));

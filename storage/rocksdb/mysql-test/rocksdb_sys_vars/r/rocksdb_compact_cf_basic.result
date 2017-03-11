@@ -1,3 +1,4 @@
+call mtr.add_suppression(" Column family '[a-z]*' not found.");
 CREATE TABLE valid_values (value varchar(255)) ENGINE=myisam;
 INSERT INTO valid_values VALUES('abc');
 INSERT INTO valid_values VALUES('def');
