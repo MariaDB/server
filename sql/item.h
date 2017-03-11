@@ -2,7 +2,7 @@
 #define SQL_ITEM_INCLUDED
 
 /* Copyright (c) 2000, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2016, MariaDB
+   Copyright (c) 2009, 2017, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -97,10 +97,10 @@ enum precedence {
 typedef Bounds_checked_array<Item*> Ref_ptr_array;
 
 static inline uint32
-char_to_byte_length_safe(uint32 char_length_arg, uint32 mbmaxlen_arg)
+char_to_byte_length_safe(size_t char_length_arg, uint32 mbmaxlen_arg)
 {
-   ulonglong tmp= ((ulonglong) char_length_arg) * mbmaxlen_arg;
-   return (tmp > UINT_MAX32) ? (uint32) UINT_MAX32 : (uint32) tmp;
+  ulonglong tmp= ((ulonglong) char_length_arg) * mbmaxlen_arg;
+  return tmp > UINT_MAX32 ? UINT_MAX32 : static_cast<uint32>(tmp);
 }
 
 bool mark_unsupported_function(const char *where, void *store, uint result);
@@ -523,7 +523,7 @@ class Copy_query_with_rewrite
   bool copy_up_to(size_t bytes)
   {
     DBUG_ASSERT(bytes >= from);
-    return dst->append(src + from, bytes - from);
+    return dst->append(src + from, uint32(bytes - from));
   }
 
 public:
@@ -1095,6 +1095,8 @@ public:
     Returns the val_str() value converted to the given character set.
   */
   String *val_str(String *str, String *converter, CHARSET_INFO *to);
+
+  virtual String *val_json(String *str) { return val_str(str); }
   /*
     Return decimal representation of item with fixed point.
 
@@ -1833,7 +1835,7 @@ public:
     max_length= char_to_byte_length_safe(max_char_length_arg, cs->mbmaxlen);
     collation.collation= cs;
   }
-  void fix_char_length(uint32 max_char_length_arg)
+  void fix_char_length(size_t max_char_length_arg)
   {
     max_length= char_to_byte_length_safe(max_char_length_arg,
                                          collation.collation->mbmaxlen);
@@ -2762,7 +2764,47 @@ class Item_param :public Item_basic_value,
                   public Rewritable_query_parameter,
                   public Type_handler_hybrid_field_type
 {
-public:
+  /*
+    NO_VALUE is a special value meaning that the parameter has not been
+    assigned yet. Item_param::state is assigned to NO_VALUE in constructor
+    and is used at prepare time.
+
+    1. At prepare time
+      Item_param::fix_fields() sets "fixed" to true,
+      but as Item_param::state is still NO_VALUE,
+      Item_param::basic_const_item() returns false. This prevents various
+      optimizations to happen at prepare time fix_fields().
+      For example, in this query:
+        PREPARE stmt FROM 'SELECT FORMAT(10000,2,?)';
+      Item_param::basic_const_item() is tested from
+      Item_func_format::fix_length_and_dec().
+
+    2. At execute time:
+      When Item_param gets a value
+      (or a pseudo-value like DEFAULT_VALUE or IGNORE_VALUE):
+      - Item_param::state changes from NO_VALUE to something else
+      - Item_param::fixed is changed to true
+      All Item_param::set_xxx() make sure to do so.
+      In the state with an assigned value:
+      - Item_param::basic_const_item() returns true
+      - Item::type() returns NULL_ITEM, INT_ITEM, REAL_ITEM, DECIMAL_ITEM,
+        DATE_ITEM, STRING_ITEM, depending on the value assigned.
+      So in this state Item_param behaves in many cases like a literal.
+
+      When Item_param::cleanup() is called:
+      - Item_param::state does not change
+      - Item_param::fixed changes to false
+      Note, this puts Item_param into an inconsistent state:
+      - Item_param::basic_const_item() still returns "true"
+      - Item_param::type() still pretends to be a basic constant Item
+      Both are not expected in combination with fixed==false.
+      However, these methods are not really called in this state,
+      see asserts in Item_param::basic_const_item() and Item_param::type().
+
+      When Item_param::reset() is called:
+      - Item_param::state changes to NO_VALUE
+      - Item_param::fixed changes to false
+  */
   enum enum_item_param_state
   {
     NO_VALUE, NULL_VALUE, INT_VALUE, REAL_VALUE,
@@ -2770,6 +2812,17 @@ public:
     DECIMAL_VALUE, DEFAULT_VALUE, IGNORE_VALUE
   } state;
 
+  enum Type item_type;
+
+  void fix_type(Type type)
+  {
+    item_type= type;
+    fixed= true;
+  }
+
+  void fix_temporal(uint32 max_length_arg, uint decimals_arg);
+
+public:
   struct CONVERSION_INFO
   {
     /*
@@ -2838,8 +2891,6 @@ public:
     MYSQL_TIME     time;
   } value;
 
-  enum Type item_type;
-
   enum_field_types field_type() const
   { return Type_handler_hybrid_field_type::field_type(); }
   enum Item_result result_type () const
@@ -2849,7 +2900,11 @@ public:
 
   Item_param(THD *thd, uint pos_in_query_arg);
 
-  enum Type type() const { return item_type; }
+  enum Type type() const
+  {
+    DBUG_ASSERT(fixed || state == NO_VALUE);
+    return item_type;
+  }
 
   double val_real();
   longlong val_int();
@@ -2864,10 +2919,11 @@ public:
   void set_int(longlong i, uint32 max_length_arg);
   void set_double(double i);
   void set_decimal(const char *str, ulong length);
-  void set_decimal(const my_decimal *dv);
+  void set_decimal(const my_decimal *dv, bool unsigned_arg);
   bool set_str(const char *str, ulong length);
   bool set_longdata(const char *str, ulong length);
   void set_time(MYSQL_TIME *tm, timestamp_type type, uint32 max_length_arg);
+  void set_time(const MYSQL_TIME *tm, uint32 max_length_arg, uint decimals_arg);
   bool set_from_item(THD *thd, Item *item);
   void reset();
   /*
@@ -2893,6 +2949,18 @@ public:
   bool is_null()
   { DBUG_ASSERT(state != NO_VALUE); return state == NULL_VALUE; }
   bool basic_const_item() const;
+  bool has_no_value() const
+  {
+    return state == NO_VALUE;
+  }
+  bool has_long_data_value() const
+  {
+    return state == LONG_DATA_VALUE;
+  }
+  bool has_int_value() const
+  {
+    return state == INT_VALUE;
+  }
   /*
     This method is used to make a copy of a basic constant item when
     propagating constants in the optimizer. The reason to create a new
@@ -2916,7 +2984,7 @@ public:
   Rewritable_query_parameter *get_rewritable_query_parameter()
   { return this; }
   Settable_routine_parameter *get_settable_routine_parameter()
-  { return this; }
+  { return m_is_settable_routine_parameter ? this : NULL; }
 
   bool append_for_log(THD *thd, String *str);
   bool check_vcol_func_processor(void *int_arg) {return FALSE;}
@@ -2936,6 +3004,7 @@ public:
 
 private:
   Send_field *m_out_param_info;
+  bool m_is_settable_routine_parameter;
 };
 
 
@@ -3413,7 +3482,7 @@ class Item_blob :public Item_partition_func_safe_string
 {
 public:
   Item_blob(THD *thd, const char *name_arg, uint length):
-    Item_partition_func_safe_string(thd, name_arg, length, &my_charset_bin)
+    Item_partition_func_safe_string(thd, name_arg, strlen(name_arg), &my_charset_bin)
   { max_length= length; }
   enum Type type() const { return TYPE_HOLDER; }
   enum_field_types field_type() const { return MYSQL_TYPE_BLOB; }
@@ -5118,7 +5187,7 @@ public:
     param->set_default();
     return false;
   }
-  table_map used_tables() const { return (table_map)0L; }
+  table_map used_tables() const;
   Field *get_tmp_table_field() { return 0; }
   Item *get_tmp_table_item(THD *thd) { return this; }
   Item_field *field_for_view_update() { return 0; }

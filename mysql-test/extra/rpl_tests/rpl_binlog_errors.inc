@@ -50,7 +50,7 @@ call mtr.add_suppression("Can't generate a unique log-filename");
 call mtr.add_suppression("Writing one row to the row-based binary log failed.*");
 call mtr.add_suppression("Error writing file .*");
 
-SET @old_debug= @@global.debug;
+SET @old_debug= @@global.debug_dbug;
 
 ### ACTION: create a large file (> 4096 bytes) that will be later used
 ###         in LOAD DATA INFILE to check binlog errors in its vacinity
@@ -192,6 +192,11 @@ RESET MASTER;
 ###            is written to the current binary log.
 
 SET GLOBAL debug_dbug="+d,error_unique_log_filename";
+
+# Disable logging Annotate_rows events to preserve events count.
+let $binlog_annotate_row_events_saved= `SELECT @@binlog_annotate_row_events`;
+SET @@binlog_annotate_row_events= 0;
+
 SELECT count(*) FROM t4;
 -- replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
 -- error ER_NO_UNIQUE_LOGFILE
@@ -210,6 +215,11 @@ if (!$binlog_limit)
 
 # clean up and move to next test
 DELETE FROM t4;
+
+--disable_query_log
+eval SET @@binlog_annotate_row_events= $binlog_annotate_row_events_saved;
+--enable_query_log
+
 RESET MASTER;
 
 -- echo ###################### TEST #8
@@ -286,7 +296,7 @@ SET GLOBAL debug_dbug="+d,fault_injection_registering_index";
 -- replace_regex /\.[\\\/]master/master/
 -- error ER_CANT_OPEN_FILE
 FLUSH LOGS;
-SET GLOBAL debug_dbug="-d,fault_injection_registering_index";
+SET GLOBAL debug_dbug=@old_debug;
 
 -- error ER_NO_BINARY_LOGGING
 SHOW BINARY LOGS;
@@ -298,6 +308,7 @@ INSERT INTO t2 VALUES ('aaaaa');
 DELETE FROM t4;
 DELETE FROM t2;
 DROP TABLE t5;
+flush tables;
 
 -- echo ###################### TEST #11
 
@@ -314,7 +325,7 @@ SET GLOBAL debug_dbug="+d,fault_injection_openning_index";
 -- replace_regex /\.[\\\/]master/master/
 -- error ER_CANT_OPEN_FILE
 FLUSH LOGS;
-SET GLOBAL debug_dbug="-d,fault_injection_openning_index";
+SET GLOBAL debug_dbug=@old_debug;
 
 -- error ER_FLUSH_MASTER_BINLOG_CLOSED
 RESET MASTER;
@@ -326,6 +337,7 @@ INSERT INTO t2 VALUES ('aaaaa');
 DELETE FROM t4;
 DELETE FROM t2;
 DROP TABLE t5;
+flush tables;
 
 # restart the server so that we have binlog again
 --let $rpl_server_number= 1
@@ -341,7 +353,7 @@ DROP TABLE t5;
 SET GLOBAL debug_dbug="+d,fault_injection_new_file_rotate_event";
 -- error ER_ERROR_ON_WRITE
 FLUSH LOGS;
-SET GLOBAL debug_dbug="-d,fault_injection_new_file_rotate_event";
+SET GLOBAL debug_dbug=@old_debug;
 
 -- error ER_FLUSH_MASTER_BINLOG_CLOSED
 RESET MASTER;
@@ -353,6 +365,7 @@ INSERT INTO t2 VALUES ('aaaaa');
 DELETE FROM t4;
 DELETE FROM t2;
 DROP TABLE t5;
+flush tables;
 
 # restart the server so that we have binlog again
 --let $rpl_server_number= 1

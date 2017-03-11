@@ -42,7 +42,7 @@ Usage: $0 [-h|-n] [configure-options]
                           Influences the debug flags. Old is default.
   --prefix=path           Build with prefix 'path'.
 
-Note: this script is intended for internal use by MySQL developers.
+Note: this script is intended for internal use by MariaDB developers.
 EOF
 }
 
@@ -120,10 +120,9 @@ path=`dirname $0`
 get_make_parallel_flag
 
 # SSL library to use.--with-ssl will select our bundled yaSSL
-# implementation of SSL. To use OpenSSL you will need to specify
-# the location of OpenSSL headers and libs on your system.
-# Ex --with-ssl=/usr
-SSL_LIBRARY=--with-ssl
+# implementation of SSL. --with-ssl=yes will first try system library
+# then the boundled one  --with-ssl=system will use the system library.
+SSL_LIBRARY=--with-ssl=system
 
 if [ "x$warning_mode" = "xpedantic" ]; then
   warnings="-W -Wall -ansi -pedantic -Wno-long-long -Wno-unused -D_POSIX_SOURCE"
@@ -293,7 +292,7 @@ gcov_compile_flags="$gcov_compile_flags -DMYSQL_SERVER_SUFFIX=-gcov -DHAVE_gcov"
 # GCC4 needs -fprofile-arcs -ftest-coverage on the linker command line (as well
 # as on the compiler command line), and this requires setting LDFLAGS for BDB.
 
-gcov_link_flags="-fprofile-arcs -ftest-coverage"
+gcov_link_flags="-fprofile-arcs -ftest-coverage -lgcov"
 
 gcov_configs="--with-gcov"
 

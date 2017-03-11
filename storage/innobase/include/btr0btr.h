@@ -2,7 +2,7 @@
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2014, 2016, MariaDB Corporation. All Rights Reserved.
+Copyright (c) 2014, 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -71,74 +71,99 @@ enum btr_latch_mode {
 	/** Start searching the entire B-tree. */
 	BTR_SEARCH_TREE = 37,
 	/** Continue searching the entire B-tree. */
-	BTR_CONT_SEARCH_TREE = 38
+	BTR_CONT_SEARCH_TREE = 38,
+
+	/* BTR_INSERT, BTR_DELETE and BTR_DELETE_MARK are mutually
+	exclusive. */
+	/** The search tuple will be inserted to the secondary index
+	at the searched position.  When the leaf page is not in the
+	buffer pool, try to use the change buffer. */
+	BTR_INSERT = 512,
+
+	/** Try to delete mark a secondary index leaf page record at
+	the searched position using the change buffer when the page is
+	not in the buffer pool. */
+	BTR_DELETE_MARK	= 4096,
+
+	/** Try to purge the record using the change buffer when the
+	secondary index leaf page is not in the buffer pool. */
+	BTR_DELETE = 8192,
+
+	/** The caller is already holding dict_index_t::lock S-latch. */
+	BTR_ALREADY_S_LATCHED = 16384,
+	/** Search and S-latch a leaf page, assuming that the
+	dict_index_t::lock S-latch is being held. */
+	BTR_SEARCH_LEAF_ALREADY_S_LATCHED = BTR_SEARCH_LEAF
+	| BTR_ALREADY_S_LATCHED,
+	/** Search the entire index tree, assuming that the
+	dict_index_t::lock S-latch is being held. */
+	BTR_SEARCH_TREE_ALREADY_S_LATCHED = BTR_SEARCH_TREE
+	| BTR_ALREADY_S_LATCHED,
+	/** Search and X-latch a leaf page, assuming that the
+	dict_index_t::lock S-latch is being held. */
+	BTR_MODIFY_LEAF_ALREADY_S_LATCHED = BTR_MODIFY_LEAF
+	| BTR_ALREADY_S_LATCHED,
+
+	/** Attempt to delete-mark a secondary index record. */
+	BTR_DELETE_MARK_LEAF = BTR_MODIFY_LEAF | BTR_DELETE_MARK,
+	/** Attempt to delete-mark a secondary index record
+	while holding the dict_index_t::lock S-latch. */
+	BTR_DELETE_MARK_LEAF_ALREADY_S_LATCHED = BTR_DELETE_MARK_LEAF
+	| BTR_ALREADY_S_LATCHED,
+	/** Attempt to purge a secondary index record. */
+	BTR_PURGE_LEAF = BTR_MODIFY_LEAF | BTR_DELETE,
+	/** Attempt to purge a secondary index record
+	while holding the dict_index_t::lock S-latch. */
+	BTR_PURGE_LEAF_ALREADY_S_LATCHED = BTR_PURGE_LEAF
+	| BTR_ALREADY_S_LATCHED
 };
-
-/* BTR_INSERT, BTR_DELETE and BTR_DELETE_MARK are mutually exclusive. */
-
-/** If this is ORed to btr_latch_mode, it means that the search tuple
-will be inserted to the index, at the searched position.
-When the record is not in the buffer pool, try to use the insert buffer. */
-#define BTR_INSERT		512
 
 /** This flag ORed to btr_latch_mode says that we do the search in query
 optimization */
-#define BTR_ESTIMATE		1024
+#define BTR_ESTIMATE		1024U
 
 /** This flag ORed to BTR_INSERT says that we can ignore possible
 UNIQUE definition on secondary indexes when we decide if we can use
 the insert buffer to speed up inserts */
-#define BTR_IGNORE_SEC_UNIQUE	2048
-
-/** Try to delete mark the record at the searched position using the
-insert/delete buffer when the record is not in the buffer pool. */
-#define BTR_DELETE_MARK		4096
-
-/** Try to purge the record at the searched position using the insert/delete
-buffer when the record is not in the buffer pool. */
-#define BTR_DELETE		8192
-
-/** In the case of BTR_SEARCH_LEAF or BTR_MODIFY_LEAF, the caller is
-already holding an S latch on the index tree */
-#define BTR_ALREADY_S_LATCHED	16384
+#define BTR_IGNORE_SEC_UNIQUE	2048U
 
 /** In the case of BTR_MODIFY_TREE, the caller specifies the intention
 to insert record only. It is used to optimize block->lock range.*/
-#define BTR_LATCH_FOR_INSERT	32768
+#define BTR_LATCH_FOR_INSERT	32768U
 
 /** In the case of BTR_MODIFY_TREE, the caller specifies the intention
 to delete record only. It is used to optimize block->lock range.*/
-#define BTR_LATCH_FOR_DELETE	65536
+#define BTR_LATCH_FOR_DELETE	65536U
 
 /** This flag is for undo insert of rtree. For rtree, we need this flag
 to find proper rec to undo insert.*/
-#define BTR_RTREE_UNDO_INS	131072
+#define BTR_RTREE_UNDO_INS	131072U
 
 /** In the case of BTR_MODIFY_LEAF, the caller intends to allocate or
 free the pages of externally stored fields. */
-#define BTR_MODIFY_EXTERNAL	262144
+#define BTR_MODIFY_EXTERNAL	262144U
 
 /** Try to delete mark the record at the searched position when the
 record is in spatial index */
-#define BTR_RTREE_DELETE_MARK	524288
+#define BTR_RTREE_DELETE_MARK	524288U
 
-#define BTR_LATCH_MODE_WITHOUT_FLAGS(latch_mode)	\
-	((latch_mode) & ~(BTR_INSERT			\
-			  | BTR_DELETE_MARK		\
-			  | BTR_RTREE_UNDO_INS		\
-			  | BTR_RTREE_DELETE_MARK	\
-			  | BTR_DELETE			\
-			  | BTR_ESTIMATE		\
-			  | BTR_IGNORE_SEC_UNIQUE	\
-			  | BTR_ALREADY_S_LATCHED	\
-			  | BTR_LATCH_FOR_INSERT	\
-			  | BTR_LATCH_FOR_DELETE	\
-			  | BTR_MODIFY_EXTERNAL))
+#define BTR_LATCH_MODE_WITHOUT_FLAGS(latch_mode)			\
+	((latch_mode) & btr_latch_mode(~(BTR_INSERT			\
+					 | BTR_DELETE_MARK		\
+					 | BTR_RTREE_UNDO_INS		\
+					 | BTR_RTREE_DELETE_MARK	\
+					 | BTR_DELETE			\
+					 | BTR_ESTIMATE			\
+					 | BTR_IGNORE_SEC_UNIQUE	\
+					 | BTR_ALREADY_S_LATCHED	\
+					 | BTR_LATCH_FOR_INSERT		\
+					 | BTR_LATCH_FOR_DELETE		\
+					 | BTR_MODIFY_EXTERNAL)))
 
-#define BTR_LATCH_MODE_WITHOUT_INTENTION(latch_mode)	\
-	((latch_mode) & ~(BTR_LATCH_FOR_INSERT		\
-			  | BTR_LATCH_FOR_DELETE	\
-			  | BTR_MODIFY_EXTERNAL))
+#define BTR_LATCH_MODE_WITHOUT_INTENTION(latch_mode)			\
+	((latch_mode) & btr_latch_mode(~(BTR_LATCH_FOR_INSERT		\
+					 | BTR_LATCH_FOR_DELETE		\
+					 | BTR_MODIFY_EXTERNAL)))
 
 /**************************************************************//**
 Report that an index page is corrupted. */
@@ -206,7 +231,7 @@ btr_block_get_func(
 	const page_size_t&	page_size,
 	ulint			mode,
 	const char*		file,
-	ulint			line,
+	unsigned		line,
 	dict_index_t*		index,
 	mtr_t*			mtr);
 
@@ -507,7 +532,7 @@ btr_insert_on_non_leaf_level_func(
 	ulint		level,	/*!< in: level, must be > 0 */
 	dtuple_t*	tuple,	/*!< in: the record to be inserted */
 	const char*	file,	/*!< in: file name */
-	ulint		line,	/*!< in: line where called */
+	unsigned	line,	/*!< in: line where called */
 	mtr_t*		mtr);	/*!< in: mtr */
 #define btr_insert_on_non_leaf_level(f,i,l,t,m)			\
 	btr_insert_on_non_leaf_level_func(f,i,l,t,__FILE__,__LINE__,m)

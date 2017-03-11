@@ -699,7 +699,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 NULL	UNION RESULT	<union3,4,5>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 2	UNCACHEABLE SUBQUERY	<derived3>	ALL	NULL	NULL	NULL	NULL	12	100.00	Using where
 Warnings:
-Note	1003	with recursive ancestor_couple_ids as (select `a`.`father` AS `h_id`,`a`.`mother` AS `w_id` from `coupled_ancestors` `a` where `a`.`father` is not null and `a`.`mother` is not null)coupled_ancestors as (select `test`.`folks`.`id` AS `id`,`test`.`folks`.`name` AS `name`,`test`.`folks`.`dob` AS `dob`,`test`.`folks`.`father` AS `father`,`test`.`folks`.`mother` AS `mother` from `test`.`folks` where `test`.`folks`.`name` = 'Me' union all select `test`.`p`.`id` AS `id`,`test`.`p`.`name` AS `name`,`test`.`p`.`dob` AS `dob`,`test`.`p`.`father` AS `father`,`test`.`p`.`mother` AS `mother` from `test`.`folks` `p` join `ancestor_couple_ids` `fa` where `test`.`p`.`id` = `fa`.`h_id` union all select `test`.`p`.`id` AS `id`,`test`.`p`.`name` AS `name`,`test`.`p`.`dob` AS `dob`,`test`.`p`.`father` AS `father`,`test`.`p`.`mother` AS `mother` from `test`.`folks` `p` join `ancestor_couple_ids` `ma` where `test`.`p`.`id` = `ma`.`w_id`), select `h`.`name` AS `name`,`h`.`dob` AS `dob`,`w`.`name` AS `name`,`w`.`dob` AS `dob` from `ancestor_couple_ids` `c` join `coupled_ancestors` `h` join `coupled_ancestors` `w` where `h`.`id` = `c`.`h_id` and `w`.`id` = `c`.`w_id`
+Note	1003	with recursive ancestor_couple_ids as (select `a`.`father` AS `h_id`,`a`.`mother` AS `w_id` from `coupled_ancestors` `a` where `a`.`father` is not null and `a`.`mother` is not null), coupled_ancestors as (select `test`.`folks`.`id` AS `id`,`test`.`folks`.`name` AS `name`,`test`.`folks`.`dob` AS `dob`,`test`.`folks`.`father` AS `father`,`test`.`folks`.`mother` AS `mother` from `test`.`folks` where `test`.`folks`.`name` = 'Me' union all select `test`.`p`.`id` AS `id`,`test`.`p`.`name` AS `name`,`test`.`p`.`dob` AS `dob`,`test`.`p`.`father` AS `father`,`test`.`p`.`mother` AS `mother` from `test`.`folks` `p` join `ancestor_couple_ids` `fa` where `test`.`p`.`id` = `fa`.`h_id` union all select `test`.`p`.`id` AS `id`,`test`.`p`.`name` AS `name`,`test`.`p`.`dob` AS `dob`,`test`.`p`.`father` AS `father`,`test`.`p`.`mother` AS `mother` from `test`.`folks` `p` join `ancestor_couple_ids` `ma` where `test`.`p`.`id` = `ma`.`w_id`)select `h`.`name` AS `name`,`h`.`dob` AS `dob`,`w`.`name` AS `name`,`w`.`dob` AS `dob` from `ancestor_couple_ids` `c` join `coupled_ancestors` `h` join `coupled_ancestors` `w` where `h`.`id` = `c`.`h_id` and `w`.`id` = `c`.`w_id`
 # simple mutual recursion
 with recursive
 ancestor_couple_ids(h_id, w_id)
@@ -955,7 +955,7 @@ where folks.id = ma.id and (mother not in (select id from ancestor_ids))
 select generation, name from ancestor_ids a, folks
 where a.id = folks.id;
 ERROR HY000: Restrictions imposed on recursive definitions are violated for table 'ancestor_ids'
-set standards_compliant_cte=0;
+set standard_compliant_cte=0;
 with recursive
 ancestor_ids (id, generation)
 as
@@ -999,7 +999,7 @@ generation	name
 2	Grandma Sally
 2	Grandpa Ben
 3	Grandgrandma Martha
-set standards_compliant_cte=1;
+set standard_compliant_cte=1;
 with recursive
 coupled_ancestor_ids (id)
 as
@@ -1023,7 +1023,7 @@ n.father is not null and n.mother is not null
 select p.* from coupled_ancestor_ids a, folks p
 where a.id = p.id;
 ERROR HY000: Restrictions imposed on recursive definitions are violated for table 'coupled_ancestor_ids'
-set statement standards_compliant_cte=0 for
+set statement standard_compliant_cte=0 for
 with recursive
 coupled_ancestor_ids (id)
 as
@@ -1073,7 +1073,7 @@ where p.id = a.id
 )
 select * from ancestors;
 ERROR HY000: Restrictions imposed on recursive definitions are violated for table 'ancestor_ids'
-set statement standards_compliant_cte=0 for
+set statement standard_compliant_cte=0 for
 with recursive
 ancestor_ids (id)
 as
@@ -1156,7 +1156,7 @@ where p.id = a.id
 )
 select * from ancestors;
 ERROR HY000: Restrictions imposed on recursive definitions are violated for table 'ancestor_ids'
-set statement standards_compliant_cte=0 for
+set statement standard_compliant_cte=0 for
 with recursive
 ancestor_ids (id, generation)
 as
@@ -2327,3 +2327,84 @@ a	b	dist
 7	6	3
 DROP VIEW edges2;
 DROP TABLE edges;
+#
+# MDEV-11674: recursive CTE table that cannot be stored
+#             in a heap table
+#
+create table t1 (id int, test_data varchar(36));
+insert into t1(id, test_data)
+select id, test_data
+from (
+with recursive data_generator(id, test_data) as (
+select 1 as id, uuid() as test_data
+union all
+select id + 1, uuid() from data_generator where id < 150000
+)
+select * from data_generator
+) as a;
+drop table t1;
+#
+# MDEV-10773: ANALYZE for query with recursive CTE
+#
+analyze format=json 
+with recursive src(counter) as 
+(select 1 
+union 
+select counter+1 from src where counter<10
+) select * from src;
+ANALYZE
+{
+  "query_block": {
+    "select_id": 1,
+    "r_loops": 1,
+    "r_total_time_ms": "REPLACED",
+    "table": {
+      "table_name": "<derived2>",
+      "access_type": "ALL",
+      "r_loops": 1,
+      "rows": 2,
+      "r_rows": 10,
+      "r_total_time_ms": "REPLACED",
+      "filtered": 100,
+      "r_filtered": 100,
+      "materialized": {
+        "query_block": {
+          "recursive_union": {
+            "table_name": "<union2,3>",
+            "access_type": "ALL",
+            "r_loops": 0,
+            "r_rows": null,
+            "query_specifications": [
+              {
+                "query_block": {
+                  "select_id": 2,
+                  "table": {
+                    "message": "No tables used"
+                  }
+                }
+              },
+              {
+                "query_block": {
+                  "select_id": 3,
+                  "r_loops": 10,
+                  "r_total_time_ms": "REPLACED",
+                  "table": {
+                    "table_name": "<derived2>",
+                    "access_type": "ALL",
+                    "r_loops": 10,
+                    "rows": 2,
+                    "r_rows": 1,
+                    "r_total_time_ms": "REPLACED",
+                    "filtered": 100,
+                    "r_filtered": 90,
+                    "attached_condition": "src.counter < 10"
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  }
+}

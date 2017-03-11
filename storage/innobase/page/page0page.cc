@@ -2,6 +2,7 @@
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -480,7 +481,7 @@ page_create_zip(
 
 	/* PAGE_MAX_TRX_ID or PAGE_ROOT_AUTO_INC are always 0 for
 	temporary tables. */
-	ut_ad(!dict_table_is_temporary(index->table) || max_trx_id == 0);
+	ut_ad(max_trx_id == 0 || !dict_table_is_temporary(index->table));
 	/* In secondary indexes and the change buffer, PAGE_MAX_TRX_ID
 	must be zero on non-leaf pages. max_trx_id can be 0 when the
 	index consists of an empty root (leaf) page. */
@@ -550,6 +551,7 @@ page_create_empty(
 	}
 
 	if (page_zip) {
+		ut_ad(!dict_table_is_temporary(index->table));
 		page_create_zip(block, index,
 				page_header_get_field(page, PAGE_LEVEL),
 				max_trx_id, NULL, mtr);
@@ -1161,8 +1163,7 @@ delete_all:
 
 			if (scrub) {
 				/* scrub record */
-				uint recsize = rec_offs_data_size(offsets);
-				memset(rec2, 0, recsize);
+				memset(rec2, 0, rec_offs_data_size(offsets));
 			}
 
 			rec2 = page_rec_get_next(rec2);

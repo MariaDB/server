@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2000, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -337,7 +338,7 @@ row_mysql_lock_data_dictionary_func(
 /*================================*/
 	trx_t*		trx,	/*!< in/out: transaction */
 	const char*	file,	/*!< in: file name */
-	ulint		line);	/*!< in: line number */
+	unsigned	line);	/*!< in: line number */
 #define row_mysql_lock_data_dictionary(trx)				\
 	row_mysql_lock_data_dictionary_func(trx, __FILE__, __LINE__)
 /*********************************************************************//**
@@ -354,7 +355,7 @@ row_mysql_freeze_data_dictionary_func(
 /*==================================*/
 	trx_t*		trx,	/*!< in/out: transaction */
 	const char*	file,	/*!< in: file name */
-	ulint		line);	/*!< in: line number */
+	unsigned	line);	/*!< in: line number */
 #define row_mysql_freeze_data_dictionary(trx)				\
 	row_mysql_freeze_data_dictionary_func(trx, __FILE__, __LINE__)
 /*********************************************************************//**
@@ -373,9 +374,6 @@ row_create_table_for_mysql(
 	dict_table_t*	table,	/*!< in, own: table definition
 				(will be freed, or on DB_SUCCESS
 				added to the data dictionary cache) */
-	const char*	compression,
-				/*!< in: compression algorithm to use,
-				can be NULL */
 	trx_t*		trx,	/*!< in/out: transaction */
 	bool		commit,	/*!< in: if true, commit the transaction */
 	fil_encryption_t mode,	/*!< in: encryption mode */
@@ -484,11 +482,6 @@ row_drop_table_for_mysql(
 	bool		nonatomic = true);
 				/*!< in: whether it is permitted
 				to release and reacquire dict_operation_lock */
-/*********************************************************************//**
-Drop all temporary tables during crash recovery. */
-void
-row_mysql_drop_temp_tables(void);
-/*============================*/
 
 /*********************************************************************//**
 Discards the tablespace of a table which stored in an .ibd file. Discarding
@@ -871,10 +864,6 @@ struct row_prebuilt_t {
 					not used. */
 	ulint		idx_cond_n_cols;/*!< Number of fields in idx_cond_cols.
 					0 if and only if idx_cond == NULL. */
-	/*----------------------*/
-	unsigned	innodb_api:1;	/*!< whether this is a InnoDB API
-					query */
-	const rec_t*	innodb_api_rec;	/*!< InnoDB API search result */
 	/*----------------------*/
 
 	/*----------------------*/

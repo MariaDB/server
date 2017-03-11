@@ -67,6 +67,23 @@ public:
   { return get_item_copy<Item_func_geometry_from_wkb>(thd, mem_root, this); }
 };
 
+
+class Item_func_geometry_from_json: public Item_geometry_func
+{
+  String tmp_js;
+public:
+  Item_func_geometry_from_json(THD *thd, Item *js): Item_geometry_func(thd, js) {}
+  Item_func_geometry_from_json(THD *thd, Item *js, Item *opt):
+    Item_geometry_func(thd, js, opt) {}
+  Item_func_geometry_from_json(THD *thd, Item *js, Item *opt, Item *srid):
+    Item_geometry_func(thd, js, opt, srid) {}
+  const char *func_name() const { return "st_geomfromgeojson"; }
+  String *val_str(String *);
+  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
+  { return get_item_copy<Item_func_geometry_from_json>(thd, mem_root, this); }
+};
+
+
 class Item_func_as_wkt: public Item_str_ascii_func
 {
 public:
@@ -88,6 +105,23 @@ public:
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_func_as_wkb>(thd, mem_root, this); }
 };
+
+
+class Item_func_as_geojson: public Item_str_ascii_func
+{
+public:
+  Item_func_as_geojson(THD *thd, Item *js): Item_str_ascii_func(thd, js) {}
+  Item_func_as_geojson(THD *thd, Item *js, Item *max_dec_digits):
+    Item_str_ascii_func(thd, js, max_dec_digits) {}
+  Item_func_as_geojson(THD *thd, Item *js, Item *max_dec_digits, Item *opt):
+    Item_str_ascii_func(thd, js, max_dec_digits, opt) {}
+  const char *func_name() const { return "st_asgeojson"; }
+  void fix_length_and_dec();
+  String *val_str_ascii(String *);
+  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
+  { return get_item_copy<Item_func_as_geojson>(thd, mem_root, this); }
+};
+
 
 class Item_func_geometry_type: public Item_str_ascii_func
 {

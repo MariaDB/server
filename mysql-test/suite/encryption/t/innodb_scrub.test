@@ -1,147 +1,138 @@
 -- source include/have_innodb.inc
 -- source include/not_embedded.inc
 -- source include/have_example_key_management_plugin.inc
--- source include/not_windows.inc
 
 let $MYSQLD_DATADIR=`select @@datadir`;
-let ib1_IBD = $MYSQLD_DATADIR/ibdata1;
-let t1_IBD = $MYSQLD_DATADIR/test/t1.ibd;
+let INNODB_PAGE_SIZE= `select @@innodb_page_size`;
 
 create table snapshot_status engine = myisam
 select * from information_schema.global_status
-where variable_name like 'innodb_scrub%';
+where variable_name like 'innodb_scrub_background%';
 
 let $rowcount=500;
-let $formatno = 3;
+let $maxformatno= 4;
+let $formatno= $maxformatno;
+
+--echo # MDEV-8139 Fix scrubbing tests
+--echo # FIXME: Add index(b) to each table; ensure that undo logs are scrubbed.
+let $tableformat= (
+  a int auto_increment primary key,
+  b varchar(256),
+  c text) engine = innodb row_format;
+
 while ($formatno)
 {
+dec $formatno;
 let $format = `select case $formatno
-               when 1 then 'dynamic'
-               when 2 then 'redundant'
-               when 3 then 'compact'
+               when 0 then 'dynamic'
+               when 1 then 'redundant'
+               when 2 then 'compact'
+	       when 3 then 'compressed'
                end`;
+
+let $t= delete_$formatno;
+eval create table $t $tableformat=$format;
+
+let $numinserts = $rowcount;
+--disable_query_log
+begin;
+while ($numinserts)
+{
+  dec $numinserts;
+  eval insert into $t(b,c) values ('repairman', repeat('unicycle', 1000));
+}
+commit;
+--enable_query_log
+
+eval delete from $t;
+
+let $t= delete_rollback_delete_$formatno;
+eval create table $t $tableformat=$format;
+
+let $numinserts = $rowcount;
+--disable_query_log
+begin;
+while ($numinserts)
+{
+  dec $numinserts;
+  eval insert into $t(b,c) values ('breakhuman', repeat('bicycle', 1000));
+}
+commit;
+--enable_query_log
+
+begin;
+eval delete from $t;
+rollback;
+eval delete from $t;
+
+let $t= insert_rollback_$formatno;
+
+eval create table $t $tableformat=$format;
+
+let $numinserts = $rowcount;
+begin;
+--disable_query_log
+while ($numinserts)
+{
+  dec $numinserts;
+  eval insert into $t(b,c) values ('wonderwoman', repeat('tricycle', 1000));
+}
+--enable_query_log
+
+rollback;
+}
+
+SET GLOBAL innodb_fast_shutdown=0;
+-- source include/shutdown_mysqld.inc
+
+let SEARCH_ABORT= FOUND;
+let SEARCH_PATTERN= (un|b|tr)icycle|(repair|breakhu|wonderwo)man;
+let SEARCH_RANGE= 12582912;
+let SEARCH_FILE= $MYSQLD_DATADIR/ibdata1;
+
+# We may randomly find copies of unscrubbed pages in the doublewrite buffer.
+# Let us scrub the doublewrite buffer ourselves.
+perl;
+use Fcntl 'SEEK_SET';
+my $page_size = $ENV{INNODB_PAGE_SIZE};
+open(FILE, "+<", "$ENV{SEARCH_FILE}") or die "cannot open: $!\n";
+seek(FILE, $page_size * 64, SEEK_SET) or die "cannot seek: $!\n";
+print(FILE chr(0) x ($page_size * 128)) or die "cannot write: $!\n";
+close FILE or die "cannot close: $!\n";;
+EOF
+
+-- source include/search_pattern_in_file.inc
+
+let $formatno= $maxformatno;
+while ($formatno)
+{
 dec $formatno;
 
--- echo #
--- echo # Test delete of records
--- echo #
-
-eval create table t1 (
-  a int auto_increment primary key,
-  b varchar(256),
-  c text) engine = innodb row_format=$format;
-
-let $numinserts = $rowcount;
--- echo # Populate table with rows
---disable_query_log
-while ($numinserts)
-{
-  dec $numinserts;
-  insert into t1(b,c) values ('bicycle', repeat('repairman', 1000));
+let $t= delete_$formatno.ibd;
+let SEARCH_FILE= $MYSQLD_DATADIR/test/$t;
+-- echo # $t
+-- source include/search_pattern_in_file.inc
+let $t= delete_rollback_delete_$formatno.ibd;
+let SEARCH_FILE= $MYSQLD_DATADIR/test/$t;
+-- echo # $t
+-- source include/search_pattern_in_file.inc
+let $t= insert_rollback_$formatno.ibd;
+let SEARCH_FILE= $MYSQLD_DATADIR/test/$t;
+-- echo # $t
+-- source include/search_pattern_in_file.inc
 }
---enable_query_log
 
-delete from t1;
+-- source include/start_mysqld.inc
 
--- echo # restart mysqld so that all pages are flushed
--- source include/restart_mysqld.inc
--- echo # read all rows from table
--- disable_result_log
-select * from t1;
--- enable_result_log
-
--- echo # $format: delete from: grep -c bicycle t1.ibd
--- exec grep -c bicycle $t1_IBD || true
--- echo # $format: delete from: grep -c bicycle ibdata1
--- exec grep -c bicycle $ib1_IBD || true
--- echo # $format: delete from: grep -c repairman t1.ibd
--- exec grep -c repairman $t1_IBD || true
--- echo # $format: delete from: grep -c repairman ibdata1
--- exec grep -c repairman $ib1_IBD || true
-
-drop table t1;
-
--- echo #
--- echo # Test delete+rollback+delete
--- echo #
-
-eval create table t1 (
-  a int auto_increment primary key,
-  b varchar(256),
-  c text) engine = innodb row_format=$format;
-
-let $numinserts = $rowcount;
--- echo # Populate table with rows
---disable_query_log
-while ($numinserts)
+let $formatno= $maxformatno;
+while ($formatno)
 {
-  dec $numinserts;
-  insert into t1(b,c) values ('bicycle', repeat('repairman', 1000));
-}
---enable_query_log
+dec $formatno;
 
-begin;
-delete from t1;
-rollback;
-delete from t1;
+let $t= delete_$formatno, delete_rollback_delete_$formatno, insert_rollback_$formatno;
 
--- echo # restart mysqld so that all pages are flushed
--- source include/restart_mysqld.inc
--- echo # read all rows from table
--- disable_result_log
-select * from t1;
--- enable_result_log
-
--- echo # $format: delete rollback: grep -c bicycle t1.ibd
--- exec grep -c bicycle $t1_IBD || true
--- echo # $format: delete rollback: grep -c bicycle ibdata1
--- exec grep -c bicycle $ib1_IBD || true
--- echo # $format: delete rollback: grep -c repairman t1.ibd
--- exec grep -c repairman $t1_IBD || true
--- echo # $format: delete rollback: grep -c repairman ibdata1
--- exec grep -c repairman $ib1_IBD || true
-
-drop table t1;
-
--- echo #
--- echo # Test insert+rollback
--- echo #
-
-eval create table t1 (
-  a int auto_increment primary key,
-  b varchar(256),
-  c text) engine = innodb row_format=$format;
-
-let $numinserts = $rowcount;
--- echo # Populate table with rows
-begin;
---disable_query_log
-while ($numinserts)
-{
-  dec $numinserts;
-  insert into t1(b,c) values ('bicycle', repeat('repairman', 1000));
-}
---enable_query_log
-
-rollback;
-
--- echo # restart mysqld so that all pages are flushed
--- source include/restart_mysqld.inc
--- echo # read all rows from table
--- disable_result_log
-select * from t1;
--- enable_result_log
-
--- echo # $format: insert rollback: grep -c bicycle t1.ibd
--- exec grep -c bicycle $t1_IBD || true
--- echo # $format: insert rollback: grep -c bicycle ibdata1
--- exec grep -c bicycle $ib1_IBD || true
--- echo # $format: insert rollback: grep -c repairman t1.ibd
--- exec grep -c repairman $t1_IBD || true
--- echo # $format: insert rollback: grep -c repairman ibdata1
--- exec grep -c repairman $ib1_IBD || true
-
-drop table t1;
+eval check table $t;
+eval drop table $t;
 }
 
 show variables like 'innodb_%scrub_data%';

@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2015, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -59,7 +60,7 @@ struct file_format_t {
 };
 
 /** The transaction system */
-trx_sys_t*		trx_sys		= NULL;
+trx_sys_t*		trx_sys;
 
 /** List of animal names representing file format. */
 static const char*	file_format_name_map[] = {
@@ -221,10 +222,6 @@ trx_sys_update_mysql_binlog_offset(
 		/* We cannot fit the name to the 512 bytes we have reserved */
 
 		return;
-	}
-
-	if (sys_header == NULL) {
-		sys_header = trx_sysf_get(mtr);
 	}
 
 	if (mach_read_from_4(sys_header + field
@@ -570,35 +567,20 @@ trx_sysf_create(
 
 	/* Create the first rollback segment in the SYSTEM tablespace */
 	slot_no = trx_sysf_rseg_find_free(mtr, false, 0);
-	page_no = trx_rseg_header_create(TRX_SYS_SPACE, univ_page_size,
+	page_no = trx_rseg_header_create(TRX_SYS_SPACE,
 					 ULINT_MAX, slot_no, mtr);
 
 	ut_a(slot_no == TRX_SYS_SYSTEM_RSEG_ID);
 	ut_a(page_no == FSP_FIRST_RSEG_PAGE_NO);
 }
 
-/*****************************************************************//**
-Creates and initializes the central memory structures for the transaction
-system. This is called when the database is started.
-@return min binary heap of rsegs to purge */
-purge_pq_t*
-trx_sys_init_at_db_start(void)
-/*==========================*/
+/** Initialize the transaction system main-memory data structures. */
+void
+trx_sys_init_at_db_start()
 {
-	purge_pq_t*	purge_queue;
 	trx_sysf_t*	sys_header;
 	ib_uint64_t	rows_to_undo	= 0;
 	const char*	unit		= "";
-
-	/* We create the min binary heap here and pass ownership to
-	purge when we init the purge sub-system. Purge is responsible
-	for freeing the binary heap. */
-	purge_queue = UT_NEW_NOKEY(purge_pq_t());
-	ut_a(purge_queue != NULL);
-
-	if (srv_force_recovery < SRV_FORCE_NO_UNDO_LOG_SCAN) {
-		trx_rseg_array_init(purge_queue);
-	}
 
 	/* VERY important: after the database is started, max_trx_id value is
 	divisible by TRX_SYS_TRX_ID_WRITE_MARGIN, and the 'if' in
@@ -660,7 +642,7 @@ trx_sys_init_at_db_start(void)
 
 	trx_sys_mutex_exit();
 
-	return(purge_queue);
+	trx_sys->mvcc->clone_oldest_view(&purge_sys->view);
 }
 
 /*****************************************************************//**
@@ -1086,16 +1068,16 @@ trx_sys_close(void)
 			" shutdown: " << size << " read views open";
 	}
 
-	sess_close(trx_dummy_sess);
-	trx_dummy_sess = NULL;
-
-	trx_purge_sys_close();
-
-	/* Free the double write data structures. */
-	buf_dblwr_free();
+	if (trx_dummy_sess) {
+		sess_close(trx_dummy_sess);
+		trx_dummy_sess = NULL;
+	}
 
 	/* Only prepared transactions may be left in the system. Free them. */
-	ut_a(UT_LIST_GET_LEN(trx_sys->rw_trx_list) == trx_sys->n_prepared_trx);
+	ut_a(UT_LIST_GET_LEN(trx_sys->rw_trx_list) == trx_sys->n_prepared_trx
+	     || !srv_was_started
+	     || srv_read_only_mode
+	     || srv_force_recovery >= SRV_FORCE_NO_TRX_UNDO);
 
 	for (trx_t* trx = UT_LIST_GET_FIRST(trx_sys->rw_trx_list);
 	     trx != NULL;
@@ -1107,28 +1089,10 @@ trx_sys_close(void)
 	}
 
 	/* There can't be any active transactions. */
-	trx_rseg_t** rseg_array = static_cast<trx_rseg_t**>(
-		trx_sys->rseg_array);
 
 	for (ulint i = 0; i < TRX_SYS_N_RSEGS; ++i) {
-		trx_rseg_t*	rseg;
-
-		rseg = trx_sys->rseg_array[i];
-
-		if (rseg != NULL) {
-			trx_rseg_mem_free(rseg, rseg_array);
-		}
-	}
-
-	rseg_array = ((trx_rseg_t**) trx_sys->pending_purge_rseg_array);
-
-	for (ulint i = 0; i < TRX_SYS_N_RSEGS; ++i) {
-		trx_rseg_t*	rseg;
-
-		rseg = trx_sys->pending_purge_rseg_array[i];
-
-		if (rseg != NULL) {
-			trx_rseg_mem_free(rseg, rseg_array);
+		if (trx_rseg_t* rseg = trx_sys->rseg_array[i]) {
+			trx_rseg_mem_free(rseg);
 		}
 	}
 
@@ -1150,33 +1114,6 @@ trx_sys_close(void)
 	trx_sys = NULL;
 }
 
-/** @brief Convert an undo log to TRX_UNDO_PREPARED state on shutdown.
-
-If any prepared ACTIVE transactions exist, and their rollback was
-prevented by innodb_force_recovery, we convert these transactions to
-XA PREPARE state in the main-memory data structures, so that shutdown
-will proceed normally. These transactions will again recover as ACTIVE
-on the next restart, and they will be rolled back unless
-innodb_force_recovery prevents it again.
-
-@param[in]	trx	transaction
-@param[in,out]	undo	undo log to convert to TRX_UNDO_PREPARED */
-static
-void
-trx_undo_fake_prepared(
-	const trx_t*	trx,
-	trx_undo_t*	undo)
-{
-	ut_ad(srv_force_recovery >= SRV_FORCE_NO_TRX_UNDO);
-	ut_ad(trx_state_eq(trx, TRX_STATE_ACTIVE));
-	ut_ad(trx->is_recovered);
-
-	if (undo != NULL) {
-		ut_ad(undo->state == TRX_UNDO_ACTIVE);
-		undo->state = TRX_UNDO_PREPARED;
-	}
-}
-
 /*********************************************************************
 Check if there are any active (non-prepared) transactions.
 @return total number of active transactions or 0 if none */
@@ -1184,46 +1121,15 @@ ulint
 trx_sys_any_active_transactions(void)
 /*=================================*/
 {
+	ulint	total_trx = 0;
+
 	trx_sys_mutex_enter();
 
-	ulint	total_trx = UT_LIST_GET_LEN(trx_sys->mysql_trx_list);
+	total_trx = UT_LIST_GET_LEN(trx_sys->rw_trx_list)
+		  + UT_LIST_GET_LEN(trx_sys->mysql_trx_list);
 
-	if (total_trx == 0) {
-		total_trx = UT_LIST_GET_LEN(trx_sys->rw_trx_list);
-		ut_a(total_trx >= trx_sys->n_prepared_trx);
-
-		if (total_trx > trx_sys->n_prepared_trx
-		    && srv_force_recovery >= SRV_FORCE_NO_TRX_UNDO) {
-			for (trx_t* trx = UT_LIST_GET_FIRST(
-				     trx_sys->rw_trx_list);
-			     trx != NULL;
-			     trx = UT_LIST_GET_NEXT(trx_list, trx)) {
-				if (!trx_state_eq(trx, TRX_STATE_ACTIVE)
-				    || !trx->is_recovered) {
-					continue;
-				}
-				/* This was a recovered transaction
-				whose rollback was disabled by
-				the innodb_force_recovery setting.
-				Pretend that it is in XA PREPARE
-				state so that shutdown will work. */
-				trx_undo_fake_prepared(
-					trx, trx->rsegs.m_redo.insert_undo);
-				trx_undo_fake_prepared(
-					trx, trx->rsegs.m_redo.update_undo);
-				trx_undo_fake_prepared(
-					trx, trx->rsegs.m_noredo.insert_undo);
-				trx_undo_fake_prepared(
-					trx, trx->rsegs.m_noredo.update_undo);
-				trx->state = TRX_STATE_PREPARED;
-				trx_sys->n_prepared_trx++;
-				trx_sys->n_prepared_recovered_trx++;
-			}
-		}
-
-		ut_a(total_trx >= trx_sys->n_prepared_trx);
-		total_trx -= trx_sys->n_prepared_trx;
-	}
+	ut_a(total_trx >= trx_sys->n_prepared_trx);
+	total_trx -= trx_sys->n_prepared_trx;
 
 	trx_sys_mutex_exit();
 

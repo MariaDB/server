@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2015, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -147,7 +148,7 @@ columns, and for them the precise type is usually not used at all.
 				for InnoDB's own system tables */
 #define DATA_ERROR	111	/* another relic from pre-MySQL time */
 
-#define DATA_MYSQL_TYPE_MASK 255 /* AND with this mask to extract the MySQL
+#define DATA_MYSQL_TYPE_MASK 255U/* AND with this mask to extract the MySQL
 				 type from the precise type */
 #define DATA_MYSQL_TRUE_VARCHAR 15 /* MySQL type code for the >= 5.0.3
 				   format true VARCHAR */
@@ -168,14 +169,14 @@ be less than 256 */
 
 #define DATA_FTS_DOC_ID	3	/* Used as FTS DOC ID column */
 
-#define DATA_SYS_PRTYPE_MASK 0xF /* mask to extract the above from prtype */
+#define DATA_SYS_PRTYPE_MASK 0xFU /* mask to extract the above from prtype */
 
 /* Flags ORed to the precise data type */
-#define DATA_NOT_NULL	256	/* this is ORed to the precise type when
+#define DATA_NOT_NULL	256U	/* this is ORed to the precise type when
 				the column is declared as NOT NULL */
-#define DATA_UNSIGNED	512	/* this id ORed to the precise type when
+#define DATA_UNSIGNED	512U	/* this id ORed to the precise type when
 				we have an unsigned integer type */
-#define	DATA_BINARY_TYPE 1024	/* if the data type is a binary character
+#define	DATA_BINARY_TYPE 1024U	/* if the data type is a binary character
 				string, this is ORed to the precise type:
 				this only holds for tables created with
 				>= MySQL-4.0.14 */
@@ -183,14 +184,14 @@ be less than 256 */
 				In earlier versions this was set for some
 				BLOB columns.
 */
-#define DATA_GIS_MBR	2048	/* Used as GIS MBR column */
+#define DATA_GIS_MBR	2048U	/* Used as GIS MBR column */
 #define DATA_MBR_LEN	SPDIMS * 2 * sizeof(double) /* GIS MBR length*/
 
-#define	DATA_LONG_TRUE_VARCHAR 4096	/* this is ORed to the precise data
+#define	DATA_LONG_TRUE_VARCHAR 4096U	/* this is ORed to the precise data
 				type when the column is true VARCHAR where
 				MySQL uses 2 bytes to store the data len;
 				for shorter VARCHARs MySQL uses only 1 byte */
-#define	DATA_VIRTUAL	8192	/* Virtual column */
+#define	DATA_VIRTUAL	8192U	/* Virtual column */
 
 /** Get the number of system columns in a table. */
 #define dict_table_get_n_sys_cols(table) DATA_N_SYS_COLS
@@ -221,14 +222,12 @@ length from corresponding column or index definition, instead of this MACRO
 
 /* Pack mbminlen, mbmaxlen to mbminmaxlen. */
 #define DATA_MBMINMAXLEN(mbminlen, mbmaxlen)	\
-	((mbmaxlen) * DATA_MBMAX + (mbminlen))
-/* Get mbminlen from mbminmaxlen. Cast the result of UNIV_EXPECT to ulint
-because in GCC it returns a long. */
-#define DATA_MBMINLEN(mbminmaxlen) ((ulint) \
-                                    UNIV_EXPECT(((mbminmaxlen) % DATA_MBMAX), \
-                                                1))
+	unsigned((mbmaxlen) * DATA_MBMAX + (mbminlen))
+/* Get mbminlen from mbminmaxlen. */
+#define DATA_MBMINLEN(mbminmaxlen) \
+	unsigned(UNIV_EXPECT((mbminmaxlen) % DATA_MBMAX, 1))
 /* Get mbmaxlen from mbminmaxlen. */
-#define DATA_MBMAXLEN(mbminmaxlen) ((ulint) ((mbminmaxlen) / DATA_MBMAX))
+#define DATA_MBMAXLEN(mbminmaxlen) unsigned((mbminmaxlen) / DATA_MBMAX)
 
 /* For checking if a geom_type is POINT */
 #define DATA_POINT_MTYPE(mtype) ((mtype) == DATA_POINT			\
@@ -369,16 +368,21 @@ ulint
 dtype_get_charset_coll(
 /*===================*/
 	ulint	prtype);/*!< in: precise data type */
-/*********************************************************************//**
-Forms a precise type from the < 4.1.2 format precise type plus the
+/** Form a precise type from the < 4.1.2 format precise type plus the
 charset-collation code.
+@param[in]	old_prtype	MySQL type code and the flags
+				DATA_BINARY_TYPE etc.
+@param[in]	charset_coll	character-set collation code
 @return precise type, including the charset-collation code */
-ulint
-dtype_form_prtype(
-/*==============*/
-	ulint	old_prtype,	/*!< in: the MySQL type code and the flags
-				DATA_BINARY_TYPE etc. */
-	ulint	charset_coll);	/*!< in: MySQL charset-collation code */
+UNIV_INLINE
+uint32_t
+dtype_form_prtype(ulint old_prtype, ulint charset_coll)
+{
+	ut_ad(old_prtype < 256 * 256);
+	ut_ad(charset_coll <= MAX_CHAR_COLL_NUM);
+	return(uint32_t(old_prtype + (charset_coll << 16)));
+}
+
 /*********************************************************************//**
 Determines if a MySQL string type is a subset of UTF-8.  This function
 may return false negatives, in case further character-set collation

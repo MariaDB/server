@@ -197,6 +197,7 @@ protected:
   String *tmp_paths;
   bool mode_one;
   bool ooa_constant, ooa_parsed;
+  bool *p_found;
 
 public:
   Item_func_json_contains_path(THD *thd, List<Item> &list):
@@ -413,16 +414,32 @@ public:
 };
 
 
-class Item_json_typecast: public Item_str_func
+class Item_func_json_format: public Item_str_func
 {
 public:
-  Item_json_typecast(THD *thd, Item *a): Item_str_func(thd, a) {}
-  const char *func_name() const { return "cast_as_json"; }
-  bool is_json_type() { return true; }
+  enum formats
+  {
+    NONE,
+    COMPACT,
+    LOOSE,
+    DETAILED
+  };
+protected:
+  formats fmt;
+  String tmp_js;
+public:
+  Item_func_json_format(THD *thd, Item *js, formats format):
+    Item_str_func(thd, js), fmt(format) {}
+  Item_func_json_format(THD *thd, List<Item> &list):
+    Item_str_func(thd, list), fmt(DETAILED) {}
+
+  const char *func_name() const;
   void fix_length_and_dec();
   String *val_str(String *str);
+  String *val_json(String *str);
+  bool is_json_type() { return true; }
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_json_typecast>(thd, mem_root, this); }
+  { return get_item_copy<Item_func_json_format>(thd, mem_root, this); }
 };
 
 

@@ -32,9 +32,9 @@ then
   configure="$configure --verbose"
 fi
 
+# git clean -fdX removes all ignored (build) files
 commands="\
-/bin/rm -rf configure;
-/bin/rm -rf CMakeCache.txt CMakeFiles/
+git clean -fdX
 
 path=`dirname $0`
 . \"$path/autorun.sh\""

@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2015, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -26,7 +27,6 @@ Created 3/26/1996 Heikki Tuuri
 #ifndef trx0rseg_h
 #define trx0rseg_h
 
-#include "univ.i"
 #include "trx0types.h"
 #include "trx0sys.h"
 #include "fut0lst.h"
@@ -35,7 +35,6 @@ Created 3/26/1996 Heikki Tuuri
 /** Gets a rollback segment header.
 @param[in]	space		space where placed
 @param[in]	page_no		page number of the header
-@param[in]	page_size	page size
 @param[in,out]	mtr		mini-transaction
 @return rollback segment header, page x-latched */
 UNIV_INLINE
@@ -43,13 +42,11 @@ trx_rsegf_t*
 trx_rsegf_get(
 	ulint			space,
 	ulint			page_no,
-	const page_size_t&	page_size,
 	mtr_t*			mtr);
 
 /** Gets a newly created rollback segment header.
 @param[in]	space		space where placed
 @param[in]	page_no		page number of the header
-@param[in]	page_size	page size
 @param[in,out]	mtr		mini-transaction
 @return rollback segment header, page x-latched */
 UNIV_INLINE
@@ -57,7 +54,6 @@ trx_rsegf_t*
 trx_rsegf_get_new(
 	ulint			space,
 	ulint			page_no,
-	const page_size_t&	page_size,
 	mtr_t*			mtr);
 
 /***************************************************************//**
@@ -89,21 +85,21 @@ trx_rsegf_undo_find_free(
 /*=====================*/
 	trx_rsegf_t*	rsegf,	/*!< in: rollback segment header */
 	mtr_t*		mtr);	/*!< in: mtr */
-/******************************************************************//**
-Looks for a rollback segment, based on the rollback segment id.
+/** Get a rollback segment.
+@param[in]	id	rollback segment id
 @return rollback segment */
 UNIV_INLINE
 trx_rseg_t*
-trx_rseg_get_on_id(
-/*===============*/
-	ulint	id,		/*!< in: rollback segment id */
-	bool	is_redo_rseg);	/*!< in: true if redo rseg else false. */
+trx_rseg_get_on_id(ulint id)
+{
+	ut_a(id < TRX_SYS_N_RSEGS);
+	return(trx_sys->rseg_array[id]);
+}
 
 /** Creates a rollback segment header.
 This function is called only when a new rollback segment is created in
 the database.
 @param[in]	space		space id
-@param[in]	page_size	page size
 @param[in]	max_size	max size in pages
 @param[in]	rseg_slot_no	rseg id == slot number in trx sys
 @param[in,out]	mtr		mini-transaction
@@ -111,27 +107,18 @@ the database.
 ulint
 trx_rseg_header_create(
 	ulint			space,
-	const page_size_t&	page_size,
 	ulint			max_size,
 	ulint			rseg_slot_no,
 	mtr_t*			mtr);
 
-/*********************************************************************//**
-Creates the memory copies for rollback segments and initializes the
-rseg array in trx_sys at a database startup. */
+/** Initialize the rollback segments in memory at database startup. */
 void
-trx_rseg_array_init(
-/*================*/
-	purge_pq_t*	purge_queue);	/*!< in: rseg queue */
+trx_rseg_array_init();
 
-/***************************************************************************
-Free's an instance of the rollback segment in memory. */
+/** Free a rollback segment in memory. */
 void
-trx_rseg_mem_free(
-/*==============*/
-	trx_rseg_t*	rseg,		/*!< in, own: instance to free */
-	trx_rseg_t**	rseg_array);	/*!< out: add rseg reference to this
-					central array. */
+trx_rseg_mem_free(trx_rseg_t* rseg);
+
 /*********************************************************************
 Creates a rollback segment. */
 trx_rseg_t*
@@ -174,9 +161,6 @@ struct trx_rseg_t {
 
 	/** page number of the rollback segment header */
 	ulint				page_no;
-
-	/** page size of the relevant tablespace */
-	page_size_t			page_size;
 
 	/** maximum allowed size in pages */
 	ulint				max_size;

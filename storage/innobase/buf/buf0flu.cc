@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2016, MariaDB Corporation
+Copyright (c) 2013, 2017, MariaDB Corporation. All Rights Reserved.
 Copyright (c) 2013, 2014, Fusion-io
 
 This program is free software; you can redistribute it and/or modify it under
@@ -795,6 +795,8 @@ buf_flush_write_complete(
 	flush_type = buf_page_get_flush_type(bpage);
 	buf_pool->n_flush[flush_type]--;
 
+	ut_ad(buf_pool_mutex_own(buf_pool));
+
 	if (buf_pool->n_flush[flush_type] == 0
 	    && buf_pool->init_flush[flush_type] == FALSE) {
 
@@ -1008,7 +1010,7 @@ buf_flush_write_block_low(
 {
 	page_t*	frame = NULL;
 	ulint space_id = bpage->id.space();
-	atomic_writes_t awrites = fil_space_get_atomic_writes(space_id);
+	bool atomic_writes = fil_space_get_atomic_writes(space_id);
 
 #ifdef UNIV_DEBUG
 	buf_pool_t*	buf_pool = buf_pool_from_bpage(bpage);
@@ -1086,18 +1088,18 @@ buf_flush_write_block_low(
 	    || buf_dblwr == NULL
 	    || srv_read_only_mode
 	    || fsp_is_system_temporary(bpage->id.space())
-	    || awrites == ATOMIC_WRITES_ON) {
+	    || atomic_writes) {
 
 		ut_ad(!srv_read_only_mode
 		      || fsp_is_system_temporary(bpage->id.space()));
 
 		ulint	type = IORequest::WRITE | IORequest::DO_NOT_WAKE;
 
-		IORequest	request(type);
+		IORequest	request(type, bpage);
 
 		fil_io(request,
 		       sync, bpage->id, bpage->size, 0, bpage->size.physical(),
-			frame, bpage, NULL);
+			frame, bpage);
 	} else {
 		if (flush_type == BUF_FLUSH_SINGLE_PAGE) {
 			buf_dblwr_write_single_page(bpage, sync);
@@ -3761,9 +3763,7 @@ FlushObserver::FlushObserver(
 		m_removed->at(i) = 0;
 	}
 
-#ifdef FLUSH_LIST_OBSERVER_DEBUG
-		ib::info() << "FlushObserver constructor: " << m_trx->id;
-#endif /* FLUSH_LIST_OBSERVER_DEBUG */
+	DBUG_LOG("flush", "FlushObserver(): trx->id=" << m_trx->id);
 }
 
 /** FlushObserver deconstructor */
@@ -3774,9 +3774,7 @@ FlushObserver::~FlushObserver()
 	UT_DELETE(m_flushed);
 	UT_DELETE(m_removed);
 
-#ifdef FLUSH_LIST_OBSERVER_DEBUG
-		ib::info() << "FlushObserver deconstructor: " << m_trx->id;
-#endif /* FLUSH_LIST_OBSERVER_DEBUG */
+	DBUG_LOG("flush", "~FlushObserver(): trx->id=" << m_trx->id);
 }
 
 /** Check whether trx is interrupted
@@ -3809,10 +3807,7 @@ FlushObserver::notify_flush(
 		m_stage->inc();
 	}
 
-#ifdef FLUSH_LIST_OBSERVER_DEBUG
-	ib::info() << "Flush <" << bpage->id.space()
-		   << ", " << bpage->id.page_no() << ">";
-#endif /* FLUSH_LIST_OBSERVER_DEBUG */
+	DBUG_LOG("flush", "Flush " << bpage->id);
 }
 
 /** Notify observer of a remove
@@ -3827,10 +3822,7 @@ FlushObserver::notify_remove(
 
 	m_removed->at(buf_pool->instance_no)++;
 
-#ifdef FLUSH_LIST_OBSERVER_DEBUG
-	ib::info() << "Remove <" << bpage->id.space()
-		   << ", " << bpage->id.page_no() << ">";
-#endif /* FLUSH_LIST_OBSERVER_DEBUG */
+	DBUG_LOG("flush", "Remove " << bpage->id);
 }
 
 /** Flush dirty pages and wait. */

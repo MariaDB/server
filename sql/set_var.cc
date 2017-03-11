@@ -401,7 +401,7 @@ double sys_var::val_real(bool *is_null,
   switch (show_type())
   {
     case_get_string_as_lex_string;
-    case_for_integers(return val);
+    case_for_integers(return (double)val);
     case_for_double(return val);
     case SHOW_MY_BOOL:  return *(my_bool*)value;
     default:            
@@ -464,7 +464,7 @@ bool throw_bounds_warning(THD *thd, const char *name,
     else
       llstr(v, buf);
 
-    if (thd->is_strict_mode())
+    if (thd->variables.sql_mode & MODE_STRICT_ALL_TABLES)
     {
       my_error(ER_WRONG_VALUE_FOR_VAR, MYF(0), name, buf);
       return true;
@@ -484,7 +484,7 @@ bool throw_bounds_warning(THD *thd, const char *name, bool fixed, double v)
 
     my_gcvt(v, MY_GCVT_ARG_DOUBLE, sizeof(buf) - 1, buf, NULL);
 
-    if (thd->is_strict_mode())
+    if (thd->variables.sql_mode & MODE_STRICT_ALL_TABLES)
     {
       my_error(ER_WRONG_VALUE_FOR_VAR, MYF(0), name, buf);
       return true;

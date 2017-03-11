@@ -3,6 +3,7 @@ insert into t1 values (1),(2),(3),(4),(5),(6),(7),(8),(9),(10);
 select * from t1 order by now(), cast(pk as char(0));
 pk
 1
+10
 2
 3
 4
@@ -11,8 +12,8 @@ pk
 7
 8
 9
-10
-Warnings:
+show warnings;
+Level	Code	Message
 Warning	1292	Truncated incorrect CHAR(0) value: '1'
 Warning	1292	Truncated incorrect CHAR(0) value: '2'
 Warning	1292	Truncated incorrect CHAR(0) value: '3'

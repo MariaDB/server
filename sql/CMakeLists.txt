@@ -413,6 +413,7 @@ IF(WIN32)
     ${CMAKE_CURRENT_BINARY_DIR}/mysql_bootstrap_sql.c
     COMPONENT Server
   )
+  SET_TARGET_PROPERTIES(mysql_install_db PROPERTIES COMPILE_FLAGS -DINSTALL_PLUGINDIR=${INSTALL_PLUGINDIR})
   TARGET_LINK_LIBRARIES(mysql_install_db mysys)
 
   ADD_LIBRARY(winservice STATIC winservice.c)

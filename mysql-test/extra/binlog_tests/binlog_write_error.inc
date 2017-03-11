@@ -71,7 +71,7 @@ source include/binlog_inject_error.inc;
 let $query= DROP VIEW v1;
 source include/binlog_inject_error.inc;
 
-let $query= CREATE PROCEDURE p1(OUT rows INT) SELECT count(*) INTO rows FROM t1;
+let $query= CREATE PROCEDURE p1(OUT rows_cnt INT) SELECT count(*) INTO rows_cnt FROM t1;
 source include/binlog_inject_error.inc;
 
 let $query= DROP PROCEDURE p1;

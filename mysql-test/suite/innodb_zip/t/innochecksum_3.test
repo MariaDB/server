@@ -4,8 +4,7 @@
 --source include/have_innodb.inc
 --source include/have_innodb_zip.inc
 
-# Valgrind would complain about memory leaks when we crash on purpose.
---source include/not_valgrind.inc
+--source include/no_valgrind_without_big.inc
 
 # Embedded server does not support crashing.
 --source include/not_embedded.inc
@@ -18,8 +17,6 @@ let MYSQLD_BASEDIR= `SELECT @@basedir`;
 let MYSQLD_DATADIR= `SELECT @@datadir`;
 let SEARCH_FILE= $MYSQLTEST_VARDIR/log/my_restart.err;
 call mtr.add_suppression("InnoDB: Unable to read tablespace .* page no .* into the buffer pool after 100 attempts");
-
-SET GLOBAL innodb_file_per_table=on;
 
 --echo [1]: Further Test are for rewrite checksum (innodb|crc32|none) for all ibd file & start the server.
 
@@ -78,7 +75,7 @@ foreach (glob("$ENV{MYSQLD_DATADIR}/*/*.ibd")) {
 EOF
 
 --echo : start the server with innodb_checksum_algorithm=strict_innodb
---let restart_options= : --innodb_checksum_algorithm=strict_innodb --default_storage_engine=InnoDB
+--let $restart_parameters= --innodb_checksum_algorithm=strict_innodb
 --source include/start_mysqld.inc
 
 INSERT INTO tab1 (pk, linestring_key, linestring_nokey)
@@ -118,7 +115,7 @@ foreach (glob("$ENV{MYSQLD_DATADIR}/*/*.ibd")) {
 EOF
 
 --echo # start the server with innodb_checksum_algorithm=strict_crc32
---let restart_options= : --innodb_checksum_algorithm=strict_crc32 --default_storage_engine=InnoDB
+--let $restart_parameters= --innodb_checksum_algorithm=strict_crc32
 --source include/start_mysqld.inc
 
 # check the table status is GOOD with DML
@@ -163,9 +160,9 @@ foreach (glob("$ENV{MYSQLD_DATADIR}/*/*.ibd")) {
 }
 EOF
 
-let $restart_parameters = restart: --innodb_checksum_algorithm=strict_none --default_storage_engine=InnoDB;
+--let $restart_parameters= --innodb_checksum_algorithm=strict_none
 --source include/start_mysqld.inc
-
+--let $restart_parameters=
 # check the table status is GOOD with DML
 INSERT INTO tab1 (pk, linestring_key, linestring_nokey)
 VALUES (4, ST_GeomFromText('MULTIPOINT(0 0,5 5,10 10,20 20) '), ST_GeomFromText('MULTIPOINT(0 0,5 5,10 10,20 20) '));
@@ -403,9 +400,6 @@ let SEARCH_PATTERN= Incorrect unsigned integer value: '18446744073709551616';
 --remove_file $SEARCH_FILE
 
 # Cleanup
---echo # Restart the server
 --source include/start_mysqld.inc
 
-DROP TABLE tab1;
-DROP TABLE tab2;
-SET GLOBAL innodb_file_per_table=default;
+DROP TABLE tab1,tab2;

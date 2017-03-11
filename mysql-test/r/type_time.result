@@ -25,7 +25,7 @@ t
 12:30:00
 12:30:35
 36:30:31
-insert into t1 values("10.22.22"),(1234567),(123456789),(123456789.10),("10 22:22"),("12.45a");
+insert ignore into t1 values("10.22.22"),(1234567),(123456789),(123456789.10),("10 22:22"),("12.45a");
 Warnings:
 Warning	1265	Data truncated for column 't' at row 1
 Warning	1265	Data truncated for column 't' at row 2
@@ -322,7 +322,7 @@ CREATE TABLE t1 (a TIME(6));
 INSERT INTO t1 VALUES (CAST(0xFFFFFFFF00000000 AS UNSIGNED));
 ERROR 22007: Incorrect time value: '18446744069414584320' for column 'a' at row 1
 SET sql_mode=DEFAULT;
-INSERT INTO t1 VALUES (CAST(0xFFFFFFFF00000000 AS UNSIGNED));
+INSERT IGNORE INTO t1 VALUES (CAST(0xFFFFFFFF00000000 AS UNSIGNED));
 Warnings:
 Warning	1264	Out of range value for column 'a' at row 1
 SELECT * FROM t1;
@@ -1230,6 +1230,7 @@ INSERT INTO t1 (a,b,c) SELECT a,a,a FROM t2;
 Warnings:
 Warning	1265	Data truncated for column 'b' at row 2
 Warning	1265	Data truncated for column 'b' at row 6
+SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 ALTER TABLE t1 MODIFY c TIME;
 Warnings:
 Warning	1265	Data truncated for column 'c' at row 2

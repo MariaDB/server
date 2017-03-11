@@ -6,13 +6,12 @@
 -- source include/not_embedded.inc
 
 --disable_query_log
-let $innodb_file_format_orig = `SELECT @@innodb_file_format`;
-let $innodb_file_per_table_orig = `SELECT @@innodb_file_per_table`;
 let $innodb_encryption_threads_orig = `SELECT @@global.innodb_encryption_threads`;
 --enable_query_log
 
-SET GLOBAL innodb_file_format = `Barracuda`;
-SET GLOBAL innodb_file_per_table = ON;
+# empty the change buffer and the undo logs to avoid extra reads
+SET GLOBAL innodb_fast_shutdown=0;
+--source include/restart_mysqld.inc
 
 SHOW VARIABLES LIKE 'innodb_encrypt%';
 
@@ -29,7 +28,8 @@ let $tables = 100;
 --disable_query_log
 while ($tables)
 {
-  eval create table t_$tables (a int not null primary key, b varchar(200)) engine=innodb;
+  eval create table t_$tables (a int not null primary key, b varchar(200)) engine=innodb
+  stats_persistent=0;
   commit;
   let $rows = 100;
   while($rows)
@@ -64,7 +64,8 @@ set autocommit=0;
 let $tables = 100;
 while ($tables)
 {
-  eval create table t_$tables (a int not null primary key, b varchar(200)) engine=innodb encrypted=yes;
+  eval create table t_$tables (a int not null primary key, b varchar(200)) engine=innodb
+  stats_persistent=0 encrypted=yes;
   commit;
   let $rows = 100;
   while($rows)
@@ -100,7 +101,8 @@ set autocommit=0;
 let $tables = 100;
 while ($tables)
 {
-  eval create table t_$tables (a int not null primary key, b varchar(200)) engine=innodb encrypted=no;
+  eval create table t_$tables (a int not null primary key, b varchar(200)) engine=innodb
+  stats_persistent=0 encrypted=no;
   commit;
   let $rows = 100;
   while($rows)
@@ -268,7 +270,5 @@ drop database innodb_encrypted_2;
 drop database innodb_encrypted_3;
 
 --disable_query_log
-EVAL SET GLOBAL innodb_file_per_table = $innodb_file_per_table_orig;
-EVAL SET GLOBAL innodb_file_format = $innodb_file_format_orig;
 EVAL SET GLOBAL innodb_encryption_threads = $innodb_encryption_threads_orig;
 --enable_query_log

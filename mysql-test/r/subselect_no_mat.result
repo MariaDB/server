@@ -7,6 +7,7 @@ set join_cache_level=1;
 set @join_cache_level_for_subselect_test=@@join_cache_level;
 drop table if exists t1,t2,t3,t4,t5,t6,t7,t8,t11,t12;
 drop view if exists v2;
+call mtr.add_suppression("Sort aborted.*");
 set @subselect_tmp=@@optimizer_switch;
 set @@optimizer_switch=ifnull(@optimizer_switch_for_subselect_test,
 "semijoin=on,firstmatch=on,loosescan=on,semijoin_with_cache=on,partial_match_rowid_merge=off,partial_match_table_scan=off");
@@ -1209,11 +1210,11 @@ CREATE TABLE `t3` (
 PRIMARY KEY  (`numeropost`),
 UNIQUE KEY `maxnumrep` (`maxnumrep`)
 ) ENGINE=MyISAM CHARSET=latin1;
-INSERT INTO t1 VALUES ('joce','1','','joce'),('test','2','','test');
+INSERT IGNORE INTO t1 VALUES ('joce','1','','joce'),('test','2','','test');
 Warnings:
 Warning	1265	Data truncated for column 'date' at row 1
 Warning	1265	Data truncated for column 'date' at row 2
-INSERT INTO t2 VALUES ('joce','1','','joce'),('test','2','','test');
+INSERT IGNORE INTO t2 VALUES ('joce','1','','joce'),('test','2','','test');
 Warnings:
 Warning	1265	Data truncated for column 'date' at row 1
 Warning	1265	Data truncated for column 'date' at row 2
@@ -4465,7 +4466,7 @@ insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
 create table t1(f11 int, f12 int);
 create table t2(f21 int unsigned not null, f22 int, f23 varchar(10));
 insert into t1 values(1,1),(2,2), (3, 3);
-insert into t2
+insert ignore into t2
 select -1 , (@a:=(A.a + 10 * (B.a + 10 * (C.a+10*D.a))))/5000 + 1, @a
 from t0 A, t0 B, t0 C, t0 D;
 set session sort_buffer_size= 33*1024;
@@ -6008,26 +6009,26 @@ SELECT table1.f1, table2.f1_key FROM t1 AS table1, t2 AS table2
 WHERE EXISTS (SELECT DISTINCT f1_key FROM t2 
 WHERE f1_key != table2.f1_key AND f1_key >= table1.f1);
 f1	f1_key
-v	j
-s	j
-v	v
-s	v
-v	c
 s	c
-v	m
+s	d
+s	d
+s	d
+s	j
 s	m
-v	d
-s	d
-v	d
-s	d
-v	y
-s	y
-v	t
-s	t
-v	d
-s	d
-v	s
 s	s
+s	t
+s	v
+s	y
+v	c
+v	d
+v	d
+v	d
+v	j
+v	m
+v	s
+v	t
+v	v
+v	y
 DROP TABLE t1,t2;
 #
 # LP bug 919427: EXPLAIN for a query over a single-row table 
@@ -6356,26 +6357,26 @@ SELECT DISTINCT f1_key
 FROM t2 
 WHERE f1_key != table2.f1_key AND f1_key >= table1.f1 );
 f1	f1_key
-v	j
-s	j
-v	v
-s	v
-v	c
 s	c
-v	m
+s	d
+s	d
+s	d
+s	j
 s	m
-v	d
-s	d
-v	d
-s	d
-v	y
-s	y
-v	t
-s	t
-v	d
-s	d
-v	s
 s	s
+s	t
+s	v
+s	y
+v	c
+v	d
+v	d
+v	d
+v	j
+v	m
+v	s
+v	t
+v	v
+v	y
 explain SELECT table1.f1, table2.f1_key
 FROM t1 AS table1, t2 AS table2
 WHERE EXISTS 
@@ -7157,6 +7158,17 @@ sq
 NULL
 drop view v2;
 drop table t1,t2;
+#
+# MDEV-10386 Assertion `fixed == 1' failed in virtual String* Item_func_conv_charset::val_str(String*)
+#
+CREATE TABLE t1 (f1 CHAR(3) CHARACTER SET utf8 NULL, f2 CHAR(3) CHARACTER SET latin1 NULL);
+INSERT INTO t1 VALUES ('foo','bar');
+SELECT * FROM t1 WHERE f2 >= SOME ( SELECT f1 FROM t1 );
+f1	f2
+SELECT * FROM t1 WHERE f2 <= SOME ( SELECT f1 FROM t1 );
+f1	f2
+foo	bar
+DROP TABLE t1;
 #
 # MDEV-9487: Server crashes in Time_and_counter_tracker::incr_loops
 # with UNION in ALL subquery

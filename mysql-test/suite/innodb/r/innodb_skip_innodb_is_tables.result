@@ -1,5 +1,5 @@
 select * from information_schema.innodb_trx;
-trx_id	trx_state	trx_started	trx_requested_lock_id	trx_wait_started	trx_weight	trx_mysql_thread_id	trx_query	trx_operation_state	trx_tables_in_use	trx_tables_locked	trx_lock_structs	trx_lock_memory_bytes	trx_rows_locked	trx_rows_modified	trx_concurrency_tickets	trx_isolation_level	trx_unique_checks	trx_foreign_key_checks	trx_last_foreign_key_error	trx_adaptive_hash_latched	trx_adaptive_hash_timeout	trx_is_read_only	trx_autocommit_non_locking
+trx_id	trx_state	trx_started	trx_requested_lock_id	trx_wait_started	trx_weight	trx_mysql_thread_id	trx_query	trx_operation_state	trx_tables_in_use	trx_tables_locked	trx_lock_structs	trx_lock_memory_bytes	trx_rows_locked	trx_rows_modified	trx_concurrency_tickets	trx_isolation_level	trx_unique_checks	trx_foreign_key_checks	trx_last_foreign_key_error	trx_adaptive_hash_latched	trx_is_read_only	trx_autocommit_non_locking
 Warnings:
 Warning	1012	InnoDB: SELECTing from INFORMATION_SCHEMA.innodb_trx but the InnoDB storage engine is not installed
 select * from information_schema.innodb_locks;
@@ -216,16 +216,8 @@ compress_pages_decompressed	compression	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	N
 compression_pad_increments	compression	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	disabled	counter	Number of times padding is incremented to avoid compression failures
 compression_pad_decrements	compression	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	disabled	counter	Number of times padding is decremented due to good compressibility
 compress_saved	compression	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	disabled	counter	Number of bytes saved by page compression
-compress_trim_sect512	compression	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	disabled	counter	Number of sect-512 TRIMed by page compression
-compress_trim_sect1024	compression	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	disabled	counter	Number of sect-1024 TRIMed by page compression
-compress_trim_sect2048	compression	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	disabled	counter	Number of sect-2048 TRIMed by page compression
-compress_trim_sect4096	compression	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	disabled	counter	Number of sect-4K TRIMed by page compression
-compress_trim_sect8192	compression	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	disabled	counter	Number of sect-8K TRIMed by page compression
-compress_trim_sect16384	compression	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	disabled	counter	Number of sect-16K TRIMed by page compression
-compress_trim_sect32768	compression	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	disabled	counter	Number of sect-32K TRIMed by page compression
 compress_pages_page_compressed	compression	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	disabled	counter	Number of pages compressed by page compression
 compress_page_compressed_trim_op	compression	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	disabled	counter	Number of TRIM operation performed by page compression
-compress_page_compressed_trim_op_saved	compression	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	disabled	counter	Number of TRIM operation saved by page compression
 compress_pages_page_decompressed	compression	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	disabled	counter	Number of pages decompressed by page compression
 compress_pages_page_compression_error	compression	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	disabled	counter	Number of page compression errors
 compress_pages_encrypted	compression	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	disabled	counter	Number of pages encrypted

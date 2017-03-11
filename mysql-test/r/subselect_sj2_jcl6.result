@@ -1184,7 +1184,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ref	PRIMARY	PRIMARY	5	const	1	Using where; Using index
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	1	Start temporary; Using join buffer (flat, BNL join)
 1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	2	Using where; Using join buffer (incremental, BNL join)
-1	PRIMARY	t4	hash_index	NULL	#hash#$hj:PRIMARY	54:59	test.t3.t3_c	2	Using where; End temporary; Using join buffer (incremental, BNLH join)
+1	PRIMARY	t4	hash_index	NULL	#hash#$hj:PRIMARY	54:59	test.t3.t3_c	2	Using where; Using index; End temporary; Using join buffer (incremental, BNLH join)
 DROP TABLE t1,t2,t3,t4;
 #
 # MDEV-6263: Wrong result when using IN subquery with order by
@@ -1333,6 +1333,19 @@ id
 1
 2
 drop table t1,t2,t3;
+#
+# MDEV-11108: Assertion `uniq_tuple_length_arg <= table->file->max_key_length()' failed in SJ_TMP_TABLE::create_sj_weedout_tmp_table
+#
+CREATE TABLE t1 (a INT) ENGINE=InnoDB;
+CREATE TABLE t2 (pk BLOB, b INT, PRIMARY KEY(pk(1000))) ENGINE=InnoDB;
+CREATE TABLE t3 (c INT) ENGINE=InnoDB;
+CREATE OR REPLACE ALGORITHM=MERGE VIEW v3 AS SELECT * FROM t3;
+INSERT INTO t3 VALUES (1),(2),(3),(4),(5),(6),(7),(8);
+SELECT * FROM t1, t2
+WHERE a IN ( SELECT b FROM t2 LEFT JOIN v3 ON ( c = b ) ) ;
+a	pk	b
+DROP TABLE t1,t2,t3;
+DROP VIEW v3;
 # This must be the last in the file:
 set optimizer_switch=@subselect_sj2_tmp;
 #

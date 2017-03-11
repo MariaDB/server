@@ -50,6 +50,7 @@ master-bin.000003	#	Gtid_list	#	#	[#-#-#]
 master-bin.000003	#	Binlog_checkpoint	#	#	master-bin.000002
 master-bin.000003	#	Binlog_checkpoint	#	#	master-bin.000003
 master-bin.000003	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000003	#	Annotate_rows	#	#	INSERT INTO t1 VALUES (102, REPEAT("x", 4100))
 master-bin.000003	#	Table_map	#	#	table_id: # (test.t1)
 master-bin.000003	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000003	#	Xid	#	#	COMMIT /* XID */
@@ -61,6 +62,7 @@ master-bin.000004	#	Gtid_list	#	#	[#-#-#]
 master-bin.000004	#	Binlog_checkpoint	#	#	master-bin.000003
 master-bin.000004	#	Binlog_checkpoint	#	#	master-bin.000004
 master-bin.000004	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000004	#	Annotate_rows	#	#	INSERT INTO t1 VALUES (1, REPEAT("x", 4100))
 master-bin.000004	#	Table_map	#	#	table_id: # (test.t1)
 master-bin.000004	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000004	#	Xid	#	#	COMMIT /* XID */
@@ -71,10 +73,12 @@ master-bin.000005	#	Format_desc	#	#	SERVER_VERSION, BINLOG_VERSION
 master-bin.000005	#	Gtid_list	#	#	[#-#-#]
 master-bin.000005	#	Binlog_checkpoint	#	#	master-bin.000004
 master-bin.000005	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000005	#	Annotate_rows	#	#	INSERT INTO t1 VALUES (2, NULL)
 master-bin.000005	#	Table_map	#	#	table_id: # (test.t1)
 master-bin.000005	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000005	#	Xid	#	#	COMMIT /* XID */
 master-bin.000005	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000005	#	Annotate_rows	#	#	INSERT INTO t1 VALUES (3, REPEAT("x", 4100))
 master-bin.000005	#	Table_map	#	#	table_id: # (test.t1)
 master-bin.000005	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000005	#	Xid	#	#	COMMIT /* XID */
@@ -135,6 +139,7 @@ master-bin.000004	#	Format_desc	#	#	SERVER_VERSION, BINLOG_VERSION
 master-bin.000004	#	Gtid_list	#	#	[#-#-#]
 master-bin.000004	#	Binlog_checkpoint	#	#	master-bin.000001
 master-bin.000004	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000004	#	Annotate_rows	#	#	INSERT INTO t1 VALUES (13, NULL)
 master-bin.000004	#	Table_map	#	#	table_id: # (test.t1)
 master-bin.000004	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000004	#	Xid	#	#	COMMIT /* XID */
@@ -158,6 +163,7 @@ master-bin.000004	#	Format_desc	#	#	SERVER_VERSION, BINLOG_VERSION
 master-bin.000004	#	Gtid_list	#	#	[#-#-#]
 master-bin.000004	#	Binlog_checkpoint	#	#	master-bin.000001
 master-bin.000004	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000004	#	Annotate_rows	#	#	INSERT INTO t1 VALUES (13, NULL)
 master-bin.000004	#	Table_map	#	#	table_id: # (test.t1)
 master-bin.000004	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000004	#	Xid	#	#	COMMIT /* XID */
@@ -225,6 +231,7 @@ master-bin.000004	#	Gtid_list	#	#	[#-#-#]
 master-bin.000004	#	Binlog_checkpoint	#	#	master-bin.000003
 master-bin.000004	#	Binlog_checkpoint	#	#	master-bin.000004
 master-bin.000004	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000004	#	Annotate_rows	#	#	INSERT INTO t1 VALUES (24, REPEAT("x", 4100))
 master-bin.000004	#	Table_map	#	#	table_id: # (test.t1)
 master-bin.000004	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000004	#	Xid	#	#	COMMIT /* XID */

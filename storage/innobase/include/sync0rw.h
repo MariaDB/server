@@ -2,6 +2,7 @@
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, Google Inc.
+Copyright (c) 2017, MariaDB Corporation. All Rights Reserved.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -37,9 +38,6 @@ Created 9/11/1995 Heikki Tuuri
 #include "ut0counter.h"
 #include "os0event.h"
 #include "ut0mutex.h"
-
-/** Enable semaphore request instrumentation */
-extern my_bool srv_instrument_semaphores;
 
 /** Counters for RW locks. */
 struct rw_lock_stats_t {
@@ -127,10 +125,10 @@ if MySQL performance schema is enabled and "UNIV_PFS_RWLOCK" is
 defined, the rwlock are instrumented with performance schema probes. */
 # ifdef UNIV_DEBUG
 #  define rw_lock_create(K, L, level)				\
-	rw_lock_create_func((L), (level), #L, __FILE__, __LINE__)
+	rw_lock_create_func((L), (level), __FILE__, __LINE__)
 # else /* UNIV_DEBUG */
 #  define rw_lock_create(K, L, level)				\
-	rw_lock_create_func((L), #L, __FILE__, __LINE__)
+	rw_lock_create_func((L), __FILE__, __LINE__)
 # endif	/* UNIV_DEBUG */
 
 /**************************************************************//**
@@ -215,10 +213,10 @@ unlocking, not the corresponding function. */
 /* Following macros point to Performance Schema instrumented functions. */
 # ifdef UNIV_DEBUG
 #   define rw_lock_create(K, L, level)				\
-	pfs_rw_lock_create_func((K), (L), (level), #L, __FILE__, __LINE__)
+	pfs_rw_lock_create_func((K), (L), (level), __FILE__, __LINE__)
 # else	/* UNIV_DEBUG */
 #  define rw_lock_create(K, L, level)				\
-	pfs_rw_lock_create_func((K), (L), #L, __FILE__, __LINE__)
+	pfs_rw_lock_create_func((K), (L), __FILE__, __LINE__)
 # endif	/* UNIV_DEBUG */
 
 /******************************************************************
@@ -303,9 +301,8 @@ rw_lock_create_func(
 #ifdef UNIV_DEBUG
 	latch_level_t	level,		/*!< in: level */
 #endif /* UNIV_DEBUG */
-	const char*	cmutex_name,	/*!< in: mutex name */
 	const char*	cfile_name,	/*!< in: file name where created */
-	ulint		cline);		/*!< in: file line where created */
+	unsigned	cline);		/*!< in: file line where created */
 /******************************************************************//**
 Calling this function is obligatory only if the memory buffer containing
 the rw-lock is freed. Removes an rw-lock object from the global list. The
@@ -337,7 +334,7 @@ rw_lock_s_lock_low(
 				/*!< in: pass value; != 0, if the lock will be
 				passed to another thread to unlock */
 	const char*	file_name, /*!< in: file name where lock requested */
-	ulint		line);	/*!< in: line where requested */
+	unsigned	line);	/*!< in: line where requested */
 /******************************************************************//**
 NOTE! Use the corresponding macro, not directly this function, except if
 you supply the file name and line number. Lock an rw-lock in shared mode
@@ -353,7 +350,7 @@ rw_lock_s_lock_func(
 	ulint		pass,	/*!< in: pass value; != 0, if the lock will
 				be passed to another thread to unlock */
 	const char*	file_name,/*!< in: file name where lock requested */
-	ulint		line);	/*!< in: line where requested */
+	unsigned	line);	/*!< in: line where requested */
 /******************************************************************//**
 NOTE! Use the corresponding macro, not directly this function! Lock an
 rw-lock in exclusive mode for the current thread if the lock can be
@@ -365,7 +362,7 @@ rw_lock_x_lock_func_nowait(
 /*=======================*/
 	rw_lock_t*	lock,	/*!< in: pointer to rw-lock */
 	const char*	file_name,/*!< in: file name where lock requested */
-	ulint		line);	/*!< in: line where requested */
+	unsigned	line);	/*!< in: line where requested */
 /******************************************************************//**
 Releases a shared mode lock. */
 UNIV_INLINE
@@ -394,7 +391,7 @@ rw_lock_x_lock_func(
 	ulint		pass,	/*!< in: pass value; != 0, if the lock will
 				be passed to another thread to unlock */
 	const char*	file_name,/*!< in: file name where lock requested */
-	ulint		line);	/*!< in: line where requested */
+	unsigned	line);	/*!< in: line where requested */
 /******************************************************************//**
 Low-level function for acquiring an sx lock.
 @return FALSE if did not succeed, TRUE if success. */
@@ -405,7 +402,7 @@ rw_lock_sx_lock_low(
 	ulint		pass,	/*!< in: pass value; != 0, if the lock will
 				be passed to another thread to unlock */
 	const char*	file_name,/*!< in: file name where lock requested */
-	ulint		line);	/*!< in: line where requested */
+	unsigned	line);	/*!< in: line where requested */
 /******************************************************************//**
 NOTE! Use the corresponding macro, not directly this function! Lock an
 rw-lock in SX mode for the current thread. If the rw-lock is locked
@@ -422,7 +419,7 @@ rw_lock_sx_lock_func(
 	ulint		pass,	/*!< in: pass value; != 0, if the lock will
 				be passed to another thread to unlock */
 	const char*	file_name,/*!< in: file name where lock requested */
-	ulint		line);	/*!< in: line where requested */
+	unsigned	line);	/*!< in: line where requested */
 /******************************************************************//**
 Releases an exclusive mode lock. */
 UNIV_INLINE
@@ -637,11 +634,6 @@ struct rw_lock_t
 	/** Line number where last time x-locked */
 	unsigned	last_x_line:14;
 
-	const char*	lock_name;
-	const char*	file_name;/*!< File name where the lock was obtained */
-	ulint	line;		/*!< Line where the rw-lock was locked */
-	os_thread_id_t	thread_id;
-
 	/** Count of os_waits. May not be accurate */
 	uint32_t	count_os_wait;
 
@@ -696,7 +688,7 @@ struct	rw_lock_debug_t {
 	ulint	lock_type;	/*!< Type of the lock: RW_LOCK_X,
 				RW_LOCK_S, RW_LOCK_X_WAIT */
 	const char*	file_name;/*!< File name where the lock was obtained */
-	ulint	line;		/*!< Line where the rw-lock was locked */
+	unsigned	line;	/*!< Line where the rw-lock was locked */
 	UT_LIST_NODE_T(rw_lock_debug_t) list;
 				/*!< Debug structs are linked in a two-way
 				list */
@@ -744,9 +736,8 @@ pfs_rw_lock_create_func(
 #ifdef UNIV_DEBUG
 	latch_level_t	level,		/*!< in: level */
 #endif /* UNIV_DEBUG */
-	const char*	cmutex_name,	/*!< in: mutex name */
 	const char*	cfile_name,	/*!< in: file name where created */
-	ulint		cline);		/*!< in: file line where created */
+	unsigned	cline);		/*!< in: file line where created */
 
 /******************************************************************//**
 Performance schema instrumented wrap function for rw_lock_x_lock_func()
@@ -760,7 +751,7 @@ pfs_rw_lock_x_lock_func(
 	ulint		pass,	/*!< in: pass value; != 0, if the lock will
 				be passed to another thread to unlock */
 	const char*	file_name,/*!< in: file name where lock requested */
-	ulint		line);	/*!< in: line where requested */
+	unsigned	line);	/*!< in: line where requested */
 /******************************************************************//**
 Performance schema instrumented wrap function for
 rw_lock_x_lock_func_nowait()
@@ -772,7 +763,7 @@ pfs_rw_lock_x_lock_func_nowait(
 /*===========================*/
 	rw_lock_t*	lock,	/*!< in: pointer to rw-lock */
 	const char*	file_name,/*!< in: file name where lock requested */
-	ulint		line);	/*!< in: line where requested */
+	unsigned	line);	/*!< in: line where requested */
 /******************************************************************//**
 Performance schema instrumented wrap function for rw_lock_s_lock_func()
 NOTE! Please use the corresponding macro rw_lock_s_lock(), not directly
@@ -785,7 +776,7 @@ pfs_rw_lock_s_lock_func(
 	ulint		pass,	/*!< in: pass value; != 0, if the lock will
 				be passed to another thread to unlock */
 	const char*	file_name,/*!< in: file name where lock requested */
-	ulint		line);	/*!< in: line where requested */
+	unsigned	line);	/*!< in: line where requested */
 /******************************************************************//**
 Performance schema instrumented wrap function for rw_lock_s_lock_func()
 NOTE! Please use the corresponding macro rw_lock_s_lock(), not directly
@@ -800,7 +791,7 @@ pfs_rw_lock_s_lock_low(
 				lock will be passed to another
 				thread to unlock */
 	const char*	file_name, /*!< in: file name where lock requested */
-	ulint		line);	/*!< in: line where requested */
+	unsigned	line);	/*!< in: line where requested */
 /******************************************************************//**
 Performance schema instrumented wrap function for rw_lock_x_lock_func()
 NOTE! Please use the corresponding macro rw_lock_x_lock(), not directly
@@ -813,7 +804,7 @@ pfs_rw_lock_x_lock_func(
 	ulint		pass,	/*!< in: pass value; != 0, if the lock will
 				be passed to another thread to unlock */
 	const char*	file_name,/*!< in: file name where lock requested */
-	ulint		line);	/*!< in: line where requested */
+	unsigned	line);	/*!< in: line where requested */
 /******************************************************************//**
 Performance schema instrumented wrap function for rw_lock_s_unlock_func()
 NOTE! Please use the corresponding macro rw_lock_s_unlock(), not directly
@@ -854,7 +845,7 @@ pfs_rw_lock_sx_lock_func(
 	ulint		pass,	/*!< in: pass value; != 0, if the lock will
 				be passed to another thread to unlock */
 	const char*	file_name,/*!< in: file name where lock requested */
-	ulint		line);	/*!< in: line where requested */
+	unsigned	line);	/*!< in: line where requested */
 /******************************************************************//**
 Performance schema instrumented wrap function for rw_lock_sx_lock_nowait()
 NOTE! Please use the corresponding macro, not directly
@@ -867,7 +858,7 @@ pfs_rw_lock_sx_lock_low(
 	ulint		pass,	/*!< in: pass value; != 0, if the lock will
 				be passed to another thread to unlock */
 	const char*	file_name,/*!< in: file name where lock requested */
-	ulint		line);	/*!< in: line where requested */
+	unsigned	line);	/*!< in: line where requested */
 /******************************************************************//**
 Performance schema instrumented wrap function for rw_lock_sx_unlock_func()
 NOTE! Please use the corresponding macro rw_lock_sx_unlock(), not directly

@@ -1320,6 +1320,19 @@ id
 1
 2
 drop table t1,t2,t3;
+#
+# MDEV-11108: Assertion `uniq_tuple_length_arg <= table->file->max_key_length()' failed in SJ_TMP_TABLE::create_sj_weedout_tmp_table
+#
+CREATE TABLE t1 (a INT) ENGINE=InnoDB;
+CREATE TABLE t2 (pk BLOB, b INT, PRIMARY KEY(pk(1000))) ENGINE=InnoDB;
+CREATE TABLE t3 (c INT) ENGINE=InnoDB;
+CREATE OR REPLACE ALGORITHM=MERGE VIEW v3 AS SELECT * FROM t3;
+INSERT INTO t3 VALUES (1),(2),(3),(4),(5),(6),(7),(8);
+SELECT * FROM t1, t2
+WHERE a IN ( SELECT b FROM t2 LEFT JOIN v3 ON ( c = b ) ) ;
+a	pk	b
+DROP TABLE t1,t2,t3;
+DROP VIEW v3;
 # This must be the last in the file:
 set optimizer_switch=@subselect_sj2_tmp;
 set optimizer_switch=default;

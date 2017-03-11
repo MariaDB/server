@@ -570,6 +570,7 @@ drop table t1;
 #
 create table t1 (s1 varchar(50) character set ucs2);
 insert into t1 values (0xdf84);
+SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 alter table t1 modify column s1 varchar(50) character set utf16;
 select hex(s1) from t1;
 drop table t1;
@@ -578,7 +579,7 @@ drop table t1;
 #
 create table t1 (s1 varchar(5) character set ucs2, s2 varchar(5) character set utf16);
 insert into t1 (s1) values (0xdf84);
-update t1 set s2 = s1;
+update ignore t1 set s2 = s1;
 select hex(s2) from t1;
 drop table t1;
 
@@ -660,7 +661,7 @@ select left('aaa','1');
 #
 create table t1 (a int);
 insert into t1 values ('-1234.1e2');
-insert into t1 values ('-1234.1e2xxxx');
+insert ignore into t1 values ('-1234.1e2xxxx');
 insert into t1 values ('-1234.1e2    ');
 select * from t1;
 drop table t1;
@@ -670,13 +671,14 @@ drop table t1;
 #
 create table t1 (a int);
 insert into t1 values ('1 ');
-insert into t1 values ('1 x');
+insert ignore into t1 values ('1 x');
 select * from t1;
 drop table t1;
 
 #
 # Testing auto-conversion to TEXT
 #
+SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 create table t1 (a varchar(17000) character set utf16);
 show create table t1;
 drop table t1;
@@ -771,6 +773,7 @@ SELECT space(date_add(101, INTERVAL CHAR('1' USING utf16) hour_second));
 --echo #
 
 SET NAMES utf8, @@character_set_connection=utf16;
+SET STATEMENT group_concat_max_len=1024 FOR
 SELECT id, CHAR_LENGTH(GROUP_CONCAT(body)) AS l
 FROM (SELECT 'a' AS id, REPEAT('foo bar', 100) AS body
 UNION ALL
@@ -778,6 +781,7 @@ SELECT 'a' AS id, REPEAT('bla bla', 100) AS body) t1
 GROUP BY id
 ORDER BY l DESC;
 
+SET STATEMENT group_concat_max_len=1024 FOR
 SELECT id, CHAR_LENGTH(GROUP_CONCAT(body)) AS l
 FROM (SELECT 'a' AS id, REPEAT('foo bar', 100) AS body
 UNION ALL
@@ -794,6 +798,15 @@ SELECT 'a' AS id, REPEAT('bla bla', 100) AS body) t1;
 DO RPAD(_utf16 0x0061 COLLATE utf16_unicode_ci, 10000, 0x0061DE989999);
 --error ER_INVALID_CHARACTER_STRING
 DO LPAD(_utf16 0x0061 COLLATE utf16_unicode_ci, 10000, 0x0061DE989999);
+
+--echo #
+--echo # MDEV-11685: sql_mode can't be set with non-ascii connection charset
+--echo #
+SET character_set_connection=utf16;
+SET sql_mode='NO_ENGINE_SUBSTITUTION';
+SELECT @@sql_mode;
+SET sql_mode=DEFAULT;
+SET NAMES utf8;
 
 --echo #
 --echo # End of 5.5 tests

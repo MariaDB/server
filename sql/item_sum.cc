@@ -151,6 +151,8 @@ bool Item_sum::check_sum_func(THD *thd, Item **ref)
                                curr_sel->name_visibility_map);
   bool invalid= FALSE;
   DBUG_ASSERT(curr_sel->name_visibility_map); // should be set already
+  if (window_func_sum_expr_flag)
+    return false;
   /*  
     The value of max_arg_level is updated if an argument of the set function
     contains a column reference resolved  against a subquery whose level is
@@ -460,6 +462,7 @@ void Item_sum::mark_as_sum_func()
   const_item_cache= false;
   with_sum_func= 1;
   with_field= 0;
+  window_func_sum_expr_flag= false;
 }
 
 
@@ -468,6 +471,13 @@ void Item_sum::print(String *str, enum_query_type query_type)
   /* orig_args is not filled with valid values until fix_fields() */
   Item **pargs= fixed ? orig_args : args;
   str->append(func_name());
+  /*
+    TODO:
+    The fact that func_name() may return a name with an extra '('
+    is really annoying. This shoud be fixed.
+  */
+  if (!is_aggr_sum_func())
+    str->append('(');
   for (uint i=0 ; i < arg_count ; i++)
   {
     if (i)
@@ -591,7 +601,9 @@ Item *Item_sum::result_item(THD *thd, Field *field)
 
 bool Item_sum::check_vcol_func_processor(void *arg)
 {
-  return mark_unsupported_function(func_name(), ")", arg, VCOL_IMPOSSIBLE);
+  return mark_unsupported_function(func_name(), 
+                                   is_aggr_sum_func() ? ")" : "()",
+                                   arg, VCOL_IMPOSSIBLE);
 }
 
 
@@ -1149,7 +1161,8 @@ Item_sum_hybrid::fix_fields(THD *thd, Item **ref)
   case TIME_RESULT:
     DBUG_ASSERT(0);
   };
-  setup_hybrid(thd, args[0], NULL);
+  if (!is_window_func_sum_expr())
+    setup_hybrid(thd, args[0], NULL);
   /* MIN/MAX can return NULL for empty set indepedent of the used column */
   maybe_null= 1;
   result_field=0;
@@ -3106,7 +3119,7 @@ int dump_leaf_key(void* key_arg, element_count count __attribute__((unused)),
 {
   Item_func_group_concat *item= (Item_func_group_concat *) item_arg;
   TABLE *table= item->table;
-  uint max_length= table->in_use->variables.group_concat_max_len;
+  uint max_length= (uint)table->in_use->variables.group_concat_max_len;
   String tmp((char *)table->record[1], table->s->reclength,
              default_charset_info);
   String tmp2;
@@ -3466,7 +3479,7 @@ Item_func_group_concat::fix_fields(THD *thd, Item **ref)
          args[i]->fix_fields(thd, args + i)) ||
         args[i]->check_cols(1))
       return TRUE;
-      with_subselect|= args[i]->with_subselect;
+    with_subselect|= args[i]->with_subselect;
   }
 
   /* skip charset aggregation for order columns */

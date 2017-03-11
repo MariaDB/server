@@ -1,4 +1,5 @@
 /* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
+   Copyright (c) 2017, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -274,16 +275,16 @@ struct st_hash_link
 };
 
 /* simple states of a block */
-#define BLOCK_ERROR           1 /* an error occurred when performing file i/o */
-#define BLOCK_READ            2 /* file block is in the block buffer         */
-#define BLOCK_IN_SWITCH       4 /* block is preparing to read new page       */
-#define BLOCK_REASSIGNED      8 /* blk does not accept requests for old page */
-#define BLOCK_IN_FLUSH       16 /* block is selected for flush               */
-#define BLOCK_CHANGED        32 /* block buffer contains a dirty page        */
-#define BLOCK_IN_USE         64 /* block is not free                         */
-#define BLOCK_IN_EVICTION   128 /* block is selected for eviction            */
-#define BLOCK_IN_FLUSHWRITE 256 /* block is in write to file                 */
-#define BLOCK_FOR_UPDATE    512 /* block is selected for buffer modification */
+#define BLOCK_ERROR           1U/* an error occurred when performing file i/o */
+#define BLOCK_READ            2U/* file block is in the block buffer         */
+#define BLOCK_IN_SWITCH       4U/* block is preparing to read new page       */
+#define BLOCK_REASSIGNED      8U/* blk does not accept requests for old page */
+#define BLOCK_IN_FLUSH       16U/* block is selected for flush               */
+#define BLOCK_CHANGED        32U/* block buffer contains a dirty page        */
+#define BLOCK_IN_USE         64U/* block is not free                         */
+#define BLOCK_IN_EVICTION   128U/* block is selected for eviction            */
+#define BLOCK_IN_FLUSHWRITE 256U/* block is in write to file                 */
+#define BLOCK_FOR_UPDATE    512U/* block is selected for buffer modification */
 
 /* page status, returned by find_key_block */
 #define PAGE_READ               0

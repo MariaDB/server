@@ -3587,8 +3587,8 @@ set optimizer_switch=@tmp_optimizer_switch;
 DROP TABLE t1,t2,t3;
 
 --echo #
---echo # Bug #925985: LEFT JOIN with optimize_join_buffer_size=off +
---echo #              join_buffer_size > join_buffer_space_limit
+--echo # lp:925985 LEFT JOIN with optimize_join_buffer_size=off +
+--echo #           join_buffer_size > join_buffer_space_limit
 --echo #
 
 CREATE TABLE t1 (a int);
@@ -3742,9 +3742,11 @@ FROM
   LEFT JOIN t2 c23 ON c23.parent_id = t.id AND c23.col2 = "val"
   LEFT JOIN t2 c24 ON c24.parent_id = t.id AND c24.col2 = "val"
   LEFT JOIN t2 c25 ON c25.parent_id = t.id AND c25.col2 = "val"
+  LEFT JOIN t2 c26 ON c26.parent_id = t.id AND c26.col2 = "val"
+  LEFT JOIN t2 c27 ON c27.parent_id = t.id AND c27.col2 = "val"
 ORDER BY 
   col1;
-select timestampdiff(second, @init_time, now()) <= 1;
+select timestampdiff(second, @init_time, now()) <= 5;
 
 set join_cache_level=2;
 
@@ -3777,9 +3779,11 @@ FROM
   LEFT JOIN t2 c23 ON c23.parent_id = t.id AND c23.col2 = "val"
   LEFT JOIN t2 c24 ON c24.parent_id = t.id AND c24.col2 = "val"
   LEFT JOIN t2 c25 ON c25.parent_id = t.id AND c25.col2 = "val"
+  LEFT JOIN t2 c26 ON c26.parent_id = t.id AND c26.col2 = "val"
+  LEFT JOIN t2 c27 ON c27.parent_id = t.id AND c27.col2 = "val"
 ORDER BY 
   col1;
-select timestampdiff(second, @init_time, now()) <= 1;
+select timestampdiff(second, @init_time, now()) <= 5;
 
 EXPLAIN
 SELECT t.* 
@@ -3810,6 +3814,8 @@ FROM
   LEFT JOIN t2 c23 ON c23.parent_id = t.id AND c23.col2 = "val"
   LEFT JOIN t2 c24 ON c24.parent_id = t.id AND c24.col2 = "val"
   LEFT JOIN t2 c25 ON c25.parent_id = t.id AND c25.col2 = "val"
+  LEFT JOIN t2 c26 ON c26.parent_id = t.id AND c26.col2 = "val"
+  LEFT JOIN t2 c27 ON c27.parent_id = t.id AND c27.col2 = "val"
 ORDER BY 
   col1;
 

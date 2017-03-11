@@ -2,7 +2,7 @@
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2015, MariaDB Corporation.
+Copyright (c) 2013, 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1909,52 +1909,6 @@ dict_table_set_corrupt_by_space(
 /*============================*/
 	ulint	space_id,
 	ibool	need_mutex);
-
-/** Insert a records into SYS_ZIP_DICT.
-@retval	DB_SUCCESS	if OK
-@retval	dberr_t		if the insert failed */
-UNIV_INTERN
-dberr_t
-dict_create_zip_dict(
-	const char*	name,		/*!< in: zip_dict name */
-	ulint		name_len,	/*!< in: zip_dict name length*/
-	const char*	data,		/*!< in: zip_dict data */
-	ulint		data_len);	/*!< in: zip_dict data length */
-
-/** Get single compression dictionary id for the given
-(table id, column pos) pair.
-@retval	DB_SUCCESS		if OK
-@retval	DB_RECORD_NOT_FOUND	if not found */
-UNIV_INTERN
-dberr_t
-dict_get_dictionary_id_by_key(
-	ulint	table_id,	/*!< in: table id */
-	ulint	column_pos,	/*!< in: column position */
-	ulint*	dict_id);	/*!< out: zip_dict id */
-
-/** Get compression dictionary info (name and data) for the given id.
-Allocates memory in name->str and data->str on success.
-Must be freed with mem_free().
-@retval	DB_SUCCESS		if OK
-@retval	DB_RECORD_NOT_FOUND	if not found */
-UNIV_INTERN
-dberr_t
-dict_get_dictionary_info_by_id(
-	ulint	dict_id,	/*!< in: table name */
-	char**	name,		/*!< out: dictionary name */
-	ulint*	name_len,	/*!< out: dictionary name length*/
-	char**	data,		/*!< out: dictionary data */
-	ulint*	data_len);	/*!< out: dictionary data length*/
-
-/** Delete a record in SYS_ZIP_DICT with the given name.
-@retval	DB_SUCCESS		if OK
-@retval	DB_RECORD_NOT_FOUND	if not found
-@retval	DB_ROW_IS_REFERENCED	if in use */
-UNIV_INTERN
-dberr_t
-dict_drop_zip_dict(
-	const char*	name,		/*!< in: zip_dict name */
-	ulint		name_len);	/*!< in: zip_dict name length*/
 
 #ifndef UNIV_NONINL
 #include "dict0dict.ic"

@@ -1,4 +1,4 @@
-/* Copyright (C) 2010 Monty Program Ab
+/* Copyright (C) 2010, 2017, MariaDB Corporation Ab
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -23,7 +23,7 @@
 #include <my_getopt.h>
 #include "set_var.h"
 
-#define FRM_QUOTED_VALUE 0x8000
+#define FRM_QUOTED_VALUE 0x8000U
 
 /**
   Links this item to the given list end

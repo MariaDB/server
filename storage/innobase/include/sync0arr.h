@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2014, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2016, MariaDB Corporation.
+Copyright (c) 2015, 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -49,7 +49,7 @@ sync_array_get_and_reserve_cell(
 	void*		object,	/*!< in: pointer to the object to wait for */
 	ulint		type,	/*!< in: lock request type */
 	const char*	file,	/*!< in: file where requested */
-	ulint		line,	/*!< in: line where requested */
+	unsigned	line,	/*!< in: line where requested */
 	sync_cell_t**	cell);	/*!< out: the cell reserved, never NULL */
 /******************************************************************//**
 Reserves a wait array cell for waiting for an object.
@@ -60,7 +60,7 @@ sync_array_reserve_cell(
 	void*		object, /*!< in: pointer to the object to wait for */
 	ulint		type,	/*!< in: lock request type */
 	const char*	file,	/*!< in: file where requested */
-	ulint		line);	/*!< in: line where requested */
+	unsigned	line);	/*!< in: line where requested */
 
 /******************************************************************//**
 This function should be called when a thread starts to wait on

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2014, 2016, MariaDB Corporation
+Copyright (c) 2014, 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1109,7 +1109,7 @@ lock_rec_reset_nth_bit(
 	ut_ad(i < lock->un_member.rec_lock.n_bits);
 
 	byte*	b = reinterpret_cast<byte*>(&lock[1]) + (i >> 3);
-	byte	mask = 1 << (i & 7);
+	byte	mask = static_cast<byte>(1U << (i & 7));
 	byte	bit = *b & mask;
 	*b &= ~mask;
 
@@ -1717,7 +1717,7 @@ RecLock::lock_alloc(
 
 	/* Setup the lock attributes */
 
-	lock->type_mode = LOCK_REC | (mode & ~LOCK_TYPE_MASK);
+	lock->type_mode = uint32_t(LOCK_REC | (mode & ~LOCK_TYPE_MASK));
 
 	lock_rec_t&	rec_lock = lock->un_member.rec_lock;
 
@@ -2780,12 +2780,10 @@ RecLock::jump_queue(
 		ut_ad(conflict_lock->trx->lock.que_state == TRX_QUE_LOCK_WAIT);
 		ut_ad(conflict_lock->trx->lock.wait_lock == conflict_lock);
 
-#ifdef UNIV_DEBUG
-		ib::info() << "Granting High Priority Transaction (ID): "
-			   << lock->trx->id << " the lock jumping over"
-			   << " waiting Transaction (ID): "
-			   << conflict_lock->trx->id;
-#endif /* UNIV_DEBUG */
+		DBUG_LOG("trx",
+			 "Granting High Priority Transaction "
+			 << lock->trx->id << " a lock jumping over"
+			 << " waiting Transaction " << conflict_lock->trx->id);
 
 		lock_reset_lock_and_trx_wait(lock);
 		return(true);
@@ -2954,11 +2952,12 @@ RecLock::make_trx_hit_list(
 
 			/* Assert that it is not waiting for current record. */
 			ut_ad(trx->lock.wait_lock != next);
-#ifdef UNIV_DEBUG
-			ib::info() << "High Priority Transaction (ID): "
-				   << lock->trx->id << " waking up blocking"
-				   << " transaction (ID): " << trx->id;
-#endif /* UNIV_DEBUG */
+
+			DBUG_LOG("trx", "High Priority Transaction "
+				 << lock->trx->id
+				 << " waking up blocking transaction "
+				 << trx->id);
+
 			trx->lock.was_chosen_as_deadlock_victim = true;
 			lock_cancel_waiting_and_release(trx->lock.wait_lock);
 			trx_mutex_exit(trx);
@@ -4790,7 +4789,7 @@ lock_table(
 	lock_mutex_enter();
 
 	DBUG_EXECUTE_IF("fatal-semaphore-timeout",
-		{ os_thread_sleep(3600000000); });
+		{ os_thread_sleep(3600000000LL); });
 
 	/* We have to check if the new lock is compatible with any locks
 	other transactions have in the table lock queue. */
@@ -7770,6 +7769,9 @@ lock_trx_handle_wait(
 		ut_ad(trx_mutex_own(trx));
 		trx_mutex_exit(trx);
 	}
+
+	ut_ad(err == DB_SUCCESS || err == DB_LOCK_WAIT
+	      || err == DB_DEADLOCK);
 
 	return(err);
 }

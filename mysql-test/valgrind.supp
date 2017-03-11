@@ -357,6 +357,17 @@
    fun:_dl_init
 }
 
+# This one is on OpenSuse 10.3 with gcc 5.4
+{
+   memory "loss" from _dl_init 2
+   Memcheck:Leak
+   fun:malloc
+   fun:pool
+   ...
+   fun:call_init*
+   fun:_dl_init
+}
+
 #
 #  dlclose can allocate memory for error message, the memory will be
 #  freed by dlerror or other dl* function.
@@ -939,6 +950,14 @@
    fun:backtrace
 }
 
+{
+   memory leak in mysqld_exit
+   Memcheck:Leak
+   fun:malloc
+   fun:_dl_close_worker
+   fun:_dl_close
+}
+
 #
 # Bug in Glibc 2.9: http://sourceware.org/bugzilla/show_bug.cgi?id=10391
 # Fixed in latest Glibc, but suppressed here for running tests on hosts
@@ -1060,6 +1079,16 @@
    fun:*alloc
    fun:CRYPTO_malloc
    obj:*libssl*
+   fun:SSL_COMP_get_compression_methods
+   fun:SSL_library_init
+}
+
+{
+   OpenSSL still reachable.
+   Memcheck:Leak
+   fun:*alloc
+   fun:CRYPTO_malloc
+   fun:sk_new
    fun:SSL_COMP_get_compression_methods
    fun:SSL_library_init
 }

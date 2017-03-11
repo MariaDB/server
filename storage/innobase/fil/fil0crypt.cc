@@ -1,6 +1,6 @@
 /*****************************************************************************
 Copyright (C) 2013, 2015, Google Inc. All Rights Reserved.
-Copyright (C) 2014, 2016, MariaDB Corporation. All Rights Reserved.
+Copyright (c) 2014, 2017, MariaDB Corporation. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -24,14 +24,16 @@ Modified           Jan Lindström jan.lindstrom@mariadb.com
 *******************************************************/
 
 #include "fil0fil.h"
+#include "mach0data.h"
+#include "page0size.h"
+#include "page0zip.h"
+#ifndef UNIV_INNOCHECKSUM
 #include "fil0crypt.h"
 #include "srv0srv.h"
 #include "srv0start.h"
-#include "mach0data.h"
 #include "log0recv.h"
 #include "mtr0mtr.h"
 #include "mtr0log.h"
-#include "page0zip.h"
 #include "ut0ut.h"
 #include "btr0scrub.h"
 #include "fsp0fsp.h"
@@ -52,7 +54,7 @@ UNIV_INTERN ulong srv_encrypt_tables = 0;
 UNIV_INTERN uint srv_n_fil_crypt_threads = 0;
 
 /** No of key rotation threads started */
-static uint srv_n_fil_crypt_threads_started = 0;
+UNIV_INTERN uint srv_n_fil_crypt_threads_started = 0;
 
 /** At this age or older a space/page will be rotated */
 UNIV_INTERN uint srv_fil_crypt_rotate_key_age = 1;
@@ -61,7 +63,7 @@ UNIV_INTERN uint srv_fil_crypt_rotate_key_age = 1;
 static os_event_t fil_crypt_event;
 
 /** Event to signal TO the key rotation threads. */
-static os_event_t fil_crypt_threads_event;
+UNIV_INTERN os_event_t fil_crypt_threads_event;
 
 /** Event for waking up threads throttle */
 static os_event_t fil_crypt_throttle_sleep_event;
@@ -627,10 +629,11 @@ fil_space_encrypt(
 
 	ulint orig_page_type = mach_read_from_2(src_frame+FIL_PAGE_TYPE);
 
-	if (orig_page_type==FIL_PAGE_TYPE_FSP_HDR
-		|| orig_page_type==FIL_PAGE_TYPE_XDES) {
-		/* File space header or extent descriptor do not need to be
-		encrypted. */
+	if (orig_page_type == FIL_PAGE_TYPE_FSP_HDR ||
+	    orig_page_type == FIL_PAGE_TYPE_XDES ||
+	    orig_page_type == FIL_PAGE_RTREE) {
+		/* File space header, extent descriptor or spatial index
+		are not encrypted. */
 		return src_frame;
 	}
 
@@ -908,81 +911,6 @@ fil_crypt_calculate_checksum(
 	}
 
 	return checksum;
-}
-
-/*********************************************************************
-Verify checksum for a page (iff it's encrypted)
-NOTE: currently this function can only be run in single threaded mode
-as it modifies srv_checksum_algorithm (temporarily)
-@return true if page is encrypted AND OK, false otherwise */
-UNIV_INTERN
-bool
-fil_space_verify_crypt_checksum(
-/*============================*/
-	const byte* 		src_frame,	/*!< in: page the verify */
-	const page_size_t&	page_size)	/*!< in: page size */
-{
-	// key version
-	uint key_version = mach_read_from_4(
-		src_frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION);
-
-	if (key_version == 0) {
-		return false; // unencrypted page
-	}
-
-	/* "trick" the normal checksum routines by storing the post-encryption
-	* checksum into the normal checksum field allowing for reuse of
-	* the normal routines */
-
-	// post encryption checksum
-	ib_uint32_t stored_post_encryption = mach_read_from_4(
-		src_frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION + 4);
-
-	// save pre encryption checksum for restore in end of this function
-	ib_uint32_t stored_pre_encryption = mach_read_from_4(
-		src_frame + FIL_PAGE_SPACE_OR_CHKSUM);
-
-	ib_uint32_t checksum_field2 = mach_read_from_4(
-		src_frame + UNIV_PAGE_SIZE - FIL_PAGE_END_LSN_OLD_CHKSUM);
-
-	/** prepare frame for usage of normal checksum routines */
-	mach_write_to_4(const_cast<byte*>(src_frame) + FIL_PAGE_SPACE_OR_CHKSUM,
-			stored_post_encryption);
-
-	/* NOTE: this function is (currently) only run when restoring
-	* dblwr-buffer, server is single threaded so it's safe to modify
-	* srv_checksum_algorithm */
-	srv_checksum_algorithm_t save_checksum_algorithm =
-		(srv_checksum_algorithm_t)srv_checksum_algorithm;
-
-	if (!page_size.is_compressed() &&
-	    (save_checksum_algorithm == SRV_CHECKSUM_ALGORITHM_STRICT_INNODB ||
-	     save_checksum_algorithm == SRV_CHECKSUM_ALGORITHM_INNODB)) {
-		/* handle ALGORITHM_INNODB specially,
-		* "downgrade" to ALGORITHM_INNODB and store BUF_NO_CHECKSUM_MAGIC
-		* checksum_field2 is sort of pointless anyway...
-		*/
-		srv_checksum_algorithm = SRV_CHECKSUM_ALGORITHM_INNODB;
-		mach_write_to_4(const_cast<byte*>(src_frame) +
-				UNIV_PAGE_SIZE - FIL_PAGE_END_LSN_OLD_CHKSUM,
-				BUF_NO_CHECKSUM_MAGIC);
-	}
-
-	/* verify checksums */
-	ibool corrupted = buf_page_is_corrupted(false, src_frame, page_size, false);
-
-	/** restore frame & algorithm */
-	srv_checksum_algorithm = save_checksum_algorithm;
-
-	mach_write_to_4(const_cast<byte*>(src_frame) +
-			FIL_PAGE_SPACE_OR_CHKSUM,
-			stored_pre_encryption);
-
-	mach_write_to_4(const_cast<byte*>(src_frame) +
-			UNIV_PAGE_SIZE - FIL_PAGE_END_LSN_OLD_CHKSUM,
-			checksum_field2);
-
-	return (!corrupted);
 }
 
 /***********************************************************************/
@@ -1273,17 +1201,28 @@ struct rotate_thread_t {
 	uint estimated_max_iops;   /*!< estimation of max iops */
 	uint allocated_iops;	   /*!< allocated iops */
 	uint cnt_waited;	   /*!< #times waited during this slot */
-	uint sum_waited_us;	   /*!< wait time during this slot */
+	uintmax_t sum_waited_us;   /*!< wait time during this slot */
 
 	fil_crypt_stat_t crypt_stat; // statistics
 
 	btr_scrub_t scrub_data;      /* thread local data used by btr_scrub-functions
 				     * when iterating pages of tablespace */
 
-	/* check if this thread should shutdown */
+	/** @return whether this thread should terminate */
 	bool should_shutdown() const {
-		return ! (srv_shutdown_state == SRV_SHUTDOWN_NONE &&
-			  thread_no < srv_n_fil_crypt_threads);
+		switch (srv_shutdown_state) {
+		case SRV_SHUTDOWN_NONE:
+		case SRV_SHUTDOWN_CLEANUP:
+			return thread_no >= srv_n_fil_crypt_threads;
+		case SRV_SHUTDOWN_EXIT_THREADS:
+			/* srv_init_abort() must have been invoked */
+		case SRV_SHUTDOWN_FLUSH_PHASE:
+			return true;
+		case SRV_SHUTDOWN_LAST_PHASE:
+			break;
+		}
+		ut_ad(0);
+		return true;
 	}
 };
 
@@ -1788,7 +1727,7 @@ fil_crypt_get_page_throttle_func(
 	mtr_t*			mtr,		/*!< in/out: minitransaction */
 	ulint*			sleeptime_ms,	/*!< out: sleep time */
 	const char*		file,		/*!< in: file name */
-	ulint 			line)		/*!< in: file line */
+	unsigned		line)		/*!< in: file line */
 {
 	const page_id_t&	page_id = page_id_t(space, offset);
 	dberr_t			err = DB_SUCCESS;
@@ -2452,23 +2391,16 @@ fil_crypt_threads_init()
 }
 
 /*********************************************************************
-End threads for key rotation */
-UNIV_INTERN
-void
-fil_crypt_threads_end()
-/*===================*/
-{
-	/* stop threads */
-	fil_crypt_set_thread_cnt(0);
-}
-
-/*********************************************************************
 Clean up key rotation threads resources */
 UNIV_INTERN
 void
 fil_crypt_threads_cleanup()
 /*=======================*/
 {
+	if (!fil_crypt_threads_inited) {
+		return;
+	}
+	ut_a(!srv_n_fil_crypt_threads_started);
 	os_event_destroy(fil_crypt_event);
 	os_event_destroy(fil_crypt_threads_event);
 	mutex_free(&fil_crypt_threads_mutex);
@@ -2526,8 +2458,8 @@ fil_space_crypt_close_tablespace(
 		return;
 	}
 
-	uint start = time(0);
-	uint last = start;
+	time_t start = time(0);
+	time_t last = start;
 
 	mutex_enter(&crypt_data->mutex);
 	mutex_exit(&fil_crypt_threads_mutex);
@@ -2549,7 +2481,7 @@ fil_space_crypt_close_tablespace(
 		cnt = crypt_data->rotate_state.active_threads;
 		flushing = crypt_data->rotate_state.flushing;
 
-		uint now = time(0);
+		time_t now = time(0);
 
 		if (now >= last + 30) {
 			ib::warn() << "Waited "
@@ -2669,4 +2601,94 @@ fil_space_get_scrub_status(
 	}
 
 	return crypt_data == NULL ? 1 : 0;
+}
+#endif /* UNIV_INNOCHECKSUM */
+
+/*********************************************************************
+Verify checksum for a page (iff it's encrypted)
+NOTE: currently this function can only be run in single threaded mode
+as it modifies srv_checksum_algorithm (temporarily)
+@param[in]	src_fame	page to verify
+@param[in]	page_size	page_size
+@param[in]	page_no		page number of given read_buf
+@param[in]	strict_check	true if strict-check option is enabled
+@return true if page is encrypted AND OK, false otherwise */
+UNIV_INTERN
+bool
+fil_space_verify_crypt_checksum(
+/*============================*/
+	const byte* 		src_frame,	/*!< in: page the verify */
+	const page_size_t&	page_size	/*!< in: page size */
+#ifdef UNIV_INNOCHECKSUM
+	,uintmax_t 		page_no,
+	bool			strict_check
+#endif /* UNIV_INNOCHECKSUM */
+)
+{
+	// key version
+	uint key_version = mach_read_from_4(
+		src_frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION);
+
+	if (key_version == 0) {
+		return false; // unencrypted page
+	}
+
+	/* "trick" the normal checksum routines by storing the post-encryption
+	* checksum into the normal checksum field allowing for reuse of
+	* the normal routines */
+
+	// post encryption checksum
+	ib_uint32_t stored_post_encryption = mach_read_from_4(
+		src_frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION + 4);
+
+	// save pre encryption checksum for restore in end of this function
+	ib_uint32_t stored_pre_encryption = mach_read_from_4(
+		src_frame + FIL_PAGE_SPACE_OR_CHKSUM);
+
+	ib_uint32_t checksum_field2 = mach_read_from_4(
+		src_frame + UNIV_PAGE_SIZE - FIL_PAGE_END_LSN_OLD_CHKSUM);
+
+	/** prepare frame for usage of normal checksum routines */
+	mach_write_to_4(const_cast<byte*>(src_frame) + FIL_PAGE_SPACE_OR_CHKSUM,
+			stored_post_encryption);
+
+	/* NOTE: this function is (currently) only run when restoring
+	* dblwr-buffer, server is single threaded so it's safe to modify
+	* srv_checksum_algorithm */
+	srv_checksum_algorithm_t save_checksum_algorithm =
+		(srv_checksum_algorithm_t)srv_checksum_algorithm;
+
+	if (!page_size.is_compressed() &&
+	    (save_checksum_algorithm == SRV_CHECKSUM_ALGORITHM_STRICT_INNODB ||
+	     save_checksum_algorithm == SRV_CHECKSUM_ALGORITHM_INNODB)) {
+		/* handle ALGORITHM_INNODB specially,
+		* "downgrade" to ALGORITHM_INNODB and store BUF_NO_CHECKSUM_MAGIC
+		* checksum_field2 is sort of pointless anyway...
+		*/
+		srv_checksum_algorithm = SRV_CHECKSUM_ALGORITHM_INNODB;
+		mach_write_to_4(const_cast<byte*>(src_frame) +
+				UNIV_PAGE_SIZE - FIL_PAGE_END_LSN_OLD_CHKSUM,
+				BUF_NO_CHECKSUM_MAGIC);
+	}
+
+	/* verify checksums */
+	bool corrupted = buf_page_is_corrupted(false, src_frame,
+		page_size, false
+#ifdef UNIV_INNOCHECKSUM
+		,page_no, strict_check, false, NULL
+#endif /* UNIV_INNOCHECKSUM */
+	);
+
+	/** restore frame & algorithm */
+	srv_checksum_algorithm = save_checksum_algorithm;
+
+	mach_write_to_4(const_cast<byte*>(src_frame) +
+			FIL_PAGE_SPACE_OR_CHKSUM,
+			stored_pre_encryption);
+
+	mach_write_to_4(const_cast<byte*>(src_frame) +
+			UNIV_PAGE_SIZE - FIL_PAGE_END_LSN_OLD_CHKSUM,
+			checksum_field2);
+
+	return (!corrupted);
 }

@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2014, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -151,7 +152,7 @@ rtr_cur_restore_position_func(
 	btr_cur_t*	cursor,		/*!< in: detached persistent cursor */
 	ulint		level,		/*!< in: index level */
 	const char*	file,		/*!< in: file name */
-	ulint		line,		/*!< in: line where called */
+	unsigned	line,		/*!< in: line where called */
 	mtr_t*		mtr);		/*!< in: mtr */
 #define rtr_cur_restore_position(l,cur,level,mtr)		\
 	rtr_cur_restore_position_func(l,cur,level,__FILE__,__LINE__,mtr)
@@ -351,7 +352,7 @@ rtr_page_get_father_node_ptr_func(
 				out: cursor on node pointer record,
 				its page x-latched */
 	const char*	file,	/*!< in: file name */
-	ulint		line,	/*!< in: line where called */
+	unsigned	line,	/*!< in: line where called */
 	mtr_t*		mtr);	/*!< in: mtr */
 
 
@@ -402,7 +403,7 @@ rtr_pcur_open_low(
 	ulint		latch_mode,/*!< in: BTR_SEARCH_LEAF, ... */
 	btr_pcur_t*	cursor,	/*!< in: memory buffer for persistent cursor */
 	const char*	file,	/*!< in: file name */
-	ulint		line,	/*!< in: line where called */
+	unsigned	line,	/*!< in: line where called */
 	mtr_t*		mtr);	/*!< in: mtr */
 
 #define rtr_pcur_open(i,t,md,l,c,m)			\

@@ -365,7 +365,7 @@ DROP USER uplain@localhost;
 #
 # Bug #59038 : mysql.user.authentication_string column 
 #   causes configuration wizard to fail
-INSERT INTO mysql.user(
+INSERT IGNORE INTO mysql.user(
 Host, 
 User, 
 Password,  

@@ -104,7 +104,6 @@ use IO::Select;
 
 require "mtr_process.pl";
 require "mtr_io.pl";
-require "mtr_gcov.pl";
 require "mtr_gprof.pl";
 require "mtr_misc.pl";
 
@@ -183,6 +182,7 @@ my @DEFAULT_SUITES= qw(
     innodb_fts-
     innodb_gis-
     innodb_zip-
+    json-
     maria-
     multi_source-
     optimizer_unfixed_bugs-
@@ -248,11 +248,6 @@ our $opt_mem= $ENV{'MTR_MEM'};
 our $opt_clean_vardir= $ENV{'MTR_CLEAN_VARDIR'};
 
 our $opt_gcov;
-our $opt_gcov_src_dir;
-our $opt_gcov_exe= "gcov";
-our $opt_gcov_err= "mysql-test-gcov.err";
-our $opt_gcov_msg= "mysql-test-gcov.msg";
-
 our $opt_gprof;
 our %gprof_dirs;
 
@@ -383,11 +378,6 @@ sub main {
   # --help will not reach here, so now it's safe to assume we have binaries
   My::SafeProcess::find_bin();
 
-  if ( $opt_gcov ) {
-    gcov_prepare($basedir . "/" . $opt_gcov_src_dir);
-  }
-
-  
   print "vardir: $opt_vardir\n";
   initialize_servers();
   init_timers();
@@ -431,6 +421,10 @@ sub main {
     exit 0;
   }
 
+  if ($opt_gcov) {
+    system './dgcov.pl --purge';
+  }
+  
   #######################################################################
   my $num_tests= @$tests;
   if ( $opt_parallel eq "auto" ) {
@@ -555,14 +549,14 @@ sub main {
 
   mtr_print_line();
 
-  if ( $opt_gcov ) {
-    gcov_collect($basedir . "/" . $opt_gcov_src_dir, $opt_gcov_exe,
-		 $opt_gcov_msg, $opt_gcov_err);
-  }
-
   print_total_times($opt_parallel) if $opt_report_times;
 
   mtr_report_stats($prefix, $fail, $completed, $extra_warnings);
+
+  if ($opt_gcov) {
+    mtr_report("Running dgcov");
+    system "./dgcov.pl --generate > $opt_vardir/last_changes.dgcov";
+  }
 
   if ( @$completed != $num_tests)
   {
@@ -1148,7 +1142,6 @@ sub command_line_setup {
 
              # Coverage, profiling etc
              'gcov'                     => \$opt_gcov,
-             'gcov-src-dir=s'           => \$opt_gcov_src_dir,
              'gprof'                    => \$opt_gprof,
              'valgrind|valgrind-all'    => \$opt_valgrind,
              'valgrind-mysqltest'       => \$opt_valgrind_mysqltest,
@@ -1840,6 +1833,9 @@ sub collect_mysqld_features {
   mtr_add_arg($args, "--lc-messages-dir=%s", $path_language);
   mtr_add_arg($args, "--skip-grant-tables");
   mtr_add_arg($args, "--log-warnings=0");
+  mtr_add_arg($args, "--log-slow-admin-statements=0");
+  mtr_add_arg($args, "--log-queries-not-using-indexes=0");
+  mtr_add_arg($args, "--log-slow-slave-statements=0");
   mtr_add_arg($args, "--verbose");
   mtr_add_arg($args, "--help");
 
@@ -4349,10 +4345,7 @@ sub extract_warning_lines ($$) {
      qr/error .*connecting to master/,
      qr/InnoDB: Error: in ALTER TABLE `test`.`t[12]`/,
      qr/InnoDB: Error: table `test`.`t[12]` .*does not exist in the InnoDB internal/,
-     qr/InnoDB: Warning: Setting innodb_use_sys_malloc/,
      qr/InnoDB: Warning: a long semaphore wait:/,
-     qr/InnoDB: Disabling redo log encryption/,
-     qr/InnoDB: Redo log crypto: Can't initialize to key version -1u/,
      qr/InnoDB: Dumping buffer pool.*/,
      qr/InnoDB: Buffer pool.*/,
      qr/InnoDB: Warning: Writer thread is waiting this semaphore/,
@@ -4389,6 +4382,7 @@ sub extract_warning_lines ($$) {
      qr|Checking table:   '\..mtr.test_suppressions'|,
      qr|Table \./test/bug53592 has a primary key in InnoDB data dictionary, but not in MySQL|,
      qr|Table '\..mtr.test_suppressions' is marked as crashed and should be repaired|,
+     qr|Table 'test_suppressions' is marked as crashed and should be repaired|,
      qr|Can't open shared library|,
      qr|Couldn't load plugin named .*EXAMPLE.*|,
      qr|InnoDB: Error: table 'test/bug39438'|,
@@ -4425,9 +4419,6 @@ sub extract_warning_lines ($$) {
      qr|InnoDB: TABLE to scan your table for corruption|,
      qr/InnoDB: See also */,
      qr/InnoDB: Cannot open .*ib_buffer_pool.* for reading: No such file or directory*/,
-     qr/InnoDB: Upgrading redo log:*/,
-     qr|InnoDB: Starting to delete and rewrite log files.|,
-     qr/InnoDB: New log files created, LSN=*/,
      qr|InnoDB: Creating foreign key constraint system tables.|,
      qr/InnoDB: Table .*mysql.*innodb_table_stats.* not found./,
      qr/InnoDB: User stopword table .* does not exist./
@@ -6180,9 +6171,6 @@ Misc options
                         actions. Disable facility with NUM=0.
   gcov                  Collect coverage information after the test.
                         The result is a gcov file per source and header file.
-  gcov-src-dir=subdir   Collect coverage only within the given subdirectory.
-                        For example, if you're only developing the SQL layer, 
-                        it makes sense to use --gcov-src-dir=sql
   gprof                 Collect profiling information using gprof.
   experimental=<file>   Refer to list of tests considered experimental;
                         failures will be marked exp-fail instead of fail.

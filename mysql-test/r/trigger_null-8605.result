@@ -354,3 +354,13 @@ show columns from t1;
 Field	Type	Null	Key	Default	Extra
 a	int(11)	NO	PRI	NULL	
 drop table t1;
+create table t1 (
+pk int primary key,
+i int,
+v1 int as (i) virtual,
+v2 int as (i) virtual
+);
+create trigger tr before update on t1 for each row set @a = 1;
+insert into t1 (pk, i) values (null, null);
+ERROR 23000: Column 'pk' cannot be null
+drop table t1;

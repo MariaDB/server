@@ -156,12 +156,14 @@ insert into t1 select "yesterday_24_";
 create table t2 ENGINE=MyISAM select rpad(UUID(),100,' ');
 create table t3 select 1 union select UUID();
 --disable_warnings
+SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 create table t4 select * from t1 where 3 in (select 1 union select 2 union select UUID() union select 3);
 --enable_warnings
+SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 create table t5 select * from t1 where 3 in (select 1 union select 2 union select curdate() union select 3);
 # what if UUID() is first:
 --disable_warnings
-insert into t5 select UUID() from t1 where 3 in (select 1 union select 2 union select 3 union select * from t4);
+insert ignore into t5 select UUID() from t1 where 3 in (select 1 union select 2 union select 3 union select * from t4);
 --enable_warnings
 
 # inside a stored procedure

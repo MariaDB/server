@@ -71,7 +71,7 @@ ERROR HY000: Constant, random or timezone-dependent expressions in (sub)partitio
 CREATE TABLE t1 (a DATE)
 PARTITION BY RANGE (DAYOFWEEK(a))
 (PARTITION a1 VALUES LESS THAN (60));
-INSERT INTO t1 VALUES ('test'),('a'),('5');
+INSERT IGNORE INTO t1 VALUES ('test'),('a'),('5');
 Warnings:
 Warning	1265	Data truncated for column 'a' at row 1
 Warning	1265	Data truncated for column 'a' at row 2
@@ -85,7 +85,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (a DATETIME)
 PARTITION BY RANGE (DAYOFWEEK(a))
 (PARTITION a1 VALUES LESS THAN (60));
-INSERT INTO t1 VALUES ('test'),('a'),('5');
+INSERT IGNORE INTO t1 VALUES ('test'),('a'),('5');
 Warnings:
 Warning	1265	Data truncated for column 'a' at row 1
 Warning	1265	Data truncated for column 'a' at row 2
@@ -1829,6 +1829,7 @@ p1	p1spSecond
 p2	p2spFirst	Comment in p2
 p2	p2spSecond	SubPartition comment in p2spSecond
 DROP TABLE t1;
+SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 CREATE TABLE t1
 (a INT ,
 KEY inx_a (a) )

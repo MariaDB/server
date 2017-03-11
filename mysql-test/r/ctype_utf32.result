@@ -100,8 +100,8 @@ RPAD(_utf32 X'0420',10,_utf32 X'0421') r;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `l` varchar(10) CHARACTER SET utf32 NOT NULL,
-  `r` varchar(10) CHARACTER SET utf32 NOT NULL
+  `l` varchar(10) CHARACTER SET utf32 DEFAULT NULL,
+  `r` varchar(10) CHARACTER SET utf32 DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 select hex(l), hex(r) from t1;
 hex(l)	hex(r)
@@ -754,7 +754,7 @@ CREATE TABLE t1 AS SELECT REPEAT('a',1) AS a LIMIT 0;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varchar(1) CHARACTER SET utf32 COLLATE utf32_bin NOT NULL
+  `a` varchar(1) CHARACTER SET utf32 COLLATE utf32_bin DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT INTO t1 VALUES (_utf8mb4 0xEFBE9D),(_utf8mb4 0xF0908E84);
 INSERT INTO t1 VALUES (_utf8mb4 0xCE85),(_utf8mb4 0xF4808080);
@@ -983,31 +983,31 @@ hex(a)
 drop table t1;
 create table t1 (utf32 varchar(2) character set utf32);
 Wrong character with pad
-insert into t1 values (0x110000);
+insert ignore into t1 values (0x110000);
 Warnings:
 Warning	1366	Incorrect string value: '\x11\x00\x00' for column 'utf32' at row 1
 Wrong chsaracter without pad
-insert into t1 values (0x00110000);
+insert ignore into t1 values (0x00110000);
 Warnings:
 Warning	1366	Incorrect string value: '\x00\x11\x00\x00' for column 'utf32' at row 1
 Wrong character with pad followed by another wrong character
-insert into t1 values (0x11000000110000);
+insert ignore into t1 values (0x11000000110000);
 Warnings:
 Warning	1366	Incorrect string value: '\x11\x00\x00\x00\x11\x00...' for column 'utf32' at row 1
 Good character with pad followed by bad character
-insert into t1 values (0x10000000110000);
+insert ignore into t1 values (0x10000000110000);
 Warnings:
 Warning	1366	Incorrect string value: '\x00\x11\x00\x00' for column 'utf32' at row 1
 Good character without pad followed by bad character
-insert into t1 values (0x0010000000110000);
+insert ignore into t1 values (0x0010000000110000);
 Warnings:
 Warning	1366	Incorrect string value: '\x00\x11\x00\x00' for column 'utf32' at row 1
 Wrong character with the second byte higher than 0x10
-insert into t1 values (0x00800037);
+insert ignore into t1 values (0x00800037);
 Warnings:
 Warning	1366	Incorrect string value: '\x00\x80\x007' for column 'utf32' at row 1
 Wrong character with pad with the second byte higher than 0x10
-insert into t1 values (0x00800037);
+insert ignore into t1 values (0x00800037);
 Warnings:
 Warning	1366	Incorrect string value: '\x00\x80\x007' for column 'utf32' at row 1
 drop table t1;
@@ -1248,7 +1248,7 @@ Warnings:
 Warning	1292	Truncated incorrect INTEGER value: '123456789123456789123x'
 create table t1 (a int);
 insert into t1 values ('-1234.1e2');
-insert into t1 values ('-1234.1e2xxxx');
+insert ignore into t1 values ('-1234.1e2xxxx');
 Warnings:
 Warning	1265	Data truncated for column 'a' at row 1
 insert into t1 values ('-1234.1e2    ');
@@ -1264,7 +1264,7 @@ create table t1 (a int);
 insert into t1 values ('1 ');
 Warnings:
 Note	1265	Data truncated for column 'a' at row 1
-insert into t1 values ('1 x');
+insert ignore into t1 values ('1 x');
 Warnings:
 Warning	1265	Data truncated for column 'a' at row 1
 select * from t1;
@@ -1272,6 +1272,7 @@ a
 1
 1
 drop table t1;
+SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 create table t1 (a varchar(17000) character set utf32);
 Warnings:
 Note	1246	Converting column 'a' from VARCHAR to TEXT
@@ -1367,7 +1368,7 @@ CREATE TABLE t1 AS SELECT REPEAT('a', 64) AS a LIMIT 0;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varchar(64) CHARACTER SET utf32 NOT NULL
+  `a` varchar(64) CHARACTER SET utf32 DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT INTO t1 VALUES ('');
 SELECT CHARSET(CONCAT(a,'2001-01-08 00:00:00' - INTERVAL 7 DAY)) FROM t1;
@@ -1467,7 +1468,7 @@ hex(char(0x010203 using utf32))
 00010203
 select hex(char(0x01020304 using utf32));
 hex(char(0x01020304 using utf32))
-
+NULL
 Warnings:
 Warning	1300	Invalid utf32 character string: '010203'
 create table t1 (s1 varchar(1) character set utf32, s2 text character set utf32);
@@ -1482,7 +1483,7 @@ CREATE TABLE t1 AS SELECT repeat('a',2) as s1 LIMIT 0;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `s1` varchar(2) CHARACTER SET utf32 NOT NULL
+  `s1` varchar(2) CHARACTER SET utf32 DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT INTO t1 VALUES ('ab'),('AE'),('ab'),('AE');
 SELECT * FROM t1 ORDER BY s1;
@@ -1558,12 +1559,12 @@ DROP TABLE t1;
 #
 CREATE TABLE t1 (utf32 CHAR(5) CHARACTER SET utf32, latin1 CHAR(5) CHARACTER SET latin1);
 INSERT INTO t1 (utf32) VALUES (0xc581);
-UPDATE t1 SET latin1 = utf32;
+UPDATE IGNORE t1 SET latin1 = utf32;
 Warnings:
 Warning	1366	Incorrect string value: '\x00\x00\xC5\x81' for column 'latin1' at row 1
 DELETE FROM t1;
 INSERT INTO t1 (utf32) VALUES (0x100cc);
-UPDATE t1 SET latin1 = utf32;
+UPDATE IGNORE t1 SET latin1 = utf32;
 Warnings:
 Warning	1366	Incorrect string value: '\x00\x01\x00\xCC' for column 'latin1' at row 1
 DROP TABLE t1;
@@ -1575,7 +1576,7 @@ CREATE TABLE t1 AS SELECT format(123,2,'no_NO');
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `format(123,2,'no_NO')` varchar(45) CHARACTER SET utf32 NOT NULL
+  `format(123,2,'no_NO')` varchar(45) CHARACTER SET utf32 DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 SELECT * FROM t1;
 format(123,2,'no_NO')
@@ -1613,6 +1614,7 @@ DROP TABLE t1;
 # Bug#11750518 41090: ORDER BY TRUNCATES GROUP_CONCAT RESULT
 #
 SET NAMES utf8, @@character_set_connection=utf32;
+SET STATEMENT group_concat_max_len=1024 FOR
 SELECT id, CHAR_LENGTH(GROUP_CONCAT(body)) AS l
 FROM (SELECT 'a' AS id, REPEAT('foo bar', 100) AS body
 UNION ALL
@@ -1664,9 +1666,19 @@ CHAR_LENGTH(TRIM(BOTH 0x00 FROM _utf32 0x00000061))
 1
 select hex(lower(cast(0xffff0000 as char character set utf32))) as c;
 c
-0000003F0000003F0000003F0000003F
+NULL
 Warnings:
 Warning	1300	Invalid utf32 character string: '\xFF\xFF\x00\x00'
+#
+# MDEV-11685: sql_mode can't be set with non-ascii connection charset
+#
+SET character_set_connection=utf32;
+SET sql_mode='NO_ENGINE_SUBSTITUTION';
+SELECT @@sql_mode;
+@@sql_mode
+NO_ENGINE_SUBSTITUTION
+SET sql_mode=DEFAULT;
+SET NAMES utf8;
 #
 # End of 5.5 tests
 #
@@ -1704,7 +1716,7 @@ CREATE TABLE t1 AS SELECT REPEAT('a',5) AS a;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varchar(5) CHARACTER SET utf32 NOT NULL
+  `a` varchar(5) CHARACTER SET utf32 DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 CREATE TABLE t2 AS SELECT WEIGHT_STRING(a) AS ws FROM t1;
 SHOW CREATE TABLE t2;
@@ -1954,7 +1966,7 @@ CREATE TABLE t1 AS SELECT REPEAT('a',5) AS a;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varchar(5) CHARACTER SET utf32 COLLATE utf32_bin NOT NULL
+  `a` varchar(5) CHARACTER SET utf32 COLLATE utf32_bin DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 CREATE TABLE t2 AS SELECT WEIGHT_STRING(a) AS ws FROM t1;
 SHOW CREATE TABLE t2;

@@ -1470,9 +1470,11 @@ source include/varchar.inc;
 --replace_result \\ / $MYSQL_TEST_DIR . /var/mysqld.1/data/ / t1.frm t1
 create table t1 (v varchar(65530), key(v));
 drop table t1;
+SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 create table t1 (v varchar(65536));
 show create table t1;
 drop table t1;
+SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 create table t1 (v varchar(65530) character set utf8);
 show create table t1;
 drop table t1;

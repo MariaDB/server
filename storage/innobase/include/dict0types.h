@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2015, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2016, MariaDB Corporation. All Rights Reserved.
+Copyright (c) 2013, 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -80,13 +80,6 @@ enum ib_quiesce_t {
 	QUIESCE_COMPLETE		/*!< All done */
 };
 
-/** Enum values for atomic_writes table option */
-typedef enum {
-	ATOMIC_WRITES_DEFAULT = 0,
-	ATOMIC_WRITES_ON = 1,
-	ATOMIC_WRITES_OFF = 2
-} atomic_writes_t;
-
 #ifndef UNIV_INNOCHECKSUM
 typedef ib_mutex_t DictSysMutex;
 #endif /* !UNIV_INNOCHECKSUM */
@@ -108,7 +101,7 @@ extern uint		ibuf_debug;
 #define SPATIAL_STATUS_SHIFT	12
 
 /** Mask to encode/decode spatial status. */
-#define SPATIAL_STATUS_MASK	(3 << SPATIAL_STATUS_SHIFT)
+#define SPATIAL_STATUS_MASK	(3U << SPATIAL_STATUS_SHIFT)
 
 #if SPATIAL_STATUS_MASK < REC_VERSION_56_MAX_INDEX_COL_LEN
 # error SPATIAL_STATUS_MASK < REC_VERSION_56_MAX_INDEX_COL_LEN

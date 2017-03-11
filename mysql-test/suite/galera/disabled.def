@@ -30,14 +30,9 @@ galera_gcs_fragment : Incorrect arguments to SET
 galera_flush_local : Fails sporadically
 galera_binlog_stmt_autoinc : TODO: investigate
 galera_concurrent_ctas : Test times out, investigate
-MW-258              : MDEV-11229
-galera_as_master    : MDEV-11229
-MW-44               : MDEV-11229
-galera_gcs_fc_limit : MDEV-11229
-galera_roles        : MDEV-11229
-galera_lock_table   : MDEV-11229
 MW-286 : TODO: investigate
 galera_sst_xtrabackup-v2-options : TODO: Fix test case
 galera_sst_xtrabackup-v2 : MDEV-11208
 galera_sst_xtrabackup-v2_encrypt_with_key : MDEV-11208
 mysql-wsrep#33 : TODO: investigate
+galera_var_innodb_disallow_writes : MDEV-10949

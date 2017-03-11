@@ -1,8 +1,4 @@
 SET GLOBAL tx_isolation='REPEATABLE-READ';
-SET GLOBAL innodb_file_format=Barracuda;
-Warnings:
-Warning	131	Using innodb_file_format is deprecated and the parameter may be removed in future releases. See http://dev.mysql.com/doc/refman/5.7/en/innodb-file-format.html
-SET GLOBAL innodb_file_per_table=on;
 CREATE TABLE bug56680(
 a INT AUTO_INCREMENT PRIMARY KEY,
 b CHAR(1),
@@ -121,5 +117,3 @@ Table	Op	Msg_type	Msg_text
 test.bug56680_2	check	status	OK
 DROP TABLE bug56680_2;
 DROP TABLE bug56680;
-Warnings:
-Warning	131	Using innodb_file_format is deprecated and the parameter may be removed in future releases. See http://dev.mysql.com/doc/refman/5.7/en/innodb-file-format.html

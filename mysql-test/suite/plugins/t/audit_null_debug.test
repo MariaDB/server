@@ -7,6 +7,7 @@ if (!$ADT_NULL_SO) {
 
 set @old_dbug=@@debug_dbug;
 call mtr.add_suppression("Index for table.*mysql.plugin.MYI");
+call mtr.add_suppression("Index for table 'plugin' is corrupt; try to repair it");
 
 #
 # MySQL BUG#14485479 - INSTALL AUDIT PLUGIN HANGS IF WE TRY TO DISABLE AND ENABLED DURING DDL OPERATION

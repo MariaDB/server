@@ -2309,9 +2309,8 @@ row_upd_sec_index_entry(
 		spatial index. */
 		mode = (referenced || dict_table_is_temporary(index->table)
 			|| dict_index_is_spatial(index))
-			? BTR_MODIFY_LEAF | BTR_ALREADY_S_LATCHED
-			: BTR_MODIFY_LEAF | BTR_ALREADY_S_LATCHED
-			| BTR_DELETE_MARK;
+			? BTR_MODIFY_LEAF_ALREADY_S_LATCHED
+			: BTR_DELETE_MARK_LEAF_ALREADY_S_LATCHED;
 	} else {
 		/* For secondary indexes,
 		index->online_status==ONLINE_INDEX_COMPLETE if
@@ -2325,7 +2324,7 @@ row_upd_sec_index_entry(
 		mode = (referenced || dict_table_is_temporary(index->table)
 			|| dict_index_is_spatial(index))
 			? BTR_MODIFY_LEAF
-			: BTR_MODIFY_LEAF | BTR_DELETE_MARK;
+			: BTR_DELETE_MARK_LEAF;
 	}
 
 	if (dict_index_is_spatial(index)) {
@@ -3473,26 +3472,14 @@ void upd_node_t::dbug_trace()
 
 	for (upd_cascade_t::const_iterator i = cascade_upd_nodes->begin();
 	     i != cascade_upd_nodes->end(); ++i) {
-
-		const upd_node_t*	update_node = *i;
-		ib::info() << "cascade_upd_nodes: Cascade to table: " <<
-			update_node->table->name;
-		/* JAN: TODO: MySQL 5.7
 		DBUG_LOG("upd_node_t", "cascade_upd_nodes: Cascade to table: "
-			 << update_node->table->name);
-		*/
+			 << (*i)->table->name);
 	}
 
 	for (upd_cascade_t::const_iterator j = new_upd_nodes->begin();
 	     j != new_upd_nodes->end(); ++j) {
-
-		const upd_node_t*	update_node = *j;
-		ib::info() << "cascade_upd_nodes: Cascade to table: " <<
-			update_node->table->name;
-		/* JAN: TODO: MySQL 5.7
 		DBUG_LOG("upd_node_t", "new_upd_nodes: Cascade to table: "
-			 << update_node->table->name);
-		*/
+			 << (*j)->table->name);
 	}
 
 	DBUG_VOID_RETURN;

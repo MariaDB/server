@@ -2,6 +2,7 @@
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All rights reserved.
 Copyright (c) 2009, Google Inc.
+Copyright (c) 2017, MariaDB Corporation. All Rights Reserved.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -36,11 +37,8 @@ Created 12/9/1995 Heikki Tuuri
 #include "univ.i"
 #include "dyn0buf.h"
 #include "sync0rw.h"
-#include "log0crypt.h"
 #include "log0types.h"
-
-/** Redo log buffer */
-struct log_t;
+#include "os0event.h"
 
 /** Redo log group */
 struct log_group_t;
@@ -254,10 +252,10 @@ log_group_header_read(
 	const log_group_t*	group,
 	ulint			header);
 /** Write checkpoint info to the log header and invoke log_mutex_exit().
-@param[in]	sync	whether to wait for the write to complete */
+@param[in]	sync	whether to wait for the write to complete
+@param[in]	end_lsn	start LSN of the MLOG_CHECKPOINT mini-transaction */
 void
-log_write_checkpoint_info(
-	bool	sync);
+log_write_checkpoint_info(bool sync, lsn_t end_lsn);
 
 /** Set extra data to be written to the redo log during checkpoint.
 @param[in]	buf	data to be appended on checkpoint, or NULL
@@ -273,15 +271,6 @@ objects! */
 void
 log_check_margins(void);
 
-/******************************************************//**
-Reads a specified log segment to a buffer. */
-void
-log_group_read_log_seg(
-/*===================*/
-	byte*		buf,		/*!< in: buffer where to read */
-	log_group_t*	group,		/*!< in: log group */
-	lsn_t		start_lsn,	/*!< in: read area start */
-	lsn_t		end_lsn);	/*!< in: read area end */
 /********************************************************//**
 Sets the field values in group to correspond to a given lsn. For this function
 to work, the values must already be correctly initialized to correspond to
@@ -447,9 +436,6 @@ void
 log_mem_free(void);
 /*==============*/
 
-/** Redo log system */
-extern log_t*	log_sys;
-
 /** Whether to generate and require checksums on the redo log pages */
 extern my_bool	innodb_log_checksums;
 
@@ -501,11 +487,26 @@ extern my_bool	innodb_log_checksums;
 					.._HDR_NO */
 #define	LOG_BLOCK_TRL_SIZE	4	/* trailer size in bytes */
 
-/* Offsets inside the checkpoint pages (redo log format version 1) */
+/** Offsets inside the checkpoint pages (redo log format version 1) @{ */
+/** Checkpoint number */
 #define LOG_CHECKPOINT_NO		0
+/** Log sequence number up to which all changes have been flushed */
 #define LOG_CHECKPOINT_LSN		8
+/** Byte offset of the log record corresponding to LOG_CHECKPOINT_LSN */
 #define LOG_CHECKPOINT_OFFSET		16
+/** log_sys_t::buf_size at the time of the checkpoint (not used) */
 #define LOG_CHECKPOINT_LOG_BUF_SIZE	24
+/** MariaDB 10.2.5 encrypted redo log encryption key version (32 bits)*/
+#define LOG_CHECKPOINT_CRYPT_KEY	32
+/** MariaDB 10.2.5 encrypted redo log random nonce (32 bits) */
+#define LOG_CHECKPOINT_CRYPT_NONCE	36
+/** MariaDB 10.2.5 encrypted redo log random message (MY_AES_BLOCK_SIZE) */
+#define LOG_CHECKPOINT_CRYPT_MESSAGE	40
+/** start LSN of the MLOG_CHECKPOINT mini-transaction corresponding
+to this checkpoint, or 0 if the information has not been written */
+#define LOG_CHECKPOINT_END_LSN		OS_FILE_LOG_BLOCK_SIZE - 16
+
+/* @} */
 
 /** Offsets of a log file header */
 /* @{ */
@@ -536,19 +537,9 @@ or the MySQL version that created the redo log file. */
 /** The redo log format identifier corresponding to the current format version.
 Stored in LOG_HEADER_FORMAT. */
 #define LOG_HEADER_FORMAT_CURRENT	1
+/** Encrypted MariaDB redo log */
+#define LOG_HEADER_FORMAT_ENCRYPTED	(1U<<31)
 
-// JAN: TODO: Shoud 32 here be LOG_HEADER_CREATOR_END ?
-// Problem: Log format 5.6 == 5.7 ?
-#define LOG_CHECKPOINT_ARRAY_END	(32 + 32 * 8)
-#define LOG_CRYPT_VER			(20 + LOG_CHECKPOINT_ARRAY_END)
-#define LOG_CRYPT_MAX_ENTRIES           (5)
-#define LOG_CRYPT_ENTRY_SIZE            (4 + 4 + 2 * MY_AES_BLOCK_SIZE)
-#define LOG_CRYPT_SIZE                  (1 + 1 +			\
-					 (LOG_CRYPT_MAX_ENTRIES *	\
-					  LOG_CRYPT_ENTRY_SIZE))
-
-#define LOG_CHECKPOINT_SIZE		(20 + LOG_CHECKPOINT_ARRAY_END + \
-					 LOG_CRYPT_SIZE)
 /* @} */
 
 #define LOG_CHECKPOINT_1	OS_FILE_LOG_BLOCK_SIZE
@@ -609,6 +600,12 @@ struct log_group_t{
 	byte*				checkpoint_buf;
 	/** list of log groups */
 	UT_LIST_NODE_T(log_group_t)	log_groups;
+
+	/** @return whether the redo log is encrypted */
+	bool is_encrypted() const
+	{
+		return((format & LOG_HEADER_FORMAT_ENCRYPTED) != 0);
+	}
 };
 
 /** Redo log buffer */
@@ -681,16 +678,12 @@ struct log_t{
 					/*!< how far we have written the log
 					AND flushed to disk */
 	ulint		n_pending_flushes;/*!< number of currently
-					pending flushes; incrementing is
-					protected by the log mutex;
-					may be decremented between
-					resetting and setting flush_event */
+					pending flushes; protected by
+					log_sys_t::mutex */
 	os_event_t	flush_event;	/*!< this event is in the reset state
-					when a flush is running; a thread
-					should wait for this without
-					owning the log mutex, but NOTE that
-					to set this event, the
-					thread MUST own the log mutex! */
+					when a flush is running;
+					os_event_set() and os_event_reset()
+					are protected by log_sys_t::mutex */
 	ulint		n_log_ios;	/*!< number of log i/os initiated thus
 					far */
 	ulint		n_log_ios_old;	/*!< number of log i/o's at the
@@ -750,7 +743,16 @@ struct log_t{
 	byte*		checkpoint_buf;	/*!< checkpoint header is read to this
 					buffer */
 	/* @} */
+
+	/** @return whether the redo log is encrypted */
+	bool is_encrypted() const
+	{
+		return(UT_LIST_GET_FIRST(log_groups)->is_encrypted());
+	}
 };
+
+/** Redo log system */
+extern log_t*	log_sys;
 
 /** Test if flush order mutex is owned. */
 #define log_flush_order_mutex_own()			\
@@ -804,21 +806,13 @@ log_group_calc_lsn_offset(
 	lsn_t			lsn,
 	const log_group_t*	group);
 
-extern os_event_t log_scrub_event;
 /* log scrubbing speed, in bytes/sec */
 extern ulonglong innodb_scrub_log_speed;
 
-/*****************************************************************//**
-This is the main thread for log scrub. It waits for an event and
-when waked up fills current log block with dummy records and
-sleeps again.
-@return this function does not return, it calls os_thread_exit() */
-extern "C" UNIV_INTERN
-os_thread_ret_t
-DECLARE_THREAD(log_scrub_thread)(
-/*===============================*/
-	void* arg);				/*!< in: a dummy parameter
-						required by os_thread_create */
+/** Event to wake up log_scrub_thread */
+extern os_event_t	log_scrub_event;
+/** Whether log_scrub_thread is active */
+extern bool		log_scrub_thread_active;
 
 #ifndef UNIV_NONINL
 #include "log0log.ic"

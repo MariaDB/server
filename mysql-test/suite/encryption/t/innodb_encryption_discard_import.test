@@ -15,16 +15,6 @@ let $MYSQLD_DATADIR = `SELECT @@datadir`;
 --let t2_IBD = $MYSQLD_DATADIR/test/t2.ibd
 --let t3_IBD = $MYSQLD_DATADIR/test/t3.ibd
 
---disable_query_log
-let $innodb_file_format_orig = `SELECT @@innodb_file_format`;
-let $innodb_file_per_table_orig = `SELECT @@innodb_file_per_table`;
---enable_query_log
-
---disable_warnings
-SET GLOBAL innodb_file_format = `Barracuda`;
-SET GLOBAL innodb_file_per_table = ON;
---enable_warnings
-
 CREATE TABLE t1 (id INT NOT NULL PRIMARY KEY, a VARCHAR(255)) ENGINE=InnoDB encrypted=yes;
 CREATE TABLE t2 (id INT NOT NULL PRIMARY KEY, a VARCHAR(255)) ENGINE=InnoDB;
 CREATE TABLE t3 (id INT NOT NULL PRIMARY KEY, a VARCHAR(255)) ENGINE=InnoDB row_format=compressed encrypted=yes;
@@ -154,11 +144,3 @@ SELECT COUNT(1) FROM t3;
 
 DROP PROCEDURE innodb_insert_proc;
 DROP TABLE t1, t2, t3;
-
-# reset system
---disable_warnings
---disable_query_log
-eval SET GLOBAL innodb_file_per_table = $innodb_file_per_table_orig;
-eval SET GLOBAL innodb_file_format = $innodb_file_format_orig;
---enable_query_log
---enable_warnings

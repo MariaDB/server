@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2016, MariaDB Corporation.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -38,13 +38,10 @@ Created 10/25/1995 Heikki Tuuri
 #include <list>
 #include <vector>
 
-extern const char general_space_name[];
-
 // Forward declaration
 struct trx_t;
 class page_id_t;
 class truncate_t;
-struct btr_create_t;
 
 /* structure containing encryption specification */
 typedef struct fil_space_crypt_struct fil_space_crypt_t;
@@ -133,7 +130,8 @@ struct fil_space_t {
 				/*!< recovered tablespace size in pages;
 				0 if no size change was read from the redo log,
 				or if the size change was implemented */
-	ulint		flags;	/*!< tablespace flags; see
+	ulint		flags;	/*!< FSP_SPACE_FLAGS and FSP_FLAGS_MEM_ flags;
+				see fsp0types.h,
 				fsp_flags_is_valid(),
 				page_size_t(ulint) (constructor) */
 	ulint		n_reserved_extents;
@@ -166,21 +164,6 @@ struct fil_space_t {
 	UT_LIST_NODE_T(fil_space_t) space_list;
 				/*!< list of all spaces */
 
-	/** Compression algorithm */
-	Compression::Type	compression_type;
-
-	/** Encryption algorithm */
-	Encryption::Type	encryption_type;
-
-	/** Encrypt key */
-	byte			encryption_key[ENCRYPTION_KEY_LEN];
-
-	/** Encrypt key length*/
-	ulint			encryption_klen;
-
-	/** Encrypt initial vector */
-	byte			encryption_iv[ENCRYPTION_KEY_LEN];
-
 	/** MariaDB encryption data */
         fil_space_crypt_t* crypt_data;
 
@@ -193,9 +176,16 @@ struct fil_space_t {
 	/** True if page 0 of tablespace is read */
 	bool		read_page0;
 
+        /** True if the device this filespace is on supports atomic writes */
+        bool            atomic_write_supported;
+
 	/** Release the reserved free extents.
 	@param[in]	n_reserved	number of reserved extents */
 	void release_free_extents(ulint n_reserved);
+
+	/** True if file system storing this tablespace supports
+	punch hole */
+	bool		punch_hole;
 
 	ulint		magic_n;/*!< FIL_SPACE_MAGIC_N */
 };
@@ -209,11 +199,11 @@ struct fil_node_t {
 	fil_space_t*	space;
 	/** file name; protected by fil_system->mutex and log_sys->mutex. */
 	char*		name;
-	/** whether this file is open */
-	bool		is_open;
 	/** file handle (valid if is_open) */
 	os_file_t	handle;
-	/** event that groups and serializes calls to fsync */
+	/** event that groups and serializes calls to fsync;
+	os_event_set() and os_event_reset() are protected by
+	fil_system_t::mutex */
 	os_event_t	sync_event;
 	/** whether the file actually is a raw device or disk partition */
 	bool		is_raw_disk;
@@ -241,17 +231,20 @@ struct fil_node_t {
 	/** link to the fil_system->LRU list (keeping track of open files) */
 	UT_LIST_NODE_T(fil_node_t) LRU;
 
-	/** whether the file system of this file supports PUNCH HOLE */
-	bool		punch_hole;
-
-	/** block size to use for punching holes */
-	ulint		block_size;
-
-	/** whether atomic write is enabled for this file */
+	/** whether this file could use atomic write (data file) */
 	bool		atomic_write;
+
+	/** Filesystem block size */
+	ulint		block_size;
 
 	/** FIL_NODE_MAGIC_N */
 	ulint		magic_n;
+
+	/** @return whether this file is open */
+	bool is_open() const
+	{
+		return(handle != OS_FILE_CLOSED);
+	}
 };
 
 /** Value of fil_node_t::magic_n */
@@ -262,110 +255,17 @@ enum ib_extention {
 	NO_EXT = 0,
 	IBD = 1,
 	ISL = 2,
-	CFG = 3,
-	CFP = 4
+	CFG = 3
 };
 extern const char* dot_ext[];
 #define DOT_IBD dot_ext[IBD]
 #define DOT_ISL dot_ext[ISL]
 #define DOT_CFG dot_ext[CFG]
-#define DOT_CPF dot_ext[CFP]
-
-/** Wrapper for a path to a directory.
-This folder may or may not yet esist.  Since not all directory paths
-end in "/", we should only use this for a directory path or a filepath
-that has a ".ibd" extension. */
-class Folder
-{
-public:
-	/** Default constructor */
-	Folder() : m_folder(NULL) {}
-
-	/** Constructor
-	@param[in]	path	pathname (not necessarily NUL-terminated)
-	@param[in]	len	length of the path, in bytes */
-	Folder(const char* path, size_t len);
-
-	/** Assignment operator
-	@param[in]	folder	folder string provided */
-	class Folder& operator=(const char* path);
-
-	/** Destructor */
-	~Folder()
-	{
-		ut_free(m_folder);
-	}
-
-	/** Implicit type conversion
-	@return the wrapped object */
-	operator const char*() const
-	{
-		return(m_folder);
-	}
-
-	/** Explicit type conversion
-	@return the wrapped object */
-	const char* operator()() const
-	{
-		return(m_folder);
-	}
-
-	/** return the length of m_folder
-	@return the length of m_folder */
-	size_t len()
-	{
-		return m_folder_len;
-	}
-
-	/** Determine if two folders are equal
-	@param[in]	other	folder to compare to
-	@return whether the folders are equal */
-	bool operator==(const Folder& other) const;
-
-	/** Determine if the left folder is the same or an ancestor of
-	(contains) the right folder.
-	@param[in]	other	folder to compare to
-	@return whether this is the same or an ancestor or the other folder. */
-	bool operator>=(const Folder& other) const;
-
-	/** Determine if the left folder is an ancestor of (contains)
-	the right folder.
-	@param[in]	other	folder to compare to
-	@return whether this is an ancestor of the other folder */
-	bool operator>(const Folder& other) const;
-
-	/** Determine if the directory referenced by m_folder exists.
-	@return whether the directory exists */
-	bool exists();
-
-private:
-	/** Build the basic folder name from the path and length provided
-	@param[in]	path	pathname (not necessarily NUL-terminated)
-	@param[in]	len	length of the path, in bytes */
-	void	make_path(const char* path, size_t len);
-
-	/** Resolve a relative path in m_folder to an absolute path
-	in m_abs_path setting m_abs_len. */
-	void	make_abs_path();
-
-	/** The wrapped folder string */
-	char*	m_folder;
-
-	/** Length of m_folder */
-	size_t	m_folder_len;
-
-	/** A full absolute path to the same file. */
-	char	m_abs_path[FN_REFLEN + 2];
-
-	/** Length of m_abs_path to the deepest folder */
-	size_t	m_abs_len;
-};
 
 /** When mysqld is run, the default directory "." is the mysqld datadir,
 but in the MySQL Embedded Server Library and mysqlbackup it is not the default
 directory, and we must set the base file path explicitly */
 extern const char*	fil_path_to_mysql_datadir;
-extern Folder   	folder_mysql_datadir;
 
 /** Initial size of a single-table tablespace in pages */
 #define FIL_IBD_FILE_INITIAL_SIZE	4
@@ -447,23 +347,6 @@ extern fil_addr_t	fil_addr_null;
 					used to encrypt the page + 32-bit checksum
 					or 64 bits of zero if no encryption
 					*/
-/** If page type is FIL_PAGE_COMPRESSED then the 8 bytes starting at
-FIL_PAGE_FILE_FLUSH_LSN are broken down as follows: */
-
-/** Control information version format (u8) */
-static const ulint FIL_PAGE_VERSION = FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION;
-
-/** Compression algorithm (u8) */
-static const ulint FIL_PAGE_ALGORITHM_V1 = FIL_PAGE_VERSION + 1;
-
-/** Original page type (u16) */
-static const ulint FIL_PAGE_ORIGINAL_TYPE_V1 = FIL_PAGE_ALGORITHM_V1 + 1;
-
-/** Original data size in bytes (u16)*/
-static const ulint FIL_PAGE_ORIGINAL_SIZE_V1 = FIL_PAGE_ORIGINAL_TYPE_V1 + 2;
-
-/** Size after compression (u16) */
-static const ulint FIL_PAGE_COMPRESS_SIZE_V1 = FIL_PAGE_ORIGINAL_SIZE_V1 + 2;
 
 /** This overloads FIL_PAGE_FILE_FLUSH_LSN for RTREE Split Sequence Number */
 #define	FIL_RTREE_SPLIT_SEQ_NUM	FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION
@@ -513,11 +396,12 @@ static const ulint FIL_PAGE_COMPRESS_SIZE_V1 = FIL_PAGE_ORIGINAL_SIZE_V1 + 2;
 #define FIL_PAGE_TYPE_UNKNOWN	13	/*!< In old tablespaces, garbage
 					in FIL_PAGE_TYPE is replaced with this
 					value when flushing pages. */
-#define FIL_PAGE_COMPRESSED	14	/*!< Compressed page */
-#define FIL_PAGE_ENCRYPTED	15	/*!< Encrypted page */
-#define FIL_PAGE_COMPRESSED_AND_ENCRYPTED 16
-					/*!< Compressed and Encrypted page */
-#define FIL_PAGE_ENCRYPTED_RTREE 17	/*!< Encrypted R-tree page */
+
+/* File page types introduced in MySQL 5.7, not supported in MariaDB */
+//#define FIL_PAGE_COMPRESSED	14
+//#define FIL_PAGE_ENCRYPTED	15
+//#define FIL_PAGE_COMPRESSED_AND_ENCRYPTED 16
+//#define FIL_PAGE_ENCRYPTED_RTREE 17
 
 /** Used by i_s.cc to index into the text description. */
 #define FIL_PAGE_TYPE_LAST	FIL_PAGE_TYPE_UNKNOWN
@@ -598,14 +482,6 @@ struct fil_system_t {
 					startup we scan the data dictionary
 					and set here the maximum of the
 					space id's of the tables there */
-	int64_t		tablespace_version;
-					/*!< a counter which is incremented for
-					every space object memory creation;
-					every space mem object gets a
-					'timestamp' from this; in DISCARD/
-					IMPORT this is used to check if we
-					should ignore an insert buffer merge
-					request */
 	UT_LIST_BASE_NODE_T(fil_space_t) space_list;
 					/*!< list of all file spaces */
 	UT_LIST_BASE_NODE_T(fil_space_t) named_spaces;
@@ -666,7 +542,7 @@ MY_ATTRIBUTE((warn_unused_result, pure));
 @param[in]	size		file size in entire database blocks
 @param[in,out]	space		tablespace from fil_space_create()
 @param[in]	is_raw		whether this is a raw device or partition
-@param[in]	atomic_write	true if atomic write enabled
+@param[in]	atomic_write	true if atomic write could be enabled
 @param[in]	max_pages	maximum number of pages in file,
 ULINT_MAX means the file size is unlimited.
 @return pointer to the file name
@@ -753,13 +629,6 @@ ulint
 fil_space_get_flags(
 /*================*/
 	ulint	id);	/*!< in: space id */
-
-/** Check if table is mark for truncate.
-@param[in]	id	space id
-@return true if tablespace is marked for truncate. */
-bool
-fil_space_is_being_truncated(
-	ulint id);
 
 /** Open each fil_node_t of a named fil_space_t if not already open.
 @param[in]	name	Tablespace name
@@ -1080,14 +949,15 @@ fil_make_filepath(
 	ib_extention	suffix,
 	bool		strip_name);
 
-/** Creates a new General or Single-Table tablespace
+/** Create a tablespace file.
 @param[in]	space_id	Tablespace ID
 @param[in]	name		Tablespace name in dbname/tablename format.
-For general tablespaces, the 'dbname/' part may be missing.
 @param[in]	path		Path and filename of the datafile to create.
 @param[in]	flags		Tablespace flags
 @param[in]	size		Initial size of the tablespace file in pages,
 must be >= FIL_IBD_FILE_INITIAL_SIZE
+@param[in]	mode		MariaDB encryption mode
+@param[in]	key_id		MariaDB encryption key_id
 @return DB_SUCCESS or error code */
 dberr_t
 fil_ibd_create(
@@ -1096,9 +966,17 @@ fil_ibd_create(
 	const char*	path,
 	ulint		flags,
 	ulint		size,
-	fil_encryption_t mode,	/*!< in: encryption mode */
-	ulint		key_id) /*!< in: encryption key_id */
+	fil_encryption_t mode,
+	ulint		key_id)
 	MY_ATTRIBUTE((warn_unused_result));
+
+/** Try to adjust FSP_SPACE_FLAGS if they differ from the expectations.
+(Typically when upgrading from MariaDB 10.1.0..10.1.20.)
+@param[in]	space_id	tablespace ID
+@param[in]	flags		desired tablespace flags */
+UNIV_INTERN
+void
+fsp_flags_try_adjust(ulint space_id, ulint flags);
 
 /********************************************************************//**
 Tries to open a single-table tablespace and optionally checks the space id is
@@ -1124,7 +1002,7 @@ statement to update the dictionary tables if they are incorrect.
 @param[in]	fix_dict	true if the dictionary is available to be fixed
 @param[in]	purpose		FIL_TYPE_TABLESPACE or FIL_TYPE_TEMPORARY
 @param[in]	id		tablespace ID
-@param[in]	flags		tablespace flags
+@param[in]	flags		expected FSP_SPACE_FLAGS
 @param[in]	space_name	tablespace name of the datafile
 If file-per-table, it is the table name in the databasename/tablename format
 @param[in]	path_in		expected filepath, usually read from dictionary
@@ -1200,7 +1078,8 @@ fil_space_for_table_exists_in_mem(
 					when find table space mismatch */
 	mem_heap_t*	heap,		/*!< in: heap memory */
 	table_id_t	table_id,	/*!< in: table id */
-	dict_table_t*	table);		/*!< in: table or NULL */
+	dict_table_t*	table,		/*!< in: table or NULL */
+	ulint		table_flags);	/*!< in: table flags */
 
 /** Try to extend a tablespace if it is smaller than the specified size.
 @param[in,out]	space	tablespace
@@ -1250,11 +1129,6 @@ fil_space_get_n_reserved_extents(
 				aligned
 @param[in]	message		message for aio handler if non-sync aio
 				used, else ignored
-@param[in,out]	write_size	Actual write size initialized
-				after fist successfull trim
-				operation for this page and if
-				nitialized we do not trim again if
-				Actual page
 
 @return DB_SUCCESS, DB_TABLESPACE_DELETED or DB_TABLESPACE_TRUNCATED
 if we are trying to do i/o on a tablespace which does not exist */
@@ -1267,8 +1141,7 @@ fil_io(
 	ulint			byte_offset,
 	ulint			len,
 	void*			buf,
-	void*			message,
-	ulint*			write_size);
+	void*			message);
 /**********************************************************************//**
 Waits for an aio operation to complete. This function is used to write the
 handler for completed requests. The aio array of pending requests is divided
@@ -1398,14 +1271,6 @@ fil_space_inc_redo_skipped_count(
 void
 fil_space_dec_redo_skipped_count(
 	ulint		id);
-
-/*******************************************************************//**
-Check whether a single-table tablespace is redo skipped.
-@return true if redo skipped */
-bool
-fil_space_is_redo_skipped(
-/*======================*/
-	ulint		id);	/*!< in: space id */
 #endif
 
 /********************************************************************//**
@@ -1463,10 +1328,6 @@ struct PageCallback {
 	/**
 	@retval the space flags of the tablespace being iterated over */
 	virtual ulint get_space_flags() const UNIV_NOTHROW = 0;
-
-	/** Set the tablespace table size.
-	@param[in] page a page belonging to the tablespace */
-	void set_page_size(const buf_frame_t* page) UNIV_NOTHROW;
 
 	/** The compressed page size
 	@return the compressed page size */
@@ -1631,43 +1492,6 @@ fil_names_dirty_and_write(
 	fil_space_t*	space,
 	mtr_t*		mtr);
 
-/** Set the compression type for the tablespace of a table
-@param[in]	table		Table that should be compressesed
-@param[in]	algorithm	Text representation of the algorithm
-@return DB_SUCCESS or error code */
-dberr_t
-fil_set_compression(
-	dict_table_t*	table,
-	const char*	algorithm)
-	MY_ATTRIBUTE((warn_unused_result));
-
-/** Get the compression type for the tablespace
-@param[in]	space_id	Space ID to check
-@return the compression algorithm */
-Compression::Type
-fil_get_compression(
-	ulint		space_id)
-	MY_ATTRIBUTE((warn_unused_result));
-
-/** Set the encryption type for the tablespace
-@param[in] space		Space ID of tablespace for which to set
-@param[in] algorithm		Encryption algorithm
-@param[in] key			Encryption key
-@param[in] iv			Encryption iv
-@return DB_SUCCESS or error code */
-dberr_t
-fil_set_encryption(
-	ulint			space_id,
-	Encryption::Type	algorithm,
-	byte*			key,
-	byte*			iv)
-	MY_ATTRIBUTE((warn_unused_result));
-
-/**
-@return true if the re-encrypt success */
-bool
-fil_encryption_rotate();
-
 /** Write MLOG_FILE_NAME records if a persistent tablespace was modified
 for the first time since the latest fil_names_clear().
 @param[in,out]	space	tablespace
@@ -1733,19 +1557,6 @@ fil_names_clear(
 	lsn_t	lsn,
 	bool	do_write);
 
-#ifdef UNIV_LINUX
-/**
-Try and enable FusionIO atomic writes.
-@param[in] file		OS file handle
-@return true if successful */
-bool
-fil_fusionio_enable_atomic_write(os_file_t file);
-#endif /* UNIV_LINUX */
-
-/** Note that the file system where the file resides doesn't support PUNCH HOLE
-@param[in,out]	node		Node to set */
-void fil_no_punch_hole(fil_node_t* node);
-
 #ifdef UNIV_ENABLE_UNIT_TEST_MAKE_FILEPATH
 void test_make_filepath();
 #endif /* UNIV_ENABLE_UNIT_TEST_MAKE_FILEPATH */
@@ -1753,15 +1564,16 @@ void test_make_filepath();
 
 /*******************************************************************//**
 Returns the block size of the file space
+@param[in]	space_id		space id
+@param[in]	offset			page offset
+@param[in]	len			page len
 @return	block size */
 UNIV_INTERN
 ulint
 fil_space_get_block_size(
-/*=====================*/
-	ulint	id,	/*!< in: space id */
-	ulint   offset, /*!< in: page offset */
-	ulint   len);	/*!< in: page len */
-
+	ulint		id,
+	os_offset_t	offset,
+	ulint		len);
 /*******************************************************************//**
 Increments the count of pending operation, if space is not being deleted.
 @return	TRUE if being deleted, and operation should be skipped */

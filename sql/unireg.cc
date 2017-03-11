@@ -58,7 +58,7 @@ static bool make_empty_rec(THD *, uchar *, uint, List<Create_field> &, uint,
 static uchar *extra2_write_len(uchar *pos, size_t len)
 {
   if (len <= 255)
-    *pos++= len;
+    *pos++= (uchar)len;
   else
   {
     /*

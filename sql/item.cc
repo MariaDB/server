@@ -544,7 +544,14 @@ uint Item::decimal_precision() const
                                      unsigned_flag);
     return MY_MIN(prec, DECIMAL_MAX_PRECISION);
   }
-  return MY_MIN(max_char_length(), DECIMAL_MAX_PRECISION);
+  uint res= max_char_length();
+  /*
+    Return at least one decimal digit, even if Item::max_char_length()
+    returned  0. This is important to avoid attempts to create fields of types
+    INT(0) or DECIMAL(0,0) when converting NULL or empty strings to INT/DECIMAL:
+      CREATE TABLE t1 AS SELECT CONVERT(NULL,SIGNED) AS a;
+  */
+  return res ? MY_MIN(res, DECIMAL_MAX_PRECISION) : 1;
 }
 
 
@@ -1182,7 +1189,8 @@ Item *Item_cache::safe_charset_converter(THD *thd, CHARSET_INFO *tocs)
   if (conv == example)
     return this;
   Item_cache *cache;
-  if (!conv || !(cache= new (thd->mem_root) Item_cache_str(thd, conv)))
+  if (!conv || conv->fix_fields(thd, (Item **) NULL) ||
+      !(cache= new (thd->mem_root) Item_cache_str(thd, conv)))
     return NULL; // Safe conversion is not possible, or OEM
   cache->setup(thd, conv);
   cache->fixed= false; // Make Item::fix_fields() happy
@@ -2878,6 +2886,44 @@ void Item_field::fix_after_pullout(st_select_lex *new_parent, Item **ref)
     depended_from= NULL;
   if (context)
   {
+    bool need_change= false;
+    /*
+      Suppose there are nested selects:
+
+       select_id=1
+         select_id=2
+           select_id=3  <----+
+             select_id=4    -+
+               select_id=5 --+
+
+      Suppose, pullout operation has moved anything that had select_id=4 or 5
+      in to select_id=3.
+
+      If this Item_field had a name resolution context pointing into select_lex
+      with id=4 or id=5, it needs a new name resolution context.
+
+      However, it could also be that this object is a part of outer reference:
+      Item_ref(Item_field(field in select with select_id=1))).
+      - The Item_ref object has a context with select_id=5, and so needs a new
+        name resolution context.
+      - The Item_field object has a context with select_id=1, and doesn't need
+        a new name resolution context.
+
+      So, the following loop walks from Item_field's current context upwards.
+      If we find that the select we've been pulled out to is up there, we
+      create the new name resolution context. Otherwise, we don't.
+    */
+    for (Name_resolution_context *ct= context; ct; ct= ct->outer_context)
+    {
+      if (new_parent == ct->select_lex)
+      {
+        need_change= true;
+        break;
+      }
+    }
+    if (!need_change)
+      return;
+
     Name_resolution_context *ctx= new Name_resolution_context();
     if (context->select_lex == new_parent)
     {
@@ -3302,11 +3348,19 @@ Item_param::Item_param(THD *thd, uint pos_in_query_arg):
   Rewritable_query_parameter(pos_in_query_arg, 1),
   Type_handler_hybrid_field_type(MYSQL_TYPE_VARCHAR),
   state(NO_VALUE),
-  indicators(0), indicator(STMT_INDICATOR_NONE),
   /* Don't pretend to be a literal unless value for this item is set. */
   item_type(PARAM_ITEM),
+  indicators(0), indicator(STMT_INDICATOR_NONE),
   set_param_func(default_set_param_func),
-  m_out_param_info(NULL)
+  m_out_param_info(NULL),
+  /*
+    Set m_is_settable_routine_parameter to "true" by default.
+    This is needed for client-server protocol,
+    whose parameters are always settable.
+    For dynamic SQL, settability depends on the type of Item passed
+    as an actual parameter. See Item_param::set_from_item().
+  */
+  m_is_settable_routine_parameter(true)
 {
   name= (char*) "?";
   /* 
@@ -3331,7 +3385,7 @@ void Item_param::set_null()
   max_length= 0;
   decimals= 0;
   state= NULL_VALUE;
-  item_type= Item::NULL_ITEM;
+  fix_type(Item::NULL_ITEM);
   DBUG_VOID_RETURN;
 }
 
@@ -3343,6 +3397,7 @@ void Item_param::set_int(longlong i, uint32 max_length_arg)
   max_length= max_length_arg;
   decimals= 0;
   maybe_null= 0;
+  fix_type(Item::INT_ITEM);
   DBUG_VOID_RETURN;
 }
 
@@ -3354,6 +3409,7 @@ void Item_param::set_double(double d)
   max_length= DBL_DIG + 8;
   decimals= NOT_FIXED_DEC;
   maybe_null= 0;
+  fix_type(Item::REAL_ITEM);
   DBUG_VOID_RETURN;
 }
 
@@ -3383,20 +3439,40 @@ void Item_param::set_decimal(const char *str, ulong length)
     my_decimal_precision_to_length_no_truncation(decimal_value.precision(),
                                                  decimals, unsigned_flag);
   maybe_null= 0;
+  fix_type(Item::DECIMAL_ITEM);
   DBUG_VOID_RETURN;
 }
 
-void Item_param::set_decimal(const my_decimal *dv)
+void Item_param::set_decimal(const my_decimal *dv, bool unsigned_arg)
 {
   state= DECIMAL_VALUE;
 
   my_decimal2decimal(dv, &decimal_value);
 
   decimals= (uint8) decimal_value.frac;
-  unsigned_flag= !decimal_value.sign();
+  unsigned_flag= unsigned_arg;
   max_length= my_decimal_precision_to_length(decimal_value.intg + decimals,
                                              decimals, unsigned_flag);
+  fix_type(Item::DECIMAL_ITEM);
 }
+
+
+void Item_param::fix_temporal(uint32 max_length_arg, uint decimals_arg)
+{
+  state= TIME_VALUE;
+  max_length= max_length_arg;
+  decimals= decimals_arg;
+  fix_type(Item::DATE_ITEM);
+}
+
+
+void Item_param::set_time(const MYSQL_TIME *tm,
+                          uint32 max_length_arg, uint decimals_arg)
+{
+  value.time= *tm;
+  fix_temporal(max_length_arg, decimals_arg);
+}
+
 
 /**
   Set parameter value from MYSQL_TIME value.
@@ -3426,11 +3502,9 @@ void Item_param::set_time(MYSQL_TIME *tm, timestamp_type time_type,
                                  &str, time_type, 0);
     set_zero_time(&value.time, MYSQL_TIMESTAMP_ERROR);
   }
-
-  state= TIME_VALUE;
   maybe_null= 0;
-  max_length= max_length_arg;
-  decimals= tm->second_part > 0 ? TIME_SECOND_PART_DIGITS : 0;
+  fix_temporal(max_length_arg,
+               tm->second_part > 0 ? TIME_SECOND_PART_DIGITS : 0);
   DBUG_VOID_RETURN;
 }
 
@@ -3451,6 +3525,7 @@ bool Item_param::set_str(const char *str, ulong length)
   maybe_null= 0;
   /* max_length and decimals are set after charset conversion */
   /* sic: str may be not null-terminated, don't add DBUG_PRINT here */
+  fix_type(Item::STRING_ITEM);
   DBUG_RETURN(FALSE);
 }
 
@@ -3482,6 +3557,7 @@ bool Item_param::set_longdata(const char *str, ulong length)
     DBUG_RETURN(TRUE);
   state= LONG_DATA_VALUE;
   maybe_null= 0;
+  fix_type(Item::STRING_ITEM);
 
   DBUG_RETURN(FALSE);
 }
@@ -3528,6 +3604,7 @@ bool Item_param::CONVERSION_INFO::convert(THD *thd, String *str)
 bool Item_param::set_from_item(THD *thd, Item *item)
 {
   DBUG_ENTER("Item_param::set_from_item");
+  m_is_settable_routine_parameter= item->get_settable_routine_parameter();
   if (limit_clause_param)
   {
     longlong val= item->val_int();
@@ -3540,7 +3617,6 @@ bool Item_param::set_from_item(THD *thd, Item *item)
     {
       unsigned_flag= item->unsigned_flag;
       set_int(val, MY_INT64_NUM_DECIMAL_DIGITS);
-      item_type= Item::INT_ITEM;
       set_handler_by_result_type(item->result_type());
       DBUG_RETURN(!unsigned_flag && value.integer < 0 ? 1 : 0);
     }
@@ -3552,12 +3628,10 @@ bool Item_param::set_from_item(THD *thd, Item *item)
     switch (item->cmp_type()) {
     case REAL_RESULT:
       set_double(tmp.value.m_double);
-      item_type= Item::REAL_ITEM;
       set_handler_by_field_type(MYSQL_TYPE_DOUBLE);
       break;
     case INT_RESULT:
       set_int(tmp.value.m_longlong, MY_INT64_NUM_DECIMAL_DIGITS);
-      item_type= Item::INT_ITEM;
       set_handler_by_field_type(MYSQL_TYPE_LONGLONG);
       break;
     case STRING_RESULT:
@@ -3567,7 +3641,6 @@ bool Item_param::set_from_item(THD *thd, Item *item)
         Exact value of max_length is not known unless data is converted to
         charset of connection, so we have to set it later.
       */
-      item_type= Item::STRING_ITEM;
       set_handler_by_field_type(MYSQL_TYPE_VARCHAR);
 
       if (set_str(tmp.m_string.ptr(), tmp.m_string.length()))
@@ -3576,24 +3649,13 @@ bool Item_param::set_from_item(THD *thd, Item *item)
     }
     case DECIMAL_RESULT:
     {
-      const my_decimal *ent_value= &tmp.m_decimal;
-      my_decimal2decimal(ent_value, &decimal_value);
-      state= DECIMAL_VALUE;
-      decimals= ent_value->frac;
-      max_length=
-        my_decimal_precision_to_length_no_truncation(ent_value->precision(),
-                                                     decimals, unsigned_flag);
-      item_type= Item::DECIMAL_ITEM;
+      set_decimal(&tmp.m_decimal, unsigned_flag);
       set_handler_by_field_type(MYSQL_TYPE_NEWDECIMAL);
       break;
     }
     case TIME_RESULT:
     {
-      value.time= tmp.value.m_time;
-      state= TIME_VALUE;
-      max_length= item->max_length;
-      decimals= item->decimals;
-      item_type= Item::DATE_ITEM;
+      set_time(&tmp.value.m_time, item->max_length, item->decimals);
       set_handler(item->type_handler());
       break;
     }
@@ -3634,6 +3696,7 @@ void Item_param::reset()
   state= NO_VALUE;
   maybe_null= 1;
   null_value= 0;
+  fixed= false;
   /*
     Don't reset item_type to PARAM_ITEM: it's only needed to guard
     us from item optimizations at prepare stage, when item doesn't yet
@@ -3971,6 +4034,7 @@ bool Item_param::convert_str_value(THD *thd)
 
 bool Item_param::basic_const_item() const
 {
+  DBUG_ASSERT(fixed || state == NO_VALUE);
   if (state == NO_VALUE || state == TIME_VALUE)
     return FALSE;
   return TRUE;
@@ -4105,6 +4169,7 @@ Item_param::set_param_type_and_swap_value(Item_param *src)
   maybe_null= src->maybe_null;
   null_value= src->null_value;
   state= src->state;
+  fixed= src->fixed;
   value= src->value;
 
   decimal_value.swap(src->decimal_value);
@@ -4115,7 +4180,9 @@ Item_param::set_param_type_and_swap_value(Item_param *src)
 
 void Item_param::set_default()
 {
+  m_is_settable_routine_parameter= false;
   state= DEFAULT_VALUE;
+  fixed= true;
   /*
     When Item_param is set to DEFAULT_VALUE:
     - its val_str() and val_decimal() return NULL
@@ -4129,7 +4196,9 @@ void Item_param::set_default()
 
 void Item_param::set_ignore()
 {
+  m_is_settable_routine_parameter= false;
   state= IGNORE_VALUE;
+  fixed= true;
   null_value= true;
 }
 
@@ -4175,18 +4244,15 @@ Item_param::set_value(THD *thd, sp_rcontext *ctx, Item **it)
                       str_value.charset());
     collation.set(str_value.charset(), DERIVATION_COERCIBLE);
     decimals= 0;
-    item_type= Item::STRING_ITEM;
     break;
   }
 
   case REAL_RESULT:
     set_double(arg->val_real());
-    item_type= Item::REAL_ITEM;
     break;
 
   case INT_RESULT:
     set_int(arg->val_int(), arg->max_length);
-    item_type= Item::INT_ITEM;
     break;
 
   case DECIMAL_RESULT:
@@ -4197,8 +4263,7 @@ Item_param::set_value(THD *thd, sp_rcontext *ctx, Item **it)
     if (!dv)
       return TRUE;
 
-    set_decimal(dv);
-    item_type= Item::DECIMAL_ITEM;
+    set_decimal(dv, !dv->sign());
     break;
   }
 
@@ -4208,7 +4273,6 @@ Item_param::set_value(THD *thd, sp_rcontext *ctx, Item **it)
     DBUG_ASSERT(TRUE);  // Abort in debug mode.
 
     set_null();         // Set to NULL in release mode.
-    item_type= Item::NULL_ITEM;
     return FALSE;
   }
 
@@ -8694,17 +8758,22 @@ bool Item_default_value::fix_fields(THD *thd, Item **items)
     goto error;
   memcpy((void *)def_field, (void *)field_arg->field,
          field_arg->field->size_of());
-  def_field->move_field_offset((my_ptrdiff_t)
-                               (def_field->table->s->default_values -
-                                def_field->table->record[0]));
-  set_field(def_field);
-  if (field->default_value)
+  IF_DBUG(def_field->is_stat_field=1,); // a hack to fool ASSERT_COLUMN_MARKED_FOR_WRITE_OR_COMPUTED
+  if (def_field->default_value && def_field->default_value->flags)
   {
-    fix_session_vcol_expr_for_read(thd, field, field->default_value);
+    uchar *newptr= (uchar*) thd->alloc(1+def_field->pack_length());
+    if (!newptr)
+      goto error;
+    fix_session_vcol_expr_for_read(thd, def_field, def_field->default_value);
     if (thd->mark_used_columns != MARK_COLUMNS_NONE)
-      field->default_value->expr->walk(&Item::register_field_in_read_map, 1, 0);
-    IF_DBUG(def_field->is_stat_field=1,); // a hack to fool ASSERT_COLUMN_MARKED_FOR_WRITE_OR_COMPUTED
+      def_field->default_value->expr->walk(&Item::register_field_in_read_map, 1, 0);
+    def_field->move_field(newptr+1, def_field->maybe_null() ? newptr : 0, 1);
   }
+  else
+    def_field->move_field_offset((my_ptrdiff_t)
+                                 (def_field->table->s->default_values -
+                                  def_field->table->record[0]));
+  set_field(def_field);
   return FALSE;
 
 error:
@@ -8729,6 +8798,7 @@ void Item_default_value::calculate()
 {
   if (field->default_value)
     field->set_default();
+  DEBUG_SYNC(field->table->in_use, "after_Item_default_value_calculate");
 }
 
 String *Item_default_value::val_str(String *str)
@@ -8770,15 +8840,25 @@ bool Item_default_value::send(Protocol *protocol, String *buffer)
 int Item_default_value::save_in_field(Field *field_arg, bool no_conversions)
 {
   if (arg)
-    calculate();
-  else
   {
-    return field_arg->save_in_field_default_value(context->error_processor ==
-                                                  &view_error_processor);
+    calculate();
+    return Item_field::save_in_field(field_arg, no_conversions);
   }
-  return Item_field::save_in_field(field_arg, no_conversions);
+
+  if (field_arg->default_value && field_arg->default_value->flags)
+    return 0; // defaut fields will be set later, no need to do it twice
+  return field_arg->save_in_field_default_value(context->error_processor ==
+                                                &view_error_processor);
 }
 
+table_map Item_default_value::used_tables() const
+{
+  if (!field || !field->default_value)
+    return static_cast<table_map>(0);
+  if (!field->default_value->expr)                      // not fully parsed field
+    return static_cast<table_map>(RAND_TABLE_BIT);
+  return field->default_value->expr->used_tables();
+}
 
 /**
   This method like the walk method traverses the item tree, but at the

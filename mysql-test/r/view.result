@@ -1,7 +1,3 @@
-drop table if exists t1,t2,t3,t4,t5,t6,t9,`t1a``b`,v1,v2,v3,v4,v5,v6;
-drop view if exists t1,t2,t3,t4,t5,t6,t9,`t1a``b`,v1,v2,v3,v4,v5,v6;
-drop database if exists mysqltest;
-use test;
 SET @save_optimizer_switch=@@optimizer_switch;
 SET optimizer_switch='outer_join_with_cache=off';
 create view v1 (c,d) as select a,b from t1;
@@ -1315,6 +1311,7 @@ s1
 3
 drop view v1;
 drop table t1;
+SET sql_mode = 'NO_ENGINE_SUBSTITUTION';
 create table t1 (s1 tinyint);
 create trigger t1_bi before insert on t1 for each row set new.s1 = 500;
 create view v1 as select * from t1 where s1 <> 127 with check option;
@@ -1327,6 +1324,7 @@ s1
 drop trigger t1_bi;
 drop view v1;
 drop table t1;
+SET sql_mode = default;
 create table t1 (s1 tinyint);
 create view v1 as select * from t1 where s1 <> 0;
 create view v2 as select * from v1 where s1 <> 1 with cascaded check option;
@@ -1581,22 +1579,22 @@ execute stmt1 using @a;
 deallocate prepare stmt1;
 select * from v3;
 a	b
-100	1000
-101	1000
-300	1000
-301	1000
-100	10
-101	10
-300	10
-301	10
-100	2000
-101	2000
-300	2000
-301	2000
 100	0
+100	10
+100	1000
+100	2000
 101	0
+101	10
+101	1000
+101	2000
 300	0
+300	10
+300	1000
+300	2000
 301	0
+301	10
+301	1000
+301	2000
 drop view v3;
 drop tables t1,t2;
 create table t1(f1 int);
@@ -2796,7 +2794,7 @@ DROP VIEW v1;
 DROP TABLE t1,t2;
 CREATE TABLE t1 (a INT NOT NULL, b INT NULL DEFAULT NULL);
 CREATE VIEW v1 AS SELECT a, b FROM t1;
-INSERT INTO v1 (b) VALUES (2);
+INSERT IGNORE INTO v1 (b) VALUES (2);
 Warnings:
 Warning	1423	Field of view 'test.v1' underlying table doesn't have a default value
 SET SQL_MODE = STRICT_ALL_TABLES;
@@ -3643,7 +3641,7 @@ DROP TABLE t1;
 #
 create table t1(f1 int, f2 int not null);
 create view v1 as select f1 from t1;
-insert into v1 values(1);
+insert ignore into v1 values(1);
 Warnings:
 Warning	1423	Field of view 'test.v1' underlying table doesn't have a default value
 set @old_mode=@@sql_mode;
@@ -5848,6 +5846,31 @@ f1	f2
 drop table t1, t2;
 SELECT 1 FROM (SELECT 1 as a) AS b HAVING (SELECT `SOME_GARBAGE`.b.a)=1;
 ERROR 42S22: Unknown column 'SOME_GARBAGE.b.a' in 'field list'
+#
+# MDEV-10035: DBUG_ASSERT on CREATE VIEW v1 AS SELECT * FROM t1
+# FOR UPDATE
+#
+CREATE TABLE t1 (a INT);
+insert into t1 values (1),(2);
+CREATE VIEW v1 AS SELECT * FROM t1 FOR UPDATE;
+SHOW CREATE VIEW v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select `t1`.`a` AS `a` from `t1` for update	latin1	latin1_swedish_ci
+select * from v1;
+a
+1
+2
+DROP VIEW v1;
+CREATE VIEW v1 AS SELECT * FROM t1 LOCK IN SHARE MODE;
+SHOW CREATE VIEW v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select `t1`.`a` AS `a` from `t1` lock in share mode	latin1	latin1_swedish_ci
+select * from v1;
+a
+1
+2
+DROP VIEW v1;
+DROP TABLE t1;
 # -----------------------------------------------------------------
 # -- End of 10.0 tests.
 # -----------------------------------------------------------------
@@ -6298,6 +6321,30 @@ INSERT INTO v (f1, f3) VALUES (1,1), (2,2);
 ERROR HY000: Can not modify more than one base table through a join view 'test.v'
 drop view v;
 drop tables t1,t2,t3;
+create table t1 (i int, j int);
+insert t1 values (1,1),(2,2);
+create view v1 as select (2, 3) not in (select i, j from t1);
+select * from v1;
+(2, 3) not in (select i, j from t1)
+1
+show create view v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select !((2,3) in (select `t1`.`i`,`t1`.`j` from `t1`)) AS `(2, 3) not in (select i, j from t1)`	latin1	latin1_swedish_ci
+drop view v1;
+drop table t1;
+#
+# MDEV-10704: Assertion `field->field->table == table_arg'
+# failed in fill_record(THD*, TABLE*, List<Item>&, List<Item>&,
+# bool, bool)
+#
+CREATE TABLE t1 (i INT);
+CREATE TABLE t2 (j INT);
+CREATE TABLE t3 (k INT);
+CREATE ALGORITHM = MERGE VIEW v AS SELECT j AS f1, k AS f2 FROM ( SELECT j FROM t1, t2 ) sq, t3;
+REPLACE INTO v (f1,f2) VALUES (1,1);
+ERROR HY000: Can not modify more than one base table through a join view 'test.v'
+drop view v;
+drop table t1,t2,t3;
 #
 # End of 10.2 tests
 #

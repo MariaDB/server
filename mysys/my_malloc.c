@@ -48,7 +48,6 @@ static inline size_t malloc_size_and_flag(void *p, my_bool *is_thread_specific)
 #define MALLOC_FIX_POINTER_FOR_FREE(p) (((char*) (p)) - MALLOC_PREFIX_SIZE)
 #endif /* SAFEMALLOC */
 
-static MALLOC_SIZE_CB malloc_size_cb_func= NULL;
 
 /**
   Inform application that memory usage has changed
@@ -59,17 +58,19 @@ static MALLOC_SIZE_CB malloc_size_cb_func= NULL;
 
   The type os size is long long, to be able to handle negative numbers to
   decrement the memory usage
-*/
 
-static void update_malloc_size(long long size, my_bool is_thread_specific)
-{
-  if (malloc_size_cb_func)
-    malloc_size_cb_func(size, is_thread_specific);
-}
+  @return 0 - ok
+          1 - failure, abort the allocation
+*/
+static void dummy(long long size __attribute__((unused)),
+                  my_bool is_thread_specific __attribute__((unused)))
+{}
+
+static MALLOC_SIZE_CB update_malloc_size= dummy;
 
 void set_malloc_size_cb(MALLOC_SIZE_CB func)
 {
-  malloc_size_cb_func= func;
+  update_malloc_size= func ? func : dummy;
 }
     
     

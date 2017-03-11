@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -129,12 +130,10 @@ rtr_pcur_getnext_from_path(
 		      || latch_mode & BTR_MODIFY_LEAF);
 		mtr_s_lock(dict_index_get_lock(index), mtr);
 	} else {
-		ut_ad(mtr_memo_contains(mtr, dict_index_get_lock(index),
-					MTR_MEMO_SX_LOCK)
-		      || mtr_memo_contains(mtr, dict_index_get_lock(index),
-					MTR_MEMO_S_LOCK)
-		      || mtr_memo_contains(mtr, dict_index_get_lock(index),
-					   MTR_MEMO_X_LOCK));
+		ut_ad(mtr_memo_contains_flagged(mtr, &index->lock,
+						MTR_MEMO_SX_LOCK
+						| MTR_MEMO_S_LOCK
+						| MTR_MEMO_X_LOCK));
 	}
 
 	const page_size_t&	page_size = dict_table_page_size(index->table);
@@ -543,7 +542,7 @@ rtr_pcur_open_low(
 	ulint		latch_mode,/*!< in: BTR_SEARCH_LEAF, ... */
 	btr_pcur_t*	cursor, /*!< in: memory buffer for persistent cursor */
 	const char*	file,	/*!< in: file name */
-	ulint		line,	/*!< in: line where called */
+	unsigned	line,	/*!< in: line where called */
 	mtr_t*		mtr)	/*!< in: mtr */
 {
 	btr_cur_t*	btr_cursor;
@@ -601,10 +600,9 @@ rtr_pcur_open_low(
 	}
 
 	if (latch_mode & BTR_MODIFY_TREE) {
-		ut_ad(mtr_memo_contains(mtr, dict_index_get_lock(index),
-					MTR_MEMO_X_LOCK)
-		      || mtr_memo_contains(mtr, dict_index_get_lock(index),
-					   MTR_MEMO_SX_LOCK));
+		ut_ad(mtr_memo_contains_flagged(mtr, &index->lock,
+						MTR_MEMO_X_LOCK
+						| MTR_MEMO_SX_LOCK));
 		tree_latched = true;
 	}
 
@@ -720,7 +718,7 @@ rtr_page_get_father_node_ptr_func(
 				out: cursor on node pointer record,
 				its page x-latched */
 	const char*	file,	/*!< in: file name */
-	ulint		line,	/*!< in: line where called */
+	unsigned	line,	/*!< in: line where called */
 	mtr_t*		mtr)	/*!< in: mtr */
 {
 	dtuple_t*	tuple;
@@ -1264,7 +1262,7 @@ rtr_cur_restore_position_func(
 	btr_cur_t*	btr_cur,	/*!< in: detached persistent cursor */
 	ulint		level,		/*!< in: index level */
 	const char*	file,		/*!< in: file name */
-	ulint		line,		/*!< in: line where called */
+	unsigned	line,		/*!< in: line where called */
 	mtr_t*		mtr)		/*!< in: mtr */
 {
 	dict_index_t*	index;
@@ -1555,6 +1553,7 @@ rtr_copy_buf(
 	/* Skip buf_block_t::lock */
 	matches->block.lock_hash_val = block->lock_hash_val;
 	matches->block.modify_clock = block->modify_clock;
+#ifdef BTR_CUR_HASH_ADAPT
 	matches->block.n_hash_helps = block->n_hash_helps;
 	matches->block.n_fields = block->n_fields;
 	matches->block.left_side = block->left_side;
@@ -1564,7 +1563,7 @@ rtr_copy_buf(
 	matches->block.curr_n_fields = block->curr_n_fields;
 	matches->block.curr_left_side = block->curr_left_side;
 	matches->block.index = block->index;
-
+#endif /* BTR_CUR_HASH_ADAPT */
 	ut_d(matches->block.debug_latch = block->debug_latch);
 
 }

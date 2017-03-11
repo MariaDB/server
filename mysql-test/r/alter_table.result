@@ -292,7 +292,7 @@ t2	CREATE TABLE `t2` (
 ) ENGINE=MRG_MyISAM DEFAULT CHARSET=latin1 UNION=(`t1`)
 drop table if exists t1, t2;
 create table t1 (a int, b int, c int, d int, e int, f int, g int, h int,i int, primary key (a,b,c,d,e,f,g,i,h)) engine=MyISAM;
-insert into t1 (a) values(1);
+insert ignore into t1 (a) values(1);
 Warnings:
 Warning	1364	Field 'b' doesn't have a default value
 Warning	1364	Field 'c' doesn't have a default value
@@ -311,7 +311,7 @@ Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	I
 t1	MyISAM	10	Fixed	1	37	X	X	X	X	X	X	X	X	latin1_swedish_ci	NULL		
 drop table t1;
 create table t1 (a int not null, b int not null, c int not null, d int not null, e int not null, f int not null, g int not null, h int not null,i int not null, primary key (a,b,c,d,e,f,g,i,h)) engine=MyISAM;
-insert into t1 (a) values(1);
+insert ignore into t1 (a) values(1);
 Warnings:
 Warning	1364	Field 'b' doesn't have a default value
 Warning	1364	Field 'c' doesn't have a default value
@@ -2088,6 +2088,21 @@ tab1	CREATE TABLE `tab1` (
   PRIMARY KEY (`id`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE `tab1`;
+#
+# MDEV-11548 Reproducible server crash after the 2nd ALTER TABLE ADD FOREIGN KEY IF NOT EXISTS
+#
+CREATE TABLE t1 (id INT UNSIGNED NOT NULL PRIMARY KEY);
+CREATE TABLE t2 (id1 INT UNSIGNED NOT NULL);
+ALTER TABLE t2
+ADD FOREIGN KEY IF NOT EXISTS (id1)
+REFERENCES t1 (id);
+ALTER TABLE t2
+ADD FOREIGN KEY IF NOT EXISTS (id1)
+REFERENCES t1 (id);
+Warnings:
+Note	1061	Duplicate key name 'id1'
+DROP TABLE t2;
+DROP TABLE t1;
 #
 # Start of 10.1 tests
 #

@@ -79,10 +79,6 @@ static const ulint BUF_LRU_DROP_SEARCH_SIZE = 1024;
 during LRU eviction. */
 static const ulint BUF_LRU_SEARCH_SCAN_THRESHOLD = 100;
 
-/** We scan these many blocks when looking for a clean page to evict
-during LRU eviction. */
-#define BUF_LRU_SEARCH_SCAN_THRESHOLD	100
-
 /** If we switch on the InnoDB monitor because there are too few available
 frames in the buffer pool, we set this to TRUE */
 static bool buf_lru_switched_on_innodb_mon = false;
@@ -223,6 +219,7 @@ buf_LRU_evict_from_unzip_LRU(
 	return(unzip_avg <= io_avg * BUF_LRU_IO_TO_UNZIP_FACTOR);
 }
 
+#ifdef BTR_CUR_HASH_ADAPT
 /** Attempts to drop page hash index on a batch of pages belonging to a
 particular space id.
 @param[in]	space_id	space id
@@ -368,6 +365,7 @@ next_page:
 	buf_LRU_drop_page_hash_batch(id, page_size, page_arr, num_entries);
 	ut_free(page_arr);
 }
+#endif /* BTR_CUR_HASH_ADAPT */
 
 /******************************************************************//**
 While flushing (or removing dirty) pages from a tablespace we don't
@@ -792,7 +790,7 @@ scan_again:
 				      bpage->id.space(),
 				      bpage->id.page_no(),
 				      bpage->state));
-
+#ifdef BTR_CUR_HASH_ADAPT
 		if (buf_page_get_state(bpage) != BUF_BLOCK_FILE_PAGE) {
 			/* Do nothing, because the adaptive hash index
 			covers uncompressed pages only. */
@@ -814,6 +812,7 @@ scan_again:
 
 			goto scan_again;
 		}
+#endif /* BTR_CUR_HASH_ADAPT */
 
 		if (bpage->oldest_modification != 0) {
 
@@ -915,7 +914,7 @@ buf_LRU_flush_or_remove_pages(
 		buf_pool_t*	buf_pool;
 
 		buf_pool = buf_pool_from_array(i);
-
+#ifdef BTR_CUR_HASH_ADAPT
 		switch (buf_remove) {
 		case BUF_REMOVE_ALL_NO_WRITE:
 			buf_LRU_drop_page_hash_for_tablespace(buf_pool, id);
@@ -931,7 +930,7 @@ buf_LRU_flush_or_remove_pages(
 			table, there is no need to drop the AHI entries. */
 			break;
 		}
-
+#endif /* BTR_CUR_HASH_ADAPT */
 		buf_LRU_remove_pages(buf_pool, id, buf_remove, trx);
 	}
 }
@@ -1210,15 +1209,15 @@ buf_LRU_check_size_of_non_data_objects(
 	    + UT_LIST_GET_LEN(buf_pool->LRU) < buf_pool->curr_size / 20) {
 
 		ib::fatal() << "Over 95 percent of the buffer pool is"
-			" occupied by lock heaps or the adaptive hash index!"
+			" occupied by lock heaps"
+#ifdef BTR_CUR_HASH_ADAPT
+			" or the adaptive hash index!"
+#endif /* BTR_CUR_HASH_ADAPT */
 			" Check that your transactions do not set too many"
-			" row locks. Your buffer pool size is "
-			<< (buf_pool->curr_size
-				/ (1024 * 1024 / UNIV_PAGE_SIZE)) << " MB."
-			" Maybe you should make the buffer pool bigger?"
-			" We intentionally generate a seg fault to print"
-			" a stack trace on Linux!";
-
+			" row locks, or review if"
+			" innodb_buffer_pool_size="
+			<< (buf_pool->curr_size >> (20 - UNIV_PAGE_SIZE_SHIFT))
+			<< "M could be bigger.";
 	} else if (!recv_recovery_is_on()
 		   && buf_pool->curr_size == buf_pool->old_size
 		   && (UT_LIST_GET_LEN(buf_pool->free)
@@ -1232,16 +1231,17 @@ buf_LRU_check_size_of_non_data_objects(
 			leak! */
 
 			ib::warn() << "Over 67 percent of the buffer pool is"
-				" occupied by lock heaps or the adaptive hash"
-				" index! Check that your transactions do not"
-				" set too many row locks. Your buffer pool"
-				" size is "
-				<< (buf_pool->curr_size
-					 / (1024 * 1024 / UNIV_PAGE_SIZE))
-				<< " MB. Maybe you should make the buffer pool"
-				" bigger?. Starting the InnoDB Monitor to print"
-				" diagnostics, including lock heap and hash"
-				" index sizes.";
+				" occupied by lock heaps"
+#ifdef BTR_CUR_HASH_ADAPT
+				" or the adaptive hash index!"
+#endif /* BTR_CUR_HASH_ADAPT */
+				" Check that your transactions do not"
+				" set too many row locks."
+				" innodb_buffer_pool_size="
+				<< (buf_pool->curr_size >>
+				    (20 - UNIV_PAGE_SIZE_SHIFT)) << "M."
+				" Starting the InnoDB Monitor to print"
+				" diagnostics.";
 
 			buf_lru_switched_on_innodb_mon = true;
 			srv_print_innodb_monitor = TRUE;
@@ -2107,9 +2107,11 @@ buf_LRU_block_free_non_file_page(
 		return; /* Continue */
 	}
 
-#if defined UNIV_AHI_DEBUG || defined UNIV_DEBUG
+#ifdef BTR_CUR_HASH_ADAPT
+# if defined UNIV_AHI_DEBUG || defined UNIV_DEBUG
 	ut_a(block->n_pointers == 0);
-#endif /* UNIV_AHI_DEBUG || UNIV_DEBUG */
+# endif /* UNIV_AHI_DEBUG || UNIV_DEBUG */
+#endif /* BTR_CUR_HASH_ADAPT */
 	ut_ad(!block->page.in_free_list);
 	ut_ad(!block->page.in_flush_list);
 	ut_ad(!block->page.in_LRU_list);

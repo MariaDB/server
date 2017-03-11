@@ -7,7 +7,7 @@ insert t1 values ('2010-12-11 00:20:03.1234');
 insert t1 values ('2010-12-11 15:47:11.1234');
 insert t1 values (20101211010203.45678);
 insert t1 values (20101211030405.789e0);
-insert t1 values (99991231235959e1);
+insert ignore t1 values (99991231235959e1);
 Warnings:
 Warning	1265	Data truncated for column 'a' at row 1
 select * from t1;
@@ -95,7 +95,7 @@ a
 select a, a + interval 2 year from t1;
 a	a + interval 2 year
 2010-12-11 01:02:13.3332	2012-12-11 01:02:13.3332
-insert t1 select a + interval 2 year from t1;
+insert ignore t1 select a + interval 2 year from t1;
 select * from t1;
 a
 2010-12-11 01:02:13.3332

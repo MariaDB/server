@@ -2,6 +2,8 @@
 # Testing ORDER BY
 #
 
+call mtr.add_suppression("Sort aborted.*");
+
 --disable_warnings
 drop table if exists t1,t2,t3;
 --enable_warnings
@@ -269,6 +271,7 @@ select * from t1 where a = 1 order by b desc;
 # Test things when we don't have NULL keys
 #
 
+SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 alter table t1 modify b int not null, modify c varchar(10) not null;
 explain select * from t1 order by a, b, c;
 select * from t1 order by a, b, c;
@@ -1944,6 +1947,16 @@ where A.b = B.b
 order by A.col2, B.col2 limit 10, 1000000;
 
 drop table t1,t2,t3;
+
+--echo #
+--echo # mdev-10705 : long order by list that can be skipped
+--echo #
+
+SELECT 1 
+UNION 
+( SELECT 2 
+    ORDER BY NULL, @a0 := 3, @a1 := 3, @a2 := 3, @a3 := 3, @a4 := 3,
+             @a5 := 3, @a6 := 3, @a7 := 3, @a8 := 3, @a9 := 3, @a10 := 3 );
 
 --echo End of 5.5 tests
 

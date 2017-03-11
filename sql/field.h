@@ -1,7 +1,7 @@
 #ifndef FIELD_INCLUDED
 #define FIELD_INCLUDED
 /* Copyright (c) 2000, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2015, MariaDB
+   Copyright (c) 2008, 2017, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -948,16 +948,13 @@ public:
   */
   void set_has_explicit_value()
   {
-    if (table->has_value_set)             /* If we have default functions */
-      bitmap_set_bit(table->has_value_set, field_index);
+    bitmap_set_bit(&table->has_value_set, field_index);
   }
   bool has_explicit_value()
   {
-    /* This function is only called when we have default functions */
-    DBUG_ASSERT(table->has_value_set);
-    return bitmap_is_set(table->has_value_set, field_index);
+    return bitmap_is_set(&table->has_value_set, field_index);
   }
-  virtual void set_explicit_default(Item *value);
+  virtual bool set_explicit_default(Item *value);
 
   /**
      Evaluates the @c UPDATE default function, if one exists, and stores the
@@ -1025,7 +1022,7 @@ public:
   virtual int cmp_max(const uchar *a, const uchar *b, uint max_len)
     { return cmp(a, b); }
   virtual int cmp(const uchar *,const uchar *)=0;
-  virtual int cmp_binary(const uchar *a,const uchar *b, uint32 max_length=~0L)
+  virtual int cmp_binary(const uchar *a,const uchar *b, uint32 max_length=~0U)
   { return memcmp(a,b,pack_length()); }
   virtual int cmp_offset(uint row_offset)
   { return cmp(ptr,ptr+row_offset); }
@@ -1376,7 +1373,8 @@ public:
   void set_storage_type(ha_storage_media storage_type_arg)
   {
     DBUG_ASSERT(field_storage_type() == HA_SM_DEFAULT);
-    flags |= (storage_type_arg << FIELD_FLAGS_STORAGE_MEDIA);
+    flags |= static_cast<uint32>(storage_type_arg) <<
+      FIELD_FLAGS_STORAGE_MEDIA;
   }
 
   column_format_type column_format() const
@@ -1388,7 +1386,8 @@ public:
   void set_column_format(column_format_type column_format_arg)
   {
     DBUG_ASSERT(column_format() == COLUMN_FORMAT_TYPE_DEFAULT);
-    flags |= (column_format_arg << FIELD_FLAGS_COLUMN_FORMAT);
+    flags |= static_cast<uint32>(column_format_arg) <<
+      FIELD_FLAGS_COLUMN_FORMAT;
   }
 
   /*
@@ -1474,6 +1473,9 @@ public:
 
   bool save_in_field_default_value(bool view_eror_processing);
   bool save_in_field_ignore_value(bool view_error_processing);
+
+  /* Mark field in read map. Updates also virtual fields */
+  void register_field_in_read_map();
 
   friend int cre_myisam(char * name, register TABLE *form, uint options,
 			ulonglong auto_increment_value);
@@ -2379,9 +2381,9 @@ public:
   uint32 pack_length() const { return 4; }
   void sql_type(String &str) const;
   bool zero_pack() const { return 0; }
-  virtual int set_time();
-  virtual void set_explicit_default(Item *value);
-  virtual int evaluate_update_default_function()
+  int set_time();
+  bool set_explicit_default(Item *value);
+  int evaluate_update_default_function()
   {
     int res= 0;
     if (has_update_default_function())
@@ -2813,8 +2815,8 @@ public:
   void sql_type(String &str) const;
   bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
   { return Field_datetime::get_TIME(ltime, ptr, fuzzydate); }
-  virtual int set_time();
-  virtual int evaluate_update_default_function()
+  int set_time();
+  int evaluate_update_default_function()
   {
     int res= 0;
     if (has_update_default_function())
@@ -3134,7 +3136,7 @@ public:
   int cmp_max(const uchar *, const uchar *, uint max_length);
   int cmp(const uchar *a,const uchar *b)
   {
-    return cmp_max(a, b, ~0L);
+    return cmp_max(a, b, ~0U);
   }
   void sort_string(uchar *buff,uint length);
   uint get_key_image(uchar *buff,uint length, imagetype type);
@@ -3143,7 +3145,7 @@ public:
   virtual uchar *pack(uchar *to, const uchar *from, uint max_length);
   virtual const uchar *unpack(uchar* to, const uchar *from,
                               const uchar *from_end, uint param_data);
-  int cmp_binary(const uchar *a,const uchar *b, uint32 max_length=~0L);
+  int cmp_binary(const uchar *a,const uchar *b, uint32 max_length=~0U);
   int key_cmp(const uchar *,const uchar*);
   int key_cmp(const uchar *str, uint length);
   uint packed_col_length(const uchar *to, uint length);
@@ -3176,6 +3178,12 @@ protected:
     The 'value'-object is a cache fronting the storage engine.
   */
   String value;
+  /**
+     Cache for blob values when reading a row with a virtual blob
+     field. This is needed to not destroy the old cached value when
+     updating the blob with a new value when creating the new row.
+  */
+  String read_value;
 
   static void do_copy_blob(Copy_field *copy);
   static void do_conv_blob(Copy_field *copy);
@@ -3247,9 +3255,9 @@ public:
   my_decimal *val_decimal(my_decimal *);
   int cmp_max(const uchar *, const uchar *, uint max_length);
   int cmp(const uchar *a,const uchar *b)
-    { return cmp_max(a, b, ~0L); }
+    { return cmp_max(a, b, ~0U); }
   int cmp(const uchar *a, uint32 a_length, const uchar *b, uint32 b_length);
-  int cmp_binary(const uchar *a,const uchar *b, uint32 max_length=~0L);
+  int cmp_binary(const uchar *a,const uchar *b, uint32 max_length=~0U);
   int key_cmp(const uchar *,const uchar*);
   int key_cmp(const uchar *str, uint length);
   /* Never update the value of min_val for a blob field */
@@ -3279,7 +3287,7 @@ public:
     return (uint32) (((ulonglong) 1 << (packlength*8)) -1);
   }
   int reset(void) { bzero(ptr, packlength+sizeof(uchar*)); return 0; }
-  void reset_fields() { bzero((uchar*) &value,sizeof(value)); }
+  void reset_fields() { bzero((uchar*) &value,sizeof(value)); bzero((uchar*) &read_value,sizeof(read_value)); }
   uint32 get_field_buffer_size(void) { return value.alloced_length(); }
   void store_length(uchar *i_ptr, uint i_packlength, uint32 i_number);
   inline void store_length(uint32 number)
@@ -3332,16 +3340,41 @@ public:
     memcpy(ptr+packlength, &tmp, sizeof(char*));
     return 0;
   }
+  /* store value for the duration of the current read record */
+  inline void swap_value_and_read_value()
+  {
+    read_value.swap(value);
+  }
+  inline void set_value(uchar *data)
+  {
+    /* Set value pointer. Lengths are not important */
+    value.reset((char*) data, 1, 1, &my_charset_bin);
+  }
   virtual uchar *pack(uchar *to, const uchar *from, uint max_length);
   virtual const uchar *unpack(uchar *to, const uchar *from,
                               const uchar *from_end, uint param_data);
   uint packed_col_length(const uchar *col_ptr, uint length);
   uint max_packed_col_length(uint max_length);
-  void free() { value.free(); }
-  inline void clear_temporary() { bzero((uchar*) &value, sizeof(value)); }
-  inline bool owns_ptr(uchar* p) const { return p == (uchar*)value.ptr(); }
-  inline void own_value_ptr()
-  { value.reset((char*)get_ptr(), get_length(), get_length(), value.charset()); }
+  void free()
+  {
+    value.free();
+    read_value.free();
+  }
+  inline void clear_temporary()
+  {
+    uchar *tmp= get_ptr();
+    if (likely(value.ptr() == (char*) tmp))
+      bzero((uchar*) &value, sizeof(value));
+    else
+    {
+      /*
+        Currently read_value should never point to tmp, the following code
+        is mainly here to make things future proof.
+      */
+      if (unlikely(read_value.ptr() == (char*) tmp))
+        bzero((uchar*) &read_value, sizeof(read_value));
+    }
+  }
   uint size_of() const { return sizeof(*this); }
   bool has_charset(void) const
   { return charset() == &my_charset_bin ? FALSE : TRUE; }
@@ -3924,26 +3957,26 @@ bool check_expression(Virtual_column_info *vcol, const char *name,
   The following are for the interface with the .frm file
 */
 
-#define FIELDFLAG_DECIMAL		1
-#define FIELDFLAG_BINARY		1	// Shares same flag
-#define FIELDFLAG_NUMBER		2
-#define FIELDFLAG_ZEROFILL		4
-#define FIELDFLAG_PACK			120	// Bits used for packing
-#define FIELDFLAG_INTERVAL		256     // mangled with decimals!
-#define FIELDFLAG_BITFIELD		512	// mangled with decimals!
-#define FIELDFLAG_BLOB			1024	// mangled with decimals!
-#define FIELDFLAG_GEOM			2048    // mangled with decimals!
+#define FIELDFLAG_DECIMAL		1U
+#define FIELDFLAG_BINARY		1U	// Shares same flag
+#define FIELDFLAG_NUMBER		2U
+#define FIELDFLAG_ZEROFILL		4U
+#define FIELDFLAG_PACK			120U	// Bits used for packing
+#define FIELDFLAG_INTERVAL		256U    // mangled with decimals!
+#define FIELDFLAG_BITFIELD		512U	// mangled with decimals!
+#define FIELDFLAG_BLOB			1024U	// mangled with decimals!
+#define FIELDFLAG_GEOM			2048U   // mangled with decimals!
 
-#define FIELDFLAG_TREAT_BIT_AS_CHAR     4096    /* use Field_bit_as_char */
-#define FIELDFLAG_LONG_DECIMAL          8192
-#define FIELDFLAG_NO_DEFAULT		16384   /* sql */
-#define FIELDFLAG_MAYBE_NULL		((uint) 32768)// sql
-#define FIELDFLAG_HEX_ESCAPE		((uint) 0x10000)
+#define FIELDFLAG_TREAT_BIT_AS_CHAR     4096U   /* use Field_bit_as_char */
+#define FIELDFLAG_LONG_DECIMAL          8192U
+#define FIELDFLAG_NO_DEFAULT		16384U  /* sql */
+#define FIELDFLAG_MAYBE_NULL		32768U	// sql
+#define FIELDFLAG_HEX_ESCAPE		0x10000U
 #define FIELDFLAG_PACK_SHIFT		3
 #define FIELDFLAG_DEC_SHIFT		8
-#define FIELDFLAG_MAX_DEC               63
+#define FIELDFLAG_MAX_DEC               63U
 
-#define MTYP_TYPENR(type) (type & 127)	/* Remove bits from type */
+#define MTYP_TYPENR(type) (type & 127U)	/* Remove bits from type */
 
 #define f_is_dec(x)		((x) & FIELDFLAG_DECIMAL)
 #define f_is_num(x)		((x) & FIELDFLAG_NUMBER)
@@ -3957,7 +3990,7 @@ bool check_expression(Virtual_column_info *vcol, const char *name,
 #define f_is_bitfield(x)        (((x) & (FIELDFLAG_BITFIELD | FIELDFLAG_NUMBER)) == FIELDFLAG_BITFIELD)
 #define f_is_blob(x)		(((x) & (FIELDFLAG_BLOB | FIELDFLAG_NUMBER)) == FIELDFLAG_BLOB)
 #define f_is_geom(x)		(((x) & (FIELDFLAG_GEOM | FIELDFLAG_NUMBER)) == FIELDFLAG_GEOM)
-#define f_settype(x)		(((int) (x)) << FIELDFLAG_PACK_SHIFT)
+#define f_settype(x)		(((uint) (x)) << FIELDFLAG_PACK_SHIFT)
 #define f_maybe_null(x)		((x) & FIELDFLAG_MAYBE_NULL)
 #define f_no_default(x)		((x) & FIELDFLAG_NO_DEFAULT)
 #define f_bit_as_char(x)        ((x) & FIELDFLAG_TREAT_BIT_AS_CHAR)

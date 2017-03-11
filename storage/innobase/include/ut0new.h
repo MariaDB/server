@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2014, 2015, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -389,25 +390,21 @@ public:
 	}
 
 	/** Free a memory allocated by allocate() and trace the deallocation.
-	@param[in,out]	ptr		pointer to memory to free
-	@param[in]	n_elements	number of elements allocated (unused) */
-	void
-	deallocate(
-		pointer		ptr,
-		size_type	n_elements = 0)
+	@param[in,out]	ptr		pointer to memory to free */
+	void deallocate(pointer ptr, size_type)
 	{
+#ifdef UNIV_PFS_MEMORY
 		if (ptr == NULL) {
 			return;
 		}
 
-#ifdef UNIV_PFS_MEMORY
 		ut_new_pfx_t*	pfx = reinterpret_cast<ut_new_pfx_t*>(ptr) - 1;
 
 		deallocate_trace(pfx);
 
 		free(pfx);
 #else
-		// free(ptr);
+		free(ptr);
 #endif /* UNIV_PFS_MEMORY */
 	}
 

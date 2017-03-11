@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2013, 2015, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -18,7 +19,7 @@ this program; if not, write to the Free Software Foundation, Inc.,
 
 /**************************************************//**
 @file fsp/fsp0space.cc
-General shared tablespace implementation.
+Shared tablespace implementation.
 
 Created 2012-11-16 by Sunny Bains as srv/srv0space.cc
 *******************************************************/
@@ -118,13 +119,6 @@ Tablespace::open_or_create(bool is_temp)
 			break;
 		}
 
-#ifdef UNIV_LINUX
-		const bool atomic_write = fil_fusionio_enable_atomic_write(
-			it->m_handle);
-#else
-		const bool atomic_write = false;
-#endif
-
 		/* We can close the handle now and open the tablespace
 		the proper way. */
 		it->close();
@@ -132,15 +126,13 @@ Tablespace::open_or_create(bool is_temp)
 		if (it == begin) {
 			/* First data file. */
 
-			ulint	flags;
-
-			flags = fsp_flags_set_page_size(0, univ_page_size);
-
 			/* Create the tablespace entry for the multi-file
 			tablespace in the tablespace manager. */
 			space = fil_space_create(
-				m_name, m_space_id, flags, is_temp
-				? FIL_TYPE_TEMPORARY : FIL_TYPE_TABLESPACE, it->m_crypt_info,
+				m_name, m_space_id, FSP_FLAGS_PAGE_SSIZE(),
+				is_temp
+				? FIL_TYPE_TEMPORARY : FIL_TYPE_TABLESPACE,
+				it->m_crypt_info,
 				false);
 		}
 
@@ -149,7 +141,7 @@ Tablespace::open_or_create(bool is_temp)
 		/* Create the tablespace node entry for this data file. */
 		if (!fil_node_create(
 			    it->m_filepath, it->m_size, space, false,
-			    atomic_write)) {
+			    TRUE)) {
 
 		       err = DB_ERROR;
 		       break;

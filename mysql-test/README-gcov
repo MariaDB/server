@@ -1,0 +1,15 @@
+To be able to see the level of coverage with the current test suite,
+do the following:
+
+  - Make sure gcov is installed
+  - Compile the MySQL distribution with BUILD/compile-pentium64-gcov (if your
+    machine does not have a pentium CPU, hack this script, or just live with
+	the pentium-specific stuff)
+  - In the mysql-test directory, run this command: ./mysql-test-run -gcov
+  - To see the level of coverage for a given source file:
+     grep -1 source_file_name ../mysql-test-gcov.msg
+  - To see which lines are not yet covered, look at source_file_name.gcov in
+    the source tree.  You can find this by doing something like:
+    find source-directory -name "mysqld.cc.gcov"
+    Then think hard about a test case that will cover those lines, and write
+    one!

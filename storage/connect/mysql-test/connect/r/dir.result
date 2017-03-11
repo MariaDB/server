@@ -25,6 +25,7 @@ SELECT fname, ftype, size FROM t1 ORDER BY fname, ftype, size;
 fname	ftype	size
 boys	.txt	282
 boyswin	.txt	288
+SET STATEMENT sql_mode = '' FOR
 INSERT INTO t1 VALUES ('','','','');
 ERROR HY000: Got error 174 'COLBLK SetBuffer: undefined Access Method' from CONNECT
 DROP TABLE t1;

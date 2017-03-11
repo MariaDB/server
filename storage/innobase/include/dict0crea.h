@@ -67,13 +67,6 @@ dict_create_table_step(
 /*===================*/
 	que_thr_t*	thr);		/*!< in: query thread */
 
-/** Builds a tablespace to store various objects.
-@param[in,out]	tablespace	Tablespace object describing what to build.
-@return DB_SUCCESS or error code. */
-dberr_t
-dict_build_tablespace(
-	Tablespace*	tablespace);
-
 /** Builds a tablespace to contain a table, using file-per-table=1.
 @param[in,out]	table	Table to build in its own tablespace.
 @param[in]	node	Table create node

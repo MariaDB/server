@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2014, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -232,7 +233,7 @@ mtr_t::set_log_mode(mtr_log_t mode)
 Locks a lock in s-mode. */
 
 void
-mtr_t::s_lock(rw_lock_t* lock, const char* file, ulint line)
+mtr_t::s_lock(rw_lock_t* lock, const char* file, unsigned line)
 {
 	rw_lock_s_lock_inline(lock, 0, file, line);
 
@@ -243,7 +244,7 @@ mtr_t::s_lock(rw_lock_t* lock, const char* file, ulint line)
 Locks a lock in x-mode. */
 
 void
-mtr_t::x_lock(rw_lock_t* lock, const char* file, ulint line)
+mtr_t::x_lock(rw_lock_t* lock, const char* file, unsigned line)
 {
 	rw_lock_x_lock_inline(lock, 0, file, line);
 
@@ -254,7 +255,7 @@ mtr_t::x_lock(rw_lock_t* lock, const char* file, ulint line)
 Locks a lock in sx-mode. */
 
 void
-mtr_t::sx_lock(rw_lock_t* lock, const char* file, ulint line)
+mtr_t::sx_lock(rw_lock_t* lock, const char* file, unsigned line)
 {
 	rw_lock_sx_lock_inline(lock, 0, file, line);
 

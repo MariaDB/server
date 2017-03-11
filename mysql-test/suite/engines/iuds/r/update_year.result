@@ -581,7 +581,7 @@ c1
 99
 99
 NULL
-UPDATE t1 SET c2=-1 WHERE c1=2071;
+UPDATE IGNORE t1 SET c2=-1 WHERE c1=2071;
 Warnings:
 Warning	1264	Out of range value for column 'c2' at row 1
 SELECT c2 FROM t1;
@@ -633,7 +633,7 @@ c2
 2155
 NULL
 NULL
-UPDATE t1 SET c2=2156 WHERE c1=2001;
+UPDATE IGNORE t1 SET c2=2156 WHERE c1=2001;
 Warnings:
 Warning	1264	Out of range value for column 'c2' at row 1
 SELECT c2 FROM t1;
@@ -660,7 +660,7 @@ c2
 2155
 NULL
 NULL
-UPDATE t4 SET c2=-1 WHERE c1=71;
+UPDATE IGNORE t4 SET c2=-1 WHERE c1=71;
 Warnings:
 Warning	1264	Out of range value for column 'c2' at row 1
 SELECT c2 FROM t4;
@@ -712,7 +712,7 @@ NULL
 NULL
 NULL
 NULL
-UPDATE t4 SET c2=100 WHERE c1=79;
+UPDATE IGNORE t4 SET c2=100 WHERE c1=79;
 Warnings:
 Warning	1264	Out of range value for column 'c2' at row 1
 SELECT c2 FROM t4;
@@ -772,7 +772,7 @@ c1
 SET SQL_MODE=DEFAULT
 #Update with invalid values
 #UPDATE t2 SET c1='def' WHERE c2=2064;
-UPDATE t4 SET c1=-70 WHERE c2=75;
+UPDATE IGNORE t4 SET c1=-70 WHERE c2=75;
 Warnings:
 Warning	1264	Out of range value for column 'c1' at row 17
 SELECT c1 FROM t4;
@@ -852,7 +852,7 @@ c1	c2
 2079	2069
 2154	2155
 2155	2155
-UPDATE t1 SET c1=c1-1,c2=c2+1 WHERE c1 IN (2154,2009,1979);
+UPDATE IGNORE t1 SET c1=c1-1,c2=c2+1 WHERE c1 IN (2154,2009,1979);
 Warnings:
 Warning	1264	Out of range value for column 'c2' at row 1
 Warning	1264	Out of range value for column 'c2' at row 3

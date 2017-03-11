@@ -33,6 +33,7 @@ The following options may be given as the first argument:
  --binlog-annotate-row-events 
  Tells the master to annotate RBR events with the
  statement that caused these events
+ (Defaults to on; use --skip-binlog-annotate-row-events to disable.)
  --binlog-cache-size=# 
  The size of the transactional cache for updates to
  transactional engines for the binary log. If you often
@@ -208,6 +209,9 @@ The following options may be given as the first argument:
  --extra-port=#      Extra port number to use for tcp connections in a
  one-thread-per-connection manner. 0 means don't use
  another port
+ --flashback         Setup the server to use flashback. This enables binary
+ log in row mode and will enable extra logging for DDL's
+ needed by flashback feature
  --flush             Flush MyISAM tables to disk between SQL commands
  --flush-time=#      A dedicated thread is created to flush all tables at the
  given interval
@@ -235,7 +239,7 @@ The following options may be given as the first argument:
  prefixes.
  (Defaults to on; use --skip-getopt-prefix-matching to disable.)
  --group-concat-max-len=# 
- The maximum length of the result of function 
+ The maximum length of the result of function
  GROUP_CONCAT()
  --gtid-domain-id=#  Used with global transaction ID to identify logically
  independent replication streams. When events can
@@ -376,6 +380,7 @@ The following options may be given as the first argument:
  --log-slow-admin-statements 
  Log slow OPTIMIZE, ANALYZE, ALTER and other
  administrative statements to the slow log if it is open.
+ (Defaults to on; use --skip-log-slow-admin-statements to disable.)
  --log-slow-filter=name 
  Log only certain types of queries. Any combination of: 
  admin, filesort, filesort_on_disk, full_join, full_scan, 
@@ -388,6 +393,7 @@ The following options may be given as the first argument:
  --log-slow-slave-statements 
  Log slow statements executed by slave thread to the slow
  log if it is open.
+ (Defaults to on; use --skip-log-slow-slave-statements to disable.)
  --log-slow-verbosity=name 
  Verbosity level for the slow log. Any combination of: 
  innodb, query_plan, explain
@@ -461,16 +467,20 @@ The following options may be given as the first argument:
  --max-seeks-for-key=# 
  Limit assumed max number of seeks when looking up rows
  based on a key
+ --max-session-mem-used=# 
+ Amount of memory a single user session is allowed to
+ allocate. This limits the value of the session variable
+ MEM_USED
  --max-sort-length=# The number of bytes to use when sorting BLOB or TEXT
  values (only the first max_sort_length bytes of each
  value are used; the rest are ignored)
  --max-sp-recursion-depth[=#] 
  Maximum stored procedure recursion depth
  --max-statement-time=# 
- A SELECT query that have taken more than
- max_statement_time seconds will be aborted. The argument
- will be treated as a decimal value with microsecond
- precision.  A value of 0 (default) means no timeout
+ A query that has taken more than max_statement_time
+ seconds will be aborted. The argument will be treated as
+ a decimal value with microsecond precision. A value of 0
+ (default) means no timeout
  --max-tmp-tables=#  Unused, will be removed.
  --max-user-connections=# 
  The maximum number of active connections for a single
@@ -813,6 +823,7 @@ The following options may be given as the first argument:
  Tells the slave to write annotate rows events received
  from the master to its own binary log. Ignored if
  log_slave_updates is not set
+ (Defaults to on; use --skip-replicate-annotate-row-events to disable.)
  --replicate-do-db=name 
  Tells the slave thread to restrict replication to the
  specified database. To specify more than one database,
@@ -1061,9 +1072,9 @@ The following options may be given as the first argument:
  NO_ENGINE_SUBSTITUTION, PAD_CHAR_TO_FULL_LENGTH
  --stack-trace       Print a symbolic stack trace on failure
  (Defaults to on; use --skip-stack-trace to disable.)
- --standards-compliant-cte 
- Allow only standards compiant CTE
- (Defaults to on; use --skip-standards-compliant-cte to disable.)
+ --standard-compliant-cte 
+ Allow only CTEs compliant to SQL standard
+ (Defaults to on; use --skip-standard-compliant-cte to disable.)
  --stored-program-cache=# 
  The soft upper limit for number of cached stored routines
  for one connection.
@@ -1183,15 +1194,15 @@ automatic-sp-privileges TRUE
 back-log 80
 big-tables FALSE
 bind-address (No default value)
-binlog-annotate-row-events FALSE
+binlog-annotate-row-events TRUE
 binlog-cache-size 32768
 binlog-checksum CRC32
 binlog-commit-wait-count 0
 binlog-commit-wait-usec 100000
 binlog-direct-non-transactional-updates FALSE
-binlog-format STATEMENT
+binlog-format MIXED
 binlog-optimize-thread-scheduling TRUE
-binlog-row-event-max-size 1024
+binlog-row-event-max-size 8192
 binlog-row-image FULL
 binlog-stmt-cache-size 32768
 bulk-insert-buffer-size 8388608
@@ -1229,6 +1240,7 @@ explicit-defaults-for-timestamp FALSE
 external-locking FALSE
 extra-max-connections 1
 extra-port 0
+flashback FALSE
 flush FALSE
 flush-time 0
 ft-boolean-syntax + -><()~*:""&|
@@ -1239,7 +1251,7 @@ ft-stopword-file (No default value)
 gdb FALSE
 general-log FALSE
 getopt-prefix-matching TRUE
-group-concat-max-len 1024
+group-concat-max-len 1048576
 gtid-domain-id 0
 gtid-ignore-duplicates FALSE
 gtid-strict-mode FALSE
@@ -1269,7 +1281,7 @@ lc-messages en_US
 lc-messages-dir MYSQL_SHAREDIR/
 lc-time-names en_US
 local-infile TRUE
-lock-wait-timeout 31536000
+lock-wait-timeout 86400
 log-bin (No default value)
 log-bin-compress FALSE
 log-bin-compress-min-len 256
@@ -1281,20 +1293,20 @@ log-output FILE
 log-queries-not-using-indexes FALSE
 log-short-format FALSE
 log-slave-updates FALSE
-log-slow-admin-statements FALSE
+log-slow-admin-statements TRUE
 log-slow-filter admin,filesort,filesort_on_disk,full_join,full_scan,query_cache,query_cache_miss,tmp_table,tmp_table_on_disk
 log-slow-rate-limit 1
-log-slow-slave-statements FALSE
+log-slow-slave-statements TRUE
 log-slow-verbosity 
 log-tc tc.log
-log-warnings 1
+log-warnings 2
 long-query-time 10
 low-priority-updates FALSE
 lower-case-table-names 1
 master-info-file master.info
 master-retry-count 86400
 master-verify-checksum FALSE
-max-allowed-packet 4194304
+max-allowed-packet 16777216
 max-binlog-cache-size 18446744073709547520
 max-binlog-size 1073741824
 max-binlog-stmt-cache-size 18446744073709547520
@@ -1306,11 +1318,12 @@ max-error-count 64
 max-heap-table-size 16777216
 max-join-size 18446744073709551615
 max-length-for-sort-data 1024
-max-long-data-size 4194304
+max-long-data-size 16777216
 max-prepared-stmt-count 16382
 max-recursive-iterations 18446744073709551615
 max-relay-log-size 1073741824
 max-seeks-for-key 18446744073709551615
+max-session-mem-used 9223372036854775807
 max-sort-length 1024
 max-sp-recursion-depth 0
 max-statement-time 0
@@ -1327,7 +1340,7 @@ myisam-block-size 1024
 myisam-data-pointer-size 6
 myisam-max-sort-file-size 9223372036853727232
 myisam-mmap-size 18446744073709551615
-myisam-recover-options DEFAULT
+myisam-recover-options BACKUP,QUICK
 myisam-repair-threads 1
 myisam-sort-buffer-size 134216704
 myisam-stats-method NULLS_UNEQUAL
@@ -1383,7 +1396,7 @@ performance-schema-max-rwlock-instances -1
 performance-schema-max-socket-classes 10
 performance-schema-max-socket-instances -1
 performance-schema-max-stage-classes 150
-performance-schema-max-statement-classes 185
+performance-schema-max-statement-classes 187
 performance-schema-max-table-handles -1
 performance-schema-max-table-instances -1
 performance-schema-max-thread-classes 50
@@ -1418,7 +1431,7 @@ relay-log-info-file relay-log.info
 relay-log-purge TRUE
 relay-log-recovery FALSE
 relay-log-space-limit 0
-replicate-annotate-row-events FALSE
+replicate-annotate-row-events TRUE
 replicate-events-marked-for-skip REPLICATE
 replicate-same-server-id FALSE
 report-host (No default value)
@@ -1446,7 +1459,7 @@ slave-ddl-exec-mode IDEMPOTENT
 slave-domain-parallel-threads 0
 slave-exec-mode STRICT
 slave-max-allowed-packet 1073741824
-slave-net-timeout 3600
+slave-net-timeout 60
 slave-parallel-max-queued 131072
 slave-parallel-mode conservative
 slave-parallel-threads 0
@@ -1459,9 +1472,9 @@ slave-type-conversions
 slow-launch-time 2
 slow-query-log FALSE
 sort-buffer-size 2097152
-sql-mode NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION
+sql-mode STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION
 stack-trace TRUE
-standards-compliant-cte TRUE
+standard-compliant-cte TRUE
 stored-program-cache 256
 strict-password-validation TRUE
 symbolic-links FALSE
@@ -1478,7 +1491,7 @@ table-open-cache-instances 8
 tc-heuristic-recover OFF
 thread-cache-size 151
 thread-pool-idle-timeout 60
-thread-pool-max-threads 1000
+thread-pool-max-threads 65536
 thread-pool-oversubscribe 3
 thread-pool-prio-kickup-timer 1000
 thread-pool-priority auto

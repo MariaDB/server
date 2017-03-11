@@ -536,11 +536,13 @@ struct hash_cell_t{
 /* The hash table structure */
 struct hash_table_t {
 	enum hash_table_sync_t	type;	/*<! type of hash_table. */
-#if defined UNIV_AHI_DEBUG || defined UNIV_DEBUG
+#ifdef BTR_CUR_HASH_ADAPT
+# if defined UNIV_AHI_DEBUG || defined UNIV_DEBUG
 	ibool			adaptive;/* TRUE if this is the hash
 					table of the adaptive hash
 					index */
-#endif /* UNIV_AHI_DEBUG || UNIV_DEBUG */
+# endif /* UNIV_AHI_DEBUG || UNIV_DEBUG */
+#endif /* BTR_CUR_HASH_ADAPT */
 	ulint			n_cells;/* number of cells in the hash table */
 	hash_cell_t*		array;	/*!< pointer to cell array */
 

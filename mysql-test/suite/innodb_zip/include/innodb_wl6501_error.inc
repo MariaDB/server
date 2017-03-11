@@ -44,7 +44,6 @@ set innodb_strict_mode=off;
 #
 --echo "1. Error in assigning undo logs for truncate action."
 eval set global innodb_file_per_table = $wl6501_file_per_table;
-eval set global innodb_file_format = $wl6501_file_format;
 --disable_warnings
 eval create $wl6501_temp table t (
         i int, f float, c char,
@@ -71,7 +70,6 @@ drop table t;
 #
 --echo "2. Error while preparing for truncate."
 eval set global innodb_file_per_table = $wl6501_file_per_table;
-eval set global innodb_file_format = $wl6501_file_format;
 --disable_warnings
 eval create $wl6501_temp table t (
         i int, f float, c char,
@@ -98,7 +96,6 @@ drop table t;
 #
 --echo "3. Error while dropping/creating indexes"
 eval set global innodb_file_per_table = $wl6501_file_per_table;
-eval set global innodb_file_format = $wl6501_file_format;
 --disable_warnings
 eval create $wl6501_temp table t (
         i int, f float, c char,
@@ -122,7 +119,6 @@ drop table t;
 #
 #
 eval set global innodb_file_per_table = $wl6501_file_per_table;
-eval set global innodb_file_format = $wl6501_file_format;
 --disable_warnings
 eval create $wl6501_temp table t (
         i int, f float, c char,
@@ -146,7 +142,6 @@ drop table t;
 #
 #
 eval set global innodb_file_per_table = $wl6501_file_per_table;
-eval set global innodb_file_format = $wl6501_file_format;
 --disable_warnings
 eval create temporary table t (
         i int, f float, c char,
@@ -174,7 +169,6 @@ drop table t;
 #
 --echo "4. Error while completing truncate of table involving FTS."
 eval set global innodb_file_per_table = $wl6501_file_per_table;
-eval set global innodb_file_format = $wl6501_file_format;
 --disable_warnings
 eval create $wl6501_temp table t (i int, f float, c char(100),
 	primary key pk(i), index fk(f), fulltext index ck(c))
@@ -203,7 +197,6 @@ drop table t;
 #
 --echo "5. Error while updating sys-tables."
 eval set global innodb_file_per_table = $wl6501_file_per_table;
-eval set global innodb_file_format = $wl6501_file_format;
 --disable_warnings
 eval create $wl6501_temp table t (i int, f float, c char(100),
 	primary key pk(i), index fk(f), fulltext index ck(c))
@@ -230,5 +223,4 @@ drop table t;
 #
 # remove test-bed
 #
-eval set global innodb_file_format = $format;
 eval set global innodb_file_per_table = $per_table;

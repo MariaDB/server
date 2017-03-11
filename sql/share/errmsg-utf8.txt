@@ -7355,7 +7355,7 @@ ER_UNACCEPTABLE_MUTUAL_RECURSION
         eng "Unacceptable mutual recursion with anchored table '%s'"
 ER_REF_TO_RECURSIVE_WITH_TABLE_IN_DERIVED
         eng "Reference to recursive WITH table '%s' in materialized derived"
-ER_NOT_STANDARDS_COMPLIANT_RECURSIVE
+ER_NOT_STANDARD_COMPLIANT_RECURSIVE
         eng "Restrictions imposed on recursive definitions are violated for table '%s'"R_WRONG_WINDOW_SPEC_NAME
 ER_WRONG_WINDOW_SPEC_NAME
        eng "Window specification with name '%s' is not defined"
@@ -7417,7 +7417,7 @@ ER_BINLOG_UNCOMPRESS_ERROR
 ER_JSON_BAD_CHR
         eng "Broken JSON string in argument %d to function '%s' at position %d"
 ER_JSON_NOT_JSON_CHR
-        eng "Character disallowd in JSON in argument %d to function '%s' at position %d"
+        eng "Character disallowed in JSON in argument %d to function '%s' at position %d"
 ER_JSON_EOS
         eng "Unexpected end of JSON text in argument %d to function '%s'"
 ER_JSON_SYNTAX
@@ -7438,3 +7438,13 @@ ER_JSON_PATH_ARRAY
         eng "JSON path should end with an array identifier in argument %d to function '%s'"
 ER_JSON_ONE_OR_ALL
         eng "Argument 2 to function '%s' must be "one" or "all"."
+ER_UNSUPPORT_COMPRESSED_TEMPORARY_TABLE
+	eng "CREATE TEMPORARY TABLE is not allowed with ROW_FORMAT=COMPRESSED or KEY_BLOCK_SIZE."
+ER_GEOJSON_INCORRECT
+        eng "Incorrect GeoJSON format specified for st_geomfromgeojson function."
+ER_GEOJSON_TOO_FEW_POINTS
+        eng "Incorrect GeoJSON format - too few points for linestring specified."
+ER_GEOJSON_NOT_CLOSED
+        eng "Incorrect GeoJSON format - polygon not closed."
+ER_JSON_PATH_EMPTY
+        eng "Path expression '$' is not allowed in argument %d to function '%s'."

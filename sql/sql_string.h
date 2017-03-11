@@ -3,7 +3,7 @@
 
 /*
    Copyright (c) 2000, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2013, Monty Program Ab.
+   Copyright (c) 2008, 2017, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -97,9 +97,9 @@ public:
     Convert a string between character sets.
     "dstcs" and "srccs" cannot be &my_charset_bin.
   */
-  uint convert_fix(CHARSET_INFO *dstcs, char *dst, uint dst_length,
-                   CHARSET_INFO *srccs, const char *src, uint src_length,
-                   uint nchars)
+  size_t convert_fix(CHARSET_INFO *dstcs, char *dst, uint dst_length,
+                     CHARSET_INFO *srccs, const char *src, uint src_length,
+                     uint nchars)
   {
     return my_convert_fix(dstcs, dst, dst_length,
                           srccs, src, src_length, nchars, this, this);
@@ -673,7 +673,7 @@ public:
   {
     DBUG_ASSERT(Alloced_length >= (str_length + net_length_size(length)));
     char *pos= (char *) net_store_length((uchar *)(Ptr + str_length), length);
-    str_length= pos - Ptr;
+    str_length= uint32(pos - Ptr);
   }
   void q_net_store_data(const uchar *from, size_t length)
   {

@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -218,17 +219,6 @@ trx_undo_report_row_operation(
 					0 if BTR_NO_UNDO_LOG
 					flag was specified */
 	MY_ATTRIBUTE((nonnull(3,4,10), warn_unused_result));
-/******************************************************************//**
-Copies an undo record to heap. This function can be called if we know that
-the undo log record exists.
-@return own: copy of the record */
-trx_undo_rec_t*
-trx_undo_get_undo_rec_low(
-/*======================*/
-	roll_ptr_t	roll_ptr,	/*!< in: roll pointer to record */
-	mem_heap_t*	heap,		/*!< in: memory heap where copied */
-	bool		is_redo_rseg)	/*!< in: true if redo rseg. */
-	MY_ATTRIBUTE((nonnull, warn_unused_result));
 
 /** status bit used for trx_undo_prev_version_build() */
 
@@ -353,16 +343,16 @@ record */
 					fields of the record can change */
 #define	TRX_UNDO_DEL_MARK_REC	14	/* delete marking of a record; fields
 					do not change */
-#define	TRX_UNDO_CMPL_INFO_MULT	16	/* compilation info is multiplied by
+#define	TRX_UNDO_CMPL_INFO_MULT	16U	/* compilation info is multiplied by
 					this and ORed to the type above */
-#define	TRX_UNDO_UPD_EXTERN	128	/* This bit can be ORed to type_cmpl
+#define	TRX_UNDO_UPD_EXTERN	128U	/* This bit can be ORed to type_cmpl
 					to denote that we updated external
 					storage fields: used by purge to
 					free the external storage */
 
 /* Operation type flags used in trx_undo_report_row_operation */
-#define	TRX_UNDO_INSERT_OP		1
-#define	TRX_UNDO_MODIFY_OP		2
+#define	TRX_UNDO_INSERT_OP		1U
+#define	TRX_UNDO_MODIFY_OP		2U
 
 #ifndef UNIV_NONINL
 #include "trx0rec.ic"

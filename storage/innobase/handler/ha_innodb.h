@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2000, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2016, MariaDB Corporation.
+Copyright (c) 2013, 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -22,19 +22,6 @@ this program; if not, write to the Free Software Foundation, Inc.,
 /** "GEN_CLUST_INDEX" is the name reserved for InnoDB default
 system clustered index when there is no primary key. */
 extern const char innobase_index_reserve_name[];
-
-/* "innodb_file_per_table" tablespace name  is reserved by InnoDB in order
-to explicitly create a file_per_table tablespace for the table. */
-extern const char reserved_file_per_table_space_name[];
-
-/* "innodb_system" tablespace name is reserved by InnoDB for the
-system tablespace which uses space_id 0 and stores extra types of
-system pages like UNDO and doublewrite. */
-extern const char reserved_system_space_name[];
-
-/* "innodb_temporary" tablespace name is reserved by InnoDB for the
-predefined shared temporary tablespace. */
-extern const char reserved_temporary_space_name[];
 
 /* Structure defines translation table between mysql index and InnoDB
 index structures */
@@ -677,52 +664,6 @@ extern const char reserved_file_per_table_space_name[];
 //extern "C" int wsrep_trx_is_aborting(void *thd_ptr);
 #endif
 
-/** Check if the explicit tablespace targeted is file_per_table.
-@param[in]	create_info	Metadata for the table to create.
-@return true if the table is intended to use a file_per_table tablespace. */
-UNIV_INLINE
-bool
-tablespace_is_file_per_table(
-	const HA_CREATE_INFO*	create_info)
-{
-	return(create_info->tablespace != NULL
-	       && (0 == strcmp(create_info->tablespace,
-			       reserved_file_per_table_space_name)));
-}
-
-/** Check if table will be explicitly put in an existing shared general
-or system tablespace.
-@param[in]	create_info	Metadata for the table to create.
-@return true if the table will use a shared general or system tablespace. */
-UNIV_INLINE
-bool
-tablespace_is_shared_space(
-const HA_CREATE_INFO*	create_info)
-{
-	return(create_info->tablespace != NULL
-		&& create_info->tablespace[0] != '\0'
-		&& (0 != strcmp(create_info->tablespace,
-		reserved_file_per_table_space_name)));
-}
-
-/** Check if table will be explicitly put in a general tablespace.
-@param[in]	create_info	Metadata for the table to create.
-@return true if the table will use a general tablespace. */
-UNIV_INLINE
-bool
-tablespace_is_general_space(
-	const HA_CREATE_INFO*	create_info)
-{
-	return(create_info->tablespace != NULL
-		&& create_info->tablespace[0] != '\0'
-		&& (0 != strcmp(create_info->tablespace,
-				reserved_file_per_table_space_name))
-		&& (0 != strcmp(create_info->tablespace,
-				reserved_temporary_space_name))
-		&& (0 != strcmp(create_info->tablespace,
-				reserved_system_space_name)));
-}
-
 /** Parse hint for table and its indexes, and update the information
 in dictionary.
 @param[in]	thd		Connection thread
@@ -747,16 +688,12 @@ public:
 		TABLE*		form,
 		HA_CREATE_INFO*	create_info,
 		char*		table_name,
-		char*		temp_path,
-		char*		remote_path,
-		char*		tablespace)
+		char*		remote_path)
 	:m_thd(thd),
 	m_form(form),
 	m_create_info(create_info),
 	m_table_name(table_name),
-	m_temp_path(temp_path),
 	m_remote_path(remote_path),
-	m_tablespace(tablespace),
 	m_innodb_file_per_table(srv_file_per_table)
 	{}
 
@@ -794,9 +731,6 @@ public:
 
 	/** Validate TABLESPACE option. */
 	bool create_option_tablespace_is_valid();
-
-	/** Validate COMPRESSION option. */
-	bool create_option_compression_is_valid();
 
 	/** Prepare to create a table. */
 	int prepare_create_table(const char*		name);
@@ -868,18 +802,9 @@ private:
 
 	/** Table name */
 	char*		m_table_name;
-	/** If this is a table explicitly created by the user with the
-	TEMPORARY keyword, then this parameter is the dir path where the
-	table should be placed if we create an .ibd file for it
-	(no .ibd extension in the path, though).
-	Otherwise this is a zero length-string */
-	char*		m_temp_path;
 
 	/** Remote path (DATA DIRECTORY) or zero length-string */
 	char*		m_remote_path;
-
-	/** Tablespace name or zero length-string. */
-	char*		m_tablespace;
 
 	/** Local copy of srv_file_per_table. */
 	bool		m_innodb_file_per_table;
@@ -896,9 +821,6 @@ private:
 
 	/** Using DATA DIRECTORY */
 	bool		m_use_data_dir;
-
-	/** Using a Shared General Tablespace */
-	bool		m_use_shared_space;
 
 	/** Table flags */
 	ulint		m_flags;

@@ -1,21 +1,21 @@
 SET @start_global_value = @@global.thread_pool_max_threads;
 select @@global.thread_pool_max_threads;
 @@global.thread_pool_max_threads
-1000
+65536
 select @@session.thread_pool_max_threads;
 ERROR HY000: Variable 'thread_pool_max_threads' is a GLOBAL variable
 show global variables like 'thread_pool_max_threads';
 Variable_name	Value
-thread_pool_max_threads	1000
+thread_pool_max_threads	65536
 show session variables like 'thread_pool_max_threads';
 Variable_name	Value
-thread_pool_max_threads	1000
+thread_pool_max_threads	65536
 select * from information_schema.global_variables where variable_name='thread_pool_max_threads';
 VARIABLE_NAME	VARIABLE_VALUE
-THREAD_POOL_MAX_THREADS	1000
+THREAD_POOL_MAX_THREADS	65536
 select * from information_schema.session_variables where variable_name='thread_pool_max_threads';
 VARIABLE_NAME	VARIABLE_VALUE
-THREAD_POOL_MAX_THREADS	1000
+THREAD_POOL_MAX_THREADS	65536
 set global thread_pool_max_threads=1;
 select @@global.thread_pool_max_threads;
 @@global.thread_pool_max_threads

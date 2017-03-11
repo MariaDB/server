@@ -59,7 +59,7 @@ connection slave;
 include/wait_for_slave_sql_error.inc [errno=1032]
 Last_SQL_Error (expected "Delete_rows_v1 event on table test1.t3; Can't find record in 't3'" error)
 Could not execute Delete_rows_v1 event on table test1.t3; Can't find record in 't3', Error_code: 1032; handler error HA_ERR_END_OF_FILE; the event's master log master-bin.000002, end_log_pos END_LOG_POS
-call mtr.add_suppression("Slave: Can't find record in 't3' Error_code: 1032");
+call mtr.add_suppression("Can't find record in 't3'");
 SET GLOBAL sql_slave_skip_counter=1;
 START SLAVE;
 connection master;
@@ -135,24 +135,20 @@ slave-bin.000001	#	Table_map	1	#	table_id: # (test1.t5)
 slave-bin.000001	#	Write_rows_v1	1	#	table_id: # flags: STMT_END_F
 slave-bin.000001	#	Query	1	#	COMMIT
 slave-bin.000001	#	Gtid	2	#	BEGIN GTID 0-2-25
+slave-bin.000001	#	Annotate_rows	2	#	DELETE FROM t3 WHERE a=2
 slave-bin.000001	#	Table_map	2	#	table_id: # (test1.t3)
 slave-bin.000001	#	Delete_rows_v1	2	#	table_id: # flags: STMT_END_F
 slave-bin.000001	#	Query	2	#	COMMIT
 slave-bin.000001	#	Gtid	1	#	BEGIN GTID 0-1-25
 slave-bin.000001	#	Table_map	1	#	table_id: # (test1.t5)
-slave-bin.000001	#	Write_rows_v1	1	#	table_id: #
-slave-bin.000001	#	Write_rows_v1	1	#	table_id: #
-slave-bin.000001	#	Write_rows_v1	1	#	table_id: #
 slave-bin.000001	#	Write_rows_v1	1	#	table_id: # flags: STMT_END_F
 slave-bin.000001	#	Query	1	#	COMMIT
 slave-bin.000001	#	Gtid	1	#	BEGIN GTID 0-1-26
 slave-bin.000001	#	Table_map	1	#	table_id: # (test1.t3)
-slave-bin.000001	#	Write_rows_v1	1	#	table_id: #
-slave-bin.000001	#	Write_rows_v1	1	#	table_id: #
-slave-bin.000001	#	Write_rows_v1	1	#	table_id: #
 slave-bin.000001	#	Write_rows_v1	1	#	table_id: # flags: STMT_END_F
 slave-bin.000001	#	Query	1	#	COMMIT
 slave-bin.000001	#	Gtid	2	#	BEGIN GTID 0-2-27
+slave-bin.000001	#	Annotate_rows	2	#	INSERT INTO test_suppressions (pattern) VALUES ( NAME_CONST('pattern',_latin1'Can\'t find record in \'t3\'' COLLATE 'latin1_swedish_ci'))
 slave-bin.000001	#	Table_map	2	#	table_id: # (mtr.test_suppressions)
 slave-bin.000001	#	Write_rows_v1	2	#	table_id: # flags: STMT_END_F
 slave-bin.000001	#	Query	2	#	COMMIT

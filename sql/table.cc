@@ -1073,6 +1073,8 @@ bool parse_vcol_defs(THD *thd, MEM_ROOT *mem_root, TABLE *table,
                                       &((*field_ptr)->default_value),
                                       error_reported);
       *(dfield_ptr++)= *field_ptr;
+      if (vcol && (vcol->flags & (VCOL_NON_DETERMINISTIC | VCOL_SESSION_FUNC)))
+        table->s->non_determinstic_insert= true;
       break;
     case VCOL_CHECK_FIELD:
       vcol= unpack_vcol_info_from_frm(thd, mem_root, table, &expr_str,
@@ -2410,8 +2412,9 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
       }
     }
   }
-  DBUG_ASSERT((table_check_constraints - share->check_constraints) ==
-              share->table_check_constraints - share->field_check_constraints);
+  DBUG_ASSERT((uint) (table_check_constraints - share->check_constraints) ==
+              (uint) (share->table_check_constraints -
+                      share->field_check_constraints));
 
   if (options)
   {
@@ -2760,12 +2763,6 @@ bool fix_session_vcol_expr_for_read(THD *thd, Field *field,
     the virtual column vcol_field. The expression is used to compute the
     values of this column.
 
-  @note
-   If the virtual column has stored_in_db set and it uses non deterministic
-   function then table->non_determinstic_insert is set.
-   This is used in replication to ensure that row based replication is used
-   for inserts.
-
   @retval
     TRUE           An error occurred, something was wrong with the function
   @retval
@@ -2814,13 +2811,6 @@ static bool fix_and_check_vcol_expr(THD *thd, TABLE *table,
     DBUG_RETURN(1);
   }
   vcol->flags= res.errors;
-
-  /*
-    Mark what kind of default / virtual fields the table has
-  */
-  if (vcol->stored_in_db &&
-      vcol->flags & (VCOL_NON_DETERMINISTIC | VCOL_SESSION_FUNC))
-    table->s->non_determinstic_insert= true;
 
   if (vcol->flags & VCOL_SESSION_FUNC)
     table->s->vcols_need_refixing= true;
@@ -3110,7 +3100,8 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
                                                 share->default_expressions +1)*
                                                sizeof(Field*)),
                           &check_constraint_ptr,
-                          (uint) ((share->table_check_constraints + 1)*
+                          (uint) ((share->table_check_constraints +
+                                   share->field_check_constraints + 1)*
                                   sizeof(Virtual_column_info*)),
                           NullS))
       goto err;
@@ -3212,10 +3203,8 @@ partititon_err:
   /* Allocate bitmaps */
 
   bitmap_size= share->column_bitmap_size;
-  bitmap_count= 6;
+  bitmap_count= 7;
   if (share->virtual_fields)
-    bitmap_count++;
-  if (outparam->default_field)
     bitmap_count++;
 
   if (!(bitmaps= (uchar*) alloc_root(&outparam->mem_root,
@@ -3229,7 +3218,7 @@ partititon_err:
                  (my_bitmap_map*) bitmaps, share->fields, FALSE);
   bitmaps+= bitmap_size;
 
-  /* Don't allocate vcol_bitmap or explicit_value if we don't need it */
+  /* Don't allocate vcol_bitmap if we don't need it */
   if (share->virtual_fields)
   {
     if (!(outparam->def_vcol_set= (MY_BITMAP*)
@@ -3239,16 +3228,10 @@ partititon_err:
                    (my_bitmap_map*) bitmaps, share->fields, FALSE);
     bitmaps+= bitmap_size;
   }
-  if (outparam->default_field)
-  {
-    if (!(outparam->has_value_set= (MY_BITMAP*)
-          alloc_root(&outparam->mem_root, sizeof(*outparam->has_value_set))))
-      goto err;
-    my_bitmap_init(outparam->has_value_set,
-                   (my_bitmap_map*) bitmaps, share->fields, FALSE);
-    bitmaps+= bitmap_size;
-  }
 
+  my_bitmap_init(&outparam->has_value_set,
+                 (my_bitmap_map*) bitmaps, share->fields, FALSE);
+  bitmaps+= bitmap_size;
   my_bitmap_init(&outparam->tmp_set,
                  (my_bitmap_map*) bitmaps, share->fields, FALSE);
   bitmaps+= bitmap_size;
@@ -4453,7 +4436,7 @@ void TABLE::init(THD *thd, TABLE_LIST *tl)
     (*f_ptr)->cond_selectivity= 1.0;
   }
 
-  DBUG_ASSERT(key_read == 0);
+  DBUG_ASSERT(!file->keyread_enabled());
 
   /* mark the record[0] uninitialized */
   TRASH_ALLOC(record[0], s->reclength);
@@ -4930,7 +4913,7 @@ bool TABLE_LIST::prep_check_option(THD *thd, uint8 check_opt_type)
 
 void TABLE_LIST::hide_view_error(THD *thd)
 {
-  if (thd->killed || thd->get_internal_handler())
+  if ((thd->killed && !thd->is_error())|| thd->get_internal_handler())
     return;
   /* Hide "Unknown column" or "Unknown function" error */
   DBUG_ASSERT(thd->is_error());
@@ -5483,7 +5466,8 @@ void TABLE_LIST::set_check_merged()
     It is not simple to check all, but at least this should be checked:
     this select is not excluded or the exclusion came from above.
   */
-  DBUG_ASSERT(!derived->first_select()->exclude_from_table_unique_test ||
+  DBUG_ASSERT(derived->is_excluded() ||
+              !derived->first_select()->exclude_from_table_unique_test ||
               derived->outer_select()->
               exclude_from_table_unique_test);
 }
@@ -5496,6 +5480,7 @@ void TABLE_LIST::set_check_materialized()
   if (view)
     derived= &view->unit;
   DBUG_ASSERT(derived);
+  DBUG_ASSERT(!derived->is_excluded());
   if (!derived->first_select()->exclude_from_table_unique_test)
     derived->set_unique_exclude();
   else
@@ -6085,49 +6070,33 @@ void TABLE::prepare_for_position()
 }
 
 
-/*
-  Mark that only fields from one key is used
+MY_BITMAP *TABLE::prepare_for_keyread(uint index, MY_BITMAP *map)
+{
+  MY_BITMAP *backup= read_set;
+  DBUG_ENTER("TABLE::prepare_for_keyread");
+  if (!no_keyread)
+    file->ha_start_keyread(index);
+  if (map != read_set || !(file->index_flags(index, 0, 1) & HA_CLUSTERED_INDEX))
+  {
+    mark_columns_used_by_index(index, map);
+    column_bitmaps_set(map);
+  }
+  DBUG_RETURN(backup);
+}
 
-  NOTE:
-    This changes the bitmap to use the tmp bitmap
-    After this, you can't access any other columns in the table until
-    bitmaps are reset, for example with TABLE::clear_column_bitmaps()
-    or TABLE::restore_column_maps_after_mark_index()
+
+/*
+  Mark that only fields from one key is used. Useful before keyread.
 */
 
-void TABLE::mark_columns_used_by_index(uint index)
+void TABLE::mark_columns_used_by_index(uint index, MY_BITMAP *bitmap)
 {
-  MY_BITMAP *bitmap= &tmp_set;
   DBUG_ENTER("TABLE::mark_columns_used_by_index");
 
-  set_keyread(true);
   bitmap_clear_all(bitmap);
   mark_columns_used_by_index_no_reset(index, bitmap);
-  column_bitmaps_set(bitmap, bitmap);
   DBUG_VOID_RETURN;
 }
-
-
-/*
-  Add fields used by a specified index to the table's read_set.
-
-  NOTE:
-    The original state can be restored with
-    restore_column_maps_after_mark_index().
-*/
-
-void TABLE::add_read_columns_used_by_index(uint index)
-{
-  MY_BITMAP *bitmap= &tmp_set;
-  DBUG_ENTER("TABLE::add_read_columns_used_by_index");
-
-  set_keyread(true);
-  bitmap_copy(bitmap, read_set);
-  mark_columns_used_by_index_no_reset(index, bitmap);
-  column_bitmaps_set(bitmap, write_set);
-  DBUG_VOID_RETURN;
-}
-
 
 /*
   Restore to use normal column maps after key read
@@ -6140,12 +6109,11 @@ void TABLE::add_read_columns_used_by_index(uint index)
     when calling mark_columns_used_by_index
 */
 
-void TABLE::restore_column_maps_after_mark_index()
+void TABLE::restore_column_maps_after_keyread(MY_BITMAP *backup)
 {
   DBUG_ENTER("TABLE::restore_column_maps_after_mark_index");
-
-  set_keyread(false);
-  default_column_bitmaps();
+  file->ha_end_keyread();
+  read_set= backup;
   file->column_bitmaps_signal();
   DBUG_VOID_RETURN;
 }
@@ -6155,20 +6123,15 @@ void TABLE::restore_column_maps_after_mark_index()
   mark columns used by key, but don't reset other fields
 */
 
-void TABLE::mark_columns_used_by_index_no_reset(uint index,
-                                                   MY_BITMAP *bitmap)
+void TABLE::mark_columns_used_by_index_no_reset(uint index, MY_BITMAP *bitmap)
 {
   KEY_PART_INFO *key_part= key_info[index].key_part;
-  KEY_PART_INFO *key_part_end= (key_part +
-                                key_info[index].user_defined_key_parts);
+  KEY_PART_INFO *key_part_end= (key_part + key_info[index].user_defined_key_parts);
   for (;key_part != key_part_end; key_part++)
-  {
     bitmap_set_bit(bitmap, key_part->fieldnr-1);
-    if (key_part->field->vcol_info &&
-        key_part->field->vcol_info->expr)
-      key_part->field->vcol_info->
-               expr->walk(&Item::register_field_in_bitmap, 1, bitmap);
-  }
+  if (file->ha_table_flags() & HA_PRIMARY_KEY_IN_READ_INDEX &&
+      s->primary_key != MAX_KEY && s->primary_key != index)
+    mark_columns_used_by_index_no_reset(s->primary_key, bitmap);
 }
 
 
@@ -6280,7 +6243,7 @@ void TABLE::mark_columns_needed_for_delete()
 
 void TABLE::mark_columns_needed_for_update()
 {
-  DBUG_ENTER("mark_columns_needed_for_update");
+  DBUG_ENTER("TABLE::mark_columns_needed_for_update");
   bool need_signal= false;
 
   mark_columns_per_binlog_row_image();
@@ -6571,6 +6534,7 @@ bool TABLE::mark_virtual_columns_for_write(bool insert_fl)
 {
   Field **vfield_ptr, *tmp_vfield;
   bool bitmap_updated= false;
+  DBUG_ENTER("mark_virtual_columns_for_write");
 
   for (vfield_ptr= vfield; *vfield_ptr; vfield_ptr++)
   {
@@ -6609,7 +6573,7 @@ bool TABLE::mark_virtual_columns_for_write(bool insert_fl)
   }
   if (bitmap_updated)
     file->column_bitmaps_signal();
-  return bitmap_updated;
+  DBUG_RETURN(bitmap_updated);
 }
 
 /*
@@ -7305,6 +7269,24 @@ bool is_simple_order(ORDER *order)
   return TRUE;
 }
 
+class Turn_errors_to_warnings_handler : public Internal_error_handler
+{
+public:
+  Turn_errors_to_warnings_handler() {}
+  bool handle_condition(THD *thd,
+                        uint sql_errno,
+                        const char* sqlstate,
+                        Sql_condition::enum_warning_level *level,
+                        const char* msg,
+                        Sql_condition ** cond_hdl)
+  {
+    *cond_hdl= NULL;
+    if (*level == Sql_condition::WARN_LEVEL_ERROR)
+      *level= Sql_condition::WARN_LEVEL_WARN;
+    return(0);
+  }
+};
+
 /*
   @brief Compute values for virtual columns used in query
 
@@ -7320,13 +7302,32 @@ bool is_simple_order(ORDER *order)
     >0   Error occurred when storing a virtual field value
 */
 
-int TABLE::update_virtual_fields(enum_vcol_update_mode update_mode)
+int TABLE::update_virtual_fields(handler *h, enum_vcol_update_mode update_mode)
 {
   DBUG_ENTER("TABLE::update_virtual_fields");
+  DBUG_PRINT("enter", ("update_mode: %d", update_mode));
   Field **vfield_ptr, *vf;
+  Query_arena backup_arena;
+  Turn_errors_to_warnings_handler Suppress_errors;
+  int error;
+  bool handler_pushed= 0;
   DBUG_ASSERT(vfield);
 
-  in_use->reset_arena_for_cached_items(expr_arena);
+  if (h->keyread_enabled())
+    DBUG_RETURN(0);
+
+  error= 0;
+  in_use->set_n_backup_active_arena(expr_arena, &backup_arena);
+
+  /* When reading or deleting row, ignore errors from virtual columns */
+  if (update_mode == VCOL_UPDATE_FOR_READ ||
+      update_mode == VCOL_UPDATE_FOR_DELETE ||
+      update_mode == VCOL_UPDATE_INDEXED)
+  {
+    in_use->push_internal_handler(&Suppress_errors);
+    handler_pushed= 1;
+  }
+
   /* Iterate over virtual fields in the table */
   for (vfield_ptr= vfield; *vfield_ptr; vfield_ptr++)
   {
@@ -7335,52 +7336,84 @@ int TABLE::update_virtual_fields(enum_vcol_update_mode update_mode)
     DBUG_ASSERT(vcol_info);
     DBUG_ASSERT(vcol_info->expr);
 
-    bool update;
+    bool update, swap_values= 0;
     switch (update_mode) {
-    case VCOL_UPDATE_FOR_READ_WRITE:
-      if (triggers)
-      {
-        update= true;
-        break;
-      }
     case VCOL_UPDATE_FOR_READ:
       update= !vcol_info->stored_in_db
-           && !(key_read && vf->part_of_key.is_set(file->active_index))
            && bitmap_is_set(vcol_set, vf->field_index);
+      swap_values= 1;
       break;
+    case VCOL_UPDATE_FOR_DELETE:
+      /* Fall trough */
     case VCOL_UPDATE_FOR_WRITE:
-      update= triggers || bitmap_is_set(vcol_set, vf->field_index);
+      update= bitmap_is_set(vcol_set, vf->field_index);
       break;
-    case VCOL_UPDATE_INDEXED:
+    case VCOL_UPDATE_FOR_REPLACE:
       update= !vcol_info->stored_in_db && (vf->flags & PART_KEY_FLAG)
            && bitmap_is_set(vcol_set, vf->field_index);
+      if (update && (vf->flags & BLOB_FLAG))
+      {
+        /*
+          The row has been read into record[1] and Field_blob::value
+          contains the value for record[0].  Swap value and read_value
+          to ensure that the virtual column data for the read row will
+          be in read_value at the end of this function
+        */
+        ((Field_blob*) vf)->swap_value_and_read_value();
+        /* Ensure we call swap_value_and_read_value() after update */
+        swap_values= 1;
+      }
+      break;
+    case VCOL_UPDATE_INDEXED:
+    case VCOL_UPDATE_INDEXED_FOR_UPDATE:
+      /* Read indexed fields that was not updated in VCOL_UPDATE_FOR_READ */
+      update= !vcol_info->stored_in_db && (vf->flags & PART_KEY_FLAG) &&
+               bitmap_is_set(vcol_set, vf->field_index);
+      swap_values= 1;
       break;
     }
 
     if (update)
     {
+      int field_error __attribute__((unused)) = 0;
       /* Compute the actual value of the virtual fields */
-      vcol_info->expr->save_in_field(vf, 0);
-      DBUG_PRINT("info", ("field '%s' - updated", vf->field_name));
+      if (vcol_info->expr->save_in_field(vf, 0))
+        field_error= error= 1;
+      DBUG_PRINT("info", ("field '%s' - updated  error: %d",
+                          vf->field_name, field_error));
+      if (swap_values && (vf->flags & BLOB_FLAG))
+      {
+        /*
+          Remember the read value to allow other update_virtual_field() calls
+          for the same blob field for the row to be updated.
+          Field_blob->read_value always contains the virtual column data for
+          any read row.
+        */
+        ((Field_blob*) vf)->swap_value_and_read_value();
+      }
     }
     else
     {
       DBUG_PRINT("info", ("field '%s' - skipped", vf->field_name));
     }
   }
-  in_use->reset_arena_for_cached_items(0);
-  DBUG_RETURN(0);
+  if (handler_pushed)
+    in_use->pop_internal_handler();
+  in_use->restore_active_arena(expr_arena, &backup_arena);
+  
+  /* Return 1 only of we got a fatal error, not a warning */
+  DBUG_RETURN(in_use->is_error());
 }
 
 int TABLE::update_virtual_field(Field *vf)
 {
+  Query_arena backup_arena;
   DBUG_ENTER("TABLE::update_virtual_field");
-
-  in_use->reset_arena_for_cached_items(expr_arena);
+  in_use->set_n_backup_active_arena(expr_arena, &backup_arena);
   bitmap_clear_all(&tmp_set);
   vf->vcol_info->expr->walk(&Item::update_vcol_processor, 0, &tmp_set);
   vf->vcol_info->expr->save_in_field(vf, 0);
-  in_use->reset_arena_for_cached_items(0);
+  in_use->restore_active_arena(expr_arena, &backup_arena);
   DBUG_RETURN(0);
 }
 
@@ -7407,12 +7440,13 @@ int TABLE::update_virtual_field(Field *vf)
 
 int TABLE::update_default_fields(bool update_command, bool ignore_errors)
 {
-  DBUG_ENTER("TABLE::update_default_fields");
+  Query_arena backup_arena;
   Field **field_ptr;
   int res= 0;
+  DBUG_ENTER("TABLE::update_default_fields");
   DBUG_ASSERT(default_field);
 
-  in_use->reset_arena_for_cached_items(expr_arena);
+  in_use->set_n_backup_active_arena(expr_arena, &backup_arena);
 
   /* Iterate over fields with default functions in the table */
   for (field_ptr= default_field; *field_ptr ; field_ptr++)
@@ -7440,7 +7474,7 @@ int TABLE::update_default_fields(bool update_command, bool ignore_errors)
       res= 0;
     }
   }
-  in_use->reset_arena_for_cached_items(0);
+  in_use->restore_active_arena(expr_arena, &backup_arena);
   DBUG_RETURN(res);
 }
 
@@ -7451,8 +7485,7 @@ int TABLE::update_default_fields(bool update_command, bool ignore_errors)
 void TABLE::reset_default_fields()
 {
   DBUG_ENTER("reset_default_fields");
-  if (has_value_set)
-    bitmap_clear_all(has_value_set);
+  bitmap_clear_all(&has_value_set);
   DBUG_VOID_RETURN;
 }
 
@@ -7573,46 +7606,58 @@ bool TABLE::validate_default_values_of_unset_fields(THD *thd) const
 }
 
 
-bool TABLE::insert_all_rows_into(THD *thd, TABLE *dest, bool with_cleanup)
+bool TABLE::insert_all_rows_into_tmp_table(THD *thd,
+                                           TABLE *tmp_table,
+                                           TMP_TABLE_PARAM *tmp_table_param,
+                                           bool with_cleanup)
 {
   int write_err= 0;
 
-  DBUG_ENTER("TABLE::insert_all_rows_into");
+  DBUG_ENTER("TABLE::insert_all_rows_into_tmp_table");
 
   if (with_cleanup)
   {
-   if ((write_err= dest->file->ha_delete_all_rows()))
+   if ((write_err= tmp_table->file->ha_delete_all_rows()))
       goto err;
   }
    
   if (file->indexes_are_disabled())
-    dest->file->ha_disable_indexes(HA_KEY_SWITCH_ALL);
+    tmp_table->file->ha_disable_indexes(HA_KEY_SWITCH_ALL);
   file->ha_index_or_rnd_end();
 
   if (file->ha_rnd_init_with_error(1))
     DBUG_RETURN(1);
 
-  if (dest->no_rows)
-    dest->file->extra(HA_EXTRA_NO_ROWS);
+  if (tmp_table->no_rows)
+    tmp_table->file->extra(HA_EXTRA_NO_ROWS);
   else
   {
     /* update table->file->stats.records */
     file->info(HA_STATUS_VARIABLE);
-    dest->file->ha_start_bulk_insert(file->stats.records);
+    tmp_table->file->ha_start_bulk_insert(file->stats.records);
   }
 
-  while (!file->ha_rnd_next(dest->record[1]))
+  while (!file->ha_rnd_next(tmp_table->record[0]))
   {
-    write_err= dest->file->ha_write_tmp_row(dest->record[1]);
+    write_err= tmp_table->file->ha_write_tmp_row(tmp_table->record[0]);
     if (write_err)
-      goto err;
+    {
+      bool is_duplicate;
+      if (tmp_table->file->is_fatal_error(write_err, HA_CHECK_DUP) &&
+          create_internal_tmp_table_from_heap(thd, tmp_table,
+                                              tmp_table_param->start_recinfo, 
+                                              &tmp_table_param->recinfo,
+                                              write_err, 1, &is_duplicate))
+	DBUG_RETURN(1);
+       
+    }  
     if (thd->check_killed())
     {
       thd->send_kill_message();
       goto err_killed;
     }
   }
-  if (!dest->no_rows && dest->file->ha_end_bulk_insert())
+  if (!tmp_table->no_rows && tmp_table->file->ha_end_bulk_insert())
     goto err;
   DBUG_RETURN(0);
 

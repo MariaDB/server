@@ -121,8 +121,8 @@ bool
 btr_scrub_lock_dict_func(ulint space, bool lock_to_close_table,
 			 const char * file, uint line)
 {
-	uint start = time(0);
-	uint last = start;
+	time_t start = time(0);
+	time_t last = start;
 
 	while (mutex_enter_nowait(&(dict_sys->mutex))) {
 		/* if we lock to close a table, we wait forever
@@ -136,10 +136,11 @@ btr_scrub_lock_dict_func(ulint space, bool lock_to_close_table,
 		}
 		os_thread_sleep(250000);
 
-		uint now = time(0);
+		time_t now = time(0);
+
 		if (now >= last + 30) {
 			fprintf(stderr,
-				"WARNING: %s:%u waited %u seconds for"
+				"WARNING: %s:%u waited %lu seconds for"
 				" dict_sys lock, space: %lu"
 				" lock_to_close_table: %u\n",
 				file, line, now - start, space,
@@ -253,11 +254,10 @@ btr_page_needs_scrubbing(
 		return BTR_SCRUB_SKIP_PAGE_AND_CLOSE_TABLE;
 	}
 
-	page_t*	page = buf_block_get_frame(block);
-	uint type = fil_page_get_type(page);
+	const page_t*	page = buf_block_get_frame(block);
 
 	if (allocated == BTR_SCRUB_PAGE_ALLOCATED) {
-		if (type != FIL_PAGE_INDEX) {
+		if (fil_page_get_type(page) != FIL_PAGE_INDEX) {
 			/* this function is called from fil-crypt-threads.
 			* these threads iterate all pages of all tablespaces
 			* and don't know about fil_page_type.
@@ -274,7 +274,7 @@ btr_page_needs_scrubbing(
 			return BTR_SCRUB_SKIP_PAGE_AND_CLOSE_TABLE;
 		}
 
-		if (page_has_garbage(page) == false) {
+		if (!page_has_garbage(page)) {
 			/* no garbage (from deleted/shrunken records) */
 			return BTR_SCRUB_SKIP_PAGE_AND_CLOSE_TABLE;
 		}
@@ -282,11 +282,12 @@ btr_page_needs_scrubbing(
 	} else if (allocated == BTR_SCRUB_PAGE_FREE ||
 		   allocated == BTR_SCRUB_PAGE_ALLOCATION_UNKNOWN) {
 
-		if (! (type == FIL_PAGE_INDEX ||
-		       type == FIL_PAGE_TYPE_BLOB ||
-		       type == FIL_PAGE_TYPE_ZBLOB ||
-		       type == FIL_PAGE_TYPE_ZBLOB2)) {
-
+		switch (fil_page_get_type(page)) {
+		case FIL_PAGE_INDEX:
+		case FIL_PAGE_TYPE_ZBLOB:
+		case FIL_PAGE_TYPE_ZBLOB2:
+			break;
+		default:
 			/**
 			* If this is a dropped page, we also need to scrub
 			* BLOB pages
@@ -298,7 +299,8 @@ btr_page_needs_scrubbing(
 		}
 	}
 
-	if (btr_page_get_index_id(page) == IBUF_INDEX_ID) {
+	if (block->page.id.space() == TRX_SYS_SPACE
+	    && btr_page_get_index_id(page) == IBUF_INDEX_ID) {
 		/* skip ibuf */
 		return BTR_SCRUB_SKIP_PAGE_AND_CLOSE_TABLE;
 	}

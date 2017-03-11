@@ -26,6 +26,7 @@ create unique index bug53592_c on bug53592(c(1));
 # To get the correct index number, the code should go through index
 # translation table. Otherwise, it will get the wrong index
 # number and later trigger a server crash.
+set statement sql_mode = '' for
 replace into bug53592 values (),();
 
 check table bug53592;
@@ -52,6 +53,7 @@ create unique index bug53592_c on bug53592(c(1));
 # To get the correct index number, the code should go through index
 # translation table. Otherwise, it will get the wrong index
 # number and later trigger a server crash.
+set statement sql_mode = '' for
 replace into bug53592 values (),();
 
 check table bug53592;

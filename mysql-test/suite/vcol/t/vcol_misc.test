@@ -120,8 +120,8 @@ DROP TABLE t1,t2;
 #
 
 CREATE TABLE t1 (p int, a double NOT NULL, v double AS (ROUND(a,p)) VIRTUAL);
-INSERT INTO t1 VALUES (0,1,0);
-INSERT INTO t1 VALUES (NULL,0,0);
+INSERT IGNORE INTO t1 VALUES (0,1,0);
+INSERT IGNORE INTO t1 VALUES (NULL,0,0);
 SELECT a, p, v, ROUND(a,p), ROUND(a,p+NULL) FROM t1;
 DROP TABLE t1;
 
@@ -266,8 +266,8 @@ show columns from t1;
 --replace_column 8 #
 show full columns from t1;
 INSERT INTO `test`.`t1`(`a`,`b`,`c`,`d`) VALUES ( '1','a',NULL,NULL);
-UPDATE `test`.`t1` SET `d`='b' WHERE `a`='1' AND `b`='a' AND `c`='1' AND  `d`='a';
-INSERT INTO `test`.`t1`(`a`,`b`,`c`,`d`) VALUES ( '1','a',NULL,'a');
+UPDATE IGNORE `test`.`t1` SET `d`='b' WHERE `a`='1' AND `b`='a' AND `c`='1' AND  `d`='a';
+INSERT IGNORE INTO `test`.`t1`(`a`,`b`,`c`,`d`) VALUES ( '1','a',NULL,'a');
 set sql_mode='strict_all_tables';
 --error ER_WARNING_NON_DEFAULT_VALUE_FOR_GENERATED_COLUMN
 UPDATE `test`.`t1` SET `d`='b' WHERE `a`='1' AND `b`='a' AND `c`='1' AND  `d`='a';
@@ -293,6 +293,17 @@ drop table t1;
 create table t1 (v1 varchar(255) as (c1) persistent, c1 varchar(50)) collate=latin1_general_ci;
 show create table t1;
 drop table t1;
+
+#
+# MDEV-11527 Virtual columns do not get along well with NO_ZERO_DATE
+#
+set sql_mode='no_zero_date';
+create table t1 (
+  ts timestamp not null default current_timestamp,
+  tsv timestamp as (adddate(ts, interval 1 day)) virtual
+);
+drop table t1;
+set sql_mode=default;
 
 
 --echo #

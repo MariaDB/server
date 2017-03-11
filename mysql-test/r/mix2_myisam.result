@@ -1,3 +1,4 @@
+call mtr.add_suppression("Can't find record in .*");
 SET SESSION STORAGE_ENGINE = MEMORY;
 drop table if exists t1,t2,t3,t4;
 drop database if exists mysqltest;
@@ -1987,6 +1988,7 @@ create table t1 (v varchar(65530), key(v));
 Warnings:
 Warning	1071	Specified key was too long; max key length is 1000 bytes
 drop table t1;
+SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 create table t1 (v varchar(65536));
 Warnings:
 Note	1246	Converting column 'v' from VARCHAR to TEXT
@@ -1996,6 +1998,7 @@ t1	CREATE TABLE `t1` (
   `v` mediumtext DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table t1;
+SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 create table t1 (v varchar(65530) character set utf8);
 Warnings:
 Note	1246	Converting column 'v' from VARCHAR to TEXT

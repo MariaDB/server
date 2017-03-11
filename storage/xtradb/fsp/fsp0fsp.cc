@@ -663,6 +663,7 @@ fsp_header_init_fields(
 	ulint	space_id,	/*!< in: space id */
 	ulint	flags)		/*!< in: tablespace flags (FSP_SPACE_FLAGS) */
 {
+	flags &= ~FSP_FLAGS_MEM_MASK;
 	ut_a(fsp_flags_is_valid(flags));
 
 	mach_write_to_4(FSP_HEADER_OFFSET + FSP_SPACE_ID + page,
@@ -713,7 +714,7 @@ fsp_header_init(
 
 	mlog_write_ulint(header + FSP_SIZE, size, MLOG_4BYTES, mtr);
 	mlog_write_ulint(header + FSP_FREE_LIMIT, 0, MLOG_4BYTES, mtr);
-	mlog_write_ulint(header + FSP_SPACE_FLAGS, flags,
+	mlog_write_ulint(header + FSP_SPACE_FLAGS, flags & ~FSP_FLAGS_MEM_MASK,
 			 MLOG_4BYTES, mtr);
 	mlog_write_ulint(header + FSP_FRAG_N_USED, 0, MLOG_4BYTES, mtr);
 

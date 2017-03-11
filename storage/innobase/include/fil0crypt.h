@@ -1,6 +1,6 @@
 /*****************************************************************************
 Copyright (C) 2013, 2015, Google Inc. All Rights Reserved.
-Copyright (c) 2015, 2016, MariaDB Corporation.
+Copyright (c) 2015, 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -26,6 +26,9 @@ Created 04/01/2015 Jan Lindström
 #ifndef fil0crypt_h
 #define fil0crypt_h
 
+#include "os0event.h"
+#include "my_crypt.h"
+
 /**
 * Magic pattern in start of crypt data on page 0
 */
@@ -44,6 +47,8 @@ typedef enum {
 	FIL_SPACE_ENCRYPTION_ON = 1,		/* Tablespace is encrypted always */
 	FIL_SPACE_ENCRYPTION_OFF = 2		/* Tablespace is not encrypted */
 } fil_encryption_t;
+
+extern os_event_t fil_crypt_threads_event;
 
 /**
  * CRYPT_SCHEME_UNENCRYPTED
@@ -109,7 +114,7 @@ struct fil_space_crypt_struct : st_encryption_scheme
 	The object is expected to be placed in a buffer that
 	has been zero-initialized. */
 	fil_space_crypt_struct(
-		ulint new_type,
+		uint new_type,
 		uint new_min_key_version,
 		uint new_key_id,
 		ulint offset,
@@ -390,12 +395,6 @@ void
 fil_crypt_set_thread_cnt(
 /*=====================*/
 	uint new_cnt); /*!< in: requested #threads */
-
-/*********************************************************************
-End threads for key rotation */
-UNIV_INTERN
-void
-fil_crypt_threads_end();
 
 /*********************************************************************
 Cleanup resources for threads for key rotation */

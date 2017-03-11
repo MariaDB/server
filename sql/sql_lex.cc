@@ -466,7 +466,7 @@ int my_wc_mb_utf8_with_escape(CHARSET_INFO *cs, my_wc_t escape, my_wc_t wc,
   DBUG_ASSERT(escape > 0);
   if (str + 1 >= end)
     return MY_CS_TOOSMALL2;  // Not enough space, need at least two bytes.
-  *str= escape;
+  *str= (uchar)escape;
   int cnvres= my_charset_utf8_handler.wc_mb(cs, wc, str + 1, end);
   if (cnvres > 0)
     return cnvres + 1;       // The character was normally put
@@ -2375,9 +2375,12 @@ void st_select_lex_unit::exclude_level()
     if (next)
       next->prev= prev;
   }
+  // Mark it excluded
+  prev= NULL;
 }
 
 
+#if 0
 /*
   Exclude subtree of current unit from tree of SELECTs
 
@@ -2403,6 +2406,7 @@ void st_select_lex_unit::exclude_tree()
   if (next)
     next->prev= prev;
 }
+#endif
 
 
 /*
@@ -3414,6 +3418,9 @@ void LEX::first_lists_tables_same()
     TABLE_LIST *next;
     if (query_tables_last == &first_table->next_global)
       query_tables_last= first_table->prev_global;
+
+    if (query_tables_own_last == &first_table->next_global)
+      query_tables_own_last= first_table->prev_global;
 
     if ((next= *first_table->prev_global= first_table->next_global))
       next->prev_global= first_table->prev_global;
@@ -4584,6 +4591,12 @@ bool st_select_lex::is_merged_child_of(st_select_lex *ancestor)
     if (subs && subs->type() == Item::SUBSELECT_ITEM && 
         ((Item_subselect*)subs)->substype() == Item_subselect::IN_SUBS &&
         ((Item_in_subselect*)subs)->test_strategy(SUBS_SEMI_JOIN))
+    {
+      continue;
+    }
+
+    if (sl->master_unit()->derived &&
+      sl->master_unit()->derived->is_merged_derived())
     {
       continue;
     }

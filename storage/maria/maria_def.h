@@ -710,49 +710,49 @@ struct st_maria_handler
 #define F_EXTRA_LCK	-1
 
 /* bits in opt_flag */
-#define MEMMAP_USED	32
-#define REMEMBER_OLD_POS 64
+#define MEMMAP_USED	32U
+#define REMEMBER_OLD_POS 64U
 
-#define WRITEINFO_UPDATE_KEYFILE	1
-#define WRITEINFO_NO_UNLOCK		2
+#define WRITEINFO_UPDATE_KEYFILE	1U
+#define WRITEINFO_NO_UNLOCK		2U
 
 /* once_flags */
-#define USE_PACKED_KEYS         1
-#define RRND_PRESERVE_LASTINX   2
+#define USE_PACKED_KEYS         1U
+#define RRND_PRESERVE_LASTINX   2U
 
 /* bits in state.changed */
 
-#define STATE_CHANGED		 1
-#define STATE_CRASHED		 2
-#define STATE_CRASHED_ON_REPAIR  4
-#define STATE_NOT_ANALYZED	 8
-#define STATE_NOT_OPTIMIZED_KEYS 16
-#define STATE_NOT_SORTED_PAGES	 32
-#define STATE_NOT_OPTIMIZED_ROWS 64
-#define STATE_NOT_ZEROFILLED     128
-#define STATE_NOT_MOVABLE        256
-#define STATE_MOVED              512 /* set if base->uuid != maria_uuid */
-#define STATE_IN_REPAIR  	 1024 /* We are running repair on table */
-#define STATE_CRASHED_PRINTED	 2048
+#define STATE_CHANGED		 1U
+#define STATE_CRASHED		 2U
+#define STATE_CRASHED_ON_REPAIR  4U
+#define STATE_NOT_ANALYZED	 8U
+#define STATE_NOT_OPTIMIZED_KEYS 16U
+#define STATE_NOT_SORTED_PAGES	 32U
+#define STATE_NOT_OPTIMIZED_ROWS 64U
+#define STATE_NOT_ZEROFILLED     128U
+#define STATE_NOT_MOVABLE        256U
+#define STATE_MOVED              512U /* set if base->uuid != maria_uuid */
+#define STATE_IN_REPAIR  	 1024U /* We are running repair on table */
+#define STATE_CRASHED_PRINTED	 2048U
 
 #define STATE_CRASHED_FLAGS (STATE_CRASHED | STATE_CRASHED_ON_REPAIR | STATE_CRASHED_PRINTED)
 
 /* options to maria_read_cache */
 
-#define READING_NEXT	1
-#define READING_HEADER	2
+#define READING_NEXT	1U
+#define READING_HEADER	2U
 
 /* Number of bytes on key pages to indicate used size */
-#define KEYPAGE_USED_SIZE  2
-#define KEYPAGE_KEYID_SIZE 1
-#define KEYPAGE_FLAG_SIZE  1
-#define KEYPAGE_KEY_VERSION_SIZE 4 /* encryption */
-#define KEYPAGE_CHECKSUM_SIZE 4
+#define KEYPAGE_USED_SIZE  2U
+#define KEYPAGE_KEYID_SIZE 1U
+#define KEYPAGE_FLAG_SIZE  1U
+#define KEYPAGE_KEY_VERSION_SIZE 4U /* encryption */
+#define KEYPAGE_CHECKSUM_SIZE 4U
 #define MAX_KEYPAGE_HEADER_SIZE (LSN_STORE_SIZE + KEYPAGE_USED_SIZE + \
                                  KEYPAGE_KEYID_SIZE + KEYPAGE_FLAG_SIZE + \
                                  TRANSID_SIZE + KEYPAGE_KEY_VERSION_SIZE)
-#define KEYPAGE_FLAG_ISNOD      1
-#define KEYPAGE_FLAG_HAS_TRANSID 2
+#define KEYPAGE_FLAG_ISNOD      1U
+#define KEYPAGE_FLAG_HAS_TRANSID 2U
 
 #define _ma_get_page_used(share,x) \
   ((uint) mi_uint2korr((x) + (share)->keypage_header - KEYPAGE_USED_SIZE))
@@ -886,9 +886,9 @@ struct st_maria_handler
 
 #define MEMMAP_EXTRA_MARGIN	7	/* Write this as a suffix for file */
 
-#define PACK_TYPE_SELECTED	1	/* Bits in field->pack_type */
-#define PACK_TYPE_SPACE_FIELDS	2
-#define PACK_TYPE_ZERO_FILL	4
+#define PACK_TYPE_SELECTED	1U	/* Bits in field->pack_type */
+#define PACK_TYPE_SPACE_FIELDS	2U
+#define PACK_TYPE_ZERO_FILL	4U
 #define MARIA_FOUND_WRONG_KEY 32738	/* Impossible value from ha_key_cmp */
 
 #define MARIA_BLOCK_SIZE(key_length,data_pointer,key_pointer,block_size)  (((((key_length)+(data_pointer)+(key_pointer))*4+(key_pointer)+2)/(block_size)+1)*(block_size))
@@ -911,12 +911,12 @@ extern mysql_mutex_t THR_LOCK_maria;
 
 /* Some tuning parameters */
 #define MARIA_MIN_KEYBLOCK_LENGTH 50	/* When to split delete blocks */
-#define MARIA_MIN_SIZE_BULK_INSERT_TREE 16384	/* this is per key */
+#define MARIA_MIN_SIZE_BULK_INSERT_TREE 16384U	/* this is per key */
 #define MARIA_MIN_ROWS_TO_USE_BULK_INSERT 100
 #define MARIA_MIN_ROWS_TO_DISABLE_INDEXES 100
 #define MARIA_MIN_ROWS_TO_USE_WRITE_CACHE 10
 /* Keep a small buffer for tables only using small blobs */
-#define MARIA_SMALL_BLOB_BUFFER 1024
+#define MARIA_SMALL_BLOB_BUFFER 1024U
 #define MARIA_MAX_CONTROL_FILE_LOCK_RETRY 30     /* Retry this many times */
 
 /* Some extern variables */
@@ -1247,12 +1247,12 @@ typedef struct st_maria_block_info
 
 /* bits in return from _ma_get_block_info */
 
-#define BLOCK_FIRST	1
-#define BLOCK_LAST	2
-#define BLOCK_DELETED	4
-#define BLOCK_ERROR	8			/* Wrong data */
-#define BLOCK_SYNC_ERROR 16			/* Right data at wrong place */
-#define BLOCK_FATAL_ERROR 32			/* hardware-error */
+#define BLOCK_FIRST	1U
+#define BLOCK_LAST	2U
+#define BLOCK_DELETED	4U
+#define BLOCK_ERROR	8U			/* Wrong data */
+#define BLOCK_SYNC_ERROR 16U			/* Right data at wrong place */
+#define BLOCK_FATAL_ERROR 32U			/* hardware-error */
 
 #define NEED_MEM	((uint) 10*4*(IO_SIZE+32)+32) /* Nead for recursion */
 #define MAXERR			20
@@ -1261,17 +1261,17 @@ typedef struct st_maria_block_info
 #define INDEX_TMP_EXT		".TMM"
 #define DATA_TMP_EXT		".TMD"
 
-#define UPDATE_TIME		1
-#define UPDATE_STAT		2
-#define UPDATE_SORT		4
-#define UPDATE_AUTO_INC		8
-#define UPDATE_OPEN_COUNT	16
+#define UPDATE_TIME		1U
+#define UPDATE_STAT		2U
+#define UPDATE_SORT		4U
+#define UPDATE_AUTO_INC		8U
+#define UPDATE_OPEN_COUNT	16U
 
 /* We use MY_ALIGN_DOWN here mainly to ensure that we get stable values for mysqld --help ) */
 #define PAGE_BUFFER_INIT	MY_ALIGN_DOWN(1024L*1024L*256L-MALLOC_OVERHEAD, 8192)
 #define READ_BUFFER_INIT	MY_ALIGN_DOWN(1024L*256L-MALLOC_OVERHEAD, 1024)
 #define SORT_BUFFER_INIT	MY_ALIGN_DOWN(1024L*1024L*256L-MALLOC_OVERHEAD, 1024)
-#define MIN_SORT_BUFFER		4096
+#define MIN_SORT_BUFFER		4096U
 
 #define fast_ma_writeinfo(INFO) if (!(INFO)->s->tot_locks) (void) _ma_writeinfo((INFO),0)
 #define fast_ma_readinfo(INFO) ((INFO)->lock_type == F_UNLCK) && _ma_readinfo((INFO),F_RDLCK,1)

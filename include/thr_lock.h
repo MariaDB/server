@@ -1,4 +1,5 @@
 /* Copyright (c) 2000, 2010, Oracle and/or its affiliates. All rights reserved.
+   Copyright (c) 2017, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -76,10 +77,10 @@ enum enum_thr_lock_result { THR_LOCK_SUCCESS= 0, THR_LOCK_ABORTED= 1,
 
 
 /* Priority for locks */
-#define THR_LOCK_LATE_PRIV  1	/* For locks to be merged with org lock */
-#define THR_LOCK_MERGE_PRIV 2	/* For merge tables */
+#define THR_LOCK_LATE_PRIV  1U	/* For locks to be merged with org lock */
+#define THR_LOCK_MERGE_PRIV 2U	/* For merge tables */
 
-#define THR_UNLOCK_UPDATE_STATUS 1
+#define THR_UNLOCK_UPDATE_STATUS 1U
 
 extern ulong max_write_lock_count;
 extern my_bool thr_lock_inited;

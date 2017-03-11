@@ -2,6 +2,7 @@
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -161,10 +162,6 @@ dict_mem_table_create(
 		table->fts->cache = fts_cache_create(table);
 	} else {
 		table->fts = NULL;
-	}
-
-	if (DICT_TF_HAS_SHARED_SPACE(table->flags)) {
-		dict_get_and_save_space_name(table, true);
 	}
 
 	new(&table->foreign_set) dict_foreign_set();
@@ -1118,12 +1115,12 @@ dict_mem_table_is_system(
 	/* table has the following format: database/table
 	and some system table are of the form SYS_* */
 	if (strchr(name, '/')) {
-		int table_len = strlen(name);
+		size_t table_len = strlen(name);
 		const char *system_db;
 		int i = 0;
 		while ((system_db = innobase_system_databases[i++])
 			&& (system_db != NullS)) {
-			int len = strlen(system_db);
+			size_t len = strlen(system_db);
 			if (table_len > len && !strncmp(name, system_db, len)) {
 				return true;
 			}

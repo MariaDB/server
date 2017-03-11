@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2014, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -64,7 +65,7 @@ rtr_page_cal_mbr(
 
 		ut_ad(len == DATA_MBR_LEN);
 		inc = 0;
-		for (int i = 0; i < SPDIMS; i++) {
+		for (unsigned i = 0; i < SPDIMS; i++) {
 			bmin = mach_double_read(field + inc);
 			bmax = mach_double_read(field + inc + sizeof(double));
 
@@ -167,7 +168,7 @@ rtr_write_mbr(
 {
 	const double* my_mbr = reinterpret_cast<const double*>(mbr);
 
-	for (int i = 0; i < SPDIMS * 2; i++) {
+	for (unsigned i = 0; i < SPDIMS * 2; i++) {
 		mach_double_write(data + i * sizeof(double), my_mbr[i]);
 	}
 }
@@ -181,7 +182,7 @@ rtr_read_mbr(
 	const byte*	data,	/*!< in: data */
 	rtr_mbr_t*	mbr)	/*!< out: MBR */
 {
-	for (int i = 0; i < SPDIMS * 2; i++) {
+	for (unsigned i = 0; i < SPDIMS * 2; i++) {
 		(reinterpret_cast<double*>(mbr))[i] = mach_double_read(
 							data
 							+ i * sizeof(double));

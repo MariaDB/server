@@ -136,7 +136,6 @@ extern	mysql_pfs_key_t	index_online_log_key;
 extern	mysql_pfs_key_t	dict_table_stats_key;
 extern  mysql_pfs_key_t trx_sys_rw_lock_key;
 extern  mysql_pfs_key_t hash_table_locks_key;
-extern  mysql_pfs_key_t master_key_id_mutex_key;
 #endif /* UNIV_PFS_RWLOCK */
 
 /** Prints info of the sync system.

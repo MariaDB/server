@@ -49,6 +49,7 @@ master-bin.000001	#	Query	#	#	CREATE DATABASE test2
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
 master-bin.000001	#	Query	#	#	CREATE DATABASE test3
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO test1.t1 VALUES (1), (2), (3)
 master-bin.000001	#	Table_map	#	#	table_id: # (test1.t1)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
@@ -146,6 +147,9 @@ CREATE DATABASE test3
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id #  end_log_pos # 	Annotate_rows:
+#Q> INSERT INTO test1.t1 VALUES (1), (2), (3)
 #010909  4:46:40 server id #  end_log_pos # 	Table_map: `test1`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id #  end_log_pos # 	Write_rows: table id # flags: STMT_END_F
@@ -367,6 +371,9 @@ CREATE DATABASE test1
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id #  end_log_pos # 	Annotate_rows:
+#Q> INSERT INTO test1.t1 VALUES (1), (2), (3)
 #010909  4:46:40 server id #  end_log_pos # 	Table_map: `test1`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id #  end_log_pos # 	Write_rows: table id # flags: STMT_END_F
@@ -530,6 +537,7 @@ CREATE DATABASE test3
 /*!100001 SET @@session.gtid_seq_no=4*//*!*/;
 BEGIN
 /*!*/;
+# at #
 # at #
 #010909  4:46:40 server id #  end_log_pos # 	Table_map: `test1`.`t1` mapped to number #
 # at #
@@ -750,6 +758,9 @@ CREATE DATABASE test3
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id #  end_log_pos # 	Annotate_rows:
+#Q> INSERT INTO test1.t1 VALUES (1), (2), (3)
 #010909  4:46:40 server id #  end_log_pos # 	Table_map: `test1`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id #  end_log_pos # 	Write_rows: table id # flags: STMT_END_F
@@ -971,6 +982,9 @@ CREATE DATABASE test1
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id #  end_log_pos # 	Annotate_rows:
+#Q> INSERT INTO test1.t1 VALUES (1), (2), (3)
 #010909  4:46:40 server id #  end_log_pos # 	Table_map: `test1`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id #  end_log_pos # 	Write_rows: table id # flags: STMT_END_F

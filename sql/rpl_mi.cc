@@ -1172,7 +1172,7 @@ bool Master_info_index::init_all_master_info()
   else if (succ_num) // Have some Error and some Success
   {
     sql_print_warning("Reading of some Master_info entries failed");
-    DBUG_RETURN(2);
+    DBUG_RETURN(1);
   }
   else // All failed
   {

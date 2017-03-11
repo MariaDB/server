@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -198,15 +199,6 @@ Try to read it from the fil_system first, then from SYS_DATAFILES.
 @param[in]	dict_mutex_own	true if dict_sys->mutex is owned already */
 void
 dict_get_and_save_data_dir_path(
-	dict_table_t*	table,
-	bool		dict_mutex_own);
-
-/** Make sure the tablespace name is saved in dict_table_t if needed.
-Try to read it from the file dictionary first, then from SYS_TABLESPACES.
-@param[in]	table		Table object
-@param[in]	dict_mutex_own)	true if dict_sys->mutex is owned already */
-void
-dict_get_and_save_space_name(
 	dict_table_t*	table,
 	bool		dict_mutex_own);
 

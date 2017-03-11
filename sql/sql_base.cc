@@ -68,7 +68,7 @@ bool
 No_such_table_error_handler::handle_condition(THD *,
                                               uint sql_errno,
                                               const char*,
-                                              Sql_condition::enum_warning_level level,
+                                              Sql_condition::enum_warning_level *level,
                                               const char*,
                                               Sql_condition ** cond_hdl)
 {
@@ -79,7 +79,7 @@ No_such_table_error_handler::handle_condition(THD *,
     return TRUE;
   }
 
-  if (level == Sql_condition::WARN_LEVEL_ERROR)
+  if (*level == Sql_condition::WARN_LEVEL_ERROR)
     m_unhandled_errors++;
   return FALSE;
 }
@@ -112,7 +112,7 @@ public:
   bool handle_condition(THD *thd,
                         uint sql_errno,
                         const char* sqlstate,
-                        Sql_condition::enum_warning_level level,
+                        Sql_condition::enum_warning_level *level,
                         const char* msg,
                         Sql_condition ** cond_hdl);
 
@@ -142,7 +142,7 @@ bool
 Repair_mrg_table_error_handler::handle_condition(THD *,
                                                  uint sql_errno,
                                                  const char*,
-                                                 Sql_condition::enum_warning_level level,
+                                                 Sql_condition::enum_warning_level *level,
                                                  const char*,
                                                  Sql_condition ** cond_hdl)
 {
@@ -769,6 +769,23 @@ void close_thread_tables(THD *thd)
     thd->derived_tables= 0;
   }
 
+  if (thd->rec_tables)
+  {
+    TABLE *next;
+    /*
+      Close all temporary tables created for recursive table references.
+      This action was postponed because the table could be used in the
+      statements like  ANALYZE WITH r AS (...) SELECT * from r
+      where r is defined through recursion. 
+    */
+    for (table= thd->rec_tables ; table ; table= next)
+    {
+      next= table->next;
+      free_tmp_table(thd, table);
+    }
+    thd->rec_tables= 0;
+  }
+
   /*
     Mark all temporary tables used by this statement as free for reuse.
   */
@@ -842,7 +859,7 @@ void close_thread_table(THD *thd, TABLE **table_ptr)
   DBUG_ENTER("close_thread_table");
   DBUG_PRINT("tcache", ("table: '%s'.'%s' 0x%lx", table->s->db.str,
                         table->s->table_name.str, (long) table));
-  DBUG_ASSERT(table->key_read == 0);
+  DBUG_ASSERT(!table->file->keyread_enabled());
   DBUG_ASSERT(!table->file || table->file->inited == handler::NONE);
 
   /*
@@ -1043,7 +1060,7 @@ next:
   {
     /* Try to fix */
     TABLE_LIST *derived=  res->belong_to_derived;
-    if (derived->is_merged_derived())
+    if (derived->is_merged_derived() && !derived->derived->is_excluded())
     {
       DBUG_PRINT("info",
                  ("convert merged to materialization to resolve the conflict"));
@@ -1254,7 +1271,7 @@ public:
   virtual bool handle_condition(THD *thd,
                                 uint sql_errno,
                                 const char* sqlstate,
-                                Sql_condition::enum_warning_level level,
+                                Sql_condition::enum_warning_level *level,
                                 const char* msg,
                                 Sql_condition ** cond_hdl);
 
@@ -1273,7 +1290,7 @@ private:
 bool MDL_deadlock_handler::handle_condition(THD *,
                                             uint sql_errno,
                                             const char*,
-                                            Sql_condition::enum_warning_level,
+                                            Sql_condition::enum_warning_level*,
                                             const char*,
                                             Sql_condition ** cond_hdl)
 {
@@ -2834,7 +2851,7 @@ public:
   virtual bool handle_condition(THD *thd,
                                   uint sql_errno,
                                   const char* sqlstate,
-                                  Sql_condition::enum_warning_level level,
+                                  Sql_condition::enum_warning_level *level,
                                   const char* msg,
                                   Sql_condition ** cond_hdl)
   {
@@ -4806,9 +4823,9 @@ static bool fix_all_session_vcol_exprs(THD *thd, TABLE_LIST *tables)
             fix_session_vcol_expr(thd, (*df)->default_value))
           goto err;
 
-        for (Virtual_column_info **cc= t->check_constraints; cc && *cc; cc++)
-          if (fix_session_vcol_expr(thd, (*cc)))
-            goto err;
+      for (Virtual_column_info **cc= t->check_constraints; cc && *cc; cc++)
+        if (fix_session_vcol_expr(thd, (*cc)))
+          goto err;
 
       thd->security_ctx= save_security_ctx;
     }
@@ -7900,14 +7917,14 @@ fill_record(THD *thd, TABLE *table_arg, List<Item> &fields, List<Item> &values,
       table_arg->update_default_fields(0, ignore_errors))
     goto err;
   /* Update virtual fields */
-  thd->abort_on_warning= FALSE;
   if (table_arg->vfield &&
-      table_arg->update_virtual_fields(VCOL_UPDATE_FOR_WRITE))
+      table_arg->update_virtual_fields(table_arg->file, VCOL_UPDATE_FOR_WRITE))
     goto err;
   thd->abort_on_warning= save_abort_on_warning;
   thd->no_errors=        save_no_errors;
   DBUG_RETURN(thd->is_error());
 err:
+  DBUG_PRINT("error",("got error"));
   thd->abort_on_warning= save_abort_on_warning;
   thd->no_errors=        save_no_errors;
   if (fields.elements)
@@ -8043,17 +8060,15 @@ fill_record_n_invoke_before_triggers(THD *thd, TABLE *table,
       Re-calculate virtual fields to cater for cases when base columns are
       updated by the triggers.
     */
-    List_iterator_fast<Item> f(fields);
-    Item *fld;
-    Item_field *item_field;
-    if (fields.elements)
+    if (table->vfield && fields.elements)
     {
-      fld= (Item_field*)f++;
-      item_field= fld->field_for_view_update();
-      if (item_field && table->vfield)
+      Item *fld= (Item_field*) fields.head();
+      Item_field *item_field= fld->field_for_view_update();
+      if (item_field)
       {
         DBUG_ASSERT(table == item_field->field->table);
-        result= table->update_virtual_fields(VCOL_UPDATE_FOR_WRITE);
+        result|= table->update_virtual_fields(table->file,
+                                              VCOL_UPDATE_FOR_WRITE);
       }
     }
   }
@@ -8088,6 +8103,7 @@ fill_record(THD *thd, TABLE *table, Field **ptr, List<Item> &values,
 {
   List_iterator_fast<Item> v(values);
   List<TABLE> tbl_list;
+  bool all_fields_have_values= true;
   Item *value;
   Field *field;
   bool abort_on_warning_saved= thd->abort_on_warning;
@@ -8140,13 +8156,15 @@ fill_record(THD *thd, TABLE *table, Field **ptr, List<Item> &values,
     else
       if (value->save_in_field(field, 0) < 0)
         goto err;
-    field->set_explicit_default(value);
+    all_fields_have_values &= field->set_explicit_default(value);
   }
-  /* There is no default fields to update, as all fields are updated */
+  if (!all_fields_have_values && table->default_field &&
+      table->update_default_fields(0, ignore_errors))
+    goto err;
   /* Update virtual fields */
   thd->abort_on_warning= FALSE;
   if (table->vfield &&
-      table->update_virtual_fields(VCOL_UPDATE_FOR_WRITE))
+      table->update_virtual_fields(table->file, VCOL_UPDATE_FOR_WRITE))
     goto err;
   thd->abort_on_warning= abort_on_warning_saved;
   DBUG_RETURN(thd->is_error());
@@ -8200,7 +8218,7 @@ fill_record_n_invoke_before_triggers(THD *thd, TABLE *table, Field **ptr,
   {
     DBUG_ASSERT(table == (*ptr)->table);
     if (table->vfield)
-      result= table->update_virtual_fields(VCOL_UPDATE_FOR_WRITE);
+      result= table->update_virtual_fields(table->file, VCOL_UPDATE_FOR_WRITE);
   }
   return result;
 

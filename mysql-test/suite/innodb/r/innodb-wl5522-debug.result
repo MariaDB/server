@@ -2,13 +2,13 @@ call mtr.add_suppression("InnoDB: Operating system error number .* in a file ope
 call mtr.add_suppression("InnoDB: The error means the system cannot find the path specified.");
 call mtr.add_suppression("InnoDB: If you are installing InnoDB, remember that you must create directories yourself, InnoDB does not create them.");
 call mtr.add_suppression("InnoDB: Cannot open datafile for read-only: .*");
-call mtr.add_suppression("InnoDB: Tablespace flags: .*");
 call mtr.add_suppression("InnoDB: Ignoring tablespace .* because it could not be opened.");
 call mtr.add_suppression("InnoDB: Tablespace for table .* is set as discarded.");
 call mtr.add_suppression("InnoDB: Cannot calculate statistics for table .*");
-call mtr.add_suppression("InnoDB: Page 0 at offset 0 looks corrupted in file .*");
-call mtr.add_suppression("InnoDB: Page for tablespace .* ");
-flush tables;
+call mtr.add_suppression("InnoDB: Page 0 at offset 0 looks corrupted in file");
+call mtr.add_suppression("InnoDB: Page for tablespace ");
+call mtr.add_suppression("InnoDB: Invalid FSP_SPACE_FLAGS=");
+FLUSH TABLES;
 SET GLOBAL innodb_file_per_table = 1;
 SELECT @@innodb_file_per_table;
 @@innodb_file_per_table
@@ -17,23 +17,18 @@ DROP DATABASE IF EXISTS test_wl5522;
 Warnings:
 Note	1008	Can't drop database 'test_wl5522'; database doesn't exist
 CREATE DATABASE test_wl5522;
-SET SESSION debug_dbug="+d,ib_discard_before_commit_crash";
 CREATE TABLE test_wl5522.t1 (c1 INT) ENGINE = InnoDB;
 INSERT INTO test_wl5522.t1 VALUES(1),(2),(3);
+SET SESSION debug_dbug="+d,ib_discard_before_commit_crash";
 ALTER TABLE test_wl5522.t1 DISCARD TABLESPACE;
 ERROR HY000: Lost connection to MySQL server during query
-SET SESSION debug_dbug="-d,ib_discard_before_commit_crash";
 DROP TABLE test_wl5522.t1;
 SET GLOBAL innodb_file_per_table = 1;
-SELECT @@innodb_file_per_table;
-@@innodb_file_per_table
-1
-SET SESSION debug_dbug="+d,ib_discard_after_commit_crash";
 CREATE TABLE test_wl5522.t1 (c1 INT) ENGINE = InnoDB;
 INSERT INTO test_wl5522.t1 VALUES(1),(2),(3);
+SET SESSION debug_dbug="+d,ib_discard_after_commit_crash";
 ALTER TABLE test_wl5522.t1 DISCARD TABLESPACE;
 ERROR HY000: Lost connection to MySQL server during query
-SET SESSION debug_dbug="-d,ib_discard_after_commit_crash";
 DROP TABLE test_wl5522.t1;
 SET GLOBAL innodb_file_per_table = 1;
 SELECT @@innodb_file_per_table;
@@ -51,21 +46,18 @@ ALTER TABLE test_wl5522.t1 DISCARD TABLESPACE;
 SELECT COUNT(*) FROM test_wl5522.t1;
 ERROR HY000: Tablespace has been discarded for table `t1`
 restore: t1 .ibd and .cfg files
-SET SESSION debug_dbug="+d,ib_import_before_commit_crash";
 SELECT * FROM test_wl5522.t1;
 ERROR HY000: Tablespace has been discarded for table `t1`
+SET SESSION debug_dbug="+d,ib_import_before_commit_crash";
 ALTER TABLE test_wl5522.t1 IMPORT TABLESPACE;
 ERROR HY000: Lost connection to MySQL server during query
-SET SESSION debug_dbug="-d,ib_import_before_commit_crash";
-SET SESSION debug_dbug="+d,ib_import_before_checkpoint_crash";
 SELECT COUNT(*) FROM test_wl5522.t1;
 ERROR HY000: Tablespace has been discarded for table `t1`
+SET SESSION debug_dbug="+d,ib_import_before_checkpoint_crash";
 ALTER TABLE test_wl5522.t1 IMPORT TABLESPACE;
 ERROR HY000: Lost connection to MySQL server during query
 unlink: t1.ibd
 unlink: t1.cfg
-# Restart and reconnect to the server
-SET SESSION debug_dbug="-d,ib_import_before_checkpoint_crash";
 DROP TABLE test_wl5522.t1;
 SET GLOBAL innodb_file_per_table = 1;
 SELECT @@innodb_file_per_table;
@@ -94,13 +86,14 @@ c1
 DROP TABLE test_wl5522.t1;
 CREATE TABLE test_wl5522.t1 (c1 INT) ENGINE = Innodb;
 INSERT INTO test_wl5522.t1 VALUES (1);
+SET @saved_debug_dbug = @@SESSION.debug_dbug;
 SET SESSION debug_dbug="+d,ib_export_io_write_failure_1";
 FLUSH TABLES test_wl5522.t1 FOR EXPORT;
 Warnings:
 Warning	1811	IO Write error: (9, Bad file descriptor) t1.cfg flush() failed
 Warning	1811	IO Write error: (9, Bad file descriptor) t1.cfg flose() failed
 UNLOCK TABLES;
-SET SESSION debug_dbug="-d,ib_export_io_write_failure_1";
+SET SESSION debug_dbug=@saved_debug_dbug;
 DROP TABLE test_wl5522.t1;
 CREATE TABLE test_wl5522.t1 (c1 INT) ENGINE = Innodb;
 INSERT INTO test_wl5522.t1 VALUES (1);
@@ -110,7 +103,7 @@ Warnings:
 Warning	1811	IO Write error: (9, Bad file descriptor) t1.cfg flush() failed
 Warning	1811	IO Write error: (9, Bad file descriptor) t1.cfg flose() failed
 UNLOCK TABLES;
-SET SESSION debug_dbug="-d,ib_export_io_write_failure_2";
+SET SESSION debug_dbug=@saved_debug_dbug;
 DROP TABLE test_wl5522.t1;
 CREATE TABLE test_wl5522.t1 (c1 INT) ENGINE = Innodb;
 INSERT INTO test_wl5522.t1 VALUES (1);
@@ -120,7 +113,7 @@ Warnings:
 Warning	1811	IO Write error: (9, Bad file descriptor) t1.cfg flush() failed
 Warning	1811	IO Write error: (9, Bad file descriptor) t1.cfg flose() failed
 UNLOCK TABLES;
-SET SESSION debug_dbug="-d,ib_export_io_write_failure_3";
+SET SESSION debug_dbug=@saved_debug_dbug;
 DROP TABLE test_wl5522.t1;
 CREATE TABLE test_wl5522.t1 (c1 INT) ENGINE = Innodb;
 INSERT INTO test_wl5522.t1 VALUES (1);
@@ -130,7 +123,7 @@ Warnings:
 Warning	1811	IO Write error: (9, Bad file descriptor) t1.cfg flush() failed
 Warning	1811	IO Write error: (9, Bad file descriptor) t1.cfg flose() failed
 UNLOCK TABLES;
-SET SESSION debug_dbug="-d,ib_export_io_write_failure_4";
+SET SESSION debug_dbug=@saved_debug_dbug;
 DROP TABLE test_wl5522.t1;
 CREATE TABLE test_wl5522.t1 (c1 INT) ENGINE = Innodb;
 INSERT INTO test_wl5522.t1 VALUES (1);
@@ -140,7 +133,7 @@ Warnings:
 Warning	1811	IO Write error: (9, Bad file descriptor) t1.cfg flush() failed
 Warning	1811	IO Write error: (9, Bad file descriptor) t1.cfg flose() failed
 UNLOCK TABLES;
-SET SESSION debug_dbug="-d,ib_export_io_write_failure_5";
+SET SESSION debug_dbug=@saved_debug_dbug;
 DROP TABLE test_wl5522.t1;
 CREATE TABLE test_wl5522.t1 (c1 INT) ENGINE = Innodb;
 INSERT INTO test_wl5522.t1 VALUES (1);
@@ -150,7 +143,7 @@ Warnings:
 Warning	1811	IO Write error: (9, Bad file descriptor) t1.cfg flush() failed
 Warning	1811	IO Write error: (9, Bad file descriptor) t1.cfg flose() failed
 UNLOCK TABLES;
-SET SESSION debug_dbug="-d,ib_export_io_write_failure_6";
+SET SESSION debug_dbug=@saved_debug_dbug;
 DROP TABLE test_wl5522.t1;
 CREATE TABLE test_wl5522.t1 (c1 INT) ENGINE = Innodb;
 INSERT INTO test_wl5522.t1 VALUES (1);
@@ -160,7 +153,7 @@ Warnings:
 Warning	1811	IO Write error: (9, Bad file descriptor) t1.cfg flush() failed
 Warning	1811	IO Write error: (9, Bad file descriptor) t1.cfg flose() failed
 UNLOCK TABLES;
-SET SESSION debug_dbug="-d,ib_export_io_write_failure_7";
+SET SESSION debug_dbug=@saved_debug_dbug;
 DROP TABLE test_wl5522.t1;
 CREATE TABLE test_wl5522.t1 (c1 INT) ENGINE = Innodb;
 INSERT INTO test_wl5522.t1 VALUES (1);
@@ -170,7 +163,7 @@ Warnings:
 Warning	1811	IO Write error: (9, Bad file descriptor) t1.cfg flush() failed
 Warning	1811	IO Write error: (9, Bad file descriptor) t1.cfg flose() failed
 UNLOCK TABLES;
-SET SESSION debug_dbug="-d,ib_export_io_write_failure_8";
+SET SESSION debug_dbug=@saved_debug_dbug;
 DROP TABLE test_wl5522.t1;
 CREATE TABLE test_wl5522.t1 (c1 INT) ENGINE = Innodb;
 INSERT INTO test_wl5522.t1 VALUES (1);
@@ -180,7 +173,7 @@ Warnings:
 Warning	1811	IO Write error: (9, Bad file descriptor) t1.cfg flush() failed
 Warning	1811	IO Write error: (9, Bad file descriptor) t1.cfg flose() failed
 UNLOCK TABLES;
-SET SESSION debug_dbug="-d,ib_export_io_write_failure_9";
+SET SESSION debug_dbug=@saved_debug_dbug;
 DROP TABLE test_wl5522.t1;
 CREATE TABLE test_wl5522.t1 (c1 INT) ENGINE = Innodb;
 INSERT INTO test_wl5522.t1 VALUES (1);
@@ -190,7 +183,7 @@ Warnings:
 Warning	1811	IO Write error: (9, Bad file descriptor) t1.cfg flush() failed
 Warning	1811	IO Write error: (9, Bad file descriptor) t1.cfg flose() failed
 UNLOCK TABLES;
-SET SESSION debug_dbug="-d,ib_export_io_write_failure_10";
+SET SESSION debug_dbug=@saved_debug_dbug;
 DROP TABLE test_wl5522.t1;
 CREATE TABLE test_wl5522.t1 (c1 INT) ENGINE = Innodb;
 INSERT INTO test_wl5522.t1 VALUES (1);
@@ -200,7 +193,7 @@ Warnings:
 Warning	1811	IO Write error: (9, Bad file descriptor) t1.cfg flush() failed
 Warning	1811	IO Write error: (9, Bad file descriptor) t1.cfg flose() failed
 UNLOCK TABLES;
-SET SESSION debug_dbug="-d,ib_export_io_write_failure_11";
+SET SESSION debug_dbug=@saved_debug_dbug;
 DROP TABLE test_wl5522.t1;
 CREATE TABLE test_wl5522.t1 (c1 INT) ENGINE = Innodb;
 INSERT INTO test_wl5522.t1 VALUES (1);
@@ -210,7 +203,7 @@ Warnings:
 Warning	1811	IO Write error: (9, Bad file descriptor) t1.cfg flush() failed
 Warning	1811	IO Write error: (9, Bad file descriptor) t1.cfg flose() failed
 UNLOCK TABLES;
-SET SESSION debug_dbug="-d,ib_export_io_write_failure_12";
+SET SESSION debug_dbug=@saved_debug_dbug;
 DROP TABLE test_wl5522.t1;
 CREATE TABLE test_wl5522.t1 (c1 INT) ENGINE = Innodb;
 INSERT INTO test_wl5522.t1 VALUES (100), (200), (300);
@@ -230,7 +223,7 @@ SET SESSION debug_dbug="+d,ib_import_io_read_error_1";
 restore: t1 .cfg file
 ALTER TABLE test_wl5522.t1 IMPORT TABLESPACE;
 ERROR HY000: IO Read error: while reading index fields.
-SET SESSION debug_dbug="-d,ib_import_io_read_error_1";
+SET SESSION debug_dbug=@saved_debug_dbug;
 DROP TABLE test_wl5522.t1;
 CREATE TABLE test_wl5522.t1 (c1 INT) ENGINE = Innodb;
 INSERT INTO test_wl5522.t1 VALUES (1);
@@ -241,7 +234,7 @@ SET SESSION debug_dbug="+d,ib_import_io_read_error_2";
 restore: t1 .cfg file
 ALTER TABLE test_wl5522.t1 IMPORT TABLESPACE;
 ERROR HY000: IO Read error: while reading index meta-data, expected to read 44 bytes but read only 0 bytes
-SET SESSION debug_dbug="-d,ib_import_io_read_error_2";
+SET SESSION debug_dbug=@saved_debug_dbug;
 DROP TABLE test_wl5522.t1;
 CREATE TABLE test_wl5522.t1 (c1 INT) ENGINE = Innodb;
 INSERT INTO test_wl5522.t1 VALUES (1);
@@ -252,7 +245,7 @@ SET SESSION debug_dbug="+d,ib_import_io_read_error_3";
 restore: t1 .cfg file
 ALTER TABLE test_wl5522.t1 IMPORT TABLESPACE;
 ERROR HY000: IO Read error: while reading number of indexes.
-SET SESSION debug_dbug="-d,ib_import_io_read_error_3";
+SET SESSION debug_dbug=@saved_debug_dbug;
 DROP TABLE test_wl5522.t1;
 CREATE TABLE test_wl5522.t1 (c1 INT) ENGINE = Innodb;
 INSERT INTO test_wl5522.t1 VALUES (1);
@@ -263,7 +256,7 @@ SET SESSION debug_dbug="+d,ib_import_io_read_error_4";
 restore: t1 .cfg file
 ALTER TABLE test_wl5522.t1 IMPORT TABLESPACE;
 ERROR HY000: IO Read error: while reading table column meta-data.
-SET SESSION debug_dbug="-d,ib_import_io_read_error_4";
+SET SESSION debug_dbug=@saved_debug_dbug;
 DROP TABLE test_wl5522.t1;
 CREATE TABLE test_wl5522.t1 (c1 INT) ENGINE = Innodb;
 INSERT INTO test_wl5522.t1 VALUES (1);
@@ -274,7 +267,7 @@ SET SESSION debug_dbug="+d,ib_import_io_read_error_5";
 restore: t1 .cfg file
 ALTER TABLE test_wl5522.t1 IMPORT TABLESPACE;
 ERROR HY000: IO Read error: while reading meta-data export hostname length.
-SET SESSION debug_dbug="-d,ib_import_io_read_error_5";
+SET SESSION debug_dbug=@saved_debug_dbug;
 DROP TABLE test_wl5522.t1;
 CREATE TABLE test_wl5522.t1 (c1 INT) ENGINE = Innodb;
 INSERT INTO test_wl5522.t1 VALUES (1);
@@ -285,7 +278,7 @@ SET SESSION debug_dbug="+d,ib_import_io_read_error_6";
 restore: t1 .cfg file
 ALTER TABLE test_wl5522.t1 IMPORT TABLESPACE;
 ERROR HY000: IO Read error: while reading meta-data table name length.
-SET SESSION debug_dbug="-d,ib_import_io_read_error_6";
+SET SESSION debug_dbug=@saved_debug_dbug;
 DROP TABLE test_wl5522.t1;
 CREATE TABLE test_wl5522.t1 (c1 INT) ENGINE = Innodb;
 INSERT INTO test_wl5522.t1 VALUES (1);
@@ -296,7 +289,7 @@ SET SESSION debug_dbug="+d,ib_import_io_read_error_7";
 restore: t1 .cfg file
 ALTER TABLE test_wl5522.t1 IMPORT TABLESPACE;
 ERROR HY000: IO Read error: while reading autoinc value.
-SET SESSION debug_dbug="-d,ib_import_io_read_error_7";
+SET SESSION debug_dbug=@saved_debug_dbug;
 DROP TABLE test_wl5522.t1;
 CREATE TABLE test_wl5522.t1 (c1 INT) ENGINE = Innodb;
 INSERT INTO test_wl5522.t1 VALUES (1);
@@ -307,7 +300,7 @@ SET SESSION debug_dbug="+d,ib_import_io_read_error_8";
 restore: t1 .cfg file
 ALTER TABLE test_wl5522.t1 IMPORT TABLESPACE;
 ERROR HY000: IO Read error: while reading meta-data header.
-SET SESSION debug_dbug="-d,ib_import_io_read_error_8";
+SET SESSION debug_dbug=@saved_debug_dbug;
 DROP TABLE test_wl5522.t1;
 CREATE TABLE test_wl5522.t1 (c1 INT) ENGINE = Innodb;
 INSERT INTO test_wl5522.t1 VALUES (1);
@@ -318,7 +311,7 @@ SET SESSION debug_dbug="+d,ib_import_io_read_error_9";
 restore: t1 .cfg file
 ALTER TABLE test_wl5522.t1 IMPORT TABLESPACE;
 ERROR HY000: IO Read error: while reading meta-data version.
-SET SESSION debug_dbug="-d,ib_import_io_read_error_9";
+SET SESSION debug_dbug=@saved_debug_dbug;
 DROP TABLE test_wl5522.t1;
 CREATE TABLE test_wl5522.t1 (c1 INT) ENGINE = Innodb;
 INSERT INTO test_wl5522.t1 VALUES (1);
@@ -329,7 +322,7 @@ SET SESSION debug_dbug="+d,ib_import_string_read_error";
 restore: t1 .cfg file
 ALTER TABLE test_wl5522.t1 IMPORT TABLESPACE;
 ERROR HY000: IO Read error: while parsing export hostname.
-SET SESSION debug_dbug="-d,ib_import_string_read_error";
+SET SESSION debug_dbug=@saved_debug_dbug;
 DROP TABLE test_wl5522.t1;
 CREATE TABLE test_wl5522.t1 (c1 INT) ENGINE = Innodb;
 INSERT INTO test_wl5522.t1 VALUES (1);
@@ -340,7 +333,7 @@ restore: t1 .ibd and .cfg files
 SET SESSION debug_dbug="+d,ib_import_OOM_1";
 ALTER TABLE test_wl5522.t1 IMPORT TABLESPACE;
 ERROR HY000: Out of memory; check if mysqld or some other process uses all available memory; if not, you may have to use 'ulimit' to allow mysqld to use more memory or you can add more swap space
-SET SESSION debug_dbug="-d,ib_import_OOM_1";
+SET SESSION debug_dbug=@saved_debug_dbug;
 DROP TABLE test_wl5522.t1;
 unlink: t1.ibd
 unlink: t1.cfg
@@ -353,7 +346,7 @@ restore: t1 .ibd and .cfg files
 SET SESSION debug_dbug="+d,ib_import_OOM_2";
 ALTER TABLE test_wl5522.t1 IMPORT TABLESPACE;
 ERROR HY000: Out of memory; check if mysqld or some other process uses all available memory; if not, you may have to use 'ulimit' to allow mysqld to use more memory or you can add more swap space
-SET SESSION debug_dbug="-d,ib_import_OOM_2";
+SET SESSION debug_dbug=@saved_debug_dbug;
 DROP TABLE test_wl5522.t1;
 unlink: t1.ibd
 unlink: t1.cfg
@@ -366,7 +359,7 @@ restore: t1 .ibd and .cfg files
 SET SESSION debug_dbug="+d,ib_import_OOM_4";
 ALTER TABLE test_wl5522.t1 IMPORT TABLESPACE;
 ERROR HY000: Out of memory; check if mysqld or some other process uses all available memory; if not, you may have to use 'ulimit' to allow mysqld to use more memory or you can add more swap space
-SET SESSION debug_dbug="-d,ib_import_OOM_4";
+SET SESSION debug_dbug=@saved_debug_dbug;
 DROP TABLE test_wl5522.t1;
 unlink: t1.ibd
 unlink: t1.cfg
@@ -379,7 +372,7 @@ restore: t1 .ibd and .cfg files
 SET SESSION debug_dbug="+d,ib_import_OOM_5";
 ALTER TABLE test_wl5522.t1 IMPORT TABLESPACE;
 ERROR HY000: Out of memory; check if mysqld or some other process uses all available memory; if not, you may have to use 'ulimit' to allow mysqld to use more memory or you can add more swap space
-SET SESSION debug_dbug="-d,ib_import_OOM_5";
+SET SESSION debug_dbug=@saved_debug_dbug;
 DROP TABLE test_wl5522.t1;
 unlink: t1.ibd
 unlink: t1.cfg
@@ -392,7 +385,7 @@ restore: t1 .ibd and .cfg files
 SET SESSION debug_dbug="+d,ib_import_OOM_6";
 ALTER TABLE test_wl5522.t1 IMPORT TABLESPACE;
 ERROR HY000: Out of memory; check if mysqld or some other process uses all available memory; if not, you may have to use 'ulimit' to allow mysqld to use more memory or you can add more swap space
-SET SESSION debug_dbug="-d,ib_import_OOM_6";
+SET SESSION debug_dbug=@saved_debug_dbug;
 DROP TABLE test_wl5522.t1;
 unlink: t1.ibd
 unlink: t1.cfg
@@ -405,7 +398,7 @@ restore: t1 .ibd and .cfg files
 SET SESSION debug_dbug="+d,ib_import_OOM_7";
 ALTER TABLE test_wl5522.t1 IMPORT TABLESPACE;
 ERROR HY000: Out of memory; check if mysqld or some other process uses all available memory; if not, you may have to use 'ulimit' to allow mysqld to use more memory or you can add more swap space
-SET SESSION debug_dbug="-d,ib_import_OOM_7";
+SET SESSION debug_dbug=@saved_debug_dbug;
 DROP TABLE test_wl5522.t1;
 unlink: t1.ibd
 unlink: t1.cfg
@@ -418,7 +411,7 @@ restore: t1 .ibd and .cfg files
 SET SESSION debug_dbug="+d,ib_import_OOM_8";
 ALTER TABLE test_wl5522.t1 IMPORT TABLESPACE;
 ERROR HY000: Out of memory; check if mysqld or some other process uses all available memory; if not, you may have to use 'ulimit' to allow mysqld to use more memory or you can add more swap space
-SET SESSION debug_dbug="-d,ib_import_OOM_8";
+SET SESSION debug_dbug=@saved_debug_dbug;
 DROP TABLE test_wl5522.t1;
 unlink: t1.ibd
 unlink: t1.cfg
@@ -431,7 +424,7 @@ restore: t1 .ibd and .cfg files
 SET SESSION debug_dbug="+d,ib_import_OOM_9";
 ALTER TABLE test_wl5522.t1 IMPORT TABLESPACE;
 ERROR HY000: Out of memory; check if mysqld or some other process uses all available memory; if not, you may have to use 'ulimit' to allow mysqld to use more memory or you can add more swap space
-SET SESSION debug_dbug="-d,ib_import_OOM_9";
+SET SESSION debug_dbug=@saved_debug_dbug;
 DROP TABLE test_wl5522.t1;
 unlink: t1.ibd
 unlink: t1.cfg
@@ -444,7 +437,7 @@ restore: t1 .ibd and .cfg files
 SET SESSION debug_dbug="+d,ib_import_OOM_10";
 ALTER TABLE test_wl5522.t1 IMPORT TABLESPACE;
 ERROR HY000: Out of memory; check if mysqld or some other process uses all available memory; if not, you may have to use 'ulimit' to allow mysqld to use more memory or you can add more swap space
-SET SESSION debug_dbug="-d,ib_import_OOM_10";
+SET SESSION debug_dbug=@saved_debug_dbug;
 DROP TABLE test_wl5522.t1;
 unlink: t1.ibd
 unlink: t1.cfg
@@ -456,7 +449,7 @@ restore: t1 .ibd and .cfg files
 SET SESSION debug_dbug="+d,ib_import_internal_error";
 ALTER TABLE test_wl5522.t1 IMPORT TABLESPACE;
 ERROR HY000: Internal error: While updating the <space, root page number> of index GEN_CLUST_INDEX - Generic error
-SET SESSION debug_dbug="-d,ib_import_internal_error";
+SET SESSION debug_dbug=@saved_debug_dbug;
 restore: t1 .ibd and .cfg files
 ALTER TABLE test_wl5522.t1 IMPORT TABLESPACE;
 DROP TABLE test_wl5522.t1;
@@ -469,36 +462,36 @@ SET SESSION debug_dbug="+d,ib_import_reset_space_and_lsn_failure";
 ALTER TABLE test_wl5522.t1 IMPORT TABLESPACE;
 ERROR HY000: Internal error: Cannot reset LSNs in table `test_wl5522`.`t1` : Too many concurrent transactions
 restore: t1 .ibd and .cfg files
-SET SESSION debug_dbug="-d,ib_import_reset_space_and_lsn_failure";
+SET SESSION debug_dbug=@saved_debug_dbug;
 SET SESSION debug_dbug="+d,ib_import_open_tablespace_failure";
 ALTER TABLE test_wl5522.t1 IMPORT TABLESPACE;
 ERROR HY000: Got error 44 'Tablespace not found' from ./test_wl5522/t1.ibd
-SET SESSION debug_dbug="-d,ib_import_open_tablespace_failure";
+SET SESSION debug_dbug=@saved_debug_dbug;
 restore: t1 .ibd and .cfg files
 SET SESSION debug_dbug="+d,ib_import_check_bitmap_failure";
 ALTER TABLE test_wl5522.t1 IMPORT TABLESPACE;
 ERROR HY000: Index for table 't1' is corrupt; try to repair it
-SET SESSION debug_dbug="-d,ib_import_check_bitmap_failure";
+SET SESSION debug_dbug=@saved_debug_dbug;
 restore: t1 .ibd and .cfg files
 SET SESSION debug_dbug="+d,ib_import_cluster_root_adjust_failure";
 ALTER TABLE test_wl5522.t1 IMPORT TABLESPACE;
 ERROR HY000: Index for table 't1' is corrupt; try to repair it
-SET SESSION debug_dbug="-d,ib_import_cluster_root_adjust_failure";
+SET SESSION debug_dbug=@saved_debug_dbug;
 restore: t1 .ibd and .cfg files
 SET SESSION debug_dbug="+d,ib_import_cluster_failure";
 ALTER TABLE test_wl5522.t1 IMPORT TABLESPACE;
 ERROR HY000: Index for table 't1' is corrupt; try to repair it
-SET SESSION debug_dbug="-d,ib_import_cluster_failure";
+SET SESSION debug_dbug=@saved_debug_dbug;
 restore: t1 .ibd and .cfg files
 SET SESSION debug_dbug="+d,ib_import_sec_root_adjust_failure";
 ALTER TABLE test_wl5522.t1 IMPORT TABLESPACE;
 ERROR HY000: Index for table 't1' is corrupt; try to repair it
-SET SESSION debug_dbug="-d,ib_import_sec_root_adjust_failure";
+SET SESSION debug_dbug=@saved_debug_dbug;
 restore: t1 .ibd and .cfg files
 SET SESSION debug_dbug="+d,ib_import_set_max_rowid_failure";
 ALTER TABLE test_wl5522.t1 IMPORT TABLESPACE;
 ERROR HY000: Index for table 't1' is corrupt; try to repair it
-SET SESSION debug_dbug="-d,ib_import_set_max_rowid_failure";
+SET SESSION debug_dbug=@saved_debug_dbug;
 unlink: t1.ibd
 unlink: t1.cfg
 DROP TABLE test_wl5522.t1;
@@ -811,7 +804,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=InnoDB AUTO_INCREMENT=248 DEFAULT CHARSET=latin1
 DROP TABLE test_wl5522.t1;
 CREATE TABLE test_wl5522.t1 (c1 INT, c2 VARCHAR(1024), c3 BLOB) ENGINE = Innodb;
-INSERT INTO test_wl5522.t1 VALUES
+INSERT IGNORE INTO test_wl5522.t1 VALUES
 (100, REPEAT('Karanbir', 899), REPEAT('Ajeeth', 1200));
 Warnings:
 Warning	1265	Data truncated for column 'c2' at row 1
@@ -838,7 +831,7 @@ restore: t1 .ibd and .cfg files
 SET SESSION debug_dbug="+d,ib_import_trigger_corruption_1";
 ALTER TABLE test_wl5522.t1 IMPORT TABLESPACE;
 ERROR HY000: Internal error: Cannot reset LSNs in table `test_wl5522`.`t1` : Data structure corruption
-SET SESSION debug_dbug="-d,ib_import_trigger_corruption_1";
+SET SESSION debug_dbug=@saved_debug_dbug;
 DROP TABLE test_wl5522.t1;
 unlink: t1.ibd
 unlink: t1.cfg
@@ -847,10 +840,10 @@ ALTER TABLE test_wl5522.t1 DISCARD TABLESPACE;
 SELECT COUNT(*) FROM test_wl5522.t1;
 ERROR HY000: Tablespace has been discarded for table `t1`
 restore: t1 .ibd and .cfg files
-SET SESSION debug_dbug="+d,buf_page_is_corrupt_failure";
+SET SESSION debug_dbug="+d,buf_page_import_corrupt_failure";
 ALTER TABLE test_wl5522.t1 IMPORT TABLESPACE;
 ERROR HY000: Internal error: Cannot reset LSNs in table `test_wl5522`.`t1` : Data structure corruption
-SET SESSION debug_dbug="-d,buf_page_is_corrupt_failure";
+SET SESSION debug_dbug=@saved_debug_dbug;
 DROP TABLE test_wl5522.t1;
 unlink: t1.ibd
 unlink: t1.cfg
@@ -862,7 +855,7 @@ restore: t1 .ibd and .cfg files
 SET SESSION debug_dbug="+d,ib_import_trigger_corruption_2";
 ALTER TABLE test_wl5522.t1 IMPORT TABLESPACE;
 ERROR HY000: Index corrupt: Externally stored column(5) has a reference length of 19 in the cluster index GEN_CLUST_INDEX
-SET SESSION debug_dbug="-d,ib_import_trigger_corruption_2";
+SET SESSION debug_dbug=@saved_debug_dbug;
 DROP TABLE test_wl5522.t1;
 unlink: t1.ibd
 unlink: t1.cfg
@@ -874,7 +867,7 @@ restore: t1 .ibd and .cfg files
 SET SESSION debug_dbug="+d,ib_import_trigger_corruption_3";
 ALTER TABLE test_wl5522.t1 IMPORT TABLESPACE;
 ERROR HY000: Index for table 't1' is corrupt; try to repair it
-SET SESSION debug_dbug="-d,ib_import_trigger_corruption_3";
+SET SESSION debug_dbug=@saved_debug_dbug;
 DROP TABLE test_wl5522.t1;
 unlink: t1.ibd
 unlink: t1.cfg
@@ -886,7 +879,7 @@ SET SESSION debug_dbug="+d,ib_import_create_index_failure_1";
 ALTER TABLE test_wl5522.t1 ADD INDEX idx(c1);
 Warnings:
 Warning	1814	Tablespace has been discarded for table `t1`
-SET SESSION debug_dbug="-d,ib_import_create_index_failure_1";
+SET SESSION debug_dbug=@saved_debug_dbug;
 DROP TABLE test_wl5522.t1;
 unlink: t1.ibd
 unlink: t1.cfg
@@ -898,7 +891,7 @@ restore: t1 .ibd and .cfg files
 SET SESSION debug_dbug="+d,fil_space_create_failure";
 ALTER TABLE test_wl5522.t1 IMPORT TABLESPACE;
 ERROR HY000: Got error 11 'Generic error' from ./test_wl5522/t1.ibd
-SET SESSION debug_dbug="-d,fil_space_create_failure";
+SET SESSION debug_dbug=@saved_debug_dbug;
 DROP TABLE test_wl5522.t1;
 unlink: t1.ibd
 unlink: t1.cfg
@@ -910,7 +903,7 @@ restore: t1 .ibd and .cfg files
 SET SESSION debug_dbug="+d,dict_tf_to_fsp_flags_failure";
 ALTER TABLE test_wl5522.t1 IMPORT TABLESPACE;
 ERROR HY000: Got error 39 'Data structure corruption' from ./test_wl5522/t1.ibd
-SET SESSION debug_dbug="-d,dict_tf_to_fsp_flags_failure";
+SET SESSION debug_dbug=@saved_debug_dbug;
 DROP TABLE test_wl5522.t1;
 unlink: t1.ibd
 unlink: t1.cfg
@@ -921,8 +914,8 @@ ERROR HY000: Tablespace has been discarded for table `t1`
 restore: t1 .ibd and .cfg files
 SET SESSION debug_dbug="+d,fsp_flags_is_valid_failure";
 ALTER TABLE test_wl5522.t1 IMPORT TABLESPACE;
-ERROR HY000: Internal error: Cannot reset LSNs in table `test_wl5522`.`t1` : Unsupported
-SET SESSION debug_dbug="-d,fsp_flags_is_valid_failure";
+ERROR HY000: Internal error: Cannot reset LSNs in table `test_wl5522`.`t1` : Data structure corruption
+SET SESSION debug_dbug=@saved_debug_dbug;
 DROP TABLE test_wl5522.t1;
 unlink: t1.ibd
 unlink: t1.cfg

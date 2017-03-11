@@ -1,4 +1,5 @@
 /* Copyright (c) 2010, 2012, Oracle and/or its affiliates. All rights reserved.
+   Copyright (c) 2017, MariaDB Corporation.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -183,7 +184,7 @@ static inline struct PSI_table_locker *
 inline_mysql_start_table_lock_wait(PSI_table_locker_state *state,
                                    struct PSI_table *psi,
                                    enum PSI_table_lock_operation op,
-                                   ulong flags, const char *src_file, int src_line)
+                                   ulong flags, const char *src_file, uint src_line)
 {
   if (psi != NULL)
   {

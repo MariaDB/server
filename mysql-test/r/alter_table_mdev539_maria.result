@@ -3,6 +3,7 @@ set @@storage_engine= Aria;
 #
 # mdev-539: fast build of unique/primary indexes for MyISAM/Aria
 #
+call mtr.add_suppression("Can't find record in '.*'");
 DROP DATABASE IF EXISTS dbt3_s001;
 CREATE DATABASE dbt3_s001;
 use dbt3_s001;

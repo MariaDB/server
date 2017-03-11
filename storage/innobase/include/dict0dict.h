@@ -2,7 +2,7 @@
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2016, MariaDB Corporation.
+Copyright (c) 2013, 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -399,7 +399,7 @@ void
 dict_table_add_to_cache(
 /*====================*/
 	dict_table_t*	table,		/*!< in: table */
-	ibool		can_be_evicted,	/*!< in: TRUE if can be evicted*/
+	bool		can_be_evicted,	/*!< in: whether can be evicted*/
 	mem_heap_t*	heap)		/*!< in: temporary heap */
 	MY_ATTRIBUTE((nonnull));
 /**********************************************************************//**
@@ -992,7 +992,9 @@ dict_tf_get_format(
 @param[in]	format,		File Format
 @param[in]	zip_ssize	Zip Shift Size
 @param[in]	use_data_dir	Table uses DATA DIRECTORY
-@param[in]	shared_space	Table uses a General Shared Tablespace */
+@param[in]	page_compressed Table uses page compression
+@param[in]	page_compression_level Page compression level
+@param[in]	not_used        For future */
 UNIV_INLINE
 void
 dict_tf_set(
@@ -1000,28 +1002,9 @@ dict_tf_set(
 	rec_format_t	format,
 	ulint		zip_ssize,
 	bool		use_data_dir,
-	bool		shared_space,
 	bool		page_compressed,
 	ulint		page_compression_level,
-	ulint		atomic_writes);
-
-/** Initialize a dict_table_t::flags pointer.
-@param[in]	compact,	Table uses Compact or greater
-@param[in]	zip_ssize	Zip Shift Size (log 2 minus 9)
-@param[in]	atomic_blobs	Table uses Compressed or Dynamic
-@param[in]	data_dir	Table uses DATA DIRECTORY
-@param[in]	shared_space	Table uses a General Shared Tablespace */
-UNIV_INLINE
-ulint
-dict_tf_init(
-	bool		compact,
-	ulint		zip_ssize,
-	bool		atomic_blobs,
-	bool		data_dir,
-	bool		shared_space,
-	bool		page_compressed,
-	ulint		page_compression_level,
-	ulint		atomic_writes);
+	ulint		not_used);
 
 /** Convert a 32 bit integer table flags to the 32 bit FSP Flags.
 Fsp Flags are written into the tablespace header at the offset
@@ -1034,14 +1017,10 @@ dict_table_t::flags |     0     |    1    |     1      |    1
 fil_space_t::flags  |     0     |    0    |     1      |    1
 ==================================================================
 @param[in]	table_flags	dict_table_t::flags
-@param[in]	is_temp		whether the tablespace is temporary
-@param[in]	is_encrypted	whether the tablespace is encrypted
 @return tablespace flags (fil_space_t::flags) */
+UNIV_INLINE
 ulint
-dict_tf_to_fsp_flags(
-	ulint	table_flags,
-	bool	is_temp,
-	bool	is_encrypted = false)
+dict_tf_to_fsp_flags(ulint table_flags)
 	MY_ATTRIBUTE((const));
 
 /** Extract the page size from table flags.
@@ -1588,11 +1567,9 @@ dict_index_calc_min_rec_len(
 /*========================*/
 	const dict_index_t*	index)	/*!< in: index */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
-/********************************************************************//**
-Reserves the dictionary system mutex for MySQL. */
+/** Reserve the dictionary system mutex. */
 void
-dict_mutex_enter_for_mysql_func(const char * file, ulint line);
-/*============================*/
+dict_mutex_enter_for_mysql_func(const char *file, unsigned line);
 
 #define dict_mutex_enter_for_mysql() \
   dict_mutex_enter_for_mysql_func(__FILE__, __LINE__)
@@ -1784,11 +1761,13 @@ struct dict_sys_t{
 /** dummy index for ROW_FORMAT=REDUNDANT supremum and infimum records */
 extern dict_index_t*	dict_ind_redundant;
 
-/**********************************************************************//**
-Inits dict_ind_redundant. */
+/** Initialize dict_ind_redundant. */
 void
-dict_ind_init(void);
-/*===============*/
+dict_ind_init();
+
+/** Free dict_ind_redundant. */
+void
+dict_ind_free();
 
 /* Auxiliary structs for checking a table definition @{ */
 
@@ -1973,25 +1952,6 @@ bool
 dict_table_is_temporary(
 /*====================*/
 	const dict_table_t*	table)	/*!< in: table to check */
-	MY_ATTRIBUTE((warn_unused_result));
-
-/********************************************************************//**
-Check if it is a encrypted table.
-@return true if table encryption flag is set. */
-UNIV_INLINE
-bool
-dict_table_is_encrypted(
-/*====================*/
-	const dict_table_t*	table)	/*!< in: table to check */
-	MY_ATTRIBUTE((warn_unused_result));
-
-/** Check if the table is in a shared tablespace (System or General).
-@param[in]	id	Space ID to check
-@return true if id is a shared tablespace, false if not. */
-UNIV_INLINE
-bool
-dict_table_in_shared_tablespace(
-	const dict_table_t*	table)
 	MY_ATTRIBUTE((warn_unused_result));
 
 /********************************************************************//**

@@ -41,7 +41,7 @@ innochecksum Ver #.#.#
 Copyright (c) YEAR, YEAR , Oracle, MariaDB Corporation Ab and others.
 
 InnoDB offline file checksum utility.
-Usage: innochecksum [-c] [-s <start page>] [-e <end page>] [-p <page>] [-v]  [-a <allow mismatches>] [-n] [-C <strict-check>] [-w <write>] [-S] [-D <page type dump>] [-l <log>] <filename or [-]>
+Usage: innochecksum [-c] [-s <start page>] [-e <end page>] [-p <page>] [-v]  [-a <allow mismatches>] [-n] [-C <strict-check>] [-w <write>] [-S] [-D <page type dump>] [-l <log>] [-e] <filename or [-]>
   -?, --help          Displays this help and exits.
   -I, --info          Synonym for --help.
   -V, --version       Displays version information and exits.
@@ -63,7 +63,7 @@ Usage: innochecksum [-c] [-s <start page>] [-e <end page>] [-p <page>] [-v]  [-a
   -D, --page-type-dump=name 
                       Dump the page type info for each page in a tablespace.
   -l, --log=name      log output.
-  -l, --leaf          Examine leaf index pages
+  -e, --leaf          Examine leaf index pages
   -m, --merge=#       leaf page count if merge given number of consecutive
                       pages
 

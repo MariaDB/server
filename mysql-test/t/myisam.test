@@ -2,6 +2,9 @@
 # Test bugs in the MyISAM code
 #
 
+call mtr.add_suppression("Can't find record in '.*'");
+call mtr.add_suppression("Table 't1' is marked as crashed and should be repaired");
+
 # Initialise
 --disable_warnings
 drop table if exists t1,t2,t3;
@@ -39,7 +42,7 @@ begin;
 SET SQL_WARNINGS=0;
 while ($1)
 {
-  eval insert into t1 (b) values(repeat(char(65+$1),65550-$1));
+  eval insert ignore into t1 (b) values(repeat(char(65+$1),65550-$1));
   dec $1;
 }
 commit;
@@ -310,6 +313,7 @@ drop table t1;
 #
 # Test of REPAIR that once failed
 #
+SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 CREATE TABLE `t1` (
   `post_id` mediumint(8) unsigned NOT NULL auto_increment,
   `topic_id` mediumint(8) unsigned NOT NULL default '0',
@@ -328,7 +332,7 @@ CREATE TABLE `t1` (
   FULLTEXT KEY `post_text` (`post_text`)
 ) ENGINE=MyISAM;
 
-INSERT INTO t1 (post_text) VALUES ('ceci est un test'),('ceci est un test'),('ceci est un test'),('ceci est un test'),('ceci est un test');
+INSERT IGNORE INTO t1 (post_text) VALUES ('ceci est un test'),('ceci est un test'),('ceci est un test'),('ceci est un test'),('ceci est un test');
 
 REPAIR TABLE t1;
 CHECK TABLE t1;
@@ -1024,9 +1028,11 @@ source include/varchar.inc;
 
 create table t1 (v varchar(65530), key(v));
 drop table if exists t1;
+set statement sql_mode = 'NO_ENGINE_SUBSTITUTION' for
 create table t1 (v varchar(65536));
 show create table t1;
 drop table t1;
+set statement sql_mode = 'NO_ENGINE_SUBSTITUTION' for
 create table t1 (v varchar(65530) character set utf8);
 show create table t1;
 drop table t1;

@@ -67,7 +67,7 @@ static MYSQL_SYSVAR_ULONGLONG(max_sort_file_size, myisam_max_temp_length,
 static MYSQL_SYSVAR_SET(recover_options, myisam_recover_options,
   PLUGIN_VAR_OPCMDARG|PLUGIN_VAR_READONLY,
   "Specifies how corrupted tables should be automatically repaired",
-  NULL, NULL, 1, &myisam_recover_typelib);
+  NULL, NULL, HA_RECOVER_BACKUP|HA_RECOVER_QUICK, &myisam_recover_typelib);
 
 static MYSQL_THDVAR_ULONG(repair_threads, PLUGIN_VAR_RQCMDARG,
   "If larger than 1, when repairing a MyISAM table all indexes will be "
@@ -664,8 +664,12 @@ static int compute_vcols(MI_INFO *info, uchar *record, int keynum)
   TABLE *table= (TABLE*)(info->external_ref);
   table->move_fields(table->field, record, table->field[0]->record_ptr());
   if (keynum == -1) // update all vcols
-    return table->update_virtual_fields(VCOL_UPDATE_INDEXED);
-
+  {
+    int error= table->update_virtual_fields(table->file, VCOL_UPDATE_FOR_READ);
+    if (table->update_virtual_fields(table->file, VCOL_UPDATE_INDEXED))
+      error= 1;
+    return error;
+  }
   // update only one key
   KEY *key= table->key_info + keynum;
   KEY_PART_INFO *kp= key->key_part, *end= kp + key->ext_key_parts;

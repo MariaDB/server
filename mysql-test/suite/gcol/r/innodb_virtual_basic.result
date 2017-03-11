@@ -209,7 +209,7 @@ CREATE TABLE t1(a INT);
 CREATE INDEX idx ON t1(a);
 CREATE TABLE t3(a INT, b INT , INDEX(b), CONSTRAINT x FOREIGN KEY(b) REFERENCES t1(a));
 CREATE TABLE t2(a INT, b INT generated always as (a+1) virtual, INDEX(b), CONSTRAINT x FOREIGN KEY(b) REFERENCES t1(a));
-ERROR HY000: Can't create table `test`.`t2` (errno: 150 "Foreign key constraint is incorrectly formed")
+ERROR HY000: Can't create table `test`.`t2` (errno: 121 "Duplicate key on write or update")
 CREATE TABLE t2(a INT, b INT generated always as (a+1) virtual, INDEX(b));
 DROP TABLE t3;
 DROP TABLE t2;
@@ -927,6 +927,8 @@ INSERT INTO t VALUES (13, 4,  "ss");
 INSERT INTO t VALUES (14, 0,  "ss");
 alter table t add  c INT GENERATED ALWAYS AS(a/b);
 create index idx on t(c);
+Warnings:
+Warning	1365	Division by 0
 DROP TABLE t;
 CREATE TABLE t (
 pk INTEGER AUTO_INCREMENT,

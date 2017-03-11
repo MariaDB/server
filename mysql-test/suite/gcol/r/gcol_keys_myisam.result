@@ -706,6 +706,7 @@ INSERT INTO t(a) VALUES (1);
 SELECT * FROM t WHERE c = '0';
 a	b	c
 1	127	0
+SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 ALTER TABLE t ADD UNIQUE INDEX (c(1));
 Warnings:
 Warning	1264	Out of range value for column 'b' at row 1
@@ -721,8 +722,10 @@ CREATE TABLE t (a INT, b INT, h VARCHAR(10));
 INSERT INTO t VALUES (12, 3, "ss");
 INSERT INTO t VALUES (13, 4, "ss");
 INSERT INTO t VALUES (14, 0, "ss");
+SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 ALTER TABLE t ADD c INT GENERATED ALWAYS AS (a/b) VIRTUAL;
 CREATE INDEX idx ON t(c);
+ERROR 22012: Division by 0
 CALL mtr.add_suppression("\\[Warning\\] InnoDB: Compute virtual column values failed");
 DROP TABLE t;
 #

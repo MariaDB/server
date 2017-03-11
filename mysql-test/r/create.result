@@ -70,6 +70,7 @@ insert into t1 values();
 select * from t1;
 a
 abcde
+SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 alter table t1 alter column a set default 'abcdef';
 ERROR 42000: Invalid default value for 'a'
 drop table t1;
@@ -484,10 +485,10 @@ a	int(11)	YES		NULL
 b	bigint(11)	NO		NULL	
 c	bigint(10) unsigned	NO		NULL	
 d	date	YES		NULL	
-e	varchar(1)	NO		NULL	
+e	varchar(1)	YES		NULL	
 f	datetime	YES		NULL	
 g	time	YES		NULL	
-h	longblob	NO		NULL	
+h	longblob	YES		NULL	
 dd	time	YES		NULL	
 select * from t2;
 a	b	c	d	e	f	g	h	dd
@@ -544,10 +545,12 @@ name	varchar(10)	YES		NULL
 age	smallint(6)	YES		-1	
 drop table t1, t2;
 create table t1(cenum enum('a'), cset set('b'));
+SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 create table t2(cenum enum('a','a'), cset set('b','b'));
 Warnings:
 Note	1291	Column 'cenum' has duplicated value 'a' in ENUM
 Note	1291	Column 'cset' has duplicated value 'b' in SET
+SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 create table t3(cenum enum('a','A','a','c','c'), cset set('b','B','b','d','d'));
 Warnings:
 Note	1291	Column 'cenum' has duplicated value 'a' in ENUM
@@ -720,6 +723,7 @@ t1	CREATE TABLE `t1` (
   PRIMARY KEY (`a`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table t1;
+SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 create table t1 ( 
 a varchar(12) charset utf8 collate utf8_bin not null, 
 b int not null, primary key (a)
@@ -1892,6 +1896,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table t1;
 set @@session.collation_server=filename;
+SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 create table t1(a enum('',''));
 Warnings:
 Note	1291	Column 'a' has duplicated value '' in ENUM
@@ -1912,6 +1917,13 @@ end|
 create table t1 as select f1();
 ERROR 42S02: Table 'test.t1' doesn't exist
 drop function f1;
+#
+# MDEV-10274 Bundling insert with create statement
+#  for table with unsigned Decimal primary key issues warning 1194
+#
+create table t1(ID decimal(2,1) unsigned NOT NULL, PRIMARY KEY (ID))engine=memory
+select  2.1 ID;
+drop table t1;
 End of 5.5 tests
 create table t1;
 ERROR 42000: A table must have at least 1 column

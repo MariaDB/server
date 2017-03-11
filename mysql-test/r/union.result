@@ -1121,7 +1121,7 @@ create table t1 as
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `_latin1'test' collate latin1_bin` varchar(4) CHARACTER SET latin1 COLLATE latin1_bin NOT NULL DEFAULT ''
+  `_latin1'test' collate latin1_bin` varchar(4) CHARACTER SET latin1 COLLATE latin1_bin DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 select count(*) from t1;
 count(*)
@@ -1134,7 +1134,7 @@ create table t1 as
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `test` varchar(4) CHARACTER SET latin1 COLLATE latin1_bin NOT NULL DEFAULT ''
+  `test` varchar(4) CHARACTER SET latin1 COLLATE latin1_bin DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 select count(*) from t1;
 count(*)
@@ -1147,7 +1147,7 @@ create table t1 as
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `test` varchar(4) CHARACTER SET latin1 COLLATE latin1_bin NOT NULL DEFAULT ''
+  `test` varchar(4) CHARACTER SET latin1 COLLATE latin1_bin DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 select count(*) from t1;
 count(*)
@@ -1233,12 +1233,9 @@ a	b
 select * from ((select * from t1 limit 1) union (select * from t1 limit 1)) a;
 a	b
 1	a
-2	b
 select * from ((select * from t1 limit 1) union (select * from t1 limit 1) union (select * from t1 limit 1)) a;
 a	b
 1	a
-2	b
-3	c
 select * from ((((select * from t1))) union (select * from t1) union (select * from t1)) a;
 a	b
 1	a
@@ -1373,7 +1370,7 @@ t3	CREATE TABLE `t3` (
 drop tables t1,t2,t3;
 SELECT @tmp_max:= @@global.max_allowed_packet;
 @tmp_max:= @@global.max_allowed_packet
-4194304
+16777216
 SET @@global.max_allowed_packet=25000000;
 Warnings:
 Warning	1292	Truncated incorrect max_allowed_packet value: '25000000'
@@ -1621,7 +1618,6 @@ NULL	UNION RESULT	<union1,2>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	Using filesort
 Warnings:
 Note	1003	select NULL AS `a` from `test`.`t1` union select NULL AS `a` from `test`.`t1` order by `a`
 DROP TABLE t1;
-End of 5.0 tests
 #
 # Bug#32858: Error: "Incorrect usage of UNION and INTO" does not take 
 # subselects into account
@@ -1727,6 +1723,16 @@ DROP TABLE t1,t2;
 create table t1 (a int);
 insert into t1 values (10),(10),(10),(2),(3),(4),(5),(6),(7),(8),(9),(1),(10);
 select a from t1 where false UNION select a from t1 limit 8;
+a
+10
+2
+3
+4
+5
+6
+7
+8
+(select a from t1 where false) UNION (select a from t1) limit 8;
 a
 10
 2
@@ -2030,6 +2036,25 @@ cccc
 bbbb
 dddd
 drop table t1;
+#
+# MDEV-10172: UNION query returns incorrect rows outside
+# conditional evaluation
+#
+create table t1 (d datetime not null primary key);
+insert into t1(d) values ('2016-06-01'),('2016-06-02'),('2016-06-03'),('2016-06-04');
+select * from
+(
+select * from t1 where d between '2016-06-02' and '2016-06-05'
+	union
+(select * from t1 where d < '2016-06-05' order by d desc limit 1)
+) onlyJun2toJun4
+order by d;
+d
+2016-06-02 00:00:00
+2016-06-03 00:00:00
+2016-06-04 00:00:00
+drop table t1;
+End of 5.0 tests
 #
 # WL#1763 Avoid creating temporary table in UNION ALL
 #

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2012, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2016, MariaDB Corporation.
+Copyright (c) 2015, 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -124,8 +124,7 @@ struct row_import {
 		m_col_names(),
 		m_n_indexes(),
 		m_indexes(),
-		m_missing(true),
-		m_cfp_missing(true)	{ }
+		m_missing(true) {}
 
 	~row_import() UNIV_NOTHROW;
 
@@ -219,9 +218,6 @@ struct row_import {
 	row_index_t*	m_indexes;		/*!< Index meta data */
 
 	bool		m_missing;		/*!< true if a .cfg file was
-						found and was readable */
-
-	bool		m_cfp_missing;		/*!< true if a .cfp file was
 						found and was readable */
 };
 
@@ -365,8 +361,7 @@ public:
 		m_space(ULINT_UNDEFINED),
 		m_xdes(),
 		m_xdes_page_no(ULINT_UNDEFINED),
-		m_space_flags(ULINT_UNDEFINED),
-		m_table_flags(ULINT_UNDEFINED) UNIV_NOTHROW { }
+		m_space_flags(ULINT_UNDEFINED) UNIV_NOTHROW { }
 
 	/** Free any extent descriptor instance */
 	virtual ~AbstractCallback()
@@ -386,6 +381,12 @@ public:
 	bool is_compressed_table() const UNIV_NOTHROW
 	{
 		return(get_page_size().is_compressed());
+	}
+
+	/** @return the tablespace flags */
+	ulint get_space_flags() const
+	{
+		return(m_space_flags);
 	}
 
 protected:
@@ -527,10 +528,6 @@ protected:
 
 	/** Flags value read from the header page */
 	ulint			m_space_flags;
-
-	/** Derived from m_space_flags and row format type, the row format
-	type is determined from the page header. */
-	ulint			m_table_flags;
 };
 
 /** Determine the page size to use for traversing the tablespace
@@ -545,13 +542,19 @@ AbstractCallback::init(
 	const page_t*		page = block->frame;
 
 	m_space_flags = fsp_header_get_flags(page);
+	if (!fsp_flags_is_valid(m_space_flags)) {
+		ulint cflags = fsp_flags_convert_from_101(m_space_flags);
+		if (cflags == ULINT_UNDEFINED) {
+			ib::error() << "Invalid FSP_SPACE_FLAGS="
+				<< ib::hex(m_space_flags);
+			return(DB_CORRUPTION);
+		}
+		m_space_flags = cflags;
+	}
 
-	/* Since we don't know whether it is a compressed table
-	or not, the data is always read into the block->frame. */
-
-	set_page_size(block->frame);
-
-	/* Set the page size used to traverse the tablespace. */
+	/* Clear the DATA_DIR flag, which is basically garbage. */
+	m_space_flags &= ~(1U << FSP_FLAGS_POS_RESERVED);
+	m_page_size.copy_from(page_size_t(m_space_flags));
 
 	if (!is_compressed_table() && !m_page_size.equals_to(univ_page_size)) {
 
@@ -618,52 +621,6 @@ struct FetchIndexRootPages : public AbstractCallback {
 		return(m_space);
 	}
 
-	/**
-	@retval the space flags of the tablespace being iterated over */
-	virtual ulint get_space_flags() const UNIV_NOTHROW
-	{
-		return(m_space_flags);
-	}
-
-	/** Check if the .ibd file row format is the same as the table's.
-	@param ibd_table_flags determined from space and page.
-	@return DB_SUCCESS or error code. */
-	dberr_t check_row_format(ulint ibd_table_flags) UNIV_NOTHROW
-	{
-		dberr_t		err;
-		rec_format_t	ibd_rec_format;
-		rec_format_t	table_rec_format;
-
-		if (!dict_tf_is_valid(ibd_table_flags)) {
-
-			ib_errf(m_trx->mysql_thd, IB_LOG_LEVEL_ERROR,
-				ER_TABLE_SCHEMA_MISMATCH,
-				".ibd file has invalid table flags: %lx",
-				ibd_table_flags);
-
-			return(DB_CORRUPTION);
-		}
-
-		ibd_rec_format = dict_tf_get_rec_format(ibd_table_flags);
-		table_rec_format = dict_tf_get_rec_format(m_table->flags);
-
-		if (table_rec_format != ibd_rec_format) {
-
-			ib_errf(m_trx->mysql_thd, IB_LOG_LEVEL_ERROR,
-				ER_TABLE_SCHEMA_MISMATCH,
-				"Table has %s row format, .ibd"
-				" file has %s row format.",
-				dict_tf_to_row_format_string(m_table->flags),
-				dict_tf_to_row_format_string(ibd_table_flags));
-
-			err = DB_CORRUPTION;
-		} else {
-			err = DB_SUCCESS;
-		}
-
-		return(err);
-	}
-
 	/** Called for each block as it is read from the file.
 	@param offset physical offset in the file
 	@param block block to convert, it is not from the buffer pool.
@@ -724,12 +681,17 @@ FetchIndexRootPages::operator() (
 		m_indexes.push_back(Index(id, block->page.id.page_no()));
 
 		if (m_indexes.size() == 1) {
-
-			m_table_flags = fsp_flags_to_dict_tf(
-				m_space_flags,
-				page_is_comp(page) ? true : false);
-
-			err = check_row_format(m_table_flags);
+			/* Check that the tablespace flags match the table flags. */
+			ulint expected = dict_tf_to_fsp_flags(m_table->flags);
+			if (!fsp_flags_match(expected, m_space_flags)) {
+				ib_errf(m_trx->mysql_thd, IB_LOG_LEVEL_ERROR,
+					ER_TABLE_SCHEMA_MISMATCH,
+					"Expected FSP_SPACE_FLAGS=0x%x, .ibd "
+					"file contains 0x%x.",
+					unsigned(expected),
+					unsigned(m_space_flags));
+				return(DB_CORRUPTION);
+			}
 		}
 	}
 
@@ -851,13 +813,6 @@ public:
 	virtual ulint get_space_id() const UNIV_NOTHROW
 	{
 		return(m_cfg->m_table->space);
-	}
-
-	/**
-	@retval the space flags of the tablespace being iterated over */
-	virtual ulint get_space_flags() const UNIV_NOTHROW
-	{
-		return(m_space_flags);
 	}
 
 	/** Called for each block as it is read from the file.
@@ -1914,19 +1869,14 @@ PageConverter::update_header(
 		ib::warn() << "Space id check in the header failed: ignored";
 	}
 
-	ulint	space_flags = fsp_header_get_flags(get_frame(block));
-
-	if (!fsp_flags_is_valid(space_flags)) {
-
-		ib::error() <<  "Unsupported tablespace format "
-			<< space_flags;
-
-		return(DB_UNSUPPORTED);
-	}
-
 	mach_write_to_8(
 		get_frame(block) + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION,
 		m_current_lsn);
+
+	/* Write back the adjusted flags. */
+	mach_write_to_4(FSP_HEADER_OFFSET + FSP_SPACE_FLAGS
+			+ get_frame(block), m_space_flags);
+
 	/* Write space_id to the tablespace header, page 0. */
 	mach_write_to_4(
 		get_frame(block) + FSP_HEADER_OFFSET + FSP_SPACE_ID,
@@ -2181,9 +2131,6 @@ row_import_cleanup(
 	DBUG_EXECUTE_IF("ib_import_before_commit_crash", DBUG_SUICIDE(););
 
 	trx_commit_for_mysql(trx);
-
-	prebuilt->table->encryption_key = NULL;
-	prebuilt->table->encryption_iv = NULL;
 
 	row_mysql_unlock_data_dictionary(trx);
 
@@ -3168,170 +3115,6 @@ row_import_read_cfg(
 	return(err);
 }
 
-#ifdef MYSQL_ENCRYPTION
-/** Read the contents of the <tablespace>.cfp file.
-@param[in]	table		table
-@param[in]	file		file to read from
-@param[in]	thd		session
-@param[in]	cfp		contents of the .cfp file
-@return DB_SUCCESS or error code. */
-static
-dberr_t
-row_import_read_encryption_data(
-	dict_table_t*	table,
-	FILE*		file,
-	THD*		thd,
-	row_import&	import)
-{
-	byte		row[sizeof(ib_uint32_t)];
-	ulint		key_size;
-	byte		transfer_key[ENCRYPTION_KEY_LEN];
-	byte		encryption_key[ENCRYPTION_KEY_LEN];
-	byte		encryption_iv[ENCRYPTION_KEY_LEN];
-	lint		elen;
-
-	if (fread(&row, 1, sizeof(row), file) != sizeof(row)) {
-		ib_senderrf(
-			thd, IB_LOG_LEVEL_ERROR, ER_IO_READ_ERROR,
-			errno, strerror(errno),
-			"while reading encrypton key size.");
-
-		return(DB_IO_ERROR);
-	}
-
-	key_size = mach_read_from_4(row);
-	if (key_size != ENCRYPTION_KEY_LEN) {
-		ib_senderrf(
-			thd, IB_LOG_LEVEL_ERROR, ER_IO_READ_ERROR,
-			errno, strerror(errno),
-			"while parsing encryption key size.");
-
-		return(DB_IO_ERROR);
-	}
-
-	/* Read the transfer key. */
-	if (fread(transfer_key, 1, ENCRYPTION_KEY_LEN, file)
-		!= ENCRYPTION_KEY_LEN) {
-		ib_senderrf(
-			thd, IB_LOG_LEVEL_WARN, ER_IO_WRITE_ERROR,
-			errno, strerror(errno),
-			"while reading tranfer key.");
-
-		return(DB_IO_ERROR);
-	}
-
-	/* Read the encrypted key. */
-	if (fread(encryption_key, 1, ENCRYPTION_KEY_LEN, file)
-		!= ENCRYPTION_KEY_LEN) {
-		ib_senderrf(
-			thd, IB_LOG_LEVEL_WARN, ER_IO_WRITE_ERROR,
-			errno, strerror(errno),
-			"while reading encryption key.");
-
-		return(DB_IO_ERROR);
-	}
-
-	/* Read the encrypted iv. */
-	if (fread(encryption_iv, 1, ENCRYPTION_KEY_LEN, file)
-		!= ENCRYPTION_KEY_LEN) {
-		ib_senderrf(
-			thd, IB_LOG_LEVEL_WARN, ER_IO_WRITE_ERROR,
-			errno, strerror(errno),
-			"while reading encryption iv.");
-
-		return(DB_IO_ERROR);
-	}
-
-	table->encryption_key =
-		static_cast<byte*>(mem_heap_alloc(table->heap,
-						  ENCRYPTION_KEY_LEN));
-
-	table->encryption_iv =
-		static_cast<byte*>(mem_heap_alloc(table->heap,
-						  ENCRYPTION_KEY_LEN));
-	/* Decrypt tablespace key and iv. */
-	elen = my_aes_decrypt(
-		encryption_key,
-		ENCRYPTION_KEY_LEN,
-		table->encryption_key,
-		transfer_key,
-		ENCRYPTION_KEY_LEN,
-		my_aes_256_ecb, NULL, false);
-
-	if (elen == MY_AES_BAD_DATA) {
-		ib_senderrf(
-			thd, IB_LOG_LEVEL_ERROR, ER_IO_READ_ERROR,
-			errno, strerror(errno),
-			"while decrypt encryption key.");
-
-		return(DB_IO_ERROR);
-	}
-
-	elen = my_aes_decrypt(
-		encryption_iv,
-		ENCRYPTION_KEY_LEN,
-		table->encryption_iv,
-		transfer_key,
-		ENCRYPTION_KEY_LEN,
-		my_aes_256_ecb, NULL, false);
-
-	if (elen == MY_AES_BAD_DATA) {
-		ib_senderrf(
-			thd, IB_LOG_LEVEL_ERROR, ER_IO_READ_ERROR,
-			errno, strerror(errno),
-			"while decrypt encryption iv.");
-
-		return(DB_IO_ERROR);
-	}
-
-	return(DB_SUCCESS);
-}
-
-/** Read the contents of the <tablename>.cfp file.
-@param[in]	table		table
-@param[in]	thd		session
-@param[in]	cfp		contents of the .cfp file
-@return DB_SUCCESS or error code. */
-static
-dberr_t
-row_import_read_cfp(
-	dict_table_t*	table,
-	THD*		thd,
-	row_import&	import)
-{
-	dberr_t		err;
-	char		name[OS_FILE_MAX_PATH];
-
-	/* Clear table encryption information. */
-	table->encryption_key = NULL;
-	table->encryption_iv  = NULL;
-
-	srv_get_encryption_data_filename(table, name, sizeof(name));
-
-	FILE*	file = fopen(name, "rb");
-
-	if (file == NULL) {
-		import.m_cfp_missing = true;
-
-		/* If there's no cfp file, we assume it's not an
-		encrpyted table. return directly. */
-
-		import.m_cfp_missing = true;
-
-		err = DB_SUCCESS;
-	} else {
-
-		import.m_cfp_missing = false;
-
-		err = row_import_read_encryption_data(table, file,
-						      thd, import);
-		fclose(file);
-	}
-
-	return(err);
-}
-#endif /* MYSQL_ENCRYPTION */
-
 /*****************************************************************//**
 Update the <space, root page> of a table's indexes from the values
 in the data dictionary.
@@ -3699,42 +3482,7 @@ row_import_for_mysql(
 		rw_lock_s_unlock_gen(dict_operation_lock, 0);
 	}
 
-	/* Try to read encryption information. */
-	if (err == DB_SUCCESS) {
-#ifdef MYSQL_ENCRYPTION
-		err = row_import_read_cfp(table, trx->mysql_thd, cfg);
-
-		/* If table is not set to encrypted, but the fsp flag
-		is not, then return error. */
-		if (!dict_table_is_encrypted(table)
-		    && space_flags != 0
-		    && FSP_FLAGS_GET_ENCRYPTION(space_flags)) {
-
-			ib_errf(trx->mysql_thd, IB_LOG_LEVEL_ERROR,
-				 ER_TABLE_SCHEMA_MISMATCH,
-				 "Table is not marked as encrypted, but"
-				 " the tablespace is marked as encrypted");
-
-			err = DB_ERROR;
-			return(row_import_error(prebuilt, trx, err));
-		}
-
-		/* If table is set to encrypted, but can't find
-		cfp file, then return error. */
-		if (cfg.m_cfp_missing== true
-		    && ((space_flags != 0
-			 && FSP_FLAGS_GET_ENCRYPTION(space_flags))
-			|| dict_table_is_encrypted(table))) {
-			ib_errf(trx->mysql_thd, IB_LOG_LEVEL_ERROR,
-				 ER_TABLE_SCHEMA_MISMATCH,
-				 "Table is in an encrypted tablespace, but"
-				 " can't find the encryption meta-data file"
-				 " in importing");
-			err = DB_ERROR;
-			return(row_import_error(prebuilt, trx, err));
-		}
-#endif /* MYSQL_ENCRYPTION */
-	} else {
+	if (err != DB_SUCCESS) {
 		return(row_import_error(prebuilt, trx, err));
 	}
 
@@ -3756,22 +3504,6 @@ row_import_for_mysql(
 
 	DBUG_EXECUTE_IF("ib_import_reset_space_and_lsn_failure",
 			err = DB_TOO_MANY_CONCURRENT_TRXS;);
-
-#ifdef MYSQL_ENCRYPTION
-	if (err == DB_IO_NO_ENCRYPT_TABLESPACE) {
-		char	table_name[MAX_FULL_NAME_LEN + 1];
-
-		innobase_format_name(
-			table_name, sizeof(table_name),
-			table->name.m_name);
-
-		ib_errf(trx->mysql_thd, IB_LOG_LEVEL_ERROR,
-			ER_TABLE_SCHEMA_MISMATCH,
-			"Encryption attribute is no matched");
-
-		return(row_import_cleanup(prebuilt, trx, err));
-	}
-#endif /* MYSQL_ENCRYPTION */
 
 	if (err != DB_SUCCESS) {
 		char	table_name[MAX_FULL_NAME_LEN + 1];
@@ -3826,13 +3558,7 @@ row_import_for_mysql(
 	we will not be writing any redo log for it before we have invoked
 	fil_space_set_imported() to declare it a persistent tablespace. */
 
-	ulint	fsp_flags = dict_tf_to_fsp_flags(table->flags, false);
-
-#ifdef MYSQL_ENCRYPTION
-	if (table->encryption_key != NULL) {
-		fsp_flags |= FSP_FLAGS_MASK_ENCRYPTION;
-	}
-#endif /* MYSQL_ENCRYPTION */
+	ulint	fsp_flags = dict_tf_to_fsp_flags(table->flags);
 
 	err = fil_ibd_open(
 		true, true, FIL_TYPE_IMPORT, table->space,
@@ -3852,17 +3578,6 @@ row_import_for_mysql(
 
 		return(row_import_cleanup(prebuilt, trx, err));
 	}
-
-#ifdef MYSQL_ENCRYPTION
-	/* For encrypted table, set encryption information. */
-	if (dict_table_is_encrypted(table)) {
-
-		err = fil_set_encryption(table->space,
-					 Encryption::AES,
-					 table->encryption_key,
-					 table->encryption_iv);
-	}
-#endif /* MYSQL_ENCRYPTION */
 
 	row_mysql_unlock_data_dictionary(trx);
 
@@ -3960,37 +3675,6 @@ row_import_for_mysql(
 
 	ib::info() << "Phase IV - Flush complete";
 	fil_space_set_imported(prebuilt->table->space);
-
-#ifdef MYSQL_ENCRYPTION
-	if (dict_table_is_encrypted(table)) {
-		fil_space_t*	space;
-		mtr_t		mtr;
-		byte		encrypt_info[ENCRYPTION_INFO_SIZE_V2];
-
-		mtr_start(&mtr);
-
-		mtr.set_named_space(table->space);
-		space = mtr_x_lock_space(table->space, &mtr);
-
-		memset(encrypt_info, 0, ENCRYPTION_INFO_SIZE_V2);
-
-		if (!fsp_header_rotate_encryption(space,
-						  encrypt_info,
-						  &mtr)) {
-			mtr_commit(&mtr);
-			ib_senderrf(trx->mysql_thd, IB_LOG_LEVEL_ERROR,
-				ER_FILE_NOT_FOUND,
-				filepath, err, ut_strerr(err));
-
-			ut_free(filepath);
-			row_mysql_unlock_data_dictionary(trx);
-
-			return(row_import_cleanup(prebuilt, trx, err));
-		}
-
-		mtr_commit(&mtr);
-	}
-#endif /* MYSQL_ENCRYPTION */
 
 	/* The dictionary latches will be released in in row_import_cleanup()
 	after the transaction commit, for both success and error. */

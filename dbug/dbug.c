@@ -115,18 +115,18 @@
  *      (until we add flags to _db_stack_frame_, increasing it by 4 bytes)
  */
 
-#define DEBUG_ON        (1 <<  1)  /* Debug enabled */
-#define FILE_ON         (1 <<  2)  /* File name print enabled */
-#define LINE_ON         (1 <<  3)  /* Line number print enabled */
-#define DEPTH_ON        (1 <<  4)  /* Function nest level print enabled */
-#define PROCESS_ON      (1 <<  5)  /* Process name print enabled */
-#define NUMBER_ON       (1 <<  6)  /* Number each line of output */
-#define PID_ON          (1 <<  8)  /* Identify each line with process id */
-#define TIMESTAMP_ON    (1 <<  9)  /* timestamp every line of output */
-#define FLUSH_ON_WRITE  (1 << 10)  /* Flush on every write */
-#define OPEN_APPEND     (1 << 11)  /* Open for append      */
-#define SANITY_CHECK_ON (1 << 12)  /* Check memory on every DBUG_ENTER/RETURN */
-#define TRACE_ON        ((uint)1 << 31)  /* Trace enabled. MUST be the highest bit!*/
+#define DEBUG_ON        (1U <<  1) /* Debug enabled */
+#define FILE_ON         (1U <<  2) /* File name print enabled */
+#define LINE_ON         (1U <<  3) /* Line number print enabled */
+#define DEPTH_ON        (1U <<  4) /* Function nest level print enabled */
+#define PROCESS_ON      (1U <<  5) /* Process name print enabled */
+#define NUMBER_ON       (1U <<  6) /* Number each line of output */
+#define PID_ON          (1U <<  8) /* Identify each line with process id */
+#define TIMESTAMP_ON    (1U <<  9) /* timestamp every line of output */
+#define FLUSH_ON_WRITE  (1U << 10) /* Flush on every write */
+#define OPEN_APPEND     (1U << 11) /* Open for append      */
+#define SANITY_CHECK_ON (1U << 12) /* Check memory on every DBUG_ENTER/RETURN */
+#define TRACE_ON        (1U << 31) /* Trace enabled. MUST be the highest bit!*/
 
 #define sf_sanity() (0)
 #define TRACING (cs->stack->flags & TRACE_ON)
@@ -1213,7 +1213,7 @@ void _db_return_(struct _db_stack_frame_ *_stack_frame_)
  *
  *  SYNOPSIS
  *
- *      VOID _db_pargs_(_line_, keyword)
+ *      int _db_pargs_(_line_, keyword)
  *      int _line_;
  *      char *keyword;
  *
@@ -1226,12 +1226,14 @@ void _db_return_(struct _db_stack_frame_ *_stack_frame_)
  *
  */
 
-void _db_pargs_(uint _line_, const char *keyword)
+int _db_pargs_(uint _line_, const char *keyword)
 {
   CODE_STATE *cs;
-  get_code_state_or_return;
+  get_code_state_or_return 0;
   cs->u_line= _line_;
   cs->u_keyword= keyword;
+
+  return DEBUGGING && _db_keyword_(cs, cs->u_keyword, 0);
 }
 
 
@@ -1265,27 +1267,24 @@ void _db_doprnt_(const char *format,...)
 {
   va_list args;
   CODE_STATE *cs;
+  int save_errno;
+
   get_code_state_or_return;
 
   va_start(args,format);
 
   if (!cs->locked)
     pthread_mutex_lock(&THR_LOCK_dbug);
-  if (_db_keyword_(cs, cs->u_keyword, 0))
-  {
-    int save_errno=errno;
-    DoPrefix(cs, cs->u_line);
-    if (TRACING)
-      Indent(cs, cs->level + 1);
-    else
-      (void) fprintf(cs->stack->out_file->file, "%s: ", cs->func);
-    (void) fprintf(cs->stack->out_file->file, "%s: ", cs->u_keyword);
-    DbugVfprintf(cs->stack->out_file->file, format, args);
-    DbugFlush(cs);
-    errno=save_errno;
-  }
-  else if (!cs->locked)
-    pthread_mutex_unlock(&THR_LOCK_dbug);
+  save_errno=errno;
+  DoPrefix(cs, cs->u_line);
+  if (TRACING)
+    Indent(cs, cs->level + 1);
+  else
+    (void) fprintf(cs->stack->out_file->file, "%s: ", cs->func);
+  (void) fprintf(cs->stack->out_file->file, "%s: ", cs->u_keyword);
+  DbugVfprintf(cs->stack->out_file->file, format, args);
+  DbugFlush(cs);
+  errno=save_errno;
 
   va_end(args);
 }

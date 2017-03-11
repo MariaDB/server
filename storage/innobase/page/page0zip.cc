@@ -2,6 +2,7 @@
 
 Copyright (c) 2005, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1388,9 +1389,8 @@ page_zip_compress(
 
 #ifdef UNIV_DEBUG
 		ib::error()
-			<< "InnoDB: Simulating a compression failure"
-			<< " for table "
-			<< (index->table->name.m_name)
+			<< "Simulating a compression failure"
+			<< " for table " << index->table->name
 			<< " index "
 			<< index->name()
 			<< " page "
@@ -1596,9 +1596,9 @@ err_exit:
 #ifdef UNIV_DEBUG
 	page_zip->m_start =
 #endif /* UNIV_DEBUG */
-		page_zip->m_end = PAGE_DATA + c_stream.total_out;
+		page_zip->m_end = unsigned(PAGE_DATA + c_stream.total_out);
 	page_zip->m_nonempty = FALSE;
-	page_zip->n_blobs = n_blobs;
+	page_zip->n_blobs = unsigned(n_blobs);
 	/* Copy those header fields that will not be written
 	in buf_flush_init_for_writing() */
 	memcpy(page_zip->data + FIL_PAGE_PREV, page + FIL_PAGE_PREV,
@@ -1715,7 +1715,7 @@ page_zip_fields_decode(
 	index = dict_mem_index_create("ZIP_DUMMY", "ZIP_DUMMY",
 				      DICT_HDR_SPACE, 0, n);
 	index->table = table;
-	index->n_uniq = n;
+	index->n_uniq = unsigned(n);
 	/* avoid ut_ad(index->cached) in dict_index_get_n_unique_in_tree */
 	index->cached = TRUE;
 
@@ -1774,7 +1774,7 @@ page_zip_fields_decode(
 			page_zip_fields_free(index);
 			index = NULL;
 		} else {
-			index->n_nullable = val;
+			index->n_nullable = unsigned(val);
 		}
 	}
 
@@ -2430,7 +2430,7 @@ zlib_done:
 	}
 
 #ifdef UNIV_DEBUG
-	page_zip->m_start = PAGE_DATA + d_stream->total_in;
+	page_zip->m_start = unsigned(PAGE_DATA + d_stream->total_in);
 #endif /* UNIV_DEBUG */
 
 	/* Apply the modification log. */
@@ -2445,7 +2445,7 @@ zlib_done:
 		if (UNIV_UNLIKELY(!mod_log_ptr)) {
 			return(FALSE);
 		}
-		page_zip->m_end = mod_log_ptr - page_zip->data;
+		page_zip->m_end = unsigned(mod_log_ptr - page_zip->data);
 		page_zip->m_nonempty = mod_log_ptr != d_stream->next_in;
 	}
 
@@ -2583,9 +2583,7 @@ zlib_done:
 		       - d_stream->next_out);
 	}
 
-#ifdef UNIV_DEBUG
-	page_zip->m_start = PAGE_DATA + d_stream->total_in;
-#endif /* UNIV_DEBUG */
+	ut_d(page_zip->m_start = unsigned(PAGE_DATA + d_stream->total_in));
 
 	/* Apply the modification log. */
 	{
@@ -2599,7 +2597,7 @@ zlib_done:
 		if (UNIV_UNLIKELY(!mod_log_ptr)) {
 			return(FALSE);
 		}
-		page_zip->m_end = mod_log_ptr - page_zip->data;
+		page_zip->m_end = unsigned(mod_log_ptr - page_zip->data);
 		page_zip->m_nonempty = mod_log_ptr != d_stream->next_in;
 	}
 
@@ -2914,9 +2912,7 @@ zlib_done:
 		       - d_stream->next_out);
 	}
 
-#ifdef UNIV_DEBUG
-	page_zip->m_start = PAGE_DATA + d_stream->total_in;
-#endif /* UNIV_DEBUG */
+	ut_d(page_zip->m_start = unsigned(PAGE_DATA + d_stream->total_in));
 
 	/* Apply the modification log. */
 	{
@@ -2930,7 +2926,7 @@ zlib_done:
 		if (UNIV_UNLIKELY(!mod_log_ptr)) {
 			return(FALSE);
 		}
-		page_zip->m_end = mod_log_ptr - page_zip->data;
+		page_zip->m_end = unsigned(mod_log_ptr - page_zip->data);
 		page_zip->m_nonempty = mod_log_ptr != d_stream->next_in;
 	}
 
@@ -3133,7 +3129,7 @@ zlib_error:
 	d_stream.avail_in = static_cast<uInt>(
 		page_zip_get_size(page_zip) - (PAGE_DATA + 1));
 	d_stream.next_out = page + PAGE_ZIP_START;
-	d_stream.avail_out = UNIV_PAGE_SIZE - PAGE_ZIP_START;
+	d_stream.avail_out = uInt(UNIV_PAGE_SIZE - PAGE_ZIP_START);
 
 	if (UNIV_UNLIKELY(inflateInit2(&d_stream, UNIV_PAGE_SIZE_SHIFT)
 			  != Z_OK)) {
@@ -3854,7 +3850,7 @@ page_zip_write_rec(
 
 	ut_a(!*data);
 	ut_ad((ulint) (data - page_zip->data) < page_zip_get_size(page_zip));
-	page_zip->m_end = data - page_zip->data;
+	page_zip->m_end = unsigned(data - page_zip->data);
 	page_zip->m_nonempty = TRUE;
 
 #ifdef UNIV_ZIP_DEBUG
@@ -4688,6 +4684,7 @@ page_zip_reorganize(
 	ut_ad(mtr_memo_contains(mtr, block, MTR_MEMO_PAGE_X_FIX));
 	ut_ad(page_is_comp(page));
 	ut_ad(!dict_index_is_ibuf(index));
+	ut_ad(!dict_table_is_temporary(index->table));
 	/* Note that page_zip_validate(page_zip, page, index) may fail here. */
 	UNIV_MEM_ASSERT_RW(page, UNIV_PAGE_SIZE);
 	UNIV_MEM_ASSERT_RW(page_zip->data, page_zip_get_size(page_zip));
@@ -4719,7 +4716,6 @@ page_zip_reorganize(
 	       temp_page + (PAGE_HEADER + PAGE_MAX_TRX_ID), 8);
 	/* PAGE_MAX_TRX_ID must be set on secondary index leaf pages. */
 	ut_ad(dict_index_is_clust(index) || !page_is_leaf(temp_page)
-	      || dict_table_is_temporary(index->table)
 	      || page_get_max_trx_id(page) != 0);
 	/* PAGE_MAX_TRX_ID must be zero on non-leaf pages other than
 	clustered index root pages. */
@@ -4764,6 +4760,7 @@ page_zip_copy_recs(
 	ut_ad(mtr_memo_contains_page(mtr, page, MTR_MEMO_PAGE_X_FIX));
 	ut_ad(mtr_memo_contains_page(mtr, src, MTR_MEMO_PAGE_X_FIX));
 	ut_ad(!dict_index_is_ibuf(index));
+	ut_ad(!dict_table_is_temporary(index->table));
 #ifdef UNIV_ZIP_DEBUG
 	/* The B-tree operations that call this function may set
 	FIL_PAGE_PREV or PAGE_LEVEL, causing a temporary min_rec_flag
@@ -4807,8 +4804,7 @@ page_zip_copy_recs(
 	} else {
 		/* The PAGE_MAX_TRX_ID must be nonzero on leaf pages
 		of secondary indexes, and 0 on others. */
-		ut_ad(dict_table_is_temporary(index->table)
-		      || !page_is_leaf(src) == !page_get_max_trx_id(src));
+		ut_ad(!page_is_leaf(src) == !page_get_max_trx_id(src));
 	}
 
 	/* Copy all fields of src_zip to page_zip, except the pointer
@@ -4920,7 +4916,7 @@ page_zip_calc_checksum(
 	srv_checksum_algorithm_t	algo,
 	bool				use_legacy_big_endian /* = false */)
 {
-	uint32_t	adler;
+	uLong		adler;
 	const Bytef*	s = static_cast<const byte*>(data);
 
 	/* Exclude FIL_PAGE_SPACE_OR_CHKSUM, FIL_PAGE_LSN,
@@ -4960,7 +4956,7 @@ page_zip_calc_checksum(
 			static_cast<uInt>(size)
 			- FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID);
 
-		return(adler);
+		return(uint32_t(adler));
 	case SRV_CHECKSUM_ALGORITHM_NONE:
 	case SRV_CHECKSUM_ALGORITHM_STRICT_NONE:
 		return(BUF_NO_CHECKSUM_MAGIC);

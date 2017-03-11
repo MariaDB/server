@@ -213,16 +213,6 @@ ok:
 	trx->dict_operation = op;
 }
 
-/**
-Releases the search latch if trx has reserved it.
-@param[in,out] trx		Transaction that may own the AHI latch */
-UNIV_INLINE
-void
-trx_search_latch_release_if_reserved(trx_t* trx)
-{
-	ut_a(!trx->has_search_latch);
-}
-
 /********************************************************************//**
 Check if redo rseg is modified for insert/update. */
 UNIV_INLINE

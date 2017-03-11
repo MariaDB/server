@@ -181,3 +181,54 @@ create table t1 (a int, b double as (rand()));
 --error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
 alter table t1 add index (b);
 drop table t1;
+
+#
+# MDEV-11598 Assertion `!table || (!table->read_set... failed
+#
+
+CREATE OR REPLACE TABLE t1 (
+    f2 DOUBLE NOT NULL DEFAULT '0',
+    f3 DOUBLE NOT NULL DEFAULT '0',
+    f4 DOUBLE,
+    f5 DOUBLE DEFAULT '0',
+    v4 DOUBLE AS (IF(f4,f3,f2)) VIRTUAL,
+    KEY (f5),
+    KEY (v4)
+);
+
+INSERT INTO t1 (f2,f3,f4,f5) VALUES (5,4,1,0),(5,7,NULL,0);
+INSERT INTO t1 (f2,f3,f4,f5) SELECT f2, f3, f5, f3 FROM t1;
+INSERT INTO t1 (f2,f3,f4,f5) VALUES (5,0,NULL,1);
+INSERT INTO t1 (f2,f3,f4,f5) SELECT f2, f5, f5, f3 FROM t1;
+DELETE FROM t1 WHERE f5 = 1 OR v4 = 4 ORDER BY f5,v4 LIMIT 9;
+SELECT * from t1;
+DROP TABLE t1;
+
+# Another similar failure
+
+CREATE TABLE t1 (
+ d DECIMAL(63,0) NOT NULL DEFAULT 0,
+ c VARCHAR(64) NOT NULL DEFAULT '',
+ vd DECIMAL(63,0) AS (d) VIRTUAL,
+ vc VARCHAR(2048) AS (c) VIRTUAL,
+ pk BIGINT AUTO_INCREMENT,
+ PRIMARY KEY(pk));
+
+INSERT INTO t1 (d,c) VALUES (0.5,'foo');
+SELECT * FROM t1 WHERE vc != 'bar' ORDER BY vd;
+DROP TABLE t1;
+
+#
+# MDEV-11729:  Crash when using partial indexed virtual fields
+#
+
+CREATE TABLE t1 (
+ pk BIGINT,
+ c CHAR(64) NOT NULL DEFAULT '',
+ vc CHAR(64) AS (c) VIRTUAL,
+ PRIMARY KEY(pk),
+ INDEX(vc(32))
+);
+DELETE FROM t1 WHERE vc IS NULL ORDER BY pk;
+DROP TABLE t1;
+

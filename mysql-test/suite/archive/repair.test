@@ -4,6 +4,8 @@
 
 --source include/have_archive.inc
 
+call mtr.add_suppression("Table 't1' is marked as crashed and should be repaired");
+
 --let $datadir = `SELECT @@datadir`
 
 create table t1 (a int) engine=archive;

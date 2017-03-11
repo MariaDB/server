@@ -150,6 +150,7 @@ void Item_window_func::split_sum_func(THD *thd, Ref_ptr_array ref_pointer_array,
     Item **p_item= &window_func()->arguments()[i];
     (*p_item)->split_sum_func2(thd, ref_pointer_array, fields, p_item, flags);
   }
+  window_func()->setup_caches(thd);
 }
 
 
@@ -220,18 +221,6 @@ void Item_sum_percent_rank::setup_window_func(THD *thd, Window_spec *window_spec
   clear();
 }
 
-bool Item_sum_first_value::add()
-{
-  if (value_added)
-    return false;
-
-  /* TODO(cvicentiu) This is done like this due to how Item_sum_hybrid works.
-     For this usecase we can actually get rid of arg_cache. arg_cache is just
-     for running a comparison function. */
-  value_added= true;
-  Item_sum_hybrid_simple::add();
-  return false;
-}
 
 bool Item_sum_hybrid_simple::fix_fields(THD *thd, Item **ref)
 {

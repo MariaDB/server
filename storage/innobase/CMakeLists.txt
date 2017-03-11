@@ -1,5 +1,5 @@
 # Copyright (c) 2006, 2016, Oracle and/or its affiliates. All rights reserved.
-# Copyright (c) 2014, 2016, MariaDB Corporation
+# Copyright (c) 2014, 2017, MariaDB Corporation
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -36,8 +36,6 @@ MYSQL_CHECK_NUMA()
 INCLUDE(innodb.cmake)
 
 SET(INNOBASE_SOURCES
-	api/api0api.cc
-	api/api0misc.cc
 	btr/btr0btr.cc
 	btr/btr0bulk.cc
 	btr/btr0cur.cc

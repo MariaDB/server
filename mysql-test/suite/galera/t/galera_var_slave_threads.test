@@ -22,8 +22,9 @@ SELECT @@wsrep_slave_threads = 1;
 
 SET GLOBAL wsrep_slave_threads = 1;
 # There is a separate wsrep_aborter thread at all times
-SELECT COUNT(*) = 2 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user';
-SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND STATE LIKE '%wsrep aborter%';
+SELECT COUNT(*) FROM INFORMATION_SCHEMA.PROCESSLIST
+  WHERE USER = 'system user' AND NOT STATE <=> 'InnoDB background thread';
+SELECT COUNT(*) FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND STATE LIKE '%wsrep aborter%';
 
 #
 # Increase the number of slave threads. The change takes effect immediately
@@ -36,10 +37,11 @@ SET GLOBAL wsrep_slave_threads = 64;
 INSERT INTO t1 VALUES (1);
 
 --connection node_2
-SELECT COUNT(*) = 1 FROM t1;
+SELECT COUNT(*) FROM t1;
 
-SELECT COUNT(*) = @@wsrep_slave_threads + 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user';
-SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND STATE LIKE '%wsrep aborter%';
+SELECT COUNT(*) - @@wsrep_slave_threads FROM INFORMATION_SCHEMA.PROCESSLIST
+  WHERE USER = 'system user' AND NOT STATE <=> 'InnoDB background thread';
+SELECT COUNT(*) FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND STATE LIKE '%wsrep aborter%';
 
 #
 # Reduce the number of slave threads. The change is not immediate -- a thread will only exit after a replication event
@@ -58,10 +60,11 @@ while ($count)
 }
 
 --connection node_2
-SELECT COUNT(*) = 64 FROM t2;
+SELECT COUNT(*) FROM t2;
 
-SELECT COUNT(*) = @@wsrep_slave_threads + 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user';
-SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND STATE LIKE '%wsrep aborter%';
+SELECT COUNT(*) - @@wsrep_slave_threads FROM INFORMATION_SCHEMA.PROCESSLIST
+  WHERE USER = 'system user' AND NOT STATE <=> 'InnoDB background thread';
+SELECT COUNT(*) FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND STATE LIKE '%wsrep aborter%';
 
 
 --eval SET GLOBAL wsrep_slave_threads = $wsrep_slave_threads_orig

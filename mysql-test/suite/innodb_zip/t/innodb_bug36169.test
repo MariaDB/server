@@ -6,11 +6,6 @@
 
 call mtr.add_suppression("Cannot add field .* in table .* because after adding it, the row size is .* which is greater than maximum allowed size .* for a record on index leaf page.");
 
-let $file_format=`select @@innodb_file_format`;
-let $file_per_table=`select @@innodb_file_per_table`;
-SET GLOBAL innodb_file_format='Barracuda';
-SET GLOBAL innodb_file_per_table=ON;
-
 #
 # The following is copied from http://bugs.mysql.com/36169
 # (http://bugs.mysql.com/file.php?id=9121)
@@ -1156,6 +1151,3 @@ DROP TABLE IF EXISTS table3;
 DROP TABLE IF EXISTS table4;
 DROP TABLE IF EXISTS table5;
 DROP TABLE IF EXISTS table6;
-
-EVAL SET GLOBAL innodb_file_format=$file_format;
-EVAL SET GLOBAL innodb_file_per_table=$file_per_table;

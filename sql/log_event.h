@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2014, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2014, Monty Program Ab.
+   Copyright (c) 2009, 2017, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -41,6 +41,7 @@
 #include "rpl_utility.h"
 #include "hash.h"
 #include "rpl_tblmap.h"
+#include "sql_string.h"
 #endif
 
 #ifdef MYSQL_SERVER
@@ -52,7 +53,9 @@
 #include "rpl_gtid.h"
 
 /* Forward declarations */
+#ifndef MYSQL_CLIENT
 class String;
+#endif
 
 #define PREFIX_SQL_LOAD "SQL_LOAD-"
 #define LONG_FIND_ROW_THRESHOLD 60 /* seconds */
@@ -825,7 +828,7 @@ typedef struct st_print_event_info
   char time_zone_str[MAX_TIME_ZONE_NAME_LENGTH];
   uint lc_time_names_number;
   uint charset_database_number;
-  uint thread_id;
+  my_thread_id thread_id;
   bool thread_id_printed;
   uint32 server_id;
   bool server_id_printed;
@@ -845,9 +848,16 @@ typedef struct st_print_event_info
   ~st_print_event_info() {
     close_cached_file(&head_cache);
     close_cached_file(&body_cache);
+#ifdef WHEN_FLASHBACK_REVIEW_READY
+    close_cached_file(&review_sql_cache);
+#endif
   }
   bool init_ok() /* tells if construction was successful */
-    { return my_b_inited(&head_cache) && my_b_inited(&body_cache); }
+    { return my_b_inited(&head_cache) && my_b_inited(&body_cache)
+#ifdef WHEN_FLASHBACK_REVIEW_READY
+      && my_b_inited(&review_sql_cache)
+#endif
+    ; }
 
 
   /* Settings on how to print the events */
@@ -875,6 +885,10 @@ typedef struct st_print_event_info
    */
   IO_CACHE head_cache;
   IO_CACHE body_cache;
+#ifdef WHEN_FLASHBACK_REVIEW_READY
+  /* Storing the SQL for reviewing */
+  IO_CACHE review_sql_cache;
+#endif
 } PRINT_EVENT_INFO;
 #endif
 
@@ -1223,6 +1237,37 @@ public:
   void print_base64(IO_CACHE* file, PRINT_EVENT_INFO* print_event_info,
                     bool is_more);
 #endif
+
+  /* The following code used for Flashback */
+#ifdef MYSQL_CLIENT
+  my_bool is_flashback;
+  my_bool need_flashback_review;
+  String  output_buf; // Storing the event output
+#ifdef WHEN_FLASHBACK_REVIEW_READY
+  String  m_review_dbname;
+  String  m_review_tablename;
+
+  void set_review_dbname(const char *name)
+  {
+    if (name)
+    {
+      m_review_dbname.free();
+      m_review_dbname.append(name);
+    }
+  }
+  void set_review_tablename(const char *name)
+  {
+    if (name)
+    {
+      m_review_tablename.free();
+      m_review_tablename.append(name);
+    }
+  }
+  const char *get_review_dbname() const { return m_review_dbname.ptr(); }
+  const char *get_review_tablename() const { return m_review_tablename.ptr(); }
+#endif
+#endif
+
   /*
     read_log_event() functions read an event from a binlog or relay
     log; used by SHOW BINLOG EVENTS, the binlog_dump thread on the
@@ -1963,7 +2008,7 @@ public:
   uint32 q_len;
   uint32 db_len;
   uint16 error_code;
-  ulong thread_id;
+  my_thread_id thread_id;
   /*
     For events created by Query_log_event::do_apply_event (and
     Load_log_event::do_apply_event()) we need the *original* thread
@@ -2390,7 +2435,7 @@ public:
   void print_query(THD *thd, bool need_db, const char *cs, String *buf,
                    my_off_t *fn_start, my_off_t *fn_end,
                    const char *qualify_db);
-  ulong thread_id;
+  my_thread_id thread_id;
   ulong slave_proxy_id;
   uint32 table_name_len;
   /*
@@ -4362,12 +4407,14 @@ public:
 #ifdef MYSQL_CLIENT
   /* not for direct call, each derived has its own ::print() */
   virtual void print(FILE *file, PRINT_EVENT_INFO *print_event_info)= 0;
+  void change_to_flashback_event(PRINT_EVENT_INFO *print_event_info, uchar *rows_buff, Log_event_type ev_type);
   void print_verbose(IO_CACHE *file,
                      PRINT_EVENT_INFO *print_event_info);
   size_t print_verbose_one_row(IO_CACHE *file, table_def *td,
                                PRINT_EVENT_INFO *print_event_info,
                                MY_BITMAP *cols_bitmap,
-                               const uchar *ptr, const uchar *prefix);
+                               const uchar *ptr, const uchar *prefix,
+                               const my_bool no_fill_output= 0); // if no_fill_output=1, then print result is unnecessary
 #endif
 
 #ifdef MYSQL_SERVER
@@ -4505,6 +4552,8 @@ protected:
   uchar    *m_rows_buf;		/* The rows in packed format */
   uchar    *m_rows_cur;		/* One-after the end of the data */
   uchar    *m_rows_end;		/* One-after the end of the allocated space */
+
+  size_t   m_rows_before_size;  /* The length before m_rows_buf */
 
   flag_set m_flags;		/* Flags for row-level events */
 
@@ -5039,6 +5088,29 @@ public:
   virtual int get_data_size() { return IGNORABLE_HEADER_LEN; }
 };
 
+
+static inline bool copy_event_cache_to_string_and_reinit(IO_CACHE *cache, LEX_STRING *to)
+{
+  String tmp;
+
+  reinit_io_cache(cache, READ_CACHE, 0L, FALSE, FALSE);
+  if (tmp.append(cache, cache->end_of_file))
+    goto err;
+  reinit_io_cache(cache, WRITE_CACHE, 0, FALSE, TRUE);
+
+  /*
+    Can't change the order, because the String::release() will clear the
+    length.
+  */
+  to->length= tmp.length();
+  to->str=    tmp.release();
+
+  return false;
+
+err:
+  perror("Out of memory: can't allocate memory in copy_event_cache_to_string_and_reinit().");
+  return true;
+}
 
 static inline bool copy_event_cache_to_file_and_reinit(IO_CACHE *cache,
                                                        FILE *file)

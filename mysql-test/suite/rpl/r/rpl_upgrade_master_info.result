@@ -14,6 +14,7 @@ connection slave;
 CHANGE MASTER TO master_host='127.0.0.1', master_port=SERVER_MYPORT_1;
 include/start_slave.inc
 include/sync_with_master_gtid.inc
+FLUSH NO_WRITE_TO_BINLOG TABLES;
 SELECT * FROM t1;
 a
 1
@@ -27,6 +28,7 @@ connection slave;
 CHANGE MASTER TO master_host='127.0.0.1', master_port=SERVER_MYPORT_1;
 include/start_slave.inc
 include/sync_with_master_gtid.inc
+FLUSH NO_WRITE_TO_BINLOG TABLES;
 SELECT * FROM t1 ORDER BY a;
 a
 1
@@ -41,6 +43,7 @@ connection slave;
 CHANGE MASTER TO master_host='127.0.0.1', master_port=SERVER_MYPORT_1;
 include/start_slave.inc
 include/sync_with_master_gtid.inc
+FLUSH NO_WRITE_TO_BINLOG TABLES;
 SELECT * FROM t1 ORDER BY a;
 a
 1
@@ -56,6 +59,7 @@ connection slave;
 CHANGE MASTER TO master_host='127.0.0.1', master_port=SERVER_MYPORT_1;
 include/start_slave.inc
 include/sync_with_master_gtid.inc
+FLUSH NO_WRITE_TO_BINLOG TABLES;
 SELECT * FROM t1 ORDER BY a;
 a
 1
@@ -72,6 +76,7 @@ connection slave;
 CHANGE MASTER TO master_host='127.0.0.1', master_port=SERVER_MYPORT_1;
 include/start_slave.inc
 include/sync_with_master_gtid.inc
+FLUSH NO_WRITE_TO_BINLOG TABLES;
 SELECT * FROM t1 ORDER BY a;
 a
 1

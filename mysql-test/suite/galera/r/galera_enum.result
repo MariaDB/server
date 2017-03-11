@@ -2,7 +2,7 @@ connection node_1;
 CREATE TABLE t1 (f1 ENUM('', 'one', 'two'), KEY (f1)) ENGINE=InnoDB;
 INSERT INTO t1 VALUES ('');
 INSERT INTO t1 VALUES ('one'), ('two');
-INSERT INTO t1 VALUES (0), (1), (2);
+INSERT IGNORE INTO t1 VALUES (0), (1), (2);
 Warnings:
 Warning	1265	Data truncated for column 'f1' at row 1
 connection node_2;

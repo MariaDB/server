@@ -58,12 +58,14 @@ Geometry::Class_info *Geometry::ci_collection[Geometry::wkb_last+1]=
 static Geometry::Class_info **ci_collection_end=
                                 Geometry::ci_collection+Geometry::wkb_last + 1;
 
-Geometry::Class_info::Class_info(const char *name, int type_id,
-                                 create_geom_t create_func):
+Geometry::Class_info::Class_info(const char *name, const char *geojson_name,
+                                 int type_id, create_geom_t create_func):
   m_type_id(type_id), m_create_func(create_func)
 {
   m_name.str= (char *) name;
   m_name.length= strlen(name);
+  m_geojson_name.str= (char *) geojson_name;
+  m_geojson_name.length= strlen(geojson_name);
 
   ci_collection[type_id]= this;
 }
@@ -105,26 +107,27 @@ static Geometry *create_geometrycollection(char *buffer)
 
 
 
-static Geometry::Class_info point_class("POINT",
+static Geometry::Class_info point_class("POINT", "Point",
 					Geometry::wkb_point, create_point);
 
-static Geometry::Class_info linestring_class("LINESTRING",
+static Geometry::Class_info linestring_class("LINESTRING", "LineString",
 					     Geometry::wkb_linestring,
 					     create_linestring);
-static Geometry::Class_info polygon_class("POLYGON",
+static Geometry::Class_info polygon_class("POLYGON", "Polygon",
 					      Geometry::wkb_polygon,
 					      create_polygon);
-static Geometry::Class_info multipoint_class("MULTIPOINT",
+static Geometry::Class_info multipoint_class("MULTIPOINT", "MultiPoint",
 						 Geometry::wkb_multipoint,
 						 create_multipoint);
 static Geometry::Class_info 
-multilinestring_class("MULTILINESTRING",
+multilinestring_class("MULTILINESTRING", "MultiLineString",
 		      Geometry::wkb_multilinestring, create_multilinestring);
-static Geometry::Class_info multipolygon_class("MULTIPOLYGON",
+static Geometry::Class_info multipolygon_class("MULTIPOLYGON", "MultiPolygon",
 						   Geometry::wkb_multipolygon,
 						   create_multipolygon);
 static Geometry::Class_info 
-geometrycollection_class("GEOMETRYCOLLECTION",Geometry::wkb_geometrycollection,
+geometrycollection_class("GEOMETRYCOLLECTION", "GeometryCollection",
+                         Geometry::wkb_geometrycollection,
 			 create_geometrycollection);
 
 static void get_point(double *x, double *y, const char *data)
@@ -230,6 +233,50 @@ int Geometry::as_wkt(String *wkt, const char **end)
 }
 
 
+static const uchar type_keyname[]= "type";
+static const int type_keyname_len= 4;
+static const uchar coord_keyname[]= "coordinates";
+static const int coord_keyname_len= 11;
+static const uchar geometries_keyname[]= "geometries";
+static const int geometries_keyname_len= 10;
+static const uchar features_keyname[]= "features";
+static const int features_keyname_len= 8;
+static const uchar geometry_keyname[]= "geometry";
+static const int geometry_keyname_len= 8;
+
+static const int max_keyname_len= 11; /*'coordinates' keyname is the longest.*/
+
+static const uchar feature_type[]= "feature";
+static const int feature_type_len= 7;
+static const uchar feature_coll_type[]= "featurecollection";
+static const int feature_coll_type_len= 17;
+
+
+int Geometry::as_json(String *wkt, uint max_dec_digits, const char **end)
+{
+  uint32 len= (uint) get_class_info()->m_geojson_name.length;
+  if (wkt->reserve(4 + type_keyname_len + 2 + len + 2 + 2 +
+                   coord_keyname_len + 4, 512))
+    return 1;
+  wkt->qs_append("{\"", 2);
+  wkt->qs_append((const char *) type_keyname, type_keyname_len);
+  wkt->qs_append("\": \"", 4);
+  wkt->qs_append(get_class_info()->m_geojson_name.str, len);
+  wkt->qs_append("\", \"", 4);
+  if (get_class_info() == &geometrycollection_class)
+    wkt->qs_append((const char *) geometries_keyname, geometries_keyname_len);
+  else
+    wkt->qs_append((const char *) coord_keyname, coord_keyname_len);
+
+  wkt->qs_append("\": ", 3);
+  if (get_data_as_json(wkt, max_dec_digits, end) ||
+      wkt->reserve(1))
+    return 1;
+  wkt->qs_append('}');
+  return 0;
+}
+
+
 static double wkb_get_double(const char *ptr, Geometry::wkbByteOrder bo)
 {
   double res;
@@ -288,6 +335,196 @@ Geometry *Geometry::create_from_wkb(Geometry_buffer *buffer,
 
   return geom->init_from_wkb(wkb + WKB_HEADER_SIZE, len - WKB_HEADER_SIZE,
                              (wkbByteOrder) wkb[0], res) ? geom : NULL;
+}
+
+
+Geometry *Geometry::create_from_json(Geometry_buffer *buffer,
+                      json_engine_t *je, String *res)
+{
+  Class_info *ci= NULL;
+  const uchar *coord_start= NULL, *geom_start= NULL,
+              *features_start= NULL, *geometry_start= NULL;
+  Geometry *result;
+  uchar key_buf[max_keyname_len];
+  uint key_len;
+  int fcoll_type_found= 0, feature_type_found= 0;
+
+
+  if (json_read_value(je))
+    goto err_return;
+  
+  if (je->value_type != JSON_VALUE_OBJECT)
+  {
+    je->s.error= GEOJ_INCORRECT_GEOJSON;
+    goto err_return;
+  }
+
+  while (json_scan_next(je) == 0 && je->state != JST_OBJ_END)
+  {
+    DBUG_ASSERT(je->state == JST_KEY);
+
+    key_len=0;
+    while (json_read_keyname_chr(je) == 0)
+    {
+      if (je->s.c_next > 127 || key_len >= max_keyname_len)
+      {
+        /* Symbol out of range, or keyname too long. No need to compare.. */
+        key_len=0;
+        break;
+      }
+      key_buf[key_len++]= (uchar)je->s.c_next | 0x20; /* make it lowercase. */
+    }
+
+    if (je->s.error)
+      goto err_return;
+
+    if (key_len == type_keyname_len &&
+        memcmp(key_buf, type_keyname, type_keyname_len) == 0)
+    {
+      /*
+         Found the "type" key. Let's check it's a string and remember
+         the feature's type.
+      */
+      if (json_read_value(je))
+        goto err_return;
+
+      if (je->value_type == JSON_VALUE_STRING)
+      {
+        if ((ci= find_class((const char *) je->value, je->value_len)))
+        {
+          if ((coord_start=
+                (ci == &geometrycollection_class) ? geom_start : coord_start))
+            goto create_geom;
+        }
+        else if (je->value_len == feature_coll_type_len &&
+            my_strnncoll(&my_charset_latin1, je->value, je->value_len,
+		         feature_coll_type, feature_coll_type_len) == 0)
+        {
+          /*
+            'FeatureCollection' type found. Handle the 'Featurecollection'/'features'
+            GeoJSON construction.
+          */
+          if (features_start)
+            goto handle_feature_collection;
+          fcoll_type_found= 1;
+        }
+        else if (je->value_len == feature_type_len &&
+                 my_strnncoll(&my_charset_latin1, je->value, je->value_len,
+		              feature_type, feature_type_len) == 0)
+        {
+          if (geometry_start)
+            goto handle_geometry_key;
+          feature_type_found= 1;
+        }
+      }
+    }
+    else if (key_len == coord_keyname_len &&
+             memcmp(key_buf, coord_keyname, coord_keyname_len) == 0)
+    {
+      /*
+        Found the "coordinates" key. Let's check it's an array
+        and remember where it starts.
+      */
+      if (json_read_value(je))
+        goto err_return;
+
+      if (je->value_type == JSON_VALUE_ARRAY)
+      {
+        coord_start= je->value_begin;
+        if (ci && ci != &geometrycollection_class)
+          goto create_geom;
+      }
+    }
+    else if (key_len == geometries_keyname_len &&
+             memcmp(key_buf, geometries_keyname, geometries_keyname_len) == 0)
+    {
+      /*
+        Found the "geometries" key. Let's check it's an array
+        and remember where it starts.
+      */
+      if (json_read_value(je))
+        goto err_return;
+
+      if (je->value_type == JSON_VALUE_ARRAY)
+      {
+        geom_start= je->value_begin;
+        if (ci == &geometrycollection_class)
+        {
+          coord_start= geom_start;
+          goto create_geom;
+        }
+      }
+    }
+    else if (key_len == features_keyname_len &&
+             memcmp(key_buf, features_keyname, features_keyname_len) == 0)
+    {
+      /*
+        'features' key found. Handle the 'Featurecollection'/'features'
+        GeoJSON construction.
+      */
+      if (json_read_value(je))
+        goto err_return;
+      if (je->value_type == JSON_VALUE_ARRAY)
+      {
+        features_start= je->value_begin;
+        if (fcoll_type_found)
+          goto handle_feature_collection;
+      }
+    }
+    else if (key_len == geometry_keyname_len &&
+             memcmp(key_buf, geometry_keyname, geometry_keyname_len) == 0)
+    {
+      if (json_read_value(je))
+        goto err_return;
+      if (je->value_type == JSON_VALUE_OBJECT)
+      {
+        geometry_start= je->value_begin;
+        if (feature_type_found)
+          goto handle_geometry_key;
+      }
+    }
+    else
+    {
+      if (json_skip_key(je))
+        goto err_return;
+    }
+  }
+
+  if (je->s.error == 0)
+  {
+    /*
+      We didn't find all the required keys. That are "type" and "coordinates"
+      or "geometries" for GeometryCollection.
+    */
+    je->s.error= GEOJ_INCORRECT_GEOJSON;
+  }
+  goto err_return;
+
+handle_feature_collection:
+  ci= &geometrycollection_class;
+  coord_start= features_start;
+
+create_geom:
+
+  json_scan_start(je, je->s.cs, coord_start, je->s.str_end);
+
+  if (res->reserve(1 + 4, 512))
+    goto err_return;
+
+  result= (*ci->m_create_func)(buffer->data);
+  res->q_append((char) wkb_ndr);
+  res->q_append((uint32) result->get_class_info()->m_type_id);
+  if (result->init_from_json(je, res))
+    goto err_return;
+
+  return result;
+
+handle_geometry_key:
+  json_scan_start(je, je->s.cs, geometry_start, je->s.str_end);
+  return create_from_json(buffer, je, res);
+
+err_return:
+  return NULL;
 }
 
 
@@ -429,6 +666,47 @@ const char *Geometry::append_points(String *txt, uint32 n_points,
 }
 
 
+static void append_json_point(String *txt, uint max_dec, const char *data)
+{
+  double x,y;
+  get_point(&x, &y, data);
+  txt->qs_append('[');
+  txt->qs_append(x);
+  txt->qs_append(", ", 2);
+  txt->qs_append(y);
+  txt->qs_append(']');
+}
+
+
+/*
+  Append N points from packed format to json
+
+  SYNOPSIS
+    append_json_points()
+    txt			Append points here
+    n_points		Number of points
+    data		Packed data
+    offset		Offset between points
+
+  RETURN
+    # end of data
+*/
+
+static const char *append_json_points(String *txt, uint max_dec,
+    uint32 n_points, const char *data, uint32 offset)
+{			     
+  txt->qs_append('[');
+  while (n_points--)
+  {
+    data+= offset;
+    append_json_point(txt, max_dec, data);
+    data+= POINT_DATA_SIZE;
+    txt->qs_append(", ", 2);
+  }
+  txt->length(txt->length() - 2);// Remove ending ', '
+  txt->qs_append(']');
+  return data;
+}
 /*
   Get most bounding rectangle (mbr) for X points
 
@@ -502,6 +780,58 @@ uint Gis_point::init_from_wkb(const char *wkb, uint len,
 }
 
 
+static int read_point_from_json(json_engine_t *je, double *x, double *y)
+{
+  int n_coord= 0, err;
+  double tmp, *d;
+  char *endptr;
+
+  while (json_scan_next(je) == 0 && je->state != JST_ARRAY_END)
+  {
+    DBUG_ASSERT(je->state == JST_VALUE);
+    if (json_read_value(je))
+      return 1;
+
+    if (je->value_type != JSON_VALUE_NUMBER)
+      goto bad_coordinates;
+
+    d= (n_coord == 0) ? x : ((n_coord == 1) ? y : &tmp);
+    *d= my_strntod(je->s.cs, (char *) je->value,
+                   je->value_len, &endptr, &err);
+    if (err)
+      goto bad_coordinates;
+    n_coord++;
+  }
+
+  return 0;
+bad_coordinates:
+  je->s.error= Geometry::GEOJ_INCORRECT_GEOJSON;
+  return 1;
+}
+
+
+bool Gis_point::init_from_json(json_engine_t *je, String *wkb)
+{
+  double x, y;
+  if (json_read_value(je))
+    return TRUE;
+
+  if (je->value_type != JSON_VALUE_ARRAY)
+  {
+    je->s.error= GEOJ_INCORRECT_GEOJSON;
+    return TRUE;
+  }
+
+  if (read_point_from_json(je, &x, &y) ||
+      wkb->reserve(POINT_DATA_SIZE))
+    return TRUE;
+
+  wkb->q_append(x);
+  wkb->q_append(y);
+  return FALSE;
+}
+
+
 bool Gis_point::get_data_as_wkt(String *txt, const char **end) const
 {
   double x, y;
@@ -512,6 +842,17 @@ bool Gis_point::get_data_as_wkt(String *txt, const char **end) const
   txt->qs_append(x);
   txt->qs_append(' ');
   txt->qs_append(y);
+  *end= m_data+ POINT_DATA_SIZE;
+  return 0;
+}
+
+
+bool Gis_point::get_data_as_json(String *txt, uint max_dec_digits,
+                                 const char **end) const
+{
+  if (txt->reserve(MAX_DIGITS_IN_DOUBLE * 2 + 4))
+    return 1;
+  append_json_point(txt, max_dec_digits, m_data);
   *end= m_data+ POINT_DATA_SIZE;
   return 0;
 }
@@ -630,6 +971,43 @@ uint Gis_line_string::init_from_wkb(const char *wkb, uint len,
 }
 
 
+bool Gis_line_string::init_from_json(json_engine_t *je, String *wkb)
+{
+  uint32 n_points= 0;
+  uint32 np_pos= wkb->length();
+  Gis_point p;
+
+  if (json_read_value(je))
+    return TRUE;
+
+  if (je->value_type != JSON_VALUE_ARRAY)
+  {
+    je->s.error= GEOJ_INCORRECT_GEOJSON;
+    return TRUE;
+  }
+
+  if (wkb->reserve(4, 512))
+    return TRUE;
+  wkb->length(wkb->length()+4);	// Reserve space for n_points  
+
+  while (json_scan_next(je) == 0 && je->state != JST_ARRAY_END)
+  {
+    DBUG_ASSERT(je->state == JST_VALUE);
+
+    if (p.init_from_json(je, wkb))
+      return TRUE;
+    n_points++;
+  }
+  if (n_points < 1)
+  {
+    je->s.error= GEOJ_TOO_FEW_POINTS;
+    return TRUE;
+  }
+  wkb->write_at_position(np_pos, n_points);
+  return FALSE;
+}
+
+
 bool Gis_line_string::get_data_as_wkt(String *txt, const char **end) const
 {
   uint32 n_points;
@@ -657,6 +1035,28 @@ bool Gis_line_string::get_data_as_wkt(String *txt, const char **end) const
   }
   txt->length(txt->length() - 1);		// Remove end ','
   *end= data;
+  return 0;
+}
+
+
+bool Gis_line_string::get_data_as_json(String *txt, uint max_dec_digits,
+                                       const char **end) const
+{
+  uint32 n_points;
+  const char *data= m_data;
+
+  if (no_data(data, 4))
+    return 1;
+  n_points= uint4korr(data);
+  data += 4;
+
+  if (n_points < 1 ||
+      not_enough_points(data, n_points) ||
+      txt->reserve((MAX_DIGITS_IN_DOUBLE*2 + 6) * n_points + 2))
+    return 1;
+
+  *end= append_json_points(txt, max_dec_digits, n_points, data, 0);
+
   return 0;
 }
 
@@ -854,7 +1254,7 @@ bool Gis_polygon::init_from_wkt(Gis_read_stream *trs, String *wkb)
 
   if (wkb->reserve(4, 512))
     return 1;
-  wkb->length(wkb->length()+4);			// Reserve space for points
+  wkb->length(wkb->length()+4);	// Reserve space for n_rings
   for (;;)  
   {
     Gis_line_string ls;
@@ -964,6 +1364,46 @@ uint Gis_polygon::init_from_wkb(const char *wkb, uint len, wkbByteOrder bo,
 }
 
 
+bool Gis_polygon::init_from_json(json_engine_t *je, String *wkb)
+{
+  uint32 n_linear_rings= 0;
+  uint32 lr_pos= wkb->length();
+  int closed;
+
+  if (json_read_value(je))
+    return TRUE;
+
+  if (je->value_type != JSON_VALUE_ARRAY)
+  {
+    je->s.error= GEOJ_INCORRECT_GEOJSON;
+    return TRUE;
+  }
+
+  if (wkb->reserve(4, 512))
+    return TRUE;
+  wkb->length(wkb->length()+4);	// Reserve space for n_rings
+
+  while (json_scan_next(je) == 0 && je->state != JST_ARRAY_END)
+  {
+    Gis_line_string ls;
+    DBUG_ASSERT(je->state == JST_VALUE);
+
+    uint32 ls_pos=wkb->length();
+    if (ls.init_from_json(je, wkb))
+      return TRUE;
+    ls.set_data_ptr(wkb->ptr() + ls_pos, wkb->length() - ls_pos);
+    if (ls.is_closed(&closed) || !closed)
+    {
+      je->s.error= GEOJ_POLYGON_NOT_CLOSED;
+      return TRUE;
+    }
+    n_linear_rings++;
+  }
+  wkb->write_at_position(lr_pos, n_linear_rings);
+  return FALSE;
+}
+
+
 bool Gis_polygon::get_data_as_wkt(String *txt, const char **end) const
 {
   uint32 n_linear_rings;
@@ -991,6 +1431,39 @@ bool Gis_polygon::get_data_as_wkt(String *txt, const char **end) const
     txt->qs_append(',');
   }
   txt->length(txt->length() - 1);		// Remove end ','
+  *end= data;
+  return 0;
+}
+
+
+bool Gis_polygon::get_data_as_json(String *txt, uint max_dec_digits,
+                                   const char **end) const
+{
+  uint32 n_linear_rings;
+  const char *data= m_data;
+
+  if (no_data(data, 4) || txt->reserve(1, 512))
+    return 1;
+
+  n_linear_rings= uint4korr(data);
+  data+= 4;
+
+  txt->qs_append('[');
+  while (n_linear_rings--)
+  {
+    uint32 n_points;
+    if (no_data(data, 4))
+      return 1;
+    n_points= uint4korr(data);
+    data+= 4;
+    if (not_enough_points(data, n_points) ||
+	txt->reserve(4 + (MAX_DIGITS_IN_DOUBLE * 2 + 6) * n_points))
+      return 1;
+    data= append_json_points(txt, max_dec_digits, n_points, data, 0);
+    txt->qs_append(", ", 2);
+  }
+  txt->length(txt->length() - 2);// Remove ending ', '
+  txt->qs_append(']');
   *end= data;
   return 0;
 }
@@ -1382,6 +1855,44 @@ uint Gis_multi_point::init_from_wkb(const char *wkb, uint len, wkbByteOrder bo,
 }
 
 
+bool Gis_multi_point::init_from_json(json_engine_t *je, String *wkb)
+{
+  uint32 n_points= 0;
+  uint32 np_pos= wkb->length();
+  Gis_point p;
+
+  if (json_read_value(je))
+    return TRUE;
+
+  if (je->value_type != JSON_VALUE_ARRAY)
+  {
+    je->s.error= GEOJ_INCORRECT_GEOJSON;
+    return TRUE;
+  }
+
+  if (wkb->reserve(4, 512))
+    return TRUE;
+  wkb->length(wkb->length()+4);	// Reserve space for n_points  
+
+  while (json_scan_next(je) == 0 && je->state != JST_ARRAY_END)
+  {
+    DBUG_ASSERT(je->state == JST_VALUE);
+
+    if (wkb->reserve(1 + 4, 512))
+      return TRUE;
+    wkb->q_append((char) wkb_ndr);
+    wkb->q_append((uint32) wkb_point);
+
+    if (p.init_from_json(je, wkb))
+      return TRUE;
+    n_points++;
+  }
+
+  wkb->write_at_position(np_pos, n_points);
+  return FALSE;
+}
+
+
 bool Gis_multi_point::get_data_as_wkt(String *txt, const char **end) const
 {
   uint32 n_points;
@@ -1395,6 +1906,24 @@ bool Gis_multi_point::get_data_as_wkt(String *txt, const char **end) const
     return 1;
   *end= append_points(txt, n_points, m_data+4, WKB_HEADER_SIZE);
   txt->length(txt->length()-1);			// Remove end ','
+  return 0;
+}
+
+
+bool Gis_multi_point::get_data_as_json(String *txt, uint max_dec_digits,
+                                       const char **end) const
+{
+  uint32 n_points;
+  if (no_data(m_data, 4))
+    return 1;
+
+  n_points= uint4korr(m_data);
+  if (n_points > max_n_points ||
+      not_enough_points(m_data+4, n_points, WKB_HEADER_SIZE) ||
+      txt->reserve((MAX_DIGITS_IN_DOUBLE * 2 + 6) * n_points + 2))
+    return 1;
+  *end= append_json_points(txt, max_dec_digits, n_points, m_data+4,
+                           WKB_HEADER_SIZE);
   return 0;
 }
 
@@ -1594,6 +2123,44 @@ uint Gis_multi_line_string::init_from_wkb(const char *wkb, uint len,
 }
 
 
+bool Gis_multi_line_string::init_from_json(json_engine_t *je, String *wkb)
+{
+  uint32 n_line_strings= 0;
+  uint32 ls_pos= wkb->length();
+
+  if (json_read_value(je))
+    return TRUE;
+
+  if (je->value_type != JSON_VALUE_ARRAY)
+  {
+    je->s.error= GEOJ_INCORRECT_GEOJSON;
+    return TRUE;
+  }
+
+  if (wkb->reserve(4, 512))
+    return TRUE;
+  wkb->length(wkb->length()+4);	// Reserve space for n_rings
+
+  while (json_scan_next(je) == 0 && je->state != JST_ARRAY_END)
+  {
+    Gis_line_string ls;
+    DBUG_ASSERT(je->state == JST_VALUE);
+
+    if (wkb->reserve(1 + 4, 512))
+      return TRUE;
+    wkb->q_append((char) wkb_ndr);
+    wkb->q_append((uint32) wkb_linestring);
+
+    if (ls.init_from_json(je, wkb))
+      return TRUE;
+
+    n_line_strings++;
+  }
+  wkb->write_at_position(ls_pos, n_line_strings);
+  return FALSE;
+}
+
+
 bool Gis_multi_line_string::get_data_as_wkt(String *txt, 
 					     const char **end) const
 {
@@ -1621,6 +2188,38 @@ bool Gis_multi_line_string::get_data_as_wkt(String *txt,
     txt->qs_append(',');
   }
   txt->length(txt->length() - 1);
+  *end= data;
+  return 0;
+}
+
+
+bool Gis_multi_line_string::get_data_as_json(String *txt, uint max_dec_digits,
+                                             const char **end) const
+{
+  uint32 n_line_strings;
+  const char *data= m_data;
+
+  if (no_data(data, 4) || txt->reserve(1, 512))
+    return 1;
+  n_line_strings= uint4korr(data);
+  data+= 4;
+
+  txt->qs_append('[');
+  while (n_line_strings--)
+  {
+    uint32 n_points;
+    if (no_data(data, (WKB_HEADER_SIZE + 4)))
+      return 1;
+    n_points= uint4korr(data + WKB_HEADER_SIZE);
+    data+= WKB_HEADER_SIZE + 4;
+    if (not_enough_points(data, n_points) ||
+	txt->reserve(2 + (MAX_DIGITS_IN_DOUBLE * 2 + 6) * n_points))
+      return 1;
+    data= append_json_points(txt, max_dec_digits, n_points, data, 0);
+    txt->qs_append(", ", 2);
+  }
+  txt->length(txt->length() - 2);
+  txt->qs_append(']');
   *end= data;
   return 0;
 }
@@ -1912,6 +2511,44 @@ uint Gis_multi_polygon::init_from_opresult(String *bin,
 }
 
 
+bool Gis_multi_polygon::init_from_json(json_engine_t *je, String *wkb)
+{
+  uint32 n_polygons= 0;
+  int np_pos= wkb->length();
+  Gis_polygon p;
+
+  if (json_read_value(je))
+    return TRUE;
+
+  if (je->value_type != JSON_VALUE_ARRAY)
+  {
+    je->s.error= GEOJ_INCORRECT_GEOJSON;
+    return TRUE;
+  }
+
+  if (wkb->reserve(4, 512))
+    return TRUE;
+  wkb->length(wkb->length()+4);	// Reserve space for n_rings
+
+  while (json_scan_next(je) == 0 && je->state != JST_ARRAY_END)
+  {
+    DBUG_ASSERT(je->state == JST_VALUE);
+
+    if (wkb->reserve(1 + 4, 512))
+      return TRUE;
+    wkb->q_append((char) wkb_ndr);
+    wkb->q_append((uint32) wkb_polygon);
+
+    if (p.init_from_json(je, wkb))
+      return TRUE;
+
+    n_polygons++;
+  }
+  wkb->write_at_position(np_pos, n_polygons);
+  return FALSE;
+}
+
+
 bool Gis_multi_polygon::get_data_as_wkt(String *txt, const char **end) const
 {
   uint32 n_polygons;
@@ -1951,6 +2588,51 @@ bool Gis_multi_polygon::get_data_as_wkt(String *txt, const char **end) const
     txt->qs_append(',');
   }
   txt->length(txt->length() - 1);
+  *end= data;
+  return 0;
+}
+
+
+bool Gis_multi_polygon::get_data_as_json(String *txt, uint max_dec_digits,
+                                         const char **end) const
+{
+  uint32 n_polygons;
+  const char *data= m_data;
+
+  if (no_data(data, 4) || txt->reserve(1, 512))
+    return 1;
+  n_polygons= uint4korr(data);
+  data+= 4;
+
+  txt->q_append('[');
+  while (n_polygons--)
+  {
+    uint32 n_linear_rings;
+    if (no_data(data, 4 + WKB_HEADER_SIZE) ||
+	txt->reserve(1, 512))
+      return 1;
+    n_linear_rings= uint4korr(data+WKB_HEADER_SIZE);
+    data+= 4 + WKB_HEADER_SIZE;
+    txt->q_append('[');
+
+    while (n_linear_rings--)
+    {
+      if (no_data(data, 4))
+        return 1;
+      uint32 n_points= uint4korr(data);
+      data+= 4;
+      if (not_enough_points(data, n_points) ||
+	  txt->reserve(2 + (MAX_DIGITS_IN_DOUBLE * 2 + 6) * n_points,
+		       512))
+	return 1;
+      data= append_json_points(txt, max_dec_digits, n_points, data, 0);
+      txt->qs_append(", ", 2);
+    }
+    txt->length(txt->length() - 2);
+    txt->qs_append("], ", 3);
+  }
+  txt->length(txt->length() - 2);
+  txt->q_append(']');
   *end= data;
   return 0;
 }
@@ -2304,6 +2986,47 @@ uint Gis_geometry_collection::init_from_wkb(const char *wkb, uint len,
 }
 
 
+bool Gis_geometry_collection::init_from_json(json_engine_t *je, String *wkb)
+{
+  uint32 n_objects= 0;
+  uint32 no_pos= wkb->length();
+  Geometry_buffer buffer;
+  Geometry *g;
+
+  if (json_read_value(je))
+    return TRUE;
+
+  if (je->value_type != JSON_VALUE_ARRAY)
+  {
+    je->s.error= GEOJ_INCORRECT_GEOJSON;
+    return TRUE;
+  }
+
+  if (wkb->reserve(4, 512))
+    return TRUE;
+  wkb->length(wkb->length()+4);	// Reserve space for n_objects
+
+  while (json_scan_next(je) == 0 && je->state != JST_ARRAY_END)
+  {
+    json_engine_t sav_je= *je;
+
+    DBUG_ASSERT(je->state == JST_VALUE);
+
+    if (!(g= create_from_json(&buffer, je, wkb)))
+      return TRUE;
+
+    *je= sav_je;
+    if (json_skip_array_item(je))
+      return TRUE;
+
+    n_objects++;
+  }
+
+  wkb->write_at_position(no_pos, n_objects);
+  return FALSE;
+}
+
+
 bool Gis_geometry_collection::get_data_as_wkt(String *txt,
 					     const char **end) const
 {
@@ -2343,6 +3066,44 @@ bool Gis_geometry_collection::get_data_as_wkt(String *txt,
   }
   txt->qs_append(')');
 exit:
+  *end= data;
+  return 0;
+}
+
+
+bool Gis_geometry_collection::get_data_as_json(String *txt, uint max_dec_digits,
+                                               const char **end) const
+{
+  uint32 n_objects;
+  Geometry_buffer buffer;
+  Geometry *geom;
+  const char *data= m_data;
+
+  if (no_data(data, 4) || txt->reserve(1, 512))
+    return 1;
+  n_objects= uint4korr(data);
+  data+= 4;
+
+  txt->qs_append('[');
+  while (n_objects--)
+  {
+    uint32 wkb_type;
+
+    if (no_data(data, WKB_HEADER_SIZE))
+      return 1;
+    wkb_type= uint4korr(data + 1);
+    data+= WKB_HEADER_SIZE;
+
+    if (!(geom= create_by_typeid(&buffer, wkb_type)))
+      return 1;
+    geom->set_data_ptr(data, (uint) (m_data_end - data));
+    if (geom->as_json(txt, max_dec_digits, &data) ||
+        txt->append(STRING_WITH_LEN(", "), 512))
+      return 1;
+  }
+  txt->length(txt->length() - 2);
+  txt->qs_append(']');
+
   *end= data;
   return 0;
 }

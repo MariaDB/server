@@ -1,8 +1,8 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2013, 2017, MariaDB Corporation.
 Copyright (c) 2008, Google Inc.
-Copyright (c) 2013, 2016, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -184,7 +184,7 @@ command. */
 #define UNIV_ENABLE_UNIT_TEST_ROW_RAW_FORMAT_INT
 */
 
-#if defined HAVE_VALGRIND
+#if defined HAVE_valgrind && defined HAVE_VALGRIND
 # define UNIV_DEBUG_VALGRIND
 #endif /* HAVE_VALGRIND */
 #if 0
@@ -302,7 +302,7 @@ definitions: */
 
 /** The following alignment is used in memory allocations in memory heap
 management to ensure correct alignment for doubles etc. */
-#define UNIV_MEM_ALIGNMENT	8
+#define UNIV_MEM_ALIGNMENT	8U
 
 /*
 			DATABASE VERSION CONTROL
@@ -366,6 +366,12 @@ typedef enum innodb_file_formats_enum innodb_file_formats_t;
 #define IF_SNAPPY(A,B) B
 #endif
 
+#if defined (HAVE_FALLOC_PUNCH_HOLE_AND_KEEP_SIZE) || defined(_WIN32)
+#define IF_PUNCH_HOLE(A,B) A
+#else
+#define IF_PUNCH_HOLE(A,B) B
+#endif
+
 /** The universal page size of the database */
 #define UNIV_PAGE_SIZE		((ulint) srv_page_size)
 
@@ -394,19 +400,19 @@ and 2 bits for flags. This limits the uncompressed page size to 16k.
 #define UNIV_PAGE_SSIZE_ORIG		(UNIV_PAGE_SIZE_SHIFT_ORIG - 9)
 
 /** Minimum page size InnoDB currently supports. */
-#define UNIV_PAGE_SIZE_MIN	(1 << UNIV_PAGE_SIZE_SHIFT_MIN)
+#define UNIV_PAGE_SIZE_MIN	(1U << UNIV_PAGE_SIZE_SHIFT_MIN)
 /** Maximum page size InnoDB currently supports. */
-#define UNIV_PAGE_SIZE_MAX	(1 << UNIV_PAGE_SIZE_SHIFT_MAX)
+#define UNIV_PAGE_SIZE_MAX	(1U << UNIV_PAGE_SIZE_SHIFT_MAX)
 /** Default page size for InnoDB tablespaces. */
-#define UNIV_PAGE_SIZE_DEF	(1 << UNIV_PAGE_SIZE_SHIFT_DEF)
+#define UNIV_PAGE_SIZE_DEF	(1U << UNIV_PAGE_SIZE_SHIFT_DEF)
 /** Original 16k page size for InnoDB tablespaces. */
-#define UNIV_PAGE_SIZE_ORIG	(1 << UNIV_PAGE_SIZE_SHIFT_ORIG)
+#define UNIV_PAGE_SIZE_ORIG	(1U << UNIV_PAGE_SIZE_SHIFT_ORIG)
 
 /** Smallest compressed page size */
-#define UNIV_ZIP_SIZE_MIN	(1 << UNIV_ZIP_SIZE_SHIFT_MIN)
+#define UNIV_ZIP_SIZE_MIN	(1U << UNIV_ZIP_SIZE_SHIFT_MIN)
 
 /** Largest compressed page size */
-#define UNIV_ZIP_SIZE_MAX	(1 << UNIV_ZIP_SIZE_SHIFT_MAX)
+#define UNIV_ZIP_SIZE_MAX	(1U << UNIV_ZIP_SIZE_SHIFT_MAX)
 
 /** Largest possible ssize for an uncompressed page.
 (The convention 'ssize' is used for 'log2 minus 9' or the number of
@@ -578,7 +584,7 @@ contains the sum of the following flag and the locally stored len. */
 /* Tell the compiler that 'expr' probably evaluates to 'constant'. */
 # define UNIV_EXPECT(expr,constant) __builtin_expect(expr, constant)
 /* Tell the compiler that a pointer is likely to be NULL */
-# define UNIV_LIKELY_NULL(ptr) __builtin_expect((ulint) ptr, 0)
+# define UNIV_LIKELY_NULL(ptr) __builtin_expect((ptr) != 0, 0)
 /* Minimize cache-miss latency by moving data at addr into a cache before
 it is read. */
 # define UNIV_PREFETCH_R(addr) __builtin_prefetch(addr, 0, 3)

@@ -11,6 +11,8 @@
 CREATE TABLE t1 (id INT PRIMARY KEY) ENGINE=InnoDB;
 CREATE TABLE t2 (id INT PRIMARY KEY) ENGINE=InnoDB;
 
+--sleep 1
+
 --connection node_2
 LOCK TABLE t1 READ;
 

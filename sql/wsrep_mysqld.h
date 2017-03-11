@@ -178,7 +178,7 @@ extern wsrep_seqno_t wsrep_locked_seqno;
    strcmp(wsrep_provider, WSREP_NONE))
 
 #define WSREP(thd) \
-  (WSREP_ON && wsrep && (thd && thd->variables.wsrep_on))
+  (WSREP_ON && thd->variables.wsrep_on)
 
 #define WSREP_CLIENT(thd) \
     (WSREP(thd) && thd->wsrep_client_thread)

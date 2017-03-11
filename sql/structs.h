@@ -2,6 +2,7 @@
 #define STRUCTS_INCLUDED
 
 /* Copyright (c) 2000, 2010, Oracle and/or its affiliates. All rights reserved.
+   Copyright (c) 2017, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -205,7 +206,7 @@ typedef int *(*update_var)(THD *, struct st_mysql_show_var *);
 typedef struct	st_lex_user {
   LEX_STRING user, host, plugin, auth;
   LEX_STRING pwtext, pwhash;
-  bool is_role() { return user.str[0] && !host.str[0]; }
+  bool is_role() const { return user.str[0] && !host.str[0]; }
   void set_lex_string(LEX_STRING *l, char *buf)
   {
     if (is_role())
@@ -331,26 +332,26 @@ typedef struct st_index_stats
 
 
 	/* Bits in form->update */
-#define REG_MAKE_DUPP		1	/* Make a copy of record when read */
-#define REG_NEW_RECORD		2	/* Write a new record if not found */
-#define REG_UPDATE		4	/* Uppdate record */
-#define REG_DELETE		8	/* Delete found record */
-#define REG_PROG		16	/* User is updating database */
-#define REG_CLEAR_AFTER_WRITE	32
-#define REG_MAY_BE_UPDATED	64
-#define REG_AUTO_UPDATE		64	/* Used in D-forms for scroll-tables */
-#define REG_OVERWRITE		128
-#define REG_SKIP_DUP		256
+#define REG_MAKE_DUPP		1U	/* Make a copy of record when read */
+#define REG_NEW_RECORD		2U	/* Write a new record if not found */
+#define REG_UPDATE		4U	/* Uppdate record */
+#define REG_DELETE		8U	/* Delete found record */
+#define REG_PROG		16U	/* User is updating database */
+#define REG_CLEAR_AFTER_WRITE	32U
+#define REG_MAY_BE_UPDATED	64U
+#define REG_AUTO_UPDATE		64U	/* Used in D-forms for scroll-tables */
+#define REG_OVERWRITE		128U
+#define REG_SKIP_DUP		256U
 
 	/* Bits in form->status */
-#define STATUS_NO_RECORD	(1+2)	/* Record isn't usably */
-#define STATUS_GARBAGE		1
-#define STATUS_NOT_FOUND	2	/* No record in database when needed */
-#define STATUS_NO_PARENT	4	/* Parent record wasn't found */
-#define STATUS_NOT_READ		8	/* Record isn't read */
-#define STATUS_UPDATED		16	/* Record is updated by formula */
-#define STATUS_NULL_ROW		32	/* table->null_row is set */
-#define STATUS_DELETED		64
+#define STATUS_NO_RECORD	(1U+2U)	/* Record isn't usable */
+#define STATUS_GARBAGE		1U
+#define STATUS_NOT_FOUND	2U	/* No record in database when needed */
+#define STATUS_NO_PARENT	4U	/* Parent record wasn't found */
+#define STATUS_NOT_READ		8U	/* Record isn't read */
+#define STATUS_UPDATED		16U	/* Record is updated by formula */
+#define STATUS_NULL_ROW		32U	/* table->null_row is set */
+#define STATUS_DELETED		64U
 
 /*
   Such interval is "discrete": it is the set of

@@ -376,6 +376,8 @@ MI_INFO *mi_open(const char *name, int mode, uint open_flags)
           {
             uint real_length= pos->flag & HA_BLOB_PART ? pos->bit_start
                                                        : pos->length;
+            if (pos->type == HA_KEYTYPE_BIT && pos->bit_length)
+              real_length--;
             set_if_bigger(share->vreclength, pos->start + real_length);
           }
 	}
@@ -740,6 +742,7 @@ uchar *mi_alloc_rec_buff(MI_INFO *info, ulong length, uchar **buf)
       else
         length= info->s->base.pack_reclength;
       length= MY_MAX(length, info->s->base.max_key_length);
+      length= MY_MAX(length, info->s->vreclength);
       /* Avoid unnecessary realloc */
       if (newptr && length == old_length)
 	return newptr;

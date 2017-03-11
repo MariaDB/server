@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -98,27 +99,19 @@ trx_read_roll_ptr(
 
 /** Gets an undo log page and x-latches it.
 @param[in]	page_id		page id
-@param[in]	page_size	page size
 @param[in,out]	mtr		mini-transaction
 @return pointer to page x-latched */
 UNIV_INLINE
 page_t*
-trx_undo_page_get(
-	const page_id_t&	page_id,
-	const page_size_t&	page_size,
-	mtr_t*			mtr);
+trx_undo_page_get(const page_id_t& page_id, mtr_t* mtr);
 
 /** Gets an undo log page and s-latches it.
 @param[in]	page_id		page id
-@param[in]	page_size	page size
 @param[in,out]	mtr		mini-transaction
 @return pointer to page s-latched */
 UNIV_INLINE
 page_t*
-trx_undo_page_get_s_latched(
-	const page_id_t&	page_id,
-	const page_size_t&	page_size,
-	mtr_t*			mtr);
+trx_undo_page_get_s_latched(const page_id_t& page_id, mtr_t* mtr);
 
 /******************************************************************//**
 Returns the previous undo record on the page in the specified log, or
@@ -188,7 +181,6 @@ trx_undo_get_next_rec(
 
 /** Gets the first record in an undo log.
 @param[in]	space		undo log header space
-@param[in]	page_size	page size
 @param[in]	page_no		undo log header page number
 @param[in]	offset		undo log header offset on page
 @param[in]	mode		latching mode: RW_S_LATCH or RW_X_LATCH
@@ -197,7 +189,6 @@ trx_undo_get_next_rec(
 trx_undo_rec_t*
 trx_undo_get_first_rec(
 	ulint			space,
-	const page_size_t&	page_size,
 	ulint			page_no,
 	ulint			offset,
 	ulint			mode,
@@ -455,7 +446,6 @@ struct trx_undo_t {
 	/*-----------------------------*/
 	ulint		space;		/*!< space id where the undo log
 					placed */
-	page_size_t	page_size;
 	ulint		hdr_page_no;	/*!< page number of the header page in
 					the undo log */
 	ulint		hdr_offset;	/*!< header offset of the undo log on

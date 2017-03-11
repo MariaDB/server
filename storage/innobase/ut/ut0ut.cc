@@ -727,10 +727,6 @@ ut_strerr(
 		return("I/O error");
 	case DB_TABLE_IN_FK_CHECK:
 		return("Table is being used in foreign key check");
-	case DB_DATA_MISMATCH:
-		return("data mismatch");
-	case DB_SCHEMA_NOT_LOCKED:
-		return("schema not locked");
 	case DB_NOT_FOUND:
 		return("not found");
 	case DB_ONLINE_LOG_TOO_BIG:
@@ -749,33 +745,20 @@ ut_strerr(
 		return("Table is corrupted");
 	case DB_FTS_TOO_MANY_WORDS_IN_PHRASE:
 		return("Too many words in a FTS phrase or proximity search");
-	case DB_IO_DECOMPRESS_FAIL:
-		return("Page decompress failed after reading from disk");
 	case DB_DECRYPTION_FAILED:
 		return("Table is encrypted but decrypt failed.");
-	case DB_IO_NO_PUNCH_HOLE:
-		return("No punch hole support");
-	case DB_IO_NO_PUNCH_HOLE_FS:
-		return("Punch hole not supported by the file system");
-	case DB_IO_NO_PUNCH_HOLE_TABLESPACE:
-		return("Punch hole not supported by the tablespace");
-	case DB_IO_NO_ENCRYPT_TABLESPACE:
-		return("Page encryption not supported by the tablespace");
-	case DB_IO_DECRYPT_FAIL:
-		return("Page decryption failed after reading from disk");
 	case DB_IO_PARTIAL_FAILED:
 		return("Partial IO failed");
 	case DB_FORCED_ABORT:
 		return("Transaction aborted by another higher priority "
 		       "transaction");
-	case DB_WRONG_FILE_NAME:
-		return("Invalid Filename");
-
 	case DB_COMPUTE_VALUE_FAILED:
 		return("Compute generated column failed");
 	case DB_NO_FK_ON_S_BASE_COL:
 		return("Cannot add foreign key on the base column "
 		       "of stored column");
+	case DB_IO_NO_PUNCH_HOLE:
+		return ("File system does not support punch hole (trim) operation.");
 
 	/* do not add default: in order to produce a warning if new code
 	is added to the enum but not added here */

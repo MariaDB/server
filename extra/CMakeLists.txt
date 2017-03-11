@@ -80,6 +80,7 @@ IF(WITH_INNOBASE_STORAGE_ENGINE OR WITH_XTRADB_STORAGE_ENGINE)
       ../storage/innobase/buf/buf0buf.cc
       ../storage/innobase/page/page0zip.cc
       ../storage/innobase/os/os0file.cc
+      ../storage/innobase/fil/fil0crypt.cc
       )
 
 
@@ -97,4 +98,7 @@ IF(UNIX)
 
   MYSQL_ADD_EXECUTABLE(mysql_waitpid mysql_waitpid.c COMPONENT Client)
   TARGET_LINK_LIBRARIES(mysql_waitpid mysys)
+
+  MYSQL_ADD_EXECUTABLE(mysqld_safe_helper mysqld_safe_helper.c COMPONENT Server)
+  TARGET_LINK_LIBRARIES(mysqld_safe_helper mysys)
 ENDIF()

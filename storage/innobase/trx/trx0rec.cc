@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1971,7 +1972,7 @@ trx_undo_report_row_operation(
 	page_no = undo->last_page_no;
 
 	undo_block = buf_page_get_gen(
-		page_id_t(undo->space, page_no), undo->page_size, RW_X_LATCH,
+		page_id_t(undo->space, page_no), univ_page_size, RW_X_LATCH,
 		buf_pool_is_obsolete(undo->withdraw_clock)
 		? NULL : undo->guess_block, BUF_GET, __FILE__, __LINE__,
 		&mtr, &err);
@@ -2103,12 +2104,12 @@ err_exit:
 Copies an undo record to heap. This function can be called if we know that
 the undo log record exists.
 @return own: copy of the record */
+static
 trx_undo_rec_t*
 trx_undo_get_undo_rec_low(
 /*======================*/
 	roll_ptr_t	roll_ptr,	/*!< in: roll pointer to record */
-	mem_heap_t*	heap,		/*!< in: memory heap where copied */
-	bool		is_redo_rseg)	/*!< in: true if redo rseg. */
+	mem_heap_t*	heap)		/*!< in: memory heap where copied */
 {
 	trx_undo_rec_t*	undo_rec;
 	ulint		rseg_id;
@@ -2121,13 +2122,12 @@ trx_undo_get_undo_rec_low(
 
 	trx_undo_decode_roll_ptr(roll_ptr, &is_insert, &rseg_id, &page_no,
 				 &offset);
-	rseg = trx_rseg_get_on_id(rseg_id, is_redo_rseg);
+	rseg = trx_rseg_get_on_id(rseg_id);
 
 	mtr_start(&mtr);
 
 	undo_page = trx_undo_page_get_s_latched(
-		page_id_t(rseg->space, page_no), rseg->page_size,
-		&mtr);
+		page_id_t(rseg->space, page_no), &mtr);
 
 	undo_rec = trx_undo_rec_copy(undo_page + offset, heap);
 
@@ -2143,7 +2143,6 @@ Copies an undo record to heap.
 				the roll pointer: it points to an
 				undo log of this transaction
 @param[in]	heap		memory heap where copied
-@param[in]	is_redo_rseg	true if redo rseg.
 @param[in]	name		table name
 @param[out]	undo_rec	own: copy of the record
 @retval true if the undo log has been
@@ -2157,7 +2156,6 @@ trx_undo_get_undo_rec(
 	roll_ptr_t		roll_ptr,
 	trx_id_t		trx_id,
 	mem_heap_t*		heap,
-	bool			is_redo_rseg,
 	const table_name_t&	name,
 	trx_undo_rec_t**	undo_rec)
 {
@@ -2167,8 +2165,7 @@ trx_undo_get_undo_rec(
 
 	missing_history = purge_sys->view.changes_visible(trx_id, name);
 	if (!missing_history) {
-		*undo_rec = trx_undo_get_undo_rec_low(
-			roll_ptr, heap, is_redo_rseg);
+		*undo_rec = trx_undo_get_undo_rec_low(roll_ptr, heap);
 	}
 
 	rw_lock_s_unlock(&purge_sys->latch);
@@ -2234,9 +2231,9 @@ trx_undo_prev_version_build(
 	byte*		buf;
 
 	ut_ad(!rw_lock_own(&purge_sys->latch, RW_LOCK_S));
-	ut_ad(mtr_memo_contains_page(index_mtr, index_rec, MTR_MEMO_PAGE_S_FIX)
-	      || mtr_memo_contains_page(index_mtr, index_rec,
-					MTR_MEMO_PAGE_X_FIX));
+	ut_ad(mtr_memo_contains_page_flagged(index_mtr, index_rec,
+					     MTR_MEMO_PAGE_S_FIX
+					     | MTR_MEMO_PAGE_X_FIX));
 	ut_ad(rec_offs_validate(rec, index, offsets));
 	ut_a(dict_index_is_clust(index));
 
@@ -2251,17 +2248,11 @@ trx_undo_prev_version_build(
 
 	rec_trx_id = row_get_rec_trx_id(rec, index, offsets);
 
-	/* REDO rollback segment are used only for non-temporary objects.
-	For temporary objects NON-REDO rollback segments are used. */
-	bool is_redo_rseg =
-		dict_table_is_temporary(index->table) ? false : true;
 	if (trx_undo_get_undo_rec(
-		roll_ptr, rec_trx_id, heap, is_redo_rseg,
-		index->table->name, &undo_rec)) {
+		roll_ptr, rec_trx_id, heap, index->table->name, &undo_rec)) {
 		if (v_status & TRX_UNDO_PREV_IN_PURGE) {
 			/* We are fetching the record being purged */
-			undo_rec = trx_undo_get_undo_rec_low(
-				roll_ptr, heap, is_redo_rseg);
+			undo_rec = trx_undo_get_undo_rec_low(roll_ptr, heap);
 		} else {
 			/* The undo record may already have been purged,
 			during purge or semi-consistent read. */

@@ -1,6 +1,5 @@
 --source include/not_embedded.inc
 --source include/have_innodb.inc
---source include/not_windows.inc
 
 --disable_query_log
 CALL mtr.add_suppression(".*Failed to set O_DIRECT on file.*");

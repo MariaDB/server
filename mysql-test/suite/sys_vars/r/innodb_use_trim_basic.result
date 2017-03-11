@@ -1,12 +1,14 @@
 SET @start_use_trim = @@global.innodb_use_trim;
 SELECT @start_use_trim;
 @start_use_trim
-0
+1
 SELECT COUNT(@@GLOBAL.innodb_use_trim);
 COUNT(@@GLOBAL.innodb_use_trim)
 1
 1 Expected
 SET @@GLOBAL.innodb_use_trim=1;
+Warnings:
+Warning	131	Using innodb_use_trim is deprecated and the parameter will be removed in MariaDB 10.3.
 SELECT COUNT(@@GLOBAL.innodb_use_trim);
 COUNT(@@GLOBAL.innodb_use_trim)
 1
@@ -28,6 +30,8 @@ COUNT(VARIABLE_VALUE)
 1
 1 Expected
 SET @@global.innodb_use_trim = @start_use_trim;
+Warnings:
+Warning	131	Using innodb_use_trim is deprecated and the parameter will be removed in MariaDB 10.3.
 SELECT @@global.innodb_use_trim;
 @@global.innodb_use_trim
-0
+1

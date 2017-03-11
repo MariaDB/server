@@ -407,12 +407,12 @@ row_purge_remove_sec_if_poss_leaf(
 {
 	mtr_t			mtr;
 	btr_pcur_t		pcur;
-	ulint			mode;
+	enum btr_latch_mode	mode;
 	enum row_search_result	search_result;
 	bool			success	= true;
 
 	log_free_check();
-
+	ut_ad(!dict_table_is_temporary(index->table));
 	mtr_start(&mtr);
 	mtr.set_named_space(index->space);
 
@@ -436,23 +436,17 @@ row_purge_remove_sec_if_poss_leaf(
 			goto func_exit_no_pcur;
 		}
 
-		/* Change buffering is disabled for temporary tables. */
-		mode = (dict_table_is_temporary(index->table))
-			? BTR_MODIFY_LEAF | BTR_ALREADY_S_LATCHED
-			: BTR_MODIFY_LEAF | BTR_ALREADY_S_LATCHED
-			| BTR_DELETE;
+		mode = BTR_PURGE_LEAF_ALREADY_S_LATCHED;
 	} else {
 		/* For secondary indexes,
 		index->online_status==ONLINE_INDEX_COMPLETE if
 		index->is_committed(). */
 		ut_ad(!dict_index_is_online_ddl(index));
 
-		/* Change buffering is disabled for temporary tables
-		and spatial index. */
-		mode = (dict_table_is_temporary(index->table)
-			|| dict_index_is_spatial(index))
+		/* Change buffering is disabled for spatial index. */
+		mode = dict_index_is_spatial(index)
 			? BTR_MODIFY_LEAF
-			: BTR_MODIFY_LEAF | BTR_DELETE;
+			: BTR_PURGE_LEAF;
 	}
 
 	/* Set the purge node for the call to row_purge_poss_sec(). */
@@ -515,22 +509,22 @@ row_purge_remove_sec_if_poss_leaf(
 				page = btr_cur_get_page(btr_cur);
 
 				if (!lock_test_prdt_page_lock(
-					trx,
-					page_get_space_id(page),
-					page_get_page_no(page))
-				     && page_get_n_recs(page) < 2
-				     && page_get_page_no(page) !=
-					dict_index_get_page(index)) {
+					    trx,
+					    page_get_space_id(page),
+					    page_get_page_no(page))
+				    && page_get_n_recs(page) < 2
+				    && btr_cur_get_block(btr_cur)
+				    ->page.id.page_no() !=
+				    dict_index_get_page(index)) {
 					/* this is the last record on page,
 					and it has a "page" lock on it,
 					which mean search is still depending
 					on it, so do not delete */
-#ifdef UNIV_DEBUG
-					ib::info() << "skip purging last"
-						" record on page "
-						<< page_get_page_no(page)
-						<< ".";
-#endif /* UNIV_DEBUG */
+					DBUG_LOG("purge",
+						 "skip purging last"
+						 " record on page "
+						 << btr_cur_get_block(btr_cur)
+						 ->page.id);
 
 					btr_pcur_close(&pcur);
 					mtr_commit(&mtr);
@@ -751,13 +745,7 @@ skip_secondaries:
 						 &is_insert, &rseg_id,
 						 &page_no, &offset);
 
-			/* If table is temp then it can't have its undo log
-			residing in rollback segment with REDO log enabled. */
-			bool is_redo_rseg =
-				dict_table_is_temporary(node->table)
-				? false : true;
-			rseg = trx_sys_get_nth_rseg(
-				trx_sys, rseg_id, is_redo_rseg);
+			rseg = trx_rseg_get_on_id(rseg_id);
 
 			ut_a(rseg != NULL);
 			ut_a(rseg->id == rseg_id);
