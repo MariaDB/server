@@ -70,7 +70,7 @@ CREATE TABLE t_all (
 Chiffre int(3) not null,
 Lettre char(16) not null)
 ENGINE=CONNECT TABLE_TYPE=CSV FILE_NAME='num?.csv' HEADER=1 LRECL=20 MULTIPLE=1;
-SELECT * FROM t_all;
+SELECT * FROM t_all ORDER BY Chiffre;
 Chiffre	Lettre
 1	One
 2	Two
