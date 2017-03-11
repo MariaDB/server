@@ -1,1 +1,1 @@
---gtid_mode=ON --enforce_gtid_consistency --log_bin --log_slave_updates --rocksdb_write_sync=ON --rocksdb_write_disable_wal=OFF
+--gtid_mode=ON --enforce_gtid_consistency --log_bin --log_slave_updates --rocksdb_flush_log_at_trx_commit=1 --rocksdb_write_disable_wal=OFF

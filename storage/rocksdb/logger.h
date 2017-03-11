@@ -23,6 +23,10 @@ namespace myrocks {
 
 class Rdb_logger : public rocksdb::Logger {
 public:
+  explicit Rdb_logger(const rocksdb::InfoLogLevel log_level =
+                          rocksdb::InfoLogLevel::ERROR_LEVEL)
+      : m_mysql_log_level(log_level) {}
+
   void Logv(const rocksdb::InfoLogLevel log_level, const char *format,
             va_list ap) override {
     DBUG_ASSERT(format != nullptr);
@@ -33,7 +37,7 @@ public:
       m_logger->Logv(log_level, format, ap);
     }
 
-    if (log_level < GetInfoLogLevel()) {
+    if (log_level < m_mysql_log_level) {
       return;
     }
 
@@ -61,8 +65,21 @@ public:
     m_logger = logger;
   }
 
+  void SetInfoLogLevel(const rocksdb::InfoLogLevel log_level) override {
+    // The InfoLogLevel for the logger is used by rocksdb to filter
+    // messages, so it needs to be the lower of the two loggers
+    rocksdb::InfoLogLevel base_level = log_level;
+
+    if (m_logger && m_logger->GetInfoLogLevel() < base_level) {
+      base_level = m_logger->GetInfoLogLevel();
+    }
+    rocksdb::Logger::SetInfoLogLevel(base_level);
+    m_mysql_log_level = log_level;
+  }
+
 private:
   std::shared_ptr<rocksdb::Logger> m_logger;
+  rocksdb::InfoLogLevel m_mysql_log_level;
 };
 
 } // namespace myrocks

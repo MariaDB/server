@@ -1,7 +1,7 @@
 --source include/have_rocksdb.inc
 
 --disable_warnings
-DROP TABLE IF EXISTS t1, t2;
+DROP TABLE IF EXISTS t1, t2, t3;
 --enable_warnings
 
 # Create a table with a primary key and one secondary key as well as one
@@ -25,7 +25,7 @@ CREATE TABLE t3(pk CHAR(5) PRIMARY KEY, a char(30), b char(30), key(a)) COLLATE 
 perl;
 my $fn = $ENV{'ROCKSDB_INFILE'};
 open(my $fh, '>>', $fn) || die "perl open($fn): $!";
-my $max = 10000000;
+my $max = 5000000;
 my @chars = ("A".."Z", "a".."z", "0".."9");
 my @lowerchars = ("a".."z");
 my @powers_of_26 = (26 * 26 * 26 * 26, 26 * 26 * 26, 26 * 26, 26, 1);

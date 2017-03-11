@@ -1,3 +1,6 @@
+
+call mtr.add_suppression(" Column family '[a-z]*' not found.");
+
 --source include/have_rocksdb.inc
 
 CREATE TABLE valid_values (value varchar(255)) ENGINE=myisam;
@@ -10,6 +13,7 @@ CREATE TABLE invalid_values (value varchar(255)) ENGINE=myisam;
 --let $read_only=0
 --let $session=0
 --let $sticky=1
+
 --source suite/sys_vars/inc/rocksdb_sys_var.inc
 
 DROP TABLE valid_values;

@@ -16,6 +16,10 @@ DROP TABLE IF EXISTS t4;
 CREATE TABLE t1 (i INT, PRIMARY KEY (i) COMMENT 'cf_t1') ENGINE = ROCKSDB;
 CREATE TABLE t2 (j INT, PRIMARY KEY (j) COMMENT 'rev:cf_t2') ENGINE = ROCKSDB;
 CREATE TABLE t3 (k INT, PRIMARY KEY (k) COMMENT 'cf_t1') ENGINE = ROCKSDB;
+
+# With partition based column family creation we now expect all the partitions
+# to belong to a default column family because mapping wasn't specified in
+# this case.
 CREATE TABLE t4 (l INT, PRIMARY KEY (l) COMMENT 'cf_t4') ENGINE = ROCKSDB
     PARTITION BY KEY(l) PARTITIONS 4;
 

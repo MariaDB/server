@@ -341,5 +341,3 @@ while ($i <= $max) {
 #SHOW TABLE STATUS WHERE name LIKE 't1';
 
 DROP TABLE t1;
-
-

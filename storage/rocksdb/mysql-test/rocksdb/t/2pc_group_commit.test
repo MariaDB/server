@@ -14,7 +14,7 @@ CREATE TABLE t1(id BIGINT AUTO_INCREMENT, value BIGINT, PRIMARY KEY(id)) ENGINE=
 
 --echo # 2PC enabled, MyRocks durability enabled
 SET GLOBAL rocksdb_enable_2pc=0;
-SET GLOBAL rocksdb_write_sync=1;
+SET GLOBAL rocksdb_flush_log_at_trx_commit=1;
 
 --echo ## 2PC + durability + single thread
 select variable_value into @c from information_schema.global_status where variable_name='rocksdb_wal_group_syncs';
@@ -29,7 +29,7 @@ select case when variable_value-@c > 0 and variable_value-@c < 10000 then 'true'
 
 --echo # 2PC enabled, MyRocks durability disabled
 SET GLOBAL rocksdb_enable_2pc=0;
-SET GLOBAL rocksdb_write_sync=0;
+SET GLOBAL rocksdb_flush_log_at_trx_commit=0;
 
 select variable_value into @c from information_schema.global_status where variable_name='rocksdb_wal_group_syncs';
 --exec $MYSQL_SLAP --silent --concurrency=1 --number-of-queries=1000 --query="INSERT INTO t1 (id, value) VALUES(NULL, 1)"
@@ -42,7 +42,7 @@ select case when variable_value-@c = 0 then 'true' else 'false' end from informa
 
 --echo # 2PC disabled, MyRocks durability enabled
 SET GLOBAL rocksdb_enable_2pc=1;
-SET GLOBAL rocksdb_write_sync=1;
+SET GLOBAL rocksdb_flush_log_at_trx_commit=1;
 
 select variable_value into @c from information_schema.global_status where variable_name='rocksdb_wal_group_syncs';
 --exec $MYSQL_SLAP --silent --concurrency=1 --number-of-queries=1000 --query="INSERT INTO t1 (id, value) VALUES(NULL, 1)"
@@ -59,6 +59,6 @@ select case when variable_value-@c = 0 then 'true' else 'false' end from informa
 
 
 SET GLOBAL rocksdb_enable_2pc=1;
-SET GLOBAL rocksdb_write_sync=0;
+SET GLOBAL rocksdb_flush_log_at_trx_commit=1;
 DROP TABLE t1;
 DROP DATABASE mysqlslap;

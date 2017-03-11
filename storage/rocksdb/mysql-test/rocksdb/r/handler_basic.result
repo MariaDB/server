@@ -66,7 +66,7 @@ Handler_read_prev	0
 Handler_read_rnd	0
 Handler_read_rnd_next	10
 FLUSH STATUS;
-SELECT * FROM t1 WHERE b <=5 ORDER BY b;
+SELECT * FROM t1 FORCE INDEX(b) WHERE b <=5 ORDER BY b;
 id	a	b
 4	NULL	4
 5	NULL	5

@@ -1,4 +1,4 @@
-DROP TABLE IF EXISTS t1, t2;
+DROP TABLE IF EXISTS t1, t2, t3;
 CREATE TABLE t1(pk CHAR(5) PRIMARY KEY, a char(30), b char(30), key(a)) COLLATE 'latin1_bin';
 CREATE TABLE t2(pk CHAR(5) PRIMARY KEY, a char(30), b char(30), key(a)) COLLATE 'latin1_bin';
 CREATE TABLE t3(pk CHAR(5) PRIMARY KEY, a char(30), b char(30), key(a)) COLLATE 'latin1_bin'
@@ -19,9 +19,9 @@ LOAD DATA INFILE <input_file> INTO TABLE t3;
 set rocksdb_bulk_load=0;
 SHOW TABLE STATUS WHERE name LIKE 't%';
 Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	ROCKSDB	10	Fixed	10000000	#	#	#	#	0	NULL	NULL	NULL	NULL	latin1_bin	NULL		
-t2	ROCKSDB	10	Fixed	10000000	#	#	#	#	0	NULL	NULL	NULL	NULL	latin1_bin	NULL		
-t3	ROCKSDB	10	Fixed	10000000	#	#	#	#	0	NULL	NULL	NULL	NULL	latin1_bin	NULL	partitioned	
+t1	ROCKSDB	10	Fixed	5000000	#	#	#	#	0	NULL	NULL	NULL	NULL	latin1_bin	NULL		
+t2	ROCKSDB	10	Fixed	5000000	#	#	#	#	0	NULL	NULL	NULL	NULL	latin1_bin	NULL		
+t3	ROCKSDB	10	Fixed	5000000	#	#	#	#	0	NULL	NULL	NULL	NULL	latin1_bin	NULL	partitioned	
 ANALYZE TABLE t1, t2, t3;
 Table	Op	Msg_type	Msg_text
 test.t1	analyze	status	OK
@@ -29,36 +29,36 @@ test.t2	analyze	status	OK
 test.t3	analyze	status	OK
 SHOW TABLE STATUS WHERE name LIKE 't%';
 Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	ROCKSDB	10	Fixed	10000000	#	#	#	#	0	NULL	NULL	NULL	NULL	latin1_bin	NULL		
-t2	ROCKSDB	10	Fixed	10000000	#	#	#	#	0	NULL	NULL	NULL	NULL	latin1_bin	NULL		
-t3	ROCKSDB	10	Fixed	10000000	#	#	#	#	0	NULL	NULL	NULL	NULL	latin1_bin	NULL	partitioned	
+t1	ROCKSDB	10	Fixed	5000000	#	#	#	#	0	NULL	NULL	NULL	NULL	latin1_bin	NULL		
+t2	ROCKSDB	10	Fixed	5000000	#	#	#	#	0	NULL	NULL	NULL	NULL	latin1_bin	NULL		
+t3	ROCKSDB	10	Fixed	5000000	#	#	#	#	0	NULL	NULL	NULL	NULL	latin1_bin	NULL	partitioned	
 select count(pk) from t1;
 count(pk)
-10000000
+5000000
 select count(a) from t1;
 count(a)
-10000000
+5000000
 select count(b) from t1;
 count(b)
-10000000
+5000000
 select count(pk) from t2;
 count(pk)
-10000000
+5000000
 select count(a) from t2;
 count(a)
-10000000
+5000000
 select count(b) from t2;
 count(b)
-10000000
+5000000
 select count(pk) from t3;
 count(pk)
-10000000
+5000000
 select count(a) from t3;
 count(a)
-10000000
+5000000
 select count(b) from t3;
 count(b)
-10000000
+5000000
 longfilenamethatvalidatesthatthiswillgetdeleted.bulk_load.tmp
 test.bulk_load.tmp
 DROP TABLE t1, t2, t3;

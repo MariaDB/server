@@ -483,8 +483,15 @@ void Rdb_index_stats::merge(const Rdb_index_stats &s, const bool &increment,
     m_entry_single_deletes += s.m_entry_single_deletes;
     m_entry_merges += s.m_entry_merges;
     m_entry_others += s.m_entry_others;
-    for (i = 0; i < s.m_distinct_keys_per_prefix.size(); i++) {
-      m_distinct_keys_per_prefix[i] += s.m_distinct_keys_per_prefix[i];
+    if (s.m_distinct_keys_per_prefix.size() > 0) {
+      for (i = 0; i < s.m_distinct_keys_per_prefix.size(); i++) {
+        m_distinct_keys_per_prefix[i] += s.m_distinct_keys_per_prefix[i];
+      }
+    } else {
+      for (i = 0; i < m_distinct_keys_per_prefix.size(); i++) {
+        m_distinct_keys_per_prefix[i] +=
+            s.m_rows >> (m_distinct_keys_per_prefix.size() - i - 1);
+      }
     }
   } else {
     m_rows -= s.m_rows;
@@ -495,8 +502,15 @@ void Rdb_index_stats::merge(const Rdb_index_stats &s, const bool &increment,
     m_entry_single_deletes -= s.m_entry_single_deletes;
     m_entry_merges -= s.m_entry_merges;
     m_entry_others -= s.m_entry_others;
-    for (i = 0; i < s.m_distinct_keys_per_prefix.size(); i++) {
-      m_distinct_keys_per_prefix[i] -= s.m_distinct_keys_per_prefix[i];
+    if (s.m_distinct_keys_per_prefix.size() > 0) {
+      for (i = 0; i < s.m_distinct_keys_per_prefix.size(); i++) {
+        m_distinct_keys_per_prefix[i] -= s.m_distinct_keys_per_prefix[i];
+      }
+    } else {
+      for (i = 0; i < m_distinct_keys_per_prefix.size(); i++) {
+        m_distinct_keys_per_prefix[i] -=
+            s.m_rows >> (m_distinct_keys_per_prefix.size() - i - 1);
+      }
     }
   }
 }

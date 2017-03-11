@@ -125,4 +125,5 @@ CREATE TABLE abc (id INT PRIMARY KEY, value varchar(50), index(value)) engine=ro
 CREATE TABLE abcd (id INT PRIMARY KEY, value varchar(50), index(value)) engine=rocksdb charset utf8;
 ERROR HY000: Unsupported collation on string indexed column test.abcd.value Use binary collation (binary, latin1_bin, utf8_bin).
 DROP TABLE abc;
+SET GLOBAL rocksdb_strict_collation_exceptions=null;
 SET GLOBAL rocksdb_strict_collation_exceptions=@start_global_value;

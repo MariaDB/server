@@ -51,6 +51,9 @@ SET GLOBAL default_storage_engine=rocksdb;
 --exec $MYSQL_DUMP --skip-comments --single-transaction --master-data=2 --print-ordering-key test
 --exec grep "START TRANSACTION WITH CONSISTENT ROCKSDB SNAPSHOT" $MYSQLTEST_VARDIR/mysqld.1/mysqld.log | wc -l
 
+# Sanity test mysqldump when the --innodb-stats-on-metadata is specified (no effect)
+--echo ==== mysqldump with --innodb-stats-on-metadata ====
+--exec $MYSQL_DUMP --skip-comments --single-transaction --master-data=2 --print-ordering-key --innodb-stats-on-metadata test
 
 # wiping general log so that this test case doesn't fail with --repeat
 --exec echo "" > $MYSQLTEST_VARDIR/mysqld.1/mysqld.log

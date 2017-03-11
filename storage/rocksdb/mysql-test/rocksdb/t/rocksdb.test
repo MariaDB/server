@@ -792,6 +792,20 @@ insert into t47 values (2, 'row2');
 set rocksdb_bulk_load=1;
 insert into t47 values (3, 'row3'),(4, 'row4');
 set rocksdb_bulk_load=0;
+# Check concurrent bulk loading
+--connect (con1,localhost,root,,)
+set rocksdb_bulk_load=1;
+insert into t47 values (10, 'row10'),(11, 'row11');
+--connection default
+set rocksdb_bulk_load=1;
+insert into t47 values (100, 'row100'),(101, 'row101');
+--disconnect con1
+--connection default
+set rocksdb_bulk_load=0;
+--disable_query_log
+let $wait_condition = select count(*) = 8 as c from t47;
+--source include/wait_condition.inc
+--enable_query_log
 select * from t47;
 drop table t47;
 

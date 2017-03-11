@@ -167,6 +167,13 @@ public:
                         uchar *const packed_tuple, const uchar *const key_tuple,
                         const key_part_map &keypart_map) const;
 
+  uchar *pack_field(Field *const             field,
+                    Rdb_field_packing       *pack_info,
+                    uchar *                  tuple,
+                    uchar *const             packed_tuple,
+                    uchar *const             pack_buffer,
+                    Rdb_string_writer *const unpack_info,
+                    uint *const              n_null_fields) const;
   /* Convert a key from Table->record format to mem-comparable form */
   uint pack_record(const TABLE *const tbl, uchar *const pack_buffer,
                    const uchar *const record, uchar *const packed_tuple,
@@ -177,6 +184,11 @@ public:
   /* Pack the hidden primary key into mem-comparable form. */
   uint pack_hidden_pk(const longlong &hidden_pk_id,
                       uchar *const packed_tuple) const;
+  int unpack_field(Rdb_field_packing *const fpi,
+                   Field *const             field,
+                   Rdb_string_reader*       reader,
+                   const uchar *const       default_value,
+                   Rdb_string_reader*       unp_reader) const;
   int unpack_record(TABLE *const table, uchar *const buf,
                     const rocksdb::Slice *const packed_key,
                     const rocksdb::Slice *const unpack_info,
@@ -287,7 +299,7 @@ public:
               rocksdb::ColumnFamilyHandle *cf_handle_arg,
               uint16_t index_dict_version_arg, uchar index_type_arg,
               uint16_t kv_format_version_arg, bool is_reverse_cf_arg,
-              bool is_auto_cf_arg, const char *name,
+              bool is_auto_cf_arg, bool is_per_partition_cf, const char *name,
               Rdb_index_stats stats = Rdb_index_stats());
   ~Rdb_key_def();
 
@@ -303,7 +315,12 @@ public:
   enum {
     REVERSE_CF_FLAG = 1,
     AUTO_CF_FLAG = 2,
+    PER_PARTITION_CF_FLAG = 4,
   };
+
+  // Set of flags to ignore when comparing two CF-s and determining if
+  // they're same.
+  static const uint CF_FLAGS_TO_IGNORE = PER_PARTITION_CF_FLAG;
 
   // Data dictionary types
   enum DATA_DICT_TYPE {
@@ -414,6 +431,10 @@ public:
   bool m_is_reverse_cf;
 
   bool m_is_auto_cf;
+
+  /* If true, then column family is created per partition. */
+  bool m_is_per_partition_cf;
+
   std::string m_name;
   mutable Rdb_index_stats m_stats;
 
@@ -740,8 +761,13 @@ interface Rdb_tables_scanner {
 class Rdb_ddl_manager {
   Rdb_dict_manager *m_dict = nullptr;
   my_core::HASH m_ddl_hash; // Contains Rdb_tbl_def elements
-  // maps index id to <table_name, index number>
+  // Maps index id to <table_name, index number>
   std::map<GL_INDEX_ID, std::pair<std::string, uint>> m_index_num_to_keydef;
+
+  // Maps index id to key definitons not yet committed to data dictionary.
+  // This is mainly used to store key definitions during ALTER TABLE.
+  std::map<GL_INDEX_ID, std::shared_ptr<Rdb_key_def>>
+    m_index_num_to_uncommitted_keydef;
   mysql_rwlock_t m_rwlock;
 
   Rdb_seq_generator m_sequence;
@@ -787,6 +813,10 @@ public:
   int scan_for_tables(Rdb_tables_scanner *tables_scanner);
 
   void erase_index_num(const GL_INDEX_ID &gl_index_id);
+  void add_uncommitted_keydefs(
+      const std::unordered_set<std::shared_ptr<Rdb_key_def>> &indexes);
+  void remove_uncommitted_keydefs(
+      const std::unordered_set<std::shared_ptr<Rdb_key_def>> &indexes);
 
 private:
   /* Put the data into in-memory table (only) */
@@ -867,7 +897,7 @@ private:
 
   3. CF id => CF flags
   key: Rdb_key_def::CF_DEFINITION(0x3) + cf_id
-  value: version, {is_reverse_cf, is_auto_cf}
+  value: version, {is_reverse_cf, is_auto_cf, is_per_partition_cf}
   cf_flags is 4 bytes in total.
 
   4. Binlog entry (updated at commit)
@@ -930,9 +960,9 @@ public:
 
   inline void cleanup() { mysql_mutex_destroy(&m_mutex); }
 
-  inline void lock() { mysql_mutex_lock(&m_mutex); }
+  inline void lock() { RDB_MUTEX_LOCK_CHECK(m_mutex); }
 
-  inline void unlock() { mysql_mutex_unlock(&m_mutex); }
+  inline void unlock() { RDB_MUTEX_UNLOCK_CHECK(m_mutex); }
 
   /* Raw RocksDB operations */
   std::unique_ptr<rocksdb::WriteBatch> begin() const;

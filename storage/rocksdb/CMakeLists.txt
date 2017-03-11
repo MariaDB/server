@@ -28,6 +28,11 @@ INCLUDE_DIRECTORIES(
 ADD_DEFINITIONS(-DROCKSDB_PLATFORM_POSIX -DROCKSDB_LIB_IO_POSIX -DOS_LINUX
   -DZLIB)
 
+CHECK_FUNCTION_EXISTS(fallocate HAVE_FALLOCATE)
+IF(HAVE_FALLOCATE)
+  ADD_DEFINITIONS(-DROCKSDB_FALLOCATE_PRESENT)
+ENDIF()
+
 SET(ROCKSDB_SOURCES
   ha_rocksdb.cc ha_rocksdb.h ha_rocksdb_proto.h
   logger.h
@@ -41,6 +46,7 @@ SET(ROCKSDB_SOURCES
   rdb_index_merge.cc rdb_index_merge.h
   rdb_perf_context.cc rdb_perf_context.h
   rdb_mutex_wrapper.cc rdb_mutex_wrapper.h
+  rdb_psi.h rdb_psi.cc
   rdb_sst_info.cc rdb_sst_info.h
   rdb_utils.cc rdb_utils.h rdb_buff.h
   rdb_threads.cc rdb_threads.h

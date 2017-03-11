@@ -20,6 +20,7 @@
 /* C++ standard header files */
 #include <array>
 #include <string>
+#include <vector>
 
 /* C standard header files */
 #include <ctype.h>
@@ -210,6 +211,22 @@ const char *rdb_skip_id(const struct charset_info_st *const cs,
   DBUG_ASSERT(str != nullptr);
 
   return rdb_parse_id(cs, str, nullptr);
+}
+
+/*
+  Parses a given string into tokens (if any) separated by a specific delimiter.
+*/
+const std::vector<std::string> parse_into_tokens(
+  const std::string& s, const char delim) {
+  std::vector<std::string> tokens;
+  std::string t;
+  std::stringstream ss(s);
+
+  while (getline(ss, t, delim)) {
+    tokens.push_back(t);
+  }
+
+  return tokens;
 }
 
 static const std::size_t rdb_hex_bytes_per_char = 2;

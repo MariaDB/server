@@ -177,5 +177,8 @@ CREATE TABLE abc (id INT PRIMARY KEY, value varchar(50), index(value)) engine=ro
 CREATE TABLE abcd (id INT PRIMARY KEY, value varchar(50), index(value)) engine=rocksdb charset utf8;
 DROP TABLE abc;
 
+# test bad regex (null caused a crash) - Issue 493
+SET GLOBAL rocksdb_strict_collation_exceptions=null;
+
 # cleanup
 SET GLOBAL rocksdb_strict_collation_exceptions=@start_global_value;

@@ -55,12 +55,13 @@ Rdb_key_def::Rdb_key_def(uint indexnr_arg, uint keyno_arg,
                          rocksdb::ColumnFamilyHandle *cf_handle_arg,
                          uint16_t index_dict_version_arg, uchar index_type_arg,
                          uint16_t kv_format_version_arg, bool is_reverse_cf_arg,
-                         bool is_auto_cf_arg, const char *_name,
-                         Rdb_index_stats _stats)
+                         bool is_auto_cf_arg, bool is_per_partition_cf_arg,
+                         const char *_name, Rdb_index_stats _stats)
     : m_index_number(indexnr_arg), m_cf_handle(cf_handle_arg),
       m_index_dict_version(index_dict_version_arg),
       m_index_type(index_type_arg), m_kv_format_version(kv_format_version_arg),
       m_is_reverse_cf(is_reverse_cf_arg), m_is_auto_cf(is_auto_cf_arg),
+      m_is_per_partition_cf(is_per_partition_cf_arg),
       m_name(_name), m_stats(_stats), m_pk_part_no(nullptr),
       m_pack_info(nullptr), m_keyno(keyno_arg), m_key_parts(0),
       m_prefix_extractor(nullptr), m_maxlength(0) // means 'not intialized'
@@ -73,6 +74,7 @@ Rdb_key_def::Rdb_key_def(uint indexnr_arg, uint keyno_arg,
 Rdb_key_def::Rdb_key_def(const Rdb_key_def &k)
     : m_index_number(k.m_index_number), m_cf_handle(k.m_cf_handle),
       m_is_reverse_cf(k.m_is_reverse_cf), m_is_auto_cf(k.m_is_auto_cf),
+      m_is_per_partition_cf(k.m_is_per_partition_cf),
       m_name(k.m_name), m_stats(k.m_stats), m_pk_part_no(k.m_pk_part_no),
       m_pack_info(k.m_pack_info), m_keyno(k.m_keyno),
       m_key_parts(k.m_key_parts), m_prefix_extractor(k.m_prefix_extractor),
@@ -116,9 +118,9 @@ void Rdb_key_def::setup(const TABLE *const tbl,
   const bool hidden_pk_exists = table_has_hidden_pk(tbl);
   const bool secondary_key = (m_index_type == INDEX_TYPE_SECONDARY);
   if (!m_maxlength) {
-    mysql_mutex_lock(&m_mutex);
+    RDB_MUTEX_LOCK_CHECK(m_mutex);
     if (m_maxlength != 0) {
-      mysql_mutex_unlock(&m_mutex);
+      RDB_MUTEX_UNLOCK_CHECK(m_mutex);
       return;
     }
 
@@ -280,7 +282,7 @@ void Rdb_key_def::setup(const TABLE *const tbl,
      */
     m_maxlength = max_len;
 
-    mysql_mutex_unlock(&m_mutex);
+    RDB_MUTEX_UNLOCK_CHECK(m_mutex);
   }
 }
 
@@ -515,6 +517,50 @@ int Rdb_key_def::successor(uchar *const packed_tuple, const uint &len) {
   return changed;
 }
 
+uchar *Rdb_key_def::pack_field(
+  Field *const             field,
+  Rdb_field_packing       *pack_info,
+  uchar *                  tuple,
+  uchar *const             packed_tuple,
+  uchar *const             pack_buffer,
+  Rdb_string_writer *const unpack_info,
+  uint *const              n_null_fields) const
+{
+  if (field->real_maybe_null()) {
+    DBUG_ASSERT(is_storage_available(tuple - packed_tuple, 1));
+    if (field->is_real_null()) {
+      /* NULL value. store '\0' so that it sorts before non-NULL values */
+      *tuple++ = 0;
+      /* That's it, don't store anything else */
+      if (n_null_fields)
+        (*n_null_fields)++;
+      return tuple;
+    } else {
+      /* Not a NULL value. Store '1' */
+      *tuple++ = 1;
+    }
+  }
+
+  const bool create_unpack_info =
+      (unpack_info &&  // we were requested to generate unpack_info
+       pack_info->uses_unpack_info());  // and this keypart uses it
+  Rdb_pack_field_context pack_ctx(unpack_info);
+
+  // Set the offset for methods which do not take an offset as an argument
+  DBUG_ASSERT(is_storage_available(tuple - packed_tuple,
+                                   pack_info->m_max_image_len));
+
+  pack_info->m_pack_func(pack_info, field, pack_buffer, &tuple, &pack_ctx);
+
+  /* Make "unpack info" to be stored in the value */
+  if (create_unpack_info) {
+    pack_info->m_make_unpack_info_func(pack_info->m_charset_codec, field,
+                                       &pack_ctx);
+  }
+
+  return tuple;
+}
+
 /**
   Get index columns from the record and pack them into mem-comparable form.
 
@@ -595,45 +641,21 @@ uint Rdb_key_def::pack_record(const TABLE *const tbl, uchar *const pack_buffer,
     Field *const field = m_pack_info[i].get_field_in_table(tbl);
     DBUG_ASSERT(field != nullptr);
 
-    // Old Field methods expected the record pointer to be at tbl->record[0].
-    // The quick and easy way to fix this was to pass along the offset
-    // for the pointer.
-    const my_ptrdiff_t ptr_diff = record - tbl->record[0];
+    uint field_offset = field->ptr - tbl->record[0];
+    uint null_offset = field->null_offset(tbl->record[0]);
+    bool maybe_null = field->real_maybe_null();
+    field->move_field(const_cast<uchar*>(record) + field_offset,
+        maybe_null ? const_cast<uchar*>(record) + null_offset : nullptr,
+        field->null_bit);
+    // WARNING! Don't return without restoring field->ptr and field->null_ptr
 
-    if (field->real_maybe_null()) {
-      DBUG_ASSERT(is_storage_available(tuple - packed_tuple, 1));
-      if (field->is_real_null(ptr_diff)) {
-        /* NULL value. store '\0' so that it sorts before non-NULL values */
-        *tuple++ = 0;
-        /* That's it, don't store anything else */
-        if (n_null_fields)
-          (*n_null_fields)++;
-        continue;
-      } else {
-        /* Not a NULL value. Store '1' */
-        *tuple++ = 1;
-      }
-    }
+    tuple = pack_field(field, &m_pack_info[i], tuple, packed_tuple, pack_buffer,
+                       unpack_info, n_null_fields);
 
-    const bool create_unpack_info =
-        (unpack_info && // we were requested to generate unpack_info
-         m_pack_info[i].uses_unpack_info()); // and this keypart uses it
-    Rdb_pack_field_context pack_ctx(unpack_info);
-
-    // Set the offset for methods which do not take an offset as an argument
-    DBUG_ASSERT(is_storage_available(tuple - packed_tuple,
-                                     m_pack_info[i].m_max_image_len));
-    field->move_field_offset(ptr_diff);
-
-    m_pack_info[i].m_pack_func(&m_pack_info[i], field, pack_buffer, &tuple,
-                               &pack_ctx);
-
-    /* Make "unpack info" to be stored in the value */
-    if (create_unpack_info) {
-      m_pack_info[i].m_make_unpack_info_func(m_pack_info[i].m_charset_codec,
-                                             field, &pack_ctx);
-    }
-    field->move_field_offset(-ptr_diff);
+    // Restore field->ptr and field->null_ptr
+    field->move_field(tbl->record[0] + field_offset,
+                      maybe_null ? tbl->record[0] + null_offset : nullptr,
+                      field->null_bit);
   }
 
   if (unpack_info) {
@@ -824,6 +846,35 @@ size_t Rdb_key_def::key_length(const TABLE *const table,
   return key.size() - reader.remaining_bytes();
 }
 
+int Rdb_key_def::unpack_field(
+    Rdb_field_packing *const fpi,
+    Field *const             field,
+    Rdb_string_reader*       reader,
+    const uchar *const       default_value,
+    Rdb_string_reader*       unp_reader) const
+{
+  if (fpi->m_maybe_null) {
+    const char *nullp;
+    if (!(nullp = reader->read(1))) {
+      return HA_EXIT_FAILURE;
+    }
+
+    if (*nullp == 0) {
+      /* Set the NULL-bit of this field */
+      field->set_null();
+      /* Also set the field to its default value */
+      memcpy(field->ptr, default_value, field->pack_length());
+      return HA_EXIT_SUCCESS;
+    } else if (*nullp == 1) {
+      field->set_notnull();
+    } else {
+      return HA_EXIT_FAILURE;
+    }
+  }
+
+  return fpi->m_unpack_func(fpi, field, field->ptr, reader, unp_reader);
+}
+
 /*
   Take mem-comparable form and unpack_info and unpack it to Table->record
 
@@ -849,11 +900,6 @@ int Rdb_key_def::unpack_record(TABLE *const table, uchar *const buf,
   // the layout there is different. The checksum is verified in
   // ha_rocksdb::convert_record_from_storage_format instead.
   DBUG_ASSERT_IMP(!secondary_key, !verify_row_debug_checksums);
-
-  // Old Field methods expected the record pointer to be at tbl->record[0].
-  // The quick and easy way to fix this was to pass along the offset
-  // for the pointer.
-  const my_ptrdiff_t ptr_diff = buf - table->record[0];
 
   // Skip the index number
   if ((!reader.read(INDEX_NUMBER_SIZE))) {
@@ -891,35 +937,31 @@ int Rdb_key_def::unpack_record(TABLE *const table, uchar *const buf,
     if (fpi->m_unpack_func) {
       /* It is possible to unpack this column. Do it. */
 
-      if (fpi->m_maybe_null) {
-        const char *nullp;
-        if (!(nullp = reader.read(1)))
-          return HA_EXIT_FAILURE;
-        if (*nullp == 0) {
-          /* Set the NULL-bit of this field */
-          field->set_null(ptr_diff);
-          /* Also set the field to its default value */
-          uint field_offset = field->ptr - table->record[0];
-          memcpy(buf + field_offset, table->s->default_values + field_offset,
-                 field->pack_length());
-          continue;
-        } else if (*nullp == 1)
-          field->set_notnull(ptr_diff);
-        else
-          return HA_EXIT_FAILURE;
-      }
+      uint field_offset = field->ptr - table->record[0];
+      uint null_offset = field->null_offset();
+      bool maybe_null = field->real_maybe_null();
+      field->move_field(buf + field_offset,
+                        maybe_null ? buf + null_offset : nullptr,
+                        field->null_bit);
+      // WARNING! Don't return without restoring field->ptr and field->null_ptr
 
       // If we need unpack info, but there is none, tell the unpack function
       // this by passing unp_reader as nullptr. If we never read unpack_info
       // during unpacking anyway, then there won't an error.
       const bool maybe_missing_unpack =
           !has_unpack_info && fpi->uses_unpack_info();
-      const int res =
-          fpi->m_unpack_func(fpi, field, field->ptr + ptr_diff, &reader,
+      int res = unpack_field(fpi, field, &reader,
+                             table->s->default_values + field_offset,
                              maybe_missing_unpack ? nullptr : &unp_reader);
 
-      if (res)
+      // Restore field->ptr and field->null_ptr
+      field->move_field(table->record[0] + field_offset,
+                        maybe_null ? table->record[0] + null_offset : nullptr,
+                        field->null_bit);
+
+      if (res) {
         return res;
+      }
     } else {
       /* It is impossible to unpack the column. Skip it. */
       if (fpi->m_maybe_null) {
@@ -2141,7 +2183,7 @@ static void rdb_get_mem_comparable_space(const CHARSET_INFO *const cs,
                                          size_t *const mb_len) {
   DBUG_ASSERT(cs->number < MY_ALL_CHARSETS_SIZE);
   if (!rdb_mem_comparable_space[cs->number].get()) {
-    mysql_mutex_lock(&rdb_mem_cmp_space_mutex);
+    RDB_MUTEX_LOCK_CHECK(rdb_mem_cmp_space_mutex);
     if (!rdb_mem_comparable_space[cs->number].get()) {
       // Upper bound of how many bytes can be occupied by multi-byte form of a
       // character in any charset.
@@ -2167,7 +2209,7 @@ static void rdb_get_mem_comparable_space(const CHARSET_INFO *const cs,
       }
       rdb_mem_comparable_space[cs->number].reset(info);
     }
-    mysql_mutex_unlock(&rdb_mem_cmp_space_mutex);
+    RDB_MUTEX_UNLOCK_CHECK(rdb_mem_cmp_space_mutex);
   }
 
   *xfrm = &rdb_mem_comparable_space[cs->number]->spaces_xfrm;
@@ -2191,7 +2233,8 @@ rdb_init_collation_mapping(const my_core::CHARSET_INFO *const cs) {
   const Rdb_collation_codec *codec = rdb_collation_data[cs->number];
 
   if (codec == nullptr && rdb_is_collation_supported(cs)) {
-    mysql_mutex_lock(&rdb_collation_data_mutex);
+    RDB_MUTEX_LOCK_CHECK(rdb_collation_data_mutex);
+
     codec = rdb_collation_data[cs->number];
     if (codec == nullptr) {
       Rdb_collation_codec *cur = nullptr;
@@ -2235,7 +2278,8 @@ rdb_init_collation_mapping(const my_core::CHARSET_INFO *const cs) {
         rdb_collation_data[cs->number] = cur;
       }
     }
-    mysql_mutex_unlock(&rdb_collation_data_mutex);
+
+    RDB_MUTEX_UNLOCK_CHECK(rdb_collation_data_mutex);
   }
 
   return codec;
@@ -2597,9 +2641,10 @@ bool Rdb_tbl_def::put_dict(Rdb_dict_manager *const dict,
   for (uint i = 0; i < m_key_count; i++) {
     const Rdb_key_def &kd = *m_key_descr_arr[i];
 
-    const uchar flags =
+    uchar flags =
         (kd.m_is_reverse_cf ? Rdb_key_def::REVERSE_CF_FLAG : 0) |
-        (kd.m_is_auto_cf ? Rdb_key_def::AUTO_CF_FLAG : 0);
+        (kd.m_is_auto_cf ? Rdb_key_def::AUTO_CF_FLAG : 0) |
+        (kd.m_is_per_partition_cf ? Rdb_key_def::PER_PARTITION_CF_FLAG : 0);
 
     const uint cf_id = kd.get_cf()->GetID();
     /*
@@ -2610,13 +2655,21 @@ bool Rdb_tbl_def::put_dict(Rdb_dict_manager *const dict,
       control, we can switch to use it and removing mutex.
     */
     uint existing_cf_flags;
+    const std::string cf_name = kd.get_cf()->GetName();
+
     if (dict->get_cf_flags(cf_id, &existing_cf_flags)) {
+      // For the purposes of comparison we'll clear the partitioning bit. The
+      // intent here is to make sure that both partitioned and non-partitioned
+      // tables can refer to the same CF.
+      existing_cf_flags &= ~Rdb_key_def::CF_FLAGS_TO_IGNORE;
+      flags &= ~Rdb_key_def::CF_FLAGS_TO_IGNORE;
+
       if (existing_cf_flags != flags) {
         my_printf_error(ER_UNKNOWN_ERROR,
-                        "Column Family Flag is different from existing flag. "
-                        "Assign a new CF flag, or do not change existing "
-                        "CF flag.",
-                        MYF(0));
+                        "Column family ('%s') flag (%d) is different from an "
+                        "existing flag (%d). Assign a new CF flag, or do not "
+                        "change existing CF flag.", MYF(0), cf_name.c_str(),
+                        flags, existing_cf_flags);
         return true;
       }
     } else {
@@ -2688,6 +2741,24 @@ void Rdb_ddl_manager::free_hash_elem(void *const data) {
 
 void Rdb_ddl_manager::erase_index_num(const GL_INDEX_ID &gl_index_id) {
   m_index_num_to_keydef.erase(gl_index_id);
+}
+
+void Rdb_ddl_manager::add_uncommitted_keydefs(
+    const std::unordered_set<std::shared_ptr<Rdb_key_def>> &indexes) {
+  mysql_rwlock_wrlock(&m_rwlock);
+  for (const auto &index : indexes) {
+    m_index_num_to_uncommitted_keydef[index->get_gl_index_id()] = index;
+  }
+  mysql_rwlock_unlock(&m_rwlock);
+}
+
+void Rdb_ddl_manager::remove_uncommitted_keydefs(
+    const std::unordered_set<std::shared_ptr<Rdb_key_def>> &indexes) {
+  mysql_rwlock_wrlock(&m_rwlock);
+  for (const auto &index : indexes) {
+    m_index_num_to_uncommitted_keydef.erase(index->get_gl_index_id());
+  }
+  mysql_rwlock_unlock(&m_rwlock);
 }
 
 namespace // anonymous namespace = not visible outside this source file
@@ -3005,7 +3076,8 @@ bool Rdb_ddl_manager::init(Rdb_dict_manager *const dict_arg,
       tdef->m_key_descr_arr[keyno] = std::make_shared<Rdb_key_def>(
           gl_index_id.index_id, keyno, cfh, m_index_dict_version, m_index_type,
           kv_version, flags & Rdb_key_def::REVERSE_CF_FLAG,
-          flags & Rdb_key_def::AUTO_CF_FLAG, "",
+          flags & Rdb_key_def::AUTO_CF_FLAG,
+          flags & Rdb_key_def::PER_PARTITION_CF_FLAG, "",
           m_dict->get_stats(gl_index_id));
     }
     put(tdef);
@@ -3079,6 +3151,14 @@ Rdb_ddl_manager::safe_find(GL_INDEX_ID gl_index_id) {
         ret = kd;
       }
     }
+  } else {
+    auto it = m_index_num_to_uncommitted_keydef.find(gl_index_id);
+    if (it != m_index_num_to_uncommitted_keydef.end()) {
+      const auto &kd = it->second;
+      if (kd->max_storage_fmt_length() != 0) {
+        ret = kd;
+      }
+    }
   }
 
   mysql_rwlock_unlock(&m_rwlock);
@@ -3096,6 +3176,11 @@ Rdb_ddl_manager::find(GL_INDEX_ID gl_index_id) {
       if (it->second.second < table_def->m_key_count) {
         return table_def->m_key_descr_arr[it->second.second];
       }
+    }
+  } else {
+    auto it = m_index_num_to_uncommitted_keydef.find(gl_index_id);
+    if (it != m_index_num_to_uncommitted_keydef.end()) {
+      return it->second;
     }
   }
 
@@ -3126,6 +3211,8 @@ void Rdb_ddl_manager::adjust_stats(
     for (const auto &src : data) {
       const auto &keydef = find(src.m_gl_index_id);
       if (keydef) {
+        keydef->m_stats.m_distinct_keys_per_prefix.resize(
+            keydef->get_key_parts());
         keydef->m_stats.merge(src, i == 0, keydef->max_storage_fmt_length());
         m_stats2store[keydef->m_stats.m_gl_index_id] = keydef->m_stats;
       }
@@ -3671,6 +3758,7 @@ void Rdb_dict_manager::add_cf_flags(rocksdb::WriteBatch *const batch,
 void Rdb_dict_manager::delete_index_info(rocksdb::WriteBatch *batch,
                                          const GL_INDEX_ID &gl_index_id) const {
   delete_with_prefix(batch, Rdb_key_def::INDEX_INFO, gl_index_id);
+  delete_with_prefix(batch, Rdb_key_def::INDEX_STATISTICS, gl_index_id);
 }
 
 bool Rdb_dict_manager::get_index_info(const GL_INDEX_ID &gl_index_id,
@@ -4133,7 +4221,7 @@ uint Rdb_seq_generator::get_and_update_next_number(
   DBUG_ASSERT(dict != nullptr);
 
   uint res;
-  mysql_mutex_lock(&m_mutex);
+  RDB_MUTEX_LOCK_CHECK(m_mutex);
 
   res = m_next_number++;
 
@@ -4144,7 +4232,7 @@ uint Rdb_seq_generator::get_and_update_next_number(
   dict->update_max_index_id(batch, res);
   dict->commit(batch);
 
-  mysql_mutex_unlock(&m_mutex);
+  RDB_MUTEX_UNLOCK_CHECK(m_mutex);
 
   return res;
 }
