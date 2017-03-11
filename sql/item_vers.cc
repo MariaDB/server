@@ -19,9 +19,9 @@
     System Versioning items
 */
 
-#include "item.h"
 #include "sql_class.h"
 #include "tztime.h"
+#include "item.h"
 
 Item_func_vtq_ts::Item_func_vtq_ts(
     THD *thd,
