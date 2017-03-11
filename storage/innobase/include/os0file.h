@@ -426,15 +426,12 @@ public:
 		}
 	}
 
-	/** Punch a hole in the file if it was a write
+	/** Free storage space associated with a section of the file.
 	@param[in]	fh		Open file handle
-	@param[in]	len		Compressed buffer length for write
+	@param[in]	off		Starting offset (SEEK_SET)
+	@param[in]	len		Size of the hole
 	@return DB_SUCCESS or error code */
-
-	dberr_t punch_hole(
-		os_file_t	fh,
-		os_offset_t	offset,
-		os_offset_t	len);
+	dberr_t punch_hole(os_file_t fh, os_offset_t off, ulint len);
 
 private:
 	/** Page to be written on write operation. */

@@ -1920,8 +1920,7 @@ LinuxAIOHandler::collect()
 
 				slot->err = slot->type.punch_hole(
 					slot->file,
-					slot->offset,
-					static_cast<os_offset_t>(slot->len));
+					slot->offset, slot->len);
 			} else {
 				slot->err = DB_SUCCESS;
 			}
@@ -4881,9 +4880,7 @@ os_file_io(
 			    && !type.is_log()
 			    && type.is_write()
 			    && type.punch_hole()) {
-				*err = type.punch_hole(file,
-					offset,
-					static_cast<os_offset_t>(n));
+				*err = type.punch_hole(file, offset, n);
 
 			} else {
 				*err = DB_SUCCESS;
@@ -5541,10 +5538,7 @@ os_file_punch_hole(
 @param[in]	len		Size of the hole
 @return DB_SUCCESS or error code */
 dberr_t
-IORequest::punch_hole(
-	os_file_t	fh,
-	os_offset_t	off,
-	os_offset_t	len)
+IORequest::punch_hole(os_file_t fh, os_offset_t off, ulint len)
 {
 	/* In this debugging mode, we act as if punch hole is supported,
 	and then skip any calls to actually punch a hole here.
@@ -5553,7 +5547,7 @@ IORequest::punch_hole(
 		return(DB_SUCCESS);
 	);
 
-	os_offset_t trim_len = static_cast<os_offset_t>(get_trim_length(len));
+	ulint trim_len = get_trim_length(len);
 
 	if (trim_len == 0) {
 		return(DB_SUCCESS);

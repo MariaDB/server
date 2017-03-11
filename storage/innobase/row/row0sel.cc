@@ -2,7 +2,7 @@
 
 Copyright (c) 1997, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, Google Inc.
-Copyright (c) 2015, MariaDB Corporation.
+Copyright (c) 2015, 2017, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -3260,7 +3260,9 @@ row_sel_store_mysql_rec(
 			getting selected. The non-key virtual columns may
 			not be materialized and we should skip them. */
 			if (dfield_get_type(dfield)->mtype == DATA_MISSING) {
+#ifdef UNIV_DEBUG
 				ulint prefix;
+#endif /* UNIV_DEBUG */
 				ut_ad(prebuilt->m_read_virtual_key);
 
 				/* If it is part of index key the data should
@@ -5947,23 +5949,20 @@ func_exit:
 /*******************************************************************//**
 Checks if MySQL at the moment is allowed for this table to retrieve a
 consistent read result, or store it to the query cache.
-@return TRUE if storing or retrieving from the query cache is permitted */
-ibool
+@return whether storing or retrieving from the query cache is permitted */
+bool
 row_search_check_if_query_cache_permitted(
 /*======================================*/
 	trx_t*		trx,		/*!< in: transaction object */
 	const char*	norm_name)	/*!< in: concatenation of database name,
 					'/' char, table name */
 {
-	dict_table_t*	table;
-	ibool		ret	= FALSE;
-
-	table = dict_table_open_on_name(
+	dict_table_t*	table = dict_table_open_on_name(
 		norm_name, FALSE, FALSE, DICT_ERR_IGNORE_NONE);
 
 	if (table == NULL) {
 
-		return(FALSE);
+		return(false);
 	}
 
 	/* Start the transaction if it is not started yet */
@@ -5975,18 +5974,16 @@ row_search_check_if_query_cache_permitted(
 	read/write from/to the cache.
 
 	If a read view has not been created for the transaction then it doesn't
-	really matter what this transactin sees. If a read view was created
+	really matter what this transaction sees. If a read view was created
 	then the view low_limit_id is the max trx id that this transaction
 	saw at the time of the read view creation.  */
 
-	if (lock_table_get_n_locks(table) == 0
-	    && ((trx->id != 0 && trx->id >= table->query_cache_inv_id)
-		|| !MVCC::is_view_active(trx->read_view)
-		|| trx->read_view->low_limit_id()
-		>= table->query_cache_inv_id)) {
-
-		ret = TRUE;
-
+	const bool ret = lock_table_get_n_locks(table) == 0
+		&& ((trx->id != 0 && trx->id >= table->query_cache_inv_id)
+		    || !MVCC::is_view_active(trx->read_view)
+		    || trx->read_view->low_limit_id()
+		    >= table->query_cache_inv_id);
+	if (ret) {
 		/* If the isolation level is high, assign a read view for the
 		transaction if it does not yet have one */
 
