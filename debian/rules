@@ -134,8 +134,8 @@ override_dh_auto_install:
 	[ -f $(BUILDDIR)/storage/spider/ha_spider.so ] || sed -i -e "/Package: mariadb-plugin-spider/,+14d" debian/control
 
 	# Copy systemd files to a location available for dh_installinit
-	cp $(BUILDDIR)/support-files/mariadb.service debian/mariadb-server-10.2.mariadb.service
-	cp $(BUILDDIR)/support-files/mariadb@.service debian/mariadb-server-10.2.mariadb@.service
+	cp $(BUILDDIR)/support-files/mariadb.service debian/mariadb-server-10.3.mariadb.service
+	cp $(BUILDDIR)/support-files/mariadb@.service debian/mariadb-server-10.3.mariadb@.service
 
 	# make install
 	cd $(BUILDDIR) && $(MAKE) install DESTDIR=$(TMP)
@@ -147,19 +147,19 @@ override_dh_auto_install:
 
 	# nm numeric soft is not enough, therefore extra sort in command
 	# to satisfy Debian reproducible build requirements
-	nm --defined-only $(BUILDDIR)/sql/mysqld | LC_ALL=C sort | gzip -n -9 > $(TMP)/usr/share/doc/mariadb-server-10.2/mysqld.sym.gz
+	nm --defined-only $(BUILDDIR)/sql/mysqld | LC_ALL=C sort | gzip -n -9 > $(TMP)/usr/share/doc/mariadb-server-10.3/mysqld.sym.gz
 
 	# For 5.0 -> 10.2 transition
 	d=$(TMP)/usr/share/mysql-common/internal-use-only/; \
 	mkdir -p $$d; \
-	cp debian/mariadb-server-10.2.mysql.init $$d/_etc_init.d_mysql; \
-	cp debian/mariadb-server-10.2.mysql-server.logrotate $$d/_etc_logrotate.d_mysql-server; \
+	cp debian/mariadb-server-10.3.mysql.init $$d/_etc_init.d_mysql; \
+	cp debian/mariadb-server-10.3.mysql-server.logrotate $$d/_etc_logrotate.d_mysql-server; \
 	cp debian/additions/debian-start $$d/_etc_mysql_debian-start;
 
 	# rename and install AppArmor profile
 	install -D -m 644 debian/apparmor-profile $(TMP)/etc/apparmor.d/usr.sbin.mysqld
 	# install Apport hook
-	install -D -m 644 debian/mariadb-server-10.2.py $(TMP)/usr/share/apport/package-hooks/source_mariadb-10.2.py
+	install -D -m 644 debian/mariadb-server-10.3.py $(TMP)/usr/share/apport/package-hooks/source_mariadb-10.3.py
 
 	# Install libmariadbclient18 compatibility links
 	ln -s /usr/lib/$(DEB_HOST_MULTIARCH)/libmariadb.so.3 $(TMP)/usr/lib/$(DEB_HOST_MULTIARCH)/libmariadbclient.so.18
