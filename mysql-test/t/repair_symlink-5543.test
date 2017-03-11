@@ -19,7 +19,7 @@ drop table t1;
 eval create table t2 (a int) engine=aria data directory='$MYSQL_TMP_DIR';
 insert t2 values (1);
 --system ln -s $MYSQL_TMP_DIR/foobar5543 $MYSQL_TMP_DIR/t2.TMD
---replace_regex / '.*\/t2/ 'MYSQL_TMP_DIR\/t2/
+--replace_regex / '.*\/t2/ 'MYSQL_TMP_DIR\/t2/ /40/20/ /".*"/"<errmsg>"/
 repair table t2;
 drop table t2;
 
