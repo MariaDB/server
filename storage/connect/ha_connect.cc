@@ -172,7 +172,7 @@
 #define JSONMAX      10             // JSON Default max grp size
 
 extern "C" {
-       char version[]= "Version 1.05.0003 February 27, 2017";
+       char version[]= "Version 1.05.0003 March 7, 2017";
 #if defined(__WIN__)
        char compver[]= "Version 1.05.0003 " __DATE__ " "  __TIME__;
        char slash= '\\';
@@ -509,7 +509,7 @@ ha_create_table_option connect_table_option_list[]=
   HA_TOPTION_NUMBER("LRECL", lrecl, 0, 0, INT_MAX32, 1),
   HA_TOPTION_NUMBER("BLOCK_SIZE", elements, 0, 0, INT_MAX32, 1),
 //HA_TOPTION_NUMBER("ESTIMATE", estimate, 0, 0, INT_MAX32, 1),
-  HA_TOPTION_NUMBER("MULTIPLE", multiple, 0, 0, 2, 1),
+  HA_TOPTION_NUMBER("MULTIPLE", multiple, 0, 0, 3, 1),
   HA_TOPTION_NUMBER("HEADER", header, 0, 0, 3, 1),
   HA_TOPTION_NUMBER("QUOTED", quoted, (ulonglong) -1, 0, 3, 1),
   HA_TOPTION_NUMBER("ENDING", ending, (ulonglong) -1, 0, INT_MAX32, 1),

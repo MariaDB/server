@@ -69,6 +69,34 @@ class DllExport TDBMUL : public TDBASE {
   int     iFile;              // Index of currently processed file
   }; // end of class TDBMUL
 
+#if 0
+/***********************************************************************/
+/*  This is the MSD Access Method class declaration for files that are */
+/*  physically split in multiple files having the same format.         */
+/*  This sub-class also include files of the sub-directories.          */
+/***********************************************************************/
+class DllExport TDBMSD : public TDBMUL {
+	//friend class MULCOL;
+public:
+	// Constructor
+	TDBMSD(PTDB tdbp) : TDBMUL(tdbp) {}
+	TDBMSD(PTDBMSD tdbp) : TDBMUL(tdbp) {}
+
+	// Implementation
+	virtual PTDB Duplicate(PGLOBAL g);
+
+	// Methods
+	virtual PTDB Clone(PTABS t);
+	bool InitFileNames(PGLOBAL g);
+
+	// Database routines
+
+protected:
+
+	// Members
+}; // end of class TDBMSD
+#endif
+
 /***********************************************************************/
 /*  Directory listing table.                                           */
 /***********************************************************************/
@@ -101,18 +129,16 @@ class DllExport DIRDEF : public TABDEF {    /* Directory listing table */
 /***********************************************************************/
 class TDBDIR : public TDBASE {
   friend class DIRCOL;
- public:
+	friend class TDBMUL;
+public:
   // Constructor
   TDBDIR(PDIRDEF tdp);
-  TDBDIR(PTDBDIR tdbp);
+	TDBDIR(PSZ fpat);
 
   // Implementation
   virtual AMT  GetAmType(void) {return TYPE_AM_DIR;}
-  virtual PTDB Duplicate(PGLOBAL g)
-                {return (PTDB)new(g) TDBDIR(this);}
 
   // Methods
-  virtual PTDB Clone(PTABS t);
   virtual int GetRecpos(void) {return iFile;}
 
   // Database routines
@@ -127,14 +153,16 @@ class TDBDIR : public TDBASE {
   virtual void CloseDB(PGLOBAL g);
 
  protected:
+	void Init(void);
   char *Path(PGLOBAL g);
 
   // Members
   PSZ  To_File;                 // Points to file search pathname
   int  iFile;                   // Index of currently retrieved file
 #if defined(__WIN__)
-  _finddata_t    FileData;      // Find data structure
-  intptr_t Hsearch;             // Search handle
+	PVAL Dvalp;							      // Used to retrieve file date values
+	WIN32_FIND_DATA FileData;			// Find data structure
+	HANDLE hSearch;               // Search handle
   char Drive[_MAX_DRIVE];       // Drive name
 #else   // !__WIN__
   struct stat    Fileinfo;      // File info structure
@@ -158,17 +186,11 @@ class TDBDIR : public TDBASE {
 /***********************************************************************/
 class TDBSDR : public TDBDIR {
   friend class DIRCOL;
+	friend class TDBMUL;
  public:
   // Constructors
   TDBSDR(PDIRDEF tdp) : TDBDIR(tdp) {Sub = NULL;}
-  TDBSDR(PTDBSDR tdbp);
-
-  // Implementation
-  virtual PTDB Duplicate(PGLOBAL g)
-                {return (PTDB)new(g) TDBSDR(this);}
-
-  // Methods
-  virtual PTDB Clone(PTABS t);
+	TDBSDR(PSZ fpat) : TDBDIR(fpat) {Sub = NULL;}
 
   // Database routines
   virtual int  GetMaxSize(PGLOBAL g);
@@ -184,7 +206,7 @@ class TDBSDR : public TDBDIR {
     struct _Sub_Dir *Next;
     struct _Sub_Dir *Prev;
 #if defined(__WIN__)
-    intptr_t H;               // Search handle
+    HANDLE H;               // Search handle
 #else   // !__WIN__
     DIR *D;
 #endif  // !__WIN__
@@ -214,7 +236,11 @@ class DIRCOL : public COLBLK {
  protected:
   // Default constructor not to be used
   DIRCOL(void) {}
+#if defined(__WIN__)
+	void SetTimeValue(PGLOBAL g, FILETIME& ftime);
+#endif   // __WIN__
 
   // Members
+	PTDBDIR	Tdbp;								// To DIR table
   int     N;                  // Column number
   }; // end of class DIRCOL
