@@ -127,10 +127,10 @@ size_t my_write_stderr(const void *buf, size_t count);
 #ifdef HAVE_MADV_DONTDUMP
 
 /* Core dump exclusion constants */
-#define CORE_NODUMP_NONE                0
-#define CORE_NODUMP_MAX                 1 << 1
-#define CORE_NODUMP_INNODB_POOL_BUFFER  1 << 2
-#define CORE_NODUMP_MYISAM_KEY_BUFFER   1 << 3
+#define CORE_NODUMP_NONE                (0)
+#define CORE_NODUMP_INNODB_POOL_BUFFER  (1 << 1)
+#define CORE_NODUMP_MYISAM_KEY_BUFFER   (1 << 2)
+#define CORE_NODUMP_MAX                 (255)
 
 void exclude_from_coredump(void *ptr, size_t size, ulonglong flags);
 

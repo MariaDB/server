@@ -791,7 +791,7 @@ size_t my_safe_printf_stderr(const char* fmt, ...)
 
 void exclude_from_coredump(void *ptr, size_t size, ulonglong flags)
 {
-  if (opt_core_nodump & (flags | CORE_NODUMP_MAX)) {
+  if (opt_core_nodump & flags) {
     madvise(ptr, size, MADV_DONTDUMP);
   }
 }
