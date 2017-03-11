@@ -866,6 +866,7 @@ public:
                           const key_range *end_key)
       MY_ATTRIBUTE((__warn_unused_result__));
 
+  bool is_using_full_key(key_part_map keypart_map, uint actual_key_parts);
   int read_range_first(const key_range *const start_key,
                        const key_range *const end_key, bool eq_range,
                        bool sorted) override

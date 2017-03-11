@@ -3193,7 +3193,6 @@ public:
                                             size_t size)
   { return 0; }
 
-  bool is_using_full_key(key_part_map keypart_map, uint actual_key_parts);
   virtual int read_range_first(const key_range *start_key,
                                const key_range *end_key,
                                bool eq_range, bool sorted);

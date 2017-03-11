@@ -29,6 +29,12 @@ else()
   endif()
 endif()
 
+include (CheckTypeSize)
+check_type_size(size_t SIZEOF_SIZE_T)
+check_type_size(uint64_t SIZEOF_UINT64_T)
+set_property(SOURCE ha_rocksdb.cc APPEND PROPERTY COMPILE_DEFINITIONS
+  SIZEOF_SIZE_T=${SIZEOF_SIZE_T} SIZEOF_UINT64_T=${SIZEOF_UINT64_T})
+
 # Optional compression libraries.
 
 foreach(compression_lib LZ4 BZIP2 ZSTD snappy)

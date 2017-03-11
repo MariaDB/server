@@ -454,6 +454,18 @@ const int64 RDB_DEFAULT_BLOCK_CACHE_SIZE = 512 * 1024 * 1024;
 const int64 RDB_MIN_BLOCK_CACHE_SIZE = 1024;
 const int RDB_MAX_CHECKSUMS_PCT = 100;
 
+#if SIZEOF_ULONG == SIZEOF_SIZE_T
+#define MYSQL_SYSVAR_SIZE_T MYSQL_SYSVAR_ULONG
+#else
+#define MYSQL_SYSVAR_SIZE_T MYSQL_SYSVAR_ULONGLONG
+#endif
+
+#if SIZEOF_ULONG == SIZEOF_UINT64_T
+#define MYSQL_SYSVAR_UINT64_T MYSQL_SYSVAR_ULONG
+#else
+#define MYSQL_SYSVAR_UINT64_T MYSQL_SYSVAR_ULONGLONG
+#endif
+
 // TODO: 0 means don't wait at all, and we don't support it yet?
 static MYSQL_THDVAR_ULONG(lock_wait_timeout, PLUGIN_VAR_RQCMDARG,
                           "Number of seconds to wait for lock", nullptr,
@@ -5920,6 +5932,14 @@ int ha_rocksdb::secondary_index_read(const int keyno, uchar *const buf) {
     }
   }
   return HA_ERR_END_OF_FILE;
+}
+
+bool ha_rocksdb::is_using_full_key(key_part_map keypart_map,
+                                   uint actual_key_parts)
+{
+  return (keypart_map == HA_WHOLE_KEY) ||
+         (keypart_map == ((key_part_map(1) << actual_key_parts)
+                        - 1));
 }
 
 /*
