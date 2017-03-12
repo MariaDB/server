@@ -1,0 +1,77 @@
+#
+# Test the operation of TRUNCATE with concurrent DML. Even in the face of a concurrent INSERT,
+# the TRUNCATE will complete first and be recorded in the history before the INSERT.
+#
+
+--source include/big_test.inc
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+#
+# INSERT and TRUNCATE on different nodes
+#
+
+--connection node_1
+CREATE TABLE ten (f1 INTEGER) ENGINE=InnoDB;
+INSERT INTO ten VALUES (1),(2),(3),(4),(5),(6),(7),(8),(9),(10);
+
+CREATE TABLE t1 (f1 INTEGER) ENGINE=InnoDB;
+
+# Insert 100K rows
+--connection node_2
+--send INSERT INTO t1 (f1) SELECT 1 FROM ten AS a1, ten AS a2, ten AS a3, ten AS a4, ten AS a5, ten AS a6;
+
+--connection node_1
+--sleep 1
+--send TRUNCATE TABLE t1;
+
+--connection node_1
+--reap
+
+--connection node_2
+--reap
+
+--connection node_2
+SELECT COUNT(*) = 1000000 FROM t1;
+
+--connection node_1
+--let $wait_condition = SELECT COUNT(*) = 1000000 FROM t1;
+--source include/wait_condition.inc
+
+DROP TABLE t1;
+
+#
+# INSERT AND TRUNCATE on same node
+# 
+
+--let $galera_connection_name = node_1a
+--let $galera_server_number = 1
+--source include/galera_connect.inc
+
+--connection node_1
+
+CREATE TABLE t1 (f1 INTEGER) ENGINE=InnoDB;
+
+# Insert 100K rows
+--connection node_1
+--send INSERT INTO t1 (f1) SELECT 1 FROM ten AS a1, ten AS a2, ten AS a3, ten AS a4, ten AS a5, ten AS a6;
+
+--connection node_1a
+--sleep 1
+--send TRUNCATE TABLE t1;
+
+--connection node_1
+--reap
+
+--connection node_1a
+--reap
+
+--connection node_1
+SELECT COUNT(*) = 1000000 FROM t1;
+
+--connection node_2
+--let $wait_condition = SELECT COUNT(*) = 1000000 FROM t1;
+--source include/wait_condition.inc
+
+DROP TABLE t1;
+DROP TABLE ten;

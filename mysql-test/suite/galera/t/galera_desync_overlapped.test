@@ -1,0 +1,59 @@
+#
+# Test for overlapped transactions under manual desync.
+#
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+--source include/have_debug_sync.inc
+
+--let $galera_connection_name = node_1a
+--let $galera_server_number = 1
+--source include/galera_connect.inc
+
+--connection node_1
+
+CREATE TABLE ten (f1 INTEGER);
+INSERT INTO ten VALUES (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+
+CREATE TABLE t1 (f1 INTEGER, PRIMARY KEY (f1)) Engine=InnoDB;
+CREATE TABLE t2 (f1 INTEGER, PRIMARY KEY (f1)) Engine=InnoDB;
+
+SET GLOBAL wsrep_desync = 1;
+show status like 'wsrep_desync_count';
+SET DEBUG_SYNC='before_execute_sql_command SIGNAL alter1 WAIT_FOR alter2';
+send INSERT INTO t1 (f1) SELECT 0000 + (100 * a1.f1) + (10 * a2.f1) + a3.f1 FROM ten AS a1, ten AS a2, ten AS a3;
+
+--connection node_1a
+
+SET GLOBAL wsrep_desync = 1;
+show status like 'wsrep_desync_count';
+SET DEBUG_SYNC='now WAIT_FOR alter1';
+SET DEBUG_SYNC='before_execute_sql_command SIGNAL alter2';
+send INSERT INTO t2 (f1) SELECT 0000 + (100 * a1.f1) + (10 * a2.f1) + a3.f1 FROM ten AS a1, ten AS a2, ten AS a3;
+
+--connection node_1
+reap;
+
+--connection node_1a
+reap;
+
+--connection node_1
+
+SET DEBUG_SYNC='RESET';
+
+SET GLOBAL wsrep_desync = 0;
+show status like 'wsrep_desync_count';
+SET GLOBAL wsrep_desync = 0;
+show status like 'wsrep_desync_count';
+
+--disable_query_log
+call mtr.add_suppression("Trying to make wsrep_desync = OFF on the node that is already synchronized.");
+--enable_query_log
+show status like 'wsrep_desync_count';
+SET GLOBAL wsrep_desync = 0;
+
+SELECT COUNT(*) FROM t1;
+SELECT COUNT(*) FROM t2;
+
+DROP TABLE t1;
+DROP TABLE t2;
+DROP TABLE ten;
