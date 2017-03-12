@@ -102,6 +102,7 @@ disconnect con1;
 disconnect con2;
 disconnect con3;
 drop table t1, t2;
+connection default;
 drop table if exists t1,t2,t3;
 create table t1 (id int, value int, primary key (id)) engine=rocksdb;
 create table t2 (id int, id2 int, value int, primary key (id), unique key (id2)) engine=rocksdb;
