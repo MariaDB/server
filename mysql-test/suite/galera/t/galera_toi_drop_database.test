@@ -2,7 +2,6 @@
 # Test the operation of DDLs that affect multiple database objects
 #
 
---source include/big_test.inc
 --source include/galera_cluster.inc
 --source include/have_innodb.inc
 
@@ -20,11 +19,14 @@ INSERT INTO ten VALUES (1),(2),(3),(4),(5),(6),(7),(8),(9),(10);
 CREATE TABLE t1 (f1 INTEGER) ENGINE=InnoDB;
 CREATE TABLE t2 (f1 INTEGER) ENGINE=InnoDB;
 
-# Insert 1M rows
+# Make sure autocommit retrying does not kick in as this will mask the error we expect to get
+SET SESSION wsrep_retry_autocommit = 0;
+# Attemp to insert 1M rows
 --send INSERT INTO t1 (f1) SELECT 1 FROM ten AS a1, ten AS a2, ten AS a3, ten AS a4, ten AS a5;
 
 --connection node_1a
 USE database1;
+SET SESSION wsrep_retry_autocommit = 0;
 --send INSERT INTO t2 (f1) SELECT 1 FROM ten AS a1, ten AS a2, ten AS a3, ten AS a4, ten AS a5;
 
 --connection node_2
@@ -32,12 +34,12 @@ USE database1;
 --send DROP DATABASE database1;
 
 --connection node_1
---sleep 30
---error ER_NO_SUCH_TABLE
+--sleep 1
+--error ER_LOCK_DEADLOCK
 --reap
 
 --connection node_1a
---error ER_NO_SUCH_TABLE
+--error ER_LOCK_DEADLOCK
 --reap
 
 --connection node_2

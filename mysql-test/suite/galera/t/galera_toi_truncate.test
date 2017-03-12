@@ -1,9 +1,8 @@
 #
-# Test the operation of TRUNCATE with concurrent DML. Even in the face of a concurrent INSERT,
-# the TRUNCATE will complete first and be recorded in the history before the INSERT.
+# Test the operation of TRUNCATE with concurrent DML.
+# The DML should be BF-aborted if the DDL arrives from another node
 #
 
---source include/big_test.inc
 --source include/galera_cluster.inc
 --source include/have_innodb.inc
 
@@ -19,6 +18,8 @@ CREATE TABLE t1 (f1 INTEGER) ENGINE=InnoDB;
 
 # Insert 100K rows
 --connection node_2
+# Prevent autocommit retring from masking the deadlock error we expect to get
+SET SESSION wsrep_retry_autocommit = 0;
 --send INSERT INTO t1 (f1) SELECT 1 FROM ten AS a1, ten AS a2, ten AS a3, ten AS a4, ten AS a5, ten AS a6;
 
 --connection node_1
@@ -29,49 +30,14 @@ CREATE TABLE t1 (f1 INTEGER) ENGINE=InnoDB;
 --reap
 
 --connection node_2
+--error ER_LOCK_DEADLOCK
 --reap
 
 --connection node_2
-SELECT COUNT(*) = 1000000 FROM t1;
+SELECT COUNT(*) = 0 FROM t1;
 
 --connection node_1
---let $wait_condition = SELECT COUNT(*) = 1000000 FROM t1;
---source include/wait_condition.inc
-
-DROP TABLE t1;
-
-#
-# INSERT AND TRUNCATE on same node
-# 
-
---let $galera_connection_name = node_1a
---let $galera_server_number = 1
---source include/galera_connect.inc
-
---connection node_1
-
-CREATE TABLE t1 (f1 INTEGER) ENGINE=InnoDB;
-
-# Insert 100K rows
---connection node_1
---send INSERT INTO t1 (f1) SELECT 1 FROM ten AS a1, ten AS a2, ten AS a3, ten AS a4, ten AS a5, ten AS a6;
-
---connection node_1a
---sleep 1
---send TRUNCATE TABLE t1;
-
---connection node_1
---reap
-
---connection node_1a
---reap
-
---connection node_1
-SELECT COUNT(*) = 1000000 FROM t1;
-
---connection node_2
---let $wait_condition = SELECT COUNT(*) = 1000000 FROM t1;
---source include/wait_condition.inc
+SELECT COUNT(*) = 0 FROM t1;
 
 DROP TABLE t1;
 DROP TABLE ten;
