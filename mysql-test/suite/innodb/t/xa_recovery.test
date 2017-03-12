@@ -15,7 +15,8 @@ connect (con1,localhost,root);
 XA START 'x'; UPDATE t1 set a=2; XA END 'x'; XA PREPARE 'x';
 connection default;
 
---source include/kill_and_restart_mysqld.inc
+--let $shutdown_timeout=0
+--source include/restart_mysqld.inc
 
 disconnect con1;
 connect (con1,localhost,root);

@@ -70,7 +70,8 @@ SELECT a FROM t1;
 BEGIN;
 INSERT INTO t2 VALUES (42);
 
---source include/kill_and_restart_mysqld.inc
+--let $shutdown_timeout=0
+--source include/restart_mysqld.inc
 
 disconnect con1;
 disconnect con2;
@@ -138,7 +139,8 @@ SET DEBUG_SYNC='now WAIT_FOR have_latch';
 SELECT info FROM information_schema.processlist
 WHERE state = 'debug sync point: before_row_upd_extern';
 
---source include/kill_and_restart_mysqld.inc
+--let $shutdown_timeout=0
+--source include/restart_mysqld.inc
 
 disconnect con2;
 connection default;
@@ -177,7 +179,8 @@ SET DEBUG_SYNC='now WAIT_FOR have_latch';
 SELECT info FROM information_schema.processlist
 WHERE state = 'debug sync point: after_row_upd_extern';
 
---source include/kill_and_restart_mysqld.inc
+--let $shutdown_timeout=0
+--source include/restart_mysqld.inc
 
 disconnect con2;
 connection default;

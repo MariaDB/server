@@ -1,13 +1,11 @@
 CREATE TABLE t1(a INT PRIMARY KEY) ENGINE=InnoDB;
 BEGIN;
 INSERT INTO t1 VALUES (42);
-# Kill and restart: --innodb-log-file-size=6M
 SELECT * FROM t1;
 a
 INSERT INTO t1 VALUES (42);
 BEGIN;
 DELETE FROM t1;
-# Kill and restart: --innodb-log-files-in-group=3 --innodb-log-file-size=5M
 SELECT * FROM t1;
 a
 42
