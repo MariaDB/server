@@ -337,6 +337,7 @@ if(WIN32)
     port/win/env_default.cc
     port/win/port_win.cc
     port/win/win_logger.cc
+    port/win/win_thread.cc
     port/win/xpress_win.cc)
 else()
   list(APPEND ROCKSDB_SOURCES
