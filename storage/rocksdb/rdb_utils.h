@@ -106,6 +106,18 @@ namespace myrocks {
   DBUG_ASSERT(static_cast<bool>(a) == static_cast<bool>(b))
 #endif
 
+
+/*
+  Portability: use __PRETTY_FUNCTION__ when available, otherwise use __func__
+  which is in the standard.
+*/
+
+#ifdef __GNUC__
+#  define __MYROCKS_PORTABLE_PRETTY_FUNCTION__  __PRETTY_FUNCTION__
+#else
+#  define __MYROCKS_PORTABLE_PRETTY_FUNCTION__  __func__
+#endif
+
 /*
   Intent behind this macro is to avoid manually typing the function name every
   time we want to add the debugging statement and use the compiler for this
@@ -116,11 +128,7 @@ namespace myrocks {
   contains the signature of the function as well as its bare name and provides
   therefore more context when interpreting the logs.
 */
-#ifdef __GNUC__
-#  define DBUG_ENTER_FUNC() DBUG_ENTER(__PRETTY_FUNCTION__)
-#else
-#  define DBUG_ENTER_FUNC() DBUG_ENTER(__func__)
-#endif
+#define DBUG_ENTER_FUNC() DBUG_ENTER(__MYROCKS_PORTABLE_PRETTY_FUNCTION__)
 
 /*
   Error handling pattern used across MySQL abides by the following rules: "All
@@ -143,9 +151,10 @@ namespace myrocks {
   and unlocking mutexes.
 */
 #define RDB_MUTEX_LOCK_CHECK(m)                                                \
-  rdb_check_mutex_call_result(__PRETTY_FUNCTION__, true, mysql_mutex_lock(&m))
+  rdb_check_mutex_call_result(__MYROCKS_PORTABLE_PRETTY_FUNCTION__, true,      \
+                              mysql_mutex_lock(&m))
 #define RDB_MUTEX_UNLOCK_CHECK(m)                                              \
-  rdb_check_mutex_call_result(__PRETTY_FUNCTION__, false,                      \
+  rdb_check_mutex_call_result(__MYROCKS_PORTABLE_PRETTY_FUNCTION__, false,     \
                               mysql_mutex_unlock(&m))
 
 /*
