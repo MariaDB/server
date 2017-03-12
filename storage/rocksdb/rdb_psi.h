@@ -19,6 +19,7 @@
 
 /* MySQL header files */
 #include <my_global.h>
+#include <my_pthread.h>
 #include <mysql/psi/psi.h>
 
 /* MyRocks header files */
