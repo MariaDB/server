@@ -226,8 +226,8 @@ inline bool is_supported_parser_charset(CHARSET_INFO *cs)
          && wsrep_to_isolation_begin(thd, db_, table_, table_list_)) goto error;
 
 #define WSREP_SYNC_WAIT(thd_, before_)                                           \
-    if (WSREP_CLIENT(thd_) &&                                                    \
-        wsrep_sync_wait(thd_, before_)) goto error;
+    { if (WSREP_CLIENT(thd_) &&                                                  \
+          wsrep_sync_wait(thd_, before_)) goto error; }
 
 #else
 
