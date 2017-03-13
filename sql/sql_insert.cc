@@ -3833,8 +3833,8 @@ bool select_insert::prepare_eof()
 
 bool select_insert::send_ok_packet() {
   char  message[160];                           /* status message */
-  ulong row_count;                              /* rows affected */
-  ulong id;                                     /* last insert-id */
+  ulonglong row_count;                          /* rows affected */
+  ulonglong id;                                 /* last insert-id */
 
   DBUG_ENTER("select_insert::send_ok_packet");
 
