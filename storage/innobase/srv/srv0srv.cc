@@ -3,7 +3,7 @@
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, 2009 Google Inc.
 Copyright (c) 2009, Percona Inc.
-Copyright (c) 2013, 2017, MariaDB Corporation Ab. All Rights Reserved.
+Copyright (c) 2013, 2017, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -464,7 +464,7 @@ UNIV_INTERN const char* srv_io_thread_function[SRV_MAX_N_IO_THREADS];
 
 UNIV_INTERN time_t	srv_last_monitor_time;
 
-UNIV_INTERN ib_mutex_t	srv_innodb_monitor_mutex;
+static ib_mutex_t	srv_innodb_monitor_mutex;
 
 /* Mutex for locking srv_monitor_file. Not created if srv_read_only_mode */
 UNIV_INTERN ib_mutex_t	srv_monitor_file_mutex;

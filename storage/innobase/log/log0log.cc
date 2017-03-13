@@ -3252,12 +3252,6 @@ logs_empty_and_mark_files_at_shutdown(void)
 
 	ib_logf(IB_LOG_LEVEL_INFO, "Starting shutdown...");
 
-	while (srv_fast_shutdown == 0 && trx_rollback_or_clean_is_active) {
-		/* we should wait until rollback after recovery end
-		for slow shutdown */
-		os_thread_sleep(100000);
-	}
-
 	/* Wait until the master thread and all other operations are idle: our
 	algorithm only works if the server is idle at shutdown */
 
@@ -3306,6 +3300,8 @@ loop:
 		thread_name = "lock_wait_timeout_thread";
 	} else if (srv_buf_dump_thread_active) {
 		thread_name = "buf_dump_thread";
+	} else if (srv_fast_shutdown != 2 && trx_rollback_or_clean_is_active) {
+		thread_name = "rollback of recovered transactions";
 	} else {
 		thread_name = NULL;
 	}
@@ -3358,6 +3354,11 @@ wait_suspend_loop:
 				"finish flushing of buffer pool");
 			count = 0;
 		}
+	}
+
+	if (buf_flush_event) {
+		os_event_free(buf_flush_event);
+		buf_flush_event = NULL;
 	}
 
 	if (log_scrub_thread_active) {
@@ -3730,11 +3731,11 @@ log_shutdown(void)
 
 	if (!srv_read_only_mode && srv_scrub_log) {
 		os_event_free(log_scrub_event);
+		log_scrub_event = NULL;
 	}
 
 #ifdef UNIV_LOG_ARCHIVE
 	rw_lock_free(&log_sys->archive_lock);
-	os_event_create();
 #endif /* UNIV_LOG_ARCHIVE */
 
 #ifdef UNIV_LOG_DEBUG

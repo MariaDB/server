@@ -138,6 +138,7 @@ fil_space_crypt_cleanup()
 /*=====================*/
 {
 	os_event_free(fil_crypt_throttle_sleep_event);
+	fil_crypt_throttle_sleep_event = NULL;
 	mutex_free(&fil_crypt_key_mutex);
 	mutex_free(&crypt_stat_mutex);
 }
@@ -2542,7 +2543,9 @@ fil_crypt_threads_cleanup()
 	}
 	ut_a(!srv_n_fil_crypt_threads_started);
 	os_event_free(fil_crypt_event);
+	fil_crypt_event = NULL;
 	os_event_free(fil_crypt_threads_event);
+	fil_crypt_threads_event = NULL;
 	mutex_free(&fil_crypt_threads_mutex);
 	fil_crypt_threads_inited = false;
 }
