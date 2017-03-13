@@ -52,5 +52,6 @@ select table_catalog, table_schema, table_name, table_type, engine, row_format, 
 
 drop table t1, t2;
 
+remove_file $datadir/mysql_upgrade_info;
 uninstall plugin blackhole;
 uninstall plugin archive;

@@ -14,4 +14,5 @@
 --remove_file $out_file
 --error 0,1
 --remove_file $err_file
+--remove_file $MYSQLD_DATADIR/mysql_upgrade_info
 
