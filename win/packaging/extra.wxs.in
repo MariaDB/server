@@ -347,8 +347,6 @@
         <Control Id="LabelKB" Type="Text" Height="17" Width="15" X="150" Y="210" Text="KB" />
         <Control Id="ComboBoxInnodbPageSize" Type="ComboBox" X="104" Y="208" Width="30" Height="17" ComboList="yes" Sorted="yes" Property="PAGESIZE" >
         <ComboBox Property="PAGESIZE">
-          <ListItem Text=" 1" Value="1K"/>
-          <ListItem Text=" 2" Value="2K"/>
           <ListItem Text=" 4" Value="4K"/>
           <ListItem Text=" 8" Value="8K"/>
           <ListItem Text="16" Value="16K"/>
