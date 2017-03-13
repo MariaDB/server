@@ -15,6 +15,11 @@ MACRO(SKIP_ROCKSDB_PLUGIN msg)
   RETURN()
 ENDMACRO()
 
+# We've had our builders hang during the build process. This prevents MariaRocks
+# to be built on 32 bit intel OS kernels.
+IF(CMAKE_SYSTEM_PROCESSOR MATCHES "i[36]86")
+  SKIP_ROCKSDB_PLUGIN("Intel 32 bit not supported.")
+ENDIF()
 
 # This plugin needs recent C++ compilers (it is using C++11 features)
 # Skip build for the old compilers
