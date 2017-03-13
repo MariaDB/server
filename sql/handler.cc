@@ -3372,6 +3372,7 @@ void handler::print_error(int error, myf errflag)
     break;
   case ENOENT:
   case ENOTDIR:
+  case ELOOP:
     textno=ER_FILE_NOT_FOUND;
     break;
   case ENOSPC:
