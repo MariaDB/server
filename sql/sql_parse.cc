@@ -2502,7 +2502,6 @@ mysql_execute_command(THD *thd)
   case SQLCOM_SHOW_COLLATIONS:
   case SQLCOM_SHOW_STORAGE_ENGINES:
   case SQLCOM_SHOW_PROFILE:
-    WSREP_SYNC_WAIT(thd, WSREP_SYNC_WAIT_BEFORE_SHOW);
   case SQLCOM_SHOW_CLIENT_STATS:
   case SQLCOM_SHOW_USER_STATS:
   case SQLCOM_SHOW_TABLE_STATS:
@@ -2510,8 +2509,10 @@ mysql_execute_command(THD *thd)
   case SQLCOM_SELECT:
   {
 #ifdef WITH_WSREP
-    if (lex->sql_command == SQLCOM_SELECT)
-      WSREP_SYNC_WAIT(thd, WSREP_SYNC_WAIT_BEFORE_READ);
+      if (lex->sql_command == SQLCOM_SELECT)
+        WSREP_SYNC_WAIT(thd, WSREP_SYNC_WAIT_BEFORE_READ)
+      else
+        WSREP_SYNC_WAIT(thd, WSREP_SYNC_WAIT_BEFORE_SHOW)
 #endif /* WITH_WSREP */
     thd->status_var.last_query_cost= 0.0;
 
@@ -2635,6 +2636,7 @@ case SQLCOM_PREPARE:
   case SQLCOM_SHOW_RELAYLOG_EVENTS: /* fall through */
   case SQLCOM_SHOW_BINLOG_EVENTS:
   {
+    WSREP_SYNC_WAIT(thd, WSREP_SYNC_WAIT_BEFORE_SHOW);
     if (check_global_access(thd, REPL_SLAVE_ACL))
       goto error;
     res = mysql_show_binlog_events(thd);
@@ -3061,6 +3063,7 @@ end_with_restore_list:
     {
       if (check_global_access(thd, SUPER_ACL | REPL_CLIENT_ACL))
 	goto error;
+      WSREP_SYNC_WAIT(thd, WSREP_SYNC_WAIT_BEFORE_SHOW);
       res = show_binlogs(thd);
       break;
     }
@@ -4163,6 +4166,7 @@ end_with_restore_list:
 	 !strcmp(thd->security_ctx->priv_user, grant_user->user.str)) ||
         !check_access(thd, SELECT_ACL, "mysql", NULL, NULL, 1, 0))
     {
+      WSREP_SYNC_WAIT(thd, WSREP_SYNC_WAIT_BEFORE_SHOW);
       res = mysql_show_grants(thd, grant_user);
     }
     break;
