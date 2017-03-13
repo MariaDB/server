@@ -51,6 +51,11 @@ Table	Op	Msg_type	Msg_text
 test.t1	repair	status	OK
 Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK
+select lower(table_name) as tname
+from information_schema.tables 
+where table_schema=database()
+order by tname;
+tname
 t1
 temp0
 var_pop

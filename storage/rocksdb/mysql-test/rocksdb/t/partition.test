@@ -77,8 +77,11 @@ CREATE TABLE TEMP0 (a int) ENGINE = ROCKSDB PARTITION BY HASH (a) PARTITIONS 3;
 CREATE TABLE VAR_SAMP (a int) ENGINE = ROCKSDB PARTITION BY HASH (a) PARTITIONS 10;
 
 --enable_query_log
---lowercase_result
-SHOW TABLES;
+
+select lower(table_name) as tname
+from information_schema.tables 
+where table_schema=database()
+order by tname;
 
 SELECT * FROM t1 ORDER BY i LIMIT 10;
 SELECT COUNT(*) FROM t1;
