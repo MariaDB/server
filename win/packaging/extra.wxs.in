@@ -268,18 +268,7 @@
           <Condition Action="disable">NOT ModifyRootPassword</Condition>
         </Control>
 
-        <Control Id="CheckBoxCreateDefaultUser" Type="CheckBox" X="8" Y="154" Width="200" Height="18" Property="DEFAULTUSER"
-                 CheckBoxValue="--default-user" TabSkip="no">
-          <Text>{\Font1}Create An Anonymous Account</Text>
-        </Control>
-        <Control Id="Text14" Type="Text" X="21" Y="174" Width="268" Height="16" TabSkip="yes">
-          <Text>This option will create an anonymous account on this server. </Text>
-        </Control>
-        <Control Id="Text13" Type="Text" X="21" Y="190" Width="254" Height="24" TabSkip="yes">
-          <Text>Please note: this setting can lead to insecure systems.</Text>
-        </Control>
-
-        <Control Id="CheckBoxUTF8" Type="CheckBox" X="8" Y="215" Width="250" Height="18" Property="UTF8" CheckBoxValue="1" TabSkip="no">
+        <Control Id="CheckBoxUTF8" Type="CheckBox" X="8" Y="154" Width="250" Height="18" Property="UTF8" CheckBoxValue="1" TabSkip="no">
           <Text>{\Font1}Use UTF8 as default server's character set</Text>
         </Control>
 
