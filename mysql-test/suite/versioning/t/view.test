@@ -70,6 +70,9 @@ select * from vt1 for system_time all;
 select * from vvt1 for system_time all;
 select * from vvvt1 for system_time all;
 
+create or replace table t1 (x int) with system versioning;
+create or replace view vt1(c) as select x from t1;
+
 drop view vvvt1;
 drop view vvt1;
 drop view vt1;

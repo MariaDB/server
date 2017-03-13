@@ -463,12 +463,25 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
       TABLE_SHARE *s= tl->table->s;
       if (s->versioned)
       {
+        const char *start= s->vers_start_field()->field_name;
+        const char *end = s->vers_end_field()->field_name;
+
         select_lex->item_list.push_back(new (thd->mem_root) Item_field(
-            thd, &select_lex->context, NULL, NULL,
-            s->vers_start_field()->field_name));
+            thd, &select_lex->context, NULL, NULL, start));
         select_lex->item_list.push_back(new (thd->mem_root) Item_field(
-            thd, &select_lex->context, NULL, NULL,
-            s->vers_end_field()->field_name));
+            thd, &select_lex->context, NULL, NULL, end));
+
+        if (lex->view_list.elements)
+        {
+          if (LEX_STRING *s= thd->make_lex_string(start, strlen(start)))
+            lex->view_list.push_back(s);
+          else
+            goto err;
+          if (LEX_STRING *s= thd->make_lex_string(end, strlen(end)))
+            lex->view_list.push_back(s);
+          else
+            goto err;
+        }
       }
     }
   }
