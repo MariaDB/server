@@ -24,3 +24,15 @@ gap_lock_raise_error: MDEV-11735: MyRocks: Gap Lock detector support
 rqg_examples : Test that use RQG are disabled
 rqg_runtime : Test that use RQG are disabled
 rqg_transactions : Test that use RQG are disabled
+
+#
+# Temporarily disabled tests
+#
+information_schema : MariaRocks: requires GTIDs
+mysqlbinlog_gtid_skip_empty_trans_rocksdb : MariaRocks: requires GTIDs
+read_only_tx : MariaRocks: requires GTIDs
+
+2pc_group_commit : MariaRocks: Group Commit is not functional yet
+
+mysqldump : MariaRocks: MariaDB's mysqldump doesn't support --print-ordering-key
+
