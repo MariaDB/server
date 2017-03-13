@@ -835,10 +835,10 @@ int vers_setup_select(THD *thd, TABLE_LIST *tables, COND **where_expr,
       if ((table->is_derived() && !table->is_recursive_with_table()) ||
           table->join_columns)
       {
-        row_start= newx Item_field(thd, &slex->context, NULL, NULL,
+        row_start= newx Item_field(thd, &slex->context, table->db, table->alias,
                                    fstart->field_name);
-        row_end=
-            newx Item_field(thd, &slex->context, NULL, NULL, fend->field_name);
+        row_end= newx Item_field(thd, &slex->context, table->db, table->alias,
+                                 fend->field_name);
       }
       else
       {
