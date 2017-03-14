@@ -9,6 +9,7 @@ SHOW STATUS LIKE 'wsrep_desync_count';
 Variable_name	Value
 wsrep_desync_count	0
 SET @@global.wsrep_desync = 0;
+SET SESSION wsrep_sync_wait=7;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
