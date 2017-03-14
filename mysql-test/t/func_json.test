@@ -238,3 +238,10 @@ select json_merge('{"a":{"u":12, "x":"b", "r":1}}', '{"a":{"x":"c", "r":2}}') ;
 select json_compact('{"a":1, "b":[1,2,3], "c":{"aa":"v1", "bb": "v2"}}');
 select json_loose('{"a":1, "b":[1,2,3], "c":{"aa":"v1", "bb": "v2"}}');
 select json_detailed('{"a":1, "b":[1,2,3], "c":{"aa":"v1", "bb": "v2"}}');
+
+#
+# MDEV-11856 json_search doesn't search for values with double quotes character (")
+#
+
+SELECT JSON_search( '{"x": "\\""}', "one", '"');
+SELECT JSON_search( '{"x": "\\""}', "one", '\\"');
