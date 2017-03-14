@@ -3924,6 +3924,36 @@ Item *ha_maria::idx_cond_push(uint keyno_arg, Item* idx_cond_arg)
   return NULL;
 }
 
+/**
+  Find record by unique constrain (used in temporary tables)
+
+  @param record          (IN|OUT) the record to find
+  @param constrain_no    (IN) number of constrain (for this engine)
+
+  @note It is like hp_search but uses function for raw where hp_search
+        uses functions for index.
+
+  @retval  0 OK
+  @retval  1 Not found
+  @retval -1 Error
+*/
+
+int ha_maria::find_unique_row(uchar *record, uint constrain_no)
+{
+  MARIA_UNIQUEDEF *def= file->s->uniqueinfo + constrain_no;
+  ha_checksum unique_hash= _ma_unique_hash(def, record);
+  int rc= _ma_check_unique(file, def, record, unique_hash, HA_OFFSET_ERROR);
+  if (rc)
+  {
+    file->cur_row.lastpos= file->dup_key_pos;
+    if ((*file->read_record)(file, record, file->cur_row.lastpos))
+      return -1;
+    file->update|= HA_STATE_AKTIV;                     /* Record is read */
+  }
+  // invert logic
+  return (rc ? 0 : 1);
+}
+
 struct st_mysql_storage_engine maria_storage_engine=
 { MYSQL_HANDLERTON_INTERFACE_VERSION };
 

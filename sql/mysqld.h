@@ -689,11 +689,13 @@ enum enum_query_type
                         QT_ITEM_CACHE_WRAPPER_SKIP_DETAILS |
                         QT_ITEM_SUBSELECT_ID_ONLY,
 
-  /// This is used for EXPLAIN EXTENDED extra warnings
+  QT_SHOW_SELECT_NUMBER= (1<<10),
+  /// This is used for EXPLAIN EXTENDED extra warnings / Be more detailed
   /// Be more detailed than QT_EXPLAIN.
   /// Perhaps we should eventually include QT_ITEM_IDENT_SKIP_CURRENT_DATABASE
   /// here, as it would give better readable results
-  QT_EXPLAIN_EXTENDED=  QT_TO_SYSTEM_CHARSET,
+  QT_EXPLAIN_EXTENDED=  QT_TO_SYSTEM_CHARSET|
+                        QT_SHOW_SELECT_NUMBER,
 
   // If an expression is constant, print the expression, not the value
   // it evaluates to. Should be used for error messages, so that they

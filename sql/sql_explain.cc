@@ -29,6 +29,11 @@ const char * STR_DELETING_ALL_ROWS= "Deleting all rows";
 const char * STR_IMPOSSIBLE_WHERE= "Impossible WHERE";
 const char * STR_NO_ROWS_AFTER_PRUNING= "No matching rows after partition pruning";
 
+const char *unit_operation_text[4]=
+{
+   "UNIT RESULT","UNION RESULT","INTERSECT RESULT","EXCEPT RESULT"
+};
+
 static void write_item(Json_writer *writer, Item *item);
 static void append_item_to_str(String *out, Item *item);
 
@@ -418,8 +423,26 @@ int print_explain_row(select_result_sink *result,
 uint Explain_union::make_union_table_name(char *buf)
 {
   uint childno= 0;
-  uint len= 6, lastop= 0;
-  memcpy(buf, STRING_WITH_LEN("<union"));
+  uint len, lastop= 0;
+  LEX_STRING type;
+  switch (operation)
+  {
+    case OP_MIX:
+      lex_string_set3(&type, STRING_WITH_LEN("<unit"));
+      break;
+    case OP_UNION:
+      lex_string_set3(&type, STRING_WITH_LEN("<union"));
+      break;
+    case OP_INTERSECT:
+      lex_string_set3(&type, STRING_WITH_LEN("<intersect"));
+      break;
+    case OP_EXCEPT:
+      lex_string_set3(&type, STRING_WITH_LEN("<except"));
+      break;
+    default:
+      DBUG_ASSERT(0);
+  }
+  memcpy(buf, type.str, (len= type.length));
 
   for (; childno < union_members.elements() && len + lastop + 5 < NAME_LEN;
        childno++)
@@ -462,7 +485,7 @@ int Explain_union::print_explain(Explain_query *query,
   if (!using_tmp)
     return 0;
 
-  /* Print a line with "UNION RESULT" */
+  /* Print a line with "UNIT RESULT" */
   List<Item> item_list;
   Item *item_null= new (mem_root) Item_null(thd);
 
@@ -814,6 +837,28 @@ int Explain_basic_join::print_explain(Explain_query *query,
 }
 
 
+void Explain_select::add_linkage(Json_writer *writer)
+{
+  const char *operation= NULL;
+  switch (linkage)
+  {
+     case UNION_TYPE:
+       operation= "UNION";
+       break;
+     case INTERSECT_TYPE:
+       operation= "INTERSECT";
+       break;
+     case EXCEPT_TYPE:
+       operation= "EXCEPT";
+       break;
+     default:
+       // It is the first or the only SELECT => no operation
+       break;
+  }
+  if (operation)
+    writer->add_member("operation").add_str(operation);
+}
+
 void Explain_select::print_explain_json(Explain_query *query, 
                                         Json_writer *writer, bool is_analyze)
 {
@@ -825,6 +870,7 @@ void Explain_select::print_explain_json(Explain_query *query,
   {
     writer->add_member("query_block").start_object();
     writer->add_member("select_id").add_ll(select_id);
+    add_linkage(writer);
 
     writer->add_member("table").start_object();
     writer->add_member("message").add_str(message);
@@ -837,6 +883,7 @@ void Explain_select::print_explain_json(Explain_query *query,
   {
     writer->add_member("query_block").start_object();
     writer->add_member("select_id").add_ll(select_id);
+    add_linkage(writer);
 
     if (is_analyze && time_tracker.get_loops())
     {

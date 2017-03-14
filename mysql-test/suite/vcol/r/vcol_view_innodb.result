@@ -35,7 +35,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	5	100.00	
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	5	100.00	
 Warnings:
-Note	1003	select `v2`.`d` AS `d`,`v2`.`e` AS `e` from `test`.`v2`
+Note	1003	/* select#1 */ select `v2`.`d` AS `d`,`v2`.`e` AS `e` from `test`.`v2`
 create view v3 (d,e) as select d*2, e*2 from v1;
 select * from v3;
 d	e

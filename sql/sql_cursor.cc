@@ -68,13 +68,13 @@ public:
   create a Materialized_cursor.
 */
 
-class Select_materialize: public select_union
+class Select_materialize: public select_unit
 {
   select_result *result; /**< the result object of the caller (PS or SP) */
 public:
   Materialized_cursor *materialized_cursor;
   Select_materialize(THD *thd_arg, select_result *result_arg):
-    select_union(thd_arg), result(result_arg), materialized_cursor(0) {}
+    select_unit(thd_arg), result(result_arg), materialized_cursor(0) {}
   virtual bool send_result_set_metadata(List<Item> &list, uint flags);
   bool send_eof()
   {
@@ -436,7 +436,7 @@ bool Select_materialize::send_result_set_metadata(List<Item> &list, uint flags)
   if (create_result_table(unit->thd, unit->get_column_types(true),
                           FALSE,
                           thd->variables.option_bits | TMP_TABLE_ALL_COLUMNS,
-                          "", FALSE, TRUE, TRUE))
+                          "", FALSE, TRUE, TRUE, 0))
     return TRUE;
 
   materialized_cursor= new (&table->mem_root)

@@ -4477,10 +4477,13 @@ bool TABLE::fill_item_list(List<Item> *item_list) const
     is the same as the number of columns in the table.
 */
 
-void TABLE::reset_item_list(List<Item> *item_list) const
+void TABLE::reset_item_list(List<Item> *item_list, uint skip) const
 {
   List_iterator_fast<Item> it(*item_list);
-  for (Field **ptr= field; *ptr; ptr++)
+  Field **ptr= field;
+  for ( ; skip && *ptr; skip--)
+    ptr++;
+  for (; *ptr; ptr++)
   {
     Item_field *item_field= (Item_field*) it++;
     DBUG_ASSERT(item_field != 0);
@@ -7866,7 +7869,7 @@ int TABLE_LIST::fetch_number_of_rows()
   if (is_materialized_derived() && !fill_me)
 
   {
-    table->file->stats.records= ((select_union*)derived->result)->records;
+    table->file->stats.records= ((select_unit*)derived->result)->records;
     set_if_bigger(table->file->stats.records, 2);
     table->used_stat_records= table->file->stats.records;
   }

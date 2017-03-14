@@ -236,7 +236,7 @@ SELECT GROUP_CONCAT(a2.name ORDER BY a2.name) AS mbrwithin    FROM t1 a1 JOIN t1
 SELECT GROUP_CONCAT(a2.name ORDER BY a2.name) AS contains     FROM t1 a1 JOIN t1 a2 ON Contains(      a1.square, a2.square) WHERE a1.name = "center" GROUP BY a1.name;
 SELECT GROUP_CONCAT(a2.name ORDER BY a2.name) AS disjoint     FROM t1 a1 JOIN t1 a2 ON Disjoint(      a1.square, a2.square) WHERE a1.name = "center" GROUP BY a1.name;
 SELECT GROUP_CONCAT(a2.name ORDER BY a2.name) AS equals       FROM t1 a1 JOIN t1 a2 ON Equals(        a1.square, a2.square) WHERE a1.name = "center" GROUP BY a1.name;
-SELECT GROUP_CONCAT(a2.name ORDER BY a2.name) AS intersect    FROM t1 a1 JOIN t1 a2 ON Intersects(    a1.square, a2.square) WHERE a1.name = "center" GROUP BY a1.name;
+SELECT GROUP_CONCAT(a2.name ORDER BY a2.name) AS intersects   FROM t1 a1 JOIN t1 a2 ON Intersects(    a1.square, a2.square) WHERE a1.name = "center" GROUP BY a1.name;
 SELECT GROUP_CONCAT(a2.name ORDER BY a2.name) AS overlaps     FROM t1 a1 JOIN t1 a2 ON Overlaps(      a1.square, a2.square) WHERE a1.name = "center" GROUP BY a1.name;
 SELECT GROUP_CONCAT(a2.name ORDER BY a2.name) AS touches      FROM t1 a1 JOIN t1 a2 ON Touches(       a1.square, a2.square) WHERE a1.name = "center" GROUP BY a1.name;
 SELECT GROUP_CONCAT(a2.name ORDER BY a2.name) AS within       FROM t1 a1 JOIN t1 a2 ON Within(        a1.square, a2.square) WHERE a1.name = "center" GROUP BY a1.name;

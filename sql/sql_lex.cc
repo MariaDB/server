@@ -662,6 +662,7 @@ void lex_start(THD *thd)
   lex->context_stack.empty();
   lex->unit.init_query();
   lex->unit.init_select();
+  lex->select_lex.linkage= UNSPECIFIED_TYPE;
   /* 'parent_lex' is used in init_query() so it must be before it. */
   lex->select_lex.parent_lex= lex;
   lex->select_lex.init_query();
@@ -2079,6 +2080,7 @@ void st_select_lex_unit::init_query()
   with_clause= 0;
   with_element= 0;
   columns_are_renamed= false;
+  intersect_mark= NULL;
 }
 
 void st_select_lex::init_query()
@@ -2152,7 +2154,6 @@ void st_select_lex::init_select()
   ftfunc_list_alloc.empty();
   inner_sum_func_list= 0;
   ftfunc_list= &ftfunc_list_alloc;
-  linkage= UNSPECIFIED_TYPE;
   order_list.elements= 0;
   order_list.first= 0;
   order_list.next= &order_list.first;
@@ -2695,11 +2696,24 @@ void st_select_lex_unit::print(String *str, enum_query_type query_type)
   {
     if (sl != first_select())
     {
-      str->append(STRING_WITH_LEN(" union "));
-      if (union_all)
-	str->append(STRING_WITH_LEN("all "));
-      else if (union_distinct == sl)
-        union_all= TRUE;
+      switch (sl->linkage)
+      {
+      default:
+        DBUG_ASSERT(0);
+      case UNION_TYPE:
+        str->append(STRING_WITH_LEN(" union "));
+        if (union_all)
+          str->append(STRING_WITH_LEN("all "));
+        else if (union_distinct == sl)
+          union_all= TRUE;
+        break;
+      case INTERSECT_TYPE:
+        str->append(STRING_WITH_LEN(" intersect "));
+        break;
+      case EXCEPT_TYPE:
+        str->append(STRING_WITH_LEN(" except "));
+        break;
+      }
     }
     if (sl->braces)
       str->append('(');
@@ -4234,7 +4248,8 @@ void SELECT_LEX::update_used_tables()
   }
   for (ORDER *order= group_list.first; order; order= order->next)
     (*order->item)->update_used_tables();
-  if (!master_unit()->is_union() || master_unit()->global_parameters() != this)
+  if (!master_unit()->is_unit_op() ||
+      master_unit()->global_parameters() != this)
   {
     for (ORDER *order= order_list.first; order; order= order->next)
       (*order->item)->update_used_tables();
@@ -4292,7 +4307,7 @@ void st_select_lex::update_correlated_cache()
     is_correlated|= MY_TEST((*order->item)->used_tables() &
                             OUTER_REF_TABLE_BIT);
 
-  if (!master_unit()->is_union())
+  if (!master_unit()->is_unit_op())
   {
     for (ORDER *order= order_list.first; order; order= order->next)
       is_correlated|= MY_TEST((*order->item)->used_tables() &
@@ -4380,36 +4395,47 @@ void st_select_lex::set_explain_type(bool on_the_fly)
     }
     else
     {
-      /* This a non-first sibling in UNION */
-      if (is_uncacheable & UNCACHEABLE_DEPENDENT)
-        type= "DEPENDENT UNION";
-      else if (using_materialization)
-        type= "MATERIALIZED UNION";
-      else
+      switch (linkage)
       {
-        type= is_uncacheable ? "UNCACHEABLE UNION": "UNION";
-        if (this == master_unit()->fake_select_lex)
-          type= "UNION RESULT";
-        /*
-          join below may be =NULL when this functions is called at an early
-          stage. It will be later called again and we will set the correct
-          value.
-        */
-        if (join)
+      case INTERSECT_TYPE:
+        type= "INTERSECT";
+        break;
+      case EXCEPT_TYPE:
+        type= "EXCEPT";
+        break;
+      default:
+        /* This a non-first sibling in UNION */
+        if (is_uncacheable & UNCACHEABLE_DEPENDENT)
+          type= "DEPENDENT UNION";
+        else if (using_materialization)
+          type= "MATERIALIZED UNION";
+        else
         {
-          bool uses_cte= false;
-          for (JOIN_TAB *tab= first_explain_order_tab(join); tab;
-               tab= next_explain_order_tab(join, tab))
+          type= is_uncacheable ? "UNCACHEABLE UNION": "UNION";
+          if (this == master_unit()->fake_select_lex)
+            type= unit_operation_text[master_unit()->common_op()];
+          /*
+            join below may be =NULL when this functions is called at an early
+            stage. It will be later called again and we will set the correct
+            value.
+          */
+          if (join)
           {
-            if (tab->table && tab->table->pos_in_table_list->with)
+            bool uses_cte= false;
+            for (JOIN_TAB *tab= first_explain_order_tab(join); tab;
+                 tab= next_explain_order_tab(join, tab))
             {
-              uses_cte= true;
-              break;
+              if (tab->table && tab->table->pos_in_table_list->with)
+              {
+                uses_cte= true;
+                break;
+              }
             }
+            if (uses_cte)
+              type= "RECURSIVE UNION";
           }
-          if (uses_cte)
-            type= "RECURSIVE UNION";
         }
+        break;
       }
     }
   }
@@ -4448,8 +4474,20 @@ void SELECT_LEX::increase_derived_records(ha_rows records)
       return; 
   }
   
-  select_union *result= (select_union*)unit->result;
-  result->records+= records;
+  select_unit *result= (select_unit*)unit->result;
+  switch (linkage)
+  {
+  case INTERSECT_TYPE:
+    // result of intersect can't be more then one of components
+    set_if_smaller(result->records, records);
+  case EXCEPT_TYPE:
+    // in worse case none of record will be removed
+    break;
+  default:
+    // usual UNION
+    result->records+= records;
+    break;
+  }
 }
 
 
@@ -4474,7 +4512,7 @@ void SELECT_LEX::mark_const_derived(bool empty)
   {
     if (!empty)
       increase_derived_records(1);
-    if (!master_unit()->is_union() && !derived->is_merged_derived())
+    if (!master_unit()->is_unit_op() && !derived->is_merged_derived())
       derived->fill_me= TRUE;
   }
 }
@@ -4703,6 +4741,42 @@ void LEX::restore_set_statement_var()
   DBUG_VOID_RETURN;
 }
 
+unit_common_op st_select_lex_unit::common_op()
+{
+  SELECT_LEX *first= first_select();
+  bool first_op= TRUE;
+  unit_common_op operation= OP_MIX; // if no op
+  for (SELECT_LEX *sl= first; sl; sl= sl->next_select())
+  {
+    if (sl != first)
+    {
+      unit_common_op op;
+      switch (sl->linkage)
+      {
+      case INTERSECT_TYPE:
+        op= OP_INTERSECT;
+        break;
+      case EXCEPT_TYPE:
+        op= OP_EXCEPT;
+        break;
+      default:
+        op= OP_UNION;
+        break;
+      }
+      if (first_op)
+      {
+        operation= op;
+        first_op= FALSE;
+      }
+      else
+      {
+        if (operation != op)
+          operation= OP_MIX;
+      }
+    }
+  }
+  return operation;
+}
 /*
   Save explain structures of a UNION. The only variable member is whether the 
   union has "Using filesort".
@@ -4739,11 +4813,10 @@ int st_select_lex_unit::save_union_explain(Explain_query *output)
     Note: Non-merged semi-joins cannot be made out of UNIONs currently, so we
     dont ever set EXPLAIN_NODE_NON_MERGED_SJ.
   */
-
   for (SELECT_LEX *sl= first; sl; sl= sl->next_select())
     eu->add_select(sl->select_number);
 
-  eu->fake_select_type= "UNION RESULT";
+  eu->fake_select_type= unit_operation_text[eu->operation= common_op()];
   eu->using_filesort= MY_TEST(global_parameters()->order_list.first);
   eu->using_tmp= union_needs_tmp_table();
 
@@ -4796,6 +4869,133 @@ bool LEX::is_partition_management() const
   return (sql_command == SQLCOM_ALTER_TABLE &&
           (alter_info.flags ==  Alter_info::ALTER_ADD_PARTITION ||
            alter_info.flags ==  Alter_info::ALTER_REORGANIZE_PARTITION));
+}
+
+
+/**
+  Exclude last added SELECT_LEX (current) in the UNIT and return pointer in it
+  (previous become currect)
+
+  @return detached SELECT_LEX or NULL in case of error
+*/
+
+SELECT_LEX *LEX::exclude_last_select()
+{
+  DBUG_ENTER("SELECT_LEX::exclude_last_select");
+  SELECT_LEX *exclude= current_select;
+  SELECT_LEX_UNIT *unit= exclude->master_unit();
+  SELECT_LEX *sl;
+  DBUG_ASSERT(unit->first_select() != exclude);
+  /* we should go through the list to correctly set current_select */
+  for(sl= unit->first_select();
+      sl->next_select() && sl->next_select() != exclude;
+      sl= sl->next_select());
+  DBUG_PRINT("info", ("excl: %p  unit: %p  prev: %p", exclude, unit, sl));
+  if (!sl)
+    DBUG_RETURN(NULL);
+  DBUG_ASSERT(exclude->next_select() == NULL);
+  exclude->exclude_from_tree();
+  current_select= sl;
+  DBUG_RETURN(exclude);
+}
+
+
+/**
+  Put given (new) SELECT_LEX level below after currect (last) SELECT
+
+  LAST SELECT -> DUMMY SELECT
+                     |
+                     V
+                 NEW UNIT
+                     |
+                     V
+                 NEW SELECT
+
+  SELECT (*LAST*) ... FROM (SELECT (*NEW*) ... )
+
+  @param nselect         Select to put one level below
+
+  @retval TRUE  Error
+  @retval FALSE OK
+*/
+
+bool LEX::add_unit_in_brackets(SELECT_LEX *nselect)
+{
+  DBUG_ENTER("LEX::add_unit_in_brackets");
+  bool distinct= nselect->master_unit()->union_distinct == nselect;
+  bool rc= add_select_to_union_list(distinct, nselect->linkage, 0);
+  if (rc)
+    DBUG_RETURN(TRUE);
+  SELECT_LEX* dummy_select= current_select;
+  dummy_select->automatic_brackets= TRUE;
+  dummy_select->linkage= nselect->linkage;
+
+  /* stuff dummy SELECT * FROM (...) */
+  Name_resolution_context *context= &dummy_select->context;
+  context->init();
+
+  /* add SELECT list*/
+  Item *item= new (thd->mem_root)
+    Item_field(thd, context, NULL, NULL, "*");
+  if (item == NULL)
+    DBUG_RETURN(TRUE);
+  if (add_item_to_list(thd, item))
+    DBUG_RETURN(TRUE);
+  (dummy_select->with_wild)++;
+
+  rc= mysql_new_select(this, 1, nselect);
+  nselect->linkage= DERIVED_TABLE_TYPE;
+  DBUG_ASSERT(nselect->outer_select() == dummy_select);
+
+  current_select= dummy_select;
+  current_select->nest_level--;
+
+  SELECT_LEX_UNIT *unit= nselect->master_unit();
+  Table_ident *ti= new (thd->mem_root) Table_ident(unit);
+  if (ti == NULL)
+    DBUG_RETURN(TRUE);
+  char buff[10];
+  LEX_STRING alias;
+  alias.length= my_snprintf(buff, sizeof(buff),
+                            "__%u", dummy_select->select_number);
+  alias.str= thd->strmake(buff, alias.length);
+  if (!alias.str)
+    DBUG_RETURN(TRUE);
+
+  TABLE_LIST *table_list;
+  if (!(table_list= dummy_select->add_table_to_list(thd, ti, &alias,
+                                                    0, TL_READ,
+                                                    MDL_SHARED_READ)))
+    DBUG_RETURN(TRUE);
+  context->resolve_in_table_list_only(table_list);
+  dummy_select->add_joined_table(table_list);
+
+  derived_tables|= DERIVED_SUBQUERY;
+
+  current_select= nselect;
+  current_select->nest_level++;
+  DBUG_RETURN(rc);
+}
+
+
+/**
+  Checks if we need finish "automatic brackets" mode
+
+  INTERSECT has higher priority then UNION and EXCEPT, so when it is need we
+  automatically create lower layer for INTERSECT (automatic brackets) and
+  here we check if we should return back one level up during parsing procedure.
+*/
+
+void LEX::check_automatic_up(enum sub_select_type type)
+{
+  if (type != INTERSECT_TYPE &&
+      current_select->linkage == INTERSECT_TYPE &&
+      current_select->outer_select() &&
+      current_select->outer_select()->automatic_brackets)
+  {
+    nest_level--;
+    current_select= current_select->outer_select();
+  }
 }
 
 #ifdef MYSQL_SERVER

@@ -65,6 +65,7 @@
 #include "set_var.h"
 #include "rpl_mi.h"
 #include "lex_token.h"
+#include "sql_lex.h"
 
 /* this is to get the bison compilation windows warnings out */
 #ifdef _MSC_VER
@@ -657,26 +658,29 @@ Item* handle_sql2003_note184_exception(THD *thd, Item* left, bool equal,
    reported. In the latter case parsing should stop.
  */
 bool LEX::add_select_to_union_list(bool is_union_distinct,
+                                   enum sub_select_type type,
                                    bool is_top_level)
 {
-  /* 
+  const char *type_name= (type == INTERSECT_TYPE ? "INTERSECT" :
+                     (type == EXCEPT_TYPE ? "EXCEPT" : "UNION"));
+  /*
      Only the last SELECT can have INTO. Since the grammar won't allow INTO in
      a nested SELECT, we make this check only when creating a top-level SELECT.
   */
   if (is_top_level && result)
   {
-    my_error(ER_WRONG_USAGE, MYF(0), "UNION", "INTO");
+    my_error(ER_WRONG_USAGE, MYF(0), type_name, "INTO");
     return TRUE;
   }
   if (current_select->order_list.first && !current_select->braces)
   {
-    my_error(ER_WRONG_USAGE, MYF(0), "UNION", "ORDER BY");
+    my_error(ER_WRONG_USAGE, MYF(0), type_name, "ORDER BY");
     return TRUE;
   }
 
   if (current_select->explicit_limit && !current_select->braces)
   {
-    my_error(ER_WRONG_USAGE, MYF(0), "UNION", "LIMIT");
+    my_error(ER_WRONG_USAGE, MYF(0), type_name, "LIMIT");
     return TRUE;
   }
   if (current_select->linkage == GLOBAL_OPTIONS_TYPE)
@@ -684,15 +688,44 @@ bool LEX::add_select_to_union_list(bool is_union_distinct,
     my_parse_error(thd, ER_SYNTAX_ERROR);
     return TRUE;
   }
+  if (!is_union_distinct && (type == INTERSECT_TYPE || type == EXCEPT_TYPE))
+  {
+    my_error(ER_WRONG_USAGE, MYF(0), type_name, "ALL");
+    return TRUE;
+  }
+  /*
+    Priority implementation, but also trying to keep things as flat
+    as possible */
+  if (type == INTERSECT_TYPE &&
+      (current_select->linkage != INTERSECT_TYPE &&
+       current_select != current_select->master_unit()->first_select()))
+  {
+    /*
+      This and previous SELECTs should go one level down because of
+      priority
+    */
+    SELECT_LEX *prev= exclude_last_select();
+    if (add_unit_in_brackets(prev))
+      return TRUE;
+    return add_select_to_union_list(is_union_distinct, type, 0);
+  }
+  else
+  {
+    check_automatic_up(type);
+  }
   /* This counter shouldn't be incremented for UNION parts */
   nest_level--;
-  if (mysql_new_select(this, 0))
+  if (mysql_new_select(this, 0, NULL))
     return TRUE;
   mysql_init_select(this);
-  current_select->linkage=UNION_TYPE;
+  current_select->linkage= type;
   if (is_union_distinct) /* UNION DISTINCT - remember position */
+  {
     current_select->master_unit()->union_distinct=
       current_select;
+  }
+  else
+    DBUG_ASSERT(type == UNION_TYPE);
   return FALSE;
 }
 
@@ -935,6 +968,7 @@ Virtual_column_info *add_virtual_expression(THD *thd, Item *expr)
   st_trg_execution_order trg_execution_order;
 
   /* enums */
+  enum sub_select_type unit_type;
   enum Condition_information_item::Name cond_info_item_name;
   enum enum_diag_condition_item_name diag_condition_item_name;
   enum Diagnostics_information::Which_area diag_area;
@@ -1171,6 +1205,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  EVERY_SYM                     /* SQL-2003-N */
 %token  EXCHANGE_SYM
 %token  EXAMINED_SYM
+%token  EXCEPT_SYM                    /* SQL-2003-R */
 %token  EXCLUDE_SYM                   /* SQL-2011-N */
 %token  EXECUTE_SYM                   /* SQL-2003-R */
 %token  EXISTS                        /* SQL-2003-R */
@@ -1250,6 +1285,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  INSERT                        /* SQL-2003-R */
 %token  INSERT_METHOD
 %token  INSTALL_SYM
+%token  INTERSECT_SYM                 /* SQL-2003-R */
 %token  INTERVAL_SYM                  /* SQL-2003-R */
 %token  INTO                          /* SQL-2003-R */
 %token  INT_SYM                       /* SQL-2003-R */
@@ -1880,6 +1916,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 
 %type <virtual_column> opt_check_constraint check_constraint virtual_column_func
         column_default_expr
+%type <unit_type> unit_type_decl
 
 %type <NONE>
         analyze_stmt_command
@@ -11010,6 +11047,7 @@ table_primary_derived:
                  are no outer parentheses, add_table_to_list() will throw
                  error in this case */
               LEX *lex=Lex;
+              lex->check_automatic_up(UNSPECIFIED_TYPE);
               SELECT_LEX *sel= lex->current_select;
               SELECT_LEX_UNIT *unit= sel->master_unit();
               lex->current_select= sel= unit->outer_select();
@@ -11025,10 +11063,6 @@ table_primary_derived:
               lex->pop_context();
               lex->nest_level--;
             }
-            /*else if (($3->select_lex &&
-                      $3->select_lex->master_unit()->is_union() &&
-                      ($3->select_lex->master_unit()->first_select() ==
-                       $3->select_lex || !$3->lifted)) || $5)*/
             else if ($5 != NULL)
             {
               /*
@@ -11195,7 +11229,7 @@ select_derived2:
               MYSQL_YYABORT;
             }
             if (lex->current_select->linkage == GLOBAL_OPTIONS_TYPE ||
-                mysql_new_select(lex, 1))
+                mysql_new_select(lex, 1, NULL))
               MYSQL_YYABORT;
             mysql_init_select(lex);
             lex->current_select->linkage= DERIVED_TABLE_TYPE;
@@ -11683,13 +11717,13 @@ order_clause:
                 yet.
               */
               SELECT_LEX *first_sl= unit->first_select();
-              if (!unit->is_union() &&
+              if (!unit->is_unit_op() &&
                   (first_sl->order_list.elements || 
                    first_sl->select_limit) &&            
                   unit->add_fake_select_lex(thd))
                 MYSQL_YYABORT;
             }
-            if (sel->master_unit()->is_union() && !sel->braces)
+            if (sel->master_unit()->is_unit_op() && !sel->braces)
             {
                /*
                  At this point we don't know yet whether this is the last
@@ -11729,7 +11763,7 @@ limit_clause_init:
           LIMIT
           {
             SELECT_LEX *sel= Select;
-            if (sel->master_unit()->is_union() && !sel->braces)
+            if (sel->master_unit()->is_unit_op() && !sel->braces)
             {
               /* Move LIMIT that belongs to UNION to fake_select_lex */
               Lex->current_select= sel->master_unit()->fake_select_lex;
@@ -16162,6 +16196,14 @@ release:
    UNIONS : glue selects together
 */
 
+unit_type_decl:
+          UNION_SYM
+          { $$= UNION_TYPE; }
+        | INTERSECT_SYM
+          { $$= INTERSECT_TYPE; }
+        | EXCEPT_SYM
+          { $$= EXCEPT_TYPE; }
+
 
 union_clause:
           /* empty */ {}
@@ -16169,9 +16211,9 @@ union_clause:
         ;
 
 union_list:
-          UNION_SYM union_option
+          unit_type_decl union_option
           {
-            if (Lex->add_select_to_union_list((bool)$2, TRUE))
+            if (Lex->add_select_to_union_list((bool)$2, $1, TRUE))
               MYSQL_YYABORT;
           }
           union_list_part2
@@ -16185,9 +16227,9 @@ union_list:
         ;
 
 union_list_view:
-          UNION_SYM union_option
+          unit_type_decl union_option
           {
-            if (Lex->add_select_to_union_list((bool)$2, TRUE))
+            if (Lex->add_select_to_union_list((bool)$2, $1, TRUE))
               MYSQL_YYABORT;
           }
           query_expression_body_view
@@ -16226,9 +16268,9 @@ order_or_limit:
   Start a UNION, for non-top level query expressions.
 */
 union_head_non_top:
-          UNION_SYM union_option
+          unit_type_decl union_option
           {
-            if (Lex->add_select_to_union_list((bool)$2, FALSE))
+            if (Lex->add_select_to_union_list((bool)$2, $1, FALSE))
               MYSQL_YYABORT;
           }
         ;
@@ -16296,7 +16338,7 @@ subselect_start:
               (SELECT .. ) UNION ...  becomes 
               SELECT * FROM ((SELECT ...) UNION ...)
             */
-            if (mysql_new_select(Lex, 1))
+            if (mysql_new_select(Lex, 1, NULL))
               MYSQL_YYABORT;
           }
         ;
@@ -16305,6 +16347,7 @@ subselect_end:
           {
             LEX *lex=Lex;
 
+            lex->check_automatic_up(UNSPECIFIED_TYPE);
             lex->pop_context();
             SELECT_LEX *child= lex->current_select;
             lex->current_select = lex->current_select->return_after_parsing();

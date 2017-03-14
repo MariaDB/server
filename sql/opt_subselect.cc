@@ -4888,7 +4888,7 @@ int rewrite_to_index_subquery_engine(JOIN *join)
       join->unit->item && 
       join->unit->item->substype() == Item_subselect::IN_SUBS &&
       join->table_count == 1 && join->conds &&
-      !join->unit->is_union())
+      !join->unit->is_unit_op())
   {
     if (!join->having)
     {

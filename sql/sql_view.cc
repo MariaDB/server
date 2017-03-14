@@ -1095,7 +1095,7 @@ loop_out:
     UNION
   */
   if (view->updatable_view &&
-      !lex->select_lex.master_unit()->is_union() &&
+      !lex->select_lex.master_unit()->is_unit_op() &&
       !(lex->select_lex.table_list.first)->next_local &&
       find_table_in_global_list(lex->query_tables->next_global,
 				lex->query_tables->db,
@@ -1672,7 +1672,7 @@ bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *table,
         We can safely ignore the VIEW's ORDER BY if we merge into union 
         branch, as order is not important there.
       */
-      if (!table->select_lex->master_unit()->is_union() &&
+      if (!table->select_lex->master_unit()->is_unit_op() &&
           table->select_lex->order_list.elements == 0)
         table->select_lex->order_list.push_back(&lex->select_lex.order_list);
       else
@@ -1680,7 +1680,7 @@ bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *table,
         if (old_lex->sql_command == SQLCOM_SELECT &&
             (old_lex->describe & DESCRIBE_EXTENDED) &&
             lex->select_lex.order_list.elements &&
-            !table->select_lex->master_unit()->is_union())
+            !table->select_lex->master_unit()->is_unit_op())
         {
           push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
                               ER_VIEW_ORDERBY_IGNORED,

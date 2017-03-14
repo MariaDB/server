@@ -88,7 +88,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 2	UNION	t2	ALL	NULL	NULL	NULL	NULL	4	100.00	Using filesort
 NULL	UNION RESULT	<union1,2>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	Using filesort
 Warnings:
-Note	1003	(select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1` limit 2) union all (select `test`.`t2`.`a` AS `a`,`test`.`t2`.`b` AS `b` from `test`.`t2` order by `test`.`t2`.`a` limit 1) order by `b` desc
+Note	1003	(/* select#1 */ select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1` limit 2) union all (/* select#2 */ select `test`.`t2`.`a` AS `a`,`test`.`t2`.`b` AS `b` from `test`.`t2` order by `test`.`t2`.`a` limit 1) order by `b` desc
 select count(*) from (
 (select                      a,b from t1 limit 2)  union all (select a,b from t2 order by a)) q;
 count(*)
@@ -544,7 +544,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 2	UNION	t2	const	PRIMARY	PRIMARY	4	const	1	100.00	
 NULL	UNION RESULT	<union1,2>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 Warnings:
-Note	1003	(select 1 AS `a`,1 AS `b` from `test`.`t1` where 1) union (select 1 AS `a`,10 AS `b` from `test`.`t2` where 1)
+Note	1003	(/* select#1 */ select 1 AS `a`,1 AS `b` from `test`.`t1` where 1) union (/* select#2 */ select 1 AS `a`,10 AS `b` from `test`.`t2` where 1)
 (select * from t1 where a=5) union (select * from t2 where a=1);
 a	b
 1	10
@@ -1616,7 +1616,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 2	UNION	t1	system	NULL	NULL	NULL	NULL	0	0.00	const row not found
 NULL	UNION RESULT	<union1,2>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	Using filesort
 Warnings:
-Note	1003	select NULL AS `a` from `test`.`t1` union select NULL AS `a` from `test`.`t1` order by `a`
+Note	1003	/* select#1 */ select NULL AS `a` from `test`.`t1` union /* select#2 */ select NULL AS `a` from `test`.`t1` order by `a`
 DROP TABLE t1;
 #
 # Bug#32858: Error: "Incorrect usage of UNION and INTO" does not take 
@@ -1670,7 +1670,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 2	UNION	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	
 NULL	UNION RESULT	<union1,2>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	Using filesort
 Warnings:
-Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` union select `test`.`t1`.`a` AS `a` from `test`.`t1` order by `a` + 12
+Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a` from `test`.`t1` union /* select#2 */ select `test`.`t1`.`a` AS `a` from `test`.`t1` order by `a` + 12
 # Should not crash
 SELECT * FROM t1 UNION SELECT * FROM t1 ORDER BY a + 12;
 a
@@ -1685,7 +1685,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 2	UNION	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	
 NULL	UNION RESULT	<union1,2>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	Using filesort
 Warnings:
-Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` union select `test`.`t1`.`a` AS `a` from `test`.`t1` order by (match `a` against ('+abc' in boolean mode))
+Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a` from `test`.`t1` union /* select#2 */ select `test`.`t1`.`a` AS `a` from `test`.`t1` order by (match `a` against ('+abc' in boolean mode))
 # Should not crash
 SELECT * FROM t1 UNION SELECT * FROM t1
 ORDER BY MATCH(a) AGAINST ('+abc' IN BOOLEAN MODE);
@@ -1709,7 +1709,7 @@ NULL	UNION RESULT	<union1,2>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	Using filesort
 3	DEPENDENT SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1276	Field or reference 'a' of SELECT #3 was resolved in SELECT #-1
-Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` union select `test`.`t1`.`a` AS `a` from `test`.`t1` order by <expr_cache><`a`>((select `a` from `test`.`t2` where `test`.`t2`.`b` = 12))
+Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a` from `test`.`t1` union /* select#2 */ select `test`.`t1`.`a` AS `a` from `test`.`t1` order by <expr_cache><`a`>((/* select#3 */ select `a` from `test`.`t2` where `test`.`t2`.`b` = 12))
 # Should not crash
 SELECT * FROM t1 UNION SELECT * FROM t1
 ORDER BY (SELECT a FROM t2 WHERE b = 12);

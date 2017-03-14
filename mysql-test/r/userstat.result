@@ -128,6 +128,7 @@ Handler_read_rnd_next	5
 Handler_rollback	2
 Handler_savepoint	0
 Handler_savepoint_rollback	0
+Handler_tmp_delete	0
 Handler_tmp_update	0
 Handler_tmp_write	0
 Handler_update	5

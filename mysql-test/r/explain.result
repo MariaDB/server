@@ -158,7 +158,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using temporary; Using filesort
 2	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using join buffer (flat, BNL join)
 Warnings:
-Note	1003	select 1 AS `1` from (select count(distinct `test`.`t1`.`a`) AS `COUNT(DISTINCT t1.a)` from `test`.`t1` join `test`.`t2` group by `test`.`t1`.`a`) `s1`
+Note	1003	/* select#1 */ select 1 AS `1` from (/* select#2 */ select count(distinct `test`.`t1`.`a`) AS `COUNT(DISTINCT t1.a)` from `test`.`t1` join `test`.`t2` group by `test`.`t1`.`a`) `s1`
 EXPLAIN EXTENDED SELECT 1
 FROM (SELECT COUNT(DISTINCT t1.a) FROM t1,t2 GROUP BY t1.a) AS s1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
@@ -166,7 +166,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using temporary; Using filesort
 2	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using join buffer (flat, BNL join)
 Warnings:
-Note	1003	select 1 AS `1` from (select count(distinct `test`.`t1`.`a`) AS `COUNT(DISTINCT t1.a)` from `test`.`t1` join `test`.`t2` group by `test`.`t1`.`a`) `s1`
+Note	1003	/* select#1 */ select 1 AS `1` from (/* select#2 */ select count(distinct `test`.`t1`.`a`) AS `COUNT(DISTINCT t1.a)` from `test`.`t1` join `test`.`t2` group by `test`.`t1`.`a`) `s1`
 prepare s1 from 
 'EXPLAIN EXTENDED SELECT 1  
  FROM (SELECT COUNT(DISTINCT t1.a) FROM t1,t2 GROUP BY t1.a) AS s1';
@@ -176,7 +176,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using temporary; Using filesort
 2	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using join buffer (flat, BNL join)
 Warnings:
-Note	1003	select 1 AS `1` from (select count(distinct `test`.`t1`.`a`) AS `COUNT(DISTINCT t1.a)` from `test`.`t1` join `test`.`t2` group by `test`.`t1`.`a`) `s1`
+Note	1003	/* select#1 */ select 1 AS `1` from (/* select#2 */ select count(distinct `test`.`t1`.`a`) AS `COUNT(DISTINCT t1.a)` from `test`.`t1` join `test`.`t2` group by `test`.`t1`.`a`) `s1`
 prepare s1 from 
 'EXPLAIN EXTENDED SELECT 1  
  FROM (SELECT COUNT(DISTINCT t1.a) FROM t1,t2 GROUP BY t1.a) AS s1';
@@ -186,14 +186,14 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using temporary; Using filesort
 2	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using join buffer (flat, BNL join)
 Warnings:
-Note	1003	select 1 AS `1` from (select count(distinct `test`.`t1`.`a`) AS `COUNT(DISTINCT t1.a)` from `test`.`t1` join `test`.`t2` group by `test`.`t1`.`a`) `s1`
+Note	1003	/* select#1 */ select 1 AS `1` from (/* select#2 */ select count(distinct `test`.`t1`.`a`) AS `COUNT(DISTINCT t1.a)` from `test`.`t1` join `test`.`t2` group by `test`.`t1`.`a`) `s1`
 execute s1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	4	100.00	
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using temporary; Using filesort
 2	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using join buffer (flat, BNL join)
 Warnings:
-Note	1003	select 1 AS `1` from (select count(distinct `test`.`t1`.`a`) AS `COUNT(DISTINCT t1.a)` from `test`.`t1` join `test`.`t2` group by `test`.`t1`.`a`) `s1`
+Note	1003	/* select#1 */ select 1 AS `1` from (/* select#2 */ select count(distinct `test`.`t1`.`a`) AS `COUNT(DISTINCT t1.a)` from `test`.`t1` join `test`.`t2` group by `test`.`t1`.`a`) `s1`
 DROP TABLE t1,t2;
 CREATE TABLE t1 (a INT PRIMARY KEY);
 EXPLAIN EXTENDED SELECT COUNT(a) FROM t1 USE KEY(a);
@@ -221,7 +221,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 2	SUBQUERY	t1	system	NULL	NULL	NULL	NULL	0	0.00	const row not found
 2	SUBQUERY	t	system	NULL	NULL	NULL	NULL	0	0.00	const row not found
 Warnings:
-Note	1003	select 1 AS `1` from `test`.`t1` where 0
+Note	1003	/* select#1 */ select 1 AS `1` from `test`.`t1` where 0
 SET SESSION sql_mode=@old_sql_mode;
 DROP TABLE t1;
 End of 5.0 tests.
@@ -268,7 +268,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 2	SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1276	Field or reference 'test.t1.c' of SELECT #2 was resolved in SELECT #1
-Note	1003	select (select 1 from `test`.`t2` where `test`.`t2`.`d` = NULL) AS `(SELECT 1 FROM t2 WHERE d = c)` from dual
+Note	1003	/* select#1 */ select (/* select#2 */ select 1 from `test`.`t2` where `test`.`t2`.`d` = NULL) AS `(SELECT 1 FROM t2 WHERE d = c)` from dual
 DROP TABLE t1, t2;
 #
 # Bug#30302: Tables that were optimized away are printed in the
@@ -390,7 +390,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	<derived2>	system	NULL	NULL	NULL	NULL	0	0.00	const row not found
 2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
 Warnings:
-Note	1003	select NULL AS `a` from (select NULL AS `a` from `test`.`t1` where 0) `t`
+Note	1003	/* select#1 */ select NULL AS `a` from (/* select#2 */ select NULL AS `a` from `test`.`t1` where 0) `t`
 set optimizer_switch=@tmp_optimizer_switch;
 DROP TABLE t1,t2;
 #

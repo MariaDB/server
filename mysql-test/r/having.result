@@ -631,7 +631,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1	index	NULL	f10	4	NULL	2	100.00	Using index
 2	DEPENDENT SUBQUERY	t3	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
-Note	1003	select min(`test`.`t1`.`f10`) AS `field1` from `test`.`t1` where <expr_cache><7>(<in_optimizer>(7,<exists>(select `test`.`t3`.`f3` from `test`.`t3` where <cache>(7) = `test`.`t3`.`f3`))) having <cache>(`field1`) < 's'
+Note	1003	/* select#1 */ select min(`test`.`t1`.`f10`) AS `field1` from `test`.`t1` where <expr_cache><7>(<in_optimizer>(7,<exists>(/* select#2 */ select `test`.`t3`.`f3` from `test`.`t3` where <cache>(7) = `test`.`t3`.`f3`))) having <cache>(`field1`) < 's'
 set optimizer_switch=@save_optimizer_switch;
 drop table t1,t2,t3;
 End of 5.2 tests

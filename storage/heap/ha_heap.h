@@ -115,6 +115,7 @@ public:
     return memcmp(ref1, ref2, sizeof(HEAP_PTR));
   }
   bool check_if_incompatible_data(HA_CREATE_INFO *info, uint table_changes);
+  int find_unique_row(uchar *record, uint unique_idx);
 private:
   void update_key_stats();
 };

@@ -207,6 +207,7 @@ public:
 
   Explain_select(MEM_ROOT *root, bool is_analyze) : 
   Explain_basic_join(root),
+    linkage(UNSPECIFIED_TYPE),
     message(NULL),
     having(NULL), having_value(Item::COND_UNDEF),
     using_temporary(false), using_filesort(false),
@@ -214,8 +215,11 @@ public:
     aggr_tree(NULL)
   {}
 
+  void add_linkage(Json_writer *writer);
+
 public:
   const char *select_type;
+  enum sub_select_type linkage;
 
   /*
     If message != NULL, this is a degenerate join plan, and all subsequent
@@ -316,7 +320,9 @@ public:
 
 /////////////////////////////////////////////////////////////////////////////
 
-/* 
+extern const char *unit_operation_text[4];
+
+/*
   Explain structure for a UNION.
 
   A UNION may or may not have "Using filesort".
@@ -332,6 +338,7 @@ public:
   {}
 
   enum explain_node_type get_type() { return EXPLAIN_UNION; }
+  unit_common_op operation;
 
   int get_select_id()
   {

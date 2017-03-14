@@ -652,7 +652,7 @@ bool mysql_derived_prepare(THD *thd, LEX *lex, TABLE_LIST *derived)
       specification has been already prepared (a secondary recursive table
       reference.
     */ 
-    if (!(derived->derived_result= new (thd->mem_root) select_union(thd)))
+    if (!(derived->derived_result= new (thd->mem_root) select_unit(thd)))
       DBUG_RETURN(TRUE); // out of memory
     thd->create_tmp_table_for_derived= TRUE;
     res= derived->derived_result->create_result_table(
@@ -660,7 +660,7 @@ bool mysql_derived_prepare(THD *thd, LEX *lex, TABLE_LIST *derived)
                                   (first_select->options |
                                    thd->variables.option_bits |
                                    TMP_TABLE_ALL_COLUMNS),
-                                  derived->alias, FALSE, FALSE);
+                                  derived->alias, FALSE, FALSE, FALSE, 0);
     thd->create_tmp_table_for_derived= FALSE;
 
     if (!res && !derived->table)
@@ -715,7 +715,7 @@ bool mysql_derived_prepare(THD *thd, LEX *lex, TABLE_LIST *derived)
   unit->derived= derived;
   derived->fill_me= FALSE;
 
-  if (!(derived->derived_result= new (thd->mem_root) select_union(thd)))
+  if (!(derived->derived_result= new (thd->mem_root) select_unit(thd)))
     DBUG_RETURN(TRUE); // out of memory
 
   lex->context_analysis_only|= CONTEXT_ANALYSIS_ONLY_DERIVED;
@@ -743,7 +743,7 @@ bool mysql_derived_prepare(THD *thd, LEX *lex, TABLE_LIST *derived)
 
     As 'distinct' parameter we always pass FALSE (0), because underlying
     query will control distinct condition by itself. Correct test of
-    distinct underlying query will be is_union &&
+    distinct underlying query will be is_unit_op &&
     !unit->union_distinct->next_select() (i.e. it is union and last distinct
     SELECT is last SELECT of UNION).
   */
@@ -754,7 +754,8 @@ bool mysql_derived_prepare(THD *thd, LEX *lex, TABLE_LIST *derived)
                                                    thd->variables.option_bits |
                                                    TMP_TABLE_ALL_COLUMNS),
                                                    derived->alias,
-                                                   FALSE, FALSE, FALSE))
+                                                   FALSE, FALSE, FALSE,
+                                                   0))
   { 
     thd->create_tmp_table_for_derived= FALSE;
     goto exit;
@@ -852,7 +853,7 @@ bool mysql_derived_optimize(THD *thd, LEX *lex, TABLE_LIST *derived)
     DBUG_RETURN(FALSE);
   lex->current_select= first_select;
 
-  if (unit->is_union())
+  if (unit->is_unit_op())
   {
     // optimize union without execution
     res= unit->optimize();
@@ -917,7 +918,7 @@ bool mysql_derived_create(THD *thd, LEX *lex, TABLE_LIST *derived)
 
   if (table->is_created())
     DBUG_RETURN(FALSE);
-  select_union *result= derived->derived_result;
+  select_unit *result= derived->derived_result;
   if (table->s->db_type() == TMP_ENGINE_HTON)
   {
     result->tmp_table_param.keyinfo= table->s->key_info;
@@ -1015,7 +1016,7 @@ bool mysql_derived_fill(THD *thd, LEX *lex, TABLE_LIST *derived)
     DBUG_RETURN(FALSE);
   /*check that table creation passed without problems. */
   DBUG_ASSERT(derived->table && derived->table->is_created());
-  select_union *derived_result= derived->derived_result;
+  select_unit *derived_result= derived->derived_result;
   SELECT_LEX *save_current_select= lex->current_select;
   
   if (derived_is_recursive)
@@ -1031,7 +1032,7 @@ bool mysql_derived_fill(THD *thd, LEX *lex, TABLE_LIST *derived)
       res= derived->fill_recursive(thd);
     }
   }
-  else if (unit->is_union())
+  else if (unit->is_unit_op())
   {
     // execute union without clean up
     res= unit->exec();
