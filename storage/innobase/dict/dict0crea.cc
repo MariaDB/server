@@ -1702,7 +1702,7 @@ dict_create_or_check_foreign_constraint_tables(void)
 		row_drop_table_for_mysql("SYS_FOREIGN_COLS", trx, TRUE, TRUE);
 	}
 
-	ib::warn() << "Creating foreign key constraint system tables.";
+	ib::info() << "Creating foreign key constraint system tables.";
 
 	/* NOTE: in dict_load_foreigns we use the fact that
 	there are 2 secondary indexes on SYS_FOREIGN, and they
@@ -1766,10 +1766,6 @@ dict_create_or_check_foreign_constraint_tables(void)
 	trx_free_for_mysql(trx);
 
 	srv_file_per_table = srv_file_per_table_backup;
-
-	if (err == DB_SUCCESS) {
-		ib::info() << "Foreign key constraint system tables created";
-	}
 
 	/* Note: The master thread has not been started at this point. */
 	/* Confirm and move to the non-LRU part of the table LRU list. */
@@ -1874,10 +1870,6 @@ dict_create_or_check_sys_virtual()
 	trx_free_for_mysql(trx);
 
 	srv_file_per_table = srv_file_per_table_backup;
-
-	if (err == DB_SUCCESS) {
-		ib::info() << "sys_virtual table created";
-	}
 
 	/* Note: The master thread has not been started at this point. */
 	/* Confirm and move to the non-LRU part of the table LRU list. */
@@ -2543,7 +2535,6 @@ dict_create_or_check_sys_tablespace(void)
 	srv_file_per_table = srv_file_per_table_backup;
 
 	if (err == DB_SUCCESS) {
-		ib::info() << "Tablespace and datafile system tables created.";
 		srv_sys_tablespaces_open = true;
 	}
 
