@@ -35,4 +35,5 @@ read_only_tx : MariaRocks: requires GTIDs
 2pc_group_commit : MariaRocks: Group Commit is not functional yet
 
 mysqldump : MariaRocks: MariaDB's mysqldump doesn't support --print-ordering-key
+mysqldump2 : MariaRocks: MariaDB's mysqldump doesn't support --print-ordering-key
 
