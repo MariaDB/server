@@ -245,3 +245,21 @@ select json_detailed('{"a":1, "b":[1,2,3], "c":{"aa":"v1", "bb": "v2"}}');
 
 SELECT JSON_search( '{"x": "\\""}', "one", '"');
 SELECT JSON_search( '{"x": "\\""}', "one", '\\"');
+
+#
+# MDEV-11833 JSON functions don't seem to respect max_allowed_packet.
+#
+set @@global.net_buffer_length=1024;
+set @@global.max_allowed_packet=2048;
+--connect (newconn, localhost, root,,)
+
+show variables like 'net_buffer_length';
+show variables like 'max_allowed_packet';
+select json_array(repeat('a',1024),repeat('a',1024));
+select json_object("a", repeat('a',1024),"b", repeat('a',1024));
+--connection default
+
+set @@global.max_allowed_packet = default;
+set @@global.net_buffer_length = default;
+--disconnect newconn
+

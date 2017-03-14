@@ -1407,6 +1407,7 @@ void Item_func_json_array::fix_length_and_dec()
 
   fix_char_length_ulonglong(char_length);
   tmp_val.set_charset(collation.collation);
+  result_limit= 0;
 }
 
 
@@ -1431,7 +1432,16 @@ String *Item_func_json_array::val_str(String *str)
   if (str->append("]", 1))
     goto err_return;
 
-  return str;
+  if (result_limit == 0)
+    result_limit= current_thd->variables.max_allowed_packet;
+
+  if (str->length() <= result_limit)
+    return str;
+
+  push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
+      ER_WARN_ALLOWED_PACKET_OVERFLOWED,
+      ER_THD(current_thd, ER_WARN_ALLOWED_PACKET_OVERFLOWED),
+      func_name(), result_limit);
 
 err_return:
   /*TODO: Launch out of memory error. */
@@ -1749,7 +1759,16 @@ String *Item_func_json_object::val_str(String *str)
   if (str->append("}", 1))
     goto err_return;
 
-  return str;
+  if (result_limit == 0)
+    result_limit= current_thd->variables.max_allowed_packet;
+
+  if (str->length() <= result_limit)
+    return str;
+
+  push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
+      ER_WARN_ALLOWED_PACKET_OVERFLOWED,
+      ER_THD(current_thd, ER_WARN_ALLOWED_PACKET_OVERFLOWED),
+      func_name(), result_limit);
 
 err_return:
   /*TODO: Launch out of memory error. */

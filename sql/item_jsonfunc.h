@@ -216,6 +216,7 @@ class Item_func_json_array: public Item_str_func
 {
 protected:
   String tmp_val;
+  ulong result_limit;
 public:
   Item_func_json_array(THD *thd):
     Item_str_func(thd) {}
