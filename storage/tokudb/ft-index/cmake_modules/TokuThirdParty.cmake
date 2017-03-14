@@ -69,6 +69,7 @@ ExternalProject_Add(build_lzma
         "<SOURCE_DIR>/configure" ${xz_configure_opts}
         "--prefix=${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_CFG_INTDIR}/xz"
         "--libdir=${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_CFG_INTDIR}/xz/lib"
+        "CFLAGS=${CFLAGS}"
     BUILD_COMMAND
         ${SUBMAKE_COMMAND} -C src/liblzma
     INSTALL_COMMAND
