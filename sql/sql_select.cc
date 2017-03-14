@@ -827,24 +827,13 @@ int vers_setup_select(THD *thd, TABLE_LIST *tables, COND **where_expr,
         dst_cond= &table->on_expr;
       }
 
-      Field *fstart= table->table->vers_start_field();
-      Field *fend= table->table->vers_end_field();
+      const char *fstart= table->table->vers_start_field()->field_name;
+      const char *fend= table->table->vers_end_field()->field_name;
 
-      Item *row_start= NULL;
-      Item *row_end= NULL;
-      if ((table->is_derived() && !table->is_recursive_with_table()) ||
-          table->join_columns)
-      {
-        row_start= newx Item_field(thd, &slex->context, table->db, table->alias,
-                                   fstart->field_name);
-        row_end= newx Item_field(thd, &slex->context, table->db, table->alias,
-                                 fend->field_name);
-      }
-      else
-      {
-        row_start= newx Item_field(thd, &slex->context, fstart);
-        row_end= newx Item_field(thd, &slex->context, fend);
-      }
+      Item *row_start=
+          newx Item_field(thd, &slex->context, table->db, table->alias, fstart);
+      Item *row_end=
+          newx Item_field(thd, &slex->context, table->db, table->alias, fend);
       Item *row_end2= row_end;
 
       if (table->table->versioned_by_sql())
