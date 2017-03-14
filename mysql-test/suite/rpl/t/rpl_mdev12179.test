@@ -1,6 +1,6 @@
+--source include/have_innodb.inc
 --let $rpl_topology=1->2
 --source include/rpl_init.inc
---source include/have_innodb.inc
 
 --connection server_2
 --source include/stop_slave.inc

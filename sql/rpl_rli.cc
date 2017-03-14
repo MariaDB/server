@@ -1647,24 +1647,70 @@ struct load_gtid_state_cb_data {
   HASH *hash;
   DYNAMIC_ARRAY *array;
   struct rpl_slave_state::gtid_pos_table *table_list;
+  struct rpl_slave_state::gtid_pos_table *default_entry;
 };
+
+static int
+process_gtid_pos_table(THD *thd, LEX_STRING *table_name, void *hton,
+                       struct load_gtid_state_cb_data *data)
+{
+  struct rpl_slave_state::gtid_pos_table *p, *entry, **next_ptr;
+  bool is_default=
+    (strcmp(table_name->str, rpl_gtid_slave_state_table_name.str) == 0);
+
+  /*
+    Ignore tables with duplicate storage engine, with a warning.
+    Prefer the default mysql.gtid_slave_pos over another table
+    mysql.gtid_slave_posXXX with the same storage engine.
+  */
+  next_ptr= &data->table_list;
+  entry= data->table_list;
+  while (entry)
+  {
+    if (entry->table_hton == hton)
+    {
+      static const char *warning_msg= "Ignoring redundant table mysql.%s "
+        "since mysql.%s has the same storage engine";
+      if (!is_default)
+      {
+        /* Ignore the redundant table. */
+        sql_print_warning(warning_msg, table_name->str, entry->table_name);
+        return 0;
+      }
+      else
+      {
+        sql_print_warning(warning_msg, entry->table_name, table_name->str);
+        /* Delete the redundant table, and proceed to add this one instead. */
+        *next_ptr= entry->next;
+        my_free(entry);
+        break;
+      }
+    }
+    next_ptr= &entry->next;
+    entry= entry->next;
+  }
+
+  if (!(p= rpl_global_gtid_slave_state->alloc_gtid_pos_table(table_name, hton)))
+    return 1;
+  p->next= data->table_list;
+  data->table_list= p;
+  if (is_default)
+    data->default_entry= p;
+  return 0;
+}
+
 
 static int
 load_gtid_state_cb(THD *thd, LEX_STRING *table_name, void *arg)
 {
   int err;
   load_gtid_state_cb_data *data= static_cast<load_gtid_state_cb_data *>(arg);
-  struct rpl_slave_state::gtid_pos_table *p;
   void *hton;
 
   if ((err= scan_one_gtid_slave_pos_table(thd, data->hash, data->array,
                                           table_name, &hton)))
     return err;
-  if (!(p= rpl_global_gtid_slave_state->alloc_gtid_pos_table(table_name, hton)))
-    return 1;
-  p->next= data->table_list;
-  data->table_list= p;
-  return 0;
+  return process_gtid_pos_table(thd, table_name, hton, data);
 }
 
 
@@ -1687,6 +1733,7 @@ rpl_load_gtid_slave_state(THD *thd)
     DBUG_RETURN(0);
 
   cb_data.table_list= NULL;
+  cb_data.default_entry= NULL;
   my_hash_init(&hash, &my_charset_bin, 32,
                offsetof(gtid_pos_element, gtid) + offsetof(rpl_gtid, domain_id),
                sizeof(uint32), NULL, my_free, HASH_UNIQUE);
@@ -1704,6 +1751,23 @@ rpl_load_gtid_slave_state(THD *thd)
   {
     mysql_mutex_unlock(&rpl_global_gtid_slave_state->LOCK_slave_state);
     goto end;
+  }
+
+  if (!cb_data.table_list)
+  {
+    my_error(ER_NO_SUCH_TABLE, MYF(0), "mysql",
+             rpl_gtid_slave_state_table_name.str);
+    err= 1;
+    goto end;
+  }
+  else if (!cb_data.default_entry)
+  {
+    /*
+      If the mysql.gtid_slave_pos table does not exist, but at least one other
+      table is available, arbitrarily pick the first in the list to use as
+      default.
+    */
+    cb_data.default_entry= cb_data.table_list;
   }
 
   for (i= 0; i < array.elements; ++i)
@@ -1735,7 +1799,8 @@ rpl_load_gtid_slave_state(THD *thd)
     }
   }
 
-  rpl_global_gtid_slave_state->set_gtid_pos_tables_list(cb_data.table_list);
+  rpl_global_gtid_slave_state->set_gtid_pos_tables_list(cb_data.table_list,
+                                                        cb_data.default_entry);
   cb_data.table_list= NULL;
   rpl_global_gtid_slave_state->loaded= true;
   mysql_mutex_unlock(&rpl_global_gtid_slave_state->LOCK_slave_state);
@@ -1753,12 +1818,10 @@ end:
 static int
 find_gtid_pos_tables_cb(THD *thd, LEX_STRING *table_name, void *arg)
 {
-  struct rpl_slave_state::gtid_pos_table **table_list_ptr=
-    static_cast<struct rpl_slave_state::gtid_pos_table **>(arg);
+  load_gtid_state_cb_data *data= static_cast<load_gtid_state_cb_data *>(arg);
   TABLE_LIST tlist;
   TABLE *table= NULL;
   int err;
-  struct rpl_slave_state::gtid_pos_table *p;
 
   thd->reset_for_next_command();
   tlist.init_one_table(STRING_WITH_LEN("mysql"), table_name->str,
@@ -1769,14 +1832,7 @@ find_gtid_pos_tables_cb(THD *thd, LEX_STRING *table_name, void *arg)
 
   if ((err= gtid_check_rpl_slave_state_table(table)))
     goto end;
-
-  if (!(p= rpl_global_gtid_slave_state->alloc_gtid_pos_table(table_name, table->s->db_type())))
-    err= 1;
-  else
-  {
-    p->next= *table_list_ptr;
-    *table_list_ptr= p;
-  }
+  err= process_gtid_pos_table(thd, table_name, table->s->db_type(), data);
 
 end:
   if (table)
@@ -1801,7 +1857,8 @@ int
 find_gtid_slave_pos_tables(THD *thd)
 {
   int err= 0;
-  struct rpl_slave_state::gtid_pos_table *table_list;
+  load_gtid_state_cb_data cb_data;
+  bool any_running;
 
   mysql_mutex_lock(&rpl_global_gtid_slave_state->LOCK_slave_state);
   bool loaded= rpl_global_gtid_slave_state->loaded;
@@ -1809,18 +1866,95 @@ find_gtid_slave_pos_tables(THD *thd)
   if (!loaded)
     return 0;
 
-  table_list= NULL;
-  if ((err= scan_all_gtid_slave_pos_table(thd, find_gtid_pos_tables_cb, &table_list)))
+  cb_data.table_list= NULL;
+  cb_data.default_entry= NULL;
+  if ((err= scan_all_gtid_slave_pos_table(thd, find_gtid_pos_tables_cb, &cb_data)))
     goto end;
 
+  if (!cb_data.table_list)
+  {
+    my_error(ER_NO_SUCH_TABLE, MYF(0), "mysql",
+             rpl_gtid_slave_state_table_name.str);
+    err= 1;
+    goto end;
+  }
+  else if (!cb_data.default_entry)
+  {
+    /*
+      If the mysql.gtid_slave_pos table does not exist, but at least one other
+      table is available, arbitrarily pick the first in the list to use as
+      default.
+    */
+    cb_data.default_entry= cb_data.table_list;
+  }
+
+  any_running= any_slave_sql_running();
   mysql_mutex_lock(&rpl_global_gtid_slave_state->LOCK_slave_state);
-  rpl_global_gtid_slave_state->set_gtid_pos_tables_list(table_list);
-  table_list= NULL;
+  if (!any_running)
+  {
+    rpl_global_gtid_slave_state->set_gtid_pos_tables_list(cb_data.table_list,
+                                                          cb_data.default_entry);
+    cb_data.table_list= NULL;
+  }
+  else
+  {
+    /*
+      If there are SQL threads running, we cannot safely remove the old list.
+      However we can add new entries, and warn about any tables that
+      disappeared, but may still be visible to running SQL threads.
+    */
+    rpl_slave_state::gtid_pos_table *old_entry, *new_entry, **next_ptr_ptr;
+
+    old_entry= rpl_global_gtid_slave_state->gtid_pos_tables;
+    while (old_entry)
+    {
+      new_entry= cb_data.table_list;
+      while (new_entry)
+      {
+        if (new_entry->table_hton == old_entry->table_hton)
+          break;
+        new_entry= new_entry->next;
+      }
+      if (!new_entry)
+        sql_print_warning("The table mysql.%s was removed. "
+                          "This change will not take full effect "
+                          "until all SQL threads have been restarted",
+                          old_entry->table_name.str);
+      old_entry= old_entry->next;
+    }
+    next_ptr_ptr= &cb_data.table_list;
+    new_entry= cb_data.table_list;
+    while (new_entry)
+    {
+      /* Check if we already have a table with this storage engine. */
+      old_entry= rpl_global_gtid_slave_state->gtid_pos_tables;
+      while (old_entry)
+      {
+        if (new_entry->table_hton == old_entry->table_hton)
+          break;
+        old_entry= old_entry->next;
+      }
+      if (old_entry)
+      {
+        /* This new_entry is already available in the list. */
+        next_ptr_ptr= &new_entry->next;
+        new_entry= new_entry->next;
+      }
+      else
+      {
+        /* Move this new_entry to the list. */
+        rpl_slave_state::gtid_pos_table *next= new_entry->next;
+        rpl_global_gtid_slave_state->add_gtid_pos_table(new_entry);
+        *next_ptr_ptr= next;
+        new_entry= next;
+      }
+    }
+  }
   mysql_mutex_unlock(&rpl_global_gtid_slave_state->LOCK_slave_state);
 
 end:
-  if (table_list)
-    rpl_global_gtid_slave_state->free_gtid_pos_tables(table_list);
+  if (cb_data.table_list)
+    rpl_global_gtid_slave_state->free_gtid_pos_tables(cb_data.table_list);
   return err;
 }
 

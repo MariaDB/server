@@ -471,6 +471,48 @@ gtid_check_rpl_slave_state_table(TABLE *table)
 
 
 /*
+  Attempt to find a mysql.gtid_slave_posXXX table that has a storage engine
+  that is already in use by the current transaction, if any.
+*/
+void
+rpl_slave_state::select_gtid_pos_table(THD *thd, LEX_STRING *out_tablename)
+{
+  struct gtid_pos_table *list, *table_entry, *default_entry;
+
+  /*
+    See comments on rpl_slave_state::gtid_pos_tables for rules around proper
+    access to the list.
+  */
+  list= my_atomic_loadptr_explicit(&gtid_pos_tables, MY_MEMORY_ORDER_ACQUIRE);
+
+  Ha_trx_info *ha_info= thd->transaction.all.ha_list;
+  while (ha_info)
+  {
+    void *trx_hton= ha_info->ht();
+    table_entry= list;
+    while (table_entry)
+    {
+      if (table_entry->table_hton == trx_hton)
+      {
+        *out_tablename= table_entry->table_name;
+        return;
+      }
+      table_entry= table_entry->next;
+    }
+    ha_info= ha_info->next();
+  }
+  /*
+    If we cannot find any table whose engine matches an engine that is
+    already active in the transaction, or if there is no current transaction
+    engines available, we return the default gtid_slave_pos table.
+  */
+  default_entry= my_atomic_loadptr_explicit(&default_gtid_pos_table,
+                                            MY_MEMORY_ORDER_ACQUIRE);
+  *out_tablename= default_entry->table_name;
+}
+
+
+/*
   Write a gtid to the replication slave state table.
 
   Do it as part of the transaction, to get slave crash safety, or as a separate
@@ -500,6 +542,7 @@ rpl_slave_state::record_gtid(THD *thd, const rpl_gtid *gtid, uint64 sub_id,
   Query_tables_list lex_backup;
   wait_for_commit* suspended_wfc;
   void *hton= NULL;
+  LEX_STRING gtid_pos_table_name;
   DBUG_ENTER("record_gtid");
 
   *out_hton= NULL;
@@ -517,6 +560,7 @@ rpl_slave_state::record_gtid(THD *thd, const rpl_gtid *gtid, uint64 sub_id,
 
   if (!in_statement)
     thd->reset_for_next_command();
+  select_gtid_pos_table(thd, &gtid_pos_table_name);
 
   DBUG_EXECUTE_IF("gtid_inject_record_gtid",
                   {
@@ -547,10 +591,8 @@ rpl_slave_state::record_gtid(THD *thd, const rpl_gtid *gtid, uint64 sub_id,
   */
   suspended_wfc= thd->suspend_subsequent_commits();
   thd->lex->reset_n_backup_query_tables_list(&lex_backup);
-  tlist.init_one_table(STRING_WITH_LEN("mysql"),
-                       rpl_gtid_slave_state_table_name.str,
-                       rpl_gtid_slave_state_table_name.length,
-                       NULL, TL_WRITE);
+  tlist.init_one_table(STRING_WITH_LEN("mysql"), gtid_pos_table_name.str,
+                       gtid_pos_table_name.length, NULL, TL_WRITE);
   if ((err= open_and_lock_tables(thd, &tlist, FALSE, 0)))
     goto end;
   table_opened= true;
@@ -1168,15 +1210,32 @@ rpl_slave_state::free_gtid_pos_tables(struct rpl_slave_state::gtid_pos_table *li
 }
 
 
+/*
+  Replace the list of available mysql.gtid_slave_posXXX tables with a new list.
+  The caller must be holding LOCK_slave_state. Additionally, this function
+  must only be called while all SQL threads are stopped.
+*/
 void
-rpl_slave_state::set_gtid_pos_tables_list(struct rpl_slave_state::gtid_pos_table *new_list)
+rpl_slave_state::set_gtid_pos_tables_list(rpl_slave_state::gtid_pos_table *new_list,
+                                          rpl_slave_state::gtid_pos_table *default_entry)
 {
-  struct gtid_pos_table *old_list;
+  gtid_pos_table *old_list;
 
   mysql_mutex_assert_owner(&LOCK_slave_state);
   old_list= gtid_pos_tables;
-  gtid_pos_tables= new_list;
+  my_atomic_storeptr_explicit(&gtid_pos_tables, new_list, MY_MEMORY_ORDER_RELEASE);
+  my_atomic_storeptr_explicit(&default_gtid_pos_table, default_entry,
+                              MY_MEMORY_ORDER_RELEASE);
   free_gtid_pos_tables(old_list);
+}
+
+
+void
+rpl_slave_state::add_gtid_pos_table(rpl_slave_state::gtid_pos_table *entry)
+{
+  mysql_mutex_assert_owner(&LOCK_slave_state);
+  entry->next= gtid_pos_tables;
+  my_atomic_storeptr_explicit(&gtid_pos_tables, entry, MY_MEMORY_ORDER_RELEASE);
 }
 
 
