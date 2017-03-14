@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2007, 2016, Oracle and/or its affiliates.
-Copyrigth (c) 2014, 2016, MariaDB Corporation
+Copyrigth (c) 2014, 2017, MariaDB Corporation
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -8492,22 +8492,31 @@ static ST_FIELD_INFO	innodb_tablespaces_encryption_fields_info[] =
 	 STRUCT_FLD(old_name,		""),
 	 STRUCT_FLD(open_method,	SKIP_OPEN_TABLE)},
 
+#define TABLESPACES_ENCRYPTION_ROTATING_OR_FLUSHING 9
+	{STRUCT_FLD(field_name,		"ROTATING_OR_FLUSHING"),
+	 STRUCT_FLD(field_length,	1),
+	 STRUCT_FLD(field_type,		MYSQL_TYPE_LONG),
+	 STRUCT_FLD(value,		0),
+	 STRUCT_FLD(field_flags,	MY_I_S_UNSIGNED),
+	 STRUCT_FLD(old_name,		""),
+	 STRUCT_FLD(open_method,	SKIP_OPEN_TABLE)},
+
 	END_OF_ST_FIELD_INFO
 };
 
 /**********************************************************************//**
 Function to fill INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION
-with information collected by scanning SYS_TABLESPACES table and then use
-fil_space()
+with information collected by scanning SYS_TABLESPACES table.
+@param[in]	thd		thread handle
+@param[in]	space		Tablespace
+@param[in]	table_to_fill	I_S table to fill
 @return 0 on success */
 static
 int
 i_s_dict_fill_tablespaces_encryption(
-/*==========================*/
-	THD*		thd,		/*!< in: thread */
-	ulint		space,		/*!< in: space ID */
-	const char*	name,		/*!< in: tablespace name */
-	TABLE*		table_to_fill)	/*!< in/out: fill this table */
+	THD*		thd,
+	fil_space_t*	space,
+	TABLE*		table_to_fill)
 {
 	Field**	fields;
 	struct fil_space_crypt_status_t status;
@@ -8517,10 +8526,11 @@ i_s_dict_fill_tablespaces_encryption(
 	fields = table_to_fill->field;
 
 	fil_space_crypt_get_status(space, &status);
-	OK(fields[TABLESPACES_ENCRYPTION_SPACE]->store(space));
+
+	OK(fields[TABLESPACES_ENCRYPTION_SPACE]->store(space->id));
 
 	OK(field_store_string(fields[TABLESPACES_ENCRYPTION_NAME],
-			      name));
+			      space->name));
 
 	OK(fields[TABLESPACES_ENCRYPTION_ENCRYPTION_SCHEME]->store(
 		   status.scheme));
@@ -8532,6 +8542,9 @@ i_s_dict_fill_tablespaces_encryption(
 		   status.current_key_version));
 	OK(fields[TABLESPACES_ENCRYPTION_CURRENT_KEY_ID]->store(
 		   status.key_id));
+	OK(fields[TABLESPACES_ENCRYPTION_ROTATING_OR_FLUSHING]->store(
+			(status.rotating || status.flushing) ? 1 : 0));
+
 	if (status.rotating) {
 		fields[TABLESPACES_ENCRYPTION_KEY_ROTATION_PAGE_NUMBER]->set_notnull();
 		OK(fields[TABLESPACES_ENCRYPTION_KEY_ROTATION_PAGE_NUMBER]->store(
@@ -8545,6 +8558,7 @@ i_s_dict_fill_tablespaces_encryption(
 		fields[TABLESPACES_ENCRYPTION_KEY_ROTATION_MAX_PAGE_NUMBER]
 			->set_null();
 	}
+
 	OK(schema_table_store_record(thd, table_to_fill));
 
 	DBUG_RETURN(0);
@@ -8584,28 +8598,34 @@ i_s_tablespaces_encryption_fill_table(
 
 	while (rec) {
 		const char*	err_msg;
-		ulint		space;
+		ulint		space_id;
 		const char*	name;
 		ulint		flags;
 
 		/* Extract necessary information from a SYS_TABLESPACES row */
 		err_msg = dict_process_sys_tablespaces(
-			heap, rec, &space, &name, &flags);
+			heap, rec, &space_id, &name, &flags);
 
 		mtr_commit(&mtr);
 		mutex_exit(&dict_sys->mutex);
 
-		if (space == 0) {
+		if (space_id == 0) {
 			found_space_0 = true;
 		}
 
-		if (!err_msg) {
+		fil_space_t* space = fil_space_acquire_silent(space_id);
+
+		if (!err_msg && space) {
 			i_s_dict_fill_tablespaces_encryption(
-				thd, space, name, tables->table);
+				thd, space, tables->table);
 		} else {
 			push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
 					    ER_CANT_FIND_SYSTEM_REC, "%s",
 					    err_msg);
+		}
+
+		if (space) {
+			fil_space_release(space);
 		}
 
 		mem_heap_empty(heap);
@@ -8623,10 +8643,13 @@ i_s_tablespaces_encryption_fill_table(
 	if (found_space_0 == false) {
 		/* space 0 does for what ever unknown reason not show up
 		* in iteration above, add it manually */
-		ulint		space = 0;
-		const char*	name = NULL;
+
+		fil_space_t* space = fil_space_acquire_silent(0);
+
 		i_s_dict_fill_tablespaces_encryption(
-			thd, space, name, tables->table);
+			thd, space, tables->table);
+
+		fil_space_release(space);
 	}
 
 	DBUG_RETURN(0);
@@ -8780,17 +8803,18 @@ static ST_FIELD_INFO	innodb_tablespaces_scrubbing_fields_info[] =
 
 /**********************************************************************//**
 Function to fill INFORMATION_SCHEMA.INNODB_TABLESPACES_SCRUBBING
-with information collected by scanning SYS_TABLESPACES table and then use
-fil_space()
+with information collected by scanning SYS_TABLESPACES table and
+fil_space.
+@param[in]	thd		Thread handle
+@param[in]	space		Tablespace
+@param[in]	table_to_fill	I_S table
 @return 0 on success */
 static
 int
 i_s_dict_fill_tablespaces_scrubbing(
-/*==========================*/
-	THD*		thd,		/*!< in: thread */
-	ulint		space,		/*!< in: space ID */
-	const char*	name,		/*!< in: tablespace name */
-	TABLE*		table_to_fill)	/*!< in/out: fill this table */
+	THD*		thd,
+	fil_space_t*	space,
+	TABLE*		table_to_fill)
 {
 	Field**	fields;
         struct fil_space_scrub_status_t status;
@@ -8800,10 +8824,11 @@ i_s_dict_fill_tablespaces_scrubbing(
 	fields = table_to_fill->field;
 
 	fil_space_get_scrub_status(space, &status);
-	OK(fields[TABLESPACES_SCRUBBING_SPACE]->store(space));
+
+	OK(fields[TABLESPACES_SCRUBBING_SPACE]->store(space->id));
 
 	OK(field_store_string(fields[TABLESPACES_SCRUBBING_NAME],
-			      name));
+			      space->name));
 
 	OK(fields[TABLESPACES_SCRUBBING_COMPRESSED]->store(
 		   status.compressed ? 1 : 0));
@@ -8823,6 +8848,7 @@ i_s_dict_fill_tablespaces_scrubbing(
 		TABLESPACES_SCRUBBING_CURRENT_SCRUB_ACTIVE_THREADS,
 		TABLESPACES_SCRUBBING_CURRENT_SCRUB_PAGE_NUMBER,
 		TABLESPACES_SCRUBBING_CURRENT_SCRUB_MAX_PAGE_NUMBER };
+
 	if (status.scrubbing) {
 		for (uint i = 0; i < array_elements(field_numbers); i++) {
 			fields[field_numbers[i]]->set_notnull();
@@ -8842,6 +8868,7 @@ i_s_dict_fill_tablespaces_scrubbing(
 			fields[field_numbers[i]]->set_null();
 		}
 	}
+
 	OK(schema_table_store_record(thd, table_to_fill));
 
 	DBUG_RETURN(0);
@@ -8881,28 +8908,34 @@ i_s_tablespaces_scrubbing_fill_table(
 
 	while (rec) {
 		const char*	err_msg;
-		ulint		space;
+		ulint		space_id;
 		const char*	name;
 		ulint		flags;
 
 		/* Extract necessary information from a SYS_TABLESPACES row */
 		err_msg = dict_process_sys_tablespaces(
-			heap, rec, &space, &name, &flags);
+			heap, rec, &space_id, &name, &flags);
 
 		mtr_commit(&mtr);
 		mutex_exit(&dict_sys->mutex);
 
-		if (space == 0) {
+		if (space_id == 0) {
 			found_space_0 = true;
 		}
 
-		if (!err_msg) {
+		fil_space_t* space = fil_space_acquire_silent(space_id);
+
+		if (!err_msg && space) {
 			i_s_dict_fill_tablespaces_scrubbing(
-				thd, space, name, tables->table);
+				thd, space, tables->table);
 		} else {
 			push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
 					    ER_CANT_FIND_SYSTEM_REC, "%s",
 					    err_msg);
+		}
+
+		if (space) {
+			fil_space_release(space);
 		}
 
 		mem_heap_empty(heap);
@@ -8920,10 +8953,12 @@ i_s_tablespaces_scrubbing_fill_table(
 	if (found_space_0 == false) {
 		/* space 0 does for what ever unknown reason not show up
 		* in iteration above, add it manually */
-		ulint		space = 0;
-		const char*	name = NULL;
+		fil_space_t* space = fil_space_acquire_silent(0);
+
 		i_s_dict_fill_tablespaces_scrubbing(
-			thd, space, name, tables->table);
+			thd, space, tables->table);
+
+		fil_space_release(space);
 	}
 
 	DBUG_RETURN(0);

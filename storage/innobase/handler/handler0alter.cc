@@ -2883,9 +2883,11 @@ prepare_inplace_alter_table_dict(
 		ulint		n_cols;
 		dtuple_t*	add_cols;
 		ulint		key_id = FIL_DEFAULT_ENCRYPTION_KEY;
-		fil_encryption_t mode = FIL_SPACE_ENCRYPTION_DEFAULT;
+		fil_encryption_t mode = FIL_ENCRYPTION_DEFAULT;
 
-		crypt_data = fil_space_get_crypt_data(ctx->prebuilt->table->space);
+		fil_space_t* space = fil_space_acquire(ctx->prebuilt->table->space);
+		crypt_data = space->crypt_data;
+		fil_space_release(space);
 
 		if (crypt_data) {
 			key_id = crypt_data->key_id;

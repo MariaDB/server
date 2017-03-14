@@ -3948,7 +3948,7 @@ row_merge_build_indexes(
 {
 	merge_file_t*		merge_files;
 	row_merge_block_t*	block;
-	row_merge_block_t*	crypt_block;
+	row_merge_block_t*	crypt_block = NULL;
 	ulint			block_size;
 	ulint			i;
 	ulint			j;
@@ -3984,9 +3984,15 @@ row_merge_build_indexes(
 		DBUG_RETURN(DB_OUT_OF_MEMORY);
 	}
 
-	/* Get crypt data from tablespace if present. */
-	crypt_data = fil_space_get_crypt_data(new_table->space);
-	crypt_block = NULL;
+	/* Get crypt data from tablespace if present. We should be protected
+	from concurrent DDL (e.g. drop table) by MDL-locks. */
+	fil_space_t* space = fil_space_acquire(new_table->space);
+
+	if (space) {
+		crypt_data = space->crypt_data;
+	} else {
+		DBUG_RETURN(DB_TABLESPACE_NOT_FOUND);
+	}
 
 	/* If tablespace is encrypted, allocate additional buffer for
 	encryption/decryption. */
@@ -4348,6 +4354,10 @@ func_exit:
 					MONITOR_BACKGROUND_DROP_INDEX);
 			}
 		}
+	}
+
+	if (space) {
+		fil_space_release(space);
 	}
 
 	DBUG_RETURN(error);

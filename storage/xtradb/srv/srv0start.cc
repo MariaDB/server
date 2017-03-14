@@ -695,6 +695,7 @@ create_log_files(
 		FIL_LOG,
 		NULL /* no encryption yet */,
 		true /* this is create */);
+
 	ut_a(fil_validate());
 
 	logfile0 = fil_node_create(
@@ -1187,13 +1188,14 @@ check_first_page:
 
 		if (i == 0) {
 			if (!crypt_data) {
-				crypt_data = fil_space_create_crypt_data(FIL_SPACE_ENCRYPTION_DEFAULT, FIL_DEFAULT_ENCRYPTION_KEY);
+				crypt_data = fil_space_create_crypt_data(FIL_ENCRYPTION_DEFAULT,
+					FIL_DEFAULT_ENCRYPTION_KEY);
 			}
 
 			flags = FSP_FLAGS_PAGE_SSIZE();
 
 			fil_space_create(name, 0, flags, FIL_TABLESPACE,
-					crypt_data, (*create_new_db) == true);
+				crypt_data, (*create_new_db) == true);
 		}
 
 		ut_a(fil_validate());

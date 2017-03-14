@@ -1038,14 +1038,15 @@ fsp_flags_get_page_size(
 /*====================*/
 	ulint	flags);		/*!< in: tablespace flags */
 
-/*********************************************************************/
-/* @return offset into fsp header where crypt data is stored */
+/*********************************************************************
+Compute offset after xdes where crypt data can be stored
+@param[in]	zip_size	Compressed size or 0
+@return	offset */
 UNIV_INTERN
 ulint
 fsp_header_get_crypt_offset(
-/*========================*/
-	ulint zip_size,		/*!< in: zip_size */
-	ulint* max_size);	/*!< out: free space after offset */
+	const ulint zip_size)
+	MY_ATTRIBUTE((warn_unused_result));
 
 #define fsp_page_is_free(space,page,mtr) \
 	fsp_page_is_free_func(space,page,mtr, __FILE__, __LINE__)

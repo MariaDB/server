@@ -782,7 +782,7 @@ GLOBAL_VALUE_ORIGIN	COMPILE-TIME
 DEFAULT_VALUE	1
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	INT UNSIGNED
-VARIABLE_COMMENT	Key rotation - re-encrypt in background all pages that were encrypted with a key that many (or more) versions behind
+VARIABLE_COMMENT	Key rotation - re-encrypt in background all pages that were encrypted with a key that many (or more) versions behind. Value 0 indicates that key rotation is disabled.
 NUMERIC_MIN_VALUE	0
 NUMERIC_MAX_VALUE	4294967295
 NUMERIC_BLOCK_SIZE	0
