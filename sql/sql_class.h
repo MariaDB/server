@@ -69,6 +69,7 @@ struct wsrep_thd_shadow {
   char                 *db;
   size_t               db_length;
   my_hrtime_t          user_time;
+  longlong             row_count_func;
 };
 #endif
 class Reprepare_observer;
