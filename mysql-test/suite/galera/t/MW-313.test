@@ -3,6 +3,7 @@
 #
 
 --source include/galera_cluster.inc
+--source include/have_innodb.inc
 --source include/have_binlog_format_row.inc
 
 # No error expected for SELECT and SHOW
