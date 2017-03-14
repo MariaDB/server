@@ -73,7 +73,14 @@ select * from vvvt1 for system_time all;
 create or replace table t1 (x int) with system versioning;
 create or replace view vt1(c) as select x from t1;
 
-drop view vvvt1;
-drop view vvt1;
-drop view vt1;
-drop table t1;
+create or replace table t1 (a int) with system versioning;
+create or replace table t2 (b int) with system versioning;
+insert into t1 values (1);
+insert into t2 values (2);
+create or replace view vt12 as select * from t1 cross join t2;
+select * from vt12;
+create or replace view vt12 as select * from t1 for system_time as of timestamp '0-0-0' cross join t2;
+select * from vt12;
+
+drop view vt1, vvt1, vvvt1, vt12;
+drop table t1, t2;

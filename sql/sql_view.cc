@@ -467,9 +467,9 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
         const char *end = s->vers_end_field()->field_name;
 
         select_lex->item_list.push_back(new (thd->mem_root) Item_field(
-            thd, &select_lex->context, NULL, NULL, start));
+            thd, &select_lex->context, tables->db, tables->alias, start));
         select_lex->item_list.push_back(new (thd->mem_root) Item_field(
-            thd, &select_lex->context, NULL, NULL, end));
+            thd, &select_lex->context, tables->db, tables->alias, end));
 
         if (lex->view_list.elements)
         {
