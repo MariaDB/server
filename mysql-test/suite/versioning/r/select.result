@@ -428,6 +428,22 @@ drop view vt1;
 create or replace table t1(x int) with system versioning;
 select * from (t1 as r left join t1 as u using (x)), t1;
 x	x
+create or replace table t1 (a int) with system versioning;
+insert into t1 values (1);
+create trigger read_end after update on t1
+for each row set @end = old.sys_trx_end;
+update t1 set a=2;
+select @end;
+@end
+2038-01-19 03:14:07.000000
+create or replace table t1 (a int) with system versioning engine=innodb;
+insert into t1 values (1);
+create trigger read_end after update on t1
+for each row set @end = old.sys_trx_end;
+update t1 set a=2;
+select @end;
+@end
+18446744073709551615
 drop table t1, t2;
 call verify_vtq;
 No	A	B	C	D
@@ -440,6 +456,8 @@ No	A	B	C	D
 7	1	1	1	1
 8	1	1	1	1
 9	1	1	1	1
+10	1	1	1	1
+11	1	1	1	1
 drop procedure test_01;
 drop procedure test_02;
 drop procedure verify_vtq;

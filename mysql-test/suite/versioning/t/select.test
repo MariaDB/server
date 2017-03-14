@@ -151,6 +151,22 @@ drop view vt1;
 create or replace table t1(x int) with system versioning;
 select * from (t1 as r left join t1 as u using (x)), t1;
 
+# @end should be max timestamp
+create or replace table t1 (a int) with system versioning;
+insert into t1 values (1);
+create trigger read_end after update on t1
+  for each row set @end = old.sys_trx_end;
+update t1 set a=2;
+select @end;
+
+# @end should be max trx_id
+create or replace table t1 (a int) with system versioning engine=innodb;
+insert into t1 values (1);
+create trigger read_end after update on t1
+  for each row set @end = old.sys_trx_end;
+update t1 set a=2;
+select @end;
+
 drop table t1, t2;
 
 call verify_vtq;

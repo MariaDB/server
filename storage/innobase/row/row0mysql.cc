@@ -1497,7 +1497,6 @@ row_insert_for_mysql(
 
 		if (ins_mode == ROW_INS_HISTORICAL) {
 			set_tuple_col_8(node->row, table->vers_row_end, trx->id, node->entry_sys_heap);
-			int8store(&mysql_rec[t->mysql_col_offset], trx->id);
 		}
 		else {
 			set_tuple_col_8(node->row, table->vers_row_end, IB_UINT64_MAX, node->entry_sys_heap);
