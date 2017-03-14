@@ -6,14 +6,14 @@ SELECT * FROM INFORMATION_SCHEMA.ENGINES
 WHERE engine = 'innodb'
 AND support IN ('YES', 'DEFAULT', 'ENABLED');
 ENGINE	SUPPORT	COMMENT	TRANSACTIONS	XA	SAVEPOINTS
-FOUND /\[ERROR\] InnoDB: Could not create undo tablespace '.*undo002'/ in mysqld.1.err
+FOUND 1 /\[ERROR\] InnoDB: Could not create undo tablespace '.*undo002'/ in mysqld.1.err
 # Remove  undo001,undo002,ibdata1,ibdata2,ib_logfile1,ib_logfile2,ib_logfile101
 # Start mysqld with non existent innodb_log_group_home_dir
 SELECT * FROM INFORMATION_SCHEMA.ENGINES
 WHERE engine = 'innodb'
 AND support IN ('YES', 'DEFAULT', 'ENABLED');
 ENGINE	SUPPORT	COMMENT	TRANSACTIONS	XA	SAVEPOINTS
-FOUND /File .path.to.non-existent.*ib_logfile101: 'create' returned OS error \d+/ in mysqld.1.err
+FOUND 1 /File .path.to.non-existent.*ib_logfile101: 'create' returned OS error \d+/ in mysqld.1.err
 # Remove ibdata1 & ibdata2
 # Successfully let InnoDB create tablespaces
 SELECT COUNT(*) `1` FROM INFORMATION_SCHEMA.ENGINES
@@ -27,7 +27,7 @@ SELECT * FROM INFORMATION_SCHEMA.ENGINES
 WHERE engine = 'innodb'
 AND support IN ('YES', 'DEFAULT', 'ENABLED');
 ENGINE	SUPPORT	COMMENT	TRANSACTIONS	XA	SAVEPOINTS
-FOUND /The innodb_system data file 'ibdata1' was not found but one of the other data files 'ibdata2' exists/ in mysqld.1.err
+FOUND 1 /The innodb_system data file 'ibdata1' was not found but one of the other data files 'ibdata2' exists/ in mysqld.1.err
 bak_ib_logfile0
 bak_ib_logfile1
 bak_ib_logfile2
@@ -49,8 +49,8 @@ SELECT * FROM INFORMATION_SCHEMA.ENGINES
 WHERE engine = 'innodb'
 AND support IN ('YES', 'DEFAULT', 'ENABLED');
 ENGINE	SUPPORT	COMMENT	TRANSACTIONS	XA	SAVEPOINTS
-FOUND /InnoDB: Tablespace size stored in header is \d+ pages, but the sum of data file sizes is \d+ pages/ in mysqld.1.err
-FOUND /InnoDB: Cannot start InnoDB. The tail of the system tablespace is missing/ in mysqld.1.err
+FOUND 1 /InnoDB: Tablespace size stored in header is \d+ pages, but the sum of data file sizes is \d+ pages/ in mysqld.1.err
+FOUND 1 /InnoDB: Cannot start InnoDB. The tail of the system tablespace is missing/ in mysqld.1.err
 bak_ib_logfile0
 bak_ib_logfile1
 bak_ib_logfile2
@@ -88,7 +88,7 @@ SELECT * FROM INFORMATION_SCHEMA.ENGINES
 WHERE engine = 'innodb'
 AND support IN ('YES', 'DEFAULT', 'ENABLED');
 ENGINE	SUPPORT	COMMENT	TRANSACTIONS	XA	SAVEPOINTS
-FOUND /InnoDB: undo tablespace .*undo001.* exists\. Creating system tablespace with existing undo tablespaces is not supported\. Please delete all undo tablespaces before creating new system tablespace\./ in mysqld.1.err
+FOUND 1 /InnoDB: undo tablespace .*undo001.* exists\. Creating system tablespace with existing undo tablespaces is not supported\. Please delete all undo tablespaces before creating new system tablespace\./ in mysqld.1.err
 bak_ib_logfile0
 bak_ib_logfile1
 bak_ib_logfile2
@@ -175,7 +175,7 @@ SELECT * FROM INFORMATION_SCHEMA.ENGINES
 WHERE engine = 'innodb'
 AND support IN ('YES', 'DEFAULT', 'ENABLED');
 ENGINE	SUPPORT	COMMENT	TRANSACTIONS	XA	SAVEPOINTS
-FOUND /undo tablespace .*undo003.* exists\. Creating system tablespace with existing undo tablespaces is not supported\. Please delete all undo tablespaces before creating new system tablespace\./ in mysqld.1.err
+FOUND 1 /undo tablespace .*undo003.* exists\. Creating system tablespace with existing undo tablespaces is not supported\. Please delete all undo tablespaces before creating new system tablespace\./ in mysqld.1.err
 bak_ib_logfile0
 bak_ib_logfile1
 bak_ib_logfile2
@@ -207,7 +207,7 @@ SELECT * FROM INFORMATION_SCHEMA.ENGINES
 WHERE engine = 'innodb'
 AND support IN ('YES', 'DEFAULT', 'ENABLED');
 ENGINE	SUPPORT	COMMENT	TRANSACTIONS	XA	SAVEPOINTS
-FOUND /Expected to open 3 undo tablespaces but was able to find only 1 undo tablespaces/ in mysqld.1.err
+FOUND 1 /Expected to open 3 undo tablespaces but was able to find only 1 undo tablespaces/ in mysqld.1.err
 bak_ib_logfile0
 bak_ib_logfile1
 bak_ib_logfile2
@@ -244,7 +244,7 @@ SELECT * FROM INFORMATION_SCHEMA.ENGINES
 WHERE engine = 'innodb'
 AND support IN ('YES', 'DEFAULT', 'ENABLED');
 ENGINE	SUPPORT	COMMENT	TRANSACTIONS	XA	SAVEPOINTS
-FOUND /Expected to open 3 undo tablespaces but was able to find only 0 undo tablespaces/ in mysqld.1.err
+FOUND 1 /Expected to open 3 undo tablespaces but was able to find only 0 undo tablespaces/ in mysqld.1.err
 bak_ib_logfile0
 bak_ib_logfile1
 bak_ib_logfile2
@@ -340,7 +340,7 @@ WHERE engine='innodb'
 AND support IN ('YES', 'DEFAULT', 'ENABLED');
 1
 1
-FOUND /Resizing redo log from 1\*\d+ to 3\*\d+ pages; LSN=\d+/ in mysqld.1.err
+FOUND 1 /Resizing redo log from 1\*\d+ to 3\*\d+ pages; LSN=\d+/ in mysqld.1.err
 # Cleanup
 bak_ib_logfile0
 bak_ib_logfile1

@@ -21,7 +21,7 @@ NOT FOUND /foobar/ in t1.ibd
 # t2 ... on expecting NOT FOUND
 NOT FOUND /temp/ in t2.ibd
 # t3 no  on expecting FOUND
-FOUND /dummy/ in t3.ibd
+FOUND 42 /dummy/ in t3.ibd
 # ibdata1 expecting NOT FOUND
 NOT FOUND /foobar/ in ibdata1
 # Now turn off encryption and wait for threads to decrypt everything
@@ -43,7 +43,7 @@ NOT FOUND /foobar/ in t1.ibd
 # t2 ... on expecting FOUND
 NOT FOUND /temp/ in t2.ibd
 # t3 no  on expecting FOUND
-FOUND /dummy/ in t3.ibd
+FOUND 42 /dummy/ in t3.ibd
 # ibdata1 expecting NOT FOUND
 NOT FOUND /foobar/ in ibdata1
 # Now turn on encryption and wait for threads to encrypt all spaces
@@ -65,7 +65,7 @@ NOT FOUND /foobar/ in t1.ibd
 # t2 ... on expecting NOT FOUND
 NOT FOUND /temp/ in t2.ibd
 # t3 no  on expecting FOUND
-FOUND /dummy/ in t3.ibd
+FOUND 42 /dummy/ in t3.ibd
 # ibdata1 expecting NOT FOUND
 NOT FOUND /foobar/ in ibdata1
 drop table t1, t2, t3;

@@ -106,16 +106,17 @@ SET binlog_row_image= MINIMAL;
 
 --let $master_datadir= `SELECT @@datadir`
 
+--let SEARCH_RANGE = 500000
 --let SEARCH_FILE= $master_datadir/master-bin.0*
---let SEARCH_PATTERN= _to_encrypt
+--let SEARCH_PATTERN= _to_encrypt.*
 --source include/search_pattern_in_file.inc
 
 --let SEARCH_FILE= $master_datadir/master-bin.0*
---let SEARCH_PATTERN= COMMIT
+--let SEARCH_PATTERN= COMMIT.*
 --source include/search_pattern_in_file.inc
 
 --let SEARCH_FILE= $master_datadir/master-bin.0*
---let SEARCH_PATTERN= TIMESTAMP
+--let SEARCH_PATTERN= TIMESTAMP.*
 --source include/search_pattern_in_file.inc
 
 --disable_connect_log
@@ -138,15 +139,15 @@ SET binlog_row_image= MINIMAL;
 # Check that relay logs are unencrypted
 
 --let SEARCH_FILE= $slave_datadir/slave-relay-bin.0*
---let SEARCH_PATTERN= _to_encrypt
+--let SEARCH_PATTERN= _to_encrypt.*
 --source include/search_pattern_in_file.inc
 
 --let SEARCH_FILE= $slave_datadir/slave-relay-bin.0*
---let SEARCH_PATTERN= COMMIT
+--let SEARCH_PATTERN= COMMIT.*
 --source include/search_pattern_in_file.inc
 
 --let SEARCH_FILE= $slave_datadir/slave-relay-bin.0*
---let SEARCH_PATTERN= TIMESTAMP
+--let SEARCH_PATTERN= TIMESTAMP.*
 --source include/search_pattern_in_file.inc
 
 
@@ -158,15 +159,15 @@ SET binlog_row_image= MINIMAL;
 --enable_connect_log
 
 --let SEARCH_FILE= $slave_datadir/slave-bin.0*
---let SEARCH_PATTERN= _to_encrypt
+--let SEARCH_PATTERN= _to_encrypt.*
 --source include/search_pattern_in_file.inc
 
 --let SEARCH_FILE= $slave_datadir/slave-bin.0*
---let SEARCH_PATTERN= COMMIT
+--let SEARCH_PATTERN= COMMIT.*
 --source include/search_pattern_in_file.inc
 
 --let SEARCH_FILE= $slave_datadir/slave-bin.0*
---let SEARCH_PATTERN= TIMESTAMP
+--let SEARCH_PATTERN= TIMESTAMP.*
 --source include/search_pattern_in_file.inc
 
 --echo ##########

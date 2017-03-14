@@ -14,16 +14,16 @@ insert into t1 values(3,"compressed table");
 [2]: check the innochecksum with full form --strict-check=crc32
 [3]: check the innochecksum with short form -C crc32
 [4]: check the innochecksum with --no-check ignores algorithm check, warning is expected
-FOUND /Error: --no-check must be associated with --write option./ in my_restart.err
+FOUND 1 /Error: --no-check must be associated with --write option./ in my_restart.err
 [5]: check the innochecksum with short form --no-check ignores algorithm check, warning is expected
-FOUND /Error: --no-check must be associated with --write option./ in my_restart.err
+FOUND 1 /Error: --no-check must be associated with --write option./ in my_restart.err
 [6]: check the innochecksum with full form strict-check & no-check , an error is expected
-FOUND /Error: --strict-check option cannot be used together with --no-check option./ in my_restart.err
+FOUND 1 /Error: --strict-check option cannot be used together with --no-check option./ in my_restart.err
 [7]: check the innochecksum with short form strict-check & no-check , an error is expected
-FOUND /Error: --strict-check option cannot be used together with --no-check option./ in my_restart.err
+FOUND 1 /Error: --strict-check option cannot be used together with --no-check option./ in my_restart.err
 [8]: check the innochecksum with short & full form combination
 # strict-check & no-check, an error is expected
-FOUND /Error: --strict-check option cannot be used together with --no-check option./ in my_restart.err
+FOUND 1 /Error: --strict-check option cannot be used together with --no-check option./ in my_restart.err
 [9]: check the innochecksum with full form --strict-check=innodb
 [10]: check the innochecksum with full form --strict-check=none
 # when server Default checksum=crc32
@@ -32,16 +32,16 @@ FOUND /Error: --strict-check option cannot be used together with --no-check opti
 [12]: check the innochecksum with short form -C none
 # when server Default checksum=crc32
 [13]: check strict-check with invalid values
-FOUND /Error while setting value \'strict_innodb\' to \'strict-check\'/ in my_restart.err
-FOUND /Error while setting value \'strict_innodb\' to \'strict-check\'/ in my_restart.err
-FOUND /Error while setting value \'strict_crc32\' to \'strict-check\'/ in my_restart.err
-FOUND /Error while setting value \'strict_crc32\' to \'strict-check\'/ in my_restart.err
-FOUND /Error while setting value \'strict_none\' to \'strict-check\'/ in my_restart.err
-FOUND /Error while setting value \'strict_none\' to \'strict-check\'/ in my_restart.err
-FOUND /Error while setting value \'InnoBD\' to \'strict-check\'/ in my_restart.err
-FOUND /Error while setting value \'InnoBD\' to \'strict-check\'/ in my_restart.err
-FOUND /Error while setting value \'crc\' to \'strict-check\'/ in my_restart.err
-FOUND /Error while setting value \'no\' to \'strict-check\'/ in my_restart.err
+FOUND 1 /Error while setting value \'strict_innodb\' to \'strict-check\'/ in my_restart.err
+FOUND 1 /Error while setting value \'strict_innodb\' to \'strict-check\'/ in my_restart.err
+FOUND 1 /Error while setting value \'strict_crc32\' to \'strict-check\'/ in my_restart.err
+FOUND 1 /Error while setting value \'strict_crc32\' to \'strict-check\'/ in my_restart.err
+FOUND 1 /Error while setting value \'strict_none\' to \'strict-check\'/ in my_restart.err
+FOUND 1 /Error while setting value \'strict_none\' to \'strict-check\'/ in my_restart.err
+FOUND 1 /Error while setting value \'InnoBD\' to \'strict-check\'/ in my_restart.err
+FOUND 1 /Error while setting value \'InnoBD\' to \'strict-check\'/ in my_restart.err
+FOUND 1 /Error while setting value \'crc\' to \'strict-check\'/ in my_restart.err
+FOUND 1 /Error while setting value \'no\' to \'strict-check\'/ in my_restart.err
 [14a]: when server default checksum=crc32 rewrite new checksum=crc32 with innochecksum
 # Also check the long form of write option.
 [14b]: when server default checksum=crc32 rewrite new checksum=innodb with innochecksum
@@ -85,7 +85,7 @@ c1	c2
 1	Innochecksum InnoDB1
 # Stop server
 [18]:check Innochecksum with invalid write options
-FOUND /Error while setting value \'strict_crc32\' to \'write\'/ in my_restart.err
-FOUND /Error while setting value \'strict_innodb\' to \'write\'/ in my_restart.err
-FOUND /Error while setting value \'crc23\' to \'write\'/ in my_restart.err
+FOUND 1 /Error while setting value \'strict_crc32\' to \'write\'/ in my_restart.err
+FOUND 1 /Error while setting value \'strict_innodb\' to \'write\'/ in my_restart.err
+FOUND 1 /Error while setting value \'crc23\' to \'write\'/ in my_restart.err
 DROP TABLE tab1;
