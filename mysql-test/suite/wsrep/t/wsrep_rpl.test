@@ -15,18 +15,13 @@ let $wsrep_max_ws_rows_slave = `SELECT @@GLOBAL.wsrep_max_ws_rows`;
 connection master;
 CREATE TABLE t1(i INT) ENGINE = INNODB;
 
-# Setting wsrep_max_ws_rows should have no impact on replication master
-# unless its a cluster node.
-SET @@GLOBAL.wsrep_max_ws_rows = 1;
+SET @@GLOBAL.wsrep_max_ws_rows = 2;
 INSERT INTO t1 VALUES(1), (2);
-
 sync_slave_with_master;
 SELECT COUNT(*) = 2 FROM t1;
 
 connection slave;
-# Setting wsrep_max_ws_rows should have no impact on replication slave
-# unless its a cluster node.
-SET @@GLOBAL.wsrep_max_ws_rows = 1;
+SET @@GLOBAL.wsrep_max_ws_rows = 2;
 
 connection master;
 DELETE FROM t1;
@@ -38,7 +33,6 @@ connection master;
 DROP TABLE t1;
 
 sync_slave_with_master;
-
 # Restore wsrep_max_ws_rows on master and slave
 connection master;
 eval SET @@GLOBAL.wsrep_max_ws_rows = $wsrep_max_ws_rows_master;
