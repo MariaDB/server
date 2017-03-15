@@ -456,6 +456,16 @@ a	b
 1	2
 select * from (select * from t1 cross join t2 for system_time as of timestamp '0-0-0') as tmp;
 a	b
+create or replace table t1(a1 int) with system versioning;
+create or replace table t2(a2 int) with system versioning;
+insert into t1 values(1),(2);
+insert into t2 values(1),(2);
+select * from t1 for system_time all natural left join t2 for system_time all;
+a1	a2
+1	1
+2	1
+1	2
+2	2
 drop table t1, t2;
 call verify_vtq;
 No	A	B	C	D

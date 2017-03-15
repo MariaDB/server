@@ -5350,7 +5350,7 @@ find_field_in_natural_join(THD *thd, TABLE_LIST *table_ref, const char *name,
   {
     if (!my_strcasecmp(system_charset_info, curr_nj_col->name(), name))
     {
-      if (nj_col && !curr_nj_col->table_field->field->vers_sys_field())
+      if (nj_col)
       {
         my_error(ER_NON_UNIQ_ERROR, MYF(0), name, thd->where);
         DBUG_RETURN(NULL);
@@ -6379,6 +6379,10 @@ mark_common_columns(THD *thd, TABLE_LIST *table_ref_1, TABLE_LIST *table_ref_2,
     bool is_using_column_1;
     if (!(nj_col_1= it_1.get_or_create_column_ref(thd, leaf_1)))
       goto err;
+
+    if (nj_col_1->field() && nj_col_1->field()->vers_sys_field())
+      continue;
+
     field_name_1= nj_col_1->name();
     is_using_column_1= using_fields && 
       test_if_string_in_list(field_name_1, using_fields);
@@ -6420,9 +6424,8 @@ mark_common_columns(THD *thd, TABLE_LIST *table_ref_1, TABLE_LIST *table_ref_2,
       if (!my_strcasecmp(system_charset_info, field_name_1, cur_field_name_2))
       {
         DBUG_PRINT ("info", ("match c1.is_common=%d", nj_col_1->is_common));
-        if ((!it_1.field() || !it_1.field()->vers_sys_field()) &&
-            (cur_nj_col_2->is_common ||
-             (found && (!using_fields || is_using_column_1))))
+        if (cur_nj_col_2->is_common ||
+            (found && (!using_fields || is_using_column_1)))
         {
           my_error(ER_NON_UNIQ_ERROR, MYF(0), field_name_1, thd->where);
           goto err;
