@@ -63,6 +63,8 @@
 #include "opt_range.h"
 #include "rpl_parallel.h"
 
+#include "my_core_no_dump.h"
+
 /*
   The rule for this file: everything should be 'static'. When a sys_var
   variable or a function from this file is - in very rare cases - needed
@@ -5359,7 +5361,7 @@ static Sys_var_ulonglong Sys_max_thread_mem(
 
 #ifdef HAVE_MADV_DONTDUMP
 
-/* keep list in sync with constant definitiosn in my_stacktrace.h */
+/* keep list in sync with constant definitiosn in my_core_no_dump.h */
 static const char *core_nodump_names[] = { "MAX",
 					   "INNODB_POOL_BUFFER",
 					   "MYISAM_KEY_BUFFER",

@@ -528,6 +528,10 @@ ulong feature_files_opened_with_delayed_keys;
 ulonglong denied_connections;
 my_decimal decimal_zero;
 
+#ifdef HAVE_MADV_DONTDUMP
+ulong opt_core_nodump;
+#endif
+
 /*
   Maximum length of parameter value which can be set through
   mysql_send_long_data() call.

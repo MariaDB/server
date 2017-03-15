@@ -69,7 +69,7 @@ Created 11/5/1995 Heikki Tuuri
 #endif
 
 /* for core dump specific stuff */
-#include "my_stacktrace.h"
+#include "my_core_no_dump.h"
 
 /*
 		IMPLEMENTATION OF THE BUFFER POOL

@@ -40,10 +40,6 @@
 #define BACKTRACE_DEMANGLE 1
 #endif
 
-#ifdef HAVE_SYS_MMAN_H
-#include <sys/mman.h>
-#endif
-
 C_MODE_START
 
 #if defined(HAVE_STACKTRACE) || defined(HAVE_BACKTRACE)
@@ -105,40 +101,6 @@ size_t my_safe_printf_stderr(const char* fmt, ...)
   @returns Number of bytes written.
 */
 size_t my_write_stderr(const void *buf, size_t count);
-
-/*
- Core dump control options to exclude certain buffers from core dump files
-
- There are two motivations for excluding things from core dumps:
-
- * resource utilization: stuff like the InnoDB pool buffer is rarely needed
-   for post mortem debugging, but on machines with large amounts of memory
-   just the time and file system space it takes to write a core dump can
-   become substantial. Large core dump sizes can also become an obstacle
-   when providing a core dump to a 3rd party for analysis
-
- * security: certain buffers, especially the InnoDB pool buffer or the
-   Aria page cache, are likely to contain sensitive user data. Excluding
-   these from a core dump can improve data security and especially can be
-   a requirement for being able to pass production server core dumps to
-   3rd parties for analysis
-*/
-
-#ifdef HAVE_MADV_DONTDUMP
-
-/* Core dump exclusion constants */
-#define CORE_NODUMP_NONE                (0)
-#define CORE_NODUMP_INNODB_POOL_BUFFER  (1 << 1)
-#define CORE_NODUMP_MYISAM_KEY_BUFFER   (1 << 2)
-#define CORE_NODUMP_MAX                 (255)
-
-void exclude_from_coredump(void *ptr, size_t size, ulonglong flags);
-
-#else /* HAVE_MADV_DONTDUMP */
-
-#define exclude_from_coredump(ptr, size, flag)
-
-#endif /* HAVE_MADV_DONTDUMP */
 
 C_MODE_END
 

@@ -66,7 +66,7 @@ Created 11/5/1995 Heikki Tuuri
 #include "ha_prototypes.h"
 
 /* for core dump specific stuff */
-#include "my_stacktrace.h"
+#include "my_core_no_dump.h"
 
 /* prototypes for new functions added to ha_innodb.cc */
 trx_t* innobase_get_trx();

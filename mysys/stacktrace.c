@@ -34,11 +34,6 @@
 #include <execinfo.h>
 #endif
 
-/* Fine grained control of what shall be excluded from core dumps */
-#ifdef HAVE_MADV_DONTDUMP
-ulonglong opt_core_nodump = 0;
-#endif
-
 #define PTR_SANE(p) ((p) && (char*)(p) >= heap_start && (char*)(p) <= heap_end)
 
 static char *heap_start;
@@ -785,15 +780,3 @@ size_t my_safe_printf_stderr(const char* fmt, ...)
   my_write_stderr(to, result);
   return result;
 }
-
-
-#ifdef HAVE_MADV_DONTDUMP
-
-void exclude_from_coredump(void *ptr, size_t size, ulonglong flags)
-{
-  if (opt_core_nodump & flags) {
-    madvise(ptr, size, MADV_DONTDUMP);
-  }
-}
-
-#endif /* HAVE_MADV_DONTDUMP */
