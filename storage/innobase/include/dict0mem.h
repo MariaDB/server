@@ -1532,15 +1532,6 @@ struct dict_table_t {
 	/*!< set of foreign key constraints which refer to this table */
 	dict_foreign_set			referenced_set;
 
-#ifdef UNIV_DEBUG
-	/** This field is used to specify in simulations tables which are so
-	big that disk should be accessed. Disk access is simulated by putting
-	the thread to sleep for a while. NOTE that this flag is not stored to
-	the data dictionary on disk, and the database will forget about value
-	TRUE if it has to reload the table definition from disk. */
-	ibool					does_not_fit_in_memory;
-#endif /* UNIV_DEBUG */
-
 	/** TRUE if the maximum length of a single row exceeds BIG_ROW_SIZE.
 	Initialized in dict_table_add_to_cache(). */
 	unsigned				big_rows:1;

@@ -373,18 +373,7 @@ pars_create_table(
 					table */
 	sym_node_t*	column_defs,	/*!< in: list of column names */
 	sym_node_t*	compact,	/* in: non-NULL if COMPACT table. */
-	sym_node_t*	block_size,	/* in: block size (can be NULL) */
-	void*		not_fit_in_memory);
-					/*!< in: a non-NULL pointer means that
-					this is a table which in simulations
-					should be simulated as not fitting
-					in memory; thread is put to sleep
-					to simulate disk accesses; NOTE that
-					this flag is not stored to the data
-					dictionary on disk, and the database
-					will forget about non-NULL value if
-					it has to reload the table definition
-					from disk */
+	sym_node_t*	block_size);	/* in: block size (can be NULL) */
 /*********************************************************************//**
 Parses an index creation operation.
 @return index create subgraph */

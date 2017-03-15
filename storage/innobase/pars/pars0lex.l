@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1997, 2014, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -66,7 +67,7 @@ Created 12/14/1997 Heikki Tuuri
 
 /* Note: We cast &result to int* from yysize_t* */
 #define YY_INPUT(buf, result, max_size) \
-	pars_get_lex_chars(buf, (int*) &result, max_size)
+	(result = pars_get_lex_chars(buf, max_size))
 
 /* String buffer for removing quotes */
 static ulint	stringbuf_len_alloc = 0; /* Allocated length */
@@ -423,10 +424,6 @@ In the state 'id', only two actions are possible (defined below). */
 
 "CLUSTERED"	{
 			return(PARS_CLUSTERED_TOKEN);
-}
-
-"DOES_NOT_FIT_IN_MEMORY"	{
-			return(PARS_DOES_NOT_FIT_IN_MEM_TOKEN);
 }
 
 "ON"		{
