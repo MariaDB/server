@@ -39,3 +39,6 @@ trx_info_rpl : MariaRocks: @@rpl_skip_tx_api doesn't work, yet.
 mysqldump : MariaRocks: MariaDB's mysqldump doesn't support --print-ordering-key
 mysqldump2 : MariaRocks: MariaDB's mysqldump doesn't support --print-ordering-key
 
+show_engine : MariaRocks: MariaDB doesnt support SHOW ENGINE rocksdb TRANSACTION STATUS
+
+rpl_row_not_found : MariaDB doesnt support slave_exec_mode='SEMI_STRICT'
