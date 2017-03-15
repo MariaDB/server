@@ -910,7 +910,7 @@ rocksdb_enable_bulk_load_api	ON
 rocksdb_enable_thread_tracking	OFF
 rocksdb_enable_write_thread_adaptive_yield	OFF
 rocksdb_error_if_exists	OFF
-rocksdb_flush_log_at_trx_commit	1
+rocksdb_flush_log_at_trx_commit	0
 rocksdb_flush_memtable_on_analyze	ON
 rocksdb_force_compute_memtable_stats	ON
 rocksdb_force_flush_memtable_now	OFF
