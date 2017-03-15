@@ -96,13 +96,6 @@ enum precedence {
 
 typedef Bounds_checked_array<Item*> Ref_ptr_array;
 
-static inline uint32
-char_to_byte_length_safe(size_t char_length_arg, uint32 mbmaxlen_arg)
-{
-  ulonglong tmp= ((ulonglong) char_length_arg) * mbmaxlen_arg;
-  return tmp > UINT_MAX32 ? UINT_MAX32 : static_cast<uint32>(tmp);
-}
-
 bool mark_unsupported_function(const char *where, void *store, uint result);
 
 /* convenience helper for mark_unsupported_function() above */
