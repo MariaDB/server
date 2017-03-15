@@ -204,4 +204,5 @@ select * from t;
 
 call verify_vtq;
 drop table t;
-drop procedure verify_vtq;
+
+-- source suite/versioning/common_finish.inc

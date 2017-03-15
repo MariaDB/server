@@ -117,4 +117,5 @@ call verify_vtq;
 drop procedure test_01;
 drop procedure test_02;
 drop procedure test_03;
-drop procedure verify_vtq;
+
+-- source suite/versioning/common_finish.inc

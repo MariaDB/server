@@ -263,4 +263,5 @@ drop procedure test_04;
 drop procedure test_05;
 drop procedure test_06;
 drop procedure test_07;
-drop procedure verify_vtq;
+
+-- source suite/versioning/common_finish.inc

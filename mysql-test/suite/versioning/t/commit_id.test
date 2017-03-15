@@ -6,7 +6,6 @@ with system versioning
 engine innodb;
 
 
-
 # VTQ_ISO_LEVEL #
 
 set transaction isolation level read uncommitted;
@@ -76,4 +75,5 @@ select
 
 drop table t1;
 call verify_vtq;
-drop procedure verify_vtq;
+
+-- source suite/versioning/common_finish.inc
