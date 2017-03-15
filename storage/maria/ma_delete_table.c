@@ -86,11 +86,11 @@ int maria_delete_table_files(const char *name, myf sync_dir)
 {
   DBUG_ENTER("maria_delete_table_files");
 
-  if (my_handler_delete_with_symlink(key_file_kfile, name, MARIA_NAME_IEXT, MYF(MY_WME | sync_dir)) ||
-      my_handler_delete_with_symlink(key_file_dfile, name, MARIA_NAME_DEXT, MYF(MY_WME | sync_dir)))
+  if (mysql_file_delete_with_symlink(key_file_kfile, name, MARIA_NAME_IEXT, MYF(MY_WME | sync_dir)) ||
+      mysql_file_delete_with_symlink(key_file_dfile, name, MARIA_NAME_DEXT, MYF(MY_WME | sync_dir)))
     DBUG_RETURN(my_errno);
 
-  my_handler_delete_with_symlink(key_file_dfile, name, ".TMD", MYF(0));
-  my_handler_delete_with_symlink(key_file_dfile, name, ".OLD", MYF(0));
+  mysql_file_delete_with_symlink(key_file_dfile, name, ".TMD", MYF(0));
+  mysql_file_delete_with_symlink(key_file_dfile, name, ".OLD", MYF(0));
   DBUG_RETURN(0);
 }

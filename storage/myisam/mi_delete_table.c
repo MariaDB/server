@@ -34,14 +34,14 @@ int mi_delete_table(const char *name)
   check_table_is_closed(name,"delete");
 #endif
 
-  if (my_handler_delete_with_symlink(mi_key_file_kfile, name, MI_NAME_IEXT, MYF(MY_WME)) ||
-      my_handler_delete_with_symlink(mi_key_file_dfile, name, MI_NAME_DEXT, MYF(MY_WME)))
+  if (mysql_file_delete_with_symlink(mi_key_file_kfile, name, MI_NAME_IEXT, MYF(MY_WME)) ||
+      mysql_file_delete_with_symlink(mi_key_file_dfile, name, MI_NAME_DEXT, MYF(MY_WME)))
     DBUG_RETURN(my_errno);
 
 
   // optionally present:
-  my_handler_delete_with_symlink(mi_key_file_dfile, name, ".OLD", MYF(0));
-  my_handler_delete_with_symlink(mi_key_file_dfile, name, ".TMD", MYF(0));
+  mysql_file_delete_with_symlink(mi_key_file_dfile, name, ".OLD", MYF(0));
+  mysql_file_delete_with_symlink(mi_key_file_dfile, name, ".TMD", MYF(0));
 
   DBUG_RETURN(0);
 }
