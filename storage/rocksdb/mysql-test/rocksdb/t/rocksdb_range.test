@@ -128,6 +128,9 @@ select max(pk) from t3 where a=3 and pk < 33;
 --echo #
 
 --echo # Tests for search_flag=HA_READ_PREFIX_LAST_OR_PREV
+--echo # Note: the next explain has "Using index condition" in fb/mysql-5.6
+--echo #       but "Using where" in MariaDB because the latter does not 
+--echo #       support ICP over reverse scans.
 --replace_column 9 #
 explain
 select * from t2 where a between 99 and 2000 order by a desc;
