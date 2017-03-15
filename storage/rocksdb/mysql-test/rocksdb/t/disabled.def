@@ -31,7 +31,9 @@ rqg_transactions : Test that use RQG are disabled
 information_schema : MariaRocks: requires GTIDs
 mysqlbinlog_gtid_skip_empty_trans_rocksdb : MariaRocks: requires GTIDs
 read_only_tx : MariaRocks: requires GTIDs
+rpl_row_triggers : MariaRocks: requires GTIDs
 
+trx_info_rpl : MariaRocks: @@rpl_skip_tx_api doesn't work, yet.
 2pc_group_commit : MariaRocks: Group Commit is not functional yet
 
 mysqldump : MariaRocks: MariaDB's mysqldump doesn't support --print-ordering-key
