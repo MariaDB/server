@@ -1347,8 +1347,8 @@ inline_mysql_file_delete_with_symlink(
   const char *name, const char *ext, myf flags)
 {
   int result;
-  char fullname[FN_REFLEN];
-  fn_format(fullname, name, "", ext, MY_UNPACK_FILENAME | MY_APPEND_EXT);
+  char buf[FN_REFLEN];
+  char *fullname= fn_format(buf, name, "", ext, MY_UNPACK_FILENAME | MY_APPEND_EXT);
 #ifdef HAVE_PSI_FILE_INTERFACE
   struct PSI_file_locker *locker;
   PSI_file_locker_state state;
