@@ -64,9 +64,9 @@ typedef struct my_aio_result {
 #define MY_FAE		8	/* Fatal if any error */
 #define MY_WME		16	/* Write message on error */
 #define MY_WAIT_IF_FULL 32	/* Wait and try again if disk full error */
-#define MY_IGNORE_BADFD 32      /* my_sync: ignore 'bad descriptor' errors */
-#define MY_UNUSED       64      /* Unused (was support for RAID) */
-#define MY_FULL_IO     512      /* For my_read - loop intil I/O is complete */
+#define MY_IGNORE_BADFD 32      /* my_sync(): ignore 'bad descriptor' errors */
+#define MY_NOSYMLINKS  512      /* my_open(): don't follow symlinks */
+#define MY_FULL_IO     512      /* my_read(): loop intil I/O is complete */
 #define MY_DONT_CHECK_FILESIZE 128 /* Option to init_io_cache() */
 #define MY_LINK_WARNING 32	/* my_redel() gives warning if links */
 #define MY_COPYTIME	64	/* my_redel() copys time */
@@ -253,7 +253,7 @@ extern ulong	my_file_opened,my_stream_opened, my_tmp_file_created;
 extern ulong    my_file_total_opened;
 extern ulong    my_sync_count;
 extern uint	mysys_usage_id;
-extern my_bool	my_init_done;
+extern my_bool	my_init_done, my_thr_key_mysys_exists;
 extern my_bool  my_assert_on_error;
 extern myf      my_global_flags;        /* Set to MY_WME for more error messages */
 					/* Point to current my_message() */
@@ -567,6 +567,7 @@ my_off_t my_b_safe_tell(IO_CACHE* info); /* picks the correct tell() */
 typedef uint32 ha_checksum;
 extern ulong my_crc_dbug_check;
 
+extern int (*mysys_test_invalid_symlink)(const char *filename);
 #include <my_alloc.h>
 
 	/* Prototypes for mysys and my_func functions */
@@ -594,9 +595,11 @@ extern int my_realpath(char *to, const char *filename, myf MyFlags);
 extern File my_create_with_symlink(const char *linkname, const char *filename,
 				   int createflags, int access_flags,
 				   myf MyFlags);
-extern int my_delete_with_symlink(const char *name, myf MyFlags);
 extern int my_rename_with_symlink(const char *from,const char *to,myf MyFlags);
 extern int my_symlink(const char *content, const char *linkname, myf MyFlags);
+extern int my_handler_delete_with_symlink(PSI_file_key key, const char *name,
+                                          const char *ext, myf sync_dir);
+
 extern size_t my_read(File Filedes,uchar *Buffer,size_t Count,myf MyFlags);
 extern size_t my_pread(File Filedes,uchar *Buffer,size_t Count,my_off_t offset,
 		     myf MyFlags);

@@ -386,8 +386,8 @@ static int register_service()
     CloseServiceHandle(sc_manager);
     die("CreateService failed (%u)", GetLastError());
   }
-
-  SERVICE_DESCRIPTION sd= { "MariaDB database server" };
+  char description[] = "MariaDB database server";
+  SERVICE_DESCRIPTION sd= { description };
   ChangeServiceConfig2(sc_service, SERVICE_CONFIG_DESCRIPTION, &sd);
   CloseServiceHandle(sc_service); 
   CloseServiceHandle(sc_manager);

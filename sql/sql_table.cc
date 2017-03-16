@@ -4149,7 +4149,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
     Field::utype type= (Field::utype) MTYP_TYPENR(sql_field->unireg_check);
 
     if (thd->variables.sql_mode & MODE_NO_ZERO_DATE &&
-        !sql_field->def &&
+        !sql_field->def && !sql_field->vcol_info &&
         is_timestamp_type(sql_field->sql_type) &&
         (sql_field->flags & NOT_NULL_FLAG) &&
         (type == Field::NONE || type == Field::TIMESTAMP_UN_FIELD))
@@ -6490,6 +6490,9 @@ static bool fill_alter_inplace_info(THD *thd,
          (new_key->flags & HA_KEYFLAG_MASK)) ||
         (table_key->user_defined_key_parts !=
          new_key->user_defined_key_parts))
+      goto index_changed;
+
+    if (table_key->block_size != new_key->block_size)
       goto index_changed;
 
     if (engine_options_differ(table_key->option_struct, new_key->option_struct,

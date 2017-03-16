@@ -1896,15 +1896,22 @@ int ha_myisam::info(uint flag)
      Set data_file_name and index_file_name to point at the symlink value
      if table is symlinked (Ie;  Real name is not same as generated name)
    */
+    char buf[FN_REFLEN];
     data_file_name= index_file_name= 0;
     fn_format(name_buff, file->filename, "", MI_NAME_DEXT,
               MY_APPEND_EXT | MY_UNPACK_FILENAME);
-    if (strcmp(name_buff, misam_info.data_file_name))
-      data_file_name=misam_info.data_file_name;
+    if (my_is_symlink(name_buff))
+    {
+      my_readlink(buf, name_buff, MYF(0));
+      data_file_name= ha_thd()->strdup(buf);
+    }
     fn_format(name_buff, file->filename, "", MI_NAME_IEXT,
               MY_APPEND_EXT | MY_UNPACK_FILENAME);
-    if (strcmp(name_buff, misam_info.index_file_name))
-      index_file_name=misam_info.index_file_name;
+    if (my_is_symlink(name_buff))
+    {
+      my_readlink(buf, name_buff, MYF(0));
+      index_file_name= ha_thd()->strdup(buf);
+    }
   }
   if (flag & HA_STATUS_ERRKEY)
   {
@@ -2176,6 +2183,74 @@ int ha_myisam::ft_read(uchar *buf)
 uint ha_myisam::checksum() const
 {
   return (uint)file->state->checksum;
+}
+
+
+enum_alter_inplace_result
+ha_myisam::check_if_supported_inplace_alter(TABLE *new_table,
+                                            Alter_inplace_info *alter_info)
+{
+  DBUG_ENTER("ha_myisam::check_if_supported_inplace_alter");
+
+  const uint readd_index= Alter_inplace_info::ADD_INDEX |
+                          Alter_inplace_info::DROP_INDEX;
+  const uint readd_unique= Alter_inplace_info::ADD_UNIQUE_INDEX |
+                           Alter_inplace_info::DROP_UNIQUE_INDEX;
+  const uint readd_pk= Alter_inplace_info::ADD_PK_INDEX |
+                       Alter_inplace_info::DROP_PK_INDEX;
+
+  const uint op= alter_info->handler_flags;
+
+  /*
+    ha_myisam::open() updates table->key_info->block_size to be the actual
+    MYI index block size, overwriting user-specified value (if any).
+    So, the server can not reliably detect whether ALTER TABLE changes
+    key_block_size or not, it might think the block size was changed,
+    when it wasn't, and in this case the server will recreate (drop+add)
+    the index unnecessary. Fix it.
+  */
+
+  if (table->s->keys == new_table->s->keys &&
+      ((op & readd_pk) == readd_pk ||
+       (op & readd_unique) == readd_unique ||
+       (op & readd_index) == readd_index))
+  {
+    for (uint i=0; i < table->s->keys; i++)
+    {
+      KEY *old_key= table->key_info + i;
+      KEY *new_key= new_table->key_info + i;
+
+      if (old_key->block_size == new_key->block_size)
+        DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED); // must differ somewhere else
+
+      if (new_key->block_size && new_key->block_size != old_key->block_size)
+        DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED); // really changed
+
+      /* any difference besides the block_size, and we give up */
+      if (old_key->key_length != new_key->key_length ||
+          old_key->flags != new_key->flags ||
+          old_key->user_defined_key_parts != new_key->user_defined_key_parts ||
+          old_key->algorithm != new_key->algorithm ||
+          strcmp(old_key->name, new_key->name))
+        DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
+
+      for (uint j= 0; j < old_key->user_defined_key_parts; j++)
+      {
+        KEY_PART_INFO *old_kp= old_key->key_part + j;
+        KEY_PART_INFO *new_kp= new_key->key_part + j;
+        if (old_kp->offset != new_kp->offset ||
+            old_kp->null_offset != new_kp->null_offset ||
+            old_kp->length != new_kp->length ||
+            old_kp->fieldnr != new_kp->fieldnr ||
+            old_kp->key_part_flag != new_kp->key_part_flag ||
+            old_kp->type != new_kp->type ||
+            old_kp->null_bit != new_kp->null_bit)
+          DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
+      }
+    }
+    alter_info->handler_flags &= ~(readd_pk | readd_unique | readd_index);
+  }
+  DBUG_RETURN(handler::check_if_supported_inplace_alter(new_table, alter_info));
 }
 
 

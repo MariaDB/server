@@ -66,6 +66,7 @@
 # 2013-10-08 PH got rid of the "source" command, which is a bash-ism (use ".")
 # 2013-11-05 PH added support for PARENS_NEST_LIMIT
 # 2016-03-01 PH applied Chris Wilson's patch for MSVC static build
+# 2016-06-24 PH applied Chris Wilson's revised patch (adds a separate option)
 
 PROJECT(PCRE C CXX)
 

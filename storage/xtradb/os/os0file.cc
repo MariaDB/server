@@ -2,6 +2,7 @@
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2009, Percona Inc.
+Copyright (c) 2013, 2017, MariaDB Corporation. All Rights Reserved.
 
 Portions of this file contain modifications contributed and copyrighted
 by Percona Inc.. Those modifications are
@@ -215,11 +216,15 @@ struct os_aio_array_t{
 	os_event_t	not_full;
 				/*!< The event which is set to the
 				signaled state when there is space in
-				the aio outside the ibuf segment */
+				the aio outside the ibuf segment;
+				os_event_set() and os_event_reset()
+				are protected by os_aio_array_t::mutex */
 	os_event_t	is_empty;
 				/*!< The event which is set to the
 				signaled state when there are no
-				pending i/os in this array */
+				pending i/os in this array;
+				os_event_set() and os_event_reset()
+				are protected by os_aio_array_t::mutex */
 	ulint		n_slots;/*!< Total number of slots in the aio
 				array.  This must be divisible by
 				n_threads. */
@@ -261,8 +266,8 @@ struct os_aio_array_t{
 #define OS_AIO_IO_SETUP_RETRY_ATTEMPTS	5
 #endif
 
-/** Array of events used in simulated aio */
-static os_event_t*	os_aio_segment_wait_events = NULL;
+/** Array of events used in simulated aio. */
+static os_event_t*	os_aio_segment_wait_events;
 
 /** The aio arrays for non-ibuf i/o and ibuf i/o, as well as sync aio. These
 are NULL when the module has not yet been initialized. @{ */
@@ -1103,50 +1108,15 @@ next_file:
 	char*		full_path;
 	int		ret;
 	struct stat	statinfo;
-#ifdef HAVE_READDIR_R
-	char		dirent_buf[sizeof(struct dirent)
-				   + _POSIX_PATH_MAX + 100];
-	/* In /mysys/my_lib.c, _POSIX_PATH_MAX + 1 is used as
-	the max file name len; but in most standards, the
-	length is NAME_MAX; we add 100 to be even safer */
-#endif
 
 next_file:
 
-#ifdef HAVE_READDIR_R
-	ret = readdir_r(dir, (struct dirent*) dirent_buf, &ent);
-
-	if (ret != 0
-#ifdef UNIV_AIX
-	    /* On AIX, only if we got non-NULL 'ent' (result) value and
-	    a non-zero 'ret' (return) value, it indicates a failed
-	    readdir_r() call. An NULL 'ent' with an non-zero 'ret'
-	    would indicate the "end of the directory" is reached. */
-	    && ent != NULL
-#endif
-	   ) {
-		fprintf(stderr,
-			"InnoDB: cannot read directory %s, error %lu\n",
-			dirname, (ulong) ret);
-
-		return(-1);
-	}
-
-	if (ent == NULL) {
-		/* End of directory */
-
-		return(1);
-	}
-
-	ut_a(strlen(ent->d_name) < _POSIX_PATH_MAX + 100 - 1);
-#else
 	ent = readdir(dir);
 
 	if (ent == NULL) {
 
 		return(1);
 	}
-#endif
 	ut_a(strlen(ent->d_name) < OS_FILE_MAX_PATH);
 
 	if (strcmp(ent->d_name, ".") == 0 || strcmp(ent->d_name, "..") == 0) {
@@ -1473,7 +1443,11 @@ os_file_set_nocache_if_needed(os_file_t file, const char* name,
 		&& (srv_unix_file_flush_method == SRV_UNIX_O_DIRECT
 		    || (srv_unix_file_flush_method
 			== SRV_UNIX_O_DIRECT_NO_FSYNC))))
-		os_file_set_nocache(file, name, mode_str);
+		/* Do fsync() on log files when setting O_DIRECT fails.
+		See log_io_complete() */
+		if (!os_file_set_nocache(file, name, mode_str)
+		    && srv_unix_file_flush_method == SRV_UNIX_ALL_O_DIRECT)
+			srv_unix_file_flush_method = SRV_UNIX_O_DIRECT;
 }
 
 /****************************************************************//**
@@ -1644,9 +1618,10 @@ os_file_create_simple_no_error_handling_func(
 }
 
 /****************************************************************//**
-Tries to disable OS caching on an opened file descriptor. */
+Tries to disable OS caching on an opened file descriptor.
+@return TRUE if operation is success and FALSE otherwise */
 UNIV_INTERN
-void
+bool
 os_file_set_nocache(
 /*================*/
 	os_file_t fd		/*!< in: file descriptor to alter */
@@ -1667,6 +1642,7 @@ os_file_set_nocache(
 			"Failed to set DIRECTIO_ON on file %s: %s: %s, "
 			"continuing anyway.",
 			file_name, operation_name, strerror(errno_save));
+		return false;
 	}
 #elif defined(O_DIRECT)
 	if (fcntl(fd, F_SETFL, O_DIRECT) == -1) {
@@ -1697,8 +1673,10 @@ short_warning:
 				"continuing anyway.",
 				file_name, operation_name, strerror(errno_save));
 		}
+		return false;
 	}
 #endif /* defined(UNIV_SOLARIS) && defined(DIRECTIO_ON) */
+	return true;
 }
 
 
@@ -2356,48 +2334,52 @@ os_file_set_size(
 	os_file_t	file,	/*!< in: handle to a file */
 	os_offset_t	size)	/*!< in: file size */
 {
-	os_offset_t	current_size;
 	ibool		ret;
 	byte*		buf;
 	byte*		buf2;
 	ulint		buf_size;
 
-	current_size = 0;
-
 #ifdef HAVE_POSIX_FALLOCATE
 	if (srv_use_posix_fallocate) {
+		int err;
+		do {
+			err = posix_fallocate(file, 0, size);
+		} while (err == EINTR
+			 && srv_shutdown_state == SRV_SHUTDOWN_NONE);
 
-		if (posix_fallocate(file, current_size, size) == -1) {
-
-			ib_logf(IB_LOG_LEVEL_ERROR, "preallocating file "
-				"space for file \'%s\' failed.  Current size "
-				INT64PF ", desired size " INT64PF,
-				name, current_size, size);
-			os_file_handle_error_no_exit (name, "posix_fallocate",
-						      FALSE);
-			return(FALSE);
+		if (err) {
+			ib_logf(IB_LOG_LEVEL_ERROR,
+				"preallocating " INT64PF " bytes for"
+				"file %s failed with error %d",
+				size, name, err);
 		}
-		return(TRUE);
+		return(!err);
 	}
 #endif
 
+#ifdef _WIN32
+	/* Write 1 page of zeroes at the desired end. */
+	buf_size = UNIV_PAGE_SIZE;
+	os_offset_t	current_size = size - buf_size;
+#else
 	/* Write up to 1 megabyte at a time. */
 	buf_size = ut_min(64, (ulint) (size / UNIV_PAGE_SIZE))
 		* UNIV_PAGE_SIZE;
-	buf2 = static_cast<byte*>(ut_malloc(buf_size + UNIV_PAGE_SIZE));
+	os_offset_t	current_size = 0;
+#endif
+	buf2 = static_cast<byte*>(calloc(1, buf_size + UNIV_PAGE_SIZE));
+
+	if (!buf2) {
+		ib_logf(IB_LOG_LEVEL_ERROR,
+			"Cannot allocate " ULINTPF " bytes to extend file\n",
+			buf_size + UNIV_PAGE_SIZE);
+		return(FALSE);
+	}
 
 	/* Align the buffer for possible raw i/o */
 	buf = static_cast<byte*>(ut_align(buf2, UNIV_PAGE_SIZE));
 
-	/* Write buffer full of zeros */
-	memset(buf, 0, buf_size);
-
-	if (size >= (os_offset_t) 100 << 20) {
-
-		fprintf(stderr, "InnoDB: Progress in MB:");
-	}
-
-	while (current_size < size) {
+	do {
 		ulint	n_bytes;
 
 		if (size - current_size < (os_offset_t) buf_size) {
@@ -2408,37 +2390,15 @@ os_file_set_size(
 
 		ret = os_file_write(name, file, buf, current_size, n_bytes);
 		if (!ret) {
-			ut_free(buf2);
-			goto error_handling;
-		}
-
-		/* Print about progress for each 100 MB written */
-		if ((current_size + n_bytes) / (100 << 20)
-		    != current_size / (100 << 20)) {
-
-			fprintf(stderr, " %lu00",
-				(ulong) ((current_size + n_bytes)
-					 / (100 << 20)));
+			break;
 		}
 
 		current_size += n_bytes;
-	}
+	} while (current_size < size);
 
-	if (size >= (os_offset_t) 100 << 20) {
+	free(buf2);
 
-		fprintf(stderr, "\n");
-	}
-
-	ut_free(buf2);
-
-	ret = os_file_flush(file);
-
-	if (ret) {
-		return(TRUE);
-	}
-
-error_handling:
-	return(FALSE);
+	return(ret && os_file_flush(file));
 }
 
 /***********************************************************************//**
@@ -4240,13 +4200,6 @@ os_aio_init(
 
 	os_aio_validate();
 
-	os_aio_segment_wait_events = static_cast<os_event_t*>(
-		ut_malloc(n_segments * sizeof *os_aio_segment_wait_events));
-
-	for (ulint i = 0; i < n_segments; ++i) {
-		os_aio_segment_wait_events[i] = os_event_create();
-	}
-
 	os_last_printout = ut_time();
 
 #ifdef _WIN32
@@ -4256,8 +4209,18 @@ os_aio_init(
 	ut_a(completion_port && read_completion_port);
 #endif
 
-	return(TRUE);
+	if (srv_use_native_aio) {
+		return(TRUE);
+	}
 
+	os_aio_segment_wait_events = static_cast<os_event_t*>(
+		ut_malloc(n_segments * sizeof *os_aio_segment_wait_events));
+
+	for (ulint i = 0; i < n_segments; ++i) {
+		os_aio_segment_wait_events[i] = os_event_create();
+	}
+
+	return(TRUE);
 }
 
 /***********************************************************************
@@ -4285,8 +4248,10 @@ os_aio_free(void)
 
 	os_aio_array_free(os_aio_read_array);
 
-	for (ulint i = 0; i < os_aio_n_segments; i++) {
-		os_event_free(os_aio_segment_wait_events[i]);
+	if (!srv_use_native_aio) {
+		for (ulint i = 0; i < os_aio_n_segments; i++) {
+			os_event_free(os_aio_segment_wait_events[i]);
+		}
 	}
 
 #if !defined(HAVE_ATOMIC_BUILTINS) || UNIV_WORD_SIZE < 8
@@ -4346,21 +4311,16 @@ os_aio_wake_all_threads_at_shutdown(void)
 	if (os_aio_log_array != 0) {
 		os_aio_array_wake_win_aio_at_shutdown(os_aio_log_array);
 	}
-
 #elif defined(LINUX_NATIVE_AIO)
-
 	/* When using native AIO interface the io helper threads
 	wait on io_getevents with a timeout value of 500ms. At
 	each wake up these threads check the server status.
 	No need to do anything to wake them up. */
+#endif /* !WIN_ASYNC_AIO */
 
 	if (srv_use_native_aio) {
 		return;
 	}
-
-	/* Fall through to simulated AIO handler wakeup if we are
-	not using native AIO. */
-#endif /* !WIN_ASYNC_AIO */
 
 	/* This loop wakes up all simulated ai/o threads */
 
@@ -4729,6 +4689,7 @@ os_aio_simulated_wake_handler_threads(void)
 	}
 }
 
+#ifdef _WIN32
 /**********************************************************************//**
 This function can be called if one wants to post a batch of reads and
 prefers an i/o-handler thread to handle them all at once later. You must
@@ -4736,15 +4697,14 @@ call os_aio_simulated_wake_handler_threads later to ensure the threads
 are not left sleeping! */
 UNIV_INTERN
 void
-os_aio_simulated_put_read_threads_to_sleep(void)
-/*============================================*/
+os_aio_simulated_put_read_threads_to_sleep()
 {
 
 /* The idea of putting background IO threads to sleep is only for
 Windows when using simulated AIO. Windows XP seems to schedule
 background threads too eagerly to allow for coalescing during
 readahead requests. */
-#ifdef __WIN__
+
 	os_aio_array_t*	array;
 
 	if (srv_use_native_aio) {
@@ -4763,8 +4723,8 @@ readahead requests. */
 			os_event_reset(os_aio_segment_wait_events[i]);
 		}
 	}
-#endif /* __WIN__ */
 }
+#endif /* _WIN32 */
 
 #if defined(LINUX_NATIVE_AIO)
 /*******************************************************************//**
@@ -5934,11 +5894,12 @@ os_aio_print(
 			srv_io_thread_op_info[i],
 			srv_io_thread_function[i]);
 
-#ifndef __WIN__
-		if (os_aio_segment_wait_events[i]->is_set()) {
+#ifndef _WIN32
+		if (!srv_use_native_aio
+		    && os_aio_segment_wait_events[i]->is_set()) {
 			fprintf(file, " ev set");
 		}
-#endif /* __WIN__ */
+#endif /* _WIN32 */
 
 		fprintf(file, "\n");
 	}

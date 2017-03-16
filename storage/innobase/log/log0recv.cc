@@ -174,7 +174,7 @@ UNIV_INTERN mysql_pfs_key_t	recv_writer_mutex_key;
 # endif /* UNIV_PFS_MUTEX */
 
 /** Flag indicating if recv_writer thread is active. */
-UNIV_INTERN bool		recv_writer_thread_active = false;
+static volatile bool		recv_writer_thread_active;
 UNIV_INTERN os_thread_t		recv_writer_thread_handle = 0;
 #endif /* !UNIV_HOTBACKUP */
 
@@ -343,8 +343,6 @@ DECLARE_THREAD(recv_writer_thread)(
 	fprintf(stderr, "InnoDB: recv_writer thread running, id %lu\n",
 		os_thread_pf(os_thread_get_curr_id()));
 #endif /* UNIV_DEBUG_THREAD_CREATION */
-
-	recv_writer_thread_active = true;
 
 	while (srv_shutdown_state == SRV_SHUTDOWN_NONE) {
 
@@ -2806,11 +2804,10 @@ recv_scan_log_recs(
 
 					recv_init_crash_recovery();
 				} else {
-
-					ib_logf(IB_LOG_LEVEL_WARN,
-						"Recovery skipped, "
-						"--innodb-read-only set!");
-
+					ib_logf(IB_LOG_LEVEL_ERROR,
+						"innodb_read_only prevents"
+						" crash recovery");
+					recv_needed_recovery = TRUE;
 					return(TRUE);
 				}
 			}
@@ -2989,6 +2986,7 @@ recv_init_crash_recovery(void)
 
 		/* Spawn the background thread to flush dirty pages
 		from the buffer pools. */
+		recv_writer_thread_active = true;
 		recv_writer_thread_handle = os_thread_create(
 			recv_writer_thread, 0, 0);
 	}
@@ -3227,6 +3225,11 @@ recv_recovery_from_checkpoint_start_func(
 
 	/* Done with startup scan. Clear the flag. */
 	recv_log_scan_is_startup_type = FALSE;
+
+	if (srv_read_only_mode && recv_needed_recovery) {
+		return(DB_READ_ONLY);
+	}
+
 	if (TYPE_CHECKPOINT) {
 		/* NOTE: we always do a 'recovery' at startup, but only if
 		there is something wrong we will print a message to the
@@ -3377,15 +3380,6 @@ void
 recv_recovery_from_checkpoint_finish(void)
 /*======================================*/
 {
-	/* Apply the hashed log records to the respective file pages */
-
-	if (srv_force_recovery < SRV_FORCE_NO_LOG_REDO) {
-
-		recv_apply_hashed_log_recs(TRUE);
-	}
-
-	DBUG_PRINT("ib_log", ("apply completed"));
-
 	if (recv_needed_recovery) {
 		trx_sys_print_mysql_master_log_pos();
 		trx_sys_print_mysql_binlog_offset();

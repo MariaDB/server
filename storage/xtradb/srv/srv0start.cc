@@ -613,19 +613,6 @@ create_log_file(
 /** Initial number of the first redo log file */
 #define INIT_LOG_FILE0	(SRV_N_LOG_FILES_MAX + 1)
 
-#ifdef DBUG_OFF
-# define RECOVERY_CRASH(x) do {} while(0)
-#else
-# define RECOVERY_CRASH(x) do {						\
-	if (srv_force_recovery_crash == x) {				\
-		fprintf(stderr, "innodb_force_recovery_crash=%lu\n",	\
-			srv_force_recovery_crash);			\
-		fflush(stderr);						\
-		exit(3);						\
-	}								\
-} while (0)
-#endif
-
 /*********************************************************************//**
 Creates all log files.
 @return	DB_SUCCESS or error code */
@@ -666,13 +653,14 @@ create_log_files(
 			file should be recoverable. The buffer
 			pool was clean, and we can simply create
 			all log files from the scratch. */
-			RECOVERY_CRASH(6);
+			DBUG_EXECUTE_IF("innodb_log_abort_6",
+					return(DB_ERROR););
 		}
 	}
 
 	ut_ad(!buf_pool_check_no_pending_io());
 
-	RECOVERY_CRASH(7);
+	DBUG_EXECUTE_IF("innodb_log_abort_7", return(DB_ERROR););
 
 	for (unsigned i = 0; i < srv_n_log_files; i++) {
 		sprintf(logfilename + dirnamelen,
@@ -685,7 +673,7 @@ create_log_files(
 		}
 	}
 
-	RECOVERY_CRASH(8);
+	DBUG_EXECUTE_IF("innodb_log_abort_8", return(DB_ERROR););
 
 	/* We did not create the first log file initially as
 	ib_logfile0, so that crash recovery cannot find it until it
@@ -740,10 +728,16 @@ create_log_files(
 	return(DB_SUCCESS);
 }
 
-/*********************************************************************//**
-Renames the first log file. */
+/** Rename the first redo log file.
+@param[in,out]	logfilename	buffer for the log file name
+@param[in]	dirnamelen	length of the directory path
+@param[in]	lsn		FIL_PAGE_FILE_FLUSH_LSN value
+@param[in,out]	logfile0	name of the first log file
+@return	error code
+@retval	DB_SUCCESS	on successful operation */
+MY_ATTRIBUTE((warn_unused_result, nonnull))
 static
-void
+dberr_t
 create_log_files_rename(
 /*====================*/
 	char*	logfilename,	/*!< in/out: buffer for log file name */
@@ -754,6 +748,9 @@ create_log_files_rename(
 	/* If innodb_flush_method=O_DSYNC,
 	we need to explicitly flush the log buffers. */
 	fil_flush(SRV_LOG_SPACE_FIRST_ID);
+
+	DBUG_EXECUTE_IF("innodb_log_abort_9", return(DB_ERROR););
+
 	/* Close the log files, so that we can rename
 	the first one. */
 	fil_close_log_files(false);
@@ -762,26 +759,28 @@ create_log_files_rename(
 	checkpoint has been created. */
 	sprintf(logfilename + dirnamelen, "ib_logfile%u", 0);
 
-	RECOVERY_CRASH(9);
-
 	ib_logf(IB_LOG_LEVEL_INFO,
 		"Renaming log file %s to %s", logfile0, logfilename);
 
 	mutex_enter(&log_sys->mutex);
 	ut_ad(strlen(logfile0) == 2 + strlen(logfilename));
-	ibool success = os_file_rename(
-		innodb_file_log_key, logfile0, logfilename);
-	ut_a(success);
-
-	RECOVERY_CRASH(10);
+	dberr_t err = os_file_rename(
+		innodb_file_log_key, logfile0, logfilename)
+		? DB_SUCCESS : DB_ERROR;
 
 	/* Replace the first file with ib_logfile0. */
 	strcpy(logfile0, logfilename);
 	mutex_exit(&log_sys->mutex);
 
-	fil_open_log_and_system_tablespace_files();
+	DBUG_EXECUTE_IF("innodb_log_abort_10", err = DB_ERROR;);
 
-	ib_logf(IB_LOG_LEVEL_WARN, "New log files created, LSN=" LSN_PF, lsn);
+	if (err == DB_SUCCESS) {
+		fil_open_log_and_system_tablespace_files();
+		ib_logf(IB_LOG_LEVEL_WARN,
+			"New log files created, LSN=" LSN_PF, lsn);
+	}
+
+	return(err);
 }
 
 /*********************************************************************//**
@@ -1613,8 +1612,6 @@ innobase_start_or_create_for_mysql(void)
 	lsn_t		max_arch_log_no	= LSN_MAX;
 #endif /* UNIV_LOG_ARCHIVE */
 	ulint		sum_of_new_sizes;
-	ulint		sum_of_data_file_sizes;
-	ulint		tablespace_size_in_header;
 	dberr_t		err;
 	unsigned	i;
 	ulint		srv_n_log_files_found = srv_n_log_files;
@@ -1626,6 +1623,19 @@ innobase_start_or_create_for_mysql(void)
 	char*		logfile0	= NULL;
 	size_t		dirnamelen;
 	bool		sys_datafiles_created = false;
+
+	/* Check that os_fast_mutexes work as expected */
+	os_fast_mutex_init(PFS_NOT_INSTRUMENTED, &srv_os_test_mutex);
+
+	ut_a(0 == os_fast_mutex_trylock(&srv_os_test_mutex));
+
+	os_fast_mutex_unlock(&srv_os_test_mutex);
+
+	os_fast_mutex_lock(&srv_os_test_mutex);
+
+	os_fast_mutex_unlock(&srv_os_test_mutex);
+
+	os_fast_mutex_free(&srv_os_test_mutex);
 
 	high_level_read_only = srv_read_only_mode
 		|| srv_force_recovery > SRV_FORCE_NO_TRX_UNDO;
@@ -1669,22 +1679,7 @@ innobase_start_or_create_for_mysql(void)
 #endif /* PAGE_ATOMIC_REF_COUNT */
 	);
 
-
-	if (sizeof(ulint) != sizeof(void*)) {
-		ut_print_timestamp(stderr);
-		fprintf(stderr,
-			" InnoDB: Error: size of InnoDB's ulint is %lu, "
-			"but size of void*\n", (ulong) sizeof(ulint));
-		ut_print_timestamp(stderr);
-		fprintf(stderr,
-			" InnoDB: is %lu. The sizes should be the same "
-			"so that on a 64-bit\n",
-			(ulong) sizeof(void*));
-		ut_print_timestamp(stderr);
-		fprintf(stderr,
-			" InnoDB: platforms you can allocate more than 4 GB "
-			"of memory.\n");
-	}
+	compile_time_assert(sizeof(ulint) == sizeof(void*));
 
 	/* If stacktrace is used we set up signal handler for SIGUSR2 signal
 	here. If signal handler set fails we report that and disable
@@ -2108,6 +2103,7 @@ innobase_start_or_create_for_mysql(void)
 
 	fsp_init();
 	log_init();
+	log_online_init();
 
 	lock_sys_create(srv_lock_table_size);
 
@@ -2282,13 +2278,17 @@ innobase_start_or_create_for_mysql(void)
 						dirnamelen, max_flushed_lsn,
 						logfile0);
 
+					if (err == DB_SUCCESS) {
+						err = create_log_files_rename(
+							logfilename,
+							dirnamelen,
+							max_flushed_lsn,
+							logfile0);
+					}
+
 					if (err != DB_SUCCESS) {
 						return(err);
 					}
-
-					create_log_files_rename(
-						logfilename, dirnamelen,
-						max_flushed_lsn, logfile0);
 
 					/* Suppress the message about
 					crash recovery. */
@@ -2414,8 +2414,9 @@ files_checked:
 
 	trx_sys_create();
 
-	if (create_new_db) {
+	bool srv_monitor_thread_started = false;
 
+	if (create_new_db) {
 		ut_a(!srv_read_only_mode);
 		init_log_online();
 
@@ -2459,8 +2460,12 @@ files_checked:
 
 		fil_flush_file_spaces(FIL_TABLESPACE);
 
-		create_log_files_rename(logfilename, dirnamelen,
-					max_flushed_lsn, logfile0);
+		err = create_log_files_rename(logfilename, dirnamelen,
+					      max_flushed_lsn, logfile0);
+
+		if (err != DB_SUCCESS) {
+			return(err);
+		}
 	} else {
 
 		/* Check if we support the max format that is stamped
@@ -2489,6 +2494,22 @@ files_checked:
 		and there must be no page in the buf_flush list. */
 		buf_pool_invalidate();
 
+		/* Start monitor thread early enough so that e.g. crash
+		recovery failing to find free pages in the buffer pool is
+		diagnosed. */
+		if (!srv_read_only_mode)
+		{
+			/* Create the thread which prints InnoDB monitor
+			info */
+			thread_handles[4 + SRV_MAX_N_IO_THREADS] =
+				os_thread_create(
+					srv_monitor_thread,
+					NULL,
+					thread_ids + 4 + SRV_MAX_N_IO_THREADS);
+
+			thread_started[4 + SRV_MAX_N_IO_THREADS] = true;
+		}
+
 		/* We always try to do a recovery, even if the database had
 		been shut down normally: this is the normal startup path */
 
@@ -2497,25 +2518,92 @@ files_checked:
 			min_flushed_lsn, max_flushed_lsn);
 
 		if (err != DB_SUCCESS) {
-
-			return(DB_ERROR);
+			return(err);
 		}
 
 		init_log_online();
 
-		/* Since the insert buffer init is in dict_boot, and the
-		insert buffer is needed in any disk i/o, first we call
-		dict_boot(). Note that trx_sys_init_at_db_start() only needs
-		to access space 0, and the insert buffer at this stage already
-		works for space 0. */
-
+		/* Initialize the change buffer. */
 		err = dict_boot();
 
 		if (err != DB_SUCCESS) {
 			return(err);
 		}
 
+		if (!srv_read_only_mode) {
+			if (sum_of_new_sizes > 0) {
+				/* New data file(s) were added */
+				mtr_start(&mtr);
+				fsp_header_inc_size(0, sum_of_new_sizes, &mtr);
+				mtr_commit(&mtr);
+				/* Immediately write the log record about
+				increased tablespace size to disk, so that it
+				is durable even if mysqld would crash
+				quickly */
+				log_buffer_flush_to_disk();
+			}
+		}
+
+		const ulint	tablespace_size_in_header
+			= fsp_header_get_tablespace_size();
+
+#ifdef UNIV_DEBUG
+		/* buf_debug_prints = TRUE; */
+#endif /* UNIV_DEBUG */
+		ulint	sum_of_data_file_sizes = 0;
+
+		for (ulint d = 0; d < srv_n_data_files; d++) {
+			sum_of_data_file_sizes += srv_data_file_sizes[d];
+		}
+
+		/* Compare the system tablespace file size to what is
+		stored in FSP_SIZE. In open_or_create_data_files()
+		we already checked that the file sizes match the
+		innodb_data_file_path specification. */
+		if (srv_read_only_mode
+		    || sum_of_data_file_sizes == tablespace_size_in_header) {
+			/* Do not complain about the size. */
+		} else if (!srv_auto_extend_last_data_file
+			   || sum_of_data_file_sizes
+			   < tablespace_size_in_header) {
+			ib_logf(IB_LOG_LEVEL_ERROR,
+				"Tablespace size stored in header is " ULINTPF
+				" pages, but the sum of data file sizes is "
+				ULINTPF " pages",
+				tablespace_size_in_header,
+				sum_of_data_file_sizes);
+
+			if (srv_force_recovery == 0
+			    && sum_of_data_file_sizes
+			    < tablespace_size_in_header) {
+				ib_logf(IB_LOG_LEVEL_ERROR,
+					"Cannot start InnoDB. The tail of"
+					" the system tablespace is"
+					" missing. Have you edited"
+					" innodb_data_file_path in my.cnf"
+					" in an inappropriate way, removing"
+					" data files from there?"
+					" You can set innodb_force_recovery=1"
+					" in my.cnf to force"
+					" a startup if you are trying to"
+					" recover a badly corrupt database.");
+
+				return(DB_ERROR);
+			}
+		}
+
+		/* This must precede recv_apply_hashed_log_recs(TRUE). */
 		ib_bh = trx_sys_init_at_db_start();
+
+		if (srv_force_recovery < SRV_FORCE_NO_LOG_REDO) {
+			/* Apply the hashed log records to the
+			respective file pages, for the last batch of
+			recv_group_scan_log_recs(). */
+
+			recv_apply_hashed_log_recs(TRUE);
+			DBUG_PRINT("ib_log", ("apply completed"));
+		}
+
 		n_recovered_trx = UT_LIST_GET_LEN(trx_sys->rw_trx_list);
 
 		/* The purge system needs to create the purge view and
@@ -2584,7 +2672,8 @@ files_checked:
 				ULINT_MAX, LSN_MAX, NULL);
 			ut_a(success);
 
-			RECOVERY_CRASH(1);
+			DBUG_EXECUTE_IF("innodb_log_abort_1",
+					return(DB_ERROR););
 
 			min_flushed_lsn = max_flushed_lsn = log_get_lsn();
 
@@ -2598,8 +2687,6 @@ files_checked:
 				max_flushed_lsn);
 
 			buf_flush_wait_batch_end(NULL, BUF_FLUSH_LIST);
-
-			RECOVERY_CRASH(2);
 
 			/* Flush the old log files. */
 			log_buffer_flush_to_disk();
@@ -2615,21 +2702,27 @@ files_checked:
 			ut_d(recv_no_log_write = TRUE);
 			ut_ad(!buf_pool_check_no_pending_io());
 
-			RECOVERY_CRASH(3);
+			DBUG_EXECUTE_IF("innodb_log_abort_3",
+					return(DB_ERROR););
 
 			/* Stamp the LSN to the data files. */
 			fil_write_flushed_lsn_to_data_files(
 				max_flushed_lsn, 0);
 
-			fil_flush_file_spaces(FIL_TABLESPACE);
+			DBUG_EXECUTE_IF("innodb_log_abort_4", err = DB_ERROR;);
 
-			RECOVERY_CRASH(4);
+			if (err != DB_SUCCESS) {
+				return(err);
+			}
+
+			fil_flush_file_spaces(FIL_TABLESPACE);
 
 			/* Close and free the redo log files, so that
 			we can replace them. */
 			fil_close_log_files(true);
 
-			RECOVERY_CRASH(5);
+			DBUG_EXECUTE_IF("innodb_log_abort_5",
+					return(DB_ERROR););
 
 			/* Free the old log file space. */
 			log_group_close_all();
@@ -2653,8 +2746,11 @@ files_checked:
 			fil_write_flushed_lsn_to_data_files(min_flushed_lsn, 0);
 			fil_flush_file_spaces(FIL_TABLESPACE);
 
-			create_log_files_rename(logfilename, dirnamelen,
-						log_get_lsn(), logfile0);
+			err = create_log_files_rename(logfilename, dirnamelen,
+						      log_get_lsn(), logfile0);
+			if (err != DB_SUCCESS) {
+				return(err);
+			}
 		}
 
 		srv_startup_is_before_trx_rollback_phase = FALSE;
@@ -2668,20 +2764,8 @@ files_checked:
 		trx_sys_file_format_tag_init();
 	}
 
-	if (!create_new_db && sum_of_new_sizes > 0) {
-		/* New data file(s) were added */
-		mtr_start(&mtr);
-
-		fsp_header_inc_size(0, sum_of_new_sizes, &mtr);
-
-		mtr_commit(&mtr);
-
-		/* Immediately write the log record about increased tablespace
-		size to disk, so that it is durable even if mysqld would crash
-		quickly */
-
-		log_buffer_flush_to_disk();
-	}
+	ut_ad(err == DB_SUCCESS);
+	ut_a(sum_of_new_sizes != ULINT_UNDEFINED);
 
 #ifdef UNIV_LOG_ARCHIVE
 	if (!srv_read_only_mode) {
@@ -2760,10 +2844,13 @@ files_checked:
 		thread_started[3 + SRV_MAX_N_IO_THREADS] = true;
 
 		/* Create the thread which prints InnoDB monitor info */
-		thread_handles[4 + SRV_MAX_N_IO_THREADS] = os_thread_create(
-			srv_monitor_thread,
-			NULL, thread_ids + 4 + SRV_MAX_N_IO_THREADS);
-		thread_started[4 + SRV_MAX_N_IO_THREADS] = true;
+		if (!thread_started[4 + SRV_MAX_N_IO_THREADS]) {
+			/* srv_monitor_thread not yet started */
+			thread_handles[4 + SRV_MAX_N_IO_THREADS] = os_thread_create(
+				srv_monitor_thread,
+				NULL, thread_ids + 4 + SRV_MAX_N_IO_THREADS);
+			thread_started[4 + SRV_MAX_N_IO_THREADS] = true;
+		}
 	}
 
 	/* Create the SYS_FOREIGN and SYS_FOREIGN_COLS system tables */
@@ -2829,125 +2916,6 @@ files_checked:
 
 	buf_flush_lru_manager_thread_handle = os_thread_create(buf_flush_lru_manager_thread, NULL, NULL);
 	buf_flush_lru_manager_thread_started = true;
-
-#ifdef UNIV_DEBUG
-	/* buf_debug_prints = TRUE; */
-#endif /* UNIV_DEBUG */
-	sum_of_data_file_sizes = 0;
-
-	for (i = 0; i < srv_n_data_files; i++) {
-		sum_of_data_file_sizes += srv_data_file_sizes[i];
-	}
-
-	tablespace_size_in_header = fsp_header_get_tablespace_size();
-
-	if (!srv_read_only_mode
-	    && !srv_auto_extend_last_data_file
-	    && sum_of_data_file_sizes != tablespace_size_in_header) {
-
-		ut_print_timestamp(stderr);
-		fprintf(stderr,
-			" InnoDB: Error: tablespace size"
-			" stored in header is %lu pages, but\n",
-			(ulong) tablespace_size_in_header);
-		ut_print_timestamp(stderr);
-		fprintf(stderr,
-			"InnoDB: the sum of data file sizes is %lu pages\n",
-			(ulong) sum_of_data_file_sizes);
-
-		if (srv_force_recovery == 0
-		    && sum_of_data_file_sizes < tablespace_size_in_header) {
-			/* This is a fatal error, the tail of a tablespace is
-			missing */
-
-			ut_print_timestamp(stderr);
-			fprintf(stderr,
-				" InnoDB: Cannot start InnoDB."
-				" The tail of the system tablespace is\n");
-			ut_print_timestamp(stderr);
-			fprintf(stderr,
-				" InnoDB: missing. Have you edited"
-				" innodb_data_file_path in my.cnf in an\n");
-			ut_print_timestamp(stderr);
-			fprintf(stderr,
-				" InnoDB: inappropriate way, removing"
-				" ibdata files from there?\n");
-			ut_print_timestamp(stderr);
-			fprintf(stderr,
-				" InnoDB: You can set innodb_force_recovery=1"
-				" in my.cnf to force\n");
-			ut_print_timestamp(stderr);
-			fprintf(stderr,
-				" InnoDB: a startup if you are trying"
-				" to recover a badly corrupt database.\n");
-
-			return(DB_ERROR);
-		}
-	}
-
-	if (!srv_read_only_mode
-	    && srv_auto_extend_last_data_file
-	    && sum_of_data_file_sizes < tablespace_size_in_header) {
-
-		ut_print_timestamp(stderr);
-		fprintf(stderr,
-			" InnoDB: Error: tablespace size stored in header"
-			" is %lu pages, but\n",
-			(ulong) tablespace_size_in_header);
-		ut_print_timestamp(stderr);
-		fprintf(stderr,
-			" InnoDB: the sum of data file sizes"
-			" is only %lu pages\n",
-			(ulong) sum_of_data_file_sizes);
-
-		if (srv_force_recovery == 0) {
-
-			ut_print_timestamp(stderr);
-			fprintf(stderr,
-				" InnoDB: Cannot start InnoDB. The tail of"
-				" the system tablespace is\n");
-			ut_print_timestamp(stderr);
-			fprintf(stderr,
-				" InnoDB: missing. Have you edited"
-				" innodb_data_file_path in my.cnf in an\n");
-			ut_print_timestamp(stderr);
-			fprintf(stderr,
-				" InnoDB: inappropriate way, removing"
-				" ibdata files from there?\n");
-			ut_print_timestamp(stderr);
-			fprintf(stderr,
-				" InnoDB: You can set innodb_force_recovery=1"
-				" in my.cnf to force\n");
-			ut_print_timestamp(stderr);
-			fprintf(stderr,
-				" InnoDB: a startup if you are trying to"
-				" recover a badly corrupt database.\n");
-
-			return(DB_ERROR);
-		}
-	}
-
-	/* Check that os_fast_mutexes work as expected */
-	os_fast_mutex_init(PFS_NOT_INSTRUMENTED, &srv_os_test_mutex);
-
-	if (0 != os_fast_mutex_trylock(&srv_os_test_mutex)) {
-		ut_print_timestamp(stderr);
-		fprintf(stderr,
-			" InnoDB: Error: pthread_mutex_trylock returns"
-			" an unexpected value on\n");
-		ut_print_timestamp(stderr);
-		fprintf(stderr,
-			" InnoDB: success! Cannot continue.\n");
-		exit(1);
-	}
-
-	os_fast_mutex_unlock(&srv_os_test_mutex);
-
-	os_fast_mutex_lock(&srv_os_test_mutex);
-
-	os_fast_mutex_unlock(&srv_os_test_mutex);
-
-	os_fast_mutex_free(&srv_os_test_mutex);
 
 	if (!srv_file_per_table && srv_pass_corrupt_table) {
 		fprintf(stderr, "InnoDB: Warning:"
@@ -3200,6 +3168,7 @@ innobase_shutdown_for_mysql(void)
 	btr_search_disable();
 
 	ibuf_close();
+	log_online_shutdown();
 	log_shutdown();
 	trx_sys_file_format_close();
 	trx_sys_close();

@@ -1272,7 +1272,6 @@ THD::THD()
 
   m_internal_handler= NULL;
   m_binlog_invoker= INVOKER_NONE;
-  arena_for_cached_items= 0;
   memset(&invoker_user, 0, sizeof(invoker_user));
   memset(&invoker_host, 0, sizeof(invoker_host));
   prepare_derived_at_open= FALSE;
@@ -6849,7 +6848,13 @@ wait_for_commit::reinit()
 
     So in this case, do a re-init of the mutex. In release builds, we want to
     avoid the overhead of a re-init though.
+
+    To ensure that no one is locking the mutex, we take a lock of it first.
+    For full explanation, see wait_for_commit::~wait_for_commit()
   */
+  mysql_mutex_lock(&LOCK_wait_commit);
+  mysql_mutex_unlock(&LOCK_wait_commit);
+
   mysql_mutex_destroy(&LOCK_wait_commit);
   mysql_mutex_init(key_LOCK_wait_commit, &LOCK_wait_commit, MY_MUTEX_INIT_FAST);
 #endif

@@ -132,7 +132,7 @@ fsp_fill_free_list(
 	ulint		space,		/*!< in: space */
 	fsp_header_t*	header,		/*!< in/out: space header */
 	mtr_t*		mtr)		/*!< in/out: mini-transaction */
-	UNIV_COLD MY_ATTRIBUTE((nonnull));
+	UNIV_COLD;
 /**********************************************************************//**
 Allocates a single free page from a segment. This function implements
 the intelligent allocation strategy which tries to minimize file space
@@ -161,7 +161,7 @@ fseg_alloc_free_page_low(
 				in which the page should be initialized.
 				If init_mtr!=mtr, but the page is already
 				latched in mtr, do not initialize the page. */
-	MY_ATTRIBUTE((warn_unused_result, nonnull));
+	MY_ATTRIBUTE((warn_unused_result));
 #endif /* !UNIV_HOTBACKUP */
 
 /**********************************************************************//**
@@ -1067,8 +1067,6 @@ fsp_fill_free_list(
 	ulint	i;
 	mtr_t	ibuf_mtr;
 
-	ut_ad(header != NULL);
-	ut_ad(mtr != NULL);
 	ut_ad(page_offset(header) == FSP_HEADER_OFFSET);
 
 	/* Check if we can fill free list from above the free list limit */
@@ -1331,7 +1329,7 @@ Allocates a single free page from a space. The page is marked as used.
 @retval block, rw_lock_x_lock_count(&block->lock) == 1 if allocation succeeded
 (init_mtr == mtr, or the page was not previously freed in mtr)
 @retval block (not allocated or initialized) otherwise */
-static MY_ATTRIBUTE((nonnull, warn_unused_result))
+static MY_ATTRIBUTE((warn_unused_result))
 buf_block_t*
 fsp_alloc_free_page(
 /*================*/
@@ -1350,9 +1348,6 @@ fsp_alloc_free_page(
 	ulint		free;
 	ulint		page_no;
 	ulint		space_size;
-
-	ut_ad(mtr);
-	ut_ad(init_mtr);
 
 	header = fsp_get_space_header(space, zip_size, mtr);
 
@@ -2372,7 +2367,6 @@ fseg_alloc_free_page_low(
 	ibool		success;
 	ulint		n;
 
-	ut_ad(mtr);
 	ut_ad((direction >= FSP_UP) && (direction <= FSP_NO_DIR));
 	ut_ad(mach_read_from_4(seg_inode + FSEG_MAGIC_N)
 	      == FSEG_MAGIC_N_VALUE);
@@ -2810,6 +2804,7 @@ try_again:
 		}
 	} else {
 		ut_a(alloc_type == FSP_CLEANING);
+		reserve = 0;
 	}
 
 	success = fil_space_reserve_free_extents(space, n_free, n_ext);

@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2007, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2016, MariaDB Corporation. All Rights reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -281,7 +282,7 @@ fts_zip_initialize(
 	zip->last_big_block = 0;
 
 	zip->word.f_len = 0;
-	memset(zip->word.f_str, 0, FTS_MAX_WORD_LEN);
+	*zip->word.f_str = 0;
 
 	ib_vector_reset(zip->blocks);
 

@@ -2,6 +2,7 @@
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2009, Percona Inc.
+Copyright (c) 2017, MariaDB Corporation. All Rights Reserved.
 
 Portions of this file contain modifications contributed and copyrighted
 by Percona Inc.. Those modifications are
@@ -1143,6 +1144,7 @@ UNIV_INTERN
 void
 os_aio_simulated_wake_handler_threads(void);
 /*=======================================*/
+#ifdef _WIN32
 /**********************************************************************//**
 This function can be called if one wants to post a batch of reads and
 prefers an i/o-handler thread to handle them all at once later. You must
@@ -1150,8 +1152,10 @@ call os_aio_simulated_wake_handler_threads later to ensure the threads
 are not left sleeping! */
 UNIV_INTERN
 void
-os_aio_simulated_put_read_threads_to_sleep(void);
-/*============================================*/
+os_aio_simulated_put_read_threads_to_sleep();
+#else /* _WIN32 */
+# define os_aio_simulated_put_read_threads_to_sleep()
+#endif /* _WIN32 */
 
 #ifdef WIN_ASYNC_IO
 /**********************************************************************//**

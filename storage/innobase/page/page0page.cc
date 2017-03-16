@@ -1442,7 +1442,6 @@ page_dir_split_slot(
 	ulint			i;
 	ulint			n_owned;
 
-	ut_ad(page);
 	ut_ad(!page_zip || page_is_comp(page));
 	ut_ad(slot_no > 0);
 
@@ -1504,7 +1503,6 @@ page_dir_balance_slot(
 	rec_t*			old_rec;
 	rec_t*			new_rec;
 
-	ut_ad(page);
 	ut_ad(!page_zip || page_is_comp(page));
 	ut_ad(slot_no > 0);
 

@@ -52,7 +52,6 @@ mach_read_from_1(
 /*=============*/
 	const byte*	b)	/*!< in: pointer to byte */
 {
-	ut_ad(b);
 	return((ulint)(b[0]));
 }
 
@@ -132,7 +131,6 @@ mach_read_from_3(
 /*=============*/
 	const byte*	b)	/*!< in: pointer to 3 bytes */
 {
-	ut_ad(b);
 	return( ((ulint)(b[0]) << 16)
 		| ((ulint)(b[1]) << 8)
 		| (ulint)(b[2])
@@ -182,7 +180,6 @@ mach_read_from_4(
 /*=============*/
 	const byte*	b)	/*!< in: pointer to four bytes */
 {
-	ut_ad(b);
 	return( ((ulint)(b[0]) << 24)
 		| ((ulint)(b[1]) << 16)
 		| ((ulint)(b[2]) << 8)
@@ -261,8 +258,6 @@ mach_read_compressed(
 {
 	ulint	flag;
 
-	ut_ad(b);
-
 	flag = mach_read_from_1(b);
 
 	if (flag < 0x80UL) {
@@ -339,8 +334,6 @@ mach_read_from_7(
 /*=============*/
 	const byte*	b)	/*!< in: pointer to 7 bytes */
 {
-	ut_ad(b);
-
 	return(ut_ull_create(mach_read_from_3(b), mach_read_from_4(b + 3)));
 }
 
@@ -370,8 +363,6 @@ mach_read_from_6(
 /*=============*/
 	const byte*	b)	/*!< in: pointer to 6 bytes */
 {
-	ut_ad(b);
-
 	return(ut_ull_create(mach_read_from_2(b), mach_read_from_4(b + 2)));
 }
 
@@ -418,8 +409,6 @@ mach_ull_read_compressed(
 {
 	ib_uint64_t	n;
 	ulint		size;
-
-	ut_ad(b);
 
 	n = (ib_uint64_t) mach_read_compressed(b);
 
@@ -485,8 +474,6 @@ mach_ull_read_much_compressed(
 {
 	ib_uint64_t	n;
 	ulint		size;
-
-	ut_ad(b);
 
 	if (*b != (byte)0xFF) {
 		n = 0;

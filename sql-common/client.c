@@ -1,5 +1,5 @@
 /* Copyright (c) 2003, 2016, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2016, MariaDB
+   Copyright (c) 2009, 2017, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -3867,8 +3867,6 @@ static void mysql_close_free(MYSQL *mysql)
 static void mysql_prune_stmt_list(MYSQL *mysql)
 {
   LIST *element= mysql->stmts;
-  LIST *pruned_list= 0;
-
   for (; element; element= element->next)
   {
     MYSQL_STMT *stmt= (MYSQL_STMT *) element->data;
@@ -3878,14 +3876,9 @@ static void mysql_prune_stmt_list(MYSQL *mysql)
       stmt->last_errno= CR_SERVER_LOST;
       strmov(stmt->last_error, ER(CR_SERVER_LOST));
       strmov(stmt->sqlstate, unknown_sqlstate);
-    }
-    else
-    {
-      pruned_list= list_add(pruned_list, element);
+      mysql->stmts= list_delete(mysql->stmts, element);
     }
   }
-
-  mysql->stmts= pruned_list;
 }
 
 

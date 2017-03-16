@@ -2833,7 +2833,16 @@ int start_slave(THD* thd , Master_info* mi,  bool net_report)
                                   relay_log_info_file, 0,
                                   &mi->cmp_connection_name);
 
-  lock_slave_threads(mi);  // this allows us to cleanly read slave_running
+  mi->lock_slave_threads();
+  if (mi->killed)
+  {
+    /* connection was deleted while we waited for lock_slave_threads */
+    mi->unlock_slave_threads();
+    my_error(WARN_NO_MASTER_INFO, mi->connection_name.length,
+             mi->connection_name.str);
+    DBUG_RETURN(-1);
+  }
+
   // Get a mask of _stopped_ threads
   init_thread_mask(&thread_mask,mi,1 /* inverse */);
 
@@ -2968,7 +2977,7 @@ int start_slave(THD* thd , Master_info* mi,  bool net_report)
                      ER(ER_UNTIL_COND_IGNORED));
 
       if (!slave_errno)
-        slave_errno = start_slave_threads(0 /*no mutex */,
+        slave_errno = start_slave_threads(1,
                                           1 /* wait for start */,
                                           mi,
                                           master_info_file_tmp,
@@ -2984,7 +2993,7 @@ int start_slave(THD* thd , Master_info* mi,  bool net_report)
   }
 
 err:
-  unlock_slave_threads(mi);
+  mi->unlock_slave_threads();
 
 #ifdef WITH_WSREP
   if (WSREP(thd))
@@ -3033,8 +3042,12 @@ int stop_slave(THD* thd, Master_info* mi, bool net_report )
     DBUG_RETURN(-1);
   THD_STAGE_INFO(thd, stage_killing_slave);
   int thread_mask;
-  lock_slave_threads(mi);
-  // Get a mask of _running_ threads
+  mi->lock_slave_threads();
+  /*
+    Get a mask of _running_ threads.
+    We don't have to test for mi->killed as the thread_mask will take care
+    of checking if threads exists
+  */
   init_thread_mask(&thread_mask,mi,0 /* not inverse*/);
   /*
     Below we will stop all running threads.
@@ -3047,8 +3060,7 @@ int stop_slave(THD* thd, Master_info* mi, bool net_report )
 
   if (thread_mask)
   {
-    slave_errno= terminate_slave_threads(mi,thread_mask,
-                                         1 /*skip lock */);
+    slave_errno= terminate_slave_threads(mi,thread_mask, 0 /* get lock */);
   }
   else
   {
@@ -3057,7 +3069,8 @@ int stop_slave(THD* thd, Master_info* mi, bool net_report )
     push_warning(thd, Sql_condition::WARN_LEVEL_NOTE, ER_SLAVE_WAS_NOT_RUNNING,
                  ER(ER_SLAVE_WAS_NOT_RUNNING));
   }
-  unlock_slave_threads(mi);
+
+  mi->unlock_slave_threads();
 
   if (slave_errno)
   {
@@ -3092,11 +3105,20 @@ int reset_slave(THD *thd, Master_info* mi)
   char relay_log_info_file_tmp[FN_REFLEN];
   DBUG_ENTER("reset_slave");
 
-  lock_slave_threads(mi);
+  mi->lock_slave_threads();
+  if (mi->killed)
+  {
+    /* connection was deleted while we waited for lock_slave_threads */
+    mi->unlock_slave_threads();
+    my_error(WARN_NO_MASTER_INFO, mi->connection_name.length,
+             mi->connection_name.str);
+    DBUG_RETURN(-1);
+  }
+
   init_thread_mask(&thread_mask,mi,0 /* not inverse */);
   if (thread_mask) // We refuse if any slave thread is running
   {
-    unlock_slave_threads(mi);
+    mi->unlock_slave_threads();
     my_error(ER_SLAVE_MUST_STOP, MYF(0), (int) mi->connection_name.length,
              mi->connection_name.str);
     DBUG_RETURN(ER_SLAVE_MUST_STOP);
@@ -3161,7 +3183,7 @@ int reset_slave(THD *thd, Master_info* mi)
 
   RUN_HOOK(binlog_relay_io, after_reset_slave, (thd, mi));
 err:
-  unlock_slave_threads(mi);
+  mi->unlock_slave_threads();
   if (error)
     my_error(sql_errno, MYF(0), errmsg);
   DBUG_RETURN(error);
@@ -3274,8 +3296,8 @@ bool change_master(THD* thd, Master_info* mi, bool *master_info_added)
   LEX_MASTER_INFO* lex_mi= &thd->lex->mi;
   DBUG_ENTER("change_master");
 
-  mysql_mutex_assert_owner(&LOCK_active_mi);
   DBUG_ASSERT(master_info_index);
+  mysql_mutex_assert_owner(&LOCK_active_mi);
 
   *master_info_added= false;
   /* 
@@ -3295,7 +3317,16 @@ bool change_master(THD* thd, Master_info* mi, bool *master_info_added)
                                                      lex_mi->port))
     DBUG_RETURN(TRUE);
 
-  lock_slave_threads(mi);
+  mi->lock_slave_threads();
+  if (mi->killed)
+  {
+    /* connection was deleted while we waited for lock_slave_threads */
+    mi->unlock_slave_threads();
+    my_error(WARN_NO_MASTER_INFO, mi->connection_name.length,
+             mi->connection_name.str);
+    DBUG_RETURN(TRUE);
+  }
+
   init_thread_mask(&thread_mask,mi,0 /*not inverse*/);
   if (thread_mask) // We refuse if any slave thread is running
   {
@@ -3597,12 +3628,13 @@ bool change_master(THD* thd, Master_info* mi, bool *master_info_added)
     in-memory value at restart (thus causing errors, as the old relay log does
     not exist anymore).
   */
-  flush_relay_log_info(&mi->rli);
+  if (flush_relay_log_info(&mi->rli))
+    ret= 1;
   mysql_cond_broadcast(&mi->data_cond);
   mysql_mutex_unlock(&mi->rli.data_lock);
 
 err:
-  unlock_slave_threads(mi);
+  mi->unlock_slave_threads();
   if (ret == FALSE)
     my_ok(thd);
   DBUG_RETURN(ret);
@@ -3655,7 +3687,6 @@ bool mysql_show_binlog_events(THD* thd)
   int old_max_allowed_packet= thd->variables.max_allowed_packet;
   Master_info *mi= 0;
   LOG_INFO linfo;
-
   DBUG_ENTER("mysql_show_binlog_events");
 
   Log_event::init_show_field_list(&field_list);
@@ -3683,13 +3714,9 @@ bool mysql_show_binlog_events(THD* thd)
   }
   else  /* showing relay log contents */
   {
-    mysql_mutex_lock(&LOCK_active_mi);
-    if (!master_info_index ||
-        !(mi= master_info_index->
-          get_master_info(&thd->variables.default_master_connection,
-                          Sql_condition::WARN_LEVEL_ERROR)))
+    if (!(mi= get_master_info(&thd->variables.default_master_connection,
+                              Sql_condition::WARN_LEVEL_ERROR)))
     {
-      mysql_mutex_unlock(&LOCK_active_mi);
       DBUG_RETURN(TRUE);
     }
     binary_log= &(mi->rli.relay_log);
@@ -3709,7 +3736,7 @@ bool mysql_show_binlog_events(THD* thd)
     if (mi)
     {
       /* We can unlock the mutex as we have a lock on the file */
-      mysql_mutex_unlock(&LOCK_active_mi);
+      mi->release();
       mi= 0;
     }
 
@@ -3731,6 +3758,7 @@ bool mysql_show_binlog_events(THD* thd)
       goto err;
     }
 
+    /* These locks is here to enable syncronization with log_in_use() */
     mysql_mutex_lock(&LOCK_thread_count);
     thd->current_linfo = &linfo;
     mysql_mutex_unlock(&LOCK_thread_count);
@@ -3808,7 +3836,7 @@ bool mysql_show_binlog_events(THD* thd)
     mysql_mutex_unlock(log_lock);
   }
   else if (mi)
-    mysql_mutex_unlock(&LOCK_active_mi);
+    mi->release();
 
   // Check that linfo is still on the function scope.
   DEBUG_SYNC(thd, "after_show_binlog_events");
@@ -3829,8 +3857,9 @@ err:
   else
     my_eof(thd);
 
+  /* These locks is here to enable syncronization with log_in_use() */
   mysql_mutex_lock(&LOCK_thread_count);
-  thd->current_linfo = 0;
+  thd->current_linfo= 0;
   mysql_mutex_unlock(&LOCK_thread_count);
   thd->variables.max_allowed_packet= old_max_allowed_packet;
   DBUG_RETURN(ret);

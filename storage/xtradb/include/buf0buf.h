@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -242,8 +243,7 @@ buf_relocate(
 	buf_page_t*	bpage,	/*!< in/out: control block being relocated;
 				buf_page_get_state(bpage) must be
 				BUF_BLOCK_ZIP_DIRTY or BUF_BLOCK_ZIP_PAGE */
-	buf_page_t*	dpage)	/*!< in/out: destination control block */
-	MY_ATTRIBUTE((nonnull));
+	buf_page_t*	dpage);	/*!< in/out: destination control block */
 /*********************************************************************//**
 Gets the current size of buffer buf_pool in bytes.
 @return	size in bytes */
@@ -737,7 +737,7 @@ buf_page_print(
 	ulint		flags)		/*!< in: 0 or
 					BUF_PAGE_PRINT_NO_CRASH or
 					BUF_PAGE_PRINT_NO_FULL */
-	UNIV_COLD MY_ATTRIBUTE((nonnull));
+	UNIV_COLD;
 /********************************************************************//**
 Decompress a block.
 @return	TRUE if successful */
@@ -1949,7 +1949,10 @@ struct buf_pool_t{
 	os_event_t	no_flush[BUF_FLUSH_N_TYPES];
 					/*!< this is in the set state
 					when there is no flush batch
-					of the given type running */
+					of the given type running;
+					os_event_set() and os_event_reset()
+					are protected by
+					buf_pool_t::flush_state_mutex */
 	ib_rbt_t*	flush_rbt;	/*!< a red-black tree is used
 					exclusively during recovery to
 					speed up insertions in the

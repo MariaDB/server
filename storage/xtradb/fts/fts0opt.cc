@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2007, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2016, MariaDB Corporation. All Rights reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -281,7 +282,7 @@ fts_zip_initialize(
 	zip->last_big_block = 0;
 
 	zip->word.f_len = 0;
-	memset(zip->word.f_str, 0, FTS_MAX_WORD_LEN);
+	*zip->word.f_str = 0;
 
 	ib_vector_reset(zip->blocks);
 
@@ -578,9 +579,6 @@ fts_zip_read_word(
 	fts_zip_t*	zip,		/*!< in: Zip state + data */
 	fts_string_t*	word)		/*!< out: uncompressed word */
 {
-#ifdef UNIV_DEBUG
-	ulint		i;
-#endif
 	short		len = 0;
 	void*		null = NULL;
 	byte*		ptr = word->f_str;
@@ -655,10 +653,9 @@ fts_zip_read_word(
 		}
 	}
 
-#ifdef UNIV_DEBUG
 	/* All blocks must be freed at end of inflate. */
 	if (zip->status != Z_OK) {
-		for (i = 0; i < ib_vector_size(zip->blocks); ++i) {
+		for (ulint i = 0; i < ib_vector_size(zip->blocks); ++i) {
 			if (ib_vector_getp(zip->blocks, i)) {
 				ut_free(ib_vector_getp(zip->blocks, i));
 				ib_vector_set(zip->blocks, i, &null);
@@ -669,7 +666,6 @@ fts_zip_read_word(
 	if (ptr != NULL) {
 		ut_ad(word->f_len == strlen((char*) ptr));
 	}
-#endif /* UNIV_DEBUG */
 
 	return(zip->status == Z_OK || zip->status == Z_STREAM_END ? ptr : NULL);
 }

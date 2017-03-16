@@ -1,7 +1,7 @@
 /************* Colblk C++ Functions Source Code File (.CPP) ************/
-/*  Name: COLBLK.CPP  Version 2.1                                      */
+/*  Name: COLBLK.CPP  Version 2.2                                      */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          1998-2015    */
+/*  (C) Copyright to the author Olivier BERTRAND          1998-2017    */
 /*                                                                     */
 /*  This file contains the COLBLK class functions.                     */
 /***********************************************************************/
@@ -300,7 +300,7 @@ FIDBLK::FIDBLK(PCOLUMN cp, OPVAL op) : SPCBLK(cp), Op(op)
 #if defined(__WIN__)
   Format.Prec = 1;          // Case insensitive
 #endif   // __WIN__
-  Constant = (!((PTDBASE)To_Tdb)->GetDef()->GetMultiple() &&
+  Constant = (!To_Tdb->GetDef()->GetMultiple() &&
               To_Tdb->GetAmType() != TYPE_AM_PLG &&
               To_Tdb->GetAmType() != TYPE_AM_PLM);
   Fn = NULL;
@@ -312,11 +312,11 @@ FIDBLK::FIDBLK(PCOLUMN cp, OPVAL op) : SPCBLK(cp), Op(op)
 /***********************************************************************/
 void FIDBLK::ReadColumn(PGLOBAL g)
   {
-  if (Fn != ((PTDBASE)To_Tdb)->GetFile(g)) {
+  if (Fn != To_Tdb->GetFile(g)) {
     char filename[_MAX_PATH];
 
-    Fn = ((PTDBASE)To_Tdb)->GetFile(g);
-    PlugSetPath(filename, Fn, ((PTDBASE)To_Tdb)->GetPath());
+    Fn = To_Tdb->GetFile(g);
+    PlugSetPath(filename, Fn, To_Tdb->GetPath());
 
     if (Op != OP_XX) {
       char buff[_MAX_PATH];
@@ -378,10 +378,8 @@ void PRTBLK::ReadColumn(PGLOBAL g)
   {
   if (Pname == NULL) {
     char   *p;
-    PTDBASE tdbp = (PTDBASE)To_Tdb;
 
-    Pname = tdbp->GetDef()->GetStringCatInfo(g, "partname", "?");
-
+    Pname = To_Tdb->GetDef()->GetStringCatInfo(g, "partname", "?");
     p = strrchr(Pname, '#');
     Value->SetValue_psz((p) ? p + 1 : Pname);
     } // endif Pname

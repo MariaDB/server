@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2012, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -32,7 +33,8 @@ Created Apr 26, 2012 Vasil Dimov
 #include "os0sync.h" /* os_event_t */
 #include "os0thread.h" /* DECLARE_THREAD */
 
-/** Event to wake up the stats thread */
+/** Event to wake up dict_stats_thread on dict_stats_recalc_pool_add()
+or shutdown. Not protected by any mutex. */
 extern os_event_t	dict_stats_event;
 
 /*****************************************************************//**

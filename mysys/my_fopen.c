@@ -69,19 +69,13 @@ FILE *my_fopen(const char *filename, int flags, myf MyFlags)
       DBUG_RETURN(fd);				/* safeguard */
     }
     mysql_mutex_lock(&THR_LOCK_open);
-    if ((my_file_info[filedesc].name= (char*)
-	 my_strdup(filename,MyFlags)))
-    {
-      my_stream_opened++;
-      my_file_total_opened++;
-      my_file_info[filedesc].type= STREAM_BY_FOPEN;
-      mysql_mutex_unlock(&THR_LOCK_open);
-      DBUG_PRINT("exit",("stream: 0x%lx", (long) fd));
-      DBUG_RETURN(fd);
-    }
+    my_file_info[filedesc].name= (char*) my_strdup(filename,MyFlags);
+    my_stream_opened++;
+    my_file_total_opened++;
+    my_file_info[filedesc].type= STREAM_BY_FOPEN;
     mysql_mutex_unlock(&THR_LOCK_open);
-    (void) my_fclose(fd,MyFlags);
-    my_errno=ENOMEM;
+    DBUG_PRINT("exit",("stream: 0x%lx", (long) fd));
+    DBUG_RETURN(fd);
   }
   else
     my_errno=errno;

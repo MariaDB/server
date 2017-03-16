@@ -68,7 +68,7 @@ class DllExport TDBVCT : public TDBFIX {
           bool IsSplit(void) {return ((VCTDEF*)To_Def)->Split;}
 
   // Methods
-  virtual PTDB CopyOne(PTABS t);
+  virtual PTDB Clone(PTABS t);
   virtual bool IsUsingTemp(PGLOBAL g);
 
   // Database routines

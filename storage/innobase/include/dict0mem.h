@@ -133,7 +133,7 @@ allows InnoDB to update_create_info() accordingly. */
 			+ DICT_TF_WIDTH_DATA_DIR)
 
 /** A mask of all the known/used bits in table flags */
-#define DICT_TF_BIT_MASK	(~(~0 << DICT_TF_BITS))
+#define DICT_TF_BIT_MASK	(~(~0U << DICT_TF_BITS))
 
 /** Zero relative shift position of the COMPACT field */
 #define DICT_TF_POS_COMPACT		0

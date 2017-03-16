@@ -157,36 +157,49 @@ private:
 
 // TODO: class me up
 struct ftnode {
-    MSN      max_msn_applied_to_node_on_disk; // max_msn_applied that will be written to disk
+    // max_msn_applied that will be written to disk
+    MSN max_msn_applied_to_node_on_disk;
     unsigned int flags;
-    BLOCKNUM blocknum;   // Which block number is this node?
-    int    layout_version; // What version of the data structure?
-    int    layout_version_original;	// different (<) from layout_version if upgraded from a previous version (useful for debugging)
-    int    layout_version_read_from_disk;  // transient, not serialized to disk, (useful for debugging)
-    uint32_t build_id;       // build_id (svn rev number) of software that wrote this node to disk
-    int    height; /* height is always >= 0.  0 for leaf, >0 for nonleaf. */
-    int    dirty;
+    // Which block number is this node?
+    BLOCKNUM blocknum;
+    // What version of the data structure?
+    int layout_version;
+    // different (<) from layout_version if upgraded from a previous version
+    // (useful for debugging)
+    int layout_version_original;
+    // transient, not serialized to disk, (useful for debugging)
+    int layout_version_read_from_disk;
+    // build_id (svn rev number) of software that wrote this node to disk
+    uint32_t build_id;
+    // height is always >= 0.  0 for leaf, >0 for nonleaf.
+    int height;
+    int dirty;
     uint32_t fullhash;
+    // current count of rows add or removed as a result of message application
+    // to this node as a basement, irrelevant for internal nodes, gets reset
+    // when node is undirtied. Used to back out tree scoped LRC id node is
+    // evicted but not persisted
+    int64_t logical_rows_delta;
 
-    // for internal nodes, if n_children==fanout+1 then the tree needs to be rebalanced.
-    // for leaf nodes, represents number of basement nodes
+    // for internal nodes, if n_children==fanout+1 then the tree needs to be
+    // rebalanced. for leaf nodes, represents number of basement nodes
     int n_children;
     ftnode_pivot_keys pivotkeys;
 
-    // What's the oldest referenced xid that this node knows about? The real oldest
-    // referenced xid might be younger, but this is our best estimate. We use it
-    // as a heuristic to transition provisional mvcc entries from provisional to
-    // committed (from implicity committed to really committed).
+    // What's the oldest referenced xid that this node knows about? The real
+    // oldest referenced xid might be younger, but this is our best estimate.
+    // We use it as a heuristic to transition provisional mvcc entries from
+    // provisional to committed (from implicity committed to really committed).
     //
-    // A better heuristic would be the oldest live txnid, but we use this since it
-    // still works well most of the time, and its readily available on the inject
-    // code path.
+    // A better heuristic would be the oldest live txnid, but we use this since
+    // it still works well most of the time, and its readily available on the
+    // inject code path.
     TXNID oldest_referenced_xid_known;
 
     // array of size n_children, consisting of ftnode partitions
-    // each one is associated with a child
-    // for internal nodes, the ith partition corresponds to the ith message buffer
-    // for leaf nodes, the ith partition corresponds to the ith basement node
+    // each one is associated with a child  for internal nodes, the ith
+    // partition corresponds to the ith message buffer for leaf nodes, the ith
+    // partition corresponds to the ith basement node
     struct ftnode_partition *bp;
     struct ctpair *ct_pair;
 };
@@ -199,7 +212,6 @@ struct ftnode_leaf_basement_node {
     MSN max_msn_applied;            // max message sequence number applied
     bool stale_ancestor_messages_applied;
     STAT64INFO_S stat64_delta;      // change in stat64 counters since basement was last written to disk
-    int64_t logical_rows_delta;
 };
 typedef struct ftnode_leaf_basement_node *BASEMENTNODE;
 

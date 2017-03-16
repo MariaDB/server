@@ -1556,6 +1556,7 @@ static bool innobase_purge_archive_logs(
 }
 #endif
 
+
 /*************************************************************//**
 Check for a valid value of innobase_commit_concurrency.
 @return	0 for valid innodb_commit_concurrency */
@@ -4069,19 +4070,13 @@ innobase_change_buffering_inited_ok:
 	and consequently we do not need to know the ordering internally in
 	InnoDB. */
 
-	ut_a(0 == strcmp(my_charset_latin1.name, "latin1_swedish_ci"));
 	srv_latin1_ordering = my_charset_latin1.sort_order;
 
 	innobase_commit_concurrency_init_default();
 
-#ifndef EXTENDED_FOR_KILLIDLE
-	srv_kill_idle_transaction = 0;
-#endif
-
 #ifdef HAVE_POSIX_FALLOCATE
 	srv_use_posix_fallocate = (ibool) innobase_use_fallocate;
 #endif
-
 	/* Do not enable backoff algorithm for small buffer pool. */
 	if (!innodb_empty_free_list_algorithm_backoff_allowed(
 			static_cast<srv_empty_free_list_t>(
@@ -7080,18 +7075,16 @@ get_innobase_type_from_mysql_type(
 	case MYSQL_TYPE_VARCHAR:	/* new >= 5.0.3 true VARCHAR */
 		if (field->binary()) {
 			return(DATA_BINARY);
-		} else if (strcmp(field->charset()->name,
-				  "latin1_swedish_ci") == 0) {
+		} else if (field->charset() == &my_charset_latin1) {
 			return(DATA_VARCHAR);
 		} else {
 			return(DATA_VARMYSQL);
 		}
 	case MYSQL_TYPE_BIT:
-	case MYSQL_TYPE_STRING: if (field->binary()) {
-
+	case MYSQL_TYPE_STRING:
+		if (field->binary()) {
 			return(DATA_FIXBINARY);
-		} else if (strcmp(field->charset()->name,
-				  "latin1_swedish_ci") == 0) {
+		} else if (field->charset() == &my_charset_latin1) {
 			return(DATA_CHAR);
 		} else {
 			return(DATA_MYSQL);
@@ -13543,9 +13536,13 @@ ha_innobase::info_low(
 					/* If this table is already queued for
 					background analyze, remove it from the
 					queue as we are about to do the same */
-					dict_mutex_enter_for_mysql();
-					dict_stats_recalc_pool_del(ib_table);
-					dict_mutex_exit_for_mysql();
+					if (!srv_read_only_mode) {
+
+						dict_mutex_enter_for_mysql();
+						dict_stats_recalc_pool_del(
+							ib_table);
+						dict_mutex_exit_for_mysql();
+					}
 
 					opt = DICT_STATS_RECALC_PERSISTENT;
 				} else {
@@ -16050,6 +16047,37 @@ ha_innobase::get_auto_increment(
 	ulonglong	col_max_value = innobase_get_int_col_max_value(
 		table->next_number_field);
 
+	/** The following logic is needed to avoid duplicate key error
+	for autoincrement column.
+
+	(1) InnoDB gives the current autoincrement value with respect
+	to increment and offset value.
+
+	(2) Basically it does compute_next_insert_id() logic inside InnoDB
+	to avoid the current auto increment value changed by handler layer.
+
+	(3) It is restricted only for insert operations. */
+
+	if (increment > 1 && thd_sql_command(user_thd) != SQLCOM_ALTER_TABLE
+	    && autoinc < col_max_value) {
+
+		ulonglong	prev_auto_inc = autoinc;
+
+		autoinc = ((autoinc - 1) + increment - offset)/ increment;
+
+		autoinc = autoinc * increment + offset;
+
+		/* If autoinc exceeds the col_max_value then reset
+		to old autoinc value. Because in case of non-strict
+		sql mode, boundary value is not considered as error. */
+
+		if (autoinc >= col_max_value) {
+			autoinc = prev_auto_inc;
+		}
+
+		ut_ad(autoinc > 0);
+	}
+
 	/* Called for the first time ? */
 	if (trx->n_autoinc_rows == 0) {
 
@@ -18524,32 +18552,6 @@ innobase_fts_retrieve_ranking(
 }
 
 /***********************************************************************
-functions for kill session of idle transaction */
-ibool
-innobase_thd_is_idle(
-/*=================*/
-	const void*	thd)	/*!< in: thread handle (THD*) */
-{
-#ifdef EXTENDED_FOR_KILLIDLE
-	return(thd_command((const THD*) thd) == COM_SLEEP);
-#else
-	return(FALSE);
-#endif
-}
-
-ib_int64_t
-innobase_thd_get_start_time(
-/*========================*/
-	const void*	thd)	/*!< in: thread handle (THD*) */
-{
-#ifdef EXTENDED_FOR_KILLIDLE
-	return((ib_int64_t)thd_start_time((const THD*) thd));
-#else
-	return(0); /*dummy value*/
-#endif
-}
-
-/***********************************************************************
 Free the memory for the FTS handler */
 UNIV_INTERN
 void
@@ -18566,19 +18568,6 @@ innobase_fts_close_ranking(
 	my_free((uchar*) fts_hdl);
 
 	return;
-}
-
-UNIV_INTERN
-void
-innobase_thd_kill(
-/*==============*/
-	ulong	thd_id)
-{
-#ifdef EXTENDED_FOR_KILLIDLE
-	thd_kill(thd_id);
-#else
-	return;
-#endif
 }
 
 /***********************************************************************
@@ -18776,16 +18765,6 @@ innobase_fts_retrieve_docid(
 
 	return(ft_prebuilt->fts_doc_id);
 }
-
-
-ulong
-innobase_thd_get_thread_id(
-/*=======================*/
-	const void*	thd)
-{
-	return(thd_get_thread_id((const THD*) thd));
-}
-
 
 
 /***********************************************************************
@@ -19388,6 +19367,12 @@ static MYSQL_SYSVAR_BOOL(doublewrite, innobase_use_doublewrite,
   "Enable InnoDB doublewrite buffer (enabled by default). "
   "Disable with --skip-innodb-doublewrite.",
   NULL, NULL, TRUE);
+
+static MYSQL_SYSVAR_BOOL(stats_include_delete_marked,
+  srv_stats_include_delete_marked,
+  PLUGIN_VAR_OPCMDARG,
+  "Scan delete marked records for persistent stat",
+  NULL, NULL, FALSE);
 
 static MYSQL_SYSVAR_BOOL(use_atomic_writes, innobase_use_atomic_writes,
   PLUGIN_VAR_NOCMDARG | PLUGIN_VAR_READONLY,
@@ -20031,13 +20016,6 @@ static MYSQL_SYSVAR_ULONG(force_recovery, srv_force_recovery,
   "Helps to save your data in case the disk image of the database becomes corrupt.",
   NULL, NULL, 0, 0, 6, 0);
 
-#ifndef DBUG_OFF
-static MYSQL_SYSVAR_ULONG(force_recovery_crash, srv_force_recovery_crash,
-  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
-  "Kills the server during crash recovery.",
-  NULL, NULL, 0, 0, 10, 0);
-#endif /* !DBUG_OFF */
-
 static MYSQL_SYSVAR_ULONG(page_size, srv_page_size,
   PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_READONLY,
   "Page size to use for all InnoDB tablespaces.",
@@ -20485,6 +20463,7 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(data_file_path),
   MYSQL_SYSVAR(data_home_dir),
   MYSQL_SYSVAR(doublewrite),
+  MYSQL_SYSVAR(stats_include_delete_marked),
   MYSQL_SYSVAR(api_enable_binlog),
   MYSQL_SYSVAR(api_enable_mdl),
   MYSQL_SYSVAR(api_disable_rowlock),
@@ -20503,9 +20482,6 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(use_global_flush_log_at_trx_commit),
   MYSQL_SYSVAR(flush_method),
   MYSQL_SYSVAR(force_recovery),
-#ifndef DBUG_OFF
-  MYSQL_SYSVAR(force_recovery_crash),
-#endif /* !DBUG_OFF */
   MYSQL_SYSVAR(ft_cache_size),
   MYSQL_SYSVAR(ft_total_cache_size),
   MYSQL_SYSVAR(ft_result_cache_limit),
