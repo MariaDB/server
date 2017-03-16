@@ -39,9 +39,6 @@ static Type_handler_tiny_blob   type_handler_tiny_blob;
 static Type_handler_medium_blob type_handler_medium_blob;
 static Type_handler_long_blob   type_handler_long_blob;
 static Type_handler_blob        type_handler_blob;
-#ifdef HAVE_SPATIAL
-static Type_handler_geometry    type_handler_geometry;
-#endif
 static Type_handler_enum        type_handler_enum;
 static Type_handler_set         type_handler_set;
 
@@ -54,6 +51,10 @@ Type_handler_double      type_handler_double;
 Type_handler_newdecimal  type_handler_newdecimal;
 Type_handler_datetime    type_handler_datetime;
 Type_handler_bit         type_handler_bit;
+
+#ifdef HAVE_SPATIAL
+Type_handler_geometry    type_handler_geometry;
+#endif
 
 
 Type_aggregator type_aggregator_for_result;
@@ -2211,6 +2212,186 @@ bool Type_handler_geometry::
   my_error(ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION, MYF(0),
            type_handler_geometry.name().ptr(), item->func_name());
   return false;
+}
+#endif
+
+/***************************************************************************/
+
+bool Type_handler_row::
+       Item_func_int_val_fix_length_and_dec(Item_func_int_val *item) const
+{
+  DBUG_ASSERT(0);
+  return false;
+}
+
+
+bool Type_handler_int_result::
+       Item_func_int_val_fix_length_and_dec(Item_func_int_val *item) const
+{
+  item->fix_length_and_dec_int_or_decimal();
+  return false;
+}
+
+
+bool Type_handler_real_result::
+       Item_func_int_val_fix_length_and_dec(Item_func_int_val *item) const
+{
+  item->fix_length_and_dec_double();
+  return false;
+}
+
+
+bool Type_handler_decimal_result::
+       Item_func_int_val_fix_length_and_dec(Item_func_int_val *item) const
+{
+  item->fix_length_and_dec_int_or_decimal();
+  return false;
+}
+
+
+bool Type_handler_temporal_result::
+       Item_func_int_val_fix_length_and_dec(Item_func_int_val *item) const
+{
+  item->fix_length_and_dec_int_or_decimal();
+  return false;
+}
+
+
+bool Type_handler_string_result::
+       Item_func_int_val_fix_length_and_dec(Item_func_int_val *item) const
+{
+  item->fix_length_and_dec_double();
+  return false;
+}
+
+
+#ifdef HAVE_SPATIAL
+bool Type_handler_geometry::
+       Item_func_int_val_fix_length_and_dec(Item_func_int_val *item) const
+{
+  my_error(ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION, MYF(0),
+           type_handler_geometry.name().ptr(), item->func_name());
+  return true;
+}
+#endif
+
+/***************************************************************************/
+
+bool Type_handler_row::
+       Item_func_abs_fix_length_and_dec(Item_func_abs *item) const
+{
+  DBUG_ASSERT(0);
+  return false;
+}
+
+
+bool Type_handler_int_result::
+       Item_func_abs_fix_length_and_dec(Item_func_abs *item) const
+{
+  item->fix_length_and_dec_int();
+  return false;
+}
+
+
+bool Type_handler_real_result::
+       Item_func_abs_fix_length_and_dec(Item_func_abs *item) const
+{
+  item->fix_length_and_dec_double();
+  return false;
+}
+
+
+bool Type_handler_decimal_result::
+       Item_func_abs_fix_length_and_dec(Item_func_abs *item) const
+{
+  item->fix_length_and_dec_decimal();
+  return false;
+}
+
+
+bool Type_handler_temporal_result::
+       Item_func_abs_fix_length_and_dec(Item_func_abs *item) const
+{
+  item->fix_length_and_dec_decimal();
+  return false;
+}
+
+
+bool Type_handler_string_result::
+       Item_func_abs_fix_length_and_dec(Item_func_abs *item) const
+{
+  item->fix_length_and_dec_double();
+  return false;
+}
+
+
+#ifdef HAVE_SPATIAL
+bool Type_handler_geometry::
+       Item_func_abs_fix_length_and_dec(Item_func_abs *item) const
+{
+  my_error(ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION, MYF(0),
+           type_handler_geometry.name().ptr(), item->func_name());
+  return true;
+}
+#endif
+
+/***************************************************************************/
+
+bool Type_handler_row::
+       Item_func_neg_fix_length_and_dec(Item_func_neg *item) const
+{
+  DBUG_ASSERT(0);
+  return false;
+}
+
+
+bool Type_handler_int_result::
+       Item_func_neg_fix_length_and_dec(Item_func_neg *item) const
+{
+  item->fix_length_and_dec_int();
+  return false;
+}
+
+
+bool Type_handler_real_result::
+       Item_func_neg_fix_length_and_dec(Item_func_neg *item) const
+{
+  item->fix_length_and_dec_double();
+  return false;
+}
+
+
+bool Type_handler_decimal_result::
+       Item_func_neg_fix_length_and_dec(Item_func_neg *item) const
+{
+  item->fix_length_and_dec_decimal();
+  return false;
+}
+
+
+bool Type_handler_temporal_result::
+       Item_func_neg_fix_length_and_dec(Item_func_neg *item) const
+{
+  item->fix_length_and_dec_decimal();
+  return false;
+}
+
+
+bool Type_handler_string_result::
+       Item_func_neg_fix_length_and_dec(Item_func_neg *item) const
+{
+  item->fix_length_and_dec_double();
+  return false;
+}
+
+
+#ifdef HAVE_SPATIAL
+bool Type_handler_geometry::
+       Item_func_neg_fix_length_and_dec(Item_func_neg *item) const
+{
+  my_error(ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION, MYF(0),
+           type_handler_geometry.name().ptr(), item->func_name());
+  return true;
 }
 #endif
 
