@@ -55,6 +55,7 @@ x
 prepare stmt from 'select * from vt1 for system_time as of timestamp @t1';
 execute stmt;
 x
+1
 drop prepare stmt;
 create or replace view vt1 as select * from t1;
 select * from vt1 for system_time all;

@@ -864,7 +864,14 @@ int vers_setup_select(THD *thd, TABLE_LIST *tables, COND **where_expr,
       }
 
       Item *cond1= 0, *cond2= 0, *curr= 0;
-      if (table->table->versioned_by_sql() || vers_simple_select)
+      // Temporary tables of type HEAP can be created from INNODB tables and
+      // thus will have uint64 type of sys_trx_(start|end) field.
+      // They need special handling.
+      TABLE *t= table->table;
+      if ((t->s->table_category == TABLE_CATEGORY_TEMPORARY
+               ? t->vers_start_field()->type() != MYSQL_TYPE_LONGLONG
+               : t->versioned_by_sql()) ||
+          vers_simple_select)
       {
         switch (vers_conditions.type)
         {
