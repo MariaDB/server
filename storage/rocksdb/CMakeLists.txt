@@ -74,9 +74,7 @@ SET(ROCKSDB_SE_SOURCES
   rdb_psi.cc
 )
 
-MYSQL_ADD_PLUGIN(rocksdb_se ${ROCKSDB_SE_SOURCES} STORAGE_ENGINE
-                 MODULE_OUTPUT_NAME ha_rocksdb
-                 COMPONENT rocksdb-engine)
+MYSQL_ADD_PLUGIN(rocksdb_se ${ROCKSDB_SE_SOURCES} STORAGE_ENGINE MODULE_OUTPUT_NAME ha_rocksdb)
 
 IF(NOT TARGET rocksdb_se)
   # Bail out if compilation with rocksdb engine is not requested
