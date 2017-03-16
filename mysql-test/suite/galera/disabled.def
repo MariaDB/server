@@ -32,3 +32,6 @@ galera_binlog_stmt_autoinc : TODO: investigate
 galera_concurrent_ctas : Test times out, investigate
 galera_sst_xtrabackup-v2-options : TODO: Fix test case
 mysql-wsrep#33 : TODO: investigate
+GAL-480 : Investigate
+galera_fk_no_pk :Investigate
+galera_account_management : Investigate
