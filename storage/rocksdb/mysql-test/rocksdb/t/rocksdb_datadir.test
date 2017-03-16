@@ -19,8 +19,9 @@ EOF
 # Must ensure this directory exists before launching mysqld
 mkdir $ddir;
 
+let $plugin_dir=`select @@plugin_dir`;
 # Launch mysqld with non-standard rocksdb_datadir
-exec $MYSQLD_BOOTSTRAP_CMD --datadir=$ddir --rocksdb_datadir=$rdb_ddir --default-storage-engine=rocksdb --skip-innodb --default-tmp-storage-engine=MyISAM --rocksdb < $sql_file;
+exec $MYSQLD_BOOTSTRAP_CMD --plugin-dir=$plugin_dir --plugin-load=$HA_ROCKSDB_SO --datadir=$ddir --rocksdb_datadir=$rdb_ddir --default-storage-engine=rocksdb --skip-innodb --default-tmp-storage-engine=MyISAM --rocksdb < $sql_file;
 
 --echo Check for the number of MANIFEST files
 exec ls $rdb_ddir/MANIFEST-0000* | wc -l;
