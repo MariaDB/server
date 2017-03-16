@@ -1335,7 +1335,9 @@ END_OF_INPUT
 
 %type <num>  sp_decl_idents sp_handler_type sp_hcond_list
 %type <spcondvalue> sp_cond sp_hcond sqlstate signal_value opt_signal_value
-%type <spblock> sp_decl_body sp_decl_body_list opt_sp_decl_body_list
+%type <spblock> sp_decl_body_list opt_sp_decl_body_list
+%type <spblock> sp_decl_non_handler sp_decl_non_handler_list
+%type <spblock> sp_decl_handler sp_decl_handler_list opt_sp_decl_handler_list
 %type <spblock_handlers> sp_block_statements_and_exceptions
 %type <sp_instr_addr> sp_instr_addr
 %type <sp_cursor_name_and_offset> sp_cursor_name_and_offset
@@ -2444,12 +2446,37 @@ opt_sp_decl_body_list:
         ;
 
 sp_decl_body_list:
-          sp_decl_body ';' { $$= $1; }
-        | sp_decl_body_list sp_decl_body ';'
+          sp_decl_non_handler_list
           {
-            if (Lex->sp_declarations_join(&$$, $1, $2))
+            if (Lex->sphead->sp_add_instr_cpush_for_cursors(thd, Lex->spcont))
               MYSQL_YYABORT;
           }
+          opt_sp_decl_handler_list
+          {
+            $$.join($1, $3);
+          }
+        | sp_decl_handler_list
+        ;
+
+sp_decl_non_handler_list:
+          sp_decl_non_handler ';' { $$= $1; }
+        | sp_decl_non_handler_list sp_decl_non_handler ';'
+          {
+            $$.join($1, $2);
+          }
+        ;
+
+sp_decl_handler_list:
+          sp_decl_handler ';' { $$= $1; }
+        | sp_decl_handler_list sp_decl_handler ';'
+          {
+            $$.join($1, $2);
+          }
+        ;
+
+opt_sp_decl_handler_list:
+          /* Empty*/ { $$.init(); }
+        | sp_decl_handler_list
         ;
 
 qualified_column_ident:
@@ -2527,7 +2554,7 @@ type_or_rowtype:
         | ROWTYPE_SYM  { $$= 1; }
         ;
 
-sp_decl_body:
+sp_decl_non_handler:
           sp_decl_idents
           {
             Lex->sp_variable_declarations_init(thd, $1);
@@ -2581,18 +2608,6 @@ sp_decl_body:
             $$.vars= $$.hndlrs= $$.curs= 0;
             $$.conds= 1;
           }
-        | sp_handler_type HANDLER_SYM FOR_SYM
-          {
-            if (Lex->sp_handler_declaration_init(thd, $1))
-              MYSQL_YYABORT;
-          }
-          sp_hcond_list sp_proc_stmt
-          {
-            if (Lex->sp_handler_declaration_finalize(thd, $1))
-              MYSQL_YYABORT;
-            $$.vars= $$.conds= $$.curs= 0;
-            $$.hndlrs= 1;
-          }
         | CURSOR_SYM ident_directly_assignable
           {
             Lex->sp_block_init(thd);
@@ -2603,10 +2618,25 @@ sp_decl_body:
             sp_pcontext *param_ctx= Lex->spcont;
             if (Lex->sp_block_finalize(thd))
               MYSQL_YYABORT;
-            if (Lex->sp_declare_cursor(thd, $2, $6, param_ctx))
+            if (Lex->sp_declare_cursor(thd, $2, $6, param_ctx, false))
               MYSQL_YYABORT;
             $$.vars= $$.conds= $$.hndlrs= 0;
             $$.curs= 1;
+          }
+        ;
+
+sp_decl_handler:
+          sp_handler_type HANDLER_SYM FOR_SYM
+          {
+            if (Lex->sp_handler_declaration_init(thd, $1))
+              MYSQL_YYABORT;
+          }
+          sp_hcond_list sp_proc_stmt
+          {
+            if (Lex->sp_handler_declaration_finalize(thd, $1))
+              MYSQL_YYABORT;
+            $$.vars= $$.conds= $$.curs= 0;
+            $$.hndlrs= 1;
           }
         ;
 
@@ -3849,7 +3879,7 @@ sp_for_loop_bounds:
           {
             DBUG_ASSERT(Lex->sphead);
             LEX_STRING name= {C_STRING_WITH_LEN("[implicit_cursor]") };
-            if (Lex->sp_declare_cursor(thd, name, $4, NULL))
+            if (Lex->sp_declare_cursor(thd, name, $4, NULL, true))
               MYSQL_YYABORT;
             $$.m_direction= 1;
             if (!($$.m_index= new (thd->mem_root) sp_assignment_lex(thd, thd->lex)))

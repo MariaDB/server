@@ -573,6 +573,9 @@ public:
   void
   do_cont_backpatch();
 
+  /// Add cpush instructions for all cursors declared in the current frame
+  bool sp_add_instr_cpush_for_cursors(THD *thd, sp_pcontext *pcontext);
+
   char *name(uint *lenp = 0) const
   {
     if (lenp)

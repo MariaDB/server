@@ -5628,7 +5628,7 @@ bool LEX::sp_for_loop_cursor_finalize(THD *thd, const Lex_for_loop_st &loop)
 
 bool LEX::sp_declare_cursor(THD *thd, const LEX_STRING name,
                             sp_lex_cursor *cursor_stmt,
-                            sp_pcontext *param_ctx)
+                            sp_pcontext *param_ctx, bool add_cpush_instr)
 {
   uint offp;
   sp_instr_cpush *i;
@@ -5639,12 +5639,18 @@ bool LEX::sp_declare_cursor(THD *thd, const LEX_STRING name,
     return true;
   }
   cursor_stmt->set_cursor_name(name);
-  i= new (thd->mem_root)
-       sp_instr_cpush(sphead->instructions(), spcont, cursor_stmt,
-                      spcont->current_cursor_count());
-  return i == NULL ||
-         sphead->add_instr(i) ||
-         spcont->add_cursor(name, param_ctx, cursor_stmt);
+
+  if (spcont->add_cursor(name, param_ctx, cursor_stmt))
+    return true;
+
+  if (add_cpush_instr)
+  {
+    i= new (thd->mem_root)
+         sp_instr_cpush(sphead->instructions(), spcont, cursor_stmt,
+                        spcont->current_cursor_count() - 1);
+    return i == NULL || sphead->add_instr(i);
+  }
+  return false;
 }
 
 

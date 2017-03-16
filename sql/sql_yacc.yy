@@ -3022,7 +3022,7 @@ sp_decl_body:
           }
         | ident CURSOR_SYM FOR_SYM sp_cursor_stmt
           {
-            if (Lex->sp_declare_cursor(thd, $1, $4, NULL))
+            if (Lex->sp_declare_cursor(thd, $1, $4, NULL, true))
               MYSQL_YYABORT;
             $$.vars= $$.conds= $$.hndlrs= 0;
             $$.curs= 1;

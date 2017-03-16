@@ -659,6 +659,15 @@ public:
   /// Find cursor by offset (for SHOW {PROCEDURE|FUNCTION} CODE only).
   const sp_pcursor *find_cursor(uint offset) const;
 
+  const sp_pcursor *get_cursor_by_local_frame_offset(uint offset) const
+  { return &m_cursors.at(offset); }
+
+  uint cursor_offset() const
+  { return m_cursor_offset; }
+
+  uint frame_cursor_count() const
+  { return m_cursors.elements(); }
+
   uint max_cursor_index() const
   { return m_max_cursor_index + m_cursors.elements(); }
 

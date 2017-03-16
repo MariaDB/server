@@ -3165,7 +3165,8 @@ public:
 
   bool sp_declare_cursor(THD *thd, const LEX_STRING name,
                          class sp_lex_cursor *cursor_stmt,
-                         sp_pcontext *param_ctx);
+                         sp_pcontext *param_ctx, bool add_cpush_instr);
+
   bool sp_open_cursor(THD *thd, const LEX_STRING name,
                       List<sp_assignment_lex> *parameters);
   Item_splocal *create_item_for_sp_var(LEX_STRING name, sp_variable *spvar,

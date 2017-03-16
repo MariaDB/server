@@ -917,3 +917,57 @@ $$
 DELIMITER ;$$
 SHOW PROCEDURE CODE p1;
 DROP PROCEDURE p1;
+
+
+--echo #
+--echo # MDEV-10598 sql_mode=ORACLE: Variable declarations can go after cursor declarations
+--echo #
+
+--echo #
+--echo # Cursor declaration and cursor%ROWTYPE declaration in the same block
+--echo #
+
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+INSERT INTO t1 VALUES (1,'a');
+DELIMITER $$;
+CREATE PROCEDURE p1()
+AS
+  CURSOR cur1 IS SELECT a FROM t1;
+  rec1 cur1%ROWTYPE;
+BEGIN
+  rec1.a:= 10;
+END;
+$$
+DELIMITER ;$$
+SHOW PROCEDURE CODE p1;
+CALL p1;
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+--echo #
+--echo # Recursive cursor and cursor%ROWTYPE declarations in the same block
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE p1
+AS
+  a INT:=10;
+  CURSOR cur1 IS SELECT a;
+  rec1 cur1%ROWTYPE;
+  CURSOR cur2 IS SELECT rec1.a + 1  "a";
+  rec2 cur2%ROWTYPE;
+BEGIN
+  OPEN cur1;
+  FETCH cur1 INTO rec1;
+  CLOSE cur1;
+  SELECT rec1.a;
+  open cur2;
+  FETCH cur2 INTO rec2;
+  CLOSE cur2;
+  SELECT rec2.a;
+END;
+$$
+DELIMITER ;$$
+SHOW PROCEDURE CODE p1;
+CALL p1();
+DROP PROCEDURE p1;

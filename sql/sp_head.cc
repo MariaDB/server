@@ -2423,6 +2423,23 @@ sp_head::do_cont_backpatch()
   }
 }
 
+
+bool
+sp_head::sp_add_instr_cpush_for_cursors(THD *thd, sp_pcontext *pcontext)
+{
+  for (uint i= 0; i < pcontext->frame_cursor_count(); i++)
+  {
+    const sp_pcursor *c= pcontext->get_cursor_by_local_frame_offset(i);
+    sp_instr_cpush *instr= new (thd->mem_root)
+                             sp_instr_cpush(instructions(), pcontext, c->lex(),
+                                            pcontext->cursor_offset() + i);
+    if (instr == NULL || add_instr(instr))
+      return true;
+  }
+  return false;
+}
+
+
 void
 sp_head::set_info(longlong created, longlong modified,
                   st_sp_chistics *chistics, sql_mode_t sql_mode)

@@ -1277,3 +1277,74 @@ Pos	Instruction
 28	jump 4
 29	cpop 1
 DROP PROCEDURE p1;
+#
+# MDEV-10598 sql_mode=ORACLE: Variable declarations can go after cursor declarations
+#
+#
+# Cursor declaration and cursor%ROWTYPE declaration in the same block
+#
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+INSERT INTO t1 VALUES (1,'a');
+CREATE PROCEDURE p1()
+AS
+CURSOR cur1 IS SELECT a FROM t1;
+rec1 cur1%ROWTYPE;
+BEGIN
+rec1.a:= 10;
+END;
+$$
+SHOW PROCEDURE CODE p1;
+Pos	Instruction
+0	cursor_copy_struct cur1 rec1@0
+1	set rec1@0 NULL
+2	cpush cur1@0
+3	set rec1.a@0["a"] 10
+4	cpop 1
+CALL p1;
+DROP PROCEDURE p1;
+DROP TABLE t1;
+#
+# Recursive cursor and cursor%ROWTYPE declarations in the same block
+#
+CREATE PROCEDURE p1
+AS
+a INT:=10;
+CURSOR cur1 IS SELECT a;
+rec1 cur1%ROWTYPE;
+CURSOR cur2 IS SELECT rec1.a + 1  "a";
+rec2 cur2%ROWTYPE;
+BEGIN
+OPEN cur1;
+FETCH cur1 INTO rec1;
+CLOSE cur1;
+SELECT rec1.a;
+open cur2;
+FETCH cur2 INTO rec2;
+CLOSE cur2;
+SELECT rec2.a;
+END;
+$$
+SHOW PROCEDURE CODE p1;
+Pos	Instruction
+0	set a@0 10
+1	cursor_copy_struct cur1 rec1@1
+2	set rec1@1 NULL
+3	cursor_copy_struct cur2 rec2@2
+4	set rec2@2 NULL
+5	cpush cur1@0
+6	cpush cur2@1
+7	copen cur1@0
+8	cfetch cur1@0 rec1@1
+9	cclose cur1@0
+10	stmt 0 "SELECT rec1.a"
+11	copen cur2@1
+12	cfetch cur2@1 rec2@2
+13	cclose cur2@1
+14	stmt 0 "SELECT rec2.a"
+15	cpop 2
+CALL p1();
+rec1.a
+10
+rec2.a
+11
+DROP PROCEDURE p1;
