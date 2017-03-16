@@ -986,6 +986,7 @@ DROP TABLE t1;
 --echo # 
 --echo # MDEV-4298: RocksDB: Assertion `thd->is_error() || kill_errno' fails in ha_rows filesort
 --echo # 
+call mtr.add_suppression("Sort aborted");
 CREATE TABLE t1 (pk INT PRIMARY KEY, i INT, KEY(i)) ENGINE=RocksDB;
 INSERT INTO t1 VALUES (1,1),(2,2);
 BEGIN;
