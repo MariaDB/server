@@ -1,4 +1,3 @@
-drop view if exists test.user_view;
 "Testing mysql_upgrade with VIEW performance_schema.user_view"
 create view test.user_view as select "Not supposed to be here";
 use performance_schema;
