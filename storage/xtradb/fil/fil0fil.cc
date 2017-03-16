@@ -1640,8 +1640,8 @@ fil_space_create(
 		/* Key rotation is not enabled, need to inform background
 		encryption threads. */
 		UT_LIST_ADD_LAST(rotation_list, fil_system->rotation_list, space);
-		mutex_exit(&fil_system->mutex);
 		space->is_in_rotation_list = true;
+		mutex_exit(&fil_system->mutex);
 		mutex_enter(&fil_crypt_threads_mutex);
 		os_event_set(fil_crypt_threads_event);
 		mutex_exit(&fil_crypt_threads_mutex);
@@ -1763,6 +1763,7 @@ fil_space_free(
 
 	if (space->is_in_rotation_list) {
 		space->is_in_rotation_list = false;
+		ut_a(UT_LIST_GET_LEN(fil_system->rotation_list) > 0);
 		UT_LIST_REMOVE(rotation_list, fil_system->rotation_list, space);
 	}
 
@@ -7514,8 +7515,9 @@ fil_space_remove_from_keyrotation(
 	ut_ad(mutex_own(&fil_system->mutex));
 	ut_ad(space);
 
-	if (space->n_pending_ops == 0) {
+	if (space->n_pending_ops == 0 && space->is_in_rotation_list) {
 		space->is_in_rotation_list = false;
+		ut_a(UT_LIST_GET_LEN(fil_system->rotation_list) > 0);
 		UT_LIST_REMOVE(rotation_list, fil_system->rotation_list, space);
 	}
 }
