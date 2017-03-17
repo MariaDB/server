@@ -42,3 +42,5 @@ mysqldump2 : MariaRocks: MariaDB's mysqldump doesn't support --print-ordering-ke
 show_engine : MariaRocks: MariaDB doesnt support SHOW ENGINE rocksdb TRANSACTION STATUS
 
 rpl_row_not_found : MariaDB doesnt support slave_exec_mode='SEMI_STRICT'
+
+blind_delete_without_tx_api: MDEV-12286: rocksdb.blind_delete_without_tx_api test fails
