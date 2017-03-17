@@ -311,8 +311,7 @@ enum enum_indicator_type
                            CLIENT_SESSION_TRACK |\
                            CLIENT_DEPRECATE_EOF |\
                            CLIENT_CONNECT_ATTRS |\
-                           MARIADB_CLIENT_COM_MULTI |\
-                           MARIADB_CLIENT_STMT_BULK_OPERATIONS)
+                           MARIADB_CLIENT_COM_MULTI)
 
 /*
   To be added later:
