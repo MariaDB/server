@@ -1,13 +1,15 @@
 # vim ft=yaml
 # travis-ci.org definition
 
-# non-container builds don't have enough RAM to reliably compile
-sudo: required
+sudo: false
 dist: trusty
 
 language: cpp
+os:
+  - linux
 compiler:
   - gcc
+  - clang
 cache:
   - apt
   - ccache
@@ -17,21 +19,25 @@ env:
     - GCC_VERSION=4.8
     - GCC_VERSION=5
     - GCC_VERSION=6
+
 addons:
   apt:
     sources:
       - ubuntu-toolchain-r-test
-# below requires https://github.com/travis-ci/apt-source-whitelist/pull/309
-#      - llvm-toolchain-trusty-3.8
-#      - llvm-toolchain-trusty-3.9
-# llvm urls awaiting fix
-# https://github.com/travis-ci/apt-source-whitelist/pull/288
-# https://github.com/travis-ci/apt-source-whitelist/pull/309
+      - llvm-toolchain-trusty
+      - llvm-toolchain-trusty-3.9
+      - llvm-toolchain-trusty-4.0
     packages: # make sure these match debian/control contents
       - gcc-5
       - g++-5
       - gcc-6
       - g++-6
+      - clang-3.8
+      - llvm-3.8-dev
+      - clang-3.9
+      - llvm-3.9-dev
+      - clang-4.0
+      - llvm-4.0-dev
       - bison
       - chrpath
       - cmake
@@ -57,18 +63,23 @@ addons:
       - zlib1g-dev
       - libcrack2-dev
       - libjemalloc-dev
+      - libsnappy-dev
+      - liblzma-dev
+      - libzmq-dev
+      - libdistro-info-perl
       - devscripts # implicit for any build on Ubuntu
 
-# libsnappy-dev # https://github.com/travis-ci/apt-package-whitelist/issues/3880
-# liblzma-dev # https://github.com/travis-ci/apt-package-whitelist/issues/3879
-# libzmq-dev # https://github.com/travis-ci/apt-package-whitelist/issues/3881
 # libsystemd-daemon-dev # https://github.com/travis-ci/apt-package-whitelist/issues/3882
 
 script:
-  - export MYSQL_BUILD_CC=/usr/bin/gcc-${GCC_VERSION} MYSQL_BUILD_CXX=/usr/bin/g++-${GCC_VERSION}
+  - source .travis.compiler.sh
   - ${MYSQL_BUILD_CC} --version ; ${MYSQL_BUILD_CXX} --version
   - cd "${TRAVIS_BUILD_DIR}"
+# https://github.com/travis-ci/travis-ci/issues/7062 - /run/shm isn't writable or executable
+# in trusty containers
+  - export MTR_MEM=/tmp
   - env DEB_BUILD_OPTIONS="parallel=3" debian/autobake-deb.sh;
+  - ccache --show-stats
 
 notifications:
   irc:
