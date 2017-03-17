@@ -10517,7 +10517,7 @@ void rocksdb_set_collation_exception_list(THD *const thd,
   rdb_set_collation_exception_list(val == nullptr ? "" : val);
 
   //psergey-todo: what is the purpose of the below??
-  const char *val_copy= my_strdup(val, MYF(0));
+  const char *val_copy= val? my_strdup(val, MYF(0)): nullptr;
   my_free(*static_cast<char**>(var_ptr));
   *static_cast<const char**>(var_ptr) = val_copy;
 }
