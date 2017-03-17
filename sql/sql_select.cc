@@ -6017,7 +6017,7 @@ double matching_candidates_in_table(JOIN_TAB *s, bool with_found_constraint,
   {
     TABLE *table= s->table;
     double sel= table->cond_selectivity;
-    double table_records= table->stat_records();
+    double table_records= (double)table->stat_records();
     dbl_records= table_records * sel;
     return dbl_records;
   }
@@ -6043,7 +6043,7 @@ double matching_candidates_in_table(JOIN_TAB *s, bool with_found_constraint,
   if (s->table->quick_condition_rows != s->found_records)
     records= s->table->quick_condition_rows;
 
-  dbl_records= records;
+  dbl_records= (double)records;
   return dbl_records;
 }
 
