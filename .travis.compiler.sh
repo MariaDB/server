@@ -5,7 +5,7 @@ if [[ "${TRAVIS_OS_NAME}" == 'linux' && "${CXX}" == 'clang++' ]]; then
     5) MYSQL_BUILD_CXX=clang++-3.9;;
     6) MYSQL_BUILD_CXX=clang++-4.0;;
   esac
-  export MYSQL_BUILD_CXX MYSQL_BUILD_CC=${MYSQL_BUILD_CXX/++/}
+  export MYSQL_BUILD_CXX MYSQL_BUILD_CC=${MYSQL_BUILD_CXX/++/} MYSQL_COMPILER_LAUNCHER=ccache
 elif [[ "${TRAVIS_OS_NAME}" == 'linux' && "${CXX}" == 'g++' ]]; then
   export MYSQL_BUILD_CXX=g++-${GCC_VERSION};
   export MYSQL_BUILD_CC=gcc-${GCC_VERSION}
