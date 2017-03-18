@@ -859,8 +859,8 @@ RCODE CntIndexRead(PGLOBAL g, PTDB ptdb, OPVAL op,
     return RC_FX;
   } else if (x == 2) {
     // Remote index. Only used in read mode
-    if (ptdb->GetMode() == MODE_READ && op != OP_SAME 
-			                               && ptdb->ReadKey(g, op, kr))
+    if ((ptdb->GetMode() == MODE_READ || ptdb->GetMode() == MODE_READX)
+			               && op != OP_SAME && ptdb->ReadKey(g, op, kr))
       return RC_FX;
 
     goto rnd;
