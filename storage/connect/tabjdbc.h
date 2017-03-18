@@ -1,7 +1,7 @@
 /*************** Tabjdbc H Declares Source Code File (.H) **************/
-/*  Name: TABJDBC.H   Version 1.0                                      */
+/*  Name: TABJDBC.H   Version 1.1                                      */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          2016         */
+/*  (C) Copyright to the author Olivier BERTRAND          2016-2017    */
 /*                                                                     */
 /*  This file contains the TDBJDBC classes declares.                   */
 /***********************************************************************/
