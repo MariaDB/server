@@ -434,15 +434,16 @@ bool TDBEXT::MakeSQL(PGLOBAL g, bool cnt)
 /***********************************************************************/
 bool TDBEXT::MakeCommand(PGLOBAL g)
 {
-	char *p, *stmt, name[68], *body = NULL;
+	char *p, *stmt, name[132], *body = NULL, *schmp = NULL;
 	char *qrystr = (char*)PlugSubAlloc(g, NULL, strlen(Qrystr) + 1);
 	bool  qtd = Quoted > 0;
+	char  q = qtd ? *Quote : ' ';
 	int   i = 0, k = 0;
 
 	// Make a lower case copy of the originale query and change
 	// back ticks to the data source identifier quoting character
 	do {
-		qrystr[i] = (Qrystr[i] == '`') ? *Quote : tolower(Qrystr[i]);
+		qrystr[i] = (Qrystr[i] == '`') ? q : tolower(Qrystr[i]);
 	} while (Qrystr[i++]);
 
 	if (To_CondFil && (p = strstr(qrystr, " where "))) {
@@ -459,27 +460,50 @@ bool TDBEXT::MakeCommand(PGLOBAL g)
 	strlwr(strcat(strcat(strcpy(name, " "), Name), " "));
 
 	if (strstr(" update delete low_priority ignore quick from ", name)) {
-		strlwr(strcat(strcat(strcpy(name, Quote), Name), Quote));
-		k += 2;
+		if (Quote) {
+			strlwr(strcat(strcat(strcpy(name, Quote), Name), Quote));
+			k += 2;
+		} else {
+			strcpy(g->Message, "Quoted must be specified");
+			return true;
+		}	// endif Quote
+
 	} else
 		strlwr(strcpy(name, Name));     // Not a keyword
 
 	if ((p = strstr(qrystr, name))) {
 		for (i = 0; i < p - qrystr; i++)
-			stmt[i] = (Qrystr[i] == '`') ? *Quote : Qrystr[i];
+			stmt[i] = (Qrystr[i] == '`') ? q : Qrystr[i];
 
 		stmt[i] = 0;
+
 		k += i + (int)strlen(Name);
 
-		if (qtd && *(p - 1) == ' ')
+		if (Schema && *Schema)
+			schmp = Schema;
+
+		if (qtd && *(p - 1) == ' ') {
+			if (schmp)
+				strcat(strcat(stmt, schmp), ".");
+
 			strcat(strcat(strcat(stmt, Quote), TableName), Quote);
-		else
+		} else {
+			if (schmp) {
+				if (qtd && *(p - 1) != ' ') {
+					stmt[i - 1] = 0;
+					strcat(strcat(strcat(stmt, schmp), "."), Quote);
+				} else
+					strcat(strcat(stmt, schmp), ".");
+
+			}	// endif schmp
+
 			strcat(stmt, TableName);
+		} // endif's
 
 		i = (int)strlen(stmt);
 
 		do {
-			stmt[i++] = (Qrystr[k] == '`') ? *Quote : Qrystr[k];
+			stmt[i++] = (Qrystr[k] == '`') ? q : Qrystr[k];
 		} while (Qrystr[k++]);
 
 		if (body)
