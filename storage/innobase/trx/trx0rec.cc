@@ -2005,10 +2005,9 @@ trx_undo_report_row_operation(
 			undo->empty = FALSE;
 			undo->top_page_no = page_no;
 			undo->top_offset  = offset;
-			undo->top_undo_no = trx->undo_no;
+			undo->top_undo_no = trx->undo_no++;
 			undo->guess_block = undo_block;
 
-			trx->undo_no++;
 			trx->undo_rseg_space = rseg->space;
 
 			mutex_exit(&trx->undo_mutex);

@@ -990,11 +990,11 @@ trx_roll_pop_top_rec_of_trx(trx_t* trx, roll_ptr_t* roll_ptr, mem_heap_t* heap)
 	trx_undo_t*	temp	= trx->rsegs.m_noredo.undo;
 	const undo_no_t	limit	= trx->roll_limit;
 
-	ut_ad(!insert || !update || !insert->top_undo_no
+	ut_ad(!insert || !update || insert->empty || update->empty
 	      || insert->top_undo_no != update->top_undo_no);
-	ut_ad(!insert || !temp || !insert->top_undo_no
+	ut_ad(!insert || !temp || insert->empty || temp->empty
 	      || insert->top_undo_no != temp->top_undo_no);
-	ut_ad(!update || !temp || !update->top_undo_no
+	ut_ad(!update || !temp || update->empty || temp->empty
 	      || update->top_undo_no != temp->top_undo_no);
 
 	if (insert && !insert->empty && limit <= insert->top_undo_no) {
