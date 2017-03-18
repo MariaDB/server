@@ -1,4 +1,3 @@
-call mtr.add_suppression("InnoDB: Warning: innodb_page_size has been changed from default value *");
 CREATE TABLE t1(a blob,b blob,c blob,d blob,e blob,f blob,g blob,
 h blob,i blob,j blob,k blob,l blob,m blob,n blob,
 o blob,p blob,q blob,r blob,s blob,t blob,u blob,
@@ -259,7 +258,7 @@ UPDATE t2 SET kc=@i,lc=@i,mc=@i,nc=@i,oc=@i,pc=@i;
 UPDATE t2 SET qc=@i,rc=@i,sc=@i,tc=@i,uc=@i;
 UPDATE t2 SET vc=@i,wc=@i,xc=@i,yc=@i,zc=@i;
 COMMIT;
-SET DEBUG_DBUG='+d,crash_commit_before';
+BEGIN;
 UPDATE t1 SET a=@c,b=@c,c=@c,d=@c,e=@c,f=@c,g=@c,h=@c,i=@c,j=@c,
 k=@c,l=@c,m=@c,n=@c,o=@c,p=@c,q=@c,r=@c,s=@c,t=@c,u=@c,
 v=@c,w=@c,x=@c,y=@c,z=@c,
@@ -272,7 +271,7 @@ vb=@c,wb=@c,xb=@c,yb=@c,zb=@c,
 ac=@c,bc=@c,cc=@c,dc=@c,ec=@c,fc=@c,gc=@c,hc=@c,ic=@c,jc=@c,
 kc=@c,lc=@c,mc=@c,nc=@c,oc=@c,pc=@c,qc=@c,rc=@c,sc=@c,tc=@c,uc=@c,
 vc=@c,wc=@c,xc=@c,yc=@c,zc=@c;
-ERROR HY000: Lost connection to MySQL server during query
+# Kill and restart
 UPDATE t1 SET a=@e,b=@e,c=@e,d=@e,e=@e,f=@e,g=@e,h=@e,i=@e,j=@e,
 k=@e,l=@e,m=@e,n=@e,o=@e,p=@e,q=@e,r=@e,s=@e,t=@e,u=@e,
 v=@e,w=@e,x=@e,y=@e,z=@e,

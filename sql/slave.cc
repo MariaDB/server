@@ -3445,7 +3445,7 @@ sql_delay_event(Log_event *ev, THD *thd, rpl_group_info *rgi)
     // The time we will have to sleep before executing the event.
     unsigned long nap_time= 0;
     if (sql_delay_end > now)
-      nap_time= sql_delay_end - now;
+      nap_time= (ulong)(sql_delay_end - now);
 
     DBUG_PRINT("info", ("sql_delay= %lu "
                         "ev->when= %lu "

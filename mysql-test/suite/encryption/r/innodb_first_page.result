@@ -1,5 +1,2 @@
-call mtr.add_suppression("InnoDB: New log files created, LSN");
-call mtr.add_suppression("InnoDB: Creating foreign key constraint system tables");
-shutdown;
 create table t1 (a int);
 drop table t1;

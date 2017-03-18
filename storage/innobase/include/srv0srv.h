@@ -646,39 +646,34 @@ extern PSI_stage_info	srv_stage_alter_table_read_pk_internal_sort;
 extern PSI_stage_info	srv_stage_buffer_pool_load;
 #endif /* HAVE_PSI_STAGE_INTERFACE */
 
-#ifndef _WIN32
+
 /** Alternatives for the file flush option in Unix; see the InnoDB manual
 about what these mean */
-enum srv_unix_flush_t {
-	SRV_UNIX_FSYNC = 1,	/*!< fsync, the default */
-	SRV_UNIX_O_DSYNC,	/*!< open log files in O_SYNC mode */
-	SRV_UNIX_LITTLESYNC,	/*!< do not call os_file_flush()
+enum srv_flush_t {
+	SRV_FSYNC = 1,	/*!< fsync, the default */
+	SRV_O_DSYNC,	/*!< open log files in O_SYNC mode */
+	SRV_LITTLESYNC,	/*!< do not call os_file_flush()
 				when writing data files, but do flush
 				after writing to log files */
-	SRV_UNIX_NOSYNC,	/*!< do not flush after writing */
-	SRV_UNIX_O_DIRECT,	/*!< invoke os_file_set_nocache() on
+	SRV_NOSYNC,	/*!< do not flush after writing */
+	SRV_O_DIRECT,	/*!< invoke os_file_set_nocache() on
 				data files. This implies using
 				non-buffered IO but still using fsync,
 				the reason for which is that some FS
 				do not flush meta-data when
 				unbuffered IO happens */
-	SRV_UNIX_O_DIRECT_NO_FSYNC
+	SRV_O_DIRECT_NO_FSYNC,
 				/*!< do not use fsync() when using
 				direct IO i.e.: it can be set to avoid
 				the fsync() call that we make when
 				using SRV_UNIX_O_DIRECT. However, in
 				this case user/DBA should be sure about
 				the integrity of the meta-data */
+	SRV_ALL_O_DIRECT_FSYNC
+				/*!< Traditional Windows appoach to open 
+				all files without caching, and do FileFlushBuffers()*/
 };
-extern enum srv_unix_flush_t	srv_unix_file_flush_method;
-#else
-/** Alternatives for file i/o in Windows */
-enum srv_win_flush_t {
-	SRV_WIN_IO_NORMAL = 1,	/*!< buffered I/O */
-	SRV_WIN_IO_UNBUFFERED	/*!< unbuffered I/O; this is the default */
-};
-extern enum srv_win_flush_t	srv_win_file_flush_method;
-#endif /* _WIN32 */
+extern enum srv_flush_t	srv_file_flush_method;
 
 /** Alternatives for srv_force_recovery. Non-zero values are intended
 to help the user get a damaged database up so that he can dump intact

@@ -44,11 +44,6 @@ Created 10/16/1994 Heikki Tuuri
 *******************************************************/
 
 #include "btr0cur.h"
-
-#ifdef UNIV_NONINL
-#include "btr0cur.ic"
-#endif
-
 #include "row0upd.h"
 #include "mtr0log.h"
 #include "page0page.h"

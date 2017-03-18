@@ -143,7 +143,7 @@ btr_scrub_lock_dict_func(ulint space, bool lock_to_close_table,
 				"WARNING: %s:%u waited %lu seconds for"
 				" dict_sys lock, space: %lu"
 				" lock_to_close_table: %u\n",
-				file, line, now - start, space,
+				file, line, (unsigned long)(now - start), space,
 				lock_to_close_table);
 
 			last = now;

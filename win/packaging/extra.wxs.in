@@ -12,7 +12,7 @@
 
     <!-- If Innodb is compiled in, enable "optimize for transactions" checkbox -->
     <?ifndef HaveInnodb ?>
-      <?define HaveInnodb="0"?>
+      <?define HaveInnodb="1"?>
     <?endif?>
 
     <Property Id="PortTemplate" Value="#####" />
@@ -55,13 +55,14 @@
     <!-- Activate feedback plugin-->
     <Property Id="FEEDBACK" Secure="yes"/>
 
-    <?if $(var.HaveInnodb) = "1" ?>
-      <!-- Quick configuration : set default storage engine to innodb, use strict sql_mode -->
-      <Property Id="STDCONFIG" Secure="yes" Value="1"/>
-    <?endif?>
+
+    <!-- Quick configuration : set default storage engine to innodb, use strict sql_mode -->
+    <Property Id="STDCONFIG" Secure="yes" Value="1"/>
+
     <!-- Innodb Buffer pool size in MB-->
     <Property Id="BUFFERPOOLSIZE" Secure="yes"/>
-
+    <!-- Innodb page size -->
+    <Property Id="PAGESIZE" Secure="yes" Value="16K"/>
 
     <CustomAction Id="LaunchUrl" BinaryKey="WixCA" DllEntry="WixShellExec"  Execute="immediate" Return="check" Impersonate="yes" />
 
@@ -267,18 +268,7 @@
           <Condition Action="disable">NOT ModifyRootPassword</Condition>
         </Control>
 
-        <Control Id="CheckBoxCreateDefaultUser" Type="CheckBox" X="8" Y="154" Width="200" Height="18" Property="DEFAULTUSER"
-                 CheckBoxValue="--default-user" TabSkip="no">
-          <Text>{\Font1}Create An Anonymous Account</Text>
-        </Control>
-        <Control Id="Text14" Type="Text" X="21" Y="174" Width="268" Height="16" TabSkip="yes">
-          <Text>This option will create an anonymous account on this server. </Text>
-        </Control>
-        <Control Id="Text13" Type="Text" X="21" Y="190" Width="254" Height="24" TabSkip="yes">
-          <Text>Please note: this setting can lead to insecure systems.</Text>
-        </Control>
-
-        <Control Id="CheckBoxUTF8" Type="CheckBox" X="8" Y="215" Width="250" Height="18" Property="UTF8" CheckBoxValue="1" TabSkip="no">
+        <Control Id="CheckBoxUTF8" Type="CheckBox" X="8" Y="154" Width="250" Height="18" Property="UTF8" CheckBoxValue="1" TabSkip="no">
           <Text>{\Font1}Use UTF8 as default server's character set</Text>
         </Control>
 
@@ -336,29 +326,23 @@
           <Condition Action="disable">Not EnableNetworking</Condition>
         </Control>
 
-        <?if $(var.HaveInnodb) = "1" ?>
-        <Control Id="CheckBoxStandardConfig" Type="CheckBox" Height="18" Width="220" X="9" Y="171" Property="STDCONFIG" CheckBoxValue="1">
-          <Text>{\Font1}Optimize for transactions</Text>
+        <Control Id="LabelInnodbSettings" Type="Text" Height="18" Width="220" X="25" Y="171" >
+          <Text>{\Font1}Innodb engine settings</Text>
         </Control>
-
-        <Control Id="StandardConfigExplain" Type="Text" X="25" Y="190" Width="270" Height="14" TabSkip="yes">
-          <Text>(Uses transactional storage engine and "strict" SQL mode)</Text>
-          <Condition Action="enable" >STDCONFIG</Condition>
-          <Condition Action="disable">Not STDCONFIG</Condition>
+        <Control Id="LabelInnodbBufferpool" Type="Text" Height="17" Width="77" X="25" Y="190" Text="Buffer pool size:" />
+        <Control Id="BPSize" Type="MaskedEdit" X="104" Y="188" Width="40" Height="15" Property="BUFFERPOOLSIZE"  Sunken="yes" Text="[BufferPoolSizeTemplate]"/>
+        <Control Id="LabelMB" Type="Text" Height="17" Width="15" X="150" Y="190" Text="MB" />
+        <Control Id="LabelInnodbPageSize" Type="Text" Height="17" Width="77" X="25" Y="208" Text="Page size:" />
+        <Control Id="LabelKB" Type="Text" Height="17" Width="15" X="150" Y="210" Text="KB" />
+        <Control Id="ComboBoxInnodbPageSize" Type="ComboBox" X="104" Y="208" Width="30" Height="17" ComboList="yes" Sorted="yes" Property="PAGESIZE" >
+        <ComboBox Property="PAGESIZE">
+          <ListItem Text=" 4" Value="4K"/>
+          <ListItem Text=" 8" Value="8K"/>
+          <ListItem Text="16" Value="16K"/>
+          <ListItem Text="32" Value="32K"/>
+          <ListItem Text="64" Value="64K"/>
+        </ComboBox>
         </Control>
-        <Control Id="LabelInnodbBufferpool" Type="Text" Height="17" Width="77" X="25" Y="210" Text="Buffer pool size:" >
-        <Condition Action="enable" >STDCONFIG</Condition>
-          <Condition Action="disable">Not STDCONFIG</Condition>
-        </Control>
-        <Control Id="BPSize" Type="MaskedEdit" X="104" Y="208" Width="40" Height="15" Property="BUFFERPOOLSIZE"  Sunken="yes" Text="[BufferPoolSizeTemplate]">
-          <Condition Action="enable" >STDCONFIG</Condition>
-          <Condition Action="disable">Not STDCONFIG</Condition>
-        </Control>
-        <Control Id="LabelMB" Type="Text" Height="17" Width="15" X="150" Y="210" Text="MB" >
-        <Condition Action="enable" >STDCONFIG</Condition>
-          <Condition Action="disable">Not STDCONFIG</Condition>
-        </Control>
-       <?endif?>
 
         <!-- Navigation buttons-->
         <Control Id="Back" Type="PushButton" X="180" Y="243" Width="56" Height="17" Text="&amp;Back">
@@ -493,26 +477,11 @@
         <ServiceControl Id='DBInstanceServiceStop' Name='[SERVICENAME]'  Stop='both' Remove='uninstall' Wait='yes'/>
         <ServiceControl Id='DBInstanceServiceStart' Name='[SERVICENAME]' Start='install' Wait='yes'/>
       </Component>
-      <?if $(var.HaveInnodb) = "1" ?>
+
       <Component Id="C.myiniconfig" Guid="*" Directory="DATADIR">
-      <Condition>STDCONFIG</Condition>
         <RegistryValue Root='HKLM'
            Key='SOFTWARE\Monty Program AB\@CPACK_WIX_PACKAGE_NAME@'
            Name='STDCONFIG' Value='1' Type='string' KeyPath='yes'/>
-        <IniFile Id="Ini1"
-            Action="createLine"
-            Directory="DATADIR"
-            Section="mysqld"
-            Name="my.ini"
-            Key="sql_mode"
-            Value="&quot;STRICT_TRANS_TABLES,NO_ENGINE_SUBSTITUTION&quot;" />
-        <IniFile Id="Ini2"
-            Action="createLine"
-            Directory="DATADIR"
-            Section="mysqld"
-            Name="my.ini"
-            Key="default_storage_engine"
-            Value="innodb" />
         <IniFile Id="Ini3"
             Action="createLine"
             Directory="DATADIR"
@@ -520,16 +489,7 @@
             Name="my.ini"
             Key="innodb_buffer_pool_size"
             Value="[BUFFERPOOLSIZE]M" />
-        <IniFile Id="Ini4"
-            Action="createLine"
-            Directory="DATADIR"
-            Section="mysqld"
-            Name="my.ini"
-            Key="innodb_log_file_size"
-            Value="[LOGFILESIZE]M" />
       </Component>
-      <?endif?>
-     
       <Component Id="C.feedback" Guid="*" Directory="DATADIR">
         <Condition>FEEDBACK</Condition>
         <RegistryValue Root='HKLM'
@@ -699,7 +659,7 @@
     <CustomAction Id='PresetDatabaseProperties' BinaryKey='wixca.dll' DllEntry='PresetDatabaseProperties' />
     <CustomAction Id="CreateDatabaseCommand" Property="CreateDatabase"
     Value=
-    "&quot;[#F.bin.mysql_install_db.exe]&quot;  &quot;--service=[SERVICENAME]&quot; --port=[PORT] &quot;--password=[ESCAPEDPASSWORD]&quot; &quot;--datadir=[DATADIR]\&quot; [SKIPNETWORKING] [ALLOWREMOTEROOTACCESS] [DEFAULTUSER] --verbose-bootstrap"
+    "&quot;[#F.bin.mysql_install_db.exe]&quot;  &quot;--service=[SERVICENAME]&quot; --port=[PORT] --innodb-page-size=[PAGESIZE] &quot;--password=[ESCAPEDPASSWORD]&quot; &quot;--datadir=[DATADIR]\&quot; [SKIPNETWORKING] [ALLOWREMOTEROOTACCESS] [DEFAULTUSER] --verbose-bootstrap"
      Execute="immediate"
      HideTarget="yes"
      />

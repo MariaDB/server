@@ -1750,6 +1750,23 @@ drop database `foo.bar`;
 
 --echo End of 10.0 tests
 
+--echo #
+--echo # MDEV-10766 Queries which start with WITH clause do not get
+--echo # inserted into query cache
+--echo #
+flush status;
+show status like "Qcache_inserts";
+create table t1 (i int);
+with cte as (select * from t1) select * from cte;
+show status like "Qcache_queries_in_cache";
+show status like "Qcache_inserts";
+show status like "Qcache_hits";
+with cte as (select * from t1) select * from cte;
+show status like "Qcache_queries_in_cache";
+show status like "Qcache_inserts";
+show status like "Qcache_hits";
+drop table t1;
+
 --echo restore defaults
 SET GLOBAL query_cache_type= default;
 SET GLOBAL query_cache_size= default;

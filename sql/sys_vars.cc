@@ -5206,7 +5206,7 @@ int default_regex_flags_pcre(const THD *thd)
   int i, res;
   for (i= res= 0; default_regex_flags_to_pcre[i]; i++)
   {
-    if (src & (1 << i))
+    if (src & (1ULL << i))
       res|= default_regex_flags_to_pcre[i];
   }
   return res;

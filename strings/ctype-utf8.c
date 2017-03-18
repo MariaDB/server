@@ -4831,7 +4831,6 @@ my_strnxfrm_unicode_full_bin(CHARSET_INFO *cs,
                              uchar *dst, size_t dstlen, uint nweights,
                              const uchar *src, size_t srclen, uint flags)
 {
-  my_wc_t UNINIT_VAR(wc);
   uchar *dst0= dst;
   uchar *de= dst + dstlen;
 
@@ -4877,7 +4876,6 @@ my_strnxfrm_unicode_full_nopad_bin(CHARSET_INFO *cs,
                                    uchar *dst, size_t dstlen, uint nweights,
                                    const uchar *src, size_t srclen, uint flags)
 {
-  my_wc_t UNINIT_VAR(wc);
   uchar *dst0= dst;
   uchar *de= dst + dstlen;
 

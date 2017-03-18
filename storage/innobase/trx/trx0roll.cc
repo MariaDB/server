@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, MariaDB Corporation. All Rights Reserved.
+Copyright (c) 2016, 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -27,10 +27,6 @@ Created 3/26/1996 Heikki Tuuri
 #include "ha_prototypes.h"
 
 #include "trx0roll.h"
-
-#ifdef UNIV_NONINL
-#include "trx0roll.ic"
-#endif
 
 #include <mysql/service_wsrep.h>
 
@@ -217,8 +213,7 @@ trx_rollback_low(
 
 	case TRX_STATE_PREPARED:
 		ut_ad(!trx_is_autocommit_non_locking(trx));
-		if (trx->rsegs.m_redo.rseg != NULL
-		    && trx_is_redo_rseg_updated(trx)) {
+		if (trx_is_redo_rseg_updated(trx)) {
 			/* Change the undo log state back from
 			TRX_UNDO_PREPARED to TRX_UNDO_ACTIVE
 			so that if the system gets killed,
@@ -810,7 +805,7 @@ trx_rollback_or_clean_recovered(
 
 	if (all) {
 		ib::info() << "Starting in background the rollback"
-			" of uncommitted transactions";
+			" of recovered transactions";
 	}
 
 	/* Note: For XA recovered transactions, we rely on MySQL to
@@ -829,6 +824,12 @@ trx_rollback_or_clean_recovered(
 		     trx = UT_LIST_GET_NEXT(trx_list, trx)) {
 
 			assert_trx_in_rw_list(trx);
+
+			if (srv_shutdown_state != SRV_SHUTDOWN_NONE
+			    && srv_fast_shutdown != 0) {
+				all = FALSE;
+				break;
+			}
 
 			/* If this function does a cleanup or rollback
 			then it will release the trx_sys->mutex, therefore
@@ -885,27 +886,38 @@ DECLARE_THREAD(trx_rollback_or_clean_all_recovered)(
 	OS_THREAD_DUMMY_RETURN;
 }
 
-/***********************************************************************//**
-Tries truncate the undo logs. */
+/** Try to truncate the undo logs.
+@param[in,out]	trx	transaction */
 static
 void
-trx_roll_try_truncate(
-/*==================*/
-	trx_t*		trx,		/*!< in/out: transaction */
-	trx_undo_ptr_t*	undo_ptr)	/*!< in: rollback segment to look
-					for next undo log record. */
+trx_roll_try_truncate(trx_t* trx)
 {
 	ut_ad(mutex_own(&trx->undo_mutex));
-	ut_ad(mutex_own(&undo_ptr->rseg->mutex));
 
 	trx->pages_undone = 0;
 
-	if (undo_ptr->insert_undo) {
-		trx_undo_truncate_end(trx, undo_ptr->insert_undo, trx->undo_no);
+	undo_no_t	undo_no		= trx->undo_no;
+	trx_undo_t*	insert_undo	= trx->rsegs.m_redo.insert_undo;
+	trx_undo_t*	update_undo	= trx->rsegs.m_redo.update_undo;
+
+	if (insert_undo || update_undo) {
+		mutex_enter(&trx->rsegs.m_redo.rseg->mutex);
+		if (insert_undo) {
+			ut_ad(insert_undo->rseg == trx->rsegs.m_redo.rseg);
+			trx_undo_truncate_end(insert_undo, undo_no, false);
+		}
+		if (update_undo) {
+			ut_ad(update_undo->rseg == trx->rsegs.m_redo.rseg);
+			trx_undo_truncate_end(update_undo, undo_no, false);
+		}
+		mutex_exit(&trx->rsegs.m_redo.rseg->mutex);
 	}
 
-	if (undo_ptr->update_undo) {
-		trx_undo_truncate_end(trx, undo_ptr->update_undo, trx->undo_no);
+	if (trx_undo_t* undo = trx->rsegs.m_noredo.undo) {
+		ut_ad(undo->rseg == trx->rsegs.m_noredo.rseg);
+		mutex_enter(&undo->rseg->mutex);
+		trx_undo_truncate_end(undo, undo_no, true);
+		mutex_exit(&undo->rseg->mutex);
 	}
 
 #ifdef WITH_WSREP_OUT
@@ -930,8 +942,7 @@ trx_roll_pop_top_rec(
 	ut_ad(mutex_own(&trx->undo_mutex));
 
 	page_t*	undo_page = trx_undo_page_get_s_latched(
-		page_id_t(undo->space, undo->top_page_no),
-		undo->page_size, mtr);
+		page_id_t(undo->space, undo->top_page_no), mtr);
 
 	ulint	offset = undo->top_offset;
 
@@ -958,75 +969,73 @@ trx_roll_pop_top_rec(
 	return(undo_page + offset);
 }
 
-
-/********************************************************************//**
-Pops the topmost record when the two undo logs of a transaction are seen
-as a single stack of records ordered by their undo numbers.
-@return undo log record copied to heap, NULL if none left, or if the
-undo number of the top record would be less than the limit */
+/** Get the last undo log record of a transaction (for rollback).
+@param[in,out]	trx		transaction
+@param[out]	roll_ptr	DB_ROLL_PTR to the undo record
+@param[in,out]	heap		memory heap for allocation
+@return	undo log record copied to heap
+@retval	NULL if none left or the roll_limit (savepoint) was reached */
 trx_undo_rec_t*
-trx_roll_pop_top_rec_of_trx_low(
-/*============================*/
-	trx_t*		trx,		/*!< in/out: transaction */
-	trx_undo_ptr_t*	undo_ptr,	/*!< in: rollback segment to look
-					for next undo log record. */
-	undo_no_t	limit,		/*!< in: least undo number we need */
-	roll_ptr_t*	roll_ptr,	/*!< out: roll pointer to undo record */
-	mem_heap_t*	heap)		/*!< in/out: memory heap where copied */
+trx_roll_pop_top_rec_of_trx(trx_t* trx, roll_ptr_t* roll_ptr, mem_heap_t* heap)
 {
-	trx_undo_t*	undo;
-	trx_undo_t*	ins_undo;
-	trx_undo_t*	upd_undo;
-	trx_undo_rec_t*	undo_rec;
-	trx_undo_rec_t*	undo_rec_copy;
-	undo_no_t	undo_no;
-	ibool		is_insert;
-	trx_rseg_t*	rseg;
-	mtr_t		mtr;
-
-	rseg = undo_ptr->rseg;
-
 	mutex_enter(&trx->undo_mutex);
 
 	if (trx->pages_undone >= TRX_ROLL_TRUNC_THRESHOLD) {
-		mutex_enter(&rseg->mutex);
-
-		trx_roll_try_truncate(trx, undo_ptr);
-
-		mutex_exit(&rseg->mutex);
+		trx_roll_try_truncate(trx);
 	}
 
-	ins_undo = undo_ptr->insert_undo;
-	upd_undo = undo_ptr->update_undo;
+	trx_undo_t*	undo;
+	trx_undo_t*	insert	= trx->rsegs.m_redo.insert_undo;
+	trx_undo_t*	update	= trx->rsegs.m_redo.update_undo;
+	trx_undo_t*	temp	= trx->rsegs.m_noredo.undo;
+	const undo_no_t	limit	= trx->roll_limit;
 
-	if (!ins_undo || ins_undo->empty) {
-		undo = upd_undo;
-	} else if (!upd_undo || upd_undo->empty) {
-		undo = ins_undo;
-	} else if (upd_undo->top_undo_no > ins_undo->top_undo_no) {
-		undo = upd_undo;
+	ut_ad(!insert || !update || !insert->top_undo_no
+	      || insert->top_undo_no != update->top_undo_no);
+	ut_ad(!insert || !temp || !insert->top_undo_no
+	      || insert->top_undo_no != temp->top_undo_no);
+	ut_ad(!update || !temp || !update->top_undo_no
+	      || update->top_undo_no != temp->top_undo_no);
+
+	if (insert && !insert->empty && limit <= insert->top_undo_no) {
+		if (update && !update->empty
+		    && update->top_undo_no > insert->top_undo_no) {
+			undo = update;
+		} else {
+			undo = insert;
+		}
+	} else if (update && !update->empty && limit <= update->top_undo_no) {
+		undo = update;
+	} else if (temp && !temp->empty && limit <= temp->top_undo_no) {
+		undo = temp;
 	} else {
-		undo = ins_undo;
-	}
-
-	if (!undo || undo->empty || limit > undo->top_undo_no) {
-		mutex_enter(&rseg->mutex);
-		trx_roll_try_truncate(trx, undo_ptr);
-		mutex_exit(&rseg->mutex);
+		trx_roll_try_truncate(trx);
+		/* Mark any ROLLBACK TO SAVEPOINT completed, so that
+		if the transaction object is committed and reused
+		later, we will default to a full ROLLBACK. */
+		trx->roll_limit = 0;
+		ut_d(trx->in_rollback = false);
 		mutex_exit(&trx->undo_mutex);
 		return(NULL);
 	}
 
-	is_insert = (undo == ins_undo);
+	ut_ad(!undo->empty);
+	ut_ad(limit <= undo->top_undo_no);
 
 	*roll_ptr = trx_undo_build_roll_ptr(
-		is_insert, undo->rseg->id, undo->top_page_no, undo->top_offset);
+		false, undo->rseg->id, undo->top_page_no, undo->top_offset);
 
-	mtr_start(&mtr);
+	mtr_t	mtr;
+	mtr.start();
 
-	undo_rec = trx_roll_pop_top_rec(trx, undo, &mtr);
-
-	undo_no = trx_undo_rec_get_undo_no(undo_rec);
+	trx_undo_rec_t*	undo_rec = trx_roll_pop_top_rec(trx, undo, &mtr);
+	const undo_no_t	undo_no = trx_undo_rec_get_undo_no(undo_rec);
+	if (trx_undo_rec_get_type(undo_rec) == TRX_UNDO_INSERT_REC) {
+		ut_ad(undo == insert || undo == temp);
+		*roll_ptr |= 1ULL << ROLL_PTR_INSERT_FLAG_POS;
+	} else {
+		ut_ad(undo == update || undo == temp);
+	}
 
 	ut_ad(trx_roll_check_undo_rec_ordering(
 		undo_no, undo->rseg->space, trx));
@@ -1054,41 +1063,12 @@ trx_roll_pop_top_rec_of_trx_low(
 
 	trx->undo_no = undo_no;
 	trx->undo_rseg_space = undo->rseg->space;
-
-	undo_rec_copy = trx_undo_rec_copy(undo_rec, heap);
-
 	mutex_exit(&trx->undo_mutex);
 
-	mtr_commit(&mtr);
+	trx_undo_rec_t*	undo_rec_copy = trx_undo_rec_copy(undo_rec, heap);
+	mtr.commit();
 
 	return(undo_rec_copy);
-}
-
-/********************************************************************//**
-Get next undo log record from redo and noredo rollback segments.
-@return undo log record copied to heap, NULL if none left, or if the
-undo number of the top record would be less than the limit */
-trx_undo_rec_t*
-trx_roll_pop_top_rec_of_trx(
-/*========================*/
-	trx_t*		trx,		/*!< in: transaction */
-	undo_no_t	limit,		/*!< in: least undo number we need */
-	roll_ptr_t*	roll_ptr,	/*!< out: roll pointer to undo record */
-	mem_heap_t*	heap)		/*!< in: memory heap where copied */
-{
-	trx_undo_rec_t* undo_rec = 0;
-
-	if (trx_is_redo_rseg_updated(trx)) {
-		undo_rec = trx_roll_pop_top_rec_of_trx_low(
-			trx, &trx->rsegs.m_redo, limit, roll_ptr, heap);
-	}
-
-	if (undo_rec == 0 && trx_is_noredo_rseg_updated(trx)) {
-		undo_rec = trx_roll_pop_top_rec_of_trx_low(
-			trx, &trx->rsegs.m_noredo, limit, roll_ptr, heap);
-	}
-
-	return(undo_rec);
 }
 
 /****************************************************************//**

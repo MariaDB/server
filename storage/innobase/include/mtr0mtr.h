@@ -239,7 +239,10 @@ struct mtr_t {
 	/** Start a mini-transaction.
 	@param sync		true if it is a synchronous mini-transaction
 	@param read_only	true if read only mini-transaction */
-	void start(bool sync = true, bool read_only = false);
+	void start(bool sync = true, bool read_only = false)
+	{
+		start(NULL, sync, read_only);
+	}
 
 	/** Start a mini-transaction.
 	@param sync		true if it is a synchronous mini-transaction
@@ -609,8 +612,6 @@ private:
 	bool			m_sync;
 };
 
-#ifndef UNIV_NONINL
 #include "mtr0mtr.ic"
-#endif /* UNIV_NOINL */
 
 #endif /* mtr0mtr_h */

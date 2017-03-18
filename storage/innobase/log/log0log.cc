@@ -2,7 +2,7 @@
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2009, Google Inc.
-Copyright (c) 2014, 2017, MariaDB Corporation. All Rights Reserved.
+Copyright (c) 2014, 2017, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -35,11 +35,6 @@ Created 12/9/1995 Heikki Tuuri
 #include <debug_sync.h>
 
 #include "log0log.h"
-
-#ifdef UNIV_NONINL
-#include "log0log.ic"
-#endif
-
 #include "log0crypt.h"
 #include "mem0mem.h"
 #include "buf0buf.h"
@@ -98,11 +93,11 @@ static ulint		next_lbn_to_pad = 0;
 
 /* These control how often we print warnings if the last checkpoint is too
 old */
-bool	log_has_printed_chkp_warning = false;
-time_t	log_last_warning_time;
+static bool	log_has_printed_chkp_warning = false;
+static time_t	log_last_warning_time;
 
-bool	log_has_printed_chkp_margine_warning = false;
-time_t	log_last_margine_warning_time;
+static bool	log_has_printed_chkp_margine_warning = false;
+static time_t	log_last_margine_warning_time;
 
 /* A margin for free space in the log buffer before a log entry is catenated */
 #define LOG_BUF_WRITE_MARGIN	(4 * OS_FILE_LOG_BLOCK_SIZE)
@@ -562,6 +557,7 @@ function_exit:
 Calculates the data capacity of a log group, when the log file headers are not
 included.
 @return capacity in bytes */
+static
 lsn_t
 log_group_get_capacity(
 /*===================*/
@@ -660,45 +656,6 @@ log_group_calc_lsn_offset(
 
 	return(log_group_calc_real_offset(offset, group));
 }
-/*******************************************************************//**
-Calculates where in log files we find a specified lsn.
-@return log file number */
-ulint
-log_calc_where_lsn_is(
-/*==================*/
-	int64_t*	log_file_offset,	/*!< out: offset in that file
-						(including the header) */
-	ib_uint64_t	first_header_lsn,	/*!< in: first log file start
-						lsn */
-	ib_uint64_t	lsn,			/*!< in: lsn whose position to
-						determine */
-	ulint		n_log_files,		/*!< in: total number of log
-						files */
-	int64_t		log_file_size)		/*!< in: log file size
-						(including the header) */
-{
-	int64_t		capacity	= log_file_size - LOG_FILE_HDR_SIZE;
-	ulint		file_no;
-	int64_t		add_this_many;
-
-	if (lsn < first_header_lsn) {
-		add_this_many = 1 + (first_header_lsn - lsn)
-			/ (capacity * static_cast<int64_t>(n_log_files));
-		lsn += add_this_many
-			* capacity * static_cast<int64_t>(n_log_files);
-	}
-
-	ut_a(lsn >= first_header_lsn);
-
-	file_no = ((ulint)((lsn - first_header_lsn) / capacity))
-		% n_log_files;
-	*log_file_offset = (lsn - first_header_lsn) % capacity;
-
-	*log_file_offset = *log_file_offset + LOG_FILE_HDR_SIZE;
-
-	return(file_no);
-}
-
 
 /********************************************************//**
 Sets the field values in group to correspond to a given lsn. For this function
@@ -942,20 +899,18 @@ log_io_complete(
 		/* It was a checkpoint write */
 		group = (log_group_t*)((ulint) group - 1);
 
-#ifdef _WIN32
-		fil_flush(group->space_id);
-#else
-		switch (srv_unix_file_flush_method) {
-		case SRV_UNIX_O_DSYNC:
-		case SRV_UNIX_NOSYNC:
+		switch (srv_file_flush_method) {
+		case SRV_O_DSYNC:
+		case SRV_NOSYNC:
 			break;
-		case SRV_UNIX_FSYNC:
-		case SRV_UNIX_LITTLESYNC:
-		case SRV_UNIX_O_DIRECT:
-		case SRV_UNIX_O_DIRECT_NO_FSYNC:
+		case SRV_FSYNC:
+		case SRV_LITTLESYNC:
+		case SRV_O_DIRECT:
+		case SRV_O_DIRECT_NO_FSYNC:
+		case SRV_ALL_O_DIRECT_FSYNC:
 			fil_flush(group->space_id);
 		}
-#endif /* _WIN32 */
+
 
 		DBUG_PRINT("ib_log", ("checkpoint info written to group %u",
 				      unsigned(group->id)));
@@ -1176,11 +1131,8 @@ log_write_flush_to_disk_low()
 	calling os_event_set()! */
 	ut_a(log_sys->n_pending_flushes == 1); /* No other threads here */
 
-#ifndef _WIN32
-	bool	do_flush = srv_unix_file_flush_method != SRV_UNIX_O_DSYNC;
-#else
-	bool	do_flush = true;
-#endif
+	bool	do_flush = srv_file_flush_method != SRV_O_DSYNC;
+
 	if (do_flush) {
 		fil_flush(SRV_LOG_SPACE_FIRST_ID);
 	}
@@ -1284,16 +1236,6 @@ loop:
 		log_write_mutex_exit();
 		return;
 	}
-
-#ifdef _WIN32
-	/* write requests during fil_flush() might not be good for Windows */
-	if (log_sys->n_pending_flushes > 0
-	    || !os_event_is_set(log_sys->flush_event)) {
-		log_write_mutex_exit();
-		os_event_wait(log_sys->flush_event);
-		goto loop;
-	}
-#endif /* _WIN32 */
 
 	/* If it is a write call we should just go ahead and do it
 	as we checked that write_lsn is not where we'd like it to
@@ -1413,13 +1355,12 @@ loop:
 	srv_stats.log_padded.add(pad_size);
 	log_sys->write_lsn = write_lsn;
 
-#ifndef _WIN32
-	if (srv_unix_file_flush_method == SRV_UNIX_O_DSYNC) {
+
+	if (srv_file_flush_method == SRV_O_DSYNC) {
 		/* O_SYNC means the OS did not buffer the log file at all:
 		so we have also flushed to disk what we have written */
 		log_sys->flushed_to_disk_lsn = log_sys->write_lsn;
 	}
-#endif /* !_WIN32 */
 
 	log_write_mutex_exit();
 
@@ -1771,18 +1712,17 @@ log_checkpoint(
 		recv_apply_hashed_log_recs(true);
 	}
 
-#ifndef _WIN32
-	switch (srv_unix_file_flush_method) {
-	case SRV_UNIX_NOSYNC:
+	switch (srv_file_flush_method) {
+	case SRV_NOSYNC:
 		break;
-	case SRV_UNIX_O_DSYNC:
-	case SRV_UNIX_FSYNC:
-	case SRV_UNIX_LITTLESYNC:
-	case SRV_UNIX_O_DIRECT:
-	case SRV_UNIX_O_DIRECT_NO_FSYNC:
+	case SRV_O_DSYNC:
+	case SRV_FSYNC:
+	case SRV_LITTLESYNC:
+	case SRV_O_DIRECT:
+	case SRV_O_DIRECT_NO_FSYNC:
+	case SRV_ALL_O_DIRECT_FSYNC:
 		fil_flush_file_spaces(FIL_TYPE_TABLESPACE);
 	}
-#endif /* !_WIN32 */
 
 	log_mutex_enter();
 
@@ -2015,28 +1955,26 @@ logs_empty_and_mark_files_at_shutdown(void)
 {
 	lsn_t			lsn;
 	ulint			count = 0;
-	ulint			pending_io;
 
 	ib::info() << "Starting shutdown...";
-
-	while (srv_fast_shutdown == 0 && trx_rollback_or_clean_is_active) {
-		/* we should wait until rollback after recovery end
-		for slow shutdown */
-		os_thread_sleep(100000);
-	}
 
 	/* Wait until the master thread and all other operations are idle: our
 	algorithm only works if the server is idle at shutdown */
 
 	srv_shutdown_state = SRV_SHUTDOWN_CLEANUP;
 loop:
+	ut_ad(lock_sys || !srv_was_started);
+	ut_ad(log_sys || !srv_was_started);
+	ut_ad(fil_system || !srv_was_started);
 	os_event_set(srv_buf_resize_event);
 
 	if (!srv_read_only_mode) {
 		os_event_set(srv_error_event);
 		os_event_set(srv_monitor_event);
 		os_event_set(srv_buf_dump_event);
-		os_event_set(lock_sys->timeout_event);
+		if (lock_sys) {
+			os_event_set(lock_sys->timeout_event);
+		}
 		if (dict_stats_event) {
 			os_event_set(dict_stats_event);
 		} else {
@@ -2077,10 +2015,12 @@ loop:
 		thread_name = "buf_resize_thread";
 	} else if (srv_dict_stats_thread_active) {
 		thread_name = "dict_stats_thread";
-	} else if (lock_sys->timeout_thread_active) {
+	} else if (lock_sys && lock_sys->timeout_thread_active) {
 		thread_name = "lock_wait_timeout_thread";
 	} else if (srv_buf_dump_thread_active) {
 		thread_name = "buf_dump_thread";
+	} else if (srv_fast_shutdown != 2 && trx_rollback_or_clean_is_active) {
+		thread_name = "rollback of recovered transactions";
 	} else {
 		thread_name = NULL;
 	}
@@ -2137,25 +2077,29 @@ wait_suspend_loop:
 		os_event_set(log_scrub_event);
 	}
 
-	log_mutex_enter();
-	const ulint	n_write	= log_sys->n_pending_checkpoint_writes;
-	const ulint	n_flush	= log_sys->n_pending_flushes;
-	log_mutex_exit();
+	if (log_sys) {
+		log_mutex_enter();
+		const ulint	n_write	= log_sys->n_pending_checkpoint_writes;
+		const ulint	n_flush	= log_sys->n_pending_flushes;
+		log_mutex_exit();
 
-	if (log_scrub_thread_active || n_write || n_flush) {
-		if (srv_print_verbose_log && count > 600) {
-			ib::info() << "Pending checkpoint_writes: " << n_write
-				<< ". Pending log flush writes: " << n_flush;
-			count = 0;
+		if (log_scrub_thread_active || n_write || n_flush) {
+			if (srv_print_verbose_log && count > 600) {
+				ib::info() << "Pending checkpoint_writes: "
+					<< n_write
+					<< ". Pending log flush writes: "
+					<< n_flush;
+				count = 0;
+			}
+			goto loop;
 		}
-		goto loop;
 	}
 
 	ut_ad(!log_scrub_thread_active);
 
-	pending_io = buf_pool_check_no_pending_io();
-
-	if (pending_io) {
+	if (!buf_pool_ptr) {
+		ut_ad(!srv_was_started);
+	} else if (ulint pending_io = buf_pool_check_no_pending_io()) {
 		if (srv_print_verbose_log && count > 600) {
 			ib::info() << "Waiting for " << pending_io << " buffer"
 				" page I/Os to complete";
@@ -2187,7 +2131,9 @@ wait_suspend_loop:
 
 		srv_shutdown_state = SRV_SHUTDOWN_LAST_PHASE;
 
-		fil_close_all_files();
+		if (fil_system) {
+			fil_close_all_files();
+		}
 		return;
 	}
 

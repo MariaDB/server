@@ -27,11 +27,6 @@ Created 5/30/1994 Heikki Tuuri
 #include "ha_prototypes.h"
 
 #include "data0data.h"
-
-#ifdef UNIV_NONINL
-#include "data0data.ic"
-#endif
-
 #include "rem0rec.h"
 #include "rem0cmp.h"
 #include "page0page.h"
@@ -45,11 +40,6 @@ Created 5/30/1994 Heikki Tuuri
 debug version, dtuple_create() will make all fields of dtuple_t point
 to data_error. */
 byte	data_error;
-
-# ifndef UNIV_DEBUG_VALGRIND
-/** this is used to fool the compiler in dtuple_validate */
-ulint	data_dummy;
-# endif /* !UNIV_DEBUG_VALGRIND */
 #endif /* UNIV_DEBUG */
 
 /** Compare two data tuples.
@@ -126,6 +116,7 @@ dfield_check_typed_no_assert(
 /**********************************************************//**
 Checks that a data tuple is typed.
 @return TRUE if ok */
+static
 ibool
 dtuple_check_typed_no_assert(
 /*=========================*/
@@ -233,10 +224,6 @@ dtuple_validate(
 			ulint		j;
 
 			for (j = 0; j < len; j++) {
-
-				data_dummy  += *data; /* fool the compiler not
-						      to optimize out this
-						      code */
 				data++;
 			}
 #endif /* !UNIV_DEBUG_VALGRIND */

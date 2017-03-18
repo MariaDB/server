@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1996, 2015, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2016, 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
@@ -25,11 +25,6 @@ Created 2/23/1996 Heikki Tuuri
 *******************************************************/
 
 #include "btr0pcur.h"
-
-#ifdef UNIV_NONINL
-#include "btr0pcur.ic"
-#endif
-
 #include "ut0byte.h"
 #include "rem0cmp.h"
 #include "trx0trx.h"
@@ -466,6 +461,7 @@ alphabetical position of the cursor is guaranteed to be sensible on
 return, but it may happen that the cursor is not positioned on the last
 record of any page, because the structure of the tree may have changed
 during the time when the cursor had no latches. */
+static
 void
 btr_pcur_move_backward_from_page(
 /*=============================*/

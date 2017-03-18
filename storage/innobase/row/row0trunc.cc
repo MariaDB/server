@@ -38,6 +38,13 @@ Created 2013-04-12 Sunny Bains
 #include "os0file.h"
 #include <vector>
 
+/* FIXME: For temporary tables, use a simple approach of btr_free()
+and btr_create() of each index tree. */
+
+/* FIXME: For persistent tables, remove this code in MDEV-11655
+and use a combination of the transactional DDL log to make atomic the
+low-level operations ha_innobase::delete_table(), ha_innobase::create(). */
+
 bool	truncate_t::s_fix_up_active = false;
 truncate_t::tables_t		truncate_t::s_tables;
 truncate_t::truncated_tables_t	truncate_t::s_truncated_tables;
@@ -1830,14 +1837,11 @@ row_truncate_table_for_mysql(
 	/* Step-6: Truncate operation can be rolled back in case of error
 	till some point. Associate rollback segment to record undo log. */
 	if (!dict_table_is_temporary(table)) {
-
-		/* Temporary tables don't need undo logging for autocommit stmt.
-		On crash (i.e. mysql restart) temporary tables are anyway not
-		accessible. */
 		mutex_enter(&trx->undo_mutex);
 
+		trx_undo_t**	pundo = &trx->rsegs.m_redo.update_undo;
 		err = trx_undo_assign_undo(
-			trx, &trx->rsegs.m_redo, TRX_UNDO_UPDATE);
+			trx, trx->rsegs.m_redo.rseg, pundo, TRX_UNDO_UPDATE);
 
 		mutex_exit(&trx->undo_mutex);
 

@@ -71,7 +71,6 @@ SET(INNOBASE_SOURCES
 	fsp/fsp0file.cc
 	fsp/fsp0space.cc
 	fsp/fsp0sysspace.cc
-	fut/fut0fut.cc
 	fut/fut0lst.cc
 	ha/ha0ha.cc
 	ha/ha0storage.cc
@@ -155,7 +154,6 @@ SET(INNOBASE_SOURCES
 	trx/trx0trx.cc
 	trx/trx0undo.cc
 	usr/usr0sess.cc
-	ut/ut0byte.cc
 	ut/ut0crc32.cc
 	ut/ut0dbg.cc
 	ut/ut0list.cc

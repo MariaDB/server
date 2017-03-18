@@ -869,13 +869,13 @@ static my_off_t read_to_buffer(IO_CACHE *fromfile, BUFFPEK *buffpek,
                                 uint sort_length)
 {
   register ha_keys count;
-  my_off_t length;
+  size_t length;
 
   if ((count= (ha_keys) MY_MIN((ha_rows) buffpek->max_keys,
                                (ha_rows) buffpek->count)))
   {
     if (my_b_pread(fromfile, (uchar*) buffpek->base,
-                   (length= (my_off_t) (sort_length * count)),
+                   (length= (size_t) (sort_length * count)),
                    buffpek->file_pos))
       return(HA_OFFSET_ERROR);
     buffpek->key=buffpek->base;

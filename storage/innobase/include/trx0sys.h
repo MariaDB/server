@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -61,13 +62,9 @@ bool
 trx_sys_hdr_page(
 	const page_id_t&	page_id);
 
-/*****************************************************************//**
-Creates and initializes the central memory structures for the transaction
-system. This is called when the database is started.
-@return min binary heap of rsegs to purge */
-purge_pq_t*
-trx_sys_init_at_db_start(void);
-/*==========================*/
+/** Initialize the transaction system main-memory data structures. */
+void trx_sys_init_at_db_start();
+
 /*****************************************************************//**
 Creates the trx_sys instance and initializes purge_queue and mutex. */
 void
@@ -89,16 +86,6 @@ trx_sysf_rseg_find_free(
 					for temp-tablespace as free slots. */
 	ulint	nth_free_slots);	/*!< in: allocate nth free slot.
 					0 means next free slot. */
-/***************************************************************//**
-Gets the pointer in the nth slot of the rseg array.
-@return pointer to rseg object, NULL if slot not in use */
-UNIV_INLINE
-trx_rseg_t*
-trx_sys_get_nth_rseg(
-/*=================*/
-	trx_sys_t*	sys,		/*!< in: trx system */
-	ulint		n,		/*!< in: index of slot */
-	bool		is_redo_rseg);	/*!< in: true if redo rseg. */
 /**********************************************************************//**
 Gets a pointer to the transaction system file copy and x-locks its page.
 @return pointer to system file copy, page x-locked */
@@ -243,16 +230,6 @@ trx_rw_is_active(
 					that will be set if corrupt */
 	bool		do_ref_count);	/*!< in: if true then increment the
 					trx_t::n_ref_count */
-#ifdef UNIV_DEBUG
-/****************************************************************//**
-Checks whether a trx is in on of rw_trx_list
-@return TRUE if is in */
-bool
-trx_in_rw_trx_list(
-/*============*/
-	const trx_t*	in_trx)		/*!< in: transaction */
-	MY_ATTRIBUTE((warn_unused_result));
-#endif /* UNIV_DEBUG */
 #if defined UNIV_DEBUG || defined UNIV_BLOB_LIGHT_DEBUG
 /***********************************************************//**
 Assert that a transaction has been recovered.
@@ -619,14 +596,6 @@ struct trx_sys_t {
 					transactions), protected by
 					rseg->mutex */
 
-	trx_rseg_t*	const pending_purge_rseg_array[TRX_SYS_N_RSEGS];
-					/*!< Pointer array to rollback segments
-					between slot-1..slot-srv_tmp_undo_logs
-					that are now replaced by non-redo
-					rollback segments. We need them for
-					scheduling purge if any of the rollback
-					segment has pending records to purge. */
-
 	TrxIdSet	rw_trx_set;	/*!< Mapping from transaction id
 					to transaction instance */
 
@@ -661,8 +630,6 @@ page is updated */
 	trx_sys->mutex.exit();				\
 } while (0)
 
-#ifndef UNIV_NONINL
 #include "trx0sys.ic"
-#endif
 
 #endif

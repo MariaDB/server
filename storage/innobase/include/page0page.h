@@ -1193,9 +1193,7 @@ page_warn_strict_checksum(
 
 #endif /* !UNIV_INNOCHECKSUM */
 
-#ifndef UNIV_NONINL
 #include "page0page.ic"
-#endif
 
 
 #endif

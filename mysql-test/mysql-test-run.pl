@@ -4419,7 +4419,6 @@ sub extract_warning_lines ($$) {
      qr|InnoDB: TABLE to scan your table for corruption|,
      qr/InnoDB: See also */,
      qr/InnoDB: Cannot open .*ib_buffer_pool.* for reading: No such file or directory*/,
-     qr|InnoDB: Creating foreign key constraint system tables.|,
      qr/InnoDB: Table .*mysql.*innodb_table_stats.* not found./,
      qr/InnoDB: User stopword table .* does not exist./
 

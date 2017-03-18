@@ -1407,6 +1407,7 @@ void Item_func_json_array::fix_length_and_dec()
 
   fix_char_length_ulonglong(char_length);
   tmp_val.set_charset(collation.collation);
+  result_limit= 0;
 }
 
 
@@ -1431,7 +1432,16 @@ String *Item_func_json_array::val_str(String *str)
   if (str->append("]", 1))
     goto err_return;
 
-  return str;
+  if (result_limit == 0)
+    result_limit= current_thd->variables.max_allowed_packet;
+
+  if (str->length() <= result_limit)
+    return str;
+
+  push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
+      ER_WARN_ALLOWED_PACKET_OVERFLOWED,
+      ER_THD(current_thd, ER_WARN_ALLOWED_PACKET_OVERFLOWED),
+      func_name(), result_limit);
 
 err_return:
   /*TODO: Launch out of memory error. */
@@ -1749,7 +1759,16 @@ String *Item_func_json_object::val_str(String *str)
   if (str->append("}", 1))
     goto err_return;
 
-  return str;
+  if (result_limit == 0)
+    result_limit= current_thd->variables.max_allowed_packet;
+
+  if (str->length() <= result_limit)
+    return str;
+
+  push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
+      ER_WARN_ALLOWED_PACKET_OVERFLOWED,
+      ER_THD(current_thd, ER_WARN_ALLOWED_PACKET_OVERFLOWED),
+      func_name(), result_limit);
 
 err_return:
   /*TODO: Launch out of memory error. */
@@ -2800,9 +2819,28 @@ void Item_func_json_search::fix_length_and_dec()
 int Item_func_json_search::compare_json_value_wild(json_engine_t *je,
                                                    const String *cmp_str)
 {
-  return my_wildcmp(collation.collation,
-      (const char *) je->value, (const char *) (je->value + je->value_len),
-      cmp_str->ptr(), cmp_str->end(), escape, wild_one, wild_many) ? 0 : 1;
+  if (je->value_type != JSON_VALUE_STRING || !je->value_escaped)
+    return my_wildcmp(collation.collation,
+        (const char *) je->value, (const char *) (je->value + je->value_len),
+        cmp_str->ptr(), cmp_str->end(), escape, wild_one, wild_many) ? 0 : 1;
+
+  {
+    int esc_len;
+    if (esc_value.alloced_length() < (uint) je->value_len &&
+        esc_value.alloc((je->value_len / 1024 + 1) * 1024))
+      return 0;
+
+    esc_len= json_unescape(je->s.cs, je->value, je->value + je->value_len,
+                           je->s.cs, (uchar *) esc_value.ptr(),
+                           (uchar *) (esc_value.ptr() + 
+                                      esc_value.alloced_length()));
+    if (esc_len <= 0)
+      return 0;
+
+    return my_wildcmp(collation.collation,
+        esc_value.ptr(), esc_value.ptr() + esc_len,
+        cmp_str->ptr(), cmp_str->end(), escape, wild_one, wild_many) ? 0 : 1;
+  }
 }
 
 
