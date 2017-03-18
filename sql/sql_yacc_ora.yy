@@ -11950,7 +11950,7 @@ select_outvar:
             if (!Lex->spcont || !(t= Lex->spcont->find_variable($1, false)))
               my_yyabort_error((ER_SP_UNDECLARED_VAR, MYF(0), $1.str));
             $$ = Lex->result ? (new (thd->mem_root)
-                                my_var_sp($1, t->offset, t->sql_type(),
+                                my_var_sp($1, t->offset, t->type_handler(),
                                           Lex->sphead)) :
                                 NULL;
           }

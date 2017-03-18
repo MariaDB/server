@@ -61,6 +61,9 @@ public:
 
   /// Field-type of the SP-variable.
   enum_field_types sql_type() const { return field_def.sql_type; }
+
+  const Type_handler *type_handler() const { return field_def.type_handler(); }
+
 public:
   sp_variable(LEX_STRING _name, uint _offset)
    :Sql_alloc(),

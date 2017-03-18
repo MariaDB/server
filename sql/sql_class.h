@@ -5509,21 +5509,25 @@ public:
   my_var(const LEX_STRING& j, enum type s) : name(j), scope(s) { }
   virtual ~my_var() {}
   virtual bool set(THD *thd, Item *val) = 0;
+  virtual class my_var_sp *get_my_var_sp() { return NULL; }
 };
 
 class my_var_sp: public my_var {
+  const Type_handler *m_type_handler;
 public:
   uint offset;
-  enum_field_types type;
   /*
     Routine to which this Item_splocal belongs. Used for checking if correct
     runtime context is used for variable handling.
   */
   sp_head *sp;
-  my_var_sp(const LEX_STRING& j, uint o, enum_field_types t, sp_head *s)
-    : my_var(j, LOCAL_VAR), offset(o), type(t), sp(s) { }
+  my_var_sp(const LEX_STRING& j, uint o, const Type_handler *type_handler,
+            sp_head *s)
+    : my_var(j, LOCAL_VAR), m_type_handler(type_handler), offset(o), sp(s) { }
   ~my_var_sp() { }
   bool set(THD *thd, Item *val);
+  my_var_sp *get_my_var_sp() { return this; }
+  const Type_handler *type_handler() const { return m_type_handler; }
 };
 
 /*
@@ -5536,7 +5540,7 @@ class my_var_sp_row_field: public my_var_sp
 public:
   my_var_sp_row_field(const LEX_STRING &varname, const LEX_STRING &fieldname,
                       uint var_idx, uint field_idx, sp_head *s)
-   :my_var_sp(varname, var_idx, MYSQL_TYPE_DOUBLE/*Not really used*/, s),
+   :my_var_sp(varname, var_idx, &type_handler_double/*Not really used*/, s),
     m_field_offset(field_idx)
   { }
   bool set(THD *thd, Item *val);
@@ -5552,10 +5556,13 @@ public:
 
 class select_dumpvar :public select_result_interceptor {
   ha_rows row_count;
+  my_var_sp *m_var_sp_row; // Not NULL if SELECT INTO row_type_sp_variable
+  bool send_data_to_var_list(List<Item> &items);
 public:
   List<my_var> var_list;
-  select_dumpvar(THD *thd_arg): select_result_interceptor(thd_arg)
-  { var_list.empty(); row_count= 0; }
+  select_dumpvar(THD *thd_arg)
+   :select_result_interceptor(thd_arg), row_count(0), m_var_sp_row(NULL)
+  { var_list.empty(); }
   ~select_dumpvar() {}
   int prepare(List<Item> &list, SELECT_LEX_UNIT *u);
   int send_data(List<Item> &items);

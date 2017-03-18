@@ -79,3 +79,30 @@ source include/show_binlog_events.inc;
 --echo #
 --echo # End of MDEV-10914 ROW data type for stored routine variables
 --echo #
+
+
+--echo #
+--echo # MDEV-12291 Allow ROW variables as SELECT INTO targets
+--echo #
+
+FLUSH LOGS;
+SET sql_mode=DEFAULT;
+CREATE TABLE t1 (a INT, b VARCHAR(32));
+INSERT INTO t1 VALUES (10, 'b10');
+CREATE TABLE t2 LIKE t1;
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE rec1 ROW(a INT, b VARCHAR(32));
+  SELECT * INTO rec1 FROM t1;
+  INSERT INTO t2 VALUES (rec1.a, rec1.b);
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+SELECT * FROM t1;
+DROP TABLE t1;
+DROP TABLE t2;
+DROP PROCEDURE p1;
+--let $binlog_file = LAST
+source include/show_binlog_events.inc;

@@ -1327,3 +1327,61 @@ DROP PROCEDURE p1;
 --echo #
 --echo # End of MDEV-10914 ROW data type for stored routine variables
 --echo #
+
+
+--echo #
+--echo # MDEV-12291 Allow ROW variables as SELECT INTO targets
+--echo #
+
+
+--echo # ROW variable with a wrong column count
+CREATE TABLE t1 (a INT, b VARCHAR(32));
+INSERT INTO t1 VALUES (10,'b10');
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE rec1 ROW(a INT, b VARCHAR(32), c DOUBLE);
+  SELECT * FROM t1 INTO rec1;
+  SELECT rec1.a, rec1.b;
+END;
+$$
+DELIMITER ;$$
+--error ER_WRONG_NUMBER_OF_COLUMNS_IN_SELECT
+CALL p1();
+DROP TABLE t1;
+DROP PROCEDURE p1;
+
+
+--echo # Multiple ROW variables
+CREATE TABLE t1 (a INT, b VARCHAR(32));
+INSERT INTO t1 VALUES (10,'b10');
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE rec1 ROW(a INT, b VARCHAR(32));
+  SELECT * FROM t1 INTO rec1, rec1;
+  SELECT rec1.a, rec1.b;
+END;
+$$
+DELIMITER ;$$
+--error ER_OPERAND_COLUMNS
+CALL p1();
+DROP TABLE t1;
+DROP PROCEDURE p1;
+
+
+--echo # ROW variables working example
+CREATE TABLE t1 (a INT, b VARCHAR(32));
+INSERT INTO t1 VALUES (10,'b10');
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE rec1 ROW(a INT, b VARCHAR(32));
+  SELECT * FROM t1 INTO rec1;
+  SELECT rec1.a, rec1.b;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+DROP TABLE t1;
+DROP PROCEDURE p1;

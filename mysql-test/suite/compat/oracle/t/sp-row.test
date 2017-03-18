@@ -2075,3 +2075,170 @@ DELIMITER ;$$
 CALL p1();
 DROP TABLE t1;
 DROP PROCEDURE p1;
+
+
+--echo #
+--echo # MDEV-12291 Allow ROW variables as SELECT INTO targets
+--echo #
+
+
+--echo # ROW variable with a wrong column count
+CREATE TABLE t1 (a INT, b VARCHAR(32));
+INSERT INTO t1 VALUES (10,'b10');
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+  rec1 ROW(a INT, b VARCHAR(32), c DOUBLE);
+BEGIN
+  SELECT * FROM t1 INTO rec1;
+  SELECT rec1.a, rec1.b;
+END;
+$$
+DELIMITER ;$$
+--error ER_WRONG_NUMBER_OF_COLUMNS_IN_SELECT
+CALL p1();
+DROP TABLE t1;
+DROP PROCEDURE p1;
+
+
+--echo # Multiple ROW variables
+CREATE TABLE t1 (a INT, b VARCHAR(32));
+INSERT INTO t1 VALUES (10,'b10');
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+  rec1 ROW(a INT, b VARCHAR(32));
+BEGIN
+  SELECT * FROM t1 INTO rec1, rec1;
+  SELECT rec1.a, rec1.b;
+END;
+$$
+DELIMITER ;$$
+--error ER_OPERAND_COLUMNS
+CALL p1();
+DROP TABLE t1;
+DROP PROCEDURE p1;
+
+
+--echo # ROW variables working example
+CREATE TABLE t1 (a INT, b VARCHAR(32));
+INSERT INTO t1 VALUES (10,'b10');
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+  rec1 ROW(a INT, b VARCHAR(32));
+BEGIN
+  SELECT * FROM t1 INTO rec1;
+  SELECT rec1.a, rec1.b;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+DROP TABLE t1;
+DROP PROCEDURE p1;
+
+
+--echo # table%ROWTYPE variable with a wrong column count
+CREATE TABLE t1 (a INT, b VARCHAR(32));
+INSERT INTO t1 VALUES (10,'b10');
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+  rec1 t1%ROWTYPE;
+BEGIN
+  SELECT 10,'a','b' FROM t1 INTO rec1;
+  SELECT rec1.a, rec1.b;
+END;
+$$
+DELIMITER ;$$
+--error ER_WRONG_NUMBER_OF_COLUMNS_IN_SELECT
+CALL p1();
+DROP TABLE t1;
+DROP PROCEDURE p1;
+
+
+--echo # Multiple table%ROWTYPE variables
+CREATE TABLE t1 (a INT, b VARCHAR(32));
+INSERT INTO t1 VALUES (10,'b10');
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+  rec1 t1%ROWTYPE;
+BEGIN
+  SELECT 10,'a' FROM t1 INTO rec1, rec1;
+  SELECT rec1.a, rec1.b;
+END;
+$$
+DELIMITER ;$$
+--error ER_OPERAND_COLUMNS
+CALL p1();
+DROP TABLE t1;
+DROP PROCEDURE p1;
+
+
+--echo # table%ROWTYPE working example
+CREATE TABLE t1 (a INT, b VARCHAR(32));
+INSERT INTO t1 VALUES (10,'b10');
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+  rec1 t1%ROWTYPE;
+BEGIN
+  SELECT * FROM t1 INTO rec1;
+  SELECT rec1.a, rec1.b;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+DROP TABLE t1;
+DROP PROCEDURE p1;
+
+
+--echo # cursor%ROWTYPE variable with a wrong column count
+CREATE TABLE t1 (a INT, b VARCHAR(32));
+INSERT INTO t1 VALUES (10,'b10');
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+  CURSOR cur1 IS SELECT 10, 'b0', 'c0';
+  rec1 cur1%ROWTYPE;
+BEGIN
+  SELECT * FROM t1 INTO rec1;
+  SELECT rec1.a, rec1.b;
+END;
+$$
+DELIMITER ;$$
+--error ER_WRONG_NUMBER_OF_COLUMNS_IN_SELECT
+CALL p1();
+DROP TABLE t1;
+DROP PROCEDURE p1;
+
+
+--echo # Multiple cursor%ROWTYPE variables
+CREATE TABLE t1 (a INT, b VARCHAR(32));
+INSERT INTO t1 VALUES (10,'b10');
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+  CURSOR cur1 IS SELECT * FROM t1;
+  rec1 cur1%ROWTYPE;
+BEGIN
+  SELECT * FROM t1 INTO rec1, rec1;
+  SELECT rec1.a, rec1.b;
+END;
+$$
+DELIMITER ;$$
+--error ER_OPERAND_COLUMNS
+CALL p1();
+DROP TABLE t1;
+DROP PROCEDURE p1;
+
+
+--echo # cursor%ROWTYPE working example
+CREATE TABLE t1 (a INT, b VARCHAR(32));
+INSERT INTO t1 VALUES (10,'b10');
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+  CURSOR cur1 IS SELECT * FROM t1;
+  rec1 cur1%ROWTYPE;
+BEGIN
+  SELECT * FROM t1 INTO rec1;
+  SELECT rec1.a, rec1.b;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+DROP TABLE t1;
+DROP PROCEDURE p1;

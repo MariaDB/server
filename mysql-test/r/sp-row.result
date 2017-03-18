@@ -2120,3 +2120,49 @@ DROP PROCEDURE p1;
 #
 # End of MDEV-10914 ROW data type for stored routine variables
 #
+#
+# MDEV-12291 Allow ROW variables as SELECT INTO targets
+#
+# ROW variable with a wrong column count
+CREATE TABLE t1 (a INT, b VARCHAR(32));
+INSERT INTO t1 VALUES (10,'b10');
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE rec1 ROW(a INT, b VARCHAR(32), c DOUBLE);
+SELECT * FROM t1 INTO rec1;
+SELECT rec1.a, rec1.b;
+END;
+$$
+CALL p1();
+ERROR 21000: The used SELECT statements have a different number of columns
+DROP TABLE t1;
+DROP PROCEDURE p1;
+# Multiple ROW variables
+CREATE TABLE t1 (a INT, b VARCHAR(32));
+INSERT INTO t1 VALUES (10,'b10');
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE rec1 ROW(a INT, b VARCHAR(32));
+SELECT * FROM t1 INTO rec1, rec1;
+SELECT rec1.a, rec1.b;
+END;
+$$
+CALL p1();
+ERROR 21000: Operand should contain 2 column(s)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+# ROW variables working example
+CREATE TABLE t1 (a INT, b VARCHAR(32));
+INSERT INTO t1 VALUES (10,'b10');
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE rec1 ROW(a INT, b VARCHAR(32));
+SELECT * FROM t1 INTO rec1;
+SELECT rec1.a, rec1.b;
+END;
+$$
+CALL p1();
+rec1.a	rec1.b
+10	b10
+DROP TABLE t1;
+DROP PROCEDURE p1;

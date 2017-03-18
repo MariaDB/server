@@ -4036,6 +4036,12 @@ public:
     m_cursor_rowtype_ref(NULL),
     m_row_field_definitions(NULL)
   { }
+  const Type_handler *type_handler() const
+  {
+    return is_row() || is_table_rowtype_ref() || is_cursor_rowtype_ref() ?
+           &type_handler_row :
+           Type_handler::get_handler_by_field_type(sql_type);
+  }
   bool is_column_type_ref() const { return m_column_type_ref != 0; }
   bool is_table_rowtype_ref() const { return m_table_rowtype_ref != 0; }
   bool is_cursor_rowtype_ref() const { return m_cursor_rowtype_ref != NULL; }

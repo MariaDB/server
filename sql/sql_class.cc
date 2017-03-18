@@ -3495,15 +3495,29 @@ int select_exists_subselect::send_data(List<Item> &items)
 
 int select_dumpvar::prepare(List<Item> &list, SELECT_LEX_UNIT *u)
 {
+  my_var_sp *mvsp;
   unit= u;
-  
-  if (var_list.elements != list.elements)
+  m_var_sp_row= NULL;
+
+  if (var_list.elements == 1 &&
+      (mvsp= var_list.head()->get_my_var_sp()) &&
+      mvsp->type_handler() == &type_handler_row)
   {
-    my_message(ER_WRONG_NUMBER_OF_COLUMNS_IN_SELECT,
-               ER_THD(thd, ER_WRONG_NUMBER_OF_COLUMNS_IN_SELECT), MYF(0));
-    return 1;
-  }               
-  return 0;
+    // SELECT INTO row_type_sp_variable
+    if (thd->spcont->get_item(mvsp->offset)->cols() != list.elements)
+      goto error;
+    m_var_sp_row= mvsp;
+    return 0;
+  }
+
+  // SELECT INTO variable list
+  if (var_list.elements == list.elements)
+    return 0;
+
+error:
+  my_message(ER_WRONG_NUMBER_OF_COLUMNS_IN_SELECT,
+             ER_THD(thd, ER_WRONG_NUMBER_OF_COLUMNS_IN_SELECT), MYF(0));
+  return 1;
 }
 
 
@@ -3844,12 +3858,25 @@ bool my_var_sp_row_field::set(THD *thd, Item *item)
   return thd->spcont->set_variable_row_field(thd, offset, m_field_offset, &item);
 }
 
-int select_dumpvar::send_data(List<Item> &items)
+
+bool select_dumpvar::send_data_to_var_list(List<Item> &items)
 {
+  DBUG_ENTER("select_dumpvar::send_data_to_var_list");
   List_iterator_fast<my_var> var_li(var_list);
   List_iterator<Item> it(items);
   Item *item;
   my_var *mv;
+  while ((mv= var_li++) && (item= it++))
+  {
+    if (mv->set(thd, item))
+      DBUG_RETURN(true);
+  }
+  DBUG_RETURN(false);
+}
+
+
+int select_dumpvar::send_data(List<Item> &items)
+{
   DBUG_ENTER("select_dumpvar::send_data");
 
   if (unit->offset_limit_cnt)
@@ -3862,11 +3889,11 @@ int select_dumpvar::send_data(List<Item> &items)
     my_message(ER_TOO_MANY_ROWS, ER_THD(thd, ER_TOO_MANY_ROWS), MYF(0));
     DBUG_RETURN(1);
   }
-  while ((mv= var_li++) && (item= it++))
-  {
-    if (mv->set(thd, item))
-      DBUG_RETURN(1);
-  }
+  if (m_var_sp_row ?
+      thd->spcont->set_variable_row(thd, m_var_sp_row->offset, items) :
+      send_data_to_var_list(items))
+    DBUG_RETURN(1);
+
   DBUG_RETURN(thd->is_error());
 }
 
