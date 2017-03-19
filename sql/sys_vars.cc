@@ -5364,7 +5364,6 @@ static Sys_var_ulonglong Sys_max_thread_mem(
 /* keep list in sync with constant definitiosn in my_core_no_dump.h */
 static const char *core_nodump_names[] = { "MAX",
 					   "INNODB_POOL_BUFFER",
-					   "MYISAM_KEY_BUFFER",
 					   NULL};
 
 static Sys_var_set Sys_core_nodump(

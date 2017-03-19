@@ -45,15 +45,14 @@
 
 /* Core dump exclusion constants */
 #define CORE_NODUMP_NONE                (0)
-#define CORE_NODUMP_INNODB_POOL_BUFFER  (1 << 1)
-#define CORE_NODUMP_MYISAM_KEY_BUFFER   (1 << 2)
-#define CORE_NODUMP_MAX                 (255)
+#define CORE_NODUMP_MAX                 (1 << 1)
+#define CORE_NODUMP_INNODB_POOL_BUFFER  (1 << 2)
 
 extern ulong opt_core_nodump;
 
 inline void exclude_from_coredump(void *ptr, size_t size, ulong flags)
 {
-  if (opt_core_nodump & flags) {
+  if (opt_core_nodump & (flags | CORE_NODUMP_MAX)) {
     madvise(ptr, size, MADV_DONTDUMP);
   }
 }
