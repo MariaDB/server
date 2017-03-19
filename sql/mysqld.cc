@@ -4144,15 +4144,11 @@ static int init_server_components()
       opt_error_log= 0;                         // Too long file name
     else
     {
-      my_bool res;
 #ifndef EMBEDDED_LIBRARY
-      res= reopen_fstreams(log_error_file, stdout, stderr);
+      reopen_fstreams(log_error_file, stdout, stderr);
 #else
-      res= reopen_fstreams(log_error_file, NULL, stderr);
+      reopen_fstreams(log_error_file, NULL, stderr);
 #endif
-
-      if (!res)
-        setbuf(stderr, NULL);
 
 #ifdef _WIN32
       /* Add error log to windows crash reporting. */

@@ -6499,45 +6499,32 @@ void sql_perror(const char *message)
 extern "C" my_bool reopen_fstreams(const char *filename,
                                    FILE *outstream, FILE *errstream)
 {
-  if (outstream && !my_freopen(filename, "a", outstream))
-    return TRUE;
+  int result= FALSE;
 
-  if (errstream && !my_freopen(filename, "a", errstream))
-    return TRUE;
+  mysql_mutex_lock(&LOCK_error_log);
+
+  if (outstream && !my_freopen(filename, "a", outstream))
+    result= TRUE;
+
+  if (!result && errstream && !my_freopen(filename, "a", errstream))
+    result= TRUE;
+
+  mysql_mutex_unlock(&LOCK_error_log);
 
   /* The error stream must be unbuffered. */
-  if (errstream)
+  if (errstream && !result)
     setbuf(errstream, NULL);
 
-  return FALSE;
+  return result;
 }
-
-
-/*
-  Unfortunately, there seems to be no good way
-  to restore the original streams upon failure.
-*/
-static bool redirect_std_streams(const char *file)
-{
-  if (reopen_fstreams(file, stdout, stderr))
-    return TRUE;
-
-  setbuf(stderr, NULL);
-  return FALSE;
-}
-
 
 bool flush_error_log()
 {
-  bool result= 0;
   if (opt_error_log)
   {
-    mysql_mutex_lock(&LOCK_error_log);
-    if (redirect_std_streams(log_error_file))
-      result= 1;
-    mysql_mutex_unlock(&LOCK_error_log);
+    return reopen_fstreams(log_error_file, stdout, stderr);
   }
-  return result;
+  return 0;
 }
 
 void MYSQL_BIN_LOG::signal_update()
