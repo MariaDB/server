@@ -1290,41 +1290,35 @@ void Item_sum_sum::clear()
 }
 
 
+void Item_sum_sum::fix_length_and_dec_double()
+{
+  set_handler(&type_handler_double); // Change FLOAT to DOUBLE
+  decimals= args[0]->decimals;
+  sum= 0.0;
+}
+
+
+void Item_sum_sum::fix_length_and_dec_decimal()
+{
+  set_handler(&type_handler_newdecimal); // Change temporal to new DECIMAL
+  decimals= args[0]->decimals;
+  /* SUM result can't be longer than length(arg) + length(MAX_ROWS) */
+  int precision= args[0]->decimal_precision() + DECIMAL_LONGLONG_DIGITS;
+  max_length= my_decimal_precision_to_length_no_truncation(precision,
+                                                           decimals,
+                                                           unsigned_flag);
+  curr_dec_buff= 0;
+  my_decimal_set_zero(dec_buffs);
+}
+
+
 void Item_sum_sum::fix_length_and_dec()
 {
   DBUG_ENTER("Item_sum_sum::fix_length_and_dec");
   maybe_null=null_value=1;
-  decimals= args[0]->decimals;
-  switch (args[0]->cast_to_int_type_handler()->cmp_type()) {
-  case REAL_RESULT:
-  case STRING_RESULT:
-    set_handler_by_field_type(MYSQL_TYPE_DOUBLE);
-    sum= 0.0;
-    break;
-  case INT_RESULT:
-  case TIME_RESULT:
-  case DECIMAL_RESULT:
-  {
-    /* SUM result can't be longer than length(arg) + length(MAX_ROWS) */
-    int precision= args[0]->decimal_precision() + DECIMAL_LONGLONG_DIGITS;
-    max_length= my_decimal_precision_to_length_no_truncation(precision,
-                                                             decimals,
-                                                             unsigned_flag);
-    curr_dec_buff= 0;
-    set_handler_by_field_type(MYSQL_TYPE_NEWDECIMAL);
-    my_decimal_set_zero(dec_buffs);
-    break;
-  }
-  case ROW_RESULT:
-    DBUG_ASSERT(0);
-  }
-  DBUG_PRINT("info", ("Type: %s (%d, %d)",
-                      (result_type() == REAL_RESULT ? "REAL_RESULT" :
-                       result_type() == DECIMAL_RESULT ? "DECIMAL_RESULT" :
-                       result_type() == INT_RESULT ? "INT_RESULT" :
-                       "--ILLEGAL!!!--"),
-                      max_length,
-                      (int)decimals));
+  args[0]->cast_to_int_type_handler()->Item_sum_sum_fix_length_and_dec(this);
+  DBUG_PRINT("info", ("Type: %s (%d, %d)", type_handler()->name().ptr(),
+                      max_length, (int) decimals));
   DBUG_VOID_RETURN;
 }
 
@@ -1625,28 +1619,39 @@ void Item_sum_count::cleanup()
 /*
   Avgerage
 */
+
+void Item_sum_avg::fix_length_and_dec_decimal()
+{
+  Item_sum_sum::fix_length_and_dec_decimal();
+  int precision= args[0]->decimal_precision() + prec_increment;
+  decimals= MY_MIN(args[0]->decimals + prec_increment, DECIMAL_MAX_SCALE);
+  max_length= my_decimal_precision_to_length_no_truncation(precision,
+                                                           decimals,
+                                                           unsigned_flag);
+  f_precision= MY_MIN(precision+DECIMAL_LONGLONG_DIGITS, DECIMAL_MAX_PRECISION);
+  f_scale=  args[0]->decimals;
+  dec_bin_size= my_decimal_get_binary_size(f_precision, f_scale);
+}
+
+
+void Item_sum_avg::fix_length_and_dec_double()
+{
+  Item_sum_sum::fix_length_and_dec_double();
+  decimals= MY_MIN(args[0]->decimals + prec_increment,
+                   FLOATING_POINT_DECIMALS);
+  max_length= MY_MIN(args[0]->max_length + prec_increment, float_length(decimals));
+}
+
+
 void Item_sum_avg::fix_length_and_dec()
 {
-  Item_sum_sum::fix_length_and_dec();
-  maybe_null=null_value=1;
+  DBUG_ENTER("Item_sum_avg::fix_length_and_dec");
   prec_increment= current_thd->variables.div_precincrement;
-  if (Item_sum_avg::result_type() == DECIMAL_RESULT)
-  {
-    int precision= args[0]->decimal_precision() + prec_increment;
-    decimals= MY_MIN(args[0]->decimals + prec_increment, DECIMAL_MAX_SCALE);
-    max_length= my_decimal_precision_to_length_no_truncation(precision,
-                                                             decimals,
-                                                             unsigned_flag);
-    f_precision= MY_MIN(precision+DECIMAL_LONGLONG_DIGITS, DECIMAL_MAX_PRECISION);
-    f_scale=  args[0]->decimals;
-    dec_bin_size= my_decimal_get_binary_size(f_precision, f_scale);
-  }
-  else
-  {
-    decimals= MY_MIN(args[0]->decimals + prec_increment,
-                     FLOATING_POINT_DECIMALS);
-    max_length= MY_MIN(args[0]->max_length + prec_increment, float_length(decimals));
-  }
+  maybe_null=null_value=1;
+  args[0]->cast_to_int_type_handler()->Item_sum_avg_fix_length_and_dec(this);
+  DBUG_PRINT("info", ("Type: %s (%d, %d)", type_handler()->name().ptr(),
+                      max_length, (int) decimals));
+  DBUG_VOID_RETURN;
 }
 
 
@@ -1845,6 +1850,25 @@ Item_sum_variance::Item_sum_variance(THD *thd, Item_sum_variance *item):
 }
 
 
+void Item_sum_variance::fix_length_and_dec_double()
+{
+  DBUG_ASSERT(Item_sum_variance::type_handler() == &type_handler_double);
+  decimals= MY_MIN(args[0]->decimals + 4, FLOATING_POINT_DECIMALS);
+}
+
+
+void Item_sum_variance::fix_length_and_dec_decimal()
+{
+  DBUG_ASSERT(Item_sum_variance::type_handler() == &type_handler_double);
+  int precision= args[0]->decimal_precision() * 2 + prec_increment;
+  decimals= MY_MIN(args[0]->decimals + prec_increment,
+                   FLOATING_POINT_DECIMALS - 1);
+  max_length= my_decimal_precision_to_length_no_truncation(precision,
+                                                           decimals,
+                                                           unsigned_flag);
+}
+
+
 void Item_sum_variance::fix_length_and_dec()
 {
   DBUG_ENTER("Item_sum_variance::fix_length_and_dec");
@@ -1858,28 +1882,9 @@ void Item_sum_variance::fix_length_and_dec()
     type.
   */
 
-  switch (args[0]->result_type()) {
-  case REAL_RESULT:
-  case STRING_RESULT:
-    decimals= MY_MIN(args[0]->decimals + 4, FLOATING_POINT_DECIMALS);
-    break;
-  case INT_RESULT:
-  case DECIMAL_RESULT:
-  {
-    int precision= args[0]->decimal_precision()*2 + prec_increment;
-    decimals= MY_MIN(args[0]->decimals + prec_increment,
-                     FLOATING_POINT_DECIMALS-1);
-    max_length= my_decimal_precision_to_length_no_truncation(precision,
-                                                             decimals,
-                                                             unsigned_flag);
-
-    break;
-  }
-  case ROW_RESULT:
-  case TIME_RESULT:
-    DBUG_ASSERT(0);
-  }
-  DBUG_PRINT("info", ("Type: REAL_RESULT (%d, %d)", max_length, (int)decimals));
+  args[0]->type_handler()->Item_sum_variance_fix_length_and_dec(this);
+  DBUG_PRINT("info", ("Type: %s (%d, %d)", type_handler()->name().ptr(),
+                      max_length, (int)decimals));
   DBUG_VOID_RETURN;
 }
 

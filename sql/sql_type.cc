@@ -1398,6 +1398,166 @@ bool Type_handler_temporal_result::
   return false;
 }
 
+
+/*************************************************************************/
+
+bool Type_handler_int_result::
+       Item_sum_sum_fix_length_and_dec(Item_sum_sum *item) const
+{
+  item->fix_length_and_dec_decimal();
+  return false;
+}
+
+
+bool Type_handler_decimal_result::
+       Item_sum_sum_fix_length_and_dec(Item_sum_sum *item) const
+{
+  item->fix_length_and_dec_decimal();
+  return false;
+}
+
+
+bool Type_handler_temporal_result::
+       Item_sum_sum_fix_length_and_dec(Item_sum_sum *item) const
+{
+  item->fix_length_and_dec_decimal();
+  return false;
+}
+
+
+bool Type_handler_real_result::
+       Item_sum_sum_fix_length_and_dec(Item_sum_sum *item) const
+{
+  item->fix_length_and_dec_double();
+  return false;
+}
+
+
+bool Type_handler_string_result::
+       Item_sum_sum_fix_length_and_dec(Item_sum_sum *item) const
+{
+  item->fix_length_and_dec_double();
+  return false;
+}
+
+
+#ifdef HAVE_SPATIAL
+bool Type_handler_geometry::
+       Item_sum_sum_fix_length_and_dec(Item_sum_sum *item) const
+{
+  my_error(ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION, MYF(0),
+           type_handler_geometry.name().ptr(), "sum");
+  return false;
+}
+#endif
+
+
+/*************************************************************************/
+
+bool Type_handler_int_result::
+       Item_sum_avg_fix_length_and_dec(Item_sum_avg *item) const
+{
+  item->fix_length_and_dec_decimal();
+  return false;
+}
+
+
+bool Type_handler_decimal_result::
+       Item_sum_avg_fix_length_and_dec(Item_sum_avg *item) const
+{
+  item->fix_length_and_dec_decimal();
+  return false;
+}
+
+
+bool Type_handler_temporal_result::
+       Item_sum_avg_fix_length_and_dec(Item_sum_avg *item) const
+{
+  item->fix_length_and_dec_decimal();
+  return false;
+}
+
+
+bool Type_handler_real_result::
+       Item_sum_avg_fix_length_and_dec(Item_sum_avg *item) const
+{
+  item->fix_length_and_dec_double();
+  return false;
+}
+
+
+bool Type_handler_string_result::
+       Item_sum_avg_fix_length_and_dec(Item_sum_avg *item) const
+{
+  item->fix_length_and_dec_double();
+  return false;
+}
+
+
+#ifdef HAVE_SPATIAL
+bool Type_handler_geometry::
+       Item_sum_avg_fix_length_and_dec(Item_sum_avg *item) const
+{
+  my_error(ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION, MYF(0),
+           type_handler_geometry.name().ptr(), "avg");
+  return false;
+}
+#endif
+
+
+/*************************************************************************/
+
+bool Type_handler_int_result::
+       Item_sum_variance_fix_length_and_dec(Item_sum_variance *item) const
+{
+  item->fix_length_and_dec_decimal();
+  return false;
+}
+
+
+bool Type_handler_decimal_result::
+       Item_sum_variance_fix_length_and_dec(Item_sum_variance *item) const
+{
+  item->fix_length_and_dec_decimal();
+  return false;
+}
+
+
+bool Type_handler_temporal_result::
+       Item_sum_variance_fix_length_and_dec(Item_sum_variance *item) const
+{
+  item->fix_length_and_dec_decimal();
+  return false;
+}
+
+
+bool Type_handler_real_result::
+       Item_sum_variance_fix_length_and_dec(Item_sum_variance *item) const
+{
+  item->fix_length_and_dec_double();
+  return false;
+}
+
+
+bool Type_handler_string_result::
+       Item_sum_variance_fix_length_and_dec(Item_sum_variance *item) const
+{
+  item->fix_length_and_dec_double();
+  return false;
+}
+
+
+#ifdef HAVE_SPATIAL
+bool Type_handler_geometry::
+       Item_sum_variance_fix_length_and_dec(Item_sum_variance *item) const
+{
+  my_error(ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION, MYF(0),
+           type_handler_geometry.name().ptr(), item->func_name());
+  return false;
+}
+#endif
+
+
 /*************************************************************************/
 
 String *

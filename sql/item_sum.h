@@ -790,6 +790,8 @@ public:
   { return Type_handler_hybrid_field_type::result_type(); }
   enum Item_result cmp_type () const
   { return Type_handler_hybrid_field_type::cmp_type(); }
+  void fix_length_and_dec_double();
+  void fix_length_and_dec_decimal();
   void reset_field();
   void update_field();
   void no_rows_in_result() {}
@@ -889,6 +891,8 @@ public:
     :Item_sum_sum(thd, item), count(item->count),
     prec_increment(item->prec_increment) {}
 
+  void fix_length_and_dec_double();
+  void fix_length_and_dec_decimal();
   void fix_length_and_dec();
   enum Sumfunctype sum_func () const 
   {
@@ -963,6 +967,8 @@ public:
     {}
   Item_sum_variance(THD *thd, Item_sum_variance *item);
   enum Sumfunctype sum_func () const { return VARIANCE_FUNC; }
+  void fix_length_and_dec_double();
+  void fix_length_and_dec_decimal();
   void clear();
   bool add();
   double val_real();

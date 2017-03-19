@@ -3749,5 +3749,34 @@ ERROR HY000: Illegal parameter data type geometry for operation 'ceiling'
 SELECT FLOOR(POINT(1,1));
 ERROR HY000: Illegal parameter data type geometry for operation 'floor'
 #
+# MDEV-12239 Add Type_handler::Item_sum_{sum|avg|variance}_fix_length_and_dec()
+#
+CREATE TABLE t1 (a GEOMETRY);
+SELECT SUM(POINT(1,1)) FROM t1;
+ERROR HY000: Illegal parameter data type geometry for operation 'sum'
+SELECT SUM(a) FROM t1;
+ERROR HY000: Illegal parameter data type geometry for operation 'sum'
+SELECT SUM(COALESCE(a)) FROM t1;
+ERROR HY000: Illegal parameter data type geometry for operation 'sum'
+SELECT AVG(POINT(1,1)) FROM t1;
+ERROR HY000: Illegal parameter data type geometry for operation 'avg'
+SELECT AVG(a) FROM t1;
+ERROR HY000: Illegal parameter data type geometry for operation 'avg'
+SELECT AVG(COALESCE(a)) FROM t1;
+ERROR HY000: Illegal parameter data type geometry for operation 'avg'
+SELECT VARIANCE(POINT(1,1)) FROM t1;
+ERROR HY000: Illegal parameter data type geometry for operation 'variance('
+SELECT VARIANCE(a) FROM t1;
+ERROR HY000: Illegal parameter data type geometry for operation 'variance('
+SELECT VARIANCE(COALESCE(a)) FROM t1;
+ERROR HY000: Illegal parameter data type geometry for operation 'variance('
+SELECT STDDEV(POINT(1,1)) FROM t1;
+ERROR HY000: Illegal parameter data type geometry for operation 'std('
+SELECT STDDEV(a) FROM t1;
+ERROR HY000: Illegal parameter data type geometry for operation 'std('
+SELECT STDDEV(COALESCE(a)) FROM t1;
+ERROR HY000: Illegal parameter data type geometry for operation 'std('
+DROP TABLE t1;
+#
 # End of 10.3 tests
 #
