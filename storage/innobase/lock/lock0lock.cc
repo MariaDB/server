@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2014, 2016, MariaDB Corporation
+Copyright (c) 2014, 2017, MariaDB Corporation
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1704,13 +1704,14 @@ wsrep_kill_victim(
 			is in the queue*/
 		} else if (lock->trx != trx) {
 			if (wsrep_log_conflicts) {
-				if (bf_this)
-					fputs("\n*** Priority TRANSACTION:\n", 
+				if (bf_this) {
+					fputs("\n*** Priority TRANSACTION:\n",
 					      stderr);
-                else {
+				} else {
 					fputs("\n*** Victim TRANSACTION:\n",
 					      stderr);
 				}
+
 				wsrep_trx_print_locking(stderr, trx, 3000);
 
 				if (bf_other) {
@@ -1720,6 +1721,7 @@ wsrep_kill_victim(
 					fputs("\n*** Victim TRANSACTION:\n",
 					      stderr);
 				}
+
 				wsrep_trx_print_locking(stderr, lock->trx, 3000);
 
 				fputs("*** WAITING FOR THIS LOCK TO BE GRANTED:\n",
