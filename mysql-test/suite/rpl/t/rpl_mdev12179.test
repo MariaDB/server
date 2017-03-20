@@ -62,8 +62,9 @@ SELECT * FROM t1 ORDER BY a;
 --source include/save_master_gtid.inc
 
 # Let the slave mysqld server start again.
+# As we are restarting, also take the opportunity to test --gtid-pos-auto-engines
 --append_file $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
-restart: --skip-slave-start=0
+restart: --skip-slave-start=0 --gtid-pos-auto-engines=innodb,myisam
 EOF
 
 --connection server_2
@@ -73,6 +74,10 @@ EOF
 --source include/sync_with_master_gtid.inc
 SELECT * FROM t1 ORDER BY a;
 
+SELECT @@gtid_pos_auto_engines;
+--source include/stop_slave.inc
+SET GLOBAL gtid_pos_auto_engines="";
+--source include/start_slave.inc
 
 --connection server_2
 SET sql_log_bin=0;

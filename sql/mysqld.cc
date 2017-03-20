@@ -4917,6 +4917,26 @@ static int init_default_storage_engine_impl(const char *opt_name,
   return 0;
 }
 
+
+static int
+init_gtid_pos_auto_engines(void)
+{
+  plugin_ref *plugins;
+
+  if (gtid_pos_auto_engines)
+    plugins= resolve_engine_list(gtid_pos_auto_engines,
+                                 strlen(gtid_pos_auto_engines));
+  else
+    plugins= resolve_engine_list("", 0);
+  if (!plugins)
+    return 1;
+  mysql_mutex_lock(&LOCK_global_system_variables);
+  opt_gtid_pos_auto_plugins= plugins;
+  mysql_mutex_unlock(&LOCK_global_system_variables);
+  return 0;
+}
+
+
 static int init_server_components()
 {
   DBUG_ENTER("init_server_components");
@@ -5352,6 +5372,9 @@ static int init_server_components()
     unireg_abort(1);
 
   if (init_default_storage_engine(enforced_storage_engine, enforced_table_plugin))
+    unireg_abort(1);
+
+  if (init_gtid_pos_auto_engines())
     unireg_abort(1);
 
 #ifdef USE_ARIA_FOR_TMP_TABLES
@@ -7354,6 +7377,14 @@ struct my_option my_long_options[]=
    "Set up signals usable for debugging. Deprecated, use --debug-gdb instead.",
    &opt_debugging, &opt_debugging,
    0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
+  {"gtid-pos-auto-engines", 0,
+   "List of engines for which to automatically create a "
+   "mysql.gtid_slave_pos_ENGINE table, if a transaction using that engine "
+   "is replicated. This can be used to avoid introducing cross-engine "
+   "transactions, if engines are used different from that used by table "
+   "mysql.gtid_slave_pos",
+   &gtid_pos_auto_engines, 0, 0, GET_STR, REQUIRED_ARG,
+   0, 0, 0, 0, 0, 0 },
 #ifdef HAVE_LARGE_PAGE_OPTION
   {"super-large-pages", 0, "Enable support for super large pages.",
    &opt_super_large_pages, &opt_super_large_pages, 0,

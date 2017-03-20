@@ -64,6 +64,12 @@ a
 1
 2
 3
+SELECT @@gtid_pos_auto_engines;
+@@gtid_pos_auto_engines
+InnoDB,MyISAM
+include/stop_slave.inc
+SET GLOBAL gtid_pos_auto_engines="";
+include/start_slave.inc
 SET sql_log_bin=0;
 DROP TABLE mysql.gtid_slave_pos_innodb;
 SET sql_log_bin=1;
