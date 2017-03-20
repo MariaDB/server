@@ -1338,9 +1338,9 @@ rec_convert_dtuple_to_rec(
 {
 	rec_t*	rec;
 
-	ut_ad(buf != NULL);
-	ut_ad(index != NULL);
-	ut_ad(dtuple != NULL);
+	ut_nonnulld(buf);
+	ut_nonnulld(index);
+	ut_nonnulld(dtuple);
 	ut_ad(dtuple_validate(dtuple));
 	ut_ad(dtuple_check_typed(dtuple));
 

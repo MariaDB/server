@@ -200,7 +200,7 @@ fts_ast_visit(
 						and ignored processing an
 						operator, currently we only
 						ignore FTS_IGNORE operator */
-	MY_ATTRIBUTE((nonnull, warn_unused_result));
+	MY_ATTRIBUTE((warn_unused_result));
 /*****************************************************************//**
 Process (nested) sub-expression, create a new result set to store the
 sub-expression result by processing nodes under current sub-expression

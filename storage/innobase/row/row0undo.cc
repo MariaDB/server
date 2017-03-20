@@ -133,7 +133,9 @@ row_undo_node_create(
 {
 	undo_node_t*	undo;
 
-	ut_ad(trx && parent && heap);
+	ut_nonnulld(trx);
+	ut_nonnulld(parent);
+	ut_nonnulld(heap);
 
 	undo = static_cast<undo_node_t*>(
 		mem_heap_alloc(heap, sizeof(undo_node_t)));
@@ -257,8 +259,8 @@ row_undo(
 	roll_ptr_t	roll_ptr;
 	ibool		locked_data_dict;
 
-	ut_ad(node != NULL);
-	ut_ad(thr != NULL);
+	ut_nonnulld(node);
+	ut_nonnulld(thr);
 
 	trx = node->trx;
 

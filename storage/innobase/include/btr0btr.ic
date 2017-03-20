@@ -137,7 +137,8 @@ btr_page_set_level(
 	ulint		level,	/*!< in: level, leaf level == 0 */
 	mtr_t*		mtr)	/*!< in: mini-transaction handle */
 {
-	ut_ad(page && mtr);
+	ut_nonnulld(page);
+	ut_nonnulld(mtr);
 	ut_ad(level <= BTR_MAX_NODE_LEVEL);
 
 	if (page_zip) {
@@ -182,8 +183,8 @@ btr_page_set_next(
 	ulint		next,	/*!< in: next page number */
 	mtr_t*		mtr)	/*!< in: mini-transaction handle */
 {
-	ut_ad(page != NULL);
-	ut_ad(mtr != NULL);
+	ut_nonnulld(page);
+	ut_nonnulld(mtr);
 
 	if (page_zip) {
 		mach_write_to_4(page + FIL_PAGE_NEXT, next);
@@ -203,8 +204,8 @@ btr_page_get_prev(
 	const page_t*	page,	/*!< in: index page */
 	mtr_t*	mtr MY_ATTRIBUTE((unused))) /*!< in: mini-transaction handle */
 {
-	ut_ad(page != NULL);
-	ut_ad(mtr != NULL);
+	ut_nonnulld(page);
+	ut_nonnulld(mtr);
 
 	return(mach_read_from_4(page + FIL_PAGE_PREV));
 }

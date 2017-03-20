@@ -444,9 +444,9 @@ trx_undo_seg_create(
 	ibool		success;
 	dberr_t		err = DB_SUCCESS;
 
-	ut_ad(mtr != NULL);
-	ut_ad(id != NULL);
-	ut_ad(rseg_hdr != NULL);
+	ut_nonnulld(mtr);
+	ut_nonnulld(id);
+	ut_nonnulld(rseg_hdr);
 	ut_ad(mutex_own(&(rseg->mutex)));
 
 	/*	fputs(type == TRX_UNDO_INSERT
