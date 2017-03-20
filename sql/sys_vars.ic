@@ -1533,6 +1533,104 @@ public:
   { return valptr(thd, get_default(thd)); }
 };
 
+/**
+  Class for variables that containg a list of plugins.
+  Currently this is used only for @@gtid_pos_auto_create_engines
+
+  Backing store: plugin_ref
+
+  @note
+  Currently this is only used for storage engine type plugins, and thus only
+  storage engine type plugin is implemented. It could be extended to other
+  plugin types later if needed, similar to Sys_var_plugin.
+
+  These variables don't support command-line equivalents, any such
+  command-line options should be added manually to my_long_options in mysqld.cc
+*/
+class Sys_var_pluginlist: public sys_var
+{
+  int plugin_type;
+public:
+  Sys_var_pluginlist(const char *name_arg,
+          const char *comment, int flag_args, ptrdiff_t off, size_t size,
+          CMD_LINE getopt,
+          char **def_val, PolyLock *lock=0,
+          enum binlog_status_enum binlog_status_arg=VARIABLE_NOT_IN_BINLOG,
+          on_check_function on_check_func=0,
+          on_update_function on_update_func=0,
+          const char *substitute=0)
+    : sys_var(&all_sys_vars, name_arg, comment, flag_args, off, getopt.id,
+              getopt.arg_type, SHOW_CHAR, (intptr)def_val,
+              lock, binlog_status_arg, on_check_func, on_update_func,
+              substitute)
+  {
+    option.var_type|= GET_STR;
+    SYSVAR_ASSERT(size == sizeof(plugin_ref));
+    SYSVAR_ASSERT(getopt.id < 0); // force NO_CMD_LINE
+  }
+  bool do_check(THD *thd, set_var *var)
+  {
+    char buff[STRING_BUFFER_USUAL_SIZE];
+    String str(buff,sizeof(buff), system_charset_info), *res;
+    plugin_ref *plugins;
+
+    if (!(res=var->value->val_str(&str)))
+      plugins= resolve_engine_list("", 0);
+    else
+      plugins= resolve_engine_list(res->ptr(), res->length());
+    if (!plugins)
+      return true;
+    var->save_result.plugins= plugins;
+    return false;
+  }
+  void do_update(plugin_ref **valptr, plugin_ref* newval)
+  {
+    plugin_ref *oldval= *valptr;
+    *valptr= newval;
+    free_engine_list(oldval);
+  }
+  bool session_update(THD *thd, set_var *var)
+  {
+    do_update((plugin_ref**)session_var_ptr(thd),
+              var->save_result.plugins);
+    return false;
+  }
+  bool global_update(THD *thd, set_var *var)
+  {
+    do_update((plugin_ref**)global_var_ptr(),
+              var->save_result.plugins);
+    return false;
+  }
+  void session_save_default(THD *thd, set_var *var)
+  {
+    plugin_ref* plugins= global_var(plugin_ref *);
+    var->save_result.plugins= plugins ? copy_engine_list(plugins) : 0;
+  }
+  plugin_ref *get_default(THD *thd)
+  {
+    char *default_value= *reinterpret_cast<char**>(option.def_value);
+    if (!default_value)
+      return 0;
+    return resolve_engine_list(default_value, strlen(default_value));
+  }
+
+  void global_save_default(THD *thd, set_var *var)
+  {
+    var->save_result.plugins= get_default(thd);
+  }
+
+  uchar *valptr(THD *thd, plugin_ref *plugins)
+  {
+    return (uchar*)pretty_print_engine_list(thd, plugins);
+  }
+  uchar *session_value_ptr(THD *thd, const LEX_STRING *base)
+  { return valptr(thd, session_var(thd, plugin_ref*)); }
+  uchar *global_value_ptr(THD *thd, const LEX_STRING *base)
+  { return valptr(thd, global_var(plugin_ref*)); }
+  uchar *default_value_ptr(THD *thd)
+  { return valptr(thd, get_default(thd)); }
+};
+
 #if defined(ENABLED_DEBUG_SYNC)
 
 #include "debug_sync.h"

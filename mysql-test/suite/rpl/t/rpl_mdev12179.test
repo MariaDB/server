@@ -3,8 +3,30 @@
 --source include/rpl_init.inc
 
 --connection server_2
+--error ER_SLAVE_MUST_STOP
+SET GLOBAL gtid_pos_auto_engines="innodb";
 --source include/stop_slave.inc
 CHANGE MASTER TO master_use_gtid=slave_pos;
+
+# Test the @@gtid_pos_auto_engines sysvar.
+SELECT @@gtid_pos_auto_engines;
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SELECT @@SESSION.gtid_pos_auto_engines;
+--error ER_WRONG_VALUE_FOR_VAR
+SET GLOBAL gtid_pos_auto_engines= NULL;
+SET GLOBAL gtid_pos_auto_engines="innodb";
+SELECT @@gtid_pos_auto_engines;
+SET GLOBAL gtid_pos_auto_engines="myisam,innodb";
+SELECT @@gtid_pos_auto_engines;
+SET GLOBAL gtid_pos_auto_engines="innodb,myisam";
+SELECT @@gtid_pos_auto_engines;
+SET GLOBAL gtid_pos_auto_engines="innodb,innodb,myisam,innodb,myisam,myisam,innodb";
+SELECT @@gtid_pos_auto_engines;
+SET GLOBAL gtid_pos_auto_engines=DEFAULT;
+SELECT @@gtid_pos_auto_engines;
+SET GLOBAL gtid_pos_auto_engines="";
+SELECT @@gtid_pos_auto_engines;
+
 --source include/start_slave.inc
 
 --connection server_1

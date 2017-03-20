@@ -3521,6 +3521,46 @@ static Sys_var_plugin Sys_enforce_storage_engine(
        NO_CMD_LINE, MYSQL_STORAGE_ENGINE_PLUGIN,
        DEFAULT(&enforced_storage_engine), NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(check_has_super));
 
+/*
+  Check
+   1. Value for gtid_pos_auto_engines is not NULL.
+   2. No slave SQL thread is running.
+*/
+static bool
+check_gtid_pos_auto_engines(sys_var *self, THD *thd, set_var *var)
+{
+  bool running;
+  bool err= false;
+
+  DBUG_ASSERT(var->type == OPT_GLOBAL);
+  if (var->value && var->value->is_null())
+    err= true;
+  else
+  {
+    running= give_error_if_slave_running(false);
+    if (running)
+      err= true;
+  }
+  if (err && var->save_result.plugins)
+  {
+    free_engine_list(var->save_result.plugins);
+    var->save_result.plugins= NULL;
+  }
+  return err;
+}
+
+
+static Sys_var_pluginlist Sys_gtid_pos_auto_engines(
+       "gtid_pos_auto_engines",
+       "List of engines for which to automatically create a "
+       "mysql.gtid_slave_pos_ENGINE table, if a transaction using that engine "
+       "is replicated. This can be used to avoid introducing cross-engine "
+       "transactions, if engines are used different from that used by table "
+       "mysql.gtid_slave_pos",
+       GLOBAL_VAR(opt_gtid_pos_auto_plugins), NO_CMD_LINE,
+       DEFAULT(&gtid_pos_auto_engines),
+       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(check_gtid_pos_auto_engines));
+
 #if defined(ENABLED_DEBUG_SYNC)
 /*
   Variable can be set for the session only.

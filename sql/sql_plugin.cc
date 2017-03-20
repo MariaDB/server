@@ -1922,6 +1922,12 @@ void plugin_shutdown(void)
 
   if (initialized)
   {
+    if (opt_gtid_pos_auto_plugins)
+    {
+      free_engine_list(opt_gtid_pos_auto_plugins);
+      opt_gtid_pos_auto_plugins= NULL;
+    }
+
     mysql_mutex_lock(&LOCK_plugin);
 
     reap_needed= true;

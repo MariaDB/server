@@ -19,6 +19,7 @@
 
 #include <my_global.h> /* MYSQL_PLUGIN_IMPORT, FN_REFLEN, FN_EXTLEN */
 #include "sql_basic_types.h"			/* query_id_t */
+#include "sql_plugin.h"
 #include "sql_bitmap.h"                         /* Bitmap */
 #include "my_decimal.h"                         /* my_decimal */
 #include "mysql_com.h"                     /* SERVER_VERSION_LENGTH */
@@ -153,6 +154,8 @@ extern char *default_tz_name;
 extern Time_zone *default_tz;
 extern char *default_storage_engine, *default_tmp_storage_engine;
 extern char *enforced_storage_engine;
+extern char *gtid_pos_auto_engines;
+extern plugin_ref *opt_gtid_pos_auto_plugins;
 extern bool opt_endinfo, using_udf_functions;
 extern my_bool locked_in_memory;
 extern bool opt_using_transactions;

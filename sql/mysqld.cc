@@ -374,6 +374,8 @@ char *my_bind_addr_str;
 static char *default_collation_name;
 char *default_storage_engine, *default_tmp_storage_engine;
 char *enforced_storage_engine=NULL;
+char *gtid_pos_auto_engines;
+plugin_ref *opt_gtid_pos_auto_plugins;
 static char compiled_default_collation_name[]= MYSQL_DEFAULT_COLLATION_NAME;
 static I_List<CONNECT> thread_cache;
 static bool binlog_format_used= false;
@@ -4234,6 +4236,7 @@ static int init_common_variables()
   default_storage_engine= const_cast<char *>("MyISAM");
 #endif
   default_tmp_storage_engine= NULL;
+  gtid_pos_auto_engines= const_cast<char *>("");
 
   /*
     Add server status variables to the dynamic list of

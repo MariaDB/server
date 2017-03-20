@@ -1,6 +1,39 @@
 include/rpl_init.inc [topology=1->2]
+SET GLOBAL gtid_pos_auto_engines="innodb";
+ERROR HY000: This operation cannot be performed as you have a running slave ''; run STOP SLAVE '' first
 include/stop_slave.inc
 CHANGE MASTER TO master_use_gtid=slave_pos;
+SELECT @@gtid_pos_auto_engines;
+@@gtid_pos_auto_engines
+
+SELECT @@SESSION.gtid_pos_auto_engines;
+ERROR HY000: Variable 'gtid_pos_auto_engines' is a GLOBAL variable
+SET GLOBAL gtid_pos_auto_engines= NULL;
+ERROR 42000: Variable 'gtid_pos_auto_engines' can't be set to the value of 'NULL'
+SET GLOBAL gtid_pos_auto_engines="innodb";
+SELECT @@gtid_pos_auto_engines;
+@@gtid_pos_auto_engines
+InnoDB
+SET GLOBAL gtid_pos_auto_engines="myisam,innodb";
+SELECT @@gtid_pos_auto_engines;
+@@gtid_pos_auto_engines
+MyISAM,InnoDB
+SET GLOBAL gtid_pos_auto_engines="innodb,myisam";
+SELECT @@gtid_pos_auto_engines;
+@@gtid_pos_auto_engines
+InnoDB,MyISAM
+SET GLOBAL gtid_pos_auto_engines="innodb,innodb,myisam,innodb,myisam,myisam,innodb";
+SELECT @@gtid_pos_auto_engines;
+@@gtid_pos_auto_engines
+InnoDB,MyISAM
+SET GLOBAL gtid_pos_auto_engines=DEFAULT;
+SELECT @@gtid_pos_auto_engines;
+@@gtid_pos_auto_engines
+
+SET GLOBAL gtid_pos_auto_engines="";
+SELECT @@gtid_pos_auto_engines;
+@@gtid_pos_auto_engines
+
 include/start_slave.inc
 CREATE TABLE t1 (a INT PRIMARY KEY);
 INSERT INTO t1 VALUES (1);
