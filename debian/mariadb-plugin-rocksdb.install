@@ -1,0 +1,3 @@
+etc/mysql/conf.d/rocksdb_se.cnf etc/mysql/mariadb.conf.d
+usr/lib/mysql/plugin/ha_rocksdb.so
+
