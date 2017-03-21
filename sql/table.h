@@ -1882,6 +1882,8 @@ struct vers_select_conds_t
     start= s;
     end= e;
   }
+
+  bool init_from_sysvar(THD *thd);
 };
 
 struct LEX;
