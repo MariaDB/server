@@ -1987,6 +1987,8 @@ int killed_errno(killed_state killed)
   case KILL_SERVER:
   case KILL_SERVER_HARD:
     DBUG_RETURN(ER_SERVER_SHUTDOWN);
+  case KILL_SLAVE_SAME_ID:
+    DBUG_RETURN(ER_SLAVE_SAME_ID);
   }
   DBUG_RETURN(0);                               // Keep compiler happy
 }
