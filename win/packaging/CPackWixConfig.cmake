@@ -9,7 +9,7 @@ IF(ESSENTIALS)
  ENDIF()
 ELSE()
   SET(CPACK_COMPONENTS_USED 
-    "Server;Client;Development;SharedLibraries;Documentation;Readme;Debuginfo;Common;connect-engine;ClientPlugins;gssapi-server;gssapi-client;aws-key-management")
+    "Server;Client;Development;SharedLibraries;Documentation;Readme;Debuginfo;Common;connect-engine;ClientPlugins;gssapi-server;gssapi-client;aws-key-management;rocksdb-engine")
 ENDIF()
 
 SET( WIX_FEATURE_MySQLServer_EXTRA_FEATURES "DBInstance;SharedClientServerComponents")
@@ -57,7 +57,7 @@ SET(CPACK_COMPONENT_GROUP_MYSQLSERVER_DESCRIPTION "Install server")
  
  
  #Miscellaneous (hidden) components, part of server / or client programs
- FOREACH(comp connect-engine ClientPlugins gssapi-server gssapi-client aws-key-management)
+ FOREACH(comp connect-engine ClientPlugins gssapi-server gssapi-client aws-key-management rocksdb-engine)
    STRING(TOUPPER "${comp}" comp)
    SET(CPACK_COMPONENT_${comp}_GROUP "MySQLServer")
    SET(CPACK_COMPONENT_${comp}_HIDDEN 1)
