@@ -34,7 +34,7 @@
 int main(int argc, char **argv)
 {
   int i;
-  for (i= 1; i < argc; i++)
+  for (i = 1; i < argc; i++)
   {
     fprintf(stdout, "%s", argv[i]);
     if (i < argc - 1)
