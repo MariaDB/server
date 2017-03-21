@@ -140,6 +140,7 @@ connection slave;
 
 CREATE TABLE t2(id INT NOT NULL PRIMARY KEY, data INT) Engine=MyIsam;
 SHOW CREATE TABLE t2;
+show global status like 'slave_skipped_errors';
 
 connection master;
 
@@ -157,6 +158,7 @@ sync_slave_with_master;
 
 let $error= query_get_value("SHOW SLAVE STATUS", Last_SQL_Error, 1);
 echo $error;
+show global status like 'slave_skipped_errors';
 
 --echo **** We cannot execute a select as there are differences in the 
 --echo **** behavior between STMT and RBR.
