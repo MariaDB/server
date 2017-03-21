@@ -56,7 +56,7 @@ ANALYZE TABLE t1, t2;
 OPTIMIZE TABLE t1, t2;
 
 --connection node_2
---let $wait_condition = SELECT VARIABLE_VALUE = $wsrep_last_committed_before + 1 FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME = 'wsrep_last_committed'
+--let $wait_condition = SELECT VARIABLE_VALUE >= $wsrep_last_committed_before + 1 FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME = 'wsrep_last_committed'
 --source include/wait_condition.inc
 
 
@@ -69,7 +69,7 @@ OPTIMIZE TABLE t1, t2;
 REPAIR TABLE x1, x2;
 
 --connection node_2
---let $wait_condition = SELECT VARIABLE_VALUE = $wsrep_last_committed_before + 1 FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME = 'wsrep_last_committed'
+--let $wait_condition = SELECT VARIABLE_VALUE >= $wsrep_last_committed_before + 1 FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME = 'wsrep_last_committed'
 --source include/wait_condition.inc
 
 
