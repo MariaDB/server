@@ -1360,11 +1360,10 @@ handle_rpl_parallel_thread(void *arg)
         */
         rpl_parallel_entry *e= rpt->current_entry;
         /*
-          Ensure that we will unblock rpl_pause_for_ftrwl()
-          e->pause_sub_id may be LONGLONG_MAX if rpt->current_entry has changed
+          Wait for rpl_unpause_after_ftwrl() to wake us up.
+          Note that rpl_pause_for_ftwrl() may wait for 'e->pause_sub_id'
+          to change. This should happen eventually in finish_event_group()
         */
-        DBUG_ASSERT(e->pause_sub_id == (uint64)ULONGLONG_MAX ||
-                    e->last_committed_sub_id >= e->pause_sub_id);
         mysql_mutex_lock(&e->LOCK_parallel_entry);
         mysql_mutex_unlock(&rpt->LOCK_rpl_thread);
         if (rpt->pause_for_ftwrl)

@@ -519,13 +519,22 @@ int init_slave()
 
   if (active_mi->host[0] && !opt_skip_slave_start)
   {
-    if (start_slave_threads(0, /* No active thd */
-                            1 /* need mutex */,
-                            0 /* no wait for start*/,
-                            active_mi,
-                            master_info_file,
-                            relay_log_info_file,
-                            SLAVE_IO | SLAVE_SQL))
+    int error;
+    THD *thd= new THD;
+    thd->thread_stack= (char*) &thd;
+    thd->store_globals();
+
+    error= start_slave_threads(0, /* No active thd */
+                               1 /* need mutex */,
+                               1 /* wait for start*/,
+                               active_mi,
+                               master_info_file,
+                               relay_log_info_file,
+                               SLAVE_IO | SLAVE_SQL);
+
+    thd->reset_globals();
+    delete thd;
+    if (error)
     {
       sql_print_error("Failed to create slave threads");
       goto err;
