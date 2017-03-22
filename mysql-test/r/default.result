@@ -541,10 +541,10 @@ DROP FUNCTION f1;
 CREATE PROCEDURE p1(par INT) CREATE TABLE t1 (a INT DEFAULT par);
 ERROR HY000: Function or expression 'par' cannot be used in the DEFAULT clause of `a`
 CREATE TABLE t1 (a INT DEFAULT par);
-ERROR 42S22: Unknown column 'par' in 'virtual column function'
+ERROR 42S22: Unknown column 'par' in 'DEFAULT'
 CREATE PROCEDURE p1() CREATE TABLE t1 (a INT DEFAULT par);
 CALL p1;
-ERROR 42S22: Unknown column 'par' in 'virtual column function'
+ERROR 42S22: Unknown column 'par' in 'DEFAULT'
 DROP PROCEDURE p1;
 CREATE TABLE t1 (a INT DEFAULT VALUES(a));
 ERROR HY000: Function or expression 'values()' cannot be used in the DEFAULT clause of `a`
