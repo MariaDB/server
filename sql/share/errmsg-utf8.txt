@@ -7151,6 +7151,9 @@ skip-to-error-number 2000
 # MySQL 5.7 error numbers starts here
 skip-to-error-number 3000
 
+ER_FILE_CORRUPT
+  eng "File %s is corrupted"
+
 ER_ERROR_ON_MASTER
   eng "Query partially completed on the master (error on master: %d) and was aborted. There is a chance that your master is inconsistent at this point. If you are sure that your master is ok, run this query manually on the slave and then restart the slave with SET GLOBAL SQL_SLAVE_SKIP_COUNTER=1; START SLAVE;. Query:'%s'" 
 
