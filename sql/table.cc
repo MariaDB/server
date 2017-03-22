@@ -6605,6 +6605,8 @@ void TABLE::mark_columns_used_by_check_constraints(void)
 void TABLE::mark_check_constraint_columns_for_read(void)
 {
   bitmap_union(read_set, s->check_set);
+  if (vcol_set)
+    bitmap_union(vcol_set, s->check_set);
 }
 
 

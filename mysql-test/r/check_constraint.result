@@ -131,3 +131,8 @@ t1	CREATE TABLE `t1` (
   CONSTRAINT `CONSTRAINT_2` CHECK (`a` > `b`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table t1;
+create table t1(c1 int, c2 int as (c1 + 1), check (c2 > 2));
+insert into t1(c1) values(1);
+ERROR 23000: CONSTRAINT `CONSTRAINT_1` failed for `test`.`t1`
+insert into t1(c1) values(2);
+drop table t1;

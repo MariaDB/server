@@ -69,3 +69,12 @@ create or replace table t1 (a int, b int,
   constraint CONSTRAINT_2 check (a>b));
 show create table t1;
 drop table t1;
+
+#
+# MDEV-10370 Check constraints on virtual columns fails on INSERT when column not specified
+#
+create table t1(c1 int, c2 int as (c1 + 1), check (c2 > 2));
+--error ER_CONSTRAINT_FAILED
+insert into t1(c1) values(1);
+insert into t1(c1) values(2);
+drop table t1;
