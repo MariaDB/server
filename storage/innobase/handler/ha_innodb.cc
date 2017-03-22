@@ -326,7 +326,7 @@ thd_destructor_proxy(void *)
 
 	st_my_thread_var *myvar= _my_thread_var();
 	THD *thd= create_thd();
-	thd_proc_info(thd, "InnoDB background thread");
+	thd_proc_info(thd, "InnoDB shutdown handler");
 
 	myvar->current_mutex = &thd_destructor_mutex;
 	myvar->current_cond = &thd_destructor_cond;
@@ -1708,14 +1708,15 @@ static MYSQL_THDVAR_BOOL(background_thread,
 			 "Internal (not user visible) flag to mark "
 			 "background purge threads", NULL, NULL, 0);
 
-/** Create a MYSQL_THD for background purge threads and mark it as such.
-@returns new MYSQL_THD */
+/** Create a MYSQL_THD for a background thread and mark it as such.
+@param name thread info for SHOW PROCESSLIST
+@return new MYSQL_THD */
 MYSQL_THD
-innobase_create_background_thd()
+innobase_create_background_thd(const char* name)
 /*============================*/
 {
 	MYSQL_THD thd= create_thd();
-	thd_proc_info(thd, "InnoDB background thread");
+	thd_proc_info(thd, name);
 	THDVAR(thd, background_thread) = true;
 	return thd;
 }
