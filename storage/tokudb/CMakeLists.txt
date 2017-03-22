@@ -22,11 +22,15 @@ SET(TOKUDB_SOURCES
     tokudb_information_schema.cc
     tokudb_sysvars.cc
     tokudb_thread.cc)
-MYSQL_ADD_PLUGIN(tokudb ${TOKUDB_SOURCES} STORAGE_ENGINE MODULE_ONLY)
+MYSQL_ADD_PLUGIN(tokudb ${TOKUDB_SOURCES} STORAGE_ENGINE MODULE_ONLY
+                 COMPONENT tokudb-engine)
 
 IF(NOT TARGET tokudb)
   RETURN()
 ENDIF()
+
+INCLUDE(jemalloc)
+CHECK_JEMALLOC()
 
 IF(NOT LIBJEMALLOC)
   MESSAGE(WARNING "TokuDB is enabled, but jemalloc is not. This configuration is not supported")
@@ -102,14 +106,12 @@ INCLUDE_DIRECTORIES(${CMAKE_CURRENT_BINARY_DIR}/${TOKU_FT_DIR_NAME}/buildheader)
 INCLUDE_DIRECTORIES(${CMAKE_CURRENT_BINARY_DIR}/${TOKU_FT_DIR_NAME}/portability)
 
 TARGET_LINK_LIBRARIES(tokudb tokufractaltree_static tokuportability_static
-                      ${ZLIB_LIBRARY} stdc++)
+                      ${ZLIB_LIBRARY} ${LIBJEMALLOC} stdc++)
 
 SET(CMAKE_MODULE_LINKER_FLAGS_RELEASE "${CMAKE_MODULE_LINKER_FLAGS_RELEASE} -flto -fuse-linker-plugin")
 SET(CMAKE_MODULE_LINKER_FLAGS_RELWITHDEBINFO "${CMAKE_MODULE_LINKER_FLAGS_RELWITHDEBINFO} -flto -fuse-linker-plugin")
 
-SET(CPACK_RPM_server_PACKAGE_OBSOLETES
-  "${CPACK_RPM_server_PACKAGE_OBSOLETES} MariaDB-tokudb-engine < 10.0.5" PARENT_SCOPE)
-
 IF (INSTALL_SYSCONF2DIR)
-  INSTALL(FILES tokudb.cnf DESTINATION ${INSTALL_SYSCONF2DIR} COMPONENT Server)
+  INSTALL(FILES tokudb.cnf DESTINATION ${INSTALL_SYSCONF2DIR}
+          COMPONENT tokudb-engine)
 ENDIF(INSTALL_SYSCONF2DIR)

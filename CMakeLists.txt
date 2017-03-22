@@ -154,7 +154,6 @@ INCLUDE(ssl)
 INCLUDE(readline)
 INCLUDE(libutils)
 INCLUDE(dtrace)
-INCLUDE(jemalloc)
 INCLUDE(pcre)
 INCLUDE(ctest)
 INCLUDE(plugin)
@@ -313,7 +312,7 @@ IF(NOT HAVE_CXX_NEW)
 ENDIF()
 
 # Find header files from the bundled libraries
-# (jemalloc, yassl, readline, pcre, etc)
+# (yassl, readline, pcre, etc)
 # before the ones installed in the system
 SET(CMAKE_INCLUDE_DIRECTORIES_PROJECT_BEFORE ON)
 
@@ -329,7 +328,6 @@ MYSQL_CHECK_SSL()
 MYSQL_CHECK_READLINE()
 
 SET(MALLOC_LIBRARY "system")
-CHECK_JEMALLOC()
 
 CHECK_PCRE()
 
