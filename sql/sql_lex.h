@@ -3376,7 +3376,9 @@ public:
   sp_variable *sp_add_for_loop_cursor_variable(THD *thd,
                                                const LEX_STRING name,
                                                const class sp_pcursor *cur,
-                                               uint coffset);
+                                               uint coffset,
+                                               sp_assignment_lex *param_lex,
+                                               Item_args *parameters);
   bool sp_for_loop_cursor_condition_test(THD *thd, const Lex_for_loop_st &loop);
   bool sp_for_loop_cursor_finalize(THD *thd, const Lex_for_loop_st &);
 

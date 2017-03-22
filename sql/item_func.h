@@ -2641,6 +2641,10 @@ public:
   {
     return sp_result_field;
   }
+  const sp_name *get_sp_name() const
+  {
+    return m_name;
+  }
 
   bool check_vcol_func_processor(void *arg);
   bool limit_index_condition_pushdown_processor(void *opt_arg)

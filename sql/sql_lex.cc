@@ -5436,7 +5436,9 @@ sp_variable *
 LEX::sp_add_for_loop_cursor_variable(THD *thd,
                                      const LEX_STRING name,
                                      const sp_pcursor *pcursor,
-                                     uint coffset)
+                                     uint coffset,
+                                     sp_assignment_lex *param_lex,
+                                     Item_args *parameters)
 {
   sp_variable *spvar= spcont->add_variable(thd, name);
   spcont->declare_var_boundary(1);
@@ -5448,7 +5450,8 @@ LEX::sp_add_for_loop_cursor_variable(THD *thd,
     return NULL;
   spvar->field_def.set_cursor_rowtype_ref(ref);
 
-  if (sphead->add_for_loop_open_cursor(thd, spcont, spvar, pcursor, coffset))
+  if (sphead->add_for_loop_open_cursor(thd, spcont, spvar, pcursor, coffset,
+                                       param_lex, parameters))
     return NULL;
 
   spcont->declare_var_boundary(0);
@@ -5538,8 +5541,9 @@ bool LEX::sp_for_loop_cursor_declarations(THD *thd,
   Item *item= bounds.m_index->get_item();
   Item_splocal *item_splocal;
   Item_field *item_field;
+  Item_func_sp *item_func_sp= NULL;
   LEX_STRING name;
-  uint coffs;
+  uint coffs, param_count= 0;
   const sp_pcursor *pcursor;
 
   if ((item_splocal= item->get_item_splocal()))
@@ -5553,16 +5557,40 @@ bool LEX::sp_for_loop_cursor_declarations(THD *thd,
     name.str= (char *) item_field->field_name;
     name.length= strlen(item_field->field_name);
   }
+  else if (item->type() == Item::FUNC_ITEM &&
+           static_cast<Item_func*>(item)->functype() == Item_func::FUNC_SP &&
+           !static_cast<Item_func_sp*>(item)->get_sp_name()->m_explicit_name)
+  {
+    /*
+      When a FOR LOOP for a cursor with parameters is parsed:
+        FOR index IN cursor(1,2,3) LOOP
+          statements;
+        END LOOP;
+      the parser scans "cursor(1,2,3)" using the "expr" rule,
+      so it thinks that cursor(1,2,3) is a stored function call.
+      It's not easy to implement this without using "expr" because
+      of grammar conflicts.
+      As a side effect, the Item_func_sp and its arguments in the parentheses
+      belong to the same LEX. This is different from an explicit
+      "OPEN cursor(1,2,3)" where every expression belongs to a separate LEX.
+    */
+    item_func_sp= static_cast<Item_func_sp*>(item);
+    name= item_func_sp->get_sp_name()->m_name;
+    param_count= item_func_sp->argument_count();
+  }
   else
   {
     thd->parse_error();
     return true;
   }
-  if (!(pcursor= spcont->find_cursor_with_error(name, &coffs, false)))
+  if (!(pcursor= spcont->find_cursor_with_error(name, &coffs, false)) ||
+      pcursor->check_param_count_with_error(param_count))
     return true;
 
   if (!(loop->m_index= sp_add_for_loop_cursor_variable(thd, index,
-                                                       pcursor, coffs)))
+                                                       pcursor, coffs,
+                                                       bounds.m_index,
+                                                       item_func_sp)))
     return true;
   loop->m_upper_bound= NULL;
   loop->m_direction= bounds.m_direction;
@@ -5590,7 +5618,7 @@ bool LEX::sp_for_loop_increment(THD *thd, const Lex_for_loop_st &loop)
     return true;
   Item *expr= new (thd->mem_root) Item_func_plus(thd, splocal, inc);
   if (!expr ||
-      sphead->set_local_variable(thd, spcont, loop.m_index, expr, this))
+      sphead->set_local_variable(thd, spcont, loop.m_index, expr, this, true))
     return true;
   return false;
 }
@@ -6464,7 +6492,7 @@ bool LEX::set_variable(struct sys_var_with_base *variable, Item *item)
   sp_variable *spv= spcont->find_variable(variable->base_name, false);
   DBUG_ASSERT(spv);
   /* It is a local variable. */
-  return sphead->set_local_variable(thd, spcont, spv, item, this);
+  return sphead->set_local_variable(thd, spcont, spv, item, this, true);
 }
 
 

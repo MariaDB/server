@@ -1134,6 +1134,35 @@ DROP TABLE t3;
 DROP TABLE t2;
 DROP TABLE t1;
 #
+# MDEV-12314 Implicit cursor FOR LOOP for cursors with parameters
+#
+CREATE TABLE t1 (a INT, b VARCHAR(32));
+INSERT INTO t1 VALUES (10,'b0');
+INSERT INTO t1 VALUES (11,'b1');
+INSERT INTO t1 VALUES (12,'b2');
+CREATE PROCEDURE p1(pa INT, pb VARCHAR(32)) AS 
+CURSOR cur(va INT, vb VARCHAR(32)) IS
+SELECT a, b FROM t1 WHERE a=va AND b=vb;
+BEGIN
+FOR rec IN cur(pa,pb)
+LOOP
+SELECT rec.a, rec.b;
+END LOOP;
+END;
+$$
+CALL p1(10,'B0');
+rec.a	rec.b
+10	b0
+CALL p1(11,'B1');
+rec.a	rec.b
+11	b1
+CALL p1(12,'B2');
+rec.a	rec.b
+12	b2
+CALL p1(12,'non-existing');
+DROP TABLE t1;
+DROP PROCEDURE p1;
+#
 # MDEV-12098 sql_mode=ORACLE: Implicit cursor FOR loop
 #
 # Parse error in the cursor SELECT statement

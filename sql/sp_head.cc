@@ -4612,14 +4612,16 @@ Item *sp_head::adjust_assignment_source(THD *thd, Item *val, Item *val2)
 
 bool
 sp_head::set_local_variable(THD *thd, sp_pcontext *spcont,
-                            sp_variable *spv, Item *val, LEX *lex)
+                            sp_variable *spv, Item *val, LEX *lex,
+                            bool responsible_to_free_lex)
 {
   if (!(val= adjust_assignment_source(thd, val, spv->default_value)))
     return true;
 
   sp_instr_set *sp_set= new (thd->mem_root)
                         sp_instr_set(instructions(), spcont,
-                                     spv->offset, val, lex, true);
+                                     spv->offset, val, lex,
+                                     responsible_to_free_lex);
 
   return sp_set == NULL || add_instr(sp_set);
 }
@@ -4689,8 +4691,15 @@ bool sp_head::add_open_cursor(THD *thd, sp_pcontext *spcont, uint offset,
 
 bool sp_head::add_for_loop_open_cursor(THD *thd, sp_pcontext *spcont,
                                        sp_variable *index,
-                                       const sp_pcursor *pcursor, uint coffset)
+                                       const sp_pcursor *pcursor, uint coffset,
+                                       sp_assignment_lex *param_lex,
+                                       Item_args *parameters)
 {
+  if (parameters &&
+      add_set_for_loop_cursor_param_variables(thd, pcursor->param_context(),
+                                              param_lex, parameters))
+    return true;
+
   sp_instr *instr_copy_struct=
     new (thd->mem_root) sp_instr_cursor_copy_struct(instructions(),
                                                     spcont, pcursor->lex(),
@@ -4709,5 +4718,30 @@ bool sp_head::add_for_loop_open_cursor(THD *thd, sp_pcontext *spcont,
   if (instr_cfetch == NULL || add_instr(instr_cfetch))
     return true;
   instr_cfetch->add_to_varlist(index);
+  return false;
+}
+
+
+bool
+sp_head::add_set_for_loop_cursor_param_variables(THD *thd,
+                                                 sp_pcontext *param_spcont,
+                                                 sp_assignment_lex *param_lex,
+                                                 Item_args *parameters)
+{
+  DBUG_ASSERT(param_spcont->context_var_count() == parameters->argument_count());
+  for (uint idx= 0; idx < parameters->argument_count(); idx ++)
+  {
+    /*
+      param_lex is shared between multiple items (cursor parameters).
+      Only the last sp_instr_set is responsible for freeing param_lex.
+      See more comments in LEX::sp_for_loop_cursor_declarations in sql_lex.cc.
+    */
+    bool last= idx + 1 == parameters->argument_count();
+    sp_variable *spvar= param_spcont->find_context_variable(idx);
+    if (set_local_variable(thd, param_spcont,
+                           spvar, parameters->arguments()[idx],
+                           param_lex, last))
+      return true;
+  }
   return false;
 }
