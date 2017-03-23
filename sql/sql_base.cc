@@ -6383,6 +6383,15 @@ mark_common_columns(THD *thd, TABLE_LIST *table_ref_1, TABLE_LIST *table_ref_2,
     if (nj_col_1->field() && nj_col_1->field()->vers_sys_field())
       continue;
 
+    if (table_ref_1->is_view() && table_ref_1->table->versioned())
+    {
+      Item *item= nj_col_1->view_field->item;
+      DBUG_ASSERT(item->type() == Item::FIELD_ITEM);
+      Item_field *item_field= (Item_field *)item;
+      if (item_field->field->vers_sys_field())
+        continue;
+    }
+
     field_name_1= nj_col_1->name();
     is_using_column_1= using_fields && 
       test_if_string_in_list(field_name_1, using_fields);
