@@ -165,6 +165,7 @@ static void wsrep_prepare_bf_thd(THD *thd, struct wsrep_thd_shadow* shadow)
   shadow->db            = thd->db;
   shadow->db_length     = thd->db_length;
   shadow->user_time     = thd->user_time;
+  shadow->row_count_func= thd->get_row_count_func();
   thd->reset_db(NULL, 0);
 }
 
@@ -185,6 +186,7 @@ static void wsrep_return_from_bf_mode(THD *thd, struct wsrep_thd_shadow* shadow)
   thd->wsrep_rgi->cleanup_after_session();
   delete thd->wsrep_rgi;
   thd->wsrep_rgi = NULL;
+  thd->set_row_count_func(shadow->row_count_func);
 }
 
 void wsrep_replay_transaction(THD *thd)
@@ -199,11 +201,30 @@ void wsrep_replay_transaction(THD *thd)
         WSREP_ERROR("replay issue, thd has reported status already");
       }
 
+
       /*
         PS reprepare observer should have been removed already.
         open_table() will fail if we have dangling observer here.
       */
       DBUG_ASSERT(thd->m_reprepare_observer == NULL);
+
+      struct da_shadow
+      {
+          enum Diagnostics_area::enum_diagnostics_status status;
+          ulonglong affected_rows;
+          ulonglong last_insert_id;
+          char message[MYSQL_ERRMSG_SIZE];
+      };
+      struct da_shadow da_status;
+      da_status.status= thd->get_stmt_da()->status();
+      if (da_status.status == Diagnostics_area::DA_OK)
+      {
+        da_status.affected_rows= thd->get_stmt_da()->affected_rows();
+        da_status.last_insert_id= thd->get_stmt_da()->last_insert_id();
+        strmake(da_status.message,
+                thd->get_stmt_da()->message(),
+                sizeof(da_status.message)-1);
+      }
 
       thd->get_stmt_da()->reset_diagnostics_area();
 
@@ -271,7 +292,17 @@ void wsrep_replay_transaction(THD *thd)
         }
         else
         {
-          my_ok(thd);
+          if (da_status.status == Diagnostics_area::DA_OK)
+          {
+            my_ok(thd,
+                  da_status.affected_rows,
+                  da_status.last_insert_id,
+                  da_status.message);
+          }
+          else
+          {
+            my_ok(thd);
+          }
         }
         break;
       case WSREP_TRX_FAIL:
