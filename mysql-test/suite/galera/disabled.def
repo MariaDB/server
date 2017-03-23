@@ -41,4 +41,6 @@ MW-44               : MDEV-11229
 galera_gcs_fc_limit : MDEV-11229
 galera_roles        : MDEV-11229
 galera_lock_table   : MDEV-11229
-
+GAL-480 : Investigate
+galera_fk_no_pk :Investigate
+galera_account_management : Investigate
