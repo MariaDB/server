@@ -2954,3 +2954,38 @@ rec1.a	rec1.b
 10	b10
 DROP TABLE t1;
 DROP PROCEDURE p1;
+#
+# MDEV-12347 Valgrind reports invalid read errors in Item_field_row::element_index_by_name
+#
+CREATE TABLE t1 (a INT, b ENUM('b0','b1','b12','b3'));
+CREATE PROCEDURE p1 AS
+BEGIN
+DECLARE
+rec t1%ROWTYPE;
+BEGIN
+rec.b:='b0';
+SELECT rec.b;
+END;
+END;
+$$
+CALL p1();
+rec.b
+b0
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE TABLE t1 (a INT, b SET('b0','b1','b12','b3'));
+CREATE PROCEDURE p1 AS
+BEGIN
+DECLARE
+rec t1%ROWTYPE;
+BEGIN
+rec.b:='b0';
+SELECT rec.b;
+END;
+END;
+$$
+CALL p1();
+rec.b
+b0
+DROP TABLE t1;
+DROP PROCEDURE p1;

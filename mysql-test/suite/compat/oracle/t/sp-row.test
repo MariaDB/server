@@ -2242,3 +2242,49 @@ DELIMITER ;$$
 CALL p1();
 DROP TABLE t1;
 DROP PROCEDURE p1;
+
+
+--echo #
+--echo # MDEV-12347 Valgrind reports invalid read errors in Item_field_row::element_index_by_name
+--echo #
+
+# An additional test for MDEV-12347, to make sure that
+# Column_definition::interval creates a permanent copy of TYPELIB on
+# the memory root when processing %ROWTYPE for a table with ENUM/SET column,
+# rather than reuses the TYPELIB from table->field[i], which is freed in the
+# end of sp_rcontext::resolve_table_rowtype_ref().
+
+CREATE TABLE t1 (a INT, b ENUM('b0','b1','b12','b3'));
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+BEGIN
+  DECLARE
+    rec t1%ROWTYPE;
+  BEGIN
+    rec.b:='b0';
+    SELECT rec.b;
+  END;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+DROP TABLE t1;
+DROP PROCEDURE p1;
+
+
+CREATE TABLE t1 (a INT, b SET('b0','b1','b12','b3'));
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+BEGIN
+  DECLARE
+    rec t1%ROWTYPE;
+  BEGIN
+    rec.b:='b0';
+    SELECT rec.b;
+  END;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+DROP TABLE t1;
+DROP PROCEDURE p1;
