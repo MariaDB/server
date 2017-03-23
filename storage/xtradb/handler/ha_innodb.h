@@ -428,6 +428,15 @@ int thd_slave_thread(const MYSQL_THD thd);
 int thd_non_transactional_update(const MYSQL_THD thd);
 
 /**
+  Get high resolution timestamp for the current query start time.
+  The timestamp is not anchored to any specific point in time,
+  but can be used for comparison.
+
+  @retval timestamp in microseconds precision
+*/
+unsigned long long thd_start_utime(const MYSQL_THD thd);
+
+/**
   Get the user thread's binary logging format
   @param thd  user thread
   @return Value to be used as index into the binlog_format_names array

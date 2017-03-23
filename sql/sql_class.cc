@@ -4534,6 +4534,15 @@ extern "C" int thd_rpl_is_parallel(const MYSQL_THD thd)
   return thd->rgi_slave && thd->rgi_slave->is_parallel_exec;
 }
 
+
+/* Returns high resolution timestamp for the start
+  of the current query. */
+extern "C" unsigned long long thd_start_utime(const MYSQL_THD thd)
+{
+  return thd->start_utime;
+}
+
+
 /*
   This function can optionally be called to check if thd_report_wait_for()
   needs to be called for waits done by a given transaction.

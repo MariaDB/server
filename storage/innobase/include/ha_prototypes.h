@@ -150,6 +150,13 @@ thd_has_edited_nontrans_tables(
 /*===========================*/
 	THD*	thd);	/*!< in: thread handle */
 
+/**
+Get high resolution timestamp for the current query start time.
+
+@retval timestamp in microseconds precision
+*/
+unsigned long long thd_query_start_micro(const MYSQL_THD thd);
+
 /*************************************************************//**
 Prints info of a THD object (== user session thread) to the given file. */
 UNIV_INTERN

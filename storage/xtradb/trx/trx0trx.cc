@@ -1121,7 +1121,8 @@ trx_start_low(
 
 	trx->start_time = ut_time();
 
-	trx->start_time_micro = clock();
+	trx->start_time_micro =
+		trx->mysql_thd ? thd_query_start_micro(trx->mysql_thd) : 0;
 
 	MONITOR_INC(MONITOR_TRX_ACTIVE);
 }
