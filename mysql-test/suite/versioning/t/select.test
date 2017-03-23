@@ -184,10 +184,16 @@ select * from v1 natural join t2;
 select * from v1 natural left join t2;
 select * from v1 natural right join t2;
 
+create or replace table t1 (a int) with system versioning;
+insert into t1 values (1);
+insert into t1 values (2);
+insert into t1 values (3);
+select * from t1 left outer join (t1 as t2 left join t1 as t3 using (a)) on t1.a>1;
+
 drop view v1;
 drop table t1, t2;
 
-call innodb_verify_vtq(21);
+call innodb_verify_vtq(24);
 
 drop procedure test_01;
 drop procedure test_02;

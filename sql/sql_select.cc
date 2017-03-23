@@ -834,6 +834,12 @@ int vers_setup_select(THD *thd, TABLE_LIST *tables, COND **where_expr,
         dst_cond= &table->on_expr;
       }
 
+      if (TABLE_LIST *t= table->embedding)
+      {
+        if (t->on_expr)
+          dst_cond= &t->on_expr;
+      }
+
       const char *fstart= table->table->vers_start_field()->field_name;
       const char *fend= table->table->vers_end_field()->field_name;
 

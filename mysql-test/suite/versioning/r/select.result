@@ -413,9 +413,22 @@ a2	a1
 2	1
 1	2
 2	2
+create or replace table t1 (a int) with system versioning;
+insert into t1 values (1);
+insert into t1 values (2);
+insert into t1 values (3);
+select * from t1 left outer join (t1 as t2 left join t1 as t3 using (a)) on t1.a>1;
+a	a
+2	1
+3	1
+2	2
+3	2
+2	3
+3	3
+1	NULL
 drop view v1;
 drop table t1, t2;
-call innodb_verify_vtq(21);
+call innodb_verify_vtq(24);
 No	A	B	C	D
 1	1	1	1	1
 2	1	1	1	1
@@ -438,6 +451,9 @@ No	A	B	C	D
 19	1	1	1	1
 20	1	1	1	1
 21	1	1	1	1
+22	1	1	1	1
+23	1	1	1	1
+24	1	1	1	1
 drop procedure test_01;
 drop procedure test_02;
 drop procedure verify_vtq;
