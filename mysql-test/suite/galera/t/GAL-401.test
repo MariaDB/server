@@ -38,6 +38,9 @@ SHOW STATUS LIKE 'wsrep_desync_count';
 # Resync node_2, should pass:
 SET @@global.wsrep_desync = 0;
 
+--let $wait_condition = SELECT VARIABLE_VALUE = 'Synced' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_state_comment';
+--source include/wait_condition.inc
+
 SET SESSION wsrep_sync_wait=7;
 SHOW CREATE TABLE t1;
 DROP TABLE t1;

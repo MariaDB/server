@@ -58,39 +58,6 @@ SELECT VARIABLE_VALUE = 'Primary' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VA
 SELECT VARIABLE_VALUE = 'Primary' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_status';
 SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
 
-#
-# Set to invalid host
-#
-
---connection node_2
-SET GLOBAL wsrep_cluster_address = 'gcomm://192.0.2.1';
-
---error 0
-SELECT COUNT(*) > 0 FROM INFORMATION_SCHEMA.GLOBAL_STATUS;
-
-# Must return 'OFF'
-SHOW STATUS LIKE 'wsrep_ready';
-
-# Must return 'Non-primary'
-SHOW STATUS LIKE 'wsrep_cluster_status';
-
-# Must return 0 = 'Initialized'
-SHOW STATUS LIKE 'wsrep_local_state';
-SHOW STATUS LIKE 'wsrep_local_state_comment';
-
-#
-# Reset everything as it was
-#
-
---connection node_2
---disable_query_log
---eval SET GLOBAL wsrep_cluster_address = '$wsrep_cluster_address_node2';
---enable_query_log
-
---connection node_1
-SELECT VARIABLE_VALUE = 'Primary' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_status';
-SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
-
 --connection node_2
 CALL mtr.add_suppression("Backend not supported: foo");
 CALL mtr.add_suppression("Failed to initialize backend using 'foo");
@@ -109,3 +76,4 @@ CALL mtr.add_suppression("WSREP: wsrep::connect\\(gcomm://192.0.2.1\\) failed: 7
 
 --source include/galera_end.inc
 --echo # End of test
+
