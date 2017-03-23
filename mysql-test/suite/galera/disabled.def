@@ -46,3 +46,5 @@ galera.galera_ist_restart_joiner : MDEV-12319 #Failed to start mysqld
 galera.galera_ssl_compression : MDEV-12319 #Failed to start mysqld
 galera.galera_wan : MDEV-12319 #Failed to start mysqld
 galera.rpl_row_annotate : MDEV-12319 #Failed to start mysqld
+galera.MW-44 : MDEV-12319
+galera.galera_var_slave_threads : MDEV-12319
