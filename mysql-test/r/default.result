@@ -3364,4 +3364,6 @@ a	b	t
 drop table t1;
 create table t1 (col1 int default(-(default(col1))));
 ERROR 01000: Expression for field `col1` is refering to uninitialized field `col1`
+create table t1 (col int default (yearweek((exp(710)))));
+ERROR 22003: DOUBLE value is out of range in 'exp(710)'
 # end of 10.2 test
