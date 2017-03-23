@@ -5417,12 +5417,16 @@ int ha_rocksdb::create(const char *const name, TABLE *const table_arg,
     // outside the MySQL data directory. We don't support this for MyRocks.
     // The `rocksdb_datadir` setting should be used to configure RocksDB data
     // directory.
-    DBUG_RETURN(HA_ERR_ROCKSDB_TABLE_DATA_DIRECTORY_NOT_SUPPORTED);
+    print_error(HA_ERR_ROCKSDB_TABLE_DATA_DIRECTORY_NOT_SUPPORTED,
+                MYF(ME_JUST_WARNING));
+    DBUG_RETURN(HA_WRONG_CREATE_OPTION);
   }
 
   if (create_info->index_file_name) {
     // Similar check for INDEX DIRECTORY as well.
-    DBUG_RETURN(HA_ERR_ROCKSDB_TABLE_INDEX_DIRECTORY_NOT_SUPPORTED);
+    print_error(HA_ERR_ROCKSDB_TABLE_INDEX_DIRECTORY_NOT_SUPPORTED,
+                MYF(ME_JUST_WARNING));
+    DBUG_RETURN(HA_WRONG_CREATE_OPTION);
   }
 
   int res;

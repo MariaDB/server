@@ -1,5 +1,6 @@
 --source include/have_rocksdb.inc
 
+--source include/have_partition.inc
 #
 # Check that when either DATA DIRECTORY or INDEX DIRECTORY are specified
 # then MyRocks returns an appropriate error. We don't support this
@@ -10,17 +11,19 @@
 DROP TABLE IF EXISTS t1;
 --enable_warnings
 
---error 1296
-eval CREATE TABLE t1 (a INT PRIMARY KEY, b CHAR(8)) ENGINE=rocksdb DATA DIRECTORY = '/foo/bar/data';
+--error ER_CANT_CREATE_TABLE
+CREATE TABLE t1 (a INT PRIMARY KEY, b CHAR(8)) ENGINE=rocksdb DATA DIRECTORY = '/foo/bar/data';
+show warnings;
 
---error 1296
-eval CREATE TABLE t1 (a INT PRIMARY KEY, b CHAR(8)) ENGINE=rocksdb INDEX DIRECTORY = '/foo/bar/index';
+--error ER_CANT_CREATE_TABLE
+CREATE TABLE t1 (a INT PRIMARY KEY, b CHAR(8)) ENGINE=rocksdb INDEX DIRECTORY = '/foo/bar/index';
+show warnings;
 
 #
 # Verify that we'll get the same error codes when using the partitions.
 #
 
---error 1296
+--error ER_CANT_CREATE_TABLE
 CREATE TABLE t1 (id INT NOT NULL PRIMARY KEY) ENGINE=rocksdb PARTITION BY RANGE (id)
 (
     PARTITION P0 VALUES LESS THAN (1000)
@@ -30,7 +33,7 @@ CREATE TABLE t1 (id INT NOT NULL PRIMARY KEY) ENGINE=rocksdb PARTITION BY RANGE 
     PARTITION P2 VALUES LESS THAN (MAXVALUE)
 );
 
---error 1296
+--error ER_CANT_CREATE_TABLE
 CREATE TABLE t1 (id int not null primary key) ENGINE=rocksdb PARTITION BY RANGE (id)
 (
    PARTITION P0 VALUES LESS THAN (1000)
