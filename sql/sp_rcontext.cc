@@ -222,11 +222,18 @@ bool sp_rcontext::resolve_table_rowtype_ref(THD *thd,
   {
     for (Field **src= lex.query_tables->table->field; *src; src++)
     {
+      /*
+         Make field names on the THD memory root,
+         as the table will be closed and freed soon,
+         in the end of this method.
+      */
+      LEX_CSTRING tmp= {src[0]->field_name, strlen(src[0]->field_name)};
       if ((rc= check_column_grant_for_type_ref(thd, table_list,
-                                               src[0]->field_name,
-                                               strlen(src[0]->field_name))))
+                                               tmp.str, tmp.length)) ||
+          (rc= !(src[0]->field_name= thd->strmake(tmp.str, tmp.length))))
         break;
       Spvar_definition *def= new (thd->mem_root) Spvar_definition(thd, *src);
+      src[0]->field_name= tmp.str; // Restore field name, just in case.
       def->flags&= (uint) ~NOT_NULL_FLAG;
       if ((rc= def->sp_prepare_create_field(thd, thd->mem_root)))
         break;
