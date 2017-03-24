@@ -5215,6 +5215,7 @@ sub server_need_restart {
     if (!My::Options::same($started_opts, $extra_opts) ||
         exists $server->{'restart_opts'})
     {
+      delete $server->{'restart_opts'};
       my $use_dynamic_option_switch= 0;
       if (!$use_dynamic_option_switch)
       {
