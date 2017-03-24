@@ -1575,9 +1575,9 @@ public:
     plugin_ref *plugins;
 
     if (!(res=var->value->val_str(&str)))
-      plugins= resolve_engine_list("", 0);
+      plugins= resolve_engine_list("", 0, true);
     else
-      plugins= resolve_engine_list(res->ptr(), res->length());
+      plugins= resolve_engine_list(res->ptr(), res->length(), true);
     if (!plugins)
       return true;
     var->save_result.plugins= plugins;
@@ -1611,7 +1611,7 @@ public:
     char *default_value= *reinterpret_cast<char**>(option.def_value);
     if (!default_value)
       return 0;
-    return resolve_engine_list(default_value, strlen(default_value));
+    return resolve_engine_list(default_value, strlen(default_value), false);
   }
 
   void global_save_default(THD *thd, set_var *var)

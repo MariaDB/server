@@ -423,7 +423,8 @@ int sys_var_init();
 uint sys_var_elements();
 int sys_var_add_options(DYNAMIC_ARRAY *long_options, int parse_flags);
 void sys_var_end(void);
-plugin_ref *resolve_engine_list(const char *str_arg, size_t str_arg_len);
+plugin_ref *resolve_engine_list(const char *str_arg, size_t str_arg_len,
+                                bool error_on_unknown_engine);
 void free_engine_list(plugin_ref *list);
 plugin_ref *copy_engine_list(plugin_ref *list);
 char *pretty_print_engine_list(THD *thd, plugin_ref *list);

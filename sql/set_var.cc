@@ -1302,7 +1302,8 @@ engine_list_next_item(const char **pos, const char *end_pos,
 
 static bool
 resolve_engine_list_item(plugin_ref *list, uint32 *idx,
-                         const char *pos, const char *pos_end)
+                         const char *pos, const char *pos_end,
+                         bool error_on_unknown_engine)
 {
   LEX_STRING item_str;
   plugin_ref ref;
@@ -1313,9 +1314,13 @@ resolve_engine_list_item(plugin_ref *list, uint32 *idx,
   ref= ha_resolve_by_name(NULL, &item_str, false);
   if (!ref)
   {
-    ErrConvString err(pos, pos_end-pos, system_charset_info);
-    my_error(ER_UNKNOWN_STORAGE_ENGINE, MYF(0), err.ptr());
-    return true;
+    if (error_on_unknown_engine)
+    {
+      ErrConvString err(pos, pos_end-pos, system_charset_info);
+      my_error(ER_UNKNOWN_STORAGE_ENGINE, MYF(0), err.ptr());
+      return true;
+    }
+    return false;
   }
   /* Ignore duplicates, like --plugin-load does. */
   for (i= 0; i < *idx; ++i)
@@ -1338,7 +1343,8 @@ resolve_engine_list_item(plugin_ref *list, uint32 *idx,
   array of plugin_ref.
 */
 plugin_ref *
-resolve_engine_list(const char *str_arg, size_t str_arg_len)
+resolve_engine_list(const char *str_arg, size_t str_arg_len,
+                    bool error_on_unknown_engine)
 {
   uint32 count, idx;
   const char *pos, *item_start, *item_end;
@@ -1370,7 +1376,8 @@ resolve_engine_list(const char *str_arg, size_t str_arg_len)
     DBUG_ASSERT(idx < count);
     if (idx >= count)
       break;
-    if (resolve_engine_list_item(res, &idx, item_start, item_end))
+    if (resolve_engine_list_item(res, &idx, item_start, item_end,
+                                 error_on_unknown_engine))
       goto err;
   }
 

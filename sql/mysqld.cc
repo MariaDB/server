@@ -4923,11 +4923,19 @@ init_gtid_pos_auto_engines(void)
 {
   plugin_ref *plugins;
 
+  /*
+    For the command-line option --gtid_pos_auto_engines, we allow (and ignore)
+    engines that are unknown. This is convenient, since it allows to set
+    default auto-create engines that might not be used by particular users.
+    The option sets a list of storage engines that will have gtid position
+    table auto-created for them if needed. And if the engine is not available,
+    then it will certainly not be needed.
+  */
   if (gtid_pos_auto_engines)
     plugins= resolve_engine_list(gtid_pos_auto_engines,
-                                 strlen(gtid_pos_auto_engines));
+                                 strlen(gtid_pos_auto_engines), false);
   else
-    plugins= resolve_engine_list("", 0);
+    plugins= resolve_engine_list("", 0, false);
   if (!plugins)
     return 1;
   mysql_mutex_lock(&LOCK_global_system_variables);
