@@ -48,15 +48,16 @@ SET SESSION wsrep_sync_wait = 0;
 # ... and restart provider to force IST
 --echo Loading wsrep_provider ...
 --disable_query_log
+# base_port setting is lost for some reason when unloading provider, so we need to restore it
+--eval SET GLOBAL wsrep_provider_options= 'base_port=$NODE_GALERAPORT_2';
 --eval SET GLOBAL wsrep_provider = '$wsrep_provider_orig';
 --eval SET GLOBAL wsrep_cluster_address = '$wsrep_cluster_address_orig';
 --enable_query_log
 
-# We can not use a wait_condition on SELECT * FROM INFORMATION_SCHEMA.GLOBAL_STATUS as such queries are blocked during IST
-# so we perform a simple sleep and SHOW instead
-
---sleep 5
-SHOW STATUS LIKE 'wsrep_debug_sync_waiters';
+SET SESSION wsrep_on=OFF;
+--let $wait_condition = SELECT VARIABLE_VALUE = '' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_debug_sync_waiters';
+--source include/wait_condition.inc
+SET SESSION wsrep_on=ON;
 
 --connection node_1
 # Perform DML and DDL while IST is in progress

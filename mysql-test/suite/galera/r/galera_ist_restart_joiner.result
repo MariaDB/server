@@ -7,9 +7,8 @@ UPDATE t1 SET f2 = 'c' WHERE f1 > 2;
 SET GLOBAL wsrep_provider_options = 'dbug=d,recv_IST_after_apply_trx';
 SET SESSION wsrep_sync_wait = 0;
 Loading wsrep_provider ...
-SHOW STATUS LIKE 'wsrep_debug_sync_waiters';
-Variable_name	Value
-wsrep_debug_sync_waiters	recv_IST_after_apply_trx
+SET SESSION wsrep_on=OFF;
+SET SESSION wsrep_on=ON;
 UPDATE t1 SET f2 = 'd' WHERE f1 > 3;
 CREATE TABLE t2 (f1 INTEGER);
 UPDATE t1 SET f2 = 'e' WHERE f1 > 4;

@@ -48,7 +48,7 @@ insert into t1(i) values(null), (null), (null);
 select * from t1;
 
 show variables like 'binlog_format';
-show variables like '%auto_increment%';
+show variables like 'auto_increment_increment';
 
 --connection node_2
 --let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't1';
