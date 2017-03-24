@@ -27,7 +27,10 @@ ENDIF()
 IF(SIZEOF_VOIDP EQUAL 8)
   SET(64BIT 1)
 ENDIF()
- 
+
+# include aws_key_management plugin in release builds
+SET(PLUGIN_AWS_KEY_MANAGEMENT DYNAMIC)
+
 SET(FEATURE_SET "community" CACHE STRING 
 " Selection of features. Options are
  - xsmall : 
