@@ -2910,6 +2910,13 @@ err:
   THD_STAGE_INFO(thd, stage_waiting_to_finalize_termination);
   RUN_HOOK(binlog_transmit, transmit_stop, (thd, flags));
 
+  if (info->thd->killed == KILL_SLAVE_SAME_ID)
+  {
+    info->errmsg= "A slave with the same server_uuid/server_id as this slave "
+                  "has connected to the master";
+    info->error= ER_SLAVE_SAME_ID;
+  }
+
   const bool binlog_open = my_b_inited(&log);
   if (file >= 0)
   {
@@ -2921,7 +2928,8 @@ err:
   thd->variables.max_allowed_packet= old_max_allowed_packet;
   delete info->fdev;
 
-  if (info->error == ER_MASTER_FATAL_ERROR_READING_BINLOG && binlog_open)
+  if ((info->error == ER_MASTER_FATAL_ERROR_READING_BINLOG ||
+       info->error == ER_SLAVE_SAME_ID) && binlog_open)
   {
     /*
        detailing the fatal error message with coordinates
@@ -3392,7 +3400,7 @@ void kill_zombie_dump_threads(uint32 slave_server_id)
       it will be slow because it will iterate through the list
       again. We just to do kill the thread ourselves.
     */
-    tmp->awake(KILL_QUERY);
+    tmp->awake(KILL_SLAVE_SAME_ID);
     mysql_mutex_unlock(&tmp->LOCK_thd_data);
   }
 }

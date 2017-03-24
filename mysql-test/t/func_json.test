@@ -263,3 +263,14 @@ set @@global.max_allowed_packet = default;
 set @@global.net_buffer_length = default;
 --disconnect newconn
 
+
+#
+# MDEV-12262 Assertion `!null_value' failed in virtual bool Item::send on JSON_REMOVE.
+#
+create table t1(j longtext, p longtext);
+insert into t1 values
+    ('{"a":1,"b":2,"c":3}','$.a'),
+    ('{"a":1,"b":2,"c":3}','$.b'),
+      ('{"a":1,"b":2,"c":3}','$.c');
+select j, p, json_remove(j, p) from t1;
+drop table t1;

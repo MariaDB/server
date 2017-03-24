@@ -2633,6 +2633,7 @@ v_found:
     str->length(0);
 
     if (append_simple(str, js->ptr(), rem_start - js->ptr()) ||
+        (je.state == JST_KEY && n_item > 0 && str->append(",", 1)) ||
         append_simple(str, rem_end, js->end() - rem_end))
           goto js_error; /* Out of memory. */
 
@@ -2658,6 +2659,7 @@ v_found:
   if (json_nice(&je, str, Item_func_json_format::LOOSE))
     goto js_error;
 
+  null_value= 0;
   return str;
 
 js_error:
