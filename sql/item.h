@@ -699,6 +699,10 @@ public:
   {
     return Type_handler::get_handler_by_field_type(field_type());
   }
+  virtual const Type_handler *real_type_handler() const
+  {
+    return type_handler();
+  }
   virtual const Type_handler *cast_to_int_type_handler() const
   {
     return type_handler();
@@ -2409,6 +2413,7 @@ public:
   {
     return field->type();
   }
+  const Type_handler *real_type_handler() const;
   enum_monotonicity_info get_monotonicity_info() const
   {
     return MONOTONIC_STRICT_INCREASING;
@@ -3355,6 +3360,12 @@ public:
   { max_length= length; }
   enum Type type() const { return TYPE_HOLDER; }
   enum_field_types field_type() const { return MYSQL_TYPE_BLOB; }
+  const Type_handler *real_type_handler() const
+  {
+    // Should not be called, Item_blob is used for SHOW purposes only.
+    DBUG_ASSERT(0);
+    return &type_handler_varchar;
+  }
   Field *create_field_for_schema(THD *thd, TABLE *table)
   { return tmp_table_field_from_field_type(table, false, true); }
 };
@@ -4072,6 +4083,8 @@ public:
   { return (*ref)->setup_fast_field_copier(field); }
   enum Item_result result_type () const { return (*ref)->result_type(); }
   enum_field_types field_type() const   { return (*ref)->field_type(); }
+  const Type_handler *real_type_handler() const
+  { return (*ref)->real_type_handler(); }
   Field *get_tmp_table_field()
   { return result_field ? result_field : (*ref)->get_tmp_table_field(); }
   Item *get_tmp_table_item(THD *thd);
@@ -5602,7 +5615,7 @@ public:
   single SP/PS execution.
 */
 class Item_type_holder: public Item,
-                        public Type_handler_hybrid_real_field_type
+                        public Type_handler_hybrid_field_type
 {
 protected:
   TYPELIB *enum_set_typelib;
@@ -5616,11 +5629,11 @@ public:
   Item_type_holder(THD*, Item*);
 
   const Type_handler *type_handler() const
-  { return Type_handler_hybrid_real_field_type::type_handler(); }
+  { return Type_handler_hybrid_field_type::type_handler(); }
   enum_field_types field_type() const
-  { return Type_handler_hybrid_real_field_type::field_type(); }
+  { return Type_handler_hybrid_field_type::field_type(); }
   enum_field_types real_field_type() const
-  { return Type_handler_hybrid_real_field_type::real_field_type(); }
+  { return Type_handler_hybrid_field_type::real_field_type(); }
   enum Item_result result_type () const
   {
     /*
@@ -5635,7 +5648,11 @@ public:
       As soon as we get BIT as one of the joined types, the result field
       type cannot be numeric: it's either BIT, or VARBINARY.
     */
-    return Type_handler_hybrid_real_field_type::result_type();
+    return Type_handler_hybrid_field_type::result_type();
+  }
+  const Type_handler *real_type_handler() const
+  {
+    return Item_type_holder::type_handler();
   }
 
   enum Type type() const { return TYPE_HOLDER; }
@@ -5645,7 +5662,6 @@ public:
   String *val_str(String*);
   bool join_types(THD *thd, Item *);
   Field *make_field_by_type(TABLE *table);
-  static enum_field_types get_real_type(Item *);
   Field::geometry_type get_geometry_type() const { return geometry_type; };
   Item* get_copy(THD *thd, MEM_ROOT *mem_root) { return 0; }
 };

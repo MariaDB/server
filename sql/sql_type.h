@@ -1450,29 +1450,19 @@ public:
 };
 
 
-/**
-  This class is used for Item_type_holder, which preserves real_type.
-*/
-class Type_handler_hybrid_real_field_type:
-  public Type_handler_hybrid_field_type
-{
-public:
-  Type_handler_hybrid_real_field_type(enum_field_types type)
-    :Type_handler_hybrid_field_type(Type_handler::
-                                    get_handler_by_real_type(type))
-  { }
-};
-
-
 extern Type_handler_row   type_handler_row;
 extern Type_handler_null  type_handler_null;
 extern Type_handler_varchar type_handler_varchar;
 extern Type_handler_longlong type_handler_longlong;
+extern Type_handler_float type_handler_float;
 extern Type_handler_double type_handler_double;
 extern Type_handler_newdecimal type_handler_newdecimal;
 extern Type_handler_datetime type_handler_datetime;
 extern Type_handler_longlong type_handler_longlong;
 extern Type_handler_bit type_handler_bit;
+extern Type_handler_enum type_handler_enum;
+extern Type_handler_set type_handler_set;
+
 
 class Type_aggregator
 {

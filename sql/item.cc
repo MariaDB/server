@@ -5670,6 +5670,25 @@ error:
   return TRUE;
 }
 
+
+const Type_handler *Item_field::real_type_handler() const
+{
+  /*
+    Item_field::field_type ask Field_type() but sometimes field return
+    a different type, like for enum/set, so we need to ask real type.
+  */
+  if (field->is_created_from_null_item)
+    return &type_handler_null;
+  /* work around about varchar type field detection */
+  enum_field_types type= field->real_type();
+  // TODO: We should add Field::real_type_handler() eventually
+  if (type == MYSQL_TYPE_STRING && field->type() == MYSQL_TYPE_VAR_STRING)
+    type= MYSQL_TYPE_VAR_STRING;
+  return Type_handler::get_handler_by_real_type(type);
+
+}
+
+
 /*
   @brief
   Mark virtual columns as used in a partitioning expression 
@@ -10009,7 +10028,7 @@ void Item_cache_row::set_null()
 
 Item_type_holder::Item_type_holder(THD *thd, Item *item)
   :Item(thd, item),
-   Type_handler_hybrid_real_field_type(get_real_type(item)),
+   Type_handler_hybrid_field_type(item->real_type_handler()),
    enum_set_typelib(0)
 {
   DBUG_ASSERT(item->fixed);
@@ -10023,87 +10042,6 @@ Item_type_holder::Item_type_holder(THD *thd, Item *item)
 #endif /* HAVE_SPATIAL */
 }
 
-
-/**
-  Find real field type of item.
-
-  @return
-    type of field which should be created to store item value
-*/
-
-enum_field_types Item_type_holder::get_real_type(Item *item)
-{
-  if (item->type() == REF_ITEM)
-    item= item->real_item();
-  switch(item->type())
-  {
-  case FIELD_ITEM:
-  {
-    /*
-      Item_field::field_type ask Field_type() but sometimes field return
-      a different type, like for enum/set, so we need to ask real type.
-    */
-    Field *field= ((Item_field *) item)->field;
-    enum_field_types type= field->real_type();
-    if (field->is_created_from_null_item)
-      return MYSQL_TYPE_NULL;
-    /* work around about varchar type field detection */
-    if (type == MYSQL_TYPE_STRING && field->type() == MYSQL_TYPE_VAR_STRING)
-      return MYSQL_TYPE_VAR_STRING;
-    return type;
-  }
-  case SUM_FUNC_ITEM:
-  {
-    /*
-      Argument of aggregate function sometimes should be asked about field
-      type
-    */
-    Item_sum *item_sum= (Item_sum *) item;
-    if (item_sum->keep_field_type())
-      return get_real_type(item_sum->get_arg(0));
-    break;
-  }
-  case FUNC_ITEM:
-    if (((Item_func *) item)->functype() == Item_func::GUSERVAR_FUNC)
-    {
-      /*
-        There are work around of problem with changing variable type on the
-        fly and variable always report "string" as field type to get
-        acceptable information for client in send_field, so we make field
-        type from expression type.
-      */
-      switch (item->result_type()) {
-      case STRING_RESULT:
-        return MYSQL_TYPE_VARCHAR;
-      case INT_RESULT:
-        return MYSQL_TYPE_LONGLONG;
-      case REAL_RESULT:
-        return MYSQL_TYPE_DOUBLE;
-      case DECIMAL_RESULT:
-        return MYSQL_TYPE_NEWDECIMAL;
-      case ROW_RESULT:
-      case TIME_RESULT:
-        DBUG_ASSERT(0);
-        return MYSQL_TYPE_VARCHAR;
-      }
-    }
-    break;
-  case TYPE_HOLDER:
-    /*
-      Item_type_holder and Item_blob should not appear in this context.
-      In case they for some reasons do, returning field_type() is wrong anyway.
-      They must return Item_type_holder::real_field_type() instead, to make
-      the code in sql_type.cc and sql_type.h happy, as it expectes
-      Field::real_type()-compatible rather than Field::field_type()-compatible
-      valies in some places, and may in the future add some asserts preventing
-      use of field_type() instead of real_type() and the other way around.
-    */
-    DBUG_ASSERT(0);
-  default:
-    break;
-  }
-  return item->field_type();
-}
 
 /**
   Find field type which can carry current Item_type_holder type and
@@ -10123,14 +10061,13 @@ bool Item_type_holder::join_types(THD *thd, Item *item)
   uint max_length_orig= max_length;
   uint decimals_orig= decimals;
   DBUG_ENTER("Item_type_holder::join_types");
-  DBUG_PRINT("info:", ("was type %d len %d, dec %d name %s",
-                       real_field_type(), max_length, decimals,
+  DBUG_PRINT("info:", ("was type %s len %d, dec %d name %s",
+                       real_type_handler()->name().ptr(), max_length, decimals,
                        (name ? name : "<NULL>")));
-  DBUG_PRINT("info:", ("in type %d len %d, dec %d",
-                       get_real_type(item),
+  DBUG_PRINT("info:", ("in type %s len %d, dec %d",
+                       item->real_type_handler()->name().ptr(),
                        item->max_length, item->decimals));
-  const Type_handler *item_type_handler=
-    Type_handler::get_handler_by_real_type(get_real_type(item));
+  const Type_handler *item_type_handler= item->real_type_handler();
   if (aggregate_for_result(item_type_handler))
   {
     my_error(ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION, MYF(0),
@@ -10218,13 +10155,13 @@ bool Item_type_holder::join_types(THD *thd, Item *item)
         int delta1= max_length_orig - decimals_orig;
         int delta2= item->max_length - item->decimals;
         max_length= MY_MAX(delta1, delta2) + decimals;
-        if (Item_type_holder::real_field_type() == MYSQL_TYPE_FLOAT &&
+        if (Item_type_holder::real_type_handler() == &type_handler_float &&
             max_length > FLT_DIG + 2)
         {
           max_length= MAX_FLOAT_STR_LENGTH;
           decimals= NOT_FIXED_DEC;
         } 
-        else if (Item_type_holder::real_field_type() == MYSQL_TYPE_DOUBLE &&
+        else if (Item_type_holder::real_type_handler() == &type_handler_double &&
                  max_length > DBL_DIG + 2)
         {
           max_length= MAX_DOUBLE_STR_LENGTH;
@@ -10245,8 +10182,9 @@ bool Item_type_holder::join_types(THD *thd, Item *item)
 
   /* Remember decimal integer part to be used in DECIMAL_RESULT handleng */
   prev_decimal_int_part= decimal_int_part();
-  DBUG_PRINT("info", ("become type: %d  len: %u  dec: %u",
-                      (int) real_field_type(), max_length, (uint) decimals));
+  DBUG_PRINT("info", ("become type: %s  len: %u  dec: %u",
+                      real_type_handler()->name().ptr(),
+                      max_length, (uint) decimals));
   DBUG_RETURN(FALSE);
 }
 
@@ -10269,7 +10207,7 @@ Field *Item_type_holder::make_field_by_type(TABLE *table)
   uchar *null_ptr= maybe_null ? (uchar*) "" : 0;
   Field *field;
 
-  switch (Item_type_holder::real_field_type()) {
+  switch (Item_type_holder::real_type_handler()->real_field_type()) {
   case MYSQL_TYPE_ENUM:
     DBUG_ASSERT(enum_set_typelib);
     field= new Field_enum((uchar *) 0, max_length, null_ptr, 0,
@@ -10305,8 +10243,8 @@ Field *Item_type_holder::make_field_by_type(TABLE *table)
 */
 void Item_type_holder::get_full_info(Item *item)
 {
-  if (Item_type_holder::real_field_type() == MYSQL_TYPE_ENUM ||
-      Item_type_holder::real_field_type() == MYSQL_TYPE_SET)
+  if (Item_type_holder::real_type_handler() == &type_handler_enum ||
+      Item_type_holder::real_type_handler() == &type_handler_set)
   {
     if (item->type() == Item::SUM_FUNC_ITEM &&
         (((Item_sum*)item)->sum_func() == Item_sum::MAX_FUNC ||
@@ -10317,11 +10255,11 @@ void Item_type_holder::get_full_info(Item *item)
       field (or MIN|MAX(enum|set field)) and number of NULL fields
     */
     DBUG_ASSERT((enum_set_typelib &&
-                 get_real_type(item) == MYSQL_TYPE_NULL) ||
+                 item->real_type_handler() == &type_handler_null) ||
                 (!enum_set_typelib &&
                  item->real_item()->type() == Item::FIELD_ITEM &&
-                 (get_real_type(item->real_item()) == MYSQL_TYPE_ENUM ||
-                  get_real_type(item->real_item()) == MYSQL_TYPE_SET) &&
+                 (item->real_type_handler() == &type_handler_enum ||
+                  item->real_type_handler() == &type_handler_set) &&
                  ((Field_enum*)((Item_field *) item->real_item())->field)->typelib));
     if (!enum_set_typelib)
     {

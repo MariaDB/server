@@ -25,7 +25,6 @@ static Type_handler_short       type_handler_short;
 static Type_handler_long        type_handler_long;
 static Type_handler_int24       type_handler_int24;
 static Type_handler_year        type_handler_year;
-static Type_handler_float       type_handler_float;
 static Type_handler_time        type_handler_time;
 static Type_handler_time2       type_handler_time2;
 static Type_handler_date        type_handler_date;
@@ -39,18 +38,19 @@ static Type_handler_tiny_blob   type_handler_tiny_blob;
 static Type_handler_medium_blob type_handler_medium_blob;
 static Type_handler_long_blob   type_handler_long_blob;
 static Type_handler_blob        type_handler_blob;
-static Type_handler_enum        type_handler_enum;
-static Type_handler_set         type_handler_set;
 
 
 Type_handler_null        type_handler_null;
 Type_handler_row         type_handler_row;
 Type_handler_varchar     type_handler_varchar;
 Type_handler_longlong    type_handler_longlong;
+Type_handler_float       type_handler_float;
 Type_handler_double      type_handler_double;
 Type_handler_newdecimal  type_handler_newdecimal;
 Type_handler_datetime    type_handler_datetime;
 Type_handler_bit         type_handler_bit;
+Type_handler_enum        type_handler_enum;
+Type_handler_set         type_handler_set;
 
 #ifdef HAVE_SPATIAL
 Type_handler_geometry    type_handler_geometry;

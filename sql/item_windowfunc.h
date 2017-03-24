@@ -303,8 +303,6 @@ class Item_sum_hybrid_simple : public Item_sum,
   my_decimal *val_decimal(my_decimal *);
   void reset_field();
   String *val_str(String *);
-  /* TODO(cvicentiu) copied from Item_sum_hybrid, what does it do? */
-  bool keep_field_type(void) const { return 1; }
   enum Item_result result_type() const
   { return Type_handler_hybrid_field_type::result_type(); }
   enum Item_result cmp_type() const

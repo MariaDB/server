@@ -456,7 +456,6 @@ public:
     Updated value is then saved in the field.
   */
   virtual void update_field()=0;
-  virtual bool keep_field_type(void) const { return 0; }
   virtual void fix_length_and_dec() { maybe_null=1; null_value=1; }
   virtual Item *result_item(THD *thd, Field *field);
 
@@ -520,7 +519,7 @@ public:
   st_select_lex *depended_from() 
     { return (nest_level == aggr_level ? 0 : aggr_sel); }
 
-  Item *get_arg(uint i) { return args[i]; }
+  Item *get_arg(uint i) const { return args[i]; }
   Item *set_arg(uint i, THD *thd, Item *new_val);
   uint get_arg_count() const { return arg_count; }
 
@@ -1047,7 +1046,10 @@ protected:
   my_decimal *val_decimal(my_decimal *);
   void reset_field();
   String *val_str(String *);
-  bool keep_field_type(void) const { return 1; }
+  const Type_handler *real_type_handler() const
+  {
+    return get_arg(0)->real_type_handler();
+  }
   const Type_handler *type_handler() const
   { return Type_handler_hybrid_field_type::type_handler(); }
   enum Item_result result_type () const
