@@ -231,6 +231,7 @@ print OUT pack("H*x[212]Nx[1024]", "590DBAACFE922582", 0xc72d49c4);
 # redo log data
 print OUT pack("H*x[5]", "C0DEBA5E0022000c0000000138");
 print OUT pack("H*x[475]H*", "12860cb7809781e80006626f677573", "089C0ADA");
+close OUT or die;
 EOF
 --copy_file $bugdir/ib_logfile0 $bugdir/ib_logfile
 # Anything below innodb_force_recovery=6 must find an invalid redo log.
