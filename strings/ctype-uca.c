@@ -31610,7 +31610,7 @@ my_uca_implicit_weight_put(uint16 *to, my_wc_t code, uint level)
     break;
   }
   /* Primary level */
-  to[0]= (code >> 15) + my_uca_implicit_weight_base(code);
+  to[0]= (uint16)(code >> 15) + my_uca_implicit_weight_base(code);
   to[1]= (code & 0x7FFF) | 0x8000;
   to[2]= 0;
 }

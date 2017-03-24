@@ -372,7 +372,7 @@ Geometry *Geometry::create_from_json(Geometry_buffer *buffer,
         key_len=0;
         break;
       }
-      key_buf[key_len++]= je->s.c_next | 0x20; /* make it lowercase. */
+      key_buf[key_len++]= (uchar)je->s.c_next | 0x20; /* make it lowercase. */
     }
 
     if (je->s.error)

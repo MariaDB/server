@@ -1617,16 +1617,14 @@ bool Protocol_binary::send_out_parameters(List<Item_param> *sp_params)
   if (write())
     return TRUE;
 
-  /* Restore THD::server_status. */
-  thd->server_status&= ~SERVER_PS_OUT_PARAMS;
-
   ret= net_send_eof(thd, thd->server_status, 0);
 
   /*
-    Reset SERVER_MORE_RESULTS_EXISTS bit, because this is the last packet
-    for sure.
+    Reset server_status:
+    - SERVER_MORE_RESULTS_EXISTS bit, because this is the last packet for sure.
+    - Restore SERVER_PS_OUT_PARAMS status.
   */
-  thd->server_status&= ~SERVER_MORE_RESULTS_EXISTS;
+  thd->server_status&= ~(SERVER_PS_OUT_PARAMS | SERVER_MORE_RESULTS_EXISTS);
 
   return ret ? FALSE : TRUE;
 }

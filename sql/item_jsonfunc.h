@@ -216,6 +216,7 @@ class Item_func_json_array: public Item_str_func
 {
 protected:
   String tmp_val;
+  ulong result_limit;
 public:
   Item_func_json_array(THD *thd):
     Item_str_func(thd) {}
@@ -392,7 +393,7 @@ public:
 class Item_func_json_search: public Item_json_str_multipath
 {
 protected:
-  String tmp_js;
+  String tmp_js, esc_value;
   bool mode_one;
   bool ooa_constant, ooa_parsed;
   int escape;

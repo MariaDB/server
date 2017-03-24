@@ -33,9 +33,6 @@ Created 5/11/1994 Heikki Tuuri
 #include <mysql_com.h>
 #include "os0thread.h"
 #include "ut0ut.h"
-#ifdef UNIV_NONINL
-#include "ut0ut.ic"
-#endif
 #include "trx0trx.h"
 #include <string>
 #include "log.h"

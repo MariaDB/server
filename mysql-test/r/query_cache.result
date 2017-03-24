@@ -2136,6 +2136,38 @@ Qcache_hits	1
 use test;
 drop database `foo.bar`;
 End of 10.0 tests
+#
+# MDEV-10766 Queries which start with WITH clause do not get
+# inserted into query cache
+#
+flush status;
+show status like "Qcache_inserts";
+Variable_name	Value
+Qcache_inserts	0
+create table t1 (i int);
+with cte as (select * from t1) select * from cte;
+i
+show status like "Qcache_queries_in_cache";
+Variable_name	Value
+Qcache_queries_in_cache	1
+show status like "Qcache_inserts";
+Variable_name	Value
+Qcache_inserts	1
+show status like "Qcache_hits";
+Variable_name	Value
+Qcache_hits	0
+with cte as (select * from t1) select * from cte;
+i
+show status like "Qcache_queries_in_cache";
+Variable_name	Value
+Qcache_queries_in_cache	1
+show status like "Qcache_inserts";
+Variable_name	Value
+Qcache_inserts	1
+show status like "Qcache_hits";
+Variable_name	Value
+Qcache_hits	1
+drop table t1;
 restore defaults
 SET GLOBAL query_cache_type= default;
 SET GLOBAL query_cache_size= default;

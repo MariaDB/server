@@ -28,10 +28,6 @@ Created 6/2/1994 Heikki Tuuri
 #include "btr0btr.h"
 #include "ha_prototypes.h"
 
-#ifdef UNIV_NONINL
-#include "btr0btr.ic"
-#endif
-
 #include "fsp0sysspace.h"
 #include "page0page.h"
 #include "page0zip.h"
@@ -55,6 +51,7 @@ Created 6/2/1994 Heikki Tuuri
 Checks if the page in the cursor can be merged with given page.
 If necessary, re-organize the merge_page.
 @return	true if possible to merge. */
+static
 bool
 btr_can_merge_with_page(
 /*====================*/
@@ -5313,6 +5310,7 @@ node_ptr_fails:
 /**************************************************************//**
 Do an index level validation of spaital index tree.
 @return	true if no error found */
+static
 bool
 btr_validate_spatial_index(
 /*=======================*/
@@ -5414,6 +5412,7 @@ btr_validate_index(
 Checks if the page in the cursor can be merged with given page.
 If necessary, re-organize the merge_page.
 @return	true if possible to merge. */
+static
 bool
 btr_can_merge_with_page(
 /*====================*/

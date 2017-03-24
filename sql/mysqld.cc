@@ -2221,6 +2221,7 @@ void clean_up(bool print_message)
 #endif
   wsrep_thr_deinit();
   my_uuid_end();
+  delete type_handler_data;
   delete binlog_filter;
   delete global_rpl_filter;
   end_ssl();
@@ -4125,6 +4126,13 @@ static int init_common_variables()
 #ifdef SAFEMALLOC
   sf_malloc_dbug_id= mariadb_dbug_id;
 #endif
+
+  if (!(type_handler_data= new Type_handler_data) ||
+      type_handler_data->init())
+  {
+    sql_perror("Could not allocate type_handler_data");
+    return 1;
+  }
 
   max_system_variables.pseudo_thread_id= ~(my_thread_id) 0;
   server_start_time= flush_status_time= my_time(0);

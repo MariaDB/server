@@ -28,6 +28,9 @@ class Field;
 class Item;
 class Item_cache;
 class Item_sum_hybrid;
+class Item_sum_sum;
+class Item_sum_avg;
+class Item_sum_variance;
 class Item_func_hex;
 class Item_hybrid_func;
 class Item_func_min_max;
@@ -403,6 +406,11 @@ public:
                                                Item **items,
                                                uint nitems) const= 0;
   virtual bool Item_sum_hybrid_fix_length_and_dec(Item_sum_hybrid *) const= 0;
+  virtual bool Item_sum_sum_fix_length_and_dec(Item_sum_sum *) const= 0;
+  virtual bool Item_sum_avg_fix_length_and_dec(Item_sum_avg *) const= 0;
+  virtual
+  bool Item_sum_variance_fix_length_and_dec(Item_sum_variance *) const= 0;
+
   virtual String *Item_func_hex_val_str_ascii(Item_func_hex *item,
                                               String *str) const= 0;
 
@@ -540,6 +548,21 @@ public:
     DBUG_ASSERT(0);
     return true;
   }
+  bool Item_sum_sum_fix_length_and_dec(Item_sum_sum *) const
+  {
+    DBUG_ASSERT(0);
+    return true;
+  }
+  bool Item_sum_avg_fix_length_and_dec(Item_sum_avg *) const
+  {
+    DBUG_ASSERT(0);
+    return true;
+  }
+  bool Item_sum_variance_fix_length_and_dec(Item_sum_variance *) const
+  {
+    DBUG_ASSERT(0);
+    return true;
+  }
   String *Item_func_hex_val_str_ascii(Item_func_hex *item, String *str) const
   {
     DBUG_ASSERT(0);
@@ -662,6 +685,9 @@ public:
   bool Item_hybrid_func_fix_attributes(THD *thd, Item_hybrid_func *func,
                                        Item **items, uint nitems) const;
   bool Item_sum_hybrid_fix_length_and_dec(Item_sum_hybrid *func) const;
+  bool Item_sum_sum_fix_length_and_dec(Item_sum_sum *) const;
+  bool Item_sum_avg_fix_length_and_dec(Item_sum_avg *) const;
+  bool Item_sum_variance_fix_length_and_dec(Item_sum_variance *) const;
   String *Item_func_hex_val_str_ascii(Item_func_hex *item, String *str) const;
   String *Item_func_hybrid_field_type_val_str(Item_func_hybrid_field_type *,
                                               String *) const;
@@ -709,6 +735,9 @@ public:
   bool Item_hybrid_func_fix_attributes(THD *thd, Item_hybrid_func *func,
                                        Item **items, uint nitems) const;
   bool Item_sum_hybrid_fix_length_and_dec(Item_sum_hybrid *func) const;
+  bool Item_sum_sum_fix_length_and_dec(Item_sum_sum *) const;
+  bool Item_sum_avg_fix_length_and_dec(Item_sum_avg *) const;
+  bool Item_sum_variance_fix_length_and_dec(Item_sum_variance *) const;
   String *Item_func_hex_val_str_ascii(Item_func_hex *item, String *str) const;
   String *Item_func_hybrid_field_type_val_str(Item_func_hybrid_field_type *,
                                               String *) const;
@@ -754,6 +783,9 @@ public:
   bool Item_hybrid_func_fix_attributes(THD *thd, Item_hybrid_func *func,
                                        Item **items, uint nitems) const;
   bool Item_sum_hybrid_fix_length_and_dec(Item_sum_hybrid *func) const;
+  bool Item_sum_sum_fix_length_and_dec(Item_sum_sum *) const;
+  bool Item_sum_avg_fix_length_and_dec(Item_sum_avg *) const;
+  bool Item_sum_variance_fix_length_and_dec(Item_sum_variance *) const;
   String *Item_func_hex_val_str_ascii(Item_func_hex *item, String *str) const;
   String *Item_func_hybrid_field_type_val_str(Item_func_hybrid_field_type *,
                                               String *) const;
@@ -799,6 +831,9 @@ public:
   Item_cache *Item_get_cache(THD *thd, const Item *item) const;
   bool set_comparator_func(Arg_comparator *cmp) const;
   bool Item_sum_hybrid_fix_length_and_dec(Item_sum_hybrid *func) const;
+  bool Item_sum_sum_fix_length_and_dec(Item_sum_sum *) const;
+  bool Item_sum_avg_fix_length_and_dec(Item_sum_avg *) const;
+  bool Item_sum_variance_fix_length_and_dec(Item_sum_variance *) const;
   String *Item_func_hex_val_str_ascii(Item_func_hex *item, String *str) const;
   String *Item_func_hybrid_field_type_val_str(Item_func_hybrid_field_type *,
                                               String *) const;
@@ -860,6 +895,9 @@ public:
   bool Item_hybrid_func_fix_attributes(THD *thd, Item_hybrid_func *func,
                                        Item **items, uint nitems) const;
   bool Item_sum_hybrid_fix_length_and_dec(Item_sum_hybrid *func) const;
+  bool Item_sum_sum_fix_length_and_dec(Item_sum_sum *) const;
+  bool Item_sum_avg_fix_length_and_dec(Item_sum_avg *) const;
+  bool Item_sum_variance_fix_length_and_dec(Item_sum_variance *) const;
   String *Item_func_hex_val_str_ascii(Item_func_hex *item, String *str) const;
   String *Item_func_hybrid_field_type_val_str(Item_func_hybrid_field_type *,
                                               String *) const;
@@ -1307,6 +1345,9 @@ public:
   bool Item_func_int_val_fix_length_and_dec(Item_func_int_val *) const;
   bool Item_func_abs_fix_length_and_dec(Item_func_abs *) const;
   bool Item_func_neg_fix_length_and_dec(Item_func_neg *) const;
+  bool Item_sum_sum_fix_length_and_dec(Item_sum_sum *) const;
+  bool Item_sum_avg_fix_length_and_dec(Item_sum_avg *) const;
+  bool Item_sum_variance_fix_length_and_dec(Item_sum_variance *) const;
 };
 
 extern Type_handler_geometry type_handler_geometry;
@@ -1409,29 +1450,19 @@ public:
 };
 
 
-/**
-  This class is used for Item_type_holder, which preserves real_type.
-*/
-class Type_handler_hybrid_real_field_type:
-  public Type_handler_hybrid_field_type
-{
-public:
-  Type_handler_hybrid_real_field_type(enum_field_types type)
-    :Type_handler_hybrid_field_type(Type_handler::
-                                    get_handler_by_real_type(type))
-  { }
-};
-
-
 extern Type_handler_row   type_handler_row;
 extern Type_handler_null  type_handler_null;
 extern Type_handler_varchar type_handler_varchar;
 extern Type_handler_longlong type_handler_longlong;
+extern Type_handler_float type_handler_float;
 extern Type_handler_double type_handler_double;
 extern Type_handler_newdecimal type_handler_newdecimal;
 extern Type_handler_datetime type_handler_datetime;
 extern Type_handler_longlong type_handler_longlong;
 extern Type_handler_bit type_handler_bit;
+extern Type_handler_enum type_handler_enum;
+extern Type_handler_set type_handler_set;
+
 
 class Type_aggregator
 {
@@ -1481,7 +1512,16 @@ public:
   }
 };
 
-extern Type_aggregator type_aggregator_for_result;
-extern Type_aggregator type_aggregator_for_comparison;
+
+class Type_handler_data
+{
+public:
+  Type_aggregator m_type_aggregator_for_result;
+  Type_aggregator m_type_aggregator_for_comparison;
+  bool init();
+};
+
+
+extern Type_handler_data *type_handler_data;
 
 #endif /* SQL_TYPE_H_INCLUDED */

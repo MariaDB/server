@@ -483,7 +483,18 @@ void my_write_core(int sig)
 
 #else /* __WIN__*/
 
+#ifdef _MSC_VER
+/* Silence warning in OS header dbghelp.h */
+#pragma warning(push)
+#pragma warning(disable : 4091)
+#endif
+
 #include <dbghelp.h>
+
+#ifdef _MSC_VER
+#pragma warning(pop)
+#endif
+
 #include <tlhelp32.h>
 #include <my_sys.h>
 #if _MSC_VER

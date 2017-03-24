@@ -25,7 +25,6 @@ static Type_handler_short       type_handler_short;
 static Type_handler_long        type_handler_long;
 static Type_handler_int24       type_handler_int24;
 static Type_handler_year        type_handler_year;
-static Type_handler_float       type_handler_float;
 static Type_handler_time        type_handler_time;
 static Type_handler_time2       type_handler_time2;
 static Type_handler_date        type_handler_date;
@@ -39,65 +38,59 @@ static Type_handler_tiny_blob   type_handler_tiny_blob;
 static Type_handler_medium_blob type_handler_medium_blob;
 static Type_handler_long_blob   type_handler_long_blob;
 static Type_handler_blob        type_handler_blob;
-static Type_handler_enum        type_handler_enum;
-static Type_handler_set         type_handler_set;
 
 
 Type_handler_null        type_handler_null;
 Type_handler_row         type_handler_row;
 Type_handler_varchar     type_handler_varchar;
 Type_handler_longlong    type_handler_longlong;
+Type_handler_float       type_handler_float;
 Type_handler_double      type_handler_double;
 Type_handler_newdecimal  type_handler_newdecimal;
 Type_handler_datetime    type_handler_datetime;
 Type_handler_bit         type_handler_bit;
+Type_handler_enum        type_handler_enum;
+Type_handler_set         type_handler_set;
 
 #ifdef HAVE_SPATIAL
 Type_handler_geometry    type_handler_geometry;
 #endif
 
 
-Type_aggregator type_aggregator_for_result;
-Type_aggregator type_aggregator_for_comparison;
-
-
-class Static_data_initializer
+bool Type_handler_data::init()
 {
-public:
-  static Static_data_initializer m_singleton;
-  Static_data_initializer()
-  {
 #ifdef HAVE_SPATIAL
-    type_aggregator_for_result.add(&type_handler_geometry,
-                                   &type_handler_null,
-                                   &type_handler_geometry);
-    type_aggregator_for_result.add(&type_handler_geometry,
-                                   &type_handler_geometry,
-                                   &type_handler_geometry);
-    type_aggregator_for_result.add(&type_handler_geometry,
-                                   &type_handler_blob,
-                                   &type_handler_long_blob);
-    type_aggregator_for_result.add(&type_handler_geometry,
-                                   &type_handler_varchar,
-                                   &type_handler_long_blob);
-    type_aggregator_for_result.add(&type_handler_geometry,
-                                   &type_handler_string,
-                                   &type_handler_long_blob);
-
-    type_aggregator_for_comparison.add(&type_handler_geometry,
-                                       &type_handler_geometry,
-                                       &type_handler_geometry);
-    type_aggregator_for_comparison.add(&type_handler_geometry,
-                                       &type_handler_null,
-                                       &type_handler_geometry);
-    type_aggregator_for_comparison.add(&type_handler_geometry,
-                                       &type_handler_long_blob,
-                                       &type_handler_long_blob);
+  return
+    m_type_aggregator_for_result.add(&type_handler_geometry,
+                                     &type_handler_null,
+                                     &type_handler_geometry) ||
+    m_type_aggregator_for_result.add(&type_handler_geometry,
+                                     &type_handler_geometry,
+                                     &type_handler_geometry) ||
+    m_type_aggregator_for_result.add(&type_handler_geometry,
+                                     &type_handler_blob,
+                                     &type_handler_long_blob) ||
+    m_type_aggregator_for_result.add(&type_handler_geometry,
+                                     &type_handler_varchar,
+                                     &type_handler_long_blob) ||
+    m_type_aggregator_for_result.add(&type_handler_geometry,
+                                     &type_handler_string,
+                                     &type_handler_long_blob) ||
+    m_type_aggregator_for_comparison.add(&type_handler_geometry,
+                                         &type_handler_geometry,
+                                         &type_handler_geometry) ||
+    m_type_aggregator_for_comparison.add(&type_handler_geometry,
+                                         &type_handler_null,
+                                         &type_handler_geometry) ||
+    m_type_aggregator_for_comparison.add(&type_handler_geometry,
+                                         &type_handler_long_blob,
+                                         &type_handler_long_blob);
 #endif
-  }
-};
+  return false;
+}
 
-Static_data_initializer Static_data_initializer::m_singleton;
+
+Type_handler_data *type_handler_data= NULL;
 
 
 void Type_std_attributes::set(const Field *field)
@@ -293,7 +286,8 @@ Type_handler_hybrid_field_type::aggregate_for_result(const Type_handler *other)
       Type_handler::aggregate_for_result_traditional(m_type_handler, other);
     return false;
   }
-  other= type_aggregator_for_result.find_handler(m_type_handler, other);
+  other= type_handler_data->
+         m_type_aggregator_for_result.find_handler(m_type_handler, other);
   if (!other)
     return true;
   m_type_handler= other;
@@ -407,7 +401,8 @@ Type_handler_hybrid_field_type::aggregate_for_comparison(const Type_handler *h)
   if (!m_type_handler->is_traditional_type() ||
       !h->is_traditional_type())
   {
-    h= type_aggregator_for_comparison.find_handler(m_type_handler, h);
+    h= type_handler_data->
+       m_type_aggregator_for_comparison.find_handler(m_type_handler, h);
     if (!h)
       return true;
     m_type_handler= h;
@@ -1397,6 +1392,166 @@ bool Type_handler_temporal_result::
   func->set_handler(item->type_handler());
   return false;
 }
+
+
+/*************************************************************************/
+
+bool Type_handler_int_result::
+       Item_sum_sum_fix_length_and_dec(Item_sum_sum *item) const
+{
+  item->fix_length_and_dec_decimal();
+  return false;
+}
+
+
+bool Type_handler_decimal_result::
+       Item_sum_sum_fix_length_and_dec(Item_sum_sum *item) const
+{
+  item->fix_length_and_dec_decimal();
+  return false;
+}
+
+
+bool Type_handler_temporal_result::
+       Item_sum_sum_fix_length_and_dec(Item_sum_sum *item) const
+{
+  item->fix_length_and_dec_decimal();
+  return false;
+}
+
+
+bool Type_handler_real_result::
+       Item_sum_sum_fix_length_and_dec(Item_sum_sum *item) const
+{
+  item->fix_length_and_dec_double();
+  return false;
+}
+
+
+bool Type_handler_string_result::
+       Item_sum_sum_fix_length_and_dec(Item_sum_sum *item) const
+{
+  item->fix_length_and_dec_double();
+  return false;
+}
+
+
+#ifdef HAVE_SPATIAL
+bool Type_handler_geometry::
+       Item_sum_sum_fix_length_and_dec(Item_sum_sum *item) const
+{
+  my_error(ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION, MYF(0),
+           type_handler_geometry.name().ptr(), "sum");
+  return false;
+}
+#endif
+
+
+/*************************************************************************/
+
+bool Type_handler_int_result::
+       Item_sum_avg_fix_length_and_dec(Item_sum_avg *item) const
+{
+  item->fix_length_and_dec_decimal();
+  return false;
+}
+
+
+bool Type_handler_decimal_result::
+       Item_sum_avg_fix_length_and_dec(Item_sum_avg *item) const
+{
+  item->fix_length_and_dec_decimal();
+  return false;
+}
+
+
+bool Type_handler_temporal_result::
+       Item_sum_avg_fix_length_and_dec(Item_sum_avg *item) const
+{
+  item->fix_length_and_dec_decimal();
+  return false;
+}
+
+
+bool Type_handler_real_result::
+       Item_sum_avg_fix_length_and_dec(Item_sum_avg *item) const
+{
+  item->fix_length_and_dec_double();
+  return false;
+}
+
+
+bool Type_handler_string_result::
+       Item_sum_avg_fix_length_and_dec(Item_sum_avg *item) const
+{
+  item->fix_length_and_dec_double();
+  return false;
+}
+
+
+#ifdef HAVE_SPATIAL
+bool Type_handler_geometry::
+       Item_sum_avg_fix_length_and_dec(Item_sum_avg *item) const
+{
+  my_error(ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION, MYF(0),
+           type_handler_geometry.name().ptr(), "avg");
+  return false;
+}
+#endif
+
+
+/*************************************************************************/
+
+bool Type_handler_int_result::
+       Item_sum_variance_fix_length_and_dec(Item_sum_variance *item) const
+{
+  item->fix_length_and_dec_decimal();
+  return false;
+}
+
+
+bool Type_handler_decimal_result::
+       Item_sum_variance_fix_length_and_dec(Item_sum_variance *item) const
+{
+  item->fix_length_and_dec_decimal();
+  return false;
+}
+
+
+bool Type_handler_temporal_result::
+       Item_sum_variance_fix_length_and_dec(Item_sum_variance *item) const
+{
+  item->fix_length_and_dec_decimal();
+  return false;
+}
+
+
+bool Type_handler_real_result::
+       Item_sum_variance_fix_length_and_dec(Item_sum_variance *item) const
+{
+  item->fix_length_and_dec_double();
+  return false;
+}
+
+
+bool Type_handler_string_result::
+       Item_sum_variance_fix_length_and_dec(Item_sum_variance *item) const
+{
+  item->fix_length_and_dec_double();
+  return false;
+}
+
+
+#ifdef HAVE_SPATIAL
+bool Type_handler_geometry::
+       Item_sum_variance_fix_length_and_dec(Item_sum_variance *item) const
+{
+  my_error(ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION, MYF(0),
+           type_handler_geometry.name().ptr(), item->func_name());
+  return false;
+}
+#endif
+
 
 /*************************************************************************/
 

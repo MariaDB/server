@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1996, 2015, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
@@ -29,9 +29,6 @@ Created 3/26/1996 Heikki Tuuri
 #include "mysqld.h"
 #include "trx0sys.h"
 #include "sql_error.h"
-#ifdef UNIV_NONINL
-#include "trx0sys.ic"
-#endif
 
 #include "fsp0fsp.h"
 #include "mtr0log.h"
@@ -60,7 +57,7 @@ struct file_format_t {
 };
 
 /** The transaction system */
-trx_sys_t*		trx_sys		= NULL;
+trx_sys_t*		trx_sys;
 
 /** List of animal names representing file format. */
 static const char*	file_format_name_map[] = {
@@ -140,37 +137,6 @@ updated via SET GLOBAL innodb_file_format_max = 'x' or when we open
 or create a table. */
 static	file_format_t	file_format_max;
 
-#ifdef UNIV_DEBUG
-/****************************************************************//**
-Checks whether a trx is in one of rw_trx_list
-@return true if is in */
-bool
-trx_in_rw_trx_list(
-/*============*/
-	const trx_t*	in_trx)	/*!< in: transaction */
-{
-	const trx_t*	trx;
-
-	/* Non-locking autocommits should not hold any locks. */
-	check_trx_state(in_trx);
-
-	ut_ad(trx_sys_mutex_own());
-
-	ut_ad(trx_assert_started(in_trx));
-
-	for (trx = UT_LIST_GET_FIRST(trx_sys->rw_trx_list);
-	     trx != NULL && trx != in_trx;
-	     trx = UT_LIST_GET_NEXT(trx_list, trx)) {
-
-		check_trx_state(trx);
-
-		ut_ad(trx->rsegs.m_redo.rseg != NULL && !trx->read_only);
-	}
-
-	return(trx != 0);
-}
-#endif /* UNIV_DEBUG */
-
 /*****************************************************************//**
 Writes the value of max_trx_id to the file based trx system header. */
 void
@@ -222,10 +188,6 @@ trx_sys_update_mysql_binlog_offset(
 		/* We cannot fit the name to the 512 bytes we have reserved */
 
 		return;
-	}
-
-	if (sys_header == NULL) {
-		sys_header = trx_sysf_get(mtr);
 	}
 
 	if (mach_read_from_4(sys_header + field
@@ -571,35 +533,20 @@ trx_sysf_create(
 
 	/* Create the first rollback segment in the SYSTEM tablespace */
 	slot_no = trx_sysf_rseg_find_free(mtr, false, 0);
-	page_no = trx_rseg_header_create(TRX_SYS_SPACE, univ_page_size,
+	page_no = trx_rseg_header_create(TRX_SYS_SPACE,
 					 ULINT_MAX, slot_no, mtr);
 
 	ut_a(slot_no == TRX_SYS_SYSTEM_RSEG_ID);
 	ut_a(page_no == FSP_FIRST_RSEG_PAGE_NO);
 }
 
-/*****************************************************************//**
-Creates and initializes the central memory structures for the transaction
-system. This is called when the database is started.
-@return min binary heap of rsegs to purge */
-purge_pq_t*
-trx_sys_init_at_db_start(void)
-/*==========================*/
+/** Initialize the transaction system main-memory data structures. */
+void
+trx_sys_init_at_db_start()
 {
-	purge_pq_t*	purge_queue;
 	trx_sysf_t*	sys_header;
 	ib_uint64_t	rows_to_undo	= 0;
 	const char*	unit		= "";
-
-	/* We create the min binary heap here and pass ownership to
-	purge when we init the purge sub-system. Purge is responsible
-	for freeing the binary heap. */
-	purge_queue = UT_NEW_NOKEY(purge_pq_t());
-	ut_a(purge_queue != NULL);
-
-	if (srv_force_recovery < SRV_FORCE_NO_UNDO_LOG_SCAN) {
-		trx_rseg_array_init(purge_queue);
-	}
 
 	/* VERY important: after the database is started, max_trx_id value is
 	divisible by TRX_SYS_TRX_ID_WRITE_MARGIN, and the 'if' in
@@ -661,7 +608,7 @@ trx_sys_init_at_db_start(void)
 
 	trx_sys_mutex_exit();
 
-	return(purge_queue);
+	trx_sys->mvcc->clone_oldest_view(&purge_sys->view);
 }
 
 /*****************************************************************//**
@@ -1108,28 +1055,10 @@ trx_sys_close(void)
 	}
 
 	/* There can't be any active transactions. */
-	trx_rseg_t** rseg_array = static_cast<trx_rseg_t**>(
-		trx_sys->rseg_array);
 
 	for (ulint i = 0; i < TRX_SYS_N_RSEGS; ++i) {
-		trx_rseg_t*	rseg;
-
-		rseg = trx_sys->rseg_array[i];
-
-		if (rseg != NULL) {
-			trx_rseg_mem_free(rseg, rseg_array);
-		}
-	}
-
-	rseg_array = ((trx_rseg_t**) trx_sys->pending_purge_rseg_array);
-
-	for (ulint i = 0; i < TRX_SYS_N_RSEGS; ++i) {
-		trx_rseg_t*	rseg;
-
-		rseg = trx_sys->pending_purge_rseg_array[i];
-
-		if (rseg != NULL) {
-			trx_rseg_mem_free(rseg, rseg_array);
+		if (trx_rseg_t* rseg = trx_sys->rseg_array[i]) {
+			trx_rseg_mem_free(rseg);
 		}
 	}
 

@@ -156,14 +156,10 @@ initialized. */
 fil_system_t*	fil_system	= NULL;
 
 /** Determine if user has explicitly disabled fsync(). */
-#ifndef _WIN32
 # define fil_buffering_disabled(s)	\
 	((s)->purpose == FIL_TYPE_TABLESPACE	\
-	 && srv_unix_file_flush_method	\
-	 == SRV_UNIX_O_DIRECT_NO_FSYNC)
-#else /* _WIN32 */
-# define fil_buffering_disabled(s)	(0)
-#endif /* __WIN32 */
+	 && srv_file_flush_method	\
+	 == SRV_O_DIRECT_NO_FSYNC)
 
 /** Determine if the space id is a user tablespace id or not.
 @param[in]	space_id	Space ID to check

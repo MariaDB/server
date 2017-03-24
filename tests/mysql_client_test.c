@@ -19530,6 +19530,33 @@ static void test_big_packet()
 }
 
 
+static void test_prepare_analyze()
+{
+  MYSQL_STMT *stmt;
+  const char *query= "ANALYZE SELECT 1";
+  int rc;
+  myheader("test_prepare_analyze");
+
+  stmt= mysql_stmt_init(mysql);
+  check_stmt(stmt);
+  rc= mysql_stmt_prepare(stmt, query, strlen(query));
+  check_execute(stmt, rc);
+
+  rc= mysql_stmt_execute(stmt);
+  check_execute(stmt, rc);
+
+  rc= mysql_stmt_store_result(stmt);
+  check_execute(stmt, rc);
+
+  while (!(rc= mysql_stmt_fetch(stmt)))
+    ;
+
+  DIE_UNLESS(rc == MYSQL_NO_DATA);
+
+  rc= mysql_stmt_close(stmt);
+  check_execute(stmt, rc);
+}
+
 static struct my_tests_st my_tests[]= {
   { "disable_query_logs", disable_query_logs },
   { "test_view_sp_list_fields", test_view_sp_list_fields },
@@ -19804,6 +19831,7 @@ static struct my_tests_st my_tests[]= {
   { "test_ps_sp_out_params", test_ps_sp_out_params },
   { "test_compressed_protocol", test_compressed_protocol },
   { "test_big_packet", test_big_packet },
+  { "test_prepare_analyze", test_prepare_analyze },
   { 0, 0 }
 };
 

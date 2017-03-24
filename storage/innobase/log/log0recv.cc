@@ -117,7 +117,7 @@ ulint	recv_n_pool_free_frames;
 /** The maximum lsn we see for a page during the recovery process. If this
 is bigger than the lsn we are able to scan up to, that is an indication that
 the recovery failed and the database may be corrupt. */
-lsn_t	recv_max_page_lsn;
+static lsn_t	recv_max_page_lsn;
 
 #ifdef UNIV_PFS_THREAD
 mysql_pfs_key_t	trx_rollback_clean_thread_key;
@@ -2726,18 +2726,16 @@ recv_scan_log_recs(
 					stored to the hash table; this is reset
 					if just debug checking is needed, or
 					when the available_memory runs out */
-	const byte*	buf,		/*!< in: buffer containing a log
-					segment or garbage */
-	ulint		len,		/*!< in: buffer length */
+	const byte*	log_block,	/*!< in: log segment */
 	lsn_t		checkpoint_lsn,	/*!< in: latest checkpoint LSN */
-	lsn_t		start_lsn,	/*!< in: buffer start lsn */
+	lsn_t		start_lsn,	/*!< in: buffer start LSN */
+	lsn_t		end_lsn,	/*!< in: buffer end LSN */
 	lsn_t*		contiguous_lsn,	/*!< in/out: it is known that all log
 					groups contain contiguous log data up
 					to this lsn */
 	lsn_t*		group_scanned_lsn)/*!< out: scanning succeeded up to
 					this lsn */
 {
-	const byte*	log_block	= buf;
 	lsn_t		scanned_lsn	= start_lsn;
 	bool		finished	= false;
 	ulint		data_len;
@@ -2745,8 +2743,11 @@ recv_scan_log_recs(
 	bool		apply		= recv_sys->mlog_checkpoint_lsn != 0;
 
 	ut_ad(start_lsn % OS_FILE_LOG_BLOCK_SIZE == 0);
-	ut_ad(len % OS_FILE_LOG_BLOCK_SIZE == 0);
-	ut_ad(len >= OS_FILE_LOG_BLOCK_SIZE);
+	ut_ad(end_lsn % OS_FILE_LOG_BLOCK_SIZE == 0);
+	ut_ad(end_lsn >= start_lsn + OS_FILE_LOG_BLOCK_SIZE);
+
+	const byte* const	log_end = log_block
+		+ ulint(end_lsn - start_lsn);
 
 	do {
 		ut_ad(!finished);
@@ -2842,7 +2843,7 @@ recv_scan_log_recs(
 		} else {
 			log_block += OS_FILE_LOG_BLOCK_SIZE;
 		}
-	} while (log_block < buf + len);
+	} while (log_block < log_end);
 
 	*group_scanned_lsn = scanned_lsn;
 
@@ -2938,9 +2939,9 @@ recv_group_scan_log_recs(
 	} while (end_lsn != start_lsn
 		 && !recv_scan_log_recs(
 			 available_mem, &store_to_hash, log_sys->buf,
-			 end_lsn - start_lsn,
 			 checkpoint_lsn,
-			 start_lsn, contiguous_lsn, &group->scanned_lsn));
+			 start_lsn, end_lsn,
+			 contiguous_lsn, &group->scanned_lsn));
 
 	if (recv_sys->found_corrupt_log || recv_sys->found_corrupt_fs) {
 		DBUG_RETURN(false);

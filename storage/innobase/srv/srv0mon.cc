@@ -35,9 +35,6 @@ Created 12/9/2009 Jimmy Yang
 #include "srv0srv.h"
 #include "trx0rseg.h"
 #include "trx0sys.h"
-#ifdef UNIV_NONINL
-#include "srv0mon.ic"
-#endif
 
 /* Macro to standardize the counter names for counters in the
 "monitor_buf_page" module as they have very structured defines */

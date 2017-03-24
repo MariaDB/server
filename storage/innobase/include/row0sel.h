@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1997, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -91,14 +92,6 @@ que_thr_t*
 fetch_step(
 /*=======*/
 	que_thr_t*	thr);	/*!< in: query thread */
-/****************************************************************//**
-Sample callback function for fetch that prints each row.
-@return always returns non-NULL */
-void*
-row_fetch_print(
-/*============*/
-	void*	row,		/*!< in:  sel_node_t* */
-	void*	user_arg);	/*!< in:  not used */
 /***********************************************************//**
 Prints a row in a select result.
 @return query thread to run next or NULL */
@@ -223,8 +216,8 @@ row_count_rtree_recs(
 /*******************************************************************//**
 Checks if MySQL at the moment is allowed for this table to retrieve a
 consistent read result, or store it to the query cache.
-@return TRUE if storing or retrieving from the query cache is permitted */
-ibool
+@return whether storing or retrieving from the query cache is permitted */
+bool
 row_search_check_if_query_cache_permitted(
 /*======================================*/
 	trx_t*		trx,		/*!< in: transaction object */
@@ -406,9 +399,7 @@ struct fetch_node_t{
 					further rows and the cursor is
 					modified so (cursor % NOTFOUND) is
 					true. If it returns not-NULL,
-					continue normally. See
-					row_fetch_print() for an example
-					(and a useful debugging tool). */
+					continue normally. */
 };
 
 /** Open or close cursor operation type */
@@ -487,8 +478,6 @@ row_sel_field_store_in_mysql_format_func(
         const byte*     data,   /*!< in: data to store */
         ulint           len);    /*!< in: length of the data */
 
-#ifndef UNIV_NONINL
 #include "row0sel.ic"
-#endif
 
 #endif

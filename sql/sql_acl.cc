@@ -12462,7 +12462,7 @@ static bool parse_com_change_user_packet(MPVIO_EXT *mpvio, uint packet_length)
   {
     my_message(ER_UNKNOWN_COM_ERROR, ER_THD(thd, ER_UNKNOWN_COM_ERROR),
                MYF(0));
-    DBUG_RETURN(packet_error);
+    DBUG_RETURN(1);
   }
 
   DBUG_PRINT("info", ("client_plugin=%s, restart", client_plugin));

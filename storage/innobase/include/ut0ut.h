@@ -610,9 +610,7 @@ private:
 
 } // namespace ib
 
-#ifndef UNIV_NONINL
 #include "ut0ut.ic"
-#endif
 
 #endif
 

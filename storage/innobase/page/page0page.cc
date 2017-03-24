@@ -26,10 +26,6 @@ Created 2/2/1994 Heikki Tuuri
 *******************************************************/
 
 #include "page0page.h"
-#ifdef UNIV_NONINL
-#include "page0page.ic"
-#endif
-
 #include "page0cur.h"
 #include "page0zip.h"
 #include "buf0buf.h"

@@ -238,3 +238,39 @@ select json_merge('{"a":{"u":12, "x":"b", "r":1}}', '{"a":{"x":"c", "r":2}}') ;
 select json_compact('{"a":1, "b":[1,2,3], "c":{"aa":"v1", "bb": "v2"}}');
 select json_loose('{"a":1, "b":[1,2,3], "c":{"aa":"v1", "bb": "v2"}}');
 select json_detailed('{"a":1, "b":[1,2,3], "c":{"aa":"v1", "bb": "v2"}}');
+
+#
+# MDEV-11856 json_search doesn't search for values with double quotes character (")
+#
+
+SELECT JSON_search( '{"x": "\\""}', "one", '"');
+SELECT JSON_search( '{"x": "\\""}', "one", '\\"');
+
+#
+# MDEV-11833 JSON functions don't seem to respect max_allowed_packet.
+#
+set @@global.net_buffer_length=1024;
+set @@global.max_allowed_packet=2048;
+--connect (newconn, localhost, root,,)
+
+show variables like 'net_buffer_length';
+show variables like 'max_allowed_packet';
+select json_array(repeat('a',1024),repeat('a',1024));
+select json_object("a", repeat('a',1024),"b", repeat('a',1024));
+--connection default
+
+set @@global.max_allowed_packet = default;
+set @@global.net_buffer_length = default;
+--disconnect newconn
+
+
+#
+# MDEV-12262 Assertion `!null_value' failed in virtual bool Item::send on JSON_REMOVE.
+#
+create table t1(j longtext, p longtext);
+insert into t1 values
+    ('{"a":1,"b":2,"c":3}','$.a'),
+    ('{"a":1,"b":2,"c":3}','$.b'),
+      ('{"a":1,"b":2,"c":3}','$.c');
+select j, p, json_remove(j, p) from t1;
+drop table t1;

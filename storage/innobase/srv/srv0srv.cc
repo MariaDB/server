@@ -3,7 +3,7 @@
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, 2009 Google Inc.
 Copyright (c) 2009, Percona Inc.
-Copyright (c) 2013, 2017, MariaDB Corporation. All Rights Reserved.
+Copyright (c) 2013, 2017, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -294,22 +294,11 @@ ulong	srv_read_ahead_threshold	= 56;
 of the buffer pool. */
 uint	srv_change_buffer_max_size = CHANGE_BUFFER_DEFAULT_SIZE;
 
-/* This parameter is used to throttle the number of insert buffers that are
-merged in a batch. By increasing this parameter on a faster disk you can
-possibly reduce the number of I/O operations performed to complete the
-merge operation. The value of this parameter is used as is by the
-background loop when the system is idle (low load), on a busy system
-the parameter is scaled down by a factor of 4, this is to avoid putting
-a heavier load on the I/O sub system. */
-
-ulong	srv_insert_buffer_batch_size = 20;
-
 char*	srv_file_flush_method_str = NULL;
-#ifndef _WIN32
-enum srv_unix_flush_t	srv_unix_file_flush_method = SRV_UNIX_FSYNC;
-#else
-enum srv_win_flush_t	srv_win_file_flush_method = SRV_WIN_IO_UNBUFFERED;
-#endif /* _WIN32 */
+
+
+enum srv_flush_t	srv_file_flush_method = IF_WIN(SRV_ALL_O_DIRECT_FSYNC,SRV_FSYNC);
+
 
 ulint	srv_max_n_open_files	  = 300;
 
@@ -459,9 +448,9 @@ i/o handler thread */
 const char* srv_io_thread_op_info[SRV_MAX_N_IO_THREADS];
 const char* srv_io_thread_function[SRV_MAX_N_IO_THREADS];
 
-time_t	srv_last_monitor_time;
+static time_t	srv_last_monitor_time;
 
-ib_mutex_t	srv_innodb_monitor_mutex;
+static ib_mutex_t	srv_innodb_monitor_mutex;
 
 /** Mutex protecting page_zip_stat_per_index */
 ib_mutex_t	page_zip_stat_per_index_mutex;
@@ -484,8 +473,8 @@ ib_mutex_t	srv_misc_tmpfile_mutex;
 /** Temporary file for miscellanous diagnostic output */
 FILE*	srv_misc_tmpfile;
 
-ulint	srv_main_thread_process_no	= 0;
-ulint	srv_main_thread_id		= 0;
+static ulint	srv_main_thread_process_no	= 0;
+static ulint	srv_main_thread_id		= 0;
 
 /* The following counts are used by the srv_master_thread. */
 
@@ -1654,12 +1643,8 @@ srv_export_innodb_status(void)
 
 #ifdef UNIV_DEBUG
 	rw_lock_s_lock(&purge_sys->latch);
-	trx_id_t	up_limit_id;
+	trx_id_t	up_limit_id	= purge_sys->view.up_limit_id();;
 	trx_id_t	done_trx_no	= purge_sys->done.trx_no;
-
-	up_limit_id	= purge_sys->view_active
-		? purge_sys->view.up_limit_id() : 0;
-
 	rw_lock_s_unlock(&purge_sys->latch);
 
 	mutex_enter(&trx_sys->mutex);

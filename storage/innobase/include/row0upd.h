@@ -652,8 +652,6 @@ struct upd_node_t{
 					changed in the update */
 
 
-#ifndef UNIV_NONINL
 #include "row0upd.ic"
-#endif
 
 #endif

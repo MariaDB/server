@@ -25,10 +25,6 @@ Created 5/11/1994 Heikki Tuuri
 
 #include "ut0rnd.h"
 
-#ifdef UNIV_NONINL
-#include "ut0rnd.ic"
-#endif
-
 /** These random numbers are used in ut_find_prime */
 /*@{*/
 #define	UT_RANDOM_1	1.0412321

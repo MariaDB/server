@@ -533,8 +533,6 @@ fil_crypt_calculate_checksum(
 	byte*	dst_frame)	/*!< in: page where to calculate */
 	__attribute__((warn_unused_result));
 
-#ifndef UNIV_NONINL
 #include "fil0crypt.ic"
-#endif
 
 #endif /* fil0crypt_h */

@@ -366,6 +366,7 @@ static int skip_str_constant(json_engine_t *j)
         break;
       if (j->s.c_next == '\\')
       {
+        j->value_escaped= 1;
         if (json_handle_esc(&j->s))
           return 1;
         continue;
@@ -394,6 +395,7 @@ static int read_strn(json_engine_t *j)
 {
   j->value= j->s.c_str;
   j->value_type= JSON_VALUE_STRING;
+  j->value_escaped= 0;
 
   if (skip_str_constant(j))
     return 1;

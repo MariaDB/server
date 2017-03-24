@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2014, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation. All Rights Reserved.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -1787,8 +1788,7 @@ sync_check_init()
 	sync_array_init(OS_THREAD_MAX_N);
 }
 
-/** Frees the resources in InnoDB's own synchronization data structures. Use
-os_sync_free() after calling this. */
+/** Free the InnoDB synchronization data structures. */
 void
 sync_check_close()
 {

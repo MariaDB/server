@@ -401,7 +401,7 @@ double sys_var::val_real(bool *is_null,
   switch (show_type())
   {
     case_get_string_as_lex_string;
-    case_for_integers(return val);
+    case_for_integers(return (double)val);
     case_for_double(return val);
     case SHOW_MY_BOOL:  return *(my_bool*)value;
     default:            

@@ -31,11 +31,6 @@ Created 9/17/2000 Heikki Tuuri
 #include <spatial.h>
 
 #include "row0mysql.h"
-
-#ifdef UNIV_NONINL
-#include "row0mysql.ic"
-#endif
-
 #include "btr0sea.h"
 #include "dict0boot.h"
 #include "dict0crea.h"
@@ -75,7 +70,7 @@ Created 9/17/2000 Heikki Tuuri
 #include <deque>
 #include <vector>
 
-const char* MODIFICATIONS_NOT_ALLOWED_MSG_FORCE_RECOVERY =
+static const char* MODIFICATIONS_NOT_ALLOWED_MSG_FORCE_RECOVERY =
 	"innodb_force_recovery is on. We do not allow database modifications"
 	" by the user. Shut down mysqld and edit my.cnf to set"
 	" innodb_force_recovery=0";
@@ -378,6 +373,7 @@ row_mysql_store_geometry(
 /*******************************************************************//**
 Read geometry data in the MySQL format.
 @return pointer to geometry data */
+static
 const byte*
 row_mysql_read_geometry(
 /*====================*/

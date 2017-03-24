@@ -889,8 +889,6 @@ void
 srv_mon_default_on(void);
 /*====================*/
 
-#ifndef UNIV_NONINL
 #include "srv0mon.ic"
-#endif
 
 #endif

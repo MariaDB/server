@@ -143,15 +143,9 @@ trx_disconnect_plain(trx_t*	trx);
 void
 trx_disconnect_prepared(trx_t*	trx);
 
-/****************************************************************//**
-Creates trx objects for transactions and initializes the trx list of
-trx_sys at database start. Rollback segment and undo log lists must
-already exist when this function is called, because the lists of
-transactions to be rolled back or cleaned up are built based on the
-undo log lists. */
+/** Initialize (resurrect) transactions at startup. */
 void
-trx_lists_init_at_db_start(void);
-/*============================*/
+trx_lists_init_at_db_start();
 
 /*************************************************************//**
 Starts the transaction if it is not yet started. */
@@ -862,6 +856,14 @@ struct trx_undo_ptr_t {
 					NULL if no update performed yet */
 };
 
+/** An instance of temporary rollback segment. */
+struct trx_temp_undo_t {
+	/** temporary rollback segment, or NULL if not assigned yet */
+	trx_rseg_t*	rseg;
+	/** pointer to the undo log, or NULL if nothing logged yet */
+	trx_undo_t*	undo;
+};
+
 /** Rollback segments assigned to a transaction for undo logging. */
 struct trx_rsegs_t {
 	/** undo log ptr holding reference to a rollback segment that resides in
@@ -869,10 +871,9 @@ struct trx_rsegs_t {
 	to be recovered on crash. */
 	trx_undo_ptr_t	m_redo;
 
-	/** undo log ptr holding reference to a rollback segment that resides in
-	temp tablespace used for undo logging of tables that doesn't need
-	to be recovered on crash. */
-	trx_undo_ptr_t	m_noredo;
+	/** undo log for temporary tables; discarded immediately after
+	transaction commit/rollback */
+	trx_temp_undo_t	m_noredo;
 };
 
 enum trx_rseg_type_t {
@@ -1270,12 +1271,6 @@ struct trx_t {
 					error, or empty. */
 	FlushObserver*	flush_observer;	/*!< flush observer */
 
-#ifdef UNIV_DEBUG
-	bool		is_dd_trx;	/*!< True if the transaction is used for
-					doing Non-locking Read-only Read
-					Committed on DD tables */
-#endif /* UNIV_DEBUG */
-
 	/* Lock wait statistics */
 	ulint		n_rec_lock_waits;
 					/*!< Number of record lock waits,
@@ -1604,8 +1599,6 @@ private:
 	trx_t*			m_trx;
 };
 
-#ifndef UNIV_NONINL
 #include "trx0trx.ic"
-#endif
 
 #endif

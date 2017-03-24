@@ -95,9 +95,9 @@ public:
   ha_rows records_in_range(uint inx, key_range *min_key,
                                    key_range *max_key);
 
-  double scan_time() { return nvalues(); }
-  double read_time(uint index, uint ranges, ha_rows rows) { return rows; }
-  double keyread_time(uint index, uint ranges, ha_rows rows) { return rows; }
+  double scan_time() { return (double)nvalues(); }
+  double read_time(uint index, uint ranges, ha_rows rows) { return (double)rows; }
+  double keyread_time(uint index, uint ranges, ha_rows rows) { return (double)rows; }
 
 private:
   void set(uchar *buf);

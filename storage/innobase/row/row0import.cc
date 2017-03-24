@@ -27,11 +27,6 @@ Created 2012-02-08 by Sunny Bains.
 #include "ha_prototypes.h"
 
 #include "row0import.h"
-
-#ifdef UNIV_NONINL
-#include "row0import.ic"
-#endif
-
 #include "btr0pcur.h"
 #include "que0que.h"
 #include "dict0boot.h"
@@ -3388,9 +3383,10 @@ row_import_for_mysql(
 
 	mutex_enter(&trx->undo_mutex);
 
-	/* IMPORT tablespace is blocked for temp-tables and so we don't
-	need to assign temporary rollback segment for this trx. */
-	err = trx_undo_assign_undo(trx, &trx->rsegs.m_redo, TRX_UNDO_UPDATE);
+	/* TODO: Do not write any undo log for the IMPORT cleanup. */
+	trx_undo_t**	pundo = &trx->rsegs.m_redo.update_undo;
+	err = trx_undo_assign_undo(trx, trx->rsegs.m_redo.rseg, pundo,
+				   TRX_UNDO_UPDATE);
 
 	mutex_exit(&trx->undo_mutex);
 

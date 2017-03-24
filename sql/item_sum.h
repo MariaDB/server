@@ -456,7 +456,6 @@ public:
     Updated value is then saved in the field.
   */
   virtual void update_field()=0;
-  virtual bool keep_field_type(void) const { return 0; }
   virtual void fix_length_and_dec() { maybe_null=1; null_value=1; }
   virtual Item *result_item(THD *thd, Field *field);
 
@@ -520,7 +519,7 @@ public:
   st_select_lex *depended_from() 
     { return (nest_level == aggr_level ? 0 : aggr_sel); }
 
-  Item *get_arg(uint i) { return args[i]; }
+  Item *get_arg(uint i) const { return args[i]; }
   Item *set_arg(uint i, THD *thd, Item *new_val);
   uint get_arg_count() const { return arg_count; }
 
@@ -790,6 +789,8 @@ public:
   { return Type_handler_hybrid_field_type::result_type(); }
   enum Item_result cmp_type () const
   { return Type_handler_hybrid_field_type::cmp_type(); }
+  void fix_length_and_dec_double();
+  void fix_length_and_dec_decimal();
   void reset_field();
   void update_field();
   void no_rows_in_result() {}
@@ -889,6 +890,8 @@ public:
     :Item_sum_sum(thd, item), count(item->count),
     prec_increment(item->prec_increment) {}
 
+  void fix_length_and_dec_double();
+  void fix_length_and_dec_decimal();
   void fix_length_and_dec();
   enum Sumfunctype sum_func () const 
   {
@@ -963,6 +966,8 @@ public:
     {}
   Item_sum_variance(THD *thd, Item_sum_variance *item);
   enum Sumfunctype sum_func () const { return VARIANCE_FUNC; }
+  void fix_length_and_dec_double();
+  void fix_length_and_dec_decimal();
   void clear();
   bool add();
   double val_real();
@@ -1041,7 +1046,10 @@ protected:
   my_decimal *val_decimal(my_decimal *);
   void reset_field();
   String *val_str(String *);
-  bool keep_field_type(void) const { return 1; }
+  const Type_handler *real_type_handler() const
+  {
+    return get_arg(0)->real_type_handler();
+  }
   const Type_handler *type_handler() const
   { return Type_handler_hybrid_field_type::type_handler(); }
   enum Item_result result_type () const

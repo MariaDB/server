@@ -7448,6 +7448,8 @@ ER_GEOJSON_NOT_CLOSED
         eng "Incorrect GeoJSON format - polygon not closed."
 ER_JSON_PATH_EMPTY
         eng "Path expression '$' is not allowed in argument %d to function '%s'."
+ER_SLAVE_SAME_ID
+        eng "A slave with the same server_uuid/server_id as this slave has connected to the master"
 ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
         eng "Illegal parameter data types %s and %s for operation '%s'"
 ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION

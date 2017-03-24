@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1996, 2015, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
@@ -534,12 +534,13 @@ ibool
 dtype_validate(
 /*===========*/
 	const dtype_t*	type);	/*!< in: type struct to validate */
-/*********************************************************************//**
-Prints a data type structure. */
+#ifdef UNIV_DEBUG
+/** Print a data type structure.
+@param[in]	type	data type */
 void
 dtype_print(
-/*========*/
-	const dtype_t*	type);	/*!< in: type */
+	const dtype_t*	type);
+#endif /* UNIV_DEBUG */
 
 /* Structure for an SQL data type.
 If you add fields to this structure, be sure to initialize them everywhere.
@@ -576,8 +577,6 @@ struct dtype_t{
 					mbmaxlen=DATA_MBMINLEN(mbminmaxlen) */
 };
 
-#ifndef UNIV_NONINL
 #include "data0type.ic"
-#endif
 
 #endif

@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1997, 2014, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -102,7 +103,6 @@ yylex(void);
 %token PARS_INDEX_TOKEN
 %token PARS_UNIQUE_TOKEN
 %token PARS_CLUSTERED_TOKEN
-%token PARS_DOES_NOT_FIT_IN_MEM_TOKEN
 %token PARS_ON_TOKEN
 %token PARS_ASSIGN_TOKEN
 %token PARS_DECLARE_TOKEN
@@ -153,6 +153,8 @@ yylex(void);
 %left '*' '/'
 %left NEG     /* negation--unary minus */
 %left '%'
+
+%expect 41
 
 /* Grammar follows */
 %%
@@ -573,13 +575,6 @@ opt_not_null:
 					/* pass any non-NULL pointer */ }
 ;
 
-not_fit_in_memory:
-	/* Nothing */		{ $$ = NULL; }
-	| PARS_DOES_NOT_FIT_IN_MEM_TOKEN
-				{ $$ = &pars_int_token;
-					/* pass any non-NULL pointer */ }
-;
-
 compact:
 	/* Nothing */		{ $$ = NULL; }
 	| PARS_COMPACT_TOKEN	{ $$ = &pars_int_token;
@@ -595,12 +590,12 @@ block_size:
 create_table:
 	PARS_CREATE_TOKEN PARS_TABLE_TOKEN
 	table_name '(' column_def_list ')'
-	not_fit_in_memory compact block_size
+	compact block_size
 				{ $$ = pars_create_table(
 					static_cast<sym_node_t*>($3),
 					static_cast<sym_node_t*>($5),
-					static_cast<sym_node_t*>($8),
-					static_cast<sym_node_t*>($9), $7); }
+					static_cast<sym_node_t*>($7),
+					static_cast<sym_node_t*>($8)); }
 ;
 
 column_list:

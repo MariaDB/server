@@ -1047,8 +1047,7 @@ srv_undo_tablespaces_init(
 
 				if (space_id == *it) {
 					trx_rseg_header_create(
-						*it, univ_page_size, ULINT_MAX,
-						i, &mtr);
+						*it, ULINT_MAX, i, &mtr);
 				}
 			}
 
@@ -1449,7 +1448,6 @@ innobase_start_or_create_for_mysql(void)
 	dberr_t		err		= DB_SUCCESS;
 	ulint		srv_n_log_files_found = srv_n_log_files;
 	mtr_t		mtr;
-	purge_pq_t*	purge_queue;
 	char		logfilename[10000];
 	char*		logfile0	= NULL;
 	size_t		dirnamelen;
@@ -1556,38 +1554,30 @@ innobase_start_or_create_for_mysql(void)
 
 	if (srv_file_flush_method_str == NULL) {
 		/* These are the default options */
-#ifndef _WIN32
-		srv_unix_file_flush_method = SRV_UNIX_FSYNC;
+		srv_file_flush_method = IF_WIN(SRV_ALL_O_DIRECT_FSYNC,SRV_FSYNC);
 	} else if (0 == ut_strcmp(srv_file_flush_method_str, "fsync")) {
-		srv_unix_file_flush_method = SRV_UNIX_FSYNC;
+		srv_file_flush_method = SRV_FSYNC;
 
 	} else if (0 == ut_strcmp(srv_file_flush_method_str, "O_DSYNC")) {
-		srv_unix_file_flush_method = SRV_UNIX_O_DSYNC;
+		srv_file_flush_method = SRV_O_DSYNC;
 
 	} else if (0 == ut_strcmp(srv_file_flush_method_str, "O_DIRECT")) {
-		srv_unix_file_flush_method = SRV_UNIX_O_DIRECT;
+		srv_file_flush_method = SRV_O_DIRECT;
 
 	} else if (0 == ut_strcmp(srv_file_flush_method_str, "O_DIRECT_NO_FSYNC")) {
-		srv_unix_file_flush_method = SRV_UNIX_O_DIRECT_NO_FSYNC;
+		srv_file_flush_method = SRV_O_DIRECT_NO_FSYNC;
 
 	} else if (0 == ut_strcmp(srv_file_flush_method_str, "littlesync")) {
-		srv_unix_file_flush_method = SRV_UNIX_LITTLESYNC;
+		srv_file_flush_method = SRV_LITTLESYNC;
 
 	} else if (0 == ut_strcmp(srv_file_flush_method_str, "nosync")) {
-		srv_unix_file_flush_method = SRV_UNIX_NOSYNC;
-#else
-		srv_win_file_flush_method = SRV_WIN_IO_UNBUFFERED;
+		srv_file_flush_method = SRV_NOSYNC;
+#ifdef _WIN32
 	} else if (0 == ut_strcmp(srv_file_flush_method_str, "normal")) {
-		srv_win_file_flush_method = SRV_WIN_IO_NORMAL;
-		srv_use_native_aio = FALSE;
-
+		srv_file_flush_method = SRV_FSYNC;
 	} else if (0 == ut_strcmp(srv_file_flush_method_str, "unbuffered")) {
-		srv_win_file_flush_method = SRV_WIN_IO_UNBUFFERED;
-		srv_use_native_aio = FALSE;
-
 	} else if (0 == ut_strcmp(srv_file_flush_method_str,
 				  "async_unbuffered")) {
-		srv_win_file_flush_method = SRV_WIN_IO_UNBUFFERED;
 #endif /* _WIN32 */
 	} else {
 		ib::error() << "Unrecognized value "
@@ -1688,10 +1678,6 @@ innobase_start_or_create_for_mysql(void)
 
 	srv_boot();
 
-	if (err != DB_SUCCESS) {
-		return(srv_init_abort(err));
-	}
-
 	ib::info() << ut_crc32_implementation;
 
 	if (!srv_read_only_mode) {
@@ -1717,15 +1703,17 @@ innobase_start_or_create_for_mysql(void)
 				ib::error() << "Unable to create "
 					<< srv_monitor_file_name << ": "
 					<< strerror(errno);
-				return(srv_init_abort(DB_ERROR));
+				if (err == DB_SUCCESS) {
+					err = DB_ERROR;
+				}
 			}
 		} else {
 
 			srv_monitor_file_name = NULL;
 			srv_monitor_file = os_file_create_tmpfile(NULL);
 
-			if (!srv_monitor_file) {
-				return(srv_init_abort(DB_ERROR));
+			if (!srv_monitor_file && err == DB_SUCCESS) {
+				err = DB_ERROR;
 			}
 		}
 
@@ -1734,8 +1722,8 @@ innobase_start_or_create_for_mysql(void)
 
 		srv_dict_tmpfile = os_file_create_tmpfile(NULL);
 
-		if (!srv_dict_tmpfile) {
-			return(srv_init_abort(DB_ERROR));
+		if (!srv_dict_tmpfile && err == DB_SUCCESS) {
+			err = DB_ERROR;
 		}
 
 		mutex_create(LATCH_ID_SRV_MISC_TMPFILE,
@@ -1743,9 +1731,13 @@ innobase_start_or_create_for_mysql(void)
 
 		srv_misc_tmpfile = os_file_create_tmpfile(NULL);
 
-		if (!srv_misc_tmpfile) {
-			return(srv_init_abort(DB_ERROR));
+		if (!srv_misc_tmpfile && err == DB_SUCCESS) {
+			err = DB_ERROR;
 		}
+	}
+
+	if (err != DB_SUCCESS) {
+		return(srv_init_abort(err));
 	}
 
 	srv_n_file_io_threads = srv_n_read_io_threads;
@@ -2135,13 +2127,7 @@ files_checked:
 		All the remaining rollback segments will be created later,
 		after the double write buffer has been created. */
 		trx_sys_create_sys_pages();
-
-		purge_queue = trx_sys_init_at_db_start();
-
-		/* The purge system needs to create the purge view and
-		therefore requires that the trx_sys is inited. */
-
-		trx_purge_sys_create(srv_n_purge_threads, purge_queue);
+		trx_sys_init_at_db_start();
 
 		err = dict_create();
 
@@ -2226,7 +2212,7 @@ files_checked:
 		}
 
 		/* This must precede recv_apply_hashed_log_recs(true). */
-		purge_queue = trx_sys_init_at_db_start();
+		trx_sys_init_at_db_start();
 
 		if (srv_force_recovery < SRV_FORCE_NO_LOG_REDO) {
 			/* Apply the hashed log records to the
@@ -2307,15 +2293,9 @@ files_checked:
 					" a startup if you are trying to"
 					" recover a badly corrupt database.";
 
-				UT_DELETE(purge_queue);
 				return(srv_init_abort(DB_ERROR));
 			}
 		}
-
-		/* The purge system needs to create the purge view and
-		therefore requires that the trx_sys is inited. */
-
-		trx_purge_sys_create(srv_n_purge_threads, purge_queue);
 
 		/* recv_recovery_from_checkpoint_finish needs trx lists which
 		are initialized in trx_sys_init_at_db_start(). */
@@ -2876,9 +2856,8 @@ innodb_shutdown()
 		trx_sys_file_format_close();
 		trx_sys_close();
 	}
-	if (purge_sys) {
-		trx_purge_sys_close();
-	}
+	UT_DELETE(purge_sys);
+	purge_sys = NULL;
 	if (buf_dblwr) {
 		buf_dblwr_free();
 	}
@@ -2917,7 +2896,10 @@ innodb_shutdown()
 
 	pars_lexer_close();
 	log_mem_free();
-	buf_pool_free(srv_buf_pool_instances);
+	ut_ad(buf_pool_ptr || !srv_was_started);
+	if (buf_pool_ptr) {
+		buf_pool_free(srv_buf_pool_instances);
+	}
 
 	/* 6. Free the thread management resoruces. */
 	os_thread_free();
@@ -2939,9 +2921,11 @@ innodb_shutdown()
 	srv_start_has_been_called = FALSE;
 }
 
+#if 0 // TODO: Enable this in WL#6608
 /********************************************************************
 Signal all per-table background threads to shutdown, and wait for them to do
 so. */
+static
 void
 srv_shutdown_table_bg_threads(void)
 /*===============================*/
@@ -3014,6 +2998,7 @@ srv_shutdown_table_bg_threads(void)
 		table = next;
 	}
 }
+#endif
 
 /** Get the meta-data filename from the table name for a
 single-table tablespace.

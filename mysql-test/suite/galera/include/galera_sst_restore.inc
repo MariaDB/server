@@ -16,8 +16,6 @@ DROP USER sst;
 --connection node_2
 CALL mtr.add_suppression("Slave SQL: Error 'The MySQL server is running with the --skip-grant-tables option so it cannot execute this statement' on query");
 CALL mtr.add_suppression("InnoDB: Error: Table \"mysql\"\\.\"innodb_index_stats\" not found");
-CALL mtr.add_suppression("InnoDB: New log files created");
-CALL mtr.add_suppression("InnoDB: Creating foreign key constraint system tables");
 CALL mtr.add_suppression("Can't open and lock time zone table");
 CALL mtr.add_suppression("Can't open and lock privilege tables");
 CALL mtr.add_suppression("Info table is not ready to be used");

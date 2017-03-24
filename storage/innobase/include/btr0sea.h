@@ -373,8 +373,6 @@ again set this much timeout. This is to reduce contention. */
 #define BTR_SEA_TIMEOUT			10000
 #endif /* BTR_CUR_HASH_ADAPT */
 
-#ifndef UNIV_NONINL
 #include "btr0sea.ic"
-#endif
 
 #endif
