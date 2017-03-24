@@ -391,9 +391,14 @@ static Sys_var_mybool Sys_vers_force(
        "vers_force", "Force system versioning for all created tables",
        GLOBAL_VAR(vers_force), CMD_LINE(OPT_ARG), DEFAULT(FALSE));
 
-static Sys_var_mybool Sys_vers_hide(
-       "vers_hide", "Hide system versioning from being displayed in table info",
-       GLOBAL_VAR(vers_hide), CMD_LINE(OPT_ARG), DEFAULT(FALSE));
+static const char *vers_hide_keywords[]= {"AUTO", "IMPLICIT", "FULL", "NEVER", NullS};
+static Sys_var_enum Sys_vers_hide(
+       "vers_hide", "Hide system versioning from being displayed in table info. "
+       "AUTO: hide implicit system fields only in non-versioned and AS OF queries; "
+       "IMPLICIT: hide implicit system fields in all queries; "
+       "FULL: hide any system fields in all queries and hide versioning info in SHOW commands; "
+       "NEVER: don't hide system fields",
+       GLOBAL_VAR(vers_hide), CMD_LINE(OPT_ARG), vers_hide_keywords, DEFAULT(VERS_HIDE_AUTO));
 
 static Sys_var_ulonglong Sys_binlog_cache_size(
        "binlog_cache_size", "The size of the transactional cache for "

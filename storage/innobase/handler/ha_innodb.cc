@@ -8717,9 +8717,10 @@ no_commit:
 
 	innobase_srv_conc_enter_innodb(m_prebuilt);
 
-	vers_set_fields = table->versioned() &&
+	vers_set_fields = table->versioned() && (
 		(sql_command != SQLCOM_DELETE ||
-		(m_int_table_flags & HA_INNOPART_DISABLED_TABLE_FLAGS)) ?
+			(m_int_table_flags & HA_INNOPART_DISABLED_TABLE_FLAGS)) &&
+		sql_command != SQLCOM_CREATE_TABLE) ?
 			ROW_INS_VERSIONED :
 			ROW_INS_NORMAL;
 

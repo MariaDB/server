@@ -177,7 +177,13 @@ extern const char *log_output_str;
 extern const char *log_backup_output_str;
 extern char *temporal_current_timestamp;
 extern my_bool vers_force;
-extern my_bool vers_hide;
+enum vers_hide_enum {
+  VERS_HIDE_AUTO= 0,
+  VERS_HIDE_IMPLICIT,
+  VERS_HIDE_FULL,
+  VERS_HIDE_NEVER
+};
+extern ulong vers_hide;
 extern char *mysql_home_ptr, *pidfile_name_ptr;
 extern MYSQL_PLUGIN_IMPORT char glob_hostname[FN_REFLEN];
 extern char mysql_home[FN_REFLEN];

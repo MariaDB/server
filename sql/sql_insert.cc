@@ -4164,6 +4164,12 @@ static TABLE *create_table_from_items(THD *thd,
     alter_info->create_list.push_back(cr_field, thd->mem_root);
   }
 
+  if (create_info->vers_info.check_and_fix_implicit(
+        thd, alter_info, create_info, create_table->table_name))
+  {
+    DBUG_RETURN(NULL);
+  }
+
   DEBUG_SYNC(thd,"create_table_select_before_create");
 
   /* Check if LOCK TABLES + CREATE OR REPLACE of existing normal table*/

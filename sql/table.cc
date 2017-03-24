@@ -2563,8 +2563,8 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     DBUG_PRINT("info", ("Columns with system versioning: [%d, %d]", row_start, row_end));
     versioned= true;
     vers_init();
-    row_start_field = row_start;
-    row_end_field = row_end;
+    row_start_field= row_start;
+    row_end_field= row_end;
     vers_start_field()->flags|= VERS_SYS_START_FLAG;
     vers_end_field()->flags|= VERS_SYS_END_FLAG;
   } // if (system_period == NULL)

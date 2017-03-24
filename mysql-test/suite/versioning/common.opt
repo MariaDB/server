@@ -15,3 +15,4 @@
 --innodb-sys-tables
 --innodb-sys-virtual
 --innodb-vtq
+--vers-hide=implicit

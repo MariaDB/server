@@ -30,7 +30,7 @@ static int forced_versioning_init(void *p __attribute__ ((unused)))
 
   DBUG_ENTER("forced_versioning_init");
   vers_force= true;
-  vers_hide= true;
+  vers_hide= VERS_HIDE_FULL;
   DBUG_RETURN(0);
 }
 
@@ -38,7 +38,7 @@ static int forced_versioning_deinit(void *p __attribute__ ((unused)))
 {
   DBUG_ENTER("forced_versioning_deinit");
   vers_force= false;
-  vers_hide= false;
+  vers_hide= VERS_HIDE_AUTO;
   DBUG_RETURN(0);
 }
 

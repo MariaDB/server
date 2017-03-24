@@ -1498,7 +1498,7 @@ row_insert_for_mysql(
 		if (ins_mode == ROW_INS_HISTORICAL) {
 			set_tuple_col_8(node->row, table->vers_row_end, trx->id, node->entry_sys_heap);
 		}
-		else {
+		else /* ROW_INS_VERSIONED */ {
 			set_tuple_col_8(node->row, table->vers_row_end, IB_UINT64_MAX, node->entry_sys_heap);
 			int8store(&mysql_rec[t->mysql_col_offset], IB_UINT64_MAX);
 			t = &prebuilt->mysql_template[table->vers_row_start];

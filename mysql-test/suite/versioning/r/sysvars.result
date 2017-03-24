@@ -1,0 +1,88 @@
+create table t (a int) with system versioning;
+insert into t values (1);
+update t set a= 2;
+select * from t;
+a
+2
+show variables where variable_name = "temporal_current_timestamp";
+Variable_name	Value
+temporal_current_timestamp	now
+set global temporal_current_timestamp = '2031-1-1 0:0:0';
+select * from t;
+a
+2
+set global temporal_current_timestamp = '2011-1-1 0:0:0';
+select * from t;
+a
+set global temporal_current_timestamp = 'all';
+select * from t;
+a
+2
+1
+show variables where Variable_name like "temporal_current_timestamp%";
+Variable_name	Value
+temporal_current_timestamp	all
+create view vt as select * from t;
+select * from t;
+a
+2
+1
+drop view vt;
+select * from (select * from t) as tt;
+a
+2
+1
+set session temporal_current_timestamp = 'now';
+ERROR HY000: Variable 'temporal_current_timestamp' is a GLOBAL variable and should be set with SET GLOBAL
+set global temporal_current_timestamp = 'now';
+show variables where variable_name = "vers_hide";
+Variable_name	Value
+vers_hide	IMPLICIT
+select * from t for system_time all;
+a
+2
+1
+set global vers_hide= AUTO;
+select * from t;
+a
+2
+select * from t for system_time as of timestamp current_timestamp(6);
+a
+2
+select * from t for system_time all;
+a	sys_trx_start	sys_trx_end
+2	TIMESTAMP	TIMESTAMP
+1	TIMESTAMP	TIMESTAMP
+select * from t for system_time timestamp from '0-0-0' to current_timestamp(6);
+a	sys_trx_start	sys_trx_end
+2	TIMESTAMP	TIMESTAMP
+1	TIMESTAMP	TIMESTAMP
+select * from t for system_time timestamp between '0-0-0' and current_timestamp(6);
+a	sys_trx_start	sys_trx_end
+2	TIMESTAMP	TIMESTAMP
+1	TIMESTAMP	TIMESTAMP
+set global vers_hide= NEVER;
+select * from t;
+a	sys_trx_start	sys_trx_end
+2	TIMESTAMP	TIMESTAMP
+set global vers_hide= FULL;
+create or replace table t (
+x int,
+st timestamp(6) generated always as row start,
+en timestamp(6) generated always as row end,
+period for system_time (st, en))
+with system versioning;
+show create table t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `x` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+insert into t values (1);
+delete from t;
+select * from t;
+x
+select * from t for system_time all;
+x
+1
+drop table t;
+set global vers_hide= IMPLICIT;
