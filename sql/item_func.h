@@ -633,7 +633,7 @@ public:
       Reserve max_length to fit at least one character for one digit,
       plus one character for the sign (if signed).
     */
-    set_if_bigger(char_length, 1 + (unsigned_flag ? 0 : 1));
+    set_if_bigger(char_length, 1U + (unsigned_flag ? 0 : 1));
     fix_char_length(char_length);
   }
   virtual void print(String *str, enum_query_type query_type);
