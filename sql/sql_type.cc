@@ -57,47 +57,40 @@ Type_handler_geometry    type_handler_geometry;
 #endif
 
 
-Type_aggregator type_aggregator_for_result;
-Type_aggregator type_aggregator_for_comparison;
-
-
-class Static_data_initializer
+bool Type_handler_data::init()
 {
-public:
-  static Static_data_initializer m_singleton;
-  Static_data_initializer()
-  {
 #ifdef HAVE_SPATIAL
-    type_aggregator_for_result.add(&type_handler_geometry,
-                                   &type_handler_null,
-                                   &type_handler_geometry);
-    type_aggregator_for_result.add(&type_handler_geometry,
-                                   &type_handler_geometry,
-                                   &type_handler_geometry);
-    type_aggregator_for_result.add(&type_handler_geometry,
-                                   &type_handler_blob,
-                                   &type_handler_long_blob);
-    type_aggregator_for_result.add(&type_handler_geometry,
-                                   &type_handler_varchar,
-                                   &type_handler_long_blob);
-    type_aggregator_for_result.add(&type_handler_geometry,
-                                   &type_handler_string,
-                                   &type_handler_long_blob);
-
-    type_aggregator_for_comparison.add(&type_handler_geometry,
-                                       &type_handler_geometry,
-                                       &type_handler_geometry);
-    type_aggregator_for_comparison.add(&type_handler_geometry,
-                                       &type_handler_null,
-                                       &type_handler_geometry);
-    type_aggregator_for_comparison.add(&type_handler_geometry,
-                                       &type_handler_long_blob,
-                                       &type_handler_long_blob);
+  return
+    m_type_aggregator_for_result.add(&type_handler_geometry,
+                                     &type_handler_null,
+                                     &type_handler_geometry) ||
+    m_type_aggregator_for_result.add(&type_handler_geometry,
+                                     &type_handler_geometry,
+                                     &type_handler_geometry) ||
+    m_type_aggregator_for_result.add(&type_handler_geometry,
+                                     &type_handler_blob,
+                                     &type_handler_long_blob) ||
+    m_type_aggregator_for_result.add(&type_handler_geometry,
+                                     &type_handler_varchar,
+                                     &type_handler_long_blob) ||
+    m_type_aggregator_for_result.add(&type_handler_geometry,
+                                     &type_handler_string,
+                                     &type_handler_long_blob) ||
+    m_type_aggregator_for_comparison.add(&type_handler_geometry,
+                                         &type_handler_geometry,
+                                         &type_handler_geometry) ||
+    m_type_aggregator_for_comparison.add(&type_handler_geometry,
+                                         &type_handler_null,
+                                         &type_handler_geometry) ||
+    m_type_aggregator_for_comparison.add(&type_handler_geometry,
+                                         &type_handler_long_blob,
+                                         &type_handler_long_blob);
 #endif
-  }
-};
+  return false;
+}
 
-Static_data_initializer Static_data_initializer::m_singleton;
+
+Type_handler_data *type_handler_data= NULL;
 
 
 void Type_std_attributes::set(const Field *field)
@@ -293,7 +286,8 @@ Type_handler_hybrid_field_type::aggregate_for_result(const Type_handler *other)
       Type_handler::aggregate_for_result_traditional(m_type_handler, other);
     return false;
   }
-  other= type_aggregator_for_result.find_handler(m_type_handler, other);
+  other= type_handler_data->
+         m_type_aggregator_for_result.find_handler(m_type_handler, other);
   if (!other)
     return true;
   m_type_handler= other;
@@ -407,7 +401,8 @@ Type_handler_hybrid_field_type::aggregate_for_comparison(const Type_handler *h)
   if (!m_type_handler->is_traditional_type() ||
       !h->is_traditional_type())
   {
-    h= type_aggregator_for_comparison.find_handler(m_type_handler, h);
+    h= type_handler_data->
+       m_type_aggregator_for_comparison.find_handler(m_type_handler, h);
     if (!h)
       return true;
     m_type_handler= h;

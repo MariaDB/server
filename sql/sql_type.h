@@ -1522,7 +1522,16 @@ public:
   }
 };
 
-extern Type_aggregator type_aggregator_for_result;
-extern Type_aggregator type_aggregator_for_comparison;
+
+class Type_handler_data
+{
+public:
+  Type_aggregator m_type_aggregator_for_result;
+  Type_aggregator m_type_aggregator_for_comparison;
+  bool init();
+};
+
+
+extern Type_handler_data *type_handler_data;
 
 #endif /* SQL_TYPE_H_INCLUDED */
