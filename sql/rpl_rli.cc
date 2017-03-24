@@ -1690,13 +1690,68 @@ process_gtid_pos_table(THD *thd, LEX_STRING *table_name, void *hton,
     entry= entry->next;
   }
 
-  if (!(p= rpl_global_gtid_slave_state->alloc_gtid_pos_table(table_name, hton)))
+  p= rpl_global_gtid_slave_state->alloc_gtid_pos_table(table_name,
+      hton, rpl_slave_state::GTID_POS_AVAILABLE);
+  if (!p)
     return 1;
   p->next= data->table_list;
   data->table_list= p;
   if (is_default)
     data->default_entry= p;
   return 0;
+}
+
+
+/*
+  Put tables corresponding to @@gtid_pos_auto_engines at the end of the list,
+  marked to be auto-created if needed.
+*/
+static int
+gtid_pos_auto_create_tables(rpl_slave_state::gtid_pos_table **list_ptr)
+{
+  plugin_ref *auto_engines;
+  int err= 0;
+  mysql_mutex_lock(&LOCK_global_system_variables);
+  for (auto_engines= opt_gtid_pos_auto_plugins;
+       !err && auto_engines && *auto_engines;
+       ++auto_engines)
+  {
+    void *hton= plugin_hton(*auto_engines);
+    char buf[FN_REFLEN+1];
+    LEX_STRING table_name;
+    char *p;
+    rpl_slave_state::gtid_pos_table *entry, **next_ptr;
+
+    /* See if this engine is already in the list. */
+    next_ptr= list_ptr;
+    entry= *list_ptr;
+    while (entry)
+    {
+      if (entry->table_hton == hton)
+        break;
+      next_ptr= &entry->next;
+      entry= entry->next;
+    }
+    if (entry)
+      continue;
+
+    /* Add an auto-create entry for this engine at end of list. */
+    p= strmake(buf, rpl_gtid_slave_state_table_name.str, FN_REFLEN);
+    p= strmake(p, "_", FN_REFLEN - (p - buf));
+    p= strmake(p, plugin_name(*auto_engines)->str, FN_REFLEN - (p - buf));
+    table_name.str= buf;
+    table_name.length= p - buf;
+    entry= rpl_global_gtid_slave_state->alloc_gtid_pos_table
+      (&table_name, hton, rpl_slave_state::GTID_POS_AUTO_CREATE);
+    if (!entry)
+    {
+      err= 1;
+      break;
+    }
+    *next_ptr= entry;
+  }
+  mysql_mutex_unlock(&LOCK_global_system_variables);
+  return err;
 }
 
 
@@ -1746,6 +1801,18 @@ rpl_load_gtid_slave_state(THD *thd)
   if ((err= scan_all_gtid_slave_pos_table(thd, load_gtid_state_cb, &cb_data)))
     goto end;
 
+  if (!cb_data.default_entry)
+  {
+    /*
+      If the mysql.gtid_slave_pos table does not exist, but at least one other
+      table is available, arbitrarily pick the first in the list to use as
+      default.
+    */
+    cb_data.default_entry= cb_data.table_list;
+  }
+  if ((err= gtid_pos_auto_create_tables(&cb_data.table_list)))
+    goto end;
+
   mysql_mutex_lock(&rpl_global_gtid_slave_state->LOCK_slave_state);
   if (rpl_global_gtid_slave_state->loaded)
   {
@@ -1757,17 +1824,9 @@ rpl_load_gtid_slave_state(THD *thd)
   {
     my_error(ER_NO_SUCH_TABLE, MYF(0), "mysql",
              rpl_gtid_slave_state_table_name.str);
+    mysql_mutex_unlock(&rpl_global_gtid_slave_state->LOCK_slave_state);
     err= 1;
     goto end;
-  }
-  else if (!cb_data.default_entry)
-  {
-    /*
-      If the mysql.gtid_slave_pos table does not exist, but at least one other
-      table is available, arbitrarily pick the first in the list to use as
-      default.
-    */
-    cb_data.default_entry= cb_data.table_list;
   }
 
   for (i= 0; i < array.elements; ++i)
@@ -1878,7 +1937,7 @@ find_gtid_slave_pos_tables(THD *thd)
     err= 1;
     goto end;
   }
-  else if (!cb_data.default_entry)
+  if (!cb_data.default_entry)
   {
     /*
       If the mysql.gtid_slave_pos table does not exist, but at least one other
@@ -1887,6 +1946,8 @@ find_gtid_slave_pos_tables(THD *thd)
     */
     cb_data.default_entry= cb_data.table_list;
   }
+  if ((err= gtid_pos_auto_create_tables(&cb_data.table_list)))
+    goto end;
 
   any_running= any_slave_sql_running();
   mysql_mutex_lock(&rpl_global_gtid_slave_state->LOCK_slave_state);

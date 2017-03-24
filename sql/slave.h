@@ -48,6 +48,7 @@
 #include "my_list.h"
 #include "rpl_filter.h"
 #include "rpl_tblmap.h"
+#include "rpl_gtid.h"
 
 #define SLAVE_NET_TIMEOUT  60
 
@@ -268,6 +269,8 @@ void slave_output_error_info(rpl_group_info *rgi, THD *thd);
 pthread_handler_t handle_slave_sql(void *arg);
 bool net_request_file(NET* net, const char* fname);
 void slave_background_kill_request(THD *to_kill);
+void slave_background_gtid_pos_create_request
+        (rpl_slave_state::gtid_pos_table *table_entry);
 
 extern bool volatile abort_loop;
 extern Master_info *active_mi; /* active_mi for multi-master */

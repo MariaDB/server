@@ -26,6 +26,7 @@
 #include "key.h"
 #include "rpl_gtid.h"
 #include "rpl_rli.h"
+#include "slave.h"
 
 
 const LEX_STRING rpl_gtid_slave_state_table_name=
@@ -494,8 +495,20 @@ rpl_slave_state::select_gtid_pos_table(THD *thd, LEX_STRING *out_tablename)
     {
       if (table_entry->table_hton == trx_hton)
       {
-        *out_tablename= table_entry->table_name;
-        return;
+        if (likely(table_entry->state == GTID_POS_AVAILABLE))
+        {
+          *out_tablename= table_entry->table_name;
+          return;
+        }
+        /*
+          This engine is marked to automatically create the table.
+          We cannot easily do this here (possibly in the middle of a
+          transaction). But we can request the slave background thread
+          to create it, and in a short while it should become available
+          for following transactions.
+        */
+        slave_background_gtid_pos_create_request(table_entry);
+        break;
       }
       table_entry= table_entry->next;
     }
@@ -1240,7 +1253,8 @@ rpl_slave_state::add_gtid_pos_table(rpl_slave_state::gtid_pos_table *entry)
 
 
 struct rpl_slave_state::gtid_pos_table *
-rpl_slave_state::alloc_gtid_pos_table(LEX_STRING *table_name, void *hton)
+rpl_slave_state::alloc_gtid_pos_table(LEX_STRING *table_name, void *hton,
+                                      rpl_slave_state::gtid_pos_table_state state)
 {
   struct gtid_pos_table *p;
   char *allocated_str;
@@ -1258,6 +1272,7 @@ rpl_slave_state::alloc_gtid_pos_table(LEX_STRING *table_name, void *hton)
   p->table_hton= hton;
   p->table_name.str= allocated_str;
   p->table_name.length= table_name->length;
+  p->state= state;
   return p;
 }
 

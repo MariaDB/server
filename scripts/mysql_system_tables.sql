@@ -224,6 +224,8 @@ CREATE TABLE IF NOT EXISTS column_stats (db_name varchar(64) NOT NULL, table_nam
 
 CREATE TABLE IF NOT EXISTS index_stats (db_name varchar(64) NOT NULL, table_name varchar(64) NOT NULL, index_name varchar(64) NOT NULL, prefix_arity int(11) unsigned NOT NULL, avg_frequency decimal(12,4) DEFAULT NULL, PRIMARY KEY (db_name,table_name,index_name,prefix_arity) ) ENGINE=MyISAM CHARACTER SET utf8 COLLATE utf8_bin comment='Statistics on Indexes';
 
+-- Note: This definition must be kept in sync with the one used in
+-- build_gtid_pos_create_query() in sql/slave.cc
 SET @cmd= "CREATE TABLE IF NOT EXISTS gtid_slave_pos (
   domain_id INT UNSIGNED NOT NULL,
   sub_id BIGINT UNSIGNED NOT NULL,

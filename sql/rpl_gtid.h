@@ -157,6 +157,12 @@ struct rpl_slave_state
   };
 
   /* Descriptor for mysql.gtid_slave_posXXX table in specific engine. */
+  enum gtid_pos_table_state {
+    GTID_POS_AUTO_CREATE,
+    GTID_POS_CREATE_REQUESTED,
+    GTID_POS_CREATE_IN_PROGRESS,
+    GTID_POS_AVAILABLE
+  };
   struct gtid_pos_table {
     struct gtid_pos_table *next;
     /*
@@ -167,6 +173,7 @@ struct rpl_slave_state
     */
     void *table_hton;
     LEX_STRING table_name;
+    uint8 state;
   };
 
   /* Mapping from domain_id to its element. */
@@ -232,7 +239,8 @@ struct rpl_slave_state
   void set_gtid_pos_tables_list(gtid_pos_table *new_list,
                                 gtid_pos_table *default_entry);
   void add_gtid_pos_table(gtid_pos_table *entry);
-  struct gtid_pos_table *alloc_gtid_pos_table(LEX_STRING *table_name, void *hton);
+  struct gtid_pos_table *alloc_gtid_pos_table(LEX_STRING *table_name,
+      void *hton, rpl_slave_state::gtid_pos_table_state state);
   void free_gtid_pos_tables(struct gtid_pos_table *list);
 };
 
