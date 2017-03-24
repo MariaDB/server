@@ -9,8 +9,8 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `XNo` int(10) unsigned DEFAULT NULL,
-  `Sys_start` timestamp(6) NOT NULL GENERATED ALWAYS AS ROW START,
-  `Sys_end` timestamp(6) NOT NULL GENERATED ALWAYS AS ROW END,
+  `Sys_start` timestamp(6) GENERATED ALWAYS AS ROW START,
+  `Sys_end` timestamp(6) GENERATED ALWAYS AS ROW END,
   PERIOD FOR SYSTEM_TIME (`Sys_start`, `Sys_end`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
 # Implicit fields test

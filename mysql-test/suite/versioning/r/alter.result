@@ -53,8 +53,8 @@ show create table t;
 Table	Create Table
 t	CREATE TABLE `t` (
   `a` int(11) DEFAULT NULL,
-  `trx_start` timestamp(6) NOT NULL GENERATED ALWAYS AS ROW START,
-  `trx_end` timestamp(6) NOT NULL GENERATED ALWAYS AS ROW END,
+  `trx_start` timestamp(6) GENERATED ALWAYS AS ROW START,
+  `trx_end` timestamp(6) GENERATED ALWAYS AS ROW END,
   PERIOD FOR SYSTEM_TIME (`trx_start`, `trx_end`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
 alter table t without system versioning;

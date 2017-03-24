@@ -10630,6 +10630,8 @@ Column_definition::Column_definition(THD *thd, Field *old_field,
   check_constraint= orig_field ? orig_field->check_constraint : 0;
   option_list= old_field->option_list;
   pack_flag= 0;
+  versioning= VERSIONING_NOT_SET;
+  implicit_not_null= false;
 
   switch (sql_type) {
   case MYSQL_TYPE_BLOB:

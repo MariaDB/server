@@ -3871,6 +3871,7 @@ public:
     *check_constraint;               // Check constraint
 
   enum_column_versioning versioning;
+  bool implicit_not_null;
 
   Column_definition():
     comment(null_lex_str),
@@ -3880,7 +3881,8 @@ public:
     srid(0), geom_type(Field::GEOM_GEOMETRY),
     option_list(NULL), pack_flag(0),
     vcol_info(0), default_value(0), check_constraint(0),
-    versioning(VERSIONING_NOT_SET)
+    versioning(VERSIONING_NOT_SET),
+    implicit_not_null(false)
   {
     interval_list.empty();
   }
