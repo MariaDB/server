@@ -151,14 +151,11 @@ ADD_LIBRARY(rocksdb_tools STATIC
 MYSQL_ADD_EXECUTABLE(sst_dump rocksdb/tools/sst_dump.cc)
 TARGET_LINK_LIBRARIES(sst_dump rocksdblib)
 
-MYSQL_ADD_EXECUTABLE(ldb rocksdb/tools/ldb.cc)
-TARGET_LINK_LIBRARIES(ldb rocksdb_tools rocksdblib)
-
 MYSQL_ADD_EXECUTABLE(mysql_ldb tools/mysql_ldb.cc)
 TARGET_LINK_LIBRARIES(mysql_ldb rocksdb_tools rocksdb_aux_lib)
 
 IF(CMAKE_CXX_COMPILER_ID MATCHES "GNU" OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-  SET_TARGET_PROPERTIES(rocksdb_tools sst_dump ldb mysql_ldb PROPERTIES COMPILE_FLAGS -frtti)
+  SET_TARGET_PROPERTIES(rocksdb_tools sst_dump mysql_ldb PROPERTIES COMPILE_FLAGS -frtti)
 ENDIF()
 IF(MSVC)
   # RocksDB, the storage engine, overdoes "const" by adding
