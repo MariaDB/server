@@ -34,6 +34,9 @@ IF(NOT CMAKE_VERSION VERSION_LESS "3.7.0" AND
   (CMAKE_BUILD_TYPE MATCHES "Debug" OR
    CMAKE_BUILD_TYPE MATCHES "RelWithDebInfo")
   )
+  IF(CMAKE_VERSION VERSION_LESS "3.8.0")
+    MESSAGE("Warning: due to CMake bugs, debug packages won't contain sources - fixed in 3.8.0+")
+  ENDIF()
   CMAKE_POLICY(SET CMP0057 NEW)
   # Common and Development packages have no ELFs with symbols
   # so there is no need for a DEBUGINFO package for them.
