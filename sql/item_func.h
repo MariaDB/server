@@ -2769,6 +2769,48 @@ public:
 };
 
 
+/* Implementation for sequences: NEXT VALUE FOR sequence and NEXTVAL() */
+
+class Item_func_nextval :public Item_int_func
+{
+protected:
+  TABLE_LIST *table_list;
+public:
+  Item_func_nextval(THD *thd, TABLE_LIST *table):
+  Item_int_func(thd), table_list(table) {}
+  longlong val_int();
+  const char *func_name() const { return "nextval"; }
+  void fix_length_and_dec()
+  {
+    unsigned_flag= 0;
+    max_length= MAX_BIGINT_WIDTH;
+    maybe_null= 1;                              /* In case of errors */
+  }
+  bool const_item() const { return 0; }
+  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
+  { return get_item_copy<Item_func_nextval>(thd, mem_root, this); }
+  void print(String *str, enum_query_type query_type);
+  bool check_vcol_func_processor(void *arg)
+  {
+    return mark_unsupported_function(func_name(), "()", arg,
+                                     VCOL_NON_DETERMINISTIC);
+  }
+};
+
+/* Implementation for sequences: LASTVAL(sequence), PostgreSQL style */
+
+class Item_func_lastval :public Item_func_nextval
+{
+public:
+  Item_func_lastval(THD *thd, TABLE_LIST *table):
+  Item_func_nextval(thd, table) {}
+  longlong val_int();
+  const char *func_name() const { return "lastval"; }
+  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
+  { return get_item_copy<Item_func_lastval>(thd, mem_root, this); }
+};
+
+
 Item *get_system_var(THD *thd, enum_var_type var_type, LEX_STRING name,
                      LEX_STRING component);
 extern bool check_reserved_words(LEX_STRING *name);

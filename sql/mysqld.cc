@@ -919,7 +919,8 @@ PSI_mutex_key key_BINLOG_LOCK_index, key_BINLOG_LOCK_xid_list,
   key_PARTITION_LOCK_auto_inc;
 PSI_mutex_key key_RELAYLOG_LOCK_index;
 PSI_mutex_key key_LOCK_slave_state, key_LOCK_binlog_state,
-  key_LOCK_rpl_thread, key_LOCK_rpl_thread_pool, key_LOCK_parallel_entry;
+  key_LOCK_rpl_thread, key_LOCK_rpl_thread_pool, key_LOCK_parallel_entry,
+  key_LOCK_SEQUENCE;
 
 PSI_mutex_key key_LOCK_stats,
   key_LOCK_global_user_client_stats, key_LOCK_global_table_stats,
@@ -1004,6 +1005,7 @@ static PSI_mutex_info all_server_mutexes[]=
   { &key_LOCK_slave_state, "LOCK_slave_state", 0},
   { &key_LOCK_start_thread, "LOCK_start_thread", PSI_FLAG_GLOBAL},
   { &key_LOCK_binlog_state, "LOCK_binlog_state", 0},
+  { &key_LOCK_SEQUENCE, "SQUENCE::LOCK_SEQUENCE", 0},
   { &key_LOCK_rpl_thread, "LOCK_rpl_thread", 0},
   { &key_LOCK_rpl_thread_pool, "LOCK_rpl_thread_pool", 0},
   { &key_LOCK_parallel_entry, "LOCK_parallel_entry", 0}
@@ -3784,6 +3786,7 @@ SHOW_VAR com_status_vars[]= {
   {"create_index",         STMT_STATUS(SQLCOM_CREATE_INDEX)},
   {"create_procedure",     STMT_STATUS(SQLCOM_CREATE_PROCEDURE)},
   {"create_role",          STMT_STATUS(SQLCOM_CREATE_ROLE)},
+  {"create_sequence",      STMT_STATUS(SQLCOM_CREATE_SEQUENCE)},
   {"create_server",        STMT_STATUS(SQLCOM_CREATE_SERVER)},
   {"create_table",         STMT_STATUS(SQLCOM_CREATE_TABLE)},
   {"create_temporary_table", COM_STATUS(com_create_tmp_table)},
@@ -3802,6 +3805,7 @@ SHOW_VAR com_status_vars[]= {
   {"drop_procedure",       STMT_STATUS(SQLCOM_DROP_PROCEDURE)},
   {"drop_role",            STMT_STATUS(SQLCOM_DROP_ROLE)},
   {"drop_server",          STMT_STATUS(SQLCOM_DROP_SERVER)},
+  {"drop_sequence",        STMT_STATUS(SQLCOM_DROP_SEQUENCE)},
   {"drop_table",           STMT_STATUS(SQLCOM_DROP_TABLE)},
   {"drop_temporary_table", COM_STATUS(com_drop_tmp_table)},
   {"drop_trigger",         STMT_STATUS(SQLCOM_DROP_TRIGGER)},

@@ -234,12 +234,14 @@ sp_get_flags_for_command(LEX *lex)
     flags= sp_head::CONTAINS_DYNAMIC_SQL;
     break;
   case SQLCOM_CREATE_TABLE:
+  case SQLCOM_CREATE_SEQUENCE:
     if (lex->tmp_table())
       flags= 0;
     else
       flags= sp_head::HAS_COMMIT_OR_ROLLBACK;
     break;
   case SQLCOM_DROP_TABLE:
+  case SQLCOM_DROP_SEQUENCE:
     if (lex->tmp_table())
       flags= 0;
     else
@@ -4407,7 +4409,8 @@ sp_head::merge_table_list(THD *thd, TABLE_LIST *table, LEX *lex_for_tmp_check)
 {
   SP_TABLE *tab;
 
-  if (lex_for_tmp_check->sql_command == SQLCOM_DROP_TABLE &&
+  if ((lex_for_tmp_check->sql_command == SQLCOM_DROP_TABLE ||
+      lex_for_tmp_check->sql_command == SQLCOM_DROP_SEQUENCE) &&
       lex_for_tmp_check->tmp_table())
     return TRUE;
 
@@ -4471,7 +4474,8 @@ sp_head::merge_table_list(THD *thd, TABLE_LIST *table, LEX *lex_for_tmp_check)
       {
         if (!(tab= (SP_TABLE *)thd->calloc(sizeof(SP_TABLE))))
           return FALSE;
-        if (lex_for_tmp_check->sql_command == SQLCOM_CREATE_TABLE &&
+        if ((lex_for_tmp_check->sql_command == SQLCOM_CREATE_TABLE ||
+             lex_for_tmp_check->sql_command == SQLCOM_CREATE_SEQUENCE) &&
             lex_for_tmp_check->query_tables == table &&
             lex_for_tmp_check->tmp_table())
         {

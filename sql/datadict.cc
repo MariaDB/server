@@ -18,6 +18,7 @@
 #include "sql_priv.h"
 #include "sql_class.h"
 #include "sql_table.h"
+#include "ha_sequence.h"
 
 static int read_string(File file, uchar**to, size_t length)
 {
@@ -46,33 +47,40 @@ static int read_string(File file, uchar**to, size_t length)
   engine_name is a LEX_STRING, where engine_name->str must point to
   a buffer of at least NAME_CHAR_LEN+1 bytes.
 
-  @retval  FRMTYPE_ERROR        error
-  @retval  FRMTYPE_TABLE        table
-  @retval  FRMTYPE_VIEW         view
+  @param[out] is_sequence  1 if table is a SEQUENCE, 0 otherwise
+
+  @retval  TABLE_TYPE_UNKNOWN   error
+  @retval  TABLE_TYPE_TABLE     table
+  @retval  TABLE_TYPE_SEQUENCE  sequence table
+  @retval  TABLE_TYPE_VIEW      view
 */
 
-frm_type_enum dd_frm_type(THD *thd, char *path, LEX_STRING *engine_name)
+Table_type dd_frm_type(THD *thd, char *path, LEX_STRING *engine_name,
+                       bool *is_sequence)
 {
   File file;
-  uchar header[10];     //"TYPE=VIEW\n" it is 10 characters
+  uchar header[40];     //"TYPE=VIEW\n" it is 10 characters
   size_t error;
-  frm_type_enum type= FRMTYPE_ERROR;
+  Table_type type= TABLE_TYPE_UNKNOWN;
   uchar dbt;
   DBUG_ENTER("dd_frm_type");
 
-  if ((file= mysql_file_open(key_file_frm, path, O_RDONLY | O_SHARE, MYF(0))) < 0)
-    DBUG_RETURN(FRMTYPE_ERROR);
+  *is_sequence= 0;
+
+  if ((file= mysql_file_open(key_file_frm, path, O_RDONLY | O_SHARE, MYF(0)))
+      < 0)
+    DBUG_RETURN(TABLE_TYPE_UNKNOWN);
   error= mysql_file_read(file, (uchar*) header, sizeof(header), MYF(MY_NABP));
 
   if (error)
     goto err;
-  if (!strncmp((char*) header, "TYPE=VIEW\n", sizeof(header)))
+  if (!strncmp((char*) header, "TYPE=VIEW\n", 10))
   {
-    type= FRMTYPE_VIEW;
+    type= TABLE_TYPE_VIEW;
     goto err;
   }
 
-  type= FRMTYPE_TABLE;
+  type= TABLE_TYPE_NORMAL;
 
   if (!is_binary_frm_header(header) || !engine_name)
     goto err;
@@ -90,6 +98,9 @@ frm_type_enum dd_frm_type(THD *thd, char *path, LEX_STRING *engine_name)
       goto err;
     }
   }
+
+  if (((header[39] >> 4) & 3) == HA_CHOICE_YES)
+    *is_sequence= 1;
 
   /* read the true engine name */
   {

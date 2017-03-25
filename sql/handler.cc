@@ -41,6 +41,7 @@
 #include <mysql/psi/mysql_table.h>
 #include "debug_sync.h"         // DEBUG_SYNC
 #include "sql_audit.h"
+#include "ha_sequence.h"
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
 #include "ha_partition.h"
@@ -290,7 +291,6 @@ handler *get_ha_partition(partition_info *part_info)
   DBUG_RETURN(((handler*) partition));
 }
 #endif
-
 
 static const char **handler_errmsgs;
 
@@ -618,7 +618,7 @@ int ha_initialize_handlerton(st_plugin_int *plugin)
   /* 
     This is entirely for legacy. We will create a new "disk based" hton and a 
     "memory" hton which will be configurable longterm. We should be able to 
-    remove partition and myisammrg.
+    remove partition.
   */
   switch (hton->db_type) {
   case DB_TYPE_HEAP:
@@ -629,6 +629,9 @@ int ha_initialize_handlerton(st_plugin_int *plugin)
     break;
   case DB_TYPE_PARTITION_DB:
     partition_hton= hton;
+    break;
+  case DB_TYPE_SEQUENCE:
+    sql_sequence_hton= hton;
     break;
   default:
     break;
@@ -2426,6 +2429,11 @@ err:
   return NULL;
 }
 
+LEX_STRING *handler::engine_name()
+{
+  return hton_name(ht);
+}
+
 
 double handler::keyread_time(uint index, uint ranges, ha_rows rows)
 {
@@ -2549,6 +2557,7 @@ int handler::ha_open(TABLE *table_arg, const char *name, int mode,
   }
   reset_statistics();
   internal_tmp_table= MY_TEST(test_if_locked & HA_OPEN_INTERNAL_TABLE);
+
   DBUG_RETURN(error);
 }
 
@@ -2797,10 +2806,11 @@ int handler::ha_rnd_init_with_error(bool scan)
 
 
 /**
-  Read first row (only) from a table.
+  Read first row (only) from a table. Used for reading tables with
+  only one row, either based on table statistics or if table is a SEQUENCE.
 
-  This is never called for InnoDB tables, as these table types
-  has the HA_STATS_RECORDS_IS_EXACT set.
+  This is never called for normal InnoDB tables, as these table types
+  does not have HA_STATS_RECORDS_IS_EXACT set.
 */
 int handler::read_first_row(uchar * buf, uint primary_key)
 {
@@ -3992,7 +4002,7 @@ void handler::mark_trx_read_write_internal()
   */
   if (ha_info->is_started())
   {
-    DBUG_ASSERT(has_transactions());
+    DBUG_ASSERT(has_transaction_manager());
     /*
       table_share can be NULL in ha_delete_table(). See implementation
       of standalone function ha_delete_table() in sql_base.cc.
@@ -5033,22 +5043,28 @@ private:
         loaded, frm is invalid), the return value will be true, but
         *hton will be NULL.
 */
+
 bool ha_table_exists(THD *thd, const char *db, const char *table_name,
-                     handlerton **hton)
+                     handlerton **hton, bool *is_sequence)
 {
   handlerton *dummy;
+  bool dummy2;
   DBUG_ENTER("ha_table_exists");
 
   if (hton)
     *hton= 0;
   else if (engines_with_discover)
     hton= &dummy;
+  if (!is_sequence)
+    is_sequence= &dummy2;
+  *is_sequence= 0;
 
   TDC_element *element= tdc_lock_share(thd, db, table_name);
   if (element && element != MY_ERRPTR)
   {
     if (hton)
       *hton= element->share->db_type();
+    *is_sequence= element->share->table_type == TABLE_TYPE_SEQUENCE;
     tdc_unlock_share(element);
     DBUG_RETURN(TRUE);
   }
@@ -5066,7 +5082,7 @@ bool ha_table_exists(THD *thd, const char *db, const char *table_name,
       char engine_buf[NAME_CHAR_LEN + 1];
       LEX_STRING engine= { engine_buf, 0 };
 
-      if (dd_frm_type(thd, path, &engine) != FRMTYPE_VIEW)
+      if (dd_frm_type(thd, path, &engine, is_sequence) != TABLE_TYPE_VIEW)
       {
         plugin_ref p=  plugin_lock_by_name(thd, &engine,  MYSQL_STORAGE_ENGINE_PLUGIN);
         *hton= p ? plugin_hton(p) : NULL;
@@ -5088,7 +5104,6 @@ bool ha_table_exists(THD *thd, const char *db, const char *table_name,
       *hton= args.hton;
     DBUG_RETURN(TRUE);
   }
-
 
   if (need_full_discover_for_existence)
   {
@@ -5778,8 +5793,6 @@ static int write_locked_table_maps(THD *thd)
 }
 
 
-typedef bool Log_func(THD*, TABLE*, bool, const uchar*, const uchar*);
-
 static int check_wsrep_max_ws_rows();
 
 static int binlog_log_row_internal(TABLE* table,
@@ -5820,10 +5833,10 @@ static int binlog_log_row_internal(TABLE* table,
   return error ? HA_ERR_RBR_LOGGING_FAILED : 0;
 }
 
-static inline int binlog_log_row(TABLE* table,
-                                 const uchar *before_record,
-                                 const uchar *after_record,
-                                 Log_func *log_func)
+int binlog_log_row(TABLE* table,
+                   const uchar *before_record,
+                   const uchar *after_record,
+                   Log_func *log_func)
 {
   if (!table->file->check_table_binlog_row_based(1))
     return 0;
@@ -5975,7 +5988,7 @@ int handler::ha_write_row(uchar *buf)
                       { error= write_row(buf); })
 
   MYSQL_INSERT_ROW_DONE(error);
-  if (likely(!error))
+  if (likely(!error) && !row_already_logged)
   {
     rows_changed++;
     error= binlog_log_row(table, 0, buf, log_func);
@@ -6007,13 +6020,35 @@ int handler::ha_update_row(const uchar *old_data, uchar *new_data)
                       { error= update_row(old_data, new_data);})
 
   MYSQL_UPDATE_ROW_DONE(error);
-  if (likely(!error))
+  if (likely(!error) && !row_already_logged)
   {
     rows_changed++;
     error= binlog_log_row(table, old_data, new_data, log_func);
   }
   return error;
 }
+
+/*
+  Update first row. Only used by sequence tables
+*/
+
+int handler::update_first_row(uchar *new_data)
+{
+  int error;
+  if (!(error= ha_rnd_init(1)))
+  {
+    int end_error;
+    if (!(error= ha_rnd_next(table->record[1])))
+      error= update_row(table->record[1], new_data);
+    end_error= ha_rnd_end();
+    if (!error)
+      error= end_error;
+    /* Logging would be wrong if update_row works but ha_rnd_end fails */
+    DBUG_ASSERT(!end_error || error != 0);
+  }
+  return error;
+}
+
 
 int handler::ha_delete_row(const uchar *buf)
 {

@@ -2834,15 +2834,15 @@ bool Rdb_validate_tbls::check_frm_file(const std::string &fullpath,
   */
   char eng_type_buf[NAME_CHAR_LEN+1];
   LEX_STRING eng_type_str = {eng_type_buf, 0}; 
-  //enum legacy_db_type eng_type;
-  frm_type_enum type = dd_frm_type(nullptr, fullfilename.c_ptr(), &eng_type_str);
-  if (type == FRMTYPE_ERROR) {
+  bool is_sequence;
+  enum Table_type type = dd_frm_type(nullptr, fullfilename.c_ptr(), &eng_type_str, &is_sequence);
+  if (type == TABLE_TYPE_UNKNOWN) {
     sql_print_warning("RocksDB: Failed to open/read .from file: %s",
                       fullfilename.ptr());
     return false;
   }
 
-  if (type == FRMTYPE_TABLE) {
+  if (type == TABLE_TYPE_NORMAL) {
     /* For a RocksDB table do we have a reference in the data dictionary? */
     if (!strncmp(eng_type_str.str, "ROCKSDB", eng_type_str.length)) {
       /*

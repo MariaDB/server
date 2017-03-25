@@ -196,7 +196,7 @@ int mysql_create_table_no_lock(THD *thd, const char *db,
                                const char *table_name,
                                Table_specification_st *create_info,
                                Alter_info *alter_info, bool *is_trans,
-                               int create_table_mode);
+                               int create_table_mode, TABLE_LIST *table);
 
 handler *mysql_create_frm_image(THD *thd,
                                 const char *db, const char *table_name,
@@ -239,10 +239,11 @@ bool mysql_restore_table(THD* thd, TABLE_LIST* table_list);
 
 bool mysql_checksum_table(THD* thd, TABLE_LIST* table_list,
                           HA_CHECK_OPT* check_opt);
-bool mysql_rm_table(THD *thd,TABLE_LIST *tables, my_bool if_exists,
-                    my_bool drop_temporary);
+bool mysql_rm_table(THD *thd,TABLE_LIST *tables, bool if_exists,
+                    bool drop_temporary, bool drop_sequence);
 int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
                             bool drop_temporary, bool drop_view,
+                            bool drop_sequence,
                             bool log_query, bool dont_free_locks);
 bool log_drop_table(THD *thd, const char *db_name, size_t db_name_length,
                     const char *table_name, size_t table_name_length,

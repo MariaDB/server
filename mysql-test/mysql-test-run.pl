@@ -194,6 +194,7 @@ my @DEFAULT_SUITES= qw(
     roles-
     rpl-
     sys_vars-
+    sql_sequence-
     unit-
     vcol-
     wsrep-

@@ -1781,7 +1781,8 @@ bool wsrep_grant_mdl_exception(MDL_context *requestor_ctx,
       /* Print some debug information. */
       if (wsrep_debug)
       {
-        if (request_thd->lex->sql_command == SQLCOM_DROP_TABLE)
+        if (request_thd->lex->sql_command == SQLCOM_DROP_TABLE ||
+            request_thd->lex->sql_command == SQLCOM_DROP_SEQUENCE)
         {
           WSREP_DEBUG("DROP caused BF abort");
         }

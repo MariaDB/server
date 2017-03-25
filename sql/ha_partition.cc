@@ -77,7 +77,9 @@
                                         HA_DUPLICATE_POS | \
                                         HA_CAN_SQL_HANDLER | \
                                         HA_CAN_INSERT_DELAYED | \
-                                        HA_READ_BEFORE_WRITE_REMOVAL)
+                                        HA_READ_BEFORE_WRITE_REMOVAL |\
+                                        HA_CAN_TABLES_WITHOUT_ROLLBACK)
+
 static const char *ha_par_ext= ".par";
 
 /****************************************************************************

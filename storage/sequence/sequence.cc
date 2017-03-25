@@ -29,7 +29,7 @@
 #include <table.h>
 #include <field.h>
 
-handlerton *sequence_hton;
+static handlerton *sequence_hton;
 
 class Sequence_share : public Handler_share {
 public:

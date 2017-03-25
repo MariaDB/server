@@ -95,7 +95,8 @@ void wsrep_register_hton(THD* thd, bool all)
          * replicated unless we declare wsrep hton as read/write here
 	 */
         if (i->is_trx_read_write() ||
-            (thd->lex->sql_command == SQLCOM_CREATE_TABLE &&
+            ((thd->lex->sql_command == SQLCOM_CREATE_TABLE ||
+              thd->lex->sql_command == SQLCOM_CREATE_SEQUENCE) &&
              thd->wsrep_exec_mode == LOCAL_STATE))
         {
           thd->ha_data[wsrep_hton->slot].ha_info[all].set_trx_read_write();

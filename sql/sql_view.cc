@@ -683,8 +683,14 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
     buff.append(views->source.str, views->source.length);
 
     int errcode= query_error_code(thd, TRUE);
+    /*
+      Don't log any unsafe warnings for CREATE VIEW as it's safely replicated
+      with statement based replication
+    */
+    thd->reset_unsafe_warnings();
     if (thd->binlog_query(THD::STMT_QUERY_TYPE,
-                          buff.ptr(), buff.length(), FALSE, FALSE, FALSE, errcode))
+                          buff.ptr(), buff.length(), FALSE, FALSE, FALSE,
+                          errcode))
       res= TRUE;
   }
 
@@ -1015,7 +1021,7 @@ loop_out:
     fn_format(path_buff, file.str, dir.str, "", MY_UNPACK_FILENAME);
     path.length= strlen(path_buff);
 
-    if (ha_table_exists(thd, view->db, view->table_name, NULL))
+    if (ha_table_exists(thd, view->db, view->table_name))
     {
       if (lex->create_info.if_not_exists())
       {
@@ -1153,7 +1159,7 @@ bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *table,
   DBUG_ENTER("mysql_make_view");
   DBUG_PRINT("info", ("table: 0x%lx (%s)", (ulong) table, table->table_name));
 
-  if (table->required_type == FRMTYPE_TABLE)
+  if (table->required_type == TABLE_TYPE_NORMAL)
   {
     my_error(ER_WRONG_OBJECT, MYF(0), share->db.str, share->table_name.str,
              "BASE TABLE");
@@ -1541,7 +1547,9 @@ bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *table,
       */
       for (tbl= view_main_select_tables; tbl; tbl= tbl->next_local)
       {
-        tbl->lock_type= table->lock_type;
+        /* We have to keep the lock type for sequence tables */
+        if (!tbl->sequence)
+          tbl->lock_type= table->lock_type;
         tbl->mdl_request.set_type((tbl->lock_type >= TL_WRITE_ALLOW_WRITE) ?
                                   MDL_SHARED_WRITE : MDL_SHARED_READ);
       }

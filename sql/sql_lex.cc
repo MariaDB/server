@@ -750,7 +750,7 @@ void LEX::start(THD *thd_arg)
   in_sum_func= NULL;
 
   used_tables= 0;
-  only_view= FALSE;
+  table_type= TABLE_TYPE_UNKNOWN;
   reset_slave_info.all= false;
   limit_rows_examined= 0;
   limit_rows_examined_cnt= ULONGLONG_MAX;
@@ -3379,6 +3379,7 @@ void LEX::set_trg_event_type_for_tables()
     REPLACE SELECT is handled later in this method.
   */
   case SQLCOM_CREATE_TABLE:
+  case SQLCOM_CREATE_SEQUENCE:
     new_trg_event_map|= static_cast<uint8>
                           (1 << static_cast<int>(TRG_EVENT_INSERT));
     break;
@@ -6394,6 +6395,39 @@ Item *LEX::create_item_ident(THD *thd,
   sp_variable *spv;
   if (spcont && (spv= spcont->find_variable(a, false)))
     return create_item_spvar_row_field(thd, a, b, spv, pos_in_q, length_in_q);
+
+  if ((thd->variables.sql_mode & MODE_ORACLE) && b.length == 7)
+  {
+    if (!my_strnncoll(system_charset_info,
+                      (const uchar *) b.str, 7,
+                      (const uchar *) "NEXTVAL", 7))
+    {
+      TABLE_LIST *table;
+      Table_ident *table_ident;
+      if (!(table_ident= new (thd->mem_root) Table_ident(a)) ||
+          !(table= current_select->add_table_to_list(thd, table_ident, 0,
+                                                     TL_OPTION_SEQUENCE,
+                                                     TL_WRITE_ALLOW_WRITE,
+                                                     MDL_SHARED_WRITE)))
+        return NULL;
+      return new (thd->mem_root) Item_func_nextval(thd, table);
+    }
+    else if (!my_strnncoll(system_charset_info,
+                          (const uchar *) b.str, 7,
+                          (const uchar *) "CURRVAL", 7))
+    {
+      TABLE_LIST *table;
+      Table_ident *table_ident;
+      if (!(table_ident= new (thd->mem_root) Table_ident(a)) ||
+          !(table= current_select->add_table_to_list(thd, table_ident, 0,
+                                                     TL_OPTION_SEQUENCE,
+                                                     TL_READ,
+                                                     MDL_SHARED_READ)))
+        return NULL;
+      return new (thd->mem_root) Item_func_lastval(thd, table);
+    }
+  }
+
   return create_item_ident_nospvar(thd, a, b);
 }
 
@@ -6920,4 +6954,22 @@ Item *st_select_lex::build_cond_for_grouping_fields(THD *thd, Item *cond,
     }
   }
   return 0;
+}
+
+
+bool LEX::sp_add_cfetch(THD *thd, const LEX_STRING &name)
+{
+  uint offset;
+  sp_instr_cfetch *i;
+
+  if (!spcont->find_cursor(name, &offset, false))
+  {
+    my_error(ER_SP_CURSOR_MISMATCH, MYF(0), name.str);
+    return true;
+  }
+  i= new (thd->mem_root)
+    sp_instr_cfetch(sphead->instructions(), spcont, offset);
+  if (i == NULL || sphead->add_instr(i))
+    return true;
+  return false;
 }

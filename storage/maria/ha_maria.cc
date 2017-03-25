@@ -987,7 +987,8 @@ int_table_flags(HA_NULL_IN_KEY | HA_CAN_FULLTEXT | HA_CAN_SQL_HANDLER |
                 HA_FILE_BASED | HA_CAN_GEOMETRY | CANNOT_ROLLBACK_FLAG |
                 HA_CAN_BIT_FIELD | HA_CAN_RTREEKEYS | HA_CAN_REPAIR |
                 HA_CAN_VIRTUAL_COLUMNS |
-                HA_HAS_RECORDS | HA_STATS_RECORDS_IS_EXACT),
+                HA_HAS_RECORDS | HA_STATS_RECORDS_IS_EXACT |
+                HA_CAN_TABLES_WITHOUT_ROLLBACK),
 can_enable_indexes(1), bulk_insert_single_undo(BULK_INSERT_NONE)
 {}
 
@@ -3098,6 +3099,13 @@ int ha_maria::create(const char *name, register TABLE *table_arg,
     push_warning(thd, Sql_condition::WARN_LEVEL_NOTE,
                  ER_ILLEGAL_HA_CREATE_OPTION,
                  "Row format set to PAGE because of TRANSACTIONAL=1 option");
+
+  if (share->table_type == TABLE_TYPE_SEQUENCE)
+  {
+    /* For sequences, the simples record type is appropriate */
+    row_type= STATIC_RECORD;
+    ha_create_info->transactional= HA_CHOICE_NO;
+  }
 
   bzero((char*) &create_info, sizeof(create_info));
   if ((error= table2maria(table_arg, row_type, &keydef, &recinfo,

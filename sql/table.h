@@ -54,6 +54,7 @@ struct TDC_element;
 class Virtual_column_info;
 class Table_triggers_list;
 class TMP_TABLE_PARAM;
+class SEQUENCE;
 
 /*
   Used to identify NESTED_JOIN structures within a join (applicable only to
@@ -642,6 +643,7 @@ struct TABLE_SHARE
            db_plugin ? plugin_hton(db_plugin) : NULL;
   }
   enum row_type row_type;		/* How rows are stored */
+  enum Table_type table_type;
   enum tmp_table_type tmp_table;
 
   /** Transactional or not. */
@@ -715,6 +717,9 @@ struct TABLE_SHARE
     definition read from .FRM file.
   */
   const File_parser *view_def;
+
+  /* For sequence tables, the current sequence state */
+  SEQUENCE *sequence;
 
   /*
     Cache for row-based replication table share checks that does not
@@ -2058,8 +2063,8 @@ struct TABLE_LIST
   bool          where_processed;
   /* TRUE <=> VIEW CHECK OPTION expression has been processed */
   bool          check_option_processed;
-  /* FRMTYPE_ERROR if any type is acceptable */
-  enum frm_type_enum required_type;
+  /* TABLE_TYPE_UNKNOWN if any type is acceptable */
+  Table_type    required_type;
   handlerton	*db_type;		/* table_type for handler */
   char		timestamp_buffer[20];	/* buffer for timestamp (19+1) */
   /*
@@ -2098,6 +2103,7 @@ struct TABLE_LIST
   bool          merged_for_insert;
   /* TRUE <=> don't prepare this derived table/view as it should be merged.*/
   bool          skip_prepare_derived;
+  bool          sequence;  /* Part of NEXTVAL/CURVAL/LASTVAL */
 
   /*
     Items created by create_view_field and collected to change them in case

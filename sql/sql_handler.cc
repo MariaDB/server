@@ -286,7 +286,7 @@ bool mysql_ha_open(THD *thd, TABLE_LIST *tables, SQL_HANDLER *reopen)
   mdl_savepoint= thd->mdl_context.mdl_savepoint();
 
   /* for now HANDLER can be used only for real TABLES */
-  tables->required_type= FRMTYPE_TABLE;
+  tables->required_type= TABLE_TYPE_NORMAL;
 
   /*
     We use open_tables() here, rather than, say,

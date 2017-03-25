@@ -42,6 +42,7 @@
 #include "sql_view.h"
 #include "rpl_filter.h"
 #include "sql_cte.h"
+#include "ha_sequence.h"
 
 /* For MySQL 5.7 virtual fields */
 #define MYSQL57_GENERATED_FIELD 128
@@ -431,6 +432,7 @@ void TABLE_SHARE::destroy()
     ha_share= NULL;                             // Safety
   }
 
+  delete sequence;
   free_root(&stats_cb.mem_root, MYF(0));
   stats_cb.stats_can_be_read= FALSE;
   stats_cb.stats_is_read= FALSE;
@@ -1327,6 +1329,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   share->db_create_options= db_create_options= uint2korr(frm_image+30);
   share->db_options_in_use= share->db_create_options;
   share->mysql_version= uint4korr(frm_image+51);
+  share->table_type= TABLE_TYPE_NORMAL;
   share->null_field_first= 0;
   if (!frm_image[32])				// New frm file in 3.23
   {
@@ -1340,6 +1343,14 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
       enum_value_with_check(thd, share, "transactional", frm_image[39] & 3, HA_CHOICE_MAX);
     share->page_checksum= (ha_choice)
       enum_value_with_check(thd, share, "page_checksum", (frm_image[39] >> 2) & 3, HA_CHOICE_MAX);
+    if (((ha_choice) enum_value_with_check(thd, share, "sequence",
+                                           (frm_image[39] >> 4) & 3,
+                                           HA_CHOICE_MAX)) == HA_CHOICE_YES)
+    {
+      share->table_type= TABLE_TYPE_SEQUENCE;
+      share->sequence= new (&share->mem_root) SEQUENCE();
+      share->non_determinstic_insert= true;
+    }
     share->row_type= (enum row_type)
       enum_value_with_check(thd, share, "row_format", frm_image[40], ROW_TYPE_MAX);
 
@@ -2534,7 +2545,8 @@ static bool sql_unusable_for_discovery(THD *thd, handlerton *engine,
   HA_CREATE_INFO *create_info= &lex->create_info;
 
   // ... not CREATE TABLE
-  if (lex->sql_command != SQLCOM_CREATE_TABLE)
+  if (lex->sql_command != SQLCOM_CREATE_TABLE &&
+      lex->sql_command != SQLCOM_CREATE_SEQUENCE)
     return 1;
   // ... create like
   if (lex->create_info.like())
@@ -2983,6 +2995,17 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
   else
   {
     DBUG_ASSERT(!db_stat);
+  }
+
+  if (share->sequence && outparam->file)
+  {
+    ha_sequence *file;
+    /* SEQUENCE table. Create a sequence handler over the original handler */
+    if (!(file= (ha_sequence*) sql_sequence_hton->create(sql_sequence_hton, share,
+                                                     &outparam->mem_root)))
+      goto err;
+    file->register_original_handler(outparam->file);
+    outparam->file= file;
   }
 
   outparam->reginfo.lock_type= TL_UNLOCK;
@@ -3679,7 +3702,8 @@ void prepare_frm_header(THD *thd, uint reclength, uchar *fileinfo,
          create_info->default_table_charset->number : 0);
   fileinfo[38]= (uchar) csid;
   fileinfo[39]= (uchar) ((uint) create_info->transactional |
-                         ((uint) create_info->page_checksum << 2));
+                         ((uint) create_info->page_checksum << 2) |
+                         ((create_info->sequence ? HA_CHOICE_YES : 0) << 4));
   fileinfo[40]= (uchar) create_info->row_type;
   /* Bytes 41-46 were for RAID support; now reused for other purposes */
   fileinfo[41]= (uchar) (csid >> 8);
@@ -3716,6 +3740,7 @@ void update_create_info_from_table(HA_CREATE_INFO *create_info, TABLE *table)
   create_info->transactional= share->transactional;
   create_info->page_checksum= share->page_checksum;
   create_info->option_list= share->option_list;
+  create_info->sequence= MY_TEST(share->sequence);
 
   DBUG_VOID_RETURN;
 }

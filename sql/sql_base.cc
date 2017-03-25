@@ -1934,6 +1934,11 @@ retry_share:
     DBUG_RETURN(true);
   }
 #endif
+  if (table_list->sequence && table->s->table_type != TABLE_TYPE_SEQUENCE)
+  {
+      my_error(ER_NOT_SEQUENCE, MYF(0), table_list->db, table_list->alias);
+      DBUG_RETURN(true);
+  }
 
   table->init(thd, table_list);
 
@@ -3650,8 +3655,9 @@ lock_table_names(THD *thd, const DDL_options_st &options,
     DBUG_RETURN(FALSE);
 
   /* Check if CREATE TABLE without REPLACE was used */
-  create_table= thd->lex->sql_command == SQLCOM_CREATE_TABLE &&
-                !options.or_replace();
+  create_table= ((thd->lex->sql_command == SQLCOM_CREATE_TABLE ||
+                  thd->lex->sql_command == SQLCOM_CREATE_SEQUENCE) &&
+                 !options.or_replace());
 
   if (!(flags & MYSQL_OPEN_SKIP_SCOPED_MDL_LOCK))
   {
@@ -4518,7 +4524,7 @@ TABLE *open_n_lock_single_table(THD *thd, TABLE_LIST *table_l,
   /* Set requested lock type. */
   table_l->lock_type= lock_type;
   /* Allow to open real tables only. */
-  table_l->required_type= FRMTYPE_TABLE;
+  table_l->required_type= TABLE_TYPE_NORMAL;
 
   /* Open the table. */
   if (open_and_lock_tables(thd, table_l, FALSE, flags,
@@ -4574,7 +4580,7 @@ TABLE *open_ltable(THD *thd, TABLE_LIST *table_list, thr_lock_type lock_type,
   THD_STAGE_INFO(thd, stage_opening_tables);
   thd->current_tablenr= 0;
   /* open_ltable can be used only for BASIC TABLEs */
-  table_list->required_type= FRMTYPE_TABLE;
+  table_list->required_type= TABLE_TYPE_NORMAL;
 
   /* This function can't properly handle requests for such metadata locks. */
   DBUG_ASSERT(table_list->mdl_request.type < MDL_SHARED_UPGRADABLE);
@@ -5600,6 +5606,13 @@ find_field_in_table_ref(THD *thd, TABLE_LIST *table_list,
         (table_list->schema_table ?
          my_strcasecmp(system_charset_info, db_name, table_list->db) :
          strcmp(db_name, table_list->db)))))
+    DBUG_RETURN(0);
+
+  /*
+    Don't allow usage of fields in sequence table that is opened as part of
+    NEXT VALUE for sequence_name
+  */
+  if (table_list->sequence)
     DBUG_RETURN(0);
 
   *actual_table= NULL;

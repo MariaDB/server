@@ -1550,7 +1550,14 @@ JOIN::optimize_inner()
   }
   if (const_tables && !thd->locked_tables_mode &&
       !(select_options & SELECT_NO_UNLOCK))
-    mysql_unlock_some_tables(thd, table, const_tables);
+  {
+    /*
+      Unlock all tables, except sequences, as accessing these may still
+      require table updates
+    */
+    mysql_unlock_some_tables(thd, table, const_tables,
+                             GET_LOCK_SKIP_SEQUENCES);
+  }
   if (!conds && outer_join)
   {
     /* Handle the case where we have an OUTER JOIN without a WHERE */

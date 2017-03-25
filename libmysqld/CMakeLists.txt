@@ -113,6 +113,8 @@ SET(SQL_EMBEDDED_SOURCES emb_qcache.cc libmysqld.c lib_sql.cc
            ../sql/wsrep_dummy.cc ../sql/encryption.cc
            ../sql/item_windowfunc.cc ../sql/sql_window.cc
            ../sql/sql_cte.cc
+           ../sql/sql_sequence.cc ../sql/sql_sequence.h
+           ../sql/ha_sequence.cc ../sql/ha_sequence.h
            ../sql/temporary_tables.cc
            ../sql/session_tracker.cc
            ${GEN_SOURCES}

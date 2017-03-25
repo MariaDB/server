@@ -101,6 +101,23 @@ extern "C" void free_user_var(user_var_entry *entry)
   my_free(entry);
 }
 
+/* Functions for last-value-from-sequence hash */
+
+extern "C" uchar *get_sequence_last_key(SEQUENCE_LAST_VALUE *entry,
+                                        size_t *length,
+                                        my_bool not_used
+                                        __attribute__((unused)))
+{
+  *length= entry->length;
+  return (uchar*) entry->key;
+}
+
+extern "C" void free_sequence_last(SEQUENCE_LAST_VALUE *entry)
+{
+  delete entry;
+}
+
+
 bool Key_part_spec::operator==(const Key_part_spec& other) const
 {
   return length == other.length &&
@@ -879,6 +896,9 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
   my_hash_init(&user_vars, system_charset_info, USER_VARS_HASH_SIZE, 0, 0,
                (my_hash_get_key) get_var_key,
                (my_hash_free_key) free_user_var, HASH_THREAD_SPECIFIC);
+  my_hash_init(&sequences, system_charset_info, SEQUENCES_HASH_SIZE, 0, 0,
+               (my_hash_get_key) get_sequence_last_key,
+               (my_hash_free_key) free_sequence_last, HASH_THREAD_SPECIFIC);
 
   sp_proc_cache= NULL;
   sp_func_cache= NULL;
@@ -1428,6 +1448,9 @@ void THD::change_user(void)
   my_hash_init(&user_vars, system_charset_info, USER_VARS_HASH_SIZE, 0, 0,
                (my_hash_get_key) get_var_key,
                (my_hash_free_key) free_user_var, 0);
+  my_hash_init(&sequences, system_charset_info, SEQUENCES_HASH_SIZE, 0, 0,
+               (my_hash_get_key) get_sequence_last_key,
+               (my_hash_free_key) free_sequence_last, HASH_THREAD_SPECIFIC);
   sp_cache_clear(&sp_proc_cache);
   sp_cache_clear(&sp_func_cache);
 }
@@ -1484,6 +1507,7 @@ void THD::cleanup(void)
 #endif /* defined(ENABLED_DEBUG_SYNC) */
 
   my_hash_free(&user_vars);
+  my_hash_free(&sequences);
   sp_cache_clear(&sp_proc_cache);
   sp_cache_clear(&sp_func_cache);
   auto_inc_intervals_forced.empty();
@@ -5699,7 +5723,7 @@ int xid_cache_iterate(THD *thd, my_hash_walk_action action, void *arg)
 int THD::decide_logging_format(TABLE_LIST *tables)
 {
   DBUG_ENTER("THD::decide_logging_format");
-  DBUG_PRINT("info", ("Query: %s", query()));
+  DBUG_PRINT("info", ("Query: %.*s", (uint) query_length(), query()));
   DBUG_PRINT("info", ("variables.binlog_format: %lu",
                       variables.binlog_format));
   DBUG_PRINT("info", ("lex->get_stmt_unsafe_flags(): 0x%x",
@@ -5866,7 +5890,9 @@ int THD::decide_logging_format(TABLE_LIST *tables)
         if (prev_write_table && prev_write_table->file->ht !=
             table->table->file->ht)
           multi_write_engine= TRUE;
-        if (table->table->s->non_determinstic_insert)
+        if (table->table->s->non_determinstic_insert &&
+            lex->sql_command != SQLCOM_CREATE_SEQUENCE &&
+            lex->sql_command != SQLCOM_CREATE_TABLE)
           has_write_tables_with_unsafe_statements= true;
 
         trans= table->table->file->has_transactions();

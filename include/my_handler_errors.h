@@ -105,7 +105,9 @@ static const char *handler_error_messages[]=
   "Too many words in a FTS phrase or proximity search",
   "Table encrypted but decryption failed. This could be because correct encryption management plugin is not loaded, used encryption key is not available or encryption method does not match.",
   "Foreign key cascade delete/update exceeds max depth",
-  "Tablespace is missing for table"
+  "Tablespace is missing for table",
+  "Sequence has been run out",
+  "Sequence values are conflicting"
 };
 
 #endif /* MYSYS_MY_HANDLER_ERRORS_INCLUDED */
