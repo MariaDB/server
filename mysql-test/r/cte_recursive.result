@@ -2408,3 +2408,48 @@ ANALYZE
     }
   }
 }
+#
+# mdev-12360: recursive reference in left operand of LEFT JOIN
+#
+create table  folks(id int, name char(32), dob date, father int, mother int);
+insert into folks values
+(100, 'Me', '2000-01-01', 20, 30),
+(20, 'Dad', '1970-02-02', 10, 9),
+(30, 'Mom', '1975-03-03', 8, 7),
+(10, 'Grandpa Bill', '1940-04-05', null, null),
+(9, 'Grandma Ann', '1941-10-15', null, null),
+(25, 'Uncle Jim', '1968-11-18', 8, 7),
+(98, 'Sister Amy', '2001-06-20', 20, 30),
+(7, 'Grandma Sally', '1943-08-23', null, 6),
+(8, 'Grandpa Ben', '1940-10-21', null, null),
+(6, 'Grandgrandma Martha', '1923-05-17', null, null),
+(67, 'Cousin Eddie', '1992-02-28', 25, 27),
+(27, 'Auntie Melinda', '1971-03-29', null, null);
+with recursive
+ancestor_ids (id)
+as
+(
+select father from folks where name = 'Me'
+  union
+select mother from folks where name = 'Me'
+  union
+select father from ancestor_ids as a left join folks on folks.id = a.id
+union
+select mother from ancestor_ids as a left join folks on folks.id = a.id
+),
+ancestors 
+as
+(
+select p.* from folks as p, ancestor_ids as a
+where p.id = a.id
+)
+select * from ancestors;
+id	name	dob	father	mother
+20	Dad	1970-02-02	10	9
+30	Mom	1975-03-03	8	7
+10	Grandpa Bill	1940-04-05	NULL	NULL
+9	Grandma Ann	1941-10-15	NULL	NULL
+7	Grandma Sally	1943-08-23	NULL	6
+8	Grandpa Ben	1940-10-21	NULL	NULL
+6	Grandgrandma Martha	1923-05-17	NULL	NULL
+drop table folks;
