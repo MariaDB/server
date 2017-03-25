@@ -1,4 +1,10 @@
 # TODO: Copyrights
+
+MACRO(SKIP_ROCKSDB_PLUGIN msg)
+  MESSAGE_ONCE(SKIP_ROCKSDB_PLUGIN "Can't build rocksdb engine - ${msg}")
+  RETURN()
+ENDMACRO()
+
 IF(NOT EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/rocksdb/Makefile AND GIT_EXECUTABLE)
   EXECUTE_PROCESS(COMMAND "${GIT_EXECUTABLE}" submodule init
                   WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
@@ -7,13 +13,8 @@ IF(NOT EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/rocksdb/Makefile AND GIT_EXECUTABLE)
 ENDIF()
 
 IF (NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/rocksdb/Makefile")
-  MESSAGE(SEND_ERROR "Missing Makefile in rocksdb directory. Try \"git submodule update\".")
+  SKIP_ROCKSDB_PLUGIN("Missing Makefile in rocksdb directory. Try \"git submodule update\".")
 ENDIF()
-
-MACRO(SKIP_ROCKSDB_PLUGIN msg)
-  MESSAGE_ONCE(SKIP_ROCKSDB_PLUGIN "Can't build rocksdb engine - ${msg}")
-  RETURN()
-ENDMACRO()
 
 # We've had our builders hang during the build process. This prevents MariaRocks
 # to be built on 32 bit intel OS kernels.
