@@ -148,10 +148,10 @@ ADD_LIBRARY(rocksdb_tools STATIC
    rocksdb/tools/sst_dump_tool.cc
 )
 
-MYSQL_ADD_EXECUTABLE(sst_dump rocksdb/tools/sst_dump.cc)
+MYSQL_ADD_EXECUTABLE(sst_dump rocksdb/tools/sst_dump.cc COMPONENT rocksdb-engine)
 TARGET_LINK_LIBRARIES(sst_dump rocksdblib)
 
-MYSQL_ADD_EXECUTABLE(mysql_ldb tools/mysql_ldb.cc)
+MYSQL_ADD_EXECUTABLE(mysql_ldb tools/mysql_ldb.cc COMPONENT rocksdb-engine)
 TARGET_LINK_LIBRARIES(mysql_ldb rocksdb_tools rocksdb_aux_lib)
 
 IF(CMAKE_CXX_COMPILER_ID MATCHES "GNU" OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
