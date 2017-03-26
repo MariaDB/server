@@ -288,7 +288,7 @@ DROP TABLE t1;
 DROP TABLE table1;
 --error ER_BAD_TABLE_ERROR
 DROP TABLE table1,table2;
---error ER_BAD_TABLE_ERROR
+--error ER_UNKNOWN_VIEW
 DROP VIEW view1,view2,view3,view4;
 --echo
 DROP TABLE IF EXISTS table1;
