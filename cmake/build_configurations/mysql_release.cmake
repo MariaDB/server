@@ -29,7 +29,7 @@ IF(SIZEOF_VOIDP EQUAL 8)
 ENDIF()
 
 # include aws_key_management plugin in release builds
-SET(PLUGIN_AWS_KEY_MANAGEMENT DYNAMIC)
+OPTION(AWS_SDK_EXTERNAL_PROJECT  "Allow download and build AWS C++ SDK" ON)
 
 SET(FEATURE_SET "community" CACHE STRING 
 " Selection of features. Options are
