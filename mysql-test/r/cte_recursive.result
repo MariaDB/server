@@ -2488,3 +2488,64 @@ where module_arguments.m is null
 select * from reached_values;
 ERROR HY000: Restrictions imposed on recursive definitions are violated for table 'applied_modules'
 drop table value_nodes, module_nodes, module_arguments, module_results;
+#
+# mdev-12375: query using one of two mutually recursive CTEs
+#             whose non-recursive part returns an empty set
+#
+create table value_nodes (v char(4));
+insert into value_nodes values
+('v1'), ('v2'), ('v3'), ('v4'), ('v5'), ('v6'), ('v7'), ('v8'), ('v9'),
+('v10'), ('v11'), ('v12'), ('v13'), ('v14'), ('v15'), ('v16');
+create table module_nodes(m char(4));
+insert into module_nodes values
+('m1'), ('m2'), ('m3'), ('m4'), ('m5'), ('m6'), ('m7');
+create table module_arguments(m char(4), v char(4));
+insert into module_arguments values
+('m1','v3'), ('m1','v9'),
+('m2','v4'), ('m2','v3'), ('m2','v7'),
+('m3','v6'),
+('m4','v4'), ('m4','v1'),
+('m5','v10'), ('m5','v8'), ('m5','v3'),
+('m6','v8'), ('m6','v1'),
+('m7','v11'), ('m7','v12');
+create table module_results(m char(4), v char(4));
+insert into module_results values
+('m1','v4'),
+('m2','v1'), ('m2','v6'),
+('m3','v10'),
+('m4','v8'),
+('m5','v11'), ('m5','v9'),
+('m6','v12'), ('m6','v4'),
+('m7','v2');
+set statement max_recursive_iterations=2, standard_compliant_cte=0 for
+with recursive
+reached_values as 
+(
+select v from value_nodes where v in ('v3','v7','v9')
+union
+select module_results.v from module_results, applied_modules
+where module_results.m = applied_modules.m
+),
+applied_modules as
+(
+select * from module_nodes where 1=0
+union
+select module_nodes.m
+from
+module_nodes
+left join
+( 
+module_arguments
+left join
+reached_values
+on module_arguments.v = reached_values.v
+)
+on reached_values.v is null and
+module_nodes.m = module_arguments.m
+where module_arguments.m is null
+)
+select * from applied_modules;
+m
+m1
+m2
+drop table value_nodes, module_nodes, module_arguments, module_results;
