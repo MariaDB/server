@@ -31,13 +31,6 @@ UPDATE t1 SET f2 = 'b' WHERE f1 > 1;
 UPDATE t1 SET f2 = 'c' WHERE f1 > 2;
 
 --connection node_2
-# Make sure IST will block ...
---let $galera_sync_point = recv_IST_after_apply_trx
---source include/galera_set_sync_point.inc
-
-SET SESSION wsrep_sync_wait = 0;
-
-
 # Write file to make mysql-test-run.pl expect the crash, but don't start it
 --let $_server_id= `SELECT @@server_id`
 --let $_expect_file_name= $MYSQLTEST_VARDIR/tmp/mysqld.$_server_id.expect
@@ -51,19 +44,20 @@ SET SESSION wsrep_sync_wait = 0;
 # base_port setting is lost for some reason when unloading provider, so we need to restore it
 --eval SET GLOBAL wsrep_provider_options= 'base_port=$NODE_GALERAPORT_2';
 --eval SET GLOBAL wsrep_provider = '$wsrep_provider_orig';
+# Make sure IST will block ...
+--let $galera_sync_point = recv_IST_after_apply_trx
+--source include/galera_set_sync_point.inc
 --eval SET GLOBAL wsrep_cluster_address = '$wsrep_cluster_address_orig';
 --enable_query_log
 
 SET SESSION wsrep_on=OFF;
---let $wait_condition = SELECT VARIABLE_VALUE = '' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_debug_sync_waiters';
+--let $wait_condition = SELECT VARIABLE_VALUE = 'recv_IST_after_apply_trx' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_debug_sync_waiters';
 --source include/wait_condition.inc
 SET SESSION wsrep_on=ON;
 
 --connection node_1
-# Perform DML and DDL while IST is in progress
---connection node_1
+# Perform DML while IST is in progress
 UPDATE t1 SET f2 = 'd' WHERE f1 > 3;
-CREATE TABLE t2 (f1 INTEGER);
 
 # Kill node #2 while IST is in progress
 --connection node_2
@@ -86,9 +80,8 @@ EOF
 --let $wait_condition = SELECT VARIABLE_VALUE = 1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
 --source include/wait_condition.inc
 
-# Perform DML and DDL while node #2 is down
+# Perform DML while node #2 is down
 UPDATE t1 SET f2 = 'e' WHERE f1 > 4;
-CREATE TABLE t3 (f1 INTEGER);
 
 --connection node_2
 
@@ -107,11 +100,9 @@ SELECT * FROM t1;
 
 --connection node_2
 SELECT * FROM t1;
-SELECT COUNT(*) = 0 FROM t2;
-SELECT COUNT(*) = 0 FROM t3;
 
 --connection node_1
-DROP TABLE t1, t2, t3;
+DROP TABLE t1;
 
 # Restore original auto_increment_offset values.
 --source include/auto_increment_offset_restore.inc
