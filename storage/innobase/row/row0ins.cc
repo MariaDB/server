@@ -3169,7 +3169,7 @@ row_ins_clust_index_entry(
 	log_free_check();
 	const ulint	flags = dict_table_is_temporary(index->table)
 		? BTR_NO_LOCKING_FLAG
-		: 0;
+		: index->table->no_rollback() ? BTR_NO_ROLLBACK : 0;
 
 	err = row_ins_clust_index_entry_low(
 		flags, BTR_MODIFY_LEAF, index, n_uniq, entry,
@@ -3703,7 +3703,27 @@ row_ins_step(
 	table during the search operation, and there is no need to set
 	it again here. But we must write trx->id to node->trx_id_buf. */
 
-	memset(node->trx_id_buf, 0, DATA_TRX_ID_LEN);
+	if (node->table->no_rollback()) {
+		/* No-rollback tables should only be accessed by a
+		single thread at a time. Concurrency control (mutual
+		exclusion) must be guaranteed by the SQL layer. */
+		DBUG_ASSERT(node->table->n_ref_count == 1);
+		DBUG_ASSERT(node->ins_type == INS_DIRECT);
+		/* No-rollback tables can consist only of a single index. */
+		DBUG_ASSERT(UT_LIST_GET_LEN(node->entry_list) == 1);
+		DBUG_ASSERT(UT_LIST_GET_LEN(node->table->indexes) == 1);
+		/* There should be no possibility for interruption and
+		restarting here. In theory, we could allow resumption
+		from the INS_NODE_INSERT_ENTRIES state here. */
+		DBUG_ASSERT(node->state == INS_NODE_SET_IX_LOCK);
+		memset(node->trx_id_buf, 0, DATA_TRX_ID_LEN);
+		memset(node->row_id_buf, 0, DATA_ROW_ID_LEN);
+		node->index = dict_table_get_first_index(node->table);
+		node->entry = UT_LIST_GET_FIRST(node->entry_list);
+		node->state = INS_NODE_INSERT_ENTRIES;
+		goto do_insert;
+	}
+
 	trx_write_trx_id(node->trx_id_buf, trx->id);
 
 	if (node->state == INS_NODE_SET_IX_LOCK) {
@@ -3753,7 +3773,7 @@ same_trx:
 
 		return(thr);
 	}
-
+do_insert:
 	/* DO THE CHECKS OF THE CONSISTENCY CONSTRAINTS HERE */
 
 	err = row_ins(node, thr);

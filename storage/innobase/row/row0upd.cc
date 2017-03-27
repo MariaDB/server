@@ -2260,7 +2260,7 @@ row_upd_sec_index_entry(
 		flags = BTR_NO_LOCKING_FLAG;
 		mtr.set_log_mode(MTR_LOG_NO_REDO);
 	} else {
-		flags = 0;
+		flags = index->table->no_rollback() ? BTR_NO_ROLLBACK : 0;
 	}
 
 	if (!index->is_committed()) {
@@ -3046,11 +3046,11 @@ row_upd_clust_step(
 	server or connection lifetime and so REDO information is not needed
 	on restart for recovery.
 	Disable locking as temp-tables are not shared across connection. */
-	if (dict_table_is_temporary(index->table)) {
+	if (dict_table_is_temporary(node->table)) {
 		flags = BTR_NO_LOCKING_FLAG;
 		mtr.set_log_mode(MTR_LOG_NO_REDO);
 	} else {
-		flags = 0;
+		flags = node->table->no_rollback() ? BTR_NO_ROLLBACK : 0;
 	}
 
 	/* If the restoration does not succeed, then the same

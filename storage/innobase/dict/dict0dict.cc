@@ -2502,6 +2502,7 @@ dict_index_add_to_cache_w_vcol(
 	ut_d(mem_heap_validate(index->heap));
 	ut_a(!dict_index_is_clust(index)
 	     || UT_LIST_GET_LEN(table->indexes) == 0);
+	ut_ad(dict_index_is_clust(index) || !table->no_rollback());
 
 	if (!dict_index_find_cols(table, index, add_v)) {
 

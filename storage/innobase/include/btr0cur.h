@@ -42,6 +42,11 @@ enum {
 	/** sys fields will be found in the update vector or inserted
 	entry */
 	BTR_KEEP_SYS_FLAG = 4,
+
+	/** no rollback */
+	BTR_NO_ROLLBACK = BTR_NO_UNDO_LOG_FLAG
+		| BTR_NO_LOCKING_FLAG | BTR_KEEP_SYS_FLAG,
+
 	/** btr_cur_pessimistic_update() must keep cursor position
 	when moving columns to big_rec */
 	BTR_KEEP_POS_FLAG = 8,

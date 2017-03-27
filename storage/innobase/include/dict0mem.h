@@ -148,16 +148,19 @@ Width of the page compression flag
 #define DICT_TF_WIDTH_PAGE_COMPRESSION_LEVEL 4
 
 /**
+Width of atomic writes flag
+DEFAULT=0, ON = 1, OFF = 2
+*/
+#define DICT_TF_WIDTH_ATOMIC_WRITES 2
+
+/**
 Width of the page encryption flag
 */
 #define DICT_TF_WIDTH_PAGE_ENCRYPTION  1
 #define DICT_TF_WIDTH_PAGE_ENCRYPTION_KEY 8
 
-/**
-Width of atomic writes flag
-DEFAULT=0, ON = 1, OFF = 2
-*/
-#define DICT_TF_WIDTH_ATOMIC_WRITES 2
+/** Width of the NO_ROLLBACK flag */
+#define DICT_TF_WIDTH_NO_ROLLBACK 1
 
 /** Width of all the currently known table flags */
 #define DICT_TF_BITS	(DICT_TF_WIDTH_COMPACT			\
@@ -169,7 +172,8 @@ DEFAULT=0, ON = 1, OFF = 2
 			+ DICT_TF_WIDTH_PAGE_COMPRESSION_LEVEL	\
 			+ DICT_TF_WIDTH_ATOMIC_WRITES		\
 			+ DICT_TF_WIDTH_PAGE_ENCRYPTION		\
-			+ DICT_TF_WIDTH_PAGE_ENCRYPTION_KEY)
+			+ DICT_TF_WIDTH_PAGE_ENCRYPTION_KEY	\
+			+ DICT_TF_WIDTH_NO_ROLLBACK)
 
 /** A mask of all the known/used bits in table flags */
 #define DICT_TF_BIT_MASK	(~(~0U << DICT_TF_BITS))
@@ -203,9 +207,11 @@ DEFAULT=0, ON = 1, OFF = 2
 /** Zero relative shift position of the PAGE_ENCRYPTION_KEY field */
 #define DICT_TF_POS_PAGE_ENCRYPTION_KEY	(DICT_TF_POS_PAGE_ENCRYPTION	\
 					+ DICT_TF_WIDTH_PAGE_ENCRYPTION)
-#define DICT_TF_POS_UNUSED		(DICT_TF_POS_PAGE_ENCRYPTION_KEY     \
+/** Zero relative shift position of the NO_ROLLBACK field */
+#define DICT_TF_POS_NO_ROLLBACK		(DICT_TF_POS_PAGE_ENCRYPTION_KEY     \
 					+ DICT_TF_WIDTH_PAGE_ENCRYPTION_KEY)
-
+#define DICT_TF_POS_UNUSED		(DICT_TF_POS_NO_ROLLBACK	\
+					+ DICT_TF_WIDTH_NO_ROLLBACK)
 /** Bit mask of the COMPACT field */
 #define DICT_TF_MASK_COMPACT				\
 		((~(~0U << DICT_TF_WIDTH_COMPACT))	\
@@ -1356,6 +1362,12 @@ struct dict_table_t {
 
 	/** Release the table handle. */
 	inline void release();
+
+	/** @return whether the table supports transactions */
+	bool no_rollback() const
+	{
+		return flags & (1U << DICT_TF_POS_NO_ROLLBACK);
+	}
 
 	/** Id of the table. */
 	table_id_t				id;

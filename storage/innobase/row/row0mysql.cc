@@ -3696,7 +3696,7 @@ row_drop_table_for_mysql(
 		RemoteDatafile::delete_link_file(name);
 	}
 
-	if (!dict_table_is_temporary(table)) {
+	if (!dict_table_is_temporary(table) && !table->no_rollback()) {
 
 		dict_stats_recalc_pool_del(table);
 		dict_stats_defrag_pool_del(table, NULL);
