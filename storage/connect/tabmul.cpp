@@ -711,7 +711,7 @@ int TDBDIR::GetMaxSize(PGLOBAL g)
   if (MaxSize < 0) {
     int    n = -1;
 #if defined(__WIN__)
-    int    h;
+    intptr_t    h;
 
     // Start searching files in the target directory.
     h = _findfirst(Path(g), &FileData);
@@ -1007,7 +1007,7 @@ int TDBSDR::FindInDir(PGLOBAL g)
 
   // Start searching files in the target directory.
 #if defined(__WIN__)
-  int h = _findfirst(Path(g), &FileData);
+  intptr_t h = _findfirst(Path(g), &FileData);
 
   if (h != -1) {
     for (n = 1;; n++)
