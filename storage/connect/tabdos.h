@@ -77,6 +77,7 @@ class DllExport DOSDEF : public TABDEF {  /* Logical table description */
   PSZ     Fn;                 /* Path/Name of corresponding file       */
   PSZ     Ofn;                /* Base Path/Name of matching index files*/
 	PSZ     Entry;						  /* Zip entry name or pattern						 */
+	PSZ     Pwd;						    /* Zip password             						 */
 	PIXDEF  To_Indx;            /* To index definitions blocks           */
   RECFM   Recfm;              /* 0:VAR, 1:FIX, 2:BIN, 3:VCT, 6:DBF     */
   bool    Mapped;             /* 0: disk file, 1: memory mapped file   */

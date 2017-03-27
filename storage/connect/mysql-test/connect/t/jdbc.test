@@ -1,6 +1,6 @@
 -- source windows.inc
 -- source jdbconn.inc
-SET GLOBAL time_zone='+1:00';
+SET GLOBAL time_zone='+0:00';
 
 let $MYSQLD_DATADIR= `select @@datadir`;
 --copy_file $MTR_SUITE_DIR/std_data/girls.txt $MYSQLD_DATADIR/test/girls.txt
@@ -27,7 +27,8 @@ SELECT * FROM t2;
 --echo #
 USE test;
 --replace_result $PORT PORT
---eval CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=JDBC TABNAME=t2 CONNECTION='jdbc:mysql://localhost:$PORT/connect?user=root'
+CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=JDBC TABNAME=t2
+CONNECTION="jdbc:mysql://localhost:3306/connect?user=root&globalVariables=time_zone='+0:00'&useSSL=false";
 SELECT * FROM t1;
 INSERT INTO t1 VALUES(786325481247, 'Hello!', '19:45:03', '1933-08-10', '1985-11-12 09:02:44', '2014-06-17 10:32:01');
 SELECT * FROM t1;
