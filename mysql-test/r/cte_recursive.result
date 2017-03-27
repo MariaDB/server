@@ -2453,3 +2453,38 @@ id	name	dob	father	mother
 8	Grandpa Ben	1940-10-21	NULL	NULL
 6	Grandgrandma Martha	1923-05-17	NULL	NULL
 drop table folks;
+#
+# mdev-12368: crash with mutually recursive CTE
+#             that arenot Standard compliant 
+#
+create table value_nodes (v char(4));
+create table module_nodes(m char(4));
+create table module_arguments(m char(4), v char(4));
+create table module_results(m char(4), v char(4));
+with recursive
+reached_values as 
+(
+select v from value_nodes where v in ('v3','v7','v9')
+union
+select module_results.v from module_results, applied_modules
+where module_results.m = applied_modules.m
+),
+applied_modules as
+(
+select module_nodes.m
+from
+module_nodes
+left join
+( 
+module_arguments
+left join
+reached_values
+on module_arguments.v = reached_values.v
+)
+on reached_values.v is null and
+module_nodes.m = module_arguments.m
+where module_arguments.m is null
+)
+select * from reached_values;
+ERROR HY000: Restrictions imposed on recursive definitions are violated for table 'applied_modules'
+drop table value_nodes, module_nodes, module_arguments, module_results;
