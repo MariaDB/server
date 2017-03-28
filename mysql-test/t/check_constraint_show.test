@@ -1,0 +1,8 @@
+# Table with 2 column-level check constraints and 1 table-level check constraint
+create or replace table t1( c1 int check( c1 > 0 ), c2 int check( c2 > 0 ), c3 int, constraint `range`  check( ( c3 >= c1 ) and ( c3 <= c2 ) ), primary key( c1 ) );
+show create table t1;
+
+# Show all constraints, including check constraints
+select * from information_schema.table_constraints where table_name = 't1';
+
+drop table t1;

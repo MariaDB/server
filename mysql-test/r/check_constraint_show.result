@@ -1,0 +1,17 @@
+create or replace table t1( c1 int check( c1 > 0 ), c2 int check( c2 > 0 ), c3 int, constraint `range`  check( ( c3 >= c1 ) and ( c3 <= c2 ) ), primary key( c1 ) );
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` int(11) NOT NULL CHECK (`c1` > 0),
+  `c2` int(11) DEFAULT NULL CHECK (`c2` > 0),
+  `c3` int(11) DEFAULT NULL,
+  PRIMARY KEY (`c1`),
+  CONSTRAINT `range` CHECK (`c3` >= `c1` and `c3` <= `c2`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+select * from information_schema.table_constraints where table_name = 't1';
+CONSTRAINT_CATALOG	CONSTRAINT_SCHEMA	CONSTRAINT_NAME	TABLE_SCHEMA	TABLE_NAME	CONSTRAINT_TYPE
+def	test	PRIMARY	test	t1	PRIMARY KEY
+def	test	c1	test	t1	CHECK
+def	test	c2	test	t1	CHECK
+def	test	range	test	t1	CHECK
+drop table t1;
