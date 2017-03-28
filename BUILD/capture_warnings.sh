@@ -1,6 +1,6 @@
 #!/bin/bash
 warn_path=$1
-warn_mode=$2
+warn_mode=$2 # 'late', 'early' or 'both'
 shift 2
 
 warn_file="$warn_path/compile.warnings"
@@ -45,7 +45,7 @@ suppress_warnings()
 
         unset from
 
-        if [[ $l =~ ^[[:space:]]*\^~*$ ]]
+        if [[ $l =~ ^[[:space:]]*~*\^~*$ ]]
         then
             cat "$suppress_file" | tr '\n' 'X' | /bin/grep -Gq "$m" ||
                 echo "$w"
@@ -68,18 +68,19 @@ suppress_warnings()
 }
 
 exec 3>&1
-cmderr=$("$@" 2>&1 1>&3 | suppress_warnings) || {
-    error=${PIPESTATUS}
-    echo "$cmderr" >&2
-    exit $error
-}
+"$@" 2>&1 1>&3 | suppress_warnings | (
+    cmderr=`cat`
 
-if [[ -n "$cmderr" ]]; then
-    [[ "$warn_mode" != "late" || "$cmderr" =~ error: ]] &&
-        echo "$cmderr" >&2
-    [[ "$warn_mode" != "early" && "$cmderr" =~ (warning|note): ]] &&
-        echo "$cmderr" >> "$warn_file"
-fi
+    if [[ -n "$cmderr" ]]; then
+        if [[ "$cmderr" =~ error: ]]; then
+            echo "$cmderr" >&2
+            exit
+        fi
+        [[ "$warn_mode" != "late" ]] &&
+            echo "$cmderr" >&2
+        [[ "$warn_mode" != "early" && "$cmderr" =~ (warning|note): ]] &&
+            echo "$cmderr" >> "$warn_file"
+    fi
+)
 
-true
-
+exit ${PIPESTATUS}
