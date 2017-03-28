@@ -45,6 +45,7 @@ class DllExport ZIPUTIL : public BLOCK {
 	// Members
 	zipFile         zipfile;							// The ZIP container file
 	PSZ             target;								// The target file name
+	PSZ             pwd;								  // The ZIP file password
 //unz_file_info   finfo;								// The current file info
 	PFBLOCK         fp;
 //char           *memory;
@@ -61,8 +62,8 @@ class DllExport ZIPUTIL : public BLOCK {
 class DllExport UNZIPUTL : public BLOCK {
  public:
 	// Constructor
-	UNZIPUTL(PSZ tgt, bool mul);
-//UNZIPUTL(UNZIPUTL *zutp);
+  UNZIPUTL(PSZ tgt, bool mul);
+  UNZIPUTL(PDOSDEF tdp);
 
 	// Implementation
 //PTXF Duplicate(PGLOBAL g) { return (PTXF) new(g)UNZFAM(this); }
@@ -80,6 +81,7 @@ class DllExport UNZIPUTL : public BLOCK {
 	// Members
 	unzFile         zipfile;							// The ZIP container file
 	PSZ             target;								// The target file name
+	PSZ             pwd;								  // The ZIP file password
 	unz_file_info   finfo;								// The current file info
 	PFBLOCK         fp;
 	char           *memory;
@@ -119,8 +121,9 @@ class DllExport UNZFAM : public MAPFAM {
  protected:
 	// Members
 	UNZIPUTL *zutp;
-	PSZ       target;
-	bool      mul;
+	PDOSDEF   tdfp;
+//PSZ       target;
+//bool      mul;
 }; // end of UNZFAM
 
 /***********************************************************************/
@@ -147,8 +150,9 @@ class DllExport UZXFAM : public MPXFAM {
  protected:
 	// Members
 	UNZIPUTL *zutp;
-	PSZ       target;
-	bool      mul;
+	PDOSDEF   tdfp;
+//PSZ       target;
+//bool      mul;
 }; // end of UZXFAM
 
 /***********************************************************************/

@@ -386,11 +386,32 @@ UNZIPUTL::UNZIPUTL(PSZ tgt, bool mul)
 {
 	zipfile = NULL;
 	target = tgt;
+	pwd = NULL;
 	fp = NULL;
 	memory = NULL;
 	size = 0;
 	entryopen = false;
 	multiple = mul;
+	memset(fn, 0, sizeof(fn));
+
+	// Init the case mapping table.
+#if defined(__WIN__)
+	for (int i = 0; i < 256; ++i) mapCaseTable[i] = toupper(i);
+#else
+	for (int i = 0; i < 256; ++i) mapCaseTable[i] = i;
+#endif
+} // end of UNZIPUTL standard constructor
+
+UNZIPUTL::UNZIPUTL(PDOSDEF tdp)
+{
+	zipfile = NULL;
+	target = tdp->GetEntry();
+	pwd = tdp->Pwd;
+	fp = NULL;
+	memory = NULL;
+	size = 0;
+	entryopen = false;
+	multiple = tdp->GetMul();
 	memset(fn, 0, sizeof(fn));
 
 	// Init the case mapping table.
@@ -625,7 +646,7 @@ bool UNZIPUTL::openEntry(PGLOBAL g)
 	if (rc != UNZ_OK) {
 		sprintf(g->Message, "unzGetCurrentFileInfo64 rc=%d", rc);
 		return true;
-	} else if ((rc = unzOpenCurrentFile(zipfile)) != UNZ_OK) {
+	} else if ((rc = unzOpenCurrentFilePassword(zipfile, pwd)) != UNZ_OK) {
 		sprintf(g->Message, "unzOpen fn=%s rc=%d", fn, rc);
 		return true;
 	}	// endif rc
@@ -675,15 +696,17 @@ void UNZIPUTL::closeEntry()
 UNZFAM::UNZFAM(PDOSDEF tdp) : MAPFAM(tdp)
 {
 	zutp = NULL;
-  target = tdp->GetEntry();
-	mul = tdp->GetMul();
+	tdfp = tdp;
+  //target = tdp->GetEntry();
+	//mul = tdp->GetMul();
 } // end of UNZFAM standard constructor
 
 UNZFAM::UNZFAM(PUNZFAM txfp) : MAPFAM(txfp)
 {
 	zutp = txfp->zutp;
-	target = txfp->target;
-	mul = txfp->mul;
+	tdfp = txfp->tdfp;
+	//target = txfp->target;
+	//mul = txfp->mul;
 } // end of UNZFAM copy constructor
 
 /***********************************************************************/
@@ -726,7 +749,7 @@ bool UNZFAM::OpenTableFile(PGLOBAL g)
 	/*********************************************************************/
 	/*  Allocate the ZIP utility class.                                  */
 	/*********************************************************************/
-	zutp = new(g) UNZIPUTL(target, mul);
+	zutp = new(g) UNZIPUTL(tdfp);
 
 	//  We used the file name relative to recorded datapath
 	PlugSetPath(filename, To_File, Tdbp->GetPath());
@@ -841,17 +864,19 @@ void UNZFAM::CloseTableFile(PGLOBAL g, bool)
 UZXFAM::UZXFAM(PDOSDEF tdp) : MPXFAM(tdp)
 {
 	zutp = NULL;
-	target = tdp->GetEntry();
-	mul = tdp->GetMul();
+	tdfp = tdp;
+	//target = tdp->GetEntry();
+	//mul = tdp->GetMul();
 	//Lrecl = tdp->GetLrecl();
 } // end of UZXFAM standard constructor
 
 UZXFAM::UZXFAM(PUZXFAM txfp) : MPXFAM(txfp)
 {
 	zutp = txfp->zutp;
-	target = txfp->target;
-	mul = txfp->mul;
-//Lrecl = txfp->Lrecl;
+	tdfp = txfp->tdfp;
+	//target = txfp->target;
+	//mul = txfp->mul;
+	//Lrecl = txfp->Lrecl;
 } // end of UZXFAM copy constructor
 
 /***********************************************************************/
@@ -907,7 +932,7 @@ bool UZXFAM::OpenTableFile(PGLOBAL g)
 		/*  Allocate the ZIP utility class.                                  */
 		/*********************************************************************/
 		if (!zutp)
-			zutp = new(g)UNZIPUTL(target, mul);
+			zutp = new(g)UNZIPUTL(tdfp);
 
 		//  We used the file name relative to recorded datapath
 		PlugSetPath(filename, To_File, Tdbp->GetPath());

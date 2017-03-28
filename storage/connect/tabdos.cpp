@@ -98,6 +98,7 @@ DOSDEF::DOSDEF(void)
   Ofn = NULL;
 	Entry = NULL;
   To_Indx = NULL;
+	Pwd = NULL;
   Recfm = RECFM_VAR;
   Mapped = false;
 	Zipped = false;
@@ -139,7 +140,8 @@ bool DOSDEF::DefineAM(PGLOBAL g, LPCSTR am, int)
 		                               : false;
 		Mulentries = GetBoolCatInfo("Mulentries", Mulentries);
 		Append = GetBoolCatInfo("Append", false);
-	}
+		Pwd = GetStringCatInfo(g, "Password", NULL);
+	}	// endif Zipped
 
   Desc = Fn = GetStringCatInfo(g, "Filename", NULL);
   Ofn = GetStringCatInfo(g, "Optname", Fn);
