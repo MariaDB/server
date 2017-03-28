@@ -2270,17 +2270,6 @@ pk	c	CNT
 8	2	0.5000
 9	2	0.6667
 10	2	1.0000
-Warnings:
-Warning	1365	Division by 0
-Warning	1365	Division by 0
-Warning	1365	Division by 0
-Warning	1365	Division by 0
-Warning	1365	Division by 0
-Warning	1365	Division by 0
-Warning	1365	Division by 0
-Warning	1365	Division by 0
-Warning	1365	Division by 0
-Warning	1365	Division by 0
 create view v1 as select pk, c, c/count(*) over (partition by c order by pk
 rows between 1 preceding and 2 following) as CNT
 from t1;
@@ -2299,17 +2288,6 @@ pk	c	CNT
 8	2	0.5000
 9	2	0.6667
 10	2	1.0000
-Warnings:
-Warning	1365	Division by 0
-Warning	1365	Division by 0
-Warning	1365	Division by 0
-Warning	1365	Division by 0
-Warning	1365	Division by 0
-Warning	1365	Division by 0
-Warning	1365	Division by 0
-Warning	1365	Division by 0
-Warning	1365	Division by 0
-Warning	1365	Division by 0
 select pk, c, c/count(*) over w1 as CNT from t1
 window w1 as (partition by c order by pk rows between 1 preceding and 2 following);
 pk	c	CNT
@@ -2323,17 +2301,6 @@ pk	c	CNT
 8	2	0.5000
 9	2	0.6667
 10	2	1.0000
-Warnings:
-Warning	1365	Division by 0
-Warning	1365	Division by 0
-Warning	1365	Division by 0
-Warning	1365	Division by 0
-Warning	1365	Division by 0
-Warning	1365	Division by 0
-Warning	1365	Division by 0
-Warning	1365	Division by 0
-Warning	1365	Division by 0
-Warning	1365	Division by 0
 create view v2 as select pk, c, c/count(*) over w1 as CNT from t1
 window w1 as (partition by c order by pk rows between 1 preceding and 2 following);
 show create view v2;
@@ -2351,17 +2318,6 @@ pk	c	CNT
 8	2	0.5000
 9	2	0.6667
 10	2	1.0000
-Warnings:
-Warning	1365	Division by 0
-Warning	1365	Division by 0
-Warning	1365	Division by 0
-Warning	1365	Division by 0
-Warning	1365	Division by 0
-Warning	1365	Division by 0
-Warning	1365	Division by 0
-Warning	1365	Division by 0
-Warning	1365	Division by 0
-Warning	1365	Division by 0
 select pk, c, c/count(*) over w1 as CNT from t1
 window w1 as (partition by c order by pk rows unbounded preceding);
 pk	c	CNT
@@ -2375,17 +2331,6 @@ pk	c	CNT
 8	2	0.5000
 9	2	0.4000
 10	2	0.3333
-Warnings:
-Warning	1365	Division by 0
-Warning	1365	Division by 0
-Warning	1365	Division by 0
-Warning	1365	Division by 0
-Warning	1365	Division by 0
-Warning	1365	Division by 0
-Warning	1365	Division by 0
-Warning	1365	Division by 0
-Warning	1365	Division by 0
-Warning	1365	Division by 0
 create view v3 as select pk, c, c/count(*) over w1 as CNT from t1
 window w1 as (partition by c order by pk rows unbounded preceding);
 show create view v3;
@@ -2403,17 +2348,6 @@ pk	c	CNT
 8	2	0.5000
 9	2	0.4000
 10	2	0.3333
-Warnings:
-Warning	1365	Division by 0
-Warning	1365	Division by 0
-Warning	1365	Division by 0
-Warning	1365	Division by 0
-Warning	1365	Division by 0
-Warning	1365	Division by 0
-Warning	1365	Division by 0
-Warning	1365	Division by 0
-Warning	1365	Division by 0
-Warning	1365	Division by 0
 select pk, c, c/count(*) over (partition by c order by pk
 range between 3 preceding and current row) as CNT
 from t1;
@@ -2428,17 +2362,6 @@ pk	c	CNT
 8	2	0.5000
 9	2	0.5000
 10	2	0.5000
-Warnings:
-Warning	1365	Division by 0
-Warning	1365	Division by 0
-Warning	1365	Division by 0
-Warning	1365	Division by 0
-Warning	1365	Division by 0
-Warning	1365	Division by 0
-Warning	1365	Division by 0
-Warning	1365	Division by 0
-Warning	1365	Division by 0
-Warning	1365	Division by 0
 create view v4 as select pk, c, c/count(*) over (partition by c order by pk
 range between 3 preceding and current row) as CNT
 from t1;
@@ -2457,17 +2380,6 @@ pk	c	CNT
 8	2	0.5000
 9	2	0.5000
 10	2	0.5000
-Warnings:
-Warning	1365	Division by 0
-Warning	1365	Division by 0
-Warning	1365	Division by 0
-Warning	1365	Division by 0
-Warning	1365	Division by 0
-Warning	1365	Division by 0
-Warning	1365	Division by 0
-Warning	1365	Division by 0
-Warning	1365	Division by 0
-Warning	1365	Division by 0
 drop view v1,v2,v3,v4;
 drop table t0,t1;
 #
@@ -3095,4 +3007,25 @@ i	row_number() over ()
 select i, rank() over (order by i) rnk from t1 group by 1+2;
 i	rnk
 2	1
+drop table t1;
+#
+# MDEV-11907: window function as the second operand of division
+#
+create table t1 (pk int, c int);
+insert into t1 values (1,1),(2,1),(3,1),(4,1),(5,2);
+set @sql_mode_save= @@sql_mode;
+set sql_mode='ERROR_FOR_DIVISION_BY_ZERO';
+select pk, c, c/count(*) over 
+(partition by c order by pk
+rows between 1 preceding and 2 following) as CNT
+from t1;
+pk	c	CNT
+1	1	0.3333
+2	1	0.2500
+3	1	0.3333
+4	1	0.5000
+5	2	2.0000
+show warnings;
+Level	Code	Message
+set sql_mode=@sql_mode_save;
 drop table t1;
