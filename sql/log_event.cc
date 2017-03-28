@@ -7586,9 +7586,10 @@ int Xid_log_event::do_apply_event(rpl_group_info *rgi)
     Record any GTID in the same transaction, so slave state is transactionally
     consistent.
   */
-
+#ifdef WITH_WSREP
   /*Set wsrep_affected_rows = 0 */
   thd->wsrep_affected_rows= 0;
+#endif
 
   if (rgi->gtid_pending)
   {
