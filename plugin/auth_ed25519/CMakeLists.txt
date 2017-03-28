@@ -16,11 +16,14 @@ INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR})
 ADD_CONVENIENCE_LIBRARY(ref10 ${REF10_SOURCES})
 IF(MSVC)
    # Silence conversion (integer truncantion) warnings from reference code
-  SET_TARGET_PROPERTIES(ref10 PROPERTIES COMPILE_FLAGS "/wd4244 /wd4146")
+  SET_SOURCE_FILES_PROPERTIES(${REF10_SOURCES} PROPERTY COMPILE_FLAGS "/wd4244 /wd4146")
 ENDIF()
 
-MYSQL_ADD_PLUGIN(auth_ed25519 server_ed25519.c MODULE_ONLY LINK_LIBRARIES ref10)
+# server plugin *cannot* link with the library, it needs all sources to be
+# compiled with MYSQL_DYNAMIC_PLUGIN
+MYSQL_ADD_PLUGIN(auth_ed25519 server_ed25519.c ${REF10_SOURCES} MODULE_ONLY)
 
+# client plugin and unit test ed25519-t can use the library
 MYSQL_ADD_PLUGIN(client_ed25519 client_ed25519.c MODULE_ONLY
   CLIENT LINK_LIBRARIES mysys_ssl ref10 COMPONENT ClientPlugins)
 
