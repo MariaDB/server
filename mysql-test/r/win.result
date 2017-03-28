@@ -3029,3 +3029,29 @@ show warnings;
 Level	Code	Message
 set sql_mode=@sql_mode_save;
 drop table t1;
+#
+# MDEV-12336: several functions over a window function 
+#
+create table t1 (name varchar(10), cnt int);
+insert into t1 values ('Fred', 23), ('Fred', 35), ('Joe', 10);
+select q.name, q.row_cnt, 
+round( 100 * ( q.row_cnt /
+sum(q.row_cnt) over
+( 
+order by q.name 
+rows between
+unbounded preceding and
+unbounded following
+)
+),2
+) pct_of_total
+from 
+( 
+select name, count(*) row_cnt, sum(cnt) sum_cnt 
+from t1 
+group by 1
+) q;
+name	row_cnt	pct_of_total
+Fred	2	66.67
+Joe	1	33.33
+drop table t1;
