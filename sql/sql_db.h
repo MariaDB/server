@@ -45,6 +45,8 @@ CHARSET_INFO *get_default_db_collation(THD *thd, const char *db_name);
 bool my_dbopt_init(void);
 void my_dbopt_cleanup(void);
 
+char *normalize_db_name(char *db, char *buffer, size_t buffer_size);
+
 #define MY_DB_OPT_FILE "db.opt"
 
 #endif /* SQL_DB_INCLUDED */
