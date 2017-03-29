@@ -3344,6 +3344,8 @@ extern void trim_whitespace(CHARSET_INFO *cs, LEX_STRING *str,
                             uint *prefix_removed);
 
 extern bool is_lex_native_function(const LEX_STRING *name);
+extern bool is_native_function(THD *thd, const LEX_STRING *name);
+extern bool is_native_function_with_warn(THD *thd, const LEX_STRING *name);
 
 /**
   @} (End of group Semantic_Analysis)
