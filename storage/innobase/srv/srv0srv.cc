@@ -2681,7 +2681,7 @@ DECLARE_THREAD(srv_worker_thread)(
 	ut_ad(!srv_read_only_mode);
 	ut_a(srv_force_recovery < SRV_FORCE_NO_BACKGROUND);
 	my_thread_init();
-	THD*		thd = innobase_create_background_thd();
+	THD*		thd = innobase_create_background_thd("InnoDB purge worker");
 
 #ifdef UNIV_DEBUG_THREAD_CREATION
 	ib::info() << "Worker thread starting, id "
@@ -2910,7 +2910,7 @@ DECLARE_THREAD(srv_purge_coordinator_thread)(
 						required by os_thread_create */
 {
 	my_thread_init();
-	THD*		thd = innobase_create_background_thd();
+	THD*		thd = innobase_create_background_thd("InnoDB purge coordinator");
 	srv_slot_t*	slot;
 	ulint           n_total_purged = ULINT_UNDEFINED;
 

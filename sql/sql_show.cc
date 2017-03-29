@@ -5505,13 +5505,24 @@ static int get_schema_column_record(THD *thd, TABLE_LIST *tables,
       table->field[17]->store(STRING_WITH_LEN("auto_increment"), cs);
     if (print_on_update_clause(field, &type, true))
       table->field[17]->store(type.ptr(), type.length(), cs);
+
     if (field->vcol_info)
     {
+      String gen_s(tmp,sizeof(tmp), system_charset_info);
+      gen_s.length(0);
+      field->vcol_info->print(&gen_s);
+      table->field[21]->store(gen_s.ptr(), gen_s.length(), cs);
+      table->field[21]->set_notnull();
+      table->field[20]->store(STRING_WITH_LEN("ALWAYS"), cs);
+
       if (field->vcol_info->stored_in_db)
         table->field[17]->store(STRING_WITH_LEN("STORED GENERATED"), cs);
       else
         table->field[17]->store(STRING_WITH_LEN("VIRTUAL GENERATED"), cs);
     }
+    else
+      table->field[20]->store(STRING_WITH_LEN("NEVER"), cs);
+
     table->field[19]->store(field->comment.str, field->comment.length, cs);
     if (schema_table_store_record(thd, table))
       DBUG_RETURN(1);
@@ -8444,6 +8455,9 @@ ST_FIELD_INFO columns_fields_info[]=
   {"PRIVILEGES", 80, MYSQL_TYPE_STRING, 0, 0, "Privileges", OPEN_FRM_ONLY},
   {"COLUMN_COMMENT", COLUMN_COMMENT_MAXLEN, MYSQL_TYPE_STRING, 0, 0, 
    "Comment", OPEN_FRM_ONLY},
+  {"IS_GENERATED", 6, MYSQL_TYPE_STRING, 0, 0, 0, OPEN_FRM_ONLY},
+  {"GENERATION_EXPRESSION", MAX_FIELD_VARCHARLENGTH, MYSQL_TYPE_STRING, 0, 1,
+    0, OPEN_FRM_ONLY},
   {0, 0, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE}
 };
 

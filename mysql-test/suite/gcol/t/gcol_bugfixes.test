@@ -536,3 +536,17 @@ SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED ;
 SELECT 1 FROM t WHERE c GROUP BY b;
 COMMIT;
 DROP TABLE t;
+
+--echo #
+--echo # MDEV-9255 Add generation_expression to information_schema.columns.
+--echo #
+
+CREATE TABLE gcol_t1 (
+  sidea DOUBLE,
+  sideb DOUBLE,
+  sidec DOUBLE AS (SQRT(sidea * sidea + sideb * sideb))
+);
+
+SELECT * FROM information_schema.columns WHERE table_name='gcol_t1';
+
+DROP TABLE gcol_t1;

@@ -13,7 +13,7 @@ SELECT @@wsrep_slave_threads = 1;
 1
 SET GLOBAL wsrep_slave_threads = 1;
 SELECT COUNT(*) FROM INFORMATION_SCHEMA.PROCESSLIST
-WHERE USER = 'system user' AND NOT STATE <=> 'InnoDB background thread';
+WHERE USER = 'system user' AND STATE NOT LIKE 'InnoDB%';
 COUNT(*)
 2
 SELECT COUNT(*) FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND STATE LIKE '%wsrep aborter%';
@@ -27,7 +27,7 @@ SELECT COUNT(*) FROM t1;
 COUNT(*)
 1
 SELECT COUNT(*) - @@wsrep_slave_threads FROM INFORMATION_SCHEMA.PROCESSLIST
-WHERE USER = 'system user' AND NOT STATE <=> 'InnoDB background thread';
+WHERE USER = 'system user' AND STATE NOT LIKE 'InnoDB%';
 COUNT(*) - @@wsrep_slave_threads
 1
 SELECT COUNT(*) FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND STATE LIKE '%wsrep aborter%';
@@ -104,7 +104,7 @@ SELECT COUNT(*) FROM t2;
 COUNT(*)
 64
 SELECT COUNT(*) - @@wsrep_slave_threads FROM INFORMATION_SCHEMA.PROCESSLIST
-WHERE USER = 'system user' AND NOT STATE <=> 'InnoDB background thread';
+WHERE USER = 'system user' AND STATE NOT LIKE 'InnoDB%';
 COUNT(*) - @@wsrep_slave_threads
 1
 SELECT COUNT(*) FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND STATE LIKE '%wsrep aborter%';

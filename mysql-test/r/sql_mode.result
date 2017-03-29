@@ -759,3 +759,24 @@ a	b
 1	NULL
 1	NULL
 DROP TABLE t1;
+#
+# MDEV-12390 Wrong error line numbers reported with sql_mode=IGNORE_SPACE
+#
+SET sql_mode=IGNORE_SPACE;
+CREATE PROCEDURE p1()
+BEGIN
+SELECT 1+1;
+syntax error;
+END;
+$$
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'error;
+END' at line 4
+SET sql_mode=DEFAULT;
+CREATE PROCEDURE p1()
+BEGIN
+SELECT 1+1;
+syntax error;
+END;
+$$
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'error;
+END' at line 4

@@ -610,10 +610,11 @@ buffer pool size.
 void
 innodb_set_buf_pool_size(ulonglong buf_pool_size);
 
-/** Create a MYSQL_THD for background purge threads and mark it as such.
-@returns new MYSQL_THD */
+/** Create a MYSQL_THD for a background thread and mark it as such.
+@param name thread info for SHOW PROCESSLIST
+@return new MYSQL_THD */
 MYSQL_THD
-innobase_create_background_thd();
+innobase_create_background_thd(const char* name);
 
 /** Destroy a background purge thread THD.
 @param[in]	thd	MYSQL_THD to destroy */

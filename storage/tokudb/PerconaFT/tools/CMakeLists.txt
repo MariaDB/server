@@ -12,5 +12,5 @@ endforeach(tool)
 # link in math.h library just for this tool.
 target_link_libraries(ftverify m)
 
-install(TARGETS tokuftdump      DESTINATION ${INSTALL_BINDIR} COMPONENT Server)
-install(TARGETS tokuft_logprint DESTINATION ${INSTALL_BINDIR} COMPONENT Server)
+install(TARGETS tokuftdump      DESTINATION ${INSTALL_BINDIR} COMPONENT tokudb-engine)
+install(TARGETS tokuft_logprint DESTINATION ${INSTALL_BINDIR} COMPONENT tokudb-engine)

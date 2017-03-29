@@ -1071,6 +1071,7 @@ typedef ulong		myf;	/* Type of MyFlags in my_funcs */
 #ifdef _WIN32
 #define dlsym(lib, name) (void*)GetProcAddress((HMODULE)lib, name)
 #define dlopen(libname, unused) LoadLibraryEx(libname, NULL, 0)
+#define RTLD_DEFAULT GetModuleHandle(NULL)
 #define dlclose(lib) FreeLibrary((HMODULE)lib)
 static inline char *dlerror(void)
 {

@@ -892,14 +892,27 @@ int ha_myisam::write_row(uchar *buf)
 
 void ha_myisam::setup_vcols_for_repair(HA_CHECK *param)
 {
-  if (file->s->base.reclength < file->s->vreclength)
+  DBUG_ASSERT(file->s->base.reclength <= file->s->vreclength);
+  if (!table->vfield)
+    return;
+
+  if  (file->s->base.reclength == file->s->vreclength)
   {
-    param->fix_record= compute_vcols;
-    table->use_all_columns();
-    table->vcol_set= &table->s->all_set;
+    bool indexed_vcols= false;
+    ulong new_vreclength= file->s->vreclength;
+    for (Field **vf= table->vfield; *vf; vf++)
+    {
+      uint vf_end= (*vf)->offset(table->record[0]) + (*vf)->pack_length_in_rec();
+      set_if_bigger(new_vreclength, vf_end);
+      indexed_vcols|= (*vf)->flags & PART_KEY_FLAG;
+    }
+    if (!indexed_vcols)
+      return;
+    file->s->vreclength= new_vreclength;
   }
-  else
-    DBUG_ASSERT(file->s->base.reclength == file->s->vreclength);
+  param->fix_record= compute_vcols;
+  table->use_all_columns();
+  table->vcol_set= &table->s->all_set;
 }
 
 void ha_myisam::restore_vcos_after_repair()

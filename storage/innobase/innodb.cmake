@@ -19,11 +19,11 @@
 INCLUDE(CheckFunctionExists)
 INCLUDE(CheckCSourceCompiles)
 INCLUDE(CheckCSourceRuns)
-INCLUDE(lz4)
-INCLUDE(lzo)
-INCLUDE(lzma)
-INCLUDE(bzip2)
-INCLUDE(snappy)
+INCLUDE(lz4.cmake)
+INCLUDE(lzo.cmake)
+INCLUDE(lzma.cmake)
+INCLUDE(bzip2.cmake)
+INCLUDE(snappy.cmake)
 
 MYSQL_CHECK_LZ4()
 MYSQL_CHECK_LZO()
@@ -240,6 +240,18 @@ IF (MSVC AND CMAKE_SIZEOF_VOID_P EQUAL 8)
 				    PROPERTIES COMPILE_FLAGS -Od)
 ENDIF()
 
+# Avoid generating Hardware Capabilities due to crc32 instructions
+IF(CMAKE_SYSTEM_NAME MATCHES "SunOS" AND CMAKE_SYSTEM_PROCESSOR MATCHES "i386")
+  INCLUDE(${MYSQL_CMAKE_SCRIPT_DIR}/compile_flags.cmake)
+  MY_CHECK_CXX_COMPILER_FLAG("-Wa,-nH" HAVE_WA_NH)
+  IF(HAVE_WA_NH)
+    ADD_COMPILE_FLAGS(
+      ut/ut0crc32.cc
+      COMPILE_FLAGS "-Wa,-nH"
+    )
+  ENDIF()
+ENDIF()
+
 IF(MSVC)
   # Avoid "unreferenced label" warning in generated file
   GET_FILENAME_COMPONENT(_SRC_DIR ${CMAKE_CURRENT_LIST_FILE} PATH)
@@ -253,4 +265,3 @@ ENDIF()
 INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/storage/innobase/include
 		    ${CMAKE_SOURCE_DIR}/storage/innobase/handler
                     ${CMAKE_SOURCE_DIR}/libbinlogevents/include )
-
