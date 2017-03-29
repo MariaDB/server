@@ -2893,6 +2893,129 @@ static bool do_execute_sp(THD *thd, sp_head *sp)
 }
 
 
+static int mysql_create_routine(THD *thd, LEX *lex)
+{
+  uint namelen;
+  char *name;
+
+  DBUG_ASSERT(lex->sphead != 0);
+  DBUG_ASSERT(lex->sphead->m_db.str); /* Must be initialized in the parser */
+  /*
+    Verify that the database name is allowed, optionally
+    lowercase it.
+  */
+  if (check_db_name(&lex->sphead->m_db))
+  {
+    my_error(ER_WRONG_DB_NAME, MYF(0), lex->sphead->m_db.str);
+    return true;
+  }
+
+  if (check_access(thd, CREATE_PROC_ACL, lex->sphead->m_db.str,
+                   NULL, NULL, 0, 0))
+    return true;
+
+  /* Checking the drop permissions if CREATE OR REPLACE is used */
+  if (lex->create_info.or_replace())
+  {
+    if (check_routine_access(thd, ALTER_PROC_ACL, lex->spname->m_db.str,
+                             lex->spname->m_name.str,
+                             lex->sql_command == SQLCOM_DROP_PROCEDURE, 0))
+      return true;
+  }
+
+  name= lex->sphead->name(&namelen);
+#ifdef HAVE_DLOPEN
+  if (lex->sphead->m_type == TYPE_ENUM_FUNCTION)
+  {
+    udf_func *udf = find_udf(name, namelen);
+
+    if (udf)
+    {
+      my_error(ER_UDF_EXISTS, MYF(0), name);
+      return true;
+    }
+  }
+#endif
+
+  if (sp_process_definer(thd))
+    return true;
+
+  WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL)
+  if (!sp_create_routine(thd, lex->sphead->m_type, lex->sphead))
+  {
+#ifndef NO_EMBEDDED_ACCESS_CHECKS
+    /* only add privileges if really neccessary */
+
+    Security_context security_context;
+    bool restore_backup_context= false;
+    Security_context *backup= NULL;
+    LEX_USER *definer= thd->lex->definer;
+    /*
+      We're going to issue an implicit GRANT statement so we close all
+      open tables. We have to keep metadata locks as this ensures that
+      this statement is atomic against concurent FLUSH TABLES WITH READ
+      LOCK. Deadlocks which can arise due to fact that this implicit
+      statement takes metadata locks should be detected by a deadlock
+      detector in MDL subsystem and reported as errors.
+
+      No need to commit/rollback statement transaction, it's not started.
+
+      TODO: Long-term we should either ensure that implicit GRANT statement
+            is written into binary log as a separate statement or make both
+            creation of routine and implicit GRANT parts of one fully atomic
+            statement.
+      */
+    DBUG_ASSERT(thd->transaction.stmt.is_empty());
+    close_thread_tables(thd);
+    /*
+      Check if the definer exists on slave,
+      then use definer privilege to insert routine privileges to mysql.procs_priv.
+
+      For current user of SQL thread has GLOBAL_ACL privilege,
+      which doesn't any check routine privileges,
+      so no routine privilege record  will insert into mysql.procs_priv.
+    */
+    if (thd->slave_thread && is_acl_user(definer->host.str, definer->user.str))
+    {
+      security_context.change_security_context(thd,
+                                               &thd->lex->definer->user,
+                                               &thd->lex->definer->host,
+                                               &thd->lex->sphead->m_db,
+                                               &backup);
+      restore_backup_context= true;
+    }
+
+    if (sp_automatic_privileges && !opt_noacl &&
+        check_routine_access(thd, DEFAULT_CREATE_PROC_ACLS,
+                             lex->sphead->m_db.str, name,
+                             lex->sql_command == SQLCOM_CREATE_PROCEDURE, 1))
+    {
+      if (sp_grant_privileges(thd, lex->sphead->m_db.str, name,
+                              lex->sql_command == SQLCOM_CREATE_PROCEDURE))
+        push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
+                     ER_PROC_AUTO_GRANT_FAIL, ER_THD(thd, ER_PROC_AUTO_GRANT_FAIL));
+      thd->clear_error();
+    }
+
+    /*
+      Restore current user with GLOBAL_ACL privilege of SQL thread
+    */
+    if (restore_backup_context)
+    {
+      DBUG_ASSERT(thd->slave_thread == 1);
+      thd->security_ctx->restore_security_context(thd, backup);
+    }
+
+#endif
+    return false;
+  }
+#ifdef WITH_WSREP
+error:
+#endif
+  return true;
+}
+
+
 /**
   Execute command saved in thd and lex->sql_command.
 
@@ -5608,120 +5731,7 @@ end_with_restore_list:
   case SQLCOM_CREATE_PROCEDURE:
   case SQLCOM_CREATE_SPFUNCTION:
   {
-    uint namelen;
-    char *name;
-
-    DBUG_ASSERT(lex->sphead != 0);
-    DBUG_ASSERT(lex->sphead->m_db.str); /* Must be initialized in the parser */
-    /*
-      Verify that the database name is allowed, optionally
-      lowercase it.
-    */
-    if (check_db_name(&lex->sphead->m_db))
-    {
-      my_error(ER_WRONG_DB_NAME, MYF(0), lex->sphead->m_db.str);
-      goto error;
-    }
-
-    if (check_access(thd, CREATE_PROC_ACL, lex->sphead->m_db.str,
-                     NULL, NULL, 0, 0))
-      goto error;
-
-    /* Checking the drop permissions if CREATE OR REPLACE is used */
-    if (lex->create_info.or_replace())
-    {
-      if (check_routine_access(thd, ALTER_PROC_ACL, lex->spname->m_db.str,
-                               lex->spname->m_name.str,
-                               lex->sql_command == SQLCOM_DROP_PROCEDURE, 0))
-        goto error;
-    }
-
-    name= lex->sphead->name(&namelen);
-#ifdef HAVE_DLOPEN
-    if (lex->sphead->m_type == TYPE_ENUM_FUNCTION)
-    {
-      udf_func *udf = find_udf(name, namelen);
-
-      if (udf)
-      {
-        my_error(ER_UDF_EXISTS, MYF(0), name);
-        goto error;
-      }
-    }
-#endif
-
-    if (sp_process_definer(thd))
-      goto error;
-
-    WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL)
-    if (!sp_create_routine(thd, lex->sphead->m_type, lex->sphead))
-    {
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
-      /* only add privileges if really neccessary */
-
-      Security_context security_context;
-      bool restore_backup_context= false;
-      Security_context *backup= NULL;
-      LEX_USER *definer= thd->lex->definer;
-      /*
-        We're going to issue an implicit GRANT statement so we close all
-        open tables. We have to keep metadata locks as this ensures that
-        this statement is atomic against concurent FLUSH TABLES WITH READ
-        LOCK. Deadlocks which can arise due to fact that this implicit
-        statement takes metadata locks should be detected by a deadlock
-        detector in MDL subsystem and reported as errors.
-
-        No need to commit/rollback statement transaction, it's not started.
-
-        TODO: Long-term we should either ensure that implicit GRANT statement
-              is written into binary log as a separate statement or make both
-              creation of routine and implicit GRANT parts of one fully atomic
-              statement.
-      */
-      DBUG_ASSERT(thd->transaction.stmt.is_empty());
-      close_thread_tables(thd);
-      /*
-        Check if the definer exists on slave, 
-        then use definer privilege to insert routine privileges to mysql.procs_priv.
-
-        For current user of SQL thread has GLOBAL_ACL privilege, 
-        which doesn't any check routine privileges, 
-        so no routine privilege record  will insert into mysql.procs_priv.
-      */
-      if (thd->slave_thread && is_acl_user(definer->host.str, definer->user.str))
-      {
-        security_context.change_security_context(thd, 
-                                                 &thd->lex->definer->user,
-                                                 &thd->lex->definer->host,
-                                                 &thd->lex->sphead->m_db,
-                                                 &backup);
-        restore_backup_context= true;
-      }
-
-      if (sp_automatic_privileges && !opt_noacl &&
-          check_routine_access(thd, DEFAULT_CREATE_PROC_ACLS,
-                               lex->sphead->m_db.str, name,
-                               lex->sql_command == SQLCOM_CREATE_PROCEDURE, 1))
-      {
-        if (sp_grant_privileges(thd, lex->sphead->m_db.str, name,
-                                lex->sql_command == SQLCOM_CREATE_PROCEDURE))
-          push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
-                       ER_PROC_AUTO_GRANT_FAIL, ER_THD(thd, ER_PROC_AUTO_GRANT_FAIL));
-        thd->clear_error();
-      }
-
-      /*
-        Restore current user with GLOBAL_ACL privilege of SQL thread
-      */ 
-      if (restore_backup_context)
-      {
-        DBUG_ASSERT(thd->slave_thread == 1);
-        thd->security_ctx->restore_security_context(thd, backup);
-      }
-
-#endif
-    }
-    else
+    if (mysql_create_routine(thd, lex))
       goto error;
     my_ok(thd);
     break; /* break super switch */
