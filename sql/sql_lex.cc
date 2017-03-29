@@ -880,6 +880,59 @@ bool is_lex_native_function(const LEX_STRING *name)
   return (get_hash_symbol(name->str, (uint) name->length, 1) != 0);
 }
 
+
+bool is_native_function(THD *thd, const LEX_STRING *name)
+{
+  if (find_native_function_builder(thd, *name))
+    return true;
+
+  if (is_lex_native_function(name))
+    return true;
+
+  return false;
+}
+
+
+bool is_native_function_with_warn(THD *thd, const LEX_STRING *name)
+{
+  if (!is_native_function(thd, name))
+    return false;
+  /*
+    This warning will be printed when
+    [1] A client query is parsed,
+    [2] A stored function is loaded by db_load_routine.
+    Printing the warning for [2] is intentional, to cover the
+    following scenario:
+    - A user define a SF 'foo' using MySQL 5.N
+    - An application uses select foo(), and works.
+    - MySQL 5.{N+1} defines a new native function 'foo', as
+    part of a new feature.
+    - MySQL 5.{N+1} documentation is updated, and should mention
+    that there is a potential incompatible change in case of
+    existing stored function named 'foo'.
+    - The user deploys 5.{N+1}. At this point, 'select foo()'
+    means something different, and the user code is most likely
+    broken (it's only safe if the code is 'select db.foo()').
+    With a warning printed when the SF is loaded (which has to
+    occur before the call), the warning will provide a hint
+    explaining the root cause of a later failure of 'select foo()'.
+    With no warning printed, the user code will fail with no
+    apparent reason.
+    Printing a warning each time db_load_routine is executed for
+    an ambiguous function is annoying, since that can happen a lot,
+    but in practice should not happen unless there *are* name
+    collisions.
+    If a collision exists, it should not be silenced but fixed.
+  */
+  push_warning_printf(thd,
+                      Sql_condition::WARN_LEVEL_NOTE,
+                      ER_NATIVE_FCT_NAME_COLLISION,
+                      ER_THD(thd, ER_NATIVE_FCT_NAME_COLLISION),
+                      name->str);
+  return true;
+}
+
+
 /* make a copy of token before ptr and set yytoklen */
 
 static LEX_STRING get_token(Lex_input_stream *lip, uint skip, uint length)
@@ -1449,7 +1502,10 @@ static int lex_one_token(YYSTYPE *yylval, THD *thd)
           below by checking start != lex->ptr.
         */
         for (; state_map[(uchar) c] == MY_LEX_SKIP ; c= lip->yyGet())
-          ;
+        {
+          if (c == '\n')
+            lip->yylineno++;
+        }
       }
       if (start == lip->get_ptr() && c == '.' &&
           ident_map[(uchar) lip->yyPeek()])

@@ -20,7 +20,7 @@ SELECT COUNT(DISTINCT f1) FROM t1;
 COUNT(DISTINCT f1)
 30000
 SELECT COUNT(*) FROM INFORMATION_SCHEMA.PROCESSLIST WHERE
-USER = 'system user' AND NOT STATE <=> 'InnoDB background thread';
+USER = 'system user' AND STATE NOT LIKE 'InnoDB%';
 COUNT(*)
 5
 connection default;

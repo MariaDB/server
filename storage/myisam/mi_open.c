@@ -336,7 +336,6 @@ MI_INFO *mi_open(const char *name, int mode, uint open_flags)
       for (i=0 ; i < keys ; i++)
       {
         MI_KEYDEF *keyinfo= share->keyinfo + i;
-        uint sp_segs;
         keyinfo->share= share;
         disk_pos=mi_keydef_read(disk_pos, keyinfo);
         disk_pos_assert(disk_pos + keyinfo->keysegs * HA_KEYSEG_SIZE, end_pos);
@@ -344,11 +343,7 @@ MI_INFO *mi_open(const char *name, int mode, uint open_flags)
           have_rtree=1;
         set_if_smaller(share->blocksize, keyinfo->block_length);
         keyinfo->seg= pos;
-        if (keyinfo->flag & HA_SPATIAL)
-          sp_segs= 2*SPDIMS;
-        else
-          sp_segs= 0;
-        for (j=0 ; j < keyinfo->keysegs; j++, pos++)
+        for (j=0 ; j < keyinfo->keysegs; j++,pos++)
 	{
 	  disk_pos=mi_keyseg_read(disk_pos, pos);
           if (pos->flag & HA_BLOB_PART &&
@@ -372,18 +367,11 @@ MI_INFO *mi_open(const char *name, int mode, uint open_flags)
 	  }
 	  else if (pos->type == HA_KEYTYPE_BINARY)
 	    pos->charset= &my_charset_bin;
-          if (j < keyinfo->keysegs - sp_segs)
-          {
-            uint real_length= pos->flag & HA_BLOB_PART ? pos->bit_start
-                                                       : pos->length;
-            if (pos->type == HA_KEYTYPE_BIT && pos->bit_length)
-              real_length--;
-            set_if_bigger(share->vreclength, pos->start + real_length);
-          }
 	}
         if (keyinfo->flag & HA_SPATIAL)
 	{
 #ifdef HAVE_SPATIAL
+          uint sp_segs= SPDIMS*2;
           keyinfo->seg= pos - sp_segs;
           DBUG_ASSERT(keyinfo->keysegs == sp_segs + 1);
           keyinfo->keysegs= sp_segs;

@@ -527,3 +527,30 @@ ALTER TABLE t1 ADD b INT;
 EXECUTE stmt;
 SELECT * FROM t1;
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-12390 Wrong error line numbers reported with sql_mode=IGNORE_SPACE
+--echo #
+
+SET sql_mode=IGNORE_SPACE;
+DELIMITER $$;
+--error ER_PARSE_ERROR
+CREATE PROCEDURE p1()
+BEGIN
+  SELECT 1+1;
+  syntax error;
+END;
+$$
+DELIMITER ;$$
+
+
+SET sql_mode=DEFAULT;
+DELIMITER $$;
+--error ER_PARSE_ERROR
+CREATE PROCEDURE p1()
+BEGIN
+  SELECT 1+1;
+  syntax error;
+END;
+$$
+DELIMITER ;$$

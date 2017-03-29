@@ -1168,6 +1168,8 @@ bool With_element::check_unrestricted_recursive(st_select_lex *sel,
   ti.rewind();
   while ((tbl= ti++))
   {
+    if (!tbl->is_with_table_recursive_reference())
+      continue;
     for (TABLE_LIST *tab= tbl; tab; tab= tab->embedding)
     {
       if (tab->outer_join & (JOIN_TYPE_LEFT | JOIN_TYPE_RIGHT))

@@ -1060,6 +1060,7 @@ bool parse_vcol_defs(THD *thd, MEM_ROOT *mem_root, TABLE *table,
 
     expr_str.length(parse_vcol_keyword.length);
     expr_str.append((char*)pos, expr_length);
+    thd->where= vcol_type_name(static_cast<enum_vcol_info_type>(type));
 
     switch (type) {
     case VCOL_GENERATED_VIRTUAL:
@@ -2691,13 +2692,9 @@ static bool fix_vcol_expr(THD *thd, Virtual_column_info *vcol)
   const enum enum_mark_columns save_mark_used_columns= thd->mark_used_columns;
   thd->mark_used_columns= MARK_COLUMNS_NONE;
 
-  const char *save_where= thd->where;
-  thd->where= "virtual column function";
-
   int error= vcol->expr->fix_fields(thd, &vcol->expr);
 
   thd->mark_used_columns= save_mark_used_columns;
-  thd->where= save_where;
 
   if (unlikely(error))
   {
@@ -6584,6 +6581,8 @@ void TABLE::mark_columns_used_by_check_constraints(void)
 void TABLE::mark_check_constraint_columns_for_read(void)
 {
   bitmap_union(read_set, s->check_set);
+  if (vcol_set)
+    bitmap_union(vcol_set, s->check_set);
 }
 
 

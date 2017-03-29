@@ -12,21 +12,11 @@
 # Give message why the building this plugin is skipped (only if -DVERBOSE is defined)
 # or if plugin is explicitly requested to build. Then bail out.
 MACRO(SKIP_AWS_PLUGIN msg)
-  IF(VERBOSE OR "${PLUGIN_AWS_KEY_MANAGEMENT}" MATCHES "^(STATIC|DYNAMIC)$")
-    MESSAGE(STATUS "Can't build aws_key_management - ${msg}")
-  ENDIF()
-  IF(TARGET aws_key_management)
-    MESSAGE(FATAL_ERROR "Error configuring aws_key_management - aborting")
-  ENDIF()
+  MESSAGE_ONCE(SKIP_AWS_PLUGIN "Skip aws_key_management - ${msg}")
   RETURN()
 ENDMACRO()
 
-MYSQL_ADD_PLUGIN(aws_key_management aws_key_management_plugin.cc DISABLED
-                 COMPONENT aws-key-management)
 
-IF(NOT TARGET aws_key_management)
-  RETURN()
-ENDIF()
 
 # This plugin needs recent C++ compilers (AWS C++ SDK header files are using C++11 features)
 SET(CXX11_FLAGS)
@@ -67,6 +57,10 @@ IF(AWS_CPP_SDK_CORE AND AWS_CPP_SDK_KMS AND HAVE_AWS_HEADERS)
   # AWS C++ SDK installed 
   SET(AWS_SDK_LIBS ${AWS_CPP_SDK_CORE} ${AWS_CPP_SDK_KMS})
 ELSE()
+  OPTION(AWS_SDK_EXTERNAL_PROJECT  "Allow download and build AWS C++ SDK" OFF)
+  IF(NOT AWS_SDK_EXTERNAL_PROJECT)
+    SKIP_AWS_PLUGIN("AWS_SDK_EXTERNAL_PROJECT is not set")
+  ENDIF()
   # Build from source, using ExternalProject_Add
   # AWS C++ SDK requires cmake 2.8.12
   IF(CMAKE_VERSION VERSION_LESS "2.8.12")
@@ -95,7 +89,7 @@ ELSE()
     ENDIF()
   ENDIF()
   IF(MSVC)
-    SET(EXTRA_SDK_CMAKE_FLAGS -DCMAKE_CXX_FLAGS_DEBUGOPT="" -DCMAKE_EXE_LINKER_FLAGS_DEBUGOPT="" "-DCMAKE_CXX_FLAGS=/wd4530 /WX-")
+    SET(EXTRA_SDK_CMAKE_FLAGS -DCMAKE_CXX_FLAGS_DEBUGOPT="" -DCMAKE_EXE_LINKER_FLAGS_DEBUGOPT="" "-DCMAKE_CXX_FLAGS=/wd4530 /wd4577 /WX-")
   ENDIF()
   IF(CMAKE_CXX_COMPILER)
    SET(EXTRA_SDK_CMAKE_FLAGS ${EXTRA_SDK_CMAKE_FLAGS} -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER})
@@ -143,6 +137,8 @@ ELSE()
   INCLUDE_DIRECTORIES(${CMAKE_BINARY_DIR}/aws_sdk_cpp/include)
 ENDIF()
 
+MYSQL_ADD_PLUGIN(aws_key_management aws_key_management_plugin.cc 
+                 COMPONENT aws-key-management)
 ADD_DEFINITIONS(${SSL_DEFINES}) # Need to know whether openssl should be initialized
 SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}  ${CXX11_FLAGS}")
 TARGET_LINK_LIBRARIES(aws_key_management ${AWS_SDK_LIBS})
