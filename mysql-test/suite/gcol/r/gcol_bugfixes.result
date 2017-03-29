@@ -583,9 +583,10 @@ sidea DOUBLE,
 sideb DOUBLE,
 sidec DOUBLE AS (SQRT(sidea * sidea + sideb * sideb))
 );
-SELECT * FROM information_schema.columns WHERE table_name='gcol_t1';
-TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	COLUMN_NAME	ORDINAL_POSITION	COLUMN_DEFAULT	IS_NULLABLE	DATA_TYPE	CHARACTER_MAXIMUM_LENGTH	CHARACTER_OCTET_LENGTH	NUMERIC_PRECISION	NUMERIC_SCALE	DATETIME_PRECISION	CHARACTER_SET_NAME	COLLATION_NAME	COLUMN_TYPE	COLUMN_KEY	EXTRA	PRIVILEGES	COLUMN_COMMENT	IS_GENERATED	GENERATION_EXPRESSION
-def	test	gcol_t1	sidea	1	NULL	YES	double	NULL	NULL	22	NULL	NULL	NULL	NULL	double			select,insert,update,references		NEVER	NULL
-def	test	gcol_t1	sideb	2	NULL	YES	double	NULL	NULL	22	NULL	NULL	NULL	NULL	double			select,insert,update,references		NEVER	NULL
-def	test	gcol_t1	sidec	3	NULL	YES	double	NULL	NULL	22	NULL	NULL	NULL	NULL	double		VIRTUAL GENERATED	select,insert,update,references		ALWAYS	sqrt(`sidea` * `sidea` + `sideb` * `sideb`)
+SELECT table_schema,table_name,column_name,extra,is_generated,generation_expression
+FROM information_schema.columns WHERE table_name='gcol_t1';
+table_schema	table_name	column_name	extra	is_generated	generation_expression
+test	gcol_t1	sidea		NEVER	NULL
+test	gcol_t1	sideb		NEVER	NULL
+test	gcol_t1	sidec	VIRTUAL GENERATED	ALWAYS	sqrt(`sidea` * `sidea` + `sideb` * `sideb`)
 DROP TABLE gcol_t1;
