@@ -1,0 +1,22 @@
+#
+# MDEV-4774: Strangeness with max_binlog_stmt_cache_size Settings
+#
+CALL mtr.add_suppression("unsigned value 18446744073709547520 adjusted to 4294963200");
+SELECT @@global.max_binlog_stmt_cache_size;
+@@global.max_binlog_stmt_cache_size
+MAX_BINLOG_STMT_CACHE_SIZE
+SET @cache_size= @@max_binlog_stmt_cache_size;
+SET @@global.max_binlog_stmt_cache_size= @cache_size+1;
+SELECT @@global.max_binlog_stmt_cache_size;
+@@global.max_binlog_stmt_cache_size
+MAX_BINLOG_STMT_CACHE_SIZE
+SET @@global.max_binlog_stmt_cache_size = @cache_size+4095;
+SELECT @@global.max_binlog_stmt_cache_size;
+@@global.max_binlog_stmt_cache_size
+MAX_BINLOG_STMT_CACHE_SIZE
+SET @@global.max_binlog_stmt_cache_size= @cache_size-1;
+SELECT @@global.max_binlog_stmt_cache_size = @cache_size-4096;
+@@global.max_binlog_stmt_cache_size = @cache_size-4096
+1
+SET @@global.max_binlog_stmt_cache_size= @cache_size;
+# End of test

@@ -2,7 +2,7 @@
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2009, Percona Inc.
-Copyright (c) 2013, 2016, MariaDB Corporation.
+Copyright (c) 2012, 2017, MariaDB Corporation. All Rights Reserved.
 
 Portions of this file contain modifications contributed and copyrighted
 by Percona Inc.. Those modifications are
@@ -249,11 +249,15 @@ struct os_aio_array_t{
 	os_event_t	not_full;
 				/*!< The event which is set to the
 				signaled state when there is space in
-				the aio outside the ibuf segment */
+				the aio outside the ibuf segment;
+				os_event_set() and os_event_reset()
+				are protected by os_aio_array_t::mutex */
 	os_event_t	is_empty;
 				/*!< The event which is set to the
 				signaled state when there are no
-				pending i/os in this array */
+				pending i/os in this array;
+				os_event_set() and os_event_reset()
+				are protected by os_aio_array_t::mutex */
 	ulint		n_slots;/*!< Total number of slots in the aio
 				array.  This must be divisible by
 				n_threads. */
@@ -304,8 +308,8 @@ struct os_aio_array_t{
 #define OS_AIO_IO_SETUP_RETRY_ATTEMPTS	5
 #endif
 
-/** Array of events used in simulated aio */
-static os_event_t*	os_aio_segment_wait_events = NULL;
+/** Array of events used in simulated aio. */
+static os_event_t*	os_aio_segment_wait_events;
 
 /** The aio arrays for non-ibuf i/o and ibuf i/o, as well as sync aio. These
 are NULL when the module has not yet been initialized. @{ */
@@ -342,16 +346,17 @@ static os_ib_mutex_t	os_file_count_mutex;
 #endif /* !UNIV_HOTBACKUP && (!HAVE_ATOMIC_BUILTINS || UNIV_WORD_SIZE < 8) */
 
 /** Number of pending os_file_pread() operations */
-UNIV_INTERN ulint	os_file_n_pending_preads  = 0;
+UNIV_INTERN ulint	os_file_n_pending_preads;
 /** Number of pending os_file_pwrite() operations */
-UNIV_INTERN ulint	os_file_n_pending_pwrites = 0;
+UNIV_INTERN ulint	os_file_n_pending_pwrites;
 /** Number of pending write operations */
-UNIV_INTERN ulint	os_n_pending_writes = 0;
+UNIV_INTERN ulint	os_n_pending_writes;
 /** Number of pending read operations */
-UNIV_INTERN ulint	os_n_pending_reads = 0;
+UNIV_INTERN ulint	os_n_pending_reads;
 
+#if defined(WIN_ASYNC_IO) || defined(LINUX_NATIVE_AIO)
 /** After first fallocate failure we will disable os_file_trim */
-UNIV_INTERN ibool       os_fallocate_failed = FALSE;
+static bool		os_fallocate_failed;
 
 /**********************************************************************//**
 Directly manipulate the allocated disk space by deallocating for the file referred to
@@ -360,11 +365,12 @@ Within the specified range, partial file system blocks are zeroed, and whole
 file system blocks are removed from the file.  After a successful call,
 subsequent reads from  this range will return zeroes.
 @return	true if success, false if error */
-UNIV_INTERN
+static
 ibool
 os_file_trim(
 /*=========*/
 	os_aio_slot_t*	slot); /*!< in: slot structure     */
+#endif /* WIN_ASYNC_IO || LINUX_NATIVE_AIO */
 
 /****************************************************************//**
 Does error handling when a file operation fails.
@@ -2351,60 +2357,80 @@ os_file_get_size(
 #endif /* __WIN__ */
 }
 
-/***********************************************************************//**
-Write the specified number of zeros to a newly created file.
-@return	TRUE if success */
+/** Set the size of a newly created file.
+@param[in]	name	file name
+@param[in]	file	file handle
+@param[in]	size	desired file size
+@param[in]	sparse	whether to create a sparse file (no preallocating)
+@return	whether the operation succeeded */
 UNIV_INTERN
-ibool
+bool
 os_file_set_size(
-/*=============*/
-	const char*	name,	/*!< in: name of the file or path as a
-				null-terminated string */
-	os_file_t	file,	/*!< in: handle to a file */
-	os_offset_t	size)	/*!< in: file size */
+	const char*	name,
+	os_file_t	file,
+	os_offset_t	size,
+	bool		is_sparse)
 {
-	os_offset_t	current_size;
-	ibool		ret;
-	byte*		buf;
-	byte*		buf2;
-	ulint		buf_size;
-
-	current_size = 0;
-
-#ifdef HAVE_POSIX_FALLOCATE
-	if (srv_use_posix_fallocate) {
-
-		if (posix_fallocate(file, current_size, size) == -1) {
-
-			fprintf(stderr, "InnoDB: Error: preallocating file "
-				"space for file \'%s\' failed.  Current size "
-				"%lu, desired size %lu\n",
-				name, current_size, size);
-			os_file_handle_error_no_exit(name, "posix_fallocate", FALSE, __FILE__, __LINE__);
-
-			return(FALSE);
-		}
-		return(TRUE);
+#ifdef _WIN32
+	FILE_END_OF_FILE_INFO feof;
+	feof.EndOfFile.QuadPart = size;
+	bool success = SetFileInformationByHandle(file,
+						  FileEndOfFileInfo,
+						  &feof, sizeof feof);
+	if (!success) {
+		ib_logf(IB_LOG_LEVEL_ERROR, "os_file_set_size() of file %s"
+			" to " INT64PF " bytes failed with %u",
+			name, size, GetLastError());
 	}
-#endif
+	return(success);
+#else
+	if (is_sparse) {
+		bool success = !ftruncate(file, size);
+		if (!success) {
+			ib_logf(IB_LOG_LEVEL_ERROR, "ftruncate of file %s"
+				" to " INT64PF " bytes failed with error %d",
+				name, size, errno);
+		}
+		return(success);
+	}
+
+# ifdef HAVE_POSIX_FALLOCATE
+	if (srv_use_posix_fallocate) {
+		int err;
+		do {
+			err = posix_fallocate(file, 0, size);
+		} while (err == EINTR
+			 && srv_shutdown_state == SRV_SHUTDOWN_NONE);
+
+		if (err) {
+			ib_logf(IB_LOG_LEVEL_ERROR,
+				"preallocating " INT64PF " bytes for"
+				"file %s failed with error %d",
+				size, name, err);
+		}
+		return(!err);
+	}
+# endif
 
 	/* Write up to 1 megabyte at a time. */
-	buf_size = ut_min(64, (ulint) (size / UNIV_PAGE_SIZE))
+	ulint buf_size = ut_min(64, (ulint) (size / UNIV_PAGE_SIZE))
 		* UNIV_PAGE_SIZE;
-	buf2 = static_cast<byte*>(ut_malloc(buf_size + UNIV_PAGE_SIZE));
+	os_offset_t	current_size = 0;
 
-	/* Align the buffer for possible raw i/o */
-	buf = static_cast<byte*>(ut_align(buf2, UNIV_PAGE_SIZE));
+	byte* buf2 = static_cast<byte*>(calloc(1, buf_size + UNIV_PAGE_SIZE));
 
-	/* Write buffer full of zeros */
-	memset(buf, 0, buf_size);
-
-	if (size >= (os_offset_t) 100 << 20) {
-
-		fprintf(stderr, "InnoDB: Progress in MB:");
+	if (!buf2) {
+		ib_logf(IB_LOG_LEVEL_ERROR,
+			"Cannot allocate " ULINTPF " bytes to extend file\n",
+			buf_size + UNIV_PAGE_SIZE);
+		return(false);
 	}
 
-	while (current_size < size) {
+	/* Align the buffer for possible raw i/o */
+	byte* buf = static_cast<byte*>(ut_align(buf2, UNIV_PAGE_SIZE));
+	bool ret;
+
+	do {
 		ulint	n_bytes;
 
 		if (size - current_size < (os_offset_t) buf_size) {
@@ -2416,37 +2442,16 @@ os_file_set_size(
 		ret = os_file_write(name, file, buf, current_size, n_bytes);
 
 		if (!ret) {
-			ut_free(buf2);
-			goto error_handling;
-		}
-
-		/* Print about progress for each 100 MB written */
-		if ((current_size + n_bytes) / (100 << 20)
-		    != current_size / (100 << 20)) {
-
-			fprintf(stderr, " %lu00",
-				(ulong) ((current_size + n_bytes)
-					 / (100 << 20)));
+			break;
 		}
 
 		current_size += n_bytes;
-	}
+	} while (current_size < size);
 
-	if (size >= (os_offset_t) 100 << 20) {
+	free(buf2);
 
-		fprintf(stderr, "\n");
-	}
-
-	ut_free(buf2);
-
-	ret = os_file_flush(file);
-
-	if (ret) {
-		return(TRUE);
-	}
-
-error_handling:
-	return(FALSE);
+	return(ret && os_file_flush(file));
+#endif
 }
 
 /***********************************************************************//**
@@ -4258,6 +4263,12 @@ os_aio_init(
 
 	os_aio_validate();
 
+	os_last_printout = ut_time();
+
+	if (srv_use_native_aio) {
+		return(TRUE);
+	}
+
 	os_aio_segment_wait_events = static_cast<os_event_t*>(
 		ut_malloc(n_segments * sizeof *os_aio_segment_wait_events));
 
@@ -4265,10 +4276,7 @@ os_aio_init(
 		os_aio_segment_wait_events[i] = os_event_create();
 	}
 
-	os_last_printout = ut_time();
-
 	return(TRUE);
-
 }
 
 /***********************************************************************
@@ -4296,8 +4304,10 @@ os_aio_free(void)
 
 	os_aio_array_free(os_aio_read_array);
 
-	for (ulint i = 0; i < os_aio_n_segments; i++) {
-		os_event_free(os_aio_segment_wait_events[i]);
+	if (!srv_use_native_aio) {
+		for (ulint i = 0; i < os_aio_n_segments; i++) {
+			os_event_free(os_aio_segment_wait_events[i]);
+		}
 	}
 
 	ut_free(os_aio_segment_wait_events);
@@ -4346,21 +4356,16 @@ os_aio_wake_all_threads_at_shutdown(void)
 	if (os_aio_log_array != 0) {
 		os_aio_array_wake_win_aio_at_shutdown(os_aio_log_array);
 	}
-
 #elif defined(LINUX_NATIVE_AIO)
-
 	/* When using native AIO interface the io helper threads
 	wait on io_getevents with a timeout value of 500ms. At
 	each wake up these threads check the server status.
 	No need to do anything to wake them up. */
+#endif /* !WIN_ASYNC_AIO */
 
 	if (srv_use_native_aio) {
 		return;
 	}
-
-	/* Fall through to simulated AIO handler wakeup if we are
-	not using native AIO. */
-#endif /* !WIN_ASYNC_AIO */
 
 	/* This loop wakes up all simulated ai/o threads */
 
@@ -4745,6 +4750,7 @@ os_aio_simulated_wake_handler_threads(void)
 	}
 }
 
+#ifdef _WIN32
 /**********************************************************************//**
 This function can be called if one wants to post a batch of reads and
 prefers an i/o-handler thread to handle them all at once later. You must
@@ -4752,15 +4758,14 @@ call os_aio_simulated_wake_handler_threads later to ensure the threads
 are not left sleeping! */
 UNIV_INTERN
 void
-os_aio_simulated_put_read_threads_to_sleep(void)
-/*============================================*/
+os_aio_simulated_put_read_threads_to_sleep()
 {
 
 /* The idea of putting background IO threads to sleep is only for
 Windows when using simulated AIO. Windows XP seems to schedule
 background threads too eagerly to allow for coalescing during
 readahead requests. */
-#ifdef __WIN__
+
 	os_aio_array_t*	array;
 
 	if (srv_use_native_aio) {
@@ -4779,8 +4784,8 @@ readahead requests. */
 			os_event_reset(os_aio_segment_wait_events[i]);
 		}
 	}
-#endif /* __WIN__ */
 }
+#endif /* _WIN32 */
 
 #if defined(LINUX_NATIVE_AIO)
 /*******************************************************************//**
@@ -5259,7 +5264,7 @@ os_aio_windows_handle(
 	if (slot->type == OS_FILE_WRITE &&
 	    !slot->is_log &&
 	    srv_use_trim &&
-	    os_fallocate_failed == FALSE) {
+	    !os_fallocate_failed) {
 		// Deallocate unused blocks from file system
 		os_file_trim(slot);
 	}
@@ -5356,7 +5361,7 @@ retry:
 			if (slot->type == OS_FILE_WRITE &&
 			    !slot->is_log &&
 			    srv_use_trim &&
-			    os_fallocate_failed == FALSE) {
+			    !os_fallocate_failed) {
 				// Deallocate unused blocks from file system
 				os_file_trim(slot);
 			}
@@ -6035,11 +6040,12 @@ os_aio_print(
 			srv_io_thread_op_info[i],
 			srv_io_thread_function[i]);
 
-#ifndef __WIN__
-		if (os_aio_segment_wait_events[i]->is_set) {
+#ifndef _WIN32
+		if (!srv_use_native_aio
+		    && os_aio_segment_wait_events[i]->is_set) {
 			fprintf(file, " ev set");
 		}
-#endif /* __WIN__ */
+#endif /* _WIN32 */
 
 		fprintf(file, "\n");
 	}
@@ -6216,6 +6222,7 @@ typedef struct _FILE_LEVEL_TRIM {
 #endif
 #endif
 
+#if defined(WIN_ASYNC_IO) || defined(LINUX_NATIVE_AIO)
 /**********************************************************************//**
 Directly manipulate the allocated disk space by deallocating for the file referred to
 by fd  for  the  byte range starting at offset and continuing for len bytes.
@@ -6223,7 +6230,7 @@ Within the specified range, partial file system blocks are zeroed, and whole
 file system blocks are removed from the file.  After a successful call,
 subsequent reads from  this range will return zeroes.
 @return	true if success, false if error */
-UNIV_INTERN
+static
 ibool
 os_file_trim(
 /*=========*/
@@ -6269,13 +6276,13 @@ os_file_trim(
 
 	if (ret) {
 		/* After first failure do not try to trim again */
-		os_fallocate_failed = TRUE;
+		os_fallocate_failed = true;
 		srv_use_trim = FALSE;
-		ut_print_timestamp(stderr);
-		fprintf(stderr,
-			"  InnoDB: Warning: fallocate call failed with error code %d.\n"
-			"  InnoDB: start: %lu len: %lu payload: %lu\n"
-			"  InnoDB: Disabling fallocate for now.\n", errno, off, trim_len, len);
+		ib_logf(IB_LOG_LEVEL_WARN,
+			"fallocate() failed with error %d."
+			" start: " UINT64PF " len: " ULINTPF " payload: " ULINTPF "."
+			" Disabling fallocate for now.",
+			errno, off, ulint(trim_len), ulint(len));
 
 		os_file_handle_error_no_exit(slot->name,
 			" fallocate(FALLOC_PUNCH_HOLE | FALLOC_FL_KEEP_SIZE) ",
@@ -6296,7 +6303,7 @@ os_file_trim(
 	fprintf(stderr,
 		"  InnoDB: Warning: fallocate not supported on this installation."
 		"  InnoDB: Disabling fallocate for now.");
-	os_fallocate_failed = TRUE;
+	os_fallocate_failed = true;
 	srv_use_trim = FALSE;
 	if (slot->write_size) {
 		*slot->write_size = 0;
@@ -6316,7 +6323,7 @@ os_file_trim(
 
 	if (!ret) {
 		/* After first failure do not try to trim again */
-		os_fallocate_failed = TRUE;
+		os_fallocate_failed = true;
 		srv_use_trim=FALSE;
 		ut_print_timestamp(stderr);
 		fprintf(stderr,
@@ -6370,6 +6377,7 @@ os_file_trim(
 	return (TRUE);
 
 }
+#endif /* WIN_ASYNC_IO || LINUX_NATIVE_AIO */
 #endif /* !UNIV_HOTBACKUP */
 
 /***********************************************************************//**

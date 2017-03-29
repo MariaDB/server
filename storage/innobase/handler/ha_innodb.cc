@@ -1084,6 +1084,9 @@ static SHOW_VAR innodb_status_variables[]= {
   {"encryption_rotation_estimated_iops",
   (char*) &export_vars.innodb_encryption_rotation_estimated_iops,
    SHOW_LONG},
+  {"encryption_key_rotation_list_length",
+  (char*)&export_vars.innodb_key_rotation_list_length,
+   SHOW_LONGLONG},
 
   /* scrubing */
   {"scrub_background_page_reorganizations",
@@ -1700,6 +1703,15 @@ thd_has_edited_nontrans_tables(
 	THD*	thd)	/*!< in: thread handle */
 {
 	return((ibool) thd_non_transactional_update(thd));
+}
+
+/* Return high resolution timestamp for the start of the current query */
+UNIV_INTERN
+unsigned long long
+thd_query_start_micro(
+	const THD*	thd)	/*!< in: thread handle */
+{
+	return thd_start_utime(thd);
 }
 
 /******************************************************************//**
@@ -3448,22 +3460,16 @@ innobase_init(
 		}
 	}
 
-	if (UNIV_PAGE_SIZE != UNIV_PAGE_SIZE_DEF) {
+	/* The buffer pool needs to be able to accommodate enough many
+	pages, even for larger pages */
+	if (UNIV_PAGE_SIZE > UNIV_PAGE_SIZE_DEF
+	    && innobase_buffer_pool_size < (24 * 1024 * 1024)) {
 		ib_logf(IB_LOG_LEVEL_INFO,
-			"innodb_page_size has been "
-			"changed from default value %d to %ld.",
-			UNIV_PAGE_SIZE_DEF, UNIV_PAGE_SIZE);
-
-		/* There is hang on buffer pool when trying to get a new
-		page if buffer pool size is too small for large page sizes */
-		if (UNIV_PAGE_SIZE > UNIV_PAGE_SIZE_DEF
-		    && innobase_buffer_pool_size < (24 * 1024 * 1024)) {
-			ib_logf(IB_LOG_LEVEL_ERROR,
-				"innodb_page_size=%lu requires "
-				"innodb_buffer_pool_size > 24M current %lld",
-				UNIV_PAGE_SIZE, innobase_buffer_pool_size);
-			goto error;
-		}
+			"innodb_page_size= " ULINTPF " requires "
+			"innodb_buffer_pool_size > 24M current %lld. ",
+			UNIV_PAGE_SIZE,
+			innobase_buffer_pool_size);
+		goto error;
 	}
 
 #ifndef HAVE_LZ4
@@ -3764,11 +3770,11 @@ innobase_change_buffering_inited_ok:
 				srv_page_size);
 		goto mem_free_and_error;
 	}
+
 	if (UNIV_PAGE_SIZE_DEF != srv_page_size) {
-		ut_print_timestamp(stderr);
-		fprintf(stderr,
-			" InnoDB: innodb-page-size has been changed"
-			" from the default value %d to %lu.\n",
+		ib_logf(IB_LOG_LEVEL_INFO,
+			" innodb-page-size has been changed"
+			" from the default value %d to " ULINTPF ".",
 			UNIV_PAGE_SIZE_DEF, srv_page_size);
 	}
 
@@ -11758,7 +11764,7 @@ ha_innobase::check_table_options(
 	atomic_writes_t awrites = (atomic_writes_t)options->atomic_writes;
 	fil_encryption_t encrypt = (fil_encryption_t)options->encryption;
 
-	if (encrypt != FIL_SPACE_ENCRYPTION_DEFAULT && !use_tablespace) {
+	if (encrypt != FIL_ENCRYPTION_DEFAULT && !use_tablespace) {
 		push_warning(
 			thd, Sql_condition::WARN_LEVEL_WARN,
 			HA_WRONG_CREATE_OPTION,
@@ -11766,7 +11772,7 @@ ha_innobase::check_table_options(
 		return "ENCRYPTED";
  	}
 
-        if (encrypt == FIL_SPACE_ENCRYPTION_OFF && srv_encrypt_tables == 2) {
+        if (encrypt == FIL_ENCRYPTION_OFF && srv_encrypt_tables == 2) {
 		push_warning(
 			thd, Sql_condition::WARN_LEVEL_WARN,
 			HA_WRONG_CREATE_OPTION,
@@ -11847,8 +11853,8 @@ ha_innobase::check_table_options(
 	}
 
 	/* If encryption is set up make sure that used key_id is found */
-	if (encrypt == FIL_SPACE_ENCRYPTION_ON ||
-            (encrypt == FIL_SPACE_ENCRYPTION_DEFAULT && srv_encrypt_tables)) {
+	if (encrypt == FIL_ENCRYPTION_ON ||
+            (encrypt == FIL_ENCRYPTION_DEFAULT && srv_encrypt_tables)) {
 		if (!encryption_key_id_exists((unsigned int)options->encryption_key_id)) {
 			push_warning_printf(
 				thd, Sql_condition::WARN_LEVEL_WARN,
@@ -11861,7 +11867,7 @@ ha_innobase::check_table_options(
 	}
 
 	/* Ignore nondefault key_id if encryption is set off */
-	if (encrypt == FIL_SPACE_ENCRYPTION_OFF &&
+	if (encrypt == FIL_ENCRYPTION_OFF &&
 		options->encryption_key_id != THDVAR(thd, default_encryption_key_id)) {
 		push_warning_printf(
 			thd, Sql_condition::WARN_LEVEL_WARN,
@@ -11874,7 +11880,7 @@ ha_innobase::check_table_options(
 
 	/* If default encryption is used make sure that used kay is found
 	from key file. */
-	if (encrypt == FIL_SPACE_ENCRYPTION_DEFAULT &&
+	if (encrypt == FIL_ENCRYPTION_DEFAULT &&
 		!srv_encrypt_tables &&
 		options->encryption_key_id != FIL_DEFAULT_ENCRYPTION_KEY) {
 		if (!encryption_key_id_exists((unsigned int)options->encryption_key_id)) {
@@ -15835,6 +15841,37 @@ ha_innobase::get_auto_increment(
 	ulonglong	col_max_value = innobase_get_int_col_max_value(
 		table->next_number_field);
 
+	/** The following logic is needed to avoid duplicate key error
+	for autoincrement column.
+
+	(1) InnoDB gives the current autoincrement value with respect
+	to increment and offset value.
+
+	(2) Basically it does compute_next_insert_id() logic inside InnoDB
+	to avoid the current auto increment value changed by handler layer.
+
+	(3) It is restricted only for insert operations. */
+
+	if (increment > 1 && thd_sql_command(user_thd) != SQLCOM_ALTER_TABLE
+	    && autoinc < col_max_value) {
+
+		ulonglong	prev_auto_inc = autoinc;
+
+		autoinc = ((autoinc - 1) + increment - offset)/ increment;
+
+		autoinc = autoinc * increment + offset;
+
+		/* If autoinc exceeds the col_max_value then reset
+		to old autoinc value. Because in case of non-strict
+		sql mode, boundary value is not considered as error. */
+
+		if (autoinc >= col_max_value) {
+			autoinc = prev_auto_inc;
+		}
+
+		ut_ad(autoinc > 0);
+	}
+
 	/* Called for the first time ? */
 	if (trx->n_autoinc_rows == 0) {
 
@@ -18458,19 +18495,21 @@ wsrep_innobase_kill_one_trx(
 
 	if (!thd) {
 		DBUG_PRINT("wsrep", ("no thd for conflicting lock"));
-		WSREP_WARN("no THD for trx: %lu", victim_trx->id);
+		WSREP_WARN("no THD for trx: " TRX_ID_FMT, victim_trx->id);
 		DBUG_RETURN(1);
 	}
 
 	if (!bf_thd) {
 		DBUG_PRINT("wsrep", ("no BF thd for conflicting lock"));
-		WSREP_WARN("no BF THD for trx: %lu", (bf_trx) ? bf_trx->id : 0);
+		WSREP_WARN("no BF THD for trx: " TRX_ID_FMT,
+			   bf_trx ? bf_trx->id : 0);
 		DBUG_RETURN(1);
 	}
 
 	WSREP_LOG_CONFLICT(bf_thd, thd, TRUE);
 
-	WSREP_DEBUG("BF kill (%lu, seqno: %lld), victim: (%lu) trx: %lu",
+	WSREP_DEBUG("BF kill (%lu, seqno: %lld), victim: (%lu) trx: "
+		    TRX_ID_FMT,
  		    signal, (long long)bf_seqno,
 		    thd_get_thread_id(thd),
 		    victim_trx->id);
@@ -18490,13 +18529,14 @@ wsrep_innobase_kill_one_trx(
 
 
 	if (wsrep_thd_query_state(thd) == QUERY_EXITING) {
-		WSREP_DEBUG("kill trx EXITING for %lu", victim_trx->id);
+		WSREP_DEBUG("kill trx EXITING for " TRX_ID_FMT,
+			    victim_trx->id);
 		wsrep_thd_UNLOCK(thd);
 		DBUG_RETURN(0);
 	}
 
 	if(wsrep_thd_exec_mode(thd) != LOCAL_STATE) {
-		WSREP_DEBUG("withdraw for BF trx: %lu, state: %d",
+		WSREP_DEBUG("withdraw for BF trx: " TRX_ID_FMT ", state: %d",
 			    victim_trx->id,
 		wsrep_thd_get_conflict_state(thd));
 	}
@@ -18506,7 +18546,7 @@ wsrep_innobase_kill_one_trx(
 		wsrep_thd_set_conflict_state(thd, MUST_ABORT);
 		break;
         case MUST_ABORT:
-		WSREP_DEBUG("victim %lu in MUST ABORT state",
+		WSREP_DEBUG("victim " TRX_ID_FMT " in MUST ABORT state",
 			    victim_trx->id);
 		wsrep_thd_UNLOCK(thd);
 		wsrep_thd_awake(thd, signal);
@@ -18515,7 +18555,7 @@ wsrep_innobase_kill_one_trx(
 	case ABORTED:
 	case ABORTING: // fall through
 	default:
-		WSREP_DEBUG("victim %lu in state %d",
+		WSREP_DEBUG("victim " TRX_ID_FMT " in state %d",
 			    victim_trx->id, wsrep_thd_get_conflict_state(thd));
 		wsrep_thd_UNLOCK(thd);
 		DBUG_RETURN(0);
@@ -18528,7 +18568,7 @@ wsrep_innobase_kill_one_trx(
 
 		WSREP_DEBUG("kill query for: %ld",
 			    thd_get_thread_id(thd));
-		WSREP_DEBUG("kill trx QUERY_COMMITTING for %lu",
+		WSREP_DEBUG("kill trx QUERY_COMMITTING for " TRX_ID_FMT,
 			    victim_trx->id);
 
 		if (wsrep_thd_exec_mode(thd) == REPL_RECV) {
@@ -18543,7 +18583,8 @@ wsrep_innobase_kill_one_trx(
 
 			switch (rcode) {
 			case WSREP_WARNING:
-				WSREP_DEBUG("cancel commit warning: %lu",
+				WSREP_DEBUG("cancel commit warning: "
+					    TRX_ID_FMT,
 					    victim_trx->id);
 				wsrep_thd_UNLOCK(thd);
 				wsrep_thd_awake(thd, signal);
@@ -18553,7 +18594,8 @@ wsrep_innobase_kill_one_trx(
 				break;
 			default:
 				WSREP_ERROR(
-					"cancel commit bad exit: %d %lu",
+					"cancel commit bad exit: %d "
+					TRX_ID_FMT,
 					rcode,
 					victim_trx->id);
 				/* unable to interrupt, must abort */
@@ -18571,7 +18613,8 @@ wsrep_innobase_kill_one_trx(
 		/* it is possible that victim trx is itself waiting for some
 		 * other lock. We need to cancel this waiting
 		 */
-		WSREP_DEBUG("kill trx QUERY_EXEC for %lu", victim_trx->id);
+		WSREP_DEBUG("kill trx QUERY_EXEC for " TRX_ID_FMT,
+			    victim_trx->id);
 
 		victim_trx->lock.was_chosen_as_deadlock_victim= TRUE;
 		if (victim_trx->lock.wait_lock) {
@@ -18606,7 +18649,7 @@ wsrep_innobase_kill_one_trx(
 		break;
 	case QUERY_IDLE:
 	{
-		WSREP_DEBUG("kill IDLE for %lu", victim_trx->id);
+		WSREP_DEBUG("kill IDLE for " TRX_ID_FMT, victim_trx->id);
 
 		if (wsrep_thd_exec_mode(thd) == REPL_RECV) {
 			WSREP_DEBUG("kill BF IDLE, seqno: %lld",
@@ -18782,6 +18825,12 @@ static MYSQL_SYSVAR_BOOL(use_atomic_writes, innobase_use_atomic_writes,
 static MYSQL_SYSVAR_BOOL(use_fallocate, innobase_use_fallocate,
   PLUGIN_VAR_NOCMDARG | PLUGIN_VAR_READONLY,
   "Preallocate files fast, using operating system functionality. On POSIX systems, posix_fallocate system call is used.",
+  NULL, NULL, FALSE);
+
+static MYSQL_SYSVAR_BOOL(stats_include_delete_marked,
+  srv_stats_include_delete_marked,
+  PLUGIN_VAR_OPCMDARG,
+  "Scan delete marked records for persistent stat",
   NULL, NULL, FALSE);
 
 static MYSQL_SYSVAR_ULONG(io_capacity, srv_io_capacity,
@@ -19329,13 +19378,6 @@ static MYSQL_SYSVAR_ULONG(force_recovery, srv_force_recovery,
   "Helps to save your data in case the disk image of the database becomes corrupt.",
   NULL, NULL, 0, 0, 6, 0);
 
-#ifndef DBUG_OFF
-static MYSQL_SYSVAR_ULONG(force_recovery_crash, srv_force_recovery_crash,
-  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
-  "Kills the server during crash recovery.",
-  NULL, NULL, 0, 0, 10, 0);
-#endif /* !DBUG_OFF */
-
 static MYSQL_SYSVAR_ULONG(page_size, srv_page_size,
   PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_READONLY,
   "Page size to use for all InnoDB tablespaces.",
@@ -19737,7 +19779,7 @@ static MYSQL_SYSVAR_ENUM(compression_algorithm, innodb_compression_algorithm,
   /* We use here the largest number of supported compression method to
   enable all those methods that are available. Availability of compression
   method is verified on innodb_compression_algorithm_validate function. */
-  PAGE_UNCOMPRESSED,
+  PAGE_ZLIB_ALGORITHM,
   &page_compression_algorithms_typelib);
 
 static MYSQL_SYSVAR_LONG(mtflush_threads, srv_mtflush_threads,
@@ -19790,10 +19832,11 @@ static MYSQL_SYSVAR_UINT(encryption_rotate_key_age,
 			 PLUGIN_VAR_RQCMDARG,
 			 "Key rotation - re-encrypt in background "
                          "all pages that were encrypted with a key that "
-                         "many (or more) versions behind",
+                         "many (or more) versions behind. Value 0 indicates "
+			 "that key rotation is disabled.",
 			 NULL,
 			 innodb_encryption_rotate_key_age_update,
-			 srv_fil_crypt_rotate_key_age, 0, UINT_MAX32, 0);
+			 1, 0, UINT_MAX32, 0);
 
 static MYSQL_SYSVAR_UINT(encryption_rotation_iops, srv_n_fil_crypt_iops,
 			 PLUGIN_VAR_RQCMDARG,
@@ -19910,6 +19953,7 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(doublewrite),
   MYSQL_SYSVAR(use_atomic_writes),
   MYSQL_SYSVAR(use_fallocate),
+  MYSQL_SYSVAR(stats_include_delete_marked),
   MYSQL_SYSVAR(api_enable_binlog),
   MYSQL_SYSVAR(api_enable_mdl),
   MYSQL_SYSVAR(api_disable_rowlock),
@@ -19925,9 +19969,6 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(flush_log_at_trx_commit),
   MYSQL_SYSVAR(flush_method),
   MYSQL_SYSVAR(force_recovery),
-#ifndef DBUG_OFF
-  MYSQL_SYSVAR(force_recovery_crash),
-#endif /* !DBUG_OFF */
   MYSQL_SYSVAR(ft_cache_size),
   MYSQL_SYSVAR(ft_total_cache_size),
   MYSQL_SYSVAR(ft_result_cache_limit),
@@ -20709,8 +20750,9 @@ innodb_encrypt_tables_validate(
 						for update function */
 	struct st_mysql_value*		value)	/*!< in: incoming string */
 {
-	if (check_sysvar_enum(thd, var, save, value))
+	if (check_sysvar_enum(thd, var, save, value)) {
 		return 1;
+	}
 
 	ulong encrypt_tables = *(ulong*)save;
 
@@ -20722,6 +20764,17 @@ innodb_encrypt_tables_validate(
 		                    "encryption plugin is not available");
 		return 1;
 	}
+
+	if (!srv_fil_crypt_rotate_key_age) {
+		const char *msg = (encrypt_tables ? "enable" : "disable");
+		push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+				    HA_ERR_UNSUPPORTED,
+				    "InnoDB: cannot %s encryption, "
+				    "innodb_encryption_rotate_key_age=0"
+				    " i.e. key rotation disabled", msg);
+		return 1;
+	}
+
 	return 0;
 }
 

@@ -8,9 +8,9 @@ then
   echo client storage dbug libmysql sql-common \
        sql extra mysys mysys_ssl strings regex pcre vio include \
        tools unittest plugin libmysqld | \
-       xargs -n1 git ls-files | \
+       xargs -n1 git ls-files | grep -v '\.jar$' | \
        xargs etags -o TAGS --append
 else
-  find . -type f |
+  find . -type f ! -name "*.jar" |
        xargs etags -o TAGS --append
 fi

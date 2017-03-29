@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
 
 #include <my_global.h>
 #include "sql_priv.h"
@@ -125,7 +125,7 @@ void Json_writer::start_element()
 void Json_writer::add_ll(longlong val)
 {
   char buf[64];
-  my_snprintf(buf, sizeof(buf), "%ld", val);
+  my_snprintf(buf, sizeof(buf), "%lld", val);
   add_unquoted_str(buf);
 }
 
@@ -135,16 +135,16 @@ void Json_writer::add_size(longlong val)
 {
   char buf[64];
   if (val < 1024) 
-    my_snprintf(buf, sizeof(buf), "%ld", val);
+    my_snprintf(buf, sizeof(buf), "%lld", val);
   else if (val < 1024*1024*16)
   {
     /* Values less than 16MB are specified in KB for precision */
-    size_t len= my_snprintf(buf, sizeof(buf), "%ld", val/1024);
+    size_t len= my_snprintf(buf, sizeof(buf), "%lld", val/1024);
     strcpy(buf + len, "Kb");
   }
   else
   {
-    size_t len= my_snprintf(buf, sizeof(buf), "%ld", val/(1024*1024));
+    size_t len= my_snprintf(buf, sizeof(buf), "%lld", val/(1024*1024));
     strcpy(buf + len, "Mb");
   }
   add_str(buf);

@@ -35,8 +35,8 @@
 #include "global.h"
 #include "plgdbsem.h"
 #include "xobject.h"
-//#include "kindex.h"
 #include "xtable.h"
+#include "tabext.h"
 #include "odbccat.h"
 #include "tabodbc.h"
 #include "plgcnx.h"                       // For DB types
@@ -413,12 +413,20 @@ PQRYRES ODBCColumns(PGLOBAL g, char *dsn, char *db, char *table,
 /**************************************************************************/
 PQRYRES ODBCSrcCols(PGLOBAL g, char *dsn, char *src, POPARM sop)
   {
+	char    *sqry;
   ODBConn *ocp = new(g) ODBConn(g, NULL);
 
   if (ocp->Open(dsn, sop, 10) < 1)   // openReadOnly + noOdbcDialog
     return NULL;
 
-  return ocp->GetMetaData(g, dsn, src);
+	if (strstr(src, "%s")) {
+		// Place holder for an eventual where clause
+		sqry = (char*)PlugSubAlloc(g, NULL, strlen(src) + 3);
+		sprintf(sqry, src, "1=1", "1=1");			 // dummy where clause
+	} else
+		sqry = src;
+
+  return ocp->GetMetaData(g, dsn, sqry);
   } // end of ODBCSrcCols
 
 #if 0
@@ -1417,7 +1425,7 @@ int ODBConn::ExecDirectSQL(char *sql, ODBCCOL *tocols)
     b = true;
 
     if (trace)
-      htrc("ExecDirect hstmt=%p %.64s\n", hstmt, sql);
+      htrc("ExecDirect hstmt=%p %.256s\n", hstmt, sql);
 
     if (m_Tdb->Srcdef) {
       // Be sure this is a query returning a result set

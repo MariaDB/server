@@ -987,7 +987,8 @@ static int toku_recover_frename(struct logtype_frename *l, RECOVER_ENV renv) {
         return 1;
 
     if (old_exist && !new_exist &&
-        (toku_os_rename(old_iname_full.get(), new_iname_full.get()) == -1 ||
+        (!toku_create_subdirs_if_needed(new_iname_full.get()) ||
+         toku_os_rename(old_iname_full.get(), new_iname_full.get()) == -1 ||
          toku_fsync_directory(old_iname_full.get()) == -1 ||
          toku_fsync_directory(new_iname_full.get()) == -1))
         return 1;

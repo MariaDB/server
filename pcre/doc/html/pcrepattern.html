@@ -358,24 +358,24 @@ When PCRE is compiled in EBCDIC mode, \a, \e, \f, \n, \r, and \t
 generate the appropriate EBCDIC code values. The \c escape is processed
 as specified for Perl in the <b>perlebcdic</b> document. The only characters
 that are allowed after \c are A-Z, a-z, or one of @, [, \, ], ^, _, or ?. Any
-other character provokes a compile-time error. The sequence \@ encodes
-character code 0; the letters (in either case) encode characters 1-26 (hex 01
-to hex 1A); [, \, ], ^, and _ encode characters 27-31 (hex 1B to hex 1F), and
-\? becomes either 255 (hex FF) or 95 (hex 5F).
+other character provokes a compile-time error. The sequence \c@ encodes
+character code 0; after \c the letters (in either case) encode characters 1-26
+(hex 01 to hex 1A); [, \, ], ^, and _ encode characters 27-31 (hex 1B to hex
+1F), and \c? becomes either 255 (hex FF) or 95 (hex 5F).
 </P>
 <P>
-Thus, apart from \?, these escapes generate the same character code values as
+Thus, apart from \c?, these escapes generate the same character code values as
 they do in an ASCII environment, though the meanings of the values mostly
-differ. For example, \G always generates code value 7, which is BEL in ASCII
+differ. For example, \cG always generates code value 7, which is BEL in ASCII
 but DEL in EBCDIC.
 </P>
 <P>
-The sequence \? generates DEL (127, hex 7F) in an ASCII environment, but
+The sequence \c? generates DEL (127, hex 7F) in an ASCII environment, but
 because 127 is not a control character in EBCDIC, Perl makes it generate the
 APC character. Unfortunately, there are several variants of EBCDIC. In most of
 them the APC character has the value 255 (hex FF), but in the one Perl calls
 POSIX-BC its value is 95 (hex 5F). If certain other characters have POSIX-BC
-values, PCRE makes \? generate 95; otherwise it generates 255.
+values, PCRE makes \c? generate 95; otherwise it generates 255.
 </P>
 <P>
 After \0 up to two further octal digits are read. If there are fewer than two
@@ -1512,13 +1512,8 @@ J, U and X respectively.
 <P>
 When one of these option changes occurs at top level (that is, not inside
 subpattern parentheses), the change applies to the remainder of the pattern
-that follows. If the change is placed right at the start of a pattern, PCRE
-extracts it into the global options (and it will therefore show up in data
-extracted by the <b>pcre_fullinfo()</b> function).
-</P>
-<P>
-An option change within a subpattern (see below for a description of
-subpatterns) affects only that part of the subpattern that follows it, so
+that follows. An option change within a subpattern (see below for a description
+of subpatterns) affects only that part of the subpattern that follows it, so
 <pre>
   (a(?i)b)c
 </pre>
@@ -2158,6 +2153,14 @@ contains capturing subpatterns within it, these are counted for the purposes of
 numbering the capturing subpatterns in the whole pattern. However, substring
 capturing is carried out only for positive assertions. (Perl sometimes, but not
 always, does do capturing in negative assertions.)
+</P>
+<P>
+WARNING: If a positive assertion containing one or more capturing subpatterns
+succeeds, but failure to match later in the pattern causes backtracking over
+this assertion, the captures within the assertion are reset only if no higher
+numbered captures are already set. This is, unfortunately, a fundamental
+limitation of the current implementation, and as PCRE1 is now in
+maintenance-only status, it is unlikely ever to change.
 </P>
 <P>
 For compatibility with Perl, assertion subpatterns may be repeated; though
@@ -3264,9 +3267,9 @@ Cambridge CB2 3QH, England.
 </P>
 <br><a name="SEC30" href="#TOC1">REVISION</a><br>
 <P>
-Last updated: 14 June 2015
+Last updated: 23 October 2016
 <br>
-Copyright &copy; 1997-2015 University of Cambridge.
+Copyright &copy; 1997-2016 University of Cambridge.
 <br>
 <p>
 Return to the <a href="index.html">PCRE index page</a>.

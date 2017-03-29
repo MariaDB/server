@@ -295,3 +295,112 @@ Note	1003	select `test`.`t1`.`b` AS `b`,`test`.`t2`.`a` AS `a` from `test`.`t1` 
 SELECT * FROM t1 NATURAL JOIN t2;
 b	a
 DROP TABLE t1,t2;
+create table t1 (
+pk integer auto_increment,
+bi integer not null,
+vi integer generated always as (bi) persistent,
+bc varchar(1) not null,
+vc varchar(2) generated always as (concat(bc, bc)) persistent,
+primary key (pk),
+key (vi, vc));
+insert t1 (bi, bc) values (0, 'x'), (0, 'n'), (1, 'w'), (7, 's'), (0, 'a'), (4, 'd'), (1, 'w'), (1, 'j'), (1, 'm'), (4, 'k'), (7, 't'), (4, 'k'), (2, 'e'), (0, 'i'), (1, 't'), (6, 'z'), (3, 'c'), (6, 'i'), (8, 'v');
+create table t2 (
+pk integer auto_increment,
+bi integer not null,
+vi integer generated always as (bi) persistent,
+bc varchar(257) not null,
+vc varchar(2) generated always as (concat(bc, bc)) persistent,
+primary key (pk),
+key (vi, vc));
+insert t2 (bi, bc) values (1, 'c'), (8, 'm'), (9, 'd'), (6, 'y'), (1, 't'), (6, 'd'), (2, 's'), (4, 'r'), (8, 'm'), (4, 'b'), (4, 'x'), (7, 'g'), (4, 'p'), (1, 'q'), (9, 'w'), (4, 'd'), (8, 'e'), (4, 'b'), (8, 'y');
+explain # should be using join buffer
+select t2.vi from (t2 as t3 right join (t2 left join t1 on (t1.bi = t2.vi)) on (t1.vc = t2.vc));
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	index	NULL	vi	10	NULL	19	Using index
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	19	Using where; Using join buffer (flat, BNL join)
+1	SIMPLE	t3	index	NULL	PRIMARY	4	NULL	19	Using where; Using index; Using join buffer (incremental, BNL join)
+select t2.vi from (t2 as t3 right join (t2 left join t1 on (t1.bi = t2.vi)) on (t1.vc = t2.vc));
+vi
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+2
+4
+4
+4
+4
+4
+4
+4
+4
+4
+4
+4
+4
+4
+4
+4
+4
+4
+4
+4
+4
+4
+4
+4
+4
+4
+4
+4
+4
+4
+4
+4
+4
+4
+4
+4
+4
+6
+6
+6
+6
+7
+7
+8
+8
+8
+8
+9
+9
+drop table t2,t1;

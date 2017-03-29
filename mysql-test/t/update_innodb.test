@@ -37,3 +37,29 @@ UPDATE t1 a JOIN t2 b ON a.c1 = b.c1 JOIN v1 vw ON b.c2 = vw.c1 JOIN t3 del ON v
 
 drop view v1;
 drop table t1,t2,t3,t4;
+
+--echo #
+--echo # MDEV-10232 Scalar result of subquery changes after adding an outer select stmt
+--echo #
+
+CREATE TABLE t1 (
+  a_id INT(20) UNSIGNED NOT NULL AUTO_INCREMENT,
+  b_id INT(20) UNSIGNED NULL DEFAULT NULL,
+  c_id VARCHAR(255) NULL DEFAULT NULL,
+  PRIMARY KEY (a_id))COLLATE = 'utf8_general_ci' ENGINE = InnoDB;
+
+CREATE TABLE t2 (
+  b_id INT(20) UNSIGNED NOT NULL AUTO_INCREMENT,
+  c_id VARCHAR(255) NULL DEFAULT NULL,
+  PRIMARY KEY (b_id),
+  INDEX idx_c_id (c_id))COLLATE = 'utf8_general_ci' ENGINE = InnoDB;
+
+INSERT INTO t1 (b_id, c_id) VALUES (NULL, NULL);
+INSERT INTO t2 (c_id) VALUES (NULL);
+INSERT INTO t2 (c_id) VALUES (NULL);
+
+SELECT * FROM t1;
+SELECT t2.b_id FROM t1,t2 WHERE t2.c_id = t1.c_id;
+UPDATE t1 SET b_id = (SELECT t2.b_id FROM t2 t2 WHERE t2.c_id = t1.c_id);
+SELECT * FROM t1;
+drop table t1,t2;

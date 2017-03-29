@@ -1460,12 +1460,12 @@ SHOW CREATE TABLE information_schema.spatial_ref_sys;
 
 create table t1(g GEOMETRY, pt POINT);
 create table t2(g LINESTRING, pl POLYGON);
-select * from information_schema.geometry_columns;
+select * from information_schema.geometry_columns where f_table_schema='test';
 drop table t1, t2;
 
 --echo 10.1 tests
 create table t1(g GEOMETRY(9,4) REF_SYSTEM_ID=101, pt POINT(8,2), pg GEOMETRY REF_SYSTEM_ID=102);
-SELECT SRID from information_schema.geometry_columns WHERE G_TABLE_NAME='t1';
+SELECT SRID from information_schema.geometry_columns WHERE f_table_schema='test' and G_TABLE_NAME='t1';
 drop table t1;
 
 -- echo # Expect an int(1) column to be created

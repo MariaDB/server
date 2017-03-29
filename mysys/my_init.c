@@ -99,7 +99,7 @@ my_bool my_init(void)
   if (my_progname)
     my_progname_short= my_progname + dirname_length(my_progname);
 
-  /* Initalize our mutex handling */
+  /* Initialize our mutex handling */
   my_mutex_init();
 
   if (my_thread_global_init())
@@ -227,7 +227,7 @@ Voluntary context switches %ld, Involuntary context switches %ld\n",
  
   /* At very last, delete mysys key, it is used everywhere including DBUG */
   pthread_key_delete(THR_KEY_mysys);
-  my_init_done=0;
+  my_init_done= my_thr_key_mysys_exists= 0;
 } /* my_end */
 
 #ifndef DBUG_OFF
@@ -415,7 +415,7 @@ static my_bool win32_init_tcp_ip()
     WORD wVersionRequested = MAKEWORD( 2, 2 );
     WSADATA wsaData;
  	/* Be a good citizen: maybe another lib has already initialised
- 		sockets, so dont clobber them unless necessary */
+ 		sockets, so don't clobber them unless necessary */
     if (WSAStartup( wVersionRequested, &wsaData ))
     {
       /* Load failed, maybe because of previously loaded

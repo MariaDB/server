@@ -78,10 +78,11 @@ public:
   virtual AMT   GetAmType(void) {return TYPE_AM_JSN;}
   virtual bool  SkipHeader(PGLOBAL g);
   virtual PTDB  Duplicate(PGLOBAL g) {return (PTDB)new(g) TDBJSN(this);}
-          PJSON GetRow(void) {return Row;} 
+          PJSON GetRow(void) {return Row;}
+					void  SetG(PGLOBAL g) {G = g;}
 
   // Methods
-  virtual PTDB  CopyOne(PTABS t);
+  virtual PTDB  Clone(PTABS t);
   virtual PCOL  MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n);
   virtual PCOL  InsertSpecialColumn(PCOL colp);
   virtual int   RowNumber(PGLOBAL g, bool b = FALSE)
@@ -187,7 +188,7 @@ class TDBJSON : public TDBJSN {
           PJAR GetDoc(void) {return Doc;} 
 
   // Methods
-  virtual PTDB CopyOne(PTABS t);
+  virtual PTDB Clone(PTABS t);
 
   // Database routines
   virtual int  Cardinality(PGLOBAL g);

@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (C) 2013, 2016 MariaDB Corporation. All Rights Reserved.
+Copyright (C) 2013, 2017 MariaDB Corporation. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -44,19 +44,10 @@ Returns the page compression flag of the space, or false if the space
 is not compressed. The tablespace must be cached in the memory cache.
 @return	true if page compressed, false if not or space not found */
 UNIV_INLINE
-ibool
+bool
 fil_space_is_page_compressed(
 /*=========================*/
 	ulint	id);	/*!< in: space id */
-/*******************************************************************//**
-Returns the page compression flag of the space, or false if the space
-is not compressed. The tablespace must be cached in the memory cache.
-@return	true if page compressed, false if not or space not found */
-UNIV_INTERN
-ibool
-fil_space_get_page_compressed(
-/*=========================*/
-	fil_space_t*	space);	/*!< in: space id */
 /*******************************************************************//**
 Returns the atomic writes flag of the space, or false if the space
 is not using atomic writes. The tablespace must be cached in the memory cache.

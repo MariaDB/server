@@ -1,4 +1,4 @@
-// TDBMYSQL.H     Olivier Bertrand    2007-2014
+// TDBMYSQL.H     Olivier Bertrand    2007-2017
 #include "myconn.h"               // MySQL connection declares
 
 typedef class MYSQLDEF *PMYDEF;
@@ -18,7 +18,7 @@ typedef class MYSQLC   *PMYC;
 /***********************************************************************/
 /*  MYSQL table.                                                       */
 /***********************************************************************/
-class MYSQLDEF : public TABDEF           {/* Logical table description */
+class MYSQLDEF : public EXTDEF           {/* Logical table description */
   friend class TDBMYSQL;
   friend class TDBMYEXC;
   friend class TDBMCL;
@@ -27,19 +27,18 @@ class MYSQLDEF : public TABDEF           {/* Logical table description */
   // Constructor
   MYSQLDEF(void);
 
-
   // Implementation
   virtual const char *GetType(void) {return "MYSQL";}
   inline  PSZ  GetHostname(void) {return Hostname;};
-  inline  PSZ  GetDatabase(void) {return Database;};
-  inline  PSZ  GetTabname(void) {return Tabname;}
-  inline  PSZ  GetSrcdef(void) {return Srcdef;}
-  inline  PSZ  GetUsername(void) {return Username;};
-  inline  PSZ  GetPassword(void) {return Password;};
+//inline  PSZ  GetDatabase(void) {return Tabschema;};
+//inline  PSZ  GetTabname(void) {return Tabname;}
+//inline  PSZ  GetSrcdef(void) {return Srcdef;}
+//inline  PSZ  GetUsername(void) {return Username;};
+//inline  PSZ  GetPassword(void) {return Password;};
   inline  int  GetPortnumber(void) {return Portnumber;}
 
   // Methods
-  virtual int  Indexable(void) {return 2;}
+//virtual int  Indexable(void) {return 2;}
   virtual bool DefineAM(PGLOBAL g, LPCSTR am, int poff);
   virtual PTDB GetTable(PGLOBAL g, MODE m);
           bool ParseURL(PGLOBAL g, char *url, bool b = true);
@@ -48,27 +47,27 @@ class MYSQLDEF : public TABDEF           {/* Logical table description */
  protected:
   // Members
   PSZ     Hostname;           /* Host machine to use                   */
-  PSZ     Database;           /* Database to be used by server         */
-  PSZ     Tabname;            /* External table name                   */
-  PSZ     Srcdef;             /* The source table SQL definition       */
-  PSZ     Username;           /* User logon name                       */
-  PSZ     Password;           /* Password logon info                   */
+//PSZ     Tabschema;          /* Database to be used by server         */
+//PSZ     Tabname;            /* External table name                   */
+//PSZ     Srcdef;             /* The source table SQL definition       */
+//PSZ     Username;           /* User logon name                       */
+//PSZ     Password;           /* Password logon info                   */
   PSZ     Server;             /* PServerID                             */
-  PSZ     Qrystr;             /* The original query                    */
+//PSZ     Qrystr;             /* The original query                    */
   int     Portnumber;         /* MySQL port number (0 = default)       */
-  int     Mxr;                /* Maxerr for an Exec table              */
-  int     Quoted;             /* Identifier quoting level              */
+//int     Maxerr;             /* Maxerr for an Exec table              */
+//int     Quoted;             /* Identifier quoting level              */
   bool    Isview;             /* true if this table is a MySQL view    */
   bool    Bind;               /* Use prepared statement on insert      */
   bool    Delayed;            /* Delayed insert                        */
-  bool    Xsrc;               /* Execution type                        */
+//bool    Xsrc;               /* Execution type                        */
   bool    Huge;               /* True for big table                    */
   }; // end of MYSQLDEF
 
 /***********************************************************************/
 /*  This is the class declaration for the MYSQL table.                 */
 /***********************************************************************/
-class TDBMYSQL : public TDBASE {
+class TDBMYSQL : public TDBEXT {
   friend class MYSQLCOL;
  public:
   // Constructor
@@ -80,7 +79,7 @@ class TDBMYSQL : public TDBASE {
   virtual PTDB Duplicate(PGLOBAL g) {return (PTDB)new(g) TDBMYSQL(this);}
 
   // Methods
-  virtual PTDB CopyOne(PTABS t);
+  virtual PTDB Clone(PTABS t);
 //virtual int  GetAffectedRows(void) {return AftRows;}
   virtual int  GetRecpos(void) {return N;}
   virtual int  GetProgMax(PGLOBAL g);
@@ -88,12 +87,12 @@ class TDBMYSQL : public TDBASE {
   virtual int  RowNumber(PGLOBAL g, bool b = false);
   virtual bool IsView(void) {return Isview;}
   virtual PSZ  GetServer(void) {return Server;}
-          void SetDatabase(LPCSTR db) {Database = (char*)db;}
+          void SetDatabase(LPCSTR db) {Schema = (char*)db;}
 
-  // Database routines
+  // Schema routines
   virtual PCOL MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n);
   virtual int  Cardinality(PGLOBAL g);
-  virtual int  GetMaxSize(PGLOBAL g);
+//virtual int  GetMaxSize(PGLOBAL g);
   virtual bool OpenDB(PGLOBAL g);
   virtual int  ReadDB(PGLOBAL g);
   virtual int  WriteDB(PGLOBAL g);
@@ -111,7 +110,7 @@ class TDBMYSQL : public TDBASE {
   bool MakeSelect(PGLOBAL g, bool mx);
   bool MakeInsert(PGLOBAL g);
   int  BindColumns(PGLOBAL g);
-  int  MakeCommand(PGLOBAL g);
+  virtual bool MakeCommand(PGLOBAL g);
 //int  MakeUpdate(PGLOBAL g);  
 //int  MakeDelete(PGLOBAL g);
   int  SendCommand(PGLOBAL g);
@@ -119,25 +118,25 @@ class TDBMYSQL : public TDBASE {
   // Members
   MYSQLC      Myc;            // MySQL connection class
   MYSQL_BIND *Bind;           // To the MySQL bind structure array
-  PSTRG       Query;          // Constructed SQL query
+//PSTRG       Query;          // Constructed SQL query
   char       *Host;           // Host machine to use
-  char       *User;           // User logon info
-  char       *Pwd;            // Password logon info
-  char       *Database;       // Database to be used by server
-  char       *Tabname;        // External table name
-  char       *Srcdef;         // The source table SQL definition
+//char       *User;           // User logon info
+//char       *Pwd;            // Password logon info
+//char       *Schema;         // Database to be used by server
+//char       *TableName;      // External table name
+//char       *Srcdef;         // The source table SQL definition
   char       *Server;         // The server ID
-  char       *Qrystr;         // The original query
+//char       *Qrystr;         // The original query
   bool        Fetched;        // True when fetch was done
   bool        Isview;         // True if this table is a MySQL view
   bool        Prep;           // Use prepared statement on insert
   bool        Delayed;        // Use delayed insert
   int         m_Rc;           // Return code from command
-  int         AftRows;        // The number of affected rows
+//int         AftRows;        // The number of affected rows
   int         N;              // The current table index
   int         Port;           // MySQL port number (0 = default) 
-  int         Nparm;          // The number of statement parameters
-  int         Quoted;         // The identifier quoting level
+//int         Nparm;          // The number of statement parameters
+//int         Quoted;         // The identifier quoting level
   }; // end of class TDBMYSQL
 
 /***********************************************************************/
@@ -162,9 +161,6 @@ class MYSQLCOL : public COLBLK {
           bool FindRank(PGLOBAL g);
 
  protected:
-  // Default constructor not to be used
-  MYSQLCOL(void) {}
-
   // Members
   MYSQL_BIND   *Bind;            // This column bind structure pointer
   PVAL          To_Val;          // To value used for Update/Insert
@@ -187,7 +183,7 @@ class TDBMYEXC : public TDBMYSQL {
   virtual PTDB Duplicate(PGLOBAL g) {return (PTDB)new(g) TDBMYEXC(this);}
 
   // Methods
-  virtual PTDB CopyOne(PTABS t);
+  virtual PTDB Clone(PTABS t);
   virtual bool IsView(void) {return Isview;}
 
   // Database routines
@@ -228,9 +224,6 @@ class MYXCOL : public MYSQLCOL {
   virtual void WriteColumn(PGLOBAL g);
 
  protected:
-  // Default constructor not to be used
-  MYXCOL(void) {}
-
   // Members
   char    *Buffer;              // To get returned message
   int      Flag;                // Column content desc

@@ -89,30 +89,45 @@ DOMDOC::DOMDOC(char *nsl, char *nsdf, char *enc, PFBLOCK fp)
 /******************************************************************/
 /*  Initialize XML parser and check library compatibility.        */
 /******************************************************************/
-bool DOMDOC::Initialize(PGLOBAL g)
-  {
-  if (TestHr(g, CoInitialize(NULL)))
+bool DOMDOC::Initialize(PGLOBAL g, char *entry, bool zipped)
+{
+	if (zipped && InitZip(g, entry))
+		return true;
+
+	if (TestHr(g, CoInitialize(NULL)))
     return true;
 
   if (TestHr(g, Docp.CreateInstance("msxml2.domdocument")))
     return true;
 
   return MakeNSlist(g);
-  } // end of Initialize
+} // end of Initialize
 
 /******************************************************************/
 /* Parse the XML file and construct node tree in memory.          */
 /******************************************************************/
-bool DOMDOC::ParseFile(char *fn)
-  {
-  // Load the document
+bool DOMDOC::ParseFile(PGLOBAL g, char *fn)
+{
+	bool b;
+
   Docp->async = false;
 
-  if (!(bool)Docp->load((_bstr_t)fn))
+	if (zip) {
+		// Parse an in memory document
+		char *xdoc = GetMemDoc(g, fn);
+
+		// This is not equivalent to load for UTF8 characters
+		// It is why get node content is not the same
+  	b = (xdoc) ? (bool)Docp->loadXML((_bstr_t)xdoc) : false;
+	} else
+		// Load the document
+		b = (bool)Docp->load((_bstr_t)fn);
+
+	if (!b)
     return true;
 
   return false;
-  } // end of ParseFile
+} // end of ParseFile
 
 /******************************************************************/
 /* Create or reuse an Xblock for this document.                   */
@@ -239,6 +254,7 @@ int DOMDOC::DumpDoc(PGLOBAL g, char *ofn)
 void DOMDOC::CloseDoc(PGLOBAL g, PFBLOCK xp)
   {
   CloseXMLFile(g, xp, false);
+	CloseZip();
   } // end of Close
 
 /* ----------------------- class DOMNODE ------------------------ */
@@ -252,6 +268,7 @@ DOMNODE::DOMNODE(PXDOC dp, MSXML2::IXMLDOMNodePtr np) : XMLNODE(dp)
   Nodep = np;
   Ws = NULL;
   Len = 0;
+	Zip = (bool)dp->zip;
   } // end of DOMNODE constructor
 
 /******************************************************************/
@@ -302,8 +319,10 @@ RCODE DOMNODE::GetContent(PGLOBAL g, char *buf, int len)
   RCODE rc = RC_OK;
 
   // Nodep can be null for a missing HTML table column
-  if (Nodep) {                                                
-    if (!WideCharToMultiByte(CP_UTF8, 0, Nodep->text, -1,
+  if (Nodep) {
+		if (Zip) {
+			strcpy(buf, Nodep->text);
+		} else if (!WideCharToMultiByte(CP_UTF8, 0, Nodep->text, -1,
                              buf, len, NULL, NULL)) {
       DWORD lsr = GetLastError();
 
@@ -616,13 +635,13 @@ PXNODE DOMNODELIST::GetItem(PGLOBAL g, int n, PXNODE np)
 /*  Reset the pointer on the deleted item.                        */
 /******************************************************************/
 bool DOMNODELIST::DropItem(PGLOBAL g, int n)
-  {
-  if (Listp == NULL || Listp->length <= n)
-    return true;
+{
+	if (Listp == NULL || Listp->length < n)
+		return true;
 
 //Listp->item[n] = NULL;  La propriété n'a pas de méthode 'set'
   return false;
-  }  // end of DeleteItem
+}  // end of DeleteItem
 
 /* ----------------------- class DOMATTR ------------------------ */
 

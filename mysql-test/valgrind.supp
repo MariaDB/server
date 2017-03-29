@@ -952,6 +952,14 @@
    fun:backtrace
 }
 
+{
+   memory leak in mysqld_exit
+   Memcheck:Leak
+   fun:malloc
+   fun:_dl_close_worker
+   fun:_dl_close
+}
+
 #
 # Bug in Glibc 2.9: http://sourceware.org/bugzilla/show_bug.cgi?id=10391
 # Fixed in latest Glibc, but suppressed here for running tests on hosts
@@ -1066,6 +1074,15 @@
    fun:SSL_library_init
 }
 
+{
+   OpenSSL still reachable.
+   Memcheck:Leak
+   fun:*alloc
+   fun:CRYPTO_malloc
+   fun:sk_new
+   fun:SSL_COMP_get_compression_methods
+   fun:SSL_library_init
+}
 
 {
    OpenSSL still reachable.
@@ -1111,6 +1128,16 @@
    match-leak-kinds:possible
    ...
    fun:pthread_create*
+}
+
+{
+   Memory Leak in loader and valgrind malloc
+   Memcheck:Leak
+   match-leak-kinds:reachable
+   obj:*/vgpreload_memcheck*.so
+   ...
+   obj:*/ld-*.so
+   ...
 }
 
 {

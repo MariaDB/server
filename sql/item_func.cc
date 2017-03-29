@@ -2767,7 +2767,6 @@ void Item_func_min_max::fix_length_and_dec()
   decimals=0;
   max_length=0;
   maybe_null=0;
-  thd= current_thd;
   Item_result tmp_cmp_type= args[0]->cmp_type();
   uint string_type_count= 0;
   uint temporal_type_count= 0;
@@ -2909,10 +2908,8 @@ bool Item_func_min_max::get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date)
     longlong res= args[i]->val_temporal_packed(Item_func_min_max::field_type());
 
     /* Check if we need to stop (because of error or KILL) and stop the loop */
-    if (thd->is_error() || args[i]->null_value)
-    {
+    if (args[i]->null_value)
       return (null_value= 1);
-    }
 
     if (i == 0 || (res < min_max ? cmp_sign : -cmp_sign) > 0)
       min_max= res;
@@ -3935,12 +3932,7 @@ longlong Item_master_pos_wait::val_int()
   else
     connection_name= thd->variables.default_master_connection;
 
-  mysql_mutex_lock(&LOCK_active_mi);
-  if (master_info_index)  // master_info_index is set to NULL on shutdown.
-    mi= master_info_index->get_master_info(&connection_name,
-                                           Sql_condition::WARN_LEVEL_WARN);
-  mysql_mutex_unlock(&LOCK_active_mi);
-  if (!mi)
+  if (!(mi= get_master_info(&connection_name, Sql_condition::WARN_LEVEL_WARN)))
     goto err;
 
   if ((event_count = mi->rli.wait_for_pos(thd, log_name, pos, timeout)) == -2)
@@ -3948,6 +3940,7 @@ longlong Item_master_pos_wait::val_int()
     null_value = 1;
     event_count=0;
   }
+  mi->release();
 #endif
   return event_count;
 

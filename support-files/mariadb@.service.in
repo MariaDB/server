@@ -1,7 +1,7 @@
-# Multi instance version of mariadb. For if you run mutiple verions at once.
+# Multi instance version of mariadb. For if you run multiple versions at once.
 # Also used for mariadb@bootstrap to bootstrap Galera.
 #
-# create config file @INSTALL_SYSCONF2DIR@/my{instancename}.cnf
+# create config file @sysconf2dir@/my{instancename}.cnf
 #
 # start as systemctl start mariadb@{instancename}.server
 
@@ -22,7 +22,7 @@ Description=MariaDB database server
 After=network.target
 After=syslog.target
 
-ConditionPathExists=@INSTALL_SYSCONF2DIR@/my%I.cnf
+ConditionPathExists=@sysconf2dir@/my%I.cnf
 
 [Install]
 WantedBy=multi-user.target
@@ -73,19 +73,19 @@ PermissionsStartOnly=true
 # Do not panic if galera_recovery script is not available. (MDEV-10538)
 ExecStartPre=/bin/sh -c "systemctl unset-environment _WSREP_START_POSITION%I"
 
-ExecStartPre=/bin/sh -c "[ ! -e /usr/bin/galera_recovery ] && VAR= || \
- VAR=`/usr/bin/galera_recovery --defaults-file=@INSTALL_SYSCONF2DIR@/my%I.cnf`; [ $? -eq 0 ] \
+ExecStartPre=/bin/sh -c "[ ! -e @bindir@/galera_recovery ] && VAR= || \
+ VAR=`@bindir@/galera_recovery --defaults-file=@sysconf2dir@/my%I.cnf`; [ $? -eq 0 ] \
  && systemctl set-environment _WSREP_START_POSITION%I=$VAR || exit 1"
 
 # Alternate: (remove ConditionPathExists above)
 # use [mysqld.INSTANCENAME] as sections in my.cnf
 #
-#ExecStartPre=/bin/sh -c "[ ! -e /usr/bin/galera_recovery ] && VAR= || \
-# VAR=`/usr/bin/galera_recovery --defaults-group-suffix=%I`; [ $? -eq 0 ] \
+#ExecStartPre=/bin/sh -c "[ ! -e @bindir@/galera_recovery ] && VAR= || \
+# VAR=`@bindir@/galera_recovery --defaults-group-suffix=%I`; [ $? -eq 0 ] \
 # && systemctl set-environment _WSREP_START_POSITION%I=$VAR || exit 1"
 
 # Needed to create system tables etc.
-# ExecStartPre=/usr/bin/mysql_install_db -u mysql
+# ExecStartPre=@scriptdir@/mysql_install_db -u mysql
 
 # Start main service
 # MYSQLD_OPTS here is for users to set in /etc/systemd/system/mariadb@.service.d/MY_SPECIAL.conf
@@ -95,12 +95,12 @@ ExecStartPre=/bin/sh -c "[ ! -e /usr/bin/galera_recovery ] && VAR= || \
 
 # Note: Place $MYSQLD_OPTS at the very end for its options to take precedence.
 
-ExecStart=/usr/sbin/mysqld --defaults-file=@INSTALL_SYSCONF2DIR@/my%I.cnf \
+ExecStart=@sbindir@/mysqld --defaults-file=@sysconf2dir@/my%I.cnf \
   $_WSREP_NEW_CLUSTER $_WSREP_START_POSITION%I $MYSQLD_OPTS
 # Alternate: (remove ConditionPathExists above)
 # use [mysqld.INSTANCENAME] as sections in my.cnf
 #
-# ExecStart=/usr/sbin/mysqld --defaults-group-suffix=%I \
+# ExecStart=@sbindir@/mysqld --defaults-group-suffix=%I \
 # $_WSREP_NEW_CLUSTER $_WSREP_START_POSITION%I $MYSQLD_OPTS
 
 # Unset _WSREP_START_POSITION environment variable.
@@ -157,7 +157,7 @@ LimitNOFILE=16364
 # Timezone. previously [mysqld_safe] timezone
 # Environment="TZ=UTC"
 
-# Library substitutions. previously [mysqld_safe] malloc-lib with explict paths
+# Library substitutions. previously [mysqld_safe] malloc-lib with explicit paths
 # (in LD_LIBRARY_PATH) and library name (in LD_PRELOAD).
 # Environment="LD_LIBRARY_PATH=/path1 /path2" "LD_PRELOAD=
 
@@ -166,7 +166,7 @@ LimitNOFILE=16364
 # ExecStartPre=sysctl -q -w vm.drop_caches=3
 
 # numa-interleave=1 equalivant
-# Change ExecStart=numactl --interleave=all /usr/sbin/mysqld......
+# Change ExecStart=numactl --interleave=all @sbindir@/mysqld......
 
 # crash-script equalivent
 # FailureAction=

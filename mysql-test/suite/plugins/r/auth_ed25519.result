@@ -1,0 +1,50 @@
+create function ed25519_password returns string soname "auth_ed25519.so";
+select ed25519_password();
+ERROR HY000: Can't initialize function 'ed25519_password'; Wrong arguments to ed25519_password()
+select ed25519_password(1);
+ERROR HY000: Can't initialize function 'ed25519_password'; Wrong arguments to ed25519_password()
+select ed25519_password("foo", "bar");
+ERROR HY000: Can't initialize function 'ed25519_password'; Wrong arguments to ed25519_password()
+select ed25519_password("foo");
+ERROR HY000: Can't initialize function 'ed25519_password'; Authentication plugin ed25519 is not loaded
+install soname 'auth_ed25519';
+select ed25519_password("foo");
+ed25519_password("foo")
+vubFBzIrapbfHct1/J72dnUryz5VS7lA6XHH8sIx4TI
+select ed25519_password("foobar");
+ed25519_password("foobar")
+qv2mG6HWCuy32Slb5xhV4THStewNz2VINVPbgk+XAJ8
+select ed25519_password("foo bar");
+ed25519_password("foo bar")
+Y5fV74JAVRMOK2cdnUsYS+WW9sXaaL/o+6WGKOgqnzc
+select ed25519_password(NULL);
+ed25519_password(NULL)
+NULL
+select * from information_schema.plugins where plugin_name='ed25519';
+PLUGIN_NAME	ed25519
+PLUGIN_VERSION	1.0
+PLUGIN_STATUS	ACTIVE
+PLUGIN_TYPE	AUTHENTICATION
+PLUGIN_TYPE_VERSION	2.1
+PLUGIN_LIBRARY	auth_ed25519.so
+PLUGIN_LIBRARY_VERSION	1.12
+PLUGIN_AUTHOR	Sergei Golubchik
+PLUGIN_DESCRIPTION	Elliptic curve ED25519 based authentication
+PLUGIN_LICENSE	GPL
+LOAD_OPTION	ON
+PLUGIN_MATURITY	Beta
+PLUGIN_AUTH_VERSION	1.0-alpha
+create user test1@localhost identified via ed25519 using 'ZIgUREUg5PVgQ6LskhXmO+eZLS0nC8be6HPjYWR4YJY';
+show grants for test1@localhost;
+Grants for test1@localhost
+GRANT USAGE ON *.* TO 'test1'@'localhost' IDENTIFIED VIA ed25519 USING 'ZIgUREUg5PVgQ6LskhXmO+eZLS0nC8be6HPjYWR4YJY'
+connect(localhost,test1,public,test,PORT,SOCKET);
+ERROR 28000: Access denied for user 'test1'@'localhost' (using password: YES)
+select current_user();
+current_user()
+test1@localhost
+drop user test1@localhost;
+uninstall plugin ed25519;
+select ed25519_password("foo");
+ERROR HY000: Can't initialize function 'ed25519_password'; Authentication plugin ed25519 is not loaded
+drop function ed25519_password;

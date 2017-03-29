@@ -1,170 +1,207 @@
-/************** FilAmZip H Declares Source Code File (.H) **************/
-/*  Name: FILAMZIP.H    Version 1.2                                    */
+/************** filamzip H Declares Source Code File (.H) **************/
+/*  Name: filamzip.h   Version 1.1                                     */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          2005-2014    */
+/*  (C) Copyright to the author Olivier BERTRAND          2016-2017    */
 /*                                                                     */
-/*  This file contains the GZIP access method classes declares.        */
+/*  This file contains the ZIP file access method classes declares.    */
 /***********************************************************************/
 #ifndef __FILAMZIP_H
 #define __FILAMZIP_H
 
-#include "zlib.h"
+#include "block.h"
+#include "filamap.h"
+#include "filamfix.h"
+#include "zip.h"
+#include "unzip.h"
 
+#define DLLEXPORT extern "C"
+
+typedef class UNZFAM *PUNZFAM;
+typedef class UZXFAM *PUZXFAM;
 typedef class ZIPFAM *PZIPFAM;
-typedef class ZBKFAM *PZBKFAM;
-typedef class ZIXFAM *PZIXFAM;
-typedef class ZLBFAM *PZLBFAM;
+typedef class ZPXFAM *PZPXFAM;
 
 /***********************************************************************/
-/*  This is the access method class declaration for not optimized      */
-/*  variable record length files compressed using the gzip library     */
-/*  functions. File is accessed record by record (row).                */
+/*  This is the ZIP utility fonctions class.                           */
 /***********************************************************************/
-class DllExport ZIPFAM : public TXTFAM {
-//  friend class DOSCOL;
+class DllExport ZIPUTIL : public BLOCK {
  public:
-  // Constructor
-  ZIPFAM(PDOSDEF tdp) : TXTFAM(tdp) {Zfile = NULL; Zpos = 0;}
-  ZIPFAM(PZIPFAM txfp);
+	// Constructor
+	ZIPUTIL(PSZ tgt);
+	//ZIPUTIL(ZIPUTIL *zutp);
 
-  // Implementation
-  virtual AMT  GetAmType(void) {return TYPE_AM_ZIP;}
-  virtual int  GetPos(void);
-  virtual int  GetNextPos(void);
-  virtual PTXF Duplicate(PGLOBAL g)
-                {return (PTXF)new(g) ZIPFAM(this);}
+	// Implementation
+	//PTXF Duplicate(PGLOBAL g) { return (PTXF) new(g)UNZFAM(this); }
 
-  // Methods
-  virtual void Reset(void);
-  virtual int  GetFileLength(PGLOBAL g);
-  virtual int  Cardinality(PGLOBAL g) {return (g) ? -1 : 0;}
-  virtual int  MaxBlkSize(PGLOBAL g, int s) {return s;}
-  virtual bool AllocateBuffer(PGLOBAL g);
-  virtual int  GetRowID(void);
-  virtual bool RecordPos(PGLOBAL g);
-  virtual bool SetPos(PGLOBAL g, int recpos);
-  virtual int  SkipRecord(PGLOBAL g, bool header);
-  virtual bool OpenTableFile(PGLOBAL g);
-  virtual int  ReadBuffer(PGLOBAL g);
-  virtual int  WriteBuffer(PGLOBAL g);
-  virtual int  DeleteRecords(PGLOBAL g, int irc);
-  virtual void CloseTableFile(PGLOBAL g, bool abort);
-  virtual void Rewind(void);
+	// Methods
+	bool OpenTable(PGLOBAL g, MODE mode, char *fn, bool append);
+	bool open(PGLOBAL g, char *fn, bool append);
+	bool addEntry(PGLOBAL g, char *entry);
+	void close(void);
+	void closeEntry(void);
+  int  writeEntry(PGLOBAL g, char *buf, int len);
+	void getTime(tm_zip& tmZip);
+
+	// Members
+	zipFile         zipfile;							// The ZIP container file
+	PSZ             target;								// The target file name
+//unz_file_info   finfo;								// The current file info
+	PFBLOCK         fp;
+//char           *memory;
+//uint            size;
+//int             multiple;             // Multiple targets
+	bool            entryopen;						// True when open current entry
+//char            fn[FILENAME_MAX];     // The current entry file name
+//char            mapCaseTable[256];
+}; // end of ZIPUTIL
+
+/***********************************************************************/
+/*  This is the unZIP utility fonctions class.                         */
+/***********************************************************************/
+class DllExport UNZIPUTL : public BLOCK {
+ public:
+	// Constructor
+	UNZIPUTL(PSZ tgt, bool mul);
+//UNZIPUTL(UNZIPUTL *zutp);
+
+	// Implementation
+//PTXF Duplicate(PGLOBAL g) { return (PTXF) new(g)UNZFAM(this); }
+
+	// Methods
+	bool OpenTable(PGLOBAL g, MODE mode, char *fn);
+	bool open(PGLOBAL g, char *fn);
+	bool openEntry(PGLOBAL g);
+	void close(void);
+	void closeEntry(void);
+	bool WildMatch(PSZ pat, PSZ str);
+	int  findEntry(PGLOBAL g, bool next);
+	int  nextEntry(PGLOBAL g);
+
+	// Members
+	unzFile         zipfile;							// The ZIP container file
+	PSZ             target;								// The target file name
+	unz_file_info   finfo;								// The current file info
+	PFBLOCK         fp;
+	char           *memory;
+	uint            size;
+	int             multiple;             // Multiple targets
+	bool            entryopen;						// True when open current entry
+	char            fn[FILENAME_MAX];     // The current entry file name
+	char            mapCaseTable[256];
+}; // end of UNZIPUTL
+
+/***********************************************************************/
+/*  This is the unzip file access method.                              */
+/***********************************************************************/
+class DllExport UNZFAM : public MAPFAM {
+//friend class UZXFAM;
+ public:
+	// Constructors
+	UNZFAM(PDOSDEF tdp);
+	UNZFAM(PUNZFAM txfp);
+
+	// Implementation
+	virtual AMT  GetAmType(void) {return TYPE_AM_ZIP;}
+	virtual PTXF Duplicate(PGLOBAL g) {return (PTXF) new(g) UNZFAM(this);}
+
+	// Methods
+	virtual int  Cardinality(PGLOBAL g);
+	virtual int  GetFileLength(PGLOBAL g);
+	//virtual int  MaxBlkSize(PGLOBAL g, int s) {return s;}
+	virtual bool OpenTableFile(PGLOBAL g);
+	virtual bool DeferReading(void) { return false; }
+	virtual int  GetNext(PGLOBAL g);
+	//virtual int  ReadBuffer(PGLOBAL g);
+	//virtual int  WriteBuffer(PGLOBAL g);
+	//virtual int  DeleteRecords(PGLOBAL g, int irc);
+	//virtual void CloseTableFile(PGLOBAL g, bool abort);
 
  protected:
-          int  Zerror(PGLOBAL g);    // GZ error function
-
-  // Members
-  gzFile  Zfile;              // Points to GZ file structure
-  z_off_t Zpos;               // Uncompressed file position
-  }; // end of class ZIPFAM
+	// Members
+	UNZIPUTL *zutp;
+	PSZ       target;
+	bool      mul;
+}; // end of UNZFAM
 
 /***********************************************************************/
-/*  This is the access method class declaration for optimized variable */
-/*  record length files compressed using the gzip library functions.   */
-/*  The File is accessed by block (requires an opt file).              */
+/*  This is the fixed unzip file access method.                        */
 /***********************************************************************/
-class DllExport ZBKFAM : public ZIPFAM {
+class DllExport UZXFAM : public MPXFAM {
+//friend class UNZFAM;
  public:
-  // Constructor
-  ZBKFAM(PDOSDEF tdp);
-  ZBKFAM(PZBKFAM txfp);
+	// Constructors
+	UZXFAM(PDOSDEF tdp);
+	UZXFAM(PUZXFAM txfp);
 
-  // Implementation
-  virtual int  GetPos(void);
-  virtual int  GetNextPos(void) {return 0;}
-  virtual PTXF Duplicate(PGLOBAL g)
-                {return (PTXF)new(g) ZBKFAM(this);}
+	// Implementation
+	virtual AMT  GetAmType(void) { return TYPE_AM_ZIP; }
+	virtual PTXF Duplicate(PGLOBAL g) { return (PTXF) new(g)UZXFAM(this); }
 
-  // Methods
-  virtual int  Cardinality(PGLOBAL g);
-  virtual int  MaxBlkSize(PGLOBAL g, int s);
-  virtual bool AllocateBuffer(PGLOBAL g);
-  virtual int  GetRowID(void);
-  virtual bool RecordPos(PGLOBAL g);
-  virtual int  SkipRecord(PGLOBAL g, bool header);
-  virtual int  ReadBuffer(PGLOBAL g);
-  virtual int  WriteBuffer(PGLOBAL g);
-  virtual int  DeleteRecords(PGLOBAL g, int irc);
-  virtual void CloseTableFile(PGLOBAL g, bool abort);
-  virtual void Rewind(void);
+	// Methods
+	virtual int  GetFileLength(PGLOBAL g);
+	virtual int  Cardinality(PGLOBAL g);
+	virtual bool OpenTableFile(PGLOBAL g);
+	virtual int  GetNext(PGLOBAL g);
+	//virtual int  ReadBuffer(PGLOBAL g);
 
  protected:
-  // Members
-  char *CurLine;              // Position of current line in buffer
-  char *NxtLine;              // Position of Next    line in buffer
-  bool  Closing;              // True when closing on Insert
-  }; // end of class ZBKFAM
+	// Members
+	UNZIPUTL *zutp;
+	PSZ       target;
+	bool      mul;
+}; // end of UZXFAM
 
 /***********************************************************************/
-/*  This is the access method class declaration for fixed record       */
-/*  length files compressed using the gzip library functions.          */
-/*  The file is always accessed by block.                              */
+/*  This is the zip file access method.                                */
 /***********************************************************************/
-class DllExport ZIXFAM : public ZBKFAM {
+class DllExport ZIPFAM : public DOSFAM {
  public:
-  // Constructor
-  ZIXFAM(PDOSDEF tdp);
-  ZIXFAM(PZIXFAM txfp) : ZBKFAM(txfp) {}
+	// Constructors
+	ZIPFAM(PDOSDEF tdp);
 
-  // Implementation
-  virtual int  GetNextPos(void) {return 0;}
-  virtual PTXF Duplicate(PGLOBAL g)
-                {return (PTXF)new(g) ZIXFAM(this);}
+	// Implementation
+	virtual AMT  GetAmType(void) {return TYPE_AM_ZIP;}
 
-  // Methods
-  virtual int  Cardinality(PGLOBAL g);
-  virtual bool AllocateBuffer(PGLOBAL g);
-  virtual int  ReadBuffer(PGLOBAL g);
-  virtual int  WriteBuffer(PGLOBAL g);
+	// Methods
+	virtual int  Cardinality(PGLOBAL g) {return 0;}
+	virtual int  GetFileLength(PGLOBAL g) {return g ? 0 : 1;}
+	//virtual int  MaxBlkSize(PGLOBAL g, int s) {return s;}
+	virtual bool OpenTableFile(PGLOBAL g);
+	virtual int  ReadBuffer(PGLOBAL g);
+	virtual int  WriteBuffer(PGLOBAL g);
+	//virtual int  DeleteRecords(PGLOBAL g, int irc);
+	virtual void CloseTableFile(PGLOBAL g, bool abort);
 
  protected:
-  // No additional Members
-  }; // end of class ZIXFAM
+	// Members
+	ZIPUTIL *zutp;
+	PSZ      target;
+	bool     append;
+}; // end of ZIPFAM
 
 /***********************************************************************/
-/*  This is the DOS/UNIX Access Method class declaration for PlugDB    */
-/*  fixed/variable files compressed using the zlib library functions.  */
-/*  Physically these are written and read using the same technique     */
-/*  than blocked variable files, only the contain of each block is     */
-/*  compressed using the deflate zlib function. The purpose of this    */
-/*  specific format is to have a fast mechanism for direct access of   */
-/*  records so blocked optimization is fast and direct access (joins)  */
-/*  is allowed. Note that the block length is written ahead of each    */
-/*  block to enable reading when optimization file is not available.   */
+/*  This is the fixed zip file access method.                          */
 /***********************************************************************/
-class DllExport ZLBFAM : public BLKFAM {
+class DllExport ZPXFAM : public FIXFAM {
  public:
-  // Constructor
-  ZLBFAM(PDOSDEF tdp);
-  ZLBFAM(PZLBFAM txfp);
+	// Constructors
+	ZPXFAM(PDOSDEF tdp);
 
-  // Implementation
-  virtual AMT  GetAmType(void) {return TYPE_AM_ZLIB;}
-  virtual int  GetPos(void);
-  virtual int  GetNextPos(void);
-  virtual PTXF Duplicate(PGLOBAL g)
-                  {return (PTXF)new(g) ZLBFAM(this);}
-  inline  void SetOptimized(bool b) {Optimized = b;}
+	// Implementation
+	virtual AMT  GetAmType(void) {return TYPE_AM_ZIP;}
 
-  // Methods
-  virtual int  GetFileLength(PGLOBAL g);
-  virtual bool SetPos(PGLOBAL g, int recpos);
-  virtual bool AllocateBuffer(PGLOBAL g);
-  virtual int  ReadBuffer(PGLOBAL g);
-  virtual int  WriteBuffer(PGLOBAL g);
-  virtual void CloseTableFile(PGLOBAL g, bool abort);
-  virtual void Rewind(void);
+	// Methods
+	virtual int  Cardinality(PGLOBAL g) {return 0;}
+	virtual int  GetFileLength(PGLOBAL g) {return g ? 0 : 1;}
+	virtual bool OpenTableFile(PGLOBAL g);
+	virtual int  WriteBuffer(PGLOBAL g);
+	virtual void CloseTableFile(PGLOBAL g, bool abort);
 
  protected:
-          bool WriteCompressedBuffer(PGLOBAL g);
-          int  ReadCompressedBuffer(PGLOBAL g, void *rdbuf);
-
-  // Members
-  z_streamp Zstream;          // Compression/decompression stream
-  Byte     *Zbuffer;          // Compressed block buffer
-  int      *Zlenp;            // Pointer to block length
-  bool      Optimized;        // true when opt file is available
-  }; // end of class ZLBFAM
+	// Members
+	ZIPUTIL *zutp;
+	PSZ      target;
+	bool     append;
+}; // end of ZPXFAM
 
 #endif // __FILAMZIP_H

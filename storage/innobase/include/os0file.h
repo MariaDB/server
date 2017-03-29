@@ -2,7 +2,7 @@
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2009, Percona Inc.
-Copyright (c) 2013, 2015, MariaDB Corporation.
+Copyright (c) 2013, 2017, MariaDB Corporation. All Rights Reserved.
 
 Portions of this file contain modifications contributed and copyrighted
 by Percona Inc.. Those modifications are
@@ -881,17 +881,19 @@ os_file_get_size(
 /*=============*/
 	os_file_t	file)	/*!< in: handle to a file */
 	MY_ATTRIBUTE((warn_unused_result));
-/***********************************************************************//**
-Write the specified number of zeros to a newly created file.
-@return	TRUE if success */
+/** Set the size of a newly created file.
+@param[in]	name	file name
+@param[in]	file	file handle
+@param[in]	size	desired file size
+@param[in]	sparse	whether to create a sparse file (no preallocating)
+@return	whether the operation succeeded */
 UNIV_INTERN
-ibool
+bool
 os_file_set_size(
-/*=============*/
-	const char*	name,	/*!< in: name of the file or path as a
-				null-terminated string */
-	os_file_t	file,	/*!< in: handle to a file */
-	os_offset_t	size)	/*!< in: file size */
+	const char*	name,
+	os_file_t	file,
+	os_offset_t	size,
+	bool		is_sparse = false)
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 /***********************************************************************//**
 Truncates a file at its current position.
@@ -1169,6 +1171,7 @@ UNIV_INTERN
 void
 os_aio_simulated_wake_handler_threads(void);
 /*=======================================*/
+#ifdef _WIN32
 /**********************************************************************//**
 This function can be called if one wants to post a batch of reads and
 prefers an i/o-handler thread to handle them all at once later. You must
@@ -1176,8 +1179,10 @@ call os_aio_simulated_wake_handler_threads later to ensure the threads
 are not left sleeping! */
 UNIV_INTERN
 void
-os_aio_simulated_put_read_threads_to_sleep(void);
-/*============================================*/
+os_aio_simulated_put_read_threads_to_sleep();
+#else /* _WIN32 */
+# define os_aio_simulated_put_read_threads_to_sleep()
+#endif /* _WIN32 */
 
 #ifdef WIN_ASYNC_IO
 /**********************************************************************//**

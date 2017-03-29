@@ -1,11 +1,11 @@
 /************ TabPivot C++ Program Source Code File (.CPP) *************/
 /* PROGRAM NAME: TABPIVOT                                              */
 /* -------------                                                       */
-/*  Version 1.6                                                        */
+/*  Version 1.7                                                        */
 /*                                                                     */
 /* COPYRIGHT:                                                          */
 /* ----------                                                          */
-/*  (C) Copyright to the author Olivier BERTRAND          2005-2015    */
+/*  (C) Copyright to the author Olivier BERTRAND          2005-2017    */
 /*                                                                     */
 /* WHAT THIS PROGRAM DOES:                                             */
 /* -----------------------                                             */
@@ -41,6 +41,7 @@
 #include "global.h"
 #include "plgdbsem.h"
 #include "xtable.h"
+#include "tabext.h"
 #include "tabcol.h"
 #include "colblk.h"
 #include "tabmysql.h"
@@ -883,7 +884,7 @@ SRCCOL::SRCCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int n)
 /***********************************************************************/
 /*  Initialize the column as pointing to the source column.            */
 /***********************************************************************/
-bool SRCCOL::Init(PGLOBAL g, PTDBASE tp)
+bool SRCCOL::Init(PGLOBAL g, PTDB tp)
   {
   if (PRXCOL::Init(g, tp))
     return true;

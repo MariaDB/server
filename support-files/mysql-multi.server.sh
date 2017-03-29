@@ -12,7 +12,7 @@
 # started and shut down when the systems goes down. The '.svr1' suffix can
 # be used to identify one of a number of servers. Multiple symlinks can be
 # created, one per instance. The 'svrN' suffix can then be used to
-# prefix configuration variables in a seperate section of /etc/my.cnf.
+# prefix configuration variables in a separate section of /etc/my.cnf.
 # See example below.
 #
 # A typical multi-instance /etc/my.cnf file would look like:

@@ -2401,5 +2401,103 @@ SELECT x FROM t1 WHERE id > (SELECT MAX(id) - 1000 FROM t1) ORDER BY x LIMIT 1;
 x
 0
 drop table t1;
+#
+# MDEV-7691: Assertion `outer_context || !*from_field || *from_field == not_found_field' ...
+#
+set optimizer_switch=default;
+CREATE TABLE t1 (a INT) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (4),(6);
+CREATE TABLE t2 (b INT) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (1),(8);
+PREPARE stmt FROM "
+SELECT * FROM t2
+HAVING 0 IN (
+  SELECT a FROM t1
+  WHERE a IN ( 
+    SELECT a FROM t1
+    WHERE b = a
+  )
+)
+";
+EXECUTE stmt;
+b
+EXECUTE stmt;
+b
+# Alternative test case, without HAVING
+CREATE TABLE t3 (i INT) ENGINE=MyISAM;
+INSERT INTO t3 VALUES (4),(6);
+PREPARE stmt FROM "
+SELECT * FROM t3 AS t10
+WHERE EXISTS ( 
+  SELECT * FROM t3 AS t20 WHERE t10.i IN ( 
+    SELECT i FROM t3 
+  ) 
+)";
+EXECUTE stmt;
+i
+6
+EXECUTE stmt;
+i
+6
+drop table t1, t2, t3;
+#
+# MDEV-11078: NULL NOT IN (non-empty subquery) should never return results
+#
+create table t1(a int,b int);
+create table t2(a int,b int);
+insert into t1 value (1,2);
+select (NULL)  in (select 1 from t1);
+(NULL)  in (select 1 from t1)
+NULL
+select (null)  in (select 1 from t2);
+(null)  in (select 1 from t2)
+0
+select 1 in (select 1 from t1);
+1 in (select 1 from t1)
+1
+select 1 in (select 1 from t2);
+1 in (select 1 from t2)
+0
+select 1 from dual where null in (select 1 from t1);
+1
+select 1 from dual where null in (select 1 from t2);
+1
+select (null,null) in (select * from t1);
+(null,null) in (select * from t1)
+NULL
+select (null,null) in (select * from t2);
+(null,null) in (select * from t2)
+0
+select 1 from dual where null not in (select 1 from t1);
+1
+select 1 from dual where null not in (select 1 from t2);
+1
+1
+drop table t1,t2;
+#
+# MDEV-6486: Assertion `!table || (!table->read_set || bitmap_is_set(table->read_set, field_index))'
+# failed with SELECT SQ, TEXT field
+#
+CREATE TABLE t1 (a VARCHAR(8), KEY(a)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES ('foo'),( 'bar');
+CREATE TABLE t2 (b VARCHAR(8), c TINYTEXT, KEY(b)) ENGINE=MyISAM;
+INSERT INTO t2 VALUES ('baz','baz'),('qux', 'qux');
+SELECT ( SELECT COUNT(*) FROM t1 WHERE a = c ) AS field, COUNT(DISTINCT c)
+FROM t2 WHERE b <= 'quux' GROUP BY field;
+field	COUNT(DISTINCT c)
+0	1
+drop table t1,t2;
 SET optimizer_switch= @@global.optimizer_switch;
 set @@tmp_table_size= @@global.tmp_table_size;
+#
+# MDEV-10232 Scalar result of subquery changes after adding an outer select stmt
+#
+create table t1(c1 int, c2 int, primary key(c2));
+insert into t1 values(2,1),(1,2);
+select (select c1 from t1 group by c1,c2 order by c1 limit 1) as x;
+x
+1
+(select c1 from t1 group by c1,c2 order by c1 limit 1);
+c1
+1
+drop table t1;

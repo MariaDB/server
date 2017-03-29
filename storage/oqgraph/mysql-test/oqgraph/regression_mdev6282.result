@@ -33,5 +33,5 @@ FROM `version_history` AS `v` INNER JOIN `db_history` AS `db` ON `db`.`nodeID` =
 WHERE `latch` = 'breadth_first' AND `origid` = '1' ORDER BY `weight` DESC LIMIT 1;
 version	nodeID
 0.0.3	3
-DROP TABLE db_history;
 DROP TABLE version_history;
+DROP TABLE db_history;

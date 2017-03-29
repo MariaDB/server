@@ -571,7 +571,7 @@ enum open_frm_error open_table_def(THD *thd, TABLE_SHARE *share, uint flags)
   {
     DBUG_ASSERT(flags & GTS_TABLE);
     DBUG_ASSERT(flags & GTS_USE_DISCOVERY);
-    mysql_file_delete_with_symlink(key_file_frm, path, MYF(0));
+    mysql_file_delete_with_symlink(key_file_frm, path, "", MYF(0));
     file= -1;
   }
   else
@@ -6872,11 +6872,9 @@ bool is_simple_order(ORDER *order)
   @details
     The function computes the values of the virtual columns of the table and
     stores them in the table record buffer.
-    If vcol_update_mode is set to VCOL_UPDATE_ALL then all virtual column are
-    computed. Otherwise, only fields from vcol_set are computed: all of them,
-    if vcol_update_mode is set to VCOL_UPDATE_FOR_WRITE, and, only those with
-    the stored_in_db flag set to false, if vcol_update_mode is equal to
-    VCOL_UPDATE_FOR_READ.
+    Only fields from vcol_set are computed: all of them, if vcol_update_mode is
+    set to VCOL_UPDATE_FOR_WRITE, and, only those with the stored_in_db flag
+    set to false, if vcol_update_mode is equal to VCOL_UPDATE_FOR_READ.
 
   @retval
     0    Success
@@ -6892,15 +6890,16 @@ int update_virtual_fields(THD *thd, TABLE *table,
   int error __attribute__ ((unused))= 0;
   DBUG_ASSERT(table && table->vfield);
 
-  thd->reset_arena_for_cached_items(table->expr_arena);
+  Query_arena backup_arena;
+  thd->set_n_backup_active_arena(table->expr_arena, &backup_arena);
+
   /* Iterate over virtual fields in the table */
   for (vfield_ptr= table->vfield; *vfield_ptr; vfield_ptr++)
   {
     vfield= (*vfield_ptr);
     DBUG_ASSERT(vfield->vcol_info && vfield->vcol_info->expr_item);
-    if ((bitmap_is_set(table->vcol_set, vfield->field_index) &&
-         (vcol_update_mode == VCOL_UPDATE_FOR_WRITE || !vfield->stored_in_db)) ||
-        vcol_update_mode == VCOL_UPDATE_ALL)
+    if (bitmap_is_set(table->vcol_set, vfield->field_index) &&
+        (vcol_update_mode == VCOL_UPDATE_FOR_WRITE || !vfield->stored_in_db))
     {
       /* Compute the actual value of the virtual fields */
       error= vfield->vcol_info->expr_item->save_in_field(vfield, 0);
@@ -6911,7 +6910,7 @@ int update_virtual_fields(THD *thd, TABLE *table,
       DBUG_PRINT("info", ("field '%s' - skipped", vfield->field_name));
     }
   }
-  thd->reset_arena_for_cached_items(0);
+  thd->restore_active_arena(table->expr_arena, &backup_arena);
   DBUG_RETURN(0);
 }
 

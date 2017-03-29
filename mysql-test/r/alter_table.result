@@ -2101,6 +2101,27 @@ Note	1061	Duplicate key name 'id1'
 DROP TABLE t2;
 DROP TABLE t1;
 #
+# MDEV-6390 CONVERT TO CHARACTER SET utf8 doesn't change DEFAULT CHARSET.
+#
+CREATE TABLE t1 (id int(11) NOT NULL, a int(11) NOT NULL, b int(11))
+ENGINE=InnoDB DEFAULT CHARSET=latin1;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) NOT NULL,
+  `a` int(11) NOT NULL,
+  `b` int(11) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+ALTER TABLE t1 CONVERT TO CHARACTER SET utf8;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) NOT NULL,
+  `a` int(11) NOT NULL,
+  `b` int(11) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8
+DROP TABLE t1;
+#
 # Start of 10.1 tests
 #
 #

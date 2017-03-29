@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2014, 2015, MariaDB Corporation
+Copyright (c) 2014, 2017, MariaDB Corporation
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -930,8 +930,10 @@ lock_reset_lock_and_trx_wait(
 		}
 
 		ib_logf(IB_LOG_LEVEL_INFO,
-			"Trx id %lu is waiting a lock in statement %s"
-			" for this trx id %lu and statement %s wait_lock %p",
+			"Trx id " TRX_ID_FMT
+			" is waiting a lock in statement %s"
+			" for this trx id " TRX_ID_FMT
+			" and statement %s wait_lock %p",
 			lock->trx->id,
 			stmt ? stmt : "NULL",
 			trx_id,
@@ -2654,7 +2656,8 @@ lock_rec_add_to_queue(
 			if (wsrep_thd_is_BF(trx->mysql_thd, FALSE)) {
 				if (wsrep_debug) {
 					fprintf(stderr,
-						"BF skipping wait: %lu\n",
+						"BF skipping wait: "
+						TRX_ID_FMT "\n",
 						trx->id);
 					lock_rec_print(stderr, lock);
 				}
@@ -5316,7 +5319,9 @@ lock_table_other_has_incompatible(
 #ifdef WITH_WSREP
 			if(wsrep_thd_is_wsrep(trx->mysql_thd)) {
 				if (wsrep_debug) {
-					fprintf(stderr, "WSREP: trx %ld table lock abort\n",
+					fprintf(stderr, "WSREP: trx "
+						TRX_ID_FMT
+						" table lock abort\n",
 						trx->id);
 				}
 				trx_mutex_enter(lock->trx);
@@ -6445,12 +6450,13 @@ loop:
 
 	if (lock_get_type_low(lock) == LOCK_REC) {
 		if (load_page_first) {
-			ulint	space	= lock->un_member.rec_lock.space;
-			ulint	zip_size= fil_space_get_zip_size(space);
+			ulint	space_id = lock->un_member.rec_lock.space;
+			/* Check if the space is exists or not. only
+			when the space is valid, try to get the page. */
+			fil_space_t* space = fil_space_acquire(space_id);
 			ulint	page_no = lock->un_member.rec_lock.page_no;
-			ibool	tablespace_being_deleted = FALSE;
 
-			if (UNIV_UNLIKELY(zip_size == ULINT_UNDEFINED)) {
+			if (!space) {
 
 				/* It is a single table tablespace and
 				the .ibd file is missing (TRUNCATE
@@ -6459,10 +6465,12 @@ loop:
 				load the page in the buffer pool. */
 
 				fprintf(file, "RECORD LOCKS on"
-					" non-existing space %lu\n",
-					(ulong) space);
+					" non-existing space: " ULINTPF "\n",
+					space_id);
 				goto print_rec;
 			}
+
+			const ulint zip_size = fsp_flags_get_zip_size(space->flags);
 
 			lock_mutex_exit();
 			mutex_exit(&trx_sys->mutex);
@@ -6471,15 +6479,10 @@ loop:
 
 				DEBUG_SYNC_C("innodb_monitor_before_lock_page_read");
 
-				/* Check if the space is exists or not. only
-                                when the space is valid, try to get the page. */
-				tablespace_being_deleted
-					= fil_inc_pending_ops(space, false);
-
-				if (!tablespace_being_deleted) {
+				if (space) {
 					mtr_start(&mtr);
 
-					buf_page_get_gen(space, zip_size,
+					buf_page_get_gen(space_id, zip_size,
 							 page_no, RW_NO_LATCH,
 							 NULL,
 							 BUF_GET_POSSIBLY_FREED,
@@ -6488,13 +6491,10 @@ loop:
 
 					mtr_commit(&mtr);
 
-					fil_decr_pending_ops(space);
-				} else {
-					fprintf(file, "RECORD LOCKS on"
-						" non-existing space %lu\n",
-						(ulong) space);
 				}
 			}
+
+			fil_space_release(space);
 
 			load_page_first = FALSE;
 
@@ -6924,7 +6924,7 @@ static
 void
 lock_rec_block_validate(
 /*====================*/
-	ulint		space,
+	ulint		space_id,
 	ulint		page_no)
 {
 	/* The lock and the block that it is referring to may be freed at
@@ -6937,10 +6937,11 @@ lock_rec_block_validate(
 
 	/* Make sure that the tablespace is not deleted while we are
 	trying to access the page. */
-	if (!fil_inc_pending_ops(space, true)) {
+	if (fil_space_t* space = fil_space_acquire(space_id)) {
+
 		mtr_start(&mtr);
 		block = buf_page_get_gen(
-			space, fil_space_get_zip_size(space),
+			space_id, fsp_flags_get_zip_size(space->flags),
 			page_no, RW_X_LATCH, NULL,
 			BUF_GET_POSSIBLY_FREED,
 			__FILE__, __LINE__, &mtr);
@@ -6950,7 +6951,7 @@ lock_rec_block_validate(
 		ut_ad(lock_rec_validate_page(block));
 		mtr_commit(&mtr);
 
-		fil_decr_pending_ops(space);
+		fil_space_release(space);
 	}
 }
 

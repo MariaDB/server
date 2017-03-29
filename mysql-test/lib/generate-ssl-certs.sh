@@ -1,4 +1,4 @@
-#/bin/sh -xe
+#!/bin/sh -xe
 
 # simply run me from mysql-test/
 cd std_data/

@@ -1843,7 +1843,7 @@ btr_cur_pessimistic_insert(
 /*************************************************************//**
 For an update, checks the locks and does the undo logging.
 @return	DB_SUCCESS, DB_WAIT_LOCK, or error number */
-UNIV_INLINE MY_ATTRIBUTE((warn_unused_result, nonnull(2,3,6,7)))
+UNIV_INLINE MY_ATTRIBUTE((warn_unused_result))
 dberr_t
 btr_cur_upd_lock_and_undo(
 /*======================*/
@@ -2073,7 +2073,6 @@ btr_cur_update_alloc_zip_func(
 	const page_t*	page = page_cur_get_page(cursor);
 
 	ut_ad(page_zip == page_cur_get_page_zip(cursor));
-	ut_ad(page_zip);
 	ut_ad(!dict_index_is_ibuf(index));
 	ut_ad(rec_offs_validate(page_cur_get_rec(cursor), index, offsets));
 
@@ -3940,19 +3939,42 @@ inexact:
 	return(n_rows);
 }
 
-/*******************************************************************//**
-Estimates the number of rows in a given index range.
-@return	estimated number of rows */
-UNIV_INTERN
-ib_int64_t
-btr_estimate_n_rows_in_range(
-/*=========================*/
-	dict_index_t*	index,	/*!< in: index */
-	const dtuple_t*	tuple1,	/*!< in: range start, may also be empty tuple */
-	ulint		mode1,	/*!< in: search mode for range start */
-	const dtuple_t*	tuple2,	/*!< in: range end, may also be empty tuple */
-	ulint		mode2,	/*!< in: search mode for range end */
-	trx_t*		trx)	/*!< in: trx */
+/** If the tree gets changed too much between the two dives for the left
+and right boundary then btr_estimate_n_rows_in_range_low() will retry
+that many times before giving up and returning the value stored in
+rows_in_range_arbitrary_ret_val. */
+static const unsigned	rows_in_range_max_retries = 4;
+
+/** We pretend that a range has that many records if the tree keeps changing
+for rows_in_range_max_retries retries while we try to estimate the records
+in a given range. */
+static const int64_t	rows_in_range_arbitrary_ret_val = 10;
+
+/** Estimates the number of rows in a given index range.
+@param[in]	index		index
+@param[in]	tuple1		range start, may also be empty tuple
+@param[in]	mode1		search mode for range start
+@param[in]	tuple2		range end, may also be empty tuple
+@param[in]	mode2		search mode for range end
+@param[in]	trx		trx
+@param[in]	nth_attempt	if the tree gets modified too much while
+we are trying to analyze it, then we will retry (this function will call
+itself, incrementing this parameter)
+@return estimated number of rows; if after rows_in_range_max_retries
+retries the tree keeps changing, then we will just return
+rows_in_range_arbitrary_ret_val as a result (if
+nth_attempt >= rows_in_range_max_retries and the tree is modified between
+the two dives). */
+static
+int64_t
+btr_estimate_n_rows_in_range_low(
+	dict_index_t*	index,
+	const dtuple_t*	tuple1,
+	ulint		mode1,
+	const dtuple_t*	tuple2,
+	ulint		mode2,
+	trx_t*		trx,
+	unsigned	nth_attempt)
 {
 	btr_path_t	path1[BTR_PATH_ARRAY_N_SLOTS];
 	btr_path_t	path2[BTR_PATH_ARRAY_N_SLOTS];
@@ -3989,6 +4011,12 @@ btr_estimate_n_rows_in_range(
 	mtr_commit(&mtr);
 
 	mtr_start_trx(&mtr, trx);
+
+#ifdef UNIV_DEBUG
+	if (!strcmp(index->name, "iC")) {
+		DEBUG_SYNC_C("btr_estimate_n_rows_in_range_between_dives");
+	}
+#endif
 
 	cursor.path_arr = path2;
 
@@ -4056,6 +4084,33 @@ btr_estimate_n_rows_in_range(
 
 		if (!diverged && slot1->nth_rec != slot2->nth_rec) {
 
+			/* If both slots do not point to the same page or if
+			the paths have crossed and the same page on both
+			apparently contains a different number of records,
+			this means that the tree must have changed between
+			the dive for slot1 and the dive for slot2 at the
+			beginning of this function. */
+			if (slot1->page_no != slot2->page_no
+			    || slot1->page_level != slot2->page_level
+			    || (slot1->nth_rec >= slot2->nth_rec
+				&& slot1->n_recs != slot2->n_recs)) {
+
+				/* If the tree keeps changing even after a
+				few attempts, then just return some arbitrary
+				number. */
+				if (nth_attempt >= rows_in_range_max_retries) {
+					return(rows_in_range_arbitrary_ret_val);
+				}
+
+				const int64_t	ret =
+					btr_estimate_n_rows_in_range_low(
+						index, tuple1, mode1,
+						tuple2, mode2, trx,
+						nth_attempt + 1);
+
+				return(ret);
+			}
+
 			diverged = TRUE;
 
 			if (slot1->nth_rec < slot2->nth_rec) {
@@ -4074,7 +4129,7 @@ btr_estimate_n_rows_in_range(
 				in this case slot1->nth_rec will point
 				to the supr record and slot2->nth_rec
 				will point to 6 */
-				n_rows = 0;
+				return(0);
 			}
 
 		} else if (diverged && !diverged_lot) {
@@ -4103,6 +4158,30 @@ btr_estimate_n_rows_in_range(
 				&is_n_rows_exact);
 		}
 	}
+}
+
+/** Estimates the number of rows in a given index range.
+@param[in]	index	index
+@param[in]	tuple1	range start, may also be empty tuple
+@param[in]	mode1	search mode for range start
+@param[in]	tuple2	range end, may also be empty tuple
+@param[in]	mode2	search mode for range end
+@param[in]	trx	trx
+@return estimated number of rows */
+int64_t
+btr_estimate_n_rows_in_range(
+	dict_index_t*	index,
+	const dtuple_t*	tuple1,
+	ulint		mode1,
+	const dtuple_t*	tuple2,
+	ulint		mode2,
+	trx_t*		trx)
+{
+	const int64_t	ret = btr_estimate_n_rows_in_range_low(
+		index, tuple1, mode1, tuple2, mode2, trx,
+		1 /* first attempt */);
+
+	return(ret);
 }
 
 /*******************************************************************//**
@@ -4567,7 +4646,6 @@ btr_cur_disown_inherited_fields(
 	ut_ad(rec_offs_validate(rec, index, offsets));
 	ut_ad(!rec_offs_comp(offsets) || !rec_get_node_ptr_flag(rec));
 	ut_ad(rec_offs_any_extern(offsets));
-	ut_ad(mtr);
 
 	for (i = 0; i < rec_offs_n_fields(offsets); i++) {
 		if (rec_offs_nth_extern(offsets, i)
@@ -4629,9 +4707,6 @@ btr_push_update_extern_fields(
 	ulint			n_pushed	= 0;
 	ulint			n;
 	const upd_field_t*	uf;
-
-	ut_ad(tuple);
-	ut_ad(update);
 
 	uf = update->fields;
 	n = upd_get_n_fields(update);
@@ -4816,7 +4891,6 @@ btr_store_big_rec_extern_fields(
 
 	ut_ad(rec_offs_validate(rec, index, offsets));
 	ut_ad(rec_offs_any_extern(offsets));
-	ut_ad(btr_mtr);
 	ut_ad(mtr_memo_contains(btr_mtr, dict_index_get_lock(index),
 				MTR_MEMO_X_LOCK));
 	ut_ad(mtr_memo_contains(btr_mtr, rec_block, MTR_MEMO_PAGE_X_FIX));

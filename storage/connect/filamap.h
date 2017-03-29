@@ -41,7 +41,8 @@ class DllExport MAPFAM : public TXTFAM {
   virtual int   SkipRecord(PGLOBAL g, bool header);
   virtual bool  OpenTableFile(PGLOBAL g);
   virtual bool  DeferReading(void) {return false;}
-  virtual int   ReadBuffer(PGLOBAL g);
+	virtual int   GetNext(PGLOBAL g) {return RC_EF;}
+	virtual int   ReadBuffer(PGLOBAL g);
   virtual int   WriteBuffer(PGLOBAL g);
   virtual int   DeleteRecords(PGLOBAL g, int irc);
   virtual void  CloseTableFile(PGLOBAL g, bool abort);

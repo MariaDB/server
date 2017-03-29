@@ -49,19 +49,19 @@ dbt3_s001	supplier	PRIMARY	1	1.0000
 dbt3_s001	supplier	i_s_nationkey	1	1.1111
 flush table lineitem;
 set use_stat_tables='never';
-select sum(l_extendedprice*l_discount) as revenue
+select round(sum(l_extendedprice*l_discount),4) as revenue
 from lineitem
 where l_shipdate >= date '1994-01-01' 
 and l_shipdate < date '1994-01-01' + interval '1' year
 and l_discount between 0.06 - 0.01 and 0.06 + 0.01
 and l_quantity < 24;
 revenue
-77949.91860000002
+77949.9186
 set debug_sync='statistics_mem_alloc_start1  WAIT_FOR second_thread_started_too';
 set debug_sync='statistics_mem_alloc_start2  SIGNAL first_thread_working';
 use dbt3_s001;
 set use_stat_tables='preferably';
-select sum(l_extendedprice*l_discount) as revenue
+select round(sum(l_extendedprice*l_discount),4) as revenue
 from lineitem
 where l_shipdate >= date '1994-01-01' 
 and l_shipdate < date '1994-01-01' + interval '1' year
@@ -71,16 +71,16 @@ set debug_sync='statistics_mem_alloc_start1  SIGNAL second_thread_started_too';
 set debug_sync='statistics_mem_alloc_start2  WAIT_FOR first_thread_working';
 use dbt3_s001;
 set use_stat_tables='preferably';
-select sum(l_extendedprice*l_discount) as revenue
+select round(sum(l_extendedprice*l_discount),4) as revenue
 from lineitem
 where l_shipdate >= date '1994-01-01' 
 and l_shipdate < date '1994-01-01' + interval '1' year
 and l_discount between 0.06 - 0.01 and 0.06 + 0.01
 and l_quantity < 24;
 revenue
-77949.91860000002
+77949.9186
 revenue
-77949.91860000002
+77949.9186
 set use_stat_tables='preferably';
 set debug_sync='RESET';
 select * from mysql.index_stats where table_name='lineitem' order by index_name;

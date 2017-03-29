@@ -1082,7 +1082,7 @@ bool Table_triggers_list::prepare_record_accessors(TABLE *table)
       && (table->s->stored_fields != table->s->null_fields))
 
   {
-    int null_bytes= (table->s->stored_fields - table->s->null_fields + 7)/8;
+    int null_bytes= (table->s->fields - table->s->null_fields + 7)/8;
     if (!(extra_null_bitmap= (uchar*)alloc_root(&table->mem_root, null_bytes)))
       return 1;
     if (!(record0_field= (Field **)alloc_root(&table->mem_root,
@@ -2298,6 +2298,9 @@ void Table_triggers_list::mark_fields_used(trg_event_type event)
         bitmap_set_bit(trigger_table->read_set, trg_field->field_idx);
         if (trg_field->get_settable_routine_parameter())
           bitmap_set_bit(trigger_table->write_set, trg_field->field_idx);
+        if (trigger_table->field[trg_field->field_idx]->vcol_info)
+          trigger_table->mark_virtual_col(trigger_table->
+                                          field[trg_field->field_idx]);
       }
     }
   }

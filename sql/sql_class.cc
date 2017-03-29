@@ -906,8 +906,8 @@ THD::THD(bool is_wsrep_applier)
 #endif
 {
   ulong tmp;
+  bzero(&variables, sizeof(variables));
 
-  mdl_context.init(this);
   /*
     We set THR_THD to temporally point to this THD to register all the
     variables that allocates memory for this THD
@@ -916,7 +916,10 @@ THD::THD(bool is_wsrep_applier)
   set_current_thd(this);
   status_var.local_memory_used= sizeof(THD);
   status_var.global_memory_used= 0;
+  variables.max_mem_used= global_system_variables.max_mem_used;
   main_da.init();
+
+  mdl_context.init(this);
 
   /*
     Pass nominal parameters to init_alloc_root only to ensure that
@@ -964,7 +967,6 @@ THD::THD(bool is_wsrep_applier)
   connection_name.str= 0;
   connection_name.length= 0;
 
-  bzero(&variables, sizeof(variables));
   file_id = 0;
   query_id= 0;
   query_name_consts= 0;
@@ -1083,7 +1085,6 @@ THD::THD(bool is_wsrep_applier)
 
   m_internal_handler= NULL;
   m_binlog_invoker= INVOKER_NONE;
-  arena_for_cached_items= 0;
   memset(&invoker_user, 0, sizeof(invoker_user));
   memset(&invoker_host, 0, sizeof(invoker_host));
   prepare_derived_at_open= FALSE;
@@ -4474,6 +4475,28 @@ extern "C" int thd_is_connected(MYSQL_THD thd)
 }
 
 
+extern "C" double thd_rnd(MYSQL_THD thd)
+{
+  return my_rnd(&thd->rand);
+}
+
+
+/**
+  Generate string of printable random characters of requested length.
+
+  @param to[out]      Buffer for generation; must be at least length+1 bytes
+                      long; result string is always null-terminated
+  @param length[in]   How many random characters to put in buffer
+*/
+extern "C" void thd_create_random_password(MYSQL_THD thd,
+                                           char *to, size_t length)
+{
+  for (char *end= to + length; to < end; to++)
+    *to= (char) (my_rnd(&thd->rand)*94 + 33);
+  *to= '\0';
+}
+
+
 #ifdef INNODB_COMPATIBILITY_HOOKS
 extern "C" const struct charset_info_st *thd_charset(MYSQL_THD thd)
 {
@@ -4510,6 +4533,15 @@ extern "C" int thd_rpl_is_parallel(const MYSQL_THD thd)
 {
   return thd->rgi_slave && thd->rgi_slave->is_parallel_exec;
 }
+
+
+/* Returns high resolution timestamp for the start
+  of the current query. */
+extern "C" unsigned long long thd_start_utime(const MYSQL_THD thd)
+{
+  return thd->start_utime;
+}
+
 
 /*
   This function can optionally be called to check if thd_report_wait_for()
@@ -7065,7 +7097,13 @@ wait_for_commit::reinit()
 
     So in this case, do a re-init of the mutex. In release builds, we want to
     avoid the overhead of a re-init though.
+
+    To ensure that no one is locking the mutex, we take a lock of it first.
+    For full explanation, see wait_for_commit::~wait_for_commit()
   */
+  mysql_mutex_lock(&LOCK_wait_commit);
+  mysql_mutex_unlock(&LOCK_wait_commit);
+
   mysql_mutex_destroy(&LOCK_wait_commit);
   mysql_mutex_init(key_LOCK_wait_commit, &LOCK_wait_commit, MY_MUTEX_INIT_FAST);
 #endif

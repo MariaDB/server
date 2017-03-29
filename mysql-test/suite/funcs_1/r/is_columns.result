@@ -97,6 +97,9 @@ COLUMN_COMMENT	varchar(1024)	NO
 SELECT table_catalog, table_schema, table_name, column_name
 FROM information_schema.columns WHERE table_catalog IS NULL OR table_catalog <> 'def';
 table_catalog	table_schema	table_name	column_name
+Warnings:
+Warning	1286	Unknown storage engine 'InnoDB'
+Warning	1286	Unknown storage engine 'InnoDB'
 ###############################################################################
 # Testcase 3.2.6.2 + 3.2.6.3: INFORMATION_SCHEMA.COLUMNS accessible information
 ###############################################################################

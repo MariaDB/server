@@ -21,7 +21,7 @@
 #ifndef __WIN__
 #include <netdb.h>        // getservbyname, servent
 #endif
-#include "sql_parse.h"    // test_if_data_home_dir
+#include "sql_parse.h"    // path_starts_from_data_home_dir
 #include "sql_cache.h"    // query_cache, query_cache_*
 #include "sql_locale.h"   // MY_LOCALES, my_locales, my_locale_by_name
 #include "sql_show.h"     // free_status_vars, add_status_vars,
@@ -130,10 +130,7 @@ extern "C" {					// Because of SCO 3.2V4.2
 #include <sysent.h>
 #endif
 #ifdef HAVE_PWD_H
-#include <pwd.h>				// For getpwent
-#endif
-#ifdef HAVE_GRP_H
-#include <grp.h>
+#include <pwd.h>				// For struct passwd
 #endif
 #include <my_net.h>
 
@@ -483,9 +480,7 @@ ulong opt_binlog_rows_event_max_size;
 my_bool opt_master_verify_checksum= 0;
 my_bool opt_slave_sql_verify_checksum= 1;
 const char *binlog_format_names[]= {"MIXED", "STATEMENT", "ROW", NullS};
-#ifdef HAVE_INITGROUPS
 volatile sig_atomic_t calling_initgroups= 0; /**< Used in SIGSEGV handler. */
-#endif
 uint mysqld_port, test_flags, select_errors, dropping_tables, ha_open_options;
 uint mysqld_extra_port;
 uint mysqld_port_timeout;
@@ -719,11 +714,14 @@ mysql_mutex_t
   LOCK_delayed_insert, LOCK_delayed_status, LOCK_delayed_create,
   LOCK_crypt,
   LOCK_global_system_variables,
-  LOCK_user_conn, LOCK_slave_list, LOCK_active_mi,
+  LOCK_user_conn, LOCK_slave_list,
   LOCK_connection_count, LOCK_error_messages, LOCK_slave_background;
 
 mysql_mutex_t LOCK_stats, LOCK_global_user_client_stats,
               LOCK_global_table_stats, LOCK_global_index_stats;
+
+/* This protects against changes in master_info_index */
+mysql_mutex_t LOCK_active_mi;
 
 /**
   The below lock protects access to two global server variables:
@@ -882,7 +880,7 @@ PSI_mutex_key key_BINLOG_LOCK_index, key_BINLOG_LOCK_xid_list,
   key_LOCK_system_variables_hash, key_LOCK_thd_data,
   key_LOCK_user_conn, key_LOCK_uuid_short_generator, key_LOG_LOCK_log,
   key_master_info_data_lock, key_master_info_run_lock,
-  key_master_info_sleep_lock,
+  key_master_info_sleep_lock, key_master_info_start_stop_lock,
   key_mutex_slave_reporting_capability_err_lock, key_relay_log_info_data_lock,
   key_rpl_group_info_sleep_lock,
   key_relay_log_info_log_space_lock, key_relay_log_info_run_lock,
@@ -954,6 +952,7 @@ static PSI_mutex_info all_server_mutexes[]=
   { &key_LOCK_uuid_short_generator, "LOCK_uuid_short_generator", PSI_FLAG_GLOBAL},
   { &key_LOG_LOCK_log, "LOG::LOCK_log", 0},
   { &key_master_info_data_lock, "Master_info::data_lock", 0},
+  { &key_master_info_start_stop_lock, "Master_info::start_stop_lock", 0},
   { &key_master_info_run_lock, "Master_info::run_lock", 0},
   { &key_master_info_sleep_lock, "Master_info::sleep_lock", 0},
   { &key_mutex_slave_reporting_capability_err_lock, "Slave_reporting_capability::err_lock", 0},
@@ -1439,7 +1438,7 @@ ulong query_cache_min_res_unit= QUERY_CACHE_MIN_RESULT_DATA_SIZE;
 Query_cache query_cache;
 #endif
 #ifdef HAVE_SMEM
-char *shared_memory_base_name= default_shared_memory_base_name;
+const char *shared_memory_base_name= default_shared_memory_base_name;
 my_bool opt_enable_shared_memory;
 HANDLE smem_event_connect_request= 0;
 #endif
@@ -1680,7 +1679,7 @@ static void close_connections(void)
   mysql_mutex_unlock(&LOCK_thread_count); // For unlink from list
 
   Events::deinit();
-  end_slave();
+  slave_prepare_for_shutdown();
 
   /*
     Give threads time to die.
@@ -1757,6 +1756,7 @@ static void close_connections(void)
     DBUG_PRINT("quit",("Unlocking LOCK_thread_count"));
     mysql_mutex_unlock(&LOCK_thread_count);
   }
+  end_slave();
   /* All threads has now been aborted */
   DBUG_PRINT("quit",("Waiting for threads to die (count=%u)",thread_count));
   mysql_mutex_lock(&LOCK_thread_count);
@@ -2331,59 +2331,18 @@ static void set_ports()
 
 static struct passwd *check_user(const char *user)
 {
-#if !defined(__WIN__)
-  struct passwd *tmp_user_info;
-  uid_t user_id= geteuid();
+  myf flags= 0;
+  if (global_system_variables.log_warnings)
+    flags|= MY_WME;
+  if (!opt_bootstrap && !opt_help)
+    flags|= MY_FAE;
 
-  // Don't bother if we aren't superuser
-  if (user_id)
-  {
-    if (user)
-    {
-      /* Don't give a warning, if real user is same as given with --user */
-      /* purecov: begin tested */
-      tmp_user_info= getpwnam(user);
-      if ((!tmp_user_info || user_id != tmp_user_info->pw_uid) &&
-	  global_system_variables.log_warnings)
-        sql_print_warning(
-                    "One can only use the --user switch if running as root\n");
-      /* purecov: end */
-    }
-    return NULL;
-  }
-  if (!user)
-  {
-    if (!opt_bootstrap && !opt_help)
-    {
-      sql_print_error("Fatal error: Please consult the Knowledge Base "
-                      "to find out how to run mysqld as root!\n");
-      unireg_abort(1);
-    }
-    return NULL;
-  }
-  /* purecov: begin tested */
-  if (!strcmp(user,"root"))
-    return NULL;                        // Avoid problem with dynamic libraries
+  struct passwd *tmp_user_info= my_check_user(user, MYF(flags));
 
-  if (!(tmp_user_info= getpwnam(user)))
-  {
-    // Allow a numeric uid to be used
-    const char *pos;
-    for (pos= user; my_isdigit(mysqld_charset,*pos); pos++) ;
-    if (*pos)                                   // Not numeric id
-      goto err;
-    if (!(tmp_user_info= getpwuid(atoi(user))))
-      goto err;
-  }
+  if (!tmp_user_info && my_errno==EINVAL && (flags & MY_FAE))
+    unireg_abort(1);
 
   return tmp_user_info;
-  /* purecov: end */
-
-err:
-  sql_print_error("Fatal error: Can't change to run as user '%s' ;  Please check that the user exists!\n",user);
-  unireg_abort(1);
-#endif
-  return NULL;
 }
 
 static inline void allow_coredumps()
@@ -2400,10 +2359,6 @@ static inline void allow_coredumps()
 
 static void set_user(const char *user, struct passwd *user_info_arg)
 {
-  /* purecov: begin tested */
-#if !defined(__WIN__)
-  DBUG_ASSERT(user_info_arg != 0);
-#ifdef HAVE_INITGROUPS
   /*
     We can get a SIGSEGV when calling initgroups() on some systems when NSS
     is configured to use LDAP and the server is statically linked.  We set
@@ -2411,22 +2366,11 @@ static void set_user(const char *user, struct passwd *user_info_arg)
     output a specific message to help the user resolve this problem.
   */
   calling_initgroups= 1;
-  initgroups((char*) user, user_info_arg->pw_gid);
+  int res= my_set_user(user, user_info_arg, MYF(MY_WME));
   calling_initgroups= 0;
-#endif
-  if (setgid(user_info_arg->pw_gid) == -1)
-  {
-    sql_perror("setgid");
+  if (res)
     unireg_abort(1);
-  }
-  if (setuid(user_info_arg->pw_uid) == -1)
-  {
-    sql_perror("setuid");
-    unireg_abort(1);
-  }
   allow_coredumps();
-#endif
-  /* purecov: end */
 }
 
 
@@ -2575,6 +2519,12 @@ static MYSQL_SOCKET activate_tcp_port(uint port)
     (void) mysql_socket_setsockopt(ip_sock, IPPROTO_IPV6, IPV6_V6ONLY,
                                    (char*)&arg, sizeof(arg));
   }
+#endif
+
+#ifdef IP_FREEBIND
+  arg= 1;
+  (void) mysql_socket_setsockopt(ip_sock, IPPROTO_IP, IP_FREEBIND, (char*) &arg,
+                                 sizeof(arg));
 #endif
   /*
     Sometimes the port is not released fast enough when stopping and
@@ -2828,22 +2778,6 @@ void dec_connection_count(THD *thd)
   mysql_mutex_unlock(&LOCK_connection_count);
 }
 
-
-/*
-  Delete THD and decrement thread counters, including thread_running
-*/
-
-void delete_running_thd(THD *thd)
-{
-  mysql_mutex_lock(&LOCK_thread_count);
-  thd->unlink();
-  mysql_mutex_unlock(&LOCK_thread_count);
-
-  delete thd;
-  dec_thread_running();
-  thread_safe_decrement32(&thread_count);
-  signal_thd_deleted();
-}
 
 /*
   Send a signal to unblock close_conneciton() if there is no more
@@ -3989,7 +3923,7 @@ static void my_malloc_size_cb_func(long long size, my_bool is_thread_specific)
 {
   THD *thd= current_thd;
 
-  if (likely(is_thread_specific))  /* If thread specific memory */
+  if (is_thread_specific)  /* If thread specific memory */
   {
     /*
       When thread specfic is set, both mysqld_server_initialized and thd
@@ -4001,13 +3935,21 @@ static void my_malloc_size_cb_func(long long size, my_bool is_thread_specific)
                         (longlong) thd->status_var.local_memory_used,
                         size));
     thd->status_var.local_memory_used+= size;
+    if (thd->status_var.local_memory_used > (int64)thd->variables.max_mem_used &&
+        !thd->killed)
+    {
+      char buf[1024];
+      thd->killed= KILL_QUERY;
+      my_snprintf(buf, sizeof(buf), "--max-thread-mem-used=%llu",
+                  thd->variables.max_mem_used);
+      my_error(ER_OPTION_PREVENTS_STATEMENT, MYF(0), buf);
+    }
     DBUG_ASSERT((longlong) thd->status_var.local_memory_used >= 0);
   }
   else if (likely(thd))
   {
     DBUG_PRINT("info", ("global thd memory_used: %lld  size: %lld",
-                        (longlong) thd->status_var.global_memory_used,
-                        size));
+                        (longlong) thd->status_var.global_memory_used, size));
     thd->status_var.global_memory_used+= size;
   }
   else
@@ -4475,19 +4417,24 @@ static int init_common_variables()
     default_charset_info= default_collation;
   }
   /* Set collactions that depends on the default collation */
-  global_system_variables.collation_server=	 default_charset_info;
-  global_system_variables.collation_database=	 default_charset_info;
-  global_system_variables.collation_connection=  default_charset_info;
-  global_system_variables.character_set_results= default_charset_info;
-  if (default_charset_info->mbminlen > 1)
+  global_system_variables.collation_server= default_charset_info;
+  global_system_variables.collation_database= default_charset_info;
+  if (is_supported_parser_charset(default_charset_info))
   {
-    global_system_variables.character_set_client=  &my_charset_latin1;
-    sql_print_warning("Cannot use %s as character_set_client, %s will be used instead",
-                      default_charset_info->csname,
-                      global_system_variables.character_set_client->csname);
+    global_system_variables.collation_connection= default_charset_info;
+    global_system_variables.character_set_results= default_charset_info;
+    global_system_variables.character_set_client= default_charset_info;
   }
   else
-    global_system_variables.character_set_client=  default_charset_info;
+  {
+    sql_print_warning("'%s' can not be used as client character set. "
+                      "'%s' will be used as default client character set.",
+                      default_charset_info->csname,
+                      my_charset_latin1.csname);
+    global_system_variables.collation_connection= &my_charset_latin1;
+    global_system_variables.character_set_results= &my_charset_latin1;
+    global_system_variables.character_set_client= &my_charset_latin1;
+  }
 
   if (!(character_set_filesystem=
         get_charset_by_csname(character_set_filesystem_name,
@@ -5342,15 +5289,13 @@ static int init_server_components()
 
   if (opt_bin_log)
   {
-    /**
-     * mutex lock is not needed here.
-     * but to be able to have mysql_mutex_assert_owner() in code,
-     * we do it anyway */
-    mysql_mutex_lock(mysql_bin_log.get_log_lock());
-    int r= mysql_bin_log.open(opt_bin_logname, LOG_BIN, 0, 0,
+    int error;
+    mysql_mutex_t *log_lock= mysql_bin_log.get_log_lock();
+    mysql_mutex_lock(log_lock);
+    error= mysql_bin_log.open(opt_bin_logname, LOG_BIN, 0, 0,
                               WRITE_CACHE, max_binlog_size, 0, TRUE);
-    mysql_mutex_unlock(mysql_bin_log.get_log_lock());
-    if (r)
+    mysql_mutex_unlock(log_lock);
+    if (error)
       unireg_abort(1);
   }
 
@@ -7700,17 +7645,14 @@ static int show_slave_running(THD *thd, SHOW_VAR *var, char *buff,
 
   var->type= SHOW_MY_BOOL;
   var->value= buff;
-  mysql_mutex_lock(&LOCK_active_mi);
-  if (master_info_index) 
+
+  if ((mi= get_master_info(&thd->variables.default_master_connection,
+                           Sql_condition::WARN_LEVEL_NOTE)))
   {
-    mi= master_info_index->
-      get_master_info(&thd->variables.default_master_connection,
-                      Sql_condition::WARN_LEVEL_NOTE);
-    if (mi)
-      tmp= (my_bool) (mi->slave_running == MYSQL_SLAVE_RUN_READING &&
-                      mi->rli.slave_running != MYSQL_SLAVE_NOT_RUN);
+    tmp= (my_bool) (mi->slave_running == MYSQL_SLAVE_RUN_READING &&
+                    mi->rli.slave_running != MYSQL_SLAVE_NOT_RUN);
+    mi->release();
   }
-  mysql_mutex_unlock(&LOCK_active_mi);
   if (mi)
     *((my_bool *)buff)= tmp;
   else
@@ -7742,14 +7684,9 @@ static int show_slaves_running(THD *thd, SHOW_VAR *var, char *buff)
 {
   var->type= SHOW_LONGLONG;
   var->value= buff;
-  mysql_mutex_lock(&LOCK_active_mi);
 
-  if (master_info_index)
-    *((longlong *)buff)= master_info_index->any_slave_sql_running();
-  else
-    *((longlong *)buff)= 0;
+  *((longlong *)buff)= any_slave_sql_running();
 
-  mysql_mutex_unlock(&LOCK_active_mi);
   return 0;
 }
 
@@ -7757,23 +7694,17 @@ static int show_slaves_running(THD *thd, SHOW_VAR *var, char *buff)
 static int show_slave_received_heartbeats(THD *thd, SHOW_VAR *var, char *buff,
                                           enum enum_var_type scope)
 {
-  Master_info *mi= NULL;
-  longlong UNINIT_VAR(tmp);
+  Master_info *mi;
 
   var->type= SHOW_LONGLONG;
   var->value= buff;
-  mysql_mutex_lock(&LOCK_active_mi);
-  if (master_info_index) 
+
+  if ((mi= get_master_info(&thd->variables.default_master_connection,
+                           Sql_condition::WARN_LEVEL_NOTE)))
   {
-    mi= master_info_index->
-      get_master_info(&thd->variables.default_master_connection,
-                      Sql_condition::WARN_LEVEL_NOTE);
-    if (mi)
-      tmp= mi->received_heartbeats;
+    *((longlong *)buff)= mi->received_heartbeats;
+    mi->release();
   }
-  mysql_mutex_unlock(&LOCK_active_mi);
-  if (mi)
-    *((longlong *)buff)= tmp;
   else
     var->type= SHOW_UNDEF;
   return 0;
@@ -7783,23 +7714,17 @@ static int show_slave_received_heartbeats(THD *thd, SHOW_VAR *var, char *buff,
 static int show_heartbeat_period(THD *thd, SHOW_VAR *var, char *buff,
                                  enum enum_var_type scope)
 {
-  Master_info *mi= NULL;
-  float UNINIT_VAR(tmp);
+  Master_info *mi;
 
   var->type= SHOW_CHAR;
   var->value= buff;
-  mysql_mutex_lock(&LOCK_active_mi);
-  if (master_info_index) 
+
+  if ((mi= get_master_info(&thd->variables.default_master_connection,
+                           Sql_condition::WARN_LEVEL_NOTE)))
   {
-    mi= master_info_index->
-      get_master_info(&thd->variables.default_master_connection,
-                    Sql_condition::WARN_LEVEL_NOTE);
-    if (mi)
-      tmp= mi->heartbeat_period;
+    sprintf(buff, "%.3f", mi->heartbeat_period);
+    mi->release();
   }
-  mysql_mutex_unlock(&LOCK_active_mi);
-  if (mi)
-    sprintf(buff, "%.3f", tmp);
   else
     var->type= SHOW_UNDEF;
   return 0;
@@ -8687,7 +8612,7 @@ static int mysql_init_variables(void)
   mysql_home[0]= pidfile_name[0]= log_error_file[0]= 0;
 #if defined(HAVE_REALPATH) && !defined(HAVE_valgrind) && !defined(HAVE_BROKEN_REALPATH)
   /*  We can only test for sub paths if my_symlink.c is using realpath */
-  myisam_test_invalid_symlink= test_if_data_home_dir;
+  mysys_test_invalid_symlink= path_starts_from_data_home_dir;
 #endif
   opt_log= 0;
   opt_bin_log= opt_bin_log_used= 0;

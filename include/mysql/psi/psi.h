@@ -417,7 +417,7 @@ enum PSI_file_operation
   PSI_FILE_FSTAT= 12,
   /** File chsize, as in @c my_chsize(). */
   PSI_FILE_CHSIZE= 13,
-  /** File delete, such as @c my_delete() or @c my_delete_with_symlink(). */
+  /** File delete, such as @c my_delete() or @c my_handler_delete_with_symlink(). */
   PSI_FILE_DELETE= 14,
   /** File rename, such as @c my_rename() or @c my_rename_with_symlink(). */
   PSI_FILE_RENAME= 15,

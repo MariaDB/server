@@ -1989,7 +1989,8 @@ fts_create_one_index_table(
 	dict_mem_table_add_col(new_table, heap, "ilist", DATA_BLOB,
 			       4130048,	0);
 
-	error = row_create_table_for_mysql(new_table, trx, false, FIL_SPACE_ENCRYPTION_DEFAULT, FIL_DEFAULT_ENCRYPTION_KEY);
+	error = row_create_table_for_mysql(new_table, trx, false,
+		FIL_ENCRYPTION_DEFAULT, FIL_DEFAULT_ENCRYPTION_KEY);
 
 	if (error != DB_SUCCESS) {
 		trx->error_state = error;

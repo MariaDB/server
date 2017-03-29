@@ -1,26 +1,12 @@
 -- source include/have_innodb.inc
--- source include/have_example_key_management_plugin.inc
--- source include/not_valgrind.inc
+-- source include/have_file_key_management_plugin.inc
+# test uses restart
 -- source include/not_embedded.inc
--- source include/not_windows.inc
 
---disable_query_log
-let $innodb_file_format_orig = `SELECT @@innodb_file_format`;
-let $innodb_file_per_table_orig = `SELECT @@innodb_file_per_table`;
---enable_query_log
-
+--disable_warnings
 SET GLOBAL innodb_file_format = `Barracuda`;
 SET GLOBAL innodb_file_per_table = ON;
-
---let $MYSQLD_DATADIR=`select @@datadir`
---let SEARCH_RANGE = 10000000
---let t1_IBD = $MYSQLD_DATADIR/test/t1.ibd
---let t2_IBD = $MYSQLD_DATADIR/test/t2.ibd
---let t3_IBD = $MYSQLD_DATADIR/test/t3.ibd
---let t4_IBD = $MYSQLD_DATADIR/test/t4.ibd
---let t5_IBD = $MYSQLD_DATADIR/test/t5.ibd
---let t6_IBD = $MYSQLD_DATADIR/test/t6.ibd
---let t7_IBD = $MYSQLD_DATADIR/test/t7.ibd
+--enable_warnings
 
 CREATE TABLE t1 (id INT NOT NULL PRIMARY KEY, a VARCHAR(255)) ENGINE=InnoDB encrypted=yes;
 CREATE TABLE t2 (id INT NOT NULL PRIMARY KEY, a VARCHAR(255)) ENGINE=InnoDB;
@@ -50,7 +36,7 @@ delimiter ;//
 commit;
 
 set autocommit=0;
-call innodb_insert_proc(15000);
+call innodb_insert_proc(1500);
 commit;
 set autocommit=1;
 
@@ -58,36 +44,47 @@ set autocommit=1;
 --let $wait_timeout= 600
 --let $wait_condition=SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION = 0
 --source include/wait_condition.inc
+--let $MYSQLD_DATADIR=`select @@datadir`
 
---sleep 10
+--source include/shutdown_mysqld.inc
+--source include/wait_until_disconnected.inc
+
+--let SEARCH_RANGE = 10000000
 --let SEARCH_PATTERN=foobar
 --echo # t1 yes on expecting NOT FOUND
--- let SEARCH_FILE=$t1_IBD
+-- let SEARCH_FILE=$MYSQLD_DATADIR/test/t1.ibd
 -- source include/search_pattern_in_file.inc
 --let SEARCH_PATTERN=temp
 --echo # t2 ... on expecting NOT FOUND
--- let SEARCH_FILE=$t2_IBD
+-- let SEARCH_FILE=$MYSQLD_DATADIR/test/t2.ibd
 -- source include/search_pattern_in_file.inc
 --let SEARCH_PATTERN=barfoo
 --echo # t3 ... on expecting NOT FOUND
--- let SEARCH_FILE=$t3_IBD
+-- let SEARCH_FILE=$MYSQLD_DATADIR/test/t3.ibd
 -- source include/search_pattern_in_file.inc
 --let SEARCH_PATTERN=repeat
 --echo # t4 ... on expecting NOT FOUND
--- let SEARCH_FILE=$t4_IBD
+-- let SEARCH_FILE=$MYSQLD_DATADIR/test/t4.ibd
 -- source include/search_pattern_in_file.inc
 --let SEARCH_PATTERN=author
 --echo # t5 ... on expecting NOT FOUND
--- let SEARCH_FILE=$t5_IBD
+-- let SEARCH_FILE=$MYSQLD_DATADIR/test/t5.ibd
 -- source include/search_pattern_in_file.inc
 --let SEARCH_PATTERN=mangled
 --echo # t6 ... on expecting NOT FOUND
--- let SEARCH_FILE=$t6_IBD
+-- let SEARCH_FILE=$MYSQLD_DATADIR/test/t6.ibd
 -- source include/search_pattern_in_file.inc
 --let SEARCH_PATTERN=mysql
 --echo # t7 ... on expecting NOT FOUND
--- let SEARCH_FILE=$t7_IBD
+-- let SEARCH_FILE=$MYSQLD_DATADIR/test/t7.ibd
 -- source include/search_pattern_in_file.inc
+
+-- source include/start_mysqld.inc
+
+--disable_warnings
+SET GLOBAL innodb_file_format = `Barracuda`;
+SET GLOBAL innodb_file_per_table = ON;
+--enable_warnings
 
 ALTER TABLE t1 ADD COLUMN b int default 2;
 ALTER TABLE t2 ADD COLUMN b int default 2;
@@ -110,82 +107,39 @@ SHOW CREATE TABLE t5;
 SHOW CREATE TABLE t6;
 SHOW CREATE TABLE t7;
 
---sleep 10
---let SEARCH_PATTERN=foobar
---echo # t1 yes on expecting NOT FOUND
--- let SEARCH_FILE=$t1_IBD
--- source include/search_pattern_in_file.inc
---let SEARCH_PATTERN=temp
---echo # t2 ... on expecting NOT FOUND
--- let SEARCH_FILE=$t2_IBD
--- source include/search_pattern_in_file.inc
---let SEARCH_PATTERN=barfoo
---echo # t3 ... on expecting NOT FOUND
--- let SEARCH_FILE=$t3_IBD
--- source include/search_pattern_in_file.inc
---let SEARCH_PATTERN=repeat
---echo # t4 ... on expecting NOT FOUND
--- let SEARCH_FILE=$t4_IBD
--- source include/search_pattern_in_file.inc
---let SEARCH_PATTERN=author
---echo # t5 ... on expecting NOT FOUND
--- let SEARCH_FILE=$t5_IBD
--- source include/search_pattern_in_file.inc
---let SEARCH_PATTERN=mangled
---echo # t6 ... on expecting NOT FOUND
--- let SEARCH_FILE=$t6_IBD
--- source include/search_pattern_in_file.inc
---let SEARCH_PATTERN=mysql
---echo # t7 ... on expecting NOT FOUND
--- let SEARCH_FILE=$t7_IBD
--- source include/search_pattern_in_file.inc
-
---echo # Restarting server
--- source include/restart_mysqld.inc
---echo # Done restarting server
-
-select count(1) from t1;
-select count(1) from t2;
-select count(1) from t3;
-select count(1) from t4;
-select count(1) from t5;
-select count(1) from t6;
-select count(1) from t7;
+--source include/shutdown_mysqld.inc
+--source include/wait_until_disconnected.inc
 
 --let SEARCH_PATTERN=foobar
 --echo # t1 yes on expecting NOT FOUND
--- let SEARCH_FILE=$t1_IBD
+-- let SEARCH_FILE=$MYSQLD_DATADIR/test/t1.ibd
 -- source include/search_pattern_in_file.inc
 --let SEARCH_PATTERN=temp
 --echo # t2 ... on expecting NOT FOUND
--- let SEARCH_FILE=$t2_IBD
+-- let SEARCH_FILE=$MYSQLD_DATADIR/test/t2.ibd
 -- source include/search_pattern_in_file.inc
 --let SEARCH_PATTERN=barfoo
 --echo # t3 ... on expecting NOT FOUND
--- let SEARCH_FILE=$t3_IBD
+-- let SEARCH_FILE=$MYSQLD_DATADIR/test/t3.ibd
 -- source include/search_pattern_in_file.inc
 --let SEARCH_PATTERN=repeat
 --echo # t4 ... on expecting NOT FOUND
--- let SEARCH_FILE=$t4_IBD
+-- let SEARCH_FILE=$MYSQLD_DATADIR/test/t4.ibd
 -- source include/search_pattern_in_file.inc
 --let SEARCH_PATTERN=author
 --echo # t5 ... on expecting NOT FOUND
--- let SEARCH_FILE=$t5_IBD
+-- let SEARCH_FILE=$MYSQLD_DATADIR/test/t5.ibd
 -- source include/search_pattern_in_file.inc
 --let SEARCH_PATTERN=mangled
 --echo # t6 ... on expecting NOT FOUND
--- let SEARCH_FILE=$t6_IBD
+-- let SEARCH_FILE=$MYSQLD_DATADIR/test/t6.ibd
 -- source include/search_pattern_in_file.inc
 --let SEARCH_PATTERN=mysql
 --echo # t7 ... on expecting NOT FOUND
--- let SEARCH_FILE=$t7_IBD
+-- let SEARCH_FILE=$MYSQLD_DATADIR/test/t7.ibd
 -- source include/search_pattern_in_file.inc
+
+-- source include/start_mysqld.inc
 
 DROP PROCEDURE innodb_insert_proc;
 DROP TABLE t1, t2, t3, t4, t5, t6, t7;
-
-# reset system
---disable_query_log
-EVAL SET GLOBAL innodb_file_per_table = $innodb_file_per_table_orig;
-EVAL SET GLOBAL innodb_file_format = $innodb_file_format_orig;
---enable_query_log
