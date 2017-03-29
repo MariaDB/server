@@ -1,0 +1,2 @@
+--innodb_log_compressed_pages=on
+--innodb_cmp_per_index_reset
