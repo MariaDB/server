@@ -5916,6 +5916,21 @@ public:
     m_name.length= name_length;
   }
 
+  bool eq(const Database_qualified_name *other) const
+  {
+    CHARSET_INFO *cs= lower_case_table_names ?
+                      &my_charset_utf8_general_ci :
+                      &my_charset_utf8_bin;
+    return
+      m_db.length == other->m_db.length &&
+      m_name.length == other->m_name.length &&
+      !my_strnncoll(cs,
+                    (const uchar *) m_db.str, m_db.length,
+                    (const uchar *) other->m_db.str, other->m_db.length) &&
+      !my_strnncoll(cs,
+                    (const uchar *) m_name.str, m_name.length,
+                    (const uchar *) other->m_name.str, other->m_name.length);
+  }
   // Export db and name as a qualified name string: 'db.name'
   size_t make_qname(char *dst, size_t dstlen) const
   {

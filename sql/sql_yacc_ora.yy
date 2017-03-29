@@ -1315,6 +1315,8 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
         opt_serial_attribute opt_serial_attribute_list serial_attribute
         explainable_command
         set_assign
+        sf_tail_standalone
+        sp_tail_standalone
 END_OF_INPUT
 
 %type <NONE> call sp_proc_stmts sp_proc_stmts1 sp_proc_stmt
@@ -1342,7 +1344,7 @@ END_OF_INPUT
 %type <sp_instr_addr> sp_instr_addr
 %type <sp_cursor_name_and_offset> sp_cursor_name_and_offset
 %type <num> opt_exception_clause exception_handlers
-%type <spname> sp_name
+%type <spname> sp_name opt_sp_name
 %type <spvar> sp_param_name sp_param_name_and_type
 %type <for_loop> sp_for_loop_index_and_bounds
 %type <for_loop_bounds> sp_for_loop_bounds
@@ -2217,6 +2219,11 @@ sp_name:
             if (!($$= Lex->make_sp_name(thd, $1)))
               MYSQL_YYABORT;
           }
+        ;
+
+opt_sp_name:
+          /* Empty */ { $$= NULL; }
+        | sp_name     { $$= $1; }
         ;
 
 sp_a_chistics:
@@ -16352,16 +16359,16 @@ view_or_trigger_or_sp_or_event:
 definer_tail:
           view_tail
         | trigger_tail
-        | sp_tail
-        | sf_tail
+        | sp_tail_standalone
+        | sf_tail_standalone
         | event_tail
         ;
 
 no_definer_tail:
           view_tail
         | trigger_tail
-        | sp_tail
-        | sf_tail
+        | sp_tail_standalone
+        | sf_tail_standalone
         | udf_tail
         | event_tail
         ;
@@ -16710,6 +16717,26 @@ sp_tail:
             sp->set_stmt_end(thd);
             lex->sql_command= SQLCOM_CREATE_PROCEDURE;
             sp->restore_thd_mem_root(thd);
+          }
+        ;
+
+sf_tail_standalone:
+          sf_tail opt_sp_name
+          {
+            if ($2 && !$2->eq(Lex->sphead))
+              my_yyabort_error((ER_END_IDENTIFIER_DOES_NOT_MATCH, MYF(0),
+                                ErrConvDQName($2).ptr(),
+                                ErrConvDQName(Lex->sphead).ptr()));
+          }
+        ;
+
+sp_tail_standalone:
+          sp_tail opt_sp_name
+          {
+            if ($2 && !$2->eq(Lex->sphead))
+              my_yyabort_error((ER_END_IDENTIFIER_DOES_NOT_MATCH, MYF(0),
+                                ErrConvDQName($2).ptr(),
+                                ErrConvDQName(Lex->sphead).ptr()));
           }
         ;
 

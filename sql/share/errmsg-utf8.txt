@@ -7464,3 +7464,5 @@ ER_UNKNOWN_STRUCTURED_VARIABLE
         eng "Unknown structured system variable or ROW routine variable '%-.*s'"
 ER_ROW_VARIABLE_DOES_NOT_HAVE_FIELD
         eng "Row variable '%-.192s' does not have a field '%-.192s'"
+ER_END_IDENTIFIER_DOES_NOT_MATCH
+        eng "END identifier '%-.192s' does not match '%-.192s'"

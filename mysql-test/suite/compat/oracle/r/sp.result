@@ -2152,6 +2152,81 @@ END' at line 1
 # End of MDEV-10577 sql_mode=ORACLE: %TYPE in variable declarations
 #
 #
+# MDEV-12089 sql_mode=ORACLE: Understand optional routine name after the END keyword
+#
+CREATE FUNCTION f1 RETURN INT AS
+BEGIN
+RETURN 10;
+END f1;
+$$
+DROP FUNCTION f1;
+CREATE FUNCTION test.f1 RETURN INT AS
+BEGIN
+RETURN 10;
+END test.f1;
+$$
+DROP FUNCTION f1;
+CREATE FUNCTION test.f1 RETURN INT AS
+BEGIN
+RETURN 10;
+END test2.f1;
+$$
+ERROR HY000: END identifier 'test2.f1' does not match 'test.f1'
+CREATE FUNCTION test.f1 RETURN INT AS
+BEGIN
+RETURN 10;
+END test.f2;
+$$
+ERROR HY000: END identifier 'test.f2' does not match 'test.f1'
+CREATE FUNCTION f1 RETURN INT AS
+BEGIN
+RETURN 10;
+END test.f2;
+$$
+ERROR HY000: END identifier 'test.f2' does not match 'test.f1'
+CREATE FUNCTION f1 RETURN INT AS
+BEGIN
+RETURN 10;
+END test2.f1;
+$$
+ERROR HY000: END identifier 'test2.f1' does not match 'test.f1'
+CREATE PROCEDURE p1 AS
+BEGIN
+NULL;
+END p1;
+$$
+DROP PROCEDURE p1;
+CREATE PROCEDURE test.p1 AS
+BEGIN
+NULL;
+END test.p1;
+$$
+DROP PROCEDURE p1;
+CREATE PROCEDURE test.p1 AS
+BEGIN
+NULL;
+END test2.p1;
+$$
+ERROR HY000: END identifier 'test2.p1' does not match 'test.p1'
+CREATE PROCEDURE test.p1 AS
+BEGIN
+NULL;
+END test.p2;
+$$
+ERROR HY000: END identifier 'test.p2' does not match 'test.p1'
+CREATE PROCEDURE p1 AS
+BEGIN
+NULL;
+END test.p2;
+$$
+ERROR HY000: END identifier 'test.p2' does not match 'test.p1'
+CREATE PROCEDURE p1 AS
+BEGIN
+NULL;
+END test2.p1;
+$$
+ERROR HY000: END identifier 'test2.p1' does not match 'test.p1'
+#
 # MDEV-12107 sql_mode=ORACLE: Inside routines the CALL keywoard is optional
 #
 CREATE OR REPLACE PROCEDURE p1(a INT) AS
