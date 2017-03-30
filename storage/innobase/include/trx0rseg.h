@@ -85,16 +85,6 @@ trx_rsegf_undo_find_free(
 /*=====================*/
 	trx_rsegf_t*	rsegf,	/*!< in: rollback segment header */
 	mtr_t*		mtr);	/*!< in: mtr */
-/** Get a rollback segment.
-@param[in]	id	rollback segment id
-@return rollback segment */
-UNIV_INLINE
-trx_rseg_t*
-trx_rseg_get_on_id(ulint id)
-{
-	ut_a(id < TRX_SYS_N_RSEGS);
-	return(trx_sys->rseg_array[id]);
-}
 
 /** Creates a rollback segment header.
 This function is called only when a new rollback segment is created in
@@ -119,14 +109,14 @@ trx_rseg_array_init();
 void
 trx_rseg_mem_free(trx_rseg_t* rseg);
 
-/*********************************************************************
-Creates a rollback segment. */
+/** Create a persistent rollback segment.
+@param[in]	space_id	system or undo tablespace id */
 trx_rseg_t*
-trx_rseg_create(
-/*============*/
-	ulint	space_id,	/*!< in: id of UNDO tablespace */
-	ulint   nth_free_slot);	/*!< in: allocate nth free slot.
-				0 means next free slots. */
+trx_rseg_create(ulint space_id);
+
+/** Create the temporary rollback segments. */
+void
+trx_temp_rseg_create();
 
 /********************************************************************
 Get the number of unique rollback tablespaces in use except space id 0.
@@ -205,6 +195,14 @@ struct trx_rseg_t {
 	/** If true, then skip allocating this rseg as it reside in
 	UNDO-tablespace marked for truncate. */
 	bool				skip_allocation;
+
+	/** @return whether the rollback segment is persistent */
+	bool is_persistent() const
+	{
+		ut_ad(space == SRV_TMP_SPACE_ID
+		      || space <= srv_undo_tablespaces);
+		return(space != SRV_TMP_SPACE_ID);
+	}
 };
 
 /* Undo log segment slot in a rollback segment header */

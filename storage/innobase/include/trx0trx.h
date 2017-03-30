@@ -507,14 +507,6 @@ trx_id_t
 trx_get_id_for_print(
 	const trx_t*	trx);
 
-/****************************************************************//**
-Assign a transaction temp-tablespace bound rollback-segment. */
-void
-trx_assign_rseg(
-/*============*/
-	trx_t*		trx);		/*!< transaction that involves write
-					to temp-table. */
-
 /** Create the trx_t pool */
 void
 trx_pool_init();
@@ -867,12 +859,6 @@ struct trx_rsegs_t {
 	/** undo log for temporary tables; discarded immediately after
 	transaction commit/rollback */
 	trx_temp_undo_t	m_noredo;
-};
-
-enum trx_rseg_type_t {
-	TRX_RSEG_TYPE_NONE = 0,		/*!< void rollback segment type. */
-	TRX_RSEG_TYPE_REDO,		/*!< redo rollback segment. */
-	TRX_RSEG_TYPE_NOREDO		/*!< non-redo rollback segment. */
 };
 
 struct TrxVersion {
@@ -1295,6 +1281,22 @@ struct trx_t {
 	{
 		return(has_logged_persistent() || rsegs.m_noredo.undo);
 	}
+
+	/** @return rollback segment for modifying temporary tables */
+	trx_rseg_t* get_temp_rseg()
+	{
+		if (trx_rseg_t* rseg = rsegs.m_noredo.rseg) {
+			ut_ad(id != 0);
+			return(rseg);
+		}
+
+		return(assign_temp_rseg());
+	}
+
+private:
+	/** Assign a rollback segment for modifying temporary tables.
+	@return the assigned rollback segment */
+	trx_rseg_t* assign_temp_rseg();
 };
 
 /**
