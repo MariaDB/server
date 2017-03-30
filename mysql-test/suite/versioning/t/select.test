@@ -190,10 +190,17 @@ insert into t1 values (2);
 insert into t1 values (3);
 select * from t1 left outer join (t1 as t2 left join t1 as t3 using (a)) on t1.a>1;
 
+create or replace table t1 (x int) with system versioning;
+create or replace table t2 (y int) with system versioning;
+insert into t1 values (1), (2), (3);
+delete from t1 where x = 3;
+insert into t2 values (1);
+select * from t1, t2 query for system_time all;
+
 drop view v1;
 drop table t1, t2;
 
-call innodb_verify_vtq(24);
+call innodb_verify_vtq(27);
 
 drop procedure test_01;
 drop procedure test_02;
