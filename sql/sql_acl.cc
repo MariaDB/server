@@ -12063,7 +12063,11 @@ static bool send_server_handshake_packet(MPVIO_EXT *mpvio,
     data_len= SCRAMBLE_LENGTH;
   }
 
-  end= strxnmov(end, SERVER_VERSION_LENGTH, RPL_VERSION_HACK, server_version, NullS) + 1;
+  if (IS_SYSVAR_AUTOSIZE(&server_version_ptr)) {
+    end= strxnmov(end, SERVER_VERSION_LENGTH, RPL_VERSION_HACK, server_version, NullS) + 1;
+  } else {
+    end= strnmov(end, server_version, SERVER_VERSION_LENGTH) + 1;
+  }
   int4store((uchar*) end, mpvio->thd->thread_id);
   end+= 4;
 
