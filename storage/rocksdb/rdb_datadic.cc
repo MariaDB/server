@@ -2831,8 +2831,10 @@ bool Rdb_validate_tbls::check_frm_file(const std::string &fullpath,
     did in the future we would need to make a version that does it without
     the connection handle as we don't have one here.
   */
-  enum legacy_db_type eng_type;
-  frm_type_enum type = dd_frm_type(nullptr, fullfilename.c_ptr(), &eng_type);
+  char eng_type_buf[NAME_CHAR_LEN+1];
+  LEX_STRING eng_type_str = {eng_type_buf, 0}; 
+  //enum legacy_db_type eng_type;
+  frm_type_enum type = dd_frm_type(nullptr, fullfilename.c_ptr(), &eng_type_str);
   if (type == FRMTYPE_ERROR) {
     sql_print_warning("RocksDB: Failed to open/read .from file: %s",
                       fullfilename.ptr());
@@ -2841,7 +2843,7 @@ bool Rdb_validate_tbls::check_frm_file(const std::string &fullpath,
 
   if (type == FRMTYPE_TABLE) {
     /* For a RocksDB table do we have a reference in the data dictionary? */
-    if (eng_type == DB_TYPE_ROCKSDB) {
+    if (!strncmp(eng_type_str.str, "ROCKSDB", eng_type_str.length)) {
       /*
         Attempt to remove the table entry from the list of tables.  If this
         fails then we know we had a .frm file that wasn't registered in RocksDB.
@@ -2854,7 +2856,7 @@ bool Rdb_validate_tbls::check_frm_file(const std::string &fullpath,
                           dbname.c_str(), tablename.c_str());
         *has_errors = true;
       }
-    } else if (eng_type == DB_TYPE_PARTITION_DB) {
+    } else if (!strncmp(eng_type_str.str, "partition", eng_type_str.length)) {
       /*
         For partition tables, see if it is in the m_list as a partition,
         but don't generate an error if it isn't there - we don't know that the
