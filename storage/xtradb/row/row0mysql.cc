@@ -1373,6 +1373,8 @@ run_again:
 
 	row_ins_step(thr);
 
+	DEBUG_SYNC_C("ib_after_row_insert_step");
+
 	err = trx->error_state;
 
 	if (err != DB_SUCCESS) {
@@ -3308,21 +3310,17 @@ void
 fil_wait_crypt_bg_threads(
 	dict_table_t* table)
 {
-	uint start = time(0);
-	uint last = start;
-
-	if (table->space != 0) {
-		fil_space_crypt_mark_space_closing(table->space, table->crypt_data);
-	}
+	time_t start = time(0);
+	time_t last = start;
 
 	while (table->n_ref_count > 0) {
 		dict_mutex_exit_for_mysql();
 		os_thread_sleep(20000);
 		dict_mutex_enter_for_mysql();
-		uint now = time(0);
+		time_t now = time(0);
 		if (now >= last + 30) {
 			fprintf(stderr,
-				"WARNING: waited %u seconds "
+				"WARNING: waited %ld seconds "
 				"for ref-count on table: %s space: %u\n",
 				now - start, table->name, table->space);
 			last = now;
@@ -3330,7 +3328,7 @@ fil_wait_crypt_bg_threads(
 
 		if (now >= start + 300) {
 			fprintf(stderr,
-				"WARNING: after %u seconds, gave up waiting "
+				"WARNING: after %ld seconds, gave up waiting "
 				"for ref-count on table: %s space: %u\n",
 				now - start, table->name, table->space);
 			break;
@@ -3526,35 +3524,40 @@ row_truncate_table_for_mysql(
 
 	if (table->space && !DICT_TF2_FLAG_IS_SET(table, DICT_TF2_TEMPORARY)) {
 		/* Discard and create the single-table tablespace. */
-		fil_space_crypt_t* crypt_data;
-		ulint	space	= table->space;
-		ulint	flags	= fil_space_get_flags(space);
+		ulint	space_id = table->space;
+		ulint	flags	= ULINT_UNDEFINED;
 		ulint	key_id  = FIL_DEFAULT_ENCRYPTION_KEY;
-		fil_encryption_t mode = FIL_SPACE_ENCRYPTION_DEFAULT;
+		fil_encryption_t mode = FIL_ENCRYPTION_DEFAULT;
 
 		dict_get_and_save_data_dir_path(table, true);
-		crypt_data = fil_space_get_crypt_data(space);
 
-		if (crypt_data) {
-			key_id = crypt_data->key_id;
-			mode = crypt_data->encryption;
+		if (fil_space_t* space = fil_space_acquire(space_id)) {
+			fil_space_crypt_t* crypt_data = space->crypt_data;
+
+			if (crypt_data) {
+				key_id = crypt_data->key_id;
+				mode = crypt_data->encryption;
+			}
+
+			flags = space->flags;
+			fil_space_release(space);
 		}
 
 		if (flags != ULINT_UNDEFINED
-		    && fil_discard_tablespace(space) == DB_SUCCESS) {
+		    && fil_discard_tablespace(space_id) == DB_SUCCESS) {
 
 			dict_index_t*	index;
 
-			dict_hdr_get_new_id(NULL, NULL, &space);
+			dict_hdr_get_new_id(NULL, NULL, &space_id);
 
 			/* Lock all index trees for this table. We must
 			do so after dict_hdr_get_new_id() to preserve
 			the latch order */
 			dict_table_x_lock_indexes(table);
 
-			if (space == ULINT_UNDEFINED
+			if (space_id == ULINT_UNDEFINED
 			    || fil_create_new_single_table_tablespace(
-				    space, table->name,
+				    space_id, table->name,
 				    table->data_dir_path,
 				    flags, table->flags2,
 				    FIL_IBD_FILE_INITIAL_SIZE,
@@ -3572,21 +3575,21 @@ row_truncate_table_for_mysql(
 				goto funct_exit;
 			}
 
-			recreate_space = space;
+			recreate_space = space_id;
 
 			/* Replace the space_id in the data dictionary cache.
 			The persisent data dictionary (SYS_TABLES.SPACE
 			and SYS_INDEXES.SPACE) are updated later in this
 			function. */
-			table->space = space;
+			table->space = space_id;
 			index = dict_table_get_first_index(table);
 			do {
-				index->space = space;
+				index->space = space_id;
 				index = dict_table_get_next_index(index);
 			} while (index);
 
 			mtr_start_trx(&mtr, trx);
-			fsp_header_init(space,
+			fsp_header_init(space_id,
 					FIL_IBD_FILE_INITIAL_SIZE, &mtr);
 			mtr_commit(&mtr);
 		}
@@ -4260,7 +4263,13 @@ row_drop_table_for_mysql(
 	/* If table has not yet have crypt_data, try to read it to
 	make freeing the table easier. */
 	if (!table->crypt_data) {
-		table->crypt_data = fil_space_get_crypt_data(table->space);
+
+		if (fil_space_t* space = fil_space_acquire_silent(table->space)) {
+			/* We use crypt data in dict_table_t in ha_innodb.cc
+			to push warnings to user thread. */
+			table->crypt_data = space->crypt_data;
+			fil_space_release(space);
+		}
 	}
 
 	/* We use the private SQL parser of Innobase to generate the

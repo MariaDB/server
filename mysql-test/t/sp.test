@@ -9411,6 +9411,46 @@ drop procedure p1;
 
 drop table t1,t2,t3,t4,t5,t6;
 
+--echo #
+--echo # MDEV-11935: Queries in stored procedures with and
+--echo # EXISTS(SELECT * FROM VIEW) crashes and closes hte conneciton.
+--echo #
+
+CREATE TABLE ANY_TABLE (
+  ENTITY_UID    BIGINT NOT NULL
+);
+CREATE TABLE SECURITY_PATH(
+origid BIGINT UNSIGNED NOT NULL,
+destid BIGINT UNSIGNED NOT NULL,
+KEY (destid)
+);
+CREATE VIEW ENTITY_ACCESS (
+ENTITY_UID,
+OWNER_UID
+) AS
+SELECT SP1.origid,
+       SP2.destid
+FROM SECURITY_PATH SP1
+JOIN SECURITY_PATH SP2 ON SP1.destid = SP2.origid
+;
+--delimiter //
+CREATE PROCEDURE SP_EXAMPLE_SELECT ()
+BEGIN
+   SELECT *
+   FROM ANY_TABLE AT1
+   WHERE EXISTS ( SELECT *
+                  FROM ENTITY_ACCESS EA
+                  WHERE AT1.ENTITY_UID = EA.ENTITY_UID
+                  AND   EA.OWNER_UID IS NULL );
+END
+//
+--delimiter ;
+CALL SP_EXAMPLE_SELECT ();
+CALL SP_EXAMPLE_SELECT ();
+
+drop procedure SP_EXAMPLE_SELECT;
+drop view ENTITY_ACCESS;
+drop table ANY_TABLE, SECURITY_PATH;
 --echo # End of 10.0 test
 
 DELIMITER |;

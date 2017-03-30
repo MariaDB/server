@@ -382,13 +382,7 @@ buf_dblwr_init_or_load_pages(
 
 	doublewrite = read_buf + TRX_SYS_DOUBLEWRITE;
 
-	if (mach_read_from_4(read_buf + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION) != 0) {
-		byte* tmp = fil_space_decrypt((ulint)TRX_SYS_SPACE,
-						read_buf + UNIV_PAGE_SIZE,
-						UNIV_PAGE_SIZE, /* page size */
-						read_buf);
-		doublewrite = tmp + TRX_SYS_DOUBLEWRITE;
-	}
+	/* TRX_SYS_PAGE_NO is not encrypted see fil_crypt_rotate_page() */
 
 	if (mach_read_from_4(doublewrite + TRX_SYS_DOUBLEWRITE_MAGIC)
 	    == TRX_SYS_DOUBLEWRITE_MAGIC_N) {
@@ -514,6 +508,7 @@ buf_dblwr_process()
 			continue;
 		}
 
+		fil_space_t* space = fil_space_found_by_id(space_id);
 		ulint	zip_size = fil_space_get_zip_size(space_id);
 		ut_ad(!buf_page_is_zeroes(page, zip_size));
 
@@ -548,9 +543,9 @@ buf_dblwr_process()
 			}
 
 			if (fil_space_verify_crypt_checksum(
-				   read_buf, zip_size)
+					read_buf, zip_size, NULL, page_no)
 			   || !buf_page_is_corrupted(
-				   true, read_buf, zip_size)) {
+				   true, read_buf, zip_size, space)) {
 				/* The page is good; there is no need
 				to consult the doublewrite buffer. */
 				continue;
@@ -573,8 +568,8 @@ buf_dblwr_process()
 				NULL, page, UNIV_PAGE_SIZE, NULL, true);
 		}
 
-		if (!fil_space_verify_crypt_checksum(page, zip_size)
-		    && buf_page_is_corrupted(true, page, zip_size)) {
+		if (!fil_space_verify_crypt_checksum(page, zip_size, NULL, page_no)
+		    && buf_page_is_corrupted(true, page, zip_size, space)) {
 			if (!is_all_zero) {
 				ib_logf(IB_LOG_LEVEL_WARN,
 					"A doublewrite copy of page "

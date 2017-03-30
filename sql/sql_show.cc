@@ -4133,6 +4133,22 @@ make_table_name_list(THD *thd, Dynamic_array<LEX_STRING*> *table_names,
 }
 
 
+static void get_table_engine_for_i_s(THD *thd, char *buf, TABLE_LIST *tl,
+                                     LEX_STRING *db, LEX_STRING *table)
+{
+  LEX_STRING engine_name= { buf, 0 };
+
+  if (thd->get_stmt_da()->sql_errno() == ER_UNKNOWN_STORAGE_ENGINE)
+  {
+    char path[FN_REFLEN];
+    build_table_filename(path, sizeof(path) - 1,
+                         db->str, table->str, reg_ext, 0);
+    if (dd_frm_type(thd, path, &engine_name) == FRMTYPE_TABLE)
+      tl->option= engine_name.str;
+  }
+}
+
+
 /**
   Fill I_S table with data obtained by performing full-blown table open.
 
@@ -4203,9 +4219,9 @@ fill_schema_table_by_open(THD *thd, bool is_show_fields_or_keys,
 
   /*
     Since make_table_list() might change database and table name passed
-    to it we create copies of orig_db_name and orig_table_name here.
-    These copies are used for make_table_list() while unaltered values
-    are passed to process_table() functions.
+    to it (if lower_case_table_names) we create copies of orig_db_name and
+    orig_table_name here.  These copies are used for make_table_list()
+    while unaltered values are passed to process_table() functions.
   */
   if (!thd->make_lex_string(&db_name,
                             orig_db_name->str, orig_db_name->length) ||
@@ -4292,6 +4308,10 @@ fill_schema_table_by_open(THD *thd, bool is_show_fields_or_keys,
   }
   else
   {
+    char buf[NAME_CHAR_LEN + 1];
+    if (thd->is_error())
+      get_table_engine_for_i_s(thd, buf, table_list, &db_name, &table_name);
+
     result= schema_table->process_table(thd, table_list,
                                         table, result,
                                         orig_db_name,
@@ -4508,15 +4528,13 @@ try_acquire_high_prio_shared_mdl_lock(THD *thd, TABLE_LIST *table,
                               open_tables function for this table
 */
 
-static int fill_schema_table_from_frm(THD *thd, TABLE_LIST *tables,
+static int fill_schema_table_from_frm(THD *thd, TABLE *table,
                                       ST_SCHEMA_TABLE *schema_table,
                                       LEX_STRING *db_name,
                                       LEX_STRING *table_name,
-                                      enum enum_schema_tables schema_table_idx,
                                       Open_tables_backup *open_tables_state_backup,
                                       bool can_deadlock)
 {
-  TABLE *table= tables->table;
   TABLE_SHARE *share;
   TABLE tbl;
   TABLE_LIST table_list;
@@ -4598,7 +4616,19 @@ static int fill_schema_table_from_frm(THD *thd, TABLE_LIST *tables,
   share= tdc_acquire_share(thd, &table_list, GTS_TABLE | GTS_VIEW);
   if (!share)
   {
-    res= 0;
+    if (thd->get_stmt_da()->sql_errno() == ER_NO_SUCH_TABLE ||
+        thd->get_stmt_da()->sql_errno() == ER_WRONG_OBJECT)
+    {
+      res= 0;
+    }
+    else
+    {
+      char buf[NAME_CHAR_LEN + 1];
+      get_table_engine_for_i_s(thd, buf, &table_list, db_name, table_name);
+
+      res= schema_table->process_table(thd, &table_list, table,
+                                       true, db_name, table_name);
+    }
     goto end;
   }
 
@@ -4874,9 +4904,8 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
             if (!(table_open_method & ~OPEN_FRM_ONLY) &&
                 db_name != &INFORMATION_SCHEMA_NAME)
             {
-              if (!fill_schema_table_from_frm(thd, tables, schema_table,
+              if (!fill_schema_table_from_frm(thd, table, schema_table,
                                               db_name, table_name,
-                                              schema_table_idx,
                                               &open_tables_state_backup,
                                               can_deadlock))
                 continue;
@@ -5010,6 +5039,11 @@ static int get_schema_tables_record(THD *thd, TABLE_LIST *tables,
     else
       table->field[3]->store(STRING_WITH_LEN("BASE TABLE"), cs);
 
+    if (tables->option)
+    {
+      table->field[4]->store(tables->option, strlen(tables->option), cs);
+      table->field[4]->set_notnull();
+    }
     goto err;
   }
 

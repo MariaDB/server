@@ -4243,4 +4243,10 @@ backtracking verbs. --/
 
 /\N(?(?C)0?!.)*/
 
+/(?<RA>abc)(?(R)xyz)/BZ
+
+/(?<R>abc)(?(R)xyz)/BZ
+
+/(?=.*[A-Z])/I
+
 /-- End of testinput2 --/

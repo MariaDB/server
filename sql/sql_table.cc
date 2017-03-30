@@ -6607,6 +6607,9 @@ static bool fill_alter_inplace_info(THD *thd,
          new_key->user_defined_key_parts))
       goto index_changed;
 
+    if (table_key->block_size != new_key->block_size)
+      goto index_changed;
+
     if (engine_options_differ(table_key->option_struct, new_key->option_struct,
                               table->file->ht->index_options))
       goto index_changed;

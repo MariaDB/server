@@ -1,5 +1,5 @@
 update mysql.user set password=password("foo") where user='root';
-Phase 1/6: Checking and upgrading mysql database
+Phase 1/7: Checking and upgrading mysql database
 Processing databases
 mysql
 mysql.column_stats                                 OK
@@ -42,10 +42,11 @@ error    : Corrupt
 mysql.innodb_table_stats
 Error    : Unknown storage engine 'InnoDB'
 error    : Corrupt
-Phase 2/6: Fixing views
-Phase 3/6: Running 'mysql_fix_privilege_tables'
-Phase 4/6: Fixing table and database names
-Phase 5/6: Checking and upgrading tables
+Phase 2/7: Installing used storage engines... Skipped
+Phase 3/7: Fixing views
+Phase 4/7: Running 'mysql_fix_privilege_tables'
+Phase 5/7: Fixing table and database names
+Phase 6/7: Checking and upgrading tables
 Processing databases
 information_schema
 mtr
@@ -53,7 +54,7 @@ mtr.global_suppressions                            OK
 mtr.test_suppressions                              OK
 performance_schema
 test
-Phase 6/6: Running 'FLUSH PRIVILEGES'
+Phase 7/7: Running 'FLUSH PRIVILEGES'
 OK
 connect con1,localhost,root,foo,,,;
 update mysql.user set password='' where user='root';

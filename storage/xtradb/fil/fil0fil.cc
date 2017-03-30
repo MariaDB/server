@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2017, MariaDB Corporation.
+Copyright (c) 2014, 2017, MariaDB Corporation. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -157,7 +157,11 @@ UNIV_INTERN mysql_pfs_key_t	fil_space_latch_key;
 
 /** The tablespace memory cache. This variable is NULL before the module is
 initialized. */
-fil_system_t*	fil_system	= NULL;
+UNIV_INTERN fil_system_t*	fil_system	= NULL;
+
+/** At this age or older a space/page will be rotated */
+UNIV_INTERN extern uint srv_fil_crypt_rotate_key_age;
+UNIV_INTERN extern ib_mutex_t fil_crypt_threads_mutex;
 
 /** Determine if (i) is a user tablespace id or not. */
 # define fil_is_user_tablespace_id(i) ((i) > srv_undo_tablespaces_open)
@@ -169,7 +173,7 @@ fil_system_t*	fil_system	= NULL;
 	    && srv_unix_file_flush_method == SRV_UNIX_O_DIRECT_NO_FSYNC)\
 	  || ((s)->purpose == FIL_LOG					\
 	    && srv_unix_file_flush_method == SRV_UNIX_ALL_O_DIRECT))
-    
+
 #else /* __WIN__ */
 # define fil_buffering_disabled(s)	(0)
 #endif /* __WIN__ */
@@ -601,7 +605,6 @@ fil_node_open_file(
 	ibool		success;
 	byte*		buf2;
 	byte*		page;
-	ulint		page_size;
 
 	ut_ad(mutex_own(&(system->mutex)));
 	ut_a(node->n_pending == 0);
@@ -619,6 +622,7 @@ fil_node_open_file(
 		node->handle = os_file_create_simple_no_error_handling(
 			innodb_file_data_key, node->name, OS_FILE_OPEN,
 			OS_FILE_READ_ONLY, &success, 0);
+
 		if (!success) {
 			/* The following call prints an error message */
 			os_file_get_last_error(true);
@@ -670,6 +674,16 @@ fil_node_open_file(
 		const ulint space_id = fsp_header_get_space_id(page);
 		ulint flags = fsp_header_get_flags(page);
 
+		/* Try to read crypt_data from page 0 if it is not yet
+		read. */
+		if (!node->space->page_0_crypt_read) {
+			ulint offset = fsp_header_get_crypt_offset(
+				fsp_flags_get_zip_size(flags));
+			ut_ad(node->space->crypt_data == NULL);
+			node->space->crypt_data = fil_space_read_crypt_data(space_id, page, offset);
+			node->space->page_0_crypt_read = true;
+		}
+
 		ut_free(buf2);
 		os_file_close(node->handle);
 
@@ -687,8 +701,6 @@ fil_node_open_file(
 			flags = cflags;
 		}
 
-		page_size = fsp_flags_get_page_size(flags);
-
 		if (UNIV_UNLIKELY(space_id != space->id)) {
 			ib_logf(IB_LOG_LEVEL_ERROR,
 				"tablespace id is " ULINTPF " in the data dictionary"
@@ -697,17 +709,10 @@ fil_node_open_file(
 			return(false);
 		}
 
-		if (size_bytes >= (1024*1024)) {
-			/* Truncate the size to whole extent size. */
-			size_bytes = ut_2pow_round(size_bytes, (1024*1024));
-		}
-
-		if (!fsp_flags_is_compressed(flags)) {
-			node->size = (ulint) (size_bytes / UNIV_PAGE_SIZE);
+		if (ulint zip_size = fsp_flags_get_zip_size(flags)) {
+			node->size = ulint(size_bytes / zip_size);
 		} else {
-			node->size = (ulint)
-				(size_bytes
-				 / fsp_flags_get_zip_size(flags));
+			node->size = ulint(size_bytes / UNIV_PAGE_SIZE);
 		}
 
 #ifdef UNIV_HOTBACKUP
@@ -1041,8 +1046,8 @@ fil_space_extend_must_retry(
 	we have set the node->being_extended flag. */
 	mutex_exit(&fil_system->mutex);
 
-	ulint	start_page_no		= space->size;
-	ulint	file_start_page_no	= start_page_no - node->size;
+	ulint		start_page_no		= space->size;
+	const ulint	file_start_page_no	= start_page_no - node->size;
 
 	/* Determine correct file block size */
 	if (node->file_block_size == 0) {
@@ -1052,64 +1057,126 @@ fil_space_extend_must_retry(
 	}
 
 	ulint	page_size	= fsp_flags_get_zip_size(space->flags);
-	ulint	pages_added	= 0;
-
 	if (!page_size) {
 		page_size = UNIV_PAGE_SIZE;
 	}
 
-#ifdef HAVE_POSIX_FALLOCATE
+#ifdef _WIN32
+	const ulint	io_completion_type = OS_FILE_READ;
+	/* Logically or physically extend the file with zero bytes,
+	depending on whether it is sparse. */
+
+	/* FIXME: Call DeviceIoControl(node->handle, FSCTL_SET_SPARSE, ...)
+	when opening a file when FSP_FLAGS_HAS_PAGE_COMPRESSION(). */
+	{
+		FILE_END_OF_FILE_INFO feof;
+		/* fil_read_first_page() expects UNIV_PAGE_SIZE bytes.
+		fil_node_open_file() expects at least 4 * UNIV_PAGE_SIZE bytes.
+		Do not shrink short ROW_FORMAT=COMPRESSED files. */
+		feof.EndOfFile.QuadPart = std::max(
+			os_offset_t(size - file_start_page_no) * page_size,
+			os_offset_t(FIL_IBD_FILE_INITIAL_SIZE
+				    * UNIV_PAGE_SIZE));
+		*success = SetFileInformationByHandle(node->handle,
+						      FileEndOfFileInfo,
+						      &feof, sizeof feof);
+		if (!*success) {
+			ib_logf(IB_LOG_LEVEL_ERROR, "extending file %s"
+				" from " INT64PF
+				" to " INT64PF " bytes failed with %u",
+				node->name,
+				os_offset_t(node->size) * page_size,
+				feof.EndOfFile.QuadPart, GetLastError());
+		} else {
+			start_page_no = size;
+		}
+	}
+#else
+	/* We will logically extend the file with ftruncate() if
+	page_compression is enabled, because the file is expected to
+	be sparse in that case. Make sure that ftruncate() can deal
+	with large files. */
+	const bool is_sparse	= sizeof(off_t) >= 8
+		&& FSP_FLAGS_HAS_PAGE_COMPRESSION(space->flags);
+
+# ifdef HAVE_POSIX_FALLOCATE
 	/* We must complete the I/O request after invoking
 	posix_fallocate() to avoid an assertion failure at shutdown.
 	Because no actual writes were dispatched, a read operation
 	will suffice. */
 	const ulint	io_completion_type = srv_use_posix_fallocate
-		? OS_FILE_READ : OS_FILE_WRITE;
+		|| is_sparse ? OS_FILE_READ : OS_FILE_WRITE;
 
-	if (srv_use_posix_fallocate) {
-		const os_offset_t start_offset	= static_cast<os_offset_t>(
-			start_page_no) * page_size;
-		const os_offset_t len		= static_cast<os_offset_t>(
-			pages_added) * page_size;
+	if (srv_use_posix_fallocate && !is_sparse) {
+		const os_offset_t	start_offset
+			= os_offset_t(start_page_no - file_start_page_no)
+			* page_size;
+		const ulint		n_pages = size - start_page_no;
+		const os_offset_t	len = os_offset_t(n_pages) * page_size;
 
-		*success = !posix_fallocate(node->handle, start_offset, len);
+		int err;
+		do {
+			err = posix_fallocate(node->handle, start_offset, len);
+		} while (err == EINTR
+			 && srv_shutdown_state == SRV_SHUTDOWN_NONE);
+
+		*success = !err;
 		if (!*success) {
-			ib_logf(IB_LOG_LEVEL_ERROR, "preallocating file "
-				"space for file \'%s\' failed.  Current size "
-				INT64PF ", desired size " INT64PF,
-				node->name, start_offset, len+start_offset);
-			os_file_handle_error_no_exit(
-				node->name, "posix_fallocate",
-				FALSE, __FILE__, __LINE__);
+			ib_logf(IB_LOG_LEVEL_ERROR, "extending file %s"
+				" from " INT64PF " to " INT64PF " bytes"
+				" failed with error %d",
+				node->name, start_offset, len + start_offset,
+				err);
 		}
 
 		DBUG_EXECUTE_IF("ib_os_aio_func_io_failure_28",
-				*success = FALSE; errno = 28;
+				*success = FALSE;
 				os_has_said_disk_full = TRUE;);
 
 		if (*success) {
 			os_has_said_disk_full = FALSE;
-		} else {
-			pages_added = 0;
+			start_page_no = size;
 		}
 	} else
-#else
-	const ulint io_completion_type = OS_FILE_WRITE;
-#endif
-	{
-		byte*	buf2;
-		byte*	buf;
-		ulint	buf_size;
-
+# else
+	const ulint io_completion_type = is_sparse
+		? OS_FILE_READ : OS_FILE_WRITE;
+# endif
+	if (is_sparse) {
+		/* fil_read_first_page() expects UNIV_PAGE_SIZE bytes.
+		fil_node_open_file() expects at least 4 * UNIV_PAGE_SIZE bytes.
+		Do not shrink short ROW_FORMAT=COMPRESSED files. */
+		off_t	s = std::max(off_t(size - file_start_page_no)
+				     * off_t(page_size),
+				     off_t(FIL_IBD_FILE_INITIAL_SIZE
+					   * UNIV_PAGE_SIZE));
+		*success = !ftruncate(node->handle, s);
+		if (!*success) {
+			ib_logf(IB_LOG_LEVEL_ERROR, "ftruncate of file %s"
+				" from " INT64PF " to " INT64PF " bytes"
+				" failed with error %d",
+				node->name,
+				os_offset_t(start_page_no - file_start_page_no)
+				* page_size, os_offset_t(s), errno);
+		} else {
+			start_page_no = size;
+		}
+	} else {
 		/* Extend at most 64 pages at a time */
-		buf_size = ut_min(64, size - start_page_no)
+		ulint	buf_size = ut_min(64, size - start_page_no)
 			* page_size;
-		buf2 = static_cast<byte*>(mem_alloc(buf_size + page_size));
-		buf = static_cast<byte*>(ut_align(buf2, page_size));
+		byte*	buf2 = static_cast<byte*>(
+			calloc(1, buf_size + page_size));
+		*success = buf2 != NULL;
+		if (!buf2) {
+			ib_logf(IB_LOG_LEVEL_ERROR, "Cannot allocate " ULINTPF
+				" bytes to extend file",
+				buf_size + page_size);
+		}
+		byte* const	buf = static_cast<byte*>(
+			ut_align(buf2, page_size));
 
-		memset(buf, 0, buf_size);
-
-		while (start_page_no < size) {
+		while (*success && start_page_no < size) {
 			ulint		n_pages
 				= ut_min(buf_size / page_size,
 					 size - start_page_no);
@@ -1118,50 +1185,40 @@ fil_space_extend_must_retry(
 				start_page_no - file_start_page_no)
 				* page_size;
 
-			const char* name = node->name == NULL
-				? space->name : node->name;
-
 			*success = os_aio(OS_FILE_WRITE, 0, OS_AIO_SYNC,
-					  name, node->handle, buf,
+					  node->name, node->handle, buf,
 					  offset, page_size * n_pages,
 					  page_size, node, NULL,
 					  space->id, NULL, 0);
 
 			DBUG_EXECUTE_IF("ib_os_aio_func_io_failure_28",
-					*success = FALSE; errno = 28;
+					*success = FALSE;
 					os_has_said_disk_full = TRUE;);
 
 			if (*success) {
 				os_has_said_disk_full = FALSE;
-			} else {
-				/* Let us measure the size of the file
-				to determine how much we were able to
-				extend it */
-				os_offset_t	size;
-
-				size = os_file_get_size(node->handle);
-				ut_a(size != (os_offset_t) -1);
-
-				n_pages = ((ulint) (size / page_size))
-					- node->size - pages_added;
-
-				pages_added += n_pages;
-				break;
 			}
+			/* Let us measure the size of the file
+			to determine how much we were able to
+			extend it */
+			os_offset_t	fsize = os_file_get_size(node->handle);
+			ut_a(fsize != os_offset_t(-1));
 
-			start_page_no += n_pages;
-			pages_added += n_pages;
+			start_page_no = ulint(fsize / page_size)
+				+ file_start_page_no;
 		}
 
-		mem_free(buf2);
+		free(buf2);
 	}
-
+#endif
 	mutex_enter(&fil_system->mutex);
 
 	ut_a(node->being_extended);
+	ut_a(start_page_no - file_start_page_no >= node->size);
 
-	space->size += pages_added;
-	node->size += pages_added;
+	ulint file_size = start_page_no - file_start_page_no;
+	space->size += file_size - node->size;
+	node->size = file_size;
 
 	fil_node_complete_io(node, fil_system, io_completion_type);
 
@@ -1449,17 +1506,24 @@ fil_space_contains_node(
 /*******************************************************************//**
 Creates a space memory object and puts it to the 'fil system' hash table.
 If there is an error, prints an error message to the .err log.
+@param[in]	name		Space name
+@param[in]	id		Space id
+@param[in]	flags		Tablespace flags
+@param[in]	purpose		FIL_TABLESPACE or FIL_LOG if log
+@param[in]	crypt_data	Encryption information
+@param[in]	create_table	True if this is create table
+@param[in]	mode		Encryption mode
 @return	TRUE if success */
 UNIV_INTERN
-ibool
+bool
 fil_space_create(
-/*=============*/
-	const char*	name,	/*!< in: space name */
-	ulint		id,	/*!< in: space id */
-	ulint		flags,	/*!< in: tablespace flags */
-	ulint		purpose,/*!< in: FIL_TABLESPACE, or FIL_LOG if log */
-	fil_space_crypt_t* crypt_data, /*!< in: crypt data */
-	bool		create_table) /*!< in: true if create table */
+	const char*		name,
+	ulint			id,
+	ulint			flags,
+	ulint			purpose,
+	fil_space_crypt_t*	crypt_data,
+	bool			create_table,
+	fil_encryption_t	mode)
 {
 	fil_space_t*	space;
 
@@ -1483,7 +1547,7 @@ fil_space_create(
 
 				mutex_exit(&fil_system->mutex);
 
-				return(FALSE);
+				return(false);
 			}
 
 			ib_logf(IB_LOG_LEVEL_WARN,
@@ -1510,7 +1574,7 @@ fil_space_create(
 
 		mutex_exit(&fil_system->mutex);
 
-		return(FALSE);
+		return(false);
 	}
 
 	space = static_cast<fil_space_t*>(mem_zalloc(sizeof(*space)));
@@ -1541,17 +1605,6 @@ fil_space_create(
 	space->flags = flags;
 
 	space->magic_n = FIL_SPACE_MAGIC_N;
-	space->printed_compression_failure = false;
-
-	rw_lock_create(fil_space_latch_key, &space->latch, SYNC_FSP);
-
-	HASH_INSERT(fil_space_t, hash, fil_system->spaces, id, space);
-
-	HASH_INSERT(fil_space_t, name_hash, fil_system->name_hash,
-		    ut_fold_string(name), space);
-	space->is_in_unflushed_spaces = false;
-
-	space->is_corrupt = FALSE;
 	space->crypt_data = crypt_data;
 
 	/* In create table we write page 0 so we have already
@@ -1570,11 +1623,33 @@ fil_space_create(
 		space->crypt_data ? space->crypt_data->encryption : 0);
 #endif
 
+	rw_lock_create(fil_space_latch_key, &space->latch, SYNC_FSP);
+
+	HASH_INSERT(fil_space_t, hash, fil_system->spaces, id, space);
+
+	HASH_INSERT(fil_space_t, name_hash, fil_system->name_hash,
+		    ut_fold_string(name), space);
+
 	UT_LIST_ADD_LAST(space_list, fil_system->space_list, space);
 
-	mutex_exit(&fil_system->mutex);
+	/* Inform key rotation that there could be something
+	to do */
+	if (purpose == FIL_TABLESPACE && !srv_fil_crypt_rotate_key_age && fil_crypt_threads_event &&
+	    (mode == FIL_ENCRYPTION_ON || mode == FIL_ENCRYPTION_OFF ||
+		    srv_encrypt_tables)) {
+		/* Key rotation is not enabled, need to inform background
+		encryption threads. */
+		UT_LIST_ADD_LAST(rotation_list, fil_system->rotation_list, space);
+		space->is_in_rotation_list = true;
+		mutex_exit(&fil_system->mutex);
+		mutex_enter(&fil_crypt_threads_mutex);
+		os_event_set(fil_crypt_threads_event);
+		mutex_exit(&fil_crypt_threads_mutex);
+	} else {
+		mutex_exit(&fil_system->mutex);
+	}
 
-	return(TRUE);
+	return(true);
 }
 
 /*******************************************************************//**
@@ -1684,6 +1759,12 @@ fil_space_free(
 
 		UT_LIST_REMOVE(unflushed_spaces, fil_system->unflushed_spaces,
 			       space);
+	}
+
+	if (space->is_in_rotation_list) {
+		space->is_in_rotation_list = false;
+		ut_a(UT_LIST_GET_LEN(fil_system->rotation_list) > 0);
+		UT_LIST_REMOVE(rotation_list, fil_system->rotation_list, space);
 	}
 
 	UT_LIST_REMOVE(space_list, fil_system->space_list, space);
@@ -2309,7 +2390,7 @@ fil_check_first_page(const page_t* page, ulint space_id, ulint flags)
 	}
 
 	if (buf_page_is_corrupted(
-		    false, page, fsp_flags_get_zip_size(flags))) {
+			false, page, fsp_flags_get_zip_size(flags), NULL)) {
 		return("checksum mismatch");
 	}
 
@@ -2347,7 +2428,6 @@ fil_read_first_page(
 	lsn_t		flushed_lsn;
 	const char*	check_msg = NULL;
 	fil_space_crypt_t* cdata;
-
 
 	buf = static_cast<byte*>(ut_malloc(2 * UNIV_PAGE_SIZE));
 
@@ -2388,7 +2468,7 @@ fil_read_first_page(
 
 	ulint space = fsp_header_get_space_id(page);
 	ulint offset = fsp_header_get_crypt_offset(
-		fsp_flags_get_zip_size(*flags), NULL);
+		fsp_flags_get_zip_size(*flags));
 
 	cdata = fil_space_read_crypt_data(space, page, offset);
 
@@ -2767,7 +2847,7 @@ fil_op_log_parse_or_replay(
 				    space_id, name, path, flags,
 				    DICT_TF2_USE_TABLESPACE,
 				    FIL_IBD_FILE_INITIAL_SIZE,
-				    FIL_SPACE_ENCRYPTION_DEFAULT,
+				    FIL_ENCRYPTION_DEFAULT,
 				    FIL_DEFAULT_ENCRYPTION_KEY) != DB_SUCCESS) {
 				ut_error;
 			}
@@ -2891,15 +2971,26 @@ fil_check_pending_operations(
 
 	*space = 0;
 
-	/* Wait for crypt threads to stop accessing space */
-	fil_space_crypt_close_tablespace(id);
-
 	mutex_enter(&fil_system->mutex);
 	fil_space_t* sp = fil_space_get_by_id(id);
+
 	if (sp) {
 		sp->stop_new_ops = TRUE;
+		/* space could be freed by other threads as soon
+		as n_pending_ops reaches 0, thus increment pending
+		ops here. */
+		sp->n_pending_ops++;
 	}
+
 	mutex_exit(&fil_system->mutex);
+
+	/* Wait for crypt threads to stop accessing space */
+	if (sp) {
+		fil_space_crypt_close_tablespace(sp);
+		/* We have "acquired" this space and must
+		free it now as below we compare n_pending_ops. */
+		fil_space_release(sp);
+	}
 
 	/* Check for pending change buffer merges. */
 
@@ -3852,7 +3943,23 @@ fil_create_new_single_table_tablespace(
 		goto error_exit_3;
 	}
 
-	ret = os_file_set_size(path, file, size * UNIV_PAGE_SIZE);
+	{
+		/* fil_read_first_page() expects UNIV_PAGE_SIZE bytes.
+		fil_node_open_file() expects at least 4 * UNIV_PAGE_SIZE bytes.
+		Do not create too short ROW_FORMAT=COMPRESSED files. */
+		const ulint zip_size = fsp_flags_get_zip_size(flags);
+		const ulint page_size = zip_size ? zip_size : UNIV_PAGE_SIZE;
+		const os_offset_t fsize = std::max(
+			os_offset_t(size) * page_size,
+			os_offset_t(FIL_IBD_FILE_INITIAL_SIZE
+				    * UNIV_PAGE_SIZE));
+		/* ROW_FORMAT=COMPRESSED files never use page_compression
+		(are never sparse). */
+		ut_ad(!zip_size || !FSP_FLAGS_HAS_PAGE_COMPRESSION(flags));
+
+		ret = os_file_set_size(path, file, fsize,
+				       FSP_FLAGS_HAS_PAGE_COMPRESSION(flags));
+	}
 
 	if (!ret) {
 		err = DB_OUT_OF_FILE_SPACE;
@@ -3880,14 +3987,8 @@ fil_create_new_single_table_tablespace(
 	fsp_header_init_fields(page, space_id, flags);
 	mach_write_to_4(page + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID, space_id);
 
-	if (!(fsp_flags_is_compressed(flags))) {
-		buf_flush_init_for_writing(page, NULL, 0);
-		ret = os_file_write(path, file, page, 0, UNIV_PAGE_SIZE);
-	} else {
+	if (const ulint zip_size = fsp_flags_get_zip_size(flags)) {
 		page_zip_des_t	page_zip;
-		ulint		zip_size;
-
-		zip_size = fsp_flags_get_zip_size(flags);
 
 		page_zip_set_size(&page_zip, zip_size);
 		page_zip.data = page + UNIV_PAGE_SIZE;
@@ -3898,6 +3999,9 @@ fil_create_new_single_table_tablespace(
 			page_zip.n_blobs = 0;
 		buf_flush_init_for_writing(page, &page_zip, 0);
 		ret = os_file_write(path, file, page_zip.data, 0, zip_size);
+	} else {
+		buf_flush_init_for_writing(page, NULL, 0);
+		ret = os_file_write(path, file, page, 0, UNIV_PAGE_SIZE);
 	}
 
 	ut_free(buf2);
@@ -3930,13 +4034,13 @@ fil_create_new_single_table_tablespace(
 
 	/* Create crypt data if the tablespace is either encrypted or user has
 	requested it to remain unencrypted. */
-	if (mode == FIL_SPACE_ENCRYPTION_ON || mode == FIL_SPACE_ENCRYPTION_OFF ||
+	if (mode == FIL_ENCRYPTION_ON || mode == FIL_ENCRYPTION_OFF ||
 		srv_encrypt_tables) {
 		crypt_data = fil_space_create_crypt_data(mode, key_id);
 	}
 
 	success = fil_space_create(tablename, space_id, flags, FIL_TABLESPACE,
-				   crypt_data, true);
+				   crypt_data, true, mode);
 
 	if (!success || !fil_node_create(path, size, space_id, FALSE)) {
 		err = DB_ERROR;
@@ -4547,13 +4651,13 @@ fil_user_tablespace_find_space_id(
 			to UNIV_PAGE_SIZE. */
 			if (page_size == UNIV_PAGE_SIZE) {
 				uncompressed_ok = !buf_page_is_corrupted(
-					false, page, 0);
+					false, page, 0, NULL);
 			}
 
 			bool compressed_ok = false;
 			if (page_size <= UNIV_PAGE_SIZE_DEF) {
 				compressed_ok = !buf_page_is_corrupted(
-					false, page, page_size);
+					false, page, page_size, NULL);
 			}
 
 			if (uncompressed_ok || compressed_ok) {
@@ -6644,7 +6748,8 @@ fil_iterate(
 				page_type == FIL_PAGE_PAGE_COMPRESSED);
 
 			/* If tablespace is encrypted, we need to decrypt
-			the page. */
+			the page. Note that tablespaces are not in
+			fil_system during import. */
 			if (encrypted) {
 				decrypted = fil_space_decrypt(
 							iter.crypt_data,
@@ -6897,8 +7002,11 @@ fil_tablespace_iterate(
 		iter.n_io_buffers = n_io_buffers;
 		iter.page_size = callback.get_page_size();
 
+		/* In MariaDB/MySQL 5.6 tablespace does not exist
+		during import, therefore we can't use space directly
+		here. */
 		ulint crypt_data_offset = fsp_header_get_crypt_offset(
-			callback.get_zip_size(), 0);
+			callback.get_zip_size());
 
 		/* read (optional) crypt data */
 		iter.crypt_data = fil_space_read_crypt_data(
@@ -6940,7 +7048,7 @@ fil_tablespace_iterate(
 
 		mem_free(io_buffer);
 
-		if (iter.crypt_data != NULL) {
+		if (crypt_io_buffer != NULL) {
 			mem_free(crypt_io_buffer);
 			iter.crypt_io_buffer = NULL;
 			fil_space_destroy_crypt_data(&iter.crypt_data);
@@ -7199,32 +7307,11 @@ fil_space_set_corrupt(
 	space = fil_space_get_by_id(space_id);
 
 	if (space) {
-		space->is_corrupt = TRUE;
+		space->is_corrupt = true;
 	}
 
 	mutex_exit(&fil_system->mutex);
 }
-
-/****************************************************************//**
-Acquire fil_system mutex */
-void
-fil_system_enter(void)
-/*==================*/
-{
-	ut_ad(!mutex_own(&fil_system->mutex));
-	mutex_enter(&fil_system->mutex);
-}
-
-/****************************************************************//**
-Release fil_system mutex */
-void
-fil_system_exit(void)
-/*=================*/
-{
-	ut_ad(mutex_own(&fil_system->mutex));
-	mutex_exit(&fil_system->mutex);
-}
-
 
 /******************************************************************
 Get id of first tablespace or ULINT_UNDEFINED if none */
@@ -7246,36 +7333,6 @@ fil_get_first_space()
 				out_id = space->id;
 				break;
 			}
-			space = UT_LIST_GET_NEXT(space_list, space);
-		} while (space != NULL);
-	}
-
-	mutex_exit(&fil_system->mutex);
-
-	return out_id;
-}
-
-/******************************************************************
-Get id of first tablespace that has node or ULINT_UNDEFINED if none */
-UNIV_INTERN
-ulint
-fil_get_first_space_safe()
-/*======================*/
-{
-	ulint out_id = ULINT_UNDEFINED;
-	fil_space_t* space;
-
-	mutex_enter(&fil_system->mutex);
-
-	space = UT_LIST_GET_FIRST(fil_system->space_list);
-	if (space != NULL) {
-		do
-		{
-			if (!space->stop_new_ops && UT_LIST_GET_LEN(space->chain) > 0) {
-				out_id = space->id;
-				break;
-			}
-
 			space = UT_LIST_GET_NEXT(space_list, space);
 		} while (space != NULL);
 	}
@@ -7326,165 +7383,207 @@ fil_get_next_space(
 	return out_id;
 }
 
-/******************************************************************
-Get id of next tablespace that has node or ULINT_UNDEFINED if none */
-UNIV_INTERN
-ulint
-fil_get_next_space_safe(
-/*====================*/
-	ulint	id)	/*!< in: previous space id */
+/** Acquire a tablespace when it could be dropped concurrently.
+Used by background threads that do not necessarily hold proper locks
+for concurrency control.
+@param[in]	id	tablespace ID
+@param[in]	silent	whether to silently ignore missing tablespaces
+@return the tablespace, or NULL if missing or being deleted */
+inline
+fil_space_t*
+fil_space_acquire_low(
+	ulint	id,
+	bool	silent)
 {
-	bool found;
-	fil_space_t* space;
-	ulint out_id = ULINT_UNDEFINED;
+	fil_space_t*	space;
 
 	mutex_enter(&fil_system->mutex);
 
 	space = fil_space_get_by_id(id);
+
 	if (space == NULL) {
-		/* we didn't find it...search for space with space->id > id */
-		found = false;
+		if (!silent) {
+			ib_logf(IB_LOG_LEVEL_WARN, "Trying to access missing"
+				" tablespace " ULINTPF ".", id);
+			ut_error;
+		}
+	} else if (space->stop_new_ops) {
+		space = NULL;
+	} else {
+		space->n_pending_ops++;
+	}
+
+	mutex_exit(&fil_system->mutex);
+
+	return(space);
+}
+
+/** Acquire a tablespace when it could be dropped concurrently.
+Used by background threads that do not necessarily hold proper locks
+for concurrency control.
+@param[in]	id	tablespace ID
+@return the tablespace, or NULL if missing or being deleted */
+fil_space_t*
+fil_space_acquire(
+	ulint	id)
+{
+	return(fil_space_acquire_low(id, false));
+}
+
+/** Acquire a tablespace that may not exist.
+Used by background threads that do not necessarily hold proper locks
+for concurrency control.
+@param[in]	id	tablespace ID
+@return the tablespace, or NULL if missing or being deleted */
+fil_space_t*
+fil_space_acquire_silent(
+	ulint	id)
+{
+	return(fil_space_acquire_low(id, true));
+}
+
+/** Release a tablespace acquired with fil_space_acquire().
+@param[in,out]	space	tablespace to release  */
+void
+fil_space_release(
+	fil_space_t*	space)
+{
+	mutex_enter(&fil_system->mutex);
+	ut_ad(space->magic_n == FIL_SPACE_MAGIC_N);
+	ut_ad(space->n_pending_ops > 0);
+	space->n_pending_ops--;
+	mutex_exit(&fil_system->mutex);
+}
+
+/** Return the next fil_space_t.
+Once started, the caller must keep calling this until it returns NULL.
+fil_space_acquire() and fil_space_release() are invoked here which
+blocks a concurrent operation from dropping the tablespace.
+@param[in]	prev_space	Pointer to the previous fil_space_t.
+If NULL, use the first fil_space_t on fil_system->space_list.
+@return pointer to the next fil_space_t.
+@retval NULL if this was the last*/
+fil_space_t*
+fil_space_next(
+	fil_space_t*	prev_space)
+{
+	fil_space_t*		space=prev_space;
+
+	mutex_enter(&fil_system->mutex);
+
+	if (prev_space == NULL) {
 		space = UT_LIST_GET_FIRST(fil_system->space_list);
+
+		/* We can trust that space is not NULL because at least the
+		system tablespace is always present and loaded first. */
+		space->n_pending_ops++;
 	} else {
-		/* we found it, take next available space */
-		found = true;
-	}
+		ut_ad(space->n_pending_ops > 0);
 
-	while ((space = UT_LIST_GET_NEXT(space_list, space)) != NULL) {
+		/* Move on to the next fil_space_t */
+		space->n_pending_ops--;
+		space = UT_LIST_GET_NEXT(space_list, space);
 
-		if (!found && space->id <= id)
-			continue;
+		/* Skip spaces that are being created by
+		fil_ibd_create(), or dropped, or !tablespace. */
+		while (space != NULL
+			&& (UT_LIST_GET_LEN(space->chain) == 0
+				|| space->stop_new_ops
+				|| space->purpose != FIL_TABLESPACE)) {
+			space = UT_LIST_GET_NEXT(space_list, space);
+		}
 
-		if (!space->stop_new_ops) {
-			/* inc reference to prevent drop */
-			out_id = space->id;
-			break;
+		if (space != NULL) {
+			space->n_pending_ops++;
 		}
 	}
 
 	mutex_exit(&fil_system->mutex);
 
-	return out_id;
+	return(space);
 }
 
-/******************************************************************
-Get crypt data for a tablespace */
-UNIV_INTERN
-fil_space_crypt_t*
-fil_space_get_crypt_data(
-/*=====================*/
-	ulint id)	/*!< in: space id */
+/**
+Remove space from key rotation list if there are no more
+pending operations.
+@param[in]	space		Tablespace */
+static
+void
+fil_space_remove_from_keyrotation(
+	fil_space_t* space)
 {
-	fil_space_t*	space;
-	fil_space_crypt_t* crypt_data = NULL;
+	ut_ad(mutex_own(&fil_system->mutex));
+	ut_ad(space);
 
-	ut_ad(fil_system);
-
-	mutex_enter(&fil_system->mutex);
-
-	space = fil_space_get_by_id(id);
-
-	mutex_exit(&fil_system->mutex);
-
-	if (space != NULL) {
-		/* If we have not yet read the page0
-		of this tablespace we will do it now. */
-		if (!space->crypt_data && !space->page_0_crypt_read) {
-			ulint space_id = space->id;
-			fil_node_t*	node;
-
-			ut_a(space->crypt_data == NULL);
-			node = UT_LIST_GET_FIRST(space->chain);
-
-			byte *buf = static_cast<byte*>(ut_malloc(2 * UNIV_PAGE_SIZE));
-			byte *page = static_cast<byte*>(ut_align(buf, UNIV_PAGE_SIZE));
-			fil_read(true, space_id, 0, 0, 0, UNIV_PAGE_SIZE, page,
-				NULL, NULL);
-			ulint offset = fsp_header_get_crypt_offset(
-				fsp_header_get_zip_size(page), NULL);
-			space->crypt_data = fil_space_read_crypt_data(space_id, page, offset);
-			ut_free(buf);
-
-#ifdef UNIV_DEBUG
-			ib_logf(IB_LOG_LEVEL_INFO,
-				"Read page 0 from tablespace for space %lu name %s key_id %u encryption %d handle %d.",
-				space_id,
-				space->name,
-				space->crypt_data ? space->crypt_data->key_id : 0,
-				space->crypt_data ? space->crypt_data->encryption : 0,
-				node->handle);
-#endif
-
-			ut_a(space->id == space_id);
-
-			space->page_0_crypt_read = true;
-		}
-
-		crypt_data = space->crypt_data;
-
-		if (!space->page_0_crypt_read) {
-			ib_logf(IB_LOG_LEVEL_WARN,
-				"Space %lu name %s contains encryption %d information for key_id %u but page0 is not read.",
-				space->id,
-				space->name,
-				space->crypt_data ? space->crypt_data->encryption : 0,
-				space->crypt_data ? space->crypt_data->key_id : 0);
-		}
+	if (space->n_pending_ops == 0 && space->is_in_rotation_list) {
+		space->is_in_rotation_list = false;
+		ut_a(UT_LIST_GET_LEN(fil_system->rotation_list) > 0);
+		UT_LIST_REMOVE(rotation_list, fil_system->rotation_list, space);
 	}
-
-	return(crypt_data);
 }
 
-/******************************************************************
-Get crypt data for a tablespace */
-UNIV_INTERN
-fil_space_crypt_t*
-fil_space_set_crypt_data(
-/*=====================*/
-	ulint id, 	               /*!< in: space id */
-	fil_space_crypt_t* crypt_data) /*!< in: crypt data */
-{
-	fil_space_t*	space;
-	fil_space_crypt_t* free_crypt_data = NULL;
-	fil_space_crypt_t* ret_crypt_data = NULL;
 
-	ut_ad(fil_system);
+/** Return the next fil_space_t from key rotation list.
+Once started, the caller must keep calling this until it returns NULL.
+fil_space_acquire() and fil_space_release() are invoked here which
+blocks a concurrent operation from dropping the tablespace.
+@param[in]	prev_space	Pointer to the previous fil_space_t.
+If NULL, use the first fil_space_t on fil_system->space_list.
+@return pointer to the next fil_space_t.
+@retval NULL if this was the last*/
+fil_space_t*
+fil_space_keyrotate_next(
+	fil_space_t*	prev_space)
+{
+	fil_space_t* space = prev_space;
+	fil_space_t* old   = NULL;
 
 	mutex_enter(&fil_system->mutex);
 
-	space = fil_space_get_by_id(id);
-
-	if (space != NULL) {
-		if (space->crypt_data != NULL) {
-			/* Here we need to release fil_system mutex to
-			avoid mutex deadlock assertion. Here we would
-			take mutexes in order fil_system, crypt_data and
-			in fil_crypt_start_encrypting_space we would
-			take them in order crypt_data, fil_system
-			at fil_space_get_flags -> fil_space_get_space */
-			mutex_exit(&fil_system->mutex);
-			fil_space_merge_crypt_data(space->crypt_data,
-						   crypt_data);
-			ret_crypt_data = space->crypt_data;
-			free_crypt_data = crypt_data;
-		} else {
-			space->crypt_data = crypt_data;
-			ret_crypt_data = space->crypt_data;
-			mutex_exit(&fil_system->mutex);
+	if (UT_LIST_GET_LEN(fil_system->rotation_list) == 0) {
+		if (space) {
+			ut_ad(space->n_pending_ops > 0);
+			space->n_pending_ops--;
+			fil_space_remove_from_keyrotation(space);
 		}
-	} else {
-		/* there is a small risk that tablespace has been deleted */
-		free_crypt_data = crypt_data;
 		mutex_exit(&fil_system->mutex);
+		return(NULL);
 	}
 
-	if (free_crypt_data != NULL) {
-		/* there was already crypt data present and the new crypt
-		* data provided as argument to this function has been merged
-		* into that => free new crypt data
-		*/
-		fil_space_destroy_crypt_data(&free_crypt_data);
+	if (prev_space == NULL) {
+		space = UT_LIST_GET_FIRST(fil_system->rotation_list);
+
+		/* We can trust that space is not NULL because we
+		checked list length above */
+	} else {
+		ut_ad(space->n_pending_ops > 0);
+
+		/* Move on to the next fil_space_t */
+		space->n_pending_ops--;
+
+		old = space;
+		space = UT_LIST_GET_NEXT(rotation_list, space);
+
+		fil_space_remove_from_keyrotation(old);
 	}
 
-	return ret_crypt_data;
+	/* Skip spaces that are being created by fil_ibd_create(),
+	or dropped. Note that rotation_list contains only
+	space->purpose == FIL_TABLESPACE. */
+	while (space != NULL
+		&& (UT_LIST_GET_LEN(space->chain) == 0
+			|| space->stop_new_ops)) {
+
+		old = space;
+		space = UT_LIST_GET_NEXT(rotation_list, space);
+		fil_space_remove_from_keyrotation(old);
+	}
+
+	if (space != NULL) {
+		space->n_pending_ops++;
+	}
+
+	mutex_exit(&fil_system->mutex);
+
+	return(space);
 }

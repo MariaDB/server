@@ -74,7 +74,7 @@ it should also declare all the accompanying data structures, as necessary
     #define VERSION_foo 0x0100
 ==================================================================
 
-6. create a new file libservices/foo_service.h using the following template:
+6. create a new file libservices/foo_service.c using the following template:
 ==================================================================
   /* GPL header */
   #include <service_versions.h>
@@ -82,7 +82,7 @@ it should also declare all the accompanying data structures, as necessary
 ==================================================================
 
 7. add the new file to libservices/CMakeLists.txt (MYSQLSERVICES_SOURCES)
-8. Add all new files to repository (bzr add)
+8. Add all new files to repository (git add)
 9. and finally, register your service for dynamic linking in
     sql/sql_plugin_services.ic as follows:
 9.1 fill in the service structure:

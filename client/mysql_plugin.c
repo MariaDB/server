@@ -1003,7 +1003,7 @@ found:
 
 static int find_plugin(char *tp_path)
 {
-  /* Check for existance of plugin */
+  /* Check for existence of plugin */
   fn_format(tp_path, plugin_data.so_name, opt_plugin_dir, "", MYF(0));
   if (!file_exists(tp_path))
   {

@@ -183,7 +183,7 @@ class SRCCOL : public PRXCOL {
   using PRXCOL::Init;
   virtual void Reset(void) {}
           void SetColumn(void);
-  virtual bool Init(PGLOBAL g, PTDBASE tp);
+  virtual bool Init(PGLOBAL g, PTDB tp);
           bool CompareLast(void);
 
  protected:

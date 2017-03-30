@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2017, MariaDB Corporation. All Rights Reserved.
+Copyright (c) 2013, 2017, MariaDB Corporation.
 Copyright (c) 2013, 2014, Fusion-io
 
 This program is free software; you can redistribute it and/or modify it under
@@ -893,6 +893,9 @@ buf_flush_init_for_writing(
 			newest_lsn);
 
 	if (skip_checksum) {
+		ut_ad(block == NULL
+		      || block->page.id.space() == SRV_TMP_SPACE_ID);
+		ut_ad(page_get_space_id(page) == SRV_TMP_SPACE_ID);
 		mach_write_to_4(page + FIL_PAGE_SPACE_OR_CHKSUM, checksum);
 	} else {
 		if (block != NULL && UNIV_PAGE_SIZE == 16384) {
@@ -1005,7 +1008,8 @@ buf_flush_write_block_low(
 {
 	page_t*	frame = NULL;
 	ulint space_id = bpage->id.space();
-	bool atomic_writes = fil_space_get_atomic_writes(space_id);
+	const bool is_temp = fsp_is_system_temporary(space_id);
+	bool atomic_writes = is_temp || fil_space_get_atomic_writes(space_id);
 
 #ifdef UNIV_DEBUG
 	buf_pool_t*	buf_pool = buf_pool_from_bpage(bpage);
@@ -1068,8 +1072,7 @@ buf_flush_write_block_low(
 			reinterpret_cast<const buf_block_t*>(bpage),
 			reinterpret_cast<const buf_block_t*>(bpage)->frame,
 			bpage->zip.data ? &bpage->zip : NULL,
-			bpage->newest_modification,
-			fsp_is_checksum_disabled(bpage->id.space()));
+			bpage->newest_modification, is_temp);
 		break;
 	}
 
@@ -1082,7 +1085,6 @@ buf_flush_write_block_low(
 	if (!srv_use_doublewrite_buf
 	    || buf_dblwr == NULL
 	    || srv_read_only_mode
-	    || fsp_is_system_temporary(bpage->id.space())
 	    || atomic_writes) {
 
 		ut_ad(!srv_read_only_mode

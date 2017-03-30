@@ -935,7 +935,7 @@ SysTablespace::open_or_create(
 				/* Create default crypt info for system
 				tablespace if it does not yet exists. */
 				m_crypt_info = fil_space_create_crypt_data(
-					FIL_SPACE_ENCRYPTION_DEFAULT,
+					FIL_ENCRYPTION_DEFAULT,
 					FIL_DEFAULT_ENCRYPTION_KEY);
 			}
 

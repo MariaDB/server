@@ -133,7 +133,7 @@ fsp_fill_free_list(
 	ulint		space,		/*!< in: space */
 	fsp_header_t*	header,		/*!< in/out: space header */
 	mtr_t*		mtr)		/*!< in/out: mini-transaction */
-	UNIV_COLD MY_ATTRIBUTE((nonnull));
+	UNIV_COLD;
 /**********************************************************************//**
 Allocates a single free page from a segment. This function implements
 the intelligent allocation strategy which tries to minimize file space
@@ -162,7 +162,7 @@ fseg_alloc_free_page_low(
 				in which the page should be initialized.
 				If init_mtr!=mtr, but the page is already
 				latched in mtr, do not initialize the page. */
-	MY_ATTRIBUTE((warn_unused_result, nonnull));
+	MY_ATTRIBUTE((warn_unused_result));
 #endif /* !UNIV_HOTBACKUP */
 
 /**********************************************************************//**
@@ -680,7 +680,7 @@ UNIV_INTERN
 void
 fsp_header_init(
 /*============*/
-	ulint	space,		/*!< in: space id */
+	ulint	space_id,	/*!< in: space id */
 	ulint	size,		/*!< in: current size in blocks */
 	mtr_t*	mtr)		/*!< in/out: mini-transaction */
 {
@@ -692,11 +692,11 @@ fsp_header_init(
 
 	ut_ad(mtr);
 
-	mtr_x_lock(fil_space_get_latch(space, &flags), mtr);
+	mtr_x_lock(fil_space_get_latch(space_id, &flags), mtr);
 
 	zip_size = fsp_flags_get_zip_size(flags);
-	block = buf_page_create(space, 0, zip_size, mtr);
-	buf_page_get(space, zip_size, 0, RW_X_LATCH, mtr);
+	block = buf_page_create(space_id, 0, zip_size, mtr);
+	buf_page_get(space_id, zip_size, 0, RW_X_LATCH, mtr);
 	buf_block_dbg_add_level(block, SYNC_FSP_PAGE);
 
 	/* The prior contents of the file page should be ignored */
@@ -709,7 +709,7 @@ fsp_header_init(
 
 	header = FSP_HEADER_OFFSET + page;
 
-	mlog_write_ulint(header + FSP_SPACE_ID, space, MLOG_4BYTES, mtr);
+	mlog_write_ulint(header + FSP_SPACE_ID, space_id, MLOG_4BYTES, mtr);
 	mlog_write_ulint(header + FSP_NOT_USED, 0, MLOG_4BYTES, mtr);
 
 	mlog_write_ulint(header + FSP_SIZE, size, MLOG_4BYTES, mtr);
@@ -725,18 +725,23 @@ fsp_header_init(
 	flst_init(header + FSP_SEG_INODES_FREE, mtr);
 
 	mlog_write_ull(header + FSP_SEG_ID, 1, mtr);
-	if (space == 0) {
-		fsp_fill_free_list(FALSE, space, header, mtr);
+	if (space_id == 0) {
+		fsp_fill_free_list(FALSE, space_id, header, mtr);
 		btr_create(DICT_CLUSTERED | DICT_UNIVERSAL | DICT_IBUF,
-			   0, 0, DICT_IBUF_ID_MIN + space,
+			   0, 0, DICT_IBUF_ID_MIN + space_id,
 			   dict_ind_redundant, mtr);
 	} else {
-		fsp_fill_free_list(TRUE, space, header, mtr);
+		fsp_fill_free_list(TRUE, space_id, header, mtr);
 	}
 
-	ulint maxsize = 0;
-	ulint offset = fsp_header_get_crypt_offset(zip_size, &maxsize);
-	fil_space_write_crypt_data(space, page, offset, maxsize, mtr);
+	fil_space_t* space = fil_space_acquire(space_id);
+	ut_ad(space);
+
+	if (space->crypt_data) {
+		space->crypt_data->write_page0(page, mtr);
+	}
+
+	fil_space_release(space);
 }
 
 #endif /* !UNIV_HOTBACKUP */
@@ -1074,8 +1079,6 @@ fsp_fill_free_list(
 	ulint	i;
 	mtr_t	ibuf_mtr;
 
-	ut_ad(header != NULL);
-	ut_ad(mtr != NULL);
 	ut_ad(page_offset(header) == FSP_HEADER_OFFSET);
 
 	/* Check if we can fill free list from above the free list limit */
@@ -1338,7 +1341,7 @@ Allocates a single free page from a space. The page is marked as used.
 @retval block, rw_lock_x_lock_count(&block->lock) == 1 if allocation succeeded
 (init_mtr == mtr, or the page was not previously freed in mtr)
 @retval block (not allocated or initialized) otherwise */
-static MY_ATTRIBUTE((nonnull, warn_unused_result))
+static MY_ATTRIBUTE((warn_unused_result))
 buf_block_t*
 fsp_alloc_free_page(
 /*================*/
@@ -1357,9 +1360,6 @@ fsp_alloc_free_page(
 	ulint		free;
 	ulint		page_no;
 	ulint		space_size;
-
-	ut_ad(mtr);
-	ut_ad(init_mtr);
 
 	header = fsp_get_space_header(space, zip_size, mtr);
 
@@ -2379,7 +2379,6 @@ fseg_alloc_free_page_low(
 	ibool		success;
 	ulint		n;
 
-	ut_ad(mtr);
 	ut_ad((direction >= FSP_UP) && (direction <= FSP_NO_DIR));
 	ut_ad(mach_read_from_4(seg_inode + FSEG_MAGIC_N)
 	      == FSEG_MAGIC_N_VALUE);
@@ -2817,6 +2816,7 @@ try_again:
 		}
 	} else {
 		ut_a(alloc_type == FSP_CLEANING);
+		reserve = 0;
 	}
 
 	success = fil_space_reserve_free_extents(space, n_free, n_ext);
@@ -4154,12 +4154,11 @@ fsp_print(
 
 /**********************************************************************//**
 Compute offset after xdes where crypt data can be stored
+@param[in]	zip_size	Compressed size or 0
 @return	offset */
 ulint
 fsp_header_get_crypt_offset(
-/*========================*/
-	ulint   zip_size, /*!< in: zip_size */
-	ulint*  max_size) /*!< out: free space available for crypt data */
+	const ulint   zip_size)
 {
 	ulint pageno = 0;
 	/* compute first page_no that will have xdes stored on page != 0*/
@@ -4173,12 +4172,6 @@ fsp_header_get_crypt_offset(
 
 	ulint iv_offset = XDES_ARR_OFFSET +
 		XDES_SIZE * (1 + xdes_calc_descriptor_index(zip_size, pageno));
-
-	if (max_size != NULL) {
-		/* return how much free space there is available on page */
-		*max_size = (zip_size ? zip_size : UNIV_PAGE_SIZE) -
-			(FSP_HEADER_OFFSET + iv_offset + FIL_PAGE_DATA_END);
-	}
 
 	return FSP_HEADER_OFFSET + iv_offset;
 }

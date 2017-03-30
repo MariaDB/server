@@ -43,6 +43,9 @@ connection master;
 #With '--force' option, mysql_upgrade always executes all sql statements for upgrading.
 --exec $MYSQL_UPGRADE --skip-verbose --write-binlog --force --user=root > $MYSQLTEST_VARDIR/log/mysql_upgrade.log 2>&1
 
+let $datadir= `select @@datadir`;
+remove_file $datadir/mysql_upgrade_info;
+
 connection master;
 let $after_file= query_get_value(SHOW MASTER STATUS, File, 1);
 let $after_position= query_get_value(SHOW MASTER STATUS, Position, 1);

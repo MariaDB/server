@@ -46,7 +46,8 @@ int mi_create(const char *name,uint keys,MI_KEYDEF *keydefs,
   uint aligned_key_start, block_length, res;
   uint internal_table= flags & HA_CREATE_INTERNAL_TABLE;
   ulong reclength, real_reclength,min_pack_length;
-  char filename[FN_REFLEN],linkname[FN_REFLEN], *linkname_ptr;
+  char kfilename[FN_REFLEN],klinkname[FN_REFLEN], *klinkname_ptr;
+  char dfilename[FN_REFLEN],dlinkname[FN_REFLEN], *dlinkname_ptr;
   ulong pack_reclength;
   ulonglong tot_length,max_rows, tmp;
   enum en_fieldtype type;
@@ -595,19 +596,19 @@ int mi_create(const char *name,uint keys,MI_KEYDEF *keydefs,
       /* chop off the table name, tempory tables use generated name */
       if ((path= strrchr(ci->index_file_name, FN_LIBCHAR)))
         *path= '\0';
-      fn_format(filename, name, ci->index_file_name, MI_NAME_IEXT,
+      fn_format(kfilename, name, ci->index_file_name, MI_NAME_IEXT,
                 MY_REPLACE_DIR | MY_UNPACK_FILENAME |
                 MY_RETURN_REAL_PATH | MY_APPEND_EXT);
     }
     else
     {
-      fn_format(filename, ci->index_file_name, "", MI_NAME_IEXT,
+      fn_format(kfilename, ci->index_file_name, "", MI_NAME_IEXT,
                 MY_UNPACK_FILENAME | MY_RETURN_REAL_PATH |
                 (have_iext ? MY_REPLACE_EXT : MY_APPEND_EXT));
     }
-    fn_format(linkname, name, "", MI_NAME_IEXT,
+    fn_format(klinkname, name, "", MI_NAME_IEXT,
               MY_UNPACK_FILENAME|MY_APPEND_EXT);
-    linkname_ptr=linkname;
+    klinkname_ptr= klinkname;
     /*
       Don't create the table if the link or file exists to ensure that one
       doesn't accidently destroy another table.
@@ -618,10 +619,10 @@ int mi_create(const char *name,uint keys,MI_KEYDEF *keydefs,
   {
     char *iext= strrchr(name, '.');
     int have_iext= iext && !strcmp(iext, MI_NAME_IEXT);
-    fn_format(filename, name, "", MI_NAME_IEXT,
+    fn_format(kfilename, name, "", MI_NAME_IEXT,
               MY_UNPACK_FILENAME | MY_RETURN_REAL_PATH |
               (have_iext ? MY_REPLACE_EXT : MY_APPEND_EXT));
-    linkname_ptr=0;
+    klinkname_ptr= 0;
     /* Replace the current file */
     create_flag=(flags & HA_CREATE_KEEP_FILES) ? 0 : MY_DELETE_OLD;
   }
@@ -636,7 +637,7 @@ int mi_create(const char *name,uint keys,MI_KEYDEF *keydefs,
     NOTE: The filename is compared against unique_file_name of every
     open table. Hence we need a real path here.
   */
-  if (!internal_table && test_if_reopen(filename))
+  if (!internal_table && test_if_reopen(kfilename))
   {
     my_printf_error(HA_ERR_TABLE_EXIST, "MyISAM table '%s' is in use "
                     "(most likely by a MERGE table). Try FLUSH TABLES.",
@@ -646,7 +647,7 @@ int mi_create(const char *name,uint keys,MI_KEYDEF *keydefs,
   }
 
   if ((file= mysql_file_create_with_symlink(mi_key_file_kfile,
-                                            linkname_ptr, filename, 0,
+                                            klinkname_ptr, kfilename, 0,
                                             create_mode,
                                             MYF(MY_WME | create_flag))) < 0)
     goto err;
@@ -666,31 +667,31 @@ int mi_create(const char *name,uint keys,MI_KEYDEF *keydefs,
           /* chop off the table name, tempory tables use generated name */
           if ((path= strrchr(ci->data_file_name, FN_LIBCHAR)))
             *path= '\0';
-          fn_format(filename, name, ci->data_file_name, MI_NAME_DEXT,
+          fn_format(dfilename, name, ci->data_file_name, MI_NAME_DEXT,
                     MY_REPLACE_DIR | MY_UNPACK_FILENAME | MY_APPEND_EXT);
         }
         else
         {
-          fn_format(filename, ci->data_file_name, "", MI_NAME_DEXT,
+          fn_format(dfilename, ci->data_file_name, "", MI_NAME_DEXT,
                     MY_UNPACK_FILENAME |
                     (have_dext ? MY_REPLACE_EXT : MY_APPEND_EXT));
         }
 
-	fn_format(linkname, name, "",MI_NAME_DEXT,
+	fn_format(dlinkname, name, "",MI_NAME_DEXT,
 	          MY_UNPACK_FILENAME | MY_APPEND_EXT);
-	linkname_ptr=linkname;
+	dlinkname_ptr= dlinkname;
 	create_flag=0;
       }
       else
       {
-	fn_format(filename,name,"", MI_NAME_DEXT,
+	fn_format(dfilename,name,"", MI_NAME_DEXT,
 	          MY_UNPACK_FILENAME | MY_APPEND_EXT);
-	linkname_ptr=0;
+	dlinkname_ptr= 0;
         create_flag=(flags & HA_CREATE_KEEP_FILES) ? 0 : MY_DELETE_OLD;
       }
       if ((dfile=
            mysql_file_create_with_symlink(mi_key_file_dfile,
-                                          linkname_ptr, filename, 0,
+                                          dlinkname_ptr, dfilename, 0,
                                           create_mode,
                                           MYF(MY_WME | create_flag))) < 0)
 	goto err;
@@ -843,19 +844,21 @@ err_no_lock:
     (void) mysql_file_close(dfile, MYF(0));
     /* fall through */
   case 2:
-  if (! (flags & HA_DONT_TOUCH_DATA))
-    mysql_file_delete_with_symlink(mi_key_file_dfile,
-                                   fn_format(filename, name, "", MI_NAME_DEXT,
-                                             MY_UNPACK_FILENAME | MY_APPEND_EXT),
-                                   MYF(0));
+    if (! (flags & HA_DONT_TOUCH_DATA))
+    {
+      mysql_file_delete(mi_key_file_dfile, dfilename, MYF(0));
+      if (dlinkname_ptr)
+        mysql_file_delete(mi_key_file_dfile, dlinkname_ptr, MYF(0));
+    }
     /* fall through */
   case 1:
     (void) mysql_file_close(file, MYF(0));
     if (! (flags & HA_DONT_TOUCH_DATA))
-      mysql_file_delete_with_symlink(mi_key_file_kfile,
-                                     fn_format(filename, name, "", MI_NAME_IEXT,
-                                               MY_UNPACK_FILENAME | MY_APPEND_EXT),
-                                     MYF(0));
+    {
+      mysql_file_delete(mi_key_file_kfile, kfilename, MYF(0));
+      if (klinkname_ptr)
+        mysql_file_delete(mi_key_file_kfile, klinkname_ptr, MYF(0));
+    }
   }
   my_free(rec_per_key_part);
   DBUG_RETURN(my_errno=save_errno);		/* return the fatal errno */

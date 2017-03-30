@@ -1,0 +1,42 @@
+call mtr.add_suppression("File.*t1.* not found");
+create table mysql.t1 (a int, b char(16), index(a));
+insert mysql.t1 values (100, 'test'),(101,'test');
+create table t1 (a int, b char(16), index(a))
+data directory="MYSQLTEST_VARDIR/tmp/foo";
+insert t1 values (200, 'some'),(201,'some');
+select * from t1;
+a	b
+200	some
+201	some
+flush tables;
+set debug_sync='mi_open_datafile SIGNAL ok WAIT_FOR go';
+select * from t1;
+connect con1, localhost, root;
+set debug_sync='now WAIT_FOR ok';
+set debug_sync='now SIGNAL go';
+connection default;
+ERROR HY000: File 'MYSQLTEST_VARDIR/tmp/foo/t1.MYD' not found (Errcode: 20 <errmsg>)
+flush tables;
+drop table if exists t1;
+create table t1 (a int, b char(16), index (a))
+index directory="MYSQLTEST_VARDIR/tmp/foo";
+insert t1 values (200, 'some'),(201,'some');
+explain select a from t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index	NULL	a	5	NULL	2	Using index
+select a from t1;
+a
+200
+201
+flush tables;
+set debug_sync='mi_open_kfile SIGNAL waiting WAIT_FOR run';
+select a from t1;
+connection con1;
+set debug_sync='now WAIT_FOR waiting';
+set debug_sync='now SIGNAL run';
+connection default;
+ERROR HY000: Can't find file: './test/t1.MYI' (errno: 20 <errmsg>)
+flush tables;
+drop table if exists t1;
+drop table mysql.t1;
+set debug_sync='RESET';

@@ -9,29 +9,15 @@
 #
 # MDEV-9559: Server without encryption configs crashes if selecting from an implicitly encrypted table
 #
-call mtr.add_suppression("InnoDB: Block in space_id .* in file test/.* encrypted");
-call mtr.add_suppression("InnoDB: However key management plugin or used key_id 1 is not found or used encryption algorithm or method does not match.");
-call mtr.add_suppression("InnoDB: Marking tablespace as missing. You may drop this table or install correct key management plugin and key file.");
-call mtr.add_suppression(".*InnoDB: Cannot open table test/.* from the internal data dictionary of InnoDB though the .frm file for the table exists. See .* for how you can resolve the problem.");
-call mtr.add_suppression("InnoDB: .ibd file is missing for table test/.*");
-# Suppression for builds where file_key_management plugin is linked statically
-call mtr.add_suppression("Couldn't load plugins from 'file_key_management*");
-call mtr.add_suppression("InnoDB: Tablespace id.* is encrypted but encryption service or used key_id .* is not available. Can't continue opening tablespace.");
+call mtr.add_suppression("InnoDB: The page .* in file test/t[15] cannot be decrypted");
+call mtr.add_suppression("Couldn't load plugins from 'file_key_management");
 
---exec echo "wait" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
---shutdown_server
---source include/wait_until_disconnected.inc
-
---error 0,1,2
---remove_file $MYSQLTEST_VARDIR/encryption-disable-keys1.txt
---write_file $MYSQLTEST_VARDIR/encryption-disable-keys1.txt
+--write_file $MYSQLTEST_VARDIR/keys1.txt
 1;770A8A65DA156D24EE2A093277530142
-4;770A8A65DA156D24EE2A093277530143
 EOF
 
---exec echo "restart:--innodb-encrypt-tables --plugin-load-add=file_key_management.so --file-key-management --file-key-management-filename=$MYSQLTEST_VARDIR/encryption-disable-keys1.txt" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
---enable_reconnect
---source include/wait_until_connected_again.inc
+--let $restart_parameters= --innodb-encrypt-tables --plugin-load-add=file_key_management.so --file-key-management --file-key-management-filename=$MYSQLTEST_VARDIR/keys1.txt
+--source include/restart_mysqld.inc
 
 create table t5 (
      `intcol1` int(32) DEFAULT NULL,
@@ -61,28 +47,18 @@ alter table t1 encrypted='yes' `encryption_key_id`=1;
 select * from t1;
 select * from t5;
 
---exec echo "wait" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
---shutdown_server
---source include/wait_until_disconnected.inc
+--let $restart_parameters= --innodb-encrypt-tables=OFF
+--source include/restart_mysqld.inc
 
---exec echo "restart:--innodb-encrypt-tables=OFF" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
---enable_reconnect
---source include/wait_until_connected_again.inc
-
---error 1296
+--error ER_GET_ERRMSG
 select * from t1;
---error 1296
+--error ER_GET_ERRMSG
 select * from t5;
 
---exec echo "wait" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
---shutdown_server
---source include/wait_until_disconnected.inc
-
---exec echo "restart:--innodb-encrypt-tables --plugin-load-add=file_key_management.so --file-key-management --file-key-management-filename=$MYSQLTEST_VARDIR/encryption-disable-keys1.txt" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
---enable_reconnect
---source include/wait_until_connected_again.inc
+--let $restart_parameters= --innodb-encrypt-tables --plugin-load-add=file_key_management.so --file-key-management --file-key-management-filename=$MYSQLTEST_VARDIR/keys1.txt
+--source include/restart_mysqld.inc
 
 drop table t1;
 drop table t5;
 
---remove_file $MYSQLTEST_VARDIR/encryption-disable-keys1.txt
+--remove_file $MYSQLTEST_VARDIR/keys1.txt

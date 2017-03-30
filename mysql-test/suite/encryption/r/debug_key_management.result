@@ -6,16 +6,12 @@ innodb_encrypt_tables	ON
 innodb_encryption_rotate_key_age	2
 innodb_encryption_rotation_iops	100
 innodb_encryption_threads	4
-select space,name,current_key_version from information_schema.innodb_tablespaces_encryption order by space;
-space	name	current_key_version
-0	NULL	1
-1	mysql/innodb_table_stats	1
-2	mysql/innodb_index_stats	1
+select count(*) from information_schema.innodb_tablespaces_encryption where current_key_version <> 1;
+count(*)
+0
 set global debug_key_management_version=10;
-select space,name,current_key_version from information_schema.innodb_tablespaces_encryption order by space;
-space	name	current_key_version
-0	NULL	10
-1	mysql/innodb_table_stats	10
-2	mysql/innodb_index_stats	10
+select count(*) from information_schema.innodb_tablespaces_encryption where current_key_version <> 10;
+count(*)
+0
 set global innodb_encrypt_tables=OFF;
 set global debug_key_management_version=1;

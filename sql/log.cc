@@ -2793,15 +2793,15 @@ int MYSQL_LOG::generate_new_name(char *new_name, const char *log_name,
 void MYSQL_QUERY_LOG::reopen_file()
 {
   char *save_name;
-
   DBUG_ENTER("MYSQL_LOG::reopen_file");
+
+  mysql_mutex_lock(&LOCK_log);
   if (!is_open())
   {
     DBUG_PRINT("info",("log is closed"));
+    mysql_mutex_unlock(&LOCK_log);
     DBUG_VOID_RETURN;
   }
-
-  mysql_mutex_lock(&LOCK_log);
 
   save_name= name;
   name= 0;				// Don't free name
@@ -2960,13 +2960,6 @@ bool MYSQL_QUERY_LOG::write(THD *thd, time_t current_time,
   DBUG_ENTER("MYSQL_QUERY_LOG::write");
 
   mysql_mutex_lock(&LOCK_log);
-
-  if (!is_open())
-  {
-    mysql_mutex_unlock(&LOCK_log);
-    DBUG_RETURN(0);
-  }
-
   if (is_open())
   {						// Safety agains reopen
     int tmp_errno= 0;
@@ -3216,7 +3209,9 @@ void MYSQL_BIN_LOG::cleanup()
       stop_background_thread();
 
     inited= 0;
+    mysql_mutex_lock(&LOCK_log);
     close(LOG_CLOSE_INDEX|LOG_CLOSE_STOP_EVENT);
+    mysql_mutex_unlock(&LOCK_log);
     delete description_event_for_queue;
     delete description_event_for_exec;
 
@@ -3382,6 +3377,8 @@ bool MYSQL_BIN_LOG::open(const char *log_name,
   xid_count_per_binlog *new_xid_list_entry= NULL, *b;
   DBUG_ENTER("MYSQL_BIN_LOG::open");
   DBUG_PRINT("enter",("log_type: %d",(int) log_type_arg));
+
+  mysql_mutex_assert_owner(&LOCK_log);
 
   if (!is_relay_log)
   {
@@ -4342,7 +4339,7 @@ void MYSQL_BIN_LOG::wait_for_last_checkpoint_event()
 
 int MYSQL_BIN_LOG::purge_first_log(Relay_log_info* rli, bool included)
 {
-  int error;
+  int error, errcode;
   char *to_purge_if_included= NULL;
   inuse_relaylog *ir;
   ulonglong log_space_reclaimed= 0;
@@ -4412,7 +4409,8 @@ int MYSQL_BIN_LOG::purge_first_log(Relay_log_info* rli, bool included)
   }
 
   /* Store where we are in the new file for the execution thread */
-  rli->flush();
+  if (rli->flush())
+    error= LOG_INFO_IO;
 
   DBUG_EXECUTE_IF("crash_before_purge_logs", DBUG_SUICIDE(););
 
@@ -4428,10 +4426,10 @@ int MYSQL_BIN_LOG::purge_first_log(Relay_log_info* rli, bool included)
    * Need to update the log pos because purge logs has been called 
    * after fetching initially the log pos at the beginning of the method.
    */
-  if((error=find_log_pos(&rli->linfo, rli->event_relay_log_name, 0)))
+  if ((errcode= find_log_pos(&rli->linfo, rli->event_relay_log_name, 0)))
   {
     sql_print_error("next log error: %d  offset: %llu  log: %s included: %d",
-                    error, rli->linfo.index_file_offset,
+                    errcode, rli->linfo.index_file_offset,
                     rli->group_relay_log_name, included);
     goto err;
   }
@@ -5055,18 +5053,18 @@ int MYSQL_BIN_LOG::new_file_impl(bool need_lock)
   File UNINIT_VAR(old_file);
   DBUG_ENTER("MYSQL_BIN_LOG::new_file_impl");
 
+  if (need_lock)
+    mysql_mutex_lock(&LOCK_log);
+  mysql_mutex_assert_owner(&LOCK_log);
+
   if (!is_open())
   {
     DBUG_PRINT("info",("log is closed"));
+    mysql_mutex_unlock(&LOCK_log);
     DBUG_RETURN(error);
   }
 
-  if (need_lock)
-    mysql_mutex_lock(&LOCK_log);
   mysql_mutex_lock(&LOCK_index);
-
-  mysql_mutex_assert_owner(&LOCK_log);
-  mysql_mutex_assert_owner(&LOCK_index);
 
   /* Reuse old name if not binlog and not update log */
   new_name_ptr= name;
@@ -5202,9 +5200,9 @@ end:
                      new_name_ptr, errno);
   }
 
+  mysql_mutex_unlock(&LOCK_index);
   if (need_lock)
     mysql_mutex_unlock(&LOCK_log);
-  mysql_mutex_unlock(&LOCK_index);
 
   DBUG_RETURN(error);
 }
@@ -8145,9 +8143,11 @@ int MYSQL_BIN_LOG::wait_for_update_binlog_end_pos(THD* thd,
 void MYSQL_BIN_LOG::close(uint exiting)
 {					// One can't set log_type here!
   bool failed_to_save_state= false;
-
   DBUG_ENTER("MYSQL_BIN_LOG::close");
   DBUG_PRINT("enter",("exiting: %d", (int) exiting));
+
+  mysql_mutex_assert_owner(&LOCK_log);
+
   if (log_state == LOG_OPENED)
   {
 #ifdef HAVE_REPLICATION

@@ -1,7 +1,7 @@
 /************** PlgDBSem H Declares Source Code File (.H) **************/
 /*  Name: PLGDBSEM.H  Version 3.7                                      */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          1998-2016    */
+/*  (C) Copyright to the author Olivier BERTRAND          1998-2017    */
 /*                                                                     */
 /*  This file contains the CONNECT storage engine definitions.         */
 /***********************************************************************/
@@ -57,7 +57,7 @@ enum TABTYPE {TAB_UNDEF =  0,   /* Table of undefined type             */
               TAB_FIX   =  2,   /* Fixed column offset, fixed LRECL    */
               TAB_BIN   =  3,   /* Like FIX but can have binary fields */
               TAB_CSV   =  4,   /* DOS files with CSV records          */
-              TAB_FMT   =  5,   /* DOS files with formatted recordss   */
+              TAB_FMT   =  5,   /* DOS files with formatted records    */
               TAB_DBF   =  6,   /* DBF Dbase or Foxpro files           */
               TAB_XML   =  7,   /* XML or HTML files                   */
               TAB_INI   =  8,   /* INI or CFG files                    */
@@ -212,11 +212,24 @@ enum OPVAL {OP_EQ      =   1,         /* Filtering operator =          */
             OP_SUB     =  17,         /* Expression Substract operator */
             OP_MULT    =  18,         /* Expression Multiply operator  */
             OP_DIV     =  19,         /* Expression Divide operator    */
-            OP_NOP     =  21,         /* Scalar function is nopped     */
             OP_NUM     =  22,         /* Scalar function Op Num        */
-            OP_ABS     =  23,         /* Scalar function Op Abs        */
             OP_MAX     =  24,         /* Scalar function Op Max        */
             OP_MIN     =  25,         /* Scalar function Op Min        */
+						OP_EXP     =  36,         /* Scalar function Op Exp        */
+						OP_FDISK   =  94,         /* Operator Disk of fileid       */
+						OP_FPATH   =  95,         /* Operator Path of fileid       */
+						OP_FNAME   =  96,         /* Operator Name of fileid       */
+						OP_FTYPE   =  97,         /* Operator Type of fileid       */
+						OP_LAST    =  82,         /* Index operator Find Last      */
+						OP_FIRST   = 106,         /* Index operator Find First     */
+            OP_NEXT    = 107,         /* Index operator Find Next      */
+            OP_SAME    = 108,         /* Index operator Find Next Same */
+						OP_FSTDIF  = 109,         /* Index operator Find First dif */
+						OP_NXTDIF  = 110,         /* Index operator Find Next dif  */
+						OP_PREV    = 116};        /* Index operator Find Previous  */
+#if 0
+            OP_NOP     =  21,         /* Scalar function is nopped     */
+            OP_ABS     =  23,         /* Scalar function Op Abs        */
             OP_CEIL    =  26,         /* Scalar function Op Ceil       */
             OP_FLOOR   =  27,         /* Scalar function Op Floor      */
             OP_MOD     =  28,         /* Scalar function Op Mod        */
@@ -312,6 +325,7 @@ enum OPVAL {OP_EQ      =   1,         /* Filtering operator =          */
             OP_REMOVE  = 201,         /* Scalar function Op Remove     */
             OP_RENAME  = 202,         /* Scalar function Op Rename     */
             OP_FCOMP   = 203};        /* Scalar function Op Compare    */
+#endif // 0
 
 enum TUSE {USE_NO      =   0,         /* Table is not yet linearized   */
            USE_LIN     =   1,         /* Table is linearized           */
@@ -356,6 +370,7 @@ typedef class XOBJECT    *PXOB;
 typedef class COLBLK     *PCOL;
 typedef class TDB        *PTDB;
 typedef class TDBASE     *PTDBASE;
+typedef class TDBEXT     *PTDBEXT;
 typedef class TDBDOS     *PTDBDOS;
 typedef class TDBFIX     *PTDBFIX;
 typedef class TDBFMT     *PTDBFMT;
@@ -374,6 +389,7 @@ typedef class KXYCOL     *PXCOL;
 typedef class CATALOG    *PCATLG;
 typedef class RELDEF     *PRELDEF;
 typedef class TABDEF     *PTABDEF;
+typedef class EXTDEF     *PEXTBDEF;
 typedef class DOSDEF     *PDOSDEF;
 typedef class CSVDEF     *PCSVDEF;
 typedef class VCTDEF     *PVCTDEF;
@@ -619,4 +635,4 @@ int global_open(GLOBAL *g, int msgid, const char *filename, int flags, int mode)
 DllExport LPCSTR PlugSetPath(LPSTR to, LPCSTR name, LPCSTR dir);
 char *MakeEscape(PGLOBAL g, char* str, char q);
 
-DllExport bool PushWarning(PGLOBAL, PTDBASE, int level = 1);
+DllExport bool PushWarning(PGLOBAL, PTDB, int level = 1);

@@ -2,7 +2,7 @@
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2009, Percona Inc.
-Copyright (c) 2013, 2017, MariaDB Corporation. All Rights Reserved.
+Copyright (c) 2012, 2017, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted
 by Percona Inc.. Those modifications are
@@ -678,22 +678,22 @@ static ulint		os_aio_n_segments = ULINT_UNDEFINED;
 
 /** If the following is true, read i/o handler threads try to
 wait until a batch of new read requests have been posted */
-static bool		os_aio_recommend_sleep_for_read_threads = false;
+static bool		os_aio_recommend_sleep_for_read_threads;
 
-ulint	os_n_file_reads		= 0;
-static ulint	os_bytes_read_since_printout = 0;
-ulint	os_n_file_writes	= 0;
-ulint	os_n_fsyncs		= 0;
-static ulint	os_n_file_reads_old	= 0;
-static ulint	os_n_file_writes_old	= 0;
-static ulint	os_n_fsyncs_old		= 0;
+ulint	os_n_file_reads;
+static ulint	os_bytes_read_since_printout;
+ulint	os_n_file_writes;
+ulint	os_n_fsyncs;
+static ulint	os_n_file_reads_old;
+static ulint	os_n_file_writes_old;
+static ulint	os_n_fsyncs_old;
 /** Number of pending write operations */
-ulint	os_n_pending_writes = 0;
+ulint	os_n_pending_writes;
 /** Number of pending read operations */
-ulint	os_n_pending_reads = 0;
+ulint	os_n_pending_reads;
 
 static time_t	os_last_printout;
-bool	os_has_said_disk_full	= false;
+bool	os_has_said_disk_full;
 
 /** Default Zip compression level */
 extern uint page_zip_level;
@@ -6085,9 +6085,7 @@ void
 os_aio_wake_all_threads_at_shutdown()
 {
 #ifdef WIN_ASYNC_IO
-
 	AIO::wake_at_shutdown();
-
 #elif defined(LINUX_NATIVE_AIO)
 	/* When using native AIO interface the io helper threads
 	wait on io_getevents with a timeout value of 500ms. At

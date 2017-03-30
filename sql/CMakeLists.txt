@@ -81,7 +81,7 @@ SET (SQL_SOURCE
               ../sql-common/client.c compat56.cc derror.cc des_key_file.cc
                discover.cc ../sql-common/errmsg.c field.cc field_conv.cc
                filesort_utils.cc
-               filesort.cc gstream.cc sha2.cc
+               filesort.cc gstream.cc
                signal_handler.cc
                handler.cc hash_filo.h
                hostname.cc init.cc item.cc item_buff.cc item_cmpfunc.cc 

@@ -703,7 +703,7 @@ buf_load()
 		if tablespace is encrypted we cant use it. */
 		if (space == NULL ||
 		   (space && space->crypt_data &&
-		    space->crypt_data->encryption != FIL_SPACE_ENCRYPTION_OFF &&
+		    space->crypt_data->encryption != FIL_ENCRYPTION_OFF &&
 		    space->crypt_data->type != CRYPT_SCHEME_UNENCRYPTED)) {
 			continue;
 		}

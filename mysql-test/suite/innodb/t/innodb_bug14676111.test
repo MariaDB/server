@@ -82,7 +82,7 @@ select CLUST_INDEX_SIZE from information_schema.INNODB_SYS_TABLESTATS where NAME
 #
 
 #disable the artificial limitation of records in a page
-set global innodb_limit_optimistic_insert_debug = 0;
+set global innodb_limit_optimistic_insert_debug = 10000;
 --connection con2
 rollback;
 --disconnect con2
@@ -117,7 +117,6 @@ insert into t1 values (2);
 #current tree form
 #      (1)
 #    (1, 2, 3) <- lift up this level next, because the father is root
-
 rollback;
 #current tree form
 #      (1, 3)

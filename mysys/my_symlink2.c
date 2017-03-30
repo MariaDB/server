@@ -17,7 +17,7 @@
 /*
   Advanced symlink handling.
   This is used in MyISAM to let users symlinks tables to different disk.
-  The main idea with these functions is to automaticly create, delete and
+  The main idea with these functions is to automatically create, delete and
   rename files and symlinks like they would be one unit.
 */
 
@@ -92,27 +92,6 @@ File my_create_with_symlink(const char *linkname, const char *filename,
 }
 
 /*
-  If the file was a symlink, delete both symlink and the file which the
-  symlink pointed to.
-*/
-
-int my_delete_with_symlink(const char *name, myf MyFlags)
-{
-  char link_name[FN_REFLEN];
-  int was_symlink= (!my_disable_symlinks &&
-		    !my_readlink(link_name, name, MYF(0)));
-  int result;
-  DBUG_ENTER("my_delete_with_symlink");
-
-  if (!(result=my_delete(name, MyFlags)))
-  {
-    if (was_symlink)
-      result=my_delete(link_name, MyFlags);
-  }
-  DBUG_RETURN(result);
-}
-
-/*
   If the file is a normal file, just rename it.
   If the file is a symlink:
    - Create a new file with the name 'to' that points at
@@ -181,4 +160,30 @@ int my_rename_with_symlink(const char *from, const char *to, myf MyFlags)
   }
   DBUG_RETURN(result);
 #endif /* HAVE_READLINK */
+}
+
+/** delete a - possibly symlinked - table file
+
+  This is used to delete a file that is part of a table (e.g. MYI or MYD
+  file of MyISAM) when dropping a table. A file might be a symlink -
+  if the table was created with DATA DIRECTORY or INDEX DIRECTORY -
+  in this case both the symlink and the symlinked file are deleted,
+  but only if the symlinked file is not in the datadir.
+*/
+int my_handler_delete_with_symlink(const char *filename, myf sync_dir)
+{
+  char real[FN_REFLEN];
+  int res= 0;
+  DBUG_ENTER("my_handler_delete_with_symlink");
+
+  if (my_is_symlink(filename))
+  {
+    /*
+      Delete the symlinked file only if the symlink is not
+      pointing into datadir.
+    */
+    if (!(my_realpath(real, filename, MYF(0)) || mysys_test_invalid_symlink(real)))
+      res= my_delete(real, MYF(MY_NOSYMLINKS | sync_dir));
+  }
+  DBUG_RETURN(my_delete(filename, MYF(sync_dir)) || res);
 }

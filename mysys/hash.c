@@ -62,7 +62,7 @@ my_hash_value_type my_hash_sort(CHARSET_INFO *cs, const uchar *key,
 
   @param[in,out] hash         The hash that is initialized
   @param[in[     growth_size  size incrememnt for the underlying dynarray
-  @param[in]     charset      The charater set information
+  @param[in]     charset      The character set information
   @param[in]     size         The hash size
   @param[in]     key_offest   The key offset for the hash
   @param[in]     key_length   The length of the key used in
@@ -115,14 +115,19 @@ my_hash_init2(HASH *hash, uint growth_size, CHARSET_INFO *charset,
 
 static inline void my_hash_free_elements(HASH *hash)
 {
+  uint records= hash->records;
+  /*
+    Set records to 0 early to guard against anyone looking at the structure
+    during the free process
+  */
+  hash->records= 0;
   if (hash->free)
   {
     HASH_LINK *data=dynamic_element(&hash->array,0,HASH_LINK*);
-    HASH_LINK *end= data + hash->records;
+    HASH_LINK *end= data + records;
     while (data < end)
       (*hash->free)((data++)->data);
   }
-  hash->records=0;
 }
 
 
@@ -531,6 +536,9 @@ my_bool my_hash_insert(HASH *info, const uchar *record)
    The record with the same record ptr is removed.
    If there is a free-function it's called if record was found.
 
+   hash->free() is guarantee to be called only after the row has been
+   deleted from the hash and the hash can be reused by other threads.
+
    @return
    @retval  0  ok
    @retval  1 Record not found
@@ -622,7 +630,7 @@ exit:
 
 /**
    Update keys when record has changed.
-   This is much more efficent than using a delete & insert.
+   This is much more efficient than using a delete & insert.
 */
 
 my_bool my_hash_update(HASH *hash, uchar *record, uchar *old_key,

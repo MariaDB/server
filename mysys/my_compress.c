@@ -162,7 +162,7 @@ uchar *my_compress_alloc(const uchar *packet, size_t *len, size_t *complen)
 
    SYNOPSIS
      my_uncompress()
-     packet	Compressed data. This is is replaced with the orignal data.
+     packet	Compressed data. This is is replaced with the original data.
      len	Length of compressed data
      complen	Length of the packet buffer (must be enough for the original
 	        data)

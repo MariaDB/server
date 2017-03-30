@@ -46,10 +46,10 @@ os_event_t			dict_stats_event;
 /** Variable to initiate shutdown the dict stats thread. Note we don't
 use 'srv_shutdown_state' because we want to shutdown dict stats thread
 before purge thread. */
-bool				dict_stats_start_shutdown = false;
+bool				dict_stats_start_shutdown;
 
 /** Event to wait for shutdown of the dict stats thread */
-os_event_t			dict_stats_shutdown_event = NULL;
+os_event_t			dict_stats_shutdown_event;
 
 #ifdef UNIV_DEBUG
 /** Used by SET GLOBAL innodb_dict_stats_disabled_debug = 1; */

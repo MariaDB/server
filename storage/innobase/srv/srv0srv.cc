@@ -954,14 +954,12 @@ srv_release_threads(enum srv_thread_type type, ulint n)
 	ut_ad(n > 0);
 
 	do {
-		srv_sys_mutex_enter();
-
 		running = 0;
 
-		for (ulint i = 0; i < srv_sys->n_sys_threads; i++) {
-			srv_slot_t*	slot;
+		srv_sys_mutex_enter();
 
-			slot = &srv_sys->sys_threads[i];
+		for (ulint i = 0; i < srv_sys->n_sys_threads; i++) {
+			srv_slot_t*	slot = &srv_sys->sys_threads[i];
 
 			if (!slot->in_use || srv_slot_get_type(slot) != type) {
 				continue;
@@ -1692,6 +1690,8 @@ srv_export_innodb_status(void)
 		crypt_stat.estimated_iops;
 	export_vars.innodb_encryption_key_requests =
 		srv_stats.n_key_requests;
+	export_vars.innodb_key_rotation_list_length =
+		srv_stats.key_rotation_list_length;
 
 	export_vars.innodb_scrub_page_reorganizations =
 		scrub_stat.page_reorganizations;

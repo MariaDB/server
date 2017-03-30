@@ -33,9 +33,6 @@
 
 #include <my_global.h>                          // HAVE_*
 
-/* May include caustic 3rd-party defs. Use early, so it can override nothing */
-#include "sha2.h"
-
 #include "sql_priv.h"
 /*
   It is necessary to include set_var.h instead of item.h because there
@@ -51,9 +48,7 @@
 #include "password.h"           // my_make_scrambled_password,
                                 // my_make_scrambled_password_323
 #include <m_ctype.h>
-#include <base64.h>
 #include <my_md5.h>
-#include "sha1.h"
 C_MODE_START
 #include "../mysys/my_static.h"			// For soundex_map
 C_MODE_END
@@ -171,14 +166,14 @@ String *Item_func_sha::val_str_ascii(String *str)
   if (sptr)  /* If we got value different from NULL */
   {
     /* Temporary buffer to store 160bit digest */
-    uint8 digest[SHA1_HASH_SIZE];
-    compute_sha1_hash(digest, (const char *) sptr->ptr(), sptr->length());
+    uint8 digest[MY_SHA1_HASH_SIZE];
+    my_sha1(digest, (const char *) sptr->ptr(), sptr->length());
     /* Ensure that memory is free and we got result */
-    if (!str->alloc(SHA1_HASH_SIZE*2))
+    if (!str->alloc(MY_SHA1_HASH_SIZE*2))
     {
-      array_to_hex((char *) str->ptr(), digest, SHA1_HASH_SIZE);
+      array_to_hex((char *) str->ptr(), digest, MY_SHA1_HASH_SIZE);
       str->set_charset(&my_charset_numeric);
-      str->length((uint)  SHA1_HASH_SIZE*2);
+      str->length((uint)  MY_SHA1_HASH_SIZE*2);
       null_value=0;
       return str;
     }
@@ -190,18 +185,16 @@ String *Item_func_sha::val_str_ascii(String *str)
 void Item_func_sha::fix_length_and_dec()
 {
   // size of hex representation of hash
-  fix_length_and_charset(SHA1_HASH_SIZE * 2, default_charset());
+  fix_length_and_charset(MY_SHA1_HASH_SIZE * 2, default_charset());
 }
 
 String *Item_func_sha2::val_str_ascii(String *str)
 {
   DBUG_ASSERT(fixed == 1);
-#if defined(HAVE_OPENSSL) && !defined(EMBEDDED_LIBRARY)
-  unsigned char digest_buf[SHA512_DIGEST_LENGTH];
+  unsigned char digest_buf[512/8]; // enough for SHA512
   String *input_string;
-  unsigned char *input_ptr;
+  const char *input_ptr;
   size_t input_len;
-  uint digest_length= 0;
 
   str->set_charset(&my_charset_bin);
 
@@ -216,31 +209,26 @@ String *Item_func_sha2::val_str_ascii(String *str)
   if (null_value)
     return (String *) NULL;
 
-  input_ptr= (unsigned char *) input_string->ptr();
+  input_ptr= input_string->ptr();
   input_len= input_string->length();
 
-  switch ((uint) args[1]->val_int()) {
-#ifndef OPENSSL_NO_SHA512
+  longlong digest_length= args[1]->val_int();
+  switch (digest_length) {
   case 512:
-    digest_length= SHA512_DIGEST_LENGTH;
-    (void) SHA512(input_ptr, input_len, digest_buf);
+    my_sha512(digest_buf, input_ptr, input_len);
     break;
   case 384:
-    digest_length= SHA384_DIGEST_LENGTH;
-    (void) SHA384(input_ptr, input_len, digest_buf);
+    my_sha384(digest_buf, input_ptr, input_len);
     break;
-#endif
-#ifndef OPENSSL_NO_SHA256
   case 224:
-    digest_length= SHA224_DIGEST_LENGTH;
-    (void) SHA224(input_ptr, input_len, digest_buf);
+    my_sha224(digest_buf, input_ptr, input_len);
     break;
-  case 256:
   case 0: // SHA-256 is the default
-    digest_length= SHA256_DIGEST_LENGTH;
-    (void) SHA256(input_ptr, input_len, digest_buf);
+    digest_length= 256;
+    /* fall trough */
+  case 256:
+    my_sha256(digest_buf, input_ptr, input_len);
     break;
-#endif
   default:
     if (!args[1]->const_item())
     {
@@ -254,6 +242,7 @@ String *Item_func_sha2::val_str_ascii(String *str)
     null_value= TRUE;
     return NULL;
   }
+  digest_length/= 8; /* bits to bytes */
 
   /* 
     Since we're subverting the usual String methods, we must make sure that
@@ -269,17 +258,6 @@ String *Item_func_sha2::val_str_ascii(String *str)
 
   null_value= FALSE;
   return str;
-
-#else
-  THD *thd= current_thd;
-  push_warning_printf(thd,
-                      Sql_condition::WARN_LEVEL_WARN,
-                      ER_FEATURE_DISABLED,
-                      ER_THD(thd, ER_FEATURE_DISABLED),
-                      "sha2", "--with-ssl");
-  null_value= TRUE;
-  return (String *) NULL;
-#endif /* defined(HAVE_OPENSSL) && !defined(EMBEDDED_LIBRARY) */
 }
 
 
@@ -288,27 +266,18 @@ void Item_func_sha2::fix_length_and_dec()
   maybe_null= 1;
   max_length = 0;
 
-#if defined(HAVE_OPENSSL) && !defined(EMBEDDED_LIBRARY)
   int sha_variant= args[1]->const_item() ? args[1]->val_int() : 512;
 
   switch (sha_variant) {
-#ifndef OPENSSL_NO_SHA512
-  case 512:
-    fix_length_and_charset(SHA512_DIGEST_LENGTH * 2, default_charset());
-    break;
-  case 384:
-    fix_length_and_charset(SHA384_DIGEST_LENGTH * 2, default_charset());
-    break;
-#endif
-#ifndef OPENSSL_NO_SHA256
-  case 256:
   case 0: // SHA-256 is the default
-    fix_length_and_charset(SHA256_DIGEST_LENGTH * 2, default_charset());
-    break;
+    sha_variant= 256;
+    /* fall trough */
+  case 512:
+  case 384:
+  case 256:
   case 224:
-    fix_length_and_charset(SHA224_DIGEST_LENGTH * 2, default_charset());
+    fix_length_and_charset(sha_variant/8 * 2, default_charset());
     break;
-#endif
   default:
     THD *thd= current_thd;
     push_warning_printf(thd,
@@ -317,15 +286,6 @@ void Item_func_sha2::fix_length_and_dec()
                         ER_THD(thd, ER_WRONG_PARAMETERS_TO_NATIVE_FCT),
                         "sha2");
   }
-
-#else
-  THD *thd= current_thd;
-  push_warning_printf(thd,
-                      Sql_condition::WARN_LEVEL_WARN,
-                      ER_FEATURE_DISABLED,
-                      ER_THD(thd, ER_FEATURE_DISABLED),
-                      "sha2", "--with-ssl");
-#endif /* defined(HAVE_OPENSSL) && !defined(EMBEDDED_LIBRARY) */
 }
 
 /* Implementation of AES encryption routines */
@@ -5203,4 +5163,3 @@ null:
     my_free(names);
   return NULL;
 }
-

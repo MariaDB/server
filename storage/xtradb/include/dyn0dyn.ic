@@ -36,7 +36,7 @@ dyn_block_t*
 dyn_array_add_block(
 /*================*/
 	dyn_array_t*	arr)	/*!< in/out: dyn array */
-	MY_ATTRIBUTE((nonnull, warn_unused_result));
+	MY_ATTRIBUTE((warn_unused_result));
 
 /********************************************************************//**
 Gets the number of used bytes in a dyn array block.
@@ -47,8 +47,6 @@ dyn_block_get_used(
 /*===============*/
 	const dyn_block_t*	block)	/*!< in: dyn array block */
 {
-	ut_ad(block);
-
 	return((block->used) & ~DYN_BLOCK_FULL_FLAG);
 }
 
@@ -76,7 +74,6 @@ dyn_array_create(
 	dyn_array_t*	arr)	/*!< in/out: memory buffer of
 				size sizeof(dyn_array_t) */
 {
-	ut_ad(arr);
 #if DYN_ARRAY_DATA_SIZE >= DYN_BLOCK_FULL_FLAG
 # error "DYN_ARRAY_DATA_SIZE >= DYN_BLOCK_FULL_FLAG"
 #endif
@@ -119,7 +116,6 @@ dyn_array_push(
 	dyn_block_t*	block;
 	ulint		used;
 
-	ut_ad(arr);
 	ut_ad(arr->magic_n == DYN_BLOCK_MAGIC_N);
 	ut_ad(size <= DYN_ARRAY_DATA_SIZE);
 	ut_ad(size);
@@ -159,7 +155,6 @@ dyn_array_open(
 {
 	dyn_block_t*	block;
 
-	ut_ad(arr);
 	ut_ad(arr->magic_n == DYN_BLOCK_MAGIC_N);
 	ut_ad(size <= DYN_ARRAY_DATA_SIZE);
 	ut_ad(size);
@@ -195,7 +190,6 @@ dyn_array_close(
 {
 	dyn_block_t*	block;
 
-	ut_ad(arr);
 	ut_ad(arr->magic_n == DYN_BLOCK_MAGIC_N);
 
 	block = dyn_array_get_last_block(arr);
@@ -222,7 +216,6 @@ dyn_array_get_element(
 {
 	const dyn_block_t*	block;
 
-	ut_ad(arr);
 	ut_ad(arr->magic_n == DYN_BLOCK_MAGIC_N);
 
 	/* Get the first array block */
@@ -260,7 +253,6 @@ dyn_array_get_data_size(
 	const dyn_block_t*	block;
 	ulint			sum	= 0;
 
-	ut_ad(arr);
 	ut_ad(arr->magic_n == DYN_BLOCK_MAGIC_N);
 
 	if (arr->heap == NULL) {

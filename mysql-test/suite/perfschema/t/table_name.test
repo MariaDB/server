@@ -31,6 +31,7 @@ INSERT INTO `sql_1` VALUES(1,'one');
 --echo
 --echo # Verify that the tables are treated as normal tables .
 --echo
+--sorted_result
 SELECT object_type, object_schema, object_name
 FROM performance_schema.objects_summary_global_by_type
 WHERE object_schema="test";

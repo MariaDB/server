@@ -1730,7 +1730,7 @@ SPATIAL_REF_SYS	CREATE TEMPORARY TABLE `SPATIAL_REF_SYS` (
 ) ENGINE=MEMORY DEFAULT CHARSET=utf8
 create table t1(g GEOMETRY, pt POINT);
 create table t2(g LINESTRING, pl POLYGON);
-select * from information_schema.geometry_columns;
+select * from information_schema.geometry_columns where f_table_schema='test';
 F_TABLE_CATALOG	F_TABLE_SCHEMA	F_TABLE_NAME	F_GEOMETRY_COLUMN	G_TABLE_CATALOG	G_TABLE_SCHEMA	G_TABLE_NAME	G_GEOMETRY_COLUMN	STORAGE_TYPE	GEOMETRY_TYPE	COORD_DIMENSION	MAX_PPR	SRID
 def	test	t1		def	test	t1	g	1	0	2	0	0
 def	test	t1		def	test	t1	pt	1	1	2	0	0
@@ -1739,7 +1739,7 @@ def	test	t2		def	test	t2	pl	1	3	2	0	0
 drop table t1, t2;
 10.1 tests
 create table t1(g GEOMETRY(9,4) REF_SYSTEM_ID=101, pt POINT(8,2), pg GEOMETRY REF_SYSTEM_ID=102);
-SELECT SRID from information_schema.geometry_columns WHERE G_TABLE_NAME='t1';
+SELECT SRID from information_schema.geometry_columns WHERE f_table_schema='test' and G_TABLE_NAME='t1';
 SRID
 101
 0

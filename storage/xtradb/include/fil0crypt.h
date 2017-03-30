@@ -39,14 +39,6 @@ static const unsigned char CRYPT_MAGIC[MAGIC_SZ] = {
 /* This key will be used if nothing else is given */
 #define FIL_DEFAULT_ENCRYPTION_KEY ENCRYPTION_KEY_SYSTEM_DATA
 
-/** Enum values for encryption table option */
-typedef enum {
-	FIL_SPACE_ENCRYPTION_DEFAULT = 0,	/* Tablespace encrypted if
-						srv_encrypt_tables = ON */
-	FIL_SPACE_ENCRYPTION_ON = 1,		/* Tablespace is encrypted always */
-	FIL_SPACE_ENCRYPTION_OFF = 2		/* Tablespace is not encrypted */
-} fil_encryption_t;
-
 extern os_event_t fil_crypt_threads_event;
 
 /**
@@ -110,23 +102,21 @@ struct fil_space_rotate_state_t
 	} scrubbing;
 };
 
-struct fil_space_crypt_struct : st_encryption_scheme
+struct fil_space_crypt_t : st_encryption_scheme
 {
  public:
 	/** Constructor. Does not initialize the members!
 	The object is expected to be placed in a buffer that
 	has been zero-initialized. */
-	fil_space_crypt_struct(
+	fil_space_crypt_t(
 		ulint new_type,
 		uint new_min_key_version,
 		uint new_key_id,
-		ulint offset,
 		fil_encryption_t new_encryption)
 		: st_encryption_scheme(),
 		min_key_version(new_min_key_version),
-		page0_offset(offset),
+		page0_offset(0),
 		encryption(new_encryption),
-		closing(false),
 		key_found(),
 		rotate_state()
 	{
@@ -138,9 +128,9 @@ struct fil_space_crypt_struct : st_encryption_scheme
 		locker = crypt_data_scheme_locker;
 		type = new_type;
 
-		if (new_encryption == FIL_SPACE_ENCRYPTION_OFF ||
+		if (new_encryption == FIL_ENCRYPTION_OFF ||
 			(!srv_encrypt_tables &&
-			 new_encryption == FIL_SPACE_ENCRYPTION_DEFAULT)) {
+			 new_encryption == FIL_ENCRYPTION_DEFAULT)) {
 			type = CRYPT_SCHEME_UNENCRYPTED;
 		} else {
 			type = CRYPT_SCHEME_1;
@@ -149,9 +139,8 @@ struct fil_space_crypt_struct : st_encryption_scheme
 	}
 
 	/** Destructor */
-	~fil_space_crypt_struct()
+	~fil_space_crypt_t()
 	{
-		closing = true;
 		mutex_free(&mutex);
 	}
 
@@ -169,45 +158,36 @@ struct fil_space_crypt_struct : st_encryption_scheme
 
 	/** Returns true if tablespace should be encrypted */
 	bool should_encrypt() const {
-		return ((encryption == FIL_SPACE_ENCRYPTION_ON) ||
+		return ((encryption == FIL_ENCRYPTION_ON) ||
 			(srv_encrypt_tables &&
-				encryption == FIL_SPACE_ENCRYPTION_DEFAULT));
+				encryption == FIL_ENCRYPTION_DEFAULT));
 	}
 
 	/** Return true if tablespace is encrypted. */
 	bool is_encrypted() const {
-		return (encryption != FIL_SPACE_ENCRYPTION_OFF);
+		return (encryption != FIL_ENCRYPTION_OFF);
 	}
 
 	/** Return true if default tablespace encryption is used, */
 	bool is_default_encryption() const {
-		return (encryption == FIL_SPACE_ENCRYPTION_DEFAULT);
+		return (encryption == FIL_ENCRYPTION_DEFAULT);
 	}
 
 	/** Return true if tablespace is not encrypted. */
 	bool not_encrypted() const {
-		return (encryption == FIL_SPACE_ENCRYPTION_OFF);
+		return (encryption == FIL_ENCRYPTION_OFF);
 	}
 
-	/** Is this tablespace closing. */
-	bool is_closing(bool is_fixed) {
-		bool closed;
-		if (!is_fixed) {
-			mutex_enter(&mutex);
-		}
-		closed = closing;
-		if (!is_fixed) {
-			mutex_exit(&mutex);
-		}
-		return closed;
-	}
+	/** Write crypt data to a page (0)
+	@param[in,out]	page0		Page 0 where to write
+	@param[in,out]	mtr		Minitransaction */
+	void write_page0(byte* page0, mtr_t* mtr);
 
 	uint min_key_version; // min key version for this space
 	ulint page0_offset;   // byte offset on page 0 for crypt data
 	fil_encryption_t encryption; // Encryption setup
 
 	ib_mutex_t mutex;   // mutex protecting following variables
-	bool closing;	    // is tablespace being closed
 
 	/** Return code from encryption_key_get_latest_version.
         If ENCRYPTION_KEY_VERSION_INVALID encryption plugin
@@ -219,222 +199,7 @@ struct fil_space_crypt_struct : st_encryption_scheme
 	fil_space_rotate_state_t rotate_state;
 };
 
-/* structure containing encryption specification */
-typedef struct fil_space_crypt_struct fil_space_crypt_t;
-
-/*********************************************************************
-Init global resources needed for tablespace encryption/decryption */
-UNIV_INTERN
-void
-fil_space_crypt_init();
-
-/*********************************************************************
-Cleanup global resources needed for tablespace encryption/decryption */
-UNIV_INTERN
-void
-fil_space_crypt_cleanup();
-
-/*********************************************************************
-Create crypt data, i.e data that is used for a single tablespace */
-UNIV_INTERN
-fil_space_crypt_t *
-fil_space_create_crypt_data(
-/*========================*/
-	fil_encryption_t	encrypt_mode,	/*!< in: encryption mode */
-	uint			key_id);	/*!< in: encryption key id */
-
-/*********************************************************************
-Destroy crypt data */
-UNIV_INTERN
-void
-fil_space_destroy_crypt_data(
-/*=========================*/
-	fil_space_crypt_t **crypt_data); /*!< in/out: crypt data */
-
-/*********************************************************************
-Get crypt data for a space*/
-UNIV_INTERN
-fil_space_crypt_t *
-fil_space_get_crypt_data(
-/*=====================*/
-	ulint space); /*!< in: tablespace id */
-
-/*********************************************************************
-Set crypt data for a space*/
-UNIV_INTERN
-fil_space_crypt_t*
-fil_space_set_crypt_data(
-/*=====================*/
-	ulint space,                    /*!< in: tablespace id */
-	fil_space_crypt_t* crypt_data); /*!< in: crypt data to set */
-
-/*********************************************************************
-Merge crypt data */
-UNIV_INTERN
-void
-fil_space_merge_crypt_data(
-/*=======================*/
-	fil_space_crypt_t* dst_crypt_data,  /*!< in: crypt_data */
-	const fil_space_crypt_t* src_crypt_data); /*!< in: crypt data */
-
-/*********************************************************************
-Read crypt data from buffer page */
-UNIV_INTERN
-fil_space_crypt_t *
-fil_space_read_crypt_data(
-/*======================*/
-	ulint space,      /*!< in: tablespace id */
-	const byte* page, /*!< in: buffer page */
-	ulint offset);    /*!< in: offset where crypt data is stored */
-
-/*********************************************************************
-Write crypt data to buffer page */
-UNIV_INTERN
-void
-fil_space_write_crypt_data(
-/*=======================*/
-	ulint space,   /*!< in: tablespace id */
-	byte* page,    /*!< in: buffer page */
-	ulint offset,  /*!< in: offset where to store data */
-	ulint maxsize, /*!< in: max space available to store crypt data in */
-	mtr_t * mtr);  /*!< in: mini-transaction */
-
-/*********************************************************************
-Clear crypt data from page 0 (used for import tablespace) */
-UNIV_INTERN
-void
-fil_space_clear_crypt_data(
-/*=======================*/
-	byte* page,    /*!< in: buffer page */
-	ulint offset); /*!< in: offset where crypt data is stored */
-
-/*********************************************************************
-Parse crypt data log record */
-UNIV_INTERN
-byte*
-fil_parse_write_crypt_data(
-/*=======================*/
-	byte* ptr,     /*!< in: start of log record */
-	byte* end_ptr, /*!< in: end of log record */
-	buf_block_t*); /*!< in: buffer page to apply record to */
-
-/*********************************************************************
-Check if extra buffer shall be allocated for decrypting after read */
-UNIV_INTERN
-bool
-fil_space_check_encryption_read(
-/*============================*/
-	ulint space);          /*!< in: tablespace id */
-
-/******************************************************************
-Decrypt a page
-@return true if page is decrypted, false if not. */
-UNIV_INTERN
-bool
-fil_space_decrypt(
-/*==============*/
-	fil_space_crypt_t*	crypt_data,	/*!< in: crypt data */
-	byte*			tmp_frame,	/*!< in: temporary buffer */
-	ulint			page_size,	/*!< in: page size */
-	byte*			src_frame,	/*!< in:out: page buffer */
-	dberr_t*		err);		/*!< in: out: DB_SUCCESS or
-						error code */
-
-/*********************************************************************
-Encrypt buffer page
-@return encrypted page, or original not encrypted page if encrypt
-is not needed. */
-UNIV_INTERN
-byte*
-fil_space_encrypt(
-/*==============*/
-	ulint	space,		/*!< in: tablespace id */
-	ulint	offset,		/*!< in: page no */
-	lsn_t	lsn,		/*!< in: page lsn */
-	byte*	src_frame,	/*!< in: page frame */
-	ulint	size,		/*!< in: size of data to encrypt */
-	byte*	dst_frame);	/*!< in: where to encrypt to */
-
-/*********************************************************************
-Decrypt buffer page
-@return decrypted page, or original not encrypted page if decrypt is
-not needed.*/
-UNIV_INTERN
-byte*
-fil_space_decrypt(
-/*==============*/
-	ulint	space,		/*!< in: tablespace id */
-	byte*	src_frame,	/*!< in: page frame */
-	ulint	page_size,	/*!< in: size of data to encrypt */
-	byte*	dst_frame)	/*!< in: where to decrypt to */
-	__attribute__((warn_unused_result));
-
-/*********************************************************************
-fil_space_verify_crypt_checksum
-NOTE: currently this function can only be run in single threaded mode
-as it modifies srv_checksum_algorithm (temporarily)
-@return true if page is encrypted AND OK, false otherwise */
-UNIV_INTERN
-bool
-fil_space_verify_crypt_checksum(
-/*============================*/
-	const byte* src_frame,/*!< in: page frame */
-	ulint zip_size);      /*!< in: size of data to encrypt */
-
-/*********************************************************************
-Init threads for key rotation */
-UNIV_INTERN
-void
-fil_crypt_threads_init();
-
-/*********************************************************************
-Set thread count (e.g start or stops threads) used for key rotation */
-UNIV_INTERN
-void
-fil_crypt_set_thread_cnt(
-/*=====================*/
-	uint new_cnt); /*!< in: requested #threads */
-
-/*********************************************************************
-Cleanup resources for threads for key rotation */
-UNIV_INTERN
-void
-fil_crypt_threads_cleanup();
-
-/*********************************************************************
-Set rotate key age */
-UNIV_INTERN
-void
-fil_crypt_set_rotate_key_age(
-/*=========================*/
-	uint rotate_age); /*!< in: requested rotate age */
-
-/*********************************************************************
-Set rotation threads iops */
-UNIV_INTERN
-void
-fil_crypt_set_rotation_iops(
-/*========================*/
-	uint iops); /*!< in: requested iops */
-
-/*********************************************************************
-Mark a space as closing */
-UNIV_INTERN
-void
-fil_space_crypt_mark_space_closing(
-/*===============================*/
-	ulint			space,		/*!< in: tablespace id */
-	fil_space_crypt_t*	crypt_data);	/*!< in: crypt_data or NULL */
-
-/*********************************************************************
-Wait for crypt threads to stop accessing space */
-UNIV_INTERN
-void
-fil_space_crypt_close_tablespace(
-/*=============================*/
-	ulint space);          /*!< in: tablespace id */
-
-/** Struct for retreiving info about encryption */
+/** Status info about encryption */
 struct fil_space_crypt_status_t {
 	ulint space;             /*!< tablespace id */
 	ulint scheme;            /*!< encryption scheme */
@@ -448,17 +213,7 @@ struct fil_space_crypt_status_t {
 	ulint rotate_max_page_number;  /*!< max page if key rotating */
 };
 
-/*********************************************************************
-Get crypt status for a space
-@return 0 if crypt data found */
-UNIV_INTERN
-int
-fil_space_crypt_get_status(
-/*=======================*/
-	ulint id,	                           /*!< in: space id */
-	struct fil_space_crypt_status_t * status); /*!< out: status  */
-
-/** Struct for retreiving statistics about encryption key rotation */
+/** Statistics about encryption key rotation */
 struct fil_crypt_stat_t {
 	ulint pages_read_from_cache;
 	ulint pages_read_from_disk;
@@ -467,15 +222,7 @@ struct fil_crypt_stat_t {
 	ulint estimated_iops;
 };
 
-/*********************************************************************
-Get crypt rotation statistics */
-UNIV_INTERN
-void
-fil_crypt_total_stat(
-/*==================*/
-	fil_crypt_stat_t* stat); /*!< out: crypt stat */
-
-/** Struct for retreiving info about scrubbing */
+/** Status info about scrubbing */
 struct fil_space_scrub_status_t {
 	ulint space;             /*!< tablespace id */
 	bool compressed;        /*!< is space compressed  */
@@ -488,48 +235,271 @@ struct fil_space_scrub_status_t {
 };
 
 /*********************************************************************
-Get scrub status for a space
-@return 0 if no scrub info found */
-UNIV_INTERN
-int
-fil_space_get_scrub_status(
-/*=======================*/
-	ulint id,	                           /*!< in: space id */
-	struct fil_space_scrub_status_t * status); /*!< out: status  */
-
-/*********************************************************************
-Adjust encrypt tables */
+Init space crypt */
 UNIV_INTERN
 void
-fil_crypt_set_encrypt_tables(
-/*=========================*/
-	uint val);      /*!< in: New srv_encrypt_tables setting */
+fil_space_crypt_init();
+
+/*********************************************************************
+Cleanup space crypt */
+UNIV_INTERN
+void
+fil_space_crypt_cleanup();
 
 /******************************************************************
-Encrypt a buffer */
+Create a fil_space_crypt_t object
+@param[in]	encrypt_mode	FIL_ENCRYPTION_DEFAULT or
+				FIL_ENCRYPTION_ON or
+				FIL_ENCRYPTION_OFF
+
+@param[in]	key_id		Encryption key id
+@return crypt object */
+UNIV_INTERN
+fil_space_crypt_t*
+fil_space_create_crypt_data(
+	fil_encryption_t	encrypt_mode,
+	uint			key_id)
+	MY_ATTRIBUTE((warn_unused_result));
+
+/******************************************************************
+Merge fil_space_crypt_t object
+@param[in,out]	dst		Destination cryp data
+@param[in]	src		Source crypt data */
+UNIV_INTERN
+void
+fil_space_merge_crypt_data(
+	fil_space_crypt_t* dst,
+	const fil_space_crypt_t* src);
+
+/******************************************************************
+Read crypt data from a page (0)
+@param[in]	space		space_id
+@param[in]	page		Page 0
+@param[in]	offset		Offset to crypt data
+@return crypt data from page 0 or NULL. */
+UNIV_INTERN
+fil_space_crypt_t*
+fil_space_read_crypt_data(
+	ulint		space,
+	const byte*	page,
+	ulint		offset)
+	MY_ATTRIBUTE((warn_unused_result));
+
+/******************************************************************
+Free a crypt data object
+@param[in,out] crypt_data	crypt data to be freed */
+UNIV_INTERN
+void
+fil_space_destroy_crypt_data(
+	fil_space_crypt_t **crypt_data);
+
+/******************************************************************
+Parse a MLOG_FILE_WRITE_CRYPT_DATA log entry
+@param[in]	ptr		Log entry start
+@param[in]	end_ptr		Log entry end
+@param[in]	block		buffer block
+@return position on log buffer */
+UNIV_INTERN
+const byte*
+fil_parse_write_crypt_data(
+	const byte*		ptr,
+	const byte*		end_ptr,
+	const buf_block_t*	block)
+	MY_ATTRIBUTE((warn_unused_result));
+
+/******************************************************************
+Encrypt a buffer
+@param[in,out]		crypt_data	Crypt data
+@param[in]		space		space_id
+@param[in]		offset		Page offset
+@param[in]		lsn		Log sequence number
+@param[in]		src_frame	Page to encrypt
+@param[in]		zip_size	Compressed size or 0
+@param[in,out]		dst_frame	Output buffer
+@return encrypted buffer or NULL */
 UNIV_INTERN
 byte*
 fil_encrypt_buf(
-/*============*/
-	fil_space_crypt_t* crypt_data,	/*!< in: crypt data */
-	ulint		space,		/*!< in: Space id */
-	ulint		offset,		/*!< in: Page offset */
-	lsn_t		lsn,		/*!< in: lsn */
-	byte*		src_frame,	/*!< in: Source page to be encrypted */
-	ulint		zip_size,	/*!< in: compressed size if
-					row_format compressed */
-	byte*		dst_frame);	/*!< in: outbut buffer */
+	fil_space_crypt_t* crypt_data,
+	ulint		space,
+	ulint		offset,
+	lsn_t		lsn,
+	const byte*	src_frame,
+	ulint		zip_size,
+	byte*		dst_frame)
+	MY_ATTRIBUTE((warn_unused_result));
+
+/******************************************************************
+Encrypt a page
+
+@param[in]		space		Tablespace
+@param[in]		offset		Page offset
+@param[in]		lsn		Log sequence number
+@param[in]		src_frame	Page to encrypt
+@param[in,out]		dst_frame	Output buffer
+@return encrypted buffer or NULL */
+UNIV_INTERN
+byte*
+fil_space_encrypt(
+	const fil_space_t* space,
+	ulint		offset,
+	lsn_t		lsn,
+	byte*		src_frame,
+	byte*		dst_frame)
+	MY_ATTRIBUTE((warn_unused_result));
+
+/******************************************************************
+Decrypt a page
+@param[in,out]	crypt_data		crypt_data
+@param[in]	tmp_frame		Temporary buffer
+@param[in]	page_size		Page size
+@param[in,out]	src_frame		Page to decrypt
+@param[out]	err			DB_SUCCESS or error
+@return true if page decrypted, false if not.*/
+UNIV_INTERN
+bool
+fil_space_decrypt(
+	fil_space_crypt_t*	crypt_data,
+	byte*			tmp_frame,
+	ulint			page_size,
+	byte*			src_frame,
+	dberr_t*		err);
+
+/******************************************************************
+Decrypt a page
+@param[in]	space			Tablespace
+@param[in]	tmp_frame		Temporary buffer used for decrypting
+@param[in]	page_size		Page size
+@param[in,out]	src_frame		Page to decrypt
+@param[out]	decrypted		true if page was decrypted
+@return decrypted page, or original not encrypted page if decryption is
+not needed.*/
+UNIV_INTERN
+byte*
+fil_space_decrypt(
+	const fil_space_t* space,
+	byte*		tmp_frame,
+	byte*		src_frame,
+	bool*		decrypted)
+	MY_ATTRIBUTE((warn_unused_result));
 
 /******************************************************************
 Calculate post encryption checksum
+@param[in]	zip_size	zip_size or 0
+@param[in]	dst_frame	Block where checksum is calculated
 @return page checksum or BUF_NO_CHECKSUM_MAGIC
 not needed. */
 UNIV_INTERN
 ulint
 fil_crypt_calculate_checksum(
-/*=========================*/
-	ulint	zip_size,	/*!< in: zip_size or 0 */
-	byte*	dst_frame);	/*!< in: page where to calculate */
+	ulint		zip_size,
+	const byte*	dst_frame)
+	MY_ATTRIBUTE((warn_unused_result));
+
+/*********************************************************************
+Verify that post encryption checksum match calculated checksum.
+This function should be called only if tablespace contains crypt_data
+metadata (this is strong indication that tablespace is encrypted).
+Function also verifies that traditional checksum does not match
+calculated checksum as if it does page could be valid unencrypted,
+encrypted, or corrupted.
+
+@param[in]	page		Page to verify
+@param[in]	zip_size	zip size
+@param[in]	space		Tablespace
+@param[in]	pageno		Page no
+@return true if page is encrypted AND OK, false otherwise */
+UNIV_INTERN
+bool
+fil_space_verify_crypt_checksum(
+	byte* 			page,
+	ulint			zip_size,
+	const fil_space_t*	space,
+	ulint			pageno)
+	MY_ATTRIBUTE((warn_unused_result));
+
+/*********************************************************************
+Adjust thread count for key rotation
+@param[in]	enw_cnt		Number of threads to be used */
+UNIV_INTERN
+void
+fil_crypt_set_thread_cnt(
+	uint	new_cnt);
+
+/*********************************************************************
+Adjust max key age
+@param[in]	val		New max key age */
+UNIV_INTERN
+void
+fil_crypt_set_rotate_key_age(
+	uint	val);
+
+/*********************************************************************
+Adjust rotation iops
+@param[in]	val		New max roation iops */
+UNIV_INTERN
+void
+fil_crypt_set_rotation_iops(
+	uint val);
+
+/*********************************************************************
+Adjust encrypt tables
+@param[in]	val		New setting for innodb-encrypt-tables */
+UNIV_INTERN
+void
+fil_crypt_set_encrypt_tables(
+	uint val);
+
+/*********************************************************************
+Init threads for key rotation */
+UNIV_INTERN
+void
+fil_crypt_threads_init();
+
+/*********************************************************************
+Clean up key rotation threads resources */
+UNIV_INTERN
+void
+fil_crypt_threads_cleanup();
+
+/*********************************************************************
+Wait for crypt threads to stop accessing space
+@param[in]	space		Tablespace */
+UNIV_INTERN
+void
+fil_space_crypt_close_tablespace(
+	const fil_space_t*	space);
+
+/*********************************************************************
+Get crypt status for a space (used by information_schema)
+@param[in]	space		Tablespace
+@param[out]	status		Crypt status
+return 0 if crypt data present */
+UNIV_INTERN
+void
+fil_space_crypt_get_status(
+	const fil_space_t*			space,
+	struct fil_space_crypt_status_t*	status);
+
+/*********************************************************************
+Return crypt statistics
+@param[out]	stat		Crypt statistics */
+UNIV_INTERN
+void
+fil_crypt_total_stat(
+	fil_crypt_stat_t *stat);
+
+/*********************************************************************
+Get scrub status for a space (used by information_schema)
+
+@param[in]	space		Tablespace
+@param[out]	status		Scrub status
+return 0 if data found */
+UNIV_INTERN
+void
+fil_space_get_scrub_status(
+	const fil_space_t*			space,
+	struct fil_space_scrub_status_t*	status);
 
 #ifndef UNIV_NONINL
 #include "fil0crypt.ic"

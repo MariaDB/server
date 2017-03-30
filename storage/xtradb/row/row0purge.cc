@@ -897,7 +897,7 @@ row_purge_record_func(
 Fetches an undo log record and does the purge for the recorded operation.
 If none left, or the current purge completed, returns the control to the
 parent node, which is always a query thread node. */
-static MY_ATTRIBUTE((nonnull))
+static
 void
 row_purge(
 /*======*/

@@ -207,6 +207,7 @@ a file name for --relay-log-index option", opt_relaylog_index_name);
     /* For multimaster, add connection name to relay log filenames */
     char buf_relay_logname[FN_REFLEN], buf_relaylog_index_name_buff[FN_REFLEN];
     char *buf_relaylog_index_name= opt_relaylog_index_name;
+    mysql_mutex_t *log_lock;
 
     create_logfile_name_with_suffix(buf_relay_logname,
                                     sizeof(buf_relay_logname),
@@ -226,14 +227,18 @@ a file name for --relay-log-index option", opt_relaylog_index_name);
       note, that if open() fails, we'll still have index file open
       but a destructor will take care of that
     */
+    log_lock= relay_log.get_log_lock();
+    mysql_mutex_lock(log_lock);
     if (relay_log.open_index_file(buf_relaylog_index_name, ln, TRUE) ||
         relay_log.open(ln, LOG_BIN, 0, 0, SEQ_READ_APPEND,
                        max_relay_log_size, 1, TRUE))
     {
+      mysql_mutex_unlock(log_lock);
       mysql_mutex_unlock(&data_lock);
       sql_print_error("Failed when trying to open logs for '%s' in Relay_log_info::init(). Error: %M", ln, my_errno);
       DBUG_RETURN(1);
     }
+    mysql_mutex_unlock(log_lock);
   }
 
   /* if file does not exist */
@@ -413,7 +418,7 @@ Failed to open the existing relay log info file '%s' (errno %d)",
   }
   inited= 1;
   mysql_mutex_unlock(&data_lock);
-  DBUG_RETURN(error);
+  DBUG_RETURN(0);
 
 err:
   sql_print_error("%s", msg);
@@ -1312,9 +1317,10 @@ bool Relay_log_info::is_until_satisfied(my_off_t master_beg_pos)
 }
 
 
-void Relay_log_info::stmt_done(my_off_t event_master_log_pos, THD *thd,
+bool Relay_log_info::stmt_done(my_off_t event_master_log_pos, THD *thd,
                                rpl_group_info *rgi)
 {
+  int error= 0;
   DBUG_ENTER("Relay_log_info::stmt_done");
 
   DBUG_ASSERT(!belongs_to_client());
@@ -1367,10 +1373,11 @@ void Relay_log_info::stmt_done(my_off_t event_master_log_pos, THD *thd,
     }
     DBUG_EXECUTE_IF("inject_crash_before_flush_rli", DBUG_SUICIDE(););
     if (mi->using_gtid == Master_info::USE_GTID_NO)
-      flush();
+      if (flush())
+        error= 1;
     DBUG_EXECUTE_IF("inject_crash_after_flush_rli", DBUG_SUICIDE(););
   }
-  DBUG_VOID_RETURN;
+  DBUG_RETURN(error);
 }
 
 

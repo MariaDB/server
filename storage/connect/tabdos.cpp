@@ -102,6 +102,7 @@ DOSDEF::DOSDEF(void)
   Mapped = false;
 	Zipped = false;
 	Mulentries = false;
+	Append = false;
 	Padded = false;
   Huge = false;
   Accept = false;
@@ -132,10 +133,13 @@ bool DOSDEF::DefineAM(PGLOBAL g, LPCSTR am, int)
              : (am && (*am == 'B' || *am == 'b')) ? "B"
              : (am && !stricmp(am, "DBF"))        ? "D" : "V";
 
-	if ((Zipped = GetBoolCatInfo("Zipped", false)))
-		Mulentries = ((Entry = GetStringCatInfo(g, "Entry", NULL)))
-			         ? strchr(Entry, '*') || strchr(Entry, '?')
-			         : GetBoolCatInfo("Mulentries", false);
+	if ((Zipped = GetBoolCatInfo("Zipped", false))) {
+		Entry = GetStringCatInfo(g, "Entry", NULL);
+		Mulentries = (Entry && *Entry) ? strchr(Entry, '*') || strchr(Entry, '?')
+		                               : false;
+		Mulentries = GetBoolCatInfo("Mulentries", Mulentries);
+		Append = GetBoolCatInfo("Append", false);
+	}
 
   Desc = Fn = GetStringCatInfo(g, "Filename", NULL);
   Ofn = GetStringCatInfo(g, "Optname", Fn);
@@ -347,10 +351,26 @@ PTDB DOSDEF::GetTable(PGLOBAL g, MODE mode)
 	if (Zipped) {
 #if defined(ZIP_SUPPORT)
 		if (Recfm == RECFM_VAR) {
-			txfp = new(g)ZIPFAM(this);
-			tdbp = new(g)TDBDOS(this, txfp);
+			if (mode == MODE_READ || mode == MODE_ANY) {
+				txfp = new(g) UNZFAM(this);
+			} else if (mode == MODE_INSERT) {
+				txfp = new(g) ZIPFAM(this);
+			} else {
+				strcpy(g->Message, "UPDATE/DELETE not supported for ZIP");
+				return NULL;
+			}	// endif's mode
+
+			tdbp = new(g) TDBDOS(this, txfp);
 		} else {
-			txfp = new(g)ZPXFAM(this);
+			if (mode == MODE_READ || mode == MODE_ANY) {
+				txfp = new(g) UZXFAM(this);
+			} else if (mode == MODE_INSERT) {
+				txfp = new(g) ZPXFAM(this);
+			} else {
+				strcpy(g->Message, "UPDATE/DELETE not supported for ZIP");
+				return NULL;
+			}	// endif's mode
+
 			tdbp = new(g)TDBFIX(this, txfp);
 		} // endif Recfm
 
@@ -376,7 +396,7 @@ PTDB DOSDEF::GetTable(PGLOBAL g, MODE mode)
       txfp = new(g) MPXFAM(this);
     else if (Compressed) {
 #if defined(GZ_SUPPORT)
-      txfp = new(g) ZIXFAM(this);
+      txfp = new(g) GZXFAM(this);
 #else   // !GZ_SUPPORT
       sprintf(g->Message, MSG(NO_FEAT_SUPPORT), "GZ");
       return NULL;
@@ -484,7 +504,7 @@ TDBDOS::TDBDOS(PGLOBAL g, PTDBDOS tdbp) : TDBASE(tdbp)
   } // end of TDBDOS copy constructor
 
 // Method
-PTDB TDBDOS::CopyOne(PTABS t)
+PTDB TDBDOS::Clone(PTABS t)
   {
   PTDB    tp;
   PDOSCOL cp1, cp2;
@@ -498,7 +518,7 @@ PTDB TDBDOS::CopyOne(PTABS t)
     } // endfor cp1
 
   return tp;
-  } // end of CopyOne
+  } // end of Clone
 
 /***********************************************************************/
 /*  Allocate DOS column description block.                             */

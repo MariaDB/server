@@ -225,7 +225,14 @@ row_fts_psort_info_init(
 	common_info->sort_event = os_event_create(0);
 	common_info->merge_event = os_event_create(0);
 	common_info->opt_doc_id_size = opt_doc_id_size;
-	crypt_data = fil_space_get_crypt_data(new_table->space);
+
+	/* Theoretically the tablespace can be dropped straight away.
+	In practice, the DDL completion will wait for this thread to
+	finish. */
+	if (fil_space_t* space = fil_space_acquire(new_table->space)) {
+		crypt_data = space->crypt_data;
+		fil_space_release(space);
+	}
 
 	if (crypt_data && crypt_data->should_encrypt()) {
 		common_info->crypt_data = crypt_data;

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2017, MariaDB Corporation.
+Copyright (c) 2013, 2017, MariaDB Corporation. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -181,8 +181,18 @@ extern fil_addr_t	fil_addr_null;
 #define FIL_LOG			502	/*!< redo log */
 /* @} */
 
-/* structure containing encryption specification */
-typedef struct fil_space_crypt_struct fil_space_crypt_t;
+/** Structure containing encryption specification */
+struct fil_space_crypt_t;
+
+/** Enum values for encryption table option */
+enum fil_encryption_t {
+	/** Encrypted if innodb_encrypt_tables=ON (srv_encrypt_tables) */
+	FIL_ENCRYPTION_DEFAULT,
+	/** Encrypted */
+	FIL_ENCRYPTION_ON,
+	/** Not encrypted */
+	FIL_ENCRYPTION_OFF
+};
 
 /** The number of fsyncs done to the log */
 extern ulint	fil_n_log_flushes;
@@ -219,7 +229,9 @@ struct fil_node_t {
 	ibool		open;	/*!< TRUE if file open */
 	os_file_t	handle;	/*!< OS handle to the file, if file open */
 	os_event_t	sync_event;/*!< Condition event to group and
-				serialize calls to fsync */
+				serialize calls to fsync;
+				os_event_set() and os_event_reset()
+				are protected by fil_system_t::mutex */
 	ibool		is_raw_disk;/*!< TRUE if the 'file' is actually a raw
 				device or a raw disk partition */
 	ulint		size;	/*!< size of the file in database pages, 0 if
@@ -267,8 +279,8 @@ struct fil_space_t {
 				.ibd file of tablespace and want to
 				stop temporarily posting of new i/o
 				requests on the file */
-	ibool		stop_new_ops;
-				/*!< we set this TRUE when we start
+	bool		stop_new_ops;
+				/*!< we set this true when we start
 				deleting a single-table tablespace.
 				When this is set following new ops
 				are not allowed:
@@ -314,13 +326,16 @@ struct fil_space_t {
 	prio_rw_lock_t	latch;	/*!< latch protecting the file space storage
 				allocation */
 #endif /* !UNIV_HOTBACKUP */
+
 	UT_LIST_NODE_T(fil_space_t) unflushed_spaces;
 				/*!< list of spaces with at least one unflushed
 				file we have written to */
 	bool		is_in_unflushed_spaces;
 				/*!< true if this space is currently in
 				unflushed_spaces */
-	ibool		is_corrupt;
+	/** True if srv_pass_corrupt_table=true and tablespace contains
+	corrupted page. */
+	bool		is_corrupt;
 				/*!< true if tablespace corrupted */
 	bool		printed_compression_failure;
 				/*!< true if we have already printed
@@ -336,7 +351,22 @@ struct fil_space_t {
 	UT_LIST_NODE_T(fil_space_t) space_list;
 				/*!< list of all spaces */
 
+	/*!< Protected by fil_system */
+	UT_LIST_NODE_T(fil_space_t) rotation_list;
+				/*!< list of spaces needing
+				key rotation */
+
+	bool		is_in_rotation_list;
+				/*!< true if this space is
+				currently in key rotation list */
+
 	ulint		magic_n;/*!< FIL_SPACE_MAGIC_N */
+
+	/** @return whether the tablespace is about to be dropped or truncated */
+	bool is_stopping() const
+	{
+		return stop_new_ops;
+	}
 };
 
 /** Value of fil_space_t::magic_n */
@@ -392,6 +422,11 @@ struct fil_system_t {
 					request */
 	UT_LIST_BASE_NODE_T(fil_space_t) space_list;
 					/*!< list of all file spaces */
+
+	UT_LIST_BASE_NODE_T(fil_space_t) rotation_list;
+					/*!< list of all file spaces needing
+					key rotation.*/
+
 	ibool		space_id_reuse_warned;
 					/* !< TRUE if fil_space_create()
 					has issued a warning about
@@ -470,18 +505,24 @@ fil_space_contains_node(
 /*******************************************************************//**
 Creates a space memory object and puts it to the 'fil system' hash table.
 If there is an error, prints an error message to the .err log.
+@param[in]	name		Space name
+@param[in]	id		Space id
+@param[in]	flags		Tablespace flags
+@param[in]	purpose		FIL_TABLESPACE or FIL_LOG if log
+@param[in]	crypt_data	Encryption information
+@param[in]	create_table	True if this is create table
+@param[in]	mode		Encryption mode
 @return	TRUE if success */
 UNIV_INTERN
-ibool
+bool
 fil_space_create(
-/*=============*/
-	const char*	name,	/*!< in: space name */
-	ulint		id,	/*!< in: space id */
-	ulint		zip_size,/*!< in: compressed page size, or
-				0 for uncompressed tablespaces */
-	ulint		purpose, /*!< in: FIL_TABLESPACE, or FIL_LOG if log */
-	fil_space_crypt_t* crypt_data, /*!< in: crypt data */
-	bool		create_table); /*!< in: true if create table */
+	const char*		name,
+	ulint			id,
+	ulint			flags,
+	ulint			purpose,
+	fil_space_crypt_t*	crypt_data,
+	bool			create_table,
+	fil_encryption_t	mode = FIL_ENCRYPTION_DEFAULT);
 
 /*******************************************************************//**
 Assigns a new space id for a new single-table tablespace. This works simply by
@@ -604,6 +645,59 @@ fil_write_flushed_lsn_to_data_files(
 /*================================*/
 	lsn_t	lsn,		/*!< in: lsn to write */
 	ulint	arch_log_no);	/*!< in: latest archived log file number */
+
+/** Acquire a tablespace when it could be dropped concurrently.
+Used by background threads that do not necessarily hold proper locks
+for concurrency control.
+@param[in]	id	tablespace ID
+@return the tablespace, or NULL if missing or being deleted */
+fil_space_t*
+fil_space_acquire(
+	ulint	id)
+	MY_ATTRIBUTE((warn_unused_result));
+
+/** Acquire a tablespace that may not exist.
+Used by background threads that do not necessarily hold proper locks
+for concurrency control.
+@param[in]	id	tablespace ID
+@return the tablespace, or NULL if missing or being deleted */
+fil_space_t*
+fil_space_acquire_silent(
+	ulint	id)
+	MY_ATTRIBUTE((warn_unused_result));
+
+/** Release a tablespace acquired with fil_space_acquire().
+@param[in,out]	space	tablespace to release  */
+void
+fil_space_release(
+	fil_space_t*	space);
+
+/** Return the next fil_space_t.
+Once started, the caller must keep calling this until it returns NULL.
+fil_space_acquire() and fil_space_release() are invoked here which
+blocks a concurrent operation from dropping the tablespace.
+@param[in,out]	prev_space	Pointer to the previous fil_space_t.
+If NULL, use the first fil_space_t on fil_system->space_list.
+@return pointer to the next fil_space_t.
+@retval NULL if this was the last  */
+fil_space_t*
+fil_space_next(
+	fil_space_t*	prev_space)
+	MY_ATTRIBUTE((warn_unused_result));
+
+/** Return the next fil_space_t from key rotation list.
+Once started, the caller must keep calling this until it returns NULL.
+fil_space_acquire() and fil_space_release() are invoked here which
+blocks a concurrent operation from dropping the tablespace.
+@param[in,out]	prev_space	Pointer to the previous fil_space_t.
+If NULL, use the first fil_space_t on fil_system->space_list.
+@return pointer to the next fil_space_t.
+@retval NULL if this was the last*/
+fil_space_t*
+fil_space_keyrotate_next(
+	fil_space_t*	prev_space)
+	MY_ATTRIBUTE((warn_unused_result));
+
 /*******************************************************************//**
 Reads the flushed lsn, arch no, and tablespace flag fields from a data
 file at database startup.
@@ -1312,16 +1406,10 @@ fil_space_set_corrupt(
 /*==================*/
 	ulint	space_id);
 
-/****************************************************************//**
-Acquire fil_system mutex */
-void
-fil_system_enter(void);
-/*==================*/
-/****************************************************************//**
-Release fil_system mutex */
-void
-fil_system_exit(void);
-/*==================*/
+/** Acquire the fil_system mutex. */
+#define fil_system_enter()	mutex_enter(&fil_system->mutex)
+/** Release the fil_system mutex. */
+#define fil_system_exit()	mutex_exit(&fil_system->mutex)
 
 #ifndef UNIV_INNOCHECKSUM
 /*******************************************************************//**
