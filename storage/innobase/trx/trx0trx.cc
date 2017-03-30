@@ -1457,15 +1457,14 @@ trx_start_low(
 
 	if (trx->mysql_thd != NULL) {
 		trx->start_time = thd_start_time_in_secs(trx->mysql_thd);
+		trx->start_time_micro = thd_query_start_micro(trx->mysql_thd);
+
 	} else {
 		trx->start_time = ut_time();
+		trx->start_time_micro = 0;
 	}
-	trx->start_time_micro = clock();
 
 	ut_a(trx->error_state == DB_SUCCESS);
-
-	trx->start_time_micro =
-		trx->mysql_thd ? thd_query_start_micro(trx->mysql_thd) : 0;
 
 	MONITOR_INC(MONITOR_TRX_ACTIVE);
 }
