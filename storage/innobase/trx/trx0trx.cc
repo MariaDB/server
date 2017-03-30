@@ -2028,7 +2028,7 @@ trx_commit_low(
 	assert_trx_nonlocking_or_in_list(trx);
 	ut_ad(!trx_state_eq(trx, TRX_STATE_COMMITTED_IN_MEMORY));
 	ut_ad(!mtr || mtr->is_active());
-	ut_ad(!mtr == !(trx_is_rseg_updated(trx)));
+	ut_ad(!mtr == !trx->has_logged());
 
 	/* undo_no is non-zero if we're doing the final commit. */
 	if (trx->fts_trx != NULL && trx->undo_no != 0) {
@@ -2081,7 +2081,7 @@ trx_commit_low(
 		mtr_commit(mtr);
 
 		DBUG_EXECUTE_IF("ib_crash_during_trx_commit_in_mem",
-				if (trx_is_rseg_updated(trx)) {
+				if (trx->has_logged()) {
 					log_make_checkpoint_at(LSN_MAX, TRUE);
 					DBUG_SUICIDE();
 				});
@@ -2099,7 +2099,7 @@ trx_commit_low(
            thd->debug_sync_control defined any longer. However the stack
            is possible only with a prepared trx not updating any data.
         */
-	if (trx->mysql_thd != NULL && trx_is_redo_rseg_updated(trx)) {
+	if (trx->mysql_thd != NULL && trx->has_logged_persistent()) {
 		DEBUG_SYNC_C("before_trx_state_committed_in_memory");
 	}
 #endif
@@ -2120,7 +2120,7 @@ trx_commit(
 	DBUG_EXECUTE_IF("ib_trx_commit_crash_before_trx_commit_start",
 			DBUG_SUICIDE(););
 
-	if (trx_is_rseg_updated(trx)) {
+	if (trx->has_logged()) {
 		mtr = &local_mtr;
 		mtr_start_sync(mtr);
 	} else {

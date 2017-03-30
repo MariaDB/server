@@ -5017,8 +5017,6 @@ innobase_rollback_trx(
 /*==================*/
 	trx_t*	trx)	/*!< in: transaction */
 {
-	dberr_t	error = DB_SUCCESS;
-
 	DBUG_ENTER("innobase_rollback_trx");
 	DBUG_PRINT("trans", ("aborting transaction"));
 
@@ -5037,13 +5035,13 @@ innobase_rollback_trx(
 		lock_unlock_table_autoinc(trx);
 	}
 
-	if (trx_is_rseg_updated(trx)) {
-		error = trx_rollback_for_mysql(trx);
-	} else {
+	if (!trx->has_logged()) {
 		trx->will_lock = 0;
+		DBUG_RETURN(0);
 	}
 
-	DBUG_RETURN(convert_error_code_to_mysql(error, 0, trx->mysql_thd));
+	DBUG_RETURN(convert_error_code_to_mysql(trx_rollback_for_mysql(trx),
+						0, trx->mysql_thd));
 }
 
 
@@ -5397,7 +5395,7 @@ innobase_close_connection(
 		in the 1st and 3rd case. */
 		if (trx_is_started(trx)) {
 			if (trx_state_eq(trx, TRX_STATE_PREPARED)) {
-				if (trx_is_redo_rseg_updated(trx)) {
+				if (trx->has_logged_persistent()) {
 					trx_disconnect_prepared(trx);
 				} else {
 					trx_rollback_for_mysql(trx);

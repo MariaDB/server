@@ -8610,7 +8610,7 @@ ha_innobase::commit_inplace_alter_table(
 			trx_rollback_for_mysql(trx);
 		} else {
 			ut_ad(trx_state_eq(trx, TRX_STATE_ACTIVE));
-			ut_ad(trx_is_rseg_updated(trx));
+			ut_ad(trx->has_logged());
 
 			if (mtr.get_log()->size() > 0) {
 				ut_ad(*mtr.get_log()->front()->begin()

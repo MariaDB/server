@@ -102,7 +102,7 @@ trx_rollback_to_savepoint_low(
 
 	trx->error_state = DB_SUCCESS;
 
-	if (trx_is_rseg_updated(trx)) {
+	if (trx->has_logged()) {
 
 		ut_ad(trx->rsegs.m_redo.rseg != 0
 		      || trx->rsegs.m_noredo.rseg != 0);
@@ -213,7 +213,7 @@ trx_rollback_low(
 
 	case TRX_STATE_PREPARED:
 		ut_ad(!trx_is_autocommit_non_locking(trx));
-		if (trx_is_redo_rseg_updated(trx)) {
+		if (trx->has_logged_persistent()) {
 			/* Change the undo log state back from
 			TRX_UNDO_PREPARED to TRX_UNDO_ACTIVE
 			so that if the system gets killed,
@@ -243,7 +243,7 @@ trx_rollback_low(
 		if (trx->mysql_thd == NULL) {
 			/* We could be executing XA ROLLBACK after
 			XA PREPARE and a server restart. */
-		} else if (!trx_is_redo_rseg_updated(trx)) {
+		} else if (!trx->has_logged_persistent()) {
 			/* innobase_close_connection() may roll back a
 			transaction that did not generate any
 			persistent undo log. The DEBUG_SYNC
