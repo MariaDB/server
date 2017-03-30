@@ -1948,12 +1948,7 @@ public:
   }
   void add_key_fields(JOIN *join, KEY_FIELD **key_fields, uint *and_level,
                       table_map usable_tables, SARGABLE_PARAM **sargables);
-  SEL_TREE *get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr)
-  {
-    return with_sargable_pattern() ?
-           Item_bool_func2::get_mm_tree(param, cond_ptr) :
-           Item_func::get_mm_tree(param, cond_ptr);
-  }
+  SEL_TREE *get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr);
   Item* propagate_equal_fields(THD *thd, const Context &ctx, COND_EQUAL *cond)
   {
     /*

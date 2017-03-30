@@ -623,19 +623,6 @@ create_log_file(
 /** Initial number of the first redo log file */
 #define INIT_LOG_FILE0	(SRV_N_LOG_FILES_MAX + 1)
 
-#ifdef DBUG_OFF
-# define RECOVERY_CRASH(x) do {} while(0)
-#else
-# define RECOVERY_CRASH(x) do {						\
-	if (srv_force_recovery_crash == x) {				\
-		fprintf(stderr, "innodb_force_recovery_crash=%lu\n",	\
-			srv_force_recovery_crash);			\
-		fflush(stderr);						\
-		exit(3);						\
-	}								\
-} while (0)
-#endif
-
 /*********************************************************************//**
 Creates all log files.
 @return	DB_SUCCESS or error code */
@@ -676,13 +663,14 @@ create_log_files(
 			file should be recoverable. The buffer
 			pool was clean, and we can simply create
 			all log files from the scratch. */
-			RECOVERY_CRASH(6);
+			DBUG_EXECUTE_IF("innodb_log_abort_6",
+					return(DB_ERROR););
 		}
 	}
 
 	ut_ad(!buf_pool_check_no_pending_io());
 
-	RECOVERY_CRASH(7);
+	DBUG_EXECUTE_IF("innodb_log_abort_7", return(DB_ERROR););
 
 	for (unsigned i = 0; i < srv_n_log_files; i++) {
 		sprintf(logfilename + dirnamelen,
@@ -695,7 +683,7 @@ create_log_files(
 		}
 	}
 
-	RECOVERY_CRASH(8);
+	DBUG_EXECUTE_IF("innodb_log_abort_8", return(DB_ERROR););
 
 	/* We did not create the first log file initially as
 	ib_logfile0, so that crash recovery cannot find it until it
@@ -707,6 +695,7 @@ create_log_files(
 		FIL_LOG,
 		NULL /* no encryption yet */,
 		true /* this is create */);
+
 	ut_a(fil_validate());
 
 	logfile0 = fil_node_create(
@@ -751,10 +740,16 @@ create_log_files(
 	return(DB_SUCCESS);
 }
 
-/*********************************************************************//**
-Renames the first log file. */
+/** Rename the first redo log file.
+@param[in,out]	logfilename	buffer for the log file name
+@param[in]	dirnamelen	length of the directory path
+@param[in]	lsn		FIL_PAGE_FILE_FLUSH_LSN value
+@param[in,out]	logfile0	name of the first log file
+@return	error code
+@retval	DB_SUCCESS	on successful operation */
+MY_ATTRIBUTE((warn_unused_result, nonnull))
 static
-void
+dberr_t
 create_log_files_rename(
 /*====================*/
 	char*	logfilename,	/*!< in/out: buffer for log file name */
@@ -765,6 +760,9 @@ create_log_files_rename(
 	/* If innodb_flush_method=O_DSYNC,
 	we need to explicitly flush the log buffers. */
 	fil_flush(SRV_LOG_SPACE_FIRST_ID);
+
+	DBUG_EXECUTE_IF("innodb_log_abort_9", return(DB_ERROR););
+
 	/* Close the log files, so that we can rename
 	the first one. */
 	fil_close_log_files(false);
@@ -773,26 +771,28 @@ create_log_files_rename(
 	checkpoint has been created. */
 	sprintf(logfilename + dirnamelen, "ib_logfile%u", 0);
 
-	RECOVERY_CRASH(9);
-
 	ib_logf(IB_LOG_LEVEL_INFO,
 		"Renaming log file %s to %s", logfile0, logfilename);
 
 	mutex_enter(&log_sys->mutex);
 	ut_ad(strlen(logfile0) == 2 + strlen(logfilename));
-	ibool success = os_file_rename(
-		innodb_file_log_key, logfile0, logfilename);
-	ut_a(success);
-
-	RECOVERY_CRASH(10);
+	dberr_t err = os_file_rename(
+		innodb_file_log_key, logfile0, logfilename)
+		? DB_SUCCESS : DB_ERROR;
 
 	/* Replace the first file with ib_logfile0. */
 	strcpy(logfile0, logfilename);
 	mutex_exit(&log_sys->mutex);
 
-	fil_open_log_and_system_tablespace_files();
+	DBUG_EXECUTE_IF("innodb_log_abort_10", err = DB_ERROR;);
 
-	ib_logf(IB_LOG_LEVEL_WARN, "New log files created, LSN=" LSN_PF, lsn);
+	if (err == DB_SUCCESS) {
+		fil_open_log_and_system_tablespace_files();
+		ib_logf(IB_LOG_LEVEL_WARN,
+			"New log files created, LSN=" LSN_PF, lsn);
+	}
+
+	return(err);
 }
 
 /*********************************************************************//**
@@ -1163,14 +1163,13 @@ check_first_page:
 				(ulong) (srv_data_file_sizes[i]
 					 >> (20 - UNIV_PAGE_SIZE_SHIFT)));
 
-			ib_logf(IB_LOG_LEVEL_INFO,
-				"Database physically writes the"
-				" file full: wait...");
-
 			ret = os_file_set_size(
 				name, files[i],
 				(os_offset_t) srv_data_file_sizes[i]
-				<< UNIV_PAGE_SIZE_SHIFT);
+				<< UNIV_PAGE_SIZE_SHIFT
+				/* TODO: enable page_compression on the
+				system tablespace and add
+				, FSP_FLAGS_HAS_PAGE_COMPRESSION(flags)*/);
 
 			if (!ret) {
 				ib_logf(IB_LOG_LEVEL_ERROR,
@@ -1189,13 +1188,14 @@ check_first_page:
 
 		if (i == 0) {
 			if (!crypt_data) {
-				crypt_data = fil_space_create_crypt_data(FIL_SPACE_ENCRYPTION_DEFAULT, FIL_DEFAULT_ENCRYPTION_KEY);
+				crypt_data = fil_space_create_crypt_data(FIL_ENCRYPTION_DEFAULT,
+					FIL_DEFAULT_ENCRYPTION_KEY);
 			}
 
 			flags = FSP_FLAGS_PAGE_SSIZE();
 
 			fil_space_create(name, 0, flags, FIL_TABLESPACE,
-					crypt_data, (*create_new_db) == true);
+				crypt_data, (*create_new_db) == true);
 		}
 
 		ut_a(fil_validate());
@@ -1267,10 +1267,11 @@ srv_undo_tablespace_create(
 			"Setting file %s size to %lu MB",
 			name, size >> (20 - UNIV_PAGE_SIZE_SHIFT));
 
-		ib_logf(IB_LOG_LEVEL_INFO,
-			"Database physically writes the file full: wait...");
-
-		ret = os_file_set_size(name, fh, size << UNIV_PAGE_SIZE_SHIFT);
+		ret = os_file_set_size(name, fh, size << UNIV_PAGE_SIZE_SHIFT
+				       /* TODO: enable page_compression on the
+				       system tablespace and add
+				       FSP_FLAGS_HAS_PAGE_COMPRESSION(flags)
+				       */);
 
 		if (!ret) {
 			ib_logf(IB_LOG_LEVEL_INFO,
@@ -2090,6 +2091,7 @@ innobase_start_or_create_for_mysql(void)
 
 	fsp_init();
 	log_init();
+	log_online_init();
 
 	lock_sys_create(srv_lock_table_size);
 
@@ -2268,13 +2270,17 @@ innobase_start_or_create_for_mysql(void)
 						dirnamelen, max_flushed_lsn,
 						logfile0);
 
+					if (err == DB_SUCCESS) {
+						err = create_log_files_rename(
+							logfilename,
+							dirnamelen,
+							max_flushed_lsn,
+							logfile0);
+					}
+
 					if (err != DB_SUCCESS) {
 						return(err);
 					}
-
-					create_log_files_rename(
-						logfilename, dirnamelen,
-						max_flushed_lsn, logfile0);
 
 					/* Suppress the message about
 					crash recovery. */
@@ -2445,8 +2451,12 @@ files_checked:
 
 		fil_flush_file_spaces(FIL_TABLESPACE);
 
-		create_log_files_rename(logfilename, dirnamelen,
-					max_flushed_lsn, logfile0);
+		err = create_log_files_rename(logfilename, dirnamelen,
+					      max_flushed_lsn, logfile0);
+
+		if (err != DB_SUCCESS) {
+			return(err);
+		}
 	} else {
 
 		/* Check if we support the max format that is stamped
@@ -2475,6 +2485,23 @@ files_checked:
 		and there must be no page in the buf_flush list. */
 		buf_pool_invalidate();
 
+		/* Start monitor thread early enough so that e.g. crash
+		recovery failing to find free pages in the buffer pool is
+		diagnosed. */
+		if (!srv_read_only_mode)
+		{
+			/* Create the thread which prints InnoDB monitor
+			info */
+			srv_monitor_active = true;
+			thread_handles[4 + SRV_MAX_N_IO_THREADS] =
+				os_thread_create(
+					srv_monitor_thread,
+					NULL,
+					thread_ids + 4 + SRV_MAX_N_IO_THREADS);
+
+			thread_started[4 + SRV_MAX_N_IO_THREADS] = true;
+		}
+
 		/* We always try to do a recovery, even if the database had
 		been shut down normally: this is the normal startup path */
 
@@ -2495,7 +2522,7 @@ files_checked:
 			return(err);
 		}
 
-		/* This must precede recv_apply_hashed_log_recs(TRUE). */
+		/* This must precede recv_apply_hashed_log_recs(true). */
 		ib_bh = trx_sys_init_at_db_start();
 
 		if (srv_force_recovery < SRV_FORCE_NO_LOG_REDO) {
@@ -2503,12 +2530,8 @@ files_checked:
 			respective file pages, for the last batch of
 			recv_group_scan_log_recs(). */
 
-			err = recv_apply_hashed_log_recs(TRUE);
+			recv_apply_hashed_log_recs(true);
 			DBUG_PRINT("ib_log", ("apply completed"));
-
-			if (err != DB_SUCCESS) {
-				return(err);
-			}
 		}
 
 		if (!srv_read_only_mode) {
@@ -2648,7 +2671,8 @@ files_checked:
 				ULINT_MAX, LSN_MAX, NULL);
 			ut_a(success);
 
-			RECOVERY_CRASH(1);
+			DBUG_EXECUTE_IF("innodb_log_abort_1",
+					return(DB_ERROR););
 
 			min_flushed_lsn = max_flushed_lsn = log_get_lsn();
 
@@ -2662,8 +2686,6 @@ files_checked:
 				max_flushed_lsn);
 
 			buf_flush_wait_batch_end(NULL, BUF_FLUSH_LIST);
-
-			RECOVERY_CRASH(2);
 
 			/* Flush the old log files. */
 			log_buffer_flush_to_disk();
@@ -2679,21 +2701,27 @@ files_checked:
 			ut_d(recv_no_log_write = TRUE);
 			ut_ad(!buf_pool_check_no_pending_io());
 
-			RECOVERY_CRASH(3);
+			DBUG_EXECUTE_IF("innodb_log_abort_3",
+					return(DB_ERROR););
 
 			/* Stamp the LSN to the data files. */
 			fil_write_flushed_lsn_to_data_files(
 				max_flushed_lsn, 0);
 
-			fil_flush_file_spaces(FIL_TABLESPACE);
+			DBUG_EXECUTE_IF("innodb_log_abort_4", err = DB_ERROR;);
 
-			RECOVERY_CRASH(4);
+			if (err != DB_SUCCESS) {
+				return(err);
+			}
+
+			fil_flush_file_spaces(FIL_TABLESPACE);
 
 			/* Close and free the redo log files, so that
 			we can replace them. */
 			fil_close_log_files(true);
 
-			RECOVERY_CRASH(5);
+			DBUG_EXECUTE_IF("innodb_log_abort_5",
+					return(DB_ERROR););
 
 			/* Free the old log file space. */
 			log_group_close_all();
@@ -2717,8 +2745,11 @@ files_checked:
 			fil_write_flushed_lsn_to_data_files(min_flushed_lsn, 0);
 			fil_flush_file_spaces(FIL_TABLESPACE);
 
-			create_log_files_rename(logfilename, dirnamelen,
-						log_get_lsn(), logfile0);
+			err = create_log_files_rename(logfilename, dirnamelen,
+						      log_get_lsn(), logfile0);
+			if (err != DB_SUCCESS) {
+				return(err);
+			}
 		}
 
 		srv_startup_is_before_trx_rollback_phase = FALSE;
@@ -2814,11 +2845,14 @@ files_checked:
 		thread_started[3 + SRV_MAX_N_IO_THREADS] = true;
 
 		/* Create the thread which prints InnoDB monitor info */
-		srv_monitor_active = true;
-		thread_handles[4 + SRV_MAX_N_IO_THREADS] = os_thread_create(
-			srv_monitor_thread,
-			NULL, thread_ids + 4 + SRV_MAX_N_IO_THREADS);
-		thread_started[4 + SRV_MAX_N_IO_THREADS] = true;
+		if (!thread_started[4 + SRV_MAX_N_IO_THREADS]) {
+			/* srv_monitor_thread not yet started */
+			srv_monitor_active = true;
+			thread_handles[4 + SRV_MAX_N_IO_THREADS] = os_thread_create(
+				srv_monitor_thread,
+				NULL, thread_ids + 4 + SRV_MAX_N_IO_THREADS);
+			thread_started[4 + SRV_MAX_N_IO_THREADS] = true;
+		}
 	}
 
 	/* Create the SYS_FOREIGN and SYS_FOREIGN_COLS system tables */
@@ -3189,6 +3223,7 @@ innobase_shutdown_for_mysql(void)
 	btr_search_disable();
 
 	ibuf_close();
+	log_online_shutdown();
 	log_shutdown();
 	trx_sys_file_format_close();
 	trx_sys_close();

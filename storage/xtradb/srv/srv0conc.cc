@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2011, 2012, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation. All Rights Reserved.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -79,7 +80,9 @@ typedef UT_LIST_NODE_T(struct srv_conc_slot_t)	srv_conc_node_t;
 
 /** Slot for a thread waiting in the concurrency control queue. */
 struct srv_conc_slot_t{
-	os_event_t	event;		/*!< event to wait */
+	os_event_t	event;		/*!< event to wait for;
+					os_event_set() and os_event_reset()
+					are protected by srv_conc_mutex */
 	ibool		reserved;	/*!< TRUE if slot
 					reserved */
 	ibool		wait_ended;	/*!< TRUE when another thread has
@@ -378,11 +381,11 @@ srv_conc_exit_innodb_without_atomics(
 		}
 	}
 
-	os_fast_mutex_unlock(&srv_conc_mutex);
-
 	if (slot != NULL) {
 		os_event_set(slot->event);
 	}
+
+	os_fast_mutex_unlock(&srv_conc_mutex);
 }
 
 /*********************************************************************//**

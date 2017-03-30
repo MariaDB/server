@@ -52,6 +52,7 @@ public:
 /***********************************************************************/
 class DllExport TDBCSV : public TDBDOS {
   friend class CSVCOL;
+	friend class MAPFAM;
 	friend PQRYRES CSVColumns(PGLOBAL, char *, PTOS, bool);
 public:
   // Constructor
@@ -64,7 +65,7 @@ public:
                 {return (PTDB)new(g) TDBCSV(g, this);}
 
   // Methods
-  virtual PTDB CopyOne(PTABS t);
+  virtual PTDB Clone(PTABS t);
 //virtual bool IsUsingTemp(PGLOBAL g);
   virtual int  GetBadLines(void) {return (int)Nerr;}
 
@@ -147,7 +148,7 @@ class DllExport TDBFMT : public TDBCSV {
                 {return (PTDB)new(g) TDBFMT(g, this);}
 
   // Methods
-  virtual PTDB CopyOne(PTABS t);
+  virtual PTDB Clone(PTABS t);
 
   // Database routines
   virtual PCOL MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n);

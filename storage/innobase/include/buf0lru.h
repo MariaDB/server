@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -177,12 +178,6 @@ void
 buf_LRU_make_block_young(
 /*=====================*/
 	buf_page_t*	bpage);	/*!< in: control block */
-/******************************************************************//**
-Moves a block to the end of the LRU list. */
-void
-buf_LRU_make_block_old(
-/*===================*/
-	buf_page_t*	bpage);	/*!< in: control block */
 /**********************************************************************//**
 Updates buf_pool->LRU_old_ratio.
 @return updated old_pct */
@@ -286,9 +281,5 @@ Increments the I/O counter in buf_LRU_stat_cur. */
 /********************************************************************//**
 Increments the page_zip_decompress() counter in buf_LRU_stat_cur. */
 #define buf_LRU_stat_inc_unzip() buf_LRU_stat_cur.unzip++
-
-#ifndef UNIV_NONINL
-#include "buf0lru.ic"
-#endif
 
 #endif

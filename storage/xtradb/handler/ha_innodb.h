@@ -167,6 +167,8 @@ class ha_innobase: public handler
 	int index_first(uchar * buf);
 	int index_last(uchar * buf);
 
+	bool has_gap_locks() const { return true; }
+
 	int rnd_init(bool scan);
 	int rnd_end();
 	int rnd_next(uchar *buf);
@@ -424,6 +426,15 @@ int thd_slave_thread(const MYSQL_THD thd);
   @retval 1 the user thread is running a non-transactional update
 */
 int thd_non_transactional_update(const MYSQL_THD thd);
+
+/**
+  Get high resolution timestamp for the current query start time.
+  The timestamp is not anchored to any specific point in time,
+  but can be used for comparison.
+
+  @retval timestamp in microseconds precision
+*/
+unsigned long long thd_start_utime(const MYSQL_THD thd);
 
 /**
   Get the user thread's binary logging format

@@ -27,9 +27,6 @@ Created June 2005 by Marko Makela
 
 #include "page0size.h"
 #include "page0zip.h"
-#ifdef UNIV_NONINL
-# include "page0zip.ic"
-#endif
 
 /** A BLOB field reference full of zero, for use in assertions and tests.
 Initially, BLOB field references are set to zero, in
@@ -812,12 +809,12 @@ page_zip_set_alloc(
 #ifdef PAGE_ZIP_COMPRESS_DBG
 /** Set this variable in a debugger to enable
 excessive logging in page_zip_compress(). */
-ibool	page_zip_compress_dbg;
+static ibool	page_zip_compress_dbg;
 /** Set this variable in a debugger to enable
 binary logging of the data passed to deflate().
 When this variable is nonzero, it will act
 as a log file name generator. */
-unsigned	page_zip_compress_log;
+static unsigned	page_zip_compress_log;
 
 /**********************************************************************//**
 Wrapper for deflate().  Log the operation if page_zip_compress_dbg is set.

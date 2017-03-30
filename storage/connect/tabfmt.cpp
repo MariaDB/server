@@ -5,7 +5,7 @@
 /*                                                                     */
 /* COPYRIGHT:                                                          */
 /* ----------                                                          */
-/*  (C) Copyright to the author Olivier BERTRAND          2001 - 2016  */
+/*  (C) Copyright to the author Olivier BERTRAND          2001 - 2017  */
 /*                                                                     */
 /* WHAT THIS PROGRAM DOES:                                             */
 /* -----------------------                                             */
@@ -98,8 +98,9 @@ PQRYRES CSVColumns(PGLOBAL g, char *dp, PTOS topt, bool info)
   int     num_read = 0, num_max = 10000000;     // Statistics
   int     len[MAXCOL], typ[MAXCOL], prc[MAXCOL];
 	PCSVDEF tdp;
-	PTDBCSV tdbp;
-  PQRYRES qrp;
+	PTDBCSV tcvp;
+	PTDBASE tdbp;
+	PQRYRES qrp;
   PCOLRES crp;
 
   if (info) {
@@ -108,10 +109,10 @@ PQRYRES CSVColumns(PGLOBAL g, char *dp, PTOS topt, bool info)
     goto skipit;
     } // endif info
 
-	if (GetIntegerTableOption(g, topt, "Multiple", 0)) {
-		strcpy(g->Message, "Cannot find column definition for multiple table");
-		return NULL;
-	}	// endif Multiple
+	//if (GetIntegerTableOption(g, topt, "Multiple", 0)) {
+	//	strcpy(g->Message, "Cannot find column definition for multiple table");
+	//	return NULL;
+	//}	// endif Multiple
 
 //      num_max = atoi(p+1);             // Max num of record to test
   imax = hmax = nerr = 0;
@@ -127,10 +128,20 @@ PQRYRES CSVColumns(PGLOBAL g, char *dp, PTOS topt, bool info)
   /*  Get the CSV table description block.                             */
   /*********************************************************************/
 	tdp = new(g) CSVDEF;
+	tdp->Database = dp;
+
+	if ((tdp->Zipped = GetBooleanTableOption(g, topt, "Zipped", false))) {
 #if defined(ZIP_SUPPORT)
-	tdp->Entry = GetStringTableOption(g, topt, "Entry", NULL);
-	tdp->Zipped = GetBooleanTableOption(g, topt, "Zipped", false);
-#endif   // ZIP_SUPPORT
+		tdp->Entry = GetStringTableOption(g, topt, "Entry", NULL);
+		tdp->Mulentries = (tdp->Entry)
+			              ? strchr(tdp->Entry, '*') || strchr(tdp->Entry, '?')
+			              : GetBooleanTableOption(g, topt, "Mulentries", false);
+#else   // !ZIP_SUPPORT
+		strcpy(g->Message, "ZIP not supported by this version");
+		return NULL;
+#endif  // !ZIP_SUPPORT
+	} // endif // Zipped
+
 	fn = tdp->Fn = GetStringTableOption(g, topt, "Filename", NULL);
 
 	if (!tdp->Fn) {
@@ -141,6 +152,7 @@ PQRYRES CSVColumns(PGLOBAL g, char *dp, PTOS topt, bool info)
 	if (!(tdp->Lrecl = GetIntegerTableOption(g, topt, "Lrecl", 0)))
 		tdp->Lrecl = 4096;
 
+	tdp->Multiple = GetIntegerTableOption(g, topt, "Multiple", 0);
 	p = GetStringTableOption(g, topt, "Separator", ",");
 	tdp->Sep = (strlen(p) == 2 && p[0] == '\\' && p[1] == 't') ? '\t' : *p;
 
@@ -177,17 +189,18 @@ PQRYRES CSVColumns(PGLOBAL g, char *dp, PTOS topt, bool info)
 		htrc("File %s Sep=%c Qot=%c Header=%d maxerr=%d\n",
 		SVP(tdp->Fn), tdp->Sep, tdp->Qot, tdp->Header, tdp->Maxerr);
 
-	if (tdp->Zipped) {
-#if defined(ZIP_SUPPORT)
-		tdbp = new(g)TDBCSV(tdp, new(g)ZIPFAM(tdp));
-#else   // !ZIP_SUPPORT
-		sprintf(g->Message, MSG(NO_FEAT_SUPPORT), "ZIP");
-		return NULL;
-#endif  // !ZIP_SUPPORT
-	} else
-		tdbp = new(g) TDBCSV(tdp, new(g) DOSFAM(tdp));
+	if (tdp->Zipped)
+		tcvp = new(g)TDBCSV(tdp, new(g)UNZFAM(tdp));
+	else
+		tcvp = new(g) TDBCSV(tdp, new(g) DOSFAM(tdp));
 
-	tdbp->SetMode(MODE_READ);
+	tcvp->SetMode(MODE_READ);
+
+	if (tdp->Multiple) {
+		tdbp = new(g)TDBMUL(tcvp);
+		tdbp->SetMode(MODE_READ);
+	} else
+	  tdbp = tcvp;
 
 	/*********************************************************************/
 	/*  Open the CSV file.                                               */
@@ -202,7 +215,7 @@ PQRYRES CSVColumns(PGLOBAL g, char *dp, PTOS topt, bool info)
     phase = 0;
 
     if ((rc = tdbp->ReadDB(g)) == RC_OK) {
-			p = PlgDBDup(g, tdbp->To_Line);
+			p = PlgDBDup(g, tcvp->To_Line);
 
       //skip leading blanks
       for (; *p == ' '; p++) ;
@@ -245,6 +258,7 @@ PQRYRES CSVColumns(PGLOBAL g, char *dp, PTOS topt, bool info)
     for (i = 0; i < hmax; i++)
       length[0] = MY_MAX(length[0], strlen(colname[i]));
 
+		tcvp->Header = true;			// In case of multiple table
     } // endif hdr
 
   for (num_read++; num_read <= num_max; num_read++) {
@@ -265,7 +279,7 @@ PQRYRES CSVColumns(PGLOBAL g, char *dp, PTOS topt, bool info)
     /*******************************************************************/
     i = n = phase = blank = digit = dec = 0;
 
-    for (p = tdbp->To_Line; *p; p++)
+    for (p = tcvp->To_Line; *p; p++)
       if (*p == sep) {
         if (phase != 1) {
           if (i == MAXCOL - 1) {
@@ -503,7 +517,14 @@ PTDB CSVDEF::GetTable(PGLOBAL g, MODE mode)
     /*******************************************************************/
 		if (Zipped) {
 #if defined(ZIP_SUPPORT)
-			txfp = new(g) ZIPFAM(this);
+			if (mode == MODE_READ || mode == MODE_ANY) {
+				txfp = new(g) UNZFAM(this);
+			} else if (mode == MODE_INSERT) {
+				txfp = new(g) ZIPFAM(this);
+			} else {
+				strcpy(g->Message, "UPDATE/DELETE not supported for ZIP");
+				return NULL;
+			}	// endif's mode
 #else   // !ZIP_SUPPORT
 			strcpy(g->Message, "ZIP not supported");
 			return NULL;
@@ -640,7 +661,7 @@ TDBCSV::TDBCSV(PGLOBAL g, PTDBCSV tdbp) : TDBDOS(g, tdbp)
   } // end of TDBCSV copy constructor
 
 // Method
-PTDB TDBCSV::CopyOne(PTABS t)
+PTDB TDBCSV::Clone(PTABS t)
   {
   PTDB    tp;
   PCSVCOL cp1, cp2;
@@ -654,7 +675,7 @@ PTDB TDBCSV::CopyOne(PTABS t)
     } // endfor cp1
 
   return tp;
-  } // end of CopyOne
+  } // end of Clone
 
 /***********************************************************************/
 /*  Allocate CSV column description block.                             */
@@ -1148,7 +1169,7 @@ TDBFMT::TDBFMT(PGLOBAL g, PTDBFMT tdbp) : TDBCSV(g, tdbp)
   } // end of TDBFMT copy constructor
 
 // Method
-PTDB TDBFMT::CopyOne(PTABS t)
+PTDB TDBFMT::Clone(PTABS t)
   {
   PTDB    tp;
   PCSVCOL cp1, cp2;
@@ -1165,7 +1186,7 @@ PTDB TDBFMT::CopyOne(PTABS t)
     } // endfor cp1
 
   return tp;
-  } // end of CopyOne
+  } // end of Clone
 
 /***********************************************************************/
 /*  Allocate FMT column description block.                             */

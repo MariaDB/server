@@ -36,10 +36,6 @@ Created 11/26/1995 Heikki Tuuri
 
 #include "log0recv.h"
 
-#ifdef UNIV_NONINL
-#include "mtr0mtr.ic"
-#endif /* UNIV_NONINL */
-
 /** Iterate over a memo block in reverse. */
 template <typename Functor>
 struct Iterate {
@@ -489,15 +485,6 @@ mtr_write_log(
 	log_reserve_and_open(len);
 	log->for_each_block(write_log);
 	log_close();
-}
-
-/** Start a mini-transaction.
-@param sync		true if it is a synchronous mini-transaction
-@param read_only	true if read only mini-transaction */
-void
-mtr_t::start(bool sync, bool read_only)
-{
-	start(NULL, sync, read_only);
 }
 
 /** Start a mini-transaction.

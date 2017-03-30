@@ -449,6 +449,9 @@ bool mysql_derived_merge(THD *thd, LEX *lex, TABLE_LIST *derived)
   {
     Item *expr= derived->on_expr;
     expr= and_conds(thd, expr, dt_select->join ? dt_select->join->conds : 0);
+    if (expr)
+      expr->top_level_item();
+
     if (expr && (derived->prep_on_expr || expr != derived->on_expr))
     {
       derived->on_expr= expr;
@@ -789,9 +792,12 @@ exit:
   */
   if (res)
   {
-    if (derived->table && !derived->is_with_table_recursive_reference())
-      free_tmp_table(thd, derived->table);
-    delete derived->derived_result;
+    if (!derived->is_with_table_recursive_reference())
+    {
+      if (derived->table)
+        free_tmp_table(thd, derived->table);
+      delete derived->derived_result;
+    }
   }
   else
   {

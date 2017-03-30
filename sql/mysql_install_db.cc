@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
 
 /*
   mysql_install_db creates a new database instance (optionally as service)
@@ -47,6 +47,7 @@ static char *opt_datadir;
 static char *opt_service;
 static char *opt_password;
 static int  opt_port;
+static int  opt_innodb_page_size;
 static char *opt_socket;
 static char *opt_os_user;
 static char *opt_os_password;
@@ -56,6 +57,7 @@ static my_bool opt_skip_networking;
 static my_bool opt_verbose_bootstrap;
 static my_bool verbose_errors;
 
+#define DEFAULT_INNODB_PAGE_SIZE 16*1024
 
 static struct my_option my_long_options[]=
 {
@@ -81,6 +83,8 @@ static struct my_option my_long_options[]=
   {"skip-networking", 'N', "Do not use TCP connections, use pipe instead",
   &opt_skip_networking, &opt_skip_networking, 0 , GET_BOOL, OPT_ARG, 0, 0, 0, 0,
   0, 0},
+  { "innodb-page-size", 'i', "Page size for innodb",
+  &opt_innodb_page_size, &opt_innodb_page_size, 0, GET_INT, REQUIRED_ARG, DEFAULT_INNODB_PAGE_SIZE, 1*1024, 64*1024, 0, 0, 0 },
   {"silent", 's', "Print less information", &opt_silent,
    &opt_silent, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"verbose-bootstrap", 'o', "Include mysqld bootstrap output",&opt_verbose_bootstrap,
@@ -259,13 +263,13 @@ static char *init_bootstrap_command_line(char *cmdline, size_t size)
   char basedir[MAX_PATH];
   get_basedir(basedir, sizeof(basedir), mysqld_path);
 
-  my_snprintf(cmdline, size-1, 
-    "\"\"%s\" --no-defaults %s --bootstrap"
+  my_snprintf(cmdline, size - 1,
+    "\"\"%s\" --no-defaults %s --innodb-page-size=%d --bootstrap"
     " \"--lc-messages-dir=%s/share\""
     " --basedir=. --datadir=. --default-storage-engine=myisam"
     " --max_allowed_packet=9M "
     " --net-buffer-length=16k\"", mysqld_path,
-    opt_verbose_bootstrap?"--console":"", basedir );
+    opt_verbose_bootstrap ? "--console" : "", opt_innodb_page_size, basedir);
   return cmdline;
 }
 
@@ -316,7 +320,10 @@ static int create_myini()
   {
     fprintf(myini,"port=%d\n", opt_port);
   }
-
+  if (opt_innodb_page_size != DEFAULT_INNODB_PAGE_SIZE)
+  {
+    fprintf(myini, "innodb-page-size=%d\n", opt_innodb_page_size);
+  }
   /* Write out client settings. */
   fprintf(myini, "[client]\n");
 
@@ -386,8 +393,8 @@ static int register_service()
     CloseServiceHandle(sc_manager);
     die("CreateService failed (%u)", GetLastError());
   }
-
-  SERVICE_DESCRIPTION sd= { "MariaDB database server" };
+  char description[] = "MariaDB database server";
+  SERVICE_DESCRIPTION sd= { description };
   ChangeServiceConfig2(sc_service, SERVICE_CONFIG_DESCRIPTION, &sd);
   CloseServiceHandle(sc_service); 
   CloseServiceHandle(sc_manager);
@@ -652,13 +659,6 @@ static int create_db_instance()
     goto end;
   }
 
-  /* 
-    Remove innodb log files if they exist (this works around "different size logs" 
-    error in MSI installation). TODO : remove this with the next Innodb, where
-    different size is handled gracefully.
-  */
-  DeleteFile("ib_logfile0");
-  DeleteFile("ib_logfile1");
 
   /* Create my.ini file in data directory.*/
   ret= create_myini();

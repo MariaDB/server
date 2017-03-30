@@ -49,7 +49,7 @@
 #ifdef HAVE_SYS_WAIT_H
 #include <sys/wait.h>
 #endif
-#ifdef __WIN__
+#ifdef _WIN32
 #include <direct.h>
 #endif
 #include <signal.h>
@@ -57,7 +57,7 @@
 
 #include <welcome_copyright_notice.h> // ORACLE_WELCOME_COPYRIGHT_NOTICE
 
-#ifdef __WIN__
+#ifdef _WIN32
 #include <crtdbg.h>
 #define SIGNAL_FMT "exception 0x%x"
 #else
@@ -468,7 +468,7 @@ const char *command_names[]=
   "copy_file",
   "perl",
   "die",
-               
+
   /* Don't execute any more commands, compare result */
   "exit",
   "skip",
@@ -602,11 +602,11 @@ void do_eval(DYNAMIC_STRING *query_eval, const char *query,
 void str_to_file(const char *fname, char *str, int size);
 void str_to_file2(const char *fname, char *str, int size, my_bool append);
 
-void fix_win_paths(const char *val, int len);
+void fix_win_paths(char *val, int len);
 const char *get_errname_from_code (uint error_code);
 int multi_reg_replace(struct st_replace_regex* r,char* val);
 
-#ifdef __WIN__
+#ifdef _WIN32
 void free_tmp_sh_file();
 void free_win_path_patterns();
 #endif
@@ -816,8 +816,7 @@ public:
 LogFile log_file;
 LogFile progress_file;
 
-void replace_dynstr_append_mem(DYNAMIC_STRING *ds, const char *val,
-                               int len);
+void replace_dynstr_append_mem(DYNAMIC_STRING *ds, const char *val, size_t len);
 void replace_dynstr_append(DYNAMIC_STRING *ds, const char *val);
 void replace_dynstr_append_uint(DYNAMIC_STRING *ds, uint val);
 void dynstr_append_sorted(DYNAMIC_STRING* ds, DYNAMIC_STRING* ds_input,
@@ -1045,8 +1044,8 @@ void do_eval(DYNAMIC_STRING *query_eval, const char *query,
              const char *query_end, my_bool pass_through_escape_chars)
 {
   const char *p;
-  register char c, next_c;
-  register int escaped = 0;
+  char c, next_c;
+  int escaped = 0;
   VAR *v;
   DBUG_ENTER("do_eval");
 
@@ -1096,9 +1095,7 @@ void do_eval(DYNAMIC_STRING *query_eval, const char *query,
       break;
     }
   }
-#ifdef __WIN__
-    fix_win_paths(query_eval->str, query_eval->length);
-#endif
+  fix_win_paths(query_eval->str, query_eval->length);
   DBUG_VOID_RETURN;
 }
 
@@ -1481,7 +1478,7 @@ void free_used_memory()
   free_defaults(default_argv);
   free_root(&require_file_root, MYF(0));
   free_re();
-#ifdef __WIN__
+#ifdef _WIN32
   free_tmp_sh_file();
   free_win_path_patterns();
 #endif
@@ -1844,7 +1841,7 @@ static int run_tool(const char *tool_path, DYNAMIC_STRING *ds_res, ...)
 
   va_end(args);
 
-#ifdef __WIN__
+#ifdef _WIN32
   dynstr_append(&ds_cmdline, "\"");
 #endif
 
@@ -1867,7 +1864,7 @@ static int run_tool(const char *tool_path, DYNAMIC_STRING *ds_res, ...)
   not present.
 */
 
-#ifdef __WIN__
+#ifdef _WIN32
 
 static int diff_check(const char *diff_name)
 {
@@ -1924,7 +1921,7 @@ void show_diff(DYNAMIC_STRING* ds,
      in order to correctly detect non-availibility of 'diff', and
      the way it's implemented does not work with default 'diff' on Solaris.
   */
-#ifdef __WIN__
+#ifdef _WIN32
   if (diff_check("diff"))
     diff_name = "diff";
   else if (diff_check("mtrdiff"))
@@ -1987,7 +1984,7 @@ void show_diff(DYNAMIC_STRING* ds,
 "two files was shown for you to diff manually.\n\n"
 "To get a better report you should install 'diff' on your system, which you\n"
 "for example can get from http://www.gnu.org/software/diffutils/diffutils.html\n"
-#ifdef __WIN__
+#ifdef _WIN32
 "or http://gnuwin32.sourceforge.net/packages/diffutils.htm\n"
 #endif
 "\n");
@@ -2333,7 +2330,7 @@ C_MODE_START
 static uchar *get_var_key(const uchar* var, size_t *len,
                           my_bool __attribute__((unused)) t)
 {
-  register char* key;
+  char* key;
   key = ((VAR*)var)->name;
   *len = ((VAR*)var)->name_len;
   return (uchar*)key;
@@ -2492,7 +2489,7 @@ VAR *var_obtain(const char *name, int len)
 
 
 /*
-  - if variable starts with a $ it is regarded as a local test varable
+  - if variable starts with a $ it is regarded as a local test variable
   - if not it is treated as a environment variable, and the corresponding
   environment variable will be updated
 */
@@ -3058,7 +3055,7 @@ void open_file(const char *name)
 {
   char buff[FN_REFLEN];
   size_t length;
-  const char *curname= cur_file->file_name;
+  char *curname= cur_file->file_name;
   DBUG_ENTER("open_file");
   DBUG_PRINT("enter", ("name: %s", name));
 
@@ -3101,9 +3098,7 @@ void open_file(const char *name)
       5.try in basedir
     */
 
-#ifdef __WIN__
     fix_win_paths(curname, sizeof(curname));
-#endif
 
     bool in_overlay= opt_overlay_dir &&
                      !strncmp(curname, opt_overlay_dir, overlay_dir_len);
@@ -3211,7 +3206,7 @@ void do_source(struct st_command *command)
 }
 
 
-#if defined __WIN__
+#if defined _WIN32
 
 #ifdef USE_CYGWIN
 /* Variables used for temporary sh files used for emulating Unix on Windows */
@@ -3240,7 +3235,7 @@ void free_tmp_sh_file()
 
 FILE* my_popen(DYNAMIC_STRING *ds_cmd, const char *mode)
 {
-#if defined __WIN__ && defined USE_CYGWIN
+#if defined _WIN32 && defined USE_CYGWIN
   /* Dump the command into a sh script file and execute with popen */
   str_to_file(tmp_sh_name, ds_cmd->str, ds_cmd->length);
   return popen(tmp_sh_cmd, mode);
@@ -3252,7 +3247,7 @@ FILE* my_popen(DYNAMIC_STRING *ds_cmd, const char *mode)
 
 static void init_builtin_echo(void)
 {
-#ifdef __WIN__
+#ifdef _WIN32
   size_t echo_length;
 
   /* Look for "echo.exe" in same dir as mysqltest was started from */
@@ -3327,7 +3322,7 @@ static int replace(DYNAMIC_STRING *ds_str,
   NOTE
   Although mysqltest is executed from cygwin shell, the command will be
   executed in "cmd.exe". Thus commands like "rm" etc can NOT be used, use
-  mysqltest commmand(s) like "remove_file" for that
+  mysqltest command(s) like "remove_file" for that
 */
 
 void do_exec(struct st_command *command)
@@ -3340,6 +3335,8 @@ void do_exec(struct st_command *command)
   DYNAMIC_STRING ds_sorted, *ds_result;
   DBUG_ENTER("do_exec");
   DBUG_PRINT("enter", ("cmd: '%s'", cmd));
+
+  var_set_int("$sys_errno",0);
 
   /* Skip leading space */
   while (*cmd && my_isspace(charset_info, *cmd))
@@ -3362,7 +3359,7 @@ void do_exec(struct st_command *command)
     replace(&ds_cmd, "echo", 4, builtin_echo, strlen(builtin_echo));
   }
 
-#ifdef __WIN__
+#ifdef _WIN32
 #ifndef USE_CYGWIN
   /* Replace /dev/null with NUL */
   while(replace(&ds_cmd, "/dev/null", 9, "NUL", 3) == 0)
@@ -3457,6 +3454,7 @@ void do_exec(struct st_command *command)
         report_or_die("command \"%s\" failed with wrong error: %d",
                       command->first_argument, status);
     }
+    var_set_int("$sys_errno",status);
   }
   else if (command->expected_errors.err[0].type == ERR_ERRNO &&
            command->expected_errors.err[0].code.errnum != 0)
@@ -3540,7 +3538,7 @@ int do_modify_var(struct st_command *command,
 
 int my_system(DYNAMIC_STRING* ds_cmd)
 {
-#if defined __WIN__ && defined USE_CYGWIN
+#if defined _WIN32 && defined USE_CYGWIN
   /* Dump the command into a sh script file and execute with system */
   str_to_file(tmp_sh_name, ds_cmd->str, ds_cmd->length);
   return system(tmp_sh_cmd);
@@ -3579,7 +3577,7 @@ void do_system(struct st_command *command)
   /* Eval the system command, thus replacing all environment variables */
   do_eval(&ds_cmd, command->first_argument, command->end, !is_windows);
 
-#ifdef __WIN__
+#ifdef _WIN32
 #ifndef USE_CYGWIN
    /* Replace /dev/null with NUL */
    while(replace(&ds_cmd, "/dev/null", 9, "NUL", 3) == 0)
@@ -4581,7 +4579,7 @@ void do_perl(struct st_command *command)
 
     /* Check for error code that indicates perl could not be started */
     int exstat= WEXITSTATUS(error);
-#ifdef __WIN__
+#ifdef _WIN32
     if (exstat == 1)
       /* Text must begin 'perl not found' as mtr looks for it */
       abort_not_supported_test("perl not found in path or did not start");
@@ -4740,7 +4738,7 @@ void do_sync_with_master(struct st_command *command)
   char *p= command->first_argument;
   const char *offset_start= p;
   char *start, *buff= 0;
-  start= (char*) "";
+  start= const_cast<char*>("");
 
   if (*offset_start)
   {
@@ -4990,7 +4988,7 @@ int query_get_string(MYSQL* mysql, const char* query,
 
 static int my_kill(int pid, int sig)
 {
-#ifdef __WIN__
+#ifdef _WIN32
   HANDLE proc;
   if ((proc= OpenProcess(SYNCHRONIZE|PROCESS_TERMINATE, FALSE, pid)) == NULL)
     return -1;
@@ -5064,8 +5062,7 @@ void do_shutdown_server(struct st_command *command)
       die("Failed to open file '%s'", ds_pidfile_name.str);
     dynstr_free(&ds_pidfile_name);
 
-    if (my_read(fd, (uchar*)&buff,
-                sizeof(buff), MYF(0)) <= 0){
+    if (my_read(fd, (uchar*)&buff, sizeof(buff), MYF(0)) <= 0){
       my_close(fd, MYF(0));
       die("pid file was empty");
     }
@@ -5963,7 +5960,7 @@ void do_connect(struct st_command *command)
 
   if (con_pipe)
   {
-#ifdef __WIN__
+#ifdef _WIN32
     opt_protocol= MYSQL_PROTOCOL_PIPE;
 #endif
   }
@@ -6614,7 +6611,7 @@ int read_line(char *buf, int size)
       }
     }
   }
-  die("The input buffer is too small for this query.x\n"      \
+  die("The input buffer is too small for this query.\n"
       "check your query or increase MAX_QUERY and recompile");
   DBUG_RETURN(0);
 }
@@ -6771,13 +6768,13 @@ int read_command(struct st_command** command_ptr)
 
   if (parser.current_line < parser.read_lines)
   {
-    get_dynamic(&q_lines, (uchar*) command_ptr, parser.current_line) ;
+    get_dynamic(&q_lines, command_ptr, parser.current_line) ;
     DBUG_RETURN(0);
   }
   if (!(*command_ptr= command=
         (struct st_command*) my_malloc(sizeof(*command),
                                        MYF(MY_WME|MY_ZEROFILL))) ||
-      insert_dynamic(&q_lines, (uchar*) &command))
+      insert_dynamic(&q_lines, &command))
     die("Out of memory");
   command->type= Q_UNKNOWN;
 
@@ -7017,7 +7014,7 @@ void read_embedded_server_arguments(const char *name)
   if (!embedded_server_arg_count)
   {
     embedded_server_arg_count=1;
-    embedded_server_args[0]= (char*) "";		/* Progname */
+    embedded_server_args[0]= const_cast<char*>("");    /* Progname */
   }
   if (!(file=my_fopen(buff, O_RDONLY | FILE_BINARY, MYF(MY_WME))))
     die("Failed to open file '%s'", buff);
@@ -7027,7 +7024,7 @@ void read_embedded_server_arguments(const char *name)
   {
     *(strend(str)-1)=0;				/* Remove end newline */
     if (!(embedded_server_args[embedded_server_arg_count]=
-	  (char*) my_strdup(str,MYF(MY_WME))))
+	  my_strdup(str, MYF(MY_WME))))
     {
       my_fclose(file,MYF(0));
       die("Out of memory");
@@ -7089,7 +7086,7 @@ get_one_option(int optid, const struct my_option *opt, char *argument)
   }
   case 'p':
     if (argument == disabled_my_option)
-      argument= (char*) "";			// Don't require password
+      argument= const_cast<char*>("");         // Don't require password
     if (argument)
     {
       my_free(opt_pass);
@@ -7108,7 +7105,7 @@ get_one_option(int optid, const struct my_option *opt, char *argument)
     if (!embedded_server_arg_count)
     {
       embedded_server_arg_count=1;
-      embedded_server_args[0]= (char*) "";
+      embedded_server_args[0]= const_cast<char*>("");
     }
     if (embedded_server_arg_count == MAX_EMBEDDED_SERVER_ARGS-1 ||
         !(embedded_server_args[embedded_server_arg_count++]=
@@ -7258,7 +7255,7 @@ void check_regerr(regex_t* r, int err)
 }
 
 
-#ifdef __WIN__
+#ifdef _WIN32
 
 DYNAMIC_ARRAY patterns;
 
@@ -7308,7 +7305,7 @@ void init_win_path_patterns()
       continue;
     }
 
-    if (insert_dynamic(&patterns, (uchar*) &p))
+    if (insert_dynamic(&patterns, &p))
       die("Out of memory");
 
     DBUG_PRINT("info", ("p: %s", p));
@@ -7332,6 +7329,7 @@ void free_win_path_patterns()
   }
   delete_dynamic(&patterns);
 }
+#endif
 
 /*
   fix_win_paths
@@ -7347,8 +7345,9 @@ void free_win_path_patterns()
   => all \ from c:\mysql\m... until next space is converted into /
 */
 
-void fix_win_paths(const char *val, int len)
+void fix_win_paths(char *val, int len)
 {
+#ifdef _WIN32
   uint i;
   char *p;
 
@@ -7359,7 +7358,7 @@ void fix_win_paths(const char *val, int len)
     DBUG_PRINT("info", ("pattern: %s", *pattern));
 
     /* Search for the path in string */
-    while ((p= strstr((char*)val, *pattern)))
+    while ((p= strstr(val, *pattern)))
     {
       DBUG_PRINT("info", ("Found %s in val p: %s", *pattern, p));
 
@@ -7374,8 +7373,8 @@ void fix_win_paths(const char *val, int len)
   }
   DBUG_PRINT("exit", (" val: %s, len: %d", val, len));
   DBUG_VOID_RETURN;
-}
 #endif
+}
 
 
 
@@ -7398,7 +7397,7 @@ void append_field(DYNAMIC_STRING *ds, uint col_idx, MYSQL_FIELD* field,
     val= null;
     len= 4;
   }
-#ifdef __WIN__
+#ifdef _WIN32
   else if ((field->type == MYSQL_TYPE_DOUBLE ||
             field->type == MYSQL_TYPE_FLOAT ) &&
            field->decimals >= 31)
@@ -7429,13 +7428,13 @@ void append_field(DYNAMIC_STRING *ds, uint col_idx, MYSQL_FIELD* field,
   {
     if (col_idx)
       dynstr_append_mem(ds, "\t", 1);
-    replace_dynstr_append_mem(ds, val, (int)len);
+    replace_dynstr_append_mem(ds, val, len);
   }
   else
   {
     dynstr_append(ds, field->name);
     dynstr_append_mem(ds, "\t", 1);
-    replace_dynstr_append_mem(ds, val, (int)len);
+    replace_dynstr_append_mem(ds, val, len);
     dynstr_append_mem(ds, "\n", 1);
   }
 }
@@ -7573,8 +7572,7 @@ void append_metadata(DYNAMIC_STRING *ds,
     dynstr_append_mem(ds, "\t", 1);
     replace_dynstr_append_uint(ds, field->max_length);
     dynstr_append_mem(ds, "\t", 1);
-    dynstr_append_mem(ds, (char*) (IS_NOT_NULL(field->flags) ?
-                                   "N" : "Y"), 1);
+    dynstr_append_mem(ds, (IS_NOT_NULL(field->flags) ?  "N" : "Y"), 1);
     dynstr_append_mem(ds, "\t", 1);
     replace_dynstr_append_uint(ds, field->flags);
     dynstr_append_mem(ds, "\t", 1);
@@ -7913,7 +7911,7 @@ void handle_error(struct st_command *command,
   {
     /*
       The query after a "--require" failed. This is fine as long the server
-      returned a valid reponse. Don't allow 2013 or 2006 to trigger an
+      returned a valid response. Don't allow 2013 or 2006 to trigger an
       abort_not_supported_test
     */
     if (err_errno == CR_SERVER_LOST ||
@@ -8433,7 +8431,7 @@ void run_query(struct st_connection *cn, struct st_command *command, int flags)
 	Yes, it was possible to create this query as a view
       */
       view_created= 1;
-      query= (char*)"SELECT * FROM mysqltest_tmp_v";
+      query= const_cast<char*>("SELECT * FROM mysqltest_tmp_v");
       query_len = strlen(query);
 
       /*
@@ -8480,7 +8478,7 @@ void run_query(struct st_connection *cn, struct st_command *command, int flags)
     {
       sp_created= 1;
 
-      query= (char*)"CALL mysqltest_tmp_sp()";
+      query= const_cast<char*>("CALL mysqltest_tmp_sp()");
       query_len = strlen(query);
     }
     dynstr_free(&query_str);
@@ -8805,12 +8803,12 @@ static sig_handler signal_handler(int sig)
   fprintf(stderr, "Writing a core file...\n");
   fflush(stderr);
   my_write_core(sig);
-#ifndef __WIN__
+#ifndef _WIN32
   exit(1);			// Shouldn't get here but just in case
 #endif
 }
 
-#ifdef __WIN__
+#ifdef _WIN32
 
 LONG WINAPI exception_filter(EXCEPTION_POINTERS *exp)
 {
@@ -8847,7 +8845,7 @@ static void init_signal_handling(void)
   SetUnhandledExceptionFilter(exception_filter);
 }
 
-#else /* __WIN__ */
+#else /* _WIN32 */
 
 static void init_signal_handling(void)
 {
@@ -8874,7 +8872,7 @@ static void init_signal_handling(void)
   DBUG_VOID_RETURN;
 }
 
-#endif /* !__WIN__ */
+#endif /* !_WIN32 */
 
 int main(int argc, char **argv)
 {
@@ -8942,7 +8940,7 @@ int main(int argc, char **argv)
   memset(&var_reg, 0, sizeof(var_reg));
 
   init_builtin_echo();
-#ifdef __WIN__
+#ifdef _WIN32
 #ifndef USE_CYGWIN
   is_windows= 1;
 #endif
@@ -9002,7 +9000,7 @@ int main(int argc, char **argv)
   var_set_string("MYSQLTEST_FILE", cur_file->file_name);
   init_re();
 
-  /* Cursor protcol implies ps protocol */
+  /* Cursor protocol implies ps protocol */
   if (cursor_protocol)
     ps_protocol= 1;
 
@@ -9080,7 +9078,7 @@ int main(int argc, char **argv)
   }
 
   verbose_msg("Start processing test commands from '%s' ...", cur_file->file_name);
-  while (!read_command(&command) && !abort_flag)
+  while (!abort_flag && !read_command(&command))
   {
     my_bool ok_to_do;
     int current_line_inc = 1, processed = 0;
@@ -9100,7 +9098,7 @@ int main(int argc, char **argv)
                               abort_on_error);
     
     /*
-      some commmands need to be executed or at least parsed unconditionally,
+      some commands need to be executed or at least parsed unconditionally,
       because they change the grammar.
     */
     ok_to_do= cur_block->ok || command->type == Q_DELIMITER
@@ -9465,11 +9463,9 @@ int main(int argc, char **argv)
         do_eval(&ds_res, command->first_argument, command->end, FALSE);
         abort_not_supported_test("%s",ds_res.str);
         break;
-
       case Q_RESULT:
         die("result, deprecated command");
         break;
-
       default:
         processed= 0;
         break;
@@ -9532,7 +9528,7 @@ int main(int argc, char **argv)
     die("Test ended with parsing disabled");
 
   /*
-    The whole test has been executed _sucessfully_.
+    The whole test has been executed _successfully_.
     Time to compare result or save it to record file.
     The entire output from test is in the log file
   */
@@ -9578,7 +9574,7 @@ int main(int argc, char **argv)
 
   verbose_msg("Test has succeeded!");
   timer_output();
-  /* Yes, if we got this far the test has suceeded! Sakila smiles */
+  /* Yes, if we got this far the test has succeeded! Sakila smiles */
   cleanup_and_exit(0);
   return 0; /* Keep compiler happy too */
 }
@@ -9698,7 +9694,7 @@ typedef struct st_pointer_array {		/* when using array-strings */
 
 struct st_replace *init_replace(char * *from, char * *to, uint count,
 				char * word_end_chars);
-int insert_pointer_name(reg1 POINTER_ARRAY *pa,char * name);
+int insert_pointer_name(POINTER_ARRAY *pa,char * name);
 void free_pointer_array(POINTER_ARRAY *pa);
 
 /*
@@ -9720,8 +9716,8 @@ void do_get_replace(struct st_command *command)
 
   free_replace();
 
-  bzero((char*) &to_array,sizeof(to_array));
-  bzero((char*) &from_array,sizeof(from_array));
+  bzero(&to_array,sizeof(to_array));
+  bzero(&from_array,sizeof(from_array));
   if (!*from)
     die("Missing argument in %s", command->query);
   start= buff= (char*)my_malloc(strlen(from)+1,MYF(MY_WME | MY_FAE));
@@ -9732,9 +9728,7 @@ void do_get_replace(struct st_command *command)
     if (!*from)
       die("Wrong number of arguments to replace_result in '%s'",
           command->query);
-#ifdef __WIN__
     fix_win_paths(to, from - to);
-#endif
     insert_pointer_name(&from_array,to);
     to= get_string(&buff, &from, command);
     insert_pointer_name(&to_array,to);
@@ -9782,8 +9776,8 @@ void replace_strings_append(REPLACE *rep, DYNAMIC_STRING* ds,
                             const char *str,
                             int len __attribute__((unused)))
 {
-  reg1 REPLACE *rep_pos;
-  reg2 REPLACE_STRING *rep_str;
+  REPLACE *rep_pos;
+  REPLACE_STRING *rep_str;
   const char *start, *from;
   DBUG_ENTER("replace_strings_append");
 
@@ -9934,7 +9928,7 @@ struct st_replace_regex* init_replace_regex(char* expr)
     }
 
     /* done parsing the statement, now place it in regex_arr */
-    if (insert_dynamic(&res->regex_arr,(uchar*) &reg))
+    if (insert_dynamic(&res->regex_arr, &reg))
       die("Out of memory");
   }
   res->odd_buf_len= res->even_buf_len= 8192;
@@ -9986,7 +9980,7 @@ int multi_reg_replace(struct st_replace_regex* r,char* val)
     struct st_regex re;
     char* save_out_buf= out_buf;
 
-    get_dynamic(&r->regex_arr,(uchar*)&re,i);
+    get_dynamic(&r->regex_arr, &re, i);
 
     if (!reg_replace(&out_buf, buf_len_p, re.pattern, re.replace,
                      in_buf, re.icase))
@@ -10073,7 +10067,7 @@ void free_replace_regex()
   buf_len_p - result buffer length. Will change if the buffer is reallocated
   pattern - regexp pattern to match
   replace - replacement expression
-  string - the string to perform substituions in
+  string - the string to perform substitutions in
   icase - flag, if set to 1 the match is case insensitive
 */
 int reg_replace(char** buf_p, int* buf_len_p, char *pattern,
@@ -10351,7 +10345,7 @@ REPLACE *init_replace(char * *from, char * *to,uint count,
     if (len > max_length)
       max_length=len;
   }
-  bzero((char*) is_word_end,sizeof(is_word_end));
+  bzero(is_word_end, sizeof(is_word_end));
   for (i=0 ; word_end_chars[i] ; i++)
     is_word_end[(uchar) word_end_chars[i]]=1;
 
@@ -10442,7 +10436,7 @@ REPLACE *init_replace(char * *from, char * *to,uint count,
       or_bits(sets.set+used_sets,sets.set);	/* Can restart from start */
 
     /* Find all chars that follows current sets */
-    bzero((char*) used_chars,sizeof(used_chars));
+    bzero(used_chars, sizeof(used_chars));
     for (i= (uint) ~0; (i=get_next_bit(sets.set+used_sets,i)) ;)
     {
       used_chars[follow[i].chr]=1;
@@ -10576,7 +10570,7 @@ REPLACE *init_replace(char * *from, char * *to,uint count,
 
 int init_sets(REP_SETS *sets,uint states)
 {
-  bzero((char*) sets,sizeof(*sets));
+  bzero(sets, sizeof(*sets));
   sets->size_of_bits=((states+7)/8);
   if (!(sets->set_buffer=(REP_SET*) my_malloc(sizeof(REP_SET)*SET_MALLOC_HUNC,
 					      MYF(MY_WME))))
@@ -10607,8 +10601,8 @@ REP_SET *make_new_set(REP_SETS *sets)
   {
     sets->extra--;
     set=sets->set+ sets->count++;
-    bzero((char*) set->bits,sizeof(uint)*sets->size_of_bits);
-    bzero((char*) &set->next[0],sizeof(set->next[0])*LAST_CHAR_CODE);
+    bzero(set->bits, sizeof(uint) * sets->size_of_bits);
+    bzero(&set->next[0], sizeof(set->next[0]) * LAST_CHAR_CODE);
     set->found_offset=0;
     set->found_len=0;
     set->table_offset= (uint) ~0;
@@ -10616,13 +10610,12 @@ REP_SET *make_new_set(REP_SETS *sets)
     return set;
   }
   count=sets->count+sets->invisible+SET_MALLOC_HUNC;
-  if (!(set=(REP_SET*) my_realloc((uchar*) sets->set_buffer,
-                                  sizeof(REP_SET)*count,
+  if (!(set=(REP_SET*) my_realloc(sets->set_buffer, sizeof(REP_SET)*count,
 				  MYF(MY_WME))))
     return 0;
   sets->set_buffer=set;
   sets->set=set+sets->invisible;
-  if (!(bit_buffer=(uint*) my_realloc((uchar*) sets->bit_buffer,
+  if (!(bit_buffer=(uint*) my_realloc(sets->bit_buffer,
 				      (sizeof(uint)*sets->size_of_bits)*count,
 				      MYF(MY_WME))))
     return 0;
@@ -10665,7 +10658,7 @@ void internal_clear_bit(REP_SET *set, uint bit)
 
 void or_bits(REP_SET *to,REP_SET *from)
 {
-  reg1 uint i;
+  uint i;
   for (i=0 ; i < to->size_of_bits ; i++)
     to->bits[i]|=from->bits[i];
   return;
@@ -10673,7 +10666,7 @@ void or_bits(REP_SET *to,REP_SET *from)
 
 void copy_bits(REP_SET *to,REP_SET *from)
 {
-  memcpy((uchar*) to->bits,(uchar*) from->bits,
+  memcpy(to->bits, from->bits,
 	 (size_t) (sizeof(uint) * to->size_of_bits));
 }
 
@@ -10767,7 +10760,7 @@ uint end_of_word(char * pos)
 #define PC_MALLOC		256	/* Bytes for pointers */
 #define PS_MALLOC		512	/* Bytes for data */
 
-int insert_pointer_name(reg1 POINTER_ARRAY *pa,char * name)
+int insert_pointer_name(POINTER_ARRAY *pa,char * name)
 {
   uint i,length,old_count;
   uchar *new_pos;
@@ -10781,8 +10774,8 @@ int insert_pointer_name(reg1 POINTER_ARRAY *pa,char * name)
 		     (sizeof(char *)+sizeof(*pa->flag))*
 		     (sizeof(char *)+sizeof(*pa->flag))),MYF(MY_WME))))
       DBUG_RETURN(-1);
-    if (!(pa->str= (uchar*) my_malloc((uint) (PS_MALLOC-MALLOC_OVERHEAD),
-				     MYF(MY_WME))))
+    if (!(pa->str= (uchar*) my_malloc(PS_MALLOC - MALLOC_OVERHEAD,
+                                      MYF(MY_WME))))
     {
       my_free(pa->typelib.type_names);
       DBUG_RETURN (-1);
@@ -10797,9 +10790,8 @@ int insert_pointer_name(reg1 POINTER_ARRAY *pa,char * name)
   length=(uint) strlen(name)+1;
   if (pa->length+length >= pa->max_length)
   {
-    if (!(new_pos= (uchar*) my_realloc((uchar*) pa->str,
-                                      (uint) (pa->length+length+PS_MALLOC),
-				      MYF(MY_WME))))
+    if (!(new_pos= (uchar*) my_realloc(pa->str, pa->length + length + PS_MALLOC,
+                                       MYF(MY_WME))))
       DBUG_RETURN(1);
     if (new_pos != pa->str)
     {
@@ -10816,8 +10808,8 @@ int insert_pointer_name(reg1 POINTER_ARRAY *pa,char * name)
     int len;
     pa->array_allocs++;
     len=(PC_MALLOC*pa->array_allocs - MALLOC_OVERHEAD);
-    if (!(new_array=(const char **) my_realloc((uchar*) pa->typelib.type_names,
-					       (uint) len/
+    if (!(new_array=(const char **) my_realloc(pa->typelib.type_names,
+					       len/
                                                (sizeof(uchar*)+sizeof(*pa->flag))*
                                                (sizeof(uchar*)+sizeof(*pa->flag)),
                                                MYF(MY_WME))))
@@ -10826,13 +10818,13 @@ int insert_pointer_name(reg1 POINTER_ARRAY *pa,char * name)
     old_count=pa->max_count;
     pa->max_count=len/(sizeof(uchar*) + sizeof(*pa->flag));
     pa->flag= (uint8*) (pa->typelib.type_names+pa->max_count);
-    memcpy((uchar*) pa->flag,(char *) (pa->typelib.type_names+old_count),
+    memcpy(pa->flag, (pa->typelib.type_names  +old_count),
 	   old_count*sizeof(*pa->flag));
   }
   pa->flag[pa->typelib.count]=0;			/* Reset flag */
   pa->typelib.type_names[pa->typelib.count++]= (char*) pa->str+pa->length;
   pa->typelib.type_names[pa->typelib.count]= NullS;	/* Put end-mark */
-  (void) strmov((char*) pa->str+pa->length,name);
+  (void) strmov((char*) pa->str + pa->length,name);
   pa->length+=length;
   DBUG_RETURN(0);
 } /* insert_pointer_name */
@@ -10855,22 +10847,24 @@ void free_pointer_array(POINTER_ARRAY *pa)
 /* Functions that uses replace and replace_regex */
 
 /* Append the string to ds, with optional replace */
-void replace_dynstr_append_mem(DYNAMIC_STRING *ds,
-                               const char *val, int len)
+void replace_dynstr_append_mem(DYNAMIC_STRING *ds, const char *val, size_t len)
 {
-  char lower[512];
-#ifdef __WIN__
-  fix_win_paths(val, len);
-#endif
+  char lower[1024];
 
-  if (display_result_lower) 
+  if (len < sizeof(lower) - 1)
   {
-    /* Convert to lower case, and do this first */
-    char *c= lower;
-    for (const char *v= val;  *v;  v++)
-      *c++= my_tolower(charset_info, *v);
-    *c= '\0';
-    /* Copy from this buffer instead */
+    if (display_result_lower)
+    {
+      /* Convert to lower case, and do this first */
+      char *c= lower;
+      for (const char *v= val;  *v;  v++)
+        *c++= my_tolower(charset_info, *v);
+      *c= '\0';
+      /* Copy from this buffer instead */
+    }
+    else
+      memcpy(lower, val, len+1);
+    fix_win_paths(lower, len);
     val= lower;
   }
   
@@ -10959,7 +10953,7 @@ void dynstr_append_sorted(DYNAMIC_STRING* ds, DYNAMIC_STRING *ds_input,
     *line_end= 0;
 
     /* Insert pointer to the line in array */
-    if (insert_dynamic(&lines, (uchar*) &start))
+    if (insert_dynamic(&lines, &start))
       die("Out of memory inserting lines to sort");
 
     start= line_end+1;

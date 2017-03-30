@@ -29,6 +29,7 @@ Copyright (c) 2006, 2015, Percona and/or its affiliates. All rights reserved.
 #include "tokudb_status.h"
 #include "tokudb_card.h"
 #include "ha_tokudb.h"
+#include "sql_db.h"
 
 
 #if TOKU_INCLUDE_EXTENDED_KEYS
@@ -6108,8 +6109,6 @@ int ha_tokudb::info(uint flag) {
         stats.deleted = 0;
         if (!(flag & HA_STATUS_NO_LOCK)) {
             uint64_t num_rows = 0;
-            TOKU_DB_FRAGMENTATION_S frag_info;
-            memset(&frag_info, 0, sizeof frag_info);
 
             error = txn_begin(db_env, NULL, &txn, DB_READ_UNCOMMITTED, ha_thd());
             if (error) {
@@ -6126,11 +6125,6 @@ int ha_tokudb::info(uint flag) {
             } else {
                 goto cleanup;
             }
-            error = share->file->get_fragmentation(share->file, &frag_info);
-            if (error) {
-                goto cleanup;
-            }
-            stats.delete_length = frag_info.unused_bytes;
 
             DB_BTREE_STAT64 dict_stats;
             error = share->file->stat64(share->file, txn, &dict_stats);
@@ -6142,6 +6136,7 @@ int ha_tokudb::info(uint flag) {
             stats.update_time = dict_stats.bt_modify_time_sec;
             stats.check_time = dict_stats.bt_verify_time_sec;
             stats.data_file_length = dict_stats.bt_dsize;
+            stats.delete_length = dict_stats.bt_fsize - dict_stats.bt_dsize;
             if (hidden_primary_key) {
                 //
                 // in this case, we have a hidden primary key, do not
@@ -6177,30 +6172,21 @@ int ha_tokudb::info(uint flag) {
             //
             // this solution is much simpler than trying to maintain an 
             // accurate number of valid keys at the handlerton layer.
-            uint curr_num_DBs = table->s->keys + tokudb_test(hidden_primary_key);
+            uint curr_num_DBs =
+                table->s->keys + tokudb_test(hidden_primary_key);
             for (uint i = 0; i < curr_num_DBs; i++) {
                 // skip the primary key, skip dropped indexes
                 if (i == primary_key || share->key_file[i] == NULL) {
                     continue;
                 }
-                error =
-                    share->key_file[i]->stat64(
-                        share->key_file[i],
-                        txn,
-                        &dict_stats);
+                error = share->key_file[i]->stat64(
+                    share->key_file[i], txn, &dict_stats);
                 if (error) {
                     goto cleanup;
                 }
                 stats.index_file_length += dict_stats.bt_dsize;
-
-                error =
-                    share->file->get_fragmentation(
-                        share->file,
-                        &frag_info);
-                if (error) {
-                    goto cleanup;
-                }
-                stats.delete_length += frag_info.unused_bytes;
+                stats.delete_length +=
+                    dict_stats.bt_fsize - dict_stats.bt_dsize;
             }
         }
 
@@ -7637,6 +7623,27 @@ int ha_tokudb::delete_table(const char *name) {
     TOKUDB_HANDLER_DBUG_RETURN(error);
 }
 
+static bool tokudb_check_db_dir_exist_from_table_name(const char *table_name) {
+    DBUG_ASSERT(table_name);
+    bool mysql_dir_exists;
+    char db_name[FN_REFLEN];
+    const char *db_name_begin = strchr(table_name, FN_LIBCHAR);
+    const char *db_name_end = strrchr(table_name, FN_LIBCHAR);
+    DBUG_ASSERT(db_name_begin);
+    DBUG_ASSERT(db_name_end);
+    DBUG_ASSERT(db_name_begin != db_name_end);
+
+    ++db_name_begin;
+    size_t db_name_size = db_name_end - db_name_begin;
+
+    DBUG_ASSERT(db_name_size < FN_REFLEN);
+
+    memcpy(db_name, db_name_begin, db_name_size);
+    db_name[db_name_size] = '\0';
+    mysql_dir_exists = (check_db_dir_existence(db_name) == 0);
+
+    return mysql_dir_exists;
+}
 
 //
 // renames table from "from" to "to"
@@ -7659,15 +7666,33 @@ int ha_tokudb::rename_table(const char *from, const char *to) {
         TOKUDB_SHARE::drop_share(share);
     }
     int error;
-    error = delete_or_rename_table(from, to, false);
-    if (TOKUDB_LIKELY(TOKUDB_DEBUG_FLAGS(TOKUDB_DEBUG_HIDE_DDL_LOCK_ERRORS) == 0) &&
-        error == DB_LOCK_NOTGRANTED) {
+    bool to_db_dir_exist = tokudb_check_db_dir_exist_from_table_name(to);
+    if (!to_db_dir_exist) {
         sql_print_error(
-            "Could not rename table from %s to %s because another transaction "
-            "has accessed the table. To rename the table, make sure no "
-            "transactions touch the table.",
+            "Could not rename table from %s to %s because "
+            "destination db does not exist",
             from,
             to);
+#ifndef __WIN__
+        /* Small hack. tokudb_check_db_dir_exist_from_table_name calls
+         * my_access, which sets my_errno on Windows, but doesn't on
+         * unix. Set it for unix too.
+         */
+        my_errno= errno;
+#endif
+        error= my_errno;
+    }
+    else {
+        error = delete_or_rename_table(from, to, false);
+        if (TOKUDB_LIKELY(TOKUDB_DEBUG_FLAGS(TOKUDB_DEBUG_HIDE_DDL_LOCK_ERRORS) == 0) &&
+            error == DB_LOCK_NOTGRANTED) {
+            sql_print_error(
+                "Could not rename table from %s to %s because another transaction "
+                "has accessed the table. To rename the table, make sure no "
+                "transactions touch the table.",
+                from,
+                to);
+        }
     }
     TOKUDB_HANDLER_DBUG_RETURN(error);
 }

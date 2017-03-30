@@ -295,6 +295,10 @@ static inline bool table_not_corrupt_error(uint sql_errno)
           sql_errno == ER_WRONG_OBJECT);
 }
 
+#ifndef DBUG_OFF
+// It is counter for debugging fail on second call of open_only_one_table
+static int debug_fail_counter= 0;
+#endif
 
 static bool open_only_one_table(THD* thd, TABLE_LIST* table,
                                 bool repair_table_use_frm,
@@ -318,6 +322,16 @@ static bool open_only_one_table(THD* thd, TABLE_LIST* table,
   lex->query_tables= table;
   lex->query_tables_last= &table->next_global;
   lex->query_tables_own_last= 0;
+
+  DBUG_EXECUTE_IF("fail_2call_open_only_one_table", {
+                  if (debug_fail_counter)
+                  {
+                    open_error= TRUE;
+                    goto dbug_err;
+                  }
+                  else
+                    debug_fail_counter++;
+                  });
 
   /*
     CHECK TABLE command is allowed for views as well. Check on alter flags
@@ -378,6 +392,9 @@ static bool open_only_one_table(THD* thd, TABLE_LIST* table,
     open_error= (thd->open_temporary_tables(table) ||
                  open_and_lock_tables(thd, table, TRUE, 0));
   }
+
+dbug_err:
+
   thd->prepare_derived_at_open= FALSE;
 
   /*
@@ -807,59 +824,64 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
                                       repair_table_use_frm, FALSE);
       thd->open_options&= ~extra_open_options;
 
-      TABLE *tab= table->table;
-      Field **field_ptr= tab->field;
-      if (!lex->column_list)
+      if (!open_error)
       {
-        bitmap_clear_all(tab->read_set);
-        for (uint fields= 0; *field_ptr; field_ptr++, fields++)
+        TABLE *tab= table->table;
+        Field **field_ptr= tab->field;
+        if (!lex->column_list)
         {
-          enum enum_field_types type= (*field_ptr)->type();
-          if (type < MYSQL_TYPE_MEDIUM_BLOB ||
-              type > MYSQL_TYPE_BLOB)
-            bitmap_set_bit(tab->read_set, fields);
-          else
-            push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-                                ER_NO_EIS_FOR_FIELD,
-                                ER_THD(thd, ER_NO_EIS_FOR_FIELD),
-                                (*field_ptr)->field_name);
+          bitmap_clear_all(tab->read_set);
+          for (uint fields= 0; *field_ptr; field_ptr++, fields++)
+          {
+            enum enum_field_types type= (*field_ptr)->type();
+            if (type < MYSQL_TYPE_MEDIUM_BLOB ||
+                type > MYSQL_TYPE_BLOB)
+              bitmap_set_bit(tab->read_set, fields);
+            else
+              push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                                  ER_NO_EIS_FOR_FIELD,
+                                  ER_THD(thd, ER_NO_EIS_FOR_FIELD),
+                                  (*field_ptr)->field_name);
+          }
         }
+        else
+        {
+          int pos;
+          LEX_STRING *column_name;
+          List_iterator_fast<LEX_STRING> it(*lex->column_list);
+
+          bitmap_clear_all(tab->read_set);
+          while ((column_name= it++))
+          {
+            if (tab->s->fieldnames.type_names == 0 ||
+                (pos= find_type(&tab->s->fieldnames, column_name->str,
+                                column_name->length, 1)) <= 0)
+            {
+              compl_result_code= result_code= HA_ADMIN_INVALID;
+              break;
+            }
+            pos--;
+            enum enum_field_types type= tab->field[pos]->type();
+            if (type < MYSQL_TYPE_MEDIUM_BLOB ||
+                type > MYSQL_TYPE_BLOB)
+              bitmap_set_bit(tab->read_set, pos);
+            else
+              push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                                  ER_NO_EIS_FOR_FIELD,
+                                  ER_THD(thd, ER_NO_EIS_FOR_FIELD),
+                                  column_name->str);
+          }
+          tab->file->column_bitmaps_signal();
+        }
+        if (!(compl_result_code=
+              alloc_statistics_for_table(thd, table->table)) &&
+            !(compl_result_code=
+              collect_statistics_for_table(thd, table->table)))
+          compl_result_code= update_statistics_for_table(thd, table->table);
       }
       else
-      {
-        int pos;
-        LEX_STRING *column_name;
-        List_iterator_fast<LEX_STRING> it(*lex->column_list);
+        compl_result_code= HA_ADMIN_FAILED;
 
-        bitmap_clear_all(tab->read_set);
-        while ((column_name= it++))
-        {
-          if (tab->s->fieldnames.type_names == 0 ||
-              (pos= find_type(&tab->s->fieldnames, column_name->str,
-                              column_name->length, 1)) <= 0)
-          {
-            compl_result_code= result_code= HA_ADMIN_INVALID;
-            break;
-          }
-          pos--;
-          enum enum_field_types type= tab->field[pos]->type();
-          if (type < MYSQL_TYPE_MEDIUM_BLOB ||
-              type > MYSQL_TYPE_BLOB)
-            bitmap_set_bit(tab->read_set, pos);
-          else
-            push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-                                ER_NO_EIS_FOR_FIELD,
-                                ER_THD(thd, ER_NO_EIS_FOR_FIELD),
-                                column_name->str);
-        }
-        tab->file->column_bitmaps_signal();
-      }
-      if (!open_error &&
-          !(compl_result_code=
-            alloc_statistics_for_table(thd, table->table)) &&
-          !(compl_result_code=
-            collect_statistics_for_table(thd, table->table)))
-        compl_result_code= update_statistics_for_table(thd, table->table);
       if (compl_result_code)
         result_code= HA_ADMIN_FAILED;
       else

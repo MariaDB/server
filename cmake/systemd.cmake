@@ -18,7 +18,7 @@ INCLUDE(FindPkgConfig)
 
 MACRO(CHECK_SYSTEMD)
   IF(UNIX)
-    SET(WITH_SYSTEMD "auto" CACHE STRING "Compile with systemd socket activation and notification")
+    SET(WITH_SYSTEMD "auto" CACHE STRING "Enable systemd scripts and notification support")
     IF(WITH_SYSTEMD STREQUAL "yes" OR WITH_SYSTEMD STREQUAL "auto")
       IF(PKG_CONFIG_FOUND)
         IF(WITH_SYSTEMD STREQUAL "yes")

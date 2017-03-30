@@ -22,7 +22,6 @@ CALL mtr.add_suppression("\\[ERROR\\] \\[FATAL\\] InnoDB: Unable to read page \\
 CALL mtr.add_suppression("\\[ERROR\\] InnoDB: Database page corruption on disk or a failed");
 --enable_query_log
 
-
 CREATE TABLE t1 (a INT AUTO_INCREMENT PRIMARY KEY, b TEXT) ROW_FORMAT=COMPACT ENGINE=InnoDB;
 INSERT INTO t1 (b) VALUES ('corrupt me');
 --disable_query_log
@@ -93,9 +92,6 @@ SLEEP 1;
 --move_file $MYSQLD_DATADIR/test/t1.ibd.backup $MYSQLD_DATADIR/test/t1.ibd
 
 --source include/start_mysqld.inc
-
-# Note SET DEBUG = '-d,innodb_page_corruption_retries' is not required
-# because the session information is lost after server restart
 
 --echo # Cleanup
 DROP TABLE t1;

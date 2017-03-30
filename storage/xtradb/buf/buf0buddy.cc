@@ -485,7 +485,6 @@ buf_buddy_alloc_low(
 {
 	buf_block_t*	block;
 
-	ut_ad(lru);
 	ut_ad(mutex_own(&buf_pool->LRU_list_mutex));
 	ut_ad(!mutex_own(&buf_pool->zip_mutex));
 	ut_ad(i >= buf_buddy_get_slot(UNIV_ZIP_SIZE_MIN));

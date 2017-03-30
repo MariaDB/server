@@ -2,7 +2,7 @@
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2009, Google Inc.
-Copyright (c) 2014, 2017, MariaDB Corporation. All Rights Reserved.
+Copyright (c) 2014, 2017, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -35,11 +35,6 @@ Created 12/9/1995 Heikki Tuuri
 #include <debug_sync.h>
 
 #include "log0log.h"
-
-#ifdef UNIV_NONINL
-#include "log0log.ic"
-#endif
-
 #include "log0crypt.h"
 #include "mem0mem.h"
 #include "buf0buf.h"
@@ -98,11 +93,11 @@ static ulint		next_lbn_to_pad = 0;
 
 /* These control how often we print warnings if the last checkpoint is too
 old */
-bool	log_has_printed_chkp_warning = false;
-time_t	log_last_warning_time;
+static bool	log_has_printed_chkp_warning = false;
+static time_t	log_last_warning_time;
 
-bool	log_has_printed_chkp_margine_warning = false;
-time_t	log_last_margine_warning_time;
+static bool	log_has_printed_chkp_margine_warning = false;
+static time_t	log_last_margine_warning_time;
 
 /* A margin for free space in the log buffer before a log entry is catenated */
 #define LOG_BUF_WRITE_MARGIN	(4 * OS_FILE_LOG_BLOCK_SIZE)
@@ -562,6 +557,7 @@ function_exit:
 Calculates the data capacity of a log group, when the log file headers are not
 included.
 @return capacity in bytes */
+static
 lsn_t
 log_group_get_capacity(
 /*===================*/
@@ -660,45 +656,6 @@ log_group_calc_lsn_offset(
 
 	return(log_group_calc_real_offset(offset, group));
 }
-/*******************************************************************//**
-Calculates where in log files we find a specified lsn.
-@return log file number */
-ulint
-log_calc_where_lsn_is(
-/*==================*/
-	int64_t*	log_file_offset,	/*!< out: offset in that file
-						(including the header) */
-	ib_uint64_t	first_header_lsn,	/*!< in: first log file start
-						lsn */
-	ib_uint64_t	lsn,			/*!< in: lsn whose position to
-						determine */
-	ulint		n_log_files,		/*!< in: total number of log
-						files */
-	int64_t		log_file_size)		/*!< in: log file size
-						(including the header) */
-{
-	int64_t		capacity	= log_file_size - LOG_FILE_HDR_SIZE;
-	ulint		file_no;
-	int64_t		add_this_many;
-
-	if (lsn < first_header_lsn) {
-		add_this_many = 1 + (first_header_lsn - lsn)
-			/ (capacity * static_cast<int64_t>(n_log_files));
-		lsn += add_this_many
-			* capacity * static_cast<int64_t>(n_log_files);
-	}
-
-	ut_a(lsn >= first_header_lsn);
-
-	file_no = ((ulint)((lsn - first_header_lsn) / capacity))
-		% n_log_files;
-	*log_file_offset = (lsn - first_header_lsn) % capacity;
-
-	*log_file_offset = *log_file_offset + LOG_FILE_HDR_SIZE;
-
-	return(file_no);
-}
-
 
 /********************************************************//**
 Sets the field values in group to correspond to a given lsn. For this function
@@ -2001,12 +1958,6 @@ logs_empty_and_mark_files_at_shutdown(void)
 
 	ib::info() << "Starting shutdown...";
 
-	while (srv_fast_shutdown == 0 && trx_rollback_or_clean_is_active) {
-		/* we should wait until rollback after recovery end
-		for slow shutdown */
-		os_thread_sleep(100000);
-	}
-
 	/* Wait until the master thread and all other operations are idle: our
 	algorithm only works if the server is idle at shutdown */
 
@@ -2068,6 +2019,8 @@ loop:
 		thread_name = "lock_wait_timeout_thread";
 	} else if (srv_buf_dump_thread_active) {
 		thread_name = "buf_dump_thread";
+	} else if (srv_fast_shutdown != 2 && trx_rollback_or_clean_is_active) {
+		thread_name = "rollback of recovered transactions";
 	} else {
 		thread_name = NULL;
 	}

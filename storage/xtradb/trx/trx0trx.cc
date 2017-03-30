@@ -478,7 +478,11 @@ trx_free_prepared(
 /*==============*/
 	trx_t*	trx)	/*!< in, own: trx object */
 {
-	ut_a(trx_state_eq(trx, TRX_STATE_PREPARED));
+	ut_a(trx_state_eq(trx, TRX_STATE_PREPARED)
+	     || (trx_state_eq(trx, TRX_STATE_ACTIVE)
+		 && trx->is_recovered
+		 && (srv_read_only_mode
+		     || srv_force_recovery >= SRV_FORCE_NO_TRX_UNDO)));
 	ut_a(trx->magic_n == TRX_MAGIC_N);
 
 	lock_trx_release_locks(trx);
@@ -1117,7 +1121,8 @@ trx_start_low(
 
 	trx->start_time = ut_time();
 
-	trx->start_time_micro = clock();
+	trx->start_time_micro =
+		trx->mysql_thd ? thd_query_start_micro(trx->mysql_thd) : 0;
 
 	MONITOR_INC(MONITOR_TRX_ACTIVE);
 }

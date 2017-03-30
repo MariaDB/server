@@ -925,6 +925,7 @@ is relatively quick and is used to calculate transient statistics that
 are not saved on disk.
 This was the only way to calculate statistics before the
 Persistent Statistics feature was introduced. */
+static
 void
 dict_stats_update_transient(
 /*========================*/

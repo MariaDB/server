@@ -330,7 +330,7 @@ static bool has_no_default_value(THD *thd, Field *field, TABLE_LIST *table_list)
       push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN, ER_NO_DEFAULT_FOR_FIELD,
                           ER_THD(thd, ER_NO_DEFAULT_FOR_FIELD), field->field_name);
     }
-    return true;
+    return thd->really_abort_on_warning();
   }
   return false;
 }
@@ -904,7 +904,12 @@ bool mysql_insert(THD *thd,TABLE_LIST *table_list,
 
   if (fields.elements || !value_count || table_list->view != 0)
   {
-    if (check_that_all_fields_are_given_values(thd, table, table_list))
+    if (table->triggers &&
+        table->triggers->has_triggers(TRG_EVENT_INSERT, TRG_ACTION_BEFORE))
+    {
+      /* BEFORE INSERT triggers exist, the check will be done later, per row */
+    }
+    else if (check_that_all_fields_are_given_values(thd, table, table_list))
     {
       error= 1;
       goto values_loop_end;
@@ -3870,8 +3875,8 @@ bool select_insert::prepare_eof()
 
 bool select_insert::send_ok_packet() {
   char  message[160];                           /* status message */
-  ulong row_count;                              /* rows affected */
-  ulong id;                                     /* last insert-id */
+  ulonglong row_count;                          /* rows affected */
+  ulonglong id;                                 /* last insert-id */
 
   DBUG_ENTER("select_insert::send_ok_packet");
 

@@ -6214,7 +6214,6 @@ dict_set_corrupted(
 		row_mysql_lock_data_dictionary(trx);
 	}
 
-	ut_ad(index);
 	ut_ad(mutex_own(&dict_sys->mutex));
 	ut_ad(!dict_table_is_comp(dict_sys->sys_tables));
 	ut_ad(!dict_table_is_comp(dict_sys->sys_indexes));

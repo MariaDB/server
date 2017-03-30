@@ -1,4 +1,3 @@
-drop procedure if exists test.user_proc;
 "Testing mysql_upgrade with PROCEDURE performance_schema.user_proc"
 create procedure test.user_proc()
 select "Not supposed to be here";

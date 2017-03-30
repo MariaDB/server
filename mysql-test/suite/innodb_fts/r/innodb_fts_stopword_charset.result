@@ -316,6 +316,3 @@ id	title
 13	lòve
 14	LÒVE
 DROP TABLE articles;
-SET SESSION innodb_ft_enable_stopword=1;
-SET GLOBAL innodb_ft_server_stopword_table=default;
-SET SESSION innodb_ft_user_stopword_table=default;

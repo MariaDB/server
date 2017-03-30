@@ -87,9 +87,7 @@ private:
 #  define UT_RELAX_CPU() YieldProcessor()
 # elif defined(__powerpc__) && defined __GLIBC__
 #include <sys/platform/ppc.h>
-#  define UT_RELAX_CPU() do { \
-     volatile lint      volatile_var = __ppc_get_timebase(); \
-   } while (0)
+#  define UT_RELAX_CPU() __ppc_get_timebase()
 # else
 #  define UT_RELAX_CPU() ((void)0) /* avoid warning for an empty statement */
 # endif

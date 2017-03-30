@@ -154,7 +154,6 @@ INCLUDE(ssl)
 INCLUDE(readline)
 INCLUDE(libutils)
 INCLUDE(dtrace)
-INCLUDE(jemalloc)
 INCLUDE(pcre)
 INCLUDE(ctest)
 INCLUDE(plugin)
@@ -313,12 +312,15 @@ IF(NOT HAVE_CXX_NEW)
 ENDIF()
 
 # Find header files from the bundled libraries
-# (jemalloc, yassl, readline, pcre, etc)
+# (yassl, readline, pcre, etc)
 # before the ones installed in the system
 SET(CMAKE_INCLUDE_DIRECTORIES_PROJECT_BEFORE ON)
 
 # Common defines and includes
 ADD_DEFINITIONS(-DHAVE_CONFIG_H)
+IF(_FILE_OFFSET_BITS)
+  ADD_DEFINITIONS(-D_FILE_OFFSET_BITS=${_FILE_OFFSET_BITS})
+ENDIF()
 INCLUDE_DIRECTORIES(${CMAKE_CURRENT_BINARY_DIR}/include)
 
 # Add bundled or system zlib.
@@ -329,7 +331,6 @@ MYSQL_CHECK_SSL()
 MYSQL_CHECK_READLINE()
 
 SET(MALLOC_LIBRARY "system")
-CHECK_JEMALLOC()
 
 CHECK_PCRE()
 
@@ -453,8 +454,9 @@ ADD_CUSTOM_TARGET(INFO_BIN ALL
   WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
 )
 
-INSTALL_DOCUMENTATION(README.md CREDITS COPYING COPYING.LESSER COPYING.thirdparty
+INSTALL_DOCUMENTATION(README.md CREDITS COPYING COPYING.thirdparty
                       EXCEPTIONS-CLIENT COMPONENT Readme)
+
 # MDEV-6526 these files are not installed anymore
 #INSTALL_DOCUMENTATION(${CMAKE_BINARY_DIR}/Docs/INFO_SRC
 #                      ${CMAKE_BINARY_DIR}/Docs/INFO_BIN)

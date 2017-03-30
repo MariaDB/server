@@ -27,11 +27,6 @@ Created 12/27/1996 Heikki Tuuri
 #include "ha_prototypes.h"
 
 #include "row0upd.h"
-
-#ifdef UNIV_NONINL
-#include "row0upd.ic"
-#endif
-
 #include "dict0dict.h"
 #include "dict0mem.h"
 #include "trx0undo.h"
@@ -1290,8 +1285,6 @@ row_upd_index_replace_new_col_vals_index_pos(
 	ulint		n_fields;
 	const page_size_t&	page_size = dict_table_page_size(index->table);
 
-	ut_ad(index);
-
 	dtuple_set_info_bits(entry, update->info_bits);
 
 	if (order_only) {
@@ -1642,8 +1635,6 @@ row_upd_changes_ord_field_binary_func(
 	ulint			i;
 	const dict_index_t*	clust_index;
 
-	ut_ad(index);
-	ut_ad(update);
 	ut_ad(thr);
 	ut_ad(thr->graph);
 	ut_ad(thr->graph->trx);
@@ -3225,6 +3216,7 @@ to this node, we assume that we have a persistent cursor which was on a
 record, and the position of the cursor is stored in the cursor.
 @return DB_SUCCESS if operation successfully completed, else error
 code or DB_LOCK_WAIT */
+static
 dberr_t
 row_upd(
 /*====*/

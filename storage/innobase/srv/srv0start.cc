@@ -3,7 +3,7 @@
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All rights reserved.
 Copyright (c) 2008, Google Inc.
 Copyright (c) 2009, Percona Inc.
-Copyright (c) 2013, 2017, MariaDB Corporation
+Copyright (c) 2013, 2017, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -450,6 +450,7 @@ create_log_files(
 		"innodb_redo_log", SRV_LOG_SPACE_FIRST_ID, 0, FIL_TYPE_LOG,
 		NULL, /* innodb_encrypt_log works at a different level */
 		true /* this is create */);
+
 	ut_a(fil_validate());
 	ut_a(log_space != NULL);
 
@@ -541,9 +542,10 @@ create_log_files_rename(
 
 	DBUG_EXECUTE_IF("innodb_log_abort_10", err = DB_ERROR;);
 
-	fil_open_log_and_system_tablespace_files();
-
-	ib::info() << "New log files created, LSN=" << lsn;
+	if (err == DB_SUCCESS) {
+		fil_open_log_and_system_tablespace_files();
+		ib::info() << "New log files created, LSN=" << lsn;
+	}
 
 	return(err);
 }
@@ -2921,9 +2923,11 @@ innodb_shutdown()
 	srv_start_has_been_called = FALSE;
 }
 
+#if 0 // TODO: Enable this in WL#6608
 /********************************************************************
 Signal all per-table background threads to shutdown, and wait for them to do
 so. */
+static
 void
 srv_shutdown_table_bg_threads(void)
 /*===============================*/
@@ -2996,6 +3000,7 @@ srv_shutdown_table_bg_threads(void)
 		table = next;
 	}
 }
+#endif
 
 /** Get the meta-data filename from the table name for a
 single-table tablespace.

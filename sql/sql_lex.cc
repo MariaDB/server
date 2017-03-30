@@ -1448,7 +1448,10 @@ static int lex_one_token(YYSTYPE *yylval, THD *thd)
           below by checking start != lex->ptr.
         */
         for (; state_map[(uchar) c] == MY_LEX_SKIP ; c= lip->yyGet())
-          ;
+        {
+          if (c == '\n')
+            lip->yylineno++;
+        }
       }
       if (start == lip->get_ptr() && c == '.' &&
           ident_map[(uchar) lip->yyPeek()])

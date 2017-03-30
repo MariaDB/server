@@ -232,7 +232,7 @@ struct mysql_event_parse
   /** input: the original query text */
   MYSQL_LEX_CSTRING                     query;
 
-  /** output: returns the null-terminated rewriten query allocated by my_malloc() */
+  /** output: returns the null-terminated rewritten query allocated by my_malloc() */
   MYSQL_LEX_CSTRING                     *rewritten_query;
 };
 

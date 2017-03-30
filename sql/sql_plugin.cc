@@ -724,7 +724,7 @@ static st_plugin_dl *plugin_dl_add(const LEX_STRING *dl, int report)
 {
 #ifdef HAVE_DLOPEN
   char dlpath[FN_REFLEN];
-  uint plugin_dir_len, dummy_errors, dlpathlen, i;
+  uint plugin_dir_len, dummy_errors, i;
   struct st_plugin_dl *tmp= 0, plugin_dl;
   void *sym;
   st_ptr_backup tmp_backup[array_elements(list_of_services)];
@@ -760,15 +760,7 @@ static st_plugin_dl *plugin_dl_add(const LEX_STRING *dl, int report)
   /* Open new dll handle */
   if (!(plugin_dl.handle= dlopen(dlpath, RTLD_NOW)))
   {
-    const char *errmsg=dlerror();
-    dlpathlen= strlen(dlpath);
-    if (!strncmp(dlpath, errmsg, dlpathlen))
-    { // if errmsg starts from dlpath, trim this prefix.
-      errmsg+=dlpathlen;
-      if (*errmsg == ':') errmsg++;
-      if (*errmsg == ' ') errmsg++;
-    }
-    report_error(report, ER_CANT_OPEN_LIBRARY, dlpath, errno, errmsg);
+    report_error(report, ER_CANT_OPEN_LIBRARY, dlpath, errno, my_dlerror(dlpath));
     goto ret;
   }
   dlopen_count++;
@@ -1569,8 +1561,8 @@ int plugin_init(int *argc, char **argv, int flags)
   }
 
   /* prepare debug_sync service */
-  DBUG_ASSERT(strcmp(list_of_services[4].name, "debug_sync_service") == 0);
-  list_of_services[4].service= *(void**)&debug_sync_C_callback_ptr;
+  DBUG_ASSERT(strcmp(list_of_services[1].name, "debug_sync_service") == 0);
+  list_of_services[1].service= *(void**)&debug_sync_C_callback_ptr;
 
   /* prepare encryption_keys service */
   finalize_encryption_plugin(0);
@@ -1657,10 +1649,11 @@ int plugin_init(int *argc, char **argv, int flags)
     {
       char path[FN_REFLEN + 1];
       build_table_filename(path, sizeof(path) - 1, "mysql", "plugin", reg_ext, 0);
-      enum legacy_db_type db_type;
-      frm_type_enum frm_type= dd_frm_type(NULL, path, &db_type);
+      char engine_name_buf[NAME_CHAR_LEN + 1];
+      LEX_STRING maybe_myisam= { engine_name_buf, 0 };
+      frm_type_enum frm_type= dd_frm_type(NULL, path, &maybe_myisam);
       /* if mysql.plugin table is MyISAM - load it right away */
-      if (frm_type == FRMTYPE_TABLE && db_type == DB_TYPE_MYISAM)
+      if (frm_type == FRMTYPE_TABLE && !strcasecmp(maybe_myisam.str, "MyISAM"))
       {
         plugin_load(&tmp_root);
         flags|= PLUGIN_INIT_SKIP_PLUGIN_TABLE;

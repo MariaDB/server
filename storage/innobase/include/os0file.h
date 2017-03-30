@@ -2,7 +2,7 @@
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2009, Percona Inc.
-Copyright (c) 2013, 2017, MariaDB Corporation. All Rights Reserved.
+Copyright (c) 2013, 2017, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted
 by Percona Inc.. Those modifications are
@@ -426,15 +426,12 @@ public:
 		}
 	}
 
-	/** Punch a hole in the file if it was a write
+	/** Free storage space associated with a section of the file.
 	@param[in]	fh		Open file handle
-	@param[in]	len		Compressed buffer length for write
+	@param[in]	off		Starting offset (SEEK_SET)
+	@param[in]	len		Size of the hole
 	@return DB_SUCCESS or error code */
-
-	dberr_t punch_hole(
-		os_file_t	fh,
-		os_offset_t	offset,
-		os_offset_t	len);
+	dberr_t punch_hole(os_file_t fh, os_offset_t off, ulint len);
 
 private:
 	/** Page to be written on write operation. */
@@ -1609,8 +1606,6 @@ os_file_get_block_size(
 	os_file_t	file,	/*!< in: handle to a file */
 	const char*	name);	/*!< in: file name */
 
-#ifndef UNIV_NONINL
 #include "os0file.ic"
-#endif /* UNIV_NONINL */
 
 #endif /* os0file_h */

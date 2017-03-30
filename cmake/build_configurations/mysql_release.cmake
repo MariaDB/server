@@ -27,7 +27,10 @@ ENDIF()
 IF(SIZEOF_VOIDP EQUAL 8)
   SET(64BIT 1)
 ENDIF()
- 
+
+# include aws_key_management plugin in release builds
+OPTION(AWS_SDK_EXTERNAL_PROJECT  "Allow download and build AWS C++ SDK" ON)
+
 SET(FEATURE_SET "community" CACHE STRING 
 " Selection of features. Options are
  - xsmall : 
@@ -83,10 +86,13 @@ IF(FEATURE_SET)
 ENDIF()
 
 OPTION(ENABLED_LOCAL_INFILE "" ON)
+SET(WITH_INNODB_SNAPPY OFF CACHE STRING "")
 IF(WIN32)
 ELSEIF(RPM)
   SET(WITH_SSL system CACHE STRING "")
   SET(WITH_ZLIB system CACHE STRING "")
+  SET(CHECKMODULE /usr/bin/checkmodule CACHE STRING "")
+  SET(SEMODULE_PACKAGE /usr/bin/semodule_package CACHE STRING "")
 ELSEIF(DEB)
   SET(WITH_SSL system CACHE STRING "")
   SET(WITH_ZLIB system CACHE STRING "")

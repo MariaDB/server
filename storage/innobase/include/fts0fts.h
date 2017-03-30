@@ -663,6 +663,7 @@ void
 fts_startup(void);
 /*==============*/
 
+#if 0 // TODO: Enable this in WL#6608
 /******************************************************************//**
 Signal FTS threads to initiate shutdown. */
 void
@@ -682,6 +683,7 @@ fts_shutdown(
 						indexes */
 	fts_t*		fts);			/*!< in: fts instance to
 						shutdown */
+#endif
 
 /******************************************************************//**
 Create an instance of fts_t.
@@ -713,13 +715,6 @@ Startup the optimize thread and create the work queue. */
 void
 fts_optimize_init(void);
 /*====================*/
-
-/**********************************************************************//**
-Check whether the work queue is initialized.
-@return TRUE if optimze queue is initialized. */
-ibool
-fts_optimize_is_init(void);
-/*======================*/
 
 /****************************************************************//**
 Drops index ancillary tables for a FTS index
@@ -773,13 +768,6 @@ fts_savepoint_release(
 	trx_t*		trx,			/*!< in: transaction */
 	const char*	name);			/*!< in: savepoint name */
 
-/**********************************************************************//**
-Free the FTS cache. */
-void
-fts_cache_destroy(
-/*==============*/
-	fts_cache_t*	cache);			/*!< in: cache*/
-
 /** Clear cache.
 @param[in,out]	cache	fts cache */
 void
@@ -814,17 +802,6 @@ table or FTS index defined on them. */
 void
 fts_drop_orphaned_tables(void);
 /*==========================*/
-
-/******************************************************************//**
-Since we do a horizontal split on the index table, we need to drop
-all the split tables.
-@return DB_SUCCESS or error code */
-dberr_t
-fts_drop_index_split_tables(
-/*========================*/
-	trx_t*		trx,			/*!< in: transaction */
-	dict_index_t*	index)			/*!< in: fts instance */
-	MY_ATTRIBUTE((warn_unused_result));
 
 /** Run SYNC on the table, i.e., write out data from the cache to the
 FTS auxiliary INDEX table and clear the cache at the end.
@@ -974,14 +951,6 @@ fts_load_stopword(
 						option is turned on/off */
 	ibool		reload);		/*!< in: Whether it is during
 						reload of FTS table */
-
-/****************************************************************//**
-Create the vector of fts_get_doc_t instances.
-@return vector of fts_get_doc_t instances */
-ib_vector_t*
-fts_get_docs_create(
-/*================*/
-	fts_cache_t*	cache);			/*!< in: fts cache */
 
 /****************************************************************//**
 Read the rows from the FTS index

@@ -478,16 +478,22 @@ enum killed_state
   KILL_TIMEOUT= 8,
   KILL_TIMEOUT_HARD= 9,
   /*
+    When binlog reading thread connects to the server it kills
+    all the binlog threads with the same ID.
+  */
+  KILL_SLAVE_SAME_ID= 10,
+  /*
     All of the following killed states will kill the connection
     KILL_CONNECTION must be the first of these and it must start with
     an even number (becasue of HARD bit)!
   */
-  KILL_CONNECTION= 10,
-  KILL_CONNECTION_HARD= 11,
-  KILL_SYSTEM_THREAD= 12,
-  KILL_SYSTEM_THREAD_HARD= 13,
-  KILL_SERVER= 14,
-  KILL_SERVER_HARD= 15
+  KILL_CONNECTION= 12,
+  KILL_CONNECTION_HARD= 13,
+  KILL_SYSTEM_THREAD= 14,
+  KILL_SYSTEM_THREAD_HARD= 15,
+  KILL_SERVER= 16,
+  KILL_SERVER_HARD= 17,
+
 };
 
 extern int killed_errno(killed_state killed);

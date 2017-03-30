@@ -4839,7 +4839,7 @@ WARN_DATA_TRUNCATED 01000
         spa "Datos truncados para columna '%s' en la línea %lu"
 ER_WARN_USING_OTHER_HANDLER  
         eng "Using storage engine %s for table '%s'"
-        ger "Für Tabelle '%s' wird Speicher-Engine %s benutzt"
+        ger "Speicher-Engine %s wird für Tabelle '%s' benutzt"
         jpn "ストレージエンジン %s が表 '%s' に利用されています。"
         por "Usando engine de armazenamento %s para tabela '%s'"
         spa "Usando motor de almacenamiento %s para tabla '%s'"
@@ -7151,6 +7151,9 @@ skip-to-error-number 2000
 # MySQL 5.7 error numbers starts here
 skip-to-error-number 3000
 
+ER_FILE_CORRUPT
+  eng "File %s is corrupted"
+
 ER_ERROR_ON_MASTER
   eng "Query partially completed on the master (error on master: %d) and was aborted. There is a chance that your master is inconsistent at this point. If you are sure that your master is ok, run this query manually on the slave and then restart the slave with SET GLOBAL SQL_SLAVE_SKIP_COUNTER=1; START SLAVE;. Query:'%s'" 
 
@@ -7448,3 +7451,5 @@ ER_GEOJSON_NOT_CLOSED
         eng "Incorrect GeoJSON format - polygon not closed."
 ER_JSON_PATH_EMPTY
         eng "Path expression '$' is not allowed in argument %d to function '%s'."
+ER_SLAVE_SAME_ID
+        eng "A slave with the same server_uuid/server_id as this slave has connected to the master"

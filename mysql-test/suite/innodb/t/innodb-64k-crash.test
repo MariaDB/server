@@ -1,14 +1,7 @@
 --source include/have_innodb.inc
 --source include/have_innodb_64k.inc
---source include/have_debug.inc
-# Valgrind would complain about memory leaks when we crash on purpose.
---source include/not_valgrind.inc
-# Embedded server does not support crashing
+# Embedded server does not support restarting
 --source include/not_embedded.inc
-# Avoid CrashReporter popup on Mac
---source include/not_crashrep.inc
-
-call mtr.add_suppression("InnoDB: Warning: innodb_page_size has been changed from default value *");
 
 let $MYSQLD_DATADIR= `select @@datadir`;
 
@@ -293,9 +286,7 @@ UPDATE t2 SET vc=@i,wc=@i,xc=@i,yc=@i,zc=@i;
 COMMIT;
 
 
-SET DEBUG_DBUG='+d,crash_commit_before';
---exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
---error 2013
+BEGIN;
 UPDATE t1 SET a=@c,b=@c,c=@c,d=@c,e=@c,f=@c,g=@c,h=@c,i=@c,j=@c,
               k=@c,l=@c,m=@c,n=@c,o=@c,p=@c,q=@c,r=@c,s=@c,t=@c,u=@c,
 	      v=@c,w=@c,x=@c,y=@c,z=@c,
@@ -309,10 +300,7 @@ UPDATE t1 SET a=@c,b=@c,c=@c,d=@c,e=@c,f=@c,g=@c,h=@c,i=@c,j=@c,
               kc=@c,lc=@c,mc=@c,nc=@c,oc=@c,pc=@c,qc=@c,rc=@c,sc=@c,tc=@c,uc=@c,
 	      vc=@c,wc=@c,xc=@c,yc=@c,zc=@c;
 
-# Write file to make mysql-test-run.pl restart the server
---enable_reconnect
---source include/wait_until_connected_again.inc
---disable_reconnect
+--source include/kill_and_restart_mysqld.inc
 
 UPDATE t1 SET a=@e,b=@e,c=@e,d=@e,e=@e,f=@e,g=@e,h=@e,i=@e,j=@e,
               k=@e,l=@e,m=@e,n=@e,o=@e,p=@e,q=@e,r=@e,s=@e,t=@e,u=@e,

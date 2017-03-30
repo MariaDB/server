@@ -591,7 +591,7 @@ enum open_frm_error open_table_def(THD *thd, TABLE_SHARE *share, uint flags)
   {
     DBUG_ASSERT(flags & GTS_TABLE);
     DBUG_ASSERT(flags & GTS_USE_DISCOVERY);
-    mysql_file_delete_with_symlink(key_file_frm, path, MYF(0));
+    mysql_file_delete_with_symlink(key_file_frm, path, "", MYF(0));
     file= -1;
   }
   else
@@ -1060,6 +1060,7 @@ bool parse_vcol_defs(THD *thd, MEM_ROOT *mem_root, TABLE *table,
 
     expr_str.length(parse_vcol_keyword.length);
     expr_str.append((char*)pos, expr_length);
+    thd->where= vcol_type_name(static_cast<enum_vcol_info_type>(type));
 
     switch (type) {
     case VCOL_GENERATED_VIRTUAL:
@@ -1986,6 +1987,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     if (vcol_info)
     {
       vcol_info->name.str= const_cast<char*>(reg_field->field_name);
+      vcol_info->name.length = strlen(reg_field->field_name);
       if (mysql57_null_bits && !vcol_info->stored_in_db)
       {
         /* MySQL 5.7 has null bits last */
@@ -2373,7 +2375,10 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
         vcol_info->name.str= strmake_root(&share->mem_root,
                                           (char*)vcol_screen_pos, name_length);
       else
+      {
         vcol_info->name.str= const_cast<char*>(reg_field->field_name);
+        vcol_info->name.length = strlen(reg_field->field_name);
+      }
       vcol_screen_pos+= name_length + expr_length;
 
       switch (type) {
@@ -2691,13 +2696,9 @@ static bool fix_vcol_expr(THD *thd, Virtual_column_info *vcol)
   const enum enum_mark_columns save_mark_used_columns= thd->mark_used_columns;
   thd->mark_used_columns= MARK_COLUMNS_NONE;
 
-  const char *save_where= thd->where;
-  thd->where= "virtual column function";
-
   int error= vcol->expr->fix_fields(thd, &vcol->expr);
 
   thd->mark_used_columns= save_mark_used_columns;
-  thd->where= save_where;
 
   if (unlikely(error))
   {
@@ -6605,6 +6606,8 @@ void TABLE::mark_columns_used_by_check_constraints(void)
 void TABLE::mark_check_constraint_columns_for_read(void)
 {
   bitmap_union(read_set, s->check_set);
+  if (vcol_set)
+    bitmap_union(vcol_set, s->check_set);
 }
 
 

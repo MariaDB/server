@@ -1803,6 +1803,12 @@ while (ptr < endptr)
         match = FALSE;
         if (line_buffered) fflush(stdout);
         rc = 0;                      /* Had some success */
+
+        /* If the current match ended past the end of the line (only possible
+        in multiline mode), we are done with this line. */
+
+        if ((unsigned int)offsets[1] > linelength) goto END_ONE_MATCH;
+
         startoffset = offsets[1];    /* Restart after the match */
         if (startoffset <= oldstartoffset)
           {

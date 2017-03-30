@@ -1247,7 +1247,7 @@ bool st_select_lex_unit::exec_recursive()
   thd->inc_examined_row_count(examined_rows);
 
   incr_table->file->info(HA_STATUS_VARIABLE);
-  if (incr_table->file->stats.records == 0)
+  if (with_element->level && incr_table->file->stats.records == 0)
     with_element->set_as_stabilized();
   else
     with_element->level++;

@@ -1,0 +1,5 @@
+--source include/have_tokudb.inc
+
+let $engine=tokudb;
+let $expect_gap_lock_errors=0;
+--source include/gap_lock_error_all.inc

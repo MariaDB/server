@@ -3,7 +3,7 @@
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, 2009 Google Inc.
 Copyright (c) 2009, Percona Inc.
-Copyright (c) 2013, 2017, MariaDB Corporation. All Rights Reserved.
+Copyright (c) 2013, 2017, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -297,16 +297,6 @@ ulong	srv_read_ahead_threshold	= 56;
 of the buffer pool. */
 uint	srv_change_buffer_max_size = CHANGE_BUFFER_DEFAULT_SIZE;
 
-/* This parameter is used to throttle the number of insert buffers that are
-merged in a batch. By increasing this parameter on a faster disk you can
-possibly reduce the number of I/O operations performed to complete the
-merge operation. The value of this parameter is used as is by the
-background loop when the system is idle (low load), on a busy system
-the parameter is scaled down by a factor of 4, this is to avoid putting
-a heavier load on the I/O sub system. */
-
-ulong	srv_insert_buffer_batch_size = 20;
-
 char*	srv_file_flush_method_str = NULL;
 
 
@@ -461,9 +451,9 @@ i/o handler thread */
 const char* srv_io_thread_op_info[SRV_MAX_N_IO_THREADS];
 const char* srv_io_thread_function[SRV_MAX_N_IO_THREADS];
 
-time_t	srv_last_monitor_time;
+static time_t	srv_last_monitor_time;
 
-ib_mutex_t	srv_innodb_monitor_mutex;
+static ib_mutex_t	srv_innodb_monitor_mutex;
 
 /** Mutex protecting page_zip_stat_per_index */
 ib_mutex_t	page_zip_stat_per_index_mutex;
@@ -486,8 +476,8 @@ ib_mutex_t	srv_misc_tmpfile_mutex;
 /** Temporary file for miscellanous diagnostic output */
 FILE*	srv_misc_tmpfile;
 
-ulint	srv_main_thread_process_no	= 0;
-ulint	srv_main_thread_id		= 0;
+static ulint	srv_main_thread_process_no	= 0;
+static ulint	srv_main_thread_id		= 0;
 
 /* The following counts are used by the srv_master_thread. */
 
@@ -964,14 +954,12 @@ srv_release_threads(enum srv_thread_type type, ulint n)
 	ut_ad(n > 0);
 
 	do {
-		srv_sys_mutex_enter();
-
 		running = 0;
 
-		for (ulint i = 0; i < srv_sys->n_sys_threads; i++) {
-			srv_slot_t*	slot;
+		srv_sys_mutex_enter();
 
-			slot = &srv_sys->sys_threads[i];
+		for (ulint i = 0; i < srv_sys->n_sys_threads; i++) {
+			srv_slot_t*	slot = &srv_sys->sys_threads[i];
 
 			if (!slot->in_use || srv_slot_get_type(slot) != type) {
 				continue;
@@ -1702,6 +1690,8 @@ srv_export_innodb_status(void)
 		crypt_stat.estimated_iops;
 	export_vars.innodb_encryption_key_requests =
 		srv_stats.n_key_requests;
+	export_vars.innodb_key_rotation_list_length =
+		srv_stats.key_rotation_list_length;
 
 	export_vars.innodb_scrub_page_reorganizations =
 		scrub_stat.page_reorganizations;
@@ -2691,7 +2681,7 @@ DECLARE_THREAD(srv_worker_thread)(
 	ut_ad(!srv_read_only_mode);
 	ut_a(srv_force_recovery < SRV_FORCE_NO_BACKGROUND);
 	my_thread_init();
-	THD*		thd = innobase_create_background_thd();
+	THD*		thd = innobase_create_background_thd("InnoDB purge worker");
 
 #ifdef UNIV_DEBUG_THREAD_CREATION
 	ib::info() << "Worker thread starting, id "
@@ -2920,7 +2910,7 @@ DECLARE_THREAD(srv_purge_coordinator_thread)(
 						required by os_thread_create */
 {
 	my_thread_init();
-	THD*		thd = innobase_create_background_thd();
+	THD*		thd = innobase_create_background_thd("InnoDB purge coordinator");
 	srv_slot_t*	slot;
 	ulint           n_total_purged = ULINT_UNDEFINED;
 

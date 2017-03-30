@@ -216,6 +216,28 @@ PARTITION BY RANGE (a)
  PARTITION pMax VALUES LESS THAN MAXVALUE);
 INSERT INTO t1 VALUES (1, "Partition p1, first row");
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-10418 Assertion `m_extra_cache' failed
+--echo #    in ha_partition::late_extra_cache(uint)
+--echo #
+
+CREATE TABLE t1 (f1 INT) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1),(2);
+ 
+CREATE TABLE t2 (f2 INT) ENGINE=MyISAM PARTITION BY RANGE(f2) (PARTITION pmax VALUES LESS THAN MAXVALUE);
+INSERT INTO t2 VALUES (8);
+ 
+CREATE ALGORITHM = MERGE VIEW v AS SELECT f2 FROM t2, t1;
+
+UPDATE v SET f2 = 1;
+ 
+SELECT * FROM t2;
+
+DROP VIEW v;
+DROP TABLE t2;
+DROP TABLE t1;
+
 --echo #
 --echo # bug#11760213-52599: ALTER TABLE REMOVE PARTITIONING ON NON-PARTITIONED
 --echo #                                 TABLE CORRUPTS MYISAM

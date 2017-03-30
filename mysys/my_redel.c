@@ -32,10 +32,10 @@ struct utimbuf {
 
 	/*
 	  Rename with copy stat form old file
-	  Copy stats from old file to new file, deletes orginal and
+	  Copy stats from old file to new file, deletes original and
 	  changes new file name to old file name
 
-	  if MY_REDEL_MAKE_COPY is given, then the orginal file
+	  if MY_REDEL_MAKE_COPY is given, then the original file
 	  is renamed to org_name-'current_time'.BAK
 	*/
 

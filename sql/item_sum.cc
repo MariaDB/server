@@ -2218,10 +2218,10 @@ bool Item_sum_bit::remove_as_window(ulonglong value)
     if (!bit_counters[i])
     {
       // Don't attempt to remove values that were never added.
-      DBUG_ASSERT((value & (1 << i)) == 0);
+      DBUG_ASSERT((value & (1ULL << i)) == 0);
       continue;
     }
-    bit_counters[i]-= (value & (1 << i)) ? 1 : 0;
+    bit_counters[i]-= (value & (1ULL << i)) ? 1 : 0;
   }
 
   // Prevent overflow;
@@ -2235,7 +2235,7 @@ bool Item_sum_bit::add_as_window(ulonglong value)
   DBUG_ASSERT(as_window_function);
   for (int i= 0; i < NUM_BIT_COUNTERS; i++)
   {
-    bit_counters[i]+= (value & (1 << i)) ? 1 : 0;
+    bit_counters[i]+= (value & (1ULL << i)) ? 1 : 0;
   }
   // Prevent overflow;
   num_values_added = std::max(num_values_added, num_values_added + 1);
@@ -2306,7 +2306,7 @@ void Item_sum_and::set_bits_from_counters()
   {
     // We've only added values of 1 for this bit.
     if (bit_counters[i] == num_values_added)
-      value|= (1 << i);
+      value|= (1ULL << i);
   }
   bits= value & reset_bits;
 }
@@ -3490,9 +3490,9 @@ Item_func_group_concat::fix_fields(THD *thd, Item **ref)
   result.set_charset(collation.collation);
   result_field= 0;
   null_value= 1;
-  max_length= thd->variables.group_concat_max_len
+  max_length= (uint32)(thd->variables.group_concat_max_len
               / collation.collation->mbminlen
-              * collation.collation->mbmaxlen;
+              * collation.collation->mbmaxlen);
 
   uint32 offset;
   if (separator->needs_conversion(separator->length(), separator->charset(),

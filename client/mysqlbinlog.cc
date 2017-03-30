@@ -118,7 +118,7 @@ static const char* sock= 0;
 static char *opt_plugindir= 0, *opt_default_auth= 0;
 
 #ifdef HAVE_SMEM
-static char *shared_memory_base_name= 0;
+static const char *shared_memory_base_name= 0;
 #endif
 static char* user = 0;
 static char* pass = 0;
@@ -2770,7 +2770,7 @@ static Exit_status dump_local_log_entries(PRINT_EVENT_INFO *print_event_info,
     /* read from stdin */
     /*
       Windows opens stdin in text mode by default. Certain characters
-      such as CTRL-Z are interpeted as events and the read() method
+      such as CTRL-Z are interpreted as events and the read() method
       will stop. CTRL-Z is the EOF marker in Windows. to get past this
       you have to open stdin in binary mode. Setmode() is used to set
       stdin in binary mode. Errors on setting this mode result in 

@@ -6,24 +6,8 @@
 # metadata in the function dict_load_table_on_id() during crash recovery.
 
 #
-# innobackup needs to connect to the server. Not supported in embedded.
+# The embedded server test does not support restarting.
 --source include/not_embedded.inc
-#
-# This test case needs to crash the server. Needs a debug server.
---source include/have_debug.inc
-#
-# Don't test this under valgrind, memory leaks will occur.
---source include/not_valgrind.inc
-
-# Avoid CrashReporter popup on Mac
---source include/not_crashrep.inc
-
-#
-# Precautionary clean up.
-#
---disable_warnings
-DROP TABLE IF EXISTS bug_53756 ;
---enable_warnings
 
 #
 # Create test data.
@@ -34,9 +18,6 @@ INSERT INTO bug_53756 VALUES(1, 11), (2, 22), (3, 33), (4, 44);
 
 --echo
 --echo # Select a less restrictive isolation level.
-# Don't use user variables. They won't survive server crash.
---let $global_isolation= `SELECT @@global.tx_isolation`
---let $session_isolation= `SELECT @@session.tx_isolation`
 SET GLOBAL TRANSACTION ISOLATION LEVEL READ COMMITTED;
 SET SESSION TRANSACTION ISOLATION LEVEL READ COMMITTED;
 COMMIT;
@@ -100,45 +81,16 @@ ROLLBACK;
 --connection default
 SELECT * FROM bug_53756;
 
---connection default
---echo #
---echo # Crash server.
-#
-# Write file to make mysql-test-run.pl expect the "crash", but don't start
-# it until it's told to
---exec echo "wait" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
-#
 START TRANSACTION;
 INSERT INTO bug_53756 VALUES (666,666);
-#
-# Request a crash on next execution of commit.
-SET SESSION debug_dbug="+d,crash_commit_before";
-#
-# Write file to make mysql-test-run.pl start up the server again
---exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
-#
-# Execute the statement that causes the crash.
---error 2013
-COMMIT;
---echo
+
+--source include/kill_and_restart_mysqld.inc
 --disconnect con1
 --disconnect con2
 --disconnect con3
 --disconnect con4
 --disconnect con5
 --disconnect con6
---echo #
---echo # Restart server.
-#
-# Turn on reconnect
---enable_reconnect
-#
-# Call script that will poll the server waiting for it to be back online again
---source include/wait_until_connected_again.inc
-#
-# Turn off reconnect again
---disable_reconnect
---echo
 
 --echo #
 --echo # Select recovered data.
@@ -149,11 +101,4 @@ COMMIT;
 --echo # Delete of row 2 and insert of row 5 should be rolled back
 SELECT * FROM bug_53756;
 
---echo
---echo # Clean up.
 DROP TABLE bug_53756;
-
---disable_query_log
-eval SET GLOBAL tx_isolation= '$global_isolation';
-eval SET SESSION tx_isolation= '$session_isolation';
---enable_query_log

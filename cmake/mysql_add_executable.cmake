@@ -39,6 +39,14 @@ FUNCTION (MYSQL_ADD_EXECUTABLE)
   
   SET(sources ${ARG_UNPARSED_ARGUMENTS})
   ADD_VERSION_INFO(${target} EXECUTABLE sources)
+
+  IF(MSVC)
+    # Add compatibility manifest, to fix GetVersionEx on Windows 8.1 and later
+    IF (CMAKE_VERSION VERSION_GREATER 3.3)
+      SET(sources ${sources} ${PROJECT_SOURCE_DIR}/cmake/win_compatibility.manifest)
+    ENDIF()
+  ENDIF()
+
   IF (ARG_WIN32)
     SET(WIN32 WIN32)
   ELSE()

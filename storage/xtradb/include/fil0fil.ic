@@ -58,38 +58,41 @@ fil_get_page_type_name(
 {
 	switch(page_type) {
 	case FIL_PAGE_PAGE_COMPRESSED:
-		return (const char*)"PAGE_COMPRESSED";
+		return "PAGE_COMPRESSED";
+	case FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED:
+		return "PAGE_COMPRESSED_ENCRYPTED";
 	case FIL_PAGE_INDEX:
-		return (const char*)"INDEX";
+		return "INDEX";
 	case FIL_PAGE_UNDO_LOG:
-		return (const char*)"UNDO LOG";
+		return "UNDO LOG";
 	case FIL_PAGE_INODE:
-		return (const char*)"INODE";
+		return "INODE";
 	case FIL_PAGE_IBUF_FREE_LIST:
-		return (const char*)"IBUF_FREE_LIST";
+		return "IBUF_FREE_LIST";
 	case FIL_PAGE_TYPE_ALLOCATED:
-		return (const char*)"ALLOCATED";
+		return "ALLOCATED";
 	case FIL_PAGE_IBUF_BITMAP:
-		return (const char*)"IBUF_BITMAP";
+		return "IBUF_BITMAP";
 	case FIL_PAGE_TYPE_SYS:
-		return (const char*)"SYS";
+		return "SYS";
 	case FIL_PAGE_TYPE_TRX_SYS:
-		return (const char*)"TRX_SYS";
+		return "TRX_SYS";
 	case FIL_PAGE_TYPE_FSP_HDR:
-		return (const char*)"FSP_HDR";
+		return "FSP_HDR";
 	case FIL_PAGE_TYPE_XDES:
-		return (const char*)"XDES";
+		return "XDES";
 	case FIL_PAGE_TYPE_BLOB:
-		return (const char*)"BLOB";
+		return "BLOB";
 	case FIL_PAGE_TYPE_ZBLOB:
-		return (const char*)"ZBLOB";
+		return "ZBLOB";
 	case FIL_PAGE_TYPE_ZBLOB2:
-		return (const char*)"ZBLOB2";
+		return "ZBLOB2";
 	case FIL_PAGE_TYPE_COMPRESSED:
-		return (const char*)"ORACLE PAGE COMPRESSED";
-	default:
-		return (const char*)"PAGE TYPE CORRUPTED";
+		return "ORACLE PAGE COMPRESSED";
 	}
+
+	return "PAGE TYPE CORRUPTED";
+
 }
 
 /****************************************************************//**

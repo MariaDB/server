@@ -111,7 +111,7 @@ enum enum_server_command
   COM_TABLE_DUMP, COM_CONNECT_OUT, COM_REGISTER_SLAVE,
   COM_STMT_PREPARE, COM_STMT_EXECUTE, COM_STMT_SEND_LONG_DATA, COM_STMT_CLOSE,
   COM_STMT_RESET, COM_SET_OPTION, COM_STMT_FETCH, COM_DAEMON,
-  COM_UNIMPLEMENTED, // COM_BINLOG_DUMP_GTID in MySQL
+  COM_UNIMPLEMENTED, /* COM_BINLOG_DUMP_GTID in MySQL */
   COM_RESET_CONNECTION,
   /* don't forget to update const char *command_name[] in sql_parse.cc */
   COM_MDB_GAP_BEG,
@@ -311,8 +311,7 @@ enum enum_indicator_type
                            CLIENT_SESSION_TRACK |\
                            CLIENT_DEPRECATE_EOF |\
                            CLIENT_CONNECT_ATTRS |\
-                           MARIADB_CLIENT_COM_MULTI |\
-                           MARIADB_CLIENT_STMT_BULK_OPERATIONS)
+                           MARIADB_CLIENT_COM_MULTI)
 
 /*
   To be added later:

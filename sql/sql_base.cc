@@ -5811,7 +5811,7 @@ find_field_in_tables(THD *thd, Item_ident *item,
       if (!table_ref->belong_to_view &&
           !table_ref->belong_to_derived)
       {
-        SELECT_LEX *current_sel= thd->lex->current_select;
+        SELECT_LEX *current_sel= item->context->select_lex;
         SELECT_LEX *last_select= table_ref->select_lex;
         bool all_merged= TRUE;
         for (SELECT_LEX *sl= current_sel; sl && sl!=last_select;

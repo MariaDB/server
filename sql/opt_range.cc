@@ -7291,8 +7291,10 @@ SEL_TREE *Item_bool_func::get_full_func_mm_tree(RANGE_OPT_PARAM *param,
   table_map param_comp= ~(param->prev_tables | param->read_tables |
 		          param->current_table);
 #ifdef HAVE_SPATIAL
+  Field::geometry_type sav_geom_type;
   if (field_item->field->type() == MYSQL_TYPE_GEOMETRY)
   {
+    sav_geom_type= ((Field_geom*) field_item->field)->geom_type;
     /* We have to be able to store all sorts of spatial features here */
     ((Field_geom*) field_item->field)->geom_type= Field::GEOM_GEOMETRY;
   }
@@ -7323,6 +7325,13 @@ SEL_TREE *Item_bool_func::get_full_func_mm_tree(RANGE_OPT_PARAM *param,
       }
     }
   }
+
+#ifdef HAVE_SPATIAL
+  if (field_item->field->type() == MYSQL_TYPE_GEOMETRY)
+  {
+    ((Field_geom*) field_item->field)->geom_type= sav_geom_type;
+  }
+#endif /*HAVE_SPATIAL*/
   DBUG_RETURN(ftree);
 }
 
@@ -9288,6 +9297,13 @@ key_or(RANGE_OPT_PARAM *param, SEL_ARG *key1,SEL_ARG *key2)
 
       if (!tmp->next_key_part)
       {
+        if (key2->use_count)
+	{
+	  SEL_ARG *key2_cpy= new SEL_ARG(*key2);
+          if (key2_cpy)
+            return 0;
+          key2= key2_cpy;
+	}
         /*
           tmp->next_key_part is empty: cut the range that is covered
           by tmp from key2. 
@@ -9319,13 +9335,6 @@ key_or(RANGE_OPT_PARAM *param, SEL_ARG *key1,SEL_ARG *key2)
             key2:               [---]
             tmp:     [---------]
           */
-          if (key2->use_count)
-	  {
-	    SEL_ARG *key2_cpy= new SEL_ARG(*key2);
-            if (key2_cpy)
-              return 0;
-            key2= key2_cpy;
-	  }
           key2->copy_max_to_min(tmp);
           continue;
         }

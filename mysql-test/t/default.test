@@ -2075,4 +2075,10 @@ drop table t1;
 --error ER_EXPRESSION_REFERS_TO_UNINIT_FIELD
 create table t1 (col1 int default(-(default(col1))));
 
+#
+# MDEV-10354 Assertion `! is_set()' failed in Diagnostics_area::set_ok_status on CREATE TABLE with invalid default
+#
+--error ER_DATA_OUT_OF_RANGE
+create table t1 (col int default (yearweek((exp(710)))));
+
 --echo # end of 10.2 test

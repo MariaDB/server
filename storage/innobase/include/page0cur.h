@@ -387,8 +387,6 @@ struct page_cur_t{
 	buf_block_t*	block;	/*!< pointer to the block containing rec */
 };
 
-#ifndef UNIV_NONINL
 #include "page0cur.ic"
-#endif
 
 #endif

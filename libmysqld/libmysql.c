@@ -193,7 +193,7 @@ int STDCALL mysql_server_init(int argc, char **argv, char **groups)
     the library.
 
     To make things simpler when used with windows dll's (which calls this
-    function automaticly), it's safe to call this function multiple times.
+    function automatically), it's safe to call this function multiple times.
 */
 
 
@@ -603,7 +603,7 @@ static int default_local_infile_init(void **ptr, const char *filename,
     default_local_infile_read()
     ptr			Points to handle allocated by _init
     buf			Read data here
-    buf_len		Ammount of data to read
+    buf_len		Amount of data to read
 
   RETURN
     > 0		number of bytes read
@@ -658,7 +658,7 @@ static void default_local_infile_end(void *ptr)
     ptr			Points to handle allocated by _init
 			May be NULL if _init failed!
     error_msg		Store error text here
-    error_msg_len	Max lenght of error_msg
+    error_msg_len	Max length of error_msg
 
   RETURN
     error message number
@@ -1268,7 +1268,7 @@ static int stmt_read_row_no_result_set(MYSQL_STMT *stmt, unsigned char **row);
 static void stmt_update_metadata(MYSQL_STMT *stmt, MYSQL_ROWS *data);
 static my_bool setup_one_fetch_function(MYSQL_BIND *, MYSQL_FIELD *field);
 
-/* Auxilary function used to reset statement handle. */
+/* Auxiliary function used to reset statement handle. */
 
 #define RESET_SERVER_SIDE 1
 #define RESET_LONG_DATA 2
@@ -1812,7 +1812,7 @@ static void update_stmt_fields(MYSQL_STMT *stmt)
 
   RETURN
     NULL  statement contains no result set or out of memory.
-          In the latter case you can retreive error message
+          In the latter case you can retrieve error message
           with mysql_stmt_error.
     MYSQL_RES  a result set with no rows
 */
@@ -1850,7 +1850,7 @@ mysql_stmt_result_metadata(MYSQL_STMT *stmt)
   Returns parameter columns meta information in the form of
   result set.
 
-  SYNOPSYS
+  SYNOPSIS
     mysql_stmt_param_metadata()
     stmt    statement handle
 
@@ -1899,7 +1899,7 @@ static void store_param_type(unsigned char **pos, MYSQL_BIND *param)
     param		MySQL bind param
 
   DESCRIPTION
-    These funtions are invoked from mysql_stmt_execute() by
+    These functions are invoked from mysql_stmt_execute() by
     MYSQL_BIND::store_param_func pointer. This pointer is set once per
     many executions in mysql_stmt_bind_param(). The caller must ensure
     that network buffer have enough capacity to store parameter
@@ -2076,7 +2076,7 @@ static my_bool store_param(MYSQL_STMT *stmt, MYSQL_BIND *param)
 
 
 /*
-  Auxilary function to send COM_STMT_EXECUTE packet to server and read reply.
+  Auxiliary function to send COM_STMT_EXECUTE packet to server and read reply.
   Used from cli_stmt_execute, which is in turn used by mysql_stmt_execute.
 */
 
@@ -4464,7 +4464,7 @@ int STDCALL mysql_stmt_store_result(MYSQL_STMT *stmt)
   if (stmt->update_max_length && !stmt->bind_result_done)
   {
     /*
-      We must initalize the bind structure to be able to calculate
+      We must initialize the bind structure to be able to calculate
       max_length
     */
     MYSQL_BIND  *my_bind, *end;

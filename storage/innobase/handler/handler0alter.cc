@@ -4532,9 +4532,11 @@ prepare_inplace_alter_table_dict(
 		ulint		space_id = 0;
 		ulint		z = 0;
 		ulint		key_id = FIL_DEFAULT_ENCRYPTION_KEY;
-		fil_encryption_t mode = FIL_SPACE_ENCRYPTION_DEFAULT;
+		fil_encryption_t mode = FIL_ENCRYPTION_DEFAULT;
 
-		crypt_data = fil_space_get_crypt_data(ctx->prebuilt->table->space);
+		fil_space_t* space = fil_space_acquire(ctx->prebuilt->table->space);
+		crypt_data = space->crypt_data;
+		fil_space_release(space);
 
 		if (crypt_data) {
 			key_id = crypt_data->key_id;
@@ -8608,7 +8610,7 @@ ha_innobase::commit_inplace_alter_table(
 			trx_rollback_for_mysql(trx);
 		} else {
 			ut_ad(trx_state_eq(trx, TRX_STATE_ACTIVE));
-			ut_ad(trx_is_rseg_updated(trx));
+			ut_ad(trx->has_logged());
 
 			if (mtr.get_log()->size() > 0) {
 				ut_ad(*mtr.get_log()->front()->begin()

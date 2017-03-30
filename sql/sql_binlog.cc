@@ -20,7 +20,6 @@
 #include "sql_parse.h"
 #include "sql_acl.h"
 #include "rpl_rli.h"
-#include "base64.h"
 #include "slave.h"
 #include "log_event.h"
 

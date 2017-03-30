@@ -387,7 +387,8 @@ static void bnc_apply_messages_to_basement_node(
     const pivot_bounds &
         bounds,  // contains pivot key bounds of this basement node
     txn_gc_info *gc_info,
-    bool *msgs_applied) {
+    bool *msgs_applied,
+    int64_t* logical_rows_delta) {
     int r;
     NONLEAF_CHILDINFO bnc = BNC(ancestor, childnum);
 
@@ -395,7 +396,6 @@ static void bnc_apply_messages_to_basement_node(
     // apply messages from this buffer
     STAT64INFO_S stats_delta = {0, 0};
     uint64_t workdone_this_ancestor = 0;
-    int64_t logical_rows_delta = 0;
 
     uint32_t stale_lbi, stale_ube;
     if (!bn->stale_ancestor_messages_applied) {
@@ -471,7 +471,7 @@ static void bnc_apply_messages_to_basement_node(
                             gc_info,
                             &workdone_this_ancestor,
                             &stats_delta,
-                            &logical_rows_delta);
+                            logical_rows_delta);
         }
     } else if (stale_lbi == stale_ube) {
         // No stale messages to apply, we just apply fresh messages, and mark
@@ -483,7 +483,7 @@ static void bnc_apply_messages_to_basement_node(
             .gc_info = gc_info,
             .workdone = &workdone_this_ancestor,
             .stats_to_update = &stats_delta,
-            .logical_rows_delta = &logical_rows_delta};
+            .logical_rows_delta = logical_rows_delta};
         if (fresh_ube - fresh_lbi > 0)
             *msgs_applied = true;
         r = bnc->fresh_message_tree
@@ -504,7 +504,7 @@ static void bnc_apply_messages_to_basement_node(
             .gc_info = gc_info,
             .workdone = &workdone_this_ancestor,
             .stats_to_update = &stats_delta,
-            .logical_rows_delta = &logical_rows_delta};
+            .logical_rows_delta = logical_rows_delta};
 
         r = bnc->stale_message_tree
                 .iterate_on_range<struct iterate_do_bn_apply_msg_extra,
@@ -522,8 +522,6 @@ static void bnc_apply_messages_to_basement_node(
     if (stats_delta.numbytes || stats_delta.numrows) {
         toku_ft_update_stats(&t->ft->in_memory_stats, stats_delta);
     }
-    toku_ft_adjust_logical_row_count(t->ft, logical_rows_delta);
-    bn->logical_rows_delta += logical_rows_delta;
 }
 
 static void
@@ -537,6 +535,7 @@ apply_ancestors_messages_to_bn(
     bool* msgs_applied
     )
 {
+    int64_t logical_rows_delta = 0;
     BASEMENTNODE curr_bn = BLB(node, childnum);
     const pivot_bounds curr_bounds = bounds.next_bounds(node, childnum);
     for (ANCESTORS curr_ancestors = ancestors; curr_ancestors; curr_ancestors = curr_ancestors->next) {
@@ -549,13 +548,16 @@ apply_ancestors_messages_to_bn(
                 curr_ancestors->childnum,
                 curr_bounds,
                 gc_info,
-                msgs_applied
+                msgs_applied,
+                &logical_rows_delta
                 );
             // We don't want to check this ancestor node again if the
             // next time we query it, the msn hasn't changed.
             curr_bn->max_msn_applied = curr_ancestors->node->max_msn_applied_to_node_on_disk;
         }
     }
+    toku_ft_adjust_logical_row_count(t->ft, logical_rows_delta);
+    node->logical_rows_delta += logical_rows_delta;
     // At this point, we know all the stale messages above this
     // basement node have been applied, and any new messages will be
     // fresh, so we don't need to look at stale messages for this

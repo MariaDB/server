@@ -549,6 +549,14 @@ int thd_slave_thread(const MYSQL_THD thd);
 @retval 1 the user thread is running a non-transactional update */
 int thd_non_transactional_update(const MYSQL_THD thd);
 
+/** Get high resolution timestamp for the current query start time.
+The timestamp is not anchored to any specific point in time,
+but can be used for comparison.
+@param thd user thread
+@retval timestamp in microseconds precision
+*/
+unsigned long long thd_start_utime(const MYSQL_THD thd);
+
 /** Get the user thread's binary logging format
 @param thd user thread
 @return Value to be used as index into the binlog_format_names array */
@@ -830,30 +838,6 @@ private:
 };
 
 /**
-Retrieve the FTS Relevance Ranking result for doc with doc_id
-of prebuilt->fts_doc_id
-@return the relevance ranking value */
-float
-innobase_fts_retrieve_ranking(
-	FT_INFO*	fts_hdl);	/*!< in: FTS handler */
-
-/**
-Find and Retrieve the FTS Relevance Ranking result for doc with doc_id
-of prebuilt->fts_doc_id
-@return the relevance ranking value */
-float
-innobase_fts_find_ranking(
-	FT_INFO*	fts_hdl,	/*!< in: FTS handler */
-	uchar*		record,		/*!< in: Unused */
-	uint		len);		/*!< in: Unused */
-
-/**
-Free the memory for the FTS handler */
-void
-innobase_fts_close_ranking(
-	FT_INFO*	fts_hdl);	/*!< in: FTS handler */
-
-/**
 Initialize the table FTS stopword list
 @return TRUE if success */
 ibool
@@ -894,42 +878,6 @@ innobase_fts_check_doc_id_index_in_def(
 	ulint		n_key,		/*!< in: Number of keys */
 	const KEY*	key_info)	/*!< in: Key definitions */
 	MY_ATTRIBUTE((warn_unused_result));
-
-/**
-@return version of the extended FTS API */
-uint
-innobase_fts_get_version();
-
-/**
-@return Which part of the extended FTS API is supported */
-ulonglong
-innobase_fts_flags();
-
-/**
-Find and Retrieve the FTS doc_id for the current result row
-@return the document ID */
-ulonglong
-innobase_fts_retrieve_docid(
-/*========================*/
-	FT_INFO_EXT*	fts_hdl);	/*!< in: FTS handler */
-
-/**
-Find and retrieve the size of the current result
-@return number of matching rows */
-ulonglong
-innobase_fts_count_matches(
-/*=======================*/
-	FT_INFO_EXT*	fts_hdl);	/*!< in: FTS handler */
-
-/**
-Copy table flags from MySQL's HA_CREATE_INFO into an InnoDB table object.
-Those flags are stored in .frm file and end up in the MySQL table object,
-but are frequently used inside InnoDB so we keep their copies into the
-InnoDB table object. */
-void
-innobase_copy_frm_flags_from_create_info(
-	dict_table_t*		innodb_table,	/*!< in/out: InnoDB table */
-	const HA_CREATE_INFO*	create_info);	/*!< in: create info */
 
 /**
 Copy table flags from MySQL's TABLE_SHARE into an InnoDB table object.
@@ -1082,4 +1030,3 @@ ib_push_frm_error(
 	TABLE*		table,		/*!< in: MySQL table */
 	ulint		n_keys,		/*!< in: InnoDB #keys */
 	bool		push_warning);	/*!< in: print warning ? */
-

@@ -27,11 +27,6 @@ Created 11/29/1995 Heikki Tuuri
 #include "ha_prototypes.h"
 
 #include "fsp0fsp.h"
-
-#ifdef UNIV_NONINL
-#include "fsp0fsp.ic"
-#endif
-
 #include "buf0buf.h"
 #include "fil0fil.h"
 #include "fil0crypt.h"
@@ -179,16 +174,6 @@ fsp_get_space_header(
 
 	ut_ad(space->id == mach_read_from_4(FSP_SPACE_ID + header));
 	return(header);
-}
-
-/** Check if checksum is disabled for the given space.
-@param[in]	space_id	tablespace ID
-@return true if checksum is disabled for given space. */
-bool
-fsp_is_checksum_disabled(
-	ulint	space_id)
-{
-	return(fsp_is_system_temporary(space_id));
 }
 
 #ifdef UNIV_DEBUG
@@ -499,6 +484,7 @@ try to add new extents to the space free list
 @param[in]	page_size	page size
 @param[in,out]	mtr		mini-transaction
 @return the extent descriptor */
+MY_ATTRIBUTE((warn_unused_result))
 static
 xdes_t*
 xdes_get_descriptor(
@@ -774,11 +760,9 @@ fsp_header_init(
 		}
 	}
 
-	ulint offset = FSP_HEADER_OFFSET
-		+ fsp_header_get_encryption_offset(page_size);
-	fil_space_write_crypt_data(space_id, page, offset,
-				   page_size.logical()
-				   - offset - FIL_PAGE_DATA_END, mtr);
+	if (space->crypt_data) {
+		space->crypt_data->write_page0(space, page, mtr);
+	}
 
 	return(true);
 }
@@ -1069,8 +1053,6 @@ fsp_fill_free_list(
 	ulint	frag_n_used;
 	ulint	i;
 
-	ut_ad(header != NULL);
-	ut_ad(mtr != NULL);
 	ut_ad(page_offset(header) == FSP_HEADER_OFFSET);
 	ut_d(fsp_space_modify_check(space, mtr));
 
@@ -1383,7 +1365,7 @@ initialized (may be the same as mtr)
 @retval block	rw_lock_x_lock_count(&block->lock) == 1 if allocation succeeded
 (init_mtr == mtr, or the page was not previously freed in mtr)
 @retval block	(not allocated or initialized) otherwise */
-static MY_ATTRIBUTE((warn_unused_result))
+static MY_ATTRIBUTE((warn_unused_result, nonnull))
 buf_block_t*
 fsp_alloc_free_page(
 	fil_space_t*		space,
@@ -1398,9 +1380,6 @@ fsp_alloc_free_page(
 	xdes_t*		descr;
 	ulint		free;
 	const ulint	space_id = space->id;
-
-	ut_ad(mtr);
-	ut_ad(init_mtr);
 
 	ut_d(fsp_space_modify_check(space, mtr));
 	header = fsp_get_space_header(space, page_size, mtr);
@@ -2438,7 +2417,6 @@ fseg_alloc_free_page_low(
 	ulint		n;
 	const ulint	space_id	= space->id;
 
-	ut_ad(mtr);
 	ut_ad((direction >= FSP_UP) && (direction <= FSP_NO_DIR));
 	ut_ad(mach_read_from_4(seg_inode + FSEG_MAGIC_N)
 	      == FSEG_MAGIC_N_VALUE);
@@ -2820,7 +2798,7 @@ fsp_reserve_free_extents(
 	ulint		size;
 	ulint		n_free;
 	ulint		n_free_up;
-	ulint		reserve= 0;
+	ulint		reserve;
 	size_t		total_reserved = 0;
 	ulint		rounds = 0;
 	ulint		n_pages_added = 0;
@@ -2894,6 +2872,7 @@ try_again:
 		break;
 	case FSP_CLEANING:
 	case FSP_BLOB:
+		reserve = 0;
 		break;
 	default:
 		ut_error;
@@ -3532,126 +3511,6 @@ fseg_get_first_extent(
 	return(first.page == FIL_NULL ? NULL
 	       : xdes_lst_get_descriptor(space, page_size, first, mtr));
 }
-
-#ifdef UNIV_DEBUG
-/*******************************************************************//**
-Validates a segment.
-@return TRUE if ok */
-static
-ibool
-fseg_validate_low(
-/*==============*/
-	fseg_inode_t*	inode, /*!< in: segment inode */
-	mtr_t*		mtr2)	/*!< in/out: mini-transaction */
-{
-	ulint		space_id;
-	ib_id_t		seg_id;
-	mtr_t		mtr;
-	fil_addr_t	node_addr;
-	ulint		n_used		= 0;
-	ulint		n_used2		= 0;
-
-	ut_ad(mtr_memo_contains_page(mtr2, inode, MTR_MEMO_PAGE_SX_FIX));
-	ut_ad(mach_read_from_4(inode + FSEG_MAGIC_N) == FSEG_MAGIC_N_VALUE);
-
-	space_id = page_get_space_id(page_align(inode));
-
-	seg_id = mach_read_from_8(inode + FSEG_ID);
-	n_used = mtr_read_ulint(inode + FSEG_NOT_FULL_N_USED,
-				MLOG_4BYTES, mtr2);
-	flst_validate(inode + FSEG_FREE, mtr2);
-	flst_validate(inode + FSEG_NOT_FULL, mtr2);
-	flst_validate(inode + FSEG_FULL, mtr2);
-
-	/* Validate FSEG_FREE list */
-	node_addr = flst_get_first(inode + FSEG_FREE, mtr2);
-
-	while (!fil_addr_is_null(node_addr)) {
-		mtr_start(&mtr);
-		const fil_space_t*	space = mtr_x_lock_space(
-			space_id, &mtr);
-		const xdes_t*		descr = xdes_lst_get_descriptor(
-			space, page_size_t(space->flags), node_addr, &mtr);
-
-		ut_a(xdes_get_n_used(descr, &mtr) == 0);
-		ut_a(xdes_get_state(descr, &mtr) == XDES_FSEG);
-		ut_a(mach_read_from_8(descr + XDES_ID) == seg_id);
-
-		node_addr = flst_get_next_addr(descr + XDES_FLST_NODE, &mtr);
-		mtr_commit(&mtr);
-	}
-
-	/* Validate FSEG_NOT_FULL list */
-
-	node_addr = flst_get_first(inode + FSEG_NOT_FULL, mtr2);
-
-	while (!fil_addr_is_null(node_addr)) {
-		mtr_start(&mtr);
-		const fil_space_t*	space = mtr_x_lock_space(
-			space_id, &mtr);
-		const xdes_t*		descr = xdes_lst_get_descriptor(
-			space, page_size_t(space->flags), node_addr, &mtr);
-
-		ut_a(xdes_get_n_used(descr, &mtr) > 0);
-		ut_a(xdes_get_n_used(descr, &mtr) < FSP_EXTENT_SIZE);
-		ut_a(xdes_get_state(descr, &mtr) == XDES_FSEG);
-		ut_a(mach_read_from_8(descr + XDES_ID) == seg_id);
-
-		n_used2 += xdes_get_n_used(descr, &mtr);
-
-		node_addr = flst_get_next_addr(descr + XDES_FLST_NODE, &mtr);
-		mtr_commit(&mtr);
-	}
-
-	/* Validate FSEG_FULL list */
-
-	node_addr = flst_get_first(inode + FSEG_FULL, mtr2);
-
-	while (!fil_addr_is_null(node_addr)) {
-		mtr_start(&mtr);
-		const fil_space_t*	space = mtr_x_lock_space(
-			space_id, &mtr);
-		const xdes_t*		descr = xdes_lst_get_descriptor(
-			space, page_size_t(space->flags), node_addr, &mtr);
-
-		ut_a(xdes_get_n_used(descr, &mtr) == FSP_EXTENT_SIZE);
-		ut_a(xdes_get_state(descr, &mtr) == XDES_FSEG);
-		ut_a(mach_read_from_8(descr + XDES_ID) == seg_id);
-
-		node_addr = flst_get_next_addr(descr + XDES_FLST_NODE, &mtr);
-		mtr_commit(&mtr);
-	}
-
-	ut_a(n_used == n_used2);
-
-	return(TRUE);
-}
-
-/*******************************************************************//**
-Validates a segment.
-@return TRUE if ok */
-ibool
-fseg_validate(
-/*==========*/
-	fseg_header_t*	header, /*!< in: segment header */
-	mtr_t*		mtr)	/*!< in/out: mini-transaction */
-{
-	fseg_inode_t*	inode;
-	ibool		ret;
-	ulint		space_id;
-
-	space_id = page_get_space_id(page_align(header));
-
-	const fil_space_t*	space = mtr_x_lock_space(space_id, mtr);
-	const page_size_t	page_size(space->flags);
-
-	inode = fseg_inode_get(header, space_id, page_size, mtr);
-
-	ret = fseg_validate_low(inode, mtr);
-
-	return(ret);
-}
-#endif /* UNIV_DEBUG */
 
 #ifdef UNIV_BTR_PRINT
 /*******************************************************************//**

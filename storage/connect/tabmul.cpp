@@ -1,11 +1,11 @@
 /************* TabMul C++ Program Source Code File (.CPP) **************/
 /* PROGRAM NAME: TABMUL                                                */
 /* -------------                                                       */
-/*  Version 1.7                                                        */
+/*  Version 1.8                                                        */
 /*                                                                     */
 /* COPYRIGHT:                                                          */
 /* ----------                                                          */
-/*  (C) Copyright to PlugDB Software Development          2003 - 2015  */
+/*  (C) Copyright to PlugDB Software Development          2003 - 2017  */
 /*  Author: Olivier BERTRAND                                           */
 /*                                                                     */
 /* WHAT THIS PROGRAM DOES:                                             */
@@ -73,7 +73,7 @@
 /***********************************************************************/
 /*  TABMUL constructors.                                               */
 /***********************************************************************/
-TDBMUL::TDBMUL(PTDBASE tdbp) : TDBASE(tdbp->GetDef())
+TDBMUL::TDBMUL(PTDB tdbp) : TDBASE(tdbp->GetDef())
   {
   Tdbp = tdbp;
   Filenames = NULL;
@@ -94,22 +94,22 @@ TDBMUL::TDBMUL(PTDBMUL tdbp) : TDBASE(tdbp)
   } // end of TDBMUL copy constructor
 
 // Method
-PTDB TDBMUL::CopyOne(PTABS t)
+PTDB TDBMUL::Clone(PTABS t)
   {
   PTDBMUL tp;
   PGLOBAL g = t->G;        // Is this really useful ???
 
   tp = new(g) TDBMUL(this);
-  tp->Tdbp = (PTDBASE)Tdbp->CopyOne(t);
+  tp->Tdbp = Tdbp->Clone(t);
   tp->Columns = tp->Tdbp->GetColumns();
   return tp;
-  } // end of CopyOne
+  } // end of Clone
 
 PTDB TDBMUL::Duplicate(PGLOBAL g)
   {
   PTDBMUL tmup = new(g) TDBMUL(this);
 
-  tmup->Tdbp = (PTDBASE)Tdbp->Duplicate(g);
+  tmup->Tdbp = Tdbp->Duplicate(g);
   return tmup;
   } // end of Duplicate
 
@@ -658,7 +658,7 @@ TDBDIR::TDBDIR(PTDBDIR tdbp) : TDBASE(tdbp)
   } // end of TDBDIR copy constructor
 
 // Method
-PTDB TDBDIR::CopyOne(PTABS t)
+PTDB TDBDIR::Clone(PTABS t)
   {
   PTDB    tp;
   PGLOBAL g = t->G;        // Is this really useful ???
@@ -666,7 +666,7 @@ PTDB TDBDIR::CopyOne(PTABS t)
   tp = new(g) TDBDIR(this);
   tp->SetColumns(Columns);
   return tp;
-  } // end of CopyOne
+  } // end of Clone
 
 /***********************************************************************/
 /*  Initialize/get the components of the search file pattern.          */
@@ -974,7 +974,7 @@ TDBSDR::TDBSDR(PTDBSDR tdbp) : TDBDIR(tdbp)
   } // end of TDBSDR copy constructor
 
 // Method
-PTDB TDBSDR::CopyOne(PTABS t)
+PTDB TDBSDR::Clone(PTABS t)
   {
   PTDB    tp;
   PGLOBAL g = t->G;        // Is this really useful ???
@@ -982,7 +982,7 @@ PTDB TDBSDR::CopyOne(PTABS t)
   tp = new(g) TDBSDR(this);
   tp->SetColumns(Columns);
   return tp;
-  } // end of CopyOne
+  } // end of Clone
 
 /***********************************************************************/
 /*  SDR GetMaxSize: returns the number of retrieved files.             */
@@ -1251,7 +1251,7 @@ TDBDHR::TDBDHR(PTDBDHR tdbp) : TDBASE(tdbp)
   } // end of TDBDHR copy constructor
 
 // Method
-PTDB TDBDHR::CopyOne(PTABS t)
+PTDB TDBDHR::Clone(PTABS t)
   {
   PTDB    tp;
   PGLOBAL g = t->G;        // Is this really useful ???
@@ -1259,7 +1259,7 @@ PTDB TDBDHR::CopyOne(PTABS t)
   tp = new(g) TDBDHR(this);
   tp->Columns = Columns;
   return tp;
-  } // end of CopyOne
+  } // end of Clone
 
 /***********************************************************************/
 /*  Allocate DHR column description block.                             */

@@ -24,11 +24,6 @@ Created 3/14/1997 Heikki Tuuri
 *******************************************************/
 
 #include "row0purge.h"
-
-#ifdef UNIV_NONINL
-#include "row0purge.ic"
-#endif
-
 #include "fsp0fsp.h"
 #include "mach0data.h"
 #include "trx0rseg.h"
@@ -412,6 +407,7 @@ row_purge_remove_sec_if_poss_leaf(
 	bool			success	= true;
 
 	log_free_check();
+	ut_ad(index->table == node->table);
 	ut_ad(!dict_table_is_temporary(index->table));
 	mtr_start(&mtr);
 	mtr.set_named_space(index->space);
@@ -855,6 +851,7 @@ try_again:
 		/* The table has been dropped: no need to do purge */
 		goto err_exit;
 	}
+	ut_ad(!dict_table_is_temporary(node->table));
 
 	if (node->table->n_v_cols && !node->table->vc_templ
 	    && dict_table_has_indexed_v_cols(node->table)) {
@@ -872,12 +869,6 @@ try_again:
 
 		/* Initialize the template for the table */
 		innobase_init_vc_templ(node->table);
-	}
-
-	/* Disable purging for temp-tables as they are short-lived
-	and no point in re-organzing such short lived tables */
-	if (dict_table_is_temporary(node->table)) {
-		goto close_exit;
 	}
 
 	if (node->table->ibd_file_missing) {

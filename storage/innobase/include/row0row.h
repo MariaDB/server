@@ -387,8 +387,6 @@ row_raw_format(
 						in bytes */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 
-#ifndef UNIV_NONINL
 #include "row0row.ic"
-#endif
 
 #endif

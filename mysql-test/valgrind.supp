@@ -1072,6 +1072,15 @@
    fun:SSL_library_init
 }
 
+{
+   OpenSSL still reachable.
+   Memcheck:Leak
+   fun:*alloc
+   fun:CRYPTO_malloc
+   fun:sk_new
+   fun:SSL_COMP_get_compression_methods
+   fun:SSL_library_init
+}
 
 {
    OpenSSL still reachable.
@@ -1127,6 +1136,16 @@
    match-leak-kinds:possible
    ...
    fun:pthread_create*
+}
+
+{
+   Memory Leak in loader and valgrind malloc
+   Memcheck:Leak
+   match-leak-kinds:reachable
+   obj:*/vgpreload_memcheck*.so
+   ...
+   obj:*/ld-*.so
+   ...
 }
 
 {

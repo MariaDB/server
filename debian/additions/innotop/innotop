@@ -1,8 +1,9 @@
-#!/usr/bin/perl
+#!/usr/bin/env perl
 
 # vim: tw=160:nowrap:expandtab:tabstop=3:shiftwidth=3:softtabstop=3
 
 # This program is copyright (c) 2006 Baron Schwartz, baron at xaprb dot com.
+# Maintainers since 2013 : Kenny Gryp - Frédéric Descamps 
 # Feedback and improvements are gratefully received.
 #
 # THIS PROGRAM IS PROVIDED "AS IS" AND WITHOUT ANY EXPRESS OR IMPLIED
@@ -15,13 +16,13 @@
 # systems, you can issue `man perlgpl' or `man perlartistic' to read these
 
 # You should have received a copy of the GNU General Public License along with
-# this program; if not, write to the Free Software Foundation, Inc., 59 Temple
-# Place, Suite 330, Boston, MA  02111-1307  USA
+# this program; if not, write to the Free Software Foundation, Inc., 51 Franklin
+# Street, Fifth Floor, Boston, MA 02111-1301 USA
 
 use strict;
 use warnings FATAL => 'all';
 
-our $VERSION = '1.7.1';
+our $VERSION = '1.11.4';
 
 # Find the home directory; it's different on different OSes.
 our $homepath = $ENV{HOME} || $ENV{HOMEPATH} || $ENV{USERPROFILE} || '.';
@@ -41,7 +42,7 @@ $Data::Dumper::Indent    = 0;
 $Data::Dumper::Quotekeys = 0;
 use English qw(-no_match_vars);
 
-use constant MKDEBUG => $ENV{MKDEBUG};
+use constant MKDEBUG  => $ENV{MKDEBUG} || 0;
 
 # Defaults are built-in, but you can add/replace items by passing them as
 # hashrefs of {key, desc, copy, dsn}.  The desc and dsn items are optional.
@@ -93,7 +94,9 @@ sub new {
       },
    };
    foreach my $opt ( @opts ) {
-      MKDEBUG && _d('Adding extra property ' . $opt->{key});
+      if (MKDEBUG) {
+         _d('Adding extra property ' . $opt->{key});
+      }
       $self->{opts}->{$opt->{key}} = { desc => $opt->{desc}, copy => $opt->{copy} };
    }
    return bless $self, $class;
@@ -356,17 +359,18 @@ use Data::Dumper;
 $Data::Dumper::Sortkeys = 1;
 use English qw(-no_match_vars);
 use List::Util qw(max);
+use POSIX qw(strftime);
 
 # Some common patterns
 my $d  = qr/(\d+)/;                    # Digit
 my $f  = qr/(\d+\.\d+)/;               # Float
-my $t  = qr/(\d+ \d+)/;                # Transaction ID
+my $t  = qr/((?:\d+ \d+)|(?:[A-Fa-f0-9]+))/;                # Transaction ID
 my $i  = qr/((?:\d{1,3}\.){3}\d+)/;    # IP address
 my $n  = qr/([^`\s]+)/;                # MySQL object name
 my $w  = qr/(\w+)/;                    # Words
 my $fl = qr/([\w\.\/]+) line $d/;      # Filename and line number
 my $h  = qr/((?:0x)?[0-9a-f]*)/;       # Hex
-my $s  = qr/(\d{6} .\d:\d\d:\d\d)/;    # InnoDB timestamp
+my $s  = qr/(\d{6} .?\d:\d\d:\d\d)/;   # InnoDB timestamp
 
 # If you update this variable, also update the SYNOPSIS in the pod.
 my %innodb_section_headers = (
@@ -379,6 +383,7 @@ my %innodb_section_headers = (
    "FILE I/O"                              => "io",
    "LATEST DETECTED DEADLOCK"              => "dl",
    "LATEST FOREIGN KEY ERROR"              => "fk",
+   "BACKGROUND THREAD"                     => "bt",
 );
 
 my %parser_for = (
@@ -442,7 +447,7 @@ sub new {
 # to parse (hashref; if empty, parse all), and whether to parse full info from
 # locks and such (probably shouldn't unless you need to).
 sub parse_status_text {
-   my ( $self, $fulltext, $debug, $sections, $full ) = @_;
+   my ( $self, $fulltext, $debug, $sections, $full, $mysqlversion ) = @_;
 
    die "I can't parse undef" unless defined $fulltext;
    $fulltext =~ s/[\r\n]+/\n/g;
@@ -464,8 +469,16 @@ sub parse_status_text {
    # Get the most basic info about the status: beginning and end, and whether
    # I got the whole thing (if there has been a big deadlock and there are
    # too many locks to print, the output might be truncated)
-   my ( $time_text ) = $fulltext =~ m/^$s INNODB MONITOR OUTPUT$/m;
-   $innodb_data{'ts'} = [ parse_innodb_timestamp( $time_text ) ];
+
+   my $time_text;
+   if ( ($mysqlversion =~ /^5\.[67]\./) || ($mysqlversion =~ /^10\.[012]\./) ) {
+      ( $time_text ) = $fulltext =~ m/^([0-9-]* [0-9:]*) [0-9a-fx]* INNODB MONITOR OUTPUT/m;
+      $innodb_data{'ts'} = [ parse_innodb_timestamp_56( $time_text ) ];
+   } else {
+      ( $time_text ) = $fulltext =~ m/^$s INNODB MONITOR OUTPUT$/m;
+      $innodb_data{'ts'} = [ parse_innodb_timestamp( $time_text ) ];
+   }
+
    $innodb_data{'timestring'} = ts_to_string($innodb_data{'ts'});
    ( $innodb_data{'last_secs'} ) = $fulltext
       =~ m/Per second averages calculated from the last $d seconds/;
@@ -483,22 +496,34 @@ sub parse_status_text {
    while ( my ( $start, $name, $text, $end ) = splice(@matches, 0, 4) ) {
       $innodb_sections{$name} = [ $text, $end ? 1 : 0 ];
    }
-   # The Row Operations section is a special case, because instead of ending
-   # with the beginning of another section, it ends with the end of the file.
-   # So this section is complete if the entire file is complete.
-   $innodb_sections{'ROW OPERATIONS'}->[1] ||= $innodb_data{'got_all'};
 
    # Just for sanity's sake, make sure I understand what to do with each
-   # section
+   # section.
    eval {
       foreach my $section ( keys %innodb_sections ) {
          my $header = $innodb_section_headers{$section};
-         die "Unknown section $section in $fulltext\n"
-            unless $header;
-         $innodb_data{'sections'}->{ $header }
-            ->{'fulltext'} = $innodb_sections{$section}->[0];
-         $innodb_data{'sections'}->{ $header }
-            ->{'complete'} = $innodb_sections{$section}->[1];
+         if ( !$header && $debug ) {
+            warn "Unknown section $section in $fulltext\n";
+         }
+
+         # The last section in the file is a special case, because instead of
+         # ending with the beginning of another section, it ends with the end of
+         # the file.  So this section is complete if the entire file is
+         # complete.  In different versions of InnoDB, various sections are
+         # last.
+         if ( $innodb_sections{$section}->[0] =~ s/\n---+\nEND OF INNODB.+\n=+$// ) {
+            $innodb_sections{$section}->[1] ||= $innodb_data{'got_all'};
+         }
+
+         if ( $header && $section ) {
+            $innodb_data{'sections'}->{ $header }
+               ->{'fulltext'} = $innodb_sections{$section}->[0];
+            $innodb_data{'sections'}->{ $header }
+               ->{'complete'} = $innodb_sections{$section}->[1];
+         }
+         else {
+            _debug( $debug, "header = " . ($header || 'undef') . ", section = " . ($section || 'undef')) if $debug;
+         }
       }
    };
    if ( $EVAL_ERROR ) {
@@ -516,7 +541,8 @@ sub parse_status_text {
                   $innodb_data{'sections'}->{$section},
                   $innodb_data{'sections'}->{$section}->{'complete'},
                   $debug,
-                  $full )
+                  $full,
+                  $mysqlversion)
                or delete $innodb_data{'sections'}->{$section};
          }
          else {
@@ -533,11 +559,11 @@ sub parse_status_text {
 
 # Parses the status text and returns it flattened out as a single hash.
 sub get_status_hash {
-   my ( $self, $fulltext, $debug, $sections, $full ) = @_;
+   my ( $self, $fulltext, $debug, $sections, $full, $mysqlversion ) = @_;
 
    # Parse the status text...
    my $innodb_status
-      = $self->parse_status_text($fulltext, $debug, $sections, $full );
+      = $self->parse_status_text($fulltext, $debug, $sections, $full, $mysqlversion );
 
    # Flatten the hierarchical structure into a single list by grabbing desired
    # sections from it.
@@ -598,14 +624,29 @@ sub parse_innodb_timestamp {
    return ( $y, $m, $d, $h, $i, $s );
 }
 
+sub parse_innodb_timestamp_56 {
+   my $text = shift;
+   my ( $y, $m, $d, $h, $i, $s )
+      = $text =~ m/^(\d\d\d\d)-(\d\d)-(\d\d) +(\d+):(\d+):(\d+)$/;
+   die("Can't get timestamp from $text\n") unless $y;
+   return ( $y, $m, $d, $h, $i, $s );
+}
+
 sub parse_fk_section {
-   my ( $section, $complete, $debug, $full ) = @_;
+   my ( $section, $complete, $debug, $full, $mysqlversion ) = @_;
    my $fulltext = $section->{'fulltext'};
 
    return 0 unless $fulltext;
 
-   my ( $ts, $type ) = $fulltext =~ m/^$s\s+(\w+)/m;
-   $section->{'ts'} = [ parse_innodb_timestamp( $ts ) ];
+   my ( $ts, $type );
+   if ( ($mysqlversion =~ /^5.[67]\./) || ($mysqlversion =~ /^10.[012]\./) ) {
+      ( $ts, $type ) = $fulltext =~ m/^([0-9-]* [0-9:]*)\s[0-9a-fx]*\s+(\w+)/m;
+      $section->{'ts'} = [ parse_innodb_timestamp_56( $ts ) ];
+   } else {
+      ( $ts, $type ) = $fulltext =~ m/^$s\s+(\w+)/m;
+      $section->{'ts'} = [ parse_innodb_timestamp( $ts ) ];
+   } 
+
    $section->{'timestring'} = ts_to_string($section->{'ts'});
    $section->{'type'} = $type;
 
@@ -629,6 +670,9 @@ sub parse_fk_cant_drop_parent_error {
       =~ m{because it is referenced by `(.*)/(.*)`}m;
 
    ( $section->{'reason'} ) = $fulltext =~ m/(Cannot .*)/s;
+   if ( !defined $section->{reason} ) {
+      ( $section->{'reason'} ) = $fulltext =~ m/(Trying to add .*)/s;
+   }
    $section->{'reason'} =~ s/\n(?:InnoDB: )?/ /gm
       if $section->{'reason'};
 
@@ -699,7 +743,7 @@ sub parse_fk_transaction_error {
    # no matching parent record (row_ins_foreign_report_add_err).
 
    @{$section}{ qw(reason child_db child_table) }
-      = $fulltext =~ m{^(Foreign key constraint fails for table `(.*)/(.*)`:)$}m;
+      = $fulltext =~ m{^(Foreign key constraint fails for table `(.*?)`?[/.]`?(.*)`:)$}m;
 
    @{$section}{ qw(fk_name col_name parent_db parent_table parent_col) }
       = $fulltext
@@ -847,7 +891,7 @@ sub parse_field {
 }
 
 sub parse_dl_section {
-   my ( $dl, $complete, $debug, $full ) = @_;
+   my ( $dl, $complete, $debug, $full, $mysqlversion ) = @_;
    return unless $dl;
    my $fulltext = $dl->{'fulltext'};
    return 0 unless $fulltext;
@@ -855,7 +899,12 @@ sub parse_dl_section {
    my ( $ts ) = $fulltext =~ m/^$s$/m;
    return 0 unless $ts;
 
-   $dl->{'ts'} = [ parse_innodb_timestamp( $ts ) ];
+   if ( ($mysqlversion =~ /^5\.[67]\./) || ($mysqlversion =~ /^10\.[012]\./) ) {
+      $dl->{'ts'} = [ parse_innodb_timestamp_56( $ts ) ];
+   }
+   else {
+      $dl->{'ts'} = [ parse_innodb_timestamp( $ts ) ];
+   }
    $dl->{'timestring'} = ts_to_string($dl->{'ts'});
    $dl->{'txns'} = {};
 
@@ -923,12 +972,22 @@ sub parse_innodb_record_locks {
 sub parse_tx_text {
    my ( $txn, $complete, $debug, $full ) = @_;
 
-   my ( $txn_id, $txn_status, $active_secs, $proc_no, $os_thread_id )
+   my ( $txn_id, $txn_status )
       = $txn
-      =~ m/^(?:---)?TRANSACTION $t, (\D*?)(?: $d sec)?, (?:process no $d, )?OS thread id $d/m;
+      =~ m/^(?:---)?TRANSACTION $t, ([^\n0-9,]*[^\s\d])/m;
+   $txn_status =~ s/,$// if $txn_status;
+   my ( $active_secs)
+      = $txn
+      =~ m/^[^\n]*\b$d sec\b/m;
+   my ( $proc_no )
+      = $txn
+      =~ m/process no $d/m;
+   my ( $os_thread_id )
+      = $txn
+      =~ m/OS thread id $d/m;
    my ( $thread_status, $thread_decl_inside )
       = $txn
-      =~ m/OS thread id \d+(?: ([^,]+?))?(?:, thread declared inside InnoDB $d)?$/m;
+      =~ m/(?:OS thread id \d+|\d sec)(?: ([^,]+?))?(?:, thread declared inside InnoDB $d)?$/m;
 
    # Parsing the line that begins 'MySQL thread id' is complicated.  The only
    # thing always in the line is the thread and query id.  See function
@@ -938,7 +997,7 @@ sub parse_tx_text {
 
    if ( $thread_line ) {
       # These parts can always be gotten.
-      ( $mysql_thread_id, $query_id ) = $thread_line =~ m/^MySQL thread id $d, query id $d/m;
+      ( $mysql_thread_id, $query_id ) = $thread_line =~ m/^MySQL thread id $d, .*?query id $d/m;
 
       # If it's a master/slave thread, "Has (read|sent) all" may be the thread's
       # proc_info.  In these cases, there won't be any host/ip/user info
@@ -963,6 +1022,11 @@ sub parse_tx_text {
                # It's basically impossible to know which is which.
                ( $hostname, $user, $query_status ) = $thread_line
                   =~ m/query id \d+(?: ([A-Za-z]\S+))?(?: $w(?: (.*))?)?$/m;
+               if ( ($hostname || '') eq 'Slave' ) {
+                  $hostname     = '';
+                  $user         = 'system user';
+                  $query_status = "Slave has $query_status";
+               }
             }
             else {
                $user = 'system user';
@@ -1064,7 +1128,7 @@ sub parse_tx_section {
    $section->{'transactions'} = [];
 
    # Handle the individual transactions
-   my @transactions = $fulltext =~ m/(---TRANSACTION \d.*?)(?=\n---TRANSACTION|$)/gs;
+   my @transactions = $fulltext =~ m/(---TRANSACTION [0-9A-Fa-f].*?)(?=\n---TRANSACTION|$)/gs;
    foreach my $txn ( @transactions ) {
       my $stuff = parse_tx_text( $txn, $complete, $debug, $full );
       delete $stuff->{'fulltext'} unless $debug;
@@ -1131,7 +1195,7 @@ sub parse_lg_section {
    ( $section->{ 'last_chkp' } )
       = $fulltext =~ m/Last checkpoint at \s*(\d.*)$/m;
    @{$section}{ 'pending_log_writes', 'pending_chkp_writes' }
-      = $fulltext =~ m/$d pending log writes, $d pending chkp writes/;
+      = $fulltext =~ m/$d pending log (?:writes|flushes), $d pending chkp writes/;
    @{$section}{ 'log_ios_done', 'log_ios_s' }
       = $fulltext =~ m#$d log i/o's done, $f log i/o's/second#;
 
@@ -1149,12 +1213,19 @@ sub parse_ib_section {
    # the source code shows there will only ever be one).  I have to parse both
    # cases here, but I assume there will only be one.
    @{$section}{ 'size', 'free_list_len', 'seg_size' }
-      = $fulltext =~ m/^Ibuf(?: for space 0)?: size $d, free list len $d, seg size $d,$/m;
+      = $fulltext =~ m/^Ibuf(?: for space 0)?: size $d, free list len $d, seg size $d/m;
    @{$section}{ 'inserts', 'merged_recs', 'merges' }
       = $fulltext =~ m/^$d inserts, $d merged recs, $d merges$/m;
+   if ( ! defined $section->{inserts} ) {
+      @{$section}{ 'inserts' }
+         = $fulltext =~ m/merged operations:\n  insert $d,/s;
+      # This isn't really true, but it's not really important either. We already
+      # aren't supporting the 'delete' operations.
+      @{$section}{ 'merged_recs', 'merges' } = (0, 0);
+   }
 
    @{$section}{ 'hash_table_size', 'used_cells', 'bufs_in_node_heap' }
-      = $fulltext =~ m/^Hash table size $d, used cells $d, node heap has $d buffer\(s\)$/m;
+      = $fulltext =~ m/^Hash table size $d(?:, used cells $d)?, node heap has $d buffer\(s\)$/m;
    @{$section}{ 'hash_searches_s', 'non_hash_searches_s' }
       = $fulltext =~ m{^$f hash searches/s, $f non-hash searches/s$}m;
 
@@ -1215,6 +1286,12 @@ sub parse_sm_section {
       = $fulltext =~ m/^Mutex spin waits $d, rounds $d, OS waits $d$/m;
    @{$section}{ 'rw_shared_spins', 'rw_shared_os_waits', 'rw_excl_spins', 'rw_excl_os_waits' }
       = $fulltext =~ m/^RW-shared spins $d, OS waits $d; RW-excl spins $d, OS waits $d$/m;
+   if ( ! defined $section->{rw_shared_spins} ) {
+      @{$section}{ 'rw_shared_spins', 'rw_shared_os_waits'}
+         = $fulltext =~ m/^RW-shared spins $d, rounds \d+, OS waits $d$/m;
+      @{$section}{ 'rw_excl_spins', 'rw_excl_os_waits' }
+         = $fulltext =~ m/^RW-excl spins $d, rounds \d+, OS waits $d$/m;
+   }
 
    # Look for info on waits.
    my @waits = $fulltext =~ m/^(--Thread.*?)^(?=Mutex spin|--Thread)/gms;
@@ -1245,14 +1322,14 @@ sub parse_bp_section {
    @{$section}{'page_reads_sec', 'page_creates_sec', 'page_writes_sec'}
       = $fulltext =~ m{^$f reads/s, $f creates/s, $f writes/s$}m;
    @{$section}{'buf_pool_hits', 'buf_pool_reads'}
-      = $fulltext =~ m{Buffer pool hit rate $d / $d$}m;
+      = $fulltext =~ m{Buffer pool hit rate $d / $d}m;
    if ($fulltext =~ m/^No buffer pool page gets since the last printout$/m) {
       @{$section}{'buf_pool_hits', 'buf_pool_reads'} = (0, 0);
       @{$section}{'buf_pool_hit_rate'} = '--';
    }
    else {
       @{$section}{'buf_pool_hit_rate'}
-         = $fulltext =~ m{Buffer pool hit rate (\d+ / \d+)$}m;
+         = $fulltext =~ m{Buffer pool hit rate (\d+ / \d+)}m;
    }
    @{$section}{'reads_pending'} = $fulltext =~ m/^Pending reads $d/m;
    @{$section}{'writes_pending_lru', 'writes_pending_flush_list', 'writes_pending_single_page' }
@@ -1292,7 +1369,7 @@ sub parse_io_section {
 
    # Grab the reads/writes/flushes info
    @{$section}{ 'pending_normal_aio_reads', 'pending_aio_writes' }
-      = $fulltext =~ m/^Pending normal aio reads: $d, aio writes: $d,$/m;
+      = $fulltext =~ m/^Pending normal aio reads: $d(?: [^\]]*\])?, aio writes: $d/m;
    @{$section}{ 'pending_ibuf_aio_reads', 'pending_log_ios', 'pending_sync_ios' }
       = $fulltext =~ m{^ ibuf aio reads: $d, log i/o's: $d, sync i/o's: $d$}m;
    @{$section}{ 'flush_type', 'pending_log_flushes', 'pending_buffer_pool_flushes' }
@@ -1361,8 +1438,8 @@ systems, you can issue `man perlgpl' or `man perlartistic' to read these
 licenses.
 
 You should have received a copy of the GNU General Public License along with
-this program; if not, write to the Free Software Foundation, Inc., 59 Temple
-Place, Suite 330, Boston, MA  02111-1307  USA.
+this program; if not, write to the Free Software Foundation, Inc., 51 Franklin
+Street, Fifth Floor, Boston, MA 02111-1301 USA.
 LICENSE
 
 # Configuration information and global setup {{{1
@@ -1393,6 +1470,7 @@ my %col_props = (
    trans   => [],
    agg     => 'first',  # Aggregate function
    aggonly => 0,        # Whether to show only when tbl_meta->{aggregate} is true
+   agghide => 0,        # Whether NOT to show when tbl_meta->{aggregate} is true
 );
 
 # Actual DBI connections to MySQL servers.
@@ -1410,13 +1488,17 @@ my @opt_spec = (
    { s => 'delay|d=f',  d => 'Delay between updates in seconds',  c => 'interval' },
    { s => 'mode|m=s',   d => 'Operating mode to start in',        c => 'mode' },
    { s => 'inc|i!',     d => 'Measure incremental differences',   c => 'status_inc' },
+   { s => 'spark=i',    d => 'Length of status sparkline (default 10)', c=> 'spark' },
    { s => 'write|w',    d => 'Write running configuration into home directory if no config files were loaded' },
    { s => 'skipcentral|s',     d => 'Skip reading the central configuration file' },
    { s => 'version',    d => 'Output version information and exit' },
    { s => 'user|u=s',   d => 'User for login if not current user' },
    { s => 'password|p=s',   d => 'Password to use for connection' },
+   { s => 'askpass',    d => 'Prompt for a password when connecting to MySQL'},
    { s => 'host|h=s',   d => 'Connect to host' },
    { s => 'port|P=i',   d => 'Port number to use for connection' },
+   { s => 'socket|S=s', d => 'MySQL socket to use for connection' },
+   { s => 'timestamp|t+', d => 'Print timestamp in -n mode (1: per iter; 2: per line)' },
 );
 
 # This is the container for the command-line options' values to be stored in
@@ -1427,7 +1509,7 @@ my %opts = (
 # Post-process...
 my %opt_seen;
 foreach my $spec ( @opt_spec ) {
-   my ( $long, $short ) = $spec->{s} =~ m/^(\w+)(?:\|([^!+=]*))?/;
+   my ( $long, $short ) = $spec->{s} =~ m/^(\w+)(?:\|([^!+=:]*))?/;
    $spec->{k} = $short || $long;
    $spec->{l} = $long;
    $spec->{t} = $short;
@@ -1448,6 +1530,11 @@ if ( $opts{c} and ! -f $opts{c} ) {
    print $opts{c} . " doesn't exist.  Exiting.\n";
    exit(1);
 }
+
+if ( $opts{'askpass'} ) {
+    $opts{'p'} = noecho_password("Enter password ");
+}
+
 if ( $opts{'help'} ) {
    print "Usage: innotop <options> <innodb-status-file>\n\n";
    my $maxw = max(map { length($_->{l}) + ($_->{n} ? 4 : 0)} @opt_spec);
@@ -1468,6 +1555,14 @@ USAGE
    exit(1);
 }
 
+if ( defined($opts{p}) && length($opts{p}) == 0 ) {
+   print "Enter password: ";
+   ReadMode('noecho');
+   $opts{p} = <STDIN>;
+   chomp($opts{p});
+   ReadMode('normal');
+}
+
 # Meta-data (table definitions etc) {{{2
 # ###########################################################################
 
@@ -1475,7 +1570,7 @@ USAGE
 # Convenience so I can copy/paste these in several places...
 # ###########################################################################
 my %exprs = (
-   Host              => q{my $host = host || hostname || ''; ($host) = $host =~ m/^((?:[\d.]+(?=:))|(?:[a-zA-Z]\w+))/; return $host || ''},
+   Host              => q{my $host = host || hostname || ''; ($host) = $host =~ m/^((?:[\d.]+(?=:|$))|(?:[a-z0-9-]+))/i; return $host || ''},
    Port              => q{my ($p) = host =~ m/:(.*)$/; return $p || 0},
    OldVersions       => q{dulint_to_int(IB_tx_trx_id_counter) - dulint_to_int(IB_tx_purge_done_for)},
    MaxTxnTime        => q/max(map{ $_->{active_secs} } @{ IB_tx_transactions }) || 0/,
@@ -1483,9 +1578,18 @@ my %exprs = (
    DirtyBufs         => q{ $cur->{IB_bp_pages_modified} / ($cur->{IB_bp_buf_pool_size} || 1) },
    BufPoolFill       => q{ $cur->{IB_bp_pages_total} / ($cur->{IB_bp_buf_pool_size} || 1) },
    ServerLoad        => q{ $cur->{Threads_connected}/(Questions||1)/Uptime_hires },
+   Connection        => q{ max_connections || $cur->{Threads_connected} },
+   chcxn_2_cxn       => q{ if ( defined($cur->{cxn}) ) { return $cur->{cxn}; } else { my ($cha, $conn) = split ("=",$cur->{chcxn}) ;  return $conn; } },
+   chcxn_2_ch        => q{ if ( defined($cur->{channel_name}) ) { return $cur->{channel_name}; } else { my ($cha, $conn) = split ("=",$cur->{chcxn}) ; $cha = '' if ($cha = /no_channels/); return $cha || 'failed'; } },
    TxnTimeRemain     => q{ defined undo_log_entries && defined $pre->{undo_log_entries} && undo_log_entries < $pre->{undo_log_entries} ? undo_log_entries / (($pre->{undo_log_entries} - undo_log_entries)/((active_secs-$pre->{active_secs})||1))||1 : 0},
    SlaveCatchupRate  => ' defined $cur->{seconds_behind_master} && defined $pre->{seconds_behind_master} && $cur->{seconds_behind_master} < $pre->{seconds_behind_master} ? ($pre->{seconds_behind_master}-$cur->{seconds_behind_master})/($cur->{Uptime_hires}-$pre->{Uptime_hires}) : 0',
    QcacheHitRatio    => q{(Qcache_hits||0)/(((Com_select||0)+(Qcache_hits||0))||1)},
+   QueryDetail       => q{sprintf("%2d/%2d/%2d/%2d",
+                           ((Com_select||0)+(Qcache_hits||0))/(Questions||1)*100,
+                            ((Com_insert||0)+(Com_replace||0))/(Questions||1)*100,
+                            (Com_update||0)/(Questions||1)*100,
+                            (Com_delete||0)/(Questions||1)*100,
+)},
 );
 
 # ###########################################################################
@@ -1503,12 +1607,21 @@ my %exprs = (
 
 my %columns = (
    active_secs                 => { hdr => 'SecsActive',          num => 1, label => 'Seconds transaction has been active', },
-   add_pool_alloc              => { hdr => 'Add\'l Pool',         num => 1, label => 'Additional pool allocated' },
+   add_pool_alloc              => { hdr => 'Add\'l Pool',         num => 1, label => 'Additonal pool allocated' },
    attempted_op                => { hdr => 'Action',              num => 0, label => 'The action that caused the error' },
    awe_mem_alloc               => { hdr => 'AWE Memory',          num => 1, label => '[Windows] AWE memory allocated' },
    binlog_cache_overflow       => { hdr => 'Binlog Cache',        num => 1, label => 'Transactions too big for binlog cache that went to disk' },
    binlog_do_db                => { hdr => 'Binlog Do DB',        num => 0, label => 'binlog-do-db setting' },
    binlog_ignore_db            => { hdr => 'Binlog Ignore DB',    num => 0, label => 'binlog-ignore-db setting' },
+   blocking_thread             => { hdr => 'BThread',             num => 1, label => 'Blocking thread' },
+   blocking_query              => { hdr => 'Blocking Query',      num => 0, label => 'Blocking query' },
+   blocking_rows_modified      => { hdr => 'BRowsMod',            num => 1, label => 'Blocking number rows modified' },
+   blocking_age                => { hdr => 'BAge',                num => 1, label => 'Blocking age' },
+   blocking_wait_secs          => { hdr => 'BWait',               num => 1, label => 'Blocking wait time' },
+   blocking_user               => { hdr => 'BUser',               num => 0, label => 'Blocking user' },
+   blocking_host               => { hdr => 'BHost',               num => 0, label => 'Blocking host' },
+   blocking_db                 => { hdr => 'BDB',                 num => 0, label => 'Blocking database' },
+   blocking_status             => { hdr => 'BStatus',             num => 0, label => 'Blocking thread status' },
    bps_in                      => { hdr => 'BpsIn',               num => 1, label => 'Bytes per second received by the server', },
    bps_out                     => { hdr => 'BpsOut',              num => 1, label => 'Bytes per second sent by the server', },
    buf_free                    => { hdr => 'Free Bufs',           num => 1, label => 'Buffers free in the buffer pool' },
@@ -1520,11 +1633,13 @@ my %columns = (
    bytes_behind_master         => { hdr => 'ByteLag',             num => 1, label => 'Bytes the slave lags the master in binlog' },
    cell_event_set              => { hdr => 'Ending?',             num => 1, label => 'Whether the cell event is set' },
    cell_waiting                => { hdr => 'Waiting?',            num => 1, label => 'Whether the cell is waiting' },
+   channel_name                => { hdr => 'Channel',             num => 0, label => 'The name of the replication channel' },
    child_db                    => { hdr => 'Child DB',            num => 0, label => 'The database of the child table' },
    child_index                 => { hdr => 'Child Index',         num => 0, label => 'The index in the child table' },
    child_table                 => { hdr => 'Child Table',         num => 0, label => 'The child table' },
    cmd                         => { hdr => 'Cmd',                 num => 0, label => 'Type of command being executed', },
    cnt                         => { hdr => 'Cnt',                 num => 0, label => 'Count', agg => 'count', aggonly => 1 },
+   connections                 => { hdr => 'Cxns',                num => 1, label => 'Connections' },
    connect_retry               => { hdr => 'Connect Retry',       num => 1, label => 'Slave connect-retry timeout' },
    cxn                         => { hdr => 'CXN',                 num => 0, label => 'Connection from which the data came', },
    db                          => { hdr => 'DB',                  num => 0, label => 'Current database', },
@@ -1533,6 +1648,7 @@ my %columns = (
    dl_txn_num                  => { hdr => 'Num',                 num => 0, label => 'Deadlocked transaction number', },
    event_set                   => { hdr => 'Evt Set?',            num => 1, label => '[Win32] if a wait event is set', },
    exec_master_log_pos         => { hdr => 'Exec Master Log Pos', num => 1, label => 'Exec Master Log Position' },
+   executed_gtid_set           => { hdr => 'Executed GTID Set',   num => 0, label => 'Executed GTID Set', },
    fk_name                     => { hdr => 'Constraint',          num => 0, label => 'The name of the FK constraint' },
    free_list_len               => { hdr => 'Free List Len',       num => 1, label => 'Length of the free list' },
    has_read_view               => { hdr => 'Rd View',             num => 1, label => 'Whether the transaction has a read view' },
@@ -1544,7 +1660,7 @@ my %columns = (
    host_and_domain             => { hdr => 'Host',                num => 0, label => 'Hostname/IP and domain' },
    host_and_port               => { hdr => 'Host/IP',             num => 0, label => 'Hostname or IP address, and port number', },
    hostname                    => { hdr => 'Host',                num => 0, label => 'Hostname' },
-   index                       => { hdr => 'Index',               num => 0, label => 'The index involved' },
+   index                       => { hdr => 'Index',               num => 0, label => 'The index involved', agghide => 1 },
    index_ref                   => { hdr => 'Index Ref',           num => 0, label => 'Index referenced' },
    info                        => { hdr => 'Query',               num => 0, label => 'Info or the current query', },
    insert_intention            => { hdr => 'Ins Intent',          num => 1, label => 'Whether the thread was trying to insert' },
@@ -1569,8 +1685,10 @@ my %columns = (
    last_total                  => { hdr => 'Last Total',          num => 1, label => 'Last Total' },
    last_value                  => { hdr => 'Last Incr',           num => 1, label => 'Last Value' },
    load                        => { hdr => 'Load',                num => 1, label => 'Server load' },
+   locked_count                => { hdr => 'Lock',                num => 1, label => 'Number of locked threads' },
    lock_cfile_name             => { hdr => 'Crtd File',           num => 0, label => 'Filename where lock created' },
    lock_cline                  => { hdr => 'Crtd Line',           num => 1, label => 'Line where lock created' },
+   lock_info                   => { hdr => 'Lock Info',           num => 0, label => 'Lock information' },
    lock_mem_addr               => { hdr => 'Addr',                num => 0, label => 'The lock memory address' },
    lock_mode                   => { hdr => 'Mode',                num => 0, label => 'The lock mode' },
    lock_structs                => { hdr => 'LStrcts',             num => 1, label => 'Number of lock structs' },
@@ -1581,6 +1699,7 @@ my %columns = (
    log_ios_done                => { hdr => 'IO Done',             num => 1, label => 'Log I/Os done' },
    log_ios_s                   => { hdr => 'IO/Sec',              num => 1, label => 'Average log I/Os per sec' },
    log_seq_no                  => { hdr => 'Sequence No.',        num => 0, label => 'Log sequence number' },
+   longest_sql                 => { hdr => 'SQL',                 num => 0, label => 'Longest-running SQL statement' },
    main_thread_id              => { hdr => 'Main Thread ID',      num => 1, label => 'Main thread ID' },
    main_thread_proc_no         => { hdr => 'Main Thread Proc',    num => 1, label => 'Main thread process number' },
    main_thread_state           => { hdr => 'Main Thread State',   num => 0, label => 'Main thread state' },
@@ -1596,9 +1715,12 @@ my %columns = (
    master_ssl_cipher           => { hdr => 'Master SSL Cipher',   num => 0, label => 'Master SSL Cipher' },
    master_ssl_key              => { hdr => 'Master SSL Key',      num => 0, label => 'Master SSL Key' },
    master_user                 => { hdr => 'Master User',         num => 0, label => 'Master username' },
+   master_uuid                 => { hdr => 'Master UUID',         num => 0, label => 'Master UUID', },
    max_txn                     => { hdr => 'MaxTxnTime',          num => 1, label => 'MaxTxn' },
+   max_query_time              => { hdr => 'MaxSQL',              num => 1, label => 'Longest running SQL' },
    merged_recs                 => { hdr => 'Merged Recs',         num => 1, label => 'Merged records' },
    merges                      => { hdr => 'Merges',              num => 1, label => 'Merges' },
+   miss_rate                   => { hdr => 'Miss',                num => 1, label => 'InnoDB buffer pool miss rate' },
    mutex_os_waits              => { hdr => 'Waits',               num => 1, label => 'Mutex OS Waits' },
    mutex_spin_rounds           => { hdr => 'Rounds',              num => 1, label => 'Mutex Spin Rounds' },
    mutex_spin_waits            => { hdr => 'Spins',               num => 1, label => 'Mutex Spin Waits' },
@@ -1619,6 +1741,7 @@ my %columns = (
    num_txns                    => { hdr => 'Txns',                num => 1, label => 'Number of transactions' },
    num_updates                 => { hdr => 'Upd',                 num => 1, label => 'Number of updates' },
    num_updates_sec             => { hdr => 'Upd/Sec',             num => 1, label => 'Number of updates' },
+   'open'                      => { hdr => 'Tbls',                num => 1, label => 'Number of open tables' },
    os_file_reads               => { hdr => 'OS Reads',            num => 1, label => 'OS file reads' },
    os_file_writes              => { hdr => 'OS Writes',           num => 1, label => 'OS file writes' },
    os_fsyncs                   => { hdr => 'OS fsyncs',           num => 1, label => 'OS fsyncs' },
@@ -1653,6 +1776,7 @@ my %columns = (
    port                        => { hdr => 'Port',                num => 1, label => 'Client port number', },
    possible_keys               => { hdr => 'Poss. Keys',          num => 0, label => 'Possible keys' },
    proc_no                     => { hdr => 'Proc',                num => 1, label => 'Process number' },
+   q_detail                    => { hdr => 'Se/In/Up/De%',        num => 0, label => 'Detailed Query', },
    q_cache_hit                 => { hdr => 'QCacheHit',           num => 1, label => 'Query cache hit ratio', },
    qps                         => { hdr => 'QPS',                 num => 1, label => 'How many queries/sec', },
    queries_in_queue            => { hdr => 'Queries Queued',      num => 1, label => 'Queries in queue' },
@@ -1676,14 +1800,23 @@ my %columns = (
    replicate_wild_ignore_table => { hdr => 'Wild Ignore Table',   num => 0, label => 'Replicate-wild-ignore-table setting' },
    request_type                => { hdr => 'Type',                num => 0, label => 'Type of lock the thread waits for' },
    reservation_count           => { hdr => 'ResCnt',              num => 1, label => 'Reservation Count' },
+   retrieved_gtid_set          => { hdr => 'Retrieved GTID Set',  num => 0, label => 'Retrieved GTID Set', },
    row_locks                   => { hdr => 'RLocks',              num => 1, label => 'Number of row locks' },
+   rows_changed                => { hdr => 'Changed',             num => 1, label => 'Number of rows changed' },
+   rows_changed_x_indexes      => { hdr => 'Chg X Idx',           num => 1, label => 'Number of rows changed X indexes' },
+   rows_read                   => { hdr => 'Reads',               num => 1, label => 'Number of rows read' },
+   rows_read_from_indexes      => { hdr => 'Reads Via Idx',       num => 1, label => 'Number of rows read from indexes' },
+   run                         => { hdr => 'Run',                 num => 1, label => 'Threads_running' },
    rw_excl_os_waits            => { hdr => 'RW Waits',            num => 1, label => 'R/W Excl. OS Waits' },
    rw_excl_spins               => { hdr => 'RW Spins',            num => 1, label => 'R/W Excl. Spins' },
    rw_shared_os_waits          => { hdr => 'Sh Waits',            num => 1, label => 'R/W Shared OS Waits' },
    rw_shared_spins             => { hdr => 'Sh Spins',            num => 1, label => 'R/W Shared Spins' },
+   spark_qps                   => { hdr => 'QPS',                 num => 0, label => 'QPS Sparkline' },
+   spark_run                   => { hdr => 'Run',                 num => 0, label => 'Threads_running Sparkline' },
    scan_type                   => { hdr => 'Type',                num => 0, label => 'Scan type in chosen' },
    seg_size                    => { hdr => 'Seg. Size',           num => 1, label => 'Segment size' },
    select_type                 => { hdr => 'Select Type',         num => 0, label => 'Type of select used' },
+   server_uuid                 => { hdr => 'Server UUID',         num => 0, label => 'Server UUID', },
    signal_count                => { hdr => 'Signals',             num => 1, label => 'Signal Count' },
    size                        => { hdr => 'Size',                num => 1, label => 'Size of the tablespace' },
    skip_counter                => { hdr => 'Skip Counter',        num => 1, label => 'Skip counter' },
@@ -1691,7 +1824,9 @@ my %columns = (
    slave_io_running            => { hdr => 'Slave-IO',            num => 0, label => 'Whether the slave I/O thread is running' },
    slave_io_state              => { hdr => 'Slave IO State',      num => 0, label => 'Slave I/O thread state' },
    slave_open_temp_tables      => { hdr => 'Temp',                num => 1, label => 'Slave open temp tables' },
+   slave_running               => { hdr => 'Repl',                num => 0, label => 'Slave running' },
    slave_sql_running           => { hdr => 'Slave-SQL',           num => 0, label => 'Whether the slave SQL thread is running' },
+   sort_time                   => { hdr => 'SortTimeLag',         num => 1, label => 'Time slave lags master sort' },
    slow                        => { hdr => 'Slow',                num => 1, label => 'How many slow queries', },
    space_id                    => { hdr => 'Space',               num => 1, label => 'Tablespace ID' },
    special                     => { hdr => 'Special',             num => 0, label => 'Special/Other info' },
@@ -1718,6 +1853,7 @@ my %columns = (
    undo_for                    => { hdr => 'Undo',                num => 0, label => 'Undo for' },
    until_condition             => { hdr => 'Until Condition',     num => 0, label => 'Slave until condition' },
    until_log_file              => { hdr => 'Until Log File',      num => 0, label => 'Slave until log file' },
+   uptime                      => { hdr => 'Uptime',              num => 1, label => 'Uptime' },
    until_log_pos               => { hdr => 'Until Log Pos',       num => 1, label => 'Slave until log position' },
    used_cells                  => { hdr => 'Cells Used',          num => 1, label => 'Number of cells used' },
    used_bufs                   => { hdr => 'Used Bufs',           num => 1, label => 'Number of buffer pool pages used' },
@@ -1731,6 +1867,14 @@ my %columns = (
    waited_at_line              => { hdr => 'Line',                num => 1, label => 'Line at which thread waits' },
    waiters_flag                => { hdr => 'Waiters',             num => 1, label => 'Waiters Flag' },
    waiting                     => { hdr => 'Waiting',             num => 1, label => 'Whether lock is being waited for' },
+   waiting_thread              => { hdr => 'WThread',             num => 1, label => 'Waiting thread' },
+   waiting_query               => { hdr => 'Waiting Query',       num => 0, label => 'Waiting query' },
+   waiting_rows_modified       => { hdr => 'WRowsMod',            num => 1, label => 'Waiting number rows modified' },
+   waiting_age                 => { hdr => 'WAge',                num => 1, label => 'Waiting age' },
+   waiting_wait_secs           => { hdr => 'WWait',               num => 1, label => 'Waiting wait time' },
+   waiting_user                => { hdr => 'WUser',               num => 0, label => 'Waiting user' },
+   waiting_host                => { hdr => 'WHost',               num => 0, label => 'Waiting host' },
+   waiting_db                  => { hdr => 'WDB',                 num => 0, label => 'Waiting database' },
    when                        => { hdr => 'When',                num => 0, label => 'Time scale' },
    writer_lock_mode            => { hdr => 'Wrtr Lck Mode',       num => 0, label => 'Writer lock mode' },
    writer_thread               => { hdr => 'Wrtr Thread',         num => 1, label => 'Writer thread ID' },
@@ -1763,8 +1907,7 @@ my %filters = ();
 my %builtin_filters = (
    hide_self => {
       text => <<'      END',
-         return ( !$set->{info} || $set->{info} ne 'SHOW FULL PROCESSLIST' )
-             && ( !$set->{query_text}    || $set->{query_text} !~ m/INNODB STATUS$/ );
+         return ( ($set->{info}       || '') !~ m#/\*innotop\*/# );
       END
       note => 'Removes the innotop processes from the list',
       tbls => [qw(innodb_transactions processlist)],
@@ -1773,17 +1916,32 @@ my %builtin_filters = (
       text => <<'      END',
          return ( !defined($set->{txn_status}) || $set->{txn_status} ne 'not started' )
              && ( !defined($set->{cmd})        || $set->{cmd} !~ m/Sleep|Binlog Dump/ )
+             && ( !defined($set->{state})      || $set->{state} !~ m/^handlersocket/  )
              && ( !defined($set->{info})       || $set->{info} =~ m/\S/               );
       END
       note => 'Removes processes which are not doing anything',
       tbls => [qw(innodb_transactions processlist)],
    },
+   hide_connect => {
+      text => <<'      END',
+         return ( !defined($set->{cmd})        || $set->{cmd} !~ m/Connect/ );
+      END
+      note => 'Removes the slave processes from the list',
+      tbls => [qw(processlist)],
+   },
    hide_slave_io => {
       text => <<'      END',
-         return !$set->{state} || $set->{state} !~ m/^(?:Waiting for master|Has read all relay)/;
+         return !$set->{state} || $set->{state} !~ m/^(?:Waiting for master|read all relay)/;
       END
       note => 'Removes slave I/O threads from the list',
       tbls => [qw(processlist slave_io_status)],
+   },
+   hide_event => {
+      text => <<'      END',
+         return (($set->{state} || '') !~ m/^Daemon/) || (($set->{info} || '') !~ m/\S/);
+      END
+      note => 'Removes idle event threads from the list',
+      tbls => [qw(processlist)],
    },
    table_is_open => {
       text => <<'      END',
@@ -2038,11 +2196,13 @@ my %agg_funcs = (
 my %trans_funcs = (
    shorten      => \&shorten,
    secs_to_time => \&secs_to_time,
+   distill      => \&distill,
    no_ctrl_char => \&no_ctrl_char,
    percent      => \&percent,
    commify      => \&commify,
    dulint_to_int => \&dulint_to_int,
    set_precision => \&set_precision,
+   fuzzy_time    => \&fuzzy_time,
 );
 
 # Table definitions {{{3
@@ -2123,6 +2283,7 @@ my %tbl_meta = (
       capt => 'Command Summary',
       cust => {},
       cols => {
+         cxn        => { src => 'cxn' },
          name       => { src => 'name' },
          total      => { src => 'total' },
          value      => { src => 'value',                     agg   => 'sum'},
@@ -2131,7 +2292,7 @@ my %tbl_meta = (
          last_value => { src => 'last_value',                agg   => 'sum'},
          last_pct   => { src => 'last_value/last_total',     trans => [qw(percent)] },
       },
-      visible   => [qw(name value pct last_value last_pct)],
+      visible   => [qw(cxn name value pct last_value last_pct)],
       filters   => [qw()],
       sort_cols => '-value',
       sort_dir  => '1',
@@ -2281,6 +2442,49 @@ my %tbl_meta = (
       group_by => [],
       aggregate => 0,
    },
+   index_statistics => {
+      capt => 'Data from INDEX_STATISTICS',
+      cust => {},
+      cols => {
+         cxn                    => { src => 'cxn', minw => 6, maxw => 10 },
+         db                     => { src => 'table_schema' },
+         tbl                    => { src => 'table_name' },
+         index                  => { src => 'index_name' },
+         rows_read              => { src => 'rows_read', agg => 'sum' },
+      },
+      visible => [ qw(cxn db tbl index rows_read) ],
+      filters => [ ],
+      sort_cols => 'rows_read',
+      sort_dir => '-1',
+      innodb   => '',
+      colors   => [],
+      hide_caption => 1,
+      group_by => [qw(cxn db tbl)],
+      aggregate => 0,
+   },
+   index_table_statistics => {
+      capt => 'Data from {TABLE,INDEX}_STATISTICS',
+      cust => {},
+      cols => {
+         cxn                    => { src => 'cxn', minw => 6, maxw => 10 },
+         db                     => { src => 'table_schema' },
+         tbl                    => { src => 'table_name' },
+         index                  => { src => 'index_name' },
+         rows_read              => { src => 'rows_read' },
+         rows_read_from_indexes => { src => 'rows_read_from_indexes' },
+         rows_changed           => { src => 'rows_changed' },
+         rows_changed_x_indexes => { src => 'rows_changed_x_indexes' },
+      },
+      visible => [ qw(cxn db tbl rows_read rows_read_from_indexes rows_changed rows_changed_x_indexes) ],
+      filters => [ ],
+      sort_cols => 'rows_read',
+      sort_dir => '-1',
+      innodb   => '',
+      colors   => [],
+      hide_caption => 1,
+      group_by => [qw(cxn db tbl)],
+      aggregate => 0,
+   },
    insert_buffers => {
       capt => 'Insert Buffers',
       cust => {},
@@ -2300,6 +2504,43 @@ my %tbl_meta = (
       innodb   => 'ib',
       group_by => [],
       aggregate => 0,
+   },
+   innodb_blocked_blocker  => {
+      capt => 'InnoDB Blocked/Blocking',
+      cust => {},
+      cols => {
+        cxn                    => { src => 'cxn' },
+        waiting_thread         => { src => 'waiting_thread' },
+        waiting_query          => { src => 'waiting_query', trans => [qw(distill)] },
+        waiting_rows_modified  => { src => 'waiting_rows_modified' },
+        waiting_age            => { src => 'waiting_age', trans => [qw(fuzzy_time)] },
+        waiting_wait_secs      => { src => 'waiting_wait_secs', trans => [qw(fuzzy_time)] },
+        waiting_user           => { src => 'waiting_user' },
+        waiting_host           => { src => 'waiting_host' },
+        waiting_db             => { src => 'waiting_db' },
+        blocking_thread        => { src => 'blocking_thread' },
+        blocking_query         => { src => 'blocking_query', trans => [qw(distill)] },
+        blocking_rows_modified => { src => 'blocking_rows_modified' },
+        blocking_age           => { src => 'blocking_age', trans => [qw(fuzzy_time)] },
+        blocking_wait_secs     => { src => 'blocking_wait_secs', trans => [qw(fuzzy_time)] },
+        blocking_user          => { src => 'blocking_user' },
+        blocking_host          => { src => 'blocking_host' },
+        blocking_db            => { src => 'blocking_db' },
+        blocking_status        => { src => 'blocking_status' },
+        lock_info              => { src => 'lock_info' },
+      },
+      visible => [ qw(cxn waiting_thread waiting_query waiting_wait_secs
+                      blocking_thread blocking_rows_modified blocking_age blocking_wait_secs
+                      blocking_status blocking_query)],
+      filters => [],
+      sort_cols => 'cxn -waiting_wait_secs',
+      sort_dir => '1',
+      innodb   => 'tx',
+      colors   => [
+      ],
+      group_by => [],
+      aggregate => 0,
+      hide_caption => 1,
    },
    innodb_locks  => {
       capt => 'InnoDB Locks',
@@ -2429,19 +2670,22 @@ my %tbl_meta = (
       capt => 'Master Status',
       cust => {},
       cols => {
-         cxn                         => { src => 'cxn' },
+         cxn                         => { src => $exprs{chcxn_2_cxn}, hdr => 'CXN' },
          binlog_do_db                => { src => 'binlog_do_db' },
          binlog_ignore_db            => { src => 'binlog_ignore_db' },
          master_file                 => { src => 'file' },
          master_pos                  => { src => 'position' },
          binlog_cache_overflow       => { src => '(Binlog_cache_disk_use||0)/(Binlog_cache_use||1)', trans => [ qw(percent) ] },
+         executed_gtid_set           => { src => '(executed_gtid_set||"N/A")' },
+         server_uuid                 => { src => '(server_uuid||"N/A")' },
+         channel_name                => { src => $exprs{chcxn_2_ch}, hdr => 'Channel'},
       },
-      visible => [ qw(cxn master_file master_pos binlog_cache_overflow)],
+      visible => [ qw(cxn channel_name master_file master_pos binlog_cache_overflow executed_gtid_set server_uuid)],
       filters => [ qw(cxn_is_master) ],
       sort_cols => 'cxn',
       sort_dir => '1',
       innodb   => '',
-      group_by => [],
+      group_by => [qw(channel_name)],
       aggregate => 0,
    },
    pending_io => {
@@ -2512,7 +2756,7 @@ my %tbl_meta = (
          cxn             => { src => 'cxn',        minw => 6,  maxw => 10 },
          mysql_thread_id => { src => 'id',         minw => 6,  maxw => 0 },
          user            => { src => 'user',       minw => 5,  maxw => 8 },
-         hostname        => { src => $exprs{Host}, minw => 13, maxw => 8, },
+         hostname        => { src => $exprs{Host}, minw => 7,  maxw => 15, },
          port            => { src => $exprs{Port}, minw => 0,  maxw => 0, },
          host_and_port   => { src => 'host',       minw => 0,  maxw => 0 },
          db              => { src => 'db',         minw => 6,  maxw => 12 },
@@ -2523,7 +2767,7 @@ my %tbl_meta = (
          cnt             => { src => 'id',         minw => 0,  maxw => 0 },
       },
       visible => [ qw(cxn cmd cnt mysql_thread_id state user hostname db time info)],
-      filters => [ qw(hide_self hide_inactive hide_slave_io) ],
+      filters => [ qw(hide_self hide_inactive hide_slave_io hide_event hide_connect) ],
       sort_cols => '-time cxn hostname mysql_thread_id',
       sort_dir => '1',
       innodb   => '',
@@ -2556,14 +2800,16 @@ my %tbl_meta = (
          questions      => { src => 'Questions' },
          qps            => { src => 'Questions/Uptime_hires',               dec => 1, trans => [qw(shorten)] },
          load           => { src => $exprs{ServerLoad},                     dec => 1, trans => [qw(shorten)] },
+         connections    => { src => $exprs{Connection},                     dec => 1, trans => [qw(shorten)] },
          slow           => { src => 'Slow_queries',                         dec => 1, trans => [qw(shorten)] },
          q_cache_hit    => { src => $exprs{QcacheHitRatio},                 dec => 1, trans => [qw(percent)] },
          key_buffer_hit => { src => '1-(Key_reads/(Key_read_requests||1))', dec => 1, trans => [qw(percent)] },
          bps_in         => { src => 'Bytes_received/Uptime_hires',          dec => 1, trans => [qw(shorten)] },
          bps_out        => { src => 'Bytes_sent/Uptime_hires',              dec => 1, trans => [qw(shorten)] },
          when           => { src => 'when' },
+         q_detail       => { src => $exprs{QueryDetail} },
       },
-      visible => [ qw(cxn when load qps slow q_cache_hit key_buffer_hit bps_in bps_out)],
+      visible => [ qw(cxn when load connections qps slow q_detail q_cache_hit key_buffer_hit bps_in bps_out)],
       filters => [],
       sort_cols => 'when cxn',
       sort_dir => '1',
@@ -2646,9 +2892,10 @@ my %tbl_meta = (
       capt => 'Slave I/O Status',
       cust => {},
       cols => {
-         cxn                         => { src => 'cxn' },
+         cxn                         => { src => $exprs{chcxn_2_cxn}, hdr => 'CXN' },
          connect_retry               => { src => 'connect_retry' },
          master_host                 => { src => 'master_host', hdr => 'Master'},
+         master_uuid                 => { src => '(master_uuid||"N/A")' },
          master_log_file             => { src => 'master_log_file', hdr => 'File' },
          master_port                 => { src => 'master_port' },
          master_ssl_allowed          => { src => 'master_ssl_allowed' },
@@ -2662,27 +2909,29 @@ my %tbl_meta = (
          relay_log_size              => { src => 'relay_log_space', trans => [qw(shorten)] },
          slave_io_running            => { src => 'slave_io_running', hdr => 'On?' },
          slave_io_state              => { src => 'slave_io_state', hdr => 'State' },
+         channel_name                => { src => $exprs{chcxn_2_ch}, hdr => 'Channel'},
       },
-      visible => [ qw(cxn master_host slave_io_running master_log_file relay_log_size read_master_log_pos slave_io_state)],
+      visible => [ qw(cxn channel_name master_host master_uuid slave_io_running master_log_file relay_log_size read_master_log_pos slave_io_state)],
       filters => [ qw( cxn_is_slave ) ],
-      sort_cols => 'slave_io_running cxn',
+      sort_cols => 'slave_io_running channel_name cxn',
       colors   => [
          { col => 'slave_io_running',  op => 'ne', arg => 'Yes', color => 'black on_red' },
       ],
       sort_dir => '1',
       innodb   => '',
-      group_by => [],
+      group_by => [qw(channel_name)],
       aggregate => 0,
    },
    slave_sql_status => {
       capt => 'Slave SQL Status',
       cust => {},
       cols => {
-         cxn                         => { src => 'cxn' },
+         cxn                         => { src => $exprs{chcxn_2_cxn}, hdr => 'CXN' },
          exec_master_log_pos         => { src => 'exec_master_log_pos', hdr => 'Master Pos' },
          last_errno                  => { src => 'last_errno' },
          last_error                  => { src => 'last_error' },
          master_host                 => { src => 'master_host', hdr => 'Master' },
+         master_uuid                 => { src => '(master_uuid||"N/A")' },
          relay_log_file              => { src => 'relay_log_file' },
          relay_log_pos               => { src => 'relay_log_pos' },
          relay_log_size              => { src => 'relay_log_space', trans => [qw(shorten)] },
@@ -2695,6 +2944,7 @@ my %tbl_meta = (
          replicate_wild_ignore_table => { src => 'replicate_wild_ignore_table' },
          skip_counter                => { src => 'skip_counter' },
          slave_sql_running           => { src => 'slave_sql_running', hdr => 'On?' },
+         sort_time                   => { src => 'int(seconds_behind_master/60)' },
          until_condition             => { src => 'until_condition' },
          until_log_file              => { src => 'until_log_file' },
          until_log_pos               => { src => 'until_log_pos' },
@@ -2702,10 +2952,13 @@ my %tbl_meta = (
          bytes_behind_master         => { src => 'master_log_file && master_log_file eq relay_master_log_file ? read_master_log_pos - exec_master_log_pos : 0', trans => [qw(shorten)] },
          slave_catchup_rate          => { src => $exprs{SlaveCatchupRate}, trans => [ qw(set_precision) ] },
          slave_open_temp_tables      => { src => 'Slave_open_temp_tables' },
+         retrieved_gtid_set          => { src => '(retrieved_gtid_set||"N/A")' },
+         executed_gtid_set           => { src => '(executed_gtid_set||"N/A")' },
+         channel_name                => { src => $exprs{chcxn_2_ch}, hdr => 'Channel'},
       },
-      visible => [ qw(cxn master_host slave_sql_running time_behind_master slave_catchup_rate slave_open_temp_tables relay_log_pos last_error)],
+      visible => [ qw(cxn channel_name master_host master_uuid slave_sql_running time_behind_master slave_catchup_rate slave_open_temp_tables relay_log_pos last_error retrieved_gtid_set executed_gtid_set)],
       filters => [ qw( cxn_is_slave ) ],
-      sort_cols => 'slave_sql_running cxn',
+      sort_cols => 'slave_sql_running -sort_time channel_name cxn',
       sort_dir => '1',
       innodb   => '',
       colors   => [
@@ -2714,6 +2967,27 @@ my %tbl_meta = (
          { col => 'time_behind_master', op => '>',  arg => 60,    color => 'yellow' },
          { col => 'time_behind_master', op => '==', arg => 0,     color => 'white' },
       ],
+      group_by => [qw(channel_name)],
+      aggregate => 0,
+   },
+   table_statistics => {
+      capt => 'Data from TABLE_STATISTICS',
+      cust => {},
+      cols => {
+         cxn                    => { src => 'cxn', minw => 6, maxw => 10 },
+         db                     => { src => 'table_schema' },
+         tbl                    => { src => 'table_name' },
+         rows_read              => { src => 'rows_read' },
+         rows_changed           => { src => 'rows_changed' },
+         rows_changed_x_indexes => { src => 'rows_changed_x_indexes' },
+      },
+      visible => [ qw(cxn db tbl rows_read rows_changed rows_changed_x_indexes) ],
+      filters => [ ],
+      sort_cols => 'rows_read',
+      sort_dir => '-1',
+      innodb   => '',
+      colors   => [],
+      hide_caption => 1,
       group_by => [],
       aggregate => 0,
    },
@@ -2789,6 +3063,43 @@ my %tbl_meta = (
       group_by => [],
       aggregate => 0,
    },
+   health_dashboard => {
+      capt         => 'Health Dashboard',
+      hide_caption => 1,
+      cust => {},
+      cols => {
+         cxn                => { src => 'cxn' },
+         uptime             => { src => 'Uptime', trans => [qw(fuzzy_time)] },
+         qps                => { src => 'Questions/Uptime_hires', dec => 1, trans => [qw(shorten)] },
+         spark_qps          => { src => 'SPARK_qps' },
+         run                => { src => 'User_threads_running' },
+         spark_run          => { src => 'SPARK_run' },
+         max_query_time     => { src => 'Max_query_time', trans => [qw(fuzzy_time)] },
+         connections        => { src => 'Threads_connected' },
+         miss_rate          => { src => 'Innodb_buffer_pool_reads/Uptime_hires', trans => [qw(set_precision)] },
+         locked_count       => { src => 'Locked_count' },
+         'open'             => { src => 'Open_tables' },
+         slave_running      => { src => 'Slave_ok . " " . (Slaves || "")' },
+         time_behind_master => { src => 'seconds_behind_master', hdr => 'ReplLag' , trans => [qw(fuzzy_time)] },
+         longest_sql        => { src => 'Longest_sql', trans => [qw(distill)] },
+      },
+      visible   => [qw(
+                        cxn uptime max_query_time time_behind_master qps connections run
+                        miss_rate locked_count open slave_running longest_sql
+                       )],
+      filters   => [],
+      sort_cols => 'cxn',
+      sort_dir  => '1',
+      innodb    => '',
+      colors   => [
+         { col => 'slave_running',      op => '=~', arg => 'No',   color => 'black on_red' },
+         { col => 'max_query_time',     op => '>',  arg => 30 * 60, color => 'red' },
+         { col => 'max_query_time',     op => '>',  arg => 600,     color => 'yellow' },
+         { col => 'time_behind_master', op => '>',  arg => 3600,    color => 'cyan' },
+      ],
+      group_by  => [],
+      aggregate => 0,
+   },
 );
 
 # Initialize %tbl_meta from %columns and do some checks.
@@ -2849,6 +3160,35 @@ foreach my $table_name ( keys %tbl_meta ) {
 # Operating modes {{{3
 # ###########################################################################
 my %modes = (
+   A => {
+      hdr               => 'Dashboard',
+      cust              => {},
+      note              => 'Shows health/status dashboard',
+      action_for        => {
+         k => {
+            action => sub { kill_query('CONNECTION') },
+            label => "Kill a query's connection",
+         },
+         x => {
+            action => sub { kill_query('QUERY') },
+            label => "Kill a query",
+         },
+         r => {
+            action => sub { reverse_sort('health_dashboard'); },
+            label  => 'Reverse sort order',
+         },
+         s => {
+            action => sub { choose_sort_cols('health_dashboard'); },
+            label => "Choose sort column",
+         },
+      },
+      display_sub       => \&display_A,
+      connections       => [],
+      server_group      => '',
+      one_connection    => 0,
+      tables            => [qw(health_dashboard)],
+      visible_tables    => [qw(health_dashboard)],
+   },
    B => {
       hdr               => 'InnoDB Buffers',
       cust              => {},
@@ -2933,6 +3273,23 @@ my %modes = (
       tables            => [qw(io_threads pending_io file_io_misc log_statistics)],
       visible_tables    => [qw(io_threads pending_io file_io_misc log_statistics)],
    },
+   K => {
+      hdr             => 'InnoDB Lock Waits',
+      cust            => {},
+      note            => 'Shows blocked and blocking transactions',
+      action_for      => {
+         k => {
+            action => sub { kill_query('CONNECTION') },
+            label => "Kill a query's connection",
+         },
+      },
+      display_sub     => \&display_K,
+      connections     => [],
+      server_group    => '',
+      one_connection  => 0,
+      tables            => [qw(innodb_blocked_blocker)],
+      visible_tables    => [qw(innodb_blocked_blocker)],
+   },
    L => {
       hdr             => 'Locks',
       cust            => {},
@@ -3004,6 +3361,35 @@ my %modes = (
       tables            => [qw(open_tables)],
       visible_tables    => [qw(open_tables)],
    },
+   U => {
+      hdr        => 'User Statistics',
+      cust       => {},
+      note       => 'Displays Percona/MariaDB enhancements such as table statistics',
+      action_for => {
+         i => {
+            action => sub { set_visible_table('index_statistics') },
+            label  => 'Switch to INDEX_STATISTICS',
+         },
+         s => {
+            action => sub { $clear_screen_sub->(); send_cmd_to_servers('SET @@global.userstat_running := 1 - @@global.userstat_running', 1, undef, []); },
+            label => "Change the display's sort column",
+         },
+         t => {
+            action => sub { set_visible_table('table_statistics') },
+            label  => 'Switch to TABLE_STATISTICS',
+         },
+         x => {
+            action => sub { set_visible_table('index_table_statistics') },
+            label  => 'Switch to {INDEX,TABLE}_STATISTICS',
+         },
+      },
+      display_sub       => \&display_P,
+      connections       => [],
+      server_group      => '',
+      one_connection    => 0,
+      tables            => [qw(table_statistics index_statistics index_table_statistics)],
+      visible_tables    => [qw(index_table_statistics)],
+   },
    Q => {
       hdr        => 'Query List',
       cust       => {},
@@ -3044,6 +3430,10 @@ my %modes = (
          s => {
             action => sub { choose_sort_cols('processlist'); },
             label => "Change the display's sort column",
+         },
+         t => {
+            action => sub { toggle_filter('processlist', 'hide_connect') },
+            label  => 'Toggle slave processes',
          },
          x => {
             action => sub { kill_query('QUERY') },
@@ -3239,6 +3629,10 @@ my %action_for = (
       label  => 'Toggle aggregation',
    },
    # TODO: can these be auto-generated from %modes?
+   A => {
+      action => sub { switch_mode('A') },
+      label  => '',
+   },
    B => {
       action => sub { switch_mode('B') },
       label  => '',
@@ -3257,6 +3651,10 @@ my %action_for = (
    },
    I => {
       action => sub { switch_mode('I') },
+      label  => '',
+   },
+   K => {
+      action => sub { switch_mode('K') },
       label  => '',
    },
    L => {
@@ -3285,6 +3683,10 @@ my %action_for = (
    },
    T => {
       action => sub { switch_mode('T') },
+      label  => '',
+   },
+   U => {
+      action => sub { switch_mode('U') },
       label  => '',
    },
    d => {
@@ -3554,6 +3956,7 @@ my %tbl_editor_action = (
             dec   => 0,
             agg   => 0,
             aggonly => 0,
+            agghide => 0,
          };
 
          $tbl_meta{$tbl}->{visible} = [ unique(@{$tbl_meta{$tbl}->{visible}}, $col) ];
@@ -3754,6 +4157,8 @@ my $nonfatal_errs = join('|',
    'Cannot call SHOW INNODB STATUS',
    'Access denied',
    'AutoCommit',
+   'Lost connection to MySQL server',
+   'Too many connections',
 );
 
 if ( !$opts{n} ) {
@@ -3766,8 +4171,10 @@ if ( !$opts{n} ) {
 # keyed on clock tick.
 my %vars;
 my %info_gotten = (); # Which things have been retrieved for the current clock tick.
+my %show_variables;   # Stores SHOW VARIABLES for each cxn so we don't re-fetch.
 
-# Stores info on currently displayed queries: cxn, connection ID, query text.
+# Stores info on currently displayed queries: cxn, connection ID, query text,
+# user, and host.
 my @current_queries;
 
 my $lines_printed       = 0;
@@ -3935,7 +4342,7 @@ my %config = (
       conf => 'ALL',
    },
    mode => {
-      val  => "Q",
+      val  => "A",
       note => "Which mode to start in",
       cmdline => 1,
    },
@@ -3960,6 +4367,17 @@ my %config = (
       pat  => qr/^\w+$/,
       note => 'Which set of variables to display in S (Variables & Status) mode',
       conf => [ qw(S) ],
+   },
+   timeformat => {
+      val  => '%Y-%m-%dT%H:%M:%S',
+      pat  => qr//,
+      note => 'The strftime() timestamp format to write in -n mode',
+   },
+   spark => {
+      val  => 10,
+      note => 'How long to make status variable sparklines',
+      conf => 'ALL',
+      pat  => $int_regex,
    },
 );
 
@@ -4076,57 +4494,196 @@ my %pluggable_vars = (
 # given DB connection.  Returns a $sth.
 # ###########################################################################
 my %stmt_maker_for = (
+   INDEX_STATISTICS => sub {
+      my ( $dbh ) = @_;
+      # Detect whether there's a Percona Server with INFORMATION_SCHEMA.INDEX_STATISTICS
+      # and if not, just select nothing.
+      my $sth;
+      eval { # This can fail if the table doesn't exist, INFORMATION_SCHEMA doesn't exist, etc.
+         my $cols = $dbh->selectall_arrayref(q{SHOW /*innotop*/ COLUMNS FROM INFORMATION_SCHEMA.INDEX_STATISTICS});
+         if ( @$cols ) {
+            $sth = $dbh->prepare(q{SELECT /*innotop*/ * FROM INFORMATION_SCHEMA.INDEX_STATISTICS});
+         }
+      };
+      $sth ||= $dbh->prepare(q{SELECT /*innotop*/ '' FROM DUAL WHERE 1 = 0});
+      return $sth;
+   },
+   INDEX_TABLE_STATISTICS => sub {
+      my ( $dbh ) = @_;
+      # Detect whether there's a Percona Server with INFORMATION_SCHEMA.INDEX_STATISTICS
+      # and if not, just select nothing.
+      my $sth;
+      eval { # This can fail if the table doesn't exist, INFORMATION_SCHEMA doesn't exist, etc.
+         my $cols = $dbh->selectall_arrayref(q{SHOW /*innotop*/ COLUMNS FROM INFORMATION_SCHEMA.INDEX_STATISTICS});
+         if ( @$cols ) {
+            $sth = $dbh->prepare(q{SELECT /*innotop*/ L.TABLE_SCHEMA, L.TABLE_NAME, }
+               . q{SUM(L.ROWS_READ) AS ROWS_READ, SUM(R.ROWS_READ) AS ROWS_READ_FROM_INDEXES, }
+               . q{SUM(L.ROWS_CHANGED) AS ROWS_CHANGED, }
+               . q{SUM(L.ROWS_CHANGED_X_INDEXES) AS ROWS_CHANGED_X_INDEXES }
+               . q{FROM INFORMATION_SCHEMA.TABLE_STATISTICS AS L LEFT JOIN INFORMATION_SCHEMA.INDEX_STATISTICS AS R }
+               . q{USING(TABLE_SCHEMA, TABLE_NAME) GROUP BY L.TABLE_SCHEMA, L.TABLE_NAME});
+         }
+      };
+      $sth ||= $dbh->prepare(q{SELECT /*innotop*/ '' FROM DUAL WHERE 1 = 0});
+      return $sth;
+   },
+   INNODB_BLOCKED_BLOCKER => sub {
+      my ( $dbh ) = @_;
+      # Detect whether the server supports the I_S tables and if not, just select nothing.
+      my $sth;
+      eval { # This can fail if the table doesn't exist, INFORMATION_SCHEMA doesn't exist, etc.
+         my $cols = $dbh->selectall_arrayref(q{SHOW /*innotop*/ COLUMNS FROM INFORMATION_SCHEMA.INNODB_LOCK_WAITS});
+         if ( @$cols ) {
+          if ($dbh->{mysql_serverinfo} =~ /^5.1/) {
+            $sth = $dbh->prepare(q{
+               SELECT /*innotop*/
+                  r.trx_mysql_thread_id                            AS waiting_thread,
+                  r.trx_query                                      AS waiting_query,
+                  "n/a"                                            AS waiting_rows_modified,
+                  TIMESTAMPDIFF(SECOND, r.trx_started, NOW())      AS waiting_age,
+                  TIMESTAMPDIFF(SECOND, r.trx_wait_started, NOW()) AS waiting_wait_secs,
+                  rp.user                                          AS waiting_user,
+                  rp.host                                          AS waiting_host,
+                  rp.db                                            AS waiting_db,
+                  b.trx_mysql_thread_id                            AS blocking_thread,
+                  b.trx_query                                      AS blocking_query,
+                  "n/a"                                            AS blocking_rows_modified,
+                  TIMESTAMPDIFF(SECOND, b.trx_started, NOW())      AS blocking_age,
+                  TIMESTAMPDIFF(SECOND, b.trx_wait_started, NOW()) AS blocking_wait_secs,
+                  bp.user                                          AS blocking_user,
+                  bp.host                                          AS blocking_host,
+                  bp.db                                            AS blocking_db,
+                  CONCAT(bp.command, IF(bp.command = 'Sleep', CONCAT(' ', bp.time),   '')) AS blocking_status,
+                  CONCAT(lock_mode, ' ', lock_type, ' ', lock_table, '(', lock_index, ')') AS lock_info
+               FROM INFORMATION_SCHEMA.INNODB_LOCK_WAITS w
+                  JOIN INFORMATION_SCHEMA.INNODB_TRX b   ON  b.trx_id  = w.blocking_trx_id
+                  JOIN INFORMATION_SCHEMA.INNODB_TRX r   ON  r.trx_id  = w.requesting_trx_id
+                  JOIN INFORMATION_SCHEMA.INNODB_LOCKS l ON  l.lock_id = w.requested_lock_id
+                  LEFT JOIN INFORMATION_SCHEMA.PROCESSLIST bp ON bp.id = b.trx_mysql_thread_id
+                  LEFT JOIN INFORMATION_SCHEMA.PROCESSLIST rp ON rp.id = r.trx_mysql_thread_id
+            });
+          } else {
+            $sth = $dbh->prepare(q{
+               SELECT /*innotop*/
+                  r.trx_mysql_thread_id                            AS waiting_thread,
+                  r.trx_query                                      AS waiting_query,
+                  r.trx_rows_modified                              AS waiting_rows_modified,
+                  TIMESTAMPDIFF(SECOND, r.trx_started, NOW())      AS waiting_age,
+                  TIMESTAMPDIFF(SECOND, r.trx_wait_started, NOW()) AS waiting_wait_secs,
+                  rp.user                                          AS waiting_user,
+                  rp.host                                          AS waiting_host,
+                  rp.db                                            AS waiting_db,
+                  b.trx_mysql_thread_id                            AS blocking_thread,
+                  b.trx_query                                      AS blocking_query,
+                  b.trx_rows_modified                              AS blocking_rows_modified,
+                  TIMESTAMPDIFF(SECOND, b.trx_started, NOW())      AS blocking_age,
+                  TIMESTAMPDIFF(SECOND, b.trx_wait_started, NOW()) AS blocking_wait_secs,
+                  bp.user                                          AS blocking_user,
+                  bp.host                                          AS blocking_host,
+                  bp.db                                            AS blocking_db,
+                  CONCAT(bp.command, IF(bp.command = 'Sleep', CONCAT(' ', bp.time),   '')) AS blocking_status,
+                  CONCAT(lock_mode, ' ', lock_type, ' ', lock_table, '(', lock_index, ')') AS lock_info
+               FROM INFORMATION_SCHEMA.INNODB_LOCK_WAITS w
+                  JOIN INFORMATION_SCHEMA.INNODB_TRX b   ON  b.trx_id  = w.blocking_trx_id
+                  JOIN INFORMATION_SCHEMA.INNODB_TRX r   ON  r.trx_id  = w.requesting_trx_id
+                  JOIN INFORMATION_SCHEMA.INNODB_LOCKS l ON  l.lock_id = w.requested_lock_id
+                  LEFT JOIN INFORMATION_SCHEMA.PROCESSLIST bp ON bp.id = b.trx_mysql_thread_id
+                  LEFT JOIN INFORMATION_SCHEMA.PROCESSLIST rp ON rp.id = r.trx_mysql_thread_id
+            });
+          }
+         }
+      };
+      $sth ||= $dbh->prepare(q{SELECT /*innotop*/ '' FROM DUAL WHERE 1 = 0});
+      return $sth;
+   },
    INNODB_STATUS => sub {
       my ( $dbh ) = @_;
       return $dbh->prepare(version_ge( $dbh, '5.0.0' )
-             ? 'SHOW ENGINE INNODB STATUS'
-             : 'SHOW INNODB STATUS');
+             ? 'SHOW /*innotop*/ ENGINE INNODB STATUS'
+             : 'SHOW /*innotop*/ INNODB STATUS');
    },
    SHOW_VARIABLES => sub {
       my ( $dbh ) = @_;
       return $dbh->prepare($config{global}->{val} && version_ge( $dbh, '4.0.3' )
-             ? 'SHOW GLOBAL VARIABLES'
-             : 'SHOW VARIABLES');
+             ? 'SHOW /*innotop*/ GLOBAL VARIABLES'
+             : 'SHOW /*innotop*/ VARIABLES');
    },
    SHOW_STATUS => sub {
       my ( $dbh ) = @_;
       return $dbh->prepare($config{global}->{val} && version_ge( $dbh, '5.0.2' )
-             ? 'SHOW GLOBAL STATUS'
-             : 'SHOW STATUS');
+             ? 'SHOW /*innotop*/ GLOBAL STATUS'
+             : 'SHOW /*innotop*/ STATUS');
    },
    KILL_QUERY => sub {
       my ( $dbh ) = @_;
       return $dbh->prepare(version_ge( $dbh, '5.0.0' )
-             ? 'KILL QUERY ?'
-             : 'KILL ?');
+             ? 'KILL /*innotop*/ QUERY ?'
+             : 'KILL /*innotop*/ ?');
    },
    SHOW_MASTER_LOGS => sub {
       my ( $dbh ) = @_;
-      return $dbh->prepare('SHOW MASTER LOGS');
+      return $dbh->prepare('SHOW /*innotop*/ MASTER LOGS');
    },
    SHOW_MASTER_STATUS => sub {
       my ( $dbh ) = @_;
-      return $dbh->prepare('SHOW MASTER STATUS');
+      return $dbh->prepare('SHOW /*innotop*/ MASTER STATUS');
    },
    SHOW_SLAVE_STATUS => sub {
       my ( $dbh ) = @_;
-      return $dbh->prepare('SHOW SLAVE STATUS');
+      return $dbh->prepare('SHOW /*innotop*/ SLAVE STATUS');
+   },
+   GET_CHANNELS => sub {
+      my ( $dbh ) = @_;
+      return $dbh->prepare(version_ge( $dbh, '5.7.0' )
+             ? 'select CHANNEL_NAME from performance_schema.replication_applier_status where CHANNEL_NAME regexp "^[a-zA-Z].*";'
+             : 'select "no_channels"');
    },
    KILL_CONNECTION => sub {
       my ( $dbh ) = @_;
       return $dbh->prepare(version_ge( $dbh, '5.0.0' )
-             ? 'KILL CONNECTION ?'
-             : 'KILL ?');
+             ? 'KILL /*innotop*/ CONNECTION ?'
+             : 'KILL /*innotop*/ ?');
    },
    OPEN_TABLES => sub {
       my ( $dbh ) = @_;
       return version_ge($dbh, '4.0.0')
-         ? $dbh->prepare('SHOW OPEN TABLES')
+         ? $dbh->prepare('SHOW /*innotop*/ OPEN TABLES')
          : undef;
    },
    PROCESSLIST => sub {
       my ( $dbh ) = @_;
-      return $dbh->prepare('SHOW FULL PROCESSLIST');
+      # In newer versions of the server, use INFORMATION_SCHEMA table if it exists,
+      # and use the TIME_MS column (in Percona Server) if that exists.
+      my $sth;
+      eval { # This can fail if the table doesn't exist, INFORMATION_SCHEMA doesn't exist, etc.
+         my $cols = $dbh->selectall_arrayref(q{SHOW /*innotop*/ COLUMNS FROM INFORMATION_SCHEMA.PROCESSLIST LIKE 'TIME_MS'});
+         if ( @$cols ) { # The TIME_MS colum exists
+            $sth = $dbh->prepare(q{SELECT /*innotop*/ ID, USER, HOST, DB, COMMAND, CASE WHEN TIME_MS/1000 > 365*86400 THEN TIME ELSE TIME_MS/1000 END AS TIME, STATE, INFO FROM INFORMATION_SCHEMA.PROCESSLIST});
+         }
+      };
+      $sth ||= $dbh->prepare('SHOW /*innotop*/ FULL PROCESSLIST');
+      return $sth;
+   },
+   PROCESSLIST_NO_IS => sub {
+      my ( $dbh ) = @_;
+      # We do not use INFORMATION_SCHEMA table because it doesn't show slave
+      # SQL statements. http://bugs.mysql.com/66401
+      my $sth = $dbh->prepare('SHOW /*innotop*/ FULL PROCESSLIST');
+      return $sth;
+   },
+   TABLE_STATISTICS => sub {
+      my ( $dbh ) = @_;
+      # Detect whether there's a Percona Server with INFORMATION_SCHEMA.TABLE_STATISTICS
+      # and if not, just select nothing.
+      my $sth;
+      eval { # This can fail if the table doesn't exist, INFORMATION_SCHEMA doesn't exist, etc.
+         my $cols = $dbh->selectall_arrayref(q{SHOW /*innotop*/ COLUMNS FROM INFORMATION_SCHEMA.TABLE_STATISTICS});
+         if ( @$cols ) {
+            $sth = $dbh->prepare(q{SELECT /*innotop*/ * FROM INFORMATION_SCHEMA.TABLE_STATISTICS});
+         }
+      };
+      $sth ||= $dbh->prepare(q{SELECT /*innotop*/ '' FROM DUAL WHERE 1 = 0});
+      return $sth;
    },
 );
 
@@ -4137,137 +4694,144 @@ my %plugins = (
 # ###########################################################################
 # Run the program {{{1
 # ###########################################################################
-
-# This config variable is only useful for MS Windows because its terminal
-# can't tell how tall it is.
-if ( !$windows ) {
-   delete $config{max_height};
-}
-
-# Try to lower my priority.
-eval { setpriority(0, 0, getpriority(0, 0) + 10); };
-
-# Print stuff to the screen immediately, don't wait for a newline.
-$OUTPUT_AUTOFLUSH = 1;
-
-# Clear the screen and load the configuration.
-$clear_screen_sub->();
-load_config();
-
-# Override config variables with command-line options
-my %cmdline =
-   map  { $_->{c} => $opts{$_->{k}} }
-   grep { exists $_->{c} && exists $opts{$_->{k}} }
-   @opt_spec;
-
-foreach my $name (keys %cmdline) {
-   next if not defined $cmdline{$name};
-   my $val = $cmdline{$name};
-   if ( exists($config{$name}) and (!$config{$name}->{pat} or $val =~ m/$config{$name}->{pat}/ )) {
-      $config{$name}->{val} = $val;
+sub main {
+   # This config variable is only useful for MS Windows because its terminal
+   # can't tell how tall it is.
+   if ( !$windows ) {
+      delete $config{max_height};
    }
-}
-
-post_process_tbl_meta();
-
-# Make sure no changes are written to config file in non-interactive mode.
-if ( $opts{n} ) {
-   $config{readonly}->{val} = 1;
-}
-
-eval {
-
-   # Open the file for InnoDB status
-   if ( @ARGV ) {
-      my $filename = shift @ARGV;
-      open $file, "<", $filename
-         or die "Cannot open '$filename': $OS_ERROR";
-   }
-
-   # In certain modes we might have to collect data for two cycles
-   # before printing anything out, so we need to bump up the count one.
-   if ( $opts{n} && $opts{count} && $config{status_inc}->{val}
-      && $config{mode}->{val} =~ m/[S]/ )
-   {
-      $opts{count}++;
-   }
-
-   while (++$clock) {
-
-      my $mode = $config{mode}->{val} || 'Q';
-      if ( !$modes{$mode} ) {
-         die "Mode '$mode' doesn't exist; try one of these:\n"
-            . join("\n", map { "  $_ $modes{$_}->{hdr}" }  sort keys %modes)
-            . "\n";
+   
+   # Try to lower my priority.
+   eval { setpriority(0, 0, getpriority(0, 0) + 10); };
+   
+   # Print stuff to the screen immediately, don't wait for a newline.
+   $OUTPUT_AUTOFLUSH = 1;
+   
+   # Clear the screen and load the configuration.
+   $clear_screen_sub->();
+   load_config();
+   
+   # Override config variables with command-line options
+   my %cmdline =
+      map  { $_->{c} => $opts{$_->{k}} }
+      grep { exists $_->{c} && exists $opts{$_->{k}} }
+      @opt_spec;
+   
+   foreach my $name (keys %cmdline) {
+      next if not defined $cmdline{$name};
+      my $val = $cmdline{$name};
+      if ( exists($config{$name}) and (!$config{$name}->{pat} or $val =~ m/$config{$name}->{pat}/ )) {
+         $config{$name}->{val} = $val;
       }
-
-      if ( !$opts{n} ) {
-         @last_term_size = @this_term_size;
-         @this_term_size = Term::ReadKey::GetTerminalSize(\*STDOUT);
-         if ( $windows ) {
-            $this_term_size[0]--;
-            $this_term_size[1]
-               = min($this_term_size[1], $config{max_height}->{val});
+   }
+   
+   post_process_tbl_meta();
+   
+   # Make sure no changes are written to config file in non-interactive mode.
+   if ( $opts{n} ) {
+      $config{readonly}->{val} = 1;
+   }
+   
+   eval {
+   
+      # Open the file for InnoDB status
+      if ( @ARGV ) {
+         my $filename = shift @ARGV;
+         open $file, "<", $filename
+            or die "Cannot open '$filename': $OS_ERROR";
+      }
+   
+      # In certain modes we might have to collect data for two cycles
+      # before printing anything out, so we need to bump up the count one.
+      if ( $opts{n} && $opts{count} && $config{status_inc}->{val}
+         && $config{mode}->{val} =~ m/[S]/ )
+      {
+         $opts{count}++;
+      }
+   
+      while (++$clock) {
+   
+         my $mode = $config{mode}->{val} || 'Q';
+         if ( !$modes{$mode} ) {
+            die "Mode '$mode' doesn't exist; try one of these:\n"
+               . join("\n", map { "  $_ $modes{$_}->{hdr}" }  sort keys %modes)
+               . "\n";
          }
-         die("Can't read terminal size") unless @this_term_size;
-      }
+   
+         if ( !$opts{n} ) {
+            @last_term_size = @this_term_size;
+            @this_term_size = Term::ReadKey::GetTerminalSize(\*STDOUT);
+            if ( $windows ) {
+               $this_term_size[0]--;
+               $this_term_size[1]
+                  = min($this_term_size[1], $config{max_height}->{val});
+            }
+            die("Can't read terminal size") unless @this_term_size;
+         }
+   
+         # If there's no connection to a database server, we need to fix that...
+         if ( !%connections ) {
+            print "You have not defined any database connections.\n\n";
+            add_new_dsn();
+         }
+   
+         # See whether there are any connections defined for this mode.  If there's only one
+         # connection total, assume the user wants to just use innotop for a single server
+         # and don't ask which server to connect to.  Also, if we're monitoring from a file,
+         # we just use the first connection.
+         if ( !get_connections() ) {
+            if ( $file || 1 == scalar keys %connections ) {
+               $modes{$config{mode}->{val}}->{connections} = [ keys %connections ];
+            }
+            else {
+               choose_connections();
+            }
+         }
+   
+         # Term::ReadLine might have re-set $OUTPUT_AUTOFLUSH.
+         $OUTPUT_AUTOFLUSH = 1;
+   
+         # Prune old data
+         my $sets = $config{num_status_sets}->{val};
+         foreach my $store ( values %vars ) {
+            delete @{$store}{ grep { $_ < $clock - $sets } keys %$store };
+         }
+         %info_gotten = ();
+   
+         # Call the subroutine to display this mode.
+         $modes{$mode}->{display_sub}->();
+   
+         # It may be time to quit now.
+         if ( $opts{count} && $clock >= $opts{count} ) {
+            finish();
+         }
 
-      # If there's no connection to a database server, we need to fix that...
-      if ( !%connections ) {
-         print "You have not defined any database connections.\n\n";
-         add_new_dsn();
-      }
-
-      # See whether there are any connections defined for this mode.  If there's only one
-      # connection total, assume the user wants to just use innotop for a single server
-      # and don't ask which server to connect to.  Also, if we're monitoring from a file,
-      # we just use the first connection.
-      if ( !get_connections() ) {
-         if ( $file || 1 == scalar keys %connections ) {
-            $modes{$config{mode}->{val}}->{connections} = [ keys %connections ];
+         # RECON: Try to reconnect failed connections, while the user sees no lag.
+         foreach my $cxn ( grep { $dbhs{$_}->{failed} } keys %dbhs ) {
+            eval { connect_to_db($cxn); }; # Ignore errors entirely here.
+         }
+   
+         # Wait for a bit.
+         if ( $opts{n} ) {
+            sleep($config{interval}->{val});
          }
          else {
-            choose_connections();
+            ReadMode('cbreak');
+            $char = ReadKey($config{interval}->{val});
+            ReadMode('normal');
          }
+   
+         # Handle whatever action the key indicates.
+         do_key_action();
+   
       }
-
-      # Term::ReadLine might have re-set $OUTPUT_AUTOFLUSH.
-      $OUTPUT_AUTOFLUSH = 1;
-
-      # Prune old data
-      my $sets = $config{num_status_sets}->{val};
-      foreach my $store ( values %vars ) {
-         delete @{$store}{ grep { $_ < $clock - $sets } keys %$store };
-      }
-      %info_gotten = ();
-
-      # Call the subroutine to display this mode.
-      $modes{$mode}->{display_sub}->();
-
-      # It may be time to quit now.
-      if ( $opts{count} && $clock >= $opts{count} ) {
-         finish();
-      }
-
-      # Wait for a bit.
-      if ( $opts{n} ) {
-         sleep($config{interval}->{val});
-      }
-      else {
-         ReadMode('cbreak');
-         $char = ReadKey($config{interval}->{val});
-         ReadMode('normal');
-      }
-
-      # Handle whatever action the key indicates.
-      do_key_action();
-
+   };
+   if ( $EVAL_ERROR ) {
+      core_dump( $EVAL_ERROR );
    }
-};
-if ( $EVAL_ERROR ) {
-   core_dump( $EVAL_ERROR );
+   finish();
 }
-finish();
+main() unless caller(); # make me testable!
 
 # Subroutines {{{1
 # Mode functions{{{2
@@ -4355,6 +4919,29 @@ sub prompt_noecho {
    return $response;
 }
 
+# noecho_password {{{3
+# read password for command line parameters with noecho
+sub noecho_password {
+   my $prompt = shift @_;
+   local $OUTPUT_AUTOFLUSH = 1;
+   my $response;
+   eval {
+      if ( $windows ) {
+         require Win32::Console::ANSI;
+      }
+      require Term::ANSIColor;
+      import Term::ANSIColor qw(colored);
+      $response = prompt_noecho($prompt);
+      print "\n" or die
+         "Cannot print: $OS_ERROR";
+   };
+
+   if ( $EVAL_ERROR ) {
+      die "Cannot read respose; is Term::ReadKey installed? $EVAL_ERROR";
+   }
+   return $response;
+}
+
 # do_key_action {{{3
 # Depending on whether a key was read, do something.  Keys have certain
 # actions defined in lookup tables.  Each mode may have its own lookup table,
@@ -4364,11 +4951,9 @@ sub do_key_action {
    if ( defined $char ) {
       my $mode = $config{mode}->{val};
       my $action
-         = defined($modes{$mode}->{action_for}->{$char})
-         ? $modes{$mode}->{action_for}->{$char}->{action}
-         : defined($action_for{$char})
-         ? $action_for{$char}->{action}
-         : sub{};
+         = defined($modes{$mode}->{action_for}->{$char}) ? $modes{$mode}->{action_for}->{$char}->{action}
+         : defined($action_for{$char})                   ? $action_for{$char}->{action}
+         :                                                 sub{};
       $action->();
    }
 }
@@ -4420,7 +5005,13 @@ sub kill_query {
       'Select a thread to kill the ' . $q_or_c,
    );
    return unless $info;
-   return unless pause("Kill $info->{id}?") =~ m/y/i;
+   my $distill = distill($info->{query} || '');
+   $distill = " running '$distill'" if $distill;
+   return unless pause("Kill $info->{id} ("
+      . ($info->{user} || '')
+      . '@'
+      . ($info->{host} || '')
+      . ")$distill ? ") =~ m/y/i;
 
    eval {
       do_stmt($info->{cxn}, $q_or_c eq 'QUERY' ? 'KILL_QUERY' : 'KILL_CONNECTION', $info->{id} );
@@ -4491,6 +5082,10 @@ sub deadlock_thread {
 
    eval {
       my $dbh = get_new_db_connection($cxn, 1);
+
+      # disable binary logging for this session
+      $dbh->do("set SQL_LOG_BIN=0");
+
       my @stmts = (
          "set transaction isolation level serializable",
          (version_ge($dbh, '4.0.11') ? "start transaction" : 'begin'),
@@ -4591,10 +5186,49 @@ sub start_S_mode {
    switch_mode('S');
 }
 
+# display_A {{{3
+sub display_A {
+   my @display_lines;
+   my @cxns  = get_connections();
+   get_processlist_stats(@cxns);
+   get_status_info(@cxns);
+   get_master_slave_status(@cxns);
+   my @visible = get_visible_tables();
+   my %wanted  = map { $_ => 1 } @visible;
+   my @health_dashboard;
+   my %rows_for = (
+      health_dashboard => \@health_dashboard,
+   );
+
+   foreach my $cxn ( @cxns ) {
+      # Get the status variables
+      my $set  = $vars{$cxn}->{$clock};
+      my $pre  = $vars{$cxn}->{$clock-1} || $set;
+      my $hash = extract_values($set, $set, $pre, 'health_dashboard');
+      # Make QPS and Miss show now, not overall.
+      if ( exists $vars{$cxn}->{$clock - 1} ) {
+         my $inc   = inc(0, $cxn);
+         my $hash2 = extract_values($inc, $set, $pre, 'health_dashboard');
+         map { $hash->{$_} = $hash2->{$_} } qw(qps miss_rate);
+      }
+      push @health_dashboard, $hash;
+   }
+
+   my $first_table = 0;
+   foreach my $tbl ( @visible ) {
+      push @display_lines, '', set_to_tbl($rows_for{$tbl}, $tbl);
+      push @display_lines, get_cxn_errors(@cxns)
+         if ( $config{debug}->{val} || !$first_table++ );
+   }
+
+   draw_screen(\@display_lines);
+}
+
 # display_B {{{3
 sub display_B {
    my @display_lines;
    my @cxns = get_connections();
+   get_status_info(@cxns);
    get_innodb_status(\@cxns);
 
    my @buffer_pool;
@@ -4705,6 +5339,7 @@ sub display_C {
 sub display_D {
    my @display_lines;
    my @cxns = get_connections();
+   get_status_info(@cxns);
    get_innodb_status(\@cxns);
 
    my @deadlock_transactions;
@@ -4769,12 +5404,13 @@ sub display_D {
 sub display_F {
    my @display_lines;
    my ( $cxn ) = get_connections();
+   get_status_info($cxn);
    get_innodb_status([$cxn]);
    my $innodb_status = $vars{$cxn}->{$clock};
 
    if ( $innodb_status->{IB_fk_timestring} ) {
 
-      push @display_lines, 'Reason: ' . $innodb_status->{IB_fk_reason};
+      push @display_lines, 'Reason: ' . ($innodb_status->{IB_fk_reason} || 'unknown');
 
       # Display FK errors caused by invalid DML.
       if ( $innodb_status->{IB_fk_txn} ) {
@@ -4803,6 +5439,7 @@ sub display_F {
 sub display_I {
    my @display_lines;
    my @cxns = get_connections();
+   get_status_info(@cxns);
    get_innodb_status(\@cxns);
 
    my @io_threads;
@@ -4859,10 +5496,52 @@ sub display_I {
    draw_screen(\@display_lines);
 }
 
+# display_K {{{3
+sub display_K {
+   my @display_lines;
+   my @cxns = get_connections();
+
+   my %rows_for = (
+      innodb_blocked_blocker => [],
+   );
+
+   my @visible = get_visible_tables();
+   my %wanted  = map { $_ => 1 } @visible;
+
+   # Get info on locks
+   if ( $wanted{innodb_blocked_blocker} ) {
+      my @rows = get_innodb_blocked_blocker(@cxns);
+      push @{$rows_for{innodb_blocked_blocker}}, map { extract_values($_, $_, $_, 'innodb_blocked_blocker') } @rows;
+   }
+
+   my $first_table = 0;
+   foreach my $tbl ( @visible ) {
+      push @display_lines, '', set_to_tbl($rows_for{$tbl}, $tbl);
+      push @display_lines, get_cxn_errors(@cxns)
+         if ( $config{debug}->{val} || !$first_table++ );
+   }
+
+   # Save queries in global variable for analysis.  The rows in %rows_for have been
+   # filtered, etc as a side effect of set_to_tbl(), so they are the same as the rows
+   # that get pushed to the screen.
+   @current_queries = map {
+      my %hash;
+      @hash{ qw(cxn id user host db query time) }
+         = @{$_}{ qw(cxn blocking_thread blocking_user blocking_host blocking_db blocking_query blocking_age) };
+      # time is in fuzzy-time format; convert into something ascii-sortable.
+      $hash{time} = sprintf('%012s', fuzzy_to_secs($hash{time}));
+      $hash{host} =~ s/:.*$// if $hash{host};
+      \%hash;
+   } @{$rows_for{innodb_blocked_blocker}};
+
+   draw_screen(\@display_lines);
+}
+
 # display_L {{{3
 sub display_L {
    my @display_lines;
    my @cxns = get_connections();
+   get_status_info(@cxns);
    get_innodb_status(\@cxns);
 
    my @innodb_locks;
@@ -4882,8 +5561,8 @@ sub display_L {
 
          my $cur_txns = $set->{IB_tx_transactions};
          my $pre_txns = $pre->{IB_tx_transactions} || $cur_txns;
-         my %cur_txns = map { $_->{mysql_thread_id} => $_ } @$cur_txns;
-         my %pre_txns = map { $_->{mysql_thread_id} => $_ } @$pre_txns;
+         my %cur_txns = map { $_->{mysql_thread_id} => $_ } grep { defined $_->{mysql_thread_id} } @$cur_txns;
+         my %pre_txns = map { $_->{mysql_thread_id} => $_ } grep { defined $_->{mysql_thread_id} } @$pre_txns;
          foreach my $txn ( @$cur_txns ) {
             foreach my $lock ( @{$txn->{locks}} ) {
                my %hash = map { $_ => $txn->{$_} } qw(txn_id mysql_thread_id lock_wait_time active_secs);
@@ -4925,18 +5604,46 @@ sub display_M {
    my %wanted  = map { $_ => 1 } @visible;
 
    foreach my $cxn ( @cxns ) {
-      my $set  = $config{status_inc}->{val} ? inc(0, $cxn) : $vars{$cxn}->{$clock};
-      my $pre  = $vars{$cxn}->{$clock - 1} || $set;
-      if ( $wanted{slave_sql_status} ) {
-         push @slave_sql_status, extract_values($set, $set, $pre, 'slave_sql_status');
-      }
-      if ( $wanted{slave_io_status} ) {
-         push @slave_io_status, extract_values($set, $set, $pre, 'slave_io_status');
-      }
-      if ( $wanted{master_status} ) {
-         push @master_status, extract_values($set, $set, $pre, 'master_status');
-      }
-   }
+		 my $linecount=0;
+		 my $sth = do_stmt($cxn, 'GET_CHANNELS');
+		 my ( $channel );
+	     $sth->execute();
+	     $sth->bind_columns( \$channel );
+		 while ( $sth->fetch() ) {
+			$linecount=$linecount+1;
+			if ( length $channel < 1 ) {
+				$channel = 'no_channels';
+			}
+			my $chcxn = $channel . '=' . $cxn;
+			get_slave_status($cxn,$channel);
+		  	my $set  = $config{status_inc}->{val} ? inc(0, $chcxn) : $vars{$chcxn}->{$clock};
+			my $pre  = $vars{$chcxn}->{$clock - 1} || $set;
+			if ( $wanted{slave_sql_status} ) {
+				push @slave_sql_status, extract_values($set, $set, $pre, 'slave_sql_status');
+			}
+			if ( $wanted{slave_io_status} ) {
+				push @slave_io_status, extract_values($set, $set, $pre, 'slave_io_status');
+			}
+		 }
+		 if ( $linecount < 1 ) { 
+			$channel = 'no_channels';
+			my $chcxn = $channel . '=' . $cxn;
+			get_slave_status($cxn,$channel);
+		  	my $set  = $config{status_inc}->{val} ? inc(0, $chcxn) : $vars{$chcxn}->{$clock};
+			my $pre  = $vars{$chcxn}->{$clock - 1} || $set;
+			if ( $wanted{slave_sql_status} ) {
+				push @slave_sql_status, extract_values($set, $set, $pre, 'slave_sql_status');
+			}
+			if ( $wanted{slave_io_status} ) {
+				push @slave_io_status, extract_values($set, $set, $pre, 'slave_io_status');
+			}
+		 }
+	  	my $set  = $config{status_inc}->{val} ? inc(0, $cxn) : $vars{$cxn}->{$clock};
+		my $pre  = $vars{$cxn}->{$clock - 1} || $set;
+		if ( $wanted{master_status} ) {
+			push @master_status, extract_values($set, $set, $pre, 'master_status');
+		}
+	}
 
    my $first_table = 0;
    foreach my $tbl ( @visible ) {
@@ -4955,6 +5662,49 @@ sub display_O {
    my @open_tables   = get_open_tables(@cxns);
    my @tables = map { extract_values($_, $_, $_, 'open_tables') } @open_tables;
    push @display_lines, set_to_tbl(\@tables, 'open_tables'), get_cxn_errors(@cxns);
+   draw_screen(\@display_lines);
+}
+
+# display_P {{{3
+sub display_P {
+   my @display_lines;
+
+   my @table_statistics;
+   my @index_statistics;
+   my @index_table_statistics;
+   my %rows_for = (
+      table_statistics => \@table_statistics,
+      index_statistics => \@index_statistics,
+      index_table_statistics => \@index_table_statistics,
+   );
+
+   my @visible = $opts{n} ? 'index_table_statistics' : get_visible_tables();
+   my %wanted  = map { $_ => 1 } @visible;
+
+   # Get the data
+   my @cxns = get_connections();
+
+   if ( $wanted{table_statistics} ) {
+      my @rows = get_table_statistics(@cxns);
+      push @table_statistics, map { extract_values($_, $_, $_, 'table_statistics') } @rows;
+   }
+   elsif ( $wanted{index_statistics} ) {
+      my @rows = get_index_statistics(@cxns);
+      push @index_statistics, map { extract_values($_, $_, $_, 'index_statistics') } @rows;
+   }
+   elsif ( $wanted{index_table_statistics} ) {
+      my @rows = get_index_table_statistics(@cxns);
+      push @index_table_statistics, map { extract_values($_, $_, $_, 'index_table_statistics') } @rows;
+   }
+
+   my $first_table = 0;
+   foreach my $tbl ( @visible ) {
+      next unless $wanted{$tbl};
+      push @display_lines, '', set_to_tbl($rows_for{$tbl}, $tbl);
+      push @display_lines, get_cxn_errors(@cxns)
+         if ( $config{debug}->{val} || !$first_table++ );
+   }
+
    draw_screen(\@display_lines);
 }
 
@@ -5015,7 +5765,11 @@ sub display_Q {
    # that get pushed to the screen.
    @current_queries = map {
       my %hash;
-      @hash{ qw(cxn id db query secs) } = @{$_}{ qw(cxn mysql_thread_id db info secs) };
+      @hash{ qw(cxn id db query time user host) }
+         = @{$_}{ qw(cxn mysql_thread_id db info time user hostname) };
+      # time is in seconds-to-time format; convert into something
+      # ascii-sortable.
+      $hash{time} = sprintf('%012s', $hash{time} =~ m/^([^.]*)/);
       \%hash;
    } @{$rows_for{processlist}};
 
@@ -5026,6 +5780,7 @@ sub display_Q {
 sub display_R {
    my @display_lines;
    my @cxns = get_connections();
+   get_status_info(@cxns);
    get_innodb_status(\@cxns);
 
    my @row_operations;
@@ -5098,6 +5853,8 @@ sub display_T {
 
    my @cxns = get_connections();
 
+   get_status_info(@cxns);
+
    # If the header is to be shown, buffer pool data is required.
    get_innodb_status( \@cxns, [ $wanted{t_header} ? qw(bp) : () ] );
 
@@ -5115,8 +5872,8 @@ sub display_T {
       if ( $wanted{innodb_transactions} ) {
          my $cur_txns = $set->{IB_tx_transactions};
          my $pre_txns = $pre->{IB_tx_transactions} || $cur_txns;
-         my %cur_txns = map { $_->{mysql_thread_id} => $_ } @$cur_txns;
-         my %pre_txns = map { $_->{mysql_thread_id} => $_ } @$pre_txns;
+         my %cur_txns = map { $_->{mysql_thread_id} => $_ } grep { defined $_->{mysql_thread_id} } @$cur_txns;
+         my %pre_txns = map { $_->{mysql_thread_id} => $_ } grep { defined $_->{mysql_thread_id} } @$pre_txns;
          foreach my $thd_id ( sort keys %cur_txns ) {
             my $cur_txn = $cur_txns{$thd_id};
             my $pre_txn = $pre_txns{$thd_id} || $cur_txn;
@@ -5140,7 +5897,8 @@ sub display_T {
    # that get pushed to the screen.
    @current_queries = map {
       my %hash;
-      @hash{ qw(cxn id db query secs) } = @{$_}{ qw(cxn mysql_thread_id db query_text active_secs) };
+      @hash{ qw(cxn id db query time user host) }
+         = @{$_}{ qw(cxn mysql_thread_id db query_text active_secs user hostname) };
       \%hash;
    } @{$rows_for{innodb_transactions}};
 
@@ -5468,7 +6226,10 @@ sub display_help {
    }
 
    # Magic keys
-   my @all_magic = map { sprintf('%4s', $action_for{$_}->{key} || $_) . "  $keys{$_}" } @magic;
+   my @all_magic = map {
+      my $k = $action_for{$_} ? ($action_for{$_}->{key} || $_) : $_;
+      sprintf('%4s  %s', $k, $keys{$_});
+   } @magic;
    @col1 = splice(@all_magic, 0, ceil(@all_magic/2));
    $max1 = max(map {length($_)} @col1);
    push @display_lines, '', 'Other:';
@@ -5781,14 +6542,32 @@ sub set_to_tbl {
    my ( $rows, $tbl ) = @_;
    my $meta = $tbl_meta{$tbl} or die "No such table $tbl in tbl_meta";
 
-   # don't show cxn if there's only one connection being displayed
-   my @visible;
-   if (scalar @{$modes{$config{mode}->{val}}->{connections}} == 1) {
+   # don't show / hide cxn if there's only one connection being displayed
+   my (@visible, @group_by);
+   my $num_cxn = scalar get_connections();
+   if ($num_cxn <= 1) {
       map { push @visible, $_ if $_ !~ /^cxn$/ } @{$meta->{visible}};
-      delete $$rows[0]{cxn} if defined $$rows[0]{cxn};
+      $meta->{visible} = \@visible;
+      map { push @group_by, $_ if $_ !~ /^cxn$/ } @{$meta->{group_by}};
+      $meta->{group_by} = \@group_by;
    }
+   # if cxn is not visible and there is now more than one connection, 
+   # make cxn visible again.  assume it's not in group_by if it's not
+   # visible
    else {
-      @visible = @{$meta->{visible}};
+      my $has_cxn = 0;
+      foreach my $column (@{$meta->{visible}}) {
+         if ($column eq "cxn") {
+           $has_cxn = 1;
+           last;
+         }
+      }
+      if (not $has_cxn) {
+         map { push @visible, $_ if $_ !~ /^cxn$/ } @{$meta->{visible}};
+         $meta->{visible} = \@visible;
+         map { push @group_by, $_ if $_ !~ /^cxn$/ } @{$meta->{group_by}};
+         $meta->{group_by} = \@group_by;
+      }
    }
 
    if ( !$meta->{pivot} ) {
@@ -5943,14 +6722,15 @@ sub set_to_tbl {
       # If the table isn't pivoted, just show all columns that are supposed to
       # be shown; but eliminate aggonly columns if the table isn't aggregated.
       my $aggregated = $meta->{aggregate};
-      $fmt_cols = [ grep { $aggregated || !$meta->{cols}->{$_}->{aggonly} } @visible ];
+      $fmt_cols = [ grep { $aggregated || !$meta->{cols}->{$_}->{aggonly} } @{$meta->{visible}} ];
       $fmt_meta = { map  { $_ => $meta->{cols}->{$_}                      } @$fmt_cols };
 
       # If the table is aggregated, re-order the group_by columns to the left of
-      # the display.
+      # the display, and suppress 'agghide' columns.
       if ( $aggregated ) {
          my %is_group = map { $_ => 1 } @{$meta->{group_by}};
          $fmt_cols = [ @{$meta->{group_by}}, grep { !$is_group{$_} } @$fmt_cols ];
+         $fmt_cols = [ grep { !$meta->{cols}->{$_}->{agghide} } @$fmt_cols ];
       }
    }
 
@@ -5991,6 +6771,7 @@ sub commify {
 # Trim to desired precision.
 sub set_precision {
    my ( $num, $precision ) = @_;
+   $num = 0 unless defined $num;
    $precision = $config{num_digits}->{val} if !defined $precision;
    sprintf("%.${precision}f", $num);
 }
@@ -6003,6 +6784,23 @@ sub percent {
    my $digits = $config{num_digits}->{val};
    return sprintf("%.${digits}f", $num * 100)
       . ($config{show_percent}->{val} ? '%' : '');
+}
+
+# sparkify {{{3
+# Find the range (min to max) and divide it up.  Each value then gets put into
+# a bucket and represented by one of these characters: _.-=^
+sub sparkify {
+   my @vals  = @_;
+   my @chars = qw(_ . - = ^);
+   my $min   = min(@vals);
+   my $max   = max(@vals);
+   my $range = ($max - $min) / 4;
+   return "_" x scalar(@vals) if !$min || !$max || $max == $min || !$range;
+   my $result = "";
+   foreach my $v ( @vals ) {
+      $result .= $chars[ int(($v - $min) / $range) ];
+   }
+   return $result;
 }
 
 # shorten {{{3
@@ -6023,12 +6821,9 @@ sub shorten {
       $num /= 1_024;
       ++$n;
    }
-   return sprintf(
-      $num =~ m/\./ || $n || $force
-         ? "%.${num_digits}f%s"
-         : '%d',
-      $num, ($pad,'k','M','G', 'T')[$n]);
-
+   return $num =~ m/\./ || $n || $force
+     ? sprintf("%.${num_digits}f%s", $num, ($pad,'k','M','G','T')[$n])
+     : $num;
 }
 
 # Utility functions {{{2
@@ -6214,12 +7009,23 @@ sub draw_screen {
       if $prefs->{clear} || !$modes{$config{mode}->{val}}->{no_clear_screen};
    if ( $opts{n} || $prefs->{raw} ) {
       my $num_lines = 0;
+      my $ts = $opts{t} ? POSIX::strftime($config{timeformat}->{val}, localtime) : '';
+      if ( $opts{t} ) {
+         if ( $opts{t} == 1 ) {
+            print "\n$ts\n\n";
+            $ts = ""; # Prevent it from being written on every line.
+            $num_lines++;
+         }
+         else {
+            $ts .= " ";
+         }
+      }
       print join("\n",
          map {
             $num_lines++;
             ref $_
-               ? colored($_->[0], $_->[1])
-               : $_;
+               ? colored($ts . $_->[0], $_->[1])
+               : $ts . $_;
          }
          grep { !$opts{n} || $_ } # Suppress empty lines
          @$display_lines);
@@ -6240,11 +7046,169 @@ sub draw_screen {
    }
 }
 
+# fuzzy_time {{{3
+sub fuzzy_time {
+   my ( $secs ) = @_;
+   return '' unless $secs;
+   return sprintf('%.2f', $secs) if $secs =~ m/^.\./;
+   $secs =~ s/\..*$//;
+   return $secs < 180      ? "${secs}s"
+        : $secs < 3600     ? sprintf("%dm", $secs / 60)
+        : $secs < 3600 * 3 ? sprintf("%dh%dm", $secs / 3600, ($secs % 3600) / 60)
+        : $secs < 86400    ? sprintf("%dh", $secs / 3600)
+        : $secs < 86400* 3 ? sprintf("%dd%dh", $secs / 86400, ($secs % 86400) / 3600)
+        :                    sprintf("%dd", $secs / 86400);
+}
+
+sub fuzzy_to_secs {
+   my ($t) = @_;
+   return 0 unless $t;
+   my ($num, $suffix) = $t =~ m/(\d+)([a-z])?$/;
+   return $num unless $suffix;
+   return       $suffix eq 's' ? $num            # Seconds
+              : $suffix eq 'm' ? $num * 60       # Minutes
+              : $suffix eq 'h' ? $num * 3600     # Hours
+              :                  $num * 86400;   # Days
+}
+
+# distill {{{3
+sub distill {
+   my ( $query ) = @_;
+   return "" unless $query;
+   my $orig_query = $query;
+
+   $query =~ m/\A\s*call\s+(\S+)\(/i && return "CALL $1";
+   $query =~ m/\A\s*use\s+/          && return "USE";
+   $query =~ m/\A\s*UNLOCK TABLES/i  && return "UNLOCK";
+   $query =~ m/\A\s*xa\s+(\S+)/i     && return "XA_$1";
+
+   # Strip out comments
+   my $olc_re = qr/(?:--|#)[^'"\r\n]*(?=[\r\n]|\Z)/;  # One-line comments
+   my $mlc_re = qr#/\*[^!].*?\*/#sm;                  # But not /*!version */
+   my $vlc_re = qr#/\*.*?[0-9+].*?\*/#sm;             # For SHOW + /*!version */
+   my $vlc_rf = qr#^(SHOW).*?/\*![0-9+].*?\*/#sm;     # Variation for SHOW
+   $query =~ s/$olc_re//go;
+   $query =~ s/$mlc_re//go;
+   if ( $query =~ m/$vlc_rf/i ) { # contains show + version
+      $query =~ s/$vlc_re//go;
+   }
+
+   # Handle SHOW queries
+   if ( $query =~ m/\A\s*SHOW\s+/i ) {
+      $query = uc $query;
+      $query =~ s/\s+(?:GLOBAL|SESSION|FULL|STORAGE|ENGINE)\b/ /g;
+      $query =~ s/\s+COUNT[^)]+\)//g;
+      $query =~ s/\s+(?:FOR|FROM|LIKE|WHERE|LIMIT|IN)\b.+//ms;
+      $query =~ s/\A(SHOW(?:\s+\S+){1,2}).*\Z/$1/s;
+      $query =~ s/\s+/ /g;
+   }
+
+   # Find verbs and tables.
+   my ($verbs, $table);
+
+   # Handle DDL operations (dds)
+   my $tbl_ident = qr/(?:`[^`]+`|\w+)(?:\.(?:`[^`]+`|\w+))?/;
+   my $tbl_regex = qr{
+            \b(?:FROM|JOIN|(?<!KEY\s)UPDATE|INTO(?!\s+TABLE)|INTO\s+TABLE) # Words that precede table names
+            \b\s*
+            \(?                                                            # Optional paren around tables
+            ($tbl_ident
+               (?: (?:\s+ (?:AS\s+)? \w+)?, \s*$tbl_ident )*
+            )
+         }xio;
+   my ( $ddl ) = $query =~ m/^\s*((?:CREATE|ALTER|TRUNCATE|DROP|RENAME|CHECK|REPAIR))\b/i;
+   if ( $ddl ) {
+      my ( $obj ) = $query =~ m/$ddl.+(DATABASE|EVENT|FUNCTION|INDEX|LOGFILE GROUP|PROCEDURE|SERVER|TABLE|TABLESPACE|TRIGGER|VIEW)\b/i;
+      if ( $obj ) {
+         $query =~ s/$obj\s*if\s*(?:not\s*)?exists/$obj/i;
+         $verbs = uc($ddl . ($obj ? " $obj" : ''));
+         ($table) = $query =~ m/(?:TABLE|DATABASE)\s+($tbl_ident)(\s+.*)?/i;
+      }
+   }
+   else {
+      my $verbs_pat = qr{^SHOW|^FLUSH|^COMMIT|^ROLLBACK|^BEGIN|SELECT|INSERT
+                  |UPDATE|DELETE|REPLACE|^SET|UNION|^START|^LOCK|^LOAD}xi;
+      my @verbs = $query =~ m/\b($verbs_pat)\b/gio;
+      @verbs    = do {
+         my $last = '';
+         grep { my $pass = $_ ne $last; $last = $_; $pass } map { uc } @verbs;
+      };
+
+      if ( ($verbs[0] || '') eq 'SELECT' && @verbs > 1 ) {
+         # False-positive verbs after SELECT
+         my $union = grep { $_ eq 'UNION' } @verbs;
+         @verbs    = $union ? qw(SELECT UNION) : qw(SELECT);
+      }
+
+      my %seen;
+      $verbs = join(q{ }, grep { !$seen{$_}++ } @verbs);
+   }
+
+   if ( $verbs && $verbs =~ m/^SHOW/ ) {
+      my %alias_for = qw(
+         SCHEMA   DATABASE
+         KEYS     INDEX
+         INDEXES  INDEX
+      );
+      map { $verbs =~ s/$_/$alias_for{$_}/ } keys %alias_for;
+      $query = $verbs;
+   }
+   else {
+      my @tables;
+      $query =~ s/ (?:LOW_PRIORITY|IGNORE|STRAIGHT_JOIN)//ig;
+      if ( $query =~ /^\s*LOCK\s+TABLES/i ) {
+         $query =~ s/^(\s*LOCK\s+TABLES\s+)//i;
+         $query =~ s/\s+(?:READ|WRITE|LOCAL)+\s*//gi;
+         $query = "FROM $query";
+      }
+      $query =~ s/\\["']//g;                # quoted strings
+      $query =~ s/".*?"/?/sg;               # quoted strings
+      $query =~ s/'.*?'/?/sg;               # quoted strings
+
+      foreach my $tbls ( $query =~ m/$tbl_regex/gio ) {
+         next if $tbls =~ m/\ASELECT\b/i;
+         foreach my $tbl ( split(',', $tbls) ) {
+            $tbl =~ s/\s*($tbl_ident)(\s+.*)?/$1/gio;
+            if ( $tbl !~ m/[a-zA-Z]/ ) {
+               # Skip suspicious table name
+               next;
+            }
+            push @tables, $tbl;
+         }
+      }
+
+      # If we have a bunch of tables like db1.tbl1 db1.tbl2, convert to
+      # db1.tbl1 -.tbl2 etc. Also remove repeated tables, and strip `quotes`.
+      $query = $verbs;
+      my $prev = '';
+      foreach my $t ( @tables, $table ) {
+         next unless $t;
+         $t =~ s/`//g;
+         next if $t eq $prev;
+         my ($prefix, undef) = split(/\./, $prev);
+         $prev = $t;
+         if ( $prefix ) {
+            $t =~ s/^$prefix\./-./;
+         }
+         $query .= " " . $t;
+      }
+   } 
+
+   # die $orig_query if $query eq 'LOCK lock';
+   return $query;
+}
+
 # secs_to_time {{{3
 sub secs_to_time {
    my ( $secs, $fmt ) = @_;
    $secs ||= 0;
-   return '00:00' unless $secs;
+
+   # If the inbound value has a decimal point, then format the seconds with milliseconds.
+   my $hires = $secs =~ m/\./ ? '%06.3f' : '%02d';
+
+   if ( !$secs ) {
+      return sprintf("00:$hires", $secs);
+   }
 
    # Decide what format to use, if not given
    $fmt ||= $secs >= 86_400 ? 'd'
@@ -6253,20 +7217,20 @@ sub secs_to_time {
 
    return
       $fmt eq 'd' ? sprintf(
-         "%d+%02d:%02d:%02d",
+         "%d+%02d:%02d:$hires",
          int($secs / 86_400),
          int(($secs % 86_400) / 3_600),
          int(($secs % 3_600) / 60),
-         $secs % 60)
+         $secs % 60 + ($secs - int($secs)))
       : $fmt eq 'h' ? sprintf(
-         "%02d:%02d:%02d",
+         "%02d:%02d:$hires",
          int(($secs % 86_400) / 3_600),
          int(($secs % 3_600) / 60),
-         $secs % 60)
+         $secs % 60 + ($secs - int($secs)))
       : sprintf(
-         "%02d:%02d",
+         "%02d:$hires",
          int(($secs % 3_600) / 60),
-         $secs % 60);
+         $secs % 60 + ($secs - int($secs)));
 }
 
 # dulint_to_int {{{3
@@ -6300,13 +7264,13 @@ sub create_statusbar {
    else {
       if ( $modes{$mode}->{server_group} ) {
          $cxn = "Servers: " . $modes{$mode}->{server_group};
-         my $err_count = grep { $dbhs{$_} && $dbhs{$_}->{err_count} } @cxns;
+         my $err_count = grep { $dbhs{$_} && $dbhs{$_}->{failed} } @cxns;
          if ( $err_count ) {
             $cxn .= "(" . ( scalar(@cxns) - $err_count ) . "/" . scalar(@cxns) . ")";
          }
       }
       else {
-         $cxn = join(' ', map { ($dbhs{$_}->{err_count} ? '!' : '') . $_ }
+         $cxn = join(' ', map { ($dbhs{$_}->{failed} ? '!' : '') . $_ }
             grep { $dbhs{$_} } @cxns);
       }
    }
@@ -6317,7 +7281,7 @@ sub create_statusbar {
       my $inc  = inc(0, $cxns[0]);
 
       # Format server uptime human-readably, calculate QPS...
-      my $uptime = secs_to_time( $vars->{Uptime_hires} );
+      my $uptime = fuzzy_time( $vars->{Uptime_hires} );
       my $qps    = ($inc->{Questions}||0) / ($inc->{Uptime_hires}||1);
       my $ibinfo = '';
 
@@ -6502,6 +7466,18 @@ sub get_connections {
    if ( $modes{$mode}->{one_connection} ) {
       @connections = @connections ? $connections[0] : ();
    }
+   # If the connections are the same as a server group, we set the mode's
+   # group to that group.
+   if ( ! $modes{$mode}->{server_group} ) {
+      my $maybe_group = join(',', sort @connections);
+      foreach my $g ( keys %server_groups ) {
+         my $group_conns = join(',', sort @{$server_groups{$g}});
+         if ( $maybe_group eq $group_conns ) {
+            $modes{$mode}->{server_group} = $g;
+            last;
+         }
+      }
+   }
    return unique(@connections);
 }
 
@@ -6530,7 +7506,7 @@ sub choose_connections {
    my $choices = prompt_list("Choose connections or a group for $mode mode",
       undef, sub { return keys %$meta }, $meta);
 
-   my @choices = unique(grep { $_ } split(/\s+/, $choices));
+   my @choices = unique(grep { $_ } $choices =~ m/(\S+)/g);
    if ( @choices ) {
       if ( $choices[0] =~ s/^#// && exists $server_groups{$choices[0]} ) {
          $modes{$mode}->{server_group} = $choices[0];
@@ -6553,9 +7529,8 @@ sub do_stmt {
 
    # Test if the cxn should not even be tried
    return undef if $dbhs{$cxn}
-      && $dbhs{$cxn}->{err_count} 
-      && ( !$dbhs{$cxn}->{dbh} || !$dbhs{$cxn}->{dbh}->{Active} || $dbhs{$cxn}->{mode} eq $config{mode}->{val} )
-      && $dbhs{$cxn}->{wake_up} > $clock;
+      && $dbhs{$cxn}->{failed} 
+      && ( !$dbhs{$cxn}->{dbh} || !$dbhs{$cxn}->{dbh}->{Active} || $dbhs{$cxn}->{mode} eq $config{mode}->{val} );
 
    my $sth;
    my $retries = 1;
@@ -6596,13 +7571,12 @@ sub do_stmt {
    }
 }
 
-# Keeps track of error count, sleep times till retries, etc etc.
-# When there's an error we retry the connection every so often, increasing in
-# Fibonacci series to prevent too much banging on the server.
+# Marks a connection as failed. When we sleep between redraws, we try to
+# reopen.
 sub handle_cxn_error {
    my ( $cxn, $err ) = @_;
    my $meta = $dbhs{$cxn};
-   $meta->{err_count}++;
+   $meta->{failed} = 1;
 
    # This is used so errors that have to do with permissions needed by the current
    # mode will get displayed as long as we're in this mode, but get ignored if the
@@ -6616,12 +7590,8 @@ sub handle_cxn_error {
    }
 
    $meta->{last_err}   = $err;
-   my $sleep_time      = $meta->{this_sleep} + $meta->{prev_sleep};
-   $meta->{prev_sleep} = $meta->{this_sleep};
-   $meta->{this_sleep} = $sleep_time;
-   $meta->{wake_up}    = $clock + $sleep_time;
    if ( $config{show_cxn_errors}->{val} ) {
-      print STDERR "Error at tick $clock $cxn $err" if $config{debug}->{val};
+      print STDERR "DB error: $cxn $err" if $config{debug}->{val};
    }
 }
 
@@ -6634,9 +7604,8 @@ sub do_query {
 
    # Test if the cxn should not even be tried
    return undef if $dbhs{$cxn}
-      && $dbhs{$cxn}->{err_count} 
-      && ( !$dbhs{$cxn}->{dbh} || !$dbhs{$cxn}->{dbh}->{Active} || $dbhs{$cxn}->{mode} eq $config{mode}->{val} )
-      && $dbhs{$cxn}->{wake_up} > $clock;
+      && $dbhs{$cxn}->{failed} 
+      && ( !$dbhs{$cxn}->{dbh} || !$dbhs{$cxn}->{dbh}->{Active} || $dbhs{$cxn}->{mode} eq $config{mode}->{val} );
 
    my $sth;
    my $retries = 1;
@@ -6679,9 +7648,6 @@ sub connect_to_db {
 
    $dbhs{$cxn} ||= {
       stmts      => {},  # bucket for prepared statements.
-      prev_sleep => 0,
-      this_sleep => 1,
-      wake_up    => 0,
       start_time => 0,
       dbh        => undef,
    };
@@ -6689,8 +7655,7 @@ sub connect_to_db {
 
    if ( !$href->{dbh} || ref($href->{dbh}) !~ m/DBI/ || !$href->{dbh}->ping ) {
       my $dbh = get_new_db_connection($cxn);
-      @{$href}{qw(dbh err_count wake_up this_sleep start_time prev_sleep)}
-               = ($dbh, 0, 0, 1, 0, 0);
+      @{$href}{qw(dbh failed start_time stmts)} = ($dbh, 0, 0, {});
 
       # Derive and store the server's start time in hi-res
       my $uptime = $dbh->selectrow_hashref("show status like 'Uptime'")->{value};
@@ -6709,7 +7674,7 @@ sub connect_to_db {
 # Compares versions like 5.0.27 and 4.1.15-standard-log
 sub version_ge {
    my ( $dbh, $target ) = @_;
-   my $version = sprintf('%03d%03d%03d', $dbh->{mysql_serverinfo} =~ m/(\d+)/g);
+   my $version = sprintf('%03d%03d%03d', $dbh->{mysql_serverinfo} =~ m/^(\d+).(\d+).(\d+)/g);
    return $version ge sprintf('%03d%03d%03d', $target =~ m/(\d+)/g);
 }
 
@@ -6781,7 +7746,7 @@ sub get_cxn_errors {
    return () unless $config{show_cxn_errors_in_tbl}->{val};
    return
       map  { [ $_ . ': ' . $dbhs{$_}->{last_err}, 'red' ] }
-      grep { $dbhs{$_} && $dbhs{$_}->{err_count} && $dbhs{$_}->{mode} eq $config{mode}->{val} }
+      grep { $dbhs{$_} && $dbhs{$_}->{failed} && $dbhs{$_}->{mode} eq $config{mode}->{val} }
       @cxns;
 }
 
@@ -6868,6 +7833,15 @@ sub compile_expr {
 # This is a subroutine because it's called from a key to quit the program.
 sub finish {
    save_config();
+   foreach my $cxn ( values %dbhs ) {
+      eval {
+         foreach my $sth ( values %{$cxn->{stmts}} ) {
+            $sth->finish;
+         }
+         $cxn->{dbh}->disconnect;
+      };
+      # Ignore eval errors, we just don't care
+   }
    ReadMode('normal') unless $opts{n};
    print "\n";
    exit(0);
@@ -6926,7 +7900,7 @@ sub load_config {
     
    my ($old_filename, $answer);
 
-   if ( $opts{u} or $opts{p} or $opts{h} or $opts{P} ) {
+   if ( $opts{u} or $opts{p} or $opts{h} or $opts{P} or $opts{S} ) {
      my @params = $dsn_parser->get_cxn_params(\%opts); # dsn=$params[0]
      add_new_dsn($opts{h} || 'localhost', $params[0], 'test.innotop_dl', 
                  $opts{u} ? 1 : 0, $opts{u}, $opts{p} ? 1 : 0, $opts{p});
@@ -6934,8 +7908,10 @@ sub load_config {
    if ($opts{c}) {
       $conf_file = $opts{c};
    }  
-   # innotop got upgraded and this is an old config file.
-   elsif ( -f "$homepath/.innotop" or -f "$homepath/.innotop/innotop.ini" ) {
+   # If we don't have a new config file but we do have an old one,
+   # innotop got upgraded and this is an old config file. Convert it, but
+   # don't overwrite something existing.
+   elsif ( ! -f $default_home_conf && ( -f "$homepath/.innotop" or -f "$homepath/.innotop/innotop.ini" ) ) {
       $conf_file = $default_home_conf;
       if ( -f  "$homepath/.innotop") {
          $old_filename = "$homepath/.innotop";
@@ -7462,7 +8438,8 @@ sub load_config_tbl_meta {
 
       foreach my $prop ( keys %col_props ) {
          if ( !defined($parts{$prop}) ) {
-            die "Undefined property $prop for column $col in table $tbl";
+            # Make it default to whatever's in col_props.
+            $parts{$prop} = $col_props{$prop};
          }
 
          # Un-escape escaping
@@ -7997,6 +8974,17 @@ sub choose_mode_tables {
    $modes{$mode}->{cust}->{visible_tables} = 1;
 }
 
+# set_visible_table {{{3
+sub set_visible_table {
+   my ( $tbl ) = @_;
+   my $mode = $config{mode}->{val};
+   my @tbls = grep { $_ eq $tbl } @{$modes{$mode}->{tables}};
+   if ( @tbls == 1 ) {
+      $modes{$mode}->{visible_tables} = [ $tbl ];
+      $modes{$mode}->{cust}->{visible_tables} = 1;
+   }
+}
+
 # choose_visible_table {{{3
 sub choose_visible_table {
    my ( $grep_cond ) = @_;
@@ -8045,7 +9033,7 @@ sub choose_filters {
       }
    );
 
-   my @choices = unique(split(/\s+/, $val));
+   my @choices = unique($val =~ m/(\S+)/g);
    foreach my $new ( grep { !exists($filters{$_}) } @choices ) {
       my $answer = prompt("There is no filter called '$new'.  Create it?", undef, 'y');
       if ( $answer eq 'y' ) {
@@ -8290,7 +9278,7 @@ sub choose_or_create_connection {
       sub { return @available },
       { map { $_ => $connections{$_}->{dsn} } @available });
 
-   my @new = unique(grep { !exists $connections{$_} } split(/\s+/, $new_cxns));
+   my @new = unique(grep { !exists $connections{$_} } $new_cxns =~ m/(\S+)/g);
    foreach my $new ( @new ) {
       my $answer = prompt("There is no connection called '$new'.  Create it?", undef, "y");
       if ( $answer eq 'y' ) {
@@ -8309,6 +9297,7 @@ sub choose_servers {
    my @chosen = choose_or_create_connection($cxns, 'for this mode');
    $modes{$mode}->{connections} = \@chosen;
    $modes{$mode}->{server_group} = ''; # Clear this because it overrides {connections}
+   get_connections(); # This will set the server group if it matches connections just chosen
 }
 
 # display_license {{{3
@@ -8339,10 +9328,41 @@ sub get_status_info {
          $vars->{Uptime_hires} ||= get_uptime($cxn);
          $vars->{cxn} = $cxn;
 
-         # Add SHOW VARIABLES to the hash
-         $sth = do_stmt($cxn, 'SHOW_VARIABLES') or next;
-         $res = $sth->fetchall_arrayref();
-         map { $vars->{$_->[0]} = $_->[1] || 0 } @$res;
+         # Add SHOW VARIABLES to the hash.  If we've gotten this info before, skip and re-use.
+         if ( $show_variables{$cxn} ) {
+            $res = $show_variables{$cxn};
+         }
+         else {
+            $sth = do_stmt($cxn, 'SHOW_VARIABLES') or next;
+            $res = $sth->fetchall_arrayref();
+            $res = {map { $_->[0] => $_->[1] || 0 } @$res};
+            $show_variables{$cxn} = $res;
+         }
+         @{$vars}{keys %$res} = values %$res;
+
+         # Create sparklines for QPS and Threads_running. As a consequence of
+         # this, we get QPS for free. TODO: remove QPS computation from
+         # elsewhere.
+         my $pre = $vars{$cxn}->{$clock - 1};
+         if ( $pre && $pre->{Uptime_hires} ) {
+            my @prev_qps = ($pre->{SPARK_store_qps} || '') =~ m/(\S+)/g;
+            my @prev_run = ($pre->{SPARK_store_run} || '') =~ m/(\S+)/g;
+
+            # Find out the values; throw away if too many; sparkify; store.
+            my $this_qps = (($vars->{Questions} || 0) - ($pre->{Questions} || 0))/
+                           ($vars->{Uptime_hires} - $pre->{Uptime_hires});
+            push @prev_qps, $this_qps;
+            shift @prev_qps if @prev_qps > $config{spark}->{val};
+            my $qps_spark = sparkify(@prev_qps);
+            $vars->{SPARK_qps} = $qps_spark;
+            $vars->{SPARK_store_qps} = join(' ', @prev_qps);
+            my $this_run = $vars->{Threads_running};
+            push @prev_run, $this_run;
+            shift @prev_run if @prev_run > $config{spark}->{val};
+            my $run_spark = sparkify(@prev_run);
+            $vars->{SPARK_run} = $run_spark;
+            $vars->{SPARK_store_run} = join(' ', @prev_run);
+         }
       }
    }
 }
@@ -8352,7 +9372,6 @@ sub get_status_info {
 sub choose_thread {
    my ( $grep_cond, $prompt ) = @_;
 
-   # Narrow the list to queries that can be explained.
    my %thread_for = map {
       # Eliminate innotop's own threads.
       $_ => $dbhs{$_}->{dbh} ? $dbhs{$_}->{dbh}->{mysql_thread_id} : 0
@@ -8380,7 +9399,7 @@ sub choose_thread {
          my ( $a, $b ) = @_;
          return  $a->{query} && !$b->{query} ? 1
                : $b->{query} && !$a->{query} ? -1
-               : ($a->{time} || 0) <=> ($b->{time} || 0);
+               : ($a->{time} || 0) cmp ($b->{time} || 0);
       };
       my @threads = map { $_->{id} } reverse sort { $sort_func->($a, $b) } @candidates;
 
@@ -8439,7 +9458,7 @@ sub inc {
       # Numeric variables get subtracted, non-numeric get passed straight through.
       map  {
          $_ =>
-            ( (defined $cur->{$_} && $cur->{$_} =~ m/$num_regex/)
+            ( (defined $cur->{$_} && $cur->{$_} =~ m/$num_regex/ && ($pre->{$_} || '') =~ m/$num_regex/ )
             ?  $cur->{$_} - ($pre->{$_} || 0)
             :  $cur->{$_} )
       } keys %{$cur}
@@ -8479,6 +9498,72 @@ sub extract_values {
    return $result;
 }
 
+# get_processlist_stats {{{3
+# Inserts special values as though they are SHOW STATUS counters.
+sub get_processlist_stats {
+   my @cxns = @_;
+   @current_queries = ();
+   if ( !$info_gotten{processlist_stats}++ ) {
+      foreach my $cxn ( @cxns ) {
+         my $max_query_time = 0;
+         my ($user_threads, $slaves, $longest_sql, $slave_sql, $locked);
+         $vars{$cxn}->{$clock} ||= {};
+         my $vars = $vars{$cxn}->{$clock};
+         $vars->{cxn} = $cxn;
+         my $stmt = do_stmt($cxn, 'PROCESSLIST_NO_IS') or next;
+         my $arr = $stmt->fetchall_arrayref({});
+         my $cur = undef;
+         foreach my $thread ( @$arr ) {
+            if ( ($thread->{state} || '') =~ m/lock/i ) {
+               $locked++;
+            }
+            # Ignore non-user threads, but remember the SQL in case there is
+            # no user SQL.  Ignore sleeping threads and SHOW PROCESSLIST
+            # threads.
+            if ( ($thread->{user} || '') =~ m/system user/ ) {
+               if ( $thread->{info} && $thread->{time} ) {
+                  $slave_sql = $thread->{info};
+               }
+               next;
+            }
+            next unless $thread->{command};
+            if ( $thread->{command} eq 'Binlog Dump' ) {
+               $slaves++;
+               next;
+            }
+            next unless $thread->{command} eq 'Query';
+            next unless $thread->{state} && $thread->{info};
+            next if     $thread->{info} =~ m#/\*innotop#;
+            $user_threads++;
+            if ( $thread->{time} > $max_query_time ) {
+               $max_query_time = $thread->{time};
+               $longest_sql    = $thread->{info};
+               if ( $thread->{state} eq 'Checking table' ) {
+                  $longest_sql = 'CHECK TABLE ' . $thread->{info};
+               }
+               $cur = {
+                  cxn => $cxn,
+                  id => $thread->{id},
+                  db => $thread->{db},
+                  query => $thread->{info},
+                  time => $thread->{time},
+                  user => $thread->{user},
+                  host => $thread->{host},
+               };
+               $thread->{host} =~ s/:.*$//;
+            }
+         }
+         $vars->{Max_query_time}       = $max_query_time;
+         $vars->{User_threads_running} = $user_threads;
+         $vars->{Slaves}               = $slaves || 0;
+         $vars->{Longest_sql}          = $longest_sql || $slave_sql || '';
+         $vars->{Locked_count}         = $locked || 0;
+         $vars->{Uptime_hires}       ||= get_uptime($cxn);
+         push @current_queries, $cur if $cur;
+      }
+   }
+}
+
 # get_full_processlist {{{3
 sub get_full_processlist {
    my @cxns = @_;
@@ -8497,6 +9582,54 @@ sub get_open_tables {
    my @result;
    foreach my $cxn ( @cxns ) {
       my $stmt = do_stmt($cxn, 'OPEN_TABLES') or next;
+      my $arr  = $stmt->fetchall_arrayref({});
+      push @result, map { $_->{cxn} = $cxn; $_ } @$arr;
+   }
+   return @result;
+}
+
+# get_index_statistics {{{3
+sub get_index_statistics {
+   my @cxns = @_;
+   my @result;
+   foreach my $cxn ( @cxns ) {
+      my $stmt = do_stmt($cxn, 'INDEX_STATISTICS') or next;
+      my $arr  = $stmt->fetchall_arrayref({});
+      push @result, map { $_->{cxn} = $cxn; $_ } @$arr;
+   }
+   return @result;
+}
+
+# get_index_table_statistics {{{3
+sub get_index_table_statistics {
+   my @cxns = @_;
+   my @result;
+   foreach my $cxn ( @cxns ) {
+      my $stmt = do_stmt($cxn, 'INDEX_TABLE_STATISTICS') or next;
+      my $arr  = $stmt->fetchall_arrayref({});
+      push @result, map { $_->{cxn} = $cxn; $_ } @$arr;
+   }
+   return @result;
+}
+
+# get_table_statistics {{{3
+sub get_table_statistics {
+   my @cxns = @_;
+   my @result;
+   foreach my $cxn ( @cxns ) {
+      my $stmt = do_stmt($cxn, 'TABLE_STATISTICS') or next;
+      my $arr  = $stmt->fetchall_arrayref({});
+      push @result, map { $_->{cxn} = $cxn; $_ } @$arr;
+   }
+   return @result;
+}
+
+# get_innodb_blocked_blocker {{{3
+sub get_innodb_blocked_blocker {
+   my @cxns = @_;
+   my @result;
+   foreach my $cxn ( @cxns ) {
+      my $stmt = do_stmt($cxn, 'INNODB_BLOCKED_BLOCKER') or next;
       my $arr  = $stmt->fetchall_arrayref({});
       push @result, map { $_->{cxn} = $cxn; $_ } @$arr;
    }
@@ -8549,6 +9682,7 @@ sub get_innodb_status {
          }
 
          else {
+            next if ($show_variables{$cxn}->{have_innodb} || 'YES') eq 'NO';
             my $stmt = do_stmt($cxn, 'INNODB_STATUS') or next;
             $innodb_status_text = $stmt->fetchrow_hashref()->{status};
          }
@@ -8563,6 +9697,7 @@ sub get_innodb_status {
                $config{debug}->{val},
                \%sections_required,
                0, # don't parse full lock information
+               $show_variables{$cxn}->{version}
             )
          );
          if ( !$innodb_status{IB_got_all} && $config{auto_wipe_dl}->{val} ) {
@@ -8587,6 +9722,9 @@ sub clear_deadlock {
    return unless $tbl;
 
    eval {
+      # disable binary logging for the session
+      do_query($cxn, "set SQL_LOG_BIN=0");
+
       # Set up the table for creating a deadlock.
       my $engine = version_ge($dbhs{$cxn}->{dbh}, '4.1.2') ? 'engine' : 'type';
       return unless do_query($cxn, "drop table if exists $tbl");
@@ -8616,6 +9754,11 @@ sub clear_deadlock {
 
       # Clean up.
       do_query($cxn, "drop table $tbl");
+
+      # enable binary logging for the session again
+      # the session by itself will not be used anymore, but this is clean :)
+      do_query($cxn, "set SQL_LOG_BIN=1");
+
    };
    if ( $EVAL_ERROR ) {
       print $EVAL_ERROR;
@@ -8638,6 +9781,7 @@ sub get_master_logs {
 }
 
 # get_master_slave_status {{{3
+# Inserts special counters as though they are SHOW STATUS counters.
 sub get_master_slave_status {
    my @cxns = @_;
    if ( !$info_gotten{replication_status}++ ) {
@@ -8645,17 +9789,60 @@ sub get_master_slave_status {
          $vars{$cxn}->{$clock} ||= {};
          my $vars = $vars{$cxn}->{$clock};
          $vars->{cxn} = $cxn;
+         $vars->{Uptime_hires} ||= get_uptime($cxn);
 
          my $stmt = do_stmt($cxn, 'SHOW_MASTER_STATUS') or next;
          my $res = $stmt->fetchall_arrayref({})->[0];
          @{$vars}{ keys %$res } = values %$res;
-         $stmt = do_stmt($cxn, 'SHOW_SLAVE_STATUS') or next;
-         $res = $stmt->fetchall_arrayref({})->[0];
-         @{$vars}{ keys %$res } = values %$res;
-         $vars->{Uptime_hires} ||= get_uptime($cxn);
+
       }
    }
 }
+
+# get_slave_status {{{3
+# Separated handling of slave status to support 5.7 and replication channels
+sub get_slave_status {
+   my ($cxn, $channel) = @_;
+   		 my $chcxn = $channel . '=' . $cxn;
+         $vars{$chcxn}->{$clock} ||= {};
+         my $vars = $vars{$chcxn}->{$clock};
+         $vars->{chcxn} = $chcxn;
+         $vars->{Uptime_hires} ||= get_uptime($chcxn);
+
+		 if ( $channel =~ /no_channels/ ) {
+         	my $stmt = do_stmt($cxn, 'SHOW_SLAVE_STATUS') or next;
+         	my $res = $stmt->fetchall_arrayref({});
+        	if ( $res && @$res ) {
+       	    	$res = $res->[0];
+       	    	@{$vars}{ keys %$res } = values %$res;
+            	$vars->{Slave_ok} =
+               		(($res->{slave_sql_running} || 'Yes') eq 'Yes'
+               		&& ($res->{slave_io_running} || 'Yes') eq 'Yes') ? 'Yes' : 'No';
+         	}
+         	else {
+            	$vars->{Slave_ok} = 'Off';
+         	}
+	  	 } else {
+				 my $dbh = connect_to_db($cxn);
+				 my $sql = 'SHOW SLAVE STATUS FOR CHANNEL \'' . $channel . '\''; 
+				 my $stmt = $dbh->prepare($sql ) ;
+				 $stmt->execute();
+         		 my $res = $stmt->fetchall_arrayref({});
+         		 if ( $res && @$res ) {
+         		    $res = $res->[0];
+         		    @{$vars}{ keys %$res } = values %$res;
+         		    $vars->{Slave_ok} =
+         		       (($res->{slave_sql_running} || 'Yes') eq 'Yes'
+         		       && ($res->{slave_io_running} || 'Yes') eq 'Yes') ? 'Yes' : 'No';
+         		 }
+		         else {
+       		   		 $vars->{Slave_ok} = 'Off';
+        		 }
+			}
+      	}
+	
+   
+
 
 sub is_func {
    my ( $word ) = @_;
@@ -8811,6 +9998,12 @@ Port to use for connection.
 
 Don't read the central configuration file.
 
+=item --timestamp
+
+In -n mode, write a timestamp either before every screenful of output, or if
+the option is given twice, at the start of every line.  The format is controlled
+by the timeformat config variable.
+
 =item --user
 
 User to use for connection.
@@ -8859,6 +10052,13 @@ switch to the mode, press the key listed in front of its heading in the
 following list:
 
 =over
+
+=item A: Health Dashboard
+
+This mode displays a single table with one row per monitored server. The
+columns show essential overview information about the server's health, and
+coloration rules show whether replication is running or if there are any very
+long-running queries or excessive replication delay.
 
 =item B: InnoDB Buffers
 
@@ -8945,6 +10145,12 @@ This mode shows InnoDB's I/O statistics, including the I/O threads, pending I/O,
 file I/O miscellaneous, and log statistics.  It displays the L<"io_threads">,
 L<"pending_io">, L<"file_io_misc">, and L<"log_statistics"> tables by default.
 
+=item K: InnoDB Lock Waits
+
+This mode shows information from InnoDB plugin's transaction and locking tables.
+You can use it to find when a transaction is waiting for another, and kill the
+blocking transaction. It displays the L<"innodb_blocked_blocker>" table.
+
 =item L: Locks
 
 This mode shows information about current locks.  At the moment only InnoDB
@@ -9007,6 +10213,23 @@ get a quick look at which tables are 'hot'.  You can use this to guess which
 tables might be locked implicitly.
 
 This mode displays the L<"open_tables"> mode by default.
+
+=item U: User Statistics
+
+This mode displays data that's available in Percona's enhanced version of MySQL
+(also known as Percona Server with XtraDB).  Specifically, it makes it easy to
+enable and disable the so-called "user statistics."  This feature gathers stats
+on clients, threads, users, tables, and indexes and makes them available as
+INFORMATION_SCHEMA tables.  These are invaluable for understanding what your
+server is doing.  They are also available in MariaDB.
+
+The statistics supported so far are only from the TABLE_STATISTICS and
+INDEX_STATISTICS tables added by Percona.  There are three views: one of table stats,
+one of index stats (which can be aggregated with the = key), and one of both.
+
+The server doesn't gather these stats by default.  You have to set the variable
+userstat_running to turn it on.  You can do this easily with innotop from U mode,
+with the 's' key.
 
 =item Q: Query List
 
@@ -9155,6 +10378,9 @@ will prompt you for a master to run the command on, then prompt you for the
 connection names of that master's slaves (there is no way for innotop to
 determine this reliably itself).  innotop will find the minimum binlog in use by
 these slave connections and suggest it as the argument to PURGE MASTER LOGS.
+
+in L<"U: User Statistics"> mode, you can use the 's' key to start and stop
+the collection of the statistics data for TABLE_STATISTICS and similar.
 
 =head1 SERVER CONNECTIONS
 
@@ -9603,6 +10829,11 @@ Disables fetching SHOW INNODB STATUS, in case your server(s) do not have InnoDB
 enabled and you don't want innotop to try to fetch it.  This can also be useful
 when you don't have the SUPER privilege, required to run SHOW INNODB STATUS.
 
+=item spark
+
+Specifies how wide a spark chart is. There are two ASCII spark charts in A
+mode, showing QPS and User_threads_running.
+
 =item status_inc
 
 Whether to show absolute or incremental values for status variables.
@@ -9610,6 +10841,11 @@ Incremental values are calculated as an offset from the last value innotop saw
 for that variable.  This is a global setting, but will probably become
 mode-specific at some point.  Right now it is honored a bit inconsistently; some
 modes don't pay attention to it.
+
+=item timeformat
+
+The C-style strftime()-compatible format for the timestamp line to be printed
+in -n mode when -t is set.
 
 =back
 
@@ -9874,6 +11110,27 @@ L<"STATUS_VARIABLES">.
 Displays various data about InnoDB's last foreign key error.  Data source:
 L<"STATUS_VARIABLES">.
 
+=item health_dashboard
+
+Displays an overall summary of servers, one server per line, for monitoring.
+Data source: L<"STATUS_VARIABLES">, L<"MASTER_SLAVE">, L<"PROCESSLIST_STATS">.
+
+=item index_statistics
+
+Displays data from the INDEX_STATISTICS table in Percona-enhanced servers.
+
+=item index_table_statistics
+
+Displays data from the INDEX_STATISTICS and TABLE_STATISTICS tables in
+Percona-enhanced servers.  It joins the two together, grouped by the database
+and table name.  It is the default view in L<"U: User Statistics"> mode,
+and makes it easy to see what tables are hot, how many rows are read from indexes,
+how many changes are made, and how many changes are made to indexes.
+
+=item innodb_blocked_blocker
+
+Displays InnoDB locks and lock waits. Data source: L<"INNODB_BLOCKED_BLOCKER">.
+
 =item innodb_locks
 
 Displays InnoDB locks.  Data source: L<"INNODB_LOCKS">.
@@ -9943,6 +11200,10 @@ L<"STATUS_VARIABLES">.
 =item slave_sql_status
 
 Displays data about the slave SQL thread.  Data source: L<"STATUS_VARIABLES">.
+
+=item table_statistics
+
+Displays data from the TABLE_STATISTICS table in Percona-enhanced servers.
 
 =item t_header
 
@@ -10021,6 +11282,10 @@ the table.  Several columns are set this way, such as the count column on
 L<"processlist"> and L<"innodb_transactions">, so you don't see a count when the
 grouping isn't enabled, but you do when it is.
 
+=item *
+
+agghide: the reverse of aggonly.  The column is hidden when grouping is enabled.
+
 =back
 
 =head2 FILTERS
@@ -10072,10 +11337,25 @@ persist when you restart innotop.  To create a quick-filter, press the '/' key.
 innotop will prompt you for the column name and filter text.  Again, you can use
 auto-completion on column names.  The filter text can be just the text you want
 to "search for."  For example, to filter the L<"processlist"> table on queries
-that refer to the products table, type '/' and then 'info product'.
+that refer to the products table, type '/' and then 'info product'.  Internally,
+the filter is compiled into a subroutine like this:
+
+ sub filter {
+    my ( $set ) = @_;
+    $set->{info} =~ m/product/;
+ }
 
 The filter text can actually be any Perl regular expression, but of course a
 literal string like 'product' works fine as a regular expression.
+
+What if you want the filter to discard matching rows, rather than showing
+matching rows?  If you're familiar with Perl regular expressions, you might
+guess how to do this.  You have to use a zero-width negative lookahead
+assertion.  If you don't know what that means, don't worry.  Let's filter out
+all rows where the command is Gandalf.  Type the following:
+
+ 1. /
+ 2. cmd ^(?!Gandalf)
 
 Behind the scenes innotop compiles the quick-filter into a specially tagged
 filter that is otherwise like any other filter.  It just isn't saved to the
@@ -10174,8 +11454,8 @@ That's actually quite a worrisome picture.  You've got a lot of idle connections
 (Sleep), and some connections executing queries (Query and Sending Data).
 That's okay, but you also have a lot in Statistics status, collectively spending
 over a minute.  That means the query optimizer is having a really hard time
-optimizing your statements.  Something is wrong; it should normally take
-milliseconds to optimize queries.  You might not have seen this pattern if you
+generating execution plans for your statements.  Something is wrong; it should
+normally take milliseconds to plan queries.  You might not have seen this pattern if you
 didn't look at your connections in aggregate.  (This is a made-up example, but
 it can happen in real life).
 
@@ -10311,11 +11591,19 @@ are defined:
 
 Adds commas to large numbers every three decimal places.
 
+=item distill
+
+Distills SQL into verb-noun-noun format for quick comprehension.
+
 =item dulint_to_int
 
 Accepts two unsigned integers and converts them into a single longlong.  This is
 useful for certain operations with InnoDB, which uses two integers as
 transaction identifiers, for example.
+
+=item fuzzy_time
+
+Converts a number of seconds into a friendly, readable value like "1h35m".
 
 =item no_ctrl_char
 
@@ -10365,7 +11653,7 @@ show you something like this:
  pages_modified     Dirty Pages  Pages modified (dirty  IB_bp_pages_m
  buf_pool_hit_rate  Hit Rate     Buffer pool hit rate   IB_bp_buf_poo
  total_mem_alloc    Memory       Total memory allocate  IB_bp_total_m
- add_pool_alloc     Add'l Pool   Additional pool alloca  IB_bp_add_poo
+ add_pool_alloc     Add'l Pool   Additonal pool alloca  IB_bp_add_poo
 
 The first line shows which table you're editing, and reminds you again to press
 '?' for a list of key mappings.  The rest is a tabular representation of the
@@ -10485,9 +11773,9 @@ or modify its existing functionality, and add new functionality.  innotop's
 plugin functionality is event-based: plugins register themselves to be called
 when events happen.  They then have a chance to influence the event.
 
-An innotop plugin is a Perl module placed in innotop's L<"plugin_dir">
+An innotop plugin is a Perl module (.pm) file placed in innotop's L<"plugin_dir">
 directory.  On UNIX systems, you can place a symbolic link to the module instead
-of putting the actual file there.  innotop automatically discovers the file.  If
+of putting the actual file there.  innotop automatically discovers files named C<*.pm>.  If
 there is a corresponding entry in the L<"plugins"> configuration file section,
 innotop loads and activates the plugin.
 
@@ -10500,7 +11788,7 @@ file and determine the package name and description.
 innotop inspects the plugin module's source to determine the Perl package name.
 It looks for a line of the form "package Foo;" and if found, considers the
 plugin's package name to be Foo.  Of course the package name can be a valid Perl
-package name, with double semicolons and so on.
+package name such as Foo::Bar, with double colons (::) and so on.
 
 It also looks for a description in the source code, to make the plugin editor
 more human-friendly.  The description is a comment line of the form "#
@@ -10642,7 +11930,9 @@ $lines is an arrayref of strings.
 
 The easiest way to explain the plugin functionality is probably with a simple
 example.  The following module adds a column to the beginning of every table and
-sets its value to 1.
+sets its value to 1.  (If you copy and paste this example code, be sure to remove
+the first space from each line; lines such as '# description' must not start with
+whitespace).
 
  use strict;
  use warnings FATAL => 'all';
@@ -10716,6 +12006,7 @@ executes "SHOW ENGINE INNODB STATUS", while on earlier versions it executes
 
  Statement           SQL executed
  =================== ===============================
+ INDEX_STATISTICS    SELECT * FROM INFORMATION_SCHEMA.INDEX_STATISTICS
  INNODB_STATUS       SHOW [ENGINE] INNODB STATUS
  KILL_CONNECTION     KILL
  KILL_QUERY          KILL QUERY
@@ -10726,6 +12017,7 @@ executes "SHOW ENGINE INNODB STATUS", while on earlier versions it executes
  SHOW_SLAVE_STATUS   SHOW SLAVE STATUS
  SHOW_STATUS         SHOW [GLOBAL] STATUS
  SHOW_VARIABLES      SHOW [GLOBAL] VARIABLES
+ TABLE_STATISTICS    SELECT * FROM INFORMATION_SCHEMA.TABLE_STATISTICS
 
 =head1 DATA SOURCES
 
@@ -10766,6 +12058,11 @@ section of SHOW INNODB STATUS.  It is nested one level deep.
 
 This data is from the result set returned by EXPLAIN.
 
+=item INNODB_BLOCKED_BLOCKER
+
+This data is from the INFORMATION_SCHEMA tables related to InnoDB locks and
+the processlist.
+
 =item INNODB_TRANSACTIONS
 
 This data is from the TRANSACTIONS section of SHOW INNODB STATUS.
@@ -10780,6 +12077,10 @@ STATUS.
 This data is from the TRANSACTIONS section of SHOW INNODB STATUS and is nested
 two levels deep.
 
+=item MASTER_SLAVE
+
+This data is from the combination of SHOW MASTER STATUS and SHOW SLAVE STATUS.
+
 =item OPEN_TABLES
 
 This data is from SHOW OPEN TABLES.
@@ -10787,6 +12088,12 @@ This data is from SHOW OPEN TABLES.
 =item PROCESSLIST
 
 This data is from SHOW FULL PROCESSLIST.
+
+=item PROCESSLIST_STATS
+
+This data is from SHOW FULL PROCESSLIST and computes stats such as the maximum time
+a user query has been running, and how many user queries are running. A "user
+query" excludes replication threads.
 
 =item OS_WAIT_ARRAY
 
@@ -10874,6 +12181,7 @@ displays it.
 The following people and organizations are acknowledged for various reasons.
 Hopefully no one has been forgotten.
 
+Aaron Racine,
 Allen K. Smith,
 Aurimas Mikalauskas,
 Bartosz Fenski,
@@ -10925,8 +12233,8 @@ systems, you can issue `man perlgpl' or `man perlartistic' to read these
 licenses.
 
 You should have received a copy of the GNU General Public License along with
-this program; if not, write to the Free Software Foundation, Inc., 59 Temple
-Place, Suite 330, Boston, MA  02111-1307  USA.
+this program; if not, write to the Free Software Foundation, Inc., 51 Franklin
+Street, Fifth Floor, Boston, MA 02111-1301 USA.
 
 Execute innotop and press '!' to see this information at any time.
 
@@ -10937,7 +12245,7 @@ Originally written by Baron Schwartz; currently maintained by Aaron Racine.
 =head1 BUGS
 
 You can report bugs, ask for improvements, and get other help and support at
-L<http://code.google.com/p/innotop/>.  There are mailing lists, a source code
+L<https://github.com/innotop/innotop>.  There are mailing lists, a source code
 browser, a bug tracker, etc.  Please use these instead of contacting the
 maintainer or author directly, as it makes our job easier and benefits others if the
 discussions are permanent and public.  Of course, if you need to contact us in

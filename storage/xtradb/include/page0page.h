@@ -235,8 +235,7 @@ ulint
 page_header_get_offs(
 /*=================*/
 	const page_t*	page,	/*!< in: page */
-	ulint		field)	/*!< in: PAGE_FREE, ... */
-	MY_ATTRIBUTE((nonnull, pure));
+	ulint		field);	/*!< in: PAGE_FREE, ... */
 
 /*************************************************************//**
 Returns the pointer stored in the given header field, or NULL. */
@@ -528,7 +527,7 @@ bool
 page_is_leaf(
 /*=========*/
 	const page_t*	page)	/*!< in: page */
-	MY_ATTRIBUTE((nonnull, pure));
+	MY_ATTRIBUTE((warn_unused_result));
 /************************************************************//**
 Determine whether the page is empty.
 @return	true if the page is empty (PAGE_N_RECS = 0) */
@@ -849,8 +848,7 @@ page_copy_rec_list_end(
 	buf_block_t*	block,		/*!< in: index page containing rec */
 	rec_t*		rec,		/*!< in: record on page */
 	dict_index_t*	index,		/*!< in: record descriptor */
-	mtr_t*		mtr)		/*!< in: mtr */
-	MY_ATTRIBUTE((nonnull));
+	mtr_t*		mtr);		/*!< in: mtr */
 /*************************************************************//**
 Copies records from page to new_page, up to the given record, NOT
 including that record. Infimum and supremum records are not copied.
@@ -871,8 +869,7 @@ page_copy_rec_list_start(
 	buf_block_t*	block,		/*!< in: index page containing rec */
 	rec_t*		rec,		/*!< in: record on page */
 	dict_index_t*	index,		/*!< in: record descriptor */
-	mtr_t*		mtr)		/*!< in: mtr */
-	MY_ATTRIBUTE((nonnull));
+	mtr_t*		mtr);		/*!< in: mtr */
 /*************************************************************//**
 Deletes records from a page from a given record onward, including that record.
 The infimum and supremum records are not deleted. */
@@ -921,8 +918,7 @@ page_move_rec_list_end(
 	buf_block_t*	block,		/*!< in: index page from where to move */
 	rec_t*		split_rec,	/*!< in: first record to move */
 	dict_index_t*	index,		/*!< in: record descriptor */
-	mtr_t*		mtr)		/*!< in: mtr */
-	MY_ATTRIBUTE((nonnull(1, 2, 4, 5)));
+	mtr_t*		mtr);		/*!< in: mtr */
 /*************************************************************//**
 Moves record list start to another page. Moved records do not include
 split_rec.
@@ -952,8 +948,7 @@ page_dir_split_slot(
 	page_t*		page,	/*!< in: index page */
 	page_zip_des_t*	page_zip,/*!< in/out: compressed page whose
 				uncompressed part will be written, or NULL */
-	ulint		slot_no)/*!< in: the directory slot */
-	MY_ATTRIBUTE((nonnull(1)));
+	ulint		slot_no);/*!< in: the directory slot */
 /*************************************************************//**
 Tries to balance the given directory slot with too few records
 with the upper neighbor, so that there are at least the minimum number
@@ -965,8 +960,7 @@ page_dir_balance_slot(
 /*==================*/
 	page_t*		page,	/*!< in/out: index page */
 	page_zip_des_t*	page_zip,/*!< in/out: compressed page, or NULL */
-	ulint		slot_no)/*!< in: the directory slot */
-	MY_ATTRIBUTE((nonnull(1)));
+	ulint		slot_no);/*!< in: the directory slot */
 /**********************************************************//**
 Parses a log record of a record list end or start deletion.
 @return	end of log record or NULL */

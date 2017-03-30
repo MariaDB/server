@@ -580,13 +580,6 @@ void
 trx_kill_blocking(trx_t* trx);
 
 /**
-Check if redo/noredo rseg is modified for insert/update.
-@param[in] trx		Transaction to check */
-UNIV_INLINE
-bool
-trx_is_rseg_updated(const trx_t* trx);
-
-/**
 Transactions that aren't started by the MySQL server don't set
 the trx_t::mysql_thd field. For such transactions we set the lock
 wait timeout to 0 instead of the user configured value that comes
@@ -645,7 +638,7 @@ Check transaction state */
 #define	assert_trx_is_free(t)	do {					\
 	ut_ad(trx_state_eq((t), TRX_STATE_NOT_STARTED)			\
 	      || trx_state_eq((t), TRX_STATE_FORCED_ROLLBACK));		\
-	ut_ad(!trx_is_rseg_updated(trx));				\
+	ut_ad(!trx->has_logged());					\
 	ut_ad(!MVCC::is_view_active((t)->read_view));			\
 	ut_ad((t)->lock.wait_thr == NULL);				\
 	ut_ad(UT_LIST_GET_LEN((t)->lock.trx_locks) == 0);		\
@@ -856,6 +849,14 @@ struct trx_undo_ptr_t {
 					NULL if no update performed yet */
 };
 
+/** An instance of temporary rollback segment. */
+struct trx_temp_undo_t {
+	/** temporary rollback segment, or NULL if not assigned yet */
+	trx_rseg_t*	rseg;
+	/** pointer to the undo log, or NULL if nothing logged yet */
+	trx_undo_t*	undo;
+};
+
 /** Rollback segments assigned to a transaction for undo logging. */
 struct trx_rsegs_t {
 	/** undo log ptr holding reference to a rollback segment that resides in
@@ -863,10 +864,9 @@ struct trx_rsegs_t {
 	to be recovered on crash. */
 	trx_undo_ptr_t	m_redo;
 
-	/** undo log ptr holding reference to a rollback segment that resides in
-	temp tablespace used for undo logging of tables that doesn't need
-	to be recovered on crash. */
-	trx_undo_ptr_t	m_noredo;
+	/** undo log for temporary tables; discarded immediately after
+	transaction commit/rollback */
+	trx_temp_undo_t	m_noredo;
 };
 
 enum trx_rseg_type_t {
@@ -1097,8 +1097,8 @@ struct trx_t {
 
 	time_t		start_time;	/*!< time the state last time became
 					TRX_STATE_ACTIVE */
-	clock_t		start_time_micro; /*!< start time of the transaction
-					in microseconds. */
+	ib_uint64_t	start_time_micro; /*!< start time of transaction in
+					microseconds */
 	lsn_t		commit_lsn;	/*!< lsn at the time of the commit */
 	table_id_t	table_id;	/*!< Table to drop iff dict_operation
 					== TRX_DICT_OP_TABLE, or 0. */
@@ -1264,12 +1264,6 @@ struct trx_t {
 					error, or empty. */
 	FlushObserver*	flush_observer;	/*!< flush observer */
 
-#ifdef UNIV_DEBUG
-	bool		is_dd_trx;	/*!< True if the transaction is used for
-					doing Non-locking Read-only Read
-					Committed on DD tables */
-#endif /* UNIV_DEBUG */
-
 	/* Lock wait statistics */
 	ulint		n_rec_lock_waits;
 					/*!< Number of record lock waits,
@@ -1289,6 +1283,18 @@ struct trx_t {
 #endif /* WITH_WSREP */
 
 	ulint		magic_n;
+
+	/** @return whether any persistent undo log has been generated */
+	bool has_logged_persistent() const
+	{
+		return(rsegs.m_redo.insert_undo || rsegs.m_redo.update_undo);
+	}
+
+	/** @return whether any undo log has been generated */
+	bool has_logged() const
+	{
+		return(has_logged_persistent() || rsegs.m_noredo.undo);
+	}
 };
 
 /**
@@ -1598,8 +1604,6 @@ private:
 	trx_t*			m_trx;
 };
 
-#ifndef UNIV_NONINL
 #include "trx0trx.ic"
-#endif
 
 #endif

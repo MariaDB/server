@@ -138,7 +138,7 @@ void lf_pinbox_destroy(LF_PINBOX *pinbox)
   Get pins from a pinbox. Usually called via lf_alloc_get_pins() or
   lf_hash_get_pins().
 
-  SYNOPSYS
+  SYNOPSIS
     pinbox      -
 
   DESCRIPTION
@@ -442,7 +442,7 @@ static void alloc_free(uchar *first,
 /*
   initialize lock-free allocator
 
-  SYNOPSYS
+  SYNOPSIS
     allocator           -
     size                a size of an object to allocate
     free_ptr_offset     an offset inside the object to a sizeof(void *)

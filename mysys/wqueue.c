@@ -13,7 +13,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
 
 #include <wqueue.h>
 
@@ -211,7 +211,7 @@ void wqueue_release_one_locktype_from_queue(WQUEUE *wqueue)
 /*
   Add thread and wait
 
-  SYNOPSYS
+  SYNOPSIS
     wqueue_add_and_wait()
     wqueue               queue to add to
     thread               thread which is waiting

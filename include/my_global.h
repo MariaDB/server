@@ -1071,14 +1071,14 @@ typedef ulong		myf;	/* Type of MyFlags in my_funcs */
 #ifdef _WIN32
 #define dlsym(lib, name) (void*)GetProcAddress((HMODULE)lib, name)
 #define dlopen(libname, unused) LoadLibraryEx(libname, NULL, 0)
+#define RTLD_DEFAULT GetModuleHandle(NULL)
 #define dlclose(lib) FreeLibrary((HMODULE)lib)
 static inline char *dlerror(void)
 {
   static char win_errormsg[2048];
-  if(FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM,
-                   0, GetLastError(), 0, win_errormsg, 2048, NULL))
-    return win_errormsg;
-  return "";
+  FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM,
+    0, GetLastError(), 0, win_errormsg, 2048, NULL);
+  return win_errormsg;
 }
 #define HAVE_DLOPEN 1
 #define HAVE_DLERROR 1

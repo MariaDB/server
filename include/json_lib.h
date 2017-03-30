@@ -203,6 +203,7 @@ typedef struct st_json_engine_t
   enum json_value_types value_type; /* type of the value.*/
   const uchar *value;      /* Points to the value. */
   const uchar *value_begin;/* Points to where the value starts in the JSON. */
+  int value_escaped;       /* Flag telling if the string value has escaping.*/
   uint num_flags;  /* the details of the JSON_VALUE_NUMBER, is it negative,
                       or if it has the fractional part.
                       See the enum json_num_flags. */

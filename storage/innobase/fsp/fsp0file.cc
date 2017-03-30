@@ -372,9 +372,7 @@ Datafile::read_first_page(bool read_only_mode)
 		return(DB_CORRUPTION);
 	}
 
-	m_crypt_info = fil_space_read_crypt_data(
-		m_space_id, m_first_page,
-		FSP_HEADER_OFFSET + fsp_header_get_encryption_offset(ps));
+	m_crypt_info = fil_space_read_crypt_data(ps, m_first_page);
 
 	return(err);
 }
@@ -574,9 +572,7 @@ Datafile::validate_first_page(lsn_t* flush_lsn)
 		/* The space_id can be most anything, except -1. */
 		error_txt = "A bad Space ID was found";
 
-	} else if (buf_page_is_corrupted(
-			false, m_first_page, page_size,
-			fsp_is_checksum_disabled(m_space_id))) {
+	} else if (buf_page_is_corrupted(false, m_first_page, page_size)) {
 
 		/* Look for checksum and other corruptions. */
 		error_txt = "Checksum mismatch";
@@ -701,7 +697,7 @@ Datafile::find_space_id()
 			equal to univ_page_size.physical(). */
 			if (page_size == univ_page_size.physical()) {
 				noncompressed_ok = !buf_page_is_corrupted(
-					false, page, univ_page_size, false);
+					false, page, univ_page_size, NULL);
 			}
 
 			bool	compressed_ok = false;
@@ -721,7 +717,7 @@ Datafile::find_space_id()
 					true);
 
 				compressed_ok = !buf_page_is_corrupted(
-					false, page, compr_page_size, false);
+					false, page, compr_page_size, NULL);
 			}
 
 			if (noncompressed_ok || compressed_ok) {

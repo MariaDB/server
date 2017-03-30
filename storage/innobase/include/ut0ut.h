@@ -72,9 +72,7 @@ typedef time_t	ib_time_t;
 # define UT_RELAX_CPU() YieldProcessor()
 #elif defined(__powerpc__) && defined __GLIBC__
 # include <sys/platform/ppc.h>
-# define UT_RELAX_CPU() do { \
-     volatile lint      volatile_var = __ppc_get_timebase(); \
-   } while (0)
+# define UT_RELAX_CPU() __ppc_get_timebase()
 #else
 # define UT_RELAX_CPU() do { \
      volatile int32	volatile_var; \
@@ -610,9 +608,7 @@ private:
 
 } // namespace ib
 
-#ifndef UNIV_NONINL
 #include "ut0ut.ic"
-#endif
 
 #endif
 

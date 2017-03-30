@@ -14,6 +14,7 @@
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
 
 # This is the CMakeLists for XtraDB
+RETURN() # until upgraded to 5.7 XtraDB doesn't compile at all
 
 INCLUDE(CheckFunctionExists)
 INCLUDE(CheckCSourceCompiles)
@@ -499,7 +500,6 @@ SET(INNOBASE_SOURCES
 	ut/ut0timer.cc)
 
 MYSQL_ADD_PLUGIN(xtradb ${INNOBASE_SOURCES} STORAGE_ENGINE
-  DISABLED # until upgraded to 5.7, see also mysql-test/include/have_xtradb.combinations
   RECOMPILE_FOR_EMBEDDED
   LINK_LIBRARIES
     ${ZLIB_LIBRARY}

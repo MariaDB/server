@@ -1986,6 +1986,9 @@ void Item::split_sum_func2(THD *thd, Ref_ptr_array ref_pointer_array,
                                         &ref_pointer_array[el], 0, name))))
       return;                                   // fatal_error is set
   }
+  else if (type() == FUNC_ITEM && 
+           ((Item_func *) this)->with_window_func)
+    return;
   else
   {
     if (!(item_ref= (new (thd->mem_root)

@@ -36,7 +36,7 @@ mysql/innodb_table_stats
 mysql/innodb_index_stats
 test/t1
 test/t2
-NULL
+innodb_system
 SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION = 0;
 NAME
 DROP TABLE t1, t2;

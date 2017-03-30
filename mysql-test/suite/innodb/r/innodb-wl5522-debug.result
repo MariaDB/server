@@ -10,12 +10,6 @@ call mtr.add_suppression("InnoDB: Page for tablespace ");
 call mtr.add_suppression("InnoDB: Invalid FSP_SPACE_FLAGS=");
 FLUSH TABLES;
 SET GLOBAL innodb_file_per_table = 1;
-SELECT @@innodb_file_per_table;
-@@innodb_file_per_table
-1
-DROP DATABASE IF EXISTS test_wl5522;
-Warnings:
-Note	1008	Can't drop database 'test_wl5522'; database doesn't exist
 CREATE DATABASE test_wl5522;
 CREATE TABLE test_wl5522.t1 (c1 INT) ENGINE = InnoDB;
 INSERT INTO test_wl5522.t1 VALUES(1),(2),(3);
@@ -31,9 +25,6 @@ ALTER TABLE test_wl5522.t1 DISCARD TABLESPACE;
 ERROR HY000: Lost connection to MySQL server during query
 DROP TABLE test_wl5522.t1;
 SET GLOBAL innodb_file_per_table = 1;
-SELECT @@innodb_file_per_table;
-@@innodb_file_per_table
-1
 CREATE TABLE test_wl5522.t1 (c1 INT) ENGINE = Innodb;
 INSERT INTO test_wl5522.t1 VALUES (1), (2), (3), (4);
 FLUSH TABLES test_wl5522.t1 FOR EXPORT;

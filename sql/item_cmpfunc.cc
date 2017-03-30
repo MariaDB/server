@@ -645,6 +645,22 @@ int Arg_comparator::set_cmp_func(Item_func_or_sum *owner_arg,
     return 0;
   }
 
+  if (m_compare_type == REAL_RESULT &&
+      (((*a)->result_type() == DECIMAL_RESULT && !(*a)->const_item() &&
+        (*b)->result_type() == STRING_RESULT  &&  (*b)->const_item()) ||
+       ((*b)->result_type() == DECIMAL_RESULT && !(*b)->const_item() &&
+        (*a)->result_type() == STRING_RESULT  &&  (*a)->const_item())))
+  {
+    /*
+     <non-const decimal expression> <cmp> <const string expression>
+     or
+     <const string expression> <cmp> <non-const decimal expression>
+
+     Do comparison as decimal rather than float, in order not to lose precision.
+    */
+    m_compare_type= DECIMAL_RESULT;
+  }
+
   if (m_compare_type == INT_RESULT &&
       (*a)->field_type() == MYSQL_TYPE_YEAR &&
       (*b)->field_type() == MYSQL_TYPE_YEAR)
@@ -5168,6 +5184,18 @@ bool Item_func_like::with_sargable_pattern() const
   DBUG_ASSERT(res2->ptr());
   char first= res2->ptr()[0];
   return first != wild_many && first != wild_one;
+}
+
+
+SEL_TREE *Item_func_like::get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr)
+{
+  MEM_ROOT *tmp_root= param->mem_root;
+  param->thd->mem_root= param->old_root;
+  bool sargable_pattern= with_sargable_pattern();
+  param->thd->mem_root= tmp_root;
+  return sargable_pattern ?
+    Item_bool_func2::get_mm_tree(param, cond_ptr) :
+    Item_func::get_mm_tree(param, cond_ptr);
 }
 
 

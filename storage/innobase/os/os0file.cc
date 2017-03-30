@@ -2,7 +2,7 @@
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2009, Percona Inc.
-Copyright (c) 2013, 2017, MariaDB Corporation. All Rights Reserved.
+Copyright (c) 2012, 2017, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted
 by Percona Inc.. Those modifications are
@@ -39,10 +39,6 @@ Created 10/21/1995 Heikki Tuuri
 #include "sql_const.h"
 
 #include "os0file.h"
-
-#ifdef UNIV_NONINL
-#include "os0file.ic"
-#endif
 
 #ifdef UNIV_LINUX
 #include <sys/types.h>
@@ -682,22 +678,22 @@ static ulint		os_aio_n_segments = ULINT_UNDEFINED;
 
 /** If the following is true, read i/o handler threads try to
 wait until a batch of new read requests have been posted */
-static bool		os_aio_recommend_sleep_for_read_threads = false;
+static bool		os_aio_recommend_sleep_for_read_threads;
 
-ulint	os_n_file_reads		= 0;
-ulint	os_bytes_read_since_printout = 0;
-ulint	os_n_file_writes	= 0;
-ulint	os_n_fsyncs		= 0;
-ulint	os_n_file_reads_old	= 0;
-ulint	os_n_file_writes_old	= 0;
-ulint	os_n_fsyncs_old		= 0;
+ulint	os_n_file_reads;
+static ulint	os_bytes_read_since_printout;
+ulint	os_n_file_writes;
+ulint	os_n_fsyncs;
+static ulint	os_n_file_reads_old;
+static ulint	os_n_file_writes_old;
+static ulint	os_n_fsyncs_old;
 /** Number of pending write operations */
-ulint	os_n_pending_writes = 0;
+ulint	os_n_pending_writes;
 /** Number of pending read operations */
-ulint	os_n_pending_reads = 0;
+ulint	os_n_pending_reads;
 
-time_t	os_last_printout;
-bool	os_has_said_disk_full	= false;
+static time_t	os_last_printout;
+bool	os_has_said_disk_full;
 
 /** Default Zip compression level */
 extern uint page_zip_level;
@@ -1047,6 +1043,7 @@ AIO::pending_io_count() const
 #ifdef UNIV_DEBUG
 /** Validates the consistency the aio system some of the time.
 @return true if ok or the check was skipped */
+static
 bool
 os_aio_validate_skip()
 {
@@ -1920,8 +1917,7 @@ LinuxAIOHandler::collect()
 
 				slot->err = slot->type.punch_hole(
 					slot->file,
-					slot->offset,
-					static_cast<os_offset_t>(slot->len));
+					slot->offset, slot->len);
 			} else {
 				slot->err = DB_SUCCESS;
 			}
@@ -2497,6 +2493,7 @@ os_file_fsync_posix(
 @param[out]	exists		true if the file exists
 @param[out]	type		Type of the file, if it exists
 @return true if call succeeded */
+static
 bool
 os_file_status_posix(
 	const char*	path,
@@ -3602,6 +3599,7 @@ os_file_punch_hole_win32(
 @param[out]	exists		true if the file exists
 @param[out]	type		Type of the file, if it exists
 @return true if call succeeded */
+static
 bool
 os_file_status_win32(
 	const char*	path,
@@ -4881,9 +4879,7 @@ os_file_io(
 			    && !type.is_log()
 			    && type.is_write()
 			    && type.punch_hole()) {
-				*err = type.punch_hole(file,
-					offset,
-					static_cast<os_offset_t>(n));
+				*err = type.punch_hole(file, offset, n);
 
 			} else {
 				*err = DB_SUCCESS;
@@ -5541,10 +5537,7 @@ os_file_punch_hole(
 @param[in]	len		Size of the hole
 @return DB_SUCCESS or error code */
 dberr_t
-IORequest::punch_hole(
-	os_file_t	fh,
-	os_offset_t	off,
-	os_offset_t	len)
+IORequest::punch_hole(os_file_t fh, os_offset_t off, ulint len)
 {
 	/* In this debugging mode, we act as if punch hole is supported,
 	and then skip any calls to actually punch a hole here.
@@ -5553,7 +5546,7 @@ IORequest::punch_hole(
 		return(DB_SUCCESS);
 	);
 
-	os_offset_t trim_len = static_cast<os_offset_t>(get_trim_length(len));
+	ulint trim_len = get_trim_length(len);
 
 	if (trim_len == 0) {
 		return(DB_SUCCESS);
@@ -6092,9 +6085,7 @@ void
 os_aio_wake_all_threads_at_shutdown()
 {
 #ifdef WIN_ASYNC_IO
-
 	AIO::wake_at_shutdown();
-
 #elif defined(LINUX_NATIVE_AIO)
 	/* When using native AIO interface the io helper threads
 	wait on io_getevents with a timeout value of 500ms. At

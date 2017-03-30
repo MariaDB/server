@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2013, 2015, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2013, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
@@ -544,8 +544,6 @@ private:
 	latch_id_t		m_id;
 };
 
-#ifndef UNIV_NONINL
 #include "sync0policy.ic"
-#endif /* UNIV_NOINL */
 
 #endif /* sync0policy_h */

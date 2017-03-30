@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1996, 2015, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
@@ -29,9 +29,6 @@ Created 3/26/1996 Heikki Tuuri
 #include "mysqld.h"
 #include "trx0sys.h"
 #include "sql_error.h"
-#ifdef UNIV_NONINL
-#include "trx0sys.ic"
-#endif
 
 #include "fsp0fsp.h"
 #include "mtr0log.h"
@@ -139,37 +136,6 @@ uint	trx_rseg_n_slots_debug = 0;
 updated via SET GLOBAL innodb_file_format_max = 'x' or when we open
 or create a table. */
 static	file_format_t	file_format_max;
-
-#ifdef UNIV_DEBUG
-/****************************************************************//**
-Checks whether a trx is in one of rw_trx_list
-@return true if is in */
-bool
-trx_in_rw_trx_list(
-/*============*/
-	const trx_t*	in_trx)	/*!< in: transaction */
-{
-	const trx_t*	trx;
-
-	/* Non-locking autocommits should not hold any locks. */
-	check_trx_state(in_trx);
-
-	ut_ad(trx_sys_mutex_own());
-
-	ut_ad(trx_assert_started(in_trx));
-
-	for (trx = UT_LIST_GET_FIRST(trx_sys->rw_trx_list);
-	     trx != NULL && trx != in_trx;
-	     trx = UT_LIST_GET_NEXT(trx_list, trx)) {
-
-		check_trx_state(trx);
-
-		ut_ad(trx->rsegs.m_redo.rseg != NULL && !trx->read_only);
-	}
-
-	return(trx != 0);
-}
-#endif /* UNIV_DEBUG */
 
 /*****************************************************************//**
 Writes the value of max_trx_id to the file based trx system header. */

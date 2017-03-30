@@ -33,10 +33,6 @@ Created 2/17/1996 Heikki Tuuri
 
 #include "btr0sea.h"
 #ifdef BTR_CUR_HASH_ADAPT
-#ifdef UNIV_NONINL
-#include "btr0sea.ic"
-#endif /* UNIV_NOINL */
-
 #include "buf0buf.h"
 #include "page0page.h"
 #include "page0cur.h"
@@ -567,12 +563,6 @@ btr_search_update_block_hash_info(
 		block->n_bytes = info->n_bytes;
 		block->left_side = info->left_side;
 	}
-
-#ifdef UNIV_DEBUG
-	if (cursor->index->table->does_not_fit_in_memory) {
-		block->n_hash_helps = 0;
-	}
-#endif /* UNIV_DEBUG */
 
 	if ((block->n_hash_helps > page_get_n_recs(block->frame)
 	     / BTR_SEARCH_PAGE_BUILD_LIMIT)

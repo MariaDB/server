@@ -326,7 +326,7 @@ thd_destructor_proxy(void *)
 
 	st_my_thread_var *myvar= _my_thread_var();
 	THD *thd= create_thd();
-	thd_proc_info(thd, "InnoDB background thread");
+	thd_proc_info(thd, "InnoDB shutdown handler");
 
 	myvar->current_mutex = &thd_destructor_mutex;
 	myvar->current_cond = &thd_destructor_cond;
@@ -473,6 +473,31 @@ static const char* innobase_change_buffering_values[IBUF_USE_COUNT] = {
 	"all"		/* IBUF_USE_ALL */
 };
 
+/** Retrieve the FTS Relevance Ranking result for doc with doc_id
+of m_prebuilt->fts_doc_id
+@param[in,out]	fts_hdl	FTS handler
+@return the relevance ranking value */
+static
+float
+innobase_fts_retrieve_ranking(
+	FT_INFO*	fts_hdl);
+/** Free the memory for the FTS handler
+@param[in,out]	fts_hdl	FTS handler */
+static
+void
+innobase_fts_close_ranking(
+	FT_INFO*	fts_hdl);
+/** Find and Retrieve the FTS Relevance Ranking result for doc with doc_id
+of m_prebuilt->fts_doc_id
+@param[in,out]	fts_hdl	FTS handler
+@return the relevance ranking value */
+static
+float
+innobase_fts_find_ranking(
+	FT_INFO*	fts_hdl,
+	uchar*,
+	uint);
+
 /* Call back function array defined by MySQL and used to
 retrieve FTS results. */
 const struct _ft_vft ft_vft_result = {NULL,
@@ -480,6 +505,50 @@ const struct _ft_vft ft_vft_result = {NULL,
 				      innobase_fts_close_ranking,
 				      innobase_fts_retrieve_ranking,
 				      NULL};
+
+/** @return version of the extended FTS API */
+static
+uint
+innobase_fts_get_version()
+{
+	/* Currently this doesn't make much sense as returning
+	HA_CAN_FULLTEXT_EXT automatically mean this version is supported.
+	This supposed to ease future extensions.  */
+	return(2);
+}
+
+/** @return Which part of the extended FTS API is supported */
+static
+ulonglong
+innobase_fts_flags()
+{
+	return(FTS_ORDERED_RESULT | FTS_DOCID_IN_RESULT);
+}
+
+/** Find and Retrieve the FTS doc_id for the current result row
+@param[in,out]	fts_hdl	FTS handler
+@return the document ID */
+static
+ulonglong
+innobase_fts_retrieve_docid(
+	FT_INFO_EXT*	fts_hdl);
+
+/** Find and retrieve the size of the current result
+@param[in,out]	fts_hdl	FTS handler
+@return number of matching rows */
+static
+ulonglong
+innobase_fts_count_matches(
+	FT_INFO_EXT*	fts_hdl)	/*!< in: FTS handler */
+{
+	NEW_FT_INFO*	handle = reinterpret_cast<NEW_FT_INFO*>(fts_hdl);
+
+	if (handle->ft_result->rankings_by_id != NULL) {
+		return(rbt_size(handle->ft_result->rankings_by_id));
+	} else {
+		return(0);
+	}
+}
 
 const struct _ft_vft_ext ft_vft_ext_result = {innobase_fts_get_version,
 					      innobase_fts_flags,
@@ -1115,6 +1184,9 @@ static SHOW_VAR innodb_status_variables[]= {
   {"encryption_rotation_estimated_iops",
   (char*) &export_vars.innodb_encryption_rotation_estimated_iops,
    SHOW_LONG},
+  {"encryption_key_rotation_list_length",
+  (char*)&export_vars.innodb_key_rotation_list_length,
+   SHOW_LONGLONG},
 
   /* scrubing */
   {"scrub_background_page_reorganizations",
@@ -1639,14 +1711,15 @@ static MYSQL_THDVAR_BOOL(background_thread,
 			 "Internal (not user visible) flag to mark "
 			 "background purge threads", NULL, NULL, 0);
 
-/** Create a MYSQL_THD for background purge threads and mark it as such.
-@returns new MYSQL_THD */
+/** Create a MYSQL_THD for a background thread and mark it as such.
+@param name thread info for SHOW PROCESSLIST
+@return new MYSQL_THD */
 MYSQL_THD
-innobase_create_background_thd()
+innobase_create_background_thd(const char* name)
 /*============================*/
 {
 	MYSQL_THD thd= create_thd();
-	thd_proc_info(thd, "InnoDB background thread");
+	thd_proc_info(thd, name);
 	THDVAR(thd, background_thread) = true;
 	return thd;
 }
@@ -1718,22 +1791,6 @@ thd_trx_priority(THD* thd)
 	return(thd == NULL ? 0 : thd_tx_priority(thd));
 }
 #endif
-
-#ifdef UNIV_DEBUG
-/**
-Returns true if transaction should be flagged as DD attachable transaction
-@param[in] thd			Thread handle
-@return true if the thd is marked as read-only */
-bool
-thd_trx_is_dd_trx(THD* thd)
-{
-	/* JAN: TODO: MySQL 5.7
-	ha_table_flags() & HA_ATTACHABLE_TRX_COMPATIBLE
-	return(thd != NULL && thd_tx_is_dd_trx(thd));
-	*/
-	return false;
-}
-#endif /* UNIV_DEBUG */
 
 /******************************************************************//**
 Check if the transaction is an auto-commit transaction. TRUE also
@@ -1880,6 +1937,15 @@ thd_has_edited_nontrans_tables(
 	THD*	thd)	/*!< in: thread handle */
 {
 	return((ibool) thd_non_transactional_update(thd));
+}
+
+/* Return high resolution timestamp for the start of the current query */
+UNIV_INTERN
+unsigned long long
+thd_query_start_micro(
+	const THD*	thd)	/*!< in: thread handle */
+{
+	return thd_start_utime(thd);
 }
 
 /******************************************************************//**
@@ -2359,6 +2425,7 @@ innobase_strcasecmp(
 Compares NUL-terminated UTF-8 strings case insensitively. The
 second string contains wildcards.
 @return 0 if a match is found, 1 if not */
+static
 int
 innobase_wildcasecmp(
 /*=================*/
@@ -2620,6 +2687,7 @@ innobase_mysql_tmpfile(
 /*********************************************************************//**
 Wrapper around MySQL's copy_and_convert function.
 @return number of bytes copied to 'to' */
+static
 ulint
 innobase_convert_string(
 /*====================*/
@@ -3036,6 +3104,7 @@ Copy table flags from MySQL's HA_CREATE_INFO into an InnoDB table object.
 Those flags are stored in .frm file and end up in the MySQL table object,
 but are frequently used inside InnoDB so we keep their copies into the
 InnoDB table object. */
+static
 void
 innobase_copy_frm_flags_from_create_info(
 /*=====================================*/
@@ -3446,6 +3515,7 @@ and quote it.
 @param[in]	idlen	length of id, in bytes
 @param[in]	thd	MySQL connection thread, or NULL
 @return pointer to the end of buf */
+static
 char*
 innobase_convert_identifier(
 	char*		buf,
@@ -4947,8 +5017,6 @@ innobase_rollback_trx(
 /*==================*/
 	trx_t*	trx)	/*!< in: transaction */
 {
-	dberr_t	error = DB_SUCCESS;
-
 	DBUG_ENTER("innobase_rollback_trx");
 	DBUG_PRINT("trans", ("aborting transaction"));
 
@@ -4967,13 +5035,13 @@ innobase_rollback_trx(
 		lock_unlock_table_autoinc(trx);
 	}
 
-	if (trx_is_rseg_updated(trx)) {
-		error = trx_rollback_for_mysql(trx);
-	} else {
+	if (!trx->has_logged()) {
 		trx->will_lock = 0;
+		DBUG_RETURN(0);
 	}
 
-	DBUG_RETURN(convert_error_code_to_mysql(error, 0, trx->mysql_thd));
+	DBUG_RETURN(convert_error_code_to_mysql(trx_rollback_for_mysql(trx),
+						0, trx->mysql_thd));
 }
 
 
@@ -5327,7 +5395,7 @@ innobase_close_connection(
 		in the 1st and 3rd case. */
 		if (trx_is_started(trx)) {
 			if (trx_state_eq(trx, TRX_STATE_PREPARED)) {
-				if (trx_is_redo_rseg_updated(trx)) {
+				if (trx->has_logged_persistent()) {
 					trx_disconnect_prepared(trx);
 				} else {
 					trx_rollback_for_mysql(trx);
@@ -12090,6 +12158,7 @@ create_clustered_index_when_no_primary(
 /** Return a display name for the row format
 @param[in]	row_format	Row Format
 @return row format name */
+static
 const char*
 get_row_format_name(
 	enum row_type	row_format)
@@ -12343,7 +12412,7 @@ create_table_info_t::check_table_options()
 	enum row_type	row_format = m_form->s->row_type;
 	ha_table_option_struct *options= m_form->s->option_struct;
 	fil_encryption_t encrypt = (fil_encryption_t)options->encryption;
-	bool should_encrypt = (encrypt == FIL_SPACE_ENCRYPTION_ON);
+	bool should_encrypt = (encrypt == FIL_ENCRYPTION_ON);
 
 	/* Currently we do not support encryption for
 	spatial indexes thus do not allow creating table with forced
@@ -12359,7 +12428,7 @@ create_table_info_t::check_table_options()
 		}
 	}
 
-	if (encrypt != FIL_SPACE_ENCRYPTION_DEFAULT && !m_allow_file_per_table) {
+	if (encrypt != FIL_ENCRYPTION_DEFAULT && !m_allow_file_per_table) {
 		push_warning(
 			m_thd, Sql_condition::WARN_LEVEL_WARN,
 			HA_WRONG_CREATE_OPTION,
@@ -12367,7 +12436,7 @@ create_table_info_t::check_table_options()
 		return "ENCRYPTED";
  	}
 
-	if (encrypt == FIL_SPACE_ENCRYPTION_OFF && srv_encrypt_tables == 2) {
+	if (encrypt == FIL_ENCRYPTION_OFF && srv_encrypt_tables == 2) {
 		push_warning(
 			m_thd, Sql_condition::WARN_LEVEL_WARN,
 			HA_WRONG_CREATE_OPTION,
@@ -12448,8 +12517,8 @@ create_table_info_t::check_table_options()
 	}
 
 	/* If encryption is set up make sure that used key_id is found */
-	if (encrypt == FIL_SPACE_ENCRYPTION_ON ||
-		(encrypt == FIL_SPACE_ENCRYPTION_DEFAULT && srv_encrypt_tables)) {
+	if (encrypt == FIL_ENCRYPTION_ON ||
+		(encrypt == FIL_ENCRYPTION_DEFAULT && srv_encrypt_tables)) {
 		if (!encryption_key_id_exists((unsigned int)options->encryption_key_id)) {
 			push_warning_printf(
 				m_thd, Sql_condition::WARN_LEVEL_WARN,
@@ -12462,7 +12531,7 @@ create_table_info_t::check_table_options()
 	}
 
 	/* Ignore nondefault key_id if encryption is set off */
-	if (encrypt == FIL_SPACE_ENCRYPTION_OFF &&
+	if (encrypt == FIL_ENCRYPTION_OFF &&
 		options->encryption_key_id != THDVAR(m_thd, default_encryption_key_id)) {
 		push_warning_printf(
 			m_thd, Sql_condition::WARN_LEVEL_WARN,
@@ -12475,7 +12544,7 @@ create_table_info_t::check_table_options()
 
 	/* If default encryption is used make sure that used kay is found
 	from key file. */
-	if (encrypt == FIL_SPACE_ENCRYPTION_DEFAULT &&
+	if (encrypt == FIL_ENCRYPTION_DEFAULT &&
 		!srv_encrypt_tables &&
 		options->encryption_key_id != FIL_DEFAULT_ENCRYPTION_KEY) {
 		if (!encryption_key_id_exists((unsigned int)options->encryption_key_id)) {
@@ -16567,11 +16636,6 @@ ha_innobase::external_lock(
 
 		TrxInInnoDB::begin_stmt(trx);
 
-#ifdef UNIV_DEBUG
-		if (thd_trx_is_dd_trx(thd)) {
-			trx->is_dd_trx = true;
-		}
-#endif /* UNIV_DEBUG */
 		DBUG_RETURN(0);
 	} else {
 
@@ -16601,11 +16665,6 @@ ha_innobase::external_lock(
 			if (trx_is_started(trx)) {
 
 				innobase_commit(ht, thd, TRUE);
-			} else {
-				/* Since the trx state is TRX_NOT_STARTED,
-				trx_commit() will not be called. Reset
-				trx->is_dd_trx here */
-				ut_d(trx->is_dd_trx = false);
 			}
 
 		} else if (trx->isolation_level <= TRX_ISO_READ_COMMITTED
@@ -17480,13 +17539,6 @@ ha_innobase::store_lock(
 
 		++trx->will_lock;
 	}
-
-#ifdef UNIV_DEBUG
-	if (trx->is_dd_trx) {
-		ut_ad(trx->will_lock == 0
-		      && m_prebuilt->select_lock_type == LOCK_NONE);
-	}
-#endif /* UNIV_DEBUG */
 
 	return(to);
 }
@@ -18796,8 +18848,8 @@ innodb_change_buffer_max_size_update(
 }
 
 #ifdef UNIV_DEBUG
-ulong srv_fil_make_page_dirty_debug = 0;
-ulong srv_saved_page_number_debug = 0;
+static ulong srv_fil_make_page_dirty_debug = 0;
+static ulong srv_saved_page_number_debug = 0;
 
 /****************************************************************//**
 Save an InnoDB page number. */
@@ -19732,14 +19784,14 @@ innobase_index_name_is_reserved(
 	return(false);
 }
 
-/***********************************************************************
-Retrieve the FTS Relevance Ranking result for doc with doc_id
+/** Retrieve the FTS Relevance Ranking result for doc with doc_id
 of m_prebuilt->fts_doc_id
+@param[in,out]	fts_hdl	FTS handler
 @return the relevance ranking value */
+static
 float
 innobase_fts_retrieve_ranking(
-/*============================*/
-		FT_INFO * fts_hdl)	/*!< in: FTS handler */
+	FT_INFO*	fts_hdl)
 {
 	fts_result_t*	result;
 	row_prebuilt_t*	ft_prebuilt;
@@ -19754,12 +19806,12 @@ innobase_fts_retrieve_ranking(
 	return(ranking->rank);
 }
 
-/***********************************************************************
-Free the memory for the FTS handler */
+/** Free the memory for the FTS handler
+@param[in,out]	fts_hdl	FTS handler */
+static
 void
 innobase_fts_close_ranking(
-/*=======================*/
-		FT_INFO * fts_hdl)
+	FT_INFO*	fts_hdl)
 {
 	fts_result_t*	result;
 
@@ -19768,20 +19820,15 @@ innobase_fts_close_ranking(
 	fts_query_free_result(result);
 
 	my_free((uchar*) fts_hdl);
-
-	return;
 }
 
-/***********************************************************************
-Find and Retrieve the FTS Relevance Ranking result for doc with doc_id
+/** Find and Retrieve the FTS Relevance Ranking result for doc with doc_id
 of m_prebuilt->fts_doc_id
+@param[in,out]	fts_hdl	FTS handler
 @return the relevance ranking value */
+static
 float
-innobase_fts_find_ranking(
-/*======================*/
-		FT_INFO*	fts_hdl,	/*!< in: FTS handler */
-		uchar*		record,		/*!< in: Unused */
-		uint		len)		/*!< in: Unused */
+innobase_fts_find_ranking(FT_INFO* fts_hdl, uchar*, uint)
 {
 	fts_result_t*	result;
 	row_prebuilt_t*	ft_prebuilt;
@@ -19945,35 +19992,13 @@ innodb_merge_threshold_set_all_debug_update(
 }
 #endif /* UNIV_DEBUG */
 
-/***********************************************************************
-@return version of the extended FTS API */
-uint
-innobase_fts_get_version()
-/*======================*/
-{
-	/* Currently this doesn't make much sense as returning
-	HA_CAN_FULLTEXT_EXT automatically mean this version is supported.
-	This supposed to ease future extensions.  */
-	return(2);
-}
-
-/***********************************************************************
-@return Which part of the extended FTS API is supported */
-ulonglong
-innobase_fts_flags()
-/*================*/
-{
-	return(FTS_ORDERED_RESULT | FTS_DOCID_IN_RESULT);
-}
-
-
-/***********************************************************************
-Find and Retrieve the FTS doc_id for the current result row
+/** Find and Retrieve the FTS doc_id for the current result row
+@param[in,out]	fts_hdl	FTS handler
 @return the document ID */
+static
 ulonglong
 innobase_fts_retrieve_docid(
-/*========================*/
-	FT_INFO_EXT*	fts_hdl)	/*!< in: FTS handler */
+	FT_INFO_EXT*	fts_hdl)
 {
 	fts_result_t*	result;
 	row_prebuilt_t* ft_prebuilt;
@@ -19990,23 +20015,6 @@ innobase_fts_retrieve_docid(
 	}
 
 	return(ft_prebuilt->fts_doc_id);
-}
-
-/***********************************************************************
-Find and retrieve the size of the current result
-@return number of matching rows */
-ulonglong
-innobase_fts_count_matches(
-/*=======================*/
-	FT_INFO_EXT*	fts_hdl)	/*!< in: FTS handler */
-{
-	NEW_FT_INFO*	handle = reinterpret_cast<NEW_FT_INFO *>(fts_hdl);
-
-	if (handle->ft_result->rankings_by_id != 0) {
-		return rbt_size(handle->ft_result->rankings_by_id);
-	} else {
-		return(0);
-	}
 }
 
 /* These variables are never read by InnoDB or changed. They are a kind of
@@ -20292,22 +20300,24 @@ wsrep_innobase_kill_one_trx(
 
 	if (!thd) {
 		DBUG_PRINT("wsrep", ("no thd for conflicting lock"));
-		WSREP_WARN("no THD for trx: %lu", (ulong) victim_trx->id);
+		WSREP_WARN("no THD for trx: " TRX_ID_FMT, victim_trx->id);
 		DBUG_RETURN(1);
 	}
 
 	if (!bf_thd) {
 		DBUG_PRINT("wsrep", ("no BF thd for conflicting lock"));
-		WSREP_WARN("no BF THD for trx: %lu", (bf_trx) ? (ulong) bf_trx->id : (ulong) 0);
+		WSREP_WARN("no BF THD for trx: " TRX_ID_FMT,
+			   bf_trx ? bf_trx->id : 0);
 		DBUG_RETURN(1);
 	}
 
 	WSREP_LOG_CONFLICT(bf_thd, thd, TRUE);
 
-	WSREP_DEBUG("BF kill (%lu, seqno: %lld), victim: (%lu) trx: %llu",
+	WSREP_DEBUG("BF kill (%lu, seqno: %lld), victim: (%lu) trx: "
+		    TRX_ID_FMT,
  		    signal, (long long)bf_seqno,
 		    thd_get_thread_id(thd),
-		    (ulonglong) victim_trx->id);
+		    victim_trx->id);
 
 	WSREP_DEBUG("Aborting query: %s",
 		  (thd && wsrep_thd_query(thd)) ? wsrep_thd_query(thd) : "void");
@@ -20324,15 +20334,15 @@ wsrep_innobase_kill_one_trx(
 
 
 	if (wsrep_thd_query_state(thd) == QUERY_EXITING) {
-                WSREP_DEBUG("kill trx EXITING for %llu",
-                            (ulonglong) victim_trx->id);
+		WSREP_DEBUG("kill trx EXITING for " TRX_ID_FMT,
+			    victim_trx->id);
 		wsrep_thd_UNLOCK(thd);
 		DBUG_RETURN(0);
 	}
 
 	if (wsrep_thd_exec_mode(thd) != LOCAL_STATE) {
-		WSREP_DEBUG("withdraw for BF trx: %llu, state: %d",
-			    (longlong) victim_trx->id,
+		WSREP_DEBUG("withdraw for BF trx: " TRX_ID_FMT ", state: %d",
+			    victim_trx->id,
 		wsrep_thd_get_conflict_state(thd));
 	}
 
@@ -20341,8 +20351,8 @@ wsrep_innobase_kill_one_trx(
 		wsrep_thd_set_conflict_state(thd, MUST_ABORT);
 		break;
         case MUST_ABORT:
-		WSREP_DEBUG("victim %llu in MUST ABORT state",
-			    (longlong) victim_trx->id);
+		WSREP_DEBUG("victim " TRX_ID_FMT " in MUST ABORT state",
+			    victim_trx->id);
 		wsrep_thd_UNLOCK(thd);
 		wsrep_thd_awake(thd, signal);
 		DBUG_RETURN(0);
@@ -20350,9 +20360,8 @@ wsrep_innobase_kill_one_trx(
 	case ABORTED:
 	case ABORTING: // fall through
 	default:
-		WSREP_DEBUG("victim %llu in state %d",
-			    (longlong) victim_trx->id,
-                            wsrep_thd_get_conflict_state(thd));
+		WSREP_DEBUG("victim " TRX_ID_FMT " in state %d",
+			    victim_trx->id, wsrep_thd_get_conflict_state(thd));
 		wsrep_thd_UNLOCK(thd);
 		DBUG_RETURN(0);
 		break;
@@ -20364,8 +20373,8 @@ wsrep_innobase_kill_one_trx(
 
 		WSREP_DEBUG("kill query for: %ld",
 			    thd_get_thread_id(thd));
-		WSREP_DEBUG("kill trx QUERY_COMMITTING for %llu",
-			    (longlong) victim_trx->id);
+		WSREP_DEBUG("kill trx QUERY_COMMITTING for " TRX_ID_FMT,
+			    victim_trx->id);
 
 		if (wsrep_thd_exec_mode(thd) == REPL_RECV) {
 			wsrep_abort_slave_trx(bf_seqno,
@@ -20379,8 +20388,9 @@ wsrep_innobase_kill_one_trx(
 
 			switch (rcode) {
 			case WSREP_WARNING:
-				WSREP_DEBUG("cancel commit warning: %llu",
-					    (ulonglong) victim_trx->id);
+				WSREP_DEBUG("cancel commit warning: "
+					    TRX_ID_FMT,
+					    victim_trx->id);
 				wsrep_thd_UNLOCK(thd);
 				wsrep_thd_awake(thd, signal);
 				DBUG_RETURN(1);
@@ -20389,9 +20399,9 @@ wsrep_innobase_kill_one_trx(
 				break;
 			default:
 				WSREP_ERROR(
-					"cancel commit bad exit: %d %llu",
-					rcode,
-					(ulonglong) victim_trx->id);
+					"cancel commit bad exit: %d "
+					TRX_ID_FMT,
+					rcode, victim_trx->id);
 				/* unable to interrupt, must abort */
 				/* note: kill_mysql() will block, if we cannot.
 				 * kill the lock holder first.
@@ -20407,8 +20417,8 @@ wsrep_innobase_kill_one_trx(
 		/* it is possible that victim trx is itself waiting for some
 		 * other lock. We need to cancel this waiting
 		 */
-                WSREP_DEBUG("kill trx QUERY_EXEC for %llu",
-                            (ulonglong) victim_trx->id);
+		WSREP_DEBUG("kill trx QUERY_EXEC for " TRX_ID_FMT,
+			    victim_trx->id);
 
 		victim_trx->lock.was_chosen_as_deadlock_victim= TRUE;
 
@@ -20445,7 +20455,7 @@ wsrep_innobase_kill_one_trx(
 		break;
 	case QUERY_IDLE:
 	{
-                WSREP_DEBUG("kill IDLE for %llu", (ulonglong) victim_trx->id);
+		WSREP_DEBUG("kill IDLE for " TRX_ID_FMT, victim_trx->id);
 
 		if (wsrep_thd_exec_mode(thd) == REPL_RECV) {
 			WSREP_DEBUG("kill BF IDLE, seqno: %lld",
@@ -21751,10 +21761,11 @@ static MYSQL_SYSVAR_UINT(encryption_rotate_key_age,
 			 PLUGIN_VAR_RQCMDARG,
 			 "Key rotation - re-encrypt in background "
                          "all pages that were encrypted with a key that "
-                         "many (or more) versions behind",
+                         "many (or more) versions behind. Value 0 indicates "
+			 "that key rotation is disabled.",
 			 NULL,
 			 innodb_encryption_rotate_key_age_update,
-			 srv_fil_crypt_rotate_key_age, 0, UINT_MAX32, 0);
+			 1, 0, UINT_MAX32, 0);
 
 static MYSQL_SYSVAR_UINT(encryption_rotation_iops, srv_n_fil_crypt_iops,
 			 PLUGIN_VAR_RQCMDARG,
@@ -22994,8 +23005,9 @@ innodb_encrypt_tables_validate(
 						for update function */
 	struct st_mysql_value*		value)	/*!< in: incoming string */
 {
-	if (check_sysvar_enum(thd, var, save, value))
+	if (check_sysvar_enum(thd, var, save, value)) {
 		return 1;
+	}
 
 	ulong encrypt_tables = *(ulong*)save;
 
@@ -23007,6 +23019,17 @@ innodb_encrypt_tables_validate(
 		                    "encryption plugin is not available");
 		return 1;
 	}
+
+	if (!srv_fil_crypt_rotate_key_age) {
+		const char *msg = (encrypt_tables ? "enable" : "disable");
+		push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+				    HA_ERR_UNSUPPORTED,
+				    "InnoDB: cannot %s encryption, "
+				    "innodb_encryption_rotate_key_age=0"
+				    " i.e. key rotation disabled", msg);
+		return 1;
+	}
+
 	return 0;
 }
 

@@ -27,11 +27,6 @@ Created 2012-02-08 by Sunny Bains.
 #include "ha_prototypes.h"
 
 #include "row0import.h"
-
-#ifdef UNIV_NONINL
-#include "row0import.ic"
-#endif
-
 #include "btr0pcur.h"
 #include "que0que.h"
 #include "dict0boot.h"
@@ -1963,14 +1958,16 @@ PageConverter::validate(
 	buf_block_t*	block) UNIV_NOTHROW
 {
 	buf_frame_t*	page = get_frame(block);
+	ulint space_id = mach_read_from_4(
+		page + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID);
+	fil_space_t* space = fil_space_found_by_id(space_id);
 
 	/* Check that the page number corresponds to the offset in
 	the file. Flag as corrupt if it doesn't. Disable the check
 	for LSN in buf_page_is_corrupted() */
 
 	if (buf_page_is_corrupted(
-		false, page, get_page_size(),
-		fsp_is_checksum_disabled(block->page.id.space()))
+		false, page, get_page_size(), space)
 	    || (page_get_page_no(page) != offset / m_page_size.physical()
 		&& page_get_page_no(page) != 0)) {
 
@@ -2033,9 +2030,7 @@ PageConverter::operator() (
 				!is_compressed_table()
 				? block->frame : block->page.zip.data,
 				!is_compressed_table() ? 0 : m_page_zip_ptr,
-				m_current_lsn,
-				fsp_is_checksum_disabled(
-					block->page.id.space()));
+				m_current_lsn);
 		} else {
 			/* Calculate and update the checksum of non-btree
 			pages for compressed tables explicitly here. */
@@ -3388,9 +3383,10 @@ row_import_for_mysql(
 
 	mutex_enter(&trx->undo_mutex);
 
-	/* IMPORT tablespace is blocked for temp-tables and so we don't
-	need to assign temporary rollback segment for this trx. */
-	err = trx_undo_assign_undo(trx, &trx->rsegs.m_redo, TRX_UNDO_UPDATE);
+	/* TODO: Do not write any undo log for the IMPORT cleanup. */
+	trx_undo_t**	pundo = &trx->rsegs.m_redo.update_undo;
+	err = trx_undo_assign_undo(trx, trx->rsegs.m_redo.rseg, pundo,
+				   TRX_UNDO_UPDATE);
 
 	mutex_exit(&trx->undo_mutex);
 

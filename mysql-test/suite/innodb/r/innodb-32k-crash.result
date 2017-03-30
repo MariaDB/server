@@ -1,4 +1,3 @@
-call mtr.add_suppression("InnoDB: Warning: innodb_page_size has been changed from default value *");
 CREATE TABLE t1(a blob,b blob,c blob,d blob,e blob,f blob,g blob,
 h blob,i blob,j blob,k blob,l blob,m blob,n blob,
 o blob,p blob,q blob,r blob,s blob,t blob,u blob,
@@ -116,10 +115,11 @@ UPDATE t2 SET ka=@l,la=@l,ma=@l,na=@l,oa=@l,pa=@l;
 UPDATE t2 SET qa=@l,ra=@l,sa=@l,ta=@l,ua=@l;
 UPDATE t2 SET va=@l,wa=@l,xa=@l,ya=@l,za=@l;
 COMMIT;
+BEGIN;
 INSERT INTO t1 SELECT * from t2;
-SET DEBUG_DBUG='+d,crash_commit_before';
+BEGIN;
 UPDATE t1 SET a=@e,b=@e,c=@e,d=@e,e=@e;
-ERROR HY000: Lost connection to MySQL server during query
+# Kill and restart
 UPDATE t1 SET a=@f,b=@f,c=@f,d=@f,e=@f,f=@f,g=@f,h=@f,i=@f,j=@f,
 k=@f,l=@f,m=@f,n=@f,o=@f,p=@f,q=@f,r=@f,s=@f,t=@f,u=@f,
 v=@f,w=@f,x=@b,y=@f,z=@f,

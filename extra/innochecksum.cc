@@ -51,6 +51,7 @@ The parts not included are excluded by #ifndef UNIV_INNOCHECKSUM. */
 #include "fut0lst.h"			/* FLST_NODE_SIZE */
 #include "buf0checksum.h"		/* buf_calc_page_*() */
 #include "fil0fil.h"			/* FIL_* */
+#include "fil0crypt.h"
 #include "os0file.h"
 #include "fsp0fsp.h"			/* fsp_flags_get_page_size() &
 					   fsp_flags_get_zip_size() */
@@ -60,33 +61,9 @@ The parts not included are excluded by #ifndef UNIV_INNOCHECKSUM. */
 #include "ut0byte.h"
 #include "mach0data.h"
 
-#ifdef UNIV_NONINL
-# include "fsp0fsp.ic"
-# include "mach0data.ic"
-# include "ut0rnd.ic"
-#endif
-
 #ifndef PRIuMAX
 #define PRIuMAX   "llu"
 #endif
-
-/*********************************************************************
-Verify checksum for a page (iff it's encrypted)
-NOTE: currently this function can only be run in single threaded mode
-as it modifies srv_checksum_algorithm (temporarily)
-@param[in]	src_fame	page to verify
-@param[in]	page_size	page_size
-@param[in]	page_no		page number of given read_buf
-@param[in]	strict_check	true if strict-check option is enabled
-@return true if page is encrypted AND OK, false otherwise */
-UNIV_INTERN
-bool
-fil_space_verify_crypt_checksum(
-/*============================*/
-	const byte* 		src_frame,	/*!< in: page the verify */
-	const page_size_t&	page_size	/*!< in: page size */
-	,uintmax_t 		page_no,
-	bool			strict_check);
 
 /* Global variables */
 static bool			verbose;
@@ -582,6 +559,9 @@ is_page_corrupted(
 		}
 	}
 
+	/* FIXME: Read the page number from the tablespace header,
+	and check that every page carries the same page number. */
+
 	/* If page is encrypted, use different checksum calculation
 	as innochecksum can't decrypt pages. Note that some old InnoDB
 	versions did not initialize FIL_PAGE_FILE_FLUSH_LSN field
@@ -589,15 +569,19 @@ is_page_corrupted(
 	normal method.
 	*/
 	if (mach_read_from_4(buf+FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION) != 0) {
-		is_corrupted = fil_space_verify_crypt_checksum(buf, page_size,
-			cur_page_num, strict_verify);
+		is_corrupted = fil_space_verify_crypt_checksum(
+			const_cast<byte*>(buf), page_size,
+			strict_verify, is_log_enabled ? log_file : NULL,
+			mach_read_from_4(buf
+					 + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID),
+			cur_page_num);
 	} else {
 		is_corrupted = true;
 	}
 
 	if (is_corrupted) {
 		is_corrupted = buf_page_is_corrupted(
-			true, buf, page_size, false,
+			true, buf, page_size, NULL,
 			cur_page_num, strict_verify,
 			is_log_enabled, log_file);
 	}
