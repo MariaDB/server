@@ -1066,10 +1066,14 @@ int query_error_code(THD *thd, bool not_killed);
 uint purge_log_get_error_code(int res);
 
 int vprint_msg_to_log(enum loglevel level, const char *format, va_list args);
-void sql_print_error(const char *format, ...);
-void sql_print_warning(const char *format, ...);
-void sql_print_information(const char *format, ...);
-typedef void (*sql_print_message_func)(const char *format, ...);
+void sql_print_error(const char *format, ...)
+                     ATTRIBUTE_FORMAT_FPTR(printf, 1, 2);
+void sql_print_warning(const char *format, ...)
+                       ATTRIBUTE_FORMAT_FPTR(printf, 1, 2);
+void sql_print_information(const char *format, ...)
+                           ATTRIBUTE_FORMAT_FPTR(printf, 1, 2);
+typedef void (*sql_print_message_func)(const char *format, ...)
+                                       ATTRIBUTE_FORMAT_FPTR(printf, 1, 2);
 extern sql_print_message_func sql_print_message_handlers[];
 
 int error_log_print(enum loglevel level, const char *format,
@@ -1079,7 +1083,8 @@ bool slow_log_print(THD *thd, const char *query, uint query_length,
                     ulonglong current_utime);
 
 bool general_log_print(THD *thd, enum enum_server_command command,
-                       const char *format,...);
+                       const char *format,...)
+                       ATTRIBUTE_FORMAT_FPTR(printf, 3, 4);
 
 bool general_log_write(THD *thd, enum enum_server_command command,
                        const char *query, uint query_length);
