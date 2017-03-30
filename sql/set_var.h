@@ -223,6 +223,13 @@ private:
   virtual bool session_update(THD *thd, set_var *var) = 0;
   virtual bool global_update(THD *thd, set_var *var) = 0;
 
+public:
+  virtual bool option_updated()
+  {
+    DBUG_ASSERT(false);
+    return true;
+  }
+
 protected:
   /**
     A pointer to a value of the variable for SHOW.

@@ -7478,6 +7478,7 @@ insert_fields(THD *thd, Name_resolution_context *context, const char *db_name,
   Field_iterator_table_ref field_iterator;
   bool found;
   char name_buff[SAFE_NAME_LEN+1];
+  ulong vers_hide= thd->variables.vers_hide;
   DBUG_ENTER("insert_fields");
   DBUG_PRINT("arena", ("stmt arena: 0x%lx", (ulong)thd->stmt_arena));
 

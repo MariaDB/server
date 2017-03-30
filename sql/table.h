@@ -1841,16 +1841,6 @@ class Item_in_subselect;
   4) jtbm semi-join (jtbm_subselect != NULL)
 */
 
-enum vers_range_type_t
-{
-  FOR_SYSTEM_TIME_UNSPECIFIED = 0,
-  FOR_SYSTEM_TIME_AS_OF,
-  FOR_SYSTEM_TIME_FROM_TO,
-  FOR_SYSTEM_TIME_BETWEEN,
-  FOR_SYSTEM_TIME_ALL,
-  FOR_SYSTEM_TIME_BEFORE
-};
-
 enum vers_range_unit_t
 {
   UNIT_TIMESTAMP = 0,

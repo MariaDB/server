@@ -175,15 +175,34 @@ extern char *opt_backup_history_logname, *opt_backup_progress_logname,
             *opt_backup_settings_name;
 extern const char *log_output_str;
 extern const char *log_backup_output_str;
-extern char *temporal_current_timestamp;
-extern my_bool vers_force;
+
+enum vers_range_type_t
+{
+  FOR_SYSTEM_TIME_UNSPECIFIED = 0,
+  FOR_SYSTEM_TIME_AS_OF,
+  FOR_SYSTEM_TIME_FROM_TO,
+  FOR_SYSTEM_TIME_BETWEEN,
+  FOR_SYSTEM_TIME_ALL,
+  FOR_SYSTEM_TIME_BEFORE
+};
+
+struct st_vers_current_time
+{ // This struct must be POD, so no virtual-anything!
+  char *str_value; // must be first
+  vers_range_type_t type;
+  MYSQL_TIME ltime;
+  st_vers_current_time() :
+    str_value(NULL),
+    type(FOR_SYSTEM_TIME_UNSPECIFIED)
+  {}
+};
+
 enum vers_hide_enum {
   VERS_HIDE_AUTO= 0,
   VERS_HIDE_IMPLICIT,
   VERS_HIDE_FULL,
   VERS_HIDE_NEVER
 };
-extern ulong vers_hide;
 extern char *mysql_home_ptr, *pidfile_name_ptr;
 extern MYSQL_PLUGIN_IMPORT char glob_hostname[FN_REFLEN];
 extern char mysql_home[FN_REFLEN];
@@ -652,6 +671,7 @@ enum options_mysqld
   OPT_SSL_KEY,
   OPT_THREAD_CONCURRENCY,
   OPT_WANT_CORE,
+  OPT_VERS_CURRENT_TIME,
 #ifdef WITH_WSREP
   OPT_WSREP_CAUSAL_READS,
   OPT_WSREP_SYNC_WAIT,

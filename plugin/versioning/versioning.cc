@@ -17,6 +17,7 @@
 #include <mysql_version.h>
 #include <mysqld.h>
 #include "sql_plugin.h"                         // st_plugin_int
+#include "sql_class.h"
 
 /*
   Disable __attribute__() on non-gcc compilers.
@@ -29,16 +30,20 @@ static int forced_versioning_init(void *p __attribute__ ((unused)))
 {
 
   DBUG_ENTER("forced_versioning_init");
-  vers_force= true;
-  vers_hide= VERS_HIDE_FULL;
+  mysql_mutex_lock(&LOCK_global_system_variables);
+  global_system_variables.vers_force= true;
+  global_system_variables.vers_hide= VERS_HIDE_FULL;
+  mysql_mutex_unlock(&LOCK_global_system_variables);
   DBUG_RETURN(0);
 }
 
 static int forced_versioning_deinit(void *p __attribute__ ((unused)))
 {
   DBUG_ENTER("forced_versioning_deinit");
-  vers_force= false;
-  vers_hide= VERS_HIDE_AUTO;
+  mysql_mutex_lock(&LOCK_global_system_variables);
+  global_system_variables.vers_force= false;
+  global_system_variables.vers_hide= VERS_HIDE_AUTO;
+  mysql_mutex_unlock(&LOCK_global_system_variables);
   DBUG_RETURN(0);
 }
 

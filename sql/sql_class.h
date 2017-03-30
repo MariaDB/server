@@ -706,6 +706,10 @@ typedef struct system_variables
   uint idle_transaction_timeout;
   uint idle_readonly_transaction_timeout;
   uint idle_readwrite_transaction_timeout;
+
+  st_vers_current_time vers_current_time;
+  my_bool vers_force;
+  ulong vers_hide;
 } SV;
 
 /**

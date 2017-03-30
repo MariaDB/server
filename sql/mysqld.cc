@@ -781,11 +781,6 @@ char *relay_log_info_file, *report_user, *report_password, *report_host;
 char *opt_relay_logname = 0, *opt_relaylog_index_name=0;
 char *opt_logname, *opt_slow_logname, *opt_bin_logname;
 
-/* System Versioning */
-char *temporal_current_timestamp;
-my_bool vers_force= false;
-ulong vers_hide= VERS_HIDE_AUTO;
-
 /* Static variables */
 
 static volatile sig_atomic_t kill_in_progress;
@@ -9315,6 +9310,17 @@ mysqld_get_one_option(int optid, const struct my_option *opt, char *argument)
               WSREP_SYNC_WAIT_BEFORE_READ);
     break;
 #endif /* WITH_WSREP */
+  case OPT_VERS_CURRENT_TIME:
+    sys_var *var= static_cast<sys_var*>(opt->app_type);
+    DBUG_ASSERT(var);
+    if (var->option_updated())
+    {
+      sql_print_error("Can't start server: "
+                      "cannot process --vers-current-time=%.*s",
+                      FN_REFLEN, argument);
+      return 1;
+    }
+    break;
   }
   return 0;
 }

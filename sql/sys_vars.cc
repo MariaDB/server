@@ -382,14 +382,14 @@ static Sys_var_charptr Sys_basedir(
        READ_ONLY GLOBAL_VAR(mysql_home_ptr), CMD_LINE(REQUIRED_ARG, 'b'),
        IN_FS_CHARSET, DEFAULT(0));
 
-static Sys_var_charptr sys_temporal_current_timestamp(
-       "temporal_current_timestamp", "Default AS OF value for versioned tables",
-       GLOBAL_VAR(temporal_current_timestamp), CMD_LINE(REQUIRED_ARG, 'b'),
+static Sys_var_vers_asof Sys_vers_current_time(
+       "vers_current_time", "Default AS OF value for versioned tables",
+       SESSION_VAR(vers_current_time), CMD_LINE(REQUIRED_ARG, OPT_VERS_CURRENT_TIME),
        IN_FS_CHARSET, DEFAULT("now"));
 
 static Sys_var_mybool Sys_vers_force(
        "vers_force", "Force system versioning for all created tables",
-       GLOBAL_VAR(vers_force), CMD_LINE(OPT_ARG), DEFAULT(FALSE));
+       SESSION_VAR(vers_force), CMD_LINE(OPT_ARG), DEFAULT(FALSE));
 
 static const char *vers_hide_keywords[]= {"AUTO", "IMPLICIT", "FULL", "NEVER", NullS};
 static Sys_var_enum Sys_vers_hide(
@@ -398,7 +398,7 @@ static Sys_var_enum Sys_vers_hide(
        "IMPLICIT: hide implicit system fields in all queries; "
        "FULL: hide any system fields in all queries and hide versioning info in SHOW commands; "
        "NEVER: don't hide system fields",
-       GLOBAL_VAR(vers_hide), CMD_LINE(OPT_ARG), vers_hide_keywords, DEFAULT(VERS_HIDE_AUTO));
+       SESSION_VAR(vers_hide), CMD_LINE(OPT_ARG), vers_hide_keywords, DEFAULT(VERS_HIDE_AUTO));
 
 static Sys_var_ulonglong Sys_binlog_cache_size(
        "binlog_cache_size", "The size of the transactional cache for "

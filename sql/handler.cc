@@ -6698,7 +6698,7 @@ bool Vers_parse_info::check_and_fix_implicit(
 
   // CREATE ... SELECT: if at least one table in SELECT is versioned,
   // then created table will be versioned.
-  if (vers_force || vers_tables > 0)
+  if (thd->variables.vers_force || vers_tables > 0)
   {
     declared_with_system_versioning= true;
     create_info->options|= HA_VERSIONED_TABLE;
