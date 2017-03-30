@@ -9,7 +9,7 @@ IF(ESSENTIALS)
  ENDIF()
 ELSE()
   SET(CPACK_COMPONENTS_USED 
-    "Server;Client;Development;SharedLibraries;Documentation;Readme;Debuginfo;Common;connect-engine;ClientPlugins;gssapi-server;gssapi-client;aws-key-management;rocksdb-engine")
+    "Server;Client;Development;SharedLibraries;Documentation;Readme;Debuginfo;Common;VCCRT;connect-engine;ClientPlugins;gssapi-server;gssapi-client;aws-key-management;rocksdb-engine")
 ENDIF()
 
 SET( WIX_FEATURE_MySQLServer_EXTRA_FEATURES "DBInstance;SharedClientServerComponents")
@@ -35,6 +35,7 @@ SET(CPACK_COMPONENTS_ALL ${CPACK_ALL})
 SET(CPACK_COMPONENT_GROUP_ALWAYSINSTALL_HIDDEN 1)
 SET(CPACK_COMPONENT_README_GROUP "AlwaysInstall")
 SET(CPACK_COMPONENT_COMMON_GROUP "AlwaysInstall")
+SET(CPACK_COMPONENT_VCCRT_GROUP "AlwaysInstall")
 
 # Feature MySQL Server
 SET(CPACK_COMPONENT_GROUP_MYSQLSERVER_DISPLAY_NAME "MariaDB Server")
