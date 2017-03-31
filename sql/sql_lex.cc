@@ -5233,30 +5233,20 @@ bool LEX::sp_variable_declarations_finalize(THD *thd, int nvars,
       !(dflt_value_item= new (thd->mem_root) Item_null(thd)))
     return true;
 
-  if (row)
-  {
-    /*
-      Prepare all row fields. This will (among other things)
-      - convert VARCHAR lengths from character length to octet length
-      - calculate interval lengths for SET and ENUM
-      Note, we do it only one time outside of the below loop.
-      The converted list in "row" is further reused by all variable
-      declarations processed by the current call.
-      Example:
-        DECLARE
-          a, b, c ROW(x VARCHAR(10) CHARACTER SET utf8);
-        BEGIN
-          ...
-        END;
-    */
-    List_iterator<Spvar_definition> it(*row);
-    for (Spvar_definition *def= it++; def; def= it++)
-    {
-      def->pack_flag|= FIELDFLAG_MAYBE_NULL;
-      if (sphead->fill_field_definition(thd, def))
-        return true;
-    }
-  }
+  /*
+    Prepare all row fields.
+    Note, we do it only one time outside of the below loop.
+    The converted list in "row" is further reused by all variable
+    declarations processed by the current call.
+    Example:
+      DECLARE
+        a, b, c ROW(x VARCHAR(10) CHARACTER SET utf8);
+      BEGIN
+        ...
+      END;
+  */
+  if (row && sphead->row_fill_field_definitions(thd, row))
+    return true;
 
   for (uint i= num_vars - nvars ; i < num_vars ; i++)
   {
@@ -5273,9 +5263,9 @@ bool LEX::sp_variable_declarations_finalize(THD *thd, int nvars,
     {
       if (!last)
         spvar->field_def.set_column_definition(cdef);
-      if (sphead->fill_spvar_definition(thd, &spvar->field_def, spvar->name.str))
-        return true;
     }
+    if (sphead->fill_spvar_definition(thd, &spvar->field_def, spvar->name.str))
+      return true;
     spvar->field_def.set_row_field_definitions(row);
 
     /* The last instruction is responsible for freeing LEX. */
@@ -5345,7 +5335,7 @@ LEX::sp_variable_declarations_rowtype_finalize(THD *thd, int nvars,
         return true;
       spvar->field_def.set_table_rowtype_ref(table_ref);
     }
-    spvar->field_def.field_name= spvar->name.str;
+    sphead->fill_spvar_definition(thd, &spvar->field_def, spvar->name.str);
     spvar->default_value= def;
     /* The last instruction is responsible for freeing LEX. */
     sp_instr_set *is= new (this->thd->mem_root)
@@ -5442,7 +5432,7 @@ LEX::sp_add_for_loop_cursor_variable(THD *thd,
 {
   sp_variable *spvar= spcont->add_variable(thd, name);
   spcont->declare_var_boundary(1);
-  spvar->field_def.field_name= spvar->name.str;
+  sphead->fill_spvar_definition(thd, &spvar->field_def, spvar->name.str);
   spvar->default_value= new (thd->mem_root) Item_null(thd);
 
   Cursor_rowtype *ref;

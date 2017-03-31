@@ -2339,6 +2339,8 @@ sp_param_name_and_type:
           {
             $$= $1;
             $$->field_def.field_name= $$->name.str;
+            Lex->sphead->fill_spvar_definition(thd, &$$->field_def);
+            Lex->sphead->row_fill_field_definitions(thd, $2);
             $$->field_def.set_row_field_definitions($2);
           }
         ;
@@ -2369,6 +2371,8 @@ sp_pdparam:
           {
             $1->mode= $2;
             $1->field_def.field_name= $1->name.str;
+            Lex->sphead->fill_spvar_definition(thd, &$1->field_def);
+            Lex->sphead->row_fill_field_definitions(thd, $3);
             $1->field_def.set_row_field_definitions($3);
           }
         ;

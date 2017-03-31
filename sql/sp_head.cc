@@ -398,7 +398,8 @@ sp_eval_expr(THD *thd, Item *result_item, Field *result_field,
     expr_item is now fixed, it's safe to call cmp_type()
     If result_item is NULL, then we're setting the RETURN value.
   */
-  if (!result_item && expr_item->cmp_type() == ROW_RESULT)
+  if ((!result_item || result_item->cmp_type() != ROW_RESULT) &&
+      expr_item->cmp_type() == ROW_RESULT)
   {
     my_error(ER_OPERAND_COLUMNS, MYF(0), 1);
     goto error;

@@ -274,8 +274,7 @@ SELECT f1(a);
 END;
 $$
 CALL p1();
-f1(a)
-NULL
+ERROR 21000: Operand should contain 1 column(s)
 DROP PROCEDURE p1;
 DROP FUNCTION f1;
 #

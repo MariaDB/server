@@ -3844,7 +3844,7 @@ public:
     flags(0), pack_length(0), key_length(0), unireg_check(Field::NONE),
     interval(0), charset(&my_charset_bin),
     srid(0), geom_type(Field::GEOM_GEOMETRY),
-    option_list(NULL),
+    option_list(NULL), pack_flag(0),
     vcol_info(0), default_value(0), check_constraint(0)
   {
     interval_list.empty();
@@ -3857,7 +3857,7 @@ public:
     flags(0), pack_length(0), key_length(0), unireg_check(Field::NONE),
     interval(0), charset(&my_charset_bin),
     srid(0), geom_type(Field::GEOM_GEOMETRY),
-    option_list(NULL),
+    option_list(NULL), pack_flag(0),
     vcol_info(0), default_value(0), check_constraint(0)
   {
     interval_list.empty();
