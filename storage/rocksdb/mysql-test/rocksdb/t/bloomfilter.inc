@@ -1,8 +1,5 @@
 --source include/have_rocksdb.inc
 
-let tmpl_ddl= ../storage/rocksdb/mysql-test/rocksdb/t/bloomfilter_table_def.tmpl;
-let ddl= $MYSQL_TMP_DIR/bloomfilter_create.sql;
-
 DELIMITER //;
 CREATE PROCEDURE bloom_start()
 BEGIN
@@ -17,20 +14,20 @@ DELIMITER ;//
 
 
 #BF is sometimes invoked and useful
---exec sed s/##CF##//g $tmpl_ddl > $ddl
---source $ddl
---source t/bloomfilter_load_select.inc
+--let $CF=
+--source bloomfilter_table_def.inc
+--source bloomfilter_load_select.inc
 
 #BF is always invoked but not useful at all
---exec sed s/##CF##/" COMMENT 'cf_short_prefix'"/g $tmpl_ddl > $ddl
---source $ddl
---source t/bloomfilter_load_select.inc
+--let $CF=COMMENT 'cf_short_prefix'
+--source bloomfilter_table_def.inc
+--source bloomfilter_load_select.inc
 
 
 #BF is most of the time invoked and useful
---exec sed s/##CF##/" COMMENT 'cf_long_prefix'"/g $tmpl_ddl > $ddl
---source $ddl
---source t/bloomfilter_load_select.inc
+--let $CF=COMMENT 'cf_long_prefix'
+--source bloomfilter_table_def.inc
+--source bloomfilter_load_select.inc
 
 # BUG: Prev() with prefix lookup should not use prefix bloom filter
 create table r1 (id1 bigint, id2 bigint, id3 bigint, v1 int, v2 text, primary key (id1, id2, id3)) engine=rocksdb DEFAULT CHARSET=latin1 collate latin1_bin;
@@ -60,4 +57,3 @@ optimize table t2;
 drop table if exists t1;
 drop table if exists t2;
 drop table if exists r1;
---remove_file $ddl

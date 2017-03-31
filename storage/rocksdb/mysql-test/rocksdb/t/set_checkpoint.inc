@@ -11,10 +11,13 @@ if ($succeeds)
   eval SET GLOBAL ROCKSDB_CREATE_CHECKPOINT = '$checkpoint';
 
   # Check checkpoint
-  --exec ls $checkpoint/CURRENT | sed s/.*CURRENT/CURRENT/g
+  --list_files $checkpoint CURRENT
 
   # Cleanup
-  --exec rm -rf $checkpoint
+  --remove_files_wildcard $checkpoint *
+  --rmdir $checkpoint
+  --disable_abort_on_error
+  --enable_abort_on_error
 }
 if (!$succeeds)
 {

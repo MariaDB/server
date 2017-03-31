@@ -107,7 +107,7 @@ ALTER TABLE t2 ADD INDEX(value);
 ERROR HY000: Unsupported collation on string indexed column test.t2.value Use binary collation (latin1_bin, binary, utf8_bin).
 DROP TABLE t2;
 SET GLOBAL rocksdb_strict_collation_exceptions="[a-b";
- Invalid pattern in strict_collation_exceptions: [a-b
+FOUND 1 /Invalid pattern in strict_collation_exceptions: \[a-b/ in mysqld.1.err
 CREATE TABLE a (id INT PRIMARY KEY, value varchar(50), index(value)) engine=rocksdb charset utf8;
 ERROR HY000: Unsupported collation on string indexed column test.a.value Use binary collation (latin1_bin, binary, utf8_bin).
 SET GLOBAL rocksdb_strict_collation_exceptions="[a-b]";
@@ -118,7 +118,7 @@ ERROR HY000: Unsupported collation on string indexed column test.c.value Use bin
 DROP TABLE a, b;
 call mtr.add_suppression("Invalid pattern in strict_collation_exceptions:");
 SET GLOBAL rocksdb_strict_collation_exceptions="abc\\";
- Invalid pattern in strict_collation_exceptions: abc\
+FOUND 1 /Invalid pattern in strict_collation_exceptions: abc/ in mysqld.1.err
 CREATE TABLE abc (id INT PRIMARY KEY, value varchar(50), index(value)) engine=rocksdb charset utf8;
 ERROR HY000: Unsupported collation on string indexed column test.abc.value Use binary collation (latin1_bin, binary, utf8_bin).
 SET GLOBAL rocksdb_strict_collation_exceptions="abc";

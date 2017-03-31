@@ -10,15 +10,15 @@ connect (con2,localhost,root,,);
 
 connection con1;
 
-CREATE TABLE t1 (id1 INT NOT NULL, id2 INT NOT NULL, id3 VARCHAR(32),
+eval CREATE TABLE t1 (id1 INT NOT NULL, id2 INT NOT NULL, id3 VARCHAR(32),
                  id4 INT, id5 VARCHAR(32),
                  value1 INT, value2 INT, value3 VARCHAR(32),
-                 PRIMARY KEY (id1, id2) ##CF##, 
-                 UNIQUE INDEX (id2, id1) ##CF##,
-                 UNIQUE INDEX (id2, id3, id4) ##CF##,
-                 INDEX (id1) ##CF##,
-                 INDEX (id3, id1) ##CF##,
-                 UNIQUE INDEX(id5) ##CF##, 
+                 PRIMARY KEY (id1, id2)  $CF, 
+                 UNIQUE INDEX (id2, id1)  $CF,
+                 UNIQUE INDEX (id2, id3, id4)  $CF,
+                 INDEX (id1)  $CF,
+                 INDEX (id3, id1)  $CF,
+                 UNIQUE INDEX(id5)  $CF, 
                  INDEX (id2, id5)) ENGINE=ROCKSDB;
 
 --disable_query_log

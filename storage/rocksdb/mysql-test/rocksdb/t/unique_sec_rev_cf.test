@@ -1,5 +1,4 @@
 --source include/have_rocksdb.inc
 
-let ddl= $MYSQL_TMP_DIR/unique_sec_rev_cf.sql;
---exec sed s/##CF##/" COMMENT 'rev:cf'"/g ../storage/rocksdb/mysql-test/rocksdb/t/unique_sec.inc > $ddl
---source $ddl
+let $CF=COMMENT 'rev:cf';
+--source unique_sec.inc

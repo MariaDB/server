@@ -10,9 +10,7 @@
 # it in the log bug still start:  --rocksdb_validate_tables=2
 #
 
---disable_warnings
-DROP TABLE IF EXISTS t1, t2;
---enable_warnings
+call mtr.add_suppression('RocksDB: Schema mismatch');
 
 CREATE TABLE t1 (pk int primary key) ENGINE=ROCKSDB;
 CREATE TABLE t2 (pk int primary key) ENGINE=ROCKSDB PARTITION BY KEY(pk) PARTITIONS 4;
@@ -44,54 +42,48 @@ shutdown_server 10;
 --exec echo "wait" >$_expect_file_name
 shutdown_server 10;
 
-# Clear the log
---exec echo "" >$MYSQLTEST_VARDIR/log/mysqld.1.err
-
 # Rename the file
---exec mv $MYSQLTEST_VARDIR/mysqld.1/data/test/t1.frm $MYSQLTEST_VARDIR/mysqld.1/data/test/t1.frm.tmp
---exec mv $MYSQLTEST_VARDIR/mysqld.1/data/test/t2.frm $MYSQLTEST_VARDIR/mysqld.1/data/test/t2.frm.tmp
+--move_file $MYSQLTEST_VARDIR/mysqld.1/data/test/t1.frm $MYSQLTEST_VARDIR/mysqld.1/data/test/t1.frm.tmp
+--move_file $MYSQLTEST_VARDIR/mysqld.1/data/test/t2.frm $MYSQLTEST_VARDIR/mysqld.1/data/test/t2.frm.tmp
 
 # Attempt to restart the server
 --exec echo "restart:--rocksdb_validate_tables=2" >$_expect_file_name
---sleep 5
 
 --enable_reconnect
 --source include/wait_until_connected_again.inc
 --disable_reconnect
 
 # We should now have an error message
---exec echo "Expect errors that we are missing two .frm files"
---exec grep "Schema mismatch" $MYSQLTEST_VARDIR/log/mysqld.1.err | cut -d] -f2
+--echo "Expect errors that we are missing two .frm files"
+--let SEARCH_FILE=$MYSQLTEST_VARDIR/log/mysqld.1.err
+--let SEARCH_PATTERN=Schema mismatch
+--source include/search_pattern_in_file.inc
 
 # Now shut down again and rename one the .frm file back and make a copy of it
 --exec echo "wait" >$_expect_file_name
 shutdown_server 10;
 
-# Clear the log
---exec echo "" >$MYSQLTEST_VARDIR/log/mysqld.1.err
-
 # Rename the file
---exec mv $MYSQLTEST_VARDIR/mysqld.1/data/test/t1.frm.tmp $MYSQLTEST_VARDIR/mysqld.1/data/test/t1.frm
---exec mv $MYSQLTEST_VARDIR/mysqld.1/data/test/t2.frm.tmp $MYSQLTEST_VARDIR/mysqld.1/data/test/t2.frm
---exec cp $MYSQLTEST_VARDIR/mysqld.1/data/test/t1.frm $MYSQLTEST_VARDIR/mysqld.1/data/test/t1_dummy.frm
+--move_file $MYSQLTEST_VARDIR/mysqld.1/data/test/t1.frm.tmp $MYSQLTEST_VARDIR/mysqld.1/data/test/t1.frm
+--move_file $MYSQLTEST_VARDIR/mysqld.1/data/test/t2.frm.tmp $MYSQLTEST_VARDIR/mysqld.1/data/test/t2.frm
+--copy_file $MYSQLTEST_VARDIR/mysqld.1/data/test/t1.frm $MYSQLTEST_VARDIR/mysqld.1/data/test/t1_dummy.frm
 
 # Attempt to restart the server
 --exec echo "restart:--rocksdb_validate_tables=2" >$_expect_file_name
---sleep 5
 
 --enable_reconnect
 --source include/wait_until_connected_again.inc
 --disable_reconnect
 
 # We should now have an error message for the second case
---exec echo "Expect an error that we have an extra .frm file"
---exec grep "Schema mismatch" $MYSQLTEST_VARDIR/log/mysqld.1.err | cut -d] -f2
+--echo "Expect an error that we have an extra .frm file"
+--let SEARCH_PATTERN=Schema mismatch
+--source include/search_pattern_in_file.inc
 
 # Shut down an clean up
 --exec echo "wait" >$_expect_file_name
 shutdown_server 10;
---exec echo "" >$MYSQLTEST_VARDIR/log/mysqld.1.err
---exec rm $MYSQLTEST_VARDIR/mysqld.1/data/test/t1_dummy.frm
+--remove_file $MYSQLTEST_VARDIR/mysqld.1/data/test/t1_dummy.frm
 --exec echo "restart" >$_expect_file_name
 --enable_reconnect
 --source include/wait_until_connected_again.inc

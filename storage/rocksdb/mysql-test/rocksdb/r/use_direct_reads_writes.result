@@ -1,2 +1,4 @@
- RocksDB: Can't enable both use_direct_reads and allow_mmap_reads
- RocksDB: Can't enable both use_direct_writes and allow_mmap_writes
+call mtr.add_suppression("rocksdb");
+call mtr.add_suppression("Aborting");
+FOUND 1 /enable both use_direct_reads/ in mysqld.1.err
+FOUND 1 /enable both use_direct_writes/ in mysqld.1.err

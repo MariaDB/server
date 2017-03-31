@@ -1,17 +1,9 @@
 --source include/have_rocksdb.inc
-
 --source include/have_log_bin.inc
-
---enable_connect_log
-
 --source include/restart_mysqld.inc
 
 # Save the initial number of concurrent sessions
 --source include/count_sessions.inc
-
---disable_warnings
-drop table if exists r1;
---enable_warnings
 
 connect (con1,localhost,root,,);
 connect (con2,localhost,root,,);
@@ -46,19 +38,18 @@ rollback;
 
 connection con1;
 
---exec grep "START TRANSACTION WITH CONSISTENT ROCKSDB SNAPSHOT" $MYSQLTEST_VARDIR/mysqld.1/mysqld.log | wc -l
+let SEARCH_FILE=$MYSQLTEST_VARDIR/mysqld.1/mysqld.log;
+let SEARCH_PATTERN=START TRANSACTION WITH CONSISTENT ROCKSDB SNAPSHOT;
+source include/search_pattern_in_file.inc;
 
 set @save_default_storage_engine=@@global.default_storage_engine;
 SET GLOBAL default_storage_engine=rocksdb;
 --exec $MYSQL_DUMP --skip-comments --single-transaction --master-data=2 --print-ordering-key test
---exec grep "START TRANSACTION WITH CONSISTENT ROCKSDB SNAPSHOT" $MYSQLTEST_VARDIR/mysqld.1/mysqld.log | wc -l
+source include/search_pattern_in_file.inc;
 
 # Sanity test mysqldump when the --innodb-stats-on-metadata is specified (no effect)
 --echo ==== mysqldump with --innodb-stats-on-metadata ====
 --exec $MYSQL_DUMP --skip-comments --single-transaction --master-data=2 --print-ordering-key --innodb-stats-on-metadata test
-
-# wiping general log so that this test case doesn't fail with --repeat
---exec echo "" > $MYSQLTEST_VARDIR/mysqld.1/mysqld.log
 
 # testing mysqldump work with statement based binary logging
 SET GLOBAL binlog_format=statement;

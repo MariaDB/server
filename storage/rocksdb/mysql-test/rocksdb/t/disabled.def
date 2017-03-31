@@ -44,3 +44,7 @@ show_engine : MariaRocks: MariaDB doesnt support SHOW ENGINE rocksdb TRANSACTION
 rpl_row_not_found : MariaDB doesnt support slave_exec_mode='SEMI_STRICT'
 
 blind_delete_without_tx_api: MDEV-12286: rocksdb.blind_delete_without_tx_api test fails
+
+allow_no_pk_concurrent_insert: stress test
+rocksdb_deadlock_stress_rc: stress test
+rocksdb_deadlock_stress_rr: stress test

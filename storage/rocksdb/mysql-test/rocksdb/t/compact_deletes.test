@@ -31,8 +31,8 @@ while ($i<1000)
 set global rocksdb_force_flush_memtable_now=1;
 optimize table r1;
 
---exec echo Test 1: Do a bunch of updates without setting the compaction sysvar
---exec echo Expect: no compaction
+--echo Test 1: Do a bunch of updates without setting the compaction sysvar
+--echo Expect: no compaction
 let $window = 0;
 let $deletes = 0;
 let $file_size = 0;
@@ -41,8 +41,8 @@ let $primary = 1;
 let $no_more_deletes = 0;
 --source compact_deletes_test.inc
 
---exec echo Test 2: Do a bunch of updates and set the compaction sysvar
---exec echo Expect: compaction
+--echo Test 2: Do a bunch of updates and set the compaction sysvar
+--echo Expect: compaction
 let $window = 1000;
 let $deletes = 990;
 let $file_size = 0;
@@ -51,8 +51,8 @@ let $primary = 1;
 let $no_more_deletes = 1;
 --source compact_deletes_test.inc
 
---exec echo Test 3: Do a bunch of updates and set the compaction sysvar and a file size to something large
---exec echo Expect: no compaction
+--echo Test 3: Do a bunch of updates and set the compaction sysvar and a file size to something large
+--echo Expect: no compaction
 let $window = 1000;
 let $deletes = 1000;
 let $file_size = 1000000;
@@ -61,8 +61,8 @@ let $primary = 1;
 let $no_more_deletes = 0;
 --source compact_deletes_test.inc
 
---exec echo Test 4: Do a bunch of secondary key updates and set the compaction sysvar
---exec echo Expect: compaction
+--echo Test 4: Do a bunch of secondary key updates and set the compaction sysvar
+--echo Expect: compaction
 let $window = 1000;
 let $deletes = 50;
 let $file_size = 0;
@@ -71,9 +71,9 @@ let $primary = 0;
 let $no_more_deletes = 1;
 --source compact_deletes_test.inc
 
---exec echo Test 5: Do a bunch of secondary key updates and set the compaction sysvar,
---exec echo and rocksdb_compaction_sequential_deletes_count_sd turned on
---exec echo Expect: compaction
+--echo Test 5: Do a bunch of secondary key updates and set the compaction sysvar,
+--echo and rocksdb_compaction_sequential_deletes_count_sd turned on
+--echo Expect: compaction
 let $window = 1000;
 let $deletes = 50;
 let $file_size = 0;

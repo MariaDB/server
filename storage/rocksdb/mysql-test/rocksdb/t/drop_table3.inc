@@ -1,5 +1,8 @@
 --source include/have_rocksdb.inc
 
+call mtr.add_suppression("Column family 'cf1' not found");
+call mtr.add_suppression("Column family 'rev:cf2' not found");
+
 --disable_warnings
 DROP TABLE IF EXISTS t1;
 --enable_warnings
@@ -9,7 +12,6 @@ set global rocksdb_compact_cf = 'cf1';
 set global rocksdb_compact_cf = 'rev:cf2';
 set global rocksdb_signal_drop_index_thread = 1;
 --source include/restart_mysqld.inc
---exec truncate --size=0 $MYSQLTEST_VARDIR/log/mysqld.1.err
 
 CREATE TABLE t1 (
   a int not null,

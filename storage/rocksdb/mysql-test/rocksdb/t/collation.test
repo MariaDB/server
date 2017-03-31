@@ -3,10 +3,6 @@
 # following check is commented out:
 # --source include/have_fullregex.inc
 
-# Unixisms (exec grep)
---source include/not_windows.inc
-
-
 SET @start_global_value = @@global.ROCKSDB_STRICT_COLLATION_EXCEPTIONS;
 
 --disable_warnings
@@ -159,9 +155,10 @@ DROP TABLE t2;
 
 
 # test invalid regex (missing end bracket)
---exec echo "" >$MYSQLTEST_VARDIR/log/mysqld.1.err
 SET GLOBAL rocksdb_strict_collation_exceptions="[a-b";
---exec grep "Invalid pattern" $MYSQLTEST_VARDIR/log/mysqld.1.err | cut -d] -f2
+let SEARCH_FILE=$MYSQLTEST_VARDIR/log/mysqld.1.err;
+let SEARCH_PATTERN=Invalid pattern in strict_collation_exceptions: \[a-b;
+source include/search_pattern_in_file.inc;
 --error ER_UNKNOWN_ERROR
 CREATE TABLE a (id INT PRIMARY KEY, value varchar(50), index(value)) engine=rocksdb charset utf8;
 SET GLOBAL rocksdb_strict_collation_exceptions="[a-b]";
@@ -173,9 +170,9 @@ DROP TABLE a, b;
 
 call mtr.add_suppression("Invalid pattern in strict_collation_exceptions:");
 # test invalid regex (trailing escape)
---exec echo "" >$MYSQLTEST_VARDIR/log/mysqld.1.err
 SET GLOBAL rocksdb_strict_collation_exceptions="abc\\";
---exec grep "Invalid pattern" $MYSQLTEST_VARDIR/log/mysqld.1.err | cut -d] -f2
+let SEARCH_PATTERN=Invalid pattern in strict_collation_exceptions: abc;
+source include/search_pattern_in_file.inc;
 --error ER_UNKNOWN_ERROR
 CREATE TABLE abc (id INT PRIMARY KEY, value varchar(50), index(value)) engine=rocksdb charset utf8;
 SET GLOBAL rocksdb_strict_collation_exceptions="abc";

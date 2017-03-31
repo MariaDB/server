@@ -1,7 +1,7 @@
 --source include/have_rocksdb.inc
 
-#Unixisms (--exec truncate, du, grep ,sed)
---source include/not_windows.inc
+call mtr.add_suppression("Column family 'cf1' not found");
+call mtr.add_suppression("Column family 'rev:cf2' not found");
 
 --disable_warnings
 DROP TABLE IF EXISTS t1;
@@ -16,7 +16,6 @@ set global rocksdb_compact_cf = 'cf1';
 set global rocksdb_compact_cf = 'rev:cf2';
 set global rocksdb_signal_drop_index_thread = 1;
 --source include/restart_mysqld.inc
---exec truncate --size=0 $MYSQLTEST_VARDIR/log/mysqld.1.err
 
 CREATE TABLE t1 (
   a int not null,
@@ -90,9 +89,12 @@ let $max = 1000;
 let $table = t5;
 --source drop_table_repopulate_table.inc
 
-let $output= $MYSQLTEST_VARDIR/tmp/size_output;
-
---exec du -c $MYSQLTEST_VARDIR/mysqld.1/data/.rocksdb/*.sst |grep total |sed 's/[\t]total/ before/' > $output
+perl;
+use autodie qw(open);
+$size+=-s $_ for (<$ENV{MYSQLTEST_VARDIR}/mysqld.1/data/.rocksdb/*.sst>);
+open(F, '>', "$ENV{MYSQLTEST_VARDIR}/tmp/size_output"); 
+print F $size;
+EOF
 drop table t1;
 drop table t2;
 drop table t3;
@@ -107,7 +109,12 @@ let $wait_condition = select count(*) = 0
 --source include/wait_condition.inc
 
 # Check that space is reclaimed
---exec du -c $MYSQLTEST_VARDIR/mysqld.1/data/.rocksdb/*.sst |grep total |sed 's/[\t]total/ after/' >> $output
---exec perl ../storage/rocksdb/mysql-test/rocksdb/t/drop_table2_check.pl $output
+perl;
+use autodie qw(open);
+$size+=-s $_ for (<$ENV{MYSQLTEST_VARDIR}/mysqld.1/data/.rocksdb/*.sst>);
+open(F, '<', "$ENV{MYSQLTEST_VARDIR}/tmp/size_output"); 
+$old=<F>;
+print "Compacted\n" if $old > $size * 2;
+EOF
 
 # Cleanup

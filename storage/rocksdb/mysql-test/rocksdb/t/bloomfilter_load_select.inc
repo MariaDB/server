@@ -1,10 +1,10 @@
+source include/have_sequence.inc;
+
 # loading some data (larger than write buf size) to cause compaction
---exec perl ../storage/rocksdb/mysql-test/rocksdb/t/gen_insert.pl t1 >  $MYSQL_TMP_DIR/insert_t1.sql
---exec perl ../storage/rocksdb/mysql-test/rocksdb/t/gen_insert.pl t2 >  $MYSQL_TMP_DIR/insert_t2.sql
---disable_query_log
---source $MYSQL_TMP_DIR/insert_t1.sql
---source $MYSQL_TMP_DIR/insert_t2.sql
---enable_query_log
+insert t1
+  select (seq+9) div 10, (seq+4) div 5, (seq+4) div 5, seq, seq, 1000, "aaabbbccc"
+  from seq_1_to_10000;
+insert t2 select * from t1;
 
 # BF conditions (prefix short(4B)|medium(20B)|long(240B))
 #0 no eq condition (o, x, x)
