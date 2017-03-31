@@ -3444,7 +3444,6 @@ Create_sp_func::create_with_db(THD *thd, LEX_STRING db, LEX_STRING name,
     arg_count= item_list->elements;
 
   qname= new (thd->mem_root) sp_name(db, name, use_explicit_name);
-  qname->init_qname(thd);
   sp_add_used_routine(lex, thd, qname, TYPE_ENUM_FUNCTION);
 
   if (arg_count > 0)

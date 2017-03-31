@@ -2858,7 +2858,6 @@ sp_name:
             $$= new (thd->mem_root) sp_name($1, $3, true);
             if ($$ == NULL)
               MYSQL_YYABORT;
-            $$->init_qname(thd);
           }
         | ident
           {
@@ -2873,7 +2872,6 @@ sp_name:
             $$= new (thd->mem_root) sp_name(db, $1, false);
             if ($$ == NULL)
               MYSQL_YYABORT;
-            $$->init_qname(thd);
           }
         ;
 
@@ -12144,7 +12142,6 @@ drop:
             spname= new (thd->mem_root) sp_name($4, $6, true);
             if (spname == NULL)
               MYSQL_YYABORT;
-            spname->init_qname(thd);
             lex->spname= spname;
           }
         | DROP FUNCTION_SYM opt_if_exists ident
@@ -12160,7 +12157,6 @@ drop:
             spname= new (thd->mem_root) sp_name(db, $4, false);
             if (spname == NULL)
               MYSQL_YYABORT;
-            spname->init_qname(thd);
             lex->spname= spname;
           }
         | DROP PROCEDURE_SYM opt_if_exists sp_name
@@ -16755,7 +16751,8 @@ sf_tail:
             lex->sql_command= SQLCOM_CREATE_SPFUNCTION;
             sp->set_stmt_end(thd);
             if (!(sp->m_flags & sp_head::HAS_RETURN))
-              my_yyabort_error((ER_SP_NORETURN, MYF(0), sp->m_qname.str));
+              my_yyabort_error((ER_SP_NORETURN, MYF(0),
+                                ErrConvDQName(sp).ptr()));
             (void) is_native_function_with_warn(thd, &sp->m_name);
             sp->restore_thd_mem_root(thd);
           }

@@ -401,42 +401,14 @@ error:
 */
 
 sp_name::sp_name(const MDL_key *key, char *qname_buff)
+ :Database_qualified_name((char*)key->db_name(), key->db_name_length(),
+                          (char*)key->name(),  key->name_length()),
+  m_explicit_name(false)
 {
-  m_db.str= (char*)key->db_name();
-  m_db.length= key->db_name_length();
-  m_name.str= (char*)key->name();
-  m_name.length= key->name_length();
-  m_qname.str= qname_buff;
   if (m_db.length)
-  {
     strxmov(qname_buff, m_db.str, ".", m_name.str, NullS);
-    m_qname.length= m_db.length + 1 + m_name.length;
-  }
   else
-  {
     strmov(qname_buff, m_name.str);
-    m_qname.length= m_name.length;
-  }
-  m_explicit_name= false;
-}
-
-
-/**
-  Init the qualified name from the db and name.
-*/
-void
-sp_name::init_qname(THD *thd)
-{
-  const uint dot= !!m_db.length;
-  /* m_qname format: [database + dot] + name + '\0' */
-  m_qname.length= m_db.length + dot + m_name.length;
-  if (!(m_qname.str= (char*) thd->alloc(m_qname.length + 1)))
-    return;
-  sprintf(m_qname.str, "%.*s%.*s%.*s",
-          (int) m_db.length, (m_db.length ? m_db.str : ""),
-          dot, ".",
-          (int) m_name.length, m_name.str);
-  DBUG_ASSERT(ok_for_lower_case_names(m_db.str));
 }
 
 
@@ -516,6 +488,7 @@ sp_head::operator delete(void *ptr, size_t size) throw()
 
 sp_head::sp_head()
   :Query_arena(&main_mem_root, STMT_INITIALIZED_FOR_SP),
+   Database_qualified_name(null_lex_str, null_lex_str),
    m_flags(0),
    m_sp_cache_version(0),
    m_creation_ctx(0),
@@ -534,7 +507,7 @@ sp_head::sp_head()
     be rewritten soon. Remove the else part and replace 'if' with
     an assert when this is done.
   */
-  m_db= m_name= m_qname= null_lex_str;
+  m_qname= null_lex_str;
 
   DBUG_ENTER("sp_head::sp_head");
 
@@ -620,13 +593,7 @@ sp_head::init_sp_name(THD *thd, sp_name *spname)
 
   m_explicit_name= spname->m_explicit_name;
 
-  if (spname->m_qname.length == 0)
-    spname->init_qname(thd);
-
-  m_qname.length= spname->m_qname.length;
-  m_qname.str= (char*) memdup_root(thd->mem_root,
-                                   spname->m_qname.str,
-                                   spname->m_qname.length + 1);
+  spname->make_qname(thd, &m_qname);
 
   DBUG_VOID_RETURN;
 }
@@ -1623,7 +1590,8 @@ sp_head::execute_function(THD *thd, Item **argp, uint argcount,
       invoking query properly.
     */
     my_error(ER_SP_WRONG_NO_OF_ARGS, MYF(0),
-             "FUNCTION", m_qname.str, m_pcont->context_var_count(), argcount);
+             "FUNCTION", ErrConvDQName(this).ptr(),
+             m_pcont->context_var_count(), argcount);
     DBUG_RETURN(TRUE);
   }
   /*
@@ -1847,7 +1815,7 @@ sp_head::execute_procedure(THD *thd, List<Item> *args)
   if (args->elements != params)
   {
     my_error(ER_SP_WRONG_NO_OF_ARGS, MYF(0), "PROCEDURE",
-             m_qname.str, params, args->elements);
+             ErrConvDQName(this).ptr(), params, args->elements);
     DBUG_RETURN(TRUE);
   }
 
@@ -1905,7 +1873,7 @@ sp_head::execute_procedure(THD *thd, List<Item> *args)
 
         if (!srp)
         {
-          my_error(ER_SP_NOT_VAR_ARG, MYF(0), i+1, m_qname.str);
+          my_error(ER_SP_NOT_VAR_ARG, MYF(0), i+1, ErrConvDQName(this).ptr());
           err_status= TRUE;
           break;
         }

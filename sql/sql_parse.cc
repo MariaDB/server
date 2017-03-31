@@ -2854,7 +2854,7 @@ static bool do_execute_sp(THD *thd, sp_head *sp)
     if (!(thd->client_capabilities & CLIENT_MULTI_RESULTS))
     {
       /* The client does not support multiple result sets being sent back */
-      my_error(ER_SP_BADSELECT, MYF(0), sp->m_qname.str);
+      my_error(ER_SP_BADSELECT, MYF(0), ErrConvDQName(sp).ptr());
       return 1;
     }
     /*
@@ -5760,7 +5760,7 @@ end_with_restore_list:
                                 &thd->sp_proc_cache, TRUE)))
       {
 	my_error(ER_SP_DOES_NOT_EXIST, MYF(0), "PROCEDURE",
-                 lex->spname->m_qname.str);
+                 ErrConvDQName(lex->spname).ptr());
 	goto error;
       }
       else
@@ -5820,11 +5820,11 @@ end_with_restore_list:
 	break;
       case SP_KEY_NOT_FOUND:
 	my_error(ER_SP_DOES_NOT_EXIST, MYF(0),
-                 SP_COM_STRING(lex), lex->spname->m_qname.str);
+                 SP_COM_STRING(lex), ErrConvDQName(lex->spname).ptr());
 	goto error;
       default:
 	my_error(ER_SP_CANT_ALTER, MYF(0),
-                 SP_COM_STRING(lex), lex->spname->m_qname.str);
+                 SP_COM_STRING(lex), ErrConvDQName(lex->spname).ptr());
 	goto error;
       }
       break;
@@ -5931,17 +5931,18 @@ end_with_restore_list:
           res= write_bin_log(thd, TRUE, thd->query(), thd->query_length());
 	  push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
 			      ER_SP_DOES_NOT_EXIST, ER_THD(thd, ER_SP_DOES_NOT_EXIST),
-                              SP_COM_STRING(lex), lex->spname->m_qname.str);
+                              SP_COM_STRING(lex),
+                              ErrConvDQName(lex->spname).ptr());
           if (!res)
             my_ok(thd);
 	  break;
 	}
 	my_error(ER_SP_DOES_NOT_EXIST, MYF(0),
-                 SP_COM_STRING(lex), lex->spname->m_qname.str);
+                 SP_COM_STRING(lex), ErrConvDQName(lex->spname).ptr());
 	goto error;
       default:
 	my_error(ER_SP_DROP_FAILED, MYF(0),
-                 SP_COM_STRING(lex), lex->spname->m_qname.str);
+                 SP_COM_STRING(lex), ErrConvDQName(lex->spname).ptr());
 	goto error;
       }
       break;

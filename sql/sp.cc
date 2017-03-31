@@ -1848,7 +1848,6 @@ sp_exist_routines(THD *thd, TABLE_LIST *routines, bool is_proc)
     lex_db.str= thd->strmake(routine->db, lex_db.length);
     lex_name.str= thd->strmake(routine->table_name, lex_name.length);
     name= new sp_name(lex_db, lex_name, true);
-    name->init_qname(thd);
     sp_object_found= is_proc ? sp_find_routine(thd, TYPE_ENUM_PROCEDURE,
                                                name, &thd->sp_proc_cache,
                                                FALSE) != NULL :
@@ -2175,20 +2174,8 @@ int sp_cache_routine(THD *thd, enum stored_procedure_type type, sp_name *name,
       */
       if (! thd->is_error())
       {
-        /*
-          SP allows full NAME_LEN chars thus he have to allocate enough
-          size in bytes. Otherwise there is stack overrun could happen
-          if multibyte sequence is `name`. `db` is still safe because the
-          rest of the server checks agains NAME_LEN bytes and not chars.
-          Hence, the overrun happens only if the name is in length > 32 and
-          uses multibyte (cyrillic, greek, etc.)
-        */
-        char n[NAME_LEN*2+2];
-
-        /* m_qname.str is not always \0 terminated */
-        memcpy(n, name->m_qname.str, name->m_qname.length);
-        n[name->m_qname.length]= '\0';
-        my_error(ER_SP_PROC_TABLE_CORRUPT, MYF(0), n, ret);
+        my_error(ER_SP_PROC_TABLE_CORRUPT, MYF(0),
+                 ErrConvDQName(name).ptr(), ret);
       }
       break;
   }
@@ -2322,7 +2309,6 @@ sp_load_for_information_schema(THD *thd, TABLE *proc_table, String *db,
   sp_name_str.str= name->c_ptr();
   sp_name_str.length= name->length();
   sp_name sp_name_obj(sp_db_str, sp_name_str, true);
-  sp_name_obj.init_qname(thd);
   *free_sp_head= 0;
   if ((sp= sp_cache_lookup(spc, &sp_name_obj)))
   {

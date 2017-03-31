@@ -107,29 +107,21 @@ protected:
 
 /*************************************************************************/
 
-class sp_name : public Sql_alloc
+class sp_name : public Sql_alloc,
+                public Database_qualified_name
 {
 public:
-
-  LEX_STRING m_db;
-  LEX_STRING m_name;
-  LEX_STRING m_qname;
   bool       m_explicit_name;                   /**< Prepend the db name? */
 
   sp_name(LEX_STRING db, LEX_STRING name, bool use_explicit_name)
-    : m_db(db), m_name(name), m_explicit_name(use_explicit_name)
+    : Database_qualified_name(db, name), m_explicit_name(use_explicit_name)
   {
     if (lower_case_table_names && m_db.str)
       m_db.length= my_casedn_str(files_charset_info, m_db.str);
-    m_qname.str= 0;
-    m_qname.length= 0;
   }
 
   /** Create temporary sp_name object from MDL key. */
   sp_name(const MDL_key *key, char *qname_buff);
-
-  // Init. the qualified name from the db and name.
-  void init_qname(THD *thd);	// thd for memroot allocation
 
   ~sp_name()
   {}
@@ -139,7 +131,8 @@ public:
 bool
 check_routine_name(LEX_STRING *ident);
 
-class sp_head :private Query_arena
+class sp_head :private Query_arena,
+               public Database_qualified_name
 {
   sp_head(const sp_head &);	/**< Prevent use of these */
   void operator=(sp_head &);
@@ -185,8 +178,6 @@ public:
   sql_mode_t m_sql_mode;		///< For SHOW CREATE and execution
   LEX_STRING m_qname;		///< db.name
   bool m_explicit_name;         ///< Prepend the db name? */
-  LEX_STRING m_db;
-  LEX_STRING m_name;
   LEX_STRING m_params;
   LEX_STRING m_body;
   LEX_STRING m_body_utf8;

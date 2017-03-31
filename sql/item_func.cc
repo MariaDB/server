@@ -6338,7 +6338,6 @@ Item_func_sp::Item_func_sp(THD *thd, Name_resolution_context *context_arg,
   Item_func(thd), context(context_arg), m_name(name), m_sp(NULL), sp_result_field(NULL)
 {
   maybe_null= 1;
-  m_name->init_qname(thd);
   dummy_table= (TABLE*) thd->calloc(sizeof(TABLE)+ sizeof(TABLE_SHARE));
   dummy_table->s= (TABLE_SHARE*) (dummy_table+1);
 }
@@ -6350,7 +6349,6 @@ Item_func_sp::Item_func_sp(THD *thd, Name_resolution_context *context_arg,
   sp_result_field(NULL)
 {
   maybe_null= 1;
-  m_name->init_qname(thd);
   dummy_table= (TABLE*) thd->calloc(sizeof(TABLE)+ sizeof(TABLE_SHARE));
   dummy_table->s= (TABLE_SHARE*) (dummy_table+1);
 }
@@ -6435,7 +6433,7 @@ Item_func_sp::init_result_field(THD *thd)
   if (!(m_sp= sp_find_routine(thd, TYPE_ENUM_FUNCTION, m_name,
                                &thd->sp_func_cache, TRUE)))
   {
-    my_missing_function_error (m_name->m_name, m_name->m_qname.str);
+    my_missing_function_error (m_name->m_name, ErrConvDQName(m_name).ptr());
     context->process_error(thd);
     DBUG_RETURN(TRUE);
   }
