@@ -77,6 +77,11 @@
 #define GET_HA_ROWS GET_ULONG
 #endif
 
+// Disable warning caused by SESSION_VAR() macro
+#ifdef __clang__
+#pragma clang diagnostic ignored "-Winvalid-offsetof"
+#endif
+
 /*
   special assert for sysvars. Tells the name of the variable,
   and fails even in non-debug builds.
