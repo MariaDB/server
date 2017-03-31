@@ -102,6 +102,17 @@ ELSE()
    SET(EXTRA_SDK_CMAKE_FLAGS ${EXTRA_SDK_CMAKE_FLAGS} -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER})
   ENDIF()
 
+  SET(byproducts )
+  # We do not need to build the whole SDK , just 2 of its libs
+  set(AWS_SDK_LIBS aws-cpp-sdk-core aws-cpp-sdk-kms)
+  FOREACH(lib ${AWS_SDK_LIBS})
+    ADD_LIBRARY(${lib} STATIC IMPORTED GLOBAL)
+    ADD_DEPENDENCIES(${lib} aws_sdk_cpp)
+    SET(loc "${CMAKE_CURRENT_BINARY_DIR}/aws_sdk_cpp/lib/${CMAKE_STATIC_LIBRARY_PREFIX}${lib}${CMAKE_STATIC_LIBRARY_SUFFIX}")
+    SET(byproducts ${byproducts} BUILD_BYPRODUCTS ${loc})
+    SET_TARGET_PROPERTIES(${lib} PROPERTIES IMPORTED_LOCATION ${loc})
+  ENDFOREACH()
+
   SET(AWS_SDK_PATCH_COMMAND )
   ExternalProject_Add(
     aws_sdk_cpp
@@ -109,7 +120,8 @@ ELSE()
     GIT_TAG "1.0.8"
     UPDATE_COMMAND ""
     SOURCE_DIR "${CMAKE_CURRENT_BINARY_DIR}/aws-sdk-cpp"
-    CMAKE_ARGS 
+    ${byproducts}
+    CMAKE_ARGS
     -DBUILD_ONLY=kms
     -DBUILD_SHARED_LIBS=OFF
     -DFORCE_SHARED_CRT=OFF
@@ -122,14 +134,6 @@ ELSE()
     TEST_COMMAND ""
   )
   SET_TARGET_PROPERTIES(aws_sdk_cpp PROPERTIES EXCLUDE_FROM_ALL TRUE)
-  # We do not need to build the whole SDK , just 2 of its libs
-  set(AWS_SDK_LIBS aws-cpp-sdk-core aws-cpp-sdk-kms)
-  FOREACH(lib ${AWS_SDK_LIBS})
-    ADD_LIBRARY(${lib} STATIC IMPORTED GLOBAL)
-    ADD_DEPENDENCIES(${lib} aws_sdk_cpp)
-    SET(loc "${CMAKE_CURRENT_BINARY_DIR}/aws_sdk_cpp/lib/${CMAKE_STATIC_LIBRARY_PREFIX}${lib}${CMAKE_STATIC_LIBRARY_SUFFIX}")
-    SET_TARGET_PROPERTIES(${lib} PROPERTIES IMPORTED_LOCATION ${loc})
-  ENDFOREACH()
 
   IF(CMAKE_SYSTEM_NAME MATCHES "Linux")
     # Need whole-archive , otherwise static libraries are not linked
@@ -149,4 +153,3 @@ ELSE()
 ENDIF()
 
 TARGET_LINK_LIBRARIES(aws_key_management ${AWS_SDK_LIBS} ${AWS_CPP_SDK_DEPENDENCIES})
-
