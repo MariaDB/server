@@ -652,10 +652,8 @@ void toku_ftnode_clone_callback(void *value_data,
     // set new pair attr if necessary
     if (node->height == 0) {
         *new_attr = make_ftnode_pair_attr(node);
-        for (int i = 0; i < node->n_children; i++) {
-            BLB(node, i)->logical_rows_delta = 0;
-            BLB(cloned_node, i)->logical_rows_delta = 0;
-        }
+        node->logical_rows_delta = 0;
+        cloned_node->logical_rows_delta = 0;
     } else {
         new_attr->is_valid = false;
     }
@@ -703,6 +701,10 @@ void toku_ftnode_flush_callback(CACHEFILE UU(cachefile),
             if (ftnode->height == 0) {
                 FT_STATUS_INC(FT_FULL_EVICTIONS_LEAF, 1);
                 FT_STATUS_INC(FT_FULL_EVICTIONS_LEAF_BYTES, node_size);
+                if (!ftnode->dirty) {
+                    toku_ft_adjust_logical_row_count(
+                        ft, -ftnode->logical_rows_delta);
+                }
             } else {
                 FT_STATUS_INC(FT_FULL_EVICTIONS_NONLEAF, 1);
                 FT_STATUS_INC(FT_FULL_EVICTIONS_NONLEAF_BYTES, node_size);
@@ -715,10 +717,11 @@ void toku_ftnode_flush_callback(CACHEFILE UU(cachefile),
                         BASEMENTNODE bn = BLB(ftnode, i);
                         toku_ft_decrease_stats(&ft->in_memory_stats,
                                                bn->stat64_delta);
-                        if (!ftnode->dirty)
-                            toku_ft_adjust_logical_row_count(
-                                ft, -bn->logical_rows_delta);
                     }
+                }
+                if (!ftnode->dirty) {
+                    toku_ft_adjust_logical_row_count(
+                        ft, -ftnode->logical_rows_delta);
                 }
             }
         }
@@ -945,8 +948,6 @@ int toku_ftnode_pe_callback(void *ftnode_pv,
                     basements_to_destroy[num_basements_to_destroy++] = bn;
                     toku_ft_decrease_stats(&ft->in_memory_stats,
                                            bn->stat64_delta);
-                    toku_ft_adjust_logical_row_count(ft,
-                                                     -bn->logical_rows_delta);
                     set_BNULL(node, i);
                     BP_STATE(node, i) = PT_ON_DISK;
                     num_partial_evictions++;
@@ -2653,7 +2654,7 @@ static std::unique_ptr<char[], decltype(&toku_free)> toku_file_get_parent_dir(
     return result;
 }
 
-static bool toku_create_subdirs_if_needed(const char *path) {
+bool toku_create_subdirs_if_needed(const char *path) {
     static const mode_t dir_mode = S_IRUSR | S_IWUSR | S_IXUSR | S_IRGRP |
                                    S_IWGRP | S_IXGRP | S_IROTH | S_IXOTH;
 
@@ -4564,6 +4565,8 @@ int toku_ft_rename_iname(DB_TXN *txn,
                          bs_new_name);
     }
 
+    if (!toku_create_subdirs_if_needed(new_iname_full.get()))
+        return get_error_errno();
     r = toku_os_rename(old_iname_full.get(), new_iname_full.get());
     if (r != 0)
         return r;

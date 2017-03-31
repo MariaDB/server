@@ -35,12 +35,11 @@ enum frm_type_enum
   Prefer to use ha_table_exists() instead.
   To check whether it's an frm of a view, use dd_frm_is_view().
 */
-frm_type_enum dd_frm_type(THD *thd, char *path, enum legacy_db_type *dbt);
+frm_type_enum dd_frm_type(THD *thd, char *path, LEX_STRING *engine_name);
 
 static inline bool dd_frm_is_view(THD *thd, char *path)
 {
-  enum legacy_db_type not_used;
-  return dd_frm_type(thd, path, &not_used) == FRMTYPE_VIEW;
+  return dd_frm_type(thd, path, NULL) == FRMTYPE_VIEW;
 }
 
 bool dd_recreate_table(THD *thd, const char *db, const char *table_name,

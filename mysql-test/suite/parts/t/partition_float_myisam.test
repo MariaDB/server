@@ -8,9 +8,9 @@
 #------------------------------------------------------------------------------#
 # Original Author: HH                                                          #
 # Original Date: 2006-08-01                                                    #
-# Change Author:                                                               #
-# Change Date:                                                                 #
-# Change:                                                                      #
+# Change Author: Elena Stepanova                                               #
+# Change Date: 2017-02-18                                                      #
+# Change: The test for double type has been spawned into a separate test file  #
 ################################################################################
 
 #
@@ -44,4 +44,3 @@ let $maxrows=16384;
 #------------------------------------------------------------------------------#
 # Execute the tests to be applied to all storage engines
 --source suite/parts/inc/partition_float.inc
---source suite/parts/inc/partition_double.inc

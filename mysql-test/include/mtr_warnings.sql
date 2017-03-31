@@ -284,6 +284,7 @@ CREATE DEFINER=root@localhost
 PROCEDURE add_suppression(pattern VARCHAR(255))
 BEGIN
   INSERT INTO test_suppressions (pattern) VALUES (pattern);
+  FLUSH NO_WRITE_TO_BINLOG TABLE test_suppressions;
 END
 */||
 

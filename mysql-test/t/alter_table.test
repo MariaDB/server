@@ -1755,6 +1755,17 @@ DROP TABLE t2;
 DROP TABLE t1;
 
 --echo #
+--echo # MDEV-6390 CONVERT TO CHARACTER SET utf8 doesn't change DEFAULT CHARSET.
+--echo #
+
+CREATE TABLE t1 (id int(11) NOT NULL, a int(11) NOT NULL, b int(11))
+  ENGINE=InnoDB DEFAULT CHARSET=latin1;
+SHOW CREATE TABLE t1;
+ALTER TABLE t1 CONVERT TO CHARACTER SET utf8;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+--echo #
 --echo # Start of 10.1 tests
 --echo #
 

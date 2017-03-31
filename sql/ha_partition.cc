@@ -7275,6 +7275,7 @@ int ha_partition::reset(void)
       result= tmp;
   }
   bitmap_clear_all(&m_partitions_to_reset);
+  m_extra_prepare_for_update= FALSE;
   DBUG_RETURN(result);
 }
 

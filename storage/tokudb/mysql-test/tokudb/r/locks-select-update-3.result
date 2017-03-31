@@ -9,6 +9,7 @@ a	b
 1	0
 update t set b=b+1 where a=1;
 connect conn1,localhost,root;
+set session tokudb_lock_timeout= 60000;
 set session transaction isolation level read committed;
 begin;
 select * from t where a=1 for update;

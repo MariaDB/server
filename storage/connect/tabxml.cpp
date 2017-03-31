@@ -42,7 +42,7 @@
 /***********************************************************************/
 #include "global.h"
 #include "plgdbsem.h"
-#include "reldef.h"
+//#include "reldef.h"
 #include "xtable.h"
 #include "colblk.h"
 #include "mycat.h"
@@ -537,6 +537,11 @@ PTDB XMLDEF::GetTable(PGLOBAL g, MODE m)
   if (Catfunc == FNC_COL)
     return new(g) TDBXCT(this);
 
+	if (Zipped && !(m == MODE_READ || m == MODE_ANY)) {
+		strcpy(g->Message, "ZIpped XML tables are read only");
+		return NULL;
+	}	// endif Zipped
+
   PTDBASE tdbp = new(g) TDBXML(this);
 
   if (Multiple)
@@ -655,7 +660,7 @@ TDBXML::TDBXML(PTDBXML tdbp) : TDBASE(tdbp)
   } // end of TDBXML copy constructor
 
 // Used for update
-PTDB TDBXML::CopyOne(PTABS t)
+PTDB TDBXML::Clone(PTABS t)
   {
   PTDB    tp;
   PXMLCOL cp1, cp2;
@@ -669,7 +674,7 @@ PTDB TDBXML::CopyOne(PTABS t)
     } // endfor cp1
 
   return tp;
-  } // end of CopyOne
+  } // end of Clone
 
 /***********************************************************************/
 /*  Allocate XML column description block.                             */
@@ -926,7 +931,7 @@ bool TDBXML::Initialize(PGLOBAL g)
     if (rc)
       sprintf(g->Message, "%s: %s", MSG(COM_ERROR), buf);
     else
-      sprintf(g->Message, "%s hr=%p", MSG(COM_ERROR), e.Error());
+      sprintf(g->Message, "%s hr=%x", MSG(COM_ERROR), e.Error());
 
     goto error;
 #endif   // __WIN__

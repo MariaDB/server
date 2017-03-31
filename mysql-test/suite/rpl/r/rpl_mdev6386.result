@@ -2,7 +2,6 @@ include/master-slave.inc
 [connection master]
 connection master;
 ALTER TABLE mysql.gtid_slave_pos ENGINE = InnoDB;
-FLUSH LOGS;
 CREATE TABLE t1 (a INT PRIMARY KEY, b INT) Engine=InnoDB;
 connection slave;
 connection slave;
@@ -26,6 +25,7 @@ INSERT INTO t2 VALUE (4, 1);
 INSERT INTO t2 VALUE (5, 1);
 INSERT INTO t1 SELECT * FROM t2;
 DROP TEMPORARY TABLE t2;
+INSERT INTO t1 VALUE (6, 3);
 include/save_master_gtid.inc
 Contents on master:
 SELECT * FROM t1 ORDER BY a;
@@ -35,6 +35,7 @@ a	b
 3	1
 4	1
 5	1
+6	3
 connection slave;
 START SLAVE;
 include/wait_for_slave_sql_error.inc [errno=1062]
@@ -56,6 +57,7 @@ a	b
 3	1
 4	1
 5	1
+6	3
 connection master;
 DROP TABLE t1;
 connection slave;

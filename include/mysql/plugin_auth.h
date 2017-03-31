@@ -27,7 +27,7 @@
 
 #include <mysql/plugin.h>
 
-#define MYSQL_AUTHENTICATION_INTERFACE_VERSION 0x0200
+#define MYSQL_AUTHENTICATION_INTERFACE_VERSION 0x0201
 
 #include <mysql/plugin_auth_common.h>
 
@@ -104,6 +104,11 @@ typedef struct st_mysql_server_auth_info
     Length of host_or_ip
   */
   unsigned int host_or_ip_length;
+
+  /**
+    Current THD pointer (to use with various services)
+  */
+  MYSQL_THD thd;
 
 } MYSQL_SERVER_AUTH_INFO;
 

@@ -30,7 +30,8 @@
 	if test -x @bindir@/mysqladmin && \
 	   @bindir@/mysqladmin ping &>/dev/null
 	then
-	   @bindir@/mysqladmin flush-logs
+	   @bindir@/mysqladmin --local flush-error-log \
+              flush-engine-log flush-general-log flush-slow-log
 	fi
     endscript
 }

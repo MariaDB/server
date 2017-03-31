@@ -20,7 +20,7 @@ typedef class ZIPCOL *PZIPCOL;
 /***********************************************************************/
 class DllExport ZIPDEF : public DOSDEF {          /* Table description */
 	friend class TDBZIP;
-	friend class ZIPFAM;
+	friend class UNZFAM;
 public:
 	// Constructor
 	ZIPDEF(void) {}

@@ -98,12 +98,12 @@ static int compare_bin(const uchar *a, uint a_length,
    Example1: if the function is called for tuples
      ('aaa','bbb') and ('eee','fff'), then
      diff_pos[0] = 1 (as 'aaa' != 'eee')
-     diff_pos[1] = 0 (offset from beggining of tuple b to 'eee' keypart).
+     diff_pos[1] = 0 (offset from beginning of tuple b to 'eee' keypart).
 
    Example2: if the index function is called for tuples
      ('aaa','bbb') and ('aaa','fff'),
      diff_pos[0] = 2 (as 'aaa' != 'eee')
-     diff_pos[1] = 3 (offset from beggining of tuple b to 'fff' keypart,
+     diff_pos[1] = 3 (offset from beginning of tuple b to 'fff' keypart,
                       here we assume that first key part is CHAR(3) NOT NULL)
 
   NOTES

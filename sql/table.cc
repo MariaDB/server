@@ -591,7 +591,7 @@ enum open_frm_error open_table_def(THD *thd, TABLE_SHARE *share, uint flags)
   {
     DBUG_ASSERT(flags & GTS_TABLE);
     DBUG_ASSERT(flags & GTS_USE_DISCOVERY);
-    mysql_file_delete_with_symlink(key_file_frm, path, MYF(0));
+    mysql_file_delete_with_symlink(key_file_frm, path, "", MYF(0));
     file= -1;
   }
   else
@@ -1987,6 +1987,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     if (vcol_info)
     {
       vcol_info->name.str= const_cast<char*>(reg_field->field_name);
+      vcol_info->name.length = strlen(reg_field->field_name);
       if (mysql57_null_bits && !vcol_info->stored_in_db)
       {
         /* MySQL 5.7 has null bits last */
@@ -2374,7 +2375,10 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
         vcol_info->name.str= strmake_root(&share->mem_root,
                                           (char*)vcol_screen_pos, name_length);
       else
+      {
         vcol_info->name.str= const_cast<char*>(reg_field->field_name);
+        vcol_info->name.length = strlen(reg_field->field_name);
+      }
       vcol_screen_pos+= name_length + expr_length;
 
       switch (type) {

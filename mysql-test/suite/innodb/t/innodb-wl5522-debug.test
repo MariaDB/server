@@ -33,9 +33,7 @@ let $pathfix=/: '.*test_wl5522.*t1.ibd'/: 'test_wl5522\\t1.ibd'/;
 let $strerrfix=/ (\(.+\))//;
 
 SET GLOBAL innodb_file_per_table = 1;
-SELECT @@innodb_file_per_table;
 
-DROP DATABASE IF EXISTS test_wl5522;
 CREATE DATABASE test_wl5522;
 
 CREATE TABLE test_wl5522.t1 (c1 INT) ENGINE = InnoDB;
@@ -68,7 +66,6 @@ ALTER TABLE test_wl5522.t1 DISCARD TABLESPACE;
 DROP TABLE test_wl5522.t1;
 
 SET GLOBAL innodb_file_per_table = 1;
-SELECT @@innodb_file_per_table;
 
 # Create the table that we will use for crash recovery (during IMPORT)
 CREATE TABLE test_wl5522.t1 (c1 INT) ENGINE = Innodb;

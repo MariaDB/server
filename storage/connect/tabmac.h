@@ -52,7 +52,7 @@ class TDBMAC : public TDBASE {
 //virtual PTDB Duplicate(PGLOBAL g) {return (PTDB)new(g) TDBMAC(g, this);}
 
   // Methods
-//virtual PTDB CopyOne(PTABS t);
+//virtual PTDB Clone(PTABS t);
   virtual int GetRecpos(void) {return N;}
   virtual int RowNumber(PGLOBAL g, bool b = false) {return N;}
 

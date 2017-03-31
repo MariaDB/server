@@ -183,5 +183,6 @@ flush tables;
 # back to mariadb default
 drop table mysql.event;
 rename table mysql.ev_bk to mysql.event;
+remove_file $MYSQLD_DATADIR/mysql_upgrade_info;
 drop view v1,v2,v3;
 drop table t1;

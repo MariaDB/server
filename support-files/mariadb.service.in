@@ -67,19 +67,19 @@ PermissionsStartOnly=true
 # It is always safe to unset _WSREP_START_POSITION environment variable.
 # Do not panic if galera_recovery script is not available. (MDEV-10538)
 ExecStartPre=/bin/sh -c "systemctl unset-environment _WSREP_START_POSITION"
-ExecStartPre=/bin/sh -c "[ ! -e /usr/bin/galera_recovery ] && VAR= || \
- VAR=`/usr/bin/galera_recovery`; [ $? -eq 0 ] \
+ExecStartPre=/bin/sh -c "[ ! -e @bindir@/galera_recovery ] && VAR= || \
+ VAR=`@bindir@/galera_recovery`; [ $? -eq 0 ] \
  && systemctl set-environment _WSREP_START_POSITION=$VAR || exit 1"
 
 # Needed to create system tables etc.
-# ExecStartPre=/usr/bin/mysql_install_db -u mysql
+# ExecStartPre=@scriptdir@/mysql_install_db -u mysql
 
 # Start main service
 # MYSQLD_OPTS here is for users to set in /etc/systemd/system/mariadb.service.d/MY_SPECIAL.conf
 # Use the [service] section and Environment="MYSQLD_OPTS=...".
 # This isn't a replacement for my.cnf.
 # _WSREP_NEW_CLUSTER is for the exclusive use of the script galera_new_cluster
-ExecStart=/usr/sbin/mysqld $MYSQLD_OPTS $_WSREP_NEW_CLUSTER $_WSREP_START_POSITION
+ExecStart=@sbindir@/mysqld $MYSQLD_OPTS $_WSREP_NEW_CLUSTER $_WSREP_START_POSITION
 @SYSTEMD_EXECSTARTPOST@
 
 # Unset _WSREP_START_POSITION environment variable.
@@ -136,7 +136,7 @@ LimitNOFILE=16364
 # Timezone. previously [mysqld_safe] timezone
 # Environment="TZ=UTC"
 
-# Library substitutions. previously [mysqld_safe] malloc-lib with explict paths
+# Library substitutions. previously [mysqld_safe] malloc-lib with explicit paths
 # (in LD_LIBRARY_PATH) and library name (in LD_PRELOAD).
 # Environment="LD_LIBRARY_PATH=/path1 /path2" "LD_PRELOAD=
 
@@ -145,7 +145,7 @@ LimitNOFILE=16364
 # ExecStartPre=sysctl -q -w vm.drop_caches=3
 
 # numa-interleave=1 equalivant
-# Change ExecStart=numactl --interleave=all /usr/sbin/mysqld......
+# Change ExecStart=numactl --interleave=all @sbindir@/mysqld......
 
 # crash-script equalivent
 # FailureAction=

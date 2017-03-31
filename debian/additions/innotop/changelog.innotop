@@ -1,10 +1,94 @@
 Changelog for innotop:
 
+2017-01-20: version 1.11.4
+	* add SUM function for ONLY_FULL_GROUP_BY
+
+2017-01-20: version 1.11.3
+
+	* Undisplay handlersocket's threads in hide_inactive
+	* fix runtime error regarding redundant sprintf argument #122
+	* added sort on connection-name in display M, after sql/io running, seconds behind master and channel_name
+	* fixed bug that removed value for cxn and channel_name columns in display M
+	* added sort on replication delay, so that the replication-display will sort on slave_sql_running, timelag (in minutes) and channel_name. 
+	* support for MariaDB 10.0 in InnoDB row (issue 93)
+
+2013-07-12: version 1.9.1
+
+   Bugs fixed:
+	* Support of MySQL 5.6 was broken on some pages (issue 82, 83)
+	* Deadlock clearing transactions is now not included in binary log
+	(issue 84)
+	* New spec file with requirements and build requirements for
+	CentOS/RHEL and Fedora
+
+2012-09-07: version 1.9.0
+
+   Changes:
+	* A new Health Dashboard (A) mode is the default mode.
+	* Added a new InnoDB Locked (K) mode.
+	* Added a new 'spark' config variable for sparklines.
+	* Added a new fuzzy_time formatting function.
+	* Added "query distill" summarizing.
+	* Handled more types of errors connecting to the server.
+	* Displayed some data more compactly.
+
+   Bugs fixed:
+	* Double-quotes were used to terminate strings in SQL (issue 57).
+	* T mode didn't show InnoDB transaction times (issue 67).
+	* Killing a query didn't suggest the longest-running one automatically.
+	* Connections weren't closed on exit (issue 64).
+	* Q mode didn't have connections in its header (issue 63).
+	* Connections and server groups were poorly handled (issue 68).
+	* The RPM spec file was buggy (issue 59).
+	* Event filters were defined wrong (issue 54).
+
+2012-02-25: version 1.8.1
+
+   Bugs fixed:
+   * Various parsing errors with MySQL 5.5 (issue 23, 45, 47, 51, 52, 53).
+   * RPM spec file prevented building on CentOS 5.5 using mock (issue 44).
+   * Tests worked only from the test subdirectory (issue 43).
+
+2010-11-06: version 1.8.0
+
+   Changes:
+   * Don't re-fetch SHOW VARIABLES every iteration; it's too slow on many hosts.
+   * Add a filter to remove EVENT threads in SHOW PROCESSLIST (issue 32).
+   * Add a timestamp to output in -n mode, when -t is specified (issue 37).
+   * Add a new U mode, for Percona/MariaDB USER_STATISTICS (issue 39).
+   * Add support for millisecond query time in Percona Server (issue 39).
+   * Display a summary of queries executed in Query List mode (issue 26).
+
+   Bugs fixed:
+   * Made config-file reading more robust (issue 41).
+   * Hostname parsing wasn't standards compliant (issue 30).
+   * MKDEBUG didn't work on some Perl versions (issue 22).
+   * Don't try to get InnoDB status if have_innodb != YES (issue 33).
+   * Status text from the InnoDB plugin wasn't parsed correctly (issue 36).
+   * Transaction ID from InnoDB plugin wasn't subtracted correctly (issue 38).
+   * Switching modes and pressing ? for help caused a crash (issue 40).
+
+2009-09-06: version 1.7.2
+
+   Changes:
+   * add support for --socket
+
+   Bugs fixed:
+   * remove cxn from $meta->{group_by} if there's only one connection displayed
+   * fix for issue 19 - cxn column won't become visible when viewing two 
+     connections after having viewed one connection
+   * supress errors resulting from the addition of a 'BACKGROUND THREAD' 
+     section in the output of 'show innodb status' 
+   * possible fix for issue 22 - Useless use of a constant in void context
+   * small change to set_to_tbl() around hiding the cxn column if there 
+     aren't two or more connections
+
 2009-03-09: version 1.7.1
 
    Changes:
    * Don't display the CXN column if only one connection is active in 
      the current view
+   * the 'state' column is now visible by default in Query List mode
 
    Bugs fixed:
    * fixed bug where trying to aggregate the time column would result 

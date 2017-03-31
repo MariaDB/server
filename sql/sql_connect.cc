@@ -832,11 +832,7 @@ bool init_new_connection_handler_thread()
     statistic_increment(connection_errors_internal, &LOCK_status);
     return 1;
   }
-  DBUG_EXECUTE_IF("simulate_failed_connection_1",
-  {
-    DBUG_SET("-d,simulate_failed_connection_1");
-    return(1);
-  });
+  DBUG_EXECUTE_IF("simulate_failed_connection_1", return(1); );
   return 0;
 }
 

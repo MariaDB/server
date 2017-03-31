@@ -40,6 +40,7 @@ Created 2012-02-08 by Sunny Bains.
 #include "row0mysql.h"
 #include "srv0start.h"
 #include "row0quiesce.h"
+#include "buf0buf.h"
 
 #include <vector>
 
@@ -1873,10 +1874,10 @@ PageConverter::update_index_page(
 
 		if (index == 0) {
 			ib_logf(IB_LOG_LEVEL_ERROR,
-				"Page for tablespace %lu is "
-				" index page with id %lu but that"
+				"Page for tablespace " ULINTPF " is "
+				" index page with id " IB_ID_FMT " but that"
 				" index is not found from configuration file."
-				" Current index name %s and id %lu.",
+				" Current index name %s and id " IB_ID_FMT ".",
 				m_space,
 				id,
 				m_index->m_name,
@@ -2036,12 +2037,15 @@ PageConverter::validate(
 	buf_block_t*	block) UNIV_NOTHROW
 {
 	buf_frame_t*	page = get_frame(block);
+	ulint space_id = mach_read_from_4(
+		page + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID);
+	fil_space_t* space = fil_space_found_by_id(space_id);
 
 	/* Check that the page number corresponds to the offset in
 	the file. Flag as corrupt if it doesn't. Disable the check
 	for LSN in buf_page_is_corrupted() */
 
-	if (buf_page_is_corrupted(false, page, get_zip_size())
+	if (buf_page_is_corrupted(false, page, get_zip_size(), space)
 	    || (page_get_page_no(page) != offset / m_page_size
 		&& page_get_page_no(page) != 0)) {
 

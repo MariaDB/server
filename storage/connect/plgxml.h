@@ -101,7 +101,7 @@ class XMLDOCUMENT : public BLOCK {
 
   // Members
 #if defined(ZIP_SUPPORT)
-	ZIPUTIL *zip;													 /* Used for zipped file  */
+	UNZIPUTL *zip;												 /* Used for zipped file  */
 #else   // !ZIP_SUPPORT
 	bool     zip;													 /* Always false          */
 #endif  //	!ZIP_SUPPORT

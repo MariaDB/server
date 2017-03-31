@@ -1,11 +1,11 @@
 /********** PlgDBUtl Fpe C++ Program Source Code File (.CPP) ***********/
 /* PROGRAM NAME: PLGDBUTL                                              */
 /* -------------                                                       */
-/*  Version 3.9                                                        */
+/*  Version 4.0                                                        */
 /*                                                                     */
 /* COPYRIGHT:                                                          */
 /* ----------                                                          */
-/*  (C) Copyright to the author Olivier BERTRAND          1998-2016    */
+/*  (C) Copyright to the author Olivier BERTRAND          1998-2017    */
 /*                                                                     */
 /* WHAT THIS PROGRAM DOES:                                             */
 /* -----------------------                                             */
@@ -939,7 +939,11 @@ int PlugCloseFile(PGLOBAL g __attribute__((unused)), PFBLOCK fp, bool all)
 #endif   // LIBXML2_SUPPORT
 #ifdef ZIP_SUPPORT
 		case TYPE_FB_ZIP:
-			((ZIPUTIL*)fp->File)->close();
+			if (fp->Mode == MODE_INSERT)
+				((ZIPUTIL*)fp->File)->close();
+			else
+				((UNZIPUTL*)fp->File)->close();
+
 			fp->Memory = NULL;
 			fp->Mode = MODE_ANY;
 			fp->Count = 0;
@@ -1119,7 +1123,7 @@ char *GetAmName(PGLOBAL g, AMT am, void *memp)
   return amn;
   } // end of GetAmName
 
-#if defined(__WIN__) && !defined(NOCATCH)
+#if defined(SE_CATCH)
 /***********************************************************************/
 /*  GetExceptionDesc: return the description of an exception code.     */
 /***********************************************************************/
@@ -1207,7 +1211,7 @@ char *GetExceptionDesc(PGLOBAL g, unsigned int e)
 
   return p;
   } // end of GetExceptionDesc
-#endif   // __WIN__ && !NOCATCH
+#endif   // SE_CATCH
 
 /***********************************************************************/
 /*  PlgDBalloc: allocates or suballocates memory conditionally.        */

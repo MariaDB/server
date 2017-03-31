@@ -40,8 +40,8 @@
 --disconnect con2
 
 --connect (con3,localhost,root,,test)
-DROP TABLE db_history;
 DROP TABLE version_history;
+DROP TABLE db_history;
 --disconnect con3
 
 

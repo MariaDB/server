@@ -33,7 +33,8 @@ enum enum_mysql_completiontype {
   COMMIT_RELEASE=-1,   COMMIT=0,    COMMIT_AND_CHAIN=6
 };
 
-extern "C" int test_if_data_home_dir(const char *dir);
+extern "C" int path_starts_from_data_home_dir(const char *dir);
+int test_if_data_home_dir(const char *dir);
 int error_if_data_home_dir(const char *path, const char *what);
 my_bool net_allocate_new_packet(NET *net, void *thd, uint my_flags);
 

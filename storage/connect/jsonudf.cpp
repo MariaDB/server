@@ -1,6 +1,6 @@
 /****************** jsonudf C++ Program Source Code File (.CPP) ******************/
-/*  PROGRAM NAME: jsonudf     Version 1.4                                        */
-/*  (C) Copyright to the author Olivier BERTRAND          2015-2016              */
+/*  PROGRAM NAME: jsonudf     Version 1.5                                        */
+/*  (C) Copyright to the author Olivier BERTRAND          2015-2017              */
 /*  This program are the JSON User Defined Functions     .                       */
 /*********************************************************************************/
 
@@ -242,13 +242,16 @@ my_bool JSNX::ParseJpath(PGLOBAL g)
 		//	Jpath = Name;
 		return true;
 
-	pbuf = PlugDup(g, Jpath);
+	if (!(pbuf = PlgDBDup(g, Jpath)))
+		return true;
 
 	// The Jpath must be analyzed
 	for (i = 0, p = pbuf; (p = strchr(p, ':')); i++, p++)
 		Nod++;                         // One path node found
 
-	Nodes = (PJNODE)PlugSubAlloc(g, NULL, (++Nod) * sizeof(JNODE));
+	if (!(Nodes = (PJNODE)PlgDBSubAlloc(g, NULL, (++Nod) * sizeof(JNODE))))
+		return true;
+
 	memset(Nodes, 0, (Nod)* sizeof(JNODE));
 
 	// Analyze the Jpath for this column
@@ -1086,9 +1089,10 @@ inline void JsonFreeMem(PGLOBAL g)
 /*********************************************************************************/
 static my_bool JsonInit(UDF_INIT *initid, UDF_ARGS *args,
 												char *message, my_bool mbn,
-                        unsigned long reslen, unsigned long memlen)
+                        unsigned long reslen, unsigned long memlen,
+												unsigned long more = 0)
 {
-  PGLOBAL g = PlugInit(NULL, memlen);
+  PGLOBAL g = PlugInit(NULL, memlen + more);
 
   if (!g) {
     strcpy(message, "Allocation error");
@@ -1100,6 +1104,7 @@ static my_bool JsonInit(UDF_INIT *initid, UDF_ARGS *args,
   } // endif g
 
 	g->Mrr = (args->arg_count && args->args[0]) ? 1 : 0;
+	g->ActivityStart = (PACTIVITY)more;
   initid->maybe_null = mbn;
   initid->max_length = reslen;
 	initid->ptr = (char*)g;
@@ -1442,6 +1447,8 @@ static my_bool CheckMemory(PGLOBAL g, UDF_INIT *initid, UDF_ARGS *args, uint n,
 					ml += args->lengths[0] * M;
 
 			}	// endif b
+
+			ml += (unsigned long)g->ActivityStart;		 // more
 
 			if (ml > g->Sarea_Size) {
 				free(g->Sarea);
@@ -2757,7 +2764,7 @@ void json_item_merge_deinit(UDF_INIT* initid)
 /*********************************************************************************/
 my_bool json_get_item_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 {
-	unsigned long reslen, memlen;
+	unsigned long reslen, memlen, more;
 	int n = IsJson(args, 0);
 
 	if (args->arg_count < 2) {
@@ -2766,7 +2773,7 @@ my_bool json_get_item_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 	} else if (!n && args->arg_type[0] != STRING_RESULT) {
 		strcpy(message, "First argument must be a json item");
 		return true;
-  } else if (args->arg_type[1] != STRING_RESULT) {
+	} else if (args->arg_type[1] != STRING_RESULT) {
 		strcpy(message, "Second argument is not a string (jpath)");
 		return true;
 	} else
@@ -2779,11 +2786,13 @@ my_bool json_get_item_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 		memcpy(fn, args->args[0], args->lengths[0]);
 		fn[args->lengths[0]] = 0;
 		fl = GetFileLength(fn);
-		memlen += fl * 3;
-	} else if (n != 3)
-		memlen += args->lengths[0] * 3;
+		more = fl * 3;
+	} else if (n != 3) {
+		more = args->lengths[0] * 3;
+	} else
+		more = 0;
 
-	return JsonInit(initid, args, message, true, reslen, memlen);
+	return JsonInit(initid, args, message, true, reslen, memlen, more);
 } // end of json_get_item_init
 
 char *json_get_item(UDF_INIT *initid, UDF_ARGS *args, char *result,
@@ -2884,7 +2893,7 @@ my_bool jsonget_string_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 	}	// endif's
 
 	CalcLen(args, false, reslen, memlen);
-	memlen += more;
+//memlen += more;
 
 	if (n == 2 && args->args[0]) {
 		char fn[_MAX_PATH];
@@ -2893,11 +2902,11 @@ my_bool jsonget_string_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 		memcpy(fn, args->args[0], args->lengths[0]);
 		fn[args->lengths[0]] = 0;
 		fl = GetFileLength(fn);
-		memlen += fl * 3;
+		more += fl * 3;
 	} else if (n != 3)
-		memlen += args->lengths[0] * 3;
+		more += args->lengths[0] * 3;
 
-	return JsonInit(initid, args, message, true, reslen, memlen);
+	return JsonInit(initid, args, message, true, reslen, memlen, more);
 } // end of jsonget_string_init
 
 char *jsonget_string(UDF_INIT *initid, UDF_ARGS *args, char *result,
@@ -2993,7 +3002,7 @@ void jsonget_string_deinit(UDF_INIT* initid)
 /*********************************************************************************/
 my_bool jsonget_int_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 {
-	unsigned long reslen, memlen;
+	unsigned long reslen, memlen, more;
 
 	if (args->arg_count != 2) {
 		strcpy(message, "This function must have 2 arguments");
@@ -3007,10 +3016,10 @@ my_bool jsonget_int_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 	} else
 		CalcLen(args, false, reslen, memlen);
 
-	if (IsJson(args, 0) != 3)
-		memlen += 1000;       // TODO: calculate this
+	// TODO: calculate this
+	more = (IsJson(args, 0) != 3) ? 1000 : 0;
 
-	return JsonInit(initid, args, message, true, reslen, memlen);
+	return JsonInit(initid, args, message, true, reslen, memlen, more);
 } // end of jsonget_int_init
 
 long long jsonget_int(UDF_INIT *initid, UDF_ARGS *args,
@@ -3099,7 +3108,7 @@ void jsonget_int_deinit(UDF_INIT* initid)
 /*********************************************************************************/
 my_bool jsonget_real_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 {
-	unsigned long reslen, memlen;
+	unsigned long reslen, memlen, more;
 
 	if (args->arg_count < 2) {
 		strcpy(message, "At least 2 arguments required");
@@ -3122,10 +3131,10 @@ my_bool jsonget_real_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 
 	CalcLen(args, false, reslen, memlen);
 
-	if (IsJson(args, 0) != 3)
-		memlen += 1000;       // TODO: calculate this
+	// TODO: calculate this
+	more = (IsJson(args, 0) != 3) ? 1000 : 0;
 
-	return JsonInit(initid, args, message, true, reslen, memlen);
+	return JsonInit(initid, args, message, true, reslen, memlen, more);
 } // end of jsonget_real_init
 
 double jsonget_real(UDF_INIT *initid, UDF_ARGS *args,
@@ -3233,10 +3242,11 @@ my_bool jsonlocate_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 
 	CalcLen(args, false, reslen, memlen);
 
-	if (IsJson(args, 0) != 3)
-		memlen += more;       // TODO: calculate this
+	// TODO: calculate this
+	if (IsJson(args, 0) == 3)
+		more = 0;
 
-	return JsonInit(initid, args, message, true, reslen, memlen);
+	return JsonInit(initid, args, message, true, reslen, memlen, more);
 } // end of jsonlocate_init
 
 char *jsonlocate(UDF_INIT *initid, UDF_ARGS *args, char *result,
@@ -3357,10 +3367,11 @@ my_bool json_locate_all_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 
 	CalcLen(args, false, reslen, memlen);
 
-	if (IsJson(args, 0) != 3)
-		memlen += more;       // TODO: calculate this
+	// TODO: calculate this
+	if (IsJson(args, 0) == 3)
+		more = 0;
 
-	return JsonInit(initid, args, message, true, reslen, memlen);
+	return JsonInit(initid, args, message, true, reslen, memlen, more);
 } // end of json_locate_all_init
 
 char *json_locate_all(UDF_INIT *initid, UDF_ARGS *args, char *result,
@@ -3484,12 +3495,12 @@ my_bool jsoncontains_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 	}	// endif's
 
 	CalcLen(args, false, reslen, memlen);
-	memlen += more;
+//memlen += more;
 
-	if (IsJson(args, 0) != 3)
-		memlen += 1000;       // TODO: calculate this
+	// TODO: calculate this
+	more += (IsJson(args, 0) != 3 ? 1000 : 0);
 
-	return JsonInit(initid, args, message, false, reslen, memlen);
+	return JsonInit(initid, args, message, false, reslen, memlen, more);
 } // end of jsoncontains_init
 
 long long jsoncontains(UDF_INIT *initid, UDF_ARGS *args, char *result,
@@ -3536,12 +3547,12 @@ my_bool jsoncontains_path_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 	}	// endif's
 
 	CalcLen(args, false, reslen, memlen);
-	memlen += more;
+//memlen += more;
 
-	if (IsJson(args, 0) != 3)
-		memlen += 1000;       // TODO: calculate this
+	// TODO: calculate this
+	more += (IsJson(args, 0) != 3 ? 1000 : 0);
 
-	return JsonInit(initid, args, message, true, reslen, memlen);
+	return JsonInit(initid, args, message, true, reslen, memlen, more);
 } // end of jsoncontains_path_init
 
 long long jsoncontains_path(UDF_INIT *initid, UDF_ARGS *args, char *result,
@@ -3735,7 +3746,7 @@ fin:
 /*********************************************************************************/
 my_bool json_set_item_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 {
-	unsigned long reslen, memlen;
+	unsigned long reslen, memlen, more = 0;
 	int n = IsJson(args, 0);
 
 	if (!(args->arg_count % 2)) {
@@ -3754,11 +3765,11 @@ my_bool json_set_item_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 		memcpy(fn, args->args[0], args->lengths[0]);
 		fn[args->lengths[0]] = 0;
 		fl = GetFileLength(fn);
-		memlen += fl * 3;
+		more += fl * 3;
 	} else if (n != 3)
-		memlen += args->lengths[0] * 3;
+		more += args->lengths[0] * 3;
 
-	if (!JsonInit(initid, args, message, true, reslen, memlen)) {
+	if (!JsonInit(initid, args, message, true, reslen, memlen, more)) {
 		PGLOBAL g = (PGLOBAL)initid->ptr;
 
 		// This is a constant function
@@ -3953,7 +3964,7 @@ void json_file_deinit(UDF_INIT* initid)
 /*********************************************************************************/
 my_bool jfile_make_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 {
-	unsigned long reslen, memlen, more = 1024;
+	unsigned long reslen, memlen;
 
 	if (args->arg_count < 1 || args->arg_count > 3) {
 		strcpy(message, "Wrong number of arguments");
@@ -4992,7 +5003,7 @@ fin:
 /*********************************************************************************/
 my_bool jbin_set_item_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 {
-	unsigned long reslen, memlen;
+	unsigned long reslen, memlen, more = 0;
 	int n = IsJson(args, 0);
 
 	if (!(args->arg_count % 2)) {
@@ -5011,11 +5022,11 @@ my_bool jbin_set_item_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 		memcpy(fn, args->args[0], args->lengths[0]);
 		fn[args->lengths[0]] = 0;
 		fl = GetFileLength(fn);
-		memlen += fl * 3;
+		more = fl * 3;
 	} else if (n != 3)
-		memlen += args->lengths[0] * 3;
+		more = args->lengths[0] * 3;
 
-	return JsonInit(initid, args, message, true, reslen, memlen);
+	return JsonInit(initid, args, message, true, reslen, memlen, more);
 	} // end of jbin_set_item_init
 
 char *jbin_set_item(UDF_INIT *initid, UDF_ARGS *args, char *result,
@@ -5103,8 +5114,8 @@ my_bool jbin_file_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 	fl = GetFileLength(args->args[0]);
 	reslen += fl;
 	more += fl * M;
-	memlen += more;
-	return JsonInit(initid, args, message, true, reslen, memlen);
+//memlen += more;
+	return JsonInit(initid, args, message, true, reslen, memlen, more);
 } // end of jbin_file_init
 
 char *jbin_file(UDF_INIT *initid, UDF_ARGS *args, char *result,

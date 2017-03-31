@@ -16,22 +16,26 @@
 INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/include)
 
 SET(MYSQLSERVICES_SOURCES
+  base64_service.c
+  debug_sync_service.c
+  encryption_scheme_service.c
+  encryption_service.c
+  kill_statement_service.c
+  logger_service.c
+  my_md5_service.c
+  my_sha1_service.c
+  my_sha2_service.c
   my_snprintf_service.c
+  progress_report_service.c
   thd_alloc_service.c
-  thd_wait_service.c
-  thd_timezone_service.c
   thd_autoinc_service.c
   thd_error_context_service.c
+  thd_rnd_service.c
   thd_specifics_service.c
-  progress_report_service.c
-  debug_sync_service.c
-  my_sha1_service.c
-  my_md5_service.c
+  thd_timezone_service.c
+  thd_wait_service.c
   wsrep_service.c
-  encryption_service.c
-  encryption_scheme_service.c
-  kill_statement_service.c
-  logger_service.c)
+)
 
 ADD_CONVENIENCE_LIBRARY(mysqlservices ${MYSQLSERVICES_SOURCES})
 INSTALL(TARGETS mysqlservices DESTINATION ${INSTALL_LIBDIR} COMPONENT Development)

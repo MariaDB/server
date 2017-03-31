@@ -1,6 +1,4 @@
-call mtr.add_suppression("InnoDB: Block in space_id .* in file test/.* encrypted");
-call mtr.add_suppression("InnoDB: However key management plugin or used key_id .* is not found or used encryption algorithm or method does not match.");
-call mtr.add_suppression("InnoDB: Marking tablespace as missing. You may drop this table or install correct key management plugin and key file.");
+call mtr.add_suppression("InnoDB: The page .* in file test/t. cannot be decrypted");
 
 # Start server with keys2.txt
 CREATE TABLE t1(a int not null primary key auto_increment, b varchar(128)) engine=innodb ENCRYPTED=YES ENCRYPTION_KEY_ID=19;

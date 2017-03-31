@@ -298,13 +298,13 @@ row_merge_encrypt_buf(
 					   space, ofs, 0);
 
 	if (! ((rc == MY_AES_OK) && ((ulint)dstlen == srv_sort_buf_size-ROW_MERGE_RESERVE_SIZE))) {
-		ib::error()
+		ib::fatal()
 			<< "Unable to encrypt data-block "
-			" src: %p srclen: %lu buf: %p buflen: %u."
-			<< srv_sort_buf_size << " buf: " << crypted_buf
+			" src: " << static_cast<const void*>(input_buf)
+			<< " srclen: " << srv_sort_buf_size
+			<< " buf: " << static_cast<const void*>(crypted_buf)
 			<< " buflen: " << dstlen
-			<< " return-code: " << rc << " Can't continue!";
-		ut_error;
+			<< ". return-code: " << rc << ". Can't continue!";
 	}
 }
 
@@ -340,13 +340,13 @@ row_merge_decrypt_buf(
 					   space, ofs, 0);
 
 	if (! ((rc == MY_AES_OK) && ((ulint)dstlen == srv_sort_buf_size-ROW_MERGE_RESERVE_SIZE))) {
-		ib::error()
+		ib::fatal()
 			<< "Unable to decrypt data-block "
-			<< " src: " << input_buf << " srclen: "
-			<< srv_sort_buf_size << " buf: " << crypted_buf
+			<< " src: " << static_cast<const void*>(input_buf)
+			<< " srclen: " << srv_sort_buf_size
+			<< " buf: " << static_cast<const void*>(crypted_buf)
 			<< " buflen: " << dstlen
-			<< " return-code: " << rc << " Can't continue!";
-		ut_error;
+			<< ". return-code: " << rc << ". Can't continue!";
 	}
 
 	return true;
@@ -1268,14 +1268,8 @@ row_merge_read_rec(
 	ulint	data_size;
 	ulint	avail_size;
 
-	ut_ad(block);
-	ut_ad(buf);
 	ut_ad(b >= &block[0]);
 	ut_ad(b < &block[srv_sort_buf_size]);
-	ut_ad(index);
-	ut_ad(foffs);
-	ut_ad(mrec);
-	ut_ad(offsets);
 
 	ut_ad(*offsets == 1 + REC_OFFS_HEADER_SIZE
 	      + dict_index_get_n_fields(index));
@@ -4627,7 +4621,7 @@ row_merge_build_indexes(
 	row_merge_block_t*	block;
 	ut_new_pfx_t		block_pfx;
 	ut_new_pfx_t		crypt_pfx;
-	row_merge_block_t*	crypt_block;
+	row_merge_block_t*	crypt_block = NULL;
 	ulint			i;
 	ulint			j;
 	dberr_t			error;
@@ -4668,9 +4662,15 @@ row_merge_build_indexes(
 		DBUG_RETURN(DB_OUT_OF_MEMORY);
 	}
 
-	/* Get crypt data from tablespace if present. */
-	crypt_data = fil_space_get_crypt_data(new_table->space);
-	crypt_block = NULL;
+	/* Get crypt data from tablespace if present. We should be protected
+	from concurrent DDL (e.g. drop table) by MDL-locks. */
+	FilSpace space(new_table->space);
+
+	if (const fil_space_t* fs = space()) {
+		crypt_data = fs->crypt_data;
+	} else {
+		DBUG_RETURN(DB_TABLESPACE_NOT_FOUND);
+	}
 
 	/* If tablespace is encrypted, allocate additional buffer for
 	encryption/decryption. */

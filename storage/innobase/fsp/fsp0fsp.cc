@@ -176,16 +176,6 @@ fsp_get_space_header(
 	return(header);
 }
 
-/** Check if checksum is disabled for the given space.
-@param[in]	space_id	tablespace ID
-@return true if checksum is disabled for given space. */
-bool
-fsp_is_checksum_disabled(
-	ulint	space_id)
-{
-	return(fsp_is_system_temporary(space_id));
-}
-
 #ifdef UNIV_DEBUG
 /** Skip some of the sanity checks that are time consuming even in debug mode
 and can affect frequent verification runs that are done to ensure stability of
@@ -770,11 +760,9 @@ fsp_header_init(
 		}
 	}
 
-	ulint offset = FSP_HEADER_OFFSET
-		+ fsp_header_get_encryption_offset(page_size);
-	fil_space_write_crypt_data(space_id, page, offset,
-				   page_size.logical()
-				   - offset - FIL_PAGE_DATA_END, mtr);
+	if (space->crypt_data) {
+		space->crypt_data->write_page0(space, page, mtr);
+	}
 
 	return(true);
 }
@@ -1065,8 +1053,6 @@ fsp_fill_free_list(
 	ulint	frag_n_used;
 	ulint	i;
 
-	ut_ad(header != NULL);
-	ut_ad(mtr != NULL);
 	ut_ad(page_offset(header) == FSP_HEADER_OFFSET);
 	ut_d(fsp_space_modify_check(space, mtr));
 
@@ -1379,7 +1365,7 @@ initialized (may be the same as mtr)
 @retval block	rw_lock_x_lock_count(&block->lock) == 1 if allocation succeeded
 (init_mtr == mtr, or the page was not previously freed in mtr)
 @retval block	(not allocated or initialized) otherwise */
-static MY_ATTRIBUTE((warn_unused_result))
+static MY_ATTRIBUTE((warn_unused_result, nonnull))
 buf_block_t*
 fsp_alloc_free_page(
 	fil_space_t*		space,
@@ -1394,9 +1380,6 @@ fsp_alloc_free_page(
 	xdes_t*		descr;
 	ulint		free;
 	const ulint	space_id = space->id;
-
-	ut_ad(mtr);
-	ut_ad(init_mtr);
 
 	ut_d(fsp_space_modify_check(space, mtr));
 	header = fsp_get_space_header(space, page_size, mtr);
@@ -2434,7 +2417,6 @@ fseg_alloc_free_page_low(
 	ulint		n;
 	const ulint	space_id	= space->id;
 
-	ut_ad(mtr);
 	ut_ad((direction >= FSP_UP) && (direction <= FSP_NO_DIR));
 	ut_ad(mach_read_from_4(seg_inode + FSEG_MAGIC_N)
 	      == FSEG_MAGIC_N_VALUE);
@@ -2816,7 +2798,7 @@ fsp_reserve_free_extents(
 	ulint		size;
 	ulint		n_free;
 	ulint		n_free_up;
-	ulint		reserve= 0;
+	ulint		reserve;
 	size_t		total_reserved = 0;
 	ulint		rounds = 0;
 	ulint		n_pages_added = 0;
@@ -2890,6 +2872,7 @@ try_again:
 		break;
 	case FSP_CLEANING:
 	case FSP_BLOB:
+		reserve = 0;
 		break;
 	default:
 		ut_error;

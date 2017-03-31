@@ -603,6 +603,22 @@ bool Arg_comparator::set_cmp_func_int()
 
 bool Arg_comparator::set_cmp_func_real()
 {
+  if ((((*a)->result_type() == DECIMAL_RESULT && !(*a)->const_item() &&
+        (*b)->result_type() == STRING_RESULT  &&  (*b)->const_item()) ||
+      ((*b)->result_type() == DECIMAL_RESULT && !(*b)->const_item() &&
+       (*a)->result_type() == STRING_RESULT  &&  (*a)->const_item())))
+  {
+    /*
+     <non-const decimal expression> <cmp> <const string expression>
+     or
+     <const string expression> <cmp> <non-const decimal expression>
+
+     Do comparison as decimal rather than float, in order not to lose precision.
+    */
+    m_compare_handler= &type_handler_newdecimal;
+    return set_cmp_func_decimal();
+  }
+
   THD *thd= current_thd;
   func= is_owner_equal_func() ? &Arg_comparator::compare_e_real :
                                 &Arg_comparator::compare_real;
@@ -5207,6 +5223,18 @@ bool Item_func_like::with_sargable_pattern() const
   DBUG_ASSERT(res2->ptr());
   char first= res2->ptr()[0];
   return first != wild_many && first != wild_one;
+}
+
+
+SEL_TREE *Item_func_like::get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr)
+{
+  MEM_ROOT *tmp_root= param->mem_root;
+  param->thd->mem_root= param->old_root;
+  bool sargable_pattern= with_sargable_pattern();
+  param->thd->mem_root= tmp_root;
+  return sargable_pattern ?
+    Item_bool_func2::get_mm_tree(param, cond_ptr) :
+    Item_func::get_mm_tree(param, cond_ptr);
 }
 
 

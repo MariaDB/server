@@ -140,6 +140,8 @@ class ha_myisam: public handler
   int optimize(THD* thd, HA_CHECK_OPT* check_opt);
   int assign_to_keycache(THD* thd, HA_CHECK_OPT* check_opt);
   int preload_keys(THD* thd, HA_CHECK_OPT* check_opt);
+  enum_alter_inplace_result check_if_supported_inplace_alter(TABLE *new_table,
+                                            Alter_inplace_info *alter_info);
   bool check_if_incompatible_data(HA_CREATE_INFO *info, uint table_changes);
 #ifdef HAVE_QUERY_CACHE
   my_bool register_query_cache_table(THD *thd, char *table_key,

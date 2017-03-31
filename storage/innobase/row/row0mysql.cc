@@ -3434,9 +3434,6 @@ fil_wait_crypt_bg_threads(
 {
 	time_t start = time(0);
 	time_t last = start;
-	if (table->space != 0) {
-		fil_space_crypt_mark_space_closing(table->space, table->crypt_data);
-	}
 
 	while (table->get_ref_count()> 0) {
 		dict_mutex_exit_for_mysql();
@@ -3448,14 +3445,14 @@ fil_wait_crypt_bg_threads(
 			ib::warn()
 				<< "Waited " << now - start
 				<< " seconds for ref-count on table: "
-				<< table->name.m_name << " space: " << table->space;
+				<< table->name << " space: " << table->space;
 			last = now;
 		}
 		if (now >= start + 300) {
 			ib::warn()
 				<< "After " << now - start
 				<< " seconds, gave up waiting "
-				<< "for ref-count on table: " << table->name.m_name
+				<< "for ref-count on table: " << table->name
 				<< " space: " << table->space;
 			break;
 		}
@@ -3905,7 +3902,14 @@ row_drop_table_for_mysql(
 		/* If table has not yet have crypt_data, try to read it to
 		make freeing the table easier. */
 		if (!table->crypt_data) {
-			table->crypt_data = fil_space_get_crypt_data(table->space);
+			if (fil_space_t* space = fil_space_acquire_silent(
+				    table->space)) {
+				/* We use crypt data in dict_table_t
+				in ha_innodb.cc to push warnings to
+				user thread. */
+				table->crypt_data = space->crypt_data;
+				fil_space_release(space);
+			}
 		}
 
 		/* We use the private SQL parser of Innobase to generate the

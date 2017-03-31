@@ -2126,7 +2126,8 @@ MDL_context::acquire_lock(MDL_request *mdl_request, double lock_wait_timeout)
   find_deadlock();
 
   struct timespec abs_timeout, abs_shortwait;
-  set_timespec(abs_timeout, (ulonglong) lock_wait_timeout);
+  set_timespec_nsec(abs_timeout,
+                    (ulonglong)(lock_wait_timeout * 1000000000ULL));
   set_timespec(abs_shortwait, 1);
   wait_status= MDL_wait::EMPTY;
 

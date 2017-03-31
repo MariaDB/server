@@ -4458,7 +4458,6 @@ ibuf_merge_or_delete_for_page(
 	ulint		volume			= 0;
 #endif /* UNIV_IBUF_DEBUG */
 	page_zip_des_t*	page_zip		= NULL;
-	fil_space_t*	space			= NULL;
 	bool		corruption_noticed	= false;
 	mtr_t		mtr;
 
@@ -4489,6 +4488,8 @@ ibuf_merge_or_delete_for_page(
 		return;
 	}
 
+	fil_space_t*	space;
+
 	if (update_ibuf_bitmap) {
 
 		ut_ad(page_size != NULL);
@@ -4500,10 +4501,9 @@ ibuf_merge_or_delete_for_page(
 
 		space = fil_space_acquire(page_id.space());
 
-		if (space == NULL) {
-			/* Do not try to read the bitmap page from space;
-			just delete the ibuf records for the page */
-
+		if (UNIV_UNLIKELY(!space)) {
+			/* Do not try to read the bitmap page from the
+			non-existent tablespace, delete the ibuf records */
 			block = NULL;
 			update_ibuf_bitmap = FALSE;
 		} else {
@@ -4536,6 +4536,8 @@ ibuf_merge_or_delete_for_page(
 		       || fsp_descr_page(page_id, *page_size))) {
 
 		return;
+	} else {
+		space = NULL;
 	}
 
 	heap = mem_heap_create(512);
@@ -4566,9 +4568,6 @@ ibuf_merge_or_delete_for_page(
 				" insert buffer merge for this page. Please"
 				" run CHECK TABLE on your tables to determine"
 				" if they are corrupt after this.";
-
-			ib::error() << "Please submit a detailed bug"
-				" report to http://bugs.mysql.com";
 			ut_ad(0);
 		}
 	}
@@ -4788,15 +4787,17 @@ reset_bit:
 	}
 
 	ibuf_mtr_commit(&mtr);
+
+	if (space) {
+		fil_space_release(space);
+	}
+
 	btr_pcur_close(&pcur);
 	mem_heap_free(heap);
 
 	my_atomic_addlint(&ibuf->n_merges, 1);
 	ibuf_add_ops(ibuf->n_merged_ops, mops);
 	ibuf_add_ops(ibuf->n_discarded_ops, dops);
-	if (space != NULL) {
-		fil_space_release(space);
-	}
 
 #ifdef UNIV_IBUF_COUNT_DEBUG
 	ut_a(ibuf_count_get(page_id) == 0);

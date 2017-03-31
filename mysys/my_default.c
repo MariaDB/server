@@ -24,7 +24,7 @@
  pre- and end 'blank space' are removed from options and values. The
  following escape sequences are recognized in values:  \b \t \n \r \\
 
- The following arguments are handled automaticly;  If used, they must be
+ The following arguments are handled automatically;  If used, they must be
  first argument on the command line!
  --no-defaults	; no options are read.
  --defaults-file=full-path-to-default-file	; Only this file will be read.
@@ -62,7 +62,7 @@
    check the pointer, use "----args-separator----" here to ease debug
    if someone misused it.
 
-   The args seprator will only be added when
+   The args separator will only be added when
    my_getopt_use_args_seprator is set to TRUE before calling
    load_defaults();
 
@@ -597,7 +597,7 @@ int my_load_defaults(const char *conf_file, const char **groups,
   (*argv)+= args_used;
 
   /*
-    Check if we wan't to see the new argument list
+    Check if we want to see the new argument list
     This options must always be the last of the default options
   */
   if (*argc >= 2 && !strcmp(argv[0][1],"--print-defaults"))

@@ -1958,14 +1958,16 @@ PageConverter::validate(
 	buf_block_t*	block) UNIV_NOTHROW
 {
 	buf_frame_t*	page = get_frame(block);
+	ulint space_id = mach_read_from_4(
+		page + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID);
+	fil_space_t* space = fil_space_found_by_id(space_id);
 
 	/* Check that the page number corresponds to the offset in
 	the file. Flag as corrupt if it doesn't. Disable the check
 	for LSN in buf_page_is_corrupted() */
 
 	if (buf_page_is_corrupted(
-		false, page, get_page_size(),
-		fsp_is_checksum_disabled(block->page.id.space()))
+		false, page, get_page_size(), space)
 	    || (page_get_page_no(page) != offset / m_page_size.physical()
 		&& page_get_page_no(page) != 0)) {
 
@@ -2028,9 +2030,7 @@ PageConverter::operator() (
 				!is_compressed_table()
 				? block->frame : block->page.zip.data,
 				!is_compressed_table() ? 0 : m_page_zip_ptr,
-				m_current_lsn,
-				fsp_is_checksum_disabled(
-					block->page.id.space()));
+				m_current_lsn);
 		} else {
 			/* Calculate and update the checksum of non-btree
 			pages for compressed tables explicitly here. */

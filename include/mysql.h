@@ -48,7 +48,11 @@ extern "C" {
 #ifndef MYSQL_ABI_CHECK
 #include <sys/types.h>
 #endif
+
+#ifndef MYSQL_PLUGIN_INCLUDED
 typedef char my_bool;
+#endif
+
 #if (defined(_WIN32) || defined(_WIN64)) && !defined(__WIN__)
 #define __WIN__
 #endif

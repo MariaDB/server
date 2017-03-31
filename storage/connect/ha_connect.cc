@@ -1,4 +1,4 @@
-/* Copyright (C) Olivier Bertrand 2004 - 2016
+/* Copyright (C) Olivier Bertrand 2004 - 2017
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -11,7 +11,7 @@
 
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
-  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
+  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
 
 /**
   @file ha_connect.cc
@@ -125,6 +125,8 @@
 #endif   // UNIX
 #include "global.h"
 #include "plgdbsem.h"
+#include "xtable.h"
+#include "tabext.h"
 #if defined(ODBC_SUPPORT)
 #include "odbccat.h"
 #endif   // ODBC_SUPPORT
@@ -132,12 +134,11 @@
 #include "tabjdbc.h"
 #include "jdbconn.h"
 #endif   // JDBC_SUPPORT
-#include "xtable.h"
 #include "tabmysql.h"
 #include "filamdbf.h"
 #include "tabxcl.h"
 #include "tabfmt.h"
-#include "reldef.h"
+//#include "reldef.h"
 #include "tabcol.h"
 #include "xindex.h"
 #if defined(__WIN__)
@@ -171,9 +172,9 @@
 #define JSONMAX      10             // JSON Default max grp size
 
 extern "C" {
-       char version[]= "Version 1.05.0001 December 13, 2016";
+       char version[]= "Version 1.05.0003 February 27, 2017";
 #if defined(__WIN__)
-       char compver[]= "Version 1.05.0001 " __DATE__ " "  __TIME__;
+       char compver[]= "Version 1.05.0003 " __DATE__ " "  __TIME__;
        char slash= '\\';
 #else   // !__WIN__
        char slash= '/';
@@ -214,6 +215,7 @@ int     TranslateJDBCType(int stp, char *tn, int prec, int& len, char& v);
 void    PushWarning(PGLOBAL g, THD *thd, int level);
 bool    CheckSelf(PGLOBAL g, TABLE_SHARE *s, const char *host,
                   const char *db, char *tab, const char *src, int port);
+bool    ZipLoadFile(PGLOBAL, char*, char*, char*, bool, bool);
 bool    ExactInfo(void);
 USETEMP UseTemp(void);
 int     GetConvSize(void);
@@ -556,7 +558,7 @@ ha_create_table_option connect_index_option_list[]=
 /***********************************************************************/
 /*  Push G->Message as a MySQL warning.                                */
 /***********************************************************************/
-bool PushWarning(PGLOBAL g, PTDBASE tdbp, int level)
+bool PushWarning(PGLOBAL g, PTDB tdbp, int level)
 {
   PHC    phc;
   THD   *thd;
@@ -1024,7 +1026,7 @@ char *GetListOption(PGLOBAL g, const char *opname,
 
   char  key[16], val[256];
   char *pk, *pv, *pn;
-  char *opval= (char*) def;
+  char *opval= (char*)def;
   int   n;
 
   for (pk= (char*)oplist; pk; pk= ++pn) {
@@ -1032,26 +1034,17 @@ char *GetListOption(PGLOBAL g, const char *opname,
     pv= strchr(pk, '=');
 
     if (pv && (!pn || pv < pn)) {
-      n= pv - pk;
+      n= MY_MIN(static_cast<size_t>(pv - pk), sizeof(key) - 1);
       memcpy(key, pk, n);
       key[n]= 0;
       pv++;
-
-      if (pn) {
-        n= pn - pv;
-        memcpy(val, pv, n);
-        val[n]= 0;
-      } else
-        strcpy(val, pv);
-
+      n= MY_MIN((pn ? pn - pv : strlen(pv)), sizeof(val) - 1);
+      memcpy(val, pv, n);
+      val[n]= 0;
     } else {
-      if (pn) {
-        n= MY_MIN(pn - pk, 15);
-        memcpy(key, pk, n);
-        key[n]= 0;
-      } else
-        strcpy(key, pk);
-
+      n= MY_MIN((pn ? pn - pk : strlen(pk)), sizeof(key) - 1);
+      memcpy(key, pk, n);
+      key[n]= 0;
       val[0]= 0;
     } // endif pv
 
@@ -1105,7 +1098,7 @@ char *GetStringTableOption(PGLOBAL g, PTOS options, char *opname, char *sdef)
   else if (!stricmp(opname, "Data_charset"))
     opval= options->data_charset;
 
-  if (!opval && options && options->oplist)
+  if (!opval && options->oplist)
     opval= GetListOption(g, opname, options->oplist);
 
   return opval ? (char*)opval : sdef;
@@ -2113,7 +2106,7 @@ int ha_connect::ScanRecord(PGLOBAL g, uchar *)
   PCOL    colp;
   PVAL    value, sdvalin;
   Field  *fp;
-  PTDBASE tp= (PTDBASE)tdbp;
+//PTDBASE tp= (PTDBASE)tdbp;
   String  attribute(attr_buffer, sizeof(attr_buffer),
                     table->s->table_charset);
   my_bitmap_map *bmap= dbug_tmp_use_all_columns(table, table->read_set);
@@ -2131,7 +2124,7 @@ int ha_connect::ScanRecord(PGLOBAL g, uchar *)
                              && tdbp->GetAmType() != TYPE_AM_ODBC
 														 && tdbp->GetAmType() != TYPE_AM_JDBC) ||
 														 bitmap_is_set(table->write_set, fp->field_index)) {
-      for (colp= tp->GetSetCols(); colp; colp= colp->GetNext())
+      for (colp= tdbp->GetSetCols(); colp; colp= colp->GetNext())
         if (!stricmp(colp->GetName(), fp->field_name))
           break;
 
@@ -2218,7 +2211,7 @@ int ha_connect::ScanRecord(PGLOBAL g, uchar *)
     } else if (xmod == MODE_UPDATE) {
       PCOL cp;
 
-      for (cp= tp->GetColumns(); cp; cp= cp->GetNext())
+      for (cp= tdbp->GetColumns(); cp; cp= cp->GetNext())
         if (!stricmp(colp->GetName(), cp->GetName()))
           break;
 
@@ -2685,7 +2678,8 @@ PCFIL ha_connect::CheckCond(PGLOBAL g, PCFIL filp, const Item *cond)
 {
 	AMT   tty = filp->Type;
   char *body= filp->Body;
-  unsigned int i;
+	char *havg= filp->Having;
+	unsigned int i;
   bool  ismul= false, x= (tty == TYPE_AM_MYX || tty == TYPE_AM_XDBC);
   bool  nonul= ((tty == TYPE_AM_ODBC || tty == TYPE_AM_JDBC) && 
 		 (tdbp->GetMode() == MODE_INSERT || tdbp->GetMode() == MODE_DELETE));
@@ -2698,7 +2692,8 @@ PCFIL ha_connect::CheckCond(PGLOBAL g, PCFIL filp, const Item *cond)
     htrc("Cond type=%d\n", cond->type());
 
   if (cond->type() == COND::COND_ITEM) {
-    char      *p1, *p2;
+    char      *pb0, *pb1, *pb2, *ph0, *ph1, *ph2;
+		bool       bb = false, bh = false;
     Item_cond *cond_item= (Item_cond *)cond;
 
     if (x)
@@ -2718,37 +2713,77 @@ PCFIL ha_connect::CheckCond(PGLOBAL g, PCFIL filp, const Item *cond)
     List_iterator<Item> li(*arglist);
     const Item *subitem;
 
-    p1= body + strlen(body);
-    strcpy(p1, "(");
-    p2= p1 + 1;
+    pb0= pb1= body + strlen(body);
+    strcpy(pb0, "(");
+    pb2= pb1 + 1;
+
+		if (havg) {
+			ph0= ph1= havg + strlen(havg);
+			strcpy(ph0, "(");
+			ph2= ph1 + 1;
+		} // endif havg
 
     for (i= 0; i < arglist->elements; i++)
       if ((subitem= li++)) {
         if (!CheckCond(g, filp, subitem)) {
           if (vop == OP_OR || nonul)
             return NULL;
-          else
-            *p2= 0;
+					else {
+						*pb2= 0;
+						if (havg) *ph2= 0;
+					}	// endelse
 
         } else {
-          p1= p2 + strlen(p2);
-          strcpy(p1, GetValStr(vop, false));
-          p2= p1 + strlen(p1);
+					if (filp->Bd) {
+						pb1= pb2 + strlen(pb2);
+						strcpy(pb1, GetValStr(vop, false));
+						pb2= pb1 + strlen(pb1);
+					} // endif Bd
+
+					if (filp->Hv) {
+						ph1= ph2 + strlen(ph2);
+						strcpy(ph1, GetValStr(vop, false));
+						ph2= ph1 + strlen(ph1);
+					} // endif Hv
+
         } // endif CheckCond
 
+				bb |= filp->Bd;
+				bh |= filp->Hv;
+				filp->Bd = filp->Hv = false;
       } else
         return NULL;
 
-    if (*p1 != '(')
-      strcpy(p1, ")");
-    else
-      return NULL;
+    if (bb)	{
+      strcpy(pb1, ")");
+			filp->Bd = bb;
+		} else
+			*pb0= 0;
+
+		if (havg) {
+			if (bb && bh && vop == OP_OR) {
+				// Cannot or'ed a where clause with a having clause
+				bb= bh= 0;
+				*pb0 = 0;
+				*ph0 = 0;
+			} else if (bh)	{
+				strcpy(ph1, ")");
+				filp->Hv= bh;
+			} else
+				*ph0 = 0;
+
+		} // endif havg
+
+		if (!bb && !bh)
+			return NULL;
 
   } else if (cond->type() == COND::FUNC_ITEM) {
     unsigned int i;
-    bool       iscol, neg= FALSE;
+    bool       iscol, ishav= false, neg= false;
     Item_func *condf= (Item_func *)cond;
     Item*     *args= condf->arguments();
+
+		filp->Bd = filp->Hv = false;
 
     if (trace)
       htrc("Func type=%d argnum=%d\n", condf->functype(),
@@ -2798,8 +2833,9 @@ PCFIL ha_connect::CheckCond(PGLOBAL g, PCFIL filp, const Item *cond)
         ha_field_option_struct *fop;
         Item_field *pField= (Item_field *)args[i];
 
-        if (x && i)
-          return NULL;
+				// IN and BETWEEN clauses should be col VOP list
+				if (i && (x || ismul))
+          return NULL;	// IN and BETWEEN clauses should be col VOP list
 				else if (pField->field->table != table)
 					return NULL;  // Field does not belong to this table
 				else if (tty != TYPE_AM_WMI && IsIndexed(pField->field))
@@ -2815,10 +2851,19 @@ PCFIL ha_connect::CheckCond(PGLOBAL g, PCFIL filp, const Item *cond)
           else
             return NULL;
 
-        } else if (tty == TYPE_AM_TBL)
-          return NULL;
-        else
-          fnm= pField->field->field_name;
+				} else if (tty == TYPE_AM_TBL) {
+					return NULL;
+				} else {
+					bool h;
+
+					fnm = filp->Chk(pField->field->field_name, &h);
+
+					if (h && i && !ishav)
+						return NULL;			// Having should be	col VOP arg
+					else
+						ishav = h;
+
+				}	// endif's
 
         if (trace) {
           htrc("Field index=%d\n", pField->field->field_index);
@@ -2827,11 +2872,7 @@ PCFIL ha_connect::CheckCond(PGLOBAL g, PCFIL filp, const Item *cond)
           htrc("Field_type=%d\n", args[i]->field_type());
           } // endif trace
 
-        // IN and BETWEEN clauses should be col VOP list
-        if (i && ismul)
-          return NULL;
-
-        strcat(body, fnm);
+        strcat((ishav ? havg : body), fnm);
       } else if (args[i]->type() == COND::FUNC_ITEM) {
         if (tty == TYPE_AM_MYSQL) {
           if (!CheckCond(g, filp, args[i]))
@@ -2870,32 +2911,34 @@ PCFIL ha_connect::CheckCond(PGLOBAL g, PCFIL filp, const Item *cond)
           return NULL;
 
         if (!x) {
+					char *s = (ishav) ? havg : body;
+
           // Append the value to the filter
           switch (args[i]->field_type()) {
             case MYSQL_TYPE_TIMESTAMP:
             case MYSQL_TYPE_DATETIME:
               if (tty == TYPE_AM_ODBC) {
-                strcat(body, "{ts '");
-                strncat(body, res->ptr(), res->length());
+                strcat(s, "{ts '");
+                strncat(s, res->ptr(), res->length());
 
                 if (res->length() < 19)
-                  strcat(body, &"1970-01-01 00:00:00"[res->length()]);
+                  strcat(s, &"1970-01-01 00:00:00"[res->length()]);
 
-                strcat(body, "'}");
+                strcat(s, "'}");
                 break;
                 } // endif ODBC
 
             case MYSQL_TYPE_DATE:
               if (tty == TYPE_AM_ODBC) {
-                strcat(body, "{d '");
-                strcat(strncat(body, res->ptr(), res->length()), "'}");
+                strcat(s, "{d '");
+                strcat(strncat(s, res->ptr(), res->length()), "'}");
                 break;
                 } // endif ODBC
 
             case MYSQL_TYPE_TIME:
               if (tty == TYPE_AM_ODBC) {
-                strcat(body, "{t '");
-                strcat(strncat(body, res->ptr(), res->length()), "'}");
+                strcat(s, "{t '");
+                strcat(strncat(s, res->ptr(), res->length()), "'}");
                 break;
                 } // endif ODBC
 
@@ -2904,39 +2947,39 @@ PCFIL ha_connect::CheckCond(PGLOBAL g, PCFIL filp, const Item *cond)
                 switch (args[0]->field_type()) {
                   case MYSQL_TYPE_TIMESTAMP:
                   case MYSQL_TYPE_DATETIME:
-                    strcat(body, "{ts '");
-                    strncat(body, res->ptr(), res->length());
+                    strcat(s, "{ts '");
+                    strncat(s, res->ptr(), res->length());
 
                     if (res->length() < 19)
-                      strcat(body, &"1970-01-01 00:00:00"[res->length()]);
+                      strcat(s, &"1970-01-01 00:00:00"[res->length()]);
 
-                    strcat(body, "'}");
+                    strcat(s, "'}");
                     break;
                   case MYSQL_TYPE_DATE:
-                    strcat(body, "{d '");
-                    strncat(body, res->ptr(), res->length());
-                    strcat(body, "'}");
+                    strcat(s, "{d '");
+                    strncat(s, res->ptr(), res->length());
+                    strcat(s, "'}");
                     break;
                   case MYSQL_TYPE_TIME:
-                    strcat(body, "{t '");
-                    strncat(body, res->ptr(), res->length());
-                    strcat(body, "'}");
+                    strcat(s, "{t '");
+                    strncat(s, res->ptr(), res->length());
+                    strcat(s, "'}");
                     break;
                   default:
-                    strcat(body, "'");
-                    strncat(body, res->ptr(), res->length());
-                    strcat(body, "'");
+                    strcat(s, "'");
+                    strncat(s, res->ptr(), res->length());
+                    strcat(s, "'");
                   } // endswitch field type
 
               } else {
-                strcat(body, "'");
-                strncat(body, res->ptr(), res->length());
-                strcat(body, "'");
+                strcat(s, "'");
+                strncat(s, res->ptr(), res->length());
+                strcat(s, "'");
               } // endif tty
 
               break;
             default:
-              strncat(body, res->ptr(), res->length());
+              strncat(s, res->ptr(), res->length());
             } // endswitch field type
 
         } else {
@@ -2952,22 +2995,28 @@ PCFIL ha_connect::CheckCond(PGLOBAL g, PCFIL filp, const Item *cond)
 
         } // endif x
 
-      } // endif
+      } // endif's Type
 
       if (!x) {
-        if (!i)
-          strcat(body, GetValStr(vop, neg));
+				char *s = (ishav) ? havg : body;
+
+				if (!i)
+          strcat(s, GetValStr(vop, neg));
         else if (vop == OP_XX && i == 1)
-          strcat(body, " AND ");
+          strcat(s, " AND ");
         else if (vop == OP_IN)
-          strcat(body, (i == condf->argument_count() - 1) ? ")" : ",");
+          strcat(s, (i == condf->argument_count() - 1) ? ")" : ",");
 
         } // endif x
 
       } // endfor i
 
-    if (x)
-      filp->Op= vop;
+			if (x)
+				filp->Op = vop;
+			else if (ishav)
+				filp->Hv = true;
+			else
+				filp->Bd = true;
 
   } else {
     if (trace)
@@ -3024,16 +3073,28 @@ const COND *ha_connect::cond_push(const COND *cond)
 
     if (b) {
 			PCFIL filp;
+			int   rc;
 
 			if ((filp= tdbp->GetCondFil()) &&	filp->Cond == cond && 
 				   filp->Idx == active_index && filp->Type == tty)
 				goto fin;   // Already done
 
       filp= new(g) CONDFIL(cond, active_index, tty);
-      filp->Body= (char*)PlugSubAlloc(g, NULL, (x) ? 128 : 0);
-      *filp->Body= 0;
+			rc = filp->Init(g, this);
+
+			if (rc == RC_INFO) {
+				filp->Having = (char*)PlugSubAlloc(g, NULL, 256);
+				*filp->Having = 0;
+			} else if (rc == RC_FX)
+				goto fin;
+
+			filp->Body = (char*)PlugSubAlloc(g, NULL, (x) ? 128 : 0);
+			*filp->Body = 0;
 
       if (CheckCond(g, filp, cond)) {
+				if (filp->Having && strlen(filp->Having) > 255)
+					goto fin;								// Memory collapse
+
         if (trace)
           htrc("cond_push: %s\n", filp->Body);
 
@@ -3206,9 +3267,9 @@ int ha_connect::optimize(THD* thd, HA_CHECK_OPT*)
   tdbp= GetTDB(g);
   dup->Check |= CHK_OPT;
 
-  if (tdbp) {
+  if (tdbp && !tdbp->IsRemote()) {
     bool dop= IsTypeIndexable(GetRealType(NULL));
-    bool dox= (((PTDBASE)tdbp)->GetDef()->Indexable() == 1);
+    bool dox= (tdbp->GetDef()->Indexable() == 1);
 
     if ((rc= ((PTDBASE)tdbp)->ResetTableOpt(g, dop, dox))) {
       if (rc == RC_INFO) {
@@ -3219,7 +3280,7 @@ int ha_connect::optimize(THD* thd, HA_CHECK_OPT*)
 
       } // endif rc
 
-  } else
+	} else if (!tdbp)
     rc= HA_ERR_INTERNAL_ERROR;
 
   return rc;
@@ -3462,9 +3523,9 @@ int ha_connect::index_init(uint idx, bool sorted)
     htrc("index_init CONNECT: %s\n", g->Message);
     active_index= MAX_KEY;
     rc= HA_ERR_INTERNAL_ERROR;
-  } else if (((PTDBDOX)tdbp)->To_Kindex) {
+  } else if (tdbp->GetKindex()) {
     if (((PTDBDOX)tdbp)->To_Kindex->GetNum_K()) {
-      if (((PTDBASE)tdbp)->GetFtype() != RECFM_NAF)
+      if (tdbp->GetFtype() != RECFM_NAF)
         ((PTDBDOX)tdbp)->GetTxfp()->ResetBuffer(g);
 
       active_index= idx;
@@ -3878,11 +3939,10 @@ int ha_connect::rnd_next(uchar *buf)
 void ha_connect::position(const uchar *)
 {
   DBUG_ENTER("ha_connect::position");
-//if (((PTDBASE)tdbp)->GetDef()->Indexable())
-    my_store_ptr(ref, ref_length, (my_off_t)((PTDBASE)tdbp)->GetRecpos());
+  my_store_ptr(ref, ref_length, (my_off_t)tdbp->GetRecpos());
 
   if (trace > 1)
-    htrc("position: pos=%d\n", ((PTDBASE)tdbp)->GetRecpos());
+    htrc("position: pos=%d\n", tdbp->GetRecpos());
 
   DBUG_VOID_RETURN;
 } // end of position
@@ -3907,14 +3967,14 @@ void ha_connect::position(const uchar *)
 int ha_connect::rnd_pos(uchar *buf, uchar *pos)
 {
   int     rc;
-  PTDBASE tp= (PTDBASE)tdbp;
+//PTDBASE tp= (PTDBASE)tdbp;
   DBUG_ENTER("ha_connect::rnd_pos");
 
-  if (!tp->SetRecpos(xp->g, (int)my_get_ptr(pos, ref_length))) {
+  if (!tdbp->SetRecpos(xp->g, (int)my_get_ptr(pos, ref_length))) {
     if (trace)
-      htrc("rnd_pos: %d\n", tp->GetRecpos());
+      htrc("rnd_pos: %d\n", tdbp->GetRecpos());
 
-    tp->SetFilter(NULL);
+    tdbp->SetFilter(NULL);
     rc= rnd_next(buf);
   } else
     rc= HA_ERR_KEY_NOT_FOUND;
@@ -4092,7 +4152,7 @@ int ha_connect::delete_all_rows()
 
   if (tdbp && tdbp->GetUse() == USE_OPEN &&
       tdbp->GetAmType() != TYPE_AM_XML &&
-      ((PTDBASE)tdbp)->GetFtype() != RECFM_NAF)
+      tdbp->GetFtype() != RECFM_NAF)
     // Close and reopen the table so it will be deleted
     rc= CloseTable(g);
 
@@ -4470,12 +4530,12 @@ int ha_connect::external_lock(THD *thd, int lock_type)
       if (!tdbp) {
         if (!(tdbp= GetTDB(g)))
           DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
-        else if (!((PTDBASE)tdbp)->GetDef()->Indexable()) {
+        else if (!tdbp->GetDef()->Indexable()) {
           sprintf(g->Message, "external_lock: Table %s is not indexable", tdbp->GetName());
 //        DBUG_RETURN(HA_ERR_INTERNAL_ERROR);  causes assert error
           push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 0, g->Message);
           DBUG_RETURN(0);
-        } else if (((PTDBASE)tdbp)->GetDef()->Indexable() == 1) {
+        } else if (tdbp->GetDef()->Indexable() == 1) {
           bool    oldsep= ((PCHK)g->Xchk)->oldsep;
           bool    newsep= ((PCHK)g->Xchk)->newsep;
           PTDBDOS tdp= (PTDBDOS)tdbp;
@@ -4556,7 +4616,7 @@ int ha_connect::external_lock(THD *thd, int lock_type)
               rc= 0;
               } // endif MakeIndex
       
-        } else if (((PTDBASE)tdbp)->GetDef()->Indexable() == 3) {
+        } else if (tdbp->GetDef()->Indexable() == 3) {
           if (CheckVirtualIndex(NULL)) {
             // Make it a warning to avoid crash
             push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 
@@ -5172,7 +5232,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
                                       TABLE_SHARE *table_s,
                                       HA_CREATE_INFO *create_info)
 {
-  char        v=0, spc= ',', qch= 0;
+  char        v=0;
   const char *fncn= "?";
   const char *user, *fn, *db, *host, *pwd, *sep, *tbl, *src;
   const char *col, *ocl, *rnk, *pic, *fcl, *skc, *zfn;
@@ -5224,8 +5284,6 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
   fncn= topt->catfunc;
   fnc= GetFuncID(fncn);
   sep= topt->separator;
-  spc= (!sep) ? ',' : *sep;
-  qch= topt->qchar ? *topt->qchar : (signed)topt->quoted >= 0 ? '"' : 0;
 	mul = (int)topt->multiple;
 	tbl= topt->tablist;
   col= topt->colist;
@@ -5425,8 +5483,8 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
           if (mydef->GetPassword())
             pwd=  mydef->GetPassword();
 
-          if (mydef->GetDatabase())
-            db= mydef->GetDatabase();
+          if (mydef->GetTabschema())
+						db = mydef->GetTabschema();
 
           if (mydef->GetTabname())
             tab= mydef->GetTabname();
@@ -6052,8 +6110,8 @@ int ha_connect::create(const char *name, TABLE *table_arg,
             if (mydef->GetHostname())
               host= mydef->GetHostname();
 
-            if (mydef->GetDatabase())
-              db= mydef->GetDatabase();
+						if (mydef->GetTabschema())
+							db = mydef->GetTabschema();
 
             if (mydef->GetTabname())
               tab= mydef->GetTabname();
@@ -6266,21 +6324,26 @@ int ha_connect::create(const char *name, TABLE *table_arg,
     // Check for incompatible options
     if (options->sepindex) {
       my_message(ER_UNKNOWN_ERROR,
-            "SEPINDEX is incompatible with unspecified file name",
-            MYF(0));
+            "SEPINDEX is incompatible with unspecified file name", MYF(0));
       DBUG_RETURN(HA_ERR_UNSUPPORTED);
-    } else if (GetTypeID(options->type) == TAB_VEC)
-      if (!table->s->max_rows || options->split) {
-        my_printf_error(ER_UNKNOWN_ERROR,
-            "%s tables whose file name is unspecified cannot be split",
-            MYF(0), options->type);
-        DBUG_RETURN(HA_ERR_UNSUPPORTED);
-      } else if (options->header == 2) {
-        my_printf_error(ER_UNKNOWN_ERROR,
-        "header=2 is not allowed for %s tables whose file name is unspecified",
-            MYF(0), options->type);
-        DBUG_RETURN(HA_ERR_UNSUPPORTED);
-      } // endif's
+		} else if (GetTypeID(options->type) == TAB_VEC) {
+			if (!table->s->max_rows || options->split) {
+				my_printf_error(ER_UNKNOWN_ERROR,
+					"%s tables whose file name is unspecified cannot be split",
+					MYF(0), options->type);
+				DBUG_RETURN(HA_ERR_UNSUPPORTED);
+			} else if (options->header == 2) {
+				my_printf_error(ER_UNKNOWN_ERROR,
+					"header=2 is not allowed for %s tables whose file name is unspecified",
+					MYF(0), options->type);
+				DBUG_RETURN(HA_ERR_UNSUPPORTED);
+			} // endif's
+
+		} else if (options->zipped) {
+			my_message(ER_UNKNOWN_ERROR,
+				"ZIPPED is incompatible with unspecified file name", MYF(0));
+			DBUG_RETURN(HA_ERR_UNSUPPORTED);
+		}	// endif's options
 
     // Fold type to lower case
     for (int i= 0; i < 12; i++)
@@ -6332,6 +6395,36 @@ int ha_connect::create(const char *name, TABLE *table_arg,
 
   if (trace)
     htrc("xchk=%p createas=%d\n", g->Xchk, g->Createas);
+
+	if (options->zipped) {
+		// Check whether the zip entry must be made from a file
+		char *fn = GetListOption(g, "Load", options->oplist, NULL);
+
+		if (fn) {
+			char  zbuf[_MAX_PATH], buf[_MAX_PATH], dbpath[_MAX_PATH];
+			char *entry = GetListOption(g, "Entry", options->oplist, NULL);
+			char *a = GetListOption(g, "Append", options->oplist, "NO");
+			bool  append = *a == '1' || *a == 'Y' || *a == 'y' || !stricmp(a, "ON");
+			char *m = GetListOption(g, "Mulentries", options->oplist, "NO");
+			bool  mul = *m == '1' || *m == 'Y' || *m == 'y' || !stricmp(m, "ON");
+
+			if (!entry && !mul) {
+				my_message(ER_UNKNOWN_ERROR, "Missing entry name", MYF(0));
+				DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
+			}	// endif entry
+
+			strcat(strcat(strcpy(dbpath, "./"), table->s->db.str), "/");
+			PlugSetPath(zbuf, options->filename, dbpath);
+			PlugSetPath(buf, fn, dbpath);
+
+			if (ZipLoadFile(g, zbuf, buf, entry, append, mul)) {
+				my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
+				DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
+			}	// endif LoadFile
+
+		}	// endif fn
+
+	}	// endif zipped
 
   // To check whether indexes have to be made or remade
   if (!g->Xchk) {
@@ -6951,10 +7044,10 @@ maria_declare_plugin(connect)
   PLUGIN_LICENSE_GPL,
   connect_init_func,                            /* Plugin Init */
   connect_done_func,                            /* Plugin Deinit */
-  0x0104,                                       /* version number (1.04) */
+  0x0105,                                       /* version number (1.05) */
   NULL,                                         /* status variables */
   connect_system_variables,                     /* system variables */
-  "1.05.0001",                                  /* string version */
+  "1.05.0003",                                  /* string version */
   MariaDB_PLUGIN_MATURITY_GAMMA                 /* maturity */
 }
 maria_declare_plugin_end;

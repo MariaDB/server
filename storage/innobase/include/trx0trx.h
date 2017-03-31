@@ -580,13 +580,6 @@ void
 trx_kill_blocking(trx_t* trx);
 
 /**
-Check if redo/noredo rseg is modified for insert/update.
-@param[in] trx		Transaction to check */
-UNIV_INLINE
-bool
-trx_is_rseg_updated(const trx_t* trx);
-
-/**
 Transactions that aren't started by the MySQL server don't set
 the trx_t::mysql_thd field. For such transactions we set the lock
 wait timeout to 0 instead of the user configured value that comes
@@ -645,7 +638,7 @@ Check transaction state */
 #define	assert_trx_is_free(t)	do {					\
 	ut_ad(trx_state_eq((t), TRX_STATE_NOT_STARTED)			\
 	      || trx_state_eq((t), TRX_STATE_FORCED_ROLLBACK));		\
-	ut_ad(!trx_is_rseg_updated(trx));				\
+	ut_ad(!trx->has_logged());					\
 	ut_ad(!MVCC::is_view_active((t)->read_view));			\
 	ut_ad((t)->lock.wait_thr == NULL);				\
 	ut_ad(UT_LIST_GET_LEN((t)->lock.trx_locks) == 0);		\
@@ -1104,8 +1097,8 @@ struct trx_t {
 
 	time_t		start_time;	/*!< time the state last time became
 					TRX_STATE_ACTIVE */
-	clock_t		start_time_micro; /*!< start time of the transaction
-					in microseconds. */
+	ib_uint64_t	start_time_micro; /*!< start time of transaction in
+					microseconds */
 	lsn_t		commit_lsn;	/*!< lsn at the time of the commit */
 	table_id_t	table_id;	/*!< Table to drop iff dict_operation
 					== TRX_DICT_OP_TABLE, or 0. */
@@ -1290,6 +1283,18 @@ struct trx_t {
 #endif /* WITH_WSREP */
 
 	ulint		magic_n;
+
+	/** @return whether any persistent undo log has been generated */
+	bool has_logged_persistent() const
+	{
+		return(rsegs.m_redo.insert_undo || rsegs.m_redo.update_undo);
+	}
+
+	/** @return whether any undo log has been generated */
+	bool has_logged() const
+	{
+		return(has_logged_persistent() || rsegs.m_noredo.undo);
+	}
 };
 
 /**

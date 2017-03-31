@@ -4004,12 +4004,12 @@ sljit_emit_op_custom(compiler, instruction, 4);
 
 if (load_twice)
   {
-  OP1(SLJIT_MOV, TMP3, 0, TMP2, 0);
+  OP1(SLJIT_MOV, RETURN_ADDR, 0, TMP2, 0);
   instruction[3] = 0xc0 | (tmp2_ind << 3) | 1;
   sljit_emit_op_custom(compiler, instruction, 4);
 
   OP2(SLJIT_OR, TMP1, 0, TMP1, 0, TMP2, 0);
-  OP1(SLJIT_MOV, TMP2, 0, TMP3, 0);
+  OP1(SLJIT_MOV, TMP2, 0, RETURN_ADDR, 0);
   }
 
 OP2(SLJIT_ASHR, TMP1, 0, TMP1, 0, TMP2, 0);

@@ -36,7 +36,7 @@
   The programs make a DFA-state-machine of the strings and the speed isn't
   dependent on the count of replace-strings (only of the number of replaces).
   A line is assumed ending with \n or \0.
-  There are no limit exept memory on length of strings.
+  There are no limit except memory on length of strings.
 
   Written by Monty.
   fill_buffer_retaining() is taken from gnu-grep and modified.

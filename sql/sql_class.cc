@@ -4409,6 +4409,28 @@ extern "C" int thd_is_connected(MYSQL_THD thd)
 }
 
 
+extern "C" double thd_rnd(MYSQL_THD thd)
+{
+  return my_rnd(&thd->rand);
+}
+
+
+/**
+  Generate string of printable random characters of requested length.
+
+  @param to[out]      Buffer for generation; must be at least length+1 bytes
+                      long; result string is always null-terminated
+  @param length[in]   How many random characters to put in buffer
+*/
+extern "C" void thd_create_random_password(MYSQL_THD thd,
+                                           char *to, size_t length)
+{
+  for (char *end= to + length; to < end; to++)
+    *to= (char) (my_rnd(&thd->rand)*94 + 33);
+  *to= '\0';
+}
+
+
 #ifdef INNODB_COMPATIBILITY_HOOKS
 
 /** open a table and add it to thd->open_tables
@@ -4482,7 +4504,10 @@ MYSQL_THD create_thd()
 
 void destroy_thd(MYSQL_THD thd)
 {
-  delete_running_thd(thd);
+  thd->add_status_to_global();
+  unlink_not_visible_thd(thd);
+  delete thd;
+  dec_thread_running();
 }
 
 void reset_thd(MYSQL_THD thd)
@@ -4533,6 +4558,15 @@ extern "C" int thd_rpl_is_parallel(const MYSQL_THD thd)
 {
   return thd->rgi_slave && thd->rgi_slave->is_parallel_exec;
 }
+
+
+/* Returns high resolution timestamp for the start
+  of the current query. */
+extern "C" unsigned long long thd_start_utime(const MYSQL_THD thd)
+{
+  return thd->start_utime;
+}
+
 
 /*
   This function can optionally be called to check if thd_rpl_deadlock_check()
@@ -6980,7 +7014,13 @@ wait_for_commit::reinit()
 
     So in this case, do a re-init of the mutex. In release builds, we want to
     avoid the overhead of a re-init though.
+
+    To ensure that no one is locking the mutex, we take a lock of it first.
+    For full explanation, see wait_for_commit::~wait_for_commit()
   */
+  mysql_mutex_lock(&LOCK_wait_commit);
+  mysql_mutex_unlock(&LOCK_wait_commit);
+
   mysql_mutex_destroy(&LOCK_wait_commit);
   mysql_mutex_init(key_LOCK_wait_commit, &LOCK_wait_commit, MY_MUTEX_INIT_FAST);
 #endif
