@@ -99,3 +99,4 @@ ALTER TABLE t1 ADD INDEX kb(b) comment 'rev:cf1', ALGORITHM=INPLACE;
 SHOW CREATE TABLE t1;
 SELECT COUNT(*) FROM t1 FORCE INDEX(kb);
 DROP TABLE t1;
+--remove_file $file

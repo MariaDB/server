@@ -118,3 +118,4 @@ EOF
 # Cleanup
 disconnect other;
 DROP TABLE t1, t2, t3;
+--remove_file $file
