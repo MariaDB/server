@@ -47,6 +47,7 @@ ROLLBACK;
 --disconnect flush_redo_log
 --connection default
 
+let $shutdown_timeout=0;
 --source include/restart_mysqld.inc
 
 # This insert will re-initialize the Doc ID counter, it should not crash
