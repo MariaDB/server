@@ -2158,4 +2158,3 @@ drop table t1;
 connection default;
 disconnect pipe_con;
 FOUND 1 /\[ERROR\] Create named pipe failed/ in second-mysqld.err
-
