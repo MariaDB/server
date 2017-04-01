@@ -16,11 +16,15 @@ create table t1 (a datetime,
 );
 show create table t1;
 connect con1, localhost, root;
+disable_warnings;
 insert t1 (a) values ('2010-10-10 10:10:10');
+enable_warnings;
 select * from t1;
 disconnect con1;
 connection default;
+disable_warnings;
 select * from t1;
+enable_warnings;
 drop table t1;
 
 connect con1, localhost, root;
