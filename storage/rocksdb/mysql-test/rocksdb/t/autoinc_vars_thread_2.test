@@ -40,6 +40,7 @@ while ($i > 0)
   my $thr = $ENV{'ROCKSDB_THREAD'};
   my $num = $ENV{'ROCKSDB_ROWS_PER_THREAD'};
   open(my $fh, '>>', $fn) || die "perl open($fn): $!";
+  binmode $fh;
   for (my $ii = 0; $ii < $num; $ii++)
   {
     print $fh "\\N\t$thr\n"

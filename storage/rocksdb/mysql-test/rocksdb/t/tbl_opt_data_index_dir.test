@@ -1,6 +1,8 @@
 --source include/have_rocksdb.inc
 
 --source include/have_partition.inc
+--source include/not_windows.inc
+
 #
 # Check that when either DATA DIRECTORY or INDEX DIRECTORY are specified
 # then MyRocks returns an appropriate error. We don't support this
