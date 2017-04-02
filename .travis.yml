@@ -29,6 +29,13 @@ env:
 matrix:
   allowed_failures:
     - os: osx
+      env:
+        - GCC_VERSION=4.8
+        - GCC_VERSION=5
+        - GCC_VERSION=6
+      compiler:
+        - gcc
+        - clang
   include:
     - os: osx
       before_install:
