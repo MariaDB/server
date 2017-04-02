@@ -1,5 +1,9 @@
 package My::Suite::Rocksdb;
 
+#
+# Note: ../rocksdb_sys_vars/suite.pm file has a similar
+#  function. If you modify this file, consider modifying that one, too.
+#
 @ISA = qw(My::Suite);
 use My::Find;
 use File::Basename;
