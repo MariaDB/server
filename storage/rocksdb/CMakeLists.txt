@@ -75,11 +75,11 @@ SET(ROCKSDB_SE_SOURCES
   rdb_psi.cc
 )
 
-MYSQL_ADD_PLUGIN(rocksdb_se ${ROCKSDB_SE_SOURCES} STORAGE_ENGINE
+MYSQL_ADD_PLUGIN(rocksdb ${ROCKSDB_SE_SOURCES} STORAGE_ENGINE
                  MODULE_OUTPUT_NAME ha_rocksdb
                  COMPONENT rocksdb-engine)
 
-IF(NOT TARGET rocksdb_se)
+IF(NOT TARGET rocksdb)
   # Bail out if compilation with rocksdb engine is not requested
   RETURN()
 ENDIF()
@@ -111,7 +111,7 @@ ADD_CONVENIENCE_LIBRARY(rocksdb_aux_lib
 ADD_DEPENDENCIES(rocksdb_aux_lib GenError)
 
 TARGET_LINK_LIBRARIES(rocksdb_aux_lib rocksdblib ${ZLIB_LIBRARY})
-TARGET_LINK_LIBRARIES(rocksdb_se rocksdb_aux_lib)
+TARGET_LINK_LIBRARIES(rocksdb rocksdb_aux_lib)
 
 IF(CMAKE_CXX_COMPILER_ID MATCHES "GNU" OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
 
