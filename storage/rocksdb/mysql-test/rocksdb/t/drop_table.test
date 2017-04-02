@@ -111,7 +111,6 @@ let $wait_condition = select count(*) = 0
 # Check total compacted-away rows for all indices
 # Check that all indices have been successfully dropped
 perl;
-use autodie qw(open);
 
 sub print_array {
   $str = shift;
@@ -123,7 +122,8 @@ sub print_array {
   }
 }
 
-open F, '<', "$ENV{MYSQLTEST_VARDIR}/log/mysqld.1.err";
+$filename= "$ENV{MYSQLTEST_VARDIR}/log/mysqld.1.err";
+open(F, '<', $filename) || die("Can't open file $filename: $!");
 while (<F>) {
   %a = @b = @c = () if /CURRENT_TEST/;
   if (/Compacting away elements from dropped index \(\d+,(\d+)\): (\d+)/) {

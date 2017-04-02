@@ -90,9 +90,9 @@ let $table = t5;
 --source drop_table_repopulate_table.inc
 
 perl;
-use autodie qw(open);
 $size+=-s $_ for (<$ENV{MYSQLTEST_VARDIR}/mysqld.1/data/.rocksdb/*.sst>);
-open(F, '>', "$ENV{MYSQLTEST_VARDIR}/tmp/size_output"); 
+$filename= "$ENV{MYSQLTEST_VARDIR}/tmp/size_output";
+open(F, '>', $filename) || die("Can't open file $filename: $!");
 print F $size;
 EOF
 drop table t1;
@@ -110,9 +110,9 @@ let $wait_condition = select count(*) = 0
 
 # Check that space is reclaimed
 perl;
-use autodie qw(open);
 $size+=-s $_ for (<$ENV{MYSQLTEST_VARDIR}/mysqld.1/data/.rocksdb/*.sst>);
-open(F, '<', "$ENV{MYSQLTEST_VARDIR}/tmp/size_output"); 
+$filename= "$ENV{MYSQLTEST_VARDIR}/tmp/size_output";
+open(F, '<', $filename) || die("Can't open file $filename: $!");
 $old=<F>;
 print "Compacted\n" if $old > $size * 2;
 EOF

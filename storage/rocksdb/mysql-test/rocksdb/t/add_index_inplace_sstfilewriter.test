@@ -1,5 +1,8 @@
 --source include/have_rocksdb.inc
 
+# This test requires ~1.3G of disk space
+--source include/big_test.inc
+
 --disable_warnings
 drop table if exists t1;
 --enable_warnings

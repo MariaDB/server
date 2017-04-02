@@ -45,14 +45,13 @@
 
 perl;
     use strict;
-    use autodie qw(open);
     die "SEARCH_FILE not set" unless $ENV{SEARCH_FILE};
     my @search_files= glob($ENV{SEARCH_FILE});
     my $search_pattern= $ENV{SEARCH_PATTERN} or die "SEARCH_PATTERN not set";
     my $search_range=   $ENV{SEARCH_RANGE};
     my $content;
     foreach my $search_file (@search_files) {
-        open(FILE, '<', $search_file);
+        open(FILE, '<', $search_file) || die("Can't open file $search_file: $!");
         my $file_content;
         if ($search_range > 0) {
            read(FILE, $file_content, $search_range, 0);
