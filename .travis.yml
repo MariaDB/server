@@ -4,15 +4,21 @@
 sudo: false
 dist: trusty
 
+git:
+  depth: 2
+
 language: cpp
 os:
   - linux
 compiler:
   - gcc
   - clang
+
 cache:
-  - apt
-  - ccache
+  apt: true
+  ccache: true
+  directories:
+    - /usr/local
 
 env:
   matrix:
@@ -20,8 +26,30 @@ env:
     - GCC_VERSION=5
     - GCC_VERSION=6
 
-#matrix:
-#  include:
+matrix:
+  allowed_failures:
+    - os: osx
+  include:
+    - os: osx
+      before_install:
+        - brew update
+        - brew install homebrew/boneyard/judy gnutls lz4 lzo xz snappy ccache
+        # Below fixed by: https://github.com/MariaDB/server/pull/347
+        - sed -i -e 's:/usr/bin/::g' cmake/libutils.cmake
+      script:
+        - ccache --version
+        - cmake .
+                 -DOPENSSL_ROOT_DIR=/usr/local/opt/openssl
+                 -DCMAKE_C_COMPILER_LAUNCHER=/usr/local/bin/ccache
+                 -DCMAKE_CXX_COMPILER_LAUNCHER=/usr/local/bin/ccache
+                 -DCMAKE_BUILD_TYPE=Debug
+                 -DWITH_SSL=system -DWITH_ZLIB=system
+                 -DWITHOUT_TOKUDB_STORAGE_ENGINE=ON -DWITHOUT_MROONGA_STORAGE_ENGINE=ON
+        - make -j 4
+        - cd mysql-test
+        - ./mtr --force --parallel=4 --skip-rpl --suite=main,innodb --skip-test-list=unstable-tests
+        - ccache --show-stats
+
 #    - env:
 #        - GCC_VERSION=6
 #      addon:
@@ -39,12 +67,12 @@ env:
 #        build_command_prepend:
 #          - source .travis.compiler.sh
 #          - ${MYSQL_BUILD_CC} --version ; ${MYSQL_BUILD_CXX} --version
-#          - cmake . {MYSQL_BUILD_CXX:+-DCMAKE_CXX_COMPILER=$${MYSQL_BUILD_CXX} \
-#                    {MYSQL_BUILD_CC:+-DCMAKE_C_COMPILER=$${MYSQL_BUILD_CC} \
-#                   -DCMAKE_BUILD_TYPE=Debug \
-#                   -DWITH_SSL=system -DWITH_ZLIB=system \
+#          - cmake . {MYSQL_BUILD_CXX:+-DCMAKE_CXX_COMPILER=$${MYSQL_BUILD_CXX}
+#                    {MYSQL_BUILD_CC:+-DCMAKE_C_COMPILER=$${MYSQL_BUILD_CC}
+#                   -DCMAKE_BUILD_TYPE=Debug
+#                   -DWITH_SSL=system -DWITH_ZLIB=system
 #                   -DWITHOUT_TOKUDB_STORAGE_ENGINE=ON -DWITHOUT_MROONGA_STORAGE_ENGINE=ON
-#       
+#
 #        # The command that will be added as an argument to "cov-build" to compile your project for analysis,
 #        build_command: make -j 4
 #
@@ -52,7 +80,7 @@ env:
 #        # Take care in resource usage, and consider the build frequency allowances per
 #        #   https://scan.coverity.com/faq#frequency - 7 per week is the current limit.
 #        branch_pattern: .*coverity.*
-#        
+
 addons:
   apt:
     sources:
