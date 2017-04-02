@@ -1,6 +1,9 @@
 --source include/have_rocksdb.inc
 --source include/have_partition.inc
 
+# This test requires ~2.3G of disk space
+--source include/big_test.inc
+
 --disable_warnings
 DROP TABLE IF EXISTS t1, t2, t3;
 --enable_warnings
