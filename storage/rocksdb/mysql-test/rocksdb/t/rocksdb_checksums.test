@@ -53,12 +53,12 @@ while ($i<10000)
 --enable_query_log
 check table t4;
 perl;
-use autodie qw(open);
 $total=10000;
 $pct=5;
 @out=();
 
-open(F, '<', "$ENV{MYSQLTEST_VARDIR}/log/mysqld.1.err");
+$filename= "$ENV{MYSQLTEST_VARDIR}/log/mysqld.1.err";
+open(F, '<', $filename) || die("Can't open file $filename: $!");
 while(<F>) {
   @out=() if /^CURRENT_TEST:/;
   if (/(\d+) index entries checked \((\d+) had checksums/) {

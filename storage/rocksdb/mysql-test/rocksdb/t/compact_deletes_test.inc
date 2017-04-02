@@ -39,7 +39,6 @@ let $wait_condition = select count(*) = 0
 
 let NO_MORE_DELETES=$no_more_deletes;
 perl;
-  use autodie qw(open);
   $num_retries=240;
   $retry=0;
   print "wait_for_delete: $ENV{no_more_deletes}\n";
@@ -47,7 +46,8 @@ perl;
     $total_d=$total_e=0;
     for $f (<$ENV{MYSQLTEST_VARDIR}/mysqld.1/data/.rocksdb/*.sst>) {
       # excluding system cf
-      open D, '-|', "$ENV{MARIAROCKS_SST_DUMP} --command=scan --output_hex --file=$f";
+      $filename= "$ENV{MARIAROCKS_SST_DUMP} --command=scan --output_hex --file=$f";
+      open(D, '-|', $filename) || die("Can't open file $filename: $!");
       while (<D>) {
         next unless /'(\d{8})/ and $1 >= 8;
         $total_d++ if /: [07]/;
