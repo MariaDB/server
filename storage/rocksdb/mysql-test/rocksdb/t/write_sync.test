@@ -1,4 +1,5 @@
 --source include/have_rocksdb.inc
+--source include/not_windows.inc # MDEV-12427
 
 SET GLOBAL rocksdb_write_disable_wal=false;
 SET GLOBAL rocksdb_write_ignore_missing_column_families=true;
