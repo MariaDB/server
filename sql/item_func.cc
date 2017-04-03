@@ -3782,12 +3782,7 @@ longlong Item_master_pos_wait::val_int()
   else
     connection_name= thd->variables.default_master_connection;
 
-  mysql_mutex_lock(&LOCK_active_mi);
-  if (master_info_index)  // master_info_index is set to NULL on shutdown.
-    mi= master_info_index->get_master_info(&connection_name,
-                                           Sql_condition::WARN_LEVEL_WARN);
-  mysql_mutex_unlock(&LOCK_active_mi);
-  if (!mi)
+  if (!(mi= get_master_info(&connection_name, Sql_condition::WARN_LEVEL_WARN)))
     goto err;
 
   if ((event_count = mi->rli.wait_for_pos(thd, log_name, pos, timeout)) == -2)
@@ -3795,6 +3790,7 @@ longlong Item_master_pos_wait::val_int()
     null_value = 1;
     event_count=0;
   }
+  mi->release();
 #endif
   return event_count;
 
@@ -6339,7 +6335,6 @@ Item_func_sp::Item_func_sp(THD *thd, Name_resolution_context *context_arg,
   Item_func(thd), context(context_arg), m_name(name), m_sp(NULL), sp_result_field(NULL)
 {
   maybe_null= 1;
-  m_name->init_qname(thd);
   dummy_table= (TABLE*) thd->calloc(sizeof(TABLE)+ sizeof(TABLE_SHARE));
   dummy_table->s= (TABLE_SHARE*) (dummy_table+1);
 }
@@ -6351,7 +6346,6 @@ Item_func_sp::Item_func_sp(THD *thd, Name_resolution_context *context_arg,
   sp_result_field(NULL)
 {
   maybe_null= 1;
-  m_name->init_qname(thd);
   dummy_table= (TABLE*) thd->calloc(sizeof(TABLE)+ sizeof(TABLE_SHARE));
   dummy_table->s= (TABLE_SHARE*) (dummy_table+1);
 }
@@ -6436,7 +6430,7 @@ Item_func_sp::init_result_field(THD *thd)
   if (!(m_sp= sp_find_routine(thd, TYPE_ENUM_FUNCTION, m_name,
                                &thd->sp_func_cache, TRUE)))
   {
-    my_missing_function_error (m_name->m_name, m_name->m_qname.str);
+    my_missing_function_error (m_name->m_name, ErrConvDQName(m_name).ptr());
     context->process_error(thd);
     DBUG_RETURN(TRUE);
   }

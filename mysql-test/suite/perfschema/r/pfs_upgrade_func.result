@@ -1,4 +1,3 @@
-drop function if exists test.user_func;
 "Testing mysql_upgrade with FUNCTION performance_schema.user_func"
 create function test.user_func() returns integer
 return 0;

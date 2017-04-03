@@ -66,9 +66,10 @@ typedef struct my_aio_result {
 #define MY_FAE		8U	/* Fatal if any error */
 #define MY_WME		16U	/* Write message on error */
 #define MY_WAIT_IF_FULL 32U	/* Wait and try again if disk full error */
-#define MY_IGNORE_BADFD 32U     /* my_sync: ignore 'bad descriptor' errors */
+#define MY_IGNORE_BADFD 32U     /* my_sync(): ignore 'bad descriptor' errors */
 #define MY_ENCRYPT      64U     /* Encrypt IO_CACHE temporary files */
-#define MY_FULL_IO     512U     /* For my_read - loop intil I/O is complete */
+#define MY_NOSYMLINKS  512U     /* my_open(): don't follow symlinks */
+#define MY_FULL_IO     512U     /* my_read(): loop until I/O is complete */
 #define MY_DONT_CHECK_FILESIZE 128U /* Option to init_io_cache() */
 #define MY_LINK_WARNING 32U	/* my_redel() gives warning if links */
 #define MY_COPYTIME	64U	/* my_redel() copys time */
@@ -269,7 +270,7 @@ extern ulong	my_file_opened,my_stream_opened, my_tmp_file_created;
 extern ulong    my_file_total_opened;
 extern ulong    my_sync_count;
 extern uint	mysys_usage_id;
-extern my_bool	my_init_done;
+extern my_bool	my_init_done, my_thr_key_mysys_exists;
 extern my_bool  my_assert_on_error;
 extern myf      my_global_flags;        /* Set to MY_WME for more error messages */
 					/* Point to current my_message() */
@@ -625,6 +626,7 @@ int my_b_pread(IO_CACHE *info, uchar *Buffer, size_t Count, my_off_t pos);
 
 typedef uint32 ha_checksum;
 
+extern int (*mysys_test_invalid_symlink)(const char *filename);
 #include <my_alloc.h>
 
 	/* Prototypes for mysys and my_func functions */
@@ -652,9 +654,10 @@ extern int my_realpath(char *to, const char *filename, myf MyFlags);
 extern File my_create_with_symlink(const char *linkname, const char *filename,
 				   int createflags, int access_flags,
 				   myf MyFlags);
-extern int my_delete_with_symlink(const char *name, myf MyFlags);
 extern int my_rename_with_symlink(const char *from,const char *to,myf MyFlags);
 extern int my_symlink(const char *content, const char *linkname, myf MyFlags);
+extern int my_handler_delete_with_symlink(const char *filename, myf sync_dir);
+
 extern size_t my_read(File Filedes,uchar *Buffer,size_t Count,myf MyFlags);
 extern size_t my_pread(File Filedes,uchar *Buffer,size_t Count,my_off_t offset,
 		     myf MyFlags);
@@ -1008,6 +1011,8 @@ void my_uuid_init(ulong seed1, ulong seed2);
 void my_uuid(uchar *guid);
 void my_uuid2str(const uchar *guid, char *s);
 void my_uuid_end(void);
+
+const char *my_dlerror(const char *dlpath);
 
 /* character sets */
 extern void my_charset_loader_init_mysys(MY_CHARSET_LOADER *loader);

@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
 
 #include "ma_fulltext.h"
 #include "trnman_public.h"
@@ -84,25 +84,16 @@ int maria_delete_table(const char *name)
 
 int maria_delete_table_files(const char *name, my_bool temporary, myf sync_dir)
 {
-  char from[FN_REFLEN];
   DBUG_ENTER("maria_delete_table_files");
 
-  fn_format(from,name,"",MARIA_NAME_IEXT,MY_UNPACK_FILENAME|MY_APPEND_EXT);
-  if (mysql_file_delete_with_symlink(key_file_kfile, from,
-                                     MYF(MY_WME | sync_dir)))
-    DBUG_RETURN(my_errno);
-  fn_format(from,name,"",MARIA_NAME_DEXT,MY_UNPACK_FILENAME|MY_APPEND_EXT);
-  if (mysql_file_delete_with_symlink(key_file_dfile, from,
-                                     MYF(MY_WME | sync_dir)))
+  if (mysql_file_delete_with_symlink(key_file_kfile, name, MARIA_NAME_IEXT, MYF(MY_WME | sync_dir)) ||
+      mysql_file_delete_with_symlink(key_file_dfile, name, MARIA_NAME_DEXT, MYF(MY_WME | sync_dir)))
     DBUG_RETURN(my_errno);
 
-  // optional files from maria_pack:
   if (!temporary)
   {
-    fn_format(from,name,"",".TMD",MY_UNPACK_FILENAME|MY_APPEND_EXT);
-    mysql_file_delete_with_symlink(key_file_dfile, from, MYF(0));
-    fn_format(from,name,"",".OLD",MY_UNPACK_FILENAME|MY_APPEND_EXT);
-    mysql_file_delete_with_symlink(key_file_dfile, from, MYF(0));
+    mysql_file_delete_with_symlink(key_file_dfile, name, ".TMD", MYF(0));
+    mysql_file_delete_with_symlink(key_file_dfile, name, ".OLD", MYF(0));
   }
   DBUG_RETURN(0);
 }

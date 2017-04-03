@@ -110,7 +110,7 @@ Note
        Continue .
 
     5. If you have downloaded the community version of MySQL, you
-       will be shown a copy of the relevent GNU General Public
+       will be shown a copy of the relevant GNU General Public
        License. Click Continue .
 
     6. Select the drive you want to use to install the MySQL Startup
@@ -128,7 +128,7 @@ Note
        will be given an Install Succeeded message.
 
    Once you have completed the basic installation, you must complete
-   the post-installation steps as specifed in Section 2.13,
+   the post-installation steps as specified in Section 2.13,
    "Post-Installation Setup and Testing."
 
    For convenience, you may also want to install the Section 2.7.2,

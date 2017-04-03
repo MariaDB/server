@@ -1076,10 +1076,9 @@ typedef ulong		myf;	/* Type of MyFlags in my_funcs */
 static inline char *dlerror(void)
 {
   static char win_errormsg[2048];
-  if(FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM,
-                   0, GetLastError(), 0, win_errormsg, 2048, NULL))
-    return win_errormsg;
-  return "";
+  FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM,
+    0, GetLastError(), 0, win_errormsg, 2048, NULL);
+  return win_errormsg;
 }
 #define HAVE_DLOPEN 1
 #define HAVE_DLERROR 1

@@ -5784,6 +5784,68 @@ class Sql_mode_save
   sql_mode_t old_mode; // SQL mode saved at construction time.
 };
 
+
+/**
+  This class resembles the SQL Standard schema qualified object name:
+  <schema qualified name> ::= [ <schema name> <period> ] <qualified identifier>
+*/
+class Database_qualified_name
+{
+public:
+  LEX_STRING m_db;
+  LEX_STRING m_name;
+  Database_qualified_name(const LEX_STRING db, const LEX_STRING name)
+   :m_db(db), m_name(name)
+  { }
+  Database_qualified_name(char *db, size_t db_length,
+                          char *name, size_t name_length)
+  {
+    m_db.str= db;
+    m_db.length= db_length;
+    m_name.str= name;
+    m_name.length= name_length;
+  }
+
+  // Export db and name as a qualified name string: 'db.name'
+  size_t make_qname(char *dst, size_t dstlen) const
+  {
+    return my_snprintf(dst, dstlen, "%.*s.%.*s",
+                       (int) m_db.length, m_db.str,
+                       (int) m_name.length, m_name.str);
+  }
+  // Export db and name as a qualified name string, allocate on mem_root.
+  bool make_qname(THD *thd, LEX_STRING *dst) const
+  {
+    const uint dot= !!m_db.length;
+    /* format: [database + dot] + name + '\0' */
+    dst->length= m_db.length + dot + m_name.length;
+    if (!(dst->str= (char*) thd->alloc(dst->length + 1)))
+      return true;
+    sprintf(dst->str, "%.*s%.*s%.*s",
+            (int) m_db.length, (m_db.length ? m_db.str : ""),
+            dot, ".",
+            (int) m_name.length, m_name.str);
+    DBUG_ASSERT(ok_for_lower_case_names(m_db.str));
+    return false;
+  }
+};
+
+
+class ErrConvDQName: public ErrConv
+{
+  const Database_qualified_name *m_name;
+public:
+  ErrConvDQName(const Database_qualified_name *name)
+   :m_name(name)
+  { }
+  const char *ptr() const
+  {
+    m_name->make_qname(err_buffer, sizeof(err_buffer));
+    return err_buffer;
+  }
+};
+
+
 #endif /* MYSQL_SERVER */
 
 #endif /* SQL_CLASS_INCLUDED */

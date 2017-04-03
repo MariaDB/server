@@ -1,11 +1,11 @@
 /************** MyConn C++ Program Source Code File (.CPP) **************/
 /* PROGRAM NAME: MYCONN                                                 */
 /* -------------                                                        */
-/*  Version 1.8                                                         */
+/*  Version 1.9                                                         */
 /*                                                                      */
 /* COPYRIGHT:                                                           */
 /* ----------                                                           */
-/*  (C) Copyright to the author Olivier BERTRAND          2007-2016     */
+/*  (C) Copyright to the author Olivier BERTRAND          2007-2017     */
 /*                                                                      */
 /* WHAT THIS PROGRAM DOES:                                              */
 /* -----------------------                                              */
@@ -375,10 +375,18 @@ PQRYRES SrcColumns(PGLOBAL g, const char *host, const char *db,
   if (!port)
     port = mysqld_port;
 
-  if (!strnicmp(srcdef, "select ", 7)) {
-    query = (char *)PlugSubAlloc(g, NULL, strlen(srcdef) + 9);
-    strcat(strcpy(query, srcdef), " LIMIT 0");
-  } else
+	if (!strnicmp(srcdef, "select ", 7) || strstr(srcdef, "%s")) {
+    query = (char *)PlugSubAlloc(g, NULL, strlen(srcdef) + 10);
+
+		if (strstr(srcdef, "%s"))
+			sprintf(query, srcdef, "1=1");			 // dummy where clause
+		else 
+		  strcpy(query, srcdef);
+
+		if (!strnicmp(srcdef, "select ", 7))
+		  strcat(query, " LIMIT 0");
+
+	} else
     query = (char *)srcdef;
 
   // Open a MySQL connection for this table

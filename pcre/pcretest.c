@@ -1982,6 +1982,7 @@ return(result);
 static int pchar(pcre_uint32 c, FILE *f)
 {
 int n = 0;
+char tempbuffer[16];
 if (PRINTOK(c))
   {
   if (f != NULL) fprintf(f, "%c", c);
@@ -2003,6 +2004,8 @@ if (c < 0x100)
   }
 
 if (f != NULL) n = fprintf(f, "\\x{%02x}", c);
+  else n = sprintf(tempbuffer, "\\x{%02x}", c);
+
 return n >= 0 ? n : 0;
 }
 
@@ -5042,7 +5045,7 @@ while (!done)
 
     if ((all_use_dfa || use_dfa) && find_match_limit)
       {
-      printf("**Match limit not relevant for DFA matching: ignored\n");
+      printf("** Match limit not relevant for DFA matching: ignored\n");
       find_match_limit = 0;
       }
 
@@ -5255,10 +5258,17 @@ while (!done)
 
         if (do_allcaps)
           {
-          if (new_info(re, NULL, PCRE_INFO_CAPTURECOUNT, &count) < 0)
-            goto SKIP_DATA;
-          count++;   /* Allow for full match */
-          if (count * 2 > use_size_offsets) count = use_size_offsets/2;
+          if (all_use_dfa || use_dfa)
+            {
+            fprintf(outfile, "** Show all captures ignored after DFA matching\n");
+            }
+          else
+           {
+            if (new_info(re, NULL, PCRE_INFO_CAPTURECOUNT, &count) < 0)
+              goto SKIP_DATA;
+            count++;   /* Allow for full match */
+            if (count * 2 > use_size_offsets) count = use_size_offsets/2;
+            }
           }
 
         /* Output the captured substrings. Note that, for the matched string,

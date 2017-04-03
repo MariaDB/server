@@ -73,6 +73,23 @@ IF(UNIX)
 )
 ENDIF()
 
+# Configure two scripts from one 'in' file.
+# The maria_add_gis_sp.sql - to be sent to 'mysql' tool
+# and the maria_add_gis_sp_bootstrap.sql, that can be sent to
+# the server as a bootstrap command.
+
+SET(ADD_GIS_SP_SET_DELIMITER "delimiter |")
+SET(ADD_GIS_SP_RESET_DELIMITER "delimiter ;")
+SET(ADD_GIS_SP_EOL "|")
+CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/maria_add_gis_sp.sql.in
+  ${CMAKE_CURRENT_BINARY_DIR}/maria_add_gis_sp.sql ESCAPE_QUOTES @ONLY)
+
+SET(ADD_GIS_SP_SET_DELIMITER "")
+SET(ADD_GIS_SP_RESET_DELIMITER "")
+SET(ADD_GIS_SP_EOL ";")
+CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/maria_add_gis_sp.sql.in
+  ${CMAKE_CURRENT_BINARY_DIR}/maria_add_gis_sp_bootstrap.sql ESCAPE_QUOTES @ONLY)
+
 INSTALL(FILES 
   ${CMAKE_CURRENT_SOURCE_DIR}/mysql_system_tables.sql 
   ${CMAKE_CURRENT_SOURCE_DIR}/mysql_system_tables_data.sql
@@ -80,6 +97,8 @@ INSTALL(FILES
   ${CMAKE_CURRENT_SOURCE_DIR}/fill_help_tables.sql
   ${CMAKE_CURRENT_SOURCE_DIR}/mysql_test_data_timezone.sql
   ${CMAKE_CURRENT_SOURCE_DIR}/mysql_to_mariadb.sql
+  ${CMAKE_CURRENT_BINARY_DIR}/maria_add_gis_sp.sql
+  ${CMAKE_CURRENT_BINARY_DIR}/maria_add_gis_sp_bootstrap.sql
   ${FIX_PRIVILEGES_SQL}
   DESTINATION ${INSTALL_MYSQLSHAREDIR} COMPONENT Server
 )
@@ -234,13 +253,14 @@ IF(WIN32)
   ENDFOREACH()
 ELSE()
   IF(WITH_WSREP)
-    SET(WSREP_BINARIES
-      wsrep_sst_common
+    SET(WSREP_SCRIPTS
       wsrep_sst_mysqldump
       wsrep_sst_rsync
       wsrep_sst_xtrabackup
       wsrep_sst_xtrabackup-v2
     )
+    INSTALL(FILES ${CMAKE_CURRENT_SOURCE_DIR}/wsrep_sst_common
+            DESTINATION ${INSTALL_BINDIR} COMPONENT Server)
   ENDIF()
   IF (NOT WITHOUT_SERVER)
     SET(SERVER_SCRIPTS
@@ -265,7 +285,7 @@ ELSE()
     mytop
     mysqlhotcopy
     ${SERVER_SCRIPTS}
-    ${WSREP_BINARIES}
+    ${WSREP_SCRIPTS}
     ${SYSTEMD_SCRIPTS}
   )
   FOREACH(file ${BIN_SCRIPTS})
@@ -290,29 +310,6 @@ ELSE()
      )
   ENDFOREACH()
 ENDIF()
-
-# Configure two scripts from one 'in' file.
-# The maria_add_gis_sp.sql - to be sent to 'mysql' tool
-# and the maria_add_gis_sp_bootstrap.sql, that can be sent to
-# the server as a bootstrap command.
-
-SET(ADD_GIS_SP_SET_DELIMITER "delimiter |")
-SET(ADD_GIS_SP_RESET_DELIMITER "delimiter ;")
-SET(ADD_GIS_SP_EOL "|")
-CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/maria_add_gis_sp.sql.in
-  ${CMAKE_CURRENT_BINARY_DIR}/maria_add_gis_sp.sql ESCAPE_QUOTES @ONLY)
-
-SET(ADD_GIS_SP_SET_DELIMITER "")
-SET(ADD_GIS_SP_RESET_DELIMITER "")
-SET(ADD_GIS_SP_EOL ";")
-CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/maria_add_gis_sp.sql.in
-  ${CMAKE_CURRENT_BINARY_DIR}/maria_add_gis_sp_bootstrap.sql ESCAPE_QUOTES @ONLY)
-
-INSTALL_SCRIPT(${CMAKE_CURRENT_BINARY_DIR}/maria_add_gis_sp.sql
-               ${CMAKE_CURRENT_BINARY_DIR}/maria_add_gis_sp_bootstrap.sql
-  DESTINATION ${INSTALL_MYSQLSHAREDIR}
-  COMPONENT Server
-  )
 
 # Install libgcc as  mylibgcc.a
 IF(CMAKE_COMPILER_IS_GNUCXX AND CMAKE_CXX_FLAGS MATCHES "-static")

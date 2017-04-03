@@ -28,7 +28,7 @@
 
   SYNOPSIOS
     my_pread()
-    Filedes	File decsriptor
+    Filedes	File descriptor
     Buffer	Buffer to read data into
     Count	Number of bytes to read
     offset	Position to read from
@@ -108,7 +108,7 @@ size_t my_pread(File Filedes, uchar *Buffer, size_t Count, my_off_t offset,
 
   SYNOPSIOS
     my_pwrite()
-    Filedes	File decsriptor
+    Filedes	File descriptor
     Buffer	Buffer to write data from
     Count	Number of bytes to write
     offset	Position to write to

@@ -30,7 +30,6 @@ Created 11/5/1995 Heikki Tuuri
 /** Magic value to use instead of checksums when they are disabled */
 #define BUF_NO_CHECKSUM_MAGIC 0xDEADBEEFUL
 
-#include "univ.i"
 #include "fil0fil.h"
 #include "mtr0types.h"
 #include "buf0types.h"
@@ -766,6 +765,87 @@ buf_block_unfix(
 # endif /* UNIV_DEBUG */
 #endif /* !UNIV_INNOCHECKSUM */
 
+/** Checks if the page is in crc32 checksum format.
+@param[in]	read_buf		database page
+@param[in]	checksum_field1		new checksum field
+@param[in]	checksum_field2		old checksum field
+@param[in]	page_no			page number of given read_buf
+@param[in]	is_log_enabled		true if log option is enabled
+@param[in]	log_file		file pointer to log_file
+@param[in]	curr_algo		current checksum algorithm
+@param[in]	use_legacy_big_endian   use legacy big endian algorithm
+@return true if the page is in crc32 checksum format. */
+bool
+buf_page_is_checksum_valid_crc32(
+	const byte*			read_buf,
+	ulint				checksum_field1,
+	ulint				checksum_field2,
+#ifdef UNIV_INNOCHECKSUM
+	uintmax_t			page_no,
+	bool				is_log_enabled,
+	FILE*				log_file,
+	const srv_checksum_algorithm_t	curr_algo,
+#endif /* UNIV_INNOCHECKSUM */
+	bool				use_legacy_big_endian)
+	MY_ATTRIBUTE((nonnull(1), warn_unused_result));
+
+/** Checks if the page is in innodb checksum format.
+@param[in]	read_buf	database page
+@param[in]	checksum_field1	new checksum field
+@param[in]	checksum_field2	old checksum field
+@param[in]	page_no		page number of given read_buf
+@param[in]	is_log_enabled	true if log option is enabled
+@param[in]	log_file	file pointer to log_file
+@param[in]	curr_algo	current checksum algorithm
+@return true if the page is in innodb checksum format. */
+bool
+buf_page_is_checksum_valid_innodb(
+	const byte*			read_buf,
+	ulint				checksum_field1,
+	ulint				checksum_field2
+#ifdef UNIV_INNOCHECKSUM
+	,uintmax_t			page_no,
+	bool				is_log_enabled,
+	FILE*				log_file,
+	const srv_checksum_algorithm_t	curr_algo
+#endif /* UNIV_INNOCHECKSUM */
+	)
+	MY_ATTRIBUTE((nonnull(1), warn_unused_result));
+
+/** Checks if the page is in none checksum format.
+@param[in]	read_buf	database page
+@param[in]	checksum_field1	new checksum field
+@param[in]	checksum_field2	old checksum field
+@param[in]	page_no		page number of given read_buf
+@param[in]	is_log_enabled	true if log option is enabled
+@param[in]	log_file	file pointer to log_file
+@param[in]	curr_algo	current checksum algorithm
+@return true if the page is in none checksum format. */
+bool
+buf_page_is_checksum_valid_none(
+	const byte*			read_buf,
+	ulint				checksum_field1,
+	ulint				checksum_field2
+#ifdef	UNIV_INNOCHECKSUM
+	,uintmax_t			page_no,
+	bool				is_log_enabled,
+	FILE*				log_file,
+	const srv_checksum_algorithm_t	curr_algo
+#endif	/* UNIV_INNOCHECKSUM */
+	)
+	MY_ATTRIBUTE((nonnull(1), warn_unused_result));
+
+/********************************************************************//**
+Check if page is maybe compressed, encrypted or both when we encounter
+corrupted page. Note that we can't be 100% sure if page is corrupted
+or decrypt/decompress just failed.
+@param[in]	bpage		Page
+@return true if page corrupted, false if not */
+bool
+buf_page_check_corrupt(
+	buf_page_t*	bpage)	/*!< in/out: buffer page read from disk */
+	MY_ATTRIBUTE((nonnull, warn_unused_result));
+
 /** Checks if a page contains only zeroes.
 @param[in]	read_buf	database page
 @param[in]	page_size	page size
@@ -780,23 +860,23 @@ buf_page_is_zeroes(
 the LSN
 @param[in]	read_buf	database page
 @param[in]	page_size	page size
-@param[in]	skip_checksum	if true, skip checksum
+@param[in]	space		tablespace
 @param[in]	page_no		page number of given read_buf
 @param[in]	strict_check	true if strict-check option is enabled
 @param[in]	is_log_enabled	true if log option is enabled
 @param[in]	log_file	file pointer to log_file
-@return TRUE if corrupted */
-ibool
+@return whether the page is corrupted */
+bool
 buf_page_is_corrupted(
 	bool			check_lsn,
 	const byte*		read_buf,
 	const page_size_t&	page_size,
-	bool			skip_checksum
+	const fil_space_t* 	space = NULL
 #ifdef UNIV_INNOCHECKSUM
-	,uintmax_t		page_no,
-	bool			strict_check,
-	bool			is_log_enabled,
-	FILE*			log_file
+	,uintmax_t		page_no = 0,
+	bool			strict_check = false,
+	bool			is_log_enabled = false,
+	FILE*			log_file = NULL
 #endif /* UNIV_INNOCHECKSUM */
 ) MY_ATTRIBUTE((warn_unused_result));
 #ifndef UNIV_INNOCHECKSUM
@@ -1476,37 +1556,6 @@ buf_page_encrypt_before_write(
 	byte*		frame,		/*!< in: src frame */
 	ulint		space_id);	/*!< in: space id */
 
-/**********************************************************************
-The hook that is called after page is written to disk.
-The function releases any resources needed for encryption that was allocated
-in buf_page_encrypt_before_write */
-UNIV_INTERN
-ibool
-buf_page_encrypt_after_write(
-/*=========================*/
-	buf_page_t* page); /*!< in/out: buffer page that was flushed */
-
-/********************************************************************//**
-The hook that is called just before a page is read from disk.
-The function allocates memory that is used to temporarily store disk content
-before getting decrypted */
-UNIV_INTERN
-byte*
-buf_page_decrypt_before_read(
-/*=========================*/
-	buf_page_t* page, /*!< in/out: buffer page read from disk */
-	ulint	zip_size);  /*!< in: compressed page size, or 0 */
-
-/********************************************************************//**
-The hook that is called just after a page is read from disk.
-The function decrypt disk content into buf_page_t and releases the
-temporary buffer that was allocated in buf_page_decrypt_before_read */
-UNIV_INTERN
-ibool
-buf_page_decrypt_after_read(
-/*========================*/
-	buf_page_t* page); /*!< in/out: buffer page read from disk */
-
 /** @brief The temporary memory structure.
 
 NOTE! The definition appears here only for other modules of this
@@ -1589,14 +1638,8 @@ public:
 					operation needed. */
 
 	unsigned        key_version;	/*!< key version for this block */
-	bool            page_encrypted; /*!< page is page encrypted */
-	bool            page_compressed;/*!< page is page compressed */
-	ulint           stored_checksum;/*!< stored page checksum if page
-					encrypted */
-	bool            encrypted;      /*!< page is still encrypted */
-	ulint           calculated_checksum;
-					/*!< calculated checksum if page
-					encrypted */
+	bool            encrypted;	/*!< page is still encrypted */
+
 	ulint           real_size;	/*!< Real size of the page
 					Normal pages == UNIV_PAGE_SIZE
 					page compressed pages, payload

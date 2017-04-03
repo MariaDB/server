@@ -2,7 +2,7 @@
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2009, Percona Inc.
-Copyright (c) 2013, 2017, MariaDB Corporation. All Rights Reserved.
+Copyright (c) 2013, 2017, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted
 by Percona Inc.. Those modifications are

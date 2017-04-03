@@ -800,7 +800,7 @@ lock_reset_lock_and_trx_wait(
 			stmt2 = innobase_get_stmt_unsafe(lock->trx->lock.wait_lock->trx->mysql_thd, &stmt_len);
 		}
 
-		ib::info() <<
+		ib::error() <<
 			"Trx id " << lock->trx->id
 				  << " is waiting a lock in statement "
 				  << (stmt ? stmt : "NULL")
@@ -808,7 +808,7 @@ lock_reset_lock_and_trx_wait(
 				  << " and statement "
 				  << (stmt2 ? stmt2 : "NULL")
 				  << "wait_lock " << lock->trx->lock.wait_lock;
-		ut_ad(lock->trx->lock.wait_lock != lock);
+		ut_ad(0);
 	}
 
 	lock->trx->lock.wait_lock = NULL;

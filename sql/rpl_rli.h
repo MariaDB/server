@@ -433,7 +433,7 @@ public:
     relay log info and used to produce information for <code>SHOW
     SLAVE STATUS</code>.
   */
-  void stmt_done(my_off_t event_log_pos, THD *thd, rpl_group_info *rgi);
+  bool stmt_done(my_off_t event_log_pos, THD *thd, rpl_group_info *rgi);
   int alloc_inuse_relaylog(const char *name);
   void free_inuse_relaylog(inuse_relaylog *ir);
   void reset_inuse_relaylog();

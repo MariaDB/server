@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2014, 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1027,7 +1027,7 @@ void
 trx_undo_truncate_end(trx_undo_t* undo, undo_no_t limit, bool is_temp)
 {
 	ut_ad(mutex_own(&undo->rseg->mutex));
-	ut_ad(is_temp == trx_sys_is_noredo_rseg_slot(undo->rseg->id));
+	ut_ad(is_temp == !undo->rseg->is_persistent());
 
 	for (;;) {
 		mtr_t		mtr;
@@ -1102,7 +1102,7 @@ trx_undo_truncate_start(
 loop:
 	mtr_start(&mtr);
 
-	if (trx_sys_is_noredo_rseg_slot(rseg->id)) {
+	if (!rseg->is_persistent()) {
 		mtr.set_log_mode(MTR_LOG_NO_REDO);
 	}
 
@@ -1856,7 +1856,7 @@ void
 trx_undo_commit_cleanup(trx_undo_t* undo, bool is_temp)
 {
 	trx_rseg_t*	rseg	= undo->rseg;
-	ut_ad(is_temp == trx_sys_is_noredo_rseg_slot(rseg->id));
+	ut_ad(is_temp == !rseg->is_persistent());
 
 	mutex_enter(&rseg->mutex);
 

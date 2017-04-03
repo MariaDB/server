@@ -37,7 +37,7 @@
     MyFlags	Flags
 
   NOTES
-    Directory is allways ended with FN_LIBCHAR
+    Directory is always ended with FN_LIBCHAR
 
   RESULT
     0  ok

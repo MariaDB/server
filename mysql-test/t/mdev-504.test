@@ -1,5 +1,5 @@
 --source include/not_valgrind.inc
---disable_ps_protocol
+--source include/no_protocol.inc
 
 SET GLOBAL net_write_timeout = 900; 
 

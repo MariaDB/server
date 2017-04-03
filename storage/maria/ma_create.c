@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
 
 /* Create a MARIA table */
 
@@ -54,7 +54,8 @@ int maria_create(const char *name, enum data_file_type datafile_type,
   uint max_field_lengths, extra_header_size, column_nr;
   uint internal_table= flags & HA_CREATE_INTERNAL_TABLE;
   ulong reclength, real_reclength,min_pack_length;
-  char filename[FN_REFLEN], linkname[FN_REFLEN], *linkname_ptr;
+  char kfilename[FN_REFLEN], klinkname[FN_REFLEN], *klinkname_ptr;
+  char dfilename[FN_REFLEN], dlinkname[FN_REFLEN], *dlinkname_ptr;
   ulong pack_reclength;
   ulonglong tot_length,max_rows, tmp;
   enum en_fieldtype type;
@@ -846,19 +847,19 @@ int maria_create(const char *name, enum data_file_type datafile_type,
       /* chop off the table name, tempory tables use generated name */
       if ((path= strrchr(ci->index_file_name, FN_LIBCHAR)))
         *path= '\0';
-      fn_format(filename, name, ci->index_file_name, MARIA_NAME_IEXT,
+      fn_format(kfilename, name, ci->index_file_name, MARIA_NAME_IEXT,
                 MY_REPLACE_DIR | MY_UNPACK_FILENAME |
                 MY_RETURN_REAL_PATH | MY_APPEND_EXT);
     }
     else
     {
-      fn_format(filename, ci->index_file_name, "", MARIA_NAME_IEXT,
+      fn_format(kfilename, ci->index_file_name, "", MARIA_NAME_IEXT,
                 MY_UNPACK_FILENAME | MY_RETURN_REAL_PATH |
                 (have_iext ? MY_REPLACE_EXT : MY_APPEND_EXT));
     }
-    fn_format(linkname, name, "", MARIA_NAME_IEXT,
+    fn_format(klinkname, name, "", MARIA_NAME_IEXT,
               MY_UNPACK_FILENAME|MY_APPEND_EXT);
-    linkname_ptr= linkname;
+    klinkname_ptr= klinkname;
     /*
       Don't create the table if the link or file exists to ensure that one
       doesn't accidently destroy another table.
@@ -872,10 +873,10 @@ int maria_create(const char *name, enum data_file_type datafile_type,
   {
     char *iext= strrchr(name, '.');
     int have_iext= iext && !strcmp(iext, MARIA_NAME_IEXT);
-    fn_format(filename, name, "", MARIA_NAME_IEXT,
+    fn_format(kfilename, name, "", MARIA_NAME_IEXT,
               MY_UNPACK_FILENAME | MY_RETURN_REAL_PATH |
               (have_iext ? MY_REPLACE_EXT : MY_APPEND_EXT));
-    linkname_ptr= NullS;
+    klinkname_ptr= NullS;
     /*
       Replace the current file.
       Don't sync dir now if the data file has the same path.
@@ -895,7 +896,7 @@ int maria_create(const char *name, enum data_file_type datafile_type,
     NOTE: The filename is compared against unique_file_name of every
     open table. Hence we need a real path here.
   */
-  if (!internal_table && _ma_test_if_reopen(filename))
+  if (!internal_table && _ma_test_if_reopen(kfilename))
   {
     my_printf_error(HA_ERR_TABLE_EXIST, "Aria table '%s' is in use "
                     "(most likely by a MERGE table). Try FLUSH TABLES.",
@@ -904,8 +905,8 @@ int maria_create(const char *name, enum data_file_type datafile_type,
     goto err;
   }
 
-  if ((file= mysql_file_create_with_symlink(key_file_kfile, linkname_ptr,
-                                            filename, 0, create_mode,
+  if ((file= mysql_file_create_with_symlink(key_file_kfile, klinkname_ptr,
+                                            kfilename, 0, create_mode,
                                             MYF(MY_WME|create_flag))) < 0)
     goto err;
   errpos=1;
@@ -1165,30 +1166,30 @@ int maria_create(const char *name, enum data_file_type datafile_type,
         /* chop off the table name, tempory tables use generated name */
         if ((path= strrchr(ci->data_file_name, FN_LIBCHAR)))
           *path= '\0';
-        fn_format(filename, name, ci->data_file_name, MARIA_NAME_DEXT,
+        fn_format(dfilename, name, ci->data_file_name, MARIA_NAME_DEXT,
                   MY_REPLACE_DIR | MY_UNPACK_FILENAME | MY_APPEND_EXT);
       }
       else
       {
-        fn_format(filename, ci->data_file_name, "", MARIA_NAME_DEXT,
+        fn_format(dfilename, ci->data_file_name, "", MARIA_NAME_DEXT,
                   MY_UNPACK_FILENAME |
                   (have_dext ? MY_REPLACE_EXT : MY_APPEND_EXT));
       }
-      fn_format(linkname, name, "",MARIA_NAME_DEXT,
+      fn_format(dlinkname, name, "",MARIA_NAME_DEXT,
                 MY_UNPACK_FILENAME | MY_APPEND_EXT);
-      linkname_ptr= linkname;
+      dlinkname_ptr= dlinkname;
       create_flag=0;
     }
     else
     {
-      fn_format(filename,name,"", MARIA_NAME_DEXT,
+      fn_format(dfilename,name,"", MARIA_NAME_DEXT,
                 MY_UNPACK_FILENAME | MY_APPEND_EXT);
-      linkname_ptr= NullS;
+      dlinkname_ptr= NullS;
       create_flag= (flags & HA_CREATE_KEEP_FILES) ? 0 : MY_DELETE_OLD;
     }
     if ((dfile=
-         mysql_file_create_with_symlink(key_file_dfile, linkname_ptr,
-                                        filename, 0, create_mode,
+         mysql_file_create_with_symlink(key_file_dfile, dlinkname_ptr,
+                                        dfilename, 0, create_mode,
                                         MYF(MY_WME | create_flag | sync_dir))) < 0)
       goto err;
     errpos=3;
@@ -1239,19 +1240,21 @@ err_no_lock:
     mysql_file_close(dfile, MYF(0));
     /* fall through */
   case 2:
-  if (! (flags & HA_DONT_TOUCH_DATA))
-    mysql_file_delete_with_symlink(key_file_dfile,
-                                   fn_format(filename,name,"",MARIA_NAME_DEXT,
-                                     MY_UNPACK_FILENAME | MY_APPEND_EXT),
-			   sync_dir);
+    if (! (flags & HA_DONT_TOUCH_DATA))
+    {
+      mysql_file_delete(key_file_dfile, dfilename, MYF(sync_dir));
+      if (dlinkname_ptr)
+        mysql_file_delete(key_file_dfile, dlinkname_ptr, MYF(sync_dir));
+    }
     /* fall through */
   case 1:
     mysql_file_close(file, MYF(0));
     if (! (flags & HA_DONT_TOUCH_DATA))
-      mysql_file_delete_with_symlink(key_file_kfile,
-                                     fn_format(filename,name,"",MARIA_NAME_IEXT,
-                                       MY_UNPACK_FILENAME | MY_APPEND_EXT),
-			     sync_dir);
+    {
+      mysql_file_delete(key_file_kfile, kfilename, MYF(sync_dir));
+      if (klinkname_ptr)
+        mysql_file_delete(key_file_kfile, klinkname_ptr, MYF(sync_dir));
+    }
   }
   ma_crypt_free(&share);
   my_free(log_data);

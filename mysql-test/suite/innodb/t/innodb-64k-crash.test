@@ -299,6 +299,7 @@ UPDATE t1 SET a=@c,b=@c,c=@c,d=@c,e=@c,f=@c,g=@c,h=@c,i=@c,j=@c,
 	      ac=@c,bc=@c,cc=@c,dc=@c,ec=@c,fc=@c,gc=@c,hc=@c,ic=@c,jc=@c,
               kc=@c,lc=@c,mc=@c,nc=@c,oc=@c,pc=@c,qc=@c,rc=@c,sc=@c,tc=@c,uc=@c,
 	      vc=@c,wc=@c,xc=@c,yc=@c,zc=@c;
+
 --source include/kill_and_restart_mysqld.inc
 
 UPDATE t1 SET a=@e,b=@e,c=@e,d=@e,e=@e,f=@e,g=@e,h=@e,i=@e,j=@e,

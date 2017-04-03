@@ -38,7 +38,6 @@ mach_write_to_1(
 	byte*	b,	/*!< in: pointer to byte where to store */
 	ulint	n)	/*!< in: ulint integer to be stored, >= 0, < 256 */
 {
-	ut_ad(b);
 	ut_ad((n & ~0xFFUL) == 0);
 
 	b[0] = (byte) n;
@@ -56,7 +55,6 @@ mach_write_to_2(
 	byte*	b,	/*!< in: pointer to two bytes where to store */
 	ulint	n)	/*!< in: ulint integer to be stored */
 {
-	ut_ad(b);
 	ut_ad((n & ~0xFFFFUL) == 0);
 
 	b[0] = (byte)(n >> 8);
@@ -71,7 +69,6 @@ uint8_t
 mach_read_from_1(
 	const byte*	b)
 {
-	ut_ad(b);
 	return(uint8_t(*b));
 }
 
@@ -130,7 +127,6 @@ mach_write_to_3(
 	byte*	b,	/*!< in: pointer to 3 bytes where to store */
 	ulint	n)	/*!< in: ulint integer to be stored */
 {
-	ut_ad(b);
 	ut_ad((n & ~0xFFFFFFUL) == 0);
 
 	b[0] = (byte)(n >> 16);
@@ -147,7 +143,6 @@ uint32_t
 mach_read_from_3(
 	const byte*	b)
 {
-	ut_ad(b);
 	return( (static_cast<uint32_t>(b[0]) << 16)
 		| (static_cast<uint32_t>(b[1]) << 8)
 		| static_cast<uint32_t>(b[2])
@@ -165,8 +160,6 @@ mach_write_to_4(
 	byte*	b,	/*!< in: pointer to four bytes where to store */
 	ulint	n)	/*!< in: ulint integer to be stored */
 {
-	ut_ad(b);
-
 	b[0] = (byte)(n >> 24);
 	b[1] = (byte)(n >> 16);
 	b[2] = (byte)(n >> 8);
@@ -182,7 +175,6 @@ uint32_t
 mach_read_from_4(
 	const byte*	b)
 {
-	ut_ad(b);
 	return( (static_cast<uint32_t>(b[0]) << 24)
 		| (static_cast<uint32_t>(b[1]) << 16)
 		| (static_cast<uint32_t>(b[2]) << 8)
@@ -207,8 +199,6 @@ mach_write_compressed(
 	byte*	b,	/*!< in: pointer to memory where to store */
 	ulint	n)	/*!< in: ulint integer (< 2^32) to be stored */
 {
-	ut_ad(b);
-
 	if (n < 0x80) {
 		/* 0nnnnnnn (7 bits) */
 		mach_write_to_1(b, n);
@@ -270,8 +260,6 @@ mach_read_compressed(
 	const byte*	b)	/*!< in: pointer to memory from where to read */
 {
 	ulint	val;
-
-	ut_ad(b);
 
 	val = mach_read_from_1(b);
 
@@ -349,8 +337,6 @@ mach_write_to_8(
 	void*		b,	/*!< in: pointer to 8 bytes where to store */
 	ib_uint64_t	n)	/*!< in: 64-bit integer to be stored */
 {
-	ut_ad(b);
-
 	mach_write_to_4(static_cast<byte*>(b), (ulint) (n >> 32));
 	mach_write_to_4(static_cast<byte*>(b) + 4, (ulint) n);
 }
@@ -388,8 +374,6 @@ mach_write_to_7(
 	byte*		b,	/*!< in: pointer to 7 bytes where to store */
 	ib_uint64_t	n)	/*!< in: 56-bit integer */
 {
-	ut_ad(b);
-
 	mach_write_to_3(b, (ulint) (n >> 32));
 	mach_write_to_4(b + 3, (ulint) n);
 }
@@ -404,8 +388,6 @@ mach_read_from_7(
 /*=============*/
 	const byte*	b)	/*!< in: pointer to 7 bytes */
 {
-	ut_ad(b);
-
 	return(ut_ull_create(mach_read_from_3(b), mach_read_from_4(b + 3)));
 }
 
@@ -419,8 +401,6 @@ mach_write_to_6(
 	byte*		b,	/*!< in: pointer to 6 bytes where to store */
 	ib_uint64_t	n)	/*!< in: 48-bit integer */
 {
-	ut_ad(b);
-
 	mach_write_to_2(b, (ulint) (n >> 32));
 	mach_write_to_4(b + 2, (ulint) n);
 }
@@ -435,8 +415,6 @@ mach_read_from_6(
 /*=============*/
 	const byte*	b)	/*!< in: pointer to 6 bytes */
 {
-	ut_ad(b);
-
 	return(ut_ull_create(mach_read_from_2(b), mach_read_from_4(b + 2)));
 }
 
@@ -450,11 +428,7 @@ mach_u64_write_compressed(
 	byte*		b,	/*!< in: pointer to memory where to store */
 	ib_uint64_t	n)	/*!< in: 64-bit integer to be stored */
 {
-	ulint	size;
-
-	ut_ad(b);
-
-	size = mach_write_compressed(b, (ulint) (n >> 32));
+	ulint	size = mach_write_compressed(b, (ulint) (n >> 32));
 	mach_write_to_4(b + size, (ulint) n);
 
 	return(size + 4);
@@ -489,8 +463,6 @@ mach_u64_write_much_compressed(
 	ib_uint64_t	n)	/*!< in: 64-bit integer to be stored */
 {
 	ulint	size;
-
-	ut_ad(b);
 
 	if (!(n >> 32)) {
 		return(mach_write_compressed(b, (ulint) n));

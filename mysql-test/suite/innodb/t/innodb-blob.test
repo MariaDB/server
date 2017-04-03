@@ -9,12 +9,8 @@
 # DEBUG_SYNC must be compiled in.
 --source include/have_debug_sync.inc
 
-# Valgrind would complain about memory leaks when we crash on purpose.
---source include/not_valgrind.inc
-# Embedded server does not support crashing
+# Embedded server does not support restarting
 --source include/not_embedded.inc
-# Avoid CrashReporter popup on Mac
---source include/not_crashrep.inc
 
 call mtr.add_suppression("InnoDB: The log sequence numbers [0-9]+ and [0-9]+ in ibdata files do not match the log sequence number [0-9]+ in the ib_logfiles!");
 
@@ -71,11 +67,10 @@ SELECT a, RIGHT(b,20) FROM t1;
 SELECT a FROM t1;
 
 # Request a crash, and restart the server.
-SET DEBUG='+d,crash_commit_before';
-# Write file to make mysql-test-run.pl restart the server
---exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
---error 2013
+BEGIN;
 INSERT INTO t2 VALUES (42);
+
+--source include/kill_and_restart_mysqld.inc
 
 disconnect con1;
 disconnect con2;
@@ -143,12 +138,7 @@ SET DEBUG_SYNC='now WAIT_FOR have_latch';
 SELECT info FROM information_schema.processlist
 WHERE state = 'debug sync point: before_row_upd_extern';
 
-# Request a crash, and restart the server.
-SET DEBUG='+d,crash_commit_before';
-# Write file to make mysql-test-run.pl restart the server
---exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
---error 2013
-COMMIT;
+--source include/kill_and_restart_mysqld.inc
 
 disconnect con2;
 connection default;
@@ -187,12 +177,7 @@ SET DEBUG_SYNC='now WAIT_FOR have_latch';
 SELECT info FROM information_schema.processlist
 WHERE state = 'debug sync point: after_row_upd_extern';
 
-# Request a crash, and restart the server.
-SET DEBUG='+d,crash_commit_before';
-# Write file to make mysql-test-run.pl restart the server
---exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
---error 2013
-COMMIT;
+--source include/kill_and_restart_mysqld.inc
 
 disconnect con2;
 connection default;
@@ -203,7 +188,6 @@ reap;
 --enable_reconnect
 --source include/wait_until_connected_again.inc
 --disable_reconnect
-
 CHECK TABLE t1,t2,t3;
 SELECT a, RIGHT(b,20), RIGHT(c,20) FROM t3;
 SELECT a FROM t3;

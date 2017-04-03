@@ -43,7 +43,7 @@ SET(MYSYS_SOURCES  array.c charset-def.c charset.c checksum.c my_default.c
                                 my_uuid.c wqueue.c waiting_threads.c ma_dyncol.c ../sql-common/my_time.c
 				my_rdtsc.c my_context.c psi_noop.c
 				my_atomic_writes.c
-                                file_logger.c)
+                                file_logger.c my_dlerror.c)
 
 IF (WIN32)
  SET (MYSYS_SOURCES ${MYSYS_SOURCES} my_winthread.c my_wincond.c my_winerr.c my_winfile.c my_windac.c my_conio.c)

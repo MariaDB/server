@@ -2274,7 +2274,7 @@ truncate_t::truncate_t(
 	m_log_lsn(),
 	m_log_file_name(),
 	/* JAN: TODO: Encryption */
-	m_encryption(FIL_SPACE_ENCRYPTION_DEFAULT),
+	m_encryption(FIL_ENCRYPTION_DEFAULT),
 	m_key_id(FIL_DEFAULT_ENCRYPTION_KEY)
 {
 	if (dir_path != NULL) {
@@ -2301,7 +2301,7 @@ truncate_t::truncate_t(
 	m_log_lsn(),
 	m_log_file_name(),
 	/* JAN: TODO: Encryption */
-	m_encryption(FIL_SPACE_ENCRYPTION_DEFAULT),
+	m_encryption(FIL_ENCRYPTION_DEFAULT),
 	m_key_id(FIL_DEFAULT_ENCRYPTION_KEY)
 
 {

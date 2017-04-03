@@ -139,6 +139,7 @@ UPDATE t2 SET qa=@l,ra=@l,sa=@l,ta=@l,ua=@l;
 UPDATE t2 SET va=@l,wa=@l,xa=@l,ya=@l,za=@l;
 COMMIT;
 
+BEGIN;
 INSERT INTO t1 SELECT * from t2;
 
 BEGIN;

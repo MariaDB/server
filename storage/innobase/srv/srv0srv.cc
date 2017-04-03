@@ -139,10 +139,6 @@ my_bool	srv_undo_log_truncate = FALSE;
 /** Maximum size of undo tablespace. */
 unsigned long long	srv_max_undo_log_size;
 
-/** UNDO logs that are not redo logged.
-These logs reside in the temp tablespace.*/
-const ulong		srv_tmp_undo_logs = 32;
-
 /** Default undo tablespace size in UNIV_PAGEs count (10MB). */
 const ulint SRV_UNDO_TABLESPACE_SIZE_IN_PAGES =
 	((1024 * 1024) * 10) / UNIV_PAGE_SIZE_DEF;
@@ -400,37 +396,38 @@ UNIV_INTERN ulong	srv_n_spin_wait_rounds	= 15;
 uint	srv_spin_wait_delay;
 ibool	srv_priority_boost	= TRUE;
 
-static ulint		srv_n_rows_inserted_old		= 0;
-static ulint		srv_n_rows_updated_old		= 0;
-static ulint		srv_n_rows_deleted_old		= 0;
-static ulint		srv_n_rows_read_old		= 0;
-static ulint		srv_n_system_rows_inserted_old	= 0;
-static ulint		srv_n_system_rows_updated_old	= 0;
-static ulint		srv_n_system_rows_deleted_old	= 0;
-static ulint		srv_n_system_rows_read_old	= 0;
+static ulint		srv_n_rows_inserted_old;
+static ulint		srv_n_rows_updated_old;
+static ulint		srv_n_rows_deleted_old;
+static ulint		srv_n_rows_read_old;
+static ulint		srv_n_system_rows_inserted_old;
+static ulint		srv_n_system_rows_updated_old;
+static ulint		srv_n_system_rows_deleted_old;
+static ulint		srv_n_system_rows_read_old;
 
-ulint	srv_truncated_status_writes	= 0;
-ulint	srv_available_undo_logs         = 0;
+ulint	srv_truncated_status_writes;
+/** Number of initialized rollback segments for persistent undo log */
+ulong	srv_available_undo_logs;
 
-UNIV_INTERN ib_uint64_t srv_page_compression_saved      = 0;
-UNIV_INTERN ib_uint64_t srv_page_compression_trim_sect512       = 0;
-UNIV_INTERN ib_uint64_t srv_page_compression_trim_sect4096      = 0;
-UNIV_INTERN ib_uint64_t srv_index_pages_written         = 0;
-UNIV_INTERN ib_uint64_t srv_non_index_pages_written     = 0;
-UNIV_INTERN ib_uint64_t srv_pages_page_compressed       = 0;
-UNIV_INTERN ib_uint64_t srv_page_compressed_trim_op     = 0;
-UNIV_INTERN ib_uint64_t srv_page_compressed_trim_op_saved     = 0;
-UNIV_INTERN ib_uint64_t srv_index_page_decompressed     = 0;
+UNIV_INTERN ib_uint64_t srv_page_compression_saved;
+UNIV_INTERN ib_uint64_t srv_page_compression_trim_sect512;
+UNIV_INTERN ib_uint64_t srv_page_compression_trim_sect4096;
+UNIV_INTERN ib_uint64_t srv_index_pages_written;
+UNIV_INTERN ib_uint64_t srv_non_index_pages_written;
+UNIV_INTERN ib_uint64_t srv_pages_page_compressed;
+UNIV_INTERN ib_uint64_t srv_page_compressed_trim_op;
+UNIV_INTERN ib_uint64_t srv_page_compressed_trim_op_saved;
+UNIV_INTERN ib_uint64_t srv_index_page_decompressed;
 
 /* Defragmentation */
-UNIV_INTERN my_bool	srv_defragment = FALSE;
+UNIV_INTERN my_bool	srv_defragment;
 UNIV_INTERN uint	srv_defragment_n_pages = 7;
-UNIV_INTERN uint	srv_defragment_stats_accuracy = 0;
+UNIV_INTERN uint	srv_defragment_stats_accuracy;
 UNIV_INTERN uint	srv_defragment_fill_factor_n_recs = 20;
 UNIV_INTERN double	srv_defragment_fill_factor = 0.9;
 UNIV_INTERN uint	srv_defragment_frequency =
 	SRV_DEFRAGMENT_FREQUENCY_DEFAULT;
-UNIV_INTERN ulonglong	srv_defragment_interval = 0;
+UNIV_INTERN ulonglong	srv_defragment_interval;
 
 /* Set the following to 0 if you want InnoDB to write messages on
 stderr on startup/shutdown. */
@@ -946,14 +943,12 @@ srv_release_threads(enum srv_thread_type type, ulint n)
 	ut_ad(n > 0);
 
 	do {
-		srv_sys_mutex_enter();
-
 		running = 0;
 
-		for (ulint i = 0; i < srv_sys->n_sys_threads; i++) {
-			srv_slot_t*	slot;
+		srv_sys_mutex_enter();
 
-			slot = &srv_sys->sys_threads[i];
+		for (ulint i = 0; i < srv_sys->n_sys_threads; i++) {
+			srv_slot_t*	slot = &srv_sys->sys_threads[i];
 
 			if (!slot->in_use || srv_slot_get_type(slot) != type) {
 				continue;
@@ -1684,6 +1679,8 @@ srv_export_innodb_status(void)
 		crypt_stat.estimated_iops;
 	export_vars.innodb_encryption_key_requests =
 		srv_stats.n_key_requests;
+	export_vars.innodb_key_rotation_list_length =
+		srv_stats.key_rotation_list_length;
 
 	export_vars.innodb_scrub_page_reorganizations =
 		scrub_stat.page_reorganizations;

@@ -517,8 +517,8 @@ wait_for_lock(struct st_lock_list *wait, THR_LOCK_DATA *data,
     One can use this to signal when a thread is going to wait for a lock.
     See debug_sync.cc.
 
-    Beware of waiting for a signal here. The lock has aquired its mutex.
-    While waiting on a signal here, the locking thread could not aquire
+    Beware of waiting for a signal here. The lock has acquired its mutex.
+    While waiting on a signal here, the locking thread could not acquire
     the mutex to release the lock. One could lock up the table
     completely.
 
@@ -788,8 +788,8 @@ thr_lock(THR_LOCK_DATA *data, THR_LOCK_INFO *owner, ulong lock_wait_timeout)
            \   = READ
           
 
-        + = Request can be satisified.
-        - = Request cannot be satisified.
+        + = Request can be satisfied.
+        - = Request cannot be satisfied.
 
         READ_NO_INSERT and WRITE_ALLOW_WRITE should in principle
         be incompatible. However this will cause starvation of
@@ -1248,7 +1248,7 @@ end:
 
 /*
   Get all locks in a specific order to avoid dead-locks
-  Sort acording to lock position and put write_locks before read_locks if
+  Sort according to lock position and put write_locks before read_locks if
   lock on same lock. Locks on MERGE tables has lower priority than other
   locks of the same type. See comment for lock_priority.
 */

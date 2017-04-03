@@ -91,7 +91,7 @@ class XCLCOL : public PRXCOL {
   using PRXCOL::Init;
   virtual void Reset(void) {}	  // Evaluated only by TDBXCL
   virtual void ReadColumn(PGLOBAL g);
-  virtual bool Init(PGLOBAL g, PTDBASE tp = NULL);
+  virtual bool Init(PGLOBAL g, PTDB tp = NULL);
 
  protected:
   // Default constructor not to be used

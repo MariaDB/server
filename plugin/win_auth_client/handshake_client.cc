@@ -216,7 +216,7 @@ int Handshake_client::write_packet(Blob &data)
   an empty blob is returned and @c error() gives non-zero error code.
 
   When invoked for the first time (in the first round of the handshake)
-  there is no data from the server (data blob is null) and the intial
+  there is no data from the server (data blob is null) and the initial
   packet is generated without an input.
 
   @return Data to be sent to the server next or null blob if no more data

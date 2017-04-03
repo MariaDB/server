@@ -357,7 +357,7 @@ sub read_relative_infiles
 
          select $tmpfile_fh[$i];
 
-         # Read infile again and copy each set of status values to seperate tmp files
+         # Read infile again and copy each set of status values to separate tmp files
          open INFILE, "< $infile" or warn and next;
          while(<INFILE>)
          {
@@ -365,7 +365,7 @@ sub read_relative_infiles
             next if /^$/;
 
             # The infile must begin with the system variable values.
-            # Therefore, the first occurance of Aborted_clients indicates the beginning
+            # Therefore, the first occurrence of Aborted_clients indicates the beginning
             # of the first set of status values if no sets have occurred yet ($stat_n == 0).
             # In this case, the following status values are printed to the current fh,
             # along with the system variable values read thus far, until Aborted_clients

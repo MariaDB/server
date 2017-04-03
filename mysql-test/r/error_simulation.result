@@ -121,3 +121,12 @@ a
 2
 #cleanup
 DROP TABLE t1, pid_table;
+#
+# MDEV-12416 OOM in create_virtual_tmp_table() makes the server crash
+#
+CREATE FUNCTION f1(a INT) RETURNS INT RETURN a;
+SET SESSION debug_dbug="+d,simulate_create_virtual_tmp_table_out_of_memory";
+SELECT f1(1);
+Got one of the listed errors
+DROP FUNCTION f1;
+SET SESSION debug_dbug=DEFAULT;

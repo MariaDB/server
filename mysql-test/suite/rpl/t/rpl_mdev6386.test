@@ -2,9 +2,7 @@
 --source include/master-slave.inc
 
 --connection master
-# ToDo: Remove this FLUSH LOGS when MDEV-6403 is fixed.
 ALTER TABLE mysql.gtid_slave_pos ENGINE = InnoDB;
-FLUSH LOGS;
 CREATE TABLE t1 (a INT PRIMARY KEY, b INT) Engine=InnoDB;
 --sync_slave_with_master
 
@@ -31,6 +29,7 @@ INSERT INTO t2 VALUE (4, 1);
 INSERT INTO t2 VALUE (5, 1);
 INSERT INTO t1 SELECT * FROM t2;
 DROP TEMPORARY TABLE t2;
+INSERT INTO t1 VALUE (6, 3);
 --source include/save_master_gtid.inc
 --echo Contents on master:
 SELECT * FROM t1 ORDER BY a;

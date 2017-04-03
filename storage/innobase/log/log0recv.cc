@@ -1495,7 +1495,7 @@ parse_log:
 		}
 		break;
 	case MLOG_FILE_WRITE_CRYPT_DATA:
-		ptr = fil_parse_write_crypt_data(ptr, end_ptr, block);
+		ptr = const_cast<byte*>(fil_parse_write_crypt_data(ptr, end_ptr, block));
 		break;
 	default:
 		ptr = NULL;
@@ -1911,7 +1911,7 @@ recv_recover_page(bool just_read_in, buf_block_t* block)
 
 	ib_time_t time = ut_time();
 
-	mutex_enter(&(recv_sys->mutex));
+	mutex_enter(&recv_sys->mutex);
 
 	if (recv_max_page_lsn < page_lsn) {
 		recv_max_page_lsn = page_lsn;
@@ -2013,9 +2013,8 @@ recv_apply_hashed_log_recs(bool last_batch)
 	recv_sys->apply_batch_on = TRUE;
 
 	for (ulint i = 0; i < hash_get_n_cells(recv_sys->addr_hash); i++) {
-
 		for (recv_addr_t* recv_addr = static_cast<recv_addr_t*>(
-				HASH_GET_FIRST(recv_sys->addr_hash, i));
+			     HASH_GET_FIRST(recv_sys->addr_hash, i));
 		     recv_addr;
 		     recv_addr = static_cast<recv_addr_t*>(
 				HASH_GET_NEXT(addr_hash, recv_addr))) {
@@ -2064,7 +2063,7 @@ recv_apply_hashed_log_recs(bool last_batch)
 					recv_read_in_area(page_id);
 				}
 
-				mutex_enter(&(recv_sys->mutex));
+				mutex_enter(&recv_sys->mutex);
 			}
 		}
 	}

@@ -44,7 +44,7 @@ select * from mysql.index_stats;
 #
 
 let $Q6=
-select sum(l_extendedprice*l_discount) as revenue
+select round(sum(l_extendedprice*l_discount),4) as revenue
 from lineitem
 where l_shipdate >= date '1994-01-01' 
       and l_shipdate < date '1994-01-01' + interval '1' year

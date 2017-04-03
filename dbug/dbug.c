@@ -1882,7 +1882,7 @@ static void DBUGOpenFile(CODE_STATE *cs,
       cs->stack->name[len]=0;
     }
     else
-    strmov(cs->stack->name,name);
+      strmov(cs->stack->name,name);
     name=cs->stack->name;
     if (strcmp(name, "-") == 0)
     {

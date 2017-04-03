@@ -447,7 +447,7 @@ dict_build_tablespace_for_table(
 		err = fil_ibd_create(
 			space, table->name.m_name, filepath, fsp_flags,
 			FIL_IBD_FILE_INITIAL_SIZE,
-			node ? node->mode : FIL_SPACE_ENCRYPTION_DEFAULT,
+			node ? node->mode : FIL_ENCRYPTION_DEFAULT,
 			node ? node->key_id : FIL_DEFAULT_ENCRYPTION_KEY);
 
 		ut_free(filepath);

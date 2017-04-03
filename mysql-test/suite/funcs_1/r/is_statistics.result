@@ -151,6 +151,9 @@ def	mysql	time_zone_transition_type	mysql	PRIMARY
 def	mysql	time_zone_transition_type	mysql	PRIMARY
 def	mysql	user	mysql	PRIMARY
 def	mysql	user	mysql	PRIMARY
+Warnings:
+Warning	1286	Unknown storage engine 'InnoDB'
+Warning	1286	Unknown storage engine 'InnoDB'
 ####################################################################################
 # Testcase 3.2.14.2 + 3.2.14.3: INFORMATION_SCHEMA.STATISTICS accessible information
 ####################################################################################

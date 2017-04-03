@@ -153,7 +153,7 @@
 # OpenSSL
 #
 # The following comes because of different prototype between yassl and openssl.
-# Save as the argument is a function withing the library.
+# Save as the argument is a function within the library.
 .*/vio/viosslfactories\.c: discards ~const~ qualifier from pointer target type
 
 #

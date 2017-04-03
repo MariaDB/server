@@ -3,7 +3,7 @@
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All rights reserved.
 Copyright (c) 2008, 2009, Google Inc.
 Copyright (c) 2009, Percona Inc.
-Copyright (c) 2013, 2017, MariaDB Corporation. All Rights Reserved.
+Copyright (c) 2013, 2017, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -181,6 +181,9 @@ struct srv_stats_t {
 
 	/** Number of log scrub operations */
 	ulint_ctr_64_t		n_log_scrubs;
+
+	/** Number of spaces in keyrotation list */
+	ulint_ctr_64_t		key_rotation_list_length;
 };
 
 extern const char*	srv_main_thread_op_info;
@@ -327,9 +330,6 @@ extern my_bool	srv_undo_log_truncate;
 /* Optimize prefix index queries to skip cluster index lookup when possible */
 /* Enables or disables this prefix optimization.  Disabled by default. */
 extern my_bool	srv_prefix_index_cluster_optimization;
-
-/** UNDO logs not redo logged, these logs reside in the temp tablespace.*/
-extern const ulong	srv_tmp_undo_logs;
 
 /** Default size of UNDO tablespace while it is created new. */
 extern const ulint	SRV_UNDO_TABLESPACE_SIZE_IN_PAGES;
@@ -512,7 +512,8 @@ extern uint	srv_spin_wait_delay;
 extern ibool	srv_priority_boost;
 
 extern ulint	srv_truncated_status_writes;
-extern ulint	srv_available_undo_logs;
+/** Number of initialized rollback segments for persistent undo log */
+extern ulong	srv_available_undo_logs;
 
 #if defined UNIV_DEBUG || defined UNIV_IBUF_DEBUG
 extern my_bool	srv_ibuf_disable_background_merge;
@@ -1047,6 +1048,7 @@ struct export_var_t{
 	ulint innodb_encryption_rotation_pages_flushed;
 	ulint innodb_encryption_rotation_estimated_iops;
 	int64_t innodb_encryption_key_requests;
+	int64_t innodb_key_rotation_list_length;
 
 	ulint innodb_scrub_page_reorganizations;
 	ulint innodb_scrub_page_splits;

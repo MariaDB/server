@@ -108,7 +108,7 @@ mysql --plugin-dir=/path/to/plugin-dir -u usr1
 -	**gssapi-mech-name** (Windows only) - Name of the SSPI package used by server. Can be either 'Kerberos' or 'Negotiate'.
  Defaults to 'Negotiate' (both Kerberos and NTLM users can connect)
  Set it to 'Kerberos', to prevent less secure NTLM in domain environments,  but leave it as default(Negotiate)
- to allow non-domain environment (e.g if server does not run in domain enviroment).
+ to allow non-domain environment (e.g if server does not run in domain environment).
 
 
 #Implementation

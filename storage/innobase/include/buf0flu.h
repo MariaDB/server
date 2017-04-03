@@ -88,7 +88,7 @@ buf_flush_init_for_writing(
 	byte*			page,
 	void*			page_zip_,
 	lsn_t			newest_lsn,
-	bool			skip_checksum);
+	bool			skip_checksum = false);
 
 # if defined UNIV_DEBUG || defined UNIV_IBUF_DEBUG
 /********************************************************************//**

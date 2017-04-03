@@ -22,7 +22,7 @@ end while;
 end//
 commit;
 set autocommit=0;
-call innodb_insert_proc(15000);
+call innodb_insert_proc(1500);
 commit;
 set autocommit=1;
 # Wait max 10 min for key encryption threads to encrypt all spaces
@@ -40,6 +40,8 @@ NOT FOUND /author/ in t5.ibd
 NOT FOUND /mangled/ in t6.ibd
 # t7 ... on expecting NOT FOUND
 NOT FOUND /mysql/ in t7.ibd
+SET GLOBAL innodb_file_format = `Barracuda`;
+SET GLOBAL innodb_file_per_table = ON;
 ALTER TABLE t1 ADD COLUMN b int default 2;
 ALTER TABLE t2 ADD COLUMN b int default 2;
 ALTER TABLE t7 ADD COLUMN b int default 2;
@@ -119,43 +121,6 @@ t7	CREATE TABLE `t7` (
   KEY `a` (`a`),
   KEY `b` (`b`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=COMPRESSED `encrypted`=yes
-# t1 yes on expecting NOT FOUND
-NOT FOUND /foobar/ in t1.ibd
-# t2 ... on expecting NOT FOUND
-NOT FOUND /temp/ in t2.ibd
-# t3 ... on expecting NOT FOUND
-NOT FOUND /barfoo/ in t3.ibd
-# t4 ... on expecting NOT FOUND
-NOT FOUND /repeat/ in t4.ibd
-# t5 ... on expecting NOT FOUND
-NOT FOUND /author/ in t5.ibd
-# t6 ... on expecting NOT FOUND
-NOT FOUND /mangled/ in t6.ibd
-# t7 ... on expecting NOT FOUND
-NOT FOUND /mysql/ in t7.ibd
-# Restarting server
-# Done restarting server
-select count(1) from t1;
-count(1)
-15000
-select count(1) from t2;
-count(1)
-15000
-select count(1) from t3;
-count(1)
-15000
-select count(1) from t4;
-count(1)
-15000
-select count(1) from t5;
-count(1)
-15000
-select count(1) from t6;
-count(1)
-15000
-select count(1) from t7;
-count(1)
-15000
 # t1 yes on expecting NOT FOUND
 NOT FOUND /foobar/ in t1.ibd
 # t2 ... on expecting NOT FOUND

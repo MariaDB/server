@@ -991,7 +991,7 @@ Virtual_column_info *add_virtual_expression(THD *thd, Item *expr)
 bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %}
 
-%pure_parser                                    /* We have threads */
+%pure-parser                                    /* We have threads */
 %parse-param { THD *thd }
 %lex-param { THD *thd }
 /*
@@ -2859,7 +2859,6 @@ sp_name:
             $$= new (thd->mem_root) sp_name($1, $3, true);
             if ($$ == NULL)
               MYSQL_YYABORT;
-            $$->init_qname(thd);
           }
         | ident
           {
@@ -2874,7 +2873,6 @@ sp_name:
             $$= new (thd->mem_root) sp_name(db, $1, false);
             if ($$ == NULL)
               MYSQL_YYABORT;
-            $$->init_qname(thd);
           }
         ;
 
@@ -5988,8 +5986,8 @@ field_list_item:
         ;
 
 column_def:
-          field_spec opt_check_constraint
-          { $$= $1;  $$->check_constraint= $2; }
+          field_spec
+          { $$= $1; }
         | field_spec references
           { $$= $1; }
         ;
@@ -6127,10 +6125,12 @@ field_spec:
             lex->init_last_field(f, $1.str, NULL);
             $<create_field>$= f;
           }
-          field_type_or_serial
+          field_type_or_serial opt_check_constraint
           {
             LEX *lex=Lex;
             $$= $<create_field>2;
+
+            $$->check_constraint= $4;
 
             if ($$->check(thd))
               MYSQL_YYABORT;
@@ -7722,7 +7722,7 @@ alter_list_item:
                                 $5->name, $4->csname));
             if (Lex->create_info.add_alter_list_item_convert_to_charset($5))
               MYSQL_YYABORT;
-            Lex->alter_info.flags|= Alter_info::ALTER_CONVERT;
+            Lex->alter_info.flags|= Alter_info::ALTER_OPTIONS;
           }
         | create_table_options_space_separated
           {
@@ -12145,7 +12145,6 @@ drop:
             spname= new (thd->mem_root) sp_name($4, $6, true);
             if (spname == NULL)
               MYSQL_YYABORT;
-            spname->init_qname(thd);
             lex->spname= spname;
           }
         | DROP FUNCTION_SYM opt_if_exists ident
@@ -12161,7 +12160,6 @@ drop:
             spname= new (thd->mem_root) sp_name(db, $4, false);
             if (spname == NULL)
               MYSQL_YYABORT;
-            spname->init_qname(thd);
             lex->spname= spname;
           }
         | DROP PROCEDURE_SYM opt_if_exists sp_name
@@ -16774,7 +16772,8 @@ sf_tail:
             lex->sql_command= SQLCOM_CREATE_SPFUNCTION;
             sp->set_stmt_end(thd);
             if (!(sp->m_flags & sp_head::HAS_RETURN))
-              my_yyabort_error((ER_SP_NORETURN, MYF(0), sp->m_qname.str));
+              my_yyabort_error((ER_SP_NORETURN, MYF(0),
+                                ErrConvDQName(sp).ptr()));
             (void) is_native_function_with_warn(thd, &sp->m_name);
             sp->restore_thd_mem_root(thd);
           }
