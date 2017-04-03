@@ -3888,21 +3888,23 @@ sp_for_loop_bounds:
           }
         | IN_SYM opt_sp_for_loop_direction '(' sp_cursor_stmt ')'
           {
+            Item *item;
             DBUG_ASSERT(Lex->sphead);
             LEX_STRING name= {C_STRING_WITH_LEN("[implicit_cursor]") };
             if (Lex->sp_declare_cursor(thd, name, $4, NULL, true))
               MYSQL_YYABORT;
-            $$.m_direction= 1;
             if (!($$.m_index= new (thd->mem_root) sp_assignment_lex(thd, thd->lex)))
               MYSQL_YYABORT;
             $$.m_index->sp_lex_in_use= true;
             Lex->sphead->reset_lex(thd, $$.m_index);
-            Item *item= new (thd->mem_root) Item_field(thd,
+            if (!(item= new (thd->mem_root) Item_field(thd,
                                                        Lex->current_context(),
-                                                       NullS, NullS, name.str);
+                                                       NullS, NullS, name.str)))
+              MYSQL_YYABORT;
             $$.m_index->set_item_and_free_list(item, NULL);
             if (Lex->sphead->restore_lex(thd))
               MYSQL_YYABORT;
+            $$.m_direction= 1;
             $$.m_upper_bound= NULL;
             $$.m_implicit_cursor= true;
           }

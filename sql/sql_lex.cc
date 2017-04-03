@@ -5428,9 +5428,12 @@ LEX::sp_add_for_loop_cursor_variable(THD *thd,
                                      Item_args *parameters)
 {
   sp_variable *spvar= spcont->add_variable(thd, name);
+  if (!spvar)
+    return NULL;
   spcont->declare_var_boundary(1);
   sphead->fill_spvar_definition(thd, &spvar->field_def, spvar->name.str);
-  spvar->default_value= new (thd->mem_root) Item_null(thd);
+  if (!(spvar->default_value= new (thd->mem_root) Item_null(thd)))
+    return NULL;
 
   spvar->field_def.set_cursor_rowtype_ref(true);
 
@@ -5488,11 +5491,15 @@ bool LEX::sp_for_loop_intrange_condition_test(THD *thd,
 bool LEX::sp_for_loop_cursor_condition_test(THD *thd,
                                             const Lex_for_loop_st &loop)
 {
+  const LEX_STRING *cursor_name;
+  Item *expr;
   spcont->set_for_loop(loop);
   sphead->reset_lex(thd);
-  const LEX_STRING *cursor_name= spcont->find_cursor(loop.m_cursor_offset);
-  Item *expr= new (thd->mem_root) Item_func_cursor_found(thd, *cursor_name,
-                                                         loop.m_cursor_offset);
+  cursor_name= spcont->find_cursor(loop.m_cursor_offset);
+  DBUG_ASSERT(cursor_name);
+  if (!(expr= new (thd->mem_root) Item_func_cursor_found(thd, *cursor_name,
+                                                         loop.m_cursor_offset)))
+    return true;
   if (thd->lex->sp_while_loop_expression(thd, expr))
     return true;
   return thd->lex->sphead->restore_lex(thd);
@@ -5531,9 +5538,7 @@ bool LEX::sp_for_loop_cursor_declarations(THD *thd,
   const sp_pcursor *pcursor;
 
   if ((item_splocal= item->get_item_splocal()))
-  {
     name= item_splocal->m_name;
-  }
   else if ((item_field= item->type() == Item::FIELD_ITEM ?
                         static_cast<Item_field *>(item) : NULL) &&
            item_field->table_name == NULL)

@@ -3400,10 +3400,10 @@ public:
 
     This methods adds declarations:
     - An explicit integer or cursor%ROWTYPE "index" variable
-    - An implicit ingeger upper bound variable, in case of integer range loops
+    - An implicit integer upper bound variable, in case of integer range loops
     - A CURSOR, in case of an implicit CURSOR loops
     The generated variables are stored into "loop".
-    Additional loop characteristics are copies from "bounds" to "loop".
+    Additional loop characteristics are copied from "bounds" to "loop".
   */
   bool sp_for_loop_declarations(THD *thd, Lex_for_loop_st *loop,
                                 const LEX_STRING &index,
