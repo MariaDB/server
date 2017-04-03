@@ -3885,6 +3885,7 @@ private:
   uint  m_query_len;
   char *m_save_thd_query_txt;
   uint  m_save_thd_query_len;
+  bool  m_saved_thd_query;
 };
 
 /**

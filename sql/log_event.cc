@@ -11322,7 +11322,7 @@ Annotate_rows_log_event::Annotate_rows_log_event(THD *thd,
                                                  bool direct)
   : Log_event(thd, 0, using_trans),
     m_save_thd_query_txt(0),
-    m_save_thd_query_len(0)
+    m_save_thd_query_len(0), m_saved_thd_query(false)
 {
   m_query_txt= thd->query();
   m_query_len= thd->query_length();
@@ -11336,7 +11336,7 @@ Annotate_rows_log_event::Annotate_rows_log_event(const char *buf,
                                       const Format_description_log_event *desc)
   : Log_event(buf, desc),
     m_save_thd_query_txt(0),
-    m_save_thd_query_len(0)
+    m_save_thd_query_len(0), m_saved_thd_query(false)
 {
   m_query_len= event_len - desc->common_header_len;
   m_query_txt= (char*) buf + desc->common_header_len;
@@ -11345,7 +11345,7 @@ Annotate_rows_log_event::Annotate_rows_log_event(const char *buf,
 Annotate_rows_log_event::~Annotate_rows_log_event()
 {
 #ifndef MYSQL_CLIENT
-  if (m_save_thd_query_txt)
+  if (m_saved_thd_query)
     thd->set_query(m_save_thd_query_txt, m_save_thd_query_len);
 #endif
 }
@@ -11431,6 +11431,7 @@ int Annotate_rows_log_event::do_apply_event(rpl_group_info *rgi)
 {
   m_save_thd_query_txt= thd->query();
   m_save_thd_query_len= thd->query_length();
+  m_saved_thd_query= true;
   thd->set_query(m_query_txt, m_query_len);
   return 0;
 }
