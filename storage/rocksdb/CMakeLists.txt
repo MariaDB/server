@@ -138,9 +138,12 @@ IF(HAVE_SCHED_GETCPU)
   ADD_DEFINITIONS(-DHAVE_SCHED_GETCPU=1)
 ENDIF()
 
-IF(WITH_UNIT_TESTS AND WITH_EMBEDDED_SERVER)
-  ADD_SUBDIRECTORY(unittest)
-ENDIF()
+#
+# MariaDB: Dynamic plugin build is not suitable with unittest ATM
+#
+#IF(WITH_UNIT_TESTS AND WITH_EMBEDDED_SERVER)
+#  ADD_SUBDIRECTORY(unittest)
+#ENDIF()
 
 ADD_LIBRARY(rocksdb_tools STATIC
    rocksdb/tools/ldb_tool.cc
