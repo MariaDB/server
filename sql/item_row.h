@@ -119,6 +119,13 @@ public:
   bool check_cols(uint c);
   bool null_inside() { return with_null; };
   void bring_value();
+
+  Item* propagate_equal_fields(THD *thd, const Context &ctx, COND_EQUAL *cond)
+  {
+    Item_args::propagate_equal_fields(thd, Context_identity(), cond);
+    return this;
+  }
+
   bool check_vcol_func_processor(void *arg) {return FALSE; }
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_row>(thd, mem_root, this); }
