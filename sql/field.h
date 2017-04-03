@@ -3987,16 +3987,6 @@ public:
 };
 
 
-class Cursor_rowtype: public Sql_alloc
-{
-public:
-  uint m_cursor;
-  Cursor_rowtype(uint cursor)
-   :m_cursor(cursor)
-  { }
-};
-
-
 /**
   This class is used during a stored routine or a trigger execution,
   at sp_rcontext::create() time.
@@ -4020,20 +4010,20 @@ class Spvar_definition: public Column_definition
 {
   class Qualified_column_ident *m_column_type_ref; // for %TYPE
   class Table_ident *m_table_rowtype_ref;          // for table%ROWTYPE
-  class Cursor_rowtype *m_cursor_rowtype_ref;      // for cursor%ROWTYPE
+  bool m_cursor_rowtype_ref;                       // for cursor%ROWTYPE
   Row_definition_list *m_row_field_definitions;    // for ROW
 public:
   Spvar_definition()
    :m_column_type_ref(NULL),
     m_table_rowtype_ref(NULL),
-    m_cursor_rowtype_ref(NULL),
+    m_cursor_rowtype_ref(false),
     m_row_field_definitions(NULL)
   { }
   Spvar_definition(THD *thd, Field *field)
    :Column_definition(thd, field, NULL),
     m_column_type_ref(NULL),
     m_table_rowtype_ref(NULL),
-    m_cursor_rowtype_ref(NULL),
+    m_cursor_rowtype_ref(false),
     m_row_field_definitions(NULL)
   { }
   const Type_handler *type_handler() const
@@ -4044,7 +4034,7 @@ public:
   }
   bool is_column_type_ref() const { return m_column_type_ref != 0; }
   bool is_table_rowtype_ref() const { return m_table_rowtype_ref != 0; }
-  bool is_cursor_rowtype_ref() const { return m_cursor_rowtype_ref != NULL; }
+  bool is_cursor_rowtype_ref() const { return m_cursor_rowtype_ref; }
   class Qualified_column_ident *column_type_ref() const
   {
     return m_column_type_ref;
@@ -4062,11 +4052,7 @@ public:
   {
     m_table_rowtype_ref= ref;
   }
-  class Cursor_rowtype *cursor_rowtype_ref() const
-  {
-    return m_cursor_rowtype_ref;
-  }
-  void set_cursor_rowtype_ref(class Cursor_rowtype *ref)
+  void set_cursor_rowtype_ref(bool ref)
   {
     m_cursor_rowtype_ref= ref;
   }

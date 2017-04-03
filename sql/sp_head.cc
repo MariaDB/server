@@ -3183,8 +3183,7 @@ int sp_lex_keeper::cursor_reset_lex_and_exec_core(THD *thd, uint *nextp,
   */
   thd->stmt_arena= m_lex->query_arena();
   int res= reset_lex_and_exec_core(thd, nextp, open_tables, instr);
-  if (thd->stmt_arena->free_list)
-    cleanup_items(thd->stmt_arena->free_list);
+  cleanup_items(thd->stmt_arena->free_list);
   thd->stmt_arena= old_arena;
   return res;
 }
@@ -4170,10 +4169,18 @@ sp_instr_cfetch::print(String *str)
   sp_instr_cursor_copy_struct class functions
 */
 
+/**
+  This methods processes cursor %ROWTYPE declarations, e.g.:
+    CURSOR cur IS SELECT * FROM t1;
+    rec cur%ROWTYPE;
+  and does the following:
+  - opens the cursor without copying data (materialization).
+  - copies the cursor structure to the associated %ROWTYPE variable.
+*/
 int
 sp_instr_cursor_copy_struct::exec_core(THD *thd, uint *nextp)
 {
-  DBUG_ENTER("sp_instr_cusrot_copy_struct::exec_core");
+  DBUG_ENTER("sp_instr_cursor_copy_struct::exec_core");
   int ret= 0;
   Item_field_row *row= (Item_field_row*) thd->spcont->get_item(m_var);
   DBUG_ASSERT(row->type_handler() == &type_handler_row);
@@ -4188,6 +4195,7 @@ sp_instr_cursor_copy_struct::exec_core(THD *thd, uint *nextp)
   if (!row->arguments())
   {
     sp_cursor tmp(thd, &m_lex_keeper);
+    // Open the cursor without copying data
     if (!(ret= tmp.open_view_structure_only(thd)))
     {
       Row_definition_list defs;

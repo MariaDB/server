@@ -5303,10 +5303,7 @@ LEX::sp_variable_declarations_rowtype_finalize(THD *thd, int nvars,
 
     if (pcursor)
     {
-      Cursor_rowtype *ref;
-      if (!(ref= new (thd->mem_root) Cursor_rowtype(coffp)))
-        return true;
-      spvar->field_def.set_cursor_rowtype_ref(ref);
+      spvar->field_def.set_cursor_rowtype_ref(true);
       sp_instr_cursor_copy_struct *instr=
         new (thd->mem_root) sp_instr_cursor_copy_struct(sphead->instructions(),
                                                         spcont, pcursor->lex(),
@@ -5435,10 +5432,7 @@ LEX::sp_add_for_loop_cursor_variable(THD *thd,
   sphead->fill_spvar_definition(thd, &spvar->field_def, spvar->name.str);
   spvar->default_value= new (thd->mem_root) Item_null(thd);
 
-  Cursor_rowtype *ref;
-  if (!(ref= new (thd->mem_root) Cursor_rowtype(coffset)))
-    return NULL;
-  spvar->field_def.set_cursor_rowtype_ref(ref);
+  spvar->field_def.set_cursor_rowtype_ref(true);
 
   if (sphead->add_for_loop_open_cursor(thd, spcont, spvar, pcursor, coffset,
                                        param_lex, parameters))
