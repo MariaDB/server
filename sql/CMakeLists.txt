@@ -46,7 +46,6 @@ ENDIF()
 ADD_CUSTOM_COMMAND(
   OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/lex_token.h
   COMMAND gen_lex_token > lex_token.h
-  DEPENDS gen_lex_token
 )
 
 ADD_DEFINITIONS(-DMYSQL_SERVER -DHAVE_EVENT_SCHEDULER) 
@@ -150,6 +149,63 @@ ELSE()
   SET(MYSQLD_SOURCE main.cc ${DTRACE_PROBES_ALL})
 ENDIF()
 
+
+IF(MSVC AND NOT WITHOUT_DYNAMIC_PLUGINS)
+
+  # mysqld.exe must to export symbols from some specific libs.
+  # These symbols are used by dynamic plugins, that "link" to mysqld.
+  #
+  # To do that, we
+  #
+  # 1. Generate mysqld_lib.def text file with all symbols from static
+  # libraries mysys, dbug, strings, sql.
+  # 2. Then we call
+  #  lib.exe /DEF:mysqld_lib.def ...
+  #  to create import library mysqld_lib.lib and export library mysqld_lib.exp
+  # 3. mysqld.exe links with mysqld_lib.exp (exporting symbols)
+  # 4. plugins link with mysqld_lib.lib (importing symbols)
+  #
+  # We do not not regenerate .def, .lib and .exp
+  # without necessity.E.g source modifications, that do not
+  # change list of exported symbols, will not result in a relink for plugins.
+
+  SET(MYSQLD_DEF ${CMAKE_CURRENT_BINARY_DIR}/mysqld_lib.def)
+  SET(MYSQLD_EXP ${CMAKE_CURRENT_BINARY_DIR}/mysqld_lib.exp)
+  SET(MYSQLD_LIB ${CMAKE_CURRENT_BINARY_DIR}/mysqld_lib.lib)
+  SET(MYSQLD_CORELIBS sql mysys mysys_ssl dbug strings)
+  FOREACH (CORELIB ${MYSQLD_CORELIBS})
+    GET_TARGET_PROPERTY(LOC ${CORELIB} LOCATION)
+    FILE(TO_NATIVE_PATH ${LOC} LOC)
+    SET (LIB_LOCATIONS ${LIB_LOCATIONS} ${LOC})
+  ENDFOREACH (CORELIB)
+
+  SET(_PLATFORM x86)
+  IF(CMAKE_SIZEOF_VOID_P EQUAL 8)
+    SET(_PLATFORM  x64)
+  ENDIF()
+
+  ADD_CUSTOM_COMMAND(
+    OUTPUT ${MYSQLD_DEF}
+    COMMAND cscript ARGS //nologo ${PROJECT_SOURCE_DIR}/win/create_def_file.js
+    ${_PLATFORM} /forLib ${LIB_LOCATIONS} > mysqld_lib.def.tmp
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different mysqld_lib.def.tmp mysqld_lib.def
+    COMMAND ${CMAKE_COMMAND} -E remove mysqld_lib.def.tmp
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+    DEPENDS ${MYSQLD_CORELIBS}
+  )
+
+  ADD_CUSTOM_COMMAND(
+    OUTPUT ${MYSQLD_LIB}
+    COMMAND lib
+    ARGS /NAME:mysqld.exe "/DEF:${MYSQLD_DEF}" "/MACHINE:${_PLATFORM}"
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+    DEPENDS ${MYSQLD_DEF}
+  )
+  ADD_CUSTOM_TARGET(gen_mysqld_lib DEPENDS ${MYSQLD_LIB})
+  ADD_LIBRARY(mysqld_import_lib UNKNOWN IMPORTED GLOBAL)
+  SET_TARGET_PROPERTIES(mysqld_import_lib PROPERTIES IMPORTED_LOCATION ${MYSQLD_LIB})
+ENDIF()
+
 MYSQL_ADD_EXECUTABLE(mysqld ${MYSQLD_SOURCE} DESTINATION ${INSTALL_SBINDIR} COMPONENT Server)
 
 IF(APPLE) 
@@ -170,25 +226,9 @@ IF(NOT WITHOUT_DYNAMIC_PLUGINS)
     SET_TARGET_PROPERTIES(mysqld PROPERTIES LINK_FLAGS "${mysqld_link_flags} -Wl,--export-all-symbols")
   ENDIF()
   IF(MSVC)
-    # Set module definition file. Also use non-incremental linker, 
-    # incremental appears to crash from time to time,if used with /DEF option
-    SET_TARGET_PROPERTIES(mysqld PROPERTIES LINK_FLAGS "${mysqld_link_flags} /DEF:mysqld.def /INCREMENTAL:NO")
-
-    FOREACH (CORELIB sql mysys mysys_ssl dbug strings)
-      GET_TARGET_PROPERTY(LOC ${CORELIB} LOCATION)
-      FILE(TO_NATIVE_PATH ${LOC} LOC)
-      SET (LIB_LOCATIONS ${LIB_LOCATIONS} ${LOC}) 
-    ENDFOREACH (CORELIB ${MYSQLD_CORE_LIBS})
-    SET(_PLATFORM x86)
-    IF(CMAKE_SIZEOF_VOID_P EQUAL 8)
-      SET(_PLATFORM  x64)
-    ENDIF()
-    ADD_CUSTOM_COMMAND(TARGET mysqld PRE_LINK
-      COMMAND echo ${_PLATFORM} && cscript ARGS //nologo ${PROJECT_SOURCE_DIR}/win/create_def_file.js
-                  ${_PLATFORM}  ${LIB_LOCATIONS} > mysqld.def 
-      WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
-    ADD_DEPENDENCIES(sql GenError)
-  ENDIF(MSVC)
+    SET_TARGET_PROPERTIES(mysqld PROPERTIES LINK_FLAGS "${mysqld_link_flags} \"${MYSQLD_EXP}\"")
+    ADD_DEPENDENCIES(mysqld gen_mysqld_lib)
+  ENDIF()
 ENDIF(NOT WITHOUT_DYNAMIC_PLUGINS)
 
 SET_TARGET_PROPERTIES(mysqld PROPERTIES ENABLE_EXPORTS TRUE) 
@@ -254,7 +294,6 @@ ENDIF()
 ADD_CUSTOM_COMMAND(
   OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/lex_hash.h
   COMMAND gen_lex_hash > lex_hash.h
-  DEPENDS gen_lex_hash
 )
 
 MYSQL_ADD_EXECUTABLE(mysql_tzinfo_to_sql tztime.cc COMPONENT Server)
@@ -379,7 +418,7 @@ IF(WIN32)
     ${CMAKE_CURRENT_BINARY_DIR}/my_bootstrap.sql
     mysql_bootstrap_sql.c
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-    DEPENDS comp_sql ${my_bootstrap_sql}
+    DEPENDS ${my_bootstrap_sql}
   )
 
   MYSQL_ADD_EXECUTABLE(mysql_install_db 
