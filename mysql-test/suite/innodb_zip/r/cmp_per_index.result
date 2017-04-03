@@ -39,13 +39,13 @@ BEGIN;
 COMMIT;
 ALTER TABLE t DROP INDEX c;
 GRANT USAGE ON *.* TO 'tuser01'@'localhost' IDENTIFIED BY 'cDJvI9s_Uq';
-Warnings:
-Level	Warning
-Code	1287
-Message	Using GRANT for creating new user is deprecated and will be removed in future release. Create new user with CREATE USER statement.
 FLUSH PRIVILEGES;
+connect  con1,localhost,tuser01,cDJvI9s_Uq,;
+connection con1;
 SELECT * FROM information_schema.innodb_cmp_per_index;
 ERROR 42000: Access denied; you need (at least one of) the PROCESS privilege(s) for this operation
+connection default;
+disconnect con1;
 DROP USER 'tuser01'@'localhost';
 SELECT
 database_name,
@@ -70,7 +70,6 @@ index_name	PRIMARY
 compress_ops	65
 compress_ops_ok	65
 uncompress_ops	0
-# restart
 SET GLOBAL innodb_cmp_per_index_enabled=ON;
 SELECT COUNT(*) FROM t;
 COUNT(*)	128
@@ -86,9 +85,15 @@ FROM information_schema.innodb_cmp_per_index
 ORDER BY 1, 2, 3;
 database_name	test
 table_name	t
+index_name	b
+compress_ops	0
+compress_ops_ok	0
+uncompress_ops	6
+database_name	test
+table_name	t
 index_name	PRIMARY
 compress_ops	0
 compress_ops_ok	0
-uncompress_ops	9
+uncompress_ops	5
 DROP TABLE t;
 SET GLOBAL innodb_cmp_per_index_enabled=default;

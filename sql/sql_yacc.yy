@@ -5985,8 +5985,8 @@ field_list_item:
         ;
 
 column_def:
-          field_spec opt_check_constraint
-          { $$= $1;  $$->check_constraint= $2; }
+          field_spec
+          { $$= $1; }
         | field_spec references
           { $$= $1; }
         ;
@@ -6124,10 +6124,12 @@ field_spec:
             lex->init_last_field(f, $1.str, NULL);
             $<create_field>$= f;
           }
-          field_type_or_serial
+          field_type_or_serial opt_check_constraint
           {
             LEX *lex=Lex;
             $$= $<create_field>2;
+
+            $$->check_constraint= $4;
 
             if ($$->check(thd))
               MYSQL_YYABORT;

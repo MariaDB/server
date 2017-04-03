@@ -140,3 +140,7 @@ create table t1 (a int, b int, check(a>0));
 alter table t1 drop column a;
 ERROR 42S22: Unknown column 'a' in 'CHECK'
 drop table t1;
+create table t1 (a int check (@b in (select user from mysql.user)));
+ERROR HY000: Function or expression 'select ...' cannot be used in the CHECK clause of `a`
+create table t1 (a int check (a > @b));
+ERROR HY000: Function or expression '@b' cannot be used in the CHECK clause of `a`

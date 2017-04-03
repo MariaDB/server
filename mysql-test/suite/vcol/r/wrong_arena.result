@@ -40,12 +40,6 @@ connection default;
 select * from t1;
 a	b	c	d	e
 2010-10-10 10:10:10	1	0	0	NULL
-Warnings:
-Warning	1292	Incorrect datetime value: '1'
-Warning	1292	Incorrect datetime value: '2'
-Warning	1292	Incorrect datetime value: '1'
-Warning	1292	Incorrect datetime value: '1'
-Warning	1292	Incorrect datetime value: '2'
 drop table t1;
 connect con1, localhost, root;
 create table t1 (a datetime,

@@ -394,76 +394,41 @@ trx_sys_read_wsrep_checkpoint(
 
 #endif /* WITH_WSREP */
 
-/****************************************************************//**
-Looks for a free slot for a rollback segment in the trx system file copy.
-@return slot index or ULINT_UNDEFINED if not found */
+/** @return an unallocated rollback segment slot in the TRX_SYS header
+@retval ULINT_UNDEFINED if not found */
 ulint
-trx_sysf_rseg_find_free(
-/*====================*/
-	mtr_t*	mtr,			/*!< in/out: mtr */
-	bool	include_tmp_slots,	/*!< in: if true, report slots reserved
-					for temp-tablespace as free slots. */
-	ulint	nth_free_slots)		/*!< in: allocate nth free slot.
-					0 means next free slot. */
+trx_sysf_rseg_find_free(mtr_t* mtr)
 {
-	ulint		i;
-	trx_sysf_t*	sys_header;
+	trx_sysf_t*	sys_header = trx_sysf_get(mtr);
 
-	sys_header = trx_sysf_get(mtr);
-
-	ulint	found_free_slots = 0;
-	for (i = 0; i < TRX_SYS_N_RSEGS; i++) {
-		ulint	page_no;
-
-		if (!include_tmp_slots && trx_sys_is_noredo_rseg_slot(i)) {
-			continue;
-		}
-
-		page_no = trx_sysf_rseg_get_page_no(sys_header, i, mtr);
-
-		if (page_no == FIL_NULL
-		    || (include_tmp_slots
-			&& trx_sys_is_noredo_rseg_slot(i))) {
-
-			if (found_free_slots++ >= nth_free_slots) {
-				return(i);
-			}
+	for (ulint i = 0; i < TRX_SYS_N_RSEGS; i++) {
+		if (trx_sysf_rseg_get_page_no(sys_header, i, mtr)
+		    == FIL_NULL) {
+			return(i);
 		}
 	}
 
 	return(ULINT_UNDEFINED);
 }
 
-/****************************************************************//**
-Looks for used slots for redo rollback segment.
-@return number of used slots */
+/** Count the number of initialized persistent rollback segment slots. */
 static
-ulint
-trx_sysf_used_slots_for_redo_rseg(
-/*==============================*/
-	mtr_t*	mtr)			/*!< in: mtr */
+void
+trx_sysf_get_n_rseg_slots()
 {
-	trx_sysf_t*	sys_header;
-	ulint		n_used = 0;
+	mtr_t		mtr;
+	mtr.start();
 
-	sys_header = trx_sysf_get(mtr);
+	trx_sysf_t*	sys_header	= trx_sysf_get(&mtr);
+	srv_available_undo_logs = 0;
 
 	for (ulint i = 0; i < TRX_SYS_N_RSEGS; i++) {
-
-		if (trx_sys_is_noredo_rseg_slot(i)) {
-			continue;
-		}
-
-		ulint	page_no;
-
-		page_no = trx_sysf_rseg_get_page_no(sys_header, i, mtr);
-
-		if (page_no != FIL_NULL) {
-			++n_used;
-		}
+		srv_available_undo_logs
+			+= trx_sysf_rseg_get_page_no(sys_header, i, &mtr)
+			!= FIL_NULL;
 	}
 
-	return(n_used);
+	mtr.commit();
 }
 
 /*****************************************************************//**
@@ -532,7 +497,7 @@ trx_sysf_create(
 			+ page - sys_header, mtr);
 
 	/* Create the first rollback segment in the SYSTEM tablespace */
-	slot_no = trx_sysf_rseg_find_free(mtr, false, 0);
+	slot_no = trx_sysf_rseg_find_free(mtr);
 	page_no = trx_rseg_header_create(TRX_SYS_SPACE,
 					 ULINT_MAX, slot_no, mtr);
 
@@ -904,118 +869,69 @@ trx_sys_file_format_close(void)
 	mutex_free(&file_format_max.mutex);
 }
 
-/*********************************************************************
-Creates non-redo rollback segments.
-@return number of non-redo rollback segments created. */
-static
-ulint
-trx_sys_create_noredo_rsegs(
-/*========================*/
-	ulint	n_nonredo_rseg)	/*!< number of non-redo rollback segment
-				to create. */
+/** Create the rollback segments.
+@return	whether the creation succeeded */
+bool
+trx_sys_create_rsegs()
 {
-	ulint n_created = 0;
+	/* srv_available_undo_logs reflects the number of persistent
+	rollback segments that have been initialized in the
+	transaction system header page.
 
-	/* Create non-redo rollback segments residing in temp-tablespace.
-	non-redo rollback segments don't perform redo logging and so
-	are used for undo logging of objects/table that don't need to be
-	recover on crash.
-	(Non-Redo rollback segments are created on every server startup).
-	Slot-0: reserved for system-tablespace.
-	Slot-1....Slot-N: reserved for temp-tablespace.
-	Slot-N+1....Slot-127: reserved for system/undo-tablespace. */
-	for (ulint i = 0; i < n_nonredo_rseg; i++) {
-		if (trx_rseg_create(SRV_TMP_SPACE_ID, i) == NULL) {
-			break;
-		}
-		++n_created;
-	}
-
-	return(n_created);
-}
-
-/*********************************************************************
-Creates the rollback segments.
-@return number of rollback segments that are active. */
-ulint
-trx_sys_create_rsegs(
-/*=================*/
-	ulint	n_spaces,	/*!< number of tablespaces for UNDO logs */
-	ulint	n_rsegs,	/*!< number of rollback segments to create */
-	ulint	n_tmp_rsegs)	/*!< number of rollback segments reserved for
-				temp-tables. */
-{
-	mtr_t	mtr;
-	ulint	n_used;
-	ulint	n_noredo_created;
-
-	ut_a(n_spaces < TRX_SYS_N_RSEGS);
-	ut_a(n_rsegs <= TRX_SYS_N_RSEGS);
-	ut_a(n_tmp_rsegs > 0 && n_tmp_rsegs < TRX_SYS_N_RSEGS);
+	srv_undo_logs determines how many of the
+	srv_available_undo_logs rollback segments may be used for
+	logging new transactions. */
+	ut_ad(srv_undo_tablespaces < TRX_SYS_N_RSEGS);
+	ut_ad(srv_undo_logs <= TRX_SYS_N_RSEGS);
 
 	if (srv_read_only_mode) {
-		return(ULINT_UNDEFINED);
+		srv_undo_logs = srv_available_undo_logs = ULONG_UNDEFINED;
+		return(true);
 	}
 
-	/* Create non-redo rollback segments. */
-	n_noredo_created = trx_sys_create_noredo_rsegs(n_tmp_rsegs);
+	/* Create temporary rollback segments. */
+	trx_temp_rseg_create();
 
 	/* This is executed in single-threaded mode therefore it is not
 	necessary to use the same mtr in trx_rseg_create(). n_used cannot
 	change while the function is executing. */
-	mtr_start(&mtr);
-	n_used = trx_sysf_used_slots_for_redo_rseg(&mtr) + n_noredo_created;
-	mtr_commit(&mtr);
+	trx_sysf_get_n_rseg_slots();
 
-	ut_ad(n_used <= TRX_SYS_N_RSEGS);
+	ut_ad(srv_available_undo_logs <= TRX_SYS_N_RSEGS);
 
-	/* By default 1 redo rseg is always active that is hosted in
-	system tablespace. */
-	ulint	n_redo_active;
-	if (n_rsegs <= n_tmp_rsegs) {
-		n_redo_active = 1;
-	} else if (n_rsegs > n_used) {
-		n_redo_active = n_used - n_tmp_rsegs;
+	/* The first persistent rollback segment is always initialized
+	in the system tablespace. */
+	ut_a(srv_available_undo_logs > 0);
+
+	if (srv_force_recovery) {
+		/* Do not create additional rollback segments if
+		innodb_force_recovery has been set. */
+		if (srv_undo_logs > srv_available_undo_logs) {
+			srv_undo_logs = srv_available_undo_logs;
+		}
 	} else {
-		n_redo_active = n_rsegs - n_tmp_rsegs;
-	}
+		for (ulint i = 0; srv_available_undo_logs < srv_undo_logs;
+		     i++, srv_available_undo_logs++) {
+			/* Tablespace 0 is the system tablespace.
+			Dedicated undo log tablespaces start from 1. */
+			ulint space = srv_undo_tablespaces > 0
+				? (i % srv_undo_tablespaces) + 1
+				: TRX_SYS_SPACE;
 
-	/* Do not create additional rollback segments if innodb_force_recovery
-	has been set and the database was not shutdown cleanly. */
-	if (!srv_force_recovery && !recv_needed_recovery && n_used < n_rsegs) {
-		ulint	i;
-		ulint	new_rsegs = n_rsegs - n_used;
-
-		for (i = 0; i < new_rsegs; ++i) {
-			ulint	space;
-
-			/* Tablespace 0 is the system tablespace. All UNDO
-			log tablespaces start from 1. */
-
-			if (n_spaces > 0) {
-				space = (i % n_spaces) + 1;
-			} else {
-				space = 0; /* System tablespace */
-			}
-
-			if (trx_rseg_create(space, 0) != NULL) {
-				++n_used;
-				++n_redo_active;
-			} else {
-				break;
+			if (!trx_rseg_create(space)) {
+				ib::error() << "Unable to allocate the"
+					" requested innodb_undo_logs";
+				return(false);
 			}
 		}
 	}
 
-	ib::info() << n_used - srv_tmp_undo_logs
-		<< " redo rollback segment(s) found. "
-		<< n_redo_active
-		<< " redo rollback segment(s) are active.";
+	ut_ad(srv_undo_logs <= srv_available_undo_logs);
 
-	ib::info() << n_noredo_created << " non-redo rollback segment(s) are"
-		" active.";
+	ib::info() << srv_undo_logs << " out of " << srv_available_undo_logs
+		<< " rollback segments are active.";
 
-	return(n_used);
+	return(true);
 }
 
 /*********************************************************************
@@ -1027,9 +943,7 @@ trx_sys_close(void)
 	ut_ad(trx_sys != NULL);
 	ut_ad(srv_shutdown_state == SRV_SHUTDOWN_EXIT_THREADS);
 
-	ulint	size = trx_sys->mvcc->size();
-
-	if (size > 0) {
+	if (ulint size = trx_sys->mvcc->size()) {
 		ib::error() << "All read views were not closed before"
 			" shutdown: " << size << " read views open";
 	}
@@ -1058,6 +972,10 @@ trx_sys_close(void)
 
 	for (ulint i = 0; i < TRX_SYS_N_RSEGS; ++i) {
 		if (trx_rseg_t* rseg = trx_sys->rseg_array[i]) {
+			trx_rseg_mem_free(rseg);
+		}
+
+		if (trx_rseg_t* rseg = trx_sys->temp_rsegs[i]) {
 			trx_rseg_mem_free(rseg);
 		}
 	}

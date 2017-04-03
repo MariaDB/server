@@ -1893,13 +1893,7 @@ trx_undo_report_row_operation(
 	if (is_temp) {
 		mtr.set_log_mode(MTR_LOG_NO_REDO);
 
-		rseg = trx->rsegs.m_noredo.rseg;
-
-		if (!rseg) {
-			trx_assign_rseg(trx);
-			rseg = trx->rsegs.m_noredo.rseg;
-		}
-
+		rseg = trx->get_temp_rseg();
 		pundo = &trx->rsegs.m_noredo.undo;
 	} else {
 		ut_ad(!trx->read_only);
@@ -2057,16 +2051,16 @@ err_exit:
 
 /*============== BUILDING PREVIOUS VERSION OF A RECORD ===============*/
 
-/******************************************************************//**
-Copies an undo record to heap. This function can be called if we know that
-the undo log record exists.
-@return own: copy of the record */
+/** Copy an undo record to heap.
+@param[in]	roll_ptr	roll pointer to a record that exists
+@param[in]	is_temp		whether this is a temporary table
+@param[in,out]	heap		memory heap where copied */
 static
 trx_undo_rec_t*
 trx_undo_get_undo_rec_low(
-/*======================*/
-	roll_ptr_t	roll_ptr,	/*!< in: roll pointer to record */
-	mem_heap_t*	heap)		/*!< in: memory heap where copied */
+	roll_ptr_t	roll_ptr,
+	bool		is_temp,
+	mem_heap_t*	heap)
 {
 	trx_undo_rec_t*	undo_rec;
 	ulint		rseg_id;
@@ -2079,7 +2073,10 @@ trx_undo_get_undo_rec_low(
 
 	trx_undo_decode_roll_ptr(roll_ptr, &is_insert, &rseg_id, &page_no,
 				 &offset);
-	rseg = trx_rseg_get_on_id(rseg_id);
+	rseg = is_temp
+		? trx_sys->temp_rsegs[rseg_id]
+		: trx_sys->rseg_array[rseg_id];
+	ut_ad(is_temp == !rseg->is_persistent());
 
 	mtr_start(&mtr);
 
@@ -2093,13 +2090,13 @@ trx_undo_get_undo_rec_low(
 	return(undo_rec);
 }
 
-/******************************************************************//**
-Copies an undo record to heap.
+/** Copy an undo record to heap.
 @param[in]	roll_ptr	roll pointer to record
+@param[in]	is_temp		whether this is a temporary table
+@param[in,out]	heap		memory heap where copied
 @param[in]	trx_id		id of the trx that generated
 				the roll pointer: it points to an
 				undo log of this transaction
-@param[in]	heap		memory heap where copied
 @param[in]	name		table name
 @param[out]	undo_rec	own: copy of the record
 @retval true if the undo log has been
@@ -2109,10 +2106,10 @@ NOTE: the caller must have latches on the clustered index page. */
 static MY_ATTRIBUTE((warn_unused_result))
 bool
 trx_undo_get_undo_rec(
-/*==================*/
 	roll_ptr_t		roll_ptr,
-	trx_id_t		trx_id,
+	bool			is_temp,
 	mem_heap_t*		heap,
+	trx_id_t		trx_id,
 	const table_name_t&	name,
 	trx_undo_rec_t**	undo_rec)
 {
@@ -2122,7 +2119,7 @@ trx_undo_get_undo_rec(
 
 	missing_history = purge_sys->view.changes_visible(trx_id, name);
 	if (!missing_history) {
-		*undo_rec = trx_undo_get_undo_rec_low(roll_ptr, heap);
+		*undo_rec = trx_undo_get_undo_rec_low(roll_ptr, is_temp, heap);
 	}
 
 	rw_lock_s_unlock(&purge_sys->latch);
@@ -2203,13 +2200,17 @@ trx_undo_prev_version_build(
 		return(true);
 	}
 
+	const bool is_temp = dict_table_is_temporary(index->table);
 	rec_trx_id = row_get_rec_trx_id(rec, index, offsets);
 
 	if (trx_undo_get_undo_rec(
-		roll_ptr, rec_trx_id, heap, index->table->name, &undo_rec)) {
+		    roll_ptr, is_temp, heap, rec_trx_id, index->table->name,
+		    &undo_rec)) {
 		if (v_status & TRX_UNDO_PREV_IN_PURGE) {
 			/* We are fetching the record being purged */
-			undo_rec = trx_undo_get_undo_rec_low(roll_ptr, heap);
+			ut_ad(!is_temp);
+			undo_rec = trx_undo_get_undo_rec_low(
+				roll_ptr, is_temp, heap);
 		} else {
 			/* The undo record may already have been purged,
 			during purge or semi-consistent read. */
