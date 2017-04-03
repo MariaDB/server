@@ -11429,6 +11429,7 @@ void Annotate_rows_log_event::print(FILE *file, PRINT_EVENT_INFO *pinfo)
 #if !defined(MYSQL_CLIENT) && defined(HAVE_REPLICATION)
 int Annotate_rows_log_event::do_apply_event(rpl_group_info *rgi)
 {
+  rgi->free_annotate_event();
   m_save_thd_query_txt= thd->query();
   m_save_thd_query_len= thd->query_length();
   m_saved_thd_query= true;
