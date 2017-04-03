@@ -5282,6 +5282,15 @@ bool LEX::sp_variable_declarations_finalize(THD *thd, int nvars,
 }
 
 
+/**
+  Finalize a %ROWTYPE declaration, e.g.:
+    DECLARE a,b,c,d t1%ROWTYPE := ROW(1,2,3);
+
+  @param thd   - the current thd
+  @param nvars - the number of variables in the declaration
+  @param ref   - the table or cursor name (see comments below)
+  @param def   - the default value, e.g., ROW(1,2,3), or NULL (no default).
+*/
 bool
 LEX::sp_variable_declarations_rowtype_finalize(THD *thd, int nvars,
                                                Qualified_column_ident *ref,
@@ -5295,6 +5304,7 @@ LEX::sp_variable_declarations_rowtype_finalize(THD *thd, int nvars,
   if (!def && !(def= new (thd->mem_root) Item_null(thd)))
     return true;
 
+  // Loop through all variables in the same declaration
   for (uint i= num_vars - nvars; i < num_vars; i++)
   {
     bool last= i == num_vars - 1;

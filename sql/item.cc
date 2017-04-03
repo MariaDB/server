@@ -1789,14 +1789,14 @@ bool Item_splocal_row_field::set_value(THD *thd, sp_rcontext *ctx, Item **it)
 bool Item_splocal_row_field_by_name::fix_fields(THD *thd, Item **it)
 {
   m_thd= thd;
-  Item *row= m_thd->spcont->get_item(m_var_idx);
+  Item *item, *row= m_thd->spcont->get_item(m_var_idx);
   if (row->element_index_by_name(&m_field_idx, m_field_name))
   {
     my_error(ER_ROW_VARIABLE_DOES_NOT_HAVE_FIELD, MYF(0),
              m_name.str, m_field_name.str);
     return true;
   }
-  Item *item= row->element_index(m_field_idx);
+  item= row->element_index(m_field_idx);
   set_handler(item->type_handler());
   return fix_fields_from_item(thd, it, item);
 }
@@ -1804,15 +1804,17 @@ bool Item_splocal_row_field_by_name::fix_fields(THD *thd, Item **it)
 
 void Item_splocal_row_field_by_name::print(String *str, enum_query_type)
 {
-  str->reserve(m_name.length + 2 * m_field_name.length + 8);
-  str->append(m_name.str, m_name.length);
-  str->append('.');
-  str->append(m_field_name.str, m_field_name.length);
-  str->append('@');
-  str->append_ulonglong(m_var_idx);
-  str->append("[\"", 2);
-  str->append(m_field_name.str, m_field_name.length);
-  str->append("\"]", 2);
+  // +16 should be enough for .NNN@[""]
+  if (str->reserve(m_name.length + 2 * m_field_name.length + 16))
+    return;
+  str->qs_append(m_name.str, m_name.length);
+  str->qs_append('.');
+  str->qs_append(m_field_name.str, m_field_name.length);
+  str->qs_append('@');
+  str->qs_append(m_var_idx);
+  str->qs_append("[\"", 2);
+  str->qs_append(m_field_name.str, m_field_name.length);
+  str->qs_append("\"]", 2);
 }
 
 

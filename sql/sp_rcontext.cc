@@ -195,6 +195,11 @@ bool sp_rcontext::resolve_type_ref(THD *thd, Column_definition *def,
 }
 
 
+/**
+  This method resolves the structure of a variable declared as:
+     rec t1%ROWTYPE;
+  It opens the table "t1" and copies its structure to %ROWTYPE variable.
+*/
 bool sp_rcontext::resolve_table_rowtype_ref(THD *thd,
                                             Row_definition_list &defs,
                                             Table_ident *ref)
@@ -206,6 +211,11 @@ bool sp_rcontext::resolve_table_rowtype_ref(THD *thd,
   LEX *save_lex= thd->lex;
   bool rc= true;
 
+  /*
+    Create a temporary LEX on stack and switch to it.
+    In case of VIEW, open_tables_only_view_structure() will open more
+    tables/views recursively. We want to avoid them to stick to the current LEX.
+  */
   sp_lex_local lex(thd, thd->lex);
   thd->lex= &lex;
 
@@ -228,11 +238,12 @@ bool sp_rcontext::resolve_table_rowtype_ref(THD *thd,
          in the end of this method.
       */
       LEX_CSTRING tmp= {src[0]->field_name, strlen(src[0]->field_name)};
+      Spvar_definition *def;
       if ((rc= check_column_grant_for_type_ref(thd, table_list,
                                                tmp.str, tmp.length)) ||
-          (rc= !(src[0]->field_name= thd->strmake(tmp.str, tmp.length))))
+          (rc= !(src[0]->field_name= thd->strmake(tmp.str, tmp.length))) ||
+          (rc= !(def= new (thd->mem_root) Spvar_definition(thd, *src))))
         break;
-      Spvar_definition *def= new (thd->mem_root) Spvar_definition(thd, *src);
       src[0]->field_name= tmp.str; // Restore field name, just in case.
       def->flags&= (uint) ~NOT_NULL_FLAG;
       if ((rc= def->sp_prepare_create_field(thd, thd->mem_root)))
@@ -884,6 +895,16 @@ bool sp_cursor::Select_fetch_into_spvars::
 int sp_cursor::Select_fetch_into_spvars::send_data(List<Item> &items)
 {
   Item *item;
+  /*
+    If we have only one variable in spvar_list, and this is a ROW variable,
+    and the number of fields in the ROW variable matches the number of
+    fields in the query result, we fetch to this ROW variable.
+
+    If there is one variable, and it is a ROW variable, but its number
+    of fields does not match the number of fields in the query result,
+    we go through send_data_to_variable_list(). It will report an error
+    on attempt to assign a scalar value to a ROW variable.
+  */
   return spvar_list->elements == 1 &&
          (item= thd->spcont->get_item(spvar_list->head()->offset)) &&
          item->type_handler() == &type_handler_row &&

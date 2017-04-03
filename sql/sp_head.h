@@ -1176,6 +1176,22 @@ public:
 }; // class sp_instr_set_field : public sp_instr_set
 
 
+/**
+  This class handles assignment instructions like this:
+  DECLARE
+    CURSOR cur IS SELECT * FROM t1;
+    rec cur%ROWTYPE;
+  BEGIN
+    rec.column1:= 10; -- This instruction
+  END;
+
+  The idea is that during sp_rcontext::create() we do not know the extact
+  structure of "rec". It gets resolved at run time, during the corresponding
+  sp_instr_cursor_copy_struct::exec_core().
+
+  So sp_instr_set_row_field_by_name searches for ROW fields by name,
+  while sp_instr_set_row_field (see above) searches for ROW fields by index.
+*/
 class sp_instr_set_row_field_by_name : public sp_instr_set
 {
   // Prevent use of this

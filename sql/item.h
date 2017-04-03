@@ -1624,7 +1624,7 @@ public:
   virtual Item* element_index(uint i) { return this; }
   virtual bool element_index_by_name(uint *idx, const LEX_STRING &name) const
   {
-    return true;
+    return true; // Error
   }
   virtual Item** addr(uint i) { return 0; }
   virtual bool check_cols(uint c);

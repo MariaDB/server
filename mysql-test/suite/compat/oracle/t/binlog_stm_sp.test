@@ -93,6 +93,7 @@ AS
 BEGIN
   rec.a:=100;
   rec.b:=200;
+  SELECT rec=ROW(100,200) AS true1, ROW(100,200)=rec AS true2;
   INSERT INTO t1 VALUES (rec.a,rec.b);
   INSERT INTO t1 VALUES (10, rec=ROW(100,200));
   INSERT INTO t1 VALUES (10, ROW(100,200)=rec);

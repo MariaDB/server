@@ -3501,11 +3501,11 @@ sp_instr_set_row_field_by_name::print(String *str)
   str->qs_append(STRING_WITH_LEN("set "));
     str->qs_append(var->name.str, var->name.length);
   str->qs_append('.');
-  str->qs_append(m_field_name.str);
+  str->qs_append(m_field_name.str, m_field_name.length);
   str->qs_append('@');
   str->qs_append(m_offset);
   str->qs_append("[\"",2);
-  str->qs_append(m_field_name.str);
+  str->qs_append(m_field_name.str, m_field_name.length);
   str->qs_append("\"]",2);
   str->qs_append(' ');
   m_value->print(str, enum_query_type(QT_ORDINARY |
