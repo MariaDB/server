@@ -3949,7 +3949,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
 	    if (key->type == Key::MULTIPLE)
 	    {
 	      /* not a critical problem */
-	      push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+	      push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
                                   ER_TOO_LONG_KEY,
                                   ER_THD(thd, ER_TOO_LONG_KEY),
                                   key_part_length);
