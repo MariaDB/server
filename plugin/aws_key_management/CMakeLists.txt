@@ -137,8 +137,8 @@ ELSE()
   INCLUDE_DIRECTORIES(${CMAKE_BINARY_DIR}/aws_sdk_cpp/include)
 ENDIF()
 
-MYSQL_ADD_PLUGIN(aws_key_management aws_key_management_plugin.cc 
-                 COMPONENT aws-key-management)
 ADD_DEFINITIONS(${SSL_DEFINES}) # Need to know whether openssl should be initialized
 SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}  ${CXX11_FLAGS}")
-TARGET_LINK_LIBRARIES(aws_key_management ${AWS_SDK_LIBS})
+MYSQL_ADD_PLUGIN(aws_key_management aws_key_management_plugin.cc
+                 LINK_LIBRARIES ${AWS_SDK_LIBS}
+                 COMPONENT aws-key-management)

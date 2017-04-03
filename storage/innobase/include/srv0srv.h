@@ -334,9 +334,6 @@ extern my_bool	srv_undo_log_truncate;
 /* Enables or disables this prefix optimization.  Disabled by default. */
 extern my_bool	srv_prefix_index_cluster_optimization;
 
-/** UNDO logs not redo logged, these logs reside in the temp tablespace.*/
-extern const ulong	srv_tmp_undo_logs;
-
 /** Default size of UNDO tablespace while it is created new. */
 extern const ulint	SRV_UNDO_TABLESPACE_SIZE_IN_PAGES;
 
@@ -518,7 +515,8 @@ extern uint	srv_spin_wait_delay;
 extern ibool	srv_priority_boost;
 
 extern ulint	srv_truncated_status_writes;
-extern ulint	srv_available_undo_logs;
+/** Number of initialized rollback segments for persistent undo log */
+extern ulong	srv_available_undo_logs;
 
 #if defined UNIV_DEBUG || defined UNIV_IBUF_DEBUG
 extern my_bool	srv_ibuf_disable_background_merge;

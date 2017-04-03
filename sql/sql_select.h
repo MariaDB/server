@@ -1993,7 +1993,7 @@ class Virtual_tmp_table: public TABLE
 
     This is needed to avoid memory leaks, as some fields can be BLOB
     variants and thus can have String onboard. Strings must be destructed
-    as they store data not the heap (not on MEM_ROOT).
+    as they store data on the heap (not on MEM_ROOT).
   */
   void destruct_fields()
   {
@@ -2025,6 +2025,7 @@ public:
     @param thd         - Current thread.
   */
   static void *operator new(size_t size, THD *thd) throw();
+  static void operator delete(void *ptr, size_t size) { TRASH(ptr, size); }
 
   Virtual_tmp_table(THD *thd)
   {
@@ -2035,7 +2036,8 @@ public:
 
   ~Virtual_tmp_table()
   {
-    destruct_fields();
+    if (s)
+      destruct_fields();
   }
 
   /**
@@ -2120,6 +2122,17 @@ create_virtual_tmp_table(THD *thd, List<Column_definition> &field_list)
   Virtual_tmp_table *table;
   if (!(table= new(thd) Virtual_tmp_table(thd)))
     return NULL;
+
+  /*
+    If "simulate_create_virtual_tmp_table_out_of_memory" debug option
+    is enabled, we now enable "simulate_out_of_memory". This effectively
+    makes table->init() fail on OOM inside multi_alloc_root().
+    This is done to test that ~Virtual_tmp_table() called from the "delete"
+    below correcly handles OOM.
+  */
+  DBUG_EXECUTE_IF("simulate_create_virtual_tmp_table_out_of_memory",
+                  DBUG_SET("+d,simulate_out_of_memory"););
+
   if (table->init(field_list.elements) ||
       table->add(field_list) ||
       table->open())

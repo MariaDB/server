@@ -327,17 +327,12 @@ trx_purge_remove_log_hdr(
 	my_atomic_addlint(&trx_sys->rseg_history_len, -1);
 }
 
-/** Frees an undo log segment which is in the history list. Removes the
-undo log hdr from the history list.
+/** Free an undo log segment, and remove the header from the history list.
 @param[in,out]	rseg		rollback segment
-@param[in]	hdr_addr	file address of log_hdr
-@param[in]	noredo		skip redo logging. */
+@param[in]	hdr_addr	file address of log_hdr */
 static
 void
-trx_purge_free_segment(
-	trx_rseg_t*	rseg,
-	fil_addr_t	hdr_addr,
-	bool		noredo)
+trx_purge_free_segment(trx_rseg_t* rseg, fil_addr_t hdr_addr)
 {
 	mtr_t		mtr;
 	trx_rsegf_t*	rseg_hdr;
@@ -345,16 +340,12 @@ trx_purge_free_segment(
 	trx_usegf_t*	seg_hdr;
 	ulint		seg_size;
 	ulint		hist_size;
-	bool		marked		= noredo;
+	bool		marked		= false;
 
 	for (;;) {
 		page_t*	undo_page;
 
 		mtr_start(&mtr);
-		if (noredo) {
-			mtr.set_log_mode(MTR_LOG_NO_REDO);
-		}
-		ut_ad(noredo == trx_sys_is_noredo_rseg_slot(rseg->id));
 
 		mutex_enter(&rseg->mutex);
 
@@ -428,14 +419,12 @@ trx_purge_free_segment(
 	mtr_commit(&mtr);
 }
 
-/********************************************************************//**
-Removes unnecessary history data from a rollback segment. */
+/** Remove unnecessary history data from a rollback segment.
+@param[in,out]	rseg		rollback segment
+@param[in]	limit		truncate offset */
 static
 void
-trx_purge_truncate_rseg_history(
-/*============================*/
-	trx_rseg_t*		rseg,		/*!< in: rollback segment */
-	const purge_iter_t*	limit)		/*!< in: truncate offset */
+trx_purge_truncate_rseg_history(trx_rseg_t* rseg, const purge_iter_t* limit)
 {
 	fil_addr_t	hdr_addr;
 	fil_addr_t	prev_hdr_addr;
@@ -445,13 +434,9 @@ trx_purge_truncate_rseg_history(
 	trx_usegf_t*	seg_hdr;
 	mtr_t		mtr;
 	trx_id_t	undo_trx_no;
-	const bool	noredo		= trx_sys_is_noredo_rseg_slot(
-		rseg->id);
 
 	mtr_start(&mtr);
-	if (noredo) {
-		mtr.set_log_mode(MTR_LOG_NO_REDO);
-	}
+	ut_ad(rseg->is_persistent());
 	mutex_enter(&(rseg->mutex));
 
 	rseg_hdr = trx_rsegf_get(rseg->space, rseg->page_no, &mtr);
@@ -509,7 +494,7 @@ loop:
 
 		/* calls the trx_purge_remove_log_hdr()
 		inside trx_purge_free_segment(). */
-		trx_purge_free_segment(rseg, hdr_addr, noredo);
+		trx_purge_free_segment(rseg, hdr_addr);
 	} else {
 		/* Remove the log hdr from the rseg history. */
 		trx_purge_remove_log_hdr(rseg_hdr, log_hdr, &mtr);
@@ -519,9 +504,6 @@ loop:
 	}
 
 	mtr_start(&mtr);
-	if (noredo) {
-		mtr.set_log_mode(MTR_LOG_NO_REDO);
-	}
 	mutex_enter(&(rseg->mutex));
 
 	rseg_hdr = trx_rsegf_get(rseg->space, rseg->page_no, &mtr);
@@ -806,10 +788,9 @@ trx_purge_mark_undo_for_truncate(
 	/* Step-2: Validation/Qualification checks
 	a. At-least 2 UNDO tablespaces so even if one UNDO tablespace
 	   is being truncated server can continue to operate.
-	b. At-least 2 UNDO redo rseg/undo logs (besides the default rseg-0)
+	b. At-least 2 persistent UNDO logs (besides the default rseg-0)
 	b. At-least 1 UNDO tablespace size > threshold. */
-	if (srv_undo_tablespaces_active < 2
-	    || (srv_undo_logs < (1 + srv_tmp_undo_logs + 2))) {
+	if (srv_undo_tablespaces_active < 2 || srv_undo_logs < 3) {
 		return;
 	}
 
@@ -846,11 +827,9 @@ trx_purge_mark_undo_for_truncate(
 	/* Step-3: Iterate over all the rsegs of selected UNDO tablespace
 	and mark them temporarily unavailable for allocation.*/
 	for (ulint i = 0; i < TRX_SYS_N_RSEGS; ++i) {
-		trx_rseg_t*	rseg = trx_sys->rseg_array[i];
-
-		if (rseg != NULL && !trx_sys_is_noredo_rseg_slot(rseg->id)) {
-			if (rseg->space
-				== undo_trunc->get_marked_space_id()) {
+		if (trx_rseg_t* rseg = trx_sys->rseg_array[i]) {
+			ut_ad(rseg->is_persistent());
+			if (rseg->space == undo_trunc->get_marked_space_id()) {
 
 				/* Once set this rseg will not be allocated
 				to new booting transaction but we will wait

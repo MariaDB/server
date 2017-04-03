@@ -86,3 +86,11 @@ create table t1 (a int, b int, check(a>0));
 --error ER_BAD_FIELD_ERROR
 alter table t1 drop column a;
 drop table t1;
+
+#
+# MDEV-12421 Check constraint with query crashes server and renders DB unusable
+#
+--error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
+create table t1 (a int check (@b in (select user from mysql.user)));
+--error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
+create table t1 (a int check (a > @b));

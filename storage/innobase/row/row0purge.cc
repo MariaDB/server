@@ -741,10 +741,11 @@ skip_secondaries:
 						 &is_insert, &rseg_id,
 						 &page_no, &offset);
 
-			rseg = trx_rseg_get_on_id(rseg_id);
+			rseg = trx_sys->rseg_array[rseg_id];
 
 			ut_a(rseg != NULL);
-			ut_a(rseg->id == rseg_id);
+			ut_ad(rseg->id == rseg_id);
+			ut_ad(rseg->is_persistent());
 
 			mtr_start(&mtr);
 
