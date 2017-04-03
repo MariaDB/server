@@ -221,6 +221,8 @@ Old_rows_log_event::do_apply_event(Old_rows_log_event *ev, rpl_group_info *rgi)
     /* A small test to verify that objects have consistent types */
     DBUG_ASSERT(sizeof(ev_thd->variables.option_bits) == sizeof(OPTION_RELAXED_UNIQUE_CHECKS));
 
+    table->rpl_write_set= table->write_set;
+
     error= do_before_row_operations(table);
     while (error == 0 && row_start < ev->m_rows_end)
     {
