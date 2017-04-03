@@ -6250,13 +6250,12 @@ buf_page_decrypt_after_read(
 		return (true);
 	}
 
-	fil_space_t* space = fil_space_acquire(bpage->space);
-	fil_space_crypt_t* crypt_data = space->crypt_data;
+	fil_space_t* space = fil_space_acquire(bpage->space, true);
 
 	/* Page is encrypted if encryption information is found from
 	tablespace and page contains used key_version. This is true
 	also for pages first compressed and then encrypted. */
-	if (!crypt_data) {
+	if (!space || !space->crypt_data) {
 		key_version = 0;
 	}
 
@@ -6340,6 +6339,8 @@ buf_page_decrypt_after_read(
 		}
 	}
 
-	fil_space_release(space);
+	if (space != NULL) {
+		fil_space_release(space);
+	}
 	return (success);
 }

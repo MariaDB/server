@@ -129,15 +129,15 @@ btr_scrub_lock_dict_func(ulint space_id, bool lock_to_close_table,
 		* if we don't lock to close a table, we check if space
 		* is closing, and then instead give up
 		*/
-		if (lock_to_close_table == false) {
-			fil_space_t* space = fil_space_acquire(space_id);
-			if (!space || space->stop_new_ops) {
-				if (space) {
-					fil_space_release(space);
-				}
+		if (lock_to_close_table) {
+		} else if (fil_space_t* space = fil_space_acquire(space_id)) {
+			bool stopping = space->is_stopping();
+			fil_space_release(space);
+			if (stopping) {
 				return false;
 			}
-			fil_space_release(space);
+		} else {
+			return false;
 		}
 		os_thread_sleep(250000);
 
@@ -197,18 +197,15 @@ btr_scrub_table_close_for_thread(
 		return;
 	}
 
-	fil_space_t* space = fil_space_acquire(scrub_data->space);
-
-	/* If tablespace is not marked as stopping perform
-	the actual close. */
-	if (space && !space->is_stopping()) {
-		mutex_enter(&dict_sys->mutex);
-		/* perform the actual closing */
-		btr_scrub_table_close(scrub_data->current_table);
-		mutex_exit(&dict_sys->mutex);
-	}
-
-	if (space) {
+	if (fil_space_t* space = fil_space_acquire(scrub_data->space)) {
+		/* If tablespace is not marked as stopping perform
+		the actual close. */
+		if (!space->is_stopping()) {
+			mutex_enter(&dict_sys->mutex);
+			/* perform the actual closing */
+			btr_scrub_table_close(scrub_data->current_table);
+			mutex_exit(&dict_sys->mutex);
+		}
 		fil_space_release(space);
 	}
 

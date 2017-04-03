@@ -645,27 +645,28 @@ fil_write_flushed_lsn_to_data_files(
 Used by background threads that do not necessarily hold proper locks
 for concurrency control.
 @param[in]	id	tablespace ID
-@return the tablespace, or NULL if missing or being deleted */
+@param[in]	for_io	whether to look up the tablespace while performing I/O
+			(possibly executing TRUNCATE)
+@return	the tablespace
+@retval	NULL if missing or being deleted or truncated */
 fil_space_t*
-fil_space_acquire(
-	ulint	id)
+fil_space_acquire(ulint id, bool for_io = false)
 	MY_ATTRIBUTE((warn_unused_result));
 
 /** Acquire a tablespace that may not exist.
 Used by background threads that do not necessarily hold proper locks
 for concurrency control.
 @param[in]	id	tablespace ID
-@return the tablespace, or NULL if missing or being deleted */
+@return	the tablespace
+@retval	NULL if missing or being deleted */
 fil_space_t*
-fil_space_acquire_silent(
-	ulint	id)
+fil_space_acquire_silent(ulint id)
 	MY_ATTRIBUTE((warn_unused_result));
 
 /** Release a tablespace acquired with fil_space_acquire().
 @param[in,out]	space	tablespace to release  */
 void
-fil_space_release(
-	fil_space_t*	space);
+fil_space_release(fil_space_t* space);
 
 /** Return the next fil_space_t.
 Once started, the caller must keep calling this until it returns NULL.
