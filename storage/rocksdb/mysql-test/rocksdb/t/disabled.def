@@ -51,6 +51,9 @@ collation: Fails on gcc 4.8 and before,  MDEV-12433
 rocksdb  : Intermittent failures in BB
 unique_sec : Intermittent failures in BB  
 
+# See also storage/rocksdb/mysql-test/rocksdb/suite.pm
+# Running tests under valgrind is disabled there.
+
 allow_no_pk_concurrent_insert: stress test
 rocksdb_deadlock_stress_rc: stress test
 rocksdb_deadlock_stress_rr: stress test
