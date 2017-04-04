@@ -326,9 +326,6 @@ select partition_name, table_rows from INFORMATION_SCHEMA.PARTITIONS where table
 explain partitions select * from t1 where a=2 and b=5;
 explain partitions select * from t1 where a=10 and b=10;
 
---error ER_NO_PARTITION_FOR_GIVEN_VALUE
-alter table t1 drop partition p2;
-delete from t1 where a=2;
 alter table t1 drop partition p2;
 show create table t1;
 select * from t1;
@@ -395,9 +392,6 @@ select partition_name, table_rows from INFORMATION_SCHEMA.PARTITIONS where table
 explain partitions select * from t1 where a=2 and b=5;
 explain partitions select * from t1 where a=10 and b=10;
 
---error ER_NO_PARTITION_FOR_GIVEN_VALUE
-alter table t1 drop partition p2;
-delete from t1 where a=2;
 alter table t1 drop partition p2;
 show create table t1;
 select * from t1;
@@ -520,3 +514,29 @@ explain partitions
 select * from t1 where i is null;
 
 drop table t1;
+
+
+--echo #
+--echo # MDEV-12395: DROP PARTITION does not work as expected when
+--echo # table has DEFAULT LIST partition
+--echo #
+
+CREATE TABLE t1 (i INT)
+  PARTITION BY LIST (i)
+  (PARTITION p VALUES IN (1,2,3,4),
+   PARTITION pdef DEFAULT);
+INSERT INTO t1 VALUES (1),(10);
+ALTER TABLE t1 DROP PARTITION p;
+SELECT * FROM t1;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (i INT)
+  PARTITION BY LIST (i)
+  (PARTITION p VALUES IN (1,2,3,4),
+   PARTITION pdef DEFAULT);
+INSERT INTO t1 VALUES (1),(10);
+ALTER TABLE t1 DROP PARTITION pdef;
+SELECT * FROM t1;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
