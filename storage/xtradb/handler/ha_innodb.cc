@@ -13272,6 +13272,17 @@ ha_innobase::defragment_table(
 	for (index = dict_table_get_first_index(table); index;
 	     index = dict_table_get_next_index(index)) {
 
+		if (dict_index_is_corrupted(index)) {
+			continue;
+		}
+
+		if (index->page == FIL_NULL) {
+			/* Do not defragment auxiliary tables related
+			to FULLTEXT INDEX. */
+			ut_ad(index->type & DICT_FTS);
+			continue;
+		}
+
 		if (one_index && strcasecmp(index_name, index->name) != 0) {
 			continue;
 		}
