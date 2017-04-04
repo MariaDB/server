@@ -6186,6 +6186,18 @@ REPLACE INTO v (f1,f2) VALUES (1,1);
 drop view v;
 drop table t1,t2,t3;
 
+
+--echo #
+--echo # MDEV-12379: Server crashes in TABLE_LIST::is_with_table on
+--echo # SHOW CREATE VIEW
+--echo #
+
+CREATE TABLE t (i INT);
+CREATE VIEW v AS SELECT * FROM ( SELECT * FROM t ) sq;
+DROP TABLE IF EXISTS t;
+SHOW CREATE VIEW v;
+DROP VIEW v;
+
 --echo #
 --echo # End of 10.2 tests
 --echo #

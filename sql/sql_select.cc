@@ -25077,7 +25077,7 @@ void TABLE_LIST::print(THD *thd, table_map eliminated_tables, String *str,
     }
     else if (derived)
     {
-      if (!derived->derived->is_with_table())
+      if (!is_with_table())
       {
         // A derived table
         str->append('(');

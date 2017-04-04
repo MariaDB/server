@@ -6466,5 +6466,18 @@ ERROR HY000: Can not modify more than one base table through a join view 'test.v
 drop view v;
 drop table t1,t2,t3;
 #
+# MDEV-12379: Server crashes in TABLE_LIST::is_with_table on
+# SHOW CREATE VIEW
+#
+CREATE TABLE t (i INT);
+CREATE VIEW v AS SELECT * FROM ( SELECT * FROM t ) sq;
+DROP TABLE IF EXISTS t;
+SHOW CREATE VIEW v;
+View	Create View	character_set_client	collation_connection
+v	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v` AS select `sq`.`i` AS `i` from (select `test`.`t`.`i` AS `i` from `test`.`t`) `sq`	latin1	latin1_swedish_ci
+Warnings:
+Warning	1356	View 'test.v' references invalid table(s) or column(s) or function(s) or definer/invoker of view lack rights to use them
+DROP VIEW v;
+#
 # End of 10.2 tests
 #
