@@ -103,7 +103,9 @@ ELSE()
     ADD_LIBRARY(${lib} STATIC IMPORTED GLOBAL)
     ADD_DEPENDENCIES(${lib} aws_sdk_cpp)
     SET(loc "${CMAKE_CURRENT_BINARY_DIR}/aws_sdk_cpp/lib/${CMAKE_STATIC_LIBRARY_PREFIX}${lib}${CMAKE_STATIC_LIBRARY_SUFFIX}")
-    SET(byproducts ${byproducts} BUILD_BYPRODUCTS ${loc})
+    IF(CMAKE_VERSION VERSION_GREATER "3.1")
+      SET(byproducts ${byproducts} BUILD_BYPRODUCTS ${loc})
+    ENDIF()
     SET_TARGET_PROPERTIES(${lib} PROPERTIES IMPORTED_LOCATION ${loc})
   ENDFOREACH()
 
@@ -139,14 +141,13 @@ ENDIF()
 
 ADD_DEFINITIONS(${SSL_DEFINES}) # Need to know whether openssl should be initialized
 SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}  ${CXX11_FLAGS}")
-MYSQL_ADD_PLUGIN(aws_key_management aws_key_management_plugin.cc
-                 LINK_LIBRARIES ${AWS_SDK_LIBS}
-                 COMPONENT aws-key-management)
-
 IF(WIN32)
  SET(AWS_CPP_SDK_DEPENDENCIES bcrypt winhttp wininet userenv version)
 ELSE()
  SET(AWS_CPP_SDK_DEPENDENCIES ${SSL_LIBRARIES} ${CURL_LIBRARIES} ${UUID_LIBRARIES})
 ENDIF()
+MYSQL_ADD_PLUGIN(aws_key_management aws_key_management_plugin.cc
+                 LINK_LIBRARIES ${AWS_SDK_LIBS} ${AWS_CPP_SDK_DEPENDENCIES}
+                 COMPONENT aws-key-management)
 
-TARGET_LINK_LIBRARIES(aws_key_management ${AWS_SDK_LIBS} ${AWS_CPP_SDK_DEPENDENCIES})
+
