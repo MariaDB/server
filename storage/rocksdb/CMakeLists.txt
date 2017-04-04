@@ -22,6 +22,13 @@ IF(CMAKE_SYSTEM_PROCESSOR MATCHES "i[36]86")
   SKIP_ROCKSDB_PLUGIN("Intel 32 bit not supported.")
 ENDIF()
 
+#
+# Also, disable building on 32-bit Windows
+#
+IF (WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 4)
+  SKIP_ROCKSDB_PLUGIN("32-Bit Windows are temporarily disabled")
+ENDIF()
+
 # This plugin needs recent C++ compilers (it is using C++11 features)
 # Skip build for the old compilers
 SET(CXX11_FLAGS)
