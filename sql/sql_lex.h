@@ -33,6 +33,38 @@
 
 /* YACC and LEX Definitions */
 
+
+/**
+  A string with metadata.
+  We'll add more flags here eventually, to know if the string has, e.g.:
+  - multi-byte characters
+  - bad byte sequences
+  - backslash escapes:   'a\nb'
+  - separator escapes:   'a''b'
+  and reuse the original query fragments instead of making the string
+  copy too early, in Lex_input_stream::get_text().
+  This will allow to avoid unnecessary copying, as well as
+  create more optimal Item types in sql_yacc.yy
+*/
+struct Lex_string_with_metadata_st: public LEX_STRING
+{
+  bool m_is_8bit; // True if the string has 8bit characters
+public:
+  void set_8bit(bool is_8bit) { m_is_8bit= is_8bit; }
+  // Get string repertoire by the 8-bit flag and the character set
+  uint repertoire(CHARSET_INFO *cs) const
+  {
+    return !m_is_8bit && my_charset_is_ascii_based(cs) ?
+           MY_REPERTOIRE_ASCII : MY_REPERTOIRE_UNICODE30;
+  }
+  // Get string repertoire by the 8-bit flag, for ASCII-based character sets
+  uint repertoire() const
+  {
+    return !m_is_8bit ? MY_REPERTOIRE_ASCII : MY_REPERTOIRE_UNICODE30;
+  }
+};
+
+
 enum sub_select_type
 {
   UNSPECIFIED_TYPE,
@@ -2246,7 +2278,8 @@ public:
   /** LALR(2) resolution, value of the look ahead token.*/
   LEX_YYSTYPE lookahead_yylval;
 
-  bool get_text(LEX_STRING *to, uint sep, int pre_skip, int post_skip);
+  bool get_text(Lex_string_with_metadata_st *to,
+                uint sep, int pre_skip, int post_skip);
 
   void add_digest_token(uint token, LEX_YYSTYPE yylval);
 
@@ -2324,9 +2357,6 @@ public:
     This delimiter is in the raw buffer.
   */
   const char *found_semicolon;
-
-  /** Token character bitmaps, to detect 7bit strings. */
-  uchar tok_bitmap;
 
   /** SQL_MODE = IGNORE_SPACE. */
   bool ignore_space;
@@ -2564,8 +2594,6 @@ struct LEX: public Query_tables_list
   /* maintain a list of used plugins for this LEX */
   DYNAMIC_ARRAY plugins;
   plugin_ref plugins_static_buffer[INITIAL_LEX_PLUGIN_LIST_SIZE];
-
-  bool text_string_is_7bit;
 
   /** SELECT of CREATE VIEW statement */
   LEX_STRING create_view_select;

@@ -906,6 +906,7 @@ Virtual_column_info *add_virtual_expression(THD *thd, Item *expr)
   /* structs */
   LEX_STRING lex_str;
   LEX_SYMBOL symbol;
+  Lex_string_with_metadata_st lex_string_with_metadata;
   struct sys_var_with_base variable;
   struct { int vars, conds, hndlrs, curs; } spblock;
   Lex_length_and_dec_st Lex_length_and_dec;
@@ -1709,13 +1710,17 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %left  INTERVAL_SYM
 
 %type <lex_str>
-        IDENT IDENT_QUOTED TEXT_STRING DECIMAL_NUM FLOAT_NUM NUM LONG_NUM
+        IDENT IDENT_QUOTED DECIMAL_NUM FLOAT_NUM NUM LONG_NUM
         HEX_NUM HEX_STRING
         LEX_HOSTNAME ULONGLONG_NUM field_ident select_alias ident ident_or_text
         IDENT_sys TEXT_STRING_sys TEXT_STRING_literal
-        NCHAR_STRING opt_component key_cache_name
+        opt_component key_cache_name
         sp_opt_label BIN_NUM label_ident TEXT_STRING_filesystem ident_or_empty
         opt_constraint constraint opt_ident
+
+%type <lex_string_with_metadata>
+        TEXT_STRING
+        NCHAR_STRING
 
 %type <lex_str_ptr>
         opt_table_alias
@@ -13695,9 +13700,7 @@ text_literal:
             LEX_STRING tmp;
             CHARSET_INFO *cs_con= thd->variables.collation_connection;
             CHARSET_INFO *cs_cli= thd->variables.character_set_client;
-            uint repertoire= thd->lex->text_string_is_7bit &&
-                             my_charset_is_ascii_based(cs_cli) ?
-                             MY_REPERTOIRE_ASCII : MY_REPERTOIRE_UNICODE30;
+            uint repertoire= $1.repertoire(cs_cli);
             if (thd->charset_is_collation_connection ||
                 (repertoire == MY_REPERTOIRE_ASCII &&
                  my_charset_is_ascii_based(cs_con)))
@@ -13716,13 +13719,11 @@ text_literal:
           }
         | NCHAR_STRING
           {
-            uint repertoire= Lex->text_string_is_7bit ?
-                             MY_REPERTOIRE_ASCII : MY_REPERTOIRE_UNICODE30;
             DBUG_ASSERT(my_charset_is_ascii_based(national_charset_info));
             $$= new (thd->mem_root) Item_string(thd, $1.str, $1.length,
                                                   national_charset_info,
                                                   DERIVATION_COERCIBLE,
-                                                  repertoire);
+                                                  $1.repertoire());
             if ($$ == NULL)
               MYSQL_YYABORT;
           }

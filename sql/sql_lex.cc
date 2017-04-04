@@ -1056,18 +1056,19 @@ Lex_input_stream::unescape(CHARSET_INFO *cs, char *to,
   Fix sometimes to do only one scan of the string
 */
 
-bool Lex_input_stream::get_text(LEX_STRING *dst, uint sep,
+bool Lex_input_stream::get_text(Lex_string_with_metadata_st *dst, uint sep,
                                 int pre_skip, int post_skip)
 {
   reg1 uchar c;
   uint found_escape=0;
   CHARSET_INFO *cs= m_thd->charset();
 
-  tok_bitmap= 0;
+  dst->set_8bit(false);
   while (! eof())
   {
     c= yyGet();
-    tok_bitmap|= c;
+    if (c & 0x80)
+      dst->set_8bit(true);
 #ifdef USE_MB
     {
       int l;
@@ -1433,18 +1434,17 @@ static int lex_one_token(YYSTYPE *yylval, THD *thd)
       }
       /* Found N'string' */
       lip->yySkip();                         // Skip '
-      if (lip->get_text(&yylval->lex_str, (sep= lip->yyGetLast()), 2, 1))
+      if (lip->get_text(&yylval->lex_string_with_metadata,
+                        (sep= lip->yyGetLast()), 2, 1))
       {
 	state= MY_LEX_CHAR;             // Read char by char
 	break;
       }
 
       lip->body_utf8_append(lip->m_cpp_text_start);
-      lip->body_utf8_append_escape(thd, &yylval->lex_str,
+      lip->body_utf8_append_escape(thd, &yylval->lex_string_with_metadata,
                                    national_charset_info,
                                    lip->m_cpp_text_end, sep);
-
-      lex->text_string_is_7bit= (lip->tok_bitmap & 0x80) ? 0 : 1;
       return(NCHAR_STRING);
     }
     case MY_LEX_IDENT_OR_HEX:
@@ -1798,7 +1798,8 @@ static int lex_one_token(YYSTYPE *yylval, THD *thd)
     case MY_LEX_STRING:			// Incomplete text string
     {
       uint sep;
-      if (lip->get_text(&yylval->lex_str, (sep= lip->yyGetLast()), 1, 1))
+      if (lip->get_text(&yylval->lex_string_with_metadata,
+                        (sep= lip->yyGetLast()), 1, 1))
       {
 	state= MY_LEX_CHAR;		// Read char by char
 	break;
@@ -1806,11 +1807,9 @@ static int lex_one_token(YYSTYPE *yylval, THD *thd)
       CHARSET_INFO *strcs= lip->m_underscore_cs ? lip->m_underscore_cs : cs;
       lip->body_utf8_append(lip->m_cpp_text_start);
 
-      lip->body_utf8_append_escape(thd, &yylval->lex_str, strcs,
-                                   lip->m_cpp_text_end, sep);
+      lip->body_utf8_append_escape(thd, &yylval->lex_string_with_metadata,
+                                   strcs, lip->m_cpp_text_end, sep);
       lip->m_underscore_cs= NULL;
-
-      lex->text_string_is_7bit= (lip->tok_bitmap & 0x80) ? 0 : 1;
       return(TEXT_STRING);
     }
     case MY_LEX_COMMENT:			//  Comment
