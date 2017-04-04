@@ -1037,14 +1037,21 @@ class Item_char_typecast :public Item_str_func
   String *copy(String *src, CHARSET_INFO *cs);
   uint adjusted_length_with_warn(uint length);
   void check_truncation_with_warn(String *src, uint dstlen);
+  void fix_length_and_dec_internal(CHARSET_INFO *fromcs);
 public:
   Item_char_typecast(THD *thd, Item *a, uint length_arg, CHARSET_INFO *cs_arg):
     Item_str_func(thd, a), cast_length(length_arg), cast_cs(cs_arg) {}
   enum Functype functype() const { return CHAR_TYPECAST_FUNC; }
   bool eq(const Item *item, bool binary_cmp) const;
   const char *func_name() const { return "cast_as_char"; }
+  CHARSET_INFO *cast_charset() const { return cast_cs; }
   String *val_str(String *a);
-  void fix_length_and_dec();
+  void fix_length_and_dec_numeric();
+  void fix_length_and_dec_str();
+  void fix_length_and_dec()
+  {
+    args[0]->type_handler()->Item_char_typecast_fix_length_and_dec(this);
+  }
   void print(String *str, enum_query_type query_type);
   bool need_parentheses_in_default() { return true; }
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
@@ -1058,7 +1065,7 @@ public:
   Item_temporal_typecast(THD *thd, Item *a): Item_temporal_func(thd, a) {}
   virtual const char *cast_type() const = 0;
   void print(String *str, enum_query_type query_type);
-  void fix_length_and_dec()
+  void fix_length_and_dec_generic()
   {
     if (decimals == NOT_FIXED_DEC)
       decimals= args[0]->temporal_precision(field_type());
@@ -1074,6 +1081,10 @@ public:
   bool get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date);
   const char *cast_type() const { return "date"; }
   enum_field_types field_type() const { return MYSQL_TYPE_DATE; }
+  void fix_length_and_dec()
+  {
+    args[0]->type_handler()->Item_date_typecast_fix_length_and_dec(this);
+  }
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_date_typecast>(thd, mem_root, this); }
 };
@@ -1088,6 +1099,10 @@ public:
   bool get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date);
   const char *cast_type() const { return "time"; }
   enum_field_types field_type() const { return MYSQL_TYPE_TIME; }
+  void fix_length_and_dec()
+  {
+    args[0]->type_handler()->Item_time_typecast_fix_length_and_dec(this);
+  }
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_time_typecast>(thd, mem_root, this); }
 };
@@ -1102,6 +1117,10 @@ public:
   const char *cast_type() const { return "datetime"; }
   enum_field_types field_type() const { return MYSQL_TYPE_DATETIME; }
   bool get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date);
+  void fix_length_and_dec()
+  {
+    args[0]->type_handler()->Item_datetime_typecast_fix_length_and_dec(this);
+  }
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_datetime_typecast>(thd, mem_root, this); }
 };

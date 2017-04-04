@@ -2502,7 +2502,23 @@ end:
 }
 
 
-void Item_char_typecast::fix_length_and_dec()
+void Item_char_typecast::fix_length_and_dec_numeric()
+{
+  fix_length_and_dec_internal(from_cs= cast_cs->mbminlen == 1 ?
+                                       cast_cs :
+                                       &my_charset_latin1);
+}
+
+
+void Item_char_typecast::fix_length_and_dec_str()
+{
+  fix_length_and_dec_internal(from_cs= args[0]->dynamic_result() ?
+                                       0 :
+                                       args[0]->collation.collation);
+}
+
+
+void Item_char_typecast::fix_length_and_dec_internal(CHARSET_INFO *from_cs)
 {
   uint32 char_length;
   /* 
@@ -2532,12 +2548,6 @@ void Item_char_typecast::fix_length_and_dec()
 
        Note (TODO): we could use repertoire technique here.
   */
-  from_cs= ((args[0]->result_type() == INT_RESULT || 
-             args[0]->result_type() == DECIMAL_RESULT ||
-             args[0]->result_type() == REAL_RESULT) ?
-            (cast_cs->mbminlen == 1 ? cast_cs : &my_charset_latin1) :
-            args[0]->dynamic_result() ? 0 :
-            args[0]->collation.collation);
   charset_conversion= !from_cs || (cast_cs->mbmaxlen > 1) ||
                       (!my_charset_same(from_cs, cast_cs) &&
                        from_cs != &my_charset_bin &&

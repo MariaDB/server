@@ -157,6 +157,22 @@ CHARSET_INFO *Type_handler::charset_for_protocol(const Item *item) const
 }
 
 
+bool
+Type_handler::Item_func_or_sum_illegal_param(const char *funcname) const
+{
+  my_error(ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION, MYF(0),
+           name().ptr(), funcname);
+  return true;
+}
+
+
+bool
+Type_handler::Item_func_or_sum_illegal_param(const Item_func_or_sum *it) const
+{
+  return Item_func_or_sum_illegal_param(it->func_name());
+}
+
+
 CHARSET_INFO *
 Type_handler_string_result::charset_for_protocol(const Item *item) const
 {
@@ -1440,9 +1456,7 @@ bool Type_handler_string_result::
 bool Type_handler_geometry::
        Item_sum_sum_fix_length_and_dec(Item_sum_sum *item) const
 {
-  my_error(ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION, MYF(0),
-           type_handler_geometry.name().ptr(), "sum");
-  return false;
+  return Item_func_or_sum_illegal_param("sum");
 }
 #endif
 
@@ -1493,9 +1507,7 @@ bool Type_handler_string_result::
 bool Type_handler_geometry::
        Item_sum_avg_fix_length_and_dec(Item_sum_avg *item) const
 {
-  my_error(ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION, MYF(0),
-           type_handler_geometry.name().ptr(), "avg");
-  return false;
+  return Item_func_or_sum_illegal_param("avg");
 }
 #endif
 
@@ -1546,9 +1558,7 @@ bool Type_handler_string_result::
 bool Type_handler_geometry::
        Item_sum_variance_fix_length_and_dec(Item_sum_variance *item) const
 {
-  my_error(ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION, MYF(0),
-           type_handler_geometry.name().ptr(), item->func_name());
-  return false;
+  return Item_func_or_sum_illegal_param(item);
 }
 #endif
 
@@ -2364,9 +2374,7 @@ bool Type_handler_string_result::
 bool Type_handler_geometry::
        Item_func_round_fix_length_and_dec(Item_func_round *item) const
 {
-  my_error(ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION, MYF(0),
-           type_handler_geometry.name().ptr(), item->func_name());
-  return false;
+  return Item_func_or_sum_illegal_param(item);
 }
 #endif
 
@@ -2424,9 +2432,7 @@ bool Type_handler_string_result::
 bool Type_handler_geometry::
        Item_func_int_val_fix_length_and_dec(Item_func_int_val *item) const
 {
-  my_error(ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION, MYF(0),
-           type_handler_geometry.name().ptr(), item->func_name());
-  return true;
+  return Item_func_or_sum_illegal_param(item);
 }
 #endif
 
@@ -2484,9 +2490,7 @@ bool Type_handler_string_result::
 bool Type_handler_geometry::
        Item_func_abs_fix_length_and_dec(Item_func_abs *item) const
 {
-  my_error(ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION, MYF(0),
-           type_handler_geometry.name().ptr(), item->func_name());
-  return true;
+  return Item_func_or_sum_illegal_param(item);
 }
 #endif
 
@@ -2544,10 +2548,150 @@ bool Type_handler_string_result::
 bool Type_handler_geometry::
        Item_func_neg_fix_length_and_dec(Item_func_neg *item) const
 {
-  my_error(ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION, MYF(0),
-           type_handler_geometry.name().ptr(), item->func_name());
-  return true;
+  return Item_func_or_sum_illegal_param(item);
 }
 #endif
+
+
+/***************************************************************************/
+
+bool Type_handler::
+       Item_func_signed_fix_length_and_dec(Item_func_signed *item) const
+{
+  item->fix_length_and_dec_generic();
+  return false;
+}
+
+
+bool Type_handler::
+       Item_func_unsigned_fix_length_and_dec(Item_func_unsigned *item) const
+{
+  item->fix_length_and_dec_generic();
+  return false;
+}
+
+
+bool Type_handler::
+       Item_double_typecast_fix_length_and_dec(Item_double_typecast *item) const
+{
+  item->fix_length_and_dec_generic();
+  return false;
+}
+
+
+bool Type_handler::
+       Item_decimal_typecast_fix_length_and_dec(Item_decimal_typecast *item) const
+{
+  item->fix_length_and_dec_generic();
+  return false;
+}
+
+
+bool Type_handler::
+       Item_char_typecast_fix_length_and_dec(Item_char_typecast *item) const
+{
+  item->fix_length_and_dec_str();
+  return false;
+}
+
+
+bool Type_handler_numeric::
+       Item_char_typecast_fix_length_and_dec(Item_char_typecast *item) const
+{
+  item->fix_length_and_dec_numeric();
+  return false;
+}
+
+
+bool Type_handler::
+       Item_time_typecast_fix_length_and_dec(Item_time_typecast *item) const
+{
+  item->fix_length_and_dec_generic();
+  return false;
+}
+
+
+bool Type_handler::
+       Item_date_typecast_fix_length_and_dec(Item_date_typecast *item) const
+{
+  item->fix_length_and_dec_generic();
+  return false;
+}
+
+
+bool Type_handler::
+       Item_datetime_typecast_fix_length_and_dec(Item_datetime_typecast *item)
+                                                 const
+{
+  item->fix_length_and_dec_generic();
+  return false;
+
+}
+
+
+#ifdef HAVE_SPATIAL
+
+bool Type_handler_geometry::
+       Item_func_signed_fix_length_and_dec(Item_func_signed *item) const
+{
+  return Item_func_or_sum_illegal_param(item);
+}
+
+
+bool Type_handler_geometry::
+       Item_func_unsigned_fix_length_and_dec(Item_func_unsigned *item) const
+{
+  return Item_func_or_sum_illegal_param(item);
+}
+
+
+bool Type_handler_geometry::
+       Item_double_typecast_fix_length_and_dec(Item_double_typecast *item) const
+{
+  return Item_func_or_sum_illegal_param(item);
+}
+
+
+bool Type_handler_geometry::
+       Item_decimal_typecast_fix_length_and_dec(Item_decimal_typecast *item) const
+{
+  return Item_func_or_sum_illegal_param(item);
+}
+
+
+bool Type_handler_geometry::
+       Item_char_typecast_fix_length_and_dec(Item_char_typecast *item) const
+{
+  if (item->cast_charset() != &my_charset_bin)
+    return Item_func_or_sum_illegal_param(item); // CAST(geom AS CHAR)
+  item->fix_length_and_dec_str();
+  return false; // CAST(geom AS BINARY)
+}
+
+
+bool Type_handler_geometry::
+       Item_time_typecast_fix_length_and_dec(Item_time_typecast *item) const
+{
+  return Item_func_or_sum_illegal_param(item);
+}
+
+
+
+bool Type_handler_geometry::
+       Item_date_typecast_fix_length_and_dec(Item_date_typecast *item) const
+{
+  return Item_func_or_sum_illegal_param(item);
+}
+
+
+bool Type_handler_geometry::
+       Item_datetime_typecast_fix_length_and_dec(Item_datetime_typecast *item)
+                                                 const
+{
+  return Item_func_or_sum_illegal_param(item);
+
+}
+
+#endif /* HAVE_SPATIAL */
 
 /***************************************************************************/
