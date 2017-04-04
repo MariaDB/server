@@ -27,6 +27,7 @@
 class Field;
 class Item;
 class Item_cache;
+class Item_func_or_sum;
 class Item_sum_hybrid;
 class Item_sum_sum;
 class Item_sum_avg;
@@ -42,6 +43,14 @@ class Item_func_round;
 class Item_func_int_val;
 class Item_func_abs;
 class Item_func_neg;
+class Item_func_signed;
+class Item_func_unsigned;
+class Item_double_typecast;
+class Item_decimal_typecast;
+class Item_char_typecast;
+class Item_time_typecast;
+class Item_date_typecast;
+class Item_datetime_typecast;
 class cmp_item;
 class in_vector;
 class Type_std_attributes;
@@ -273,6 +282,10 @@ protected:
                               bool maybe_null, bool null_value,
                               bool unsigned_flag,
                               longlong value) const;
+  bool
+  Item_func_or_sum_illegal_param(const char *name) const;
+  bool
+  Item_func_or_sum_illegal_param(const Item_func_or_sum *) const;
 public:
   static const Type_handler *string_type_handler(uint max_octet_length);
   static const Type_handler *get_handler_by_field_type(enum_field_types type);
@@ -467,6 +480,23 @@ public:
 
   virtual bool
   Item_func_neg_fix_length_and_dec(Item_func_neg *func) const= 0;
+
+  virtual bool
+  Item_func_signed_fix_length_and_dec(Item_func_signed *item) const;
+  virtual bool
+  Item_func_unsigned_fix_length_and_dec(Item_func_unsigned *item) const;
+  virtual bool
+  Item_double_typecast_fix_length_and_dec(Item_double_typecast *item) const;
+  virtual bool
+  Item_decimal_typecast_fix_length_and_dec(Item_decimal_typecast *item) const;
+  virtual bool
+  Item_char_typecast_fix_length_and_dec(Item_char_typecast *item) const;
+  virtual bool
+  Item_time_typecast_fix_length_and_dec(Item_time_typecast *item) const;
+  virtual bool
+  Item_date_typecast_fix_length_and_dec(Item_date_typecast *item) const;
+  virtual bool
+  Item_datetime_typecast_fix_length_and_dec(Item_datetime_typecast *item) const;
 };
 
 
@@ -637,6 +667,47 @@ public:
   bool Item_func_int_val_fix_length_and_dec(Item_func_int_val *) const;
   bool Item_func_abs_fix_length_and_dec(Item_func_abs *) const;
   bool Item_func_neg_fix_length_and_dec(Item_func_neg *) const;
+
+  bool Item_func_signed_fix_length_and_dec(Item_func_signed *) const
+  {
+    DBUG_ASSERT(0);
+    return true;
+  }
+  bool Item_func_unsigned_fix_length_and_dec(Item_func_unsigned *) const
+  {
+    DBUG_ASSERT(0);
+    return true;
+  }
+  bool Item_double_typecast_fix_length_and_dec(Item_double_typecast *) const
+  {
+    DBUG_ASSERT(0);
+    return true;
+  }
+  bool Item_decimal_typecast_fix_length_and_dec(Item_decimal_typecast *) const
+  {
+    DBUG_ASSERT(0);
+    return true;
+  }
+  bool Item_char_typecast_fix_length_and_dec(Item_char_typecast *) const
+  {
+    DBUG_ASSERT(0);
+    return true;
+  }
+  bool Item_time_typecast_fix_length_and_dec(Item_time_typecast *) const
+  {
+    DBUG_ASSERT(0);
+    return true;
+  }
+  bool Item_date_typecast_fix_length_and_dec(Item_date_typecast *) const
+  {
+    DBUG_ASSERT(0);
+    return true;
+  }
+  bool Item_datetime_typecast_fix_length_and_dec(Item_datetime_typecast *) const
+  {
+    DBUG_ASSERT(0);
+    return true;
+  }
 };
 
 
@@ -662,6 +733,7 @@ public:
                                    Item *target_expr, Item *target_value,
                                    Item_bool_func2 *source,
                                    Item *source_expr, Item *source_const) const;
+  bool Item_char_typecast_fix_length_and_dec(Item_char_typecast *) const;
 };
 
 
@@ -1348,6 +1420,15 @@ public:
   bool Item_sum_sum_fix_length_and_dec(Item_sum_sum *) const;
   bool Item_sum_avg_fix_length_and_dec(Item_sum_avg *) const;
   bool Item_sum_variance_fix_length_and_dec(Item_sum_variance *) const;
+
+  bool Item_func_signed_fix_length_and_dec(Item_func_signed *) const;
+  bool Item_func_unsigned_fix_length_and_dec(Item_func_unsigned *) const;
+  bool Item_double_typecast_fix_length_and_dec(Item_double_typecast *) const;
+  bool Item_decimal_typecast_fix_length_and_dec(Item_decimal_typecast *) const;
+  bool Item_char_typecast_fix_length_and_dec(Item_char_typecast *) const;
+  bool Item_time_typecast_fix_length_and_dec(Item_time_typecast *) const;
+  bool Item_date_typecast_fix_length_and_dec(Item_date_typecast *) const;
+  bool Item_datetime_typecast_fix_length_and_dec(Item_datetime_typecast *) const;
 };
 
 extern Type_handler_geometry type_handler_geometry;

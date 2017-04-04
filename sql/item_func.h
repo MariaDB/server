@@ -758,7 +758,7 @@ public:
     null_value= args[0]->null_value;
     return value;
   }
-  void fix_length_and_dec()
+  void fix_length_and_dec_generic()
   {
     uint32 char_length= MY_MIN(args[0]->max_char_length(),
                                MY_INT64_NUM_DECIMAL_DIGITS);
@@ -769,6 +769,10 @@ public:
     */
     set_if_bigger(char_length, 1U + (unsigned_flag ? 0 : 1));
     fix_char_length(char_length);
+  }
+  void fix_length_and_dec()
+  {
+    args[0]->type_handler()->Item_func_signed_fix_length_and_dec(this);
   }
   virtual void print(String *str, enum_query_type query_type);
   uint decimal_precision() const { return args[0]->decimal_precision(); }
@@ -791,6 +795,10 @@ public:
     longlong value= args[0]->val_int_unsigned_typecast();
     null_value= args[0]->null_value;
     return value;
+  }
+  void fix_length_and_dec()
+  {
+    args[0]->type_handler()->Item_func_unsigned_fix_length_and_dec(this);
   }
   virtual void print(String *str, enum_query_type query_type);
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
@@ -815,7 +823,11 @@ public:
   my_decimal *val_decimal(my_decimal*);
   enum Item_result result_type () const { return DECIMAL_RESULT; }
   enum_field_types field_type() const { return MYSQL_TYPE_NEWDECIMAL; }
-  void fix_length_and_dec() {}
+  void fix_length_and_dec_generic() {}
+  void fix_length_and_dec()
+  {
+    args[0]->type_handler()->Item_decimal_typecast_fix_length_and_dec(this);
+  }
   const char *func_name() const { return "decimal_typecast"; }
   virtual void print(String *str, enum_query_type query_type);
   bool need_parentheses_in_default() { return true; }
@@ -835,7 +847,11 @@ public:
   }
   double val_real();
   enum_field_types field_type() const { return MYSQL_TYPE_DOUBLE; }
-  void fix_length_and_dec() { maybe_null= 1; }
+  void fix_length_and_dec_generic() { maybe_null= 1; }
+  void fix_length_and_dec()
+  {
+    args[0]->type_handler()->Item_double_typecast_fix_length_and_dec(this);
+  }
   const char *func_name() const { return "double_typecast"; }
   virtual void print(String *str, enum_query_type query_type);
   bool need_parentheses_in_default() { return true; }
