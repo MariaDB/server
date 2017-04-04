@@ -97,6 +97,10 @@ IF(MSVC)
   #     information for use with the debugger. The symbolic debugging
   #     information includes the names and types of variables, as well as
   #     functions and line numbers. No .pdb file is produced by the compiler.
+  #
+  # - Remove preprocessor flag _DEBUG that older cmakes use with Config=Debug,
+  #   it is as defined by Debug runtimes itself (/MTd /MDd)
+
   FOREACH(lang C CXX)
     SET(CMAKE_${lang}_FLAGS_RELEASE "${CMAKE_${lang}_FLAGS_RELEASE} /Z7")
   ENDFOREACH()
@@ -106,6 +110,7 @@ IF(MSVC)
    CMAKE_CXX_FLAGS_RELEASE  CMAKE_CXX_FLAGS_RELWITHDEBINFO
    CMAKE_CXX_FLAGS_DEBUG    CMAKE_CXX_FLAGS_DEBUG_INIT)
    STRING(REGEX REPLACE "/M[TD][d]?"  "${MSVC_CRT_TYPE}" "${flag}"  "${${flag}}" )
+   STRING(REGEX REPLACE "/D[ ]?_DEBUG"  "" "${flag}" "${${flag}}")
    STRING(REPLACE "/Zi"  "/Z7" "${flag}" "${${flag}}")
   ENDFOREACH()
   
