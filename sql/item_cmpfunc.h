@@ -1662,6 +1662,7 @@ public:
   void add_key_fields(JOIN *join, KEY_FIELD **key_fields, uint *and_level,
                       table_map usable_tables, SARGABLE_PARAM **sargables);
   SEL_TREE *get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr);
+  SEL_TREE *get_func_row_mm_tree(RANGE_OPT_PARAM *param, Item_row *key_row); 
   Item* propagate_equal_fields(THD *thd, const Context &ctx, COND_EQUAL *cond)
   {
     /*
@@ -1714,6 +1715,7 @@ public:
   cmp_item *make_same();
   void store_value_by_template(THD *thd, cmp_item *tmpl, Item *);
   friend void Item_func_in::fix_length_and_dec();
+  cmp_item *get_comparator(uint i) { return comparators[i]; }
 };
 
 
@@ -1727,6 +1729,7 @@ public:
   uchar *get_value(Item *item);
   friend void Item_func_in::fix_length_and_dec();
   Item_result result_type() { return ROW_RESULT; }
+  cmp_item *get_cmp_item() { return &tmp; }
 };
 
 /* Functions used by where clause */

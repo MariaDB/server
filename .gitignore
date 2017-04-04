@@ -97,6 +97,9 @@ pcre/pcre_chartables.c
 pcre/pcregrep
 pcre/pcretest
 pcre/test*grep
+plugin/aws_key_management/aws-sdk-cpp
+plugin/aws_key_management/aws_sdk_cpp
+plugin/aws_key_management/aws_sdk_cpp-prefix
 scripts/comp_sql
 scripts/make_binary_distribution
 scripts/msql2mysql
