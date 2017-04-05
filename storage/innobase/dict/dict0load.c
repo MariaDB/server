@@ -643,7 +643,7 @@ dict_sys_tables_get_flags(
 		return(ULINT_UNDEFINED);
 	}
 
-	if (UNIV_UNLIKELY(flags & (~0 << DICT_TF_BITS))) {
+	if (UNIV_UNLIKELY(flags & (~0U << DICT_TF_BITS))) {
 		/* Some unused bits are set. */
 		return(ULINT_UNDEFINED);
 	}
@@ -1332,7 +1332,7 @@ err_len:
 		goto err_len;
 	}
 	type = mach_read_from_4(field);
-	if (UNIV_UNLIKELY(type & (~0 << DICT_IT_BITS))) {
+	if (UNIV_UNLIKELY(type & (~0U << DICT_IT_BITS))) {
 		return("unknown SYS_INDEXES.TYPE bits");
 	}
 
@@ -1696,7 +1696,7 @@ err_len:
 
 		flags2 = mach_read_from_4(field);
 
-		if (flags2 & (~0 << (DICT_TF2_BITS - DICT_TF2_SHIFT))) {
+		if (flags2 & (~0U << (DICT_TF2_BITS - DICT_TF2_SHIFT))) {
 			ut_print_timestamp(stderr);
 			fputs("  InnoDB: Warning: table ", stderr);
 			ut_print_filename(stderr, name);
@@ -1705,7 +1705,7 @@ err_len:
 				" has unknown flags %lx.\n",
 				(ulong) flags2);
 
-			flags2 &= ~(~0 << (DICT_TF2_BITS - DICT_TF2_SHIFT));
+			flags2 &= ~(~0U << (DICT_TF2_BITS - DICT_TF2_SHIFT));
 		}
 
 		flags |= flags2 << DICT_TF2_SHIFT;
@@ -1838,7 +1838,7 @@ err_exit:
 			if (!fil_open_single_table_tablespace(
 				TRUE, table->space,
 				table->flags == DICT_TF_COMPACT ? 0 :
-				table->flags & ~(~0 << DICT_TF_BITS), name)) {
+				table->flags & ~(~0U << DICT_TF_BITS), name)) {
 				/* We failed to find a sensible
 				tablespace file */
 

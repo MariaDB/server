@@ -748,7 +748,7 @@ static int sst_donate_mysqldump (const char*         addr,
                      "%s",
                      host, port, mysqld_port, mysqld_unix_port,
                      mysql_real_data_home, wsrep_defaults_file, uuid_str,
-                     (long long)seqno, bypass ? " "WSREP_SST_OPT_BYPASS : "");
+                     (long long)seqno, bypass ? " " WSREP_SST_OPT_BYPASS : "");
 
   if (ret < 0 || ret >= cmd_len)
   {
@@ -1023,7 +1023,7 @@ static int sst_donate_other (const char*   method,
                      method, addr, mysqld_unix_port,
                      mysql_real_data_home, wsrep_defaults_file,
                      uuid, (long long) seqno,
-                     bypass ? " "WSREP_SST_OPT_BYPASS : "");
+                     bypass ? " " WSREP_SST_OPT_BYPASS : "");
 
   if (ret < 0 || ret >= cmd_len)
   {

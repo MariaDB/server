@@ -4739,7 +4739,6 @@ page_zip_parse_compress(
 	ulint	size;
 	ulint	trailer_size;
 
-	ut_ad(ptr && end_ptr);
 	ut_ad(!page == !page_zip);
 
 	if (UNIV_UNLIKELY(ptr + (2 + 2) > end_ptr)) {

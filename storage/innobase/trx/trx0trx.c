@@ -97,7 +97,6 @@ trx_create(
 	trx_t*	trx;
 
 	ut_ad(mutex_own(&kernel_mutex));
-	ut_ad(sess);
 
 	trx = mem_alloc(sizeof(trx_t));
 

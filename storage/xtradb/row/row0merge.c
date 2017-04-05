@@ -823,14 +823,8 @@ row_merge_read_rec(
 	ulint	data_size;
 	ulint	avail_size;
 
-	ut_ad(block);
-	ut_ad(buf);
 	ut_ad(b >= block[0]);
 	ut_ad(b < block[1]);
-	ut_ad(index);
-	ut_ad(foffs);
-	ut_ad(mrec);
-	ut_ad(offsets);
 
 	ut_ad(*offsets == 1 + REC_OFFS_HEADER_SIZE
 	      + dict_index_get_n_fields(index));
@@ -1201,12 +1195,6 @@ row_merge_read_clustered_index(
 	ulint*			nonnull = NULL;	/* NOT NULL columns */
 
 	trx->op_info = "reading clustered index";
-
-	ut_ad(trx);
-	ut_ad(old_table);
-	ut_ad(new_table);
-	ut_ad(index);
-	ut_ad(files);
 
 	/* Create and initialize memory for record buffers */
 

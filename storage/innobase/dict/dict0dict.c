@@ -5868,7 +5868,6 @@ dict_set_corrupted(
 	const char*	status;
 	btr_cur_t	cursor;
 
-	ut_ad(index);
 	ut_ad(mutex_own(&dict_sys->mutex));
 	ut_ad(!dict_table_is_comp(dict_sys->sys_tables));
 	ut_ad(!dict_table_is_comp(dict_sys->sys_indexes));

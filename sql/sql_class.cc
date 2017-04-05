@@ -853,11 +853,11 @@ extern "C" wsrep_ws_handle_t* wsrep_thd_ws_handle(THD *thd)
   return &thd->wsrep_ws_handle;
 }
 
-extern "C"void wsrep_thd_LOCK(THD *thd)
+extern "C" void wsrep_thd_LOCK(THD *thd)
 {
   mysql_mutex_lock(&thd->LOCK_wsrep_thd);
 }
-extern "C"void wsrep_thd_UNLOCK(THD *thd)
+extern "C" void wsrep_thd_UNLOCK(THD *thd)
 {
   mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
 }

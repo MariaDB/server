@@ -40,7 +40,6 @@ dyn_array_add_block(
 	mem_heap_t*	heap;
 	dyn_block_t*	block;
 
-	ut_ad(arr);
 	ut_ad(arr->magic_n == DYN_BLOCK_MAGIC_N);
 
 	if (arr->heap == NULL) {

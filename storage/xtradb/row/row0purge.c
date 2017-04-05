@@ -751,9 +751,6 @@ row_purge(
 {
 	ibool		updated_extern;
 
-	ut_ad(node);
-	ut_ad(thr);
-
 	node->undo_rec = trx_purge_fetch_next_rec(&node->roll_ptr,
 						  &node->reservation,
 						  node->heap);

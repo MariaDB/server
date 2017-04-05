@@ -149,7 +149,6 @@ mtr_memo_contains(
 	dyn_array_t*	memo;
 	ulint		offset;
 
-	ut_ad(mtr);
 	ut_ad(mtr->magic_n == MTR_MAGIC_N);
 	ut_ad(mtr->state == MTR_ACTIVE || mtr->state == MTR_COMMITTING);
 

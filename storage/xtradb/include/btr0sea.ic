@@ -91,7 +91,6 @@ btr_search_get_hash_table(
 /*======================*/
 	const dict_index_t*	index)	/*!< in: index */
 {
-	ut_ad(index);
 	ut_ad(index->search_table);
 
 	return(index->search_table);
@@ -103,7 +102,6 @@ btr_search_get_latch(
 /*=================*/
 	const dict_index_t*	index)	/*!< in: index */
 {
-	ut_ad(index);
 	ut_ad(index->search_latch >= btr_search_latch_arr &&
 	      index->search_latch < btr_search_latch_arr +
 	      btr_search_index_num);
@@ -130,8 +128,6 @@ btr_search_index_init(
 /*===============*/
 	dict_index_t*	index)	/*!< in: index */
 {
-	ut_ad(index);
-
 	index->search_latch =
 		&btr_search_latch_arr[btr_search_get_key(index->id)];
 	index->search_table =
