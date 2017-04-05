@@ -1857,3 +1857,195 @@ DROP TABLE t1;
 --echo #
 --echo # End of 10.1 tests
 --echo #
+
+--echo #
+--echo # MDEV-10454: range access keys extracted
+--echo #             from <row> IN (<row value list>) 
+--echo #
+
+create table t1(a int, b int, c varchar(16),  key idx(a,b)) engine=myisam;
+
+insert into t1 values
+  (1,1,'xx'), (2,2,'yyy'), (3,3,'zzzz'), (1,2,'zz'), (1,3,'x'),
+  (2,3,'yy'), (4,5,'ww'), (7,8,'xxxxx'), (4,3,'zyx'), (1,2,'uuu'),
+  (2,1,'w'), (5,5,'wx'), (2,3,'ww'), (7,7,'xxxyy'), (3,3,'zyxw'),
+  (3,2,'uuuw'), (2,2,'wxz'), (5,5,'xw'), (12,12,'xx'), (12,12,'y'),
+  (13,13,'z'), (11,12,'zz'), (11,13,'x'), (12,13,'y'), (14,15,'w'),
+  (17,18,'xx'), (14,13,'zx'), (11,12,'u'), (12,11,'w'), (5,5,'wx'),
+  (12,13,'ww'), (17,17,'xxxyy'), (13,13,'zyxw'), (13,12,'uuuw'), (12,12,'wxz'),
+  (15,15,'xw'), (1,1,'xa'), (2,2,'yya'), (3,3,'zzza'), (1,2,'za'),
+  (1,3,'xb'), (2,3,'ya'), (4,5,'wa'), (7,8,'xxxxa'), (4,3,'zya'),
+  (1,2,'uua'), (2,1,'wb'), (5,5,'wc'), (2,3,'wa'), (7,7,'xxxya'),
+  (3,3,'zyxa'), (3,2,'uuua'), (2,2,'wxa'), (5,5,'xa'), (12,12,'xa'),
+  (22,12,'yb'), (23,13,'zb'), (21,12,'za'), (24,13,'c'), (32,13,'d'),
+  (34,15,'wd'), (47,18,'xa'), (54,13,'za'), (51,12,'ub'), (52,11,'wc'),
+  (5,5,'wd'), (62,13,'wa'), (67,17,'xxxya'), (63,13,'zyxa'), (73,12,'uuua'),
+  (82,12,'wxa'), (85,15,'xd');
+
+--echo # range access to t1 by 2-component keys for index idx
+let $q1= 
+select * from t1 where (a,b) IN ((2, 3),(3,3),(8,8),(7,7));
+eval explain $q1;
+eval explain format=json $q1;
+eval $q1;
+eval prepare stmt from "$q1";
+execute stmt;
+execute stmt;
+deallocate prepare stmt;
+
+--echo # range access to t1 by 1-component keys for index idx
+let $q2=
+select * from t1 where (a,b+a) IN ((4,9),(8,8),(7,7));
+eval explain $q2;
+eval explain format=json $q2;
+eval $q2;
+
+--echo # range access to t1 by 1-component keys for index idx
+let $q3=
+select * from t1 where (a,b) IN ((4,a-1),(8,a+8),(7,a+7));
+eval explain $q3;
+eval explain format=json $q3;
+eval $q3;
+
+# this setting should be removed after fixes for mdev-12186, mdev-12187
+set @save_optimizer_switch=@@optimizer_switch;
+set optimizer_switch='index_merge=off';
+                
+create table t2(
+  d int, e int, key idx1(d), key idx2(e), f varchar(32)
+) engine=myisam;
+
+insert into t2 values
+  (9,5,'a'), (9,8,'b'), (9,3,'c'), (9,2,'d'), (9,1,'e'),
+  (6,5,'f'), (6,3,'g'), (6,7,'h'), (3,3,'i'), (6,2,'j'),
+  (9,5,'aa'), (9,8,'ba'), (9,3,'ca'), (2,2,'da'), (9,1,'ea'),
+  (6,5,'fa'), (6,3,'ga'), (6,7,'ha'), (9,3,'ia'), (6,2,'ja');
+   
+--echo # join order: (t2,t1) with ref access of t1
+--echo # range access to t1 by keys for index idx1
+let $q4=
+select * from t1,t2
+  where a = d and (a,e) in ((3,3),(7,7),(2,2));
+eval explain $q4;
+eval explain format=json $q4;
+eval $q4;
+
+insert into t2 values
+  (4,5,'a'), (7,8,'b'), (4,3,'c'), (1,2,'d'), (2,1,'e'), (5,5,'f'),
+  (2,3,'g'), (7,7,'h'), (3,3,'i'), (3,2,'j'), (2,2,'k'), (5,5,'l'),
+  (4,5,'aa'), (7,8,'bb'), (4,3,'cc'), (1,2,'dd'), (2,1,'ee'), (9,5,'ff'),
+  (2,3,'gg'), (7,7,'hh'), (3,3,'ii'), (3,2,'jj'), (2,2,'kk'), (9,5,'ll'),
+  (4,5,'aaa'), (7,8,'bbb'), (4,3,'ccc'), (1,2,'ddd'), (2,1,'eee'), (5,5,'fff'),
+  (2,3,'ggg'), (7,7,'hhh'), (3,3,'iii'), (3,2,'jjj'), (2,2,'kkk'), (5,5,'lll'),
+  (14,15,'a'), (17,18,'b'), (14,13,'c'), (11,12,'d'), (12,11,'e'), (15,15,'f'),
+  (12,13,'g'), (17,17,'h'), (13,13,'i'), (13,12,'j'), (12,12,'k'), (15,15,'l'),
+  (24,25,'a'), (27,28,'b'), (24,23,'c'), (21,22,'d'), (22,21,'e'), (25,25,'f'),
+  (22,23,'g'), (27,27,'h'), (23,23,'i'), (23,22,'j'), (22,22,'k'), (25,25,'l'),
+  (34,35,'a'), (37,38,'b'), (34,33,'c'), (31,32,'d'), (32,31,'e'), (35,35,'f'),
+  (32,33,'g'), (37,37,'h'), (33,33,'i'), (33,32,'j'), (32,32,'k'), (35,35,'l'),
+  (44,45,'a'), (47,48,'b'), (44,43,'c'), (41,42,'d'), (42,41,'e'), (45,45,'f'),
+  (42,43,'g'), (47,47,'h'), (43,43,'i'), (43,42,'j'), (42,42,'k'), (45,45,'l');
+
+--echo # join order: (t1,t2) with ref access of t2 
+--echo # range access to t1 by 1-component keys for index idx
+let $q5=
+select * from t1,t2
+  where a = d and (a,e) in ((3,3),(7,7),(8,8)) and length(f) = 1;
+eval explain $q5;
+eval explain format=json $q5;
+eval $q5;
+eval prepare stmt from "$q5";
+execute stmt;
+execute stmt;
+deallocate prepare stmt;
+  
+insert into t1 select * from t1;
+
+--echo # join order: (t2,t1) with ref access of t1
+--echo # range access to t2 by keys for index idx2
+let $q6=
+select * from t1,t2 
+  where a = d and (a,e) in ((4,4),(7,7),(8,8)) and length(f) = 1;
+eval explain $q6;
+eval explain format=json $q6;
+eval $q6;
+
+alter table t2 drop index idx1, drop index idx2, add index idx3(d,e);
+
+--echo # join order: (t2,t1) with ref access of t1
+--echo # range access to t2 by 2-component keys for index idx3
+let $q7=
+select * from t1,t2 
+  where a = d and (a,e) in ((4,4),(7,7),(8,8)) and length(f) = 1;
+eval explain $q7;
+eval explain format=json $q7;
+eval $q7;
+
+--echo # join order: (t1,t2) with ref access of t2
+--echo # range access to t1 by 1-component keys for index idx
+let $q8=
+select * from t1,t2
+  where a = d and (a,e) in ((4,d+1),(7,d+1),(8,d+1)) and length(f) = 1;
+eval explain $q8;
+eval explain format=json $q8;
+eval $q8;
+
+--echo # join order: (t1,t2) with ref access of t2
+--echo # no range access
+let $q9=
+select * from t1,t2
+  where a = d and (a,e) in ((e,d+1),(7,7),(8,8)) and length(f) = 1;
+eval explain $q9;
+eval explain format=json $q9;
+eval $q9;
+
+--echo # join order: (t1,t2) with ref access of t2
+--echo # range access to t1 by 1-component keys for index idx
+let $q10=
+select * from t1,t2
+  where a = d and (a,2) in ((2,2),(7,7),(8,8)) and
+        length(c) = 1 and length(f) = 1;
+eval explain $q10;
+eval explain format=json $q10;
+eval $q10;
+eval prepare stmt from "$q10";
+execute stmt;
+execute stmt;
+deallocate prepare stmt;
+
+create table t3 (id int primary key, v int) engine=myisam;
+
+insert into t3 values
+  (3,2), (1,1), (4,12), (2,15);
+
+--echo # join order: (t3,t1,t2) with const t3 and ref access of t2
+--echo # range access to t1 by 1-component keys for index idx
+let $q11=
+select * from t1,t2,t3
+  where id = 1 and a = d and
+        (a,v+1) in ((2,2),(7,7),(8,8)) and
+        length(c) = 1 and length(f) = 1;
+eval explain $q11;
+eval explain format=json $q11;
+eval $q11;
+
+--echo # IN predicate is always FALSE
+let $q12=
+select * from t1,t2,t3
+  where id = 1 and a = d and
+        (a,v+1) in ((9,9),(7,7),(8,8)) and
+        length(c) = 1 and length(f) = 1;
+eval explain $q12;
+eval prepare stmt from "$q12";
+execute stmt;
+execute stmt;
+deallocate prepare stmt;
+
+set optimizer_switch=@save_optimizer_switch;
+
+drop table t1,t2,t3;
+
+--echo #
+--echo # End of 10.2 tests
+--echo #
+

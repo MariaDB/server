@@ -1,0 +1,7 @@
+SET @start_global_value = @@global.ROCKSDB_BLOCK_SIZE_DEVIATION;
+SELECT @start_global_value;
+@start_global_value
+10
+"Trying to set variable @@global.ROCKSDB_BLOCK_SIZE_DEVIATION to 444. It should fail because it is readonly."
+SET @@global.ROCKSDB_BLOCK_SIZE_DEVIATION   = 444;
+ERROR HY000: Variable 'rocksdb_block_size_deviation' is a read only variable

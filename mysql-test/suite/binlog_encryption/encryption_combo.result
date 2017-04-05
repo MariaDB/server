@@ -19,7 +19,7 @@ FLUSH BINARY LOGS;
 SET binlog_format=ROW;
 INSERT INTO table1_no_encryption SELECT NULL,NOW(),b FROM table1_no_encryption;
 INSERT INTO table1_no_encryption SELECT NULL,NOW(),b FROM table1_no_encryption;
-FOUND /table1_no_encryption/ in master-bin.0*
+FOUND 11 /table1_no_encryption/ in master-bin.0*
 #####################################################
 # Part 2: restart master, now with binlog encryption
 #####################################################

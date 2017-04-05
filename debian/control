@@ -22,6 +22,7 @@ Build-Depends: bison,
                libpcre3-dev (>= 2:8.35-3.2~),
                libreadline-gplv2-dev,
                libssl-dev,
+               libsnappy-dev,
                libsystemd-dev,
                libxml2-dev,
                lsb-release,
@@ -451,6 +452,14 @@ Description: Connect storage engine for MariaDB
  connections to ODBC tables and remote MySQL tables, as well as a number of
  other interesting features.
  This package contains the Connect plugin for MariaDB.
+
+Package: mariadb-plugin-rocksdb
+Architecture: any
+Depends: mariadb-server-10.2, ${misc:Depends}, ${shlibs:Depends}
+Description: RocksDB storage engine for MariaDB
+ The RocksDB storage engine is a high performance storage engine, aimed
+ at maximising storage efficiency while maintaining InnoDB-like performance.
+ This package contains the RocksDB plugin for MariaDB.
 
 Package: mariadb-plugin-oqgraph
 Architecture: any

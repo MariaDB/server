@@ -1,0 +1,7 @@
+--source include/have_rocksdb.inc
+
+--let $sys_var=ROCKSDB_BLOCK_SIZE_DEVIATION
+--let $read_only=1
+--let $session=0
+--source include/rocksdb_sys_var.inc
+

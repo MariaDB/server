@@ -1,0 +1,32 @@
+# If rocksdb_tmpdir is NULL or "", temporary file will be created in
+# server configuration variable location(--tmpdir)
+CREATE TABLE t1 (a INT PRIMARY KEY, b INT) ENGINE=RocksDB;
+show session variables like 'rocksdb_tmpdir';
+Variable_name	Value
+rocksdb_tmpdir	
+# Connection con1
+connect  con1,localhost,root;
+show session variables like 'rocksdb_tmpdir';
+Variable_name	Value
+rocksdb_tmpdir	
+ALTER TABLE t1 ADD INDEX kb(b), ALGORITHM=INPLACE;
+connection default;
+disconnect con1;
+DROP TABLE t1;
+# rocksdb_tmpdir with valid location.
+CREATE TABLE t1 (a INT PRIMARY KEY, b INT) ENGINE=RocksDB;
+set @tmpdir = @@global.tmpdir;
+set global rocksdb_tmpdir = @tmpdir;
+show session variables like 'rocksdb_tmpdir';
+Variable_name	Value
+rocksdb_tmpdir	
+# Connection con3
+connect  con2,localhost,root;
+show session variables like 'rocksdb_tmpdir';
+Variable_name	Value
+rocksdb_tmpdir	MYSQL_TMP_DIR/mysqld.1
+ALTER TABLE t1 ADD INDEX kb(b), ALGORITHM=INPLACE;
+disconnect con2;
+connection default;
+set global rocksdb_tmpdir=NULL;
+DROP TABLE t1;

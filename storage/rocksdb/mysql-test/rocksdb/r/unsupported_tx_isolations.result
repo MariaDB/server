@@ -1,0 +1,18 @@
+DROP TABLE IF EXISTS t1;
+create table t1 (id int primary key, value int) engine=rocksdb;
+insert into t1 values (1,1);
+SET session transaction isolation level read uncommitted;
+begin;
+insert into t1 values (2,1);
+ERROR HY000: MyRocks supports only READ COMMITTED and REPEATABLE READ isolation levels. Please change from current isolation level READ-UNCOMMITTED
+select * from t1 where id=1;
+ERROR HY000: MyRocks supports only READ COMMITTED and REPEATABLE READ isolation levels. Please change from current isolation level READ-UNCOMMITTED
+rollback;
+SET session transaction isolation level serializable;
+begin;
+insert into t1 values (2,1);
+ERROR HY000: MyRocks supports only READ COMMITTED and REPEATABLE READ isolation levels. Please change from current isolation level SERIALIZABLE
+select * from t1 where id=1;
+ERROR HY000: MyRocks supports only READ COMMITTED and REPEATABLE READ isolation levels. Please change from current isolation level SERIALIZABLE
+rollback;
+DROP TABLE t1;

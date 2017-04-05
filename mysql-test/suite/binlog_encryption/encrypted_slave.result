@@ -149,9 +149,9 @@ DROP SERVER server_name_to_encrypt;
 #################
 # Master binlog checks
 #################
-FOUND /_to_encrypt/ in master-bin.0*
-FOUND /COMMIT/ in master-bin.0*
-FOUND /TIMESTAMP/ in master-bin.0*
+FOUND 1 /_to_encrypt.*/ in master-bin.0*
+FOUND 1 /COMMIT.*/ in master-bin.0*
+FOUND 1 /TIMESTAMP.*/ in master-bin.0*
 include/save_master_pos.inc
 #################
 # Relay log checks

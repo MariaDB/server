@@ -1,0 +1,10 @@
+SET @cur_long_query_time = @@long_query_time;
+SET @@long_query_time = 600;
+DROP TABLE IF EXISTS t1;
+CREATE TABLE t1 (id INT PRIMARY KEY, value INT) ENGINE=ROCKSDB;
+SET @@long_query_time = 0;
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+7500
+SET @@long_query_time = @cur_long_query_time;
+DROP TABLE t1;

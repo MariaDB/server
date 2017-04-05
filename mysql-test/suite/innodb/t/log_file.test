@@ -26,7 +26,6 @@ let bugdir= $MYSQLTEST_VARDIR/tmp/log_file;
 --mkdir $bugdir
 
 let SEARCH_FILE= $MYSQLTEST_VARDIR/log/mysqld.1.err;
-let SEARCH_RANGE = -100000;
 let $check_no_innodb=SELECT * FROM INFORMATION_SCHEMA.ENGINES
 WHERE engine = 'innodb'
 AND support IN ('YES', 'DEFAULT', 'ENABLED');

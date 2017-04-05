@@ -7,5 +7,6 @@
 --echo #
 
 --let SEARCH_FILE=$datadir/master-bin.0*
+--let SEARCH_RANGE = 500000
 --let SEARCH_PATTERN= xxxxxxxxxxx
 --source include/search_pattern_in_file.inc

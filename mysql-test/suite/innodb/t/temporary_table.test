@@ -122,7 +122,6 @@ create temporary table t1 (keyc int, c1 char(100), c2 char(100)) engine = innodb
 --echo # test various bad start-up parameters
 
 let SEARCH_FILE = $MYSQLTEST_VARDIR/log/mysqld.1.err;
-let SEARCH_RANGE = -50000;
 let SEARCH_ABORT = NOT FOUND;
 let $check_no_innodb=SELECT * FROM INFORMATION_SCHEMA.ENGINES WHERE engine = 'innodb'
 AND support IN ('YES', 'DEFAULT', 'ENABLED');

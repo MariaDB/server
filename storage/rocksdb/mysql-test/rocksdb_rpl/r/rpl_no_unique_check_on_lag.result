@@ -1,0 +1,34 @@
+#
+# Ensure skip_unique_check is set when lag exceeds lag_threshold
+#
+include/master-slave.inc
+Warnings:
+Note	####	Sending passwords in plain text without SSL/TLS is extremely insecure.
+Note	####	Storing MySQL user name or password information in the master info repository is not secure and is therefore not recommended. Please consider using the USER and PASSWORD connection options for START SLAVE; see the 'START SLAVE Syntax' in the MySQL Manual for more information.
+[connection master]
+call mtr.add_suppression("Slave SQL: Could not execute Write_rows event on table test.t1");
+call mtr.add_suppression(".*Worker.*failed executing transaction");
+call mtr.add_suppression(".*The slave coordinator and worker threads are stopped");
+drop table if exists t1;
+CREATE TABLE t1 (id int primary key, value int) engine=RocksDB;
+set global reset_seconds_behind_master=1;
+INSERT INTO t1 VALUES(1, 0);
+INSERT INTO t1 VALUES(2, 0);
+INSERT INTO t1 VALUES(3, 0);
+INSERT INTO t1 VALUES(1, 1);
+include/wait_for_slave_sql_error_and_skip.inc [errno=1062]
+set global reset_seconds_behind_master=0;
+include/stop_slave_io.inc
+INSERT INTO t1 values (4,0);
+INSERT INTO t1 VALUES(2, 1);
+include/start_slave_io.inc
+set global reset_seconds_behind_master=1;
+insert into t1 values (5,0);
+INSERT INTO t1 VALUES(3, 1);
+include/wait_for_slave_sql_error_and_skip.inc [errno=1062]
+#
+# Cleanup
+#
+DROP TABLE t1;
+set global reset_seconds_behind_master=1;
+include/rpl_end.inc

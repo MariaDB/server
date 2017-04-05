@@ -23,7 +23,6 @@ DELETE FROM articles LIMIT 1;
 ROLLBACK;
 disconnect flush_redo_log;
 connection default;
-# Kill and restart
 INSERT INTO articles (title,body) VALUES
 ('MySQL Tutorial','DBMS stands for DataBase ...');
 CREATE FULLTEXT INDEX idx ON articles (title,body);
@@ -52,7 +51,6 @@ DELETE FROM articles LIMIT 1;
 ROLLBACK;
 disconnect flush_redo_log;
 connection default;
-# Kill and restart
 INSERT INTO articles (title,body) VALUES
 ('MySQL Tutorial','DBMS stands for DataBase ...');
 SELECT * FROM articles
@@ -83,7 +81,6 @@ INSERT INTO articles VALUES
 BEGIN;
 INSERT INTO articles VALUES
 (100, 200, 'MySQL Tutorial','DBMS stands for DataBase ...');
-# Kill and restart
 INSERT INTO articles VALUES         (8, 12, 'MySQL Tutorial','DBMS stands for DataBase ...');
 SELECT * FROM articles WHERE MATCH (title, body)
 AGAINST ('Tutorial' IN NATURAL LANGUAGE MODE);

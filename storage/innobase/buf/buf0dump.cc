@@ -540,7 +540,7 @@ buf_load()
 
 	f = fopen(full_filename, "r");
 	if (f == NULL) {
-		buf_load_status(STATUS_ERR,
+		buf_load_status(STATUS_INFO,
 				"Cannot open '%s' for reading: %s",
 				full_filename, strerror(errno));
 		return;

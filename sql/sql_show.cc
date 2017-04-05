@@ -3386,7 +3386,7 @@ static bool show_status_array(THD *thd, const char *wild,
 
   for (; variables->name; variables++)
   {
-    bool wild_checked;
+    bool wild_checked= false;
     strnmov(prefix_end, variables->name, len);
     name_buffer[sizeof(name_buffer)-1]=0;       /* Safety */
 
@@ -3452,8 +3452,8 @@ static bool show_status_array(THD *thd, const char *wild,
     else
     {
       if ((wild_checked ||
-           (wild && wild[0] && wild_case_compare(system_charset_info,
-                                                 name_buffer, wild))) &&
+           !(wild && wild[0] && wild_case_compare(system_charset_info,
+                                                  name_buffer, wild))) &&
           (!cond || cond->val_int()))
       {
         const char *pos;                  // We assign a lot of const's

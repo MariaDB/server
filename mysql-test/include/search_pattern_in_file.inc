@@ -12,37 +12,22 @@
 #
 #    Optionally, SEARCH_RANGE can be set to the max number of bytes of the file
 #    to search. If negative, it will search that many bytes at the end of the
-#    file. The default is to search only the first 50000 bytes of the file.
+#    file. By default the search happens from the last CURRENT_TEST:
+#    marker till the end of file (appropriate for searching error logs).
+#
+#    Optionally, SEARCH_ABORT can be set to "FOUND" or "NOT FOUND" and this
+#    will abort if the search result doesn't match the requested one.
 #
 #    In case of
 #    - SEARCH_FILE and/or SEARCH_PATTERN is not set
 #    - SEARCH_FILE cannot be opened
-#    - SEARCH_FILE does not contain SEARCH_PATTERN
 #    the test will abort immediate.
-#    MTR will report something like
-#    ....
-#    worker[1] Using MTR_BUILD_THREAD 300, with reserved ports 13000..13009
-#    main.1st                                 [ pass ]      3
-#    innodb.innodb_page_size                  [ fail ]
-#            Test ended at 2011-11-11 18:15:58
-#
-#    CURRENT_TEST: innodb.innodb_page_size
-#    # ERROR: The file '<name>' does not contain the expected pattern  <pattern>
-#    mysqltest: In included file "./include/search_pattern_in_file.inc":
-#    included from ./include/search_pattern_in_file.inc at line 36:
-#    At line 25: command "perl" failed with error 255. my_errno=175
-#
-#    The result from queries just before the failure was:
-#    ...
-#    - saving '<some path>' to '<some path>'
-#    main.1st                                 [ pass ]      2
 #
 # Typical use case (check invalid server startup options):
 #    let $error_log= $MYSQLTEST_VARDIR/log/my_restart.err;
 #    --error 0,1
 #    --remove_file $error_log
 #    let SEARCH_FILE= $error_log;
-#    let SEARCH_RANGE= -50000;
 #    # Stop the server
 #    let $restart_file= $MYSQLTEST_VARDIR/tmp/mysqld.1.expect;
 #    --exec echo "wait" > $restart_file
@@ -60,36 +45,36 @@
 
 perl;
     use strict;
-    die "SEARCH_FILE not set" unless $ENV{'SEARCH_FILE'};
-    my @search_files= glob($ENV{'SEARCH_FILE'});
-    my $search_pattern= $ENV{'SEARCH_PATTERN'} or die "SEARCH_PATTERN not set";
-    my $search_range=   $ENV{'SEARCH_RANGE'};
+    die "SEARCH_FILE not set" unless $ENV{SEARCH_FILE};
+    my @search_files= glob($ENV{SEARCH_FILE});
+    my $search_pattern= $ENV{SEARCH_PATTERN} or die "SEARCH_PATTERN not set";
+    my $search_range=   $ENV{SEARCH_RANGE};
     my $content;
-    $search_range= 50000 unless $search_range =~ /-?[0-9]+/;
     foreach my $search_file (@search_files) {
-        open(FILE, '<', $search_file) or die("Unable to open '$search_file': $!\n");
+        open(FILE, '<', $search_file) || die("Can't open file $search_file: $!");
         my $file_content;
-        if ($search_range >= 0) {
+        if ($search_range > 0) {
            read(FILE, $file_content, $search_range, 0);
-        } else {
+        } elsif ($search_range < 0) {
            my $size= -s $search_file;
            $search_range = -$size if $size > -$search_range;
            seek(FILE, $search_range, 2);
            read(FILE, $file_content, -$search_range, 0);
+        } else {
+          while(<FILE>) { # error log
+            if (/^CURRENT_TEST:/) {
+              $content='';
+            } else {
+              $content.=$_;
+            }
+          }
         }
         close(FILE);
         $content.= $file_content;
     }
-    $ENV{'SEARCH_FILE'} =~ s{^.*?([^/\\]+)$}{$1};
-    if ($content =~ m{$search_pattern}) {
-      die "FOUND /$search_pattern/ in $ENV{'SEARCH_FILE'}\n"
-      if $ENV{SEARCH_ABORT} eq 'FOUND';
-      print "FOUND /$search_pattern/ in $ENV{'SEARCH_FILE'}\n"
-      unless defined $ENV{SEARCH_ABORT};
-    } else {
-      die "NOT FOUND /$search_pattern/ in $ENV{'SEARCH_FILE'}\n"
-      if $ENV{SEARCH_ABORT} eq 'NOT FOUND';
-      print "NOT FOUND /$search_pattern/ in $ENV{'SEARCH_FILE'}\n"
-      unless defined $ENV{SEARCH_ABORT};
-    }
+    my @matches=($content =~ m/$search_pattern/gs);
+    my $res=@matches ? "FOUND " . scalar(@matches) : "NOT FOUND";
+    $ENV{SEARCH_FILE} =~ s{^.*?([^/\\]+)$}{$1};
+    print "$res /$search_pattern/ in $ENV{SEARCH_FILE}\n";
+    exit $ENV{SEARCH_ABORT} && $res =~ /^$ENV{SEARCH_ABORT}/;
 EOF

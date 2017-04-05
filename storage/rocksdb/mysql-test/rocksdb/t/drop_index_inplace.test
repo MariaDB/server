@@ -1,0 +1,116 @@
+--source include/have_rocksdb.inc
+
+--disable_warnings
+drop table if exists t1;
+--enable_warnings
+
+##
+## test dropping index inplace
+##
+
+CREATE TABLE t1 (a INT, b INT AUTO_INCREMENT, KEY ka(a), KEY kb(a,b), PRIMARY KEY(b)) ENGINE=rocksdb;
+SHOW CREATE TABLE t1;
+INSERT INTO t1 (a) VALUES (1);
+INSERT INTO t1 (a) VALUES (3);
+INSERT INTO t1 (a) VALUES (5);
+
+ALTER TABLE t1 DROP INDEX ka, ALGORITHM=INPLACE;
+SHOW CREATE TABLE t1;
+
+# Key ka does not exist in table t1
+--error 1176
+SELECT * FROM t1 FORCE INDEX(ka) where a > 1;
+
+--sorted_result
+SELECT * FROM t1 FORCE INDEX(kb) where a > 1;
+--sorted_result
+SELECT * FROM t1 where b > 1;
+
+DROP TABLE t1;
+
+##
+## test dropping multiple indexes at once and multi-part indexes
+##
+
+CREATE TABLE t1 (a INT AUTO_INCREMENT, b INT, c INT, KEY kb(b), KEY kbc(b,c), KEY kc(c), PRIMARY KEY(a)) ENGINE=rocksdb;
+SHOW CREATE TABLE t1;
+INSERT INTO t1 (b,c) VALUES (1,2);
+INSERT INTO t1 (b,c) VALUES (3,4);
+INSERT INTO t1 (b,c) VALUES (5,6);
+ALTER TABLE t1 DROP INDEX kb, DROP INDEX kbc, ALGORITHM=INPLACE;
+SHOW CREATE TABLE t1;
+
+
+# test restarting to make sure everything is still ok and persisted properly
+--source include/restart_mysqld.inc
+
+SHOW CREATE TABLE t1;
+
+INSERT INTO t1 (b,c) VALUES (1,2);
+INSERT INTO t1 (b,c) VALUES (3,4);
+INSERT INTO t1 (b,c) VALUES (5,6);
+
+--sorted_result
+SELECT * FROM t1 FORCE INDEX(kc) where c > 3;
+--sorted_result
+SELECT * FROM t1 where b > 3;
+
+DROP TABLE t1;
+
+# test dropping pk to see if thats still ok
+CREATE TABLE t1 (a INT, b INT, c INT, KEY kb(b), KEY kbc(b,c), KEY kc(c), PRIMARY KEY(a)) ENGINE=rocksdb;
+SHOW INDEX IN t1;
+ALTER TABLE t1 DROP INDEX kb, DROP INDEX kbc, ALGORITHM=INPLACE;
+SHOW INDEX IN t1;
+
+ALTER TABLE t1 DROP PRIMARY KEY;
+SHOW INDEX IN t1;
+# test dropping index on tables with no pk
+ALTER TABLE t1 DROP INDEX kc, ALGORITHM=INPLACE;
+SHOW INDEX IN t1;
+
+DROP TABLE t1;
+
+# test dropping unique keys
+CREATE TABLE t1 (a INT AUTO_INCREMENT, b INT, c INT, PRIMARY KEY(a)) ENGINE=rocksdb;
+ALTER TABLE t1 ADD UNIQUE INDEX kb(b);
+ALTER TABLE t1 ADD UNIQUE INDEX kbc(b,c);
+ALTER TABLE t1 ADD UNIQUE INDEX kc(c);
+SHOW INDEX IN t1;
+
+ALTER TABLE t1 DROP INDEX kb, DROP INDEX kbc;
+SHOW INDEX IN t1;
+
+# test restarting to make sure everything is still ok and persisted properly
+--source include/restart_mysqld.inc
+
+--sorted_result
+INSERT INTO t1 (b,c) VALUES (1,2);
+INSERT INTO t1 (b,c) VALUES (3,4);
+INSERT INTO t1 (b,c) VALUES (5,6);
+SELECT * FROM t1 FORCE INDEX(kc) where c > 3;
+
+# test dropping index on tables with no pk
+ALTER TABLE t1 DROP INDEX kc, ALGORITHM=INPLACE;
+SHOW CREATE TABLE t1;
+
+DROP TABLE t1;
+
+# case where dropping column, where column is the key, we dont want to use
+# inplace in this scenario
+CREATE TABLE IF NOT EXISTS t1 (col1 INT, col2 INT, col3 INT);
+INSERT INTO t1 (col1,col2,col3) VALUES (1,2,3);
+ALTER TABLE t1 ADD KEY idx ( col1, col2 );
+ANALYZE TABLE t1;
+ALTER TABLE t1 DROP COLUMN col2;
+ALTER TABLE t1 DROP COLUMN col3;
+DROP TABLE t1;
+
+# case drop and add at same time, should not use inplace algorithm yet
+CREATE TABLE IF NOT EXISTS t1 (col1 INT, col2 INT, col3 INT);
+INSERT INTO t1 (col1,col2,col3) VALUES (1,2,3);
+ALTER TABLE t1 ADD KEY idx ( col1, col2 );
+ANALYZE TABLE t1;
+ALTER TABLE t1 DROP COLUMN col2;
+ALTER TABLE t1 DROP COLUMN col3;
+DROP TABLE t1;

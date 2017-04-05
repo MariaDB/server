@@ -1,0 +1,85 @@
+CREATE TABLE valid_values (value varchar(255)) ENGINE=myisam;
+INSERT INTO valid_values VALUES(100);
+INSERT INTO valid_values VALUES(1);
+INSERT INTO valid_values VALUES(0);
+CREATE TABLE invalid_values (value varchar(255)) ENGINE=myisam;
+INSERT INTO invalid_values VALUES('\'aaa\'');
+INSERT INTO invalid_values VALUES('\'bbb\'');
+INSERT INTO invalid_values VALUES('\'-1\'');
+INSERT INTO invalid_values VALUES('\'101\'');
+INSERT INTO invalid_values VALUES('\'484436\'');
+SET @start_global_value = @@global.ROCKSDB_TABLE_STATS_SAMPLING_PCT;
+SELECT @start_global_value;
+@start_global_value
+10
+'# Setting to valid values in global scope#'
+"Trying to set variable @@global.ROCKSDB_TABLE_STATS_SAMPLING_PCT to 100"
+SET @@global.ROCKSDB_TABLE_STATS_SAMPLING_PCT   = 100;
+SELECT @@global.ROCKSDB_TABLE_STATS_SAMPLING_PCT;
+@@global.ROCKSDB_TABLE_STATS_SAMPLING_PCT
+100
+"Setting the global scope variable back to default"
+SET @@global.ROCKSDB_TABLE_STATS_SAMPLING_PCT = DEFAULT;
+SELECT @@global.ROCKSDB_TABLE_STATS_SAMPLING_PCT;
+@@global.ROCKSDB_TABLE_STATS_SAMPLING_PCT
+10
+"Trying to set variable @@global.ROCKSDB_TABLE_STATS_SAMPLING_PCT to 1"
+SET @@global.ROCKSDB_TABLE_STATS_SAMPLING_PCT   = 1;
+SELECT @@global.ROCKSDB_TABLE_STATS_SAMPLING_PCT;
+@@global.ROCKSDB_TABLE_STATS_SAMPLING_PCT
+1
+"Setting the global scope variable back to default"
+SET @@global.ROCKSDB_TABLE_STATS_SAMPLING_PCT = DEFAULT;
+SELECT @@global.ROCKSDB_TABLE_STATS_SAMPLING_PCT;
+@@global.ROCKSDB_TABLE_STATS_SAMPLING_PCT
+10
+"Trying to set variable @@global.ROCKSDB_TABLE_STATS_SAMPLING_PCT to 0"
+SET @@global.ROCKSDB_TABLE_STATS_SAMPLING_PCT   = 0;
+SELECT @@global.ROCKSDB_TABLE_STATS_SAMPLING_PCT;
+@@global.ROCKSDB_TABLE_STATS_SAMPLING_PCT
+0
+"Setting the global scope variable back to default"
+SET @@global.ROCKSDB_TABLE_STATS_SAMPLING_PCT = DEFAULT;
+SELECT @@global.ROCKSDB_TABLE_STATS_SAMPLING_PCT;
+@@global.ROCKSDB_TABLE_STATS_SAMPLING_PCT
+10
+"Trying to set variable @@session.ROCKSDB_TABLE_STATS_SAMPLING_PCT to 444. It should fail because it is not session."
+SET @@session.ROCKSDB_TABLE_STATS_SAMPLING_PCT   = 444;
+ERROR HY000: Variable 'rocksdb_table_stats_sampling_pct' is a GLOBAL variable and should be set with SET GLOBAL
+'# Testing with invalid values in global scope #'
+"Trying to set variable @@global.ROCKSDB_TABLE_STATS_SAMPLING_PCT to 'aaa'"
+SET @@global.ROCKSDB_TABLE_STATS_SAMPLING_PCT   = 'aaa';
+Got one of the listed errors
+SELECT @@global.ROCKSDB_TABLE_STATS_SAMPLING_PCT;
+@@global.ROCKSDB_TABLE_STATS_SAMPLING_PCT
+10
+"Trying to set variable @@global.ROCKSDB_TABLE_STATS_SAMPLING_PCT to 'bbb'"
+SET @@global.ROCKSDB_TABLE_STATS_SAMPLING_PCT   = 'bbb';
+Got one of the listed errors
+SELECT @@global.ROCKSDB_TABLE_STATS_SAMPLING_PCT;
+@@global.ROCKSDB_TABLE_STATS_SAMPLING_PCT
+10
+"Trying to set variable @@global.ROCKSDB_TABLE_STATS_SAMPLING_PCT to '-1'"
+SET @@global.ROCKSDB_TABLE_STATS_SAMPLING_PCT   = '-1';
+Got one of the listed errors
+SELECT @@global.ROCKSDB_TABLE_STATS_SAMPLING_PCT;
+@@global.ROCKSDB_TABLE_STATS_SAMPLING_PCT
+10
+"Trying to set variable @@global.ROCKSDB_TABLE_STATS_SAMPLING_PCT to '101'"
+SET @@global.ROCKSDB_TABLE_STATS_SAMPLING_PCT   = '101';
+Got one of the listed errors
+SELECT @@global.ROCKSDB_TABLE_STATS_SAMPLING_PCT;
+@@global.ROCKSDB_TABLE_STATS_SAMPLING_PCT
+10
+"Trying to set variable @@global.ROCKSDB_TABLE_STATS_SAMPLING_PCT to '484436'"
+SET @@global.ROCKSDB_TABLE_STATS_SAMPLING_PCT   = '484436';
+Got one of the listed errors
+SELECT @@global.ROCKSDB_TABLE_STATS_SAMPLING_PCT;
+@@global.ROCKSDB_TABLE_STATS_SAMPLING_PCT
+10
+SET @@global.ROCKSDB_TABLE_STATS_SAMPLING_PCT = @start_global_value;
+SELECT @@global.ROCKSDB_TABLE_STATS_SAMPLING_PCT;
+@@global.ROCKSDB_TABLE_STATS_SAMPLING_PCT
+10
+DROP TABLE valid_values;
+DROP TABLE invalid_values;

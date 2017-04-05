@@ -13,7 +13,6 @@ SET GLOBAL innodb_flush_log_at_trx_commit=1;
 BEGIN;
 INSERT INTO t VALUES(0);
 ROLLBACK;
-# Kill and restart: --innodb-force-recovery=3
 disconnect con1;
 SELECT * FROM t;
 a

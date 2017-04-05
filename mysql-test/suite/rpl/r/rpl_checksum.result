@@ -174,7 +174,7 @@ INSERT INTO t4 VALUES (2);
 connection slave;
 include/wait_for_slave_sql_error.inc [errno=1590]
 Last_SQL_Error = 'The incident LOST_EVENTS occurred on the master. Message: error writing to the binary log'
-FOUND /Slave SQL: The incident LOST_EVENTS occurred on the master\. Message: error writing to the binary log, Internal MariaDB error code: 1590/ in mysqld.2.err
+FOUND 1 /Slave SQL: The incident LOST_EVENTS occurred on the master\. Message: error writing to the binary log, Internal MariaDB error code: 1590/ in mysqld.2.err
 SELECT * FROM t4 ORDER BY a;
 a
 1

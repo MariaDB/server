@@ -1,0 +1,59 @@
+cons_snapshot_serializable : Consistent read does not work on serializable
+level_read_uncommitted : Not supported
+level_serializable: Not supported
+
+
+# Tests that are (temporarily) disabled in MariaDB:
+slow_query_log: MDEV-11480
+select_for_update_skip_locked_nowait: MDEV-11481
+rpl_read_free: MDEV-10976
+
+optimizer_loose_index_scans: MariaDB doesnt support Skip Scan
+
+# MDEV-11735: MyRocks: Gap Lock detector support
+gap_lock_issue254: MDEV-11735: MyRocks: Gap Lock detector support
+gap_lock_raise_error: MDEV-11735: MyRocks: Gap Lock detector support
+
+#
+# The idea of including RQG as a submodule and running RQG as part of 
+# MTR tests doesn't seem to be a good fit in MariaDB atm.
+#
+# The objection is that MTR tests are deterministic and can be run in 
+# a constrained environment.
+#
+rqg_examples : Test that use RQG are disabled
+rqg_runtime : Test that use RQG are disabled
+rqg_transactions : Test that use RQG are disabled
+
+#
+# Temporarily disabled tests
+#
+information_schema : MariaRocks: requires GTIDs
+mysqlbinlog_gtid_skip_empty_trans_rocksdb : MariaRocks: requires GTIDs
+read_only_tx : MariaRocks: requires GTIDs
+rpl_row_triggers : MariaRocks: requires GTIDs
+
+trx_info_rpl : MariaRocks: @@rpl_skip_tx_api doesn't work, yet.
+2pc_group_commit : MariaRocks: Group Commit is not functional yet
+
+mysqldump : MariaRocks: MariaDB's mysqldump doesn't support --print-ordering-key
+mysqldump2 : MariaRocks: MariaDB's mysqldump doesn't support --print-ordering-key
+
+show_engine : MariaRocks: MariaDB doesnt support SHOW ENGINE rocksdb TRANSACTION STATUS
+
+rpl_row_not_found : MariaDB doesnt support slave_exec_mode='SEMI_STRICT'
+
+blind_delete_without_tx_api: MDEV-12286: rocksdb.blind_delete_without_tx_api test fails
+
+persistent_cache: Upstream RocksDB bug https://github.com/facebook/mysql-5.6/issues/579
+
+collation: Fails on gcc 4.8 and before,  MDEV-12433
+rocksdb  : Intermittent failures in BB
+unique_sec : Intermittent failures in BB  
+
+# See also storage/rocksdb/mysql-test/rocksdb/suite.pm
+# Running tests under valgrind is disabled there.
+
+allow_no_pk_concurrent_insert: stress test
+rocksdb_deadlock_stress_rc: stress test
+rocksdb_deadlock_stress_rr: stress test

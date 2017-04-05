@@ -1,0 +1,19 @@
+--source include/have_rocksdb.inc
+
+# 
+# Check whether CHECKSUM option is supported
+# in CREATE and ALTER TABLE.
+# 
+
+--disable_warnings
+DROP TABLE IF EXISTS t1;
+--enable_warnings
+
+CREATE TABLE t1 (a INT PRIMARY KEY, b CHAR(8)) ENGINE=rocksdb CHECKSUM=1;
+SHOW CREATE TABLE t1;
+
+ALTER TABLE t1 CHECKSUM=0;
+SHOW CREATE TABLE t1;
+
+DROP TABLE t1;
+

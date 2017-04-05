@@ -1,0 +1,37 @@
+#
+# Validate that deadlock errors don't occur with a high level of concurrency
+#
+# Disable for valgrind because this takes too long
+DROP DATABASE IF EXISTS mysqlslap;
+CREATE DATABASE mysqlslap;
+USE mysqlslap;
+CREATE TABLE t1(id1 BIGINT, id2 BIGINT, count INT, PRIMARY KEY(id1, id2), KEY(id2)) ENGINE=rocksdb;
+CREATE TABLE t1rev(id1 BIGINT, id2 BIGINT, count INT, PRIMARY KEY(id1, id2) COMMENT "rev:cf2", KEY(id2) COMMENT "rev:cf2") ENGINE=rocksdb;
+SET @save = @@global.rocksdb_lock_wait_timeout;
+SET GLOBAL rocksdb_lock_wait_timeout = 60;
+SELECT count from t1;
+count
+50000
+SELECT count from t1;
+count
+100000
+SELECT count from t1;
+count
+150000
+SELECT count from t1;
+count
+200000
+SELECT count from t1rev;
+count
+50000
+SELECT count from t1rev;
+count
+100000
+SELECT count from t1rev;
+count
+150000
+SELECT count from t1rev;
+count
+200000
+SET GLOBAL rocksdb_lock_wait_timeout = @save;
+DROP DATABASE mysqlslap;

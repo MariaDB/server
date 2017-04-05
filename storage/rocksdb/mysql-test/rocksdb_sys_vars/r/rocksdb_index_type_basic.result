@@ -1,0 +1,7 @@
+SET @start_global_value = @@global.ROCKSDB_INDEX_TYPE;
+SELECT @start_global_value;
+@start_global_value
+kBinarySearch
+"Trying to set variable @@global.ROCKSDB_INDEX_TYPE to 444. It should fail because it is readonly."
+SET @@global.ROCKSDB_INDEX_TYPE   = 444;
+ERROR HY000: Variable 'rocksdb_index_type' is a read only variable

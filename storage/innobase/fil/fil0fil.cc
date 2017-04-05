@@ -2268,12 +2268,13 @@ Used by background threads that do not necessarily hold proper locks
 for concurrency control.
 @param[in]	id	tablespace ID
 @param[in]	silent	whether to silently ignore missing tablespaces
-@return the tablespace, or NULL if missing or being deleted */
+@param[in]	for_io	whether to look up the tablespace while performing I/O
+			(possibly executing TRUNCATE)
+@return	the tablespace
+@retval	NULL if missing or being deleted or truncated */
 inline
 fil_space_t*
-fil_space_acquire_low(
-	ulint	id,
-	bool	silent)
+fil_space_acquire_low(ulint id, bool silent, bool for_io = false)
 {
 	fil_space_t*	space;
 
@@ -2286,7 +2287,7 @@ fil_space_acquire_low(
 			ib::warn() << "Trying to access missing"
 				" tablespace " << id;
 		}
-	} else if (space->stop_new_ops || space->is_being_truncated) {
+	} else if (!for_io && space->is_stopping()) {
 		space = NULL;
 	} else {
 		space->n_pending_ops++;
@@ -2301,22 +2302,24 @@ fil_space_acquire_low(
 Used by background threads that do not necessarily hold proper locks
 for concurrency control.
 @param[in]	id	tablespace ID
-@return the tablespace, or NULL if missing or being deleted */
+@param[in]	for_io	whether to look up the tablespace while performing I/O
+			(possibly executing TRUNCATE)
+@return	the tablespace
+@retval	NULL	if missing or being deleted or truncated */
 fil_space_t*
-fil_space_acquire(
-	ulint	id)
+fil_space_acquire(ulint id, bool for_io)
 {
-	return(fil_space_acquire_low(id, false));
+	return(fil_space_acquire_low(id, false, for_io));
 }
 
 /** Acquire a tablespace that may not exist.
 Used by background threads that do not necessarily hold proper locks
 for concurrency control.
 @param[in]	id	tablespace ID
-@return the tablespace, or NULL if missing or being deleted */
+@return	the tablespace
+@retval	NULL if missing or being deleted */
 fil_space_t*
-fil_space_acquire_silent(
-	ulint	id)
+fil_space_acquire_silent(ulint id)
 {
 	return(fil_space_acquire_low(id, true));
 }
@@ -2324,8 +2327,7 @@ fil_space_acquire_silent(
 /** Release a tablespace acquired with fil_space_acquire().
 @param[in,out]	space	tablespace to release  */
 void
-fil_space_release(
-	fil_space_t*	space)
+fil_space_release(fil_space_t* space)
 {
 	mutex_enter(&fil_system->mutex);
 	ut_ad(space->magic_n == FIL_SPACE_MAGIC_N);
@@ -5479,8 +5481,7 @@ fil_flush(
 
 	if (fil_space_t* space = fil_space_get_by_id(space_id)) {
 		if (space->purpose != FIL_TYPE_TEMPORARY
-		    && !space->stop_new_ops
-		    && !space->is_being_truncated) {
+		    && !space->is_stopping()) {
 			fil_flush_low(space);
 		}
 	}
@@ -5524,8 +5525,7 @@ fil_flush_file_spaces(
 	     space = UT_LIST_GET_NEXT(unflushed_spaces, space)) {
 
 		if (space->purpose == purpose
-		    && !space->stop_new_ops
-		    && !space->is_being_truncated) {
+		    && !space->is_stopping()) {
 
 			space_ids[n_space_ids++] = space->id;
 		}
@@ -6701,8 +6701,7 @@ If NULL, use the first fil_space_t on fil_system->space_list.
 @return pointer to the next fil_space_t.
 @retval NULL if this was the last*/
 fil_space_t*
-fil_space_next(
-	fil_space_t*	prev_space)
+fil_space_next(fil_space_t* prev_space)
 {
 	fil_space_t*		space=prev_space;
 
@@ -6725,8 +6724,8 @@ fil_space_next(
 		fil_ibd_create(), or dropped, or !tablespace. */
 		while (space != NULL
 			&& (UT_LIST_GET_LEN(space->chain) == 0
-				|| space->stop_new_ops
-				|| space->purpose != FIL_TYPE_TABLESPACE)) {
+			    || space->is_stopping()
+			    || space->purpose != FIL_TYPE_TABLESPACE)) {
 			space = UT_LIST_GET_NEXT(space_list, space);
 		}
 

@@ -2212,7 +2212,8 @@ static my_bool snapshot_handlerton(THD *thd, plugin_ref plugin,
   if (hton->state == SHOW_OPTION_YES &&
       hton->start_consistent_snapshot)
   {
-    hton->start_consistent_snapshot(hton, thd);
+    if (hton->start_consistent_snapshot(hton, thd))
+      return TRUE;
     *((bool *)arg)= false;
   }
   return FALSE;
@@ -2220,7 +2221,7 @@ static my_bool snapshot_handlerton(THD *thd, plugin_ref plugin,
 
 int ha_start_consistent_snapshot(THD *thd)
 {
-  bool warn= true;
+  bool err, warn= true;
 
   /*
     Holding the LOCK_commit_ordered mutex ensures that we get the same
@@ -2230,8 +2231,14 @@ int ha_start_consistent_snapshot(THD *thd)
     have a consistent binlog position.
   */
   mysql_mutex_lock(&LOCK_commit_ordered);
-  plugin_foreach(thd, snapshot_handlerton, MYSQL_STORAGE_ENGINE_PLUGIN, &warn);
+  err= plugin_foreach(thd, snapshot_handlerton, MYSQL_STORAGE_ENGINE_PLUGIN, &warn);
   mysql_mutex_unlock(&LOCK_commit_ordered);
+
+  if (err)
+  {
+    ha_rollback_trans(thd, true);
+    return 1;
+  }
 
   /*
     Same idea as when one wants to CREATE TABLE in one engine which does not
@@ -5428,7 +5435,7 @@ int handler::compare_key(key_range *range)
   This is used by index condition pushdown implementation.
 */
 
-int handler::compare_key2(key_range *range)
+int handler::compare_key2(key_range *range) const
 {
   int cmp;
   if (!range)

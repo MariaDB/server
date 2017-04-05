@@ -77,7 +77,6 @@ pk	c1
 4	44
 START TRANSACTION;
 INSERT INTO bug_53756 VALUES (666,666);
-# Kill and restart
 disconnect con1;
 disconnect con2;
 disconnect con3;

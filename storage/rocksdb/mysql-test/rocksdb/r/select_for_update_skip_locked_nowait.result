@@ -1,0 +1,28 @@
+drop table if exists t1;
+create table t1 (a int primary key) engine=rocksdb;
+insert into t1 values (1), (2), (3);
+Should succeed since no table gets involved
+select 1 for update skip locked;
+1
+1
+select * from nonexistence for update skip locked;
+ERROR 42S02: Table 'test.nonexistence' doesn't exist
+select * from t1 for update skip locked;
+ERROR HY000: Table storage engine for 't1' doesn't have this option
+select * from t1 where a > 1 and a < 3 for update skip locked;
+ERROR HY000: Table storage engine for 't1' doesn't have this option
+insert into t1 select * from t1 for update skip locked;
+ERROR HY000: Table storage engine for 't1' doesn't have this option
+Should succeed since no table gets involved
+select 1 for update nowait;
+1
+1
+select * from nonexistence for update nowait;
+ERROR 42S02: Table 'test.nonexistence' doesn't exist
+select * from t1 for update nowait;
+ERROR HY000: Table storage engine for 't1' doesn't have this option
+select * from t1 where a > 1 and a < 3 for update nowait;
+ERROR HY000: Table storage engine for 't1' doesn't have this option
+insert into t1 select * from t1 for update nowait;
+ERROR HY000: Table storage engine for 't1' doesn't have this option
+drop table t1;

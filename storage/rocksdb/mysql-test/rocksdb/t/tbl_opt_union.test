@@ -1,0 +1,28 @@
+--source include/have_rocksdb.inc
+
+# 
+# Check whether UNION option 
+# is supported in CREATE and ALTER TABLE
+#
+# Note: the test does not check whether the option
+#       has any real effect on the table, only 
+#       that it's accepted
+# 
+
+--disable_warnings
+DROP TABLE IF EXISTS t1, child1, child2;
+--enable_warnings
+
+--disable_query_log
+CREATE TABLE child1 (a INT PRIMARY KEY) ENGINE=MyISAM;
+CREATE TABLE child2 (a INT PRIMARY KEY) ENGINE=MyISAM;
+--enable_query_log
+
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=rocksdb UNION(child1);
+SHOW CREATE TABLE t1;
+
+ALTER TABLE t1 UNION = (child1,child2);
+SHOW CREATE TABLE t1;
+
+DROP TABLE t1, child1, child2;
+

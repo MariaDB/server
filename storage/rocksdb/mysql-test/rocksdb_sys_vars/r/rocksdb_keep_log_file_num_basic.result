@@ -1,0 +1,7 @@
+SET @start_global_value = @@global.ROCKSDB_KEEP_LOG_FILE_NUM;
+SELECT @start_global_value;
+@start_global_value
+1000
+"Trying to set variable @@global.ROCKSDB_KEEP_LOG_FILE_NUM to 444. It should fail because it is readonly."
+SET @@global.ROCKSDB_KEEP_LOG_FILE_NUM   = 444;
+ERROR HY000: Variable 'rocksdb_keep_log_file_num' is a read only variable
