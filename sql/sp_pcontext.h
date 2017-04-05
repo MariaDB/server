@@ -440,15 +440,21 @@ public:
   { return m_vars.elements(); }
 
   /// return the i-th variable on the current context
-  sp_variable *find_context_variable(uint i) const
+  sp_variable *get_context_variable(uint i) const
   {
     DBUG_ASSERT(i < m_vars.elements());
     return m_vars.at(i);
   }
 
-  /// @return map index in this parsing context to runtime offset.
-  uint var_context2runtime(uint i) const
-  { return m_var_offset + i; }
+  /*
+    Return the i-th last context variable.
+    If i is 0, then return the very last variable in m_vars.
+  */
+  sp_variable *get_last_context_variable(uint i= 0) const
+  {
+    DBUG_ASSERT(i < m_vars.elements());
+    return m_vars.at(m_vars.elements() - i - 1);
+  }
 
   /// Add SP-variable to the parsing context.
   ///

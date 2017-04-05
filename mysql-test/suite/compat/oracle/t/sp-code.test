@@ -971,3 +971,87 @@ DELIMITER ;$$
 SHOW PROCEDURE CODE p1;
 CALL p1();
 DROP PROCEDURE p1;
+
+
+--echo #
+--echo # MDEV-12441 Variables declared after cursors with parameters lose values
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE p1() AS
+  x0 INT:=100;
+  CURSOR cur(cp1 INT, cp2 INT) IS SELECT cp1+cp2;
+  x1 INT:=101;
+BEGIN
+  OPEN cur(10,11);
+  CLOSE cur;
+  SELECT x0, x1;
+END;
+$$
+DELIMITER ;$$
+SHOW PROCEDURE CODE p1;
+CALL p1();
+DROP PROCEDURE p1;
+
+
+DELIMITER $$;
+CREATE PROCEDURE p1() AS
+  x0 INT:=100;
+  CURSOR cur0(cp1 INT, cp2 INT) IS SELECT cp1+cp2;
+  x1 INT:=101;
+  CURSOR cur1(cp1 INT, cp2 INT) IS SELECT cp1+cp2;
+  x2 INT:=102;
+  CURSOR cur2(cp1 INT, cp2 INT) IS SELECT cp1+cp2;
+  x3 INT:=103;
+BEGIN
+  OPEN cur0(0,1);
+  CLOSE cur0;
+  SELECT x0, x1, x2, x3;
+  OPEN cur1(10,11);
+  CLOSE cur1;
+  SELECT x0, x1, x2, x3;
+  OPEN cur2(20,21);
+  CLOSE cur2;
+  SELECT x0, x1, x2, x3;
+END;
+$$
+DELIMITER ;$$
+SHOW PROCEDURE CODE p1;
+CALL p1();
+DROP PROCEDURE p1;
+
+
+CREATE TABLE t1 (a INT);
+DELIMITER $$;
+CREATE PROCEDURE p1() AS
+  x0 INT:=100;
+  CURSOR cur(cp1 INT, cp2 INT) IS SELECT cp1+cp2;
+  x1 t1.a%TYPE:=101;
+BEGIN
+  OPEN cur(10,11);
+  CLOSE cur;
+  SELECT x0, x1;
+END;
+$$
+DELIMITER ;$$
+SHOW PROCEDURE CODE p1;
+CALL p1();
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+
+DELIMITER $$;
+CREATE PROCEDURE p1() AS
+  x0 INT:=100;
+  CURSOR cur(cp1 INT, cp2 INT) IS SELECT cp1+cp2;
+  x1 ROW(a INT,b INT):=ROW(101,102);
+BEGIN
+  OPEN cur(10,11);
+  CLOSE cur;
+  SELECT x0, x1.a, x1.b;
+END;
+$$
+DELIMITER ;$$
+SHOW PROCEDURE CODE p1;
+CALL p1();
+DROP PROCEDURE p1;

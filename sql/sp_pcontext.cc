@@ -222,10 +222,46 @@ sp_variable *sp_pcontext::find_variable(LEX_STRING name,
 }
 
 
+/*
+  Find a variable by its run-time offset.
+  If the variable with a desired run-time offset is not found in this
+  context frame, it's recursively searched on parent context frames.
+
+  Note, context frames can have holes:
+    CREATE PROCEDURE p1() AS
+      x0 INT:=100;
+      CURSOR cur(p0 INT, p1 INT) IS SELECT p0, p1;
+      x1 INT:=101;
+    BEGIN
+      ...
+    END;
+  The variables (x0 and x1) and the cursor parameters (p0 and p1)
+  reside in separate parse context frames.
+
+  The variables reside on the top level parse context frame:
+  - x0 has frame offset 0 and run-time offset 0
+  - x1 has frame offset 1 and run-time offset 3
+
+  The cursor parameters reside on the second level parse context frame:
+  - p0 has frame offset 0 and run-time offset 1
+  - p1 has frame offset 1 and run-time offset 2
+
+  Run-time offsets on a frame can have holes, but offsets monotonocally grow,
+  so run-time offsets of all variables are not greater than the run-time offset
+  of the very last variable in this frame.
+*/
 sp_variable *sp_pcontext::find_variable(uint offset) const
 {
-  if (m_var_offset <= offset && offset < m_var_offset + m_vars.elements())
-    return m_vars.at(offset - m_var_offset);  // This frame
+  if (m_var_offset <= offset &&
+      m_vars.elements() &&
+      offset <= get_last_context_variable()->offset)
+  {
+    for (uint i= 0; i < m_vars.elements(); i++)
+    {
+      if (m_vars.at(i)->offset == offset)
+        return m_vars.at(i); // This frame
+    }
+  }
 
   return m_parent ?
          m_parent->find_variable(offset) :    // Some previous frame
@@ -236,7 +272,7 @@ sp_variable *sp_pcontext::find_variable(uint offset) const
 sp_variable *sp_pcontext::add_variable(THD *thd, LEX_STRING name)
 {
   sp_variable *p=
-    new (thd->mem_root) sp_variable(name, current_var_count());
+    new (thd->mem_root) sp_variable(name, m_var_offset + m_max_var_index);
 
   if (!p)
     return NULL;
@@ -593,16 +629,49 @@ void sp_pcontext::retrieve_field_definitions(
 {
   /* Put local/context fields in the result list. */
 
+  size_t next_child= 0;
   for (size_t i= 0; i < m_vars.elements(); ++i)
   {
     sp_variable *var_def= m_vars.at(i);
 
+    /*
+      The context can have holes in run-time offsets,
+      the missing offsets reside on the children contexts in such cases.
+      Example:
+        CREATE PROCEDURE p1() AS
+          x0 INT:=100;        -- context 0, position 0, run-time 0
+          CURSOR cur(
+            p0 INT,           -- context 1, position 0, run-time 1
+            p1 INT            -- context 1, position 1, run-time 2
+          ) IS SELECT p0, p1;
+          x1 INT:=101;        -- context 0, position 1, run-time 3
+        BEGIN
+          ...
+        END;
+      See more comments in sp_pcontext::find_variable().
+      We must retrieve the definitions in the order of their run-time offsets.
+      Check that there are children that should go before the current variable.
+    */
+    for ( ; next_child < m_children.elements(); next_child++)
+    {
+      sp_pcontext *child= m_children.at(next_child);
+      if (!child->context_var_count() ||
+          child->get_context_variable(0)->offset > var_def->offset)
+        break;
+      /*
+        All variables on the embedded context (that fills holes of the parent)
+        should have the run-time offset strictly less than var_def.
+      */
+      DBUG_ASSERT(child->get_context_variable(0)->offset < var_def->offset);
+      DBUG_ASSERT(child->get_last_context_variable()->offset < var_def->offset);
+      child->retrieve_field_definitions(field_def_lst);
+    }
     field_def_lst->push_back(&var_def->field_def);
   }
 
-  /* Put the fields of the enclosed contexts in the result list. */
+  /* Put the fields of the remaining enclosed contexts in the result list. */
 
-  for (size_t i= 0; i < m_children.elements(); ++i)
+  for (size_t i= next_child; i < m_children.elements(); ++i)
     m_children.at(i)->retrieve_field_definitions(field_def_lst);
 }
 

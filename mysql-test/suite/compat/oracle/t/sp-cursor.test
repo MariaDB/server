@@ -833,3 +833,99 @@ DELIMITER ;$$
 CALL p1();
 DROP PROCEDURE p1;
 DROP TABLE t1;
+
+
+--echo #
+--echo # MDEV-12441 Variables declared after cursors with parameters lose values
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE p1() AS
+  x0 INT:=100;
+  CURSOR cur(cp1 INT, cp2 INT) IS SELECT cp1+cp2;
+  x1 INT:=101;
+BEGIN
+  OPEN cur(10,11);
+  CLOSE cur;
+  SELECT x0, x1;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+DROP PROCEDURE p1;
+
+
+CREATE TABLE t1 (a INT);
+DELIMITER $$;
+CREATE PROCEDURE p1() AS
+  x0 INT:=100;
+  CURSOR cur(cp1 INT, cp2 INT) IS SELECT cp1+cp2;
+  x1 t1.a%TYPE:=101;
+BEGIN
+  OPEN cur(10,11);
+  CLOSE cur;
+  SELECT x0, x1;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+
+DELIMITER $$;
+CREATE PROCEDURE p1() AS
+  x0 INT:=100;
+  CURSOR cur(cp1 INT, cp2 INT) IS SELECT cp1+cp2;
+  x1 ROW(a INT,b INT):=ROW(101,102);
+BEGIN
+  OPEN cur(10,11);
+  CLOSE cur;
+  SELECT x0, x1.a, x1.b;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+DROP PROCEDURE p1;
+
+
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+INSERT INTO t1 VALUES (10,'Tbl-t1.b0');
+DELIMITER $$;
+CREATE PROCEDURE p1() AS
+  x0 INT:=100;
+  CURSOR cur(cp1 INT, cp2 INT) IS SELECT a,b FROM t1;
+  x1 t1%ROWTYPE:=ROW(101,'Var-x1.b0');
+BEGIN
+  SELECT x0, x1.a, x1.b;
+  OPEN cur(10,11);
+  FETCH cur INTO x1;
+  CLOSE cur;
+  SELECT x0, x1.a, x1.b;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+INSERT INTO t1 VALUES (10,'Tbl-t1.b0');
+DELIMITER $$;
+CREATE PROCEDURE p1() AS
+  x0 INT:=100;
+  CURSOR cur(cp1 INT, cp2 INT) IS SELECT a,b FROM t1;
+  x1 cur%ROWTYPE:=ROW(101,'Var-x1.b0');
+BEGIN
+  SELECT x0, x1.a, x1.b;
+  OPEN cur(10,11);
+  FETCH cur INTO x1;
+  CLOSE cur;
+  SELECT x0, x1.a, x1.b;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+DROP PROCEDURE p1;
+DROP TABLE t1;

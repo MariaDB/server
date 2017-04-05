@@ -4746,7 +4746,7 @@ sp_head::add_set_for_loop_cursor_param_variables(THD *thd,
       See more comments in LEX::sp_for_loop_cursor_declarations in sql_lex.cc.
     */
     bool last= idx + 1 == parameters->argument_count();
-    sp_variable *spvar= param_spcont->find_context_variable(idx);
+    sp_variable *spvar= param_spcont->get_context_variable(idx);
     if (set_local_variable(thd, param_spcont,
                            spvar, parameters->arguments()[idx],
                            param_lex, last))

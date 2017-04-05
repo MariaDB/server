@@ -399,7 +399,7 @@ private:
                                      sp_assignment_lex *prm)
   {
     DBUG_ASSERT(idx < param_spcont->context_var_count());
-    sp_variable *spvar= param_spcont->find_context_variable(idx);
+    sp_variable *spvar= param_spcont->get_context_variable(idx);
     /*
       add_instr() gets free_list from m_thd->free_list.
       Initialize it before the set_local_variable() call.

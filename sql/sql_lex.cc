@@ -5211,10 +5211,7 @@ bool LEX::init_default_internal_variable(struct sys_var_with_base *variable,
 
 void LEX::sp_variable_declarations_init(THD *thd, int nvars)
 {
-  // get the last variable:
-  uint num_vars= spcont->context_var_count();
-  uint var_idx= spcont->var_context2runtime(num_vars - 1);
-  sp_variable *spvar= spcont->find_variable(var_idx);
+  sp_variable *spvar= spcont->get_last_context_variable();
 
   sphead->reset_lex(thd);
   spcont->declare_var_boundary(nvars);
@@ -5227,8 +5224,6 @@ bool LEX::sp_variable_declarations_finalize(THD *thd, int nvars,
                                             Row_definition_list *row,
                                             Item *dflt_value_item)
 {
-  uint num_vars= spcont->context_var_count();
-
   if (!dflt_value_item &&
       !(dflt_value_item= new (thd->mem_root) Item_null(thd)))
     return true;
@@ -5248,11 +5243,10 @@ bool LEX::sp_variable_declarations_finalize(THD *thd, int nvars,
   if (row && sphead->row_fill_field_definitions(thd, row))
     return true;
 
-  for (uint i= num_vars - nvars ; i < num_vars ; i++)
+  for (uint i= 0 ; i < (uint) nvars ; i++)
   {
-    uint var_idx= spcont->var_context2runtime(i);
-    sp_variable *spvar= spcont->find_variable(var_idx);
-    bool last= i == num_vars - 1;
+    sp_variable *spvar= spcont->get_last_context_variable((uint) nvars - 1 - i);
+    bool last= i + 1 == (uint) nvars;
 
     if (!spvar)
       return true;
@@ -5271,7 +5265,7 @@ bool LEX::sp_variable_declarations_finalize(THD *thd, int nvars,
     /* The last instruction is responsible for freeing LEX. */
     sp_instr_set *is= new (this->thd->mem_root)
                       sp_instr_set(sphead->instructions(),
-                                   spcont, var_idx, dflt_value_item,
+                                   spcont, spvar->offset, dflt_value_item,
                                    this, last);
     if (is == NULL || sphead->add_instr(is))
       return true;
@@ -5299,17 +5293,15 @@ LEX::sp_variable_declarations_rowtype_finalize(THD *thd, int nvars,
   uint coffp;
   const sp_pcursor *pcursor= ref->table.str && ref->db.str ? NULL :
                              spcont->find_cursor(ref->m_column, &coffp, false);
-  uint num_vars= spcont->context_var_count();
 
   if (!def && !(def= new (thd->mem_root) Item_null(thd)))
     return true;
 
   // Loop through all variables in the same declaration
-  for (uint i= num_vars - nvars; i < num_vars; i++)
+  for (uint i= 0 ; i < (uint) nvars; i++)
   {
-    bool last= i == num_vars - 1;
-    uint var_idx= spcont->var_context2runtime(i);
-    sp_variable *spvar= spcont->find_context_variable(i);
+    bool last= i + 1 == (uint) nvars;
+    sp_variable *spvar= spcont->get_last_context_variable((uint) nvars - 1 - i);
 
     if (pcursor)
     {
@@ -5347,7 +5339,7 @@ LEX::sp_variable_declarations_rowtype_finalize(THD *thd, int nvars,
     /* The last instruction is responsible for freeing LEX. */
     sp_instr_set *is= new (this->thd->mem_root)
                       sp_instr_set(sphead->instructions(),
-                                   spcont, var_idx, def,
+                                   spcont, spvar->offset, def,
                                    this, last);
     if (is == NULL || sphead->add_instr(is))
       return true;
@@ -5364,10 +5356,9 @@ LEX::sp_variable_declarations_with_ref_finalize(THD *thd, int nvars,
                                                 Qualified_column_ident *ref,
                                                 Item *def)
 {
-  uint num_vars= spcont->context_var_count();
-  for (uint i= num_vars - nvars; i < num_vars; i++)
+  for (uint i= 0 ; i < (uint) nvars; i++)
   {
-    sp_variable *spvar= spcont->find_context_variable(i);
+    sp_variable *spvar= spcont->get_last_context_variable((uint) nvars - 1 - i);
     spvar->field_def.set_column_type_ref(ref);
     spvar->field_def.field_name= spvar->name.str;
   }
