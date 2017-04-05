@@ -71,8 +71,23 @@ TXTFAM::TXTFAM(PDOSDEF tdp)
   {
   Tdbp = NULL;
   To_Fb = NULL;
-  To_File = tdp->Fn;
-  Lrecl = tdp->Lrecl;
+
+	if (tdp) {
+		To_File = tdp->Fn;
+		Lrecl = tdp->Lrecl;
+		Eof = tdp->Eof;
+		Ending = tdp->Ending;
+	} else {
+		To_File = NULL;
+		Lrecl = 0;
+		Eof = false;
+#if defined(__WIN__)
+		Ending = 2;
+#else
+		Ending = 1;
+#endif
+	}	// endif tdp
+
   Placed = false;
   IsRead = true;
   Blocked = false;
@@ -103,8 +118,6 @@ TXTFAM::TXTFAM(PDOSDEF tdp)
   Blksize = 0;
   Fpos = Spos = Tpos = 0;
   Padded = false;
-  Eof = tdp->Eof;
-  Ending = tdp->Ending;
   Abort = false;
   CrLf = (char*)(Ending == 1 ? "\n" : "\r\n");
   } // end of TXTFAM standard constructor

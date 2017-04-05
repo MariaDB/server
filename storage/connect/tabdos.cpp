@@ -2358,7 +2358,7 @@ DOSCOL::DOSCOL(PGLOBAL g, PCOLDEF cdp, PTDB tp, PCOL cp, int i, PSZ am)
   Dval = NULL;
   Buf = NULL;
 
-  if (txfp->Blocked && Opt && (cdp->GetMin() || cdp->GetDval())) {
+  if (txfp && txfp->Blocked && Opt && (cdp->GetMin() || cdp->GetDval())) {
     int nblk = txfp->GetBlock();
 
     Clustered = (cdp->GetXdb2()) ? 2 : 1;

@@ -1,7 +1,7 @@
 /*************** tabjson H Declares Source Code File (.H) **************/
-/*  Name: tabjson.h   Version 1.1                                      */
+/*  Name: tabjson.h   Version 1.2                                      */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          2014 - 2015  */
+/*  (C) Copyright to the author Olivier BERTRAND          2014 - 2017  */
 /*                                                                     */
 /*  This file contains the JSON classes declares.                      */
 /***********************************************************************/
@@ -32,7 +32,7 @@ typedef struct _jnode {
 /***********************************************************************/
 /*  JSON table.                                                        */
 /***********************************************************************/
-class JSONDEF : public DOSDEF {                   /* Table description */
+class DllExport JSONDEF : public DOSDEF {         /* Table description */
   friend class TDBJSON;
   friend class TDBJSN;
   friend class TDBJCL;
@@ -66,7 +66,7 @@ class JSONDEF : public DOSDEF {                   /* Table description */
 /*  This is the JSN Access Method class declaration.                   */
 /*  The table is a DOS file, each record being a JSON object.          */
 /***********************************************************************/
-class TDBJSN : public TDBDOS {
+class DllExport TDBJSN : public TDBDOS {
   friend class JSONCOL;
 	friend class JSONDEF;
 public:
@@ -127,7 +127,7 @@ public:
 /***********************************************************************/
 /*  Class JSONCOL: JSON access method column descriptor.               */
 /***********************************************************************/
-class JSONCOL : public DOSCOL {
+class DllExport JSONCOL : public DOSCOL {
   friend class TDBJSN;
   friend class TDBJSON;
  public:
@@ -174,7 +174,7 @@ class JSONCOL : public DOSCOL {
 /***********************************************************************/
 /*  This is the JSON Access Method class declaration.                  */
 /***********************************************************************/
-class TDBJSON : public TDBJSN {
+class DllExport TDBJSON : public TDBJSN {
 	friend class JSONDEF;
 	friend class JSONCOL;
  public:
@@ -221,7 +221,7 @@ class TDBJSON : public TDBJSN {
 /***********************************************************************/
 /*  This is the class declaration for the JSON catalog table.          */
 /***********************************************************************/
-class TDBJCL : public TDBCAT {
+class DllExport TDBJCL : public TDBCAT {
  public:
   // Constructor
   TDBJCL(PJDEF tdp);

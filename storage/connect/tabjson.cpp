@@ -441,7 +441,7 @@ PTDB JSONDEF::GetTable(PGLOBAL g, MODE m)
 
 		if (Zipped) {
 #if defined(ZIP_SUPPORT)
-			if (m == MODE_READ || m == MODE_UPDATE) {
+			if (m == MODE_READ || m == MODE_READX) {
 				txfp = new(g) UNZFAM(this);
 			} else if (m == MODE_INSERT) {
 				txfp = new(g) ZIPFAM(this);
@@ -486,7 +486,7 @@ PTDB JSONDEF::GetTable(PGLOBAL g, MODE m)
 	} else {
 		if (Zipped)	{
 #if defined(ZIP_SUPPORT)
-			if (m == MODE_READ || m == MODE_UPDATE) {
+			if (m == MODE_READ || m == MODE_READX) {
 				txfp = new(g) UNZFAM(this);
 			} else if (m == MODE_INSERT) {
 				strcpy(g->Message, "INSERT supported only for zipped JSON when pretty=0");
