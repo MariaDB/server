@@ -1,0 +1,7 @@
+SET @start_global_value = @@global.ROCKSDB_USE_ADAPTIVE_MUTEX;
+SELECT @start_global_value;
+@start_global_value
+0
+"Trying to set variable @@global.ROCKSDB_USE_ADAPTIVE_MUTEX to 444. It should fail because it is readonly."
+SET @@global.ROCKSDB_USE_ADAPTIVE_MUTEX   = 444;
+ERROR HY000: Variable 'rocksdb_use_adaptive_mutex' is a read only variable

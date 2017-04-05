@@ -1,0 +1,74 @@
+--source include/have_rocksdb.inc
+
+--disable_warnings
+DROP TABLE IF EXISTS t1;
+DROP TABLE IF EXISTS t2;
+DROP TABLE IF EXISTS t3;
+--enable_warnings
+
+# table with index in default CF
+create table t1(
+       id bigint not null primary key auto_increment,
+       a varchar(255) not null,
+       b bigint,
+       index t1_1(b)
+) engine=rocksdb;
+
+# a table with index in a different CF
+create table t2(
+       id bigint not null primary key auto_increment,
+       a varchar(255) not null,
+       b bigint,
+       index t2_1(b) comment 'cf_t3'
+) engine=rocksdb;
+
+# a table wint index in a reverse CF
+create table t3(
+       id bigint not null primary key auto_increment,
+       a varchar(255) not null,
+       b bigint,
+       index t3_1(b) comment 'rev:cf_t4'
+) engine=rocksdb;
+
+--disable_query_log
+let $i=0;
+while ($i<100000)
+{
+  inc $i;
+  eval insert t1(a,b) values(concat('a',$i,'b',$i,'c',$i), $i);
+  if ($i<5000)
+  {
+    eval insert t2(a,b) values(concat('a',$i,'b',$i,'c',$i), $i);
+    eval insert t3(a,b) values(concat('a',$i,'b',$i,'c',$i), $i);
+  }
+}
+--enable_query_log
+
+# should have some statistics before the memtable flush 
+SELECT table_name, table_rows FROM information_schema.tables WHERE table_schema = DATABASE() and table_name <> 't1';
+
+# due to inconsistencies in when the memtable is flushed, just verify t1 has fewer
+# than the expected number of rows.
+SELECT CASE WHEN table_rows < 100000 then 'true' else 'false' end from information_schema.tables where table_name = 't1';
+
+# flush and get even better statistics
+set global rocksdb_force_flush_memtable_now = true;
+SELECT table_name, table_rows FROM information_schema.tables WHERE table_schema = DATABASE();
+SELECT table_name, data_length>0, index_length>0 FROM information_schema.tables WHERE table_schema = DATABASE();
+
+# restart the server, check the stats
+--source include/restart_mysqld.inc
+
+# give the server a chance to load in statistics
+--sleep 5
+
+SELECT table_name, table_rows FROM information_schema.tables WHERE table_schema = DATABASE();
+SELECT table_name, data_length>0, index_length>0 FROM information_schema.tables WHERE table_schema = DATABASE();
+
+analyze table t1,t2,t3,t4,t5;
+
+# make sure that stats do not change after calling analyze table
+SELECT table_name, table_rows FROM information_schema.tables WHERE table_schema = DATABASE();
+SELECT table_name, data_length>0, index_length>0 FROM information_schema.tables WHERE table_schema = DATABASE();
+
+drop table t1, t2, t3;

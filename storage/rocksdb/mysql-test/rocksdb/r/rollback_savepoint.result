@@ -1,0 +1,29 @@
+DROP TABLE IF EXISTS t1, t2;
+CREATE TABLE t1 (a INT, b CHAR(8), pk INT AUTO_INCREMENT PRIMARY KEY) ENGINE=rocksdb;
+INSERT INTO t1 (a,b) VALUES (1,'a'),(2,'b'),(3,'a');
+CREATE TABLE t2 LIKE t1;
+INSERT INTO t2 SELECT * FROM t1;
+connect  con1,localhost,root,,;
+connect  con2,localhost,root,,;
+connection con1;
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+SAVEPOINT a;
+SELECT * FROM t1 ORDER BY pk;
+a	b	pk
+1	a	1
+2	b	2
+3	a	3
+ROLLBACK TO SAVEPOINT a;
+SAVEPOINT a;
+SELECT * FROM t2 ORDER BY pk;
+a	b	pk
+1	a	1
+2	b	2
+3	a	3
+ROLLBACK TO SAVEPOINT a;
+connection con2;
+ALTER TABLE t1 RENAME TO t3;
+connection default;
+DROP TABLE t2, t3;
+disconnect con1;
+disconnect con2;

@@ -735,27 +735,28 @@ MY_ATTRIBUTE((warn_unused_result));
 Used by background threads that do not necessarily hold proper locks
 for concurrency control.
 @param[in]	id	tablespace ID
-@return the tablespace, or NULL if missing or being deleted */
+@param[in]	for_io	whether to look up the tablespace while performing I/O
+			(possibly executing TRUNCATE)
+@return	the tablespace
+@retval	NULL if missing or being deleted or truncated */
 fil_space_t*
-fil_space_acquire(
-	ulint	id)
+fil_space_acquire(ulint id, bool for_io = false)
 	MY_ATTRIBUTE((warn_unused_result));
 
 /** Acquire a tablespace that may not exist.
 Used by background threads that do not necessarily hold proper locks
 for concurrency control.
 @param[in]	id	tablespace ID
-@return the tablespace, or NULL if missing or being deleted */
+@return	the tablespace
+@retval	NULL if missing or being deleted */
 fil_space_t*
-fil_space_acquire_silent(
-	ulint	id)
+fil_space_acquire_silent(ulint id)
 	MY_ATTRIBUTE((warn_unused_result));
 
 /** Release a tablespace acquired with fil_space_acquire().
 @param[in,out]	space	tablespace to release  */
 void
-fil_space_release(
-	fil_space_t*	space);
+fil_space_release(fil_space_t* space);
 
 /** Return the next fil_space_t.
 Once started, the caller must keep calling this until it returns NULL.
@@ -792,17 +793,19 @@ public:
 	FilSpace() : m_space(NULL) {}
 
 	/** Constructor: Look up the tablespace and increment the
-	referece count if found.
-	@param[in]	space_id	tablespace ID */
-	explicit FilSpace(ulint space_id)
-		: m_space(fil_space_acquire(space_id)) {}
+	reference count if found.
+	@param[in]	space_id	tablespace ID
+	@param[in]	for_io		whether to look up the tablespace
+					while performing I/O
+					(possibly executing TRUNCATE) */
+	explicit FilSpace(ulint space_id, bool for_io = false)
+		: m_space(fil_space_acquire(space_id, for_io)) {}
 
 	/** Assignment operator: This assumes that fil_space_acquire()
 	has already been done for the fil_space_t. The caller must
 	assign NULL if it calls fil_space_release().
 	@param[in]	space	tablespace to assign */
-	class FilSpace& operator=(
-		fil_space_t*	space)
+	class FilSpace& operator=(fil_space_t* space)
 	{
 		/* fil_space_acquire() must have been invoked. */
 		ut_ad(space == NULL || space->n_pending_ops > 0);

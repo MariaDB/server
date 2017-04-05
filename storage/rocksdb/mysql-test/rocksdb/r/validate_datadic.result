@@ -1,0 +1,8 @@
+call mtr.add_suppression('RocksDB: Schema mismatch');
+CREATE TABLE t1 (pk int primary key) ENGINE=ROCKSDB;
+CREATE TABLE t2 (pk int primary key) ENGINE=ROCKSDB PARTITION BY KEY(pk) PARTITIONS 4;
+"Expect errors that we are missing two .frm files"
+FOUND 2 /Schema mismatch/ in mysqld.1.err
+"Expect an error that we have an extra .frm file"
+FOUND 3 /Schema mismatch/ in mysqld.1.err
+DROP TABLE t1, t2;

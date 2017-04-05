@@ -1,0 +1,202 @@
+DROP TABLE IF EXISTS t1, t2;
+CREATE TABLE t1 (a INT, b CHAR(8), pk INT AUTO_INCREMENT PRIMARY KEY) ENGINE=rocksdb;
+INSERT INTO t1 VALUES (100,'foobar',100),(1,'a',101),(2,'b',103),(3,'c',104),(4,'d',105),(5,'e',106);
+SELECT a,b FROM t1;
+a	b
+1	a
+100	foobar
+2	b
+3	c
+4	d
+5	e
+INSERT t1 VALUE (10,'foo',107),(11,'abc',108);
+SELECT a,b FROM t1;
+a	b
+1	a
+10	foo
+100	foobar
+11	abc
+2	b
+3	c
+4	d
+5	e
+INSERT INTO t1 (b,a) VALUES ('test',0);
+SELECT a,b FROM t1;
+a	b
+0	test
+1	a
+10	foo
+100	foobar
+11	abc
+2	b
+3	c
+4	d
+5	e
+INSERT INTO t1 VALUES (DEFAULT,DEFAULT,NULL);
+SELECT a,b FROM t1;
+a	b
+0	test
+1	a
+10	foo
+100	foobar
+11	abc
+2	b
+3	c
+4	d
+5	e
+NULL	NULL
+INSERT t1 (a) VALUE (10),(20);
+SELECT a,b FROM t1;
+a	b
+0	test
+1	a
+10	NULL
+10	foo
+100	foobar
+11	abc
+2	b
+20	NULL
+3	c
+4	d
+5	e
+NULL	NULL
+INSERT INTO t1 SET a = 11, b = 'f';
+SELECT a,b FROM t1;
+a	b
+0	test
+1	a
+10	NULL
+10	foo
+100	foobar
+11	abc
+11	f
+2	b
+20	NULL
+3	c
+4	d
+5	e
+NULL	NULL
+INSERT t1 SET b = DEFAULT;
+SELECT a,b FROM t1;
+a	b
+0	test
+1	a
+10	NULL
+10	foo
+100	foobar
+11	abc
+11	f
+2	b
+20	NULL
+3	c
+4	d
+5	e
+NULL	NULL
+NULL	NULL
+CREATE TABLE t2 (a INT, b CHAR(8), pk INT AUTO_INCREMENT PRIMARY KEY) ENGINE=rocksdb;
+INSERT INTO t2 SELECT a,b,pk FROM t1;
+INSERT INTO t1 (a) SELECT a FROM t2 WHERE b = 'foo';
+SELECT a,b FROM t1;
+a	b
+0	test
+1	a
+10	NULL
+10	NULL
+10	foo
+100	foobar
+11	abc
+11	f
+2	b
+20	NULL
+3	c
+4	d
+5	e
+NULL	NULL
+NULL	NULL
+INSERT t1 (a,b) SELECT a,b FROM t1;
+SELECT a,b FROM t1;
+a	b
+0	test
+0	test
+1	a
+1	a
+10	NULL
+10	NULL
+10	NULL
+10	NULL
+10	foo
+10	foo
+100	foobar
+100	foobar
+11	abc
+11	abc
+11	f
+11	f
+2	b
+2	b
+20	NULL
+20	NULL
+3	c
+3	c
+4	d
+4	d
+5	e
+5	e
+NULL	NULL
+NULL	NULL
+NULL	NULL
+NULL	NULL
+DROP TABLE t1, t2;
+CREATE TABLE t1 (a INT, b CHAR(8), pk INT AUTO_INCREMENT PRIMARY KEY) ENGINE=rocksdb;
+BEGIN;
+INSERT INTO t1 (a,b) VALUES (1,'a'),(2,'b'),(3,'c'),(4,'d'),(5,'e'),(100,'foo');
+INSERT t1 (a,b) VALUE (10,'foo'),(11,'abc');
+COMMIT;
+SELECT a,b FROM t1;
+a	b
+1	a
+10	foo
+100	foo
+11	abc
+2	b
+3	c
+4	d
+5	e
+BEGIN;
+INSERT INTO t1 (b,a) VALUES ('test',0);
+SAVEPOINT spt1;
+INSERT INTO t1 (a,b) VALUES (DEFAULT,DEFAULT);
+RELEASE SAVEPOINT spt1;
+INSERT INTO t1 (a,b) VALUES (DEFAULT,DEFAULT);
+ROLLBACK;
+SELECT a,b FROM t1;
+a	b
+1	a
+10	foo
+100	foo
+11	abc
+2	b
+3	c
+4	d
+5	e
+BEGIN;
+INSERT t1 (a) VALUE (10),(20);
+SAVEPOINT spt1;
+INSERT INTO t1 SET a = 11, b = 'f';
+INSERT t1 SET b = DEFAULT;
+ROLLBACK TO SAVEPOINT spt1;
+ERROR HY000: MyRocks currently does not support ROLLBACK TO SAVEPOINT if modifying rows.
+INSERT INTO t1 (b,a) VALUES ('test1',10);
+COMMIT;
+ERROR HY000: This transaction was rolled back and cannot be committed. Only supported operation is to roll it back, so all pending changes will be discarded. Please restart another transaction.
+SELECT a,b FROM t1;
+a	b
+1	a
+10	foo
+100	foo
+11	abc
+2	b
+3	c
+4	d
+5	e
+DROP TABLE t1;

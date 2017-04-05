@@ -1,0 +1,14 @@
+--source include/have_rocksdb.inc
+
+let $no_zstd=`select @@rocksdb_supported_compression_types NOT LIKE '%ZSTD%'`;
+
+if ($no_zstd)
+{
+  -- Skip Requires RocksDB to be built with ZStandard Compression support
+}
+
+--let $restart_parameters=--rocksdb_default_cf_options=compression_per_level=kZSTDNotFinalCompression;compression_opts=-14:4:0;
+--source include/restart_mysqld.inc
+
+create table t (id int primary key) engine=rocksdb;
+drop table t;

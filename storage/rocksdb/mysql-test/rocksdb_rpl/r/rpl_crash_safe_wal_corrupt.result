@@ -1,0 +1,135 @@
+include/master-slave.inc
+Warnings:
+Note	####	Sending passwords in plain text without SSL/TLS is extremely insecure.
+Note	####	Storing MySQL user name or password information in the master info repository is not secure and is therefore not recommended. Please consider using the USER and PASSWORD connection options for START SLAVE; see the 'START SLAVE Syntax' in the MySQL Manual for more information.
+[connection master]
+drop table if exists x;
+select @@binlog_format;
+@@binlog_format
+ROW
+create table x (id int primary key, value int, value2 int, index(value)) engine=rocksdb;
+insert into x values (1,1,1);
+insert into x values (2,1,1);
+insert into x values (3,1,1);
+insert into x values (4,1,1);
+insert into x values (5,1,1);
+select @@global.gtid_executed;
+@@global.gtid_executed
+
+
+--- slave state before crash ---
+select * from x;
+id	value	value2
+1	1	1
+2	1	1
+3	1	1
+4	1	1
+5	1	1
+select @@global.gtid_executed;
+@@global.gtid_executed
+
+select * from mysql.slave_gtid_info;
+Id	Database_name	Last_gtid
+include/rpl_start_server.inc [server_number=2]
+
+--- slave state after crash recovery, slave stop, one transaction recovered---
+select * from x;
+id	value	value2
+1	1	1
+2	1	1
+3	1	1
+4	1	1
+select @@global.gtid_executed;
+@@global.gtid_executed
+
+select * from mysql.slave_gtid_info;
+Id	Database_name	Last_gtid
+
+--- slave state after restart, slave start ---
+include/start_slave.inc
+select * from x;
+id	value	value2
+1	1	1
+2	1	1
+3	1	1
+4	1	1
+5	1	1
+select @@global.gtid_executed;
+@@global.gtid_executed
+
+select * from mysql.slave_gtid_info;
+Id	Database_name	Last_gtid
+insert into x values (6,1,1);
+select * from x;
+id	value	value2
+1	1	1
+2	1	1
+3	1	1
+4	1	1
+5	1	1
+6	1	1
+select @@global.gtid_executed;
+@@global.gtid_executed
+
+select * from mysql.slave_gtid_info;
+Id	Database_name	Last_gtid
+insert into x values (7,1,1);
+insert into x values (8,1,1);
+insert into x values (9,1,1);
+insert into x values (10,1,1);
+insert into x values (11,1,1);
+insert into x values (12,1,1);
+select * from x;
+id	value	value2
+1	1	1
+2	1	1
+3	1	1
+4	1	1
+5	1	1
+6	1	1
+7	1	1
+8	1	1
+9	1	1
+10	1	1
+11	1	1
+12	1	1
+select @@global.gtid_executed;
+@@global.gtid_executed
+
+include/rpl_start_server.inc [server_number=2]
+
+--- slave state after crash recovery, slave stop, WAL was corrupted, point in time recovery with wal_recovery_mode=2 ---
+select * from x;
+id	value	value2
+1	1	1
+2	1	1
+3	1	1
+4	1	1
+5	1	1
+6	1	1
+7	1	1
+8	1	1
+9	1	1
+include/start_slave.inc
+select * from x;
+id	value	value2
+1	1	1
+2	1	1
+3	1	1
+4	1	1
+5	1	1
+6	1	1
+7	1	1
+8	1	1
+9	1	1
+10	1	1
+11	1	1
+12	1	1
+select @@global.gtid_executed;
+@@global.gtid_executed
+
+select * from mysql.slave_gtid_info;
+Id	Database_name	Last_gtid
+drop table x;
+include/rpl_end.inc
+Binlog Info Found

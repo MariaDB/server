@@ -251,7 +251,8 @@ set global innodb_flush_log_at_trx_commit=1;
 INSERT INTO t9 VALUES(100000000200);
 DELETE FROM t9 WHERE a = 100000000200;
 
---source include/kill_and_restart_mysqld.inc
+--let $shutdown_timeout=0
+--source include/restart_mysqld.inc
 
 INSERT INTO t1 VALUES(0);
 SELECT a AS `Expect 126` FROM t1 ORDER BY a DESC LIMIT 1;
@@ -306,7 +307,7 @@ RENAME TABLE t9 to t19;
 INSERT INTO t19 VALUES(0), (0);
 SELECT * FROM t19;
 
---source include/kill_and_restart_mysqld.inc
+--source include/restart_mysqld.inc
 
 INSERT INTO t1 VALUES(0), (0);
 SELECT * FROM t1;
@@ -400,7 +401,7 @@ while ($i) {
 --enable_query_log
 ROLLBACK;
 
---source include/kill_and_restart_mysqld.inc
+--source include/restart_mysqld.inc
 
 INSERT INTO t3 VALUES(0);
 SELECT MAX(a) AS `Expect 120` FROM t3;
@@ -494,7 +495,7 @@ UPDATE t33 SET a = 10 WHERE a = 1;
 INSERT INTO t33 VALUES(2, NULL);
 COMMIT;
 
---source include/kill_and_restart_mysqld.inc
+--source include/restart_mysqld.inc
 
 --echo # This will not insert 0
 INSERT INTO t31(a) VALUES(6), (0);

@@ -4709,6 +4709,8 @@ static uint get_semi_join_select_list_index(Field *field)
     @param num_values      Number of values[] that we are comparing against
     @param usable_tables   Tables which can be used for key optimization
     @param sargables       IN/OUT Array of found sargable candidates
+    @param row_col_no      if = n that > 0 then field is compared only
+                           against the n-th component of row values
 
   @note
     If we are doing a NOT NULL comparison on a NOT NULL field in a outer join
@@ -4722,7 +4724,8 @@ static void
 add_key_field(JOIN *join,
               KEY_FIELD **key_fields,uint and_level, Item_bool_func *cond,
               Field *field, bool eq_func, Item **value, uint num_values,
-              table_map usable_tables, SARGABLE_PARAM **sargables)
+              table_map usable_tables, SARGABLE_PARAM **sargables,
+              uint row_col_no= 0)
 {
   uint optimize= 0;  
   if (eq_func &&
@@ -4751,7 +4754,15 @@ add_key_field(JOIN *join,
     bool optimizable=0;
     for (uint i=0; i<num_values; i++)
     {
-      table_map value_used_tables= (value[i])->used_tables();
+      Item *curr_val; 
+      if (row_col_no && value[i]->real_item()->type() == Item::ROW_ITEM)
+      {
+        Item_row *value_tuple= (Item_row *) (value[i]->real_item());
+        curr_val= value_tuple->element_index(row_col_no - 1);
+      }
+      else
+        curr_val= value[i];
+      table_map value_used_tables= curr_val->used_tables();
       used_tables|= value_used_tables;
       if (!(value_used_tables & (field->table->map | RAND_TABLE_BIT)))
         optimizable=1;
@@ -4789,7 +4800,15 @@ add_key_field(JOIN *join,
       bool is_const=1;
       for (uint i=0; i<num_values; i++)
       {
-        if (!(is_const&= value[i]->const_item()))
+        Item *curr_val;
+        if (row_col_no && value[i]->real_item()->type() == Item::ROW_ITEM)
+	{
+          Item_row *value_tuple= (Item_row *) (value[i]->real_item());
+          curr_val= value_tuple->element_index(row_col_no - 1);
+        }
+        else
+          curr_val= value[i];
+        if (!(is_const&= curr_val->const_item()))
           break;
       }
       if (is_const)
@@ -4856,12 +4875,14 @@ add_key_field(JOIN *join,
     @param  key_fields     Pointer to add key, if usable
     @param  and_level      And level, to be stored in KEY_FIELD
     @param  cond           Condition predicate
-    @param  field          Field used in comparision
+    @param  field_item     Field item used for comparison
     @param  eq_func        True if we used =, <=> or IS NULL
-    @param  value          Value used for comparison with field
-                           Is NULL for BETWEEN and IN    
+    @param  value          Value used for comparison with field_item
+    @param   num_values    Number of values[] that we are comparing against 
     @param  usable_tables  Tables which can be used for key optimization
     @param  sargables      IN/OUT Array of found sargable candidates
+    @param row_col_no      if = n that > 0 then field is compared only
+                           against the n-th component of row values    
 
   @note
     If field items f1 and f2 belong to the same multiple equality and
@@ -4876,11 +4897,12 @@ add_key_equal_fields(JOIN *join, KEY_FIELD **key_fields, uint and_level,
                      Item_bool_func *cond, Item *field_item,
                      bool eq_func, Item **val,
                      uint num_values, table_map usable_tables,
-                     SARGABLE_PARAM **sargables)
+                     SARGABLE_PARAM **sargables, uint row_col_no= 0)
 {
   Field *field= ((Item_field *) (field_item->real_item()))->field;
   add_key_field(join, key_fields, and_level, cond, field,
-                eq_func, val, num_values, usable_tables, sargables);
+                eq_func, val, num_values, usable_tables, sargables,
+                row_col_no);
   Item_equal *item_equal= field_item->get_item_equal();
   if (item_equal)
   { 
@@ -4896,7 +4918,7 @@ add_key_equal_fields(JOIN *join, KEY_FIELD **key_fields, uint and_level,
       {
         add_key_field(join, key_fields, and_level, cond, equal_field,
                       eq_func, val, num_values, usable_tables,
-                      sargables);
+                      sargables, row_col_no);
       }
     }
   }
@@ -5078,6 +5100,24 @@ Item_func_in::add_key_fields(JOIN *join, KEY_FIELD **key_fields,
                          (Item_field*) (args[0]->real_item()), false,
                          args + 1, arg_count - 1, usable_tables, sargables);
   }
+  else if (key_item()->type() == Item::ROW_ITEM &&
+           !(used_tables() & OUTER_REF_TABLE_BIT))
+  {
+    Item_row *key_row= (Item_row *) key_item();
+    Item **key_col= key_row->addr(0);
+    uint row_cols= key_row->cols();
+    for (uint i= 0; i < row_cols; i++, key_col++)
+    {
+      if (is_local_field(*key_col))
+      {
+        Item_field *field_item= (Item_field *)((*key_col)->real_item());
+        add_key_equal_fields(join, key_fields, *and_level, this,
+                             field_item, false, args + 1, arg_count - 1,
+                             usable_tables, sargables, i + 1);
+      } 
+    }
+  }
+  
 }
 
 
@@ -20590,7 +20630,7 @@ static int test_if_order_by_key(JOIN *join,
   key_parts= (uint) (key_part - table->key_info[idx].key_part);
 
   if (reverse == -1 && 
-      !(table->file->index_flags(idx, user_defined_kp, 1) & HA_READ_PREV))
+      !(table->file->index_flags(idx, user_defined_kp-1, 1) & HA_READ_PREV))
     reverse= 0;                               // Index can't be used
   
   if (have_pk_suffix && reverse == -1)

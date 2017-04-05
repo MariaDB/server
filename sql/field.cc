@@ -8203,7 +8203,7 @@ void Field_blob::sort_string(uchar *to,uint length)
   uchar *blob;
   uint blob_length=get_length();
 
-  if (!blob_length)
+  if (!blob_length && field_charset->pad_char == 0)
     bzero(to,length);
   else
   {

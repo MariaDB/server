@@ -6,7 +6,6 @@ UPDATE t1 set a=2;
 XA END 'x';
 XA PREPARE 'x';
 connection default;
-# Kill and restart
 disconnect con1;
 connect  con1,localhost,root;
 SELECT * FROM t1 LOCK IN SHARE MODE;

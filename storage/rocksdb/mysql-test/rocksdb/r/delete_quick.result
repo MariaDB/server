@@ -1,0 +1,24 @@
+DROP TABLE IF EXISTS t1,t2;
+CREATE TABLE t1 (a INT, b CHAR(8), PRIMARY KEY (a)) ENGINE=rocksdb;
+INSERT INTO t1 (a,b) VALUES (1,'a'),(2,'b'),(3,'c'),(4,'d'),(5,'e');
+DELETE QUICK FROM t1 WHERE a = 1 OR b > 'foo';
+SELECT a,b FROM t1;
+a	b
+2	b
+3	c
+4	d
+5	e
+CREATE TABLE t2 (c CHAR(8), d INT, PRIMARY KEY (c)) ENGINE=rocksdb;
+INSERT INTO t2 (c,d) SELECT b, a FROM t1;
+SELECT c,d FROM t2;
+c	d
+b	2
+c	3
+d	4
+e	5
+DELETE QUICK FROM t2, t1.* USING t2, t1 WHERE c IS NULL OR a = d;
+SELECT a,b FROM t1;
+a	b
+SELECT c,d FROM t2;
+c	d
+DROP TABLE t1, t2;

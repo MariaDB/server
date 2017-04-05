@@ -1,0 +1,52 @@
+--source include/have_rocksdb.inc
+
+# 
+# Basic HANDLER counts
+#
+
+--disable_warnings
+DROP TABLE IF EXISTS t1;
+--enable_warnings
+
+FLUSH STATUS;
+CREATE TABLE t1 (id INT PRIMARY KEY, a VARCHAR(100), b INT,
+INDEX b(b)) ENGINE=rocksdb;
+INSERT INTO t1 (id,a,b) VALUES (1,'foobar',100),(2,'z',0),(3,'bar',50);
+SHOW SESSION STATUS LIKE 'Handler_write%';
+
+UPDATE t1 SET b=1000 WHERE id=1;
+SHOW SESSION STATUS LIKE 'Handler_update%';
+
+DELETE FROM t1 WHERE id=2;
+SHOW SESSION STATUS LIKE 'Handler_delete%';
+
+INSERT INTO t1 (id,b) VALUES(4,4),(5,5),(6,6),(7,7),(8,8),(9,9),(10,10);
+SHOW SESSION STATUS LIKE 'Handler_write%';
+
+FLUSH STATUS;
+SELECT * FROM t1 WHERE id=8;
+SHOW SESSION STATUS LIKE 'Handler_read%';
+
+FLUSH STATUS;
+SELECT * FROM t1 WHERE b=6;
+SHOW SESSION STATUS LIKE 'Handler_read%';
+
+FLUSH STATUS;
+--sorted_result
+SELECT * FROM t1;
+SHOW SESSION STATUS LIKE 'Handler_read%';
+
+FLUSH STATUS;
+SELECT * FROM t1 FORCE INDEX(b) WHERE b <=5 ORDER BY b;
+SHOW SESSION STATUS LIKE 'Handler_read%';
+
+FLUSH STATUS;
+SELECT * FROM t1 WHERE id >=8 ORDER BY id;
+SHOW SESSION STATUS LIKE 'Handler_read%';
+
+FLUSH STATUS;
+SELECT * FROM t1 WHERE id < 8 ORDER BY id;
+SHOW SESSION STATUS LIKE 'Handler_read%';
+
+# Cleanup
+DROP TABLE t1;

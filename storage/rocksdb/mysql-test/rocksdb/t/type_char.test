@@ -1,0 +1,19 @@
+--source include/have_rocksdb.inc
+
+#
+# CHAR column types
+#
+
+--source type_char.inc
+
+# Issue #226
+CREATE TABLE t1(c1 CHAR(0) NOT NULL);
+INSERT INTO t1 VALUES('a');
+SELECT * FROM t1;
+DROP TABLE t1;
+
+# Issue #259
+CREATE TABLE t1(a char(10) character set utf8 collate utf8_bin primary key);
+INSERT INTO t1 VALUES ('one'),('two'),('three'),('four'),('five');
+(SELECT * FROM t1 LIMIT 1) UNION (SELECT * FROM t1);
+DROP TABLE t1;

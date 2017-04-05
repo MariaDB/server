@@ -16,10 +16,13 @@ IF(NOT MFC_FOUND)
   ENDIF()
   RETURN()
 ENDIF()
-
-# MFC should be statically linked
-SET(CMAKE_MFC_FLAG 1)
-
+IF(MSVC_CRT_TYPE MATCHES "/MD")
+  # MFC should be dynamically linked
+  SET(CMAKE_MFC_FLAG 2)
+ELSE()
+  # MFC should be statically linked
+  SET(CMAKE_MFC_FLAG 1)
+ENDIF()
 # Enable exception handling (avoids warnings)
 SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /EHsc")
 

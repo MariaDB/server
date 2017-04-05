@@ -1,0 +1,40 @@
+DROP TABLE IF EXISTS t1;
+connect  con1,localhost,root,,;
+connect  con2,localhost,root,,;
+connection con1;
+CREATE TABLE t (id1 int, id2 int, id3 int, value int, PRIMARY KEY (id1, id2, id3)) ENGINE=RocksDB;
+SET SESSION TRANSACTION ISOLATION LEVEL REPEATABLE READ;
+BEGIN;
+SELECT * FROM t WHERE id1=1 AND id2=1 AND id3=1 FOR UPDATE;
+id1	id2	id3	value
+connection con2;
+SET SESSION TRANSACTION ISOLATION LEVEL REPEATABLE READ;
+BEGIN;
+SELECT * FROM t WHERE id1=1 AND id2=1 AND id3=1 FOR UPDATE;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+SELECT * FROM t WHERE id1=1 AND id2=1 AND id3=2 FOR UPDATE;
+id1	id2	id3	value
+connection con1;
+ROLLBACK;
+BEGIN;
+UPDATE t SET value=value+100 WHERE id1=1 AND id2=1 AND id3=1;
+connection con2;
+ROLLBACK;
+BEGIN;
+UPDATE t SET value=value+100 WHERE id1=1 AND id2=1 AND id3=1;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+UPDATE t SET value=value+100 WHERE id1=1 AND id2=0 AND id3=1;
+connection con1;
+ROLLBACK;
+BEGIN;
+DELETE FROM t WHERE id1=1 AND id2=1 AND id3=1;
+connection con2;
+ROLLBACK;
+BEGIN;
+DELETE FROM t WHERE id1=1 AND id2=1 AND id3=1;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+DELETE FROM t WHERE id1=1 AND id2=1 AND id3=0;
+connection default;
+disconnect con1;
+disconnect con2;
+DROP TABLE t;

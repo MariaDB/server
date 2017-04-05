@@ -1,0 +1,7 @@
+SET @start_global_value = @@global.ROCKSDB_LOG_FILE_TIME_TO_ROLL;
+SELECT @start_global_value;
+@start_global_value
+0
+"Trying to set variable @@global.ROCKSDB_LOG_FILE_TIME_TO_ROLL to 444. It should fail because it is readonly."
+SET @@global.ROCKSDB_LOG_FILE_TIME_TO_ROLL   = 444;
+ERROR HY000: Variable 'rocksdb_log_file_time_to_roll' is a read only variable

@@ -1,0 +1,41 @@
+--source include/have_rocksdb.inc
+
+--disable_warnings
+DROP TABLE IF EXISTS t1;
+--enable_warnings
+
+create table t1(
+       id bigint not null primary key,
+       i1 bigint, #unique
+       i2 bigint, #repeating
+       c1 varchar(20), #unique
+       c2 varchar(20), #repeating
+       index t1_2(i1)
+) engine=rocksdb;
+
+--disable_query_log
+set rocksdb_bulk_load=1;
+let $i=0;
+while ($i<50000)
+{
+  inc $i;
+  eval insert t1(id, i1, i2, c1, c2) values($i, $i, $i div 10, $i, $i div 10);
+}
+set rocksdb_bulk_load=0;
+--enable_query_log
+
+select count(*), sum(id), sum(i1), sum(i2) from t1;
+
+# reload without load optimized config
+let $restart_file= $MYSQLTEST_VARDIR/tmp/mysqld.1.expect;
+--exec echo "wait" > $restart_file
+--shutdown_server 10
+--source include/wait_until_disconnected.inc
+-- exec echo "restart:--rocksdb_write_disable_wal=0 --rocksdb_default_cf_options=write_buffer_size=64k;target_file_size_base=64k;max_bytes_for_level_base=1m;compression_per_level=kNoCompression;" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+-- enable_reconnect
+-- source include/wait_until_connected_again.inc
+
+select count(*), sum(id), sum(i1), sum(i2) from t1;
+
+drop table t1;
+

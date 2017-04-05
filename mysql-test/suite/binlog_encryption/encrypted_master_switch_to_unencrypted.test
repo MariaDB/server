@@ -52,6 +52,7 @@ INSERT INTO table1_no_encryption SELECT NULL,NOW(),b FROM table1_no_encryption;
 
 # Make sure that binary logs are not encrypted
 
+--let SEARCH_RANGE = 500000
 --let SEARCH_FILE= master-bin.0*
 --let SEARCH_PATTERN= table1_no_encryption
 --source include/search_pattern_in_file.inc

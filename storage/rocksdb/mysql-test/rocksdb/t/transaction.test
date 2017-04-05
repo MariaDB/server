@@ -1,0 +1,105 @@
+--source include/have_rocksdb.inc
+
+create table t1 (id int primary key, value int, value2 varchar(100), index(value)) engine=rocksdb;
+
+insert into t1 values (1,1,1),(2,2,2),(3,3,3),(4,4,4),(5,5,5),(6,6,6),(8,8,8),(9,9,9),(10,10,10);
+
+# insert
+begin;
+insert into t1 values (11,11,11);
+--source transaction_select.inc
+rollback;
+
+# insert in the middle
+begin;
+insert into t1 values (7,7,7);
+--source transaction_select.inc
+rollback;
+
+# update non-index column by primary key
+begin;
+update t1 set value2=100 where id=1;
+--source transaction_select.inc
+rollback;
+
+# update secondary key by primary key
+begin;
+update t1 set value=100 where id=1;
+--source transaction_select.inc
+rollback;
+
+# update primary key by primary key
+begin;
+update t1 set id=100 where id=1;
+--source transaction_select.inc
+rollback;
+
+# update non-index column key by secondary key
+begin;
+update t1 set value2=100 where value=1;
+--source transaction_select.inc
+rollback;
+
+# update secondary key by secondary key
+begin;
+update t1 set value=100 where value=1;
+--source transaction_select.inc
+rollback;
+
+# update primary key by secondary key
+begin;
+update t1 set id=100 where value=1;
+--source transaction_select.inc
+rollback;
+
+# update non-index column by non-index column
+begin;
+update t1 set value2=100 where value2=1;
+--source transaction_select.inc
+rollback;
+
+# update secondary key by non-index column
+begin;
+update t1 set value=100 where value2=1;
+--source transaction_select.inc
+rollback;
+
+# update primary key column by non-index column
+begin;
+update t1 set id=100 where value2=1;
+--source transaction_select.inc
+rollback;
+
+
+# delete by primary key
+begin;
+delete from t1 where id=1;
+--source transaction_select.inc
+rollback;
+
+# delete by secondary key
+begin;
+delete from t1 where value=1;
+--source transaction_select.inc
+rollback;
+
+# delete by non-index column
+begin;
+delete from t1 where value2=1;
+--source transaction_select.inc
+rollback;
+
+# mixed
+begin;
+insert into t1 values (11,11,11);
+insert into t1 values (12,12,12);
+insert into t1 values (13,13,13);
+delete from t1 where id=9;
+delete from t1 where value=8;
+update t1 set id=100 where value2=5;
+update t1 set value=103 where value=4;
+update t1 set id=115 where id=3;
+--source transaction_select.inc
+rollback;
+
+drop table t1;

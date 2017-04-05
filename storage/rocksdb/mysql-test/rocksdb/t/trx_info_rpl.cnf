@@ -1,0 +1,11 @@
+!include suite/rpl/my.cnf
+
+[mysqld.1]
+binlog_format=row
+loose-enable-rocksdb_trx
+
+[mysqld.2]
+binlog_format=row
+slave_parallel_workers=1
+rpl_skip_tx_api=ON
+loose-enable-rocksdb_trx

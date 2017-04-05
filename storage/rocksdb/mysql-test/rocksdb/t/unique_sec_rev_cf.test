@@ -1,0 +1,4 @@
+--source include/have_rocksdb.inc
+
+let $CF=COMMENT 'rev:cf';
+--source unique_sec.inc

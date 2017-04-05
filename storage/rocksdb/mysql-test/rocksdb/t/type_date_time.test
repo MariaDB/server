@@ -1,0 +1,9 @@
+--source include/have_rocksdb.inc
+
+#
+# Date and time column types
+# (DATE, DATETIME, TIMESTAMP, TIME, YEAR)
+#
+
+--source type_date_time.inc
+

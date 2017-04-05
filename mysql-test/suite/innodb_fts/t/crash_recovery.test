@@ -47,7 +47,8 @@ ROLLBACK;
 --disconnect flush_redo_log
 --connection default
 
---source include/kill_and_restart_mysqld.inc
+let $shutdown_timeout=0;
+--source include/restart_mysqld.inc
 
 # This insert will re-initialize the Doc ID counter, it should not crash
 INSERT INTO articles (title,body) VALUES
@@ -85,7 +86,7 @@ ROLLBACK;
 --disconnect flush_redo_log
 --connection default
 
---source include/kill_and_restart_mysqld.inc
+--source include/restart_mysqld.inc
 
 # This insert will re-initialize the Doc ID counter, it should not crash
 INSERT INTO articles (title,body) VALUES
@@ -126,7 +127,7 @@ BEGIN;
 INSERT INTO articles VALUES
         (100, 200, 'MySQL Tutorial','DBMS stands for DataBase ...');
 
---source include/kill_and_restart_mysqld.inc
+--source include/restart_mysqld.inc
 
 # This would re-initialize the FTS index and do the re-tokenization
 # of above records

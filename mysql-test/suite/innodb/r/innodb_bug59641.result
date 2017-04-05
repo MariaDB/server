@@ -17,7 +17,6 @@ UPDATE t SET b=4*a WHERE a=32;
 XA END '789';
 XA PREPARE '789';
 CONNECT  con3,localhost,root,,;
-# Kill and restart
 SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
 SELECT * FROM t;
 a	b

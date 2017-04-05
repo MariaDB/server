@@ -1,0 +1,111 @@
+DROP TABLE IF EXISTS t1;
+connect  con1,localhost,root,,;
+SET SESSION TRANSACTION ISOLATION LEVEL READ COMMITTED;
+connect  con2,localhost,root,,;
+SET SESSION TRANSACTION ISOLATION LEVEL READ COMMITTED;
+connection con1;
+CREATE TABLE t1 (a INT, pk INT AUTO_INCREMENT PRIMARY KEY) ENGINE=rocksdb;
+START TRANSACTION;
+SELECT a FROM t1;
+a
+connection con2;
+BEGIN;
+INSERT INTO t1 (a) VALUES(1);
+connection con1;
+SELECT a FROM t1;
+a
+connection con2;
+INSERT INTO t1 (a) VALUES (2);
+connection con1;
+SELECT a FROM t1;
+a
+INSERT INTO t1 (a) SELECT a+100 FROM t1;
+SELECT a FROM t1;
+a
+connection con2;
+SELECT a FROM t1;
+a
+1
+2
+COMMIT;
+SELECT a FROM t1;
+a
+1
+2
+connection con1;
+SELECT a FROM t1;
+a
+1
+2
+INSERT INTO t1 (a) SELECT a+200 FROM t1;
+SELECT a FROM t1;
+a
+1
+2
+201
+202
+COMMIT;
+SELECT a FROM t1;
+a
+1
+2
+201
+202
+connection con2;
+SELECT a FROM t1;
+a
+1
+2
+201
+202
+connection default;
+CREATE TABLE t2 (a INT PRIMARY KEY) ENGINE=rocksdb;
+INSERT INTO t2 (a) VALUES (1);
+COMMIT;
+connection con1;
+BEGIN;
+SELECT a from t2;
+a
+1
+INSERT INTO t2 (a) VALUES (1), (3);
+ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
+connection con2;
+INSERT INTO t2 (a) VALUES (2);
+COMMIT;
+connection con1;
+SELECT a from t2;
+a
+1
+2
+COMMIT;
+connection default;
+disconnect con1;
+disconnect con2;
+DROP TABLE t1;
+DROP TABLE t2;
+CREATE TABLE t3 (
+pk int unsigned PRIMARY KEY,
+count int unsigned DEFAULT '0'
+) ENGINE=ROCKSDB;
+connect  con1,localhost,root,,;
+SET SESSION TRANSACTION ISOLATION LEVEL READ COMMITTED;
+connect  con2,localhost,root,,;
+SET SESSION TRANSACTION ISOLATION LEVEL READ COMMITTED;
+connection con1;
+BEGIN;
+SELECT * FROM t3;
+pk	count
+connection con2;
+BEGIN;
+INSERT INTO t3 (pk) VALUES(1) ON DUPLICATE KEY UPDATE count=count+1;
+COMMIT;
+connection con1;
+INSERT INTO t3 (pk) VALUES(1) ON DUPLICATE KEY UPDATE count=count+1;
+COMMIT;
+SELECT count FROM t3;
+count
+1
+connection default;
+disconnect con1;
+disconnect con2;
+DROP TABLE t3;

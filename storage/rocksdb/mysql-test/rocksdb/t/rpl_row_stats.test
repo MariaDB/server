@@ -1,0 +1,47 @@
+--source include/have_rocksdb.inc
+
+source include/have_binlog_format_row.inc;
+source include/master-slave.inc;
+
+connection master;
+--disable_warnings
+drop table if exists t1;
+--enable_warnings
+
+# initialization/insert
+connection master;
+# creating save_read_stats() and get_read_stats() procedures
+--source init_stats_procedure.inc
+
+create table t1 (id int primary key, value int);
+insert into t1 values (1,1), (2,2), (3,3), (4,4), (5,5);
+--source include/sync_slave_sql_with_master.inc
+
+connection slave;
+call save_read_stats();
+connection master;
+update t1 set value=value+1 where id=1;
+update t1 set value=value+1 where id=3;
+select * from t1;
+--source include/sync_slave_sql_with_master.inc
+connection slave;
+call get_read_stats();
+select * from t1;
+call save_read_stats();
+
+connection master;
+delete from t1 where id in (4,5);
+select * from t1;
+--source include/sync_slave_sql_with_master.inc
+connection slave;
+call get_read_stats();
+select * from t1;
+
+
+# cleanup
+connection master;
+drop table t1;
+--source drop_stats_procedure.inc
+
+--source include/rpl_end.inc
+

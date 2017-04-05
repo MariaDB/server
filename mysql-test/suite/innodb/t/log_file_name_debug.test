@@ -32,7 +32,6 @@ CREATE TABLE t1(a INT PRIMARY KEY) ENGINE=InnoDB;
 SELECT * FROM t1;
 
 --let SEARCH_FILE = $MYSQLTEST_VARDIR/log/mysqld.1.err
---let SEARCH_RANGE = -50000
 --let SEARCH_PATTERN = InnoDB: Tablespace 4294967280 was not found at .*, but there were no modifications either
 --source include/search_pattern_in_file.inc
 

@@ -97,6 +97,9 @@ pcre/pcre_chartables.c
 pcre/pcregrep
 pcre/pcretest
 pcre/test*grep
+plugin/aws_key_management/aws-sdk-cpp
+plugin/aws_key_management/aws_sdk_cpp
+plugin/aws_key_management/aws_sdk_cpp-prefix
 scripts/comp_sql
 scripts/make_binary_distribution
 scripts/msql2mysql
@@ -179,6 +182,9 @@ storage/myisam/myisamlog
 storage/myisam/myisampack
 storage/myisam/rt_test
 storage/myisam/sp_test
+storage/rocksdb/ldb
+storage/rocksdb/mysql_ldb
+storage/rocksdb/sst_dump
 storage/tokudb/PerconaFT/buildheader/db.h
 storage/tokudb/PerconaFT/buildheader/make_tdb
 storage/tokudb/PerconaFT/buildheader/runcat.sh

@@ -1,0 +1,88 @@
+--source include/not_windows.inc
+--source include/have_rocksdb.inc
+
+--disable_warnings
+DROP TABLE IF EXISTS r1;
+--enable_warnings
+
+create table r1 (
+ id1 int,
+ id2 int,
+ type int,
+ value varchar(100),
+ value2 int,
+ value3 int,
+ primary key (type, id1, id2),
+ index id1_type (id1, type, value2, value, id2)
+) engine=rocksdb collate latin1_bin;
+
+select 'loading data';
+
+--disable_query_log
+let $i=0;
+while ($i<1000)
+{
+  inc $i;
+  eval insert r1(id1, id2, type, value, value2, value3) 
+  values($i,$i,$i, 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx',$i,$i);
+}
+--enable_query_log
+
+set global rocksdb_force_flush_memtable_now=1;
+optimize table r1;
+
+--echo Test 1: Do a bunch of updates without setting the compaction sysvar
+--echo Expect: no compaction
+let $window = 0;
+let $deletes = 0;
+let $file_size = 0;
+let $secondary_only = 0;
+let $primary = 1;
+let $no_more_deletes = 0;
+--source compact_deletes_test.inc
+
+--echo Test 2: Do a bunch of updates and set the compaction sysvar
+--echo Expect: compaction
+let $window = 1000;
+let $deletes = 990;
+let $file_size = 0;
+let $secondary_only = 0;
+let $primary = 1;
+let $no_more_deletes = 1;
+--source compact_deletes_test.inc
+
+--echo Test 3: Do a bunch of updates and set the compaction sysvar and a file size to something large
+--echo Expect: no compaction
+let $window = 1000;
+let $deletes = 1000;
+let $file_size = 1000000;
+let $secondary_only = 0;
+let $primary = 1;
+let $no_more_deletes = 0;
+--source compact_deletes_test.inc
+
+--echo Test 4: Do a bunch of secondary key updates and set the compaction sysvar
+--echo Expect: compaction
+let $window = 1000;
+let $deletes = 50;
+let $file_size = 0;
+let $secondary_only = 1;
+let $primary = 0;
+let $no_more_deletes = 1;
+--source compact_deletes_test.inc
+
+--echo Test 5: Do a bunch of secondary key updates and set the compaction sysvar,
+--echo and rocksdb_compaction_sequential_deletes_count_sd turned on
+--echo Expect: compaction
+let $window = 1000;
+let $deletes = 50;
+let $file_size = 0;
+let $secondary_only = 1;
+let $primary = 0;
+let $no_more_deletes = 1;
+SET @save_rocksdb_compaction_sequential_deletes_count_sd = @@global.rocksdb_compaction_sequential_deletes_count_sd;
+SET GLOBAL rocksdb_compaction_sequential_deletes_count_sd= ON;
+--source compact_deletes_test.inc
+SET GLOBAL rocksdb_compaction_sequential_deletes_count_sd= @save_rocksdb_compaction_sequential_deletes_count_sd;
+
+drop table r1;

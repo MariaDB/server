@@ -1,0 +1,80 @@
+SET @ORIG_PAUSE_BACKGROUND_WORK = @@ROCKSDB_PAUSE_BACKGROUND_WORK;
+SET GLOBAL ROCKSDB_PAUSE_BACKGROUND_WORK = 1;
+DROP TABLE IF EXISTS t1;
+CREATE TABLE t1 (b BINARY,
+b20 BINARY(20) PRIMARY KEY,
+v16 VARBINARY(16),
+v128 VARBINARY(128)
+) ENGINE=rocksdb;
+SHOW INDEX IN t1;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+t1	0	PRIMARY	1	b20	A	1000	NULL	NULL		LSMTREE		
+INSERT INTO t1 (b,b20,v16,v128) VALUES ('a','char1','varchar1a','varchar1b'),('a','char2','varchar2a','varchar2b'),('b','char3','varchar1a','varchar1b'),('c','char4','varchar3a','varchar3b');
+EXPLAIN SELECT HEX(b20) FROM t1 ORDER BY b20;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index	NULL	PRIMARY	20	NULL	#	Using index
+SELECT HEX(b20) FROM t1 ORDER BY b20;
+HEX(b20)
+6368617231000000000000000000000000000000
+6368617232000000000000000000000000000000
+6368617233000000000000000000000000000000
+6368617234000000000000000000000000000000
+EXPLAIN SELECT HEX(b20) FROM t1 IGNORE INDEX (PRIMARY) ORDER BY b20 DESC;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	#	Using filesort
+SELECT HEX(b20) FROM t1 ORDER BY b20 DESC;
+HEX(b20)
+6368617234000000000000000000000000000000
+6368617233000000000000000000000000000000
+6368617232000000000000000000000000000000
+6368617231000000000000000000000000000000
+DROP TABLE t1;
+CREATE TABLE t1 (b BINARY,
+b20 BINARY(20),
+v16 VARBINARY(16),
+v128 VARBINARY(128),
+pk VARBINARY(10) PRIMARY KEY,
+INDEX (v16(10))
+) ENGINE=rocksdb;
+SHOW INDEX IN t1;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+t1	0	PRIMARY	1	pk	A	1000	NULL	NULL		LSMTREE		
+t1	1	v16	1	v16	A	500	10	NULL	YES	LSMTREE		
+INSERT INTO t1 (b,b20,v16,v128,pk) VALUES ('a','char1','varchar1a','varchar1b',1),('a','char2','varchar2a','varchar2b',2),('b','char3','varchar1a','varchar1b',3),('c','char4','varchar3a','varchar3b',4),('d','char5','varchar4a','varchar3b',5),('e','char6','varchar2a','varchar3b',6);
+INSERT INTO t1 (b,b20,v16,v128,pk) SELECT b,b20,v16,v128,pk+100 FROM t1;
+EXPLAIN SELECT HEX(SUBSTRING(v16,0,3)) FROM t1 WHERE v16 LIKE 'varchar%';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	v16	v16	13	NULL	#	Using where
+SELECT HEX(SUBSTRING(v16,7,3)) FROM t1 WHERE v16 LIKE 'varchar%';
+HEX(SUBSTRING(v16,7,3))
+723161
+723161
+723161
+723161
+723261
+723261
+723261
+723261
+723361
+723361
+723461
+723461
+EXPLAIN SELECT HEX(SUBSTRING(v16,0,3)) FROM t1 FORCE INDEX (v16) WHERE v16 LIKE 'varchar%';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	v16	v16	13	NULL	#	Using where
+SELECT HEX(SUBSTRING(v16,7,3)) FROM t1 FORCE INDEX (v16) WHERE v16 LIKE 'varchar%';
+HEX(SUBSTRING(v16,7,3))
+723161
+723161
+723161
+723161
+723261
+723261
+723261
+723261
+723361
+723361
+723461
+723461
+DROP TABLE t1;
+SET GLOBAL ROCKSDB_PAUSE_BACKGROUND_WORK = @ORIG_PAUSE_BACKGROUND_WORK;

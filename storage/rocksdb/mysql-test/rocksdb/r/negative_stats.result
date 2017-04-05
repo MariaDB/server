@@ -1,0 +1,9 @@
+DROP TABLE IF EXISTS t1;
+CREATE TABLE t1 (i1 INT, PRIMARY KEY (i1)) ENGINE = ROCKSDB;
+SET GLOBAL ROCKSDB_FORCE_FLUSH_MEMTABLE_NOW=1;
+set session debug_dbug= "+d,myrocks_simulate_negative_stats";
+SELECT CASE WHEN DATA_LENGTH < 1024 * 1024 THEN 'true' ELSE 'false' END FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't1';
+CASE WHEN DATA_LENGTH < 1024 * 1024 THEN 'true' ELSE 'false' END
+true
+set session debug_dbug= "-d,myrocks_simulate_negative_stats";
+DROP TABLE t1;

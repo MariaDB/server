@@ -1,0 +1,142 @@
+--source include/have_rocksdb.inc
+
+--echo #---------------------------
+--echo # ten threads inserting simultaneously with increment > 1
+--echo # Issue #390
+--echo #---------------------------
+
+# Run 10 simulatenous threads each inserting 10,000 rows
+let $num_threads = 10;
+let $num_rows_per_thread = 100000;
+
+# Create the table with an AUTO_INCREMENT primary key and a separate colum
+# to store which thread created the row
+CREATE TABLE t1 (pk INT AUTO_INCREMENT PRIMARY KEY, thr INT) ENGINE=rocksdb;
+
+# For each thread...
+# 1) set up a connection
+# 2) create a file that can be used for LOAD DATA INFILE ...
+let $i = `SELECT $num_threads`;
+while ($i > 0)
+{
+  dec $i;
+
+  # Set up connection
+  connect (con$i, localhost, root,,);
+
+  # Set up the auto_increment_* variables for each thread
+  eval SET auto_increment_increment = 100;
+  eval SET auto_increment_offset = $i + 1;
+  let $file = `SELECT CONCAT(@@datadir, "test_insert_", $i, ".txt")`;
+
+  # Pass variables into perl
+  let ROCKSDB_INFILE = $file;
+  let ROCKSDB_THREAD = `SELECT $i`;
+  let ROCKSDB_ROWS_PER_THREAD = `SELECT $num_rows_per_thread`;
+
+  # Create a file to load
+  perl;
+  my $fn = $ENV{'ROCKSDB_INFILE'};
+  my $thr = $ENV{'ROCKSDB_THREAD'};
+  my $num = $ENV{'ROCKSDB_ROWS_PER_THREAD'};
+  open(my $fh, '>>', $fn) || die "perl open($fn): $!";
+  binmode $fh;
+  for (my $ii = 0; $ii < $num; $ii++)
+  {
+    print $fh "\\N\t$thr\n"
+  }
+  close($fh);
+  EOF
+}
+
+# For each connection start the LOAD DATA INFILE in the background
+connection default;
+let $i = `SELECT $num_threads`;
+while ($i > 0)
+{
+  dec $i;
+
+  connection con$i;
+  let $file = `SELECT CONCAT(@@datadir, "test_insert_", $i, ".txt")`;
+  --disable_query_log
+  --echo LOAD DATA INFILE <input_file> INTO TABLE t1;
+  send_eval LOAD DATA INFILE '$file' INTO TABLE t1;
+  --enable_query_log
+}
+
+# Reap each connection's background result
+connection default;
+let $i = `SELECT $num_threads`;
+while ($i > 0)
+{
+  dec $i;
+
+  connection con$i;
+  reap;
+}
+
+# Make sure we have the required number of rows
+connection default;
+SELECT COUNT(*) FROM t1;
+SELECT thr, COUNT(pk) FROM t1 GROUP BY thr;
+
+# Cleanup the connection and file used for LOAD DATA INFILE
+let $i = `SELECT $num_threads`;
+while ($i > 0)
+{
+  dec $i;
+
+  disconnect con$i;
+  let $file = `SELECT CONCAT(@@datadir, "test_insert_", "$i", ".txt")`;
+  remove_file $file;
+}
+
+# Validate each row.  For each row, the created 'thr' column shows which
+# thread created the row.  The pk that was automatically generated should
+# therefore match a certain pattern.  For thread 0, the pk should be in
+# the sequence [1, 101, 201, 301, ...]; for thread 1, it should be in the
+# sequence [2, 102, 202, 302, ...], etc.  The pk for each row should be
+# smallest value in the sequence for thread 'thr' that is greater than
+# the pk in the previous row.
+let $file = `SELECT CONCAT(@@datadir, "test_export.txt")`;
+--disable_query_log
+--echo SELECT * FROM t1 ORDER BY pk INTO OUTFILE <output_file>;
+eval SELECT * FROM t1 ORDER BY pk INTO OUTFILE "$file";
+--enable_query_log
+
+let ROCKSDB_OUTFILE = $file;
+
+perl;
+my $fn = $ENV{'ROCKSDB_OUTFILE'};
+my $last_pk = 0;
+open(my $fh, '<', $fn) || die "perl open($fn): $!";
+while (<$fh>)
+{
+  if ($_ =~ m/^(.*)\t(.*)$/)
+  {
+    my $pk = $1;
+    my $thr = $2;
+
+    my $expected_pk = int($last_pk / 100) * 100 + ($thr + 1);
+    $expected_pk += 100 if $expected_pk <= $last_pk;
+
+    if ($expected_pk != $pk)
+    {
+      die "Incorrect next pk ($pk); expected $expected_pk (previous: $last_pk)"
+    }
+
+    $last_pk = $pk;
+  }
+  else
+  {
+    die "output file has incorrect format: $_";
+  }
+}
+print stdout "All pk values matched their expected values\n";
+EOF
+
+remove_file $file;
+
+# Drop the table to finally clean up
+DROP TABLE t1;
+

@@ -7535,12 +7535,12 @@ buf_page_decrypt_after_read(buf_page_t* bpage)
 		return (true);
 	}
 
-	FilSpace space(bpage->id.space());
+	FilSpace space(bpage->id.space(), true);
 
 	/* Page is encrypted if encryption information is found from
 	tablespace and page contains used key_version. This is true
 	also for pages first compressed and then encrypted. */
-	if (!space()->crypt_data) {
+	if (!space() || !space()->crypt_data) {
 		key_version = 0;
 	}
 

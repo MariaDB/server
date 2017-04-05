@@ -33,7 +33,8 @@ XA PREPARE '789';
 
 CONNECT (con3,localhost,root,,);
 
---source include/kill_and_restart_mysqld.inc
+--let $shutdown_timeout=0
+--source include/restart_mysqld.inc
 SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
 SELECT * FROM t;
 COMMIT;

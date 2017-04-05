@@ -13,7 +13,6 @@
 --let t2_IBD = $MYSQLD_DATADIR/test/t2.ibd
 --let t3_IBD = $MYSQLD_DATADIR/test/t3.ibd
 --let SEARCH_RANGE = 10000000
---let SEARCH_PATTERN=foobar
 
 SET GLOBAL innodb_file_per_table = ON;
 

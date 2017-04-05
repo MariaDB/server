@@ -1,0 +1,39 @@
+--source include/have_rocksdb.inc
+
+# 
+# DELETE statements for tables with keys
+#
+
+--disable_warnings
+DROP TABLE IF EXISTS t1;
+--enable_warnings
+
+CREATE TABLE t1 (a INT, b CHAR(8), pk INT AUTO_INCREMENT PRIMARY KEY, KEY(b)) ENGINE=rocksdb;
+INSERT INTO t1 (a,b) VALUES (1,'a'),(2,'b'),(3,'c'),(4,'d'),(5,'e'),(6,'x'),(7,'y'),(8,'z');
+DELETE FROM t1 WHERE b > 'y';
+DELETE FROM t1 WHERE a=2;
+
+--sorted_result
+SELECT a,b FROM t1;
+DELETE FROM t1;
+
+DROP TABLE t1;
+
+CREATE TABLE t1 (a INT PRIMARY KEY, b CHAR(8)) ENGINE=rocksdb;
+INSERT INTO t1 (a,b) VALUES (1,'a'),(2,'b'),(3,'c'),(4,'d'),(5,'e'),(6,'x'),(7,'y'),(8,'z');
+DELETE FROM t1 WHERE b > 'y';
+DELETE FROM t1 WHERE a=2;
+
+--sorted_result
+SELECT a,b FROM t1;
+DELETE FROM t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a INT, b INT, c INT, pk INT AUTO_INCREMENT PRIMARY KEY, KEY(a), KEY (b)) ENGINE=rocksdb;
+
+INSERT INTO t1 (a,b,c) VALUES (1,2,3),(4,5,6),(7,8,9);
+DELETE FROM t1 WHERE a = 10 OR b = 20 ORDER BY c LIMIT 1;
+--sorted_result
+SELECT a,b,c FROM t1;
+DROP TABLE t1;
+

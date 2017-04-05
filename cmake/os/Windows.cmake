@@ -63,6 +63,26 @@ IF(MINGW AND CMAKE_SIZEOF_VOID_P EQUAL 4)
 ENDIF()
 
 IF(MSVC)
+  SET(MSVC_CRT_TYPE /MT CACHE STRING
+    "Runtime library - specify runtime library for linking (/MT,/MTd,/MD,/MDd)"
+  )
+  SET(VALID_CRT_TYPES /MTd /MDd /MD  /MT)
+  IF (NOT ";${VALID_CRT_TYPES};" MATCHES ";${MSVC_CRT_TYPE};")
+    MESSAGE(FATAL_ERROR "Invalid value ${MSVC_CRT_TYPE} for MSVC_CRT_TYPE, choose one of /MT,/MTd,/MD,/MDd ")
+  ENDIF()
+
+  IF(MSVC_CRT_TYPE MATCHES "/MD")
+   # Dynamic runtime (DLLs), need to install CRT libraries.
+   SET(CMAKE_INSTALL_MFC_LIBRARIES TRUE)# upgrade wizard
+   SET(CMAKE_INSTALL_SYSTEM_RUNTIME_COMPONENT VCCRT)
+   SET(CMAKE_INSTALL_SYSTEM_RUNTIME_LIBS_NO_WARNINGS TRUE)
+   SET(CMAKE_INSTALL_UCRT_LIBRARIES TRUE)
+   IF(MSVC_CRT_TYPE STREQUAL "/MDd")
+     SET (CMAKE_INSTALL_DEBUG_LIBRARIES_ONLY TRUE)
+   ENDIF()
+   INCLUDE(InstallRequiredSystemLibraries)
+  ENDIF()
+
   # Enable debug info also in Release build,
   # and create PDB to be able to analyze crashes.
   FOREACH(type EXE SHARED MODULE)
@@ -77,6 +97,10 @@ IF(MSVC)
   #     information for use with the debugger. The symbolic debugging
   #     information includes the names and types of variables, as well as
   #     functions and line numbers. No .pdb file is produced by the compiler.
+  #
+  # - Remove preprocessor flag _DEBUG that older cmakes use with Config=Debug,
+  #   it is as defined by Debug runtimes itself (/MTd /MDd)
+
   FOREACH(lang C CXX)
     SET(CMAKE_${lang}_FLAGS_RELEASE "${CMAKE_${lang}_FLAGS_RELEASE} /Z7")
   ENDFOREACH()
@@ -85,7 +109,8 @@ IF(MSVC)
    CMAKE_C_FLAGS_DEBUG      CMAKE_C_FLAGS_DEBUG_INIT 
    CMAKE_CXX_FLAGS_RELEASE  CMAKE_CXX_FLAGS_RELWITHDEBINFO
    CMAKE_CXX_FLAGS_DEBUG    CMAKE_CXX_FLAGS_DEBUG_INIT)
-   STRING(REPLACE "/MD"  "/MT" "${flag}" "${${flag}}")
+   STRING(REGEX REPLACE "/M[TD][d]?"  "${MSVC_CRT_TYPE}" "${flag}"  "${${flag}}" )
+   STRING(REGEX REPLACE "/D[ ]?_DEBUG"  "" "${flag}" "${${flag}}")
    STRING(REPLACE "/Zi"  "/Z7" "${flag}" "${${flag}}")
   ENDFOREACH()
   
@@ -117,13 +142,6 @@ IF(MSVC)
   SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /wd4800 /wd4805 /wd4996")
   SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /wd4800 /wd4805 /wd4996 /wd4291 /wd4577 /we4099")
 
-  IF(CMAKE_SIZEOF_VOID_P MATCHES 8)
-    # _WIN64 is defined by the compiler itself. 
-    # Yet, we define it here again   to work around a bug with  Intellisense 
-    # described here: http://tinyurl.com/2cb428. 
-    # Syntax highlighting is important for proper debugger functionality.
-    ADD_DEFINITIONS("-D_WIN64")
-  ENDIF()
 ENDIF()
 
 # Always link with socket library

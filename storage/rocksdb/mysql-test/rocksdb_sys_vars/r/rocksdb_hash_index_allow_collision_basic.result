@@ -1,0 +1,7 @@
+SET @start_global_value = @@global.ROCKSDB_HASH_INDEX_ALLOW_COLLISION;
+SELECT @start_global_value;
+@start_global_value
+1
+"Trying to set variable @@global.ROCKSDB_HASH_INDEX_ALLOW_COLLISION to 444. It should fail because it is readonly."
+SET @@global.ROCKSDB_HASH_INDEX_ALLOW_COLLISION   = 444;
+ERROR HY000: Variable 'rocksdb_hash_index_allow_collision' is a read only variable

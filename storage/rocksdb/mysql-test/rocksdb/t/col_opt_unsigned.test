@@ -1,0 +1,74 @@
+--source include/have_rocksdb.inc
+
+# 
+# UNSIGNED column attribute 
+#
+
+--let $extra_col_opts = UNSIGNED
+
+--echo ########################
+--echo # Fixed point columns (NUMERIC, DECIMAL)
+--echo ########################
+
+--source type_fixed.inc
+
+CREATE TABLE t1 (
+  a DECIMAL UNSIGNED,
+  b NUMERIC UNSIGNED,
+  PRIMARY KEY (a)
+) ENGINE=rocksdb;
+
+SHOW COLUMNS IN t1;
+
+INSERT INTO t1 (a,b) VALUES (1.0,-1.0);
+INSERT INTO t1 (a,b) VALUES (-100,100);
+--sorted_result
+SELECT a,b FROM t1;
+DROP TABLE t1;
+
+--echo ########################
+--echo # Floating point columns (FLOAT, DOUBLE)
+--echo ########################
+
+--source type_float.inc
+
+CREATE TABLE t1 (
+  a DOUBLE UNSIGNED,
+  b FLOAT UNSIGNED,
+  PRIMARY KEY (b) 
+) ENGINE=rocksdb;
+
+SHOW COLUMNS IN t1;
+
+INSERT INTO t1 (a,b) VALUES (1.0,-1.0);
+INSERT INTO t1 (a,b) VALUES (-100,100);
+--sorted_result
+SELECT a,b FROM t1;
+DROP TABLE t1;
+
+--echo ########################
+--echo # INT columns
+--echo ########################
+
+--source type_int.inc
+
+CREATE TABLE t1 (
+  t TINYINT UNSIGNED,
+  s SMALLINT UNSIGNED,
+  m MEDIUMINT UNSIGNED,
+  i INT UNSIGNED,
+  b BIGINT UNSIGNED,
+  PRIMARY KEY (b)
+) ENGINE=rocksdb;
+
+SHOW COLUMNS IN t1;
+
+INSERT INTO t1 (t,s,m,i,b) VALUES (255,65535,16777215,4294967295,18446744073709551615);
+INSERT INTO t1 (t,s,m,i,b) VALUES (-1,-1,-1,-1,-1);
+--sorted_result
+SELECT t,s,m,i,b FROM t1;
+
+DROP TABLE t1;
+  
+--let $extra_col_opts =
+

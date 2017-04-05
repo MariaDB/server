@@ -1,0 +1,93 @@
+--source include/have_rocksdb.inc
+
+#
+# ENUM columns with indexes
+#
+
+SET @ORIG_PAUSE_BACKGROUND_WORK = @@ROCKSDB_PAUSE_BACKGROUND_WORK;
+SET GLOBAL ROCKSDB_PAUSE_BACKGROUND_WORK = 1;
+
+--disable_warnings
+DROP TABLE IF EXISTS t1;
+--enable_warnings
+
+--disable_parsing
+--error ER_GET_ERRMSG
+CREATE TABLE t1 (
+  a ENUM('N.America','S.America','Africa','Europe','Australia','Asia','Antarctica'),
+  b ENUM('test1','test2','test3','test4','test5'),
+  c ENUM('1a','1b','1d','1j','4a','4z','5a','5b','6v','6z'),
+  pk ENUM('1','2','3','4','5','6','7','8','9') PRIMARY KEY,
+  UNIQUE KEY a_b (a,b)
+) ENGINE=rocksdb;
+
+
+INSERT INTO t1 (a,b,c,pk) VALUES
+('N.America','test1','5a',1),('Europe','test1','5b',2),('Europe','test2','6v',3),
+('Africa','test3','4z',4),('Africa','test4','1j',5),('Antarctica','test4','1d',6);
+
+SHOW INDEX IN t1;
+
+--replace_column 9 #
+EXPLAIN SELECT a FROM t1 WHERE b > 'test2' ORDER BY a;
+SELECT a FROM t1 WHERE b > 'test2' ORDER BY a;
+
+--replace_column 9 #
+EXPLAIN SELECT a FROM t1 FORCE INDEX (a_b) WHERE b > 'test2' ORDER BY a;
+SELECT a FROM t1 FORCE INDEX (a_b) WHERE b > 'test2' ORDER BY a;
+
+DROP TABLE t1;
+
+--enable_parsing
+
+CREATE TABLE t1 (
+  a ENUM('N.America','S.America','Africa','Europe','Australia','Asia','Antarctica'),
+  b ENUM('test1','test2','test3','test4','test5'),
+  c ENUM('1a','1b','1d','1j','4a','4z','5a','5b','6v','6z') PRIMARY KEY
+) ENGINE=rocksdb;
+
+INSERT INTO t1 (a,b,c) VALUES
+('N.America','test1','5a'),('Europe','test1','5b'),('Europe','test2','6v'),
+('Africa','test3','4z'),('Africa','test4','1j'),('Antarctica','test4','1d');
+
+SHOW INDEX IN t1;
+
+--replace_column 9 #
+EXPLAIN SELECT c FROM t1 WHERE c BETWEEN '1d' AND '6u';
+--sorted_result
+SELECT c FROM t1 WHERE c BETWEEN '1d' AND '6u';
+
+--replace_column 9 #
+EXPLAIN SELECT c FROM t1 USE INDEX () WHERE c BETWEEN '1d' AND '6u';
+--sorted_result
+SELECT c FROM t1 USE INDEX () WHERE c BETWEEN '1d' AND '6u';
+
+DROP TABLE t1;
+
+CREATE TABLE t1 (
+  a ENUM('N.America','S.America','Africa','Europe','Australia','Asia','Antarctica'),
+  b ENUM('test1','test2','test3','test4','test5'),
+  c ENUM('1a','1b','1d','1j','4a','4z','5a','5b','6v','6z'),
+  pk ENUM('1','2','3','4','5','6','7','8','9') PRIMARY KEY,
+  INDEX(b)
+) ENGINE=rocksdb;
+
+INSERT INTO t1 (a,b,c,pk) VALUES
+('N.America','test1','5a',1),('Europe','test1','5b',2),('Europe','test2','6v',3),
+('Africa','test3','4z',4),('Africa','test4','1j',5),('Antarctica','test4','1d',6);
+
+SHOW INDEX IN t1;
+
+--replace_column 9 #
+EXPLAIN SELECT DISTINCT b FROM t1;
+--sorted_result
+SELECT DISTINCT b FROM t1;
+
+--replace_column 9 #
+EXPLAIN SELECT DISTINCT b FROM t1 IGNORE INDEX (b);
+--sorted_result
+SELECT DISTINCT b FROM t1 IGNORE INDEX (b);
+
+DROP TABLE t1;
+
+SET GLOBAL ROCKSDB_PAUSE_BACKGROUND_WORK = @ORIG_PAUSE_BACKGROUND_WORK;

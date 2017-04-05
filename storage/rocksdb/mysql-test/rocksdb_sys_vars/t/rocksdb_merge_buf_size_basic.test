@@ -1,0 +1,50 @@
+--source include/have_rocksdb.inc
+
+--disable_warnings
+drop table if exists t1;
+--enable_warnings
+
+set session rocksdb_merge_buf_size=250;
+set session rocksdb_merge_combine_read_size=1000;
+
+CREATE TABLE t1 (i INT, j INT, PRIMARY KEY (i)) ENGINE = ROCKSDB;
+
+--disable_query_log
+let $max = 100;
+let $i = 1;
+while ($i <= $max) {
+  let $insert = INSERT INTO t1 VALUES ($i, FLOOR(RAND() * 100));
+  inc $i;
+  eval $insert;
+}
+--enable_query_log
+
+ALTER TABLE t1 ADD INDEX kj(j), ALGORITHM=INPLACE;
+ALTER TABLE t1 ADD INDEX kij(i,j), ALGORITHM=INPLACE;
+SHOW CREATE TABLE t1;
+
+DROP INDEX kj on t1;
+DROP INDEX kij ON t1;
+
+ALTER TABLE t1 ADD INDEX kj(j), ADD INDEX kij(i,j), ADD INDEX kji(j,i), ALGORITHM=INPLACE;
+SHOW CREATE TABLE t1;
+
+DROP TABLE t1;
+
+# Reverse CF testing, needs to be added to SSTFileWriter in reverse order
+CREATE TABLE t1 (a INT PRIMARY KEY, b INT) ENGINE=RocksDB;
+--disable_query_log
+let $max = 100;
+let $i = 1;
+while ($i <= $max) {
+  let $insert = INSERT INTO t1 VALUES ($i, FLOOR(RAND() * 100));
+  inc $i;
+  eval $insert;
+}
+--enable_query_log
+
+ALTER TABLE t1 ADD INDEX kb(b) comment 'rev:cf1', ALGORITHM=INPLACE;
+SHOW CREATE TABLE t1;
+SELECT COUNT(*) FROM t1 FORCE INDEX(kb);
+DROP TABLE t1;
+

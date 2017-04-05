@@ -1,0 +1,77 @@
+DROP TABLE IF EXISTS t1,t2,t3,t4,t5,t6;
+create table t1 (id int primary key, value int, value2 varchar(200), index(value)) engine=rocksdb;
+create table t2 (id int primary key, value int, value2 varchar(200), index(value)) engine=rocksdb;
+create table t3 (id int primary key, value int, value2 varchar(200), index(value)) engine=rocksdb;
+create table t4 (id int, value int, value2 varchar(200), primary key (id) comment 'rev:cf_i', index(value) comment 'rev:cf_i') engine=rocksdb;
+create table t5 (id int, value int, value2 varchar(200), primary key (id) comment 'rev:cf_i', index(value) comment 'rev:cf_i') engine=rocksdb;
+create table t6 (id int, value int, value2 varchar(200), primary key (id) comment 'rev:cf_i', index(value) comment 'rev:cf_i') engine=rocksdb;
+select count(*) from t1;
+count(*)
+10000
+select count(*) from t2;
+count(*)
+10000
+select count(*) from t3;
+count(*)
+10000
+select count(*) from t4;
+count(*)
+10000
+select count(*) from t5;
+count(*)
+10000
+select count(*) from t6;
+count(*)
+10000
+delete from t1 where id <= 9900;
+delete from t2 where id <= 9900;
+delete from t3 where id <= 9900;
+delete from t4 where id <= 9900;
+delete from t5 where id <= 9900;
+delete from t6 where id <= 9900;
+optimize table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	optimize	status	OK
+sst file reduction ok
+optimize table t3;
+Table	Op	Msg_type	Msg_text
+test.t3	optimize	status	OK
+sst file reduction ok
+optimize table t4;
+Table	Op	Msg_type	Msg_text
+test.t4	optimize	status	OK
+sst file reduction ok
+optimize table t6;
+Table	Op	Msg_type	Msg_text
+test.t6	optimize	status	OK
+sst file reduction ok
+select count(*) from t1;
+count(*)
+100
+select count(*) from t2;
+count(*)
+100
+select count(*) from t3;
+count(*)
+100
+select count(*) from t4;
+count(*)
+100
+select count(*) from t5;
+count(*)
+100
+select count(*) from t6;
+count(*)
+100
+optimize table t2;
+Table	Op	Msg_type	Msg_text
+test.t2	optimize	status	OK
+optimize table t5;
+Table	Op	Msg_type	Msg_text
+test.t5	optimize	status	OK
+DROP TABLE t1;
+DROP TABLE t2;
+DROP TABLE t3;
+DROP TABLE t4;
+DROP TABLE t5;
+DROP TABLE t6;

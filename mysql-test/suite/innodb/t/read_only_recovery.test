@@ -20,7 +20,9 @@ BEGIN;
 INSERT INTO t VALUES(0);
 ROLLBACK;
 --let $restart_parameters= --innodb-force-recovery=3
---source include/kill_and_restart_mysqld.inc
+--let $shutdown_timeout= 0
+--source include/restart_mysqld.inc
+--let $shutdown_timeout= 30
 --disconnect con1
 SELECT * FROM t;
 SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;

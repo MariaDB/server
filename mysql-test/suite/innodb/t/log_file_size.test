@@ -29,7 +29,8 @@ BEGIN;
 INSERT INTO t1 VALUES (42);
 
 let $restart_parameters = --innodb-log-file-size=6M;
---source include/kill_and_restart_mysqld.inc
+let $shutdown_timeout=0;
+--source include/restart_mysqld.inc
 
 SELECT * FROM t1;
 
@@ -38,7 +39,8 @@ BEGIN;
 DELETE FROM t1;
 
 let $restart_parameters = --innodb-log-files-in-group=3 --innodb-log-file-size=5M;
---source include/kill_and_restart_mysqld.inc
+--source include/restart_mysqld.inc
+let $shutdown_timeout=;
 
 SELECT * FROM t1;
 
@@ -46,7 +48,6 @@ INSERT INTO t1 VALUES (0),(123);
 
 let MYSQLD_DATADIR= `select @@datadir`;
 let SEARCH_ABORT = NOT FOUND;
-let SEARCH_RANGE= -50000;
 let SEARCH_FILE= $MYSQLTEST_VARDIR/log/mysqld.1.err;
 
 BEGIN;
@@ -73,7 +74,7 @@ let SEARCH_PATTERN= syntax error in innodb_log_group_home_dir;
 --source include/restart_mysqld.inc
 --error ER_UNKNOWN_STORAGE_ENGINE
 SELECT * FROM t1;
-let SEARCH_PATTERN= InnoDB: Starting crash recovery from checkpoint LSN=;
+let SEARCH_PATTERN= InnoDB: Starting crash recovery from checkpoint LSN=.*;
 --source include/search_pattern_in_file.inc
 
 --let $restart_parameters= --debug=d,innodb_log_abort_3

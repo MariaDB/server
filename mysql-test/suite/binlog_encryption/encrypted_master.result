@@ -598,23 +598,23 @@ DROP SERVER server_name_to_encrypt;
 #############################
 # Final checks for the master
 #############################
-NOT FOUND /_to_encrypt/ in master-bin.0*
-NOT FOUND /COMMIT/ in master-bin.0*
-NOT FOUND /TIMESTAMP/ in master-bin.0*
+NOT FOUND /_to_encrypt.*/ in master-bin.0*
+NOT FOUND /COMMIT.*/ in master-bin.0*
+NOT FOUND /TIMESTAMP.*/ in master-bin.0*
 include/save_master_pos.inc
 #############################
 # Final checks for the slave
 #############################
 connection server_2;
 include/sync_io_with_master.inc
-FOUND /_to_encrypt/ in slave-relay-bin.0*
-FOUND /COMMIT/ in slave-relay-bin.0*
-FOUND /TIMESTAMP/ in slave-relay-bin.0*
+FOUND 1 /_to_encrypt.*/ in slave-relay-bin.0*
+FOUND 1 /COMMIT.*/ in slave-relay-bin.0*
+FOUND 1 /TIMESTAMP.*/ in slave-relay-bin.0*
 include/start_slave.inc
 include/sync_slave_sql_with_io.inc
-FOUND /_to_encrypt/ in slave-bin.0*
-FOUND /COMMIT/ in slave-bin.0*
-FOUND /TIMESTAMP/ in slave-bin.0*
+FOUND 1 /_to_encrypt.*/ in slave-bin.0*
+FOUND 1 /COMMIT.*/ in slave-bin.0*
+FOUND 1 /TIMESTAMP.*/ in slave-bin.0*
 ##########
 # Cleanup
 ##########

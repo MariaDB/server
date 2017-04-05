@@ -432,7 +432,6 @@ DELETE FROM t7 WHERE a = 100000200;
 set global innodb_flush_log_at_trx_commit=1;
 INSERT INTO t9 VALUES(100000000200);
 DELETE FROM t9 WHERE a = 100000000200;
-# Kill and restart
 INSERT INTO t1 VALUES(0);
 SELECT a AS `Expect 126` FROM t1 ORDER BY a DESC LIMIT 1;
 Expect 126
@@ -498,7 +497,6 @@ SELECT * FROM t19;
 a
 1
 2
-# Kill and restart
 INSERT INTO t1 VALUES(0), (0);
 SELECT * FROM t1;
 a
@@ -639,7 +637,6 @@ BEGIN;
 # Without the fix in page_create_empty() the counter value would be lost
 # when ROLLBACK deletes the last row.
 ROLLBACK;
-# Kill and restart
 INSERT INTO t3 VALUES(0);
 SELECT MAX(a) AS `Expect 120` FROM t3;
 Expect 120
@@ -913,7 +910,6 @@ UPDATE t33 SET a = 10 WHERE a = 1;
 INSERT INTO t33 VALUES(2, NULL);
 ERROR 23000: Duplicate entry '2' for key 'PRIMARY'
 COMMIT;
-# Kill and restart
 # This will not insert 0
 INSERT INTO t31(a) VALUES(6), (0);
 SELECT * FROM t31;
