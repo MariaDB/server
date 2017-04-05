@@ -204,6 +204,14 @@ operator== (const timeval &a, const timeval &b)
 static
 inline
 bool
+operator!= (const timeval &a, const timeval &b)
+{
+	return !(a == b);
+}
+
+static
+inline
+bool
 operator> (const timeval &a, const timeval &b)
 {
 	return a.tv_sec > b.tv_sec || (a.tv_sec == b.tv_sec && a.tv_usec > b.tv_usec);
@@ -217,6 +225,52 @@ operator< (const timeval &a, const timeval &b)
 	return b > a;
 }
 
+static
+trx_id_t
+read_trx_id(const rec_t *rec) {
+	ulong len = 0;
+	const rec_t *field = rec_get_nth_field_old(rec, 1, &len);
+	DBUG_ASSERT(len == 8);
+	return mach_read_from_8(field);
+}
+
+/** Find a row with given commit_ts but MAX()/MIN() trx_id
+@param[in]	mtr		mini-transaction handler
+@param[in, out]	pcur		btree cursor which may be changed by this function
+@param[in]	backwards	search direction
+@param[in]	commit_ts	target timestamp for records
+@param[in]	rec		record buffer for pcur
+*/
+static
+void
+find_best_match(mtr_t &mtr, btr_pcur_t &pcur, bool backwards,
+	timeval commit_ts, const rec_t *rec) {
+	btr_pcur_t best;
+	btr_pcur_init(&best);
+	btr_pcur_copy_stored_position(&best, &pcur);
+	trx_id_t best_trx_id = read_trx_id(rec);
+
+	while (true) {
+		if (backwards ? !btr_pcur_move_to_prev_user_rec(&pcur, &mtr)
+			      : !btr_pcur_move_to_next_user_rec(&pcur, &mtr))
+			break;
+
+		timeval tv;
+		rec = btr_pcur_get_rec(&pcur);
+		rec_get_timeval(rec, 0, tv);
+		if (tv != commit_ts)
+			break;
+
+		trx_id_t trx_id = read_trx_id(rec);
+		if (backwards ? trx_id < best_trx_id : trx_id > best_trx_id) {
+			best_trx_id = trx_id;
+			btr_pcur_copy_stored_position(&best, &pcur);
+		}
+	}
+
+	btr_pcur_copy_stored_position(&pcur, &best);
+	btr_pcur_free(&best);
+}
 
 /** Query VTQ by COMMIT_TS.
 @param[in]	thd	MySQL thread
@@ -298,9 +352,10 @@ vtq_query_commit_ts(
 		rec = btr_pcur_get_rec(&pcur);
 		rec_get_timeval(rec, 0, rec_ts);
 
-		if (rec_ts.tv_sec == commit_ts.tv_sec
-		&& rec_ts.tv_usec == commit_ts.tv_usec)
+		if (rec_ts == commit_ts) {
+			find_best_match(mtr, pcur, backwards, commit_ts, rec);
 			goto found;
+                }
 	} else {
 		rec_ts = commit_ts;
 	}
