@@ -1652,7 +1652,7 @@ run_again:
 						foreign,
 						rec, 
 						check_index, 
-						check_ref, TRUE);
+						check_ref, FALSE);
 #endif /* WITH_WSREP */
 					goto end_scan;
 				} else if (foreign->type != 0) {
