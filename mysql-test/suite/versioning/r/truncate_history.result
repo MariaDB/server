@@ -122,6 +122,9 @@ a
 22
 1
 2
+select * from t for system_time before timestamp @ts1;
+a
+1
 truncate t for system_time before timestamp @ts1;
 select * from t for system_time all;
 a
@@ -144,6 +147,12 @@ a
 22
 1
 2
+select * from t for system_time before timestamp @ts1;
+a
+select * from t for system_time before transaction 2000;
+a
+1
+2
 truncate t for system_time before timestamp @ts1;
 select * from t for system_time all;
 a
@@ -157,7 +166,5 @@ a
 11
 22
 2
-select * from t for system_time before timestamp now();
-ERROR HY000: `FOR SYSTEM_TIME BEFORE` works only with `TRUNCATE` query type
 drop table t;
 drop procedure truncate_history_of_t;

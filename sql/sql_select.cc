@@ -786,14 +786,6 @@ int vers_setup_select(THD *thd, TABLE_LIST *tables, COND **where_expr,
         table->vers_conditions.type == FOR_SYSTEM_TIME_UNSPECIFIED ?
           slex->vers_conditions : table->vers_conditions;
 
-      if (vers_conditions.type == FOR_SYSTEM_TIME_BEFORE &&
-          thd->lex->sql_command != SQLCOM_TRUNCATE)
-      {
-        my_error(ER_VERS_WRONG_QUERY_TYPE, MYF(0), "FOR SYSTEM_TIME BEFORE",
-                 "TRUNCATE");
-        DBUG_RETURN(-1);
-      }
-
       if (vers_conditions.type == FOR_SYSTEM_TIME_UNSPECIFIED)
       {
         if (vers_conditions.init_from_sysvar(thd))

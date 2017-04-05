@@ -96,6 +96,7 @@ update t set a=11 where a=1;
 set @ts1=now(6);
 update t set a=22 where a=2;
 select * from t for system_time all;
+select * from t for system_time before timestamp @ts1;
 truncate t for system_time before timestamp @ts1;
 select * from t for system_time all;
 truncate t for system_time before timestamp now(6);
@@ -107,13 +108,12 @@ update t set a=11 where a=1;
 set @ts1=now(6);
 update t set a=22 where a=2;
 select * from t for system_time all;
+select * from t for system_time before timestamp @ts1;
+select * from t for system_time before transaction 2000;
 truncate t for system_time before timestamp @ts1;
 select * from t for system_time all;
 truncate t for system_time before timestamp now(6);
 select * from t for system_time all;
-
---error ER_VERS_WRONG_QUERY_TYPE
-select * from t for system_time before timestamp now();
 
 drop table t;
 drop procedure truncate_history_of_t;
