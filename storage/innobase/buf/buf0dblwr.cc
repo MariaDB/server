@@ -206,19 +206,6 @@ start_again:
 
 	ib::info() << "Doublewrite buffer not found: creating new";
 
-	ulint min_doublewrite_size =
-		( ( 2 * TRX_SYS_DOUBLEWRITE_BLOCK_SIZE
-		  + FSP_EXTENT_SIZE / 2
-		  + 100)
-		* UNIV_PAGE_SIZE);
-	if (buf_pool_get_curr_size() <  min_doublewrite_size) {
-		ib::error() << "Cannot create doublewrite buffer: you must"
-			" increase your buffer pool size. Cannot continue"
-			" operation.";
-
-		return(false);
-	}
-
 	block2 = fseg_create(TRX_SYS_SPACE, TRX_SYS_PAGE_NO,
 			     TRX_SYS_DOUBLEWRITE
 			     + TRX_SYS_DOUBLEWRITE_FSEG, &mtr);
@@ -233,9 +220,9 @@ start_again:
 			" increase your tablespace size."
 			" Cannot continue operation.";
 
-		/* We exit without committing the mtr to prevent
-		its modifications to the database getting to disk */
-
+		/* The mini-transaction did not write anything yet;
+		we merely failed to allocate a page. */
+		mtr.commit();
 		return(false);
 	}
 
@@ -250,7 +237,12 @@ start_again:
 			ib::error() << "Cannot create doublewrite buffer: "
 				" you must increase your tablespace size."
 				" Cannot continue operation.";
-
+			/* This may essentially corrupt the doublewrite
+			buffer. However, usually the doublewrite buffer
+			is created at database initialization, and it
+			should not matter (just remove all newly created
+			InnoDB files and restart). */
+			mtr.commit();
 			return(false);
 		}
 
