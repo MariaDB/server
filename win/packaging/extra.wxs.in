@@ -445,7 +445,7 @@
       <!-- Data directory with some reasonable security settings -->
       <Component Id="C.datadir" Guid="*" Directory="DATADIR">
         <RegistryValue Root='HKLM'
-           Key='SOFTWARE\Monty Program AB\@CPACK_WIX_PACKAGE_NAME@'
+           Key='SOFTWARE\@CPACK_WIX_PACKAGE_NAME@'
            Name='DATADIR' Value='[DATADIR]' Type='string' KeyPath='yes'/>
           <CreateFolder>
             <util:PermissionEx User="NetworkService" GenericAll="yes" />
@@ -461,7 +461,7 @@
           <![CDATA[ (UserSID <> "S-1-5-18") AND (UserSID <> "S-1-5-19") AND (UserSID <> "S-1-5-20") ]]>
          </Condition>
          <RegistryValue Root='HKLM'
-           Key='SOFTWARE\Monty Program AB\@CPACK_WIX_PACKAGE_NAME@'
+           Key='SOFTWARE\@CPACK_WIX_PACKAGE_NAME@'
            Name='InstalledBy' Value='[USER_DOMAIN]\[LogonUser]' Type='string' KeyPath='yes'/>
         <CreateFolder>
           <util:PermissionEx User="[LogonUser]" Domain="[USER_DOMAIN]" GenericAll="yes" />
@@ -472,7 +472,7 @@
       <Component Id="C.service" Guid="*" Directory="DATADIR">
         <Condition>SERVICENAME</Condition>
         <RegistryValue Root='HKLM'
-           Key='SOFTWARE\Monty Program AB\@CPACK_WIX_PACKAGE_NAME@'
+           Key='SOFTWARE\@CPACK_WIX_PACKAGE_NAME@'
            Name='SERVICENAME' Value='[SERVICENAME]' Type='string' KeyPath='yes'/>
         <ServiceControl Id='DBInstanceServiceStop' Name='[SERVICENAME]'  Stop='both' Remove='uninstall' Wait='yes'/>
         <ServiceControl Id='DBInstanceServiceStart' Name='[SERVICENAME]' Start='install' Wait='yes'/>
@@ -480,7 +480,7 @@
 
       <Component Id="C.myiniconfig" Guid="*" Directory="DATADIR">
         <RegistryValue Root='HKLM'
-           Key='SOFTWARE\Monty Program AB\@CPACK_WIX_PACKAGE_NAME@'
+           Key='SOFTWARE\@CPACK_WIX_PACKAGE_NAME@'
            Name='STDCONFIG' Value='1' Type='string' KeyPath='yes'/>
         <IniFile Id="Ini3"
             Action="createLine"
@@ -493,7 +493,7 @@
       <Component Id="C.feedback" Guid="*" Directory="DATADIR">
         <Condition>FEEDBACK</Condition>
         <RegistryValue Root='HKLM'
-           Key='SOFTWARE\Monty Program AB\@CPACK_WIX_PACKAGE_NAME@'
+           Key='SOFTWARE\@CPACK_WIX_PACKAGE_NAME@'
            Name='FEEDBACK' Value='1' Type='string' KeyPath='yes'/>
         <IniFile Id="Ini5"
             Action="createLine"
@@ -507,7 +507,7 @@
       <Component Id="C.utf8" Guid="*" Directory="DATADIR">
         <Condition>UTF8</Condition>
         <RegistryValue Root='HKLM'
-           Key='SOFTWARE\Monty Program AB\@CPACK_WIX_PACKAGE_NAME@'
+           Key='SOFTWARE\@CPACK_WIX_PACKAGE_NAME@'
            Name='UTF8' Value='1' Type='string' KeyPath='yes'/>
         <IniFile Id="Ini6"
             Action="createLine"
@@ -750,7 +750,7 @@
 
     <Feature Id='StoreInstallLocation' Level='1' Absent='disallow' Display='hidden'>
       <Component Directory='INSTALLDIR' Guid='*' Id='C.storeinstalllocation'>
-        <RegistryValue Root='HKLM' Key='SOFTWARE\Monty Program AB\@CPACK_WIX_PACKAGE_NAME@' 
+        <RegistryValue Root='HKLM' Key='SOFTWARE\@CPACK_WIX_PACKAGE_NAME@' 
                        Name='INSTALLDIR' Value='[INSTALLDIR]' Type='string'  KeyPath='yes'/>
       </Component>
     </Feature>
@@ -759,7 +759,7 @@
 
     <Property Id='$(var.STOREDVAR)' Secure='yes'>
       <RegistrySearch Id='$(var.STOREDVAR)Property' Root='HKLM'
-                      Key='SOFTWARE\Monty Program AB\@CPACK_WIX_PACKAGE_NAME@'
+                      Key='SOFTWARE\@CPACK_WIX_PACKAGE_NAME@'
                       Name='$(var.STOREDVAR)' Type='raw' />
     </Property>
     <CustomAction Id='SaveCmdLineValue_$(var.STOREDVAR)' Property='CMDLINE_$(var.STOREDVAR)'
