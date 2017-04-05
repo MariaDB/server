@@ -2,7 +2,7 @@
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2009, Google Inc.
-Copyright (C) 2014, 2016, MariaDB Corporation. All Rights Reserved.
+Copyright (c) 2014, 2017, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -48,13 +48,19 @@ Created 12/9/1995 Heikki Tuuri
 #endif
 
 #ifndef UNIV_HOTBACKUP
+#if MYSQL_VERSION_ID < 100200
+# include <my_systemd.h> /* sd_notifyf() */
+#endif
+
 #include "mem0mem.h"
 #include "buf0buf.h"
 #include "buf0flu.h"
 #include "srv0srv.h"
+#include "lock0lock.h"
 #include "log0recv.h"
 #include "fil0fil.h"
 #include "dict0boot.h"
+#include "dict0stats_bg.h" /* dict_stats_event */
 #include "srv0srv.h"
 #include "srv0start.h"
 #include "trx0sys.h"
@@ -94,6 +100,10 @@ UNIV_INTERN log_t*	log_sys	= NULL;
 /** Pointer to the log checksum calculation function */
 UNIV_INTERN log_checksum_func_t log_checksum_algorithm_ptr	=
 	log_block_calc_checksum_innodb;
+
+extern "C" UNIV_INTERN
+os_thread_ret_t
+DECLARE_THREAD(log_scrub_thread)(void*);
 
 /* Next log block number to do dummy record filling if no log records written
 for a while */
@@ -166,6 +176,11 @@ the previous */
 /* States of an archiving operation */
 #define	LOG_ARCHIVE_READ	1
 #define	LOG_ARCHIVE_WRITE	2
+
+/** Event to wake up the log scrub thread */
+static os_event_t log_scrub_event;
+
+static bool log_scrub_thread_active;
 
 /******************************************************//**
 Completes a checkpoint write i/o to a log file. */
@@ -920,24 +935,10 @@ failure:
 	mutex_exit(&(log_sys->mutex));
 
 	if (!success) {
-		fprintf(stderr,
-			"InnoDB: Error: ib_logfiles are too small"
-			" for innodb_thread_concurrency %lu.\n"
-			"InnoDB: The combined size of ib_logfiles"
+		ib_logf(IB_LOG_LEVEL_FATAL,
+			"The combined size of ib_logfiles"
 			" should be bigger than\n"
-			"InnoDB: 200 kB * innodb_thread_concurrency.\n"
-			"InnoDB: To get mysqld to start up, set"
-			" innodb_thread_concurrency in my.cnf\n"
-			"InnoDB: to a lower value, for example, to 8."
-			" After an ERROR-FREE shutdown\n"
-			"InnoDB: of mysqld you can adjust the size of"
-			" ib_logfiles, as explained in\n"
-			"InnoDB: " REFMAN "adding-and-removing.html\n"
-			"InnoDB: Cannot continue operation."
-			" Calling exit(1).\n",
-			(ulong) srv_thread_concurrency);
-
-		exit(1);
+			"InnoDB: 200 kB * innodb_thread_concurrency.");
 	}
 
 	return(success);
@@ -1062,6 +1063,12 @@ log_init(void)
 		    log_sys->lsn - log_sys->last_checkpoint_lsn);
 
 	mutex_exit(&(log_sys->mutex));
+
+	log_scrub_thread_active = !srv_read_only_mode && srv_scrub_log;
+	if (log_scrub_thread_active) {
+		log_scrub_event = os_event_create();
+		os_thread_create(log_scrub_thread, NULL, NULL);
+	}
 
 #ifdef UNIV_LOG_DEBUG
 	recv_sys_create();
@@ -1585,17 +1592,7 @@ log_write_up_to(
 	}
 
 loop:
-#ifdef UNIV_DEBUG
-	loop_count++;
-
-	ut_ad(loop_count < 5);
-
-# if 0
-	if (loop_count > 2) {
-		fprintf(stderr, "Log loop count %lu\n", loop_count);
-	}
-# endif
-#endif
+	ut_ad(++loop_count < 100);
 
 	mutex_enter(&(log_sys->mutex));
 	ut_ad(!recv_no_log_write);
@@ -1883,7 +1880,7 @@ log_preflush_pool_modified_pages(
 		and we could not make a new checkpoint on the basis of the
 		info on the buffer pool only. */
 
-		recv_apply_hashed_log_recs(TRUE);
+		recv_apply_hashed_log_recs(true);
 	}
 
 	if (!buf_page_cleaner_is_active
@@ -2258,7 +2255,7 @@ log_checkpoint(
 	ut_ad(!srv_read_only_mode);
 
 	if (recv_recovery_is_on()) {
-		recv_apply_hashed_log_recs(TRUE);
+		recv_apply_hashed_log_recs(true);
 	}
 
 	if (srv_unix_file_flush_method != SRV_UNIX_NOSYNC &&
@@ -2632,6 +2629,13 @@ loop:
 	start_lsn += len;
 	buf += len;
 
+	if (recv_sys->report(ut_time())) {
+		ib_logf(IB_LOG_LEVEL_INFO, "Read redo log up to LSN=" LSN_PF,
+			start_lsn);
+		sd_notifyf(0, "STATUS=Read redo log up to LSN=" LSN_PF,
+			   start_lsn);
+	}
+
 	if (start_lsn != end_lsn) {
 
 		if (release_mutex) {
@@ -2861,15 +2865,9 @@ loop:
 		}
 
 		if (!ret) {
-			fprintf(stderr,
+			ib_logf(IB_LOG_LEVEL_FATAL,
 				"InnoDB: Cannot create or open"
-				" archive log file %s.\n"
-				"InnoDB: Cannot continue operation.\n"
-				"InnoDB: Check that the log archive"
-				" directory exists,\n"
-				"InnoDB: you have access rights to it, and\n"
-				"InnoDB: there is space available.\n", name);
-			exit(1);
+				" archive log file %s.\n", name);
 		}
 
 #ifdef UNIV_DEBUG
@@ -3563,10 +3561,7 @@ logs_empty_and_mark_files_at_shutdown(void)
 	lsn_t			lsn;
 	lsn_t			tracked_lsn;
 	ulint			count = 0;
-	ulint			total_trx;
 	ulint			pending_io;
-	enum srv_thread_type	active_thd;
-	const char*		thread_name;
 	ibool			server_busy;
 
 	ib_logf(IB_LOG_LEVEL_INFO, "Starting shutdown...");
@@ -3575,49 +3570,30 @@ logs_empty_and_mark_files_at_shutdown(void)
 	if (log_disable_checkpoint_active)
 		log_enable_checkpoint();
 
-	while (srv_fast_shutdown == 0 && trx_rollback_or_clean_is_active) {
-		/* we should wait until rollback after recovery end
-		for slow shutdown */
-		os_thread_sleep(100000);
-	}
-
 	/* Wait until the master thread and all other operations are idle: our
 	algorithm only works if the server is idle at shutdown */
 
 	srv_shutdown_state = SRV_SHUTDOWN_CLEANUP;
 loop:
+	if (!srv_read_only_mode) {
+		os_event_set(srv_error_event);
+		os_event_set(srv_monitor_event);
+		os_event_set(srv_buf_dump_event);
+		os_event_set(lock_sys->timeout_event);
+		os_event_set(dict_stats_event);
+	}
 	os_thread_sleep(100000);
 
 	count++;
-
-	/* We need the monitor threads to stop before we proceed with
-	a shutdown. */
-
-	thread_name = srv_any_background_threads_are_active();
-
-	if (thread_name != NULL) {
-		/* Print a message every 60 seconds if we are waiting
-		for the monitor thread to exit. Master and worker
-		threads check will be done later. */
-
-		if (srv_print_verbose_log && count > 600) {
-			ib_logf(IB_LOG_LEVEL_INFO,
-				"Waiting for %s to exit", thread_name);
-			count = 0;
-		}
-
-		goto loop;
-	}
 
 	/* Check that there are no longer transactions, except for
 	PREPARED ones. We need this wait even for the 'very fast'
 	shutdown, because the InnoDB layer may have committed or
 	prepared transactions and we don't want to lose them. */
 
-	total_trx = trx_sys_any_active_transactions();
-
-	if (total_trx > 0) {
-
+	if (ulint total_trx = srv_was_started && !srv_read_only_mode
+	    && srv_force_recovery < SRV_FORCE_NO_TRX_UNDO
+	    ? trx_sys_any_active_transactions() : 0) {
 		if (srv_print_verbose_log && count > 600) {
 			ib_logf(IB_LOG_LEVEL_INFO,
 				"Waiting for %lu active transactions to finish",
@@ -3629,55 +3605,63 @@ loop:
 		goto loop;
 	}
 
-	/* Check that the background threads are suspended */
+	/* We need these threads to stop early in shutdown. */
+	const char* thread_name;
 
-	active_thd = srv_get_active_thread_type();
+	if (srv_error_monitor_active) {
+		thread_name = "srv_error_monitor_thread";
+	} else if (srv_monitor_active) {
+		thread_name = "srv_monitor_thread";
+	} else if (srv_dict_stats_thread_active) {
+		thread_name = "dict_stats_thread";
+	} else if (lock_sys->timeout_thread_active) {
+		thread_name = "lock_wait_timeout_thread";
+	} else if (srv_buf_dump_thread_active) {
+		thread_name = "buf_dump_thread";
+	} else if (srv_fast_shutdown != 2 && trx_rollback_or_clean_is_active) {
+		thread_name = "rollback of recovered transactions";
+	} else {
+		thread_name = NULL;
+	}
 
-	if (active_thd != SRV_NONE) {
-
-		if (active_thd == SRV_PURGE) {
-			srv_purge_wakeup();
-		}
-
-		/* The srv_lock_timeout_thread, srv_error_monitor_thread
-		and srv_monitor_thread should already exit by now. The
-		only threads to be suspended are the master threads
-		and worker threads (purge threads). Print the thread
-		type if any of such threads not in suspended mode */
+	if (thread_name) {
+		ut_ad(!srv_read_only_mode);
+wait_suspend_loop:
 		if (srv_print_verbose_log && count > 600) {
-			const char*	thread_type = "<null>";
-
-			switch (active_thd) {
-			case SRV_NONE:
-				/* This shouldn't happen because we've
-				already checked for this case before
-				entering the if(). We handle it here
-				to avoid a compiler warning. */
-				ut_error;
-			case SRV_WORKER:
-				thread_type = "worker threads";
-				break;
-			case SRV_MASTER:
-				thread_type = "master thread";
-				break;
-			case SRV_PURGE:
-				thread_type = "purge thread";
-				break;
-			}
-
 			ib_logf(IB_LOG_LEVEL_INFO,
-				"Waiting for %s to be suspended",
-				thread_type);
+				"Waiting for %s to exit", thread_name);
 			count = 0;
 		}
-
 		goto loop;
+	}
+
+	/* Check that the background threads are suspended */
+
+	switch (srv_get_active_thread_type()) {
+	case SRV_NONE:
+		srv_shutdown_state = SRV_SHUTDOWN_FLUSH_PHASE;
+		if (!srv_n_fil_crypt_threads_started) {
+			break;
+		}
+		os_event_set(fil_crypt_threads_event);
+		thread_name = "fil_crypt_thread";
+		goto wait_suspend_loop;
+	case SRV_PURGE:
+		srv_purge_wakeup();
+		thread_name = "purge thread";
+		goto wait_suspend_loop;
+	case SRV_MASTER:
+		thread_name = "master thread";
+		goto wait_suspend_loop;
+	case SRV_WORKER:
+		thread_name = "worker threads";
+		goto wait_suspend_loop;
 	}
 
 	/* At this point only page_cleaner should be active. We wait
 	here to let it complete the flushing of the buffer pools
 	before proceeding further. */
-	srv_shutdown_state = SRV_SHUTDOWN_FLUSH_PHASE;
+
 	count = 0;
 	while (buf_page_cleaner_is_active || buf_lru_manager_is_active) {
 		if (srv_print_verbose_log && count == 0) {
@@ -3692,8 +3676,14 @@ loop:
 		}
 	}
 
+	if (log_scrub_thread_active) {
+		ut_ad(!srv_read_only_mode);
+		os_event_set(log_scrub_event);
+	}
+
 	mutex_enter(&log_sys->mutex);
-	server_busy = log_sys->n_pending_checkpoint_writes
+	server_busy = log_scrub_thread_active
+		|| log_sys->n_pending_checkpoint_writes
 #ifdef UNIV_LOG_ARCHIVE
 		|| log_sys->n_pending_archive_ios
 #endif /* UNIV_LOG_ARCHIVE */
@@ -3711,6 +3701,8 @@ loop:
 		}
 		goto loop;
 	}
+
+	ut_ad(!log_scrub_thread_active);
 
 	pending_io = buf_pool_check_no_pending_io();
 
@@ -3747,16 +3739,6 @@ loop:
 			from the stamps if the previous shutdown was clean. */
 
 			log_buffer_flush_to_disk();
-
-			/* Check that the background threads stay suspended */
-			thread_name = srv_any_background_threads_are_active();
-
-			if (thread_name != NULL) {
-				ib_logf(IB_LOG_LEVEL_WARN,
-					"Background thread %s woke up "
-					"during shutdown", thread_name);
-				goto loop;
-			}
 		}
 
 		srv_shutdown_state = SRV_SHUTDOWN_LAST_PHASE;
@@ -3769,74 +3751,57 @@ loop:
 		}
 
 		fil_close_all_files();
-
-		thread_name = srv_any_background_threads_are_active();
-
-		ut_a(!thread_name);
-
 		return;
 	}
 
 	if (!srv_read_only_mode) {
 		log_make_checkpoint_at(LSN_MAX, TRUE);
-	}
 
-	mutex_enter(&log_sys->mutex);
+		mutex_enter(&log_sys->mutex);
 
-	tracked_lsn = log_get_tracked_lsn();
+		tracked_lsn = log_get_tracked_lsn();
 
-	lsn = log_sys->lsn;
+		lsn = log_sys->lsn;
 
-	if (lsn != log_sys->last_checkpoint_lsn
-	    || (srv_track_changed_pages
-		&& (tracked_lsn != log_sys->last_checkpoint_lsn))
+		if (lsn != log_sys->last_checkpoint_lsn
+		    || (srv_track_changed_pages
+			&& (tracked_lsn != log_sys->last_checkpoint_lsn))
 #ifdef UNIV_LOG_ARCHIVE
-	    || (srv_log_archive_on
-		&& lsn != log_sys->archived_lsn + LOG_BLOCK_HDR_SIZE)
+		    || (srv_log_archive_on
+			&& lsn != log_sys->archived_lsn + LOG_BLOCK_HDR_SIZE)
 #endif /* UNIV_LOG_ARCHIVE */
-	    ) {
+		    ) {
+
+			mutex_exit(&log_sys->mutex);
+
+			goto loop;
+		}
+
+#ifdef UNIV_LOG_ARCHIVE
+		log_archive_close_groups(TRUE);
+#endif /* UNIV_LOG_ARCHIVE */
 
 		mutex_exit(&log_sys->mutex);
 
-		goto loop;
-	}
-
-#ifdef UNIV_LOG_ARCHIVE
-
-	log_archive_close_groups(TRUE);
-#endif /* UNIV_LOG_ARCHIVE */
-
-	mutex_exit(&log_sys->mutex);
-
-	/* Check that the background threads stay suspended */
-	thread_name = srv_any_background_threads_are_active();
-	if (thread_name != NULL) {
-		ib_logf(IB_LOG_LEVEL_WARN,
-			"Background thread %s woke up during shutdown",
-			thread_name);
-
-		goto loop;
-	}
-
-	if (!srv_read_only_mode) {
 		fil_flush_file_spaces(FIL_TABLESPACE);
 		fil_flush_file_spaces(FIL_LOG);
-	}
 
-	/* The call fil_write_flushed_lsn_to_data_files() will pass the buffer
-	pool: therefore it is essential that the buffer pool has been
-	completely flushed to disk! (We do not call fil_write... if the
-	'very fast' shutdown is enabled.) */
+		/* The call fil_write_flushed_lsn_to_data_files() will
+		bypass the buffer pool: therefore it is essential that
+		the buffer pool has been completely flushed to disk! */
 
-	if (!buf_all_freed()) {
+		if (!buf_all_freed()) {
+			if (srv_print_verbose_log && count > 600) {
+				ib_logf(IB_LOG_LEVEL_INFO,
+					"Waiting for dirty buffer pages"
+					" to be flushed");
+				count = 0;
+			}
 
-		if (srv_print_verbose_log && count > 600) {
-			ib_logf(IB_LOG_LEVEL_INFO,
-				"Waiting for dirty buffer pages to be flushed");
-			count = 0;
+			goto loop;
 		}
-
-		goto loop;
+	} else {
+		lsn = srv_start_lsn;
 	}
 
 	srv_shutdown_state = SRV_SHUTDOWN_LAST_PHASE;
@@ -4114,6 +4079,11 @@ log_shutdown(void)
 	mutex_free(&log_sys->mutex);
 	mutex_free(&log_sys->log_flush_order_mutex);
 
+	if (!srv_read_only_mode && srv_scrub_log) {
+		os_event_free(log_scrub_event);
+		log_scrub_event = NULL;
+	}
+
 #ifdef UNIV_LOG_ARCHIVE
 	rw_lock_free(&log_sys->archive_lock);
 	os_event_free(log_sys->archiving_on);
@@ -4141,11 +4111,6 @@ log_mem_free(void)
 	}
 }
 
-/** Event to wake up the log scrub thread */
-UNIV_INTERN os_event_t log_scrub_event = NULL;
-
-UNIV_INTERN ibool srv_log_scrub_thread_active = FALSE;
-
 /*****************************************************************//*
 If no log record has been written for a while, fill current log
 block with dummy records. */
@@ -4172,17 +4137,11 @@ sleeps again.
 @return this function does not return, it calls os_thread_exit() */
 extern "C" UNIV_INTERN
 os_thread_ret_t
-DECLARE_THREAD(log_scrub_thread)(
-/*===============================*/
-	void* arg __attribute__((unused)))	/*!< in: a dummy parameter
-						required by os_thread_create */
+DECLARE_THREAD(log_scrub_thread)(void*)
 {
 	ut_ad(!srv_read_only_mode);
 
-	srv_log_scrub_thread_active = TRUE;
-
-	while(srv_shutdown_state == SRV_SHUTDOWN_NONE)
-	{
+	while (srv_shutdown_state < SRV_SHUTDOWN_FLUSH_PHASE) {
 		/* log scrubbing interval in µs. */
 		ulonglong interval = 1000*1000*512/innodb_scrub_log_speed;
 
@@ -4193,7 +4152,7 @@ DECLARE_THREAD(log_scrub_thread)(
 		os_event_reset(log_scrub_event);
 	}
 
-	srv_log_scrub_thread_active = FALSE;
+	log_scrub_thread_active = false;
 
 	/* We count the number of threads in os_thread_exit(). A created
 	thread should always use that to exit and not use return() to exit. */

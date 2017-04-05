@@ -414,3 +414,33 @@ SELECT f1();
 DROP FUNCTION f1;
 DROP VIEW v1;
 DROP TABLE t1,t2;
+
+--echo #
+--echo # Bug #16672723 "CAN'T FIND TEMPORARY TABLE".
+--echo #
+CREATE FUNCTION f1() RETURNS INT RETURN 1;
+CREATE TEMPORARY TABLE tmp1(a INT);
+PREPARE stmt1 FROM "CREATE TEMPORARY TABLE tmp2 AS SELECT b FROM (SELECT f1() AS b FROM tmp1) AS t";
+--echo # The below statement failed before the fix.
+EXECUTE stmt1;
+DROP TEMPORARY TABLES tmp1, tmp2;
+DEALLOCATE PREPARE stmt1;
+DROP FUNCTION f1;
+
+#
+# MDEV-9084 Calling a stored function from a nested select from temporary table causes unpredictable behavior
+#
+delimiter $$;
+create procedure sp1()
+begin
+  drop table if exists t1, t2;
+  create temporary table t1 select 1 v;
+  create table t2 (col varchar(45)) select distinct col from (select sf1() as col from t1) t;
+end$$
+delimiter ;$$
+create function sf1() returns text return 'blah';
+call test.sp1();
+call test.sp1();
+drop procedure sp1;
+drop function sf1;
+drop table t2;

@@ -217,7 +217,7 @@ void get_tty_password_buff(const char *opt_message, char *buff, size_t buflen)
 }
 #endif /*__WIN__*/
 
-#ifndef MYSQL_DYNAMIC_PLUGIN
+#ifndef NO_GET_TTY_PASSWORD
 char *get_tty_password(const char *opt_message)
 {
   char buff[80];

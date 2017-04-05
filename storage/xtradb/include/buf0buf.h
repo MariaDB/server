@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2016, MariaDB Corporation.
+Copyright (c) 2013, 2017, MariaDB Corporation. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -243,8 +243,7 @@ buf_relocate(
 	buf_page_t*	bpage,	/*!< in/out: control block being relocated;
 				buf_page_get_state(bpage) must be
 				BUF_BLOCK_ZIP_DIRTY or BUF_BLOCK_ZIP_PAGE */
-	buf_page_t*	dpage)	/*!< in/out: destination control block */
-	MY_ATTRIBUTE((nonnull));
+	buf_page_t*	dpage);	/*!< in/out: destination control block */
 /*********************************************************************//**
 Gets the current size of buffer buf_pool in bytes.
 @return	size in bytes */
@@ -639,19 +638,68 @@ buf_block_unfix(
 #else /* !UNIV_HOTBACKUP */
 # define buf_block_modify_clock_inc(block) ((void) 0)
 #endif /* !UNIV_HOTBACKUP */
+
+/** Checks if the page is in crc32 checksum format.
+@param[in]	read_buf	database page
+@param[in]	checksum_field1	new checksum field
+@param[in]	checksum_field2	old checksum field
+@return true if the page is in crc32 checksum format */
+bool
+buf_page_is_checksum_valid_crc32(
+	const byte*	read_buf,
+	ulint		checksum_field1,
+	ulint		checksum_field2)
+	MY_ATTRIBUTE((warn_unused_result));
+
+/** Checks if the page is in innodb checksum format.
+@param[in]	read_buf	database page
+@param[in]	checksum_field1	new checksum field
+@param[in]	checksum_field2	old checksum field
+@return true if the page is in innodb checksum format */
+bool
+buf_page_is_checksum_valid_innodb(
+	const byte*	read_buf,
+	ulint		checksum_field1,
+	ulint		checksum_field2)
+	MY_ATTRIBUTE((warn_unused_result));
+
+/** Checks if the page is in none checksum format.
+@param[in]	read_buf	database page
+@param[in]	checksum_field1	new checksum field
+@param[in]	checksum_field2	old checksum field
+@return true if the page is in none checksum format */
+bool
+buf_page_is_checksum_valid_none(
+	const byte*	read_buf,
+	ulint		checksum_field1,
+	ulint		checksum_field2)
+	MY_ATTRIBUTE((warn_unused_result));
+
 /********************************************************************//**
 Checks if a page is corrupt.
-@return	TRUE if corrupted */
-UNIV_INTERN
-ibool
+@param[in]	check_lsn		true if LSN should be checked
+@param[in]	read_buf		Page to be checked
+@param[in]	zip_size		compressed size or 0
+@param[in]	space			Pointer to tablespace
+@return	true if corrupted, false if not */
+bool
 buf_page_is_corrupted(
-/*==================*/
-	bool		check_lsn,	/*!< in: true if we need to check the
-					and complain about the LSN */
-	const byte*	read_buf,	/*!< in: a database page */
-	ulint		zip_size)	/*!< in: size of compressed page;
-					0 for uncompressed pages */
-	MY_ATTRIBUTE((nonnull, warn_unused_result));
+	bool			check_lsn,
+	const byte*		read_buf,
+	ulint			zip_size,
+	const fil_space_t* 	space)
+	MY_ATTRIBUTE((warn_unused_result));
+/********************************************************************//**
+Check if page is maybe compressed, encrypted or both when we encounter
+corrupted page. Note that we can't be 100% sure if page is corrupted
+or decrypt/decompress just failed.
+@param[in]	bpage		Page
+@return true if page corrupted, false if not */
+bool
+buf_page_check_corrupt(
+	buf_page_t*	bpage)	/*!< in/out: buffer page read from disk */
+	MY_ATTRIBUTE(( warn_unused_result));
+
 /********************************************************************//**
 Checks if a page is all zeroes.
 @return	TRUE if the page is all zeroes */
@@ -742,7 +790,7 @@ buf_page_print(
 	ulint		flags)		/*!< in: 0 or
 					BUF_PAGE_PRINT_NO_CRASH or
 					BUF_PAGE_PRINT_NO_FULL */
-	UNIV_COLD MY_ATTRIBUTE((nonnull));
+	UNIV_COLD;
 /********************************************************************//**
 Decompress a block.
 @return	TRUE if successful */
@@ -1524,7 +1572,7 @@ The hook that is called just after a page is read from disk.
 The function decrypt disk content into buf_page_t and releases the
 temporary buffer that was allocated in buf_page_decrypt_before_read */
 UNIV_INTERN
-ibool
+bool
 buf_page_decrypt_after_read(
 /*========================*/
 	buf_page_t* page); /*!< in/out: buffer page read from disk */
@@ -1630,15 +1678,8 @@ struct buf_page_t{
 					if written again we check is TRIM
 					operation needed. */
 
-	unsigned        key_version;    /*!< key version for this block */
-	bool            page_encrypted; /*!< page is page encrypted */
-	bool            page_compressed;/*!< page is page compressed */
-	ulint           stored_checksum;/*!< stored page checksum if page
-					encrypted */
-	bool            encrypted;      /*!< page is still encrypted */
-	ulint           calculated_checksum;
-					/*!< calculated checksum if page
-					encrypted */
+	unsigned        key_version;	/*!< key version for this block */
+	bool            encrypted;	/*!< page is still encrypted */
 
 	ulint           real_size;	/*!< Real size of the page
 					Normal pages == UNIV_PAGE_SIZE
@@ -2070,7 +2111,10 @@ struct buf_pool_t{
 	os_event_t	no_flush[BUF_FLUSH_N_TYPES];
 					/*!< this is in the set state
 					when there is no flush batch
-					of the given type running */
+					of the given type running;
+					os_event_set() and os_event_reset()
+					are protected by
+					buf_pool_t::flush_state_mutex */
 	ib_rbt_t*	flush_rbt;	/*!< a red-black tree is used
 					exclusively during recovery to
 					speed up insertions in the
@@ -2317,7 +2361,6 @@ void
 buf_pool_mutex_exit(
 /*================*/
 	buf_pool_t*	buf_pool); /*!< in: buffer pool */
-
 
 #ifndef UNIV_NONINL
 #include "buf0buf.ic"

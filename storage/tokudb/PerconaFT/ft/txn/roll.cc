@@ -227,7 +227,8 @@ int toku_rollback_frename(BYTESTRING old_iname,
         return 1;
 
     if (!old_exist && new_exist &&
-        (toku_os_rename(new_iname_full.get(), old_iname_full.get()) == -1 ||
+        (!toku_create_subdirs_if_needed(old_iname_full.get()) ||
+         toku_os_rename(new_iname_full.get(), old_iname_full.get()) == -1 ||
          toku_fsync_directory(new_iname_full.get()) == -1 ||
          toku_fsync_directory(old_iname_full.get()) == -1))
         return 1;

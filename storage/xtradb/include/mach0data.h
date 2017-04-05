@@ -53,7 +53,7 @@ ulint
 mach_read_from_1(
 /*=============*/
 	const byte*	b)	/*!< in: pointer to byte */
-	MY_ATTRIBUTE((nonnull, pure));
+	MY_ATTRIBUTE((warn_unused_result));
 /*******************************************************//**
 The following function is used to store data in two consecutive
 bytes. We store the most significant byte to the lower address. */
@@ -114,7 +114,7 @@ ulint
 mach_read_from_3(
 /*=============*/
 	const byte*	b)	/*!< in: pointer to 3 bytes */
-	MY_ATTRIBUTE((nonnull, pure));
+	MY_ATTRIBUTE((warn_unused_result));
 /*******************************************************//**
 The following function is used to store data in four consecutive
 bytes. We store the most significant byte to the lowest address. */
@@ -133,7 +133,7 @@ ulint
 mach_read_from_4(
 /*=============*/
 	const byte*	b)	/*!< in: pointer to four bytes */
-	MY_ATTRIBUTE((nonnull, pure));
+	MY_ATTRIBUTE((warn_unused_result));
 /*********************************************************//**
 Writes a ulint in a compressed form (1..5 bytes).
 @return	stored size in bytes */
@@ -160,7 +160,7 @@ ulint
 mach_read_compressed(
 /*=================*/
 	const byte*	b)	/*!< in: pointer to memory from where to read */
-	MY_ATTRIBUTE((nonnull, pure));
+	MY_ATTRIBUTE((warn_unused_result));
 /*******************************************************//**
 The following function is used to store data in 6 consecutive
 bytes. We store the most significant byte to the lowest address. */
@@ -179,7 +179,7 @@ ib_uint64_t
 mach_read_from_6(
 /*=============*/
 	const byte*	b)	/*!< in: pointer to 6 bytes */
-	MY_ATTRIBUTE((nonnull, pure));
+	MY_ATTRIBUTE((warn_unused_result));
 /*******************************************************//**
 The following function is used to store data in 7 consecutive
 bytes. We store the most significant byte to the lowest address. */
@@ -198,7 +198,7 @@ ib_uint64_t
 mach_read_from_7(
 /*=============*/
 	const byte*	b)	/*!< in: pointer to 7 bytes */
-	MY_ATTRIBUTE((nonnull, pure));
+	MY_ATTRIBUTE((warn_unused_result));
 /*******************************************************//**
 The following function is used to store data in 8 consecutive
 bytes. We store the most significant byte to the lowest address. */
@@ -243,7 +243,7 @@ ib_uint64_t
 mach_ull_read_compressed(
 /*=====================*/
 	const byte*	b)	/*!< in: pointer to memory from where to read */
-	MY_ATTRIBUTE((nonnull, pure));
+	MY_ATTRIBUTE((warn_unused_result));
 /*********************************************************//**
 Writes a 64-bit integer in a compressed form (1..11 bytes).
 @return	size in bytes */
@@ -270,7 +270,7 @@ ib_uint64_t
 mach_ull_read_much_compressed(
 /*==========================*/
 	const byte*	b)	/*!< in: pointer to memory from where to read */
-	MY_ATTRIBUTE((nonnull, pure));
+	MY_ATTRIBUTE((warn_unused_result));
 /*********************************************************//**
 Reads a ulint in a compressed form if the log record fully contains it.
 @return	pointer to end of the stored field, NULL if not complete */

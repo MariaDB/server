@@ -1,3 +1,4 @@
+SET GLOBAL innodb_fast_shutdown=0;
 SET GLOBAL innodb_file_format = `Barracuda`;
 SET GLOBAL innodb_file_per_table = ON;
 SHOW VARIABLES LIKE 'innodb_encrypt%';
@@ -87,44 +88,44 @@ Innodb_pages0_read	3
 # Restart Success!
 show status like 'innodb_pages0_read%';
 Variable_name	Value
-Innodb_pages0_read	3
+Innodb_pages0_read	303
 show status like 'innodb_pages0_read%';
 Variable_name	Value
-Innodb_pages0_read	3
+Innodb_pages0_read	303
 use test;
 show status like 'innodb_pages0_read%';
 Variable_name	Value
-Innodb_pages0_read	3
+Innodb_pages0_read	303
 use innodb_encrypted_1;
 show status like 'innodb_pages0_read%';
 Variable_name	Value
-Innodb_pages0_read	3
+Innodb_pages0_read	303
 use innodb_encrypted_2;
 show status like 'innodb_pages0_read%';
 Variable_name	Value
-Innodb_pages0_read	3
+Innodb_pages0_read	303
 use innodb_encrypted_3;
 show status like 'innodb_pages0_read%';
 Variable_name	Value
-Innodb_pages0_read	3
+Innodb_pages0_read	303
 use innodb_encrypted_1;
 show status like 'innodb_pages0_read%';
 Variable_name	Value
-Innodb_pages0_read	3
+Innodb_pages0_read	303
 show status like 'innodb_pages0_read%';
 Variable_name	Value
-Innodb_pages0_read	103
+Innodb_pages0_read	303
 use innodb_encrypted_2;
 show status like 'innodb_pages0_read%';
 Variable_name	Value
-Innodb_pages0_read	103
+Innodb_pages0_read	303
 show status like 'innodb_pages0_read%';
 Variable_name	Value
-Innodb_pages0_read	203
+Innodb_pages0_read	303
 use innodb_encrypted_3;
 show status like 'innodb_pages0_read%';
 Variable_name	Value
-Innodb_pages0_read	203
+Innodb_pages0_read	303
 show status like 'innodb_pages0_read%';
 Variable_name	Value
 Innodb_pages0_read	303

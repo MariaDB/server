@@ -1,11 +1,11 @@
 /************* Tabodbc C++ Program Source Code File (.CPP) *************/
 /* PROGRAM NAME: TABODBC                                               */
 /* -------------                                                       */
-/*  Version 3.1                                                        */
+/*  Version 3.2                                                        */
 /*                                                                     */
 /* COPYRIGHT:                                                          */
 /* ----------                                                          */
-/*  (C) Copyright to the author Olivier BERTRAND          2000-2016    */
+/*  (C) Copyright to the author Olivier BERTRAND          2000-2017    */
 /*                                                                     */
 /* WHAT THIS PROGRAM DOES:                                             */
 /* -----------------------                                             */

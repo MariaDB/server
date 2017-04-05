@@ -14,7 +14,7 @@
    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 */
 
-/* TODO: check for overun of memory for names. */
+/* TODO: check for overrun of memory for names. */
 
 #include	"mysys_priv.h"
 #include	<m_string.h>

@@ -774,7 +774,6 @@ int SSL_CTX_load_verify_locations(SSL_CTX* ctx, const char* file,
                                   const char* path)
 {
     int       ret = SSL_FAILURE;
-    const int HALF_PATH = 128;
 
     if (file) ret = read_file(ctx, file, SSL_FILETYPE_PEM, CA);
 

@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -171,10 +172,6 @@ trx_purge_sys_close(void)
 
 	sess_close(purge_sys->sess);
 
-	purge_sys->sess = NULL;
-
-	purge_sys->view = NULL;
-
 	rw_lock_free(&purge_sys->latch);
 	mutex_free(&purge_sys->bh_mutex);
 
@@ -183,9 +180,6 @@ trx_purge_sys_close(void)
 	ib_bh_free(purge_sys->ib_bh);
 
 	os_event_free(purge_sys->event);
-
-	purge_sys->event = NULL;
-
 	mem_free(purge_sys);
 
 	purge_sys = NULL;
@@ -281,18 +275,37 @@ trx_purge_add_update_undo_to_history(
 	}
 }
 
-/**********************************************************************//**
-Frees an undo log segment which is in the history list. Cuts the end of the
-history list at the youngest undo log in this segment. */
+/** Remove undo log header from the history list.
+@param[in,out]	rseg_hdr	rollback segment header
+@param[in]	log_hdr		undo log segment header
+@param[in,out]	mtr		mini transaction. */
+static
+void
+trx_purge_remove_log_hdr(
+	trx_rsegf_t*	rseg_hdr,
+	trx_ulogf_t*	log_hdr,
+	mtr_t*		mtr)
+{
+	flst_remove(rseg_hdr + TRX_RSEG_HISTORY,
+		    log_hdr + TRX_UNDO_HISTORY_NODE, mtr);
+#ifdef HAVE_ATOMIC_BUILTINS
+	os_atomic_decrement_ulint(&trx_sys->rseg_history_len, 1);
+#else
+	mutex_enter(&trx_sys->mutex);
+	--trx_sys->rseg_history_len;
+	mutex_exit(&trx_sys->mutex);
+#endif
+}
+
+/** Frees an undo log segment which is in the history list. Removes the
+undo log hdr from the history list.
+@param[in,out]	rseg		rollback segment
+@param[in]	hdr_addr	file address of log_hdr */
 static
 void
 trx_purge_free_segment(
-/*===================*/
-	trx_rseg_t*	rseg,		/*!< in: rollback segment */
-	fil_addr_t	hdr_addr,	/*!< in: the file address of log_hdr */
-	ulint		n_removed_logs)	/*!< in: count of how many undo logs we
-					will cut off from the end of the
-					history list */
+	trx_rseg_t*	rseg,
+	fil_addr_t	hdr_addr)
 {
 	mtr_t		mtr;
 	trx_rsegf_t*	rseg_hdr;
@@ -356,16 +369,7 @@ trx_purge_free_segment(
 	history list: otherwise, in case of a database crash, the segment
 	could become inaccessible garbage in the file space. */
 
-	flst_cut_end(rseg_hdr + TRX_RSEG_HISTORY,
-		     log_hdr + TRX_UNDO_HISTORY_NODE, n_removed_logs, &mtr);
-
-#ifdef HAVE_ATOMIC_BUILTINS
-	os_atomic_decrement_ulint(&trx_sys->rseg_history_len, n_removed_logs);
-#else
-	mutex_enter(&trx_sys->mutex);
-	trx_sys->rseg_history_len -= n_removed_logs;
-	mutex_exit(&trx_sys->mutex);
-#endif /* HAVE_ATOMIC_BUILTINS */
+	trx_purge_remove_log_hdr(rseg_hdr, log_hdr, &mtr);
 
 	do {
 
@@ -407,7 +411,6 @@ trx_purge_truncate_rseg_history(
 	page_t*		undo_page;
 	trx_ulogf_t*	log_hdr;
 	trx_usegf_t*	seg_hdr;
-	ulint		n_removed_logs	= 0;
 	mtr_t		mtr;
 	trx_id_t	undo_trx_no;
 
@@ -445,19 +448,6 @@ loop:
 				hdr_addr.boffset, limit->undo_no);
 		}
 
-#ifdef HAVE_ATOMIC_BUILTINS
-		os_atomic_decrement_ulint(
-			&trx_sys->rseg_history_len, n_removed_logs);
-#else
-		mutex_enter(&trx_sys->mutex);
-		trx_sys->rseg_history_len -= n_removed_logs;
-		mutex_exit(&trx_sys->mutex);
-#endif /* HAVE_ATOMIC_BUILTINS */
-
-		flst_truncate_end(rseg_hdr + TRX_RSEG_HISTORY,
-				  log_hdr + TRX_UNDO_HISTORY_NODE,
-				  n_removed_logs, &mtr);
-
 		mutex_exit(&(rseg->mutex));
 		mtr_commit(&mtr);
 
@@ -466,7 +456,6 @@ loop:
 
 	prev_hdr_addr = trx_purge_get_log_from_hist(
 		flst_get_prev_addr(log_hdr + TRX_UNDO_HISTORY_NODE, &mtr));
-	n_removed_logs++;
 
 	seg_hdr = undo_page + TRX_UNDO_SEG_HDR;
 
@@ -478,10 +467,14 @@ loop:
 		mutex_exit(&(rseg->mutex));
 		mtr_commit(&mtr);
 
-		trx_purge_free_segment(rseg, hdr_addr, n_removed_logs);
+		/* calls the trx_purge_remove_log_hdr()
+		inside trx_purge_free_segment(). */
+		trx_purge_free_segment(rseg, hdr_addr);
 
-		n_removed_logs = 0;
 	} else {
+		/* Remove the log hdr from the rseg history. */
+		trx_purge_remove_log_hdr(rseg_hdr, log_hdr, &mtr);
+
 		mutex_exit(&(rseg->mutex));
 		mtr_commit(&mtr);
 	}
@@ -1301,20 +1294,16 @@ void
 trx_purge_stop(void)
 /*================*/
 {
-	purge_state_t	state;
-	ib_int64_t	sig_count = os_event_reset(purge_sys->event);
-
 	ut_a(srv_n_purge_threads > 0);
 
 	rw_lock_x_lock(&purge_sys->latch);
 
-	ut_a(purge_sys->state != PURGE_STATE_INIT);
-	ut_a(purge_sys->state != PURGE_STATE_EXIT);
-	ut_a(purge_sys->state != PURGE_STATE_DISABLED);
+	const ib_int64_t	sig_count = os_event_reset(purge_sys->event);
+	const purge_state_t	state = purge_sys->state;
+
+	ut_a(state == PURGE_STATE_RUN || state == PURGE_STATE_STOP);
 
 	++purge_sys->n_stop;
-
-	state = purge_sys->state;
 
 	if (state == PURGE_STATE_RUN) {
 		ib_logf(IB_LOG_LEVEL_INFO, "Stopping purge");
@@ -1327,33 +1316,29 @@ trx_purge_stop(void)
 
 	purge_sys->state = PURGE_STATE_STOP;
 
-	rw_lock_x_unlock(&purge_sys->latch);
-
 	if (state != PURGE_STATE_STOP) {
-
+		rw_lock_x_unlock(&purge_sys->latch);
 		/* Wait for purge coordinator to signal that it
 		is suspended. */
 		os_event_wait_low(purge_sys->event, sig_count);
-	} else { 
-		bool	once = true; 
+	} else {
+		bool	once = true;
 
-		rw_lock_x_lock(&purge_sys->latch);
+		/* Wait for purge to signal that it has actually stopped. */
+		while (purge_sys->running) {
 
-		/* Wait for purge to signal that it has actually stopped. */ 
-		while (purge_sys->running) { 
-
-			if (once) { 
+			if (once) {
 				ib_logf(IB_LOG_LEVEL_INFO,
 					"Waiting for purge to stop");
-				once = false; 
+				once = false;
 			}
 
 			rw_lock_x_unlock(&purge_sys->latch);
 
-			os_thread_sleep(10000); 
+			os_thread_sleep(10000);
 
 			rw_lock_x_lock(&purge_sys->latch);
-		} 
+		}
 
 		rw_lock_x_unlock(&purge_sys->latch);
 	}

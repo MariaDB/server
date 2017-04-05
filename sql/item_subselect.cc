@@ -1,5 +1,5 @@
-/* Copyright (c) 2002, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2015, MariaDB
+/* Copyright (c) 2002, 2016, Oracle and/or its affiliates.
+   Copyright (c) 2010, 2016, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -928,7 +928,7 @@ void Item_subselect::update_used_tables()
   if (!forced_const)
   {
     recalc_used_tables(parent_select, FALSE);
-    if (!engine->uncacheable())
+    if (!(engine->uncacheable() & ~UNCACHEABLE_EXPLAIN))
     {
       // did all used tables become static?
       if (!(used_tables_cache & ~engine->upper_select_const_tables()))
@@ -2104,6 +2104,7 @@ Item_in_subselect::create_single_in_to_exists_cond(JOIN *join,
         We can encounter "NULL IN (SELECT ...)". Wrap the added condition
         within a trig_cond.
       */
+      disable_cond_guard_for_const_null_left_expr(0);
       item= new (thd->mem_root) Item_func_trig_cond(thd, item, get_cond_guard(0));
     }
 
@@ -2128,6 +2129,7 @@ Item_in_subselect::create_single_in_to_exists_cond(JOIN *join,
 	having= new (thd->mem_root) Item_is_not_null_test(thd, this, having);
         if (left_expr->maybe_null)
         {
+          disable_cond_guard_for_const_null_left_expr(0);
           if (!(having= new (thd->mem_root) Item_func_trig_cond(thd, having,
                                                             get_cond_guard(0))))
             DBUG_RETURN(true);
@@ -2146,6 +2148,7 @@ Item_in_subselect::create_single_in_to_exists_cond(JOIN *join,
       */
       if (!abort_on_null && left_expr->maybe_null)
       {
+        disable_cond_guard_for_const_null_left_expr(0);
         if (!(item= new (thd->mem_root) Item_func_trig_cond(thd, item,
                                                             get_cond_guard(0))))
           DBUG_RETURN(true);
@@ -2175,6 +2178,7 @@ Item_in_subselect::create_single_in_to_exists_cond(JOIN *join,
                                                   (char *)"<result>"));
         if (!abort_on_null && left_expr->maybe_null)
         {
+          disable_cond_guard_for_const_null_left_expr(0);
           if (!(new_having= new (thd->mem_root) Item_func_trig_cond(thd, new_having,
                                                             get_cond_guard(0))))
             DBUG_RETURN(true);
@@ -2374,6 +2378,7 @@ Item_in_subselect::create_row_in_to_exists_cond(JOIN * join,
         Item_cond_or(thd, item_eq, item_isnull);
       if (!abort_on_null && left_expr->element_index(i)->maybe_null)
       {
+        disable_cond_guard_for_const_null_left_expr(i);
         if (!(col_item= new (thd->mem_root)
               Item_func_trig_cond(thd, col_item, get_cond_guard(i))))
           DBUG_RETURN(true);
@@ -2391,6 +2396,7 @@ Item_in_subselect::create_row_in_to_exists_cond(JOIN * join,
                                        (char *)"<list ref>"));
       if (!abort_on_null && left_expr->element_index(i)->maybe_null)
       {
+        disable_cond_guard_for_const_null_left_expr(i);
         if (!(item_nnull_test= 
               new (thd->mem_root)
               Item_func_trig_cond(thd, item_nnull_test, get_cond_guard(i))))
@@ -2451,6 +2457,7 @@ Item_in_subselect::create_row_in_to_exists_cond(JOIN * join,
         item= new (thd->mem_root) Item_cond_or(thd, item, item_isnull);
         if (left_expr->element_index(i)->maybe_null)
         {
+          disable_cond_guard_for_const_null_left_expr(i);
           if (!(item= new (thd->mem_root)
                 Item_func_trig_cond(thd, item, get_cond_guard(i))))
             DBUG_RETURN(true);
@@ -3511,9 +3518,14 @@ bool subselect_union_engine::is_executed() const
 bool subselect_union_engine::no_rows()
 {
   /* Check if we got any rows when reading UNION result from temp. table: */
-  return MY_TEST(!(unit->fake_select_lex ?
-                   unit->fake_select_lex->join->send_records :
-                   ((select_union_direct *)(unit->get_union_result()))
+  if (unit->fake_select_lex)
+  {
+    JOIN *join= unit->fake_select_lex->join;
+    if (join)
+      return MY_TEST(!join->send_records);
+    return false;
+  }
+  return MY_TEST(!(((select_union_direct *)(unit->get_union_result()))
                                                             ->send_records));
 }
 
@@ -4897,9 +4909,9 @@ bool subselect_hash_sj_engine::init(List<Item> *tmp_columns, uint subquery_id)
   result= result_sink;
 
   /*
-    If the subquery has blobs, or the total key lenght is bigger than
+    If the subquery has blobs, or the total key length is bigger than
     some length, or the total number of key parts is more than the
-    allowed maximum (currently MAX_REF_PARTS == 16), then the created
+    allowed maximum (currently MAX_REF_PARTS == 32), then the created
     index cannot be used for lookups and we can't use hash semi
     join. If this is the case, delete the temporary table since it
     will not be used, and tell the caller we failed to initialize the

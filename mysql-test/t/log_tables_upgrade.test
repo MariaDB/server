@@ -24,4 +24,5 @@ RENAME TABLE test.bug49823 TO general_log;
 DROP TABLE general_log;
 RENAME TABLE renamed_general_log TO general_log;
 SET GLOBAL general_log = @saved_general_log;
+remove_file $MYSQLD_DATADIR/mysql_upgrade_info;
 USE test;

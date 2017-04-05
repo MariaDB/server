@@ -1,5 +1,5 @@
 -- source include/have_innodb.inc
--- source include/have_example_key_management_plugin.inc
+-- source include/have_file_key_management_plugin.inc
 
 # embedded does not support restart
 -- source include/not_embedded.inc
@@ -30,7 +30,10 @@ insert t3 values (repeat('dummy', 42));
 --let $wait_condition=SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION = 0
 --source include/wait_condition.inc
 
---sleep 5
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION = 0;
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0;
+
+--source include/shutdown_mysqld.inc
 
 --let SEARCH_PATTERN=foobar
 --echo # t1 yes on expecting NOT FOUND
@@ -49,15 +52,21 @@ insert t3 values (repeat('dummy', 42));
 -- let SEARCH_FILE=$ib1_IBD
 -- source include/search_pattern_in_file.inc
 
+-- source include/start_mysqld.inc
+
 --echo # Now turn off encryption and wait for threads to decrypt everything
-SET GLOBAL innodb_encryption_threads = 4;
+SET GLOBAL innodb_encryption_threads = 1;
 SET GLOBAL innodb_encrypt_tables = off;
 
 --echo # Wait max 10 min for key encryption threads to decrypt all spaces
 --let $wait_timeout= 600
---let $wait_condition=SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0;
+--let $wait_condition=SELECT COUNT(*) = 5 FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION = 0 AND KEY_ROTATION_PAGE_NUMBER IS NULL;
 --source include/wait_condition.inc
---sleep 5
+
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION = 0;
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0;
+
+--source include/shutdown_mysqld.inc
 
 --let SEARCH_PATTERN=foobar
 --echo # t1 yes on expecting NOT FOUND
@@ -76,6 +85,8 @@ SET GLOBAL innodb_encrypt_tables = off;
 -- let SEARCH_FILE=$ib1_IBD
 -- source include/search_pattern_in_file.inc
 
+-- source include/start_mysqld.inc
+
 --echo # Now turn on encryption and wait for threads to encrypt all spaces
 SET GLOBAL innodb_encryption_threads = 4;
 SET GLOBAL innodb_encrypt_tables = on;
@@ -84,7 +95,11 @@ SET GLOBAL innodb_encrypt_tables = on;
 --let $wait_timeout= 600
 --let $wait_condition=SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION = 0;
 --source include/wait_condition.inc
---sleep 5
+
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION = 0;
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0;
+
+--source include/shutdown_mysqld.inc
 
 --let SEARCH_PATTERN=foobar
 --echo # t1 yes on expecting NOT FOUND
@@ -103,6 +118,6 @@ SET GLOBAL innodb_encrypt_tables = on;
 -- let SEARCH_FILE=$ib1_IBD
 -- source include/search_pattern_in_file.inc
 
---echo # TODO: add shutdown + grep tests
+-- source include/start_mysqld.inc
 
 drop table t1, t2, t3;

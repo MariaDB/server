@@ -97,7 +97,7 @@ static void print_cs(CHARSET_INFO *cs)
     {
       /* 
        Control characters 0x0080..0x009F are dysplayed by some
-       browers as if they were letters. Don't print them to
+       browsers as if they were letters. Don't print them to
        avoid confusion.
       */
       printf("<TD>ctrl<TD>ctrl<TD>ctrl");

@@ -1,9 +1,0 @@
---innodb-file-per-table=1
---innodb-file-format=Barracuda
---innodb-immediate-scrub-data-uncompressed=ON
---innodb-background-scrub-data-uncompressed=ON
---innodb-background-scrub-data-compressed=ON
---loose-innodb-debug-force-scrubbing=ON
---innodb-encrypt-tables=OFF
---innodb-encrypt-log=OFF
---innodb-tablespaces-scrubbing

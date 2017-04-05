@@ -1299,7 +1299,7 @@ static bool mysql_test_insert(Prepared_statement *stmt,
 
     if (mysql_prepare_insert(thd, table_list, table_list->table,
                              fields, values, update_fields, update_values,
-                             duplic, &unused_conds, FALSE, FALSE, FALSE))
+                             duplic, &unused_conds, FALSE))
       goto error;
 
     value_count= values->elements;
@@ -2200,7 +2200,7 @@ static int mysql_test_handler_read(Prepared_statement *stmt,
   THD *thd= stmt->thd;
   LEX *lex= stmt->lex;
   SQL_HANDLER *ha_table;
-  DBUG_ENTER("mysql_test_select");
+  DBUG_ENTER("mysql_test_handler_read");
 
   lex->select_lex.context.resolve_in_select_list= TRUE;
 

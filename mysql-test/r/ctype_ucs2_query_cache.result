@@ -1,4 +1,4 @@
-call mtr.add_suppression("Cannot use ucs2 as character_set_client");
+call mtr.add_suppression("'ucs2' can not be used as client character set");
 #
 # Start of 5.5 tests
 #

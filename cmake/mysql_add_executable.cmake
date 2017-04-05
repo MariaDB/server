@@ -38,6 +38,14 @@ FUNCTION (MYSQL_ADD_EXECUTABLE)
   
   SET(sources ${ARG_DEFAULT_ARGS})
   ADD_VERSION_INFO(${target} EXECUTABLE sources)
+
+  IF(MSVC)
+    # Add compatibility manifest, to fix GetVersionEx on Windows 8.1 and later
+    IF (CMAKE_VERSION VERSION_GREATER 3.3)
+      SET(sources ${sources} ${PROJECT_SOURCE_DIR}/cmake/win_compatibility.manifest)
+    ENDIF()
+  ENDIF()
+
   ADD_EXECUTABLE(${target} ${ARG_WIN32} ${ARG_MACOSX_BUNDLE} ${ARG_EXCLUDE_FROM_ALL} ${sources})
   # tell CPack where to install
   IF(NOT ARG_EXCLUDE_FROM_ALL)

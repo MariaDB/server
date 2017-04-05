@@ -43,7 +43,7 @@
   DESCRIPTION
     This function prepares memory root for further use, sets initial size of
     chunk for memory allocation and pre-allocates first block if specified.
-    Altough error can happen during execution of this function if
+    Although error can happen during execution of this function if
     pre_alloc_size is non-0 it won't be reported. Instead it will be
     reported as error in first alloc_root() on this memory root.
 

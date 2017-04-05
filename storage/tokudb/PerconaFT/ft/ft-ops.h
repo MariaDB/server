@@ -288,3 +288,8 @@ void toku_ft_set_direct_io(bool direct_io_on);
 void toku_ft_set_compress_buffers_before_eviction(bool compress_buffers);
 
 void toku_note_deserialized_basement_node(bool fixed_key_size);
+
+// Creates all directories for the path if necessary,
+// returns true if all dirs are created successfully or
+// all dirs exist, false otherwise.
+bool toku_create_subdirs_if_needed(const char* path);

@@ -483,6 +483,26 @@ drop table t1;
 set optimizer_switch=@subselect_innodb_tmp;
 
 --echo #
+--echo # MDEV-9635:Server crashes in part_of_refkey  or assertion
+--echo # `!created && key_to_save < (int)s->keys' failed in
+--echo # TABLE::use_index(int) or with join_cache_level>2
+--echo #
+
+SET join_cache_level=3;
+
+CREATE TABLE t1 (f1 VARCHAR(1024)) ENGINE=InnoDB;
+CREATE ALGORITHM=TEMPTABLE VIEW v1 AS SELECT * FROM t1;
+
+CREATE TABLE t2 (f2 VARCHAR(4)) ENGINE=InnoDB;
+INSERT INTO t2 VALUES ('foo'),('bar');
+
+SELECT * FROM v1, t2 WHERE ( f1, f2 ) IN ( SELECT f1, f1 FROM t1 );
+
+set join_cache_level = default;
+drop view v1;
+drop table t1,t2;
+
+--echo #
 --echo # MDEV-6041: ORDER BY+subqueries: subquery_table.key=outer_table.col is not recongized as binding
 --echo #
 create table t1(a int) engine=innodb;
@@ -535,4 +555,3 @@ from
   t1;
 
 drop table t1,t2;
-

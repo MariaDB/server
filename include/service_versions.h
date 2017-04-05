@@ -1,5 +1,5 @@
 /* Copyright (c) 2009, 2010, Oracle and/or its affiliates.
-   Copyright (c) 2012, 2013, Monty Program Ab
+   Copyright (c) 2012, 2017, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -23,18 +23,20 @@
 #define VERSION_debug_sync              0x1000
 #define VERSION_kill_statement          0x1000
 
-#define VERSION_my_snprintf             0x0100
-#define VERSION_thd_alloc               0x0100
-#define VERSION_thd_wait                0x0100
-#define VERSION_progress_report         0x0100
-#define VERSION_thd_timezone            0x0100
-#define VERSION_my_sha1                 0x0101
-#define VERSION_my_md5                  0x0100
-#define VERSION_wsrep                   0x0201
-#define VERSION_logger                  0x0100
-#define VERSION_thd_autoinc             0x0100
-#define VERSION_thd_error_context       0x0100
-#define VERSION_thd_specifics           0x0100
+#define VERSION_base64                  0x0100
 #define VERSION_encryption              0x0300
 #define VERSION_encryption_scheme       0x0100
-
+#define VERSION_logger                  0x0100
+#define VERSION_my_md5                  0x0100
+#define VERSION_my_sha1                 0x0101
+#define VERSION_my_sha2                 0x0100
+#define VERSION_my_snprintf             0x0100
+#define VERSION_progress_report         0x0100
+#define VERSION_thd_alloc               0x0100
+#define VERSION_thd_autoinc             0x0100
+#define VERSION_thd_error_context       0x0100
+#define VERSION_thd_rnd                 0x0100
+#define VERSION_thd_specifics           0x0100
+#define VERSION_thd_timezone            0x0100
+#define VERSION_thd_wait                0x0100
+#define VERSION_wsrep                   0x0201

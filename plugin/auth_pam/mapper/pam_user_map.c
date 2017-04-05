@@ -6,7 +6,7 @@
      gcc pam_user_map.c -shared -lpam -fPIC -o pam_user_map.so
 
   Install as appropriate (for example, in /lib/security/).
-  Add to your /etc/pam.d/mysql (preferrably, at the end) this line:
+  Add to your /etc/pam.d/mysql (preferably, at the end) this line:
 =========================================================
 auth            required        pam_user_map.so
 =========================================================
@@ -15,7 +15,7 @@ auth            required        pam_user_map.so
   in the format:  orig_user_name: mapped_user_name
                   @user's_group_name: mapped_user_name
 =========================================================
-#comments and emtpy lines are ignored
+#comments and empty lines are ignored
 john: jack
 bob:  admin
 top:  accounting

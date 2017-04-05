@@ -251,6 +251,9 @@ def	mysql	user	Update_priv	6	N	NO	enum	1	3	NULL	NULL	NULL	utf8	utf8_general_ci	e
 def	mysql	user	User	2		NO	char	80	240	NULL	NULL	NULL	utf8	utf8_bin	char(80)	PRI			
 def	mysql	user	x509_issuer	35	NULL	NO	blob	65535	65535	NULL	NULL	NULL	NULL	NULL	blob				
 def	mysql	user	x509_subject	36	NULL	NO	blob	65535	65535	NULL	NULL	NULL	NULL	NULL	blob				
+Warnings:
+Warning	1286	Unknown storage engine 'InnoDB'
+Warning	1286	Unknown storage engine 'InnoDB'
 ##########################################################################
 # Show the quotient of CHARACTER_OCTET_LENGTH and CHARACTER_MAXIMUM_LENGTH
 ##########################################################################
@@ -272,6 +275,9 @@ COL_CML	DATA_TYPE	CHARACTER_SET_NAME	COLLATION_NAME
 1.0000	text	utf8	utf8_bin
 1.0000	mediumtext	utf8	utf8_general_ci
 1.0000	text	utf8	utf8_general_ci
+Warnings:
+Warning	1286	Unknown storage engine 'InnoDB'
+Warning	1286	Unknown storage engine 'InnoDB'
 SELECT DISTINCT
 CHARACTER_OCTET_LENGTH / CHARACTER_MAXIMUM_LENGTH AS COL_CML,
 DATA_TYPE,
@@ -289,6 +295,9 @@ COL_CML	DATA_TYPE	CHARACTER_SET_NAME	COLLATION_NAME
 3.0000	enum	utf8	utf8_general_ci
 3.0000	set	utf8	utf8_general_ci
 3.0000	varchar	utf8	utf8_general_ci
+Warnings:
+Warning	1286	Unknown storage engine 'InnoDB'
+Warning	1286	Unknown storage engine 'InnoDB'
 SELECT DISTINCT
 CHARACTER_OCTET_LENGTH / CHARACTER_MAXIMUM_LENGTH AS COL_CML,
 DATA_TYPE,
@@ -307,6 +316,9 @@ NULL	smallint	NULL	NULL
 NULL	time	NULL	NULL
 NULL	timestamp	NULL	NULL
 NULL	tinyint	NULL	NULL
+Warnings:
+Warning	1286	Unknown storage engine 'InnoDB'
+Warning	1286	Unknown storage engine 'InnoDB'
 --> CHAR(0) is allowed (see manual), and here both CHARACHTER_* values
 --> are 0, which is intended behavior, and the result of 0 / 0 IS NULL
 SELECT CHARACTER_OCTET_LENGTH / CHARACTER_MAXIMUM_LENGTH AS COL_CML,
@@ -572,3 +584,6 @@ NULL	mysql	user	max_user_connections	int	NULL	NULL	NULL	NULL	int(11)
 3.0000	mysql	user	is_role	enum	1	3	utf8	utf8_general_ci	enum('N','Y')
 3.0000	mysql	user	default_role	char	80	240	utf8	utf8_bin	char(80)
 NULL	mysql	user	max_statement_time	decimal	NULL	NULL	NULL	NULL	decimal(12,6)
+Warnings:
+Warning	1286	Unknown storage engine 'InnoDB'
+Warning	1286	Unknown storage engine 'InnoDB'

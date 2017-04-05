@@ -235,8 +235,7 @@ UNIV_INTERN
 void
 mtr_commit(
 /*=======*/
-	mtr_t*	mtr)	/*!< in/out: mini-transaction */
-	MY_ATTRIBUTE((nonnull));
+	mtr_t*	mtr);	/*!< in/out: mini-transaction */
 /**********************************************************//**
 Sets and returns a savepoint in mtr.
 @return	savepoint */
@@ -354,7 +353,7 @@ mtr_memo_contains(
 	mtr_t*		mtr,	/*!< in: mtr */
 	const void*	object,	/*!< in: object to search */
 	ulint		type)	/*!< in: type of object */
-	MY_ATTRIBUTE((warn_unused_result, nonnull));
+	MY_ATTRIBUTE((warn_unused_result));
 
 /**********************************************************//**
 Checks if memo contains the given page.

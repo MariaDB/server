@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
 
 /* open an Aria table */
 
@@ -87,7 +87,7 @@ MARIA_HA *_ma_test_if_reopen(const char *filename)
 */
 
 
-static MARIA_HA *maria_clone_internal(MARIA_SHARE *share, const char *name,
+static MARIA_HA *maria_clone_internal(MARIA_SHARE *share,
                                       int mode, File data_file,
                                       uint internal_table)
 {
@@ -107,7 +107,7 @@ static MARIA_HA *maria_clone_internal(MARIA_SHARE *share, const char *name,
   }
   if (data_file >= 0)
     info.dfile.file= data_file;
-  else if (_ma_open_datafile(&info, share, name, -1))
+  else if (_ma_open_datafile(&info, share))
     goto err;
   errpos= 5;
 
@@ -253,7 +253,7 @@ MARIA_HA *maria_clone(MARIA_SHARE *share, int mode)
 {
   MARIA_HA *new_info;
   mysql_mutex_lock(&THR_LOCK_maria);
-  new_info= maria_clone_internal(share, NullS, mode,
+  new_info= maria_clone_internal(share, mode,
                                  share->data_file_type == BLOCK_RECORD ?
                                  share->bitmap.file.file : -1, 0);
   mysql_mutex_unlock(&THR_LOCK_maria);
@@ -299,8 +299,13 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags)
   realpath_err= my_realpath(name_buff, fn_format(org_name, name, "",
                                                  MARIA_NAME_IEXT,
                                                  MY_UNPACK_FILENAME),MYF(0));
+  if (realpath_err > 0) /* File not found, no point in looking further. */
+  {
+    DBUG_RETURN(NULL);
+  }
+
   if (my_is_symlink(org_name) &&
-      (realpath_err || (*maria_test_invalid_symlink)(name_buff)))
+      (realpath_err || mysys_test_invalid_symlink(name_buff)))
   {
     my_errno= HA_WRONG_CREATE_OPTION;
     DBUG_RETURN(0);
@@ -325,13 +330,16 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags)
                       my_errno= HA_ERR_CRASHED;
                       goto err;
                     });
+    DEBUG_SYNC_C("mi_open_kfile");
     if ((kfile=mysql_file_open(key_file_kfile, name_buff,
-                               (open_mode=O_RDWR) | O_SHARE,MYF(0))) < 0)
+                               (open_mode=O_RDWR) | O_SHARE | O_NOFOLLOW,
+                               MYF(MY_NOSYMLINKS))) < 0)
     {
       if ((errno != EROFS && errno != EACCES) ||
 	  mode != O_RDONLY ||
 	  (kfile=mysql_file_open(key_file_kfile, name_buff,
-                                 (open_mode=O_RDONLY) | O_SHARE,MYF(0))) < 0)
+                                 (open_mode=O_RDONLY) | O_SHARE | O_NOFOLLOW,
+                                 MYF(MY_NOSYMLINKS))) < 0)
 	goto err;
     }
     share->mode=open_mode;
@@ -376,7 +384,18 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags)
       (void) strmov(index_name, org_name);
     *strrchr(org_name, FN_EXTCHAR)= '\0';
     (void) fn_format(data_name,org_name,"",MARIA_NAME_DEXT,
-                     MY_APPEND_EXT|MY_UNPACK_FILENAME|MY_RESOLVE_SYMLINKS);
+                     MY_APPEND_EXT|MY_UNPACK_FILENAME);
+    if (my_is_symlink(data_name))
+    {
+      if (my_realpath(data_name, data_name, MYF(0)))
+        goto err;
+      if (mysys_test_invalid_symlink(data_name))
+      {
+        my_errno= HA_WRONG_CREATE_OPTION;
+        goto err;
+      }
+      share->mode|= O_NOFOLLOW; /* all symlinks are resolved by realpath() */
+    }
 
     info_length=mi_uint2korr(share->state.header.header_length);
     base_pos= mi_uint2korr(share->state.header.base_pos);
@@ -853,7 +872,7 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags)
     if ((share->data_file_type == BLOCK_RECORD ||
          share->data_file_type == COMPRESSED_RECORD))
     {
-      if (_ma_open_datafile(&info, share, name, -1))
+      if (_ma_open_datafile(&info, share))
         goto err;
       data_file= info.dfile.file;
     }
@@ -1025,7 +1044,7 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags)
       data_file= share->bitmap.file.file;       /* Only opened once */
   }
 
-  if (!(m_info= maria_clone_internal(share, name, mode, data_file,
+  if (!(m_info= maria_clone_internal(share, mode, data_file,
                                      internal_table)))
     goto err;
 
@@ -1913,35 +1932,15 @@ void _ma_set_index_pagecache_callbacks(PAGECACHE_FILE *file,
  Open data file
   We can't use dup() here as the data file descriptors need to have different
   active seek-positions.
-
-  The argument file_to_dup is here for the future if there would on some OS
-  exist a dup()-like call that would give us two different file descriptors.
 *************************************************************************/
 
-int _ma_open_datafile(MARIA_HA *info, MARIA_SHARE *share, const char *org_name,
-                      File file_to_dup __attribute__((unused)))
+int _ma_open_datafile(MARIA_HA *info, MARIA_SHARE *share)
 {
-  char *data_name= share->data_file_name.str;
-  char real_data_name[FN_REFLEN];
-
-  if (org_name)
-  {
-    fn_format(real_data_name, org_name, "", MARIA_NAME_DEXT, 4);
-    if (my_is_symlink(real_data_name))
-    {
-      if (my_realpath(real_data_name, real_data_name, MYF(0)) ||
-          (*maria_test_invalid_symlink)(real_data_name))
-      {
-        my_errno= HA_WRONG_CREATE_OPTION;
-        return 1;
-      }
-      data_name= real_data_name;
-    }
-  }
-
+  myf flags= MY_WME | (share->mode & O_NOFOLLOW ? MY_NOSYMLINKS : 0);
+  DEBUG_SYNC_C("mi_open_datafile");
   info->dfile.file= share->bitmap.file.file=
-    mysql_file_open(key_file_dfile, data_name,
-                    share->mode | O_SHARE, MYF(MY_WME));
+    mysql_file_open(key_file_dfile, share->data_file_name.str,
+                    share->mode | O_SHARE, MYF(flags));
   return info->dfile.file >= 0 ? 0 : 1;
 }
 
@@ -1955,8 +1954,8 @@ int _ma_open_keyfile(MARIA_SHARE *share)
   mysql_mutex_lock(&share->intern_lock);
   share->kfile.file= mysql_file_open(key_file_kfile,
                                      share->unique_file_name.str,
-                                     share->mode | O_SHARE,
-                             MYF(MY_WME));
+                                     share->mode | O_SHARE | O_NOFOLLOW,
+                             MYF(MY_WME | MY_NOSYMLINKS));
   mysql_mutex_unlock(&share->intern_lock);
   return (share->kfile.file < 0);
 }

@@ -3355,6 +3355,8 @@ void handler::print_error(int error, myf errflag)
     textno=ER_FILE_USED;
     break;
   case ENOENT:
+  case ENOTDIR:
+  case ELOOP:
     textno=ER_FILE_NOT_FOUND;
     break;
   case ENOSPC:
@@ -3831,7 +3833,6 @@ int handler::delete_table(const char *name)
   int saved_error= 0;
   int error= 0;
   int enoent_or_zero;
-  char buff[FN_REFLEN];
 
   if (ht->discover_table)
     enoent_or_zero= 0; // the table may not exist in the engine, it's ok
@@ -3840,8 +3841,7 @@ int handler::delete_table(const char *name)
 
   for (const char **ext=bas_ext(); *ext ; ext++)
   {
-    fn_format(buff, name, "", *ext, MY_UNPACK_FILENAME|MY_APPEND_EXT);
-    if (mysql_file_delete_with_symlink(key_file_misc, buff, MYF(0)))
+    if (mysql_file_delete_with_symlink(key_file_misc, name, *ext, 0))
     {
       if (my_errno != ENOENT)
       {
@@ -4200,7 +4200,7 @@ enum_alter_inplace_result
 handler::check_if_supported_inplace_alter(TABLE *altered_table,
                                           Alter_inplace_info *ha_alter_info)
 {
-  DBUG_ENTER("check_if_supported_alter");
+  DBUG_ENTER("handler::check_if_supported_inplace_alter");
 
   HA_CREATE_INFO *create_info= ha_alter_info->create_info;
 
@@ -4517,7 +4517,7 @@ void handler::get_dynamic_partition_info(PARTITION_STATS *stat_info,
   stat_info->update_time=          stats.update_time;
   stat_info->check_time=           stats.check_time;
   stat_info->check_sum=            0;
-  if (table_flags() & (HA_HAS_OLD_CHECKSUM | HA_HAS_OLD_CHECKSUM))
+  if (table_flags() & (HA_HAS_OLD_CHECKSUM | HA_HAS_NEW_CHECKSUM))
     stat_info->check_sum= checksum();
   return;
 }
@@ -5026,14 +5026,16 @@ bool ha_table_exists(THD *thd, const char *db, const char *table_name,
     bool exists= true;
     if (hton)
     {
-      enum legacy_db_type db_type;
-      if (dd_frm_type(thd, path, &db_type) != FRMTYPE_VIEW)
+      char engine_buf[NAME_CHAR_LEN + 1];
+      LEX_STRING engine= { engine_buf, 0 };
+
+      if (dd_frm_type(thd, path, &engine) != FRMTYPE_VIEW)
       {
-        handlerton *ht= ha_resolve_by_legacy_type(thd, db_type);
-        if ((*hton= ht))
+        plugin_ref p=  plugin_lock_by_name(thd, &engine,  MYSQL_STORAGE_ENGINE_PLUGIN);
+        *hton= p ? plugin_hton(p) : NULL;
+        if (*hton)
           // verify that the table really exists
-          exists= discover_existence(thd,
-                             plugin_int_to_ref(hton2plugin[ht->slot]), &args);
+          exists= discover_existence(thd, p, &args);
       }
       else
         *hton= view_pseudo_hton;
@@ -5726,6 +5728,8 @@ static int write_locked_table_maps(THD *thd)
 
 typedef bool Log_func(THD*, TABLE*, bool, const uchar*, const uchar*);
 
+static int check_wsrep_max_ws_rows();
+
 static int binlog_log_row(TABLE* table,
                           const uchar *before_record,
                           const uchar *after_record,
@@ -5765,6 +5769,13 @@ static int binlog_log_row(TABLE* table,
       bool const has_trans= thd->lex->sql_command == SQLCOM_CREATE_TABLE ||
                             table->file->has_transactions();
       error= (*log_func)(thd, table, has_trans, before_record, after_record);
+
+      /*
+        Now that the record has been logged, increment wsrep_affected_rows and
+        also check whether its within the allowable limits (wsrep_max_ws_rows).
+      */
+      if (error == 0)
+        error= check_wsrep_max_ws_rows();
     }
   }
   return error ? HA_ERR_RBR_LOGGING_FAILED : 0;
@@ -5923,7 +5934,7 @@ int handler::ha_write_row(uchar *buf)
     DBUG_RETURN(error); /* purecov: inspected */
 
   DEBUG_SYNC_C("ha_write_row_end");
-  DBUG_RETURN(check_wsrep_max_ws_rows());
+  DBUG_RETURN(0);
 }
 
 
@@ -5954,7 +5965,7 @@ int handler::ha_update_row(const uchar *old_data, uchar *new_data)
   rows_changed++;
   if (unlikely(error= binlog_log_row(table, old_data, new_data, log_func)))
     return error;
-  return check_wsrep_max_ws_rows();
+  return 0;
 }
 
 int handler::ha_delete_row(const uchar *buf)
@@ -5981,7 +5992,7 @@ int handler::ha_delete_row(const uchar *buf)
   rows_changed++;
   if (unlikely(error= binlog_log_row(table, buf, 0, log_func)))
     return error;
-  return check_wsrep_max_ws_rows();
+  return 0;
 }
 
 
