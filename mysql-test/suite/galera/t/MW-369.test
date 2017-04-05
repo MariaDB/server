@@ -1,0 +1,82 @@
+#
+# This test tests the operation of transaction replay for a transaction which operates on FK parent table.
+# If a potentially conflicting remote transaction arrives at just the right time during the commit of a
+# local transaction, the local transaction will be aborted and replayed.
+# The replaying should be possible and honor the FK constraints.
+#
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+--source include/have_debug_sync.inc
+--source suite/galera/include/galera_have_debug_sync.inc
+
+--let $wsrep_local_replays_old = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_replays'`
+
+CREATE TABLE p (f1 INTEGER PRIMARY KEY, f2 INTEGER) ENGINE=INNODB;
+CREATE TABLE c (f1 INTEGER PRIMARY KEY, p_id INTEGER,
+                CONSTRAINT fk_1 FOREIGN KEY (p_id) REFERENCES p (f1))  ;
+
+INSERT INTO p VALUES (1, 0);
+INSERT INTO p VALUES (2, 0);
+
+--connection node_1
+SET AUTOCOMMIT=ON;
+START TRANSACTION;
+
+DELETE FROM p WHERE f1 = 1;
+SELECT * FROM p WHERE f1 = 2 FOR UPDATE;
+
+# Block the commit
+--connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1
+--let $galera_sync_point = commit_monitor_enter_sync
+--source include/galera_set_sync_point.inc
+
+#
+# insert client row, which will make it impossible to replay the delete on parent
+#
+--connection node_2
+INSERT INTO c values (1,1);
+
+--connection node_1
+--send COMMIT;
+
+# Wait until commit is blocked
+--connection node_1a
+SET SESSION wsrep_sync_wait = 0;
+--source include/galera_wait_sync_point.inc
+
+#
+# send conflicting delete which will make node1 trx to abort and replay
+#
+--connection node_2
+DELETE FROM p WHERE f1=2;
+
+# Wait for both transactions to be blocked
+--connection node_1a
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE STATE = 'System lock';
+--source include/wait_condition.inc
+
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE STATE = 'init' AND INFO = 'COMMIT';
+--source include/wait_condition.inc
+
+# Unblock the commit
+--connection node_1a
+--source include/galera_clear_sync_point.inc
+--source include/galera_signal_sync_point.inc
+
+# Commit succeeds
+--connection node_1
+--reap
+
+# wsrep_local_replays has increased by 1
+--let $wsrep_local_replays_new = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_replays'`
+--disable_query_log
+--eval SELECT $wsrep_local_replays_new - $wsrep_local_replays_old = 1 AS wsrep_local_replays;
+--enable_query_log
+
+--connection node_2
+SELECT COUNT(*) = 2 FROM p;
+SELECT COUNT(*) = 1 FROM c;
+
+DROP TABLE c;
+DROP TABLE p;
