@@ -936,7 +936,7 @@ row_ins_invalidate_query_cache(
 	mem_free(buf);
 }
 #ifdef WITH_WSREP
-dberr_t wsrep_append_foreign_key(trx_t *trx,  
+dberr_t wsrep_append_foreign_key(trx_t *trx,
 			       dict_foreign_t*	foreign,
 			       const rec_t*	clust_rec,
 			       dict_index_t*	clust_index,
@@ -1300,7 +1300,8 @@ row_ins_foreign_check_on_constraint(
 				       foreign,
 				       clust_rec,
 				       clust_index,
-				       FALSE, FALSE);
+				       FALSE,
+				       (node) ? TRUE : FALSE);
 	if (err != DB_SUCCESS) {
 		fprintf(stderr,
 			"WSREP: foreign key append failed: %d\n", err);
@@ -1461,6 +1462,9 @@ row_ins_check_foreign_constraint(
 	ulint*		offsets		= offsets_;
 	rec_offs_init(offsets_);
 
+#ifdef WITH_WSREP
+	upd_node= NULL;
+#endif /* WITH_WSREP */
 run_again:
 #ifdef UNIV_SYNC_DEBUG
 	ut_ad(rw_lock_own(&dict_operation_lock, RW_LOCK_SHARED));
@@ -1650,9 +1654,10 @@ run_again:
 					err = wsrep_append_foreign_key(
 						thr_get_trx(thr),
 						foreign,
-						rec, 
-						check_index, 
-						check_ref, FALSE);
+						rec,
+						check_index,
+						check_ref,
+						(upd_node) ? TRUE : FALSE);
 #endif /* WITH_WSREP */
 					goto end_scan;
 				} else if (foreign->type != 0) {
