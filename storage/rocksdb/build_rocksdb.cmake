@@ -29,10 +29,6 @@ else()
   endif()
 endif()
 
-include (CheckTypeSize)
-check_type_size(size_t SIZEOF_SIZE_T)
-set_property(SOURCE ha_rocksdb.cc APPEND PROPERTY COMPILE_DEFINITIONS
-  SIZEOF_SIZE_T=${SIZEOF_SIZE_T} SIZEOF_UINT64_T=8)
 
 # Optional compression libraries.
 
