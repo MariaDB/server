@@ -56,6 +56,22 @@ enum enum_vio_io_event
 #define VIO_READ_BUFFER_SIZE 16384              /* size of read buffer */
 #define VIO_DESCRIPTION_SIZE 30                 /* size of description */
 
+struct st_vio_network {
+  union {
+    struct in_addr in;
+#ifdef HAVE_IPV6
+    struct in6_addr in6;
+#endif
+  } addr;
+  union {
+    struct in_addr in;
+#ifdef HAVE_IPV6
+    struct in6_addr in6;
+#endif
+  } mask;
+  sa_family_t family;
+};
+
 Vio* vio_new(my_socket sd, enum enum_vio_type type, uint flags);
 Vio*  mysql_socket_vio_new(MYSQL_SOCKET mysql_socket, enum enum_vio_type type, uint flags);
 #ifdef __WIN__
@@ -71,6 +87,7 @@ Vio* vio_new_win32shared_memory(HANDLE handle_file_map,
 #define HANDLE void *
 #endif /* __WIN__ */
 
+void    vio_proxy_protocol_add(const struct st_vio_network *net);
 void	vio_delete(Vio* vio);
 int	vio_close(Vio* vio);
 my_bool vio_reset(Vio* vio, enum enum_vio_type type,

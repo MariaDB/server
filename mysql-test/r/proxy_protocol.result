@@ -1,0 +1,5 @@
+SELECT @@proxy_protocol_networks;
+@@proxy_protocol_networks
+*
+# An unproxied client connection should be rejected if proxying enabled on the server
+Got one of the listed errors

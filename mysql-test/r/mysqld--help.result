@@ -758,6 +758,12 @@ The following options may be given as the first argument:
  Seconds between sending progress reports to the client
  for time-consuming statements. Set to 0 to disable
  progress reporting.
+ --proxy-protocol-networks=name
+ Enable proxy protocol for these source networks. The
+ syntax is a comma separated list of IPv4 and IPv6
+ networks. If the network doesn't contain mask, it is
+ considered to be a single host. "*" represents all
+ networks and must the only directive on the line.
  --query-alloc-block-size=# 
  Allocation block size for query parsing and execution
  --query-cache-limit=# 
@@ -1359,6 +1365,7 @@ preload-buffer-size 32768
 profiling-history-size 15
 progress-report-time 5
 protocol-version 10
+proxy-protocol-networks
 query-alloc-block-size 16384
 query-cache-limit 1048576
 query-cache-min-res-unit 4096
