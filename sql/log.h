@@ -1016,7 +1016,6 @@ public:
   */
   void init_base();
   void init_log_tables();
-  bool flush_logs(THD *thd);
   bool flush_slow_log();
   bool flush_general_log();
   /* Perform basic logger cleanup. this will leave e.g. error log open. */
