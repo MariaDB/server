@@ -2707,7 +2707,11 @@ bool DTVAL::SetValue_pval(PVAL valp, bool chktype)
 
         ndv = ExtractDate(valp->GetCharValue(), Pdtp, DefYear, dval);
         MakeDate(NULL, dval, ndv);
-      } else
+			} else if (valp->GetType() == TYPE_BIGINT &&
+				       !(valp->GetBigintValue() % 1000)) {
+				// Assuming that this timestamp is in milliseconds
+				Tval = valp->GetBigintValue() / 1000;
+			}	else
         Tval = valp->GetIntValue();
 
     } else
