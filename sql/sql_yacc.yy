@@ -784,12 +784,14 @@ Virtual_column_info *add_virtual_expression(THD *thd, Item *expr)
   Item_param *item_param;
   Key_part_spec *key_part;
   LEX *lex;
+  sp_assignment_lex *assignment_lex;
   class sp_lex_cursor *sp_cursor_stmt;
   LEX_STRING *lex_str_ptr;
   LEX_USER *lex_user;
   List<Condition_information_item> *cond_info_list;
   List<DYNCALL_CREATE_DEF> *dyncol_def_list;
   List<Item> *item_list;
+  List<sp_assignment_lex> *sp_assignment_lex_list;
   List<Statement_information_item> *stmt_info_list;
   List<String> *string_list;
   List<LEX_STRING> *lex_str_list;
@@ -1714,6 +1716,14 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %type <sp_cursor_stmt>
         sp_cursor_stmt_lex
         sp_cursor_stmt
+
+%type <assignment_lex>
+        assignment_source_lex
+        assignment_source_expr
+
+%type <sp_assignment_lex_list>
+        cursor_actual_parameters
+        opt_parenthesized_cursor_actual_parameters
 
 %type <var_type>
         option_type opt_var_type opt_var_ident_type
@@ -3021,13 +3031,26 @@ sp_decl_body:
             $$.vars= $$.conds= $$.curs= 0;
             $$.hndlrs= 1;
           }
-        | ident CURSOR_SYM FOR_SYM sp_cursor_stmt
+        | ident CURSOR_SYM
           {
-            if (Lex->sp_declare_cursor(thd, $1, $4, NULL, true))
+            Lex->sp_block_init(thd);
+          }
+          opt_parenthesized_cursor_formal_parameters
+          FOR_SYM sp_cursor_stmt
+          {
+            sp_pcontext *param_ctx= Lex->spcont;
+            if (Lex->sp_block_finalize(thd))
+              MYSQL_YYABORT;
+            if (Lex->sp_declare_cursor(thd, $1, $6, param_ctx, true))
               MYSQL_YYABORT;
             $$.vars= $$.conds= $$.hndlrs= 0;
             $$.curs= 1;
           }
+        ;
+
+opt_parenthesized_cursor_formal_parameters:
+          /* Empty */
+        | '(' sp_fdparams ')'
         ;
 
 
@@ -3595,10 +3618,55 @@ sp_proc_stmt_iterate:
           }
         ;
 
-sp_proc_stmt_open:
-          OPEN_SYM ident
+assignment_source_lex:
           {
-            if (Lex->sp_open_cursor(thd, $2, NULL))
+            DBUG_ASSERT(Lex->sphead);
+            if (!($$= new (thd->mem_root) sp_assignment_lex(thd, thd->lex)))
+              MYSQL_YYABORT;
+          }
+        ;
+
+assignment_source_expr:
+          assignment_source_lex
+          {
+            DBUG_ASSERT(thd->free_list == NULL);
+            Lex->sphead->reset_lex(thd, $1);
+          }
+          expr
+          {
+            DBUG_ASSERT($1 == thd->lex);
+            $$= $1;
+            $$->sp_lex_in_use= true;
+            $$->set_item_and_free_list($3, thd->free_list);
+            thd->free_list= NULL;
+            if ($$->sphead->restore_lex(thd))
+              MYSQL_YYABORT;
+          }
+        ;
+
+cursor_actual_parameters:
+          assignment_source_expr
+          {
+            if (!($$= new (thd->mem_root) List<sp_assignment_lex>))
+              MYSQL_YYABORT;
+            $$->push_back($1, thd->mem_root);
+          }
+        | cursor_actual_parameters ',' assignment_source_expr
+          {
+            $$= $1;
+            $$->push_back($3, thd->mem_root);
+          }
+        ;
+
+opt_parenthesized_cursor_actual_parameters:
+          /* Empty */                        { $$= NULL; }
+        | '(' cursor_actual_parameters ')'   { $$= $2; }
+        ;
+
+sp_proc_stmt_open:
+          OPEN_SYM ident opt_parenthesized_cursor_actual_parameters
+          {
+            if (Lex->sp_open_cursor(thd, $2, $3))
               MYSQL_YYABORT;
           }
         ;
