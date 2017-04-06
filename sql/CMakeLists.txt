@@ -279,12 +279,14 @@ RUN_BISON(
   ${CMAKE_CURRENT_SOURCE_DIR}/sql_yacc.yy 
   ${CMAKE_CURRENT_BINARY_DIR}/sql_yacc.cc
   ${CMAKE_CURRENT_BINARY_DIR}/sql_yacc.h
+  MYSQL
 )
 
 RUN_BISON(
   ${CMAKE_CURRENT_SOURCE_DIR}/sql_yacc_ora.yy
   ${CMAKE_CURRENT_BINARY_DIR}/sql_yacc_ora.cc
   ${CMAKE_CURRENT_BINARY_DIR}/sql_yacc_ora.h
+  ORA
 )
 
 # Gen_lex_hash

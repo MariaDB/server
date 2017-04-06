@@ -270,7 +270,6 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %}
 
 %pure-parser                                    /* We have threads */
-%name-prefix "ORA"
 %parse-param { THD *thd }
 %lex-param { THD *thd }
 /*
