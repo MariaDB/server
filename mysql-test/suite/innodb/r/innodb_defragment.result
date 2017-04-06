@@ -1,4 +1,3 @@
-DROP TABLE if exists t1;
 set global innodb_defragment_stats_accuracy = 80;
 CREATE TABLE t1 (a INT NOT NULL PRIMARY KEY AUTO_INCREMENT, b VARCHAR(256), KEY SECOND(a, b)) ENGINE=INNODB;
 optimize table t1;

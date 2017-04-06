@@ -300,7 +300,6 @@ my_error_innodb(
 		break;
 	case DB_OUT_OF_FILE_SPACE:
 		my_error(ER_RECORD_FILE_FULL, MYF(0), table);
-		ut_error;
 		break;
 	case DB_TEMP_FILE_WRITE_FAIL:
 		my_error(ER_TEMP_FILE_WRITE_FAILURE, MYF(0));

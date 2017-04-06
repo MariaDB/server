@@ -1767,7 +1767,7 @@ fil_crypt_rotate_page(
 		return;
 	}
 
-	if (space == TRX_SYS_SPACE && offset == TRX_SYS_PAGE_NO) {
+	if (space_id == TRX_SYS_SPACE && offset == TRX_SYS_PAGE_NO) {
 		/* don't encrypt this as it contains address to dblwr buffer */
 		return;
 	}
