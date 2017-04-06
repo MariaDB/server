@@ -780,6 +780,7 @@ st_select_lex_unit *With_element::clone_parsed_spec(THD *thd,
     with_table->next_global= spec_tables;
   }
   res= &lex->unit;
+  res->set_with_clause(owner);
   
   lex->unit.include_down(with_table->select_lex);
   lex->unit.set_slave(with_select); 
