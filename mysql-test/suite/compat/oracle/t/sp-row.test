@@ -1955,8 +1955,8 @@ DROP TABLE t1;
 --echo # Assigning a table%ROWTYPE field to an OUT parameter
 --echo #
 
-DELIMITER $$;
 CREATE TABLE t1 (a INT, b VARCHAR(10));
+DELIMITER $$;
 CREATE PROCEDURE p1 (res IN OUT INTEGER)
 AS
   rec1 t1%ROWTYPE:=ROW(10,'b0');
