@@ -10203,6 +10203,7 @@ bool Column_definition::check(THD *thd)
       ((length > max_field_charlength &&
         sql_type != MYSQL_TYPE_VARCHAR) ||
        (length == 0 &&
+        sql_type != MYSQL_TYPE_NULL /* e.g. a ROW variable */ &&
         sql_type != MYSQL_TYPE_ENUM && sql_type != MYSQL_TYPE_SET &&
         sql_type != MYSQL_TYPE_STRING && sql_type != MYSQL_TYPE_VARCHAR &&
         sql_type != MYSQL_TYPE_GEOMETRY)))
@@ -10582,6 +10583,7 @@ Column_definition::Column_definition(THD *thd, Field *old_field,
   default_value= orig_field ? orig_field->default_value : 0;
   check_constraint= orig_field ? orig_field->check_constraint : 0;
   option_list= old_field->option_list;
+  pack_flag= 0;
 
   switch (sql_type) {
   case MYSQL_TYPE_BLOB:

@@ -30,6 +30,8 @@
 #include "sql_alter.h"                // Alter_info
 #include "sql_window.h"
 #include "sql_trigger.h"
+#include "sp.h"                       // enum stored_procedure_type
+
 
 /* YACC and LEX Definitions */
 
@@ -82,6 +84,7 @@ class sp_name;
 class sp_instr;
 class sp_pcontext;
 class sp_variable;
+class sp_assignment_lex;
 class st_alter_tablespace;
 class partition_info;
 class Event_parse_data;
@@ -93,6 +96,7 @@ class Key_part_spec;
 class Item_window_func;
 struct sql_digest_state;
 class With_clause;
+class my_var;
 
 
 #define ALLOC_ROOT_SET 1024
@@ -763,7 +767,7 @@ public:
 
   void set_unique_exclude();
 
-  friend void lex_start(THD *thd);
+  friend struct LEX;
   friend int subselect_union_engine::exec();
 
   List<Item> *get_column_types(bool for_cursor);
@@ -1070,7 +1074,7 @@ public:
   */
   ha_rows get_limit();
 
-  friend void lex_start(THD *thd);
+  friend struct LEX;
   st_select_lex() : group_list_ptrs(NULL), braces(0), automatic_brackets(0),
   n_sum_items(0), n_child_sum_items(0)
   {}
@@ -2223,6 +2227,20 @@ public:
     return m_cpp_tok_end;
   }
 
+  /**
+    Get the token end position in the pre-processed buffer,
+    with trailing spaces removed.
+  */
+  const char *get_cpp_tok_end_rtrim()
+  {
+    const char *p;
+    for (p= m_cpp_tok_end;
+         p > m_cpp_buf && my_isspace(system_charset_info, p[-1]);
+         p--)
+    { }
+    return p;
+  }
+
   /** Get the current stream pointer, in the pre-processed buffer. */
   const char *get_cpp_ptr()
   {
@@ -2626,6 +2644,18 @@ private:
   Query_arena_memroot *arena_for_set_stmt;
   MEM_ROOT *mem_root_for_set_stmt;
   void parse_error();
+  bool sp_block_finalize(THD *thd, const Lex_spblock_st spblock,
+                                   class sp_label **splabel);
+  bool sp_change_context(THD *thd, const sp_pcontext *ctx, bool exclusive);
+  bool sp_exit_block(THD *thd, sp_label *lab);
+  bool sp_exit_block(THD *thd, sp_label *lab, Item *when);
+
+  bool sp_continue_loop(THD *thd, sp_label *lab);
+  bool sp_continue_loop(THD *thd, sp_label *lab, Item *when);
+
+  bool sp_for_loop_condition(THD *thd, const Lex_for_loop_st &loop);
+  bool sp_for_loop_increment(THD *thd, const Lex_for_loop_st &loop);
+
 public:
   inline bool is_arena_for_set_stmt() {return arena_for_set_stmt != 0;}
   bool set_arena_for_set_stmt(Query_arena *backup);
@@ -2906,6 +2936,18 @@ public:
     delete_dynamic(&plugins);
   }
 
+  virtual class Query_arena *query_arena()
+  {
+    DBUG_ASSERT(0);
+    return NULL;
+  }
+
+  virtual const LEX_STRING *cursor_name() const { return &null_lex_str; }
+
+  void start(THD *thd);
+
+  const char *substatement_query(THD *thd) const;
+
   inline bool is_ps_or_view_context_analysis()
   {
     return (context_analysis_only &
@@ -3051,6 +3093,8 @@ public:
     }
     return false;
   }
+  sp_variable *sp_param_init(LEX_STRING name);
+  bool sp_param_fill_definition(sp_variable *spvar);
 
   int case_stmt_action_expr(Item* expr);
   int case_stmt_action_when(Item *when, bool simple);
@@ -3062,10 +3106,346 @@ public:
   bool set_trigger_new_row(LEX_STRING *name, Item *val);
   bool set_system_variable(struct sys_var_with_base *tmp,
                            enum enum_var_type var_type, Item *val);
-  bool set_local_variable(sp_variable *spv, Item *val);
+  void set_stmt_init();
+  sp_name *make_sp_name(THD *thd, LEX_STRING &name);
+  sp_name *make_sp_name(THD *thd, LEX_STRING &name1, LEX_STRING &name2);
+  sp_head *make_sp_head(THD *thd, sp_name *name,
+                        enum stored_procedure_type type);
+  sp_head *make_sp_head_no_recursive(THD *thd, sp_name *name,
+                                     enum stored_procedure_type type)
+  {
+    if (!sphead)
+      return make_sp_head(thd, name, type);
+    my_error(ER_SP_NO_RECURSIVE_CREATE, MYF(0),
+             stored_procedure_type_to_str(type));
+    return NULL;
+  }
+  sp_head *make_sp_head_no_recursive(THD *thd,
+                                     DDL_options_st options, sp_name *name,
+                                     enum stored_procedure_type type)
+  {
+    if (add_create_options_with_check(options))
+      return NULL;
+    return make_sp_head_no_recursive(thd, name, type);
+  }
+  bool init_internal_variable(struct sys_var_with_base *variable,
+                              LEX_STRING name);
+  bool init_internal_variable(struct sys_var_with_base *variable,
+                              LEX_STRING dbname, LEX_STRING name);
+  bool init_default_internal_variable(struct sys_var_with_base *variable,
+                                      LEX_STRING name);
+  bool set_variable(struct sys_var_with_base *variable, Item *item);
+  bool set_variable(const LEX_STRING &name1, const LEX_STRING &name2,
+                    Item *item);
+  void sp_variable_declarations_init(THD *thd, int nvars);
+  bool sp_variable_declarations_finalize(THD *thd, int nvars,
+                                         const Column_definition *cdef,
+                                         Row_definition_list *row,
+                                         Item *def);
+  bool sp_variable_declarations_finalize(THD *thd, int nvars,
+                                         const Column_definition *cdef,
+                                         Item *def)
+  {
+    return sp_variable_declarations_finalize(thd, nvars, cdef, NULL, def);
+  }
+  bool sp_variable_declarations_row_finalize(THD *thd, int nvars,
+                                             Row_definition_list *row,
+                                             Item *def)
+  {
+    return sp_variable_declarations_finalize(thd, nvars, NULL, row, def);
+  }
+  bool sp_variable_declarations_with_ref_finalize(THD *thd, int nvars,
+                                                  Qualified_column_ident *col,
+                                                  Item *def);
+  bool sp_variable_declarations_rowtype_finalize(THD *thd, int nvars,
+                                                 Qualified_column_ident *,
+                                                 Item *def);
+  bool sp_handler_declaration_init(THD *thd, int type);
+  bool sp_handler_declaration_finalize(THD *thd, int type);
+
+  bool sp_declare_cursor(THD *thd, const LEX_STRING name,
+                         class sp_lex_cursor *cursor_stmt,
+                         sp_pcontext *param_ctx, bool add_cpush_instr);
+
+  bool sp_open_cursor(THD *thd, const LEX_STRING name,
+                      List<sp_assignment_lex> *parameters);
   Item_splocal *create_item_for_sp_var(LEX_STRING name, sp_variable *spvar,
                                        const char *start_in_q,
                                        const char *end_in_q);
+
+  Item *create_item_ident_nosp(THD *thd, LEX_STRING name);
+  Item *create_item_ident_sp(THD *thd, LEX_STRING name,
+                             uint start_in_q,
+                             uint length_in_q);
+  Item *create_item_ident_sp(THD *thd, LEX_STRING name,
+                             const char *start_in_q,
+                             const char *end_in_q);
+  Item *create_item_ident(THD *thd, LEX_STRING name,
+                          const char *start_in_q,
+                          const char *end_in_q)
+  {
+    return sphead ?
+           create_item_ident_sp(thd, name, start_in_q, end_in_q) :
+           create_item_ident_nosp(thd, name);
+  }
+
+  /*
+    Create an Item corresponding to a qualified name: a.b
+    when the parser is out of an SP context.
+      @param THD        - THD, for mem_root
+      @param a          - the first name
+      @param b          - the second name
+      @retval           - a pointer to a created item, or NULL on error.
+
+    Possible Item types that can be created:
+    - Item_trigger_field
+    - Item_field
+    - Item_ref
+  */
+  Item *create_item_ident_nospvar(THD *thd,
+                                  const LEX_STRING &a,
+                                  const LEX_STRING &b);
+  /*
+    Create an Item corresponding to a ROW field valiable:  var.field
+      @param THD        - THD, for mem_root
+      @param var        - the ROW variable name
+      @param field      - the ROW variable field name
+      @param spvar      - the variable that was previously found by name
+                          using "var_name".
+      @pos_in_q         - position in the query (for binary log)
+      @length_in_q      - length in the query (for binary log)
+  */
+  Item_splocal *create_item_spvar_row_field(THD *thd,
+                                            const LEX_STRING &var,
+                                            const LEX_STRING &field,
+                                            sp_variable *spvar,
+                                            uint pos_in_q,
+                                            uint length_in_q);
+  /*
+    Create an item from its qualified name.
+    Depending on context, it can be either a ROW variable field,
+    or trigger, table field, table field reference.
+    See comments to create_item_spvar_row_field() and
+    create_item_ident_nospvar().
+      @param thd         - THD, for mem_root
+      @param a           - the first name
+      @param b           - the second name
+      @param pos_in_q    - position in the query (for binary log)
+      @param length_in_q - length in the query (for binary log)
+      @retval            - NULL on error, or a pointer to a new Item.
+  */
+  Item *create_item_ident(THD *thd,
+                          const LEX_STRING &a,
+                          const LEX_STRING &b,
+                          uint pos_in_q, uint length_in_q);
+  /*
+    Create an item for a name in LIMIT clause: LIMIT var
+      @param THD         - THD, for mem_root
+      @param var_name    - the variable name
+      @param pos_in_q    - position in the query (for binary log)
+      @param length_in_q - length in the query (for binary log)
+      @retval            - a new Item corresponding to the SP variable,
+                           or NULL on error
+                           (non in SP, unknown variable, wrong data type).
+  */
+  Item *create_item_limit(THD *thd,
+                          const LEX_STRING &var_name,
+                          uint pos_in_q, uint length_in_q);
+
+  /*
+    Create an item for a qualified name in LIMIT clause: LIMIT var.field
+      @param THD         - THD, for mem_root
+      @param var_name    - the variable name
+      @param field_name  - the variable field name
+      @param pos_in_q    - position in the query (for binary log)
+      @param length_in_q - length in the query (for binary log)
+      @retval            - a new Item corresponding to the SP variable,
+                           or NULL on error
+                           (non in SP, unknown variable, unknown ROW field,
+                            wrong data type).
+  */
+  Item *create_item_limit(THD *thd,
+                          const LEX_STRING &var_name,
+                          const LEX_STRING &field_name,
+                          uint pos_in_q, uint length_in_q);
+
+  /*
+    Create a my_var instance for a ROW field variable that was used
+    as an OUT SP parameter: CALL p1(var.field);
+      @param THD        - THD, for mem_root
+      @param var_name   - the variable name
+      @param field_name - the variable field name
+  */
+  my_var *create_outvar(THD *thd,
+                        const LEX_STRING &var_name,
+                        const LEX_STRING &field_name);
+
+  bool is_trigger_new_or_old_reference(const LEX_STRING name);
+
+  Item *create_and_link_Item_trigger_field(THD *thd, const char *name,
+                                                     bool new_row);
+
+  void sp_block_init(THD *thd, const LEX_STRING label);
+  void sp_block_init(THD *thd)
+  {
+    // Unlabeled blocks get an empty label
+    sp_block_init(thd, empty_lex_str);
+  }
+  bool sp_block_finalize(THD *thd, const Lex_spblock_st spblock)
+  {
+    class sp_label *tmp;
+    return sp_block_finalize(thd, spblock, &tmp);
+  }
+  bool sp_block_finalize(THD *thd)
+  {
+    return sp_block_finalize(thd, Lex_spblock());
+  }
+  bool sp_block_finalize(THD *thd, const Lex_spblock_st spblock,
+                                   const LEX_STRING end_label);
+  bool sp_block_finalize(THD *thd, const LEX_STRING end_label)
+  {
+    return sp_block_finalize(thd, Lex_spblock(), end_label);
+  }
+  bool sp_declarations_join(Lex_spblock_st *res,
+                            const Lex_spblock_st b1,
+                            const Lex_spblock_st b2) const
+  {
+    if ((b2.vars || b2.conds) && (b1.curs || b1.hndlrs))
+    {
+      my_error(ER_SP_VARCOND_AFTER_CURSHNDLR, MYF(0));
+      return true;
+    }
+    if (b2.curs && b1.hndlrs)
+    {
+      my_error(ER_SP_CURSOR_AFTER_HANDLER, MYF(0));
+      return true;
+    }
+    res->join(b1, b2);
+    return false;
+  }
+  bool sp_block_with_exceptions_finalize_declarations(THD *thd);
+  bool sp_block_with_exceptions_finalize_executable_section(THD *thd,
+                                                  uint executable_section_ip);
+  bool sp_block_with_exceptions_finalize_exceptions(THD *thd,
+                                                  uint executable_section_ip,
+                                                  uint exception_count);
+  bool sp_exit_statement(THD *thd, Item *when);
+  bool sp_exit_statement(THD *thd, const LEX_STRING label_name, Item *item);
+  bool sp_leave_statement(THD *thd, const LEX_STRING label_name);
+  bool sp_goto_statement(THD *thd, const LEX_STRING label_name);
+
+  bool sp_continue_statement(THD *thd, Item *when);
+  bool sp_continue_statement(THD *thd, const LEX_STRING label_name, Item *when);
+  bool sp_iterate_statement(THD *thd, const LEX_STRING label_name);
+
+  bool maybe_start_compound_statement(THD *thd);
+  bool sp_push_loop_label(THD *thd, LEX_STRING label_name);
+  bool sp_push_loop_empty_label(THD *thd);
+  bool sp_pop_loop_label(THD *thd, const LEX_STRING label_name);
+  void sp_pop_loop_empty_label(THD *thd);
+  bool sp_while_loop_expression(THD *thd, Item *expr);
+  bool sp_while_loop_finalize(THD *thd);
+  bool sp_push_goto_label(THD *thd, LEX_STRING label_name);
+
+  Item_param *add_placeholder(THD *thd, char *name,
+                              uint pos_in_query, uint len_in_query);
+  Item_param *add_placeholder(THD *thd, char *name,
+                              const char *pos, const char *end)
+  {
+    return add_placeholder(thd, name, pos - substatement_query(thd), end - pos);
+  }
+
+  /* Integer range FOR LOOP methods */
+  sp_variable *sp_add_for_loop_variable(THD *thd, const LEX_STRING name,
+                                        Item *value);
+  sp_variable *sp_add_for_loop_upper_bound(THD *thd, Item *value)
+  {
+    LEX_STRING name= { C_STRING_WITH_LEN("[upper_bound]") };
+    return sp_add_for_loop_variable(thd, name, value);
+  }
+  bool sp_for_loop_intrange_declarations(THD *thd, Lex_for_loop_st *loop,
+                                        const LEX_STRING &index,
+                                        const Lex_for_loop_bounds_st &bounds);
+  bool sp_for_loop_intrange_condition_test(THD *thd, const Lex_for_loop_st &loop);
+  bool sp_for_loop_intrange_finalize(THD *thd, const Lex_for_loop_st &loop);
+
+  /* Cursor FOR LOOP methods */
+  bool sp_for_loop_cursor_declarations(THD *thd, Lex_for_loop_st *loop,
+                                       const LEX_STRING &index,
+                                       const Lex_for_loop_bounds_st &bounds);
+  sp_variable *sp_add_for_loop_cursor_variable(THD *thd,
+                                               const LEX_STRING name,
+                                               const class sp_pcursor *cur,
+                                               uint coffset,
+                                               sp_assignment_lex *param_lex,
+                                               Item_args *parameters);
+  bool sp_for_loop_cursor_condition_test(THD *thd, const Lex_for_loop_st &loop);
+  bool sp_for_loop_cursor_finalize(THD *thd, const Lex_for_loop_st &);
+
+  /* Generic FOR LOOP methods*/
+
+  /*
+    Generate FOR loop declarations and
+    initialize "loop" from "index" and "bounds".
+
+    @param [IN]  thd    - current THD, for mem_root and error reporting
+    @param [OUT] loop   - the loop generated SP variables are stored here,
+                          together with additional loop characteristics.
+    @param [IN]  index  - the loop index variable name
+    @param [IN]  bounds - the loop bounds (in sp_assignment_lex format)
+                          and additional loop characteristics,
+                          as created by the sp_for_loop_bounds rule.
+    @retval true        - on error
+    @retval false       - on success
+
+    This methods adds declarations:
+    - An explicit integer or cursor%ROWTYPE "index" variable
+    - An implicit integer upper bound variable, in case of integer range loops
+    - A CURSOR, in case of an implicit CURSOR loops
+    The generated variables are stored into "loop".
+    Additional loop characteristics are copied from "bounds" to "loop".
+  */
+  bool sp_for_loop_declarations(THD *thd, Lex_for_loop_st *loop,
+                                const LEX_STRING &index,
+                                const Lex_for_loop_bounds_st &bounds)
+  {
+    return bounds.is_for_loop_cursor() ?
+           sp_for_loop_cursor_declarations(thd, loop, index, bounds) :
+           sp_for_loop_intrange_declarations(thd, loop, index, bounds);
+  }
+
+  /*
+    Generate a conditional jump instruction to leave the loop,
+    using a proper condition depending on the loop type:
+    - Item_func_le            -- integer range loops
+    - Item_func_ge            -- integer range reverse loops
+    - Item_func_cursor_found  -- cursor loops
+  */
+  bool sp_for_loop_condition_test(THD *thd, const Lex_for_loop_st &loop)
+  {
+    return loop.is_for_loop_cursor() ?
+           sp_for_loop_cursor_condition_test(thd, loop) :
+           sp_for_loop_intrange_condition_test(thd, loop);
+  }
+
+  /*
+    Generate "increment" instructions followed by a jump to the
+    condition test in the beginnig of the loop.
+    "Increment" depends on the loop type and can be:
+    - index:= index + 1;       -- integer range loops
+    - index:= index - 1;       -- integer range reverse loops
+    - FETCH cursor INTO index; -- cursor loops
+  */
+  bool sp_for_loop_finalize(THD *thd, const Lex_for_loop_st &loop)
+  {
+    return loop.is_for_loop_cursor() ?
+           sp_for_loop_cursor_finalize(thd, loop) :
+           sp_for_loop_intrange_finalize(thd, loop);
+  }
+  /* End of FOR LOOP methods */
+
+  bool add_signal_statement(THD *thd, const class sp_condition_value *value);
+  bool add_resignal_statement(THD *thd, const class sp_condition_value *value);
 
   // Check if "KEY IF NOT EXISTS name" used outside of ALTER context
   bool check_add_key(DDL_options_st ddl)
@@ -3358,6 +3738,92 @@ struct st_lex_local: public LEX, public Sql_alloc
 {
 };
 
+
+/**
+  An st_lex_local extension with automatic initialization for SP purposes.
+  Used to parse sub-expressions and SP sub-statements.
+
+  This class is reused for:
+  1. sp_head::reset_lex() based constructs
+    - SP variable assignments (e.g. SET x=10;)
+    - FOR loop conditions and index variable increments
+    - Cursor statements
+    - SP statements
+    - SP function RETURN statements
+    - CASE statements
+    - REPEAT..UNTIL expressions
+    - WHILE expressions
+    - EXIT..WHEN and CONTINUE..WHEN statements
+  2. sp_assignment_lex based constructs:
+    - CURSOR parameter assignments
+*/
+class sp_lex_local: public st_lex_local
+{
+public:
+  sp_lex_local(THD *thd, const LEX *oldlex)
+  {
+    /* Reset most stuff. */
+    start(thd);
+    /* Keep the parent SP stuff */
+    sphead= oldlex->sphead;
+    spcont= oldlex->spcont;
+    /* Keep the parent trigger stuff too */
+    trg_chistics= oldlex->trg_chistics;
+    trg_table_fields.empty();
+    sp_lex_in_use= false;
+  }
+};
+
+
+/**
+  An assignment specific LEX, which additionally has an Item (an expression)
+  and an associated with the Item free_list, which is usually freed
+  after the expression is calculated.
+
+  Note, consider changing some of sp_lex_local to sp_assignment_lex,
+  as the latter allows to use a simpler grammar in sql_yacc.yy (IMO).
+
+  If the expression is simple (e.g. does not have function calls),
+  then m_item and m_free_list point to the same Item.
+
+  If the expressions is complex (e.g. have function calls),
+  then m_item points to the leftmost Item, while m_free_list points
+  to the rightmost item.
+  For example:
+      f1(COALESCE(f2(10), f2(20)))
+  - m_item points to Item_func_sp for f1 (the leftmost Item)
+  - m_free_list points to Item_int for 20 (the rightmost Item)
+
+  Note, we could avoid storing m_item at all, as we can always reach
+  the leftmost item from the rightmost item by iterating through m_free_list.
+  But with a separate m_item the code should be faster.
+*/
+class sp_assignment_lex: public sp_lex_local
+{
+  Item *m_item;       // The expression
+  Item *m_free_list;  // The associated free_list (sub-expressions)
+public:
+  sp_assignment_lex(THD *thd, LEX *oldlex)
+   :sp_lex_local(thd, oldlex),
+    m_item(NULL),
+    m_free_list(NULL)
+  { }
+  void set_item_and_free_list(Item *item, Item *free_list)
+  {
+    m_item= item;
+    m_free_list= free_list;
+  }
+  Item *get_item() const
+  {
+    return m_item;
+  }
+  Item *get_free_list() const
+  {
+    return m_free_list;
+  }
+};
+
+
 extern void lex_init(void);
 extern void lex_free(void);
 extern void lex_start(THD *thd);
@@ -3367,6 +3833,7 @@ extern void lex_end_stage2(LEX *lex);
 void end_lex_with_single_table(THD *thd, TABLE *table, LEX *old_lex);
 int init_lex_with_single_table(THD *thd, TABLE *table, LEX *lex);
 extern int MYSQLlex(union YYSTYPE *yylval, THD *thd);
+extern int ORAlex(union YYSTYPE *yylval, THD *thd);
 
 extern void trim_whitespace(CHARSET_INFO *cs, LEX_STRING *str,
                             uint *prefix_removed);
@@ -3383,6 +3850,13 @@ void my_missing_function_error(const LEX_STRING &token, const char *name);
 bool is_keyword(const char *name, uint len);
 int set_statement_var_if_exists(THD *thd, const char *var_name,
                                 size_t var_name_length, ulonglong value);
+
+Virtual_column_info *add_virtual_expression(THD *thd, Item *expr);
+Item* handle_sql2003_note184_exception(THD *thd, Item* left, bool equal,
+                                       Item *expr);
+
+void sp_create_assignment_lex(THD *thd, bool no_lookahead);
+bool sp_create_assignment_instr(THD *thd, bool no_lookahead);
 
 #endif /* MYSQL_SERVER */
 #endif /* SQL_LEX_INCLUDED */

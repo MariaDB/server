@@ -1501,12 +1501,9 @@ Item_sp_variable::Item_sp_variable(THD *thd, char *sp_var_name_str,
 }
 
 
-bool Item_sp_variable::fix_fields(THD *thd, Item **)
+bool Item_sp_variable::fix_fields_from_item(THD *thd, Item **, const Item *it)
 {
-  Item *it;
-
   m_thd= thd; /* NOTE: this must be set before any this_xxx() */
-  it= this_item();
 
   DBUG_ASSERT(it->fixed);
 
@@ -1612,11 +1609,17 @@ Item_splocal::Item_splocal(THD *thd, const LEX_STRING &sp_var_name,
 }
 
 
+bool Item_splocal::fix_fields(THD *thd, Item **ref)
+{
+  return fix_fields_from_item(thd, ref, thd->spcont->get_item(m_var_idx));
+}
+
+
 Item *
 Item_splocal::this_item()
 {
   DBUG_ASSERT(m_sp == m_thd->spcont->sp);
-
+  DBUG_ASSERT(fixed);
   return m_thd->spcont->get_item(m_var_idx);
 }
 
@@ -1624,7 +1627,7 @@ const Item *
 Item_splocal::this_item() const
 {
   DBUG_ASSERT(m_sp == m_thd->spcont->sp);
-
+  DBUG_ASSERT(fixed);
   return m_thd->spcont->get_item(m_var_idx);
 }
 
@@ -1633,7 +1636,7 @@ Item **
 Item_splocal::this_item_addr(THD *thd, Item **)
 {
   DBUG_ASSERT(m_sp == thd->spcont->sp);
-
+  DBUG_ASSERT(fixed);
   return thd->spcont->get_item_addr(m_var_idx);
 }
 
@@ -1653,6 +1656,175 @@ bool Item_splocal::set_value(THD *thd, sp_rcontext *ctx, Item **it)
 }
 
 
+/**
+  These two declarations are different:
+    x INT;
+    ROW(x INT);
+  A ROW with one elements should not be comparable to scalar value.
+
+  TODO: Currently we don't support one argument with the function ROW(), so
+  this query returns a syntax error, meaning that more arguments are expected:
+    SELECT ROW(1);
+
+  Therefore, all around the code we assume that cols()==1 means a scalar value
+  and cols()>1 means a ROW value. With adding ROW SP variables this
+  assumption is not true any more. ROW variables with one element are
+  now possible.
+
+  To implement Item::check_cols() correctly, we now should extend it to
+  know if a ROW or a scalar value is being tested. For example,
+  these new prototypes should work:
+    virtual bool check_cols(Item_result result, uint c);
+  or
+    virtual bool check_cols(const Type_handler *type, uint c);
+
+  The current implementation of Item_splocal::check_cols() is a compromise
+  that should be more or less fine until we extend check_cols().
+  It disallows ROW variables to appear in a scalar context.
+  The "|| n == 1" part of the conditon is responsible for this.
+  For example, it disallows ROW variables to appear in SELECT list:
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+AS
+  a ROW (a INT);
+BEGIN
+  SELECT a;
+END;
+$$
+DELIMITER ;$$
+--error ER_OPERAND_COLUMNS
+CALL p1();
+
+  But is produces false negatives with ROW variables consisting of one element.
+  For example, this script fails:
+
+SET sql_mode=ORACLE;
+DROP PROCEDURE IF EXISTS p1;
+DELIMITER $$
+CREATE PROCEDURE p1
+AS
+  a ROW(a INT);
+  b ROW(a INT);
+BEGIN
+  SELECT a=b;
+END;
+$$
+DELIMITER ;
+CALL p1();
+
+  and returns "ERROR 1241 (21000): Operand should contain 1 column(s)".
+  This will be fixed that we change check_cols().
+*/
+
+bool Item_splocal::check_cols(uint n)
+{
+  DBUG_ASSERT(m_thd->spcont);
+  if (cmp_type() != ROW_RESULT)
+    return Item::check_cols(n);
+
+  if (n != this_item()->cols() || n == 1)
+  {
+    my_error(ER_OPERAND_COLUMNS, MYF(0), n);
+    return true;
+  }
+  return false;
+}
+
+
+bool Item_splocal_row_field::fix_fields(THD *thd, Item **ref)
+{
+  Item *item= thd->spcont->get_item(m_var_idx)->element_index(m_field_idx);
+  return fix_fields_from_item(thd, ref, item);
+}
+
+
+Item *
+Item_splocal_row_field::this_item()
+{
+  DBUG_ASSERT(m_sp == m_thd->spcont->sp);
+  DBUG_ASSERT(fixed);
+  return m_thd->spcont->get_item(m_var_idx)->element_index(m_field_idx);
+}
+
+
+const Item *
+Item_splocal_row_field::this_item() const
+{
+  DBUG_ASSERT(m_sp == m_thd->spcont->sp);
+  DBUG_ASSERT(fixed);
+  return m_thd->spcont->get_item(m_var_idx)->element_index(m_field_idx);
+}
+
+
+Item **
+Item_splocal_row_field::this_item_addr(THD *thd, Item **)
+{
+  DBUG_ASSERT(m_sp == thd->spcont->sp);
+  DBUG_ASSERT(fixed);
+  return thd->spcont->get_item(m_var_idx)->addr(m_field_idx);
+}
+
+
+void Item_splocal_row_field::print(String *str, enum_query_type)
+{
+  str->reserve(m_name.length + m_field_name.length + 8);
+  str->append(m_name.str, m_name.length);
+  str->append('.');
+  str->append(m_field_name.str, m_field_name.length);
+  str->append('@');
+  str->qs_append(m_var_idx);
+  str->append('[');
+  str->qs_append(m_field_idx);
+  str->append(']');
+}
+
+
+bool Item_splocal_row_field::set_value(THD *thd, sp_rcontext *ctx, Item **it)
+{
+  return ctx->set_variable_row_field(thd, m_var_idx, m_field_idx, it);
+}
+
+
+bool Item_splocal_row_field_by_name::fix_fields(THD *thd, Item **it)
+{
+  m_thd= thd;
+  Item *item, *row= m_thd->spcont->get_item(m_var_idx);
+  if (row->element_index_by_name(&m_field_idx, m_field_name))
+  {
+    my_error(ER_ROW_VARIABLE_DOES_NOT_HAVE_FIELD, MYF(0),
+             m_name.str, m_field_name.str);
+    return true;
+  }
+  item= row->element_index(m_field_idx);
+  set_handler(item->type_handler());
+  return fix_fields_from_item(thd, it, item);
+}
+
+
+void Item_splocal_row_field_by_name::print(String *str, enum_query_type)
+{
+  // +16 should be enough for .NNN@[""]
+  if (str->reserve(m_name.length + 2 * m_field_name.length + 16))
+    return;
+  str->qs_append(m_name.str, m_name.length);
+  str->qs_append('.');
+  str->qs_append(m_field_name.str, m_field_name.length);
+  str->qs_append('@');
+  str->qs_append(m_var_idx);
+  str->qs_append("[\"", 2);
+  str->qs_append(m_field_name.str, m_field_name.length);
+  str->qs_append("\"]", 2);
+}
+
+
+bool Item_splocal_row_field_by_name::set_value(THD *thd, sp_rcontext *ctx, Item **it)
+{
+  DBUG_ASSERT(fixed); // Make sure m_field_idx is already set
+  return Item_splocal_row_field::set_value(thd, ctx, it);
+}
+
+
 /*****************************************************************************
   Item_case_expr methods
 *****************************************************************************/
@@ -1661,6 +1833,13 @@ Item_case_expr::Item_case_expr(THD *thd, uint case_expr_id):
   Item_sp_variable(thd, C_STRING_WITH_LEN("case_expr")),
   m_case_expr_id(case_expr_id)
 {
+}
+
+
+bool Item_case_expr::fix_fields(THD *thd, Item **ref)
+{
+  Item *item= thd->spcont->get_case_expr(m_case_expr_id);
+  return fix_fields_from_item(thd, ref, item);
 }
 
 
@@ -3341,9 +3520,10 @@ default_set_param_func(Item_param *param,
 }
 
 
-Item_param::Item_param(THD *thd, uint pos_in_query_arg):
+Item_param::Item_param(THD *thd, char *name_arg,
+                       uint pos_in_query_arg, uint len_in_query_arg):
   Item_basic_value(thd),
-  Rewritable_query_parameter(pos_in_query_arg, 1),
+  Rewritable_query_parameter(pos_in_query_arg, len_in_query_arg),
   Type_handler_hybrid_field_type(MYSQL_TYPE_VARCHAR),
   state(NO_VALUE),
   /* Don't pretend to be a literal unless value for this item is set. */
@@ -3360,7 +3540,7 @@ Item_param::Item_param(THD *thd, uint pos_in_query_arg):
   */
   m_is_settable_routine_parameter(true)
 {
-  name= (char*) "?";
+  name= name_arg;
   /* 
     Since we can't say whenever this item can be NULL or cannot be NULL
     before mysql_stmt_execute(), so we assuming that it can be NULL until
@@ -6099,8 +6279,11 @@ Field *Item::make_string_field(TABLE *table)
 /**
   Create a field based on field_type of argument.
 
-  For now, this is only used to create a field for
-  IFNULL(x,something) and time functions
+  This is used to create a field for
+  - IFNULL(x,something)
+  - time functions
+  - prepared statement placeholders
+  - SP variables with data type references: DECLARE a t1.a%TYPE;
 
   @retval
     NULL  error
@@ -7271,6 +7454,26 @@ void Item_field::print(String *str, enum_query_type query_type)
     return;
   }
   Item_ident::print(str, query_type);
+}
+
+
+bool Item_field_row::element_index_by_name(uint *idx,
+                                           const LEX_STRING &name) const
+{
+  Field *field;
+  for (uint i= 0; (field= get_row_field(i)); i++)
+  {
+    // Use the same comparison style with sp_context::find_variable()
+    if (!my_strnncoll(system_charset_info,
+                      (const uchar *) field->field_name,
+                      strlen(field->field_name),
+                      (const uchar *) name.str, name.length))
+    {
+      *idx= i;
+      return false;
+    }
+  }
+  return true;
 }
 
 

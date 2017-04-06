@@ -53,6 +53,7 @@ protected:
       set_if_bigger(res, item[i]->decimals);
     return res;
   }
+  virtual bool check_allowed_arg_cols(uint argno);
 public:
   void aggregate_attributes_int(Item **items, uint nitems)
   {
@@ -723,6 +724,76 @@ public:
   enum_field_types field_type() const { return MYSQL_TYPE_LONGLONG; }
   void fix_length_and_dec() {}
 };
+
+
+class Item_func_cursor_int_attr: public Item_int_func
+{
+protected:
+  LEX_STRING m_cursor_name;
+  uint m_cursor_offset;
+  class sp_cursor *get_open_cursor_or_error();
+public:
+  Item_func_cursor_int_attr(THD *thd, const LEX_STRING name, uint offset)
+   :Item_int_func(thd), m_cursor_name(name), m_cursor_offset(offset)
+  { }
+  bool check_vcol_func_processor(void *arg)
+  {
+    return mark_unsupported_function(func_name(), arg, VCOL_SESSION_FUNC);
+  }
+  void print(String *str, enum_query_type query_type);
+};
+
+
+class Item_func_cursor_isopen: public Item_func_cursor_int_attr
+{
+public:
+  Item_func_cursor_isopen(THD *thd, const LEX_STRING name, uint offset)
+   :Item_func_cursor_int_attr(thd, name, offset) { }
+  const char *func_name() const { return "%ISOPEN"; }
+  void fix_length_and_dec() { max_length= 1; }
+  longlong val_int();
+  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
+  { return get_item_copy<Item_func_cursor_isopen>(thd, mem_root, this); }
+};
+
+
+class Item_func_cursor_found: public Item_func_cursor_int_attr
+{
+public:
+  Item_func_cursor_found(THD *thd, const LEX_STRING name, uint offset)
+   :Item_func_cursor_int_attr(thd, name, offset) { }
+  const char *func_name() const { return "%FOUND"; }
+  void fix_length_and_dec() { max_length= 1; maybe_null= true; }
+  longlong val_int();
+  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
+  { return get_item_copy<Item_func_cursor_found>(thd, mem_root, this); }
+};
+
+
+class Item_func_cursor_notfound: public Item_func_cursor_int_attr
+{
+public:
+  Item_func_cursor_notfound(THD *thd, const LEX_STRING name, uint offset)
+   :Item_func_cursor_int_attr(thd, name, offset) { }
+  const char *func_name() const { return "%NOTFOUND"; }
+  void fix_length_and_dec() { max_length= 1; maybe_null= true; }
+  longlong val_int();
+  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
+  { return get_item_copy<Item_func_cursor_notfound>(thd, mem_root, this); }
+};
+
+
+class Item_func_cursor_rowcount: public Item_func_cursor_int_attr
+{
+public:
+  Item_func_cursor_rowcount(THD *thd, const LEX_STRING name, uint offset)
+   :Item_func_cursor_int_attr(thd, name, offset) { }
+  const char *func_name() const { return "%ROWCOUNT"; }
+  longlong val_int();
+  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
+  { return get_item_copy<Item_func_cursor_rowcount>(thd, mem_root, this); }
+};
+
 
 
 class Item_func_connection_id :public Item_int_func
@@ -2477,7 +2548,12 @@ private:
 protected:
   bool is_expensive_processor(void *arg)
   { return is_expensive(); }
-  
+
+  bool check_allowed_arg_cols(uint n)
+  {
+    // sp_prepare_func_item() checks that the number of columns is correct
+    return false;
+  } 
 public:
 
   Item_func_sp(THD *thd, Name_resolution_context *context_arg, sp_name *name);
@@ -2565,6 +2641,10 @@ public:
   {
     return sp_result_field;
   }
+  const sp_name *get_sp_name() const
+  {
+    return m_name;
+  }
 
   bool check_vcol_func_processor(void *arg);
   bool limit_index_condition_pushdown_processor(void *opt_arg)
@@ -2596,6 +2676,49 @@ public:
   }
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_func_found_rows>(thd, mem_root, this); }
+};
+
+
+class Item_func_oracle_sql_rowcount :public Item_int_func
+{
+public:
+  Item_func_oracle_sql_rowcount(THD *thd): Item_int_func(thd) {}
+  longlong val_int();
+  const char *func_name() const { return "SQL%ROWCOUNT"; }
+  void print(String *str, enum_query_type query_type)
+  {
+    str->append(func_name());
+  }
+  bool check_vcol_func_processor(void *arg)
+  {
+    return mark_unsupported_function(func_name(), "()", arg, VCOL_IMPOSSIBLE);
+  }
+  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
+  { return get_item_copy<Item_func_oracle_sql_rowcount>(thd, mem_root, this); }
+};
+
+
+class Item_func_sqlcode: public Item_int_func
+{
+public:
+  Item_func_sqlcode(THD *thd): Item_int_func(thd) { }
+  longlong val_int();
+  const char *func_name() const { return "SQLCODE"; }
+  void print(String *str, enum_query_type query_type)
+  {
+    str->append(func_name());
+  }
+  bool check_vcol_func_processor(void *arg)
+  {
+    return mark_unsupported_function(func_name(), "()", arg, VCOL_IMPOSSIBLE);
+  }
+  void fix_length_and_dec()
+  {
+    maybe_null= null_value= false;
+    max_length= 11;
+  }
+  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
+  { return get_item_copy<Item_func_sqlcode>(thd, mem_root, this); }
 };
 
 

@@ -711,6 +711,19 @@ protected:
 #endif
 
 
+class Create_func_nvl2 : public Create_func_arg3
+{
+public:
+  virtual Item *create_3_arg(THD *thd, Item *arg1, Item *arg2, Item *arg3);
+
+  static Create_func_nvl2 s_singleton;
+
+protected:
+  Create_func_nvl2() {}
+  virtual ~Create_func_nvl2() {}
+};
+
+
 class Create_func_conv : public Create_func_arg3
 {
 public:
@@ -866,19 +879,6 @@ public:
 protected:
   Create_func_dayofyear() {}
   virtual ~Create_func_dayofyear() {}
-};
-
-
-class Create_func_decode : public Create_func_arg2
-{
-public:
-  virtual Item *create_2_arg(THD *thd, Item *arg1, Item *arg2);
-
-  static Create_func_decode s_singleton;
-
-protected:
-  Create_func_decode() {}
-  virtual ~Create_func_decode() {}
 };
 
 
@@ -3857,7 +3857,9 @@ Create_func_concat::create_native(THD *thd, LEX_STRING name,
     return NULL;
   }
 
-  return new (thd->mem_root) Item_func_concat(thd, *item_list);
+  return thd->variables.sql_mode & MODE_ORACLE ?
+    new (thd->mem_root) Item_func_concat_operator_oracle(thd, *item_list) :
+    new (thd->mem_root) Item_func_concat(thd, *item_list);
 }
 
 Create_func_decode_histogram Create_func_decode_histogram::s_singleton;
@@ -3929,6 +3931,15 @@ Create_func_contains::create_2_arg(THD *thd, Item *arg1, Item *arg2)
                                                   Item_func::SP_CONTAINS_FUNC);
 }
 #endif
+
+
+Create_func_nvl2 Create_func_nvl2::s_singleton;
+
+Item*
+Create_func_nvl2::create_3_arg(THD *thd, Item *arg1, Item *arg2, Item *arg3)
+{
+  return new (thd->mem_root) Item_func_nvl2(thd, arg1, arg2, arg3);
+}
 
 
 Create_func_conv Create_func_conv::s_singleton;
@@ -4042,15 +4053,6 @@ Item*
 Create_func_dayofyear::create_1_arg(THD *thd, Item *arg1)
 {
   return new (thd->mem_root) Item_func_dayofyear(thd, arg1);
-}
-
-
-Create_func_decode Create_func_decode::s_singleton;
-
-Item*
-Create_func_decode::create_2_arg(THD *thd, Item *arg1, Item *arg2)
-{
-  return new (thd->mem_root) Item_func_decode(thd, arg1, arg2);
 }
 
 
@@ -6750,7 +6752,6 @@ static Native_func_registry func_array[] =
   { { C_STRING_WITH_LEN("DAYOFMONTH") }, BUILDER(Create_func_dayofmonth)},
   { { C_STRING_WITH_LEN("DAYOFWEEK") }, BUILDER(Create_func_dayofweek)},
   { { C_STRING_WITH_LEN("DAYOFYEAR") }, BUILDER(Create_func_dayofyear)},
-  { { C_STRING_WITH_LEN("DECODE") }, BUILDER(Create_func_decode)},
   { { C_STRING_WITH_LEN("DEGREES") }, BUILDER(Create_func_degrees)},
   { { C_STRING_WITH_LEN("DECODE_HISTOGRAM") }, BUILDER(Create_func_decode_histogram)},
   { { C_STRING_WITH_LEN("DES_DECRYPT") }, BUILDER(Create_func_des_decrypt)},
@@ -6884,6 +6885,8 @@ static Native_func_registry func_array[] =
   { { C_STRING_WITH_LEN("MULTIPOLYGONFROMTEXT") }, GEOM_BUILDER(Create_func_geometry_from_text)},
   { { C_STRING_WITH_LEN("MULTIPOLYGONFROMWKB") }, GEOM_BUILDER(Create_func_geometry_from_wkb)},
   { { C_STRING_WITH_LEN("NAME_CONST") }, BUILDER(Create_func_name_const)},
+  { { C_STRING_WITH_LEN("NVL") }, BUILDER(Create_func_ifnull)},
+  { { C_STRING_WITH_LEN("NVL2") }, BUILDER(Create_func_nvl2)},
   { { C_STRING_WITH_LEN("NULLIF") }, BUILDER(Create_func_nullif)},
   { { C_STRING_WITH_LEN("NUMGEOMETRIES") }, GEOM_BUILDER(Create_func_numgeometries)},
   { { C_STRING_WITH_LEN("NUMINTERIORRINGS") }, GEOM_BUILDER(Create_func_numinteriorring)},

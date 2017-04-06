@@ -1337,3 +1337,15 @@ create function fs() returns serial return 1;
 create table t1 ( id serial );
 show create table t1;
 drop table t1;
+
+--echo #
+--echo # MDEV-10343 Providing compatibility for basic SQL data types
+--echo #
+CREATE TABLE clob (clob int);
+DROP TABLE clob;
+
+CREATE TABLE raw (raw int);
+DROP TABLE raw;
+
+CREATE TABLE varchar2 (varchar2 int);
+DROP TABLE varchar2;

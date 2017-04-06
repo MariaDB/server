@@ -9849,6 +9849,7 @@ bool check_host_name(LEX_STRING *str)
 
 
 extern int MYSQLparse(THD *thd); // from sql_yacc.cc
+extern int ORAparse(THD *thd);   // from sql_yacc_ora.cc
 
 
 /**
@@ -9908,7 +9909,10 @@ bool parse_sql(THD *thd, Parser_state *parser_state,
 
   /* Parse the query. */
 
-  bool mysql_parse_status= MYSQLparse(thd) != 0;
+  bool mysql_parse_status=
+         ((thd->variables.sql_mode & MODE_ORACLE) ?
+          ORAparse(thd) :
+          MYSQLparse(thd)) != 0;
 
   /*
     Check that if MYSQLparse() failed either thd->is_error() is set, or an

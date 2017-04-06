@@ -53,6 +53,10 @@ public:
   virtual int open(JOIN *join __attribute__((unused)));
   virtual void fetch(ulong num_rows);
   virtual void close();
+  bool export_structure(THD *thd, Row_definition_list *defs)
+  {
+    return table->export_structure(thd, defs);
+  }
   virtual ~Materialized_cursor();
 
   void on_table_fill_finished();

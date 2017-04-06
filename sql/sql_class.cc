@@ -55,6 +55,7 @@
 #include <mysys_err.h>
 #include <limits.h>
 
+#include "sp_head.h"
 #include "sp_rcontext.h"
 #include "sp_cache.h"
 #include "transaction.h"
@@ -1066,9 +1067,10 @@ void THD::raise_note_printf(uint sql_errno, ...)
 }
 
 Sql_condition* THD::raise_condition(uint sql_errno,
-                                  const char* sqlstate,
-                                  Sql_condition::enum_warning_level level,
-                                  const char* msg)
+                                    const char* sqlstate,
+                                    Sql_condition::enum_warning_level level,
+                                    const Sql_user_condition_identity &ucid,
+                                    const char* msg)
 {
   Diagnostics_area *da= get_stmt_da();
   Sql_condition *cond= NULL;
@@ -1127,7 +1129,7 @@ Sql_condition* THD::raise_condition(uint sql_errno,
     if (!da->is_error())
     {
       set_row_count_func(-1);
-      da->set_error_status(sql_errno, msg, sqlstate, cond);
+      da->set_error_status(sql_errno, msg, sqlstate, ucid, cond);
     }
   }
 
@@ -1141,7 +1143,7 @@ Sql_condition* THD::raise_condition(uint sql_errno,
   if (!(is_fatal_error && (sql_errno == EE_OUTOFMEMORY ||
                            sql_errno == ER_OUTOFMEMORY)))
   {
-    cond= da->push_warning(this, sql_errno, sqlstate, level, msg);
+    cond= da->push_warning(this, sql_errno, sqlstate, level, ucid, msg);
   }
   DBUG_RETURN(cond);
 }
@@ -1322,7 +1324,17 @@ void THD::init(void)
   DBUG_VOID_RETURN;
 }
 
- 
+
+bool THD::restore_from_local_lex_to_old_lex(LEX *oldlex)
+{
+  DBUG_ASSERT(lex->sphead);
+  if (lex->sphead->merge_lex(this, oldlex, lex))
+    return true;
+  lex= oldlex;
+  return false;
+}
+
+
 /* Updates some status variables to be used by update_global_user_stats */
 
 void THD::update_stats(void)
@@ -3483,15 +3495,29 @@ int select_exists_subselect::send_data(List<Item> &items)
 
 int select_dumpvar::prepare(List<Item> &list, SELECT_LEX_UNIT *u)
 {
+  my_var_sp *mvsp;
   unit= u;
-  
-  if (var_list.elements != list.elements)
+  m_var_sp_row= NULL;
+
+  if (var_list.elements == 1 &&
+      (mvsp= var_list.head()->get_my_var_sp()) &&
+      mvsp->type_handler() == &type_handler_row)
   {
-    my_message(ER_WRONG_NUMBER_OF_COLUMNS_IN_SELECT,
-               ER_THD(thd, ER_WRONG_NUMBER_OF_COLUMNS_IN_SELECT), MYF(0));
-    return 1;
-  }               
-  return 0;
+    // SELECT INTO row_type_sp_variable
+    if (thd->spcont->get_item(mvsp->offset)->cols() != list.elements)
+      goto error;
+    m_var_sp_row= mvsp;
+    return 0;
+  }
+
+  // SELECT INTO variable list
+  if (var_list.elements == list.elements)
+    return 0;
+
+error:
+  my_message(ER_WRONG_NUMBER_OF_COLUMNS_IN_SELECT,
+             ER_THD(thd, ER_WRONG_NUMBER_OF_COLUMNS_IN_SELECT), MYF(0));
+  return 1;
 }
 
 
@@ -3827,12 +3853,30 @@ bool my_var_sp::set(THD *thd, Item *item)
   return thd->spcont->set_variable(thd, offset, &item);
 }
 
-int select_dumpvar::send_data(List<Item> &items)
+bool my_var_sp_row_field::set(THD *thd, Item *item)
 {
+  return thd->spcont->set_variable_row_field(thd, offset, m_field_offset, &item);
+}
+
+
+bool select_dumpvar::send_data_to_var_list(List<Item> &items)
+{
+  DBUG_ENTER("select_dumpvar::send_data_to_var_list");
   List_iterator_fast<my_var> var_li(var_list);
   List_iterator<Item> it(items);
   Item *item;
   my_var *mv;
+  while ((mv= var_li++) && (item= it++))
+  {
+    if (mv->set(thd, item))
+      DBUG_RETURN(true);
+  }
+  DBUG_RETURN(false);
+}
+
+
+int select_dumpvar::send_data(List<Item> &items)
+{
   DBUG_ENTER("select_dumpvar::send_data");
 
   if (unit->offset_limit_cnt)
@@ -3845,11 +3889,11 @@ int select_dumpvar::send_data(List<Item> &items)
     my_message(ER_TOO_MANY_ROWS, ER_THD(thd, ER_TOO_MANY_ROWS), MYF(0));
     DBUG_RETURN(1);
   }
-  while ((mv= var_li++) && (item= it++))
-  {
-    if (mv->set(thd, item))
-      DBUG_RETURN(1);
-  }
+  if (m_var_sp_row ?
+      thd->spcont->set_variable_row(thd, m_var_sp_row->offset, items) :
+      send_data_to_var_list(items))
+    DBUG_RETURN(1);
+
   DBUG_RETURN(thd->is_error());
 }
 

@@ -993,6 +993,7 @@ public:
   Case abbreviations that aggregate its result field type by two arguments:
     IFNULL(arg1, arg2)
     IF(switch, arg1, arg2)
+    NVL2(switch, arg1, arg2)
 */
 class Item_func_case_abbreviation2 :public Item_func_hybrid_field_type
 {
@@ -1003,6 +1004,34 @@ protected:
       fix_attributes(items, 2);
   }
   uint decimal_precision2(Item **args) const;
+
+  void cache_type_info(const Item *source, bool maybe_null_arg)
+  {
+    Type_std_attributes::set(source);
+    set_handler_by_field_type(source->field_type());
+    maybe_null= maybe_null_arg;
+  }
+
+  void fix_length_and_dec2_eliminate_null(Item **items)
+  {
+    // Let IF(cond, expr, NULL) and IF(cond, NULL, expr) inherit type from expr.
+    if (items[0]->type() == NULL_ITEM)
+    {
+      cache_type_info(items[1], true);
+      // If both arguments are NULL, make resulting type BINARY(0).
+      if (items[1]->type() == NULL_ITEM)
+        set_handler_by_field_type(MYSQL_TYPE_STRING);
+    }
+    else if (items[1]->type() == NULL_ITEM)
+    {
+      cache_type_info(items[0], true);
+    }
+    else
+    {
+      fix_length_and_dec2(items);
+    }
+  }
+
 public:
   Item_func_case_abbreviation2(THD *thd, Item *a, Item *b):
     Item_func_hybrid_field_type(thd, a, b) { }
@@ -1040,19 +1069,61 @@ public:
 };
 
 
-class Item_func_if :public Item_func_case_abbreviation2
+/**
+  Case abbreviations that have a switch argument and
+  two return arguments to choose from. Returns the value
+  of either of the two return arguments depending on the switch argument value.
+
+  IF(switch, arg1, arg2)
+  NVL(switch, arg1, arg2)
+*/
+class Item_func_case_abbreviation2_switch: public Item_func_case_abbreviation2
 {
+protected:
+  virtual Item *find_item() const= 0;
+
+public:
+  Item_func_case_abbreviation2_switch(THD *thd, Item *a, Item *b, Item *c)
+    :Item_func_case_abbreviation2(thd, a, b, c)
+  { }
+
+  bool date_op(MYSQL_TIME *ltime, uint fuzzydate)
+  {
+    return get_date_with_conversion_from_item(find_item(), ltime, fuzzydate);
+  }
+  longlong int_op()
+  {
+    return val_int_from_item(find_item());
+  }
+  double real_op()
+  {
+    return val_real_from_item(find_item());
+  }
+  my_decimal *decimal_op(my_decimal *decimal_value)
+  {
+    return val_decimal_from_item(find_item(), decimal_value);
+  }
+  String *str_op(String *str)
+  {
+    return val_str_from_item(find_item(), str);
+  }
+};
+
+
+class Item_func_if :public Item_func_case_abbreviation2_switch
+{
+protected:
+  Item *find_item() const { return args[0]->val_bool() ? args[1] : args[2]; }
+
 public:
   Item_func_if(THD *thd, Item *a, Item *b, Item *c):
-    Item_func_case_abbreviation2(thd, a, b, c)
+    Item_func_case_abbreviation2_switch(thd, a, b, c)
   {}
-  bool date_op(MYSQL_TIME *ltime, uint fuzzydate);
-  longlong int_op();
-  double real_op();
-  my_decimal *decimal_op(my_decimal *);
-  String *str_op(String *);
   bool fix_fields(THD *, Item **);
-  void fix_length_and_dec();
+  void fix_length_and_dec()
+  {
+    fix_length_and_dec2_eliminate_null(args + 1);
+  }
   uint decimal_precision() const
   {
     return Item_func_case_abbreviation2::decimal_precision2(args + 1);
@@ -1064,6 +1135,29 @@ public:
   { return get_item_copy<Item_func_if>(thd, mem_root, this); }
 private:
   void cache_type_info(Item *source);
+};
+
+
+class Item_func_nvl2 :public Item_func_case_abbreviation2_switch
+{
+protected:
+  Item *find_item() const { return args[0]->is_null() ? args[2] : args[1]; }
+
+public:
+  Item_func_nvl2(THD *thd, Item *a, Item *b, Item *c):
+    Item_func_case_abbreviation2_switch(thd, a, b, c)
+  {}
+  const char *func_name() const { return "nvl2"; }
+  void fix_length_and_dec()
+  {
+    fix_length_and_dec2_eliminate_null(args + 1);
+  }
+  uint decimal_precision() const
+  {
+    return Item_func_case_abbreviation2::decimal_precision2(args + 1);
+  }
+  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
+  { return get_item_copy<Item_func_nvl2>(thd, mem_root, this); }
 };
 
 

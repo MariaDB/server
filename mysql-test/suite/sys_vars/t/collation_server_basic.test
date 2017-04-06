@@ -59,9 +59,6 @@ SELECT collation_server;
 # assign value without @@
 SET collation_server=utf8_unicode_ci;
 SELECT @@session.collation_server;
-# assign global variable without @@
---Error ER_PARSE_ERROR
-SET global.collation_server=utf8_unicode_ci;
 # using another syntax for accessing session variable
 SET session collation_server=utf8_unicode_ci;
 # accessing variable with scope the wrong way

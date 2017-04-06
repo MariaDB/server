@@ -159,12 +159,8 @@ SELECT @@query_cache_min_res_unit = @@global.query_cache_min_res_unit;
 --Error ER_GLOBAL_VARIABLE
 SET query_cache_min_res_unit = 1;
 SELECT @@query_cache_min_res_unit;
---Error ER_PARSE_ERROR
-SET local.query_cache_min_res_unit = 1;
 --Error ER_UNKNOWN_TABLE
 SELECT local.query_cache_min_res_unit;
---Error ER_PARSE_ERROR
-SET global.query_cache_min_res_unit = 1;
 --Error ER_UNKNOWN_TABLE
 SELECT global.query_cache_min_res_unit;
 --Error ER_BAD_FIELD_ERROR

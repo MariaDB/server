@@ -1,0 +1,23 @@
+SET sql_mode=ORACLE;
+CREATE TABLE varchar2 (varchar2 INT);
+SHOW CREATE TABLE varchar2;
+Table	Create Table
+varchar2	CREATE TABLE "varchar2" (
+  "varchar2" int(11) DEFAULT NULL
+)
+DROP TABLE varchar2;
+CREATE TABLE t1 (a VARCHAR2(10));
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "a" varchar(10) DEFAULT NULL
+)
+DROP TABLE t1;
+#
+#  MDEV-11275 sql_mode=ORACLE: CAST(..AS VARCHAR(N))
+#
+SELECT CAST(123 AS VARCHAR2(10)) FROM DUAL;
+CAST(123 AS VARCHAR2(10))
+123
+SELECT CAST(123 AS VARCHAR2) FROM DUAL;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ') FROM DUAL' at line 1

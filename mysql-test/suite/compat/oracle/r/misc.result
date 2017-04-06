@@ -1,0 +1,12 @@
+SET sql_mode=ORACLE;
+#
+# MDEV-12086 sql_mode=ORACLE: allow SELECT UNIQUE as a synonym for SELECT DISTINCT
+#
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (10),(20),(20),(30),(30),(30);
+SELECT UNIQUE a FROM t1;
+a
+10
+20
+30
+DROP TABLE t1;

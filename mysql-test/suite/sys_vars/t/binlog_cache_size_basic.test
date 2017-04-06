@@ -134,8 +134,6 @@ SELECT @@binlog_cache_size = @@global.binlog_cache_size;
 
 --Error ER_GLOBAL_VARIABLE
 SET binlog_cache_size = 1;
---Error ER_PARSE_ERROR
-SET global.binlog_cache_size = 1;
 --Error ER_UNKNOWN_TABLE
 SELECT global.binlog_cache_size;
 --Error ER_BAD_FIELD_ERROR

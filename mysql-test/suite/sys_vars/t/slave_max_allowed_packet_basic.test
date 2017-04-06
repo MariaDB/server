@@ -152,12 +152,8 @@ SELECT @@slave_max_allowed_packet = @@global.slave_max_allowed_packet;
 --Error ER_GLOBAL_VARIABLE
 SET slave_max_allowed_packet = 6000;
 SELECT @@slave_max_allowed_packet;
---Error ER_PARSE_ERROR
-SET local.slave_max_allowed_packet = 7000;
 --Error ER_UNKNOWN_TABLE
 SELECT local.slave_max_allowed_packet;
---Error ER_PARSE_ERROR
-SET global.slave_max_allowed_packet = 8000;
 --Error ER_UNKNOWN_TABLE
 SELECT global.slave_max_allowed_packet;
 --Error ER_BAD_FIELD_ERROR

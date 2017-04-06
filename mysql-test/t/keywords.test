@@ -171,7 +171,7 @@ create table option (option int not null);
 drop table option;
 --error 1193
 set option=1;
---error 1193
+--error ER_PARSE_ERROR
 set option option=1;
 
 --echo #
@@ -220,3 +220,42 @@ DROP TABLE OTHERS;
 
 CREATE TABLE immediate (immediate int);
 DROP TABLE immediate;
+
+--echo #
+--echo # MDEV-10142 Pluggable parser
+--echo # Testing keywords that were added into lex.h for Oracle compatibility
+--echo # that are not reserved keywords in MariaDB
+--echo #
+
+CREATE TABLE clob (clob int);
+DROP TABLE clob;
+
+CREATE TABLE elsif (elsif INT);
+DROP TABLE elsif;
+
+CREATE TABLE exception (exception INT);
+DROP TABLE exception;
+
+CREATE TABLE raw (raw int);
+DROP TABLE raw;
+
+CREATE TABLE varchar2 (varchar2 int);
+DROP TABLE varchar2;
+
+CREATE TABLE decode (decode int);
+DROP TABLE decode;
+
+CREATE TABLE rowcount (rowcount int);
+DROP TABLE rowcount;
+
+CREATE TABLE isopen (isopen int);
+DROP TABLE isopen;
+
+CREATE TABLE notfound (notfound int);
+DROP TABLE notfound;
+
+CREATE TABLE raise (raise int);
+DROP TABLE raise;
+
+CREATE TABLE reuse (reuse int);
+DROP TABLE reuse;

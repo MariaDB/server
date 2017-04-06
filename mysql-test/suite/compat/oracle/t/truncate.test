@@ -1,0 +1,16 @@
+SET sql_mode=ORACLE;
+
+--echo #
+--echo # MDEV-10588 sql_mode=ORACLE: TRUNCATE TABLE t1 [ {DROP|REUSE} STORAGE ]
+--echo #
+
+CREATE TABLE t1 (a INT);
+TRUNCATE TABLE t1 REUSE STORAGE;
+TRUNCATE TABLE t1 DROP STORAGE;
+DROP TABLE t1;
+
+# REUSE is actually a reserved word in Oracle.
+# But we don't reserve it for MDEV-10588
+
+CREATE TABLE reuse (reuse INT);
+DROP TABLE reuse;

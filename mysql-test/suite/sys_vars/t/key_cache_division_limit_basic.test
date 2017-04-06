@@ -153,12 +153,8 @@ SELECT @@key_cache_division_limit = @@global.key_cache_division_limit;
 --Error ER_GLOBAL_VARIABLE
 SET key_cache_division_limit = 80;
 SELECT @@key_cache_division_limit;
---Error ER_PARSE_ERROR
-SET local.key_cache_division_limit = 10;
 --Error ER_UNKNOWN_TABLE
 SELECT local.key_cache_division_limit;
---Error ER_PARSE_ERROR
-SET global.key_cache_division_limit = 10;
 --Error ER_UNKNOWN_TABLE
 SELECT global.key_cache_division_limit;
 --Error ER_BAD_FIELD_ERROR

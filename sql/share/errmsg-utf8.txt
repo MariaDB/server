@@ -7457,3 +7457,12 @@ ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
         eng "Illegal parameter data types %s and %s for operation '%s'"
 ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
         eng "Illegal parameter data type %s for operation '%s'"
+ER_WRONG_PARAMCOUNT_TO_CURSOR 42000
+        eng "Incorrect parameter count to cursor '%-.192s'"
+        rus "Некорректное количество параметров для курсора '%-.192s'"
+ER_UNKNOWN_STRUCTURED_VARIABLE
+        eng "Unknown structured system variable or ROW routine variable '%-.*s'"
+ER_ROW_VARIABLE_DOES_NOT_HAVE_FIELD
+        eng "Row variable '%-.192s' does not have a field '%-.192s'"
+ER_END_IDENTIFIER_DOES_NOT_MATCH
+        eng "END identifier '%-.192s' does not match '%-.192s'"

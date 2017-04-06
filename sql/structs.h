@@ -629,4 +629,89 @@ public:
 };
 
 
+struct Lex_spblock_handlers_st
+{
+public:
+  int hndlrs;
+  void init(int count) { hndlrs= count; }
+};
+
+
+struct Lex_spblock_st: public Lex_spblock_handlers_st
+{
+public:
+  int vars;
+  int conds;
+  int curs;
+  void init()
+  {
+    vars= conds= hndlrs= curs= 0;
+  }
+  void init_using_vars(uint nvars)
+  {
+    vars= nvars;
+    conds= hndlrs= curs= 0;
+  }
+  void join(const Lex_spblock_st &b1, const Lex_spblock_st &b2)
+  {
+    vars= b1.vars + b2.vars;
+    conds= b1.conds + b2.conds;
+    hndlrs= b1.hndlrs + b2.hndlrs;
+    curs= b1.curs + b2.curs;
+  }
+};
+
+
+class Lex_spblock: public Lex_spblock_st
+{
+public:
+  Lex_spblock() { init(); }
+  Lex_spblock(const Lex_spblock_handlers_st &other)
+  {
+    vars= conds= curs= 0;
+    hndlrs= other.hndlrs;
+  }
+};
+
+
+struct Lex_for_loop_bounds_st
+{
+public:
+  class sp_assignment_lex *m_index;
+  class sp_assignment_lex *m_upper_bound;
+  int8 m_direction;
+  bool m_implicit_cursor;
+  bool is_for_loop_cursor() const { return m_upper_bound == NULL; }
+};
+
+
+struct Lex_for_loop_st
+{
+public:
+  class sp_variable *m_index;
+  class sp_variable *m_upper_bound;
+  int m_cursor_offset;
+  int8 m_direction;
+  bool m_implicit_cursor;
+  void init()
+  {
+    m_index= 0;
+    m_upper_bound= 0;
+    m_direction= 0;
+    m_implicit_cursor= false;
+  }
+  void init(const Lex_for_loop_st &other)
+  {
+    *this= other;
+  }
+  bool is_for_loop_cursor() const { return m_upper_bound == NULL; }
+};
+
+
+struct Lex_string_with_pos_st: public LEX_STRING
+{
+  const char *m_pos;
+};
+
+
 #endif /* STRUCTS_INCLUDED */

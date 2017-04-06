@@ -27,15 +27,123 @@
 
 class THD;
 class my_decimal;
+class sp_condition_value;
 
 ///////////////////////////////////////////////////////////////////////////
 
-/**
-  Representation of a SQL condition.
-  A SQL condition can be a completion condition (note, warning),
-  or an exception condition (error, not found).
-*/
-class Sql_condition : public Sql_alloc
+class Sql_state
+{
+protected:
+  /**
+    This member is always NUL terminated.
+  */
+  char m_sqlstate[SQLSTATE_LENGTH + 1];
+public:
+  Sql_state()
+  {
+    memset(m_sqlstate, 0, sizeof(m_sqlstate));
+  }
+
+  Sql_state(const char *sqlstate)
+  {
+    set_sqlstate(sqlstate);
+  }
+
+  const char* get_sqlstate() const
+  { return m_sqlstate; }
+
+  void set_sqlstate(const Sql_state *other)
+  {
+    *this= *other;
+  }
+  void set_sqlstate(const char *sqlstate)
+  {
+    memcpy(m_sqlstate, sqlstate, SQLSTATE_LENGTH);
+    m_sqlstate[SQLSTATE_LENGTH]= '\0';
+  }
+  bool eq(const Sql_state *other) const
+  {
+    return strcmp(m_sqlstate, other->m_sqlstate) == 0;
+  }
+
+  bool has_sql_state() const { return m_sqlstate[0] != '\0'; }
+
+  /**
+    Checks if this SQL state defines a WARNING condition.
+    Note: m_sqlstate must contain a valid SQL-state.
+
+    @retval true if this SQL state defines a WARNING condition.
+    @retval false otherwise.
+  */
+  inline bool is_warning() const
+  { return m_sqlstate[0] == '0' && m_sqlstate[1] == '1'; }
+
+
+  /**
+    Checks if this SQL state defines a NOT FOUND condition.
+    Note: m_sqlstate must contain a valid SQL-state.
+
+    @retval true if this SQL state defines a NOT FOUND condition.
+    @retval false otherwise.
+  */
+  inline bool is_not_found() const
+  { return m_sqlstate[0] == '0' && m_sqlstate[1] == '2'; }
+
+
+  /**
+    Checks if this SQL state defines an EXCEPTION condition.
+    Note: m_sqlstate must contain a valid SQL-state.
+
+    @retval true if this SQL state defines an EXCEPTION condition.
+    @retval false otherwise.
+  */
+  inline bool is_exception() const
+  { return m_sqlstate[0] != '0' || m_sqlstate[1] > '2'; }
+
+};
+
+
+class Sql_state_errno: public Sql_state
+{
+protected:
+  /**
+    MySQL extension, MYSQL_ERRNO condition item.
+    SQL error number. One of ER_ codes from share/errmsg.txt.
+    Set by set_error_status.
+  */
+  uint m_sql_errno;
+
+public:
+  Sql_state_errno()
+   :m_sql_errno(0)
+  { }
+  Sql_state_errno(uint sql_errno)
+   :m_sql_errno(sql_errno)
+  { }
+  Sql_state_errno(uint sql_errno, const char *sql_state)
+   :Sql_state(sql_state),
+    m_sql_errno(sql_errno)
+  { }
+  /**
+    Get the SQL_ERRNO of this condition.
+    @return the sql error number condition item.
+  */
+  uint get_sql_errno() const
+  { return m_sql_errno; }
+
+  void set(uint sql_errno, const char *sqlstate)
+  {
+    m_sql_errno= sql_errno;
+    set_sqlstate(sqlstate);
+  }
+  void clear()
+  {
+    m_sql_errno= 0;
+  }
+};
+
+
+class Sql_state_errno_level: public Sql_state_errno
 {
 public:
   /*
@@ -47,135 +155,127 @@ public:
   enum enum_warning_level
   { WARN_LEVEL_NOTE, WARN_LEVEL_WARN, WARN_LEVEL_ERROR, WARN_LEVEL_END};
 
-  /**
-    Convert a bitmask consisting of MYSQL_TIME_{NOTE|WARN}_XXX bits
-    to WARN_LEVEL_XXX
-  */
-  static enum_warning_level time_warn_level(uint warnings)
-  {
-    return MYSQL_TIME_WARN_HAVE_WARNINGS(warnings) ?
-           WARN_LEVEL_WARN : WARN_LEVEL_NOTE;
-  }
+protected:
+  /** Severity (error, warning, note) of this condition. */
+  enum_warning_level m_level;
 
-  /**
-    Get the MESSAGE_TEXT of this condition.
-    @return the message text.
-  */
-  const char* get_message_text() const;
+  void assign_defaults(const Sql_state_errno *value);
 
-  /**
-    Get the MESSAGE_OCTET_LENGTH of this condition.
-    @return the length in bytes of the message text.
-  */
-  int get_message_octet_length() const;
-
-  /**
-    Get the SQLSTATE of this condition.
-    @return the sql state.
-  */
-  const char* get_sqlstate() const
-  { return m_returned_sqlstate; }
-
-  /**
-    Get the SQL_ERRNO of this condition.
-    @return the sql error number condition item.
-  */
-  uint get_sql_errno() const
-  { return m_sql_errno; }
-
+public:
   /**
     Get the error level of this condition.
     @return the error level condition item.
   */
-  Sql_condition::enum_warning_level get_level() const
+  enum_warning_level get_level() const
   { return m_level; }
 
-private:
-  /*
-    The interface of Sql_condition is mostly private, by design,
-    so that only the following code:
-    - various raise_error() or raise_warning() methods in class THD,
-    - the implementation of SIGNAL / RESIGNAL / GET DIAGNOSTICS
-    - catch / re-throw of SQL conditions in stored procedures (sp_rcontext)
-    is allowed to create / modify a SQL condition.
-    Enforcing this policy prevents confusion, since the only public
-    interface available to the rest of the server implementation
-    is the interface offered by the THD methods (THD::raise_error()),
-    which should be used.
-  */
-  friend class THD;
-  friend class Warning_info;
-  friend class Sql_cmd_common_signal;
-  friend class Sql_cmd_signal;
-  friend class Sql_cmd_resignal;
-  friend class sp_rcontext;
-  friend class Condition_information_item;
+   Sql_state_errno_level()
+    :m_level(WARN_LEVEL_ERROR)
+  { }
 
-  /**
-    Default constructor.
-    This constructor is usefull when allocating arrays.
-    Note that the init() method should be called to complete the Sql_condition.
-  */
-  Sql_condition();
+  Sql_state_errno_level(uint sqlerrno, const char* sqlstate,
+                         enum_warning_level level)
+   :Sql_state_errno(sqlerrno, sqlstate),
+    m_level(level)
+  { }
+  Sql_state_errno_level(const Sql_state_errno &state_errno,
+                         enum_warning_level level)
+   :Sql_state_errno(state_errno),
+    m_level(level)
+  { }
+  void clear()
+  {
+    m_level= WARN_LEVEL_ERROR;
+    Sql_state_errno::clear();
+  }
+};
 
-  /**
-    Complete the Sql_condition initialisation.
-    @param mem_root The memory root to use for the condition items
-    of this condition
-  */
-  void init(MEM_ROOT *mem_root);
 
-  /**
-    Constructor.
-    @param mem_root The memory root to use for the condition items
-    of this condition
-  */
-  Sql_condition(MEM_ROOT *mem_root);
+/*
+  class Sql_user_condition_identity.
+  Instances of this class uniquely idetify user defined conditions (EXCEPTION).
 
-  /** Destructor. */
-  ~Sql_condition()
-  {}
+    SET sql_mode=ORACLE;
+    CREATE PROCEDURE p1
+    AS
+      a EXCEPTION;
+    BEGIN
+      RAISE a;
+    EXCEPTION
+      WHEN a THEN NULL;
+    END;
 
-  /**
-    Copy optional condition items attributes.
-    @param cond the condition to copy.
-  */
-  void copy_opt_attributes(const Sql_condition *cond);
+  Currently a user defined condition is identified by a pointer to
+  its parse time sp_condition_value instance. This can change when
+  we add packages. See MDEV-10591.
+*/
+class Sql_user_condition_identity
+{
+protected:
+  const sp_condition_value *m_user_condition_value;
+public:
+  Sql_user_condition_identity()
+   :m_user_condition_value(NULL)
+  { }
+  Sql_user_condition_identity(const sp_condition_value *value)
+   :m_user_condition_value(value)
+  { }
+  const sp_condition_value *get_user_condition_value() const
+  { return m_user_condition_value; }
 
-  /**
-    Set this condition area with a fixed message text.
-    @param thd the current thread.
-    @param code the error number for this condition.
-    @param str the message text for this condition.
-    @param level the error level for this condition.
-    @param MyFlags additional flags.
-  */
-  void set(uint sql_errno, const char* sqlstate,
-           Sql_condition::enum_warning_level level,
-           const char* msg);
+  void set(const Sql_user_condition_identity &identity)
+  {
+    *this= identity;
+  }
+  void clear()
+  {
+    m_user_condition_value= NULL;
+  }
+};
 
-  /**
-    Set the condition message test.
-    @param str Message text, expressed in the character set derived from
-    the server --language option
-  */
-  void set_builtin_message_text(const char* str);
 
-  /** Set the SQLSTATE of this condition. */
-  void set_sqlstate(const char* sqlstate);
+/**
+  class Sql_condition_identity.
+  Instances of this class uniquely identify conditions
+  (including user-defined exceptions for sql_mode=ORACLE)
+  and store everything that is needed for handler search
+  purposes in sp_pcontext::find_handler().
+*/
+class Sql_condition_identity: public Sql_state_errno_level,
+                              public Sql_user_condition_identity
+{
+public:
+  Sql_condition_identity()
+  { }
+  Sql_condition_identity(const Sql_state_errno_level &st,
+                         const Sql_user_condition_identity &ucid)
+   :Sql_state_errno_level(st),
+    Sql_user_condition_identity(ucid)
+  { }
+  Sql_condition_identity(const Sql_state_errno &st,
+                         enum_warning_level level,
+                         const Sql_user_condition_identity &ucid)
+   :Sql_state_errno_level(st, level),
+    Sql_user_condition_identity(ucid)
+  { }
+  Sql_condition_identity(uint sqlerrno,
+                         const char* sqlstate,
+                         enum_warning_level level,
+                         const Sql_user_condition_identity &ucid)
+    :Sql_state_errno_level(sqlerrno, sqlstate, level),
+     Sql_user_condition_identity(ucid)
+  { }
+  void clear()
+  {
+    Sql_state_errno_level::clear();
+    Sql_user_condition_identity::clear();
+  }
+};
 
-  /** Set the CLASS_ORIGIN of this condition. */
-  void set_class_origin();
 
-  /** Set the SUBCLASS_ORIGIN of this condition. */
-  void set_subclass_origin();
-
-  /**
-    Clear this SQL condition.
-  */
-  void clear();
-
-private:
+class Sql_condition_items
+{
+protected:
   /** SQL CLASS_ORIGIN condition item. */
   String m_class_origin;
 
@@ -206,20 +306,190 @@ private:
   /** SQL CURSOR_NAME condition item. */
   String m_cursor_name;
 
-  /** Message text, expressed in the character set implied by --language. */
-  String m_message_text;
+  Sql_condition_items()
+   :m_class_origin((const char*) NULL, 0, & my_charset_utf8_bin),
+    m_subclass_origin((const char*) NULL, 0, & my_charset_utf8_bin),
+    m_constraint_catalog((const char*) NULL, 0, & my_charset_utf8_bin),
+    m_constraint_schema((const char*) NULL, 0, & my_charset_utf8_bin),
+    m_constraint_name((const char*) NULL, 0, & my_charset_utf8_bin),
+    m_catalog_name((const char*) NULL, 0, & my_charset_utf8_bin),
+    m_schema_name((const char*) NULL, 0, & my_charset_utf8_bin),
+    m_table_name((const char*) NULL, 0, & my_charset_utf8_bin),
+    m_column_name((const char*) NULL, 0, & my_charset_utf8_bin),
+    m_cursor_name((const char*) NULL, 0, & my_charset_utf8_bin)
+  { }
 
-  /** MySQL extension, MYSQL_ERRNO condition item. */
-  uint m_sql_errno;
+  void clear()
+  {
+    m_class_origin.length(0);
+    m_subclass_origin.length(0);
+    m_constraint_catalog.length(0);
+    m_constraint_schema.length(0);
+    m_constraint_name.length(0);
+    m_catalog_name.length(0);
+    m_schema_name.length(0);
+    m_table_name.length(0);
+    m_column_name.length(0);
+    m_cursor_name.length(0);
+  }
+};
+
+
+/**
+  Representation of a SQL condition.
+  A SQL condition can be a completion condition (note, warning),
+  or an exception condition (error, not found).
+*/
+class Sql_condition : public Sql_alloc,
+                      public Sql_condition_identity,
+                      public Sql_condition_items
+{
+public:
 
   /**
-    SQL RETURNED_SQLSTATE condition item.
-    This member is always NUL terminated.
+    Convert a bitmask consisting of MYSQL_TIME_{NOTE|WARN}_XXX bits
+    to WARN_LEVEL_XXX
   */
-  char m_returned_sqlstate[SQLSTATE_LENGTH+1];
+  static enum_warning_level time_warn_level(uint warnings)
+  {
+    return MYSQL_TIME_WARN_HAVE_WARNINGS(warnings) ?
+           WARN_LEVEL_WARN : WARN_LEVEL_NOTE;
+  }
 
-  /** Severity (error, warning, note) of this condition. */
-  Sql_condition::enum_warning_level m_level;
+  /**
+    Get the MESSAGE_TEXT of this condition.
+    @return the message text.
+  */
+  const char* get_message_text() const;
+
+  /**
+    Get the MESSAGE_OCTET_LENGTH of this condition.
+    @return the length in bytes of the message text.
+  */
+  int get_message_octet_length() const;
+
+private:
+  /*
+    The interface of Sql_condition is mostly private, by design,
+    so that only the following code:
+    - various raise_error() or raise_warning() methods in class THD,
+    - the implementation of SIGNAL / RESIGNAL / GET DIAGNOSTICS
+    - catch / re-throw of SQL conditions in stored procedures (sp_rcontext)
+    is allowed to create / modify a SQL condition.
+    Enforcing this policy prevents confusion, since the only public
+    interface available to the rest of the server implementation
+    is the interface offered by the THD methods (THD::raise_error()),
+    which should be used.
+  */
+  friend class THD;
+  friend class Warning_info;
+  friend class Sql_cmd_common_signal;
+  friend class Sql_cmd_signal;
+  friend class Sql_cmd_resignal;
+  friend class sp_rcontext;
+  friend class Condition_information_item;
+
+  /**
+    Default constructor.
+    This constructor is usefull when allocating arrays.
+    Note that the init() method should be called to complete the Sql_condition.
+  */
+  Sql_condition()
+   :m_mem_root(NULL)
+  { }
+
+  /**
+    Complete the Sql_condition initialisation.
+    @param mem_root The memory root to use for the condition items
+    of this condition
+  */
+  void init(MEM_ROOT *mem_root)
+  {
+    DBUG_ASSERT(mem_root != NULL);
+    DBUG_ASSERT(m_mem_root == NULL);
+    m_mem_root= mem_root;
+  }
+
+  /**
+    Constructor.
+    @param mem_root The memory root to use for the condition items
+    of this condition
+  */
+  Sql_condition(MEM_ROOT *mem_root)
+   :m_mem_root(mem_root)
+  {
+    DBUG_ASSERT(mem_root != NULL);
+  }
+
+  Sql_condition(MEM_ROOT *mem_root, const Sql_user_condition_identity &ucid)
+   :Sql_condition_identity(Sql_state_errno_level(), ucid),
+    m_mem_root(mem_root)
+  {
+    DBUG_ASSERT(mem_root != NULL);
+  }
+  /**
+    Constructor for a fixed message text.
+    @param mem_root - memory root
+    @param value    - the error number and the sql state for this condition
+    @param level    - the error level for this condition
+    @param msg      - the message text for this condition
+  */
+  Sql_condition(MEM_ROOT *mem_root,
+                const Sql_condition_identity &value,
+                const char *msg)
+   :Sql_condition_identity(value),
+    m_mem_root(mem_root)
+  {
+    DBUG_ASSERT(mem_root != NULL);
+    DBUG_ASSERT(value.get_sql_errno() != 0);
+    DBUG_ASSERT(msg != NULL);
+    set_builtin_message_text(msg);
+  }
+
+  /** Destructor. */
+  ~Sql_condition()
+  {}
+
+  /**
+    Copy optional condition items attributes.
+    @param cond the condition to copy.
+  */
+  void copy_opt_attributes(const Sql_condition *cond);
+
+  /**
+    Set the condition message test.
+    @param str Message text, expressed in the character set derived from
+    the server --language option
+  */
+  void set_builtin_message_text(const char* str);
+
+  /** Set the CLASS_ORIGIN of this condition. */
+  void set_class_origin();
+
+  /** Set the SUBCLASS_ORIGIN of this condition. */
+  void set_subclass_origin();
+
+  /**
+    Assign the condition items 'MYSQL_ERRNO', 'level' and 'MESSAGE_TEXT'
+    default values of a condition.
+    @param thd   - current thread, to access to localized error messages
+    @param from  - copy condition items from here (can be NULL)
+  */
+  void assign_defaults(THD *thd, const Sql_state_errno *from);
+
+  /**
+    Clear this SQL condition.
+  */
+  void clear()
+  {
+    Sql_condition_identity::clear();
+    Sql_condition_items::clear();
+    m_message_text.length(0);
+  }
+
+private:
+  /** Message text, expressed in the character set implied by --language. */
+  String m_message_text;
 
   /** Pointers for participating in the list of conditions. */
   Sql_condition *next_in_wi;
@@ -467,17 +737,13 @@ private:
     counters.
 
     @param thd        Thread context.
-    @param sql_errno  SQL-condition error number.
-    @param sqlstate   SQL-condition state.
-    @param level      SQL-condition level.
+    @param identity   SQL-condition identity
     @param msg        SQL-condition message.
 
     @return a pointer to the added SQL-condition.
   */
   Sql_condition *push_warning(THD *thd,
-                              uint sql_errno,
-                              const char* sqlstate,
-                              Sql_condition::enum_warning_level level,
+                              const Sql_condition_identity *identity,
                               const char* msg);
 
   /**
@@ -634,7 +900,8 @@ public:
   Can not be assigned twice per statement.
 */
 
-class Diagnostics_area
+class Diagnostics_area: public Sql_state_errno,
+                        public Sql_user_condition_identity
 {
 private:
   /** The type of the counted and doubly linked list of conditions. */
@@ -686,7 +953,18 @@ public:
   void set_error_status(uint sql_errno,
                         const char *message,
                         const char *sqlstate,
+                        const Sql_user_condition_identity &ucid,
                         const Sql_condition *error_condition);
+
+  void set_error_status(uint sql_errno,
+                        const char *message,
+                        const char *sqlstate,
+                        const Sql_condition *error_condition)
+  {
+    set_error_status(sql_errno, message, sqlstate,
+                     Sql_user_condition_identity(),
+                     error_condition);
+  }
 
   void disable_status();
 
@@ -722,10 +1000,13 @@ public:
   { m_skip_flush= TRUE; }
 
   uint sql_errno() const
-  { DBUG_ASSERT(m_status == DA_ERROR); return m_sql_errno; }
+  {
+    DBUG_ASSERT(m_status == DA_ERROR);
+    return Sql_state_errno::get_sql_errno();
+  }
 
   const char* get_sqlstate() const
-  { DBUG_ASSERT(m_status == DA_ERROR); return m_sqlstate; }
+  { DBUG_ASSERT(m_status == DA_ERROR); return Sql_state::get_sqlstate(); }
 
   ulonglong affected_rows() const
   {
@@ -744,6 +1025,18 @@ public:
     DBUG_ASSERT(m_status == DA_OK || m_status == DA_OK_BULK ||
                 m_status == DA_EOF);
     return m_statement_warn_count;
+  }
+
+  /**
+    Get the current errno, state and id of the user defined condition
+    and return them as Sql_condition_identity.
+  */
+  Sql_condition_identity get_error_condition_identity() const
+  {
+    DBUG_ASSERT(m_status == DA_ERROR);
+    return Sql_condition_identity(*this /*Sql_state_errno*/,
+                                  Sql_condition::WARN_LEVEL_ERROR,
+                                  *this /*Sql_user_condition_identity*/);
   }
 
   /* Used to count any warnings pushed after calling set_ok_status(). */
@@ -842,13 +1135,22 @@ public:
                               uint sql_errno_arg,
                               const char* sqlstate,
                               Sql_condition::enum_warning_level level,
+                              const Sql_user_condition_identity &ucid,
                               const char* msg)
   {
-    return get_warning_info()->push_warning(thd,
-                                            sql_errno_arg, sqlstate, level,
-                                            msg);
+    Sql_condition_identity tmp(sql_errno_arg, sqlstate, level, ucid);
+    return get_warning_info()->push_warning(thd, &tmp, msg);
   }
 
+  Sql_condition *push_warning(THD *thd,
+                              uint sqlerrno,
+                              const char* sqlstate,
+                              Sql_condition::enum_warning_level level,
+                              const char* msg)
+  {
+    return push_warning(thd, sqlerrno, sqlstate, level,
+                        Sql_user_condition_identity(), msg);
+  }
   void mark_sql_conditions_for_removal()
   { get_warning_info()->mark_sql_conditions_for_removal(); }
 
@@ -886,14 +1188,6 @@ private:
 
   /** Message buffer. Can be used by OK or ERROR status. */
   char m_message[MYSQL_ERRMSG_SIZE];
-
-  /**
-    SQL error number. One of ER_ codes from share/errmsg.txt.
-    Set by set_error_status.
-  */
-  uint m_sql_errno;
-
-  char m_sqlstate[SQLSTATE_LENGTH+1];
 
   /**
     The number of rows affected by the last statement. This is
@@ -962,45 +1256,6 @@ bool is_sqlstate_valid(const LEX_STRING *sqlstate);
 */
 inline bool is_sqlstate_completion(const char *s)
 { return s[0] == '0' && s[1] == '0'; }
-
-
-/**
-  Checks if the specified SQL-state-string defines WARNING condition.
-  This function assumes that the given string contains a valid SQL-state.
-
-  @param s the condition SQLSTATE.
-
-  @retval true if the given string defines WARNING condition.
-  @retval false otherwise.
-*/
-inline bool is_sqlstate_warning(const char *s)
-{ return s[0] == '0' && s[1] == '1'; }
-
-
-/**
-  Checks if the specified SQL-state-string defines NOT FOUND condition.
-  This function assumes that the given string contains a valid SQL-state.
-
-  @param s the condition SQLSTATE.
-
-  @retval true if the given string defines NOT FOUND condition.
-  @retval false otherwise.
-*/
-inline bool is_sqlstate_not_found(const char *s)
-{ return s[0] == '0' && s[1] == '2'; }
-
-
-/**
-  Checks if the specified SQL-state-string defines EXCEPTION condition.
-  This function assumes that the given string contains a valid SQL-state.
-
-  @param s the condition SQLSTATE.
-
-  @retval true if the given string defines EXCEPTION condition.
-  @retval false otherwise.
-*/
-inline bool is_sqlstate_exception(const char *s)
-{ return s[0] != '0' || s[1] > '2'; }
 
 
 #endif // SQL_ERROR_H

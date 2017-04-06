@@ -3886,6 +3886,37 @@ public:
   */
   void raise_note_printf(uint code, ...);
 
+  /**
+    @brief Push an error message into MySQL error stack with line
+    and position information.
+
+    This function provides semantic action implementers with a way
+    to push the famous "You have a syntax error near..." error
+    message into the error stack, which is normally produced only if
+    a parse error is discovered internally by the Bison generated
+    parser.
+  */
+  void parse_error(const char *err_text, const char *yytext)
+  {
+    Lex_input_stream *lip= &m_parser_state->m_lip;
+    if (!yytext)
+    {
+      if (!(yytext= lip->get_tok_start()))
+        yytext= "";
+    }
+    /* Push an error into the error stack */
+    ErrConvString err(yytext, strlen(yytext), variables.character_set_client);
+    my_printf_error(ER_PARSE_ERROR,  ER_THD(this, ER_PARSE_ERROR), MYF(0),
+                    err_text, err.ptr(), lip->yylineno);
+  }
+  void parse_error(uint err_number, const char *yytext= 0)
+  {
+    return parse_error(ER_THD(this, err_number), yytext);
+  }
+  void parse_error()
+  {
+    return parse_error(ER_SYNTAX_ERROR);
+  }
 private:
   /*
     Only the implementation of the SIGNAL and RESIGNAL statements
@@ -3912,7 +3943,41 @@ private:
   raise_condition(uint sql_errno,
                   const char* sqlstate,
                   Sql_condition::enum_warning_level level,
+                  const char* msg)
+  {
+    return raise_condition(sql_errno, sqlstate, level,
+                           Sql_user_condition_identity(), msg);
+  }
+
+  /**
+    Raise a generic or a user defined SQL condition.
+    @param ucid      - the user condition identity
+                       (or an empty identity if not a user condition)
+    @param sql_errno - the condition error number
+    @param sqlstate  - the condition SQLSTATE
+    @param level     - the condition level
+    @param msg       - the condition message text
+    @return The condition raised, or NULL
+  */
+  Sql_condition*
+  raise_condition(uint sql_errno,
+                  const char* sqlstate,
+                  Sql_condition::enum_warning_level level,
+                  const Sql_user_condition_identity &ucid,
                   const char* msg);
+
+  Sql_condition*
+  raise_condition(const Sql_condition *cond)
+  {
+    Sql_condition *raised= raise_condition(cond->get_sql_errno(),
+                                           cond->get_sqlstate(),
+                                           cond->get_level(),
+                                           *cond/*Sql_user_condition_identity*/,
+                                           cond->get_message_text());
+    if (raised)
+      raised->copy_opt_attributes(cond);
+    return raised;
+  }
 
 public:
   /** Overloaded to guard query/query_length fields */
@@ -4320,6 +4385,31 @@ public:
 
     return variables.net_wait_timeout;
   }
+
+  /**
+    Switch to a sublex, to parse a substatement or an expression.
+  */
+  void set_local_lex(sp_lex_local *sublex)
+  {
+    DBUG_ASSERT(lex->sphead);
+    lex= sublex;
+    /* Reset part of parser state which needs this. */
+    m_parser_state->m_yacc.reset_before_substatement();
+  }
+
+  /**
+    Switch back from a sublex (currently pointed by this->lex) to the old lex.
+    Sublex is merged to "oldlex" and this->lex is set to "oldlex".
+
+    This method is called after parsing a substatement or an expression.
+    set_local_lex() must be previously called.
+    @param oldlex - The old lex which was active before set_local_lex().
+    @returns      - false on success, true on error (failed to merge LEX's).
+
+    See also sp_head::merge_lex().
+  */
+  bool restore_from_local_lex_to_old_lex(LEX *oldlex);
+
 };
 
 inline void add_to_active_threads(THD *thd)
@@ -5307,6 +5397,30 @@ public:
   }
 };
 
+
+class Qualified_column_ident: public Table_ident
+{
+public:
+  LEX_STRING m_column;
+public:
+  Qualified_column_ident(const LEX_STRING column)
+   :Table_ident(null_lex_str),
+    m_column(column)
+  { }
+  Qualified_column_ident(const LEX_STRING table, const LEX_STRING column)
+   :Table_ident(table),
+    m_column(column)
+  { }
+  Qualified_column_ident(THD *thd,
+                         const LEX_STRING db,
+                         const LEX_STRING table,
+                         const LEX_STRING column)
+   :Table_ident(thd, db, table, false),
+    m_column(column)
+  { }
+};
+
+
 // this is needed for user_vars hash
 class user_var_entry
 {
@@ -5422,20 +5536,40 @@ public:
   my_var(const LEX_STRING& j, enum type s) : name(j), scope(s) { }
   virtual ~my_var() {}
   virtual bool set(THD *thd, Item *val) = 0;
+  virtual class my_var_sp *get_my_var_sp() { return NULL; }
 };
 
 class my_var_sp: public my_var {
+  const Type_handler *m_type_handler;
 public:
   uint offset;
-  enum_field_types type;
   /*
     Routine to which this Item_splocal belongs. Used for checking if correct
     runtime context is used for variable handling.
   */
   sp_head *sp;
-  my_var_sp(const LEX_STRING& j, uint o, enum_field_types t, sp_head *s)
-    : my_var(j, LOCAL_VAR), offset(o), type(t), sp(s) { }
+  my_var_sp(const LEX_STRING& j, uint o, const Type_handler *type_handler,
+            sp_head *s)
+    : my_var(j, LOCAL_VAR), m_type_handler(type_handler), offset(o), sp(s) { }
   ~my_var_sp() { }
+  bool set(THD *thd, Item *val);
+  my_var_sp *get_my_var_sp() { return this; }
+  const Type_handler *type_handler() const { return m_type_handler; }
+};
+
+/*
+  This class handles fields of a ROW SP variable when it's used as a OUT
+  parameter in a stored procedure.
+*/
+class my_var_sp_row_field: public my_var_sp
+{
+  uint m_field_offset;
+public:
+  my_var_sp_row_field(const LEX_STRING &varname, const LEX_STRING &fieldname,
+                      uint var_idx, uint field_idx, sp_head *s)
+   :my_var_sp(varname, var_idx, &type_handler_double/*Not really used*/, s),
+    m_field_offset(field_idx)
+  { }
   bool set(THD *thd, Item *val);
 };
 
@@ -5449,10 +5583,13 @@ public:
 
 class select_dumpvar :public select_result_interceptor {
   ha_rows row_count;
+  my_var_sp *m_var_sp_row; // Not NULL if SELECT INTO row_type_sp_variable
+  bool send_data_to_var_list(List<Item> &items);
 public:
   List<my_var> var_list;
-  select_dumpvar(THD *thd_arg): select_result_interceptor(thd_arg)
-  { var_list.empty(); row_count= 0; }
+  select_dumpvar(THD *thd_arg)
+   :select_result_interceptor(thd_arg), row_count(0), m_var_sp_row(NULL)
+  { var_list.empty(); }
   ~select_dumpvar() {}
   int prepare(List<Item> &list, SELECT_LEX_UNIT *u);
   int send_data(List<Item> &items);
@@ -5806,6 +5943,21 @@ public:
     m_name.length= name_length;
   }
 
+  bool eq(const Database_qualified_name *other) const
+  {
+    CHARSET_INFO *cs= lower_case_table_names ?
+                      &my_charset_utf8_general_ci :
+                      &my_charset_utf8_bin;
+    return
+      m_db.length == other->m_db.length &&
+      m_name.length == other->m_name.length &&
+      !my_strnncoll(cs,
+                    (const uchar *) m_db.str, m_db.length,
+                    (const uchar *) other->m_db.str, other->m_db.length) &&
+      !my_strnncoll(cs,
+                    (const uchar *) m_name.str, m_name.length,
+                    (const uchar *) other->m_name.str, other->m_name.length);
+  }
   // Export db and name as a qualified name string: 'db.name'
   size_t make_qname(char *dst, size_t dstlen) const
   {
