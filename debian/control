@@ -180,12 +180,14 @@ Depends: libmariadb3 (>= ${source:Version}),
          ${shlibs:Depends}
 Conflicts: mariadb-client-10.0,
            mariadb-client-10.1,
+           mariadb-client-10.2,
            mariadb-client-5.1,
            mariadb-client-5.2,
            mariadb-client-5.3,
            mariadb-client-5.5,
            mariadb-client-core-10.0,
            mariadb-client-core-10.1,
+           mariadb-client-core-10.2,
            mariadb-client-core-5.1,
            mariadb-client-core-5.2,
            mariadb-client-core-5.3,
@@ -201,12 +203,14 @@ Conflicts: mariadb-client-10.0,
            virtual-mysql-client-core
 Replaces: mariadb-client-10.0,
           mariadb-client-10.1,
+          mariadb-client-10.2,
           mariadb-client-5.1,
           mariadb-client-5.2,
           mariadb-client-5.3,
           mariadb-client-5.5,
           mariadb-client-core-10.0,
           mariadb-client-core-10.1,
+          mariadb-client-core-10.2,
           mariadb-client-core-5.1,
           mariadb-client-core-5.2,
           mariadb-client-core-5.3,
@@ -247,6 +251,7 @@ Depends: debianutils (>=1.6),
 Conflicts: mariadb-client (<< ${source:Version}),
            mariadb-client-10.0,
            mariadb-client-10.1,
+           mariadb-client-10.2,
            mariadb-client-5.1,
            mariadb-client-5.2,
            mariadb-client-5.3,
@@ -261,6 +266,7 @@ Conflicts: mariadb-client (<< ${source:Version}),
 Replaces: mariadb-client (<< ${source:Version}),
           mariadb-client-10.0,
           mariadb-client-10.1,
+          mariadb-client-10.2,
           mariadb-client-5.1,
           mariadb-client-5.2,
           mariadb-client-5.3,
@@ -467,7 +473,11 @@ Description: Connect storage engine for MariaDB
 
 Package: mariadb-plugin-rocksdb
 Architecture: any
-Depends: mariadb-server-10.2, ${misc:Depends}, ${shlibs:Depends}
+Depends: mariadb-server-10.3, ${misc:Depends}, ${shlibs:Depends}
+Breaks: mariadb-rocksdb-engine-10.2,
+        mariadb-rocksdb-engine-10.3
+Replaces: mariadb-rocksdb-engine-10.2,
+          mariadb-rocksdb-engine-10.3
 Description: RocksDB storage engine for MariaDB
  The RocksDB storage engine is a high performance storage engine, aimed
  at maximising storage efficiency while maintaining InnoDB-like performance.
