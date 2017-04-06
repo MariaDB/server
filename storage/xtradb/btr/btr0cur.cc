@@ -3948,7 +3948,7 @@ static const unsigned	rows_in_range_max_retries = 4;
 /** We pretend that a range has that many records if the tree keeps changing
 for rows_in_range_max_retries retries while we try to estimate the records
 in a given range. */
-static const int64_t	rows_in_range_arbitrary_ret_val = 10;
+static const ib_int64_t	rows_in_range_arbitrary_ret_val = 10;
 
 /** Estimates the number of rows in a given index range.
 @param[in]	index		index
@@ -3966,7 +3966,7 @@ rows_in_range_arbitrary_ret_val as a result (if
 nth_attempt >= rows_in_range_max_retries and the tree is modified between
 the two dives). */
 static
-int64_t
+ib_int64_t
 btr_estimate_n_rows_in_range_low(
 	dict_index_t*	index,
 	const dtuple_t*	tuple1,
@@ -4102,7 +4102,7 @@ btr_estimate_n_rows_in_range_low(
 					return(rows_in_range_arbitrary_ret_val);
 				}
 
-				const int64_t	ret =
+				const ib_int64_t	ret =
 					btr_estimate_n_rows_in_range_low(
 						index, tuple1, mode1,
 						tuple2, mode2, trx,
@@ -4168,7 +4168,7 @@ btr_estimate_n_rows_in_range_low(
 @param[in]	mode2	search mode for range end
 @param[in]	trx	trx
 @return estimated number of rows */
-int64_t
+ib_int64_t
 btr_estimate_n_rows_in_range(
 	dict_index_t*	index,
 	const dtuple_t*	tuple1,
@@ -4177,7 +4177,7 @@ btr_estimate_n_rows_in_range(
 	ulint		mode2,
 	trx_t*		trx)
 {
-	const int64_t	ret = btr_estimate_n_rows_in_range_low(
+	const ib_int64_t	ret = btr_estimate_n_rows_in_range_low(
 		index, tuple1, mode1, tuple2, mode2, trx,
 		1 /* first attempt */);
 

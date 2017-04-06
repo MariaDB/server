@@ -5939,6 +5939,43 @@ a
 2
 DROP VIEW v1;
 DROP TABLE t1;
+#
+# MDEV-8642: WHERE Clause not applied on View - Empty result set returned
+#
+CREATE TABLE `t1` (
+`id` int(20) NOT NULL AUTO_INCREMENT,
+`use_case` int(11) DEFAULT NULL,
+`current_deadline` date DEFAULT NULL,
+`ts_create` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+PRIMARY KEY (`id`),
+UNIQUE KEY `id_UNIQUE` (`id`)
+) ENGINE=MyISAM AUTO_INCREMENT=13976 DEFAULT CHARSET=latin1;
+INSERT INTO `t1` VALUES (1,10,'2015-12-18','2015-08-18 08:38:16');
+INSERT INTO `t1` VALUES (2,20,'2015-10-18','2015-08-18 08:43:30');
+CREATE VIEW v1 AS SELECT
+use_case as use_case_id,
+(
+SELECT 
+deadline_sub.current_deadline
+FROM 
+t1 deadline_sub
+WHERE 
+deadline_sub.use_case = use_case_id
+AND ts_create = (SELECT 
+MIN(ts_create)
+FROM 
+t1 startdate_sub
+WHERE 
+startdate_sub.use_case = use_case_id
+)
+) AS InitialDeadline
+FROM 
+t1;
+SELECT * FROM v1 where use_case_id = 10;
+use_case_id	InitialDeadline
+10	2015-12-18
+drop view v1;
+drop table t1;
 # -----------------------------------------------------------------
 # -- End of 10.0 tests.
 # -----------------------------------------------------------------
