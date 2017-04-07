@@ -66,6 +66,7 @@
 #include "rpl_mi.h"
 #include "lex_token.h"
 #include "sql_lex.h"
+#include "sql_sequence.h"
 
 /* this is to get the bison compilation windows warnings out */
 #ifdef _MSC_VER
@@ -858,10 +859,10 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %parse-param { THD *thd }
 %lex-param { THD *thd }
 /*
-  Currently there are 102 shift/reduce conflicts.
+  Currently there are 103 shift/reduce conflicts.
   We should not introduce new conflicts any more.
 */
-%expect 102
+%expect 103
 
 /*
    Comments for TOKENS.
@@ -995,6 +996,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  CURSOR_SYM                    /* SQL-2003-R */
 %token  CURSOR_NAME_SYM               /* SQL-2003-N */
 %token  CURTIME                       /* MYSQL-FUNC */
+%token  CYCLE_SYM
 %token  DATABASE
 %token  DATABASES
 %token  DATAFILE_SYM
@@ -1133,6 +1135,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  IGNORE_SERVER_IDS_SYM
 %token  IMMEDIATE_SYM                 /* SQL-2003-R */
 %token  IMPORT
+%token  INCREMENT_SYM
 %token  INDEXES
 %token  INDEX_SYM
 %token  INFILE
@@ -1165,6 +1168,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  LANGUAGE_SYM                  /* SQL-2003-R */
 %token  LAST_SYM                      /* SQL-2003-N */
 %token  LAST_VALUE
+%token  LASTVAL_SYM                   /* PostgreSQL sequence function */
 %token  LE                            /* OPERATOR */
 %token  LEADING                       /* SQL-2003-R */
 %token  LEAVES
@@ -1223,7 +1227,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  MAX_UPDATES_PER_HOUR
 %token  MAX_STATEMENT_TIME_SYM
 %token  MAX_USER_CONNECTIONS_SYM
-%token  MAX_VALUE_SYM                 /* SQL-2003-N */
+%token  MAXVALUE_SYM                 /* SQL-2003-N */
 %token  MEDIUMBLOB
 %token  MEDIUMINT
 %token  MEDIUMTEXT
@@ -1236,6 +1240,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  MINUTE_MICROSECOND_SYM
 %token  MINUTE_SECOND_SYM
 %token  MINUTE_SYM                    /* SQL-2003-R */
+%token  MINVALUE_SYM
 %token  MIN_ROWS
 %token  MIN_SYM                       /* SQL-2003-N */
 %token  MODE_SYM
@@ -1259,6 +1264,9 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  NEG
 %token  NEW_SYM                       /* SQL-2003-R */
 %token  NEXT_SYM                      /* SQL-2003-N */
+%token  NEXTVAL_SYM                   /* PostgreSQL sequence function */
+%token  NOCACHE_SYM
+%token  NOCYCLE_SYM
 %token  NODEGROUP_SYM
 %token  NONE_SYM                      /* SQL-2003-R */
 %token  NOT2_SYM
@@ -1266,6 +1274,8 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  NOTFOUND_SYM                  /* Oracle-R   */
 %token  NOW_SYM
 %token  NO_SYM                        /* SQL-2003-R */
+%token  NOMAXVALUE_SYM
+%token  NOMINVALUE_SYM
 %token  NO_WAIT_SYM
 %token  NOWAIT_SYM
 %token  NO_WRITE_TO_BINLOG
@@ -1324,6 +1334,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  PREPARE_SYM                   /* SQL-2003-R */
 %token  PRESERVE_SYM
 %token  PREV_SYM
+%token  PREVIOUS_SYM
 %token  PRIMARY_SYM                   /* SQL-2003-R */
 %token  PRIVILEGES                    /* SQL-2003-N */
 %token  PROCEDURE_SYM                 /* SQL-2003-R */
@@ -1404,6 +1415,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  SELECT_SYM                    /* SQL-2003-R */
 %token  SENSITIVE_SYM                 /* FUTURE-USE */
 %token  SEPARATOR_SYM
+%token  SEQUENCE_SYM
 %token  SERIALIZABLE_SYM              /* SQL-2003-N */
 %token  SERIAL_SYM
 %token  SESSION_SYM                   /* SQL-2003-N */
@@ -1682,6 +1694,9 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 
 %type <ulonglong_number>
         ulonglong_num real_ulonglong_num size_number
+
+%type <longlong_number>
+        longlong_num
 
 %type <choice> choice
 
@@ -2451,6 +2466,64 @@ create:
             }
             create_table_set_open_action_and_adjust_tables(lex);
           }
+       | create_or_replace opt_temporary SEQUENCE_SYM opt_if_not_exists table_ident
+         {
+           LEX *lex= thd->lex;
+           lex->create_info.init();
+           if (lex->set_command_with_check(SQLCOM_CREATE_SEQUENCE, $2, $1 | $4))
+              MYSQL_YYABORT;
+
+           if (!lex->select_lex.add_table_to_list(thd, $5, NULL,
+                                                  TL_OPTION_UPDATING,
+                                                  TL_WRITE, MDL_EXCLUSIVE))
+             MYSQL_YYABORT;
+
+               /*
+                 For CREATE TABLE, an non-existing table is not an error.
+                 Instruct open_tables() to just take an MDL lock if the
+                 table does not exist.
+               */
+             lex->alter_info.reset();
+             lex->query_tables->open_strategy= TABLE_LIST::OPEN_STUB;
+             lex->name= null_lex_str;
+             lex->create_last_non_select_table= lex->last_table();
+             if (!(lex->create_info.seq_create_info= new (thd->mem_root)
+                                                     sequence_definition()))
+               MYSQL_YYABORT;
+         }
+         opt_sequence opt_create_table_options
+         {
+            LEX *lex= thd->lex;
+
+            if (lex->create_info.seq_create_info->check_and_adjust())
+            {
+              my_error(ER_SEQUENCE_INVALID_DATA, MYF(0),
+                       lex->select_lex.table_list.first->db,
+                       lex->select_lex.table_list.first->table_name);
+              MYSQL_YYABORT;
+            }
+
+            /* No fields specified, generate them */
+            if (prepare_sequence_fields(thd, &lex->alter_info.create_list))
+               MYSQL_YYABORT;
+
+            /* CREATE SEQUENCE always creates a sequence */
+	    Lex->create_info.used_fields|= HA_CREATE_USED_SEQUENCE;
+            Lex->create_info.sequence= 1;
+
+            lex->current_select= &lex->select_lex;
+            if ((lex->create_info.used_fields & HA_CREATE_USED_ENGINE) &&
+                !lex->create_info.db_type)
+            {
+              lex->create_info.use_default_db_type(thd);
+              push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                                  ER_WARN_USING_OTHER_HANDLER,
+                                  ER_THD(thd, ER_WARN_USING_OTHER_HANDLER),
+                                  hton_name(lex->create_info.db_type)->str,
+                                  $5->table.str);
+            }
+            create_table_set_open_action_and_adjust_tables(lex);
+          }
         | create_or_replace opt_unique INDEX_SYM opt_if_not_exists ident
           opt_key_algorithm_clause
           ON table_ident
@@ -2526,6 +2599,75 @@ create:
         | create_or_replace { Lex->set_command(SQLCOM_CREATE_SERVER, $1); }
           server_def
           { }
+        ;
+
+opt_sequence:
+         /* empty */ { }
+        | sequence_defs
+        ;
+
+sequence_defs:
+          sequence_def
+        | sequence_defs sequence_def
+        ;
+
+sequence_def:
+        MINVALUE_SYM opt_equal longlong_num
+          {
+            Lex->create_info.seq_create_info->min_value= $3;
+            Lex->create_info.seq_create_info->used_fields|= seq_field_used_min_value;
+          }
+        | NO_SYM MINVALUE_SYM
+          {
+            if (Lex->create_info.seq_create_info->used_fields & seq_field_used_min_value)
+              MYSQL_YYABORT;
+          }
+        | NOMINVALUE_SYM
+          {
+            if (Lex->create_info.seq_create_info->used_fields & seq_field_used_min_value)
+              MYSQL_YYABORT;
+          }
+        | MAXVALUE_SYM opt_equal longlong_num
+
+          {
+            Lex->create_info.seq_create_info->max_value= $3;
+            Lex->create_info.seq_create_info->used_fields|= seq_field_used_max_value;
+          }
+        | NO_SYM MAXVALUE_SYM
+          {
+            if (Lex->create_info.seq_create_info->used_fields & seq_field_used_max_value)
+              MYSQL_YYABORT;
+          }
+        | NOMAXVALUE_SYM
+          {
+            if (Lex->create_info.seq_create_info->used_fields & seq_field_used_max_value)
+              MYSQL_YYABORT;
+          }
+        | START_SYM opt_with longlong_num
+          {
+            Lex->create_info.seq_create_info->start= $3;
+            Lex->create_info.seq_create_info->used_fields|= seq_field_used_start;
+          }
+        | INCREMENT_SYM opt_by longlong_num
+          {
+            Lex->create_info.seq_create_info->increment= $3;
+          }
+        | CACHE_SYM opt_equal longlong_num
+          {
+            Lex->create_info.seq_create_info->cache= $3;
+          }
+        | NOCACHE_SYM
+          {
+            Lex->create_info.seq_create_info->cache= 0;
+          }
+        | CYCLE_SYM
+          {
+            Lex->create_info.seq_create_info->cycle= 1;
+          }
+        | NOCYCLE_SYM
+          {
+            Lex->create_info.seq_create_info->cycle= 0;
+          }
         ;
 
 server_def:
@@ -3742,24 +3884,26 @@ sp_proc_stmt_open:
           }
         ;
 
-sp_proc_stmt_fetch:
-          FETCH_SYM sp_opt_fetch_noise ident INTO
+sp_proc_stmt_fetch_head:
+          FETCH_SYM ident INTO
           {
-            LEX *lex= Lex;
-            sp_head *sp= lex->sphead;
-            uint offset;
-            sp_instr_cfetch *i;
-
-            if (! lex->spcont->find_cursor($3, &offset, false))
-              my_yyabort_error((ER_SP_CURSOR_MISMATCH, MYF(0), $3.str));
-            i= new (thd->mem_root)
-              sp_instr_cfetch(sp->instructions(), lex->spcont, offset);
-            if (i == NULL ||
-                sp->add_instr(i))
+            if (Lex->sp_add_cfetch(thd, $2))
               MYSQL_YYABORT;
           }
-          sp_fetch_list
-          {}
+        | FETCH_SYM FROM ident INTO
+          {
+            if (Lex->sp_add_cfetch(thd, $3))
+              MYSQL_YYABORT;
+          }
+       | FETCH_SYM NEXT_SYM FROM ident INTO
+          {
+            if (Lex->sp_add_cfetch(thd, $4))
+              MYSQL_YYABORT;
+          }
+        ;
+
+sp_proc_stmt_fetch:
+          sp_proc_stmt_fetch_head sp_fetch_list { }
         ;
 
 sp_proc_stmt_close:
@@ -3778,12 +3922,6 @@ sp_proc_stmt_close:
                 sp->add_instr(i))
               MYSQL_YYABORT;
           }
-        ;
-
-sp_opt_fetch_noise:
-          /* Empty */
-        | NEXT_SYM FROM
-        | FROM
         ;
 
 sp_fetch_list:
@@ -4606,7 +4744,7 @@ create_body:
             if (! src_table)
               MYSQL_YYABORT;
             /* CREATE TABLE ... LIKE is not allowed for views. */
-            src_table->required_type= FRMTYPE_TABLE;
+            src_table->required_type= TABLE_TYPE_NORMAL;
           }
         ;
 
@@ -5056,7 +5194,7 @@ opt_part_values:
         ;
 
 part_func_max:
-          MAX_VALUE_SYM
+          MAXVALUE_SYM
           {
             partition_info *part_info= Lex->part_info;
 
@@ -5170,7 +5308,7 @@ part_value_item_list:
         ;
 
 part_value_expr_item:
-          MAX_VALUE_SYM
+          MAXVALUE_SYM
           {
             partition_info *part_info= Lex->part_info;
             if (part_info->part_type == LIST_PARTITION)
@@ -5694,6 +5832,11 @@ create_table_option:
             new (thd->mem_root)
               engine_option_value($1, &Lex->create_info.option_list,
                                   &Lex->option_list_last);
+          }
+        | SEQUENCE_SYM opt_equal choice
+          {
+	    Lex->create_info.used_fields|= HA_CREATE_USED_SEQUENCE;
+            Lex->create_info.sequence= $3;
           }
         ;
 
@@ -6921,7 +7064,7 @@ alter:
           ALTER
           {
             Lex->name= null_lex_str;
-            Lex->only_view= FALSE;
+            Lex->table_type= TABLE_TYPE_UNKNOWN;
             Lex->sql_command= SQLCOM_ALTER_TABLE;
             Lex->duplicates= DUP_ERROR; 
             Lex->select_lex.init_order();
@@ -7797,7 +7940,9 @@ opt_checksum_type:
 
 repair_table_or_view:
           table_or_tables table_list opt_mi_repair_type
-        | VIEW_SYM { Lex->only_view= TRUE; } table_list opt_view_repair_type
+        | VIEW_SYM
+          { Lex->table_type= TABLE_TYPE_VIEW; }
+          table_list opt_view_repair_type
         ;
 
 repair:
@@ -7962,7 +8107,9 @@ binlog_base64_event:
 
 check_view_or_table:
           table_or_tables table_list opt_mi_check_type
-        | VIEW_SYM { Lex->only_view= TRUE; } table_list opt_view_check_type
+        | VIEW_SYM
+          { Lex->table_type= TABLE_TYPE_VIEW; }
+          table_list opt_view_check_type
         ;
 
 check:    CHECK_SYM
@@ -9203,6 +9350,50 @@ column_default_non_parenthesized_expr:
             $$= new (thd->mem_root) Item_insert_value(thd, Lex->current_context(),
                                                         $3);
             if ($$ == NULL)
+              MYSQL_YYABORT;
+          }
+        | NEXT_SYM VALUE_SYM FOR_SYM table_ident
+          {
+            TABLE_LIST *table;
+            if (!(table= Select->add_table_to_list(thd, $4, 0,
+                                           TL_OPTION_SEQUENCE,
+                                           TL_WRITE_ALLOW_WRITE,
+                                           MDL_SHARED_WRITE)))
+              MYSQL_YYABORT;
+            if (!($$= new (thd->mem_root) Item_func_nextval(thd, table)))
+              MYSQL_YYABORT;
+          }
+        | NEXTVAL_SYM '(' table_ident ')'
+          {
+            TABLE_LIST *table;
+            if (!(table= Select->add_table_to_list(thd, $3, 0,
+                                                TL_OPTION_SEQUENCE,
+                                                TL_WRITE_ALLOW_WRITE,
+                                                MDL_SHARED_WRITE)))
+              MYSQL_YYABORT;
+            if (!($$= new (thd->mem_root) Item_func_nextval(thd, table)))
+              MYSQL_YYABORT;
+          }
+        | PREVIOUS_SYM VALUE_SYM FOR_SYM table_ident
+          {
+            TABLE_LIST *table;
+            if (!(table= Select->add_table_to_list(thd, $4, 0,
+                                                TL_OPTION_SEQUENCE,
+                                                TL_READ,
+                                                MDL_SHARED_READ)))
+              MYSQL_YYABORT;
+            if (!($$= new (thd->mem_root) Item_func_lastval(thd, table)))
+              MYSQL_YYABORT;
+          }
+        | LASTVAL_SYM '(' table_ident ')'
+          {
+            TABLE_LIST *table;
+            if (!(table= Select->add_table_to_list(thd, $3, 0,
+                                                TL_OPTION_SEQUENCE,
+                                                TL_READ,
+                                                MDL_SHARED_WRITE)))
+              MYSQL_YYABORT;
+            if (!($$= new (thd->mem_root) Item_func_lastval(thd, table)))
               MYSQL_YYABORT;
           }
         ;
@@ -11694,8 +11885,6 @@ delete_limit_clause:
 int_num:
           NUM           { int error; $$= (int) my_strtoll10($1.str, (char**) 0, &error); }
         | '-' NUM       { int error; $$= -(int) my_strtoll10($2.str, (char**) 0, &error); }
-        | '-' LONG_NUM  { int error; $$= -(int) my_strtoll10($2.str, (char**) 0, &error); }
-        ;
 
 ulong_num:
           NUM           { int error; $$= (ulong) my_strtoll10($1.str, (char**) 0, &error); }
@@ -11713,6 +11902,13 @@ real_ulong_num:
         | ULONGLONG_NUM { int error; $$= (ulong) my_strtoll10($1.str, (char**) 0, &error); }
         | dec_num_error { MYSQL_YYABORT; }
         ;
+
+longlong_num:
+          NUM           { int error; $$= (longlong) my_strtoll10($1.str, (char**) 0, &error); }
+        | LONG_NUM      { int error; $$= (longlong) my_strtoll10($1.str, (char**) 0, &error); }
+        | '-' NUM         { int error; $$= -(longlong) my_strtoll10($2.str, (char**) 0, &error); }
+        | '-' LONG_NUM  { int error; $$= -(longlong) my_strtoll10($2.str, (char**) 0, &error); }
+
 
 ulonglong_num:
           NUM           { int error; $$= (ulonglong) my_strtoll10($1.str, (char**) 0, &error); }
@@ -12028,6 +12224,17 @@ drop:
             Lex->set_command(SQLCOM_DROP_SERVER, $3);
             Lex->server_options.reset($4);
           }
+       | DROP opt_temporary SEQUENCE_SYM opt_if_exists
+
+         {
+           LEX *lex= Lex;
+           lex->set_command(SQLCOM_DROP_SEQUENCE, $2, $4);
+           lex->table_type= TABLE_TYPE_SEQUENCE;
+           YYPS->m_lock_type= TL_UNLOCK;
+           YYPS->m_mdl_type= MDL_EXCLUSIVE;
+         }
+         table_list
+         {}
         ;
 
 table_list:
@@ -12244,6 +12451,16 @@ equal:
 opt_equal:
           /* empty */ {}
         | equal {}
+        ;
+
+opt_with:
+          opt_equal {}
+        | WITH {}
+        ;
+
+opt_by:
+          opt_equal {}
+        | BY {}
         ;
 
 no_braces:
@@ -12792,7 +13009,15 @@ show_param:
             lex->sql_command = SQLCOM_SHOW_CREATE;
             if (!lex->select_lex.add_table_to_list(thd, $3, NULL, 0))
               MYSQL_YYABORT;
-            lex->only_view= 1;
+            lex->table_type= TABLE_TYPE_VIEW;
+          }
+        | CREATE SEQUENCE_SYM table_ident
+          {
+            LEX *lex= Lex;
+            lex->sql_command = SQLCOM_SHOW_CREATE;
+            if (!lex->select_lex.add_table_to_list(thd, $3, NULL, 0))
+              MYSQL_YYABORT;
+            lex->table_type= TABLE_TYPE_SEQUENCE;
           }
         | MASTER_SYM STATUS_SYM
           {
@@ -13084,8 +13309,10 @@ opt_flush_lock:
           for (; tables; tables= tables->next_global)
           {
             tables->mdl_request.set_type(MDL_SHARED_NO_WRITE);
-            tables->required_type= FRMTYPE_TABLE; /* Don't try to flush views. */
-            tables->open_type= OT_BASE_ONLY;      /* Ignore temporary tables. */
+            /* Don't try to flush views. */
+            tables->required_type= TABLE_TYPE_NORMAL;
+            /* Ignore temporary tables. */
+            tables->open_type= OT_BASE_ONLY;
           }
         }
         ;
@@ -14378,6 +14605,7 @@ keyword_sp:
         */
         | CURRENT_SYM              {}
         | CURSOR_NAME_SYM          {}
+        | CYCLE_SYM                {}
         | DATA_SYM                 {}
         | DATAFILE_SYM             {}
         | DATETIME                 {}
@@ -14435,6 +14663,7 @@ keyword_sp:
         | ID_SYM                   {}
         | IDENTIFIED_SYM           {}
         | IGNORE_SERVER_IDS_SYM    {}
+        | INCREMENT_SYM            {}
         | IMMEDIATE_SYM            {} /* SQL-2003-R */
         | INVOKER_SYM              {}
         | IMPORT                   {}
@@ -14450,6 +14679,7 @@ keyword_sp:
         | KEY_BLOCK_SIZE           {}
         | LAST_VALUE               {}
         | LAST_SYM                 {}
+        | LASTVAL_SYM              {}
         | LEAVES                   {}
         | LESS_SYM                 {}
         | LEVEL_SYM                {}
@@ -14494,6 +14724,7 @@ keyword_sp:
         | MICROSECOND_SYM          {}
         | MIGRATE_SYM              {}
         | MINUTE_SYM               {}
+        | MINVALUE_SYM             {}
         | MIN_ROWS                 {}
         | MODIFY_SYM               {}
         | MODE_SYM                 {}
@@ -14509,7 +14740,12 @@ keyword_sp:
         | NATIONAL_SYM             {}
         | NCHAR_SYM                {}
         | NEXT_SYM                 {}
+        | NEXTVAL_SYM              {}
         | NEW_SYM                  {}
+        | NOCACHE_SYM              {}
+        | NOCYCLE_SYM              {}
+        | NOMINVALUE_SYM           {}
+        | NOMAXVALUE_SYM           {}
         | NO_WAIT_SYM              {}
         | NOWAIT_SYM               {}
         | NODEGROUP_SYM            {}
@@ -14537,6 +14773,7 @@ keyword_sp:
         | POLYGON                  {}
         | PRESERVE_SYM             {}
         | PREV_SYM                 {}
+        | PREVIOUS_SYM             {}
         | PRIVILEGES               {}
         | PROCESS                  {}
         | PROCESSLIST_SYM          {}
@@ -14581,6 +14818,7 @@ keyword_sp:
         | SCHEDULE_SYM             {}
         | SCHEMA_NAME_SYM          {}
         | SECOND_SYM               {}
+        | SEQUENCE_SYM             {}
         | SERIAL_SYM               {}
         | SERIALIZABLE_SYM         {}
         | SESSION_SYM              {}

@@ -216,7 +216,7 @@ Sql_cmd_truncate_table::handler_truncate(THD *thd, TABLE_LIST *table_ref,
       or writing into the table. Yet, to open a write cursor we need
       a thr_lock lock. Allow to open base tables only.
     */
-    table_ref->required_type= FRMTYPE_TABLE;
+    table_ref->required_type= TABLE_TYPE_NORMAL;
     /*
       Ignore pending FLUSH TABLES since we don't want to release
       the MDL lock taken above and otherwise there is no way to
@@ -248,8 +248,8 @@ Sql_cmd_truncate_table::handler_truncate(THD *thd, TABLE_LIST *table_ref,
     table_ref->table->file->print_error(error, MYF(0));
     /*
       If truncate method is not implemented then we don't binlog the
-      statement. If truncation has failed in a transactional engine then also we
-      donot binlog the statment. Only in non transactional engine we binlog
+      statement. If truncation has failed in a transactional engine then also
+      we don't binlog the statment. Only in non transactional engine we binlog
       inspite of errors.
      */
     if (error == HA_ERR_WRONG_COMMAND ||
@@ -311,14 +311,17 @@ bool Sql_cmd_truncate_table::lock_table(THD *thd, TABLE_LIST *table_ref,
   }
   else
   {
+    handlerton *hton;
+    bool is_sequence;
+
     /* Acquire an exclusive lock. */
     DBUG_ASSERT(table_ref->next_global == NULL);
     if (lock_table_names(thd, table_ref, NULL,
                          thd->variables.lock_wait_timeout, 0))
       DBUG_RETURN(TRUE);
 
-    handlerton *hton;
-    if (!ha_table_exists(thd, table_ref->db, table_ref->table_name, &hton) ||
+    if (!ha_table_exists(thd, table_ref->db, table_ref->table_name,
+                         &hton, &is_sequence) ||
         hton == view_pseudo_hton)
     {
       my_error(ER_NO_SUCH_TABLE, MYF(0), table_ref->db, table_ref->table_name);
@@ -337,7 +340,7 @@ bool Sql_cmd_truncate_table::lock_table(THD *thd, TABLE_LIST *table_ref,
       *hton_can_recreate= false;
     }
     else
-      *hton_can_recreate= hton->flags & HTON_CAN_RECREATE;
+      *hton_can_recreate= !is_sequence && hton->flags & HTON_CAN_RECREATE;
   }
 
   /*

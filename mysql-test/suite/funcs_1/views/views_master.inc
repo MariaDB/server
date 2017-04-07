@@ -2745,7 +2745,7 @@ CREATE VIEW  v1 AS SELECT f1 FROM t1;
 
 # DROP VIEW
 DROP VIEW v1;
---error ER_BAD_TABLE_ERROR
+--error ER_UNKNOWN_VIEW
 DROP VIEW v1;
 
 CREATE VIEW  v1 AS SELECT f1 FROM t1;
@@ -2792,7 +2792,7 @@ while ($num1)
   # DROP VIEW v1_top < |RESTRICD|CASCADE> must be successful.
   eval $aux1 ;
   # Check, that v1_top really no more exists + cleanup for the second sub test
-  --error ER_BAD_TABLE_ERROR
+  --error ER_UNKNOWN_VIEW
   DROP VIEW v1_top;
 
   CREATE VIEW  v1_top AS SELECT * FROM v1_base;

@@ -1,0 +1,4 @@
+--binlog_format=row
+--query_cache_type=1
+--read_only=true
+--log-slave-updates

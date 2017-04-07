@@ -41,7 +41,7 @@ connection master;
 DROP VIEW v1;
 DROP TABLE t1;
 
---error ER_BAD_TABLE_ERROR
+--error ER_UNKNOWN_VIEW
 DROP VIEW v1;
 
 DROP VIEW IF EXISTS v2;

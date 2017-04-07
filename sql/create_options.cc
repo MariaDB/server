@@ -320,8 +320,8 @@ bool parse_option_list(THD* thd, handlerton *hton, void *option_struct_arg,
            *current* value of the underlying sysvar.
         2. But only if the underlying sysvar value is different from the
            sysvar's default.
-        3. If it's ALTER TABLE and the sysvar option was not explicitly
-           mentioned - do nothing, do not add it to the list.
+        3. If it's ALTER TABLE or CREATE_SEQUENCE and the sysvar option was
+           not explicitly mentioned - do nothing, do not add it to the list.
         4. But if it was ALTER TABLE with sysvar option = DEFAULT, we
            add it to the list (under the same condition #2).
         5. If we're here parsing the option list from the .frm file
@@ -329,7 +329,6 @@ bool parse_option_list(THD* thd, handlerton *hton, void *option_struct_arg,
            do not add it to the list (makes no sense anyway) and
            use the *default* value of the underlying sysvar. Because
            sysvar value can change, but it should not affect existing tables.
-
         This is how it's implemented: the current sysvar value is added
         to the list if suppress_warning is FALSE (meaning a table is created,
         that is CREATE TABLE or ALTER TABLE) and it's actually a CREATE TABLE

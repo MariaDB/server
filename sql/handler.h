@@ -42,9 +42,11 @@
 #include <ft_global.h>
 #include <keycache.h>
 #include <mysql/psi/mysql_table.h>
+#include "sql_sequence.h"
 
 class Alter_info;
 class Virtual_column_info;
+class sequence_definition;
 
 // the following is for checking tables
 
@@ -262,6 +264,24 @@ enum enum_alter_inplace_result {
 #define HA_CONCURRENT_OPTIMIZE          (1ULL << 46)
 
 /*
+  If the storage engine support tables that will not roll back on commit
+  In addition the table should not lock rows and support READ and WRITE
+  UNCOMMITTED.
+  This is useful for implementing things like SEQUENCE but can also in
+  the future be useful to do logging that should never roll back.
+*/
+#define HA_CAN_TABLES_WITHOUT_ROLLBACK  (1ULL << 47)
+
+/*
+  Mainly for usage by SEQUENCE engine. Setting this flag means
+  that the table will never roll back and that all operations
+  for this table should stored in the non transactional log
+  space that will always be written, even on rollback.
+*/
+
+#define HA_PERSISTENT_TABLE              (1ULL << 48)
+
+/*
   Set of all binlog flags. Currently only contain the capabilities
   flags.
  */
@@ -380,6 +400,7 @@ enum enum_alter_inplace_result {
 
 #define HA_LEX_CREATE_TMP_TABLE	1U
 #define HA_CREATE_TMP_ALTER     8U
+#define HA_LEX_CREATE_SEQUENCE  16U
 
 #define HA_MAX_REC_LENGTH	65535
 
@@ -434,7 +455,8 @@ enum legacy_db_type
   DB_TYPE_PERFORMANCE_SCHEMA=28,
   DB_TYPE_ARIA=42,
   DB_TYPE_TOKUDB=43,
-  DB_TYPE_FIRST_DYNAMIC=44,
+  DB_TYPE_SEQUENCE=44,
+  DB_TYPE_FIRST_DYNAMIC=45,
   DB_TYPE_DEFAULT=127 // Must be last
 };
 /*
@@ -522,6 +544,8 @@ given at all. */
 */
 #define HA_CREATE_USED_STATS_SAMPLE_PAGES (1UL << 24)
 
+/* Create a sequence */
+#define HA_CREATE_USED_SEQUENCE           (1UL << 25)
 
 /*
   This is master database for most of system tables. However there
@@ -1694,6 +1718,7 @@ struct Table_scope_and_contents_source_st
   engine_option_value *option_list;     ///< list of table create options
   enum_stats_auto_recalc stats_auto_recalc;
   bool varchar;                         ///< 1 if table has a VARCHAR
+  bool sequence;                        // If SEQUENCE=1 was used
 
   List<Virtual_column_info> *check_constraint_list;
 
@@ -1707,6 +1732,7 @@ struct Table_scope_and_contents_source_st
   TABLE_LIST *pos_in_locked_tables;
   MDL_ticket *mdl_ticket;
   bool table_was_deleted;
+  sequence_definition *seq_create_info;
 
   void init()
   {
@@ -2656,6 +2682,8 @@ public:
   bool mark_trx_read_write_done;           /* mark_trx_read_write was called */
   bool check_table_binlog_row_based_done; /* check_table_binlog.. was called */
   bool check_table_binlog_row_based_result; /* cached check_table_binlog... */
+  /* Set to 1 if handler logged last insert/update/delete operation */
+  bool row_already_logged;
   /* 
     TRUE <=> the engine guarantees that returned records are within the range
     being scanned.
@@ -2758,6 +2786,7 @@ public:
     mark_trx_read_write_done(0),
     check_table_binlog_row_based_done(0),
     check_table_binlog_row_based_result(0),
+    row_already_logged(0),
     in_range_check_pushed_down(FALSE),
     key_used_on_scan(MAX_KEY),
     active_index(MAX_KEY), keyread(MAX_KEY),
@@ -2995,8 +3024,24 @@ public:
   virtual double keyread_time(uint index, uint ranges, ha_rows rows);
 
   virtual const key_map *keys_to_use_for_scanning() { return &key_map_empty; }
+
+  /*
+    True if changes to the table is persistent (no rollback)
+    This is manly used to decide how to log changes to the table in
+    the binary log.
+  */
   bool has_transactions()
-  { return (ha_table_flags() & HA_NO_TRANSACTIONS) == 0; }
+  {
+    return ((ha_table_flags() & (HA_NO_TRANSACTIONS | HA_PERSISTENT_TABLE))
+            == 0);
+  }
+  /*
+    True if the underlaying table doesn't support transactions
+  */
+  bool has_transaction_manager()
+  {
+    return ((ha_table_flags() & HA_NO_TRANSACTIONS) == 0);
+  }
 
   /**
     This method is used to analyse the error to see whether the error
@@ -3915,7 +3960,7 @@ public:
     return 0;
   }
 
-  LEX_STRING *engine_name() { return hton_name(ht); }
+  virtual LEX_STRING *engine_name();
   
   TABLE* get_table() { return table; }
   TABLE_SHARE* get_table_share() { return table_share; }
@@ -4007,6 +4052,12 @@ private:
     return HA_ERR_WRONG_COMMAND;
   }
 
+  /*
+    Optimized function for updating the first row. Only used by sequence
+    tables
+  */
+  virtual int update_first_row(uchar *new_data);
+
   virtual int delete_row(const uchar *buf __attribute__((unused)))
   {
     return HA_ERR_WRONG_COMMAND;
@@ -4069,6 +4120,7 @@ protected:
                          enum ha_rkey_function find_flag)
    { return  HA_ERR_WRONG_COMMAND; }
   friend class ha_partition;
+  friend class ha_sequence;
 public:
   /**
     This method is similar to update_row, however the handler doesn't need
@@ -4299,7 +4351,7 @@ int ha_discover_table(THD *thd, TABLE_SHARE *share);
 int ha_discover_table_names(THD *thd, LEX_STRING *db, MY_DIR *dirp,
                             Discovered_table_list *result, bool reusable);
 bool ha_table_exists(THD *thd, const char *db, const char *table_name,
-                     handlerton **hton= 0);
+                     handlerton **hton= 0, bool *is_sequence= 0);
 #endif
 
 /* key cache */
@@ -4357,6 +4409,11 @@ inline const char *table_case_name(HA_CREATE_INFO *info, const char *name)
   return ((lower_case_table_names == 2 && info->alias) ? info->alias : name);
 }
 
+typedef bool Log_func(THD*, TABLE*, bool, const uchar*, const uchar*);
+int binlog_log_row(TABLE* table,
+                   const uchar *before_record,
+                   const uchar *after_record,
+                   Log_func *log_func);
 
 #define TABLE_IO_WAIT(TRACKER, PSI, OP, INDEX, FLAGS, PAYLOAD) \
   { \

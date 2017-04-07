@@ -415,8 +415,10 @@ private:
   ( ((ulong)(c)>>1) == BINLOG_COOKIE_DUMMY_ID )
 
 class binlog_cache_mngr;
+class binlog_cache_data;
 struct rpl_gtid;
 struct wait_for_commit;
+
 class MYSQL_BIN_LOG: public TC_LOG, private MYSQL_LOG
 {
  private:
@@ -743,8 +745,8 @@ public:
   void stop_union_events(THD *thd);
   bool is_query_in_union(THD *thd, query_id_t query_id_param);
 
-  bool write_event(Log_event *ev, IO_CACHE *file);
-  bool write_event(Log_event *ev) { return write_event(ev, &log_file); }
+  bool write_event(Log_event *ev, binlog_cache_data *data, IO_CACHE *file);
+  bool write_event(Log_event *ev) { return write_event(ev, 0, &log_file); }
 
   bool write_event_buffer(uchar* buf,uint len);
   bool append(Log_event* ev);

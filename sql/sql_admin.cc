@@ -341,16 +341,17 @@ static bool open_only_one_table(THD* thd, TABLE_LIST* table,
   if (lex->alter_info.flags & Alter_info::ALTER_ADMIN_PARTITION ||
       !is_view_operator_func)
   {
-    table->required_type=FRMTYPE_TABLE;
-    DBUG_ASSERT(!lex->only_view);
+    table->required_type= TABLE_TYPE_NORMAL;
+    DBUG_ASSERT(lex->table_type != TABLE_TYPE_VIEW);
   }
-  else if (lex->only_view)
+  else if (lex->table_type == TABLE_TYPE_VIEW)
   {
-    table->required_type= FRMTYPE_VIEW;
+    table->required_type= lex->table_type;
   }
-  else if (!lex->only_view && lex->sql_command == SQLCOM_REPAIR)
+  else if ((lex->table_type != TABLE_TYPE_VIEW) &&
+           lex->sql_command == SQLCOM_REPAIR)
   {
-    table->required_type= FRMTYPE_TABLE;
+    table->required_type= TABLE_TYPE_NORMAL;
   }
 
   if (lex->sql_command == SQLCOM_CHECK ||

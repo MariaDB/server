@@ -4120,7 +4120,7 @@ static TABLE *create_table_from_items(THD *thd,
   if (!mysql_create_table_no_lock(thd, create_table->db,
                                   create_table->table_name,
                                   create_info, alter_info, NULL,
-                                  select_field_count))
+                                  select_field_count, create_table))
   {
     DEBUG_SYNC(thd,"create_table_select_before_open");
 

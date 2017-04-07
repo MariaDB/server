@@ -1,0 +1,3 @@
+--binlog_format=row
+--query_cache_type=1
+--log-slave-updates

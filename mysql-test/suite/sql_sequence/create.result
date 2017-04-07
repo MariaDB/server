@@ -1,0 +1,497 @@
+drop table if exists t1;
+Warnings:
+Note	1051	Unknown table 'test.t1'
+create or replace sequence t1 engine=myisam;
+show create sequence t1;
+Table	Create Table
+t1	CREATE SEQUENCE `t1` start with 1 minvalue 1 maxvalue 9223372036854775806 increment by 1 cache 1000 nocycle ENGINE=MyISAM
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `next_value` bigint(21) NOT NULL COMMENT 'next not cached value',
+  `min_value` bigint(21) NOT NULL COMMENT 'min value',
+  `max_value` bigint(21) NOT NULL COMMENT 'max value',
+  `start` bigint(21) NOT NULL COMMENT 'start value',
+  `increment` bigint(21) NOT NULL COMMENT 'increment value',
+  `cache` bigint(21) NOT NULL COMMENT 'cache size',
+  `cycle` tinyint(1) unsigned NOT NULL COMMENT 'cycle state',
+  `round` bigint(21) NOT NULL COMMENT 'How many cycles has been done'
+) ENGINE=MyISAM SEQUENCE=1
+select * from t1;
+next_value	min_value	max_value	start	increment	cache	cycle	round
+1	1	9223372036854775806	1	1	1000	0	0
+create or replace sequence t1 engine=innodb;
+show create sequence t1;
+Table	Create Table
+t1	CREATE SEQUENCE `t1` start with 1 minvalue 1 maxvalue 9223372036854775806 increment by 1 cache 1000 nocycle ENGINE=InnoDB
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `next_value` bigint(21) NOT NULL COMMENT 'next not cached value',
+  `min_value` bigint(21) NOT NULL COMMENT 'min value',
+  `max_value` bigint(21) NOT NULL COMMENT 'max value',
+  `start` bigint(21) NOT NULL COMMENT 'start value',
+  `increment` bigint(21) NOT NULL COMMENT 'increment value',
+  `cache` bigint(21) NOT NULL COMMENT 'cache size',
+  `cycle` tinyint(1) unsigned NOT NULL COMMENT 'cycle state',
+  `round` bigint(21) NOT NULL COMMENT 'How many cycles has been done'
+) ENGINE=InnoDB SEQUENCE=1
+select * from t1;
+next_value	min_value	max_value	start	increment	cache	cycle	round
+1	1	9223372036854775806	1	1	1000	0	0
+create or replace sequence t1 engine=maria;
+show create sequence t1;
+Table	Create Table
+t1	CREATE SEQUENCE `t1` start with 1 minvalue 1 maxvalue 9223372036854775806 increment by 1 cache 1000 nocycle ENGINE=Aria
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `next_value` bigint(21) NOT NULL COMMENT 'next not cached value',
+  `min_value` bigint(21) NOT NULL COMMENT 'min value',
+  `max_value` bigint(21) NOT NULL COMMENT 'max value',
+  `start` bigint(21) NOT NULL COMMENT 'start value',
+  `increment` bigint(21) NOT NULL COMMENT 'increment value',
+  `cache` bigint(21) NOT NULL COMMENT 'cache size',
+  `cycle` tinyint(1) unsigned NOT NULL COMMENT 'cycle state',
+  `round` bigint(21) NOT NULL COMMENT 'How many cycles has been done'
+) ENGINE=Aria SEQUENCE=1
+select * from t1;
+next_value	min_value	max_value	start	increment	cache	cycle	round
+1	1	9223372036854775806	1	1	1000	0	0
+create or replace sequence t1 engine=archive;
+ERROR HY000: Table storage engine 'ARCHIVE' does not support the create option 'SEQUENCE'
+show create table t1;
+ERROR 42S02: Table 'test.t1' doesn't exist
+create or replace sequence t1 start with 10;
+show create sequence t1;
+Table	Create Table
+t1	CREATE SEQUENCE `t1` start with 10 minvalue 1 maxvalue 9223372036854775806 increment by 1 cache 1000 nocycle ENGINE=MyISAM
+select * from t1;
+next_value	min_value	max_value	start	increment	cache	cycle	round
+10	1	9223372036854775806	10	1	1000	0	0
+create or replace sequence t1 minvalue=11;
+show create sequence t1;
+Table	Create Table
+t1	CREATE SEQUENCE `t1` start with 11 minvalue 11 maxvalue 9223372036854775806 increment by 1 cache 1000 nocycle ENGINE=MyISAM
+select * from t1;
+next_value	min_value	max_value	start	increment	cache	cycle	round
+11	11	9223372036854775806	11	1	1000	0	0
+create or replace sequence t1 maxvalue=13 increment by -1;
+show create sequence t1;
+Table	Create Table
+t1	CREATE SEQUENCE `t1` start with 13 minvalue -9223372036854775807 maxvalue 13 increment by -1 cache 1000 nocycle ENGINE=MyISAM
+select * from t1;
+next_value	min_value	max_value	start	increment	cache	cycle	round
+13	-9223372036854775807	13	13	-1	1000	0	0
+create or replace sequence t1 increment by -1 cache 100;
+show create sequence t1;
+Table	Create Table
+t1	CREATE SEQUENCE `t1` start with -1 minvalue -9223372036854775807 maxvalue -1 increment by -1 cache 100 nocycle ENGINE=MyISAM
+select * from t1;
+next_value	min_value	max_value	start	increment	cache	cycle	round
+-1	-9223372036854775807	-1	-1	-1	100	0	0
+create or replace sequence t1 cycle;
+show create sequence t1;
+Table	Create Table
+t1	CREATE SEQUENCE `t1` start with 1 minvalue 1 maxvalue 9223372036854775806 increment by 1 cache 1000 cycle ENGINE=MyISAM
+select * from t1;
+next_value	min_value	max_value	start	increment	cache	cycle	round
+1	1	9223372036854775806	1	1	1000	1	0
+create or replace sequence t1 nocycle;
+show create sequence t1;
+Table	Create Table
+t1	CREATE SEQUENCE `t1` start with 1 minvalue 1 maxvalue 9223372036854775806 increment by 1 cache 1000 nocycle ENGINE=MyISAM
+select * from t1;
+next_value	min_value	max_value	start	increment	cache	cycle	round
+1	1	9223372036854775806	1	1	1000	0	0
+show create sequence t1;
+Table	Create Table
+t1	CREATE SEQUENCE `t1` start with 1 minvalue 1 maxvalue 9223372036854775806 increment by 1 cache 1000 nocycle ENGINE=MyISAM
+create or replace sequence t1 cycle minvalue= 14;
+show create sequence t1;
+Table	Create Table
+t1	CREATE SEQUENCE `t1` start with 14 minvalue 14 maxvalue 9223372036854775806 increment by 1 cache 1000 cycle ENGINE=MyISAM
+select * from t1;
+next_value	min_value	max_value	start	increment	cache	cycle	round
+14	14	9223372036854775806	14	1	1000	1	0
+create or replace sequence t1 cycle increment by -1;
+show create sequence t1;
+Table	Create Table
+t1	CREATE SEQUENCE `t1` start with -1 minvalue -9223372036854775807 maxvalue -1 increment by -1 cache 1000 cycle ENGINE=MyISAM
+drop sequence t1;
+create sequence if not exists t1;
+create sequence if not exists t1 start with 10;
+Warnings:
+Note	1050	Table 't1' already exists
+select * from t1;
+next_value	min_value	max_value	start	increment	cache	cycle	round
+1	1	9223372036854775806	1	1	1000	0	0
+show create sequence t1;
+Table	Create Table
+t1	CREATE SEQUENCE `t1` start with 1 minvalue 1 maxvalue 9223372036854775806 increment by 1 cache 1000 nocycle ENGINE=MyISAM
+create or replace sequence t1 start with 10 minvalue=10 maxvalue=11 nocache cycle;
+show create sequence t1;
+Table	Create Table
+t1	CREATE SEQUENCE `t1` start with 10 minvalue 10 maxvalue 11 increment by 1 nocache cycle ENGINE=MyISAM
+select * from t1;
+next_value	min_value	max_value	start	increment	cache	cycle	round
+10	10	11	10	1	0	1	0
+create or replace sequence t1 start with 10 minvalue=-10 maxvalue=11 cache=10 cycle increment by 10;
+show create sequence t1;
+Table	Create Table
+t1	CREATE SEQUENCE `t1` start with 10 minvalue -10 maxvalue 11 increment by 10 cache 10 cycle ENGINE=MyISAM
+select * from t1;
+next_value	min_value	max_value	start	increment	cache	cycle	round
+10	-10	11	10	10	10	1	0
+create or replace sequence t1 start with 10 NO MAXVALUE NO MINVALUE;
+create or replace sequence t1 start with 10 maxvalue 10;
+create or replace sequence t1 start with 10 minvalue 10;
+create or replace sequence t1 start with 10 minvalue 10 maxvalue 11 cycle;
+create or replace sequence t1 start with 10 maxvalue=9223372036854775806;
+create or replace sequence t1 start with 10 minvalue=-9223372036854775807;
+drop sequence if exists t1;
+create sequence t1 increment by 0;
+show create sequence t1;
+Table	Create Table
+t1	CREATE SEQUENCE `t1` start with 1 minvalue 1 maxvalue 9223372036854775806 increment by 0 cache 1000 nocycle ENGINE=MyISAM
+select * from t1;
+next_value	min_value	max_value	start	increment	cache	cycle	round
+1	1	9223372036854775806	1	0	1000	0	0
+drop sequence t1;
+create table t1 (a int);
+show create sequence t1;
+ERROR HY000: 'test.t1' is not SEQUENCE
+drop sequence t1;
+ERROR 42S02: 'test.t1' is not a SEQUENCE
+drop sequence if exists t1;
+Warnings:
+Note	4066	Unknown SEQUENCE: 'test.t1'
+create sequence t1 start with 10 maxvalue=9;
+ERROR HY000: Sequence 'test.t1' values are conflicting
+create sequence t1 minvalue= 100 maxvalue=10;
+ERROR HY000: Sequence 'test.t1' values are conflicting
+create sequence t1 start with 9 minvalue=10;
+ERROR HY000: Sequence 'test.t1' values are conflicting
+create or replace sequence t1 maxvalue=13, increment by -1;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ' increment by -1' at line 1
+create or replace sequence t1 start with= 10 maxvalue=13;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '= 10 maxvalue=13' at line 1
+create or replace sequence t1 maxvalue=13, increment= -1;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ' increment= -1' at line 1
+create or replace sequence t1 start with 10 min_value=1 NO MINVALUE;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'NO MINVALUE' at line 1
+create or replace sequence t1 start with 10 min_value=1 NO MINVALUE;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'NO MINVALUE' at line 1
+create sequence t1 start with 10 maxvalue=9223372036854775807;
+ERROR HY000: Sequence 'test.t1' values are conflicting
+create sequence t1 start with 10 minvalue=-9223372036854775808;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '9223372036854775808' at line 1
+create or replace sequence t1 start with 10 NO MINVALUE minvalue=1;
+drop sequence t1;
+create sequence t1;
+show fields from t1;
+Field	Type	Null	Key	Default	Extra
+next_value	bigint(21)	NO		NULL	
+min_value	bigint(21)	NO		NULL	
+max_value	bigint(21)	NO		NULL	
+start	bigint(21)	NO		NULL	
+increment	bigint(21)	NO		NULL	
+cache	bigint(21)	NO		NULL	
+cycle	tinyint(1) unsigned	NO		NULL	
+round	bigint(21)	NO		NULL	
+flush tables;
+show fields from t1;
+Field	Type	Null	Key	Default	Extra
+next_value	bigint(21)	NO		NULL	
+min_value	bigint(21)	NO		NULL	
+max_value	bigint(21)	NO		NULL	
+start	bigint(21)	NO		NULL	
+increment	bigint(21)	NO		NULL	
+cache	bigint(21)	NO		NULL	
+cycle	tinyint(1) unsigned	NO		NULL	
+round	bigint(21)	NO		NULL	
+create or replace sequence t1 engine=aria;
+show fields from t1;
+Field	Type	Null	Key	Default	Extra
+next_value	bigint(21)	NO		NULL	
+min_value	bigint(21)	NO		NULL	
+max_value	bigint(21)	NO		NULL	
+start	bigint(21)	NO		NULL	
+increment	bigint(21)	NO		NULL	
+cache	bigint(21)	NO		NULL	
+cycle	tinyint(1) unsigned	NO		NULL	
+round	bigint(21)	NO		NULL	
+show fields from t1;
+Field	Type	Null	Key	Default	Extra
+next_value	bigint(21)	NO		NULL	
+min_value	bigint(21)	NO		NULL	
+max_value	bigint(21)	NO		NULL	
+start	bigint(21)	NO		NULL	
+increment	bigint(21)	NO		NULL	
+cache	bigint(21)	NO		NULL	
+cycle	tinyint(1) unsigned	NO		NULL	
+round	bigint(21)	NO		NULL	
+flush tables;
+create or replace sequence t1 comment= "test 1";
+show create sequence t1;
+Table	Create Table
+t1	CREATE SEQUENCE `t1` start with 1 minvalue 1 maxvalue 9223372036854775806 increment by 1 cache 1000 nocycle ENGINE=MyISAM COMMENT='test 1'
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `next_value` bigint(21) NOT NULL COMMENT 'next not cached value',
+  `min_value` bigint(21) NOT NULL COMMENT 'min value',
+  `max_value` bigint(21) NOT NULL COMMENT 'max value',
+  `start` bigint(21) NOT NULL COMMENT 'start value',
+  `increment` bigint(21) NOT NULL COMMENT 'increment value',
+  `cache` bigint(21) NOT NULL COMMENT 'cache size',
+  `cycle` tinyint(1) unsigned NOT NULL COMMENT 'cycle state',
+  `round` bigint(21) NOT NULL COMMENT 'How many cycles has been done'
+) ENGINE=MyISAM SEQUENCE=1 COMMENT='test 1'
+create or replace sequence t1 comment= "test 2" min_rows=1 max_rows=2;
+show create sequence t1;
+Table	Create Table
+t1	CREATE SEQUENCE `t1` start with 1 minvalue 1 maxvalue 9223372036854775806 increment by 1 cache 1000 nocycle ENGINE=MyISAM COMMENT='test 2'
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `next_value` bigint(21) NOT NULL COMMENT 'next not cached value',
+  `min_value` bigint(21) NOT NULL COMMENT 'min value',
+  `max_value` bigint(21) NOT NULL COMMENT 'max value',
+  `start` bigint(21) NOT NULL COMMENT 'start value',
+  `increment` bigint(21) NOT NULL COMMENT 'increment value',
+  `cache` bigint(21) NOT NULL COMMENT 'cache size',
+  `cycle` tinyint(1) unsigned NOT NULL COMMENT 'cycle state',
+  `round` bigint(21) NOT NULL COMMENT 'How many cycles has been done'
+) ENGINE=MyISAM MIN_ROWS=1 MAX_ROWS=2 SEQUENCE=1 COMMENT='test 2'
+create or replace sequence t1 start=1 increment= 2;
+create or replace sequence t1 start 1 increment 2;
+drop sequence t1;
+CREATE TABLE t1 (
+`next_value` bigint(21) NOT NULL,
+`min_value` bigint(21) NOT NULL,
+`max_value` bigint(21) NOT NULL,
+`start` bigint(21) NOT NULL,
+`increment` bigint(21) NOT NULL,
+`cache` bigint(21) NOT NULL,
+`cycle` tinyint(1) unsigned NOT NULL,
+`round` bigint(21) NOT NULL
+) sequence=1;
+show create sequence t1;
+Table	Create Table
+t1	CREATE SEQUENCE `t1` start with 1 minvalue 1 maxvalue 9223372036854775806 increment by 1 cache 1000 nocycle ENGINE=MyISAM
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `next_value` bigint(21) NOT NULL,
+  `min_value` bigint(21) NOT NULL,
+  `max_value` bigint(21) NOT NULL,
+  `start` bigint(21) NOT NULL,
+  `increment` bigint(21) NOT NULL,
+  `cache` bigint(21) NOT NULL,
+  `cycle` tinyint(1) unsigned NOT NULL,
+  `round` bigint(21) NOT NULL
+) ENGINE=MyISAM SEQUENCE=1
+drop sequence t1;
+CREATE OR REPLACE TABLE t1 (
+`next_val` bigint(21) NOT NULL,
+`min_value` bigint(21) NOT NULL,
+`max_value` bigint(21) NOT NULL,
+`start` bigint(21) NOT NULL,
+`increment` bigint(21) NOT NULL,
+`cache` bigint(21) NOT NULL,
+`cycle` tinyint(1) unsigned NOT NULL,
+`round` bigint(21) NOT NULL
+) sequence=1;
+ERROR HY000: Sequence 'test.t1' table structure is invalid (next_val)
+CREATE OR REPLACE TABLE t1 (
+`next_value` int(21) NOT NULL,
+`min_value` bigint(21) NOT NULL,
+`max_value` bigint(21) NOT NULL,
+`start` bigint(21) NOT NULL,
+`increment` bigint(21) NOT NULL,
+`cache` bigint(21) NOT NULL,
+`cycle` tinyint(1) unsigned NOT NULL,
+`round` bigint(21) NOT NULL
+) sequence=1;
+ERROR HY000: Sequence 'test.t1' table structure is invalid (next_value)
+CREATE OR REPLACE TABLE t1 (
+`next_val` bigint(21) NOT NULL,
+`min_value` bigint(21) NOT NULL,
+`max_value` bigint(21) NOT NULL,
+`start` bigint(21) NOT NULL,
+`increment` bigint(21) NOT NULL,
+`cache` bigint(21) NOT NULL,
+`cycle` bigint(21) unsigned NOT NULL, /* error */
+`round` bigint(21) NOT NULL
+) sequence=1;
+ERROR HY000: Sequence 'test.t1' table structure is invalid (next_val)
+CREATE OR REPLACE TABLE t1 (
+`next_value` bigint(21),
+`min_value` bigint(21) NOT NULL,
+`max_value` bigint(21) NOT NULL,
+`start` bigint(21) NOT NULL,
+`increment` bigint(21) NOT NULL,
+`cache` bigint(21) NOT NULL,
+`cycle` tinyint(1) unsigned NOT NULL,
+`round` bigint(21) NOT NULL
+) sequence=1;
+ERROR HY000: Sequence 'test.t1' table structure is invalid (next_value)
+CREATE OR REPLACE TABLE t1 (
+`next_value` bigint(21) NOT NULL,
+`min_value` bigint(21) NOT NULL,
+`max_value` bigint(21) NOT NULL,
+`start` bigint(21) NOT NULL,
+`increment` bigint(21) NOT NULL,
+`cache` bigint(21) NOT NULL,
+`cycle` tinyint(1) unsigned NOT NULL,
+`round` bigint(21) NOT NULL, 
+extra_field bigint(21)
+) sequence=1;
+ERROR HY000: Sequence 'test.t1' table structure is invalid (Wrong number of columns)
+CREATE OR REPLACE TABLE t1 (
+`min_value` bigint(21) NOT NULL,
+`max_value` bigint(21) NOT NULL,
+`next_value` bigint(21) NOT NULL,
+`start` bigint(21) NOT NULL,
+`increment` bigint(21) NOT NULL,
+`cache` bigint(21) NOT NULL,
+`cycle` tinyint(1) unsigned NOT NULL,
+`round` bigint(21) NOT NULL
+) sequence=1;
+ERROR HY000: Sequence 'test.t1' table structure is invalid (min_value)
+CREATE OR REPLACE TABLE t1 (
+`next_value` bigint(21) NOT NULL,
+`min_value` bigint(21) NOT NULL,
+`max_value` bigint(21) NOT NULL,
+`start` bigint(21) NOT NULL,
+`increment` bigint(21) NOT NULL,
+`cache` bigint(21) NOT NULL,
+`cycle` tinyint(1) unsigned NOT NULL,
+`round` bigint(21) NOT NULL,
+key key1 (next_value)
+) sequence=1;
+ERROR HY000: Sequence 'test.t1' table structure is invalid (Sequence tables cannot have any keys)
+drop sequence if exists t1;
+Warnings:
+Note	4066	Unknown SEQUENCE: 'test.t1'
+create sequence t1;
+create sequence t2;
+create table t3 (a int) engine=myisam;
+select table_catalog, table_schema, table_name, table_type from information_schema.tables where table_catalog="test";
+table_catalog	table_schema	table_name	table_type
+CREATE SEQUENCE s1;
+drop sequence s1;
+drop sequence if exists t1,t2,t3,t4;
+Warnings:
+Note	4066	Unknown SEQUENCE: 'test.t3'
+Note	4066	Unknown SEQUENCE: 'test.t4'
+drop table if exists t1,t2,t3;
+Warnings:
+Note	1051	Unknown table 'test.t1'
+Note	1051	Unknown table 'test.t2'
+CREATE TABLE t1 (a int);
+CREATE TABLE t2 (a int);
+CREATE SEQUENCE s1;
+drop table t1,t2,s1;
+CREATE TABLE t1 (a int);
+CREATE TABLE t2 (a int);
+CREATE SEQUENCE s1;
+drop table if exists t1,t2,s1,s2;
+Warnings:
+Note	1051	Unknown table 'test.s2'
+CREATE TABLE t1 (a int);
+CREATE TABLE t2 (a int);
+CREATE SEQUENCE s1;
+drop sequence t1,t2,s1,s2;
+ERROR 42S02: Unknown SEQUENCE: 'test.t1,test.t2,test.s2'
+drop table if exists t1,t2;
+CREATE TABLE t1 (a int);
+CREATE TABLE t2 (a int);
+CREATE SEQUENCE s1;
+drop sequence if exists t1,t2,s1,s2;
+Warnings:
+Note	4066	Unknown SEQUENCE: 'test.t1'
+Note	4066	Unknown SEQUENCE: 'test.t2'
+Note	4066	Unknown SEQUENCE: 'test.s2'
+drop table if exists t1,t2;
+CREATE TEMPORARY SEQUENCE s1;
+DROP SEQUENCE s1;
+DROP TEMPORARY SEQUENCE s1;
+ERROR 42S02: Unknown SEQUENCE: 'test.s1'
+CREATE TEMPORARY SEQUENCE s1;
+CREATE SEQUENCE s2;
+CREATE TEMPORARY TABLE t1 (a int);
+CREATE TABLE t2 (a int);
+DROP TEMPORARY SEQUENCE t1,t2,s1,s2;
+ERROR 42S02: Unknown SEQUENCE: 'test.t1,test.t2,test.s2'
+DROP TEMPORARY SEQUENCE s1;
+ERROR 42S02: Unknown SEQUENCE: 'test.s1'
+DROP TEMPORARY TABLE t1;
+DROP TABLE t1,t2,s1,s2;
+ERROR 42S02: Unknown table 'test.t1,test.s1'
+create view v1 as (select 1);
+CREATE SEQUENCE s1;
+DROP SEQUENCE s1,v1;
+ERROR 42S02: 'test.v1' is a view
+drop view v1;
+CREATE TEMPORARY SEQUENCE t1;
+select next value for t1;
+next value for t1
+1
+drop temporary table t1;
+select previous value for t1;
+ERROR 42S02: Table 'test.t1' doesn't exist
+CREATE SEQUENCE t1 start with 1 minvalue 1 maxvalue 10 increment by 1 cache 10;
+select next value for t1;
+next value for t1
+1
+select previous value for t1;
+previous value for t1
+1
+CREATE TEMPORARY SEQUENCE t1 start with 100 minvalue 100 maxvalue 200 increment by 1 cache 10;
+select previous value for t1;
+previous value for t1
+NULL
+select next value for t1;
+next value for t1
+100
+select previous value for t1;
+previous value for t1
+100
+drop temporary sequence t1;
+select previous value for t1;
+previous value for t1
+1
+drop sequence t1;
+CREATE TEMPORARY SEQUENCE t1 engine=innodb;
+select next value for t1;
+next value for t1
+1
+drop temporary table t1;
+select previous value for t1;
+ERROR 42S02: Table 'test.t1' doesn't exist
+CREATE SEQUENCE t1 start with 1 minvalue 1 maxvalue 10 increment by 1 cache 10 engine=innodb;
+select next value for t1;
+next value for t1
+1
+select previous value for t1;
+previous value for t1
+1
+CREATE TEMPORARY SEQUENCE t1 start with 100 minvalue 100 maxvalue 200 increment by 1 cache 10 engine=innodb;
+select previous value for t1;
+previous value for t1
+NULL
+select next value for t1;
+next value for t1
+100
+select previous value for t1;
+previous value for t1
+100
+drop temporary sequence t1;
+select previous value for t1;
+previous value for t1
+1
+drop sequence t1;
+create table t1 (a int) engine=sql_sequence;
+ERROR 42000: Unknown storage engine 'sql_sequence'

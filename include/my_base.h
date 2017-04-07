@@ -48,6 +48,8 @@
 #define HA_OPEN_INTERNAL_TABLE          512U
 #define HA_OPEN_NO_PSI_CALL             1024U   /* Don't call/connect PSI */
 #define HA_OPEN_MERGE_TABLE		2048U
+#define HA_OPEN_FOR_CREATE              4096U
+
 /*
   Allow opening even if table is incompatible as this is for ALTER TABLE which
   will fix the table structure.
@@ -351,6 +353,7 @@ enum ha_base_keytype {
 #define HA_CREATE_RELIES_ON_SQL_LAYER 128U
 #define HA_CREATE_INTERNAL_TABLE 256U
 #define HA_PRESERVE_INSERT_ORDER 512U
+#define HA_CREATE_NO_ROLLBACK    1024U
 
 /* Flags used by start_bulk_insert */
 
@@ -500,7 +503,9 @@ enum ha_base_keytype {
 #define HA_ERR_DECRYPTION_FAILED  192 /* Table encrypted but decypt failed */
 #define HA_ERR_FK_DEPTH_EXCEEDED  193 /* FK cascade depth exceeded */
 #define HA_ERR_TABLESPACE_MISSING 194  /* Missing Tablespace */
-#define HA_ERR_LAST               194  /* Copy of last error nr * */
+#define HA_ERR_SEQUENCE_INVALID_DATA 195
+#define HA_ERR_SEQUENCE_RUN_OUT   196
+#define HA_ERR_LAST               196  /* Copy of last error nr * */
 
 /* Number of different errors */
 #define HA_ERR_ERRORS            (HA_ERR_LAST - HA_ERR_FIRST + 1)

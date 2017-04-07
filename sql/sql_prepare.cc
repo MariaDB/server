@@ -2388,6 +2388,7 @@ static bool check_prepared_statement(Prepared_statement *stmt)
     }
     break;
   case SQLCOM_CREATE_TABLE:
+  case SQLCOM_CREATE_SEQUENCE:
     res= mysql_test_create_table(stmt);
     break;
   case SQLCOM_SHOW_CREATE:
@@ -2489,6 +2490,7 @@ static bool check_prepared_statement(Prepared_statement *stmt)
     */
   case SQLCOM_SHOW_EXPLAIN:
   case SQLCOM_DROP_TABLE:
+  case SQLCOM_DROP_SEQUENCE:
   case SQLCOM_RENAME_TABLE:
   case SQLCOM_ALTER_TABLE:
   case SQLCOM_COMMIT:

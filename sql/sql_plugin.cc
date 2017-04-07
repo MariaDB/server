@@ -1651,9 +1651,10 @@ int plugin_init(int *argc, char **argv, int flags)
       build_table_filename(path, sizeof(path) - 1, "mysql", "plugin", reg_ext, 0);
       char engine_name_buf[NAME_CHAR_LEN + 1];
       LEX_STRING maybe_myisam= { engine_name_buf, 0 };
-      frm_type_enum frm_type= dd_frm_type(NULL, path, &maybe_myisam);
+      bool is_sequence;
+      Table_type frm_type= dd_frm_type(NULL, path, &maybe_myisam, &is_sequence);
       /* if mysql.plugin table is MyISAM - load it right away */
-      if (frm_type == FRMTYPE_TABLE && !strcasecmp(maybe_myisam.str, "MyISAM"))
+      if (frm_type == TABLE_TYPE_NORMAL && !strcasecmp(maybe_myisam.str, "MyISAM"))
       {
         plugin_load(&tmp_root);
         flags|= PLUGIN_INIT_SKIP_PLUGIN_TABLE;

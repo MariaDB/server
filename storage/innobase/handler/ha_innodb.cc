@@ -3077,7 +3077,8 @@ innobase_copy_frm_flags_from_create_info(
 	ibool	ps_on;
 	ibool	ps_off;
 
-	if (dict_table_is_temporary(innodb_table)) {
+	if (dict_table_is_temporary(innodb_table)
+	    || innodb_table->no_rollback()) {
 		/* Temp tables do not use persistent stats. */
 		ps_on = FALSE;
 		ps_off = TRUE;
@@ -3163,6 +3164,7 @@ ha_innobase::ha_innobase(
 		*/
 			  | HA_CAN_EXPORT
 			  | HA_CAN_RTREEKEYS
+                          | HA_CAN_TABLES_WITHOUT_ROLLBACK
 			  | HA_CONCURRENT_OPTIMIZE
 			  |  (srv_force_primary_key ? HA_REQUIRE_PRIMARY_KEY : 0)
 		  ),
@@ -12844,6 +12846,10 @@ index_bad:
 		        default_compression_level : static_cast<ulint>(options->page_compression_level),
 		    	0);
 
+	if (m_form->s->table_type == TABLE_TYPE_SEQUENCE) {
+		m_flags |= 1U << DICT_TF_POS_NO_ROLLBACK;
+	}
+
 	/* Set the flags2 when create table or alter tables */
 	m_flags2 |= DICT_TF2_FTS_AUX_HEX_NAME;
 	DBUG_EXECUTE_IF("innodb_test_wrong_fts_aux_table_name",
@@ -13473,6 +13479,10 @@ ha_innobase::create(
 	char		remote_path[FN_REFLEN];	/* Absolute path of table */
 	trx_t*		trx;
 	DBUG_ENTER("ha_innobase::create");
+
+	DBUG_ASSERT(form->s == table_share);
+	DBUG_ASSERT(table_share->table_type == TABLE_TYPE_SEQUENCE
+		    || table_share->table_type == TABLE_TYPE_NORMAL);
 
 	create_table_info_t	info(ha_thd(),
 				     form,
@@ -16424,24 +16434,23 @@ ha_innobase::external_lock(
 	}
 
 	/* Check for UPDATEs in read-only mode. */
-	if (srv_read_only_mode
-	    && (thd_sql_command(thd) == SQLCOM_UPDATE
-		|| thd_sql_command(thd) == SQLCOM_INSERT
-		|| thd_sql_command(thd) == SQLCOM_REPLACE
-		|| thd_sql_command(thd) == SQLCOM_DROP_TABLE
-		|| thd_sql_command(thd) == SQLCOM_ALTER_TABLE
-		|| thd_sql_command(thd) == SQLCOM_OPTIMIZE
-		|| (thd_sql_command(thd) == SQLCOM_CREATE_TABLE
-		    && lock_type == F_WRLCK)
-		|| thd_sql_command(thd) == SQLCOM_CREATE_INDEX
-		|| thd_sql_command(thd) == SQLCOM_DROP_INDEX
-		|| thd_sql_command(thd) == SQLCOM_DELETE)) {
-
-		if (thd_sql_command(thd) == SQLCOM_CREATE_TABLE) {
-			ib_senderrf(thd, IB_LOG_LEVEL_WARN,
-				    ER_READ_ONLY_MODE);
-			DBUG_RETURN(HA_ERR_TABLE_READONLY);
-		} else {
+	if (srv_read_only_mode) {
+		switch (thd_sql_command(thd)) {
+		case SQLCOM_CREATE_TABLE:
+			if (lock_type != F_WRLCK) {
+				break;
+			}
+		case SQLCOM_UPDATE:
+		case SQLCOM_INSERT:
+		case SQLCOM_REPLACE:
+		case SQLCOM_DROP_TABLE:
+		case SQLCOM_ALTER_TABLE:
+		case SQLCOM_OPTIMIZE:
+		case SQLCOM_CREATE_INDEX:
+		case SQLCOM_DROP_INDEX:
+		case SQLCOM_CREATE_SEQUENCE:
+		case SQLCOM_DROP_SEQUENCE:
+		case SQLCOM_DELETE:
 			ib_senderrf(thd, IB_LOG_LEVEL_WARN,
 				    ER_READ_ONLY_MODE);
 			DBUG_RETURN(HA_ERR_TABLE_READONLY);
@@ -17301,6 +17310,8 @@ ha_innobase::store_lock(
 			 && lock_type <= TL_WRITE))
 		|| sql_command == SQLCOM_CREATE_INDEX
 		|| sql_command == SQLCOM_DROP_INDEX
+		|| sql_command == SQLCOM_CREATE_SEQUENCE
+		|| sql_command == SQLCOM_DROP_SEQUENCE
 		|| sql_command == SQLCOM_DELETE)) {
 
 		ib_senderrf(trx->mysql_thd,
@@ -17330,7 +17341,8 @@ ha_innobase::store_lock(
 		}
 
 	/* Check for DROP TABLE */
-	} else if (sql_command == SQLCOM_DROP_TABLE) {
+	} else if (sql_command == SQLCOM_DROP_TABLE ||
+                   sql_command == SQLCOM_DROP_SEQUENCE) {
 
 		/* MySQL calls this function in DROP TABLE though this table
 		handle may belong to another thd that is running a query. Let
@@ -17365,7 +17377,8 @@ ha_innobase::store_lock(
 		/* Use consistent read for checksum table */
 
 		if (sql_command == SQLCOM_CHECKSUM
-                    || (sql_command == SQLCOM_ANALYZE && lock_type == TL_READ)
+		    || sql_command == SQLCOM_CREATE_SEQUENCE
+		    || (sql_command == SQLCOM_ANALYZE && lock_type == TL_READ)
 		    || ((srv_locks_unsafe_for_binlog
 			|| trx->isolation_level <= TRX_ISO_READ_COMMITTED)
 			&& trx->isolation_level != TRX_ISO_SERIALIZABLE
@@ -17374,6 +17387,7 @@ ha_innobase::store_lock(
 			&& (sql_command == SQLCOM_INSERT_SELECT
 			    || sql_command == SQLCOM_REPLACE_SELECT
 			    || sql_command == SQLCOM_UPDATE
+			    || sql_command == SQLCOM_CREATE_SEQUENCE
 			    || sql_command == SQLCOM_CREATE_TABLE))) {
 
 			/* If we either have innobase_locks_unsafe_for_binlog

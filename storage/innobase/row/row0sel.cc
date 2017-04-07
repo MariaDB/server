@@ -4130,9 +4130,10 @@ row_search_mvcc(
 	ulint		direction)
 {
 	DBUG_ENTER("row_search_mvcc");
+	DBUG_ASSERT(prebuilt->index->table == prebuilt->table);
 
 	dict_index_t*	index		= prebuilt->index;
-	ibool		comp		= dict_table_is_comp(index->table);
+	ibool		comp		= dict_table_is_comp(prebuilt->table);
 	const dtuple_t*	search_tuple	= prebuilt->search_tuple;
 	btr_pcur_t*	pcur		= prebuilt->pcur;
 	trx_t*		trx		= prebuilt->trx;
@@ -4514,7 +4515,7 @@ row_search_mvcc(
 
 	que_thr_move_to_run_state_for_mysql(thr, trx);
 
-	clust_index = dict_table_get_first_index(index->table);
+	clust_index = dict_table_get_first_index(prebuilt->table);
 
 	/* Do some start-of-statement preparations */
 
@@ -4543,7 +4544,7 @@ row_search_mvcc(
 		prebuilt->sql_stat_start = FALSE;
 	} else {
 wait_table_again:
-		err = lock_table(0, index->table,
+		err = lock_table(0, prebuilt->table,
 				 prebuilt->select_lock_type == LOCK_S
 				 ? LOCK_IS : LOCK_IX, thr);
 
@@ -5072,7 +5073,8 @@ no_gap_lock:
 		/* This is a non-locking consistent read: if necessary, fetch
 		a previous version of the record */
 
-		if (trx->isolation_level == TRX_ISO_READ_UNCOMMITTED) {
+		if (trx->isolation_level == TRX_ISO_READ_UNCOMMITTED
+		    || prebuilt->table->no_rollback()) {
 
 			/* Do nothing: we let a non-locking SELECT read the
 			latest version of the record */

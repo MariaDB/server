@@ -53,6 +53,7 @@
 #include "sp.h"
 #include "set_var.h"
 #include "debug_sync.h"
+#include "sql_base.h"
 
 #ifdef NO_EMBEDDED_ACCESS_CHECKS
 #define sp_restore_security_context(A,B) while (0) {}
@@ -6939,4 +6940,148 @@ longlong Item_func_cursor_rowcount::val_int()
 {
   sp_cursor *c= get_open_cursor_or_error();
   return !(null_value= !c) ? c->row_count() : 0;
+}
+
+/*****************************************************************************
+  SEQUENCE functions
+*****************************************************************************/
+
+longlong Item_func_nextval::val_int()
+{
+  longlong value;
+  int error;
+  const char *key;
+  TABLE *table= table_list->table;
+  uint length= get_table_def_key(table_list, &key);
+  THD *thd= table->in_use;
+  SEQUENCE_LAST_VALUE *entry;
+  char buff[80];
+  String key_buff(buff,sizeof(buff), &my_charset_bin);
+  DBUG_ASSERT(table && table->s->sequence);
+  DBUG_ENTER("Item_func_nextval::val_int");
+
+  if (table->s->tmp_table != NO_TMP_TABLE)
+  {
+    /*
+      Temporary tables has an extra \0 at end to distinguish it from
+      normal tables
+    */
+    key_buff.copy(key, length, &my_charset_bin);
+    key_buff.append((char) 0);
+    key= key_buff.ptr();
+    length++;
+  }
+
+  if (!(entry= ((SEQUENCE_LAST_VALUE*)
+                my_hash_search(&thd->sequences, (uchar*) key, length))))
+  {
+    if (!(key= (char*) my_memdup(key, length, MYF(MY_WME))) ||
+        !(entry= new SEQUENCE_LAST_VALUE((uchar*) key, length)))
+    {
+      /* EOM, error given */
+      my_free((char*) key);
+      delete entry;
+      null_value= 1;
+      DBUG_RETURN(0);
+    }
+    if (my_hash_insert(&thd->sequences, (uchar*) entry))
+    {
+      /* EOM, error given */
+      delete entry;
+      null_value= 1;
+      DBUG_RETURN(0);
+    }
+  }
+  entry->null_value= null_value= 0;
+  value= table->s->sequence->next_value(table,0, &error);
+  entry->value= value;
+  entry->set_version(table);
+
+  if (error)                                    // Warning already printed
+    entry->null_value= null_value= 1;           // For not strict mode
+  DBUG_RETURN(value);
+}
+
+
+/* Print for nextval and lastval */
+
+void Item_func_nextval::print(String *str, enum_query_type query_type)
+{
+  char d_name_buff[MAX_ALIAS_NAME], t_name_buff[MAX_ALIAS_NAME];
+  const char *d_name= table_list->db, *t_name= table_list->table_name;
+  bool use_db_name= d_name && d_name[0];
+  THD *thd= current_thd;
+
+  str->append(func_name());
+  str->append('(');
+
+  /*
+    for next_val we assume that table_list has been updated to contain
+    the current db.
+  */
+
+  if (lower_case_table_names > 0)
+  {
+    strmake(t_name_buff, t_name, MAX_ALIAS_NAME-1);
+    my_casedn_str(files_charset_info, t_name_buff);
+    t_name= t_name_buff;
+    if (use_db_name)
+    {
+      strmake(d_name_buff, d_name, MAX_ALIAS_NAME-1);
+      my_casedn_str(files_charset_info, d_name_buff);
+      d_name= d_name_buff;
+    }
+  }
+
+  if (use_db_name)
+  {
+    append_identifier(thd, str, d_name, (uint)strlen(d_name));
+    str->append('.');
+  }
+  append_identifier(thd, str, t_name, (uint) strlen(t_name));
+  str->append(')');
+}
+
+
+/* Return last used value for sequence or NULL if sequence hasn't been used */
+
+longlong Item_func_lastval::val_int()
+{
+  const char *key;
+  SEQUENCE_LAST_VALUE *entry;
+  uint length= get_table_def_key(table_list, &key);
+  THD *thd= table_list->table->in_use;
+  char buff[80];
+  String key_buff(buff,sizeof(buff), &my_charset_bin);
+  DBUG_ENTER("Item_func_lastval::val_int");
+
+  if (table_list->table->s->tmp_table != NO_TMP_TABLE)
+  {
+    /*
+      Temporary tables has an extra \0 at end to distinguish it from
+      normal tables
+    */
+    key_buff.copy(key, length, &my_charset_bin);
+    key_buff.append((char) 0);
+    key= key_buff.ptr();
+    length++;
+  }
+
+  if (!(entry= ((SEQUENCE_LAST_VALUE*)
+                my_hash_search(&thd->sequences, (uchar*) key, length))))
+  {
+    /* Sequence not used */
+    null_value= 1;
+    DBUG_RETURN(0);
+  }
+  if (entry->check_version(table_list->table))
+  {
+    /* Table droped and re-created, remove current version */
+    my_hash_delete(&thd->sequences, (uchar*) entry);
+    null_value= 1;
+    DBUG_RETURN(0);
+  }    
+
+  null_value= entry->null_value;
+  DBUG_RETURN(entry->value);
 }

@@ -1245,7 +1245,7 @@ int wsrep_to_buf_helper(
     THD* thd, const char *query, uint query_len, uchar** buf, size_t* buf_len)
 {
   IO_CACHE tmp_io_cache;
-  Log_event_writer writer(&tmp_io_cache);
+  Log_event_writer writer(&tmp_io_cache,0);
   if (open_cached_file(&tmp_io_cache, mysql_tmpdir, TEMP_PREFIX,
                        65536, MYF(MY_WME)))
     return 1;
@@ -1781,7 +1781,8 @@ bool wsrep_grant_mdl_exception(MDL_context *requestor_ctx,
       /* Print some debug information. */
       if (wsrep_debug)
       {
-        if (request_thd->lex->sql_command == SQLCOM_DROP_TABLE)
+        if (request_thd->lex->sql_command == SQLCOM_DROP_TABLE ||
+            request_thd->lex->sql_command == SQLCOM_DROP_SEQUENCE)
         {
           WSREP_DEBUG("DROP caused BF abort");
         }

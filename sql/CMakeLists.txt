@@ -144,6 +144,7 @@ SET (SQL_SOURCE
                sql_type.cc sql_type.h
                item_windowfunc.cc sql_window.cc
 	       sql_cte.cc sql_cte.h
+               sql_sequence.cc sql_sequence.h ha_sequence.h
 	       ${WSREP_SOURCES}
                table_cache.cc encryption.cc temporary_tables.cc
                ${CMAKE_CURRENT_BINARY_DIR}/sql_builtin.cc
@@ -165,6 +166,8 @@ IF (CMAKE_SYSTEM_NAME MATCHES "Linux" OR
 ENDIF()
 
 MYSQL_ADD_PLUGIN(partition ha_partition.cc STORAGE_ENGINE DEFAULT STATIC_ONLY
+RECOMPILE_FOR_EMBEDDED)
+MYSQL_ADD_PLUGIN(sql_sequence ha_sequence.cc STORAGE_ENGINE MANDATORY STATIC_ONLY
 RECOMPILE_FOR_EMBEDDED)
 
 ADD_LIBRARY(sql STATIC ${SQL_SOURCE})

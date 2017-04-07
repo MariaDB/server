@@ -194,6 +194,7 @@ my @DEFAULT_SUITES= qw(
     roles-
     rpl-
     sys_vars-
+    sql_sequence-
     unit-
     vcol-
     wsrep-
@@ -4234,7 +4235,7 @@ sub extract_server_log ($$) {
 	push(@lines, $line);
 	if (scalar(@lines) > 1000000) {
 	  $Ferr = undef;
-	  mtr_warning("Too much log from test, bailing out from extracting");
+	  mtr_warning("Too much log in $error_log, bailing out from extracting");
 	  return ();
 	}
       }
