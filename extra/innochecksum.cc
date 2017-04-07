@@ -571,7 +571,6 @@ is_page_corrupted(
 	if (mach_read_from_4(buf+FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION) != 0) {
 		is_corrupted = fil_space_verify_crypt_checksum(
 			const_cast<byte*>(buf), page_size,
-			strict_verify, is_log_enabled ? log_file : NULL,
 			mach_read_from_4(buf
 					 + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID),
 			cur_page_num);
@@ -581,9 +580,7 @@ is_page_corrupted(
 
 	if (is_corrupted) {
 		is_corrupted = buf_page_is_corrupted(
-			true, buf, page_size, NULL,
-			cur_page_num, strict_verify,
-			is_log_enabled, log_file);
+			true, buf, page_size, NULL);
 	}
 
 	return(is_corrupted);

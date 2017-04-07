@@ -4973,19 +4973,7 @@ ibool
 page_zip_verify_checksum(
 /*=====================*/
 	const void*	data,		/*!< in: compressed page */
-	ulint		size		/*!< in: size of compressed page */
-#ifdef UNIV_INNOCHECKSUM
-	/* these variables are used only for innochecksum tool. */
-	,uintmax_t	page_no,	/*!< in: page number of
-					given read_buf */
-	bool		strict_check,	/*!< in: true if strict-check
-					option is enable */
-	bool		is_log_enabled,	/*!< in: true if log option is
-					enabled */
-	FILE*		log_file	/*!< in: file pointer to
-					log_file */
-#endif /* UNIV_INNOCHECKSUM */
-)
+	ulint		size)		/*!< in: size of compressed page */
 {
 	const unsigned char*	p = static_cast<const unsigned char*>(data)
 		+ FIL_PAGE_SPACE_OR_CHKSUM;
@@ -5023,9 +5011,9 @@ page_zip_verify_checksum(
 				break;
 		}
 		if (i >= size) {
-			if (is_log_enabled) {
+			if (log_file) {
 				fprintf(log_file, "Page::%lu is empty and"
-					" uncorrupted\n", page_no);
+					" uncorrupted\n", cur_page_num);
 			}
 
 			return(TRUE);
@@ -5061,28 +5049,28 @@ page_zip_verify_checksum(
 	const uint32_t	calc = page_zip_calc_checksum(data, size, curr_algo);
 
 #ifdef UNIV_INNOCHECKSUM
-	if (is_log_enabled) {
+	if (log_file) {
 		fprintf(log_file, "page::%lu;"
 			" %s checksum: calculated = %u;"
-			" recorded = %u\n", page_no,
+			" recorded = %u\n", cur_page_num,
 			buf_checksum_algorithm_name(
 				static_cast<srv_checksum_algorithm_t>(
 				srv_checksum_algorithm)),
 			calc, stored);
 	}
 
-	if (!strict_check) {
+	if (!strict_verify) {
 
 		const uint32_t	crc32 = page_zip_calc_checksum(
 			data, size, SRV_CHECKSUM_ALGORITHM_CRC32);
 
-		if (is_log_enabled) {
+		if (log_file) {
 			fprintf(log_file, "page::%lu: crc32 checksum:"
 				" calculated = %u; recorded = %u\n",
-				page_no, crc32, stored);
+				cur_page_num, crc32, stored);
 			fprintf(log_file, "page::%lu: none checksum:"
 				" calculated = %lu; recorded = %u\n",
-				page_no, BUF_NO_CHECKSUM_MAGIC, stored);
+				cur_page_num, BUF_NO_CHECKSUM_MAGIC, stored);
 		}
 	}
 #endif /* UNIV_INNOCHECKSUM */

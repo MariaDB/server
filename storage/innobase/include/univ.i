@@ -108,6 +108,12 @@ support cross-platform development and expose comonly used SQL names. */
 #include <unistd.h>
 #endif
 
+#ifdef UNIV_INNOCHECKSUM
+extern bool 		strict_verify;
+extern FILE* 		log_file;
+extern uintmax_t	cur_page_num;
+#endif /* UNIV_INNOCHECKSUM */
+
 #include "my_pthread.h"
 /* Following defines are to enable performance schema
 instrumentation in each of five InnoDB modules if

@@ -492,10 +492,6 @@ bool
 fil_space_verify_crypt_checksum(
 	byte* 			page,
 	const page_size_t&	page_size,
-#ifdef UNIV_INNOCHECKSUM
-	bool			strict_check,	/*!< --strict-check */
-	FILE*			log_file,	/*!< --log */
-#endif /* UNIV_INNOCHECKSUM */
 	ulint			space,
 	ulint			offset)
 	MY_ATTRIBUTE((warn_unused_result));
