@@ -391,7 +391,7 @@ const LEX_STRING command_name[257]={
   { 0, 0 }, //247
   { 0, 0 }, //248
   { 0, 0 }, //249
-  { 0, 0 }, //250
+  { C_STRING_WITH_LEN("Bulk_execute") }, //250
   { C_STRING_WITH_LEN("Slave_worker") }, //251
   { C_STRING_WITH_LEN("Slave_IO") }, //252
   { C_STRING_WITH_LEN("Slave_SQL") }, //253
@@ -1747,6 +1747,11 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
       my_free(save_db);
       my_free(save_security_ctx.user);
     }
+    break;
+  }
+  case COM_STMT_BULK_EXECUTE:
+  {
+    mysqld_stmt_bulk_execute(thd, packet, packet_length);
     break;
   }
   case COM_STMT_EXECUTE:

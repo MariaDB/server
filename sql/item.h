@@ -2873,10 +2873,8 @@ public:
   };
 
   /*
-    Used for bulk protocol. Indicates if we should expect
-    indicators byte before value of the parameter
+    Used for bulk protocol only.
   */
-  my_bool indicators;
   enum enum_indicator_type indicator;
 
   /*
