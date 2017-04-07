@@ -922,42 +922,6 @@ innodb_encrypt_tables_validate(
 
 static const char innobase_hton_name[]= "InnoDB";
 
-static const char*	deprecated_innodb_support_xa
-	= "Using innodb_support_xa is deprecated and the"
-	" parameter may be removed in future releases.";
-
-static const char*	deprecated_innodb_support_xa_off
-	= "Using innodb_support_xa is deprecated and the"
-	" parameter may be removed in future releases."
-	" Only innodb_support_xa=ON is allowed.";
-
-/** Update the session variable innodb_support_xa.
-@param[in]	thd	current session
-@param[in]	var	the system variable innodb_support_xa
-@param[in,out]	var_ptr	the contents of the variable
-@param[in]	save	the to-be-updated value */
-static
-void
-innodb_support_xa_update(
-	THD*				thd,
-	struct st_mysql_sys_var*	var,
-	void*				var_ptr,
-	const void*			save)
-{
-	my_bool	innodb_support_xa = *static_cast<const my_bool*>(save);
-
-	push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
-		     HA_ERR_WRONG_COMMAND,
-		     innodb_support_xa
-		     ? deprecated_innodb_support_xa
-		     : deprecated_innodb_support_xa_off);
-}
-
-static MYSQL_THDVAR_BOOL(support_xa, PLUGIN_VAR_OPCMDARG,
-  "Enable InnoDB support for the XA two-phase commit",
-  /* check_func */ NULL, innodb_support_xa_update,
-  /* default */ TRUE);
-
 static MYSQL_THDVAR_BOOL(table_locks, PLUGIN_VAR_OPCMDARG,
   "Enable InnoDB locking in LOCK TABLES",
   /* check_func */ NULL, /* update_func */ NULL,
@@ -4127,11 +4091,6 @@ innobase_init(
 
 	if (!innobase_large_prefix) {
 		ib::warn() << deprecated_large_prefix;
-	}
-
-	if (!THDVAR(NULL, support_xa)) {
-		ib::warn() << deprecated_innodb_support_xa_off;
-		THDVAR(NULL, support_xa) = TRUE;
 	}
 
 	if (innobase_file_format_name != innodb_file_format_default) {
@@ -21870,7 +21829,6 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(replication_delay),
   MYSQL_SYSVAR(status_file),
   MYSQL_SYSVAR(strict_mode),
-  MYSQL_SYSVAR(support_xa),
   MYSQL_SYSVAR(sort_buffer_size),
   MYSQL_SYSVAR(online_alter_log_max_size),
   MYSQL_SYSVAR(sync_spin_loops),
