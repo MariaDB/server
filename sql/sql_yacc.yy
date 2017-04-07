@@ -799,6 +799,7 @@ Virtual_column_info *add_virtual_expression(THD *thd, Item *expr)
   String *string;
   TABLE_LIST *table_list;
   Table_ident *table;
+  Qualified_column_ident *qualified_column_ident;
   char *simple_string;
   const char *const_simple_string;
   chooser_compare_func_creator boolfunc2creator;
@@ -1275,6 +1276,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  NUMERIC_SYM                   /* SQL-2003-R */
 %token  NTH_VALUE_SYM                 /* SQL-2011 */
 %token  NVARCHAR_SYM
+%token  OF_SYM                        /* SQL-1992-R, Oracle-R */
 %token  OFFSET_SYM
 %token  OLD_PASSWORD_SYM
 %token  ON                            /* SQL-2003-R */
@@ -1593,6 +1595,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
         opt_component key_cache_name
         sp_opt_label BIN_NUM label_ident TEXT_STRING_filesystem ident_or_empty
         opt_constraint constraint opt_ident
+        sp_decl_ident
         sp_block_label
 
 %type <lex_string_with_metadata>
@@ -1608,6 +1611,10 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %type <table>
         table_ident table_ident_nodb references xid
         table_ident_opt_wild create_like
+
+%type <qualified_column_ident>
+        qualified_column_ident
+        optionally_qualified_column_ident
 
 %type <simple_string>
         remember_name remember_end opt_db remember_tok_start
@@ -1884,9 +1891,10 @@ END_OF_INPUT
 %type <NONE> case_stmt_specification
 %type <NONE> loop_body while_body repeat_body
 
-%type <num>  sp_decl_idents sp_handler_type sp_hcond_list
+%type <num> sp_decl_idents sp_decl_idents_init_vars
+%type <num> sp_handler_type sp_hcond_list
 %type <spcondvalue> sp_cond sp_hcond sqlstate signal_value opt_signal_value
-%type <spblock> sp_decls sp_decl sp_decl_body
+%type <spblock> sp_decls sp_decl sp_decl_body sp_decl_variable_list
 %type <spname> sp_name
 %type <spvar> sp_param_name sp_param_name_and_type
 %type <spvar_mode> sp_opt_inout
@@ -1910,7 +1918,7 @@ END_OF_INPUT
 %type <cond_info_list> condition_information;
 
 %type <spvar_definition> row_field_name row_field_definition
-%type <spvar_definition_list> row_field_definition_list field_type_row
+%type <spvar_definition_list> row_field_definition_list row_type_body
 
 %type <NONE> opt_window_clause window_def_list window_def window_spec
 %type <lex_str_ptr> window_name
@@ -2865,13 +2873,17 @@ sp_param_name_and_type:
             if (Lex->sp_param_fill_definition($$= $1))
               MYSQL_YYABORT;
           }
-        | sp_param_name field_type_row
+        | sp_param_name TYPE_SYM OF_SYM qualified_column_ident
+          {
+            Lex->sphead->fill_spvar_using_type_reference($$= $1, $4);
+          }
+        | sp_param_name ROW_SYM row_type_body
           {
             $$= $1;
             $$->field_def.field_name= $$->name.str;
             Lex->sphead->fill_spvar_definition(thd, &$$->field_def);
-            Lex->sphead->row_fill_field_definitions(thd, $2);
-            $$->field_def.set_row_field_definitions($2);
+            Lex->sphead->row_fill_field_definitions(thd, $3);
+            $$->field_def.set_row_field_definitions($3);
           }
         ;
 
@@ -2951,6 +2963,40 @@ sp_decl:
           DECLARE_SYM sp_decl_body { $$= $2; }
         ;
 
+
+qualified_column_ident:
+          sp_decl_ident '.' ident
+          {
+            if (!($$= new (thd->mem_root) Qualified_column_ident($1, $3)))
+              MYSQL_YYABORT;
+          }
+        | sp_decl_ident '.' ident '.' ident
+          {
+            if (!($$= new (thd->mem_root) Qualified_column_ident(thd,
+                                                                 $1, $3, $5)))
+              MYSQL_YYABORT;
+          }
+        ;
+
+optionally_qualified_column_ident:
+          sp_decl_ident
+          {
+            if (!($$= new (thd->mem_root) Qualified_column_ident($1)))
+              MYSQL_YYABORT;
+          }
+        | sp_decl_ident '.' ident
+          {
+            if (!($$= new (thd->mem_root) Qualified_column_ident($1, $3)))
+              MYSQL_YYABORT;
+          }
+        | sp_decl_ident '.' ident '.' ident
+          {
+            if (!($$= new (thd->mem_root) Qualified_column_ident(thd,
+                                                                 $1, $3, $5)))
+              MYSQL_YYABORT;
+          }
+        ;
+
 row_field_name:
           ident
           {
@@ -2984,36 +3030,56 @@ row_field_definition_list:
           }
         ;
 
-field_type_row:
-          ROW_SYM '(' row_field_definition_list ')' { $$= $3; }
+row_type_body:
+         '(' row_field_definition_list ')' { $$= $2; }
         ;
 
-
-sp_decl_body:
+sp_decl_idents_init_vars:
           sp_decl_idents
           {
             Lex->sp_variable_declarations_init(thd, $1);
           }
+        ;
+
+sp_decl_variable_list:
+          sp_decl_idents_init_vars
           type_with_opt_collate
           sp_opt_default
           {
             if (Lex->sp_variable_declarations_finalize(thd, $1,
-                                                       &Lex->last_field[0], $4))
+                                                       &Lex->last_field[0], $3))
               MYSQL_YYABORT;
             $$.init_using_vars($1);
           }
-        | sp_decl_idents
+        | sp_decl_idents_init_vars
+          TYPE_SYM OF_SYM optionally_qualified_column_ident
+          sp_opt_default
           {
-            Lex->sp_variable_declarations_init(thd, $1);
+            if (Lex->sp_variable_declarations_with_ref_finalize(thd, $1, $4, $5))
+              MYSQL_YYABORT;
+            $$.init_using_vars($1);
           }
-          field_type_row
+        | sp_decl_idents_init_vars
+          ROW_SYM TYPE_SYM OF_SYM optionally_qualified_column_ident
+          sp_opt_default
+          {
+            if (Lex->sp_variable_declarations_rowtype_finalize(thd, $1, $5, $6))
+              MYSQL_YYABORT;
+            $$.init_using_vars($1);
+          }
+        | sp_decl_idents_init_vars
+          ROW_SYM row_type_body
           sp_opt_default
           {
             if (Lex->sp_variable_declarations_row_finalize(thd, $1, $3, $4))
               MYSQL_YYABORT;
             $$.init_using_vars($1);
           }
-        | ident CONDITION_SYM FOR_SYM sp_cond
+        ;
+
+sp_decl_body:
+          sp_decl_variable_list
+        | sp_decl_ident CONDITION_SYM FOR_SYM sp_cond
           {
             if (Lex->spcont->declare_condition(thd, $1, $4))
               MYSQL_YYABORT;
@@ -3032,7 +3098,7 @@ sp_decl_body:
             $$.vars= $$.conds= $$.curs= 0;
             $$.hndlrs= 1;
           }
-        | ident CURSOR_SYM
+        | sp_decl_ident CURSOR_SYM
           {
             Lex->sp_block_init(thd);
           }
@@ -3449,8 +3515,12 @@ condition_information_item_name:
           { $$= Condition_information_item::RETURNED_SQLSTATE; }
         ;
 
+sp_decl_ident:
+          ident { $$= $1; }
+        ;
+
 sp_decl_idents:
-          ident
+          sp_decl_ident
           {
             /* NOTE: field definition is filled in sp_decl section. */
 
@@ -14447,6 +14517,7 @@ keyword_sp:
         | NOTFOUND_SYM             {}
         | NUMBER_SYM               {}
         | NVARCHAR_SYM             {}
+        | OF_SYM                   {} /* SQL-1999-R, Oracle-R */
         | OFFSET_SYM               {}
         | OLD_PASSWORD_SYM         {}
         | ONE_SYM                  {}

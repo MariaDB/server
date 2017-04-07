@@ -424,6 +424,7 @@ static SYMBOL symbols[] = {
   { "NUMBER",           SYM(NUMBER_SYM)},
   { "NUMERIC",		SYM(NUMERIC_SYM)},
   { "NVARCHAR",		SYM(NVARCHAR_SYM)},
+  { "OF",		SYM(OF_SYM)},
   { "OFFSET",		SYM(OFFSET_SYM)},
   { "OLD_PASSWORD",	SYM(OLD_PASSWORD_SYM)},
   { "ON",		SYM(ON)},

@@ -691,6 +691,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  NUMERIC_SYM                   /* SQL-2003-R */
 %token  NTH_VALUE_SYM                 /* SQL-2011 */
 %token  NVARCHAR_SYM
+%token  OF_SYM                        /* SQL-1992-R, Oracle-R */
 %token  OFFSET_SYM
 %token  OLD_PASSWORD_SYM
 %token  ON                            /* SQL-2003-R */
@@ -14771,6 +14772,7 @@ keyword_sp_not_data_type:
         | NODEGROUP_SYM            {}
         | NONE_SYM                 {}
         | NOTFOUND_SYM             {}
+        | OF_SYM                   {} /* SQL-1999-R, Oracle-R */
         | OFFSET_SYM               {}
         | OLD_PASSWORD_SYM         {}
         | ONE_SYM                  {}

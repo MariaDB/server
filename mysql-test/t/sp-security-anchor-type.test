@@ -1,0 +1,328 @@
+--source include/not_embedded.inc
+
+--echo #
+--echo # MDEV-12461 TYPE OF and ROW TYPE OF anchored data types
+--echo #
+
+
+--echo #
+--echo # Initiation:
+--echo # - creating database db1
+--echo # - creating user user1 with access rights to db1
+--echo #
+
+CREATE DATABASE db1;
+CREATE TABLE db1.t1 (a INT, b VARCHAR(10));
+
+CREATE USER user1;
+
+GRANT ALL PRIVILEGES ON test.* TO user1;
+
+connect (conn1,localhost,user1,,test);
+
+SELECT database();
+SELECT user();
+
+--echo #
+--echo # Making sure that user1 does not have privileges to db1.t1
+--echo #
+
+--error ER_TABLEACCESS_DENIED_ERROR
+SHOW CREATE TABLE db1.t1;
+--error ER_TABLEACCESS_DENIED_ERROR
+SHOW FIELDS IN db1.t1;
+
+
+--echo #
+--echo # Trigger: using TYPE OF with a table we don't have access to
+--echo #
+CREATE TABLE test.t1 (a INT, b INT);
+INSERT INTO test.t1 (a,b) VALUES (10,20);
+SELECT * FROM t1;
+DELIMITER $$;
+CREATE TRIGGER test.tr1 BEFORE INSERT ON test.t1 FOR EACH ROW
+BEGIN
+  DECLARE b TYPE OF db1.t1.b DEFAULT 20;
+  SET NEW.b = 10;
+END
+$$
+DELIMITER ;$$
+--error ER_TABLEACCESS_DENIED_ERROR
+INSERT INTO t1 (a) VALUES (10);
+SELECT * FROM t1;
+DROP TRIGGER tr1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # Stored procedure: Using TYPE OF for with a table that we don't have access to
+--echo # DEFINER user1, SQL SECURITY DEFAULT
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE a TYPE OF db1.t1.a DEFAULT 10;
+  SELECT a;
+END;
+$$
+DELIMITER ;$$
+--error ER_TABLEACCESS_DENIED_ERROR
+CALL p1;
+DROP PROCEDURE p1;
+
+#DELIMITER $$;
+#CREATE PROCEDURE p1()
+#BEGIN
+#  DECLARE a ROW TYPE OF db1.t1;
+#  SELECT a.a;
+#END;
+#$$
+#DELIMITER ;$$
+#--error ER_TABLEACCESS_DENIED_ERROR
+#CALL p1;
+#DROP PROCEDURE p1;
+
+
+--echo #
+--echo # Stored procedure: Using TYPE OF for with a table that we don't have access to
+--echo # DEFINER root, SQL SECURITY INVOKER
+--echo #
+
+connection default;
+DELIMITER $$;
+CREATE PROCEDURE p1()
+SQL SECURITY INVOKER
+BEGIN
+  DECLARE a TYPE OF db1.t1.a DEFAULT 10;
+  SELECT a;
+END;
+$$
+DELIMITER ;$$
+connection conn1;
+--error ER_TABLEACCESS_DENIED_ERROR
+CALL p1;
+DROP PROCEDURE p1;
+
+
+connection default;
+DELIMITER $$;
+CREATE PROCEDURE p1()
+SQL SECURITY INVOKER
+BEGIN
+  DECLARE a ROW TYPE OF db1.t1;
+  SELECT a.a;
+END;
+$$
+DELIMITER ;$$
+connection conn1;
+--error ER_TABLEACCESS_DENIED_ERROR
+CALL p1;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # Stored procedure: Using TYPE OF for with a table that we don't have access to
+--echo # DEFINER root, SQL SECURITY DEFINER
+--echo #
+
+connection default;
+DELIMITER $$;
+CREATE PROCEDURE p1()
+SQL SECURITY DEFINER
+BEGIN
+  DECLARE a TYPE OF db1.t1.a DEFAULT 10;
+  SELECT a;
+END;
+$$
+DELIMITER ;$$
+connection conn1;
+CALL p1;
+DROP PROCEDURE p1;
+
+connection default;
+DELIMITER $$;
+CREATE PROCEDURE p1()
+SQL SECURITY DEFINER
+BEGIN
+  DECLARE a ROW TYPE OF db1.t1;
+  SET a.a= 10;
+  SELECT a.a;
+END;
+$$
+DELIMITER ;$$
+connection conn1;
+CALL p1;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # Stored function: Using TYPE OF for with a table that we don't have access to
+--echo # DEFINER user1, SQL SECURITY DEFAULT
+--echo #
+
+CREATE TABLE t1 (a INT);
+DELIMITER $$;
+CREATE FUNCTION f1() RETURNS INT
+BEGIN
+  DECLARE a TYPE OF db1.t1.a DEFAULT 0;
+  RETURN OCTET_LENGTH(a);
+END;
+$$
+DELIMITER ;$$
+--error ER_TABLEACCESS_DENIED_ERROR
+SELECT f1();
+DROP FUNCTION f1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # Stored function: Using TYPE OF for with a table that we don't have access to
+--echo # DEFINER root, SQL SECURITY INVOKER
+--echo #
+
+connection default;
+CREATE TABLE t1 (a INT);
+DELIMITER $$;
+CREATE FUNCTION f1() RETURNS INT
+SQL SECURITY INVOKER
+BEGIN
+  DECLARE a TYPE OF db1.t1.a DEFAULT 0;
+  RETURN OCTET_LENGTH(a);
+END;
+$$
+DELIMITER ;$$
+connection conn1;
+--error ER_TABLEACCESS_DENIED_ERROR
+SELECT f1();
+DROP FUNCTION f1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # Stored function: Using TYPE OF for with a table that we don't have access to
+--echo # DEFINER root, SQL SECURITY DEFINER
+--echo #
+
+connection default;
+CREATE TABLE t1 (a INT);
+DELIMITER $$;
+CREATE FUNCTION f1() RETURNS INT
+SQL SECURITY DEFINER
+BEGIN
+  DECLARE a TYPE OF db1.t1.a DEFAULT 0;
+  RETURN OCTET_LENGTH(a);
+END;
+$$
+DELIMITER ;$$
+connection conn1;
+SELECT f1();
+DROP FUNCTION f1;
+DROP TABLE t1;
+
+
+connection default;
+GRANT SELECT (a) ON db1.t1 TO user1;
+connection conn1;
+
+--echo #
+--echo # Making sure that user1 has access to db1.t1.a, but not to db1.t1.b
+--echo #
+
+--error ER_TABLEACCESS_DENIED_ERROR
+SHOW CREATE TABLE db1.t1;
+SHOW FIELDS IN db1.t1;
+
+--echo #
+--echo # Trigger: Per-column privileges
+--echo #
+CREATE TABLE test.t1 (a INT, b INT);
+INSERT INTO test.t1 (a,b) VALUES (10,20);
+SELECT * FROM t1;
+# TYPE OF reference using a column we have access to
+DELIMITER $$;
+CREATE TRIGGER test.tr1 BEFORE INSERT ON test.t1 FOR EACH ROW
+BEGIN
+  DECLARE a TYPE OF db1.t1.a DEFAULT 20;
+  BEGIN
+    SET NEW.b := 10;
+  END;
+END
+$$
+DELIMITER ;$$
+INSERT INTO t1 (a) VALUES (10);
+SELECT * FROM t1;
+DROP TRIGGER tr1;
+# TYPE OF reference using a column that we don't have access to
+DELIMITER $$;
+CREATE TRIGGER test.tr1 BEFORE INSERT ON test.t1 FOR EACH ROW
+BEGIN
+  DECLARE b TYPE OF db1.t1.b DEFAULT 20;
+  BEGIN
+    SET NEW.b = 10;
+  END;
+END
+$$
+DELIMITER ;$$
+--error ER_COLUMNACCESS_DENIED_ERROR
+INSERT INTO t1 (a) VALUES (10);
+SELECT * FROM t1;
+DROP TRIGGER tr1;
+DROP TABLE t1;
+
+
+
+--echo #
+--echo # Stored procedure: Per-column privileges
+--echo # DEFINER user1, SQL SECURITY DEFAULT
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE a TYPE OF db1.t1.a DEFAULT 10;
+  SELECT a;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE b TYPE OF db1.t1.b DEFAULT 10;
+  SELECT b;
+END;
+$$
+DELIMITER ;$$
+--error ER_COLUMNACCESS_DENIED_ERROR
+CALL p1;
+DROP PROCEDURE p1;
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE b ROW TYPE OF db1.t1;
+  SET b.b=10;
+  SELECT b.b;
+END;
+$$
+DELIMITER ;$$
+--error ER_COLUMNACCESS_DENIED_ERROR
+CALL p1;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # Clean up
+--echo #
+disconnect conn1;
+connection default;
+
+DROP USER user1;
+DROP DATABASE db1;
+
+--echo #
+--echo # End of MDEV-12461 TYPE OF and ROW TYPE OF anchored data types
+--echo #
