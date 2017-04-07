@@ -9292,7 +9292,7 @@ int Create_file_log_event::do_apply_event(rpl_group_info *rgi)
   char *ext;
   int fd = -1;
   IO_CACHE file;
-  Log_event_writer lew(&file);
+  Log_event_writer lew(&file, 0);
   int error = 1;
   Relay_log_info const *rli= rgi->rli;
 
