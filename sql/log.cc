@@ -61,6 +61,8 @@
 #define MAX_LOG_BUFFER_SIZE 1024
 #define MAX_TIME_SIZE 32
 #define MY_OFF_T_UNDEF (~(my_off_t)0UL)
+/* Truncate cache log files bigger than this */
+#define CACHE_FILE_TRUNC_SIZE 65536
 
 #define FLAGSTR(V,F) ((V)&(F)?#F" ":"")
 
@@ -313,24 +315,19 @@ public:
 
   void reset()
   {
-    compute_statistics();
-    truncate(0);
-    if(cache_log.file != -1)
+    bool cache_was_empty= empty();
+    bool truncate_file= (cache_log.file != -1 &&
+                         my_b_write_tell(&cache_log) > CACHE_FILE_TRUNC_SIZE);
+    truncate(0,1);                              // Forget what's in cache
+    if (!cache_was_empty)
+      compute_statistics();
+    if (truncate_file)
       my_chsize(cache_log.file, 0, 0, MYF(MY_WME));
 
     changes_to_non_trans_temp_table_flag= FALSE;
     status= 0;
     incident= FALSE;
     before_stmt_pos= MY_OFF_T_UNDEF;
-    /*
-      The truncate function calls reinit_io_cache that calls
-      my_b_flush_io_cache which may increase disk_writes. This breaks
-      the disk_writes use by the binary log which aims to compute the
-      ratio between in-memory cache usage and disk cache usage. To
-      avoid this undesirable behavior, we reset the variable after
-      truncating the cache.
-    */
-    cache_log.disk_writes= 0;
     DBUG_ASSERT(empty());
   }
 
@@ -437,11 +434,16 @@ private:
   */
   void compute_statistics()
   {
-    if (!empty())
+    statistic_increment(*ptr_binlog_cache_use, &LOCK_status);
+    if (cache_log.disk_writes != 0)
     {
-      statistic_increment(*ptr_binlog_cache_use, &LOCK_status);
-      if (cache_log.disk_writes != 0)
-        statistic_increment(*ptr_binlog_cache_disk_use, &LOCK_status);
+#ifdef REAL_STATISTICS
+      statistic_add(*ptr_binlog_cache_disk_use,
+                    cache_log.disk_writes, &LOCK_status);
+#else
+      statistic_increment(*ptr_binlog_cache_disk_use, &LOCK_status);
+#endif
+      cache_log.disk_writes= 0;
     }
   }
 
@@ -470,7 +472,7 @@ private:
     It truncates the cache to a certain position. This includes deleting the
     pending event.
    */
-  void truncate(my_off_t pos)
+  void truncate(my_off_t pos, bool reset_cache=0)
   {
     DBUG_PRINT("info", ("truncating to position %lu", (ulong) pos));
     if (pending())
@@ -478,7 +480,7 @@ private:
       delete pending();
       set_pending(0);
     }
-    reinit_io_cache(&cache_log, WRITE_CACHE, pos, 0, 0);
+    reinit_io_cache(&cache_log, WRITE_CACHE, pos, 0, reset_cache);
     cache_log.end_of_file= saved_max_binlog_cache_size;
   }
  
