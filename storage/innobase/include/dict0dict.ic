@@ -393,13 +393,9 @@ dict_index_is_sec_or_ibuf(
 /*======================*/
 	const dict_index_t*	index)	/*!< in: index */
 {
-	ulint	type;
-
 	ut_ad(index->magic_n == DICT_INDEX_MAGIC_N);
 
-	type = index->type;
-
-	return(!(type & DICT_CLUSTERED) || (type & DICT_IBUF));
+	return((index->type & (DICT_CLUSTERED | DICT_IBUF)) != DICT_CLUSTERED);
 }
 
 /********************************************************************//**
