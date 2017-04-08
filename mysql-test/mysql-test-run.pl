@@ -190,6 +190,7 @@ my @DEFAULT_SUITES= qw(
     percona-
     perfschema-
     plugins-
+    rocksdb-
     roles-
     rpl-
     sys_vars-
