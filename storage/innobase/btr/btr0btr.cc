@@ -1602,7 +1602,8 @@ btr_page_reorganize_low(
 	/* Copy the PAGE_MAX_TRX_ID or PAGE_ROOT_AUTO_INC. */
 	memcpy(page + (PAGE_HEADER + PAGE_MAX_TRX_ID),
 	       temp_page + (PAGE_HEADER + PAGE_MAX_TRX_ID), 8);
-	/* PAGE_MAX_TRX_ID is unused in clustered index pages,
+	/* PAGE_MAX_TRX_ID is unused in clustered index pages
+	(other than the root where it is repurposed as PAGE_ROOT_AUTO_INC),
 	non-leaf pages, and in temporary tables. It was always
 	zero-initialized in page_create() in all InnoDB versions.
 	PAGE_MAX_TRX_ID must be nonzero on dict_index_is_sec_or_ibuf()
@@ -1981,6 +1982,36 @@ btr_root_raise_and_insert(
 
 		btr_search_move_or_delete_hash_entries(new_block, root_block,
 						       index);
+	}
+
+	if (dict_index_is_sec_or_ibuf(index)) {
+		/* In secondary indexes and the change buffer,
+		PAGE_MAX_TRX_ID can be reset on the root page, because
+		the field only matters on leaf pages, and the root no
+		longer is a leaf page. (Older versions of InnoDB did
+		set PAGE_MAX_TRX_ID on all secondary index pages.) */
+		if (root_page_zip) {
+			page_zip_write_header(
+				root_page_zip,
+				PAGE_HEADER + PAGE_MAX_TRX_ID
+				+ root, 0, mtr);
+		} else {
+			mlog_write_ull(PAGE_HEADER + PAGE_MAX_TRX_ID
+				       + root, 0, mtr);
+		}
+	} else {
+		/* PAGE_ROOT_AUTO_INC is only present in the clustered index
+		root page; on other clustered index pages, we want to reserve
+		the field PAGE_MAX_TRX_ID for future use. */
+		if (new_page_zip) {
+			page_zip_write_header(
+				new_page_zip,
+				PAGE_HEADER + PAGE_MAX_TRX_ID
+				+ new_page, 0, mtr);
+		} else {
+			mlog_write_ull(PAGE_HEADER + PAGE_MAX_TRX_ID
+				       + new_page, 0, mtr);
+		}
 	}
 
 	/* If this is a pessimistic insert which is actually done to

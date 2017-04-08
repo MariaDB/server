@@ -468,16 +468,6 @@ protected:
 		return(DB_SUCCESS);
 	}
 
-	/**
-	@return true if it is a root page */
-	bool is_root_page(const page_t* page) const UNIV_NOTHROW
-	{
-		ut_ad(fil_page_index_page_check(page));
-
-		return(mach_read_from_4(page + FIL_PAGE_NEXT) == FIL_NULL
-		       && mach_read_from_4(page + FIL_PAGE_PREV) == FIL_NULL);
-	}
-
 	/** Check if the page is marked as free in the extent descriptor.
 	@param page_no page number to check in the extent descriptor.
 	@return true if the page is marked as free */
@@ -669,7 +659,7 @@ FetchIndexRootPages::operator() (
 		err = set_current_xdes(block->page.id.page_no(), page);
 	} else if (fil_page_index_page_check(page)
 		   && !is_free(block->page.id.page_no())
-		   && is_root_page(page)) {
+		   && page_is_root(page)) {
 
 		index_id_t	id = btr_page_get_index_id(page);
 
@@ -1831,12 +1821,28 @@ PageConverter::update_index_page(
 	btr_page_set_index_id(
 		page, m_page_zip_ptr, m_index->m_srv_index->id, 0);
 
-	page_set_max_trx_id(block, m_page_zip_ptr, m_trx->id, 0);
+	if (dict_index_is_clust(m_index->m_srv_index)) {
+		if (page_is_root(page)) {
+			/* Preserve the PAGE_ROOT_AUTO_INC. */
+		} else {
+			/* Clear PAGE_MAX_TRX_ID so that it can be
+			used for other purposes in the future. IMPORT
+			in MySQL 5.6, 5.7 and MariaDB 10.0 and 10.1
+			would set the field to the transaction ID even
+			on clustered index pages. */
+			page_set_max_trx_id(block, m_page_zip_ptr, 0, NULL);
+		}
+	} else {
+		/* Set PAGE_MAX_TRX_ID on secondary index leaf pages,
+		and clear it on non-leaf pages. */
+		page_set_max_trx_id(block, m_page_zip_ptr,
+				    page_is_leaf(page) ? m_trx->id : 0, NULL);
+	}
 
-	if (page_is_empty(block->frame)) {
+	if (page_is_empty(page)) {
 
 		/* Only a root page can be empty. */
-		if (!is_root_page(block->frame)) {
+		if (!page_is_root(page)) {
 			// TODO: We should relax this and skip secondary
 			// indexes. Mark them as corrupt because they can
 			// always be rebuilt.
