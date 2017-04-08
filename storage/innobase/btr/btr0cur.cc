@@ -2175,7 +2175,7 @@ btr_cur_open_at_index_side_func(
 		page = buf_block_get_frame(block);
 
 		if (height == ULINT_UNDEFINED
-		    && btr_page_get_level(page, mtr) == 0
+		    && page_is_leaf(page)
 		    && rw_latch != RW_NO_LATCH
 		    && rw_latch != root_leaf_rw_latch) {
 			/* We should retry to get the page, because the root page
@@ -2532,7 +2532,7 @@ btr_cur_open_at_rnd_pos_func(
 		page = buf_block_get_frame(block);
 
 		if (height == ULINT_UNDEFINED
-		    && btr_page_get_level(page, mtr) == 0
+		    && page_is_leaf(page)
 		    && rw_latch != RW_NO_LATCH
 		    && rw_latch != root_leaf_rw_latch) {
 			/* We should retry to get the page, because the root page
