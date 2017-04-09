@@ -263,6 +263,7 @@ bool sequence_insert(THD *thd, LEX *lex, TABLE_LIST *table_list)
   int error;
   TABLE *table;
   TABLE_LIST::enum_open_strategy save_open_strategy;
+  Reprepare_observer *save_reprepare_observer;
   sequence_definition *seq= lex->create_info.seq_create_info;
   bool temporary_table= table_list->table != 0;
   MY_BITMAP *save_write_set;
@@ -281,6 +282,12 @@ bool sequence_insert(THD *thd, LEX *lex, TABLE_LIST *table_list)
     */
     thd->open_options|= HA_OPEN_FOR_CREATE;
     save_open_strategy= table_list->open_strategy;
+    /*
+      We have to reset the reprepare observer to be able to open the
+      table under prepared statements.
+    */
+    save_reprepare_observer= thd->m_reprepare_observer;
+    thd->m_reprepare_observer= 0;
     table_list->open_strategy= TABLE_LIST::OPEN_IF_EXISTS;
     table_list->open_type= OT_BASE_ONLY;
     error= open_and_lock_tables(thd, table_list, FALSE,
@@ -288,6 +295,7 @@ bool sequence_insert(THD *thd, LEX *lex, TABLE_LIST *table_list)
                                 MYSQL_OPEN_HAS_MDL_LOCK);
     table_list->open_strategy= save_open_strategy;
     thd->open_options&= ~HA_OPEN_FOR_CREATE;
+    thd->m_reprepare_observer= save_reprepare_observer;
     if (error)
       DBUG_RETURN(TRUE); /* purify inspected */
   }
