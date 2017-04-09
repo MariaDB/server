@@ -338,7 +338,9 @@ read_cnf()
 
     if [[ $ssyslog -ne -1 ]];then 
         if my_print_defaults -c $WSREP_SST_OPT_CONF mysqld_safe | tr '_' '-' | grep -q -- "--syslog";then 
-            ssyslog=1
+            if ! my_print_defaults -c $WSREP_SST_OPT_CONF --mysqld | tr '_' '-' | grep -q -- "--log-error";then
+                ssyslog=1
+            fi
         fi
     fi
 }
