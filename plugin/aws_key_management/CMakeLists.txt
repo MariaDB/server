@@ -112,7 +112,7 @@ ELSE()
   ExternalProject_Add(
     aws_sdk_cpp
     GIT_REPOSITORY "https://github.com/awslabs/aws-sdk-cpp.git"
-    GIT_TAG "1.0.8"
+    GIT_TAG "1.0.100"
     UPDATE_COMMAND ""
     SOURCE_DIR "${CMAKE_CURRENT_BINARY_DIR}/aws-sdk-cpp"
     ${byproducts}
