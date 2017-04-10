@@ -10,6 +10,8 @@ git:
 language: cpp
 os:
   - linux
+  - osx
+osx_image: xcode8.3
 compiler:
   - gcc
   - clang
@@ -18,48 +20,37 @@ cache:
   apt: true
   ccache: true
   directories:
-    - /usr/local
+    - /usr/local/Cellar
 
 env:
   matrix:
-    - GCC_VERSION=4.8
-    - GCC_VERSION=5
-    - GCC_VERSION=6
+#    - GCC_VERSION=4.8 TYPE=Debug          MYSQL_TEST_SUITES=rpl
+#    - GCC_VERSION=5   TYPE=Debug          MYSQL_TEST_SUITES=main,archive,optimizer_unfixed_bugs,parts,sys_vars,unit,vcol,innodb,innodb_gis,innodb_zip,innodb_fts
+#    - GCC_VERSION=6   TYPE=Debug          MYSQL_TEST_SUITES=binlog,binlog_encryption,encryption,rocksdb
+#    - GCC_VERSION=6   TYPE=Debug          MYSQL_TEST_SUITES=csv,federated,funcs_1,funcs_2,gcol,handler,heap,json,maria,percona,perfschema,plugins,multi_source,roles
+    - GCC_VERSION=4.8 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=rpl
+    - GCC_VERSION=5   TYPE=RelWithDebInfo MYSQL_TEST_SUITES=main,archive,optimizer_unfixed_bugs,parts,sys_vars,unit,vcol,innodb,innodb_gis,innodb_zip,innodb_fts
+    - GCC_VERSION=6   TYPE=RelWithDebInfo MYSQL_TEST_SUITES=binlog,binlog_encryption,encryption,rocksdb
+    - GCC_VERSION=6   TYPE=RelWithDebInfo MYSQL_TEST_SUITES=csv,federated,funcs_1,funcs_2,gcol,handler,heap,json,maria,percona,perfschema,plugins,multi_source,roles
 
 matrix:
-  allowed_failures:
+  exclude:
     - os: osx
-      env:
-        - GCC_VERSION=4.8
-        - GCC_VERSION=5
-        - GCC_VERSION=6
-      compiler:
-        - gcc
-        - clang
+      compiler: gcc
   include:
-    - os: osx
-      before_install:
-        - brew update
-        - brew install homebrew/boneyard/judy gnutls lz4 lzo xz snappy ccache
-        # Below fixed by: https://github.com/MariaDB/server/pull/347
-        - sed -i -e 's:/usr/bin/::g' cmake/libutils.cmake
+    - os: linux
+      compiler: gcc
       script:
-        - ccache --version
-        - cmake .
-                 -DOPENSSL_ROOT_DIR=/usr/local/opt/openssl
-                 -DCMAKE_C_COMPILER_LAUNCHER=/usr/local/bin/ccache
-                 -DCMAKE_CXX_COMPILER_LAUNCHER=/usr/local/bin/ccache
-                 -DCMAKE_BUILD_TYPE=Debug
-                 -DWITH_SSL=system -DWITH_ZLIB=system
-                 -DWITHOUT_TOKUDB_STORAGE_ENGINE=ON -DWITHOUT_MROONGA_STORAGE_ENGINE=ON
-        - make -j 4
-        - cd mysql-test
-        - ./mtr --force --parallel=4 --testcase-timeout=2
-               --suite=main,innodb
-               --skip-rpl
-               --skip-test-list=unstable-tests
+        - ${CC} --version ; ${CXX} --version
+      # Just for disabling hotcopy tests for now
+        - source .travis.compiler.sh
+      # https://github.com/travis-ci/travis-ci/issues/7062 - /run/shm isn't writable or executable
+      # in trusty containers
+        - export MTR_MEM=/tmp
+        - env DEB_BUILD_OPTIONS="parallel=6" debian/autobake-deb.sh;
         - ccache --show-stats
 
+# Matrix include for coverity
 #    - env:
 #        - GCC_VERSION=6
 #      addon:
@@ -77,8 +68,7 @@ matrix:
 #        build_command_prepend:
 #          - source .travis.compiler.sh
 #          - ${MYSQL_BUILD_CC} --version ; ${MYSQL_BUILD_CXX} --version
-#          - cmake . {MYSQL_BUILD_CXX:+-DCMAKE_CXX_COMPILER=$${MYSQL_BUILD_CXX}
-#                    {MYSQL_BUILD_CC:+-DCMAKE_C_COMPILER=$${MYSQL_BUILD_CC}
+#          - cmake . 
 #                   -DCMAKE_BUILD_TYPE=Debug
 #                   -DWITH_SSL=system -DWITH_ZLIB=system
 #                   -DWITHOUT_TOKUDB_STORAGE_ENGINE=ON -DWITHOUT_MROONGA_STORAGE_ENGINE=ON
@@ -103,12 +93,11 @@ addons:
       - g++-5
       - gcc-6
       - g++-6
-      - clang-3.8
-      - llvm-3.8-dev
       - clang-3.9
       - llvm-3.9-dev
       - clang-4.0
       - llvm-4.0-dev
+      - libasan0
       - bison
       - chrpath
       - cmake
@@ -118,6 +107,7 @@ addons:
       - gdb
       - libaio-dev
       - libboost-dev
+      - libcurl3-dev
       - libjudy-dev
       - libncurses5-dev
       - libpam0g-dev
@@ -142,19 +132,31 @@ addons:
 
 # libsystemd-daemon-dev # https://github.com/travis-ci/apt-package-whitelist/issues/3882
 
+before_install:
+  - if [[ "${TRAVIS_OS_NAME}" == 'osx' ]]; then
+      brew update;
+      brew install gnutls lz4 lzo xz snappy ccache jemalloc curl ossp-uuid pcre;
+      brew link ccache;
+    fi
+
 script:
-# mroonga just generates too many warnings with clang and travis stops the job
-# tokudb has fatal warnings
-  - if [[ "${TRAVIS_OS_NAME}" == 'linux' && "${CXX}" == 'clang++' ]]; then
-      rm -rf "${TRAVIS_BUILD_DIR}"/storage/{mroonga,tokudb};
-    fi   
+  - ccache --version
+# Clang:
+#   mroonga just generates too many warnings with clang and travis stops the job
+#   tokudb has fatal warnings
   - source .travis.compiler.sh
-  - ${MYSQL_BUILD_CC} --version ; ${MYSQL_BUILD_CXX} --version
-  - cd "${TRAVIS_BUILD_DIR}"
-# https://github.com/travis-ci/travis-ci/issues/7062 - /run/shm isn't writable or executable
-# in trusty containers
-  - export MTR_MEM=/tmp
-  - env DEB_BUILD_OPTIONS="parallel=3" debian/autobake-deb.sh;
+  - cmake .
+           -DCMAKE_BUILD_TYPE=${TYPE}
+           ${CMAKE_OPT}
+           -DWITH_SSL=system -DWITH_ZLIB=system -DPLUGIN_AWS_KEY_MANAGEMENT=DYNAMIC -DAWS_SDK_EXTERNAL_PROJECT=ON
+  - make -j 6
+  - cd mysql-test
+# With ASAN --thread-stack=400K to account for overhead
+# Test timeout needs to be 10(minutes) or less due to travis out timeout
+  - ./mtr --force --max-test-fail=20 --parallel=6 --testcase-timeout=2
+         --suite=${MYSQL_TEST_SUITES}
+         --skip-test-list=unstable-tests
+         --skip-test=binlog.binlog_unsafe
   - ccache --show-stats
 
 notifications:
