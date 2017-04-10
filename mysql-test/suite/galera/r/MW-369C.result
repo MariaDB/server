@@ -3,12 +3,13 @@ CREATE TABLE c (f1 INTEGER PRIMARY KEY, p_id INTEGER,
 CONSTRAINT fk_1 FOREIGN KEY (p_id) REFERENCES p (f1))  ;
 INSERT INTO p VALUES (1, 0);
 INSERT INTO p VALUES (2, 0);
+INSERT INTO c VALUES (1, 1);
 SET AUTOCOMMIT=ON;
 START TRANSACTION;
-DELETE FROM p WHERE f1 = 1;
+UPDATE p SET f2 = 1 WHERE f1 = 1;
 SET SESSION wsrep_sync_wait = 0;
 SET GLOBAL wsrep_provider_options = 'dbug=d,apply_monitor_slave_enter_sync';
-INSERT INTO c VALUES (1, 1);
+DELETE FROM c WHERE f1 = 1;
 SET SESSION wsrep_on = 0;
 SET SESSION wsrep_on = 1;
 SET GLOBAL wsrep_provider_options = 'dbug=';
@@ -19,13 +20,11 @@ SET SESSION wsrep_on = 1;
 SET GLOBAL wsrep_provider_options = 'dbug=';
 SET GLOBAL wsrep_provider_options = 'signal=apply_monitor_slave_enter_sync';
 SET GLOBAL wsrep_provider_options = 'signal=local_monitor_enter_sync';
-ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
 SELECT * FROM p;
 f1	f2
-1	0
+1	1
 2	0
 SELECT * FROM c;
 f1	p_id
-1	1
 DROP TABLE c;
 DROP TABLE p;

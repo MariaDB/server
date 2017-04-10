@@ -15,9 +15,10 @@
 #
 # Expected Outcome:
 # ================
-# Both operations on node_1 and node_2 should succeed without conflicts.
-# The parent table should contain values (1, 1), (2, 0) and the child
-# table should contain a row (1, 1)
+#
+# The parent operation on connection node_1 will conflict with an insert
+# to node_2. The parent table will contain rows (1, 0), (2, 0) and
+# the child table will contain row (1, 1).
 #
 
 --source include/galera_cluster.inc
@@ -38,6 +39,7 @@ INSERT INTO p VALUES (2, 0);
 
 # Commit succeeds
 --connection node_1
+--error ER_LOCK_DEADLOCK
 --reap
 
 --connection node_2

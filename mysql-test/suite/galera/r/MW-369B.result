@@ -18,6 +18,7 @@ SET GLOBAL wsrep_provider_options = 'dbug=d,local_monitor_enter_sync';
 COMMIT;
 SET SESSION wsrep_on = 0;
 SET SESSION wsrep_on = 1;
+SET GLOBAL wsrep_provider_options = 'dbug=';
 SET GLOBAL wsrep_provider_options = 'signal=apply_monitor_slave_enter_sync';
 SET GLOBAL wsrep_provider_options = 'signal=local_monitor_enter_sync';
 SELECT * FROM p;

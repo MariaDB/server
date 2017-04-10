@@ -61,6 +61,7 @@ SET SESSION wsrep_sync_wait = 0;
 --connection node_1a
 --let $galera_sync_point = apply_monitor_slave_enter_sync local_monitor_enter_sync
 --source include/galera_wait_sync_point.inc
+--source include/galera_clear_sync_point.inc
 --let $galera_sync_point = apply_monitor_slave_enter_sync
 --source include/galera_signal_sync_point.inc
 --let $galera_sync_point = local_monitor_enter_sync
