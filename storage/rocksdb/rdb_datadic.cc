@@ -3036,7 +3036,7 @@ bool Rdb_ddl_manager::init(Rdb_dict_manager *const dict_arg,
 
     // Now, read the DDLs.
     const int real_val_size = val.size() - Rdb_key_def::VERSION_SIZE;
-    if (real_val_size % Rdb_key_def::PACKED_SIZE * 2) {
+    if (real_val_size % Rdb_key_def::PACKED_SIZE * 2 > 0) {
       sql_print_error("RocksDB: Table_store: invalid keylist for table %s",
                       tdef->full_tablename().c_str());
       return true;
