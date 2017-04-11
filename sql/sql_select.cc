@@ -703,11 +703,6 @@ int vers_setup_select(THD *thd, TABLE_LIST *tables, COND **where_expr,
     DBUG_RETURN(0);
   }
 
-  while (tables && tables->is_view() && !thd->stmt_arena->is_stmt_prepare())
-  {
-    tables= tables->view->select_lex.table_list.first;
-  }
-
   for (table= tables; table; table= table->next_local)
   {
     if (table->table && table->table->versioned())
@@ -16879,9 +16874,9 @@ create_tmp_table(THD *thd, TMP_TABLE_PARAM *param, List<Item> &fields,
 	continue;				// Some kind of const item
       }
 
-      if (type == Item::FIELD_ITEM)
+      if (type == Item::FIELD_ITEM || type == Item::REF_ITEM)
       {
-        Item_field *item_field= (Item_field *)item;
+        Item_field *item_field= (Item_field *)item->real_item();
         Field *field= item_field->field;
         TABLE_SHARE *s= field->table->s;
         if (s->versioned)
