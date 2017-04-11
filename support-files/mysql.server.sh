@@ -157,8 +157,7 @@ parse_server_arguments() {
 
 # Get arguments from the my.cnf file,
 # the only group, which is read from now on is [mysqld]
-if test -x $bindir/my_print_defaults
-then
+if test -x "$bindir/my_print_defaults";  then
   print_defaults="$bindir/my_print_defaults"
 else
   # Try to find basedir in /etc/my.cnf
@@ -174,11 +173,6 @@ else
       if test -x "$d/bin/my_print_defaults"
       then
         print_defaults="$d/bin/my_print_defaults"
-        break
-      fi
-      if test -x "$d/bin/mysql_print_defaults"
-      then
-        print_defaults="$d/bin/mysql_print_defaults"
         break
       fi
     done
@@ -381,7 +375,7 @@ case "$mode" in
       fi
     else
       # Try to find appropriate mysqld process
-      mysqld_pid=`pidof $libexecdir/mysqld`
+      mysqld_pid=`pgrep $libexecdir/mysqld`
 
       # test if multiple pids exist
       pid_count=`echo $mysqld_pid | wc -w`

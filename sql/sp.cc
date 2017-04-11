@@ -1,6 +1,6 @@
 /*
-   Copyright (c) 2002, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2015, MariaDB
+   Copyright (c) 2002, 2016, Oracle and/or its affiliates.
+   Copyright (c) 2009, 2017, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -375,7 +375,7 @@ void Proc_table_intact::report_error(uint code, const char *fmt, ...)
   my_vsnprintf(buf, sizeof(buf), fmt, args);
   va_end(args);
 
-  if (code)
+  if (code == ER_COL_COUNT_DOESNT_MATCH_CORRUPTED)
     my_message(code, buf, MYF(0));
   else
     my_error(ER_CANNOT_LOAD_FROM_TABLE, MYF(0), "proc");

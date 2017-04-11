@@ -950,4 +950,3 @@ do
 done
 
 log_notice "mysqld from pid file $pid_file ended"
-
