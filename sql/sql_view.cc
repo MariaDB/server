@@ -1363,7 +1363,7 @@ bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *table,
       * MODE_NO_UNSIGNED_SUBTRACTION  affect execution
       - MODE_NO_DIR_IN_CREATE         affect table creation only
       - MODE_POSTGRESQL               compounded from other modes
-      - MODE_ORACLE                   compounded from other modes
+      - MODE_ORACLE                   affects Item creation (e.g for CONCAT)
       - MODE_MSSQL                    compounded from other modes
       - MODE_DB2                      compounded from other modes
       - MODE_MAXDB                    affect only CREATE TABLE parsing
@@ -1378,7 +1378,8 @@ bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *table,
       + MODE_NO_BACKSLASH_ESCAPES     affect expression parsing
     */
     thd->variables.sql_mode&= ~(MODE_PIPES_AS_CONCAT | MODE_ANSI_QUOTES |
-                                MODE_IGNORE_SPACE | MODE_NO_BACKSLASH_ESCAPES);
+                                MODE_IGNORE_SPACE | MODE_NO_BACKSLASH_ESCAPES |
+                                MODE_ORACLE);
 
     /* Parse the query. */
 

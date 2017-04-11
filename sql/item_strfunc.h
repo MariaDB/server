@@ -303,12 +303,8 @@ public:
   Item_func_concat_operator_oracle(THD *thd, Item *a, Item *b)
    :Item_func_concat(thd, a, b)
   { }
-  void print(String *str, enum_query_type query_type)
-  {
-    print_op(str, query_type);
-  }
   String *val_str(String *);
-  const char *func_name() const { return "||"; }
+  const char *func_name() const { return "concat_operator_oracle"; }
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   {
     return get_item_copy<Item_func_concat_operator_oracle>(thd, mem_root, this);

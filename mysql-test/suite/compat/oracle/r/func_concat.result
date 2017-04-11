@@ -3,12 +3,12 @@ EXPLAIN EXTENDED SELECT 'a'||'b'||'c';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
-Note	1003	select 'a' || 'b' || 'c' AS "'a'||'b'||'c'"
+Note	1003	select concat_operator_oracle(concat_operator_oracle('a','b'),'c') AS "'a'||'b'||'c'"
 EXPLAIN EXTENDED SELECT CONCAT('a'||'b'||'c');
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
-Note	1003	select 'a' || 'b' || 'c' AS "CONCAT('a'||'b'||'c')"
+Note	1003	select concat_operator_oracle(concat_operator_oracle(concat_operator_oracle('a','b'),'c')) AS "CONCAT('a'||'b'||'c')"
 SELECT ''   || '';
 ''   || ''
 
@@ -204,3 +204,54 @@ NULL	NULL
 2	ab
 3	abc
 DROP TABLE t1;
+#
+# MDEV-12478 CONCAT function inside view casts values incorrectly with Oracle sql_mode
+#
+SET sql_mode=ORACLE;
+CREATE VIEW v1 AS SELECT 'foo'||NULL||'bar' AS test;
+SHOW CREATE VIEW v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE VIEW "v1" AS select concat_operator_oracle(concat_operator_oracle('foo',NULL),'bar') AS "test"	latin1	latin1_swedish_ci
+SELECT * FROM v1;
+test
+foobar
+SET sql_mode=DEFAULT;
+SHOW CREATE VIEW v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select concat_operator_oracle(concat_operator_oracle('foo',NULL),'bar') AS `test`	latin1	latin1_swedish_ci
+SELECT * FROM v1;
+test
+foobar
+DROP VIEW v1;
+SET sql_mode=DEFAULT;
+CREATE VIEW v1 AS SELECT CONCAT('foo',NULL,'bar') AS test;
+SHOW CREATE VIEW v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select concat('foo',NULL,'bar') AS `test`	latin1	latin1_swedish_ci
+SELECT * FROM v1;
+test
+NULL
+SET sql_mode=ORACLE;
+SHOW CREATE VIEW v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE VIEW "v1" AS select concat('foo',NULL,'bar') AS "test"	latin1	latin1_swedish_ci
+SELECT * FROM v1;
+test
+NULL
+DROP VIEW v1;
+SET sql_mode=DEFAULT;
+CREATE VIEW v1 AS SELECT '0'||'1' AS test;
+SHOW CREATE VIEW v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select '0' or '1' AS `test`	latin1	latin1_swedish_ci
+SELECT * FROM v1;
+test
+1
+SET sql_mode=ORACLE;
+SHOW CREATE VIEW v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE VIEW "v1" AS select '0' or '1' AS "test"	latin1	latin1_swedish_ci
+SELECT * FROM v1;
+test
+1
+DROP VIEW v1;
