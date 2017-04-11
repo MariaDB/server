@@ -6038,9 +6038,6 @@ int handler::ha_update_row(const uchar *old_data, uchar *new_data)
   DBUG_ASSERT(new_data == table->record[0]);
   DBUG_ASSERT(old_data == table->record[1]);
 
-  // it is important to keep 'old_data' intact for versioning to work correctly on slave side
-  if (table->file->check_table_binlog_row_based(1) && table->versioned())
-    memcpy(table->record[2], table->record[1], table->s->reclength);
   MYSQL_UPDATE_ROW_START(table_share->db.str, table_share->table_name.str);
   mark_trx_read_write();
   increment_statistics(&SSV::ha_update_count);
@@ -6053,11 +6050,7 @@ int handler::ha_update_row(const uchar *old_data, uchar *new_data)
   {
     rows_changed++;
     if (table->file->check_table_binlog_row_based(1))
-    {
-      if (table->versioned())
-        memcpy(table->record[1], table->record[2], table->s->reclength);
       error= binlog_log_row(table, old_data, new_data, log_func);
-    }
   }
   return error;
 }
