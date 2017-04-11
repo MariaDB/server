@@ -59,7 +59,7 @@ void sp_cache_init();
 void sp_cache_end();
 void sp_cache_clear(sp_cache **cp);
 void sp_cache_insert(sp_cache **cp, sp_head *sp);
-sp_head *sp_cache_lookup(sp_cache **cp, sp_name *name);
+sp_head *sp_cache_lookup(sp_cache **cp, const sp_name *name);
 void sp_cache_invalidate();
 void sp_cache_flush_obsolete(sp_cache **cp, sp_head **sp);
 ulong sp_cache_version();

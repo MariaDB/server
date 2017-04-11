@@ -38,7 +38,7 @@
 #define SP_TYPE_STRING(type) stored_procedure_type_to_str(type)
      
 static int
-db_load_routine(THD *thd, stored_procedure_type type, sp_name *name,
+db_load_routine(THD *thd, stored_procedure_type type, const sp_name *name,
                 sp_head **sphp,
                 sql_mode_t sql_mode, const char *params, const char *returns,
                 const char *body, st_sp_chistics &chistics,
@@ -469,7 +469,7 @@ static TABLE *open_proc_table_for_update(THD *thd)
 */
 
 static int
-db_find_routine_aux(THD *thd, stored_procedure_type type, sp_name *name,
+db_find_routine_aux(THD *thd, stored_procedure_type type, const sp_name *name,
                     TABLE *table)
 {
   uchar key[MAX_KEY_LENGTH];	// db, name, optional key length type
@@ -523,7 +523,7 @@ db_find_routine_aux(THD *thd, stored_procedure_type type, sp_name *name,
 */
 
 static int
-db_find_routine(THD *thd, stored_procedure_type type, sp_name *name,
+db_find_routine(THD *thd, stored_procedure_type type, const sp_name *name,
                 sp_head **sphp)
 {
   TABLE *table;
@@ -809,7 +809,7 @@ Bad_db_error_handler::handle_condition(THD *thd,
 
 static int
 db_load_routine(THD *thd, stored_procedure_type type,
-                sp_name *name, sp_head **sphp,
+                const sp_name *name, sp_head **sphp,
                 sql_mode_t sql_mode, const char *params, const char *returns,
                 const char *body, st_sp_chistics &chistics,
                 LEX_STRING *definer_user_name, LEX_STRING *definer_host_name,
@@ -966,7 +966,7 @@ sp_returns_type(THD *thd, String &result, sp_head *sp)
 */
 static int
 sp_drop_routine_internal(THD *thd, stored_procedure_type type,
-                         sp_name *name, TABLE *table)
+                         const sp_name *name, TABLE *table)
 {
   DBUG_ENTER("sp_drop_routine_internal");
 
@@ -1332,7 +1332,7 @@ done:
 */
 
 int
-sp_drop_routine(THD *thd, stored_procedure_type type, sp_name *name)
+sp_drop_routine(THD *thd, stored_procedure_type type, const sp_name *name)
 {
   TABLE *table;
   int ret;
@@ -1386,7 +1386,7 @@ sp_drop_routine(THD *thd, stored_procedure_type type, sp_name *name)
 */
 
 int
-sp_update_routine(THD *thd, stored_procedure_type type, sp_name *name,
+sp_update_routine(THD *thd, stored_procedure_type type, const sp_name *name,
                   st_sp_chistics *chistics)
 {
   TABLE *table;
@@ -1670,7 +1670,8 @@ err:
 */
 
 bool
-sp_show_create_routine(THD *thd, stored_procedure_type type, sp_name *name)
+sp_show_create_routine(THD *thd,
+                       stored_procedure_type type, const sp_name *name)
 {
   sp_head *sp;
 
@@ -1725,7 +1726,7 @@ sp_show_create_routine(THD *thd, stored_procedure_type type, sp_name *name)
 */
 
 sp_head *
-sp_find_routine(THD *thd, stored_procedure_type type, sp_name *name,
+sp_find_routine(THD *thd, stored_procedure_type type, const sp_name *name,
                 sp_cache **cp, bool cache_only)
 {
   sp_head *sp;
@@ -1950,7 +1951,7 @@ bool sp_add_used_routine(Query_tables_list *prelocking_ctx, Query_arena *arena,
 */
 
 void sp_add_used_routine(Query_tables_list *prelocking_ctx, Query_arena *arena,
-                         sp_name *rt, enum stored_procedure_type rt_type)
+                         const sp_name *rt, enum stored_procedure_type rt_type)
 {
   MDL_key key((rt_type == TYPE_ENUM_FUNCTION) ? MDL_key::FUNCTION :
                                                 MDL_key::PROCEDURE,
@@ -2123,7 +2124,8 @@ int sp_cache_routine(THD *thd, Sroutine_hash_entry *rt,
   @retval non-0  Error while loading routine from mysql,proc table.
 */
 
-int sp_cache_routine(THD *thd, enum stored_procedure_type type, sp_name *name,
+int sp_cache_routine(THD *thd, enum stored_procedure_type type,
+                     const sp_name *name,
                      bool lookup_only, sp_head **sp)
 {
   int ret= 0;
