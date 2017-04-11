@@ -366,7 +366,8 @@ int mysql_update(THD *thd,
   {
     DBUG_RETURN(1);
   }
-  bool has_vers_fields= check_has_vers_fields(fields);
+  bool has_vers_fields=
+      table->versioned() ? check_has_vers_fields(fields) : false;
   if (check_key_in_view(thd, table_list))
   {
     my_error(ER_NON_UPDATABLE_TABLE, MYF(0), table_list->alias, "UPDATE");

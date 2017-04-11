@@ -243,8 +243,13 @@ read_trx_id(const rec_t *rec) {
 */
 static
 void
-find_best_match(mtr_t &mtr, btr_pcur_t &pcur, bool backwards,
-	timeval commit_ts, const rec_t *rec) {
+find_best_match(
+	mtr_t &mtr,
+	btr_pcur_t &pcur,
+	bool backwards,
+	timeval commit_ts,
+	const rec_t *rec)
+{
 	btr_pcur_t best;
 	btr_pcur_init(&best);
 	btr_pcur_copy_stored_position(&best, &pcur);
