@@ -149,6 +149,7 @@ a
 2
 select * from t for system_time before timestamp @ts1;
 a
+1
 select * from t for system_time before transaction 2000;
 a
 1
@@ -158,13 +159,11 @@ select * from t for system_time all;
 a
 11
 22
-1
 2
 truncate t for system_time before timestamp now(6);
 select * from t for system_time all;
 a
 11
 22
-2
 drop table t;
 drop procedure truncate_history_of_t;

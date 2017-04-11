@@ -400,6 +400,12 @@ static Sys_var_enum Sys_vers_hide(
        "NEVER: don't hide system fields",
        SESSION_VAR(vers_hide), CMD_LINE(OPT_ARG), vers_hide_keywords, DEFAULT(VERS_HIDE_AUTO));
 
+static Sys_var_mybool Sys_vers_innodb_algorithm_simple(
+       "vers_innodb_algorithm_simple",
+       "Use simple algorithm of timestamp handling in InnoDB instead of TRX_SEES",
+       SESSION_VAR(vers_innodb_algorithm_simple), CMD_LINE(OPT_ARG),
+       DEFAULT(TRUE));
+
 static Sys_var_ulonglong Sys_binlog_cache_size(
        "binlog_cache_size", "The size of the transactional cache for "
        "updates to transactional engines for the binary log. "

@@ -771,8 +771,6 @@ int vers_setup_select(THD *thd, TABLE_LIST *tables, COND **where_expr,
     }
   }
 
-  const static bool vers_simple_select= false;
-
   for (table= tables; table; table= table->next_local)
   {
     if (table->table && table->table->versioned())
@@ -831,7 +829,10 @@ int vers_setup_select(THD *thd, TABLE_LIST *tables, COND **where_expr,
           newx Item_field(thd, &slex->context, table->db, table->alias, fend);
       Item *row_end2= row_end;
 
-      if (table->table->versioned_by_sql())
+      bool tmp_from_ib=
+          table->table->s->table_category == TABLE_CATEGORY_TEMPORARY &&
+          table->table->vers_start_field()->type() == MYSQL_TYPE_LONGLONG;
+      if (table->table->versioned_by_sql() && !tmp_from_ib)
       {
         if (vers_conditions.unit == UNIT_TRX_ID)
         {
@@ -839,8 +840,9 @@ int vers_setup_select(THD *thd, TABLE_LIST *tables, COND **where_expr,
           DBUG_RETURN(-1);
         }
       }
-      else if (vers_simple_select && vers_conditions.unit == UNIT_TIMESTAMP
-          && vers_conditions.type != FOR_SYSTEM_TIME_UNSPECIFIED)
+      else if (thd->variables.vers_innodb_algorithm_simple &&
+               vers_conditions.unit == UNIT_TIMESTAMP &&
+               vers_conditions.type != FOR_SYSTEM_TIME_UNSPECIFIED)
       {
         DBUG_ASSERT(table->table->s && table->table->s->db_plugin);
         handlerton *hton= plugin_hton(table->table->s->db_plugin);
@@ -859,19 +861,17 @@ int vers_setup_select(THD *thd, TABLE_LIST *tables, COND **where_expr,
       }
 
       Item *cond1= 0, *cond2= 0, *curr= 0;
-      // Temporary tables of type HEAP can be created from INNODB tables and
-      // thus will have uint64 type of sys_trx_(start|end) field.
+      // Temporary tables of can be created from INNODB tables and thus will
+      // have uint64 type of sys_trx_(start|end) field.
       // They need special handling.
       TABLE *t= table->table;
-      if ((t->s->table_category == TABLE_CATEGORY_TEMPORARY
-               ? t->vers_start_field()->type() != MYSQL_TYPE_LONGLONG
-               : t->versioned_by_sql()) ||
-          vers_simple_select)
+      if (tmp_from_ib || t->versioned_by_sql() ||
+          thd->variables.vers_innodb_algorithm_simple)
       {
         switch (vers_conditions.type)
         {
         case FOR_SYSTEM_TIME_UNSPECIFIED:
-          if (table->table->versioned_by_sql())
+          if (table->table->versioned_by_sql() && !tmp_from_ib)
           {
             MYSQL_TIME max_time;
             thd->variables.time_zone->gmt_sec_to_TIME(&max_time, TIMESTAMP_MAX_VALUE);
