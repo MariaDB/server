@@ -1547,7 +1547,7 @@ insert into t1 values('aaa');
 set statement sql_mode = 'NO_ENGINE_SUBSTITUTION' for
 alter table t1 add index(a(1024));
 Warnings:
-Warning	1071	Specified key was too long; max key length is 767 bytes
+Note	1071	Specified key was too long; max key length is 767 bytes
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
