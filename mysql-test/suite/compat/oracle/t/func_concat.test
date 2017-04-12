@@ -83,3 +83,34 @@ SELECT LENGTH(a||b||c), a||b||c FROM t1 ORDER BY a,b,c;
 SELECT LENGTH(CONCAT(a||b||c)), CONCAT(a||b||c) FROM t1 ORDER BY a,b,c;
 
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-12478 CONCAT function inside view casts values incorrectly with Oracle sql_mode
+--echo #
+
+SET sql_mode=ORACLE;
+CREATE VIEW v1 AS SELECT 'foo'||NULL||'bar' AS test;
+SHOW CREATE VIEW v1;
+SELECT * FROM v1;
+SET sql_mode=DEFAULT;
+SHOW CREATE VIEW v1;
+SELECT * FROM v1;
+DROP VIEW v1;
+
+SET sql_mode=DEFAULT;
+CREATE VIEW v1 AS SELECT CONCAT('foo',NULL,'bar') AS test;
+SHOW CREATE VIEW v1;
+SELECT * FROM v1;
+SET sql_mode=ORACLE;
+SHOW CREATE VIEW v1;
+SELECT * FROM v1;
+DROP VIEW v1;
+
+SET sql_mode=DEFAULT;
+CREATE VIEW v1 AS SELECT '0'||'1' AS test;
+SHOW CREATE VIEW v1;
+SELECT * FROM v1;
+SET sql_mode=ORACLE;
+SHOW CREATE VIEW v1;
+SELECT * FROM v1;
+DROP VIEW v1;

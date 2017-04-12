@@ -644,6 +644,19 @@ protected:
 };
 
 
+class Create_func_concat_operator_oracle : public Create_native_func
+{
+public:
+  virtual Item *create_native(THD *thd, LEX_STRING name, List<Item> *item_list);
+
+  static Create_func_concat_operator_oracle s_singleton;
+
+protected:
+  Create_func_concat_operator_oracle() {}
+  virtual ~Create_func_concat_operator_oracle() {}
+};
+
+
 class Create_func_decode_histogram : public Create_func_arg2
 {
 public:
@@ -3862,6 +3875,27 @@ Create_func_concat::create_native(THD *thd, LEX_STRING name,
     new (thd->mem_root) Item_func_concat(thd, *item_list);
 }
 
+Create_func_concat_operator_oracle
+  Create_func_concat_operator_oracle::s_singleton;
+
+Item*
+Create_func_concat_operator_oracle::create_native(THD *thd, LEX_STRING name,
+                                                  List<Item> *item_list)
+{
+  int arg_count= 0;
+
+  if (item_list != NULL)
+    arg_count= item_list->elements;
+
+  if (arg_count < 1)
+  {
+    my_error(ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT, MYF(0), name.str);
+    return NULL;
+  }
+
+  return new (thd->mem_root) Item_func_concat_operator_oracle(thd, *item_list);
+}
+
 Create_func_decode_histogram Create_func_decode_histogram::s_singleton;
 
 Item *
@@ -6737,6 +6771,7 @@ static Native_func_registry func_array[] =
   { { C_STRING_WITH_LEN("COLUMN_JSON") }, BUILDER(Create_func_dyncol_json)},
   { { C_STRING_WITH_LEN("COMPRESS") }, BUILDER(Create_func_compress)},
   { { C_STRING_WITH_LEN("CONCAT") }, BUILDER(Create_func_concat)},
+  { { C_STRING_WITH_LEN("CONCAT_OPERATOR_ORACLE") }, BUILDER(Create_func_concat_operator_oracle)},
   { { C_STRING_WITH_LEN("CONCAT_WS") }, BUILDER(Create_func_concat_ws)},
   { { C_STRING_WITH_LEN("CONNECTION_ID") }, BUILDER(Create_func_connection_id)},
   { { C_STRING_WITH_LEN("CONV") }, BUILDER(Create_func_conv)},
