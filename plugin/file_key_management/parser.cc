@@ -156,6 +156,13 @@ bool Parser::parse(Dynamic_array<keyentry> *keys)
     secret= buf;
   }
 
+  if ('\0' == *filename) {
+    my_printf_error(EE_READ, "file_key_management_filename unset or empty",
+                   MYF(ME_NOREFRESH));
+
+    return 1;
+  }
+
   return parse_file(keys, secret);
 }
 
