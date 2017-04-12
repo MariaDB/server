@@ -359,17 +359,6 @@ btr_pcur_move_to_next_page(
 				last record of the current page */
 	mtr_t*		mtr);	/*!< in: mtr */
 /*********************************************************//**
-Moves the persistent cursor to the last record on the previous page.
-Releases the latch on the current page, and bufferunfixes it.
-Note that there must not be modifications on the current page,
-as then the x-latch can be released only in mtr_commit. */
-void
-btr_pcur_move_to_prev_page(
-/*=======================*/
-	btr_pcur_t*	cursor,	/*!< in: persistent cursor; must be on the
-				last record of the current page */
-	mtr_t*		mtr);	/*!< in: mtr */
-/*********************************************************//**
 Moves the persistent cursor backward if it is on the first record
 of the page. Releases the latch on the current page, and bufferunfixes
 it. Note that to prevent a possible deadlock, the operation first
