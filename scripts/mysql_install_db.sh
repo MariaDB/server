@@ -357,6 +357,15 @@ then
   exit 1
 fi
 
+# check whether all shared library dependencies are met
+if ldd $mysqld | grep -q "not found"
+then
+    echo "FATAL ERROR: missing shared libraries"
+    echo "the following libraries required by $mysqld are missing:"
+    ldd $mysqld | grep "not found"
+    exit 1
+fi
+
 if test -n "$langdir"
 then
   if test ! -f "$langdir/errmsg.sys"
