@@ -11326,6 +11326,7 @@ Annotate_rows_log_event::Annotate_rows_log_event(THD *thd,
   : Log_event(thd, 0, using_trans),
     m_save_thd_query_txt(0),
     m_save_thd_query_len(0),
+    m_saved_thd_query(false),
     m_used_query_txt(0)
 {
   m_query_txt= thd->query();
@@ -11341,6 +11342,7 @@ Annotate_rows_log_event::Annotate_rows_log_event(const char *buf,
   : Log_event(buf, desc),
     m_save_thd_query_txt(0),
     m_save_thd_query_len(0),
+    m_saved_thd_query(false),
     m_used_query_txt(0)
 {
   m_query_len= event_len - desc->common_header_len;
@@ -11351,7 +11353,7 @@ Annotate_rows_log_event::~Annotate_rows_log_event()
 {
   DBUG_ENTER("Annotate_rows_log_event::~Annotate_rows_log_event");
 #ifndef MYSQL_CLIENT
-  if (m_save_thd_query_txt)
+  if (m_saved_thd_query)
     thd->set_query(m_save_thd_query_txt, m_save_thd_query_len);
   else if (m_used_query_txt)
     thd->reset_query();
@@ -11438,8 +11440,10 @@ void Annotate_rows_log_event::print(FILE *file, PRINT_EVENT_INFO *pinfo)
 #if !defined(MYSQL_CLIENT) && defined(HAVE_REPLICATION)
 int Annotate_rows_log_event::do_apply_event(rpl_group_info *rgi)
 {
+  rgi->free_annotate_event();
   m_save_thd_query_txt= thd->query();
   m_save_thd_query_len= thd->query_length();
+  m_saved_thd_query= true;
   m_used_query_txt= 1;
   thd->set_query(m_query_txt, m_query_len);
   return 0;

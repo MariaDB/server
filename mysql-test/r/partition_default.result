@@ -921,9 +921,6 @@ explain partitions select * from t1 where a=10 and b=10;
 id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	p0	system	NULL	NULL	NULL	NULL	1	
 alter table t1 drop partition p2;
-ERROR HY000: Table has no partition for value 2
-delete from t1 where a=2;
-alter table t1 drop partition p2;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -1069,9 +1066,6 @@ explain partitions select * from t1 where a=10 and b=10;
 id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	p0	system	NULL	NULL	NULL	NULL	1	
 alter table t1 drop partition p2;
-ERROR HY000: Table has no partition for value from column_list
-delete from t1 where a=2;
-alter table t1 drop partition p2;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -1125,10 +1119,10 @@ alter table t1 add partition
 (partition p0 VALUES IN (2,3));
 select partition_name, table_rows from INFORMATION_SCHEMA.PARTITIONS where table_name='t1';
 partition_name	table_rows
-p0	2
+p0	0
 p1	1
 p2	1
-pd	0
+pd	2
 drop table t1;
 create table t1 (a int, b int)
 PARTITION BY LIST COLUMNS(a,b)
@@ -1233,3 +1227,41 @@ select * from t1 where i is null;
 id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	p0	system	NULL	NULL	NULL	NULL	1	
 drop table t1;
+#
+# MDEV-12395: DROP PARTITION does not work as expected when
+# table has DEFAULT LIST partition
+#
+CREATE TABLE t1 (i INT)
+PARTITION BY LIST (i)
+(PARTITION p VALUES IN (1,2,3,4),
+PARTITION pdef DEFAULT);
+INSERT INTO t1 VALUES (1),(10);
+ALTER TABLE t1 DROP PARTITION p;
+SELECT * FROM t1;
+i
+10
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `i` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+ PARTITION BY LIST (i)
+(PARTITION pdef DEFAULT ENGINE = MyISAM)
+DROP TABLE t1;
+CREATE TABLE t1 (i INT)
+PARTITION BY LIST (i)
+(PARTITION p VALUES IN (1,2,3,4),
+PARTITION pdef DEFAULT);
+INSERT INTO t1 VALUES (1),(10);
+ALTER TABLE t1 DROP PARTITION pdef;
+SELECT * FROM t1;
+i
+1
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `i` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+ PARTITION BY LIST (i)
+(PARTITION p VALUES IN (1,2,3,4) ENGINE = MyISAM)
+DROP TABLE t1;

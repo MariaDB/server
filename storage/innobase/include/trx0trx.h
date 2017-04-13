@@ -1043,7 +1043,6 @@ struct trx_t {
 					for secondary indexes when we decide
 					if we can use the insert buffer for
 					them, we set this FALSE */
-	bool		support_xa;	/*!< normally we do the XA two-phase */
 	bool		flush_log_later;/* In 2PC, we hold the
 					prepare_commit mutex across
 					both phases. In that case, we

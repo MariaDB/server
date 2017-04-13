@@ -1,0 +1,13 @@
+set @@sql_mode=strict_trans_tables;
+create table t1(a text not null) row_format=dynamic engine=innodb;
+create index idx1 on t1(a(3073));
+Warnings:
+Note	1071	Specified key was too long; max key length is 3072 bytes
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` text NOT NULL,
+  KEY `idx1` (`a`(3072))
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=DYNAMIC
+drop table t1;
+set @@sql_mode=default;

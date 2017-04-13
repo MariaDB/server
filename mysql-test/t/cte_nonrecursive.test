@@ -642,3 +642,27 @@ select * from v1;
 show create view v1;
 
 drop view v1;
+
+--echo #
+--echo # MDEV-12440: the same CTE table is used in twice
+--echo #
+
+create table t1 (a int, b  varchar(32));
+insert into t1 values
+  (4,'aaaa' ), (7,'bb'), (1,'ccc'), (4,'dd');  
+
+--echo # cte2 is used in the main query and in the spec for ct3
+with
+cte1 as (select * from t1 where  b >= 'c'),
+cte2 as (select * from cte1 where a < 7),
+cte3 as (select * from cte2 where a > 1)
+select * from cte2, cte3 where cte2.a = cte3.a;
+
+--echo # cte2 is used twice in the spec for ct3
+with
+cte1 as (select * from t1 where  b >= 'b'),
+cte2 as (select * from cte1 where b > 'c'),
+cte3 as (select * from cte2 where a > 1 union select * from cte2 where a > 1)
+select * from cte3;
+
+drop table t1;

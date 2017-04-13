@@ -145,8 +145,6 @@ trx_init(
 
 	trx->check_unique_secondary = true;
 
-	trx->support_xa = true;
-
 	trx->lock.n_rec_locks = 0;
 
 	trx->dict_operation = TRX_DICT_OP_NONE;
