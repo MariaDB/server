@@ -60,6 +60,17 @@ Type_handler_geometry    type_handler_geometry;
 bool Type_handler_data::init()
 {
 #ifdef HAVE_SPATIAL
+
+#ifndef DBUG_OFF
+  if (m_type_aggregator_non_commutative_test.add(&type_handler_geometry,
+                                                 &type_handler_geometry,
+                                                 &type_handler_geometry) ||
+      m_type_aggregator_non_commutative_test.add(&type_handler_geometry,
+                                                 &type_handler_varchar,
+                                                 &type_handler_long_blob))
+    return true;
+#endif
+
   return
     m_type_aggregator_for_result.add(&type_handler_geometry,
                                      &type_handler_null,
@@ -463,6 +474,63 @@ Type_handler_hybrid_field_type::aggregate_for_comparison(const Type_handler *h)
     m_type_handler= &type_handler_double;
   DBUG_ASSERT(m_type_handler == m_type_handler->type_handler_for_comparison());
   return false;
+}
+
+
+const Type_handler *
+Type_handler::aggregate_for_num_op_traditional(const Type_handler *h0,
+                                               const Type_handler *h1)
+{
+  Item_result r0= h0->cmp_type();
+  Item_result r1= h1->cmp_type();
+
+  if (r0 == REAL_RESULT || r1 == REAL_RESULT ||
+      r0 == STRING_RESULT || r1 ==STRING_RESULT)
+    return &type_handler_double;
+
+  if (r0 == TIME_RESULT || r1 == TIME_RESULT)
+    return &type_handler_datetime;
+
+  if (r0 == DECIMAL_RESULT || r1 == DECIMAL_RESULT)
+    return &type_handler_newdecimal;
+
+  DBUG_ASSERT(r0 == INT_RESULT && r1 == INT_RESULT);
+  return &type_handler_longlong;
+}
+
+
+const Type_aggregator::Pair*
+Type_aggregator::find_pair(const Type_handler *handler1,
+                           const Type_handler *handler2) const
+{
+  for (uint i= 0; i < m_array.elements(); i++)
+  {
+    const Pair& el= m_array.at(i);
+    if (el.eq(handler1, handler2) ||
+        (m_is_commutative && el.eq(handler2, handler1)))
+      return &el;
+  }
+  return NULL;
+}
+
+
+bool
+Type_handler_hybrid_field_type::aggregate_for_num_op(const Type_aggregator *agg,
+                                                     const Type_handler *h0,
+                                                     const Type_handler *h1)
+{
+  const Type_handler *hres;
+  if (h0->is_traditional_type() && h1->is_traditional_type())
+  {
+    set_handler(Type_handler::aggregate_for_num_op_traditional(h0, h1));
+    return false;
+  }
+  if ((hres= agg->find_handler(h0, h1)))
+  {
+    set_handler(hres);
+    return false;
+  }
+  return true;
 }
 
 
@@ -2707,5 +2775,250 @@ bool Type_handler_geometry::
 }
 
 #endif /* HAVE_SPATIAL */
+
+/***************************************************************************/
+
+bool Type_handler_row::
+       Item_func_plus_fix_length_and_dec(Item_func_plus *item) const
+{
+  DBUG_ASSERT(0);
+  return true;
+}
+
+
+bool Type_handler_int_result::
+       Item_func_plus_fix_length_and_dec(Item_func_plus *item) const
+{
+  item->fix_length_and_dec_int();
+  return false;
+}
+
+
+bool Type_handler_real_result::
+       Item_func_plus_fix_length_and_dec(Item_func_plus *item) const
+{
+  item->fix_length_and_dec_double();
+  return false;
+}
+
+
+bool Type_handler_decimal_result::
+       Item_func_plus_fix_length_and_dec(Item_func_plus *item) const
+{
+  item->fix_length_and_dec_decimal();
+  return false;
+}
+
+
+bool Type_handler_temporal_result::
+       Item_func_plus_fix_length_and_dec(Item_func_plus *item) const
+{
+  item->fix_length_and_dec_temporal();
+  return false;
+}
+
+
+bool Type_handler_string_result::
+       Item_func_plus_fix_length_and_dec(Item_func_plus *item) const
+{
+  item->fix_length_and_dec_double();
+  return false;
+}
+
+/***************************************************************************/
+
+bool Type_handler_row::
+       Item_func_minus_fix_length_and_dec(Item_func_minus *item) const
+{
+  DBUG_ASSERT(0);
+  return true;
+}
+
+
+bool Type_handler_int_result::
+       Item_func_minus_fix_length_and_dec(Item_func_minus *item) const
+{
+  item->fix_length_and_dec_int();
+  return false;
+}
+
+
+bool Type_handler_real_result::
+       Item_func_minus_fix_length_and_dec(Item_func_minus *item) const
+{
+  item->fix_length_and_dec_double();
+  return false;
+}
+
+
+bool Type_handler_decimal_result::
+       Item_func_minus_fix_length_and_dec(Item_func_minus *item) const
+{
+  item->fix_length_and_dec_decimal();
+  return false;
+}
+
+
+bool Type_handler_temporal_result::
+       Item_func_minus_fix_length_and_dec(Item_func_minus *item) const
+{
+  item->fix_length_and_dec_temporal();
+  return false;
+}
+
+
+bool Type_handler_string_result::
+       Item_func_minus_fix_length_and_dec(Item_func_minus *item) const
+{
+  item->fix_length_and_dec_double();
+  return false;
+}
+
+/***************************************************************************/
+
+bool Type_handler_row::
+       Item_func_mul_fix_length_and_dec(Item_func_mul *item) const
+{
+  DBUG_ASSERT(0);
+  return true;
+}
+
+
+bool Type_handler_int_result::
+       Item_func_mul_fix_length_and_dec(Item_func_mul *item) const
+{
+  item->fix_length_and_dec_int();
+  return false;
+}
+
+
+bool Type_handler_real_result::
+       Item_func_mul_fix_length_and_dec(Item_func_mul *item) const
+{
+  item->fix_length_and_dec_double();
+  return false;
+}
+
+
+bool Type_handler_decimal_result::
+       Item_func_mul_fix_length_and_dec(Item_func_mul *item) const
+{
+  item->fix_length_and_dec_decimal();
+  return false;
+}
+
+
+bool Type_handler_temporal_result::
+       Item_func_mul_fix_length_and_dec(Item_func_mul *item) const
+{
+  item->fix_length_and_dec_temporal();
+  return false;
+}
+
+
+bool Type_handler_string_result::
+       Item_func_mul_fix_length_and_dec(Item_func_mul *item) const
+{
+  item->fix_length_and_dec_double();
+  return false;
+}
+
+/***************************************************************************/
+
+bool Type_handler_row::
+       Item_func_div_fix_length_and_dec(Item_func_div *item) const
+{
+  DBUG_ASSERT(0);
+  return true;
+}
+
+
+bool Type_handler_int_result::
+       Item_func_div_fix_length_and_dec(Item_func_div *item) const
+{
+  item->fix_length_and_dec_int();
+  return false;
+}
+
+
+bool Type_handler_real_result::
+       Item_func_div_fix_length_and_dec(Item_func_div *item) const
+{
+  item->fix_length_and_dec_double();
+  return false;
+}
+
+
+bool Type_handler_decimal_result::
+       Item_func_div_fix_length_and_dec(Item_func_div *item) const
+{
+  item->fix_length_and_dec_decimal();
+  return false;
+}
+
+
+bool Type_handler_temporal_result::
+       Item_func_div_fix_length_and_dec(Item_func_div *item) const
+{
+  item->fix_length_and_dec_temporal();
+  return false;
+}
+
+
+bool Type_handler_string_result::
+       Item_func_div_fix_length_and_dec(Item_func_div *item) const
+{
+  item->fix_length_and_dec_double();
+  return false;
+}
+
+/***************************************************************************/
+
+bool Type_handler_row::
+       Item_func_mod_fix_length_and_dec(Item_func_mod *item) const
+{
+  DBUG_ASSERT(0);
+  return true;
+}
+
+
+bool Type_handler_int_result::
+       Item_func_mod_fix_length_and_dec(Item_func_mod *item) const
+{
+  item->fix_length_and_dec_int();
+  return false;
+}
+
+
+bool Type_handler_real_result::
+       Item_func_mod_fix_length_and_dec(Item_func_mod *item) const
+{
+  item->fix_length_and_dec_double();
+  return false;
+}
+
+
+bool Type_handler_decimal_result::
+       Item_func_mod_fix_length_and_dec(Item_func_mod *item) const
+{
+  item->fix_length_and_dec_decimal();
+  return false;
+}
+
+
+bool Type_handler_temporal_result::
+       Item_func_mod_fix_length_and_dec(Item_func_mod *item) const
+{
+  item->fix_length_and_dec_temporal();
+  return false;
+}
+
+
+bool Type_handler_string_result::
+       Item_func_mod_fix_length_and_dec(Item_func_mod *item) const
+{
+  item->fix_length_and_dec_double();
+  return false;
+}
 
 /***************************************************************************/

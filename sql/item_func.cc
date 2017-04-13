@@ -729,47 +729,31 @@ bool Item_func_connection_id::fix_fields(THD *thd, Item **ref)
 }
 
 
-/**
-  Check arguments here to determine result's type for a numeric
-  function of two arguments.
-*/
-
-void Item_num_op::fix_length_and_dec(void)
+bool Item_num_op::fix_type_handler(const Type_aggregator *aggregator)
 {
-  DBUG_ENTER("Item_num_op::fix_length_and_dec");
-  DBUG_PRINT("info", ("name %s", func_name()));
   DBUG_ASSERT(arg_count == 2);
-  Item_result r0= args[0]->cast_to_int_type_handler()->cmp_type();
-  Item_result r1= args[1]->cast_to_int_type_handler()->cmp_type();
+  const Type_handler *h0= args[0]->cast_to_int_type_handler();
+  const Type_handler *h1= args[1]->cast_to_int_type_handler();
+  if (!aggregate_for_num_op(aggregator, h0, h1))
+    return false;
+  my_error(ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION, MYF(0),
+           h0->name().ptr(), h1->name().ptr(), func_name());
+  return true;
+}
 
-  if (r0 == REAL_RESULT || r1 == REAL_RESULT ||
-      r0 == STRING_RESULT || r1 ==STRING_RESULT)
+
+void Item_func_plus::fix_length_and_dec(void)
+{
+  DBUG_ENTER("Item_func_plus::fix_length_and_dec");
+  DBUG_PRINT("info", ("name %s", func_name()));
+  const Type_aggregator *aggregator= &type_handler_data->m_type_aggregator_for_plus;
+  DBUG_EXECUTE_IF("num_op", aggregator= &type_handler_data->m_type_aggregator_for_result;);
+  DBUG_ASSERT(aggregator->is_commutative());
+  if (!fix_type_handler(aggregator))
   {
-    count_real_length(args, arg_count);
-    max_length= float_length(decimals);
-    set_handler_by_result_type(REAL_RESULT);
+    Item_func_plus::type_handler()->Item_func_plus_fix_length_and_dec(this);
+    DBUG_PRINT("info", ("Type: %s", type_handler()->name().ptr()));
   }
-  else if (r0 == DECIMAL_RESULT || r1 == DECIMAL_RESULT ||
-           r0 == TIME_RESULT || r1 == TIME_RESULT)
-  {
-    set_handler_by_result_type(DECIMAL_RESULT);
-    result_precision();
-    fix_decimals();
-    if ((r0 == TIME_RESULT || r1 == TIME_RESULT) && decimals == 0)
-      set_handler_by_result_type(INT_RESULT);
-  }
-  else
-  {
-    DBUG_ASSERT(r0 == INT_RESULT && r1 == INT_RESULT);
-    set_handler_by_result_type(INT_RESULT);
-    result_precision();
-    decimals= 0;
-  }
-  DBUG_PRINT("info", ("Type: %s",
-             (result_type() == REAL_RESULT ? "REAL_RESULT" :
-              result_type() == DECIMAL_RESULT ? "DECIMAL_RESULT" :
-              result_type() == INT_RESULT ? "INT_RESULT" :
-              "--ILLEGAL!!!--")));
   DBUG_VOID_RETURN;
 }
 
@@ -1300,11 +1284,6 @@ void Item_func_additive_op::result_precision()
   DBUG_ASSERT(arg1_int >= 0);
   DBUG_ASSERT(arg2_int >= 0);
 
-  /* Integer operations keep unsigned_flag if one of arguments is unsigned */
-  if (result_type() == INT_RESULT)
-    unsigned_flag= args[0]->unsigned_flag | args[1]->unsigned_flag;
-  else
-    unsigned_flag= args[0]->unsigned_flag & args[1]->unsigned_flag;
   max_length= my_decimal_precision_to_length_no_truncation(precision, decimals,
                                                            unsigned_flag);
 }
@@ -1314,13 +1293,27 @@ void Item_func_additive_op::result_precision()
   The following function is here to allow the user to force
   subtraction of UNSIGNED BIGINT to return negative values.
 */
-
-void Item_func_minus::fix_length_and_dec()
+void Item_func_minus::fix_unsigned_flag()
 {
-  Item_num_op::fix_length_and_dec();
   if (unsigned_flag &&
       (current_thd->variables.sql_mode & MODE_NO_UNSIGNED_SUBTRACTION))
     unsigned_flag=0;
+}
+
+
+void Item_func_minus::fix_length_and_dec()
+{
+  DBUG_ENTER("Item_func_minus::fix_length_and_dec");
+  DBUG_PRINT("info", ("name %s", func_name()));
+  const Type_aggregator *aggregator= &type_handler_data->m_type_aggregator_for_minus;
+  DBUG_EXECUTE_IF("num_op", aggregator= &type_handler_data->m_type_aggregator_non_commutative_test;);
+  DBUG_ASSERT(!aggregator->is_commutative());
+  if (!fix_type_handler(aggregator))
+  {
+    Item_func_minus::type_handler()->Item_func_minus_fix_length_and_dec(this);
+    DBUG_PRINT("info", ("Type: %s", type_handler()->name().ptr()));
+  }
+  DBUG_VOID_RETURN;
 }
 
 
@@ -1531,17 +1524,28 @@ my_decimal *Item_func_mul::decimal_op(my_decimal *decimal_value)
 
 void Item_func_mul::result_precision()
 {
-  /* Integer operations keep unsigned_flag if one of arguments is unsigned */
-  if (result_type() == INT_RESULT)
-    unsigned_flag= args[0]->unsigned_flag | args[1]->unsigned_flag;
-  else
-    unsigned_flag= args[0]->unsigned_flag & args[1]->unsigned_flag;
   decimals= MY_MIN(args[0]->decimal_scale() + args[1]->decimal_scale(),
-                DECIMAL_MAX_SCALE);
+                   DECIMAL_MAX_SCALE);
   uint est_prec = args[0]->decimal_precision() + args[1]->decimal_precision();
   uint precision= MY_MIN(est_prec, DECIMAL_MAX_PRECISION);
   max_length= my_decimal_precision_to_length_no_truncation(precision, decimals,
                                                            unsigned_flag);
+}
+
+
+void Item_func_mul::fix_length_and_dec(void)
+{
+  DBUG_ENTER("Item_func_mul::fix_length_and_dec");
+  DBUG_PRINT("info", ("name %s", func_name()));
+  const Type_aggregator *aggregator= &type_handler_data->m_type_aggregator_for_mul;
+  DBUG_EXECUTE_IF("num_op", aggregator= &type_handler_data->m_type_aggregator_for_result;);
+  DBUG_ASSERT(aggregator->is_commutative());
+  if (!fix_type_handler(aggregator))
+  {
+    Item_func_mul::type_handler()->Item_func_mul_fix_length_and_dec(this);
+    DBUG_PRINT("info", ("Type: %s", type_handler()->name().ptr()));
+  }
+  DBUG_VOID_RETURN;
 }
 
 
@@ -1606,53 +1610,51 @@ void Item_func_div::result_precision()
   uint precision=MY_MIN(args[0]->decimal_precision() + 
                      args[1]->divisor_precision_increment() + prec_increment,
                      DECIMAL_MAX_PRECISION);
-
-  /* Integer operations keep unsigned_flag if one of arguments is unsigned */
-  if (result_type() == INT_RESULT)
-    unsigned_flag= args[0]->unsigned_flag | args[1]->unsigned_flag;
-  else
-    unsigned_flag= args[0]->unsigned_flag & args[1]->unsigned_flag;
   decimals= MY_MIN(args[0]->decimal_scale() + prec_increment, DECIMAL_MAX_SCALE);
   max_length= my_decimal_precision_to_length_no_truncation(precision, decimals,
                                                            unsigned_flag);
 }
 
 
-void Item_func_div::fix_length_and_dec()
+void Item_func_div::fix_length_and_dec_double(void)
+{
+  Item_num_op::fix_length_and_dec_double();
+  decimals= MY_MAX(args[0]->decimals, args[1]->decimals) + prec_increment;
+  set_if_smaller(decimals, NOT_FIXED_DEC);
+  uint tmp= float_length(decimals);
+  if (decimals == NOT_FIXED_DEC)
+    max_length= tmp;
+  else
+  {
+    max_length=args[0]->max_length - args[0]->decimals + decimals;
+    set_if_smaller(max_length, tmp);
+  }
+}
+
+
+void Item_func_div::fix_length_and_dec_int(void)
+{
+  set_handler(&type_handler_newdecimal);
+  DBUG_PRINT("info", ("Type changed: %s", type_handler()->name().ptr()));
+  Item_num_op::fix_length_and_dec_decimal();
+}
+
+
+void Item_func_div::fix_length_and_dec(void)
 {
   DBUG_ENTER("Item_func_div::fix_length_and_dec");
+  DBUG_PRINT("info", ("name %s", func_name()));
   prec_increment= current_thd->variables.div_precincrement;
-  Item_num_op::fix_length_and_dec();
-  switch (Item_func_div::result_type()) {
-  case REAL_RESULT:
-  {
-    decimals=MY_MAX(args[0]->decimals,args[1]->decimals)+prec_increment;
-    set_if_smaller(decimals, NOT_FIXED_DEC);
-    uint tmp=float_length(decimals);
-    if (decimals == NOT_FIXED_DEC)
-      max_length= tmp;
-    else
-    {
-      max_length=args[0]->max_length - args[0]->decimals + decimals;
-      set_if_smaller(max_length,tmp);
-    }
-    break;
-  }
-  case INT_RESULT:
-    set_handler_by_result_type(DECIMAL_RESULT);
-    DBUG_PRINT("info", ("Type changed: DECIMAL_RESULT"));
-    result_precision();
-    break;
-  case DECIMAL_RESULT:
-    result_precision();
-    fix_decimals();
-    break;
-  case STRING_RESULT:
-  case ROW_RESULT:
-  case TIME_RESULT:
-    DBUG_ASSERT(0);
-  }
   maybe_null= 1; // devision by zero
+
+  const Type_aggregator *aggregator= &type_handler_data->m_type_aggregator_for_div;
+  DBUG_EXECUTE_IF("num_op", aggregator= &type_handler_data->m_type_aggregator_non_commutative_test;);
+  DBUG_ASSERT(!aggregator->is_commutative());
+  if (!fix_type_handler(aggregator))
+  {
+    Item_func_div::type_handler()->Item_func_div_fix_length_and_dec(this);
+    DBUG_PRINT("info", ("Type: %s", type_handler()->name().ptr()));
+  }
   DBUG_VOID_RETURN;
 }
 
@@ -1824,9 +1826,18 @@ void Item_func_mod::result_precision()
 
 void Item_func_mod::fix_length_and_dec()
 {
-  Item_num_op::fix_length_and_dec();
-  maybe_null= 1;
-  unsigned_flag= args[0]->unsigned_flag;
+  DBUG_ENTER("Item_func_mod::fix_length_and_dec");
+  DBUG_PRINT("info", ("name %s", func_name()));
+  maybe_null= true; // division by zero
+  const Type_aggregator *aggregator= &type_handler_data->m_type_aggregator_for_mod;
+  DBUG_EXECUTE_IF("num_op", aggregator= &type_handler_data->m_type_aggregator_non_commutative_test;);
+  DBUG_ASSERT(!aggregator->is_commutative());
+  if (!fix_type_handler(aggregator))
+  {
+    Item_func_mod::type_handler()->Item_func_mod_fix_length_and_dec(this);
+    DBUG_PRINT("info", ("Type: %s", type_handler()->name().ptr()));
+  }
+  DBUG_VOID_RETURN;
 }
 
 

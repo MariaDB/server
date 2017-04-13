@@ -7806,18 +7806,6 @@ bool Item_ref::fix_fields(THD *thd, Item **reference)
                       last_checked_context->select_lex->nest_level);
     }
   }
-  else if (ref_type() != VIEW_REF)
-  {
-    /*
-      It could be that we're referring to something that's in ancestor selects.
-      We must make an appropriate mark_as_dependent() call for each such
-      outside reference.
-    */
-    Dependency_marker dep_marker;
-    dep_marker.current_select= current_sel;
-    dep_marker.thd= thd;
-    (*ref)->walk(&Item::enumerate_field_refs_processor, FALSE, &dep_marker);
-  }
 
   DBUG_ASSERT(*ref);
   /*

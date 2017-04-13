@@ -29,10 +29,6 @@ else()
   endif()
 endif()
 
-include (CheckTypeSize)
-check_type_size(size_t SIZEOF_SIZE_T)
-set_property(SOURCE ha_rocksdb.cc APPEND PROPERTY COMPILE_DEFINITIONS
-  SIZEOF_SIZE_T=${SIZEOF_SIZE_T} SIZEOF_UINT64_T=8)
 
 # Optional compression libraries.
 
@@ -136,7 +132,7 @@ find_package(Threads REQUIRED)
 if(WIN32)
   set(SYSTEM_LIBS ${SYSTEM_LIBS} Shlwapi.lib Rpcrt4.lib)
 else()
-  set(SYSTEM_LIBS ${CMAKE_THREAD_LIBS_INIT})
+  set(SYSTEM_LIBS ${CMAKE_THREAD_LIBS_INIT} ${LIBRT})
 endif()
 
 set(ROCKSDB_LIBS rocksdblib})

@@ -695,7 +695,31 @@ class Item_num_op :public Item_func_numhybrid
   {
     print_op(str, query_type);
   }
-  void fix_length_and_dec();
+  bool fix_type_handler(const Type_aggregator *aggregator);
+  void fix_length_and_dec_double()
+  {
+    count_real_length(args, arg_count);
+    max_length= float_length(decimals);
+  }
+  void fix_length_and_dec_decimal()
+  {
+    unsigned_flag= args[0]->unsigned_flag & args[1]->unsigned_flag;
+    result_precision();
+    fix_decimals();
+  }
+  void fix_length_and_dec_int()
+  {
+    unsigned_flag= args[0]->unsigned_flag | args[1]->unsigned_flag;
+    result_precision();
+    decimals= 0;
+  }
+  void fix_length_and_dec_temporal()
+  {
+    set_handler(&type_handler_newdecimal);
+    fix_length_and_dec_decimal();
+    if (decimals == 0)
+      set_handler(&type_handler_longlong);
+  }
   bool need_parentheses_in_default() { return true; }
 };
 
@@ -949,6 +973,7 @@ public:
     Item_func_additive_op(thd, a, b) {}
   const char *func_name() const { return "+"; }
   enum precedence precedence() const { return ADD_PRECEDENCE; }
+  void fix_length_and_dec();
   longlong int_op();
   double real_op();
   my_decimal *decimal_op(my_decimal *);
@@ -967,6 +992,22 @@ public:
   double real_op();
   my_decimal *decimal_op(my_decimal *);
   void fix_length_and_dec();
+  void fix_unsigned_flag();
+  void fix_length_and_dec_double()
+  {
+    Item_func_additive_op::fix_length_and_dec_double();
+    fix_unsigned_flag();
+  }
+  void fix_length_and_dec_decimal()
+  {
+    Item_func_additive_op::fix_length_and_dec_decimal();
+    fix_unsigned_flag();
+  }
+  void fix_length_and_dec_int()
+  {
+    Item_func_additive_op::fix_length_and_dec_int();
+    fix_unsigned_flag();
+  }
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_func_minus>(thd, mem_root, this); }
 };
@@ -983,6 +1024,7 @@ public:
   double real_op();
   my_decimal *decimal_op(my_decimal *);
   void result_precision();
+  void fix_length_and_dec();
   bool check_partition_func_processor(void *int_arg) {return FALSE;}
   bool check_vcol_func_processor(void *arg) { return FALSE;}
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
@@ -1001,6 +1043,8 @@ public:
   const char *func_name() const { return "/"; }
   enum precedence precedence() const { return MUL_PRECEDENCE; }
   void fix_length_and_dec();
+  void fix_length_and_dec_double();
+  void fix_length_and_dec_int();
   void result_precision();
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_func_div>(thd, mem_root, this); }
@@ -1040,6 +1084,22 @@ public:
   enum precedence precedence() const { return MUL_PRECEDENCE; }
   void result_precision();
   void fix_length_and_dec();
+  void fix_length_and_dec_double()
+  {
+    Item_num_op::fix_length_and_dec_double();
+    unsigned_flag= args[0]->unsigned_flag;
+  }
+  void fix_length_and_dec_decimal()
+  {
+    Item_num_op::fix_length_and_dec_decimal();
+    unsigned_flag= args[0]->unsigned_flag;
+  }
+  void fix_length_and_dec_int()
+  {
+    max_length= MY_MAX(args[0]->max_length, args[1]->max_length);
+    decimals= 0;
+    unsigned_flag= args[0]->unsigned_flag;
+  }
   bool check_partition_func_processor(void *int_arg) {return FALSE;}
   bool check_vcol_func_processor(void *arg) { return FALSE;}
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)

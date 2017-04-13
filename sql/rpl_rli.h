@@ -835,7 +835,7 @@ struct rpl_group_info
   */
   inline void set_annotate_event(Annotate_rows_log_event *event)
   {
-    free_annotate_event();
+    DBUG_ASSERT(m_annotate_event == NULL);
     m_annotate_event= event;
     this->thd->variables.binlog_annotate_row_events= 1;
   }

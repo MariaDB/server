@@ -1,16 +1,6 @@
 --source include/have_innodb.inc
 --source include/big_test.inc
---source include/not_valgrind.inc
 --source include/not_embedded.inc
-
---disable_warnings
-DROP TABLE if exists t1;
---enable_warnings
-
---disable_query_log
-let $innodb_defragment_n_pages_orig=`select @@innodb_defragment_n_pages`;
-let $innodb_defragment_stats_accuracy_orig=`select @@innodb_defragment_stats_accuracy`;
---enable_query_log
 
 set global innodb_defragment_stats_accuracy = 80;
 
@@ -47,12 +37,14 @@ delimiter ;//
 # Populate table.
 let $i = $data_size;
 --disable_query_log
+BEGIN;
 while ($i)
 {
   eval
     INSERT INTO t1 VALUES ($data_size + 1 - $i, REPEAT('A', 256));
   dec $i;
 }
+COMMIT;
 --enable_query_log
 
 select count(stat_value) from mysql.innodb_index_stats where table_name like '%t1%' and  stat_name  in ('n_pages_freed');
@@ -161,10 +153,3 @@ select count(stat_value) = 0 from mysql.innodb_index_stats where table_name like
 
 DROP PROCEDURE defragment;
 DROP TABLE t1;
-
-# reset system
---disable_query_log
-EVAL SET GLOBAL innodb_defragment_n_pages = $innodb_defragment_n_pages_orig;
-EVAL SET GLOBAL innodb_defragment_stats_accuracy = $innodb_defragment_stats_accuracy_orig;
---enable_query_log
-

@@ -51,6 +51,11 @@ class Item_char_typecast;
 class Item_time_typecast;
 class Item_date_typecast;
 class Item_datetime_typecast;
+class Item_func_plus;
+class Item_func_minus;
+class Item_func_mul;
+class Item_func_div;
+class Item_func_mod;
 class cmp_item;
 class in_vector;
 class Type_std_attributes;
@@ -303,6 +308,9 @@ public:
   static const
   Type_handler *aggregate_for_result_traditional(const Type_handler *h1,
                                                  const Type_handler *h2);
+  static const
+  Type_handler *aggregate_for_num_op_traditional(const Type_handler *h1,
+                                                 const Type_handler *h2);
 
   virtual const Name name() const= 0;
   virtual enum_field_types field_type() const= 0;
@@ -497,6 +505,17 @@ public:
   Item_date_typecast_fix_length_and_dec(Item_date_typecast *item) const;
   virtual bool
   Item_datetime_typecast_fix_length_and_dec(Item_datetime_typecast *item) const;
+
+  virtual bool
+  Item_func_plus_fix_length_and_dec(Item_func_plus *func) const= 0;
+  virtual bool
+  Item_func_minus_fix_length_and_dec(Item_func_minus *func) const= 0;
+  virtual bool
+  Item_func_mul_fix_length_and_dec(Item_func_mul *func) const= 0;
+  virtual bool
+  Item_func_div_fix_length_and_dec(Item_func_div *func) const= 0;
+  virtual bool
+  Item_func_mod_fix_length_and_dec(Item_func_mod *func) const= 0;
 };
 
 
@@ -708,6 +727,12 @@ public:
     DBUG_ASSERT(0);
     return true;
   }
+
+  bool Item_func_plus_fix_length_and_dec(Item_func_plus *) const;
+  bool Item_func_minus_fix_length_and_dec(Item_func_minus *) const;
+  bool Item_func_mul_fix_length_and_dec(Item_func_mul *) const;
+  bool Item_func_div_fix_length_and_dec(Item_func_div *) const;
+  bool Item_func_mod_fix_length_and_dec(Item_func_mod *) const;
 };
 
 
@@ -784,6 +809,11 @@ public:
   bool Item_func_int_val_fix_length_and_dec(Item_func_int_val *) const;
   bool Item_func_abs_fix_length_and_dec(Item_func_abs *) const;
   bool Item_func_neg_fix_length_and_dec(Item_func_neg *) const;
+  bool Item_func_plus_fix_length_and_dec(Item_func_plus *) const;
+  bool Item_func_minus_fix_length_and_dec(Item_func_minus *) const;
+  bool Item_func_mul_fix_length_and_dec(Item_func_mul *) const;
+  bool Item_func_div_fix_length_and_dec(Item_func_div *) const;
+  bool Item_func_mod_fix_length_and_dec(Item_func_mod *) const;
 };
 
 
@@ -833,6 +863,11 @@ public:
   bool Item_func_int_val_fix_length_and_dec(Item_func_int_val *) const;
   bool Item_func_abs_fix_length_and_dec(Item_func_abs *) const;
   bool Item_func_neg_fix_length_and_dec(Item_func_neg *) const;
+  bool Item_func_plus_fix_length_and_dec(Item_func_plus *) const;
+  bool Item_func_minus_fix_length_and_dec(Item_func_minus *) const;
+  bool Item_func_mul_fix_length_and_dec(Item_func_mul *) const;
+  bool Item_func_div_fix_length_and_dec(Item_func_div *) const;
+  bool Item_func_mod_fix_length_and_dec(Item_func_mod *) const;
 };
 
 
@@ -881,6 +916,11 @@ public:
   bool Item_func_int_val_fix_length_and_dec(Item_func_int_val *) const;
   bool Item_func_abs_fix_length_and_dec(Item_func_abs *) const;
   bool Item_func_neg_fix_length_and_dec(Item_func_neg *) const;
+  bool Item_func_plus_fix_length_and_dec(Item_func_plus *) const;
+  bool Item_func_minus_fix_length_and_dec(Item_func_minus *) const;
+  bool Item_func_mul_fix_length_and_dec(Item_func_mul *) const;
+  bool Item_func_div_fix_length_and_dec(Item_func_div *) const;
+  bool Item_func_mod_fix_length_and_dec(Item_func_mod *) const;
 };
 
 
@@ -933,6 +973,11 @@ public:
   bool Item_func_int_val_fix_length_and_dec(Item_func_int_val *) const;
   bool Item_func_abs_fix_length_and_dec(Item_func_abs *) const;
   bool Item_func_neg_fix_length_and_dec(Item_func_neg *) const;
+  bool Item_func_plus_fix_length_and_dec(Item_func_plus *) const;
+  bool Item_func_minus_fix_length_and_dec(Item_func_minus *) const;
+  bool Item_func_mul_fix_length_and_dec(Item_func_mul *) const;
+  bool Item_func_div_fix_length_and_dec(Item_func_div *) const;
+  bool Item_func_mod_fix_length_and_dec(Item_func_mod *) const;
 };
 
 
@@ -999,6 +1044,11 @@ public:
   bool Item_func_int_val_fix_length_and_dec(Item_func_int_val *) const;
   bool Item_func_abs_fix_length_and_dec(Item_func_abs *) const;
   bool Item_func_neg_fix_length_and_dec(Item_func_neg *) const;
+  bool Item_func_plus_fix_length_and_dec(Item_func_plus *) const;
+  bool Item_func_minus_fix_length_and_dec(Item_func_minus *) const;
+  bool Item_func_mul_fix_length_and_dec(Item_func_mul *) const;
+  bool Item_func_div_fix_length_and_dec(Item_func_div *) const;
+  bool Item_func_mod_fix_length_and_dec(Item_func_mod *) const;
 };
 
 
@@ -1528,6 +1578,8 @@ public:
   bool aggregate_for_result(const Type_handler *other);
   bool aggregate_for_result(const char *funcname,
                             Item **item, uint nitems, bool treat_bit_as_number);
+  bool aggregate_for_num_op(const class Type_aggregator *aggregator,
+                            const Type_handler *h0, const Type_handler *h1);
 };
 
 
@@ -1547,6 +1599,7 @@ extern Type_handler_set type_handler_set;
 
 class Type_aggregator
 {
+  bool m_is_commutative;
   class Pair
   {
   public:
@@ -1566,18 +1619,10 @@ class Type_aggregator
   };
   Dynamic_array<Pair> m_array;
   const Pair* find_pair(const Type_handler *handler1,
-                        const Type_handler *handler2) const
-  {
-    for (uint i= 0; i < m_array.elements(); i++)
-    {
-      const Pair& el= m_array.at(i);
-      if (el.eq(handler1, handler2) || el.eq(handler2, handler1))
-        return &el;
-    }
-    return NULL;
-  }
+                        const Type_handler *handler2) const;
 public:
-  Type_aggregator()
+  Type_aggregator(bool is_commutative= false)
+   :m_is_commutative(is_commutative)
   { }
   bool add(const Type_handler *handler1,
            const Type_handler *handler2,
@@ -1591,14 +1636,35 @@ public:
     const Pair* el= find_pair(handler1, handler2);
     return el ? el->m_result : NULL;
   }
+  bool is_commutative() const { return m_is_commutative; }
+};
+
+
+class Type_aggregator_commutative: public Type_aggregator
+{
+public:
+  Type_aggregator_commutative()
+   :Type_aggregator(true)
+  { }
 };
 
 
 class Type_handler_data
 {
 public:
-  Type_aggregator m_type_aggregator_for_result;
-  Type_aggregator m_type_aggregator_for_comparison;
+  Type_aggregator_commutative m_type_aggregator_for_result;
+  Type_aggregator_commutative m_type_aggregator_for_comparison;
+
+  Type_aggregator_commutative m_type_aggregator_for_plus;
+  Type_aggregator_commutative m_type_aggregator_for_mul;
+
+  Type_aggregator m_type_aggregator_for_minus;
+  Type_aggregator m_type_aggregator_for_div;
+  Type_aggregator m_type_aggregator_for_mod;
+#ifndef DBUG_OFF
+  // This is used for mtr purposes in debug builds
+  Type_aggregator m_type_aggregator_non_commutative_test;
+#endif
   bool init();
 };
 

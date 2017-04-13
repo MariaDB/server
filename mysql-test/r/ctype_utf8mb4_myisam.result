@@ -2347,7 +2347,7 @@ PRIMARY KEY (clipid),
 KEY tape(Tape(255))
 ) CHARACTER SET=utf8mb4 ENGINE MyISAM;
 Warnings:
-Warning	1071	Specified key was too long; max key length is 1000 bytes
+Note	1071	Specified key was too long; max key length is 1000 bytes
 ALTER TABLE t1 ADD mos TINYINT DEFAULT 0 AFTER clipid;
 SHOW CREATE TABLE t1;
 Table	Create Table

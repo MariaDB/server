@@ -246,7 +246,7 @@ my @mysqld_rules=
  { '#host' => \&fix_host },
  { 'port' => \&fix_port },
  { 'socket' => \&fix_socket },
- { '#log-error' => \&fix_log_error },
+ { 'log-error' => \&fix_log_error },
  { 'general-log' => 1 },
  { 'plugin-dir' => sub { $::plugindir } },
  { 'general-log-file' => \&fix_log },
@@ -394,7 +394,7 @@ sub post_check_embedded_group {
 
   my %no_copy = map { $_ => 1 }
     (
-     '#log-error', # Embedded server writes stderr to mysqltest's log file
+     'log-error', # Embedded server writes stderr to mysqltest's log file
      'slave-net-timeout', # Embedded server are not build with replication
      'shared-memory-base-name', # No shared memory for embedded
     );

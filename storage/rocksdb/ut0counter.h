@@ -78,7 +78,7 @@ struct thread_id_indexer_t : public generic_indexer_t<Type, N> {
 	thread id is represented as a pointer, it may not work as
 	effectively. */
 	size_t get_rnd_index() const {
-		return get_curr_thread_id();
+		return (size_t)get_curr_thread_id();
 	}
 };
 
