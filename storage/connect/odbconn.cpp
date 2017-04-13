@@ -239,62 +239,43 @@ char *ODBCCheckConnection(PGLOBAL g, char *dsn, int cop)
 /***********************************************************************/
 /*  Allocate the structure used to refer to the result set.            */
 /***********************************************************************/
-static CATPARM *AllocCatInfo(PGLOBAL g, CATINFO fid, char *db, 
-                                        char *tab, PQRYRES qrp)
-  {
-  size_t   i, m, n;
-  CATPARM *cap;
+static CATPARM *AllocCatInfo(PGLOBAL g, CATINFO fid, char *db,
+	char *tab, PQRYRES qrp)
+{
+	size_t   i, m, n;
+	CATPARM *cap;
 
 #if defined(_DEBUG)
-  assert(qrp);
+	assert(qrp);
 #endif
 
-#if defined(USE_TRY)
 	try {
-#else   // !USE_TRY
-	// Save stack and allocation environment and prepare error return
-	if (g->jump_level == MAX_JUMP) {
-		strcpy(g->Message, MSG(TOO_MANY_JUMPS));
-		return NULL;
-	} // endif jump_level
+		m = (size_t)qrp->Maxres;
+		n = (size_t)qrp->Nbcol;
+		cap = (CATPARM *)PlugSubAlloc(g, NULL, sizeof(CATPARM));
+		memset(cap, 0, sizeof(CATPARM));
+		cap->Id = fid;
+		cap->Qrp = qrp;
+		cap->DB = (PUCHAR)db;
+		cap->Tab = (PUCHAR)tab;
+		cap->Vlen = (SQLLEN* *)PlugSubAlloc(g, NULL, n * sizeof(SQLLEN *));
 
-	if (setjmp(g->jumper[++g->jump_level]) != 0) {
+		for (i = 0; i < n; i++)
+			cap->Vlen[i] = (SQLLEN *)PlugSubAlloc(g, NULL, m * sizeof(SQLLEN));
+
+		cap->Status = (UWORD *)PlugSubAlloc(g, NULL, m * sizeof(UWORD));
+
+	} catch (int n) {
+		htrc("Exeption %d: %s\n", n, g->Message);
+		cap = NULL;
+	} catch (const char *msg) {
+		htrc(g->Message, msg);
 		printf("%s\n", g->Message);
 		cap = NULL;
-		goto fin;
-	} // endif rc
-#endif  // !USE_TRY
+	} // end catch
 
-  m = (size_t)qrp->Maxres;
-  n = (size_t)qrp->Nbcol;
-  cap = (CATPARM *)PlugSubAlloc(g, NULL, sizeof(CATPARM));
-  memset(cap, 0, sizeof(CATPARM));
-  cap->Id = fid;
-  cap->Qrp = qrp;
-  cap->DB = (PUCHAR)db;
-  cap->Tab = (PUCHAR)tab;
-  cap->Vlen = (SQLLEN* *)PlugSubAlloc(g, NULL, n * sizeof(SQLLEN *));
-
-  for (i = 0; i < n; i++)
-    cap->Vlen[i] = (SQLLEN *)PlugSubAlloc(g, NULL, m * sizeof(SQLLEN));
-
-  cap->Status = (UWORD *)PlugSubAlloc(g, NULL, m * sizeof(UWORD));
-
-#if defined(USE_TRY)
-} catch (int n) {
-	htrc("Exeption %d: %s\n", n, g->Message);
-	cap = NULL;
-} catch (const char *msg) {
-	htrc(g->Message, msg);
-	printf("%s\n", g->Message);
-	cap = NULL;
-} // end catch
-#else   // !USE_TRY
- fin:
-	g->jump_level--;
-#endif  // !USE_TRY
 	return cap;
-  } // end of AllocCatInfo
+} // end of AllocCatInfo
 
 #if 0
 /***********************************************************************/

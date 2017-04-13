@@ -289,11 +289,7 @@ void VIRCOL::ReadColumn(PGLOBAL g)
   {
   // This should never be called
   sprintf(g->Message, "ReadColumn: Column %s is not virtual", Name);
-#if defined(USE_TRY)
 	throw TYPE_COLBLK;
-#else   // !USE_TRY
-	longjmp(g->jumper[g->jump_level], TYPE_COLBLK);
-#endif  // !USE_TRY
 } // end of ReadColumn
 
 /* ---------------------------TDBVICL class -------------------------- */

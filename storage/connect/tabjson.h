@@ -1,5 +1,5 @@
 /*************** tabjson H Declares Source Code File (.H) **************/
-/*  Name: tabjson.h   Version 1.2                                      */
+/*  Name: tabjson.h   Version 1.3                                      */
 /*                                                                     */
 /*  (C) Copyright to the author Olivier BERTRAND          2014 - 2017  */
 /*                                                                     */
@@ -36,8 +36,11 @@ class DllExport JSONDEF : public DOSDEF {         /* Table description */
   friend class TDBJSON;
   friend class TDBJSN;
   friend class TDBJCL;
-  friend PQRYRES JSONColumns(PGLOBAL, char*, PTOS, bool);
- public:
+  friend PQRYRES JSONColumns(PGLOBAL, char*, char*, PTOS, bool);
+#if defined(MONGO_SUPPORT)
+	friend class MGOFAM;
+#endif   // MONGO_SUPPORT
+public:
   // Constructor
   JSONDEF(void);
 
@@ -58,6 +61,12 @@ class DllExport JSONDEF : public DOSDEF {         /* Table description */
   int   Level;                  /* Used for catalog table              */
   int   Base;                   /* Tne array index base                */
   bool  Strict;                 /* Strict syntax checking              */
+#if defined(MONGO_SUPPORT)
+	const char *Uri;							/* MongoDB connection URI              */
+	PSZ         Collname;         /* External collection name            */
+	PSZ         Schema;           /* External schema (DB) name           */
+	PSZ         Options;          /* Colist ; filter                     */
+#endif   // MONGO_SUPPORT
   }; // end of JSONDEF
 
 /* -------------------------- TDBJSN class --------------------------- */
@@ -75,7 +84,7 @@ public:
    TDBJSN(TDBJSN *tdbp);
 
   // Implementation
-  virtual AMT   GetAmType(void) {return TYPE_AM_JSN;}
+  virtual AMT   GetAmType(void) {return Amtype;}
   virtual bool  SkipHeader(PGLOBAL g);
   virtual PTDB  Duplicate(PGLOBAL g) {return (PTDB)new(g) TDBJSN(this);}
           PJSON GetRow(void) {return Row;}
@@ -107,6 +116,7 @@ public:
 	PJSON   Val;                     // The value of the current row
 	PJCOL   Colp;                    // The multiple column
 	JMODE   Jmode;                   // MODE_OBJECT by default
+	AMT     Amtype;									 // Access method type
   char   *Objname;                 // The table object name
   char   *Xcol;                    // Name of expandable column
 	int     Fpos;                    // The current row index
@@ -233,4 +243,5 @@ class DllExport TDBJCL : public TDBCAT {
   // Members
   PTOS  Topt;
   char *Db;
+	char *Dsn;
   }; // end of class TDBJCL

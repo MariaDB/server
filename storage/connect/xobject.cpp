@@ -84,11 +84,7 @@ double XOBJECT::GetFloatValue(void)
 CONSTANT::CONSTANT(PGLOBAL g, void *value, short type)
   {
   if (!(Value = AllocateValue(g, value, (int)type)))
-#if defined(USE_TRY)
 		throw TYPE_CONST;
-#else   // !USE_TRY
-		longjmp(g->jumper[g->jump_level], TYPE_CONST);
-#endif  // !USE_TRY
 
   Constant = true;
   } // end of CONSTANT constructor
@@ -99,11 +95,7 @@ CONSTANT::CONSTANT(PGLOBAL g, void *value, short type)
 CONSTANT::CONSTANT(PGLOBAL g, int n)
   {
   if (!(Value = AllocateValue(g, &n, TYPE_INT)))
-#if defined(USE_TRY)
 		throw TYPE_CONST;
-#else   // !USE_TRY
-		longjmp(g->jumper[g->jump_level], TYPE_CONST);
-#endif  // !USE_TRY
 
   Constant = true;
   } // end of CONSTANT constructor
@@ -125,11 +117,7 @@ void CONSTANT::Convert(PGLOBAL g, int newtype)
   {
   if (Value->GetType() != newtype)
     if (!(Value = AllocateValue(g, Value, newtype)))
-#if defined(USE_TRY)
 			throw TYPE_CONST;
-#else   // !USE_TRY
-			longjmp(g->jumper[g->jump_level], TYPE_CONST);
-#endif  // !USE_TRY
 
   } // end of Convert
 

@@ -38,7 +38,7 @@ user_connect.h valblk.h value.h xindex.h xobject.h xtable.h)
 # Definitions that are shared for all OSes
 #
 add_definitions( -DMARIADB -DFORCE_INIT_OF_VARS -Dconnect_EXPORTS)
-add_definitions( -DHUGE_SUPPORT -DGZ_SUPPORT -DPIVOT_SUPPORT -DUSE_TRY )
+add_definitions( -DHUGE_SUPPORT -DGZ_SUPPORT -DPIVOT_SUPPORT )
 
 
 #
@@ -291,6 +291,31 @@ IF(CONNECT_WITH_ZIP)
   add_definitions(-DZIP_SUPPORT -DNOCRYPT)
 ENDIF(CONNECT_WITH_ZIP)
 
+#
+# MONGO (CMAKE NOT YET WORKING)
+#
+
+#OPTION(CONNECT_WITH_MONGO "Compile CONNECT storage engine with MONGO support" ON)
+
+#IF(CONNECT_WITH_MONGO)
+#  IF(WIN32)
+#    # Adding some typical places to search in
+#    SET(PC_MONGO_INCLUDE_DIRS
+#        C:/mongo-c-driver/include
+#				D:/mongo-c-driver/include)
+#    SET(PC_MONGO_LIBRARY_DIRS
+#        C:/mongo-c-driver/lib
+#				D:/mongo-c-driver/lib)
+#  ENDIF(WIN32)
+#  FIND_PACKAGE(libmongoc)
+#  IF (MONGO_FOUND)
+#    INCLUDE_DIRECTORIES(${MONGO_INCLUDE_DIR})
+#    SET(MONGO_LIBRARY   ${MONGO_LIBRARIES})
+#    SET(CONNECT_SOURCES ${CONNECT_SOURCES} mongofam.cpp mongofam.h)
+#    add_definitions(-DMONGO_SUPPORT)
+#  ENDIF(MONGO_FOUND)
+#ENDIF(CONNECT_WITH_MONGO)
+
 
 #
 # XMAP
@@ -310,6 +335,6 @@ MYSQL_ADD_PLUGIN(connect ${CONNECT_SOURCES}
   STORAGE_ENGINE
   COMPONENT connect-engine
   RECOMPILE_FOR_EMBEDDED
-  LINK_LIBRARIES ${ZLIB_LIBRARY} ${XML_LIBRARY} ${ICONV_LIBRARY}
+  LINK_LIBRARIES ${ZLIB_LIBRARY} ${XML_LIBRARY} ${ICONV_LIBRARY} $(MONGO_LIBRARY)
                  ${ODBC_LIBRARY} ${JDBC_LIBRARY} ${IPHLPAPI_LIBRARY})
 

@@ -195,13 +195,9 @@ int COLBLK::GetLengthEx(void)
 /*  corresponding to this column and convert it to buffer type.        */
 /***********************************************************************/
 void COLBLK::ReadColumn(PGLOBAL g)
-  {
+{
   sprintf(g->Message, MSG(UNDEFINED_AM), "ReadColumn");
-#if defined(USE_TRY)
 	throw TYPE_COLBLK;
-#else   // !USE_TRY
-	longjmp(g->jumper[g->jump_level], TYPE_COLBLK);
-#endif  // !USE_TRY
 } // end of ReadColumn
 
 /***********************************************************************/
@@ -210,13 +206,9 @@ void COLBLK::ReadColumn(PGLOBAL g)
 /*  corresponding to this column from the column buffer and type.      */
 /***********************************************************************/
 void COLBLK::WriteColumn(PGLOBAL g)
-  {
+{
   sprintf(g->Message, MSG(UNDEFINED_AM), "WriteColumn");
-#if defined(USE_TRY)
 	throw TYPE_COLBLK;
-#else   // !USE_TRY
-	longjmp(g->jumper[g->jump_level], TYPE_COLBLK);
-#endif  // !USE_TRY
 } // end of WriteColumn
 
 /***********************************************************************/
@@ -268,13 +260,9 @@ SPCBLK::SPCBLK(PCOLUMN cp)
 /*  corresponding to this column from the column buffer and type.      */
 /***********************************************************************/
 void SPCBLK::WriteColumn(PGLOBAL g)
-  {
+{
   sprintf(g->Message, MSG(SPCOL_READONLY), Name);
-#if defined(USE_TRY)
 	throw TYPE_COLBLK;
-#else   // !USE_TRY
-	longjmp(g->jumper[g->jump_level], TYPE_COLBLK);
-#endif  // !USE_TRY
 } // end of WriteColumn
 
 /***********************************************************************/

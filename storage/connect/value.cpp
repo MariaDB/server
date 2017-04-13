@@ -57,17 +57,10 @@
 /*  Check macro's.                                                     */
 /***********************************************************************/
 #if defined(_DEBUG)
-#if defined(USE_TRY)
 #define CheckType(V)    if (Type != V->GetType()) { \
     PGLOBAL& g = Global; \
     strcpy(g->Message, MSG(VALTYPE_NOMATCH)); \
     throw Type;
-#else   // !USE_TRY
-#define CheckType(V)    if (Type != V->GetType()) { \
-    PGLOBAL& g = Global; \
-    strcpy(g->Message, MSG(VALTYPE_NOMATCH)); \
-		longjmp(g->jumper[g->jump_level], Type);
-#endif  // !USE_TRY
 #else
 #define CheckType(V)
 #endif
@@ -1026,19 +1019,11 @@ TYPE TYPVAL<TYPE>::SafeAdd(TYPE n1, TYPE n2)
   if ((n2 > 0) && (n < n1)) {
     // Overflow
     strcpy(g->Message, MSG(FIX_OVFLW_ADD));
-#if defined(USE_TRY)
 		throw 138;
-#else   // !USE_TRY
-		longjmp(g->jumper[g->jump_level], 138);
-#endif  // !USE_TRY
 	} else if ((n2 < 0) && (n > n1)) {
     // Underflow
     strcpy(g->Message, MSG(FIX_UNFLW_ADD));
-#if defined(USE_TRY)
 		throw 138;
-#else   // !USE_TRY
-		longjmp(g->jumper[g->jump_level], 138);
-#endif  // !USE_TRY
 	} // endif's n2
 
   return n;
@@ -1062,19 +1047,11 @@ TYPE TYPVAL<TYPE>::SafeMult(TYPE n1, TYPE n2)
   if (n > MinMaxVal(true)) {
     // Overflow
     strcpy(g->Message, MSG(FIX_OVFLW_TIMES));
-#if defined(USE_TRY)
 		throw 138;
-#else   // !USE_TRY
-		longjmp(g->jumper[g->jump_level], 138);
-#endif  // !USE_TRY
 	} else if (n < MinMaxVal(false)) {
     // Underflow
     strcpy(g->Message, MSG(FIX_UNFLW_TIMES));
-#if defined(USE_TRY)
 		throw 138;
-#else   // !USE_TRY
-		longjmp(g->jumper[g->jump_level], 138);
-#endif  // !USE_TRY
 	} // endif's n2
 
   return (TYPE)n;
@@ -1455,15 +1432,7 @@ void TYPVAL<PSZ>::SetValue(int n)
 
   if (k > Len) {
     sprintf(g->Message, MSG(VALSTR_TOO_LONG), buf, Len);
-#if defined(USE_TRY)
 		throw 138;
-#else   // !USE_TRY
-#if defined(USE_TRY)
-		throw 138;
-#else   // !USE_TRY
-		longjmp(g->jumper[g->jump_level], 138);
-#endif  // !USE_TRY
-#endif  // !USE_TRY
 	} else
     SetValue_psz(buf);
 
@@ -1517,11 +1486,7 @@ void TYPVAL<PSZ>::SetValue(longlong n)
 
   if (k > Len) {
     sprintf(g->Message, MSG(VALSTR_TOO_LONG), buf, Len);
-#if defined(USE_TRY)
 		throw 138;
-#else   // !USE_TRY
-		longjmp(g->jumper[g->jump_level], 138);
-#endif  // !USE_TRY
 	} else
     SetValue_psz(buf);
 
@@ -1564,11 +1529,7 @@ void TYPVAL<PSZ>::SetValue(double f)
 
   if (k > Len) {
     sprintf(g->Message, MSG(VALSTR_TOO_LONG), buf, Len);
-#if defined(USE_TRY)
 		throw 138;
-#else   // !USE_TRY
-		longjmp(g->jumper[g->jump_level], 138);
-#endif  // !USE_TRY
 	} else
     SetValue_psz(buf);
 

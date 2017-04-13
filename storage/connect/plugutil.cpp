@@ -519,13 +519,7 @@ void *PlugSubAlloc(PGLOBAL g, void *memp, size_t size)
     if (trace)
       htrc("PlugSubAlloc: %s\n", g->Message);
 
-#if defined(USE_TRY)
 		throw 1234;
-#else   // !USE_TRY
-		/* Nothing we can do if longjmp is not initialized.	*/
-		assert(g->jump_level >= 0);
-		longjmp(g->jumper[g->jump_level], 1);
-#endif  // !USE_TRY
     } /* endif size OS32 code */
 
   /*********************************************************************/

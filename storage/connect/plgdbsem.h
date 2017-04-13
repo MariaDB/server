@@ -143,7 +143,8 @@ enum AMT {TYPE_AM_ERROR =   0,        /* Type not defined              */
           TYPE_AM_MYX   = 193,        /* MYSQL EXEC access method type */
           TYPE_AM_CAT   = 195,        /* Catalog access method type no */
 					TYPE_AM_ZIP   = 198,				/* ZIP access method type no     */
-					TYPE_AM_OUT   = 200};       /* Output relations (storage)    */
+	        TYPE_AM_MGO   = 199,				/* MGO access method type no     */
+	        TYPE_AM_OUT   = 200};       /* Output relations (storage)    */
 
 enum RECFM {RECFM_NAF   =    -2,      /* Not a file                    */
             RECFM_OEM   =    -1,      /* OEM file access method        */
