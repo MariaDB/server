@@ -53,7 +53,7 @@
     <Property Id="DISABLEADVTSHORTCUTS" Secure="yes" Value="1"/>
 
     <!-- Activate feedback plugin-->
-    <Property Id="FEEDBACK" Secure="yes"/>
+    <Property Id="FEEDBACK" Secure="yes" Value="1"/>
 
 
     <!-- Quick configuration : set default storage engine to innodb, use strict sql_mode -->
