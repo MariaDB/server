@@ -61,8 +61,8 @@ public:
   int   Level;                  /* Used for catalog table              */
   int   Base;                   /* Tne array index base                */
   bool  Strict;                 /* Strict syntax checking              */
-#if defined(MONGO_SUPPORT)
 	const char *Uri;							/* MongoDB connection URI              */
+#if defined(MONGO_SUPPORT)
 	PSZ         Collname;         /* External collection name            */
 	PSZ         Schema;           /* External schema (DB) name           */
 	PSZ         Options;          /* Colist ; filter                     */

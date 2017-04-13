@@ -3104,7 +3104,7 @@ const COND *ha_connect::cond_push(const COND *cond)
 				} else if (x && cond)
 					tdbp->SetCondFil(filp);   // Wrong filter
 
-			} else // if (tty != TYPE_AM_JSN && tty != TYPE_AM_JSON)
+			} else if (tty != TYPE_AM_JSN && tty != TYPE_AM_JSON)
 				tdbp->SetFilter(CondFilter(g, (Item *)cond));
 
 		} catch (int n) {

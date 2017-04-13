@@ -172,9 +172,14 @@ PQRYRES JSONColumns(PGLOBAL g, char *db, char *dsn, PTOS topt, bool info)
 			sprintf(g->Message, MSG(NO_FEAT_SUPPORT), "ZIP");
 			return NULL;
 #endif  // !ZIP_SUPPORT
-		} else if (tdp->Uri)
+		} else if (tdp->Uri) {
+#if defined(MONGO_SUPPORT)
 			tjnp = new(g) TDBJSN(tdp, new(g) MGOFAM(tdp));
-	  else
+#else   // !MONGO_SUPPORT
+			sprintf(g->Message, MSG(NO_FEAT_SUPPORT), "MONGO");
+			return NULL;
+#endif  // !MONGO_SUPPORT
+		} else
 			tjnp = new(g) TDBJSN(tdp, new(g) DOSFAM(tdp));
 
     tjnp->SetMode(MODE_READ);
@@ -500,9 +505,14 @@ PTDB JSONDEF::GetTable(PGLOBAL g, MODE m)
       sprintf(g->Message, MSG(NO_FEAT_SUPPORT), "GZ");
       return NULL;
 #endif  // !GZ_SUPPORT
-		} else if (Uri)
+		} else if (Uri) {
+#if defined(MONGO_SUPPORT)
 			txfp = new(g) MGOFAM(this);
-		else if (map)
+#else   // !MONGO_SUPPORT
+			sprintf(g->Message, MSG(NO_FEAT_SUPPORT), "MONGO");
+			return NULL;
+#endif  // !MONGO_SUPPORT
+		} else if (map)
       txfp = new(g) MAPFAM(this);
     else
       txfp = new(g) DOSFAM(this);
