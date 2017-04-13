@@ -352,3 +352,56 @@ Note	1105	DBUG: types_compatible=yes bisect=yes
 DROP TABLE t1;
 SET SESSION debug_dbug="-d,Predicant_to_list_comparator";
 SET SESSION debug_dbug="-d,Item_func_in";
+#
+# MDEV-12238 Add Type_handler::Item_func_{plus|minus|mul|div|mod}_fix_length_and_dec()
+#
+SET debug_dbug='+d,num_op';
+CREATE TABLE t1 AS SELECT
+POINT(0,0)+POINT(0,0),
+POINT(0,0)-POINT(0,0),
+POINT(0,0)*POINT(0,0),
+POINT(0,0)/POINT(0,0),
+POINT(0,0) MOD POINT(0,0) LIMIT 0;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `POINT(0,0)+POINT(0,0)` geometry DEFAULT NULL,
+  `POINT(0,0)-POINT(0,0)` geometry DEFAULT NULL,
+  `POINT(0,0)*POINT(0,0)` geometry DEFAULT NULL,
+  `POINT(0,0)/POINT(0,0)` geometry DEFAULT NULL,
+  `POINT(0,0) MOD POINT(0,0)` geometry DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 AS SELECT
+POINT(0,0)+'0',
+POINT(0,0)-'0',
+POINT(0,0)*'0',
+POINT(0,0)/'0',
+POINT(0,0) MOD '0' LIMIT 0;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `POINT(0,0)+'0'` longtext DEFAULT NULL,
+  `POINT(0,0)-'0'` longtext DEFAULT NULL,
+  `POINT(0,0)*'0'` longtext DEFAULT NULL,
+  `POINT(0,0)/'0'` longtext DEFAULT NULL,
+  `POINT(0,0) MOD '0'` longtext DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 AS SELECT
+'0'+POINT(0,0),
+'0'*POINT(0,0) LIMIT 0;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `'0'+POINT(0,0)` longtext DEFAULT NULL,
+  `'0'*POINT(0,0)` longtext DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 AS SELECT '0'-POINT(0,0) LIMIT 0;
+ERROR HY000: Illegal parameter data types varchar and geometry for operation '-'
+CREATE TABLE t1 AS SELECT '0'/POINT(0,0) LIMIT 0;
+ERROR HY000: Illegal parameter data types varchar and geometry for operation '/'
+CREATE TABLE t1 AS SELECT '0' MOD POINT(0,0) LIMIT 0;
+ERROR HY000: Illegal parameter data types varchar and geometry for operation '%'
+SET debug_dbug='-d,num_op';
