@@ -3315,14 +3315,6 @@ my_decimal *Item_func_coalesce::decimal_op(my_decimal *decimal_value)
 }
 
 
-bool Item_hybrid_func::fix_attributes(Item **items, uint nitems)
-{
-  bool rc= Item_hybrid_func::type_handler()->
-             Item_hybrid_func_fix_attributes(current_thd, this, items, nitems);
-  DBUG_ASSERT(!rc || current_thd->is_error());
-  return rc;
-}
-
 /****************************************************************************
  Classes and function for the IN operator
 ****************************************************************************/
