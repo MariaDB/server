@@ -30,7 +30,8 @@ START TRANSACTION;
 #
 # Block the $mw_369_child_query from node_2
 #
---connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1
+# --connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1
+--connection node_1a
 SET SESSION wsrep_sync_wait = 0;
 --let $galera_sync_point = apply_monitor_slave_enter_sync
 --source include/galera_set_sync_point.inc
@@ -49,6 +50,7 @@ SET SESSION wsrep_sync_wait = 0;
 --connection node_1a
 --source include/galera_wait_sync_point.inc
 --source include/galera_clear_sync_point.inc
+
 --let $galera_sync_point = local_monitor_enter_sync
 --source include/galera_set_sync_point.inc
 
@@ -61,8 +63,13 @@ SET SESSION wsrep_sync_wait = 0;
 --connection node_1a
 --let $galera_sync_point = apply_monitor_slave_enter_sync local_monitor_enter_sync
 --source include/galera_wait_sync_point.inc
---source include/galera_clear_sync_point.inc
+
+#
+# both threads are now parked in sync points, signal them to continue
+#
 --let $galera_sync_point = apply_monitor_slave_enter_sync
 --source include/galera_signal_sync_point.inc
+
 --let $galera_sync_point = local_monitor_enter_sync
 --source include/galera_signal_sync_point.inc
+--source include/galera_clear_sync_point.inc
