@@ -597,6 +597,7 @@ class Item_datefunc :public Item_temporal_func
 public:
   Item_datefunc(THD *thd): Item_temporal_func(thd) { }
   Item_datefunc(THD *thd, Item *a): Item_temporal_func(thd, a) { }
+  Item_datefunc(THD *thd, Item *a, Item *b): Item_temporal_func(thd, a, b) { }
   enum_field_types field_type() const { return MYSQL_TYPE_DATE; }
 };
 
@@ -1126,13 +1127,12 @@ public:
 };
 
 
-class Item_func_makedate :public Item_temporal_func
+class Item_func_makedate :public Item_datefunc
 {
 public:
   Item_func_makedate(THD *thd, Item *a, Item *b):
-    Item_temporal_func(thd, a, b) {}
+    Item_datefunc(thd, a, b) {}
   const char *func_name() const { return "makedate"; }
-  enum_field_types field_type() const { return MYSQL_TYPE_DATE; }
   bool get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date);
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_func_makedate>(thd, mem_root, this); }
