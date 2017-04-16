@@ -887,7 +887,7 @@ public:
 
   int write_row(uchar *const buf) override
       MY_ATTRIBUTE((__warn_unused_result__));
-  int update_row(const uchar *const old_data, uchar *const new_data) override
+  int update_row(const uchar *const old_data, const uchar *const new_data) override
       MY_ATTRIBUTE((__warn_unused_result__));
   int delete_row(const uchar *const buf) override
       MY_ATTRIBUTE((__warn_unused_result__));

@@ -9389,7 +9389,7 @@ int
 ha_innobase::update_row(
 /*====================*/
 	const uchar*	old_row,	/*!< in: old row in MySQL format */
-	uchar*		new_row)	/*!< in: new row in MySQL format */
+	const uchar*	new_row)	/*!< in: new row in MySQL format */
 {
 	upd_t*		uvect;
 	dberr_t		error;

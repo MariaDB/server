@@ -21,7 +21,8 @@
    Update an old row in a MARIA table
 */
 
-int maria_update(register MARIA_HA *info, const uchar *oldrec, uchar *newrec)
+int maria_update(register MARIA_HA *info, const uchar *oldrec,
+                 const uchar *newrec)
 {
   int flag,key_changed,save_errno;
   reg3 my_off_t pos;

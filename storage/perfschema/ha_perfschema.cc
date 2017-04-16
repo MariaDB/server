@@ -286,7 +286,7 @@ void ha_perfschema::use_hidden_primary_key(void)
   table->column_bitmaps_set_no_signal(&table->s->all_set, table->write_set);
 }
 
-int ha_perfschema::update_row(const uchar *old_data, uchar *new_data)
+int ha_perfschema::update_row(const uchar *old_data, const uchar *new_data)
 {
   DBUG_ENTER("ha_perfschema::update_row");
   if (!pfs_initialized)

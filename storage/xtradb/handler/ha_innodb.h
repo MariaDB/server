@@ -148,7 +148,7 @@ class ha_innobase: public handler
 	my_bool is_fake_change_enabled(THD *thd);
 
 	int write_row(uchar * buf);
-	int update_row(const uchar * old_data, uchar * new_data);
+	int update_row(const uchar * old_data, const uchar * new_data);
 	int delete_row(const uchar * buf);
 	bool was_semi_consistent_read();
 	void try_semi_consistent_read(bool yes);

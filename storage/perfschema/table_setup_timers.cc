@@ -145,7 +145,7 @@ int table_setup_timers::read_row_values(TABLE *table,
 
 int table_setup_timers::update_row_values(TABLE *table,
                                           const unsigned char *,
-                                          unsigned char *,
+                                          const unsigned char *,
                                           Field **fields)
 {
   Field *f;

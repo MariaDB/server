@@ -1104,7 +1104,7 @@ int ha_myisammrg::write_row(uchar * buf)
   DBUG_RETURN(myrg_write(file,buf));
 }
 
-int ha_myisammrg::update_row(const uchar * old_data, uchar * new_data)
+int ha_myisammrg::update_row(const uchar * old_data, const uchar * new_data)
 {
   DBUG_ASSERT(this->file->children_attached);
   return myrg_update(file,old_data,new_data);

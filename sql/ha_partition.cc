@@ -4204,7 +4204,7 @@ exit:
     old_data is always record[1]
 */
 
-int ha_partition::update_row(const uchar *old_data, uchar *new_data)
+int ha_partition::update_row(const uchar *old_data, const uchar *new_data)
 {
   THD *thd= ha_thd();
   uint32 new_part_id, old_part_id;
@@ -4280,7 +4280,7 @@ int ha_partition::update_row(const uchar *old_data, uchar *new_data)
     DBUG_PRINT("info", ("Update from partition %d to partition %d",
 			old_part_id, new_part_id));
     tmp_disable_binlog(thd); /* Do not replicate the low-level changes. */
-    error= m_file[new_part_id]->ha_write_row(new_data);
+    error= m_file[new_part_id]->ha_write_row((uchar*) new_data);
     reenable_binlog(thd);
     table->next_number_field= saved_next_number_field;
     if (error)

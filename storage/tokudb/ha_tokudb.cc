@@ -3604,7 +3604,7 @@ cleanup:
     return error;
 }
 
-int ha_tokudb::is_val_unique(bool* is_unique, uchar* record, KEY* key_info, uint dict_index, DB_TXN* txn) {
+int ha_tokudb::is_val_unique(bool* is_unique, const uchar* record, KEY* key_info, uint dict_index, DB_TXN* txn) {
     int error = 0;
     bool has_null;
     DBC* tmp_cursor = NULL;
@@ -4160,7 +4160,7 @@ bool ha_tokudb::key_changed(uint keynr, const uchar * old_row, const uchar * new
 //      0 on success
 //      error otherwise
 //
-int ha_tokudb::update_row(const uchar * old_row, uchar * new_row) {
+int ha_tokudb::update_row(const uchar * old_row, const uchar * new_row) {
     TOKUDB_HANDLER_DBUG_ENTER("");
     DBT prim_key, old_prim_key, prim_row, old_prim_row;
     int UNINIT_VAR(error);

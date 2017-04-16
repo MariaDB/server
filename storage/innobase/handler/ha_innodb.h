@@ -138,7 +138,7 @@ public:
 
 	int write_row(uchar * buf);
 
-	int update_row(const uchar * old_data, uchar * new_data);
+	int update_row(const uchar * old_data, const uchar * new_data);
 
 	int delete_row(const uchar * buf);
 

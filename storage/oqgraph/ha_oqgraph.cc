@@ -803,7 +803,7 @@ int ha_oqgraph::write_row(byte * buf)
   return HA_ERR_TABLE_READONLY;
 }
 
-int ha_oqgraph::update_row(const byte * old, byte * buf)
+int ha_oqgraph::update_row(const uchar * old, const uchar * buf)
 {
   return HA_ERR_TABLE_READONLY;
 }

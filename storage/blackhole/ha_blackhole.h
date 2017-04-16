@@ -97,6 +97,6 @@ public:
                              enum thr_lock_type lock_type);
 private:
   virtual int write_row(uchar *buf);
-  virtual int update_row(const uchar *old_data, uchar *new_data);
+  virtual int update_row(const uchar *old_data, const uchar *new_data);
   virtual int delete_row(const uchar *buf);
 };

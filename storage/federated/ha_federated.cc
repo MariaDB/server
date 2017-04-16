@@ -2125,7 +2125,7 @@ int ha_federated::repair(THD* thd, HA_CHECK_OPT* check_opt)
   Called from sql_select.cc, sql_acl.cc, sql_update.cc, and sql_insert.cc.
 */
 
-int ha_federated::update_row(const uchar *old_data, uchar *new_data)
+int ha_federated::update_row(const uchar *old_data, const uchar *new_data)
 {
   /*
     This used to control how the query was built. If there was a

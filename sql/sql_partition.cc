@@ -282,7 +282,7 @@ bool partition_default_handling(THD *thd, TABLE *table, partition_info *part_inf
     > 0                     Error code
 */
 
-int get_parts_for_update(const uchar *old_data, uchar *new_data,
+int get_parts_for_update(const uchar *old_data, const uchar *new_data,
                          const uchar *rec0, partition_info *part_info,
                          uint32 *old_part_id, uint32 *new_part_id,
                          longlong *new_func_value)

@@ -19,7 +19,7 @@
 #include "myisamdef.h"
 #include <m_ctype.h>
 
-my_bool mi_check_unique(MI_INFO *info, MI_UNIQUEDEF *def, uchar *record,
+my_bool mi_check_unique(MI_INFO *info, MI_UNIQUEDEF *def, const uchar *record,
 			ha_checksum unique_hash, my_off_t disk_pos)
 {
   my_off_t lastpos=info->lastpos;
@@ -27,7 +27,8 @@ my_bool mi_check_unique(MI_INFO *info, MI_UNIQUEDEF *def, uchar *record,
   uchar *key_buff=info->lastkey2;
   DBUG_ENTER("mi_check_unique");
 
-  mi_unique_store(record+key->seg->start, unique_hash);
+  /* We need to store the hash value as a key in the record, breaking const */
+  mi_unique_store(((uchar*) record)+key->seg->start, unique_hash);
   _mi_make_key(info,def->key,key_buff,record,0);
 
   /* The above changed info->lastkey2. Inform mi_rnext_same(). */

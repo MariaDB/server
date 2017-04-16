@@ -569,12 +569,12 @@ public:
   void end_bulk_update();
   int bulk_update_row(
     const uchar *old_data,
-    uchar *new_data,
+    const uchar *new_data,
     uint *dup_key_found
   );
   int update_row(
     const uchar *old_data,
-    uchar *new_data
+    const uchar *new_data
   );
 #ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
   int direct_update_rows_init(
@@ -582,7 +582,7 @@ public:
     KEY_MULTI_RANGE *ranges,
     uint range_count,
     bool sorted,
-    uchar *new_data
+    const uchar *new_data
   );
 #ifdef HA_CAN_BULK_ACCESS
   int pre_direct_update_rows_init(

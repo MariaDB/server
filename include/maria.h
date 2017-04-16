@@ -305,7 +305,7 @@ extern int maria_rsame(MARIA_HA *file, uchar *record, int inx);
 extern int maria_rsame_with_pos(MARIA_HA *file, uchar *record,
 				int inx, MARIA_RECORD_POS pos);
 extern int maria_update(MARIA_HA *file, const uchar *old,
-			uchar *new_record);
+			const uchar *new_record);
 extern int maria_write(MARIA_HA *file, uchar *buff);
 extern MARIA_RECORD_POS maria_position(MARIA_HA *file);
 extern int maria_status(MARIA_HA *info, MARIA_INFO *x, uint flag);

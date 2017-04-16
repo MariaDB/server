@@ -19,7 +19,8 @@
 #include "fulltext.h"
 #include "rt_index.h"
 
-int mi_update(register MI_INFO *info, const uchar *oldrec, uchar *newrec)
+int mi_update(register MI_INFO *info, const uchar *oldrec,
+              const uchar *newrec)
 {
   int flag,key_changed,save_errno;
   reg3 my_off_t pos;

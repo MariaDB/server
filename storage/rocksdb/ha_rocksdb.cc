@@ -8303,7 +8303,8 @@ void ha_rocksdb::calc_updated_indexes() {
   }
 }
 
-int ha_rocksdb::update_row(const uchar *const old_data, uchar *const new_data) {
+int ha_rocksdb::update_row(const uchar *const old_data,
+                           const uchar *const new_data) {
   DBUG_ENTER_FUNC();
 
   DBUG_ASSERT(old_data != nullptr);

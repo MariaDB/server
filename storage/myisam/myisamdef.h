@@ -696,7 +696,7 @@ extern int mi_indexes_are_disabled(MI_INFO *info);
 ulong _mi_calc_total_blob_length(MI_INFO *info, const uchar *record);
 ha_checksum mi_checksum(MI_INFO *info, const uchar *buf);
 ha_checksum mi_static_checksum(MI_INFO *info, const uchar *buf);
-my_bool mi_check_unique(MI_INFO *info, MI_UNIQUEDEF *def, uchar *record,
+my_bool mi_check_unique(MI_INFO *info, MI_UNIQUEDEF *def, const uchar *record,
                         ha_checksum unique_hash, my_off_t pos);
 ha_checksum mi_unique_hash(MI_UNIQUEDEF *def, const uchar *buf);
 int _mi_cmp_static_unique(MI_INFO *info, MI_UNIQUEDEF *def,
