@@ -134,6 +134,6 @@ maria_declare_plugin(user_variables)
   NULL,
   NULL,
   "1.0",
-  MariaDB_PLUGIN_MATURITY_ALPHA
+  MariaDB_PLUGIN_MATURITY_GAMMA
 }
 maria_declare_plugin_end;
