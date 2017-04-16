@@ -144,7 +144,7 @@ let $message= Testcase 3.5.10.6: (implemented in trig_frkey.test);
 #           on the subject table from a stored procedure is indeed activated correctly
 let $message= Testcase 3.5.10.extra:;
 --source include/show_msg.inc
-
+        set sql_mode = 'NO_ENGINE_SUBSTITUTION';
         --replace_result $engine_type <engine_to_be_used>
 	eval create table t1_sp (var136 tinyint, var151 decimal) engine = $engine_type;
 
@@ -184,6 +184,7 @@ let $message= Testcase 3.5.10.extra:;
 	drop trigger trg;
 	drop table t1_sp;
 	--enable_warnings
+        set sql_mode = default;
 
 ##################################
 ########## Section 3.5.11 ########
@@ -321,8 +322,7 @@ let $message= Testcase y.y.y.3: Circular trigger reference;
 # Testcase: create recursive trigger/storedprocedures conditions
 let $message= Testcase y.y.y.4: Recursive trigger/SP references;
 --source include/show_msg.inc
-
-set @sql_mode='traditional';
+        set sql_mode = 'NO_ENGINE_SUBSTITUTION';
         --replace_result $engine_type <engine_to_be_used>
 	eval create table t1_sp (
 		count integer,
@@ -375,6 +375,7 @@ set @sql_mode='traditional';
 	drop trigger trg;
 	drop table t1_sp;
 	--enable_warnings
+        set sql_mode = default;
 
 
 # Testcase: y.y.y.5:

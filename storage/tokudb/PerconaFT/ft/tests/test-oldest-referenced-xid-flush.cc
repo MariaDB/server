@@ -72,7 +72,7 @@ static void dummy_update_status(FTNODE UU(child), int UU(dirtied), void* UU(extr
 
 enum { NODESIZE = 1024, KSIZE=NODESIZE-100, TOKU_PSIZE=20 };
 
-static void test_oldest_referenced_xid_gets_propogated(void) {
+static void test_oldest_referenced_xid_gets_propagated(void) {
     int r;
     CACHETABLE ct;
     FT_HANDLE t;
@@ -166,7 +166,7 @@ static void test_oldest_referenced_xid_gets_propogated(void) {
     toku_ft_flush_some_child(t->ft, node, &fa);
 
     // pin the child, verify that oldest referenced xid was
-    // propogated from parent to child during the flush
+    // propagated from parent to child during the flush
     toku_pin_ftnode(
         t->ft, 
         child_nonleaf_blocknum,
@@ -185,6 +185,6 @@ static void test_oldest_referenced_xid_gets_propogated(void) {
 
 int test_main(int argc __attribute__((__unused__)), const char *argv[] __attribute__((__unused__))) {
     default_parse_args(argc, argv);
-    test_oldest_referenced_xid_gets_propogated();
+    test_oldest_referenced_xid_gets_propagated();
     return 0;
 }

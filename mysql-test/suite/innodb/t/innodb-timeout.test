@@ -1,3 +1,5 @@
+# Save the initial number of concurrent sessions.
+--source include/count_sessions.inc
 --source include/have_innodb.inc
 
 let $initial_timeout=`select @@innodb_lock_wait_timeout`;
@@ -115,3 +117,84 @@ connection default;
 drop table t1;
 --replace_result $initial_timeout <initial_timeout>
 eval set global innodb_lock_wait_timeout=$initial_timeout;
+
+--echo #
+--echo # MDEV-11379 - AliSQL: [Feature] Issue#8: SELECT FOR UPDATE WAIT
+--echo #
+CREATE TABLE t1 (c1 INT, c2 INT) ENGINE=InnoDB;
+INSERT INTO t1 (c1,c2) values (1,1),(2,2),(3,3),(4,4);
+
+# Not supported in view/sp
+--error ER_VIEW_SELECT_CLAUSE
+CREATE VIEW v1 AS SELECT * FROM t1 WHERE c1=4 FOR UPDATE NOWAIT;
+--error ER_VIEW_SELECT_CLAUSE
+CREATE VIEW v1 AS SELECT * FROM t1 WHERE c1=4 FOR UPDATE WAIT 0;
+--error ER_SP_BADSTATEMENT
+CREATE PROCEDURE p1() SELECT * FROM t1 WHERE c1=4 FOR UPDATE NOWAIT;
+--error ER_SP_BADSTATEMENT
+CREATE PROCEDURE p1() SELECT * FROM t1 WHERE c1=4 FOR UPDATE WAIT 0;
+
+connect(con1,localhost,root,,);
+LOCK TABLE t1 WRITE;
+
+connect(con2,localhost,root,,);
+# The following statement should hang because con1 is locking the table
+--error ER_LOCK_WAIT_TIMEOUT
+SELECT * FROM t1 WHERE c1=4 FOR UPDATE NOWAIT;
+--error ER_LOCK_WAIT_TIMEOUT
+SELECT * FROM t1 WHERE c1=4 FOR UPDATE WAIT 0;
+PREPARE stmt FROM 'SELECT * FROM t1 WHERE c1=4 FOR UPDATE NOWAIT';
+--error ER_LOCK_WAIT_TIMEOUT
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+PREPARE stmt FROM 'SELECT * FROM t1 WHERE c1=4 FOR UPDATE WAIT 0';
+--error ER_LOCK_WAIT_TIMEOUT
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+connection con1;
+INSERT INTO t1 VALUES(5,5);
+UNLOCK TABLES;
+set AUTOCOMMIT=0;
+--disable_result_log
+SELECT * FROM t1 WHERE c1=4 FOR UPDATE;
+--enable_result_log
+
+connection con2;
+set AUTOCOMMIT=0;
+SET INNODB_LOCK_WAIT_TIMEOUT=1;
+--error ER_LOCK_WAIT_TIMEOUT
+SELECT * FROM t1 WHERE c1=4 FOR UPDATE;
+--error ER_LOCK_WAIT_TIMEOUT
+SELECT * FROM t1 WHERE c1=4 FOR UPDATE NOWAIT;
+--error ER_LOCK_WAIT_TIMEOUT
+SELECT * FROM t1 WHERE c1=4 FOR UPDATE WAIT 0;
+
+connection con1;
+UPDATE t1 SET c2=5 WHERE c1=4;
+COMMIT;
+set AUTOCOMMIT=0;
+SELECT * FROM t1 WHERE c1=4 FOR UPDATE;
+
+connection con2;
+set AUTOCOMMIT=0;
+SET INNODB_LOCK_WAIT_TIMEOUT=1;
+--send
+--disable_result_log
+SELECT * FROM t1 WHERE c1=4 FOR UPDATE WAIT 10;
+
+connection con1;
+COMMIT;
+
+connection con2;
+--reap
+
+
+disconnect con1;
+disconnect con2;
+
+# clear
+connection default;
+DROP TABLE t1;
+
+--source include/wait_until_count_sessions.inc

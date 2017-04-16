@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2013, Monty Program Ab
+   Copyright (c) 2009, 2016, MariaDB
 
    This library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Library General Public
@@ -4831,7 +4831,6 @@ my_strnxfrm_unicode_full_bin(CHARSET_INFO *cs,
                              uchar *dst, size_t dstlen, uint nweights,
                              const uchar *src, size_t srclen, uint flags)
 {
-  my_wc_t UNINIT_VAR(wc);
   uchar *dst0= dst;
   uchar *de= dst + dstlen;
 
@@ -4877,7 +4876,6 @@ my_strnxfrm_unicode_full_nopad_bin(CHARSET_INFO *cs,
                                    uchar *dst, size_t dstlen, uint nweights,
                                    const uchar *src, size_t srclen, uint flags)
 {
-  my_wc_t UNINIT_VAR(wc);
   uchar *dst0= dst;
   uchar *de= dst + dstlen;
 

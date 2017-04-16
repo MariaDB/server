@@ -1118,7 +1118,9 @@ DROP TABLE tab;
 # End of Testcase compress table with Auto_increment 
 
 # Test check constraint on spatial column
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
 CREATE TABLE tab(c1 POINT NOT NULL,CONSTRAINT tab_const check(c1 > 0) ) ENGINE=InnoDB;
+CREATE TABLE tab(c1 POINT NOT NULL,CONSTRAINT tab_const check(CAST(c1 AS BINARY) > 0) ) ENGINE=InnoDB;
 
 CREATE SPATIAL INDEX idx1 ON tab(c1) ;
 

@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2011, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -53,8 +54,8 @@ enum status_severity {
 
 /* Flags that tell the buffer pool dump/load thread which action should it
 take after being waked up. */
-static ibool	buf_dump_should_start = FALSE;
-static ibool	buf_load_should_start = FALSE;
+static volatile bool	buf_dump_should_start;
+static volatile bool	buf_load_should_start;
 
 static ibool	buf_load_abort_flag = FALSE;
 
@@ -78,7 +79,7 @@ void
 buf_dump_start()
 /*============*/
 {
-	buf_dump_should_start = TRUE;
+	buf_dump_should_start = true;
 	os_event_set(srv_buf_dump_event);
 }
 
@@ -91,7 +92,7 @@ void
 buf_load_start()
 /*============*/
 {
-	buf_load_should_start = TRUE;
+	buf_load_should_start = true;
 	os_event_set(srv_buf_dump_event);
 }
 
@@ -313,9 +314,24 @@ buf_dump(
 		}
 
 		if (srv_buf_pool_dump_pct != 100) {
+			ulint		t_pages;
+
 			ut_ad(srv_buf_pool_dump_pct < 100);
 
-			n_pages = n_pages * srv_buf_pool_dump_pct / 100;
+			/* limit the number of total pages dumped to X% of the
+			 * total number of pages */
+			t_pages = buf_pool->curr_size
+					*  srv_buf_pool_dump_pct / 100;
+			if (n_pages > t_pages) {
+				buf_dump_status(STATUS_INFO,
+						"Instance " ULINTPF
+						", restricted to " ULINTPF
+						" pages due to "
+						"innodb_buf_pool_dump_pct=%lu",
+						i, t_pages,
+						srv_buf_pool_dump_pct);
+				n_pages = t_pages;
+			}
 
 			if (n_pages == 0) {
 				n_pages = 1;
@@ -524,7 +540,7 @@ buf_load()
 
 	f = fopen(full_filename, "r");
 	if (f == NULL) {
-		buf_load_status(STATUS_ERR,
+		buf_load_status(STATUS_INFO,
 				"Cannot open '%s' for reading: %s",
 				full_filename, strerror(errno));
 		return;
@@ -687,7 +703,7 @@ buf_load()
 		if tablespace is encrypted we cant use it. */
 		if (space == NULL ||
 		   (space && space->crypt_data &&
-		    space->crypt_data->encryption != FIL_SPACE_ENCRYPTION_OFF &&
+		    space->crypt_data->encryption != FIL_ENCRYPTION_OFF &&
 		    space->crypt_data->type != CRYPT_SCHEME_UNENCRYPTED)) {
 			continue;
 		}
@@ -778,18 +794,13 @@ again.
 @return this function does not return, it calls os_thread_exit() */
 extern "C"
 os_thread_ret_t
-DECLARE_THREAD(buf_dump_thread)(
-/*============================*/
-	void*	arg MY_ATTRIBUTE((unused)))	/*!< in: a dummy parameter
-						required by os_thread_create */
+DECLARE_THREAD(buf_dump_thread)(void*)
 {
 	ut_ad(!srv_read_only_mode);
 	/* JAN: TODO: MySQL 5.7 PSI
 #ifdef UNIV_PFS_THREAD
 	pfs_register_thread(buf_dump_thread_key);
 	#endif */ /* UNIV_PFS_THREAD */
-
-	srv_buf_dump_thread_active = TRUE;
 
 	buf_dump_status(STATUS_VERBOSE, "Dumping of buffer pool not started");
 	buf_load_status(STATUS_VERBOSE, "Loading of buffer pool not started");
@@ -803,15 +814,18 @@ DECLARE_THREAD(buf_dump_thread)(
 		os_event_wait(srv_buf_dump_event);
 
 		if (buf_dump_should_start) {
-			buf_dump_should_start = FALSE;
+			buf_dump_should_start = false;
 			buf_dump(TRUE /* quit on shutdown */);
 		}
 
 		if (buf_load_should_start) {
-			buf_load_should_start = FALSE;
+			buf_load_should_start = false;
 			buf_load();
 		}
 
+		if (buf_dump_should_start || buf_load_should_start) {
+			continue;
+		}
 		os_event_reset(srv_buf_dump_event);
 	}
 
@@ -820,7 +834,7 @@ DECLARE_THREAD(buf_dump_thread)(
 		keep going even if we are in a shutdown state */);
 	}
 
-	srv_buf_dump_thread_active = FALSE;
+	srv_buf_dump_thread_active = false;
 
 	/* We count the number of threads in os_thread_exit(). A created
 	thread should always use that to exit and not use return() to exit. */

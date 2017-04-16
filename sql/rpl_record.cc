@@ -417,6 +417,12 @@ unpack_row(rpl_group_info *rgi,
   }
 
   /*
+    Add Extra slave persistent columns
+  */
+  if (int error= fill_extra_persistent_columns(table, cols->n_bits))
+    DBUG_RETURN(error);
+
+  /*
     We should now have read all the null bytes, otherwise something is
     really wrong.
    */
@@ -489,5 +495,30 @@ int prepare_record(TABLE *const table, const uint skip, const bool check)
 
   DBUG_RETURN(0);
 }
+/**
+  Fills @c table->record[0] with computed values of extra  persistent  column which are present on slave but not on master.
+  @param table         Table whose record[0] buffer is prepared.
+  @param master_cols   No of columns on master 
+  @returns 0 on        success
+ */
+int fill_extra_persistent_columns(TABLE *table, int master_cols)
+{
+  int error= 0;
+  Field **vfield_ptr, *vfield;
 
+  if (!table->vfield)
+    return 0;
+  for (vfield_ptr= table->vfield; *vfield_ptr; ++vfield_ptr)
+  {
+    vfield= *vfield_ptr;
+    if (vfield->field_index >= master_cols && vfield->stored_in_db())
+    {
+      /*Set bitmap for writing*/
+      bitmap_set_bit(table->vcol_set, vfield->field_index);
+      error= vfield->vcol_info->expr->save_in_field(vfield,0);
+      bitmap_clear_bit(table->vcol_set, vfield->field_index);
+    }
+  }
+  return error;
+}
 #endif // HAVE_REPLICATION

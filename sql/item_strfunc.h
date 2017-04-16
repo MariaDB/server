@@ -97,23 +97,69 @@ public:
 };
 
 
-class Item_func_md5 :public Item_str_ascii_func
+/**
+  Functions that return a checksum or a hash of the argument,
+  or somehow else encode or decode the argument,
+  returning an ASCII-repertoire string.
+*/
+class Item_str_ascii_checksum_func: public Item_str_ascii_func
+{
+public:
+  Item_str_ascii_checksum_func(THD *thd, Item *a)
+   :Item_str_ascii_func(thd, a) { }
+  Item_str_ascii_checksum_func(THD *thd, Item *a, Item *b)
+   :Item_str_ascii_func(thd, a, b) { }
+  bool eq(const Item *item, bool binary_cmp) const
+  {
+    // Always use binary argument comparison: MD5('x') != MD5('X')
+    return Item_func::eq(item, true);
+  }
+};
+
+
+/**
+  Functions that return a checksum or a hash of the argument,
+  or somehow else encode or decode the argument,
+  returning a binary string.
+*/
+class Item_str_binary_checksum_func: public Item_str_func
+{
+public:
+  Item_str_binary_checksum_func(THD *thd, Item *a)
+   :Item_str_func(thd, a) { }
+  Item_str_binary_checksum_func(THD *thd, Item *a, Item *b)
+   :Item_str_func(thd, a, b) { }
+  bool eq(const Item *item, bool binary_cmp) const
+  {
+    /*
+      Always use binary argument comparison:
+        FROM_BASE64('test') != FROM_BASE64('TEST')
+    */
+    return Item_func::eq(item, true);
+  }
+};
+
+
+class Item_func_md5 :public Item_str_ascii_checksum_func
 {
   String tmp_value;
 public:
-  Item_func_md5(THD *thd, Item *a): Item_str_ascii_func(thd, a) {}
+  Item_func_md5(THD *thd, Item *a): Item_str_ascii_checksum_func(thd, a) {}
   String *val_str_ascii(String *);
-  void fix_length_and_dec();
+  void fix_length_and_dec()
+  {
+    fix_length_and_charset(32, default_charset());
+  }
   const char *func_name() const { return "md5"; }
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_func_md5>(thd, mem_root, this); }
 };
 
 
-class Item_func_sha :public Item_str_ascii_func
+class Item_func_sha :public Item_str_ascii_checksum_func
 {
 public:
-  Item_func_sha(THD *thd, Item *a): Item_str_ascii_func(thd, a) {}
+  Item_func_sha(THD *thd, Item *a): Item_str_ascii_checksum_func(thd, a) {}
   String *val_str_ascii(String *);    
   void fix_length_and_dec();      
   const char *func_name() const { return "sha"; }
@@ -121,10 +167,11 @@ public:
   { return get_item_copy<Item_func_sha>(thd, mem_root, this); }
 };
 
-class Item_func_sha2 :public Item_str_ascii_func
+class Item_func_sha2 :public Item_str_ascii_checksum_func
 {
 public:
-  Item_func_sha2(THD *thd, Item *a, Item *b): Item_str_ascii_func(thd, a, b) {}
+  Item_func_sha2(THD *thd, Item *a, Item *b)
+   :Item_str_ascii_checksum_func(thd, a, b) {}
   String *val_str_ascii(String *);
   void fix_length_and_dec();
   const char *func_name() const { return "sha2"; }
@@ -132,11 +179,12 @@ public:
   { return get_item_copy<Item_func_sha2>(thd, mem_root, this); }
 };
 
-class Item_func_to_base64 :public Item_str_ascii_func
+class Item_func_to_base64 :public Item_str_ascii_checksum_func
 {
   String tmp_value;
 public:
-  Item_func_to_base64(THD *thd, Item *a): Item_str_ascii_func(thd, a) {}
+  Item_func_to_base64(THD *thd, Item *a)
+   :Item_str_ascii_checksum_func(thd, a) {}
   String *val_str_ascii(String *);
   void fix_length_and_dec();
   const char *func_name() const { return "to_base64"; }
@@ -144,11 +192,12 @@ public:
   { return get_item_copy<Item_func_to_base64>(thd, mem_root, this); }
 };
 
-class Item_func_from_base64 :public Item_str_func
+class Item_func_from_base64 :public Item_str_binary_checksum_func
 {
   String tmp_value;
 public:
-  Item_func_from_base64(THD *thd, Item *a): Item_str_func(thd, a) {}
+  Item_func_from_base64(THD *thd, Item *a)
+   :Item_str_binary_checksum_func(thd, a) { }
   String *val_str(String *);
   void fix_length_and_dec();
   const char *func_name() const { return "from_base64"; }
@@ -158,7 +207,7 @@ public:
 
 #include <my_crypt.h>
 
-class Item_aes_crypt :public Item_str_func
+class Item_aes_crypt :public Item_str_binary_checksum_func
 {
   enum { AES_KEY_LENGTH = 128 };
   void create_key(String *user_key, uchar* key);
@@ -166,7 +215,8 @@ class Item_aes_crypt :public Item_str_func
 protected:
   int what;
 public:
-  Item_aes_crypt(THD *thd, Item *a, Item *b): Item_str_func(thd, a, b) {}
+  Item_aes_crypt(THD *thd, Item *a, Item *b)
+   :Item_str_binary_checksum_func(thd, a, b) {}
   String *val_str(String *);
 };
 
@@ -195,7 +245,40 @@ public:
 
 class Item_func_concat :public Item_str_func
 {
+protected:
   String tmp_value;
+  /*
+     Get the i-th argument val_str() and its const_item()
+     @param i[IN]            - The argument number
+     @param str[IN]          - The buffer for val_str()
+     @param is_const[IN/OUT] - If args[i]->val_str() returned a non-null value,
+                               then args[i]->const_item() is returned here.
+                               Otherwise, the value of is_const is not touched.
+     @retval                 - the result of val_str().
+  */
+  String *arg_val_str(uint i, String *str, bool *is_const)
+  {
+    String *res= args[i]->val_str(str);
+    if (res)
+      *is_const= args[i]->const_item();
+    return res;
+  }
+  /*
+    Append a non-NULL value to the result.
+    @param [IN]     thd          - The current thread.
+    @param [IN/OUT] res          - The current val_str() return value.
+    @param [IN]     res_is_const - If "false", then OK to append to "res"
+    @param [IN/OUT] str          - The val_str() argument.
+    @param [IN]     res2         - The value to be appended.
+    @param [IN/OUT] use_as_buff  - Which buffer to use for the next argument:
+                                     args[next_arg]->val_str(use_as_buff)
+  */
+  String *append_value(THD *thd,
+                       String *res,
+                       bool res_is_const,
+                       String *str,
+                       String **use_as_buff,
+                       const String *res2);
 public:
   Item_func_concat(THD *thd, List<Item> &list): Item_str_func(thd, list) {}
   Item_func_concat(THD *thd, Item *a, Item *b): Item_str_func(thd, a, b) {}
@@ -205,6 +288,29 @@ public:
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_func_concat>(thd, mem_root, this); }
 };
+
+
+/*
+  This class handles the || operator in sql_mode=ORACLE.
+  Unlike the traditional MariaDB concat(), it treats NULL arguments as ''.
+*/
+class Item_func_concat_operator_oracle :public Item_func_concat
+{
+public:
+  Item_func_concat_operator_oracle(THD *thd, List<Item> &list)
+   :Item_func_concat(thd, list)
+  { }
+  Item_func_concat_operator_oracle(THD *thd, Item *a, Item *b)
+   :Item_func_concat(thd, a, b)
+  { }
+  String *val_str(String *);
+  const char *func_name() const { return "concat_operator_oracle"; }
+  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
+  {
+    return get_item_copy<Item_func_concat_operator_oracle>(thd, mem_root, this);
+  }
+};
+
 
 class Item_func_decode_histogram :public Item_str_func
 {
@@ -481,7 +587,7 @@ public:
   authentication procedure works, see comments in password.c.
 */
 
-class Item_func_password :public Item_str_ascii_func
+class Item_func_password :public Item_str_ascii_checksum_func
 {
 public:
   enum PW_Alg {OLD, NEW};
@@ -491,9 +597,9 @@ private:
   bool deflt;
 public:
   Item_func_password(THD *thd, Item *a):
-    Item_str_ascii_func(thd, a), alg(NEW), deflt(1) {}
+    Item_str_ascii_checksum_func(thd, a), alg(NEW), deflt(1) {}
   Item_func_password(THD *thd, Item *a, PW_Alg al):
-    Item_str_ascii_func(thd, a), alg(al), deflt(0) {}
+    Item_str_ascii_checksum_func(thd, a), alg(al), deflt(0) {}
   String *val_str_ascii(String *str);
   bool fix_fields(THD *thd, Item **ref);
   void fix_length_and_dec()
@@ -513,12 +619,14 @@ public:
 
 
 
-class Item_func_des_encrypt :public Item_str_func
+class Item_func_des_encrypt :public Item_str_binary_checksum_func
 {
   String tmp_value,tmp_arg;
 public:
-  Item_func_des_encrypt(THD *thd, Item *a): Item_str_func(thd, a) {}
-  Item_func_des_encrypt(THD *thd, Item *a, Item *b): Item_str_func(thd, a, b) {}
+  Item_func_des_encrypt(THD *thd, Item *a)
+   :Item_str_binary_checksum_func(thd, a) {}
+  Item_func_des_encrypt(THD *thd, Item *a, Item *b)
+   :Item_str_binary_checksum_func(thd, a, b) {}
   String *val_str(String *);
   void fix_length_and_dec()
   {
@@ -531,12 +639,14 @@ public:
   { return get_item_copy<Item_func_des_encrypt>(thd, mem_root, this); }
 };
 
-class Item_func_des_decrypt :public Item_str_func
+class Item_func_des_decrypt :public Item_str_binary_checksum_func
 {
   String tmp_value;
 public:
-  Item_func_des_decrypt(THD *thd, Item *a): Item_str_func(thd, a) {}
-  Item_func_des_decrypt(THD *thd, Item *a, Item *b): Item_str_func(thd, a, b) {}
+  Item_func_des_decrypt(THD *thd, Item *a)
+   :Item_str_binary_checksum_func(thd, a) {}
+  Item_func_des_decrypt(THD *thd, Item *a, Item *b)
+   :Item_str_binary_checksum_func(thd, a, b) {}
   String *val_str(String *);
   void fix_length_and_dec()
   {
@@ -551,7 +661,13 @@ public:
   { return get_item_copy<Item_func_des_decrypt>(thd, mem_root, this); }
 };
 
-class Item_func_encrypt :public Item_str_func
+
+/**
+  QQ: Item_func_encrypt should derive from Item_str_ascii_checksum_func.
+  However, it should be fixed to handle UCS2, UTF16, UTF32 properly first,
+  as the underlying crypt() call expects a null-terminated input string.
+*/
+class Item_func_encrypt :public Item_str_binary_checksum_func
 {
   String tmp_value;
 
@@ -561,11 +677,12 @@ class Item_func_encrypt :public Item_str_func
     collation.set(&my_charset_bin);
   }
 public:
-  Item_func_encrypt(THD *thd, Item *a): Item_str_func(thd, a)
+  Item_func_encrypt(THD *thd, Item *a): Item_str_binary_checksum_func(thd, a)
   {
     constructor_helper();
   }
-  Item_func_encrypt(THD *thd, Item *a, Item *b): Item_str_func(thd, a, b)
+  Item_func_encrypt(THD *thd, Item *a, Item *b)
+   :Item_str_binary_checksum_func(thd, a, b)
   {
     constructor_helper();
   }
@@ -583,7 +700,7 @@ public:
 #include "sql_crypt.h"
 
 
-class Item_func_encode :public Item_str_func
+class Item_func_encode :public Item_str_binary_checksum_func
 {
 private:
   /** Whether the PRNG has already been seeded. */
@@ -592,7 +709,7 @@ protected:
   SQL_CRYPT sql_crypt;
 public:
   Item_func_encode(THD *thd, Item *a, Item *seed_arg):
-    Item_str_func(thd, a, seed_arg) {}
+    Item_str_binary_checksum_func(thd, a, seed_arg) {}
   String *val_str(String *);
   void fix_length_and_dec();
   const char *func_name() const { return "encode"; }
@@ -655,6 +772,27 @@ public:
   const char *fully_qualified_func_name() const { return "database()"; }
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_func_database>(thd, mem_root, this); }
+};
+
+
+class Item_func_sqlerrm :public Item_func_sysconst
+{
+public:
+  Item_func_sqlerrm(THD *thd): Item_func_sysconst(thd) {}
+  String *val_str(String *);
+  const char *func_name() const { return "SQLERRM"; }
+  const char *fully_qualified_func_name() const { return "SQLERRM"; }
+  void print(String *str, enum_query_type query_type)
+  {
+    str->append(func_name());
+  }
+  void fix_length_and_dec()
+  {
+    max_length= 512 * system_charset_info->mbmaxlen;
+    null_value= maybe_null= false;
+  }
+  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
+  { return get_item_copy<Item_func_sqlerrm>(thd, mem_root, this); }
 };
 
 
@@ -911,7 +1049,7 @@ public:
 };
 
 
-class Item_func_hex :public Item_str_ascii_func
+class Item_func_hex :public Item_str_ascii_checksum_func
 {
 protected:
   String tmp_value;
@@ -924,7 +1062,7 @@ protected:
   const Type_handler *m_arg0_type_handler;
 public:
   Item_func_hex(THD *thd, Item *a):
-    Item_str_ascii_func(thd, a), m_arg0_type_handler(NULL) {}
+    Item_str_ascii_checksum_func(thd, a), m_arg0_type_handler(NULL) {}
   const char *func_name() const { return "hex"; }
   String *val_str_ascii_from_val_int(String *str);
   String *val_str_ascii_from_val_real(String *str);
@@ -1307,11 +1445,12 @@ public:
 #define ZLIB_DEPENDED_FUNCTION { null_value=1; return 0; }
 #endif
 
-class Item_func_compress: public Item_str_func
+class Item_func_compress: public Item_str_binary_checksum_func
 {
   String buffer;
 public:
-  Item_func_compress(THD *thd, Item *a): Item_str_func(thd, a) {}
+  Item_func_compress(THD *thd, Item *a)
+   :Item_str_binary_checksum_func(thd, a) {}
   void fix_length_and_dec(){max_length= (args[0]->max_length*120)/100+12;}
   const char *func_name() const{return "compress";}
   String *val_str(String *) ZLIB_DEPENDED_FUNCTION
@@ -1319,11 +1458,12 @@ public:
   { return get_item_copy<Item_func_compress>(thd, mem_root, this); }
 };
 
-class Item_func_uncompress: public Item_str_func
+class Item_func_uncompress: public Item_str_binary_checksum_func
 {
   String buffer;
 public:
-  Item_func_uncompress(THD *thd, Item *a): Item_str_func(thd, a) {}
+  Item_func_uncompress(THD *thd, Item *a)
+   :Item_str_binary_checksum_func(thd, a) {}
   void fix_length_and_dec(){ maybe_null= 1; max_length= MAX_BLOB_WIDTH; }
   const char *func_name() const{return "uncompress";}
   String *val_str(String *) ZLIB_DEPENDED_FUNCTION

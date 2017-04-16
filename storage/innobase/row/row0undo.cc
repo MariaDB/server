@@ -26,11 +26,6 @@ Created 1/8/1997 Heikki Tuuri
 #include "ha_prototypes.h"
 
 #include "row0undo.h"
-
-#ifdef UNIV_NONINL
-#include "row0undo.ic"
-#endif
-
 #include "fsp0fsp.h"
 #include "mach0data.h"
 #include "trx0rseg.h"
@@ -264,47 +259,23 @@ row_undo(
 	undo_node_t*	node,	/*!< in: row undo node */
 	que_thr_t*	thr)	/*!< in: query thread */
 {
-	dberr_t		err;
-	trx_t*		trx;
-	roll_ptr_t	roll_ptr;
-	ibool		locked_data_dict;
-
-	ut_ad(node != NULL);
-	ut_ad(thr != NULL);
-
-	trx = node->trx;
+	trx_t*		trx = node->trx;
 	ut_ad(trx->in_rollback);
 
 	if (node->state == UNDO_NODE_FETCH_NEXT) {
 
 		node->undo_rec = trx_roll_pop_top_rec_of_trx(
-			trx, trx->roll_limit, &roll_ptr, node->heap);
+			trx, &node->roll_ptr, node->heap);
 
 		if (!node->undo_rec) {
 			/* Rollback completed for this query thread */
-
 			thr->run_node = que_node_get_parent(node);
-
-			/* Mark any partial rollback completed, so
-			that if the transaction object is committed
-			and reused later, the roll_limit will remain
-			at 0. trx->roll_limit will be nonzero during a
-			partial rollback only. */
-			trx->roll_limit = 0;
-			ut_d(trx->in_rollback = false);
-
 			return(DB_SUCCESS);
 		}
 
-		node->roll_ptr = roll_ptr;
 		node->undo_no = trx_undo_rec_get_undo_no(node->undo_rec);
-
-		if (trx_undo_roll_ptr_is_insert(roll_ptr)) {
-
-			node->state = UNDO_NODE_INSERT;
-		} else {
-			node->state = UNDO_NODE_MODIFY;
-		}
+		node->state = trx_undo_roll_ptr_is_insert(node->roll_ptr)
+			? UNDO_NODE_INSERT : UNDO_NODE_MODIFY;
 	}
 
 	/* Prevent DROP TABLE etc. while we are rolling back this row.
@@ -312,12 +283,14 @@ row_undo(
 	then we already have dict_operation_lock locked in x-mode. Do not
 	try to lock again, because that would cause a hang. */
 
-	locked_data_dict = (trx->dict_operation_lock_mode == 0);
+	const bool locked_data_dict = (trx->dict_operation_lock_mode == 0);
 
 	if (locked_data_dict) {
 
 		row_mysql_freeze_data_dictionary(trx);
 	}
+
+	dberr_t err;
 
 	if (node->state == UNDO_NODE_INSERT) {
 

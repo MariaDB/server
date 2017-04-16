@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -299,81 +300,6 @@ lock_rec_insert_check_and_lock(
 	MY_ATTRIBUTE((warn_unused_result));
 
 /*********************************************************************//**
-Enqueues a waiting request for a lock which cannot be granted immediately.
-Checks for deadlocks.
-@return DB_LOCK_WAIT, DB_DEADLOCK, or DB_QUE_THR_SUSPENDED, or
-DB_SUCCESS_LOCKED_REC; DB_SUCCESS_LOCKED_REC means that
-there was a deadlock, but another transaction was chosen as a victim,
-and we got the lock immediately: no need to wait then */
-dberr_t
-lock_rec_enqueue_waiting(
-/*=====================*/
-	ulint			type_mode,/*!< in: lock mode this
-					transaction is requesting:
-					LOCK_S or LOCK_X, possibly
-					ORed with LOCK_GAP or
-					LOCK_REC_NOT_GAP, ORed with
-					LOCK_INSERT_INTENTION if this
-					waiting lock request is set
-					when performing an insert of
-					an index record */
-	const buf_block_t*	block,	/*!< in: buffer block containing
-					the record */
-	ulint			heap_no,/*!< in: heap number of the record */
-	dict_index_t*		index,	/*!< in: index of record */
-	que_thr_t*		thr,	/*!< in: query thread */
-	lock_prdt_t*		prdt);	/*!< in: Minimum Bounding Box */
-
-/*************************************************************//**
-Removes a record lock request, waiting or granted, from the queue and
-grants locks to other transactions in the queue if they now are entitled
-to a lock. NOTE: all record locks contained in in_lock are removed. */
-void
-lock_rec_dequeue_from_page(
-/*=======================*/
-        lock_t*         in_lock);        /*!< in: record lock object: all
-                                        record locks which are contained in
-                                        this lock object are removed;
-                                        transactions waiting behind will
-                                        get their lock requests granted,
-                                        if they are now qualified to it */
-
-/*************************************************************//**
-Moves the locks of a record to another record and resets the lock bits of
-the donating record. */
-UNIV_INLINE
-void
-lock_rec_move(
-/*==========*/
-        const buf_block_t*      receiver,       /*!< in: buffer block containing
-                                                the receiving record */
-        const buf_block_t*      donator,        /*!< in: buffer block containing
-                                                the donating record */
-        ulint                   receiver_heap_no,/*!< in: heap_no of the record
-                                                which gets the locks; there
-                                                must be no lock requests
-                                                on it! */
-        ulint                   donator_heap_no);/*!< in: heap_no of the record
-                                                which gives the locks */
-
-/*************************************************************//**
-Moves the locks of a record to another record and resets the lock bits of
-the donating record. */
-void
-lock_rec_move_low(
-/*==============*/
-	hash_table_t*		lock_hash,	/*!< in: hash  table to use */
-        const buf_block_t*      receiver,       /*!< in: buffer block containing
-                                                the receiving record */
-        const buf_block_t*      donator,        /*!< in: buffer block containing
-                                                the donating record */
-        ulint                   receiver_heap_no,/*!< in: heap_no of the record
-                                                which gets the locks; there
-                                                must be no lock requests
-                                                on it! */
-        ulint                   donator_heap_no);/*!< in: heap_no of the record
-                                                which gives the locks */
-/*********************************************************************//**
 Checks if locks of other transactions prevent an immediate modify (update,
 delete mark, or delete unmark) of a clustered index record. If they do,
 first tests if the query thread should anyway be suspended for some
@@ -611,7 +537,7 @@ Calculates the hash value of a page file address: used in inserting or
 searching for a lock in the hash table.
 @return hashed value */
 UNIV_INLINE
-ulint
+unsigned
 lock_rec_hash(
 /*==========*/
 	ulint	space,	/*!< in: space */
@@ -681,20 +607,6 @@ lock_report_trx_id_insanity(
 	dict_index_t*	index,		/*!< in: index */
 	const ulint*	offsets,	/*!< in: rec_get_offsets(rec, index) */
 	trx_id_t	max_trx_id);	/*!< in: trx_sys_get_max_trx_id() */
-/*********************************************************************//**
-Prints info of a table lock. */
-void
-lock_table_print(
-/*=============*/
-	FILE*		file,	/*!< in: file where to print */
-	const lock_t*	lock);	/*!< in: table type lock */
-/*********************************************************************//**
-Prints info of a record lock. */
-void
-lock_rec_print(
-/*===========*/
-	FILE*		file,	/*!< in: file where to print */
-	const lock_t*	lock);	/*!< in: record type lock */
 /*********************************************************************//**
 Prints info of locks for all transactions.
 @return FALSE if not able to obtain lock mutex and exits without
@@ -892,8 +804,7 @@ lock_trx_handle_wait(
 /*=================*/
 	trx_t*	trx,	/*!< in/out: trx lock state */
 	bool	lock_mutex_taken,
-	bool	trx_mutex_taken)
-	MY_ATTRIBUTE((nonnull(1), warn_unused_result));
+	bool	trx_mutex_taken);
 /*********************************************************************//**
 Get the number of locks on a table.
 @return number of locks */
@@ -960,15 +871,15 @@ lock_trx_alloc_locks(trx_t* trx);
 				type_mode field in a lock */
 /** Lock types */
 /* @{ */
-#define LOCK_TABLE	16	/*!< table lock */
-#define	LOCK_REC	32	/*!< record lock */
+#define LOCK_TABLE	16U	/*!< table lock */
+#define	LOCK_REC	32U	/*!< record lock */
 #define LOCK_TYPE_MASK	0xF0UL	/*!< mask used to extract lock type from the
 				type_mode field in a lock */
 #if LOCK_MODE_MASK & LOCK_TYPE_MASK
 # error "LOCK_MODE_MASK & LOCK_TYPE_MASK"
 #endif
 
-#define LOCK_WAIT	256	/*!< Waiting lock flag; when set, it
+#define LOCK_WAIT	256U	/*!< Waiting lock flag; when set, it
 				means that the lock has not yet been
 				granted, it is just waiting for its
 				turn in the wait queue */
@@ -976,14 +887,14 @@ lock_trx_alloc_locks(trx_t* trx);
 #define LOCK_ORDINARY	0	/*!< this flag denotes an ordinary
 				next-key lock in contrast to LOCK_GAP
 				or LOCK_REC_NOT_GAP */
-#define LOCK_GAP	512	/*!< when this bit is set, it means that the
+#define LOCK_GAP	512U	/*!< when this bit is set, it means that the
 				lock holds only on the gap before the record;
 				for instance, an x-lock on the gap does not
 				give permission to modify the record on which
 				the bit is set; locks of this type are created
 				when records are removed from the index chain
 				of records */
-#define LOCK_REC_NOT_GAP 1024	/*!< this bit means that the lock is only on
+#define LOCK_REC_NOT_GAP 1024U	/*!< this bit means that the lock is only on
 				the index record and does NOT block inserts
 				to the gap before the index record; this is
 				used in the case when we retrieve a record
@@ -991,7 +902,7 @@ lock_trx_alloc_locks(trx_t* trx);
 				locking plain SELECTs (not part of UPDATE
 				or DELETE) when the user has set the READ
 				COMMITTED isolation level */
-#define LOCK_INSERT_INTENTION 2048 /*!< this bit is set when we place a waiting
+#define LOCK_INSERT_INTENTION 2048U/*!< this bit is set when we place a waiting
 				gap type record lock request in order to let
 				an insert of an index record to wait until
 				there are no conflicting locks by other
@@ -999,8 +910,8 @@ lock_trx_alloc_locks(trx_t* trx);
 				remains set when the waiting lock is granted,
 				or if the lock is inherited to a neighboring
 				record */
-#define LOCK_PREDICATE	8192	/*!< Predicate lock */
-#define LOCK_PRDT_PAGE	16384	/*!< Page lock */
+#define LOCK_PREDICATE	8192U	/*!< Predicate lock */
+#define LOCK_PRDT_PAGE	16384U	/*!< Page lock */
 
 
 #if (LOCK_WAIT|LOCK_GAP|LOCK_REC_NOT_GAP|LOCK_INSERT_INTENTION|LOCK_PREDICATE|LOCK_PRDT_PAGE)&LOCK_MODE_MASK
@@ -1040,7 +951,12 @@ struct lock_sys_t{
 	srv_slot_t*	waiting_threads;	/*!< Array  of user threads
 						suspended while waiting for
 						locks within InnoDB, protected
-						by the lock_sys->wait_mutex */
+						by the lock_sys->wait_mutex;
+						os_event_set() and
+						os_event_reset() on
+						waiting_threads[]->event
+						are protected by
+						trx_t::mutex */
 	srv_slot_t*	last_slot;		/*!< highest slot ever used
 						in the waiting_threads array,
 						protected by
@@ -1053,10 +969,11 @@ struct lock_sys_t{
 
 	ulint		n_lock_max_wait_time;	/*!< Max wait time */
 
-	os_event_t	timeout_event;		/*!< Set to the event that is
-						created in the lock wait monitor
-						thread. A value of 0 means the
-						thread is not active */
+	os_event_t	timeout_event;		/*!< An event waited for by
+						lock_wait_timeout_thread.
+						Not protected by a mutex,
+						but the waits are timed.
+						Signaled on shutdown only. */
 
 	bool		timeout_thread_active;	/*!< True if the timeout thread
 						is running */
@@ -1166,8 +1083,6 @@ lock_update_split_and_merge(
 
 #endif /* WITH_WSREP */
 
-#ifndef UNIV_NONINL
 #include "lock0lock.ic"
-#endif
 
 #endif

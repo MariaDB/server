@@ -27,13 +27,13 @@ CREATE TABLE t1 (`tinyint` TINYINT,
 -- echo ### insert max unsigned
 -- echo ### a) declarative
 -- disable_warnings
--- eval INSERT INTO t1 VALUES ($max_unsigned_long, $max_unsigned_long, $max_unsigned_long, $max_unsigned_long, $max_unsigned_long, $max_unsigned_long, $max_unsigned_long,$max_unsigned_long, $max_unsigned_long, $max_unsigned_long, $max_unsigned_long, $max_unsigned_long, $max_unsigned_long, $max_unsigned_long);
+-- eval INSERT IGNORE INTO t1 VALUES ($max_unsigned_long, $max_unsigned_long, $max_unsigned_long, $max_unsigned_long, $max_unsigned_long, $max_unsigned_long, $max_unsigned_long,$max_unsigned_long, $max_unsigned_long, $max_unsigned_long, $max_unsigned_long, $max_unsigned_long, $max_unsigned_long, $max_unsigned_long);
 -- enable_warnings
 TRUNCATE t1;
 
 -- echo ### b) user var
 -- disable_warnings
-INSERT INTO t1 VALUES (@positive,
+INSERT IGNORE INTO t1 VALUES (@positive,
                        @positive,
                        @positive,
                        @positive,
@@ -57,13 +57,13 @@ INSERT INTO t1 VALUES (@positive,
 -- echo ### insert min signed
 -- echo ### a) declarative
 -- disable_warnings
--- eval INSERT INTO t1 VALUES ($min_signed_long, $min_signed_long, $min_signed_long, $min_signed_long, $min_signed_long, $min_signed_long, $min_signed_long,$min_signed_long, $min_signed_long, $min_signed_long, $min_signed_long, $min_signed_long, $min_signed_long, $min_signed_long);
+-- eval INSERT IGNORE INTO t1 VALUES ($min_signed_long, $min_signed_long, $min_signed_long, $min_signed_long, $min_signed_long, $min_signed_long, $min_signed_long,$min_signed_long, $min_signed_long, $min_signed_long, $min_signed_long, $min_signed_long, $min_signed_long, $min_signed_long);
 -- enable_warnings
 TRUNCATE t1;
 
 -- echo ### b) user var
 -- disable_warnings
-INSERT INTO t1 VALUES (@negative,
+INSERT IGNORE INTO t1 VALUES (@negative,
                        @negative,
                        @negative,
                        @negative,

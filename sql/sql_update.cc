@@ -191,7 +191,7 @@ static void prepare_record_for_error_message(int error, TABLE *table)
 
   /* Create unique_map with all fields used by that index. */
   my_bitmap_init(&unique_map, unique_map_buf, table->s->fields, FALSE);
-  table->mark_columns_used_by_index_no_reset(keynr, &unique_map);
+  table->mark_columns_used_by_index(keynr, &unique_map);
 
   /* Subtract read_set and write_set. */
   bitmap_subtract(&unique_map, table->read_set);
@@ -273,7 +273,6 @@ int mysql_update(THD *thd,
   SORT_INFO     *file_sort= 0;
   READ_RECORD	info;
   SELECT_LEX    *select_lex= &thd->lex->select_lex;
-  BLOB_VALUE_ORPHANAGE vblobs;
   ulonglong     id;
   List<Item> all_fields;
   killed_state killed_status= NOT_KILLED;
@@ -535,16 +534,9 @@ int mysql_update(THD *thd,
     /*
       We can't update table directly;  We must first search after all
       matching rows before updating the table!
+
+      note: We avoid sorting if we sort on the used index
     */
-    MY_BITMAP *save_read_set= table->read_set;
-    MY_BITMAP *save_write_set= table->write_set;
-
-    if (query_plan.index < MAX_KEY && old_covering_keys.is_set(query_plan.index))
-      table->add_read_columns_used_by_index(query_plan.index);
-    else
-      table->use_all_columns();
-
-    /* note: We avoid sorting if we sort on the used index */
     if (query_plan.using_filesort)
     {
       /*
@@ -570,6 +562,14 @@ int mysql_update(THD *thd,
     }
     else
     {
+      MY_BITMAP *save_read_set= table->read_set;
+      MY_BITMAP *save_write_set= table->write_set;
+
+      if (query_plan.index < MAX_KEY && old_covering_keys.is_set(query_plan.index))
+        table->prepare_for_keyread(query_plan.index);
+      else
+        table->use_all_columns();
+
       /*
 	We are doing a search on a key that is updated. In this case
 	we go trough the matching rows, save a pointer to them and
@@ -619,8 +619,6 @@ int mysql_update(THD *thd,
       while (!(error=info.read_record(&info)) && !thd->killed)
       {
         explain->buf_tracker.on_record_read();
-        if (table->vfield)
-          table->update_virtual_fields(VCOL_UPDATE_FOR_READ_WRITE);
         thd->inc_examined_row_count(1);
 	if (!select || (error= select->skip_record(thd)) > 0)
 	{
@@ -684,9 +682,10 @@ int mysql_update(THD *thd,
       select->file=tempfile;			// Read row ptrs from this file
       if (error >= 0)
 	goto err;
+
+      table->file->ha_end_keyread();
+      table->column_bitmaps_set(save_read_set, save_write_set);
     }
-    table->set_keyread(false);
-    table->column_bitmaps_set(save_read_set, save_write_set);
   }
 
   if (ignore)
@@ -725,8 +724,6 @@ int mysql_update(THD *thd,
 
   table->reset_default_fields();
 
-  vblobs.init(table);
-
   /*
     We can use compare_record() to optimize away updates if
     the table handler is returning all columns OR if
@@ -738,8 +735,6 @@ int mysql_update(THD *thd,
   while (!(error=info.read_record(&info)) && !thd->killed)
   {
     explain->tracker.on_record_read();
-    if (table->vfield)
-      table->update_virtual_fields(VCOL_UPDATE_FOR_READ_WRITE);
     thd->inc_examined_row_count(1);
     if (!select || select->skip_record(thd) > 0)
     {
@@ -748,9 +743,6 @@ int mysql_update(THD *thd,
 
       explain->tracker.on_record_after_where();
       store_record(table,record[1]);
-
-      vblobs.make_orphans();
-
       if (fill_record_n_invoke_before_triggers(thd, table, fields, values, 0,
                                                TRG_EVENT_UPDATE))
         break; /* purecov: inspected */
@@ -910,9 +902,7 @@ int mysql_update(THD *thd,
       error= 1;
       break;
     }
-    vblobs.free_orphans();
   }
-  vblobs.free_orphans();
   ANALYZE_STOP_TRACKING(&explain->command_tracker);
   table->auto_increment_field_not_null= FALSE;
   dup_key_found= 0;
@@ -1044,7 +1034,7 @@ err:
   delete select;
   delete file_sort;
   free_underlaid_joins(thd, select_lex);
-  table->set_keyread(false);
+  table->file->ha_end_keyread();
   thd->abort_on_warning= 0;
   DBUG_RETURN(1);
 
@@ -1760,8 +1750,6 @@ int multi_update::prepare(List<Item> &not_used_values,
 					      table_count);
   values_for_table= (List_item **) thd->alloc(sizeof(List_item *) *
 					      table_count);
-  vblobs= (BLOB_VALUE_ORPHANAGE *)thd->calloc(sizeof(*vblobs) * table_count);
-
   if (thd->is_fatal_error)
     DBUG_RETURN(1);
   for (i=0 ; i < table_count ; i++)
@@ -1794,7 +1782,6 @@ int multi_update::prepare(List<Item> &not_used_values,
       TABLE *table= ((Item_field*)(fields_for_table[i]->head()))->field->table;
       switch_to_nullable_trigger_fields(*fields_for_table[i], table);
       switch_to_nullable_trigger_fields(*values_for_table[i], table);
-      vblobs[i].init(table);
     }
   }
   copy_field= new Copy_field[max_fields];
@@ -2076,8 +2063,6 @@ multi_update::~multi_update()
 	free_tmp_table(thd, tmp_tables[cnt]);
 	tmp_table_param[cnt].cleanup();
       }
-      vblobs[cnt].free_orphans();
-      vblobs[cnt].free();
     }
   }
   if (copy_field)
@@ -2123,9 +2108,7 @@ int multi_update::send_data(List<Item> &not_used_values)
       can_compare_record= records_are_comparable(table);
 
       table->status|= STATUS_UPDATED;
-      vblobs[offset].free_orphans();
       store_record(table,record[1]);
-      vblobs[offset].make_orphans();
       if (fill_record_n_invoke_before_triggers(thd, table,
                                                *fields_for_table[offset],
                                                *values_for_table[offset], 0,
@@ -2342,7 +2325,17 @@ int multi_update::do_updates()
       goto err;
     }
     table->file->extra(HA_EXTRA_NO_CACHE);
-    empty_record(table);
+    /*
+      We have to clear the base record, if we have virtual indexed
+      blob fields, as some storage engines will access the blob fields
+      to calculate the keys to see if they have changed. Without
+      clearing the blob pointers will contain random values which can
+      cause a crash.
+      This is a workaround for engines that access columns not present in
+      either read or write set.
+    */
+    if (table->vfield)
+      empty_record(table);
 
     check_opt_it.rewind();
     while(TABLE *tbl= check_opt_it++)
@@ -2412,13 +2405,13 @@ int multi_update::do_updates()
         field_num++;
       } while ((tbl= check_opt_it++));
 
-      if (table->vfield && table->update_virtual_fields(VCOL_UPDATE_INDEXED))
+      if (table->vfield &&
+          table->update_virtual_fields(table->file,
+                                       VCOL_UPDATE_INDEXED_FOR_UPDATE))
         goto err2;
 
       table->status|= STATUS_UPDATED;
-      vblobs[offset].free_orphans();
       store_record(table,record[1]);
-      vblobs[offset].make_orphans();
 
       /* Copy data from temporary table to current table */
       for (copy_field_ptr=copy_field;
@@ -2441,7 +2434,7 @@ int multi_update::do_updates()
             (error= table->update_default_fields(1, ignore)))
           goto err2;
         if (table->vfield &&
-            table->update_virtual_fields(VCOL_UPDATE_FOR_WRITE))
+            table->update_virtual_fields(table->file, VCOL_UPDATE_FOR_WRITE))
           goto err2;
         if ((error= cur_table->view_check_option(thd, ignore)) !=
             VIEW_CHECK_OK)

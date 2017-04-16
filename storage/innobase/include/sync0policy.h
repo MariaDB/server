@@ -1,6 +1,7 @@
 /*****************************************************************************
 
-Copyright (c) 2013, 2015, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2013, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -70,7 +71,7 @@ public:
 		void locked(
 			const Mutex*		mutex,
 			const char*		filename,
-			ulint			line)
+			unsigned		line)
 			UNIV_NOTHROW
 		{
 			m_mutex = mutex;
@@ -92,7 +93,7 @@ public:
 
 			m_filename = NULL;
 
-			m_line = ULINT_UNDEFINED;
+			m_line = 0;
 		}
 
 		/** Print information about the latch
@@ -134,7 +135,7 @@ public:
 		const char*	m_filename;
 
 		/** Line mumber in filename */
-		ulint		m_line;
+		unsigned	m_line;
 
 		/** Thread ID of the thread that own(ed) the mutex */
 		os_thread_id_t	m_thread_id;
@@ -176,7 +177,7 @@ public:
 	void enter(
 		const Mutex*	mutex,
 		const char*	filename,
-		ulint		line)
+		unsigned	line)
 		UNIV_NOTHROW;
 
 	/** Called when the mutex is locked
@@ -186,7 +187,7 @@ public:
 	void locked(
 		const Mutex*	mutex,
 		const char*	filename,
-		ulint		line)
+		unsigned	line)
 		UNIV_NOTHROW;
 
 	/** Called when the mutex is released
@@ -210,7 +211,7 @@ public:
 	}
 
 	/** @return the name of the file from the mutex was acquired */
-	ulint get_enter_line() const
+	unsigned get_enter_line() const
 		UNIV_NOTHROW
 	{
 		return(m_context.m_line);
@@ -240,7 +241,7 @@ struct NoPolicy {
 	void init(const Mutex&, latch_id_t, const char*, uint32_t)
 		UNIV_NOTHROW { }
 	void destroy() UNIV_NOTHROW { }
-	void enter(const Mutex&, const char*, ulint line) UNIV_NOTHROW { }
+	void enter(const Mutex&, const char*, unsigned line) UNIV_NOTHROW { }
 	void add(uint32_t, uint32_t) UNIV_NOTHROW { }
 	void locked(const Mutex&, const char*, ulint) UNIV_NOTHROW { }
 	void release(const Mutex&) UNIV_NOTHROW { }
@@ -293,7 +294,7 @@ public:
 
 		meta.get_counter()->single_register(&m_count);
 
-		sync_file_created_register(this, filename, line);
+		sync_file_created_register(this, filename, uint16_t(line));
 
 		ut_d(MutexDebug<MutexType>::init(m_id));
 	}
@@ -341,7 +342,7 @@ public:
 	void enter(
 		const MutexType&	mutex,
 		const char*		filename,
-		ulint			line)
+		unsigned		line)
 		UNIV_NOTHROW
 	{
 		ut_d(MutexDebug<MutexType>::enter(&mutex, filename, line));
@@ -354,7 +355,7 @@ public:
 	void locked(
 		const MutexType&	mutex,
 		const char*		filename,
-		ulint			line)
+		unsigned		line)
 		UNIV_NOTHROW
 	{
 		ut_d(MutexDebug<MutexType>::locked(&mutex, filename, line));
@@ -492,7 +493,7 @@ public:
 	void locked(
 		const MutexType&	mutex,
 		const char*		filename,
-		ulint			line)
+		unsigned		line)
 		UNIV_NOTHROW
 	{
 		ut_d(MutexDebug<MutexType>::locked(&mutex, filename, line));
@@ -513,7 +514,7 @@ public:
 	void enter(
 		const MutexType&	mutex,
 		const char*		filename,
-		ulint			line)
+		unsigned		line)
 		UNIV_NOTHROW
 	{
 		ut_d(MutexDebug<MutexType>::enter(&mutex, filename, line));
@@ -543,8 +544,6 @@ private:
 	latch_id_t		m_id;
 };
 
-#ifndef UNIV_NONINL
 #include "sync0policy.ic"
-#endif /* UNIV_NOINL */
 
 #endif /* sync0policy_h */

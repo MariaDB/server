@@ -1680,5 +1680,14 @@ select c1 from t1 having c1 >= (select t.c1 as c from t2 t order by (select min(
 drop table t1,t2;
 
 --echo #
+--echo # MDEV-10556 Assertion `0' failed in virtual void Item_sum_field::set_result_field(Field*)
+--echo #
+
+CREATE TABLE t1 (i INT, KEY(i)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (10),(20),(30);
+SELECT DISTINCT STDDEV(1) FROM t1 GROUP BY i ORDER BY BENCHMARK(0, BIT_XOR(i));
+DROP TABLE t1;
+
+--echo #
 --echo # End of 10.1 tests
 --echo #

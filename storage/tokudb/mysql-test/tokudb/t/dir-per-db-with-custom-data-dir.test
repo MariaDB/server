@@ -1,0 +1,16 @@
+--source include/have_tokudb.inc
+
+SELECT @@tokudb_dir_per_db;
+
+--disable_query_log
+--eval SELECT STRCMP(@@tokudb_data_dir, '$MYSQL_TMP_DIR') = 0 AS TOKUDB_DATA_DIR_CHANGED
+--enable_query_log
+
+CREATE DATABASE tokudb_test;
+USE tokudb_test;
+CREATE TABLE t (a INT UNSIGNED AUTO_INCREMENT PRIMARY KEY) ENGINE=tokudb;
+
+--file_exists $MYSQL_TMP_DIR/tokudb_test
+
+DROP TABLE t;
+DROP DATABASE tokudb_test;

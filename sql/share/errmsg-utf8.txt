@@ -4839,7 +4839,7 @@ WARN_DATA_TRUNCATED 01000
         spa "Datos truncados para columna '%s' en la línea %lu"
 ER_WARN_USING_OTHER_HANDLER  
         eng "Using storage engine %s for table '%s'"
-        ger "Für Tabelle '%s' wird Speicher-Engine %s benutzt"
+        ger "Speicher-Engine %s wird für Tabelle '%s' benutzt"
         jpn "ストレージエンジン %s が表 '%s' に利用されています。"
         por "Usando engine de armazenamento %s para tabela '%s'"
         spa "Usando motor de almacenamiento %s para tabla '%s'"
@@ -6781,7 +6781,7 @@ ER_FK_COLUMN_NOT_NULL
         ger "Spalte '%-.192s' kann nicht NOT NULL sein: wird für eine Fremdschlüsselbeschränkung '%-.192s' SET NULL benötigt"
 
 ER_DUP_INDEX
-  eng "Duplicate index '%-.64s' defined on the table '%-.64s.%-.64s'. This is deprecated and will be disallowed in a future release"
+  eng "Duplicate index %`s. This is deprecated and will be disallowed in a future release"
 
 ER_FK_COLUMN_CANNOT_CHANGE
   eng "Cannot change column '%-.192s': used in a foreign key constraint '%-.192s'"
@@ -7151,6 +7151,9 @@ skip-to-error-number 2000
 # MySQL 5.7 error numbers starts here
 skip-to-error-number 3000
 
+ER_FILE_CORRUPT
+  eng "File %s is corrupted"
+
 ER_ERROR_ON_MASTER
   eng "Query partially completed on the master (error on master: %d) and was aborted. There is a chance that your master is inconsistent at this point. If you are sure that your master is ok, run this query manually on the slave and then restart the slave with SET GLOBAL SQL_SLAVE_SKIP_COUNTER=1; START SLAVE;. Query:'%s'" 
 
@@ -7355,7 +7358,7 @@ ER_UNACCEPTABLE_MUTUAL_RECURSION
         eng "Unacceptable mutual recursion with anchored table '%s'"
 ER_REF_TO_RECURSIVE_WITH_TABLE_IN_DERIVED
         eng "Reference to recursive WITH table '%s' in materialized derived"
-ER_NOT_STANDARDS_COMPLIANT_RECURSIVE
+ER_NOT_STANDARD_COMPLIANT_RECURSIVE
         eng "Restrictions imposed on recursive definitions are violated for table '%s'"R_WRONG_WINDOW_SPEC_NAME
 ER_WRONG_WINDOW_SPEC_NAME
        eng "Window specification with name '%s' is not defined"
@@ -7417,7 +7420,7 @@ ER_BINLOG_UNCOMPRESS_ERROR
 ER_JSON_BAD_CHR
         eng "Broken JSON string in argument %d to function '%s' at position %d"
 ER_JSON_NOT_JSON_CHR
-        eng "Character disallowd in JSON in argument %d to function '%s' at position %d"
+        eng "Character disallowed in JSON in argument %d to function '%s' at position %d"
 ER_JSON_EOS
         eng "Unexpected end of JSON text in argument %d to function '%s'"
 ER_JSON_SYNTAX
@@ -7438,5 +7441,46 @@ ER_JSON_PATH_ARRAY
         eng "JSON path should end with an array identifier in argument %d to function '%s'"
 ER_JSON_ONE_OR_ALL
         eng "Argument 2 to function '%s' must be "one" or "all"."
+ER_UNSUPPORT_COMPRESSED_TEMPORARY_TABLE
+	eng "CREATE TEMPORARY TABLE is not allowed with ROW_FORMAT=COMPRESSED or KEY_BLOCK_SIZE."
+ER_GEOJSON_INCORRECT
+        eng "Incorrect GeoJSON format specified for st_geomfromgeojson function."
+ER_GEOJSON_TOO_FEW_POINTS
+        eng "Incorrect GeoJSON format - too few points for linestring specified."
+ER_GEOJSON_NOT_CLOSED
+        eng "Incorrect GeoJSON format - polygon not closed."
+ER_JSON_PATH_EMPTY
+        eng "Path expression '$' is not allowed in argument %d to function '%s'."
+ER_SLAVE_SAME_ID
+        eng "A slave with the same server_uuid/server_id as this slave has connected to the master"
 ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
         eng "Illegal parameter data types %s and %s for operation '%s'"
+ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+        eng "Illegal parameter data type %s for operation '%s'"
+ER_WRONG_PARAMCOUNT_TO_CURSOR 42000
+        eng "Incorrect parameter count to cursor '%-.192s'"
+        rus "Некорректное количество параметров для курсора '%-.192s'"
+ER_UNKNOWN_STRUCTURED_VARIABLE
+        eng "Unknown structured system variable or ROW routine variable '%-.*s'"
+ER_ROW_VARIABLE_DOES_NOT_HAVE_FIELD
+        eng "Row variable '%-.192s' does not have a field '%-.192s'"
+ER_END_IDENTIFIER_DOES_NOT_MATCH
+        eng "END identifier '%-.192s' does not match '%-.192s'"
+ER_SEQUENCE_RUN_OUT
+        eng "Sequence '%-.64s.%-.64s' has run out"
+ER_SEQUENCE_INVALID_DATA
+        eng "Sequence '%-.64s.%-.64s' values are conflicting"
+ER_SEQUENCE_INVALID_TABLE_STRUCTURE
+        eng "Sequence '%-.64s.%-.64s' table structure is invalid (%s)"
+ER_SEQUENCE_ACCESS_ERROR
+        eng "Sequence '%-.64s.%-.64s' access error"
+ER_SEQUENCE_BINLOG_FORMAT
+          eng "Sequences requires binlog_format mixed or row"
+ER_NOT_SEQUENCE 42S02
+        eng "'%-.64s.%-.64s' is not a SEQUENCE"
+ER_NOT_SEQUENCE2 42S02
+        eng "'%-.192s' is not a SEQUENCE"
+ER_UNKNOWN_SEQUENCES 42S02
+        eng "Unknown SEQUENCE: '%-.300s'"
+ER_UNKNOWN_VIEW 42S02
+        eng "Unknown VIEW: '%-.300s'"

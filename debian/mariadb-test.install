@@ -17,7 +17,7 @@ usr/lib/mysql/plugin/qa_auth_client.so
 usr/lib/mysql/plugin/qa_auth_interface.so
 usr/lib/mysql/plugin/qa_auth_server.so
 usr/share/mysql/mysql-test/README
-usr/share/mysql/mysql-test/README.gcov
+usr/share/mysql/mysql-test/README-gcov
 usr/share/mysql/mysql-test/README.stress
 usr/share/mysql/mysql-test/disabled.def
 usr/share/mysql/mysql-test/lib

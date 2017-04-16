@@ -14,7 +14,8 @@ eval select event_name,
   order by thread_id, event_id;
 
 # In case of failures, this will tell if table io are lost.
-show status like 'performance_schema_%';
+show status where Variable_name like 'performance_schema_%' and
+                  Variable_name not like 'performance_schema_%_classes_lost';
 
 # Cleanup
 truncate performance_schema.events_waits_history_long;

@@ -84,6 +84,10 @@ endif
 	    -DCOMPILATION_COMMENT="mariadb.org binary distribution" \
 	    -DMYSQL_SERVER_SUFFIX="-$(DEBVERSION)" \
 	    -DSYSTEM_TYPE="debian-$(DEB_BUILD_GNU_SYSTEM)" \
+	    $${MYSQL_BUILD_CXX:+-DCMAKE_CXX_COMPILER=$${MYSQL_BUILD_CXX}} \
+	    $${MYSQL_BUILD_CC:+-DCMAKE_C_COMPILER=$${MYSQL_BUILD_CC}} \
+	    $${MYSQL_COMPILER_LAUNCHER:+-DCMAKE_CXX_COMPILER_LAUNCHER=${MYSQL_COMPILER_LAUNCHER}} \
+	    $${MYSQL_COMPILER_LAUNCHER:+-DCMAKE_C_COMPILER_LAUNCHER=${MYSQL_COMPILER_LAUNCHER}} \
 	    -DCMAKE_SYSTEM_PROCESSOR=$(DEB_BUILD_ARCH) \
 	    -DBUILD_CONFIG=mysql_release \
 	    -DINSTALL_LIBDIR=lib/$(DEB_HOST_MULTIARCH) \
@@ -116,22 +120,22 @@ override_dh_auto_install:
 	dh_testroot
 
 	# If TokuDB plugin was not built skip the package
-	[ -f $(BUILDDIR)/storage/tokudb/ha_tokudb.so ] || sed -i -e "/Package: mariadb-plugin-tokudb/,+14d" debian/control
+	[ -f $(BUILDDIR)/storage/tokudb/ha_tokudb.so ] || sed -i -e "/Package: mariadb-plugin-tokudb/,+16d" debian/control
 
 	# If Mroonga plugin was not built skip the package
-	[ -f $(BUILDDIR)/storage/mroonga/ha_mroonga.so ] || sed -i -e "/Package: mariadb-plugin-mroonga/,+13d" debian/control
+	[ -f $(BUILDDIR)/storage/mroonga/ha_mroonga.so ] || sed -i -e "/Package: mariadb-plugin-mroonga/,+15d" debian/control
 
 	# If libthrift-dev was available (manually installed, as it is
 	# not in Debian) and ha_cassandra.so was thus built, create package,
 	# otherwise skip it.
-	[ -f $(BUILDDIR)/storage/cassandra/ha_cassandra.so ] || sed -i -e "/Package: mariadb-plugin-cassandra/,+16d" debian/control
+	[ -f $(BUILDDIR)/storage/cassandra/ha_cassandra.so ] || sed -i -e "/Package: mariadb-plugin-cassandra/,+18d" debian/control
 
 	# If Spider plugin was not built skip the package
-	[ -f $(BUILDDIR)/storage/spider/ha_spider.so ] || sed -i -e "/Package: mariadb-plugin-spider/,+14d" debian/control
+	[ -f $(BUILDDIR)/storage/spider/ha_spider.so ] || sed -i -e "/Package: mariadb-plugin-spider/,+16d" debian/control
 
 	# Copy systemd files to a location available for dh_installinit
-	cp $(BUILDDIR)/support-files/mariadb.service debian/mariadb-server-10.2.mariadb.service
-	cp $(BUILDDIR)/support-files/mariadb@.service debian/mariadb-server-10.2.mariadb@.service
+	cp $(BUILDDIR)/support-files/mariadb.service debian/mariadb-server-10.3.mariadb.service
+	cp $(BUILDDIR)/support-files/mariadb@.service debian/mariadb-server-10.3.mariadb@.service
 
 	# make install
 	cd $(BUILDDIR) && $(MAKE) install DESTDIR=$(TMP)
@@ -143,27 +147,27 @@ override_dh_auto_install:
 
 	# nm numeric soft is not enough, therefore extra sort in command
 	# to satisfy Debian reproducible build requirements
-	nm --defined-only $(BUILDDIR)/sql/mysqld | LC_ALL=C sort | gzip -n -9 > $(TMP)/usr/share/doc/mariadb-server-10.2/mysqld.sym.gz
+	nm --defined-only $(BUILDDIR)/sql/mysqld | LC_ALL=C sort | gzip -n -9 > $(TMP)/usr/share/doc/mariadb-server-10.3/mysqld.sym.gz
 
-	# For 5.0 -> 10.2 transition
+	# For 5.0 -> 10.3 transition
 	d=$(TMP)/usr/share/mysql-common/internal-use-only/; \
 	mkdir -p $$d; \
-	cp debian/mariadb-server-10.2.mysql.init $$d/_etc_init.d_mysql; \
-	cp debian/mariadb-server-10.2.mysql-server.logrotate $$d/_etc_logrotate.d_mysql-server; \
+	cp debian/mariadb-server-10.3.mysql.init $$d/_etc_init.d_mysql; \
+	cp debian/mariadb-server-10.3.mysql-server.logrotate $$d/_etc_logrotate.d_mysql-server; \
 	cp debian/additions/debian-start $$d/_etc_mysql_debian-start;
 
 	# rename and install AppArmor profile
 	install -D -m 644 debian/apparmor-profile $(TMP)/etc/apparmor.d/usr.sbin.mysqld
 	# install Apport hook
-	install -D -m 644 debian/mariadb-server-10.2.py $(TMP)/usr/share/apport/package-hooks/source_mariadb-10.2.py
+	install -D -m 644 debian/mariadb-server-10.3.py $(TMP)/usr/share/apport/package-hooks/source_mariadb-10.3.py
 
 	# Install libmariadbclient18 compatibility links
-	ln -s $(TMP)/usr/lib/$(DEB_HOST_MULTIARCH)/libmariadb.so.3 $(TMP)/usr/lib/$(DEB_HOST_MULTIARCH)/libmariadbclient.so.18
+	ln -s /usr/lib/$(DEB_HOST_MULTIARCH)/libmariadb.so.3 $(TMP)/usr/lib/$(DEB_HOST_MULTIARCH)/libmariadbclient.so.18
 
 	# Install libmysqlclientclientXX compatibility links
-	ln -s $(TMP)/usr/lib/$(DEB_HOST_MULTIARCH)/libmariadb.so.3 $(TMP)/usr/lib/$(DEB_HOST_MULTIARCH)/libmysqlclient.so.18
-	ln -s $(TMP)/usr/lib/$(DEB_HOST_MULTIARCH)/libmariadb.so.3 $(TMP)/usr/lib/$(DEB_HOST_MULTIARCH)/libmysqlclient.so.19
-	ln -s $(TMP)/usr/lib/$(DEB_HOST_MULTIARCH)/libmariadb.so.3 $(TMP)/usr/lib/$(DEB_HOST_MULTIARCH)/libmysqlclient.so.20
+	ln -s /usr/lib/$(DEB_HOST_MULTIARCH)/libmariadb.so.3 $(TMP)/usr/lib/$(DEB_HOST_MULTIARCH)/libmysqlclient.so.18
+	ln -s /usr/lib/$(DEB_HOST_MULTIARCH)/libmariadb.so.3 $(TMP)/usr/lib/$(DEB_HOST_MULTIARCH)/libmysqlclient.so.19
+	ln -s /usr/lib/$(DEB_HOST_MULTIARCH)/libmariadb.so.3 $(TMP)/usr/lib/$(DEB_HOST_MULTIARCH)/libmysqlclient.so.20
 
 	touch $@
 

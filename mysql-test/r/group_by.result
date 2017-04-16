@@ -1789,7 +1789,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 2	DEPENDENT SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
 Note	1276	Field or reference 'test.t1.a' of SELECT #2 was resolved in SELECT #1
-Note	1003	select <expr_cache><`test`.`t1`.`a`>((select `test`.`t1`.`a`)) AS `aa`,count(distinct `test`.`t1`.`b`) AS `COUNT(DISTINCT b)` from `test`.`t1` group by <expr_cache><`test`.`t1`.`a`>((select `test`.`t1`.`a`)) + 0
+Note	1003	/* select#1 */ select <expr_cache><`test`.`t1`.`a`>((/* select#2 */ select `test`.`t1`.`a`)) AS `aa`,count(distinct `test`.`t1`.`b`) AS `COUNT(DISTINCT b)` from `test`.`t1` group by <expr_cache><`test`.`t1`.`a`>((/* select#2 */ select `test`.`t1`.`a`)) + 0
 EXPLAIN EXTENDED
 SELECT (SELECT t1.a) aa, COUNT(DISTINCT b) FROM t1 GROUP BY -aa;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
@@ -1797,7 +1797,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 2	DEPENDENT SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
 Note	1276	Field or reference 'test.t1.a' of SELECT #2 was resolved in SELECT #1
-Note	1003	select <expr_cache><`test`.`t1`.`a`>((select `test`.`t1`.`a`)) AS `aa`,count(distinct `test`.`t1`.`b`) AS `COUNT(DISTINCT b)` from `test`.`t1` group by -<expr_cache><`test`.`t1`.`a`>((select `test`.`t1`.`a`))
+Note	1003	/* select#1 */ select <expr_cache><`test`.`t1`.`a`>((/* select#2 */ select `test`.`t1`.`a`)) AS `aa`,count(distinct `test`.`t1`.`b`) AS `COUNT(DISTINCT b)` from `test`.`t1` group by -<expr_cache><`test`.`t1`.`a`>((/* select#2 */ select `test`.`t1`.`a`))
 # should return only one record
 SELECT (SELECT tt.a FROM t1 tt LIMIT 1) aa, COUNT(DISTINCT b) FROM t1
 GROUP BY aa;
@@ -2627,6 +2627,20 @@ MAX(i)	c
 7	foo
 drop table t1,t2;
 #
+# ONLY_FULL_GROUP_BY references
+#
+set @save_sql_mode = @@sql_mode;
+set sql_mode='ONLY_FULL_GROUP_BY';
+create table t1 (a int, b int);
+select a+b as x from t1 group by x having x > 1;
+x
+select a as x from t1 group by x having x > 1;
+x
+select a from t1 group by a having a > 1;
+a
+drop table t1;
+set sql_mode= @save_sql_mode;
+#
 # Bug #58782
 # Missing rows with SELECT .. WHERE .. IN subquery 
 # with full GROUP BY and no aggr
@@ -2756,4 +2770,13 @@ INSERT INTO t1 VALUES (0,'foo'),(1,'bar');
 SELECT 1 IN ( SELECT COUNT( DISTINCT f2 ) FROM t1 WHERE f1 <= 4 );
 1 IN ( SELECT COUNT( DISTINCT f2 ) FROM t1 WHERE f1 <= 4 )
 0
+drop table t1;
+#
+# MDEV-10694 - SIGFPE and/or huge memory allocation in maria_create with distinct/group by/ rollup
+#
+create table t1 (a int,b int) ;
+insert into t1 values(-126,7),(1,1),(0,0),(-1,1),(351,65534);
+select distinct 1 from t1 group by a,b with rollup limit 1;
+1
+1
 drop table t1;

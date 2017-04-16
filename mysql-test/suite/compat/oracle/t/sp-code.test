@@ -1,0 +1,1057 @@
+-- source include/have_debug.inc
+
+SET sql_mode=ORACLE;
+
+--echo #
+--echo # Testing exceptions in the top-level blocks
+--echo #
+
+--echo # No HANDLER declarations, no exceptions
+DELIMITER /;
+CREATE FUNCTION f1 RETURN INT
+AS
+BEGIN
+  RETURN 10;
+END;
+/
+DELIMITER ;/
+SHOW FUNCTION CODE f1;
+SELECT f1();
+DROP FUNCTION f1;
+
+--echo # No HANDLER declarations, no code, no exceptions
+DELIMITER /;
+CREATE PROCEDURE p1 ()
+IS
+BEGIN
+END;
+/
+DELIMITER ;/
+SHOW PROCEDURE CODE p1;
+CALL p1;
+DROP PROCEDURE p1;
+
+
+--echo # No HANDLER declarations, no code, some exceptions
+DELIMITER /;
+CREATE PROCEDURE p1 (v IN OUT INT)
+IS
+BEGIN
+EXCEPTION
+  WHEN 1002 THEN v:=225;
+END;
+/
+DELIMITER ;/
+SHOW PROCEDURE CODE p1;
+set @v= 10;
+CALL p1(@v);
+SELECT @v;
+DROP PROCEDURE p1;
+
+
+--echo # No HANDLER declarations, some code, some exceptions
+DELIMITER /;
+CREATE PROCEDURE p1 (v IN OUT INT)
+IS
+BEGIN
+  v:=224;
+EXCEPTION
+  WHEN 1002 THEN v:=225;
+END;
+/
+DELIMITER ;/
+SHOW PROCEDURE CODE p1;
+set @v= 10;
+CALL p1(@v);
+SELECT @v;
+DROP PROCEDURE p1;
+
+
+--echo # Some HANDLER declarations, no code, no exceptions
+DELIMITER /;
+CREATE PROCEDURE p1 (v IN OUT INT)
+IS
+  EXIT HANDLER FOR 1000
+  BEGIN
+   v:=123;
+  END;
+BEGIN
+END;
+/
+DELIMITER ;/
+SHOW PROCEDURE CODE p1;
+set @v= 10;
+CALL p1(@v);
+SELECT @v;
+DROP PROCEDURE p1;
+
+
+--echo # Some HANDLER declarations, no code, some exceptions
+DELIMITER /;
+CREATE PROCEDURE p1 (v IN OUT INT)
+IS
+  EXIT HANDLER FOR 1000
+  BEGIN
+   v:=123;
+  END;
+BEGIN
+EXCEPTION
+  WHEN 1002 THEN v:=225;
+END;
+/
+DELIMITER ;/
+SHOW PROCEDURE CODE p1;
+set @v= 10;
+CALL p1(@v);
+SELECT @v;
+DROP PROCEDURE p1;
+
+
+--echo # Some HANDLER declarations, some code, no exceptions
+DELIMITER /;
+CREATE PROCEDURE p1 (v IN OUT INT)
+IS
+  EXIT HANDLER FOR 1000
+  BEGIN
+   v:=123;
+  END;
+BEGIN
+  v:=223;
+END;
+/
+DELIMITER ;/
+SHOW PROCEDURE CODE p1;
+set @v= 10;
+CALL p1(@v);
+SELECT @v;
+DROP PROCEDURE p1;
+
+--echo # Some HANDLER declarations, some code, some exceptions
+DELIMITER /;
+CREATE PROCEDURE p1 (v IN OUT VARCHAR2(20))
+IS
+  EXIT HANDLER FOR 1000
+  BEGIN
+    v:=123;
+  END;
+  CONTINUE HANDLER FOR 1001
+  BEGIN
+    SET v=223;
+  END;
+BEGIN
+  v:= 1;
+EXCEPTION
+  WHEN 1002 THEN SET v=225;
+END;
+/
+DELIMITER ;/
+SHOW PROCEDURE CODE p1;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # Testing EXCEPTIONS in internal blocks
+--echo #
+
+--echo # No HANDLER declarations, no code, no exceptions
+DELIMITER /;
+CREATE PROCEDURE p1 (v IN OUT INT)
+IS
+BEGIN
+  v:=123;
+  BEGIN
+  END;
+END;
+/
+DELIMITER ;/
+SHOW PROCEDURE CODE p1;
+SET @v=10;
+CALL p1(@v);
+SELECT @v;
+DROP PROCEDURE p1;
+
+--echo # No HANDLER declarations, no code, some exceptions
+DELIMITER /;
+CREATE PROCEDURE p1 (v IN OUT INT)
+IS
+BEGIN
+  v:=123;
+  BEGIN
+  EXCEPTION
+    WHEN 20002 THEN v:=335;
+  END;
+END;
+/
+DELIMITER ;/
+SHOW PROCEDURE CODE p1;
+SET @v=10;
+CALL p1(@v);
+SELECT @v;
+DROP PROCEDURE p1;
+
+--echo # No HANDLER declarations, some code, no exceptions
+DELIMITER /;
+CREATE PROCEDURE p1 (v IN OUT INT)
+IS
+BEGIN
+  v:=123;
+  BEGIN
+    v:=223;
+  END;
+END;
+/
+DELIMITER ;/
+SHOW PROCEDURE CODE p1;
+SET @v=10;
+CALL p1(@v);
+SELECT @v;
+DROP PROCEDURE p1;
+
+--echo # No HANDLER declarations, some code, some exceptions
+DELIMITER /;
+CREATE PROCEDURE p1 (v IN OUT INT)
+IS
+BEGIN
+  v:=123;
+  BEGIN
+    v:=223;
+  EXCEPTION
+    WHEN 20002 THEN v:=335;
+  END;
+END;
+/
+DELIMITER ;/
+SHOW PROCEDURE CODE p1;
+SET @v=10;
+CALL p1(@v);
+SELECT @v;
+DROP PROCEDURE p1;
+
+--echo # Some HANDLER declarations, no code, no exceptions
+DELIMITER /;
+CREATE PROCEDURE p1 (v IN OUT INT)
+IS
+BEGIN
+  v:=123;
+  DECLARE
+    EXIT HANDLER FOR 1000
+    BEGIN
+      v:=323;
+    END;
+  BEGIN
+  END;
+END;
+/
+DELIMITER ;/
+SHOW PROCEDURE CODE p1;
+SET @v=10;
+CALL p1(@v);
+SELECT @v;
+DROP PROCEDURE p1;
+
+--echo # Some HANDLER declarations, no code, some exceptions
+DELIMITER /;
+CREATE PROCEDURE p1 (v IN OUT INT)
+IS
+BEGIN
+  v:=123;
+  DECLARE
+    EXIT HANDLER FOR 1000
+    BEGIN
+      v:=323;
+    END;
+  BEGIN
+  EXCEPTION
+    WHEN 20002 THEN v:=335;
+  END;
+END;
+/
+DELIMITER ;/
+SHOW PROCEDURE CODE p1;
+SET @v=10;
+CALL p1(@v);
+SELECT @v;
+DROP PROCEDURE p1;
+
+--echo # Some HANDLER declarations, some code, no exceptions
+DELIMITER /;
+CREATE PROCEDURE p1 (v IN OUT INT)
+IS
+BEGIN
+  v:=123;
+  DECLARE
+    EXIT HANDLER FOR 1000
+    BEGIN
+      v:=323;
+    END;
+  BEGIN
+   v:= 324;
+  END;
+END;
+/
+DELIMITER ;/
+SHOW PROCEDURE CODE p1;
+SET @v=10;
+CALL p1(@v);
+SELECT @v;
+DROP PROCEDURE p1;
+
+--echo # Some HANDLER declarations, some code, some exceptions
+DELIMITER /;
+CREATE PROCEDURE p1 (v IN OUT INT)
+IS
+BEGIN
+  v:=123;
+  DECLARE
+    EXIT HANDLER FOR 1000
+    BEGIN
+      v:=323;
+    END;
+  BEGIN
+    v:= 324;
+  EXCEPTION WHEN 2002 THEN v:= 325;
+  END;
+END;
+/
+DELIMITER ;/
+SHOW PROCEDURE CODE p1;
+SET @v=10;
+CALL p1(@v);
+SELECT @v;
+DROP PROCEDURE p1;
+
+--echo #
+--echo # Testing EXIT statement
+--echo #
+
+DELIMITER /;
+CREATE FUNCTION f1 RETURN INT
+IS
+  i INT := 0;
+BEGIN
+  LOOP
+    i:= i + 1;
+    IF i >= 5 THEN
+      EXIT;
+    END IF;
+  END LOOP;
+  RETURN i;
+END;
+/
+DELIMITER ;/
+SHOW FUNCTION CODE f1;
+SELECT f1() FROM DUAL;
+DROP FUNCTION f1;
+
+
+DELIMITER /;
+CREATE FUNCTION f1 RETURN INT
+IS
+  i INT := 0;
+BEGIN
+  LOOP
+    i:= i + 1;
+    EXIT WHEN i >=5;
+  END LOOP;
+  RETURN i;
+END;
+/
+DELIMITER ;/
+SHOW FUNCTION CODE f1;
+SELECT f1() FROM DUAL;
+DROP FUNCTION f1;
+
+
+DELIMITER /;
+CREATE FUNCTION f1 RETURN INT
+IS
+  i INT := 0;
+BEGIN
+  LOOP
+    BEGIN
+      i:= i + 1;
+      IF i >= 5 THEN
+        EXIT;
+      END IF;
+    EXCEPTION
+      WHEN OTHERS THEN i:= 1000;
+    END;
+  END LOOP;
+  RETURN i;
+END;
+/
+DELIMITER ;/
+SHOW FUNCTION CODE f1;
+SELECT f1() FROM DUAL;
+DROP FUNCTION f1;
+
+
+DELIMITER /;
+CREATE PROCEDURE p1(a IN OUT INT)
+IS
+  i INT := 0;
+BEGIN
+  LOOP
+    LOOP
+      BEGIN
+        i:= i + 1;
+        IF i >=5 THEN
+          EXIT;
+        END IF;
+      EXCEPTION
+        WHEN OTHERS THEN a:=1000;
+      END;
+    END LOOP;
+    i:= i + 100;
+    EXIT;
+  END LOOP;
+  a:= i;
+EXCEPTION
+  WHEN OTHERS THEN a:=11;
+END;
+/
+DELIMITER ;/
+SHOW PROCEDURE CODE p1;
+set @v= 10;
+CALL p1(@v);
+SELECT @v;
+DROP PROCEDURE p1;
+
+
+--echo # Testing RETURN in procedures
+DELIMITER /;
+CREATE PROCEDURE p1 (a IN OUT INT)
+AS
+BEGIN
+  IF a < 10 THEN
+    BEGIN
+      a:= a + 1;
+      RETURN;
+    END;
+  END IF;
+  a:= 200;
+EXCEPTION
+  WHEN OTHERS THEN
+  BEGIN
+    a:= 100;
+    RETURN;
+  END;
+END;
+/
+DELIMITER ;/
+SHOW PROCEDURE CODE p1;
+DROP PROCEDURE p1;
+
+
+--echo # Testing FOR loop statement
+DELIMITER /;
+CREATE FUNCTION f1 (a INT, b INT) RETURN INT
+AS
+  total INT := 0;
+BEGIN
+  FOR i IN 1 .. a
+  LOOP
+    total:= total + i;
+    IF i = b THEN
+      EXIT;
+    END IF;
+  END LOOP;
+  RETURN total;
+END
+/
+DELIMITER ;/
+SHOW FUNCTION CODE f1;
+SELECT f1(3, 100) FROM DUAL;
+SELECT f1(3, 2) FROM DUAL;
+DROP FUNCTION f1;
+
+DELIMITER /;
+CREATE FUNCTION f1 (a INT, b INT) RETURN INT
+AS
+  total INT := 0;
+BEGIN
+  FOR i IN REVERSE a..1
+  LOOP
+    total:= total + i;
+    IF i = b THEN
+      EXIT;
+    END IF;
+  END LOOP;
+  RETURN total;
+END
+/
+DELIMITER ;/
+SHOW FUNCTION CODE f1;
+SELECT f1(3, 100) FROM DUAL;
+SELECT f1(3, 2) FROM DUAL;
+DROP FUNCTION f1;
+
+
+--echo # Testing labeled FOR LOOP statement
+
+DELIMITER /;
+CREATE FUNCTION f1 (a INT, limita INT, b INT, limitb INT) RETURN INT
+AS
+  total INT := 0;
+BEGIN
+  <<la>>
+  FOR ia IN 1 .. a
+  LOOP
+    total:= total + 1000;
+    <<lb>>
+    FOR ib IN 1 .. b
+    LOOP
+      total:= total + 1;
+      EXIT lb WHEN ib = limitb;
+      EXIT la WHEN ia = limita;
+    END LOOP lb;
+  END LOOP la;
+  RETURN total;
+END;
+/
+DELIMITER ;/
+SHOW FUNCTION CODE f1;
+SELECT f1(2, 1, 2, 2) FROM DUAL;
+SELECT f1(2, 2, 2, 2) FROM DUAL;
+SELECT f1(2, 3, 2, 3) FROM DUAL;
+DROP FUNCTION f1;
+
+
+--echo # Testing labeled ITERATE in a labeled FOR LOOP
+
+DELIMITER /;
+CREATE FUNCTION f1(a INT) RETURN INT
+AS
+  total INT:= 0;
+BEGIN
+  <<li>>
+  FOR i IN 1 .. a
+  LOOP
+    total:= total + 1000;
+    IF i = 5 THEN
+      ITERATE li;
+    END IF;
+    total:= total + 1;
+  END LOOP;
+  RETURN total;
+END;
+/
+DELIMITER ;/
+SHOW FUNCTION CODE f1;
+SELECT f1(3), f1(4), f1(5), f1(6) FROM DUAL;
+DROP FUNCTION f1;
+
+
+DELIMITER /;
+CREATE FUNCTION f1(a INT) RETURN INT
+AS
+  total INT:= 0;
+BEGIN
+  <<li>>
+  FOR i IN 1 .. a
+  LOOP
+    FOR j IN 1 .. 2
+    LOOP
+      total:= total + 1000;
+      IF i = 5 THEN
+        ITERATE li;
+      END IF;
+      total:= total + 1;
+    END LOOP;
+  END LOOP;
+  RETURN total;
+END;
+/
+DELIMITER ;/
+SHOW FUNCTION CODE f1;
+SELECT f1(3), f1(4), f1(5), f1(6) FROM DUAL;
+DROP FUNCTION f1;
+
+
+DELIMITER /;
+CREATE FUNCTION f1(a INT) RETURN INT
+AS
+  total INT:= 0;
+BEGIN
+  <<lj>>
+  FOR j IN 1 .. 2
+  LOOP
+    <<li>>
+    FOR i IN 1 .. a
+    LOOP
+      total:= total + 1000;
+      IF i = 5 THEN
+        ITERATE li;
+      END IF;
+      total:= total + 1;
+    END LOOP;
+  END LOOP;
+  RETURN total;
+END;
+/
+DELIMITER ;/
+SHOW FUNCTION CODE f1;
+SELECT f1(3), f1(4), f1(5), f1(6) FROM DUAL;
+DROP FUNCTION f1;
+
+
+--echo # Testing CONTINUE statement
+
+DELIMITER /;
+CREATE FUNCTION f1(a INT) RETURN INT
+AS
+  total INT:= 0;
+BEGIN
+  FOR i IN 1 .. a
+  LOOP
+    CONTINUE WHEN i=5;
+    total:= total + 1;
+  END LOOP;
+  RETURN total;
+END;
+/
+DELIMITER ;/
+SHOW FUNCTION CODE f1;
+SELECT f1(3), f1(4), f1(5), f1(6) FROM DUAL;
+DROP FUNCTION f1;
+
+--echo #
+--echo # Start of MDEV-10597 Cursors with parameters
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE p1(arg_value_a VARCHAR, arg_value_b VARCHAR,
+                    arg_pattern_a VARCHAR, arg_pattern_b VARCHAR)
+AS
+  v_a VARCHAR(10);
+  v_b VARCHAR(20);
+  CURSOR c (p_value_a VARCHAR,
+            p_value_b VARCHAR,
+            p_pattern_a VARCHAR,
+            p_pattern_b VARCHAR,
+            p_limit_a INT,
+            p_limit_b INT,
+            p_unused TEXT) IS
+    (SELECT p_value_a, p_value_b FROM DUAL
+       WHERE p_value_a LIKE p_pattern_a LIMIT p_limit_a)
+    UNION
+    (SELECT p_value_b, p_value_a FROM DUAL
+       WHERE p_value_b LIKE p_pattern_b LIMIT p_limit_b);
+BEGIN
+  OPEN c(arg_value_a, (SELECT arg_value_b),
+         arg_pattern_a, arg_pattern_b, 100, 101, 'x');
+  LOOP
+    FETCH c INTO v_a, v_b;
+    EXIT WHEN c%NOTFOUND;
+    SELECT v_a, v_b;
+  END LOOP;
+  CLOSE c;
+END;
+$$
+DELIMITER ;$$
+CALL p1('aaa','bbb','aaa','bbb');
+SHOW PROCEDURE CODE p1;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # End of MDEV-10597 Cursors with parameters
+--echo #
+
+
+--echo #
+--echo # MDEV-10914 ROW data type for stored routine variables
+--echo #
+DELIMITER $$;
+CREATE FUNCTION f1() RETURN INT
+AS
+  a ROW(a INT, b INT);
+BEGIN
+  a.b:= 200;
+  RETURN a.b;
+END;
+$$
+DELIMITER ;$$
+SHOW FUNCTION CODE f1;
+SELECT f1();
+DROP FUNCTION f1;
+
+
+DELIMITER $$;
+CREATE PROCEDURE p1
+AS
+  rec ROW(a INT,b DOUBLE,c DECIMAL(10,3),d VARCHAR(10));
+BEGIN
+  rec:= ROW(10,20.123456,30.123,'test');
+  SELECT rec.a, rec.b, rec.c, rec.d;
+END;
+$$
+DELIMITER ;$$
+SHOW PROCEDURE CODE p1;
+CALL p1;
+DROP PROCEDURE p1;
+
+
+DELIMITER $$;
+CREATE PROCEDURE p1
+AS
+  rec ROW(a INT,b DOUBLE,c DECIMAL(10,3),d VARCHAR(10)) :=
+      ROW(10,20.123456,30.123,'test');
+BEGIN
+  SELECT rec.a, rec.b, rec.c, rec.d;
+END;
+$$
+DELIMITER ;$$
+SHOW PROCEDURE CODE p1;
+CALL p1;
+DROP PROCEDURE p1;
+
+
+DELIMITER $$;
+CREATE PROCEDURE p1
+AS
+  rec1 ROW(a INT,b DOUBLE,c DECIMAL(10,3),d VARCHAR(10));
+  rec2 ROW(a INT,b DOUBLE,c DECIMAL(10,3),d VARCHAR(10));
+BEGIN
+  rec1:= ROW(10,20.123456,30.123,'test');
+  rec2:= rec1;
+  SELECT rec2.a, rec2.b, rec2.c, rec2.d;
+END;
+$$
+DELIMITER ;$$
+SHOW PROCEDURE CODE p1;
+CALL p1;
+DROP PROCEDURE p1;
+
+
+DELIMITER $$;
+CREATE PROCEDURE p1
+AS
+  rec1 ROW(a INT,b DOUBLE,c DECIMAL(10,3),d VARCHAR(10)) :=
+       ROW(10,20.123456,30.123,'test');
+  rec2 ROW(a INT,b DOUBLE,c DECIMAL(10,3),d VARCHAR(10)) := rec1;
+BEGIN
+  SELECT rec2.a, rec2.b, rec2.c, rec2.d;
+END;
+$$
+DELIMITER ;$$
+SHOW PROCEDURE CODE p1;
+CALL p1;
+DROP PROCEDURE p1;
+
+--echo #
+--echo # End of MDEV-10914 ROW data type for stored routine variables
+--echo #
+
+--echo #
+--echo # MDEV-12133 sql_mode=ORACLE: table%ROWTYPE in variable declarations
+--echo #
+
+CREATE TABLE t1 (a INT, b VARCHAR(10), c DOUBLE, d DECIMAL(10,2));
+DELIMITER $$;
+CREATE PROCEDURE p1()
+AS
+  rec1 t1%ROWTYPE;
+BEGIN
+  rec1.a:= 10;
+  rec1.b:= 'bbb';
+  rec1.c:= 10e2;
+  rec1.d:= 10.12;
+  rec1.c:= rec1.d;
+END;
+$$
+DELIMITER ;$$
+SHOW PROCEDURE CODE p1;
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # MDEV-12011 sql_mode=ORACLE: cursor%ROWTYPE in variable declarations
+--echo #
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+DELIMITER $$;
+CREATE PROCEDURE p1()
+AS
+  CURSOR cur1 IS SELECT * FROM t1;
+  CURSOR cur2 IS SELECT * FROM t1;
+BEGIN
+  DECLARE
+    rec1,rec2 cur1%ROWTYPE;
+    rec3 cur2%ROWTYPE;
+  BEGIN
+    rec1.a:= 10;
+    rec1.b:= 'bbb';
+  END;
+END;
+$$
+DELIMITER ;$$
+SHOW PROCEDURE CODE p1;
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # MDEV-10581 sql_mode=ORACLE: Explicit cursor FOR LOOP
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE p1
+AS
+  CURSOR cur0 IS SELECT 10 AS a, 'b0' AS b;
+  CURSOR cur1 IS SELECT 10 AS a, 'b0' AS b;
+  CURSOR cur2 IS SELECT 10 AS a, 'b0' AS b;
+BEGIN
+  FOR rec1 IN cur1
+  LOOP
+    SELECT rec1.a, rec1.b;
+    rec1.a:= 11;
+    rec1.b:= 'b1';
+    SELECT rec1.a, rec1.b;
+  END LOOP;
+  FOR rec0 IN cur0
+  LOOP
+    rec0.a:= 10;
+    rec0.b:='b0';
+  END LOOP;
+  FOR rec2 IN cur2
+  LOOP
+    rec2.a:= 10;
+    rec2.b:='b0';
+  END LOOP;
+END;
+$$
+DELIMITER ;$$
+SHOW PROCEDURE CODE p1;
+DROP PROCEDURE p1;
+
+
+DELIMITER $$;
+CREATE PROCEDURE p1
+AS
+  CURSOR cur0 IS SELECT 10 AS a, 'b0' AS b;
+BEGIN
+  FOR rec0 IN cur0
+  LOOP
+    DECLARE
+      CURSOR cur1 IS SELECT 11 AS a, 'b1' AS b;
+    BEGIN
+      rec0.a:= 11;
+      rec0.b:= 'b0';
+      FOR rec1 IN cur1
+      LOOP
+        rec1.a:= 11;
+        rec1.b:= 'b1';
+        DECLARE
+          CURSOR cur2 IS SELECT 12 AS a, 'b2' AS b;
+        BEGIN
+          FOR rec2 IN cur2
+          LOOP
+            rec2.a:=12;
+            rec2.b:='b2';
+          END LOOP;
+        END;
+      END LOOP;
+    END;
+  END LOOP;
+END;
+$$
+DELIMITER ;$$
+SHOW PROCEDURE CODE p1;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # MDEV-12098 sql_mode=ORACLE: Implicit cursor FOR loop
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE p1
+AS
+BEGIN
+  FOR rec1 IN (SELECT 11 AS a, 'b1' AS b)
+  LOOP
+    SELECT rec1.a, rec1.b;
+    rec1.a:= 11;
+    rec1.b:= 'b1';
+    SELECT rec1.a, rec1.b;
+  END LOOP;
+  FOR rec0 IN (SELECT 10 AS a, 'b0' AS b)
+  LOOP
+    rec0.a:= 10;
+    rec0.b:='b0';
+  END LOOP;
+  FOR rec2 IN (SELECT 12 AS a, 'b2' AS b)
+  LOOP
+    rec2.a:= 10;
+    rec2.b:='b0';
+  END LOOP;
+END;
+$$
+DELIMITER ;$$
+SHOW PROCEDURE CODE p1;
+DROP PROCEDURE p1;
+
+
+DELIMITER $$;
+CREATE PROCEDURE p1
+AS
+BEGIN
+  FOR rec0 IN (SELECT 10 AS a, 'b0' AS b)
+  LOOP
+    rec0.a:= 11;
+    rec0.b:= 'b0';
+    FOR rec1 IN (SELECT 11 AS a, 'b1' AS b)
+    LOOP
+      rec1.a:= 11;
+      rec1.b:= 'b1';
+      FOR rec2 IN (SELECT 12 AS a, 'b2' AS b)
+      LOOP
+        rec2.a:=12;
+        rec2.b:='b2';
+      END LOOP;
+    END LOOP;
+  END LOOP;
+END;
+$$
+DELIMITER ;$$
+SHOW PROCEDURE CODE p1;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # MDEV-10598 sql_mode=ORACLE: Variable declarations can go after cursor declarations
+--echo #
+
+--echo #
+--echo # Cursor declaration and cursor%ROWTYPE declaration in the same block
+--echo #
+
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+INSERT INTO t1 VALUES (1,'a');
+DELIMITER $$;
+CREATE PROCEDURE p1()
+AS
+  CURSOR cur1 IS SELECT a FROM t1;
+  rec1 cur1%ROWTYPE;
+BEGIN
+  rec1.a:= 10;
+END;
+$$
+DELIMITER ;$$
+SHOW PROCEDURE CODE p1;
+CALL p1;
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+--echo #
+--echo # Recursive cursor and cursor%ROWTYPE declarations in the same block
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE p1
+AS
+  a INT:=10;
+  CURSOR cur1 IS SELECT a;
+  rec1 cur1%ROWTYPE;
+  CURSOR cur2 IS SELECT rec1.a + 1  "a";
+  rec2 cur2%ROWTYPE;
+BEGIN
+  OPEN cur1;
+  FETCH cur1 INTO rec1;
+  CLOSE cur1;
+  SELECT rec1.a;
+  open cur2;
+  FETCH cur2 INTO rec2;
+  CLOSE cur2;
+  SELECT rec2.a;
+END;
+$$
+DELIMITER ;$$
+SHOW PROCEDURE CODE p1;
+CALL p1();
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # MDEV-12441 Variables declared after cursors with parameters lose values
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE p1() AS
+  x0 INT:=100;
+  CURSOR cur(cp1 INT, cp2 INT) IS SELECT cp1+cp2;
+  x1 INT:=101;
+BEGIN
+  OPEN cur(10,11);
+  CLOSE cur;
+  SELECT x0, x1;
+END;
+$$
+DELIMITER ;$$
+SHOW PROCEDURE CODE p1;
+CALL p1();
+DROP PROCEDURE p1;
+
+
+DELIMITER $$;
+CREATE PROCEDURE p1() AS
+  x0 INT:=100;
+  CURSOR cur0(cp1 INT, cp2 INT) IS SELECT cp1+cp2;
+  x1 INT:=101;
+  CURSOR cur1(cp1 INT, cp2 INT) IS SELECT cp1+cp2;
+  x2 INT:=102;
+  CURSOR cur2(cp1 INT, cp2 INT) IS SELECT cp1+cp2;
+  x3 INT:=103;
+BEGIN
+  OPEN cur0(0,1);
+  CLOSE cur0;
+  SELECT x0, x1, x2, x3;
+  OPEN cur1(10,11);
+  CLOSE cur1;
+  SELECT x0, x1, x2, x3;
+  OPEN cur2(20,21);
+  CLOSE cur2;
+  SELECT x0, x1, x2, x3;
+END;
+$$
+DELIMITER ;$$
+SHOW PROCEDURE CODE p1;
+CALL p1();
+DROP PROCEDURE p1;
+
+
+CREATE TABLE t1 (a INT);
+DELIMITER $$;
+CREATE PROCEDURE p1() AS
+  x0 INT:=100;
+  CURSOR cur(cp1 INT, cp2 INT) IS SELECT cp1+cp2;
+  x1 t1.a%TYPE:=101;
+BEGIN
+  OPEN cur(10,11);
+  CLOSE cur;
+  SELECT x0, x1;
+END;
+$$
+DELIMITER ;$$
+SHOW PROCEDURE CODE p1;
+CALL p1();
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+
+DELIMITER $$;
+CREATE PROCEDURE p1() AS
+  x0 INT:=100;
+  CURSOR cur(cp1 INT, cp2 INT) IS SELECT cp1+cp2;
+  x1 ROW(a INT,b INT):=ROW(101,102);
+BEGIN
+  OPEN cur(10,11);
+  CLOSE cur;
+  SELECT x0, x1.a, x1.b;
+END;
+$$
+DELIMITER ;$$
+SHOW PROCEDURE CODE p1;
+CALL p1();
+DROP PROCEDURE p1;

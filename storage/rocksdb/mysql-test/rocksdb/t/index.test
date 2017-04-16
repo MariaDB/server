@@ -1,0 +1,44 @@
+--source include/have_rocksdb.inc
+
+# 
+# Basic syntax related to indexes: 
+#   unique and non-unique keys,
+#   single- and multi-column keys,
+#   index option COMMENT.
+#   
+# See other index* tests for operations 
+# which are less likely to be supported
+#
+# PRIMARY KEY syntax is covered in index_primary test.
+# Index types BTREE|HASH -- in index_type_btree|hash tests.
+# SPATIAL -- in type_spatial_indexes test.
+# FULLTEXT -- in fulltext_search test.
+# KEY_BLOCK_SIZE -- in index_key_block_size test.
+#
+
+# (Default index type)
+
+--source index.inc
+
+--echo #
+--echo # Issue #376: MyRocks: ORDER BY optimizer is unable to use the index extension
+--echo #
+create table t0 (a int);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table t1(a int);
+insert into t1 select A.a + B.a* 10 + C.a * 100 from t0 A, t0 B, t0 C;
+create table t2 (
+  pk int not null,
+  a  int not null,
+  b  int not null,
+  primary key(pk),
+  key(a) 
+) engine=rocksdb;
+insert into t2 select A.a, FLOOR(A.a/10), A.a from t1 A;
+
+--echo # This must have type=range, index=a, and must not have 'Using filesort':
+--replace_column 9 #
+explain select * from t2 force index (a) where a=0 and pk>=3 order by pk;
+
+drop table t0,t1,t2;
+

@@ -150,22 +150,22 @@ SET GLOBAL gtid_domain_id=0;
 --source include/wait_condition.inc
 --sorted_result
 STOP ALL SLAVES;
---source reset_master_slave.inc
+--source include/reset_master_slave.inc
 --disconnect slave1
 
 --connection slave2
 SET GLOBAL gtid_domain_id=0;
 --sorted_result
 STOP ALL SLAVES;
---source reset_master_slave.inc
+--source include/reset_master_slave.inc
 --disconnect slave2
 
 --connection master1
 SET GLOBAL gtid_domain_id=0;
---source reset_master_slave.inc
+--source include/reset_master_slave.inc
 --disconnect master1
 
 --connection master2
 SET GLOBAL gtid_domain_id=0;
---source reset_master_slave.inc
+--source include/reset_master_slave.inc
 --disconnect master2

@@ -64,7 +64,7 @@ int main(int argc, char *const argv[]) {
     if (verbose) printf("maxdata=%" PRIu64 " 0x%" PRIx64 "\n", maxdata, maxdata);
 
     // check the data size
-#if __x86_64__
+#if defined(__x86_64__) || defined(__aarch64__)
     assert(maxdata > (1ULL << 32));
 #elif __i386__
     assert(maxdata < (1ULL << 32));

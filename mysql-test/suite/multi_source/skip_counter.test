@@ -134,16 +134,16 @@ drop database db;
 --eval set global max_relay_log_size = $max_relay_log_size_saved
 --eval set global max_binlog_size = $max_binlog_size_saved
 
---source reset_master_slave.inc
+--source include/reset_master_slave.inc
 --disconnect slave
 
 --connection master1
 drop database db;
---source reset_master_slave.inc
+--source include/reset_master_slave.inc
 --disconnect master1
 
 --connection master2
 drop database db;
---source reset_master_slave.inc
+--source include/reset_master_slave.inc
 --disconnect master2
 

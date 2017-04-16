@@ -2157,4 +2157,4 @@ Warning	1052	Column 'kundentyp' in group statement is ambiguous
 drop table t1;
 connection default;
 disconnect pipe_con;
-FOUND /\[ERROR\] Create named pipe failed/ in second-mysqld.err
+FOUND 1 /\[ERROR\] Create named pipe failed/ in second-mysqld.err

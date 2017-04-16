@@ -136,12 +136,8 @@ SELECT @@delayed_queue_size = @@global.delayed_queue_size;
 --Error 1229
 SET delayed_queue_size = 1;
 SELECT @@delayed_queue_size;
---Error ER_PARSE_ERROR
-SET local.delayed_queue_size = 1;
 --Error ER_UNKNOWN_TABLE
 SELECT local.delayed_queue_size;
---Error ER_PARSE_ERROR
-SET global.delayed_queue_size = 1;
 --Error ER_UNKNOWN_TABLE
 SELECT global.delayed_queue_size;
 --Error ER_BAD_FIELD_ERROR

@@ -1,6 +1,7 @@
 /*****************************************************************************
 
-Copyright (c) 1997, 2014, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1997, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -66,9 +67,5 @@ opt_print_query_plan(
 /*=================*/
 	sel_node_t*	sel_node);	/*!< in: select node */
 #endif /* UNIV_SQL_DEBUG */
-
-#ifndef UNIV_NONINL
-#include "pars0opt.ic"
-#endif
 
 #endif

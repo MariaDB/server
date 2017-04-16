@@ -500,11 +500,17 @@ int toku_cachefile_get_fd (CACHEFILE);
 // Return the filename
 char * toku_cachefile_fname_in_env (CACHEFILE cf);
 
+void toku_cachefile_set_fname_in_env(CACHEFILE cf, char *new_fname_in_env);
+
 // Make it so when the cachefile closes, the underlying file is unlinked
 void toku_cachefile_unlink_on_close(CACHEFILE cf);
 
 // is this cachefile marked as unlink on close?
 bool toku_cachefile_is_unlink_on_close(CACHEFILE cf);
+
+void toku_cachefile_skip_log_recover_on_close(CACHEFILE cf);
+void toku_cachefile_do_log_recover_on_close(CACHEFILE cf);
+bool toku_cachefile_is_skip_log_recover_on_close(CACHEFILE cf);
 
 // Return the logger associated with the cachefile
 struct tokulogger *toku_cachefile_logger(CACHEFILE cf);

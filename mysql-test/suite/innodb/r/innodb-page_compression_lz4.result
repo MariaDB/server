@@ -1,7 +1,3 @@
-set global innodb_file_format = `barracuda`;
-Warnings:
-Warning	131	Using innodb_file_format is deprecated and the parameter may be removed in future releases. See http://dev.mysql.com/doc/refman/5.7/en/innodb-file-format.html
-set global innodb_file_per_table = on;
 set global innodb_compression_algorithm = 2;
 create table innodb_compressed(c1 int, b char(20)) engine=innodb row_format=compressed key_block_size=8;
 show warnings;
@@ -438,5 +434,3 @@ drop table innodb_page_compressed6;
 drop table innodb_page_compressed7;
 drop table innodb_page_compressed8;
 drop table innodb_page_compressed9;
-Warnings:
-Warning	131	Using innodb_file_format is deprecated and the parameter may be removed in future releases. See http://dev.mysql.com/doc/refman/5.7/en/innodb-file-format.html

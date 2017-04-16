@@ -1,0 +1,44 @@
+include/master-slave.inc
+[connection master]
+create or replace table t1(id int)engine=innodb;
+create or replace table t3(id int)engine=myisam;
+create or replace function t99 (a int)
+returns int(10)
+MODIFIES SQL DATA
+begin
+if (a > 100)
+then
+insert into t3 values (a);
+end if;
+return a;
+end//
+begin;
+insert into t1 values(t99(1));
+insert into t1 values(t99(101));
+commit;
+select * from t1;
+id
+1
+101
+select * from t3;
+id
+101
+insert into t1 values(t99(1));
+drop function t99;
+drop table t1,t3;
+connection slave;
+connection master;
+CREATE TABLE t1 (i INT) ENGINE=InnoDB;
+CREATE TABLE t2 (j INT) ENGINE=MyISAM;
+CREATE TRIGGER tr AFTER INSERT ON t1 FOR EACH ROW 
+BEGIN 
+SET @a = unknown_column_just_to_raise_an_error; 
+INSERT INTO t2 VALUES (NULL) ; 
+END||
+INSERT INTO t1 VALUES (1);
+ERROR 42S22: Unknown column 'unknown_column_just_to_raise_an_error' in 'field list'
+connection slave;
+connection master;
+drop trigger tr;
+drop table t1,t2;
+include/rpl_end.inc

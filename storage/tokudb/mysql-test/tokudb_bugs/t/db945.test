@@ -12,7 +12,7 @@ set session tokudb_analyze_time = 0;
 
 create table t1(a int, b text(1), c text(1), filler text(1), primary key(a, b(1)), unique key (a, c(1)));
 lock tables t1 write, t1 as a read, t1 as b read;
-insert into t1(a) values(1);
+insert ignore into t1(a) values(1);
 alter table t1 drop key a;
 unlock tables;
 

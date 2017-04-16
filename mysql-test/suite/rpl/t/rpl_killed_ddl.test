@@ -83,9 +83,9 @@ CREATE FUNCTION f1 () RETURNS INT DETERMINISTIC
     RETURN 1;
 
 DELIMITER //;
-CREATE PROCEDURE p1 (OUT rows INT)
+CREATE PROCEDURE p1 (OUT rows_cnt INT)
     BEGIN
-        SELECT COUNT(*) INTO rows FROM t1;
+        SELECT COUNT(*) INTO rows_cnt FROM t1;
     END;
     //
 DELIMITER ;//
@@ -203,15 +203,15 @@ source include/kill_query_and_diff_master_slave.inc;
 --let $rpl_diff_statement= SHOW PROCEDURE STATUS LIKE \'p%\'
 
 DELIMITER //;
-send CREATE PROCEDURE p2 (OUT rows INT)
+send CREATE PROCEDURE p2 (OUT rows_cnt INT)
      BEGIN
-       SELECT COUNT(*) INTO rows FROM t2;
+       SELECT COUNT(*) INTO rows_cnt FROM t2;
      END;
      //
 DELIMITER ;//
 source include/kill_query_and_diff_master_slave.inc;
 
-send ALTER PROCEDURE p1 SQL SECURITY INVOKER COMMENT 'return rows of table t1';
+send ALTER PROCEDURE p1 SQL SECURITY INVOKER COMMENT 'return rows_cnt of table t1';
 source include/kill_query_and_diff_master_slave.inc;
 
 send DROP PROCEDURE p1;

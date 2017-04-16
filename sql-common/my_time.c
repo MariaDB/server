@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2004, 2012, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2013, Monty Program Ab.
+   Copyright (c) 2010, 2017, MariaDB Corporation.
 
  This program is free software; you can redistribute it and/or modify
  it under the terms of the GNU General Public License as published by
@@ -1444,11 +1444,11 @@ MYSQL_TIME *unpack_time(longlong packed, MYSQL_TIME *my_time)
   if ((my_time->neg= packed < 0))
     packed= -packed;
   get_one(my_time->second_part, 1000000ULL);
-  get_one(my_time->second,           60ULL);
-  get_one(my_time->minute,           60ULL);
-  get_one(my_time->hour,             24ULL);
-  get_one(my_time->day,              32ULL);
-  get_one(my_time->month,            13ULL);
+  get_one(my_time->second,           60U);
+  get_one(my_time->minute,           60U);
+  get_one(my_time->hour,             24U);
+  get_one(my_time->day,              32U);
+  get_one(my_time->month,            13U);
   my_time->year= (uint)packed;
   my_time->time_type= MYSQL_TIMESTAMP_DATETIME;
   return my_time;

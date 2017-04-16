@@ -1,6 +1,7 @@
 /*****************************************************************************
 
-Copyright (c) 1996, 2015, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -315,18 +316,6 @@ que_fork_scheduler_round_robin(
 	que_fork_t*	fork,		/*!< in: a query fork */
 	que_thr_t*	thr);		/*!< in: current pos */
 
-/*********************************************************************//**
-Initialise the query sub-system. */
-void
-que_init(void);
-/*==========*/
-
-/*********************************************************************//**
-Close the query sub-system. */
-void
-que_close(void);
-/*===========*/
-
 /** Query thread states */
 enum que_thr_state_t {
 	QUE_THR_RUNNING,
@@ -510,8 +499,6 @@ struct que_fork_t{
 #define QUE_NODE_CALL		31
 #define QUE_NODE_EXIT		32
 
-#ifndef UNIV_NONINL
 #include "que0que.ic"
-#endif
 
 #endif

@@ -110,7 +110,7 @@ test2 (void) {
 
 static void
 test3 (void)
-// Compare the simple version to the highly optimized verison.
+// Compare the simple version to the highly optimized version.
 {
     const int datalen = 1000;
     char data[datalen];

@@ -2,7 +2,7 @@ DROP TABLE IF EXISTS shops;
 CREATE TABLE shops (
 location GEOMETRY NOT NULL
 );
-INSERT INTO shops VALUES (NULL), (NULL);
+INSERT IGNORE INTO shops VALUES (NULL), (NULL);
 Warnings:
 Warning	1048	Column 'location' cannot be null
 Warning	1048	Column 'location' cannot be null

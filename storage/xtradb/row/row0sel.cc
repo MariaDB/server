@@ -2,7 +2,7 @@
 
 Copyright (c) 1997, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, Google Inc.
-Copyright (c) 2015, MariaDB Corporation.
+Copyright (c) 2015, 2017, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -2458,7 +2458,8 @@ row_sel_convert_mysql_key_to_innobase(
 		if (UNIV_LIKELY(!is_null)) {
 			buf = row_mysql_store_col_in_innobase_format(
 					dfield, buf,
-					FALSE, /* MySQL key value format col */
+					/* MySQL key value format col */
+					FALSE,
 					key_ptr + data_offset, data_len,
 					dict_table_is_comp(index->table));
 			ut_a(buf <= original_buf + buf_len);
@@ -2553,12 +2554,16 @@ row_sel_store_row_id_to_prebuilt(
 
 #ifdef UNIV_DEBUG
 /** Convert a non-SQL-NULL field from Innobase format to MySQL format. */
-# define row_sel_field_store_in_mysql_format(dest,templ,idx,field,src,len) \
-	row_sel_field_store_in_mysql_format_func(dest,templ,idx,field,src,len)
+# define row_sel_field_store_in_mysql_format( \
+	dest,templ,idx,field,src,len) \
+	row_sel_field_store_in_mysql_format_func \
+	(dest,templ,idx,field,src,len)
 #else /* UNIV_DEBUG */
 /** Convert a non-SQL-NULL field from Innobase format to MySQL format. */
-# define row_sel_field_store_in_mysql_format(dest,templ,idx,field,src,len) \
-	row_sel_field_store_in_mysql_format_func(dest,templ,src,len)
+# define row_sel_field_store_in_mysql_format( \
+	dest,templ,idx,field,src,len) \
+	row_sel_field_store_in_mysql_format_func \
+	(dest,templ,src,len)
 #endif /* UNIV_DEBUG */
 
 /**************************************************************//**

@@ -495,6 +495,29 @@ SELECT sha2('1',224);
 --disable_metadata
 
 --echo #
+--echo # Start of 10.1 tests
+--echo #
+
+--echo #
+--echo # MDEV-10850 Wrong result for WHERE .. (f2=TO_BASE64('test') OR f2=TO_BAS E64('TEST'))
+--echo #
+
+CREATE TABLE t1 (f1 VARCHAR(4), f2 VARCHAR(64), UNIQUE KEY k1 (f1,f2));
+INSERT INTO t1 VALUES ('test',SHA2('test',224)), ('TEST', SHA2('TEST',224));
+SELECT * FROM t1 IGNORE INDEX(k1) WHERE f1='test' AND (f2= SHA2("test",224) OR f2= SHA2("TEST",224));
+SELECT * FROM t1                  WHERE f1='test' AND (f2= SHA2("test",224) OR f2= SHA2("TEST",224));
+SELECT * FROM t1                  WHERE f1='test' AND (f2= SHA2("TEST",224) OR f2= SHA2("test",224));
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-10425 Assertion `collation.derivation == DERIVATION_IMPLICIT' failed in Item_func_conv_charset::fix_length_and_dec()
+--echo #
+
+PREPARE stmt FROM "SELECT SHA2(CONVERT('foo' USING latin1), 224)";
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+--echo #
 --echo # Start of 10.2 tests
 --echo #
 

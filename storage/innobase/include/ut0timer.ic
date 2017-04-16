@@ -106,7 +106,7 @@ ut_microseconds_to_timer(
 /*=====================*/
 	ulonglong 	when) /*!< in: time where to calculate */
 {
-	double ret = when;
+	double ret = (double)when;
 	ret *= (double)(ut_timer.frequency);
 	ret /= 1000000.0;
 	return (ulonglong)ret;

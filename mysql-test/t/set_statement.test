@@ -618,8 +618,7 @@ SELECT @@sql_mode;
 SET STATEMENT sql_mode='ansi' FOR PREPARE stmt FROM 'SELECT "t1".* FROM t1';
 execute stmt;
 ALTER TABLE t1 ADD COLUMN v3 int;
-# repreparation with other mode cause an error
---error ER_PARSE_ERROR
+# repreparation with other mode does not cause an error
 execute stmt;
 ALTER TABLE t1 drop COLUMN v3;
 deallocate prepare stmt;
@@ -632,8 +631,7 @@ PREPARE stmt FROM 'SELECT "t1".* FROM t1';
 SET sql_mode=default;
 execute stmt;
 ALTER TABLE t1 ADD COLUMN v3 int;
-# repreparation with other mode cause an error
---error ER_PARSE_ERROR
+# repreparation with other mode does not cause an error
 execute stmt;
 ALTER TABLE t1 drop COLUMN v3;
 deallocate prepare stmt;

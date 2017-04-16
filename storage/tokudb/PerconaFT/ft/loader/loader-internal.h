@@ -301,7 +301,7 @@ int toku_ft_loader_internal_init (/* out */ FTLOADER *blp,
 
 void toku_ft_loader_internal_destroy (FTLOADER bl, bool is_error);
 
-// For test purposes only.  (In production, the rowset size is determined by negotation with the cachetable for some memory.  See #2613.)
+// For test purposes only.  (In production, the rowset size is determined by negotiation with the cachetable for some memory.  See #2613.)
 uint64_t toku_ft_loader_get_rowset_budget_for_testing (void);
 
 int toku_ft_loader_finish_extractor(FTLOADER bl);

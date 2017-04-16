@@ -5,12 +5,13 @@
 SET @wsrep_dirty_reads_session_saved = @@session.wsrep_dirty_reads;
 # default
 SELECT @@global.wsrep_dirty_reads;
-ERROR HY000: Variable 'wsrep_dirty_reads' is a SESSION variable
+@@global.wsrep_dirty_reads
+0
 SELECT @@session.wsrep_dirty_reads;
 @@session.wsrep_dirty_reads
 0
 
-# scope and valid values
+# valid values for session
 SET @@session.wsrep_dirty_reads=OFF;
 SELECT @@session.wsrep_dirty_reads;
 @@session.wsrep_dirty_reads
@@ -24,10 +25,28 @@ SELECT @@session.wsrep_dirty_reads;
 @@session.wsrep_dirty_reads
 0
 
+# valid values for global
+SET @@global.wsrep_dirty_reads=OFF;
+SELECT @@global.wsrep_dirty_reads;
+@@global.wsrep_dirty_reads
+0
+SET @@global.wsrep_dirty_reads=ON;
+SELECT @@global.wsrep_dirty_reads;
+@@global.wsrep_dirty_reads
+1
+SET @@global.wsrep_dirty_reads=default;
+SELECT @@global.wsrep_dirty_reads;
+@@global.wsrep_dirty_reads
+0
+
 # invalid values
 SET @@session.wsrep_dirty_reads=NULL;
 ERROR 42000: Variable 'wsrep_dirty_reads' can't be set to the value of 'NULL'
 SET @@session.wsrep_dirty_reads='junk';
+ERROR 42000: Variable 'wsrep_dirty_reads' can't be set to the value of 'junk'
+SET @@global.wsrep_dirty_reads=NULL;
+ERROR 42000: Variable 'wsrep_dirty_reads' can't be set to the value of 'NULL'
+SET @@global.wsrep_dirty_reads='junk';
 ERROR 42000: Variable 'wsrep_dirty_reads' can't be set to the value of 'junk'
 
 # restore the initial values

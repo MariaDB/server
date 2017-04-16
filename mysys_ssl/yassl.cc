@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2015 MariaDB Corporation
+ Copyright (c) 2015, 2017, MariaDB Corporation.
 
  This program is free software; you can redistribute it and/or modify
  it under the terms of the GNU General Public License as published by
@@ -27,9 +27,9 @@
 
 using yaSSL::yaERR_remove_state;
 
-#define EVP_CIPH_ECB_MODE     0x1
-#define EVP_CIPH_CBC_MODE     0x2
-#define EVP_CIPH_NO_PADDING 0x100
+#define EVP_CIPH_ECB_MODE     0x1U
+#define EVP_CIPH_CBC_MODE     0x2U
+#define EVP_CIPH_NO_PADDING 0x100U
 
 /*
   note that TaoCrypt::AES object is not explicitly put into EVP_CIPHER_CTX.

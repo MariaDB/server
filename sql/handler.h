@@ -2,7 +2,7 @@
 #define HANDLER_INCLUDED
 /*
    Copyright (c) 2000, 2016, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2016, MariaDB
+   Copyright (c) 2009, 2017, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or
    modify it under the terms of the GNU General Public License
@@ -42,9 +42,11 @@
 #include <ft_global.h>
 #include <keycache.h>
 #include <mysql/psi/mysql_table.h>
+#include "sql_sequence.h"
 
 class Alter_info;
 class Virtual_column_info;
+class sequence_definition;
 
 // the following is for checking tables
 
@@ -236,12 +238,12 @@ enum enum_alter_inplace_result {
   @note This optimization in combination with batching may be used to
         remove even more roundtrips.
 */
-#define HA_READ_BEFORE_WRITE_REMOVAL  (1LL << 43)
+#define HA_READ_BEFORE_WRITE_REMOVAL  (1ULL << 43)
 
 /*
   Engine supports extended fulltext API
  */
-#define HA_CAN_FULLTEXT_EXT              (1LL << 44)
+#define HA_CAN_FULLTEXT_EXT              (1ULL << 44)
 
 /*
   Storage engine supports table export using the
@@ -249,7 +251,7 @@ enum enum_alter_inplace_result {
   (meaning, after this statement one can copy table files out of the
   datadir and later "import" (somehow) in another MariaDB instance)
  */
-#define HA_CAN_EXPORT                 (1LL << 45)
+#define HA_CAN_EXPORT                 (1ULL << 45)
 
 /*
   Storage engine does not require an exclusive metadata lock
@@ -259,7 +261,25 @@ enum enum_alter_inplace_result {
   read or modify the table - this is defined by THR locks and the
   ::store_lock() method).
 */
-#define HA_CONCURRENT_OPTIMIZE          (1LL << 46)
+#define HA_CONCURRENT_OPTIMIZE          (1ULL << 46)
+
+/*
+  If the storage engine support tables that will not roll back on commit
+  In addition the table should not lock rows and support READ and WRITE
+  UNCOMMITTED.
+  This is useful for implementing things like SEQUENCE but can also in
+  the future be useful to do logging that should never roll back.
+*/
+#define HA_CAN_TABLES_WITHOUT_ROLLBACK  (1ULL << 47)
+
+/*
+  Mainly for usage by SEQUENCE engine. Setting this flag means
+  that the table will never roll back and that all operations
+  for this table should stored in the non transactional log
+  space that will always be written, even on rollback.
+*/
+
+#define HA_PERSISTENT_TABLE              (1ULL << 48)
 
 /*
   Set of all binlog flags. Currently only contain the capabilities
@@ -298,24 +318,24 @@ enum enum_alter_inplace_result {
   Partitioning needs both ADD and DROP to be supported by its underlying
   handlers, due to error handling, see bug#57778.
 */
-#define HA_INPLACE_ADD_INDEX_NO_READ_WRITE         (1L << 0)
-#define HA_INPLACE_DROP_INDEX_NO_READ_WRITE        (1L << 1)
-#define HA_INPLACE_ADD_UNIQUE_INDEX_NO_READ_WRITE  (1L << 2)
-#define HA_INPLACE_DROP_UNIQUE_INDEX_NO_READ_WRITE (1L << 3)
-#define HA_INPLACE_ADD_PK_INDEX_NO_READ_WRITE      (1L << 4)
-#define HA_INPLACE_DROP_PK_INDEX_NO_READ_WRITE     (1L << 5)
+#define HA_INPLACE_ADD_INDEX_NO_READ_WRITE         (1UL << 0)
+#define HA_INPLACE_DROP_INDEX_NO_READ_WRITE        (1UL << 1)
+#define HA_INPLACE_ADD_UNIQUE_INDEX_NO_READ_WRITE  (1UL << 2)
+#define HA_INPLACE_DROP_UNIQUE_INDEX_NO_READ_WRITE (1UL << 3)
+#define HA_INPLACE_ADD_PK_INDEX_NO_READ_WRITE      (1UL << 4)
+#define HA_INPLACE_DROP_PK_INDEX_NO_READ_WRITE     (1UL << 5)
 /*
   These are set if different kinds of indexes can be created or dropped
   in-place while still allowing concurrent reads (but not writes) of table
   data. If a handler is capable of one or more of these, it should also set
   the corresponding *_NO_READ_WRITE bit(s).
 */
-#define HA_INPLACE_ADD_INDEX_NO_WRITE              (1L << 6)
-#define HA_INPLACE_DROP_INDEX_NO_WRITE             (1L << 7)
-#define HA_INPLACE_ADD_UNIQUE_INDEX_NO_WRITE       (1L << 8)
-#define HA_INPLACE_DROP_UNIQUE_INDEX_NO_WRITE      (1L << 9)
-#define HA_INPLACE_ADD_PK_INDEX_NO_WRITE           (1L << 10)
-#define HA_INPLACE_DROP_PK_INDEX_NO_WRITE          (1L << 11)
+#define HA_INPLACE_ADD_INDEX_NO_WRITE              (1UL << 6)
+#define HA_INPLACE_DROP_INDEX_NO_WRITE             (1UL << 7)
+#define HA_INPLACE_ADD_UNIQUE_INDEX_NO_WRITE       (1UL << 8)
+#define HA_INPLACE_DROP_UNIQUE_INDEX_NO_WRITE      (1UL << 9)
+#define HA_INPLACE_ADD_PK_INDEX_NO_WRITE           (1UL << 10)
+#define HA_INPLACE_DROP_PK_INDEX_NO_WRITE          (1UL << 11)
 /*
   HA_PARTITION_FUNCTION_SUPPORTED indicates that the function is
   supported at all.
@@ -341,9 +361,9 @@ enum enum_alter_inplace_result {
   the storage engine. A typical engine to support this is NDB (through
   WL #2498).
 */
-#define HA_PARTITION_FUNCTION_SUPPORTED         (1L << 12)
-#define HA_FAST_CHANGE_PARTITION                (1L << 13)
-#define HA_PARTITION_ONE_PHASE                  (1L << 14)
+#define HA_PARTITION_FUNCTION_SUPPORTED         (1UL << 12)
+#define HA_FAST_CHANGE_PARTITION                (1UL << 13)
+#define HA_PARTITION_ONE_PHASE                  (1UL << 14)
 
 /* operations for disable/enable indexes */
 #define HA_KEY_SWITCH_NONUNIQ      0
@@ -369,25 +389,26 @@ enum enum_alter_inplace_result {
   HA_GET_INFO does an implicit HA_ABORT_IF_LOCKED
 */
 
-#define HA_OPEN_KEYFILE		1
-#define HA_READ_ONLY		16	/* File opened as readonly */
+#define HA_OPEN_KEYFILE		1U
+#define HA_READ_ONLY		16U	/* File opened as readonly */
 /* Try readonly if can't open with read and write */
-#define HA_TRY_READ_ONLY	32
+#define HA_TRY_READ_ONLY	32U
 
 	/* Some key definitions */
 #define HA_KEY_NULL_LENGTH	1
 #define HA_KEY_BLOB_LENGTH	2
 
-#define HA_LEX_CREATE_TMP_TABLE	1
-#define HA_CREATE_TMP_ALTER     8
+#define HA_LEX_CREATE_TMP_TABLE	1U
+#define HA_CREATE_TMP_ALTER     8U
+#define HA_LEX_CREATE_SEQUENCE  16U
 
 #define HA_MAX_REC_LENGTH	65535
 
 /* Table caching type */
 #define HA_CACHE_TBL_NONTRANSACT 0
-#define HA_CACHE_TBL_NOCACHE     1
-#define HA_CACHE_TBL_ASKTRANSACT 2
-#define HA_CACHE_TBL_TRANSACT    4
+#define HA_CACHE_TBL_NOCACHE     1U
+#define HA_CACHE_TBL_ASKTRANSACT 2U
+#define HA_CACHE_TBL_TRANSACT    4U
 
 /**
   Options for the START TRANSACTION statement.
@@ -409,9 +430,9 @@ static const uint MYSQL_START_TRANS_OPT_READ_ONLY          = 2;
 static const uint MYSQL_START_TRANS_OPT_READ_WRITE         = 4;
 
 /* Flags for method is_fatal_error */
-#define HA_CHECK_DUP_KEY 1
-#define HA_CHECK_DUP_UNIQUE 2
-#define HA_CHECK_FK_ERROR 4
+#define HA_CHECK_DUP_KEY 1U
+#define HA_CHECK_DUP_UNIQUE 2U
+#define HA_CHECK_FK_ERROR 4U
 #define HA_CHECK_DUP (HA_CHECK_DUP_KEY + HA_CHECK_DUP_UNIQUE)
 #define HA_CHECK_ALL (~0U)
 
@@ -434,7 +455,8 @@ enum legacy_db_type
   DB_TYPE_PERFORMANCE_SCHEMA=28,
   DB_TYPE_ARIA=42,
   DB_TYPE_TOKUDB=43,
-  DB_TYPE_FIRST_DYNAMIC=44,
+  DB_TYPE_SEQUENCE=44,
+  DB_TYPE_FIRST_DYNAMIC=45,
   DB_TYPE_DEFAULT=127 // Must be last
 };
 /*
@@ -478,50 +500,52 @@ enum enum_binlog_command {
 /* struct to hold information about the table that should be created */
 
 /* Bits in used_fields */
-#define HA_CREATE_USED_AUTO             (1L << 0)
-#define HA_CREATE_USED_RAID             (1L << 1) //RAID is no longer availble
-#define HA_CREATE_USED_UNION            (1L << 2)
-#define HA_CREATE_USED_INSERT_METHOD    (1L << 3)
-#define HA_CREATE_USED_MIN_ROWS         (1L << 4)
-#define HA_CREATE_USED_MAX_ROWS         (1L << 5)
-#define HA_CREATE_USED_AVG_ROW_LENGTH   (1L << 6)
-#define HA_CREATE_USED_PACK_KEYS        (1L << 7)
-#define HA_CREATE_USED_CHARSET          (1L << 8)
-#define HA_CREATE_USED_DEFAULT_CHARSET  (1L << 9)
-#define HA_CREATE_USED_DATADIR          (1L << 10)
-#define HA_CREATE_USED_INDEXDIR         (1L << 11)
-#define HA_CREATE_USED_ENGINE           (1L << 12)
-#define HA_CREATE_USED_CHECKSUM         (1L << 13)
-#define HA_CREATE_USED_DELAY_KEY_WRITE  (1L << 14)
-#define HA_CREATE_USED_ROW_FORMAT       (1L << 15)
-#define HA_CREATE_USED_COMMENT          (1L << 16)
-#define HA_CREATE_USED_PASSWORD         (1L << 17)
-#define HA_CREATE_USED_CONNECTION       (1L << 18)
-#define HA_CREATE_USED_KEY_BLOCK_SIZE   (1L << 19)
+#define HA_CREATE_USED_AUTO             (1UL << 0)
+#define HA_CREATE_USED_RAID             (1UL << 1) //RAID is no longer availble
+#define HA_CREATE_USED_UNION            (1UL << 2)
+#define HA_CREATE_USED_INSERT_METHOD    (1UL << 3)
+#define HA_CREATE_USED_MIN_ROWS         (1UL << 4)
+#define HA_CREATE_USED_MAX_ROWS         (1UL << 5)
+#define HA_CREATE_USED_AVG_ROW_LENGTH   (1UL << 6)
+#define HA_CREATE_USED_PACK_KEYS        (1UL << 7)
+#define HA_CREATE_USED_CHARSET          (1UL << 8)
+#define HA_CREATE_USED_DEFAULT_CHARSET  (1UL << 9)
+#define HA_CREATE_USED_DATADIR          (1UL << 10)
+#define HA_CREATE_USED_INDEXDIR         (1UL << 11)
+#define HA_CREATE_USED_ENGINE           (1UL << 12)
+#define HA_CREATE_USED_CHECKSUM         (1UL << 13)
+#define HA_CREATE_USED_DELAY_KEY_WRITE  (1UL << 14)
+#define HA_CREATE_USED_ROW_FORMAT       (1UL << 15)
+#define HA_CREATE_USED_COMMENT          (1UL << 16)
+#define HA_CREATE_USED_PASSWORD         (1UL << 17)
+#define HA_CREATE_USED_CONNECTION       (1UL << 18)
+#define HA_CREATE_USED_KEY_BLOCK_SIZE   (1UL << 19)
 /* The following two are used by Maria engine: */
-#define HA_CREATE_USED_TRANSACTIONAL    (1L << 20)
-#define HA_CREATE_USED_PAGE_CHECKSUM    (1L << 21)
+#define HA_CREATE_USED_TRANSACTIONAL    (1UL << 20)
+#define HA_CREATE_USED_PAGE_CHECKSUM    (1UL << 21)
 /** This is set whenever STATS_PERSISTENT=0|1|default has been
 specified in CREATE/ALTER TABLE. See also HA_OPTION_STATS_PERSISTENT in
 include/my_base.h. It is possible to distinguish whether
 STATS_PERSISTENT=default has been specified or no STATS_PERSISTENT= is
 given at all. */
-#define HA_CREATE_USED_STATS_PERSISTENT (1L << 22)
+#define HA_CREATE_USED_STATS_PERSISTENT (1UL << 22)
 /**
    This is set whenever STATS_AUTO_RECALC=0|1|default has been
    specified in CREATE/ALTER TABLE. See enum_stats_auto_recalc.
    It is possible to distinguish whether STATS_AUTO_RECALC=default
    has been specified or no STATS_AUTO_RECALC= is given at all.
 */
-#define HA_CREATE_USED_STATS_AUTO_RECALC (1L << 23)
+#define HA_CREATE_USED_STATS_AUTO_RECALC (1UL << 23)
 /**
    This is set whenever STATS_SAMPLE_PAGES=N|default has been
    specified in CREATE/ALTER TABLE. It is possible to distinguish whether
    STATS_SAMPLE_PAGES=default has been specified or no STATS_SAMPLE_PAGES= is
    given at all.
 */
-#define HA_CREATE_USED_STATS_SAMPLE_PAGES (1L << 24)
+#define HA_CREATE_USED_STATS_SAMPLE_PAGES (1UL << 24)
 
+/* Create a sequence */
+#define HA_CREATE_USED_SEQUENCE           (1UL << 25)
 
 /*
   This is master database for most of system tables. However there
@@ -614,8 +638,7 @@ struct xid_t {
   }
   uint length()
   {
-    return sizeof(formatID)+sizeof(gtrid_length)+sizeof(bqual_length)+
-           gtrid_length+bqual_length;
+    return static_cast<uint>(sizeof(formatID)) + key_length();
   }
   uchar *key() const
   {
@@ -623,7 +646,8 @@ struct xid_t {
   }
   uint key_length() const
   {
-    return sizeof(gtrid_length)+sizeof(bqual_length)+gtrid_length+bqual_length;
+    return static_cast<uint>(sizeof(gtrid_length)+sizeof(bqual_length)+
+                             gtrid_length+bqual_length);
   }
 };
 typedef struct xid_t XID;
@@ -1476,7 +1500,7 @@ struct THD_TRANS
   bool trans_did_wait() const {
     return (m_unsafe_rollback_flags & DID_WAIT) != 0;
   }
-
+  bool is_trx_read_write() const;
 };
 
 
@@ -1574,6 +1598,16 @@ private:
   */
   uchar       m_flags;
 };
+
+
+inline bool THD_TRANS::is_trx_read_write() const
+{
+  Ha_trx_info *ha_info;
+  for (ha_info= ha_list; ha_info; ha_info= ha_info->next())
+    if (ha_info->is_trx_read_write())
+      return TRUE;
+  return FALSE;
+}
 
 
 enum enum_tx_isolation { ISO_READ_UNCOMMITTED, ISO_READ_COMMITTED,
@@ -1684,6 +1718,7 @@ struct Table_scope_and_contents_source_st
   engine_option_value *option_list;     ///< list of table create options
   enum_stats_auto_recalc stats_auto_recalc;
   bool varchar;                         ///< 1 if table has a VARCHAR
+  bool sequence;                        // If SEQUENCE=1 was used
 
   List<Virtual_column_info> *check_constraint_list;
 
@@ -1697,6 +1732,7 @@ struct Table_scope_and_contents_source_st
   TABLE_LIST *pos_in_locked_tables;
   MDL_ticket *mdl_ticket;
   bool table_was_deleted;
+  sequence_definition *seq_create_info;
 
   void init()
   {
@@ -2332,12 +2368,13 @@ public:
 
   /**
     Whether or not all costs in the object are zero
-    
+
     @return true if all costs are zero, false otherwise
   */
   bool is_zero() const
-  { 
-    return !(io_count || cpu_cost || import_cost || mem_cost);
+  {
+    return io_count == 0.0 && cpu_cost == 0.0 &&
+      import_cost == 0.0 && mem_cost == 0.0;
   }
 
   void reset()
@@ -2402,29 +2439,29 @@ void get_sweep_read_cost(TABLE *table, ha_rows nrows, bool interrupted,
   The ranges may not use the full key but all of them will use the same number
   of key parts.
 */
-#define HA_MRR_SINGLE_POINT 1
-#define HA_MRR_FIXED_KEY  2
+#define HA_MRR_SINGLE_POINT 1U
+#define HA_MRR_FIXED_KEY  2U
 
 /* 
   Indicates that RANGE_SEQ_IF::next(&range) doesn't need to fill in the
   'range' parameter.
 */
-#define HA_MRR_NO_ASSOCIATION 4
+#define HA_MRR_NO_ASSOCIATION 4U
 
 /* 
   The MRR user will provide ranges in key order, and MRR implementation
   must return rows in key order.
 */
-#define HA_MRR_SORTED 8
+#define HA_MRR_SORTED 8U
 
 /* MRR implementation doesn't have to retrieve full records */
-#define HA_MRR_INDEX_ONLY 16
+#define HA_MRR_INDEX_ONLY 16U
 
 /* 
   The passed memory buffer is of maximum possible size, the caller can't
   assume larger buffer.
 */
-#define HA_MRR_LIMITS 32
+#define HA_MRR_LIMITS 32U
 
 
 /*
@@ -2433,14 +2470,14 @@ void get_sweep_read_cost(TABLE *table, ha_rows nrows, bool interrupted,
    flag. SQL layer remembers the flag value and then passes it to
    multi_read_range_init().
 */
-#define HA_MRR_USE_DEFAULT_IMPL 64
+#define HA_MRR_USE_DEFAULT_IMPL 64U
 
 /*
   Used only as parameter to multi_range_read_info():
   Flag set <=> the caller guarantees that the bounds of the scanned ranges
   will not have NULL values.
 */
-#define HA_MRR_NO_NULL_ENDPOINTS 128
+#define HA_MRR_NO_NULL_ENDPOINTS 128U
 
 /*
   The MRR user has materialized range keys somewhere in the user's buffer.
@@ -2451,7 +2488,7 @@ void get_sweep_read_cost(TABLE *table, ha_rows nrows, bool interrupted,
   pointer in range->start_key.key will point to a key value that will remain 
   there until the end of the MRR scan.
 */
-#define HA_MRR_MATERIALIZED_KEYS 256
+#define HA_MRR_MATERIALIZED_KEYS 256U
 
 /*
   The following bits are reserved for use by MRR implementation. The intended
@@ -2469,15 +2506,15 @@ void get_sweep_read_cost(TABLE *table, ha_rows nrows, bool interrupted,
     handler->multi_range_read_explain_info(mrr_mode) to get a text description
     of the picked MRR scan; the description will be a part of EXPLAIN output.
 */
-#define HA_MRR_IMPLEMENTATION_FLAG1 512
-#define HA_MRR_IMPLEMENTATION_FLAG2 1024
-#define HA_MRR_IMPLEMENTATION_FLAG3 2048
-#define HA_MRR_IMPLEMENTATION_FLAG4 4096
-#define HA_MRR_IMPLEMENTATION_FLAG5 8192
-#define HA_MRR_IMPLEMENTATION_FLAG6 16384
+#define HA_MRR_IMPLEMENTATION_FLAG1 512U
+#define HA_MRR_IMPLEMENTATION_FLAG2 1024U
+#define HA_MRR_IMPLEMENTATION_FLAG3 2048U
+#define HA_MRR_IMPLEMENTATION_FLAG4 4096U
+#define HA_MRR_IMPLEMENTATION_FLAG5 8192U
+#define HA_MRR_IMPLEMENTATION_FLAG6 16384U
 
 #define HA_MRR_IMPLEMENTATION_FLAGS \
-  (512 | 1024 | 2048 | 4096 | 8192 | 16384)
+  (512U | 1024U | 2048U | 4096U | 8192U | 16384U)
 
 /*
   This is a buffer area that the handler can use to store rows.
@@ -2645,6 +2682,8 @@ public:
   bool mark_trx_read_write_done;           /* mark_trx_read_write was called */
   bool check_table_binlog_row_based_done; /* check_table_binlog.. was called */
   bool check_table_binlog_row_based_result; /* cached check_table_binlog... */
+  /* Set to 1 if handler logged last insert/update/delete operation */
+  bool row_already_logged;
   /* 
     TRUE <=> the engine guarantees that returned records are within the range
     being scanned.
@@ -2653,7 +2692,7 @@ public:
 
   uint errkey;                             /* Last dup key */
   uint key_used_on_scan;
-  uint active_index;
+  uint active_index, keyread;
 
   /** Length of ref (1-8 or the clustered key length) */
   uint ref_length;
@@ -2694,7 +2733,6 @@ private:
   Exec_time_tracker *tracker;
 public:
   void set_time_tracker(Exec_time_tracker *tracker_arg) { tracker=tracker_arg;}
-
 
   Item *pushed_idx_cond;
   uint pushed_idx_cond_keyno;  /* The index which the above condition is for */
@@ -2748,9 +2786,10 @@ public:
     mark_trx_read_write_done(0),
     check_table_binlog_row_based_done(0),
     check_table_binlog_row_based_result(0),
+    row_already_logged(0),
     in_range_check_pushed_down(FALSE),
     key_used_on_scan(MAX_KEY),
-    active_index(MAX_KEY),
+    active_index(MAX_KEY), keyread(MAX_KEY),
     ref_length(sizeof(my_off_t)),
     ft_handler(0), inited(NONE),
     pushed_cond(0), next_insert_id(0), insert_id_for_cur_row(0),
@@ -2854,6 +2893,22 @@ public:
   int ha_update_row(const uchar * old_data, uchar * new_data);
   int ha_delete_row(const uchar * buf);
   void ha_release_auto_increment();
+
+  bool keyread_enabled() { return keyread < MAX_KEY; }
+  int ha_start_keyread(uint idx)
+  {
+    if (keyread_enabled())
+      return 0;
+    keyread= idx;
+    return extra(HA_EXTRA_KEYREAD);
+  }
+  int ha_end_keyread()
+  {
+    if (!keyread_enabled())
+      return 0;
+    keyread= MAX_KEY;
+    return extra(HA_EXTRA_NO_KEYREAD);
+  }
 
   int check_collation_compatibility();
   int ha_check_for_upgrade(HA_CHECK_OPT *check_opt);
@@ -2969,8 +3024,24 @@ public:
   virtual double keyread_time(uint index, uint ranges, ha_rows rows);
 
   virtual const key_map *keys_to_use_for_scanning() { return &key_map_empty; }
+
+  /*
+    True if changes to the table is persistent (no rollback)
+    This is manly used to decide how to log changes to the table in
+    the binary log.
+  */
   bool has_transactions()
-  { return (ha_table_flags() & HA_NO_TRANSACTIONS) == 0; }
+  {
+    return ((ha_table_flags() & (HA_NO_TRANSACTIONS | HA_PERSISTENT_TABLE))
+            == 0);
+  }
+  /*
+    True if the underlaying table doesn't support transactions
+  */
+  bool has_transaction_manager()
+  {
+    return ((ha_table_flags() & HA_NO_TRANSACTIONS) == 0);
+  }
 
   /**
     This method is used to analyse the error to see whether the error
@@ -3183,7 +3254,7 @@ public:
   virtual int read_range_next();
   void set_end_range(const key_range *end_key);
   int compare_key(key_range *range);
-  int compare_key2(key_range *range);
+  int compare_key2(key_range *range) const;
   virtual int ft_init() { return HA_ERR_WRONG_COMMAND; }
   void ft_end() { ft_handler=NULL; }
   virtual FT_INFO *ft_init_ext(uint flags, uint inx,String *key)
@@ -3889,7 +3960,7 @@ public:
     return 0;
   }
 
-  LEX_STRING *engine_name() { return hton_name(ht); }
+  virtual LEX_STRING *engine_name();
   
   TABLE* get_table() { return table; }
   TABLE_SHARE* get_table_share() { return table_share; }
@@ -3933,10 +4004,16 @@ private:
   void mark_trx_read_write_internal();
   bool check_table_binlog_row_based_internal(bool binlog_row);
 
-  /* Private helpers */
+protected:
+  /*
+    These are intended to be used only by handler::ha_xxxx() functions
+    However, engines that implement read_range_XXX() (like MariaRocks)
+    or embed other engines (like ha_partition) may need to call these also
+  */
   inline void increment_statistics(ulong SSV::*offset) const;
   inline void decrement_statistics(ulong SSV::*offset) const;
 
+private:
   /*
     Low-level primitives for storage engines.  These should be
     overridden by the storage engine class. To call these methods, use
@@ -3974,6 +4051,12 @@ private:
   {
     return HA_ERR_WRONG_COMMAND;
   }
+
+  /*
+    Optimized function for updating the first row. Only used by sequence
+    tables
+  */
+  virtual int update_first_row(uchar *new_data);
 
   virtual int delete_row(const uchar *buf __attribute__((unused)))
   {
@@ -4037,6 +4120,7 @@ protected:
                          enum ha_rkey_function find_flag)
    { return  HA_ERR_WRONG_COMMAND; }
   friend class ha_partition;
+  friend class ha_sequence;
 public:
   /**
     This method is similar to update_row, however the handler doesn't need
@@ -4137,11 +4221,27 @@ public:
   virtual handlerton *partition_ht() const
   { return ht; }
   inline int ha_write_tmp_row(uchar *buf);
+  inline int ha_delete_tmp_row(uchar *buf);
   inline int ha_update_tmp_row(const uchar * old_data, uchar * new_data);
 
   virtual void set_lock_type(enum thr_lock_type lock);
 
   friend enum icp_result handler_index_cond_check(void* h_arg);
+
+  /**
+    Find unique record by index or unique constrain
+
+    @param record        record to find (also will be fillded with
+                         actual record fields)
+    @param unique_ref    index or unique constraiun number (depends
+                         on what used in the engine
+
+    @retval -1 Error
+    @retval  1 Not found
+    @retval  0 Found
+  */
+  virtual int find_unique_row(uchar *record, uint unique_ref)
+  { return -1; /*unsupported */}
 protected:
   Handler_share *get_ha_share_ptr();
   void set_ha_share_ptr(Handler_share *arg_ha_share);
@@ -4251,7 +4351,7 @@ int ha_discover_table(THD *thd, TABLE_SHARE *share);
 int ha_discover_table_names(THD *thd, LEX_STRING *db, MY_DIR *dirp,
                             Discovered_table_list *result, bool reusable);
 bool ha_table_exists(THD *thd, const char *db, const char *table_name,
-                     handlerton **hton= 0);
+                     handlerton **hton= 0, bool *is_sequence= 0);
 #endif
 
 /* key cache */
@@ -4309,6 +4409,11 @@ inline const char *table_case_name(HA_CREATE_INFO *info, const char *name)
   return ((lower_case_table_names == 2 && info->alias) ? info->alias : name);
 }
 
+typedef bool Log_func(THD*, TABLE*, bool, const uchar*, const uchar*);
+int binlog_log_row(TABLE* table,
+                   const uchar *before_record,
+                   const uchar *after_record,
+                   Log_func *log_func);
 
 #define TABLE_IO_WAIT(TRACKER, PSI, OP, INDEX, FLAGS, PAYLOAD) \
   { \

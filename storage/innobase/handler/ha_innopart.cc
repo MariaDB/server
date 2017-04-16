@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2014, 2016, Oracle and/or its affiliates. All rights reserved.
+Copyright (c) 2016, 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -57,11 +58,11 @@ Created Nov 22, 2013 Mattias Jonsson */
 
 /* To be backwards compatible we also fold partition separator on windows. */
 #ifdef _WIN32
-const char* part_sep = "#p#";
-const char* sub_sep = "#sp#";
+static const char* part_sep = "#p#";
+static const char* sub_sep = "#sp#";
 #else
-const char* part_sep = "#P#";
-const char* sub_sep = "#SP#";
+static const char* part_sep = "#P#";
+static const char* sub_sep = "#SP#";
 #endif /* _WIN32 */
 
 /* Partition separator for *nix platforms */
@@ -827,17 +828,6 @@ ha_innopart::alter_table_flags(
 	return(HA_PARTITION_FUNCTION_SUPPORTED | HA_FAST_CHANGE_PARTITION);
 }
 
-/** Internally called for initializing auto increment value.
-Only called from ha_innobase::discard_or_import_table_space()
-and should not do anything, since it is ha_innopart will initialize
-it on first usage. */
-int
-ha_innopart::innobase_initialize_autoinc()
-{
-	ut_ad(0);
-	return(0);
-}
-
 /** Set the autoinc column max value.
 This should only be called once from ha_innobase::open().
 Therefore there's no need for a covering lock.
@@ -892,78 +882,33 @@ ha_innopart::initialize_auto_increment(
 		my_error(ER_AUTOINC_READ_FAILED, MYF(0));
 		error = HA_ERR_AUTOINC_READ_FAILED;
 	} else {
-		dict_index_t*	index;
-		const char*	col_name;
-		ib_uint64_t	read_auto_inc;
-		ib_uint64_t	max_auto_inc = 0;
-		ulint		err;
-		dict_table_t*	ib_table;
-		ulonglong	col_max_value;
-
-		col_max_value = field->get_max_int_value();
+		ib_uint64_t	col_max_value = field->get_max_int_value();
 
 		update_thd(ha_thd());
 
-		col_name = field->field_name;
 		for (uint part = 0; part < m_tot_parts; part++) {
-			ib_table = m_part_share->get_table_part(part);
+			dict_table_t*	ib_table
+				= m_part_share->get_table_part(part);
 			dict_table_autoinc_lock(ib_table);
-			read_auto_inc = dict_table_autoinc_read(ib_table);
-			if (read_auto_inc != 0) {
-				set_if_bigger(max_auto_inc, read_auto_inc);
-				dict_table_autoinc_unlock(ib_table);
-				continue;
-			}
-			/* Execute SELECT MAX(col_name) FROM TABLE; */
-			index = m_part_share->get_index(
-					part, table->s->next_number_index);
-			err = row_search_max_autoinc(
-				index, col_name, &read_auto_inc);
+			ut_ad(ib_table->persistent_autoinc);
+			ib_uint64_t	read_auto_inc
+				= dict_table_autoinc_read(ib_table);
+			if (read_auto_inc == 0) {
+				read_auto_inc = btr_read_autoinc(
+					dict_table_get_first_index(ib_table));
 
-			switch (err) {
-			case DB_SUCCESS: {
 				/* At the this stage we do not know the
 				increment nor the offset,
 				so use a default increment of 1. */
 
-				auto_inc = innobase_next_autoinc(
+				read_auto_inc = innobase_next_autoinc(
 					read_auto_inc, 1, 1, 0, col_max_value);
-				set_if_bigger(max_auto_inc, auto_inc);
 				dict_table_autoinc_initialize(ib_table,
-					auto_inc);
-				break;
+					read_auto_inc);
 			}
-			case DB_RECORD_NOT_FOUND:
-				ib::error() << "MySQL and InnoDB data"
-					" dictionaries are out of sync. Unable"
-					" to find the AUTOINC column "
-					<< col_name << " in the InnoDB table "
-					<< index->table->name << ". We set the"
-					" next AUTOINC column value to 0, in"
-					" effect disabling the AUTOINC next"
-					" value generation.";
-
-				ib::info() << "You can either set the next"
-					" AUTOINC value explicitly using ALTER"
-					" TABLE or fix the data dictionary by"
-					" recreating the table.";
-
-				/* We want the open to succeed, so that the
-				user can take corrective action. ie. reads
-				should succeed but updates should fail. */
-
-				/* This will disable the AUTOINC generation. */
-				auto_inc = 0;
-				goto done;
-			default:
-				/* row_search_max_autoinc() should only return
-				one of DB_SUCCESS or DB_RECORD_NOT_FOUND. */
-
-				ut_error;
-			}
+			set_if_bigger(auto_inc, read_auto_inc);
 			dict_table_autoinc_unlock(ib_table);
 		}
-		auto_inc = max_auto_inc;
 	}
 
 done:
@@ -1576,22 +1521,6 @@ ha_innopart::update_partition(
 	}
 	m_last_part = part_id;
 	DBUG_VOID_RETURN;
-}
-
-/** Save currently highest auto increment value.
-@param[in]	nr	Auto increment value to save. */
-void
-ha_innopart::save_auto_increment(
-	ulonglong	nr)
-{
-
-	/* Store it in the shared dictionary of the partition.
-	TODO: When the new DD is done, store it in the table and make it
-	persistent! */
-
-	dict_table_autoinc_lock(m_prebuilt->table);
-	dict_table_autoinc_update_if_greater(m_prebuilt->table, nr + 1);
-	dict_table_autoinc_unlock(m_prebuilt->table);
 }
 
 /** Was the last returned row semi consistent read.
@@ -2535,35 +2464,6 @@ ha_innopart::update_part_elem(
 	}
 
 	part_elem->index_file_name = NULL;
-	dict_get_and_save_space_name(ib_table, false);
-	if (ib_table->tablespace != NULL) {
-		ut_ad(part_elem->tablespace_name == NULL
-		      || 0 == strcmp(part_elem->tablespace_name,
-				ib_table->tablespace));
-		if (part_elem->tablespace_name == NULL
-		    || strcmp(ib_table->tablespace,
-			part_elem->tablespace_name) != 0) {
-
-			/* Play safe and allocate memory from TABLE and copy
-			instead of expose the internal data dictionary. */
-			part_elem->tablespace_name =
-				strdup_root(&table->mem_root,
-					ib_table->tablespace);
-		}
-	}
-	else {
-		ut_ad(part_elem->tablespace_name == NULL
-		      || 0 == strcmp(part_elem->tablespace_name,
-				     "innodb_file_per_table"));
-		if (part_elem->tablespace_name != NULL
-		    && 0 != strcmp(part_elem->tablespace_name,
-				   "innodb_file_per_table")) {
-
-			/* Update part_elem tablespace to NULL same as in
-			innodb data dictionary ib_table. */
-			part_elem->tablespace_name = NULL;
-		}
-	}
 }
 
 /** Update create_info.
@@ -2629,7 +2529,7 @@ ha_innopart::update_create_info(
 		DBUG_VOID_RETURN;
 	}
 
-	/* part_elem->data_file_name and tablespace_name should be correct from
+	/* part_elem->data_file_name should be correct from
 	the .frm, but may have been changed, so update from SYS_DATAFILES.
 	index_file_name is ignored, so remove it. */
 
@@ -2663,16 +2563,10 @@ set_create_info_dir(
 	if (part_elem->data_file_name != NULL
 	    && part_elem->data_file_name[0] != '\0') {
 		info->data_file_name = part_elem->data_file_name;
-		/* Also implies non-default tablespace. */
-		info->tablespace = NULL;
 	}
 	if (part_elem->index_file_name != NULL
 	    && part_elem->index_file_name[0] != '\0') {
 		info->index_file_name = part_elem->index_file_name;
-	}
-	if (part_elem->tablespace_name != NULL
-	    && part_elem->tablespace_name[0] != '\0') {
-		info->tablespace = part_elem->tablespace_name;
 	}
 }
 
@@ -2713,17 +2607,13 @@ ha_innopart::create(
 	int		error;
 	/** {database}/{tablename} */
 	char		table_name[FN_REFLEN];
-	/** absolute path of temp frm */
-	char		temp_path[FN_REFLEN];
 	/** absolute path of table */
 	char		remote_path[FN_REFLEN];
 	char		partition_name[FN_REFLEN];
-	char		tablespace_name[NAME_LEN + 1];
 	char*		table_name_end;
 	size_t		table_name_len;
 	char*		partition_name_start;
 	char		table_data_file_name[FN_REFLEN];
-	char		table_level_tablespace_name[NAME_LEN + 1];
 	const char*	index_file_name;
 	size_t		len;
 
@@ -2731,9 +2621,7 @@ ha_innopart::create(
 				     form,
 				     create_info,
 				     table_name,
-				     temp_path,
-				     remote_path,
-				     tablespace_name);
+				     remote_path);
 
 	DBUG_ENTER("ha_innopart::create");
 	ut_ad(create_info != NULL);
@@ -2758,7 +2646,6 @@ ha_innopart::create(
 	if (error != 0) {
 		DBUG_RETURN(error);
 	}
-	ut_ad(temp_path[0] == '\0');
 	strcpy(partition_name, table_name);
 	partition_name_start = partition_name + strlen(partition_name);
 	table_name_len = strlen(table_name);
@@ -2779,11 +2666,6 @@ ha_innopart::create(
 		table_data_file_name[0] = '\0';
 	}
 	index_file_name = create_info->index_file_name;
-	if (create_info->tablespace != NULL) {
-		strcpy(table_level_tablespace_name, create_info->tablespace);
-	} else {
-		table_level_tablespace_name[0] = '\0';
-	}
 
 	info.allocate_trx();
 
@@ -2869,15 +2751,12 @@ ha_innopart::create(
 					table_data_file_name;
 				create_info->index_file_name =
 					index_file_name;
-				create_info->tablespace =
-					table_level_tablespace_name;
 				set_create_info_dir(part_elem, create_info);
 			}
 		}
 		/* Reset table level DATA/INDEX DIRECTORY. */
 		create_info->data_file_name = table_data_file_name;
 		create_info->index_file_name = index_file_name;
-		create_info->tablespace = table_level_tablespace_name;
 	}
 
 	innobase_commit_low(info.trx());
@@ -3191,7 +3070,7 @@ ha_innopart::records_in_range(
 	/* In case MySQL calls this in the middle of a SELECT query, release
 	possible adaptive hash latch to avoid deadlocks of threads. */
 
-	trx_search_latch_release_if_reserved(m_prebuilt->trx);
+	trx_assert_no_search_latch(m_prebuilt->trx);
 
 	active_index = keynr;
 
@@ -3330,7 +3209,7 @@ ha_innopart::estimate_rows_upper_bound()
 	/* In case MySQL calls this in the middle of a SELECT query, release
 	possible adaptive hash latch to avoid deadlocks of threads. */
 
-	trx_search_latch_release_if_reserved(m_prebuilt->trx);
+	trx_assert_no_search_latch(m_prebuilt->trx);
 
 	for (uint i = m_part_info->get_first_used_partition();
 	     i < m_tot_parts;
@@ -3448,7 +3327,7 @@ ha_innopart::info_low(
 
 	m_prebuilt->trx->op_info = (char*)"returning various info to MySQL";
 
-	trx_search_latch_release_if_reserved(m_prebuilt->trx);
+	trx_assert_no_search_latch(m_prebuilt->trx);
 
 	ut_ad(m_part_share->get_table_part(0)->n_ref_count > 0);
 
@@ -4309,27 +4188,13 @@ ha_innopart::create_new_partition(
 {
 	int		error;
 	char		norm_name[FN_REFLEN];
-	const char*	tablespace_name_backup = create_info->tablespace;
 	const char*	data_file_name_backup = create_info->data_file_name;
 	DBUG_ENTER("ha_innopart::create_new_partition");
 	/* Delete by ddl_log on failure. */
 	normalize_table_name(norm_name, part_name);
 	set_create_info_dir(part_elem, create_info);
 
-	/* The below check is the same as for CREATE TABLE, but since we are
-	doing an alter here it will not trigger the check in
-	create_option_tablespace_is_valid(). */
-	if (tablespace_is_shared_space(create_info)
-	    && create_info->data_file_name != NULL
-	    && create_info->data_file_name[0] != '\0') {
-		my_printf_error(ER_ILLEGAL_HA_CREATE_OPTION,
-			"InnoDB: DATA DIRECTORY cannot be used"
-			" with a TABLESPACE assignment.", MYF(0));
-		DBUG_RETURN(HA_WRONG_CREATE_OPTION);
-	}
-
 	error = ha_innobase::create(norm_name, table, create_info);
-	create_info->tablespace = tablespace_name_backup;
 	create_info->data_file_name = data_file_name_backup;
 	if (error == HA_ERR_FOUND_DUPP_KEY) {
 		DBUG_RETURN(HA_ERR_TABLE_EXIST);

@@ -1,4 +1,7 @@
 SET default_storage_engine=InnoDB;
+SET GLOBAL innodb_file_format=`Barracuda`;
+Warnings:
+Warning	131	Using innodb_file_format is deprecated and the parameter may be removed in future releases. See http://dev.mysql.com/doc/refman/5.7/en/innodb-file-format.html
 SET GLOBAL innodb_file_per_table=ON;
 SET SESSION innodb_strict_mode = ON;
 # Test 1) StrictMode=ON, CREATE and ALTER with each ROW_FORMAT & KEY_BLOCK_SIZE=0
@@ -309,6 +312,10 @@ Warning	1478	InnoDB: ROW_FORMAT=COMPRESSED requires innodb_file_format > Antelop
 Error	1478	Table storage engine 'InnoDB' does not support the create option 'ROW_FORMAT'
 ALTER TABLE t1 ROW_FORMAT=DYNAMIC;
 ERROR HY000: Table storage engine 'InnoDB' does not support the create option 'ROW_FORMAT'
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1478	InnoDB: ROW_FORMAT=DYNAMIC requires innodb_file_format > Antelope.
+Error	1478	Table storage engine 'InnoDB' does not support the create option 'ROW_FORMAT'
 SET GLOBAL innodb_file_format=Barracuda;
 Warnings:
 Warning	131	Using innodb_file_format is deprecated and the parameter may be removed in future releases. See http://dev.mysql.com/doc/refman/5.7/en/innodb-file-format.html
@@ -340,7 +347,7 @@ Level	Code	Message
 SET GLOBAL innodb_file_format=Barracuda;
 Warnings:
 Warning	131	Using innodb_file_format is deprecated and the parameter may be removed in future releases. See http://dev.mysql.com/doc/refman/5.7/en/innodb-file-format.html
-# Test 8) StrictMode=ON, Make sure ROW_FORMAT= COMPRESSED & DYNAMIC and
+# Test 8) StrictMode=ON, Make sure ROW_FORMAT=COMPRESSED
 #         and a valid non-zero KEY_BLOCK_SIZE are rejected with
 #         innodb_file_per_table=OFF and that they can be set to default
 #         values during strict mode.
@@ -361,7 +368,12 @@ Warning	1478	InnoDB: ROW_FORMAT=COMPRESSED requires innodb_file_per_table.
 Error	1005	Can't create table `test`.`t1` (errno: 140 "Wrong create options")
 Warning	1030	Got error 140 "Wrong create options" from storage engine InnoDB
 CREATE TABLE t1 ( i INT ) ROW_FORMAT=DYNAMIC;
-ERROR HY000: Can't create table `test`.`t1` (errno: 140 "Wrong create options")
+SHOW WARNINGS;
+Level	Code	Message
+SELECT TABLE_NAME,ROW_FORMAT,CREATE_OPTIONS FROM information_schema.tables WHERE TABLE_NAME = 't1';
+TABLE_NAME	ROW_FORMAT	CREATE_OPTIONS
+t1	Dynamic	row_format=DYNAMIC
+DROP TABLE t1;
 CREATE TABLE t1 ( i INT ) ROW_FORMAT=REDUNDANT;
 SHOW WARNINGS;
 Level	Code	Message
@@ -392,7 +404,11 @@ Level	Code	Message
 Warning	1478	InnoDB: ROW_FORMAT=COMPRESSED requires innodb_file_per_table.
 Error	1478	Table storage engine 'InnoDB' does not support the create option 'ROW_FORMAT'
 ALTER TABLE t1 ROW_FORMAT=DYNAMIC;
-ERROR HY000: Table storage engine 'InnoDB' does not support the create option 'ROW_FORMAT'
+SELECT TABLE_NAME,ROW_FORMAT,CREATE_OPTIONS FROM information_schema.tables WHERE TABLE_NAME = 't1';
+TABLE_NAME	ROW_FORMAT	CREATE_OPTIONS
+t1	Dynamic	row_format=DYNAMIC
+SHOW WARNINGS;
+Level	Code	Message
 ALTER TABLE t1 ROW_FORMAT=COMPACT;
 SELECT TABLE_NAME,ROW_FORMAT,CREATE_OPTIONS FROM information_schema.tables WHERE TABLE_NAME = 't1';
 TABLE_NAME	ROW_FORMAT	CREATE_OPTIONS
@@ -837,3 +853,5 @@ TABLE_NAME	ROW_FORMAT	CREATE_OPTIONS
 t1	Dynamic	row_format=DYNAMIC
 # Cleanup
 DROP TABLE t1;
+Warnings:
+Warning	131	Using innodb_file_format is deprecated and the parameter may be removed in future releases. See http://dev.mysql.com/doc/refman/5.7/en/innodb-file-format.html

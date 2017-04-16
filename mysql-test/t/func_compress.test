@@ -154,6 +154,25 @@ set global max_allowed_packet=default;
 --echo #
 
 --echo #
+--echo # Start of 10.1 tests
+--echo #
+
+--echo #
+--echo # MDEV-10864 Wrong result for WHERE .. (f2=COMPRESS('test') OR f2=COMPRESS('TEST'))
+--echo #
+
+CREATE TABLE t1 (f1 VARCHAR(4), f2 VARCHAR(64), UNIQUE KEY k1 (f1,f2));
+INSERT INTO t1 VALUES ('test',compress('test')), ('TEST', compress('TEST'));
+SELECT f1,HEX(f2) FROM t1 ignore index(k1) WHERE f1='test' AND (f2= compress("test") OR f2= compress("TEST"));
+SELECT f1,HEX(f2) FROM t1                  WHERE f1='test' AND (f2= compress("test") OR f2= compress("TEST"));
+SELECT f1,HEX(f2) FROM t1                  WHERE f1='test' AND (f2= compress("TEST") OR f2= compress("test"));
+DROP TABLE t1;
+
+--echo #
+--echo # End of 10.1 tests
+--echo #
+
+--echo #
 --echo # Start of 10.2 tests
 --echo #
 

@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2013, 2015, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -81,7 +82,7 @@ public:
 		ssize = (0 == ssize) ? UNIV_PAGE_SSIZE_ORIG : ssize;
 
 		/* Convert from a 'log2 minus 9' to a page size in bytes. */
-		const ulint	size = ((UNIV_ZIP_SIZE_MIN >> 1) << ssize);
+		const unsigned	size = ((UNIV_ZIP_SIZE_MIN >> 1) << ssize);
 
 		ut_ad(size <= UNIV_PAGE_SIZE_MAX);
 		ut_ad(size <= (1 << PAGE_SIZE_T_SIZE_BITS));
@@ -101,7 +102,7 @@ public:
 
 			/* Convert from a 'log2 minus 9' to a page size
 			in bytes. */
-			const ulint	phy
+			const unsigned	phy
 				= ((UNIV_ZIP_SIZE_MIN >> 1) << ssize);
 
 			ut_ad(phy <= UNIV_ZIP_SIZE_MAX);
@@ -139,9 +140,7 @@ public:
 	@param[in]	src	page size object whose values to fetch */
 	inline void copy_from(const page_size_t& src)
 	{
-		m_physical = src.physical();
-		m_logical = src.logical();
-		m_is_compressed = src.is_compressed();
+		*this = src;
 	}
 
 	/** Check if a given page_size_t object is equal to the current one.
@@ -155,9 +154,6 @@ public:
 	}
 
 private:
-
-	/* Disable implicit copying. */
-	void operator=(const page_size_t&);
 
 	/* For non compressed tablespaces, physical page size is equal to
 	the logical page size and the data is stored in buf_page_t::frame

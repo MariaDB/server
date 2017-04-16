@@ -1,5 +1,5 @@
 -- source include/not_embedded.inc
--- source include/have_xtradb.inc
+-- source include/have_innodb.inc
 -- source filekeys_plugin.inc
 
 --eval call mtr.add_suppression("$SEARCH_PATTERN")
@@ -7,7 +7,6 @@ call mtr.add_suppression("Plugin 'file_key_management' init function returned er
 call mtr.add_suppression("Plugin 'file_key_management' registration.*failed");
 
 --let SEARCH_FILE= $MYSQLTEST_VARDIR/log/mysqld.1.err
---let SEARCH_RANGE= -10000
 --source include/search_pattern_in_file.inc
 
 --error ER_CANT_CREATE_TABLE

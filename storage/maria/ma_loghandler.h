@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
 
 #ifndef _ma_loghandler_h
 #define _ma_loghandler_h
@@ -33,9 +33,9 @@
   We allow all kind protections to be switched on together for people who
   really unsure in their hardware/OS.
 */
-#define TRANSLOG_PAGE_CRC              1
-#define TRANSLOG_SECTOR_PROTECTION     (1<<1)
-#define TRANSLOG_RECORD_CRC            (1<<2)
+#define TRANSLOG_PAGE_CRC              1U
+#define TRANSLOG_SECTOR_PROTECTION     (1U<<1)
+#define TRANSLOG_RECORD_CRC            (1U<<2)
 #define TRANSLOG_FLAGS_NUM ((TRANSLOG_PAGE_CRC | TRANSLOG_SECTOR_PROTECTION | \
                            TRANSLOG_RECORD_CRC) + 1)
 

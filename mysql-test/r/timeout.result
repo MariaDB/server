@@ -1,0 +1,67 @@
+#
+# MDEV-11379 - AliSQL: [Feature] Issue#8: SELECT FOR UPDATE WAIT
+# MDEV-11388 - AliSQL: [Feature] Issue#15 DDL FAST FAIL
+#
+CREATE TABLE t1(a INT, b TEXT, c MULTIPOLYGON NOT NULL);
+CREATE INDEX i1 ON t1(a) WAIT 1;
+CREATE FULLTEXT INDEX i2 ON t1(b) WAIT 1;
+CREATE SPATIAL INDEX i3 ON t1(c) WAIT 1;
+ALTER TABLE t1 WAIT 1 COMMENT='test';
+OPTIMIZE TABLE t1 WAIT 1;
+Table	Op	Msg_type	Msg_text
+test.t1	optimize	status	OK
+DROP INDEX i1 ON t1 WAIT 1;
+TRUNCATE TABLE t1 WAIT 1;
+RENAME TABLE t1 WAIT 1 TO t2;
+RENAME TABLE t2 NOWAIT TO t1;
+connect con1, localhost, root,,;
+LOCK TABLE t1 WRITE WAIT 31536001;
+Warnings:
+Warning	1292	Truncated incorrect lock_wait_timeout value: '31536001'
+connection default;
+CREATE INDEX i1 ON t1(a) WAIT 0;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+CREATE INDEX i1 ON t1(a) NOWAIT;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+CREATE FULLTEXT INDEX i2 ON t1(b) WAIT 0;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+CREATE FULLTEXT INDEX i2 ON t1(b) NOWAIT;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+CREATE SPATIAL INDEX i3 ON t1(c) WAIT 0;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+CREATE SPATIAL INDEX i3 ON t1(c) NOWAIT;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+ALTER TABLE t1 WAIT 0 COMMENT='test';
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+ALTER TABLE t1 NOWAIT COMMENT='test';
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+OPTIMIZE TABLE t1 WAIT 0;
+Table	Op	Msg_type	Msg_text
+test.t1	optimize	Error	Lock wait timeout exceeded; try restarting transaction
+test.t1	optimize	status	Operation failed
+OPTIMIZE TABLE t1 NOWAIT;
+Table	Op	Msg_type	Msg_text
+test.t1	optimize	Error	Lock wait timeout exceeded; try restarting transaction
+test.t1	optimize	status	Operation failed
+DROP INDEX i1 ON t1 WAIT 0;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+DROP INDEX i1 ON t1 NOWAIT;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+TRUNCATE TABLE t1 WAIT 0;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+TRUNCATE TABLE t1 NOWAIT;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+RENAME TABLE t1 WAIT 0 TO t2;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+RENAME TABLE t1 NOWAIT TO t2;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+DROP TABLE t1 WAIT 0;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+DROP TABLE t1 NOWAIT;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+LOCK TABLE t1 WRITE WAIT 0;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+LOCK TABLE t1 WRITE NOWAIT;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+disconnect con1;
+DROP TABLE t1 WAIT 1;

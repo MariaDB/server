@@ -241,7 +241,7 @@ PTDB VCTDEF::GetTable(PGLOBAL g, MODE mode)
   /*********************************************************************/
   if (mode != MODE_INSERT)
     if (tdbp->GetBlockValues(g))
-      PushWarning(g, (PTDBASE)tdbp);
+      PushWarning(g, tdbp);
 //    return NULL;            // causes a crash when deleting index
 
   return tdbp;
@@ -263,7 +263,7 @@ TDBVCT::TDBVCT(PGLOBAL g, PTDBVCT tdbp) : TDBFIX(g, tdbp)
   } // end of TDBVCT copy constructor
 
 // Method
-PTDB TDBVCT::CopyOne(PTABS t)
+PTDB TDBVCT::Clone(PTABS t)
   {
   PTDB    tp;
   PVCTCOL cp1, cp2;
@@ -277,7 +277,7 @@ PTDB TDBVCT::CopyOne(PTABS t)
     } // endfor cp1
 
   return tp;
-  } // end of CopyOne
+  } // end of Clone
 
 /***********************************************************************/
 /*  Allocate VCT column description block.                             */

@@ -1,0 +1,5 @@
+[ctr]
+loose-file-key-management-encryption-algorithm=aes_ctr
+
+[cbc]
+loose-file-key-management-encryption-algorithm=aes_cbc

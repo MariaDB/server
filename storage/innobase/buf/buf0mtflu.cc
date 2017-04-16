@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (C) 2013, 2014, Fusion-io. All Rights Reserved.
-Copyright (C) 2013, 2015, MariaDB Corporation. All Rights Reserved.
+Copyright (C) 2013, 2017, MariaDB Corporation. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -118,15 +118,65 @@ typedef struct wrk_itm
 	mem_heap_t      *rheap;
 } wrk_t;
 
-typedef struct thread_data
+struct thread_data_t
 {
 	os_thread_id_t	wthread_id;	/*!< Identifier */
 	wthr_status_t   wt_status;	/*!< Worker thread status */
-} thread_data_t;
+};
 
-/* Thread syncronization data */
-typedef struct thread_sync
+/** Flush dirty pages when multi-threaded flush is used. */
+extern "C" UNIV_INTERN
+os_thread_ret_t
+DECLARE_THREAD(mtflush_io_thread)(void* arg);
+
+/** Thread syncronization data */
+struct thread_sync_t
 {
+	/** Constructor */
+	thread_sync_t(ulint n_threads, mem_heap_t* wheap, mem_heap_t* rheap) :
+		thread_global_mtx(), n_threads(n_threads),
+		wq(ib_wqueue_create()),
+		wr_cq(ib_wqueue_create()),
+		rd_cq(ib_wqueue_create()),
+		wheap(wheap), rheap(rheap), gwt_status(),
+		thread_data(static_cast<thread_data_t*>(
+				    mem_heap_zalloc(wheap, n_threads
+						    * sizeof *thread_data)))
+	{
+		ut_a(wq);
+		ut_a(wr_cq);
+		ut_a(rd_cq);
+		ut_a(thread_data);
+
+		mutex_create(LATCH_ID_MTFLUSH_THREAD_MUTEX,
+			     &thread_global_mtx);
+
+		/* Create threads for page-compression-flush */
+		for(ulint i = 0; i < n_threads; i++) {
+			thread_data[i].wt_status = WTHR_INITIALIZED;
+			os_thread_create(mtflush_io_thread, this,
+					 &thread_data[i].wthread_id);
+		}
+	}
+
+	/** Destructor */
+	~thread_sync_t()
+	{
+		ut_a(ib_wqueue_is_empty(wq));
+		ut_a(ib_wqueue_is_empty(wr_cq));
+		ut_a(ib_wqueue_is_empty(rd_cq));
+
+		/* Free all queues */
+		ib_wqueue_free(wq);
+		ib_wqueue_free(wr_cq);
+		ib_wqueue_free(rd_cq);
+
+		mutex_free(&thread_global_mtx);
+
+		mem_heap_free(rheap);
+		mem_heap_free(wheap);
+	}
+
 	/* Global variables used by all threads */
 	ib_mutex_t	thread_global_mtx; /*!< Mutex used protecting below
 					   variables */
@@ -142,22 +192,10 @@ typedef struct thread_sync
 
 	/* Variables used by only one thread at a time */
         thread_data_t*  thread_data;    /*!< Thread specific data */
+};
 
-} thread_sync_t;
-
-static int		mtflush_work_initialized = -1;
-static thread_sync_t*   mtflush_ctx=NULL;
+static thread_sync_t*   mtflush_ctx;
 static ib_mutex_t       mtflush_mtx;
-
-/******************************************************************//**
-Set multi-threaded flush work initialized. */
-static inline
-void
-buf_mtflu_work_init(void)
-/*=====================*/
-{
-	mtflush_work_initialized = 1;
-}
 
 /******************************************************************//**
 Return true if multi-threaded flush is initialized
@@ -166,7 +204,7 @@ bool
 buf_mtflu_init_done(void)
 /*=====================*/
 {
-	return(mtflush_work_initialized == 1);
+	return(mtflush_ctx != NULL);
 }
 
 /******************************************************************//**
@@ -307,15 +345,10 @@ mtflush_service_io(
 	}
 }
 
-/******************************************************************//**
-Thead used to flush dirty pages when multi-threaded flush is
-used.
-@return a dummy parameter*/
+/** Flush dirty pages when multi-threaded flush is used. */
 extern "C" UNIV_INTERN
 os_thread_ret_t
-DECLARE_THREAD(mtflush_io_thread)(
-/*==============================*/
-	void * arg)
+DECLARE_THREAD(mtflush_io_thread)(void* arg)
 {
 	thread_sync_t *mtflush_io = ((thread_sync_t *)arg);
 	thread_data_t *this_thread_data = NULL;
@@ -438,29 +471,10 @@ buf_mtflu_io_thread_exit(void)
 		ib_wqueue_nowait(mtflush_io->wq);
 	}
 
-	mutex_enter(&mtflush_mtx);
+	mtflush_ctx->~thread_sync_t();
+	mtflush_ctx = NULL;
 
-	ut_a(ib_wqueue_is_empty(mtflush_io->wq));
-	ut_a(ib_wqueue_is_empty(mtflush_io->wr_cq));
-	ut_a(ib_wqueue_is_empty(mtflush_io->rd_cq));
-
-	/* Free all queues */
-	ib_wqueue_free(mtflush_io->wq);
-	ib_wqueue_free(mtflush_io->wr_cq);
-	ib_wqueue_free(mtflush_io->rd_cq);
-
-	mtflush_io->wq = NULL;
-	mtflush_io->wr_cq  = NULL;
-	mtflush_io->rd_cq = NULL;
-	mtflush_work_initialized = 0;
-
-	/* Free heap */
-	mem_heap_free(mtflush_io->wheap);
-	mem_heap_free(mtflush_io->rheap);
-
-	mutex_exit(&mtflush_mtx);
 	mutex_free(&mtflush_mtx);
-	mutex_free(&mtflush_io->thread_global_mtx);
 }
 
 /******************************************************************//**
@@ -472,7 +486,6 @@ buf_mtflu_handler_init(
 	ulint n_threads,	/*!< in: Number of threads to create */
 	ulint wrk_cnt)		/*!< in: Number of work items */
 {
-	ulint   	i;
 	mem_heap_t*	mtflush_heap;
 	mem_heap_t*	mtflush_heap2;
 
@@ -484,43 +497,10 @@ buf_mtflu_handler_init(
 	mtflush_heap2 = mem_heap_create(0);
 	ut_a(mtflush_heap2 != NULL);
 
-	mtflush_ctx = (thread_sync_t *)mem_heap_alloc(mtflush_heap,
-				sizeof(thread_sync_t));
-	memset(mtflush_ctx, 0, sizeof(thread_sync_t));
-	ut_a(mtflush_ctx != NULL);
-	mtflush_ctx->thread_data = (thread_data_t*)mem_heap_alloc(
-		mtflush_heap, sizeof(thread_data_t) * n_threads);
-	ut_a(mtflush_ctx->thread_data);
-	memset(mtflush_ctx->thread_data, 0, sizeof(thread_data_t) * n_threads);
-
-	mtflush_ctx->n_threads = n_threads;
-	mtflush_ctx->wq = ib_wqueue_create();
-	ut_a(mtflush_ctx->wq);
-	mtflush_ctx->wr_cq = ib_wqueue_create();
-	ut_a(mtflush_ctx->wr_cq);
-	mtflush_ctx->rd_cq = ib_wqueue_create();
-	ut_a(mtflush_ctx->rd_cq);
-	mtflush_ctx->wheap = mtflush_heap;
-	mtflush_ctx->rheap = mtflush_heap2;
-
-	mutex_create(LATCH_ID_MTFLUSH_THREAD_MUTEX, &mtflush_ctx->thread_global_mtx);
 	mutex_create(LATCH_ID_MTFLUSH_MUTEX, &mtflush_mtx);
 
-	/* Create threads for page-compression-flush */
-	for(i=0; i < n_threads; i++) {
-		os_thread_id_t new_thread_id;
-
-		mtflush_ctx->thread_data[i].wt_status = WTHR_INITIALIZED;
-
-		os_thread_create(
-			mtflush_io_thread,
-			((void *) mtflush_ctx),
-	                &new_thread_id);
-
-		mtflush_ctx->thread_data[i].wthread_id = new_thread_id;
-	}
-
-	buf_mtflu_work_init();
+	mtflush_ctx = new (mem_heap_zalloc(mtflush_heap, sizeof *mtflush_ctx))
+		thread_sync_t(n_threads, mtflush_heap, mtflush_heap2);
 
 	return((void *)mtflush_ctx);
 }

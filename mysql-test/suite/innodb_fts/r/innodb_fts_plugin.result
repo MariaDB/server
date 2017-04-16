@@ -139,8 +139,8 @@ INSERT INTO articles (title, body) VALUES
 SELECT * FROM articles WHERE
 MATCH(title, body) AGAINST('Tricks');
 id	title	body
-4	1001 MySQL Tricks	How to use full-text search engine
-5	Go MySQL Tricks	How to use full text search engine
+9	1001 MySQL Tricks	How to use full-text search engine
+10	Go MySQL Tricks	How to use full text search engine
 SELECT COUNT(*) FROM articles;
 COUNT(*)
 5

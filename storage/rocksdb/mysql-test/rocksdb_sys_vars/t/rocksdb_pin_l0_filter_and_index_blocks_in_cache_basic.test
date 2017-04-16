@@ -1,0 +1,6 @@
+--source include/have_rocksdb.inc
+
+--let $sys_var=ROCKSDB_PIN_L0_FILTER_AND_INDEX_BLOCKS_IN_CACHE
+--let $read_only=1
+--let $session=0
+--source include/rocksdb_sys_var.inc

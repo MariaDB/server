@@ -449,7 +449,7 @@ DROP USER uplain@localhost;
 --echo # Bug #59038 : mysql.user.authentication_string column 
 --echo #   causes configuration wizard to fail
 
-INSERT INTO mysql.user(
+INSERT IGNORE INTO mysql.user(
   Host, 
   User, 
   Password,  
@@ -522,6 +522,8 @@ SELECT IS_NULLABLE, COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
   WHERE TABLE_SCHEMA= 'mysql' AND TABLE_NAME= 'user' AND
     COLUMN_NAME IN ('plugin', 'authentication_string')
   ORDER BY COLUMN_NAME;
+let $datadir= `select @@datadir`;
+remove_file $datadir/mysql_upgrade_info;
 
 
 --echo #

@@ -144,8 +144,6 @@ SELECT @@mysql56_temporal_format = @@global.mysql56_temporal_format;
 
 --Error ER_GLOBAL_VARIABLE
 SET mysql56_temporal_format = 1;
---Error ER_PARSE_ERROR
-SET global.mysql56_temporal_format = 1;
 --Error ER_UNKNOWN_TABLE
 SELECT global.mysql56_temporal_format;
 --Error ER_BAD_FIELD_ERROR

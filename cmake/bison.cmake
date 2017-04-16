@@ -40,7 +40,7 @@ ELSEIF(BISON_EXECUTABLE AND NOT BISON_USABLE)
 ENDIF()
 
 # Use bison to generate C++ and header file
-MACRO (RUN_BISON input_yy output_cc output_h)
+MACRO (RUN_BISON input_yy output_cc output_h name_prefix)
   IF(BISON_TOO_OLD)
     IF(EXISTS ${output_cc} AND EXISTS ${output_h})
       SET(BISON_USABLE FALSE)
@@ -50,7 +50,7 @@ MACRO (RUN_BISON input_yy output_cc output_h)
     ADD_CUSTOM_COMMAND(
       OUTPUT ${output_cc}
              ${output_h}
-      COMMAND ${BISON_EXECUTABLE}  -y -p MYSQL 
+      COMMAND ${BISON_EXECUTABLE}  -y -p ${name_prefix}
        --output=${output_cc}
        --defines=${output_h}
         ${input_yy}

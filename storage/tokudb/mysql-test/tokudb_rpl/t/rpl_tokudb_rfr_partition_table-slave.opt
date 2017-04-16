@@ -1,0 +1,1 @@
+--read-only=ON --loose-tokudb-rpl-unique-checks=OFF  --loose-tokudb-rpl-lookup-rows=OFF

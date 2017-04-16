@@ -1,0 +1,19 @@
+SET sql_mode=ORACLE;
+
+# VARCHAR2 is not a reserved word even in sql_mode=ORACLE
+CREATE TABLE varchar2 (varchar2 INT);
+SHOW CREATE TABLE varchar2;
+DROP TABLE varchar2;
+
+CREATE TABLE t1 (a VARCHAR2(10));
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+
+--echo #
+--echo #  MDEV-11275 sql_mode=ORACLE: CAST(..AS VARCHAR(N))
+--echo #
+
+SELECT CAST(123 AS VARCHAR2(10)) FROM DUAL;
+--error ER_PARSE_ERROR
+SELECT CAST(123 AS VARCHAR2) FROM DUAL;

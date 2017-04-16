@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2012, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -80,8 +81,5 @@ row_import_update_index_root(
 						caller already owns the
 						dict_sys_t:: mutex. */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
-#ifndef UNIV_NONINL
-#include "row0import.ic"
-#endif
 
 #endif /* row0import_h */

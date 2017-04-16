@@ -35,11 +35,10 @@
 #include <my_user.h>
 
 /* Used in error handling only */
-#define SP_TYPE_STRING(type) \
-    (type == TYPE_ENUM_FUNCTION ? "FUNCTION" : "PROCEDURE")
+#define SP_TYPE_STRING(type) stored_procedure_type_to_str(type)
      
 static int
-db_load_routine(THD *thd, stored_procedure_type type, sp_name *name,
+db_load_routine(THD *thd, stored_procedure_type type, const sp_name *name,
                 sp_head **sphp,
                 sql_mode_t sql_mode, const char *params, const char *returns,
                 const char *body, st_sp_chistics &chistics,
@@ -470,7 +469,7 @@ static TABLE *open_proc_table_for_update(THD *thd)
 */
 
 static int
-db_find_routine_aux(THD *thd, stored_procedure_type type, sp_name *name,
+db_find_routine_aux(THD *thd, stored_procedure_type type, const sp_name *name,
                     TABLE *table)
 {
   uchar key[MAX_KEY_LENGTH];	// db, name, optional key length type
@@ -524,7 +523,7 @@ db_find_routine_aux(THD *thd, stored_procedure_type type, sp_name *name,
 */
 
 static int
-db_find_routine(THD *thd, stored_procedure_type type, sp_name *name,
+db_find_routine(THD *thd, stored_procedure_type type, const sp_name *name,
                 sp_head **sphp)
 {
   TABLE *table;
@@ -691,7 +690,7 @@ public:
   virtual bool handle_condition(THD *thd,
                                 uint sql_errno,
                                 const char* sqlstate,
-                                Sql_condition::enum_warning_level level,
+                                Sql_condition::enum_warning_level *level,
                                 const char* msg,
                                 Sql_condition ** cond_hdl);
 };
@@ -701,13 +700,13 @@ Silence_deprecated_warning::handle_condition(
   THD *,
   uint sql_errno,
   const char*,
-  Sql_condition::enum_warning_level level,
+  Sql_condition::enum_warning_level *level,
   const char*,
   Sql_condition ** cond_hdl)
 {
   *cond_hdl= NULL;
   if (sql_errno == ER_WARN_DEPRECATED_SYNTAX &&
-      level == Sql_condition::WARN_LEVEL_WARN)
+      *level == Sql_condition::WARN_LEVEL_WARN)
     return TRUE;
 
   return FALSE;
@@ -780,7 +779,7 @@ public:
   virtual bool handle_condition(THD *thd,
                                 uint sql_errno,
                                 const char* sqlstate,
-                                Sql_condition::enum_warning_level level,
+                                Sql_condition::enum_warning_level *level,
                                 const char* message,
                                 Sql_condition ** cond_hdl);
 
@@ -794,7 +793,8 @@ bool
 Bad_db_error_handler::handle_condition(THD *thd,
                                        uint sql_errno,
                                        const char* sqlstate,
-                                       Sql_condition::enum_warning_level level,
+                                       Sql_condition::enum_warning_level
+                                       *level,
                                        const char* message,
                                        Sql_condition ** cond_hdl)
 {
@@ -809,7 +809,7 @@ Bad_db_error_handler::handle_condition(THD *thd,
 
 static int
 db_load_routine(THD *thd, stored_procedure_type type,
-                sp_name *name, sp_head **sphp,
+                const sp_name *name, sp_head **sphp,
                 sql_mode_t sql_mode, const char *params, const char *returns,
                 const char *body, st_sp_chistics &chistics,
                 LEX_STRING *definer_user_name, LEX_STRING *definer_host_name,
@@ -966,7 +966,7 @@ sp_returns_type(THD *thd, String &result, sp_head *sp)
 */
 static int
 sp_drop_routine_internal(THD *thd, stored_procedure_type type,
-                         sp_name *name, TABLE *table)
+                         const sp_name *name, TABLE *table)
 {
   DBUG_ENTER("sp_drop_routine_internal");
 
@@ -1332,7 +1332,7 @@ done:
 */
 
 int
-sp_drop_routine(THD *thd, stored_procedure_type type, sp_name *name)
+sp_drop_routine(THD *thd, stored_procedure_type type, const sp_name *name)
 {
   TABLE *table;
   int ret;
@@ -1386,7 +1386,7 @@ sp_drop_routine(THD *thd, stored_procedure_type type, sp_name *name)
 */
 
 int
-sp_update_routine(THD *thd, stored_procedure_type type, sp_name *name,
+sp_update_routine(THD *thd, stored_procedure_type type, const sp_name *name,
                   st_sp_chistics *chistics)
 {
   TABLE *table;
@@ -1477,7 +1477,7 @@ public:
   bool handle_condition(THD *thd,
                         uint sql_errno,
                         const char* sqlstate,
-                        Sql_condition::enum_warning_level level,
+                        Sql_condition::enum_warning_level *level,
                         const char* msg,
                         Sql_condition ** cond_hdl)
   {
@@ -1670,7 +1670,8 @@ err:
 */
 
 bool
-sp_show_create_routine(THD *thd, stored_procedure_type type, sp_name *name)
+sp_show_create_routine(THD *thd,
+                       stored_procedure_type type, const sp_name *name)
 {
   sp_head *sp;
 
@@ -1698,8 +1699,7 @@ sp_show_create_routine(THD *thd, stored_procedure_type type, sp_name *name)
       If we have insufficient privileges, pretend the routine
       does not exist.
     */
-    my_error(ER_SP_DOES_NOT_EXIST, MYF(0),
-             type == TYPE_ENUM_FUNCTION ? "FUNCTION" : "PROCEDURE",
+    my_error(ER_SP_DOES_NOT_EXIST, MYF(0), stored_procedure_type_to_str(type),
              name->m_name.str);
     DBUG_RETURN(TRUE);
   }
@@ -1726,7 +1726,7 @@ sp_show_create_routine(THD *thd, stored_procedure_type type, sp_name *name)
 */
 
 sp_head *
-sp_find_routine(THD *thd, stored_procedure_type type, sp_name *name,
+sp_find_routine(THD *thd, stored_procedure_type type, const sp_name *name,
                 sp_cache **cp, bool cache_only)
 {
   sp_head *sp;
@@ -1847,7 +1847,6 @@ sp_exist_routines(THD *thd, TABLE_LIST *routines, bool is_proc)
     lex_db.str= thd->strmake(routine->db, lex_db.length);
     lex_name.str= thd->strmake(routine->table_name, lex_name.length);
     name= new sp_name(lex_db, lex_name, true);
-    name->init_qname(thd);
     sp_object_found= is_proc ? sp_find_routine(thd, TYPE_ENUM_PROCEDURE,
                                                name, &thd->sp_proc_cache,
                                                FALSE) != NULL :
@@ -1952,7 +1951,7 @@ bool sp_add_used_routine(Query_tables_list *prelocking_ctx, Query_arena *arena,
 */
 
 void sp_add_used_routine(Query_tables_list *prelocking_ctx, Query_arena *arena,
-                         sp_name *rt, enum stored_procedure_type rt_type)
+                         const sp_name *rt, enum stored_procedure_type rt_type)
 {
   MDL_key key((rt_type == TYPE_ENUM_FUNCTION) ? MDL_key::FUNCTION :
                                                 MDL_key::PROCEDURE,
@@ -2125,7 +2124,8 @@ int sp_cache_routine(THD *thd, Sroutine_hash_entry *rt,
   @retval non-0  Error while loading routine from mysql,proc table.
 */
 
-int sp_cache_routine(THD *thd, enum stored_procedure_type type, sp_name *name,
+int sp_cache_routine(THD *thd, enum stored_procedure_type type,
+                     const sp_name *name,
                      bool lookup_only, sp_head **sp)
 {
   int ret= 0;
@@ -2174,20 +2174,8 @@ int sp_cache_routine(THD *thd, enum stored_procedure_type type, sp_name *name,
       */
       if (! thd->is_error())
       {
-        /*
-          SP allows full NAME_LEN chars thus he have to allocate enough
-          size in bytes. Otherwise there is stack overrun could happen
-          if multibyte sequence is `name`. `db` is still safe because the
-          rest of the server checks agains NAME_LEN bytes and not chars.
-          Hence, the overrun happens only if the name is in length > 32 and
-          uses multibyte (cyrillic, greek, etc.)
-        */
-        char n[NAME_LEN*2+2];
-
-        /* m_qname.str is not always \0 terminated */
-        memcpy(n, name->m_qname.str, name->m_qname.length);
-        n[name->m_qname.length]= '\0';
-        my_error(ER_SP_PROC_TABLE_CORRUPT, MYF(0), n, ret);
+        my_error(ER_SP_PROC_TABLE_CORRUPT, MYF(0),
+                 ErrConvDQName(name).ptr(), ret);
       }
       break;
   }
@@ -2244,7 +2232,10 @@ show_create_sp(THD *thd, String *buf,
   buf->append(')');
   if (type == TYPE_ENUM_FUNCTION)
   {
-    buf->append(STRING_WITH_LEN(" RETURNS "));
+    if (sql_mode & MODE_ORACLE)
+      buf->append(STRING_WITH_LEN(" RETURN "));
+    else
+      buf->append(STRING_WITH_LEN(" RETURNS "));
     buf->append(returns, returnslen);
   }
   buf->append('\n');
@@ -2321,7 +2312,6 @@ sp_load_for_information_schema(THD *thd, TABLE *proc_table, String *db,
   sp_name_str.str= name->c_ptr();
   sp_name_str.length= name->length();
   sp_name sp_name_obj(sp_db_str, sp_name_str, true);
-  sp_name_obj.init_qname(thd);
   *free_sp_head= 0;
   if ((sp= sp_cache_lookup(spc, &sp_name_obj)))
   {

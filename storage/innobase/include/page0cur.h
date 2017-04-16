@@ -36,8 +36,6 @@ Created 10/4/1994 Heikki Tuuri
 #include "gis0type.h"
 
 
-#define PAGE_CUR_ADAPT
-
 #ifdef UNIV_DEBUG
 /*********************************************************//**
 Gets pointer to the page frame where the cursor is positioned.
@@ -135,7 +133,7 @@ void
 page_cur_move_to_prev(
 /*==================*/
 	page_cur_t*	cur);	/*!< in/out: cursor; not before first */
-#ifndef UNIV_HOTBACKUP
+
 /***********************************************************//**
 Inserts a record next to page cursor. Returns pointer to inserted record if
 succeed, i.e., enough space available, NULL otherwise. The cursor stays at
@@ -163,7 +161,6 @@ page_cur_tuple_insert(
 				/*!< in: if true, then use record cache to
 				hold the tuple converted record. */
 	MY_ATTRIBUTE((nonnull(1,2,3,4,5), warn_unused_result));
-#endif /* !UNIV_HOTBACKUP */
 /***********************************************************//**
 Inserts a record next to page cursor. Returns pointer to inserted record if
 succeed, i.e., enough space available, NULL otherwise. The cursor stays at
@@ -248,7 +245,7 @@ page_cur_delete_rec(
 	const ulint*		offsets,/*!< in: rec_get_offsets(
 					cursor->rec, index) */
 	mtr_t*			mtr);	/*!< in: mini-transaction handle */
-#ifndef UNIV_HOTBACKUP
+
 /** Search the right position for a page cursor.
 @param[in] block buffer block
 @param[in] index index tree
@@ -298,6 +295,7 @@ page_cur_search_with_match(
 					fields in lower limit record */
 	page_cur_t*		cursor,	/*!< out: page cursor */
 	rtr_info_t*		rtr_info);/*!< in/out: rtree search stack */
+#ifdef BTR_CUR_HASH_ADAPT
 /** Search the right position for a page cursor.
 @param[in]	block			buffer block
 @param[in]	index			index tree
@@ -323,6 +321,7 @@ page_cur_search_with_match_bytes(
 	ulint*			ilow_matched_fields,
 	ulint*			ilow_matched_bytes,
 	page_cur_t*		cursor);
+#endif /* BTR_CUR_HASH_ADAPT */
 /***********************************************************//**
 Positions a page cursor on a randomly chosen user record on a page. If there
 are no user records, sets the cursor on the infimum record. */
@@ -331,7 +330,6 @@ page_cur_open_on_rnd_user_rec(
 /*==========================*/
 	buf_block_t*	block,	/*!< in: page */
 	page_cur_t*	cursor);/*!< out: page cursor */
-#endif /* !UNIV_HOTBACKUP */
 /***********************************************************//**
 Parses a log record of a record insert on a page.
 @return end of log record or NULL */
@@ -389,8 +387,6 @@ struct page_cur_t{
 	buf_block_t*	block;	/*!< pointer to the block containing rec */
 };
 
-#ifndef UNIV_NONINL
 #include "page0cur.ic"
-#endif
 
 #endif

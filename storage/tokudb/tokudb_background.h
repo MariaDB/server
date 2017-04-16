@@ -7,7 +7,7 @@ This file is part of TokuDB
 
 Copyright (c) 2006, 2015, Percona and/or its affiliates. All rights reserved.
 
-    TokuDBis is free software: you can redistribute it and/or modify
+    TokuDB is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License, version 2,
     as published by the Free Software Foundation.
 
@@ -58,13 +58,20 @@ public:
         // (or jobs) usually used to find jobs to cancel
         virtual const char* key() = 0;
 
-        // method to get info for information schema, 255 chars per buffer
-        virtual void status(
-            char* database,
-            char* table,
-            char* type,
-            char* params,
-            char* status) = 0;
+        // method to obtain the database name the job is scheduled on
+        virtual const char* database() = 0;
+
+        // method to obtain the table name the job is scheduled on
+        virtual const char* table() = 0;
+
+        // method to obtain the type of job
+        virtual const char* type() = 0;
+
+        // method to obtain a stringized list of job parameters
+        virtual const char* parameters() = 0;
+
+        // method to obtain a sting identifying the current status of the job
+        virtual const char* status() = 0;
 
         inline bool running() const;
 
@@ -99,17 +106,7 @@ public:
     };
 
     // pfn for iterate callback
-    typedef void (*pfn_iterate_t)(
-        uint64_t,
-        const char*,
-        const char*,
-        const char*,
-        const char*,
-        const char*,
-        bool,
-        time_t,
-        time_t,
-        void*);
+    typedef void (*pfn_iterate_t)(class job_t*, void*);
 
 public:
     void* operator new(size_t sz);
@@ -144,6 +141,11 @@ public:
     // data passed when the job was scheduled
     void iterate_jobs(pfn_iterate_t callback, void* extra) const;
 
+    // lock the bjm, this prevents anyone from running, cancelling or iterating
+    // jobs in the bjm.
+    inline void lock();
+    inline void unlock();
+
 private:
     static void* thread_func(void* v);
 
@@ -169,6 +171,15 @@ extern job_manager_t*    _job_manager;
 
 bool initialize();
 bool destroy();
+
+inline void job_manager_t::lock() {
+    assert_debug(!_mutex.is_owned_by_me());
+    _mutex.lock();
+}
+inline void job_manager_t::unlock() {
+    assert_debug(_mutex.is_owned_by_me());
+    _mutex.unlock();
+}
 
 inline void job_manager_t::job_t::run() {
     if (!_cancelled) {

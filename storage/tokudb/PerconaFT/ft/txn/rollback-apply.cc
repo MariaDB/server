@@ -169,7 +169,7 @@ int toku_rollback_commit(TOKUTXN txn, LSN lsn) {
             txn->roll_info.spilled_rollback_head      = ROLLBACK_NONE; 
             txn->roll_info.spilled_rollback_tail      = ROLLBACK_NONE; 
         }
-        // if we're commiting a child rollback, put its entries into the parent
+        // if we're committing a child rollback, put its entries into the parent
         // by pinning both child and parent and then linking the child log entry
         // list to the end of the parent log entry list.
         if (txn_has_current_rollback_log(txn)) {

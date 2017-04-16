@@ -2259,3 +2259,27 @@ EXECUTE stmt3;
 EXECUTE stmt3;
 DEALLOCATE PREPARE stmt3;
 DROP TEMPORARY TABLES tm, t1;
+
+--echo #
+--echo # Start of 10.1 tests
+--echo #
+
+--echo #
+--echo # MDEV-10702 Crash in SET STATEMENT FOR EXECUTE
+--echo #
+CREATE TABLE t1 (a INT);
+PREPARE stmt FROM 'INSERT INTO t1 VALUES (@@max_sort_length)';
+SET STATEMENT max_sort_length=2048 FOR EXECUTE stmt;
+SELECT * FROM t1;
+CREATE TRIGGER tr1 BEFORE INSERT ON t1 FOR EACH ROW SET NEW.a=NEW.a + 1;
+SET STATEMENT max_sort_length=2048 FOR EXECUTE stmt;
+SELECT * FROM t1;
+DROP TRIGGER tr1;
+SET STATEMENT max_sort_length=2048 FOR EXECUTE stmt;
+SELECT * FROM t1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # End of 10.1 tests
+--echo #

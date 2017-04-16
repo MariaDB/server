@@ -1,0 +1,21 @@
+create table t1 (a int, b int default (a+1));
+insert t1 values (1,10), (2,20), (3,30);
+connect  con1, localhost, root;
+select a,b,default(b) from t1;
+a	b	default(b)
+1	10	2
+2	20	3
+3	30	4
+set debug_sync='after_Item_default_value_calculate WAIT_FOR go';
+select a,b,default(b) from t1;
+connection default;
+set debug_sync='ha_write_row_start SIGNAL go';
+insert t1 values (100,default(b));
+connection con1;
+a	b	default(b)
+1	10	2
+2	20	3
+3	30	4
+connection default;
+drop table t1;
+set debug_sync='RESET';

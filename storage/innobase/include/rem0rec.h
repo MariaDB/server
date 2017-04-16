@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -458,7 +459,7 @@ rec_get_offsets_func(
 					 (ULINT_UNDEFINED if all fields) */
 #ifdef UNIV_DEBUG
 	const char*		file,	/*!< in: file name where called */
-	ulint			line,	/*!< in: line number where called */
+	unsigned		line,	/*!< in: line number where called */
 #endif /* UNIV_DEBUG */
 	mem_heap_t**		heap)	/*!< in/out: memory heap */
 #ifdef UNIV_DEBUG
@@ -773,7 +774,6 @@ rec_copy(
 	const rec_t*	rec,
 	const ulint*	offsets);
 
-#ifndef UNIV_HOTBACKUP
 /**********************************************************//**
 Determines the size of a data tuple prefix in a temporary file.
 @return total size */
@@ -846,7 +846,6 @@ rec_fold(
 	ulint		n_bytes,
 	index_id_t	tree_id)
 	MY_ATTRIBUTE((warn_unused_result));
-#endif /* !UNIV_HOTBACKUP */
 /*********************************************************//**
 Builds a physical record out of a data tuple and
 stores it into the given buffer.
@@ -911,7 +910,6 @@ rec_get_converted_size(
 	const dtuple_t*	dtuple,	/*!< in: data tuple */
 	ulint		n_ext)	/*!< in: number of externally stored columns */
 	MY_ATTRIBUTE((warn_unused_result, nonnull));
-#ifndef UNIV_HOTBACKUP
 /**************************************************************//**
 Copies the first n fields of a physical record to a data tuple.
 The fields are copied to the memory heap. */
@@ -925,7 +923,6 @@ rec_copy_prefix_to_dtuple(
 						to copy */
 	mem_heap_t*		heap)		/*!< in: memory heap */
 	MY_ATTRIBUTE((nonnull));
-#endif /* !UNIV_HOTBACKUP */
 /***************************************************************//**
 Validates the consistency of a physical record.
 @return TRUE if ok */
@@ -942,17 +939,6 @@ rec_print_old(
 /*==========*/
 	FILE*		file,	/*!< in: file where to print */
 	const rec_t*	rec)	/*!< in: physical record */
-	MY_ATTRIBUTE((nonnull));
-#ifndef UNIV_HOTBACKUP
-/***************************************************************//**
-Prints a physical record in ROW_FORMAT=COMPACT.  Ignores the
-record header. */
-void
-rec_print_comp(
-/*===========*/
-	FILE*		file,	/*!< in: file where to print */
-	const rec_t*	rec,	/*!< in: physical record */
-	const ulint*	offsets)/*!< in: array returned by rec_get_offsets() */
 	MY_ATTRIBUTE((nonnull));
 /***************************************************************//**
 Prints a spatial index record. */
@@ -1104,7 +1090,6 @@ rec_get_trx_id(
 	const dict_index_t*	index)	/*!< in: clustered index */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 # endif /* UNIV_DEBUG */
-#endif /* UNIV_HOTBACKUP */
 
 /* Maximum lengths for the data in a physical record if the offsets
 are given in one byte (resp. two byte) format. */
@@ -1125,8 +1110,6 @@ int wsrep_rec_get_foreign_key(
 	ibool		new_protocol); /* in: protocol > 1 */
 #endif /* WITH_WSREP */
 
-#ifndef UNIV_NONINL
 #include "rem0rec.ic"
-#endif
 
 #endif /* rem0rec_h */

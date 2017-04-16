@@ -676,6 +676,7 @@ INSERT INTO t(a) VALUES (1);
 # Before index was created, this query returned the expected one match.
 SELECT * FROM t WHERE c = '0';
 # Adding an index sometimes crashed, other times populated it with garbage ...
+SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 ALTER TABLE t ADD UNIQUE INDEX (c(1));
 # ... so that this query found no match in the index.
 SELECT * FROM t WHERE c = '0';
@@ -689,8 +690,9 @@ CREATE TABLE t (a INT, b INT, h VARCHAR(10));
 INSERT INTO t VALUES (12, 3, "ss");
 INSERT INTO t VALUES (13, 4, "ss");
 INSERT INTO t VALUES (14, 0, "ss");
+SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 ALTER TABLE t ADD c INT GENERATED ALWAYS AS (a/b) VIRTUAL;
-#--error ER_DIVISION_BY_ZERO
+--error ER_DIVISION_BY_ZERO
 CREATE INDEX idx ON t(c);
 CALL mtr.add_suppression("\\[Warning\\] InnoDB: Compute virtual column values failed");
 DROP TABLE t;

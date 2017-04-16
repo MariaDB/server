@@ -13,7 +13,7 @@ CREATE TABLE articles (
 id INT UNSIGNED AUTO_INCREMENT NOT NULL PRIMARY KEY,
 title VARCHAR(200)
 ) ENGINE=InnoDB;
-INSERT INTO articles (title) VALUES
+INSERT IGNORE INTO articles (title) VALUES
 ('love'),('LOVE'),('lòve'),('LÒVE'),('löve'),('LÖVE'),('løve'),('LØVE'),
 ('lṓve'),('LṒVE');
 CREATE FULLTEXT INDEX ft_idx ON articles(title);
@@ -42,7 +42,7 @@ CREATE TABLE articles (
 id INT UNSIGNED AUTO_INCREMENT NOT NULL PRIMARY KEY,
 title VARCHAR(200)
 ) ENGINE=InnoDB DEFAULT CHARACTER SET latin1 COLLATE latin1_general_ci;
-INSERT INTO articles (title) VALUES
+INSERT IGNORE INTO articles (title) VALUES
 ('love'),('LOVE'),('lòve'),('LÒVE'),('löve'),('LÖVE'),('løve'),('LØVE'),
 ('lṓve'),('LṒVE');
 CREATE FULLTEXT INDEX ft_idx ON articles(title);
@@ -72,7 +72,7 @@ CREATE TABLE articles (
 id INT UNSIGNED AUTO_INCREMENT NOT NULL PRIMARY KEY,
 title VARCHAR(200)
 ) ENGINE=InnoDB DEFAULT CHARACTER SET latin1 COLLATE latin1_spanish_ci;
-INSERT INTO articles (title) VALUES
+INSERT IGNORE INTO articles (title) VALUES
 ('love'),('LOVE'),('lòve'),('LÒVE'),('löve'),('LÖVE'),('løve'),('LØVE'),
 ('lṓve'),('LṒVE');
 CREATE FULLTEXT INDEX ft_idx ON articles(title);
@@ -233,7 +233,7 @@ CREATE TABLE articles (
 id INT UNSIGNED AUTO_INCREMENT NOT NULL PRIMARY KEY,
 title VARCHAR(200)
 ) ENGINE=InnoDB;
-INSERT INTO articles (title) VALUES
+INSERT IGNORE INTO articles (title) VALUES
 ('love'),('LOVE'),('lòve'),('LÒVE'),('löve'),('LÖVE'),('løve'),('LØVE'),
 ('lṓve'),('LṒVE');
 CREATE FULLTEXT INDEX ft_idx ON articles(title);
@@ -257,7 +257,7 @@ AGAINST ('love' IN NATURAL LANGUAGE MODE);
 id	title
 # Shutdown and restart mysqld
 SET NAMES utf8;
-INSERT INTO articles (title) VALUES
+INSERT IGNORE INTO articles (title) VALUES
 ('love'),('LOVE'),('lòve'),('LÒVE'),('löve'),('LÖVE'),('løve'),('LØVE'),
 ('lṓve'),('LṒVE');
 SELECT * FROM articles WHERE MATCH (title)
@@ -273,7 +273,7 @@ CREATE TABLE articles (
 id INT UNSIGNED AUTO_INCREMENT NOT NULL PRIMARY KEY,
 title VARCHAR(200)
 ) ENGINE=InnoDB;
-INSERT INTO articles (title) VALUES
+INSERT IGNORE INTO articles (title) VALUES
 ('love'),('LOVE'),('lòve'),('LÒVE'),('löve'),('LÖVE'),('løve'),('LØVE'),
 ('lṓve'),('LṒVE');
 CREATE FULLTEXT INDEX ft_idx ON articles(title);
@@ -298,7 +298,7 @@ id	title
 DROP TABLE user_stopword;
 # Shutdown and restart mysqld
 SET NAMES utf8;
-INSERT INTO articles (title) VALUES
+INSERT IGNORE INTO articles (title) VALUES
 ('love'),('LOVE'),('lòve'),('LÒVE'),('löve'),('LÖVE'),('løve'),('LØVE'),
 ('lṓve'),('LṒVE');
 SELECT * FROM articles WHERE MATCH (title)
@@ -316,6 +316,3 @@ id	title
 13	lòve
 14	LÒVE
 DROP TABLE articles;
-SET SESSION innodb_ft_enable_stopword=1;
-SET GLOBAL innodb_ft_server_stopword_table=default;
-SET SESSION innodb_ft_user_stopword_table=default;

@@ -152,12 +152,8 @@ SELECT @@query_cache_limit = @@global.query_cache_limit;
 --Error ER_GLOBAL_VARIABLE
 SET query_cache_limit = 1;
 SELECT @@query_cache_limit;
---Error ER_PARSE_ERROR
-SET local.query_cache_limit = 1;
 --Error ER_UNKNOWN_TABLE
 SELECT local.query_cache_limit;
---Error ER_PARSE_ERROR
-SET global.query_cache_limit = 1;
 --Error ER_UNKNOWN_TABLE
 SELECT global.query_cache_limit;
 --Error ER_BAD_FIELD_ERROR

@@ -2290,7 +2290,7 @@ CREATE TABLE t3(a int) ENGINE = MERGE UNION(t1, t2);
 CREATE TRIGGER tr1 AFTER INSERT ON t3 FOR EACH ROW CALL foo();
 SHOW CREATE TRIGGER tr1;
 Trigger	sql_mode	SQL Original Statement	character_set_client	collation_connection	Database Collation	Created
-tr1	NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` TRIGGER tr1 AFTER INSERT ON t3 FOR EACH ROW CALL foo()	latin1	latin1_swedish_ci	latin1_swedish_ci	#
+tr1	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` TRIGGER tr1 AFTER INSERT ON t3 FOR EACH ROW CALL foo()	latin1	latin1_swedish_ci	latin1_swedish_ci	#
 DROP TRIGGER tr1;
 DROP TABLE t1, t2, t3;
 #
@@ -3862,6 +3862,23 @@ test.m1	repair	error	Corrupt
 # Clean-up.
 drop tables m1, t1, t4;
 drop view t3;
+#
+# MDEV-10424 - Assertion `ticket == __null' failed in
+#              MDL_request::set_type
+#
+CREATE TABLE t1 (f1 INT) ENGINE=MyISAM;
+CREATE TABLE tmerge (f1 INT) ENGINE=MERGE UNION=(t1);
+PREPARE stmt FROM "ANALYZE TABLE tmerge, t1";
+EXECUTE stmt;
+Table	Op	Msg_type	Msg_text
+test.tmerge	analyze	note	The storage engine for the table doesn't support analyze
+test.t1	analyze	status	Table is already up to date
+EXECUTE stmt;
+Table	Op	Msg_type	Msg_text
+test.tmerge	analyze	note	The storage engine for the table doesn't support analyze
+test.t1	analyze	status	Table is already up to date
+DEALLOCATE PREPARE stmt;
+DROP TABLE t1, tmerge;
 End of 5.5 tests
 #
 # Additional coverage for refactoring which is made as part

@@ -1,0 +1,8 @@
+--source include/have_tokudb.inc
+
+SET @default_storage_engine_old = @@session.default_storage_engine;
+SET SESSION default_storage_engine = TOKUDB;
+
+--source extra/table_index_statistics.inc
+
+SET SESSION default_storage_engine = @default_storage_engine_old;

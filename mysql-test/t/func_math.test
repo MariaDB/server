@@ -529,7 +529,7 @@ as foo;
 --echo #            my_gcvt: Assertion `width > 0 && to != ((void *)0)' failed
 --echo #
 CREATE TABLE t1(a char(0));
-INSERT INTO t1 (SELECT -pi());
+INSERT IGNORE INTO t1 (SELECT -pi());
 DROP TABLE t1;
 
 --echo #
@@ -608,3 +608,19 @@ select 0=0, 0=-0, 0.0= -0.0, 0.0 = -(0.0), 0.0E1=-0.0E1, 0.0E1=-(0.0E1);
 --echo #
 
 select CRC32(NULL), CRC32(''), CRC32('MySQL'), CRC32('mysql'), CRC32('01234567'), CRC32('012345678');
+
+
+--echo #
+--echo # Start of 10.3 tests
+--echo #
+
+--echo #
+--echo # MDEV-12000 ROUND(expr,const_expr_returning_NULL) creates DOUBLE(0,0)
+--echo #
+
+CREATE OR REPLACE TABLE t1 AS SELECT
+  ROUND(10,NULL) AS c1,
+  ROUND(10.1,NULL) AS c2,
+  ROUND(10e0,NULL) AS c3;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;

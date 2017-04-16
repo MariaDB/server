@@ -167,8 +167,7 @@ void sp_cache_insert(sp_cache **cp, sp_head *sp)
   }
   /* Reading a ulong variable with no lock. */
   sp->set_sp_cache_version(Cversion);
-  DBUG_PRINT("info",("sp_cache: inserting: %.*s", (int) sp->m_qname.length,
-                     sp->m_qname.str));
+  DBUG_PRINT("info",("sp_cache: inserting: %s", ErrConvDQName(sp).ptr()));
   c->insert(sp);
   *cp= c;                                       // Update *cp if it was NULL
 }
@@ -190,12 +189,13 @@ void sp_cache_insert(sp_cache **cp, sp_head *sp)
     NULL if the routine not found.
 */
 
-sp_head *sp_cache_lookup(sp_cache **cp, sp_name *name)
+sp_head *sp_cache_lookup(sp_cache **cp, const sp_name *name)
 {
+  char buf[NAME_LEN * 2 + 2];
   sp_cache *c= *cp;
   if (! c)
     return NULL;
-  return c->lookup(name->m_qname.str, name->m_qname.length);
+  return c->lookup(buf, name->make_qname(buf, sizeof(buf)));
 }
 
 

@@ -82,7 +82,7 @@ int (*_my_b_encr_write)(IO_CACHE *info,const uchar *Buffer,size_t Count)= 0;
     info		IO_CACHE handler
 
   NOTES
-    This is called on automaticly on init or reinit of IO_CACHE
+    This is called on automatically on init or reinit of IO_CACHE
     It must be called externally if one moves or copies an IO_CACHE
     object.
 */
@@ -166,7 +166,7 @@ init_functions(IO_CACHE* info)
 			If == 0 then use my_default_record_cache_size
     type		Type of cache
     seek_offset		Where cache should start reading/writing
-    use_async_io	Set to 1 of we should use async_io (if avaiable)
+    use_async_io	Set to 1 of we should use async_io (if available)
     cache_myflags	Bitmap of different flags
 			MY_WME | MY_FAE | MY_NABP | MY_FNABP |
 			MY_DONT_CHECK_FILESIZE
@@ -397,8 +397,9 @@ void end_slave_io_cache(IO_CACHE *cache)
 void seek_io_cache(IO_CACHE *cache, my_off_t needed_offset)
 {
   my_off_t cached_data_start= cache->pos_in_file;
-  my_off_t cached_data_end= cache->pos_in_file + (cache->read_pos -
+  my_off_t cached_data_end= cache->pos_in_file + (cache->read_end -
                                                   cache->buffer);
+
   if (needed_offset >= cached_data_start &&
       needed_offset < cached_data_end)
   {
@@ -416,11 +417,17 @@ void seek_io_cache(IO_CACHE *cache, my_off_t needed_offset)
       The offset we're seeking to is not in the buffer.
       - Set the buffer to be exhausted.
       - Make the next read to a mysql_file_seek() call to the required 
-        offset (but still use aligned reads).
+        offset.
+      TODO(cvicentiu, spetrunia) properly implement aligned seeks for
+      efficiency.
     */
-    cache->read_pos= cache->read_end;
     cache->seek_not_done= 1;
-    cache->pos_in_file= (needed_offset / IO_SIZE) * IO_SIZE;
+    cache->pos_in_file= needed_offset;
+    /* When reading it must appear as if we've started from  the offset
+       that we've seeked here. We must let _my_b_cache_read assume that
+       by implying "no reading starting from pos_in_file" has happened. */
+    cache->read_pos= cache->buffer;
+    cache->read_end= cache->buffer;
   }
 }
 
@@ -439,7 +446,7 @@ static void my_aiowait(my_aio_result *result)
 	if (errno == EINTR)
 	  continue;
 	DBUG_PRINT("error",("No aio request, error: %d",errno));
-	result->pending=0;			/* Assume everythings is ok */
+	result->pending=0;			/* Assume everything is ok */
 	break;
       }
       ((my_aio_result*) tmp)->pending=0;
@@ -1945,8 +1952,6 @@ int my_b_flush_io_cache(IO_CACHE *info, int need_append_buffer_lock)
 
     if ((length=(size_t) (info->write_pos - info->write_buffer)))
     {
-      info->write_end= (info->write_buffer + info->buffer_length -
-                        ((info->pos_in_file + length) & (IO_SIZE - 1)));
       if (append_cache)
       {
 
@@ -1968,6 +1973,8 @@ int my_b_flush_io_cache(IO_CACHE *info, int need_append_buffer_lock)
 
         set_if_bigger(info->end_of_file, info->pos_in_file);
       }
+      info->write_end= (info->write_buffer + info->buffer_length -
+                        ((info->pos_in_file + length) & (IO_SIZE - 1)));
       info->write_pos= info->write_buffer;
       ++info->disk_writes;
       UNLOCK_APPEND_BUFFER;
@@ -1996,6 +2003,7 @@ int my_b_flush_io_cache(IO_CACHE *info, int need_append_buffer_lock)
     It's currently safe to call this if one has called init_io_cache()
     on the 'info' object, even if init_io_cache() failed.
     This function is also safe to call twice with the same handle.
+    Note that info->file is not reset as the caller may still use ut for my_close()
 
   RETURN
    0  ok
@@ -2025,10 +2033,12 @@ int end_io_cache(IO_CACHE *info)
   if (info->type == SEQ_READ_APPEND)
   {
     /* Destroy allocated mutex */
-    info->type= TYPE_NOT_SET;
     mysql_mutex_destroy(&info->append_buffer_lock);
   }
   info->share= 0;
+  info->type= TYPE_NOT_SET;                  /* Ensure that flush_io_cache() does nothing */
+  info->write_end= 0;                        /* Ensure that my_b_write() fails */
+  info->write_function= 0;                   /* my_b_write will crash if used */
   DBUG_RETURN(error);
 } /* end_io_cache */
 
@@ -2116,7 +2126,7 @@ int main(int argc, char** argv)
   /* check correctness of tests */
   if (total_bytes != status.st_size)
   {
-    fprintf(stderr,"Not the same number of bytes acutally  in file as bytes \
+    fprintf(stderr,"Not the same number of bytes actually  in file as bytes \
 supposedly written\n");
     error=1;
   }

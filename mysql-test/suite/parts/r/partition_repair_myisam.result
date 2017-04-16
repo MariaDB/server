@@ -270,8 +270,8 @@ PARTITIONS 7;
 SELECT COUNT(*) FROM t1_will_crash;
 COUNT(*)
 33
-SELECT (b % 7) AS `partition`, COUNT(*) AS rows FROM t1_will_crash GROUP BY (b % 7);
-partition	rows
+SELECT (b % 7) AS `partition`, COUNT(*) AS rows_cnt FROM t1_will_crash GROUP BY (b % 7);
+partition	rows_cnt
 0	2
 1	5
 2	5
@@ -343,8 +343,8 @@ test.t1_will_crash	repair	status	OK
 SELECT COUNT(*) FROM t1_will_crash;
 COUNT(*)
 29
-SELECT (b % 7) AS `partition`, COUNT(*) AS rows FROM t1_will_crash GROUP BY (b % 7);
-partition	rows
+SELECT (b % 7) AS `partition`, COUNT(*) AS rows_cnt FROM t1_will_crash GROUP BY (b % 7);
+partition	rows_cnt
 1	4
 2	5
 3	5
@@ -483,8 +483,8 @@ test.t1_will_crash	repair	status	OK
 SELECT COUNT(*) FROM t1_will_crash;
 COUNT(*)
 29
-SELECT (b % 7) AS `partition`, COUNT(*) AS rows FROM t1_will_crash GROUP BY (b % 7);
-partition	rows
+SELECT (b % 7) AS `partition`, COUNT(*) AS rows_cnt FROM t1_will_crash GROUP BY (b % 7);
+partition	rows_cnt
 1	4
 2	4
 3	5

@@ -1,0 +1,15 @@
+SET @start_value = @@global.ROCKSDB_CREATE_CHECKPOINT;
+SET @@global.ROCKSDB_CREATE_CHECKPOINT = 'TMP/abc';
+SELECT @@global.ROCKSDB_CREATE_CHECKPOINT;
+@@global.ROCKSDB_CREATE_CHECKPOINT
+
+SET @@global.ROCKSDB_CREATE_CHECKPOINT = DEFAULT;
+SET @@global.ROCKSDB_CREATE_CHECKPOINT = 'TMP/def';
+SELECT @@global.ROCKSDB_CREATE_CHECKPOINT;
+@@global.ROCKSDB_CREATE_CHECKPOINT
+
+SET @@global.ROCKSDB_CREATE_CHECKPOINT = DEFAULT;
+SET @@session.ROCKSDB_CREATE_CHECKPOINT = 444;
+ERROR HY000: Variable 'rocksdb_create_checkpoint' is a GLOBAL variable and should be set with SET GLOBAL
+SET @@global.ROCKSDB_CREATE_CHECKPOINT = @start_value;
+ERROR HY000: RocksDB: Failed to create checkpoint directory. status 5 IO error: .tmp: No such file or directory

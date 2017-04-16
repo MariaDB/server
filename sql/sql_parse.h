@@ -33,7 +33,8 @@ enum enum_mysql_completiontype {
   COMMIT_RELEASE=-1,   COMMIT=0,    COMMIT_AND_CHAIN=6
 };
 
-extern "C" int test_if_data_home_dir(const char *dir);
+extern "C" int path_starts_from_data_home_dir(const char *dir);
+int test_if_data_home_dir(const char *dir);
 int error_if_data_home_dir(const char *path, const char *what);
 my_bool net_allocate_new_packet(NET *net, void *thd, uint my_flags);
 
@@ -77,6 +78,7 @@ bool check_string_byte_length(LEX_STRING *str, uint err_msg,
 bool check_string_char_length(LEX_STRING *str, uint err_msg,
                               uint max_char_length, CHARSET_INFO *cs,
                               bool no_error);
+bool check_ident_length(LEX_STRING *ident);
 CHARSET_INFO* merge_charset_and_collation(CHARSET_INFO *cs, CHARSET_INFO *cl);
 CHARSET_INFO *find_bin_collation(CHARSET_INFO *cs);
 bool check_host_name(LEX_STRING *str);
@@ -91,7 +93,7 @@ void mysql_init_select(LEX *lex);
 void mysql_parse(THD *thd, char *rawbuf, uint length,
                  Parser_state *parser_state, bool is_com_multi,
                  bool is_next_command);
-bool mysql_new_select(LEX *lex, bool move_down);
+bool mysql_new_select(LEX *lex, bool move_down, SELECT_LEX *sel);
 void create_select_for_variable(const char *var_name);
 void create_table_set_open_action_and_adjust_tables(LEX *lex);
 void mysql_init_multi_delete(LEX *lex);

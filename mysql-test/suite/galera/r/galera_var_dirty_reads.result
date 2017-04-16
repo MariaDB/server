@@ -6,6 +6,10 @@ INSERT INTO t1 VALUES(1);
 SELECT * FROM t1;
 i
 1
+create user user1;
+grant all privileges on *.* to user1;
+create user user2;
+grant all privileges on *.* to user2;
 SET @@global.wsrep_cluster_address = '';
 SET @@session.wsrep_dirty_reads=OFF;
 SET SESSION wsrep_sync_wait=0;
@@ -17,15 +21,87 @@ Variable_name	Value
 wsrep_cluster_status	non-Primary
 SELECT * FROM t1;
 ERROR 08S01: WSREP has not yet prepared node for application use
+SELECT @@wsrep_dirty_reads;
+@@wsrep_dirty_reads
+0
+SELECT 2;
+2
+2
+SELECT 2+2 FROM DUAL;
+2+2
+4
 SET @@session.wsrep_dirty_reads=ON;
 SELECT * FROM t1;
 i
 1
+connect  con1, localhost, user1,,test,$NODE_MYPORT_2,$NODE_MYSOCK_2;
+SET SESSION wsrep_sync_wait=0;
+set session wsrep_dirty_reads=1;
+prepare stmt_show from 'select 1';
+prepare stmt_select from 'select * from t1';
+prepare stmt_insert from 'insert into t1 values(1)';
+set session wsrep_dirty_reads=0;
+execute stmt_show;
+ERROR 08S01: WSREP has not yet prepared node for application use
+execute stmt_select;
+ERROR 08S01: WSREP has not yet prepared node for application use
+execute stmt_insert;
+ERROR 08S01: WSREP has not yet prepared node for application use
+SET wsrep_dirty_reads=ON;
+select @@session.wsrep_dirty_reads;
+@@session.wsrep_dirty_reads
+1
+execute stmt_show;
+1
+1
+execute stmt_select;
+i
+1
+execute stmt_insert;
+ERROR 08S01: WSREP has not yet prepared node for application use
+SET @@global.wsrep_dirty_reads=ON;
+connect  con2, localhost, user2,,test,$NODE_MYPORT_2,$NODE_MYSOCK_2;
+select @@session.wsrep_dirty_reads;
+@@session.wsrep_dirty_reads
+1
+prepare stmt_show from 'select 1';
+prepare stmt_select from 'select * from t1';
+prepare stmt_insert from 'insert into t1 values(1)';
+execute stmt_show;
+1
+1
+execute stmt_select;
+i
+1
+execute stmt_insert;
+ERROR 08S01: WSREP has not yet prepared node for application use
+SET SESSION wsrep_sync_wait=1;
+execute stmt_show;
+1
+1
+execute stmt_select;
+i
+1
+execute stmt_insert;
+ERROR 08S01: WSREP has not yet prepared node for application use
+SET SESSION wsrep_sync_wait=7;
+execute stmt_show;
+1
+1
+execute stmt_select;
+i
+1
+execute stmt_insert;
+ERROR 08S01: WSREP has not yet prepared node for application use
+connection node_2;
+SET @@global.wsrep_dirty_reads=OFF;
 connection node_1;
 SELECT * FROM t1;
 i
 1
 DROP TABLE t1;
+drop user user1;
+drop user user2;
 disconnect node_2;
 disconnect node_1;
 # End of test

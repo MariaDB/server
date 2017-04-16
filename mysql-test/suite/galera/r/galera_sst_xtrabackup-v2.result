@@ -277,7 +277,7 @@ INSERT INTO t1 VALUES ('node2_committed_before');
 INSERT INTO t1 VALUES ('node2_committed_before');
 INSERT INTO t1 VALUES ('node2_committed_before');
 COMMIT;
-SET GLOBAL debug = 'd,sync.alter_opened_table';
+SET GLOBAL debug_dbug = 'd,sync.alter_opened_table';
 ALTER TABLE t1 ADD COLUMN f2 INTEGER;
 SET wsrep_sync_wait = 0;
 Killing server ...
@@ -356,3 +356,4 @@ COUNT(*) = 0
 DROP TABLE t1;
 COMMIT;
 SET AUTOCOMMIT=ON;
+SET GLOBAL debug_dbug = $debug_orig;

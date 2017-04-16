@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2013, 2015, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -18,7 +19,7 @@ this program; if not, write to the Free Software Foundation, Inc.,
 
 /**************************************************//**
 @file fsp/fsp0space.cc
-General shared tablespace implementation.
+Shared tablespace implementation.
 
 Created 2012-11-16 by Sunny Bains as srv/srv0space.cc
 *******************************************************/
@@ -27,13 +28,9 @@ Created 2012-11-16 by Sunny Bains as srv/srv0space.cc
 
 #include "fsp0space.h"
 #include "fsp0sysspace.h"
-#ifndef UNIV_HOTBACKUP
 #include "fsp0fsp.h"
 #include "os0file.h"
-#endif /* !UNIV_HOTBACKUP */
-
 #include "my_sys.h"
-
 
 /** Check if two tablespaces have common data file names.
 @param other_space	Tablespace to check against this.
@@ -122,19 +119,6 @@ Tablespace::open_or_create(bool is_temp)
 			break;
 		}
 
-		bool	atomic_write;
-
-#if !defined(NO_FALLOCATE) && defined(UNIV_LINUX)
-		if (!srv_use_doublewrite_buf) {
-			atomic_write = fil_fusionio_enable_atomic_write(
-				it->m_handle);
-		} else {
-			atomic_write = false;
-		}
-#else
-		atomic_write = false;
-#endif /* !NO_FALLOCATE && UNIV_LINUX */
-
 		/* We can close the handle now and open the tablespace
 		the proper way. */
 		it->close();
@@ -142,15 +126,14 @@ Tablespace::open_or_create(bool is_temp)
 		if (it == begin) {
 			/* First data file. */
 
-			ulint	flags;
-
-			flags = fsp_flags_set_page_size(0, univ_page_size);
-
 			/* Create the tablespace entry for the multi-file
 			tablespace in the tablespace manager. */
 			space = fil_space_create(
-				m_name, m_space_id, flags, is_temp
-				? FIL_TYPE_TEMPORARY : FIL_TYPE_TABLESPACE, it->m_crypt_info);
+				m_name, m_space_id, FSP_FLAGS_PAGE_SSIZE(),
+				is_temp
+				? FIL_TYPE_TEMPORARY : FIL_TYPE_TABLESPACE,
+				it->m_crypt_info,
+				false);
 		}
 
 		ut_a(fil_validate());
@@ -158,7 +141,7 @@ Tablespace::open_or_create(bool is_temp)
 		/* Create the tablespace node entry for this data file. */
 		if (!fil_node_create(
 			    it->m_filepath, it->m_size, space, false,
-			    atomic_write)) {
+			    TRUE)) {
 
 		       err = DB_ERROR;
 		       break;
@@ -184,7 +167,6 @@ Tablespace::find(const char* filename)
 
 	return(false);
 }
-
 
 /** Delete all the data files. */
 void

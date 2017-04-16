@@ -1,0 +1,293 @@
+select * from information_schema.engines where engine = 'rocksdb';
+ENGINE	SUPPORT	COMMENT	TRANSACTIONS	XA	SAVEPOINTS
+ROCKSDB	DEFAULT	RocksDB storage engine	YES	YES	YES
+drop table if exists t0,t1,t2,t3,t4,t5;
+create table t0 (a int) engine=myisam;
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table t1(a int) engine=myisam;
+insert into t1 select A.a + B.a* 10 + C.a * 100 from t0 A, t0 B, t0 C;
+create table t2 (
+pk int not null,
+a  int not null,
+b  int not null,
+primary key(pk),
+key(a) comment 'rev:cf1'
+) engine=rocksdb;
+insert into t2 select A.a, FLOOR(A.a/10), A.a from t1 A;
+#
+# HA_READ_KEY_EXACT tests
+#
+# Original failure was here:
+explain
+select * from t2 force index (a) where a=0;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	ref	a	a	4	const	#	
+select * from t2 force index (a) where a=0;
+pk	a	b
+0	0	0
+1	0	1
+2	0	2
+3	0	3
+4	0	4
+5	0	5
+6	0	6
+7	0	7
+8	0	8
+9	0	9
+# The rest are for code coverage:
+explain
+select * from t2 force index (a) where a=2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	ref	a	a	4	const	#	
+select * from t2 force index (a) where a=2;
+pk	a	b
+20	2	20
+21	2	21
+22	2	22
+23	2	23
+24	2	24
+25	2	25
+26	2	26
+27	2	27
+28	2	28
+29	2	29
+explain 
+select * from t2 force index (a) where a=3 and pk=33;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	const	a	a	8	const,const	#	
+select * from t2 force index (a) where a=3 and pk=33;
+pk	a	b
+33	3	33
+select * from t2 force index (a) where a=99 and pk=99;
+pk	a	b
+select * from t2 force index (a) where a=0 and pk=0;
+pk	a	b
+0	0	0
+select * from t2 force index (a) where a=-1;
+pk	a	b
+select * from t2 force index (a) where a=-1 and pk in (101,102);
+pk	a	b
+select * from t2 force index (a) where a=100 and pk in (101,102);
+pk	a	b
+#
+# #36: Range in form tbl.key >= const doesn't work in reverse column family
+#
+explain
+select count(*) from t2 force index (a) where a>=0 and a <=1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	range	a	a	4	NULL	#	Using where; Using index
+select count(*) from t2 force index (a) where a>=0 and a <=1;
+count(*)
+20
+explain
+select count(*) from t2 force index (a) where a>=-1 and a <=1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	range	a	a	4	NULL	#	Using where; Using index
+select count(*) from t2 force index (a) where a>=-1 and a <=1;
+count(*)
+20
+explain
+select * from t2 force index (a) where a=0 and pk>=3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	range	a	a	8	NULL	#	Using index condition
+select * from t2 force index (a) where a=0 and pk>=3;
+pk	a	b
+3	0	3
+4	0	4
+5	0	5
+6	0	6
+7	0	7
+8	0	8
+9	0	9
+# Try edge cases where we fall over the end of the table
+create table t3 like t2;
+insert into t3 select * from t2;
+select * from t3 where pk>=1000000;
+pk	a	b
+select * from t2 where pk>=1000000;
+pk	a	b
+#
+# #42: Range in form tbl.key > const doesn't work in reverse column family
+#
+explain
+select count(*) from t2 force index (a) where a>0;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	range	a	a	4	NULL	#	Using where; Using index
+select count(*) from t2 force index (a) where a>0;
+count(*)
+990
+explain
+select count(*) from t2 force index (a) where a>99;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	range	a	a	4	NULL	#	Using where; Using index
+select count(*) from t2 force index (a) where a>99;
+count(*)
+0
+select * from t2 where pk>1000000;
+pk	a	b
+select * from t3 where pk>1000000;
+pk	a	b
+explain
+select count(*) from t2 force index (a) where a=2 and pk>25;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	range	a	a	8	NULL	#	Using where; Using index
+select count(*) from t2 force index (a) where a=2 and pk>25;
+count(*)
+4
+select * from t2 force index (a) where a>-10 and a < 1;
+pk	a	b
+0	0	0
+1	0	1
+2	0	2
+3	0	3
+4	0	4
+5	0	5
+6	0	6
+7	0	7
+8	0	8
+9	0	9
+select * from t3 force index (a) where a>-10 and a < 1;
+pk	a	b
+0	0	0
+1	0	1
+2	0	2
+3	0	3
+4	0	4
+5	0	5
+6	0	6
+7	0	7
+8	0	8
+9	0	9
+# 
+# #46: index_read_map(HA_READ_BEFORE_KEY) does not work in reverse column family
+#
+select max(a) from t2 where a < 2;
+max(a)
+1
+select max(a) from t2 where a < -1;
+max(a)
+NULL
+select max(pk) from t2 where a=3 and pk < 6;
+max(pk)
+NULL
+select max(pk) from t2 where pk < 200000;
+max(pk)
+999
+select max(pk) from t2 where pk < 20;
+max(pk)
+19
+select max(a) from t3 where a < 2;
+max(a)
+1
+select max(a) from t3 where a < -1;
+max(a)
+NULL
+select max(pk) from t3 where pk < 200000;
+max(pk)
+999
+select max(pk) from t3 where pk < 20;
+max(pk)
+19
+select max(pk) from t2 where a=3 and pk < 33;
+max(pk)
+32
+select max(pk) from t3 where a=3 and pk < 33;
+max(pk)
+32
+#
+# #48: index_read_map(HA_READ_PREFIX_LAST) does not work in reverse CF
+#
+# Tests for search_flag=HA_READ_PREFIX_LAST_OR_PREV
+# Note: the next explain has "Using index condition" in fb/mysql-5.6
+#       but "Using where" in MariaDB because the latter does not 
+#       support ICP over reverse scans.
+explain
+select * from t2 where a between 99 and 2000 order by a desc;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	range	a	a	4	NULL	#	Using where
+select * from t2 where a between 99 and 2000 order by a desc;
+pk	a	b
+999	99	999
+998	99	998
+997	99	997
+996	99	996
+995	99	995
+994	99	994
+993	99	993
+992	99	992
+991	99	991
+990	99	990
+select max(a) from t2 where a <=10;
+max(a)
+10
+select max(a) from t2 where a <=-4;
+max(a)
+NULL
+select max(pk) from t2 where a=5 and pk <=55;
+max(pk)
+55
+select max(pk) from t2 where a=5 and pk <=55555;
+max(pk)
+59
+select max(pk) from t2 where a=5 and pk <=0;
+max(pk)
+NULL
+select max(pk) from t2 where pk <=-1;
+max(pk)
+NULL
+select max(pk) from t2 where pk <=999999;
+max(pk)
+999
+select max(pk) from t3 where pk <=-1;
+max(pk)
+NULL
+select max(pk) from t3 where pk <=999999;
+max(pk)
+999
+#
+# Tests for search_flag=HA_READ_PREFIX_LAST
+#
+create table t4 (
+pk int primary key,
+a int, 
+b int,
+c int,
+key(a,b,c)
+) engine=rocksdb;
+insert into t4 select pk,pk,pk,pk from t2 where pk < 100;
+explain 
+select * from t4 where a=1 and b in (1) order by c desc;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t4	ref	a	a	10	const,const	#	Using where; Using index
+select * from t4 where a=1 and b in (1) order by c desc;
+pk	a	b	c
+1	1	1	1
+explain 
+select * from t4 where a=5 and b in (4) order by c desc;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t4	ref	a	a	10	const,const	#	Using where; Using index
+select * from t4 where a=5 and b in (4) order by c desc;
+pk	a	b	c
+# HA_READ_PREFIX_LAST for reverse-ordered CF
+create table t5 (
+pk int primary key,
+a int, 
+b int,
+c int,
+key(a,b,c) comment 'rev:cf2'
+) engine=rocksdb;
+insert into t5 select pk,pk,pk,pk from t2 where pk < 100;
+explain 
+select * from t5 where a=1 and b in (1) order by c desc;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t5	ref	a	a	10	const,const	#	Using where; Using index
+select * from t5 where a=1 and b in (1) order by c desc;
+pk	a	b	c
+1	1	1	1
+explain 
+select * from t5 where a=5 and b in (4) order by c desc;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t5	ref	a	a	10	const,const	#	Using where; Using index
+select * from t5 where a=5 and b in (4) order by c desc;
+pk	a	b	c
+drop table t0,t1,t2,t3,t4,t5;

@@ -184,7 +184,6 @@ extern MY_UNI_CTYPE my_uni_ctype[256];
 #define MY_CS_MBMAXLEN  6     /* Maximum supported mbmaxlen */
 #define MY_CS_IS_TOOSMALL(rc) ((rc) >= MY_CS_TOOSMALL6 && (rc) <= MY_CS_TOOSMALL)
 
-
 #define MY_SEQ_INTTAIL	1
 #define MY_SEQ_SPACES	2
 #define MY_SEQ_NONSPACES 3 /* Skip non-space characters, including bad bytes */

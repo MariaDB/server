@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2013, Monty Program Ab.
+   Copyright (c) 2010, 2017, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -60,75 +60,76 @@ typedef struct my_aio_result {
 #define MY_FILE_ERROR	((size_t) -1)
 
 	/* General bitmaps for my_func's */
-#define MY_FFNF		1	/* Fatal if file not found */
-#define MY_FNABP	2	/* Fatal if not all bytes read/writen */
-#define MY_NABP		4	/* Error if not all bytes read/writen */
-#define MY_FAE		8	/* Fatal if any error */
-#define MY_WME		16	/* Write message on error */
-#define MY_WAIT_IF_FULL 32	/* Wait and try again if disk full error */
-#define MY_IGNORE_BADFD 32      /* my_sync: ignore 'bad descriptor' errors */
-#define MY_ENCRYPT      64      /* Encrypt IO_CACHE temporary files */
-#define MY_FULL_IO     512      /* For my_read - loop intil I/O is complete */
-#define MY_DONT_CHECK_FILESIZE 128 /* Option to init_io_cache() */
-#define MY_LINK_WARNING 32	/* my_redel() gives warning if links */
-#define MY_COPYTIME	64	/* my_redel() copys time */
-#define MY_DELETE_OLD	256	/* my_create_with_symlink() */
-#define MY_RESOLVE_LINK 128	/* my_realpath(); Only resolve links */
-#define MY_HOLD_ORIGINAL_MODES 128  /* my_copy() holds to file modes */
-#define MY_REDEL_MAKE_BACKUP 256
-#define MY_SEEK_NOT_DONE 32	/* my_lock may have to do a seek */
-#define MY_SHORT_WAIT	64	/* my_lock() don't wait if can't lock */
-#define MY_FORCE_LOCK   128     /* use my_lock() even if disable_locking */
-#define MY_NO_WAIT      256	/* my_lock() don't wait at all */
+#define MY_FFNF		1U	/* Fatal if file not found */
+#define MY_FNABP	2U	/* Fatal if not all bytes read/writen */
+#define MY_NABP		4U	/* Error if not all bytes read/writen */
+#define MY_FAE		8U	/* Fatal if any error */
+#define MY_WME		16U	/* Write message on error */
+#define MY_WAIT_IF_FULL 32U	/* Wait and try again if disk full error */
+#define MY_IGNORE_BADFD 32U     /* my_sync(): ignore 'bad descriptor' errors */
+#define MY_ENCRYPT      64U     /* Encrypt IO_CACHE temporary files */
+#define MY_NOSYMLINKS  512U     /* my_open(): don't follow symlinks */
+#define MY_FULL_IO     512U     /* my_read(): loop until I/O is complete */
+#define MY_DONT_CHECK_FILESIZE 128U /* Option to init_io_cache() */
+#define MY_LINK_WARNING 32U	/* my_redel() gives warning if links */
+#define MY_COPYTIME	64U	/* my_redel() copys time */
+#define MY_DELETE_OLD	256U	/* my_create_with_symlink() */
+#define MY_RESOLVE_LINK 128U	/* my_realpath(); Only resolve links */
+#define MY_HOLD_ORIGINAL_MODES 128U  /* my_copy() holds to file modes */
+#define MY_REDEL_MAKE_BACKUP 256U
+#define MY_SEEK_NOT_DONE 32U	/* my_lock may have to do a seek */
+#define MY_SHORT_WAIT	64U	/* my_lock() don't wait if can't lock */
+#define MY_FORCE_LOCK   128U    /* use my_lock() even if disable_locking */
+#define MY_NO_WAIT      256U	/* my_lock() don't wait at all */
 /*
   init_dynamic_array() has init buffer; Internal flag, not to be used by
   caller.
 */
-#define MY_INIT_BUFFER_USED 256
-#define MY_ZEROFILL	32	/* my_malloc(), fill array with zero */
-#define MY_ALLOW_ZERO_PTR 64	/* my_realloc() ; zero ptr -> malloc */
-#define MY_FREE_ON_ERROR 128	/* my_realloc() ; Free old ptr on error */
-#define MY_HOLD_ON_ERROR 256	/* my_realloc() ; Return old ptr on error */
-#define MY_DONT_OVERWRITE_FILE 2048 /* my_copy: Don't overwrite file */
-#define MY_THREADSAFE 2048      /* my_seek(): lock fd mutex */
-#define MY_SYNC       4096      /* my_copy(): sync dst file */
-#define MY_SYNC_DIR   32768     /* my_create/delete/rename: sync directory */
-#define MY_SYNC_FILESIZE 65536  /* my_sync(): safe sync when file is extended */
-#define MY_THREAD_SPECIFIC 0x10000  /* my_malloc(): thread specific */
-#define MY_THREAD_MOVE     0x20000  /* realloc(); Memory can move */
-/* Tree that should delete things automaticly */ 
-#define MY_TREE_WITH_DELETE 0x40000
+#define MY_INIT_BUFFER_USED 256U
+#define MY_ZEROFILL	32U	/* my_malloc(), fill array with zero */
+#define MY_ALLOW_ZERO_PTR 64U	/* my_realloc() ; zero ptr -> malloc */
+#define MY_FREE_ON_ERROR 128U	/* my_realloc() ; Free old ptr on error */
+#define MY_HOLD_ON_ERROR 256U	/* my_realloc() ; Return old ptr on error */
+#define MY_DONT_OVERWRITE_FILE 2048U /* my_copy: Don't overwrite file */
+#define MY_THREADSAFE 2048U     /* my_seek(): lock fd mutex */
+#define MY_SYNC       4096U     /* my_copy(): sync dst file */
+#define MY_SYNC_DIR   32768U    /* my_create/delete/rename: sync directory */
+#define MY_SYNC_FILESIZE 65536U /* my_sync(): safe sync when file is extended */
+#define MY_THREAD_SPECIFIC 0x10000U /* my_malloc(): thread specific */
+#define MY_THREAD_MOVE     0x20000U /* realloc(); Memory can move */
+/* Tree that should delete things automaticly */
+#define MY_TREE_WITH_DELETE 0x40000U
 
-#define MY_CHECK_ERROR	1	/* Params to my_end; Check open-close */
-#define MY_GIVE_INFO	2	/* Give time info about process*/
-#define MY_DONT_FREE_DBUG 4     /* Do not call DBUG_END() in my_end() */
+#define MY_CHECK_ERROR	1U	/* Params to my_end; Check open-close */
+#define MY_GIVE_INFO	2U	/* Give time info about process*/
+#define MY_DONT_FREE_DBUG 4U    /* Do not call DBUG_END() in my_end() */
 
-#define ME_HIGHBYTE	8	/* Shift for colours */
-#define ME_NOCUR	1	/* Don't use curses message */
-#define ME_OLDWIN	2	/* Use old window */
-#define ME_BELL		4	/* Ring bell then printing message */
-#define ME_HOLDTANG	8	/* Don't delete last keys */
-#define ME_WAITTOT	16	/* Wait for errtime secs of for a action */
-#define ME_WAITTANG	32	/* Wait for a user action  */
-#define ME_NOREFRESH	64	/* Write the error message to error log */
-#define ME_NOINPUT	128	/* Dont use the input libary */
-#define ME_COLOUR1	((1 << ME_HIGHBYTE))	/* Possibly error-colours */
-#define ME_COLOUR2	((2 << ME_HIGHBYTE))
-#define ME_COLOUR3	((3 << ME_HIGHBYTE))
-#define ME_JUST_INFO    1024    /**< not error but just info */
-#define ME_JUST_WARNING 2048    /**< not error but just warning */
-#define ME_FATALERROR   4096    /* Fatal statement error */
+#define ME_HIGHBYTE	8U	/* Shift for colours */
+#define ME_NOCUR	1U	/* Don't use curses message */
+#define ME_OLDWIN	2U	/* Use old window */
+#define ME_BELL		4U	/* Ring bell then printing message */
+#define ME_HOLDTANG	8U	/* Don't delete last keys */
+#define ME_WAITTOT	16U	/* Wait for errtime secs of for a action */
+#define ME_WAITTANG	32U	/* Wait for a user action  */
+#define ME_NOREFRESH	64U	/* Write the error message to error log */
+#define ME_NOINPUT	128U	/* Dont use the input libary */
+#define ME_COLOUR1	((1U << ME_HIGHBYTE))	/* Possibly error-colours */
+#define ME_COLOUR2	((2U << ME_HIGHBYTE))
+#define ME_COLOUR3	((3U << ME_HIGHBYTE))
+#define ME_JUST_INFO    1024U   /**< not error but just info */
+#define ME_JUST_WARNING 2048U   /**< not error but just warning */
+#define ME_FATALERROR   4096U   /* Fatal statement error */
 
 	/* Bits in last argument to fn_format */
-#define MY_REPLACE_DIR		1	/* replace dir in name with 'dir' */
-#define MY_REPLACE_EXT		2	/* replace extension with 'ext' */
-#define MY_UNPACK_FILENAME	4	/* Unpack name (~ -> home) */
-#define MY_PACK_FILENAME	8	/* Pack name (home -> ~) */
-#define MY_RESOLVE_SYMLINKS	16	/* Resolve all symbolic links */
-#define MY_RETURN_REAL_PATH	32	/* return full path for file */
-#define MY_SAFE_PATH		64	/* Return NULL if too long path */
-#define MY_RELATIVE_PATH	128	/* name is relative to 'dir' */
-#define MY_APPEND_EXT           256     /* add 'ext' as additional extension*/
+#define MY_REPLACE_DIR		1U	/* replace dir in name with 'dir' */
+#define MY_REPLACE_EXT		2U	/* replace extension with 'ext' */
+#define MY_UNPACK_FILENAME	4U	/* Unpack name (~ -> home) */
+#define MY_PACK_FILENAME	8U	/* Pack name (home -> ~) */
+#define MY_RESOLVE_SYMLINKS	16U	/* Resolve all symbolic links */
+#define MY_RETURN_REAL_PATH	32U	/* return full path for file */
+#define MY_SAFE_PATH		64U	/* Return NULL if too long path */
+#define MY_RELATIVE_PATH	128U	/* name is relative to 'dir' */
+#define MY_APPEND_EXT           256U    /* add 'ext' as additional extension*/
 
 
 	/* My seek flags */
@@ -143,19 +144,19 @@ typedef struct my_aio_result {
 #define DFLT_INIT_HITS  3
 
 	/* root_alloc flags */
-#define MY_KEEP_PREALLOC	1
-#define MY_MARK_BLOCKS_FREE     2  /* move used to free list and reuse them */
+#define MY_KEEP_PREALLOC	1U
+#define MY_MARK_BLOCKS_FREE     2U /* move used to free list and reuse them */
 
 	/* Internal error numbers (for assembler functions) */
 #define MY_ERRNO_EDOM		33
 #define MY_ERRNO_ERANGE		34
 
 	/* Bits for get_date timeflag */
-#define GETDATE_DATE_TIME	1
-#define GETDATE_SHORT_DATE	2
-#define GETDATE_HHMMSSTIME	4
-#define GETDATE_GMT		8
-#define GETDATE_FIXEDLENGTH	16
+#define GETDATE_DATE_TIME	1U
+#define GETDATE_SHORT_DATE	2U
+#define GETDATE_HHMMSSTIME	4U
+#define GETDATE_GMT		8U
+#define GETDATE_FIXEDLENGTH	16U
 
 /* Extra length needed for filename if one calls my_create_backup_name */
 #define MY_BACKUP_NAME_EXTRA_LENGTH 17
@@ -191,6 +192,14 @@ extern void my_large_free(uchar *ptr);
 #define my_large_malloc(A,B) my_malloc_lock((A),(B))
 #define my_large_free(A) my_free_lock((A))
 #endif /* HAVE_LARGE_PAGES */
+
+void my_init_atomic_write(void);
+#ifdef __linux__
+my_bool my_test_if_atomic_write(File handle, int pagesize);
+#else
+#define my_test_if_atomic_write(A, B) 0
+#endif /* __linux__ */
+extern my_bool my_may_have_atomic_write;
 
 #if defined(HAVE_ALLOCA) && !defined(HAVE_valgrind)
 #if defined(_AIX) && !defined(__GNUC__) && !defined(_AIX43)
@@ -261,7 +270,7 @@ extern ulong	my_file_opened,my_stream_opened, my_tmp_file_created;
 extern ulong    my_file_total_opened;
 extern ulong    my_sync_count;
 extern uint	mysys_usage_id;
-extern my_bool	my_init_done;
+extern my_bool	my_init_done, my_thr_key_mysys_exists;
 extern my_bool  my_assert_on_error;
 extern myf      my_global_flags;        /* Set to MY_WME for more error messages */
 					/* Point to current my_message() */
@@ -279,7 +288,7 @@ extern my_bool my_use_symdir;
 extern ulong	my_default_record_cache_size;
 extern my_bool  my_disable_locking, my_disable_async_io,
                 my_disable_flush_key_blocks, my_disable_symlinks;
-extern my_bool my_disable_sync;
+extern my_bool my_disable_sync, my_disable_copystat_in_redel;
 extern char	wild_many,wild_one,wild_prefix;
 extern const char *charsets_dir;
 extern my_bool timed_mutexes;
@@ -617,6 +626,7 @@ int my_b_pread(IO_CACHE *info, uchar *Buffer, size_t Count, my_off_t pos);
 
 typedef uint32 ha_checksum;
 
+extern int (*mysys_test_invalid_symlink)(const char *filename);
 #include <my_alloc.h>
 
 	/* Prototypes for mysys and my_func functions */
@@ -644,9 +654,10 @@ extern int my_realpath(char *to, const char *filename, myf MyFlags);
 extern File my_create_with_symlink(const char *linkname, const char *filename,
 				   int createflags, int access_flags,
 				   myf MyFlags);
-extern int my_delete_with_symlink(const char *name, myf MyFlags);
 extern int my_rename_with_symlink(const char *from,const char *to,myf MyFlags);
 extern int my_symlink(const char *content, const char *linkname, myf MyFlags);
+extern int my_handler_delete_with_symlink(const char *filename, myf sync_dir);
+
 extern size_t my_read(File Filedes,uchar *Buffer,size_t Count,myf MyFlags);
 extern size_t my_pread(File Filedes,uchar *Buffer,size_t Count,my_off_t offset,
 		     myf MyFlags);
@@ -670,8 +681,12 @@ extern void *my_memmem(const void *haystack, size_t haystacklen,
 
 #ifdef _WIN32
 extern int      my_access(const char *path, int amode);
+#define my_check_user(A,B) (NULL)
+#define my_set_user(A,B,C) (0)
 #else
 #define my_access access
+struct passwd *my_check_user(const char *user, myf MyFlags);
+int my_set_user(const char *user, struct passwd *user_info, myf MyFlags);
 #endif
 
 extern int check_if_legal_filename(const char *path);
@@ -996,6 +1011,8 @@ void my_uuid_init(ulong seed1, ulong seed2);
 void my_uuid(uchar *guid);
 void my_uuid2str(const uchar *guid, char *s);
 void my_uuid_end(void);
+
+const char *my_dlerror(const char *dlpath);
 
 /* character sets */
 extern void my_charset_loader_init_mysys(MY_CHARSET_LOADER *loader);

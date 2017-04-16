@@ -33,10 +33,11 @@ CONSTRAINT `fk_crewRoleAssigned_crewId` FOREIGN KEY (`crew_id`) REFERENCES `repr
 CONSTRAINT `fk_crewRoleAssigned_pilotId` FOREIGN KEY (`crew_id`) REFERENCES `repro`.`pilot` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB COMMENT="This is a comment about tables";
 
---echo # Restart mysqld --innodb_read_only=1
--- let $restart_parameters=--innodb-read-only=1
+-- let $restart_parameters=--innodb-read-only
 -- source include/restart_mysqld.inc
 
+--error ER_OPEN_AS_READONLY
+ALTER TABLE `repro`.`crew_role_assigned` COMMENT = 'innodb_read_only';
 SHOW CREATE TABLE `repro`.`crew_role_assigned`;
 
 -- let $restart_parameters=
@@ -45,8 +46,7 @@ SHOW CREATE TABLE `repro`.`crew_role_assigned`;
 ALTER TABLE `repro`.`crew_role_assigned` COMMENT = "This is a new comment about tables";
 SHOW CREATE TABLE `repro`.`crew_role_assigned`;
 
---echo # Restart mysqld --innodb_read_only=1
--- let $restart_parameters=--innodb-read-only=1
+-- let $restart_parameters=--innodb-read-only
 -- source include/restart_mysqld.inc
 
 #

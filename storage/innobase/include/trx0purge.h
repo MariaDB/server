@@ -1,6 +1,7 @@
 /*****************************************************************************
 
-Copyright (c) 1996, 2015, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -36,9 +37,6 @@ Created 3/26/1996 Heikki Tuuri
 #include "fil0fil.h"
 #include "read0types.h"
 
-/** The global data structure coordinating a purge */
-extern trx_purge_t*	purge_sys;
-
 /** A dummy undo record used as a return value when we have a whole undo log
 which needs no purge */
 extern trx_undo_rec_t	trx_purge_dummy_rec;
@@ -53,19 +51,6 @@ trx_purge_get_log_from_hist(
 /*========================*/
 	fil_addr_t	node_addr);	/*!< in: file address of the history
 					list node of the log */
-/********************************************************************//**
-Creates the global purge system control structure and inits the history
-mutex. */
-void
-trx_purge_sys_create(
-/*=================*/
-	ulint		n_purge_threads,/*!< in: number of purge threads */
-	purge_pq_t*	purge_queue);	/*!< in/own: UNDO log min binary heap*/
-/********************************************************************//**
-Frees the global purge system control structure. */
-void
-trx_purge_sys_close(void);
-/*======================*/
 /************************************************************************
 Adds the update undo log as the first log in the history list. Removes the
 update undo log segment from the rseg slot if it is too big for reuse. */
@@ -73,13 +58,8 @@ void
 trx_purge_add_update_undo_to_history(
 /*=================================*/
 	trx_t*		trx,		/*!< in: transaction */
-	trx_undo_ptr_t*	undo_ptr,	/*!< in: update undo log. */
 	page_t*		undo_page,	/*!< in: update undo log header page,
 					x-latched */
-	bool		update_rseg_history_len,
-					/*!< in: if true: update rseg history
-					len else skip updating it. */
-	ulint		n_added_logs,	/*!< in: number of logs added */
 	mtr_t*		mtr);		/*!< in: mtr */
 /*******************************************************************//**
 This function runs a purge batch.
@@ -119,8 +99,129 @@ purge_state_t
 trx_purge_state(void);
 /*=================*/
 
-// Forward declaration
-struct TrxUndoRsegsIterator;
+/** Rollback segements from a given transaction with trx-no
+scheduled for purge. */
+class TrxUndoRsegs {
+private:
+	typedef std::vector<trx_rseg_t*, ut_allocator<trx_rseg_t*> >
+		trx_rsegs_t;
+public:
+	typedef trx_rsegs_t::iterator iterator;
+
+	/** Default constructor */
+	TrxUndoRsegs() : m_trx_no() { }
+
+	explicit TrxUndoRsegs(trx_id_t trx_no)
+		:
+		m_trx_no(trx_no)
+	{
+		// Do nothing
+	}
+
+	/** Get transaction number
+	@return trx_id_t - get transaction number. */
+	trx_id_t get_trx_no() const
+	{
+		return(m_trx_no);
+	}
+
+	/** Add rollback segment.
+	@param rseg rollback segment to add. */
+	void push_back(trx_rseg_t* rseg)
+	{
+		m_rsegs.push_back(rseg);
+	}
+
+	/** Erase the element pointed by given iterator.
+	@param[in]	iterator	iterator */
+	void erase(iterator& it)
+	{
+		m_rsegs.erase(it);
+	}
+
+	/** Number of registered rsegs.
+	@return size of rseg list. */
+	ulint size() const
+	{
+		return(m_rsegs.size());
+	}
+
+	/**
+	@return an iterator to the first element */
+	iterator begin()
+	{
+		return(m_rsegs.begin());
+	}
+
+	/**
+	@return an iterator to the end */
+	iterator end()
+	{
+		return(m_rsegs.end());
+	}
+
+	/** Append rollback segments from referred instance to current
+	instance. */
+	void append(const TrxUndoRsegs& append_from)
+	{
+		ut_ad(get_trx_no() == append_from.get_trx_no());
+
+		m_rsegs.insert(m_rsegs.end(),
+			       append_from.m_rsegs.begin(),
+			       append_from.m_rsegs.end());
+	}
+
+	/** Compare two TrxUndoRsegs based on trx_no.
+	@param elem1 first element to compare
+	@param elem2 second element to compare
+	@return true if elem1 > elem2 else false.*/
+	bool operator()(const TrxUndoRsegs& lhs, const TrxUndoRsegs& rhs)
+	{
+		return(lhs.m_trx_no > rhs.m_trx_no);
+	}
+
+	/** Compiler defined copy-constructor/assignment operator
+	should be fine given that there is no reference to a memory
+	object outside scope of class object.*/
+
+private:
+	/** The rollback segments transaction number. */
+	trx_id_t		m_trx_no;
+
+	/** Rollback segments of a transaction, scheduled for purge. */
+	trx_rsegs_t		m_rsegs;
+};
+
+typedef std::priority_queue<
+	TrxUndoRsegs,
+	std::vector<TrxUndoRsegs, ut_allocator<TrxUndoRsegs> >,
+	TrxUndoRsegs>	purge_pq_t;
+
+/**
+Chooses the rollback segment with the smallest trx_no. */
+struct TrxUndoRsegsIterator {
+
+	/** Constructor */
+	TrxUndoRsegsIterator();
+
+	/** Sets the next rseg to purge in purge_sys.
+	@return whether anything is to be purged */
+	bool set_next();
+
+private:
+	// Disable copying
+	TrxUndoRsegsIterator(const TrxUndoRsegsIterator&);
+	TrxUndoRsegsIterator& operator=(const TrxUndoRsegsIterator&);
+
+	/** The current element to process */
+	TrxUndoRsegs			m_trx_undo_rsegs;
+
+	/** Track the current element in m_trx_undo_rseg */
+	TrxUndoRsegs::iterator		m_iter;
+
+	/** Sentinel value */
+	static const TrxUndoRsegs	NullElement;
+};
 
 /** This is the purge pointer/iterator. We need both the undo no and the
 transaction no up to which purge has parsed and applied the records. */
@@ -385,13 +486,16 @@ namespace undo {
 };	/* namespace undo */
 
 /** The control structure used in the purge operation */
-struct trx_purge_t{
+class purge_sys_t
+{
+public:
+	/** Construct the purge system. */
+	purge_sys_t();
+	/** Destruct the purge system. */
+	~purge_sys_t();
+
 	sess_t*		sess;		/*!< System session running the purge
 					query */
-	trx_t*		trx;		/*!< System transaction running the
-					purge query: this trx is not in the
-					trx list of the trx system and it
-					never ends */
 	rw_lock_t	latch;		/*!< The latch protecting the purge
 					view. A purge operation must acquire an
 					x-latch here for the instant at which
@@ -399,7 +503,10 @@ struct trx_purge_t{
 					log operation can prevent this by
 					obtaining an s-latch here. It also
 					protects state and running */
-	os_event_t	event;		/*!< State signal event */
+	os_event_t	event;		/*!< State signal event;
+					os_event_set() and os_event_reset()
+					are protected by purge_sys_t::latch
+					X-lock */
 	ulint		n_stop;		/*!< Counter to track number stops */
 	volatile bool	running;	/*!< true, if purge is active,
 					we check this without the latch too */
@@ -410,7 +517,6 @@ struct trx_purge_t{
 					parallelized purge operation */
 	ReadView	view;		/*!< The purge will not remove undo logs
 					which are >= this view (purge view) */
-	bool		view_active;	/*!< true if view is active */
 	volatile ulint	n_submitted;	/*!< Count of total tasks submitted
 					to the task queue */
 	volatile ulint	n_completed;	/*!< Count of total tasks completed */
@@ -433,11 +539,8 @@ struct trx_purge_t{
 					purged already accurately. */
 #endif /* UNIV_DEBUG */
 	/*-----------------------------*/
-	ibool		next_stored;	/*!< TRUE if the info of the next record
-					to purge is stored below: if yes, then
-					the transaction number and the undo
-					number of the record are stored in
-					purge_trx_no and purge_undo_no above */
+	bool		next_stored;	/*!< whether rseg holds the next record
+					to purge */
 	trx_rseg_t*	rseg;		/*!< Rollback segment for the next undo
 					record to purge */
 	ulint		page_no;	/*!< Page number for the next undo
@@ -451,11 +554,11 @@ struct trx_purge_t{
 	ulint		hdr_offset;	/*!< Header byte offset on the page */
 
 
-	TrxUndoRsegsIterator*
+	TrxUndoRsegsIterator
 			rseg_iter;	/*!< Iterator to get the next rseg
 					to process */
 
-	purge_pq_t*	purge_queue;	/*!< Binary min-heap, ordered on
+	purge_pq_t	purge_queue;	/*!< Binary min-heap, ordered on
 					TrxUndoRsegs::trx_no. It is protected
 					by the pq_mutex */
 	PQMutex		pq_mutex;	/*!< Mutex protecting purge_queue */
@@ -464,46 +567,15 @@ struct trx_purge_t{
 					for truncate. */
 };
 
+/** The global data structure coordinating a purge */
+extern purge_sys_t*	purge_sys;
+
 /** Info required to purge a record */
 struct trx_purge_rec_t {
 	trx_undo_rec_t*	undo_rec;	/*!< Record to purge */
 	roll_ptr_t	roll_ptr;	/*!< File pointr to UNDO record */
 };
 
-/**
-Chooses the rollback segment with the smallest trx_no. */
-struct TrxUndoRsegsIterator {
-
-	/** Constructor */
-	TrxUndoRsegsIterator(trx_purge_t* purge_sys);
-
-	/** Sets the next rseg to purge in m_purge_sys.
-	@return page size of the table for which the log is.
-	NOTE: if rseg is NULL when this function returns this means that
-	there are no rollback segments to purge and then the returned page
-	size object should not be used. */
-	const page_size_t set_next();
-
-private:
-	// Disable copying
-	TrxUndoRsegsIterator(const TrxUndoRsegsIterator&);
-	TrxUndoRsegsIterator& operator=(const TrxUndoRsegsIterator&);
-
-	/** The purge system pointer */
-	trx_purge_t*			m_purge_sys;
-
-	/** The current element to process */
-	TrxUndoRsegs			m_trx_undo_rsegs;
-
-	/** Track the current element in m_trx_undo_rseg */
-	TrxUndoRsegs::iterator		m_iter;
-
-	/** Sentinel value */
-	static const TrxUndoRsegs	NullElement;
-};
-
-#ifndef UNIV_NONINL
 #include "trx0purge.ic"
-#endif /* UNIV_NOINL */
 
 #endif /* trx0purge_h */

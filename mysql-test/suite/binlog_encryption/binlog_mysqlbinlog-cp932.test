@@ -1,0 +1,2 @@
+--let $use_remote_mysqlbinlog= 1
+--source extra/binlog_tests/binlog_mysqlbinlog-cp932.inc

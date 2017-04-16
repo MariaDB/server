@@ -75,7 +75,7 @@ static int sort_delete_record(MI_SORT_PARAM *sort_param);
 static SORT_KEY_BLOCKS	*alloc_key_blocks(HA_CHECK *, uint, uint);
 static ha_checksum mi_byte_checksum(const uchar *buf, uint length);
 static void set_data_file_type(MI_SORT_INFO *sort_info, MYISAM_SHARE *share);
-static int replace_data_file(HA_CHECK *, MI_INFO *, const char *, File);
+static int replace_data_file(HA_CHECK *param, MI_INFO *info, File new_file);
 
 void myisamchk_init(HA_CHECK *param)
 {
@@ -1710,7 +1710,7 @@ err:
     /* Replace the actual file with the temporary file */
     if (new_file >= 0)
     {
-      got_error= replace_data_file(param, info, name, new_file);
+      got_error= replace_data_file(param, info, new_file);
       new_file= -1;
       param->retry_repair= 0;
     }
@@ -2524,7 +2524,7 @@ err:
     /* Replace the actual file with the temporary file */
     if (new_file >= 0)
     {
-      got_error= replace_data_file(param, info, name, new_file);
+      got_error= replace_data_file(param, info, new_file);
       new_file= -1;
     }
   }
@@ -2538,7 +2538,7 @@ err:
       (void) mysql_file_delete(mi_key_file_datatmp,
                                param->temp_filename, MYF(MY_WME));
       if (info->dfile == new_file) /* Retry with key cache */
-        if (unlikely(mi_open_datafile(info, share, name, -1)))
+        if (unlikely(mi_open_datafile(info, share)))
           param->retry_repair= 0; /* Safety */
     }
     mi_mark_crashed_on_repair(info);
@@ -2781,7 +2781,7 @@ int mi_repair_parallel(HA_CHECK *param, register MI_INFO *info,
   del=info->state->del;
   param->glob_crc=0;
   /* for compressed tables */
-  max_pack_reclength= share->base.pack_reclength;
+  max_pack_reclength= MY_MAX(share->base.pack_reclength, share->vreclength);
   if (share->options & HA_OPTION_COMPRESS_RECORD)
     set_if_bigger(max_pack_reclength, share->max_pack_length);
   if (!(sort_param=(MI_SORT_PARAM *)
@@ -3063,7 +3063,7 @@ err:
     /* Replace the actual file with the temporary file */
     if (new_file >= 0)
     {
-      got_error= replace_data_file(param, info, name, new_file);
+      got_error= replace_data_file(param, info, new_file);
       new_file= -1;
     }
   }
@@ -3077,7 +3077,7 @@ err:
       (void) mysql_file_delete(mi_key_file_datatmp,
                                param->temp_filename, MYF(MY_WME));
       if (info->dfile == new_file) /* Retry with key cache */
-        if (unlikely(mi_open_datafile(info, share, name, -1)))
+        if (unlikely(mi_open_datafile(info, share)))
           param->retry_repair= 0; /* Safety */
     }
     mi_mark_crashed_on_repair(info);
@@ -4759,8 +4759,7 @@ int mi_make_backup_of_index(MI_INFO *info, time_t backup_time, myf flags)
 }
 
 
-static int replace_data_file(HA_CHECK *param, MI_INFO *info,
-                             const char *name, File new_file)
+static int replace_data_file(HA_CHECK *param, MI_INFO *info, File new_file)
 {
   MYISAM_SHARE *share=info->s;
 
@@ -4796,7 +4795,7 @@ static int replace_data_file(HA_CHECK *param, MI_INFO *info,
                         DATA_TMP_EXT, param->backup_time,
                         (param->testflag & T_BACKUP_DATA ?
                          MYF(MY_REDEL_MAKE_BACKUP): MYF(0))) ||
-      mi_open_datafile(info, share, name, -1))
+      mi_open_datafile(info, share))
     return 1;
   return 0;
 }

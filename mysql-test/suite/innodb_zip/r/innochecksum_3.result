@@ -1,6 +1,5 @@
 # Set the environmental variables
 call mtr.add_suppression("InnoDB: Unable to read tablespace .* page no .* into the buffer pool after 100 attempts");
-SET GLOBAL innodb_file_per_table=on;
 [1]: Further Test are for rewrite checksum (innodb|crc32|none) for all ibd file & start the server.
 CREATE TABLE tab1 (pk INTEGER NOT NULL PRIMARY KEY,
 linestring_key GEOMETRY NOT NULL,
@@ -207,10 +206,10 @@ Filename::tab#.ibd
 # allow-mismatches,page,start-page,end-page
 [9]: check the both short and long options "page" and "start-page" when
 # seek value is larger than file size.
-NOT FOUND /Error: Unable to seek to necessary offset: Invalid argument/ in my_restart.err
-NOT FOUND /Error: Unable to seek to necessary offset: Invalid argument/ in my_restart.err
-NOT FOUND /Error: Unable to seek to necessary offset: Invalid argument/ in my_restart.err
-NOT FOUND /Error: Unable to seek to necessary offset: Invalid argument/ in my_restart.err
+FOUND 1 /Error: Unable to seek to necessary offset: Invalid argument/ in my_restart.err
+FOUND 1 /Error: Unable to seek to necessary offset: Invalid argument/ in my_restart.err
+FOUND 1 /Error: Unable to seek to necessary offset: Invalid argument/ in my_restart.err
+FOUND 1 /Error: Unable to seek to necessary offset: Invalid argument/ in my_restart.err
 [34]: check the invalid upper bound values for options, allow-mismatches, end-page, start-page and page.
 # innochecksum will fail with error code: 1
 NOT FOUND /Incorrect unsigned integer value: '18446744073709551616'/ in my_restart.err
@@ -221,7 +220,4 @@ NOT FOUND /Incorrect unsigned integer value: '18446744073709551616'/ in my_resta
 NOT FOUND /Incorrect unsigned integer value: '18446744073709551616'/ in my_restart.err
 NOT FOUND /Incorrect unsigned integer value: '18446744073709551616'/ in my_restart.err
 NOT FOUND /Incorrect unsigned integer value: '18446744073709551616'/ in my_restart.err
-# Restart the server
-DROP TABLE tab1;
-DROP TABLE tab2;
-SET GLOBAL innodb_file_per_table=default;
+DROP TABLE tab1,tab2;

@@ -71,4 +71,7 @@ enum rec_format_enum {
 };
 typedef enum rec_format_enum rec_format_t;
 
+/** Compressed field header size in bytes */
+#define ZIP_COLUMN_HEADER_LENGTH	2
+
 #endif

@@ -140,12 +140,8 @@ SELECT @@delayed_insert_timeout = @@global.delayed_insert_timeout;
 --Error 1229
 SET delayed_insert_timeout = 1;
 SELECT @@delayed_insert_timeout;
---Error 1064
-SET local.delayed_insert_timeout = 1;
 --Error 1109
 SELECT local.delayed_insert_timeout;
---Error 1064
-SET global.delayed_insert_timeout = 1;
 --Error 1109
 SELECT global.delayed_insert_timeout;
 --Error 1054

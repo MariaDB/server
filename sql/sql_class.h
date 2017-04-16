@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2016, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2016, MariaDB
+   Copyright (c) 2009, 2017, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -179,7 +179,7 @@ public:
   }
 
   inline char *str() const { return string.str; }
-  inline uint32 length() const { return string.length; }
+  inline size_t length() const { return string.length; }
   CHARSET_INFO *charset() const { return cs; }
 
   friend LEX_STRING * thd_query_string (MYSQL_THD thd);
@@ -201,99 +201,6 @@ typedef struct st_user_var_events
   bool unsigned_flag;
 } BINLOG_USER_VAR_EVENT;
 
-
-/*
-  When updating a table with virtual BLOB columns, the following might happen:
-  - an old record is read from the table, it has no vcol blob.
-  - update_virtual_fields() is run, vcol blob gets its value into the
-    record. But only a pointer to the value is in the table->record[0],
-    the value is in Field_blob::value String (or, it can be elsewhere!)
-  - store_record(table,record[1]), old record now is in record[1]
-  - fill_record() prepares new values in record[0], vcol blob is updated,
-    new value replaces the old one in the Field_blob::value
-  - now both record[1] and record[0] have a pointer that points to the
-    *new* vcol blob value. Or record[1] has a pointer to nowhere if
-    Field_blob::value had to realloc.
-
-  To resolve this we unlink vcol blobs from the pointer to the
-  data (in the record[1]). The orphan memory must be freed manually
-  (but, again, only if it was owned by Field_blob::value String).
-
-  With REPLACE and INSERT ... ON DUP KEY UPATE it's even more complex.
-  There is no store_record(table,record[1]), instead the row is read
-  directly into record[1].
-*/
-struct BLOB_VALUE_ORPHANAGE {
-  MY_BITMAP map;
-  TABLE *table;
-  BLOB_VALUE_ORPHANAGE() { map.bitmap= NULL; }
-  ~BLOB_VALUE_ORPHANAGE() { free(); }
-  bool init(TABLE *table_arg)
-  {
-    table= table_arg;
-    if (table->s->virtual_fields && table->s->blob_fields)
-      return bitmap_init(&map, NULL, table->s->virtual_fields, FALSE);
-    map.bitmap= NULL;
-    return 0;
-  }
-  void free() { bitmap_free(&map); }
-
-  /** Remove blob's ownership from blob value memory
-
-    @note the memory becomes orphaned, it needs to be freed using
-    free_orphans() or re-attached back to blobs using adopt_orphans()
-  */
-  void make_orphans()
-  {
-    DBUG_ASSERT(!table || !table->s->virtual_fields || !table->s->blob_fields || map.bitmap);
-    if (!map.bitmap)
-      return;
-    for (Field **ptr=table->vfield; *ptr; ptr++)
-    {
-      Field_blob *vb= (Field_blob*)(*ptr);
-      if (!(vb->flags & BLOB_FLAG) || !vb->owns_ptr(vb->get_ptr()))
-        continue;
-      bitmap_set_bit(&map, ptr - table->vfield);
-      vb->clear_temporary();
-    }
-  }
-
-  /** Frees orphaned blob values
-
-    @note It is assumed that value pointers are in table->record[1], while
-    Field_blob::ptr's point to table->record[0] as usual
-  */
-  void free_orphans()
-  {
-    DBUG_ASSERT(!table || !table->s->virtual_fields || !table->s->blob_fields || map.bitmap);
-    if (!map.bitmap)
-      return;
-    for (Field **ptr=table->vfield; *ptr; ptr++)
-    {
-      Field_blob *vb= (Field_blob*)(*ptr);
-      if (vb->flags & BLOB_FLAG && bitmap_fast_test_and_clear(&map, ptr - table->vfield))
-        my_free(vb->get_ptr(table->s->rec_buff_length));
-    }
-    DBUG_ASSERT(bitmap_is_clear_all(&map));
-  }
-
-  /** Restores blob's ownership over previously orphaned values */
-  void adopt_orphans()
-  {
-    DBUG_ASSERT(!table || !table->s->virtual_fields || !table->s->blob_fields || map.bitmap);
-    if (!map.bitmap)
-      return;
-    for (Field **ptr=table->vfield; *ptr; ptr++)
-    {
-      Field_blob *vb= (Field_blob*)(*ptr);
-      if (vb->flags & BLOB_FLAG && bitmap_fast_test_and_clear(&map, ptr - table->vfield))
-        vb->own_value_ptr();
-    }
-    DBUG_ASSERT(bitmap_is_clear_all(&map));
-  }
-};
-
-
 /*
   The COPY_INFO structure is used by INSERT/REPLACE code.
   The schema of the row counting by the INSERT/INSERT ... ON DUPLICATE KEY
@@ -306,7 +213,7 @@ struct BLOB_VALUE_ORPHANAGE {
       of the INSERT ... ON DUPLICATE KEY UPDATE no matter whether the row
       was actually changed or not.
 */
-struct COPY_INFO {
+typedef struct st_copy_info {
   ha_rows records; /**< Number of processed records */
   ha_rows deleted; /**< Number of deleted records */
   ha_rows updated; /**< Number of updated records */
@@ -322,8 +229,7 @@ struct COPY_INFO {
   /* for VIEW ... WITH CHECK OPTION */
   TABLE_LIST *view;
   TABLE_LIST *table_list;                       /* Normal table */
-  BLOB_VALUE_ORPHANAGE vblobs0, vblobs1; // vcol blobs of record[0] and record[1]
-};
+} COPY_INFO;
 
 
 class Key_part_spec :public Sql_alloc {
@@ -572,16 +478,22 @@ enum killed_state
   KILL_TIMEOUT= 8,
   KILL_TIMEOUT_HARD= 9,
   /*
+    When binlog reading thread connects to the server it kills
+    all the binlog threads with the same ID.
+  */
+  KILL_SLAVE_SAME_ID= 10,
+  /*
     All of the following killed states will kill the connection
     KILL_CONNECTION must be the first of these and it must start with
     an even number (becasue of HARD bit)!
   */
-  KILL_CONNECTION= 10,
-  KILL_CONNECTION_HARD= 11,
-  KILL_SYSTEM_THREAD= 12,
-  KILL_SYSTEM_THREAD_HARD= 13,
-  KILL_SERVER= 14,
-  KILL_SERVER_HARD= 15
+  KILL_CONNECTION= 12,
+  KILL_CONNECTION_HARD= 13,
+  KILL_SYSTEM_THREAD= 14,
+  KILL_SYSTEM_THREAD_HARD= 15,
+  KILL_SERVER= 16,
+  KILL_SERVER_HARD= 17,
+
 };
 
 extern int killed_errno(killed_state killed);
@@ -640,6 +552,7 @@ typedef struct system_variables
   ulonglong sortbuff_size;
   ulonglong group_concat_max_len;
   ulonglong default_regex_flags;
+  ulonglong max_mem_used;
 
   /**
      Place holders to store Multi-source variables in sys_var.cc during
@@ -728,7 +641,7 @@ typedef struct system_variables
   my_bool old_alter_table;
   my_bool old_passwords;
   my_bool big_tables;
-  my_bool only_standards_compliant_cte;
+  my_bool only_standard_compliant_cte;
   my_bool query_cache_strip_comments;
   my_bool sql_log_slow;
   my_bool sql_log_bin;
@@ -786,8 +699,13 @@ typedef struct system_variables
   ulong session_track_transaction_info;
   my_bool session_track_schema;
   my_bool session_track_state_change;
+  my_bool sequence_read_skip_cache;
 
   ulong threadpool_priority;
+
+  uint idle_transaction_timeout;
+  uint idle_readonly_transaction_timeout;
+  uint idle_readwrite_transaction_timeout;
 } SV;
 
 /**
@@ -842,6 +760,7 @@ typedef struct system_status_var
   /* The following are for internal temporary tables */
   ulong ha_tmp_update_count;
   ulong ha_tmp_write_count;
+  ulong ha_tmp_delete_count;
   ulong ha_prepare_count;
   ulong ha_icp_attempts;
   ulong ha_icp_match;
@@ -1161,7 +1080,10 @@ public:
 
 
   inline char *query() const { return query_string.str(); }
-  inline uint32 query_length() const { return query_string.length(); }
+  inline uint32 query_length() const
+  {
+    return static_cast<uint32>(query_string.length());
+  }
   CHARSET_INFO *query_charset() const { return query_string.charset(); }
   void set_query_inner(const CSET_STRING &string_arg)
   {
@@ -1372,7 +1294,8 @@ enum enum_locked_tables_mode
   LTM_NONE= 0,
   LTM_LOCK_TABLES,
   LTM_PRELOCKED,
-  LTM_PRELOCKED_UNDER_LOCK_TABLES
+  LTM_PRELOCKED_UNDER_LOCK_TABLES,
+  LTM_always_last
 };
 
 /**
@@ -1473,6 +1396,11 @@ public:
   */
   TABLE *derived_tables;
 
+  /* 
+    Temporary tables created for recursive table references.
+  */
+  TABLE *rec_tables;
+
   /*
     During a MySQL session, one can lock tables in two modes: automatic
     or manual. In automatic mode all necessary tables are locked just before
@@ -1553,6 +1481,7 @@ public:
     open_tables= 0;
     temporary_tables= 0;
     derived_tables= 0;
+    rec_tables= 0;
     extra_lock= 0;
     lock= 0;
     locked_tables_mode= LTM_NONE;
@@ -1651,6 +1580,7 @@ show_system_thread(enum_thread_type thread)
   Internal error handlers are exception handlers used by the server
   implementation.
 */
+
 class Internal_error_handler
 {
 protected:
@@ -1688,7 +1618,7 @@ public:
   virtual bool handle_condition(THD *thd,
                                 uint sql_errno,
                                 const char* sqlstate,
-                                Sql_condition::enum_warning_level level,
+                                Sql_condition::enum_warning_level *level,
                                 const char* msg,
                                 Sql_condition ** cond_hdl) = 0;
 
@@ -1709,7 +1639,7 @@ public:
   bool handle_condition(THD *thd,
                         uint sql_errno,
                         const char* sqlstate,
-                        Sql_condition::enum_warning_level level,
+                        Sql_condition::enum_warning_level *level,
                         const char* msg,
                         Sql_condition ** cond_hdl)
   {
@@ -1736,7 +1666,7 @@ public:
   bool handle_condition(THD *thd,
                         uint sql_errno,
                         const char* sqlstate,
-                        Sql_condition::enum_warning_level level,
+                        Sql_condition::enum_warning_level *level,
                         const char* msg,
                         Sql_condition ** cond_hdl);
 
@@ -1757,7 +1687,7 @@ public:
   bool handle_condition(THD *thd,
                         uint sql_errno,
                         const char *sqlstate,
-                        Sql_condition::enum_warning_level level,
+                        Sql_condition::enum_warning_level *level,
                         const char* msg,
                         Sql_condition **cond_hdl);
 
@@ -2290,6 +2220,8 @@ public:
     chapter 'Miscellaneous functions', for functions GET_LOCK, RELEASE_LOCK.
   */
   HASH ull_hash;
+  /* Hash of used seqeunces (for PREVIOUS value) */
+  HASH sequences;
 #ifndef DBUG_OFF
   uint dbug_sentry; // watch out for memory corruption
 #endif
@@ -2494,6 +2426,8 @@ private:
   uint binlog_table_maps;
 public:
   void issue_unsafe_warnings();
+  void reset_unsafe_warnings()
+  { binlog_unsafe_warning_flags= 0; }
 
   uint get_binlog_table_maps() const {
     return binlog_table_maps;
@@ -3911,7 +3845,7 @@ private:
   */
   bool handle_condition(uint sql_errno,
                         const char* sqlstate,
-                        Sql_condition::enum_warning_level level,
+                        Sql_condition::enum_warning_level *level,
                         const char* msg,
                         Sql_condition ** cond_hdl);
 
@@ -3957,6 +3891,37 @@ public:
   */
   void raise_note_printf(uint code, ...);
 
+  /**
+    @brief Push an error message into MySQL error stack with line
+    and position information.
+
+    This function provides semantic action implementers with a way
+    to push the famous "You have a syntax error near..." error
+    message into the error stack, which is normally produced only if
+    a parse error is discovered internally by the Bison generated
+    parser.
+  */
+  void parse_error(const char *err_text, const char *yytext)
+  {
+    Lex_input_stream *lip= &m_parser_state->m_lip;
+    if (!yytext)
+    {
+      if (!(yytext= lip->get_tok_start()))
+        yytext= "";
+    }
+    /* Push an error into the error stack */
+    ErrConvString err(yytext, strlen(yytext), variables.character_set_client);
+    my_printf_error(ER_PARSE_ERROR,  ER_THD(this, ER_PARSE_ERROR), MYF(0),
+                    err_text, err.ptr(), lip->yylineno);
+  }
+  void parse_error(uint err_number, const char *yytext= 0)
+  {
+    return parse_error(ER_THD(this, err_number), yytext);
+  }
+  void parse_error()
+  {
+    return parse_error(ER_SYNTAX_ERROR);
+  }
 private:
   /*
     Only the implementation of the SIGNAL and RESIGNAL statements
@@ -3983,7 +3948,41 @@ private:
   raise_condition(uint sql_errno,
                   const char* sqlstate,
                   Sql_condition::enum_warning_level level,
+                  const char* msg)
+  {
+    return raise_condition(sql_errno, sqlstate, level,
+                           Sql_user_condition_identity(), msg);
+  }
+
+  /**
+    Raise a generic or a user defined SQL condition.
+    @param ucid      - the user condition identity
+                       (or an empty identity if not a user condition)
+    @param sql_errno - the condition error number
+    @param sqlstate  - the condition SQLSTATE
+    @param level     - the condition level
+    @param msg       - the condition message text
+    @return The condition raised, or NULL
+  */
+  Sql_condition*
+  raise_condition(uint sql_errno,
+                  const char* sqlstate,
+                  Sql_condition::enum_warning_level level,
+                  const Sql_user_condition_identity &ucid,
                   const char* msg);
+
+  Sql_condition*
+  raise_condition(const Sql_condition *cond)
+  {
+    Sql_condition *raised= raise_condition(cond->get_sql_errno(),
+                                           cond->get_sqlstate(),
+                                           cond->get_level(),
+                                           *cond/*Sql_user_condition_identity*/,
+                                           cond->get_message_text());
+    if (raised)
+      raised->copy_opt_attributes(cond);
+    return raised;
+  }
 
 public:
   /** Overloaded to guard query/query_length fields */
@@ -4083,27 +4082,7 @@ public:
     }
   }
 
-private:
-  /* 
-    This reference points to the table arena when the expression
-    for a virtual column is being evaluated
-  */ 
-  Query_arena *arena_for_cached_items;
-
 public:
-  void reset_arena_for_cached_items(Query_arena *new_arena)
-  {
-    arena_for_cached_items= new_arena;
-  }
-  Query_arena *switch_to_arena_for_cached_items(Query_arena *backup)
-  {
-    if (!arena_for_cached_items)
-      return 0;
-    set_n_backup_active_arena(arena_for_cached_items, backup);
-    return backup;
-  }
-
-
   void clear_wakeup_ready() { wakeup_ready= false; }
   /*
     Sleep waiting for others to wake us up with signal_wakeup_ready().
@@ -4388,6 +4367,54 @@ public:
     current_linfo= 0;
     mysql_mutex_unlock(&LOCK_thread_count);
   }
+
+
+  uint get_net_wait_timeout()
+  {
+    if (in_active_multi_stmt_transaction())
+    {
+      if (transaction.all.is_trx_read_write())
+      {
+        if (variables.idle_readwrite_transaction_timeout > 0)
+          return variables.idle_readwrite_transaction_timeout;
+      }
+      else
+      {
+        if (variables.idle_readonly_transaction_timeout > 0)
+          return variables.idle_readonly_transaction_timeout;
+      }
+
+      if (variables.idle_transaction_timeout > 0)
+        return variables.idle_transaction_timeout;
+    }
+
+    return variables.net_wait_timeout;
+  }
+
+  /**
+    Switch to a sublex, to parse a substatement or an expression.
+  */
+  void set_local_lex(sp_lex_local *sublex)
+  {
+    DBUG_ASSERT(lex->sphead);
+    lex= sublex;
+    /* Reset part of parser state which needs this. */
+    m_parser_state->m_yacc.reset_before_substatement();
+  }
+
+  /**
+    Switch back from a sublex (currently pointed by this->lex) to the old lex.
+    Sublex is merged to "oldlex" and this->lex is set to "oldlex".
+
+    This method is called after parsing a substatement or an expression.
+    set_local_lex() must be previously called.
+    @param oldlex - The old lex which was active before set_local_lex().
+    @returns      - false on success, true on error (failed to merge LEX's).
+
+    See also sp_head::merge_lex().
+  */
+  bool restore_from_local_lex_to_old_lex(LEX *oldlex);
+
 };
 
 inline void add_to_active_threads(THD *thd)
@@ -4964,17 +4991,22 @@ public:
 };
 
 
-class select_union :public select_result_interceptor
+class select_unit :public select_result_interceptor
 {
+  uint curr_step, prev_step, curr_sel;
+  enum sub_select_type step;
 public:
+  Item_int *intersect_mark;
   TMP_TABLE_PARAM tmp_table_param;
   int write_err; /* Error code from the last send_data->ha_write_row call. */
-public:
   TABLE *table;
   ha_rows records;
 
-  select_union(THD *thd_arg):
-    select_result_interceptor(thd_arg), write_err(0), table(0), records(0)
+  select_unit(THD *thd_arg):
+    select_result_interceptor(thd_arg),
+    curr_step(0), prev_step(0), curr_sel(UINT_MAX),
+    step(UNION_TYPE), intersect_mark(0), write_err(0), table(0),
+    records(0)
   { tmp_table_param.init(); }
   int prepare(List<Item> &list, SELECT_LEX_UNIT *u);
   /**
@@ -4996,12 +5028,13 @@ public:
                                    const char *alias, 
                                    bool bit_fields_as_long,
                                    bool create_table,
-                                   bool keep_row_order= FALSE);
+                                   bool keep_row_order,
+                                   uint hidden);
   TMP_TABLE_PARAM *get_tmp_table_param() { return &tmp_table_param; }
+  void change_select();
 };
 
-
-class select_union_recursive :public select_union
+class select_union_recursive :public select_unit
 {
  public:
   /* The temporary table with the new records generated by one iterative step */
@@ -5012,7 +5045,7 @@ class select_union_recursive :public select_union
   List<TABLE> rec_tables;
 
   select_union_recursive(THD *thd_arg):
-    select_union(thd_arg),
+    select_unit(thd_arg),
     incr_table(0), first_rec_table_to_update(0) {};
 
   int send_data(List<Item> &items);
@@ -5021,7 +5054,8 @@ class select_union_recursive :public select_union
                            const char *alias, 
                            bool bit_fields_as_long,
                            bool create_table,
-                           bool keep_row_order= FALSE);
+                           bool keep_row_order,
+                           uint hidden);
   void cleanup();
 };
 
@@ -5038,7 +5072,7 @@ class select_union_recursive :public select_union
   have a global ORDER BY clause. @see st_select_lex_unit::prepare().
 */
 
-class select_union_direct :public select_union
+class select_union_direct :public select_unit
 {
 private:
   /* Result object that receives all rows */
@@ -5064,7 +5098,7 @@ public:
   ha_rows send_records; 
   select_union_direct(THD *thd_arg, select_result *result_arg,
                       SELECT_LEX *last_select_lex_arg):
-  select_union(thd_arg), result(result_arg),
+  select_unit(thd_arg), result(result_arg),
     last_select_lex(last_select_lex_arg),
     done_send_result_set_metadata(false), done_initialize_tables(false),
     limit_found_rows(0)
@@ -5147,7 +5181,7 @@ public:
   about NULLs.
 */
 
-class select_materialize_with_stats : public select_union
+class select_materialize_with_stats : public select_unit
 {
 protected:
   class Column_statistics
@@ -5180,14 +5214,15 @@ protected:
   void reset();
 
 public:
-  select_materialize_with_stats(THD *thd_arg): select_union(thd_arg)
+  select_materialize_with_stats(THD *thd_arg): select_unit(thd_arg)
   { tmp_table_param.init(); }
   bool create_result_table(THD *thd, List<Item> *column_types,
                            bool is_distinct, ulonglong options,
                            const char *alias, 
                            bool bit_fields_as_long,
                            bool create_table,
-                           bool keep_row_order= FALSE);
+                           bool keep_row_order,
+                           uint hidden);
   bool init_result_table(ulonglong select_options);
   int send_data(List<Item> &items);
   void cleanup();
@@ -5367,6 +5402,30 @@ public:
   }
 };
 
+
+class Qualified_column_ident: public Table_ident
+{
+public:
+  LEX_STRING m_column;
+public:
+  Qualified_column_ident(const LEX_STRING column)
+   :Table_ident(null_lex_str),
+    m_column(column)
+  { }
+  Qualified_column_ident(const LEX_STRING table, const LEX_STRING column)
+   :Table_ident(table),
+    m_column(column)
+  { }
+  Qualified_column_ident(THD *thd,
+                         const LEX_STRING db,
+                         const LEX_STRING table,
+                         const LEX_STRING column)
+   :Table_ident(thd, db, table, false),
+    m_column(column)
+  { }
+};
+
+
 // this is needed for user_vars hash
 class user_var_entry
 {
@@ -5434,7 +5493,6 @@ class multi_update :public select_result_interceptor
   TABLE_LIST *update_tables, *table_being_updated;
   TABLE **tmp_tables, *main_table, *table_to_update;
   TMP_TABLE_PARAM *tmp_table_param;
-  BLOB_VALUE_ORPHANAGE *vblobs;
   ha_rows updated, found;
   List <Item> *fields, *values;
   List <Item> **fields_for_table, **values_for_table;
@@ -5483,20 +5541,40 @@ public:
   my_var(const LEX_STRING& j, enum type s) : name(j), scope(s) { }
   virtual ~my_var() {}
   virtual bool set(THD *thd, Item *val) = 0;
+  virtual class my_var_sp *get_my_var_sp() { return NULL; }
 };
 
 class my_var_sp: public my_var {
+  const Type_handler *m_type_handler;
 public:
   uint offset;
-  enum_field_types type;
   /*
     Routine to which this Item_splocal belongs. Used for checking if correct
     runtime context is used for variable handling.
   */
   sp_head *sp;
-  my_var_sp(const LEX_STRING& j, uint o, enum_field_types t, sp_head *s)
-    : my_var(j, LOCAL_VAR), offset(o), type(t), sp(s) { }
+  my_var_sp(const LEX_STRING& j, uint o, const Type_handler *type_handler,
+            sp_head *s)
+    : my_var(j, LOCAL_VAR), m_type_handler(type_handler), offset(o), sp(s) { }
   ~my_var_sp() { }
+  bool set(THD *thd, Item *val);
+  my_var_sp *get_my_var_sp() { return this; }
+  const Type_handler *type_handler() const { return m_type_handler; }
+};
+
+/*
+  This class handles fields of a ROW SP variable when it's used as a OUT
+  parameter in a stored procedure.
+*/
+class my_var_sp_row_field: public my_var_sp
+{
+  uint m_field_offset;
+public:
+  my_var_sp_row_field(const LEX_STRING &varname, const LEX_STRING &fieldname,
+                      uint var_idx, uint field_idx, sp_head *s)
+   :my_var_sp(varname, var_idx, &type_handler_double/*Not really used*/, s),
+    m_field_offset(field_idx)
+  { }
   bool set(THD *thd, Item *val);
 };
 
@@ -5510,10 +5588,13 @@ public:
 
 class select_dumpvar :public select_result_interceptor {
   ha_rows row_count;
+  my_var_sp *m_var_sp_row; // Not NULL if SELECT INTO row_type_sp_variable
+  bool send_data_to_var_list(List<Item> &items);
 public:
   List<my_var> var_list;
-  select_dumpvar(THD *thd_arg): select_result_interceptor(thd_arg)
-  { var_list.empty(); row_count= 0; }
+  select_dumpvar(THD *thd_arg)
+   :select_result_interceptor(thd_arg), row_count(0), m_var_sp_row(NULL)
+  { var_list.empty(); }
   ~select_dumpvar() {}
   int prepare(List<Item> &list, SELECT_LEX_UNIT *u);
   int send_data(List<Item> &items);
@@ -5640,6 +5721,14 @@ public:
   SP Bulk execution optimized
 */
 #define CF_SP_BULK_OPTIMIZED (1U << 20)
+/**
+  If command creates or drops a table
+*/
+#define CF_SCHEMA_CHANGE (1U << 21)
+/**
+  If command creates or drops a database
+*/
+#define CF_DB_CHANGE (1U << 22)
 
 /* Bits in server_command_flags */
 
@@ -5753,6 +5842,17 @@ inline int handler::ha_write_tmp_row(uchar *buf)
   return error;
 }
 
+inline int handler::ha_delete_tmp_row(uchar *buf)
+{
+  int error;
+  MYSQL_DELETE_ROW_START(table_share->db.str, table_share->table_name.str);
+  increment_statistics(&SSV::ha_tmp_delete_count);
+  TABLE_IO_WAIT(tracker, m_psi, PSI_TABLE_DELETE_ROW, MAX_KEY, 0,
+                { error= delete_row(buf); })
+  MYSQL_DELETE_ROW_DONE(error);
+  return error;
+}
+
 inline int handler::ha_update_tmp_row(const uchar *old_data, uchar *new_data)
 {
   int error;
@@ -5817,6 +5917,99 @@ inline bool binlog_should_compress(ulong len)
   return opt_bin_log_compress &&
     len >= opt_bin_log_compress_min_len;
 }
+
+
+/**
+   Save thd sql_mode on instantiation.
+   On destruction it resets the mode to the previously stored value.
+*/
+class Sql_mode_save
+{
+ public:
+  Sql_mode_save(THD *thd) : thd(thd), old_mode(thd->variables.sql_mode) {}
+  ~Sql_mode_save() { thd->variables.sql_mode = old_mode; }
+
+ private:
+  THD *thd;
+  sql_mode_t old_mode; // SQL mode saved at construction time.
+};
+
+
+/**
+  This class resembles the SQL Standard schema qualified object name:
+  <schema qualified name> ::= [ <schema name> <period> ] <qualified identifier>
+*/
+class Database_qualified_name
+{
+public:
+  LEX_STRING m_db;
+  LEX_STRING m_name;
+  Database_qualified_name(const LEX_STRING db, const LEX_STRING name)
+   :m_db(db), m_name(name)
+  { }
+  Database_qualified_name(char *db, size_t db_length,
+                          char *name, size_t name_length)
+  {
+    m_db.str= db;
+    m_db.length= db_length;
+    m_name.str= name;
+    m_name.length= name_length;
+  }
+
+  bool eq(const Database_qualified_name *other) const
+  {
+    CHARSET_INFO *cs= lower_case_table_names ?
+                      &my_charset_utf8_general_ci :
+                      &my_charset_utf8_bin;
+    return
+      m_db.length == other->m_db.length &&
+      m_name.length == other->m_name.length &&
+      !my_strnncoll(cs,
+                    (const uchar *) m_db.str, m_db.length,
+                    (const uchar *) other->m_db.str, other->m_db.length) &&
+      !my_strnncoll(cs,
+                    (const uchar *) m_name.str, m_name.length,
+                    (const uchar *) other->m_name.str, other->m_name.length);
+  }
+  // Export db and name as a qualified name string: 'db.name'
+  size_t make_qname(char *dst, size_t dstlen) const
+  {
+    return my_snprintf(dst, dstlen, "%.*s.%.*s",
+                       (int) m_db.length, m_db.str,
+                       (int) m_name.length, m_name.str);
+  }
+  // Export db and name as a qualified name string, allocate on mem_root.
+  bool make_qname(THD *thd, LEX_STRING *dst) const
+  {
+    const uint dot= !!m_db.length;
+    /* format: [database + dot] + name + '\0' */
+    dst->length= m_db.length + dot + m_name.length;
+    if (!(dst->str= (char*) thd->alloc(dst->length + 1)))
+      return true;
+    sprintf(dst->str, "%.*s%.*s%.*s",
+            (int) m_db.length, (m_db.length ? m_db.str : ""),
+            dot, ".",
+            (int) m_name.length, m_name.str);
+    DBUG_ASSERT(ok_for_lower_case_names(m_db.str));
+    return false;
+  }
+};
+
+
+class ErrConvDQName: public ErrConv
+{
+  const Database_qualified_name *m_name;
+public:
+  ErrConvDQName(const Database_qualified_name *name)
+   :m_name(name)
+  { }
+  const char *ptr() const
+  {
+    m_name->make_qname(err_buffer, sizeof(err_buffer));
+    return err_buffer;
+  }
+};
+
 
 #endif /* MYSQL_SERVER */
 

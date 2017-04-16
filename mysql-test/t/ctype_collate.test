@@ -308,3 +308,34 @@ DROP FUNCTION getText;
 DROP DATABASE test1;
 USE test;
 SET NAMES latin1;
+
+--echo #
+--echo # MDEV-11320, MySQL BUG#81810: Inconsistent sort order for blob/text between InnoDB and filesort
+--echo #
+
+CREATE TABLE t1 (
+  b LONGTEXT CHARACTER SET "latin1" COLLATE "latin1_bin",
+  KEY b (b(32))
+);
+INSERT INTO t1 (b) VALUES ('a'), (_binary 0x1), (_binary 0x0), ('');
+
+
+drop table t1;
+
+CREATE TABLE t1 (
+  b LONGTEXT CHARACTER SET "latin1" COLLATE "latin1_bin",
+  PRIMARY KEY b (b(32))
+);
+
+INSERT INTO t1 (b) VALUES ('a'), (_binary 0x1), (_binary 0x0), ('');
+
+explain 
+select hex(b) from t1 force index (PRIMARY) where b<'zzz';
+select hex(b) from t1 force index (PRIMARY) where b<'zzz';
+
+explain
+select hex(b) from t1 where b<'zzz' order by b;
+select hex(b) from t1 where b<'zzz' order by b;
+
+drop table t1;
+

@@ -35,11 +35,26 @@ force=0
 in_rpm=0
 ip_only=0
 cross_bootstrap=0
+install_params=""
+auth_root_authentication_method=normal
+auth_root_socket_user='root'
 
 usage()
 {
   cat <<EOF
 Usage: $0 [OPTIONS]
+  --auth-root-authentication-method=normal|socket
+                       Chooses the authentication method for the created initial
+                       root user. The default is 'normal' to creates a root user
+                       that can login without password, which can be insecure.
+                       The alternative 'socket' allows only the system root user
+                       to login as MariaDB root; this requires the unix socket
+                       authentication plugin.
+  --auth-root-socket-user=user
+                       Used with --auth-root-authentication-method=socket. It
+                       specifies the name of the MariaDB root account, as well
+                       as of the system account allowed to access it. Defaults
+                       to 'root'.
   --basedir=path       The path to the MariaDB installation directory.
   --builddir=path      If using --srcdir with out-of-directory builds, you
                        will need to set this to the location of the build
@@ -60,6 +75,8 @@ Usage: $0 [OPTIONS]
   --defaults-file=path Read only this configuration file.
   --rpm                For internal use.  This option is used by RPM files
                        during the MariaDB installation process.
+  --skip-auth-anonymous-user
+                       Do not install an unprivileged anonymous user.
   --skip-name-resolve  Use IP addresses rather than hostnames when creating
                        grant table entries.  This option can be useful if
                        your DNS does not work.
@@ -142,6 +159,17 @@ parse_arguments()
         #
         # --windows is a deprecated alias
         cross_bootstrap=1 ;;
+      --skip-auth-anonymous-user)
+	install_params="$install_params
+SET @skip_auth_anonymous=1;" ;;
+      --auth-root-authentication-method=normal)
+	auth_root_authentication_method=normal ;;
+      --auth-root-authentication-method=socket)
+	auth_root_authentication_method=socket ;;
+      --auth-root-authentication-method=*)
+        usage ;;
+      --auth-root-socket-user=*)
+        auth_root_socket_user="$(parse_arg "$arg")" ;;
 
       *)
         if test -n "$pick_args"
@@ -271,7 +299,8 @@ then
   extra_bindir="$basedir/extra"
   mysqld="$basedir/sql/mysqld"
   langdir="$basedir/sql/share/english"
-  pkgdatadir="$srcdir/scripts"
+  srcpkgdatadir="$srcdir/scripts"
+  buildpkgdatadir="$builddir/scripts"
   scriptdir="$srcdir/scripts"
 elif test -n "$basedir"
 then
@@ -289,8 +318,9 @@ then
     cannot_find_file errmsg.sys $basedir/share/english $basedir/share/mysql/english
     exit 1
   fi
-  pkgdatadir=`find_in_basedir --dir fill_help_tables.sql share share/mysql`
-  if test -z "$pkgdatadir"
+  srcpkgdatadir=`find_in_basedir --dir fill_help_tables.sql share share/mysql`
+  buildpkgdatadir=$srcpkgdatadir
+  if test -z "$srcpkgdatadir"
   then
     cannot_find_file fill_help_tables.sql $basedir/share $basedir/share/mysql
     exit 1
@@ -301,16 +331,17 @@ else
   bindir="@bindir@"
   extra_bindir="$bindir"
   mysqld="@libexecdir@/mysqld"
-  pkgdatadir="@pkgdatadir@"
+  srcpkgdatadir="@pkgdatadir@"
+  buildpkgdatadir="@pkgdatadir@"
   scriptdir="@scriptdir@"
 fi
 
 # Set up paths to SQL scripts required for bootstrap
-fill_help_tables="$pkgdatadir/fill_help_tables.sql"
-create_system_tables="$pkgdatadir/mysql_system_tables.sql"
-create_system_tables2="$pkgdatadir/mysql_performance_tables.sql"
-fill_system_tables="$pkgdatadir/mysql_system_tables_data.sql"
-maria_add_gis_sp="$pkgdatadir/maria_add_gis_sp_bootstrap.sql"
+fill_help_tables="$srcpkgdatadir/fill_help_tables.sql"
+create_system_tables="$srcpkgdatadir/mysql_system_tables.sql"
+create_system_tables2="$srcpkgdatadir/mysql_performance_tables.sql"
+fill_system_tables="$srcpkgdatadir/mysql_system_tables_data.sql"
+maria_add_gis_sp="$buildpkgdatadir/maria_add_gis_sp_bootstrap.sql"
 
 for f in "$fill_help_tables" "$create_system_tables" "$create_system_tables2" "$fill_system_tables" "$maria_add_gis_sp"
 do
@@ -428,7 +459,17 @@ mysqld_install_cmd_line()
 
 # Create the system and help tables by passing them to "mysqld --bootstrap"
 s_echo "Installing MariaDB/MySQL system tables in '$ldata' ..."
-if { echo "use mysql;"; cat "$create_system_tables" "$create_system_tables2" "$fill_system_tables" "$fill_help_tables" "$maria_add_gis_sp"; } | eval "$filter_cmd_line" | mysqld_install_cmd_line > /dev/null
+case "$auth_root_authentication_method" in
+  normal)
+    install_params="$install_params
+SET @skip_auth_root_nopasswd=NULL;
+SET @auth_root_socket=NULL;" ;;
+  socket)
+    install_params="$install_params
+SET @skip_auth_root_nopasswd=1;
+SET @auth_root_socket='$auth_root_socket_user';" ;;
+esac
+if { echo "use mysql;$install_params"; cat "$create_system_tables" "$create_system_tables2" "$fill_system_tables" "$fill_help_tables" "$maria_add_gis_sp"; } | eval "$filter_cmd_line" | mysqld_install_cmd_line > /dev/null
 then
   s_echo "OK"
 else
@@ -462,7 +503,6 @@ else
   echo
   exit 1
 fi
-
 
 # Don't output verbose information if running inside bootstrap or using
 # --srcdir for testing.  In such cases, there's no end user looking at
@@ -506,10 +546,8 @@ then
   echo "The latest information about MariaDB is available at http://mariadb.org/."
   echo "You can find additional information about the MySQL part at:"
   echo "http://dev.mysql.com"
-  echo "Support MariaDB development by buying support/new features from MariaDB"
-  echo "Corporation Ab. You can contact us about this at sales@mariadb.com."
-  echo "Alternatively consider joining our community based development effort:"
-  echo "http://mariadb.com/kb/en/contributing-to-the-mariadb-project/"
+  echo "Consider joining MariaDB's strong and vibrant community:"
+  echo "https://mariadb.org/get-involved/"
   echo
 fi
 

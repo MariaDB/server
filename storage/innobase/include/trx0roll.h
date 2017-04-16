@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2015, 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -50,32 +51,16 @@ trx_savept_t
 trx_savept_take(
 /*============*/
 	trx_t*	trx);	/*!< in: transaction */
-/********************************************************************//**
-Pops the topmost record when the two undo logs of a transaction are seen
-as a single stack of records ordered by their undo numbers.
-@return undo log record copied to heap, NULL if none left, or if the
-undo number of the top record would be less than the limit */
-trx_undo_rec_t*
-trx_roll_pop_top_rec_of_trx_low(
-/*============================*/
-	trx_t*		trx,		/*!< in/out: transaction */
-	trx_undo_ptr_t*	undo_ptr,	/*!< in: rollback segment to look
-					for next undo log record. */
-	undo_no_t	limit,		/*!< in: least undo number we need */
-	roll_ptr_t*	roll_ptr,	/*!< out: roll pointer to undo record */
-	mem_heap_t*	heap);		/*!< in/out: memory heap where copied */
 
-/********************************************************************//**
-Get next undo log record from redo and noredo rollback segments.
-@return undo log record copied to heap, NULL if none left, or if the
-undo number of the top record would be less than the limit */
+/** Get the last undo log record of a transaction (for rollback).
+@param[in,out]	trx		transaction
+@param[out]	roll_ptr	DB_ROLL_PTR to the undo record
+@param[in,out]	heap		memory heap for allocation
+@return	undo log record copied to heap
+@retval	NULL if none left or the roll_limit (savepoint) was reached */
 trx_undo_rec_t*
-trx_roll_pop_top_rec_of_trx(
-/*========================*/
-	trx_t*		trx,		/*!< in: transaction */
-	undo_no_t	limit,		/*!< in: least undo number we need */
-	roll_ptr_t*	roll_ptr,	/*!< out: roll pointer to undo record */
-	mem_heap_t*	heap);		/*!< in: memory heap where copied */
+trx_roll_pop_top_rec_of_trx(trx_t* trx, roll_ptr_t* roll_ptr, mem_heap_t* heap)
+	MY_ATTRIBUTE((nonnull, warn_unused_result));
 
 /*******************************************************************//**
 Rollback or clean up any incomplete transactions which were
@@ -235,8 +220,6 @@ struct trx_named_savept_t{
 					transaction */
 };
 
-#ifndef UNIV_NONINL
 #include "trx0roll.ic"
-#endif
 
 #endif

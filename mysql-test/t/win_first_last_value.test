@@ -56,3 +56,22 @@ select pk, a, b, c, d, e,
 from t1;
 
 drop table t1;
+
+--echo #
+--echo # MDEV-11746: Wrong result upon using FIRST_VALUE with a window frame
+--echo #
+create table t1 (i int);
+insert into t1 values (1),(2),(3),(4),(5),(6),(7),(8),(9),(10);
+
+select i,
+       first_value(i) OVER (order by i rows between CURRENT ROW and 1 FOLLOWING) as fst_1f,
+       last_value(i) OVER (order by i rows between CURRENT ROW and 1 FOLLOWING) as last_1f,
+       first_value(i) OVER (order by i rows between 1 PRECEDING AND 1 FOLLOWING) as fst_1p1f,
+       last_value(i) OVER (order by i rows between 1 PRECEDING AND 1 FOLLOWING) as fst_1p1f,
+       first_value(i) OVER (order by i rows between 2 PRECEDING AND 1 PRECEDING) as fst_2p1p,
+       last_value(i) OVER (order by i rows between 2 PRECEDING AND 1 PRECEDING) as fst_2p1p,
+       first_value(i) OVER (order by i rows between 1 FOLLOWING AND 2 FOLLOWING) as fst_1f2f,
+       last_value(i) OVER (order by i rows between 1 FOLLOWING AND 2 FOLLOWING) as fst_1f2f
+from t1;
+
+drop table t1;

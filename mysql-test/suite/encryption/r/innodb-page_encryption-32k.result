@@ -1,9 +1,13 @@
-call mtr.add_suppression("InnoDB: Warning: innodb_page_size has been changed from default value *");
-SET GLOBAL innodb_file_format = `Barracuda`;
-SET GLOBAL innodb_file_per_table = ON;
 create table innodb_normal(c1 bigint not null, b char(200)) engine=innodb;
 create table innodb_compact(c1 bigint not null, b char(200)) engine=innodb row_format=compact encrypted=yes encryption_key_id=1;
 create table innodb_dynamic(c1 bigint not null, b char(200)) engine=innodb row_format=dynamic encrypted=yes encryption_key_id=3;
+ERROR HY000: Can't create table `test`.`innodb_dynamic` (errno: 140 "Wrong create options")
+show warnings;
+Level	Code	Message
+Warning	140	InnoDB: ENCRYPTION_KEY_ID 3 not available
+Error	1005	Can't create table `test`.`innodb_dynamic` (errno: 140 "Wrong create options")
+Warning	1030	Got error 140 "Wrong create options" from storage engine InnoDB
+create table innodb_dynamic(c1 bigint not null, b char(200)) engine=innodb row_format=dynamic encrypted=yes encryption_key_id=33;
 create table innodb_redundant(c1 bigint not null, b char(200))  engine=innodb row_format=redundant encrypted=yes encryption_key_id=4;
 show create table innodb_compact;
 Table	Create Table
@@ -16,7 +20,7 @@ Table	Create Table
 innodb_dynamic	CREATE TABLE `innodb_dynamic` (
   `c1` bigint(20) NOT NULL,
   `b` char(200) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=DYNAMIC `encrypted`=yes `encryption_key_id`=3
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=DYNAMIC `encrypted`=yes `encryption_key_id`=33
 show create table innodb_redundant;
 Table	Create Table
 innodb_redundant	CREATE TABLE `innodb_redundant` (
@@ -72,9 +76,6 @@ innodb_compact	CREATE TABLE `innodb_compact` (
   `b` char(200) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=COMPACT
 alter table innodb_dynamic engine=innodb encrypted=DEFAULT encryption_key_id=DEFAULT;
-Warnings:
-Warning	1478	InnoDB: ROW_FORMAT=DYNAMIC requires innodb_file_format > Antelope.
-Warning	1478	InnoDB: assuming ROW_FORMAT=COMPACT.
 show create table innodb_dynamic;
 Table	Create Table
 innodb_dynamic	CREATE TABLE `innodb_dynamic` (

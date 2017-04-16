@@ -284,7 +284,6 @@ public:
      *               By taking ownership of the array, we save a malloc and memcpy,
      *               and possibly a free (if the caller is done with the array).
      */
-    __attribute__((nonnull))
     void create_steal_sorted_array(omtdata_t **const values, const uint32_t numvalues, const uint32_t new_capacity);
 
     /**
@@ -667,7 +666,6 @@ private:
 
     void set_at_internal(const subtree &subtree, const omtdata_t &value, const uint32_t idx);
 
-    __attribute__((nonnull(2,5)))
     void delete_internal(subtree *const subtreep, const uint32_t idx, omt_node *const copyn, subtree **const rebalance_subtree);
 
     template<typename iterate_extra_t,

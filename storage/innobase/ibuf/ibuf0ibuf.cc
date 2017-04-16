@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1997, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, MariaDB Corporation.
+Copyright (c) 2016, 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -41,12 +41,6 @@ my_bool	srv_ibuf_disable_background_merge;
 #endif
 /** The start address for an insert buffer bitmap page bitmap */
 #define IBUF_BITMAP		PAGE_DATA
-
-#ifdef UNIV_NONINL
-#include "ibuf0ibuf.ic"
-#endif
-
-#ifndef UNIV_HOTBACKUP
 
 #include "buf0buf.h"
 #include "buf0rea.h"
@@ -573,7 +567,9 @@ ibuf_init_at_db_start(void)
 	ibuf->index->n_uniq = REC_MAX_N_FIELDS;
 	rw_lock_create(index_tree_rw_lock_key, &ibuf->index->lock,
 		       SYNC_IBUF_INDEX_TREE);
+#ifdef BTR_CUR_ADAPT
 	ibuf->index->search_info = btr_search_info_create(ibuf->index->heap);
+#endif /* BTR_CUR_ADAPT */
 	ibuf->index->page = FSP_IBUF_TREE_ROOT_PAGE_NO;
 	ut_d(ibuf->index->cached = TRUE);
 	return (error);
@@ -595,7 +591,6 @@ ibuf_max_size_update(
 }
 
 
-#endif /* !UNIV_HOTBACKUP */
 /*********************************************************************//**
 Initializes an ibuf bitmap page. */
 void
@@ -618,10 +613,7 @@ ibuf_bitmap_page_init(
 	memset(page + IBUF_BITMAP, 0, byte_offset);
 
 	/* The remaining area (up to the page trailer) is uninitialized. */
-
-#ifndef UNIV_HOTBACKUP
 	mlog_write_initial_log_record(page, MLOG_IBUF_BITMAP_INIT, mtr);
-#endif /* !UNIV_HOTBACKUP */
 }
 
 /*********************************************************************//**
@@ -644,7 +636,7 @@ ibuf_parse_bitmap_init(
 
 	return(ptr);
 }
-#ifndef UNIV_HOTBACKUP
+
 # ifdef UNIV_DEBUG
 /** Gets the desired bits for a given page from a bitmap page.
 @param[in]	page		bitmap page
@@ -814,7 +806,7 @@ ibuf_bitmap_get_map_page_func(
 	const page_id_t&	page_id,
 	const page_size_t&	page_size,
 	const char*		file,
-	ulint			line,
+	unsigned		line,
 	mtr_t*			mtr)
 {
 	buf_block_t*	block = NULL;
@@ -862,11 +854,17 @@ ibuf_set_free_bits_low(
 	mtr_t*			mtr)	/*!< in/out: mtr */
 {
 	page_t*	bitmap_page;
+	buf_frame_t* frame;
 
 	ut_ad(mtr->is_named_space(block->page.id.space()));
 
-	if (!page_is_leaf(buf_block_get_frame(block))) {
+	if (!block) {
+		return;
+	}
 
+	frame = buf_block_get_frame(block);
+
+	if (!frame || !page_is_leaf(frame)) {
 		return;
 	}
 
@@ -1040,7 +1038,10 @@ ibuf_update_free_bits_zip(
 	page_t*	bitmap_page;
 	ulint	after;
 
-	ut_a(page_is_leaf(buf_block_get_frame(block)));
+	ut_a(block);
+	buf_frame_t* frame = buf_block_get_frame(block);
+	ut_a(frame);
+	ut_a(page_is_leaf(frame));
 	ut_a(block->page.size.is_compressed());
 
 	bitmap_page = ibuf_bitmap_get_map_page(block->page.id,
@@ -1133,7 +1134,7 @@ ibuf_page_low(
 	ibool			x_latch,
 #endif /* UNIV_DEBUG */
 	const char*		file,
-	ulint			line,
+	unsigned		line,
 	mtr_t*			mtr)
 {
 	ibool	ret;
@@ -1224,8 +1225,9 @@ ibuf_rec_get_page_no_func(
 	const byte*	field;
 	ulint		len;
 
-	ut_ad(mtr_memo_contains_page(mtr, rec, MTR_MEMO_PAGE_X_FIX)
-	      || mtr_memo_contains_page(mtr, rec, MTR_MEMO_PAGE_S_FIX));
+	ut_ad(mtr_memo_contains_page_flagged(mtr, rec,
+					     MTR_MEMO_PAGE_X_FIX
+					     | MTR_MEMO_PAGE_S_FIX));
 	ut_ad(ibuf_inside(mtr));
 	ut_ad(rec_get_n_fields_old(rec) > 2);
 
@@ -1262,8 +1264,8 @@ ibuf_rec_get_space_func(
 	const byte*	field;
 	ulint		len;
 
-	ut_ad(mtr_memo_contains_page(mtr, rec, MTR_MEMO_PAGE_X_FIX)
-	      || mtr_memo_contains_page(mtr, rec, MTR_MEMO_PAGE_S_FIX));
+	ut_ad(mtr_memo_contains_page_flagged(mtr, rec, MTR_MEMO_PAGE_X_FIX
+					     | MTR_MEMO_PAGE_S_FIX));
 	ut_ad(ibuf_inside(mtr));
 	ut_ad(rec_get_n_fields_old(rec) > 2);
 
@@ -1312,8 +1314,8 @@ ibuf_rec_get_info_func(
 	ulint		info_len_local;
 	ulint		counter_local;
 
-	ut_ad(mtr_memo_contains_page(mtr, rec, MTR_MEMO_PAGE_X_FIX)
-	      || mtr_memo_contains_page(mtr, rec, MTR_MEMO_PAGE_S_FIX));
+	ut_ad(mtr_memo_contains_page_flagged(mtr, rec, MTR_MEMO_PAGE_X_FIX
+					     | MTR_MEMO_PAGE_S_FIX));
 	ut_ad(ibuf_inside(mtr));
 	fields = rec_get_n_fields_old(rec);
 	ut_a(fields > IBUF_REC_FIELD_USER);
@@ -1384,8 +1386,8 @@ ibuf_rec_get_op_type_func(
 {
 	ulint		len;
 
-	ut_ad(mtr_memo_contains_page(mtr, rec, MTR_MEMO_PAGE_X_FIX)
-	      || mtr_memo_contains_page(mtr, rec, MTR_MEMO_PAGE_S_FIX));
+	ut_ad(mtr_memo_contains_page_flagged(mtr, rec, MTR_MEMO_PAGE_X_FIX
+					     | MTR_MEMO_PAGE_S_FIX));
 	ut_ad(ibuf_inside(mtr));
 	ut_ad(rec_get_n_fields_old(rec) > 2);
 
@@ -1583,8 +1585,8 @@ ibuf_build_entry_from_ibuf_rec_func(
 	ulint		comp;
 	dict_index_t*	index;
 
-	ut_ad(mtr_memo_contains_page(mtr, ibuf_rec, MTR_MEMO_PAGE_X_FIX)
-	      || mtr_memo_contains_page(mtr, ibuf_rec, MTR_MEMO_PAGE_S_FIX));
+	ut_ad(mtr_memo_contains_page_flagged(mtr, ibuf_rec, MTR_MEMO_PAGE_X_FIX
+					     | MTR_MEMO_PAGE_S_FIX));
 	ut_ad(ibuf_inside(mtr));
 
 	data = rec_get_nth_field_old(ibuf_rec, IBUF_REC_FIELD_MARKER, &len);
@@ -1705,8 +1707,8 @@ ibuf_rec_get_volume_func(
 	ibuf_op_t	op;
 	ulint		info_len;
 
-	ut_ad(mtr_memo_contains_page(mtr, ibuf_rec, MTR_MEMO_PAGE_X_FIX)
-	      || mtr_memo_contains_page(mtr, ibuf_rec, MTR_MEMO_PAGE_S_FIX));
+	ut_ad(mtr_memo_contains_page_flagged(mtr, ibuf_rec, MTR_MEMO_PAGE_X_FIX
+					     | MTR_MEMO_PAGE_S_FIX));
 	ut_ad(ibuf_inside(mtr));
 	ut_ad(rec_get_n_fields_old(ibuf_rec) > 2);
 
@@ -2288,8 +2290,8 @@ ibuf_get_merge_page_nos_func(
 	ulint	limit;
 	ulint	n_pages;
 
-	ut_ad(mtr_memo_contains_page(mtr, rec, MTR_MEMO_PAGE_X_FIX)
-	      || mtr_memo_contains_page(mtr, rec, MTR_MEMO_PAGE_S_FIX));
+	ut_ad(mtr_memo_contains_page_flagged(mtr, rec, MTR_MEMO_PAGE_X_FIX
+					     | MTR_MEMO_PAGE_S_FIX));
 	ut_ad(ibuf_inside(mtr));
 
 	*n_stored = 0;
@@ -2745,8 +2747,6 @@ ibuf_merge_in_background(
 	}
 #endif /* UNIV_DEBUG || UNIV_IBUF_DEBUG */
 
-
-
 	while (sum_pages < n_pages) {
 		ulint	n_bytes;
 
@@ -2874,8 +2874,8 @@ ibuf_get_volume_buffered_count_func(
 	const byte*	types;
 	ulint		n_fields;
 
-	ut_ad(mtr_memo_contains_page(mtr, rec, MTR_MEMO_PAGE_X_FIX)
-	      || mtr_memo_contains_page(mtr, rec, MTR_MEMO_PAGE_S_FIX));
+	ut_ad(mtr_memo_contains_page_flagged(mtr, rec, MTR_MEMO_PAGE_X_FIX
+					     | MTR_MEMO_PAGE_S_FIX));
 	ut_ad(ibuf_inside(mtr));
 
 	n_fields = rec_get_n_fields_old(rec);
@@ -3247,8 +3247,8 @@ ibuf_get_entry_counter_low_func(
 	ulint		len;
 
 	ut_ad(ibuf_inside(mtr));
-	ut_ad(mtr_memo_contains_page(mtr, rec, MTR_MEMO_PAGE_X_FIX)
-	      || mtr_memo_contains_page(mtr, rec, MTR_MEMO_PAGE_S_FIX));
+	ut_ad(mtr_memo_contains_page_flagged(mtr, rec, MTR_MEMO_PAGE_X_FIX
+					     | MTR_MEMO_PAGE_S_FIX));
 	ut_ad(rec_get_n_fields_old(rec) > 2);
 
 	field = rec_get_nth_field_old(rec, IBUF_REC_FIELD_MARKER, &len);
@@ -3952,7 +3952,9 @@ ibuf_insert_to_index_page(
 	ut_ad(!dict_index_is_online_ddl(index));// this is an ibuf_dummy index
 	ut_ad(ibuf_inside(mtr));
 	ut_ad(dtuple_check_typed(entry));
+#ifdef BTR_CUR_HASH_ADAPT
 	ut_ad(!block->index);
+#endif /* BTR_CUR_HASH_ADAPT */
 	ut_ad(mtr->is_named_space(block->page.id.space()));
 
 	if (UNIV_UNLIKELY(dict_table_is_comp(index->table)
@@ -4456,7 +4458,6 @@ ibuf_merge_or_delete_for_page(
 	ulint		volume			= 0;
 #endif /* UNIV_IBUF_DEBUG */
 	page_zip_des_t*	page_zip		= NULL;
-	fil_space_t*	space			= NULL;
 	bool		corruption_noticed	= false;
 	mtr_t		mtr;
 
@@ -4487,6 +4488,8 @@ ibuf_merge_or_delete_for_page(
 		return;
 	}
 
+	fil_space_t*	space;
+
 	if (update_ibuf_bitmap) {
 
 		ut_ad(page_size != NULL);
@@ -4498,10 +4501,9 @@ ibuf_merge_or_delete_for_page(
 
 		space = fil_space_acquire(page_id.space());
 
-		if (space == NULL) {
-			/* Do not try to read the bitmap page from space;
-			just delete the ibuf records for the page */
-
+		if (UNIV_UNLIKELY(!space)) {
+			/* Do not try to read the bitmap page from the
+			non-existent tablespace, delete the ibuf records */
 			block = NULL;
 			update_ibuf_bitmap = FALSE;
 		} else {
@@ -4534,6 +4536,8 @@ ibuf_merge_or_delete_for_page(
 		       || fsp_descr_page(page_id, *page_size))) {
 
 		return;
+	} else {
+		space = NULL;
 	}
 
 	heap = mem_heap_create(512);
@@ -4564,9 +4568,6 @@ ibuf_merge_or_delete_for_page(
 				" insert buffer merge for this page. Please"
 				" run CHECK TABLE on your tables to determine"
 				" if they are corrupt after this.";
-
-			ib::error() << "Please submit a detailed bug"
-				" report to http://bugs.mysql.com";
 			ut_ad(0);
 		}
 	}
@@ -4786,15 +4787,17 @@ reset_bit:
 	}
 
 	ibuf_mtr_commit(&mtr);
+
+	if (space) {
+		fil_space_release(space);
+	}
+
 	btr_pcur_close(&pcur);
 	mem_heap_free(heap);
 
 	my_atomic_addlint(&ibuf->n_merges, 1);
 	ibuf_add_ops(ibuf->n_merged_ops, mops);
 	ibuf_add_ops(ibuf->n_discarded_ops, dops);
-	if (space != NULL) {
-		fil_space_release(space);
-	}
 
 #ifdef UNIV_IBUF_COUNT_DEBUG
 	ut_a(ibuf_count_get(page_id) == 0);
@@ -5123,5 +5126,3 @@ ibuf_set_bitmap_for_bulk_load(
 
 	mtr_commit(&mtr);
 }
-
-#endif /* !UNIV_HOTBACKUP */

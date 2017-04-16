@@ -1,0 +1,42 @@
+CREATE TABLE t1 (pk INT PRIMARY KEY AUTO_INCREMENT,
+c VARCHAR(256), coordinate POINT NOT NULL, SPATIAL index(coordinate)) ENGINE=INNODB
+ENCRYPTED=YES;
+ERROR HY000: Can't create table `test`.`t1` (errno: 140 "Wrong create options")
+CREATE TABLE t1 (pk INT PRIMARY KEY AUTO_INCREMENT,
+c VARCHAR(256), coordinate POINT NOT NULL, SPATIAL index(coordinate)) ENGINE=INNODB;
+ALTER TABLE t1 ENCRYPTED=YES;
+ERROR HY000: Can't create table `test`.`#sql-temporary` (errno: 140 "Wrong create options")
+DROP TABLE t1;
+CREATE TABLE t1 (pk INT PRIMARY KEY AUTO_INCREMENT,
+c VARCHAR(256), coordinate POINT NOT NULL) ENCRYPTED=YES ENGINE=INNODB;
+CREATE SPATIAL INDEX b on t1(coordinate);
+ERROR HY000: Can't create table `test`.`#sql-temporary` (errno: 140 "Wrong create options")
+ALTER TABLE t1 ADD SPATIAL INDEX b(coordinate);
+ERROR HY000: Can't create table `test`.`#sql-temporary` (errno: 140 "Wrong create options")
+DROP TABLE t1;
+CREATE TABLE t1 (pk INT PRIMARY KEY AUTO_INCREMENT,
+c VARCHAR(256), coordinate POINT NOT NULL) ENCRYPTED=DEFAULT ENGINE=INNODB;
+CREATE SPATIAL INDEX b on t1(coordinate);
+INSERT INTO t1 values(1, 'secret', ST_GeomFromText('POINT(903994614 180726515)'));
+ALTER TABLE t1 DROP INDEX b;
+INSERT INTO t1 values(2, 'secret', ST_GeomFromText('POINT(903994614 180726515)'));
+ALTER TABLE t1 ADD SPATIAL INDEX b(coordinate);
+INSERT INTO t1 values(3, 'secret', ST_GeomFromText('POINT(903994614 180726515)'));
+DROP TABLE t1;
+CREATE TABLE t1 (pk INT PRIMARY KEY AUTO_INCREMENT,
+c VARCHAR(256), coordinate POINT NOT NULL, SPATIAL index(coordinate)) ENGINE=INNODB;
+CREATE TABLE t2 (pk INT PRIMARY KEY AUTO_INCREMENT,
+c VARCHAR(256), coordinate POINT NOT NULL, SPATIAL index(coordinate)) ENGINE=INNODB PAGE_COMPRESSED=YES;
+INSERT INTO t1 values(1, 'secret', ST_GeomFromText('POINT(903994614 180726515)'));
+INSERT INTO t2 values(1, 'secret', ST_GeomFromText('POINT(903994614 180726515)'));
+# Success!
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION > 0;
+NAME
+mysql/innodb_table_stats
+mysql/innodb_index_stats
+test/t1
+test/t2
+innodb_system
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION = 0;
+NAME
+DROP TABLE t1, t2;

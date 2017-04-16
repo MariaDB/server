@@ -28,13 +28,6 @@ Created 9/7/2013 Jimmy Yang
 #include "lock0lock.h"
 #include "lock0priv.h"
 #include "lock0prdt.h"
-
-#ifdef UNIV_NONINL
-#include "lock0lock.ic"
-#include "lock0priv.ic"
-#include "lock0prdt.ic"
-#endif
-
 #include "ha_prototypes.h"
 #include "usr0sess.h"
 #include "trx0purge.h"
@@ -106,6 +99,58 @@ lock_prdt_set_prdt(
 	ut_ad(lock->type_mode & LOCK_PREDICATE);
 
 	memcpy(&(((byte*) &lock[1])[UNIV_WORD_SIZE]), prdt, sizeof *prdt);
+}
+
+
+/** Check whether two predicate locks are compatible with each other
+@param[in]	prdt1	first predicate lock
+@param[in]	prdt2	second predicate lock
+@param[in]	op	predicate comparison operator
+@return	true if consistent */
+static
+bool
+lock_prdt_consistent(
+	lock_prdt_t*	prdt1,
+	lock_prdt_t*	prdt2,
+	ulint		op)
+{
+	bool		ret = false;
+	rtr_mbr_t*	mbr1 = prdt_get_mbr_from_prdt(prdt1);
+	rtr_mbr_t*	mbr2 = prdt_get_mbr_from_prdt(prdt2);
+	ulint		action;
+
+	if (op) {
+		action = op;
+	} else {
+		if (prdt2->op != 0 && (prdt1->op != prdt2->op)) {
+			return(false);
+		}
+
+		action = prdt1->op;
+	}
+
+	switch (action) {
+	case PAGE_CUR_CONTAIN:
+		ret = MBR_CONTAIN_CMP(mbr1, mbr2);
+		break;
+	case PAGE_CUR_DISJOINT:
+		ret = MBR_DISJOINT_CMP(mbr1, mbr2);
+		break;
+	case PAGE_CUR_MBR_EQUAL:
+		ret = MBR_EQUAL_CMP(mbr1, mbr2);
+		break;
+	case PAGE_CUR_INTERSECT:
+		ret = MBR_INTERSECT_CMP(mbr1, mbr2);
+		break;
+	case PAGE_CUR_WITHIN:
+		ret = MBR_WITHIN_CMP(mbr1, mbr2);
+		break;
+	default:
+		ib::error() << "invalid operator " << action;
+		ut_error;
+	}
+
+	return(ret);
 }
 
 /*********************************************************************//**
@@ -737,55 +782,6 @@ lock_init_prdt_from_mbr(
 	}
 
 	prdt->op = static_cast<uint16>(mode);
-}
-
-/*********************************************************************//**
-Checks two predicate locks are compatible with each other
-@return	true if consistent */
-bool
-lock_prdt_consistent(
-/*=================*/
-	lock_prdt_t*	prdt1,	/*!< in: Predicate for the lock */
-	lock_prdt_t*	prdt2,	/*!< in: Predicate for the lock */
-	ulint		op)	/*!< in: Predicate comparison operator */
-{
-	bool		ret = false;
-	rtr_mbr_t*	mbr1 = prdt_get_mbr_from_prdt(prdt1);
-	rtr_mbr_t*	mbr2 = prdt_get_mbr_from_prdt(prdt2);
-	ulint		action;
-
-	if (op) {
-		action = op;
-	} else {
-		if (prdt2->op != 0 && (prdt1->op != prdt2->op)) {
-			return(false);
-		}
-
-		action = prdt1->op;
-	}
-
-	switch (action) {
-	case PAGE_CUR_CONTAIN:
-		ret = MBR_CONTAIN_CMP(mbr1, mbr2);
-		break;
-	case PAGE_CUR_DISJOINT:
-		ret = MBR_DISJOINT_CMP(mbr1, mbr2);
-		break;
-	case PAGE_CUR_MBR_EQUAL:
-		ret = MBR_EQUAL_CMP(mbr1, mbr2);
-		break;
-	case PAGE_CUR_INTERSECT:
-		ret = MBR_INTERSECT_CMP(mbr1, mbr2);
-		break;
-	case PAGE_CUR_WITHIN:
-		ret = MBR_WITHIN_CMP(mbr1, mbr2);
-		break;
-	default:
-		ib::error() << "invalid operator " << action;
-		ut_error;
-	}
-
-	return(ret);
 }
 
 /*********************************************************************//**

@@ -33,11 +33,14 @@ push @::global_suppressions,
      qr(WSREP: last inactive check more than .* skipping check),
      qr(WSREP: Gap in state sequence. Need state transfer.),
      qr(WSREP: Failed to prepare for incremental state transfer: .*),
+     qr(WSREP: SYNC message from member .* in non-primary configuration. Ignored.),
    );
 
 
 $ENV{PATH}="$epath:$ENV{PATH}";
 $ENV{PATH}="$spath:$ENV{PATH}" unless $epath eq $spath;
+
+sub is_default { 1 }
 
 bless { };
 

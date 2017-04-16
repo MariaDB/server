@@ -37,8 +37,8 @@ class DOMDOC : public XMLDOCUMENT {
   virtual void   SetNofree(bool b) {}   // Only libxml2
 
   // Methods
-  virtual bool    Initialize(PGLOBAL g);
-  virtual bool    ParseFile(char *fn);
+	virtual bool    Initialize(PGLOBAL g, char *entry, bool zipped);
+  virtual bool    ParseFile(PGLOBAL g, char *fn);
   virtual bool    NewDoc(PGLOBAL g, char *ver);
   virtual void    AddComment(PGLOBAL g, char *com);
   virtual PXNODE  GetRoot(PGLOBAL g);
@@ -93,6 +93,7 @@ class DOMNODE : public XMLNODE {
   char               Name[64];
   WCHAR             *Ws;
   int                Len;
+	bool               Zip;
 }; // end of class DOMNODE
 
 /******************************************************************/

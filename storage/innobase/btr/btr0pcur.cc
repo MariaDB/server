@@ -1,6 +1,7 @@
 /*****************************************************************************
 
-Copyright (c) 1996, 2015, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2016, 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -24,11 +25,6 @@ Created 2/23/1996 Heikki Tuuri
 *******************************************************/
 
 #include "btr0pcur.h"
-
-#ifdef UNIV_NONINL
-#include "btr0pcur.ic"
-#endif
-
 #include "ut0byte.h"
 #include "rem0cmp.h"
 #include "trx0trx.h"
@@ -119,24 +115,17 @@ btr_pcur_store_position(
 	page = page_align(rec);
 	offs = page_offset(rec);
 
-#ifdef UNIV_DEBUG
-	if (dict_index_is_spatial(index)) {
-		/* For spatial index, when we do positioning on parent
-		buffer if necessary, it might not hold latches, but the
-		tree must be locked to prevent change on the page */
-		ut_ad((mtr_memo_contains_flagged(
-				mtr, dict_index_get_lock(index),
-				MTR_MEMO_X_LOCK | MTR_MEMO_SX_LOCK)
-		       || mtr_memo_contains_flagged(mtr, block,
-						    MTR_MEMO_PAGE_S_FIX
-						    | MTR_MEMO_PAGE_X_FIX))
-		      && (block->page.buf_fix_count > 0));
-	} else {
-		ut_ad(mtr_memo_contains_flagged(mtr, block,
-						MTR_MEMO_PAGE_S_FIX
-						| MTR_MEMO_PAGE_X_FIX));
-	}
-#endif /* UNIV_DEBUG */
+	ut_ad(block->page.buf_fix_count);
+	/* For spatial index, when we do positioning on parent
+	buffer if necessary, it might not hold latches, but the
+	tree must be locked to prevent change on the page */
+	ut_ad(mtr_memo_contains_flagged(mtr, block,
+					MTR_MEMO_PAGE_S_FIX
+					| MTR_MEMO_PAGE_X_FIX)
+	      || (dict_index_is_spatial(index)
+		  && mtr_memo_contains_flagged(
+			  mtr, dict_index_get_lock(index),
+			  MTR_MEMO_X_LOCK | MTR_MEMO_SX_LOCK)));
 
 	if (page_is_empty(page)) {
 		/* It must be an empty index tree; NOTE that in this case
@@ -235,7 +224,7 @@ btr_pcur_restore_position_func(
 	ulint		latch_mode,	/*!< in: BTR_SEARCH_LEAF, ... */
 	btr_pcur_t*	cursor,		/*!< in: detached persistent cursor */
 	const char*	file,		/*!< in: file name */
-	ulint		line,		/*!< in: line where called */
+	unsigned	line,		/*!< in: line where called */
 	mtr_t*		mtr)		/*!< in: mtr */
 {
 	dict_index_t*	index;
@@ -472,6 +461,7 @@ alphabetical position of the cursor is guaranteed to be sensible on
 return, but it may happen that the cursor is not positioned on the last
 record of any page, because the structure of the tree may have changed
 during the time when the cursor had no latches. */
+static
 void
 btr_pcur_move_backward_from_page(
 /*=============================*/
@@ -592,11 +582,11 @@ btr_pcur_open_on_user_rec_func(
 	btr_pcur_t*	cursor,		/*!< in: memory buffer for persistent
 					cursor */
 	const char*	file,		/*!< in: file name */
-	ulint		line,		/*!< in: line where called */
+	unsigned	line,		/*!< in: line where called */
 	mtr_t*		mtr)		/*!< in: mtr */
 {
 	btr_pcur_open_low(index, 0, tuple, mode, latch_mode, cursor,
-			  file, line, mtr);
+			  file, line, 0, mtr);
 
 	if ((mode == PAGE_CUR_GE) || (mode == PAGE_CUR_G)) {
 

@@ -88,9 +88,6 @@ Event_parse_data::init_name(THD *thd, sp_name *spn)
   name.length= spn->m_name.length;
   name.str= thd->strmake(spn->m_name.str, spn->m_name.length);
 
-  if (spn->m_qname.length == 0)
-    spn->init_qname(thd);
-
   DBUG_VOID_RETURN;
 }
 

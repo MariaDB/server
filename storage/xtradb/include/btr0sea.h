@@ -200,7 +200,7 @@ hash_table_t*
 btr_search_get_hash_table(
 /*======================*/
 	const dict_index_t*	index)	/*!< in: index */
-	MY_ATTRIBUTE((pure,warn_unused_result));
+	MY_ATTRIBUTE((warn_unused_result));
 
 /********************************************************************//**
 Returns the adaptive hash index latch for a given index key.
@@ -210,7 +210,7 @@ prio_rw_lock_t*
 btr_search_get_latch(
 /*=================*/
 	const dict_index_t*	index)	/*!< in: index */
-	MY_ATTRIBUTE((pure,warn_unused_result));
+	MY_ATTRIBUTE((warn_unused_result));
 
 /*********************************************************************//**
 Returns the AHI partition number corresponding to a given index ID. */
@@ -227,8 +227,7 @@ UNIV_INLINE
 void
 btr_search_index_init(
 /*===============*/
-	dict_index_t*	index)	/*!< in: index */
-	MY_ATTRIBUTE((nonnull));
+	dict_index_t*	index);	/*!< in: index */
 
 /********************************************************************//**
 Latches all adaptive hash index latches in exclusive mode.  */

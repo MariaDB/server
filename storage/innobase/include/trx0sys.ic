@@ -25,9 +25,8 @@ Created 3/26/1996 Heikki Tuuri
 
 #include "trx0trx.h"
 #include "data0type.h"
-#ifndef UNIV_HOTBACKUP
-# include "srv0srv.h"
-# include "mtr0log.h"
+#include "srv0srv.h"
+#include "mtr0log.h"
 
 /* The typedef for rseg slot in the file copy */
 typedef byte	trx_sysf_rseg_t;
@@ -61,31 +60,6 @@ trx_sys_hdr_page(
 {
 	return(page_id.space() == TRX_SYS_SPACE
 	       && page_id.page_no() == TRX_SYS_PAGE_NO);
-}
-
-/***************************************************************//**
-Gets the pointer in the nth slot of the rseg array.
-@return pointer to rseg object, NULL if slot not in use */
-UNIV_INLINE
-trx_rseg_t*
-trx_sys_get_nth_rseg(
-/*=================*/
-	trx_sys_t*	sys,		/*!< in: trx system */
-	ulint		n,		/*!< in: index of slot */
-	bool		is_redo_rseg)	/*!< in: true if redo rseg. */
-{
-	ut_ad(n < TRX_SYS_N_RSEGS);
-
-	/* If redo rseg is being requested and id falls in range of
-	non-redo rseg that is from slot-1....slot-srv_tmp_undo_logs then
-	server is being upgraded from pre-5.7.2. In such case return
-	rseg from pending_purge_rseg_array array. */
-	if (is_redo_rseg && trx_sys_is_noredo_rseg_slot(n)) {
-		ut_ad(trx_sys->pending_purge_rseg_array[n] != NULL);
-		return(trx_sys->pending_purge_rseg_array[n]);
-	}
-
-	return(sys->rseg_array[n]);
 }
 
 /**********************************************************************//**
@@ -198,7 +172,6 @@ trx_sysf_rseg_set_page_no(
 			 page_no,
 			 MLOG_4BYTES, mtr);
 }
-#endif /* !UNIV_HOTBACKUP */
 
 /*****************************************************************//**
 Writes a trx id to an index page. In case that the id size changes in
@@ -218,19 +191,6 @@ trx_write_trx_id(
 	mach_write_to_6(ptr, id);
 }
 
-/*****************************************************************//**
-Check if slot-id is reserved slot-id for noredo rsegs. */
-UNIV_INLINE
-bool
-trx_sys_is_noredo_rseg_slot(
-/*========================*/
-	ulint	slot_id)	/*!< in: slot_id to check */
-{
-	/* Slots allocated from temp-tablespace are no-redo slots. */
-	return(slot_id > 0 && slot_id < (srv_tmp_undo_logs + 1));
-}
-
-#ifndef UNIV_HOTBACKUP
 /*****************************************************************//**
 Reads a trx id from an index page. In case that the id size changes in
 some future version, this function should be used instead of
@@ -503,5 +463,3 @@ trx_sys_rw_trx_add(trx_t* trx)
 	trx_sys->rw_trx_set.insert(TrxTrack(trx->id, trx));
 	ut_d(trx->in_rw_trx_list = true);
 }
-
-#endif /* !UNIV_HOTBACKUP */

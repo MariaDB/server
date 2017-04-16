@@ -97,8 +97,6 @@ ut_microseconds_to_timer(
 /*=====================*/
 	ulonglong	when); /*!< in: time where to calculate */
 
-#ifndef UNIV_NONINL
 #include "ut0timer.ic"
-#endif
 
 #endif

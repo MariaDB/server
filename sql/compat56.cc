@@ -65,7 +65,7 @@ void TIME_from_longlong_time_packed(MYSQL_TIME *ltime, longlong tmp)
   long hms;
   if ((ltime->neg= (tmp < 0)))
     tmp= -tmp;
-  hms= MY_PACKED_TIME_GET_INT_PART(tmp);
+  hms= (long) MY_PACKED_TIME_GET_INT_PART(tmp);
   ltime->year=   (uint) 0;
   ltime->month=  (uint) 0;
   ltime->day=    (uint) 0;
@@ -264,11 +264,11 @@ void TIME_from_longlong_datetime_packed(MYSQL_TIME *ltime, longlong tmp)
 
   ltime->day= ymd % (1 << 5);
   ltime->month= ym % 13;
-  ltime->year= ym / 13;
+  ltime->year= (uint) (ym / 13);
 
   ltime->second= hms % (1 << 6);
   ltime->minute= (hms >> 6) % (1 << 6);
-  ltime->hour= (hms >> 12);
+  ltime->hour= (uint) (hms >> 12);
   
   ltime->time_type= MYSQL_TIMESTAMP_DATETIME;
 }

@@ -1,0 +1,37 @@
+--source include/have_rocksdb.inc
+#Unixism (exec awk)
+-- source include/not_windows.inc
+
+SET @cur_long_query_time = @@long_query_time;
+# Set the long query time to something big so that nothing unexpected gets into it
+SET @@long_query_time = 600;
+# Test the slow query log feature
+
+--disable_warnings
+DROP TABLE IF EXISTS t1;
+--enable_warnings
+
+CREATE TABLE t1 (id INT PRIMARY KEY, value INT) ENGINE=ROCKSDB;
+
+--disable_query_log
+let $max = 10000;
+let $i = 1;
+while ($i < $max) {
+  let $insert = INSERT INTO t1 VALUES ($i, $i);
+  inc $i;
+  eval $insert;
+}
+
+DELETE FROM t1 WHERE id < 2500;
+--enable_query_log
+
+SET @@long_query_time = 0;
+# we expect this query to be reflected in the slow query log
+SELECT COUNT(*) FROM t1;
+
+SET @@long_query_time = @cur_long_query_time;
+
+# Verify the output of the slow query log contains counts for the skipped keys
+--exec awk -f suite/rocksdb/slow_query_log.awk $MYSQLTEST_VARDIR/mysqld.1/mysqld-slow.log
+
+DROP TABLE t1;

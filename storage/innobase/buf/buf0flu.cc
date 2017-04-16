@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2016, MariaDB Corporation
+Copyright (c) 2013, 2017, MariaDB Corporation.
 Copyright (c) 2013, 2014, Fusion-io
 
 This program is free software; you can redistribute it and/or modify it under
@@ -30,18 +30,12 @@ Created 11/11/1995 Heikki Tuuri
 #include <my_dbug.h>
 
 #include "buf0flu.h"
-
-#ifdef UNIV_NONINL
-#include "buf0flu.ic"
-#endif
-
 #include "buf0buf.h"
 #include "buf0mtflu.h"
 #include "buf0checksum.h"
 #include "srv0start.h"
 #include "srv0srv.h"
 #include "page0zip.h"
-#ifndef UNIV_HOTBACKUP
 #include "ut0byte.h"
 #include "page0page.h"
 #include "fil0fil.h"
@@ -796,6 +790,8 @@ buf_flush_write_complete(
 	flush_type = buf_page_get_flush_type(bpage);
 	buf_pool->n_flush[flush_type]--;
 
+	ut_ad(buf_pool_mutex_own(buf_pool));
+
 	if (buf_pool->n_flush[flush_type] == 0
 	    && buf_pool->init_flush[flush_type] == FALSE) {
 
@@ -806,7 +802,6 @@ buf_flush_write_complete(
 
 	buf_dblwr_update(bpage, flush_type);
 }
-#endif /* !UNIV_HOTBACKUP */
 
 /** Calculate the checksum of a page from compressed table and update
 the page.
@@ -898,6 +893,9 @@ buf_flush_init_for_writing(
 			newest_lsn);
 
 	if (skip_checksum) {
+		ut_ad(block == NULL
+		      || block->page.id.space() == SRV_TMP_SPACE_ID);
+		ut_ad(page_get_space_id(page) == SRV_TMP_SPACE_ID);
 		mach_write_to_4(page + FIL_PAGE_SPACE_OR_CHKSUM, checksum);
 	} else {
 		if (block != NULL && UNIV_PAGE_SIZE == 16384) {
@@ -995,7 +993,6 @@ buf_flush_init_for_writing(
 			checksum);
 }
 
-#ifndef UNIV_HOTBACKUP
 /********************************************************************//**
 Does an asynchronous write of a buffer page. NOTE: in simulated aio and
 also when the doublewrite buffer is used, we must call
@@ -1011,7 +1008,8 @@ buf_flush_write_block_low(
 {
 	page_t*	frame = NULL;
 	ulint space_id = bpage->id.space();
-	atomic_writes_t awrites = fil_space_get_atomic_writes(space_id);
+	const bool is_temp = fsp_is_system_temporary(space_id);
+	bool atomic_writes = is_temp || fil_space_get_atomic_writes(space_id);
 
 #ifdef UNIV_DEBUG
 	buf_pool_t*	buf_pool = buf_pool_from_bpage(bpage);
@@ -1074,8 +1072,7 @@ buf_flush_write_block_low(
 			reinterpret_cast<const buf_block_t*>(bpage),
 			reinterpret_cast<const buf_block_t*>(bpage)->frame,
 			bpage->zip.data ? &bpage->zip : NULL,
-			bpage->newest_modification,
-			fsp_is_checksum_disabled(bpage->id.space()));
+			bpage->newest_modification, is_temp);
 		break;
 	}
 
@@ -1088,19 +1085,18 @@ buf_flush_write_block_low(
 	if (!srv_use_doublewrite_buf
 	    || buf_dblwr == NULL
 	    || srv_read_only_mode
-	    || fsp_is_system_temporary(bpage->id.space())
-	    || awrites == ATOMIC_WRITES_ON) {
+	    || atomic_writes) {
 
 		ut_ad(!srv_read_only_mode
 		      || fsp_is_system_temporary(bpage->id.space()));
 
 		ulint	type = IORequest::WRITE | IORequest::DO_NOT_WAKE;
 
-		IORequest	request(type);
+		IORequest	request(type, bpage);
 
 		fil_io(request,
 		       sync, bpage->id, bpage->size, 0, bpage->size.physical(),
-			frame, bpage, NULL);
+			frame, bpage);
 	} else {
 		if (flush_type == BUF_FLUSH_SINGLE_PAGE) {
 			buf_dblwr_write_single_page(bpage, sync);
@@ -2264,8 +2260,6 @@ buf_flush_single_page_from_LRU(
 			scanned);
 	}
 
-
-
 	ut_ad(!buf_pool_mutex_own(buf_pool));
 	return(freed);
 }
@@ -2320,29 +2314,6 @@ buf_flush_LRU_list(
 			   0, &n);
 
 	return(n.flushed);
-}
-/*********************************************************************//**
-Clears up tail of the LRU lists:
-* Put replaceable pages at the tail of LRU to the free list
-* Flush dirty pages at the tail of LRU to the disk
-The depth to which we scan each buffer pool is controlled by dynamic
-config parameter innodb_LRU_scan_depth.
-@return total pages flushed */
-ulint
-buf_flush_LRU_lists(void)
-/*=====================*/
-{
-	ulint	n_flushed = 0;
-	for (ulint i = 0; i < srv_buf_pool_instances; i++) {
-
-		n_flushed += buf_flush_LRU_list(buf_pool_from_array(i));
-	}
-
-	if (n_flushed) {
-		buf_flush_stats(0, n_flushed);
-	}
-
-	return(n_flushed);
 }
 
 /*********************************************************************//**
@@ -2520,7 +2491,6 @@ page_cleaner_flush_pages_recommendation(
 			/ time_elapsed);
 
 		lsn_avg_rate = (lsn_avg_rate + lsn_rate) / 2;
-
 
 		/* aggregate stats of all slots */
 		mutex_enter(&page_cleaner->mutex);
@@ -3679,7 +3649,6 @@ buf_flush_validate(
 }
 
 #endif /* UNIV_DEBUG || UNIV_BUF_DEBUG */
-#endif /* !UNIV_HOTBACKUP */
 
 /******************************************************************//**
 Check if there are any dirty pages that belong to a space id in the flush
@@ -3725,6 +3694,7 @@ buf_pool_get_dirty_pages_count(
 /******************************************************************//**
 Check if there are any dirty pages that belong to a space id in the flush list.
 @return number of dirty pages present in all the buffer pools */
+static
 ulint
 buf_flush_get_dirty_pages_count(
 /*============================*/
@@ -3768,9 +3738,7 @@ FlushObserver::FlushObserver(
 		m_removed->at(i) = 0;
 	}
 
-#ifdef FLUSH_LIST_OBSERVER_DEBUG
-		ib::info() << "FlushObserver constructor: " << m_trx->id;
-#endif /* FLUSH_LIST_OBSERVER_DEBUG */
+	DBUG_LOG("flush", "FlushObserver(): trx->id=" << m_trx->id);
 }
 
 /** FlushObserver deconstructor */
@@ -3781,9 +3749,7 @@ FlushObserver::~FlushObserver()
 	UT_DELETE(m_flushed);
 	UT_DELETE(m_removed);
 
-#ifdef FLUSH_LIST_OBSERVER_DEBUG
-		ib::info() << "FlushObserver deconstructor: " << m_trx->id;
-#endif /* FLUSH_LIST_OBSERVER_DEBUG */
+	DBUG_LOG("flush", "~FlushObserver(): trx->id=" << m_trx->id);
 }
 
 /** Check whether trx is interrupted
@@ -3816,10 +3782,7 @@ FlushObserver::notify_flush(
 		m_stage->inc();
 	}
 
-#ifdef FLUSH_LIST_OBSERVER_DEBUG
-	ib::info() << "Flush <" << bpage->id.space()
-		   << ", " << bpage->id.page_no() << ">";
-#endif /* FLUSH_LIST_OBSERVER_DEBUG */
+	DBUG_LOG("flush", "Flush " << bpage->id);
 }
 
 /** Notify observer of a remove
@@ -3834,10 +3797,7 @@ FlushObserver::notify_remove(
 
 	m_removed->at(buf_pool->instance_no)++;
 
-#ifdef FLUSH_LIST_OBSERVER_DEBUG
-	ib::info() << "Remove <" << bpage->id.space()
-		   << ", " << bpage->id.page_no() << ">";
-#endif /* FLUSH_LIST_OBSERVER_DEBUG */
+	DBUG_LOG("flush", "Remove " << bpage->id);
 }
 
 /** Flush dirty pages and wait. */

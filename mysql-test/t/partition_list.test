@@ -186,3 +186,26 @@ create table t1 (a char(1))
 partition by list (ascii(ucase(a)))
 (partition p1 values in (2));
 
+--echo #
+--echo # MDEV-11681: PARTITION BY LIST COLUMNS with default partition:
+--echo # Assertion `part_info->num_list_values' failed in
+--echo # get_part_iter_for_interval_cols_via_map
+--echo #
+CREATE TABLE t1 (f int) PARTITION BY LIST COLUMNS (f) (PARTITION pdef DEFAULT);
+insert into t1 values (1),(2);
+select * from t1 where f = 1;
+
+drop table t1;
+
+CREATE TABLE t1 (f int, d int) PARTITION BY LIST COLUMNS (f,d) (PARTITION pdef DEFAULT);
+insert into t1 values (1,1),(2,2);
+select * from t1 where f = 1 and d = 1 ;
+
+drop table t1;
+CREATE TABLE t1 (f int) PARTITION BY LIST (f) (PARTITION pdef DEFAULT);
+insert into t1 values (1),(2);
+select * from t1 where f = 1;
+
+drop table t1;
+
+--echo #end of 10.2 tests

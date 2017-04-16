@@ -46,9 +46,20 @@ select @@global.innodb_spin_wait_delay;
 #
 set global innodb_spin_wait_delay=0;
 select @@global.innodb_spin_wait_delay;
+set global innodb_spin_wait_delay=5000;
+select @@global.innodb_spin_wait_delay;
+#
+# invalid values
+#
 set global innodb_spin_wait_delay=65535;
 select @@global.innodb_spin_wait_delay;
 set global innodb_spin_wait_delay=4294967295;
+select @@global.innodb_spin_wait_delay;
+set @@global.innodb_spin_wait_delay = 4294967296;
+select @@global.innodb_spin_wait_delay;
+set @@global.innodb_spin_wait_delay = 12345678901;
+select @@global.innodb_spin_wait_delay;
+set @@global.innodb_spin_wait_delay = 18446744073709551615;
 select @@global.innodb_spin_wait_delay;
 
 #
@@ -73,26 +84,6 @@ select @@global.innodb_spin_wait_delay;
 --disable_warnings
 select * from information_schema.global_variables where variable_name='innodb_spin_wait_delay';
 --enable_warnings
-
-#
-# Check for out of bounds
-#
-
-# With a 64 bit mysqld:18446744073709551615,with a 32 bit mysqld: 4294967295
---disable_warnings
-SET @@global.innodb_spin_wait_delay = 4294967296;
---enable_warnings
-SELECT @@global.innodb_spin_wait_delay IN (4294967296,4294967295);
-
---disable_warnings
-SET @@global.innodb_spin_wait_delay = 12345678901;
---enable_warnings
-SELECT @@global.innodb_spin_wait_delay IN (12345678901,4294967295);
-
---disable_warnings
-SET @@global.innodb_spin_wait_delay = 18446744073709551615;
---enable_warnings
-SELECT @@global.innodb_spin_wait_delay IN (18446744073709551615,4294967295);
 
 #
 # cleanup

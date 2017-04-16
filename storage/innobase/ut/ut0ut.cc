@@ -30,23 +30,11 @@ Created 5/11/1994 Heikki Tuuri
 #endif
 
 #ifndef UNIV_INNOCHECKSUM
-
-#ifndef UNIV_HOTBACKUP
-# include <mysql_com.h>
-#endif /* !UNIV_HOTBACKUP */
-
+#include <mysql_com.h>
 #include "os0thread.h"
 #include "ut0ut.h"
-
-#ifdef UNIV_NONINL
-#include "ut0ut.ic"
-#endif
-
-#ifndef UNIV_HOTBACKUP
-# include "trx0trx.h"
-#endif /* !UNIV_HOTBACKUP */
-
-# include <string>
+#include "trx0trx.h"
+#include <string>
 #include "log.h"
 
 /** A constant to prevent the compiler from optimizing ut_delay() away. */
@@ -113,7 +101,7 @@ ut_time(void)
 	return(time(NULL));
 }
 
-#ifndef UNIV_HOTBACKUP
+
 /**********************************************************//**
 Returns system time.
 Upon successful completion, the value 0 is returned; otherwise the
@@ -193,7 +181,6 @@ ut_time_ms(void)
 
 	return((ulint) tv.tv_sec * 1000 + tv.tv_usec / 1000);
 }
-#endif /* !UNIV_HOTBACKUP */
 
 /**********************************************************//**
 Returns the difference of two times in seconds.
@@ -293,78 +280,6 @@ ut_sprintf_timestamp(
 #endif
 }
 
-#ifdef UNIV_HOTBACKUP
-/**********************************************************//**
-Sprintfs a timestamp to a buffer with no spaces and with ':' characters
-replaced by '_'. */
-void
-ut_sprintf_timestamp_without_extra_chars(
-/*=====================================*/
-	char*	buf) /*!< in: buffer where to sprintf */
-{
-#ifdef _WIN32
-	SYSTEMTIME cal_tm;
-
-	GetLocalTime(&cal_tm);
-
-	sprintf(buf, "%02d%02d%02d_%2d_%02d_%02d",
-		(int) cal_tm.wYear % 100,
-		(int) cal_tm.wMonth,
-		(int) cal_tm.wDay,
-		(int) cal_tm.wHour,
-		(int) cal_tm.wMinute,
-		(int) cal_tm.wSecond);
-#else
-	struct tm* cal_tm_ptr;
-	time_t	   tm;
-
-	struct tm  cal_tm;
-	time(&tm);
-	localtime_r(&tm, &cal_tm);
-	cal_tm_ptr = &cal_tm;
-	sprintf(buf, "%02d%02d%02d_%2d_%02d_%02d",
-		cal_tm_ptr->tm_year % 100,
-		cal_tm_ptr->tm_mon + 1,
-		cal_tm_ptr->tm_mday,
-		cal_tm_ptr->tm_hour,
-		cal_tm_ptr->tm_min,
-		cal_tm_ptr->tm_sec);
-#endif
-}
-
-/**********************************************************//**
-Returns current year, month, day. */
-void
-ut_get_year_month_day(
-/*==================*/
-	ulint*	year,	/*!< out: current year */
-	ulint*	month,	/*!< out: month */
-	ulint*	day)	/*!< out: day */
-{
-#ifdef _WIN32
-	SYSTEMTIME cal_tm;
-
-	GetLocalTime(&cal_tm);
-
-	*year = (ulint) cal_tm.wYear;
-	*month = (ulint) cal_tm.wMonth;
-	*day = (ulint) cal_tm.wDay;
-#else
-	struct tm* cal_tm_ptr;
-	time_t	   tm;
-
-	struct tm  cal_tm;
-	time(&tm);
-	localtime_r(&tm, &cal_tm);
-	cal_tm_ptr = &cal_tm;
-	*year = (ulint) cal_tm_ptr->tm_year + 1900;
-	*month = (ulint) cal_tm_ptr->tm_mon + 1;
-	*day = (ulint) cal_tm_ptr->tm_mday;
-#endif
-}
-
-#else /* UNIV_HOTBACKUP */
-
 /*************************************************************//**
 Runs an idle loop on CPU. The argument gives the desired delay
 in microseconds on 100 MHz Pentium + Visual C++.
@@ -390,7 +305,6 @@ ut_delay(
 
 	return(j);
 }
-#endif /* UNIV_HOTBACKUP */
 
 /*************************************************************//**
 Prints the contents of a memory buffer in hex and ascii. */
@@ -495,7 +409,6 @@ ut_2_power_up(
 	return(res);
 }
 
-#ifndef UNIV_HOTBACKUP
 /** Get a fixed-length string, quoted as an SQL identifier.
 If the string contains a slash '/', the string will be
 output as two identifiers separated by a period (.),
@@ -614,7 +527,6 @@ ut_copy_file(
 		}
 	} while (len > 0);
 }
-#endif /* !UNIV_HOTBACKUP */
 
 #ifdef _WIN32
 # include <stdarg.h>
@@ -812,10 +724,6 @@ ut_strerr(
 		return("I/O error");
 	case DB_TABLE_IN_FK_CHECK:
 		return("Table is being used in foreign key check");
-	case DB_DATA_MISMATCH:
-		return("data mismatch");
-	case DB_SCHEMA_NOT_LOCKED:
-		return("schema not locked");
 	case DB_NOT_FOUND:
 		return("not found");
 	case DB_ONLINE_LOG_TOO_BIG:
@@ -834,33 +742,20 @@ ut_strerr(
 		return("Table is corrupted");
 	case DB_FTS_TOO_MANY_WORDS_IN_PHRASE:
 		return("Too many words in a FTS phrase or proximity search");
-	case DB_IO_DECOMPRESS_FAIL:
-		return("Page decompress failed after reading from disk");
 	case DB_DECRYPTION_FAILED:
 		return("Table is encrypted but decrypt failed.");
-	case DB_IO_NO_PUNCH_HOLE:
-		return("No punch hole support");
-	case DB_IO_NO_PUNCH_HOLE_FS:
-		return("Punch hole not supported by the file system");
-	case DB_IO_NO_PUNCH_HOLE_TABLESPACE:
-		return("Punch hole not supported by the tablespace");
-	case DB_IO_NO_ENCRYPT_TABLESPACE:
-		return("Page encryption not supported by the tablespace");
-	case DB_IO_DECRYPT_FAIL:
-		return("Page decryption failed after reading from disk");
 	case DB_IO_PARTIAL_FAILED:
 		return("Partial IO failed");
 	case DB_FORCED_ABORT:
 		return("Transaction aborted by another higher priority "
 		       "transaction");
-	case DB_WRONG_FILE_NAME:
-		return("Invalid Filename");
-
 	case DB_COMPUTE_VALUE_FAILED:
 		return("Compute generated column failed");
 	case DB_NO_FK_ON_S_BASE_COL:
 		return("Cannot add foreign key on the base column "
 		       "of stored column");
+	case DB_IO_NO_PUNCH_HOLE:
+		return ("File system does not support punch hole (trim) operation.");
 
 	/* do not add default: in order to produce a warning if new code
 	is added to the enum but not added here */

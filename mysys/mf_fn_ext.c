@@ -86,7 +86,7 @@ char *fn_ext2(const char *name)
   if (!(gpos= strrchr(name, FN_LIBCHAR)))
     gpos= name;
 #endif
-  // locate the last occurence of FN_EXTCHAR
+  // locate the last occurrence of FN_EXTCHAR
   pos= strrchr(gpos, FN_EXTCHAR);
   DBUG_RETURN((char*) (pos ? pos : strend(gpos)));
 } /* fn_ext2 */

@@ -1,6 +1,7 @@
 /*****************************************************************************
 
-Copyright (c) 1996, 2015, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -24,11 +25,6 @@ Created 3/26/1996 Heikki Tuuri
 *******************************************************/
 
 #include "trx0rseg.h"
-
-#ifdef UNIV_NONINL
-#include "trx0rseg.ic"
-#endif
-
 #include "trx0undo.h"
 #include "fut0lst.h"
 #include "srv0srv.h"
@@ -42,7 +38,6 @@ Created 3/26/1996 Heikki Tuuri
 This function is called only when a new rollback segment is created in
 the database.
 @param[in]	space		space id
-@param[in]	page_size	page size
 @param[in]	max_size	max size in pages
 @param[in]	rseg_slot_no	rseg id == slot number in trx sys
 @param[in,out]	mtr		mini-transaction
@@ -50,7 +45,6 @@ the database.
 ulint
 trx_rseg_header_create(
 	ulint			space,
-	const page_size_t&	page_size,
 	ulint			max_size,
 	ulint			rseg_slot_no,
 	mtr_t*			mtr)
@@ -79,7 +73,7 @@ trx_rseg_header_create(
 	page_no = block->page.id.page_no();
 
 	/* Get the rollback segment file page */
-	rsegf = trx_rsegf_get_new(space, page_no, page_size, mtr);
+	rsegf = trx_rsegf_get_new(space, page_no, mtr);
 
 	/* Initialize max size field */
 	mlog_write_ulint(rsegf + TRX_RSEG_MAX_SIZE, max_size,
@@ -96,12 +90,7 @@ trx_rseg_header_create(
 		trx_rsegf_set_nth_undo(rsegf, i, FIL_NULL, mtr);
 	}
 
-	if (!trx_sys_is_noredo_rseg_slot(rseg_slot_no)) {
-		/* Non-redo rseg are re-created on restart and so no need
-		to persist this information in sys-header. Anyway, on restart
-		this information is not valid too as there is no space with
-		persisted space-id on restart. */
-
+	if (space != SRV_TMP_SPACE_ID) {
 		/* Add the rollback segment info to the free slot in
 		the trx system header */
 
@@ -116,14 +105,9 @@ trx_rseg_header_create(
 	return(page_no);
 }
 
-/***********************************************************************//**
-Free's an instance of the rollback segment in memory. */
+/** Free a rollback segment in memory. */
 void
-trx_rseg_mem_free(
-/*==============*/
-	trx_rseg_t*	rseg,		/* in, own: instance to free */
-	trx_rseg_t**	rseg_array)	/*!< out: add rseg reference to this
-					central array. */
+trx_rseg_mem_free(trx_rseg_t* rseg)
 {
 	trx_undo_t*	undo;
 	trx_undo_t*	next_undo;
@@ -160,65 +144,51 @@ trx_rseg_mem_free(
 		trx_undo_mem_free(undo);
 	}
 
-	ut_a(*((trx_rseg_t**) rseg_array + rseg->id) == rseg);
-	*((trx_rseg_t**) rseg_array + rseg->id) = NULL;
-
 	ut_free(rseg);
 }
 
-/** Creates and initializes a rollback segment object.
-The values for the fields are read from the header. The object is inserted to
-the rseg list of the trx system object and a pointer is inserted in the rseg
-array in the trx system object.
+/** Create a rollback segment object.
 @param[in]	id		rollback segment id
 @param[in]	space		space where the segment is placed
-@param[in]	page_no		page number of the segment header
-@param[in]	page_size	page size
-@param[in,out]	purge_queue	rseg queue
-@param[out]	rseg_array	add rseg reference to this central array
-@param[in,out]	mtr		mini-transaction
-@return own: rollback segment object */
+@param[in]	page_no		page number of the segment header */
 static
 trx_rseg_t*
-trx_rseg_mem_create(
-	ulint			id,
-	ulint			space,
-	ulint			page_no,
-	const page_size_t&	page_size,
-	purge_pq_t*		purge_queue,
-	trx_rseg_t**		rseg_array,
-	mtr_t*			mtr)
+trx_rseg_mem_create(ulint id, ulint space, ulint page_no)
 {
-	ulint		len;
-	trx_rseg_t*	rseg;
-	fil_addr_t	node_addr;
-	trx_rsegf_t*	rseg_header;
-	trx_ulogf_t*	undo_log_hdr;
-	ulint		sum_of_undo_sizes;
-
-	rseg = static_cast<trx_rseg_t*>(ut_zalloc_nokey(sizeof(trx_rseg_t)));
+	trx_rseg_t* rseg = static_cast<trx_rseg_t*>(
+		ut_zalloc_nokey(sizeof *rseg));
 
 	rseg->id = id;
 	rseg->space = space;
-	rseg->page_size.copy_from(page_size);
 	rseg->page_no = page_no;
-	rseg->trx_ref_count = 0;
-	rseg->skip_allocation = false;
+	rseg->last_page_no = FIL_NULL;
 
-	if (fsp_is_system_temporary(space)) {
-		mutex_create(LATCH_ID_NOREDO_RSEG, &rseg->mutex);
-	} else {
-		mutex_create(LATCH_ID_REDO_RSEG, &rseg->mutex);
-	}
+	mutex_create(rseg->is_persistent()
+		     ? LATCH_ID_REDO_RSEG : LATCH_ID_NOREDO_RSEG,
+		     &rseg->mutex);
 
 	UT_LIST_INIT(rseg->update_undo_list, &trx_undo_t::undo_list);
 	UT_LIST_INIT(rseg->update_undo_cached, &trx_undo_t::undo_list);
 	UT_LIST_INIT(rseg->insert_undo_list, &trx_undo_t::undo_list);
 	UT_LIST_INIT(rseg->insert_undo_cached, &trx_undo_t::undo_list);
 
-	*((trx_rseg_t**) rseg_array + rseg->id) = rseg;
+	return(rseg);
+}
 
-	rseg_header = trx_rsegf_get_new(space, page_no, page_size, mtr);
+/** Restore the state of a persistent rollback segment.
+@param[in,out]	rseg	persistent rollback segment
+@param[in,out]	mtr	mini-transaction */
+static
+void
+trx_rseg_mem_restore(trx_rseg_t* rseg, mtr_t* mtr)
+{
+	ulint		len;
+	fil_addr_t	node_addr;
+	trx_rsegf_t*	rseg_header;
+	trx_ulogf_t*	undo_log_hdr;
+	ulint		sum_of_undo_sizes;
+
+	rseg_header = trx_rsegf_get_new(rseg->space, rseg->page_no, mtr);
 
 	rseg->max_size = mtr_read_ulint(
 		rseg_header + TRX_RSEG_MAX_SIZE, MLOG_4BYTES, mtr);
@@ -243,8 +213,8 @@ trx_rseg_mem_create(
 		rseg->last_offset = node_addr.boffset;
 
 		undo_log_hdr = trx_undo_page_get(
-			page_id_t(rseg->space, node_addr.page),
-			rseg->page_size, mtr) + node_addr.boffset;
+			page_id_t(rseg->space, node_addr.page), mtr)
+			+ node_addr.boffset;
 
 		rseg->last_trx_no = mach_read_from_8(
 			undo_log_hdr + TRX_UNDO_TRX_NO);
@@ -260,198 +230,105 @@ trx_rseg_mem_create(
 			/* There is no need to cover this operation by the purge
 			mutex because we are still bootstrapping. */
 
-			purge_queue->push(elem);
+			purge_sys->purge_queue.push(elem);
 		}
-	} else {
-		rseg->last_page_no = FIL_NULL;
-	}
-
-	return(rseg);
-}
-
-/********************************************************************
-Check if rseg in given slot needs to be scheduled for purge. */
-static
-void
-trx_rseg_schedule_pending_purge(
-/*============================*/
-	trx_sysf_t*	sys_header,	/*!< in: trx system header */
-	purge_pq_t*	purge_queue,	/*!< in/out: rseg queue */
-	ulint		slot,		/*!< in: check rseg from given slot. */
-	mtr_t*		mtr)		/*!< in: mtr */
-{
-	ulint	page_no;
-	ulint	space;
-
-	page_no = trx_sysf_rseg_get_page_no(sys_header, slot, mtr);
-	space = trx_sysf_rseg_get_space(sys_header, slot, mtr);
-
-	if (page_no != FIL_NULL
-	    && is_system_or_undo_tablespace(space)) {
-
-		/* rseg resides in system or undo tablespace and so
-		this is an upgrade scenario. trx_rseg_mem_create
-		will add rseg to purge queue if needed. */
-
-		trx_rseg_t*		rseg = NULL;
-		bool			found = true;
-		const page_size_t&	page_size
-			= is_system_tablespace(space)
-			? univ_page_size
-			: fil_space_get_page_size(space, &found);
-
-		ut_ad(found);
-
-		trx_rseg_t** rseg_array =
-			((trx_rseg_t**) trx_sys->pending_purge_rseg_array);
-		rseg = trx_rseg_mem_create(
-			slot, space, page_no, page_size,
-			purge_queue, rseg_array, mtr);
-
-		ut_a(rseg->id == slot);
 	}
 }
 
-/********************************************************************
-Creates the memory copies for the rollback segments and initializes the
-rseg array in trx_sys at a database startup. */
-static
+/** Initialize the rollback segments in memory at database startup. */
 void
-trx_rseg_create_instance(
-/*=====================*/
-	purge_pq_t*	purge_queue)	/*!< in/out: rseg queue */
+trx_rseg_array_init()
 {
-	ulint		i;
+	mtr_t	mtr;
 
-	for (i = 0; i < TRX_SYS_N_RSEGS; i++) {
-		ulint	page_no;
-
-		mtr_t	mtr;
+	for (ulint i = 0; i < TRX_SYS_N_RSEGS; i++) {
 		mtr.start();
-		trx_sysf_t* sys_header = trx_sysf_get(&mtr);
+		trx_sysf_t*	sys_header = trx_sysf_get(&mtr);
+		ulint		page_no = trx_sysf_rseg_get_page_no(
+			sys_header, i, &mtr);
 
-		page_no = trx_sysf_rseg_get_page_no(sys_header, i, &mtr);
-
-		/* Slot-1....Slot-n are reserved for non-redo rsegs.
-		Non-redo rsegs are recreated on server re-start so
-		avoid initializing the existing non-redo rsegs. */
-		if (trx_sys_is_noredo_rseg_slot(i)) {
-
-			/* If this is an upgrade scenario then existing rsegs
-			in range from slot-1....slot-n needs to be scheduled
-			for purge if there are pending purge operation. */
-			trx_rseg_schedule_pending_purge(
-				sys_header, purge_queue, i, &mtr);
-
-		} else if (page_no != FIL_NULL) {
-			ulint		space;
-			trx_rseg_t*	rseg = NULL;
-
-			ut_a(!trx_rseg_get_on_id(i, true));
-
-			space = trx_sysf_rseg_get_space(sys_header, i, &mtr);
-
-			bool			found = true;
-			const page_size_t&	page_size
-				= is_system_tablespace(space)
-				? univ_page_size
-				: fil_space_get_page_size(space, &found);
-
-			ut_ad(found);
-
-			trx_rseg_t** rseg_array =
-				static_cast<trx_rseg_t**>(trx_sys->rseg_array);
-
-			rseg = trx_rseg_mem_create(
-				i, space, page_no, page_size,
-				purge_queue, rseg_array, &mtr);
-
-			ut_a(rseg->id == i);
-		} else {
-			ut_a(trx_sys->rseg_array[i] == NULL);
+		if (page_no != FIL_NULL) {
+			trx_rseg_t* rseg = trx_rseg_mem_create(
+				i,
+				trx_sysf_rseg_get_space(sys_header, i, &mtr),
+				page_no);
+			ut_ad(rseg->is_persistent());
+			ut_ad(!trx_sys->rseg_array[rseg->id]);
+			trx_sys->rseg_array[rseg->id] = rseg;
+			trx_rseg_mem_restore(rseg, &mtr);
 		}
+
 		mtr.commit();
 	}
 }
 
-/*********************************************************************
-Creates a rollback segment.
-@return pointer to new rollback segment if create successful */
+/** Create a persistent rollback segment.
+@param[in]	space_id	system or undo tablespace id */
 trx_rseg_t*
-trx_rseg_create(
-/*============*/
-	ulint	space_id,	/*!< in: id of UNDO tablespace */
-	ulint	nth_free_slot)	/*!< in: allocate nth free slot.
-				0 means next free slots. */
+trx_rseg_create(ulint space_id)
 {
-	mtr_t		mtr;
-	ulint		slot_no;
-	trx_rseg_t*	rseg = NULL;
+	trx_rseg_t*		rseg = NULL;
+	mtr_t			mtr;
 
-	mtr_start(&mtr);
+	mtr.start();
 
 	/* To obey the latching order, acquire the file space
 	x-latch before the trx_sys->mutex. */
-	const fil_space_t*	space = mtr_x_lock_space(space_id, &mtr);
+#ifdef UNIV_DEBUG
+	const fil_space_t*	space =
+#endif /* UNIV_DEBUG */
+		mtr_x_lock_space(space_id, &mtr);
+	ut_ad(space->purpose == FIL_TYPE_TABLESPACE);
 
-	switch (space->purpose) {
-	case FIL_TYPE_LOG:
-	case FIL_TYPE_IMPORT:
-		ut_ad(0);
-	case FIL_TYPE_TEMPORARY:
-		mtr_set_log_mode(&mtr, MTR_LOG_NO_REDO);
-		break;
-	case FIL_TYPE_TABLESPACE:
-		break;
+	ulint	slot_no = trx_sysf_rseg_find_free(&mtr);
+	ulint	page_no = slot_no == ULINT_UNDEFINED
+		? FIL_NULL
+		: trx_rseg_header_create(space_id, ULINT_MAX, slot_no, &mtr);
+
+	if (page_no != FIL_NULL) {
+		trx_sysf_t*	sys_header = trx_sysf_get(&mtr);
+
+		ulint		id = trx_sysf_rseg_get_space(
+			sys_header, slot_no, &mtr);
+		ut_a(id == space_id);
+
+		rseg = trx_rseg_mem_create(slot_no, space_id, page_no);
+		ut_ad(rseg->is_persistent());
+		ut_ad(!trx_sys->rseg_array[rseg->id]);
+		trx_sys->rseg_array[rseg->id] = rseg;
+		trx_rseg_mem_restore(rseg, &mtr);
 	}
 
-	slot_no = trx_sysf_rseg_find_free(
-		&mtr, space->purpose == FIL_TYPE_TEMPORARY, nth_free_slot);
-
-	if (slot_no != ULINT_UNDEFINED) {
-		ulint		id;
-		ulint		page_no;
-		trx_sysf_t*	sys_header;
-		page_size_t	page_size(space->flags);
-
-		page_no = trx_rseg_header_create(
-			space_id, page_size, ULINT_MAX, slot_no, &mtr);
-
-		if (page_no == FIL_NULL) {
-			mtr_commit(&mtr);
-
-			return(rseg);
-		}
-
-		sys_header = trx_sysf_get(&mtr);
-
-		id = trx_sysf_rseg_get_space(sys_header, slot_no, &mtr);
-		ut_a(id == space_id || trx_sys_is_noredo_rseg_slot(slot_no));
-
-		trx_rseg_t** rseg_array =
-			((trx_rseg_t**) trx_sys->rseg_array);
-
-		rseg = trx_rseg_mem_create(
-			slot_no, space_id, page_no, page_size,
-			purge_sys->purge_queue, rseg_array, &mtr);
-	}
-
-	mtr_commit(&mtr);
+	mtr.commit();
 
 	return(rseg);
 }
 
-/*********************************************************************//**
-Creates the memory copies for rollback segments and initializes the
-rseg array in trx_sys at a database startup. */
+/** Create the temporary rollback segments. */
 void
-trx_rseg_array_init(
-/*================*/
-	purge_pq_t*	purge_queue)	/*!< in: rseg queue */
+trx_temp_rseg_create()
 {
-	trx_sys->rseg_history_len = 0;
+	mtr_t		mtr;
 
-	trx_rseg_create_instance(purge_queue);
+	for (ulong i = 0; i < TRX_SYS_N_RSEGS; i++) {
+		mtr.start();
+		mtr.set_log_mode(MTR_LOG_NO_REDO);
+#ifdef UNIV_DEBUG
+		const fil_space_t*	space =
+#endif /* UNIV_DEBUG */
+			mtr_x_lock_space(SRV_TMP_SPACE_ID, &mtr);
+		ut_ad(space->purpose == FIL_TYPE_TEMPORARY);
+
+		ulint page_no = trx_rseg_header_create(
+			SRV_TMP_SPACE_ID, ULINT_MAX, i, &mtr);
+		trx_rseg_t* rseg = trx_rseg_mem_create(
+			i, SRV_TMP_SPACE_ID, page_no);
+		ut_ad(!rseg->is_persistent());
+		ut_ad(!trx_sys->temp_rsegs[i]);
+		trx_sys->temp_rsegs[i] = rseg;
+		trx_rseg_mem_restore(rseg, &mtr);
+		mtr.commit();
+	}
 }
 
 /********************************************************************

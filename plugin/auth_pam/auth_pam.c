@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
 
 #define _GNU_SOURCE 1 /* for strndup */
 
@@ -131,7 +131,7 @@ static int pam_auth(MYSQL_PLUGIN_VIO *vio, MYSQL_SERVER_AUTH_INFO *info)
 {
   pam_handle_t *pamh = NULL;
   int status;
-  const char *new_username;
+  const char *new_username= NULL;
   struct param param;
   /* The following is written in such a way to make also solaris happy */
   struct pam_conv pam_start_arg = { &conv, (char*) &param };
@@ -139,7 +139,7 @@ static int pam_auth(MYSQL_PLUGIN_VIO *vio, MYSQL_SERVER_AUTH_INFO *info)
   /*
     get the service name, as specified in
 
-     CREATE USER ... IDENTIFIED WITH pam_auth AS  "service"
+     CREATE USER ... IDENTIFIED WITH pam AS "service"
   */
   const char *service = info->auth_string && info->auth_string[0]
                           ? info->auth_string : "mysql";

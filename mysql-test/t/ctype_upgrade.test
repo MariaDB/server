@@ -191,6 +191,7 @@ SELECT GROUP_CONCAT(a ORDER BY BINARY a) FROM maria100004_xxx_croatian_ci GROUP 
 SHOW CREATE TABLE mysql050614_xxx_croatian_ci;
 SELECT GROUP_CONCAT(a ORDER BY BINARY a) FROM mysql050614_xxx_croatian_ci GROUP BY a;
 
+remove_file $MYSQLD_DATADIR/mysql_upgrade_info;
 DROP TABLE maria050313_ucs2_croatian_ci_def;
 DROP TABLE maria050313_utf8_croatian_ci;
 DROP TABLE maria050533_xxx_croatian_ci;

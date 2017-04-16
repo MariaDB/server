@@ -58,10 +58,11 @@
 #include "lock.h"                           // MYSQL_OPEN_IGNORE_FLUSH
 #include "debug_sync.h"
 #include "keycaches.h"
-
+#include "ha_sequence.h"
 #ifdef WITH_PARTITION_STORAGE_ENGINE
 #include "ha_partition.h"
 #endif
+
 enum enum_i_s_events_fields
 {
   ISE_EVENT_CATALOG= 0,
@@ -130,6 +131,8 @@ static void get_cs_converted_string_value(THD *thd,
 #endif
 
 static int show_create_view(THD *thd, TABLE_LIST *table, String *buff);
+static int show_create_sequence(THD *thd, TABLE_LIST *table_list,
+                                String *packet);
 
 static const LEX_STRING *view_algorithm(TABLE_LIST *table);
 
@@ -1069,7 +1072,7 @@ public:
   }
 
   bool handle_condition(THD *thd, uint sql_errno, const char * /* sqlstate */,
-                        Sql_condition::enum_warning_level level,
+                        Sql_condition::enum_warning_level *level,
                         const char *message, Sql_condition ** /* cond_hdl */)
   {
     /*
@@ -1169,10 +1172,17 @@ mysqld_show_create_get_fields(THD *thd, TABLE_LIST *table_list,
   }
 
   /* TODO: add environment variables show when it become possible */
-  if (thd->lex->only_view && !table_list->view)
+  if (thd->lex->table_type == TABLE_TYPE_VIEW && !table_list->view)
   {
     my_error(ER_WRONG_OBJECT, MYF(0),
              table_list->db, table_list->table_name, "VIEW");
+    goto exit;
+  }
+  else if (thd->lex->table_type == TABLE_TYPE_SEQUENCE &&
+           table_list->table->s->table_type != TABLE_TYPE_SEQUENCE)
+  {
+    my_error(ER_WRONG_OBJECT, MYF(0),
+             table_list->db, table_list->table_name, "SEQUENCE");
     goto exit;
   }
 
@@ -1183,6 +1193,8 @@ mysqld_show_create_get_fields(THD *thd, TABLE_LIST *table_list,
 
   if ((table_list->view ?
        show_create_view(thd, table_list, buffer) :
+       thd->lex->table_type == TABLE_TYPE_SEQUENCE ?
+       show_create_sequence(thd, table_list, buffer) :
        show_create_table(thd, table_list, buffer, NULL, WITHOUT_DB_NAME)))
     goto exit;
 
@@ -1761,6 +1773,179 @@ static void append_create_options(THD *thd, String *packet,
     packet->append(STRING_WITH_LEN(" */"));
 }
 
+/**
+   Add table options to end of CREATE statement
+
+   @param schema_table  1 if schema table
+   @param sequence      1 if sequence. If sequence, we flush out options
+                          not relevant for sequences.
+*/
+
+static void add_table_options(THD *thd, TABLE *table,
+                              Table_specification_st *create_info_arg,
+                              bool schema_table, bool sequence,
+                              String *packet)
+{
+  sql_mode_t sql_mode= thd->variables.sql_mode;
+  TABLE_SHARE *share= table->s;
+  handlerton *hton;
+  HA_CREATE_INFO create_info;
+  bool check_options= (!(sql_mode & MODE_IGNORE_BAD_TABLE_OPTIONS) &&
+                       !create_info_arg);
+
+#ifdef WITH_PARTITION_STORAGE_ENGINE
+  if (table->part_info)
+    hton= table->part_info->default_engine_type;
+  else
+#endif
+    hton= table->file->ht;
+
+  bzero((char*) &create_info, sizeof(create_info));
+  /* Allow update_create_info to update row type, page checksums and options */
+  create_info.row_type= share->row_type;
+  create_info.page_checksum= share->page_checksum;
+  create_info.options= share->db_create_options;
+  table->file->update_create_info(&create_info);
+
+  /*
+    IF   check_create_info
+    THEN add ENGINE only if it was used when creating the table
+  */
+  if (!create_info_arg ||
+      (create_info_arg->used_fields & HA_CREATE_USED_ENGINE))
+  {
+    LEX_STRING *engine_name= table->file->engine_name();
+
+    if (sql_mode & (MODE_MYSQL323 | MODE_MYSQL40))
+      packet->append(STRING_WITH_LEN(" TYPE="));
+    else
+      packet->append(STRING_WITH_LEN(" ENGINE="));
+
+    packet->append(engine_name->str, engine_name->length);
+  }
+
+  if (sequence)
+    goto end_options;
+
+  /*
+    Add AUTO_INCREMENT=... if there is an AUTO_INCREMENT column,
+    and NEXT_ID > 1 (the default).  We must not print the clause
+    for engines that do not support this as it would break the
+    import of dumps, but as of this writing, the test for whether
+    AUTO_INCREMENT columns are allowed and wether AUTO_INCREMENT=...
+    is supported is identical, !(file->table_flags() & HA_NO_AUTO_INCREMENT))
+    Because of that, we do not explicitly test for the feature,
+    but may extrapolate its existence from that of an AUTO_INCREMENT column.
+  */
+
+  if (create_info.auto_increment_value > 1)
+  {
+    packet->append(STRING_WITH_LEN(" AUTO_INCREMENT="));
+    packet->append_ulonglong(create_info.auto_increment_value);
+  }
+
+  if (share->table_charset && !(sql_mode & (MODE_MYSQL323 | MODE_MYSQL40)) &&
+      share->table_type != TABLE_TYPE_SEQUENCE)
+  {
+    /*
+      IF   check_create_info
+      THEN add DEFAULT CHARSET only if it was used when creating the table
+    */
+    if (!create_info_arg ||
+        (create_info_arg->used_fields & HA_CREATE_USED_DEFAULT_CHARSET))
+    {
+      packet->append(STRING_WITH_LEN(" DEFAULT CHARSET="));
+      packet->append(share->table_charset->csname);
+      if (!(share->table_charset->state & MY_CS_PRIMARY))
+      {
+        packet->append(STRING_WITH_LEN(" COLLATE="));
+        packet->append(table->s->table_charset->name);
+      }
+    }
+  }
+
+  if (share->min_rows)
+  {
+    packet->append(STRING_WITH_LEN(" MIN_ROWS="));
+    packet->append_ulonglong(share->min_rows);
+  }
+
+  if (share->max_rows && !schema_table && !sequence)
+  {
+    packet->append(STRING_WITH_LEN(" MAX_ROWS="));
+    packet->append_ulonglong(share->max_rows);
+  }
+
+  if (share->avg_row_length)
+  {
+    packet->append(STRING_WITH_LEN(" AVG_ROW_LENGTH="));
+    packet->append_ulonglong(share->avg_row_length);
+  }
+
+  if (create_info.options & HA_OPTION_PACK_KEYS)
+    packet->append(STRING_WITH_LEN(" PACK_KEYS=1"));
+  if (create_info.options & HA_OPTION_NO_PACK_KEYS)
+    packet->append(STRING_WITH_LEN(" PACK_KEYS=0"));
+  if (share->db_create_options & HA_OPTION_STATS_PERSISTENT)
+    packet->append(STRING_WITH_LEN(" STATS_PERSISTENT=1"));
+  if (share->db_create_options & HA_OPTION_NO_STATS_PERSISTENT)
+    packet->append(STRING_WITH_LEN(" STATS_PERSISTENT=0"));
+  if (share->stats_auto_recalc == HA_STATS_AUTO_RECALC_ON)
+    packet->append(STRING_WITH_LEN(" STATS_AUTO_RECALC=1"));
+  else if (share->stats_auto_recalc == HA_STATS_AUTO_RECALC_OFF)
+    packet->append(STRING_WITH_LEN(" STATS_AUTO_RECALC=0"));
+  if (share->stats_sample_pages != 0)
+  {
+    packet->append(STRING_WITH_LEN(" STATS_SAMPLE_PAGES="));
+    packet->append_ulonglong(share->stats_sample_pages);
+  }
+
+  /* We use CHECKSUM, instead of TABLE_CHECKSUM, for backward compability */
+  if (create_info.options & HA_OPTION_CHECKSUM)
+    packet->append(STRING_WITH_LEN(" CHECKSUM=1"));
+  if (create_info.page_checksum != HA_CHOICE_UNDEF)
+  {
+    packet->append(STRING_WITH_LEN(" PAGE_CHECKSUM="));
+    packet->append(ha_choice_values[create_info.page_checksum], 1);
+  }
+  if (create_info.options & HA_OPTION_DELAY_KEY_WRITE)
+    packet->append(STRING_WITH_LEN(" DELAY_KEY_WRITE=1"));
+  if (create_info.row_type != ROW_TYPE_DEFAULT)
+  {
+    packet->append(STRING_WITH_LEN(" ROW_FORMAT="));
+    packet->append(ha_row_type[(uint) create_info.row_type]);
+  }
+  if (share->transactional != HA_CHOICE_UNDEF)
+  {
+    packet->append(STRING_WITH_LEN(" TRANSACTIONAL="));
+    packet->append(ha_choice_values[(uint) share->transactional], 1);
+  }
+  if (share->table_type == TABLE_TYPE_SEQUENCE)
+    packet->append(STRING_WITH_LEN(" SEQUENCE=1"));
+  if (table->s->key_block_size)
+  {
+    packet->append(STRING_WITH_LEN(" KEY_BLOCK_SIZE="));
+    packet->append_ulonglong(table->s->key_block_size);
+  }
+  table->file->append_create_info(packet);
+
+end_options:
+  if (share->comment.length)
+  {
+    packet->append(STRING_WITH_LEN(" COMMENT="));
+    append_unescaped(packet, share->comment.str, share->comment.length);
+  }
+  if (share->connect_string.length)
+  {
+    packet->append(STRING_WITH_LEN(" CONNECTION="));
+    append_unescaped(packet, share->connect_string.str, share->connect_string.length);
+  }
+  append_create_options(thd, packet, share->option_list, check_options,
+                        hton->table_options);
+  append_directory(thd, packet, "DATA",  create_info.data_file_name);
+  append_directory(thd, packet, "INDEX", create_info.index_file_name);
+}
+
 /*
   Build a CREATE TABLE statement for a table.
 
@@ -1790,7 +1975,7 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
                       enum_with_db_name with_db_name)
 {
   List<Item> field_list;
-  char tmp[MAX_FIELD_WIDTH], *for_str, buff[128], def_value_buf[MAX_FIELD_WIDTH];
+  char tmp[MAX_FIELD_WIDTH], *for_str, def_value_buf[MAX_FIELD_WIDTH];
   const char *alias;
   String type;
   String def_value;
@@ -1798,9 +1983,7 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
   uint primary_key;
   KEY *key_info;
   TABLE *table= table_list->table;
-  handler *file= table->file;
   TABLE_SHARE *share= table->s;
-  HA_CREATE_INFO create_info;
   sql_mode_t sql_mode= thd->variables.sql_mode;
   bool foreign_db_mode=  sql_mode & (MODE_POSTGRESQL | MODE_ORACLE |
                                      MODE_MSSQL | MODE_DB2 |
@@ -1811,8 +1994,8 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
                            !foreign_db_mode;
   bool check_options= !(sql_mode & MODE_IGNORE_BAD_TABLE_OPTIONS) &&
                       !create_info_arg;
-  handlerton *hton;
   my_bitmap_map *old_map;
+  handlerton *hton;
   int error= 0;
   DBUG_ENTER("show_create_table");
   DBUG_PRINT("enter",("table: %s", table->s->table_name.str));
@@ -1822,7 +2005,7 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
     hton= table->part_info->default_engine_type;
   else
 #endif
-    hton= file->ht;
+    hton= table->file->ht;
 
   restore_record(table, s->default_values); // Get empty record
 
@@ -1971,12 +2154,6 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
   }
 
   key_info= table->key_info;
-  bzero((char*) &create_info, sizeof(create_info));
-  /* Allow update_create_info to update row type, page checksums and options */
-  create_info.row_type= share->row_type;
-  create_info.page_checksum= share->page_checksum;
-  create_info.options= share->db_create_options;
-  file->update_create_info(&create_info);
   primary_key= share->primary_key;
 
   for (uint i=0 ; i < share->keys ; i++,key_info++)
@@ -2043,10 +2220,10 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
     to the CREATE TABLE statement
   */
 
-  if ((for_str= file->get_foreign_key_create_info()))
+  if ((for_str= table->file->get_foreign_key_create_info()))
   {
     packet->append(for_str, strlen(for_str));
-    file->free_foreign_key_create_info(for_str);
+    table->file->free_foreign_key_create_info(for_str);
   }
 
   /* Add table level check constraints */
@@ -2073,146 +2250,9 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
 
   packet->append(STRING_WITH_LEN("\n)"));
   if (show_table_options)
-  {
-    /*
-      IF   check_create_info
-      THEN add ENGINE only if it was used when creating the table
-    */
-    if (!create_info_arg ||
-        (create_info_arg->used_fields & HA_CREATE_USED_ENGINE))
-    {
-      if (sql_mode & (MODE_MYSQL323 | MODE_MYSQL40))
-        packet->append(STRING_WITH_LEN(" TYPE="));
-      else
-        packet->append(STRING_WITH_LEN(" ENGINE="));
-      packet->append(hton_name(hton));
-    }
+    add_table_options(thd, table, create_info_arg,
+                      table_list->schema_table != 0, 0, packet);
 
-    /*
-      Add AUTO_INCREMENT=... if there is an AUTO_INCREMENT column,
-      and NEXT_ID > 1 (the default).  We must not print the clause
-      for engines that do not support this as it would break the
-      import of dumps, but as of this writing, the test for whether
-      AUTO_INCREMENT columns are allowed and wether AUTO_INCREMENT=...
-      is supported is identical, !(file->table_flags() & HA_NO_AUTO_INCREMENT))
-      Because of that, we do not explicitly test for the feature,
-      but may extrapolate its existence from that of an AUTO_INCREMENT column.
-    */
-
-    if (create_info.auto_increment_value > 1)
-    {
-      char *end;
-      packet->append(STRING_WITH_LEN(" AUTO_INCREMENT="));
-      end= longlong10_to_str(create_info.auto_increment_value, buff,10);
-      packet->append(buff, (uint) (end - buff));
-    }
-    
-    if (share->table_charset && !(sql_mode & (MODE_MYSQL323 | MODE_MYSQL40)))
-    {
-      /*
-        IF   check_create_info
-        THEN add DEFAULT CHARSET only if it was used when creating the table
-      */
-      if (!create_info_arg ||
-          (create_info_arg->used_fields & HA_CREATE_USED_DEFAULT_CHARSET))
-      {
-        packet->append(STRING_WITH_LEN(" DEFAULT CHARSET="));
-        packet->append(share->table_charset->csname);
-        if (!(share->table_charset->state & MY_CS_PRIMARY))
-        {
-          packet->append(STRING_WITH_LEN(" COLLATE="));
-          packet->append(table->s->table_charset->name);
-        }
-      }
-    }
-
-    if (share->min_rows)
-    {
-      char *end;
-      packet->append(STRING_WITH_LEN(" MIN_ROWS="));
-      end= longlong10_to_str(share->min_rows, buff, 10);
-      packet->append(buff, (uint) (end- buff));
-    }
-
-    if (share->max_rows && !table_list->schema_table)
-    {
-      char *end;
-      packet->append(STRING_WITH_LEN(" MAX_ROWS="));
-      end= longlong10_to_str(share->max_rows, buff, 10);
-      packet->append(buff, (uint) (end - buff));
-    }
-
-    if (share->avg_row_length)
-    {
-      char *end;
-      packet->append(STRING_WITH_LEN(" AVG_ROW_LENGTH="));
-      end= longlong10_to_str(share->avg_row_length, buff,10);
-      packet->append(buff, (uint) (end - buff));
-    }
-
-    if (create_info.options & HA_OPTION_PACK_KEYS)
-      packet->append(STRING_WITH_LEN(" PACK_KEYS=1"));
-    if (create_info.options & HA_OPTION_NO_PACK_KEYS)
-      packet->append(STRING_WITH_LEN(" PACK_KEYS=0"));
-    if (share->db_create_options & HA_OPTION_STATS_PERSISTENT)
-      packet->append(STRING_WITH_LEN(" STATS_PERSISTENT=1"));
-    if (share->db_create_options & HA_OPTION_NO_STATS_PERSISTENT)
-      packet->append(STRING_WITH_LEN(" STATS_PERSISTENT=0"));
-    if (share->stats_auto_recalc == HA_STATS_AUTO_RECALC_ON)
-      packet->append(STRING_WITH_LEN(" STATS_AUTO_RECALC=1"));
-    else if (share->stats_auto_recalc == HA_STATS_AUTO_RECALC_OFF)
-      packet->append(STRING_WITH_LEN(" STATS_AUTO_RECALC=0"));
-    if (share->stats_sample_pages != 0)
-    {
-      char *end;
-      packet->append(STRING_WITH_LEN(" STATS_SAMPLE_PAGES="));
-      end= longlong10_to_str(share->stats_sample_pages, buff, 10);
-      packet->append(buff, (uint) (end - buff));
-    }
-
-    /* We use CHECKSUM, instead of TABLE_CHECKSUM, for backward compability */
-    if (create_info.options & HA_OPTION_CHECKSUM)
-      packet->append(STRING_WITH_LEN(" CHECKSUM=1"));
-    if (create_info.page_checksum != HA_CHOICE_UNDEF)
-    {
-      packet->append(STRING_WITH_LEN(" PAGE_CHECKSUM="));
-      packet->append(ha_choice_values[create_info.page_checksum], 1);
-    }
-    if (create_info.options & HA_OPTION_DELAY_KEY_WRITE)
-      packet->append(STRING_WITH_LEN(" DELAY_KEY_WRITE=1"));
-    if (create_info.row_type != ROW_TYPE_DEFAULT)
-    {
-      packet->append(STRING_WITH_LEN(" ROW_FORMAT="));
-      packet->append(ha_row_type[(uint) create_info.row_type]);
-    }
-    if (share->transactional != HA_CHOICE_UNDEF)
-    {
-      packet->append(STRING_WITH_LEN(" TRANSACTIONAL="));
-      packet->append(ha_choice_values[(uint) share->transactional], 1);
-    }
-    if (table->s->key_block_size)
-    {
-      char *end;
-      packet->append(STRING_WITH_LEN(" KEY_BLOCK_SIZE="));
-      end= longlong10_to_str(table->s->key_block_size, buff, 10);
-      packet->append(buff, (uint) (end - buff));
-    }
-    table->file->append_create_info(packet);
-    if (share->comment.length)
-    {
-      packet->append(STRING_WITH_LEN(" COMMENT="));
-      append_unescaped(packet, share->comment.str, share->comment.length);
-    }
-    if (share->connect_string.length)
-    {
-      packet->append(STRING_WITH_LEN(" CONNECTION="));
-      append_unescaped(packet, share->connect_string.str, share->connect_string.length);
-    }
-    append_create_options(thd, packet, share->option_list, check_options,
-                          hton->table_options);
-    append_directory(thd, packet, "DATA",  create_info.data_file_name);
-    append_directory(thd, packet, "INDEX", create_info.index_file_name);
-  }
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   {
     if (table->part_info &&
@@ -2419,6 +2459,55 @@ static int show_create_view(THD *thd, TABLE_LIST *table, String *buff)
     else
       buff->append(STRING_WITH_LEN(" WITH CASCADED CHECK OPTION"));
   }
+  return 0;
+}
+
+
+static int show_create_sequence(THD *thd, TABLE_LIST *table_list,
+                                String *packet)
+{
+  TABLE *table= table_list->table;
+  SEQUENCE *seq= table->s->sequence;
+  LEX_STRING alias;
+  sql_mode_t sql_mode= thd->variables.sql_mode;
+  bool foreign_db_mode=  sql_mode & (MODE_POSTGRESQL | MODE_ORACLE |
+                                     MODE_MSSQL | MODE_DB2 |
+                                     MODE_MAXDB | MODE_ANSI);
+  bool show_table_options= !(sql_mode & MODE_NO_TABLE_OPTIONS) &&
+                           !foreign_db_mode;
+
+  if (lower_case_table_names == 2)
+  {
+    alias.str=    table->alias.c_ptr();
+    alias.length= table->alias.length();
+  }
+  else
+    alias= table->s->table_name;
+
+  packet->append(STRING_WITH_LEN("CREATE SEQUENCE "));
+  append_identifier(thd, packet, alias.str, alias.length);
+  packet->append(STRING_WITH_LEN(" start with "));
+  packet->append_longlong(seq->start);
+  packet->append(STRING_WITH_LEN(" minvalue "));
+  packet->append_longlong(seq->min_value);
+  packet->append(STRING_WITH_LEN(" maxvalue "));
+  packet->append_longlong(seq->max_value);
+  packet->append(STRING_WITH_LEN(" increment by "));
+  packet->append_longlong(seq->increment);
+  if (seq->cache)
+  {
+    packet->append(STRING_WITH_LEN(" cache "));
+    packet->append_longlong(seq->cache);
+  }
+  else
+    packet->append(STRING_WITH_LEN(" nocache"));
+  if (seq->cycle)
+    packet->append(STRING_WITH_LEN(" cycle"));
+  else
+    packet->append(STRING_WITH_LEN(" nocycle"));
+
+  if (show_table_options)
+    add_table_options(thd, table, 0, 0, 1, packet);
   return 0;
 }
 
@@ -3386,7 +3475,7 @@ static bool show_status_array(THD *thd, const char *wild,
 
   for (; variables->name; variables++)
   {
-    bool wild_checked;
+    bool wild_checked= false;
     strnmov(prefix_end, variables->name, len);
     name_buffer[sizeof(name_buffer)-1]=0;       /* Safety */
 
@@ -3452,8 +3541,8 @@ static bool show_status_array(THD *thd, const char *wild,
     else
     {
       if ((wild_checked ||
-           (wild && wild[0] && wild_case_compare(system_charset_info,
-                                                 name_buffer, wild))) &&
+           !(wild && wild[0] && wild_case_compare(system_charset_info,
+                                                  name_buffer, wild))) &&
           (!cond || cond->val_int()))
       {
         const char *pos;                  // We assign a lot of const's
@@ -4133,6 +4222,23 @@ make_table_name_list(THD *thd, Dynamic_array<LEX_STRING*> *table_names,
 }
 
 
+static void get_table_engine_for_i_s(THD *thd, char *buf, TABLE_LIST *tl,
+                                     LEX_STRING *db, LEX_STRING *table)
+{
+  LEX_STRING engine_name= { buf, 0 };
+
+  if (thd->get_stmt_da()->sql_errno() == ER_UNKNOWN_STORAGE_ENGINE)
+  {
+    char path[FN_REFLEN];
+    build_table_filename(path, sizeof(path) - 1,
+                         db->str, table->str, reg_ext, 0);
+    bool is_sequence;
+    if (dd_frm_type(thd, path, &engine_name, &is_sequence) == TABLE_TYPE_NORMAL)
+      tl->option= engine_name.str;
+  }
+}
+
+
 /**
   Fill I_S table with data obtained by performing full-blown table open.
 
@@ -4191,6 +4297,7 @@ fill_schema_table_by_open(THD *thd, bool is_show_fields_or_keys,
   /* Prepare temporary LEX. */
   thd->lex= lex= &temp_lex;
   lex_start(thd);
+  lex->sql_command= old_lex->sql_command;
 
   /* Disable constant subquery evaluation as we won't be locking tables. */
   lex->context_analysis_only= CONTEXT_ANALYSIS_ONLY_VIEW;
@@ -4203,9 +4310,9 @@ fill_schema_table_by_open(THD *thd, bool is_show_fields_or_keys,
 
   /*
     Since make_table_list() might change database and table name passed
-    to it we create copies of orig_db_name and orig_table_name here.
-    These copies are used for make_table_list() while unaltered values
-    are passed to process_table() functions.
+    to it (if lower_case_table_names) we create copies of orig_db_name and
+    orig_table_name here.  These copies are used for make_table_list()
+    while unaltered values are passed to process_table() functions.
   */
   if (!thd->make_lex_string(&db_name,
                             orig_db_name->str, orig_db_name->length) ||
@@ -4243,26 +4350,8 @@ fill_schema_table_by_open(THD *thd, bool is_show_fields_or_keys,
     table_list->i_s_requested_object= schema_table->i_s_requested_object;
   }
 
-  /*
-    Let us set fake sql_command so views won't try to merge
-    themselves into main statement. If we don't do this,
-    SELECT * from information_schema.xxxx will cause problems.
-    SQLCOM_SHOW_FIELDS is used because it satisfies
-    'only_view_structure()'.
-  */
-  lex->sql_command= SQLCOM_SHOW_FIELDS;
-  result= (thd->open_temporary_tables(table_list) ||
-           open_normal_and_derived_tables(thd, table_list,
-                                          (MYSQL_OPEN_IGNORE_FLUSH |
-                                           MYSQL_OPEN_FORCE_SHARED_HIGH_PRIO_MDL |
-                                           (can_deadlock ?
-                                            MYSQL_OPEN_FAIL_ON_MDL_CONFLICT : 0)),
-                                          DT_PREPARE | DT_CREATE));
-  /*
-    Restore old value of sql_command back as it is being looked at in
-    process_table() function.
-  */
-  lex->sql_command= old_lex->sql_command;
+  DBUG_ASSERT(thd->lex == lex);
+  result= open_tables_only_view_structure(thd, table_list, can_deadlock);
 
   DEBUG_SYNC(thd, "after_open_table_ignore_flush");
 
@@ -4292,6 +4381,10 @@ fill_schema_table_by_open(THD *thd, bool is_show_fields_or_keys,
   }
   else
   {
+    char buf[NAME_CHAR_LEN + 1];
+    if (thd->is_error())
+      get_table_engine_for_i_s(thd, buf, table_list, &db_name, &table_name);
+
     result= schema_table->process_table(thd, table_list,
                                         table, result,
                                         orig_db_name,
@@ -4357,10 +4450,14 @@ static int fill_schema_table_names(THD *thd, TABLE_LIST *tables,
   {
     CHARSET_INFO *cs= system_charset_info;
     handlerton *hton;
-    if (ha_table_exists(thd, db_name->str, table_name->str, &hton))
+    bool is_sequence;
+    if (ha_table_exists(thd, db_name->str, table_name->str, &hton,
+                        &is_sequence))
     {
       if (hton == view_pseudo_hton)
         table->field[3]->store(STRING_WITH_LEN("VIEW"), cs);
+      else if (is_sequence)
+        table->field[3]->store(STRING_WITH_LEN("SEQUENCE"), cs);
       else
         table->field[3]->store(STRING_WITH_LEN("BASE TABLE"), cs);
     }
@@ -4508,15 +4605,13 @@ try_acquire_high_prio_shared_mdl_lock(THD *thd, TABLE_LIST *table,
                               open_tables function for this table
 */
 
-static int fill_schema_table_from_frm(THD *thd, TABLE_LIST *tables,
+static int fill_schema_table_from_frm(THD *thd, TABLE *table,
                                       ST_SCHEMA_TABLE *schema_table,
                                       LEX_STRING *db_name,
                                       LEX_STRING *table_name,
-                                      enum enum_schema_tables schema_table_idx,
                                       Open_tables_backup *open_tables_state_backup,
                                       bool can_deadlock)
 {
-  TABLE *table= tables->table;
   TABLE_SHARE *share;
   TABLE tbl;
   TABLE_LIST table_list;
@@ -4598,7 +4693,19 @@ static int fill_schema_table_from_frm(THD *thd, TABLE_LIST *tables,
   share= tdc_acquire_share(thd, &table_list, GTS_TABLE | GTS_VIEW);
   if (!share)
   {
-    res= 0;
+    if (thd->get_stmt_da()->sql_errno() == ER_NO_SUCH_TABLE ||
+        thd->get_stmt_da()->sql_errno() == ER_WRONG_OBJECT)
+    {
+      res= 0;
+    }
+    else
+    {
+      char buf[NAME_CHAR_LEN + 1];
+      get_table_engine_for_i_s(thd, buf, &table_list, db_name, table_name);
+
+      res= schema_table->process_table(thd, &table_list, table,
+                                       true, db_name, table_name);
+    }
     goto end;
   }
 
@@ -4637,7 +4744,7 @@ static int fill_schema_table_from_frm(THD *thd, TABLE_LIST *tables,
     table_list.view= (LEX*) share->is_view;
     res= schema_table->process_table(thd, &table_list, table,
                                      res, db_name, table_name);
-    free_root(&tbl.mem_root, MYF(0));
+    closefrm(&tbl);
   }
 
 
@@ -4675,7 +4782,7 @@ public:
   bool handle_condition(THD *thd,
                         uint sql_errno,
                         const char* sqlstate,
-                        Sql_condition::enum_warning_level level,
+                        Sql_condition::enum_warning_level *level,
                         const char* msg,
                         Sql_condition ** cond_hdl)
   {
@@ -4684,7 +4791,7 @@ public:
         sql_errno == ER_TRG_NO_CREATION_CTX)
       return true;
 
-    if (level != Sql_condition::WARN_LEVEL_ERROR)
+    if (*level != Sql_condition::WARN_LEVEL_ERROR)
       return false;
 
     if (!thd->get_stmt_da()->is_error())
@@ -4874,9 +4981,8 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
             if (!(table_open_method & ~OPEN_FRM_ONLY) &&
                 db_name != &INFORMATION_SCHEMA_NAME)
             {
-              if (!fill_schema_table_from_frm(thd, tables, schema_table,
+              if (!fill_schema_table_from_frm(thd, table, schema_table,
                                               db_name, table_name,
-                                              schema_table_idx,
                                               &open_tables_state_backup,
                                               can_deadlock))
                 continue;
@@ -5010,6 +5116,11 @@ static int get_schema_tables_record(THD *thd, TABLE_LIST *tables,
     else
       table->field[3]->store(STRING_WITH_LEN("BASE TABLE"), cs);
 
+    if (tables->option)
+    {
+      table->field[4]->store(tables->option, strlen(tables->option), cs);
+      table->field[4]->set_notnull();
+    }
     goto err;
   }
 
@@ -5024,7 +5135,7 @@ static int get_schema_tables_record(THD *thd, TABLE_LIST *tables,
     String str(option_buff,sizeof(option_buff), system_charset_info);
     TABLE *show_table= tables->table;
     TABLE_SHARE *share= show_table->s;
-    handler *file= show_table->file;
+    handler *file= show_table->db_stat ? show_table->file : 0;
     handlerton *tmp_db_type= share->db_type();
 #ifdef WITH_PARTITION_STORAGE_ENGINE
     bool is_partitioned= FALSE;
@@ -5034,6 +5145,8 @@ static int get_schema_tables_record(THD *thd, TABLE_LIST *tables,
       table->field[3]->store(STRING_WITH_LEN("SYSTEM VIEW"), cs);
     else if (share->tmp_table)
       table->field[3]->store(STRING_WITH_LEN("LOCAL TEMPORARY"), cs);
+    else if (share->table_type == TABLE_TYPE_SEQUENCE)
+      table->field[3]->store(STRING_WITH_LEN("SEQUENCE"), cs);
     else
       table->field[3]->store(STRING_WITH_LEN("BASE TABLE"), cs);
 
@@ -5505,13 +5618,24 @@ static int get_schema_column_record(THD *thd, TABLE_LIST *tables,
       table->field[17]->store(STRING_WITH_LEN("auto_increment"), cs);
     if (print_on_update_clause(field, &type, true))
       table->field[17]->store(type.ptr(), type.length(), cs);
+
     if (field->vcol_info)
     {
+      String gen_s(tmp,sizeof(tmp), system_charset_info);
+      gen_s.length(0);
+      field->vcol_info->print(&gen_s);
+      table->field[21]->store(gen_s.ptr(), gen_s.length(), cs);
+      table->field[21]->set_notnull();
+      table->field[20]->store(STRING_WITH_LEN("ALWAYS"), cs);
+
       if (field->vcol_info->stored_in_db)
         table->field[17]->store(STRING_WITH_LEN("STORED GENERATED"), cs);
       else
         table->field[17]->store(STRING_WITH_LEN("VIRTUAL GENERATED"), cs);
     }
+    else
+      table->field[20]->store(STRING_WITH_LEN("NEVER"), cs);
+
     table->field[19]->store(field->comment.str, field->comment.length, cs);
     if (schema_table_store_record(thd, table))
       DBUG_RETURN(1);
@@ -6373,6 +6497,19 @@ static int get_schema_constraints_record(THD *thd, TABLE_LIST *tables,
                               STRING_WITH_LEN("UNIQUE")))
           DBUG_RETURN(1);
       }
+    }
+
+    // Table check constraints
+    for ( uint i = 0; i < show_table->s->table_check_constraints; i++ )
+    {
+        Virtual_column_info *check = show_table->check_constraints[ i ];
+
+        if ( store_constraints( thd, table, db_name, table_name, check->name.str,
+                                check->name.length,
+                                STRING_WITH_LEN( "CHECK" ) ) )
+        {
+            DBUG_RETURN( 1 );
+        }
     }
 
     show_table->file->get_foreign_key_list(thd, &f_key_list);
@@ -8444,6 +8581,9 @@ ST_FIELD_INFO columns_fields_info[]=
   {"PRIVILEGES", 80, MYSQL_TYPE_STRING, 0, 0, "Privileges", OPEN_FRM_ONLY},
   {"COLUMN_COMMENT", COLUMN_COMMENT_MAXLEN, MYSQL_TYPE_STRING, 0, 0, 
    "Comment", OPEN_FRM_ONLY},
+  {"IS_GENERATED", 6, MYSQL_TYPE_STRING, 0, 0, 0, OPEN_FRM_ONLY},
+  {"GENERATION_EXPRESSION", MAX_FIELD_VARCHARLENGTH, MYSQL_TYPE_STRING, 0, 1,
+    0, OPEN_FRM_ONLY},
   {0, 0, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE}
 };
 

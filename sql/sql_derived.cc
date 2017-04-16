@@ -449,6 +449,9 @@ bool mysql_derived_merge(THD *thd, LEX *lex, TABLE_LIST *derived)
   {
     Item *expr= derived->on_expr;
     expr= and_conds(thd, expr, dt_select->join ? dt_select->join->conds : 0);
+    if (expr)
+      expr->top_level_item();
+
     if (expr && (derived->prep_on_expr || expr != derived->on_expr))
     {
       derived->on_expr= expr;
@@ -652,7 +655,7 @@ bool mysql_derived_prepare(THD *thd, LEX *lex, TABLE_LIST *derived)
       specification has been already prepared (a secondary recursive table
       reference.
     */ 
-    if (!(derived->derived_result= new (thd->mem_root) select_union(thd)))
+    if (!(derived->derived_result= new (thd->mem_root) select_unit(thd)))
       DBUG_RETURN(TRUE); // out of memory
     thd->create_tmp_table_for_derived= TRUE;
     res= derived->derived_result->create_result_table(
@@ -660,7 +663,7 @@ bool mysql_derived_prepare(THD *thd, LEX *lex, TABLE_LIST *derived)
                                   (first_select->options |
                                    thd->variables.option_bits |
                                    TMP_TABLE_ALL_COLUMNS),
-                                  derived->alias, FALSE, FALSE);
+                                  derived->alias, FALSE, FALSE, FALSE, 0);
     thd->create_tmp_table_for_derived= FALSE;
 
     if (!res && !derived->table)
@@ -713,8 +716,9 @@ bool mysql_derived_prepare(THD *thd, LEX *lex, TABLE_LIST *derived)
   }
 
   unit->derived= derived;
+  derived->fill_me= FALSE;
 
-  if (!(derived->derived_result= new (thd->mem_root) select_union(thd)))
+  if (!(derived->derived_result= new (thd->mem_root) select_unit(thd)))
     DBUG_RETURN(TRUE); // out of memory
 
   lex->context_analysis_only|= CONTEXT_ANALYSIS_ONLY_DERIVED;
@@ -742,7 +746,7 @@ bool mysql_derived_prepare(THD *thd, LEX *lex, TABLE_LIST *derived)
 
     As 'distinct' parameter we always pass FALSE (0), because underlying
     query will control distinct condition by itself. Correct test of
-    distinct underlying query will be is_union &&
+    distinct underlying query will be is_unit_op &&
     !unit->union_distinct->next_select() (i.e. it is union and last distinct
     SELECT is last SELECT of UNION).
   */
@@ -753,7 +757,8 @@ bool mysql_derived_prepare(THD *thd, LEX *lex, TABLE_LIST *derived)
                                                    thd->variables.option_bits |
                                                    TMP_TABLE_ALL_COLUMNS),
                                                    derived->alias,
-                                                   FALSE, FALSE, FALSE))
+                                                   FALSE, FALSE, FALSE,
+                                                   0))
   { 
     thd->create_tmp_table_for_derived= FALSE;
     goto exit;
@@ -788,9 +793,12 @@ exit:
   */
   if (res)
   {
-    if (derived->table && !derived->is_with_table_recursive_reference())
-      free_tmp_table(thd, derived->table);
-    delete derived->derived_result;
+    if (!derived->is_with_table_recursive_reference())
+    {
+      if (derived->table)
+        free_tmp_table(thd, derived->table);
+      delete derived->derived_result;
+    }
   }
   else
   {
@@ -851,7 +859,7 @@ bool mysql_derived_optimize(THD *thd, LEX *lex, TABLE_LIST *derived)
     DBUG_RETURN(FALSE);
   lex->current_select= first_select;
 
-  if (unit->is_union())
+  if (unit->is_unit_op())
   {
     // optimize union without execution
     res= unit->optimize();
@@ -916,7 +924,7 @@ bool mysql_derived_create(THD *thd, LEX *lex, TABLE_LIST *derived)
 
   if (table->is_created())
     DBUG_RETURN(FALSE);
-  select_union *result= derived->derived_result;
+  select_unit *result= derived->derived_result;
   if (table->s->db_type() == TMP_ENGINE_HTON)
   {
     result->tmp_table_param.keyinfo= table->s->key_info;
@@ -968,7 +976,10 @@ bool TABLE_LIST::fill_recursive(THD *thd)
   if (!rc)
   {
     TABLE *src= with->rec_result->table;
-    rc =src->insert_all_rows_into(thd, table, true);
+    rc =src->insert_all_rows_into_tmp_table(thd,
+                                            table,
+                                            &with->rec_result->tmp_table_param,
+                                            true);
   } 
   return rc;
 }
@@ -1011,7 +1022,7 @@ bool mysql_derived_fill(THD *thd, LEX *lex, TABLE_LIST *derived)
     DBUG_RETURN(FALSE);
   /*check that table creation passed without problems. */
   DBUG_ASSERT(derived->table && derived->table->is_created());
-  select_union *derived_result= derived->derived_result;
+  select_unit *derived_result= derived->derived_result;
   SELECT_LEX *save_current_select= lex->current_select;
   
   if (derived_is_recursive)
@@ -1027,7 +1038,7 @@ bool mysql_derived_fill(THD *thd, LEX *lex, TABLE_LIST *derived)
       res= derived->fill_recursive(thd);
     }
   }
-  else if (unit->is_union())
+  else if (unit->is_unit_op())
   {
     // execute union without clean up
     res= unit->exec();
@@ -1095,6 +1106,11 @@ bool mysql_derived_reinit(THD *thd, LEX *lex, TABLE_LIST *derived)
   unit->types.empty();
   /* for derived tables & PS (which can't be reset by Item_subselect) */
   unit->reinit_exec_mechanism();
+  for (st_select_lex *sl= unit->first_select(); sl; sl= sl->next_select())
+  {
+    sl->cond_pushed_into_where= NULL;
+    sl->cond_pushed_into_having= NULL;
+  }
   unit->set_thd(thd);
   DBUG_RETURN(FALSE);
 }
@@ -1125,23 +1141,24 @@ bool mysql_derived_reinit(THD *thd, LEX *lex, TABLE_LIST *derived)
 
 bool pushdown_cond_for_derived(THD *thd, Item *cond, TABLE_LIST *derived)
 {
+  DBUG_ENTER("pushdown_cond_for_derived");
   if (!cond)
-    return false;
+    DBUG_RETURN(false);
 
   st_select_lex_unit *unit= derived->get_unit();
   st_select_lex *sl= unit->first_select();
 
   /* Do not push conditions into constant derived */
   if (unit->executed)
-    return false;
+    DBUG_RETURN(false);
 
   /* Do not push conditions into recursive with tables */
   if (derived->is_recursive_with_table())
-    return false;
+    DBUG_RETURN(false);
 
   /* Do not push conditions into unit with global ORDER BY ... LIMIT */
   if (unit->fake_select_lex && unit->fake_select_lex->explicit_limit)
-    return false;
+    DBUG_RETURN(false);
 
   /* Check whether any select of 'unit' allows condition pushdown */
   bool some_select_allows_cond_pushdown= false;
@@ -1154,7 +1171,7 @@ bool pushdown_cond_for_derived(THD *thd, Item *cond, TABLE_LIST *derived)
     }
   }
   if (!some_select_allows_cond_pushdown)
-    return false; 
+    DBUG_RETURN(false);
 
   /*
     Build the most restrictive condition extractable from 'cond'
@@ -1169,7 +1186,7 @@ bool pushdown_cond_for_derived(THD *thd, Item *cond, TABLE_LIST *derived)
   if (!extracted_cond)
   {
     /* Nothing can be pushed into the derived table */
-    return false;
+    DBUG_RETURN(false);
   }
   /* Push extracted_cond into every select of the unit specifying 'derived' */
   st_select_lex *save_curr_select= thd->lex->current_select;
@@ -1253,6 +1270,6 @@ bool pushdown_cond_for_derived(THD *thd, Item *cond, TABLE_LIST *derived)
     sl->cond_pushed_into_having= extracted_cond_copy;
   }
   thd->lex->current_select= save_curr_select;
-  return false;
+  DBUG_RETURN(false);
 }
 

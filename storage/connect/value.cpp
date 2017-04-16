@@ -1,7 +1,7 @@
 /************* Value C++ Functions Source Code File (.CPP) *************/
-/*  Name: VALUE.CPP  Version 2.5                                       */
+/*  Name: VALUE.CPP  Version 2.6                                       */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          2001-2015    */
+/*  (C) Copyright to the author Olivier BERTRAND          2001-2016    */
 /*                                                                     */
 /*  This file contains the VALUE and derived classes family functions. */
 /*  These classes contain values of different types. They are used so  */
@@ -792,19 +792,29 @@ uchar TYPVAL<uchar>::GetTypedValue(PVBLK blk, int n)
 
 /***********************************************************************/
 /*  TYPVAL SetBinValue: with bytes extracted from a line.              */
+/*  Currently only used reading column of binary files.                */
 /***********************************************************************/
 template <class TYPE>
 void TYPVAL<TYPE>::SetBinValue(void *p)
-  {
-  Tval = *(TYPE *)p;
-  Null = false;
-  } // end of SetBinValue
+{
+#if defined(UNALIGNED_OK)
+	// x86 can cast non-aligned memory directly
+	Tval = *(TYPE *)p;
+#else
+	// Prevent unaligned memory access on MIPS and ArmHF platforms.
+	// Make use of memcpy instead of straight pointer dereferencing.
+	// Currently only used by WriteColumn of binary files.
+	// From original author: Vicentiu Ciorbaru <vicentiu@mariadb.org>
+	memcpy(&Tval, p, sizeof(TYPE));
+#endif
+	Null = false;
+} // end of SetBinValue
 
 /***********************************************************************/
 /*  GetBinValue: fill a buffer with the internal binary value.         */
 /*  This function checks whether the buffer length is enough and       */
 /*  returns true if not. Actual filling occurs only if go is true.     */
-/*  Currently used by WriteColumn of binary files.                     */
+/*  Currently only used writing column of binary files.                */
 /***********************************************************************/
 template <class TYPE>
 bool TYPVAL<TYPE>::GetBinValue(void *buf, int buflen, bool go)
@@ -819,7 +829,16 @@ bool TYPVAL<TYPE>::GetBinValue(void *buf, int buflen, bool go)
 //#endif
 
   if (go)
-    *(TYPE *)buf = Tval;
+#if defined(UNALIGNED_OK)
+		// x86 can cast non-aligned memory directly
+		*(TYPE *)buf = Tval;
+#else
+		// Prevent unaligned memory access on MIPS and ArmHF platforms.
+		// Make use of memcpy instead of straight pointer dereferencing.
+		// Currently only used by WriteColumn of binary files.
+		// From original author: Vicentiu Ciorbaru <vicentiu@mariadb.org>
+		memcpy(buf, &Tval, sizeof(TYPE));
+#endif
 
   Null = false;
   return false;

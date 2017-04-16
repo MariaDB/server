@@ -111,7 +111,7 @@ REAP;
 SET debug_sync='RESET';
 --connection master
 SET debug_sync='RESET';
-let $binlog_limit= 0, 8;
+let $binlog_limit= 0, 10;
 --source include/show_binlog_events.inc
 --save_master_pos
 

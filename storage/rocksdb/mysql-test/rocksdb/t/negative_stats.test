@@ -1,0 +1,26 @@
+--source include/have_rocksdb.inc
+--source include/have_debug.inc
+
+--disable_warnings
+DROP TABLE IF EXISTS t1;
+--enable_warnings
+
+CREATE TABLE t1 (i1 INT, PRIMARY KEY (i1)) ENGINE = ROCKSDB;
+
+--disable_query_log
+let $max = 10000;
+let $i = 1;
+while ($i <= $max) {
+  let $insert = INSERT INTO t1 VALUES ($i);
+  inc $i;
+  eval $insert;
+}
+--enable_query_log
+
+SET GLOBAL ROCKSDB_FORCE_FLUSH_MEMTABLE_NOW=1;
+
+set session debug_dbug= "+d,myrocks_simulate_negative_stats";
+SELECT CASE WHEN DATA_LENGTH < 1024 * 1024 THEN 'true' ELSE 'false' END FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't1';
+set session debug_dbug= "-d,myrocks_simulate_negative_stats";
+
+DROP TABLE t1;

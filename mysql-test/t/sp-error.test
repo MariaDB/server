@@ -2734,7 +2734,7 @@ DROP PROCEDURE p1;
 --echo #
 --echo # Bug#5889: Exit handler for a warning doesn't hide the warning in trigger
 --echo #
-
+SET sql_mode = 'NO_ENGINE_SUBSTITUTION';
 CREATE TABLE t1(a INT, b INT);
 INSERT INTO t1 VALUES (1, 2);
 
@@ -2758,6 +2758,7 @@ SELECT * FROM t1;
 
 DROP TRIGGER t1_bu;
 DROP TABLE t1;
+SET sql_mode = DEFAULT;
 
 --echo #
 --echo # Bug#9857: Stored procedures: handler for sqlwarning ignored
@@ -2811,13 +2812,13 @@ CREATE TABLE t2(a SMALLINT, b SMALLINT, c SMALLINT,
                 d SMALLINT, e SMALLINT, f SMALLINT);
 
 CREATE TRIGGER t1_bi BEFORE INSERT ON t1 FOR EACH ROW
-  INSERT INTO t2(a, b, c) VALUES(99999, 99999, 99999);
+  INSERT IGNORE INTO t2(a, b, c) VALUES(99999, 99999, 99999);
 
 CREATE TRIGGER t1_ai AFTER INSERT ON t1 FOR EACH ROW
-  INSERT INTO t2(d, e, f) VALUES(99999, 99999, 99999);
+  INSERT IGNORE INTO t2(d, e, f) VALUES(99999, 99999, 99999);
 
 CREATE PROCEDURE p1()
-  INSERT INTO t1 VALUES(99999, 99999, 99999);
+  INSERT IGNORE INTO t1 VALUES(99999, 99999, 99999);
 
 # What happened before the patch was:
 #  - INSERT INTO t1 added 3 warnings about overflow in 'x', 'y' and 'z' columns;
@@ -2845,7 +2846,7 @@ DROP TABLE t2;
 DROP PROCEDURE p1;
 
 --echo # ----------------------------------------------------------------------
-
+SET sql_mode = 'NO_ENGINE_SUBSTITUTION';
 CREATE TABLE t1(x SMALLINT, y SMALLINT, z SMALLINT);
 CREATE TABLE t2(a SMALLINT, b SMALLINT, c SMALLINT NOT NULL);
 
@@ -2875,6 +2876,7 @@ SHOW WARNINGS;
 DROP TABLE t1;
 DROP TABLE t2;
 DROP PROCEDURE p1;
+SET sql_mode = DEFAULT;
 
 --echo
 --echo ###################################################################
@@ -3558,7 +3560,7 @@ BEGIN
   # above must be invoked once (for one condition), but all three conditions
   # must be cleared from the Diagnostics Area.
 
-  INSERT INTO t1 VALUES('qqqq', 'ww', 'eee');
+  INSERT IGNORE INTO t1 VALUES('qqqq', 'ww', 'eee');
 
   # The following INSERT will not be executed, because of the EXIT HANDLER.
 
@@ -3585,7 +3587,7 @@ BEGIN
   # invoked once, and all nine SQL-warnings must be cleared from
   # the Diagnostics Area.
 
-  INSERT INTO t2
+  INSERT IGNORE INTO t2
   SELECT
     CAST(CONCAT(CAST('1 ' AS UNSIGNED INTEGER), '999999  ') AS SIGNED INTEGER),
     CAST(CONCAT(CAST('2 ' AS UNSIGNED INTEGER), '999999  ') AS SIGNED INTEGER),
@@ -3665,7 +3667,7 @@ BEGIN
     SELECT 'Handler for 1292 (2)' AS Msg;
   END;
 
-  INSERT INTO t2
+  INSERT IGNORE INTO t2
   SELECT
     CAST(999999 AS SIGNED INTEGER),
     CAST(CONCAT(CAST('2 ' AS UNSIGNED INTEGER), '999999  ') AS SIGNED INTEGER),
@@ -3688,7 +3690,7 @@ BEGIN
     SELECT 'Handler for 1292' Msg;
   END;
 
-  INSERT INTO t2
+  INSERT IGNORE INTO t2
   SELECT
     CAST(CONCAT(CAST('1 ' AS UNSIGNED INTEGER), '999999  ') AS SIGNED INTEGER),
     CAST(CONCAT(CAST('2 ' AS UNSIGNED INTEGER), '999999  ') AS SIGNED INTEGER),
@@ -3723,6 +3725,7 @@ DROP PROCEDURE IF EXISTS p2;
 
 delimiter |;
 
+SET sql_mode = '';
 CREATE PROCEDURE p1()
 BEGIN
   DECLARE var1 INTEGER DEFAULT 'string';
@@ -3732,6 +3735,7 @@ END|
 --echo
 CALL p1()|
 --echo
+SET sql_mode = DEFAULT;
 
 CREATE PROCEDURE p2()
 BEGIN

@@ -109,7 +109,7 @@ tab	CREATE TABLE `tab` (
   `c1` int(11) NOT NULL,
   `c2` point NOT NULL,
   `c3` linestring NOT NULL,
-  `c4` geometry NOT NULL,
+  `c4` polygon NOT NULL,
   `c5` geometry NOT NULL,
   PRIMARY KEY (`c1`),
   SPATIAL KEY `idx2` (`c2`),
@@ -255,7 +255,11 @@ c1	ST_Astext(c2)	ST_Astext(c4)
 INSERT INTO tab SELECT * FROM tab1;
 ALTER TABLE tab DROP PRIMARY KEY;
 ALTER TABLE tab DROP INDEX idx2;
+SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 CREATE TEMPORARY TABLE temp_tab AS SELECT * FROM tab where c1 = c2;
+ERROR HY000: Illegal parameter data types int and geometry for operation '='
+SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
+CREATE TEMPORARY TABLE temp_tab AS SELECT * FROM tab;
 INSERT INTO temp_tab SELECT * FROM tab;
 CREATE SPATIAL INDEX idx2 ON temp_tab(c2);
 CREATE SPATIAL INDEX idx3 ON temp_tab(c3);
@@ -267,7 +271,7 @@ temp_tab	CREATE TEMPORARY TABLE `temp_tab` (
   `c1` int(11) NOT NULL,
   `c2` point NOT NULL,
   `c3` linestring NOT NULL,
-  `c4` geometry NOT NULL,
+  `c4` polygon NOT NULL,
   `c5` geometry NOT NULL,
   SPATIAL KEY `idx2` (`c2`),
   SPATIAL KEY `idx3` (`c3`),
@@ -290,7 +294,7 @@ tab	CREATE TABLE `tab` (
   `c1` int(11) NOT NULL,
   `c2` point NOT NULL,
   `c3` linestring NOT NULL,
-  `c4` geometry NOT NULL,
+  `c4` polygon NOT NULL,
   `c5` geometry NOT NULL,
   SPATIAL KEY `idx3` (`c3`),
   SPATIAL KEY `idx4` (`c4`) COMMENT 'testing spatial index on Polygon',
@@ -313,7 +317,7 @@ tab	CREATE TABLE `tab` (
   `c1` int(11) NOT NULL,
   `c2` point NOT NULL,
   `c3` linestring NOT NULL,
-  `c4` geometry NOT NULL,
+  `c4` polygon NOT NULL,
   `c5` geometry NOT NULL,
   PRIMARY KEY (`c2`(25)),
   UNIQUE KEY `const_1` (`c2`(25)),
@@ -347,7 +351,7 @@ tab	CREATE TABLE `tab` (
   `c1` int(11) NOT NULL,
   `c2` point NOT NULL,
   `c3` linestring NOT NULL,
-  `c4` geometry NOT NULL,
+  `c4` polygon NOT NULL,
   `c5` geometry NOT NULL,
   PRIMARY KEY (`c5`(10)),
   UNIQUE KEY `const_1` (`c5`(10)),

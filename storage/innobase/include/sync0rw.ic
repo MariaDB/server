@@ -2,6 +2,7 @@
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, Google Inc.
+Copyright (c) 2017, MariaDB Corporation. All Rights Reserved.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -44,7 +45,7 @@ rw_lock_s_lock_spin(
 	ulint		pass,	/*!< in: pass value; != 0, if the lock will
 				be passed to another thread to unlock */
 	const char*	file_name,/*!< in: file name where lock requested */
-	ulint		line);	/*!< in: line where requested */
+	unsigned	line);	/*!< in: line where requested */
 #ifdef UNIV_DEBUG
 /******************************************************************//**
 Inserts the debug information for an rw-lock. */
@@ -55,7 +56,7 @@ rw_lock_add_debug_info(
 	ulint		pass,		/*!< in: pass value */
 	ulint		lock_type,	/*!< in: lock type */
 	const char*	file_name,	/*!< in: file where requested */
-	ulint		line);		/*!< in: line where requested */
+	unsigned	line);		/*!< in: line where requested */
 /******************************************************************//**
 Removes a debug information struct for an rw-lock. */
 void
@@ -236,7 +237,7 @@ rw_lock_s_lock_low(
 				/*!< in: pass value; != 0, if the lock will be
 				passed to another thread to unlock */
 	const char*	file_name, /*!< in: file name where lock requested */
-	ulint		line)	/*!< in: line where requested */
+	unsigned	line)	/*!< in: line where requested */
 {
 	if (!rw_lock_lock_word_decr(lock, 1, 0)) {
 		/* Locking did not succeed */
@@ -249,14 +250,6 @@ rw_lock_s_lock_low(
 	or even refer to a line that is invalid for the file name. */
 	lock->last_s_file_name = file_name;
 	lock->last_s_line = line;
-
-	/*
-	if (srv_instrument_semaphores) {
-		lock->thread_id = os_thread_get_curr_id();
-		lock->file_name = file_name;
-		lock->line = line;
-	}
-	*/
 
 	return(TRUE);	/* locking succeeded */
 }
@@ -275,7 +268,7 @@ rw_lock_s_lock_func(
 	ulint		pass,	/*!< in: pass value; != 0, if the lock will
 				be passed to another thread to unlock */
 	const char*	file_name,/*!< in: file name where lock requested */
-	ulint		line)	/*!< in: line where requested */
+	unsigned	line)	/*!< in: line where requested */
 {
 	/* NOTE: As we do not know the thread ids for threads which have
 	s-locked a latch, and s-lockers will be served only after waiting
@@ -310,7 +303,7 @@ rw_lock_x_lock_func_nowait(
 /*=======================*/
 	rw_lock_t*	lock,	/*!< in: pointer to rw-lock */
 	const char*	file_name,/*!< in: file name where lock requested */
-	ulint		line)	/*!< in: line where requested */
+	unsigned	line)	/*!< in: line where requested */
 {
 	lint oldval = X_LOCK_DECR;
 
@@ -341,14 +334,6 @@ rw_lock_x_lock_func_nowait(
 	}
 
 	ut_d(rw_lock_add_debug_info(lock, 0, RW_LOCK_X, file_name, line));
-
-	/*
-	if (srv_instrument_semaphores) {
-		lock->thread_id = os_thread_get_curr_id();
-		lock->file_name = file_name;
-		lock->line = line;
-	}
-	*/
 
 	lock->last_x_file_name = file_name;
 	lock->last_x_line = line;
@@ -507,9 +492,8 @@ pfs_rw_lock_create_func(
 # ifdef UNIV_DEBUG
 	latch_level_t	level,		/*!< in: level */
 # endif /* UNIV_DEBUG */
-	const char*	cmutex_name,	/*!< in: mutex name */
 	const char*	cfile_name,	/*!< in: file name where created */
-	ulint		cline)		/*!< in: file line where created */
+	unsigned	cline)		/*!< in: file line where created */
 {
 	ut_d(new(lock) rw_lock_t());
 
@@ -521,7 +505,6 @@ pfs_rw_lock_create_func(
 #ifdef UNIV_DEBUG
 			    level,
 #endif /* UNIV_DEBUG */
-			    cmutex_name,
 			    cfile_name,
 			    cline);
 }
@@ -537,7 +520,7 @@ pfs_rw_lock_x_lock_func(
 	ulint		pass,	/*!< in: pass value; != 0, if the lock will
 				be passed to another thread to unlock */
 	const char*	file_name,/*!< in: file name where lock requested */
-	ulint		line)	/*!< in: line where requested */
+	unsigned	line)	/*!< in: line where requested */
 {
 	if (lock->pfs_psi != NULL) {
 		PSI_rwlock_locker*	locker;
@@ -575,7 +558,7 @@ pfs_rw_lock_x_lock_func_nowait(
 	rw_lock_t*	lock,	/*!< in: pointer to rw-lock */
 	const char*	file_name,/*!< in: file name where lock
 				requested */
-	ulint		line)	/*!< in: line where requested */
+	unsigned	line)	/*!< in: line where requested */
 {
 	ibool		ret;
 
@@ -634,7 +617,7 @@ pfs_rw_lock_s_lock_func(
 				thread to unlock */
 	const char*	file_name,/*!< in: file name where lock
 				requested */
-	ulint		line)	/*!< in: line where requested */
+	unsigned	line)	/*!< in: line where requested */
 {
 	if (lock->pfs_psi != NULL) {
 		PSI_rwlock_locker*	locker;
@@ -669,7 +652,7 @@ pfs_rw_lock_sx_lock_func(
 				thread to unlock */
 	const char*	file_name,/*!< in: file name where lock
 				requested */
-	ulint		line)	/*!< in: line where requested */
+	unsigned	line)	/*!< in: line where requested */
 {
 	if (lock->pfs_psi != NULL) {
 		PSI_rwlock_locker*	locker;
@@ -704,7 +687,7 @@ pfs_rw_lock_s_lock_low(
 				lock will be passed to another
 				thread to unlock */
 	const char*	file_name, /*!< in: file name where lock requested */
-	ulint		line)	/*!< in: line where requested */
+	unsigned	line)	/*!< in: line where requested */
 {
 	ibool		ret;
 
@@ -744,7 +727,7 @@ pfs_rw_lock_sx_lock_low(
 				lock will be passed to another
 				thread to unlock */
 	const char*	file_name, /*!< in: file name where lock requested */
-	ulint		line)	/*!< in: line where requested */
+	unsigned	line)	/*!< in: line where requested */
 {
 	ibool		ret;
 

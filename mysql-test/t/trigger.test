@@ -2367,7 +2367,7 @@ DROP TABLE t1, t2;
 CREATE TABLE t1 (id INT NOT NULL);
 CREATE TABLE t2 (id INT NOT NULL);
 INSERT t1 VALUES (1),(2),(3);
-UPDATE t1 SET id=NULL;
+UPDATE IGNORE t1 SET id=NULL;
 CREATE TRIGGER t1_bu BEFORE UPDATE ON t1 FOR EACH ROW
   INSERT INTO t2 VALUES (3);
 UPDATE t1 SET id=NULL;
@@ -2463,6 +2463,7 @@ DROP TEMPORARY TABLE t2;
 # Bug#36649: Condition area is not properly cleaned up after stored routine invocation
 #
 
+SET sql_mode = 'NO_ENGINE_SUBSTITUTION';
 --disable_warnings
 DROP TRIGGER IF EXISTS trg1;
 DROP TABLE IF EXISTS t1;
@@ -2512,6 +2513,7 @@ BEGIN
 END|
 
 delimiter ;|
+SET sql_mode = DEFAULT;
 
 INSERT INTO t1 VALUES (0);
 SELECT * FROM t1;
@@ -2674,3 +2676,26 @@ select trigger_name, action_order, created from information_schema.triggers
   where event_object_table = 't1' and trigger_schema='test';
 drop table t1;
 set time_zone= @@global.time_zone;
+
+--echo #
+--echo # Start of 10.3 tests
+--echo #
+
+--echo #
+--echo # MDEV-12461 TYPE OF and ROW TYPE OF anchored data types
+--echo #
+
+CREATE TABLE t1 (a INT, b INT, total INT);
+DELIMITER $$;
+CREATE TRIGGER tr1 BEFORE INSERT ON t1
+FOR EACH ROW
+BEGIN
+  DECLARE va TYPE OF t1.a DEFAULT NEW.a;
+  DECLARE vb TYPE OF t1.b DEFAULT NEW.b;
+  SET NEW.total:= va + vb;
+END;
+$$
+DELIMITER ;$$
+INSERT INTO t1 (a,b) VALUES (10, 20);
+SELECT * FROM t1;
+DROP TABLE t1;

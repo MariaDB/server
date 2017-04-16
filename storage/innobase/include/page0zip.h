@@ -2,6 +2,7 @@
 
 Copyright (c) 2005, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -69,11 +70,11 @@ extern uint	page_zip_level;
 		+ DATA_TRX_ID_LEN		\
 		+ DATA_ROLL_PTR_LEN)
 /** Mask of record offsets */
-#define PAGE_ZIP_DIR_SLOT_MASK		0x3fff
+#define PAGE_ZIP_DIR_SLOT_MASK		0x3fffU
 /** 'owned' flag */
-#define PAGE_ZIP_DIR_SLOT_OWNED		0x4000
+#define PAGE_ZIP_DIR_SLOT_OWNED		0x4000U
 /** 'deleted' flag */
-#define PAGE_ZIP_DIR_SLOT_DEL		0x8000
+#define PAGE_ZIP_DIR_SLOT_DEL		0x8000U
 
 /* Whether or not to log compressed page images to avoid possible
 compression algorithm changes in zlib. */
@@ -97,7 +98,6 @@ page_zip_set_size(
 	page_zip_des_t*	page_zip,	/*!< in/out: compressed page */
 	ulint		size);		/*!< in: size in bytes */
 
-#ifndef UNIV_HOTBACKUP
 /** Determine if a record is so big that it needs to be stored externally.
 @param[in]	rec_size	length of the record in bytes
 @param[in]	comp		nonzero=compact format
@@ -132,7 +132,6 @@ bool
 page_zip_is_too_big(
 	const dict_index_t*	index,
 	const dtuple_t*		entry);
-#endif /* !UNIV_HOTBACKUP */
 
 /**********************************************************************//**
 Initialize a compressed page descriptor. */
@@ -459,7 +458,7 @@ page_zip_reorganize(
 	dict_index_t*	index,	/*!< in: index of the B-tree node */
 	mtr_t*		mtr)	/*!< in: mini-transaction */
 	MY_ATTRIBUTE((nonnull));
-#ifndef UNIV_HOTBACKUP
+
 /**********************************************************************//**
 Copy the records of a page byte for byte.  Do not copy the page header
 or trailer, except those B-tree header fields that are directly
@@ -476,7 +475,6 @@ page_zip_copy_recs(
 	const page_t*		src,		/*!< in: page */
 	dict_index_t*		index,		/*!< in: index of the B-tree */
 	mtr_t*			mtr);		/*!< in: mini-transaction */
-#endif /* !UNIV_HOTBACKUP */
 
 /**********************************************************************//**
 Parses a log record of compressing an index page.
@@ -566,9 +564,7 @@ page_zip_reset_stat_per_index();
 # define UNIV_INLINE	UNIV_INLINE_ORIGINAL
 #endif
 
-#ifndef UNIV_NONINL
-# include "page0zip.ic"
-#endif
+#include "page0zip.ic"
 #endif /* !UNIV_INNOCHECKSUM */
 
 #endif /* page0zip_h */

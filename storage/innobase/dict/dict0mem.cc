@@ -2,6 +2,7 @@
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -24,28 +25,17 @@ Data dictionary memory object creation
 Created 1/8/1996 Heikki Tuuri
 ***********************************************************************/
 
-#ifndef UNIV_HOTBACKUP
 #include "ha_prototypes.h"
 #include <mysql_com.h>
-#endif /* !UNIV_HOTBACKUP */
 
 #include "dict0mem.h"
-
-#ifdef UNIV_NONINL
-#include "dict0mem.ic"
-#endif
-
 #include "rem0rec.h"
 #include "data0type.h"
 #include "mach0data.h"
 #include "dict0dict.h"
 #include "fts0priv.h"
 #include "ut0crc32.h"
-
-#ifndef UNIV_HOTBACKUP
-# include "lock0lock.h"
-#endif /* !UNIV_HOTBACKUP */
-
+#include "lock0lock.h"
 #include "sync0sync.h"
 #include <iostream>
 
@@ -152,18 +142,11 @@ dict_mem_table_create(
 	dict_table_stats_lock() will not be noop. */
 	dict_table_stats_latch_create(table, true);
 
-#ifndef UNIV_HOTBACKUP
 	table->autoinc_lock = static_cast<ib_lock_t*>(
 		mem_heap_alloc(heap, lock_get_size()));
 
 	/* lazy creation of table autoinc latch */
 	dict_table_autoinc_create_lazy(table);
-
-	table->autoinc = 0;
-
-	/* The number of transactions that are either waiting on the
-	AUTOINC lock or have been granted the lock. */
-	table->n_waiting_or_granted_auto_inc_locks = 0;
 
 	/* If the table has an FTS index or we are in the process
 	of building one, create the table->fts */
@@ -174,11 +157,6 @@ dict_mem_table_create(
 		table->fts->cache = fts_cache_create(table);
 	} else {
 		table->fts = NULL;
-	}
-#endif /* !UNIV_HOTBACKUP */
-
-	if (DICT_TF_HAS_SHARED_SPACE(table->flags)) {
-		dict_get_and_save_space_name(table, true);
 	}
 
 	new(&table->foreign_set) dict_foreign_set();
@@ -207,10 +185,8 @@ dict_mem_table_free(
 			fts_free(table);
 		}
 	}
-#ifndef UNIV_HOTBACKUP
-	dict_table_autoinc_destroy(table);
-#endif /* UNIV_HOTBACKUP */
 
+	dict_table_autoinc_destroy(table);
 	dict_mem_table_free_foreign_vcol_set(table);
 	dict_table_stats_latch_destroy(table);
 
@@ -438,7 +414,6 @@ dict_mem_table_add_s_col(
 	table->s_cols->push_back(s_col);
 }
 
-
 /**********************************************************************//**
 Renames a column of a table in the data dictionary cache. */
 static MY_ATTRIBUTE((nonnull))
@@ -638,10 +613,8 @@ dict_mem_fill_column_struct(
 	ulint		prtype,		/*!< in: precise type */
 	ulint		col_len)	/*!< in: column length */
 {
-#ifndef UNIV_HOTBACKUP
 	ulint	mbminlen;
 	ulint	mbmaxlen;
-#endif /* !UNIV_HOTBACKUP */
 
 	column->ind = (unsigned int) col_pos;
 	column->ord_part = 0;
@@ -649,10 +622,9 @@ dict_mem_fill_column_struct(
 	column->mtype = (unsigned int) mtype;
 	column->prtype = (unsigned int) prtype;
 	column->len = (unsigned int) col_len;
-#ifndef UNIV_HOTBACKUP
-        dtype_get_mblen(mtype, prtype, &mbminlen, &mbmaxlen);
+
+	dtype_get_mblen(mtype, prtype, &mbminlen, &mbmaxlen);
 	dict_col_set_mbminmaxlen(column, mbminlen, mbmaxlen);
-#endif /* !UNIV_HOTBACKUP */
 }
 
 /**********************************************************************//**
@@ -699,7 +671,6 @@ dict_mem_index_create(
 	return(index);
 }
 
-#ifndef UNIV_HOTBACKUP
 /**********************************************************************//**
 Creates and initializes a foreign constraint memory object.
 @return own: foreign constraint struct */
@@ -959,8 +930,6 @@ dict_mem_table_free_foreign_vcol_set(
 	}
 }
 
-#endif /* !UNIV_HOTBACKUP */
-
 /**********************************************************************//**
 Adds a field definition to an index. NOTE: does not take a copy
 of the column name if the field is a column. The memory occupied
@@ -1141,12 +1110,12 @@ dict_mem_table_is_system(
 	/* table has the following format: database/table
 	and some system table are of the form SYS_* */
 	if (strchr(name, '/')) {
-		int table_len = strlen(name);
+		size_t table_len = strlen(name);
 		const char *system_db;
 		int i = 0;
 		while ((system_db = innobase_system_databases[i++])
 			&& (system_db != NullS)) {
-			int len = strlen(system_db);
+			size_t len = strlen(system_db);
 			if (table_len > len && !strncmp(name, system_db, len)) {
 				return true;
 			}
@@ -1156,4 +1125,3 @@ dict_mem_table_is_system(
 		return true;
 	}
 }
-

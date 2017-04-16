@@ -1,0 +1,92 @@
+DROP TABLE IF EXISTS t1,t2;
+CREATE TABLE t1 (a INT PRIMARY KEY, b CHAR(8)) ENGINE=rocksdb CHECKSUM=0;
+INSERT INTO t1 (a,b) VALUES (1,'a'),(2,'b');
+CREATE TABLE t2 (a INT PRIMARY KEY, b CHAR(8)) ENGINE=rocksdb CHECKSUM=0;
+CHECKSUM TABLE t1;
+Table	Checksum
+test.t1	4259194219
+CHECKSUM TABLE t2, t1;
+Table	Checksum
+test.t2	0
+test.t1	4259194219
+CHECKSUM TABLE t1, t2 QUICK;
+Table	Checksum
+test.t1	NULL
+test.t2	NULL
+CHECKSUM TABLE t1, t2 EXTENDED;
+Table	Checksum
+test.t1	4259194219
+test.t2	0
+DROP TABLE t1, t2;
+#
+# Issue #110: SQL command checksum returns inconsistent result
+#
+create table t1 (pk int primary key, col1 varchar(10)) engine=rocksdb;
+insert into t1 values (2,'fooo');
+insert into t1 values (1,NULL);
+checksum table t1;
+Table	Checksum
+test.t1	1303411884
+checksum table t1;
+Table	Checksum
+test.t1	1303411884
+select * from t1 where pk=2;
+pk	col1
+2	fooo
+checksum table t1;
+Table	Checksum
+test.t1	1303411884
+checksum table t1;
+Table	Checksum
+test.t1	1303411884
+flush tables;
+checksum table t1;
+Table	Checksum
+test.t1	1303411884
+checksum table t1;
+Table	Checksum
+test.t1	1303411884
+drop table t1;
+# 
+#  The following test is about making sure MyRocks CHECKSUM TABLE 
+#  values are the same as with InnoDB.
+#  If you see checksum values changed, make sure their counterparts
+#  in suite/innodb/r/checksum-matches-myrocks.result match.
+# 
+create table t1 (pk int primary key, col1 varchar(10)) engine=rocksdb;
+insert into t1 values (2,'fooo');
+insert into t1 values (1,NULL);
+checksum table t1;
+Table	Checksum
+test.t1	1303411884
+drop table t1;
+create table t1 (
+pk bigint unsigned primary key, 
+col1 varchar(10),
+col2 tinyint,
+col3 double
+) engine=rocksdb;
+# MariaDB has changed the checksumming algorithm
+# Enable the old algorithm:
+set @tmp_old=@@old;
+set old=1;
+checksum table t1;
+Table	Checksum
+test.t1	0
+insert into t1 values (1, NULL,  NULL, NULL);
+insert into t1 values (2, 'foo', NULL, NULL);
+checksum table t1;
+Table	Checksum
+test.t1	3633741545
+insert into t1 values (3, NULL,  123,  NULL);
+insert into t1 values (4, NULL,  NULL, 2.78);
+checksum table t1;
+Table	Checksum
+test.t1	390004011
+insert into t1 values (5, 'xxxYYYzzzT',  NULL, 2.78);
+insert into t1 values (6, '',            NULL, 2.78);
+checksum table t1;
+Table	Checksum
+test.t1	3183101003
+set old=@tmp_old;
+drop table t1;

@@ -831,6 +831,76 @@ DROP TABLES t1,t2;
 set optimizer_switch=@save_derived_optimizer_switch;
 
 --echo #
+--echo # MDEV-10663: Use of Inline table columns in HAVING clause
+--echo # throws 1463 Error
+--echo #
+
+set @save_sql_mode = @@sql_mode;
+set sql_mode='ONLY_FULL_GROUP_BY,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION';
+
+CREATE TABLE `example1463` (
+  `Customer` varchar(255) NOT NULL,
+  `DeliveryStatus` varchar(255) NOT NULL,
+  `OrderSize` int(11) NOT NULL
+);
+INSERT INTO example1463 VALUES ('Charlie', 'Success', 100);
+INSERT INTO example1463 VALUES ('David', 'Success', 110);
+INSERT INTO example1463 VALUES ('Charlie', 'Failed', 200);
+INSERT INTO example1463 VALUES ('David', 'Success', 100);
+INSERT INTO example1463 VALUES ('David', 'Unknown', 100);
+INSERT INTO example1463 VALUES ('Edward', 'Success', 150);
+INSERT INTO example1463 VALUES ('Edward', 'Pending', 150);
+
+SELECT Customer, Success, SUM(OrderSize)
+ FROM (SELECT Customer,
+ CASE WHEN DeliveryStatus='Success' THEN 'Yes' ELSE 'No' END AS Success,
+ OrderSize
+ FROM example1463) as subQ
+ GROUP BY Success, Customer
+ WITH ROLLUP;
+SELECT Customer, Success, SUM(OrderSize)
+ FROM (SELECT Customer,
+ CASE WHEN DeliveryStatus='Success' THEN 'Yes' ELSE 'No' END AS Success,
+ OrderSize
+ FROM example1463) as subQ
+ GROUP BY Success, Customer;
+SELECT Customer, Success, SUM(OrderSize)
+ FROM (SELECT Customer,
+ CASE WHEN DeliveryStatus='Success' THEN 'Yes' ELSE 'No' END AS Success,
+ OrderSize
+ FROM example1463) as subQ
+ GROUP BY Success, Customer
+ HAVING Success IS NOT NULL;
+
+DROP TABLE example1463;
+set sql_mode= @save_sql_mode;
+
+--echo #
+--echo # MDEV-9028: SELECT DISTINCT constant column of  derived  table
+--echo #            used as the second operand of LEFT JOIN
+--echo #
+
+create table t1 (id int, data varchar(255));
+insert into t1 values (1,'yes'),(2,'yes');
+
+select distinct t1.id, tt.id, tt.data
+  from t1
+       left join
+       (select t1.id, 'yes' as data from t1) as tt
+       on t1.id = tt.id;
+
+select distinct t1.id, tt.id, tt.data
+  from t1
+       left join
+       (select t1.id, 'yes' as data from t1 where id > 1) as tt
+       on t1.id = tt.id;
+
+drop table t1;
+
+
+--echo # end of 5.5
+
+--echo #
 --echo # Start of 10.1 tests
 --echo #
 
@@ -862,4 +932,44 @@ DROP TABLE t1;
 
 --echo #
 --echo # End of 10.1 tests
+--echo #
+
+--echo #
+--echo # MDEV-10554: Assertion `!derived->first_select()->
+--echo # exclude_from_table_unique_test || derived->outer_select()->
+--echo # exclude_from_table_unique_test'
+--echo # failed in TABLE_LIST::set_check_merged()
+--echo #
+
+CREATE TABLE t1 (f INT);
+CREATE ALGORITHM = TEMPTABLE VIEW v1 AS SELECT * FROM ( SELECT * FROM t1 ) AS sq;
+
+PREPARE stmt FROM 'SELECT * FROM v1';
+EXECUTE stmt;
+EXECUTE stmt;
+
+drop view v1;
+drop table t1;
+
+--echo #
+--echo # MDEV-11363: Assertion `!derived->first_sel ect()->first_inner_unit() ||
+--echo # derived->first_select()->first_inner_unit()->first_select()->
+--echo # exclude_from_table_unique_test' failed in
+--echo # TABLE_LIST::set_check_materialized()
+--echo #
+
+CREATE TABLE t1 (f1 INT);
+CREATE TABLE t2 (f2 INT);
+CREATE TABLE t3 (f3 INT);
+CREATE VIEW v1 AS ( SELECT f1 AS f FROM t1 ) UNION ( SELECT f2 AS f FROM t2 );
+CREATE VIEW v2 AS SELECT f3 AS f FROM t3;
+CREATE VIEW v3 AS SELECT f FROM ( SELECT f3 AS f FROM v1, t3 ) AS sq;
+CREATE VIEW v4 AS SELECT COUNT(*) as f FROM v3;
+REPLACE INTO v2 ( SELECT * FROM v4 ) UNION ( SELECT f FROM v2 );
+
+drop view v1,v2,v3,v4;
+drop table t1,t2,t3;
+
+--echo #
+--echo # End of 10.2 tests
 --echo #

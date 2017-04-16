@@ -1238,13 +1238,15 @@ Table	Op	Msg_type	Msg_text
 test.tab	check	status	OK
 DROP TABLE tab;
 CREATE TABLE tab(c1 POINT NOT NULL,CONSTRAINT tab_const check(c1 > 0) ) ENGINE=InnoDB;
+ERROR HY000: Illegal parameter data types geometry and bigint for operation '>'
+CREATE TABLE tab(c1 POINT NOT NULL,CONSTRAINT tab_const check(CAST(c1 AS BINARY) > 0) ) ENGINE=InnoDB;
 CREATE SPATIAL INDEX idx1 ON tab(c1) ;
 SHOW CREATE TABLE tab;
 Table	Create Table
 tab	CREATE TABLE `tab` (
   `c1` point NOT NULL,
   SPATIAL KEY `idx1` (`c1`),
-  CONSTRAINT `tab_const` CHECK (`c1` > 0)
+  CONSTRAINT `tab_const` CHECK (cast(`c1` as char charset binary) > 0)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 SHOW INDEX FROM tab;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment

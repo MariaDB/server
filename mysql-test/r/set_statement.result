@@ -642,7 +642,7 @@ SELECT @@myisam_sort_buffer_size,
 '# Pre-STATEMENT variable value
 SELECT @@sql_mode;
 @@sql_mode
-NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION
+STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION
 ''
 ''
 SET STATEMENT sql_mode='ansi' FOR PREPARE stmt FROM 'SELECT "t1".* FROM t1';
@@ -652,14 +652,16 @@ v1	v2
 3	4
 ALTER TABLE t1 ADD COLUMN v3 int;
 execute stmt;
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '.* FROM t1' at line 1
+v1	v2	v3
+1	2	NULL
+3	4	NULL
 ALTER TABLE t1 drop COLUMN v3;
 deallocate prepare stmt;
 ''
 '# Post-STATEMENT
 SELECT @@sql_mode;
 @@sql_mode
-NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION
+STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION
 check the same behaviour in normal set
 SET sql_mode='ansi';
 PREPARE stmt FROM 'SELECT "t1".* FROM t1';
@@ -670,12 +672,14 @@ v1	v2
 3	4
 ALTER TABLE t1 ADD COLUMN v3 int;
 execute stmt;
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '.* FROM t1' at line 1
+v1	v2	v3
+1	2	NULL
+3	4	NULL
 ALTER TABLE t1 drop COLUMN v3;
 deallocate prepare stmt;
 SELECT @@sql_mode;
 @@sql_mode
-NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION
+STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION
 SET sql_mode='ansi';
 SELECT @@sql_mode;
 @@sql_mode
@@ -704,7 +708,7 @@ ALTER TABLE t1 drop COLUMN v3;
 drop procedure p6;
 SELECT @@sql_mode;
 @@sql_mode
-NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION
+STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION
 # SET and the statement parsed as one unit before the SET takes effect
 SET STATEMENT sql_mode='ansi' FOR
 CREATE PROCEDURE p6() BEGIN
@@ -715,7 +719,7 @@ ERROR 42000: You have an error in your SQL syntax; check the manual that corresp
 END' at line 4
 SELECT @@sql_mode;
 @@sql_mode
-NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION
+STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION
 SET sql_mode='ansi';
 SELECT @@sql_mode;
 @@sql_mode
@@ -732,7 +736,7 @@ v1	v2
 SET sql_mode=default;
 SELECT @@sql_mode;
 @@sql_mode
-NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION
+STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION
 # SET and the statement parsed as one unit before the SET takes effect
 SET STATEMENT sql_mode='ansi' FOR
 BEGIN NOT ATOMIC

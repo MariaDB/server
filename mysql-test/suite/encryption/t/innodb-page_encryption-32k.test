@@ -5,20 +5,12 @@
 --source include/have_innodb_32k.inc
 --source include/have_file_key_management_plugin.inc
 
-call mtr.add_suppression("InnoDB: Warning: innodb_page_size has been changed from default value *");
-
---disable_query_log
-# These values can change during the test
-let $innodb_file_format_orig = `SELECT @@innodb_file_format`;
-let $innodb_file_per_table_orig = `SELECT @@innodb_file_per_table`;
---enable_query_log
-
-SET GLOBAL innodb_file_format = `Barracuda`;
-SET GLOBAL innodb_file_per_table = ON;
-
 create table innodb_normal(c1 bigint not null, b char(200)) engine=innodb;
 create table innodb_compact(c1 bigint not null, b char(200)) engine=innodb row_format=compact encrypted=yes encryption_key_id=1;
+--error ER_CANT_CREATE_TABLE
 create table innodb_dynamic(c1 bigint not null, b char(200)) engine=innodb row_format=dynamic encrypted=yes encryption_key_id=3;
+show warnings;
+create table innodb_dynamic(c1 bigint not null, b char(200)) engine=innodb row_format=dynamic encrypted=yes encryption_key_id=33;
 create table innodb_redundant(c1 bigint not null, b char(200))  engine=innodb row_format=redundant encrypted=yes encryption_key_id=4;
 
 show create table innodb_compact;
@@ -88,9 +80,3 @@ drop table innodb_normal;
 drop table innodb_compact;
 drop table innodb_dynamic;
 drop table innodb_redundant;
-
-# reset system
---disable_query_log
-EVAL SET GLOBAL innodb_file_per_table = $innodb_file_per_table_orig;
-EVAL SET GLOBAL innodb_file_format = $innodb_file_format_orig;
---enable_query_log

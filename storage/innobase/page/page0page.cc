@@ -2,6 +2,7 @@
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -25,21 +26,15 @@ Created 2/2/1994 Heikki Tuuri
 *******************************************************/
 
 #include "page0page.h"
-#ifdef UNIV_NONINL
-#include "page0page.ic"
-#endif
-
 #include "page0cur.h"
 #include "page0zip.h"
 #include "buf0buf.h"
 #include "btr0btr.h"
 #include "row0trunc.h"
-#ifndef UNIV_HOTBACKUP
-# include "srv0srv.h"
-# include "lock0lock.h"
-# include "fut0lst.h"
-# include "btr0sea.h"
-#endif /* !UNIV_HOTBACKUP */
+#include "srv0srv.h"
+#include "lock0lock.h"
+#include "fut0lst.h"
+#include "btr0sea.h"
 
 /*			THE INDEX PAGE
 			==============
@@ -205,9 +200,7 @@ page_set_max_trx_id(
 	mtr_t*		mtr)	/*!< in/out: mini-transaction, or NULL */
 {
 	page_t*		page		= buf_block_get_frame(block);
-#ifndef UNIV_HOTBACKUP
 	ut_ad(!mtr || mtr_memo_contains(mtr, block, MTR_MEMO_PAGE_X_FIX));
-#endif /* !UNIV_HOTBACKUP */
 
 	/* It is not necessary to write this change to the redo log, as
 	during a database recovery we assume that the max trx id of every
@@ -218,13 +211,45 @@ page_set_max_trx_id(
 		page_zip_write_header(page_zip,
 				      page + (PAGE_HEADER + PAGE_MAX_TRX_ID),
 				      8, mtr);
-#ifndef UNIV_HOTBACKUP
 	} else if (mtr) {
 		mlog_write_ull(page + (PAGE_HEADER + PAGE_MAX_TRX_ID),
 			       trx_id, mtr);
-#endif /* !UNIV_HOTBACKUP */
 	} else {
 		mach_write_to_8(page + (PAGE_HEADER + PAGE_MAX_TRX_ID), trx_id);
+	}
+}
+
+/** Persist the AUTO_INCREMENT value on a clustered index root page.
+@param[in,out]	block	clustered index root page
+@param[in]	index	clustered index
+@param[in]	autoinc	next available AUTO_INCREMENT value
+@param[in,out]	mtr	mini-transaction
+@param[in]	reset	whether to reset the AUTO_INCREMENT
+			to a possibly smaller value than currently
+			exists in the page */
+void
+page_set_autoinc(
+	buf_block_t*		block,
+	const dict_index_t*	index MY_ATTRIBUTE((unused)),
+	ib_uint64_t		autoinc,
+	mtr_t*			mtr,
+	bool			reset)
+{
+	ut_ad(mtr_memo_contains_flagged(
+		      mtr, block, MTR_MEMO_PAGE_X_FIX | MTR_MEMO_PAGE_SX_FIX));
+	ut_ad(dict_index_is_clust(index));
+	ut_ad(index->page == block->page.id.page_no());
+	ut_ad(index->space == block->page.id.space());
+
+	byte*	field = PAGE_HEADER + PAGE_ROOT_AUTO_INC
+		+ buf_block_get_frame(block);
+	if (!reset && mach_read_from_8(field) >= autoinc) {
+		/* nothing to update */
+	} else if (page_zip_des_t* page_zip = buf_block_get_page_zip(block)) {
+		mach_write_to_8(field, autoinc);
+		page_zip_write_header(page_zip, field, 8, mtr);
+	} else {
+		mlog_write_ull(field, autoinc, mtr);
 	}
 }
 
@@ -265,7 +290,6 @@ page_mem_alloc_heap(
 	return(NULL);
 }
 
-#ifndef UNIV_HOTBACKUP
 /**********************************************************//**
 Writes a log record of page creation. */
 UNIV_INLINE
@@ -289,9 +313,6 @@ page_create_write_log(
 
 	mlog_write_initial_log_record(frame, type, mtr);
 }
-#else /* !UNIV_HOTBACKUP */
-# define page_create_write_log(frame,mtr,comp,is_rtree) ((void) 0)
-#endif /* !UNIV_HOTBACKUP */
 
 /** The page infimum and supremum of an empty page in ROW_FORMAT=REDUNDANT */
 static const byte infimum_supremum_redundant[] = {
@@ -454,6 +475,22 @@ page_create_zip(
 	is_spatial = index ? dict_index_is_spatial(index)
 			   : page_comp_info->type & DICT_SPATIAL;
 
+	/* PAGE_MAX_TRX_ID or PAGE_ROOT_AUTO_INC are always 0 for
+	temporary tables. */
+	ut_ad(max_trx_id == 0 || !dict_table_is_temporary(index->table));
+	/* In secondary indexes and the change buffer, PAGE_MAX_TRX_ID
+	must be zero on non-leaf pages. max_trx_id can be 0 when the
+	index consists of an empty root (leaf) page. */
+	ut_ad(max_trx_id == 0
+	      || level == 0
+	      || !dict_index_is_sec_or_ibuf(index)
+	      || dict_table_is_temporary(index->table));
+	/* In the clustered index, PAGE_ROOT_AUTOINC or
+	PAGE_MAX_TRX_ID must be 0 on other pages than the root. */
+	ut_ad(level == 0 || max_trx_id == 0
+	      || !dict_index_is_sec_or_ibuf(index)
+	      || dict_table_is_temporary(index->table));
+
 	page = page_create_low(block, TRUE, is_spatial);
 	mach_write_to_2(PAGE_HEADER + PAGE_LEVEL + page, level);
 	mach_write_to_8(PAGE_HEADER + PAGE_MAX_TRX_ID + page, max_trx_id);
@@ -487,8 +524,8 @@ page_create_empty(
 	dict_index_t*	index,	/*!< in: the index of the page */
 	mtr_t*		mtr)	/*!< in/out: mini-transaction */
 {
-	trx_id_t	max_trx_id = 0;
-	const page_t*	page	= buf_block_get_frame(block);
+	trx_id_t	max_trx_id;
+	page_t*		page	= buf_block_get_frame(block);
 	page_zip_des_t*	page_zip= buf_block_get_page_zip(block);
 
 	ut_ad(fil_page_index_page_check(page));
@@ -502,9 +539,15 @@ page_create_empty(
 	    && page_is_leaf(page)) {
 		max_trx_id = page_get_max_trx_id(page);
 		ut_ad(max_trx_id);
+	} else if (page_is_root(page)) {
+		/* Preserve PAGE_ROOT_AUTO_INC. */
+		max_trx_id = page_get_max_trx_id(page);
+	} else {
+		max_trx_id = 0;
 	}
 
 	if (page_zip) {
+		ut_ad(!dict_table_is_temporary(index->table));
 		page_create_zip(block, index,
 				page_header_get_field(page, PAGE_LEVEL),
 				max_trx_id, NULL, mtr);
@@ -513,8 +556,8 @@ page_create_empty(
 			    dict_index_is_spatial(index));
 
 		if (max_trx_id) {
-			page_update_max_trx_id(
-				block, page_zip, max_trx_id, mtr);
+			mlog_write_ull(PAGE_HEADER + PAGE_MAX_TRX_ID + page,
+				       max_trx_id, mtr);
 		}
 	}
 }
@@ -583,7 +626,6 @@ page_copy_rec_list_end_no_locks(
 	}
 }
 
-#ifndef UNIV_HOTBACKUP
 /*************************************************************//**
 Copies records from page to new_page, from a given record onward,
 including that record. Infimum and supremum records are not copied.
@@ -923,9 +965,6 @@ page_delete_rec_list_write_log(
 		mlog_close(mtr, log_ptr + 2);
 	}
 }
-#else /* !UNIV_HOTBACKUP */
-# define page_delete_rec_list_write_log(rec,index,type,mtr) ((void) 0)
-#endif /* !UNIV_HOTBACKUP */
 
 /**********************************************************//**
 Parses a log record of a record list end or start deletion.
@@ -1120,8 +1159,7 @@ delete_all:
 
 			if (scrub) {
 				/* scrub record */
-				uint recsize = rec_offs_data_size(offsets);
-				memset(rec2, 0, recsize);
+				memset(rec2, 0, rec_offs_data_size(offsets));
 			}
 
 			rec2 = page_rec_get_next(rec2);
@@ -1269,7 +1307,6 @@ page_delete_rec_list_start(
 	mtr_set_log_mode(mtr, log_mode);
 }
 
-#ifndef UNIV_HOTBACKUP
 /*************************************************************//**
 Moves record list end to another page. Moved records include
 split_rec.
@@ -1360,7 +1397,6 @@ page_move_rec_list_start(
 
 	return(TRUE);
 }
-#endif /* !UNIV_HOTBACKUP */
 
 /**************************************************************//**
 Used to delete n slots from the directory. This function updates
@@ -1457,7 +1493,6 @@ page_dir_split_slot(
 	ulint			i;
 	ulint			n_owned;
 
-	ut_ad(page);
 	ut_ad(!page_zip || page_is_comp(page));
 	ut_ad(slot_no > 0);
 
@@ -1518,7 +1553,6 @@ page_dir_balance_slot(
 	rec_t*			old_rec;
 	rec_t*			new_rec;
 
-	ut_ad(page);
 	ut_ad(!page_zip || page_is_comp(page));
 	ut_ad(slot_no > 0);
 
@@ -1686,7 +1720,6 @@ page_rec_get_n_recs_before(
 	return((ulint) n);
 }
 
-#ifndef UNIV_HOTBACKUP
 /************************************************************//**
 Prints record contents including the data relevant only in
 the index page context. */
@@ -1712,7 +1745,7 @@ page_rec_print(
 	rec_validate(rec, offsets);
 }
 
-# ifdef UNIV_BTR_PRINT
+#ifdef UNIV_BTR_PRINT
 /***************************************************************//**
 This is used to print the contents of the directory for
 debugging purposes. */
@@ -1869,8 +1902,7 @@ page_print(
 	page_dir_print(page, dn);
 	page_print_list(block, index, rn);
 }
-# endif /* UNIV_BTR_PRINT */
-#endif /* !UNIV_HOTBACKUP */
+#endif /* UNIV_BTR_PRINT */
 
 /***************************************************************//**
 The following is used to validate a record on a page. This function
@@ -1917,7 +1949,6 @@ page_rec_validate(
 	return(TRUE);
 }
 
-#ifndef UNIV_HOTBACKUP
 #ifdef UNIV_DEBUG
 /***************************************************************//**
 Checks that the first directory slot points to the infimum record and
@@ -1950,7 +1981,6 @@ page_check_dir(
 	}
 }
 #endif /* UNIV_DEBUG */
-#endif /* !UNIV_HOTBACKUP */
 
 /***************************************************************//**
 This function checks the consistency of an index page when we do not
@@ -2449,7 +2479,6 @@ page_validate(
 			goto func_exit;
 		}
 
-#ifndef UNIV_HOTBACKUP
 		/* Check that the records are in the ascending order */
 		if (count >= PAGE_HEAP_NO_USER_LOW
 		    && !page_rec_is_supremum(rec)) {
@@ -2492,7 +2521,6 @@ page_validate(
 				goto func_exit;
 			}
 		}
-#endif /* !UNIV_HOTBACKUP */
 
 		if (page_rec_is_user_rec(rec)) {
 
@@ -2656,7 +2684,6 @@ func_exit2:
 	return(ret);
 }
 
-#ifndef UNIV_HOTBACKUP
 /***************************************************************//**
 Looks in the page record list for a record with the given heap number.
 @return record, NULL if not found */
@@ -2702,7 +2729,6 @@ page_find_rec_with_heap_no(
 		}
 	}
 }
-#endif /* !UNIV_HOTBACKUP */
 
 /*******************************************************//**
 Removes the record from a leaf page. This function does not log

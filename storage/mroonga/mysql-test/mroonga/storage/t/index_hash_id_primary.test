@@ -12,7 +12,7 @@
 #
 # You should have received a copy of the GNU Lesser General Public
 # License along with this library; if not, write to the Free Software
-# Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA
 
 --source ../../include/mroonga/have_mroonga.inc
 
@@ -23,10 +23,10 @@ drop table if exists t1, t2, t3;
 create table t1 (_id int, a int, primary key (_id) using hash);
 --error ER_BAD_NULL_ERROR
 insert into t1 values(null, 100);
-insert into t1 values(1,100);
-insert into t1 values(1,100);
-insert into t1 values(1,100);
-insert into t1 values(1,100);
+insert ignore into t1 values(1,100);
+insert ignore into t1 values(1,100);
+insert ignore into t1 values(1,100);
+insert ignore into t1 values(1,100);
 select * from t1;
 select * from t1 where _id = 2;
 select * from t1 where _id = 20;

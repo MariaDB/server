@@ -1,0 +1,67 @@
+--source include/have_rocksdb.inc
+
+let $isolation_level = REPEATABLE READ;
+--source include/locking_issues_case1_1.inc
+
+let $isolation_level = READ COMMITTED;
+--source include/locking_issues_case1_1.inc
+
+let $isolation_level = REPEATABLE READ;
+--source include/locking_issues_case1_2.inc
+
+let $isolation_level = READ COMMITTED;
+--source include/locking_issues_case1_2.inc
+
+let $lock_scanned_rows=0;
+let $isolation_level = REPEATABLE READ;
+--source include/locking_issues_case2.inc
+
+let $isolation_level = READ COMMITTED;
+--source include/locking_issues_case2.inc
+
+# Rerun the case2 tests with rocksdb_lock_scanned_rows on
+let $lock_scanned_rows=1;
+let $isolation_level = REPEATABLE READ;
+--source include/locking_issues_case2.inc
+
+let $isolation_level = READ COMMITTED;
+--source include/locking_issues_case2.inc
+
+let $isolation_level = REPEATABLE READ;
+--source include/locking_issues_case3.inc
+
+let $isolation_level = READ COMMITTED;
+--source include/locking_issues_case3.inc
+
+let $isolation_level = REPEATABLE READ;
+--source include/locking_issues_case4.inc
+
+let $isolation_level = READ COMMITTED;
+--source include/locking_issues_case4.inc
+
+let $isolation_level = REPEATABLE READ;
+--source include/locking_issues_case5.inc
+
+let $isolation_level = READ COMMITTED;
+--source include/locking_issues_case5.inc
+
+let $isolation_level = REPEATABLE READ;
+--source include/locking_issues_case6.inc
+
+let $isolation_level = READ COMMITTED;
+--source include/locking_issues_case6.inc
+
+let $lock_scanned_rows=0;
+let $isolation_level = REPEATABLE READ;
+--source include/locking_issues_case7.inc
+
+let $isolation_level = READ COMMITTED;
+--source include/locking_issues_case7.inc
+
+# Rerun the case7 tests with rocksdb_lock_scanned_rows on
+let $lock_scanned_rows=1;
+let $isolation_level = REPEATABLE READ;
+--source include/locking_issues_case7.inc
+
+let $isolation_level = READ COMMITTED;
+--source include/locking_issues_case7.inc

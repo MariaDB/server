@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1997, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -37,83 +38,16 @@ Created 9/20/1997 Heikki Tuuri
 #include <list>
 #include <vector>
 
-#ifdef UNIV_HOTBACKUP
-extern bool	recv_replay_file_ops;
+/** @return whether recovery is currently running. */
+#define recv_recovery_is_on() recv_recovery_on
 
-/*******************************************************************//**
-Reads the checkpoint info needed in hot backup.
-@return TRUE if success */
-ibool
-recv_read_checkpoint_info_for_backup(
-/*=================================*/
-	const byte*	hdr,	/*!< in: buffer containing the log group
-				header */
-	lsn_t*		lsn,	/*!< out: checkpoint lsn */
-	lsn_t*		offset,	/*!< out: checkpoint offset in the log group */
-	lsn_t*		cp_no,	/*!< out: checkpoint number */
-	lsn_t*		first_header_lsn)
-				/*!< out: lsn of of the start of the
-				first log file */
-	MY_ATTRIBUTE((nonnull));
-/*******************************************************************//**
-Scans the log segment and n_bytes_scanned is set to the length of valid
-log scanned. */
+/** Apply the hashed log records to the page, if the page lsn is less than the
+lsn of a log record.
+@param just_read_in	whether the page recently arrived to the I/O handler
+@param block		the page in the buffer pool */
 void
-recv_scan_log_seg_for_backup(
-/*=========================*/
-	byte*		buf,		/*!< in: buffer containing log data */
-	ulint		buf_len,	/*!< in: data length in that buffer */
-	lsn_t*		scanned_lsn,	/*!< in/out: lsn of buffer start,
-					we return scanned lsn */
-	ulint*		scanned_checkpoint_no,
-					/*!< in/out: 4 lowest bytes of the
-					highest scanned checkpoint number so
-					far */
-	ulint*		n_bytes_scanned);/*!< out: how much we were able to
-					scan, smaller than buf_len if log
-					data ended here */
-#endif /* UNIV_HOTBACKUP */
-/*******************************************************************//**
-Returns TRUE if recovery is currently running.
-@return recv_recovery_on */
-UNIV_INLINE
-bool
-recv_recovery_is_on(void);
-/*=====================*/
-/************************************************************************//**
-Applies the hashed log records to the page, if the page lsn is less than the
-lsn of a log record. This can be called when a buffer page has just been
-read in, or also for a page already in the buffer pool. */
-void
-recv_recover_page_func(
-/*===================*/
-#ifndef UNIV_HOTBACKUP
-	ibool		just_read_in,
-				/*!< in: TRUE if the i/o handler calls
-				this for a freshly read page */
-#endif /* !UNIV_HOTBACKUP */
-	buf_block_t*	block);	/*!< in/out: buffer block */
-#ifndef UNIV_HOTBACKUP
-/** Wrapper for recv_recover_page_func().
-Applies the hashed log records to the page, if the page lsn is less than the
-lsn of a log record. This can be called when a buffer page has just been
-read in, or also for a page already in the buffer pool.
-@param jri in: TRUE if just read in (the i/o handler calls this for
-a freshly read page)
-@param block in/out: the buffer block
-*/
-# define recv_recover_page(jri, block)	recv_recover_page_func(jri, block)
-#else /* !UNIV_HOTBACKUP */
-/** Wrapper for recv_recover_page_func().
-Applies the hashed log records to the page, if the page lsn is less than the
-lsn of a log record. This can be called when a buffer page has just been
-read in, or also for a page already in the buffer pool.
-@param jri in: TRUE if just read in (the i/o handler calls this for
-a freshly read page)
-@param block in/out: the buffer block
-*/
-# define recv_recover_page(jri, block)	recv_recover_page_func(block)
-#endif /* !UNIV_HOTBACKUP */
+recv_recover_page(bool just_read_in, buf_block_t* block);
+
 /** Start recovering from a redo log checkpoint.
 @see recv_recovery_from_checkpoint_finish
 @param[in]	flush_lsn	FIL_PAGE_FILE_FLUSH_LSN
@@ -140,18 +74,6 @@ recv_reset_logs(
 					OS_FILE_LOG_BLOCK_SIZE, after
 					which we add
 					LOG_BLOCK_HDR_SIZE */
-#ifdef UNIV_HOTBACKUP
-/******************************************************//**
-Creates new log files after a backup has been restored. */
-void
-recv_reset_log_files_for_backup(
-/*============================*/
-	const char*	log_dir,	/*!< in: log file directory path */
-	ulint		n_log_files,	/*!< in: number of log files */
-	lsn_t		log_file_size,	/*!< in: log file size */
-	lsn_t		lsn);		/*!< in: new start lsn, must be
-					divisible by OS_FILE_LOG_BLOCK_SIZE */
-#endif /* UNIV_HOTBACKUP */
 /********************************************************//**
 Creates the recovery system. */
 void
@@ -173,7 +95,6 @@ void
 recv_sys_init(
 /*==========*/
 	ulint	available_memory);	/*!< in: available memory in bytes */
-#ifndef UNIV_HOTBACKUP
 /********************************************************//**
 Frees the recovery system. */
 void
@@ -184,29 +105,12 @@ Reset the state of the recovery system variables. */
 void
 recv_sys_var_init(void);
 /*===================*/
-#endif /* !UNIV_HOTBACKUP */
-/*******************************************************************//**
-Empties the hash table of stored log records, applying them to appropriate
-pages. */
-dberr_t
-recv_apply_hashed_log_recs(
-/*=======================*/
-	ibool	allow_ibuf)	/*!< in: if TRUE, also ibuf operations are
-				allowed during the application; if FALSE,
-				no ibuf operations are allowed, and after
-				the application all file pages are flushed to
-				disk and invalidated in buffer pool: this
-				alternative means that no new log records
-				can be generated during the application */
-	__attribute__((warn_unused_result));
 
-#ifdef UNIV_HOTBACKUP
-/*******************************************************************//**
-Applies log records in the hash table to a backup. */
+/** Apply the hash table of stored log records to persistent data pages.
+@param[in]	last_batch	whether the change buffer merge will be
+				performed as part of the operation */
 void
-recv_apply_log_recs_for_backup(void);
-/*================================*/
-#endif /* UNIV_HOTBACKUP */
+recv_apply_hashed_log_recs(bool last_batch);
 
 /** Block of log record data */
 struct recv_data_t{
@@ -262,7 +166,7 @@ struct recv_addr_t{
 
 struct recv_dblwr_t {
 	/** Add a page frame to the doublewrite recovery buffer. */
-	void add(const byte* page) {
+	void add(byte* page) {
 		pages.push_back(page);
 	}
 
@@ -273,25 +177,14 @@ struct recv_dblwr_t {
 	@retval NULL if no page was found */
 	const byte* find_page(ulint space_id, ulint page_no);
 
-	typedef std::list<const byte*, ut_allocator<const byte*> >	list;
+	typedef std::list<byte*, ut_allocator<byte*> >	list;
 
 	/** Recovered doublewrite buffer page frames */
 	list	pages;
 };
 
-/* Recovery encryption information */
-typedef	struct recv_encryption {
-	ulint		space_id;	/*!< the page number */
-	byte*		key;		/*!< encryption key */
-	byte*		iv;		/*!< encryption iv */
-} recv_encryption_t;
-
-typedef std::vector<recv_encryption_t, ut_allocator<recv_encryption_t> >
-		encryption_list_t;
-
 /** Recovery system data structure */
 struct recv_sys_t{
-#ifndef UNIV_HOTBACKUP
 	ib_mutex_t		mutex;	/*!< mutex protecting the fields apply_log_recs,
 				n_addrs, and the state field in each recv_addr
 				struct */
@@ -305,7 +198,6 @@ struct recv_sys_t{
 	buf_flush_t		flush_type;/*!< type of the flush request.
 				BUF_FLUSH_LRU: flush end of LRU, keeping free blocks.
 				BUF_FLUSH_LIST: flush all of blocks. */
-#endif /* !UNIV_HOTBACKUP */
 	ibool		apply_log_recs;
 				/*!< this is TRUE when log rec application to
 				pages is allowed; this flag tells the
@@ -314,12 +206,6 @@ struct recv_sys_t{
 	ibool		apply_batch_on;
 				/*!< this is TRUE when a log rec application
 				batch is running */
-	byte*		last_block;
-				/*!< possible incomplete last recovered log
-				block */
-	byte*		last_block_buf_start;
-				/*!< the nonaligned start address of the
-				preceding buffer */
 	byte*		buf;	/*!< buffer for parsing log records */
 	ulint		len;	/*!< amount of data in buf */
 	lsn_t		parse_start_lsn;
@@ -350,6 +236,8 @@ struct recv_sys_t{
 	lsn_t		mlog_checkpoint_lsn;
 				/*!< the LSN of a MLOG_CHECKPOINT
 				record, or 0 if none was parsed */
+	/** the time when progress was last reported */
+	ib_time_t	progress_time;
 	mem_heap_t*	heap;	/*!< memory heap of log records and file
 				addresses*/
 	hash_table_t*	addr_hash;/*!< hash table of file addresses of pages */
@@ -358,8 +246,19 @@ struct recv_sys_t{
 
 	recv_dblwr_t	dblwr;
 
-	encryption_list_t*	/*!< Encryption information list */
-			encryption_list;
+	/** Determine whether redo log recovery progress should be reported.
+	@param[in]	time	the current time
+	@return	whether progress should be reported
+		(the last report was at least 15 seconds ago) */
+	bool report(ib_time_t time)
+	{
+		if (time - progress_time < 15) {
+			return false;
+		}
+
+		progress_time = time;
+		return true;
+	}
 };
 
 /** The recovery system */
@@ -391,15 +290,6 @@ extern bool		recv_no_log_write;
 number (FIL_PAGE_LSN) is in the future.  Initially FALSE, and set by
 recv_recovery_from_checkpoint_start(). */
 extern bool		recv_lsn_checks_on;
-#ifdef UNIV_HOTBACKUP
-/** TRUE when the redo log is being backed up */
-extern bool		recv_is_making_a_backup;
-#endif /* UNIV_HOTBACKUP */
-
-#ifndef UNIV_HOTBACKUP
-/** Flag indicating if recv_writer thread is active. */
-extern volatile bool	recv_writer_thread_active;
-#endif /* !UNIV_HOTBACKUP */
 
 /** Size of the parsing buffer; it must accommodate RECV_SCAN_SIZE many
 times! */
@@ -414,18 +304,5 @@ the log and store the scanned log records in the buffer pool: we will
 use these free frames to read in pages when we start applying the
 log records to the database. */
 extern ulint	recv_n_pool_free_frames;
-
-/******************************************************//**
-Checks the 4-byte checksum to the trailer checksum field of a log
-block.  */
-bool
-log_block_checksum_is_ok(
-/*===================================*/
-	const byte*	block,	/*!< in: pointer to a log block */
-	bool            print_err); /*!< in print error ? */
-
-#ifndef UNIV_NONINL
-#include "log0recv.ic"
-#endif
 
 #endif

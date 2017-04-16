@@ -787,7 +787,7 @@ as
 select * from ancestors;
 
 
---ERROR ER_NOT_STANDARDS_COMPLIANT_RECURSIVE
+--ERROR ER_NOT_STANDARD_COMPLIANT_RECURSIVE
 with recursive
 ancestor_ids (id, generation)
 as
@@ -805,7 +805,7 @@ as
 select generation, name from ancestor_ids a, folks
   where a.id = folks.id;
 
-set standards_compliant_cte=0;
+set standard_compliant_cte=0;
 
 --ERROR ER_WITH_COL_WRONG_LIST
 with recursive
@@ -844,9 +844,9 @@ as
 select generation, name from ancestor_ids a, folks
   where a.id = folks.id;
 
-set standards_compliant_cte=1;
+set standard_compliant_cte=1;
 
---ERROR ER_NOT_STANDARDS_COMPLIANT_RECURSIVE
+--ERROR ER_NOT_STANDARD_COMPLIANT_RECURSIVE
 with recursive
 coupled_ancestor_ids (id)
 as
@@ -870,7 +870,7 @@ as
 select p.* from coupled_ancestor_ids a, folks p
   where a.id = p.id;
 
-set statement standards_compliant_cte=0 for
+set statement standard_compliant_cte=0 for
 with recursive
 coupled_ancestor_ids (id)
 as
@@ -894,7 +894,7 @@ as
 select p.* from coupled_ancestor_ids a, folks p
   where a.id = p.id;
 
---ERROR ER_NOT_STANDARDS_COMPLIANT_RECURSIVE
+--ERROR ER_NOT_STANDARD_COMPLIANT_RECURSIVE
 with recursive
 ancestor_ids (id)
 as
@@ -915,7 +915,7 @@ as
 )
 select * from ancestors;
 
-set statement standards_compliant_cte=0 for
+set statement standard_compliant_cte=0 for
 with recursive
 ancestor_ids (id)
 as
@@ -958,7 +958,7 @@ as
 )
 select * from ancestors;
 
---ERROR ER_NOT_STANDARDS_COMPLIANT_RECURSIVE
+--ERROR ER_NOT_STANDARD_COMPLIANT_RECURSIVE
 with recursive
 ancestor_ids (id, generation)
 as
@@ -983,7 +983,7 @@ as
 )
 select * from ancestors;
 
-set statement standards_compliant_cte=0 for
+set statement standard_compliant_cte=0 for
 with recursive
 ancestor_ids (id, generation)
 as
@@ -1484,3 +1484,180 @@ ORDER BY a, dist, b;
 
 DROP VIEW edges2;
 DROP TABLE edges;
+
+
+--echo #
+--echo # MDEV-11674: recursive CTE table that cannot be stored
+--echo #             in a heap table
+--echo #
+
+create table t1 (id int, test_data varchar(36));
+
+insert into t1(id, test_data)
+select id, test_data
+    from (
+        with recursive data_generator(id, test_data) as (
+                select 1 as id, uuid() as test_data
+                union all
+                select id + 1, uuid() from data_generator where id < 150000
+            )
+        select * from data_generator
+    ) as a;
+
+drop table t1;
+
+--echo #
+--echo # MDEV-10773: ANALYZE for query with recursive CTE
+--echo #
+
+--source include/analyze-format.inc
+analyze format=json 
+with recursive src(counter) as 
+(select 1 
+ union 
+ select counter+1 from src where counter<10
+) select * from src;
+
+--echo #
+--echo # mdev-12360: recursive reference in left operand of LEFT JOIN
+--echo #
+
+create table  folks(id int, name char(32), dob date, father int, mother int);
+
+insert into folks values
+(100, 'Me', '2000-01-01', 20, 30),
+(20, 'Dad', '1970-02-02', 10, 9),
+(30, 'Mom', '1975-03-03', 8, 7),
+(10, 'Grandpa Bill', '1940-04-05', null, null),
+(9, 'Grandma Ann', '1941-10-15', null, null),
+(25, 'Uncle Jim', '1968-11-18', 8, 7),
+(98, 'Sister Amy', '2001-06-20', 20, 30),
+(7, 'Grandma Sally', '1943-08-23', null, 6),
+(8, 'Grandpa Ben', '1940-10-21', null, null),
+(6, 'Grandgrandma Martha', '1923-05-17', null, null),
+(67, 'Cousin Eddie', '1992-02-28', 25, 27),
+(27, 'Auntie Melinda', '1971-03-29', null, null); 
+
+with recursive
+ancestor_ids (id)
+as
+(
+  select father from folks where name = 'Me'
+  union
+  select mother from folks where name = 'Me'
+  union
+  select father from ancestor_ids as a left join folks on folks.id = a.id
+  union
+  select mother from ancestor_ids as a left join folks on folks.id = a.id
+),
+ancestors 
+as
+(
+  select p.* from folks as p, ancestor_ids as a
+    where p.id = a.id
+)
+select * from ancestors;
+
+drop table folks;
+
+--echo #
+--echo # mdev-12368: crash with mutually recursive CTE
+--echo #             that arenot Standard compliant 
+--echo #
+
+create table value_nodes (v char(4));
+create table module_nodes(m char(4));
+create table module_arguments(m char(4), v char(4));
+create table module_results(m char(4), v char(4));
+
+--ERROR ER_NOT_STANDARD_COMPLIANT_RECURSIVE
+with recursive
+reached_values as 
+(
+  select v from value_nodes where v in ('v3','v7','v9')
+  union
+  select module_results.v from module_results, applied_modules
+     where module_results.m = applied_modules.m
+),
+applied_modules as
+(
+  select module_nodes.m
+  from
+    module_nodes
+    left join
+    ( 
+      module_arguments
+      left join
+      reached_values
+      on module_arguments.v = reached_values.v
+     )
+     on reached_values.v is null and
+     module_nodes.m = module_arguments.m
+  where module_arguments.m is null
+)
+select * from reached_values;
+
+drop table value_nodes, module_nodes, module_arguments, module_results;
+
+--echo #
+--echo # mdev-12375: query using one of two mutually recursive CTEs
+--echo #             whose non-recursive part returns an empty set
+--echo #
+
+create table value_nodes (v char(4));
+insert into value_nodes values
+  ('v1'), ('v2'), ('v3'), ('v4'), ('v5'), ('v6'), ('v7'), ('v8'), ('v9'),
+  ('v10'), ('v11'), ('v12'), ('v13'), ('v14'), ('v15'), ('v16');
+create table module_nodes(m char(4));
+insert into module_nodes values
+  ('m1'), ('m2'), ('m3'), ('m4'), ('m5'), ('m6'), ('m7');
+create table module_arguments(m char(4), v char(4));
+insert into module_arguments values
+  ('m1','v3'), ('m1','v9'),
+  ('m2','v4'), ('m2','v3'), ('m2','v7'),
+  ('m3','v6'),
+  ('m4','v4'), ('m4','v1'),
+  ('m5','v10'), ('m5','v8'), ('m5','v3'),
+  ('m6','v8'), ('m6','v1'),
+  ('m7','v11'), ('m7','v12');
+create table module_results(m char(4), v char(4));
+insert into module_results values
+  ('m1','v4'),
+  ('m2','v1'), ('m2','v6'),
+  ('m3','v10'),
+  ('m4','v8'),
+  ('m5','v11'), ('m5','v9'),
+  ('m6','v12'), ('m6','v4'),
+  ('m7','v2');
+
+set statement max_recursive_iterations=2, standard_compliant_cte=0 for
+with recursive
+reached_values as 
+(
+  select v from value_nodes where v in ('v3','v7','v9')
+  union
+  select module_results.v from module_results, applied_modules
+     where module_results.m = applied_modules.m
+),
+applied_modules as
+(
+  select * from module_nodes where 1=0
+  union
+  select module_nodes.m
+  from
+    module_nodes
+    left join
+    ( 
+      module_arguments
+      left join
+      reached_values
+      on module_arguments.v = reached_values.v
+     )
+     on reached_values.v is null and
+     module_nodes.m = module_arguments.m
+  where module_arguments.m is null
+)
+select * from applied_modules;
+
+drop table value_nodes, module_nodes, module_arguments, module_results;
+

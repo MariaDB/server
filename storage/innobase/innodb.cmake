@@ -1,4 +1,5 @@
 # Copyright (c) 2006, 2016, Oracle and/or its affiliates. All rights reserved.
+# Copyright (c) 2017, MariaDB Corporation.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -18,11 +19,11 @@
 INCLUDE(CheckFunctionExists)
 INCLUDE(CheckCSourceCompiles)
 INCLUDE(CheckCSourceRuns)
-INCLUDE(lz4)
-INCLUDE(lzo)
-INCLUDE(lzma)
-INCLUDE(bzip2)
-INCLUDE(snappy)
+INCLUDE(lz4.cmake)
+INCLUDE(lzo.cmake)
+INCLUDE(lzma.cmake)
+INCLUDE(bzip2.cmake)
+INCLUDE(snappy.cmake)
 
 MYSQL_CHECK_LZ4()
 MYSQL_CHECK_LZO()
@@ -109,6 +110,17 @@ ENDIF()
 # Enable InnoDB's UNIV_DEBUG in debug builds
 SET(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -DUNIV_DEBUG -DUNIV_SYNC_DEBUG")
 
+OPTION(WITH_INNODB_AHI "Include innodb_adaptive_hash_index" ON)
+OPTION(WITH_INNODB_ROOT_GUESS "Cache index root block descriptors" ON)
+IF(WITH_INNODB_AHI)
+  ADD_DEFINITIONS(-DBTR_CUR_HASH_ADAPT -DBTR_CUR_ADAPT)
+  IF(NOT WITH_INNODB_ROOT_GUESS)
+    MESSAGE(WARNING "WITH_INNODB_AHI implies WITH_INNODB_ROOT_GUESS")
+  ENDIF()
+ELSEIF(WITH_INNODB_ROOT_GUESS)
+  ADD_DEFINITIONS(-DBTR_CUR_ADAPT)
+ENDIF()
+
 OPTION(WITH_INNODB_EXTRA_DEBUG "Enable extra InnoDB debug checks" OFF)
 IF(WITH_INNODB_EXTRA_DEBUG)
   IF(NOT WITH_DEBUG)
@@ -116,7 +128,9 @@ IF(WITH_INNODB_EXTRA_DEBUG)
   ENDIF()
 
   SET(EXTRA_DEBUG_FLAGS "")
-  SET(EXTRA_DEBUG_FLAGS "${EXTRA_DEBUG_FLAGS} -DUNIV_AHI_DEBUG")
+  IF(WITH_INNODB_AHI)
+    SET(EXTRA_DEBUG_FLAGS "${EXTRA_DEBUG_FLAGS} -DUNIV_AHI_DEBUG")
+  ENDIF()
   SET(EXTRA_DEBUG_FLAGS "${EXTRA_DEBUG_FLAGS} -DUNIV_DDL_DEBUG")
   SET(EXTRA_DEBUG_FLAGS "${EXTRA_DEBUG_FLAGS} -DUNIV_DEBUG_FILE_ACCESSES")
   SET(EXTRA_DEBUG_FLAGS "${EXTRA_DEBUG_FLAGS} -DUNIV_ZIP_DEBUG")
@@ -133,24 +147,6 @@ ENDIF()
 CHECK_FUNCTION_EXISTS(nanosleep HAVE_NANOSLEEP)
 IF(HAVE_NANOSLEEP)
  ADD_DEFINITIONS(-DHAVE_NANOSLEEP=1)
-ENDIF()
-
-IF(NOT MSVC)
-  CHECK_C_SOURCE_RUNS(
-  "
-  #define _GNU_SOURCE
-  #include <fcntl.h>
-  #include <linux/falloc.h>
-  int main()
-  {
-    /* Ignore the return value for now. Check if the flags exist.
-    The return value is checked  at runtime. */
-    fallocate(0, FALLOC_FL_PUNCH_HOLE | FALLOC_FL_KEEP_SIZE, 0, 0);
-
-    return(0);
-  }"
-  HAVE_FALLOC_PUNCH_HOLE_AND_KEEP_SIZE
-  )
 ENDIF()
 
 IF(HAVE_FALLOC_PUNCH_HOLE_AND_KEEP_SIZE)
@@ -206,24 +202,11 @@ ENDIF()
 
 ENDIF(NOT MSVC)
 
-CHECK_FUNCTION_EXISTS(asprintf  HAVE_ASPRINTF)
 CHECK_FUNCTION_EXISTS(vasprintf  HAVE_VASPRINTF)
 
 CHECK_CXX_SOURCE_COMPILES("struct t1{ int a; char *b; }; struct t1 c= { .a=1, .b=0 }; main() { }" HAVE_C99_INITIALIZERS)
 IF(HAVE_C99_INITIALIZERS)
   ADD_DEFINITIONS(-DHAVE_C99_INITIALIZERS)
-ENDIF()
-
-IF(UNIX)
-# this is needed to know which one of atomic_cas_32() or atomic_cas_64()
-# to use in the source
-SET(CMAKE_EXTRA_INCLUDE_FILES pthread.h)
-CHECK_TYPE_SIZE(pthread_t SIZEOF_PTHREAD_T)
-SET(CMAKE_EXTRA_INCLUDE_FILES)
-ENDIF()
-
-IF(SIZEOF_PTHREAD_T)
-  ADD_DEFINITIONS(-DSIZEOF_PTHREAD_T=${SIZEOF_PTHREAD_T})
 ENDIF()
 
 SET(MUTEXTYPE "event" CACHE STRING "Mutex type: event, sys or futex")
@@ -235,7 +218,7 @@ ELSEIF(MUTEXTYPE MATCHES "futex" AND DEFINED HAVE_IB_LINUX_FUTEX)
 ELSE()
    ADD_DEFINITIONS(-DMUTEX_SYS)
 ENDIF()
- 
+
 # Include directories under innobase
 INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/storage/innobase/include
 		    ${CMAKE_SOURCE_DIR}/storage/innobase/handler)
@@ -257,6 +240,18 @@ IF (MSVC AND CMAKE_SIZEOF_VOID_P EQUAL 8)
 				    PROPERTIES COMPILE_FLAGS -Od)
 ENDIF()
 
+# Avoid generating Hardware Capabilities due to crc32 instructions
+IF(CMAKE_SYSTEM_NAME MATCHES "SunOS" AND CMAKE_SYSTEM_PROCESSOR MATCHES "i386")
+  INCLUDE(${MYSQL_CMAKE_SCRIPT_DIR}/compile_flags.cmake)
+  MY_CHECK_CXX_COMPILER_FLAG("-Wa,-nH" HAVE_WA_NH)
+  IF(HAVE_WA_NH)
+    ADD_COMPILE_FLAGS(
+      ut/ut0crc32.cc
+      COMPILE_FLAGS "-Wa,-nH"
+    )
+  ENDIF()
+ENDIF()
+
 IF(MSVC)
   # Avoid "unreferenced label" warning in generated file
   GET_FILENAME_COMPONENT(_SRC_DIR ${CMAKE_CURRENT_LIST_FILE} PATH)
@@ -270,4 +265,3 @@ ENDIF()
 INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/storage/innobase/include
 		    ${CMAKE_SOURCE_DIR}/storage/innobase/handler
                     ${CMAKE_SOURCE_DIR}/libbinlogevents/include )
-

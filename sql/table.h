@@ -2,7 +2,7 @@
 #define TABLE_INCLUDED
 /* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
    Copyright (c) 2009, 2014, SkySQL Ab.
-   Copyright (c) 2016, MariaDB Corporation
+   Copyright (c) 2016, 2017, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -53,6 +53,8 @@ class With_element;
 struct TDC_element;
 class Virtual_column_info;
 class Table_triggers_list;
+class TMP_TABLE_PARAM;
+class SEQUENCE;
 
 /*
   Used to identify NESTED_JOIN structures within a join (applicable only to
@@ -326,9 +328,11 @@ enum release_type { RELEASE_NORMAL, RELEASE_WAIT_FOR_DROP };
 enum enum_vcol_update_mode
 {
   VCOL_UPDATE_FOR_READ= 0,
-  VCOL_UPDATE_FOR_READ_WRITE,
   VCOL_UPDATE_FOR_WRITE,
-  VCOL_UPDATE_INDEXED
+  VCOL_UPDATE_FOR_DELETE,
+  VCOL_UPDATE_INDEXED,
+  VCOL_UPDATE_INDEXED_FOR_UPDATE,
+  VCOL_UPDATE_FOR_REPLACE
 };
 
 
@@ -477,6 +481,16 @@ public:
 
   /** Checks whether a table is intact. */
   bool check(TABLE *table, const TABLE_FIELD_DEF *table_def);
+};
+
+
+/*
+  If the table isn't valid, report the error to the server log only.
+*/
+class Table_check_intact_log_error : public Table_check_intact
+{
+protected:
+  void report_error(uint, const char *fmt, ...);
 };
 
 
@@ -629,6 +643,7 @@ struct TABLE_SHARE
            db_plugin ? plugin_hton(db_plugin) : NULL;
   }
   enum row_type row_type;		/* How rows are stored */
+  enum Table_type table_type;
   enum tmp_table_type tmp_table;
 
   /** Transactional or not. */
@@ -702,6 +717,9 @@ struct TABLE_SHARE
     definition read from .FRM file.
   */
   const File_parser *view_def;
+
+  /* For sequence tables, the current sequence state */
+  SEQUENCE *sequence;
 
   /*
     Cache for row-based replication table share checks that does not
@@ -1091,7 +1109,7 @@ public:
   /* Set if using virtual fields */
   MY_BITMAP     *vcol_set, *def_vcol_set;
   /* On INSERT: fields that the user specified a value for */
-  MY_BITMAP	*has_value_set;
+  MY_BITMAP	has_value_set;
 
   /*
    The ID of the query that opened and is using this table. Has different
@@ -1232,11 +1250,6 @@ public:
   */
   bool keep_row_order;
 
-  /**
-     If set, the optimizer has found that row retrieval should access index 
-     tree only.
-   */
-  bool key_read;
   bool no_keyread;
   /**
     If set, indicate that the table is not replicated by the server.
@@ -1295,13 +1308,15 @@ public:
 
   void init(THD *thd, TABLE_LIST *tl);
   bool fill_item_list(List<Item> *item_list) const;
-  void reset_item_list(List<Item> *item_list) const;
+  void reset_item_list(List<Item> *item_list, uint skip) const;
   void clear_column_bitmaps(void);
   void prepare_for_position(void);
+  MY_BITMAP *prepare_for_keyread(uint index, MY_BITMAP *map);
+  MY_BITMAP *prepare_for_keyread(uint index)
+  { return prepare_for_keyread(index, &tmp_set); }
+  void mark_columns_used_by_index(uint index, MY_BITMAP *map);
   void mark_columns_used_by_index_no_reset(uint index, MY_BITMAP *map);
-  void mark_columns_used_by_index(uint index);
-  void add_read_columns_used_by_index(uint index);
-  void restore_column_maps_after_mark_index();
+  void restore_column_maps_after_keyread(MY_BITMAP *backup);
   void mark_auto_increment_column(void);
   void mark_columns_needed_for_update(void);
   void mark_columns_needed_for_delete(void);
@@ -1313,6 +1328,12 @@ public:
   void mark_columns_used_by_check_constraints(void);
   void mark_check_constraint_columns_for_read(void);
   int verify_constraints(bool ignore_failure);
+  inline void column_bitmaps_set(MY_BITMAP *read_set_arg)
+  {
+    read_set= read_set_arg;
+    if (file)
+      file->column_bitmaps_signal();
+  }
   inline void column_bitmaps_set(MY_BITMAP *read_set_arg,
                                  MY_BITMAP *write_set_arg)
   {
@@ -1375,23 +1396,6 @@ public:
     tablenr= tablenr_arg;
   }
 
-  void set_keyread(bool flag)
-  {
-    DBUG_ASSERT(file);
-    if (flag && !key_read)
-    {
-      key_read= 1;
-      if (is_created())
-        file->extra(HA_EXTRA_KEYREAD);
-    }
-    else if (!flag && key_read)
-    {
-      key_read= 0;
-      if (is_created())
-        file->extra(HA_EXTRA_NO_KEYREAD);
-    }
-  }
-
   /// Return true if table is instantiated, and false otherwise.
   bool is_created() const { return created; }
 
@@ -1403,7 +1407,7 @@ public:
   {
     if (created)
       return;
-    if (key_read)
+    if (file->keyread_enabled())
       file->extra(HA_EXTRA_KEYREAD);
     created= true;
   }
@@ -1425,7 +1429,7 @@ public:
   uint actual_n_key_parts(KEY *keyinfo);
   ulong actual_key_flags(KEY *keyinfo);
   int update_virtual_field(Field *vf);
-  int update_virtual_fields(enum_vcol_update_mode update_mode);
+  int update_virtual_fields(handler *h, enum_vcol_update_mode update_mode);
   int update_default_fields(bool update, bool ignore_errors);
   void reset_default_fields();
   inline ha_rows stat_records() { return used_stat_records; }
@@ -1437,7 +1441,12 @@ public:
   inline Field **field_to_fill();
   bool validate_default_values_of_unset_fields(THD *thd) const;
 
-  bool insert_all_rows_into(THD *thd, TABLE *dest, bool with_cleanup);
+  bool insert_all_rows_into_tmp_table(THD *thd, 
+                                      TABLE *tmp_table,
+                                      TMP_TABLE_PARAM *tmp_table_param,
+                                      bool with_cleanup);
+  Field *find_field_by_name(const char *str) const;
+  bool export_structure(THD *thd, class Row_definition_list *defs);
 };
 
 
@@ -1498,13 +1507,13 @@ typedef struct st_foreign_key_info
 
 LEX_CSTRING *fk_option_name(enum_fk_option opt);
 
-#define MY_I_S_MAYBE_NULL 1
-#define MY_I_S_UNSIGNED   2
+#define MY_I_S_MAYBE_NULL 1U
+#define MY_I_S_UNSIGNED   2U
 
 
-#define SKIP_OPEN_TABLE 0                // do not open table
-#define OPEN_FRM_ONLY   1                // open FRM file only
-#define OPEN_FULL_TABLE 2                // open FRM,MYD, MYI files
+#define SKIP_OPEN_TABLE 0U               // do not open table
+#define OPEN_FRM_ONLY   1U               // open FRM file only
+#define OPEN_FULL_TABLE 2U               // open FRM,MYD, MYI files
 
 typedef struct st_field_info
 {
@@ -1568,27 +1577,27 @@ class IS_table_read_plan;
   Types of derived tables. The ending part is a bitmap of phases that are
   applicable to a derived table of the type.
 */
-#define DTYPE_ALGORITHM_UNDEFINED    0
-#define DTYPE_VIEW                   1
-#define DTYPE_TABLE                  2
-#define DTYPE_MERGE                  4
-#define DTYPE_MATERIALIZE            8
-#define DTYPE_MULTITABLE             16
-#define DTYPE_MASK                   19
+#define DTYPE_ALGORITHM_UNDEFINED    0U
+#define DTYPE_VIEW                   1U
+#define DTYPE_TABLE                  2U
+#define DTYPE_MERGE                  4U
+#define DTYPE_MATERIALIZE            8U
+#define DTYPE_MULTITABLE             16U
+#define DTYPE_MASK                   (DTYPE_VIEW|DTYPE_TABLE|DTYPE_MULTITABLE)
 
 /*
   Phases of derived tables/views handling, see sql_derived.cc
   Values are used as parts of a bitmap attached to derived table types.
 */
-#define DT_INIT             1
-#define DT_PREPARE          2
-#define DT_OPTIMIZE         4
-#define DT_MERGE            8
-#define DT_MERGE_FOR_INSERT 16
-#define DT_CREATE           32
-#define DT_FILL             64
-#define DT_REINIT           128
-#define DT_PHASES           8
+#define DT_INIT             1U
+#define DT_PREPARE          2U
+#define DT_OPTIMIZE         4U
+#define DT_MERGE            8U
+#define DT_MERGE_FOR_INSERT 16U
+#define DT_CREATE           32U
+#define DT_FILL             64U
+#define DT_REINIT           128U
+#define DT_PHASES           8U
 /* Phases that are applicable to all derived tables. */
 #define DT_COMMON       (DT_INIT + DT_PREPARE + DT_REINIT + DT_OPTIMIZE)
 /* Phases that are applicable only to materialized derived tables. */
@@ -1608,13 +1617,13 @@ class IS_table_read_plan;
   representation for backward compatibility.
 */
 
-#define VIEW_ALGORITHM_UNDEFINED_FRM  0
-#define VIEW_ALGORITHM_MERGE_FRM      1
-#define VIEW_ALGORITHM_TMPTABLE_FRM   2
+#define VIEW_ALGORITHM_UNDEFINED_FRM  0U
+#define VIEW_ALGORITHM_MERGE_FRM      1U
+#define VIEW_ALGORITHM_TMPTABLE_FRM   2U
 
-#define JOIN_TYPE_LEFT	1
-#define JOIN_TYPE_RIGHT	2
-#define JOIN_TYPE_OUTER 4	/* Marker that this is an outer join */
+#define JOIN_TYPE_LEFT	1U
+#define JOIN_TYPE_RIGHT	2U
+#define JOIN_TYPE_OUTER 4U	/* Marker that this is an outer join */
 
 #define VIEW_SUID_INVOKER               0
 #define VIEW_SUID_DEFINER               1
@@ -1633,7 +1642,7 @@ class IS_table_read_plan;
 /** The threshold size a blob field buffer before it is freed */
 #define MAX_TDC_BLOB_SIZE 65536
 
-class select_union;
+class select_unit;
 class TMP_TABLE_PARAM;
 
 Item *create_view_field(THD *thd, TABLE_LIST *view, Item **field_ref,
@@ -1866,7 +1875,7 @@ struct TABLE_LIST
     select_result for derived table to pass it from table creation to table
     filling procedure
   */
-  select_union  *derived_result;
+  select_unit  *derived_result;
   /* Stub used for materialized derived tables. */
   table_map	map;                    /* ID bit of table (1,2,4,8,16...) */
   table_map get_map()
@@ -2054,8 +2063,8 @@ struct TABLE_LIST
   bool          where_processed;
   /* TRUE <=> VIEW CHECK OPTION expression has been processed */
   bool          check_option_processed;
-  /* FRMTYPE_ERROR if any type is acceptable */
-  enum frm_type_enum required_type;
+  /* TABLE_TYPE_UNKNOWN if any type is acceptable */
+  Table_type    required_type;
   handlerton	*db_type;		/* table_type for handler */
   char		timestamp_buffer[20];	/* buffer for timestamp (19+1) */
   /*
@@ -2076,9 +2085,6 @@ struct TABLE_LIST
     /* Don't associate a table share. */
     OPEN_STUB
   } open_strategy;
-  /* For transactional locking. */
-  int           lock_timeout;           /* NOWAIT or WAIT [X]               */
-  bool          lock_transactional;     /* If transactional lock requested. */
   /** TRUE if an alias for this table was specified in the SQL. */
   bool          is_alias;
   /** TRUE if the table is referred to in the statement using a fully
@@ -2094,6 +2100,7 @@ struct TABLE_LIST
   bool          merged_for_insert;
   /* TRUE <=> don't prepare this derived table/view as it should be merged.*/
   bool          skip_prepare_derived;
+  bool          sequence;  /* Part of NEXTVAL/CURVAL/LASTVAL */
 
   /*
     Items created by create_view_field and collected to change them in case

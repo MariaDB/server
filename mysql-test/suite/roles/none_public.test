@@ -51,7 +51,7 @@ create definer=public view test.v1 as select 1;
 drop role role1;
 
 optimize table mysql.user; # to remove deleted rows and have stable row order
-insert mysql.user (user, is_role) values ('none', 'Y'), ('public', 'Y');
+insert ignore mysql.user (user, is_role) values ('none', 'Y'), ('public', 'Y');
 flush privileges;
 delete from mysql.user where is_role='Y';
 

@@ -106,3 +106,5 @@ INSERT INTO t3 SELECT * FROM t3;
 -- source include/innodb_trx_weight.inc
 
 DROP TABLE t1, t2, t3, t4, t5_nontrans;
+
+call mtr.add_suppression("Deadlock found when trying to get lock; try restarting transaction");

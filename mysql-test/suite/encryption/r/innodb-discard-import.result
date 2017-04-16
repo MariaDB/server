@@ -1,9 +1,5 @@
 call mtr.add_suppression("InnoDB: Tablespace for table .* is set as discarded.");
 call mtr.add_suppression("InnoDB: Cannot calculate statistics for table .* because the .ibd file is missing. Please refer to .* for how to resolve the issue.");
-SET GLOBAL innodb_file_format = `Barracuda`;
-Warnings:
-Warning	131	Using innodb_file_format is deprecated and the parameter may be removed in future releases. See http://dev.mysql.com/doc/refman/5.7/en/innodb-file-format.html
-SET GLOBAL innodb_file_per_table = ON;
 SET GLOBAL innodb_compression_algorithm = 1;
 create table t1(c1 bigint not null, b char(200))  engine=innodb encrypted=yes encryption_key_id=4;
 show warnings;
@@ -60,33 +56,32 @@ t3.ibd
 t4.cfg
 t4.frm
 t4.ibd
+backup: t1
+backup: t2
+backup: t3
+backup: t4
+t1.cfg
+t1.frm
+t1.ibd
+t2.cfg
+t2.frm
+t2.ibd
+t3.cfg
+t3.frm
+t3.ibd
+t4.cfg
+t4.frm
+t4.ibd
 UNLOCK TABLES;
-# tables should be either encrypted and/or compressed
-# t1 yes on expecting NOT FOUND
-NOT FOUND /foobar/ in t1.ibd
-# t2 yes on expecting NOT FOUND
-NOT FOUND /barfoo/ in t2.ibd
-# t3 yes on expecting NOT FOUND
-NOT FOUND /tmpres/ in t3.ibd
-# t4 yes on expecting NOT FOUND
-NOT FOUND /mysql/ in t4.ibd
 ALTER TABLE t1 DISCARD TABLESPACE;
 ALTER TABLE t2 DISCARD TABLESPACE;
 ALTER TABLE t3 DISCARD TABLESPACE;
 ALTER TABLE t4 DISCARD TABLESPACE;
-SET GLOBAL innodb_file_format = `Barracuda`;
-Warnings:
-Warning	131	Using innodb_file_format is deprecated and the parameter may be removed in future releases. See http://dev.mysql.com/doc/refman/5.7/en/innodb-file-format.html
-SET GLOBAL innodb_file_per_table = ON;
-SET GLOBAL innodb_compression_algorithm = 1;
-# List after t1 DISCARD
-t1.frm
-t2.frm
-t3.frm
-t4.frm
+restore: t1 .ibd and .cfg files
+restore: t2 .ibd and .cfg files
+restore: t3 .ibd and .cfg files
+restore: t4 .ibd and .cfg files
 ALTER TABLE t1 IMPORT TABLESPACE;
-Warnings:
-Warning	1814	Tablespace has been discarded for table `t1`
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -97,8 +92,6 @@ SELECT COUNT(*) FROM t1;
 COUNT(*)
 2000
 ALTER TABLE t2 IMPORT TABLESPACE;
-Warnings:
-Warning	1814	Tablespace has been discarded for table `t2`
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
@@ -109,8 +102,6 @@ SELECT COUNT(*) FROM t2;
 COUNT(*)
 2000
 ALTER TABLE t3 IMPORT TABLESPACE;
-Warnings:
-Warning	1814	Tablespace has been discarded for table `t3`
 SHOW CREATE TABLE t3;
 Table	Create Table
 t3	CREATE TABLE `t3` (
@@ -121,8 +112,6 @@ SELECT COUNT(*) FROM t3;
 COUNT(*)
 2000
 ALTER TABLE t4 IMPORT TABLESPACE;
-Warnings:
-Warning	1814	Tablespace has been discarded for table `t4`
 SHOW CREATE TABLE t4;
 Table	Create Table
 t4	CREATE TABLE `t4` (
@@ -132,12 +121,6 @@ t4	CREATE TABLE `t4` (
 SELECT COUNT(*) FROM t4;
 COUNT(*)
 2000
-flush data to disk
-SET GLOBAL innodb_file_format = `Barracuda`;
-Warnings:
-Warning	131	Using innodb_file_format is deprecated and the parameter may be removed in future releases. See http://dev.mysql.com/doc/refman/5.7/en/innodb-file-format.html
-SET GLOBAL innodb_file_per_table = ON;
-SET GLOBAL innodb_compression_algorithm = 1;
 # tables should be still either encrypted and/or compressed
 # t1 yes on expecting NOT FOUND
 NOT FOUND /foobar/ in t1.ibd
@@ -149,5 +132,3 @@ NOT FOUND /tmpres/ in t3.ibd
 NOT FOUND /mysql/ in t4.ibd
 DROP PROCEDURE innodb_insert_proc;
 DROP TABLE t1,t2,t3,t4;
-Warnings:
-Warning	131	Using innodb_file_format is deprecated and the parameter may be removed in future releases. See http://dev.mysql.com/doc/refman/5.7/en/innodb-file-format.html

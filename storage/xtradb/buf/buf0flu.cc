@@ -1,7 +1,7 @@
 /*****************************************************************************
 
-Copyright (c) 1995, 2016, Oracle and/or its affiliates
-Copyright (c) 2013, 2016, MariaDB
+Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2013, 2017, MariaDB Corporation. All Rights Reserved.
 Copyright (c) 2013, 2014, Fusion-io
 
 This program is free software; you can redistribute it and/or modify it under
@@ -304,6 +304,8 @@ buf_flush_init_flush_rbt(void)
 		buf_pool = buf_pool_from_array(i);
 
 		buf_flush_list_mutex_enter(buf_pool);
+
+		ut_ad(buf_pool->flush_rbt == NULL);
 
 		/* Create red black tree for speedy insertions in flush list. */
 		buf_pool->flush_rbt = rbt_create(
@@ -2220,7 +2222,7 @@ buf_flush_single_page_from_LRU(
 		if (ready) {
 			bool	evict_zip;
 
-			evict_zip = !buf_LRU_evict_from_unzip_LRU(buf_pool);;
+			evict_zip = !buf_LRU_evict_from_unzip_LRU(buf_pool);
 
 			freed = buf_LRU_free_page(bpage, evict_zip);
 
@@ -2627,6 +2629,11 @@ page_cleaner_sleep_if_needed(
 	ulint	next_loop_time)	/*!< in: time when next loop iteration
 				should start */
 {
+	/* No sleep if we are cleaning the buffer pool during the shutdown
+	with everything else finished */
+	if (srv_shutdown_state == SRV_SHUTDOWN_FLUSH_PHASE)
+		return;
+
 	ulint	cur_time = ut_time_ms();
 
 	if (next_loop_time > cur_time) {

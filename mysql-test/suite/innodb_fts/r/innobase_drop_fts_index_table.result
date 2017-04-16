@@ -1,6 +1,0 @@
-CREATE TABLE t (a INT, b TEXT) engine=innodb;
-SET debug_dbug='+d,alter_table_rollback_new_index';
-ALTER TABLE t ADD FULLTEXT INDEX (b(64));
-ERROR HY000: Unknown error
-SET debug_dbug='-d,alter_table_rollback_new_index';
-DROP TABLE t;

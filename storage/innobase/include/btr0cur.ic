@@ -23,7 +23,6 @@ The index tree cursor
 Created 10/16/1994 Heikki Tuuri
 *******************************************************/
 
-#ifndef UNIV_HOTBACKUP
 #include "btr0btr.h"
 
 #ifdef UNIV_DEBUG
@@ -231,5 +230,3 @@ btr_rec_set_deleted_flag(
 		rec_set_deleted_flag_old(rec, flag);
 	}
 }
-
-#endif /* !UNIV_HOTBACKUP */

@@ -53,6 +53,12 @@ typedef struct ft_options *FT_OPTIONS;
 void toku_ft_unlink(FT_HANDLE handle);
 void toku_ft_unlink_on_commit(FT_HANDLE handle, TOKUTXN txn);
 
+int toku_ft_rename_iname(DB_TXN *txn,
+                         const char *data_dir,
+                         const char *old_iname,
+                         const char *new_iname,
+                         CACHETABLE ct);
+
 void toku_ft_init_reflock(FT ft);
 void toku_ft_destroy_reflock(FT ft);
 void toku_ft_grab_reflock(FT ft);

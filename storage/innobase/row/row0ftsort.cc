@@ -225,12 +225,16 @@ row_fts_psort_info_init(
 	common_info->sort_event = os_event_create(0);
 	common_info->merge_event = os_event_create(0);
 	common_info->opt_doc_id_size = opt_doc_id_size;
-	crypt_data = fil_space_get_crypt_data(new_table->space);
 
-	if ((crypt_data && crypt_data->encryption == FIL_SPACE_ENCRYPTION_ON) ||
-		(srv_encrypt_tables &&
-			crypt_data && crypt_data->encryption == FIL_SPACE_ENCRYPTION_DEFAULT)) {
+	/* Theoretically the tablespace can be dropped straight away.
+	In practice, the DDL completion will wait for this thread to
+	finish. */
+	if (fil_space_t* space = fil_space_acquire(new_table->space)) {
+		crypt_data = space->crypt_data;
+		fil_space_release(space);
+	}
 
+	if (crypt_data && crypt_data->should_encrypt()) {
 		common_info->crypt_data = crypt_data;
 		encrypted = true;
 	} else {
@@ -527,7 +531,6 @@ row_merge_fts_doc_tokenize(
 	while (t_ctx->processed_len < doc->text.f_len) {
 		ulint		idx = 0;
 		ib_uint32_t	position;
-		ulint           offset = 0;
 		ulint		cur_len;
 		doc_id_t	write_doc_id;
 		row_fts_token_t* fts_token = NULL;
@@ -776,6 +779,7 @@ row_merge_fts_get_next_doc_item(
 Function performs parallel tokenization of the incoming doc strings.
 It also performs the initial in memory sort of the parsed records.
 @return OS_THREAD_DUMMY_RETURN */
+static
 os_thread_ret_t
 fts_parallel_tokenization(
 /*======================*/
@@ -797,7 +801,6 @@ fts_parallel_tokenization(
 	mem_heap_t*		blob_heap = NULL;
 	fts_doc_t		doc;
 	dict_table_t*		table = psort_info->psort_common->new_table;
-	dict_field_t*		idx_field;
 	fts_tokenize_ctx_t	t_ctx;
 	ulint			retried = 0;
 	dberr_t			error = DB_SUCCESS;
@@ -825,9 +828,6 @@ fts_parallel_tokenization(
 
 	doc.charset = fts_index_get_charset(
 		psort_info->psort_common->dup->index);
-
-	idx_field = dict_index_get_nth_field(
-		psort_info->psort_common->dup->index, 0);
 
 	block = psort_info->merge_block;
 	crypt_block = psort_info->crypt_block;
@@ -1123,6 +1123,7 @@ row_fts_start_psort(
 /*********************************************************************//**
 Function performs the merge and insertion of the sorted records.
 @return OS_THREAD_DUMMY_RETURN */
+static
 os_thread_ret_t
 fts_parallel_merge(
 /*===============*/
@@ -1264,6 +1265,7 @@ row_merge_write_fts_word(
 /*********************************************************************//**
 Read sorted FTS data files and insert data tuples to auxillary tables.
 @return DB_SUCCESS or error number */
+static
 void
 row_fts_insert_tuple(
 /*=================*/

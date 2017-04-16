@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2010, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2016, MariaDB Corporation.
+Copyright (c) 2015, 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -224,12 +224,16 @@ row_fts_psort_info_init(
 	common_info->sort_event = os_event_create();
 	common_info->merge_event = os_event_create();
 	common_info->opt_doc_id_size = opt_doc_id_size;
-	crypt_data = fil_space_get_crypt_data(new_table->space);
 
-	if ((crypt_data && crypt_data->encryption == FIL_SPACE_ENCRYPTION_ON) ||
-		(srv_encrypt_tables &&
-			crypt_data && crypt_data->encryption == FIL_SPACE_ENCRYPTION_DEFAULT)) {
+	/* Theoretically the tablespace can be dropped straight away.
+	In practice, the DDL completion will wait for this thread to
+	finish. */
+	if (fil_space_t* space = fil_space_acquire(new_table->space)) {
+		crypt_data = space->crypt_data;
+		fil_space_release(space);
+	}
 
+	if (crypt_data && crypt_data->should_encrypt()) {
 		common_info->crypt_data = crypt_data;
 		encrypted = true;
 	} else {
@@ -671,7 +675,6 @@ fts_parallel_tokenization(
 	mem_heap_t*		blob_heap = NULL;
 	fts_doc_t		doc;
 	dict_table_t*		table = psort_info->psort_common->new_table;
-	dict_field_t*		idx_field;
 	fts_tokenize_ctx_t	t_ctx;
 	ulint			retried = 0;
 	dberr_t			error = DB_SUCCESS;
@@ -693,9 +696,6 @@ fts_parallel_tokenization(
 
 	doc.charset = fts_index_get_charset(
 		psort_info->psort_common->dup->index);
-
-	idx_field = dict_index_get_nth_field(
-		psort_info->psort_common->dup->index, 0);
 
 	block = psort_info->merge_block;
 	crypt_block = psort_info->crypt_block;
@@ -1023,7 +1023,7 @@ fts_parallel_merge(
 	CloseHandle(psort_info->thread_hdl);
 #endif /*__WIN__ */
 
-	os_thread_exit(NULL);
+	os_thread_exit(NULL, false);
 
 	OS_THREAD_DUMMY_RETURN;
 }

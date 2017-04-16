@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -24,11 +25,6 @@ Created 5/30/1994 Heikki Tuuri
 *************************************************************************/
 
 #include "rem0rec.h"
-
-#ifdef UNIV_NONINL
-#include "rem0rec.ic"
-#endif
-
 #include "page0page.h"
 #include "mtr0mtr.h"
 #include "mtr0log.h"
@@ -148,9 +144,6 @@ A complete-field prefix of a record is a prefix which ends at the
 end of some field (containing also <FIELD-END>).
 A record is a complete-field prefix of another record, if
 the corresponding canonical strings have the same property. */
-
-/* this is used to fool compiler in rec_validate */
-ulint	rec_dummy;
 
 /***************************************************************//**
 Validates the consistency of an old-style physical record.
@@ -549,7 +542,7 @@ rec_get_offsets_func(
 					 (ULINT_UNDEFINED if all fields) */
 #ifdef UNIV_DEBUG
 	const char*		file,	/*!< in: file name where called */
-	ulint			line,	/*!< in: line number where called */
+	unsigned		line,	/*!< in: line number where called */
 #endif /* UNIV_DEBUG */
 	mem_heap_t**		heap)	/*!< in/out: memory heap */
 {
@@ -1503,7 +1496,6 @@ rec_convert_dtuple_to_rec(
 	return(rec);
 }
 
-#ifndef UNIV_HOTBACKUP
 /**********************************************************//**
 Determines the size of a data tuple prefix in ROW_FORMAT=COMPACT.
 @return total size */
@@ -1763,7 +1755,6 @@ rec_copy_prefix_to_buf(
 
 	return(*buf + (rec - (lens + 1)));
 }
-#endif /* UNIV_HOTBACKUP */
 
 /***************************************************************//**
 Validates the consistency of an old-style physical record.
@@ -1774,11 +1765,9 @@ rec_validate_old(
 /*=============*/
 	const rec_t*	rec)	/*!< in: physical record */
 {
-	const byte*	data;
 	ulint		len;
 	ulint		n_fields;
 	ulint		len_sum		= 0;
-	ulint		sum		= 0;
 	ulint		i;
 
 	ut_a(rec);
@@ -1790,7 +1779,7 @@ rec_validate_old(
 	}
 
 	for (i = 0; i < n_fields; i++) {
-		data = rec_get_nth_field_old(rec, i, &len);
+		rec_get_nth_field_offs_old(rec, i, &len);
 
 		if (!((len < UNIV_PAGE_SIZE) || (len == UNIV_SQL_NULL))) {
 			ib::error() << "Record field " << i << " len " << len;
@@ -1799,10 +1788,6 @@ rec_validate_old(
 
 		if (len != UNIV_SQL_NULL) {
 			len_sum += len;
-			sum += *(data + len -1); /* dereference the
-						 end of the field to
-						 cause a memory trap
-						 if possible */
 		} else {
 			len_sum += rec_get_nth_field_size(rec, i);
 		}
@@ -1813,8 +1798,6 @@ rec_validate_old(
 			<< rec_get_data_size_old(rec);
 		return(FALSE);
 	}
-
-	rec_dummy = sum; /* This is here only to fool the compiler */
 
 	return(TRUE);
 }
@@ -1828,11 +1811,9 @@ rec_validate(
 	const rec_t*	rec,	/*!< in: physical record */
 	const ulint*	offsets)/*!< in: array returned by rec_get_offsets() */
 {
-	const byte*	data;
 	ulint		len;
 	ulint		n_fields;
 	ulint		len_sum		= 0;
-	ulint		sum		= 0;
 	ulint		i;
 
 	ut_a(rec);
@@ -1846,7 +1827,7 @@ rec_validate(
 	ut_a(rec_offs_comp(offsets) || n_fields <= rec_get_n_fields_old(rec));
 
 	for (i = 0; i < n_fields; i++) {
-		data = rec_get_nth_field(rec, offsets, i, &len);
+		rec_get_nth_field_offs(offsets, i, &len);
 
 		if (!((len < UNIV_PAGE_SIZE) || (len == UNIV_SQL_NULL))) {
 			ib::error() << "Record field " << i << " len " << len;
@@ -1855,10 +1836,6 @@ rec_validate(
 
 		if (len != UNIV_SQL_NULL) {
 			len_sum += len;
-			sum += *(data + len -1); /* dereference the
-						 end of the field to
-						 cause a memory trap
-						 if possible */
 		} else if (!rec_offs_comp(offsets)) {
 			len_sum += rec_get_nth_field_size(rec, i);
 		}
@@ -1869,8 +1846,6 @@ rec_validate(
 			<< rec_offs_data_size(offsets);
 		return(FALSE);
 	}
-
-	rec_dummy = sum; /* This is here only to fool the compiler */
 
 	if (!rec_offs_comp(offsets)) {
 		ut_a(rec_validate_old(rec));
@@ -1930,10 +1905,10 @@ rec_print_old(
 	rec_validate_old(rec);
 }
 
-#ifndef UNIV_HOTBACKUP
 /***************************************************************//**
 Prints a physical record in ROW_FORMAT=COMPACT.  Ignores the
 record header. */
+static
 void
 rec_print_comp(
 /*===========*/
@@ -1978,6 +1953,7 @@ rec_print_comp(
 
 /***************************************************************//**
 Prints an old-style spatial index record. */
+static
 void
 rec_print_mbr_old(
 /*==============*/
@@ -2268,7 +2244,7 @@ operator<<(std::ostream& o, const rec_offsets_print& r)
 	return(o);
 }
 
-# ifdef UNIV_DEBUG
+#ifdef UNIV_DEBUG
 /************************************************************//**
 Reads the DB_TRX_ID of a clustered index record.
 @return the value of DB_TRX_ID */
@@ -2308,8 +2284,7 @@ rec_get_trx_id(
 
 	return(trx_read_trx_id(trx_id));
 }
-# endif /* UNIV_DEBUG */
-#endif /* !UNIV_HOTBACKUP */
+#endif /* UNIV_DEBUG */
 
 /** Mark the nth field as externally stored.
 @param[in]	offsets		array returned by rec_get_offsets()

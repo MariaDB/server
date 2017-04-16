@@ -68,7 +68,7 @@ bool
 No_such_table_error_handler::handle_condition(THD *,
                                               uint sql_errno,
                                               const char*,
-                                              Sql_condition::enum_warning_level level,
+                                              Sql_condition::enum_warning_level *level,
                                               const char*,
                                               Sql_condition ** cond_hdl)
 {
@@ -79,7 +79,7 @@ No_such_table_error_handler::handle_condition(THD *,
     return TRUE;
   }
 
-  if (level == Sql_condition::WARN_LEVEL_ERROR)
+  if (*level == Sql_condition::WARN_LEVEL_ERROR)
     m_unhandled_errors++;
   return FALSE;
 }
@@ -112,7 +112,7 @@ public:
   bool handle_condition(THD *thd,
                         uint sql_errno,
                         const char* sqlstate,
-                        Sql_condition::enum_warning_level level,
+                        Sql_condition::enum_warning_level *level,
                         const char* msg,
                         Sql_condition ** cond_hdl);
 
@@ -142,7 +142,7 @@ bool
 Repair_mrg_table_error_handler::handle_condition(THD *,
                                                  uint sql_errno,
                                                  const char*,
-                                                 Sql_condition::enum_warning_level level,
+                                                 Sql_condition::enum_warning_level *level,
                                                  const char*,
                                                  Sql_condition ** cond_hdl)
 {
@@ -769,6 +769,23 @@ void close_thread_tables(THD *thd)
     thd->derived_tables= 0;
   }
 
+  if (thd->rec_tables)
+  {
+    TABLE *next;
+    /*
+      Close all temporary tables created for recursive table references.
+      This action was postponed because the table could be used in the
+      statements like  ANALYZE WITH r AS (...) SELECT * from r
+      where r is defined through recursion. 
+    */
+    for (table= thd->rec_tables ; table ; table= next)
+    {
+      next= table->next;
+      free_tmp_table(thd, table);
+    }
+    thd->rec_tables= 0;
+  }
+
   /*
     Mark all temporary tables used by this statement as free for reuse.
   */
@@ -842,7 +859,7 @@ void close_thread_table(THD *thd, TABLE **table_ptr)
   DBUG_ENTER("close_thread_table");
   DBUG_PRINT("tcache", ("table: '%s'.'%s' 0x%lx", table->s->db.str,
                         table->s->table_name.str, (long) table));
-  DBUG_ASSERT(table->key_read == 0);
+  DBUG_ASSERT(!table->file->keyread_enabled());
   DBUG_ASSERT(!table->file || table->file->inited == handler::NONE);
 
   /*
@@ -1043,7 +1060,7 @@ next:
   {
     /* Try to fix */
     TABLE_LIST *derived=  res->belong_to_derived;
-    if (derived->is_merged_derived())
+    if (derived->is_merged_derived() && !derived->derived->is_excluded())
     {
       DBUG_PRINT("info",
                  ("convert merged to materialization to resolve the conflict"));
@@ -1254,7 +1271,7 @@ public:
   virtual bool handle_condition(THD *thd,
                                 uint sql_errno,
                                 const char* sqlstate,
-                                Sql_condition::enum_warning_level level,
+                                Sql_condition::enum_warning_level *level,
                                 const char* msg,
                                 Sql_condition ** cond_hdl);
 
@@ -1273,7 +1290,7 @@ private:
 bool MDL_deadlock_handler::handle_condition(THD *,
                                             uint sql_errno,
                                             const char*,
-                                            Sql_condition::enum_warning_level,
+                                            Sql_condition::enum_warning_level*,
                                             const char*,
                                             Sql_condition ** cond_hdl)
 {
@@ -1917,6 +1934,11 @@ retry_share:
     DBUG_RETURN(true);
   }
 #endif
+  if (table_list->sequence && table->s->table_type != TABLE_TYPE_SEQUENCE)
+  {
+      my_error(ER_NOT_SEQUENCE, MYF(0), table_list->db, table_list->alias);
+      DBUG_RETURN(true);
+  }
 
   table->init(thd, table_list);
 
@@ -2834,7 +2856,7 @@ public:
   virtual bool handle_condition(THD *thd,
                                   uint sql_errno,
                                   const char* sqlstate,
-                                  Sql_condition::enum_warning_level level,
+                                  Sql_condition::enum_warning_level *level,
                                   const char* msg,
                                   Sql_condition ** cond_hdl)
   {
@@ -3633,8 +3655,9 @@ lock_table_names(THD *thd, const DDL_options_st &options,
     DBUG_RETURN(FALSE);
 
   /* Check if CREATE TABLE without REPLACE was used */
-  create_table= thd->lex->sql_command == SQLCOM_CREATE_TABLE &&
-                !options.or_replace();
+  create_table= ((thd->lex->sql_command == SQLCOM_CREATE_TABLE ||
+                  thd->lex->sql_command == SQLCOM_CREATE_SEQUENCE) &&
+                 !options.or_replace());
 
   if (!(flags & MYSQL_OPEN_SKIP_SCOPED_MDL_LOCK))
   {
@@ -4501,7 +4524,7 @@ TABLE *open_n_lock_single_table(THD *thd, TABLE_LIST *table_l,
   /* Set requested lock type. */
   table_l->lock_type= lock_type;
   /* Allow to open real tables only. */
-  table_l->required_type= FRMTYPE_TABLE;
+  table_l->required_type= TABLE_TYPE_NORMAL;
 
   /* Open the table. */
   if (open_and_lock_tables(thd, table_l, FALSE, flags,
@@ -4557,7 +4580,7 @@ TABLE *open_ltable(THD *thd, TABLE_LIST *table_list, thr_lock_type lock_type,
   THD_STAGE_INFO(thd, stage_opening_tables);
   thd->current_tablenr= 0;
   /* open_ltable can be used only for BASIC TABLEs */
-  table_list->required_type= FRMTYPE_TABLE;
+  table_list->required_type= TABLE_TYPE_NORMAL;
 
   /* This function can't properly handle requests for such metadata locks. */
   DBUG_ASSERT(table_list->mdl_request.type < MDL_SHARED_UPGRADABLE);
@@ -4746,6 +4769,51 @@ end:
 }
 
 
+/**
+  Open a table to read its structure, e.g. for:
+  - SHOW FIELDS
+  - delayed SP variable data type definition: DECLARE a t1.a%TYPE
+
+  The flag MYSQL_OPEN_GET_NEW_TABLE is passed to make %TYPE work
+  in stored functions, as during a stored function call
+  (e.g. in a SELECT query) the tables referenced in %TYPE can already be locked,
+  and attempt to open it again would return an error in open_table().
+
+  The flag MYSQL_OPEN_GET_NEW_TABLE is not really needed for
+  SHOW FIELDS or for a "CALL sp()" statement, but it's not harmful,
+  so let's pass it unconditionally.
+*/
+
+bool open_tables_only_view_structure(THD *thd, TABLE_LIST *table_list,
+                                     bool can_deadlock)
+{
+  DBUG_ENTER("open_tables_only_view_structure");
+  /*
+    Let us set fake sql_command so views won't try to merge
+    themselves into main statement. If we don't do this,
+    SELECT * from information_schema.xxxx will cause problems.
+    SQLCOM_SHOW_FIELDS is used because it satisfies
+    'LEX::only_view_structure()'.
+  */
+  enum_sql_command save_sql_command= thd->lex->sql_command;
+  thd->lex->sql_command= SQLCOM_SHOW_FIELDS;
+  bool rc= (thd->open_temporary_tables(table_list) ||
+           open_normal_and_derived_tables(thd, table_list,
+                                          (MYSQL_OPEN_IGNORE_FLUSH |
+                                           MYSQL_OPEN_FORCE_SHARED_HIGH_PRIO_MDL |
+                                           MYSQL_OPEN_GET_NEW_TABLE |
+                                           (can_deadlock ?
+                                            MYSQL_OPEN_FAIL_ON_MDL_CONFLICT : 0)),
+                                          DT_PREPARE | DT_CREATE));
+  /*
+    Restore old value of sql_command back as it is being looked at in
+    process_table() function.
+  */
+  thd->lex->sql_command= save_sql_command;
+  DBUG_RETURN(rc);
+}
+
+
 /*
   Mark all real tables in the list as free for reuse.
 
@@ -4806,9 +4874,9 @@ static bool fix_all_session_vcol_exprs(THD *thd, TABLE_LIST *tables)
             fix_session_vcol_expr(thd, (*df)->default_value))
           goto err;
 
-        for (Virtual_column_info **cc= t->check_constraints; cc && *cc; cc++)
-          if (fix_session_vcol_expr(thd, (*cc)))
-            goto err;
+      for (Virtual_column_info **cc= t->check_constraints; cc && *cc; cc++)
+        if (fix_session_vcol_expr(thd, (*cc)))
+          goto err;
 
       thd->security_ctx= save_security_ctx;
     }
@@ -5540,6 +5608,13 @@ find_field_in_table_ref(THD *thd, TABLE_LIST *table_list,
          strcmp(db_name, table_list->db)))))
     DBUG_RETURN(0);
 
+  /*
+    Don't allow usage of fields in sequence table that is opened as part of
+    NEXT VALUE for sequence_name
+  */
+  if (table_list->sequence)
+    DBUG_RETURN(0);
+
   *actual_table= NULL;
 
   if (table_list->field_translation)
@@ -5794,7 +5869,7 @@ find_field_in_tables(THD *thd, Item_ident *item,
       if (!table_ref->belong_to_view &&
           !table_ref->belong_to_derived)
       {
-        SELECT_LEX *current_sel= thd->lex->current_select;
+        SELECT_LEX *current_sel= item->context->select_lex;
         SELECT_LEX *last_select= table_ref->select_lex;
         bool all_merged= TRUE;
         for (SELECT_LEX *sl= current_sel; sl && sl!=last_select;
@@ -7900,14 +7975,14 @@ fill_record(THD *thd, TABLE *table_arg, List<Item> &fields, List<Item> &values,
       table_arg->update_default_fields(0, ignore_errors))
     goto err;
   /* Update virtual fields */
-  thd->abort_on_warning= FALSE;
   if (table_arg->vfield &&
-      table_arg->update_virtual_fields(VCOL_UPDATE_FOR_WRITE))
+      table_arg->update_virtual_fields(table_arg->file, VCOL_UPDATE_FOR_WRITE))
     goto err;
   thd->abort_on_warning= save_abort_on_warning;
   thd->no_errors=        save_no_errors;
   DBUG_RETURN(thd->is_error());
 err:
+  DBUG_PRINT("error",("got error"));
   thd->abort_on_warning= save_abort_on_warning;
   thd->no_errors=        save_no_errors;
   if (fields.elements)
@@ -8043,17 +8118,15 @@ fill_record_n_invoke_before_triggers(THD *thd, TABLE *table,
       Re-calculate virtual fields to cater for cases when base columns are
       updated by the triggers.
     */
-    List_iterator_fast<Item> f(fields);
-    Item *fld;
-    Item_field *item_field;
-    if (fields.elements)
+    if (table->vfield && fields.elements)
     {
-      fld= (Item_field*)f++;
-      item_field= fld->field_for_view_update();
-      if (item_field && table->vfield)
+      Item *fld= (Item_field*) fields.head();
+      Item_field *item_field= fld->field_for_view_update();
+      if (item_field)
       {
         DBUG_ASSERT(table == item_field->field->table);
-        result= table->update_virtual_fields(VCOL_UPDATE_FOR_WRITE);
+        result|= table->update_virtual_fields(table->file,
+                                              VCOL_UPDATE_FOR_WRITE);
       }
     }
   }
@@ -8088,6 +8161,7 @@ fill_record(THD *thd, TABLE *table, Field **ptr, List<Item> &values,
 {
   List_iterator_fast<Item> v(values);
   List<TABLE> tbl_list;
+  bool all_fields_have_values= true;
   Item *value;
   Field *field;
   bool abort_on_warning_saved= thd->abort_on_warning;
@@ -8140,13 +8214,15 @@ fill_record(THD *thd, TABLE *table, Field **ptr, List<Item> &values,
     else
       if (value->save_in_field(field, 0) < 0)
         goto err;
-    field->set_explicit_default(value);
+    all_fields_have_values &= field->set_explicit_default(value);
   }
-  /* There is no default fields to update, as all fields are updated */
+  if (!all_fields_have_values && table->default_field &&
+      table->update_default_fields(0, ignore_errors))
+    goto err;
   /* Update virtual fields */
   thd->abort_on_warning= FALSE;
   if (table->vfield &&
-      table->update_virtual_fields(VCOL_UPDATE_FOR_WRITE))
+      table->update_virtual_fields(table->file, VCOL_UPDATE_FOR_WRITE))
     goto err;
   thd->abort_on_warning= abort_on_warning_saved;
   DBUG_RETURN(thd->is_error());
@@ -8200,7 +8276,7 @@ fill_record_n_invoke_before_triggers(THD *thd, TABLE *table, Field **ptr,
   {
     DBUG_ASSERT(table == (*ptr)->table);
     if (table->vfield)
-      result= table->update_virtual_fields(VCOL_UPDATE_FOR_WRITE);
+      result= table->update_virtual_fields(table->file, VCOL_UPDATE_FOR_WRITE);
   }
   return result;
 
@@ -8446,6 +8522,7 @@ open_system_tables_for_read(THD *thd, TABLE_LIST *table_list,
   */
   lex->reset_n_backup_query_tables_list(&query_tables_list_backup);
   thd->reset_n_backup_open_tables_state(backup);
+  thd->lex->sql_command= SQLCOM_SELECT;
 
   if (open_and_lock_tables(thd, table_list, FALSE,
                            MYSQL_OPEN_IGNORE_FLUSH |

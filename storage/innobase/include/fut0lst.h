@@ -48,7 +48,7 @@ typedef	byte	flst_node_t;
 /* The physical size of a list node in bytes */
 #define	FLST_NODE_SIZE		(2 * FIL_ADDR_SIZE)
 
-#if !defined UNIV_HOTBACKUP && !defined UNIV_INNOCHECKSUM
+#ifndef UNIV_INNOCHECKSUM
 /********************************************************************//**
 Initializes a list base node. */
 UNIV_INLINE
@@ -74,53 +74,12 @@ flst_add_first(
 	flst_node_t*		node,	/*!< in: node to add */
 	mtr_t*			mtr);	/*!< in: mini-transaction handle */
 /********************************************************************//**
-Inserts a node after another in a list. */
-void
-flst_insert_after(
-/*==============*/
-	flst_base_node_t*	base,	/*!< in: pointer to base node of list */
-	flst_node_t*		node1,	/*!< in: node to insert after */
-	flst_node_t*		node2,	/*!< in: node to add */
-	mtr_t*			mtr);	/*!< in: mini-transaction handle */
-/********************************************************************//**
-Inserts a node before another in a list. */
-void
-flst_insert_before(
-/*===============*/
-	flst_base_node_t*	base,	/*!< in: pointer to base node of list */
-	flst_node_t*		node2,	/*!< in: node to insert */
-	flst_node_t*		node3,	/*!< in: node to insert before */
-	mtr_t*			mtr);	/*!< in: mini-transaction handle */
-/********************************************************************//**
 Removes a node. */
 void
 flst_remove(
 /*========*/
 	flst_base_node_t*	base,	/*!< in: pointer to base node of list */
 	flst_node_t*		node2,	/*!< in: node to remove */
-	mtr_t*			mtr);	/*!< in: mini-transaction handle */
-/********************************************************************//**
-Cuts off the tail of the list, including the node given. The number of
-nodes which will be removed must be provided by the caller, as this function
-does not measure the length of the tail. */
-void
-flst_cut_end(
-/*=========*/
-	flst_base_node_t*	base,	/*!< in: pointer to base node of list */
-	flst_node_t*		node2,	/*!< in: first node to remove */
-	ulint			n_nodes,/*!< in: number of nodes to remove,
-					must be >= 1 */
-	mtr_t*			mtr);	/*!< in: mini-transaction handle */
-/********************************************************************//**
-Cuts off the tail of the list, not including the given node. The number of
-nodes which will be removed must be provided by the caller, as this function
-does not measure the length of the tail. */
-void
-flst_truncate_end(
-/*==============*/
-	flst_base_node_t*	base,	/*!< in: pointer to base node of list */
-	flst_node_t*		node2,	/*!< in: first node not to remove */
-	ulint			n_nodes,/*!< in: number of nodes to remove */
 	mtr_t*			mtr);	/*!< in: mini-transaction handle */
 /** Get the length of a list.
 @param[in]	base	base node
@@ -191,19 +150,9 @@ flst_validate(
 /*==========*/
 	const flst_base_node_t*	base,	/*!< in: pointer to base node of list */
 	mtr_t*			mtr1);	/*!< in: mtr */
-/********************************************************************//**
-Prints info of a file-based list. */
-void
-flst_print(
-/*=======*/
-	const flst_base_node_t*	base,	/*!< in: pointer to base node of list */
-	mtr_t*			mtr);	/*!< in: mtr */
 
-
-#ifndef UNIV_NONINL
 #include "fut0lst.ic"
-#endif
 
-#endif /* !UNIV_HOTBACKUP && !UNIV_INNOCHECKSUM*/
+#endif /* !UNIV_INNOCHECKSUM */
 
 #endif

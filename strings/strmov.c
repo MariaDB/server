@@ -40,6 +40,7 @@
 
 char *strmov(register char *dst, register const char *src)
 {
+  DBUG_ASSERT(src + strlen(src) < dst || dst + strlen(src) < src);
   while ((*dst++ = *src++)) ;
   return dst-1;
 }

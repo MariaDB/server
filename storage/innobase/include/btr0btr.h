@@ -2,7 +2,7 @@
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2014, 2015, MariaDB Corporation. All Rights Reserved.
+Copyright (c) 2014, 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -37,7 +37,6 @@ Created 6/2/1994 Heikki Tuuri
 #include "btr0types.h"
 #include "gis0type.h"
 
-#ifndef UNIV_HOTBACKUP
 /** Maximum record size which can be stored on a page, without using the
 special big record storage structure */
 #define	BTR_PAGE_MAX_REC_SIZE	(UNIV_PAGE_SIZE / 2 - 200)
@@ -72,75 +71,99 @@ enum btr_latch_mode {
 	/** Start searching the entire B-tree. */
 	BTR_SEARCH_TREE = 37,
 	/** Continue searching the entire B-tree. */
-	BTR_CONT_SEARCH_TREE = 38
+	BTR_CONT_SEARCH_TREE = 38,
+
+	/* BTR_INSERT, BTR_DELETE and BTR_DELETE_MARK are mutually
+	exclusive. */
+	/** The search tuple will be inserted to the secondary index
+	at the searched position.  When the leaf page is not in the
+	buffer pool, try to use the change buffer. */
+	BTR_INSERT = 512,
+
+	/** Try to delete mark a secondary index leaf page record at
+	the searched position using the change buffer when the page is
+	not in the buffer pool. */
+	BTR_DELETE_MARK	= 4096,
+
+	/** Try to purge the record using the change buffer when the
+	secondary index leaf page is not in the buffer pool. */
+	BTR_DELETE = 8192,
+
+	/** The caller is already holding dict_index_t::lock S-latch. */
+	BTR_ALREADY_S_LATCHED = 16384,
+	/** Search and S-latch a leaf page, assuming that the
+	dict_index_t::lock S-latch is being held. */
+	BTR_SEARCH_LEAF_ALREADY_S_LATCHED = BTR_SEARCH_LEAF
+	| BTR_ALREADY_S_LATCHED,
+	/** Search the entire index tree, assuming that the
+	dict_index_t::lock S-latch is being held. */
+	BTR_SEARCH_TREE_ALREADY_S_LATCHED = BTR_SEARCH_TREE
+	| BTR_ALREADY_S_LATCHED,
+	/** Search and X-latch a leaf page, assuming that the
+	dict_index_t::lock S-latch is being held. */
+	BTR_MODIFY_LEAF_ALREADY_S_LATCHED = BTR_MODIFY_LEAF
+	| BTR_ALREADY_S_LATCHED,
+
+	/** Attempt to delete-mark a secondary index record. */
+	BTR_DELETE_MARK_LEAF = BTR_MODIFY_LEAF | BTR_DELETE_MARK,
+	/** Attempt to delete-mark a secondary index record
+	while holding the dict_index_t::lock S-latch. */
+	BTR_DELETE_MARK_LEAF_ALREADY_S_LATCHED = BTR_DELETE_MARK_LEAF
+	| BTR_ALREADY_S_LATCHED,
+	/** Attempt to purge a secondary index record. */
+	BTR_PURGE_LEAF = BTR_MODIFY_LEAF | BTR_DELETE,
+	/** Attempt to purge a secondary index record
+	while holding the dict_index_t::lock S-latch. */
+	BTR_PURGE_LEAF_ALREADY_S_LATCHED = BTR_PURGE_LEAF
+	| BTR_ALREADY_S_LATCHED
 };
-
-/* BTR_INSERT, BTR_DELETE and BTR_DELETE_MARK are mutually exclusive. */
-
-/** If this is ORed to btr_latch_mode, it means that the search tuple
-will be inserted to the index, at the searched position.
-When the record is not in the buffer pool, try to use the insert buffer. */
-#define BTR_INSERT		512
 
 /** This flag ORed to btr_latch_mode says that we do the search in query
 optimization */
-#define BTR_ESTIMATE		1024
+#define BTR_ESTIMATE		1024U
 
 /** This flag ORed to BTR_INSERT says that we can ignore possible
 UNIQUE definition on secondary indexes when we decide if we can use
 the insert buffer to speed up inserts */
-#define BTR_IGNORE_SEC_UNIQUE	2048
-
-/** Try to delete mark the record at the searched position using the
-insert/delete buffer when the record is not in the buffer pool. */
-#define BTR_DELETE_MARK		4096
-
-/** Try to purge the record at the searched position using the insert/delete
-buffer when the record is not in the buffer pool. */
-#define BTR_DELETE		8192
-
-/** In the case of BTR_SEARCH_LEAF or BTR_MODIFY_LEAF, the caller is
-already holding an S latch on the index tree */
-#define BTR_ALREADY_S_LATCHED	16384
+#define BTR_IGNORE_SEC_UNIQUE	2048U
 
 /** In the case of BTR_MODIFY_TREE, the caller specifies the intention
 to insert record only. It is used to optimize block->lock range.*/
-#define BTR_LATCH_FOR_INSERT	32768
+#define BTR_LATCH_FOR_INSERT	32768U
 
 /** In the case of BTR_MODIFY_TREE, the caller specifies the intention
 to delete record only. It is used to optimize block->lock range.*/
-#define BTR_LATCH_FOR_DELETE	65536
+#define BTR_LATCH_FOR_DELETE	65536U
 
 /** This flag is for undo insert of rtree. For rtree, we need this flag
 to find proper rec to undo insert.*/
-#define BTR_RTREE_UNDO_INS	131072
+#define BTR_RTREE_UNDO_INS	131072U
 
 /** In the case of BTR_MODIFY_LEAF, the caller intends to allocate or
 free the pages of externally stored fields. */
-#define BTR_MODIFY_EXTERNAL	262144
+#define BTR_MODIFY_EXTERNAL	262144U
 
 /** Try to delete mark the record at the searched position when the
 record is in spatial index */
-#define BTR_RTREE_DELETE_MARK	524288
+#define BTR_RTREE_DELETE_MARK	524288U
 
-#define BTR_LATCH_MODE_WITHOUT_FLAGS(latch_mode)	\
-	((latch_mode) & ~(BTR_INSERT			\
-			  | BTR_DELETE_MARK		\
-			  | BTR_RTREE_UNDO_INS		\
-			  | BTR_RTREE_DELETE_MARK	\
-			  | BTR_DELETE			\
-			  | BTR_ESTIMATE		\
-			  | BTR_IGNORE_SEC_UNIQUE	\
-			  | BTR_ALREADY_S_LATCHED	\
-			  | BTR_LATCH_FOR_INSERT	\
-			  | BTR_LATCH_FOR_DELETE	\
-			  | BTR_MODIFY_EXTERNAL))
+#define BTR_LATCH_MODE_WITHOUT_FLAGS(latch_mode)			\
+	((latch_mode) & btr_latch_mode(~(BTR_INSERT			\
+					 | BTR_DELETE_MARK		\
+					 | BTR_RTREE_UNDO_INS		\
+					 | BTR_RTREE_DELETE_MARK	\
+					 | BTR_DELETE			\
+					 | BTR_ESTIMATE			\
+					 | BTR_IGNORE_SEC_UNIQUE	\
+					 | BTR_ALREADY_S_LATCHED	\
+					 | BTR_LATCH_FOR_INSERT		\
+					 | BTR_LATCH_FOR_DELETE		\
+					 | BTR_MODIFY_EXTERNAL)))
 
-#define BTR_LATCH_MODE_WITHOUT_INTENTION(latch_mode)	\
-	((latch_mode) & ~(BTR_LATCH_FOR_INSERT		\
-			  | BTR_LATCH_FOR_DELETE	\
-			  | BTR_MODIFY_EXTERNAL))
-#endif /* UNIV_HOTBACKUP */
+#define BTR_LATCH_MODE_WITHOUT_INTENTION(latch_mode)			\
+	((latch_mode) & btr_latch_mode(~(BTR_LATCH_FOR_INSERT		\
+					 | BTR_LATCH_FOR_DELETE		\
+					 | BTR_MODIFY_EXTERNAL)))
 
 /**************************************************************//**
 Report that an index page is corrupted. */
@@ -161,7 +184,6 @@ btr_corruption_report(
 		ut_error;					\
 	}
 
-#ifndef UNIV_HOTBACKUP
 /**************************************************************//**
 Gets the root node of a tree and sx-latches it for segment access.
 @return root page, sx-latched */
@@ -209,7 +231,7 @@ btr_block_get_func(
 	const page_size_t&	page_size,
 	ulint			mode,
 	const char*		file,
-	ulint			line,
+	unsigned		line,
 	dict_index_t*		index,
 	mtr_t*			mtr);
 
@@ -242,10 +264,16 @@ btr_block_get_func(
 @param index index tree, may be NULL if not the insert buffer tree
 @param mtr mini-transaction handle
 @return the uncompressed page frame */
-# define btr_page_get(page_id, page_size, mode, index, mtr)	\
-	buf_block_get_frame(btr_block_get(page_id, page_size,	\
-					  mode, index, mtr))
-#endif /* !UNIV_HOTBACKUP */
+UNIV_INLINE
+page_t*
+btr_page_get(
+/*=========*/
+	const page_id_t&	page_id,
+	const page_size_t&	page_size,
+	ulint			mode,
+	dict_index_t*		index,
+	mtr_t*			mtr)
+	MY_ATTRIBUTE((warn_unused_result));
 /**************************************************************//**
 Gets the index id field of a page.
 @return index id */
@@ -255,7 +283,6 @@ btr_page_get_index_id(
 /*==================*/
 	const page_t*	page)	/*!< in: index page */
 	MY_ATTRIBUTE((warn_unused_result));
-#ifndef UNIV_HOTBACKUP
 /********************************************************//**
 Gets the node level field in an index page.
 @return level, leaf level == 0 */
@@ -352,6 +379,34 @@ void
 btr_free(
 	const page_id_t&	page_id,
 	const page_size_t&	page_size);
+
+/** Read the last used AUTO_INCREMENT value from PAGE_ROOT_AUTO_INC.
+@param[in,out]	index	clustered index
+@return	the last used AUTO_INCREMENT value
+@retval	0 on error or if no AUTO_INCREMENT value was used yet */
+ib_uint64_t
+btr_read_autoinc(dict_index_t* index)
+	MY_ATTRIBUTE((nonnull, warn_unused_result));
+
+/** Read the last used AUTO_INCREMENT value from PAGE_ROOT_AUTO_INC,
+or fall back to MAX(auto_increment_column).
+@param[in]	table	table containing an AUTO_INCREMENT column
+@param[in]	col_no	index of the AUTO_INCREMENT column
+@return	the AUTO_INCREMENT value
+@retval	0 on error or if no AUTO_INCREMENT value was used yet */
+ib_uint64_t
+btr_read_autoinc_with_fallback(const dict_table_t* table, unsigned col_no)
+	MY_ATTRIBUTE((nonnull, warn_unused_result));
+
+/** Write the next available AUTO_INCREMENT value to PAGE_ROOT_AUTO_INC.
+@param[in,out]	index	clustered index
+@param[in]	autoinc	the AUTO_INCREMENT value
+@param[in]	reset	whether to reset the AUTO_INCREMENT
+			to a possibly smaller value than currently
+			exists in the page */
+void
+btr_write_autoinc(dict_index_t* index, ib_uint64_t autoinc, bool reset = false)
+	MY_ATTRIBUTE((nonnull));
 
 /*************************************************************//**
 Makes tree one level higher by splitting the root, and inserts
@@ -477,11 +532,10 @@ btr_insert_on_non_leaf_level_func(
 	ulint		level,	/*!< in: level, must be > 0 */
 	dtuple_t*	tuple,	/*!< in: the record to be inserted */
 	const char*	file,	/*!< in: file name */
-	ulint		line,	/*!< in: line where called */
+	unsigned	line,	/*!< in: line where called */
 	mtr_t*		mtr);	/*!< in: mtr */
-# define btr_insert_on_non_leaf_level(f,i,l,t,m)			\
+#define btr_insert_on_non_leaf_level(f,i,l,t,m)			\
 	btr_insert_on_non_leaf_level_func(f,i,l,t,__FILE__,__LINE__,m)
-#endif /* !UNIV_HOTBACKUP */
 /****************************************************************//**
 Sets a record as the predefined minimum record. */
 void
@@ -490,7 +544,6 @@ btr_set_min_rec_mark(
 	rec_t*	rec,	/*!< in/out: record */
 	mtr_t*	mtr)	/*!< in: mtr */
 	MY_ATTRIBUTE((nonnull));
-#ifndef UNIV_HOTBACKUP
 /*************************************************************//**
 Deletes on the upper level the node pointer to a page. */
 void
@@ -543,7 +596,6 @@ btr_discard_page(
 	btr_cur_t*	cursor,	/*!< in: cursor on the page to discard: not on
 				the root page */
 	mtr_t*		mtr);	/*!< in: mtr */
-#endif /* !UNIV_HOTBACKUP */
 /****************************************************************//**
 Parses the redo log record for setting an index record as the predefined
 minimum record.
@@ -570,7 +622,6 @@ btr_parse_page_reorganize(
 	buf_block_t*	block,	/*!< in: page to be reorganized, or NULL */
 	mtr_t*		mtr)	/*!< in: mtr or NULL */
 	MY_ATTRIBUTE((warn_unused_result));
-#ifndef UNIV_HOTBACKUP
 /**************************************************************//**
 Gets the number of pages in a B-tree.
 @return number of pages, or ULINT_UNDEFINED if the index is unavailable */
@@ -771,11 +822,8 @@ btr_lift_page_up(
 
 #define BTR_N_LEAF_PAGES	1
 #define BTR_TOTAL_SIZE		2
-#endif /* !UNIV_HOTBACKUP */
 
-#ifndef UNIV_NONINL
 #include "btr0btr.ic"
-#endif
 
 /****************************************************************
 Global variable controlling if scrubbing should be performed */

@@ -340,6 +340,9 @@ private:
   */
   bool with_distinct;
 
+  /* TRUE if this is aggregate function of a window function */
+  bool window_func_sum_expr_flag;
+
 public:
 
   bool has_force_copy_fields() const { return force_copy_fields; }
@@ -406,10 +409,31 @@ public:
   Item_sum(THD *thd, Item_sum *item);
   enum Type type() const { return SUM_FUNC_ITEM; }
   virtual enum Sumfunctype sum_func () const=0;
+  bool is_aggr_sum_func()
+  {
+    switch (sum_func()) {
+    case COUNT_FUNC:
+    case COUNT_DISTINCT_FUNC:
+    case SUM_FUNC:
+    case SUM_DISTINCT_FUNC:
+    case AVG_FUNC:
+    case AVG_DISTINCT_FUNC:
+    case MIN_FUNC:
+    case MAX_FUNC:
+    case STD_FUNC:
+    case VARIANCE_FUNC:
+    case SUM_BIT_FUNC:
+    case UDF_SUM_FUNC:
+    case GROUP_CONCAT_FUNC:
+      return true;
+    default:
+      return false;
+    }
+  }
   /**
     Resets the aggregate value to its default and aggregates the current
     value of its attribute(s).
-  */  
+  */
   inline bool reset_and_add() 
   { 
     aggregator_clear();
@@ -432,7 +456,6 @@ public:
     Updated value is then saved in the field.
   */
   virtual void update_field()=0;
-  virtual bool keep_field_type(void) const { return 0; }
   virtual void fix_length_and_dec() { maybe_null=1; null_value=1; }
   virtual Item *result_item(THD *thd, Field *field);
 
@@ -496,7 +519,7 @@ public:
   st_select_lex *depended_from() 
     { return (nest_level == aggr_level ? 0 : aggr_sel); }
 
-  Item *get_arg(uint i) { return args[i]; }
+  Item *get_arg(uint i) const { return args[i]; }
   Item *set_arg(uint i, THD *thd, Item *new_val);
   uint get_arg_count() const { return arg_count; }
 
@@ -551,6 +574,9 @@ public:
   virtual void cleanup();
   bool check_vcol_func_processor(void *arg);
   virtual void setup_window_func(THD *thd, Window_spec *window_spec) {}
+  void mark_as_window_func_sum_expr() { window_func_sum_expr_flag= true; }
+  bool is_window_func_sum_expr() { return window_func_sum_expr_flag; }
+  virtual void setup_caches(THD *thd) {};
 };
 
 
@@ -763,6 +789,8 @@ public:
   { return Type_handler_hybrid_field_type::result_type(); }
   enum Item_result cmp_type () const
   { return Type_handler_hybrid_field_type::cmp_type(); }
+  void fix_length_and_dec_double();
+  void fix_length_and_dec_decimal();
   void reset_field();
   void update_field();
   void no_rows_in_result() {}
@@ -862,6 +890,8 @@ public:
     :Item_sum_sum(thd, item), count(item->count),
     prec_increment(item->prec_increment) {}
 
+  void fix_length_and_dec_double();
+  void fix_length_and_dec_decimal();
   void fix_length_and_dec();
   enum Sumfunctype sum_func () const 
   {
@@ -936,6 +966,8 @@ public:
     {}
   Item_sum_variance(THD *thd, Item_sum_variance *item);
   enum Sumfunctype sum_func () const { return VARIANCE_FUNC; }
+  void fix_length_and_dec_double();
+  void fix_length_and_dec_decimal();
   void clear();
   bool add();
   double val_real();
@@ -1014,7 +1046,10 @@ protected:
   my_decimal *val_decimal(my_decimal *);
   void reset_field();
   String *val_str(String *);
-  bool keep_field_type(void) const { return 1; }
+  const Type_handler *real_type_handler() const
+  {
+    return get_arg(0)->real_type_handler();
+  }
   const Type_handler *type_handler() const
   { return Type_handler_hybrid_field_type::type_handler(); }
   enum Item_result result_type () const
@@ -1033,6 +1068,7 @@ protected:
   void no_rows_in_result();
   void restore_to_before_no_rows_in_result();
   Field *create_tmp_field(bool group, TABLE *table);
+  void setup_caches(THD *thd) { setup_hybrid(thd, arguments()[0], NULL); }
 };
 
 
@@ -1200,7 +1236,6 @@ public:
     fixed= true;
   }
   table_map used_tables() const { return (table_map) 1L; }
-  void set_result_field(Field *) { DBUG_ASSERT(0); }
   void save_in_result_field(bool no_conversions) { DBUG_ASSERT(0); }
   bool check_vcol_func_processor(void *arg)
   {

@@ -1,5 +1,5 @@
 /* Copyright (c) 2006, 2014, Oracle and/or its affiliates.
-   Copyright (c) 2011, 2014, Monty Program Ab.
+   Copyright (c) 2011, 2017, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -196,7 +196,7 @@ int mysql_create_table_no_lock(THD *thd, const char *db,
                                const char *table_name,
                                Table_specification_st *create_info,
                                Alter_info *alter_info, bool *is_trans,
-                               int create_table_mode);
+                               int create_table_mode, TABLE_LIST *table);
 
 handler *mysql_create_frm_image(THD *thd,
                                 const char *db, const char *table_name,
@@ -239,10 +239,11 @@ bool mysql_restore_table(THD* thd, TABLE_LIST* table_list);
 
 bool mysql_checksum_table(THD* thd, TABLE_LIST* table_list,
                           HA_CHECK_OPT* check_opt);
-bool mysql_rm_table(THD *thd,TABLE_LIST *tables, my_bool if_exists,
-                    my_bool drop_temporary);
+bool mysql_rm_table(THD *thd,TABLE_LIST *tables, bool if_exists,
+                    bool drop_temporary, bool drop_sequence);
 int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
                             bool drop_temporary, bool drop_view,
+                            bool drop_sequence,
                             bool log_query, bool dont_free_locks);
 bool log_drop_table(THD *thd, const char *db_name, size_t db_name_length,
                     const char *table_name, size_t table_name_length,
@@ -251,6 +252,7 @@ bool quick_rm_table(THD *thd, handlerton *base, const char *db,
                     const char *table_name, uint flags,
                     const char *table_path=0);
 void close_cached_table(THD *thd, TABLE *table);
+void sp_prepare_create_field(THD *thd, Column_definition *sql_field);
 CHARSET_INFO* get_sql_field_charset(Create_field *sql_field,
                                     HA_CREATE_INFO *create_info);
 bool mysql_write_frm(ALTER_PARTITION_PARAM_TYPE *lpt, uint flags);

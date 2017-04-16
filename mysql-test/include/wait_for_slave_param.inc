@@ -50,6 +50,10 @@ let $_slave_timeout= $slave_timeout;
 if (!$_slave_timeout)
 {
   let $_slave_timeout= 300;
+  if ($VALGRIND_TEST)
+  {
+    let $_slave_timeout= 1500;
+  }
 }
 
 if ($slave_error_param == '')

@@ -78,7 +78,7 @@ public:
 
     // effect: Resets the lock request parameters, allowing it to be reused.
     // requires: Lock request was already created at some point
-    void set(locktree *lt, TXNID txnid, const DBT *left_key, const DBT *right_key, type lock_type, bool big_txn);
+    void set(locktree *lt, TXNID txnid, const DBT *left_key, const DBT *right_key, type lock_type, bool big_txn, void *extra = nullptr);
 
     // effect: Tries to acquire a lock described by this lock request.
     // returns: The return code of locktree::acquire_[write,read]_lock()
@@ -89,7 +89,8 @@ public:
     // returns: The return code of locktree::acquire_[write,read]_lock()
     //          or simply DB_LOCK_NOTGRANTED if the wait time expired.
     int wait(uint64_t wait_time_ms);
-    int wait(uint64_t wait_time_ms, uint64_t killed_time_ms, int (*killed_callback)(void));
+    int wait(uint64_t wait_time_ms, uint64_t killed_time_ms, int (*killed_callback)(void),
+             void (*lock_wait_callback)(void *, TXNID, TXNID) = nullptr);
 
     // return: left end-point of the lock range
     const DBT *get_left_key(void) const;
@@ -109,12 +110,18 @@ public:
     // effect: Retries all of the lock requests for the given locktree.
     //         Any lock requests successfully restarted is completed and woken up.
     //         The rest remain pending.
-    static void retry_all_lock_requests(locktree *lt);
+    static void retry_all_lock_requests(locktree *lt, void (*lock_wait_callback)(void *, TXNID, TXNID) = nullptr, void (*after_retry_test_callback)(void) = nullptr);
 
     void set_start_test_callback(void (*f)(void));
+    void set_start_before_pending_test_callback(void (*f)(void));
     void set_retry_test_callback(void (*f)(void));
-private:
 
+    void *get_extra(void) const;
+
+    void kill_waiter(void);
+    static void kill_waiter(locktree *lt, void *extra);
+
+private:
     enum state {
         UNINITIALIZED,
         INITIALIZED,
@@ -152,9 +159,11 @@ private:
     // locktree that this lock request is for.
     struct lt_lock_request_info *m_info;
 
+    void *m_extra;
+
     // effect: tries again to acquire the lock described by this lock request
     // returns: 0 if retrying the request succeeded and is now complete
-    int retry(void);
+    int retry(GrowableArray<TXNID> *conflict_collector);
 
     void complete(int complete_r);
 
@@ -186,7 +195,13 @@ private:
 
     static int find_by_txnid(lock_request * const &request, const TXNID &txnid);
 
+    // Report list of conflicts to lock wait callback.
+    static void report_waits(GrowableArray<TXNID> *wait_conflicts,
+                             void (*lock_wait_callback)(void *, TXNID, TXNID));
+    void add_conflicts_to_waits(txnid_set *conflicts, GrowableArray<TXNID> *wait_conflicts);
+
     void (*m_start_test_callback)(void);
+    void (*m_start_before_pending_test_callback)(void);
     void (*m_retry_test_callback)(void);
 
     friend class lock_request_unit_test;

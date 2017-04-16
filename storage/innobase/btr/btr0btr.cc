@@ -2,7 +2,7 @@
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2014, 2016, MariaDB Corporation
+Copyright (c) 2014, 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -28,16 +28,11 @@ Created 6/2/1994 Heikki Tuuri
 #include "btr0btr.h"
 #include "ha_prototypes.h"
 
-#ifdef UNIV_NONINL
-#include "btr0btr.ic"
-#endif
-
 #include "fsp0sysspace.h"
 #include "page0page.h"
 #include "page0zip.h"
 #include "gis0rtree.h"
 
-#ifndef UNIV_HOTBACKUP
 #include "btr0cur.h"
 #include "btr0sea.h"
 #include "btr0pcur.h"
@@ -50,11 +45,13 @@ Created 6/2/1994 Heikki Tuuri
 #include "gis0geo.h"
 #include "ut0new.h"
 #include "dict0boot.h"
+#include "row0sel.h" /* row_search_max_autoinc() */
 
 /**************************************************************//**
 Checks if the page in the cursor can be merged with given page.
 If necessary, re-organize the merge_page.
 @return	true if possible to merge. */
+static
 bool
 btr_can_merge_with_page(
 /*====================*/
@@ -62,8 +59,6 @@ btr_can_merge_with_page(
 	ulint		page_no,	/*!< in: a sibling page */
 	buf_block_t**	merge_block,	/*!< out: the merge block */
 	mtr_t*		mtr);		/*!< in: mini-transaction */
-
-#endif /* UNIV_HOTBACKUP */
 
 /**************************************************************//**
 Report that an index page is corrupted. */
@@ -79,7 +74,6 @@ btr_corruption_report(
 		<< " of table " << index->table->name;
 }
 
-#ifndef UNIV_HOTBACKUP
 /*
 Latching strategy of the InnoDB B-tree
 --------------------------------------
@@ -173,16 +167,17 @@ btr_root_block_get(
 	buf_block_t*	block = btr_block_get(page_id, page_size, mode,
 					      index, mtr);
 
-
 	if (!block) {
-		index->table->is_encrypted = TRUE;
-		index->table->corrupted = FALSE;
+		if (index && index->table) {
+			index->table->is_encrypted = TRUE;
+			index->table->corrupted = FALSE;
 
-		ib_push_warning(index->table->thd, DB_DECRYPTION_FAILED,
-			"Table %s in tablespace %lu is encrypted but encryption service or"
-			" used key_id is not available. "
-			" Can't continue reading table.",
-			index->table->name, space);
+			ib_push_warning(index->table->thd, DB_DECRYPTION_FAILED,
+				"Table %s in tablespace %lu is encrypted but encryption service or"
+				" used key_id is not available. "
+				" Can't continue reading table.",
+				index->table->name, space);
+		}
 
 		return NULL;
 	}
@@ -337,12 +332,9 @@ btr_root_adjust_on_import(
 		} else {
 			/* Check that the table flags and the tablespace
 			flags match. */
-			ulint	flags = dict_tf_to_fsp_flags(
-				table->flags,
-				false,
-				dict_table_is_encrypted(table));
+			ulint	flags = dict_tf_to_fsp_flags(table->flags);
 			ulint	fsp_flags = fil_space_get_flags(table->space);
-			err = fsp_flags_are_equal(flags, fsp_flags)
+			err = flags == fsp_flags
 			      ? DB_SUCCESS : DB_CORRUPTION;
 		}
 	} else {
@@ -730,7 +722,7 @@ btr_page_free_low(
 			offsets = rec_get_offsets(rec, index,
 						  offsets, ULINT_UNDEFINED,
 						  &heap);
-			uint size = rec_offs_data_size(offsets);
+			ulint size = rec_offs_data_size(offsets);
 			memset(rec, 0, size);
 			rec = page_rec_get_next(rec);
 			cnt++;
@@ -895,7 +887,7 @@ btr_page_get_father_node_ptr_func(
 	ulint		latch_mode,/*!< in: BTR_CONT_MODIFY_TREE
 				or BTR_CONT_SEARCH_TREE */
 	const char*	file,	/*!< in: file name */
-	ulint		line,	/*!< in: line where called */
+	unsigned	line,	/*!< in: line where called */
 	mtr_t*		mtr)	/*!< in: mtr */
 {
 	dtuple_t*	tuple;
@@ -1319,6 +1311,11 @@ leaf_loop:
 
 	page_t*	root = block->frame;
 
+	if (!root) {
+		mtr_commit(&mtr);
+		return;
+	}
+
 #ifdef UNIV_BTR_DEBUG
 	ut_a(btr_root_fseg_validate(FIL_PAGE_DATA + PAGE_BTR_SEG_LEAF
 				    + root, block->page.id.space()));
@@ -1399,13 +1396,125 @@ btr_free(
 	buf_block_t*	block = buf_page_get(
 		page_id, page_size, RW_X_LATCH, &mtr);
 
-	ut_ad(page_is_root(block->frame));
+	if (block) {
+		ut_ad(page_is_root(block->frame));
 
-	btr_free_but_not_root(block, MTR_LOG_NO_REDO);
-	btr_free_root(block, &mtr);
+		btr_free_but_not_root(block, MTR_LOG_NO_REDO);
+		btr_free_root(block, &mtr);
+	}
 	mtr.commit();
 }
-#endif /* !UNIV_HOTBACKUP */
+
+/** Read the last used AUTO_INCREMENT value from PAGE_ROOT_AUTO_INC.
+@param[in,out]	index	clustered index
+@return	the last used AUTO_INCREMENT value
+@retval	0 on error or if no AUTO_INCREMENT value was used yet */
+ib_uint64_t
+btr_read_autoinc(dict_index_t* index)
+{
+	ut_ad(dict_index_is_clust(index));
+	ut_ad(index->table->persistent_autoinc);
+	ut_ad(!dict_table_is_temporary(index->table));
+
+	if (fil_space_t* space = fil_space_acquire(index->space)) {
+		mtr_t		mtr;
+		mtr.start();
+		ib_uint64_t	autoinc;
+		if (buf_block_t* block = buf_page_get(
+			    page_id_t(index->space, index->page),
+			    page_size_t(space->flags),
+			    RW_S_LATCH, &mtr)) {
+			autoinc = page_get_autoinc(block->frame);
+		} else {
+			autoinc = 0;
+		}
+		mtr.commit();
+		fil_space_release(space);
+		return(autoinc);
+	}
+
+	return(0);
+}
+
+/** Read the last used AUTO_INCREMENT value from PAGE_ROOT_AUTO_INC,
+or fall back to MAX(auto_increment_column).
+@param[in]	table	table containing an AUTO_INCREMENT column
+@param[in]	col_no	index of the AUTO_INCREMENT column
+@return	the AUTO_INCREMENT value
+@retval	0 on error or if no AUTO_INCREMENT value was used yet */
+ib_uint64_t
+btr_read_autoinc_with_fallback(const dict_table_t* table, unsigned col_no)
+{
+	ut_ad(table->persistent_autoinc);
+	ut_ad(!dict_table_is_temporary(table));
+
+	dict_index_t*	index = dict_table_get_first_index(table);
+
+	if (index == NULL) {
+	} else if (fil_space_t* space = fil_space_acquire(index->space)) {
+		mtr_t		mtr;
+		mtr.start();
+		buf_block_t*	block = buf_page_get(
+			page_id_t(index->space, index->page),
+			page_size_t(space->flags),
+			RW_S_LATCH, &mtr);
+
+		ib_uint64_t	autoinc	= block
+			? page_get_autoinc(block->frame) : 0;
+		const bool	retry	= block && autoinc == 0
+			&& !page_is_empty(block->frame);
+		mtr.commit();
+		fil_space_release(space);
+
+		if (retry) {
+			/* This should be an old data file where
+			PAGE_ROOT_AUTO_INC was initialized to 0.
+			Fall back to reading MAX(autoinc_col).
+			There should be an index on it. */
+			const dict_col_t*	autoinc_col
+				= dict_table_get_nth_col(table, col_no);
+			while (index != NULL
+			       && index->fields[0].col != autoinc_col) {
+				index = dict_table_get_next_index(index);
+			}
+
+			if (index != NULL && index->space == space->id) {
+				autoinc = row_search_max_autoinc(index);
+			}
+		}
+
+		return(autoinc);
+	}
+
+	return(0);
+}
+
+/** Write the next available AUTO_INCREMENT value to PAGE_ROOT_AUTO_INC.
+@param[in,out]	index	clustered index
+@param[in]	autoinc	the AUTO_INCREMENT value
+@param[in]	reset	whether to reset the AUTO_INCREMENT
+			to a possibly smaller value than currently
+			exists in the page */
+void
+btr_write_autoinc(dict_index_t* index, ib_uint64_t autoinc, bool reset)
+{
+	ut_ad(dict_index_is_clust(index));
+	ut_ad(index->table->persistent_autoinc);
+	ut_ad(!dict_table_is_temporary(index->table));
+
+	if (fil_space_t* space = fil_space_acquire(index->space)) {
+		mtr_t		mtr;
+		mtr.start();
+		mtr.set_named_space(space);
+		page_set_autoinc(buf_page_get(
+					 page_id_t(index->space, index->page),
+					 page_size_t(space->flags),
+					 RW_SX_LATCH, &mtr),
+				 index, autoinc, &mtr, reset);
+		mtr.commit();
+		fil_space_release(space);
+	}
+}
 
 /*************************************************************//**
 Reorganizes an index page.
@@ -1433,9 +1542,7 @@ btr_page_reorganize_low(
 	mtr_t*		mtr)	/*!< in/out: mini-transaction */
 {
 	buf_block_t*	block		= page_cur_get_block(cursor);
-#ifndef UNIV_HOTBACKUP
 	buf_pool_t*	buf_pool	= buf_pool_from_bpage(&block->page);
-#endif /* !UNIV_HOTBACKUP */
 	page_t*		page		= buf_block_get_frame(block);
 	page_zip_des_t*	page_zip	= buf_block_get_page_zip(block);
 	buf_block_t*	temp_block;
@@ -1460,12 +1567,7 @@ btr_page_reorganize_low(
 	/* Turn logging off */
 	mtr_log_t	log_mode = mtr_set_log_mode(mtr, MTR_LOG_NONE);
 
-#ifndef UNIV_HOTBACKUP
 	temp_block = buf_block_alloc(buf_pool);
-#else /* !UNIV_HOTBACKUP */
-	ut_ad(block == back_block1);
-	temp_block = back_block2;
-#endif /* !UNIV_HOTBACKUP */
 	temp_page = temp_block->frame;
 
 	MONITOR_INC(MONITOR_INDEX_REORG_ATTEMPTS);
@@ -1478,11 +1580,9 @@ btr_page_reorganize_low(
 	/* Copy the old page to temporary space */
 	buf_frame_copy(temp_page, page);
 
-#ifndef UNIV_HOTBACKUP
 	if (!recovery) {
 		btr_search_drop_page_hash_index(block);
 	}
-#endif /* !UNIV_HOTBACKUP */
 
 	/* Save the cursor position. */
 	pos = page_rec_get_n_recs_before(page_cur_get_rec(cursor));
@@ -1499,21 +1599,28 @@ btr_page_reorganize_low(
 					page_get_infimum_rec(temp_page),
 					index, mtr);
 
-	/* Multiple transactions cannot simultaneously operate on the
-	same temp-table in parallel.
-	max_trx_id is ignored for temp tables because it not required
-	for MVCC. */
-	if (dict_index_is_sec_or_ibuf(index)
-	    && page_is_leaf(page)
-	    && !dict_table_is_temporary(index->table)) {
-		/* Copy max trx id to recreated page */
-		trx_id_t	max_trx_id = page_get_max_trx_id(temp_page);
-		page_set_max_trx_id(block, NULL, max_trx_id, mtr);
-		/* In crash recovery, dict_index_is_sec_or_ibuf() always
-		holds, even for clustered indexes.  max_trx_id is
-		unused in clustered index pages. */
-		ut_ad(max_trx_id != 0 || recovery);
-	}
+	/* Copy the PAGE_MAX_TRX_ID or PAGE_ROOT_AUTO_INC. */
+	memcpy(page + (PAGE_HEADER + PAGE_MAX_TRX_ID),
+	       temp_page + (PAGE_HEADER + PAGE_MAX_TRX_ID), 8);
+	/* PAGE_MAX_TRX_ID is unused in clustered index pages,
+	non-leaf pages, and in temporary tables. It was always
+	zero-initialized in page_create() in all InnoDB versions.
+	PAGE_MAX_TRX_ID must be nonzero on dict_index_is_sec_or_ibuf()
+	leaf pages.
+
+	During redo log apply, dict_index_is_sec_or_ibuf() always
+	holds, even for clustered indexes. */
+	ut_ad(recovery || dict_table_is_temporary(index->table)
+	      || !page_is_leaf(temp_page)
+	      || !dict_index_is_sec_or_ibuf(index)
+	      || page_get_max_trx_id(page) != 0);
+	/* PAGE_MAX_TRX_ID must be zero on non-leaf pages other than
+	clustered index root pages. */
+	ut_ad(recovery
+	      || page_get_max_trx_id(page) == 0
+	      || (dict_index_is_sec_or_ibuf(index)
+		  ? page_is_leaf(temp_page)
+		  : page_is_root(temp_page)));
 
 	/* If innodb_log_compressed_pages is ON, page reorganize should log the
 	compressed page image.*/
@@ -1550,12 +1657,10 @@ btr_page_reorganize_low(
 		goto func_exit;
 	}
 
-#ifndef UNIV_HOTBACKUP
 	if (!recovery && !dict_table_is_locking_disabled(index->table)) {
 		/* Update the record lock bitmaps */
 		lock_move_reorganize_page(block, temp_block);
 	}
-#endif /* !UNIV_HOTBACKUP */
 
 	data_size2 = page_get_data_size(page);
 	max_ins_size2 = page_get_max_insert_size_after_reorganize(page, 1);
@@ -1584,14 +1689,11 @@ func_exit:
 #ifdef UNIV_ZIP_DEBUG
 	ut_a(!page_zip || page_zip_validate(page_zip, page, index));
 #endif /* UNIV_ZIP_DEBUG */
-#ifndef UNIV_HOTBACKUP
 	buf_block_free(temp_block);
-#endif /* !UNIV_HOTBACKUP */
 
 	/* Restore logging mode */
 	mtr_set_log_mode(mtr, log_mode);
 
-#ifndef UNIV_HOTBACKUP
 	if (success) {
 		mlog_id_t	type;
 		byte*		log_ptr;
@@ -1620,7 +1722,6 @@ func_exit:
 
 		MONITOR_INC(MONITOR_INDEX_REORG_SUCCESSFUL);
 	}
-#endif /* !UNIV_HOTBACKUP */
 
 	return(success);
 }
@@ -1656,7 +1757,6 @@ btr_page_reorganize_block(
 	return(btr_page_reorganize_low(recovery, z_level, &cur, index, mtr));
 }
 
-#ifndef UNIV_HOTBACKUP
 /*************************************************************//**
 Reorganizes an index page.
 
@@ -1678,7 +1778,6 @@ btr_page_reorganize(
 	return(btr_page_reorganize_low(false, page_zip_level,
 				       cursor, index, mtr));
 }
-#endif /* !UNIV_HOTBACKUP */
 
 /***********************************************************//**
 Parses a redo log record of reorganizing a page.
@@ -1722,7 +1821,6 @@ btr_parse_page_reorganize(
 	return(ptr);
 }
 
-#ifndef UNIV_HOTBACKUP
 /*************************************************************//**
 Empties an index page.  @see btr_page_create(). */
 static
@@ -1748,12 +1846,23 @@ btr_page_empty(
 	/* Recreate the page: note that global data on page (possible
 	segment headers, next page-field, etc.) is preserved intact */
 
+	/* Preserve PAGE_ROOT_AUTO_INC when creating a clustered index
+	root page. */
+	const ib_uint64_t	autoinc
+		= dict_index_is_clust(index) && page_is_root(page)
+		? page_get_autoinc(page)
+		: 0;
+
 	if (page_zip) {
-		page_create_zip(block, index, level, 0, NULL, mtr);
+		page_create_zip(block, index, level, autoinc, NULL, mtr);
 	} else {
 		page_create(block, mtr, dict_table_is_comp(index->table),
 			    dict_index_is_spatial(index));
 		btr_page_set_level(page, NULL, level, mtr);
+		if (autoinc) {
+			mlog_write_ull(PAGE_HEADER + PAGE_MAX_TRX_ID + page,
+				       autoinc, mtr);
+		}
 	}
 }
 
@@ -2284,7 +2393,7 @@ btr_insert_on_non_leaf_level_func(
 	ulint		level,	/*!< in: level, must be > 0 */
 	dtuple_t*	tuple,	/*!< in: the record to be inserted */
 	const char*	file,	/*!< in: file name */
-	ulint		line,	/*!< in: line where called */
+	unsigned	line,	/*!< in: line where called */
 	mtr_t*		mtr)	/*!< in: mtr */
 {
 	big_rec_t*	dummy_big_rec;
@@ -3206,9 +3315,6 @@ btr_set_min_rec_mark_log(
 	/* Write rec offset as a 2-byte ulint */
 	mlog_catenate_ulint(mtr, page_offset(rec), MLOG_2BYTES);
 }
-#else /* !UNIV_HOTBACKUP */
-# define btr_set_min_rec_mark_log(rec,comp,mtr) ((void) 0)
-#endif /* !UNIV_HOTBACKUP */
 
 /****************************************************************//**
 Parses the redo log record for setting an index record as the predefined
@@ -3266,7 +3372,6 @@ btr_set_min_rec_mark(
 	}
 }
 
-#ifndef UNIV_HOTBACKUP
 /*************************************************************//**
 Deletes on the upper level the node pointer to a page. */
 void
@@ -5205,6 +5310,7 @@ node_ptr_fails:
 /**************************************************************//**
 Do an index level validation of spaital index tree.
 @return	true if no error found */
+static
 bool
 btr_validate_spatial_index(
 /*=======================*/
@@ -5306,6 +5412,7 @@ btr_validate_index(
 Checks if the page in the cursor can be merged with given page.
 If necessary, re-organize the merge_page.
 @return	true if possible to merge. */
+static
 bool
 btr_can_merge_with_page(
 /*====================*/
@@ -5358,7 +5465,6 @@ btr_can_merge_with_page(
 		goto error;
 	}
 
-
 	max_ins_size = page_get_max_insert_size(mpage, n_recs);
 
 	if (data_size > max_ins_size) {
@@ -5392,5 +5498,3 @@ error:
 	*merge_block = NULL;
 	DBUG_RETURN(false);
 }
-
-#endif /* !UNIV_HOTBACKUP */

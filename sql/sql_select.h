@@ -2,7 +2,7 @@
 #define SQL_SELECT_INCLUDED
 
 /* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2015, MariaDB
+   Copyright (c) 2008, 2017, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -36,9 +36,9 @@
 
 typedef struct st_join_table JOIN_TAB;
 /* Values in optimize */
-#define KEY_OPTIMIZE_EXISTS		1
-#define KEY_OPTIMIZE_REF_OR_NULL	2
-#define KEY_OPTIMIZE_EQ	                4
+#define KEY_OPTIMIZE_EXISTS		1U
+#define KEY_OPTIMIZE_REF_OR_NULL	2U
+#define KEY_OPTIMIZE_EQ	                4U
 
 inline uint get_hash_join_key_no() { return MAX_KEY; }
 
@@ -178,10 +178,10 @@ enum sj_strategy_enum
 };
 
 /* Values for JOIN_TAB::packed_info */
-#define TAB_INFO_HAVE_VALUE 1
-#define TAB_INFO_USING_INDEX 2
-#define TAB_INFO_USING_WHERE 4
-#define TAB_INFO_FULL_SCAN_ON_NULL 8
+#define TAB_INFO_HAVE_VALUE 1U
+#define TAB_INFO_USING_INDEX 2U
+#define TAB_INFO_USING_WHERE 4U
+#define TAB_INFO_FULL_SCAN_ON_NULL 8U
 
 typedef enum_nested_loop_state
 (*Next_select_func)(JOIN *, struct st_join_table *, bool);
@@ -1149,6 +1149,10 @@ public:
     (if sql_calc_found_rows is used, LIMIT is ignored)
   */
   ha_rows select_limit;
+  /*
+    Number of duplicate rows found in UNION.
+  */
+  ha_rows duplicate_rows;
   /**
     Used to fetch no more than given amount of rows per one
     fetch operation of server side cursor.
@@ -1420,7 +1424,7 @@ public:
     sort_and_group= 0;
     first_record= 0;
     do_send_rows= 1;
-    send_records= 0;
+    duplicate_rows= send_records= 0;
     found_records= 0;
     fetch_limit= HA_POS_ERROR;
     thd= thd_arg;
@@ -1508,6 +1512,7 @@ public:
   bool flatten_subqueries();
   bool optimize_unflattened_subqueries();
   bool optimize_constant_subqueries();
+  int init_join_caches();
   bool make_sum_func_list(List<Item> &all_fields, List<Item> &send_fields,
 			  bool before_group_by, bool recompute= FALSE);
 
@@ -1554,7 +1559,7 @@ public:
   bool rollup_make_fields(List<Item> &all_fields, List<Item> &fields,
 			  Item_sum ***func);
   int rollup_send_data(uint idx);
-  int rollup_write_data(uint idx, TABLE *table);
+  int rollup_write_data(uint idx, TMP_TABLE_PARAM *tmp_table_param, TABLE *table);
   void join_free();
   /** Cleanup this JOIN, possibly for reuse */
   void cleanup(bool full);
@@ -1943,10 +1948,10 @@ int safe_index_read(JOIN_TAB *tab);
 int get_quick_record(SQL_SELECT *select);
 int setup_order(THD *thd, Ref_ptr_array ref_pointer_array, TABLE_LIST *tables,
 		List<Item> &fields, List <Item> &all_fields, ORDER *order,
-                bool search_in_all_fields= true);
+                bool from_window_spec= false);
 int setup_group(THD *thd,  Ref_ptr_array ref_pointer_array, TABLE_LIST *tables,
 		List<Item> &fields, List<Item> &all_fields, ORDER *order,
-		bool *hidden_group_fields, bool search_in_all_fields= true);
+		bool *hidden_group_fields, bool from_window_spec= false);
 bool fix_inner_refs(THD *thd, List<Item> &all_fields, SELECT_LEX *select,
                     Ref_ptr_array ref_pointer_array);
 int join_read_key2(THD *thd, struct st_join_table *tab, TABLE *table,
@@ -1988,7 +1993,7 @@ class Virtual_tmp_table: public TABLE
 
     This is needed to avoid memory leaks, as some fields can be BLOB
     variants and thus can have String onboard. Strings must be destructed
-    as they store data not the heap (not on MEM_ROOT).
+    as they store data on the heap (not on MEM_ROOT).
   */
   void destruct_fields()
   {
@@ -2020,17 +2025,21 @@ public:
     @param thd         - Current thread.
   */
   static void *operator new(size_t size, THD *thd) throw();
+  static void operator delete(void *ptr, size_t size) { TRASH(ptr, size); }
 
   Virtual_tmp_table(THD *thd)
   {
     bzero(this, sizeof(*this));
     temp_pool_slot= MY_BIT_NONE;
     in_use= thd;
+    copy_blobs= true;
+    alias.set("", 0, &my_charset_bin);
   }
 
   ~Virtual_tmp_table()
   {
-    destruct_fields();
+    if (s)
+      destruct_fields();
   }
 
   /**
@@ -2068,11 +2077,11 @@ public:
   }
 
   /**
-    Add fields from a Column_definition list
+    Add fields from a Spvar_definition list
     @returns false - on success.
     @returns true  - on error.
   */
-  bool add(List<Column_definition> &field_list);
+  bool add(List<Spvar_definition> &field_list);
 
   /**
     Open a virtual table for read/write:
@@ -2110,11 +2119,22 @@ public:
 */
 
 inline TABLE *
-create_virtual_tmp_table(THD *thd, List<Column_definition> &field_list)
+create_virtual_tmp_table(THD *thd, List<Spvar_definition> &field_list)
 {
   Virtual_tmp_table *table;
   if (!(table= new(thd) Virtual_tmp_table(thd)))
     return NULL;
+
+  /*
+    If "simulate_create_virtual_tmp_table_out_of_memory" debug option
+    is enabled, we now enable "simulate_out_of_memory". This effectively
+    makes table->init() fail on OOM inside multi_alloc_root().
+    This is done to test that ~Virtual_tmp_table() called from the "delete"
+    below correcly handles OOM.
+  */
+  DBUG_EXECUTE_IF("simulate_create_virtual_tmp_table_out_of_memory",
+                  DBUG_SET("+d,simulate_out_of_memory"););
+
   if (table->init(field_list.elements) ||
       table->add(field_list) ||
       table->open())

@@ -1,6 +1,6 @@
 select @default_binlog_format:=@@global.binlog_format;
 @default_binlog_format:=@@global.binlog_format
-STATEMENT
+MIXED
 set global binlog_format=row;
 connect  con1,localhost,root,,;
 connect  con2,localhost,root,,;

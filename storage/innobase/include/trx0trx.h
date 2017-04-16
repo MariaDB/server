@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, MariaDB Corporation. All Rights Reserved.
+Copyright (c) 2016, 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -36,7 +36,6 @@ Created 3/26/1996 Heikki Tuuri
 #include "trx0types.h"
 #include "ut0new.h"
 
-#ifndef UNIV_HOTBACKUP
 #include "lock0types.h"
 #include "log0log.h"
 #include "usr0types.h"
@@ -59,12 +58,14 @@ class FlushObserver;
 /** Dummy session used currently in MySQL interface */
 extern sess_t*	trx_dummy_sess;
 
-/**
-Releases the search latch if trx has reserved it.
-@param[in,out] trx		Transaction that may own the AHI latch */
-UNIV_INLINE
-void
-trx_search_latch_release_if_reserved(trx_t* trx);
+#ifdef BTR_CUR_HASH_ADAPT
+/** Assert that the transaction is not holding the adaptive hash index latch.
+@param[in] trx		transaction */
+# define trx_assert_no_search_latch(trx) \
+	ut_ad(!trx->has_search_latch)
+#else /* BTR_CUR_HASH_ADAPT */
+# define trx_assert_no_search_latch(trx)
+#endif
 
 /** Set flush observer for the transaction
 @param[in/out]	trx		transaction struct
@@ -142,15 +143,9 @@ trx_disconnect_plain(trx_t*	trx);
 void
 trx_disconnect_prepared(trx_t*	trx);
 
-/****************************************************************//**
-Creates trx objects for transactions and initializes the trx list of
-trx_sys at database start. Rollback segment and undo log lists must
-already exist when this function is called, because the lists of
-transactions to be rolled back or cleaned up are built based on the
-undo log lists. */
+/** Initialize (resurrect) transactions at startup. */
 void
-trx_lists_init_at_db_start(void);
-/*============================*/
+trx_lists_init_at_db_start();
 
 /*************************************************************//**
 Starts the transaction if it is not yet started. */
@@ -421,7 +416,6 @@ trx_set_dict_operation(
 	enum trx_dict_op_t	op);	/*!< in: operation, not
 					TRX_DICT_OP_NONE */
 
-#ifndef UNIV_HOTBACKUP
 /**********************************************************************//**
 Determines if a transaction is in the given state.
 The caller must hold trx_sys->mutex, or it must be the thread
@@ -468,9 +462,6 @@ ibool
 trx_is_strict(
 /*==========*/
 	trx_t*	trx);	/*!< in: transaction */
-#else /* !UNIV_HOTBACKUP */
-#define trx_is_interrupted(trx) FALSE
-#endif /* !UNIV_HOTBACKUP */
 
 /*******************************************************************//**
 Calculates the "weight" of a transaction. The weight of one transaction
@@ -515,14 +506,6 @@ UNIV_INLINE
 trx_id_t
 trx_get_id_for_print(
 	const trx_t*	trx);
-
-/****************************************************************//**
-Assign a transaction temp-tablespace bound rollback-segment. */
-void
-trx_assign_rseg(
-/*============*/
-	trx_t*		trx);		/*!< transaction that involves write
-					to temp-table. */
 
 /** Create the trx_t pool */
 void
@@ -589,13 +572,6 @@ void
 trx_kill_blocking(trx_t* trx);
 
 /**
-Check if redo/noredo rseg is modified for insert/update.
-@param[in] trx		Transaction to check */
-UNIV_INLINE
-bool
-trx_is_rseg_updated(const trx_t* trx);
-
-/**
 Transactions that aren't started by the MySQL server don't set
 the trx_t::mysql_thd field. For such transactions we set the lock
 wait timeout to 0 instead of the user configured value that comes
@@ -654,7 +630,7 @@ Check transaction state */
 #define	assert_trx_is_free(t)	do {					\
 	ut_ad(trx_state_eq((t), TRX_STATE_NOT_STARTED)			\
 	      || trx_state_eq((t), TRX_STATE_FORCED_ROLLBACK));		\
-	ut_ad(!trx_is_rseg_updated(trx));				\
+	ut_ad(!trx->has_logged());					\
 	ut_ad(!MVCC::is_view_active((t)->read_view));			\
 	ut_ad((t)->lock.wait_thr == NULL);				\
 	ut_ad(UT_LIST_GET_LEN((t)->lock.trx_locks) == 0);		\
@@ -865,6 +841,14 @@ struct trx_undo_ptr_t {
 					NULL if no update performed yet */
 };
 
+/** An instance of temporary rollback segment. */
+struct trx_temp_undo_t {
+	/** temporary rollback segment, or NULL if not assigned yet */
+	trx_rseg_t*	rseg;
+	/** pointer to the undo log, or NULL if nothing logged yet */
+	trx_undo_t*	undo;
+};
+
 /** Rollback segments assigned to a transaction for undo logging. */
 struct trx_rsegs_t {
 	/** undo log ptr holding reference to a rollback segment that resides in
@@ -872,16 +856,9 @@ struct trx_rsegs_t {
 	to be recovered on crash. */
 	trx_undo_ptr_t	m_redo;
 
-	/** undo log ptr holding reference to a rollback segment that resides in
-	temp tablespace used for undo logging of tables that doesn't need
-	to be recovered on crash. */
-	trx_undo_ptr_t	m_noredo;
-};
-
-enum trx_rseg_type_t {
-	TRX_RSEG_TYPE_NONE = 0,		/*!< void rollback segment type. */
-	TRX_RSEG_TYPE_REDO,		/*!< redo rollback segment. */
-	TRX_RSEG_TYPE_NOREDO		/*!< non-redo rollback segment. */
+	/** undo log for temporary tables; discarded immediately after
+	transaction commit/rollback */
+	trx_temp_undo_t	m_noredo;
 };
 
 struct TrxVersion {
@@ -1066,7 +1043,6 @@ struct trx_t {
 					for secondary indexes when we decide
 					if we can use the insert buffer for
 					them, we set this FALSE */
-	bool		support_xa;	/*!< normally we do the XA two-phase */
 	bool		flush_log_later;/* In 2PC, we hold the
 					prepare_commit mutex across
 					both phases. In that case, we
@@ -1080,9 +1056,11 @@ struct trx_t {
 					flush the log in
 					trx_commit_complete_for_mysql() */
 	ulint		duplicates;	/*!< TRX_DUP_IGNORE | TRX_DUP_REPLACE */
+#ifdef BTR_CUR_HASH_ADAPT
 	bool		has_search_latch;
 					/*!< TRUE if this trx has latched the
 					search system latch in S-mode */
+#endif /* BTR_CUR_HASH_ADAPT */
 	trx_dict_op_t	dict_operation;	/**< @see enum trx_dict_op_t */
 
 	/* Fields protected by the srv_conc_mutex. */
@@ -1104,8 +1082,8 @@ struct trx_t {
 
 	time_t		start_time;	/*!< time the state last time became
 					TRX_STATE_ACTIVE */
-	clock_t		start_time_micro; /*!< start time of the transaction
-					in microseconds. */
+	ib_uint64_t	start_time_micro; /*!< start time of transaction in
+					microseconds */
 	lsn_t		commit_lsn;	/*!< lsn at the time of the commit */
 	table_id_t	table_id;	/*!< Table to drop iff dict_operation
 					== TRX_DICT_OP_TABLE, or 0. */
@@ -1243,7 +1221,7 @@ struct trx_t {
 					read-write. */
 	/*------------------------------*/
 #ifdef UNIV_DEBUG
-	ulint		start_line;	/*!< Track where it was started from */
+	unsigned	start_line;	/*!< Track where it was started from */
 	const char*	start_file;	/*!< Filename where it was started */
 #endif /* UNIV_DEBUG */
 
@@ -1266,21 +1244,10 @@ struct trx_t {
 					transaction branch */
 	trx_mod_tables_t mod_tables;	/*!< List of tables that were modified
 					by this transaction */
-        /*------------------------------*/
-	bool		api_trx;	/*!< trx started by InnoDB API */
-	bool		api_auto_commit;/*!< automatic commit */
-	bool		read_write;	/*!< if read and write operation */
-
 	/*------------------------------*/
 	char*		detailed_error;	/*!< detailed error message for last
 					error, or empty. */
 	FlushObserver*	flush_observer;	/*!< flush observer */
-
-#ifdef UNIV_DEBUG
-	bool		is_dd_trx;	/*!< True if the transaction is used for
-					doing Non-locking Read-only Read
-					Committed on DD tables */
-#endif /* UNIV_DEBUG */
 
 	/* Lock wait statistics */
 	ulint		n_rec_lock_waits;
@@ -1301,6 +1268,34 @@ struct trx_t {
 #endif /* WITH_WSREP */
 
 	ulint		magic_n;
+
+	/** @return whether any persistent undo log has been generated */
+	bool has_logged_persistent() const
+	{
+		return(rsegs.m_redo.insert_undo || rsegs.m_redo.update_undo);
+	}
+
+	/** @return whether any undo log has been generated */
+	bool has_logged() const
+	{
+		return(has_logged_persistent() || rsegs.m_noredo.undo);
+	}
+
+	/** @return rollback segment for modifying temporary tables */
+	trx_rseg_t* get_temp_rseg()
+	{
+		if (trx_rseg_t* rseg = rsegs.m_noredo.rseg) {
+			ut_ad(id != 0);
+			return(rseg);
+		}
+
+		return(assign_temp_rseg());
+	}
+
+private:
+	/** Assign a rollback segment for modifying temporary tables.
+	@return the assigned rollback segment */
+	trx_rseg_t* assign_temp_rseg();
 };
 
 /**
@@ -1353,8 +1348,8 @@ trx_is_started(
 
 /* Treatment of duplicate values (trx->duplicates; for example, in inserts).
 Multiple flags can be combined with bitwise OR. */
-#define TRX_DUP_IGNORE	1	/* duplicate rows are to be updated */
-#define TRX_DUP_REPLACE	2	/* duplicate rows are to be replaced */
+#define TRX_DUP_IGNORE	1U	/* duplicate rows are to be updated */
+#define TRX_DUP_REPLACE	2U	/* duplicate rows are to be replaced */
 
 
 /** Commit node states */
@@ -1488,7 +1483,7 @@ private:
 
 		/* Only the owning thread should release the latch. */
 
-		trx_search_latch_release_if_reserved(trx);
+		trx_assert_no_search_latch(trx);
 
 		trx_mutex_enter(trx);
 
@@ -1541,7 +1536,7 @@ private:
 
 		/* Only the owning thread should release the latch. */
 
-		trx_search_latch_release_if_reserved(trx);
+		trx_assert_no_search_latch(trx);
 
 		trx_mutex_enter(trx);
 
@@ -1610,9 +1605,6 @@ private:
 	trx_t*			m_trx;
 };
 
-#ifndef UNIV_NONINL
 #include "trx0trx.ic"
-#endif
-#endif /* !UNIV_HOTBACKUP */
 
 #endif

@@ -2086,6 +2086,14 @@ MDL_context::acquire_lock(MDL_request *mdl_request, double lock_wait_timeout)
   */
   lock= ticket->m_lock;
 
+  if (lock_wait_timeout == 0)
+  {
+    mysql_prlock_unlock(&lock->m_rwlock);
+    MDL_ticket::destroy(ticket);
+    my_error(ER_LOCK_WAIT_TIMEOUT, MYF(0));
+    DBUG_RETURN(TRUE);
+  }
+
   lock->m_waiting.add_ticket(ticket);
 
   /*
@@ -2126,7 +2134,8 @@ MDL_context::acquire_lock(MDL_request *mdl_request, double lock_wait_timeout)
   find_deadlock();
 
   struct timespec abs_timeout, abs_shortwait;
-  set_timespec(abs_timeout, (ulonglong) lock_wait_timeout);
+  set_timespec_nsec(abs_timeout,
+                    (ulonglong)(lock_wait_timeout * 1000000000ULL));
   set_timespec(abs_shortwait, 1);
   wait_status= MDL_wait::EMPTY;
 

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2014, 2016, MariaDB Corporation
+Copyright (c) 2014, 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -34,12 +34,6 @@ Created 5/7/1996 Heikki Tuuri
 
 #include "lock0lock.h"
 #include "lock0priv.h"
-
-#ifdef UNIV_NONINL
-#include "lock0lock.ic"
-#include "lock0priv.ic"
-#endif
-
 #include "dict0mem.h"
 #include "usr0sess.h"
 #include "trx0purge.h"
@@ -99,6 +93,19 @@ extern "C" int thd_need_ordering_with(const MYSQL_THD thd, const MYSQL_THD other
 
 extern "C" int thd_deadlock_victim_preference(const MYSQL_THD thd1, const MYSQL_THD thd2);
 
+/** Print info of a table lock.
+@param[in,out]	file	output stream
+@param[in]	lock	table lock */
+static
+void
+lock_table_print(FILE* file, const lock_t* lock);
+
+/** Print info of a record lock.
+@param[in,out]	file	output stream
+@param[in]	lock	record lock */
+static
+void
+lock_rec_print(FILE* file, const lock_t* lock);
 
 /** Deadlock checker. */
 class DeadlockChecker {
@@ -330,7 +337,7 @@ lock_sys_t*	lock_sys	= NULL;
 
 /** We store info on the latest deadlock error to this buffer. InnoDB
 Monitor will then fetch it and print */
-bool	lock_deadlock_found = false;
+static bool	lock_deadlock_found = false;
 
 /** Only created if !srv_read_only_mode */
 static FILE*		lock_latest_err_file;
@@ -793,7 +800,7 @@ lock_reset_lock_and_trx_wait(
 			stmt2 = innobase_get_stmt_unsafe(lock->trx->lock.wait_lock->trx->mysql_thd, &stmt_len);
 		}
 
-		ib::info() <<
+		ib::error() <<
 			"Trx id " << lock->trx->id
 				  << " is waiting a lock in statement "
 				  << (stmt ? stmt : "NULL")
@@ -801,7 +808,7 @@ lock_reset_lock_and_trx_wait(
 				  << " and statement "
 				  << (stmt2 ? stmt2 : "NULL")
 				  << "wait_lock " << lock->trx->lock.wait_lock;
-		ut_ad(lock->trx->lock.wait_lock != lock);
+		ut_ad(0);
 	}
 
 	lock->trx->lock.wait_lock = NULL;
@@ -1109,7 +1116,7 @@ lock_rec_reset_nth_bit(
 	ut_ad(i < lock->un_member.rec_lock.n_bits);
 
 	byte*	b = reinterpret_cast<byte*>(&lock[1]) + (i >> 3);
-	byte	mask = 1 << (i & 7);
+	byte	mask = static_cast<byte>(1U << (i & 7));
 	byte	bit = *b & mask;
 	*b &= ~mask;
 
@@ -1717,7 +1724,7 @@ RecLock::lock_alloc(
 
 	/* Setup the lock attributes */
 
-	lock->type_mode = LOCK_REC | (mode & ~LOCK_TYPE_MASK);
+	lock->type_mode = uint32_t(LOCK_REC | (mode & ~LOCK_TYPE_MASK));
 
 	lock_rec_t&	rec_lock = lock->un_member.rec_lock;
 
@@ -2232,17 +2239,22 @@ queue is itself waiting roll it back, also do a deadlock check and resolve.
 @param[in, out] wait_for	The lock that the joining transaction is
 				waiting for
 @param[in] prdt			Predicate [optional]
-@return DB_LOCK_WAIT, DB_DEADLOCK, or DB_QUE_THR_SUSPENDED, or
-	DB_SUCCESS_LOCKED_REC; DB_SUCCESS_LOCKED_REC means that
-	there was a deadlock, but another transaction was chosen
-	as a victim, and we got the lock immediately: no need to
-	wait then */
+@return DB_LOCK_WAIT, DB_LOCK_WAIT_TIMEOUT, DB_DEADLOCK, or
+	DB_QUE_THR_SUSPENDED, or DB_SUCCESS_LOCKED_REC; DB_SUCCESS_LOCKED_REC
+	means that there was a deadlock, but another transaction was chosen
+	as a victim, and we got the lock immediately: no need to wait then;
+	DB_LOCK_WAIT_TIMEOUT means no need to wait */
 dberr_t
 RecLock::add_to_waitq(const lock_t* wait_for, const lock_prdt_t* prdt)
 {
 	ut_ad(lock_mutex_own());
 	ut_ad(m_trx == thr_get_trx(m_thr));
 	ut_ad(trx_mutex_own(m_trx));
+
+	if (m_trx->mysql_thd && thd_lock_wait_timeout(m_trx->mysql_thd) == 0) {
+		m_trx->error_state = DB_LOCK_WAIT_TIMEOUT;
+		return(DB_LOCK_WAIT_TIMEOUT);
+	}
 
 	DEBUG_SYNC_C("rec_lock_add_to_waitq");
 
@@ -2780,12 +2792,10 @@ RecLock::jump_queue(
 		ut_ad(conflict_lock->trx->lock.que_state == TRX_QUE_LOCK_WAIT);
 		ut_ad(conflict_lock->trx->lock.wait_lock == conflict_lock);
 
-#ifdef UNIV_DEBUG
-		ib::info() << "Granting High Priority Transaction (ID): "
-			   << lock->trx->id << " the lock jumping over"
-			   << " waiting Transaction (ID): "
-			   << conflict_lock->trx->id;
-#endif /* UNIV_DEBUG */
+		DBUG_LOG("trx",
+			 "Granting High Priority Transaction "
+			 << lock->trx->id << " a lock jumping over"
+			 << " waiting Transaction " << conflict_lock->trx->id);
 
 		lock_reset_lock_and_trx_wait(lock);
 		return(true);
@@ -2954,11 +2964,12 @@ RecLock::make_trx_hit_list(
 
 			/* Assert that it is not waiting for current record. */
 			ut_ad(trx->lock.wait_lock != next);
-#ifdef UNIV_DEBUG
-			ib::info() << "High Priority Transaction (ID): "
-				   << lock->trx->id << " waking up blocking"
-				   << " transaction (ID): " << trx->id;
-#endif /* UNIV_DEBUG */
+
+			DBUG_LOG("trx", "High Priority Transaction "
+				 << lock->trx->id
+				 << " waking up blocking transaction "
+				 << trx->id);
+
 			trx->lock.was_chosen_as_deadlock_victim = true;
 			lock_cancel_waiting_and_release(trx->lock.wait_lock);
 			trx_mutex_exit(trx);
@@ -3084,6 +3095,7 @@ lock_grant_and_move_on_page(
 Removes a record lock request, waiting or granted, from the queue and
 grants locks to other transactions in the queue if they now are entitled
 to a lock. NOTE: all record locks contained in in_lock are removed. */
+static
 void
 lock_rec_dequeue_from_page(
 /*=======================*/
@@ -3388,6 +3400,7 @@ lock_rec_inherit_to_gap_if_gap_lock(
 /*************************************************************//**
 Moves the locks of a record to another record and resets the lock bits of
 the donating record. */
+static
 void
 lock_rec_move_low(
 /*==============*/
@@ -3469,6 +3482,28 @@ lock_move_granted_locks_to_front(
 			lock = prev;
 		}
 	}
+}
+
+/*************************************************************//**
+Moves the locks of a record to another record and resets the lock bits of
+the donating record. */
+UNIV_INLINE
+void
+lock_rec_move(
+/*==========*/
+	const buf_block_t*	receiver,       /*!< in: buffer block containing
+						the receiving record */
+	const buf_block_t*	donator,        /*!< in: buffer block containing
+						the donating record */
+	ulint			receiver_heap_no,/*!< in: heap_no of the record
+						which gets the locks; there
+						must be no lock requests
+						on it! */
+	ulint			donator_heap_no)/*!< in: heap_no of the record
+                                                which gives the locks */
+{
+	lock_rec_move_low(lock_sys->rec_hash, receiver, donator,
+			  receiver_heap_no, donator_heap_no);
 }
 
 /*************************************************************//**
@@ -4790,7 +4825,7 @@ lock_table(
 	lock_mutex_enter();
 
 	DBUG_EXECUTE_IF("fatal-semaphore-timeout",
-		{ os_thread_sleep(3600000000); });
+		{ os_thread_sleep(3600000000LL); });
 
 	/* We have to check if the new lock is compatible with any locks
 	other transactions have in the table lock queue. */
@@ -5194,7 +5229,6 @@ lock_release(
 
 	ut_ad(lock_mutex_own());
 	ut_ad(!trx_mutex_own(trx));
-	ut_ad(!trx->is_dd_trx);
 
 	for (lock = UT_LIST_GET_LAST(trx->lock.trx_locks);
 	     lock != NULL;
@@ -5489,13 +5523,12 @@ lock_remove_all_on_table(
 
 /*===================== VALIDATION AND DEBUGGING ====================*/
 
-/*********************************************************************//**
-Prints info of a table lock. */
+/** Print info of a table lock.
+@param[in,out]	file	output stream
+@param[in]	lock	table lock */
+static
 void
-lock_table_print(
-/*=============*/
-	FILE*		file,	/*!< in: file where to print */
-	const lock_t*	lock)	/*!< in: table type lock */
+lock_table_print(FILE* file, const lock_t* lock)
 {
 	ut_ad(lock_mutex_own());
 	ut_a(lock_get_type_low(lock) == LOCK_TABLE);
@@ -5529,13 +5562,12 @@ lock_table_print(
 	putc('\n', file);
 }
 
-/*********************************************************************//**
-Prints info of a record lock. */
+/** Print info of a record lock.
+@param[in,out]	file	output stream
+@param[in]	lock	record lock */
+static
 void
-lock_rec_print(
-/*===========*/
-	FILE*		file,	/*!< in: file where to print */
-	const lock_t*	lock)	/*!< in: record type lock */
+lock_rec_print(FILE* file, const lock_t* lock)
 {
 	ulint			space;
 	ulint			page_no;
@@ -7770,6 +7802,9 @@ lock_trx_handle_wait(
 		ut_ad(trx_mutex_own(trx));
 		trx_mutex_exit(trx);
 	}
+
+	ut_ad(err == DB_SUCCESS || err == DB_LOCK_WAIT
+	      || err == DB_DEADLOCK);
 
 	return(err);
 }

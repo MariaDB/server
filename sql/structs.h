@@ -2,6 +2,7 @@
 #define STRUCTS_INCLUDED
 
 /* Copyright (c) 2000, 2010, Oracle and/or its affiliates. All rights reserved.
+   Copyright (c) 2017, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -205,7 +206,7 @@ typedef int *(*update_var)(THD *, struct st_mysql_show_var *);
 typedef struct	st_lex_user {
   LEX_STRING user, host, plugin, auth;
   LEX_STRING pwtext, pwhash;
-  bool is_role() { return user.str[0] && !host.str[0]; }
+  bool is_role() const { return user.str[0] && !host.str[0]; }
   void set_lex_string(LEX_STRING *l, char *buf)
   {
     if (is_role())
@@ -331,26 +332,26 @@ typedef struct st_index_stats
 
 
 	/* Bits in form->update */
-#define REG_MAKE_DUPP		1	/* Make a copy of record when read */
-#define REG_NEW_RECORD		2	/* Write a new record if not found */
-#define REG_UPDATE		4	/* Uppdate record */
-#define REG_DELETE		8	/* Delete found record */
-#define REG_PROG		16	/* User is updating database */
-#define REG_CLEAR_AFTER_WRITE	32
-#define REG_MAY_BE_UPDATED	64
-#define REG_AUTO_UPDATE		64	/* Used in D-forms for scroll-tables */
-#define REG_OVERWRITE		128
-#define REG_SKIP_DUP		256
+#define REG_MAKE_DUPP		1U	/* Make a copy of record when read */
+#define REG_NEW_RECORD		2U	/* Write a new record if not found */
+#define REG_UPDATE		4U	/* Uppdate record */
+#define REG_DELETE		8U	/* Delete found record */
+#define REG_PROG		16U	/* User is updating database */
+#define REG_CLEAR_AFTER_WRITE	32U
+#define REG_MAY_BE_UPDATED	64U
+#define REG_AUTO_UPDATE		64U	/* Used in D-forms for scroll-tables */
+#define REG_OVERWRITE		128U
+#define REG_SKIP_DUP		256U
 
 	/* Bits in form->status */
-#define STATUS_NO_RECORD	(1+2)	/* Record isn't usably */
-#define STATUS_GARBAGE		1
-#define STATUS_NOT_FOUND	2	/* No record in database when needed */
-#define STATUS_NO_PARENT	4	/* Parent record wasn't found */
-#define STATUS_NOT_READ		8	/* Record isn't read */
-#define STATUS_UPDATED		16	/* Record is updated by formula */
-#define STATUS_NULL_ROW		32	/* table->null_row is set */
-#define STATUS_DELETED		64
+#define STATUS_NO_RECORD	(1U+2U)	/* Record isn't usable */
+#define STATUS_GARBAGE		1U
+#define STATUS_NOT_FOUND	2U	/* No record in database when needed */
+#define STATUS_NO_PARENT	4U	/* Parent record wasn't found */
+#define STATUS_NOT_READ		8U	/* Record isn't read */
+#define STATUS_UPDATED		16U	/* Record is updated by formula */
+#define STATUS_NULL_ROW		32U	/* table->null_row is set */
+#define STATUS_DELETED		64U
 
 /*
   Such interval is "discrete": it is the set of
@@ -625,6 +626,91 @@ public:
     set(type, 0, 0);
   }
   int dyncol_type() const { return m_type; }
+};
+
+
+struct Lex_spblock_handlers_st
+{
+public:
+  int hndlrs;
+  void init(int count) { hndlrs= count; }
+};
+
+
+struct Lex_spblock_st: public Lex_spblock_handlers_st
+{
+public:
+  int vars;
+  int conds;
+  int curs;
+  void init()
+  {
+    vars= conds= hndlrs= curs= 0;
+  }
+  void init_using_vars(uint nvars)
+  {
+    vars= nvars;
+    conds= hndlrs= curs= 0;
+  }
+  void join(const Lex_spblock_st &b1, const Lex_spblock_st &b2)
+  {
+    vars= b1.vars + b2.vars;
+    conds= b1.conds + b2.conds;
+    hndlrs= b1.hndlrs + b2.hndlrs;
+    curs= b1.curs + b2.curs;
+  }
+};
+
+
+class Lex_spblock: public Lex_spblock_st
+{
+public:
+  Lex_spblock() { init(); }
+  Lex_spblock(const Lex_spblock_handlers_st &other)
+  {
+    vars= conds= curs= 0;
+    hndlrs= other.hndlrs;
+  }
+};
+
+
+struct Lex_for_loop_bounds_st
+{
+public:
+  class sp_assignment_lex *m_index;
+  class sp_assignment_lex *m_upper_bound;
+  int8 m_direction;
+  bool m_implicit_cursor;
+  bool is_for_loop_cursor() const { return m_upper_bound == NULL; }
+};
+
+
+struct Lex_for_loop_st
+{
+public:
+  class sp_variable *m_index;
+  class sp_variable *m_upper_bound;
+  int m_cursor_offset;
+  int8 m_direction;
+  bool m_implicit_cursor;
+  void init()
+  {
+    m_index= 0;
+    m_upper_bound= 0;
+    m_direction= 0;
+    m_implicit_cursor= false;
+  }
+  void init(const Lex_for_loop_st &other)
+  {
+    *this= other;
+  }
+  bool is_for_loop_cursor() const { return m_upper_bound == NULL; }
+};
+
+
+struct Lex_string_with_pos_st: public LEX_STRING
+{
+  const char *m_pos;
 };
 
 

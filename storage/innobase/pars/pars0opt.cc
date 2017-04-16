@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1997, 2014, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1997, 2016, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -24,11 +24,6 @@ Created 12/21/1997 Heikki Tuuri
 *******************************************************/
 
 #include "pars0opt.h"
-
-#ifdef UNIV_NONINL
-#include "pars0opt.ic"
-#endif
-
 #include "row0sel.h"
 #include "row0ins.h"
 #include "row0upd.h"
@@ -1134,6 +1129,15 @@ opt_clust_access(
 	}
 }
 
+#ifdef UNIV_SQL_DEBUG
+/** Print info of a query plan.
+@param[in,out]	sel_node	select node */
+static
+void
+opt_print_query_plan(
+	sel_node_t*	sel_node);
+#endif
+
 /*******************************************************************//**
 Optimizes a select. Decides which indexes to tables to use. The tables
 are accessed in the order that they were written to the FROM part in the
@@ -1212,13 +1216,13 @@ opt_search_plan(
 #endif
 }
 
-#if 1//def UNIV_SQL_DEBUG
-/********************************************************************//**
-Prints info of a query plan. */
+#ifdef UNIV_SQL_DEBUG
+/** Print info of a query plan.
+@param[in,out]	sel_node	select node */
+static
 void
 opt_print_query_plan(
-/*=================*/
-	sel_node_t*	sel_node)	/*!< in: select node */
+	sel_node_t*	sel_node)
 {
 	plan_t*	plan;
 	ulint	n_fields;

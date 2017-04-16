@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2016, MariaDB Corporation.
+Copyright (c) 2013, 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -27,7 +27,9 @@ Created 11/5/1995 Heikki Tuuri
 #ifndef buf0buf_h
 #define buf0buf_h
 
-#include "univ.i"
+/** Magic value to use instead of checksums when they are disabled */
+#define BUF_NO_CHECKSUM_MAGIC 0xDEADBEEFUL
+
 #include "fil0fil.h"
 #include "mtr0types.h"
 #include "buf0types.h"
@@ -35,7 +37,6 @@ Created 11/5/1995 Heikki Tuuri
 #include "hash0hash.h"
 #include "ut0byte.h"
 #include "page0types.h"
-#ifndef UNIV_HOTBACKUP
 #include "ut0rbt.h"
 #include "os0proc.h"
 #include "log0log.h"
@@ -99,20 +100,11 @@ extern	volatile ulint	buf_withdraw_clock; /*!< the clock is incremented
 					every time a pointer to a page may
 					become obsolete */
 
-#ifdef UNIV_DEBUG
+# ifdef UNIV_DEBUG
 extern my_bool	buf_disable_resize_buffer_pool_debug; /*!< if TRUE, resizing
 					buffer pool is not allowed. */
-#endif /* UNIV_DEBUG */
-#else /* !UNIV_HOTBACKUP */
-extern buf_block_t*	back_block1;	/*!< first block, for --apply-log */
-extern buf_block_t*	back_block2;	/*!< second block, for page reorganize */
-#endif /* !UNIV_HOTBACKUP */
-#endif /* !UNIV_INNOCHECKSUM */
+# endif /* UNIV_DEBUG */
 
-/** Magic value to use instead of checksums when they are disabled */
-#define BUF_NO_CHECKSUM_MAGIC 0xDEADBEEFUL
-
-#ifndef UNIV_INNOCHECKSUM
 /** @brief States of a control block
 @see buf_page_t
 
@@ -341,7 +333,6 @@ operator<<(
 	std::ostream&		out,
 	const page_id_t&	page_id);
 
-#ifndef UNIV_HOTBACKUP
 /********************************************************************//**
 Acquire mutex on all buffer pool instances */
 UNIV_INLINE
@@ -390,28 +381,19 @@ buf_frame_will_withdrawn(
 	buf_pool_t*	buf_pool,
 	const byte*	ptr);
 
-/** Resize the buffer pool based on srv_buf_pool_size from
-srv_buf_pool_old_size. */
-void
-buf_pool_resize();
-
 /** This is the thread for resizing buffer pool. It waits for an event and
 when waked up either performs a resizing and sleeps again.
-@param[in]	arg	a dummy parameter required by os_thread_create.
 @return	this function does not return, calls os_thread_exit()
 */
 extern "C"
 os_thread_ret_t
-DECLARE_THREAD(buf_resize_thread)(
-/*==============================*/
-	void*	arg);				/*!< in: a dummy parameter
-						required by os_thread_create */
+DECLARE_THREAD(buf_resize_thread)(void*);
 
-/********************************************************************//**
-Clears the adaptive hash index on all pages in the buffer pool. */
+#ifdef BTR_CUR_HASH_ADAPT
+/** Clear the adaptive hash index on all pages in the buffer pool. */
 void
-buf_pool_clear_hash_index(void);
-/*===========================*/
+buf_pool_clear_hash_index();
+#endif /* BTR_CUR_HASH_ADAPT */
 
 /*********************************************************************//**
 Gets the current size of buffer buf_pool in bytes.
@@ -468,7 +450,7 @@ void
 buf_block_free(
 /*===========*/
 	buf_block_t*	block);	/*!< in, own: block to be freed */
-#endif /* !UNIV_HOTBACKUP */
+
 /*********************************************************************//**
 Copies contents of a buffer frame to a given buffer.
 @return buf */
@@ -478,7 +460,7 @@ buf_frame_copy(
 /*===========*/
 	byte*			buf,	/*!< in: buffer to copy to */
 	const buf_frame_t*	frame);	/*!< in: buffer frame */
-#ifndef UNIV_HOTBACKUP
+
 /**************************************************************//**
 NOTE! The following macros should be used instead of buf_page_get_gen,
 to improve debugging. Only values RW_S_LATCH and RW_X_LATCH are allowed
@@ -505,7 +487,7 @@ buf_page_optimistic_get(
 	buf_block_t*	block,	/*!< in: guessed block */
 	ib_uint64_t	modify_clock,/*!< in: modify clock value */
 	const char*	file,	/*!< in: file name */
-	ulint		line,	/*!< in: line where called */
+	unsigned	line,	/*!< in: line where called */
 	mtr_t*		mtr);	/*!< in: mini-transaction */
 /********************************************************************//**
 This is used to get access to a known database page, when no waiting can be
@@ -518,7 +500,7 @@ buf_page_get_known_nowait(
 	buf_block_t*	block,	/*!< in: the known page */
 	ulint		mode,	/*!< in: BUF_MAKE_YOUNG or BUF_KEEP_OLD */
 	const char*	file,	/*!< in: file name */
-	ulint		line,	/*!< in: line where called */
+	unsigned	line,	/*!< in: line where called */
 	mtr_t*		mtr);	/*!< in: mini-transaction */
 
 /** Given a tablespace id and page number tries to get that page. If the
@@ -533,7 +515,7 @@ buf_block_t*
 buf_page_try_get_func(
 	const page_id_t&	page_id,
 	const char*		file,
-	ulint			line,
+	unsigned		line,
 	mtr_t*			mtr);
 
 /** Tries to get a page.
@@ -579,7 +561,7 @@ buf_page_get_gen(
 	buf_block_t*		guess,
 	ulint			mode,
 	const char*		file,
-	ulint			line,
+	unsigned		line,
 	mtr_t*			mtr,
 	dberr_t*		err);
 
@@ -597,21 +579,6 @@ buf_page_create(
 	const page_size_t&	page_size,
 	mtr_t*			mtr);
 
-#else /* !UNIV_HOTBACKUP */
-
-/** Inits a page to the buffer buf_pool, for use in mysqlbackup --restore.
-@param[in]	page_id		page id
-@param[in]	page_size	page size
-@param[in,out]	block		block to init */
-void
-buf_page_init_for_backup_restore(
-	const page_id_t&	page_id,
-	const page_size_t&	page_size,
-	buf_block_t*		block);
-
-#endif /* !UNIV_HOTBACKUP */
-
-#ifndef UNIV_HOTBACKUP
 /********************************************************************//**
 Releases a compressed-only page acquired with buf_page_get_zip(). */
 UNIV_INLINE
@@ -674,7 +641,7 @@ buf_page_reset_file_page_was_freed(
 Reads the freed_page_clock of a buffer block.
 @return freed_page_clock */
 UNIV_INLINE
-ulint
+unsigned
 buf_page_get_freed_page_clock(
 /*==========================*/
 	const buf_page_t*	bpage)	/*!< in: block */
@@ -683,7 +650,7 @@ buf_page_get_freed_page_clock(
 Reads the freed_page_clock of a buffer block.
 @return freed_page_clock */
 UNIV_INLINE
-ulint
+unsigned
 buf_block_get_freed_page_clock(
 /*===========================*/
 	const buf_block_t*	block)	/*!< in: block */
@@ -747,7 +714,7 @@ buf_block_buf_fix_inc_func(
 /*=======================*/
 # ifdef UNIV_DEBUG
 	const char*	file,	/*!< in: file name */
-	ulint		line,	/*!< in: line */
+	unsigned	line,	/*!< in: line */
 # endif /* UNIV_DEBUG */
 	buf_block_t*	block)	/*!< in/out: block to bufferfix */
 	MY_ATTRIBUTE((nonnull));
@@ -788,18 +755,96 @@ buf_block_unfix(
 @param[in,out]	b	block to bufferfix
 @param[in]	f	file name where requested
 @param[in]	l	line number where requested */
-# define buf_block_buf_fix_inc(b,f,l) buf_block_buf_fix_inc_func(f,l,b)
+#  define buf_block_buf_fix_inc(b,f,l) buf_block_buf_fix_inc_func(f,l,b)
 # else /* UNIV_DEBUG */
 /** Increments the bufferfix count.
 @param[in,out]	b	block to bufferfix
 @param[in]	f	file name where requested
 @param[in]	l	line number where requested */
-# define buf_block_buf_fix_inc(b,f,l) buf_block_buf_fix_inc_func(b)
+#  define buf_block_buf_fix_inc(b,f,l) buf_block_buf_fix_inc_func(b)
 # endif /* UNIV_DEBUG */
-#else /* !UNIV_HOTBACKUP */
-# define buf_block_modify_clock_inc(block) ((void) 0)
-#endif /* !UNIV_HOTBACKUP */
 #endif /* !UNIV_INNOCHECKSUM */
+
+/** Checks if the page is in crc32 checksum format.
+@param[in]	read_buf		database page
+@param[in]	checksum_field1		new checksum field
+@param[in]	checksum_field2		old checksum field
+@param[in]	page_no			page number of given read_buf
+@param[in]	is_log_enabled		true if log option is enabled
+@param[in]	log_file		file pointer to log_file
+@param[in]	curr_algo		current checksum algorithm
+@param[in]	use_legacy_big_endian   use legacy big endian algorithm
+@return true if the page is in crc32 checksum format. */
+bool
+buf_page_is_checksum_valid_crc32(
+	const byte*			read_buf,
+	ulint				checksum_field1,
+	ulint				checksum_field2,
+#ifdef UNIV_INNOCHECKSUM
+	uintmax_t			page_no,
+	bool				is_log_enabled,
+	FILE*				log_file,
+	const srv_checksum_algorithm_t	curr_algo,
+#endif /* UNIV_INNOCHECKSUM */
+	bool				use_legacy_big_endian)
+	MY_ATTRIBUTE((nonnull(1), warn_unused_result));
+
+/** Checks if the page is in innodb checksum format.
+@param[in]	read_buf	database page
+@param[in]	checksum_field1	new checksum field
+@param[in]	checksum_field2	old checksum field
+@param[in]	page_no		page number of given read_buf
+@param[in]	is_log_enabled	true if log option is enabled
+@param[in]	log_file	file pointer to log_file
+@param[in]	curr_algo	current checksum algorithm
+@return true if the page is in innodb checksum format. */
+bool
+buf_page_is_checksum_valid_innodb(
+	const byte*			read_buf,
+	ulint				checksum_field1,
+	ulint				checksum_field2
+#ifdef UNIV_INNOCHECKSUM
+	,uintmax_t			page_no,
+	bool				is_log_enabled,
+	FILE*				log_file,
+	const srv_checksum_algorithm_t	curr_algo
+#endif /* UNIV_INNOCHECKSUM */
+	)
+	MY_ATTRIBUTE((nonnull(1), warn_unused_result));
+
+/** Checks if the page is in none checksum format.
+@param[in]	read_buf	database page
+@param[in]	checksum_field1	new checksum field
+@param[in]	checksum_field2	old checksum field
+@param[in]	page_no		page number of given read_buf
+@param[in]	is_log_enabled	true if log option is enabled
+@param[in]	log_file	file pointer to log_file
+@param[in]	curr_algo	current checksum algorithm
+@return true if the page is in none checksum format. */
+bool
+buf_page_is_checksum_valid_none(
+	const byte*			read_buf,
+	ulint				checksum_field1,
+	ulint				checksum_field2
+#ifdef	UNIV_INNOCHECKSUM
+	,uintmax_t			page_no,
+	bool				is_log_enabled,
+	FILE*				log_file,
+	const srv_checksum_algorithm_t	curr_algo
+#endif	/* UNIV_INNOCHECKSUM */
+	)
+	MY_ATTRIBUTE((nonnull(1), warn_unused_result));
+
+/********************************************************************//**
+Check if page is maybe compressed, encrypted or both when we encounter
+corrupted page. Note that we can't be 100% sure if page is corrupted
+or decrypt/decompress just failed.
+@param[in]	bpage		Page
+@return true if page corrupted, false if not */
+bool
+buf_page_check_corrupt(
+	buf_page_t*	bpage)	/*!< in/out: buffer page read from disk */
+	MY_ATTRIBUTE((nonnull, warn_unused_result));
 
 /** Checks if a page contains only zeroes.
 @param[in]	read_buf	database page
@@ -815,27 +860,26 @@ buf_page_is_zeroes(
 the LSN
 @param[in]	read_buf	database page
 @param[in]	page_size	page size
-@param[in]	skip_checksum	if true, skip checksum
+@param[in]	space		tablespace
 @param[in]	page_no		page number of given read_buf
 @param[in]	strict_check	true if strict-check option is enabled
 @param[in]	is_log_enabled	true if log option is enabled
 @param[in]	log_file	file pointer to log_file
-@return TRUE if corrupted */
-ibool
+@return whether the page is corrupted */
+bool
 buf_page_is_corrupted(
 	bool			check_lsn,
 	const byte*		read_buf,
 	const page_size_t&	page_size,
-	bool			skip_checksum
+	const fil_space_t* 	space = NULL
 #ifdef UNIV_INNOCHECKSUM
-	,uintmax_t		page_no,
-	bool			strict_check,
-	bool			is_log_enabled,
-	FILE*			log_file
+	,uintmax_t		page_no = 0,
+	bool			strict_check = false,
+	bool			is_log_enabled = false,
+	FILE*			log_file = NULL
 #endif /* UNIV_INNOCHECKSUM */
 ) MY_ATTRIBUTE((warn_unused_result));
 #ifndef UNIV_INNOCHECKSUM
-#ifndef UNIV_HOTBACKUP
 /**********************************************************************//**
 Gets the space id, page offset, and byte offset within page of a
 pointer pointing to a buffer frame containing a file page. */
@@ -851,7 +895,7 @@ Gets the hash value of a block. This can be used in searches in the
 lock hash table.
 @return lock hash value */
 UNIV_INLINE
-ulint
+unsigned
 buf_block_get_lock_hash_val(
 /*========================*/
 	const buf_block_t*	block)	/*!< in: block */
@@ -893,7 +937,7 @@ void
 buf_print(void);
 /*============*/
 #endif /* UNIV_DEBUG_PRINT || UNIV_DEBUG || UNIV_BUF_DEBUG */
-#endif /* !UNIV_HOTBACKUP */
+
 enum buf_page_print_flags {
 	/** Do not crash at the end of buf_page_print(). */
 	BUF_PAGE_PRINT_NO_CRASH	= 1,
@@ -920,7 +964,7 @@ buf_zip_decompress(
 /*===============*/
 	buf_block_t*	block,	/*!< in/out: block */
 	ibool		check);	/*!< in: TRUE=verify the page checksum */
-#ifndef UNIV_HOTBACKUP
+
 #ifdef UNIV_DEBUG
 /*********************************************************************//**
 Returns the number of latched pages in the buffer pool.
@@ -952,30 +996,18 @@ buf_stats_get_pool_info(
 	ulint			pool_id,	/*!< in: buffer pool ID */
 	buf_pool_info_t*	all_pool_info);	/*!< in/out: buffer pool info
 						to fill */
-/*********************************************************************//**
-Returns the ratio in percents of modified pages in the buffer pool /
+/** Return the ratio in percents of modified pages in the buffer pool /
 database pages in the buffer pool.
 @return modified page percentage ratio */
 double
 buf_get_modified_ratio_pct(void);
-/*============================*/
-/**********************************************************************//**
-Refreshes the statistics used to print per-second averages. */
-void
-buf_refresh_io_stats(
-/*=================*/
-	buf_pool_t*	buf_pool);	/*!< buffer pool instance */
-/**********************************************************************//**
-Refreshes the statistics used to print per-second averages. */
+/** Refresh the statistics used to print per-second averages. */
 void
 buf_refresh_io_stats_all(void);
-/*=================*/
-/*********************************************************************//**
-Asserts that all file pages in the buffer are in a replaceable state.
+/** Assert that all file pages in the buffer are in a replaceable state.
 @return TRUE */
 ibool
 buf_all_freed(void);
-/*===============*/
 /*********************************************************************//**
 Checks that there currently are no pending i/o-operations for the buffer
 pool.
@@ -990,7 +1022,6 @@ this function is called: not latched and not modified. */
 void
 buf_pool_invalidate(void);
 /*=====================*/
-#endif /* !UNIV_HOTBACKUP */
 
 /*========================================================================
 --------------------------- LOWER LEVEL ROUTINES -------------------------
@@ -1063,7 +1094,7 @@ buf_page_in_file(
 /*=============*/
 	const buf_page_t*	bpage)	/*!< in: pointer to control block */
 	MY_ATTRIBUTE((warn_unused_result));
-#ifndef UNIV_HOTBACKUP
+
 /*********************************************************************//**
 Determines if a block should be on unzip_LRU list.
 @return TRUE if block belongs to unzip_LRU */
@@ -1192,7 +1223,7 @@ void
 buf_page_set_old(
 /*=============*/
 	buf_page_t*	bpage,	/*!< in/out: control block */
-	ibool		old);	/*!< in: old */
+	bool		old);	/*!< in: old */
 /*********************************************************************//**
 Determine the time of first access of a block in the buffer pool.
 @return ut_time_ms() at the time of first access, 0 if not accessed */
@@ -1221,7 +1252,7 @@ buf_page_get_block(
 /*===============*/
 	buf_page_t*	bpage)	/*!< in: control block, or NULL */
 	MY_ATTRIBUTE((warn_unused_result));
-#endif /* !UNIV_HOTBACKUP */
+
 #ifdef UNIV_DEBUG
 /*********************************************************************//**
 Gets a pointer to the memory frame of a block.
@@ -1241,14 +1272,15 @@ Gets the compressed page descriptor corresponding to an uncompressed page
 if applicable. */
 #define buf_block_get_page_zip(block) \
 	((block)->page.zip.data ? &(block)->page.zip : NULL)
-#ifndef UNIV_HOTBACKUP
 
+#ifdef BTR_CUR_HASH_ADAPT
 /** Get a buffer block from an adaptive hash index pointer.
 This function does not return if the block is not identified.
 @param[in]	ptr	pointer to within a page frame
 @return pointer to block, never NULL */
 buf_block_t*
 buf_block_from_ahi(const byte* ptr);
+#endif /* BTR_CUR_HASH_ADAPT */
 
 /********************************************************************//**
 Find out if a pointer belongs to a buf_block_t. It can be a pointer to
@@ -1305,7 +1337,7 @@ buf_page_io_complete(
 Calculates the index of a buffer pool to the buf_pool[] array.
 @return the position of the buffer pool in buf_pool[] */
 UNIV_INLINE
-ulint
+unsigned
 buf_pool_index(
 /*===========*/
 	const buf_pool_t*	buf_pool)	/*!< in: buffer pool */
@@ -1425,13 +1457,6 @@ buf_page_hash_get_low() function.
 #define buf_block_hash_get(b, page_id)				\
 	buf_block_hash_get_locked(b, page_id, NULL, 0)
 
-/*********************************************************************//**
-Gets the current length of the free list of buffer blocks.
-@return length of the free list */
-ulint
-buf_get_free_list_len(void);
-/*=======================*/
-
 /********************************************************************//**
 Determine if a block is a sentinel for a buffer pool watch.
 @return TRUE if a sentinel for a buffer pool watch, FALSE if not */
@@ -1441,18 +1466,6 @@ buf_pool_watch_is_sentinel(
 	const buf_pool_t*	buf_pool,	/*!< buffer pool instance */
 	const buf_page_t*	bpage)		/*!< in: block */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
-
-/** Add watch for the given page to be read in. Caller must have
-appropriate hash_lock for the bpage. This function may release the
-hash_lock and reacquire it.
-@param[in]	page_id		page id
-@param[in,out]	hash_lock	hash_lock currently latched
-@return NULL if watch set, block if the page is in the buffer pool */
-buf_page_t*
-buf_pool_watch_set(
-	const page_id_t&	page_id,
-	rw_lock_t**		hash_lock)
-MY_ATTRIBUTE((warn_unused_result));
 
 /** Stop watching if the page has been read in.
 buf_pool_watch_set(space,offset) must have returned NULL before.
@@ -1531,8 +1544,6 @@ buf_flush_update_zip_checksum(
 	ulint		size,
 	lsn_t		lsn);
 
-#endif /* !UNIV_HOTBACKUP */
-
 /********************************************************************//**
 The hook that is called just before a page is written to disk.
 The function encrypts the content of the page and returns a pointer
@@ -1544,37 +1555,6 @@ buf_page_encrypt_before_write(
 	buf_page_t*	page,		/*!< in/out: buffer page to be flushed */
 	byte*		frame,		/*!< in: src frame */
 	ulint		space_id);	/*!< in: space id */
-
-/**********************************************************************
-The hook that is called after page is written to disk.
-The function releases any resources needed for encryption that was allocated
-in buf_page_encrypt_before_write */
-UNIV_INTERN
-ibool
-buf_page_encrypt_after_write(
-/*=========================*/
-	buf_page_t* page); /*!< in/out: buffer page that was flushed */
-
-/********************************************************************//**
-The hook that is called just before a page is read from disk.
-The function allocates memory that is used to temporarily store disk content
-before getting decrypted */
-UNIV_INTERN
-byte*
-buf_page_decrypt_before_read(
-/*=========================*/
-	buf_page_t* page, /*!< in/out: buffer page read from disk */
-	ulint	zip_size);  /*!< in: compressed page size, or 0 */
-
-/********************************************************************//**
-The hook that is called just after a page is read from disk.
-The function decrypt disk content into buf_page_t and releases the
-temporary buffer that was allocated in buf_page_decrypt_before_read */
-UNIV_INTERN
-ibool
-buf_page_decrypt_after_read(
-/*========================*/
-	buf_page_t* page); /*!< in/out: buffer page read from disk */
 
 /** @brief The temporary memory structure.
 
@@ -1635,7 +1615,6 @@ public:
 	/** Block state. @see buf_page_in_file */
 	buf_page_state	state;
 
-#ifndef UNIV_HOTBACKUP
 	unsigned	flush_type:2;	/*!< if this block is currently being
 					flushed to disk, this tells the
 					flush_type.
@@ -1646,7 +1625,6 @@ public:
 #  error "MAX_BUFFER_POOLS > 64; redefine buf_pool_index:6"
 # endif
 	/* @} */
-#endif /* !UNIV_HOTBACKUP */
 	page_zip_des_t	zip;		/*!< compressed page; zip.data
 					(but not the data it points to) is
 					also protected by buf_pool->mutex;
@@ -1659,16 +1637,9 @@ public:
 					if written again we check is TRIM
 					operation needed. */
 
-	ulint           space;          /*!< space id */
 	unsigned        key_version;	/*!< key version for this block */
-	bool            page_encrypted; /*!< page is page encrypted */
-	bool            page_compressed;/*!< page is page compressed */
-	ulint           stored_checksum;/*!< stored page checksum if page
-					encrypted */
-	bool            encrypted;      /*!< page is still encrypted */
-	ulint           calculated_checksum;
-					/*!< calculated checksum if page
-					encrypted */
+	bool            encrypted;	/*!< page is still encrypted */
+
 	ulint           real_size;	/*!< Real size of the page
 					Normal pages == UNIV_PAGE_SIZE
 					page compressed pages, payload
@@ -1678,7 +1649,6 @@ public:
 	buf_tmp_buffer_t* slot;		/*!< Slot for temporary memory
 					used for encryption/compression
 					or NULL */
- #ifndef UNIV_HOTBACKUP
 	buf_page_t*	hash;		/*!< node used in chaining to
 					buf_pool->page_hash or
 					buf_pool->zip_hash */
@@ -1792,7 +1762,6 @@ public:
 					protected by buf_pool->zip_mutex
 					or buf_block_t::mutex. */
 # endif /* UNIV_DEBUG */
-#endif /* !UNIV_HOTBACKUP */
 };
 
 /** The buffer control block structure */
@@ -1810,7 +1779,6 @@ struct buf_block_t{
 					is of size UNIV_PAGE_SIZE, and
 					aligned to an address divisible by
 					UNIV_PAGE_SIZE */
-#ifndef UNIV_HOTBACKUP
 	BPageLock	lock;		/*!< read-write lock of the buffer
 					frame */
 	UT_LIST_NODE_T(buf_block_t) unzip_LRU;
@@ -1847,6 +1815,7 @@ struct buf_block_t{
 					bufferfixed, or (2) the thread has an
 					x-latch on the block */
 	/* @} */
+#ifdef BTR_CUR_HASH_ADAPT
 	/** @name Hash search fields (unprotected)
 	NOTE that these fields are NOT protected by any semaphore! */
 	/* @{ */
@@ -1878,11 +1847,11 @@ struct buf_block_t{
 
 	/* @{ */
 
-#if defined UNIV_AHI_DEBUG || defined UNIV_DEBUG
+# if defined UNIV_AHI_DEBUG || defined UNIV_DEBUG
 	ulint		n_pointers;	/*!< used in debugging: the number of
 					pointers in the adaptive hash index
 					pointing to this frame */
-#endif /* UNIV_AHI_DEBUG || UNIV_DEBUG */
+# endif /* UNIV_AHI_DEBUG || UNIV_DEBUG */
 	unsigned	curr_n_fields:10;/*!< prefix length for hash indexing:
 					number of full fields */
 	unsigned	curr_n_bytes:15;/*!< number of bytes in hash
@@ -1897,6 +1866,7 @@ struct buf_block_t{
 					complete, though: there may
 					have been hash collisions,
 					record deletions, etc. */
+#endif /* BTR_CUR_HASH_ADAPT */
 	bool		skip_flush_check;
 					/*!< Skip check in buf_dblwr_check_block
 					during bulk load, protected by lock.*/
@@ -1916,7 +1886,6 @@ struct buf_block_t{
 					and accessed; we introduce this new
 					mutex in InnoDB-5.1 to relieve
 					contention on the buffer pool mutex */
-#endif /* !UNIV_HOTBACKUP */
 };
 
 /** Check if a buf_block_t object is in a valid state
@@ -1927,7 +1896,6 @@ struct buf_block_t{
  && (buf_block_get_state(block) <= BUF_BLOCK_REMOVE_HASH))
 
 
-#ifndef UNIV_HOTBACKUP
 /**********************************************************************//**
 Compute the hash fold value for blocks in buf_pool->zip_hash. */
 /* @{ */
@@ -2233,7 +2201,9 @@ struct buf_pool_t{
 	os_event_t	no_flush[BUF_FLUSH_N_TYPES];
 					/*!< this is in the set state
 					when there is no flush batch
-					of the given type running */
+					of the given type running;
+					os_event_set() and os_event_reset()
+					are protected by buf_pool_t::mutex */
 	ib_rbt_t*	flush_rbt;	/*!< a red-black tree is used
 					exclusively during recovery to
 					speed up insertions in the
@@ -2248,7 +2218,7 @@ struct buf_pool_t{
 					recovery and is set to NULL
 					once the recovery is over.
 					Protected by flush_list_mutex */
-	ulint		freed_page_clock;/*!< a sequence number used
+	unsigned	freed_page_clock;/*!< a sequence number used
 					to count the number of buffer
 					blocks removed from the end of
 					the LRU list; NOTE that this
@@ -2462,7 +2432,6 @@ Use these instead of accessing buf_pool->mutex directly. */
 /** Release the buffer pool mutex. */
 # define buf_pool_mutex_exit(b) mutex_exit(&b->mutex)
 #endif
-#endif /* !UNIV_HOTBACKUP */
 /* @} */
 
 /**********************************************************************
@@ -2553,9 +2522,8 @@ struct	CheckUnzipLRUAndLRUList {
 };
 #endif /* UNIV_DEBUG || defined UNIV_BUF_DEBUG */
 
-#ifndef UNIV_NONINL
 #include "buf0buf.ic"
-#endif
+
 #endif /* !UNIV_INNOCHECKSUM */
 
 #endif

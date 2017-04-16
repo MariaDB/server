@@ -664,6 +664,15 @@ select 0<!0,  0 < ! 0;
 0<!0	0 < ! 0
 1	1
 #
+# MDEV-11171 Assertion `m_cpp_buf <= ptr && ptr <= m_cpp_buf + m_buf_length' failed in Lex_input_stream::body_utf8_append(const char*, const char*)
+#
+CREATE TABLE t1 (id INT);
+CREATE TRIGGER tr AFTER DELETE ON t1 FOR EACH ROW SET @a = 1\;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '\' at line 1
+PREPARE stmt FROM 'CREATE TRIGGER tr AFTER DELETE ON t1 FOR EACH ROW SET @a = 1\\';
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '\' at line 1
+DROP TABLE t1;
+#
 # MDEV-7792 - SQL Parsing Error - UNION AND ORDER BY WITH JOIN
 #
 CREATE TABLE t1(a INT);
@@ -942,13 +951,23 @@ a
 10
 20
 SELECT 1 AS a UNION (SELECT a FROM t1 GROUP BY a ORDER BY GROUP_CONCAT(a));
-ERROR HY000: Invalid use of group function
+a
+1
+10
+20
+30
 SELECT 1 AS a UNION (SELECT a FROM t1 GROUP BY a ORDER BY GROUP_CONCAT(a)) LIMIT 1;
-ERROR HY000: Invalid use of group function
+a
+1
 SELECT 1 AS a UNION (SELECT a FROM t1 GROUP BY a ORDER BY GROUP_CONCAT(a)) ORDER BY a;
-ERROR HY000: Invalid use of group function
+a
+1
+10
+20
+30
 SELECT 1 AS a UNION (SELECT a FROM t1 GROUP BY a ORDER BY GROUP_CONCAT(a)) ORDER BY a LIMIT 1;
-ERROR HY000: Invalid use of group function
+a
+1
 DROP TABLE t1;
 # UNION with a parenthesized term with ROLLUP
 CREATE TABLE t1 (a INT);
@@ -1280,3 +1299,32 @@ SELECT 1;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'UNION
 SELECT 1' at line 2
 DROP TABLE t1;
+create table t1 (a serial null);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'null)' at line 1
+create table t1 (a serial auto_increment);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'auto_increment)' at line 1
+create table t1 (a serial serial default value);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'serial default value)' at line 1
+create table t1 (a serial collate binary);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'collate binary)' at line 1
+create table t1 (i int, vc serial as (i));
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'as (i))' at line 1
+create function fs() returns serial return 1;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'serial return 1' at line 1
+create table t1 ( id serial );
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  UNIQUE KEY `id` (`id`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+drop table t1;
+#
+# MDEV-10343 Providing compatibility for basic SQL data types
+#
+CREATE TABLE clob (clob int);
+DROP TABLE clob;
+CREATE TABLE raw (raw int);
+DROP TABLE raw;
+CREATE TABLE varchar2 (varchar2 int);
+DROP TABLE varchar2;

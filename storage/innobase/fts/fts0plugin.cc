@@ -108,6 +108,7 @@ Note:
 a. Parse logic refers to 'ftb_query_add_word' from ft_boolean_search.c in MYISAM;
 b. Parse node or tree refers to fts0pars.y.
 @return 0 if add successfully, or return non-zero. */
+static
 int
 fts_query_add_word_for_parser(
 /*==========================*/

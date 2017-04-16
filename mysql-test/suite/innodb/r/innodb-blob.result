@@ -41,11 +41,8 @@ a
 1
 2
 3
-SET DEBUG='+d,crash_commit_before';
-Warnings:
-Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
+BEGIN;
 INSERT INTO t2 VALUES (42);
-ERROR HY000: Lost connection to MySQL server during query
 disconnect con1;
 disconnect con2;
 connection default;
@@ -100,11 +97,6 @@ SELECT info FROM information_schema.processlist
 WHERE state = 'debug sync point: before_row_upd_extern';
 info
 UPDATE t3 SET c=REPEAT('i',3000) WHERE a=2
-SET DEBUG='+d,crash_commit_before';
-Warnings:
-Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
-COMMIT;
-ERROR HY000: Lost connection to MySQL server during query
 disconnect con2;
 connection default;
 ERROR HY000: Lost connection to MySQL server during query
@@ -136,11 +128,6 @@ SELECT info FROM information_schema.processlist
 WHERE state = 'debug sync point: after_row_upd_extern';
 info
 UPDATE t3 SET c=REPEAT('j',3000) WHERE a=2
-SET DEBUG='+d,crash_commit_before';
-Warnings:
-Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
-COMMIT;
-ERROR HY000: Lost connection to MySQL server during query
 disconnect con2;
 connection default;
 ERROR HY000: Lost connection to MySQL server during query

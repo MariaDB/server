@@ -1,0 +1,227 @@
+SET sql_mode=ORACLE;
+#
+# MDEV-10914 ROW data type for stored routine variables
+#
+CREATE TABLE t1 (a INT, b INT);
+CREATE PROCEDURE p1
+AS
+rec ROW(a INT,b INT);
+BEGIN
+rec.a:=100;
+rec.b:=200;
+INSERT INTO t1 VALUES (rec.a,rec.b);
+INSERT INTO t1 VALUES (10, rec=ROW(100,200));
+INSERT INTO t1 VALUES (10, ROW(100,200)=rec);
+INSERT INTO t1 SELECT 10, 20 FROM DUAL WHERE rec=ROW(100,200);
+INSERT INTO t1 SELECT 10, 21 FROM DUAL WHERE ROW(100,200)=rec;
+rec.a:=NULL;
+INSERT INTO t1 VALUES (11, rec=ROW(100,200));
+INSERT INTO t1 VALUES (11, rec=ROW(100,201));
+INSERT INTO t1 VALUES (11, ROW(100,200)=rec);
+INSERT INTO t1 VALUES (11, ROW(100,201)=rec);
+INSERT INTO t1 SELECT 11, 20 FROM DUAL WHERE rec=ROW(100,200);
+INSERT INTO t1 SELECT 11, 21 FROM DUAL WHERE ROW(100,200)=rec;
+rec.b:=NULL;
+INSERT INTO t1 VALUES (12, rec=ROW(100,200));
+INSERT INTO t1 VALUES (12, ROW(100,200)=rec);
+INSERT INTO t1 SELECT 12, 20 FROM DUAL WHERE rec=ROW(100,200);
+INSERT INTO t1 SELECT 12, 21 FROM DUAL WHERE ROW(100,200)=rec;
+END;
+$$
+CALL p1();
+SELECT * FROM t1;
+a	b
+100	200
+10	1
+10	1
+10	20
+10	21
+11	NULL
+11	0
+11	NULL
+11	0
+12	NULL
+12	NULL
+DROP TABLE t1;
+DROP PROCEDURE p1;
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000001	#	Gtid	#	#	GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; CREATE TABLE t1 (a INT, b INT)
+master-bin.000001	#	Gtid	#	#	GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; CREATE DEFINER="root"@"localhost" PROCEDURE "p1"()
+AS
+rec ROW(a INT,b INT);
+BEGIN
+rec.a:=100;
+rec.b:=200;
+INSERT INTO t1 VALUES (rec.a,rec.b);
+INSERT INTO t1 VALUES (10, rec=ROW(100,200));
+INSERT INTO t1 VALUES (10, ROW(100,200)=rec);
+INSERT INTO t1 SELECT 10, 20 FROM DUAL WHERE rec=ROW(100,200);
+INSERT INTO t1 SELECT 10, 21 FROM DUAL WHERE ROW(100,200)=rec;
+rec.a:=NULL;
+INSERT INTO t1 VALUES (11, rec=ROW(100,200));
+INSERT INTO t1 VALUES (11, rec=ROW(100,201));
+INSERT INTO t1 VALUES (11, ROW(100,200)=rec);
+INSERT INTO t1 VALUES (11, ROW(100,201)=rec);
+INSERT INTO t1 SELECT 11, 20 FROM DUAL WHERE rec=ROW(100,200);
+INSERT INTO t1 SELECT 11, 21 FROM DUAL WHERE ROW(100,200)=rec;
+rec.b:=NULL;
+INSERT INTO t1 VALUES (12, rec=ROW(100,200));
+INSERT INTO t1 VALUES (12, ROW(100,200)=rec);
+INSERT INTO t1 SELECT 12, 20 FROM DUAL WHERE rec=ROW(100,200);
+INSERT INTO t1 SELECT 12, 21 FROM DUAL WHERE ROW(100,200)=rec;
+END
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; INSERT INTO t1 VALUES ( NAME_CONST('rec.a',100), NAME_CONST('rec.b',200))
+master-bin.000001	#	Query	#	#	COMMIT
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; INSERT INTO t1 VALUES (10, ROW(100,200)=ROW(100,200))
+master-bin.000001	#	Query	#	#	COMMIT
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; INSERT INTO t1 VALUES (10, ROW(100,200)=ROW(100,200))
+master-bin.000001	#	Query	#	#	COMMIT
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; INSERT INTO t1 SELECT 10, 20 FROM DUAL WHERE ROW(100,200)=ROW(100,200)
+master-bin.000001	#	Query	#	#	COMMIT
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; INSERT INTO t1 SELECT 10, 21 FROM DUAL WHERE ROW(100,200)=ROW(100,200)
+master-bin.000001	#	Query	#	#	COMMIT
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; INSERT INTO t1 VALUES (11, ROW(NULL,200)=ROW(100,200))
+master-bin.000001	#	Query	#	#	COMMIT
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; INSERT INTO t1 VALUES (11, ROW(NULL,200)=ROW(100,201))
+master-bin.000001	#	Query	#	#	COMMIT
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; INSERT INTO t1 VALUES (11, ROW(100,200)=ROW(NULL,200))
+master-bin.000001	#	Query	#	#	COMMIT
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; INSERT INTO t1 VALUES (11, ROW(100,201)=ROW(NULL,200))
+master-bin.000001	#	Query	#	#	COMMIT
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; INSERT INTO t1 SELECT 11, 20 FROM DUAL WHERE ROW(NULL,200)=ROW(100,200)
+master-bin.000001	#	Query	#	#	COMMIT
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; INSERT INTO t1 SELECT 11, 21 FROM DUAL WHERE ROW(100,200)=ROW(NULL,200)
+master-bin.000001	#	Query	#	#	COMMIT
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; INSERT INTO t1 VALUES (12, ROW(NULL,NULL)=ROW(100,200))
+master-bin.000001	#	Query	#	#	COMMIT
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; INSERT INTO t1 VALUES (12, ROW(100,200)=ROW(NULL,NULL))
+master-bin.000001	#	Query	#	#	COMMIT
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; INSERT INTO t1 SELECT 12, 20 FROM DUAL WHERE ROW(NULL,NULL)=ROW(100,200)
+master-bin.000001	#	Query	#	#	COMMIT
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; INSERT INTO t1 SELECT 12, 21 FROM DUAL WHERE ROW(100,200)=ROW(NULL,NULL)
+master-bin.000001	#	Query	#	#	COMMIT
+master-bin.000001	#	Gtid	#	#	GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; DROP TABLE "t1" /* generated by server */
+master-bin.000001	#	Gtid	#	#	GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; DROP PROCEDURE p1
+#
+# Testing ROW fields in LIMIT
+#
+FLUSH LOGS;
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (10),(10);
+CREATE TABLE t2 (a INT);
+CREATE PROCEDURE p1()
+AS
+a INT:= 1;
+rec ROW(a INT);
+BEGIN
+rec.a:= 1;
+INSERT INTO t2 SELECT 1 FROM t1 LIMIT a;
+INSERT INTO t2 SELECT 2 FROM t1 LIMIT rec.a;
+END;
+$$
+CALL p1();
+Warnings:
+Note	1592	Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT. The statement is unsafe because it uses a LIMIT clause. This is unsafe because the set of rows included cannot be predicted
+DROP TABLE t1,t2;
+DROP PROCEDURE p1;
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000002	#	Binlog_checkpoint	#	#	master-bin.000002
+master-bin.000002	#	Gtid	#	#	GTID #-#-#
+master-bin.000002	#	Query	#	#	use `test`; CREATE TABLE t1 (a INT)
+master-bin.000002	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000002	#	Query	#	#	use `test`; INSERT INTO t1 VALUES (10),(10)
+master-bin.000002	#	Query	#	#	COMMIT
+master-bin.000002	#	Gtid	#	#	GTID #-#-#
+master-bin.000002	#	Query	#	#	use `test`; CREATE TABLE t2 (a INT)
+master-bin.000002	#	Gtid	#	#	GTID #-#-#
+master-bin.000002	#	Query	#	#	use `test`; CREATE DEFINER="root"@"localhost" PROCEDURE "p1"()
+AS
+a INT:= 1;
+rec ROW(a INT);
+BEGIN
+rec.a:= 1;
+INSERT INTO t2 SELECT 1 FROM t1 LIMIT a;
+INSERT INTO t2 SELECT 2 FROM t1 LIMIT rec.a;
+END
+master-bin.000002	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000002	#	Query	#	#	use `test`; INSERT INTO t2 SELECT 1 FROM t1 LIMIT 1
+master-bin.000002	#	Query	#	#	COMMIT
+master-bin.000002	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000002	#	Query	#	#	use `test`; INSERT INTO t2 SELECT 2 FROM t1 LIMIT 1
+master-bin.000002	#	Query	#	#	COMMIT
+master-bin.000002	#	Gtid	#	#	GTID #-#-#
+master-bin.000002	#	Query	#	#	use `test`; DROP TABLE "t1","t2" /* generated by server */
+master-bin.000002	#	Gtid	#	#	GTID #-#-#
+master-bin.000002	#	Query	#	#	use `test`; DROP PROCEDURE p1
+#
+# End of MDEV-10914 ROW data type for stored routine variables
+#
+#
+# MDEV-12291 Allow ROW variables as SELECT INTO targets
+#
+FLUSH LOGS;
+SET sql_mode=DEFAULT;
+CREATE TABLE t1 (a INT, b VARCHAR(32));
+INSERT INTO t1 VALUES (10, 'b10');
+CREATE TABLE t2 LIKE t1;
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE rec1 ROW(a INT, b VARCHAR(32));
+SELECT * INTO rec1 FROM t1;
+INSERT INTO t2 VALUES (rec1.a, rec1.b);
+END;
+$$
+CALL p1();
+SELECT * FROM t1;
+a	b
+10	b10
+DROP TABLE t1;
+DROP TABLE t2;
+DROP PROCEDURE p1;
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000003	#	Binlog_checkpoint	#	#	master-bin.000003
+master-bin.000003	#	Gtid	#	#	GTID #-#-#
+master-bin.000003	#	Query	#	#	use `test`; CREATE TABLE t1 (a INT, b VARCHAR(32))
+master-bin.000003	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000003	#	Query	#	#	use `test`; INSERT INTO t1 VALUES (10, 'b10')
+master-bin.000003	#	Query	#	#	COMMIT
+master-bin.000003	#	Gtid	#	#	GTID #-#-#
+master-bin.000003	#	Query	#	#	use `test`; CREATE TABLE t2 LIKE t1
+master-bin.000003	#	Gtid	#	#	GTID #-#-#
+master-bin.000003	#	Query	#	#	use `test`; CREATE DEFINER=`root`@`localhost` PROCEDURE `p1`()
+BEGIN
+DECLARE rec1 ROW(a INT, b VARCHAR(32));
+SELECT * INTO rec1 FROM t1;
+INSERT INTO t2 VALUES (rec1.a, rec1.b);
+END
+master-bin.000003	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000003	#	Query	#	#	use `test`; INSERT INTO t2 VALUES ( NAME_CONST('rec1.a',10),  NAME_CONST('rec1.b',_latin1'b10' COLLATE 'latin1_swedish_ci'))
+master-bin.000003	#	Query	#	#	COMMIT
+master-bin.000003	#	Gtid	#	#	GTID #-#-#
+master-bin.000003	#	Query	#	#	use `test`; DROP TABLE `t1` /* generated by server */
+master-bin.000003	#	Gtid	#	#	GTID #-#-#
+master-bin.000003	#	Query	#	#	use `test`; DROP TABLE `t2` /* generated by server */
+master-bin.000003	#	Gtid	#	#	GTID #-#-#
+master-bin.000003	#	Query	#	#	use `test`; DROP PROCEDURE p1

@@ -55,6 +55,7 @@ static bool tokudb_show_status(
 static void tokudb_handle_fatal_signal(handlerton* hton, THD* thd, int sig);
 #endif
 static int tokudb_close_connection(handlerton* hton, THD* thd);
+static void tokudb_kill_query(handlerton *hton, THD *thd, enum thd_kill_levels level);
 static int tokudb_commit(handlerton* hton, THD* thd, bool all);
 static int tokudb_rollback(handlerton* hton, THD* thd, bool all);
 #if TOKU_INCLUDE_XA
@@ -145,6 +146,11 @@ static void tokudb_lock_timeout_callback(
     uint64_t requesting_txnid,
     const DBT* left_key,
     const DBT* right_key,
+    uint64_t blocking_txnid);
+
+static void tokudb_lock_wait_needed_callback(
+    void* arg,
+    uint64_t requesting_txnid,
     uint64_t blocking_txnid);
 
 #define ASSERT_MSGLEN 1024
@@ -331,6 +337,7 @@ static int tokudb_init_func(void *p) {
 
     tokudb_hton->create = tokudb_create_handler;
     tokudb_hton->close_connection = tokudb_close_connection;
+    tokudb_hton->kill_query = tokudb_kill_query;
 
     tokudb_hton->savepoint_offset = sizeof(SP_INFO_T);
     tokudb_hton->savepoint_set = tokudb_savepoint;
@@ -531,6 +538,8 @@ static int tokudb_init_func(void *p) {
     db_env->change_fsync_log_period(db_env, tokudb::sysvars::fsync_log_period);
 
     db_env->set_lock_timeout_callback(db_env, tokudb_lock_timeout_callback);
+    db_env->set_dir_per_db(db_env, tokudb::sysvars::dir_per_db);
+    db_env->set_lock_wait_callback(db_env, tokudb_lock_wait_needed_callback);
 
     db_env->set_loader_memory_size(
         db_env,
@@ -753,6 +762,12 @@ static int tokudb_close_connection(handlerton* hton, THD* thd) {
     return error;
 }
 
+void tokudb_kill_query(handlerton *hton, THD *thd, enum thd_kill_levels level) {
+    TOKUDB_DBUG_ENTER("");
+    db_env->kill_waiter(db_env, thd);
+    DBUG_VOID_RETURN;
+}
+
 bool tokudb_flush_logs(handlerton * hton) {
     TOKUDB_DBUG_ENTER("");
     int error;
@@ -872,9 +887,9 @@ static int tokudb_commit(handlerton * hton, THD * thd, bool all) {
             tokudb_sync_on_commit(thd, trx, this_txn) ? 0 : DB_TXN_NOSYNC;
         TOKUDB_TRACE_FOR_FLAGS(
             TOKUDB_DEBUG_TXN,
-            "commit trx %u txn %p syncflag %u",
+            "commit trx %u txn %p %" PRIu64 " syncflag %u",
             all,
-            this_txn,
+            this_txn, this_txn->id64(this_txn),
             syncflag);
         // test hook to induce a crash on a debug build
         DBUG_EXECUTE_IF("tokudb_crash_commit_before", DBUG_SUICIDE(););
@@ -903,9 +918,9 @@ static int tokudb_rollback(handlerton * hton, THD * thd, bool all) {
     if (this_txn) {
         TOKUDB_TRACE_FOR_FLAGS(
             TOKUDB_DEBUG_TXN,
-            "rollback %u txn %p",
+            "rollback %u txn %p %" PRIu64,
             all,
-            this_txn);
+            this_txn, this_txn->id64(this_txn));
         tokudb_cleanup_handlers(trx, this_txn);
         abort_txn_with_progress(this_txn, thd);
         *txn = NULL;
@@ -951,9 +966,9 @@ static int tokudb_xa_prepare(handlerton* hton, THD* thd, bool all) {
         uint32_t syncflag = tokudb_sync_on_prepare() ? 0 : DB_TXN_NOSYNC;
         TOKUDB_TRACE_FOR_FLAGS(
             TOKUDB_DEBUG_XA,
-            "doing txn prepare:%d:%p",
+            "doing txn prepare:%d:%p %" PRIu64,
             all,
-            txn);
+            txn, txn->id64(txn));
         // a TOKU_XA_XID is identical to a MYSQL_XID
         TOKU_XA_XID thd_xid;
         thd_get_xid(thd, (MYSQL_XID*) &thd_xid);
@@ -1569,7 +1584,9 @@ static int tokudb_search_txn_callback(
     void* extra) {
 
     uint64_t txn_id = txn->id64(txn);
-    uint64_t client_id = txn->get_client_id(txn);
+    uint64_t client_id;
+    void *client_extra;
+    txn->get_client_id(txn, &client_id, &client_extra);
     struct tokudb_search_txn_extra* e =
         reinterpret_cast<struct tokudb_search_txn_extra*>(extra);
     if (e->match_txn_id == txn_id) {
@@ -1744,6 +1761,63 @@ static void tokudb_lock_timeout_callback(
             }
 #endif
         }
+    }
+}
+
+extern "C" int thd_rpl_deadlock_check(MYSQL_THD thd, MYSQL_THD other_thd);
+
+struct tokudb_search_txn_thd {
+    bool match_found;
+    uint64_t match_txn_id;
+    THD *match_client_thd;
+};
+
+static int tokudb_search_txn_thd_callback(
+    DB_TXN* txn,
+    iterate_row_locks_callback iterate_locks,
+    void* locks_extra,
+    void* extra) {
+
+    uint64_t txn_id = txn->id64(txn);
+    uint64_t client_id;
+    void *client_extra;
+    txn->get_client_id(txn, &client_id, &client_extra);
+    struct tokudb_search_txn_thd* e =
+        reinterpret_cast<struct tokudb_search_txn_thd*>(extra);
+    if (e->match_txn_id == txn_id) {
+        e->match_found = true;
+        e->match_client_thd = reinterpret_cast<THD *>(client_extra);
+        return 1;
+    }
+    return 0;
+}
+
+static bool tokudb_txn_id_to_thd(
+    uint64_t txnid,
+    THD **out_thd) {
+
+    struct tokudb_search_txn_thd e = {
+        false,
+        txnid,
+        0
+    };
+    db_env->iterate_live_transactions(db_env, tokudb_search_txn_thd_callback, &e);
+    if (e.match_found) {
+        *out_thd = e.match_client_thd;
+    }
+    return e.match_found;
+}
+
+static void tokudb_lock_wait_needed_callback(
+    void *arg,
+    uint64_t requesting_txnid,
+    uint64_t blocking_txnid) {
+
+    THD *requesting_thd;
+    THD *blocking_thd;
+    if (tokudb_txn_id_to_thd(requesting_txnid, &requesting_thd) &&
+        tokudb_txn_id_to_thd(blocking_txnid, &blocking_thd)) {
+        thd_rpl_deadlock_check (requesting_thd, blocking_thd);
     }
 }
 

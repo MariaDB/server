@@ -305,3 +305,103 @@ ERROR HY000: Function or expression 'st_gis_debug()' cannot be used in the DEFAU
 #
 # End of 10.2 tests
 #
+#
+# Start of 10.3 tests
+#
+#
+# Comparison data type aggregation for pluggable data types
+#
+SET SESSION debug_dbug="+d,Item_func_in";
+SET SESSION debug_dbug="+d,Predicant_to_list_comparator";
+CREATE TABLE t1 (a POINT);
+INSERT INTO t1 VALUES (POINT(1,1)),(POINT(1,2)),(POINT(1,3));
+SELECT COUNT(*) FROM t1 WHERE a IN (POINT(1,1),POINT(10,20),POINT(10,30));
+COUNT(*)
+1
+Warnings:
+Note	1105	DBUG: [0] arg=1 handler=0 (geometry)
+Note	1105	DBUG: [1] arg=2 handler=0 (geometry)
+Note	1105	DBUG: [2] arg=3 handler=0 (geometry)
+Note	1105	DBUG: types_compatible=yes bisect=yes
+SELECT COUNT(*) FROM t1 WHERE a IN (POINT(1,1),POINT(10,20),POINT(10,30),'test');
+COUNT(*)
+1
+Warnings:
+Note	1105	DBUG: [0] arg=1 handler=0 (geometry)
+Note	1105	DBUG: [1] arg=2 handler=0 (geometry)
+Note	1105	DBUG: [2] arg=3 handler=0 (geometry)
+Note	1105	DBUG: [3] arg=4 handler=3 (longblob)
+Note	1105	DBUG: types_compatible=no bisect=no
+SELECT COUNT(*) FROM t1 WHERE a IN ('test','test1');
+COUNT(*)
+0
+Warnings:
+Note	1105	DBUG: [0] arg=1 handler=0 (longblob)
+Note	1105	DBUG: [1] arg=2 handler=0 (longblob)
+Note	1105	DBUG: types_compatible=yes bisect=yes
+DROP TABLE t1;
+CREATE TABLE t1 (a TEXT);
+INSERT INTO t1 VALUES ('test'),('test1'),('test2');
+SELECT * FROM t1 WHERE a IN ('test',POINT(1,1));
+a
+test
+Warnings:
+Note	1105	DBUG: [0] arg=1 handler=0 (longblob)
+Note	1105	DBUG: [1] arg=2 handler=0 (longblob)
+Note	1105	DBUG: types_compatible=yes bisect=yes
+DROP TABLE t1;
+SET SESSION debug_dbug="-d,Predicant_to_list_comparator";
+SET SESSION debug_dbug="-d,Item_func_in";
+#
+# MDEV-12238 Add Type_handler::Item_func_{plus|minus|mul|div|mod}_fix_length_and_dec()
+#
+SET debug_dbug='+d,num_op';
+CREATE TABLE t1 AS SELECT
+POINT(0,0)+POINT(0,0),
+POINT(0,0)-POINT(0,0),
+POINT(0,0)*POINT(0,0),
+POINT(0,0)/POINT(0,0),
+POINT(0,0) MOD POINT(0,0) LIMIT 0;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `POINT(0,0)+POINT(0,0)` geometry DEFAULT NULL,
+  `POINT(0,0)-POINT(0,0)` geometry DEFAULT NULL,
+  `POINT(0,0)*POINT(0,0)` geometry DEFAULT NULL,
+  `POINT(0,0)/POINT(0,0)` geometry DEFAULT NULL,
+  `POINT(0,0) MOD POINT(0,0)` geometry DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 AS SELECT
+POINT(0,0)+'0',
+POINT(0,0)-'0',
+POINT(0,0)*'0',
+POINT(0,0)/'0',
+POINT(0,0) MOD '0' LIMIT 0;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `POINT(0,0)+'0'` longtext DEFAULT NULL,
+  `POINT(0,0)-'0'` longtext DEFAULT NULL,
+  `POINT(0,0)*'0'` longtext DEFAULT NULL,
+  `POINT(0,0)/'0'` longtext DEFAULT NULL,
+  `POINT(0,0) MOD '0'` longtext DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 AS SELECT
+'0'+POINT(0,0),
+'0'*POINT(0,0) LIMIT 0;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `'0'+POINT(0,0)` longtext DEFAULT NULL,
+  `'0'*POINT(0,0)` longtext DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 AS SELECT '0'-POINT(0,0) LIMIT 0;
+ERROR HY000: Illegal parameter data types varchar and geometry for operation '-'
+CREATE TABLE t1 AS SELECT '0'/POINT(0,0) LIMIT 0;
+ERROR HY000: Illegal parameter data types varchar and geometry for operation '/'
+CREATE TABLE t1 AS SELECT '0' MOD POINT(0,0) LIMIT 0;
+ERROR HY000: Illegal parameter data types varchar and geometry for operation '%'
+SET debug_dbug='-d,num_op';

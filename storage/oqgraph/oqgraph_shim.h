@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
 
 /* ======================================================================
    Open Query Graph Computation Engine, based on a concept by Arjen Lentz
@@ -274,6 +274,33 @@ namespace boost
   };
 #endif
 
+  template<>
+  struct property_map<oqgraph3::graph, edge_weight_t>
+  {
+    typedef void type;
+    typedef oqgraph3::edge_weight_property_map const_type;
+  };
+
+  template<>
+  struct property_map<oqgraph3::graph, vertex_index_t>
+  {
+    typedef void type;
+    typedef oqgraph3::vertex_index_property_map const_type;
+  };
+
+  template<>
+  struct property_map<oqgraph3::graph, edge_index_t>
+  {
+    typedef void type;
+    typedef oqgraph3::edge_index_property_map const_type;
+  };
+
+}
+
+namespace oqgraph3
+{
+  using namespace boost;
+
   inline graph_traits<oqgraph3::graph>::vertex_descriptor
   source(
       const graph_traits<oqgraph3::graph>::edge_descriptor& e,
@@ -400,27 +427,6 @@ namespace boost
     }
     return count;
   }
-
-  template<>
-  struct property_map<oqgraph3::graph, edge_weight_t>
-  {
-    typedef void type;
-    typedef oqgraph3::edge_weight_property_map const_type;
-  };
-
-  template<>
-  struct property_map<oqgraph3::graph, vertex_index_t>
-  {
-    typedef void type;
-    typedef oqgraph3::vertex_index_property_map const_type;
-  };
-
-  template<>
-  struct property_map<oqgraph3::graph, edge_index_t>
-  {
-    typedef void type;
-    typedef oqgraph3::edge_index_property_map const_type;
-  };
 
   inline property_map<
       oqgraph3::graph,

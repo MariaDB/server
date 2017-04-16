@@ -4,7 +4,7 @@ INSERT INTO t7(c1) VALUES(NULL);
 INSERT INTO t7(c1) VALUES('');
 INSERT INTO t7(c1) VALUES('a');
 INSERT INTO t7(c1) VALUES('abcdefghijabcdefghijabcdefghijabcdefghijabcdefghij');
-INSERT INTO t7(c1) VALUES('abcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghij');
+INSERT IGNORE INTO t7(c1) VALUES('abcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghij');
 Warnings:
 Warning	1265	Data truncated for column 'c1' at row 1
 INSERT INTO t7(c1) VALUES('a,abcdefghijabcdefghijabcdefghijabcdefghijabcdefghij');

@@ -5,7 +5,7 @@
 --source include/have_debug.inc
 --source include/master-slave.inc
 --source include/have_binlog_format_row.inc
---source include/have_xtradb.inc
+--source include/have_innodb.inc
 
 --disable_warnings
 drop table if exists t1;

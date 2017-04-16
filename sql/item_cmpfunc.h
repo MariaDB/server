@@ -55,7 +55,6 @@ class Arg_comparator: public Sql_alloc
   Arg_comparator *comparators;   // used only for compare_row()
   double precision;
   /* Fields used in DATE/DATETIME comparison. */
-  THD *thd;
   Item *a_cache, *b_cache;         // Cached values of a and b items
                                    //   when one of arguments is NULL.
 
@@ -71,12 +70,12 @@ public:
   Arg_comparator():
     m_compare_handler(&type_handler_null),
     m_compare_collation(&my_charset_bin),
-    set_null(TRUE), comparators(0), thd(0),
+    set_null(TRUE), comparators(0),
     a_cache(0), b_cache(0) {};
   Arg_comparator(Item **a1, Item **a2): a(a1), b(a2),
     m_compare_handler(&type_handler_null),
     m_compare_collation(&my_charset_bin),
-    set_null(TRUE), comparators(0), thd(0),
+    set_null(TRUE), comparators(0),
     a_cache(0), b_cache(0) {};
 
 public:
@@ -392,7 +391,7 @@ public:
     Specifies which result type the function uses to compare its arguments.
     This method is used in equal field propagation.
   */
-  virtual Item_result compare_type() const
+  virtual const Type_handler *compare_type_handler() const
   {
     /*
       Have STRING_RESULT by default, which means the function compares
@@ -400,7 +399,7 @@ public:
       and for Item_func_spatial_rel.
       Note, Item_bool_rowready_func2 overrides this default behaviour.
     */
-    return STRING_RESULT;
+    return &type_handler_varchar;
   }
   SEL_TREE *get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr)
   {
@@ -508,7 +507,10 @@ public:
     return cmp.set_cmp_func(this, tmp_arg, tmp_arg + 1, true);
   }
   CHARSET_INFO *compare_collation() const { return cmp.compare_collation(); }
-  Item_result compare_type() const { return cmp.compare_type(); }
+  const Type_handler *compare_type_handler() const
+  {
+    return cmp.compare_type_handler();
+  }
   Arg_comparator *get_comparator() { return &cmp; }
   void cleanup()
   {
@@ -991,6 +993,7 @@ public:
   Case abbreviations that aggregate its result field type by two arguments:
     IFNULL(arg1, arg2)
     IF(switch, arg1, arg2)
+    NVL2(switch, arg1, arg2)
 */
 class Item_func_case_abbreviation2 :public Item_func_hybrid_field_type
 {
@@ -1001,6 +1004,34 @@ protected:
       fix_attributes(items, 2);
   }
   uint decimal_precision2(Item **args) const;
+
+  void cache_type_info(const Item *source, bool maybe_null_arg)
+  {
+    Type_std_attributes::set(source);
+    set_handler_by_field_type(source->field_type());
+    maybe_null= maybe_null_arg;
+  }
+
+  void fix_length_and_dec2_eliminate_null(Item **items)
+  {
+    // Let IF(cond, expr, NULL) and IF(cond, NULL, expr) inherit type from expr.
+    if (items[0]->type() == NULL_ITEM)
+    {
+      cache_type_info(items[1], true);
+      // If both arguments are NULL, make resulting type BINARY(0).
+      if (items[1]->type() == NULL_ITEM)
+        set_handler_by_field_type(MYSQL_TYPE_STRING);
+    }
+    else if (items[1]->type() == NULL_ITEM)
+    {
+      cache_type_info(items[0], true);
+    }
+    else
+    {
+      fix_length_and_dec2(items);
+    }
+  }
+
 public:
   Item_func_case_abbreviation2(THD *thd, Item *a, Item *b):
     Item_func_hybrid_field_type(thd, a, b) { }
@@ -1038,19 +1069,61 @@ public:
 };
 
 
-class Item_func_if :public Item_func_case_abbreviation2
+/**
+  Case abbreviations that have a switch argument and
+  two return arguments to choose from. Returns the value
+  of either of the two return arguments depending on the switch argument value.
+
+  IF(switch, arg1, arg2)
+  NVL(switch, arg1, arg2)
+*/
+class Item_func_case_abbreviation2_switch: public Item_func_case_abbreviation2
 {
+protected:
+  virtual Item *find_item() const= 0;
+
+public:
+  Item_func_case_abbreviation2_switch(THD *thd, Item *a, Item *b, Item *c)
+    :Item_func_case_abbreviation2(thd, a, b, c)
+  { }
+
+  bool date_op(MYSQL_TIME *ltime, uint fuzzydate)
+  {
+    return get_date_with_conversion_from_item(find_item(), ltime, fuzzydate);
+  }
+  longlong int_op()
+  {
+    return val_int_from_item(find_item());
+  }
+  double real_op()
+  {
+    return val_real_from_item(find_item());
+  }
+  my_decimal *decimal_op(my_decimal *decimal_value)
+  {
+    return val_decimal_from_item(find_item(), decimal_value);
+  }
+  String *str_op(String *str)
+  {
+    return val_str_from_item(find_item(), str);
+  }
+};
+
+
+class Item_func_if :public Item_func_case_abbreviation2_switch
+{
+protected:
+  Item *find_item() const { return args[0]->val_bool() ? args[1] : args[2]; }
+
 public:
   Item_func_if(THD *thd, Item *a, Item *b, Item *c):
-    Item_func_case_abbreviation2(thd, a, b, c)
+    Item_func_case_abbreviation2_switch(thd, a, b, c)
   {}
-  bool date_op(MYSQL_TIME *ltime, uint fuzzydate);
-  longlong int_op();
-  double real_op();
-  my_decimal *decimal_op(my_decimal *);
-  String *str_op(String *);
   bool fix_fields(THD *, Item **);
-  void fix_length_and_dec();
+  void fix_length_and_dec()
+  {
+    fix_length_and_dec2_eliminate_null(args + 1);
+  }
   uint decimal_precision() const
   {
     return Item_func_case_abbreviation2::decimal_precision2(args + 1);
@@ -1062,6 +1135,29 @@ public:
   { return get_item_copy<Item_func_if>(thd, mem_root, this); }
 private:
   void cache_type_info(Item *source);
+};
+
+
+class Item_func_nvl2 :public Item_func_case_abbreviation2_switch
+{
+protected:
+  Item *find_item() const { return args[0]->is_null() ? args[2] : args[1]; }
+
+public:
+  Item_func_nvl2(THD *thd, Item *a, Item *b, Item *c):
+    Item_func_case_abbreviation2_switch(thd, a, b, c)
+  {}
+  const char *func_name() const { return "nvl2"; }
+  void fix_length_and_dec()
+  {
+    fix_length_and_dec2_eliminate_null(args + 1);
+  }
+  uint decimal_precision() const
+  {
+    return Item_func_case_abbreviation2::decimal_precision2(args + 1);
+  }
+  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
+  { return get_item_copy<Item_func_nvl2>(thd, mem_root, this); }
 };
 
 
@@ -1092,6 +1188,7 @@ class Item_func_nullif :public Item_func_hybrid_field_type
     if (arg_count == 3 && args[0] != args[2])
       args[0]= args[2];
   }
+  Item *m_arg0;
 public:
   /*
     Here we pass three arguments to the parent constructor, as NULLIF
@@ -1103,8 +1200,14 @@ public:
   */
   Item_func_nullif(THD *thd, Item *a, Item *b):
     Item_func_hybrid_field_type(thd, a, b, a),
-    m_cache(NULL)
+    m_cache(NULL),
+    m_arg0(NULL)
   { arg_count--; }
+  void cleanup()
+  {
+    Item_func_hybrid_field_type::cleanup();
+    arg_count= 2; // See the comment to the constructor
+  }
   bool date_op(MYSQL_TIME *ltime, uint fuzzydate);
   double real_op();
   longlong int_op();
@@ -1280,13 +1383,11 @@ class in_temporal :public in_longlong
 protected:
   uchar *get_value_internal(Item *item, enum_field_types f_type);
 public:
-  THD *thd;
   /* Cache for the left item. */
   Item *lval_cache;
 
   in_temporal(THD *thd, uint elements)
-    :in_longlong(thd, elements), thd(current_thd),
-     lval_cache(0) {};
+    :in_longlong(thd, elements), lval_cache(0) {};
   Item *create_item(THD *thd);
   void value_to_item(uint pos, Item *item)
   {
@@ -1479,12 +1580,11 @@ protected:
   longlong value;
   void store_value_internal(Item *item, enum_field_types type);
 public:
-  THD *thd;
   /* Cache for the left item. */
   Item *lval_cache;
 
   cmp_item_temporal()
-    :thd(current_thd), lval_cache(0) {}
+    :lval_cache(0) {}
   int compare(cmp_item *ci);
 };
 
@@ -1815,19 +1915,21 @@ public:
   /**
     Add a new element into m_comparators[], using a {pred,valueN} pair.
 
+    @param funcname        - the name of the operation, for error reporting
     @param args            - the owner function's argument list
     @param value_index     - the value position in args
     @retval true           - could not add an element because of non-comparable
                              arguments (e.g. ROWs with size)
     @retval false          - a new element was successfully added.
   */
-  bool add_value(Item_args *args, uint value_index);
+  bool add_value(const char *funcname, Item_args *args, uint value_index);
 
   /**
     Add a new element into m_comparators[], ignoring explicit NULL values.
     If the value appeared to be an explicit NULL, nulls_found[0] is set to true.
   */
-  bool add_value_skip_null(Item_args *args, uint value_index,
+  bool add_value_skip_null(const char *funcname,
+                           Item_args *args, uint value_index,
                            bool *nulls_found);
 
   /**
@@ -2100,6 +2202,7 @@ public:
   void add_key_fields(JOIN *join, KEY_FIELD **key_fields, uint *and_level,
                       table_map usable_tables, SARGABLE_PARAM **sargables);
   SEL_TREE *get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr);
+  SEL_TREE *get_func_row_mm_tree(RANGE_OPT_PARAM *param, Item_row *key_row); 
   Item* propagate_equal_fields(THD *thd, const Context &ctx, COND_EQUAL *cond)
   {
     /*
@@ -2161,6 +2264,7 @@ public:
   cmp_item *make_same();
   void store_value_by_template(THD *thd, cmp_item *tmpl, Item *);
   friend class Item_func_in;
+  cmp_item *get_comparator(uint i) { return comparators[i]; }
 };
 
 
@@ -2174,6 +2278,7 @@ public:
   uchar *get_value(Item *item);
   friend class Item_func_in;
   Item_result result_type() { return ROW_RESULT; }
+  cmp_item *get_cmp_item() { return &tmp; }
 };
 
 /* Functions used by where clause */
@@ -2222,10 +2327,26 @@ public:
   const char *func_name() const { return "isnull"; }
   void print(String *str, enum_query_type query_type);
   enum precedence precedence() const { return CMP_PRECEDENCE; }
+
+  bool arg_is_datetime_notnull_field()
+  {
+    Item **args= arguments();
+    if (args[0]->type() == Item::FIELD_ITEM)
+    {
+      Field *field=((Item_field*) args[0])->field;
+
+      if (((field->type() == MYSQL_TYPE_DATE) ||
+          (field->type() == MYSQL_TYPE_DATETIME)) &&
+          (field->flags & NOT_NULL_FLAG))
+        return true;
+    }
+    return false;
+  }
+
   /* Optimize case of not_null_column IS NULL */
   virtual void update_used_tables()
   {
-    if (!args[0]->maybe_null)
+    if (!args[0]->maybe_null && !arg_is_datetime_notnull_field())
     {
       used_tables_cache= 0;			/* is always false */
       const_item_cache= 1;
@@ -2379,12 +2500,7 @@ public:
   }
   void add_key_fields(JOIN *join, KEY_FIELD **key_fields, uint *and_level,
                       table_map usable_tables, SARGABLE_PARAM **sargables);
-  SEL_TREE *get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr)
-  {
-    return with_sargable_pattern() ?
-           Item_bool_func2::get_mm_tree(param, cond_ptr) :
-           Item_func::get_mm_tree(param, cond_ptr);
-  }
+  SEL_TREE *get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr);
   Item* propagate_equal_fields(THD *thd, const Context &ctx, COND_EQUAL *cond)
   {
     /*
@@ -3145,4 +3261,3 @@ extern Ge_creator ge_creator;
 extern Le_creator le_creator;
 
 #endif /* ITEM_CMPFUNC_INCLUDED */
-

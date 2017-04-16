@@ -43,6 +43,8 @@ Copyright (c) 2006, 2015, Percona and/or its affiliates. All rights reserved.
 #include "ydb-internal.h"
 #include "ydb_txn.h"
 
+#include <memory>
+
 typedef enum {
     YDB_LAYER_DIRECTORY_WRITE_LOCKS = 0,        /* total directory write locks taken */
     YDB_LAYER_DIRECTORY_WRITE_LOCKS_FAIL,   /* total directory write locks unable to be taken */
@@ -119,3 +121,17 @@ toku_db_destruct_autotxn(DB_TXN *txn, int r, bool changed) {
     }
     return r; 
 }
+
+void create_iname_hint_for_dbdir(const char *dname, char *hint);
+void create_iname_hint(const char *dname, char *hint);
+char *create_iname(DB_ENV *env,
+                   uint64_t id1,
+                   uint64_t id2,
+                   char *hint,
+                   const char *mark,
+                   int n);
+std::unique_ptr<char[], decltype(&toku_free)> generate_iname_for_rename_or_open(
+    DB_ENV *env,
+    DB_TXN *txn,
+    const char *dname,
+    bool is_open);

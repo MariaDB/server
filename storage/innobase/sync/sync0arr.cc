@@ -2,7 +2,7 @@
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, Google Inc.
-Copyright (c) 2013, 2015, MariaDB Corporation. All Rights Reserved.
+Copyright (c) 2013, 2017, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -32,13 +32,7 @@ Created 9/5/1995 Heikki Tuuri
 *******************************************************/
 
 #include "ha_prototypes.h"
-#include "univ.i"
-
 #include "sync0arr.h"
-#ifdef UNIV_NONINL
-#include "sync0arr.ic"
-#endif
-
 #include <mysqld_error.h>
 #include <mysql/plugin.h>
 #include <hash.h>
@@ -117,7 +111,7 @@ struct sync_cell_t {
 	const char*	file;		/*!< in debug version file where
 					requested */
 	ulint		line;		/*!< in debug version line where
-					requested */
+					requested, or ULINT_UNDEFINED */
 	os_thread_id_t	thread_id;	/*!< thread id of this waiting
 					thread */
 	bool		waiting;	/*!< TRUE if the thread has already
@@ -213,27 +207,46 @@ sync_array_t::sync_array_t(ulint num_cells)
 	UNIV_NOTHROW
 	:
 	n_reserved(),
-	n_cells(),
-	array(),
+	n_cells(num_cells),
+	array(UT_NEW_ARRAY_NOKEY(sync_cell_t, num_cells)),
 	mutex(),
 	res_count(),
 	next_free_slot(),
-	first_free_slot()
+	first_free_slot(ULINT_UNDEFINED)
 {
 	ut_a(num_cells > 0);
 
-	array = UT_NEW_ARRAY_NOKEY(sync_cell_t, num_cells);
-
-	ulint	sz = sizeof(sync_cell_t) * num_cells;
-
-	memset(array, 0x0, sz);
-
-	n_cells = num_cells;
-
-	first_free_slot = ULINT_UNDEFINED;
+	memset(array, 0x0, sizeof(sync_cell_t) * n_cells);
 
 	/* Then create the mutex to protect the wait array */
 	mutex_create(LATCH_ID_SYNC_ARRAY_MUTEX, &mutex);
+}
+
+/** Validate the integrity of the wait array. Check
+that the number of reserved cells equals the count variable.
+@param[in,out]	arr	sync wait array */
+static
+void
+sync_array_validate(sync_array_t* arr)
+{
+	ulint		i;
+	ulint		count		= 0;
+
+	sync_array_enter(arr);
+
+	for (i = 0; i < arr->n_cells; i++) {
+		sync_cell_t*	cell;
+
+		cell = sync_array_get_nth_cell(arr, i);
+
+		if (cell->latch.mutex != NULL) {
+			count++;
+		}
+	}
+
+	ut_a(count == arr->n_reserved);
+
+	sync_array_exit(arr);
 }
 
 /** Destructor */
@@ -277,34 +290,6 @@ sync_array_free(
 	UT_DELETE(arr);
 }
 
-/********************************************************************//**
-Validates the integrity of the wait array. Checks
-that the number of reserved cells equals the count variable. */
-void
-sync_array_validate(
-/*================*/
-	sync_array_t*	arr)	/*!< in: sync wait array */
-{
-	ulint		i;
-	ulint		count		= 0;
-
-	sync_array_enter(arr);
-
-	for (i = 0; i < arr->n_cells; i++) {
-		sync_cell_t*	cell;
-
-		cell = sync_array_get_nth_cell(arr, i);
-
-		if (cell->latch.mutex != NULL) {
-			count++;
-		}
-	}
-
-	ut_a(count == arr->n_reserved);
-
-	sync_array_exit(arr);
-}
-
 /*******************************************************************//**
 Returns the event that the thread owning the cell waits for. */
 static
@@ -344,7 +329,7 @@ sync_array_reserve_cell(
 	void*		object, /*!< in: pointer to the object to wait for */
 	ulint		type,	/*!< in: lock request type */
 	const char*	file,	/*!< in: file where requested */
-	ulint		line)	/*!< in: line where requested */
+	unsigned	line)	/*!< in: line where requested */
 {
 	sync_cell_t*	cell;
 
@@ -604,15 +589,15 @@ sync_array_cell_print(
 			fprintf(file,
 				"number of readers %lu, waiters flag %lu,"
 				" lock_word: %lx\n"
-				"Last time read locked in file %s line %lu\n"
-				"Last time write locked in file %s line %lu\n",
+				"Last time read locked in file %s line %u\n"
+				"Last time write locked in file %s line %u\n",
 				(ulint) rw_lock_get_reader_count(rwlock),
 				(ulint) rwlock->waiters,
 				rwlock->lock_word,
 				innobase_basename(rwlock->last_s_file_name),
-				(ulint) rwlock->last_s_line,
+				rwlock->last_s_line,
 				rwlock->last_x_file_name,
-				(ulint) rwlock->last_x_line);
+				rwlock->last_x_line);
 
 			/* JAN: TODO: FIX LATER
 			fprintf(file,
@@ -705,6 +690,7 @@ Report an error to stderr.
 @param lock		rw-lock instance
 @param debug		rw-lock debug information
 @param cell		thread context */
+static
 void
 sync_array_report_error(
 	rw_lock_t*		lock,
@@ -1339,8 +1325,9 @@ sync_arr_fill_sys_semphore_waits_table(
 			(longlong)os_thread_pf(cell->thread)));
 			*/
 			OK(field_store_string(fields[SYS_SEMAPHORE_WAITS_FILE], innobase_basename(cell->file)));
-			OK(field_store_ulint(fields[SYS_SEMAPHORE_WAITS_LINE], cell->line));
-			OK(field_store_ulint(fields[SYS_SEMAPHORE_WAITS_WAIT_TIME], (longlong)difftime(time(NULL), cell->reservation_time)));
+			OK(fields[SYS_SEMAPHORE_WAITS_LINE]->store(cell->line, true));
+			fields[SYS_SEMAPHORE_WAITS_LINE]->set_notnull();
+			OK(field_store_ulint(fields[SYS_SEMAPHORE_WAITS_WAIT_TIME], (ulint)difftime(time(NULL), cell->reservation_time)));
 
 			if (type == SYNC_MUTEX) {
 				mutex = static_cast<WaitMutex*>(cell->latch.mutex);
@@ -1352,13 +1339,16 @@ sync_arr_fill_sys_semphore_waits_table(
 					OK(field_store_string(fields[SYS_SEMAPHORE_WAITS_WAIT_TYPE], "MUTEX"));
 					//OK(field_store_ulint(fields[SYS_SEMAPHORE_WAITS_HOLDER_THREAD_ID], (longlong)mutex->thread_id));
 					//OK(field_store_string(fields[SYS_SEMAPHORE_WAITS_HOLDER_FILE], innobase_basename(mutex->file_name)));
-					//OK(field_store_ulint(fields[SYS_SEMAPHORE_WAITS_HOLDER_LINE], mutex->line));
+					//OK(fields[SYS_SEMAPHORE_WAITS_HOLDER_LINE]->store(mutex->line, true));
+					//fields[SYS_SEMAPHORE_WAITS_HOLDER_LINE]->set_notnull();
 					//OK(field_store_string(fields[SYS_SEMAPHORE_WAITS_CREATED_FILE], innobase_basename(mutex->cfile_name)));
-					//OK(field_store_ulint(fields[SYS_SEMAPHORE_WAITS_CREATED_LINE], mutex->cline));
+					//OK(fields[SYS_SEMAPHORE_WAITS_CREATED_LINE]->store(mutex->cline, true));
+					//fields[SYS_SEMAPHORE_WAITS_CREATED_LINE]->set_notnull();
 					//OK(field_store_ulint(fields[SYS_SEMAPHORE_WAITS_WAITERS_FLAG], (longlong)mutex->waiters));
 					//OK(field_store_ulint(fields[SYS_SEMAPHORE_WAITS_LOCK_WORD], (longlong)mutex->lock_word));
 					//OK(field_store_string(fields[SYS_SEMAPHORE_WAITS_LAST_WRITER_FILE], innobase_basename(mutex->file_name)));
-					//OK(field_store_ulint(fields[SYS_SEMAPHORE_WAITS_LAST_WRITER_LINE], mutex->line));
+					//OK(fields[SYS_SEMAPHORE_WAITS_LAST_WRITER_LINE]->store(mutex->line, true));
+					//fields[SYS_SEMAPHORE_WAITS_LAST_WRITER_LINE]->set_notnull();
 					//OK(field_store_ulint(fields[SYS_SEMAPHORE_WAITS_OS_WAIT_COUNT], mutex->count_os_wait));
 				}
 			} else if (type == RW_LOCK_X_WAIT
@@ -1398,14 +1388,17 @@ sync_arr_fill_sys_semphore_waits_table(
 
 						//OK(field_store_ulint(fields[SYS_SEMAPHORE_WAITS_HOLDER_THREAD_ID], (longlong)rwlock->thread_id));
 						//OK(field_store_string(fields[SYS_SEMAPHORE_WAITS_HOLDER_FILE], innobase_basename(rwlock->file_name)));
-						//OK(field_store_ulint(fields[SYS_SEMAPHORE_WAITS_HOLDER_LINE], rwlock->line));
+						//OK(fields[SYS_SEMAPHORE_WAITS_HOLDER_LINE]->store(rwlock->line, true));
+						//fields[SYS_SEMAPHORE_WAITS_HOLDER_LINE]->set_notnull();
 						OK(field_store_ulint(fields[SYS_SEMAPHORE_WAITS_READERS], rw_lock_get_reader_count(rwlock)));
 						OK(field_store_ulint(fields[SYS_SEMAPHORE_WAITS_WAITERS_FLAG], (longlong)rwlock->waiters));
 						OK(field_store_ulint(fields[SYS_SEMAPHORE_WAITS_LOCK_WORD], (longlong)rwlock->lock_word));
 						OK(field_store_string(fields[SYS_SEMAPHORE_WAITS_LAST_READER_FILE], innobase_basename(rwlock->last_s_file_name)));
-						OK(field_store_ulint(fields[SYS_SEMAPHORE_WAITS_LAST_READER_LINE], rwlock->last_s_line));
+						OK(fields[SYS_SEMAPHORE_WAITS_LAST_READER_LINE]->store(rwlock->last_s_line, true));
+						fields[SYS_SEMAPHORE_WAITS_LAST_READER_LINE]->set_notnull();
 						OK(field_store_string(fields[SYS_SEMAPHORE_WAITS_LAST_WRITER_FILE], innobase_basename(rwlock->last_x_file_name)));
-						OK(field_store_ulint(fields[SYS_SEMAPHORE_WAITS_LAST_WRITER_LINE], rwlock->last_x_line));
+						OK(fields[SYS_SEMAPHORE_WAITS_LAST_WRITER_LINE]->store(rwlock->last_x_line, true));
+						fields[SYS_SEMAPHORE_WAITS_LAST_WRITER_LINE]->set_notnull();
 						OK(field_store_ulint(fields[SYS_SEMAPHORE_WAITS_OS_WAIT_COUNT], rwlock->count_os_wait));
 					}
 				}

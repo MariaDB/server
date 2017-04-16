@@ -1,0 +1,7 @@
+SET sql_mode=ORACLE;
+SELECT NVL(NULL, 'a'), NVL('a', 'b');
+NVL(NULL, 'a')	NVL('a', 'b')
+a	a
+SELECT NVL2(NULL, 'a', 'b'), NVL2('a', 'b', 'c');
+NVL2(NULL, 'a', 'b')	NVL2('a', 'b', 'c')
+b	b

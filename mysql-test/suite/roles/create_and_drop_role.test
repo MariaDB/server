@@ -95,3 +95,15 @@ SHOW GRANTS FOR r1@localhost; # Related to MDEV-7774, also caused a crash, by
 DROP USER u1;
 DROP ROLE r2;
 DROP USER r1@localhost;
+
+#
+# MDEV-11533: Roles with trailing white spaces are not cleared correctly
+#
+create role 'foo  ';
+select concat(user, '__'), is_role from mysql.user where user like 'foo%';
+select * from mysql.roles_mapping;
+drop role foo;
+select concat(user, '__'), is_role from mysql.user where user like 'foo%';
+select * from mysql.roles_mapping;
+--sorted_result
+show grants;

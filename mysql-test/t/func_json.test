@@ -78,6 +78,8 @@ select json_extract('[10, 20, [30, 40]]', '$[2][*]');
 select json_extract('[10, 20, [{"a":3}, 30, 40]]', '$[2][*]');
 select json_extract('1', '$');
 select json_extract('[10, 20, [30, 40], 1, 10]', '$[1]');
+select json_extract('[10, 20, [30, 40], 1, 10]', '$[1]', '$[25]');
+select json_extract( '[{"a": [3, 4]}, {"b": 2}]', '$[0].a', '$[1].a');
 
 select json_insert('{"a":1, "b":{"c":1}, "d":[1, 2]}', '$.b.k1', 'word');
 select json_insert('{"a":1, "b":{"c":1}, "d":[1, 2]}', '$.d[3]', 3);
@@ -159,10 +161,10 @@ select json_unquote('abc');
 
 select json_object("a", json_object("b", "abcd"));
 select json_object("a", '{"b": "abcd"}');
-select json_object("a", cast('{"b": "abcd"}' as json));
+select json_object("a", json_compact('{"b": "abcd"}'));
 
-select cast(NULL AS JSON);
-select json_depth(cast(NULL as JSON));
+select json_compact(NULL);
+select json_depth(json_compact(NULL));
 select json_depth('[[], {}]');
 select json_depth('[[[1,2,3],"s"], {}, []]');
 select json_depth('[10, {"a": 20}]');
@@ -177,3 +179,98 @@ create table json (j INT);
 show create table json;
 drop table json;
 
+select json_length( '[ 1, [ 2, 3, 4 ], 5 ]', '$[2]' );
+select json_length( '[ 1, [ 2, 3, 4 ], 5 ]', '$[2][0]' );
+select json_length( '[ 1, [ 2, 3, 4 ], 5 ]', '$[2][0][0]' );
+select json_length( '[ 1, [ 2, 3, 4 ], 5 ]', '$[2][0][0][0]' );
+select json_length( '[ 1, [ 2, 3, 4 ], {"a":5, "b":6} ]', '$[2]' );
+select json_length( '[ 1, [ 2, 3, 4 ], {"a":5, "b":6} ]', '$[2][0]' );
+select json_length( '[ 1, [ 2, 3, 4 ], {"a":5, "b":6} ]', '$[2][0][0]' );
+select json_length( '[ 1, [ 2, 3, 4 ], {"a":5, "b":6} ]', '$[2][0][0][0]' );
+select json_length( '{"a":{"b":{"d":1}}, "a":{"c":{"d":1, "j":2}}}', '$.a[0][0][0].c' );
+
+select json_set('1', '$[0]', 100);
+select json_set('1', '$[0][0]', 100);
+select json_set('1', '$[1]', 100);
+select json_set('{"a":12}', '$[0]', 100);
+select json_set('{"a":12}', '$[0].a', 100);
+select json_set('{"a":12}', '$[0][0].a', 100);
+select json_set('{"a":12}', '$[0][1].a', 100);
+
+select json_value('{"\\"key1":123}', '$."\\"key1"');
+select json_value('{"\\"key1\\"":123}', '$."\\"key1\\""');
+select json_value('{"key 1":123}', '$."key 1"');
+
+select json_contains_path('{"a":[{"c":[1,{"a":[0,1,2]},3]}], "b":[1,2,3]}', 'one', "$**.a[2]");
+select json_contains_path('{"a":[{"c":[1,{"a":[0,1,2]},3]}], "b":[1,2,3]}', 'one', "$**.a[3]");
+
+select json_extract( '[1]', '$[0][0]' );
+select json_extract( '[1]', '$[1][0]' );
+select json_extract( '[1]', '$**[0]' );
+select json_extract( '[1]', '$**[0][0]' );
+
+select json_insert('1', '$[0]', 4);
+select json_replace('1', '$[0]', 4);
+select json_set('1', '$[0]', 4);
+select json_set('1', '$[1]', 4);
+select json_replace('1', '$[1]', 4);
+SELECT json_insert('[]', '$[0][0]', 100);
+SELECT json_insert('1', '$[0][0]', 100);
+SELECT json_replace('1', '$[0][0]', 100);
+SELECT json_replace('[]', '$[0][0]', 100);
+SELECT json_set('[]', '$[0][0]', 100);
+SELECT json_set('[]', '$[0][0][0]', 100);
+
+#
+# MDEV-11857 json_search() shows "Out of memory" with empty key.
+#
+SELECT JSON_search( '{"": "a"}', "one", 'a');
+
+#
+# MDEV-11858 json_merge() concatenates instead of merging.
+#
+
+select json_merge('{"a":"b"}', '{"a":"c"}') ;
+select json_merge('{"a":{"x":"b"}}', '{"a":"c"}') ;
+select json_merge('{"a":{"u":12, "x":"b"}}', '{"a":{"x":"c"}}') ;
+select json_merge('{"a":{"u":12, "x":"b", "r":1}}', '{"a":{"x":"c", "r":2}}') ;
+
+select json_compact('{"a":1, "b":[1,2,3], "c":{"aa":"v1", "bb": "v2"}}');
+select json_loose('{"a":1, "b":[1,2,3], "c":{"aa":"v1", "bb": "v2"}}');
+select json_detailed('{"a":1, "b":[1,2,3], "c":{"aa":"v1", "bb": "v2"}}');
+
+#
+# MDEV-11856 json_search doesn't search for values with double quotes character (")
+#
+
+SELECT JSON_search( '{"x": "\\""}', "one", '"');
+SELECT JSON_search( '{"x": "\\""}', "one", '\\"');
+
+#
+# MDEV-11833 JSON functions don't seem to respect max_allowed_packet.
+#
+set @@global.net_buffer_length=1024;
+set @@global.max_allowed_packet=2048;
+--connect (newconn, localhost, root,,)
+
+show variables like 'net_buffer_length';
+show variables like 'max_allowed_packet';
+select json_array(repeat('a',1024),repeat('a',1024));
+select json_object("a", repeat('a',1024),"b", repeat('a',1024));
+--connection default
+
+set @@global.max_allowed_packet = default;
+set @@global.net_buffer_length = default;
+--disconnect newconn
+
+
+#
+# MDEV-12262 Assertion `!null_value' failed in virtual bool Item::send on JSON_REMOVE.
+#
+create table t1(j longtext, p longtext);
+insert into t1 values
+    ('{"a":1,"b":2,"c":3}','$.a'),
+    ('{"a":1,"b":2,"c":3}','$.b'),
+      ('{"a":1,"b":2,"c":3}','$.c');
+select j, p, json_remove(j, p) from t1;
+drop table t1;

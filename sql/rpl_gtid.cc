@@ -448,19 +448,7 @@ static const TABLE_FIELD_DEF mysql_gtid_slave_pos_tabledef= {
   mysql_rpl_slave_state_pk_parts
 };
 
-class Gtid_db_intact : public Table_check_intact
-{
-protected:
-  void report_error(uint, const char *fmt, ...)
-  {
-    va_list args;
-    va_start(args, fmt);
-    error_log_print(ERROR_LEVEL, fmt, args);
-    va_end(args);
-  }
-};
-
-static Gtid_db_intact gtid_table_intact;
+static Table_check_intact_log_error gtid_table_intact;
 
 /*
   Check that the mysql.gtid_slave_pos table has the correct definition.

@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
 
 
 /*
@@ -107,12 +107,6 @@ uint32 maria_readnext_vec[]=
   SEARCH_BIGGER, SEARCH_SMALLER, SEARCH_SMALLER
 };
 
-static int always_valid(const char *filename __attribute__((unused)))
-{
-  return 0;
-}
-
-int (*maria_test_invalid_symlink)(const char *filename)= always_valid;
 my_bool (*ma_killed)(MARIA_HA *)= ma_killed_standalone;
 
 #ifdef HAVE_PSI_INTERFACE

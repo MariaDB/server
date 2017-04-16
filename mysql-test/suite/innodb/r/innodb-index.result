@@ -1,7 +1,3 @@
-set global innodb_file_per_table=on;
-set global innodb_file_format='Barracuda';
-Warnings:
-Warning	131	Using innodb_file_format is deprecated and the parameter may be removed in future releases. See http://dev.mysql.com/doc/refman/5.7/en/innodb-file-format.html
 SET @OLD_FOREIGN_KEY_CHECKS=@@FOREIGN_KEY_CHECKS;
 create table t1(a varchar(2) primary key) engine=innodb;
 insert into t1 values('');
@@ -66,7 +62,7 @@ alter table t1 add unique index (c), add index (d);
 affected rows: 0
 info: Records: 0  Duplicates: 0  Warnings: 1
 Warnings:
-Note	1831	Duplicate index 'd' defined on the table 'test.t1'. This is deprecated and will be disallowed in a future release
+Note	1831	Duplicate index `d`. This is deprecated and will be disallowed in a future release
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -858,13 +854,6 @@ explain select * from t1 order by a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	index	NULL	PRIMARY	4	NULL	2	Using index
 drop table t1;
-set global innodb_file_per_table=1;
-set global innodb_file_format=Barracuda;
-Warnings:
-Warning	131	Using innodb_file_format is deprecated and the parameter may be removed in future releases. See http://dev.mysql.com/doc/refman/5.7/en/innodb-file-format.html
-set global innodb_file_format_max=Barracuda;
-Warnings:
-Warning	131	Using innodb_file_format_max is deprecated and the parameter may be removed in future releases. See http://dev.mysql.com/doc/refman/5.7/en/innodb-file-format.html
 SET @OLD_UNIQUE_CHECKS=@@UNIQUE_CHECKS, UNIQUE_CHECKS=0;
 SET FOREIGN_KEY_CHECKS=0;
 CREATE TABLE t1(
@@ -1195,7 +1184,3 @@ t2c	CREATE TABLE `t2c` (
   KEY `t2a` (`a`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 DROP TABLE t1,t2,t2c,t2i;
-Warnings:
-Warning	131	Using innodb_file_format is deprecated and the parameter may be removed in future releases. See http://dev.mysql.com/doc/refman/5.7/en/innodb-file-format.html
-Warnings:
-Warning	131	Using innodb_file_format_max is deprecated and the parameter may be removed in future releases. See http://dev.mysql.com/doc/refman/5.7/en/innodb-file-format.html

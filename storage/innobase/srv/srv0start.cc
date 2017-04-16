@@ -3,7 +3,7 @@
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All rights reserved.
 Copyright (c) 2008, Google Inc.
 Copyright (c) 2009, Percona Inc.
-Copyright (c) 2013, 2016, MariaDB Corporation
+Copyright (c) 2013, 2017, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -63,7 +63,7 @@ Created 2/16/1996 Heikki Tuuri
 #include "fsp0fsp.h"
 #include "rem0rec.h"
 #include "mtr0mtr.h"
-#include "log0log.h"
+#include "log0crypt.h"
 #include "log0recv.h"
 #include "page0page.h"
 #include "page0cur.h"
@@ -76,42 +76,39 @@ Created 2/16/1996 Heikki Tuuri
 #include "srv0start.h"
 #include "srv0srv.h"
 #include "btr0defragment.h"
-
 #include "fsp0sysspace.h"
 #include "row0trunc.h"
 #include <mysql/service_wsrep.h>
-
-#ifndef UNIV_HOTBACKUP
-# include "trx0rseg.h"
-# include "os0proc.h"
-# include "buf0flu.h"
-# include "buf0rea.h"
-# include "buf0mtflu.h"
-# include "dict0boot.h"
-# include "dict0load.h"
-# include "dict0stats_bg.h"
-# include "que0que.h"
-# include "usr0sess.h"
-# include "lock0lock.h"
-# include "trx0roll.h"
-# include "trx0purge.h"
-# include "lock0lock.h"
-# include "pars0pars.h"
-# include "btr0sea.h"
-# include "rem0cmp.h"
-# include "dict0crea.h"
-# include "row0ins.h"
-# include "row0sel.h"
-# include "row0upd.h"
-# include "row0row.h"
-# include "row0mysql.h"
-# include "row0trunc.h"
-# include "btr0pcur.h"
-# include "os0event.h"
-# include "zlib.h"
-# include "ut0crc32.h"
-# include "btr0scrub.h"
-# include "ut0new.h"
+#include "trx0rseg.h"
+#include "os0proc.h"
+#include "buf0flu.h"
+#include "buf0rea.h"
+#include "buf0mtflu.h"
+#include "dict0boot.h"
+#include "dict0load.h"
+#include "dict0stats_bg.h"
+#include "que0que.h"
+#include "usr0sess.h"
+#include "lock0lock.h"
+#include "trx0roll.h"
+#include "trx0purge.h"
+#include "lock0lock.h"
+#include "pars0pars.h"
+#include "btr0sea.h"
+#include "rem0cmp.h"
+#include "dict0crea.h"
+#include "row0ins.h"
+#include "row0sel.h"
+#include "row0upd.h"
+#include "row0row.h"
+#include "row0mysql.h"
+#include "row0trunc.h"
+#include "btr0pcur.h"
+#include "os0event.h"
+#include "zlib.h"
+#include "ut0crc32.h"
+#include "btr0scrub.h"
+#include "ut0new.h"
 
 #ifdef HAVE_LZO1X
 #include <lzo/lzo1x.h>
@@ -140,6 +137,10 @@ bool	srv_sys_tablespaces_open = false;
 ibool	srv_was_started = FALSE;
 /** TRUE if innobase_start_or_create_for_mysql() has been called */
 static ibool	srv_start_has_been_called = FALSE;
+#ifdef UNIV_DEBUG
+/** InnoDB system tablespace to set during recovery */
+UNIV_INTERN uint	srv_sys_space_size_debug;
+#endif /* UNIV_DEBUG */
 
 /** Bit flags for tracking background thread creation. They are used to
 determine which threads need to be stopped if we need to abort during
@@ -186,7 +187,6 @@ static bool		dict_stats_thread_started = false;
 static bool		buf_flush_page_cleaner_thread_started = false;
 /** Name of srv_monitor_file */
 static char*	srv_monitor_file_name;
-#endif /* !UNIV_HOTBACKUP */
 
 /** Minimum expected tablespace size. (10M) */
 static const ulint MIN_EXPECTED_TABLESPACE_SIZE = 5 * 1024 * 1024;
@@ -194,9 +194,6 @@ static const ulint MIN_EXPECTED_TABLESPACE_SIZE = 5 * 1024 * 1024;
 /** */
 #define SRV_MAX_N_PENDING_SYNC_IOS	100
 
-/** The round off to MB is similar as done in srv_parse_megabytes() */
-#define CALC_NUMBER_OF_PAGES(size)  ((size) / (1024 * 1024)) * \
-				  ((1024 * 1024) / (UNIV_PAGE_SIZE))
 #ifdef UNIV_PFS_THREAD
 /* Keys to register InnoDB threads with performance schema */
 mysql_pfs_key_t	buf_dump_thread_key;
@@ -281,7 +278,6 @@ srv_file_check_mode(
 	return(true);
 }
 
-#ifndef UNIV_HOTBACKUP
 /********************************************************************//**
 I/o-handler thread function.
 @return OS_THREAD_DUMMY_RETURN */
@@ -340,9 +336,7 @@ DECLARE_THREAD(io_handler_thread)(
 
 	OS_THREAD_DUMMY_RETURN;
 }
-#endif /* !UNIV_HOTBACKUP */
 
-#ifndef UNIV_HOTBACKUP
 /*********************************************************************//**
 Creates a log file.
 @return DB_SUCCESS or error code */
@@ -424,12 +418,14 @@ create_log_files(
 		file should be recoverable. The buffer
 		pool was clean, and we can simply create
 		all log files from the scratch. */
-		RECOVERY_CRASH(6);
+		DBUG_EXECUTE_IF("innodb_log_abort_6", return(DB_ERROR););
 	}
 
+	DBUG_PRINT("ib_log", ("After innodb_log_abort_6"));
 	ut_ad(!buf_pool_check_no_pending_io());
 
-	RECOVERY_CRASH(7);
+	DBUG_EXECUTE_IF("innodb_log_abort_7", return(DB_ERROR););
+	DBUG_PRINT("ib_log", ("After innodb_log_abort_7"));
 
 	for (unsigned i = 0; i < srv_n_log_files; i++) {
 		sprintf(logfilename + dirnamelen,
@@ -442,21 +438,19 @@ create_log_files(
 		}
 	}
 
-	RECOVERY_CRASH(8);
+	DBUG_EXECUTE_IF("innodb_log_abort_8", return(DB_ERROR););
+	DBUG_PRINT("ib_log", ("After innodb_log_abort_8"));
 
 	/* We did not create the first log file initially as
 	ib_logfile0, so that crash recovery cannot find it until it
 	has been completed and renamed. */
 	sprintf(logfilename + dirnamelen, "ib_logfile%u", INIT_LOG_FILE0);
 
-	/* Disable the doublewrite buffer for log files, not required */
-
 	fil_space_t*	log_space = fil_space_create(
-		"innodb_redo_log", SRV_LOG_SPACE_FIRST_ID,
-		fsp_flags_set_page_size(0, univ_page_size),
-		FIL_TYPE_LOG,
-		NULL /* No encryption yet */
-		);
+		"innodb_redo_log", SRV_LOG_SPACE_FIRST_ID, 0, FIL_TYPE_LOG,
+		NULL, /* innodb_encrypt_log works at a different level */
+		true /* this is create */);
+
 	ut_a(fil_validate());
 	ut_a(log_space != NULL);
 
@@ -491,6 +485,9 @@ create_log_files(
 
 	/* Create a log checkpoint. */
 	log_mutex_enter();
+	if (log_sys->is_encrypted() && !log_crypt_init()) {
+		return(DB_ERROR);
+	}
 	ut_d(recv_no_log_write = false);
 	recv_reset_logs(lsn);
 	log_mutex_exit();
@@ -498,10 +495,16 @@ create_log_files(
 	return(DB_SUCCESS);
 }
 
-/*********************************************************************//**
-Renames the first log file. */
+/** Rename the first redo log file.
+@param[in,out]	logfilename	buffer for the log file name
+@param[in]	dirnamelen	length of the directory path
+@param[in]	lsn		FIL_PAGE_FILE_FLUSH_LSN value
+@param[in,out]	logfile0	name of the first log file
+@return	error code
+@retval	DB_SUCCESS	on successful operation */
+MY_ATTRIBUTE((warn_unused_result, nonnull))
 static
-void
+dberr_t
 create_log_files_rename(
 /*====================*/
 	char*	logfilename,	/*!< in/out: buffer for log file name */
@@ -512,6 +515,10 @@ create_log_files_rename(
 	/* If innodb_flush_method=O_DSYNC,
 	we need to explicitly flush the log buffers. */
 	fil_flush(SRV_LOG_SPACE_FIRST_ID);
+
+	DBUG_EXECUTE_IF("innodb_log_abort_9", return(DB_ERROR););
+	DBUG_PRINT("ib_log", ("After innodb_log_abort_9"));
+
 	/* Close the log files, so that we can rename
 	the first one. */
 	fil_close_log_files(false);
@@ -520,26 +527,27 @@ create_log_files_rename(
 	checkpoint has been created. */
 	sprintf(logfilename + dirnamelen, "ib_logfile%u", 0);
 
-	RECOVERY_CRASH(9);
-
 	ib::info() << "Renaming log file " << logfile0 << " to "
 		<< logfilename;
 
 	log_mutex_enter();
 	ut_ad(strlen(logfile0) == 2 + strlen(logfilename));
-	bool success = os_file_rename(
-		innodb_log_file_key, logfile0, logfilename);
-	ut_a(success);
-
-	RECOVERY_CRASH(10);
+	dberr_t err = os_file_rename(
+		innodb_log_file_key, logfile0, logfilename)
+		? DB_SUCCESS : DB_ERROR;
 
 	/* Replace the first file with ib_logfile0. */
 	strcpy(logfile0, logfilename);
 	log_mutex_exit();
 
-	fil_open_log_and_system_tablespace_files();
+	DBUG_EXECUTE_IF("innodb_log_abort_10", err = DB_ERROR;);
 
-	ib::warn() << "New log files created, LSN=" << lsn;
+	if (err == DB_SUCCESS) {
+		fil_open_log_and_system_tablespace_files();
+		ib::info() << "New log files created, LSN=" << lsn;
+	}
+
+	return(err);
 }
 
 /*********************************************************************//**
@@ -651,7 +659,6 @@ srv_undo_tablespace_open(
 {
 	os_file_t	fh;
 	bool		ret;
-	ulint		flags;
 	dberr_t		err	= DB_ERROR;
 	char		undo_name[sizeof "innodb_undo000"];
 
@@ -681,18 +688,6 @@ srv_undo_tablespace_open(
 		os_offset_t	size;
 		fil_space_t*	space;
 
-		bool	atomic_write;
-
-#if !defined(NO_FALLOCATE) && defined(UNIV_LINUX)
-		if (!srv_use_doublewrite_buf) {
-			atomic_write = fil_fusionio_enable_atomic_write(fh);
-		} else {
-			atomic_write = false;
-		}
-#else
-		atomic_write = false;
-#endif /* !NO_FALLOCATE && UNIV_LINUX */
-
 		size = os_file_get_size(fh);
 		ut_a(size != (os_offset_t) -1);
 
@@ -708,11 +703,9 @@ srv_undo_tablespace_open(
 
 		fil_set_max_space_id_if_bigger(space_id);
 
-		/* Set the compressed page size to 0 (non-compressed) */
-		flags = fsp_flags_init(
-			univ_page_size, false, false, false, false, false, 0, ATOMIC_WRITES_DEFAULT);
 		space = fil_space_create(
-			undo_name, space_id, flags, FIL_TYPE_TABLESPACE, NULL);
+			undo_name, space_id, FSP_FLAGS_PAGE_SSIZE(),
+			FIL_TYPE_TABLESPACE, NULL, true);
 
 		ut_a(fil_validate());
 		ut_a(space);
@@ -724,7 +717,7 @@ srv_undo_tablespace_open(
 		the unit has been scaled to pages and page number is always
 		32 bits. */
 		if (fil_node_create(
-			name, (ulint) n_pages, space, false, atomic_write)) {
+			name, (ulint) n_pages, space, false, TRUE)) {
 
 			err = DB_SUCCESS;
 		}
@@ -811,20 +804,12 @@ srv_check_undo_redo_logs_exists()
 
 undo::undo_spaces_t	undo::Truncate::s_fix_up_spaces;
 
-/********************************************************************
-Opens the configured number of undo tablespaces.
+/** Open the configured number of dedicated undo tablespaces.
+@param[in]	create_new_db	whether the database is being initialized
 @return DB_SUCCESS or error code */
 static
 dberr_t
-srv_undo_tablespaces_init(
-/*======================*/
-	bool		create_new_db,		/*!< in: TRUE if new db being
-						created */
-	const ulint	n_conf_tablespaces,	/*!< in: configured undo
-						tablespaces */
-	ulint*		n_opened)		/*!< out: number of UNDO
-						tablespaces successfully
-						discovered and opened */
+srv_undo_tablespaces_init(bool create_new_db)
 {
 	ulint			i;
 	dberr_t			err = DB_SUCCESS;
@@ -832,9 +817,9 @@ srv_undo_tablespaces_init(
 	ulint			n_undo_tablespaces;
 	ulint			undo_tablespace_ids[TRX_SYS_N_RSEGS + 1];
 
-	*n_opened = 0;
+	srv_undo_tablespaces_open = 0;
 
-	ut_a(n_conf_tablespaces <= TRX_SYS_N_RSEGS);
+	ut_a(srv_undo_tablespaces <= TRX_SYS_N_RSEGS);
 
 	memset(undo_tablespace_ids, 0x0, sizeof(undo_tablespace_ids));
 
@@ -846,7 +831,7 @@ srv_undo_tablespaces_init(
 	the location of the undo tablespaces and their space ids this
 	restriction will/should be lifted. */
 
-	for (i = 0; create_new_db && i < n_conf_tablespaces; ++i) {
+	for (i = 0; create_new_db && i < srv_undo_tablespaces; ++i) {
 		char	name[OS_FILE_MAX_PATH];
 
 		ut_snprintf(
@@ -909,7 +894,7 @@ srv_undo_tablespaces_init(
 			}
 		}
 	} else {
-		n_undo_tablespaces = n_conf_tablespaces;
+		n_undo_tablespaces = srv_undo_tablespaces;
 
 		for (i = 1; i <= n_undo_tablespaces; ++i) {
 			undo_tablespace_ids[i - 1] = i;
@@ -951,7 +936,7 @@ srv_undo_tablespaces_init(
 
 		prev_space_id = undo_tablespace_ids[i];
 
-		++*n_opened;
+		++srv_undo_tablespaces_open;
 	}
 
 	/* Open any extra unused undo tablespaces. These must be contiguous.
@@ -975,19 +960,17 @@ srv_undo_tablespaces_init(
 
 		++n_undo_tablespaces;
 
-		++*n_opened;
+		++srv_undo_tablespaces_open;
 	}
 
 	/* If the user says that there are fewer than what we find we
 	tolerate that discrepancy but not the inverse. Because there could
 	be unused undo tablespaces for future use. */
 
-	if (n_conf_tablespaces > n_undo_tablespaces) {
-		ib::error() << "Expected to open " << n_conf_tablespaces
-			<< " undo tablespaces but was able to find only "
-			<< n_undo_tablespaces << " undo tablespaces. Set the"
-			" innodb_undo_tablespaces parameter to the correct"
-			" value and retry. Suggested value is "
+	if (srv_undo_tablespaces > n_undo_tablespaces) {
+		ib::error() << "Expected to open innodb_undo_tablespaces="
+			<< srv_undo_tablespaces
+			<< " but was able to find only "
 			<< n_undo_tablespaces;
 
 		return(err != DB_SUCCESS ? err : DB_ERROR);
@@ -995,15 +978,13 @@ srv_undo_tablespaces_init(
 	} else  if (n_undo_tablespaces > 0) {
 
 		ib::info() << "Opened " << n_undo_tablespaces
-			<< " undo tablespaces";
+			<< " undo tablespaces ("
+			<< srv_undo_tablespaces_active
+			<< " active)";
 
-		ib::info() << srv_undo_tablespaces_active << " undo tablespaces"
-			<< " made active";
-
-		if (n_conf_tablespaces == 0) {
-			ib::warn() << "Will use system tablespace for all newly"
-				<< " created rollback-segment as"
-				<< " innodb_undo_tablespaces=0";
+		if (srv_undo_tablespaces == 0) {
+			ib::warn() << "innodb_undo_tablespaces=0 disables"
+				" dedicated undo log tablespaces";
 		}
 	}
 
@@ -1056,8 +1037,7 @@ srv_undo_tablespaces_init(
 
 				if (space_id == *it) {
 					trx_rseg_header_create(
-						*it, univ_page_size, ULINT_MAX,
-						i, &mtr);
+						*it, ULINT_MAX, i, &mtr);
 				}
 			}
 
@@ -1142,8 +1122,6 @@ srv_open_tmp_tablespace(bool create_new_db)
 
 	srv_tmp_space.set_space_id(SRV_TMP_SPACE_ID);
 
-	RECOVERY_CRASH(100);
-
 	dberr_t	err = srv_tmp_space.check_file_spec(
 		&create_new_temp_space, 12 * 1024 * 1024);
 
@@ -1220,13 +1198,11 @@ srv_start_state_is_set(
 
 /**
 Shutdown all background threads created by InnoDB. */
+static
 void
 srv_shutdown_all_bg_threads()
 {
-	ulint	i;
-
 	srv_shutdown_state = SRV_SHUTDOWN_EXIT_THREADS;
-	fil_crypt_threads_end();
 
 	if (!srv_start_state) {
 		return;
@@ -1235,7 +1211,7 @@ srv_shutdown_all_bg_threads()
 	/* All threads end up waiting for certain events. Put those events
 	to the signaled state. Then the threads will exit themselves after
 	os_event_wait(). */
-	for (i = 0; i < 1000; i++) {
+	for (uint i = 0; i < 1000; ++i) {
 		/* NOTE: IF YOU CREATE THREADS IN INNODB, YOU MUST EXIT THEM
 		HERE OR EARLIER */
 
@@ -1257,6 +1233,14 @@ srv_shutdown_all_bg_threads()
 			if (srv_start_state_is_set(SRV_START_STATE_PURGE)) {
 				/* d. Wakeup purge threads. */
 				srv_purge_wakeup();
+			}
+
+			if (srv_n_fil_crypt_threads_started) {
+				os_event_set(fil_crypt_threads_event);
+			}
+
+			if (log_scrub_thread_active) {
+				os_event_set(log_scrub_event);
 			}
 		}
 
@@ -1288,26 +1272,19 @@ srv_shutdown_all_bg_threads()
 			os_aio_wake_all_threads_at_shutdown();
 		}
 
-		bool	active = os_thread_active();
+		const bool active = os_thread_active();
 
 		os_thread_sleep(100000);
 
 		if (!active) {
-			break;
+			return;
 		}
 	}
 
-	if (i == 1000) {
-		ib::warn() << os_thread_count << " threads created by InnoDB"
-			" had not exited at shutdown!";
-#ifdef UNIV_DEBUG
-		os_aio_print_pending_io(stderr);
-		ut_ad(0);
-#endif /* UNIV_DEBUG */
-	} else {
-		/* Reset the start state. */
-		srv_start_state = SRV_START_STATE_NONE;
-	}
+	ib::warn() << os_thread_count << " threads created by InnoDB"
+		" had not exited at shutdown!";
+	ut_d(os_aio_print_pending_io(stderr));
+	ut_ad(0);
 }
 
 #ifdef UNIV_DEBUG
@@ -1324,13 +1301,14 @@ srv_shutdown_all_bg_threads()
 @param[in]	line		Line number
 @param[in]	err		Reason for aborting InnoDB startup
 @return DB_SUCCESS or error code. */
+MY_ATTRIBUTE((warn_unused_result, nonnull))
 static
 dberr_t
 srv_init_abort_low(
 	bool		create_new_db,
 #ifdef UNIV_DEBUG
 	const char*	file,
-	ulint		line,
+	unsigned	line,
 #endif /* UNIV_DEBUG */
 	dberr_t		err)
 {
@@ -1363,6 +1341,8 @@ lsn_t
 srv_prepare_to_delete_redo_log_files(
 	ulint	n_files)
 {
+	DBUG_ENTER("srv_prepare_to_delete_redo_log_files");
+
 	lsn_t	flushed_lsn;
 	ulint	pending_io = 0;
 	ulint	count = 0;
@@ -1371,7 +1351,8 @@ srv_prepare_to_delete_redo_log_files(
 		/* Clean the buffer pool. */
 		buf_flush_sync_all_buf_pools();
 
-		RECOVERY_CRASH(1);
+		DBUG_EXECUTE_IF("innodb_log_abort_1", DBUG_RETURN(0););
+		DBUG_PRINT("ib_log", ("After innodb_log_abort_1"));
 
 		log_mutex_enter();
 
@@ -1380,17 +1361,35 @@ srv_prepare_to_delete_redo_log_files(
 		flushed_lsn = log_sys->lsn;
 
 		{
-			ib::warn	warning;
+			ib::info	info;
 			if (srv_log_file_size == 0) {
-				warning << "Upgrading redo log: ";
+				info << "Upgrading redo log: ";
+			} else if (n_files != srv_n_log_files
+				   || srv_log_file_size
+				   != srv_log_file_size_requested) {
+				if (srv_encrypt_log
+				    == log_sys->is_encrypted()) {
+					info << (srv_encrypt_log
+						 ? "Resizing encrypted"
+						 : "Resizing");
+				} else if (srv_encrypt_log) {
+					info << "Encrypting and resizing";
+				} else {
+					info << "Removing encryption"
+						" and resizing";
+				}
+
+				info << " redo log from " << n_files
+				     << "*" << srv_log_file_size << " to ";
+			} else if (srv_encrypt_log) {
+				info << "Encrypting redo log: ";
 			} else {
-				warning << "Resizing redo log from "
-					<< n_files << "*"
-					<< srv_log_file_size << " to ";
+				info << "Removing redo log encryption: ";
 			}
-			warning << srv_n_log_files << "*"
-				<< srv_log_file_size_requested
-				<< " pages, LSN=" << flushed_lsn;
+
+			info << srv_n_log_files << "*"
+			     << srv_log_file_size_requested
+			     << " pages; LSN=" << flushed_lsn;
 		}
 
 		/* Flush the old log files. */
@@ -1423,7 +1422,7 @@ srv_prepare_to_delete_redo_log_files(
 
 	} while (buf_pool_check_no_pending_io());
 
-	return(flushed_lsn);
+	DBUG_RETURN(flushed_lsn);
 }
 
 /********************************************************************
@@ -1436,22 +1435,19 @@ innobase_start_or_create_for_mysql(void)
 {
 	bool		create_new_db = false;
 	lsn_t		flushed_lsn;
-	ulint		sum_of_data_file_sizes;
-	ulint		tablespace_size_in_header;
-	dberr_t		err;
+	dberr_t		err		= DB_SUCCESS;
 	ulint		srv_n_log_files_found = srv_n_log_files;
 	mtr_t		mtr;
-	purge_pq_t*	purge_queue;
 	char		logfilename[10000];
 	char*		logfile0	= NULL;
 	size_t		dirnamelen;
 	unsigned	i = 0;
 
-	/* Reset the start state. */
-	srv_start_state = SRV_START_STATE_NONE;
-
 	high_level_read_only = srv_read_only_mode
 		|| srv_force_recovery > SRV_FORCE_NO_TRX_UNDO;
+
+	/* Reset the start state. */
+	srv_start_state = SRV_START_STATE_NONE;
 
 	if (srv_read_only_mode) {
 		ib::info() << "Started in read only mode";
@@ -1472,21 +1468,7 @@ innobase_start_or_create_for_mysql(void)
 	}
 #endif /* HAVE_LZO1X */
 
-#ifdef UNIV_LINUX
-# ifdef HAVE_FALLOC_PUNCH_HOLE_AND_KEEP_SIZE
-	ib::info() << "PUNCH HOLE support available";
-# else
-	ib::info() << "PUNCH HOLE support not available";
-# endif /* HAVE_FALLOC_PUNCH_HOLE_AND_KEEP_SIZE */
-#endif /* UNIV_LINUX */
-
-	if (sizeof(ulint) != sizeof(void*)) {
-		ib::error() << "Size of InnoDB's ulint is " << sizeof(ulint)
-			<< ", but size of void* is " << sizeof(void*)
-			<< ". The sizes should be the same so that on"
-			" a 64-bit platforms you can allocate more than 4 GB"
-			" of memory.";
-	}
+	compile_time_assert(sizeof(ulint) == sizeof(void*));
 
 #ifdef UNIV_DEBUG
 	ib::info() << "!!!!!!!! UNIV_DEBUG switched on !!!!!!!!!";
@@ -1562,44 +1544,36 @@ innobase_start_or_create_for_mysql(void)
 
 	if (srv_file_flush_method_str == NULL) {
 		/* These are the default options */
-#ifndef _WIN32
-		srv_unix_file_flush_method = SRV_UNIX_FSYNC;
+		srv_file_flush_method = IF_WIN(SRV_ALL_O_DIRECT_FSYNC,SRV_FSYNC);
 	} else if (0 == ut_strcmp(srv_file_flush_method_str, "fsync")) {
-		srv_unix_file_flush_method = SRV_UNIX_FSYNC;
+		srv_file_flush_method = SRV_FSYNC;
 
 	} else if (0 == ut_strcmp(srv_file_flush_method_str, "O_DSYNC")) {
-		srv_unix_file_flush_method = SRV_UNIX_O_DSYNC;
+		srv_file_flush_method = SRV_O_DSYNC;
 
 	} else if (0 == ut_strcmp(srv_file_flush_method_str, "O_DIRECT")) {
-		srv_unix_file_flush_method = SRV_UNIX_O_DIRECT;
+		srv_file_flush_method = SRV_O_DIRECT;
 
 	} else if (0 == ut_strcmp(srv_file_flush_method_str, "O_DIRECT_NO_FSYNC")) {
-		srv_unix_file_flush_method = SRV_UNIX_O_DIRECT_NO_FSYNC;
+		srv_file_flush_method = SRV_O_DIRECT_NO_FSYNC;
 
 	} else if (0 == ut_strcmp(srv_file_flush_method_str, "littlesync")) {
-		srv_unix_file_flush_method = SRV_UNIX_LITTLESYNC;
+		srv_file_flush_method = SRV_LITTLESYNC;
 
 	} else if (0 == ut_strcmp(srv_file_flush_method_str, "nosync")) {
-		srv_unix_file_flush_method = SRV_UNIX_NOSYNC;
-#else
-		srv_win_file_flush_method = SRV_WIN_IO_UNBUFFERED;
+		srv_file_flush_method = SRV_NOSYNC;
+#ifdef _WIN32
 	} else if (0 == ut_strcmp(srv_file_flush_method_str, "normal")) {
-		srv_win_file_flush_method = SRV_WIN_IO_NORMAL;
-		srv_use_native_aio = FALSE;
-
+		srv_file_flush_method = SRV_FSYNC;
 	} else if (0 == ut_strcmp(srv_file_flush_method_str, "unbuffered")) {
-		srv_win_file_flush_method = SRV_WIN_IO_UNBUFFERED;
-		srv_use_native_aio = FALSE;
-
 	} else if (0 == ut_strcmp(srv_file_flush_method_str,
 				  "async_unbuffered")) {
-		srv_win_file_flush_method = SRV_WIN_IO_UNBUFFERED;
 #endif /* _WIN32 */
 	} else {
 		ib::error() << "Unrecognized value "
 			<< srv_file_flush_method_str
 			<< " for innodb_flush_method";
-		return(srv_init_abort(DB_ERROR));
+		err = DB_ERROR;
 	}
 
 	/* Note that the call srv_boot() also changes the values of
@@ -1696,7 +1670,6 @@ innobase_start_or_create_for_mysql(void)
 
 	ib::info() << ut_crc32_implementation;
 
-
 	if (!srv_read_only_mode) {
 
 		mutex_create(LATCH_ID_SRV_MONITOR_FILE,
@@ -1720,15 +1693,17 @@ innobase_start_or_create_for_mysql(void)
 				ib::error() << "Unable to create "
 					<< srv_monitor_file_name << ": "
 					<< strerror(errno);
-				return(srv_init_abort(DB_ERROR));
+				if (err == DB_SUCCESS) {
+					err = DB_ERROR;
+				}
 			}
 		} else {
 
 			srv_monitor_file_name = NULL;
 			srv_monitor_file = os_file_create_tmpfile(NULL);
 
-			if (!srv_monitor_file) {
-				return(srv_init_abort(DB_ERROR));
+			if (!srv_monitor_file && err == DB_SUCCESS) {
+				err = DB_ERROR;
 			}
 		}
 
@@ -1737,8 +1712,8 @@ innobase_start_or_create_for_mysql(void)
 
 		srv_dict_tmpfile = os_file_create_tmpfile(NULL);
 
-		if (!srv_dict_tmpfile) {
-			return(srv_init_abort(DB_ERROR));
+		if (!srv_dict_tmpfile && err == DB_SUCCESS) {
+			err = DB_ERROR;
 		}
 
 		mutex_create(LATCH_ID_SRV_MISC_TMPFILE,
@@ -1746,9 +1721,13 @@ innobase_start_or_create_for_mysql(void)
 
 		srv_misc_tmpfile = os_file_create_tmpfile(NULL);
 
-		if (!srv_misc_tmpfile) {
-			return(srv_init_abort(DB_ERROR));
+		if (!srv_misc_tmpfile && err == DB_SUCCESS) {
+			err = DB_ERROR;
 		}
+	}
+
+	if (err != DB_SUCCESS) {
+		return(srv_init_abort(err));
 	}
 
 	srv_n_file_io_threads = srv_n_read_io_threads;
@@ -1993,23 +1972,21 @@ innobase_start_or_create_for_mysql(void)
 						logfilename, dirnamelen,
 						flushed_lsn, logfile0);
 
+					if (err == DB_SUCCESS) {
+						err = create_log_files_rename(
+							logfilename,
+							dirnamelen,
+							flushed_lsn, logfile0);
+					}
+
 					if (err != DB_SUCCESS) {
 						return(srv_init_abort(err));
 					}
-
-					create_log_files_rename(
-						logfilename, dirnamelen,
-						flushed_lsn, logfile0);
 
 					/* Suppress the message about
 					crash recovery. */
 					flushed_lsn = log_get_lsn();
 					goto files_checked;
-				} else if (i < 2) {
-					/* must have at least 2 log files */
-					ib::error() << "Only one log file"
-						" found.";
-					return(srv_init_abort(err));
 				}
 
 				/* opened all files */
@@ -2062,10 +2039,10 @@ innobase_start_or_create_for_mysql(void)
 		/* Disable the doublewrite buffer for log files. */
 		fil_space_t*	log_space = fil_space_create(
 			"innodb_redo_log",
-			SRV_LOG_SPACE_FIRST_ID,
-			fsp_flags_set_page_size(0, univ_page_size),
+			SRV_LOG_SPACE_FIRST_ID, 0,
 			FIL_TYPE_LOG,
-			NULL /* no encryption yet */);
+			NULL /* no encryption yet */,
+			true /* create */);
 
 		ut_a(fil_validate());
 		ut_a(log_space);
@@ -2096,11 +2073,9 @@ files_checked:
 	shutdown */
 
 	fil_open_log_and_system_tablespace_files();
+	ut_d(fil_space_get(0)->recv_size = srv_sys_space_size_debug);
 
-	err = srv_undo_tablespaces_init(
-		create_new_db,
-		srv_undo_tablespaces,
-		&srv_undo_tablespaces_open);
+	err = srv_undo_tablespaces_init(create_new_db);
 
 	/* If the force recovery is set very high then we carry on regardless
 	of all errors. Basically this is fingers crossed mode. */
@@ -2117,18 +2092,11 @@ files_checked:
 		dict_stats_thread_init();
 	}
 
-	if (!srv_read_only_mode && srv_scrub_log) {
-		/* TODO(minliz): have/use log_scrub_thread_init() instead? */
-		log_scrub_event = os_event_create(0);
-	}
-
 	trx_sys_file_format_init();
 
 	trx_sys_create();
 
 	if (create_new_db) {
-		dberr_t err = DB_SUCCESS;
-
 		ut_a(!srv_read_only_mode);
 
 		mtr_start(&mtr);
@@ -2146,13 +2114,7 @@ files_checked:
 		All the remaining rollback segments will be created later,
 		after the double write buffer has been created. */
 		trx_sys_create_sys_pages();
-
-		purge_queue = trx_sys_init_at_db_start();
-
-		/* The purge system needs to create the purge view and
-		therefore requires that the trx_sys is inited. */
-
-		trx_purge_sys_create(srv_n_purge_threads, purge_queue);
+		trx_sys_init_at_db_start();
 
 		err = dict_create();
 
@@ -2166,13 +2128,15 @@ files_checked:
 
 		err = fil_write_flushed_lsn(flushed_lsn);
 
+		if (err == DB_SUCCESS) {
+			err = create_log_files_rename(
+				logfilename, dirnamelen,
+				flushed_lsn, logfile0);
+		}
+
 		if (err != DB_SUCCESS) {
 			return(srv_init_abort(err));
 		}
-
-		create_log_files_rename(
-			logfilename, dirnamelen, flushed_lsn, logfile0);
-
 	} else {
 
 		/* Check if we support the max format that is stamped
@@ -2217,40 +2181,33 @@ files_checked:
 
 		recv_sys->dblwr.pages.clear();
 
+		if (err == DB_SUCCESS && !srv_read_only_mode) {
+			log_mutex_enter();
+			if (log_sys->is_encrypted() && !log_crypt_init()) {
+				err = DB_ERROR;
+			}
+			log_mutex_exit();
+		}
+
 		if (err == DB_SUCCESS) {
 			/* Initialize the change buffer. */
 			err = dict_boot();
 		}
 
 		if (err != DB_SUCCESS) {
-
-			/* A tablespace was not found during recovery. The
-			user must force recovery. */
-
-			if (err == DB_TABLESPACE_NOT_FOUND) {
-
-				srv_fatal_error();
-
-				ut_error;
-			}
-
-			return(srv_init_abort(DB_ERROR));
+			return(srv_init_abort(err));
 		}
 
-		purge_queue = trx_sys_init_at_db_start();
+		/* This must precede recv_apply_hashed_log_recs(true). */
+		trx_sys_init_at_db_start();
 
 		if (srv_force_recovery < SRV_FORCE_NO_LOG_REDO) {
 			/* Apply the hashed log records to the
 			respective file pages, for the last batch of
 			recv_group_scan_log_recs(). */
 
-			dberr_t err = recv_apply_hashed_log_recs(TRUE);
+			recv_apply_hashed_log_recs(true);
 			DBUG_PRINT("ib_log", ("apply completed"));
-
-			if (err != DB_SUCCESS) {
-				ib::warn() << "recv_apply_hashed_log_recs "
-					   << " failed with error " << err;
-			}
 
 			if (recv_needed_recovery) {
 				trx_sys_print_mysql_binlog_offset();
@@ -2268,15 +2225,181 @@ files_checked:
 				" InnoDB database from a backup!";
 		}
 
-		/* The purge system needs to create the purge view and
-		therefore requires that the trx_sys is inited. */
+		if (!srv_read_only_mode) {
+			const ulint flags = FSP_FLAGS_PAGE_SSIZE();
+			for (ulint id = 0; id <= srv_undo_tablespaces; id++) {
+				if (fil_space_get(id)) {
+					fsp_flags_try_adjust(id, flags);
+				}
+			}
 
-		trx_purge_sys_create(srv_n_purge_threads, purge_queue);
+			if (sum_of_new_sizes > 0) {
+				/* New data file(s) were added */
+				mtr.start();
+				fsp_header_inc_size(0, sum_of_new_sizes, &mtr);
+				mtr.commit();
+				/* Immediately write the log record about
+				increased tablespace size to disk, so that it
+				is durable even if mysqld would crash
+				quickly */
+				log_buffer_flush_to_disk();
+			}
+		}
+
+		const ulint	tablespace_size_in_header
+			= fsp_header_get_tablespace_size();
+		const ulint	sum_of_data_file_sizes
+			= srv_sys_space.get_sum_of_sizes();
+		/* Compare the system tablespace file size to what is
+		stored in FSP_SIZE. In open_or_create_data_files()
+		we already checked that the file sizes match the
+		innodb_data_file_path specification. */
+		if (srv_read_only_mode
+		    || sum_of_data_file_sizes == tablespace_size_in_header) {
+			/* Do not complain about the size. */
+		} else if (!srv_sys_space.can_auto_extend_last_file()
+			   || sum_of_data_file_sizes
+			   < tablespace_size_in_header) {
+			ib::error() << "Tablespace size stored in header is "
+				<< tablespace_size_in_header
+				<< " pages, but the sum of data file sizes is "
+				<< sum_of_data_file_sizes << " pages";
+
+			if (srv_force_recovery == 0
+			    && sum_of_data_file_sizes
+			    < tablespace_size_in_header) {
+				ib::error() <<
+					"Cannot start InnoDB. The tail of"
+					" the system tablespace is"
+					" missing. Have you edited"
+					" innodb_data_file_path in my.cnf"
+					" in an inappropriate way, removing"
+					" data files from there?"
+					" You can set innodb_force_recovery=1"
+					" in my.cnf to force"
+					" a startup if you are trying to"
+					" recover a badly corrupt database.";
+
+				return(srv_init_abort(DB_ERROR));
+			}
+		}
 
 		/* recv_recovery_from_checkpoint_finish needs trx lists which
 		are initialized in trx_sys_init_at_db_start(). */
 
 		recv_recovery_from_checkpoint_finish();
+
+		/* Upgrade or resize or rebuild the redo logs before
+		generating any dirty pages, so that the old redo log
+		files will not be written to. */
+
+		if (srv_force_recovery == SRV_FORCE_NO_LOG_REDO) {
+			/* Completely ignore the redo log. */
+		} else if (srv_read_only_mode) {
+			/* Leave the redo log alone. */
+		} else if (srv_log_file_size_requested == srv_log_file_size
+			   && srv_n_log_files_found == srv_n_log_files
+			   && log_sys->is_encrypted() == srv_encrypt_log) {
+			/* No need to upgrade or resize the redo log. */
+		} else {
+			/* Prepare to delete the old redo log files */
+			flushed_lsn = srv_prepare_to_delete_redo_log_files(i);
+
+			DBUG_EXECUTE_IF("innodb_log_abort_1",
+					return(srv_init_abort(DB_ERROR)););
+			/* Prohibit redo log writes from any other
+			threads until creating a log checkpoint at the
+			end of create_log_files(). */
+			ut_d(recv_no_log_write = true);
+			ut_ad(!buf_pool_check_no_pending_io());
+
+			DBUG_EXECUTE_IF("innodb_log_abort_3",
+					return(srv_init_abort(DB_ERROR)););
+			DBUG_PRINT("ib_log", ("After innodb_log_abort_3"));
+
+			/* Stamp the LSN to the data files. */
+			err = fil_write_flushed_lsn(flushed_lsn);
+
+			DBUG_EXECUTE_IF("innodb_log_abort_4", err = DB_ERROR;);
+			DBUG_PRINT("ib_log", ("After innodb_log_abort_4"));
+
+			if (err != DB_SUCCESS) {
+				return(srv_init_abort(err));
+			}
+
+			/* Close and free the redo log files, so that
+			we can replace them. */
+			fil_close_log_files(true);
+
+			DBUG_EXECUTE_IF("innodb_log_abort_5",
+					return(srv_init_abort(DB_ERROR)););
+			DBUG_PRINT("ib_log", ("After innodb_log_abort_5"));
+
+			/* Free the old log file space. */
+			log_group_close_all();
+
+			ib::info() << "Starting to delete and rewrite log"
+				" files.";
+
+			srv_log_file_size = srv_log_file_size_requested;
+
+			err = create_log_files(
+				logfilename, dirnamelen, flushed_lsn,
+				logfile0);
+
+			if (err == DB_SUCCESS) {
+				err = create_log_files_rename(
+					logfilename, dirnamelen, flushed_lsn,
+					logfile0);
+			}
+
+			if (err != DB_SUCCESS) {
+				return(srv_init_abort(err));
+			}
+		}
+
+
+		/* Validate a few system page types that were left
+		uninitialized by older versions of MySQL. */
+		if (!high_level_read_only) {
+			mtr_t		mtr;
+			buf_block_t*	block;
+			mtr.start();
+			mtr.set_sys_modified();
+			/* Bitmap page types will be reset in
+			buf_dblwr_check_block() without redo logging. */
+			block = buf_page_get(
+				page_id_t(IBUF_SPACE_ID,
+					  FSP_IBUF_HEADER_PAGE_NO),
+				univ_page_size, RW_X_LATCH, &mtr);
+			fil_block_check_type(block, FIL_PAGE_TYPE_SYS, &mtr);
+			/* Already MySQL 3.23.53 initialized
+			FSP_IBUF_TREE_ROOT_PAGE_NO to
+			FIL_PAGE_INDEX. No need to reset that one. */
+			block = buf_page_get(
+				page_id_t(TRX_SYS_SPACE, TRX_SYS_PAGE_NO),
+				univ_page_size, RW_X_LATCH, &mtr);
+			fil_block_check_type(block, FIL_PAGE_TYPE_TRX_SYS,
+					     &mtr);
+			block = buf_page_get(
+				page_id_t(TRX_SYS_SPACE,
+					  FSP_FIRST_RSEG_PAGE_NO),
+				univ_page_size, RW_X_LATCH, &mtr);
+			fil_block_check_type(block, FIL_PAGE_TYPE_SYS, &mtr);
+			block = buf_page_get(
+				page_id_t(TRX_SYS_SPACE, FSP_DICT_HDR_PAGE_NO),
+				univ_page_size, RW_X_LATCH, &mtr);
+			fil_block_check_type(block, FIL_PAGE_TYPE_SYS, &mtr);
+			mtr.commit();
+		}
+
+		/* Roll back any recovered data dictionary transactions, so
+		that the data dictionary tables will be free of any locks.
+		The data dictionary latch should guarantee that there is at
+		most one data dictionary transaction active at a time. */
+		if (srv_force_recovery < SRV_FORCE_NO_TRX_UNDO) {
+			trx_rollback_or_clean_recovered(FALSE);
+		}
 
 		/* Fix-up truncate of tables in the system tablespace
 		if server crashed while truncate was active. The non-
@@ -2290,7 +2413,6 @@ files_checked:
 			/* Open or Create SYS_TABLESPACES and SYS_DATAFILES
 			so that tablespace names and other metadata can be
 			found. */
-			srv_sys_tablespaces_open = true;
 			err = dict_create_or_check_sys_tablespace();
 			if (err != DB_SUCCESS) {
 				return(srv_init_abort(err));
@@ -2324,84 +2446,12 @@ files_checked:
 			dict_check_tablespaces_and_store_max_id(validate);
 		}
 
-#ifdef MYSQL_ENCRYPTION
-		/* Rotate the encryption key for recovery. It's because
-		server could crash in middle of key rotation. Some tablespace
-		didn't complete key rotation. Here, we will resume the
-		rotation. */
-		if (!srv_read_only_mode
-		    && srv_force_recovery < SRV_FORCE_NO_LOG_REDO) {
-			fil_encryption_rotate();
-		}
-#endif /* MYSQL_ENCRYPTION */
-
 		/* Fix-up truncate of table if server crashed while truncate
 		was active. */
 		err = truncate_t::fixup_tables_in_non_system_tablespace();
 
 		if (err != DB_SUCCESS) {
 			return(srv_init_abort(err));
-		}
-
-		if (!srv_force_recovery
-		    && !recv_sys->found_corrupt_log
-		    && (srv_log_file_size_requested != srv_log_file_size
-			|| srv_n_log_files_found != srv_n_log_files)) {
-			dberr_t err = DB_SUCCESS;
-
-			/* Prepare to replace the redo log files. */
-
-			if (srv_read_only_mode) {
-				ib::error() << "Cannot resize log files"
-					" in read-only mode.";
-				return(srv_init_abort(DB_READ_ONLY));
-			}
-
-			/* Prepare to delete the old redo log files */
-			flushed_lsn = srv_prepare_to_delete_redo_log_files(i);
-
-			/* Prohibit redo log writes from any other
-			threads until creating a log checkpoint at the
-			end of create_log_files(). */
-			ut_d(recv_no_log_write = true);
-			ut_ad(!buf_pool_check_no_pending_io());
-
-			RECOVERY_CRASH(3);
-
-			/* Stamp the LSN to the data files. */
-			err = fil_write_flushed_lsn(flushed_lsn);
-
-			if (err != DB_SUCCESS) {
-				return(srv_init_abort(err));
-			}
-
-			RECOVERY_CRASH(4);
-
-			/* Close and free the redo log files, so that
-			we can replace them. */
-			fil_close_log_files(true);
-
-			RECOVERY_CRASH(5);
-
-			/* Free the old log file space. */
-			log_group_close_all();
-
-			ib::warn() << "Starting to delete and rewrite log"
-				" files.";
-
-			srv_log_file_size = srv_log_file_size_requested;
-
-			err = create_log_files(
-				logfilename, dirnamelen, flushed_lsn,
-				logfile0);
-
-			if (err != DB_SUCCESS) {
-				return(srv_init_abort(err));
-			}
-
-			create_log_files_rename(
-				logfilename, dirnamelen, flushed_lsn,
-				logfile0);
 		}
 
 		recv_recovery_rollback_active();
@@ -2414,20 +2464,8 @@ files_checked:
 		trx_sys_file_format_tag_init();
 	}
 
-	if (!create_new_db && sum_of_new_sizes > 0) {
-		/* New data file(s) were added */
-		mtr_start(&mtr);
-
-		fsp_header_inc_size(0, sum_of_new_sizes, &mtr);
-
-		mtr_commit(&mtr);
-
-		/* Immediately write the log record about increased tablespace
-		size to disk, so that it is durable even if mysqld would crash
-		quickly */
-
-		log_buffer_flush_to_disk();
-	}
+	ut_ad(err == DB_SUCCESS);
+	ut_a(sum_of_new_sizes != ULINT_UNDEFINED);
 
 	/* Open temp-tablespace and keep it open until shutdown. */
 
@@ -2436,8 +2474,10 @@ files_checked:
 	if (err != DB_SUCCESS) {
 		return(srv_init_abort(err));
 	}
+
 	/* Create the doublewrite buffer to a new tablespace */
-	if (buf_dblwr == NULL && !buf_dblwr_create()) {
+	if (!srv_read_only_mode && srv_force_recovery < SRV_FORCE_NO_TRX_UNDO
+	    && !buf_dblwr_create()) {
 		return(srv_init_abort(DB_ERROR));
 	}
 
@@ -2457,22 +2497,7 @@ files_checked:
 	ut_a(srv_undo_logs > 0);
 	ut_a(srv_undo_logs <= TRX_SYS_N_RSEGS);
 
-	/* The number of rsegs that exist in InnoDB is given by status
-	variable srv_available_undo_logs. The number of rsegs to use can
-	be set using the dynamic global variable srv_undo_logs. */
-
-	srv_available_undo_logs = trx_sys_create_rsegs(
-		srv_undo_tablespaces, srv_undo_logs, srv_tmp_undo_logs);
-
-	if (srv_available_undo_logs == ULINT_UNDEFINED) {
-		/* Can only happen if server is read only. */
-		ut_a(srv_read_only_mode);
-		srv_undo_logs = ULONG_UNDEFINED;
-	} else if (srv_available_undo_logs < srv_undo_logs
-		   && !srv_force_recovery && !recv_needed_recovery) {
-		ib::error() << "System or UNDO tablespace is running of out"
-			    << " of space";
-		/* Should due to out of file space. */
+	if (!trx_sys_create_rsegs()) {
 		return(srv_init_abort(DB_ERROR));
 	}
 
@@ -2485,14 +2510,17 @@ files_checked:
 			lock_wait_timeout_thread,
 			NULL, thread_ids + 2 + SRV_MAX_N_IO_THREADS);
 		thread_started[2 + SRV_MAX_N_IO_THREADS] = true;
+		lock_sys->timeout_thread_active = true;
 
 		/* Create the thread which warns of long semaphore waits */
+		srv_error_monitor_active = true;
 		thread_handles[3 + SRV_MAX_N_IO_THREADS] = os_thread_create(
 			srv_error_monitor_thread,
 			NULL, thread_ids + 3 + SRV_MAX_N_IO_THREADS);
 		thread_started[3 + SRV_MAX_N_IO_THREADS] = true;
 
 		/* Create the thread which prints InnoDB monitor info */
+		srv_monitor_active = true;
 		thread_handles[4 + SRV_MAX_N_IO_THREADS] = os_thread_create(
 			srv_monitor_thread,
 			NULL, thread_ids + 4 + SRV_MAX_N_IO_THREADS);
@@ -2502,20 +2530,22 @@ files_checked:
 
 	/* Create the SYS_FOREIGN and SYS_FOREIGN_COLS system tables */
 	err = dict_create_or_check_foreign_constraint_tables();
-	if (err != DB_SUCCESS) {
-		return(srv_init_abort(err));
+	if (err == DB_SUCCESS) {
+		err = dict_create_or_check_sys_tablespace();
+		if (err == DB_SUCCESS) {
+			err = dict_create_or_check_sys_virtual();
+		}
 	}
-
-	/* Create the SYS_TABLESPACES system table */
-	err = dict_create_or_check_sys_tablespace();
-	if (err != DB_SUCCESS) {
-		return(srv_init_abort(err));
-	}
-	srv_sys_tablespaces_open = true;
-
-	/* Create the SYS_VIRTUAL system table */
-	err = dict_create_or_check_sys_virtual();
-	if (err != DB_SUCCESS) {
+	switch (err) {
+	case DB_SUCCESS:
+		break;
+	case DB_READ_ONLY:
+		if (srv_force_recovery >= SRV_FORCE_NO_TRX_UNDO) {
+			break;
+		}
+		ib::error() << "Cannot create system tables in read-only mode";
+		/* fall through */
+	default:
 		return(srv_init_abort(err));
 	}
 
@@ -2580,68 +2610,6 @@ files_checked:
 		}
 	}
 
-	sum_of_data_file_sizes = srv_sys_space.get_sum_of_sizes();
-	ut_a(sum_of_new_sizes != ULINT_UNDEFINED);
-
-	tablespace_size_in_header = fsp_header_get_tablespace_size();
-
-	if (!srv_read_only_mode
-	    && !srv_sys_space.can_auto_extend_last_file()
-	    && sum_of_data_file_sizes != tablespace_size_in_header) {
-
-		ib::error() << "Tablespace size stored in header is "
-			<< tablespace_size_in_header << " pages, but the sum"
-			" of data file sizes is " << sum_of_data_file_sizes
-			<< " pages";
-
-		if (srv_force_recovery == 0
-		    && sum_of_data_file_sizes < tablespace_size_in_header) {
-			/* This is a fatal error, the tail of a tablespace is
-			missing */
-
-			ib::error()
-				<< "Cannot start InnoDB."
-				" The tail of the system tablespace is"
-				" missing. Have you edited"
-				" innodb_data_file_path in my.cnf in an"
-				" inappropriate way, removing"
-				" ibdata files from there?"
-				" You can set innodb_force_recovery=1"
-				" in my.cnf to force"
-				" a startup if you are trying"
-				" to recover a badly corrupt database.";
-
-			return(srv_init_abort(DB_ERROR));
-		}
-	}
-
-	if (!srv_read_only_mode
-	    && srv_sys_space.can_auto_extend_last_file()
-	    && sum_of_data_file_sizes < tablespace_size_in_header) {
-
-		ib::error() << "Tablespace size stored in header is "
-			<< tablespace_size_in_header << " pages, but the sum"
-			" of data file sizes is only "
-			<< sum_of_data_file_sizes << " pages";
-
-		if (srv_force_recovery == 0) {
-
-			ib::error()
-				<< "Cannot start InnoDB. The tail of"
-				" the system tablespace is"
-				" missing. Have you edited"
-				" innodb_data_file_path in my.cnf in an"
-				" InnoDB: inappropriate way, removing"
-				" ibdata files from there?"
-				" You can set innodb_force_recovery=1"
-				" in my.cnf to force"
-				" InnoDB: a startup if you are trying to"
-				" recover a badly corrupt database.";
-
-			return(srv_init_abort(DB_ERROR));
-		}
-	}
-
 	if (srv_print_verbose_log) {
 		ib::info() << INNODB_VERSION_STR
 			<< " started; log sequence number "
@@ -2651,23 +2619,6 @@ files_checked:
 	if (srv_force_recovery > 0) {
 		ib::info() << "!!! innodb_force_recovery is set to "
 			<< srv_force_recovery << " !!!";
-	}
-
-	if (!srv_read_only_mode) {
-		/* Create thread(s) that handles key rotation. This is
-		needed already here as log_preflush_pool_modified_pages
-		will flush dirty pages and that might need e.g.
-		fil_crypt_threads_event. */
-		fil_system_enter();
-		fil_crypt_threads_init();
-		fil_system_exit();
-
-		/*
-		  Create a checkpoint before logging anything new, so that
-		  the current encryption key in use is definitely logged
-		  before any log blocks encrypted with that key.
-		*/
-		log_make_checkpoint_at(LSN_MAX, TRUE);
 	}
 
 	if (srv_force_recovery == 0) {
@@ -2694,6 +2645,8 @@ files_checked:
 		/* Create the buffer pool dump/load thread */
 		buf_dump_thread_handle=
 			os_thread_create(buf_dump_thread, NULL, NULL);
+
+		srv_buf_dump_thread_active = true;
 		buf_dump_thread_started = true;
 #ifdef WITH_WSREP
 		} else {
@@ -2703,31 +2656,43 @@ files_checked:
 		}
 #endif /* WITH_WSREP */
 
+		/* Create thread(s) that handles key rotation. This is
+		needed already here as log_preflush_pool_modified_pages
+		will flush dirty pages and that might need e.g.
+		fil_crypt_threads_event. */
+		fil_system_enter();
+		fil_crypt_threads_init();
+		fil_system_exit();
+
+		/*
+		  Create a checkpoint before logging anything new, so that
+		  the current encryption key in use is definitely logged
+		  before any log blocks encrypted with that key.
+		*/
+		log_make_checkpoint_at(LSN_MAX, TRUE);
+
 		/* Create the dict stats gathering thread */
-		dict_stats_thread_handle = os_thread_create(dict_stats_thread, NULL, NULL);
+		dict_stats_thread_handle = os_thread_create(
+			dict_stats_thread, NULL, NULL);
+		srv_dict_stats_thread_active = true;
 		dict_stats_thread_started = true;
 
 		/* Create the thread that will optimize the FTS sub-system. */
 		fts_optimize_init();
 
-		srv_start_state_set(SRV_START_STATE_STAT);
+		/* Init data for datafile scrub threads */
+		btr_scrub_init();
 
-		/* Create the log scrub thread */
-		if (srv_scrub_log) {
-			os_thread_create(log_scrub_thread, NULL, NULL);
-		}
+		/* Initialize online defragmentation. */
+		btr_defragment_init();
+
+		srv_start_state_set(SRV_START_STATE_STAT);
 	}
 
 	/* Create the buffer pool resize thread */
+	srv_buf_resize_thread_active = true;
 	os_thread_create(buf_resize_thread, NULL, NULL);
 
-	/* Init data for datafile scrub threads */
-	btr_scrub_init();
-
-	/* Initialize online defragmentation. */
-	btr_defragment_init();
-
-	srv_was_started = TRUE;
 	return(DB_SUCCESS);
 }
 
@@ -2761,35 +2726,26 @@ srv_fts_close(void)
 }
 #endif
 
-
 /****************************************************************//**
 Shuts down background threads that can generate undo pages. */
 void
 srv_shutdown_bg_undo_sources(void)
 /*===========================*/
 {
-	fts_optimize_shutdown();
-	dict_stats_shutdown();
+	if (srv_start_state_is_set(SRV_START_STATE_STAT)) {
+		ut_ad(!srv_read_only_mode);
+		fts_optimize_shutdown();
+		dict_stats_shutdown();
+	}
 }
 
-
-/****************************************************************//**
-Shuts down the InnoDB database.
-@return DB_SUCCESS or error code */
-dberr_t
-innobase_shutdown_for_mysql(void)
-/*=============================*/
+/** Shut down InnoDB. */
+void
+innodb_shutdown()
 {
-	if (!srv_was_started) {
-		if (srv_is_being_started) {
-			ib::warn() << "Shutting down an improperly started,"
-				" or created database!";
-		}
+	ut_ad(!srv_running);
 
-		return(DB_SUCCESS);
-	}
-
-	if (!srv_read_only_mode && srv_fast_shutdown) {
+	if (srv_fast_shutdown) {
 		srv_shutdown_bg_undo_sources();
 	}
 
@@ -2828,29 +2784,58 @@ innobase_shutdown_for_mysql(void)
 		srv_misc_tmpfile = 0;
 	}
 
-	if (!srv_read_only_mode) {
+	ut_ad(dict_stats_event || !srv_was_started || srv_read_only_mode);
+	ut_ad(dict_sys || !srv_was_started);
+	ut_ad(trx_sys || !srv_was_started);
+	ut_ad(buf_dblwr || !srv_was_started || srv_read_only_mode
+	      || srv_force_recovery >= SRV_FORCE_NO_TRX_UNDO);
+	ut_ad(lock_sys || !srv_was_started);
+#ifdef BTR_CUR_HASH_ADAPT
+	ut_ad(btr_search_sys || !srv_was_started);
+#endif /* BTR_CUR_HASH_ADAPT */
+	ut_ad(ibuf || !srv_was_started);
+	ut_ad(log_sys || !srv_was_started);
+
+	if (dict_stats_event) {
 		dict_stats_thread_deinit();
-		if (srv_scrub_log) {
-			/* TODO(minliz): have/use log_scrub_thread_deinit() instead? */
-			os_event_destroy(log_scrub_event);
-			log_scrub_event = NULL;
-		}
 	}
 
-	fil_crypt_threads_cleanup();
+	if (srv_start_state_is_set(SRV_START_STATE_STAT)) {
+		ut_ad(!srv_read_only_mode);
+		/* srv_shutdown_bg_undo_sources() already invoked
+		fts_optimize_shutdown(); dict_stats_shutdown(); */
 
-	/* Cleanup data for datafile scrubbing */
-	btr_scrub_cleanup();
+		fil_crypt_threads_cleanup();
+		btr_scrub_cleanup();
+		/* FIXME: call btr_defragment_shutdown(); */
+	}
 
 	/* This must be disabled before closing the buffer pool
 	and closing the data dictionary.  */
-	btr_search_disable(true);
 
-	ibuf_close();
-	log_shutdown();
-	trx_sys_file_format_close();
-	trx_sys_close();
-	lock_sys_close();
+#ifdef BTR_CUR_HASH_ADAPT
+	if (dict_sys) {
+		btr_search_disable(true);
+	}
+#endif /* BTR_CUR_HASH_ADAPT */
+	if (ibuf) {
+		ibuf_close();
+	}
+	if (log_sys) {
+		log_shutdown();
+	}
+	if (trx_sys) {
+		trx_sys_file_format_close();
+		trx_sys_close();
+	}
+	UT_DELETE(purge_sys);
+	purge_sys = NULL;
+	if (buf_dblwr) {
+		buf_dblwr_free();
+	}
+	if (lock_sys) {
+		lock_sys_close();
+	}
 
 	trx_pool_close();
 
@@ -2862,13 +2847,19 @@ innobase_shutdown_for_mysql(void)
 		mutex_free(&srv_misc_tmpfile_mutex);
 	}
 
-	dict_close();
-	btr_search_sys_free();
+	if (dict_sys) {
+		dict_close();
+	}
+
+#ifdef BTR_CUR_HASH_ADAPT
+	if (btr_search_sys) {
+		btr_search_sys_free();
+	}
+#endif /* BTR_CUR_HASH_ADAPT */
 
 	/* 3. Free all InnoDB's own mutexes and the os_fast_mutexes inside
 	them */
 	os_aio_free();
-	que_close();
 	row_mysql_close();
 	srv_free();
 	fil_close();
@@ -2877,7 +2868,10 @@ innobase_shutdown_for_mysql(void)
 
 	pars_lexer_close();
 	log_mem_free();
-	buf_pool_free(srv_buf_pool_instances);
+	ut_ad(buf_pool_ptr || !srv_was_started);
+	if (buf_pool_ptr) {
+		buf_pool_free(srv_buf_pool_instances);
+	}
 
 	/* 6. Free the thread management resoruces. */
 	os_thread_free();
@@ -2889,22 +2883,21 @@ innobase_shutdown_for_mysql(void)
 		fclose(dict_foreign_err_file);
 	}
 
-	if (srv_print_verbose_log) {
+	if (srv_was_started && srv_print_verbose_log) {
 		ib::info() << "Shutdown completed; log sequence number "
 			<< srv_shutdown_lsn;
 	}
 
+	srv_start_state = SRV_START_STATE_NONE;
 	srv_was_started = FALSE;
 	srv_start_has_been_called = FALSE;
-
-	return(DB_SUCCESS);
 }
-#endif /* !UNIV_HOTBACKUP */
 
-
+#if 0 // TODO: Enable this in WL#6608
 /********************************************************************
 Signal all per-table background threads to shutdown, and wait for them to do
 so. */
+static
 void
 srv_shutdown_table_bg_threads(void)
 /*===============================*/
@@ -2977,6 +2970,7 @@ srv_shutdown_table_bg_threads(void)
 		table = next;
 	}
 }
+#endif
 
 /** Get the meta-data filename from the table name for a
 single-table tablespace.
@@ -3002,39 +2996,6 @@ srv_get_meta_data_filename(
 			table->data_dir_path, table->name.m_name, CFG, true);
 	} else {
 		path = fil_make_filepath(NULL, table->name.m_name, CFG, false);
-	}
-
-	ut_a(path);
-	len = ut_strlen(path);
-	ut_a(max_len >= len);
-
-	strcpy(filename, path);
-
-	ut_free(path);
-}
-/** Get the encryption-data filename from the table name for a
-single-table tablespace.
-@param[in]	table		table object
-@param[out]	filename	filename
-@param[in]	max_len		filename max length */
-void
-srv_get_encryption_data_filename(
-	dict_table_t*	table,
-	char*		filename,
-	ulint		max_len)
-{
-	ulint		len;
-	char*		path;
-	/* Make sure the data_dir_path is set. */
-	dict_get_and_save_data_dir_path(table, false);
-
-	if (DICT_TF_HAS_DATA_DIR(table->flags)) {
-		ut_a(table->data_dir_path);
-
-		path = fil_make_filepath(
-			table->data_dir_path, table->name.m_name, CFP, true);
-	} else {
-		path = fil_make_filepath(NULL, table->name.m_name, CFP, false);
 	}
 
 	ut_a(path);

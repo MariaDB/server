@@ -433,7 +433,7 @@ public:
     relay log info and used to produce information for <code>SHOW
     SLAVE STATUS</code>.
   */
-  void stmt_done(my_off_t event_log_pos, THD *thd, rpl_group_info *rgi);
+  bool stmt_done(my_off_t event_log_pos, THD *thd, rpl_group_info *rgi);
   int alloc_inuse_relaylog(const char *name);
   void free_inuse_relaylog(inuse_relaylog *ir);
   void reset_inuse_relaylog();
@@ -522,7 +522,7 @@ public:
   }
 
   int32 get_sql_delay() { return sql_delay; }
-  void set_sql_delay(time_t _sql_delay) { sql_delay= _sql_delay; }
+  void set_sql_delay(int32 _sql_delay) { sql_delay= _sql_delay; }
   time_t get_sql_delay_end() { return sql_delay_end; }
 
 private:
@@ -835,7 +835,7 @@ struct rpl_group_info
   */
   inline void set_annotate_event(Annotate_rows_log_event *event)
   {
-    free_annotate_event();
+    DBUG_ASSERT(m_annotate_event == NULL);
     m_annotate_event= event;
     this->thd->variables.binlog_annotate_row_events= 1;
   }

@@ -2020,7 +2020,7 @@ pars_create_table(
 	}
 
 	node = tab_create_graph_create(table, pars_sym_tab_global->heap, true,
-		FIL_SPACE_ENCRYPTION_DEFAULT, FIL_DEFAULT_ENCRYPTION_KEY);
+		FIL_ENCRYPTION_DEFAULT, FIL_DEFAULT_ENCRYPTION_KEY);
 
 	table_sym->resolved = TRUE;
 	table_sym->token_type = SYM_TABLE;

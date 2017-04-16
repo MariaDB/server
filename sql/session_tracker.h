@@ -2,7 +2,7 @@
 #define SESSION_TRACKER_INCLUDED
 
 /* Copyright (c) 2015, Oracle and/or its affiliates. All rights reserved.
-   Copyright (c) 2016, MariaDB
+   Copyright (c) 2016, 2017, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -280,7 +280,7 @@ private:
 
   inline void update_change_flags(THD *thd)
   {
-    tx_changed &= ~TX_CHG_STATE;
+    tx_changed &= uint(~TX_CHG_STATE);
     tx_changed |= (tx_curr_state != tx_reported_state) ? TX_CHG_STATE : 0;
     if (tx_changed != TX_CHG_NONE)
       mark_as_changed(thd, NULL);

@@ -3,6 +3,7 @@
 #
 
 --source include/big_test.inc
+--source include/have_innodb.inc
 --source include/galera_cluster.inc
 
 # We perform the shutdown/restart sequence in here. If there was a crash during shutdown, MTR will detect it

@@ -18,7 +18,7 @@ let $master_pos_drop_t1= query_get_value(SHOW MASTER STATUS, Position, 1);
 DROP TABLE t1;
 # Save master log position for query DROP TABLE t1
 save_master_pos;
-let $master_pos_drop_t1= query_get_value(SHOW BINLOG EVENTS, Pos, 10);
+#let $master_pos_drop_t1= query_get_value(SHOW BINLOG EVENTS, Pos, 10);
 let $master_log_file= query_get_value(SHOW BINLOG EVENTS, Log_name, 10);
 
 # Save master log position for query CREATE TABLE t2

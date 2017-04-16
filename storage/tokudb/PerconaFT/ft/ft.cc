@@ -254,7 +254,19 @@ static void ft_close(CACHEFILE cachefile, int fd, void *header_v, bool oplsn_val
             char* fname_in_env = toku_cachefile_fname_in_env(cachefile);
             assert(fname_in_env);
             BYTESTRING bs = {.len=(uint32_t) strlen(fname_in_env), .data=fname_in_env};
-            toku_log_fclose(logger, &lsn, ft->h->dirty, bs, toku_cachefile_filenum(cachefile)); // flush the log on close (if new header is being written), otherwise it might not make it out.
+            if (!toku_cachefile_is_skip_log_recover_on_close(cachefile)) {
+                toku_log_fclose(
+                    logger,
+                    &lsn,
+                    ft->h->dirty,
+                    bs,
+                    toku_cachefile_filenum(cachefile));  // flush the log on
+                                                         // close (if new header
+                                                         // is being written),
+                                                         // otherwise it might
+                                                         // not make it out.
+                toku_cachefile_do_log_recover_on_close(cachefile);
+            }
         }
     }
     if (ft->h->dirty) {               // this is the only place this bit is tested (in currentheader)
@@ -904,6 +916,9 @@ void toku_ft_adjust_logical_row_count(FT ft, int64_t delta) {
     // must be returned in toku_ft_stat64.
     if (delta != 0 && ft->in_memory_logical_rows != (uint64_t)-1) {
         toku_sync_fetch_and_add(&(ft->in_memory_logical_rows), delta);
+        if (ft->in_memory_logical_rows == (uint64_t)-1) {
+            toku_sync_fetch_and_add(&(ft->in_memory_logical_rows), 1);
+        }
     }
 }
 

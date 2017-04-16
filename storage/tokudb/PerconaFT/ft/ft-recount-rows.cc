@@ -73,30 +73,20 @@ static bool recount_rows_interrupt(void* extra, uint64_t deleted_rows) {
     return rre->_cancelled =
         rre->_progress_callback(rre->_keys, deleted_rows, rre->_progress_extra);
 }
-int toku_ft_recount_rows(
-    FT_HANDLE ft,
-    int (*progress_callback)(
-        uint64_t count,
-        uint64_t deleted,
-        void* progress_extra),
-    void* progress_extra) {
-
+int toku_ft_recount_rows(FT_HANDLE ft,
+                         int (*progress_callback)(uint64_t count,
+                                                  uint64_t deleted,
+                                                  void* progress_extra),
+                         void* progress_extra) {
     int ret = 0;
-    recount_rows_extra_t rre = {
-        progress_callback,
-        progress_extra,
-        0,
-        false
-        };
+    recount_rows_extra_t rre = {progress_callback, progress_extra, 0, false};
 
     ft_cursor c;
     ret = toku_ft_cursor_create(ft, &c, nullptr, C_READ_ANY, false, false);
-    if (ret) return ret;
+    if (ret)
+        return ret;
 
-    toku_ft_cursor_set_check_interrupt_cb(
-        &c,
-        recount_rows_interrupt,
-        &rre);
+    toku_ft_cursor_set_check_interrupt_cb(&c, recount_rows_interrupt, &rre);
 
     ret = toku_ft_cursor_first(&c, recount_rows_found, &rre);
     while (FT_LIKELY(ret == 0)) {
@@ -108,6 +98,7 @@ int toku_ft_recount_rows(
     if (rre._cancelled == false) {
         // update ft count
         toku_unsafe_set(&ft->ft->in_memory_logical_rows, rre._keys);
+        ft->ft->h->dirty = 1;
         ret = 0;
     }
 

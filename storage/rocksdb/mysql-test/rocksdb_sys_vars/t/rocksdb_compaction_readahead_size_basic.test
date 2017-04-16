@@ -1,0 +1,23 @@
+--source include/have_rocksdb.inc
+
+CREATE TABLE valid_values (value varchar(255)) ENGINE=myisam;
+INSERT INTO valid_values VALUES(1);
+INSERT INTO valid_values VALUES(0);
+INSERT INTO valid_values VALUES(222333);
+
+CREATE TABLE invalid_values (value varchar(255)) ENGINE=myisam;
+INSERT INTO invalid_values VALUES('\'aaa\'');
+INSERT INTO invalid_values VALUES('\'bbb\'');
+
+# Attempt to set the value to -1 - this should first truncate to 0 and then generate a warning as
+# we can't set it to or from 0
+SET @@global.rocksdb_compaction_readahead_size = -1;
+SELECT @@global.rocksdb_compaction_readahead_size;
+
+--let $sys_var=ROCKSDB_COMPACTION_READAHEAD_SIZE
+--let $read_only=0
+--let $session=0
+--source include/rocksdb_sys_var.inc
+
+DROP TABLE valid_values;
+DROP TABLE invalid_values;

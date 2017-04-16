@@ -1,0 +1,84 @@
+--source include/have_rocksdb.inc
+
+# 
+# CHECKSUM TABLE statements for standard CHECKSUM properties.
+# Live checksums are covered in checksum_table_live.test
+# 
+
+--disable_warnings
+DROP TABLE IF EXISTS t1,t2;
+--enable_warnings
+
+CREATE TABLE t1 (a INT PRIMARY KEY, b CHAR(8)) ENGINE=rocksdb CHECKSUM=0;
+INSERT INTO t1 (a,b) VALUES (1,'a'),(2,'b');
+
+CREATE TABLE t2 (a INT PRIMARY KEY, b CHAR(8)) ENGINE=rocksdb CHECKSUM=0;
+
+CHECKSUM TABLE t1; 
+CHECKSUM TABLE t2, t1;
+CHECKSUM TABLE t1, t2 QUICK;
+CHECKSUM TABLE t1, t2 EXTENDED;
+
+DROP TABLE t1, t2;
+
+--echo #
+--echo # Issue #110: SQL command checksum returns inconsistent result
+--echo #
+create table t1 (pk int primary key, col1 varchar(10)) engine=rocksdb;
+insert into t1 values (2,'fooo');
+insert into t1 values (1,NULL);
+checksum table t1;
+checksum table t1;
+select * from t1 where pk=2;
+checksum table t1;
+checksum table t1;
+flush tables;
+checksum table t1;
+checksum table t1;
+
+drop table t1;
+
+--echo # 
+--echo #  The following test is about making sure MyRocks CHECKSUM TABLE 
+--echo #  values are the same as with InnoDB.
+--echo #  If you see checksum values changed, make sure their counterparts
+--echo #  in suite/innodb/r/checksum-matches-myrocks.result match.
+--echo # 
+
+create table t1 (pk int primary key, col1 varchar(10)) engine=rocksdb;
+insert into t1 values (2,'fooo');
+insert into t1 values (1,NULL);
+checksum table t1;
+drop table t1;
+
+create table t1 (
+  pk bigint unsigned primary key, 
+  col1 varchar(10),
+  col2 tinyint,
+  col3 double
+) engine=rocksdb;
+
+--echo # MariaDB has changed the checksumming algorithm
+--echo # Enable the old algorithm:
+set @tmp_old=@@old;
+set old=1;
+
+
+checksum table t1;
+
+insert into t1 values (1, NULL,  NULL, NULL);
+insert into t1 values (2, 'foo', NULL, NULL);
+checksum table t1;
+
+insert into t1 values (3, NULL,  123,  NULL);
+insert into t1 values (4, NULL,  NULL, 2.78);
+checksum table t1;
+
+insert into t1 values (5, 'xxxYYYzzzT',  NULL, 2.78);
+insert into t1 values (6, '',            NULL, 2.78);
+checksum table t1;
+
+set old=@tmp_old;
+
+drop table t1;
+

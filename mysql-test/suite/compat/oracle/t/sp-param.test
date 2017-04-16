@@ -1,0 +1,37 @@
+SET sql_mode=ORACLE;
+
+--echo #
+--echo # MDEV-10596 Allow VARCHAR and VARCHAR2 without length as a data type of routine parameters and in RETURN clause
+--echo #
+
+--let type = CHAR
+--let length = 2000
+--source sp-param.inc
+
+--let type = NCHAR
+--let length = 2000
+--source sp-param.inc
+
+--let type = BINARY
+--let length = 2000
+--source sp-param.inc
+
+--let type = VARCHAR
+--let length = 4000
+--source sp-param.inc
+
+--let type = VARCHAR2
+--let length = 4000
+--source sp-param.inc
+
+--let type = NVARCHAR
+--let length = 4000
+--source sp-param.inc
+
+--let type = VARBINARY
+--let length = 4000
+--source sp-param.inc
+
+--let type = RAW
+--let length = 4000
+--source sp-param.inc

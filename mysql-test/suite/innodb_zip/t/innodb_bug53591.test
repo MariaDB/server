@@ -1,10 +1,5 @@
 -- source include/have_innodb.inc
 
-let $file_format=`select @@innodb_file_format`;
-let $file_per_table=`select @@innodb_file_per_table`;
-
-SET GLOBAL innodb_file_format='Barracuda';
-SET GLOBAL innodb_file_per_table=on;
 SET GLOBAL innodb_strict_mode=on;
 set old_alter_table=0;
 
@@ -18,6 +13,4 @@ SHOW WARNINGS;
 
 DROP TABLE bug53591;
 
-EVAL SET GLOBAL innodb_file_format=$file_format;
-EVAL SET GLOBAL innodb_file_per_table=$file_per_table;
 SET GLOBAL innodb_strict_mode=DEFAULT;

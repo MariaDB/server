@@ -768,13 +768,13 @@ deallocate prepare stmt;
 drop table t1;
 prepare stmt from 'create table t1 (a varchar(10) character set utf8)';
 execute stmt;
-insert into t1 (a) values (repeat('a', 20));
+insert ignore into t1 (a) values (repeat('a', 20));
 select length(a) from t1;
 length(a)
 10
 drop table t1;
 execute stmt;
-insert into t1 (a) values (repeat('a', 20));
+insert ignore into t1 (a) values (repeat('a', 20));
 select length(a) from t1;
 length(a)
 10
@@ -1208,12 +1208,21 @@ prepare my_stmt from @aux;
 execute my_stmt;
 COUNT(*)
 46
+Warnings:
+Warning	1286	Unknown storage engine 'InnoDB'
+Warning	1286	Unknown storage engine 'InnoDB'
 execute my_stmt;
 COUNT(*)
 46
+Warnings:
+Warning	1286	Unknown storage engine 'InnoDB'
+Warning	1286	Unknown storage engine 'InnoDB'
 execute my_stmt;
 COUNT(*)
 46
+Warnings:
+Warning	1286	Unknown storage engine 'InnoDB'
+Warning	1286	Unknown storage engine 'InnoDB'
 deallocate prepare my_stmt;
 drop procedure if exists p1|
 drop table if exists t1|
@@ -2395,15 +2404,15 @@ create procedure a() select 42;
 create procedure proc_1(a char(2)) show create procedure a;
 call proc_1("bb");
 Procedure	sql_mode	Create Procedure	character_set_client	collation_connection	Database Collation
-a	NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` PROCEDURE `a`()
+a	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` PROCEDURE `a`()
 select 42	latin1	latin1_swedish_ci	latin1_swedish_ci
 call proc_1("bb");
 Procedure	sql_mode	Create Procedure	character_set_client	collation_connection	Database Collation
-a	NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` PROCEDURE `a`()
+a	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` PROCEDURE `a`()
 select 42	latin1	latin1_swedish_ci	latin1_swedish_ci
 call proc_1("bb");
 Procedure	sql_mode	Create Procedure	character_set_client	collation_connection	Database Collation
-a	NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` PROCEDURE `a`()
+a	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` PROCEDURE `a`()
 select 42	latin1	latin1_swedish_ci	latin1_swedish_ci
 drop procedure proc_1;
 create function func_1() returns int begin show create procedure a; return 1; end|
@@ -2415,15 +2424,15 @@ ERROR 42000: FUNCTION test.func_1 does not exist
 prepare abc from "show create procedure a";
 execute abc;
 Procedure	sql_mode	Create Procedure	character_set_client	collation_connection	Database Collation
-a	NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` PROCEDURE `a`()
+a	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` PROCEDURE `a`()
 select 42	latin1	latin1_swedish_ci	latin1_swedish_ci
 execute abc;
 Procedure	sql_mode	Create Procedure	character_set_client	collation_connection	Database Collation
-a	NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` PROCEDURE `a`()
+a	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` PROCEDURE `a`()
 select 42	latin1	latin1_swedish_ci	latin1_swedish_ci
 execute abc;
 Procedure	sql_mode	Create Procedure	character_set_client	collation_connection	Database Collation
-a	NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` PROCEDURE `a`()
+a	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` PROCEDURE `a`()
 select 42	latin1	latin1_swedish_ci	latin1_swedish_ci
 deallocate prepare abc;
 drop procedure a;
@@ -2432,15 +2441,15 @@ create function a() returns int return 42+13;
 create procedure proc_1(a char(2)) show create function a;
 call proc_1("bb");
 Function	sql_mode	Create Function	character_set_client	collation_connection	Database Collation
-a	NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` FUNCTION `a`() RETURNS int(11)
+a	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` FUNCTION `a`() RETURNS int(11)
 return 42+13	latin1	latin1_swedish_ci	latin1_swedish_ci
 call proc_1("bb");
 Function	sql_mode	Create Function	character_set_client	collation_connection	Database Collation
-a	NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` FUNCTION `a`() RETURNS int(11)
+a	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` FUNCTION `a`() RETURNS int(11)
 return 42+13	latin1	latin1_swedish_ci	latin1_swedish_ci
 call proc_1("bb");
 Function	sql_mode	Create Function	character_set_client	collation_connection	Database Collation
-a	NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` FUNCTION `a`() RETURNS int(11)
+a	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` FUNCTION `a`() RETURNS int(11)
 return 42+13	latin1	latin1_swedish_ci	latin1_swedish_ci
 drop procedure proc_1;
 create function func_1() returns int begin show create function a; return 1; end|
@@ -2452,15 +2461,15 @@ ERROR 42000: FUNCTION test.func_1 does not exist
 prepare abc from "show create function a";
 execute abc;
 Function	sql_mode	Create Function	character_set_client	collation_connection	Database Collation
-a	NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` FUNCTION `a`() RETURNS int(11)
+a	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` FUNCTION `a`() RETURNS int(11)
 return 42+13	latin1	latin1_swedish_ci	latin1_swedish_ci
 execute abc;
 Function	sql_mode	Create Function	character_set_client	collation_connection	Database Collation
-a	NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` FUNCTION `a`() RETURNS int(11)
+a	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` FUNCTION `a`() RETURNS int(11)
 return 42+13	latin1	latin1_swedish_ci	latin1_swedish_ci
 execute abc;
 Function	sql_mode	Create Function	character_set_client	collation_connection	Database Collation
-a	NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` FUNCTION `a`() RETURNS int(11)
+a	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` FUNCTION `a`() RETURNS int(11)
 return 42+13	latin1	latin1_swedish_ci	latin1_swedish_ci
 deallocate prepare abc;
 drop function a;
@@ -3930,8 +3939,6 @@ c1	c2	count(c3)
 2012-03-01 01:00:00	3	1
 2012-03-01 02:00:00	3	1
 DEALLOCATE PREPARE s1;
-#
-# End of 5.5 tests.
 prepare stmt from "select date('2010-10-10') between '2010-09-09' and ?";
 set @a='2010-11-11';
 execute stmt using @a;
@@ -4092,7 +4099,110 @@ id	value
 deallocate prepare stmt;
 SET SESSION sql_mode = @save_sql_mode;
 DROP TABLE t1,t2;
-# End of 10.0 tests
+#
+# MDEV-8833: Crash of server on prepared statement with
+# conversion to semi-join
+#
+CREATE TABLE t1 (column1 INT);
+INSERT INTO t1 VALUES (3),(9);
+CREATE TABLE t2 (column2 INT);
+INSERT INTO t2 VALUES (1),(4);
+CREATE TABLE t3 (column3 INT);
+INSERT INTO t3 VALUES (6),(8);
+CREATE TABLE t4 (column4 INT);
+INSERT INTO t4 VALUES (2),(5);
+PREPARE stmt FROM "SELECT ( SELECT MAX( table1.column1 ) AS field1 
+FROM t1 AS table1
+WHERE table3.column3 IN ( SELECT table2.column2 AS field2 FROM t2 AS table2 ) 
+) AS sq
+FROM t3 AS table3, t4 AS table4";
+EXECUTE stmt;
+sq
+NULL
+NULL
+NULL
+NULL
+EXECUTE stmt;
+sq
+NULL
+NULL
+NULL
+NULL
+deallocate prepare stmt;
+drop table t1,t2,t3,t4;
+#
+# MDEV-11859: the plans for the first and the second executions
+#             of PS are not the same
+#
+create table t1 (id int, c varchar(3), key idx(c))engine=myisam;
+insert into t1 values (3,'bar'), (1,'xxx'), (2,'foo'), (5,'yyy');
+prepare stmt1 from
+"explain extended
+ select * from t1 where (1, 2) in ( select 3, 4 ) or c = 'foo'";
+execute stmt1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	ref	idx	idx	6	const	1	100.00	Using index condition
+2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Warnings:
+Note	1003	/* select#1 */ select `test`.`t1`.`id` AS `id`,`test`.`t1`.`c` AS `c` from `test`.`t1` where `test`.`t1`.`c` = 'foo'
+execute stmt1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	ref	idx	idx	6	const	1	100.00	Using index condition
+2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Warnings:
+Note	1003	/* select#1 */ select `test`.`t1`.`id` AS `id`,`test`.`t1`.`c` AS `c` from `test`.`t1` where `test`.`t1`.`c` = 'foo'
+deallocate prepare stmt1;
+prepare stmt1 from
+"select * from t1 where (1, 2) in ( select 3, 4 ) or c = 'foo'";
+flush status;
+execute stmt1;
+id	c
+2	foo
+show status like '%Handler_read%';
+Variable_name	Value
+Handler_read_first	0
+Handler_read_key	1
+Handler_read_last	0
+Handler_read_next	1
+Handler_read_prev	0
+Handler_read_retry	0
+Handler_read_rnd	0
+Handler_read_rnd_deleted	0
+Handler_read_rnd_next	0
+flush status;
+execute stmt1;
+id	c
+2	foo
+show status like '%Handler_read%';
+Variable_name	Value
+Handler_read_first	0
+Handler_read_key	1
+Handler_read_last	0
+Handler_read_next	1
+Handler_read_prev	0
+Handler_read_retry	0
+Handler_read_rnd	0
+Handler_read_rnd_deleted	0
+Handler_read_rnd_next	0
+deallocate prepare stmt1;
+prepare stmt2 from
+"explain extended
+ select * from t1 where (1, 2) in ( select 3, 4 )";
+execute stmt2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
+2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Warnings:
+Note	1003	/* select#1 */ select `test`.`t1`.`id` AS `id`,`test`.`t1`.`c` AS `c` from `test`.`t1` where 0
+execute stmt2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
+2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Warnings:
+Note	1003	/* select#1 */ select `test`.`t1`.`id` AS `id`,`test`.`t1`.`c` AS `c` from `test`.`t1` where 0
+deallocate prepare stmt2;
+drop table t1;
+# End of 5.5 tests
 #
 # Start of 10.2 tests
 #
@@ -4716,3 +4826,26 @@ INSERT INTO t1 VALUES (1),(2),(3);
 EXECUTE IMMEDIATE 'EXPLAIN EXTENDED SELECT * FROM t1 WHERE ?+a<=>?+a' USING DEFAULT,DEFAULT;
 ERROR HY000: Default/ignore value is not supported for such parameter usage
 DROP TABLE t1;
+#
+# MDEV-11780 Crash with PREPARE + SP out parameter + literal
+#
+CREATE OR REPLACE PROCEDURE p1(OUT a INT)
+BEGIN
+SET a=10;
+END;
+$$
+PREPARE stmt FROM 'CALL p1(?)';
+EXECUTE stmt USING 10;
+ERROR 42000: OUT or INOUT argument 1 for routine test.p1 is not a variable or NEW pseudo-variable in BEFORE trigger
+EXECUTE stmt USING DEFAULT;
+ERROR 42000: OUT or INOUT argument 1 for routine test.p1 is not a variable or NEW pseudo-variable in BEFORE trigger
+EXECUTE stmt USING IGNORE;
+ERROR 42000: OUT or INOUT argument 1 for routine test.p1 is not a variable or NEW pseudo-variable in BEFORE trigger
+DEALLOCATE PREPARE stmt;
+EXECUTE IMMEDIATE 'CALL p1(?)' USING 10;
+ERROR 42000: OUT or INOUT argument 1 for routine test.p1 is not a variable or NEW pseudo-variable in BEFORE trigger
+EXECUTE IMMEDIATE 'CALL p1(?)' USING DEFAULT;
+ERROR 42000: OUT or INOUT argument 1 for routine test.p1 is not a variable or NEW pseudo-variable in BEFORE trigger
+EXECUTE IMMEDIATE 'CALL p1(?)' USING IGNORE;
+ERROR 42000: OUT or INOUT argument 1 for routine test.p1 is not a variable or NEW pseudo-variable in BEFORE trigger
+DROP PROCEDURE p1;

@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2000, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -118,18 +119,6 @@ row_mysql_store_geometry(
 					is SQL NULL this should be 0; remember
 					also to set the NULL bit in the MySQL record
 					header! */
-/*******************************************************************//**
-Reads a reference to a geometry data in the MySQL format.
-@return pointer to geometry data */
-const byte*
-row_mysql_read_geometry(
-/*====================*/
-	ulint*		len,		/*!< out: geometry data length */
-	const byte*	ref,		/*!< in: reference in the
-					MySQL format */
-	ulint		col_len)	/*!< in: BLOB reference length
-					(not BLOB length) */
-	MY_ATTRIBUTE((nonnull(1,2), warn_unused_result));
 /**************************************************************//**
 Pad a column with spaces. */
 void
@@ -337,7 +326,7 @@ row_mysql_lock_data_dictionary_func(
 /*================================*/
 	trx_t*		trx,	/*!< in/out: transaction */
 	const char*	file,	/*!< in: file name */
-	ulint		line);	/*!< in: line number */
+	unsigned	line);	/*!< in: line number */
 #define row_mysql_lock_data_dictionary(trx)				\
 	row_mysql_lock_data_dictionary_func(trx, __FILE__, __LINE__)
 /*********************************************************************//**
@@ -354,7 +343,7 @@ row_mysql_freeze_data_dictionary_func(
 /*==================================*/
 	trx_t*		trx,	/*!< in/out: transaction */
 	const char*	file,	/*!< in: file name */
-	ulint		line);	/*!< in: line number */
+	unsigned	line);	/*!< in: line number */
 #define row_mysql_freeze_data_dictionary(trx)				\
 	row_mysql_freeze_data_dictionary_func(trx, __FILE__, __LINE__)
 /*********************************************************************//**
@@ -373,9 +362,6 @@ row_create_table_for_mysql(
 	dict_table_t*	table,	/*!< in, own: table definition
 				(will be freed, or on DB_SUCCESS
 				added to the data dictionary cache) */
-	const char*	compression,
-				/*!< in: compression algorithm to use,
-				can be NULL */
 	trx_t*		trx,	/*!< in/out: transaction */
 	bool		commit,	/*!< in: if true, commit the transaction */
 	fil_encryption_t mode,	/*!< in: encryption mode */
@@ -484,11 +470,6 @@ row_drop_table_for_mysql(
 	bool		nonatomic = true);
 				/*!< in: whether it is permitted
 				to release and reacquire dict_operation_lock */
-/*********************************************************************//**
-Drop all temporary tables during crash recovery. */
-void
-row_mysql_drop_temp_tables(void);
-/*============================*/
 
 /*********************************************************************//**
 Discards the tablespace of a table which stored in an .ibd file. Discarding
@@ -576,17 +557,6 @@ Close this module */
 void
 row_mysql_close(void);
 /*=================*/
-
-/*********************************************************************//**
-Reassigns the table identifier of a table.
-@return error code or DB_SUCCESS */
-dberr_t
-row_mysql_table_id_reassign(
-/*========================*/
-	dict_table_t*	table,	/*!< in/out: table */
-	trx_t*		trx,	/*!< in/out: transaction */
-	table_id_t*	new_id) /*!< out: new table id */
-        MY_ATTRIBUTE((nonnull, warn_unused_result));
 
 /* A struct describing a place for an individual column in the MySQL
 row format which is presented to the table handler in ha_innobase.
@@ -872,10 +842,6 @@ struct row_prebuilt_t {
 	ulint		idx_cond_n_cols;/*!< Number of fields in idx_cond_cols.
 					0 if and only if idx_cond == NULL. */
 	/*----------------------*/
-	unsigned	innodb_api:1;	/*!< whether this is a InnoDB API
-					query */
-	const rec_t*	innodb_api_rec;	/*!< InnoDB API search result */
-	/*----------------------*/
 
 	/*----------------------*/
 	rtr_info_t*	rtr_info;	/*!< R-tree Search Info */
@@ -971,10 +937,6 @@ innobase_rename_vc_templ(
 #define ROW_READ_WITH_LOCKS		0
 #define ROW_READ_TRY_SEMI_CONSISTENT	1
 #define ROW_READ_DID_SEMI_CONSISTENT	2
-
-#ifndef UNIV_NONINL
-#include "row0mysql.ic"
-#endif
 
 #ifdef UNIV_DEBUG
 /** Wait for the background drop list to become empty. */

@@ -11,12 +11,16 @@
 --enable_query_log
 
 --connection node_1
+--let $wsrep_sync_wait_state= `SELECT @@global.wsrep_sync_wait;`
 CREATE TABLE t1 (f1 INTEGER) ENGINE=InnoDB;
 SET GLOBAL wsrep_provider_options='gmcast.isolate=1';
 SET SESSION wsrep_on = OFF;
 --let $wait_condition = SELECT VARIABLE_VALUE = 'non-Primary' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_status'
 --source include/wait_condition.inc
 SET SESSION wsrep_on = ON;
+#wsrep_sync_wait is set to zero because when slave tries to connect it it ask for queries like SELECT UNIX_TIMESTAMP() on node 1 which will fail, causing
+#a warning in slave error log.
+SET global wsrep_sync_wait=0;
 
 --connection node_3
 START SLAVE;
@@ -47,6 +51,7 @@ INSERT INTO t1 VALUES (1);
 --connection node_1
 DROP TABLE t1;
 
+--eval SET global wsrep_sync_wait=$wsrep_sync_wait_state
 --connection node_3
 --let $wait_condition = SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't1'
 --source include/wait_condition.inc

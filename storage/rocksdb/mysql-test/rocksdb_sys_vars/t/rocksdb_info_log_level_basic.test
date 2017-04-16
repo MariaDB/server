@@ -1,0 +1,21 @@
+--source include/have_rocksdb.inc
+
+CREATE TABLE valid_values (value varchar(255)) ENGINE=myisam;
+INSERT INTO valid_values VALUES('fatal_level');
+INSERT INTO valid_values VALUES('error_level');
+INSERT INTO valid_values VALUES('warn_level');
+INSERT INTO valid_values VALUES('info_level');
+INSERT INTO valid_values VALUES('debug_level');
+
+CREATE TABLE invalid_values (value varchar(255)) ENGINE=myisam;
+INSERT INTO invalid_values VALUES(5);
+INSERT INTO invalid_values VALUES(6);
+INSERT INTO invalid_values VALUES('foo');
+
+--let $sys_var=ROCKSDB_INFO_LOG_LEVEL
+--let $read_only=0
+--let $session=0
+--source include/rocksdb_sys_var.inc
+
+DROP TABLE valid_values;
+DROP TABLE invalid_values;

@@ -405,7 +405,7 @@ drop table t1;
 CREATE TABLE t1 (a int not null, b int not null,c int not null,
 key(a),primary key(a,b), unique(c),key(a),unique(b));
 Warnings:
-Note	1831	Duplicate index 'a_2' defined on the table 'test.t1'. This is deprecated and will be disallowed in a future release
+Note	1831	Duplicate index `a_2`. This is deprecated and will be disallowed in a future release
 show index from t1;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
 t1	0	PRIMARY	1	a	A	#	NULL	NULL		BTREE		
@@ -1398,7 +1398,7 @@ CREATE TABLE t1 (col1 int(1))ENGINE=InnoDB;
 CREATE TABLE t2 (col1 int(1),stamp TIMESTAMP,INDEX stamp_idx
 (stamp))ENGINE=InnoDB;
 insert into t1 values (1),(2),(3);
-insert into t2 values (1, 20020204130000),(2, 20020204130000),(4,20020204310000 ),(5,20020204230000);
+insert ignore into t2 values (1, 20020204130000),(2, 20020204130000),(4,20020204310000 ),(5,20020204230000);
 Warnings:
 Warning	1265	Data truncated for column 'stamp' at row 3
 SELECT col1 FROM t1 UNION SELECT col1 FROM t2 WHERE stamp <
@@ -1512,7 +1512,7 @@ t2	CREATE TABLE `t2` (
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 create index id2 on t2 (id);
 Warnings:
-Note	1831	Duplicate index 'id2' defined on the table 'test.t2'. This is deprecated and will be disallowed in a future release
+Note	1831	Duplicate index `id2`. This is deprecated and will be disallowed in a future release
 show create table t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
@@ -1919,7 +1919,7 @@ alter table t1 add unique(v);
 ERROR 23000: Duplicate entry '{ ' for key 'v_2'
 alter table t1 add key(v);
 Warnings:
-Note	1831	Duplicate index 'v_2' defined on the table 'test.t1'. This is deprecated and will be disallowed in a future release
+Note	1831	Duplicate index `v_2`. This is deprecated and will be disallowed in a future release
 select concat('*',v,'*',c,'*',t,'*') as qq from t1 where v='a';
 qq
 *a*a*a*
@@ -2429,11 +2429,17 @@ drop table t1;
 create table t1 (a int not null auto_increment primary key, val int) engine=InnoDB;
 insert into t1 (val) values (1);
 update t1 set a=2 where a=1;
-insert into t1 (val) values (1);
+insert into t1 (val) values (3);
+select * from t1;
+a	val
+2	1
+3	3
+insert into t1 values (2, 2);
 ERROR 23000: Duplicate entry '2' for key 'PRIMARY'
 select * from t1;
 a	val
 2	1
+3	3
 drop table t1;
 CREATE TABLE t1 (GRADE DECIMAL(4) NOT NULL, PRIMARY KEY (GRADE)) ENGINE=INNODB;
 INSERT INTO t1 (GRADE) VALUES (151),(252),(343);
@@ -2537,11 +2543,11 @@ Warning	1071	Specified key was too long; max key length is 767 bytes
 create table t3 (col1 text, index(col1(768)))
 character set = latin1 engine = innodb;
 Warnings:
-Warning	1071	Specified key was too long; max key length is 767 bytes
+Note	1071	Specified key was too long; max key length is 767 bytes
 create table t4 (col1 blob, index(col1(768)))
 character set = latin1 engine = innodb;
 Warnings:
-Warning	1071	Specified key was too long; max key length is 767 bytes
+Note	1071	Specified key was too long; max key length is 767 bytes
 SET GLOBAL innodb_large_prefix=default;
 Warnings:
 Warning	131	Using innodb_large_prefix is deprecated and the parameter may be removed in future releases. See http://dev.mysql.com/doc/refman/5.7/en/innodb-file-format.html

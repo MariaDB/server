@@ -1,0 +1,9 @@
+create table t (id int primary key, value int);
+begin;
+update t set value=100 where id in (1, 2);
+commit;
+begin;
+select * from t for update;
+ERROR HY000: Using Gap Lock without full unique key in multi-table or multi-statement transactions is not allowed. You need either 1: Execute 'SET SESSION gap_lock_raise_error=0' if you are sure that your application does not rely on Gap Lock. 2: Rewrite queries to use all unique key columns in WHERE equal conditions. 3: Rewrite to single-table, single-statement transaction.  Query: select * from t for update
+commit;
+drop table t;

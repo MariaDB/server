@@ -742,3 +742,41 @@ DROP FUNCTION test_function;
 SET @@sql_mode= @org_mode;
 
 #End of Test for Bug#12601974 
+#
+# MDEV-11848 Automatic statement repreparation changes query semantics
+#
+SET sql_mode=DEFAULT;
+CREATE OR REPLACE TABLE t1 (a TEXT);
+PREPARE stmt FROM 'INSERT INTO t1 (a) VALUES (2||3)';
+EXECUTE stmt;
+SET sql_mode=ORACLE;
+EXECUTE stmt;
+ALTER TABLE t1 ADD b INT;
+EXECUTE stmt;
+SELECT * FROM t1;
+a	b
+1	NULL
+1	NULL
+1	NULL
+DROP TABLE t1;
+#
+# MDEV-12390 Wrong error line numbers reported with sql_mode=IGNORE_SPACE
+#
+SET sql_mode=IGNORE_SPACE;
+CREATE PROCEDURE p1()
+BEGIN
+SELECT 1+1;
+syntax error;
+END;
+$$
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'error;
+END' at line 4
+SET sql_mode=DEFAULT;
+CREATE PROCEDURE p1()
+BEGIN
+SELECT 1+1;
+syntax error;
+END;
+$$
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'error;
+END' at line 4

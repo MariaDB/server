@@ -1,0 +1,206 @@
+#
+# The test checks effects and workarounds for the situation when
+# the key used to encrypt previous binary logs on master has been lost,
+# and master runs with a different one.
+#
+# The test starts with encrypted binlogs on master. 
+# It stops replication, generates a few statement and row events
+# on the master, then restarts the server with encrypted binlog, 
+# but with a different value for key 1. 
+# 
+# Then it resumes replication and checks what happens when the master
+# feed the encrypted logs to the slave (slave SQL thread should
+# produce and error).
+#
+# Then the test resets the slave, configures it to start from a "good"
+# master binlog log, for which the master has a key, starts replication
+# and checks that it works.
+#
+# Then it resets the slave again, purges binary logs on master up 
+# to the "good" one, starts replication and checks that it works.
+#
+
+--source include/have_binlog_format_mixed.inc
+
+--echo #################
+--echo # Initialization
+--echo #################
+
+--let $rpl_topology= 1->2
+--source include/rpl_init.inc
+
+--enable_connect_log
+
+# We stop replication because we want it to happen after the switch
+
+--connection server_2
+--disable_connect_log
+--source include/stop_slave.inc
+--enable_connect_log
+
+--echo #####################################################
+--echo # Pre-test 1: Initial key value
+--echo #####################################################
+
+--connection server_1
+
+CREATE TABLE table1_to_encrypt (
+  pk INT AUTO_INCREMENT PRIMARY KEY,
+  ts TIMESTAMP NULL,
+  b BLOB
+) ENGINE=MyISAM; 
+
+INSERT INTO table1_to_encrypt VALUES (NULL,NOW(),'data_to_encrypt');
+INSERT INTO table1_to_encrypt SELECT NULL,NOW(),b FROM table1_to_encrypt;
+SET binlog_format=ROW;
+INSERT INTO table1_to_encrypt SELECT NULL,NOW(),b FROM table1_to_encrypt;
+INSERT INTO table1_to_encrypt SELECT NULL,NOW(),b FROM table1_to_encrypt;
+
+# Make sure that binary logs are encrypted
+
+--let SEARCH_RANGE = 500000
+--let SEARCH_FILE= master-bin.0*
+--let SEARCH_PATTERN= table1_to_encrypt
+--source include/search_pattern_in_file.inc
+
+--echo #######################################################
+--echo # Pre-test 2: restart master with a different key value
+--echo #######################################################
+
+--write_file $MYSQL_TMP_DIR/master_lose_key.key
+1;00000AAAAAAAAAAAAAAAAAAAAAA00000
+EOF
+
+--let $rpl_server_parameters= --file-key-management-filename=$MYSQL_TMP_DIR/master_lose_key.key
+
+--let $rpl_server_number= 1
+--source restart_server.inc
+
+CREATE TABLE table2_to_encrypt (
+  pk INT AUTO_INCREMENT PRIMARY KEY,
+  ts TIMESTAMP NULL,
+  b BLOB
+) ENGINE=MyISAM; 
+
+INSERT INTO table2_to_encrypt VALUES (NULL,NOW(),'data_to_encrypt');
+INSERT INTO table2_to_encrypt SELECT NULL,NOW(),b FROM table2_to_encrypt;
+SET binlog_format=ROW;
+INSERT INTO table2_to_encrypt SELECT NULL,NOW(),b FROM table2_to_encrypt;
+INSERT INTO table2_to_encrypt SELECT NULL,NOW(),b FROM table2_to_encrypt;
+
+# Make sure that binary logs are encrypted
+
+--let SEARCH_FILE= master-bin.0*
+--let SEARCH_PATTERN= table2_to_encrypt
+--source include/search_pattern_in_file.inc
+
+--echo #####################################################
+--echo # Pre-test 3: restart master again with the right key
+--echo #####################################################
+
+--let $rpl_server_parameters=
+--let $rpl_server_number= 1
+--source restart_server.inc
+
+--let $good_master_binlog= query_get_value(SHOW MASTER STATUS,File,1)
+
+CREATE TABLE table3_to_encrypt (
+  pk INT AUTO_INCREMENT PRIMARY KEY,
+  ts TIMESTAMP NULL,
+  b BLOB
+) ENGINE=MyISAM; 
+
+INSERT INTO table3_to_encrypt VALUES (NULL,NOW(),'data_to_encrypt');
+INSERT INTO table3_to_encrypt SELECT NULL,NOW(),b FROM table3_to_encrypt;
+INSERT INTO table3_to_encrypt SELECT NULL,NOW(),b FROM table3_to_encrypt;
+FLUSH BINARY LOGS;
+INSERT INTO table3_to_encrypt SELECT NULL,NOW(),b FROM table3_to_encrypt;
+
+--save_master_pos
+
+--echo #####################################################
+--echo # Test 1: Check that if master has an encrypted
+--echo #         binary log which it cannot decrypt, it 
+--echo #         still feeds events to the slave, and SQL 
+--echo #         thread produces an expected error upon 
+--echo #         receiving these unreadable events .
+--echo #         This behavior is confirmed in MDEV-11323
+--echo #####################################################
+--connection server_2
+
+--disable_connect_log
+START SLAVE IO_THREAD;
+--source include/wait_for_slave_io_to_start.inc
+
+START SLAVE SQL_THREAD;
+--let $slave_sql_errno= 1594
+--source include/wait_for_slave_sql_error.inc
+--enable_connect_log
+
+# Here we should see only table1_to_encrypt and its contents,
+# because it was logged with the initial key
+--sorted_result
+SHOW TABLES;
+SELECT COUNT(*) FROM table1_to_encrypt;
+
+--echo #####################################################
+--echo # Test 2: check that replication works if it starts
+--echo #         from a good binary log
+--echo #####################################################
+--connection server_2
+
+--disable_connect_log
+--source include/stop_slave.inc
+RESET SLAVE ALL;
+DROP DATABASE test;
+CREATE DATABASE test;
+USE test;
+--replace_result $SERVER_MYPORT_1 <MASTER_PORT>
+eval CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_PORT=$SERVER_MYPORT_1, MASTER_USER='root', MASTER_LOG_FILE='$good_master_binlog';
+--source include/start_slave.inc
+--enable_connect_log
+--sync_with_master
+
+--sorted_result
+SHOW TABLES;
+
+--echo #####################################################
+--echo # Test 3: check that replication works if we purge
+--echo #         master logs up to the good one
+--echo #####################################################
+--connection server_2
+
+--connection server_1
+eval PURGE BINARY LOGS TO '$good_master_binlog';
+
+--connection server_2
+--disable_connect_log
+--source include/stop_slave.inc
+RESET SLAVE ALL;
+DROP DATABASE test;
+CREATE DATABASE test;
+USE test;
+--replace_result $SERVER_MYPORT_1 <MASTER_PORT>
+eval CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_PORT=$SERVER_MYPORT_1, MASTER_USER='root';
+--source include/start_slave.inc
+--enable_connect_log
+--sync_with_master
+
+--sorted_result
+SHOW TABLES;
+
+--echo ##########
+--echo # Cleanup
+--echo ##########
+
+--connection server_1
+
+DROP TABLE table1_to_encrypt, table2_to_encrypt, table3_to_encrypt;
+
+--save_master_pos
+
+--connection server_2
+--sync_with_master
+
+--disable_connect_log
+--source include/rpl_end.inc

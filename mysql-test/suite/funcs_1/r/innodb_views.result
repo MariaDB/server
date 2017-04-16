@@ -4314,7 +4314,7 @@ CREATE VIEW      v2 AS Select * from test.v1;
 ERROR 42S02: Table 'test.v1' doesn't exist
 DROP VIEW IF EXISTS v2;
 Warnings:
-Note	1051	Unknown table 'test.v2'
+Note	4067	Unknown VIEW: 'test.v2'
 
 Testcase 3.3.1.25 
 --------------------------------------------------------------------------------
@@ -7566,7 +7566,7 @@ Call sp1() ;
 ERROR 42000: PROCEDURE test.sp1 does not exist
 Drop view if exists test.v1 ;
 Warnings:
-Note	1051	Unknown table 'test.v1'
+Note	4067	Unknown VIEW: 'test.v1'
 Drop procedure sp1 ;
 ERROR 42000: PROCEDURE test.sp1 does not exist
 
@@ -21307,12 +21307,12 @@ CREATE TABLE t1 ( f1 VARCHAR(1000) ) ENGINE = innodb ;
 CREATE VIEW  v1 AS SELECT f1 FROM t1;
 DROP VIEW v1;
 DROP VIEW v1;
-ERROR 42S02: Unknown table 'test.v1'
+ERROR 42S02: Unknown VIEW: 'test.v1'
 CREATE VIEW  v1 AS SELECT f1 FROM t1;
 DROP VIEW IF EXISTS v1;
 DROP VIEW IF EXISTS v1;
 Warnings:
-Note	1051	Unknown table 'test.v1'
+Note	4067	Unknown VIEW: 'test.v1'
 
 Testcase 3.3.1.68 
 --------------------------------------------------------------------------------
@@ -21324,31 +21324,31 @@ CREATE VIEW  v1_base AS SELECT * FROM t1;
 CREATE VIEW  v1_top AS SELECT * FROM v1_base;
 DROP VIEW v1_top  ;
 DROP VIEW v1_top;
-ERROR 42S02: Unknown table 'test.v1_top'
+ERROR 42S02: Unknown VIEW: 'test.v1_top'
 CREATE VIEW  v1_top AS SELECT * FROM v1_base;
 DROP VIEW v1_base  ;
 DROP VIEW v1_base;
-ERROR 42S02: Unknown table 'test.v1_base'
+ERROR 42S02: Unknown VIEW: 'test.v1_base'
 DROP VIEW v1_top;
 CREATE VIEW  v1_base AS SELECT * FROM t1;
 CREATE VIEW  v1_top AS SELECT * FROM v1_base;
 DROP VIEW v1_top CASCADE ;
 DROP VIEW v1_top;
-ERROR 42S02: Unknown table 'test.v1_top'
+ERROR 42S02: Unknown VIEW: 'test.v1_top'
 CREATE VIEW  v1_top AS SELECT * FROM v1_base;
 DROP VIEW v1_base CASCADE ;
 DROP VIEW v1_base;
-ERROR 42S02: Unknown table 'test.v1_base'
+ERROR 42S02: Unknown VIEW: 'test.v1_base'
 DROP VIEW v1_top;
 CREATE VIEW  v1_base AS SELECT * FROM t1;
 CREATE VIEW  v1_top AS SELECT * FROM v1_base;
 DROP VIEW v1_top RESTRICT ;
 DROP VIEW v1_top;
-ERROR 42S02: Unknown table 'test.v1_top'
+ERROR 42S02: Unknown VIEW: 'test.v1_top'
 CREATE VIEW  v1_top AS SELECT * FROM v1_base;
 DROP VIEW v1_base RESTRICT ;
 DROP VIEW v1_base;
-ERROR 42S02: Unknown table 'test.v1_base'
+ERROR 42S02: Unknown VIEW: 'test.v1_base'
 DROP VIEW v1_top;
 
 Testcase 3.3.1.69, 3.3.1.70, 3.3.1.A5 

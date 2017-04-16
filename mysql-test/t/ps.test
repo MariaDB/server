@@ -841,13 +841,13 @@ drop table t1;
 prepare stmt from 'create table t1 (a varchar(10) character set utf8)';
 execute stmt;
 --disable_warnings
-insert into t1 (a) values (repeat('a', 20));
+insert ignore into t1 (a) values (repeat('a', 20));
 --enable_warnings
 select length(a) from t1;
 drop table t1;
 execute stmt;
 --disable_warnings
-insert into t1 (a) values (repeat('a', 20));
+insert ignore into t1 (a) values (repeat('a', 20));
 --enable_warnings
 # Check that the data is truncated to the same length
 select length(a) from t1;
@@ -3548,9 +3548,6 @@ EXECUTE s1;
 
 DEALLOCATE PREPARE s1;
 
---echo #
---echo # End of 5.5 tests.
-
 ###########################################################################
 #
 # restoring of the Item tree in BETWEEN with dates
@@ -3670,8 +3667,68 @@ deallocate prepare stmt;
 SET SESSION sql_mode = @save_sql_mode;
 DROP TABLE t1,t2;
 
+--echo #
+--echo # MDEV-8833: Crash of server on prepared statement with
+--echo # conversion to semi-join
+--echo #
 
---echo # End of 10.0 tests
+CREATE TABLE t1 (column1 INT);
+INSERT INTO t1 VALUES (3),(9);
+
+CREATE TABLE t2 (column2 INT);
+INSERT INTO t2 VALUES (1),(4);
+
+CREATE TABLE t3 (column3 INT);
+INSERT INTO t3 VALUES (6),(8);
+
+CREATE TABLE t4 (column4 INT);
+INSERT INTO t4 VALUES (2),(5);
+
+PREPARE stmt FROM "SELECT ( SELECT MAX( table1.column1 ) AS field1 
+FROM t1 AS table1
+WHERE table3.column3 IN ( SELECT table2.column2 AS field2 FROM t2 AS table2 ) 
+) AS sq
+FROM t3 AS table3, t4 AS table4";
+EXECUTE stmt;
+EXECUTE stmt;
+deallocate prepare stmt;
+drop table t1,t2,t3,t4;
+
+--echo #
+--echo # MDEV-11859: the plans for the first and the second executions
+--echo #             of PS are not the same
+--echo #
+
+create table t1 (id int, c varchar(3), key idx(c))engine=myisam;
+insert into t1 values (3,'bar'), (1,'xxx'), (2,'foo'), (5,'yyy');
+
+prepare stmt1 from
+"explain extended
+ select * from t1 where (1, 2) in ( select 3, 4 ) or c = 'foo'";
+execute stmt1;
+execute stmt1;
+deallocate prepare stmt1;
+
+prepare stmt1 from
+"select * from t1 where (1, 2) in ( select 3, 4 ) or c = 'foo'";
+flush status;
+execute stmt1;
+show status like '%Handler_read%';
+flush status;
+execute stmt1;
+show status like '%Handler_read%';
+deallocate prepare stmt1;
+
+prepare stmt2 from
+"explain extended
+ select * from t1 where (1, 2) in ( select 3, 4 )";
+execute stmt2;
+execute stmt2;
+deallocate prepare stmt2;
+
+drop table t1;
+
+--echo # End of 5.5 tests
 
 --echo #
 --echo # Start of 10.2 tests
@@ -4221,7 +4278,6 @@ EXECUTE IMMEDIATE 'UPDATE t1 SET a=?+1' USING DEFAULT;
 EXECUTE IMMEDIATE 'UPDATE t1 SET a=CONCAT(?,?)' USING DEFAULT, 'test';
 DROP TABLE t1;
 
-
 # Incorrect usage in not an UPDATE/INSERT query at all
 --error ER_INVALID_DEFAULT_PARAM
 EXECUTE IMMEDIATE 'SELECT CAST(? AS SIGNED)' USING DEFAULT;
@@ -4243,7 +4299,6 @@ EXECUTE IMMEDIATE 'SELECT ?+1' USING DEFAULT;
 --error ER_INVALID_DEFAULT_PARAM
 EXECUTE IMMEDIATE 'SELECT CONCAT(?,?)' USING DEFAULT,'test';
 
-
 # Incorrect usage in the LIMIT clause
 --error ER_INVALID_DEFAULT_PARAM
 EXECUTE IMMEDIATE 'SELECT 1 LIMIT ?' USING DEFAULT;
@@ -4253,11 +4308,9 @@ INSERT INTO t1 VALUES (1),(2),(3);
 EXECUTE IMMEDIATE 'SELECT * FROM t1 LIMIT ?' USING DEFAULT;
 DROP TABLE t1;
 
-
 --echo # The output of this query in 'Note' is a syntactically incorrect query.
 --echo # But as it's never logged, it's ok. It should be human readable only.
 EXECUTE IMMEDIATE 'EXPLAIN EXTENDED SELECT ?' USING DEFAULT;
-
 
 # This tests Item_param::eq() for DEFAULT as a bound value
 CREATE TABLE t1 (a INT);
@@ -4265,3 +4318,32 @@ INSERT INTO t1 VALUES (1),(2),(3);
 --error ER_INVALID_DEFAULT_PARAM
 EXECUTE IMMEDIATE 'EXPLAIN EXTENDED SELECT * FROM t1 WHERE ?+a<=>?+a' USING DEFAULT,DEFAULT;
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-11780 Crash with PREPARE + SP out parameter + literal
+--echo #
+
+DELIMITER $$;
+CREATE OR REPLACE PROCEDURE p1(OUT a INT)
+BEGIN
+  SET a=10;
+END;
+$$
+DELIMITER ;$$
+
+PREPARE stmt FROM 'CALL p1(?)';
+--error ER_SP_NOT_VAR_ARG
+EXECUTE stmt USING 10;
+--error ER_SP_NOT_VAR_ARG
+EXECUTE stmt USING DEFAULT;
+--error ER_SP_NOT_VAR_ARG
+EXECUTE stmt USING IGNORE;
+DEALLOCATE PREPARE stmt;
+
+--error ER_SP_NOT_VAR_ARG
+EXECUTE IMMEDIATE 'CALL p1(?)' USING 10;
+--error ER_SP_NOT_VAR_ARG
+EXECUTE IMMEDIATE 'CALL p1(?)' USING DEFAULT;
+--error ER_SP_NOT_VAR_ARG
+EXECUTE IMMEDIATE 'CALL p1(?)' USING IGNORE;
+DROP PROCEDURE p1;

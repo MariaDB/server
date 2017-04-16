@@ -426,7 +426,7 @@ static bool extract_date_time(DATE_TIME_FORMAT *format,
     {
       if (!my_isspace(&my_charset_latin1,*val))
       {
-	make_truncated_value_warning(current_thd,
+        make_truncated_value_warning(current_thd,
                                      Sql_condition::WARN_LEVEL_WARN,
                                      val_begin, length,
 				     cached_timestamp_type, NullS);
@@ -711,7 +711,7 @@ static bool get_interval_info(const char *str,uint length,CHARSET_INFO *cs,
   {
     longlong value;
     const char *start= str;
-    for (value=0; str != end && my_isdigit(cs, *str) ; str++)
+    for (value= 0; str != end && my_isdigit(cs, *str); str++)
       value= value*10 + *str - '0';
     msec_length= 6 - (str - start);
     values[i]= value;
@@ -2502,7 +2502,23 @@ end:
 }
 
 
-void Item_char_typecast::fix_length_and_dec()
+void Item_char_typecast::fix_length_and_dec_numeric()
+{
+  fix_length_and_dec_internal(from_cs= cast_cs->mbminlen == 1 ?
+                                       cast_cs :
+                                       &my_charset_latin1);
+}
+
+
+void Item_char_typecast::fix_length_and_dec_str()
+{
+  fix_length_and_dec_internal(from_cs= args[0]->dynamic_result() ?
+                                       0 :
+                                       args[0]->collation.collation);
+}
+
+
+void Item_char_typecast::fix_length_and_dec_internal(CHARSET_INFO *from_cs)
 {
   uint32 char_length;
   /* 
@@ -2532,12 +2548,6 @@ void Item_char_typecast::fix_length_and_dec()
 
        Note (TODO): we could use repertoire technique here.
   */
-  from_cs= ((args[0]->result_type() == INT_RESULT || 
-             args[0]->result_type() == DECIMAL_RESULT ||
-             args[0]->result_type() == REAL_RESULT) ?
-            (cast_cs->mbminlen == 1 ? cast_cs : &my_charset_latin1) :
-            args[0]->dynamic_result() ? 0 :
-            args[0]->collation.collation);
   charset_conversion= !from_cs || (cast_cs->mbmaxlen > 1) ||
                       (!my_charset_same(from_cs, cast_cs) &&
                        from_cs != &my_charset_bin &&

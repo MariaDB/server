@@ -2,16 +2,8 @@
 
 -- source include/have_innodb.inc
 
-# Valgrind would complain about memory leaks when we crash on purpose.
---source include/not_valgrind.inc
-# Embedded server does not support crashing
+# Embedded server tests do not support restarting
 --source include/not_embedded.inc
-# Avoid CrashReporter popup on Mac
---source include/not_crashrep.inc
-
-let $innodb_ft_server_stopword_table_orig=`SELECT @@innodb_ft_server_stopword_table`;
-let $innodb_ft_enable_stopword_orig=`SELECT @@innodb_ft_enable_stopword`;
-let $innodb_ft_user_stopword_table_orig=`SELECT @@innodb_ft_user_stopword_table`;
 
 SELECT @@innodb_ft_server_stopword_table;
 SELECT @@innodb_ft_enable_stopword;
@@ -27,7 +19,7 @@ CREATE TABLE articles (
         ) ENGINE=InnoDB;
 
 --disable_warnings
-INSERT INTO articles (title) VALUES
+INSERT IGNORE INTO articles (title) VALUES
         ('love'),('LOVE'),('lòve'),('LÒVE'),('löve'),('LÖVE'),('løve'),('LØVE'),
 	('lṓve'),('LṒVE');
 
@@ -66,7 +58,7 @@ CREATE TABLE articles (
         ) ENGINE=InnoDB DEFAULT CHARACTER SET latin1 COLLATE latin1_general_ci;
 
 --disable_warnings
-INSERT INTO articles (title) VALUES
+INSERT IGNORE INTO articles (title) VALUES
         ('love'),('LOVE'),('lòve'),('LÒVE'),('löve'),('LÖVE'),('løve'),('LØVE'),
 	('lṓve'),('LṒVE');
 
@@ -106,7 +98,7 @@ CREATE TABLE articles (
         ) ENGINE=InnoDB DEFAULT CHARACTER SET latin1 COLLATE latin1_spanish_ci;
 
 --disable_warnings
-INSERT INTO articles (title) VALUES
+INSERT IGNORE INTO articles (title) VALUES
         ('love'),('LOVE'),('lòve'),('LÒVE'),('löve'),('LÖVE'),('løve'),('LØVE'),
 	('lṓve'),('LṒVE');
 
@@ -305,7 +297,7 @@ CREATE TABLE articles (
         ) ENGINE=InnoDB;
 
 --disable_warnings
-INSERT INTO articles (title) VALUES
+INSERT IGNORE INTO articles (title) VALUES
         ('love'),('LOVE'),('lòve'),('LÒVE'),('löve'),('LÖVE'),('løve'),('LØVE'),
 	('lṓve'),('LṒVE');
 
@@ -340,7 +332,7 @@ SET NAMES utf8;
 
 # Insert rows to check if it uses user stopword
 --disable_warnings
-INSERT INTO articles (title) VALUES
+INSERT IGNORE INTO articles (title) VALUES
         ('love'),('LOVE'),('lòve'),('LÒVE'),('löve'),('LÖVE'),('løve'),('LØVE'),
 	('lṓve'),('LṒVE');
 --enable_warnings
@@ -363,7 +355,7 @@ CREATE TABLE articles (
         ) ENGINE=InnoDB;
 
 --disable_warnings
-INSERT INTO articles (title) VALUES
+INSERT IGNORE INTO articles (title) VALUES
         ('love'),('LOVE'),('lòve'),('LÒVE'),('löve'),('LÖVE'),('løve'),('LØVE'),
 	('lṓve'),('LṒVE');
 
@@ -401,7 +393,7 @@ SET NAMES utf8;
 
 # Insert rows to check if it uses user stopword
 --disable_warnings
-INSERT INTO articles (title) VALUES
+INSERT IGNORE INTO articles (title) VALUES
         ('love'),('LOVE'),('lòve'),('LÒVE'),('löve'),('LÖVE'),('løve'),('LØVE'),
 	('lṓve'),('LṒVE');
 --enable_warnings
@@ -414,8 +406,3 @@ SELECT * FROM articles WHERE MATCH (title)
         AGAINST ('love' IN NATURAL LANGUAGE MODE);
 
 DROP TABLE articles;
-
-# Restore Values
-eval SET SESSION innodb_ft_enable_stopword=$innodb_ft_enable_stopword_orig;
-eval SET GLOBAL innodb_ft_server_stopword_table=default;
-eval SET SESSION innodb_ft_user_stopword_table=default;

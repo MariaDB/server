@@ -2332,3 +2332,677 @@ DROP TABLE t1;
 #
 # End of 10.1 tests
 #
+#
+# MDEV-10454: range access keys extracted
+#             from <row> IN (<row value list>) 
+#
+create table t1(a int, b int, c varchar(16),  key idx(a,b)) engine=myisam;
+insert into t1 values
+(1,1,'xx'), (2,2,'yyy'), (3,3,'zzzz'), (1,2,'zz'), (1,3,'x'),
+(2,3,'yy'), (4,5,'ww'), (7,8,'xxxxx'), (4,3,'zyx'), (1,2,'uuu'),
+(2,1,'w'), (5,5,'wx'), (2,3,'ww'), (7,7,'xxxyy'), (3,3,'zyxw'),
+(3,2,'uuuw'), (2,2,'wxz'), (5,5,'xw'), (12,12,'xx'), (12,12,'y'),
+(13,13,'z'), (11,12,'zz'), (11,13,'x'), (12,13,'y'), (14,15,'w'),
+(17,18,'xx'), (14,13,'zx'), (11,12,'u'), (12,11,'w'), (5,5,'wx'),
+(12,13,'ww'), (17,17,'xxxyy'), (13,13,'zyxw'), (13,12,'uuuw'), (12,12,'wxz'),
+(15,15,'xw'), (1,1,'xa'), (2,2,'yya'), (3,3,'zzza'), (1,2,'za'),
+(1,3,'xb'), (2,3,'ya'), (4,5,'wa'), (7,8,'xxxxa'), (4,3,'zya'),
+(1,2,'uua'), (2,1,'wb'), (5,5,'wc'), (2,3,'wa'), (7,7,'xxxya'),
+(3,3,'zyxa'), (3,2,'uuua'), (2,2,'wxa'), (5,5,'xa'), (12,12,'xa'),
+(22,12,'yb'), (23,13,'zb'), (21,12,'za'), (24,13,'c'), (32,13,'d'),
+(34,15,'wd'), (47,18,'xa'), (54,13,'za'), (51,12,'ub'), (52,11,'wc'),
+(5,5,'wd'), (62,13,'wa'), (67,17,'xxxya'), (63,13,'zyxa'), (73,12,'uuua'),
+(82,12,'wxa'), (85,15,'xd');
+# range access to t1 by 2-component keys for index idx
+explain select * from t1 where (a,b) IN ((2, 3),(3,3),(8,8),(7,7));
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	idx	idx	10	NULL	7	Using where
+explain format=json select * from t1 where (a,b) IN ((2, 3),(3,3),(8,8),(7,7));
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t1",
+      "access_type": "range",
+      "possible_keys": ["idx"],
+      "key": "idx",
+      "key_length": "10",
+      "used_key_parts": ["a", "b"],
+      "rows": 7,
+      "filtered": 100,
+      "attached_condition": "(t1.a,t1.b) in (<cache>((2,3)),<cache>((3,3)),<cache>((8,8)),<cache>((7,7)))"
+    }
+  }
+}
+select * from t1 where (a,b) IN ((2, 3),(3,3),(8,8),(7,7));
+a	b	c
+2	3	yy
+2	3	ww
+2	3	ya
+2	3	wa
+3	3	zzzz
+3	3	zyxw
+3	3	zzza
+3	3	zyxa
+7	7	xxxyy
+7	7	xxxya
+prepare stmt from "select * from t1 where (a,b) IN ((2, 3),(3,3),(8,8),(7,7))";
+execute stmt;
+a	b	c
+2	3	yy
+2	3	ww
+2	3	ya
+2	3	wa
+3	3	zzzz
+3	3	zyxw
+3	3	zzza
+3	3	zyxa
+7	7	xxxyy
+7	7	xxxya
+execute stmt;
+a	b	c
+2	3	yy
+2	3	ww
+2	3	ya
+2	3	wa
+3	3	zzzz
+3	3	zyxw
+3	3	zzza
+3	3	zyxa
+7	7	xxxyy
+7	7	xxxya
+deallocate prepare stmt;
+# range access to t1 by 1-component keys for index idx
+explain select * from t1 where (a,b+a) IN ((4,9),(8,8),(7,7));
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	idx	idx	5	NULL	5	Using where
+explain format=json select * from t1 where (a,b+a) IN ((4,9),(8,8),(7,7));
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t1",
+      "access_type": "range",
+      "possible_keys": ["idx"],
+      "key": "idx",
+      "key_length": "5",
+      "used_key_parts": ["a"],
+      "rows": 5,
+      "filtered": 100,
+      "attached_condition": "(t1.a,t1.b + t1.a) in (<cache>((4,9)),<cache>((8,8)),<cache>((7,7)))"
+    }
+  }
+}
+select * from t1 where (a,b+a) IN ((4,9),(8,8),(7,7));
+a	b	c
+4	5	ww
+4	5	wa
+# range access to t1 by 1-component keys for index idx
+explain select * from t1 where (a,b) IN ((4,a-1),(8,a+8),(7,a+7));
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	idx	idx	5	NULL	5	Using where
+explain format=json select * from t1 where (a,b) IN ((4,a-1),(8,a+8),(7,a+7));
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t1",
+      "access_type": "range",
+      "possible_keys": ["idx"],
+      "key": "idx",
+      "key_length": "5",
+      "used_key_parts": ["a"],
+      "rows": 5,
+      "filtered": 100,
+      "attached_condition": "(t1.a,t1.b) in ((4,t1.a - 1),(8,t1.a + 8),(7,t1.a + 7))"
+    }
+  }
+}
+select * from t1 where (a,b) IN ((4,a-1),(8,a+8),(7,a+7));
+a	b	c
+4	3	zyx
+4	3	zya
+set @save_optimizer_switch=@@optimizer_switch;
+set optimizer_switch='index_merge=off';
+create table t2(
+d int, e int, key idx1(d), key idx2(e), f varchar(32)
+) engine=myisam;
+insert into t2 values
+(9,5,'a'), (9,8,'b'), (9,3,'c'), (9,2,'d'), (9,1,'e'),
+(6,5,'f'), (6,3,'g'), (6,7,'h'), (3,3,'i'), (6,2,'j'),
+(9,5,'aa'), (9,8,'ba'), (9,3,'ca'), (2,2,'da'), (9,1,'ea'),
+(6,5,'fa'), (6,3,'ga'), (6,7,'ha'), (9,3,'ia'), (6,2,'ja');
+# join order: (t2,t1) with ref access of t1
+# range access to t1 by keys for index idx1
+explain select * from t1,t2
+where a = d and (a,e) in ((3,3),(7,7),(2,2));
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	range	idx1,idx2	idx1	5	NULL	3	Using index condition; Using where
+1	SIMPLE	t1	ref	idx	idx	5	test.t2.d	8	
+explain format=json select * from t1,t2
+where a = d and (a,e) in ((3,3),(7,7),(2,2));
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t2",
+      "access_type": "range",
+      "possible_keys": ["idx1", "idx2"],
+      "key": "idx1",
+      "key_length": "5",
+      "used_key_parts": ["d"],
+      "rows": 3,
+      "filtered": 100,
+      "index_condition": "t2.d is not null",
+      "attached_condition": "(t2.d,t2.e) in (<cache>((3,3)),<cache>((7,7)),<cache>((2,2)))"
+    },
+    "table": {
+      "table_name": "t1",
+      "access_type": "ref",
+      "possible_keys": ["idx"],
+      "key": "idx",
+      "key_length": "5",
+      "used_key_parts": ["a"],
+      "ref": ["test.t2.d"],
+      "rows": 8,
+      "filtered": 100
+    }
+  }
+}
+select * from t1,t2
+where a = d and (a,e) in ((3,3),(7,7),(2,2));
+a	b	c	d	e	f
+2	1	w	2	2	da
+2	1	wb	2	2	da
+2	2	yyy	2	2	da
+2	2	wxz	2	2	da
+2	2	yya	2	2	da
+2	2	wxa	2	2	da
+2	3	yy	2	2	da
+2	3	ww	2	2	da
+2	3	ya	2	2	da
+2	3	wa	2	2	da
+3	2	uuuw	3	3	i
+3	2	uuua	3	3	i
+3	3	zzzz	3	3	i
+3	3	zyxw	3	3	i
+3	3	zzza	3	3	i
+3	3	zyxa	3	3	i
+insert into t2 values
+(4,5,'a'), (7,8,'b'), (4,3,'c'), (1,2,'d'), (2,1,'e'), (5,5,'f'),
+(2,3,'g'), (7,7,'h'), (3,3,'i'), (3,2,'j'), (2,2,'k'), (5,5,'l'),
+(4,5,'aa'), (7,8,'bb'), (4,3,'cc'), (1,2,'dd'), (2,1,'ee'), (9,5,'ff'),
+(2,3,'gg'), (7,7,'hh'), (3,3,'ii'), (3,2,'jj'), (2,2,'kk'), (9,5,'ll'),
+(4,5,'aaa'), (7,8,'bbb'), (4,3,'ccc'), (1,2,'ddd'), (2,1,'eee'), (5,5,'fff'),
+(2,3,'ggg'), (7,7,'hhh'), (3,3,'iii'), (3,2,'jjj'), (2,2,'kkk'), (5,5,'lll'),
+(14,15,'a'), (17,18,'b'), (14,13,'c'), (11,12,'d'), (12,11,'e'), (15,15,'f'),
+(12,13,'g'), (17,17,'h'), (13,13,'i'), (13,12,'j'), (12,12,'k'), (15,15,'l'),
+(24,25,'a'), (27,28,'b'), (24,23,'c'), (21,22,'d'), (22,21,'e'), (25,25,'f'),
+(22,23,'g'), (27,27,'h'), (23,23,'i'), (23,22,'j'), (22,22,'k'), (25,25,'l'),
+(34,35,'a'), (37,38,'b'), (34,33,'c'), (31,32,'d'), (32,31,'e'), (35,35,'f'),
+(32,33,'g'), (37,37,'h'), (33,33,'i'), (33,32,'j'), (32,32,'k'), (35,35,'l'),
+(44,45,'a'), (47,48,'b'), (44,43,'c'), (41,42,'d'), (42,41,'e'), (45,45,'f'),
+(42,43,'g'), (47,47,'h'), (43,43,'i'), (43,42,'j'), (42,42,'k'), (45,45,'l');
+# join order: (t1,t2) with ref access of t2 
+# range access to t1 by 1-component keys for index idx
+explain select * from t1,t2
+where a = d and (a,e) in ((3,3),(7,7),(8,8)) and length(f) = 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	idx	idx	5	NULL	6	Using index condition
+1	SIMPLE	t2	ref	idx1,idx2	idx1	5	test.t1.a	12	Using where
+explain format=json select * from t1,t2
+where a = d and (a,e) in ((3,3),(7,7),(8,8)) and length(f) = 1;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t1",
+      "access_type": "range",
+      "possible_keys": ["idx"],
+      "key": "idx",
+      "key_length": "5",
+      "used_key_parts": ["a"],
+      "rows": 6,
+      "filtered": 100,
+      "index_condition": "t1.a is not null"
+    },
+    "table": {
+      "table_name": "t2",
+      "access_type": "ref",
+      "possible_keys": ["idx1", "idx2"],
+      "key": "idx1",
+      "key_length": "5",
+      "used_key_parts": ["d"],
+      "ref": ["test.t1.a"],
+      "rows": 12,
+      "filtered": 100,
+      "attached_condition": "(t1.a,t2.e) in (<cache>((3,3)),<cache>((7,7)),<cache>((8,8))) and length(t2.f) = 1"
+    }
+  }
+}
+select * from t1,t2
+where a = d and (a,e) in ((3,3),(7,7),(8,8)) and length(f) = 1;
+a	b	c	d	e	f
+3	2	uuuw	3	3	i
+3	2	uuuw	3	3	i
+3	2	uuua	3	3	i
+3	2	uuua	3	3	i
+3	3	zzzz	3	3	i
+3	3	zzzz	3	3	i
+3	3	zyxw	3	3	i
+3	3	zyxw	3	3	i
+3	3	zzza	3	3	i
+3	3	zzza	3	3	i
+3	3	zyxa	3	3	i
+3	3	zyxa	3	3	i
+7	7	xxxyy	7	7	h
+7	7	xxxya	7	7	h
+7	8	xxxxx	7	7	h
+7	8	xxxxa	7	7	h
+prepare stmt from "select * from t1,t2
+where a = d and (a,e) in ((3,3),(7,7),(8,8)) and length(f) = 1";
+execute stmt;
+a	b	c	d	e	f
+3	2	uuuw	3	3	i
+3	2	uuuw	3	3	i
+3	2	uuua	3	3	i
+3	2	uuua	3	3	i
+3	3	zzzz	3	3	i
+3	3	zzzz	3	3	i
+3	3	zyxw	3	3	i
+3	3	zyxw	3	3	i
+3	3	zzza	3	3	i
+3	3	zzza	3	3	i
+3	3	zyxa	3	3	i
+3	3	zyxa	3	3	i
+7	7	xxxyy	7	7	h
+7	7	xxxya	7	7	h
+7	8	xxxxx	7	7	h
+7	8	xxxxa	7	7	h
+execute stmt;
+a	b	c	d	e	f
+3	2	uuuw	3	3	i
+3	2	uuuw	3	3	i
+3	2	uuua	3	3	i
+3	2	uuua	3	3	i
+3	3	zzzz	3	3	i
+3	3	zzzz	3	3	i
+3	3	zyxw	3	3	i
+3	3	zyxw	3	3	i
+3	3	zzza	3	3	i
+3	3	zzza	3	3	i
+3	3	zyxa	3	3	i
+3	3	zyxa	3	3	i
+7	7	xxxyy	7	7	h
+7	7	xxxya	7	7	h
+7	8	xxxxx	7	7	h
+7	8	xxxxa	7	7	h
+deallocate prepare stmt;
+insert into t1 select * from t1;
+# join order: (t2,t1) with ref access of t1
+# range access to t2 by keys for index idx2
+explain select * from t1,t2 
+where a = d and (a,e) in ((4,4),(7,7),(8,8)) and length(f) = 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	range	idx1,idx2	idx2	5	NULL	6	Using where
+1	SIMPLE	t1	ref	idx	idx	5	test.t2.d	11	
+explain format=json select * from t1,t2 
+where a = d and (a,e) in ((4,4),(7,7),(8,8)) and length(f) = 1;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t2",
+      "access_type": "range",
+      "possible_keys": ["idx1", "idx2"],
+      "key": "idx2",
+      "key_length": "5",
+      "used_key_parts": ["e"],
+      "rows": 6,
+      "filtered": 100,
+      "attached_condition": "(t2.d,t2.e) in (<cache>((4,4)),<cache>((7,7)),<cache>((8,8))) and length(t2.f) = 1 and t2.d is not null"
+    },
+    "table": {
+      "table_name": "t1",
+      "access_type": "ref",
+      "possible_keys": ["idx"],
+      "key": "idx",
+      "key_length": "5",
+      "used_key_parts": ["a"],
+      "ref": ["test.t2.d"],
+      "rows": 11,
+      "filtered": 100
+    }
+  }
+}
+select * from t1,t2 
+where a = d and (a,e) in ((4,4),(7,7),(8,8)) and length(f) = 1;
+a	b	c	d	e	f
+7	7	xxxyy	7	7	h
+7	7	xxxya	7	7	h
+7	7	xxxyy	7	7	h
+7	7	xxxya	7	7	h
+7	8	xxxxx	7	7	h
+7	8	xxxxa	7	7	h
+7	8	xxxxx	7	7	h
+7	8	xxxxa	7	7	h
+alter table t2 drop index idx1, drop index idx2, add index idx3(d,e);
+# join order: (t2,t1) with ref access of t1
+# range access to t2 by 2-component keys for index idx3
+explain select * from t1,t2 
+where a = d and (a,e) in ((4,4),(7,7),(8,8)) and length(f) = 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	range	idx3	idx3	10	NULL	5	Using index condition; Using where
+1	SIMPLE	t1	ref	idx	idx	5	test.t2.d	11	
+explain format=json select * from t1,t2 
+where a = d and (a,e) in ((4,4),(7,7),(8,8)) and length(f) = 1;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t2",
+      "access_type": "range",
+      "possible_keys": ["idx3"],
+      "key": "idx3",
+      "key_length": "10",
+      "used_key_parts": ["d", "e"],
+      "rows": 5,
+      "filtered": 100,
+      "index_condition": "t2.d is not null",
+      "attached_condition": "(t2.d,t2.e) in (<cache>((4,4)),<cache>((7,7)),<cache>((8,8))) and length(t2.f) = 1"
+    },
+    "table": {
+      "table_name": "t1",
+      "access_type": "ref",
+      "possible_keys": ["idx"],
+      "key": "idx",
+      "key_length": "5",
+      "used_key_parts": ["a"],
+      "ref": ["test.t2.d"],
+      "rows": 11,
+      "filtered": 100
+    }
+  }
+}
+select * from t1,t2 
+where a = d and (a,e) in ((4,4),(7,7),(8,8)) and length(f) = 1;
+a	b	c	d	e	f
+7	7	xxxyy	7	7	h
+7	7	xxxya	7	7	h
+7	7	xxxyy	7	7	h
+7	7	xxxya	7	7	h
+7	8	xxxxx	7	7	h
+7	8	xxxxa	7	7	h
+7	8	xxxxx	7	7	h
+7	8	xxxxa	7	7	h
+# join order: (t1,t2) with ref access of t2
+# range access to t1 by 1-component keys for index idx
+explain select * from t1,t2
+where a = d and (a,e) in ((4,d+1),(7,d+1),(8,d+1)) and length(f) = 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	idx	idx	5	NULL	15	Using index condition
+1	SIMPLE	t2	ref	idx3	idx3	5	test.t1.a	3	Using where
+explain format=json select * from t1,t2
+where a = d and (a,e) in ((4,d+1),(7,d+1),(8,d+1)) and length(f) = 1;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t1",
+      "access_type": "range",
+      "possible_keys": ["idx"],
+      "key": "idx",
+      "key_length": "5",
+      "used_key_parts": ["a"],
+      "rows": 15,
+      "filtered": 100,
+      "index_condition": "t1.a is not null"
+    },
+    "table": {
+      "table_name": "t2",
+      "access_type": "ref",
+      "possible_keys": ["idx3"],
+      "key": "idx3",
+      "key_length": "5",
+      "used_key_parts": ["d"],
+      "ref": ["test.t1.a"],
+      "rows": 3,
+      "filtered": 100,
+      "attached_condition": "(t1.a,t2.e) in ((4,t1.a + 1),(7,t1.a + 1),(8,t1.a + 1)) and length(t2.f) = 1"
+    }
+  }
+}
+select * from t1,t2
+where a = d and (a,e) in ((4,d+1),(7,d+1),(8,d+1)) and length(f) = 1;
+a	b	c	d	e	f
+4	3	zyx	4	5	a
+4	3	zya	4	5	a
+4	3	zyx	4	5	a
+4	3	zya	4	5	a
+4	5	ww	4	5	a
+4	5	wa	4	5	a
+4	5	ww	4	5	a
+4	5	wa	4	5	a
+7	7	xxxyy	7	8	b
+7	7	xxxya	7	8	b
+7	7	xxxyy	7	8	b
+7	7	xxxya	7	8	b
+7	8	xxxxx	7	8	b
+7	8	xxxxa	7	8	b
+7	8	xxxxx	7	8	b
+7	8	xxxxa	7	8	b
+# join order: (t1,t2) with ref access of t2
+# no range access
+explain select * from t1,t2
+where a = d and (a,e) in ((e,d+1),(7,7),(8,8)) and length(f) = 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	idx	NULL	NULL	NULL	144	Using where
+1	SIMPLE	t2	ref	idx3	idx3	5	test.t1.a	3	Using where
+explain format=json select * from t1,t2
+where a = d and (a,e) in ((e,d+1),(7,7),(8,8)) and length(f) = 1;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t1",
+      "access_type": "ALL",
+      "possible_keys": ["idx"],
+      "rows": 144,
+      "filtered": 100,
+      "attached_condition": "t1.a is not null"
+    },
+    "table": {
+      "table_name": "t2",
+      "access_type": "ref",
+      "possible_keys": ["idx3"],
+      "key": "idx3",
+      "key_length": "5",
+      "used_key_parts": ["d"],
+      "ref": ["test.t1.a"],
+      "rows": 3,
+      "filtered": 100,
+      "attached_condition": "(t1.a,t2.e) in ((t2.e,t1.a + 1),<cache>((7,7)),<cache>((8,8))) and length(t2.f) = 1"
+    }
+  }
+}
+select * from t1,t2
+where a = d and (a,e) in ((e,d+1),(7,7),(8,8)) and length(f) = 1;
+a	b	c	d	e	f
+7	8	xxxxx	7	7	h
+7	7	xxxyy	7	7	h
+7	8	xxxxa	7	7	h
+7	7	xxxya	7	7	h
+7	8	xxxxx	7	7	h
+7	7	xxxyy	7	7	h
+7	8	xxxxa	7	7	h
+7	7	xxxya	7	7	h
+# join order: (t1,t2) with ref access of t2
+# range access to t1 by 1-component keys for index idx
+explain select * from t1,t2
+where a = d and (a,2) in ((2,2),(7,7),(8,8)) and
+length(c) = 1 and length(f) = 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	idx	idx	5	NULL	13	Using index condition; Using where
+1	SIMPLE	t2	ref	idx3	idx3	5	test.t1.a	3	Using where
+explain format=json select * from t1,t2
+where a = d and (a,2) in ((2,2),(7,7),(8,8)) and
+length(c) = 1 and length(f) = 1;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t1",
+      "access_type": "range",
+      "possible_keys": ["idx"],
+      "key": "idx",
+      "key_length": "5",
+      "used_key_parts": ["a"],
+      "rows": 13,
+      "filtered": 100,
+      "index_condition": "t1.a is not null",
+      "attached_condition": "(t1.a,2) in (<cache>((2,2)),<cache>((7,7)),<cache>((8,8))) and length(t1.c) = 1"
+    },
+    "table": {
+      "table_name": "t2",
+      "access_type": "ref",
+      "possible_keys": ["idx3"],
+      "key": "idx3",
+      "key_length": "5",
+      "used_key_parts": ["d"],
+      "ref": ["test.t1.a"],
+      "rows": 3,
+      "filtered": 100,
+      "attached_condition": "length(t2.f) = 1"
+    }
+  }
+}
+select * from t1,t2
+where a = d and (a,2) in ((2,2),(7,7),(8,8)) and
+length(c) = 1 and length(f) = 1;
+a	b	c	d	e	f
+2	1	w	2	1	e
+2	1	w	2	2	k
+2	1	w	2	3	g
+2	1	w	2	1	e
+2	1	w	2	2	k
+2	1	w	2	3	g
+prepare stmt from "select * from t1,t2
+where a = d and (a,2) in ((2,2),(7,7),(8,8)) and
+length(c) = 1 and length(f) = 1";
+execute stmt;
+a	b	c	d	e	f
+2	1	w	2	1	e
+2	1	w	2	2	k
+2	1	w	2	3	g
+2	1	w	2	1	e
+2	1	w	2	2	k
+2	1	w	2	3	g
+execute stmt;
+a	b	c	d	e	f
+2	1	w	2	1	e
+2	1	w	2	2	k
+2	1	w	2	3	g
+2	1	w	2	1	e
+2	1	w	2	2	k
+2	1	w	2	3	g
+deallocate prepare stmt;
+create table t3 (id int primary key, v int) engine=myisam;
+insert into t3 values
+(3,2), (1,1), (4,12), (2,15);
+# join order: (t3,t1,t2) with const t3 and ref access of t2
+# range access to t1 by 1-component keys for index idx
+explain select * from t1,t2,t3
+where id = 1 and a = d and
+(a,v+1) in ((2,2),(7,7),(8,8)) and
+length(c) = 1 and length(f) = 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t3	const	PRIMARY	PRIMARY	4	const	1	
+1	SIMPLE	t1	range	idx	idx	5	NULL	13	Using index condition; Using where
+1	SIMPLE	t2	ref	idx3	idx3	5	test.t1.a	3	Using where
+explain format=json select * from t1,t2,t3
+where id = 1 and a = d and
+(a,v+1) in ((2,2),(7,7),(8,8)) and
+length(c) = 1 and length(f) = 1;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t3",
+      "access_type": "const",
+      "possible_keys": ["PRIMARY"],
+      "key": "PRIMARY",
+      "key_length": "4",
+      "used_key_parts": ["id"],
+      "ref": ["const"],
+      "rows": 1,
+      "filtered": 100
+    },
+    "table": {
+      "table_name": "t1",
+      "access_type": "range",
+      "possible_keys": ["idx"],
+      "key": "idx",
+      "key_length": "5",
+      "used_key_parts": ["a"],
+      "rows": 13,
+      "filtered": 100,
+      "index_condition": "t1.a is not null",
+      "attached_condition": "(t1.a,1 + 1) in (<cache>((2,2)),<cache>((7,7)),<cache>((8,8))) and length(t1.c) = 1"
+    },
+    "table": {
+      "table_name": "t2",
+      "access_type": "ref",
+      "possible_keys": ["idx3"],
+      "key": "idx3",
+      "key_length": "5",
+      "used_key_parts": ["d"],
+      "ref": ["test.t1.a"],
+      "rows": 3,
+      "filtered": 100,
+      "attached_condition": "length(t2.f) = 1"
+    }
+  }
+}
+select * from t1,t2,t3
+where id = 1 and a = d and
+(a,v+1) in ((2,2),(7,7),(8,8)) and
+length(c) = 1 and length(f) = 1;
+a	b	c	d	e	f	id	v
+2	1	w	2	1	e	1	1
+2	1	w	2	2	k	1	1
+2	1	w	2	3	g	1	1
+2	1	w	2	1	e	1	1
+2	1	w	2	2	k	1	1
+2	1	w	2	3	g	1	1
+# IN predicate is always FALSE
+explain select * from t1,t2,t3
+where id = 1 and a = d and
+(a,v+1) in ((9,9),(7,7),(8,8)) and
+length(c) = 1 and length(f) = 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+prepare stmt from "select * from t1,t2,t3
+where id = 1 and a = d and
+(a,v+1) in ((9,9),(7,7),(8,8)) and
+length(c) = 1 and length(f) = 1";
+execute stmt;
+a	b	c	d	e	f	id	v
+execute stmt;
+a	b	c	d	e	f	id	v
+deallocate prepare stmt;
+set optimizer_switch=@save_optimizer_switch;
+drop table t1,t2,t3;
+#
+# End of 10.2 tests
+#

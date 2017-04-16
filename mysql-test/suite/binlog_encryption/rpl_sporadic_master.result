@@ -1,0 +1,28 @@
+include/master-slave.inc
+[connection master]
+create table t2(n int);
+create table t1(n int not null auto_increment primary key);
+insert into t1 values (NULL),(NULL);
+truncate table t1;
+insert into t1 values (4),(NULL);
+connection slave;
+include/stop_slave.inc
+include/start_slave.inc
+connection master;
+insert into t1 values (NULL),(NULL);
+flush logs;
+truncate table t1;
+insert into t1 values (10),(NULL),(NULL),(NULL),(NULL),(NULL);
+connection slave;
+select * from t1 ORDER BY n;
+n
+10
+11
+12
+13
+14
+15
+connection master;
+drop table t1,t2;
+connection slave;
+include/rpl_end.inc

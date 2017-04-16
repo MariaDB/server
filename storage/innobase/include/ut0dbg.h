@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -43,7 +44,7 @@ ut_dbg_assertion_failed(
 /*====================*/
 	const char*	expr,	/*!< in: the failed assertion */
 	const char*	file,	/*!< in: source file containing the assertion */
-	ulint		line)	/*!< in: line number of the assertion */
+	unsigned	line)	/*!< in: line number of the assertion */
 	UNIV_COLD MY_ATTRIBUTE((nonnull(2), noreturn));
 
 /** Abort execution if EXPR does not evaluate to nonzero.
@@ -51,22 +52,20 @@ ut_dbg_assertion_failed(
 #define ut_a(EXPR) do {						\
 	if (UNIV_UNLIKELY(!(ulint) (EXPR))) {			\
 		ut_dbg_assertion_failed(#EXPR,			\
-				__FILE__, (ulint) __LINE__);	\
+				__FILE__, __LINE__);		\
 	}							\
 } while (0)
 
 /** Abort execution. */
 #define ut_error						\
-	ut_dbg_assertion_failed(0, __FILE__, (ulint) __LINE__)
+	ut_dbg_assertion_failed(0, __FILE__, __LINE__)
 
+/** Debug assertion */
+#define ut_ad	DBUG_ASSERT
 #ifdef UNIV_DEBUG
-/** Debug assertion. Does nothing unless UNIV_DEBUG is defined. */
-#define ut_ad(EXPR)	ut_a(EXPR)
 /** Debug statement. Does nothing unless UNIV_DEBUG is defined. */
 #define ut_d(EXPR)	EXPR
 #else
-/** Debug assertion. Does nothing unless UNIV_DEBUG is defined. */
-#define ut_ad(EXPR)
 /** Debug statement. Does nothing unless UNIV_DEBUG is defined. */
 #define ut_d(EXPR)
 #endif

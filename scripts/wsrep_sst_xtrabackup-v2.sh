@@ -176,7 +176,7 @@ get_transfer()
         fi
         wsrep_log_info "Using netcat as streamer"
         if [[ "$WSREP_SST_OPT_ROLE"  == "joiner" ]];then
-            if nc -h | grep -q ncat;then 
+            if nc -h 2>&1 | grep -q ncat;then 
                 tcmd="nc -l ${TSST_PORT}"
             else 
                 tcmd="nc -dl ${TSST_PORT}"

@@ -1,0 +1,19 @@
+--source include/have_rocksdb.inc
+
+create table ten(a int primary key);
+insert into ten values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table one_k(a int primary key);
+insert into one_k select A.a + B.a* 10 + C.a * 100 from ten A, ten B, ten C;
+
+create table t100(pk int primary key, a int, b int, key(a));
+insert into t100 select a,a,a from test.one_k;
+
+set global rocksdb_force_flush_memtable_now=1;
+select num_rows, entry_deletes, entry_singledeletes from information_schema.rocksdb_index_file_map where index_number = (select max(index_number) from information_schema.rocksdb_index_file_map) order by entry_deletes, entry_singledeletes;
+
+update t100 set a=a+1;
+set global rocksdb_force_flush_memtable_now=1;
+select num_rows, entry_deletes, entry_singledeletes from information_schema.rocksdb_index_file_map where index_number = (select max(index_number) from information_schema.rocksdb_index_file_map) order by entry_deletes, entry_singledeletes;
+
+drop table ten, t100, one_k;
+

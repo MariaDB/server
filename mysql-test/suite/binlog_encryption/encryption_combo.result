@@ -1,0 +1,78 @@
+#################
+# Initialization
+#################
+include/rpl_init.inc [topology=1->2]
+connection server_2;
+include/stop_slave.inc
+#####################################################
+# Part 1: unencrypted master
+#####################################################
+connection server_1;
+CREATE TABLE table1_no_encryption (
+pk INT AUTO_INCREMENT PRIMARY KEY,
+ts TIMESTAMP NULL,
+b BLOB
+) ENGINE=MyISAM;
+INSERT INTO table1_no_encryption VALUES (NULL,NOW(),'data_no_encryption');
+INSERT INTO table1_no_encryption SELECT NULL,NOW(),b FROM table1_no_encryption;
+FLUSH BINARY LOGS;
+SET binlog_format=ROW;
+INSERT INTO table1_no_encryption SELECT NULL,NOW(),b FROM table1_no_encryption;
+INSERT INTO table1_no_encryption SELECT NULL,NOW(),b FROM table1_no_encryption;
+FOUND 11 /table1_no_encryption/ in master-bin.0*
+#####################################################
+# Part 2: restart master, now with binlog encryption
+#####################################################
+connection default;
+connection server_1;
+CREATE TABLE table2_to_encrypt (
+pk INT AUTO_INCREMENT PRIMARY KEY,
+ts TIMESTAMP NULL,
+b BLOB
+) ENGINE=MyISAM;
+INSERT INTO table2_to_encrypt VALUES (NULL,NOW(),'data_to_encrypt');
+INSERT INTO table2_to_encrypt SELECT NULL,NOW(),b FROM table2_to_encrypt;
+FLUSH BINARY LOGS;
+SET binlog_format=ROW;
+INSERT INTO table2_to_encrypt SELECT NULL,NOW(),b FROM table2_to_encrypt;
+INSERT INTO table2_to_encrypt SELECT NULL,NOW(),b FROM table2_to_encrypt;
+NOT FOUND /table2_to_encrypt/ in master-bin.0*
+#####################################################
+# Part 3: restart master again without encryption
+#####################################################
+connection default;
+connection server_1;
+CREATE TABLE table3_no_encryption (
+pk INT AUTO_INCREMENT PRIMARY KEY,
+ts TIMESTAMP NULL,
+b BLOB
+) ENGINE=MyISAM;
+INSERT INTO table3_no_encryption VALUES (NULL,NOW(),'data_no_encryption');
+INSERT INTO table3_no_encryption SELECT NULL,NOW(),b FROM table3_no_encryption;
+INSERT INTO table3_no_encryption SELECT NULL,NOW(),b FROM table3_no_encryption;
+#####################################################
+# Check: resume replication and check that it works
+#####################################################
+connection server_2;
+include/start_slave.inc
+SHOW TABLES;
+Tables_in_test
+table1_no_encryption
+table2_to_encrypt
+table3_no_encryption
+##########
+# Cleanup
+##########
+connection server_1;
+SELECT COUNT(*) FROM table1_no_encryption;
+COUNT(*)
+8
+SELECT COUNT(*) FROM table2_to_encrypt;
+COUNT(*)
+8
+SELECT COUNT(*) FROM table3_no_encryption;
+COUNT(*)
+4
+DROP TABLE table1_no_encryption, table2_to_encrypt, table3_no_encryption;
+connection server_2;
+include/rpl_end.inc

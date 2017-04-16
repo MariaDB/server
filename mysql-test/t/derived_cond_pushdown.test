@@ -1319,3 +1319,37 @@ SELECT * FROM v1 WHERE v1.d IN ( SELECT MIN(d) FROM t2 WHERE 0 );
 
 DROP VIEW v1;
 DROP TABLE t1,t2;
+
+--echo #
+--echo # MDEV-11820: second execution of PS for query 
+--echo #             with false subquery predicate in WHERE 
+--echo #
+
+CREATE TABLE t1 (c VARCHAR(3)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES ('foo'),('bar');
+CREATE ALGORITHM=TEMPTABLE VIEW v1 AS SELECT * FROM t1;
+CREATE TABLE t2 (a INT);
+INSERT INTO t2 VALUES (3), (4);
+
+PREPARE stmt1 FROM 
+" SELECT * FROM v1 WHERE 1 IN (SELECT a FROM t2) OR c = 'foo'";
+PREPARE stmt2 FROM 
+"EXPLAIN FORMAT=JSON 
+ SELECT * FROM v1 WHERE 1 IN (SELECT a FROM t2) OR c = 'foo'";
+EXECUTE stmt1;
+EXECUTE stmt2;
+INSERT INTO t2 SELECT a+1 FROM t2;
+INSERT INTO t2 SELECT a+1 FROM t2;
+INSERT INTO t2 SELECT a+1 FROM t2;
+INSERT INTO t2 SELECT a+1 FROM t2;
+INSERT INTO t2 SELECT a+1 FROM t2;
+INSERT INTO t2 SELECT a+1 FROM t2;
+EXECUTE stmt1;
+EXECUTE stmt2;
+DEALLOCATE PREPARE stmt1;
+# the result here will change after the merge with the fix for mdev-11859 
+DEALLOCATE PREPARE stmt2;
+
+DROP VIEW v1;
+DROP TABLE t1,t2;
+

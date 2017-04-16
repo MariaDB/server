@@ -27,16 +27,10 @@ Created 12/27/1996 Heikki Tuuri
 #include "ha_prototypes.h"
 
 #include "row0upd.h"
-
-#ifdef UNIV_NONINL
-#include "row0upd.ic"
-#endif
-
 #include "dict0dict.h"
 #include "dict0mem.h"
 #include "trx0undo.h"
 #include "rem0rec.h"
-#ifndef UNIV_HOTBACKUP
 #include "dict0boot.h"
 #include "dict0crea.h"
 #include "mach0data.h"
@@ -58,7 +52,6 @@ Created 12/27/1996 Heikki Tuuri
 #include "fts0fts.h"
 #include "fts0types.h"
 #include <algorithm>
-
 #include <mysql/plugin.h>
 #include <mysql/service_wsrep.h>
 
@@ -126,7 +119,6 @@ row_upd_changes_first_fields_binary(
 	dict_index_t*	index,	/*!< in: index of entry */
 	const upd_t*	update,	/*!< in: update vector for the row */
 	ulint		n);	/*!< in: how many first fields to check */
-
 
 /*********************************************************************//**
 Checks if index currently is mentioned as a referenced index in a foreign
@@ -454,7 +446,6 @@ upd_node_create(
 
 	return(node);
 }
-#endif /* !UNIV_HOTBACKUP */
 
 /*********************************************************************//**
 Updates the trx id and roll ptr field in a clustered index record in database
@@ -488,7 +479,6 @@ row_upd_rec_sys_fields_in_recovery(
 	}
 }
 
-#ifndef UNIV_HOTBACKUP
 /*********************************************************************//**
 Sets the trx id or roll ptr field of a clustered index entry. */
 void
@@ -633,7 +623,6 @@ row_upd_changes_disowned_external(
 
 	return(false);
 }
-#endif /* !UNIV_HOTBACKUP */
 
 /***********************************************************//**
 Replaces the new column values stored in the update vector to the
@@ -689,7 +678,6 @@ row_upd_rec_in_place(
 	}
 }
 
-#ifndef UNIV_HOTBACKUP
 /*********************************************************************//**
 Writes into the redo log the values of trx id and roll ptr and enough info
 to determine their positions within a clustered index record.
@@ -718,7 +706,6 @@ row_upd_write_sys_vals_to_log(
 
 	return(log_ptr);
 }
-#endif /* !UNIV_HOTBACKUP */
 
 /*********************************************************************//**
 Parses the log data of system field values.
@@ -752,7 +739,6 @@ row_upd_parse_sys_vals(
 	return(const_cast<byte*>(ptr));
 }
 
-#ifndef UNIV_HOTBACKUP
 /***********************************************************//**
 Writes to the redo log the new values of the fields occurring in the index. */
 void
@@ -830,7 +816,6 @@ row_upd_index_write_log(
 
 	mlog_close(mtr, log_ptr);
 }
-#endif /* !UNIV_HOTBACKUP */
 
 /*********************************************************************//**
 Parses the log data written by row_upd_index_write_log.
@@ -917,7 +902,6 @@ row_upd_index_parse(
 	return(const_cast<byte*>(ptr));
 }
 
-#ifndef UNIV_HOTBACKUP
 /***************************************************************//**
 Builds an update vector from those fields which in a secondary index entry
 differ from a record that has the equal ordering fields. NOTE: we compare
@@ -1301,8 +1285,6 @@ row_upd_index_replace_new_col_vals_index_pos(
 	ulint		n_fields;
 	const page_size_t&	page_size = dict_table_page_size(index->table);
 
-	ut_ad(index);
-
 	dtuple_set_info_bits(entry, update->info_bits);
 
 	if (order_only) {
@@ -1653,8 +1635,6 @@ row_upd_changes_ord_field_binary_func(
 	ulint			i;
 	const dict_index_t*	clust_index;
 
-	ut_ad(index);
-	ut_ad(update);
 	ut_ad(thr);
 	ut_ad(thr->graph);
 	ut_ad(thr->graph->trx);
@@ -2224,7 +2204,6 @@ srv_mbr_print(const byte* data)
 		<< ", " << d << "\n";
 }
 
-
 /***********************************************************//**
 Updates a secondary index entry of a row.
 @return DB_SUCCESS if operation successfully completed, else error
@@ -2281,7 +2260,7 @@ row_upd_sec_index_entry(
 		flags = BTR_NO_LOCKING_FLAG;
 		mtr.set_log_mode(MTR_LOG_NO_REDO);
 	} else {
-		flags = 0;
+		flags = index->table->no_rollback() ? BTR_NO_ROLLBACK : 0;
 	}
 
 	if (!index->is_committed()) {
@@ -2321,9 +2300,8 @@ row_upd_sec_index_entry(
 		spatial index. */
 		mode = (referenced || dict_table_is_temporary(index->table)
 			|| dict_index_is_spatial(index))
-			? BTR_MODIFY_LEAF | BTR_ALREADY_S_LATCHED
-			: BTR_MODIFY_LEAF | BTR_ALREADY_S_LATCHED
-			| BTR_DELETE_MARK;
+			? BTR_MODIFY_LEAF_ALREADY_S_LATCHED
+			: BTR_DELETE_MARK_LEAF_ALREADY_S_LATCHED;
 	} else {
 		/* For secondary indexes,
 		index->online_status==ONLINE_INDEX_COMPLETE if
@@ -2337,7 +2315,7 @@ row_upd_sec_index_entry(
 		mode = (referenced || dict_table_is_temporary(index->table)
 			|| dict_index_is_spatial(index))
 			? BTR_MODIFY_LEAF
-			: BTR_MODIFY_LEAF | BTR_DELETE_MARK;
+			: BTR_DELETE_MARK_LEAF;
 	}
 
 	if (dict_index_is_spatial(index)) {
@@ -2399,7 +2377,6 @@ row_upd_sec_index_entry(
 		break;
 	case ROW_FOUND:
 		ut_ad(err == DB_SUCCESS);
-
 
 		/* Delete mark the old index record; it can already be
 		delete marked if we return after a lock wait in
@@ -3069,11 +3046,11 @@ row_upd_clust_step(
 	server or connection lifetime and so REDO information is not needed
 	on restart for recovery.
 	Disable locking as temp-tables are not shared across connection. */
-	if (dict_table_is_temporary(index->table)) {
+	if (dict_table_is_temporary(node->table)) {
 		flags = BTR_NO_LOCKING_FLAG;
 		mtr.set_log_mode(MTR_LOG_NO_REDO);
 	} else {
-		flags = 0;
+		flags = node->table->no_rollback() ? BTR_NO_ROLLBACK : 0;
 	}
 
 	/* If the restoration does not succeed, then the same
@@ -3239,6 +3216,7 @@ to this node, we assume that we have a persistent cursor which was on a
 record, and the position of the cursor is stored in the cursor.
 @return DB_SUCCESS if operation successfully completed, else error
 code or DB_LOCK_WAIT */
+static
 dberr_t
 row_upd(
 /*====*/
@@ -3486,29 +3464,16 @@ void upd_node_t::dbug_trace()
 
 	for (upd_cascade_t::const_iterator i = cascade_upd_nodes->begin();
 	     i != cascade_upd_nodes->end(); ++i) {
-
-		const upd_node_t*	update_node = *i;
-		ib::info() << "cascade_upd_nodes: Cascade to table: " <<
-			update_node->table->name;
-		/* JAN: TODO: MySQL 5.7
 		DBUG_LOG("upd_node_t", "cascade_upd_nodes: Cascade to table: "
-			 << update_node->table->name);
-		*/
+			 << (*i)->table->name);
 	}
 
 	for (upd_cascade_t::const_iterator j = new_upd_nodes->begin();
 	     j != new_upd_nodes->end(); ++j) {
-
-		const upd_node_t*	update_node = *j;
-		ib::info() << "cascade_upd_nodes: Cascade to table: " <<
-			update_node->table->name;
-		/* JAN: TODO: MySQL 5.7
 		DBUG_LOG("upd_node_t", "new_upd_nodes: Cascade to table: "
-			 << update_node->table->name);
-		*/
+			 << (*j)->table->name);
 	}
 
 	DBUG_VOID_RETURN;
 }
 #endif /* !DBUG_OFF */
-#endif /* !UNIV_HOTBACKUP */

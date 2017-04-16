@@ -13,7 +13,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
 
 /* This file should be included when using maria functions */
 
@@ -149,7 +149,7 @@ typedef struct st_maria_create_info
   uint null_bytes;
   uint old_options;
   enum data_file_type org_data_file_type;
-  uint8 language;
+  uint16 language;
   my_bool with_auto_increment, transactional;
 } MARIA_CREATE_INFO;
 

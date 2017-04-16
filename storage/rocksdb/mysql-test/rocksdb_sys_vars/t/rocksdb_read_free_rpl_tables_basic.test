@@ -1,0 +1,15 @@
+--source include/have_rocksdb.inc
+
+CREATE TABLE valid_values (value varchar(255)) ENGINE=myisam;
+INSERT INTO valid_values VALUES('a');
+INSERT INTO valid_values VALUES('b');
+
+CREATE TABLE invalid_values (value varchar(255)) ENGINE=myisam;
+
+--let $sys_var=ROCKSDB_READ_FREE_RPL_TABLES
+--let $read_only=0
+--let $session=1
+--source include/rocksdb_sys_var.inc
+
+DROP TABLE valid_values;
+DROP TABLE invalid_values;

@@ -1,0 +1,22 @@
+#
+# Tests involving GROUP BY, aggregate functions and InnoDB
+#
+
+
+--source include/have_innodb.inc
+
+--echo #
+--echo # Start of 10.1 tests
+--echo #
+
+--echo #
+--echo # MDEV-10556 Assertion `0' failed in virtual void Item_sum_field::set_result_field(Field*)
+--echo #
+
+CREATE TABLE t1 (i INT) ENGINE=InnoDB;
+SELECT DISTINCT STDDEV(1) FROM t1 GROUP BY i ORDER BY BENCHMARK(0, BIT_XOR(i));
+DROP TABLE t1;
+
+--echo #
+--echo # End of 10.1 tests
+--echo #

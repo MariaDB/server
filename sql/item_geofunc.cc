@@ -121,6 +121,65 @@ String *Item_func_geometry_from_wkb::val_str(String *str)
 }
 
 
+void report_json_error_ex(String *js, json_engine_t *je,
+                          const char *fname, int n_param,
+                          Sql_condition::enum_warning_level lv);
+
+String *Item_func_geometry_from_json::val_str(String *str)
+{
+  DBUG_ASSERT(fixed == 1);
+  Geometry_buffer buffer;
+  String *js= args[0]->val_str_ascii(&tmp_js);
+  uint32 srid= 0;
+  json_engine_t je;
+
+  if ((null_value= args[0]->null_value))
+    return 0;
+
+  if ((arg_count == 2) && !args[1]->null_value)
+    srid= (uint32)args[1]->val_int();
+
+  str->set_charset(&my_charset_bin);
+  if (str->reserve(SRID_SIZE, 512))
+    return 0;
+  str->length(0);
+  str->q_append(srid);
+
+  json_scan_start(&je, js->charset(), (const uchar *) js->ptr(),
+                  (const uchar *) js->end());
+
+  if ((null_value= !Geometry::create_from_json(&buffer, &je, str)))
+  {
+    int code= 0;
+
+    switch (je.s.error)
+    {
+    case Geometry::GEOJ_INCORRECT_GEOJSON:
+      code= ER_GEOJSON_INCORRECT;
+      break;
+    case Geometry::GEOJ_TOO_FEW_POINTS:
+      code= ER_GEOJSON_TOO_FEW_POINTS;
+      break;
+    case Geometry::GEOJ_POLYGON_NOT_CLOSED:
+      code= ER_GEOJSON_NOT_CLOSED;
+      break;
+    default:
+      report_json_error_ex(js, &je, func_name(), 0, Sql_condition::WARN_LEVEL_WARN);
+      return NULL;
+    }
+
+    if (code)
+    {
+      THD *thd= current_thd;
+      push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN, code,
+                          ER_THD(thd, code));
+    }
+    return 0;
+  }
+  return str;
+}
+
+
 String *Item_func_as_wkt::val_str_ascii(String *str)
 {
   DBUG_ASSERT(fixed == 1);
@@ -166,6 +225,37 @@ String *Item_func_as_wkb::val_str(String *str)
 
   str->copy(swkb->ptr() + SRID_SIZE, swkb->length() - SRID_SIZE,
 	    &my_charset_bin);
+  return str;
+}
+
+
+void Item_func_as_geojson::fix_length_and_dec()
+{
+  collation.set(default_charset(), DERIVATION_COERCIBLE, MY_REPERTOIRE_ASCII);
+  max_length=MAX_BLOB_WIDTH;
+  maybe_null= 1;
+}
+
+
+String *Item_func_as_geojson::val_str_ascii(String *str)
+{
+  DBUG_ASSERT(fixed == 1);
+  String arg_val;
+  String *swkb= args[0]->val_str(&arg_val);
+  Geometry_buffer buffer;
+  Geometry *geom= NULL;
+  const char *dummy;
+
+  if ((null_value=
+       (args[0]->null_value ||
+	!(geom= Geometry::construct(&buffer, swkb->ptr(), swkb->length())))))
+    return 0;
+
+  str->length(0);
+  str->set_charset(&my_charset_latin1);
+  if ((null_value= geom->as_json(str, FLOATING_POINT_DECIMALS, &dummy)))
+    return 0;
+
   return str;
 }
 

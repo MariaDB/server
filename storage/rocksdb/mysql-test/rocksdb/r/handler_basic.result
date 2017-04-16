@@ -1,0 +1,127 @@
+DROP TABLE IF EXISTS t1;
+FLUSH STATUS;
+CREATE TABLE t1 (id INT PRIMARY KEY, a VARCHAR(100), b INT,
+INDEX b(b)) ENGINE=rocksdb;
+INSERT INTO t1 (id,a,b) VALUES (1,'foobar',100),(2,'z',0),(3,'bar',50);
+SHOW SESSION STATUS LIKE 'Handler_write%';
+Variable_name	Value
+Handler_write	3
+UPDATE t1 SET b=1000 WHERE id=1;
+SHOW SESSION STATUS LIKE 'Handler_update%';
+Variable_name	Value
+Handler_update	1
+DELETE FROM t1 WHERE id=2;
+SHOW SESSION STATUS LIKE 'Handler_delete%';
+Variable_name	Value
+Handler_delete	1
+INSERT INTO t1 (id,b) VALUES(4,4),(5,5),(6,6),(7,7),(8,8),(9,9),(10,10);
+SHOW SESSION STATUS LIKE 'Handler_write%';
+Variable_name	Value
+Handler_write	10
+FLUSH STATUS;
+SELECT * FROM t1 WHERE id=8;
+id	a	b
+8	NULL	8
+SHOW SESSION STATUS LIKE 'Handler_read%';
+Variable_name	Value
+Handler_read_first	0
+Handler_read_key	1
+Handler_read_last	0
+Handler_read_next	0
+Handler_read_prev	0
+Handler_read_retry	0
+Handler_read_rnd	0
+Handler_read_rnd_deleted	0
+Handler_read_rnd_next	0
+FLUSH STATUS;
+SELECT * FROM t1 WHERE b=6;
+id	a	b
+6	NULL	6
+SHOW SESSION STATUS LIKE 'Handler_read%';
+Variable_name	Value
+Handler_read_first	0
+Handler_read_key	1
+Handler_read_last	0
+Handler_read_next	1
+Handler_read_prev	0
+Handler_read_retry	0
+Handler_read_rnd	0
+Handler_read_rnd_deleted	0
+Handler_read_rnd_next	0
+FLUSH STATUS;
+SELECT * FROM t1;
+id	a	b
+1	foobar	1000
+10	NULL	10
+3	bar	50
+4	NULL	4
+5	NULL	5
+6	NULL	6
+7	NULL	7
+8	NULL	8
+9	NULL	9
+SHOW SESSION STATUS LIKE 'Handler_read%';
+Variable_name	Value
+Handler_read_first	0
+Handler_read_key	0
+Handler_read_last	0
+Handler_read_next	0
+Handler_read_prev	0
+Handler_read_retry	0
+Handler_read_rnd	0
+Handler_read_rnd_deleted	0
+Handler_read_rnd_next	10
+FLUSH STATUS;
+SELECT * FROM t1 FORCE INDEX(b) WHERE b <=5 ORDER BY b;
+id	a	b
+4	NULL	4
+5	NULL	5
+SHOW SESSION STATUS LIKE 'Handler_read%';
+Variable_name	Value
+Handler_read_first	0
+Handler_read_key	1
+Handler_read_last	0
+Handler_read_next	2
+Handler_read_prev	0
+Handler_read_retry	0
+Handler_read_rnd	0
+Handler_read_rnd_deleted	0
+Handler_read_rnd_next	0
+FLUSH STATUS;
+SELECT * FROM t1 WHERE id >=8 ORDER BY id;
+id	a	b
+8	NULL	8
+9	NULL	9
+10	NULL	10
+SHOW SESSION STATUS LIKE 'Handler_read%';
+Variable_name	Value
+Handler_read_first	0
+Handler_read_key	1
+Handler_read_last	0
+Handler_read_next	3
+Handler_read_prev	0
+Handler_read_retry	0
+Handler_read_rnd	0
+Handler_read_rnd_deleted	0
+Handler_read_rnd_next	0
+FLUSH STATUS;
+SELECT * FROM t1 WHERE id < 8 ORDER BY id;
+id	a	b
+1	foobar	1000
+3	bar	50
+4	NULL	4
+5	NULL	5
+6	NULL	6
+7	NULL	7
+SHOW SESSION STATUS LIKE 'Handler_read%';
+Variable_name	Value
+Handler_read_first	1
+Handler_read_key	0
+Handler_read_last	0
+Handler_read_next	6
+Handler_read_prev	0
+Handler_read_retry	0
+Handler_read_rnd	0
+Handler_read_rnd_deleted	0
+Handler_read_rnd_next	0
+DROP TABLE t1;

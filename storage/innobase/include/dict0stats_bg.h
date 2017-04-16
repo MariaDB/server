@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2012, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -32,7 +33,8 @@ Created Apr 26, 2012 Vasil Dimov
 #include "os0event.h"
 #include "os0thread.h"
 
-/** Event to wake up the stats thread */
+/** Event to wake up dict_stats_thread on dict_stats_recalc_pool_add()
+or shutdown. Not protected by any mutex. */
 extern os_event_t	dict_stats_event;
 
 #ifdef HAVE_PSI_INTERFACE
@@ -81,7 +83,17 @@ bool
 dict_stats_stop_bg(
 /*===============*/
 	dict_table_t*	table)	/*!< in/out: table */
-	MY_ATTRIBUTE((warn_unused_result));
+{
+	ut_ad(!srv_read_only_mode);
+	ut_ad(mutex_own(&dict_sys->mutex));
+
+	if (!(table->stats_bg_flag & BG_STAT_IN_PROGRESS)) {
+		return(true);
+	}
+
+	table->stats_bg_flag |= BG_STAT_SHOULD_QUIT;
+	return(false);
+}
 
 /*****************************************************************//**
 Wait until background stats thread has stopped using the specified table.
@@ -142,9 +154,5 @@ DECLARE_THREAD(dict_stats_thread)(
 /** Shutdown the dict stats thread. */
 void
 dict_stats_shutdown();
-
-# ifndef UNIV_NONINL
-#  include "dict0stats_bg.ic"
-# endif
 
 #endif /* dict0stats_bg_h */

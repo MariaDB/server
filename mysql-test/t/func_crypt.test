@@ -69,8 +69,29 @@ INSERT INTO t1 VALUES (REPEAT('a', 1024));
 SELECT OLD_PASSWORD(c1), PASSWORD(c1) FROM t1;
 DROP TABLE t1;
 
---echo End of 5.0 tests
---echo Start of 10.2 tests
+--echo # End of 5.0 tests
+
+--echo #
+--echo # Start of 10.1 tests
+--echo #
+
+--let func=password
+--source include/func_str_ascii_checksum.inc
+--let func=old_password
+--source include/func_str_ascii_checksum.inc
+
+--echo #
+--echo # MDEV-10864 Wrong result for WHERE .. (f2=COMPRESS('test') OR f2=COMPRESS('TEST'))
+--echo #
+
+CREATE TABLE t1 (f1 VARCHAR(4), f2 VARCHAR(64), UNIQUE KEY k1 (f1,f2));
+INSERT INTO t1 VALUES ('test',encrypt('test','key')), ('TEST', encrypt('TEST','key'));
+SELECT f1 FROM t1 ignore index(k1) WHERE f1='test' AND (f2= encrypt('test','key') OR f2= encrypt('TEST','key'));
+SELECT f1 FROM t1                  WHERE f1='test' AND (f2= encrypt('test','key') OR f2= encrypt('TEST','key'));
+SELECT f1 FROM t1                  WHERE f1='test' AND (f2= encrypt('TEST','key') OR f2= encrypt('test','key'));
+DROP TABLE t1;
+
+--echo # Start of 10.2 tests
 
 CREATE TABLE t1 (a VARCHAR(10), b VARCHAR(30) DEFAULT ENCRYPT(a,123));
 SHOW CREATE TABLE t1;

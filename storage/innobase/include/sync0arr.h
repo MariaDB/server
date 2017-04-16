@@ -1,7 +1,7 @@
 /*****************************************************************************
 
-Copyright (c) 1995, 2014, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2016, MariaDB Corporation.
+Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2015, 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -49,7 +49,7 @@ sync_array_get_and_reserve_cell(
 	void*		object,	/*!< in: pointer to the object to wait for */
 	ulint		type,	/*!< in: lock request type */
 	const char*	file,	/*!< in: file where requested */
-	ulint		line,	/*!< in: line where requested */
+	unsigned	line,	/*!< in: line where requested */
 	sync_cell_t**	cell);	/*!< out: the cell reserved, never NULL */
 /******************************************************************//**
 Reserves a wait array cell for waiting for an object.
@@ -60,7 +60,7 @@ sync_array_reserve_cell(
 	void*		object, /*!< in: pointer to the object to wait for */
 	ulint		type,	/*!< in: lock request type */
 	const char*	file,	/*!< in: file where requested */
-	ulint		line);	/*!< in: line where requested */
+	unsigned	line);	/*!< in: line where requested */
 
 /******************************************************************//**
 This function should be called when a thread starts to wait on
@@ -92,13 +92,6 @@ ibool
 sync_array_print_long_waits(
 	os_thread_id_t*	waiter,	/*!< out: longest waiting thread */
 	const void**	sema);	/*!< out: longest-waited-for semaphore */
-
-/********************************************************************//**
-Validates the integrity of the wait array. Checks
-that the number of reserved cells equals the count variable. */
-void
-sync_array_validate(
-	sync_array_t*	arr);	/*!< in: sync wait array */
 
 /**********************************************************************//**
 Prints info of the wait array. */
@@ -138,8 +131,6 @@ sync_array_get_nth_cell(
 	sync_array_t*	arr,	/*!< in: sync array */
 	ulint		n);	/*!< in: index */
 
-#ifndef UNIV_NONINL
 #include "sync0arr.ic"
-#endif /* UNIV_NOINL */
 
 #endif /* sync0arr_h */

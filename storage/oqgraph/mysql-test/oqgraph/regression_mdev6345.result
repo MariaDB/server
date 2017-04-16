@@ -8,5 +8,5 @@ latch	origid	destid	weight	seq	linkid
 breadth_first	1	6	NULL	0	1
 breadth_first	1	6	1	1	2
 breadth_first	1	6	1	2	6
-DROP TABLE IF EXISTS oq_backing;
 DROP TABLE IF EXISTS oq_graph;
+DROP TABLE IF EXISTS oq_backing;

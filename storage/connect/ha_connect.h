@@ -11,7 +11,7 @@
 
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
-  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
+  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
 
 /** @file ha_connect.h
 
@@ -83,42 +83,9 @@ extern handlerton *connect_hton;
 
   These can be specified in the CREATE TABLE:
   CREATE TABLE ( ... ) {...here...}
-*/
-#if 0  // moved to mycat.h
-typedef struct ha_table_option_struct TOS, *PTOS;
 
-struct ha_table_option_struct {
-  const char *type;
-  const char *filename;
-  const char *optname;
-  const char *tabname;
-  const char *tablist;
-  const char *dbname;
-  const char *separator;
-//const char *connect;
-  const char *qchar;
-  const char *module;
-  const char *subtype;
-  const char *catfunc;
-  const char *srcdef;
-  const char *colist;
-  const char *oplist;
-  const char *data_charset;
-  ulonglong lrecl;
-  ulonglong elements;
-//ulonglong estimate;
-  ulonglong multiple;
-  ulonglong header;
-  ulonglong quoted;
-  ulonglong ending;
-  ulonglong compressed;
-  bool mapped;
-  bool huge;
-  bool split;
-  bool readonly;
-  bool sepindex;
-  };
-#endif // 0
+	------ Was moved to mycat.h ------
+	*/
 
 /**
   structure for CREATE TABLE options (field options)

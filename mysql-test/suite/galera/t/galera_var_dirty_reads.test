@@ -17,6 +17,11 @@ CREATE TABLE t1(i INT) ENGINE=INNODB;
 INSERT INTO t1 VALUES(1);
 SELECT * FROM t1;
 
+create user user1;
+grant all privileges on *.* to user1;
+create user user2;
+grant all privileges on *.* to user2;
+
 SET @@global.wsrep_cluster_address = '';
 SET @@session.wsrep_dirty_reads=OFF;
 
@@ -32,9 +37,75 @@ SHOW STATUS LIKE 'wsrep_cluster_status';
 --error ER_UNKNOWN_COM_ERROR
 SELECT * FROM t1;
 
+#Select query which does not access table should be allowed MDEV-11016
+SELECT @@wsrep_dirty_reads;
+SELECT 2;
+SELECT 2+2 FROM DUAL;
+
 SET @@session.wsrep_dirty_reads=ON;
 
 SELECT * FROM t1;
+
+--enable_connect_log
+--connect (con1, localhost, user1,,test,$NODE_MYPORT_2,$NODE_MYSOCK_2)
+#Just test the session behavior
+SET SESSION wsrep_sync_wait=0;
+
+set session wsrep_dirty_reads=1;
+#Prepared statement creation should be allowed MDEV-11479
+prepare stmt_show from 'select 1';
+prepare stmt_select from 'select * from t1';
+prepare stmt_insert from 'insert into t1 values(1)';
+set session wsrep_dirty_reads=0;
+
+#No Preapare stmt/proceure will be allowed
+--error ER_UNKNOWN_COM_ERROR
+execute stmt_show;
+--error ER_UNKNOWN_COM_ERROR
+execute stmt_select;
+--error ER_UNKNOWN_COM_ERROR
+execute stmt_insert;
+
+SET wsrep_dirty_reads=ON;
+select @@session.wsrep_dirty_reads;
+#Only prepare statement which does not change data should be allowed
+execute stmt_show;
+execute stmt_select;
+--error ER_UNKNOWN_COM_ERROR
+execute stmt_insert;
+SET @@global.wsrep_dirty_reads=ON;
+
+--connect (con2, localhost, user2,,test,$NODE_MYPORT_2,$NODE_MYSOCK_2)
+#Just test the session behavior
+select @@session.wsrep_dirty_reads;
+
+prepare stmt_show from 'select 1';
+prepare stmt_select from 'select * from t1';
+prepare stmt_insert from 'insert into t1 values(1)';
+
+#Only prepare statement which does not change data should be allowed
+execute stmt_show;
+execute stmt_select;
+--error ER_UNKNOWN_COM_ERROR
+execute stmt_insert;
+
+#wsrep_dirty_read should work when wsrep_sync_wait is 1 or non zero
+#because we already are disconnected , So It does not make any sense
+#to wait for other nodes
+SET SESSION wsrep_sync_wait=1;
+execute stmt_show;
+execute stmt_select;
+--error ER_UNKNOWN_COM_ERROR
+execute stmt_insert;
+
+SET SESSION wsrep_sync_wait=7;
+execute stmt_show;
+execute stmt_select;
+--error ER_UNKNOWN_COM_ERROR
+execute stmt_insert;
+
+--connection node_2
+SET @@global.wsrep_dirty_reads=OFF;
 
 --disable_query_log
 --eval SET @@global.wsrep_cluster_address = '$wsrep_cluster_address_saved'
@@ -45,6 +116,8 @@ SELECT * FROM t1;
 SELECT * FROM t1;
 # Cleanup
 DROP TABLE t1;
+drop user user1;
+drop user user2;
 
 # Restore original auto_increment_offset values.
 --source include/auto_increment_offset_restore.inc

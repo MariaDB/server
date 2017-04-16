@@ -5,7 +5,7 @@
 /*                                                                          */
 /* COPYRIGHT:                                                               */
 /* ----------                                                               */
-/*  (C) Copyright to the author Olivier BERTRAND          2005-2015         */
+/*  (C) Copyright to the author Olivier BERTRAND          2005-2017         */
 /*                                                                          */
 /* WHAT THIS PROGRAM DOES:                                                  */
 /* -----------------------                                                  */
@@ -281,15 +281,25 @@ PQRYRES DBFColumns(PGLOBAL g, char *dp, const char *fn, bool info)
     /************************************************************************/
     switch (thisfield.Type) {
       case 'C':                      // Characters
-      case 'L':                      // Logical 'T' or 'F'
-        type = TYPE_STRING;
+      case 'L':                      // Logical 'T' or 'F' or space
+				type = TYPE_STRING;
+				break;
+			case 'M':                      // Memo		a .DBT block number
+			case 'B':                      // Binary	a .DBT block number
+			case 'G':                      // Ole			a .DBT block number
+				type = TYPE_STRING;
         break;
+			//case 'I':											 // Long
+			//case '+':											 // Autoincrement
+			//	type = TYPE_INT;
+			//	break;
       case 'N':
         type = (thisfield.Decimals) ? TYPE_DOUBLE
              : (len > 10) ? TYPE_BIGINT : TYPE_INT;
         break;
-      case 'F':
-        type = TYPE_DOUBLE;
+      case 'F':											 // Float
+			//case 'O':											 // Double
+				type = TYPE_DOUBLE;
         break;
       case 'D':
         type = TYPE_DATE;            // Is this correct ???
@@ -383,7 +393,7 @@ DBFBASE::DBFBASE(DBFBASE *txfp)
 /*  and header length. Set Records, check that Reclen is equal to lrecl and */
 /*  return the header length or 0 in case of error.                         */
 /****************************************************************************/
-int DBFBASE::ScanHeader(PGLOBAL g, PSZ fname, int lrecl, char *defpath)
+int DBFBASE::ScanHeader(PGLOBAL g, PSZ fn, int lrecl, int *rln, char *defpath)
   {
   int       rc;
   char      filename[_MAX_PATH];
@@ -393,7 +403,7 @@ int DBFBASE::ScanHeader(PGLOBAL g, PSZ fname, int lrecl, char *defpath)
   /************************************************************************/
   /*  Open the input file.                                                */
   /************************************************************************/
-  PlugSetPath(filename, fname, defpath);
+  PlugSetPath(filename, fn, defpath);
 
   if (!(infile= global_fopen(g, MSGID_CANNOT_OPEN, filename, "rb")))
     return 0;              // Assume file does not exist
@@ -410,11 +420,7 @@ int DBFBASE::ScanHeader(PGLOBAL g, PSZ fname, int lrecl, char *defpath)
   } else if (rc == RC_FX)
     return -1;
 
-  if ((int)header.Reclen() != lrecl) {
-    sprintf(g->Message, MSG(BAD_LRECL), lrecl, header.Reclen());
-    return -1;
-    } // endif Lrecl
-
+	*rln = (int)header.Reclen();
   Records = (int)header.Records();
   return (int)header.Headlen();
   } // end of ScanHeader
@@ -431,9 +437,28 @@ int DBFFAM::Cardinality(PGLOBAL g)
   if (!g)
     return 1;
 
-  if (!Headlen)
-    if ((Headlen = ScanHeader(g, To_File, Lrecl, Tdbp->GetPath())) < 0)
-      return -1;                // Error in ScanHeader
+	if (!Headlen) {
+		int rln = 0;								// Record length in the file header
+
+		Headlen = ScanHeader(g, To_File, Lrecl, &rln, Tdbp->GetPath());
+
+		if (Headlen < 0)
+			return -1;                // Error in ScanHeader
+
+		if (rln && Lrecl != rln) {
+			// This happens always on some Linux platforms
+			sprintf(g->Message, MSG(BAD_LRECL), Lrecl, rln);
+
+			if (Accept) {
+				Lrecl = rln;
+				Blksize = Nrec * rln;
+				PushWarning(g, Tdbp);
+			} else
+				return -1;
+
+		} // endif rln
+
+	}	// endif Headlen
 
   // Set number of blocks for later use
   Block = (Records > 0) ? (Records + Nrec - 1) / Nrec : 0;
@@ -565,7 +590,14 @@ bool DBFFAM::AllocateBuffer(PGLOBAL g)
 
       if (Lrecl != reclen) {
         sprintf(g->Message, MSG(BAD_LRECL), Lrecl, reclen);
-        return true;
+
+				if (Accept) {
+					Lrecl = reclen;
+					Blksize = Nrec * Lrecl;
+					PushWarning(g, Tdbp);
+				}	else
+					return true;
+
         } // endif Lrecl
 
       hlen = HEADLEN * (n + 1) + 2;
@@ -578,7 +610,7 @@ bool DBFFAM::AllocateBuffer(PGLOBAL g)
       header->Filedate[1] = datm->tm_mon + 1;
       header->Filedate[2] = datm->tm_mday;
       header->SetHeadlen((ushort)hlen);
-      header->SetReclen((ushort)reclen);
+      header->SetReclen(reclen);
       descp = (DESCRIPTOR*)header;
 
       // Currently only standard Xbase types are supported
@@ -641,8 +673,15 @@ bool DBFFAM::AllocateBuffer(PGLOBAL g)
     if ((rc = dbfhead(g, Stream, Tdbp->GetFile(g), &header)) == RC_OK) {
       if (Lrecl != (int)header.Reclen()) {
         sprintf(g->Message, MSG(BAD_LRECL), Lrecl, header.Reclen());
-        return true;
-        } // endif Lrecl
+
+				if (Accept) {
+					Lrecl = header.Reclen();
+					Blksize = Nrec * Lrecl;
+					PushWarning(g, Tdbp);
+				} else
+					return true;
+
+			} // endif Lrecl
 
       Records = (int)header.Records();
       Headlen = (int)header.Headlen();
@@ -916,9 +955,28 @@ int DBMFAM::Cardinality(PGLOBAL g)
   if (!g)
     return 1;
 
-  if (!Headlen)
-    if ((Headlen = ScanHeader(g, To_File, Lrecl, Tdbp->GetPath())) < 0)
-      return -1;                // Error in ScanHeader
+	if (!Headlen) {
+		int rln = 0;								// Record length in the file header
+
+		Headlen = ScanHeader(g, To_File, Lrecl, &rln, Tdbp->GetPath());
+
+		if (Headlen < 0)
+			return -1;                // Error in ScanHeader
+
+		if (rln && Lrecl != rln) {
+			// This happens always on some Linux platforms
+			sprintf(g->Message, MSG(BAD_LRECL), Lrecl, rln);
+
+			if (Accept) {
+				Lrecl = rln;
+				Blksize = Nrec * Lrecl;
+				PushWarning(g, Tdbp);
+			} else
+				return -1;
+
+		} // endif rln
+
+	}	// endif Headlen
 
   // Set number of blocks for later use
   Block = (Records > 0) ? (Records + Nrec - 1) / Nrec : 0;
@@ -961,8 +1019,15 @@ bool DBMFAM::AllocateBuffer(PGLOBAL g)
 
     if (Lrecl != (int)hp->Reclen()) {
       sprintf(g->Message, MSG(BAD_LRECL), Lrecl, hp->Reclen());
-      return true;
-      } // endif Lrecl
+
+			if (Accept) {
+				Lrecl = hp->Reclen();
+				Blksize = Nrec * Lrecl;
+				PushWarning(g, Tdbp);
+			} else
+				return true;
+
+		} // endif Lrecl
 
     Records = (int)hp->Records();
     Headlen = (int)hp->Headlen();

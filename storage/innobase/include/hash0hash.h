@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1997, 2015, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1997, 2016, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -28,9 +28,7 @@ Created 5/20/1997 Heikki Tuuri
 
 #include "univ.i"
 #include "mem0mem.h"
-#ifndef UNIV_HOTBACKUP
-# include "sync0rw.h"
-#endif /* !UNIV_HOTBACKUP */
+#include "sync0rw.h"
 
 struct hash_table_t;
 struct hash_cell_t;
@@ -60,7 +58,7 @@ hash_table_t*
 hash_create(
 /*========*/
 	ulint	n);	/*!< in: number of array cells */
-#ifndef UNIV_HOTBACKUP
+
 /*************************************************************//**
 Creates a sync object array array to protect a hash table.
 ::sync_obj can be mutexes or rw_locks depening on the type of
@@ -74,7 +72,6 @@ hash_create_sync_obj(
 	latch_id_t		id,	/*!< in: mutex/rw_lock ID */
 	ulint			n_sync_obj);/*!< in: number of sync objects,
 					must be a power of 2 */
-#endif /* !UNIV_HOTBACKUP */
 
 /*************************************************************//**
 Frees a hash table. */
@@ -91,15 +88,11 @@ hash_calc_hash(
 /*===========*/
 	ulint		fold,	/*!< in: folded value */
 	hash_table_t*	table);	/*!< in: hash table */
-#ifndef UNIV_HOTBACKUP
 /********************************************************************//**
 Assert that the mutex for the table is held */
-# define HASH_ASSERT_OWN(TABLE, FOLD)				\
+#define HASH_ASSERT_OWN(TABLE, FOLD)				\
 	ut_ad((TABLE)->type != HASH_TABLE_SYNC_MUTEX		\
 	      || (mutex_own(hash_get_mutex((TABLE), FOLD))));
-#else /* !UNIV_HOTBACKUP */
-# define HASH_ASSERT_OWN(TABLE, FOLD)
-#endif /* !UNIV_HOTBACKUP */
 
 /*******************************************************************//**
 Inserts a struct to a hash table. */
@@ -337,7 +330,6 @@ do {\
 	mem_heap_free_top(hash_get_heap(TABLE, fold111), sizeof(TYPE));\
 } while (0)
 
-#ifndef UNIV_HOTBACKUP
 /****************************************************************//**
 Move all hash table entries from OLD_TABLE to NEW_TABLE. */
 
@@ -456,68 +448,6 @@ hash_lock_x_confirm(
 	ulint		fold);
 
 /************************************************************//**
-Reserves the mutex for a fold value in a hash table. */
-void
-hash_mutex_enter(
-/*=============*/
-	hash_table_t*	table,	/*!< in: hash table */
-	ulint		fold);	/*!< in: fold */
-/************************************************************//**
-Releases the mutex for a fold value in a hash table. */
-void
-hash_mutex_exit(
-/*============*/
-	hash_table_t*	table,	/*!< in: hash table */
-	ulint		fold);	/*!< in: fold */
-/************************************************************//**
-Reserves all the mutexes of a hash table, in an ascending order. */
-void
-hash_mutex_enter_all(
-/*=================*/
-	hash_table_t*	table);	/*!< in: hash table */
-/************************************************************//**
-Releases all the mutexes of a hash table. */
-void
-hash_mutex_exit_all(
-/*================*/
-	hash_table_t*	table);	/*!< in: hash table */
-/************************************************************//**
-Releases all but the passed in mutex of a hash table. */
-void
-hash_mutex_exit_all_but(
-/*====================*/
-	hash_table_t*	table,		/*!< in: hash table */
-	ib_mutex_t*	keep_mutex);	/*!< in: mutex to keep */
-/************************************************************//**
-s-lock a lock for a fold value in a hash table. */
-void
-hash_lock_s(
-/*========*/
-	hash_table_t*	table,	/*!< in: hash table */
-	ulint		fold);	/*!< in: fold */
-/************************************************************//**
-x-lock a lock for a fold value in a hash table. */
-void
-hash_lock_x(
-/*========*/
-	hash_table_t*	table,	/*!< in: hash table */
-	ulint		fold);	/*!< in: fold */
-/************************************************************//**
-unlock an s-lock for a fold value in a hash table. */
-void
-hash_unlock_s(
-/*==========*/
-
-	hash_table_t*	table,	/*!< in: hash table */
-	ulint		fold);	/*!< in: fold */
-/************************************************************//**
-unlock x-lock for a fold value in a hash table. */
-void
-hash_unlock_x(
-/*==========*/
-	hash_table_t*	table,	/*!< in: hash table */
-	ulint		fold);	/*!< in: fold */
-/************************************************************//**
 Reserves all the locks of a hash table, in an ascending order. */
 void
 hash_lock_x_all(
@@ -537,22 +467,6 @@ hash_unlock_x_all_but(
 	hash_table_t*	table,		/*!< in: hash table */
 	rw_lock_t*	keep_lock);	/*!< in: lock to keep */
 
-#else /* !UNIV_HOTBACKUP */
-# define hash_get_heap(table, fold)	((table)->heap)
-# define hash_mutex_enter(table, fold)	((void) 0)
-# define hash_mutex_exit(table, fold)	((void) 0)
-# define hash_mutex_enter_all(table)	((void) 0)
-# define hash_mutex_exit_all(table)	((void) 0)
-# define hash_mutex_exit_all_but(t, m)	((void) 0)
-# define hash_lock_s(t, f)		((void) 0)
-# define hash_lock_x(t, f)		((void) 0)
-# define hash_unlock_s(t, f)		((void) 0)
-# define hash_unlock_x(t, f)		((void) 0)
-# define hash_lock_x_all(t)		((void) 0)
-# define hash_unlock_x_all(t)		((void) 0)
-# define hash_unlock_x_all_but(t, l)	((void) 0)
-#endif /* !UNIV_HOTBACKUP */
-
 struct hash_cell_t{
 	void*	node;	/*!< hash chain node, NULL if none */
 };
@@ -560,16 +474,16 @@ struct hash_cell_t{
 /* The hash table structure */
 struct hash_table_t {
 	enum hash_table_sync_t	type;	/*<! type of hash_table. */
-#if defined UNIV_AHI_DEBUG || defined UNIV_DEBUG
-# ifndef UNIV_HOTBACKUP
+#ifdef BTR_CUR_HASH_ADAPT
+# if defined UNIV_AHI_DEBUG || defined UNIV_DEBUG
 	ibool			adaptive;/* TRUE if this is the hash
 					table of the adaptive hash
 					index */
-# endif /* !UNIV_HOTBACKUP */
-#endif /* UNIV_AHI_DEBUG || UNIV_DEBUG */
+# endif /* UNIV_AHI_DEBUG || UNIV_DEBUG */
+#endif /* BTR_CUR_HASH_ADAPT */
 	ulint			n_cells;/* number of cells in the hash table */
 	hash_cell_t*		array;	/*!< pointer to cell array */
-#ifndef UNIV_HOTBACKUP
+
 	ulint			n_sync_obj;/* if sync_objs != NULL, then
 					the number of either the number
 					of mutexes or the number of
@@ -589,7 +503,6 @@ struct hash_table_t {
 					can be allocated from these memory
 					heaps; there are then n_mutexes
 					many of these heaps */
-#endif /* !UNIV_HOTBACKUP */
 	mem_heap_t*		heap;
 #ifdef UNIV_DEBUG
 	ulint			magic_n;
@@ -597,8 +510,6 @@ struct hash_table_t {
 #endif /* UNIV_DEBUG */
 };
 
-#ifndef UNIV_NONINL
 #include "hash0hash.ic"
-#endif
 
 #endif

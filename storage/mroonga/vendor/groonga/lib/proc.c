@@ -713,7 +713,7 @@ grn_select_drilldown(grn_ctx *ctx, grn_obj *table,
 {
   uint32_t i;
   for (i = 0; i < n_keys; i++) {
-    grn_table_group_result g = {NULL, 0, 0, 1, GRN_TABLE_GROUP_CALC_COUNT, 0};
+    grn_table_group_result g = {NULL, 0, 0, 1, GRN_TABLE_GROUP_CALC_COUNT, 0, 0 ,0};
     uint32_t n_hits;
     int offset;
     int limit;

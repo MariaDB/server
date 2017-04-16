@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -166,6 +167,7 @@ UNIV_INTERN
 dberr_t
 dict_create_or_check_sys_tablespace(void);
 /*=====================================*/
+
 /********************************************************************//**
 Add a single tablespace definition to the data dictionary tables in the
 database.
@@ -181,6 +183,7 @@ dict_create_add_tablespace_to_dictionary(
 	trx_t*		trx,		/*!< in: transaction */
 	bool		commit);	/*!< in: if true then commit the
 					transaction */
+
 /********************************************************************//**
 Add a foreign key definition to the data dictionary tables.
 @return	error code or DB_SUCCESS */

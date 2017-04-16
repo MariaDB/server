@@ -173,7 +173,7 @@ CREATE TABLE t1 (st varchar(100));
 INSERT INTO t1 VALUES ("Fake string");
 CREATE TABLE t2 (geom GEOMETRY NOT NULL, SPATIAL KEY gk(geom)) transactional=0 row_format=page;
 --error 1416
-INSERT INTO t2 SELECT GeomFromText(st) FROM t1;
+INSERT IGNORE INTO t2 SELECT GeomFromText(st) FROM t1;
 drop table t1, t2;
 
 CREATE TABLE t1 (`geometry` geometry NOT NULL default '',SPATIAL KEY `gndx` (`geometry`)) transactional=0 row_format=page DEFAULT CHARSET=latin1;
@@ -846,7 +846,7 @@ CREATE TABLE t1(foo GEOMETRY NOT NULL, SPATIAL INDEX(foo) ) transactional=0 row_
 --error 1048
 INSERT INTO t1(foo) VALUES (NULL);
 --error 1416
-INSERT INTO t1() VALUES ();
+INSERT IGNORE INTO t1() VALUES ();
 --error 1416
 INSERT INTO t1(foo) VALUES ('');
 DROP TABLE t1;

@@ -32,6 +32,7 @@ Created 2/17/1996 Heikki Tuuri
 #include "dict0dict.h"
 #include "btr0types.h"
 #include "mtr0mtr.h"
+#ifdef BTR_CUR_HASH_ADAPT
 #include "ha0ha.h"
 
 /** Creates and initializes the adaptive search system at a database start.
@@ -56,22 +57,6 @@ btr_search_disable(
 /** Enable the adaptive hash search system. */
 void
 btr_search_enable();
-
-/********************************************************************//**
-Returns search info for an index.
-@return search info; search mutex reserved */
-UNIV_INLINE
-btr_search_t*
-btr_search_get_info(
-/*================*/
-	dict_index_t*	index)	/*!< in: index */
-	MY_ATTRIBUTE((nonnull));
-
-/** Creates and initializes a search info struct.
-@param[in]	heap		heap where created.
-@return own: search info struct */
-btr_search_t*
-btr_search_info_create(mem_heap_t* heap);
 
 /** Returns the value of ref_count. The value is protected by latch.
 @param[in]	info		search info
@@ -257,16 +242,40 @@ A table is selected from an array of tables using pair of index-id, space-id.
 UNIV_INLINE
 hash_table_t*
 btr_get_search_table(const dict_index_t* index);
+#else /* BTR_CUR_HASH_ADAPT */
+# define btr_search_sys_create(size)
+# define btr_search_drop_page_hash_index(block)
+# define btr_search_s_lock(index)
+# define btr_search_s_unlock(index)
+# define btr_search_x_lock(index)
+# define btr_search_x_unlock(index)
+# define btr_search_info_update(index, cursor)
+# define btr_search_move_or_delete_hash_entries(new_block, block, index)
+# define btr_search_update_hash_on_insert(cursor)
+# define btr_search_update_hash_on_delete(cursor)
+# define btr_search_sys_resize(hash_size)
+#endif /* BTR_CUR_HASH_ADAPT */
+
+#ifdef BTR_CUR_ADAPT
+/** Create and initialize search info.
+@param[in,out]	heap		heap where created
+@return own: search info struct */
+UNIV_INLINE
+btr_search_t*
+btr_search_info_create(mem_heap_t* heap)
+	MY_ATTRIBUTE((nonnull, warn_unused_result));
+
+/** @return the search info of an index */
+UNIV_INLINE
+btr_search_t*
+btr_search_get_info(dict_index_t* index)
+{
+	return(index->search_info);
+}
+#endif /* BTR_CUR_ADAPT */
 
 /** The search info struct in an index */
 struct btr_search_t{
-	ulint	ref_count;	/*!< Number of blocks in this index tree
-				that have search index built
-				i.e. block->index points to this index.
-				Protected by search latch except
-				when during initialization in
-				btr_search_info_create(). */
-
 	/* @{ The following fields are not protected by any latch.
 	Unfortunately, this means that they must be aligned to
 	the machine word, i.e., they cannot be turned into bit-fields. */
@@ -274,6 +283,7 @@ struct btr_search_t{
 				fetched, or NULL */
 	ulint	withdraw_clock;	/*!< the withdraw clock value of the buffer
 				pool when root_guess was stored */
+#ifdef BTR_CUR_HASH_ADAPT
 	ulint	hash_analysis;	/*!< when this exceeds
 				BTR_SEARCH_HASH_ANALYSIS, the hash
 				analysis starts; this is reset if no
@@ -289,6 +299,13 @@ struct btr_search_t{
 				using the hash index;
 				the range is 0 .. BTR_SEARCH_BUILD_LIMIT + 5 */
 	/* @} */
+	ulint	ref_count;	/*!< Number of blocks in this index tree
+				that have search index built
+				i.e. block->index points to this index.
+				Protected by search latch except
+				when during initialization in
+				btr_search_info_create(). */
+
 	/*---------------------- @{ */
 	ulint	n_fields;	/*!< recommended prefix length for hash search:
 				number of full fields */
@@ -308,6 +325,7 @@ struct btr_search_t{
 				far */
 	ulint	n_searches;	/*!< number of searches */
 #endif /* UNIV_SEARCH_PERF_STAT */
+#endif /* BTR_CUR_HASH_ADAPT */
 #ifdef UNIV_DEBUG
 	ulint	magic_n;	/*!< magic number @see BTR_SEARCH_MAGIC_N */
 /** value of btr_search_t::magic_n, used in assertions */
@@ -315,6 +333,7 @@ struct btr_search_t{
 #endif /* UNIV_DEBUG */
 };
 
+#ifdef BTR_CUR_HASH_ADAPT
 /** The hash index system */
 struct btr_search_sys_t{
 	hash_table_t**	hash_tables;	/*!< the adaptive hash tables,
@@ -352,9 +371,8 @@ the hash index */
 over calls from MySQL. If we notice someone waiting for the latch, we
 again set this much timeout. This is to reduce contention. */
 #define BTR_SEA_TIMEOUT			10000
+#endif /* BTR_CUR_HASH_ADAPT */
 
-#ifndef UNIV_NONINL
 #include "btr0sea.ic"
-#endif
 
 #endif

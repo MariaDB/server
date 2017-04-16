@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2016, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2016, MariaDB
+   Copyright (c) 2010, 2017, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -54,7 +54,7 @@
 #include "sql_show.h"
 #include "transaction.h"
 #include "sql_audit.h"
-
+#include "sql_sequence.h"
 
 #ifdef __WIN__
 #include <io.h>
@@ -670,7 +670,7 @@ static bool read_ddl_log_file_entry(uint entry_no)
   bool error= FALSE;
   File file_id= global_ddl_log.file_id;
   uchar *file_entry_buf= (uchar*)global_ddl_log.file_entry_buf;
-  uint io_size= global_ddl_log.io_size;
+  size_t io_size= global_ddl_log.io_size;
   DBUG_ENTER("read_ddl_log_file_entry");
 
   mysql_mutex_assert_owner(&LOCK_gdl);
@@ -1992,6 +1992,8 @@ int write_bin_log(THD *thd, bool clear_error,
    thd			Thread handle
    tables		List of tables to delete
    if_exists		If 1, don't give error if one table doesn't exists
+   drop_temporary       1 if DROP TEMPORARY
+   drop_seqeunce        1 if DROP SEQUENCE
 
   NOTES
     Will delete all tables that can be deleted and give a compact error
@@ -2008,8 +2010,8 @@ int write_bin_log(THD *thd, bool clear_error,
 
 */
 
-bool mysql_rm_table(THD *thd,TABLE_LIST *tables, my_bool if_exists,
-                    my_bool drop_temporary)
+bool mysql_rm_table(THD *thd,TABLE_LIST *tables, bool if_exists,
+                    bool drop_temporary, bool drop_sequence)
 {
   bool error;
   Drop_table_error_handler err_handler;
@@ -2086,7 +2088,7 @@ bool mysql_rm_table(THD *thd,TABLE_LIST *tables, my_bool if_exists,
   /* mark for close and remove all cached entries */
   thd->push_internal_handler(&err_handler);
   error= mysql_rm_table_no_locks(thd, tables, if_exists, drop_temporary,
-                                 false, false, false);
+                                 false, drop_sequence, false, false);
   thd->pop_internal_handler();
 
   if (error)
@@ -2175,6 +2177,7 @@ static uint32 comment_length(THD *thd, uint32 comment_pos,
 
 int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
                             bool drop_temporary, bool drop_view,
+                            bool drop_sequence,
                             bool dont_log_query,
                             bool dont_free_locks)
 {
@@ -2189,7 +2192,7 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
   bool trans_tmp_table_deleted= 0, non_trans_tmp_table_deleted= 0;
   bool non_tmp_table_deleted= 0;
   bool is_drop_tmp_if_exists_added= 0;
-  bool was_view= 0;
+  bool was_view= 0, was_table, is_sequence;
   String built_query;
   String built_trans_tmp_query, built_non_trans_tmp_query;
   DBUG_ENTER("mysql_rm_table_no_locks");
@@ -2231,17 +2234,19 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
   */
   if (!dont_log_query)
   {
+    const char *object_to_drop= (drop_sequence) ? "SEQUENCE" : "TABLE";
+
     if (!drop_temporary)
     {
       const char *comment_start;
       uint32 comment_len;
 
       built_query.set_charset(thd->charset());
+      built_query.append("DROP TABLE ");
       if (if_exists)
-        built_query.append("DROP TABLE IF EXISTS ");
-      else
-        built_query.append("DROP TABLE ");
+        built_query.append("IF EXISTS ");
 
+      /* Preserve comment in original query */
       if ((comment_len= comment_length(thd, if_exists ? 17:9, &comment_start)))
       {
         built_query.append(comment_start, comment_len);
@@ -2249,21 +2254,17 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
       }
     }
 
+    built_trans_tmp_query.set_charset(system_charset_info);
+    built_trans_tmp_query.append("DROP TEMPORARY ");
+    built_trans_tmp_query.append(object_to_drop);
+    built_trans_tmp_query.append(' ');
     if (thd->is_current_stmt_binlog_format_row() || if_exists)
     {
       is_drop_tmp_if_exists_added= true;
-      built_trans_tmp_query.set_charset(system_charset_info);
-      built_trans_tmp_query.append("DROP TEMPORARY TABLE IF EXISTS ");
-      built_non_trans_tmp_query.set_charset(system_charset_info);
-      built_non_trans_tmp_query.append("DROP TEMPORARY TABLE IF EXISTS ");
+      built_trans_tmp_query.append("IF EXISTS ");
     }
-    else
-    {
-      built_trans_tmp_query.set_charset(system_charset_info);
-      built_trans_tmp_query.append("DROP TEMPORARY TABLE ");
-      built_non_trans_tmp_query.set_charset(system_charset_info);
-      built_non_trans_tmp_query.append("DROP TEMPORARY TABLE ");
-    }
+    built_non_trans_tmp_query.set_charset(system_charset_info);
+    built_non_trans_tmp_query.copy(built_trans_tmp_query);
   }
 
   for (table= tables; table; table= table->next_local)
@@ -2288,7 +2289,8 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
                   thd->find_temporary_table(table) &&
                   table->mdl_request.ticket != NULL));
 
-    if (table->open_type == OT_BASE_ONLY || !is_temporary_table(table))
+    if (table->open_type == OT_BASE_ONLY || !is_temporary_table(table) ||
+        (drop_sequence && table->table->s->table_type != TABLE_TYPE_SEQUENCE))
       error= 1;
     else
     {
@@ -2396,26 +2398,31 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
     DEBUG_SYNC(thd, "rm_table_no_locks_before_delete_table");
     error= 0;
     if (drop_temporary ||
-        (ha_table_exists(thd, db, alias, &table_type) == 0 && table_type == 0) ||
-        (!drop_view && (was_view= (table_type == view_pseudo_hton))))
+        (ha_table_exists(thd, db, alias, &table_type, &is_sequence) == 0 &&
+         table_type == 0) ||
+        (!drop_view && (was_view= (table_type == view_pseudo_hton))) ||
+        (drop_sequence && !is_sequence))
     {
       /*
         One of the following cases happened:
           . "DROP TEMPORARY" but a temporary table was not found.
           . "DROP" but table was not found
           . "DROP TABLE" statement, but it's a view. 
+          . "DROP SEQUENCE", but it's not a sequence
       */
+      was_table= drop_sequence && table_type;
       if (if_exists)
       {
         char buff[FN_REFLEN];
+        int err= (drop_sequence ? ER_UNKNOWN_SEQUENCES :
+                  ER_BAD_TABLE_ERROR);
         String tbl_name(buff, sizeof(buff), system_charset_info);
         tbl_name.length(0);
         tbl_name.append(db);
         tbl_name.append('.');
         tbl_name.append(table->table_name);
         push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
-                            ER_BAD_TABLE_ERROR,
-                            ER_THD(thd, ER_BAD_TABLE_ERROR),
+                            err, ER_THD(thd, err),
                             tbl_name.c_ptr_safe());
       }
       else
@@ -2440,7 +2447,8 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
       if (table_type && table_type != view_pseudo_hton)
         ha_lock_engine(thd, table_type);
 
-      if (thd->locked_tables_mode)
+      if (thd->locked_tables_mode == LTM_LOCK_TABLES ||
+          thd->locked_tables_mode == LTM_PRELOCKED_UNDER_LOCK_TABLES)
       {
         if (wait_while_table_is_used(thd, table->table, HA_EXTRA_NOT_USED))
         {
@@ -2472,7 +2480,19 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
         int frm_delete_error, trigger_drop_error= 0;
 	/* Delete the table definition file */
 	strmov(end,reg_ext);
-        frm_delete_error= mysql_file_delete(key_file_frm, path, MYF(MY_WME));
+        if (table_type && table_type != view_pseudo_hton &&
+            table_type->discover_table)
+        {
+          /*
+            Table type is using discovery and may not need a .frm file.
+            Delete it silently if it exists
+          */
+          (void) mysql_file_delete(key_file_frm, path, MYF(0));
+          frm_delete_error= 0;
+        }
+        else
+          frm_delete_error= mysql_file_delete(key_file_frm, path,
+                                              MYF(MY_WME));
         if (frm_delete_error)
           frm_delete_error= my_errno;
         else
@@ -2488,7 +2508,7 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
         else if (frm_delete_error && if_exists)
           thd->clear_error();
       }
-      non_tmp_error= error ? TRUE : non_tmp_error;
+      non_tmp_error|= MY_TEST(error);
     }
     if (error)
     {
@@ -2523,8 +2543,12 @@ err:
     DBUG_ASSERT(errors);
     if (errors == 1 && was_view)
       my_error(ER_IT_IS_A_VIEW, MYF(0), wrong_tables.c_ptr_safe());
+    else if (errors == 1 && drop_sequence && was_table)
+      my_error(ER_NOT_SEQUENCE2, MYF(0), wrong_tables.c_ptr_safe());
     else if (errors > 1 || !thd->is_error())
-      my_error(ER_BAD_TABLE_ERROR, MYF(0), wrong_tables.c_ptr_safe());
+      my_error((drop_sequence ? ER_UNKNOWN_SEQUENCES :
+                ER_BAD_TABLE_ERROR),
+               MYF(0), wrong_tables.c_ptr_safe());
     error= 1;
   }
 
@@ -2832,7 +2856,7 @@ bool check_duplicates_in_interval(const char *set_or_name,
 */
 
 bool Column_definition::prepare_create_field(uint *blob_columns,
-                                             longlong table_flags)
+                                             ulonglong table_flags)
 {
   uint dup_val_count;
   uint decimals_orig= decimals;
@@ -3048,8 +3072,7 @@ void promote_first_timestamp_column(List<Create_field> *column_definitions)
   @param key_info         Key meta-data info.
   @param key_list         List of existing keys.
 */
-static void check_duplicate_key(THD *thd,
-                                Key *key, KEY *key_info,
+static void check_duplicate_key(THD *thd, Key *key, KEY *key_info,
                                 List<Key> *key_list)
 {
   /*
@@ -3111,14 +3134,11 @@ static void check_duplicate_key(THD *thd,
 
     // Report a warning if we have two identical keys.
 
-    DBUG_ASSERT(thd->lex->query_tables->alias);
     if (all_columns_are_identical)
     {
       push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
                           ER_DUP_INDEX, ER_THD(thd, ER_DUP_INDEX),
-                          key_info->name,
-                          thd->lex->query_tables->db,
-                          thd->lex->query_tables->alias);
+                          key_info->name);
       break;
     }
   }
@@ -3172,11 +3192,26 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
   bool tmp_table= create_table_mode == C_ALTER_TABLE;
   DBUG_ENTER("mysql_prepare_create_table");
 
-  select_field_pos= alter_info->create_list.elements - select_field_count;
   null_fields=blob_columns=0;
   create_info->varchar= 0;
   max_key_length= file->max_key_length();
 
+  /* Handle creation of sequences */
+  if (create_info->sequence)
+  {
+    if (!(file->ha_table_flags() & HA_CAN_TABLES_WITHOUT_ROLLBACK))
+    {
+      my_error(ER_ILLEGAL_HA_CREATE_OPTION, MYF(0), file->engine_name()->str,
+               "SEQUENCE");
+      DBUG_RETURN(TRUE);
+    }
+
+    /* The user specified fields: check that structure is ok */
+    if (check_sequence_fields(thd->lex, &alter_info->create_list))
+      DBUG_RETURN(TRUE);
+  }
+
+  select_field_pos= alter_info->create_list.elements - select_field_count;
   for (field_no=0; (sql_field=it++) ; field_no++)
   {
     CHARSET_INFO *save_cs;
@@ -3348,7 +3383,6 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
           sql_field->pack_length=	dup_field->pack_length;
           sql_field->key_length=	dup_field->key_length;
 	  sql_field->decimals=		dup_field->decimals;
-	  sql_field->create_length_to_internal_length();
 	  sql_field->unireg_check=	dup_field->unireg_check;
           /* 
             We're making one field from two, the result field will have
@@ -3358,6 +3392,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
           if (!(sql_field->flags & NOT_NULL_FLAG))
             null_fields--;
 	  sql_field->flags=		dup_field->flags;
+	  sql_field->create_length_to_internal_length();
           sql_field->interval=          dup_field->interval;
           sql_field->vcol_info=         dup_field->vcol_info;
 	  it2.remove();			// Remove first (create) definition
@@ -3482,12 +3517,8 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
       my_error(ER_TOO_MANY_KEY_PARTS,MYF(0),tmp);
       DBUG_RETURN(TRUE);
     }
-    if (check_string_char_length(&key->name, 0, NAME_CHAR_LEN,
-                                 system_charset_info, 1))
-    {
-      my_error(ER_TOO_LONG_IDENT, MYF(0), key->name.str);
+    if (check_ident_length(&key->name))
       DBUG_RETURN(TRUE);
-    }
     key_iterator2.rewind ();
     if (key->type != Key::FOREIGN_KEY)
     {
@@ -3825,7 +3856,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
 	    if (key->type == Key::MULTIPLE)
 	    {
 	      /* not a critical problem */
-	      push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+	      push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
                                   ER_TOO_LONG_KEY,
                                   ER_THD(thd, ER_TOO_LONG_KEY),
                                   key_part_length);
@@ -4002,7 +4033,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
     }
 
     if (thd->variables.sql_mode & MODE_NO_ZERO_DATE &&
-        !sql_field->default_value &&
+        !sql_field->default_value && !sql_field->vcol_info &&
         is_timestamp_type(sql_field->sql_type) &&
         (sql_field->flags & NOT_NULL_FLAG) &&
         (type == Field::NONE || type == Field::TIMESTAMP_UN_FIELD))
@@ -4650,7 +4681,7 @@ int create_table_impl(THD *thd,
         */
         (void) trans_rollback_stmt(thd);
         /* Remove normal table without logging. Keep tables locked */
-        if (mysql_rm_table_no_locks(thd, &table_list, 0, 0, 0, 1, 1))
+        if (mysql_rm_table_no_locks(thd, &table_list, 0, 0, 0, 0, 1, 1))
           goto err;
 
         /*
@@ -4797,7 +4828,7 @@ int create_table_impl(THD *thd,
     }
   }
 #endif
-
+  
   error= 0;
 err:
   THD_STAGE_INFO(thd, stage_after_create);
@@ -4820,10 +4851,11 @@ warn:
 */
 
 int mysql_create_table_no_lock(THD *thd,
-                                const char *db, const char *table_name,
-                                Table_specification_st *create_info,
-                                Alter_info *alter_info, bool *is_trans,
-                                int create_table_mode)
+                               const char *db, const char *table_name,
+                               Table_specification_st *create_info,
+                               Alter_info *alter_info, bool *is_trans,
+                               int create_table_mode,
+                               TABLE_LIST *table_list)
 {
   KEY *not_used_1;
   uint not_used_2;
@@ -4852,6 +4884,17 @@ int mysql_create_table_no_lock(THD *thd,
                          alter_info, create_table_mode,
                          is_trans, &not_used_1, &not_used_2, &frm);
   my_free(const_cast<uchar*>(frm.str));
+
+  if (!res && create_info->sequence)
+  {
+    /* Set create_info.table if temporary table */
+    if (create_info->tmp_table())
+      table_list->table= create_info->table;
+    else
+      table_list->table= 0;
+    res= sequence_insert(thd, thd->lex, table_list);
+  }
+
   return res;
 }
 
@@ -4913,7 +4956,8 @@ bool mysql_create_table(THD *thd, TABLE_LIST *create_table,
     promote_first_timestamp_column(&alter_info->create_list);
 
   if (mysql_create_table_no_lock(thd, db, table_name, create_info, alter_info,
-                                 &is_trans, create_table_mode) > 0)
+                                 &is_trans, create_table_mode,
+                                 create_table) > 0)
   {
     result= 1;
     goto err;
@@ -5300,7 +5344,8 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
   res= ((create_res=
          mysql_create_table_no_lock(thd, table->db, table->table_name,
                                     &local_create_info, &local_alter_info,
-                                    &is_trans, C_ORDINARY_CREATE)) > 0);
+                                    &is_trans, C_ORDINARY_CREATE,
+                                    table)) > 0);
   /* Remember to log if we deleted something */
   do_logging= thd->log_current_statement;
   if (res)
@@ -5537,7 +5582,7 @@ int mysql_discard_or_import_tablespace(THD *thd,
   table_list->mdl_request.set_type(MDL_EXCLUSIVE);
   table_list->lock_type= TL_WRITE;
   /* Do not open views. */
-  table_list->required_type= FRMTYPE_TABLE;
+  table_list->required_type= TABLE_TYPE_NORMAL;
 
   if (open_and_lock_tables(thd, table_list, FALSE, 0,
                            &alter_prelocking_strategy))
@@ -5874,7 +5919,7 @@ drop_create_field:
         while ((f_key= fk_key_it++))
         {
           if (my_strcasecmp(system_charset_info, f_key->foreign_id->str,
-                key->name.str) == 0)
+                keyname) == 0)
             goto remove_key;
         }
       }
@@ -6469,6 +6514,9 @@ static bool fill_alter_inplace_info(THD *thd,
          (new_key->flags & HA_KEYFLAG_MASK)) ||
         (table_key->user_defined_key_parts !=
          new_key->user_defined_key_parts))
+      goto index_changed;
+
+    if (table_key->block_size != new_key->block_size)
       goto index_changed;
 
     if (engine_options_differ(table_key->option_struct, new_key->option_struct,
@@ -7433,6 +7481,9 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
 
   if (!(used_fields & HA_CREATE_USED_CONNECTION))
     create_info->connect_string= table->s->connect_string;
+
+  if (!(used_fields & HA_CREATE_USED_SEQUENCE))
+    create_info->sequence= table->s->table_type == TABLE_TYPE_SEQUENCE;
 
   restore_record(table, s->default_values);     // Empty record for DEFAULT
 
@@ -8472,7 +8523,7 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
     Note that RENAME TABLE the only ALTER clause which is supported for views
     has been already processed.
   */
-  table_list->required_type= FRMTYPE_TABLE;
+  table_list->required_type= TABLE_TYPE_NORMAL;
 
   Alter_table_prelocking_strategy alter_prelocking_strategy;
 
@@ -8579,7 +8630,7 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
         Table maybe does not exist, but we got an exclusive lock
         on the name, now we can safely try to find out for sure.
       */
-      if (ha_table_exists(thd, alter_ctx.new_db, alter_ctx.new_name, 0))
+      if (ha_table_exists(thd, alter_ctx.new_db, alter_ctx.new_name))
       {
         /* Table will be closed in do_command() */
         my_error(ER_TABLE_EXISTS_ERROR, MYF(0), alter_ctx.new_alias);
@@ -9703,7 +9754,7 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
     if (to->default_field)
       to->update_default_fields(0, ignore);
     if (to->vfield)
-      to->update_virtual_fields(VCOL_UPDATE_FOR_WRITE);
+      to->update_virtual_fields(to->file, VCOL_UPDATE_FOR_WRITE);
 
     /* This will set thd->is_error() if fatal failure */
     if (to->verify_constraints(ignore) == VIEW_CHECK_SKIP)
@@ -9922,7 +9973,7 @@ bool mysql_checksum_table(THD *thd, TABLE_LIST *tables,
     table->next_global= NULL;
     table->lock_type= TL_READ;
     /* Allow to open real tables only. */
-    table->required_type= FRMTYPE_TABLE;
+    table->required_type= TABLE_TYPE_NORMAL;
 
     if (thd->open_temporary_tables(table) ||
         open_and_lock_tables(thd, table, FALSE, 0))

@@ -1,7 +1,4 @@
-SET GLOBAL innodb_file_format='Barracuda';
-Warnings:
-Warning	131	Using innodb_file_format is deprecated and the parameter may be removed in future releases. See http://dev.mysql.com/doc/refman/5.7/en/innodb-file-format.html
-SET GLOBAL innodb_file_per_table=on;
+SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 CREATE TABLE bug52745 (
 a2 int(10) unsigned DEFAULT NULL,
 col37 time DEFAULT NULL,
@@ -63,7 +60,7 @@ Warnings:
 Note	1287	'YEAR(2)' is deprecated and will be removed in a future release. Please use YEAR(4) instead
 Note	1291	Column 'col82' has duplicated value '' in ENUM
 Note	1291	Column 'col82' has duplicated value '' in ENUM
-INSERT INTO bug52745 SET
+INSERT IGNORE INTO bug52745 SET
 col40='0000-00-00 00:00:00',
 col51=16547,
 col53='7711484',
@@ -128,7 +125,3 @@ Warning	1264	Out of range value for column 'col78' at row 1
 Warning	1265	Data truncated for column 'col79' at row 1
 Warning	1264	Out of range value for column 'col84' at row 1
 DROP TABLE bug52745;
-SET GLOBAL innodb_file_format=Barracuda;
-Warnings:
-Warning	131	Using innodb_file_format is deprecated and the parameter may be removed in future releases. See http://dev.mysql.com/doc/refman/5.7/en/innodb-file-format.html
-SET GLOBAL innodb_file_per_table=1;

@@ -152,8 +152,6 @@ SELECT @@table_open_cache = @@global.table_open_cache ;
 
 --Error ER_GLOBAL_VARIABLE
 SET table_open_cache = 8;
---Error ER_PARSE_ERROR
-SET global.table_open_cache = 10;
 --Error ER_UNKNOWN_TABLE
 SELECT global.table_open_cache ;
 --Error ER_BAD_FIELD_ERROR

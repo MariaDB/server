@@ -1,0 +1,7 @@
+--source include/have_rocksdb.inc
+
+--let $sys_var=ROCKSDB_SUPPORTED_COMPRESSION_TYPES
+--let $read_only=1
+--let $session=0
+--let $suppress_default_value=1
+--source include/rocksdb_sys_var.inc

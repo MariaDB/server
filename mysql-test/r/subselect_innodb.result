@@ -494,6 +494,21 @@ HAVING SQ2_alias1 . col_int_key >= 7
 drop table t1;
 set optimizer_switch=@subselect_innodb_tmp;
 #
+# MDEV-9635:Server crashes in part_of_refkey  or assertion
+# `!created && key_to_save < (int)s->keys' failed in
+# TABLE::use_index(int) or with join_cache_level>2
+#
+SET join_cache_level=3;
+CREATE TABLE t1 (f1 VARCHAR(1024)) ENGINE=InnoDB;
+CREATE ALGORITHM=TEMPTABLE VIEW v1 AS SELECT * FROM t1;
+CREATE TABLE t2 (f2 VARCHAR(4)) ENGINE=InnoDB;
+INSERT INTO t2 VALUES ('foo'),('bar');
+SELECT * FROM v1, t2 WHERE ( f1, f2 ) IN ( SELECT f1, f1 FROM t1 );
+f1	f2
+set join_cache_level = default;
+drop view v1;
+drop table t1,t2;
+#
 # MDEV-6041: ORDER BY+subqueries: subquery_table.key=outer_table.col is not recongized as binding
 #
 create table t1(a int) engine=innodb;

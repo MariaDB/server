@@ -356,6 +356,12 @@ toku_os_close(int fd) {  // if EINTR, retry until success
     return r;
 }
 
+int toku_os_rename(const char *old_name, const char *new_name) {
+    return rename(old_name, new_name);
+}
+
+int toku_os_unlink(const char *path) { return unlink(path); }
+
 ssize_t 
 toku_os_read(int fd, void *buf, size_t count) {
     ssize_t r;

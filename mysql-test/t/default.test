@@ -106,12 +106,12 @@ drop table t2;
 #      multiple-row statement, the preceding rows will have been inserted.
 #
 create table bug20691 (i int, d datetime NOT NULL, dn datetime not null default '0000-00-00 00:00:00');
-insert into bug20691 values (1, DEFAULT, DEFAULT), (1, '1975-07-10 07:10:03', '1978-01-13 14:08:51'), (1, DEFAULT, DEFAULT);
-insert into bug20691 (i) values (2);
+insert ignore into bug20691 values (1, DEFAULT, DEFAULT), (1, '1975-07-10 07:10:03', '1978-01-13 14:08:51'), (1, DEFAULT, DEFAULT);
+insert ignore into bug20691 (i) values (2);
 desc bug20691;
-insert into bug20691 values (3, DEFAULT, DEFAULT), (3, '1975-07-10 07:10:03', '1978-01-13 14:08:51'), (3, DEFAULT, DEFAULT);
-insert into bug20691 (i) values (4);
-insert into bug20691 values (5, DEFAULT, DEFAULT), (5, '1975-07-10 07:10:03', '1978-01-13 14:08:51'), (5, DEFAULT, DEFAULT);
+insert ignore into bug20691 values (3, DEFAULT, DEFAULT), (3, '1975-07-10 07:10:03', '1978-01-13 14:08:51'), (3, DEFAULT, DEFAULT);
+insert ignore into bug20691 (i) values (4);
+insert ignore into bug20691 values (5, DEFAULT, DEFAULT), (5, '1975-07-10 07:10:03', '1978-01-13 14:08:51'), (5, DEFAULT, DEFAULT);
 SET sql_mode = 'ALLOW_INVALID_DATES';
 insert into bug20691 values (6, DEFAULT, DEFAULT), (6, '1975-07-10 07:10:03', '1978-01-13 14:08:51'), (6, DEFAULT, DEFAULT);
 SET sql_mode = 'STRICT_ALL_TABLES';
@@ -167,6 +167,49 @@ select * from t1;
 drop table t1, t2;
 
 --echo # End of 5.0 tests
+
+--echo #
+--echo # Start of 10.0 tests
+--echo #
+
+--echo #
+--echo # MDEV-11265 Access defied when CREATE VIIEW v1 AS SELECT DEFAULT(column) FROM t1
+--echo #
+
+CREATE TABLE t1 (a INT DEFAULT 10);
+INSERT INTO t1 VALUES (11);
+CREATE VIEW v1 AS SELECT a AS a FROM t1;
+CREATE VIEW v2 AS SELECT DEFAULT(a) AS a FROM t1;
+CREATE VIEW v3 AS SELECT VALUES(a) AS a FROM t1;
+SELECT * FROM v1;
+SELECT * FROM v2;
+SELECT * FROM v3;
+--error ER_NONUPDATEABLE_COLUMN
+UPDATE v2 SET a=123;
+--error ER_NONUPDATEABLE_COLUMN
+UPDATE v3 SET a=123;
+DROP VIEW v3;
+DROP VIEW v2;
+DROP VIEW v1;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-10780 Server crashes in in create_tmp_table
+--echo #
+
+# Note, the problem was not repeatable with a non-fresh connection.
+--connect (con1,localhost,root,,test)
+CREATE TABLE t1 (pk INT AUTO_INCREMENT PRIMARY KEY) ENGINE=MyISAM;
+INSERT INTO t1 VALUES ();
+INSERT INTO t1 VALUES ();
+SELECT DISTINCT DEFAULT (pk) FROM t1 GROUP BY RAND() WITH ROLLUP;
+--disconnect con1
+--connection default
+DROP TABLE t1;
+
+--echo #
+--echo # End of 10.0 tests
+--echo #
 
 --echo #
 --echo # Start of 10.1 tests
@@ -316,6 +359,8 @@ insert into t1 (b) values(2);
 insert into t1 (a,b) values(3,4);
 select * from t1;
 drop table t1;
+CREATE OR REPLACE TABLE t1 (a INT DEFAULT @v); drop table t1;
+CREATE TABLE t1 (a INT DEFAULT @v:=1); drop table t1;
 
 --echo #
 --echo # Error handling
@@ -363,12 +408,6 @@ CREATE TABLE t1 (a INT DEFAULT(?));
 
 --error ER_EXPRESSION_REFERS_TO_UNINIT_FIELD
 CREATE TABLE t1 (a INT DEFAULT (b), b INT DEFAULT(a));
-
---error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
-CREATE TABLE t1 (a INT DEFAULT @v);
-
---error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
-CREATE TABLE t1 (a INT DEFAULT @v:=1);
 
 --error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
 CREATE TABLE t1 (a INT DEFAULT(NAME_CONST('xxx', 'yyy'));
@@ -768,7 +807,7 @@ DROP TABLE t1;
 --echo #
 CREATE TABLE t1 (a DECIMAL(30,6) DEFAULT COALESCE(CURRENT_TIME(6)));
 SHOW CREATE TABLE t1;
-INSERT INTO t1 VALUES();
+INSERT IGNORE INTO t1 VALUES();
 DROP TABLE t1;
 
 --echo #
@@ -776,7 +815,7 @@ DROP TABLE t1;
 --echo #
 CREATE TABLE t1 (a DECIMAL(30,6) DEFAULT COALESCE(CURRENT_DATE));
 SHOW CREATE TABLE t1;
-INSERT INTO t1 VALUES();
+INSERT IGNORE INTO t1 VALUES();
 DROP TABLE t1;
 
 
@@ -811,7 +850,7 @@ CREATE TABLE t1 (
   b DECIMAL(30,0) DEFAULT COALESCE(CURRENT_TIMESTAMP(6))
 );
 SHOW CREATE TABLE t1;
-INSERT INTO t1 VALUES ();
+INSERT IGNORE INTO t1 VALUES ();
 SELECT * FROM t1;
 DROP TABLE t1;
 
@@ -1058,7 +1097,7 @@ SET time_zone=DEFAULT, timestamp= DEFAULT;
 # SYSDATE is evaluated during get_date() rather than fix_fields.
 CREATE TABLE t1 (a TIMESTAMP(6) DEFAULT SYSDATE(6), s INT, b TIMESTAMP(6) DEFAULT SYSDATE(6));
 SHOW CREATE TABLE t1;
-INSERT INTO t1 VALUES (DEFAULT, SLEEP(0.1), DEFAULT);
+INSERT INTO t1 VALUES (DEFAULT(a), SLEEP(0.1), DEFAULT(b));
 SELECT b>a FROM t1;
 DROP TABLE t1;
 
@@ -1362,13 +1401,13 @@ CREATE TABLE t1 (a DECIMAL(10,3),
                  b VARCHAR(10) DEFAULT CAST(a AS CHAR(10)),
                  c VARCHAR(10) DEFAULT CAST(a AS CHAR(4)));
 SHOW CREATE TABLE t1;
-INSERT INTO t1 (a) VALUES (123.456);
+INSERT IGNORE INTO t1 (a) VALUES (123.456);
 SELECT * FROM t1;
 DROP TABLE t1;
 
 CREATE TABLE t1 (a INT, b INT UNSIGNED DEFAULT CAST(a AS UNSIGNED));
 SHOW CREATE TABLE t1;
-INSERT INTO t1 (a) VALUES (-1);
+INSERT IGNORE INTO t1 (a) VALUES (-1);
 SELECT * FROM t1;
 DROP TABLE t1;
 
@@ -1588,7 +1627,7 @@ CREATE TABLE t1 (
   x VARCHAR(30) DEFAULT EXPORT_SET(bits, v_on, v_off, v_separator, number_of_bits)
 );
 SHOW CREATE TABLE t1;
-INSERT INTO t1 VALUES (0x50006,'Y','N','',64,DEFAULT);
+INSERT IGNORE INTO t1 VALUES (0x50006,'Y','N','',64,DEFAULT);
 SELECT * FROM t1;
 DROP TABLE t1;
 
@@ -1971,8 +2010,33 @@ INSERT INTO t1 VALUES (1),(2),(3);
 EXECUTE IMMEDIATE 'EXPLAIN EXTENDED SELECT * FROM t1 WHERE ?+a<=>?+a' USING DEFAULT,DEFAULT;
 DROP TABLE t1;
 
+--echo #
+--echo # MDEV-11134 Assertion `fixed' failed in Item::const_charset_converter(THD*, CHARSET_INFO*, bool, const char*)
+--echo #
 
---echo # end of 10.2 test
+SET NAMES utf8;
+PREPARE stmt FROM "CREATE OR REPLACE TABLE t1 (c CHAR(8) DEFAULT ?)";
+SET @a='';
+EXECUTE stmt USING @a;
+EXECUTE stmt USING @a;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+SET @a='A';
+EXECUTE stmt USING @a;
+EXECUTE stmt USING @a;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+SET @a=_utf8 0xC380; # LATIN CAPITAL LETTER A WITH GRAVE
+EXECUTE stmt USING @a;
+EXECUTE stmt USING @a;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+SET @a=_utf8 0xD18F; # Cyrillic letter into a latin1 column
+--error ER_INVALID_DEFAULT
+EXECUTE stmt USING @a;
+--error ER_INVALID_DEFAULT
+EXECUTE stmt USING @a;
+DEALLOCATE PREPARE stmt;
 
 #
 # ANSI_QUOTES
@@ -1991,3 +2055,28 @@ select * from t1;
 drop table t1;
 set sql_mode=default;
 
+#
+# MDEV-10201 Bad results for CREATE TABLE t1 (a INT DEFAULT b, b INT DEFAULT 4)
+#
+create table t1 (a int default b, b int default 4, t text);
+insert into t1 (b, t) values (5, '1 column is omitted');
+insert into t1 values (default, 5, '2 column gets DEFAULT, keyword');
+insert into t1 values (default(a), 5, '3 column gets DEFAULT(a), expression');
+insert into t1 values (default(a)+0, 5, '4 also expression DEFAULT(0)+0');
+insert into t1 values (b, 5, '5 the value of the DEFAULT(a), that is b');
+select * from t1 order by t;
+drop table t1;
+
+#
+# MDEV-10352 Server crashes in Field::set_default on CREATE TABLE
+#
+--error ER_EXPRESSION_REFERS_TO_UNINIT_FIELD
+create table t1 (col1 int default(-(default(col1))));
+
+#
+# MDEV-10354 Assertion `! is_set()' failed in Diagnostics_area::set_ok_status on CREATE TABLE with invalid default
+#
+--error ER_DATA_OUT_OF_RANGE
+create table t1 (col int default (yearweek((exp(710)))));
+
+--echo # end of 10.2 test

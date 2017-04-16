@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2000, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -65,6 +66,7 @@ Created 9/17/2000 Heikki Tuuri
 #include "row0import.h"
 #include "m_string.h"
 #include "my_sys.h"
+#include "zlib.h"
 #include <algorithm>
 
 /** Provide optional 4.x backwards compatibility for 5.0 and above */
@@ -261,9 +263,8 @@ row_mysql_store_blob_ref(
 	ut_a(col_len - 8 > 2 || len < 256 * 256);
 	ut_a(col_len - 8 > 3 || len < 256 * 256 * 256);
 
-	mach_write_to_n_little_endian(dest, col_len - 8, len);
-
 	memcpy(dest + col_len - 8, &data, sizeof data);
+	mach_write_to_n_little_endian(dest, col_len - 8, len);
 }
 
 /*******************************************************************//**
@@ -279,7 +280,7 @@ row_mysql_read_blob_ref(
 	ulint		col_len)	/*!< in: BLOB reference length
 					(not BLOB length) */
 {
-	byte*	data;
+	byte*	data = NULL;
 
 	*len = mach_read_from_n_little_endian(ref, col_len - 8);
 
@@ -420,8 +421,8 @@ row_mysql_store_col_in_innobase_format(
 				lenlen = 2;
 			}
 
-			ptr = row_mysql_read_true_varchar(&col_len, mysql_data,
-							  lenlen);
+			ptr = row_mysql_read_true_varchar(
+				&col_len, mysql_data, lenlen);
 		} else {
 			/* Remove trailing spaces from old style VARCHAR
 			columns. */
@@ -659,9 +660,7 @@ handle_new_error:
 		      "InnoDB: lack of space. You must add"
 		      " a new data file to\n"
 		      "InnoDB: my.cnf and restart the database.\n", stderr);
-
-		ut_ad(0);
-		exit(1);
+		abort();
 
 	case DB_CORRUPTION:
 		fputs("InnoDB: We detected index corruption"
@@ -1373,6 +1372,8 @@ run_again:
 	thr->prev_node = node;
 
 	row_ins_step(thr);
+
+	DEBUG_SYNC_C("ib_after_row_insert_step");
 
 	err = trx->error_state;
 
@@ -2748,12 +2749,26 @@ loop:
 		return(n_tables + n_tables_dropped);
 	}
 
+	DBUG_EXECUTE_IF("row_drop_tables_in_background_sleep",
+		os_thread_sleep(5000000);
+	);
+
 	table = dict_table_open_on_name(drop->table_name, FALSE, FALSE,
 					DICT_ERR_IGNORE_NONE);
 
 	if (table == NULL) {
 		/* If for some reason the table has already been dropped
 		through some other mechanism, do not try to drop it */
+
+		goto already_dropped;
+	}
+
+	if (!table->to_be_dropped) {
+		/* There is a scenario: the old table is dropped
+		just after it's added into drop list, and new
+		table with the same name is created, then we try
+		to drop the new table in background. */
+		dict_table_close(table, FALSE, FALSE);
 
 		goto already_dropped;
 	}
@@ -2887,6 +2902,12 @@ row_mysql_table_id_reassign(
 
 	pars_info_add_ull_literal(info, "old_id", table->id);
 	pars_info_add_ull_literal(info, "new_id", *new_id);
+
+	/* As micro-SQL does not support int4 == int8 comparisons,
+	old and new IDs are added again under different names as
+	int4 values*/
+	pars_info_add_int4_literal(info, "old_id_narrow", table->id);
+	pars_info_add_int4_literal(info, "new_id_narrow", *new_id);
 
 	err = que_eval_sql(
 		info,
@@ -3289,21 +3310,17 @@ void
 fil_wait_crypt_bg_threads(
 	dict_table_t* table)
 {
-	uint start = time(0);
-	uint last = start;
-
-	if (table->space != 0) {
-		fil_space_crypt_mark_space_closing(table->space);
-	}
+	time_t start = time(0);
+	time_t last = start;
 
 	while (table->n_ref_count > 0) {
 		dict_mutex_exit_for_mysql();
 		os_thread_sleep(20000);
 		dict_mutex_enter_for_mysql();
-		uint now = time(0);
+		time_t now = time(0);
 		if (now >= last + 30) {
 			fprintf(stderr,
-				"WARNING: waited %u seconds "
+				"WARNING: waited %ld seconds "
 				"for ref-count on table: %s space: %u\n",
 				now - start, table->name, table->space);
 			last = now;
@@ -3311,7 +3328,7 @@ fil_wait_crypt_bg_threads(
 
 		if (now >= start + 300) {
 			fprintf(stderr,
-				"WARNING: after %u seconds, gave up waiting "
+				"WARNING: after %ld seconds, gave up waiting "
 				"for ref-count on table: %s space: %u\n",
 				now - start, table->name, table->space);
 			break;
@@ -3507,35 +3524,40 @@ row_truncate_table_for_mysql(
 
 	if (table->space && !DICT_TF2_FLAG_IS_SET(table, DICT_TF2_TEMPORARY)) {
 		/* Discard and create the single-table tablespace. */
-		fil_space_crypt_t* crypt_data;
-		ulint	space	= table->space;
-		ulint	flags	= fil_space_get_flags(space);
+		ulint	space_id = table->space;
+		ulint	flags	= ULINT_UNDEFINED;
 		ulint	key_id  = FIL_DEFAULT_ENCRYPTION_KEY;
-		fil_encryption_t mode = FIL_SPACE_ENCRYPTION_DEFAULT;
+		fil_encryption_t mode = FIL_ENCRYPTION_DEFAULT;
 
 		dict_get_and_save_data_dir_path(table, true);
-		crypt_data = fil_space_get_crypt_data(space);
 
-		if (crypt_data) {
-			key_id = crypt_data->key_id;
-			mode = crypt_data->encryption;
+		if (fil_space_t* space = fil_space_acquire(space_id)) {
+			fil_space_crypt_t* crypt_data = space->crypt_data;
+
+			if (crypt_data) {
+				key_id = crypt_data->key_id;
+				mode = crypt_data->encryption;
+			}
+
+			flags = space->flags;
+			fil_space_release(space);
 		}
 
 		if (flags != ULINT_UNDEFINED
-		    && fil_discard_tablespace(space) == DB_SUCCESS) {
+		    && fil_discard_tablespace(space_id) == DB_SUCCESS) {
 
 			dict_index_t*	index;
 
-			dict_hdr_get_new_id(NULL, NULL, &space);
+			dict_hdr_get_new_id(NULL, NULL, &space_id);
 
 			/* Lock all index trees for this table. We must
 			do so after dict_hdr_get_new_id() to preserve
 			the latch order */
 			dict_table_x_lock_indexes(table);
 
-			if (space == ULINT_UNDEFINED
+			if (space_id == ULINT_UNDEFINED
 			    || fil_create_new_single_table_tablespace(
-				    space, table->name,
+				    space_id, table->name,
 				    table->data_dir_path,
 				    flags, table->flags2,
 				    FIL_IBD_FILE_INITIAL_SIZE,
@@ -3553,21 +3575,21 @@ row_truncate_table_for_mysql(
 				goto funct_exit;
 			}
 
-			recreate_space = space;
+			recreate_space = space_id;
 
 			/* Replace the space_id in the data dictionary cache.
 			The persisent data dictionary (SYS_TABLES.SPACE
 			and SYS_INDEXES.SPACE) are updated later in this
 			function. */
-			table->space = space;
+			table->space = space_id;
 			index = dict_table_get_first_index(table);
 			do {
-				index->space = space;
+				index->space = space_id;
 				index = dict_table_get_next_index(index);
 			} while (index);
 
 			mtr_start_trx(&mtr, trx);
-			fsp_header_init(space,
+			fsp_header_init(space_id,
 					FIL_IBD_FILE_INITIAL_SIZE, &mtr);
 			mtr_commit(&mtr);
 		}
@@ -3712,6 +3734,12 @@ next_rec:
 	pars_info_add_int4_literal(info, "new_space", (lint) table->space);
 	pars_info_add_ull_literal(info, "old_id", table->id);
 	pars_info_add_ull_literal(info, "new_id", new_id);
+
+	/* As micro-SQL does not support int4 == int8 comparisons,
+	old and new IDs are added again under different names as
+	int4 values*/
+	pars_info_add_int4_literal(info, "old_id_narrow", table->id);
+	pars_info_add_int4_literal(info, "new_id_narrow", new_id);
 
 	err = que_eval_sql(info,
 			   "PROCEDURE RENUMBER_TABLE_ID_PROC () IS\n"
@@ -4089,6 +4117,13 @@ row_drop_table_for_mysql(
 		}
 	}
 
+
+	DBUG_EXECUTE_IF("row_drop_table_add_to_background",
+		row_add_table_to_background_drop_list(table->name);
+		err = DB_SUCCESS;
+		goto funct_exit;
+	);
+
 	/* TODO: could we replace the counter n_foreign_key_checks_running
 	with lock checks on the table? Acquire here an exclusive lock on the
 	table, and rewrite lock0lock.cc and the lock wait in srv0srv.cc so that
@@ -4225,6 +4260,18 @@ row_drop_table_for_mysql(
 		rw_lock_x_unlock(dict_index_get_lock(index));
 	}
 
+	/* If table has not yet have crypt_data, try to read it to
+	make freeing the table easier. */
+	if (!table->crypt_data) {
+
+		if (fil_space_t* space = fil_space_acquire_silent(table->space)) {
+			/* We use crypt data in dict_table_t in ha_innodb.cc
+			to push warnings to user thread. */
+			table->crypt_data = space->crypt_data;
+			fil_space_release(space);
+		}
+	}
+
 	/* We use the private SQL parser of Innobase to generate the
 	query graphs needed in deleting the dictionary data from system
 	tables in Innobase. Deleting a row from SYS_INDEXES table also
@@ -4324,6 +4371,7 @@ row_drop_table_for_mysql(
 
 	switch (err) {
 		ibool	is_temp;
+		ulint	table_flags;
 
 	case DB_SUCCESS:
 		/* Clone the name, in case it has been allocated
@@ -4332,6 +4380,7 @@ row_drop_table_for_mysql(
 		space_id = table->space;
 		ibd_file_missing = table->ibd_file_missing;
 
+		table_flags = table->flags;
 		is_temp = DICT_TF2_FLAG_IS_SET(table, DICT_TF2_TEMPORARY);
 
 		/* If there is a temp path then the temp flag is set.
@@ -4347,9 +4396,9 @@ row_drop_table_for_mysql(
 		}
 
 		/* We do not allow temporary tables with a remote path. */
-		ut_a(!(is_temp && DICT_TF_HAS_DATA_DIR(table->flags)));
+		ut_a(!(is_temp && DICT_TF_HAS_DATA_DIR(table_flags)));
 
-		if (space_id && DICT_TF_HAS_DATA_DIR(table->flags)) {
+		if (space_id && DICT_TF_HAS_DATA_DIR(table_flags)) {
 			dict_get_and_save_data_dir_path(table, true);
 			ut_a(table->data_dir_path);
 
@@ -4415,8 +4464,9 @@ row_drop_table_for_mysql(
 		if (err == DB_SUCCESS && space_id > TRX_SYS_SPACE) {
 			if (!is_temp
 			    && !fil_space_for_table_exists_in_mem(
-					space_id, tablename, FALSE,
-					print_msg, false, NULL, 0)) {
+					space_id, tablename,
+					print_msg, false, NULL, 0,
+					table_flags)) {
 				/* This might happen if we are dropping a
 				discarded tablespace */
 				err = DB_SUCCESS;
@@ -4709,6 +4759,19 @@ loop:
 	row_mysql_lock_data_dictionary(trx);
 
 	while ((table_name = dict_get_first_table_name_in_db(name))) {
+		/* Drop parent table if it is a fts aux table, to
+		avoid accessing dropped fts aux tables in information
+		scheam when parent table still exists.
+		Note: Drop parent table will drop fts aux tables. */
+		char*	parent_table_name;
+		parent_table_name = fts_get_parent_table_name(
+				table_name, strlen(table_name));
+
+		if (parent_table_name != NULL) {
+			mem_free(table_name);
+			table_name = parent_table_name;
+		}
+
 		ut_a(memcmp(table_name, name, namelen) == 0);
 
 		table = dict_table_open_on_name(

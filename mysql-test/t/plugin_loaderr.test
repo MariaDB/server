@@ -18,7 +18,7 @@ FROM INFORMATION_SCHEMA.PLUGINS WHERE plugin_name = 'innodb';
 --source include/wait_until_disconnected.inc
 
 --error 1
---exec $MYSQLD_CMD --innodb=force --innodb-page-size=6000
+--exec $MYSQLD_CMD --innodb=force --innodb-page-size=6000 --disable-log-error
 
 --exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 --enable_reconnect

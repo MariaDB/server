@@ -29,7 +29,6 @@ Refactored 2013-7-26 by Kevin Lewis
 #include "fsp0sysspace.h"
 #include "srv0start.h"
 #include "trx0sys.h"
-#ifndef UNIV_HOTBACKUP
 #include "dict0load.h"
 #include "mem0mem.h"
 #include "os0file.h"
@@ -40,9 +39,6 @@ Refactored 2013-7-26 by Kevin Lewis
 If server passes the option for create/open DB to SE, we should remove such
 direct reference to server header and global variable */
 #include "mysqld.h"
-#else
-my_bool opt_initialize = 0;
-#endif /* !UNIV_HOTBACKUP */
 
 /** The control info of the system tablespace. */
 SysTablespace srv_sys_space;
@@ -364,7 +360,8 @@ SysTablespace::check_size(
 	also the data file could contain an incomplete extent.
 	So we need to round the size downward to a  megabyte.*/
 
-	ulint	rounded_size_pages = get_pages_from_size(size);
+	const ulint	rounded_size_pages = static_cast<ulint>(
+		size >> UNIV_PAGE_SIZE_SHIFT);
 
 	/* If last file */
 	if (&file == &m_files.back() && m_auto_extend_last_file) {
@@ -375,7 +372,7 @@ SysTablespace::check_size(
 			ib::error() << "The Auto-extending " << name()
 				<< " data file '" << file.filepath() << "' is"
 				" of a different size " << rounded_size_pages
-				<< " pages (rounded down to MB) than specified"
+				<< " pages than specified"
 				" in the .cnf file: initial " << file.m_size
 				<< " pages, max " << m_last_file_size_max
 				<< " (relevant if non-zero) pages!";
@@ -388,7 +385,7 @@ SysTablespace::check_size(
 	if (rounded_size_pages != file.m_size) {
 		ib::error() << "The " << name() << " data file '"
 			<< file.filepath() << "' is of a different size "
-			<< rounded_size_pages << " pages (rounded down to MB)"
+			<< rounded_size_pages << " pages"
 			" than the " << file.m_size << " pages specified in"
 			" the .cnf file!";
 		return(DB_ERROR);
@@ -537,7 +534,6 @@ SysTablespace::open_file(
 	return(err);
 }
 
-#ifndef UNIV_HOTBACKUP
 /** Check the tablespace header for this tablespace.
 @param[out]	flushed_lsn	the value of FIL_PAGE_FILE_FLUSH_LSN
 @return DB_SUCCESS or error code */
@@ -581,11 +577,11 @@ SysTablespace::read_lsn_and_check_flags(lsn_t* flushed_lsn)
 	first datafile. */
 	for (int retry = 0; retry < 2; ++retry) {
 
-		err = it->validate_first_page(flushed_lsn, false);
+		err = it->validate_first_page(flushed_lsn);
 
 		if (err != DB_SUCCESS
 		    && (retry == 1
-			|| it->restore_from_doublewrite(0) != DB_SUCCESS)) {
+			|| it->restore_from_doublewrite())) {
 
 			it->close();
 
@@ -612,7 +608,7 @@ SysTablespace::read_lsn_and_check_flags(lsn_t* flushed_lsn)
 
 	return(DB_SUCCESS);
 }
-#endif /* !UNIV_HOTBACKUP */
+
 /** Check if a file can be opened in the correct mode.
 @param[in]	file	data file object
 @param[out]	reason	exact reason if file_status check failed.
@@ -759,7 +755,7 @@ SysTablespace::file_found(
 	/* Need to create the system tablespace for new raw device. */
 	return(file.m_type == SRV_NEW_RAW);
 }
-#ifndef UNIV_HOTBACKUP
+
 /** Check the data file specification.
 @param[out] create_new_db	true if a new database is to be created
 @param[in] min_expected_size	Minimum expected tablespace size in bytes
@@ -779,7 +775,8 @@ SysTablespace::check_file_spec(
 		return(DB_ERROR);
 	}
 
-	if (get_sum_of_sizes() < min_expected_size / UNIV_PAGE_SIZE) {
+	if (!m_auto_extend_last_file
+	    && get_sum_of_sizes() < min_expected_size / UNIV_PAGE_SIZE) {
 
 		ib::error() << "Tablespace size must be at least "
 			<< min_expected_size / (1024 * 1024) << " MB";
@@ -909,28 +906,6 @@ SysTablespace::open_or_create(
 			return(err);
 		}
 
-#if !defined(NO_FALLOCATE) && defined(UNIV_LINUX)
-		/* Note: This should really be per node and not per
-		tablespace because a tablespace can contain multiple
-		files (nodes). The implication is that all files of
-		the tablespace should be on the same medium. */
-
-		if (fil_fusionio_enable_atomic_write(it->m_handle)) {
-
-			if (srv_use_doublewrite_buf) {
-				ib::info() << "FusionIO atomic IO enabled,"
-					" disabling the double write buffer";
-
-				srv_use_doublewrite_buf = false;
-			}
-
-			it->m_atomic_write = true;
-		} else {
-			it->m_atomic_write = false;
-		}
-#else
-		it->m_atomic_write = false;
-#endif /* !NO_FALLOCATE && UNIV_LINUX*/
 	}
 
 	if (!create_new_db && flush_lsn) {
@@ -960,13 +935,14 @@ SysTablespace::open_or_create(
 				/* Create default crypt info for system
 				tablespace if it does not yet exists. */
 				m_crypt_info = fil_space_create_crypt_data(
-					FIL_SPACE_ENCRYPTION_DEFAULT,
+					FIL_ENCRYPTION_DEFAULT,
 					FIL_DEFAULT_ENCRYPTION_KEY);
 			}
 
 			space = fil_space_create(
 				name(), space_id(), flags(), is_temp
-				? FIL_TYPE_TEMPORARY : FIL_TYPE_TABLESPACE, m_crypt_info);
+				? FIL_TYPE_TEMPORARY : FIL_TYPE_TABLESPACE, m_crypt_info,
+				false);
 		}
 
 		ut_a(fil_validate());
@@ -981,7 +957,7 @@ SysTablespace::open_or_create(
 		if (!fil_node_create(
 			    it->m_filepath, it->m_size,
 			    space, it->m_type != SRV_NOT_RAW,
-			    it->m_atomic_write, max_size)) {
+			    TRUE, max_size)) {
 
 			err = DB_ERROR;
 			break;
@@ -990,7 +966,7 @@ SysTablespace::open_or_create(
 
 	return(err);
 }
-#endif /* UNIV_HOTBACKUP */
+
 /** Normalize the file size, convert from megabytes to number of pages. */
 void
 SysTablespace::normalize()

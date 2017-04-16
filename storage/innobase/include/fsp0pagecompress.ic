@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (C) 2013, 2015, MariaDB Corporation. All Rights Reserved.
+Copyright (C) 2013, 2017, MariaDB Corporation. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -26,18 +26,6 @@ Created 11/12/2013 Jan Lindström jan.lindstrom@mariadb.com
 ***********************************************************************/
 
 /********************************************************************//**
-Determine if the tablespace is page compressed from dict_table_t::flags.
-@return	TRUE if page compressed, FALSE if not page compressed */
-UNIV_INLINE
-bool
-fsp_flags_is_page_compressed(
-/*=========================*/
-	ulint	flags)	/*!< in: tablespace flags */
-{
-	return(FSP_FLAGS_GET_PAGE_COMPRESSION(flags));
-}
-
-/********************************************************************//**
 Determine the tablespace is page compression level from dict_table_t::flags.
 @return	page compression level or 0 if not compressed*/
 UNIV_INLINE
@@ -49,17 +37,6 @@ fsp_flags_get_page_compression_level(
 	return(FSP_FLAGS_GET_PAGE_COMPRESSION_LEVEL(flags));
 }
 
-/********************************************************************//**
-Determine the tablespace is using atomic writes from dict_table_t::flags.
-@return	true if atomic writes is used, false if not */
-UNIV_INLINE
-atomic_writes_t
-fsp_flags_get_atomic_writes(
-/*========================*/
-	ulint	flags)	/*!< in: tablespace flags */
-{
-	return((atomic_writes_t)FSP_FLAGS_GET_ATOMIC_WRITES(flags));
-}
 
 /*******************************************************************//**
 Find out wheather the page is index page or not
@@ -130,16 +107,10 @@ fil_space_is_page_compressed(
 /*=========================*/
 	ulint	id)	/*!< in: space id */
 {
-	ulint	flags;
+	ulint	flags = fil_space_get_flags(id);
 
-	flags = fil_space_get_flags(id);
-
-	if (flags && flags != ULINT_UNDEFINED) {
-
-		return(fsp_flags_is_page_compressed(flags));
-	}
-
-	return(0);
+	return(flags != ULINT_UNDEFINED
+	       && FSP_FLAGS_HAS_PAGE_COMPRESSION(flags));
 }
 
 #endif /* UNIV_INNOCHECKSUM */
@@ -186,24 +157,27 @@ fil_get_compression_alg_name(
 /*******************************************************************//**
 Returns the atomic writes flag of the space, or false if the space
 is not using atomic writes. The tablespace must be cached in the memory cache.
-@return	atomic writes table option value */
+@return	1 if atomic writes can be used for the file */
 UNIV_INLINE
-atomic_writes_t
+bool
 fil_space_get_atomic_writes(
 /*========================*/
 	ulint	id)	/*!< in: space id */
 {
-	ulint	flags;
+	struct fil_space_t*	space;
+	bool ret= 0;
 
-	flags = fil_space_get_flags(id);
+	ut_ad(fil_system);
 
-	if (flags && flags != ULINT_UNDEFINED) {
+	mutex_enter(&fil_system->mutex);
 
-		return((atomic_writes_t)fsp_flags_get_atomic_writes(flags));
-	}
+	if ((space = fil_space_get_by_id(id)))
+	  ret= space->atomic_write_supported;
 
-	return((atomic_writes_t)0);
+        mutex_exit(&fil_system->mutex);
+	return(ret);
 }
+
 
 /*******************************************************************//**
 Find out wheather the page is page compressed with lzo method

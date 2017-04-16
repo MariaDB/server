@@ -1,0 +1,42 @@
+set sql_mode='strict_all_tables';
+create table t1 (a int not null, b int);
+insert t1 (b) values (1);
+ERROR HY000: Field 'a' doesn't have a default value
+create trigger trgi before insert on t1 for each row
+case new.b
+when 10 then
+set new.a = new.b;
+when 30 then
+set new.a = new.a;
+else
+do 1;
+end case|
+insert t1 (b) values (10);
+insert t1 (b) values (20);
+ERROR HY000: Field 'a' doesn't have a default value
+insert t1 (b) values (30);
+select * from t1;
+a	b
+10	10
+0	30
+drop table t1;
+set sql_mode=default;
+set sql_mode='';
+create table t1 (
+id int(11) not null auto_increment primary key,
+data1 varchar(10) not null,
+data2 varchar(10) not null
+);
+insert into t1 (data2) values ('x');
+Warnings:
+Warning	1364	Field 'data1' doesn't have a default value
+create trigger test_trigger before insert on t1 for each row begin end;
+insert into t1 (data2) values ('y');
+Warnings:
+Warning	1364	Field 'data1' doesn't have a default value
+select * from t1;
+id	data1	data2
+1		x
+2		y
+drop table t1;
+set sql_mode=default;

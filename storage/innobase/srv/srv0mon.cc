@@ -25,7 +25,6 @@ Database monitor counter interfaces
 Created 12/9/2009 Jimmy Yang
 *******************************************************/
 
-#ifndef UNIV_HOTBACKUP
 #include "buf0buf.h"
 #include "dict0mem.h"
 #include "ibuf0ibuf.h"
@@ -36,9 +35,6 @@ Created 12/9/2009 Jimmy Yang
 #include "srv0srv.h"
 #include "trx0rseg.h"
 #include "trx0sys.h"
-#ifdef UNIV_NONINL
-#include "srv0mon.ic"
-#endif
 
 /* Macro to standardize the counter names for counters in the
 "monitor_buf_page" module as they have very structured defines */
@@ -53,7 +49,6 @@ Created 12/9/2009 Jimmy Yang
 
 #define MONITOR_BUF_PAGE_WRITTEN(name, description, code)	\
 	 MONITOR_BUF_PAGE(name, description, code, "written", PAGE_WRITTEN)
-
 
 /** This array defines basic static information of monitor counters,
 including each monitor's name, module it belongs to, a short
@@ -302,6 +297,12 @@ static monitor_info_t	innodb_counter_info[] =
 	 static_cast<monitor_type_t>(
 	 MONITOR_EXISTING | MONITOR_DEFAULT_ON),
 	 MONITOR_DEFAULT_START, MONITOR_OVLD_PAGES_READ},
+
+	{"buffer_pages0_read", "buffer",
+	 "Number of page 0 read (innodb_pages0_read)",
+	 static_cast<monitor_type_t>(
+	 MONITOR_EXISTING | MONITOR_DEFAULT_ON),
+	 MONITOR_DEFAULT_START, MONITOR_OVLD_PAGES0_READ},
 
 	{"buffer_index_sec_rec_cluster_reads", "buffer",
 	 "Number of secondary record reads triggered cluster read",
@@ -985,41 +986,6 @@ static monitor_info_t	innodb_counter_info[] =
 	 MONITOR_NONE,
 	 MONITOR_DEFAULT_START, MONITOR_OVLD_PAGE_COMPRESS_SAVED},
 
-	{"compress_trim_sect512", "compression",
-	 "Number of sect-512 TRIMed by page compression",
-	 MONITOR_NONE,
-	 MONITOR_DEFAULT_START, MONITOR_OVLD_PAGE_COMPRESS_TRIM_SECT512},
-
-	{"compress_trim_sect1024", "compression",
-	 "Number of sect-1024 TRIMed by page compression",
-	 MONITOR_NONE,
-	 MONITOR_DEFAULT_START, MONITOR_OVLD_PAGE_COMPRESS_TRIM_SECT1024},
-
-	{"compress_trim_sect2048", "compression",
-	 "Number of sect-2048 TRIMed by page compression",
-	 MONITOR_NONE,
-	 MONITOR_DEFAULT_START, MONITOR_OVLD_PAGE_COMPRESS_TRIM_SECT2048},
-
-	{"compress_trim_sect4096", "compression",
-	 "Number of sect-4K TRIMed by page compression",
-	 MONITOR_NONE,
-	 MONITOR_DEFAULT_START, MONITOR_OVLD_PAGE_COMPRESS_TRIM_SECT4096},
-
-	{"compress_trim_sect8192", "compression",
-	 "Number of sect-8K TRIMed by page compression",
-	 MONITOR_NONE,
-	 MONITOR_DEFAULT_START, MONITOR_OVLD_PAGE_COMPRESS_TRIM_SECT8192},
-
-	{"compress_trim_sect16384", "compression",
-	 "Number of sect-16K TRIMed by page compression",
-	 MONITOR_NONE,
-	 MONITOR_DEFAULT_START, MONITOR_OVLD_PAGE_COMPRESS_TRIM_SECT16384},
-
-	{"compress_trim_sect32768", "compression",
-	 "Number of sect-32K TRIMed by page compression",
-	 MONITOR_NONE,
-	 MONITOR_DEFAULT_START, MONITOR_OVLD_PAGE_COMPRESS_TRIM_SECT32768},
-
 	{"compress_pages_page_compressed", "compression",
 	 "Number of pages compressed by page compression",
 	 MONITOR_NONE,
@@ -1029,11 +995,6 @@ static monitor_info_t	innodb_counter_info[] =
 	 "Number of TRIM operation performed by page compression",
 	 MONITOR_NONE,
 	 MONITOR_DEFAULT_START, MONITOR_OVLD_PAGE_COMPRESSED_TRIM_OP},
-
-	{"compress_page_compressed_trim_op_saved", "compression",
-	 "Number of TRIM operation saved by page compression",
-	 MONITOR_NONE,
-	 MONITOR_DEFAULT_START, MONITOR_OVLD_PAGE_COMPRESSED_TRIM_OP_SAVED},
 
 	{"compress_pages_page_decompressed", "compression",
 	 "Number of pages decompressed by page compression",
@@ -1088,8 +1049,9 @@ static monitor_info_t	innodb_counter_info[] =
 	 MONITOR_NONE,
 	 MONITOR_DEFAULT_START, MONITOR_INDEX_DISCARD},
 
+#ifdef BTR_CUR_HASH_ADAPT
 	/* ========== Counters for Adaptive Hash Index ========== */
-	{"module_adaptive_hash", "adaptive_hash_index", "Adpative Hash Index",
+	{"module_adaptive_hash", "adaptive_hash_index", "Adaptive Hash Index",
 	 MONITOR_MODULE,
 	 MONITOR_DEFAULT_START, MONITOR_MODULE_ADAPTIVE_HASH},
 
@@ -1098,6 +1060,7 @@ static monitor_info_t	innodb_counter_info[] =
 	 static_cast<monitor_type_t>(
 	 MONITOR_EXISTING | MONITOR_DEFAULT_ON),
 	 MONITOR_DEFAULT_START, MONITOR_OVLD_ADAPTIVE_HASH_SEARCH},
+#endif /* BTR_CUR_HASH_ADAPT */
 
 	{"adaptive_hash_searches_btree", "adaptive_hash_index",
 	 "Number of searches using B-tree on an index search",
@@ -1105,6 +1068,7 @@ static monitor_info_t	innodb_counter_info[] =
 	 MONITOR_EXISTING | MONITOR_DEFAULT_ON),
 	 MONITOR_DEFAULT_START, MONITOR_OVLD_ADAPTIVE_HASH_SEARCH_BTREE},
 
+#ifdef BTR_CUR_HASH_ADAPT
 	{"adaptive_hash_pages_added", "adaptive_hash_index",
 	 "Number of index pages on which the Adaptive Hash Index is built",
 	 MONITOR_NONE,
@@ -1136,6 +1100,7 @@ static monitor_info_t	innodb_counter_info[] =
 	 "Number of Adaptive Hash Index rows updated",
 	 MONITOR_NONE,
 	 MONITOR_DEFAULT_START, MONITOR_ADAPTIVE_HASH_ROW_UPDATED},
+#endif /* BTR_CUR_HASH_ADAPT */
 
 	/* ========== Counters for tablespace ========== */
 	{"module_file", "file_system", "Tablespace and File System Manager",
@@ -1780,6 +1745,11 @@ srv_mon_process_existing_counter(
 		value = stat.n_pages_read;
 		break;
 
+	/* innodb_pages0_read */
+	case MONITOR_OVLD_PAGES0_READ:
+		value = srv_stats.page0_read;
+		break;
+
 	/* Number of times secondary index lookup triggered cluster lookup */
 	case MONITOR_OVLD_INDEX_SEC_REC_CLUSTER_READS:
 		value = srv_stats.n_sec_rec_cluster_reads;
@@ -2053,9 +2023,11 @@ srv_mon_process_existing_counter(
 		value = log_sys->max_modified_age_sync;
 		break;
 
+#ifdef BTR_CUR_HASH_ADAPT
 	case MONITOR_OVLD_ADAPTIVE_HASH_SEARCH:
 		value = btr_cur_n_sea;
 		break;
+#endif /* BTR_CUR_HASH_ADAPT */
 
 	case MONITOR_OVLD_ADAPTIVE_HASH_SEARCH_BTREE:
 		value = btr_cur_n_non_sea;
@@ -2064,35 +2036,11 @@ srv_mon_process_existing_counter(
         case MONITOR_OVLD_PAGE_COMPRESS_SAVED:
 		value = srv_stats.page_compression_saved;
 		break;
-        case MONITOR_OVLD_PAGE_COMPRESS_TRIM_SECT512:
-		value = srv_stats.page_compression_trim_sect512;
-		break;
-       case MONITOR_OVLD_PAGE_COMPRESS_TRIM_SECT1024:
-		value = srv_stats.page_compression_trim_sect1024;
-		break;
-       case MONITOR_OVLD_PAGE_COMPRESS_TRIM_SECT2048:
-		value = srv_stats.page_compression_trim_sect2048;
-		break;
-        case MONITOR_OVLD_PAGE_COMPRESS_TRIM_SECT4096:
-		value = srv_stats.page_compression_trim_sect4096;
-		break;
-        case MONITOR_OVLD_PAGE_COMPRESS_TRIM_SECT8192:
-		value = srv_stats.page_compression_trim_sect8192;
-		break;
-        case MONITOR_OVLD_PAGE_COMPRESS_TRIM_SECT16384:
-		value = srv_stats.page_compression_trim_sect16384;
-		break;
-        case MONITOR_OVLD_PAGE_COMPRESS_TRIM_SECT32768:
-		value = srv_stats.page_compression_trim_sect32768;
-		break;
         case MONITOR_OVLD_PAGES_PAGE_COMPRESSED:
 		value = srv_stats.pages_page_compressed;
 		break;
         case MONITOR_OVLD_PAGE_COMPRESSED_TRIM_OP:
 		value = srv_stats.page_compressed_trim_op;
-		break;
-        case MONITOR_OVLD_PAGE_COMPRESSED_TRIM_OP_SAVED:
-		value = srv_stats.page_compressed_trim_op_saved;
 		break;
         case MONITOR_OVLD_PAGES_PAGE_DECOMPRESSED:
 		value = srv_stats.pages_page_decompressed;
@@ -2239,4 +2187,3 @@ srv_mon_default_on(void)
 		}
 	}
 }
-#endif /* !UNIV_HOTBACKUP */

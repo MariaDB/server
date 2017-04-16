@@ -32,7 +32,7 @@ COMMIT;
 UPDATE t1 SET a=1;
 
 connection default;
-# wait for purge to process the update_undo record.
+# wait for purge to process the update_undo record (in debug builds)
 --source include/wait_innodb_all_purged.inc
 
 CHECK TABLE t1;
@@ -118,7 +118,7 @@ COMMIT;
 disconnect con1;
 
 connection default;
-# wait for purge to process the update_undo record.
+# wait for purge to process the update_undo record (in debug builds)
 --source include/wait_innodb_all_purged.inc
 
 CHECK TABLE t1;

@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2016, 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -26,11 +27,6 @@ Created 4/20/1996 Heikki Tuuri
 #include "ha_prototypes.h"
 
 #include "row0ins.h"
-
-#ifdef UNIV_NONINL
-#include "row0ins.ic"
-#endif
-
 #include "dict0dict.h"
 #include "dict0boot.h"
 #include "trx0rec.h"
@@ -2086,7 +2082,7 @@ row_ins_scan_sec_index_for_duplicate(
 
 	btr_pcur_open(index, entry, PAGE_CUR_GE,
 		      s_latch
-		      ? BTR_SEARCH_LEAF | BTR_ALREADY_S_LATCHED
+		      ? BTR_SEARCH_LEAF_ALREADY_S_LATCHED
 		      : BTR_SEARCH_LEAF,
 		      &pcur, mtr);
 
@@ -2441,6 +2437,74 @@ row_ins_must_modify_rec(
 	       && !page_rec_is_infimum(btr_cur_get_rec(cursor)));
 }
 
+/** Insert the externally stored fields (off-page columns)
+of a clustered index entry.
+@param[in]	entry	index entry to insert
+@param[in]	big_rec	externally stored fields
+@param[in,out]	offsets	rec_get_offsets()
+@param[in,out]	heap	memory heap
+@param[in]	thd	client connection, or NULL
+@param[in]	index	clustered index
+@return	error code
+@retval	DB_SUCCESS
+@retval DB_OUT_OF_FILE_SPACE */
+static
+dberr_t
+row_ins_index_entry_big_rec(
+	const dtuple_t*		entry,
+	const big_rec_t*	big_rec,
+	ulint*			offsets,
+	mem_heap_t**		heap,
+#ifndef DBUG_OFF
+	const void*		thd,
+#endif /* DBUG_OFF */
+	dict_index_t*		index)
+{
+	mtr_t		mtr;
+	btr_pcur_t	pcur;
+	rec_t*		rec;
+	dberr_t		error;
+
+	ut_ad(dict_index_is_clust(index));
+
+	DEBUG_SYNC_C_IF_THD(thd, "before_row_ins_extern_latch");
+
+	mtr_start(&mtr);
+	mtr.set_named_space(index->space);
+	dict_disable_redo_if_temporary(index->table, &mtr);
+
+	btr_pcur_open(index, entry, PAGE_CUR_LE, BTR_MODIFY_TREE,
+		      &pcur, &mtr);
+	rec = btr_pcur_get_rec(&pcur);
+	offsets = rec_get_offsets(rec, index, offsets,
+				  ULINT_UNDEFINED, heap);
+
+	DEBUG_SYNC_C_IF_THD(thd, "before_row_ins_extern");
+	error = btr_store_big_rec_extern_fields(
+		&pcur, 0, offsets, big_rec, &mtr, BTR_STORE_INSERT);
+	DEBUG_SYNC_C_IF_THD(thd, "after_row_ins_extern");
+
+	if (error == DB_SUCCESS
+	    && dict_index_is_online_ddl(index)) {
+		row_log_table_insert(btr_pcur_get_rec(&pcur), entry,
+				     index, offsets);
+	}
+
+	mtr_commit(&mtr);
+
+	btr_pcur_close(&pcur);
+
+	return(error);
+}
+
+#ifdef DBUG_OFF
+# define row_ins_index_entry_big_rec(e,big,ofs,heap,index,thd) \
+	row_ins_index_entry_big_rec(e,big,ofs,heap,index)
+#else /* DBUG_OFF */
+# define row_ins_index_entry_big_rec(e,big,ofs,heap,index,thd) \
+	row_ins_index_entry_big_rec(e,big,ofs,heap,thd,index)
+#endif /* DBUG_OFF */
+
 /***************************************************************//**
 Tries to insert an entry into a clustered index, ignoring foreign key
 constraints. If a record with the same unique key is found, the other
@@ -2473,6 +2537,7 @@ row_ins_clust_index_entry_low(
 	dberr_t		err		= DB_SUCCESS;
 	big_rec_t*	big_rec		= NULL;
 	mtr_t		mtr;
+	ib_uint64_t	auto_inc	= 0;
 	mem_heap_t*	offsets_heap	= NULL;
 	ulint           offsets_[REC_OFFS_NORMAL_SIZE];
 	ulint*          offsets         = offsets_;
@@ -2487,7 +2552,6 @@ row_ins_clust_index_entry_low(
 	ut_ad(!thr_get_trx(thr)->in_rollback);
 
 	mtr_start(&mtr);
-	mtr.set_named_space(index->space);
 
 	if (dict_table_is_temporary(index->table)) {
 		/* Disable REDO logging as the lifetime of temp-tables is
@@ -2496,23 +2560,41 @@ row_ins_clust_index_entry_low(
 		Disable locking as temp-tables are local to a connection. */
 
 		ut_ad(flags & BTR_NO_LOCKING_FLAG);
+		ut_ad(!dict_index_is_online_ddl(index));
+		ut_ad(!index->table->persistent_autoinc);
 		mtr.set_log_mode(MTR_LOG_NO_REDO);
-	}
+	} else {
+		mtr.set_named_space(index->space);
 
-	if (mode == BTR_MODIFY_LEAF && dict_index_is_online_ddl(index)) {
-		mode = BTR_MODIFY_LEAF | BTR_ALREADY_S_LATCHED;
-		mtr_s_lock(dict_index_get_lock(index), &mtr);
+		if (mode == BTR_MODIFY_LEAF
+		    && dict_index_is_online_ddl(index)) {
+			mode = BTR_MODIFY_LEAF_ALREADY_S_LATCHED;
+			mtr_s_lock(dict_index_get_lock(index), &mtr);
+		}
+
+		if (unsigned ai = index->table->persistent_autoinc) {
+			/* Prepare to persist the AUTO_INCREMENT value
+			from the index entry to PAGE_ROOT_AUTO_INC. */
+			const dfield_t* dfield = dtuple_get_nth_field(
+				entry, ai - 1);
+			auto_inc = dfield_is_null(dfield)
+				? 0
+				: row_parse_int(static_cast<const byte*>(
+							dfield->data),
+						dfield->len,
+						dfield->type.mtype,
+						dfield->type.prtype
+						& DATA_UNSIGNED);
+		}
 	}
 
 	/* Note that we use PAGE_CUR_LE as the search mode, because then
 	the function will return in both low_match and up_match of the
 	cursor sensible values */
-	btr_pcur_open(index, entry, PAGE_CUR_LE, mode, &pcur, &mtr);
+	btr_pcur_open_low(index, 0, entry, PAGE_CUR_LE, mode, &pcur,
+			  __FILE__, __LINE__, auto_inc, &mtr);
 	cursor = btr_pcur_get_btr_cur(&pcur);
-
-	if (cursor) {
-		cursor->thr = thr;
-	}
+	cursor->thr = thr;
 
 #ifdef UNIV_DEBUG
 	{
@@ -2634,8 +2716,7 @@ err_exit:
 					LSN_MAX, TRUE););
 			err = row_ins_index_entry_big_rec(
 				entry, big_rec, offsets, &offsets_heap, index,
-				thr_get_trx(thr)->mysql_thd,
-				__FILE__, __LINE__);
+				thr_get_trx(thr)->mysql_thd);
 			dtuple_convert_back_big_rec(index, entry, big_rec);
 		} else {
 			if (err == DB_SUCCESS
@@ -2817,7 +2898,7 @@ row_ins_sec_index_entry_low(
 			rtr_info_update_btr(&cursor, &rtr_info);
 			mtr_start(&mtr);
 			mtr.set_named_space(index->space);
-			search_mode &= ~BTR_MODIFY_LEAF;
+			search_mode &= ulint(~BTR_MODIFY_LEAF);
 			search_mode |= BTR_MODIFY_TREE;
 			err = btr_cur_search_to_nth_level(
 				index, 0, entry, PAGE_CUR_RTREE_INSERT,
@@ -3052,61 +3133,6 @@ func_exit:
 }
 
 /***************************************************************//**
-Tries to insert the externally stored fields (off-page columns)
-of a clustered index entry.
-@return DB_SUCCESS or DB_OUT_OF_FILE_SPACE */
-dberr_t
-row_ins_index_entry_big_rec_func(
-/*=============================*/
-	const dtuple_t*		entry,	/*!< in/out: index entry to insert */
-	const big_rec_t*	big_rec,/*!< in: externally stored fields */
-	ulint*			offsets,/*!< in/out: rec offsets */
-	mem_heap_t**		heap,	/*!< in/out: memory heap */
-	dict_index_t*		index,	/*!< in: index */
-	const char*		file,	/*!< in: file name of caller */
-#ifndef DBUG_OFF
-	const void*		thd,    /*!< in: connection, or NULL */
-#endif /* DBUG_OFF */
-	ulint			line)	/*!< in: line number of caller */
-{
-	mtr_t		mtr;
-	btr_pcur_t	pcur;
-	rec_t*		rec;
-	dberr_t		error;
-
-	ut_ad(dict_index_is_clust(index));
-
-	DEBUG_SYNC_C_IF_THD(thd, "before_row_ins_extern_latch");
-
-	mtr_start(&mtr);
-	mtr.set_named_space(index->space);
-	dict_disable_redo_if_temporary(index->table, &mtr);
-
-	btr_pcur_open(index, entry, PAGE_CUR_LE, BTR_MODIFY_TREE,
-		      &pcur, &mtr);
-	rec = btr_pcur_get_rec(&pcur);
-	offsets = rec_get_offsets(rec, index, offsets,
-				  ULINT_UNDEFINED, heap);
-
-	DEBUG_SYNC_C_IF_THD(thd, "before_row_ins_extern");
-	error = btr_store_big_rec_extern_fields(
-		&pcur, 0, offsets, big_rec, &mtr, BTR_STORE_INSERT);
-	DEBUG_SYNC_C_IF_THD(thd, "after_row_ins_extern");
-
-	if (error == DB_SUCCESS
-	    && dict_index_is_online_ddl(index)) {
-		row_log_table_insert(btr_pcur_get_rec(&pcur), entry,
-				     index, offsets);
-	}
-
-	mtr_commit(&mtr);
-
-	btr_pcur_close(&pcur);
-
-	return(error);
-}
-
-/***************************************************************//**
 Inserts an entry into a clustered index. Tries first optimistic,
 then pessimistic descent down the tree. If the entry matches enough
 to a delete marked record, performs the insert by updating or delete
@@ -3143,7 +3169,7 @@ row_ins_clust_index_entry(
 	log_free_check();
 	const ulint	flags = dict_table_is_temporary(index->table)
 		? BTR_NO_LOCKING_FLAG
-		: 0;
+		: index->table->no_rollback() ? BTR_NO_ROLLBACK : 0;
 
 	err = row_ins_clust_index_entry_low(
 		flags, BTR_MODIFY_LEAF, index, n_uniq, entry,
@@ -3677,7 +3703,27 @@ row_ins_step(
 	table during the search operation, and there is no need to set
 	it again here. But we must write trx->id to node->trx_id_buf. */
 
-	memset(node->trx_id_buf, 0, DATA_TRX_ID_LEN);
+	if (node->table->no_rollback()) {
+		/* No-rollback tables should only be accessed by a
+		single thread at a time. Concurrency control (mutual
+		exclusion) must be guaranteed by the SQL layer. */
+		DBUG_ASSERT(node->table->n_ref_count == 1);
+		DBUG_ASSERT(node->ins_type == INS_DIRECT);
+		/* No-rollback tables can consist only of a single index. */
+		DBUG_ASSERT(UT_LIST_GET_LEN(node->entry_list) == 1);
+		DBUG_ASSERT(UT_LIST_GET_LEN(node->table->indexes) == 1);
+		/* There should be no possibility for interruption and
+		restarting here. In theory, we could allow resumption
+		from the INS_NODE_INSERT_ENTRIES state here. */
+		DBUG_ASSERT(node->state == INS_NODE_SET_IX_LOCK);
+		memset(node->trx_id_buf, 0, DATA_TRX_ID_LEN);
+		memset(node->row_id_buf, 0, DATA_ROW_ID_LEN);
+		node->index = dict_table_get_first_index(node->table);
+		node->entry = UT_LIST_GET_FIRST(node->entry_list);
+		node->state = INS_NODE_INSERT_ENTRIES;
+		goto do_insert;
+	}
+
 	trx_write_trx_id(node->trx_id_buf, trx->id);
 
 	if (node->state == INS_NODE_SET_IX_LOCK) {
@@ -3727,7 +3773,7 @@ same_trx:
 
 		return(thr);
 	}
-
+do_insert:
 	/* DO THE CHECKS OF THE CONSISTENCY CONSTRAINTS HERE */
 
 	err = row_ins(node, thr);

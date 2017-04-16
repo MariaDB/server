@@ -780,6 +780,7 @@ st_select_lex_unit *With_element::clone_parsed_spec(THD *thd,
     with_table->next_global= spec_tables;
   }
   res= &lex->unit;
+  res->set_with_clause(owner);
   
   lex->unit.include_down(with_table->select_lex);
   lex->unit.set_slave(with_select); 
@@ -1048,7 +1049,7 @@ bool TABLE_LIST::is_with_table_recursive_reference()
     false   otherwise
 */
 
-bool st_select_lex::check_unrestricted_recursive(bool only_standards_compliant)
+bool st_select_lex::check_unrestricted_recursive(bool only_standard_compliant)
 {
   With_element *with_elem= get_with_element();
   if (!with_elem ||!with_elem->is_recursive)
@@ -1077,9 +1078,9 @@ bool st_select_lex::check_unrestricted_recursive(bool only_standards_compliant)
                               with_elem->get_mutually_recursive());
 
   /* Report an error on unrestricted specification if this is required */
-  if (only_standards_compliant && with_elem->is_unrestricted())
+  if (only_standard_compliant && with_elem->is_unrestricted())
   {
-    my_error(ER_NOT_STANDARDS_COMPLIANT_RECURSIVE,
+    my_error(ER_NOT_STANDARD_COMPLIANT_RECURSIVE,
 	     MYF(0), with_elem->query_name->str);
     return true;
   }
@@ -1168,6 +1169,8 @@ bool With_element::check_unrestricted_recursive(st_select_lex *sel,
   ti.rewind();
   while ((tbl= ti++))
   {
+    if (!tbl->is_with_table_recursive_reference())
+      continue;
     for (TABLE_LIST *tab= tbl; tab; tab= tab->embedding)
     {
       if (tab->outer_join & (JOIN_TYPE_LEFT | JOIN_TYPE_RIGHT))
@@ -1246,6 +1249,12 @@ bool st_select_lex::check_subqueries_with_recursive_references()
 
 void With_clause::print(String *str, enum_query_type query_type)
 {
+  /*
+    Any with clause contains just definitions of CTE tables.
+    No data expansion is applied to these definitions.
+  */
+  query_type= (enum_query_type) (query_type | QT_NO_DATA_EXPANSION);
+
   str->append(STRING_WITH_LEN("with "));
   if (with_recursive)
     str->append(STRING_WITH_LEN("recursive "));
@@ -1253,9 +1262,9 @@ void With_clause::print(String *str, enum_query_type query_type)
        with_elem;
        with_elem= with_elem->next)
   {
-    with_elem->print(str, query_type);
     if (with_elem != with_list.first)
       str->append(", ");
+    with_elem->print(str, query_type);
   }
 }
 

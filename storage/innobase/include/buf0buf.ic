@@ -2,7 +2,7 @@
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, Google Inc.
-Copyright (c) 2014, 2016, MariaDB Corporation.
+Copyright (c) 2014, 2017, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -32,7 +32,6 @@ Created 11/5/1995 Heikki Tuuri
 *******************************************************/
 
 #include "mtr0mtr.h"
-#ifndef UNIV_HOTBACKUP
 #include "buf0flu.h"
 #include "buf0lru.h"
 #include "buf0rea.h"
@@ -72,12 +71,12 @@ buf_pool_get_curr_size(void)
 Calculates the index of a buffer pool to the buf_pool[] array.
 @return the position of the buffer pool in buf_pool[] */
 UNIV_INLINE
-ulint
+unsigned
 buf_pool_index(
 /*===========*/
 	const buf_pool_t*	buf_pool)	/*!< in: buffer pool */
 {
-	ulint	i = buf_pool - buf_pool_ptr;
+	unsigned	i = unsigned(buf_pool - buf_pool_ptr);
 	ut_ad(i < MAX_BUFFER_POOLS);
 	ut_ad(i < srv_buf_pool_instances);
 	return(i);
@@ -92,10 +91,8 @@ buf_pool_from_bpage(
 /*================*/
 	const buf_page_t*	bpage) /*!< in: buffer pool page */
 {
-	ulint	i;
-	i = bpage->buf_pool_index;
-	ut_ad(i < srv_buf_pool_instances);
-	return(&buf_pool_ptr[i]);
+	ut_ad(bpage->buf_pool_index < srv_buf_pool_instances);
+	return(&buf_pool_ptr[bpage->buf_pool_index]);
 }
 
 /******************************************************************//**
@@ -125,7 +122,7 @@ buf_pool_get_n_pages(void)
 Reads the freed_page_clock of a buffer block.
 @return freed_page_clock */
 UNIV_INLINE
-ulint
+unsigned
 buf_page_get_freed_page_clock(
 /*==========================*/
 	const buf_page_t*	bpage)	/*!< in: block */
@@ -138,7 +135,7 @@ buf_page_get_freed_page_clock(
 Reads the freed_page_clock of a buffer block.
 @return freed_page_clock */
 UNIV_INLINE
-ulint
+unsigned
 buf_block_get_freed_page_clock(
 /*===========================*/
 	const buf_block_t*	block)	/*!< in: block */
@@ -163,7 +160,7 @@ buf_page_peek_if_young(
 
 	/* FIXME: bpage->freed_page_clock is 31 bits */
 	return((buf_pool->freed_page_clock & ((1UL << 31) - 1))
-	       < ((ulint) bpage->freed_page_clock
+	       < (bpage->freed_page_clock
 		  + (buf_pool->curr_size
 		     * (BUF_LRU_OLD_RATIO_DIV - buf_pool->LRU_old_ratio)
 		     / (BUF_LRU_OLD_RATIO_DIV * 4))));
@@ -208,7 +205,6 @@ buf_page_peek_if_too_old(
 		return(!buf_page_peek_if_young(bpage));
 	}
 }
-#endif /* !UNIV_HOTBACKUP */
 
 /*********************************************************************//**
 Gets the state of a block.
@@ -385,7 +381,6 @@ buf_page_in_file(
 	return(FALSE);
 }
 
-#ifndef UNIV_HOTBACKUP
 /*********************************************************************//**
 Determines if a block should be on unzip_LRU list.
 @return TRUE if block belongs to unzip_LRU */
@@ -632,7 +627,7 @@ void
 buf_page_set_old(
 /*=============*/
 	buf_page_t*	bpage,	/*!< in/out: control block */
-	ibool		old)	/*!< in: old */
+	bool		old)	/*!< in: old */
 {
 #ifdef UNIV_DEBUG
 	buf_pool_t*	buf_pool = buf_pool_from_bpage(bpage);
@@ -717,7 +712,6 @@ buf_page_get_block(
 
 	return(NULL);
 }
-#endif /* !UNIV_HOTBACKUP */
 
 #ifdef UNIV_DEBUG
 /*********************************************************************//**
@@ -738,15 +732,10 @@ buf_block_get_frame(
 	case BUF_BLOCK_ZIP_PAGE:
 	case BUF_BLOCK_ZIP_DIRTY:
 	case BUF_BLOCK_NOT_USED:
-		if (block->page.encrypted) {
-			goto ok;
-		}
 		ut_error;
 		break;
 	case BUF_BLOCK_FILE_PAGE:
-# ifndef UNIV_HOTBACKUP
 		ut_a(block->page.buf_fix_count > 0);
-# endif /* !UNIV_HOTBACKUP */
 		/* fall through */
 	case BUF_BLOCK_READY_FOR_USE:
 	case BUF_BLOCK_MEMORY:
@@ -796,13 +785,12 @@ buf_ptr_get_fsp_addr(
 	addr->boffset = ut_align_offset(ptr, UNIV_PAGE_SIZE);
 }
 
-#ifndef UNIV_HOTBACKUP
 /**********************************************************************//**
 Gets the hash value of the page the pointer is pointing to. This can be used
 in searches in the lock hash table.
 @return lock hash value */
 UNIV_INLINE
-ulint
+unsigned
 buf_block_get_lock_hash_val(
 /*========================*/
 	const buf_block_t*	block)	/*!< in: block */
@@ -866,7 +854,6 @@ buf_block_free(
 
 	buf_pool_mutex_exit(buf_pool);
 }
-#endif /* !UNIV_HOTBACKUP */
 
 /*********************************************************************//**
 Copies contents of a buffer frame to a given buffer.
@@ -885,7 +872,6 @@ buf_frame_copy(
 	return(buf);
 }
 
-#ifndef UNIV_HOTBACKUP
 /********************************************************************//**
 Gets the youngest modification log sequence number for a frame.
 Returns zero if not file page or no modification occurred yet.
@@ -990,7 +976,7 @@ buf_block_buf_fix_inc_func(
 /*=======================*/
 #ifdef UNIV_DEBUG
 	const char*	file,	/*!< in: file name */
-	ulint		line,	/*!< in: line */
+	unsigned	line,	/*!< in: line */
 #endif /* UNIV_DEBUG */
 	buf_block_t*	block)	/*!< in/out: block to bufferfix */
 {
@@ -1460,5 +1446,3 @@ buf_pool_size_align(
 		return (ulint)((size / m + 1) * m);
 	}
 }
-
-#endif /* !UNIV_HOTBACKUP */

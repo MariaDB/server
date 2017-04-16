@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2005, 2016, Oracle and/or its affiliates. All rights reserved.
-   Copyright (c) 2014, 2016, MariaDB Corporation.
+   Copyright (c) 2014, 2017, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -51,6 +51,7 @@ The parts not included are excluded by #ifndef UNIV_INNOCHECKSUM. */
 #include "fut0lst.h"			/* FLST_NODE_SIZE */
 #include "buf0checksum.h"		/* buf_calc_page_*() */
 #include "fil0fil.h"			/* FIL_* */
+#include "fil0crypt.h"
 #include "os0file.h"
 #include "fsp0fsp.h"			/* fsp_flags_get_page_size() &
 					   fsp_flags_get_zip_size() */
@@ -59,12 +60,6 @@ The parts not included are excluded by #ifndef UNIV_INNOCHECKSUM. */
 #include "fsp0pagecompress.h"    /* fil_get_compression_alg_name */
 #include "ut0byte.h"
 #include "mach0data.h"
-
-#ifdef UNIV_NONINL
-# include "fsp0fsp.ic"
-# include "mach0data.ic"
-# include "ut0rnd.ic"
-#endif
 
 #ifndef PRIuMAX
 #define PRIuMAX   "llu"
@@ -564,9 +559,32 @@ is_page_corrupted(
 		}
 	}
 
-	is_corrupted = buf_page_is_corrupted(
-		true, buf, page_size, false, cur_page_num, strict_verify,
-		is_log_enabled, log_file);
+	/* FIXME: Read the page number from the tablespace header,
+	and check that every page carries the same page number. */
+
+	/* If page is encrypted, use different checksum calculation
+	as innochecksum can't decrypt pages. Note that some old InnoDB
+	versions did not initialize FIL_PAGE_FILE_FLUSH_LSN field
+	so if crypt checksum does not match we verify checksum using
+	normal method.
+	*/
+	if (mach_read_from_4(buf+FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION) != 0) {
+		is_corrupted = fil_space_verify_crypt_checksum(
+			const_cast<byte*>(buf), page_size,
+			strict_verify, is_log_enabled ? log_file : NULL,
+			mach_read_from_4(buf
+					 + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID),
+			cur_page_num);
+	} else {
+		is_corrupted = true;
+	}
+
+	if (is_corrupted) {
+		is_corrupted = buf_page_is_corrupted(
+			true, buf, page_size, NULL,
+			cur_page_num, strict_verify,
+			is_log_enabled, log_file);
+	}
 
 	return(is_corrupted);
 }
@@ -1312,10 +1330,8 @@ static struct my_option innochecksum_options[] = {
     0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"verbose", 'v', "Verbose (prints progress every 5 seconds).",
     &verbose, &verbose, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
-#ifndef DBUG_OFF
   {"debug", '#', "Output debug log. See " REFMAN "dbug-package.html",
     &dbug_setting, &dbug_setting, 0, GET_STR, OPT_ARG, 0, 0, 0, 0, 0, 0},
-#endif /* !DBUG_OFF */
   {"count", 'c', "Print the count of pages in the file and exits.",
     &just_count, &just_count, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"start_page", 's', "Start on this page number (0 based).",
@@ -1347,7 +1363,7 @@ static struct my_option innochecksum_options[] = {
    {"log", 'l', "log output.",
      &log_filename, &log_filename, 0,
       GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
-  {"leaf", 'l', "Examine leaf index pages",
+  {"leaf", 'e', "Examine leaf index pages",
     &do_leaf, &do_leaf, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"merge", 'm', "leaf page count if merge given number of consecutive pages",
    &n_merge, &n_merge, 0, GET_ULONG, REQUIRED_ARG, 0, 0, (longlong)10L, 0, 1, 0},
@@ -1377,7 +1393,7 @@ static void usage(void)
 	printf("Usage: %s [-c] [-s <start page>] [-e <end page>] "
 		"[-p <page>] [-v]  [-a <allow mismatches>] [-n] "
 		"[-C <strict-check>] [-w <write>] [-S] [-D <page type dump>] "
-		"[-l <log>] <filename or [-]>\n", my_progname);
+		"[-l <log>] [-e] <filename or [-]>\n", my_progname);
 	printf("See " REFMAN "innochecksum.html for usage hints.\n");
 	my_print_help(innochecksum_options);
 	my_print_variables(innochecksum_options);

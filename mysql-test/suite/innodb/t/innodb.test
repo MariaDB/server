@@ -1143,7 +1143,7 @@ CREATE TABLE t2 (col1 int(1),stamp TIMESTAMP,INDEX stamp_idx
 (stamp))ENGINE=InnoDB;
 insert into t1 values (1),(2),(3);
 # Note that timestamp 3 is wrong
-insert into t2 values (1, 20020204130000),(2, 20020204130000),(4,20020204310000 ),(5,20020204230000);
+insert ignore into t2 values (1, 20020204130000),(2, 20020204130000),(4,20020204310000 ),(5,20020204230000);
 SELECT col1 FROM t1 UNION SELECT col1 FROM t2 WHERE stamp <
 '20020204120000' GROUP BY col1;
 drop table t1,t2;
@@ -1463,15 +1463,18 @@ select * from t1;
 drop table t1;
 
 #
-# Test that update does not change internal auto-increment value
+# Test that update does change internal auto-increment value
 #
 
 create table t1 (a int not null auto_increment primary key, val int) engine=InnoDB;
 insert into t1 (val) values (1);
 update t1 set a=2 where a=1;
-# We should get the following error because InnoDB does not update the counter
+# This should insert 3, since the counter has been updated to 2 already
+insert into t1 (val) values (3);
+select * from t1;
+# We should get the following error because InnoDB does update the counter
 --error ER_DUP_ENTRY
-insert into t1 (val) values (1);
+insert into t1 values (2, 2);
 select * from t1;
 drop table t1;
 #

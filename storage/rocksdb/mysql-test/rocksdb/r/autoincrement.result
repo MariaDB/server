@@ -1,0 +1,1 @@
+# The test checks AUTO_INCREMENT capabilities that are not supported by RocksDB-SE.

@@ -1018,7 +1018,7 @@ CREATE TABLE `t21` (`a` text, `b` int not null,
 fulltext key (`a`), fulltext key (`a`)
 ) ENGINE=INNODB DEFAULT CHARSET=LATIN1;
 Warnings:
-Note	1831	Duplicate index 'a_2' defined on the table 'test.t21'. This is deprecated and will be disallowed in a future release
+Note	1831	Duplicate index `a_2`. This is deprecated and will be disallowed in a future release
 ALTER  TABLE `t21` ADD UNIQUE INDEX (`b`), ALGORITHM=INPLACE;
 ERROR 0A000: ALGORITHM=INPLACE is not supported. Reason: InnoDB presently supports one FULLTEXT index creation at a time. Try ALGORITHM=COPY
 ALTER  TABLE `t21` ADD UNIQUE INDEX (`b`);

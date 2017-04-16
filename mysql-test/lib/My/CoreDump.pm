@@ -53,9 +53,19 @@ sub _verify_binpath {
 sub _gdb {
   my ($core_name)= @_;
 
-  print "\nTrying 'gdb' to get a backtrace\n";
+  # Check that gdb exists
+  `gdb --version`;
+  if ($?) {
+    print "gdb not found, cannot get the stack trace\n";
+    return;
+  }
 
-  return unless -f $core_name;
+  if (-f $core_name) {
+    print "\nTrying 'gdb' to get a backtrace from coredump $core_name\n";
+  } else {
+    print "\nCoredump $core_name does not exist, cannot run 'gdb'\n";
+    return;
+  }
 
   # Find out name of binary that generated core
   `gdb -c '$core_name' --batch 2>&1` =~
@@ -261,11 +271,7 @@ sub show {
   # On Windows, rely on cdb to be there...
   if (IS_WINDOWS)
   {
-    # Starting cdb is unsafe when used with --parallel > 1 option 
-    if ( $parallel < 2 )
-    {
-      _cdb($core_name);
-    }
+    _cdb($core_name);
     return;
   }
   

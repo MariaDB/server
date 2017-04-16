@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
 
 /* Describe, check and repair of MARIA tables */
 
@@ -384,13 +384,13 @@ static struct my_option my_long_options[] =
     &check_param.read_buffer_length,
     &check_param.read_buffer_length, 0, GET_ULONG, REQUIRED_ARG,
     (long) READ_BUFFER_INIT, (long) MALLOC_OVERHEAD,
-    (long) ~0L, (long) MALLOC_OVERHEAD, (long) 1L, 0},
+    ~0ULL, (long) MALLOC_OVERHEAD, (long) 1L, 0},
   { "write_buffer_size", OPT_WRITE_BUFFER_SIZE,
     "Write buffer size for sequential writes during repair of fixed size or dynamic size rows",
     &check_param.write_buffer_length,
     &check_param.write_buffer_length, 0, GET_ULONG, REQUIRED_ARG,
     (long) READ_BUFFER_INIT, (long) MALLOC_OVERHEAD,
-    (long) ~0L, (long) MALLOC_OVERHEAD, (long) 1L, 0},
+    ~0UL, (long) MALLOC_OVERHEAD, (long) 1L, 0},
   { "sort_buffer_size", OPT_SORT_BUFFER_SIZE,
     "Size of sort buffer. Used by --recover",
     &check_param.sort_buffer_length,
@@ -1120,7 +1120,7 @@ static int maria_chk(HA_CHECK *param, char *filename)
        maria_test_if_almost_full(info) ||
        info->s->state.header.file_version[3] != maria_file_magic[3] ||
        (set_collation &&
-        set_collation->number != share->state.header.language)))
+        set_collation->number != share->base.language)))
   {
     if (set_collation)
       param->language= set_collation->number;
@@ -1275,7 +1275,7 @@ static int maria_chk(HA_CHECK *param, char *filename)
         mysql_file_close(info->dfile.file, MYF(MY_WME)); /* Close new file */
         error|=maria_change_to_newfile(filename,MARIA_NAME_DEXT,DATA_TMP_EXT,
                                        0, MYF(0));
-        if (_ma_open_datafile(info,info->s, NullS, -1))
+        if (_ma_open_datafile(info, info->s))
           error=1;
         param->out_flag&= ~O_NEW_DATA; /* We are using new datafile */
         param->read_cache.file= info->dfile.file;
@@ -1507,8 +1507,8 @@ static void descript(HA_CHECK *param, register MARIA_HA *info, char *name)
   printf("Crashsafe:           %s\n",
          share->base.born_transactional ? "yes" : "no");
   printf("Character set:       %s (%d)\n",
-	 get_charset_name(share->state.header.language),
-	 share->state.header.language);
+	 get_charset_name(share->base.language),
+         (int) share->base.language);
 
   if (param->testflag & T_VERBOSE)
   {

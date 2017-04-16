@@ -1956,5 +1956,91 @@ SELECT x FROM t1 WHERE id > (SELECT MAX(id) - 1000 FROM t1) ORDER BY x LIMIT 1;
 
 drop table t1;
 
+--echo #
+--echo # MDEV-7691: Assertion `outer_context || !*from_field || *from_field == not_found_field' ...
+--echo #
+set optimizer_switch=default;
+CREATE TABLE t1 (a INT) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (4),(6);
+ 
+CREATE TABLE t2 (b INT) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (1),(8);
+ 
+PREPARE stmt FROM "
+SELECT * FROM t2
+HAVING 0 IN (
+  SELECT a FROM t1
+  WHERE a IN ( 
+    SELECT a FROM t1
+    WHERE b = a
+  )
+)
+"; 
+ 
+EXECUTE stmt;
+EXECUTE stmt;
+
+--echo # Alternative test case, without HAVING
+CREATE TABLE t3 (i INT) ENGINE=MyISAM;
+INSERT INTO t3 VALUES (4),(6);
+ 
+PREPARE stmt FROM "
+SELECT * FROM t3 AS t10
+WHERE EXISTS ( 
+  SELECT * FROM t3 AS t20 WHERE t10.i IN ( 
+    SELECT i FROM t3 
+  ) 
+)";
+ 
+EXECUTE stmt;
+EXECUTE stmt;
+
+drop table t1, t2, t3;
+
+--echo #
+--echo # MDEV-11078: NULL NOT IN (non-empty subquery) should never return results
+--echo #
+
+create table t1(a int,b int);
+create table t2(a int,b int);
+insert into t1 value (1,2);
+select (NULL)  in (select 1 from t1);
+select (null)  in (select 1 from t2);
+select 1 in (select 1 from t1);
+select 1 in (select 1 from t2);
+select 1 from dual where null in (select 1 from t1);
+select 1 from dual where null in (select 1 from t2);
+select (null,null) in (select * from t1);
+select (null,null) in (select * from t2);
+select 1 from dual where null not in (select 1 from t1);
+select 1 from dual where null not in (select 1 from t2);
+drop table t1,t2;
+
+
+--echo #
+--echo # MDEV-6486: Assertion `!table || (!table->read_set || bitmap_is_set(table->read_set, field_index))'
+--echo # failed with SELECT SQ, TEXT field
+--echo #
+
+CREATE TABLE t1 (a VARCHAR(8), KEY(a)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES ('foo'),( 'bar');
+
+CREATE TABLE t2 (b VARCHAR(8), c TINYTEXT, KEY(b)) ENGINE=MyISAM;
+INSERT INTO t2 VALUES ('baz','baz'),('qux', 'qux');
+
+SELECT ( SELECT COUNT(*) FROM t1 WHERE a = c ) AS field, COUNT(DISTINCT c)
+FROM t2 WHERE b <= 'quux' GROUP BY field;
+drop table t1,t2;
+
 SET optimizer_switch= @@global.optimizer_switch;
 set @@tmp_table_size= @@global.tmp_table_size;
+
+--echo #
+--echo # MDEV-10232 Scalar result of subquery changes after adding an outer select stmt
+--echo #
+
+create table t1(c1 int, c2 int, primary key(c2));
+insert into t1 values(2,1),(1,2);
+select (select c1 from t1 group by c1,c2 order by c1 limit 1) as x;
+(select c1 from t1 group by c1,c2 order by c1 limit 1);
+drop table t1;

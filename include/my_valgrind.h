@@ -1,4 +1,4 @@
-/* Copyright (C) 2010 Monty Program Ab
+/* Copyright (C) 2010, 2017, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
 
 #ifdef HAVE_valgrind
 #define IF_VALGRIND(A,B) A
@@ -38,7 +38,7 @@
 #define TRASH_FILL(A,B,C) do{ const size_t trash_tmp __attribute__((unused)) = (B) ; MEM_CHECK_ADDRESSABLE(A,trash_tmp);MEM_UNDEFINED(A,trash_tmp);} while (0)
 #endif
 #define TRASH_ALLOC(A,B) TRASH_FILL(A,B,0xA5)
-#define TRASH_FREE(A,B) TRASH_FILL(A,B,0x8F)
+#define TRASH_FREE(A,B) TRASH_FILL(A,(size_t) (B),0x8F)
 #define TRASH(A,B) TRASH_FREE(A,B)
 
 # define DBUG_ASSERT_DEFINED(x) \

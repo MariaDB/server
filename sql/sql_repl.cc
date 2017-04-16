@@ -2205,6 +2205,7 @@ static int send_format_descriptor_event(binlog_send_info *info, IO_CACHE *log,
   THD *thd= info->thd;
   String *packet= info->packet;
   Log_event_type event_type;
+  DBUG_ENTER("send_format_descriptor_event");
 
   /**
    * 1) reset fdev before each log-file
@@ -2219,12 +2220,12 @@ static int send_format_descriptor_event(binlog_send_info *info, IO_CACHE *log,
   {
     info->errmsg= "Out of memory initializing format_description event";
     info->error= ER_MASTER_FATAL_ERROR_READING_BINLOG;
-    return 1;
+    DBUG_RETURN(1);
   }
 
   /* reset transmit packet for the event read from binary log file */
   if (reset_transmit_packet(info, info->flags, &ev_offset, &info->errmsg))
-    return 1;
+    DBUG_RETURN(1);
 
   /*
     Try to find a Format_description_log_event at the beginning of
@@ -2240,7 +2241,7 @@ static int send_format_descriptor_event(binlog_send_info *info, IO_CACHE *log,
   if (error)
   {
     set_read_error(info, error);
-    return 1;
+    DBUG_RETURN(1);
   }
 
   event_type= (Log_event_type)((uchar)(*packet)[LOG_EVENT_OFFSET+ev_offset]);
@@ -2261,7 +2262,7 @@ static int send_format_descriptor_event(binlog_send_info *info, IO_CACHE *log,
     sql_print_warning("Failed to find format descriptor event in "
                       "start of binlog: %s",
                       info->log_file_name);
-    return 1;
+    DBUG_RETURN(1);
   }
 
   info->current_checksum_alg= get_checksum_alg(packet->ptr() + ev_offset,
@@ -2281,7 +2282,7 @@ static int send_format_descriptor_event(binlog_send_info *info, IO_CACHE *log,
     sql_print_warning("Master is configured to log replication events "
                       "with checksum, but will not send such events to "
                       "slaves that cannot process them");
-    return 1;
+    DBUG_RETURN(1);
   }
 
   uint ev_len= packet->length() - ev_offset;
@@ -2295,7 +2296,7 @@ static int send_format_descriptor_event(binlog_send_info *info, IO_CACHE *log,
     info->error= ER_MASTER_FATAL_ERROR_READING_BINLOG;
     info->errmsg= "Corrupt Format_description event found "
         "or out-of-memory";
-    return 1;
+    DBUG_RETURN(1);
   }
   delete info->fdev;
   info->fdev= tmp;
@@ -2354,7 +2355,7 @@ static int send_format_descriptor_event(binlog_send_info *info, IO_CACHE *log,
   {
     info->errmsg= "Failed on my_net_write()";
     info->error= ER_UNKNOWN_ERROR;
-    return 1;
+    DBUG_RETURN(1);
   }
 
   /*
@@ -2374,7 +2375,7 @@ static int send_format_descriptor_event(binlog_send_info *info, IO_CACHE *log,
   if (error)
   {
     set_read_error(info, error);
-    return 1;
+    DBUG_RETURN(1);
   }
 
   event_type= (Log_event_type)((uchar)(*packet)[LOG_EVENT_OFFSET]);
@@ -2386,14 +2387,15 @@ static int send_format_descriptor_event(binlog_send_info *info, IO_CACHE *log,
     if (!sele)
     {
       info->error= ER_MASTER_FATAL_ERROR_READING_BINLOG;
-      return 1;
+      DBUG_RETURN(1);
     }
 
     if (info->fdev->start_decryption(sele))
     {
       info->error= ER_MASTER_FATAL_ERROR_READING_BINLOG;
       info->errmsg= "Could not decrypt binlog: encryption key error";
-      return 1;
+      delete sele;
+      DBUG_RETURN(1);
     }
     delete sele;
   }
@@ -2409,7 +2411,7 @@ static int send_format_descriptor_event(binlog_send_info *info, IO_CACHE *log,
 
 
   /** all done */
-  return 0;
+  DBUG_RETURN(0);
 }
 
 static bool should_stop(binlog_send_info *info)
@@ -2908,6 +2910,13 @@ err:
   THD_STAGE_INFO(thd, stage_waiting_to_finalize_termination);
   RUN_HOOK(binlog_transmit, transmit_stop, (thd, flags));
 
+  if (info->thd->killed == KILL_SLAVE_SAME_ID)
+  {
+    info->errmsg= "A slave with the same server_uuid/server_id as this slave "
+                  "has connected to the master";
+    info->error= ER_SLAVE_SAME_ID;
+  }
+
   const bool binlog_open = my_b_inited(&log);
   if (file >= 0)
   {
@@ -2919,7 +2928,8 @@ err:
   thd->variables.max_allowed_packet= old_max_allowed_packet;
   delete info->fdev;
 
-  if (info->error == ER_MASTER_FATAL_ERROR_READING_BINLOG && binlog_open)
+  if ((info->error == ER_MASTER_FATAL_ERROR_READING_BINLOG ||
+       info->error == ER_SLAVE_SAME_ID) && binlog_open)
   {
     /*
        detailing the fatal error message with coordinates
@@ -3030,7 +3040,16 @@ int start_slave(THD* thd , Master_info* mi,  bool net_report)
                                   relay_log_info_file, 0,
                                   &mi->cmp_connection_name);
 
-  lock_slave_threads(mi);  // this allows us to cleanly read slave_running
+  mi->lock_slave_threads();
+  if (mi->killed)
+  {
+    /* connection was deleted while we waited for lock_slave_threads */
+    mi->unlock_slave_threads();
+    my_error(WARN_NO_MASTER_INFO, mi->connection_name.length,
+             mi->connection_name.str);
+    DBUG_RETURN(-1);
+  }
+
   // Get a mask of _stopped_ threads
   init_thread_mask(&thread_mask,mi,1 /* inverse */);
 
@@ -3159,7 +3178,7 @@ int start_slave(THD* thd , Master_info* mi,  bool net_report)
 
       if (!slave_errno)
         slave_errno = start_slave_threads(thd,
-                                          0 /*no mutex */,
+                                          1,
                                           1 /* wait for start */,
                                           mi,
                                           master_info_file_tmp,
@@ -3175,7 +3194,7 @@ int start_slave(THD* thd , Master_info* mi,  bool net_report)
   }
 
 err:
-  unlock_slave_threads(mi);
+  mi->unlock_slave_threads();
   thd_proc_info(thd, 0);
 
   if (slave_errno)
@@ -3216,8 +3235,12 @@ int stop_slave(THD* thd, Master_info* mi, bool net_report )
     DBUG_RETURN(-1);
   THD_STAGE_INFO(thd, stage_killing_slave);
   int thread_mask;
-  lock_slave_threads(mi);
-  // Get a mask of _running_ threads
+  mi->lock_slave_threads();
+  /*
+    Get a mask of _running_ threads.
+    We don't have to test for mi->killed as the thread_mask will take care
+    of checking if threads exists
+  */
   init_thread_mask(&thread_mask,mi,0 /* not inverse*/);
   /*
     Below we will stop all running threads.
@@ -3230,8 +3253,7 @@ int stop_slave(THD* thd, Master_info* mi, bool net_report )
 
   if (thread_mask)
   {
-    slave_errno= terminate_slave_threads(mi,thread_mask,
-                                         1 /*skip lock */);
+    slave_errno= terminate_slave_threads(mi,thread_mask, 0 /* get lock */);
   }
   else
   {
@@ -3240,7 +3262,8 @@ int stop_slave(THD* thd, Master_info* mi, bool net_report )
     push_warning(thd, Sql_condition::WARN_LEVEL_NOTE, ER_SLAVE_WAS_NOT_RUNNING,
                  ER_THD(thd, ER_SLAVE_WAS_NOT_RUNNING));
   }
-  unlock_slave_threads(mi);
+
+  mi->unlock_slave_threads();
 
   if (slave_errno)
   {
@@ -3275,11 +3298,20 @@ int reset_slave(THD *thd, Master_info* mi)
   char relay_log_info_file_tmp[FN_REFLEN];
   DBUG_ENTER("reset_slave");
 
-  lock_slave_threads(mi);
+  mi->lock_slave_threads();
+  if (mi->killed)
+  {
+    /* connection was deleted while we waited for lock_slave_threads */
+    mi->unlock_slave_threads();
+    my_error(WARN_NO_MASTER_INFO, mi->connection_name.length,
+             mi->connection_name.str);
+    DBUG_RETURN(-1);
+  }
+
   init_thread_mask(&thread_mask,mi,0 /* not inverse */);
   if (thread_mask) // We refuse if any slave thread is running
   {
-    unlock_slave_threads(mi);
+    mi->unlock_slave_threads();
     my_error(ER_SLAVE_MUST_STOP, MYF(0), (int) mi->connection_name.length,
              mi->connection_name.str);
     DBUG_RETURN(ER_SLAVE_MUST_STOP);
@@ -3343,7 +3375,7 @@ int reset_slave(THD *thd, Master_info* mi)
 
   RUN_HOOK(binlog_relay_io, after_reset_slave, (thd, mi));
 err:
-  unlock_slave_threads(mi);
+  mi->unlock_slave_threads();
   if (error)
     my_error(sql_errno, MYF(0), errmsg);
   DBUG_RETURN(error);
@@ -3390,7 +3422,7 @@ void kill_zombie_dump_threads(uint32 slave_server_id)
       it will be slow because it will iterate through the list
       again. We just to do kill the thread ourselves.
     */
-    tmp->awake(KILL_QUERY);
+    tmp->awake(KILL_SLAVE_SAME_ID);
     mysql_mutex_unlock(&tmp->LOCK_thd_data);
   }
 }
@@ -3456,8 +3488,8 @@ bool change_master(THD* thd, Master_info* mi, bool *master_info_added)
 
   DBUG_ENTER("change_master");
 
-  mysql_mutex_assert_owner(&LOCK_active_mi);
   DBUG_ASSERT(master_info_index);
+  mysql_mutex_assert_owner(&LOCK_active_mi);
 
   *master_info_added= false;
   /* 
@@ -3477,7 +3509,16 @@ bool change_master(THD* thd, Master_info* mi, bool *master_info_added)
                                                      lex_mi->port))
     DBUG_RETURN(TRUE);
 
-  lock_slave_threads(mi);
+  mi->lock_slave_threads();
+  if (mi->killed)
+  {
+    /* connection was deleted while we waited for lock_slave_threads */
+    mi->unlock_slave_threads();
+    my_error(WARN_NO_MASTER_INFO, mi->connection_name.length,
+             mi->connection_name.str);
+    DBUG_RETURN(TRUE);
+  }
+
   init_thread_mask(&thread_mask,mi,0 /*not inverse*/);
   if (thread_mask) // We refuse if any slave thread is running
   {
@@ -3801,12 +3842,13 @@ bool change_master(THD* thd, Master_info* mi, bool *master_info_added)
     in-memory value at restart (thus causing errors, as the old relay log does
     not exist anymore).
   */
-  mi->rli.flush();
+  if (mi->rli.flush())
+    ret= 1;
   mysql_cond_broadcast(&mi->data_cond);
   mysql_mutex_unlock(&mi->rli.data_lock);
 
 err:
-  unlock_slave_threads(mi);
+  mi->unlock_slave_threads();
   if (ret == FALSE)
     my_ok(thd);
   DBUG_RETURN(ret);
@@ -3886,13 +3928,9 @@ bool mysql_show_binlog_events(THD* thd)
   {
     if (!lex_mi->connection_name.str)
       lex_mi->connection_name= thd->variables.default_master_connection;
-    mysql_mutex_lock(&LOCK_active_mi);
-    if (!master_info_index ||
-        !(mi= master_info_index->
-          get_master_info(&lex_mi->connection_name,
-                          Sql_condition::WARN_LEVEL_ERROR)))
+    if (!(mi= get_master_info(&lex_mi->connection_name,
+                              Sql_condition::WARN_LEVEL_ERROR)))
     {
-      mysql_mutex_unlock(&LOCK_active_mi);
       DBUG_RETURN(TRUE);
     }
     binary_log= &(mi->rli.relay_log);
@@ -3911,7 +3949,7 @@ bool mysql_show_binlog_events(THD* thd)
     if (mi)
     {
       /* We can unlock the mutex as we have a lock on the file */
-      mysql_mutex_unlock(&LOCK_active_mi);
+      mi->release();
       mi= 0;
     }
 
@@ -4044,7 +4082,7 @@ bool mysql_show_binlog_events(THD* thd)
     mysql_mutex_unlock(log_lock);
   }
   else if (mi)
-    mysql_mutex_unlock(&LOCK_active_mi);
+    mi->release();
 
   // Check that linfo is still on the function scope.
   DEBUG_SYNC(thd, "after_show_binlog_events");

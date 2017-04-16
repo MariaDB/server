@@ -1,0 +1,41 @@
+--source include/have_binlog_format_statement.inc
+
+--disable_query_log
+reset master; # get rid of previous tests binlog
+--enable_query_log
+
+--echo #
+--echo # MDEV-11815 SP variables of temporal data types do not replicate correctly
+--echo #
+
+CREATE TABLE t1(a INT);
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE i   INT          DEFAULT 123;
+  DECLARE b8  BIT(8)       DEFAULT 0x61;
+  DECLARE t0  TIME         DEFAULT '01:01:01';
+  DECLARE t6  TIME(6)      DEFAULT '01:01:01.123456';
+  DECLARE d   DATE         DEFAULT '2001-01-01';
+  DECLARE dt0 DATETIME     DEFAULT '2001-01-01 01:01:01';
+  DECLARE dt6 DATETIME(6)  DEFAULT '2001-01-01 01:01:01.123456';
+  DECLARE ts0 TIMESTAMP    DEFAULT '2001-01-01 01:01:01';
+  DECLARE ts6 TIMESTAMP(6) DEFAULT '2001-01-01 01:01:01.123456';
+  INSERT INTO t1 VALUES (i=0x61);
+  INSERT INTO t1 VALUES (b8=0x61);
+  INSERT INTO t1 VALUES (t0=10101);
+  INSERT INTO t1 VALUES (t6=10101);
+  INSERT INTO t1 VALUES (d=20010101);
+  INSERT INTO t1 VALUES (dt0=20010101010101);
+  INSERT INTO t1 VALUES (dt6=20010101010101);
+  INSERT INTO t1 VALUES (ts0=20010101010101);
+  INSERT INTO t1 VALUES (ts6=20010101010101);
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP TABLE t1;
+DROP PROCEDURE p1;
+
+--let $binlog_file = LAST
+source include/show_binlog_events.inc;

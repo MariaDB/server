@@ -11,16 +11,13 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
 
 #include "feedback.h"
 
 #ifdef HAVE_UNISTD_H
 #include <unistd.h>
 #endif
-
-#include <base64.h>
-#include <sha1.h>
 
 #if defined (_WIN32)
 #define HAVE_SYS_UTSNAME_H
@@ -43,7 +40,11 @@ static const char *get_os_version_name(OSVERSIONINFOEX *ver)
 {
   DWORD major = ver->dwMajorVersion;
   DWORD minor = ver->dwMinorVersion;
-
+  if (major == 10 && minor == 0)
+  {
+    return (ver->wProductType == VER_NT_WORKSTATION) ?
+      "Windows 10" : "Windows Server 2016";
+  }
   if (major == 6 && minor == 3)
   {
     return (ver->wProductType == VER_NT_WORKSTATION)?
@@ -102,7 +103,12 @@ static int uname(struct utsname *buf)
   if(version_str && version_str[0])
     sprintf(buf->version, "%s %s",version_str, ver.szCSDVersion);
   else
-    sprintf(buf->version, "%s", ver.szCSDVersion);
+  {
+    /* Fallback for unknown versions, e.g "Windows <major_ver>.<minor_ver>" */
+    sprintf(buf->version, "Windows %d.%d%s",
+      ver.dwMajorVersion, ver.dwMinorVersion,
+      (ver.wProductType == VER_NT_WORKSTATION ? "" : " Server"));
+  }
 
 #ifdef _WIN64
   strcpy(buf->machine, "x64");
@@ -409,7 +415,7 @@ int fill_collation_statistics(THD *thd, TABLE_LIST *tables)
 int calculate_server_uid(char *dest)
 {
   uchar rawbuf[2 + 6];
-  uchar shabuf[SHA1_HASH_SIZE];
+  uchar shabuf[MY_SHA1_HASH_SIZE];
 
   int2store(rawbuf, mysqld_port);
   if (my_gethwaddr(rawbuf + 2))
@@ -418,7 +424,7 @@ int calculate_server_uid(char *dest)
     return 1;
   }
 
-  compute_sha1_hash((uint8*) shabuf, (char*) rawbuf, sizeof(rawbuf));
+  my_sha1((uint8*) shabuf, (char*) rawbuf, sizeof(rawbuf));
 
   assert(my_base64_needed_encoded_length(sizeof(shabuf)) <= SERVER_UID_SIZE);
   my_base64_encode(shabuf, sizeof(shabuf), dest);

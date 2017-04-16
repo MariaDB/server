@@ -24,8 +24,8 @@ then
   sed -i -e '/Add support for verbose builds/,+2d' debian/rules
 
   # Don't include test suite package on Travis-CI to make the build time shorter
-  sed '/Package: mariadb-test-data/,+26d' -i debian/control
-  sed '/Package: mariadb-test/,+34d' -i debian/control
+  sed '/Package: mariadb-test-data/,+28d' -i debian/control
+  sed '/Package: mariadb-test/,+36d' -i debian/control
 fi
 
 
@@ -67,9 +67,19 @@ then
   sed 's/ --with systemd//' -i debian/rules
   sed '/systemd/d' -i debian/rules
   sed '/\.service/d' -i debian/rules
-  sed '/galera_new_cluster/d' -i debian/mariadb-server-10.2.install
-  sed '/galera_recovery/d' -i debian/mariadb-server-10.2.install
-  sed '/mariadb-service-convert/d' -i debian/mariadb-server-10.2.install
+  sed '/galera_new_cluster/d' -i debian/mariadb-server-10.3.install
+  sed '/galera_recovery/d' -i debian/mariadb-server-10.3.install
+  sed '/mariadb-service-convert/d' -i debian/mariadb-server-10.3.install
+fi
+
+# Convert gcc version to numberical value. Format is Mmmpp where M is Major
+# version, mm is minor version and p is patch.
+GCCVERSION=$(gcc -dumpversion | sed -e 's/\.\([0-9][0-9]\)/\1/g' -e 's/\.\([0-9]\)/0\1/g' -e 's/^[0-9]\{3,4\}$/&00/')
+# Don't build rocksdb package if gcc version is less than 4.8 or we are running on
+# x86 32 bit.
+if [[ $GCCVERSION -lt 40800 ]] || [[ $(arch) =~ i[346]86 ]]
+then
+  sed '/Package: mariadb-plugin-rocksdb/,+11d' -i debian/control
 fi
 
 # Adjust changelog, add new version

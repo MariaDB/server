@@ -166,7 +166,7 @@ run_test (void) {
 
         DB_BTREE_STAT64 s;
         r = db->stat64(db, NULL, &s); CKERR(r);
-        assert(s.bt_nkeys == 0);
+        assert(s.bt_nkeys == 1);
 
         r = db->close(db, 0);     CKERR(r);
 
@@ -176,7 +176,7 @@ run_test (void) {
         r = txn->commit(txn, 0);    CKERR(r);
 
         r = db->stat64(db, NULL, &s); CKERR(r);
-        assert(s.bt_nkeys == 0);
+        assert(s.bt_nkeys == 1);
     }
 
     // verify update callback overwrites the row

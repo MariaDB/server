@@ -2,7 +2,7 @@
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2009, Percona Inc.
-Copyright (c) 2013, 2016, MariaDB Corporation.
+Copyright (c) 2013, 2017, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted
 by Percona Inc.. Those modifications are
@@ -36,7 +36,8 @@ Created 10/21/1995 Heikki Tuuri
 #ifndef os0file_h
 #define os0file_h
 
-#include "univ.i"
+#include "page0size.h"
+#include "os0api.h"
 
 #ifndef _WIN32
 #include <dirent.h>
@@ -46,6 +47,7 @@ Created 10/21/1995 Heikki Tuuri
 
 /** File node of a tablespace or the log data space */
 struct fil_node_t;
+struct fil_space_t;
 
 extern bool	os_has_said_disk_full;
 
@@ -77,7 +79,7 @@ the OS actually supports it: Win 95 does not, NT does. */
 # define UNIV_NON_BUFFERED_IO
 
 /** File handle */
-# define os_file_t	HANDLE
+typedef HANDLE os_file_t;
 
 /** Convert a C file descriptor to a native file handle
 @param fd file descriptor
@@ -107,7 +109,7 @@ whole block gets written. This should be true even in most cases of a crash:
 if this fails for a log block, then it is equivalent to a media failure in the
 log. */
 
-#define OS_FILE_LOG_BLOCK_SIZE		512
+#define OS_FILE_LOG_BLOCK_SIZE		512U
 
 /** Options for os_file_create_func @{ */
 enum os_file_create_t {
@@ -169,333 +171,6 @@ static const ulint OS_FILE_OPERATION_NOT_SUPPORTED = 125;
 static const ulint OS_FILE_ERROR_MAX = 200;
 /* @} */
 
-/** Compression algorithm. */
-struct Compression {
-
-	/** Algorithm types supported */
-	enum Type {
-		/* Note: During recovery we don't have the compression type
-		because the .frm file has not been read yet. Therefore
-		we write the recovered pages out without compression. */
-
-		/** No compression */
-		NONE = 0,
-
-		/** Use ZLib */
-		ZLIB = 1,
-
-		/** Use LZ4 faster variant, usually lower compression. */
-		LZ4 = 2
-	};
-
-	/** Compressed page meta-data */
-	struct meta_t {
-
-		/** Version number */
-		uint8_t		m_version;
-
-		/** Algorithm type */
-		Type		m_algorithm;
-
-		/** Original page type */
-		uint16_t	m_original_type;
-
-		/** Original page size, before compression */
-		uint16_t	m_original_size;
-
-		/** Size after compression */
-		uint16_t	m_compressed_size;
-	};
-
-	/** Default constructor */
-	Compression() : m_type(NONE) { };
-
-	/** Specific constructor
-	@param[in]	type		Algorithm type */
-	explicit Compression(Type type)
-		:
-		m_type(type)
-	{
-#ifdef UNIV_DEBUG
-		switch (m_type) {
-		case NONE:
-		case ZLIB:
-		case LZ4:
-
-		default:
-			ut_error;
-		}
-#endif /* UNIV_DEBUG */
-	}
-
-	/** Check the page header type field.
-	@param[in]	page		Page contents
-	@return true if it is a compressed page */
-	static bool is_compressed_page(const byte* page)
-		MY_ATTRIBUTE((warn_unused_result));
-
-        /** Check wether the compression algorithm is supported.
-        @param[in]      algorithm       Compression algorithm to check
-        @param[out]     type            The type that algorithm maps to
-        @return DB_SUCCESS or error code */
-	static dberr_t check(const char* algorithm, Compression* type)
-		MY_ATTRIBUTE((warn_unused_result));
-
-        /** Validate the algorithm string.
-        @param[in]      algorithm       Compression algorithm to check
-        @return DB_SUCCESS or error code */
-	static dberr_t validate(const char* algorithm)
-		MY_ATTRIBUTE((warn_unused_result));
-
-        /** Convert to a "string".
-        @param[in]      type            The compression type
-        @return the string representation */
-        static const char* to_string(Type type)
-		MY_ATTRIBUTE((warn_unused_result));
-
-        /** Convert the meta data to a std::string.
-        @param[in]      meta		Page Meta data
-        @return the string representation */
-        static std::string to_string(const meta_t& meta)
-		MY_ATTRIBUTE((warn_unused_result));
-
-	/** Deserizlise the page header compression meta-data
-	@param[in]	header		Pointer to the page header
-	@param[out]	control		Deserialised data */
-	static void deserialize_header(
-		const byte*	page,
-		meta_t*		control);
-
-        /** Check if the string is "empty" or "none".
-        @param[in]      algorithm       Compression algorithm to check
-        @return true if no algorithm requested */
-	static bool is_none(const char* algorithm)
-		MY_ATTRIBUTE((warn_unused_result));
-
-	/** Decompress the page data contents. Page type must be
-	FIL_PAGE_COMPRESSED, if not then the source contents are
-	left unchanged and DB_SUCCESS is returned.
-	@param[in]	dblwr_recover	true of double write recovery
-					in progress
-	@param[in,out]	src		Data read from disk, decompressed
-					data will be copied to this page
-	@param[in,out]	dst		Scratch area to use for decompression
-	@param[in]	dst_len		Size of the scratch area in bytes
-	@return DB_SUCCESS or error code */
-	static dberr_t deserialize(
-		bool		dblwr_recover,
-		byte*		src,
-		byte*		dst,
-		ulint		dst_len)
-		MY_ATTRIBUTE((warn_unused_result));
-
-	/** Compression type */
-	Type		m_type;
-};
-
-/** Encryption key length */
-static const ulint ENCRYPTION_KEY_LEN = 32;
-
-/** Encryption magic bytes size */
-static const ulint ENCRYPTION_MAGIC_SIZE = 3;
-
-/** Encryption magic bytes for 5.7.11, it's for checking the encryption information
-version. */
-static const char ENCRYPTION_KEY_MAGIC_V1[] = "lCA";
-
-/** Encryption magic bytes for 5.7.12+, it's for checking the encryption information
-version. */
-static const char ENCRYPTION_KEY_MAGIC_V2[] = "lCB";
-
-/** Encryption master key prifix */
-static const char ENCRYPTION_MASTER_KEY_PRIFIX[] = "INNODBKey";
-
-/** Encryption master key prifix size */
-static const ulint ENCRYPTION_MASTER_KEY_PRIFIX_LEN = 9;
-
-/** Encryption master key prifix size */
-static const ulint ENCRYPTION_MASTER_KEY_NAME_MAX_LEN = 100;
-
-/** UUID of server instance, it's needed for composing master key name */
-static const ulint ENCRYPTION_SERVER_UUID_LEN = 36;
-
-/** Encryption information total size for 5.7.11: magic number + master_key_id +
-key + iv + checksum */
-static const ulint ENCRYPTION_INFO_SIZE_V1 = (ENCRYPTION_MAGIC_SIZE \
-					 + (ENCRYPTION_KEY_LEN * 2) \
-					 + 2 * sizeof(ulint));
-
-/** Encryption information total size: magic number + master_key_id +
-key + iv + server_uuid + checksum */
-static const ulint ENCRYPTION_INFO_SIZE_V2 = (ENCRYPTION_MAGIC_SIZE \
-					 + (ENCRYPTION_KEY_LEN * 2) \
-					 + ENCRYPTION_SERVER_UUID_LEN \
-					 + 2 * sizeof(ulint));
-
-class IORequest;
-
-/** Encryption algorithm. */
-struct Encryption {
-
-	/** Algorithm types supported */
-	enum Type {
-
-		/** No encryption */
-		NONE = 0,
-
-		/** Use AES */
-		AES = 1,
-	};
-
-	/** Encryption information format version */
-	enum Version {
-
-		/** Version in 5.7.11 */
-		ENCRYPTION_VERSION_1 = 0,
-
-		/** Version in > 5.7.11 */
-		ENCRYPTION_VERSION_2 = 1,
-	};
-
-	/** Default constructor */
-	Encryption() : m_type(NONE) { };
-
-	/** Specific constructor
-	@param[in]	type		Algorithm type */
-	explicit Encryption(Type type)
-		:
-		m_type(type)
-	{
-#ifdef UNIV_DEBUG
-		switch (m_type) {
-		case NONE:
-		case AES:
-
-		default:
-			ut_error;
-		}
-#endif /* UNIV_DEBUG */
-	}
-
-	/** Copy constructor */
-	Encryption(const Encryption& other)
-		:
-		m_type(other.m_type),
-		m_key(other.m_key),
-		m_klen(other.m_klen),
-		m_iv(other.m_iv)
-	{ };
-
-	/** Check if page is encrypted page or not
-	@param[in]	page	page which need to check
-	@return true if it is a encrypted page */
-	static bool is_encrypted_page(const byte* page)
-		MY_ATTRIBUTE((warn_unused_result));
-
-	/** Check the encryption option and set it
-	@param[in]	option		encryption option
-	@param[in/out]	encryption	The encryption type
-	@return DB_SUCCESS or DB_UNSUPPORTED */
-	dberr_t set_algorithm(const char* option, Encryption* type)
-		MY_ATTRIBUTE((warn_unused_result));
-
-        /** Validate the algorithm string.
-        @param[in]      algorithm       Encryption algorithm to check
-        @return DB_SUCCESS or error code */
-	static dberr_t validate(const char* algorithm)
-		MY_ATTRIBUTE((warn_unused_result));
-
-        /** Convert to a "string".
-        @param[in]      type            The encryption type
-        @return the string representation */
-        static const char* to_string(Type type)
-		MY_ATTRIBUTE((warn_unused_result));
-
-        /** Check if the string is "empty" or "none".
-        @param[in]      algorithm       Encryption algorithm to check
-        @return true if no algorithm requested */
-	static bool is_none(const char* algorithm)
-		MY_ATTRIBUTE((warn_unused_result));
-
-        /** Generate random encryption value for key and iv.
-        @param[in,out]	value	Encryption value */
-	static void random_value(byte* value);
-
-	/** Create new master key for key rotation.
-        @param[in,out]	master_key	master key */
-	static void create_master_key(byte** master_key);
-
-        /** Get master key by key id.
-        @param[in]	master_key_id	master key id
-	@param[in]	srv_uuid	uuid of server instance
-        @param[in,out]	master_key	master key */
-	static void get_master_key(ulint master_key_id,
-				   char* srv_uuid,
-				   byte** master_key);
-
-        /** Get current master key and key id.
-        @param[in,out]	master_key_id	master key id
-        @param[in,out]	master_key	master key
-        @param[in,out]	version		encryption information version */
-	static void get_master_key(ulint* master_key_id,
-				   byte** master_key,
-				   Encryption::Version*  version);
-
-	/** Encrypt the page data contents. Page type can't be
-	FIL_PAGE_ENCRYPTED, FIL_PAGE_COMPRESSED_AND_ENCRYPTED,
-	FIL_PAGE_ENCRYPTED_RTREE.
-	@param[in]	type		IORequest
-	@param[in,out]	src		page data which need to encrypt
-	@param[in]	src_len		Size of the source in bytes
-	@param[in,out]	dst		destination area
-	@param[in,out]	dst_len		Size of the destination in bytes
-	@return buffer data, dst_len will have the length of the data */
-	byte* encrypt(
-		const IORequest&	type,
-		byte*			src,
-		ulint			src_len,
-		byte*			dst,
-		ulint*			dst_len)
-		MY_ATTRIBUTE((warn_unused_result));
-
-	/** Decrypt the page data contents. Page type must be
-	FIL_PAGE_ENCRYPTED, FIL_PAGE_COMPRESSED_AND_ENCRYPTED,
-	FIL_PAGE_ENCRYPTED_RTREE, if not then the source contents are
-	left unchanged and DB_SUCCESS is returned.
-	@param[in]	type		IORequest
-	@param[in,out]	src		Data read from disk, decrypt
-					data will be copied to this page
-	@param[in]	src_len		source data length
-	@param[in,out]	dst		Scratch area to use for decrypt
-	@param[in]	dst_len		Size of the scratch area in bytes
-	@return DB_SUCCESS or error code */
-	dberr_t decrypt(
-		const IORequest&	type,
-		byte*			src,
-		ulint			src_len,
-		byte*			dst,
-		ulint			dst_len)
-		MY_ATTRIBUTE((warn_unused_result));
-
-	/** Encrypt type */
-	Type			m_type;
-
-	/** Encrypt key */
-	byte*			m_key;
-
-	/** Encrypt key length*/
-	ulint			m_klen;
-
-	/** Encrypt initial vector */
-	byte*			m_iv;
-
-	/** Current master key id */
-	static ulint		master_key_id;
-
-	/** Current uuid of server instance */
-	static char		uuid[ENCRYPTION_SERVER_UUID_LEN + 1];
-};
-
 /** Types for AIO operations @{ */
 
 /** No transformations during read/write, write as is. */
@@ -503,6 +178,8 @@ struct Encryption {
 #define IORequestWrite		IORequest(IORequest::WRITE)
 #define IORequestLogRead	IORequest(IORequest::LOG | IORequest::READ)
 #define IORequestLogWrite	IORequest(IORequest::LOG | IORequest::WRITE)
+
+
 
 /**
 The IO Context that is passed down to the low level IO code */
@@ -539,24 +216,16 @@ public:
 		/** Ignore failed reads of non-existent pages */
 		IGNORE_MISSING = 128,
 
-		/** Use punch hole if available, only makes sense if
-		compression algorithm != NONE. Ignored if not set */
+		/** Use punch hole if available*/
 		PUNCH_HOLE = 256,
-
-		/** Force raw read, do not try to compress/decompress.
-		This can be used to force a read and write without any
-		compression e.g., for redo log, merge sort temporary files
-		and the truncate redo log. */
-		NO_COMPRESSION = 512
-
 	};
 
 	/** Default constructor */
 	IORequest()
 		:
-		m_block_size(UNIV_SECTOR_SIZE),
-		m_type(READ),
-		m_compression()
+		m_bpage(NULL),
+		m_fil_node(NULL),
+		m_type(READ)
 	{
 		/* No op */
 	}
@@ -566,12 +235,27 @@ public:
 					ORed from the above enum */
 	explicit IORequest(ulint type)
 		:
-		m_block_size(UNIV_SECTOR_SIZE),
-		m_type(static_cast<uint16_t>(type)),
-		m_compression()
+		m_bpage(NULL),
+		m_fil_node(NULL),
+		m_type(static_cast<uint16_t>(type))
 	{
-		if (is_log()) {
-			disable_compression();
+		if (!is_punch_hole_supported()) {
+			clear_punch_hole();
+		}
+	}
+
+	/**
+	@param[in]	type		Request type, can be a value that is
+					ORed from the above enum
+	@param[in]	bpage		Page to be written */
+	IORequest(ulint type, buf_page_t* bpage)
+		:
+		m_bpage(bpage),
+		m_fil_node(NULL),
+		m_type(static_cast<uint16_t>(type))
+	{
+		if (bpage && buf_page_should_punch_hole(bpage)) {
+			set_punch_hole();
 		}
 
 		if (!is_punch_hole_supported()) {
@@ -617,6 +301,12 @@ public:
 		return((m_type & DO_NOT_WAKE) == 0);
 	}
 
+	/** Clear the punch hole flag */
+	void clear_punch_hole()
+	{
+		m_type &= ~PUNCH_HOLE;
+	}
+
 	/** @return true if partial read warning disabled */
 	bool is_partial_io_warning_disabled() const
 		MY_ATTRIBUTE((warn_unused_result))
@@ -649,9 +339,7 @@ public:
 	bool validate() const
 		MY_ATTRIBUTE((warn_unused_result))
 	{
-		ut_a(is_read() ^ is_write());
-
-		return(!is_read() || !punch_hole());
+		return(is_read() ^ is_write());
 	}
 
 	/** Set the punch hole flag */
@@ -668,32 +356,15 @@ public:
 		m_type &= ~DO_NOT_WAKE;
 	}
 
-	/** Clear the punch hole flag */
-	void clear_punch_hole()
+	/** Set the pointer to file node for IO
+	@param[in] node			File node */
+	void set_fil_node(fil_node_t* node)
 	{
-		m_type &= ~PUNCH_HOLE;
-	}
+		if (node && !fil_node_should_punch_hole(node)) {
+			clear_punch_hole();
+		}
 
-	/** @return the block size to use for IO */
-	ulint block_size() const
-		MY_ATTRIBUTE((warn_unused_result))
-	{
-		return(m_block_size);
-	}
-
-	/** Set the block size for IO
-	@param[in] block_size		Block size to set */
-	void block_size(ulint block_size)
-	{
-		m_block_size = static_cast<uint32_t>(block_size);
-	}
-
-	/** Clear all compression related flags */
-	void clear_compressed()
-	{
-		clear_punch_hole();
-
-		m_compression.m_type  = Compression::NONE;
+		m_fil_node = node;
 	}
 
 	/** Compare two requests
@@ -701,95 +372,6 @@ public:
 	bool operator==(const IORequest& rhs) const
 	{
 		return(m_type == rhs.m_type);
-	}
-
-	/** Set compression algorithm
-	@param[in] compression	The compression algorithm to use */
-	void compression_algorithm(Compression::Type type)
-	{
-		if (type == Compression::NONE) {
-			return;
-		}
-
-		set_punch_hole();
-
-		m_compression.m_type = type;
-	}
-
-	/** Get the compression algorithm.
-	@return the compression algorithm */
-	Compression compression_algorithm() const
-		MY_ATTRIBUTE((warn_unused_result))
-	{
-		return(m_compression);
-	}
-
-	/** @return true if the page should be compressed */
-	bool is_compressed() const
-		MY_ATTRIBUTE((warn_unused_result))
-	{
-		return(compression_algorithm().m_type != Compression::NONE);
-	}
-
-	/** @return true if the page read should not be transformed. */
-	bool is_compression_enabled() const
-		MY_ATTRIBUTE((warn_unused_result))
-	{
-		return((m_type & NO_COMPRESSION) == 0);
-	}
-
-	/** Disable transformations. */
-	void disable_compression()
-	{
-		m_type |= NO_COMPRESSION;
-	}
-
-	/** Set encryption algorithm
-	@param[in] type		The encryption algorithm to use */
-	void encryption_algorithm(Encryption::Type type)
-	{
-		if (type == Encryption::NONE) {
-			return;
-		}
-
-		m_encryption.m_type = type;
-	}
-
-	/** Set encryption key and iv
-	@param[in] key		The encryption key to use
-	@param[in] key_len	length of the encryption key
-	@param[in] iv		The encryption iv to use */
-	void encryption_key(byte* key,
-			    ulint key_len,
-			    byte* iv)
-	{
-		m_encryption.m_key = key;
-		m_encryption.m_klen = key_len;
-		m_encryption.m_iv = iv;
-	}
-
-	/** Get the encryption algorithm.
-	@return the encryption algorithm */
-	Encryption encryption_algorithm() const
-		MY_ATTRIBUTE((warn_unused_result))
-	{
-		return(m_encryption);
-	}
-
-	/** @return true if the page should be encrypted. */
-	bool is_encrypted() const
-		MY_ATTRIBUTE((warn_unused_result))
-	{
-		return(m_encryption.m_type != Encryption::NONE);
-	}
-
-	/** Clear all encryption related flags */
-	void clear_encrypted()
-	{
-		m_encryption.m_key = NULL;
-		m_encryption.m_klen = 0;
-		m_encryption.m_iv = NULL;
-		m_encryption.m_type = Encryption::NONE;
 	}
 
 	/** Note that the IO is for double write recovery. */
@@ -823,18 +405,41 @@ public:
 #endif /* HAVE_FALLOC_PUNCH_HOLE_AND_KEEP_SIZE || _WIN32 */
 	}
 
+	ulint get_trim_length(ulint write_length) const
+	{
+		return (m_bpage ?
+			buf_page_get_trim_length(m_bpage, write_length)
+			: 0);
+	}
+
+	bool should_punch_hole() const {
+		return (m_fil_node ?
+			fil_node_should_punch_hole(m_fil_node)
+			: false);
+	}
+
+	void space_no_punch_hole() const {
+		if (m_fil_node) {
+			fil_space_set_punch_hole(m_fil_node, false);
+		}
+	}
+
+	/** Free storage space associated with a section of the file.
+	@param[in]	fh		Open file handle
+	@param[in]	off		Starting offset (SEEK_SET)
+	@param[in]	len		Size of the hole
+	@return DB_SUCCESS or error code */
+	dberr_t punch_hole(os_file_t fh, os_offset_t off, ulint len);
+
 private:
-	/* File system best block size */
-	uint32_t		m_block_size;
+	/** Page to be written on write operation. */
+	buf_page_t*		m_bpage;
+
+	/** File node */
+	fil_node_t*		m_fil_node;
 
 	/** Request type bit flags */
 	uint16_t		m_type;
-
-	/** Compression algorithm */
-	Compression		m_compression;
-
-	/** Encryption algorithm */
-	Encryption		m_encryption;
 };
 
 /* @} */
@@ -918,7 +523,6 @@ struct os_file_stat_t {
 						if type == OS_FILE_TYPE_FILE */
 };
 
-#ifndef UNIV_HOTBACKUP
 /** Create a temporary file. This function is like tmpfile(3), but
 the temporary file is created in the given parameter path. If the path
 is null then it will create the file in the mysql server configuration
@@ -928,7 +532,6 @@ parameter (--tmpdir).
 FILE*
 os_file_create_tmpfile(
 	const char*	path);
-#endif /* !UNIV_HOTBACKUP */
 
 /** The os_file_opendir() function opens a directory stream corresponding to the
 directory named by the dirname argument. The directory stream is positioned
@@ -1199,10 +802,10 @@ The wrapper functions have the prefix of "innodb_". */
 # define os_file_close(file)						\
 	pfs_os_file_close_func(file, __FILE__, __LINE__)
 
-# define os_aio(type, mode, name, file, buf, offset,			\
-	n, read_only, message1, message2, wsize)			\
-	pfs_os_aio_func(type, mode, name, file, buf, offset,		\
-		n, read_only, message1, message2, wsize,		\
+# define os_aio(type, mode, name, file, buf, offset,		\
+	n, read_only, message1, message2)			\
+	pfs_os_aio_func(type, mode, name, file, buf, offset,	\
+		n, read_only, message1, message2,		\
 			__FILE__, __LINE__)
 
 # define os_file_read(type, file, buf, offset, n)			\
@@ -1214,7 +817,7 @@ The wrapper functions have the prefix of "innodb_". */
 
 # define os_file_write(type, name, file, buf, offset, n)	\
 	pfs_os_file_write_func(type, name, file, buf, offset,	\
-			       n, __FILE__, __LINE__)
+		n,__FILE__, __LINE__)
 
 # define os_file_flush(file)						\
 	pfs_os_file_flush_func(file, __FILE__, __LINE__)
@@ -1253,7 +856,7 @@ pfs_os_file_create_simple_func(
 	bool		read_only,
 	bool*		success,
 	const char*	src_file,
-	ulint		src_line)
+	uint		src_line)
 	MY_ATTRIBUTE((warn_unused_result));
 
 /** NOTE! Please use the corresponding macro
@@ -1284,7 +887,7 @@ pfs_os_file_create_simple_no_error_handling_func(
 	bool		read_only,
 	bool*		success,
 	const char*	src_file,
-	ulint		src_line)
+	uint		src_line)
 	MY_ATTRIBUTE((warn_unused_result));
 
 /** NOTE! Please use the corresponding macro os_file_create(), not directly
@@ -1318,7 +921,7 @@ pfs_os_file_create_func(
 	bool		read_only,
 	bool*		success,
 	const char*	src_file,
-	ulint		src_line)
+	uint		src_line)
 	MY_ATTRIBUTE((warn_unused_result));
 
 /** NOTE! Please use the corresponding macro os_file_close(), not directly
@@ -1333,7 +936,7 @@ bool
 pfs_os_file_close_func(
 	os_file_t	file,
 	const char*	src_file,
-	ulint		src_line);
+	uint		src_line);
 
 /** NOTE! Please use the corresponding macro os_file_read(), not directly
 this function!
@@ -1356,7 +959,7 @@ pfs_os_file_read_func(
 	os_offset_t	offset,
 	ulint		n,
 	const char*	src_file,
-	ulint		src_line);
+	uint		src_line);
 
 /** NOTE! Please use the corresponding macro os_file_read_no_error_handling(),
 not directly this function!
@@ -1382,7 +985,7 @@ pfs_os_file_read_no_error_handling_func(
 	ulint		n,
 	ulint*		o,
 	const char*	src_file,
-	ulint		src_line);
+	uint		src_line);
 
 /** NOTE! Please use the corresponding macro os_aio(), not directly this
 function!
@@ -1419,9 +1022,8 @@ pfs_os_aio_func(
 	bool		read_only,
 	fil_node_t*	m1,
 	void*		m2,
-	ulint*		wsize,
 	const char*	src_file,
-	ulint		src_line);
+	uint		src_line);
 
 /** NOTE! Please use the corresponding macro os_file_write(), not directly
 this function!
@@ -1447,7 +1049,7 @@ pfs_os_file_write_func(
 	os_offset_t	offset,
 	ulint		n,
 	const char*	src_file,
-	ulint		src_line);
+	uint		src_line);
 
 /** NOTE! Please use the corresponding macro os_file_flush(), not directly
 this function!
@@ -1463,7 +1065,7 @@ bool
 pfs_os_file_flush_func(
 	os_file_t	file,
 	const char*	src_file,
-	ulint		src_line);
+	uint		src_line);
 
 /** NOTE! Please use the corresponding macro os_file_rename(), not directly
 this function!
@@ -1482,7 +1084,7 @@ pfs_os_file_rename_func(
 	const char*	oldpath,
 	const char*	newpath,
 	const char*	src_file,
-	ulint		src_line);
+	uint		src_line);
 
 /**
 NOTE! Please use the corresponding macro os_file_delete(), not directly
@@ -1500,7 +1102,7 @@ pfs_os_file_delete_func(
 	mysql_pfs_key_t	key,
 	const char*	name,
 	const char*	src_file,
-	ulint		src_line);
+	uint		src_line);
 
 /**
 NOTE! Please use the corresponding macro os_file_delete_if_exists(), not
@@ -1520,7 +1122,7 @@ pfs_os_file_delete_if_exists_func(
 	const char*	name,
 	bool*		exist,
 	const char*	src_file,
-	ulint		src_line);
+	uint		src_line);
 
 #else /* UNIV_PFS_IO */
 
@@ -1544,9 +1146,9 @@ to original un-instrumented file I/O APIs */
 # define os_file_close(file)	os_file_close_func(file)
 
 # define os_aio(type, mode, name, file, buf, offset,			\
-	n, read_only, message1, message2, wsize)			\
+	n, read_only, message1, message2)			\
 	os_aio_func(type, mode, name, file, buf, offset,		\
-		n, read_only, message1, message2, wsize)
+		n, read_only, message1, message2)
 
 # define os_file_read(type, file, buf, offset, n)			\
 	os_file_read_func(type, file, buf, offset, n)
@@ -1554,7 +1156,7 @@ to original un-instrumented file I/O APIs */
 # define os_file_read_no_error_handling(type, file, buf, offset, n, o)	\
 	os_file_read_no_error_handling_func(type, file, buf, offset, n, o)
 
-# define os_file_write(type, name, file, buf, offset, n)		\
+# define os_file_write(type, name, file, buf, offset, n)	\
 	os_file_write_func(type, name, file, buf, offset, n)
 
 # define os_file_flush(file)	os_file_flush_func(file)
@@ -1568,14 +1170,6 @@ to original un-instrumented file I/O APIs */
 	os_file_delete_if_exists_func(name, exist)
 
 #endif	/* UNIV_PFS_IO */
-
-#ifdef UNIV_HOTBACKUP
-/** Closes a file handle.
-@param[in] file		handle to a file
-@return true if success */
-bool
-os_file_close_no_error_handling(os_file_t file);
-#endif /* UNIV_HOTBACKUP */
 
 /** Gets a file size.
 @param[in]	file		handle to a file
@@ -1825,8 +1419,7 @@ os_aio_func(
 	ulint		n,
 	bool		read_only,
 	fil_node_t*	m1,
-	void*		m2,
-	ulint*		wsize);
+	void*		m2);
 
 /** Wakes up all async i/o threads so that they know to exit themselves in
 shutdown. */
@@ -1842,12 +1435,16 @@ os_aio_wait_until_no_pending_writes();
 void
 os_aio_simulated_wake_handler_threads();
 
+#ifdef _WIN32
 /** This function can be called if one wants to post a batch of reads and
 prefers an i/o-handler thread to handle them all at once later. You must
 call os_aio_simulated_wake_handler_threads later to ensure the threads
 are not left sleeping! */
 void
 os_aio_simulated_put_read_threads_to_sleep();
+#else /* _WIN32 */
+# define os_aio_simulated_put_read_threads_to_sleep()
+#endif /* _WIN32 */
 
 /** This is the generic AIO handler interface function.
 Waits for an aio operation to complete. This function is used to wait the
@@ -1914,7 +1511,6 @@ os_file_get_status(
 	bool		check_rw_perm,
 	bool		read_only);
 
-#if !defined(UNIV_HOTBACKUP)
 /** Creates a temporary file in the location specified by the parameter
 path. If the path is NULL then it will be created on --tmpdir location.
 This function is defined in ha_innodb.cc.
@@ -1923,39 +1519,11 @@ This function is defined in ha_innodb.cc.
 int
 innobase_mysql_tmpfile(
 	const char*	path);
-#endif /* !UNIV_HOTBACKUP */
-
-
-/** If it is a compressed page return the compressed page data + footer size
-@param[in]	buf		Buffer to check, must include header + 10 bytes
-@return ULINT_UNDEFINED if the page is not a compressed page or length
-	of the compressed data (including footer) if it is a compressed page */
-ulint
-os_file_compressed_page_size(const byte* buf);
-
-/** If it is a compressed page return the original page data + footer size
-@param[in]	buf		Buffer to check, must include header + 10 bytes
-@return ULINT_UNDEFINED if the page is not a compressed page or length
-	of the original data + footer if it is a compressed page */
-ulint
-os_file_original_page_size(const byte* buf);
 
 /** Set the file create umask
 @param[in]	umask		The umask to use for file creation. */
 void
 os_file_set_umask(ulint umask);
-
-/** Free storage space associated with a section of the file.
-@param[in]	fh		Open file handle
-@param[in]	off		Starting offset (SEEK_SET)
-@param[in]	len		Size of the hole
-@return DB_SUCCESS or error code */
-dberr_t
-os_file_punch_hole(
-	os_file_t	fh,
-	os_offset_t	off,
-	os_offset_t	len)
-	MY_ATTRIBUTE((warn_unused_result));
 
 /** Check if the file system supports sparse files.
 
@@ -1974,21 +1542,29 @@ os_is_sparse_file_supported(
 	os_file_t	fh)
 	MY_ATTRIBUTE((warn_unused_result));
 
-/** Decompress the page data contents. Page type must be FIL_PAGE_COMPRESSED, if
-not then the source contents are left unchanged and DB_SUCCESS is returned.
-@param[in]	dblwr_recover	true of double write recovery in progress
-@param[in,out]	src		Data read from disk, decompressed data will be
-				copied to this page
-@param[in,out]	dst		Scratch area to use for decompression
-@param[in]	dst_len		Size of the scratch area in bytes
+/** Free storage space associated with a section of the file.
+@param[in]	fh		Open file handle
+@param[in]	off		Starting offset (SEEK_SET)
+@param[in]	len		Size of the hole
 @return DB_SUCCESS or error code */
-
 dberr_t
-os_file_decompress_page(
-	bool		dblwr_recover,
-	byte*		src,
-	byte*		dst,
-	ulint		dst_len)
+os_file_punch_hole(
+	IORequest&	type,
+	os_file_t	fh,
+	os_offset_t	off,
+	os_offset_t	len)
+	MY_ATTRIBUTE((warn_unused_result));
+
+/** Free storage space associated with a section of the file.
+@param[in]	fh		Open file handle
+@param[in]	off		Starting offset (SEEK_SET)
+@param[in]	len		Size of the hole
+@return DB_SUCCESS or error code */
+dberr_t
+os_file_punch_hole(
+	os_file_t	fh,
+	os_offset_t	off,
+	os_offset_t	len)
 	MY_ATTRIBUTE((warn_unused_result));
 
 /** Normalizes a directory path for the current OS:
@@ -2018,8 +1594,16 @@ is_absolute_path(
 	return(false);
 }
 
-#ifndef UNIV_NONINL
+/***********************************************************************//**
+Try to get number of bytes per sector from file system.
+@return	file block size */
+UNIV_INTERN
+ulint
+os_file_get_block_size(
+/*===================*/
+	os_file_t	file,	/*!< in: handle to a file */
+	const char*	name);	/*!< in: file name */
+
 #include "os0file.ic"
-#endif /* UNIV_NONINL */
 
 #endif /* os0file_h */

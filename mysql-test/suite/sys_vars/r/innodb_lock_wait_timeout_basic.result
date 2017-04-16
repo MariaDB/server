@@ -99,7 +99,7 @@ Warnings:
 Warning	1292	Truncated incorrect innodb_lock_wait_timeout value: '-1024'
 SELECT @@global.innodb_lock_wait_timeout;
 @@global.innodb_lock_wait_timeout
-1
+0
 SET @@global.innodb_lock_wait_timeout=1073741825;
 Warnings:
 Warning	1292	Truncated incorrect innodb_lock_wait_timeout value: '1073741825'
@@ -131,7 +131,7 @@ Warnings:
 Warning	1292	Truncated incorrect innodb_lock_wait_timeout value: '-1024'
 SELECT @@session.innodb_lock_wait_timeout;
 @@session.innodb_lock_wait_timeout
-1
+0
 SET @@session.innodb_lock_wait_timeout=1073999999;
 Warnings:
 Warning	1292	Truncated incorrect innodb_lock_wait_timeout value: '1073999999'

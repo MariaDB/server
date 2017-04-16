@@ -1,0 +1,80 @@
+--source include/have_rocksdb.inc
+
+--disable_warnings
+drop table if exists t1;
+--enable_warnings
+
+#
+# First set sampling rate to 100% and make sure that the baseline is
+# correct and we get the correct number of rows as a result.
+#
+SET @ORIG_PCT = @@ROCKSDB_TABLE_STATS_SAMPLING_PCT;
+SET @@global.ROCKSDB_TABLE_STATS_SAMPLING_PCT = 100;
+
+create table t1 (pk int primary key) engine=rocksdb;
+
+--disable_query_log
+let $i = 0;
+let $n = 10000;
+
+while ($i < $n)
+{
+  inc $i;
+  eval insert t1(pk) values($i);
+}
+--enable_query_log
+
+set global rocksdb_force_flush_memtable_now = true;
+
+# This should return 10K rows.
+select table_rows from information_schema.tables
+where table_schema = database() and table_name = 't1';
+
+let $t1_len = `select data_length from information_schema.tables where table_schema = database() and table_name = 't1'`;
+
+drop table t1;
+
+--disable_warnings
+drop table if exists t2;
+--enable_warnings
+
+#
+# Now, set the sampling rate to 10% and expect to see the same amount of
+# rows.
+#
+SET @@global.ROCKSDB_TABLE_STATS_SAMPLING_PCT = 10;
+
+create table t2 (pk int primary key) engine=rocksdb;
+
+--disable_query_log
+let $i = 0;
+let $n = 10000;
+
+while ($i < $n)
+{
+  inc $i;
+  eval insert t2(pk) values($i);
+}
+--enable_query_log
+
+set global rocksdb_force_flush_memtable_now = true;
+
+# This should return 10K rows as well.
+select table_rows from information_schema.tables
+where table_schema = database() and table_name = 't2';
+
+let $t2_len = `select data_length from information_schema.tables where table_schema = database() and table_name = 't2'`;
+let $diff = `select abs($t1_len - $t2_len)`;
+
+#
+# Table sizes are approximations and for this particular case we allow about
+# 10% deviation.
+#
+if ($diff < 6000) {
+  select table_name from information_schema.tables where table_schema = database() and table_name = 't2';
+}
+
+drop table t2;
+
+SET GLOBAL ROCKSDB_TABLE_STATS_SAMPLING_PCT = @ORIG_PCT;
+

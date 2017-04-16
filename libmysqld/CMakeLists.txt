@@ -30,6 +30,8 @@ ${SSL_INTERNAL_INCLUDE_DIRS}
 SET(GEN_SOURCES
 ${CMAKE_BINARY_DIR}/sql/sql_yacc.h 
 ${CMAKE_BINARY_DIR}/sql/sql_yacc.cc
+${CMAKE_BINARY_DIR}/sql/sql_yacc_ora.h
+${CMAKE_BINARY_DIR}/sql/sql_yacc_ora.cc
 ${CMAKE_BINARY_DIR}/sql/lex_hash.h 
 )
 
@@ -56,7 +58,7 @@ SET(SQL_EMBEDDED_SOURCES emb_qcache.cc libmysqld.c lib_sql.cc
            ../sql/net_serv.cc ../sql/opt_range.cc ../sql/opt_sum.cc 
            ../sql/parse_file.cc ../sql/procedure.cc ../sql/protocol.cc 
            ../sql/records.cc ../sql/repl_failsafe.cc ../sql/rpl_filter.cc
-           ../sql/rpl_record.cc ../sql/sha2.cc ../sql/des_key_file.cc
+           ../sql/rpl_record.cc ../sql/des_key_file.cc
            ../sql/rpl_injector.cc ../sql/set_var.cc ../sql/spatial.cc 
            ../sql/sp_cache.cc ../sql/sp.cc ../sql/sp_head.cc 
            ../sql/sp_pcontext.cc ../sql/sp_rcontext.cc ../sql/sql_acl.cc 
@@ -111,6 +113,8 @@ SET(SQL_EMBEDDED_SOURCES emb_qcache.cc libmysqld.c lib_sql.cc
            ../sql/wsrep_dummy.cc ../sql/encryption.cc
            ../sql/item_windowfunc.cc ../sql/sql_window.cc
            ../sql/sql_cte.cc
+           ../sql/sql_sequence.cc ../sql/sql_sequence.h
+           ../sql/ha_sequence.cc ../sql/ha_sequence.h
            ../sql/temporary_tables.cc
            ../sql/session_tracker.cc
            ${GEN_SOURCES}

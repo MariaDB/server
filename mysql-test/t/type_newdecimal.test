@@ -50,13 +50,13 @@ drop table t1;
 #
 
 create table t1 (a decimal(4,2));
-insert into t1 value (10000), (1.1e10), ("11111"), (100000.1);
-insert into t1 value (-10000), (-1.1e10), ("-11111"), (-100000.1);
+insert ignore into t1 value (10000), (1.1e10), ("11111"), (100000.1);
+insert ignore into t1 value (-10000), (-1.1e10), ("-11111"), (-100000.1);
 select a from t1;
 drop table t1;
 create table t1 (a decimal(4,2) unsigned);
-insert into t1 value (10000), (1.1e10), ("11111"), (100000.1);
-insert into t1 value (-10000), (-1.1e10), ("-11111"), (-100000.1);
+insert ignore into t1 value (10000), (1.1e10), ("11111"), (100000.1);
+insert ignore into t1 value (-10000), (-1.1e10), ("-11111"), (-100000.1);
 select a from t1;
 drop table t1;
 
@@ -65,21 +65,21 @@ drop table t1;
 # saving in field with overflow from decimal
 #
 create table t1 (a bigint);
-insert into t1 values (18446744073709551615.0);
-insert into t1 values (9223372036854775808.0);
-insert into t1 values (-18446744073709551615.0);
+insert ignore into t1 values (18446744073709551615.0);
+insert ignore into t1 values (9223372036854775808.0);
+insert ignore into t1 values (-18446744073709551615.0);
 select * from t1;
 drop table t1;
 create table t1 (a bigint unsigned);
 insert into t1 values (18446744073709551615.0);
 insert into t1 values (9223372036854775808.0);
-insert into t1 values (9999999999999999999999999.000);
-insert into t1 values (-1.0);
+insert ignore into t1 values (9999999999999999999999999.000);
+insert ignore into t1 values (-1.0);
 select * from t1;
 drop table t1;
 create table t1 (a tinyint);
-insert into t1 values (18446744073709551615.0);
-insert into t1 values (9223372036854775808.0);
+insert ignore into t1 values (18446744073709551615.0);
+insert ignore into t1 values (9223372036854775808.0);
 select * from t1;
 drop table t1;
 
@@ -1738,12 +1738,39 @@ SHOW CREATE TABLE t1;
 DROP TABLE t1;
 
 --echo #
+--echo # Bug#18408499 UNSIGNED BIGINT HIGH VALUES 
+--echo #              WRONG NUMERICAL COMPARISON RESULTS
+--echo #
+
+CREATE TABLE t1(value DECIMAL(24,0) NOT NULL);
+INSERT INTO t1(value) 
+VALUES('100000000000000000000001'),
+      ('100000000000000000000002'), 
+      ('100000000000000000000003');
+SELECT * FROM t1 WHERE value = '100000000000000000000002';
+SELECT * FROM t1 WHERE '100000000000000000000002' = value;
+SELECT * FROM t1 WHERE value + 0 = '100000000000000000000002';
+SELECT * FROM t1 WHERE value = 100000000000000000000002;
+SELECT * FROM t1 WHERE value + 0 = 100000000000000000000002;
+
+PREPARE stmt FROM 'SELECT * FROM t1 WHERE value = ?';
+set @a="100000000000000000000002";
+EXECUTE stmt using @a;
+set @a=100000000000000000000002;
+EXECUTE stmt using @a;
+DEALLOCATE PREPARE stmt;
+
+ALTER TABLE t1 ADD INDEX value (value);
+SELECT * FROM t1 WHERE value = '100000000000000000000002';
+DROP TABLE t1;
+
+--echo #
 --echo # End of 10.1 tests
 --echo #
 
 --echo #
 --echo # Test CREATE .. SELECT
---echo
+--echo #
 
 create or replace table t1 as select 1.000000000000000000000000000000000 as a;
 show create table t1;

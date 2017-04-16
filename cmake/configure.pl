@@ -165,19 +165,24 @@ foreach my $option (@ARGV)
     $cmakeargs = $cmakeargs." -DWITH_LIBEVENT=bundled";
     next;
   }
-  if($option =~ /with-ssl=/)
+  if($option =~ /with-ssl=yes/)
   {
     $cmakeargs = $cmakeargs." -DWITH_SSL=yes";
+    next;
+  }
+  if($option =~ /with-ssl=system/)
+  {
+    $cmakeargs = $cmakeargs." -DWITH_SSL=system";
+    next;
+  }
+  if($option =~ /with-ssl$/)
+  {
+    $cmakeargs = $cmakeargs." -DWITH_SSL=bundled";
     next;
   }
   if($option =~ /with-debug/)
   {
     $cmakeargs = $cmakeargs." -DCMAKE_BUILD_TYPE=Debug -DSECURITY_HARDENED=OFF";
-    next;
-  }
-  if($option =~ /with-ssl/)
-  {
-    $cmakeargs = $cmakeargs." -DWITH_SSL=bundled";
     next;
   }
   if($option =~ /prefix=/)

@@ -26,9 +26,6 @@
 #define STANDARD_LENGTH 37
 #define MYISAM_KEYS 6
 #define MAX_PARTS 4
-#if !defined(labs)
-#define labs(a) abs(a)
-#endif
 
 static void get_options(int argc, char *argv[]);
 static uint rnd(uint max_value);

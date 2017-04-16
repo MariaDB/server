@@ -1,6 +1,8 @@
 --source include/have_debug.inc
 --source include/have_debug_sync.inc
 
+call mtr.add_suppression("Sort aborted.*");
+
 set @save_debug_dbug= @@debug_dbug;
 
 # check that change debug_dbug visible in SELECT

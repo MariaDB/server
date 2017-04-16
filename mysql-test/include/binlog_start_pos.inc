@@ -21,8 +21,8 @@
 #
 ##############################################################################
 
-let $binlog_start_pos=256;
 --disable_query_log
-SET @binlog_start_pos=256;
+set @binlog_start_pos=256 + @@encrypt_binlog * (36 + (@@binlog_checksum != 'NONE') * 4);
 --enable_query_log
+let $binlog_start_pos=`select @binlog_start_pos`;
 

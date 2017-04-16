@@ -176,7 +176,7 @@ void key_copy(uchar *to_key, uchar *from_record, KEY *key_info,
   @param key_length  specifies length of all keyparts that will be restored
 */
 
-void key_restore(uchar *to_record, uchar *from_key, KEY *key_info,
+void key_restore(uchar *to_record, const uchar *from_key, KEY *key_info,
                  uint key_length)
 {
   uint length;
@@ -465,19 +465,8 @@ void key_unpack(String *to, TABLE *table, KEY *key)
 
 bool is_key_used(TABLE *table, uint idx, const MY_BITMAP *fields)
 {
-  bitmap_clear_all(&table->tmp_set);
-  table->mark_columns_used_by_index_no_reset(idx, &table->tmp_set);
-  if (bitmap_is_overlapping(&table->tmp_set, fields))
-    return 1;
-
-  /*
-    If table handler has primary key as part of the index, check that primary
-    key is not updated
-  */
-  if (idx != table->s->primary_key && table->s->primary_key < MAX_KEY &&
-      (table->file->ha_table_flags() & HA_PRIMARY_KEY_IN_READ_INDEX))
-    return is_key_used(table, table->s->primary_key, fields);
-  return 0;
+  table->mark_columns_used_by_index(idx, &table->tmp_set);
+  return bitmap_is_overlapping(&table->tmp_set, fields);
 }
 
 

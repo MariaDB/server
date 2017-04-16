@@ -8227,7 +8227,7 @@ drop procedure if exists p;
 set @old_mode= @@sql_mode;
 set @@sql_mode= cast(pow(2,32)-1 as unsigned integer);
 select @@sql_mode into @full_mode;
-create procedure p() begin end;
+create procedure p() as begin end;
 call p();
 set @@sql_mode= @old_mode;
 # Rename SQL modes that differ in name between the server and the table definition.
@@ -9291,6 +9291,57 @@ CALL p1;
 DROP PROCEDURE p1;
 DROP TABLE t1;
 
+--echo #
+--echo # MDEV-10713: signal 11 error on multi-table update - crash in
+--echo # handler::increment_statistics or in make_select or assertion
+--echo # failure pfs_thread == ((PFS_thread*) pthread_getspecific((THR_PFS)))
+--echo #
+
+CREATE TABLE `t1` (
+  `CLOSE_YN` varchar(10) COLLATE utf8_bin DEFAULT NULL
+) DEFAULT CHARSET=utf8 COLLATE=utf8_bin ;
+
+
+CREATE TABLE `t2` (
+  `ap_close_to` varchar(8) COLLATE utf8_bin DEFAULT NULL
+) DEFAULT CHARSET=utf8 COLLATE=utf8_bin ;
+insert t1 values (1);
+
+
+--delimiter $$
+
+CREATE  FUNCTION `f1`(`P_DC_CD` VARBINARY(50), `P_SYS_DATE` DATETIME) RETURNS datetime
+    DETERMINISTIC
+    SQL SECURITY INVOKER
+BEGIN
+  DECLARE V_SYS_DATE DATETIME;
+  SELECT now() AS LOC_DATE INTO V_SYS_DATE ;
+  RETURN v_sys_date ;
+END $$
+
+--delimiter ;
+
+update t1 S
+JOIN
+(
+  SELECT CASE
+           WHEN DATE_FORMAT( f1('F01', NOW()) , '%Y%m%d') <= CLOSE_YMD
+             THEN '99991231'
+	     ELSE '' END ACCOUNT_APPLY_YYYYMMDD
+  FROM (
+        select case
+                 when 'AP'='AP'
+                   then ap_close_to
+                   end AS CLOSE_YMD
+	from t2
+       ) A
+) X
+SET S.CLOSE_YN = ''
+where 1=1;
+
+drop function if exists f1;
+drop table t1,t2;
+
 --echo # End of 5.5 test
 
 --echo #
@@ -9360,6 +9411,46 @@ drop procedure p1;
 
 drop table t1,t2,t3,t4,t5,t6;
 
+--echo #
+--echo # MDEV-11935: Queries in stored procedures with and
+--echo # EXISTS(SELECT * FROM VIEW) crashes and closes hte conneciton.
+--echo #
+
+CREATE TABLE ANY_TABLE (
+  ENTITY_UID    BIGINT NOT NULL
+);
+CREATE TABLE SECURITY_PATH(
+origid BIGINT UNSIGNED NOT NULL,
+destid BIGINT UNSIGNED NOT NULL,
+KEY (destid)
+);
+CREATE VIEW ENTITY_ACCESS (
+ENTITY_UID,
+OWNER_UID
+) AS
+SELECT SP1.origid,
+       SP2.destid
+FROM SECURITY_PATH SP1
+JOIN SECURITY_PATH SP2 ON SP1.destid = SP2.origid
+;
+--delimiter //
+CREATE PROCEDURE SP_EXAMPLE_SELECT ()
+BEGIN
+   SELECT *
+   FROM ANY_TABLE AT1
+   WHERE EXISTS ( SELECT *
+                  FROM ENTITY_ACCESS EA
+                  WHERE AT1.ENTITY_UID = EA.ENTITY_UID
+                  AND   EA.OWNER_UID IS NULL );
+END
+//
+--delimiter ;
+CALL SP_EXAMPLE_SELECT ();
+CALL SP_EXAMPLE_SELECT ();
+
+drop procedure SP_EXAMPLE_SELECT;
+drop view ENTITY_ACCESS;
+drop table ANY_TABLE, SECURITY_PATH;
 --echo # End of 10.0 test
 
 DELIMITER |;
@@ -9448,6 +9539,20 @@ end |
 drop table t1,t2;
 
 --echo #
+--echo # MDEV-11584: GRANT inside an SP does not work well on 2nd execution
+--echo #
+
+CREATE PROCEDURE sp1()
+  GRANT ALL PRIVILEGES ON *.* TO 'foo'@'%' IDENTIFIED BY 'pass';
+CALL sp1();
+CALL sp1();
+drop user 'foo'@'%';
+drop procedure sp1;
+
+
+--echo #End of 10.1 tests
+
+--echo #
 --echo # MDEV-11081: CURSOR for query with GROUP BY
 --echo #
 
@@ -9484,3 +9589,116 @@ CALL p1();
 DROP PROCEDURE p1;
 DROP TABLE t1;
 
+--echo #
+--echo # Start of 10.3 tests
+--echo #
+
+--echo #
+--echo # MDEV-12007 Allow ROW variables as a cursor FETCH target
+--echo #
+
+
+--echo # The cursor and the ROW variable in FETCH must have the same number of fields
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE done INT DEFAULT FALSE;
+  DECLARE rec ROW(aa INT, bb VARCHAR(32), cc INT);
+  DECLARE cur CURSOR FOR SELECT 10 AS a,'b10' AS b;
+  DECLARE CONTINUE HANDLER FOR NOT FOUND SET done = TRUE;
+  OPEN cur;
+read_loop:
+  LOOP
+    FETCH cur INTO rec;
+    IF done THEN
+      LEAVE read_loop;
+    END IF;
+  END LOOP;
+  CLOSE cur;
+END;
+$$
+DELIMITER ;$$
+--error ER_SP_WRONG_NO_OF_FETCH_ARGS
+CALL p1();
+DROP PROCEDURE p1;
+
+
+--echo # Multiple ROW variables in FETCH
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE done INT DEFAULT FALSE;
+  DECLARE rec1 ROW(aa INT);
+  DECLARE rec2 ROW(aa INT);
+  DECLARE cur CURSOR FOR SELECT 10 AS a, 20 AS b;
+  DECLARE CONTINUE HANDLER FOR NOT FOUND SET done = TRUE;
+  OPEN cur;
+read_loop:
+  LOOP
+    FETCH cur INTO rec1, rec2;
+    IF done THEN
+      LEAVE read_loop;
+    END IF;
+  END LOOP;
+  CLOSE cur;
+END;
+$$
+DELIMITER ;$$
+--error ER_OPERAND_COLUMNS
+CALL p1();
+DROP PROCEDURE p1;
+
+
+--echo # A complete working example
+CREATE TABLE t1 (a INT, b VARCHAR(32));
+INSERT INTO t1 VALUES (10,'b10');
+INSERT INTO t1 VALUES (20,'b20');
+INSERT INTO t1 VALUES (30,'b30');
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE done INT DEFAULT FALSE;
+  DECLARE rec ROW(aa INT, bb VARCHAR(32));
+  DECLARE cur CURSOR FOR SELECT a,b FROM t1;
+  DECLARE CONTINUE HANDLER FOR NOT FOUND SET done = TRUE;
+  OPEN cur;
+read_loop:
+  LOOP
+    FETCH cur INTO rec;
+    IF done THEN
+      LEAVE read_loop;
+    END IF;
+    SELECT CONCAT('rec=(',rec.aa,',',rec.bb,')') AS c;
+  END LOOP;
+  CLOSE cur;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+
+--echo # A ROW variable with a single field
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE done INT DEFAULT FALSE;
+  DECLARE rec ROW(aa INT);
+  DECLARE cur CURSOR FOR SELECT 10 AS a UNION SELECT 20;
+  DECLARE CONTINUE HANDLER FOR NOT FOUND SET done = TRUE;
+  OPEN cur;
+read_loop:
+  LOOP
+    FETCH cur INTO rec;
+    IF done THEN
+      LEAVE read_loop;
+    END IF;
+    SELECT CONCAT('rec=(',rec.aa,')') AS c;
+  END LOOP;
+  CLOSE cur;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+DROP PROCEDURE p1;

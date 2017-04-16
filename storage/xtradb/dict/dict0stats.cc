@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2009, 2015, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2009, 2016, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -708,7 +708,10 @@ void
 dict_stats_copy(
 /*============*/
 	dict_table_t*		dst,	/*!< in/out: destination table */
-	const dict_table_t*	src)	/*!< in: source table */
+	const dict_table_t*	src,	/*!< in: source table */
+	bool reset_ignored_indexes)	/*!< in: if true, set ignored indexes
+                                             to have the same statistics as if 
+                                             the table was empty */
 {
 	dst->stats_last_recalc = src->stats_last_recalc;
 	dst->stat_n_rows = src->stat_n_rows;
@@ -727,7 +730,16 @@ dict_stats_copy(
 	      && (src_idx = dict_table_get_next_index(src_idx)))) {
 
 		if (dict_stats_should_ignore_index(dst_idx)) {
-			continue;
+			if (reset_ignored_indexes) {
+				/* Reset index statistics for all ignored indexes,
+				unless they are FT indexes (these have no statistics)*/
+				if (dst_idx->type & DICT_FTS) {
+					continue;
+				}
+				dict_stats_empty_index(dst_idx, true);
+			} else {
+				continue;
+			}
 		}
 
 		ut_ad(!dict_index_is_univ(dst_idx));
@@ -827,7 +839,7 @@ dict_stats_snapshot_create(
 
 	t = dict_stats_table_clone_create(table);
 
-	dict_stats_copy(t, table);
+	dict_stats_copy(t, table, false);
 
 	t->stat_persistent = table->stat_persistent;
 	t->stats_auto_recalc = table->stats_auto_recalc;
@@ -1149,7 +1161,8 @@ dict_stats_analyze_index_level(
 		them away) which brings non-determinism. We skip only
 		leaf-level delete marks because delete marks on
 		non-leaf level do not make sense. */
-		if (level == 0 &&
+
+		if (level == 0 && srv_stats_include_delete_marked? 0:
 		    rec_get_deleted_flag(
 			    rec,
 			    page_is_comp(btr_pcur_get_page(&pcur)))) {
@@ -1335,8 +1348,12 @@ enum page_scan_method_t {
 				the given page and count the number of
 				distinct ones, also ignore delete marked
 				records */
-	QUIT_ON_FIRST_NON_BORING/* quit when the first record that differs
+	QUIT_ON_FIRST_NON_BORING,/* quit when the first record that differs
 				from its right neighbor is found */
+	COUNT_ALL_NON_BORING_INCLUDE_DEL_MARKED/* scan all records on
+				the given page and count the number of
+				distinct ones, include delete marked
+				records */
 };
 /* @} */
 
@@ -1612,6 +1629,8 @@ dict_stats_analyze_index_below_cur(
 
 	offsets_rec = dict_stats_scan_page(
 		&rec, offsets1, offsets2, index, page, n_prefix,
+		srv_stats_include_delete_marked ?
+		COUNT_ALL_NON_BORING_INCLUDE_DEL_MARKED:
 		COUNT_ALL_NON_BORING_AND_SKIP_DEL_MARKED, n_diff,
 		n_external_pages);
 
@@ -3319,13 +3338,10 @@ dict_stats_update(
 
 			dict_table_stats_lock(table, RW_X_LATCH);
 
-			/* Initialize all stats to dummy values before
-			copying because dict_stats_table_clone_create() does
-			skip corrupted indexes so our dummy object 't' may
-			have less indexes than the real object 'table'. */
-			dict_stats_empty_table(table, true);
-
-			dict_stats_copy(table, t);
+			/* Pass reset_ignored_indexes=true as parameter
+			to dict_stats_copy. This will cause statictics
+			for corrupted indexes to be set to empty values */
+			dict_stats_copy(table, t, true);
 
 			dict_stats_assert_initialized(table);
 

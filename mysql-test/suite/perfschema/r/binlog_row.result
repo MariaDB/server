@@ -35,10 +35,16 @@ master-bin.000001	#	Query	#	#	use `test`; create table test.t1 (thread_id intege
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
 master-bin.000001	#	Query	#	#	use `test`; create table test.t2 (name varchar(128))
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	insert into test.t1
+select thread_id from performance_schema.events_waits_current
 master-bin.000001	#	Table_map	#	#	table_id: # (test.t1)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	insert into test.t2
+select name from performance_schema.setup_instruments
+where name like "wait/synch/rwlock/sql/%"
+    and name not in ("wait/synch/rwlock/sql/CRYPTO_dynlock_value::lock")
 master-bin.000001	#	Table_map	#	#	table_id: # (test.t2)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT

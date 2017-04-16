@@ -82,6 +82,9 @@ public class JdbcInterface {
 		  System.out.println("URL=" + parms[1]);
 	    
 	    CheckURL(parms[1], null);
+	    
+	    // This is required for drivers using context class loaders
+	    Thread.currentThread().setContextClassLoader(getClass().getClassLoader());
 	      
     	if (parms[2] != null && !parms[2].isEmpty()) {
   	      if (DEBUG)
@@ -220,6 +223,19 @@ public class JdbcInterface {
     	
     } // end of SetTimestampParm
     
+    public int SetNullParm(int i, int typ) {
+    	int rc = 0;
+    	
+    	try {
+    		pstmt.setNull(i, typ);
+    	} catch (Exception e) {
+    		SetErrmsg(e);
+    		rc = -1;
+    	} // end try/catch
+    	
+    	return rc;
+    } // end of SetNullParm
+    
     public int ExecutePrep() {
         int n = -3;
         
@@ -339,6 +355,18 @@ public class JdbcInterface {
       
       return m;
     } // end of GetMaxValue
+    
+    public String GetQuoteString() {
+      String qs = null;
+      
+      try {
+        qs = dbmd.getIdentifierQuoteString();
+      } catch(SQLException se) {
+    	SetErrmsg(se);  
+      } // end try/catch
+      
+      return qs;
+    } // end of GetQuoteString
     
     public int GetColumns(String[] parms) {
       int ncol = -1;
@@ -680,11 +708,11 @@ public class JdbcInterface {
 	  return 0;  
 	} // end of TimestampField
     
-    public String ObjectField(int n, String name) {
+    public Object ObjectField(int n, String name) {
 	  if (rs == null) {
 		System.out.println("No result set");
 	  } else try {
-	    return (n > 0) ? rs.getObject(n).toString() : rs.getObject(name).toString();
+	    return (n > 0) ? rs.getObject(n) : rs.getObject(name);
 	  } catch (SQLException se) {
 		SetErrmsg(se);
 	  } //end try/catch

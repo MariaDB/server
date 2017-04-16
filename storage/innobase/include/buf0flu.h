@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2014, 2016, MariaDB Corporation
+Copyright (c) 2014, 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -30,7 +30,6 @@ Created 11/5/1995 Heikki Tuuri
 #include "univ.i"
 #include "ut0byte.h"
 #include "log0log.h"
-#ifndef UNIV_HOTBACKUP
 #include "buf0types.h"
 
 /** Flag indicating if the page_cleaner is in active state. */
@@ -77,7 +76,6 @@ void
 buf_flush_write_complete(
 /*=====================*/
 	buf_page_t*	bpage);	/*!< in: pointer to the block in question */
-#endif /* !UNIV_HOTBACKUP */
 /** Initialize a page for writing to the tablespace.
 @param[in]	block		buffer block; NULL if bypassing the buffer pool
 @param[in,out]	page		page frame
@@ -90,9 +88,8 @@ buf_flush_init_for_writing(
 	byte*			page,
 	void*			page_zip_,
 	lsn_t			newest_lsn,
-	bool			skip_checksum);
+	bool			skip_checksum = false);
 
-#ifndef UNIV_HOTBACKUP
 # if defined UNIV_DEBUG || defined UNIV_IBUF_DEBUG
 /********************************************************************//**
 Writes a flushable page asynchronously from the buffer pool to a file.
@@ -127,7 +124,6 @@ buf_flush_do_batch(
 	ulint			min_n,
 	lsn_t			lsn_limit,
 	flush_counters_t*	n);
-
 
 /** This utility flushes dirty blocks from the end of the flush list of all
 buffer pool instances.
@@ -256,26 +252,13 @@ DECLARE_THREAD(buf_flush_page_cleaner_worker)(
 /*==========================================*/
 	void*	arg);		/*!< in: a dummy parameter required by
 				os_thread_create */
-/******************************************************************//**
-Initialize page_cleaner. */
+/** Initialize page_cleaner. */
 void
 buf_flush_page_cleaner_init(void);
-/*=============================*/
-/*********************************************************************//**
-Clears up tail of the LRU lists:
-* Put replaceable pages at the tail of LRU to the free list
-* Flush dirty pages at the tail of LRU to the disk
-The depth to which we scan each buffer pool is controlled by dynamic
-config parameter innodb_LRU_scan_depth.
-@return total pages flushed */
-ulint
-buf_flush_LRU_lists(void);
-/*=====================*/
-/*********************************************************************//**
-Wait for any possible LRU flushes that are in progress to end. */
+
+/** Wait for any possible LRU flushes that are in progress to end. */
 void
 buf_flush_wait_LRU_batch_end(void);
-/*==============================*/
 
 #if defined UNIV_DEBUG || defined UNIV_BUF_DEBUG
 /******************************************************************//**
@@ -337,14 +320,6 @@ buf_pool_get_dirty_pages_count(
 	buf_pool_t*	buf_pool,	/*!< in: buffer pool */
 	ulint		id,		/*!< in: space id to check */
 	FlushObserver*	observer);	/*!< in: flush observer to check */
-/******************************************************************//**
-Check if there are any dirty pages that belong to a space id in the flush list.
-@return count of dirty pages present in all the buffer pools */
-ulint
-buf_flush_get_dirty_pages_count(
-/*============================*/
-	ulint		id,		/*!< in: space id to check */
-	FlushObserver*	observer);	/*!< in: flush observer to check */
 
 /*******************************************************************//**
 Synchronously flush dirty blocks from the end of the flush list of all buffer
@@ -380,7 +355,7 @@ public:
 
 	/** Check pages have been flushed and removed from the flush list
 	in a buffer pool instance.
-	@pram[in]	instance_no	buffer pool instance no
+	@param[in]	instance_no	buffer pool instance no
 	@return true if the pages were removed from the flush list */
 	bool is_complete(ulint	instance_no)
 	{
@@ -438,8 +413,6 @@ private:
 	bool			m_interrupted;
 };
 
-#endif /* !UNIV_HOTBACKUP */
-
 /******************************************************************//**
 Start a buffer flush batch for LRU or flush list */
 ibool
@@ -491,8 +464,6 @@ buf_flush_batch(
 					counts  */
 
 
-#ifndef UNIV_NONINL
 #include "buf0flu.ic"
-#endif
 
 #endif

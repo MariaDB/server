@@ -1696,7 +1696,6 @@ rec_get_converted_size(
 	return(data_size + extra_size);
 }
 
-#ifndef UNIV_HOTBACKUP
 /** Fold a prefix of a physical record.
 @param[in]	rec		index record
 @param[in]	offsets		return value of rec_get_offsets()
@@ -1761,4 +1760,3 @@ rec_fold(
 
 	return(fold);
 }
-#endif /* !UNIV_HOTBACKUP */

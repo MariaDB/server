@@ -29,11 +29,6 @@ on 1/27/1998 */
 #include "ha_prototypes.h"
 
 #include "pars0pars.h"
-
-#ifdef UNIV_NONINL
-#include "pars0pars.ic"
-#endif
-
 #include "row0sel.h"
 #include "row0ins.h"
 #include "row0upd.h"
@@ -1857,18 +1852,7 @@ pars_create_table(
 					table */
 	sym_node_t*	column_defs,	/*!< in: list of column names */
 	sym_node_t*	compact,	/* in: non-NULL if COMPACT table. */
-	sym_node_t*	block_size,	/* in: block size (can be NULL) */
-	void*		not_fit_in_memory MY_ATTRIBUTE((unused)))
-					/*!< in: a non-NULL pointer means that
-					this is a table which in simulations
-					should be simulated as not fitting
-					in memory; thread is put to sleep
-					to simulate disk accesses; NOTE that
-					this flag is not stored to the data
-					dictionary on disk, and the database
-					will forget about non-NULL value if
-					it has to reload the table definition
-					from disk */
+	sym_node_t*	block_size)	/* in: block size (can be NULL) */
 {
 	dict_table_t*	table;
 	sym_node_t*	column;
@@ -1932,11 +1916,6 @@ pars_create_table(
 	table = dict_mem_table_create(
 		table_sym->name, 0, n_cols, 0, flags, flags2);
 
-#ifdef UNIV_DEBUG
-	if (not_fit_in_memory != NULL) {
-		table->does_not_fit_in_memory = TRUE;
-	}
-#endif /* UNIV_DEBUG */
 	column = column_defs;
 
 	while (column) {
@@ -1952,7 +1931,7 @@ pars_create_table(
 	}
 
 	node = tab_create_graph_create(table, pars_sym_tab_global->heap,
-		FIL_SPACE_ENCRYPTION_DEFAULT, FIL_DEFAULT_ENCRYPTION_KEY);
+		FIL_ENCRYPTION_DEFAULT, FIL_DEFAULT_ENCRYPTION_KEY);
 
 	table_sym->resolved = TRUE;
 	table_sym->token_type = SYM_TABLE;

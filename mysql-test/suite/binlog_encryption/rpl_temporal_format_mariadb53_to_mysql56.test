@@ -1,0 +1,6 @@
+-- source include/have_binlog_format_mixed_or_statement.inc
+
+--let $force_master_mysql56_temporal_format=false;
+--let $force_slave_mysql56_temporal_format=true;
+
+--source extra/rpl_tests/rpl_temporal_format_default_to_default.inc

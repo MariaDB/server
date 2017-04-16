@@ -45,7 +45,9 @@
 //nclude "array.h"
 #include "filamtxt.h"
 #include "tabdos.h"
+#if defined(VCT_SUPPORT)
 #include "tabvct.h"
+#endif   // VCT_SUPPORT
 
 /***********************************************************************/
 /*  Macro or external routine definition                               */
@@ -79,7 +81,7 @@ int PlgMakeIndex(PGLOBAL g, PSZ name, PIXDEF pxdf, bool add)
   {
   int     rc;
   PTABLE  tablep;
-  PTDBASE tdbp;
+  PTDB    tdbp;
   PCATLG  cat = PlgGetCatalog(g, true);
 
   /*********************************************************************/
@@ -87,12 +89,12 @@ int PlgMakeIndex(PGLOBAL g, PSZ name, PIXDEF pxdf, bool add)
   /*********************************************************************/
   tablep = new(g) XTAB(name);
 
-  if (!(tdbp = (PTDBASE)cat->GetTable(g, tablep)))
+  if (!(tdbp = cat->GetTable(g, tablep)))
     rc = RC_NF;
   else if (!tdbp->GetDef()->Indexable()) {
     sprintf(g->Message, MSG(TABLE_NO_INDEX), name);
     rc = RC_NF;
-  } else if ((rc = tdbp->MakeIndex(g, pxdf, add)) == RC_INFO)
+  } else if ((rc = ((PTDBASE)tdbp)->MakeIndex(g, pxdf, add)) == RC_INFO)
     rc = RC_OK;            // No or remote index
 
   return rc;
@@ -293,9 +295,11 @@ bool XINDEX::AddColumns(void)
     return false;     // Not applying to static index
   else if (IsMul())
     return false;     // Not done yet for multiple index
-  else if (Tbxp->GetAmType() == TYPE_AM_VCT && ((PTDBVCT)Tbxp)->IsSplit())
+#if defined(VCT_SUPPORT)
+	else if (Tbxp->GetAmType() == TYPE_AM_VCT && ((PTDBVCT)Tbxp)->IsSplit())
     return false;     // This would require to read additional files
-  else
+#endif   // VCT_SUPPORT
+	else
     return true;
 
   } // end of AddColumns
@@ -2734,7 +2738,7 @@ bool XHUGE::Read(PGLOBAL g, void *buf, int n, int size)
       } // endif nbr
 
   } else {
-    char *buf[256];
+    char  buf[256];
     DWORD drc = GetLastError();
 
     FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM |

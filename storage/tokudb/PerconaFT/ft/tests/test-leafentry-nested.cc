@@ -793,7 +793,7 @@ static void test_le_garbage_collection_birdie(void) {
     do_garbage_collect = ule_worth_running_garbage_collection(&ule, 200);
     invariant(do_garbage_collect);
 
-    // It is definately worth doing when the above case is true
+    // It is definitely worth doing when the above case is true
     // and there is more than one provisional entry.
     ule.num_cuxrs = 1;
     ule.num_puxrs = 2;

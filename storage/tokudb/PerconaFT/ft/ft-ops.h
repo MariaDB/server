@@ -48,6 +48,8 @@ Copyright (c) 2006, 2015, Percona and/or its affiliates. All rights reserved.
 #include "ft/msg.h"
 #include "util/dbt.h"
 
+#define OS_PATH_SEPARATOR '/'
+
 typedef struct ft_handle *FT_HANDLE;
 
 int toku_open_ft_handle (const char *fname, int is_create, FT_HANDLE *, int nodesize, int basementnodesize, enum toku_compression_method compression_method, CACHETABLE, TOKUTXN, int(*)(DB *,const DBT*,const DBT*)) __attribute__ ((warn_unused_result));
@@ -286,3 +288,8 @@ void toku_ft_set_direct_io(bool direct_io_on);
 void toku_ft_set_compress_buffers_before_eviction(bool compress_buffers);
 
 void toku_note_deserialized_basement_node(bool fixed_key_size);
+
+// Creates all directories for the path if necessary,
+// returns true if all dirs are created successfully or
+// all dirs exist, false otherwise.
+bool toku_create_subdirs_if_needed(const char* path);

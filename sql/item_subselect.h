@@ -400,7 +400,7 @@ public:
   bool val_bool();
   bool fix_fields(THD *thd, Item **ref);
   void fix_length_and_dec();
-  virtual void print(String *str, enum_query_type query_type);
+  void print(String *str, enum_query_type query_type);
   bool select_transformer(JOIN *join);
   void top_level_item() { abort_on_null=1; }
   inline bool is_top_level_item() { return abort_on_null; }
@@ -617,7 +617,8 @@ public:
   void update_null_value () { (void) val_bool(); }
   bool val_bool();
   bool test_limit(st_select_lex_unit *unit);
-  virtual void print(String *str, enum_query_type query_type);
+  void print(String *str, enum_query_type query_type);
+  enum precedence precedence() const { return CMP_PRECEDENCE; }
   bool fix_fields(THD *thd, Item **ref);
   void fix_length_and_dec();
   void fix_after_pullout(st_select_lex *new_parent, Item **ref);
@@ -632,6 +633,15 @@ public:
   void set_first_execution() { if (first_execution) first_execution= FALSE; }
   bool expr_cache_is_needed(THD *thd);
   inline bool left_expr_has_null();
+
+  void disable_cond_guard_for_const_null_left_expr(int i)
+  {
+    if (left_expr->const_item() && !left_expr->is_expensive())
+    {
+      if (left_expr->element_index(i)->is_null())
+        set_cond_guard_var(i,FALSE);
+    }
+  }
 
   int optimize(double *out_rows, double *cost);
   /*
@@ -741,7 +751,7 @@ public:
   subs_type substype() { return all?ALL_SUBS:ANY_SUBS; }
   bool select_transformer(JOIN *join);
   void create_comp_func(bool invert) { func= func_creator(invert); }
-  virtual void print(String *str, enum_query_type query_type);
+  void print(String *str, enum_query_type query_type);
   bool is_maxmin_applicable(JOIN *join);
   bool transform_into_max_min(JOIN *join);
   void no_rows_in_result();
@@ -844,7 +854,7 @@ public:
   uint8 uncacheable();
   void exclude();
   table_map upper_select_const_tables();
-  virtual void print (String *str, enum_query_type query_type);
+  void print (String *str, enum_query_type query_type);
   bool change_result(Item_subselect *si,
                      select_result_interceptor *result,
                      bool temp);
@@ -878,7 +888,7 @@ public:
   uint8 uncacheable();
   void exclude();
   table_map upper_select_const_tables();
-  virtual void print (String *str, enum_query_type query_type);
+  void print (String *str, enum_query_type query_type);
   bool change_result(Item_subselect *si,
                      select_result_interceptor *result,
                      bool temp= FALSE);
@@ -935,7 +945,7 @@ public:
   uint8 uncacheable() { return UNCACHEABLE_DEPENDENT_INJECTED; }
   void exclude();
   table_map upper_select_const_tables() { return 0; }
-  virtual void print (String *str, enum_query_type query_type);
+  void print (String *str, enum_query_type query_type);
   bool change_result(Item_subselect *si,
                      select_result_interceptor *result,
                      bool temp= FALSE);
@@ -993,7 +1003,7 @@ public:
      having(having_arg)
   {}
   int exec();
-  virtual void print (String *str, enum_query_type query_type);
+  void print (String *str, enum_query_type query_type);
   virtual enum_engine_type engine_type() { return INDEXSUBQUERY_ENGINE; }
 };
 
@@ -1068,11 +1078,8 @@ public:
   void cleanup();
   int prepare(THD *);
   int exec();
-  virtual void print(String *str, enum_query_type query_type);
-  uint cols()
-  {
-    return materialize_engine->cols();
-  }
+  void print(String *str, enum_query_type query_type);
+  uint cols() { return materialize_engine->cols(); }
   uint8 uncacheable() { return materialize_engine->uncacheable(); }
   table_map upper_select_const_tables() { return 0; }
   bool no_rows() { return !tmp_table->file->stats.records; }

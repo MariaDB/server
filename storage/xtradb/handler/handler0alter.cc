@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2005, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2016, MariaDB Corporation. All Rights Reserved.
+Copyright (c) 2013, 2017, MariaDB Corporation. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -134,7 +134,6 @@ my_error_innodb(
 		break;
 	case DB_OUT_OF_FILE_SPACE:
 		my_error(ER_RECORD_FILE_FULL, MYF(0), table);
-		ut_error;
 		break;
 	case DB_TEMP_FILE_WRITE_FAILURE:
 		my_error(ER_GET_ERRMSG, MYF(0),
@@ -214,7 +213,10 @@ innobase_need_rebuild(
 	const Alter_inplace_info*	ha_alter_info,
 	const TABLE*			altered_table)
 {
-	if (ha_alter_info->handler_flags
+	Alter_inplace_info::HA_ALTER_FLAGS alter_inplace_flags =
+		ha_alter_info->handler_flags & ~(INNOBASE_INPLACE_IGNORE);
+
+	if (alter_inplace_flags
 	    == Alter_inplace_info::CHANGE_CREATE_OPTION
 	    && !(ha_alter_info->create_info->used_fields
 		 & (HA_CREATE_USED_ROW_FORMAT
@@ -1865,6 +1867,7 @@ innobase_fts_check_doc_id_index_in_def(
 
 	return(FTS_NOT_EXIST_DOC_ID_INDEX);
 }
+
 /*******************************************************************//**
 Create an index table where indexes are ordered as follows:
 
@@ -1933,26 +1936,11 @@ innobase_create_key_defs(
 	(only prefix/part of the column is indexed), MySQL will treat the
 	index as a PRIMARY KEY unless the table already has one. */
 
-	if (n_add > 0 && !new_primary && got_default_clust
-	    && (key_info[*add].flags & HA_NOSAME)
-	    && !(key_info[*add].flags & HA_KEY_HAS_PART_KEY_SEG)) {
-		uint	key_part = key_info[*add].user_defined_key_parts;
+	ut_ad(altered_table->s->primary_key == 0
+	      || altered_table->s->primary_key == MAX_KEY);
 
-		new_primary = true;
-
-		while (key_part--) {
-			const uint	maybe_null
-				= key_info[*add].key_part[key_part].key_type
-				& FIELDFLAG_MAYBE_NULL;
-			DBUG_ASSERT(!maybe_null
-				    == !key_info[*add].key_part[key_part].
-				    field->real_maybe_null());
-
-			if (maybe_null) {
-				new_primary = false;
-				break;
-			}
-		}
+	if (got_default_clust && !new_primary) {
+		new_primary = (altered_table->s->primary_key != MAX_KEY);
 	}
 
 	const bool rebuild = new_primary || add_fts_doc_id
@@ -1971,8 +1959,14 @@ innobase_create_key_defs(
 		ulint	primary_key_number;
 
 		if (new_primary) {
-			DBUG_ASSERT(n_add > 0);
-			primary_key_number = *add;
+			if (n_add == 0) {
+				DBUG_ASSERT(got_default_clust);
+				DBUG_ASSERT(altered_table->s->primary_key
+					    == 0);
+				primary_key_number = 0;
+			} else {
+				primary_key_number = *add;
+			}
 		} else if (got_default_clust) {
 			/* Create the GEN_CLUST_INDEX */
 			index_def_t*	index = indexdef++;
@@ -2492,7 +2486,8 @@ innobase_build_col_map_add(
 	mem_heap_t*	heap,
 	dfield_t*	dfield,
 	const Field*	field,
-	ulint		comp)
+	ulint		comp,
+	row_prebuilt_t*	prebuilt)
 {
 	if (field->is_real_null()) {
 		dfield_set_null(dfield);
@@ -2529,7 +2524,8 @@ innobase_build_col_map(
 	const dict_table_t*	new_table,
 	const dict_table_t*	old_table,
 	dtuple_t*		add_cols,
-	mem_heap_t*		heap)
+	mem_heap_t*		heap,
+	row_prebuilt_t*	prebuilt)
 {
         uint old_i, old_innobase_i;
 	DBUG_ENTER("innobase_build_col_map");
@@ -2580,7 +2576,7 @@ innobase_build_col_map(
 		innobase_build_col_map_add(
 			heap, dtuple_get_nth_field(add_cols, i),
 			altered_table->field[sql_idx],
-			dict_table_is_comp(new_table));
+			dict_table_is_comp(new_table), prebuilt);
 found_col:
 		i++;
                 sql_idx++;
@@ -2744,7 +2740,8 @@ prepare_inplace_alter_table_dict(
 	ulint			flags2,
 	ulint			fts_doc_id_col,
 	bool			add_fts_doc_id,
-	bool			add_fts_doc_id_idx)
+	bool			add_fts_doc_id_idx,
+	row_prebuilt_t* 	prebuilt)
 {
 	bool			dict_locked	= false;
 	ulint*			add_key_nums;	/* MySQL key numbers */
@@ -2893,9 +2890,11 @@ prepare_inplace_alter_table_dict(
 		ulint		n_cols;
 		dtuple_t*	add_cols;
 		ulint		key_id = FIL_DEFAULT_ENCRYPTION_KEY;
-		fil_encryption_t mode = FIL_SPACE_ENCRYPTION_DEFAULT;
+		fil_encryption_t mode = FIL_ENCRYPTION_DEFAULT;
 
-		crypt_data = fil_space_get_crypt_data(ctx->prebuilt->table->space);
+		fil_space_t* space = fil_space_acquire(ctx->prebuilt->table->space);
+		crypt_data = space->crypt_data;
+		fil_space_release(space);
 
 		if (crypt_data) {
 			key_id = crypt_data->key_id;
@@ -3087,10 +3086,12 @@ prepare_inplace_alter_table_dict(
 		ctx->col_map = innobase_build_col_map(
 			ha_alter_info, altered_table, old_table,
 			ctx->new_table, user_table,
-			add_cols, ctx->heap);
+			add_cols, ctx->heap, prebuilt);
 		ctx->add_cols = add_cols;
 	} else {
 		DBUG_ASSERT(!innobase_need_rebuild(ha_alter_info, old_table));
+		DBUG_ASSERT(old_table->s->primary_key
+			    == altered_table->s->primary_key);
 
 		if (!ctx->new_table->fts
 		    && innobase_fulltext_exist(altered_table)) {
@@ -3953,7 +3954,7 @@ check_if_can_drop_indexes:
 					index->name, TRUE);
 
 				my_error(ER_INDEX_CORRUPT, MYF(0), index_name);
-				DBUG_RETURN(true);
+				goto err_exit;
 			}
 		}
 	}
@@ -3999,7 +4000,7 @@ err_exit:
 	}
 
 	if (!(ha_alter_info->handler_flags & INNOBASE_ALTER_DATA)
-	    || (ha_alter_info->handler_flags
+	    || ((ha_alter_info->handler_flags & ~INNOBASE_INPLACE_IGNORE)
 		== Alter_inplace_info::CHANGE_CREATE_OPTION
 		&& !innobase_need_rebuild(ha_alter_info, table))) {
 
@@ -4133,7 +4134,28 @@ found_col:
 			    table_share->table_name.str,
 			    flags, flags2,
 			    fts_doc_col_no, add_fts_doc_id,
-			    add_fts_doc_id_idx));
+			    add_fts_doc_id_idx, prebuilt));
+}
+
+/** Get the name of an erroneous key.
+@param[in]	error_key_num	InnoDB number of the erroneus key
+@param[in]	ha_alter_info	changes that were being performed
+@param[in]	table		InnoDB table
+@return	the name of the erroneous key */
+static
+const char*
+get_error_key_name(
+	ulint				error_key_num,
+	const Alter_inplace_info*	ha_alter_info,
+	const dict_table_t*		table)
+{
+	if (error_key_num == ULINT_UNDEFINED) {
+		return(FTS_DOC_ID_INDEX_NAME);
+	} else if (ha_alter_info->key_count == 0) {
+		return(dict_table_get_first_index(table)->name);
+	} else {
+		return(ha_alter_info->key_info_buffer[error_key_num].name);
+	}
 }
 
 /** Alter the table structure in-place with operations
@@ -4173,7 +4195,7 @@ ok_exit:
 		DBUG_RETURN(false);
 	}
 
-	if (ha_alter_info->handler_flags
+	if ((ha_alter_info->handler_flags & ~INNOBASE_INPLACE_IGNORE)
 	    == Alter_inplace_info::CHANGE_CREATE_OPTION
 	    && !innobase_need_rebuild(ha_alter_info, table)) {
 		goto ok_exit;
@@ -4258,17 +4280,13 @@ oom:
 	case DB_ONLINE_LOG_TOO_BIG:
 		DBUG_ASSERT(ctx->online);
 		my_error(ER_INNODB_ONLINE_LOG_TOO_BIG, MYF(0),
-			 (prebuilt->trx->error_key_num == ULINT_UNDEFINED)
-			 ? FTS_DOC_ID_INDEX_NAME
-			 : ha_alter_info->key_info_buffer[
-				 prebuilt->trx->error_key_num].name);
+			 get_error_key_name(prebuilt->trx->error_key_num,
+					    ha_alter_info, prebuilt->table));
 		break;
 	case DB_INDEX_CORRUPT:
 		my_error(ER_INDEX_CORRUPT, MYF(0),
-			 (prebuilt->trx->error_key_num == ULINT_UNDEFINED)
-			 ? FTS_DOC_ID_INDEX_NAME
-			 : ha_alter_info->key_info_buffer[
-				 prebuilt->trx->error_key_num].name);
+			 get_error_key_name(prebuilt->trx->error_key_num,
+					    ha_alter_info, prebuilt->table));
 		break;
 	case DB_DECRYPTION_FAILED: {
 		String str;
@@ -5088,7 +5106,6 @@ innobase_update_foreign_cache(
 				"Foreign key constraints for table '%s'"
 				" are loaded with charset check off",
 				user_table->name);
-				
 		}
 	}
 
@@ -5188,14 +5205,13 @@ commit_try_rebuild(
 			DBUG_RETURN(true);
 		case DB_ONLINE_LOG_TOO_BIG:
 			my_error(ER_INNODB_ONLINE_LOG_TOO_BIG, MYF(0),
-				 ha_alter_info->key_info_buffer[0].name);
+				 get_error_key_name(err_key, ha_alter_info,
+						    rebuilt_table));
 			DBUG_RETURN(true);
 		case DB_INDEX_CORRUPT:
 			my_error(ER_INDEX_CORRUPT, MYF(0),
-				 (err_key == ULINT_UNDEFINED)
-				 ? FTS_DOC_ID_INDEX_NAME
-				 : ha_alter_info->key_info_buffer[err_key]
-				 .name);
+				 get_error_key_name(err_key, ha_alter_info,
+						    rebuilt_table));
 			DBUG_RETURN(true);
 		default:
 			my_error_innodb(error, table_name, user_table->flags);

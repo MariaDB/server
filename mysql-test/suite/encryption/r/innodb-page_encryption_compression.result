@@ -1,7 +1,3 @@
-SET GLOBAL innodb_file_format = `Barracuda`;
-Warnings:
-Warning	131	Using innodb_file_format is deprecated and the parameter may be removed in future releases. See http://dev.mysql.com/doc/refman/5.7/en/innodb-file-format.html
-SET GLOBAL innodb_file_per_table = ON;
 set global innodb_compression_algorithm = 1;
 create table innodb_normal(c1 bigint not null, b char(200)) engine=innodb page_compressed=1;
 show warnings;
@@ -76,10 +72,6 @@ SELECT variable_value >= 0 FROM information_schema.global_status WHERE variable_
 variable_value >= 0
 SELECT variable_value >= 0 FROM information_schema.global_status WHERE variable_name = 'innodb_num_pages_decompressed';
 variable_value >= 0
-SET GLOBAL innodb_file_format = `Barracuda`;
-Warnings:
-Warning	131	Using innodb_file_format is deprecated and the parameter may be removed in future releases. See http://dev.mysql.com/doc/refman/5.7/en/innodb-file-format.html
-SET GLOBAL innodb_file_per_table = ON;
 set global innodb_compression_algorithm = 1;
 update innodb_normal set c1 = c1 + 1;
 update innodb_compact set c1 = c1 + 1;
@@ -132,10 +124,6 @@ innodb_dynamic	CREATE TABLE `innodb_dynamic` (
   `c1` bigint(20) NOT NULL,
   `b` char(200) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=DYNAMIC
-SET GLOBAL innodb_file_format = `Barracuda`;
-Warnings:
-Warning	131	Using innodb_file_format is deprecated and the parameter may be removed in future releases. See http://dev.mysql.com/doc/refman/5.7/en/innodb-file-format.html
-SET GLOBAL innodb_file_per_table = ON;
 show create table innodb_normal;
 Table	Create Table
 innodb_normal	CREATE TABLE `innodb_normal` (
@@ -188,5 +176,3 @@ drop procedure innodb_insert_proc;
 drop table innodb_normal;
 drop table innodb_compact;
 drop table innodb_dynamic;
-Warnings:
-Warning	131	Using innodb_file_format is deprecated and the parameter may be removed in future releases. See http://dev.mysql.com/doc/refman/5.7/en/innodb-file-format.html

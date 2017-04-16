@@ -57,7 +57,7 @@ class TDBINI : public TDBASE {
   virtual PTDB  Duplicate(PGLOBAL g) {return (PTDB)new(g) TDBINI(this);}
 
   // Methods
-  virtual PTDB  CopyOne(PTABS t);
+  virtual PTDB  Clone(PTABS t);
   virtual int   GetRecpos(void) {return N;}
   virtual int   GetProgCur(void) {return N;}
 //virtual int   GetAffectedRows(void) {return 0;}
@@ -136,7 +136,7 @@ class TDBXIN : public TDBINI {
   virtual PTDB  Duplicate(PGLOBAL g) {return (PTDB)new(g) TDBXIN(this);}
 
   // Methods
-  virtual PTDB  CopyOne(PTABS t);
+  virtual PTDB  Clone(PTABS t);
   virtual int   GetRecpos(void);
   virtual bool  SetRecpos(PGLOBAL g, int recpos);
   virtual void  ResetDB(void)

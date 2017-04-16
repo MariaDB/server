@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -45,14 +46,13 @@ mach_write_to_1(
 /*============*/
 	byte*	b,	/*!< in: pointer to byte where to store */
 	ulint	n);	 /*!< in: ulint integer to be stored, >= 0, < 256 */
-/********************************************************//**
-The following function is used to fetch data from one byte.
+/** The following function is used to fetch data from one byte.
+@param[in]	b	pointer to a byte to read
 @return ulint integer, >= 0, < 256 */
 UNIV_INLINE
-ulint
+uint8_t
 mach_read_from_1(
-/*=============*/
-	const byte*	b)	/*!< in: pointer to byte */
+	const byte*	b)
 	MY_ATTRIBUTE((warn_unused_result));
 /*******************************************************//**
 The following function is used to store data in two consecutive
@@ -63,17 +63,15 @@ mach_write_to_2(
 /*============*/
 	byte*	b,	/*!< in: pointer to two bytes where to store */
 	ulint	n);	 /*!< in: ulint integer to be stored, >= 0, < 64k */
-/********************************************************//**
-The following function is used to fetch data from two consecutive
+/** The following function is used to fetch data from 2 consecutive
 bytes. The most significant byte is at the lowest address.
-@return ulint integer, >= 0, < 64k */
+@param[in]	b	pointer to 2 bytes where to store
+@return 2-byte integer, >= 0, < 64k */
 UNIV_INLINE
-ulint
+uint16_t
 mach_read_from_2(
-/*=============*/
-	const byte*	b)	/*!< in: pointer to two bytes */
+	const byte*	b)
 	MY_ATTRIBUTE((warn_unused_result));
-
 /********************************************************//**
 The following function is used to convert a 16-bit data item
 to the canonical format, for fast bytewise equality test
@@ -105,15 +103,14 @@ mach_write_to_3(
 /*============*/
 	byte*	b,	/*!< in: pointer to 3 bytes where to store */
 	ulint	n);	 /*!< in: ulint integer to be stored */
-/********************************************************//**
-The following function is used to fetch data from 3 consecutive
+/** The following function is used to fetch data from 3 consecutive
 bytes. The most significant byte is at the lowest address.
-@return ulint integer */
+@param[in]	b	pointer to 3 bytes to read
+@return 32 bit integer */
 UNIV_INLINE
-ulint
+uint32_t
 mach_read_from_3(
-/*=============*/
-	const byte*	b)	/*!< in: pointer to 3 bytes */
+	const byte*	b)
 	MY_ATTRIBUTE((warn_unused_result));
 /*******************************************************//**
 The following function is used to store data in four consecutive
@@ -124,15 +121,14 @@ mach_write_to_4(
 /*============*/
 	byte*	b,	/*!< in: pointer to four bytes where to store */
 	ulint	n);	 /*!< in: ulint integer to be stored */
-/********************************************************//**
-The following function is used to fetch data from 4 consecutive
+/** The following function is used to fetch data from 4 consecutive
 bytes. The most significant byte is at the lowest address.
-@return ulint integer */
+@param[in]	b	pointer to 4 bytes to read
+@return 32 bit integer */
 UNIV_INLINE
-ulint
+uint32_t
 mach_read_from_4(
-/*=============*/
-	const byte*	b)	/*!< in: pointer to four bytes */
+	const byte*	b)
 	MY_ATTRIBUTE((warn_unused_result));
 /*********************************************************//**
 Writes a ulint in a compressed form (1..5 bytes).
@@ -271,7 +267,7 @@ ib_uint64_t
 mach_u64_parse_compressed(
 	const byte**	ptr,
 	const byte*	end_ptr);
-#ifndef UNIV_HOTBACKUP
+
 /*********************************************************//**
 Reads a double. It is stored in a little-endian format.
 @return double read */
@@ -353,17 +349,6 @@ mach_read_int_type(
 	const byte*	src,		/*!< in: where to read from */
 	ulint		len,		/*!< in: length of src */
 	ibool		unsigned_type);	/*!< in: signed or unsigned flag */
-/***********************************************************//**
-Convert integral type from host byte order to (big-endian) storage
-byte order. */
-UNIV_INLINE
-void
-mach_write_int_type(
-/*================*/
-	byte*		dest,		/*!< in: where to write*/
-	const byte*	src,		/*!< in: where to read from */
-	ulint		len,		/*!< in: length of src */
-	bool		usign);		/*!< in: signed or unsigned flag */
 
 /*************************************************************
 Convert a ulonglong integer from host byte order to (big-endian)
@@ -388,11 +373,8 @@ mach_read_ulint(
 	mlog_id_t	type)
 	MY_ATTRIBUTE((warn_unused_result));
 
-#endif /* !UNIV_HOTBACKUP */
 #endif /* !UNIV_INNOCHECKSUM */
 
-#ifndef UNIV_NONINL
 #include "mach0data.ic"
-#endif
 
 #endif

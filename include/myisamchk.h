@@ -1,4 +1,5 @@
 /* Copyright (C) 2006 MySQL AB
+   Copyright (c) 2017, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -12,7 +13,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
 
 /* Definitions needed for myisamchk/mariachk.c */
 
@@ -24,13 +25,13 @@
   to xxxcheck.c follows:
 */
 
-#define TT_USEFRM               1
-#define TT_FOR_UPGRADE          2
-#define TT_FROM_MYSQL           4
+#define TT_USEFRM               1U
+#define TT_FOR_UPGRADE          2U
+#define TT_FROM_MYSQL           4U
 
 /* Bits set in out_flag */
-#define O_NEW_DATA	2
-#define O_DATA_LOST	4
+#define O_NEW_DATA	2U
+#define O_DATA_LOST	4U
 
 typedef struct st_sort_key_blocks		/* Used when sorting */
 {

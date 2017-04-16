@@ -57,10 +57,13 @@ public:
   Item *default_value;
 
   /// Full type information (field meta-data) of the SP-variable.
-  Column_definition field_def;
+  Spvar_definition field_def;
 
   /// Field-type of the SP-variable.
   enum_field_types sql_type() const { return field_def.sql_type; }
+
+  const Type_handler *type_handler() const { return field_def.type_handler(); }
+
 public:
   sp_variable(LEX_STRING _name, uint _offset)
    :Sql_alloc(),
@@ -69,6 +72,20 @@ public:
     offset(_offset),
     default_value(NULL)
   { }
+  /*
+    Find a ROW field by its qualified name.
+    @param      var_name - the name of the variable
+    @param      field_name - the name of the variable field
+    @param[OUT] row_field_offset - the index of the field
+
+    @retval  NULL if the variable with the given name was not found,
+             or it is not a row variable, or it does not have a field
+             with the given name, or a non-null pointer otherwise.
+             row_field_offset[0] is set only when the method returns !NULL.
+  */
+  const Spvar_definition *find_row_field(const LEX_STRING &var_name,
+                                         const LEX_STRING &field_name,
+                                         uint *row_field_offset);
 };
 
 ///////////////////////////////////////////////////////////////////////////
@@ -79,6 +96,7 @@ public:
 /// the parser inserts before a high-level flow control statement such as
 /// IF/WHILE/REPEAT/LOOP, when such statement is rewritten into a
 /// combination of low-level jump/jump_if instructions and labels.
+
 
 class sp_label : public Sql_alloc
 {
@@ -92,7 +110,10 @@ public:
     BEGIN,
 
     /// Label at iteration control
-    ITERATION
+    ITERATION,
+
+    /// Label for jump
+    GOTO
   };
 
   /// Name of the label.
@@ -108,7 +129,8 @@ public:
   class sp_pcontext *ctx;
 
 public:
-  sp_label(LEX_STRING _name, uint _ip, enum_type _type, sp_pcontext *_ctx)
+  sp_label(const LEX_STRING _name,
+           uint _ip, enum_type _type, sp_pcontext *_ctx)
    :Sql_alloc(),
     name(_name),
     ip(_ip),
@@ -116,6 +138,7 @@ public:
     ctx(_ctx)
   { }
 };
+
 
 ///////////////////////////////////////////////////////////////////////////
 
@@ -126,8 +149,9 @@ public:
 /// In some sense, this class is a union -- a set of filled attributes
 /// depends on the sp_condition_value::type value.
 
-class sp_condition_value : public Sql_alloc
+class sp_condition_value : public Sql_alloc, public Sql_state_errno
 {
+  bool m_is_user_defined;
 public:
   enum enum_type
   {
@@ -141,29 +165,31 @@ public:
   /// Type of the condition value.
   enum_type type;
 
-  /// SQLSTATE of the condition value.
-  char sql_state[SQLSTATE_LENGTH+1];
-
-  /// MySQL error code of the condition value.
-  uint mysqlerr;
-
 public:
   sp_condition_value(uint _mysqlerr)
    :Sql_alloc(),
-    type(ERROR_CODE),
-    mysqlerr(_mysqlerr)
+    Sql_state_errno(_mysqlerr),
+    m_is_user_defined(false),
+    type(ERROR_CODE)
   { }
 
-  sp_condition_value(const char *_sql_state)
+  sp_condition_value(uint _mysqlerr, const char *_sql_state)
    :Sql_alloc(),
+    Sql_state_errno(_mysqlerr, _sql_state),
+    m_is_user_defined(false),
+    type(ERROR_CODE)
+  { }
+
+  sp_condition_value(const char *_sql_state, bool is_user_defined= false)
+   :Sql_alloc(),
+    Sql_state_errno(0, _sql_state),
+    m_is_user_defined(is_user_defined),
     type(SQLSTATE)
-  {
-    memcpy(sql_state, _sql_state, SQLSTATE_LENGTH);
-    sql_state[SQLSTATE_LENGTH]= 0;
-  }
+  { }
 
   sp_condition_value(enum_type _type)
    :Sql_alloc(),
+    m_is_user_defined(false),
     type(_type)
   {
     DBUG_ASSERT(type != ERROR_CODE && type != SQLSTATE);
@@ -175,7 +201,38 @@ public:
   ///
   /// @return true if the instances are equal, false otherwise.
   bool equals(const sp_condition_value *cv) const;
+
+
+  /**
+    Checks if this condition is OK for search.
+    See also sp_context::find_handler().
+
+    @param identity - The condition identity
+    @param found_cv - A previously found matching condition or NULL.
+    @return true    - If the current value matches identity and
+                      makes a stronger match than the previously
+                      found condition found_cv.
+    @return false   - If the current value does not match identity,
+                      of the current value makes a weaker match than found_cv.
+  */
+  bool matches(const Sql_condition_identity &identity,
+               const sp_condition_value *found_cv) const;
+
+  Sql_user_condition_identity get_user_condition_identity() const
+  {
+    return Sql_user_condition_identity(m_is_user_defined ? this : NULL);
+  }
 };
+
+
+class sp_condition_value_user_defined: public sp_condition_value
+{
+public:
+  sp_condition_value_user_defined()
+   :sp_condition_value("45000", true)
+  { }
+};
+
 
 ///////////////////////////////////////////////////////////////////////////
 
@@ -192,12 +249,59 @@ public:
   sp_condition_value *value;
 
 public:
-  sp_condition(LEX_STRING _name, sp_condition_value *_value)
+  sp_condition(const LEX_STRING _name, sp_condition_value *_value)
    :Sql_alloc(),
     name(_name),
     value(_value)
   { }
+  sp_condition(const char *name_arg, size_t name_length_arg,
+               sp_condition_value *value_arg)
+   :value(value_arg)
+  {
+    name.str= (char *) name_arg;
+    name.length= name_length_arg;
+  }
+  bool eq_name(const LEX_STRING str) const
+  {
+    return my_strnncoll(system_charset_info,
+                        (const uchar *) name.str, name.length,
+                        (const uchar *) str.str, str.length) == 0;
+  }
 };
+
+
+///////////////////////////////////////////////////////////////////////////
+
+/**
+  class sp_pcursor.
+  Stores information about a cursor:
+  - Cursor's name in LEX_STRING.
+  - Cursor's formal parameter descriptions.
+
+    Formal parameter descriptions reside in a separate context block,
+    pointed by the "m_param_context" member.
+
+    m_param_context can be NULL. This means a cursor with no parameters.
+    Otherwise, the number of variables in m_param_context means
+    the number of cursor's formal parameters.
+
+    Note, m_param_context can be not NULL, but have no variables.
+    This is also means a cursor with no parameters (similar to NULL).
+*/
+class sp_pcursor: public LEX_STRING
+{
+  class sp_pcontext *m_param_context; // Formal parameters
+  class sp_lex_cursor *m_lex;         // The cursor statement LEX
+public:
+  sp_pcursor(const LEX_STRING &name, class sp_pcontext *param_ctx,
+             class sp_lex_cursor *lex)
+   :LEX_STRING(name), m_param_context(param_ctx), m_lex(lex)
+  { }
+  class sp_pcontext *param_context() const { return m_param_context; }
+  class sp_lex_cursor *lex() const { return m_lex; }
+  bool check_param_count_with_error(uint param_count) const;
+};
+
 
 ///////////////////////////////////////////////////////////////////////////
 
@@ -267,6 +371,12 @@ public:
     HANDLER_SCOPE
   };
 
+  class Lex_for_loop: public Lex_for_loop_st
+  {
+  public:
+    Lex_for_loop() { init(); }
+  };
+
 public:
   sp_pcontext();
   ~sp_pcontext();
@@ -329,9 +439,22 @@ public:
   uint context_var_count() const
   { return m_vars.elements(); }
 
-  /// @return map index in this parsing context to runtime offset.
-  uint var_context2runtime(uint i) const
-  { return m_var_offset + i; }
+  /// return the i-th variable on the current context
+  sp_variable *get_context_variable(uint i) const
+  {
+    DBUG_ASSERT(i < m_vars.elements());
+    return m_vars.at(i);
+  }
+
+  /*
+    Return the i-th last context variable.
+    If i is 0, then return the very last variable in m_vars.
+  */
+  sp_variable *get_last_context_variable(uint i= 0) const
+  {
+    DBUG_ASSERT(i < m_vars.elements());
+    return m_vars.at(m_vars.elements() - i - 1);
+  }
 
   /// Add SP-variable to the parsing context.
   ///
@@ -345,7 +468,7 @@ public:
   /// context and its children.
   ///
   /// @param field_def_lst[out] Container to store type information.
-  void retrieve_field_definitions(List<Column_definition> *field_def_lst) const;
+  void retrieve_field_definitions(List<Spvar_definition> *field_def_lst) const;
 
   /// Find SP-variable by name.
   ///
@@ -401,9 +524,31 @@ public:
   // Labels.
   /////////////////////////////////////////////////////////////////////////
 
-  sp_label *push_label(THD *thd, LEX_STRING name, uint ip);
+  sp_label *push_label(THD *thd, const LEX_STRING name, uint ip,
+                       sp_label::enum_type type, List<sp_label> * list);
 
-  sp_label *find_label(LEX_STRING name);
+  sp_label *push_label(THD *thd, LEX_STRING name, uint ip,
+                                    sp_label::enum_type type)
+  { return push_label(thd, name, ip, type, &m_labels); }
+
+  sp_label *push_goto_label(THD *thd, LEX_STRING name, uint ip,
+                                         sp_label::enum_type type)
+  { return push_label(thd, name, ip, type, &m_goto_labels); }
+
+  sp_label *push_label(THD *thd, const LEX_STRING name, uint ip)
+  { return push_label(thd, name, ip, sp_label::IMPLICIT); }
+
+  sp_label *push_goto_label(THD *thd, const LEX_STRING name, uint ip)
+  { return push_goto_label(thd, name, ip, sp_label::GOTO); }
+
+  sp_label *find_label(const LEX_STRING name);
+
+  sp_label *find_goto_label(const LEX_STRING name, bool recusive);
+
+  sp_label *find_goto_label(const LEX_STRING name)
+  { return find_goto_label(name, true); }
+
+  sp_label *find_label_current_loop_start();
 
   sp_label *last_label()
   {
@@ -415,18 +560,55 @@ public:
     return label;
   }
 
+  sp_label *last_goto_label()
+  {
+    return m_goto_labels.head();
+  }
+
   sp_label *pop_label()
   { return m_labels.pop(); }
+
+  bool block_label_declare(LEX_STRING label)
+  {
+    sp_label *lab= find_label(label);
+    if (lab)
+    {
+      my_error(ER_SP_LABEL_REDEFINE, MYF(0), label.str);
+      return true;
+    }
+    return false;
+  }
 
   /////////////////////////////////////////////////////////////////////////
   // Conditions.
   /////////////////////////////////////////////////////////////////////////
 
-  bool add_condition(THD *thd, LEX_STRING name, sp_condition_value *value);
+  bool add_condition(THD *thd, const LEX_STRING name,
+                               sp_condition_value *value);
 
   /// See comment for find_variable() above.
-  sp_condition_value *find_condition(LEX_STRING name,
+  sp_condition_value *find_condition(const LEX_STRING name,
                                      bool current_scope_only) const;
+
+  sp_condition_value *
+  find_declared_or_predefined_condition(const LEX_STRING name) const
+  {
+    sp_condition_value *p= find_condition(name, false);
+    if (p)
+      return p;
+    return find_predefined_condition(name);
+  }
+
+  bool declare_condition(THD *thd, const LEX_STRING name,
+                                   sp_condition_value *val)
+  {
+    if (find_condition(name, true))
+    {
+      my_error(ER_SP_DUP_COND, MYF(0), name.str);
+      return true;
+    }
+    return add_condition(thd, name, val);
+  }
 
   /////////////////////////////////////////////////////////////////////////
   // Handlers.
@@ -454,32 +636,61 @@ public:
   /// Find an SQL handler for the given SQL condition according to the
   /// SQL-handler resolution rules. This function is used at runtime.
   ///
-  /// @param sql_state        The SQL condition state
-  /// @param sql_errno        The error code
+  /// @param value            The error code and the SQL state
   /// @param level            The SQL condition level
   ///
   /// @return a pointer to the found SQL-handler or NULL.
-  sp_handler *find_handler(const char *sql_state,
-                           uint sql_errno,
-                           Sql_condition::enum_warning_level level) const;
+  sp_handler *find_handler(const Sql_condition_identity &identity) const;
 
   /////////////////////////////////////////////////////////////////////////
   // Cursors.
   /////////////////////////////////////////////////////////////////////////
 
-  bool add_cursor(LEX_STRING name);
+  bool add_cursor(const LEX_STRING name, sp_pcontext *param_ctx,
+                  class sp_lex_cursor *lex);
 
   /// See comment for find_variable() above.
-  bool find_cursor(LEX_STRING name, uint *poff, bool current_scope_only) const;
+  const sp_pcursor *find_cursor(const LEX_STRING name,
+                                uint *poff, bool current_scope_only) const;
 
-  /// Find cursor by offset (for debugging only).
-  const LEX_STRING *find_cursor(uint offset) const;
+  const sp_pcursor *find_cursor_with_error(const LEX_STRING name,
+                                           uint *poff,
+                                           bool current_scope_only) const
+  {
+    const sp_pcursor *pcursor= find_cursor(name, poff, current_scope_only);
+    if (!pcursor)
+    {
+      my_error(ER_SP_CURSOR_MISMATCH, MYF(0), name.str);
+      return NULL;
+    }
+    return pcursor;
+  }
+  /// Find cursor by offset (for SHOW {PROCEDURE|FUNCTION} CODE only).
+  const sp_pcursor *find_cursor(uint offset) const;
+
+  const sp_pcursor *get_cursor_by_local_frame_offset(uint offset) const
+  { return &m_cursors.at(offset); }
+
+  uint cursor_offset() const
+  { return m_cursor_offset; }
+
+  uint frame_cursor_count() const
+  { return m_cursors.elements(); }
 
   uint max_cursor_index() const
   { return m_max_cursor_index + m_cursors.elements(); }
 
   uint current_cursor_count() const
   { return m_cursor_offset + m_cursors.elements(); }
+
+  void set_for_loop(const Lex_for_loop_st &for_loop)
+  {
+    m_for_loop.init(for_loop);
+  }
+  const Lex_for_loop_st &for_loop()
+  {
+    return m_for_loop;
+  }
 
 private:
   /// Constructor for a tree node.
@@ -492,6 +703,8 @@ private:
   /* Prevent use of these */
   sp_pcontext(const sp_pcontext &);
   void operator=(sp_pcontext &);
+
+  sp_condition_value *find_predefined_condition(const LEX_STRING name) const;
 
 private:
   /// m_max_var_index -- number of variables (including all types of arguments)
@@ -538,19 +751,41 @@ private:
   Dynamic_array<sp_condition *> m_conditions;
 
   /// Stack of cursors.
-  Dynamic_array<LEX_STRING> m_cursors;
+  Dynamic_array<sp_pcursor> m_cursors;
 
   /// Stack of SQL-handlers.
   Dynamic_array<sp_handler *> m_handlers;
 
-  /// List of labels.
+  /*
+   In the below example the label <<lab>> has two meanings:
+   - GOTO lab : must go before the beginning of the loop
+   - CONTINUE lab : must go to the beginning of the loop
+   We solve this by storing block labels and goto labels into separate lists.
+
+   BEGIN
+     <<lab>>
+     FOR i IN a..10 LOOP
+       ...
+       GOTO lab;
+       ...
+       CONTINUE lab;
+       ...
+     END LOOP;
+   END;
+  */
+  /// List of block labels
   List<sp_label> m_labels;
+  /// List of goto labels
+  List<sp_label> m_goto_labels;
 
   /// Children contexts, used for destruction.
   Dynamic_array<sp_pcontext *> m_children;
 
   /// Scope of this parsing context.
   enum_scope m_scope;
+
+  /// FOR LOOP characteristics
+  Lex_for_loop m_for_loop;
 }; // class sp_pcontext : public Sql_alloc
 
 

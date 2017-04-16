@@ -1426,3 +1426,433 @@ select * from v4;
 
 drop view v1,v2,v3,v4;
 drop table t0,t1;
+
+--echo #
+--echo # MDEV-10875: window function in subquery
+--echo #
+
+CREATE TABLE t1 (i INT);
+INSERT INTO t1 VALUES (3),(1);
+
+CREATE TABLE t2 (c VARCHAR(8));
+INSERT INTO t2 VALUES ('foo'),('bar'),('foo');
+
+SELECT COUNT(*) OVER (PARTITION BY c) FROM t2;
+
+SELECT * FROM t1 WHERE i IN ( SELECT COUNT(*) OVER (PARTITION BY c) FROM t2 );
+
+DROP TABLE t1, t2;
+
+--echo #
+--echo # MDEV-9976: window function without PARTITION BY and ORDER BY
+--echo #
+
+CREATE TABLE t1  (id int, a int);
+INSERT INTO t1 VALUES
+ (1,1000), (2,1100), (3,1800), (4,1500), (5,1700), (6,1200),
+ (7,2000), (8,2100), (9,1600);
+
+--sorted_result
+SELECT id, sum(a) OVER (PARTITION BY id 
+                       ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING)
+FROM t1;
+
+--sorted_result
+SELECT id, sum(a) OVER (ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING)
+FROM t1;
+
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-11867: window function with aggregation
+--echo #             over the result of grouping
+--echo #
+
+create table t1 (
+  username  varchar(32),
+  amount int
+);
+
+insert into t1 values
+('user1',1),
+('user1',5),
+('user1',3),
+('user2',10),
+('user2',20),
+('user2',30);
+
+select username, sum(amount) as s, avg(sum(amount)) over (order by s desc)
+  from t1
+group by username;
+
+select username, sum(amount), avg(sum(amount)) over (order by sum(amount) desc)
+  from t1
+group by username;
+
+drop table t1;
+
+--echo #
+--echo # MDEV-11594: window function over implicit grouping
+--echo #
+
+create table t1 (id int);
+insert into t1 values (1), (2), (3), (2);
+
+select sum(id) over (order by sum(id)) from t1;
+
+select sum(sum(id)) over (order by sum(id)) from t1;
+
+drop table t1;
+
+--echo #
+--echo # MDEV-9923: integer constant in order by list 
+--echo #            of window specification
+--echo #
+
+create table t1 (id int);
+insert into t1 values (1), (2), (3), (2);
+
+select rank() over (order by 1) from t1;
+select rank() over (order by 2) from t1;
+select rank() over (partition by id order by 2) from t1;
+
+drop table t1;
+
+--echo #
+--echo # MDEV-10660: view using a simple window function 
+--echo #
+
+create table t1 (id int);
+insert into t1 values (1), (2), (3), (2);
+
+create view v1(id,rnk) as
+  select id, rank() over (order by id) from t1;
+
+show create view v1;
+
+select id, rank() over (order by id) from t1;
+select * from v1;
+
+drop view v1;
+drop table t1;
+
+--echo #
+--echo # MDEV-11138: window function in the query without tables 
+--echo #
+
+select row_number() over ();
+select count(*) over ();
+select sum(5) over ();
+select row_number() over (), sum(5) over ();
+select row_number() over (order by 2);
+select row_number() over (partition by 2);
+select row_number() over (partition by 4 order by 1+2);
+
+--echo #
+--echo # MDEV-11999: execution of prepared statement for  
+--echo #             tableless query with window functions
+--echo #
+
+prepare stmt from
+"select row_number() over (partition by 4 order by 1+2)";
+execute stmt;
+execute stmt;
+deallocate prepare stmt;
+
+--echo #
+--echo # MDEV-11745: window function with min/max 
+--echo #
+
+create table t1 (i int, b int);
+insert into t1 values
+  (1,1),(2,1),(3,1),(4,4),(5,4),(6,4),(7,8),(8,8),(9,8),(10,8);
+
+select b, min(i) over (partition by b) as f 
+  from t1 as tt
+order by i;
+
+select b, min(i) over (partition by b) as f 
+  from (select * from t1) as tt
+order by i;
+
+select b, min(i+10) over (partition by b) as f 
+  from t1 as tt
+order by i;
+
+select b, min(i) over (partition by b) as f 
+  from (select i+10 as i, b from t1) as tt
+order by i;
+
+select b, min(i+20) over (partition by b) as f 
+  from (select i+10 as i, b from t1) as tt
+order by i;
+
+select b, max(i) over (partition by b) as f 
+  from t1 as tt
+order by i;
+
+select b, max(i) over (partition by b) as f 
+  from (select * from t1) as tt
+order by i;
+
+select b, max(i+10) over (partition by b) as f 
+  from t1 as tt
+order by i;
+
+select b, max(i) over (partition by b) as f 
+  from (select i+10 as i, b from t1) as tt
+order by i;
+
+select b, max(i+20) over (partition by b) as f 
+  from (select i+10 as i, b from t1) as tt
+order by i;
+
+select max(i), max(i), sum(i), count(i)
+  from t1 as tt
+group by b;
+
+select max(i), min(sum(i)) over (partition by count(i)) f
+  from t1 as tt
+group by b;
+
+select max(i), min(sum(i)) over (partition by count(i)) f
+  from (select * from t1) as tt
+group by b;
+
+select max(i+10), min(sum(i)+10) over (partition by count(i)) f
+  from t1 as tt
+group by b;
+
+select max(i), max(i), sum(i), count(i)
+  from (select i+10 as i, b from t1) as tt
+group by b;
+
+select max(i), min(sum(i)) over (partition by count(i)) f
+  from (select i+10 as i, b from t1) as tt
+group by b;
+
+select max(i), min(i), min(max(i)-min(i)) over (partition by count(i)) f
+  from (select i+10 as i, b from t1) as tt
+group by b;
+
+drop table t1;
+
+--echo #
+--echo # MDEV-12015: window function over select with WHERE  
+--echo #             that is always FALSE
+--echo #
+
+CREATE TABLE t1 (i INT);
+INSERT INTO t1 VALUES (3), (1), (2);
+
+SELECT i, ROW_NUMBER() OVER () FROM t1 WHERE 1 = 2;
+
+SELECT i, COUNT(*) OVER () FROM t1 WHERE 1 = 2;
+
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-12051: window function in query with implicit grouping 
+--echo #             on always empty set
+--echo #
+
+create table t1 (a int, b varchar(8));
+insert into t1 values (1,'foo'),(2,'bar');
+
+select max(a), row_number() over () from t1 where a > 10;
+select max(a), sum(max(a)) over () from t1 where a > 10;
+select max(a), sum(max(a)) over (partition by max(a)) from t1 where a > 10;
+
+select max(a), row_number() over () from t1 where 1 = 2;
+select max(a), sum(max(a)) over () from t1 where 1 = 2;
+select max(a), sum(max(a)) over (partition by max(a)) from t1 where 1 = 2;
+
+select max(a), row_number() over () from t1 where 1 = 2
+  having max(a) is not null;
+select max(a), sum(max(a)) over () from t1 where 1 = 2
+  having max(a) is not null;
+
+drop table t1;
+
+--echo #
+--echo # MDEV-10885: window function in query with implicit grouping 
+--echo #             with constant condition evaluated to false
+--echo #
+
+CREATE TABLE t1 (a INT, b VARCHAR(8));
+INSERT INTO t1 VALUES (1,'foo'),(2,'bar');
+
+CREATE TABLE t2 (c INT);
+INSERT INTO t2 VALUES (3),(4);
+ 
+CREATE TABLE t3 (d INT);
+INSERT INTO t3 VALUES (5),(6);
+
+SELECT MAX(a), ROW_NUMBER() OVER (PARTITION BY MAX(a)) FROM t1
+WHERE EXISTS ( SELECT * FROM t2 WHERE c IN ( SELECT MAX(d) FROM t3 ) );
+
+SELECT MAX(a), COUNT(MAX(a)) OVER (PARTITION BY MAX(a)) FROM t1
+WHERE EXISTS ( SELECT * FROM t2 WHERE c IN ( SELECT MAX(d) FROM t3 ) );
+
+SELECT MAX(a), SUM(MAX(a)) OVER (PARTITION BY MAX(a)) FROM t1
+WHERE EXISTS ( SELECT * FROM t2 WHERE c IN ( SELECT MAX(d) FROM t3 ) );
+
+SELECT MAX(a), ROW_NUMBER() OVER (PARTITION BY MAX(a)) FROM t1
+WHERE EXISTS ( SELECT * FROM t2 WHERE c IN ( SELECT MAX(d) FROM t3 ) )
+HAVING MAX(a) IS NOT NULL;
+
+SELECT a, MAX(a), ROW_NUMBER() OVER (PARTITION BY b) FROM t1
+WHERE EXISTS ( SELECT * FROM t2 WHERE c IN ( SELECT MAX(d) FROM t3 ) );
+
+SELECT a, COUNT(a), AVG(a) OVER (PARTITION BY b) FROM t1
+WHERE EXISTS ( SELECT * FROM t2 WHERE c IN ( SELECT MAX(d) FROM t3 ) );
+
+SELECT a, MAX(a), AVG(a) OVER (PARTITION BY b) FROM t1
+WHERE EXISTS ( SELECT * FROM t2 WHERE c IN ( SELECT MAX(d) FROM t3 ) );
+
+DROP TABLE t1,t2,t3;
+
+--echo #
+--echo # MDEV-10859: Wrong result of aggregate window function in query
+--echo #                  with HAVING and no ORDER BY
+--echo #
+
+create table empsalary (depname varchar(32), empno smallint primary key, salary int);
+insert into empsalary values
+  ('develop', 1, 5000), ('develop', 2, 4000),('sales', 3, '6000'),('sales', 4, 5000);
+
+--sorted_result
+SELECT depname, empno, salary, avg(salary) OVER (PARTITION BY depname) FROM empsalary;
+--sorted_result
+SELECT depname, empno, salary, avg(salary) OVER (PARTITION BY depname) FROM empsalary ORDER BY depname;
+--echo #
+--echo # These last 2 should have the same row results, ignoring order.
+--echo #
+--sorted_result
+SELECT depname, empno, salary, avg(salary) OVER (PARTITION BY depname) FROM empsalary HAVING empno > 1;
+--sorted_result
+SELECT depname, empno, salary, avg(salary) OVER (PARTITION BY depname) FROM empsalary HAVING empno > 1 ORDER BY depname;
+
+drop table empsalary;
+
+--echo #
+--echo # MDEV-11868: min(distinct) over () returns wrong value
+--echo #
+
+create table TDEC (CDEC int, RNUM int);
+create view VDEC as select * from TDEC;
+insert into TDEC (CDEC) values (null),(-1),(0),(1),(0),(10);
+select TDEC.CDEC, min(TDEC.CDEC) over () from TDEC;
+select VDEC.CDEC, min(VDEC.CDEC) over () from VDEC;
+select TDEC.CDEC, max(TDEC.CDEC) over () from TDEC;
+select VDEC.CDEC, max(VDEC.CDEC) over () from VDEC;
+
+select TDEC.CDEC, min(distinct TDEC.CDEC) over () from TDEC;
+select VDEC.CDEC, min(distinct VDEC.CDEC) over () from VDEC;
+select TDEC.CDEC, max(distinct TDEC.CDEC) over () from TDEC;
+select VDEC.CDEC, max(distinct VDEC.CDEC) over () from VDEC;
+
+--echo #
+--echo # These should be removed once support for them is added.
+--echo #
+--error ER_NOT_SUPPORTED_YET
+select TDEC.CDEC, count(distinct TDEC.CDEC) over () from TDEC;
+--error ER_NOT_SUPPORTED_YET
+select VDEC.CDEC, count(distinct VDEC.CDEC) over () from VDEC;
+--error ER_NOT_SUPPORTED_YET
+select TDEC.CDEC, sum(distinct TDEC.CDEC) over () from TDEC;
+--error ER_NOT_SUPPORTED_YET
+select VDEC.CDEC, sum(distinct VDEC.CDEC) over () from VDEC;
+--error ER_NOT_SUPPORTED_YET
+select TDEC.CDEC, avg(distinct TDEC.CDEC) over () from TDEC;
+--error ER_NOT_SUPPORTED_YET
+select VDEC.CDEC, avg(distinct VDEC.CDEC) over () from VDEC;
+--error ER_NOT_SUPPORTED_YET
+select TDEC.CDEC, GROUP_CONCAT(TDEC.CDEC) over () from TDEC;
+--error ER_NOT_SUPPORTED_YET
+select VDEC.CDEC, GROUP_CONCAT(distinct VDEC.CDEC) over () from VDEC;
+
+drop table TDEC;
+drop view VDEC;
+
+--echo #
+--echo # MDEV-10700: 10.2.2 windowing function returns incorrect result
+--echo #
+create table t(a int,b int, c int , d int);
+insert into t(a,b,c,d) values(1, rand(10)*1000, rand(10)*1000, rand(10)*1000);
+insert into t(a,b,c,d) values(1, rand(10)*1000, rand(10)*1000, rand(10)*1000);
+replace into t(a,b,c,d) select 1, rand(10)*1000, rand(10)*1000, rand(10)*1000 from t t1, t t2, t t3, t t4, t t5, t t6, t t7, t t8, t t9, t t10, t t11, t t12, t t13, t t14, t t15, t t16, t t17;
+
+select count(distinct s) from (select sum(d) over(partition by a,b,c) as s from t) Z where s > 0;
+select count(distinct s) from (select sum(d) as s from t group by a,b,c) Z where s > 0;
+
+select count(distinct s) from (select sum(d) over(partition by a,b) as s from t) Z where s > 0;
+select count(distinct s) from (select sum(d) as s from t group by a,b) Z where s > 0;
+
+select count(distinct s) from (select sum(d) over(partition by a) as s from t) Z where s > 0;
+select count(distinct s) from (select sum(d) as s from t group by a) Z where s > 0;
+
+drop table t;
+
+--echo #
+--echo # MDEV-9924: window function in query with group by optimized away 
+--echo #
+
+create table t1 (i int);
+insert into t1 values (2),(3),(1);
+
+select row_number() over () from t1 group by 1+2;
+select max(i), row_number() over () from t1 group by 1+2;
+select rank() over (order by max(i)) from t1 group by 1+2;
+
+select i, row_number() over () from t1 group by 1+2;
+select i, rank() over (order by i) rnk from t1 group by 1+2;
+
+drop table t1;
+
+--echo #
+--echo # MDEV-11907: window function as the second operand of division
+--echo #
+
+create table t1 (pk int, c int);
+insert into t1 values (1,1),(2,1),(3,1),(4,1),(5,2);
+
+set @sql_mode_save= @@sql_mode;
+set sql_mode='ERROR_FOR_DIVISION_BY_ZERO';
+
+select pk, c, c/count(*) over 
+           (partition by c order by pk
+            rows between 1 preceding and 2 following) as CNT
+from t1;
+show warnings;
+
+set sql_mode=@sql_mode_save;
+
+drop table t1;
+
+--echo #
+--echo # MDEV-12336: several functions over a window function 
+--echo #
+  
+create table t1 (name varchar(10), cnt int);
+insert into t1 values ('Fred', 23), ('Fred', 35), ('Joe', 10);
+
+select q.name, q.row_cnt, 
+       round( 100 * ( q.row_cnt /
+                      sum(q.row_cnt) over
+                        ( 
+                          order by q.name 
+                          rows between
+                            unbounded preceding and
+                            unbounded following
+                        )
+                    ),2
+            ) pct_of_total
+from 
+( 
+  select name, count(*) row_cnt, sum(cnt) sum_cnt 
+  from t1 
+  group by 1
+) q;
+
+drop table t1;

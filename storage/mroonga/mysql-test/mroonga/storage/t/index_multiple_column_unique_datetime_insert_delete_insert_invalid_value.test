@@ -12,7 +12,7 @@
 #
 # You should have received a copy of the GNU Lesser General Public
 # License along with this library; if not, write to the Free Software
-# Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA
 
 --source ../../include/mroonga/have_mroonga.inc
 
@@ -27,11 +27,11 @@ CREATE TABLE ranges (
   UNIQUE KEY range_key(start, end)
 );
 
-INSERT INTO ranges VALUES (1, "1990-00-00 00:00:00", "2012-10-05 23:59:59");
+INSERT IGNORE INTO ranges VALUES (1, "1990-00-00 00:00:00", "2012-10-05 23:59:59");
 SELECT * FROM ranges;
 
 DELETE FROM ranges WHERE id = 1;
-INSERT INTO ranges VALUES (1, "1990-00-00 00:00:00", "2012-10-05 23:59:59");
+INSERT IGNORE INTO ranges VALUES (1, "1990-00-00 00:00:00", "2012-10-05 23:59:59");
 SELECT * FROM ranges;
 
 DROP TABLE ranges;

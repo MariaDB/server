@@ -513,3 +513,44 @@ SET @@sql_mode= @org_mode;
 
 --echo 
 --echo #End of Test for Bug#12601974 
+
+--echo #
+--echo # MDEV-11848 Automatic statement repreparation changes query semantics
+--echo #
+SET sql_mode=DEFAULT;
+CREATE OR REPLACE TABLE t1 (a TEXT);
+PREPARE stmt FROM 'INSERT INTO t1 (a) VALUES (2||3)';
+EXECUTE stmt;
+SET sql_mode=ORACLE;
+EXECUTE stmt;
+ALTER TABLE t1 ADD b INT;
+EXECUTE stmt;
+SELECT * FROM t1;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-12390 Wrong error line numbers reported with sql_mode=IGNORE_SPACE
+--echo #
+
+SET sql_mode=IGNORE_SPACE;
+DELIMITER $$;
+--error ER_PARSE_ERROR
+CREATE PROCEDURE p1()
+BEGIN
+  SELECT 1+1;
+  syntax error;
+END;
+$$
+DELIMITER ;$$
+
+
+SET sql_mode=DEFAULT;
+DELIMITER $$;
+--error ER_PARSE_ERROR
+CREATE PROCEDURE p1()
+BEGIN
+  SELECT 1+1;
+  syntax error;
+END;
+$$
+DELIMITER ;$$

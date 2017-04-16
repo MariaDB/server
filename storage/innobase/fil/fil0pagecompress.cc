@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (C) 2013, 2016, MariaDB Corporation. All Rights Reserved.
+Copyright (C) 2013, 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -48,14 +48,9 @@ Updated 14/02/2015
 #include "trx0sys.h"
 #include "row0mysql.h"
 #include "ha_prototypes.h"  // IB_LOG_
-#ifndef UNIV_HOTBACKUP
-# include "buf0lru.h"
-# include "ibuf0ibuf.h"
-# include "sync0sync.h"
-#else /* !UNIV_HOTBACKUP */
-# include "srv0srv.h"
-static ulint srv_data_read, srv_data_written;
-#endif /* !UNIV_HOTBACKUP */
+#include "buf0lru.h"
+#include "ibuf0ibuf.h"
+#include "sync0sync.h"
 #include "zlib.h"
 #ifdef __linux__
 #include <linux/fs.h>
@@ -104,7 +99,7 @@ fil_compress_page(
 	byte*	lzo_mem)	/*!< in: temporal memory used by LZO */
 {
 	int err = Z_OK;
-	int comp_level = level;
+	int comp_level = int(level);
 	ulint header_len = FIL_PAGE_DATA + FIL_PAGE_COMPRESSED_SIZE;
 	ulint write_size=0;
 	/* Cache to avoid change during function execution */
@@ -167,8 +162,14 @@ fil_compress_page(
 	switch(comp_method) {
 #ifdef HAVE_LZ4
 	case PAGE_LZ4_ALGORITHM:
+
+#ifdef HAVE_LZ4_COMPRESS_DEFAULT
+		err = LZ4_compress_default((const char *)buf,
+			(char *)out_buf+header_len, len, write_size);
+#else
 		err = LZ4_compress_limitedOutput((const char *)buf,
 			(char *)out_buf+header_len, len, write_size);
+#endif /* HAVE_LZ4_COMPRESS_DEFAULT */
 		write_size = err;
 
 		if (err == 0) {
@@ -308,9 +309,8 @@ fil_compress_page(
 
 		fil_decompress_page(uncomp_page, comp_page, len, NULL);
 
-		if(buf_page_is_corrupted(false, uncomp_page, page_size, false)) {
-			buf_page_print(uncomp_page, page_size, BUF_PAGE_PRINT_NO_CRASH);
-			ut_error;
+		if (buf_page_is_corrupted(false, uncomp_page, page_size, space)) {
+			buf_page_print(uncomp_page, page_size, 0);
 		}
 
 		ut_free(comp_page);
@@ -348,18 +348,12 @@ fil_compress_page(
 	srv_stats.page_compression_saved.add((len - write_size));
 	srv_stats.pages_page_compressed.inc();
 
-	/* If we do not persistently trim rest of page, we need to write it
-	all */
-	if (!srv_use_trim) {
-		memset(out_buf+write_size,0,len-write_size);
-		write_size = len;
-	}
-
 	*out_len = write_size;
 
 	if (allocated) {
 		/* TODO: reduce number of memcpy's */
 		memcpy(buf, out_buf, len);
+		goto exit_free;
 	} else {
 		return(out_buf);
 	}
@@ -385,6 +379,7 @@ err_exit:
 	srv_stats.pages_page_compression_error.inc();
 	*out_len = len;
 
+exit_free:
 	if (allocated) {
 		ut_free(out_buf);
 #ifdef HAVE_LZO
@@ -417,24 +412,26 @@ fil_decompress_page(
 {
 	int err = 0;
 	ulint actual_size = 0;
-	ulint compression_alg = 0;
+	ib_uint64_t compression_alg = 0;
 	byte *in_buf;
 	ulint ptype;
-	ulint header_len = FIL_PAGE_DATA + FIL_PAGE_COMPRESSED_SIZE;
+	ulint header_len;
 
 	ut_ad(buf);
 	ut_ad(len);
 
 	ptype = mach_read_from_2(buf+FIL_PAGE_TYPE);
 
-	if (ptype == FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED) {
-		header_len += FIL_PAGE_COMPRESSION_METHOD_SIZE;
-	}
-
-	/* Do not try to uncompressed pages that are not compressed */
-	if (ptype !=  FIL_PAGE_PAGE_COMPRESSED &&
-		ptype != FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED &&
-		ptype != FIL_PAGE_COMPRESSED) {
+	switch (ptype) {
+	case FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED:
+		header_len = FIL_PAGE_DATA + FIL_PAGE_COMPRESSED_SIZE
+			+ FIL_PAGE_COMPRESSION_METHOD_SIZE;
+		break;
+	case FIL_PAGE_PAGE_COMPRESSED:
+		header_len = FIL_PAGE_DATA + FIL_PAGE_COMPRESSED_SIZE;
+		break;
+	default:
+		/* The page is not in our format. */
 		return;
 	}
 
@@ -448,9 +445,7 @@ fil_decompress_page(
 
 	/* Before actual decompress, make sure that page type is correct */
 
-	if (mach_read_from_4(buf+FIL_PAGE_SPACE_OR_CHKSUM) != BUF_NO_CHECKSUM_MAGIC ||
-		(ptype != FIL_PAGE_PAGE_COMPRESSED &&
-		 ptype != FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED)) {
+	if (mach_read_from_4(buf+FIL_PAGE_SPACE_OR_CHKSUM) != BUF_NO_CHECKSUM_MAGIC) {
 		ib::error() << "Corruption: We try to uncompress corrupted page:"
 			    << " CRC "
 			    << mach_read_from_4(buf+FIL_PAGE_SPACE_OR_CHKSUM)
@@ -466,7 +461,7 @@ fil_decompress_page(
 
 	/* Get compression algorithm */
 	if (ptype == FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED) {
-		compression_alg = mach_read_from_2(buf+FIL_PAGE_DATA+FIL_PAGE_COMPRESSED_SIZE);
+		compression_alg = static_cast<ib_uint64_t>(mach_read_from_2(buf+FIL_PAGE_DATA+FIL_PAGE_COMPRESSED_SIZE));
 	} else {
 		compression_alg = mach_read_from_8(buf+FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION);
 	}
@@ -492,10 +487,8 @@ fil_decompress_page(
 		*write_size = actual_size;
 	}
 
-#ifdef UNIV_PAGECOMPRESS_DEBUG
-	ib::info() << "Preparing for decompress for len "
-		   << actual_size << ".";
-#endif /* UNIV_PAGECOMPRESS_DEBUG */
+	DBUG_LOG("compress", "Preparing for decompress for len "
+		 << actual_size << ".");
 
 	switch(compression_alg) {
 	case PAGE_ZLIB_ALGORITHM:
@@ -656,7 +649,5 @@ err_exit:
 		    << " compression method: "
 		    << fil_get_compression_alg_name(compression_alg) << ".";
 
-	buf_page_print(buf, page_size, BUF_PAGE_PRINT_NO_CRASH);
-
-	ut_error;
+	buf_page_print(buf, page_size, 0);
 }

@@ -787,7 +787,7 @@ drop procedure if exists fn3;
 create function fn3 () returns point deterministic return ST_GeomFromText("point(1 1)");
 show create function fn3;
 Function	sql_mode	Create Function	character_set_client	collation_connection	Database Collation
-fn3	NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` FUNCTION `fn3`() RETURNS point
+fn3	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` FUNCTION `fn3`() RETURNS point
     DETERMINISTIC
 return ST_GeomFromText("point(1 1)")	latin1	latin1_swedish_ci	latin1_swedish_ci
 select ST_astext(fn3());
@@ -868,8 +868,8 @@ down3,left3,right3,up3
 SELECT GROUP_CONCAT(a2.name ORDER BY a2.name) AS MBRequals       FROM t1 a1 JOIN t1 a2 ON MBREquals(        a1.square, a2.square) WHERE a1.name = "center" GROUP BY a1.name;
 MBRequals
 center
-SELECT GROUP_CONCAT(a2.name ORDER BY a2.name) AS intersect    FROM t1 a1 JOIN t1 a2 ON MBRIntersects(    a1.square, a2.square) WHERE a1.name = "center" GROUP BY a1.name;
-intersect
+SELECT GROUP_CONCAT(a2.name ORDER BY a2.name) AS intersects    FROM t1 a1 JOIN t1 a2 ON MBRIntersects(    a1.square, a2.square) WHERE a1.name = "center" GROUP BY a1.name;
+intersects
 big,center,down,down2,left,left2,right,right2,small,up,up2
 SELECT GROUP_CONCAT(a2.name ORDER BY a2.name) AS MBRoverlaps     FROM t1 a1 JOIN t1 a2 ON MBROverlaps(      a1.square, a2.square) WHERE a1.name = "center" GROUP BY a1.name;
 MBRoverlaps
@@ -996,9 +996,7 @@ ST_GEOMFROMTEXT(
 'multipolygon(((1 2,3 4,5 6,7 8,9 8,1 2,1 2),(7 6,5 4,3 2,1 2,3 4,7 6)))'));
 # must not crash
 SELECT 1 FROM t1 WHERE a <> (SELECT ST_GEOMETRYCOLLECTIONFROMWKB(b) FROM t1);
-1
-Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: '\x00\x00\x00\x00\x01\x06\x00\x00\x00\x01\x00\x00\x00\x01\x03\x00\x00\x00\x02\x00\x00\x00\x07\x00\x00\x00\x00\x00\x00\x00\x00\x00'
+ERROR HY000: Illegal parameter data types int and geometry for operation '<>'
 DROP TABLE t1;
 #
 # Bug #49250 : spatial btree index corruption and crash
@@ -1066,7 +1064,7 @@ col2 TIMESTAMP
 ) ENGINE=InnoDB;
 CREATE INDEX idx0 ON t1(col0);
 Warnings:
-Note	1831	Duplicate index 'idx0' defined on the table 'test.t1'. This is deprecated and will be disallowed in a future release
+Note	1831	Duplicate index `idx0`. This is deprecated and will be disallowed in a future release
 CREATE TABLE t3 (
 col0 INTEGER NOT NULL,
 col1 POINT,
@@ -1105,11 +1103,7 @@ FLUSH TABLES;
 SELECT 1 FROM g1 
 FORCE INDEX(i) WHERE a = date_sub(now(), interval 2808.4 year_month)
 ;
-1
-Warnings:
-Warning	1292	Incorrect datetime value: '\x00\x00\x00\x00\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\xF0?\x00\x00\x00\x00\x00\x00\xF0?'
-Warning	1441	Datetime function: datetime field overflow
-Warning	1292	Incorrect datetime value: '\x00\x00\x00\x00\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\xF0?\x00\x00\x00\x00\x00\x00\x00@'
+ERROR HY000: Illegal parameter data types geometry and datetime for operation '='
 DROP TABLE g1;
 #
 # Bug#13013970 MORE CRASHES IN FIELD_BLOB::GET_KEY_IMAGE

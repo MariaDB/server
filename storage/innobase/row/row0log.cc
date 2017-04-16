@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2011, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -24,11 +25,6 @@ Created 2011-05-26 Marko Makela
 *******************************************************/
 
 #include "row0log.h"
-
-#ifdef UNIV_NONINL
-#include "row0log.ic"
-#endif
-
 #include "row0row.h"
 #include "row0ins.h"
 #include "row0upd.h"
@@ -526,7 +522,7 @@ err_exit:
 
 	my_atomic_addlint(&onlineddl_rowlog_rows, 1);
 	/* 10000 means 100.00%, 4525 means 45.25% */
-	onlineddl_rowlog_pct_used = (log->tail.total * 10000) / srv_online_max_size;
+	onlineddl_rowlog_pct_used = static_cast<ulint>((log->tail.total * 10000) / srv_online_max_size);
 }
 
 #ifdef UNIV_DEBUG
@@ -1641,15 +1637,9 @@ row_log_table_apply_insert_low(
 	ut_ad(dtuple_validate(row));
 	ut_ad(trx_id);
 
-#ifdef UNIV_DEBUG
-	{
-		rec_printer p(row);
-		DBUG_PRINT("ib_alter_table",
-			("insert table " IB_ID_FMT " (index " IB_ID_FMT "): %s",
-			index->table->id, index->id,
-			p.str().c_str()));
-	}
-#endif
+	DBUG_LOG("ib_alter_table",
+		 "insert table " << index->table->id << " (index "
+		 << index->id << "): " << rec_printer(row).str());
 
 	static const ulint	flags
 		= (BTR_CREATE_FLAG
@@ -1777,15 +1767,10 @@ row_log_table_apply_delete_low(
 
 	ut_ad(dict_index_is_clust(index));
 
-#ifdef UNIV_DEBUG
-	{
-		rec_printer p(btr_pcur_get_rec(pcur), offsets);
-		DBUG_PRINT("ib_alter_table",
-			("delete table " IB_ID_FMT " (index " IB_ID_FMT "): %s",
-			index->table->id, index->id,
-			p.str().c_str()));
-	}
-#endif
+	DBUG_LOG("ib_alter_table",
+		 "delete table " << index->table->id << " (index "
+		 << index->id << "): "
+		 << rec_printer(btr_pcur_get_rec(pcur), offsets).str());
 
 	if (dict_table_get_next_index(index)) {
 		/* Build a row template for purging secondary index entries. */
@@ -2266,17 +2251,11 @@ func_exit_committed:
 			cur_offsets, NULL, NULL, NULL, &old_ext, heap);
 		ut_ad(old_row);
 
-#ifdef UNIV_DEBUG
-		{
-			rec_printer old(old_row);
-			rec_printer new_row(row);
-			DBUG_PRINT("ib_alter_table",
-				("update table " IB_ID_FMT " (index " IB_ID_FMT "): %s to %s",
-				index->table->id, index->id,
-				old.str().c_str(),
-				new_row.str().c_str()));
-		}
-#endif
+		DBUG_LOG("ib_alter_table",
+			 "update table " << index->table->id
+			 << " (index " << index->id
+			 << ": " << rec_printer(old_row).str()
+			 << " to " << rec_printer(row).str());
 	} else {
 		old_row = NULL;
 		old_ext = NULL;
@@ -3298,17 +3277,11 @@ row_log_apply_op_low(
 	ut_ad(!dict_index_is_corrupted(index));
 	ut_ad(trx_id != 0 || op == ROW_OP_DELETE);
 
-#ifdef UNIV_DEBUG
-	{
-		rec_printer p(entry);
-		DBUG_PRINT("ib_create_index",
-				("%s %s index " IB_ID_FMT "," IB_ID_FMT ": %s",
-				op == ROW_OP_INSERT ? "insert" : "delete",
-				has_index_lock ? "locked" : "unlocked",
-				index->id, trx_id,
-				p.str().c_str()));
-	}
-#endif
+	DBUG_LOG("ib_create_index",
+		 (op == ROW_OP_INSERT ? "insert " : "delete ")
+		 << (has_index_lock ? "locked index " : "unlocked index ")
+		 << index->id << ',' << ib::hex(trx_id) << ": "
+		 << rec_printer(entry).str());
 
 	mtr_start(&mtr);
 	mtr.set_named_space(index->space);

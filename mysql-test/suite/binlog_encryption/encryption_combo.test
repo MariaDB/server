@@ -1,0 +1,137 @@
+#
+# The test checks that master with decryption capabilities can switch
+# between encrypted and unencrypted logs (with server restart), 
+# and can feed the mix of encrypted/unencrypted logs to a slave.
+#
+# The test starts with unencrypted master. 
+# It stops replication, generates a few statement and row events
+# on the master, then restarts the server with encrypted binlog, 
+# generates some more events and restarts it back with unencrypted binlog. 
+# Then it resumes replication and checks that all events 
+# are replicated successfully. 
+#
+
+--source include/have_binlog_format_mixed.inc
+
+--echo #################
+--echo # Initialization
+--echo #################
+
+--let $rpl_topology= 1->2
+--source include/rpl_init.inc
+
+--enable_connect_log
+
+# We stop replication because we want it to happen after the switch
+
+--connection server_2
+--disable_connect_log
+--source include/stop_slave.inc
+--enable_connect_log
+
+--echo #####################################################
+--echo # Part 1: unencrypted master
+--echo #####################################################
+
+--connection server_1
+
+CREATE TABLE table1_no_encryption (
+  pk INT AUTO_INCREMENT PRIMARY KEY,
+  ts TIMESTAMP NULL,
+  b BLOB
+) ENGINE=MyISAM; 
+
+INSERT INTO table1_no_encryption VALUES (NULL,NOW(),'data_no_encryption');
+INSERT INTO table1_no_encryption SELECT NULL,NOW(),b FROM table1_no_encryption;
+FLUSH BINARY LOGS;
+SET binlog_format=ROW;
+INSERT INTO table1_no_encryption SELECT NULL,NOW(),b FROM table1_no_encryption;
+INSERT INTO table1_no_encryption SELECT NULL,NOW(),b FROM table1_no_encryption;
+
+# Make sure that binary logs are not encrypted
+
+--let $master_datadir= `SELECT @@datadir`
+
+--let SEARCH_RANGE = 500000
+--let SEARCH_FILE= $master_datadir/master-bin.0*
+--let SEARCH_PATTERN= table1_no_encryption
+--source include/search_pattern_in_file.inc
+
+--echo #####################################################
+--echo # Part 2: restart master, now with binlog encryption
+--echo #####################################################
+
+--let $rpl_server_parameters= --encrypt-binlog=1
+--let $rpl_server_number= 1
+--source restart_server.inc
+
+CREATE TABLE table2_to_encrypt (
+  pk INT AUTO_INCREMENT PRIMARY KEY,
+  ts TIMESTAMP NULL,
+  b BLOB
+) ENGINE=MyISAM; 
+
+INSERT INTO table2_to_encrypt VALUES (NULL,NOW(),'data_to_encrypt');
+INSERT INTO table2_to_encrypt SELECT NULL,NOW(),b FROM table2_to_encrypt;
+FLUSH BINARY LOGS;
+SET binlog_format=ROW;
+INSERT INTO table2_to_encrypt SELECT NULL,NOW(),b FROM table2_to_encrypt;
+INSERT INTO table2_to_encrypt SELECT NULL,NOW(),b FROM table2_to_encrypt;
+
+# Make sure that binary logs are encrypted
+
+--let SEARCH_FILE= $master_datadir/master-bin.0*
+--let SEARCH_PATTERN= table2_to_encrypt
+--source include/search_pattern_in_file.inc
+
+--echo #####################################################
+--echo # Part 3: restart master again without encryption
+--echo #####################################################
+
+--let $rpl_server_parameters= --encrypt-binlog=0
+--let $rpl_server_number= 1
+--source restart_server.inc
+
+CREATE TABLE table3_no_encryption (
+  pk INT AUTO_INCREMENT PRIMARY KEY,
+  ts TIMESTAMP NULL,
+  b BLOB
+) ENGINE=MyISAM; 
+
+INSERT INTO table3_no_encryption VALUES (NULL,NOW(),'data_no_encryption');
+INSERT INTO table3_no_encryption SELECT NULL,NOW(),b FROM table3_no_encryption;
+INSERT INTO table3_no_encryption SELECT NULL,NOW(),b FROM table3_no_encryption;
+
+--save_master_pos
+
+--echo #####################################################
+--echo # Check: resume replication and check that it works
+--echo #####################################################
+--connection server_2
+
+--disable_connect_log
+--source include/start_slave.inc
+--enable_connect_log
+--sync_with_master
+
+--sorted_result
+SHOW TABLES;
+
+--echo ##########
+--echo # Cleanup
+--echo ##########
+
+--connection server_1
+
+SELECT COUNT(*) FROM table1_no_encryption;
+SELECT COUNT(*) FROM table2_to_encrypt;
+SELECT COUNT(*) FROM table3_no_encryption;
+DROP TABLE table1_no_encryption, table2_to_encrypt, table3_no_encryption;
+
+--save_master_pos
+
+--connection server_2
+--sync_with_master
+
+--disable_connect_log
+--source include/rpl_end.inc

@@ -67,6 +67,7 @@ INSERT INTO t3 VALUES (4294967296,'2011-04-12 21:05:37',0x0000CE3238,'xwcplgaxcp
 --enable_query_log
 
 set session sort_buffer_size= 32768;
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
 select  col435
 from t3
 natural right outer join t1

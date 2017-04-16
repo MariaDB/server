@@ -69,3 +69,28 @@ create or replace table t1 (a int, b int,
   constraint CONSTRAINT_2 check (a>b));
 show create table t1;
 drop table t1;
+
+#
+# MDEV-10370 Check constraints on virtual columns fails on INSERT when column not specified
+#
+create table t1(c1 int, c2 int as (c1 + 1), check (c2 > 2));
+--error ER_CONSTRAINT_FAILED
+insert into t1(c1) values(1);
+insert into t1(c1) values(2);
+drop table t1;
+
+#
+# MDEV-11114 Cannot drop column referenced by CHECK constraint: Unknown column 'a' in 'virtual column function'
+#
+create table t1 (a int, b int, check(a>0));
+--error ER_BAD_FIELD_ERROR
+alter table t1 drop column a;
+drop table t1;
+
+#
+# MDEV-12421 Check constraint with query crashes server and renders DB unusable
+#
+--error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
+create table t1 (a int check (@b in (select user from mysql.user)));
+--error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
+create table t1 (a int check (a > @b));

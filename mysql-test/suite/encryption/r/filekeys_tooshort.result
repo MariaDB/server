@@ -1,0 +1,10 @@
+call mtr.add_suppression("Cannot decrypt .*tooshort.enc. Not encrypted");
+call mtr.add_suppression("Plugin 'file_key_management' init function returned error");
+call mtr.add_suppression("Plugin 'file_key_management' registration.*failed");
+FOUND 1 /Cannot decrypt .*tooshort.enc. Not encrypted/ in mysqld.1.err
+create table t1(c1 bigint not null, b char(200))  engine=innodb encrypted=yes encryption_key_id=1;
+ERROR HY000: Can't create table `test`.`t1` (errno: 140 "Wrong create options")
+select plugin_status from information_schema.plugins
+where plugin_name = 'file_key_management';
+plugin_status
+# Test checks if opening an too short filekeys does not crash the server.

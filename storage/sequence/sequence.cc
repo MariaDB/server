@@ -29,7 +29,7 @@
 #include <table.h>
 #include <field.h>
 
-handlerton *sequence_hton;
+static handlerton *sequence_hton;
 
 class Sequence_share : public Handler_share {
 public:
@@ -95,9 +95,9 @@ public:
   ha_rows records_in_range(uint inx, key_range *min_key,
                                    key_range *max_key);
 
-  double scan_time() { return nvalues(); }
-  double read_time(uint index, uint ranges, ha_rows rows) { return rows; }
-  double keyread_time(uint index, uint ranges, ha_rows rows) { return rows; }
+  double scan_time() { return (double)nvalues(); }
+  double read_time(uint index, uint ranges, ha_rows rows) { return (double)rows; }
+  double keyread_time(uint index, uint ranges, ha_rows rows) { return (double)rows; }
 
 private:
   void set(uchar *buf);

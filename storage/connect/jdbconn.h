@@ -165,6 +165,7 @@ protected:
 	jmethodID xpid;										  // The ExecutePrep method ID
 	jmethodID pcid;										  // The ClosePrepStmt method ID
 	jmethodID errid;										// The GetErrmsg method ID
+	jmethodID objfldid;									// The ObjectField method ID
 	jmethodID chrfldid;									// The StringField method ID
 	jmethodID intfldid;									// The IntField method ID
 	jmethodID dblfldid;									// The DoubleField method ID
@@ -179,9 +180,9 @@ protected:
 	char     *Msg;
 	char     *m_Wrap;
 	char      m_IDQuoteChar[2];
-	PSZ       m_Driver;
-	PSZ       m_Url;
-	PSZ       m_User;
+//PSZ       m_Driver;
+//PSZ       m_Url;
+//PSZ       m_User;
 	PSZ       m_Pwd;
   int       m_Ncol;
 	int       m_Aff;

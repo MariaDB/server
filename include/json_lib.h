@@ -203,6 +203,7 @@ typedef struct st_json_engine_t
   enum json_value_types value_type; /* type of the value.*/
   const uchar *value;      /* Points to the value. */
   const uchar *value_begin;/* Points to where the value starts in the JSON. */
+  int value_escaped;       /* Flag telling if the string value has escaping.*/
   uint num_flags;  /* the details of the JSON_VALUE_NUMBER, is it negative,
                       or if it has the fractional part.
                       See the enum json_num_flags. */
@@ -219,7 +220,7 @@ typedef struct st_json_engine_t
                  /* string constants. */
 
   int stack[JSON_DEPTH_LIMIT]; /* Keeps the stack of nested JSON structures. */
-  int *stack_p;                /* The 'stack' pointer. */
+  int stack_p;                 /* The 'stack' pointer. */
 } json_engine_t;
 
 
@@ -308,7 +309,7 @@ typedef const int *json_level_t;
 */
 #define json_get_level(j) (j->stack_p)
 
-int json_skip_to_level(json_engine_t *j, json_level_t level);
+int json_skip_to_level(json_engine_t *j, int level);
 
 /*
   json_skip_level() works as above with just current structre.
@@ -390,6 +391,32 @@ int json_escape(CHARSET_INFO *str_cs, const uchar *str, const uchar *str_end,
 int json_append_ascii(CHARSET_INFO *json_cs,
                       uchar *json, uchar *json_end,
                       const uchar *ascii, const uchar *ascii_end);
+
+
+/*
+  Scan the JSON and return paths met one-by-one.
+     json_get_path_start(&p)
+     while (json_get_path_next(&p))
+     {
+       handle_the_next_path();
+     }
+*/
+
+int json_get_path_start(json_engine_t *je, CHARSET_INFO *i_cs,
+                        const uchar *str, const uchar *end,
+                        json_path_t *p);
+
+
+int json_get_path_next(json_engine_t *je, json_path_t *p);
+
+
+int json_path_parts_compare(
+        const json_path_step_t *a, const json_path_step_t *a_end,
+        const json_path_step_t *b, const json_path_step_t *b_end,
+        enum json_value_types vt);
+int json_path_compare(const json_path_t *a, const json_path_t *b,
+                      enum json_value_types vt);
+
 
 #ifdef  __cplusplus
 }

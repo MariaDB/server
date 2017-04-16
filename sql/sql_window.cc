@@ -632,9 +632,10 @@ private:
   /* If io_cache=!NULL, use it */
   IO_CACHE *io_cache;
   uchar *ref_buffer;   /* Buffer for the last returned rowid */
-  uint rownum;     /* Number of the rowid that is about to be returned */
-  bool cache_eof; /* whether we've reached EOF */
-  
+  ha_rows rownum;     /* Number of the rowid that is about to be returned */
+  ha_rows current_ref_buffer_rownum;
+  bool ref_buffer_valid;
+
   /* The following are used when we are reading from an array of pointers */
   uchar *cache_start;
   uchar *cache_pos;
@@ -655,34 +656,26 @@ public:
     {
       //DBUG_ASSERT(info->read_record == rr_from_tempfile);
       rownum= 0;
-      cache_eof= false;
       io_cache= (IO_CACHE*)my_malloc(sizeof(IO_CACHE), MYF(0));
       init_slave_io_cache(info->io_cache, io_cache);
 
       ref_buffer= (uchar*)my_malloc(ref_length, MYF(0));
+      ref_buffer_valid= false;
     }
   }
 
   virtual int next()
   {
+    /* Allow multiple next() calls in EOF state. */
+    if (at_eof())
+        return -1;
+
     if (io_cache)
     {
-      if (cache_eof)
-        return 1;
-
-      if (my_b_read(io_cache,ref_buffer,ref_length))
-      {
-        cache_eof= 1; // TODO: remove cache_eof
-        return -1;
-      }
       rownum++;
-      return 0;
     }
     else
     {
-      /* Allow multiple next() calls in EOF state. */
-      if (cache_pos == cache_end)
-        return -1;
       cache_pos+= ref_length;
       DBUG_ASSERT(cache_pos <= cache_end);
     }
@@ -696,7 +689,7 @@ public:
       if (rownum == 0)
         return -1;
 
-      move_to(rownum - 1);
+      rownum--;
       return 0;
     }
     else
@@ -722,9 +715,7 @@ public:
   {
     if (io_cache)
     {
-      seek_io_cache(io_cache, row_number * ref_length);
       rownum= row_number;
-      Rowid_seq_cursor::next();
     }
     else
     {
@@ -738,18 +729,36 @@ protected:
   {
     if (io_cache)
     {
-      return cache_eof;
+      return rownum * ref_length >= io_cache->end_of_file;
     }
     else
       return (cache_pos == cache_end);
   }
 
-  uchar *get_curr_rowid()
+  bool get_curr_rowid(uchar **row_id)
   {
     if (io_cache)
-      return ref_buffer;
+    {
+      DBUG_ASSERT(!at_eof());
+      if (!ref_buffer_valid || current_ref_buffer_rownum != rownum)
+      {
+        seek_io_cache(io_cache, rownum * ref_length);
+        if (my_b_read(io_cache,ref_buffer,ref_length))
+        {
+          /* Error reading from file. */
+          return true;
+        }
+        ref_buffer_valid= true;
+        current_ref_buffer_rownum = rownum;
+      }
+      *row_id = ref_buffer;
+      return false;
+    }
     else
-      return cache_pos;
+    {
+      *row_id= cache_pos;
+      return false;
+    }
   }
 };
 
@@ -775,7 +784,9 @@ public:
     if (at_eof())
       return -1;
 
-    uchar* curr_rowid= get_curr_rowid();
+    uchar* curr_rowid;
+    if (get_curr_rowid(&curr_rowid))
+      return -1;
     return table->file->ha_rnd_pos(record, curr_rowid);
   }
 
@@ -2311,19 +2322,6 @@ void add_special_frame_cursors(THD *thd, Cursor_manager *cursor_manager,
       fc->add_sum_func(item_sum);
       cursor_manager->add_cursor(fc);
       break;
-    case Item_sum::FIRST_VALUE_FUNC:
-      fc= get_frame_cursor(thd, spec, true);
-      fc->set_no_action();
-      cursor_manager->add_cursor(fc);
-      fc= new Frame_positional_cursor(*fc);
-      fc->add_sum_func(item_sum);
-      cursor_manager->add_cursor(fc);
-      break;
-    case Item_sum::LAST_VALUE_FUNC:
-      fc= get_frame_cursor(thd, spec, false);
-      fc->add_sum_func(item_sum);
-      cursor_manager->add_cursor(fc);
-      break;
     case Item_sum::LEAD_FUNC:
     case Item_sum::LAG_FUNC:
     {
@@ -2343,6 +2341,38 @@ void add_special_frame_cursors(THD *thd, Cursor_manager *cursor_manager,
                                       *top_bound, *bottom_bound,
                                       *item_sum->get_arg(1),
                                       negative_offset);
+      fc->add_sum_func(item_sum);
+      cursor_manager->add_cursor(fc);
+      break;
+    }
+    case Item_sum::FIRST_VALUE_FUNC:
+    {
+      Frame_cursor *bottom_bound= get_frame_cursor(thd, spec, false);
+      Frame_cursor *top_bound= get_frame_cursor(thd, spec, true);
+      cursor_manager->add_cursor(bottom_bound);
+      cursor_manager->add_cursor(top_bound);
+      DBUG_ASSERT(item_sum->fixed);
+      Item *offset_item= new (thd->mem_root) Item_int(thd, 0);
+      offset_item->fix_fields(thd, &offset_item);
+      fc= new Frame_positional_cursor(*top_bound,
+                                      *top_bound, *bottom_bound,
+                                      *offset_item, false);
+      fc->add_sum_func(item_sum);
+      cursor_manager->add_cursor(fc);
+      break;
+    }
+    case Item_sum::LAST_VALUE_FUNC:
+    {
+      Frame_cursor *bottom_bound= get_frame_cursor(thd, spec, false);
+      Frame_cursor *top_bound= get_frame_cursor(thd, spec, true);
+      cursor_manager->add_cursor(bottom_bound);
+      cursor_manager->add_cursor(top_bound);
+      DBUG_ASSERT(item_sum->fixed);
+      Item *offset_item= new (thd->mem_root) Item_int(thd, 0);
+      offset_item->fix_fields(thd, &offset_item);
+      fc= new Frame_positional_cursor(*bottom_bound,
+                                      *top_bound, *bottom_bound,
+                                      *offset_item, false);
       fc->add_sum_func(item_sum);
       cursor_manager->add_cursor(fc);
       break;
@@ -2669,10 +2699,20 @@ bool Window_func_runner::add_function_to_run(Item_window_func *win_func)
   {
     /* Distinct is not yet supported. */
     case Item_sum::GROUP_CONCAT_FUNC:
+      my_error(ER_NOT_SUPPORTED_YET, MYF(0),
+               "GROUP_CONCAT() aggregate as window function");
+      return true;
     case Item_sum::SUM_DISTINCT_FUNC:
+      my_error(ER_NOT_SUPPORTED_YET, MYF(0),
+               "SUM(DISTINCT) aggregate as window function");
+      return true;
     case Item_sum::AVG_DISTINCT_FUNC:
       my_error(ER_NOT_SUPPORTED_YET, MYF(0),
-               "This aggregate as window function");
+               "AVG(DISTINCT) aggregate as window function");
+      return true;
+    case Item_sum::COUNT_DISTINCT_FUNC:
+      my_error(ER_NOT_SUPPORTED_YET, MYF(0),
+               "COUNT(DISTINCT) aggregate as window function");
       return true;
     default:
       break;
@@ -2801,6 +2841,11 @@ bool Window_funcs_sort::setup(THD *thd, SQL_SELECT *sel,
     sort_order= order;
   }
   filesort= new (thd->mem_root) Filesort(sort_order, HA_POS_ERROR, true, NULL);
+  if (!join_tab->join->top_join_tab_count)
+  {
+    filesort->tracker=
+      new (thd->mem_root) Filesort_tracker(thd->lex->analyze_stmt);
+  }
 
   /* Apply the same condition that the subsequent sort has. */
   filesort->select= sel;
@@ -2816,6 +2861,12 @@ bool Window_funcs_computation::setup(THD *thd,
   order_window_funcs_by_window_specs(window_funcs);
 
   SQL_SELECT *sel= NULL;
+  /*
+     If the tmp table is filtered during sorting
+     (ex: SELECT with HAVING && ORDER BY), we must make sure to keep the
+     filtering conditions when we perform sorting for window function
+     computation.
+  */
   if (tab->filesort && tab->filesort->select)
   {
     sel= tab->filesort->select;

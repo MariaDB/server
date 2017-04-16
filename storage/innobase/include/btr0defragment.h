@@ -20,10 +20,6 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #ifndef btr0defragment_h
 #define btr0defragment_h
 
-#include "univ.i"
-
-#ifndef UNIV_HOTBACKUP
-
 #include "btr0pcur.h"
 
 /* Max number of pages to consider at once during defragmentation. */
@@ -98,7 +94,4 @@ DECLARE_THREAD(btr_defragment_thread)(
 /*==========================================*/
 	void*	arg);		/*!< in: a dummy parameter required by
 				os_thread_create */
-
-
-#endif /* !UNIV_HOTBACKUP */
 #endif

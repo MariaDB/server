@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1994, 2015, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -24,15 +24,11 @@ Created 8/22/1994 Heikki Tuuri
 *************************************************************************/
 
 #include "ha0ha.h"
-#ifdef UNIV_NONINL
-#include "ha0ha.ic"
-#endif
 
-#ifndef UNIV_HOTBACKUP
 #ifdef UNIV_DEBUG
 # include "buf0buf.h"
 #endif /* UNIV_DEBUG */
-# include "btr0sea.h"
+#include "btr0sea.h"
 #include "page0page.h"
 
 /*************************************************************//**
@@ -147,7 +143,9 @@ ha_clear(
 	hash_table_t*	table)	/*!< in, own: hash table */
 {
 	ut_ad(table->magic_n == HASH_TABLE_MAGIC_N);
+#ifdef BTR_CUR_HASH_ADAPT
 	ut_ad(!table->adaptive || btr_search_own_all(RW_LOCK_X));
+#endif /* BTR_CUR_HASH_ADAPT */
 
 	for (ulint i = 0; i < table->n_sync_obj; i++) {
 		mem_heap_free(table->heaps[i]);
@@ -190,6 +188,7 @@ ha_clear(
 	}
 }
 
+#ifdef BTR_CUR_HASH_ADAPT
 /*************************************************************//**
 Inserts an entry into a hash table. If an entry with the same fold number
 is found, its node is updated to point to the new data, and no new node
@@ -537,4 +536,4 @@ builds, see http://bugs.mysql.com/36941 */
 			(ulong) n_bufs);
 	}
 }
-#endif /* !UNIV_HOTBACKUP */
+#endif /* BTR_CUR_HASH_ADAPT */

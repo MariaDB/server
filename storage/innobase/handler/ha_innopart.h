@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2014, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2016, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -723,12 +724,6 @@ private:
 	int
 	next_partition_index();
 
-	/** Internally called for initializing auto increment value.
-	Should never be called, but defined to catch such errors.
-	@return 0 on success else error code. */
-	int
-	innobase_initialize_autoinc();
-
 	/** Get the index for the current partition
 	@param[in]	keynr	MySQL index number.
 	@return InnoDB index or NULL. */
@@ -771,12 +766,6 @@ private:
 	int
 	initialize_auto_increment(
 		bool	/* no_lock */);
-
-	/** Save currently highest auto increment value.
-	@param[in]	nr	Auto increment value to save. */
-	void
-	save_auto_increment(
-		ulonglong	nr);
 
 	/** Setup the ordered record buffer and the priority queue.
 	@param[in]	used_parts	Number of used partitions in query.

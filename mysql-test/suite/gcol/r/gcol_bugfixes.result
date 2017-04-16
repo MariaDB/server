@@ -575,3 +575,18 @@ SELECT 1 FROM t WHERE c GROUP BY b;
 1
 COMMIT;
 DROP TABLE t;
+#
+# MDEV-9255 Add generation_expression to information_schema.columns.
+#
+CREATE TABLE gcol_t1 (
+sidea DOUBLE,
+sideb DOUBLE,
+sidec DOUBLE AS (SQRT(sidea * sidea + sideb * sideb))
+);
+SELECT table_schema,table_name,column_name,extra,is_generated,generation_expression
+FROM information_schema.columns WHERE table_name='gcol_t1';
+table_schema	table_name	column_name	extra	is_generated	generation_expression
+test	gcol_t1	sidea		NEVER	NULL
+test	gcol_t1	sideb		NEVER	NULL
+test	gcol_t1	sidec	VIRTUAL GENERATED	ALWAYS	sqrt(`sidea` * `sidea` + `sideb` * `sideb`)
+DROP TABLE gcol_t1;

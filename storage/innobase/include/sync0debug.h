@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2013, 2015, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation. All Rights Reserved.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -39,7 +40,7 @@ Created 2012-08-21 Sunny Bains
 void
 sync_check_init();
 
-/** Frees the resources in synchronization data structures. */
+/** Free the InnoDB synchronization data structures. */
 void
 sync_check_close();
 

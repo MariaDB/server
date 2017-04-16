@@ -1,4 +1,4 @@
-/* Copyright (c) 2008, 2015, Oracle and/or its affiliates. All rights reserved.
+/* Copyright (c) 2008, 2016, Oracle and/or its affiliates. All rights reserved.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -2562,10 +2562,7 @@ start_table_io_wait_v1(PSI_table_locker_state *state,
   if (! pfs_table->m_io_enabled)
     return NULL;
 
-  PFS_thread *pfs_thread= pfs_table->m_thread_owner;
-
-  DBUG_ASSERT(pfs_thread ==
-              my_pthread_getspecific_ptr(PFS_thread*, THR_PFS));
+  PFS_thread *pfs_thread= my_pthread_getspecific_ptr(PFS_thread*, THR_PFS);
 
   register uint flags;
   ulonglong timer_start= 0;
@@ -2668,7 +2665,7 @@ start_table_lock_wait_v1(PSI_table_locker_state *state,
   if (! pfs_table->m_lock_enabled)
     return NULL;
 
-  PFS_thread *pfs_thread= pfs_table->m_thread_owner;
+  PFS_thread *pfs_thread= my_pthread_getspecific_ptr(PFS_thread*, THR_PFS);
 
   PFS_TL_LOCK_TYPE lock_type;
 
@@ -3070,7 +3067,12 @@ start_socket_wait_v1(PSI_socket_locker_state *state,
 
   if (flag_thread_instrumentation)
   {
-    PFS_thread *pfs_thread= pfs_socket->m_thread_owner;
+    /*
+       Do not use pfs_socket->m_thread_owner here,
+       as different threads may use concurrently the same socket,
+       for example during a KILL.
+    */
+    PFS_thread *pfs_thread= my_pthread_getspecific_ptr(PFS_thread*, THR_PFS);
 
     if (unlikely(pfs_thread == NULL))
       return NULL;
@@ -3438,6 +3440,8 @@ static void end_idle_wait_v1(PSI_idle_locker* locker)
       if (flag_events_waits_history_long)
         insert_events_waits_history_long(wait);
       thread->m_events_waits_current--;
+
+      DBUG_ASSERT(wait == thread->m_events_waits_current);
     }
   }
 
@@ -3519,6 +3523,8 @@ static void end_mutex_wait_v1(PSI_mutex_locker* locker, int rc)
       if (flag_events_waits_history_long)
         insert_events_waits_history_long(wait);
       thread->m_events_waits_current--;
+
+      DBUG_ASSERT(wait == thread->m_events_waits_current);
     }
   }
 }
@@ -3598,6 +3604,8 @@ static void end_rwlock_rdwait_v1(PSI_rwlock_locker* locker, int rc)
       if (flag_events_waits_history_long)
         insert_events_waits_history_long(wait);
       thread->m_events_waits_current--;
+
+      DBUG_ASSERT(wait == thread->m_events_waits_current);
     }
   }
 }
@@ -3670,6 +3678,8 @@ static void end_rwlock_wrwait_v1(PSI_rwlock_locker* locker, int rc)
       if (flag_events_waits_history_long)
         insert_events_waits_history_long(wait);
       thread->m_events_waits_current--;
+
+      DBUG_ASSERT(wait == thread->m_events_waits_current);
     }
   }
 }
@@ -3734,6 +3744,8 @@ static void end_cond_wait_v1(PSI_cond_locker* locker, int rc)
       if (flag_events_waits_history_long)
         insert_events_waits_history_long(wait);
       thread->m_events_waits_current--;
+
+      DBUG_ASSERT(wait == thread->m_events_waits_current);
     }
   }
 }
@@ -3828,6 +3840,8 @@ static void end_table_io_wait_v1(PSI_table_locker* locker)
       if (flag_events_waits_history_long)
         insert_events_waits_history_long(wait);
       thread->m_events_waits_current--;
+
+      DBUG_ASSERT(wait == thread->m_events_waits_current);
     }
   }
 
@@ -3897,6 +3911,8 @@ static void end_table_lock_wait_v1(PSI_table_locker* locker)
       if (flag_events_waits_history_long)
         insert_events_waits_history_long(wait);
       thread->m_events_waits_current--;
+
+      DBUG_ASSERT(wait == thread->m_events_waits_current);
     }
   }
 
@@ -4145,6 +4161,8 @@ static void end_file_wait_v1(PSI_file_locker *locker,
       if (flag_events_waits_history_long)
         insert_events_waits_history_long(wait);
       thread->m_events_waits_current--;
+
+      DBUG_ASSERT(wait == thread->m_events_waits_current);
     }
   }
 }
@@ -5074,6 +5092,8 @@ static void end_socket_wait_v1(PSI_socket_locker *locker, size_t byte_count)
     if (flag_events_waits_history_long)
       insert_events_waits_history_long(wait);
     thread->m_events_waits_current--;
+
+    DBUG_ASSERT(wait == thread->m_events_waits_current);
   }
 }
 

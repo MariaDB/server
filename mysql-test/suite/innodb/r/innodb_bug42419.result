@@ -21,3 +21,4 @@ UPDATE t1 SET a = (SELECT new_a FROM t2_tmp WHERE t2_tmp.a = t1.a) WHERE a = 3;
 connection default;
 disconnect user2;
 DROP TABLE t1;
+call mtr.add_suppression("Deadlock found when trying to get lock; try restarting transaction");

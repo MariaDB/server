@@ -3,7 +3,7 @@
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, Google Inc.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2015, 2016, MariaDB Corporation.
+Copyright (c) 2015, 2017, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -44,13 +44,7 @@ Created 10/16/1994 Heikki Tuuri
 *******************************************************/
 
 #include "btr0cur.h"
-
-#ifdef UNIV_NONINL
-#include "btr0cur.ic"
-#endif
-
 #include "row0upd.h"
-#ifndef UNIV_HOTBACKUP
 #include "mtr0log.h"
 #include "page0page.h"
 #include "page0zip.h"
@@ -106,22 +100,24 @@ throughput clearly from about 100000. */
 #define BTR_CUR_FINE_HISTORY_LENGTH	100000
 
 /** Number of searches down the B-tree in btr_cur_search_to_nth_level(). */
-ulint	btr_cur_n_non_sea	= 0;
-/** Number of successful adaptive hash index lookups in
-btr_cur_search_to_nth_level(). */
-ulint	btr_cur_n_sea		= 0;
+ulint	btr_cur_n_non_sea;
 /** Old value of btr_cur_n_non_sea.  Copied by
 srv_refresh_innodb_monitor_stats().  Referenced by
 srv_printf_innodb_monitor(). */
-ulint	btr_cur_n_non_sea_old	= 0;
+ulint	btr_cur_n_non_sea_old;
+#ifdef BTR_CUR_HASH_ADAPT
+/** Number of successful adaptive hash index lookups in
+btr_cur_search_to_nth_level(). */
+ulint	btr_cur_n_sea;
 /** Old value of btr_cur_n_sea.  Copied by
 srv_refresh_innodb_monitor_stats().  Referenced by
 srv_printf_innodb_monitor(). */
-ulint	btr_cur_n_sea_old	= 0;
+ulint	btr_cur_n_sea_old;
+#endif /* BTR_CUR_HASH_ADAPT */
 
 #ifdef UNIV_DEBUG
 /* Flag to limit optimistic insert records */
-uint	btr_cur_limit_optimistic_insert_debug = 0;
+uint	btr_cur_limit_optimistic_insert_debug;
 #endif /* UNIV_DEBUG */
 
 /** In the optimistic insert, if the insert does not fit, but this much space
@@ -147,13 +143,11 @@ can be released by page reorganize, then it is reorganized */
 @param not_empty table not empty
 @return estimated table wide stats from sampled value */
 #define BTR_TABLE_STATS_FROM_SAMPLE(value, index, sample, ext_size, not_empty) \
-	(((value) * static_cast<int64_t>(index->stat_n_leaf_pages) \
+	(((value) * static_cast<ib_uint64_t>(index->stat_n_leaf_pages) \
 	  + (sample) - 1 + (ext_size) + (not_empty)) / ((sample) + (ext_size)))
 
 /* @} */
-#endif /* !UNIV_HOTBACKUP */
 
-#ifndef UNIV_HOTBACKUP
 /*******************************************************************//**
 Marks all extern fields in a record as owned by the record. This function
 should be called if the delete mark of a record is removed: a not delete
@@ -212,9 +206,7 @@ btr_rec_free_externally_stored_fields(
 	mtr_t*		mtr);	/*!< in: mini-transaction handle which contains
 				an X-latch to record page and to the index
 				tree */
-#endif /* !UNIV_HOTBACKUP */
 
-#ifndef UNIV_HOTBACKUP
 /*==================== B-TREE SEARCH =========================*/
 
 #if MTR_MEMO_PAGE_S_FIX != RW_S_LATCH
@@ -417,7 +409,7 @@ btr_cur_optimistic_latch_leaves(
 	ulint*		latch_mode,
 	btr_cur_t*	cursor,
 	const char*	file,
-	ulint		line,
+	unsigned	line,
 	mtr_t*		mtr)
 {
 	ulint		mode;
@@ -750,8 +742,10 @@ btr_cur_search_to_nth_level(
 				caller currently has on search system:
 				RW_S_LATCH, or 0 */
 	const char*	file,	/*!< in: file name */
-	ulint		line,	/*!< in: line where called */
-	mtr_t*		mtr)	/*!< in: mtr */
+	unsigned	line,	/*!< in: line where called */
+	mtr_t*		mtr,	/*!< in: mtr */
+	ib_uint64_t	autoinc)/*!< in: PAGE_ROOT_AUTO_INC to be written
+				(0 if none) */
 {
 	page_t*		page = NULL; /* remove warning */
 	buf_block_t*	block;
@@ -888,6 +882,12 @@ btr_cur_search_to_nth_level(
 	      || latch_mode == BTR_SEARCH_TREE
 	      || latch_mode == BTR_MODIFY_LEAF);
 
+	ut_ad(autoinc == 0 || dict_index_is_clust(index));
+	ut_ad(autoinc == 0
+	      || latch_mode == BTR_MODIFY_TREE
+	      || latch_mode == BTR_MODIFY_LEAF);
+	ut_ad(autoinc == 0 || level == 0);
+
 	cursor->flag = BTR_CUR_BINARY;
 	cursor->index = index;
 
@@ -907,8 +907,7 @@ btr_cur_search_to_nth_level(
 # ifdef UNIV_SEARCH_PERF_STAT
 	info->n_searches++;
 # endif
-	if (rw_lock_get_writer(btr_get_search_latch(index))
-		== RW_LOCK_NOT_LOCKED
+	if (autoinc == 0
 	    && latch_mode <= BTR_MODIFY_LEAF
 	    && info->last_hash_succ
 # ifdef MYSQL_INDEX_DISABLE_AHI
@@ -922,8 +921,10 @@ btr_cur_search_to_nth_level(
 	    /* If !has_search_latch, we do a dirty read of
 	    btr_search_enabled below, and btr_search_guess_on_hash()
 	    will have to check it again. */
-	    && UNIV_LIKELY(btr_search_enabled)
+	    && btr_search_enabled
 	    && !modify_external
+	    && rw_lock_get_writer(btr_get_search_latch(index))
+	    == RW_LOCK_NOT_LOCKED
 	    && btr_search_guess_on_hash(index, info, tuple, mode,
 					latch_mode, cursor,
 					has_search_latch, mtr)) {
@@ -949,7 +950,7 @@ btr_cur_search_to_nth_level(
 
 	if (has_search_latch) {
 		/* Release possible search latch to obey latching order */
-		rw_lock_s_unlock(btr_get_search_latch(index));
+		btr_search_s_unlock(index);
 	}
 
 	/* Store the position of the tree latch we push to mtr so that we
@@ -1071,16 +1072,16 @@ search_loop:
 
 	if (height != 0) {
 		/* We are about to fetch the root or a non-leaf page. */
-		if ((latch_mode != BTR_MODIFY_TREE
-		     || height == level)
+		if ((latch_mode != BTR_MODIFY_TREE || height == level)
 		    && !retrying_for_search_prev) {
 			/* If doesn't have SX or X latch of index,
 			each pages should be latched before reading. */
-			if (modify_external
-			    && height == ULINT_UNDEFINED
-			    && upper_rw_latch == RW_S_LATCH) {
+			if (height == ULINT_UNDEFINED
+			    && upper_rw_latch == RW_S_LATCH
+			    && (modify_external || autoinc)) {
 				/* needs sx-latch of root page
-				for fseg operation */
+				for fseg operation or for writing
+				PAGE_ROOT_AUTO_INC */
 				rw_latch = RW_SX_LATCH;
 			} else {
 				rw_latch = upper_rw_latch;
@@ -1271,11 +1272,13 @@ retry_page_get:
 	    && page_is_leaf(page)
 	    && rw_latch != RW_NO_LATCH
 	    && rw_latch != root_leaf_rw_latch) {
-		/* We should retry to get the page, because the root page
-		is latched with different level as a leaf page. */
+		/* The root page is also a leaf page (root_leaf).
+		We should reacquire the page, because the root page
+		is latched differently from leaf pages. */
 		ut_ad(root_leaf_rw_latch != RW_NO_LATCH);
 		ut_ad(rw_latch == RW_S_LATCH || rw_latch == RW_SX_LATCH);
-		ut_ad(rw_latch == RW_S_LATCH || modify_external);
+		ut_ad(rw_latch == RW_S_LATCH || modify_external || autoinc);
+		ut_ad(!autoinc || root_leaf_rw_latch == RW_X_LATCH);
 
 		ut_ad(n_blocks == 0);
 		mtr_release_block_at_savepoint(
@@ -1365,6 +1368,7 @@ retry_page_get:
 
 			/* release upper blocks */
 			if (retrying_for_search_prev) {
+				ut_ad(!autoinc);
 				for (;
 				     prev_n_releases < prev_n_blocks;
 				     prev_n_releases++) {
@@ -1378,8 +1382,9 @@ retry_page_get:
 			}
 
 			for (; n_releases < n_blocks; n_releases++) {
-				if (n_releases == 0 && modify_external) {
-					/* keep latch of root page */
+				if (n_releases == 0
+				    && (modify_external || autoinc)) {
+					/* keep the root page latch */
 					ut_ad(mtr_memo_contains_flagged(
 						mtr, tree_blocks[n_releases],
 						MTR_MEMO_PAGE_SX_FIX
@@ -1469,6 +1474,7 @@ retry_page_get:
 			cursor->low_match =
 				DICT_INDEX_SPATIAL_NODEPTR_SIZE + 1;
 		}
+#ifdef BTR_CUR_HASH_ADAPT
 	} else if (height == 0 && btr_search_enabled
 		   && !dict_index_is_spatial(index)) {
 		/* The adaptive hash index is only used when searching
@@ -1478,6 +1484,7 @@ retry_page_get:
 		page_cur_search_with_match_bytes(
 			block, index, tuple, page_mode, &up_match, &up_bytes,
 			&low_match, &low_bytes, page_cursor);
+#endif /* BTR_CUR_HASH_ADAPT */
 	} else {
 		/* Search for complete index fields. */
 		up_bytes = low_bytes = 0;
@@ -1903,6 +1910,8 @@ need_opposite_intention:
 	}
 
 	if (level != 0) {
+		ut_ad(!autoinc);
+
 		if (upper_rw_latch == RW_NO_LATCH) {
 			/* latch the page */
 			buf_block_t*	child_block;
@@ -1951,7 +1960,12 @@ need_opposite_intention:
 		cursor->up_match = up_match;
 		cursor->up_bytes = up_bytes;
 
-#ifdef BTR_CUR_ADAPT
+		if (autoinc) {
+			page_set_autoinc(tree_blocks[0],
+					 index, autoinc, mtr, false);
+		}
+
+#ifdef BTR_CUR_HASH_ADAPT
 		/* We do a dirty read of btr_search_enabled here.  We
 		will properly check btr_search_enabled again in
 		btr_search_build_page_hash_index() before building a
@@ -1963,7 +1977,7 @@ need_opposite_intention:
 		    ) {
 			btr_search_info_update(index, cursor);
 		}
-#endif
+#endif /* BTR_CUR_HASH_ADAPT */
 		ut_ad(cursor->up_match != ULINT_UNDEFINED
 		      || mode != PAGE_CUR_GE);
 		ut_ad(cursor->up_match != ULINT_UNDEFINED
@@ -1999,8 +2013,7 @@ func_exit:
 	}
 
 	if (has_search_latch) {
-
-		rw_lock_s_lock(btr_get_search_latch(index));
+		btr_search_s_lock(index);
 	}
 
 	if (mbr_adj) {
@@ -2024,7 +2037,7 @@ btr_cur_open_at_index_side_func(
 	ulint		level,		/*!< in: level to search for
 					(0=leaf). */
 	const char*	file,		/*!< in: file name */
-	ulint		line,		/*!< in: line where called */
+	unsigned	line,		/*!< in: line where called */
 	mtr_t*		mtr)		/*!< in/out: mini-transaction */
 {
 	page_cur_t*	page_cursor;
@@ -2396,7 +2409,7 @@ btr_cur_open_at_rnd_pos_func(
 	ulint		latch_mode,	/*!< in: BTR_SEARCH_LEAF, ... */
 	btr_cur_t*	cursor,		/*!< in/out: B-tree cursor */
 	const char*	file,		/*!< in: file name */
-	ulint		line,		/*!< in: line where called */
+	unsigned	line,		/*!< in: line where called */
 	mtr_t*		mtr)		/*!< in: mtr */
 {
 	page_cur_t*	page_cursor;
@@ -2997,18 +3010,10 @@ fail_err:
 
 	page_cursor = btr_cur_get_page_cur(cursor);
 
-#ifdef UNIV_DEBUG
-	{
-		rec_printer p(entry);
-		DBUG_PRINT("ib_cur", ("insert %s (" IB_ID_FMT ") by " IB_ID_FMT " %s",
-			      index->name(), index->id,
-			      thr != NULL
-			      ? trx_get_id_for_print(thr_get_trx(thr))
-			      : 0,
-			      p.str().c_str()));
-	}
-#endif
-
+	DBUG_LOG("ib_cur",
+		 "insert " << index->name << " (" << index->id << ") by "
+		 << ib::hex(thr ? trx_get_id_for_print(thr_get_trx(thr)) : 0)
+		 << ' ' << rec_printer(entry).str());
 	DBUG_EXECUTE_IF("do_page_reorganize",
 			btr_page_reorganize(page_cursor, index, mtr););
 
@@ -3033,12 +3038,12 @@ fail_err:
 
 	if (*rec) {
 	} else if (page_size.is_compressed()) {
+		ut_ad(!dict_table_is_temporary(index->table));
 		/* Reset the IBUF_BITMAP_FREE bits, because
 		page_cur_tuple_insert() will have attempted page
 		reorganize before failing. */
 		if (leaf
-		    && !dict_index_is_clust(index)
-		    && !dict_table_is_temporary(index->table)) {
+		    && !dict_index_is_clust(index)) {
 			ibuf_reset_free_bits(block);
 		}
 
@@ -3237,7 +3242,6 @@ btr_cur_pessimistic_insert(
 	ut_ad(page_rec_get_next(btr_cur_get_rec(cursor)) == *rec
 	      || dict_index_is_spatial(index));
 
-
 	if (!(flags & BTR_NO_LOCKING_FLAG)) {
 		ut_ad(!dict_table_is_temporary(index->table));
 		if (dict_index_is_spatial(index)) {
@@ -3265,12 +3269,12 @@ btr_cur_pessimistic_insert(
 		}
 	}
 
-#ifdef BTR_CUR_ADAPT
+#ifdef BTR_CUR_HASH_ADAPT
 # ifdef MYSQL_INDEX_DISABLE_AHI
 	if (index->disable_ahi); else
 # endif
 	btr_search_update_hash_on_insert(cursor);
-#endif
+#endif /* BTR_CUR_HASH_ADAPT */
 	if (inherit && !(flags & BTR_NO_LOCKING_FLAG)) {
 
 		lock_update_insert(btr_cur_get_block(cursor), *rec);
@@ -3405,7 +3409,6 @@ btr_cur_update_in_place_log(
 
 	row_upd_index_write_log(update, log_ptr, mtr);
 }
-#endif /* UNIV_HOTBACKUP */
 
 /***********************************************************//**
 Parses a redo log record of updating a record in-place.
@@ -3484,7 +3487,6 @@ func_exit:
 	return(ptr);
 }
 
-#ifndef UNIV_HOTBACKUP
 /*************************************************************//**
 See if there is enough place in the page modification log to log
 an update-in-place.
@@ -3517,8 +3519,6 @@ btr_cur_update_alloc_zip_func(
 	const page_t*	page = page_cur_get_page(cursor);
 
 	ut_ad(page_zip == page_cur_get_page_zip(cursor));
-
-	ut_ad(page_zip);
 	ut_ad(!dict_index_is_ibuf(index));
 	ut_ad(rec_offs_validate(page_cur_get_rec(cursor), index, offsets));
 
@@ -3605,7 +3605,6 @@ btr_cur_update_in_place(
 	rec_t*		rec;
 	roll_ptr_t	roll_ptr	= 0;
 	ulint		was_delete_marked;
-	ibool		is_hashed;
 
 	rec = btr_cur_get_rec(cursor);
 	index = cursor->index;
@@ -3617,26 +3616,24 @@ btr_cur_update_in_place(
 	ut_ad(dict_index_is_online_ddl(index) == !!(flags & BTR_CREATE_FLAG)
 	      || dict_index_is_clust(index));
 	ut_ad(thr_get_trx(thr)->id == trx_id
-	      || (flags & ~(BTR_KEEP_POS_FLAG | BTR_KEEP_IBUF_BITMAP))
+	      || (flags & ulint(~(BTR_KEEP_POS_FLAG | BTR_KEEP_IBUF_BITMAP)))
 	      == (BTR_NO_UNDO_LOG_FLAG | BTR_NO_LOCKING_FLAG
 		  | BTR_CREATE_FLAG | BTR_KEEP_SYS_FLAG));
 	ut_ad(fil_page_index_page_check(btr_cur_get_page(cursor)));
 	ut_ad(btr_page_get_index_id(btr_cur_get_page(cursor)) == index->id);
 
-#ifdef UNIV_DEBUG
-	{
-		rec_printer p(rec, offsets);
-		DBUG_PRINT("ib_cur", ("update-in-place %s (" IB_ID_FMT ") by "IB_ID_FMT ": %s",
-				index->name(), index->id, trx_id,
-				p.str().c_str()));
-	}
-#endif
+	DBUG_LOG("ib_cur",
+		 "update-in-place " << index->name << " (" << index->id
+		 << ") by " << ib::hex(trx_id) << ": "
+		 << rec_printer(rec, offsets).str());
 
 	block = btr_cur_get_block(cursor);
 	page_zip = buf_block_get_page_zip(block);
 
 	/* Check that enough space is available on the compressed page. */
 	if (page_zip) {
+		ut_ad(!dict_table_is_temporary(index->table));
+
 		if (!btr_cur_update_alloc_zip(
 			    page_zip, btr_cur_get_page_cur(cursor),
 			    index, offsets, rec_offs_size(offsets),
@@ -3666,9 +3663,8 @@ btr_cur_update_in_place(
 	was_delete_marked = rec_get_deleted_flag(
 		rec, page_is_comp(buf_block_get_frame(block)));
 
-	is_hashed = (block->index != NULL);
-
-	if (is_hashed) {
+#ifdef BTR_CUR_HASH_ADAPT
+	if (block->index) {
 		/* TO DO: Can we skip this if none of the fields
 		index->search_info->curr_n_fields
 		are being updated? */
@@ -3685,14 +3681,17 @@ btr_cur_update_in_place(
 			btr_search_update_hash_on_delete(cursor);
 		}
 
-		rw_lock_x_lock(btr_get_search_latch(index));
+		btr_search_x_lock(index);
 	}
+#endif /* BTR_CUR_HASH_ADAPT */
 
 	row_upd_rec_in_place(rec, index, offsets, update, page_zip);
 
-	if (is_hashed) {
-		rw_lock_x_unlock(btr_get_search_latch(index));
+#ifdef BTR_CUR_HASH_ADAPT
+	if (block->index) {
+		btr_search_x_unlock(index);
 	}
+#endif /* BTR_CUR_HASH_ADAPT */
 
 	btr_cur_update_in_place_log(flags, rec, index, update,
 				    trx_id, roll_ptr, mtr);
@@ -3713,9 +3712,9 @@ func_exit:
 	if (page_zip
 	    && !(flags & BTR_KEEP_IBUF_BITMAP)
 	    && !dict_index_is_clust(index)
-	    && !dict_table_is_temporary(index->table)
 	    && page_is_leaf(buf_block_get_frame(block))) {
 		/* Update the free bits in the insert buffer. */
+		ut_ad(!dict_table_is_temporary(index->table));
 		ibuf_update_free_bits_zip(block, mtr);
 	}
 
@@ -3784,7 +3783,7 @@ btr_cur_optimistic_update(
 	ut_ad(dict_index_is_online_ddl(index) == !!(flags & BTR_CREATE_FLAG)
 	      || dict_index_is_clust(index));
 	ut_ad(thr_get_trx(thr)->id == trx_id
-	      || (flags & ~(BTR_KEEP_POS_FLAG | BTR_KEEP_IBUF_BITMAP))
+	      || (flags & ulint(~(BTR_KEEP_POS_FLAG | BTR_KEEP_IBUF_BITMAP)))
 	      == (BTR_NO_UNDO_LOG_FLAG | BTR_NO_LOCKING_FLAG
 		  | BTR_CREATE_FLAG | BTR_KEEP_SYS_FLAG));
 	ut_ad(fil_page_index_page_check(page));
@@ -3828,14 +3827,10 @@ any_extern:
 		}
 	}
 
-#ifdef UNIV_DEBUG
-	{
-		rec_printer p(rec, *offsets);
-		DBUG_PRINT("ib_cur", ("update %s (" IB_ID_FMT ") by " IB_ID_FMT ": %s",
-				index->name(), index->id, trx_id,
-			p.str().c_str()));
-	}
-#endif
+	DBUG_LOG("ib_cur",
+		 "update " << index->name << " (" << index->id << ") by "
+		 << ib::hex(trx_id) << ": "
+		 << rec_printer(rec, *offsets).str());
 
 	page_cursor = btr_cur_get_page_cur(cursor);
 
@@ -3864,6 +3859,8 @@ any_extern:
 #endif /* UNIV_ZIP_DEBUG */
 
 	if (page_zip) {
+		ut_ad(!dict_table_is_temporary(index->table));
+
 		if (page_zip_rec_needs_ext(new_rec_size, page_is_comp(page),
 					   dict_index_get_n_fields(index),
 					   dict_table_page_size(index->table))) {
@@ -3982,12 +3979,12 @@ any_extern:
 
 func_exit:
 	if (!(flags & BTR_KEEP_IBUF_BITMAP)
-	    && !dict_index_is_clust(index)
-	    && !dict_table_is_temporary(index->table)) {
+	    && !dict_index_is_clust(index)) {
 		/* Update the free bits in the insert buffer. */
 		if (page_zip) {
+			ut_ad(!dict_table_is_temporary(index->table));
 			ibuf_update_free_bits_zip(block, mtr);
-		} else {
+		} else if (!dict_table_is_temporary(index->table)) {
 			ibuf_update_free_bits_low(block, max_ins_size, mtr);
 		}
 	}
@@ -4111,6 +4108,7 @@ btr_cur_pessimistic_update(
 #ifdef UNIV_ZIP_DEBUG
 	ut_a(!page_zip || page_zip_validate(page_zip, page, index));
 #endif /* UNIV_ZIP_DEBUG */
+	ut_ad(!page_zip || !dict_table_is_temporary(index->table));
 	/* The insert buffer tree should never be updated in place. */
 	ut_ad(!dict_index_is_ibuf(index));
 	ut_ad(trx_id > 0
@@ -4118,7 +4116,7 @@ btr_cur_pessimistic_update(
 	ut_ad(dict_index_is_online_ddl(index) == !!(flags & BTR_CREATE_FLAG)
 	      || dict_index_is_clust(index));
 	ut_ad(thr_get_trx(thr)->id == trx_id
-	      || (flags & ~BTR_KEEP_POS_FLAG)
+	      || (flags & ulint(~BTR_KEEP_POS_FLAG))
 	      == (BTR_NO_UNDO_LOG_FLAG | BTR_NO_LOCKING_FLAG
 		  | BTR_CREATE_FLAG | BTR_KEEP_SYS_FLAG));
 
@@ -4141,8 +4139,8 @@ btr_cur_pessimistic_update(
 		if (page_zip
 		    && optim_err != DB_ZIP_OVERFLOW
 		    && !dict_index_is_clust(index)
-		    && !dict_table_is_temporary(index->table)
 		    && page_is_leaf(page)) {
+			ut_ad(!dict_table_is_temporary(index->table));
 			ibuf_update_free_bits_zip(block, mtr);
 		}
 
@@ -4191,7 +4189,6 @@ btr_cur_pessimistic_update(
 		ut_ad(thr_get_trx(thr)->in_rollback);
 
 		DBUG_EXECUTE_IF("ib_blob_update_rollback", DBUG_SUICIDE(););
-		RECOVERY_CRASH(99);
 
 		btr_rec_free_updated_extern_fields(
 			index, rec, page_zip, *offsets, update, true, mtr);
@@ -4315,14 +4312,14 @@ btr_cur_pessimistic_update(
 					page_cursor->rec, index, *offsets);
 			}
 		} else if (!dict_index_is_clust(index)
-			   && !dict_table_is_temporary(index->table)
 			   && page_is_leaf(page)) {
 			/* Update the free bits in the insert buffer.
 			This is the same block which was skipped by
 			BTR_KEEP_IBUF_BITMAP. */
 			if (page_zip) {
+				ut_ad(!dict_table_is_temporary(index->table));
 				ibuf_update_free_bits_zip(block, mtr);
-			} else {
+			} else if (!dict_table_is_temporary(index->table)) {
 				ibuf_update_free_bits_low(block, max_ins_size,
 							  mtr);
 			}
@@ -4505,7 +4502,6 @@ btr_cur_del_mark_set_clust_rec_log(
 
 	mlog_close(mtr, log_ptr);
 }
-#endif /* !UNIV_HOTBACKUP */
 
 /****************************************************************//**
 Parses the redo log record for delete marking or unmarking of a clustered
@@ -4587,7 +4583,6 @@ btr_cur_parse_del_mark_set_clust_rec(
 	return(ptr);
 }
 
-#ifndef UNIV_HOTBACKUP
 /***********************************************************//**
 Marks a clustered index record deleted. Writes an undo log record to
 undo log on this delete marking. Writes in the trx id field the id
@@ -4655,15 +4650,11 @@ btr_cur_del_mark_set_clust_rec(
 	ut_ad(trx_state_eq(trx, TRX_STATE_ACTIVE));
 	ut_ad(!trx->in_rollback);
 
-#ifdef UNIV_DEBUG
-	{
-		rec_printer p(rec, offsets);
-		DBUG_PRINT("ib_cur", ("delete-mark clust %s (" IB_ID_FMT ") by " IB_ID_FMT ": %s",
-				index->table_name, index->id,
-				trx_get_id_for_print(trx),
-				p.str().c_str()));
-	}
-#endif
+	DBUG_LOG("ib_cur",
+		 "delete-mark clust " << index->table->name
+		 << " (" << index->id << ") by "
+		 << ib::hex(trx_get_id_for_print(trx)) << ": "
+		 << rec_printer(rec, offsets).str());
 
 	if (dict_index_is_online_ddl(index)) {
 		row_log_table_delete(rec, entry, index, offsets, NULL);
@@ -4709,7 +4700,6 @@ btr_cur_del_mark_set_sec_rec_log(
 
 	mlog_close(mtr, log_ptr);
 }
-#endif /* !UNIV_HOTBACKUP */
 
 /****************************************************************//**
 Parses the redo log record for delete marking or unmarking of a secondary
@@ -4754,7 +4744,6 @@ btr_cur_parse_del_mark_set_sec_rec(
 	return(ptr);
 }
 
-#ifndef UNIV_HOTBACKUP
 /***********************************************************//**
 Sets a secondary index record delete mark to TRUE or FALSE.
 @return DB_SUCCESS, DB_LOCK_WAIT, or error number */
@@ -5347,7 +5336,6 @@ btr_estimate_n_rows_in_range_on_level(
 			goto inexact;
 		}
 
-
 		page = buf_block_get_frame(block);
 
 		/* It is possible that the tree has been reorganized in the
@@ -5582,7 +5570,6 @@ btr_estimate_n_rows_in_range_low(
 				   << " table: " << index->table->name
 				   << " index: " << index->name;
 		}
-
 
 		ut_ad(page_rec_is_supremum(btr_cur_get_rec(&cursor)));
 
@@ -6070,7 +6057,6 @@ btr_estimate_number_of_different_key_vals(
 			}
 		}
 
-
 		if (n_cols == dict_index_get_n_unique_in_tree(index)) {
 
 			/* If there is more than one leaf page in the tree,
@@ -6238,12 +6224,12 @@ btr_cur_set_ownership_of_extern_field(
 	byte_val = mach_read_from_1(data + local_len + BTR_EXTERN_LEN);
 
 	if (val) {
-		byte_val = byte_val & (~BTR_EXTERN_OWNER_FLAG);
+		byte_val &= ~BTR_EXTERN_OWNER_FLAG;
 	} else {
 #if defined UNIV_DEBUG || defined UNIV_BLOB_LIGHT_DEBUG
 		ut_a(!(byte_val & BTR_EXTERN_OWNER_FLAG));
 #endif /* UNIV_DEBUG || UNIV_BLOB_LIGHT_DEBUG */
-		byte_val = byte_val | BTR_EXTERN_OWNER_FLAG;
+		byte_val |= BTR_EXTERN_OWNER_FLAG;
 	}
 
 	if (page_zip) {
@@ -6279,7 +6265,6 @@ btr_cur_disown_inherited_fields(
 	ut_ad(rec_offs_validate(rec, index, offsets));
 	ut_ad(!rec_offs_comp(offsets) || !rec_get_node_ptr_flag(rec));
 	ut_ad(rec_offs_any_extern(offsets));
-	ut_ad(mtr);
 
 	for (i = 0; i < rec_offs_n_fields(offsets); i++) {
 		if (rec_offs_nth_extern(offsets, i)
@@ -6340,9 +6325,6 @@ btr_push_update_extern_fields(
 	ulint			n_pushed	= 0;
 	ulint			n;
 	const upd_field_t*	uf;
-
-	ut_ad(tuple);
-	ut_ad(update);
 
 	uf = update->fields;
 	n = upd_get_n_fields(update);
@@ -6586,7 +6568,6 @@ struct btr_blob_log_check_t {
 	}
 };
 
-
 /*******************************************************************//**
 Stores the fields in big_rec_vec to the tablespace and puts pointers to
 them in rec.  The extern flags in rec will have to be set beforehand.
@@ -6638,7 +6619,6 @@ btr_store_big_rec_extern_fields(
 
 	ut_ad(rec_offs_validate(rec, index, offsets));
 	ut_ad(rec_offs_any_extern(offsets));
-	ut_ad(btr_mtr);
 	ut_ad(mtr_memo_contains_flagged(btr_mtr, dict_index_get_lock(index),
 					MTR_MEMO_X_LOCK | MTR_MEMO_SX_LOCK));
 	ut_ad(mtr_is_block_fix(
@@ -7770,4 +7750,3 @@ btr_rec_copy_externally_stored_field(
 	return(btr_copy_externally_stored_field(len, data,
 						page_size, local_len, heap));
 }
-#endif /* !UNIV_HOTBACKUP */

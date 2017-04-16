@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
 
 /*
   Storage of records in block
@@ -50,8 +50,8 @@
 #define SUB_RANGE_SIZE		2
 #define BLOCK_FILLER_SIZE	2
 #define ROW_EXTENT_SIZE		(ROW_EXTENT_PAGE_SIZE + ROW_EXTENT_COUNT_SIZE)
-#define TAIL_BIT		0x8000	/* Bit in page_count to signify tail */
-#define START_EXTENT_BIT	0x4000	/* Bit in page_count to signify start*/
+#define TAIL_BIT		0x8000U	/* Bit in page_count to signify tail */
+#define START_EXTENT_BIT	0x4000U	/* Bit in page_count to signify start*/
 /* page_count set by bitmap code for tail pages */
 #define TAIL_PAGE_COUNT_MARKER  0xffff
 /* Number of extents reserved MARIA_BITMAP_BLOCKS to store head part */
@@ -75,7 +75,7 @@
 
 #define PAGE_TYPE_MASK 7
 enum en_page_type { UNALLOCATED_PAGE, HEAD_PAGE, TAIL_PAGE, BLOB_PAGE, MAX_PAGE_TYPE };
-#define PAGE_CAN_BE_COMPACTED   128             /* Bit in PAGE_TYPE */
+#define PAGE_CAN_BE_COMPACTED   128U            /* Bit in PAGE_TYPE */
 
 #define PAGE_TYPE_OFFSET        LSN_SIZE
 #define DIR_COUNT_OFFSET        (LSN_SIZE+PAGE_TYPE_SIZE)
@@ -86,12 +86,12 @@ enum en_page_type { UNALLOCATED_PAGE, HEAD_PAGE, TAIL_PAGE, BLOB_PAGE, MAX_PAGE_
 #define FULL_PAGE_KEY_VERSION_OFFSET (PAGE_TYPE_OFFSET + PAGE_TYPE_SIZE)
 
 /* Bits used for flag uchar (one byte, first in record) */
-#define ROW_FLAG_TRANSID                1
-#define ROW_FLAG_VER_PTR                2
-#define ROW_FLAG_DELETE_TRANSID         4
-#define ROW_FLAG_NULLS_EXTENDED         8
-#define ROW_FLAG_EXTENTS                128
-#define ROW_FLAG_ALL			(1+2+4+8+128)
+#define ROW_FLAG_TRANSID                1U
+#define ROW_FLAG_VER_PTR                2U
+#define ROW_FLAG_DELETE_TRANSID         4U
+#define ROW_FLAG_NULLS_EXTENDED         8U
+#define ROW_FLAG_EXTENTS                128U
+#define ROW_FLAG_ALL			(1U+2U+4U+8U+128U)
 
 /* Size for buffer to hold information about bitmap */
 #define MAX_BITMAP_INFO_LENGTH ((MARIA_MAX_KEY_BLOCK_LENGTH*8/3)*(61*11/60)+10)
@@ -99,8 +99,8 @@ enum en_page_type { UNALLOCATED_PAGE, HEAD_PAGE, TAIL_PAGE, BLOB_PAGE, MAX_PAGE_
 
 /******** Variables that affects how data pages are utilized ********/
 
-/* Minium size of tail segment */
-#define MIN_TAIL_SIZE           32
+/* Minimum size of tail segment */
+#define MIN_TAIL_SIZE           32U
 
 /*
   Fixed length part of Max possible header size; See row data structure

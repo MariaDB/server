@@ -107,11 +107,11 @@ a	b	c	d	e	f	g	h	i	j	k	l	m	n	o	p	q	r	s	t	u	v	w	x	y	z	a1	b1
 drop table t1;
 drop table t2;
 create table bug20691 (i int, d datetime NOT NULL, dn datetime not null default '0000-00-00 00:00:00');
-insert into bug20691 values (1, DEFAULT, DEFAULT), (1, '1975-07-10 07:10:03', '1978-01-13 14:08:51'), (1, DEFAULT, DEFAULT);
+insert ignore into bug20691 values (1, DEFAULT, DEFAULT), (1, '1975-07-10 07:10:03', '1978-01-13 14:08:51'), (1, DEFAULT, DEFAULT);
 Warnings:
 Warning	1364	Field 'd' doesn't have a default value
 Warning	1364	Field 'd' doesn't have a default value
-insert into bug20691 (i) values (2);
+insert ignore into bug20691 (i) values (2);
 Warnings:
 Warning	1364	Field 'd' doesn't have a default value
 desc bug20691;
@@ -119,14 +119,14 @@ Field	Type	Null	Key	Default	Extra
 i	int(11)	YES		NULL	
 d	datetime	NO		NULL	
 dn	datetime	NO		0000-00-00 00:00:00	
-insert into bug20691 values (3, DEFAULT, DEFAULT), (3, '1975-07-10 07:10:03', '1978-01-13 14:08:51'), (3, DEFAULT, DEFAULT);
+insert ignore into bug20691 values (3, DEFAULT, DEFAULT), (3, '1975-07-10 07:10:03', '1978-01-13 14:08:51'), (3, DEFAULT, DEFAULT);
 Warnings:
 Warning	1364	Field 'd' doesn't have a default value
 Warning	1364	Field 'd' doesn't have a default value
-insert into bug20691 (i) values (4);
+insert ignore into bug20691 (i) values (4);
 Warnings:
 Warning	1364	Field 'd' doesn't have a default value
-insert into bug20691 values (5, DEFAULT, DEFAULT), (5, '1975-07-10 07:10:03', '1978-01-13 14:08:51'), (5, DEFAULT, DEFAULT);
+insert ignore into bug20691 values (5, DEFAULT, DEFAULT), (5, '1975-07-10 07:10:03', '1978-01-13 14:08:51'), (5, DEFAULT, DEFAULT);
 Warnings:
 Warning	1364	Field 'd' doesn't have a default value
 Warning	1364	Field 'd' doesn't have a default value
@@ -222,6 +222,50 @@ NULL
 10
 drop table t1, t2;
 # End of 5.0 tests
+#
+# Start of 10.0 tests
+#
+#
+# MDEV-11265 Access defied when CREATE VIIEW v1 AS SELECT DEFAULT(column) FROM t1
+#
+CREATE TABLE t1 (a INT DEFAULT 10);
+INSERT INTO t1 VALUES (11);
+CREATE VIEW v1 AS SELECT a AS a FROM t1;
+CREATE VIEW v2 AS SELECT DEFAULT(a) AS a FROM t1;
+CREATE VIEW v3 AS SELECT VALUES(a) AS a FROM t1;
+SELECT * FROM v1;
+a
+11
+SELECT * FROM v2;
+a
+10
+SELECT * FROM v3;
+a
+NULL
+UPDATE v2 SET a=123;
+ERROR HY000: Column 'a' is not updatable
+UPDATE v3 SET a=123;
+ERROR HY000: Column 'a' is not updatable
+DROP VIEW v3;
+DROP VIEW v2;
+DROP VIEW v1;
+DROP TABLE t1;
+#
+# MDEV-10780 Server crashes in in create_tmp_table
+#
+connect  con1,localhost,root,,test;
+CREATE TABLE t1 (pk INT AUTO_INCREMENT PRIMARY KEY) ENGINE=MyISAM;
+INSERT INTO t1 VALUES ();
+INSERT INTO t1 VALUES ();
+SELECT DISTINCT DEFAULT (pk) FROM t1 GROUP BY RAND() WITH ROLLUP;
+DEFAULT (pk)
+0
+disconnect con1;
+connection default;
+DROP TABLE t1;
+#
+# End of 10.0 tests
+#
 #
 # Start of 10.1 tests
 #
@@ -436,6 +480,10 @@ a	b
 2	2
 3	4
 drop table t1;
+CREATE OR REPLACE TABLE t1 (a INT DEFAULT @v);
+drop table t1;
+CREATE TABLE t1 (a INT DEFAULT @v:=1);
+drop table t1;
 #
 # Error handling
 #
@@ -472,10 +520,6 @@ CREATE TABLE t1 (a INT DEFAULT(?));
 Got one of the listed errors
 CREATE TABLE t1 (a INT DEFAULT (b), b INT DEFAULT(a));
 ERROR 01000: Expression for field `a` is refering to uninitialized field `b`
-CREATE TABLE t1 (a INT DEFAULT @v);
-ERROR HY000: Function or expression '@v' cannot be used in the DEFAULT clause of `a`
-CREATE TABLE t1 (a INT DEFAULT @v:=1);
-ERROR HY000: Function or expression '@v' cannot be used in the DEFAULT clause of `a`
 CREATE TABLE t1 (a INT DEFAULT(NAME_CONST('xxx', 'yyy'));
 ERROR HY000: Function or expression 'name_const()' cannot be used in the DEFAULT clause of `a`
 CREATE TABLE t1 (a INT DEFAULT COUNT(*));
@@ -497,10 +541,10 @@ DROP FUNCTION f1;
 CREATE PROCEDURE p1(par INT) CREATE TABLE t1 (a INT DEFAULT par);
 ERROR HY000: Function or expression 'par' cannot be used in the DEFAULT clause of `a`
 CREATE TABLE t1 (a INT DEFAULT par);
-ERROR 42S22: Unknown column 'par' in 'virtual column function'
+ERROR 42S22: Unknown column 'par' in 'DEFAULT'
 CREATE PROCEDURE p1() CREATE TABLE t1 (a INT DEFAULT par);
 CALL p1;
-ERROR 42S22: Unknown column 'par' in 'virtual column function'
+ERROR 42S22: Unknown column 'par' in 'DEFAULT'
 DROP PROCEDURE p1;
 CREATE TABLE t1 (a INT DEFAULT VALUES(a));
 ERROR HY000: Function or expression 'values()' cannot be used in the DEFAULT clause of `a`
@@ -1005,7 +1049,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` decimal(30,6) DEFAULT coalesce(curtime(6))
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
-INSERT INTO t1 VALUES();
+INSERT IGNORE INTO t1 VALUES();
 DROP TABLE t1;
 #
 # DECIMAL + CURRENT_DATE, no truncation
@@ -1016,7 +1060,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` decimal(30,6) DEFAULT coalesce(curdate())
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
-INSERT INTO t1 VALUES();
+INSERT IGNORE INTO t1 VALUES();
 DROP TABLE t1;
 #
 # COALESCE for SQL Standard <datetime value function>
@@ -1070,7 +1114,7 @@ t1	CREATE TABLE `t1` (
   `a` decimal(30,0) DEFAULT current_timestamp(6),
   `b` decimal(30,0) DEFAULT coalesce(current_timestamp(6))
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
-INSERT INTO t1 VALUES ();
+INSERT IGNORE INTO t1 VALUES ();
 Warnings:
 Note	1265	Data truncated for column 'a' at row 1
 Note	1265	Data truncated for column 'b' at row 1
@@ -1500,7 +1544,7 @@ t1	CREATE TABLE `t1` (
   `s` int(11) DEFAULT NULL,
   `b` timestamp(6) NOT NULL DEFAULT sysdate(6)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
-INSERT INTO t1 VALUES (DEFAULT, SLEEP(0.1), DEFAULT);
+INSERT INTO t1 VALUES (DEFAULT(a), SLEEP(0.1), DEFAULT(b));
 SELECT b>a FROM t1;
 b>a
 1
@@ -2128,7 +2172,7 @@ t1	CREATE TABLE `t1` (
   `b` varchar(10) DEFAULT (cast(`a` as char(10) charset latin1)),
   `c` varchar(10) DEFAULT (cast(`a` as char(4) charset latin1))
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
-INSERT INTO t1 (a) VALUES (123.456);
+INSERT IGNORE INTO t1 (a) VALUES (123.456);
 Warnings:
 Warning	1292	Truncated incorrect CHAR(4) value: '123.456'
 SELECT * FROM t1;
@@ -2142,7 +2186,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(10) unsigned DEFAULT (cast(`a` as unsigned))
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
-INSERT INTO t1 (a) VALUES (-1);
+INSERT IGNORE INTO t1 (a) VALUES (-1);
 Warnings:
 Note	1105	Cast to unsigned converted negative integer to it's positive complement
 Warning	1264	Out of range value for column 'b' at row 1
@@ -2591,7 +2635,7 @@ t1	CREATE TABLE `t1` (
   `number_of_bits` int(11) DEFAULT NULL,
   `x` varchar(30) DEFAULT export_set(`bits`,`v_on`,`v_off`,`v_separator`,`number_of_bits`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
-INSERT INTO t1 VALUES (0x50006,'Y','N','',64,DEFAULT);
+INSERT IGNORE INTO t1 VALUES (0x50006,'Y','N','',64,DEFAULT);
 Warnings:
 Warning	1265	Data truncated for column 'x' at row 1
 SELECT * FROM t1;
@@ -3225,7 +3269,44 @@ INSERT INTO t1 VALUES (1),(2),(3);
 EXECUTE IMMEDIATE 'EXPLAIN EXTENDED SELECT * FROM t1 WHERE ?+a<=>?+a' USING DEFAULT,DEFAULT;
 ERROR HY000: Default/ignore value is not supported for such parameter usage
 DROP TABLE t1;
-# end of 10.2 test
+#
+# MDEV-11134 Assertion `fixed' failed in Item::const_charset_converter(THD*, CHARSET_INFO*, bool, const char*)
+#
+SET NAMES utf8;
+PREPARE stmt FROM "CREATE OR REPLACE TABLE t1 (c CHAR(8) DEFAULT ?)";
+SET @a='';
+EXECUTE stmt USING @a;
+EXECUTE stmt USING @a;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c` char(8) DEFAULT ''
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+SET @a='A';
+EXECUTE stmt USING @a;
+EXECUTE stmt USING @a;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c` char(8) DEFAULT 'A'
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+SET @a=_utf8 0xC380;
+EXECUTE stmt USING @a;
+EXECUTE stmt USING @a;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c` char(8) DEFAULT 'À'
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+SET @a=_utf8 0xD18F;
+EXECUTE stmt USING @a;
+ERROR 42000: Invalid default value for 'c'
+EXECUTE stmt USING @a;
+ERROR 42000: Invalid default value for 'c'
+DEALLOCATE PREPARE stmt;
 set sql_mode=ansi_quotes;
 create table t1 (a int, b int default (a+1));
 show create table t1;
@@ -3258,3 +3339,22 @@ a	b
 30	31
 drop table t1;
 set sql_mode=default;
+create table t1 (a int default b, b int default 4, t text);
+insert into t1 (b, t) values (5, '1 column is omitted');
+insert into t1 values (default, 5, '2 column gets DEFAULT, keyword');
+insert into t1 values (default(a), 5, '3 column gets DEFAULT(a), expression');
+insert into t1 values (default(a)+0, 5, '4 also expression DEFAULT(0)+0');
+insert into t1 values (b, 5, '5 the value of the DEFAULT(a), that is b');
+select * from t1 order by t;
+a	b	t
+5	5	1 column is omitted
+5	5	2 column gets DEFAULT, keyword
+4	5	3 column gets DEFAULT(a), expression
+4	5	4 also expression DEFAULT(0)+0
+4	5	5 the value of the DEFAULT(a), that is b
+drop table t1;
+create table t1 (col1 int default(-(default(col1))));
+ERROR 01000: Expression for field `col1` is refering to uninitialized field `col1`
+create table t1 (col int default (yearweek((exp(710)))));
+ERROR 22003: DOUBLE value is out of range in 'exp(710)'
+# end of 10.2 test

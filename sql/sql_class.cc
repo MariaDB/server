@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2016, MariaDB
+   Copyright (c) 2008, 2017, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -55,6 +55,7 @@
 #include <mysys_err.h>
 #include <limits.h>
 
+#include "sp_head.h"
 #include "sp_rcontext.h"
 #include "sp_cache.h"
 #include "transaction.h"
@@ -99,6 +100,23 @@ extern "C" void free_user_var(user_var_entry *entry)
     my_free(entry->value);
   my_free(entry);
 }
+
+/* Functions for last-value-from-sequence hash */
+
+extern "C" uchar *get_sequence_last_key(SEQUENCE_LAST_VALUE *entry,
+                                        size_t *length,
+                                        my_bool not_used
+                                        __attribute__((unused)))
+{
+  *length= entry->length;
+  return (uchar*) entry->key;
+}
+
+extern "C" void free_sequence_last(SEQUENCE_LAST_VALUE *entry)
+{
+  delete entry;
+}
+
 
 bool Key_part_spec::operator==(const Key_part_spec& other) const
 {
@@ -640,7 +658,7 @@ char *thd_security_context(THD *thd,
 bool Drop_table_error_handler::handle_condition(THD *thd,
                                                 uint sql_errno,
                                                 const char* sqlstate,
-                                                Sql_condition::enum_warning_level level,
+                                                Sql_condition::enum_warning_level *level,
                                                 const char* msg,
                                                 Sql_condition ** cond_hdl)
 {
@@ -660,7 +678,7 @@ MDL_deadlock_and_lock_abort_error_handler::
 handle_condition(THD *thd,
                  uint sql_errno,
                  const char *sqlstate,
-                 Sql_condition::enum_warning_level level,
+                 Sql_condition::enum_warning_level *level,
                  const char* msg,
                  Sql_condition **cond_hdl)
 {
@@ -742,8 +760,8 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
 #endif
 {
   ulong tmp;
+  bzero(&variables, sizeof(variables));
 
-  mdl_context.init(this);
   /*
     We set THR_THD to temporally point to this THD to register all the
     variables that allocates memory for this THD
@@ -753,7 +771,10 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
   status_var.local_memory_used= sizeof(THD);
   status_var.global_memory_used= 0;
   variables.pseudo_thread_id= thread_id;
+  variables.max_mem_used= global_system_variables.max_mem_used;
   main_da.init();
+
+  mdl_context.init(this);
 
   /*
     Pass nominal parameters to init_alloc_root only to ensure that
@@ -800,7 +821,6 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
   connection_name.str= 0;
   connection_name.length= 0;
 
-  bzero(&variables, sizeof(variables));
   file_id = 0;
   query_id= 0;
   query_name_consts= 0;
@@ -876,6 +896,9 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
   my_hash_init(&user_vars, system_charset_info, USER_VARS_HASH_SIZE, 0, 0,
                (my_hash_get_key) get_var_key,
                (my_hash_free_key) free_user_var, HASH_THREAD_SPECIFIC);
+  my_hash_init(&sequences, system_charset_info, SEQUENCES_HASH_SIZE, 0, 0,
+               (my_hash_get_key) get_sequence_last_key,
+               (my_hash_free_key) free_sequence_last, HASH_THREAD_SPECIFIC);
 
   sp_proc_cache= NULL;
   sp_func_cache= NULL;
@@ -916,7 +939,6 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
 
   m_internal_handler= NULL;
   m_binlog_invoker= INVOKER_NONE;
-  arena_for_cached_items= 0;
   memset(&invoker_user, 0, sizeof(invoker_user));
   memset(&invoker_host, 0, sizeof(invoker_host));
   prepare_derived_at_open= FALSE;
@@ -945,7 +967,7 @@ void THD::push_internal_handler(Internal_error_handler *handler)
 
 bool THD::handle_condition(uint sql_errno,
                            const char* sqlstate,
-                           Sql_condition::enum_warning_level level,
+                           Sql_condition::enum_warning_level *level,
                            const char* msg,
                            Sql_condition ** cond_hdl)
 {
@@ -1065,13 +1087,15 @@ void THD::raise_note_printf(uint sql_errno, ...)
 }
 
 Sql_condition* THD::raise_condition(uint sql_errno,
-                                  const char* sqlstate,
-                                  Sql_condition::enum_warning_level level,
-                                  const char* msg)
+                                    const char* sqlstate,
+                                    Sql_condition::enum_warning_level level,
+                                    const Sql_user_condition_identity &ucid,
+                                    const char* msg)
 {
   Diagnostics_area *da= get_stmt_da();
   Sql_condition *cond= NULL;
   DBUG_ENTER("THD::raise_condition");
+  DBUG_ASSERT(level < Sql_condition::WARN_LEVEL_END);
 
   if (!(variables.option_bits & OPTION_SQL_NOTES) &&
       (level == Sql_condition::WARN_LEVEL_NOTE))
@@ -1099,23 +1123,22 @@ Sql_condition* THD::raise_condition(uint sql_errno,
       push_warning and strict SQL_MODE case.
     */
     level= Sql_condition::WARN_LEVEL_ERROR;
-    killed= KILL_BAD_DATA;
   }
 
-  switch (level)
-  {
+  if (handle_condition(sql_errno, sqlstate, &level, msg, &cond))
+    DBUG_RETURN(cond);
+
+  switch (level) {
   case Sql_condition::WARN_LEVEL_NOTE:
   case Sql_condition::WARN_LEVEL_WARN:
     got_warning= 1;
     break;
   case Sql_condition::WARN_LEVEL_ERROR:
     break;
-  default:
-    DBUG_ASSERT(FALSE);
+  case Sql_condition::WARN_LEVEL_END:
+    /* Impossible */
+    break;
   }
-
-  if (handle_condition(sql_errno, sqlstate, level, msg, &cond))
-    DBUG_RETURN(cond);
 
   if (level == Sql_condition::WARN_LEVEL_ERROR)
   {
@@ -1126,7 +1149,7 @@ Sql_condition* THD::raise_condition(uint sql_errno,
     if (!da->is_error())
     {
       set_row_count_func(-1);
-      da->set_error_status(sql_errno, msg, sqlstate, cond);
+      da->set_error_status(sql_errno, msg, sqlstate, ucid, cond);
     }
   }
 
@@ -1140,7 +1163,7 @@ Sql_condition* THD::raise_condition(uint sql_errno,
   if (!(is_fatal_error && (sql_errno == EE_OUTOFMEMORY ||
                            sql_errno == ER_OUTOFMEMORY)))
   {
-    cond= da->push_warning(this, sql_errno, sqlstate, level, msg);
+    cond= da->push_warning(this, sql_errno, sqlstate, level, ucid, msg);
   }
   DBUG_RETURN(cond);
 }
@@ -1321,7 +1344,17 @@ void THD::init(void)
   DBUG_VOID_RETURN;
 }
 
- 
+
+bool THD::restore_from_local_lex_to_old_lex(LEX *oldlex)
+{
+  DBUG_ASSERT(lex->sphead);
+  if (lex->sphead->merge_lex(this, oldlex, lex))
+    return true;
+  lex= oldlex;
+  return false;
+}
+
+
 /* Updates some status variables to be used by update_global_user_stats */
 
 void THD::update_stats(void)
@@ -1415,6 +1448,9 @@ void THD::change_user(void)
   my_hash_init(&user_vars, system_charset_info, USER_VARS_HASH_SIZE, 0, 0,
                (my_hash_get_key) get_var_key,
                (my_hash_free_key) free_user_var, 0);
+  my_hash_init(&sequences, system_charset_info, SEQUENCES_HASH_SIZE, 0, 0,
+               (my_hash_get_key) get_sequence_last_key,
+               (my_hash_free_key) free_sequence_last, HASH_THREAD_SPECIFIC);
   sp_cache_clear(&sp_proc_cache);
   sp_cache_clear(&sp_func_cache);
 }
@@ -1471,6 +1507,7 @@ void THD::cleanup(void)
 #endif /* defined(ENABLED_DEBUG_SYNC) */
 
   my_hash_free(&user_vars);
+  my_hash_free(&sequences);
   sp_cache_clear(&sp_proc_cache);
   sp_cache_clear(&sp_func_cache);
   auto_inc_intervals_forced.empty();
@@ -1986,6 +2023,8 @@ int killed_errno(killed_state killed)
   case KILL_SERVER:
   case KILL_SERVER_HARD:
     DBUG_RETURN(ER_SERVER_SHUTDOWN);
+  case KILL_SLAVE_SAME_ID:
+    DBUG_RETURN(ER_SLAVE_SAME_ID);
   }
   DBUG_RETURN(0);                               // Keep compiler happy
 }
@@ -3480,15 +3519,29 @@ int select_exists_subselect::send_data(List<Item> &items)
 
 int select_dumpvar::prepare(List<Item> &list, SELECT_LEX_UNIT *u)
 {
+  my_var_sp *mvsp;
   unit= u;
-  
-  if (var_list.elements != list.elements)
+  m_var_sp_row= NULL;
+
+  if (var_list.elements == 1 &&
+      (mvsp= var_list.head()->get_my_var_sp()) &&
+      mvsp->type_handler() == &type_handler_row)
   {
-    my_message(ER_WRONG_NUMBER_OF_COLUMNS_IN_SELECT,
-               ER_THD(thd, ER_WRONG_NUMBER_OF_COLUMNS_IN_SELECT), MYF(0));
-    return 1;
-  }               
-  return 0;
+    // SELECT INTO row_type_sp_variable
+    if (thd->spcont->get_item(mvsp->offset)->cols() != list.elements)
+      goto error;
+    m_var_sp_row= mvsp;
+    return 0;
+  }
+
+  // SELECT INTO variable list
+  if (var_list.elements == list.elements)
+    return 0;
+
+error:
+  my_message(ER_WRONG_NUMBER_OF_COLUMNS_IN_SELECT,
+             ER_THD(thd, ER_WRONG_NUMBER_OF_COLUMNS_IN_SELECT), MYF(0));
+  return 1;
 }
 
 
@@ -3824,12 +3877,30 @@ bool my_var_sp::set(THD *thd, Item *item)
   return thd->spcont->set_variable(thd, offset, &item);
 }
 
-int select_dumpvar::send_data(List<Item> &items)
+bool my_var_sp_row_field::set(THD *thd, Item *item)
 {
+  return thd->spcont->set_variable_row_field(thd, offset, m_field_offset, &item);
+}
+
+
+bool select_dumpvar::send_data_to_var_list(List<Item> &items)
+{
+  DBUG_ENTER("select_dumpvar::send_data_to_var_list");
   List_iterator_fast<my_var> var_li(var_list);
   List_iterator<Item> it(items);
   Item *item;
   my_var *mv;
+  while ((mv= var_li++) && (item= it++))
+  {
+    if (mv->set(thd, item))
+      DBUG_RETURN(true);
+  }
+  DBUG_RETURN(false);
+}
+
+
+int select_dumpvar::send_data(List<Item> &items)
+{
   DBUG_ENTER("select_dumpvar::send_data");
 
   if (unit->offset_limit_cnt)
@@ -3842,11 +3913,11 @@ int select_dumpvar::send_data(List<Item> &items)
     my_message(ER_TOO_MANY_ROWS, ER_THD(thd, ER_TOO_MANY_ROWS), MYF(0));
     DBUG_RETURN(1);
   }
-  while ((mv= var_li++) && (item= it++))
-  {
-    if (mv->set(thd, item))
-      DBUG_RETURN(1);
-  }
+  if (m_var_sp_row ?
+      thd->spcont->set_variable_row(thd, m_var_sp_row->offset, items) :
+      send_data_to_var_list(items))
+    DBUG_RETURN(1);
+
   DBUG_RETURN(thd->is_error());
 }
 
@@ -3876,7 +3947,8 @@ create_result_table(THD *thd_arg, List<Item> *column_types,
                     bool is_union_distinct, ulonglong options,
                     const char *table_alias, bool bit_fields_as_long,
                     bool create_table,
-                    bool keep_row_order)
+                    bool keep_row_order,
+                    uint hidden)
 {
   DBUG_ASSERT(table == 0);
   tmp_table_param.field_count= column_types->elements;
@@ -3911,12 +3983,12 @@ void select_materialize_with_stats::reset()
 void select_materialize_with_stats::cleanup()
 {
   reset();
-  select_union::cleanup();
+  select_unit::cleanup();
 }
 
 
 /**
-  Override select_union::send_data to analyze each row for NULLs and to
+  Override select_unit::send_data to analyze each row for NULLs and to
   update null_statistics before sending data to the client.
 
   @return TRUE if fatal error when sending data to the client
@@ -3931,7 +4003,7 @@ int select_materialize_with_stats::send_data(List<Item> &items)
   uint nulls_in_row= 0;
   int res;
 
-  if ((res= select_union::send_data(items)))
+  if ((res= select_unit::send_data(items)))
     return res;
   if (table->null_catch_flags & REJECT_ROW_DUE_TO_NULL_FIELDS)
   {
@@ -4405,6 +4477,28 @@ extern "C" int thd_is_connected(MYSQL_THD thd)
 }
 
 
+extern "C" double thd_rnd(MYSQL_THD thd)
+{
+  return my_rnd(&thd->rand);
+}
+
+
+/**
+  Generate string of printable random characters of requested length.
+
+  @param to[out]      Buffer for generation; must be at least length+1 bytes
+                      long; result string is always null-terminated
+  @param length[in]   How many random characters to put in buffer
+*/
+extern "C" void thd_create_random_password(MYSQL_THD thd,
+                                           char *to, size_t length)
+{
+  for (char *end= to + length; to < end; to++)
+    *to= (char) (my_rnd(&thd->rand)*94 + 33);
+  *to= '\0';
+}
+
+
 #ifdef INNODB_COMPATIBILITY_HOOKS
 
 /** open a table and add it to thd->open_tables
@@ -4478,7 +4572,10 @@ MYSQL_THD create_thd()
 
 void destroy_thd(MYSQL_THD thd)
 {
-  delete_running_thd(thd);
+  thd->add_status_to_global();
+  unlink_not_visible_thd(thd);
+  delete thd;
+  dec_thread_running();
 }
 
 void reset_thd(MYSQL_THD thd)
@@ -4529,6 +4626,15 @@ extern "C" int thd_rpl_is_parallel(const MYSQL_THD thd)
 {
   return thd->rgi_slave && thd->rgi_slave->is_parallel_exec;
 }
+
+
+/* Returns high resolution timestamp for the start
+  of the current query. */
+extern "C" unsigned long long thd_start_utime(const MYSQL_THD thd)
+{
+  return thd->start_utime;
+}
+
 
 /*
   This function can optionally be called to check if thd_rpl_deadlock_check()
@@ -5617,7 +5723,7 @@ int xid_cache_iterate(THD *thd, my_hash_walk_action action, void *arg)
 int THD::decide_logging_format(TABLE_LIST *tables)
 {
   DBUG_ENTER("THD::decide_logging_format");
-  DBUG_PRINT("info", ("Query: %s", query()));
+  DBUG_PRINT("info", ("Query: %.*s", (uint) query_length(), query()));
   DBUG_PRINT("info", ("variables.binlog_format: %lu",
                       variables.binlog_format));
   DBUG_PRINT("info", ("lex->get_stmt_unsafe_flags(): 0x%x",
@@ -5713,9 +5819,11 @@ int THD::decide_logging_format(TABLE_LIST *tables)
     {
       static const char *prelocked_mode_name[] = {
         "NON_PRELOCKED",
+        "LOCK_TABLES",
         "PRELOCKED",
         "PRELOCKED_UNDER_LOCK_TABLES",
       };
+      compile_time_assert(array_elements(prelocked_mode_name) == LTM_always_last);
       DBUG_PRINT("debug", ("prelocked_mode: %s",
                            prelocked_mode_name[locked_tables_mode]));
     }
@@ -5782,7 +5890,9 @@ int THD::decide_logging_format(TABLE_LIST *tables)
         if (prev_write_table && prev_write_table->file->ht !=
             table->table->file->ht)
           multi_write_engine= TRUE;
-        if (table->table->s->non_determinstic_insert)
+        if (table->table->s->non_determinstic_insert &&
+            lex->sql_command != SQLCOM_CREATE_SEQUENCE &&
+            lex->sql_command != SQLCOM_CREATE_TABLE)
           has_write_tables_with_unsafe_statements= true;
 
         trans= table->table->file->has_transactions();
@@ -6486,21 +6596,19 @@ void THD::binlog_prepare_row_images(TABLE *table)
     */
     DBUG_ASSERT(table->read_set != &table->tmp_set);
 
-    bitmap_clear_all(&table->tmp_set);
-
     switch(thd->variables.binlog_row_image)
     {
       case BINLOG_ROW_IMAGE_MINIMAL:
         /* MINIMAL: Mark only PK */
-        table->mark_columns_used_by_index_no_reset(table->s->primary_key,
-                                                   &table->tmp_set);
+        table->mark_columns_used_by_index(table->s->primary_key,
+                                          &table->tmp_set);
         break;
       case BINLOG_ROW_IMAGE_NOBLOB:
         /**
           NOBLOB: Remove unnecessary BLOB fields from read_set
                   (the ones that are not part of PK).
          */
-        bitmap_union(&table->tmp_set, table->read_set);
+        bitmap_copy(&table->tmp_set, table->read_set);
         for (Field **ptr=table->field ; *ptr ; ptr++)
         {
           Field *field= (*ptr);
@@ -6976,7 +7084,13 @@ wait_for_commit::reinit()
 
     So in this case, do a re-init of the mutex. In release builds, we want to
     avoid the overhead of a re-init though.
+
+    To ensure that no one is locking the mutex, we take a lock of it first.
+    For full explanation, see wait_for_commit::~wait_for_commit()
   */
+  mysql_mutex_lock(&LOCK_wait_commit);
+  mysql_mutex_unlock(&LOCK_wait_commit);
+
   mysql_mutex_destroy(&LOCK_wait_commit);
   mysql_mutex_init(key_LOCK_wait_commit, &LOCK_wait_commit, MY_MUTEX_INIT_FAST);
 #endif

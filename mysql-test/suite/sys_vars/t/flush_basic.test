@@ -149,8 +149,6 @@ SELECT @@flush = @@global.flush;
 
 --Error ER_GLOBAL_VARIABLE
 SET flush = 1;
---Error ER_PARSE_ERROR
-SET global.flush = 1;
 --Error ER_UNKNOWN_TABLE
 SELECT global.flush;
 --Error ER_BAD_FIELD_ERROR

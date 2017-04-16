@@ -60,3 +60,25 @@ fid	AsText(g)
 45	LINESTRING(51 51,60 60)
 DROP TABLE t1;
 End of 5.5 tests.
+CREATE TABLE t1 (
+coordinate point NOT NULL,
+SPATIAL KEY coordinate (coordinate)
+) ENGINE=Aria DEFAULT CHARSET=ascii PAGE_CHECKSUM=1;
+SHOW COLUMNS FROM t1;
+Field	Type	Null	Key	Default	Extra
+coordinate	point	NO	MUL	NULL	
+INSERT INTO t1 (coordinate) VALUES(ST_PointFromText("POINT(0 0)"));
+INSERT INTO t1 (coordinate) VALUES(ST_PointFromText("POINT(10 0)"));
+INSERT INTO t1 (coordinate) VALUES(ST_PointFromText("POINT(10 10)"));
+INSERT INTO t1 (coordinate) VALUES(ST_PointFromText("POINT(0 10)"));
+INSERT INTO t1 (coordinate) VALUES(ST_PointFromText("POINT(5 5)"));
+SELECT astext(coordinate) FROM t1 WHERE ST_Intersects(ST_LineFromText("LINESTRING(0 0, 10 0, 10 10, 0 10)"), coordinate);
+astext(coordinate)
+POINT(0 0)
+POINT(10 0)
+POINT(10 10)
+POINT(0 10)
+SHOW COLUMNS FROM t1;
+Field	Type	Null	Key	Default	Extra
+coordinate	point	NO	MUL	NULL	
+DROP TABLE t1;

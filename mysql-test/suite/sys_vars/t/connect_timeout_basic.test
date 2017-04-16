@@ -131,8 +131,6 @@ SELECT @@connect_timeout = @@global.connect_timeout;
 
 --Error ER_GLOBAL_VARIABLE
 SET connect_timeout = 1;
---Error ER_PARSE_ERROR
-SET global.connect_timeout = 1;
 --Error ER_UNKNOWN_TABLE
 SELECT global.connect_timeout;
 --Error ER_BAD_FIELD_ERROR

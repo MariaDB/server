@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -35,9 +36,7 @@ Created 3/26/1996 Heikki Tuuri
 #include "rem0types.h"
 #include "page0types.h"
 #include "row0log.h"
-
-#ifndef UNIV_HOTBACKUP
-# include "que0types.h"
+#include "que0types.h"
 
 /***********************************************************************//**
 Copies the undo record to the heap.
@@ -118,15 +117,6 @@ trx_undo_rec_get_row_ref(
 	dtuple_t**	ref,	/*!< out, own: row reference */
 	mem_heap_t*	heap);	/*!< in: memory heap from which the memory
 				needed is allocated */
-/*******************************************************************//**
-Skips a row reference from an undo log record.
-@return pointer to remaining part of undo record */
-byte*
-trx_undo_rec_skip_row_ref(
-/*======================*/
-	byte*		ptr,	/*!< in: remaining part in update undo log
-				record, at the start of the row reference */
-	dict_index_t*	index);	/*!< in: clustered index */
 /**********************************************************************//**
 Reads from an undo log update record the system field values of the old
 version.
@@ -220,17 +210,6 @@ trx_undo_report_row_operation(
 					0 if BTR_NO_UNDO_LOG
 					flag was specified */
 	MY_ATTRIBUTE((nonnull(3,4,10), warn_unused_result));
-/******************************************************************//**
-Copies an undo record to heap. This function can be called if we know that
-the undo log record exists.
-@return own: copy of the record */
-trx_undo_rec_t*
-trx_undo_get_undo_rec_low(
-/*======================*/
-	roll_ptr_t	roll_ptr,	/*!< in: roll pointer to record */
-	mem_heap_t*	heap,		/*!< in: memory heap where copied */
-	bool		is_redo_rseg)	/*!< in: true if redo rseg. */
-	MY_ATTRIBUTE((nonnull, warn_unused_result));
 
 /** status bit used for trx_undo_prev_version_build() */
 
@@ -276,7 +255,6 @@ trx_undo_prev_version_build(
 				into this function by purge thread or not.
 				And if we read "after image" of undo log */
 
-#endif /* !UNIV_HOTBACKUP */
 /***********************************************************//**
 Parses a redo log record of adding an undo log record.
 @return end of log record or NULL */
@@ -344,8 +322,6 @@ trx_undo_read_v_idx(
 	bool*			is_undo_log,
 	ulint*			field_no);
 
-#ifndef UNIV_HOTBACKUP
-
 /* Types of an undo log record: these have to be smaller than 16, as the
 compilation info multiplied by 16 is ORed to this value in an undo log
 record */
@@ -358,21 +334,17 @@ record */
 					fields of the record can change */
 #define	TRX_UNDO_DEL_MARK_REC	14	/* delete marking of a record; fields
 					do not change */
-#define	TRX_UNDO_CMPL_INFO_MULT	16	/* compilation info is multiplied by
+#define	TRX_UNDO_CMPL_INFO_MULT	16U	/* compilation info is multiplied by
 					this and ORed to the type above */
-#define	TRX_UNDO_UPD_EXTERN	128	/* This bit can be ORed to type_cmpl
+#define	TRX_UNDO_UPD_EXTERN	128U	/* This bit can be ORed to type_cmpl
 					to denote that we updated external
 					storage fields: used by purge to
 					free the external storage */
 
 /* Operation type flags used in trx_undo_report_row_operation */
-#define	TRX_UNDO_INSERT_OP		1
-#define	TRX_UNDO_MODIFY_OP		2
+#define	TRX_UNDO_INSERT_OP		1U
+#define	TRX_UNDO_MODIFY_OP		2U
 
-#ifndef UNIV_NONINL
 #include "trx0rec.ic"
-#endif
-
-#endif /* !UNIV_HOTBACKUP */
 
 #endif /* trx0rec_h */

@@ -69,19 +69,13 @@ FILE *my_fopen(const char *filename, int flags, myf MyFlags)
       DBUG_RETURN(fd);				/* safeguard */
     }
     mysql_mutex_lock(&THR_LOCK_open);
-    if ((my_file_info[filedesc].name= (char*)
-	 my_strdup(filename,MyFlags)))
-    {
-      my_stream_opened++;
-      my_file_total_opened++;
-      my_file_info[filedesc].type= STREAM_BY_FOPEN;
-      mysql_mutex_unlock(&THR_LOCK_open);
-      DBUG_PRINT("exit",("stream: 0x%lx", (long) fd));
-      DBUG_RETURN(fd);
-    }
+    my_file_info[filedesc].name= (char*) my_strdup(filename,MyFlags);
+    my_stream_opened++;
+    my_file_total_opened++;
+    my_file_info[filedesc].type= STREAM_BY_FOPEN;
     mysql_mutex_unlock(&THR_LOCK_open);
-    (void) my_fclose(fd,MyFlags);
-    my_errno=ENOMEM;
+    DBUG_PRINT("exit",("stream: 0x%lx", (long) fd));
+    DBUG_RETURN(fd);
   }
   else
     my_errno=errno;
@@ -101,6 +95,7 @@ static FILE *my_win_freopen(const char *path, const char *mode, FILE *stream)
   HANDLE osfh;
 
   DBUG_ASSERT(path && stream);
+  DBUG_ASSERT(strchr(mode, 'a')); /* We use FILE_APPEND_DATA below */
 
   /* Services don't have stdout/stderr on Windows, so _fileno returns -1. */
   if (fd < 0)
@@ -111,15 +106,14 @@ static FILE *my_win_freopen(const char *path, const char *mode, FILE *stream)
     fd= _fileno(stream);
   }
 
-  if ((osfh= CreateFile(path, GENERIC_READ | GENERIC_WRITE,
+  if ((osfh= CreateFile(path, GENERIC_READ | FILE_APPEND_DATA,
                         FILE_SHARE_READ | FILE_SHARE_WRITE |
                         FILE_SHARE_DELETE, NULL,
                         OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL,
                         NULL)) == INVALID_HANDLE_VALUE)
     return NULL;
 
-  if ((handle_fd= _open_osfhandle((intptr_t)osfh,
-                                  _O_APPEND | _O_TEXT)) == -1)
+  if ((handle_fd= _open_osfhandle((intptr_t)osfh, _O_TEXT)) == -1)
   {
     CloseHandle(osfh);
     return NULL;

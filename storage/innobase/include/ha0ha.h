@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1994, 2015, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -33,6 +33,7 @@ Created 8/18/1994 Heikki Tuuri
 #include "buf0types.h"
 #include "rem0types.h"
 
+#ifdef BTR_CUR_HASH_ADAPT
 /*************************************************************//**
 Looks for an element in a hash table.
 @return pointer to the data of the first hash table node in chain
@@ -79,6 +80,7 @@ updates the pointer to data if found.
 # define ha_search_and_update_if_found(table,fold,data,new_block,new_data) \
 	ha_search_and_update_if_found_func(table,fold,data,new_data)
 #endif /* UNIV_AHI_DEBUG || UNIV_DEBUG */
+#endif /* BTR_CUR_HASH_ADAPT */
 
 /*************************************************************//**
 Creates a hash table with at least n array cells.  The actual number
@@ -115,6 +117,7 @@ ha_clear(
 /*=====*/
 	hash_table_t*	table);	/*!< in, own: hash table */
 
+#ifdef BTR_CUR_HASH_ADAPT
 /*************************************************************//**
 Inserts an entry into a hash table. If an entry with the same fold number
 is found, its node is updated to point to the new data, and no new node
@@ -174,7 +177,7 @@ ha_search_and_delete_if_found(
 	hash_table_t*	table,	/*!< in: hash table */
 	ulint		fold,	/*!< in: folded value of the searched data */
 	const rec_t*	data);	/*!< in: pointer to the data */
-#ifndef UNIV_HOTBACKUP
+
 /*****************************************************************//**
 Removes from the chain determined by fold all nodes whose data pointer
 points to the page given. */
@@ -202,7 +205,6 @@ ha_print_info(
 /*==========*/
 	FILE*		file,	/*!< in: file where to print */
 	hash_table_t*	table);	/*!< in: hash table */
-#endif /* !UNIV_HOTBACKUP */
 
 /** The hash table external chain node */
 struct ha_node_t {
@@ -213,6 +215,7 @@ struct ha_node_t {
 #endif /* UNIV_AHI_DEBUG || UNIV_DEBUG */
 	const rec_t*	data;	/*!< pointer to the data */
 };
+#endif /* BTR_CUR_HASH_ADAPT */
 
 #ifdef UNIV_DEBUG
 /********************************************************************//**
@@ -241,9 +244,6 @@ hash_assert_can_search(
 #define hash_assert_can_search(t, f)
 #endif /* UNIV_DEBUG */
 
-
-#ifndef UNIV_NONINL
 #include "ha0ha.ic"
-#endif
 
 #endif

@@ -927,3 +927,60 @@ Sergei Golubchik	Development	DE
 Claudio Nanni	Support	ES
 Sergei Petrunia	Development	RU
 drop table employees;
+#
+# MDEV-11818: EXPLAIN EXTENDED for a query with optimized away CTE table
+#
+CREATE TABLE t1 (i INT, c VARCHAR(3));
+INSERT INTO t1 VALUES (1,'foo');
+EXPLAIN EXTENDED
+WITH cte AS ( SELECT * FROM t1 ) SELECT i FROM cte;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	system	NULL	NULL	NULL	NULL	1	100.00	
+Warnings:
+Note	1003	with cte as (select `test`.`t1`.`i` AS `i`,`test`.`t1`.`c` AS `c` from `test`.`t1`)select 1 AS `i` from dual
+DROP TABLE t1;
+#
+# MDEV-12185: view defintion contains WITH clause with 
+#             several specifications of CTE
+#
+with
+alias1 as (select 1 as one),
+alias2 as (select 2 as two)
+select one, two from alias1, alias2;
+one	two
+1	2
+create view v1 as 
+with
+alias1 as (select 1 as one),
+alias2 as (select 2 as two)
+select one, two from alias1, alias2;
+select * from v1;
+one	two
+1	2
+show create view v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS with alias1 as (select 1 AS `one`), alias2 as (select 2 AS `two`)select `alias1`.`one` AS `one`,`alias2`.`two` AS `two` from (`alias1` join `alias2`)	latin1	latin1_swedish_ci
+drop view v1;
+#
+# MDEV-12440: the same CTE table is used in twice
+#
+create table t1 (a int, b  varchar(32));
+insert into t1 values
+(4,'aaaa' ), (7,'bb'), (1,'ccc'), (4,'dd');
+# cte2 is used in the main query and in the spec for ct3
+with
+cte1 as (select * from t1 where  b >= 'c'),
+cte2 as (select * from cte1 where a < 7),
+cte3 as (select * from cte2 where a > 1)
+select * from cte2, cte3 where cte2.a = cte3.a;
+a	b	a	b
+4	dd	4	dd
+# cte2 is used twice in the spec for ct3
+with
+cte1 as (select * from t1 where  b >= 'b'),
+cte2 as (select * from cte1 where b > 'c'),
+cte3 as (select * from cte2 where a > 1 union select * from cte2 where a > 1)
+select * from cte3;
+a	b
+4	dd
+drop table t1;

@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1997, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -47,8 +48,5 @@ row_undo_ins(
 	undo_node_t*	node,	/*!< in: row undo node */
 	que_thr_t*	thr)	/*!< in: query thread */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
-#ifndef UNIV_NONINL
-#include "row0uins.ic"
-#endif
 
 #endif

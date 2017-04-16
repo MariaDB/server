@@ -24,6 +24,7 @@ optimize table mysql.proxies_priv;
 optimize table mysql.tables_priv;
 optimize table mysql.procs_priv;
 optimize table mysql.servers;
+optimize table mysql.roles_mapping;
 --enable_result_log
 
 # Start recording events

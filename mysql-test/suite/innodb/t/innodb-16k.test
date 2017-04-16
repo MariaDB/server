@@ -8,16 +8,10 @@ call mtr.add_suppression("InnoDB: Cannot add field .* in table .* because after 
 --disable_query_log
 let $MYSQLD_DATADIR= `select @@datadir`;
 # These values can change during the test
-let $innodb_file_format_orig = `SELECT @@innodb_file_format`;
-let $innodb_file_per_table_orig = `SELECT @@innodb_file_per_table`;
-let $innodb_strict_mode_orig = `SELECT @@session.innodb_strict_mode`;
 let $innodb_large_prefix_orig = `SELECT @@innodb_large_prefix`;
 --enable_query_log
 
-SET GLOBAL innodb_file_format = `Barracuda`;
-SET GLOBAL innodb_file_per_table = ON;
 SET GLOBAL innodb_large_prefix = OFF;
-
 
 --echo # Test 1) Show the page size from Information Schema
 SELECT variable_value FROM information_schema.global_status
@@ -263,8 +257,6 @@ SELECT table_name, row_format, create_options
 
 DROP TABLE t1;
 
-SET GLOBAL innodb_file_format = `Barracuda`;
-
 CREATE TABLE t2(d varchar(17) PRIMARY KEY) ENGINE=innodb DEFAULT CHARSET=utf8;
 CREATE TABLE t3(a int PRIMARY KEY) ENGINE=innodb;
 INSERT INTO t3 VALUES (22),(44),(33),(55),(66);
@@ -381,9 +373,6 @@ UPDATE t1 SET t=@e;
 SHOW CREATE TABLE t1;
 DROP TABLE t1;
 
-SET GLOBAL innodb_file_format = `Barracuda`;
-SET GLOBAL innodb_file_per_table = ON;
-
 --echo Test an assertion failure on purge.
 
 # This test is not in innodb_8k or innodb_4k since the bug is not about
@@ -440,8 +429,6 @@ DELETE FROM t3_purge;
 DELETE FROM t4_purge;
 
 # A secondary index tuple is found to be too long to fit into a page.
-SET GLOBAL innodb_file_per_table=on;
-SET GLOBAL innodb_file_format='Barracuda';
 SET @r=REPEAT('a',500);
 
 CREATE TABLE tlong(a int,
@@ -961,8 +948,5 @@ row_format=compact,ENGINE=INNODB;
 #
 
 --disable_query_log
-EVAL SET GLOBAL innodb_file_format = $innodb_file_format_orig;
-EVAL SET GLOBAL innodb_file_per_table = $innodb_file_per_table_orig;
-EVAL SET SESSION innodb_strict_mode = $innodb_strict_mode_orig;
 EVAL SET GLOBAL innodb_large_prefix = $innodb_large_prefix_orig;
 --enable_query_log

@@ -75,63 +75,6 @@ void Set_signal_information::clear()
   memset(m_item, 0, sizeof(m_item));
 }
 
-void
-Sql_cmd_common_signal::assign_defaults(Sql_condition *cond,
-                                       bool set_level_code,
-                                       Sql_condition::enum_warning_level level,
-                                       int sqlcode)
-{
-  if (set_level_code)
-  {
-    cond->m_level= level;
-    cond->m_sql_errno= sqlcode;
-  }
-  if (! cond->get_message_text())
-    cond->set_builtin_message_text(ER(sqlcode));
-}
-
-void Sql_cmd_common_signal::eval_defaults(THD *thd, Sql_condition *cond)
-{
-  DBUG_ASSERT(cond);
-
-  const char* sqlstate;
-  bool set_defaults= (m_cond != 0);
-
-  if (set_defaults)
-  {
-    /*
-      SIGNAL is restricted in sql_yacc.yy to only signal SQLSTATE conditions.
-    */
-    DBUG_ASSERT(m_cond->type == sp_condition_value::SQLSTATE);
-    sqlstate= m_cond->sql_state;
-    cond->set_sqlstate(sqlstate);
-  }
-  else
-    sqlstate= cond->get_sqlstate();
-
-  DBUG_ASSERT(sqlstate);
-  /* SQLSTATE class "00": illegal, rejected in the parser. */
-  DBUG_ASSERT((sqlstate[0] != '0') || (sqlstate[1] != '0'));
-
-  if ((sqlstate[0] == '0') && (sqlstate[1] == '1'))
-  {
-    /* SQLSTATE class "01": warning. */
-    assign_defaults(cond, set_defaults,
-                    Sql_condition::WARN_LEVEL_WARN, ER_SIGNAL_WARN);
-  }
-  else if ((sqlstate[0] == '0') && (sqlstate[1] == '2'))
-  {
-    /* SQLSTATE class "02": not found. */
-    assign_defaults(cond, set_defaults,
-                    Sql_condition::WARN_LEVEL_ERROR, ER_SIGNAL_NOT_FOUND);
-  }
-  else
-  {
-    /* other SQLSTATE classes : error. */
-    assign_defaults(cond, set_defaults,
-                    Sql_condition::WARN_LEVEL_ERROR, ER_SIGNAL_EXCEPTION);
-  }
-}
 
 static bool assign_fixed_string(MEM_ROOT *mem_root,
                                 CHARSET_INFO *dst_cs,
@@ -402,7 +345,7 @@ bool Sql_cmd_common_signal::raise_condition(THD *thd, Sql_condition *cond)
 
   DBUG_ASSERT(thd->lex->query_tables == NULL);
 
-  eval_defaults(thd, cond);
+  cond->assign_defaults(thd, m_cond);
   if (eval_signal_informations(thd, cond))
     DBUG_RETURN(result);
 
@@ -410,13 +353,7 @@ bool Sql_cmd_common_signal::raise_condition(THD *thd, Sql_condition *cond)
   DBUG_ASSERT((cond->m_level == Sql_condition::WARN_LEVEL_WARN) ||
               (cond->m_level == Sql_condition::WARN_LEVEL_ERROR));
 
-  Sql_condition *raised= NULL;
-  raised= thd->raise_condition(cond->get_sql_errno(),
-                               cond->get_sqlstate(),
-                               cond->get_level(),
-                               cond->get_message_text());
-  if (raised)
-    raised->copy_opt_attributes(cond);
+  (void) thd->raise_condition(cond);
 
   if (cond->m_level == Sql_condition::WARN_LEVEL_WARN)
   {
@@ -430,7 +367,8 @@ bool Sql_cmd_common_signal::raise_condition(THD *thd, Sql_condition *cond)
 bool Sql_cmd_signal::execute(THD *thd)
 {
   bool result= TRUE;
-  Sql_condition cond(thd->mem_root);
+  DBUG_ASSERT(m_cond);
+  Sql_condition cond(thd->mem_root, m_cond->get_user_condition_identity());
 
   DBUG_ENTER("Sql_cmd_signal::execute");
 
@@ -484,11 +422,7 @@ bool Sql_cmd_resignal::execute(THD *thd)
     DBUG_RETURN(result);
   }
 
-  Sql_condition signaled_err(thd->mem_root);
-  signaled_err.set(signaled->sql_errno,
-                   signaled->sql_state,
-                   signaled->level,
-                   signaled->message);
+  Sql_condition signaled_err(thd->mem_root, *signaled, signaled->message);
 
   if (m_cond)
   {

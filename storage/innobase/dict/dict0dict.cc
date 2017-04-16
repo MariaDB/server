@@ -2,7 +2,7 @@
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2016, MariaDB Corporation.
+Copyright (c) 2013, 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -37,11 +37,6 @@ Created 1/8/1996 Heikki Tuuri
 #include "fil0fil.h"
 #include <algorithm>
 
-#ifdef UNIV_NONINL
-#include "dict0dict.ic"
-#include "dict0priv.ic"
-#endif
-
 /** dummy index for ROW_FORMAT=REDUNDANT supremum and infimum records */
 dict_index_t*	dict_ind_redundant;
 
@@ -55,7 +50,6 @@ Issue a warning that the row is too big. */
 void
 ib_warn_row_too_big(const dict_table_t*	table);
 
-#ifndef UNIV_HOTBACKUP
 #include "btr0btr.h"
 #include "btr0cur.h"
 #include "btr0sea.h"
@@ -265,13 +259,11 @@ dict_get_db_name_len(
 	return(s - name);
 }
 
-/********************************************************************//**
-Reserves the dictionary system mutex for MySQL. */
+/** Reserve the dictionary system mutex. */
 void
-dict_mutex_enter_for_mysql_func(const char * file, ulint line)
-/*============================*/
+dict_mutex_enter_for_mysql_func(const char *file, unsigned line)
 {
-	mutex_enter(&dict_sys->mutex);
+	mutex_enter_loc(&dict_sys->mutex, file, line);
 }
 
 /********************************************************************//**
@@ -551,7 +543,6 @@ dict_table_close(
 		}
 	}
 }
-#endif /* !UNIV_HOTBACKUP */
 
 /********************************************************************//**
 Closes the only open handle to a table and drops a table while assuring
@@ -753,7 +744,6 @@ dict_table_get_nth_v_col_mysql(
 	return(dict_table_get_nth_v_col(table, i));
 }
 
-#ifndef UNIV_HOTBACKUP
 /** Allocate and init the autoinc latch of a given table.
 This function must not be called concurrently on the same table object.
 @param[in,out]	table_void	table whose autoinc latch to create */
@@ -782,7 +772,6 @@ dict_index_zip_pad_alloc(
 	mutex_create(LATCH_ID_ZIP_PAD_MUTEX, index->zip_pad.mutex);
 }
 
-
 /********************************************************************//**
 Acquire the autoinc lock. */
 void
@@ -799,6 +788,7 @@ dict_table_autoinc_lock(
 
 /** Acquire the zip_pad_mutex latch.
 @param[in,out]	index	the index whose zip_pad_mutex to acquire.*/
+static
 void
 dict_index_zip_pad_lock(
 	dict_index_t*	index)
@@ -808,20 +798,6 @@ dict_index_zip_pad_lock(
 		dict_index_zip_pad_alloc, index);
 
 	mutex_enter(index->zip_pad.mutex);
-}
-
-
-/********************************************************************//**
-Unconditionally set the autoinc counter. */
-void
-dict_table_autoinc_initialize(
-/*==========================*/
-	dict_table_t*	table,	/*!< in/out: table */
-	ib_uint64_t	value)	/*!< in: next value to assign to a row */
-{
-	ut_ad(dict_table_autoinc_own(table));
-
-	table->autoinc = value;
 }
 
 /** Get all the FTS indexes on a table.
@@ -849,75 +825,6 @@ dict_table_get_all_fts_indexes(
 	return(ib_vector_size(indexes));
 }
 
-/** Store autoinc value when the table is evicted.
-@param[in]	table	table evicted */
-void
-dict_table_autoinc_store(
-	const dict_table_t*	table)
-{
-	ut_ad(mutex_own(&dict_sys->mutex));
-
-	if (table->autoinc != 0) {
-		ut_ad(dict_sys->autoinc_map->find(table->id)
-		      == dict_sys->autoinc_map->end());
-
-		dict_sys->autoinc_map->insert(
-			std::pair<table_id_t, ib_uint64_t>(
-			table->id, table->autoinc));
-	}
-}
-
-/** Restore autoinc value when the table is loaded.
-@param[in]	table	table loaded */
-void
-dict_table_autoinc_restore(
-	dict_table_t*	table)
-{
-	ut_ad(mutex_own(&dict_sys->mutex));
-
-	autoinc_map_t::iterator	it;
-	it = dict_sys->autoinc_map->find(table->id);
-
-	if (it != dict_sys->autoinc_map->end()) {
-		table->autoinc = it->second;
-		ut_ad(table->autoinc != 0);
-
-		dict_sys->autoinc_map->erase(it);
-	}
-}
-
-/********************************************************************//**
-Reads the next autoinc value (== autoinc counter value), 0 if not yet
-initialized.
-@return value for a new row, or 0 */
-ib_uint64_t
-dict_table_autoinc_read(
-/*====================*/
-	const dict_table_t*	table)	/*!< in: table */
-{
-	ut_ad(dict_table_autoinc_own(table));
-
-	return(table->autoinc);
-}
-
-/********************************************************************//**
-Updates the autoinc counter if the value supplied is greater than the
-current value. */
-void
-dict_table_autoinc_update_if_greater(
-/*=================================*/
-
-	dict_table_t*	table,	/*!< in/out: table */
-	ib_uint64_t	value)	/*!< in: value which was assigned to a row */
-{
-	ut_ad(dict_table_autoinc_own(table));
-
-	if (value > table->autoinc) {
-
-		table->autoinc = value;
-	}
-}
-
 /********************************************************************//**
 Release the autoinc lock. */
 void
@@ -927,7 +834,6 @@ dict_table_autoinc_unlock(
 {
 	mutex_exit(table->autoinc_mutex);
 }
-#endif /* !UNIV_HOTBACKUP */
 
 /** Looks for column n in an index.
 @param[in]	index		index
@@ -986,7 +892,6 @@ dict_index_get_nth_col_or_prefix_pos(
 	return(ULINT_UNDEFINED);
 }
 
-#ifndef UNIV_HOTBACKUP
 /** Returns TRUE if the index contains a column or a prefix of that column.
 @param[in]	index		index
 @param[in]	n		column number
@@ -1212,8 +1117,6 @@ dict_init(void)
 	}
 
 	mutex_create(LATCH_ID_DICT_FOREIGN_ERR, &dict_foreign_err_mutex);
-
-	dict_sys->autoinc_map = new autoinc_map_t();
 }
 
 /**********************************************************************//**
@@ -1327,7 +1230,6 @@ dict_table_open_on_name(
 
 	DBUG_RETURN(table);
 }
-#endif /* !UNIV_HOTBACKUP */
 
 /**********************************************************************//**
 Adds system columns to a table object. */
@@ -1377,7 +1279,6 @@ dict_table_add_system_columns(
 #endif
 }
 
-#ifndef UNIV_HOTBACKUP
 /** Mark if table has big rows.
 @param[in,out]	table	table handler */
 void
@@ -1409,7 +1310,7 @@ void
 dict_table_add_to_cache(
 /*====================*/
 	dict_table_t*	table,		/*!< in: table */
-	ibool		can_be_evicted,	/*!< in: TRUE if can be evicted */
+	bool		can_be_evicted,	/*!< in: whether can be evicted */
 	mem_heap_t*	heap)		/*!< in: temporary heap */
 {
 	ulint	fold;
@@ -1477,8 +1378,6 @@ dict_table_add_to_cache(
 		UT_LIST_ADD_FIRST(dict_sys->table_non_LRU, table);
 	}
 
-	dict_table_autoinc_restore(table);
-
 	ut_ad(dict_lru_validate());
 
 	dict_sys->size += mem_heap_get_size(table->heap)
@@ -1502,8 +1401,6 @@ dict_table_can_be_evicted(
 	ut_a(table->referenced_set.empty());
 
 	if (table->get_ref_count() == 0) {
-		dict_index_t*	index;
-
 		/* The transaction commit and rollback are called from
 		outside the handler interface. This means that there is
 		a window where the table->n_ref_count can be zero but
@@ -1513,7 +1410,8 @@ dict_table_can_be_evicted(
 			return(FALSE);
 		}
 
-		for (index = dict_table_get_first_index(table);
+#ifdef BTR_CUR_HASH_ADAPT
+		for (dict_index_t* index = dict_table_get_first_index(table);
 		     index != NULL;
 		     index = dict_table_get_next_index(index)) {
 
@@ -1535,6 +1433,7 @@ dict_table_can_be_evicted(
 				return(FALSE);
 			}
 		}
+#endif /* BTR_CUR_HASH_ADAPT */
 
 		return(TRUE);
 	}
@@ -1791,25 +1690,17 @@ dict_table_rename_in_cache(
 
 			ib::info() << "Delete of " << filepath << " failed.";
 		}
-
 		ut_free(filepath);
 
 	} else if (dict_table_is_file_per_table(table)) {
-		if (table->dir_path_of_temp_table != NULL) {
-			ib::error() << "Trying to rename a TEMPORARY TABLE "
-				<< old_name
-				<< " ( " << table->dir_path_of_temp_table
-				<< " )";
-			return(DB_ERROR);
-		}
-
 		char*	new_path = NULL;
 		char*	old_path = fil_space_get_first_path(table->space);
+
+		ut_ad(!dict_table_is_temporary(table));
 
 		if (DICT_TF_HAS_DATA_DIR(table->flags)) {
 			new_path = os_file_make_new_pathname(
 				old_path, new_name);
-
 			err = RemoteDatafile::create_link_file(
 				new_name, new_path);
 
@@ -2214,10 +2105,6 @@ dict_table_remove_from_cache_low(
 
 	ut_ad(dict_lru_validate());
 
-	if (lru_evict) {
-		dict_table_autoinc_store(table);
-	}
-
 	if (lru_evict && table->drop_aborted) {
 		/* Do as dict_table_try_drop_aborted() does. */
 
@@ -2615,6 +2502,7 @@ dict_index_add_to_cache_w_vcol(
 	ut_d(mem_heap_validate(index->heap));
 	ut_a(!dict_index_is_clust(index)
 	     || UT_LIST_GET_LEN(table->indexes) == 0);
+	ut_ad(dict_index_is_clust(index) || !table->no_rollback());
 
 	if (!dict_index_find_cols(table, index, add_v)) {
 
@@ -2718,9 +2606,11 @@ dict_index_add_to_cache_w_vcol(
 	UT_LIST_ADD_LAST(table->indexes, new_index);
 	new_index->table = table;
 	new_index->table_name = table->name.m_name;
+#ifdef BTR_CUR_ADAPT
 	new_index->search_info = btr_search_info_create(new_index->heap);
+#endif /* BTR_CUR_ADAPT */
 
-	new_index->page = page_no;
+	new_index->page = unsigned(page_no);
 	rw_lock_create(index_tree_rw_lock_key, &new_index->lock,
 		       SYNC_INDEX_TREE);
 
@@ -2743,8 +2633,6 @@ dict_index_remove_from_cache_low(
 					to make room in the table LRU list */
 {
 	lint		size;
-	ulint		retries = 0;
-	btr_search_t*	info;
 
 	ut_ad(table && index);
 	ut_ad(table->magic_n == DICT_TABLE_MAGIC_N);
@@ -2759,9 +2647,11 @@ dict_index_remove_from_cache_low(
 		row_log_free(index->online_log);
 	}
 
+#ifdef BTR_CUR_HASH_ADAPT
 	/* We always create search info whether or not adaptive
 	hash index is enabled or not. */
-	info = btr_search_get_info(index);
+	btr_search_t*	info = btr_search_get_info(index);
+	ulint		retries = 0;
 	ut_ad(info);
 
 	/* We are not allowed to free the in-memory index struct
@@ -2795,10 +2685,9 @@ dict_index_remove_from_cache_low(
 
 		/* To avoid a hang here we commit suicide if the
 		ref_count doesn't drop to zero in 600 seconds. */
-		if (retries >= 60000) {
-			ut_error;
-		}
+		ut_a(retries < 60000);
 	} while (srv_shutdown_state == SRV_SHUTDOWN_NONE || !lru_evict);
+#endif /* BTR_CUR_HASH_ADAPT */
 
 	rw_lock_free(&index->lock);
 
@@ -2965,7 +2854,6 @@ found:
 
 	return(TRUE);
 }
-#endif /* !UNIV_HOTBACKUP */
 
 /*******************************************************************//**
 Adds a column to index. */
@@ -3048,7 +2936,6 @@ dict_index_add_col(
 	}
 }
 
-#ifndef UNIV_HOTBACKUP
 /*******************************************************************//**
 Copies fields contained in index2 to index1. */
 static
@@ -3262,7 +3149,6 @@ dict_index_build_internal_clust(
 		new_index, table,
 		dict_table_get_sys_col(table, DATA_TRX_ID), 0);
 
-
 	for (i = 0; i < trx_id_pos; i++) {
 
 		ulint	fixed_size = dict_col_get_fixed_size(
@@ -3288,7 +3174,7 @@ dict_index_build_internal_clust(
 		can theoretically occur. Check for it. */
 		fixed_size += new_index->trx_id_offset;
 
-		new_index->trx_id_offset = fixed_size;
+		new_index->trx_id_offset = unsigned(fixed_size);
 
 		if (new_index->trx_id_offset != fixed_size) {
 			/* Overflow. Pretend that this is a
@@ -3580,7 +3466,6 @@ dict_foreign_find(
 	return(NULL);
 }
 
-
 /*********************************************************************//**
 Tries to find an index whose first fields are the columns in the array,
 in the same order and is not marked for deletion and is not the same
@@ -3629,7 +3514,6 @@ dict_foreign_find_index(
 		if (types_idx != index
 		    && !(index->type & DICT_FTS)
 		    && !dict_index_is_spatial(index)
-		    && !dict_index_has_virtual(index)
 		    && !index->to_be_dropped
 		    && dict_foreign_qualify_index(
 			    table, col_names, columns, n_cols,
@@ -3765,7 +3649,6 @@ dict_foreign_add_to_cache(
 		for_in_cache = foreign;
 
 	}
-
 
 	if (ref_table && !for_in_cache->referenced_table) {
 		ulint index_error;
@@ -4138,11 +4021,27 @@ dict_scan_col(
 				break;
 			}
 		}
+
+		for (i = 0; i < dict_table_get_n_v_cols(table); i++) {
+
+			const char*	col_name = dict_table_get_v_col_name(
+				table, i);
+
+			if (0 == innobase_strcasecmp(col_name, *name)) {
+				/* Found */
+				dict_v_col_t * vcol;
+				*success = TRUE;
+				vcol = dict_table_get_nth_v_col(table, i);
+				*column = &vcol->m_col;
+				strcpy((char*) *name, col_name);
+
+				break;
+			}
+		}
 	}
 
 	return(ptr);
 }
-
 
 /*********************************************************************//**
 Open a table from its database and table name, this is currently used by
@@ -5123,9 +5022,7 @@ col_loop1:
 
 	for (i = 0; i < foreign->n_fields; i++) {
 		foreign->foreign_col_names[i] = mem_heap_strdup(
-			foreign->heap,
-			dict_table_get_col_name(table,
-						dict_col_get_no(columns[i])));
+                        foreign->heap, column_names[i]);
 	}
 
 	ptr = dict_scan_table_name(cs, ptr, &referenced_table, name,
@@ -5443,6 +5340,7 @@ try_find_index:
 						ref_column_names, i,
 						foreign->foreign_index,
 			TRUE, FALSE, &index_error, &err_col, &err_index);
+
 		if (!index) {
 			mutex_enter(&dict_foreign_err_mutex);
 			dict_foreign_error_report_low(ef, create_name);
@@ -5490,23 +5388,6 @@ try_find_index:
 	}
 
 	goto loop;
-}
-
-/**************************************************************************
-Determines whether a string starts with the specified keyword.
-@return TRUE if str starts with keyword */
-ibool
-dict_str_starts_with_keyword(
-/*=========================*/
-	THD*		thd,		/*!< in: MySQL thread handle */
-	const char*	str,		/*!< in: string to scan for keyword */
-	const char*	keyword)	/*!< in: keyword to look for */
-{
-	CHARSET_INFO*	cs = innobase_get_charset(thd);
-	ibool		success;
-
-	dict_accept(cs, str, keyword, &success);
-	return(success);
 }
 
 /** Scans a table create SQL string and adds to the data dictionary
@@ -6216,7 +6097,6 @@ dict_set_corrupted(
 		row_mysql_lock_data_dictionary(trx);
 	}
 
-	ut_ad(index);
 	ut_ad(mutex_own(&dict_sys->mutex));
 	ut_ad(!dict_table_is_comp(dict_sys->sys_tables));
 	ut_ad(!dict_table_is_comp(dict_sys->sys_indexes));
@@ -6439,13 +6319,10 @@ dict_set_merge_threshold_all_debug(
 }
 
 #endif /* UNIV_DEBUG */
-#endif /* !UNIV_HOTBACKUP */
 
-/**********************************************************************//**
-Inits dict_ind_redundant. */
+/** Initialize dict_ind_redundant. */
 void
-dict_ind_init(void)
-/*===============*/
+dict_ind_init()
 {
 	dict_table_t*		table;
 
@@ -6463,17 +6340,11 @@ dict_ind_init(void)
 	dict_ind_redundant->cached = TRUE;
 }
 
-#ifndef UNIV_HOTBACKUP
-/**********************************************************************//**
-Frees dict_ind_redundant. */
-static
+/** Free dict_ind_redundant. */
 void
-dict_ind_free(void)
-/*===============*/
+dict_ind_free()
 {
-	dict_table_t*	table;
-
-	table = dict_ind_redundant->table;
+	dict_table_t*	table = dict_ind_redundant->table;
 	dict_mem_index_free(dict_ind_redundant);
 	dict_ind_redundant = NULL;
 	dict_mem_table_free(table);
@@ -6996,8 +6867,6 @@ dict_close(void)
 	therefore we don't delete the individual elements. */
 	hash_table_free(dict_sys->table_id_hash);
 
-	dict_ind_free();
-
 	mutex_free(&dict_sys->mutex);
 
 	rw_lock_free(dict_operation_lock);
@@ -7006,8 +6875,6 @@ dict_close(void)
 	dict_operation_lock = NULL;
 
 	mutex_free(&dict_foreign_err_mutex);
-
-	delete dict_sys->autoinc_map;
 
 	ut_ad(dict_sys->size == 0);
 
@@ -7149,8 +7016,6 @@ dict_foreign_qualify_index(
 		field = dict_index_get_nth_field(index, i);
 		col_no = dict_col_get_no(field->col);
 
-		ut_ad(!dict_col_is_virtual(field->col));
-
 		if (field->prefix_len != 0) {
 			/* We do not accept column prefix
 			indexes here */
@@ -7175,6 +7040,15 @@ dict_foreign_qualify_index(
 		col_name = col_names
 			? col_names[col_no]
 			: dict_table_get_col_name(table, col_no);
+
+		if (dict_col_is_virtual(field->col)) {
+			for (ulint j = 0; j < table->n_v_def; j++) {
+				col_name = dict_table_get_v_col_name(table, j);
+				if (innobase_strcasecmp(field->name,col_name) == 0) {
+					break;
+				}
+			}
+		}
 
 		if (0 != innobase_strcasecmp(columns[i], col_name)) {
 			return(false);
@@ -7321,7 +7195,6 @@ dict_index_zip_failure(
 	dict_index_zip_pad_unlock(index);
 }
 
-
 /*********************************************************************//**
 Return the optimal page size, for which page will likely compress.
 @return page size beyond which page might not compress */
@@ -7352,78 +7225,6 @@ dict_index_zip_pad_optimal_page_size(
 	min_sz = (UNIV_PAGE_SIZE * (100 - zip_pad_max)) / 100;
 
 	return(ut_max(sz, min_sz));
-}
-
-/** Convert a 32 bit integer table flags to the 32 bit FSP Flags.
-Fsp Flags are written into the tablespace header at the offset
-FSP_SPACE_FLAGS and are also stored in the fil_space_t::flags field.
-The following chart shows the translation of the low order bit.
-Other bits are the same.
-			Low order bit
-		    | REDUNDANT | COMPACT | COMPRESSED | DYNAMIC
-dict_table_t::flags |     0     |    1    |     1      |    1
-fil_space_t::flags  |     0     |    0    |     1      |    1
-@param[in]	table_flags	dict_table_t::flags
-@param[in]	is_temp		whether the tablespace is temporary
-@param[in]	is_encrypted	whether the tablespace is encrypted
-@return tablespace flags (fil_space_t::flags) */
-ulint
-dict_tf_to_fsp_flags(
-	ulint	table_flags,
-	bool	is_temp,
-	bool	is_encrypted)
-{
-	DBUG_EXECUTE_IF("dict_tf_to_fsp_flags_failure",
-			return(ULINT_UNDEFINED););
-
-	bool		has_atomic_blobs =
-				 DICT_TF_HAS_ATOMIC_BLOBS(table_flags);
-	page_size_t	page_size = dict_tf_get_page_size(table_flags);
-	bool		has_data_dir = DICT_TF_HAS_DATA_DIR(table_flags);
-	bool		is_shared = DICT_TF_HAS_SHARED_SPACE(table_flags);
-	bool		page_compression = DICT_TF_GET_PAGE_COMPRESSION(table_flags);
-	ulint		page_compression_level = DICT_TF_GET_PAGE_COMPRESSION_LEVEL(table_flags);
-	ulint		atomic_writes = DICT_TF_GET_ATOMIC_WRITES(table_flags);
-
-	ut_ad(!page_size.is_compressed() || has_atomic_blobs);
-
-	/* General tablespaces that are not compressed do not get the
-	flags for dynamic row format (POST_ANTELOPE & ATOMIC_BLOBS) */
-	if (is_shared && !page_size.is_compressed()) {
-		has_atomic_blobs = false;
-	}
-
-	ulint		fsp_flags = fsp_flags_init(page_size,
-						   has_atomic_blobs,
-						   has_data_dir,
-						   is_shared,
-						   is_temp,
-						   0,
-						   0,
-						   0,
-						   is_encrypted);
-
-	/* In addition, tablespace flags also contain if the page
-	compression is used for this table. */
-	if (page_compression) {
-		fsp_flags |= FSP_FLAGS_SET_PAGE_COMPRESSION(fsp_flags, page_compression);
-	}
-
-	/* In addition, tablespace flags also contain page compression level
-	if page compression is used for this table. */
-	if (page_compression && page_compression_level) {
-		fsp_flags |= FSP_FLAGS_SET_PAGE_COMPRESSION_LEVEL(fsp_flags, page_compression_level);
-	}
-
-	/* In addition, tablespace flags also contain flag if atomic writes
-	is used for this table */
-	if (atomic_writes) {
-		fsp_flags |= FSP_FLAGS_SET_ATOMIC_WRITES(fsp_flags, atomic_writes);
-	}
-
-	ut_ad(fsp_flags_is_valid(fsp_flags));
-
-	return(fsp_flags);
 }
 
 /*************************************************************//**
@@ -7537,7 +7338,6 @@ dict_space_get_id(
 
 	return(id);
 }
-#endif /* !UNIV_HOTBACKUP */
 
 /** Determine the extent size (in pages) for the given table
 @param[in]	table	the table whose extent size is being

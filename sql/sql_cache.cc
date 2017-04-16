@@ -962,7 +962,7 @@ inline void Query_cache_query::unlock_reading()
 void Query_cache_query::init_n_lock()
 {
   DBUG_ENTER("Query_cache_query::init_n_lock");
-  res=0; wri = 0; len = 0;
+  res=0; wri = 0; len = 0; ready= 0;
   mysql_rwlock_init(key_rwlock_query_cache_query_lock, &lock);
   lock_writing();
   DBUG_PRINT("qcache", ("inited & locked query for block 0x%lx",
@@ -1227,6 +1227,7 @@ void Query_cache::end_of_result(THD *thd)
       query_cache.split_block(last_result_block,len);
 
     header->found_rows(limit_found_rows);
+    header->set_results_ready(); // signal for plugin
     header->result()->type= Query_cache_block::RESULT;
 
     /* Drop the writer. */
@@ -1827,7 +1828,10 @@ Query_cache::send_result_to_client(THD *thd, char *org_sql, uint query_length)
   }
   if ((my_toupper(system_charset_info, sql[0]) != 'S' ||
        my_toupper(system_charset_info, sql[1]) != 'E' ||
-       my_toupper(system_charset_info, sql[2]) != 'L'))
+       my_toupper(system_charset_info, sql[2]) != 'L') &&
+      (my_toupper(system_charset_info, sql[0]) != 'W' ||
+       my_toupper(system_charset_info, sql[1]) != 'I' ||
+       my_toupper(system_charset_info, sql[2]) != 'T'))
   {
     DBUG_PRINT("qcache", ("The statement is not a SELECT; Not cached"));
     goto err;

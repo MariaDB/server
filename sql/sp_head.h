@@ -107,29 +107,21 @@ protected:
 
 /*************************************************************************/
 
-class sp_name : public Sql_alloc
+class sp_name : public Sql_alloc,
+                public Database_qualified_name
 {
 public:
-
-  LEX_STRING m_db;
-  LEX_STRING m_name;
-  LEX_STRING m_qname;
   bool       m_explicit_name;                   /**< Prepend the db name? */
 
   sp_name(LEX_STRING db, LEX_STRING name, bool use_explicit_name)
-    : m_db(db), m_name(name), m_explicit_name(use_explicit_name)
+    : Database_qualified_name(db, name), m_explicit_name(use_explicit_name)
   {
     if (lower_case_table_names && m_db.str)
       m_db.length= my_casedn_str(files_charset_info, m_db.str);
-    m_qname.str= 0;
-    m_qname.length= 0;
   }
 
   /** Create temporary sp_name object from MDL key. */
   sp_name(const MDL_key *key, char *qname_buff);
-
-  // Init. the qualified name from the db and name.
-  void init_qname(THD *thd);	// thd for memroot allocation
 
   ~sp_name()
   {}
@@ -139,7 +131,8 @@ public:
 bool
 check_routine_name(LEX_STRING *ident);
 
-class sp_head :private Query_arena
+class sp_head :private Query_arena,
+               public Database_qualified_name
 {
   sp_head(const sp_head &);	/**< Prevent use of these */
   void operator=(sp_head &);
@@ -172,7 +165,11 @@ public:
       b) because in CONTAINS SQL case they don't provide enough
       information anyway.
      */
-    MODIFIES_DATA= 4096
+    MODIFIES_DATA= 4096,
+    /*
+      Marks routines that have column type references: DECLARE a t1.a%TYPE;
+    */
+    HAS_COLUMN_TYPE_REFS= 8192
   };
 
   stored_procedure_type m_type;
@@ -185,8 +182,6 @@ public:
   sql_mode_t m_sql_mode;		///< For SHOW CREATE and execution
   LEX_STRING m_qname;		///< db.name
   bool m_explicit_name;         ///< Prepend the db name? */
-  LEX_STRING m_db;
-  LEX_STRING m_name;
   LEX_STRING m_params;
   LEX_STRING m_body;
   LEX_STRING m_body_utf8;
@@ -210,6 +205,9 @@ public:
   {
     m_sp_cache_version= version_arg;
   }
+
+  sp_rcontext *rcontext_create(THD *thd, bool is_proc, Field *ret_value);
+
 private:
   /**
     Version of the stored routine cache at the moment when the
@@ -343,9 +341,162 @@ public:
   bool
   show_create_routine(THD *thd, int type);
 
+  MEM_ROOT *get_main_mem_root() { return &main_mem_root; }
+
   int
   add_instr(sp_instr *instr);
 
+  bool
+  add_instr_jump(THD *thd, sp_pcontext *spcont);
+
+  bool
+  add_instr_jump(THD *thd, sp_pcontext *spcont, uint dest);
+
+  bool
+  add_instr_jump_forward_with_backpatch(THD *thd, sp_pcontext *spcont,
+                                        sp_label *lab);
+  bool
+  add_instr_jump_forward_with_backpatch(THD *thd, sp_pcontext *spcont)
+  {
+    return add_instr_jump_forward_with_backpatch(thd, spcont,
+                                                 spcont->last_label());
+  }
+
+  Item *adjust_assignment_source(THD *thd, Item *val, Item *val2);
+  /**
+    @param thd                     - the current thd
+    @param spcont                  - the current parse context
+    @param spv                     - the SP variable
+    @param val                     - the value to be assigned to the variable
+    @param lex                     - the LEX that was used to create "val"
+    @param responsible_to_free_lex - if the generated sp_instr_set should
+                                     free "lex".
+    @retval true                   - on error
+    @retval false                  - on success
+  */
+  bool set_local_variable(THD *thd, sp_pcontext *spcont,
+                          sp_variable *spv, Item *val, LEX *lex,
+                          bool responsible_to_free_lex);
+  bool set_local_variable_row_field(THD *thd, sp_pcontext *spcont,
+                                    sp_variable *spv, uint field_idx,
+                                    Item *val, LEX *lex);
+  bool set_local_variable_row_field_by_name(THD *thd, sp_pcontext *spcont,
+                                            sp_variable *spv,
+                                            const LEX_STRING &field_name,
+                                            Item *val, LEX *lex);
+private:
+  /**
+    Generate a code to set a single cursor parameter variable.
+    @param thd          - current thd, for mem_root allocations.
+    @param param_spcont - the context of the parameter block
+    @param idx          - the index of the parameter
+    @param prm          - the actual parameter (contains information about
+                          the assignment source expression Item,
+                          its free list, and its LEX)
+  */
+  bool add_set_cursor_param_variable(THD *thd,
+                                     sp_pcontext *param_spcont, uint idx,
+                                     sp_assignment_lex *prm)
+  {
+    DBUG_ASSERT(idx < param_spcont->context_var_count());
+    sp_variable *spvar= param_spcont->get_context_variable(idx);
+    /*
+      add_instr() gets free_list from m_thd->free_list.
+      Initialize it before the set_local_variable() call.
+    */
+    DBUG_ASSERT(m_thd->free_list == NULL);
+    m_thd->free_list= prm->get_free_list();
+    if (set_local_variable(thd, param_spcont, spvar, prm->get_item(), prm, true))
+      return true;
+    /*
+      Safety:
+      The item and its free_list are now fully owned by the sp_instr_set
+      instance, created by set_local_variable(). The sp_instr_set instance
+      is now responsible for freeing the item and the free_list.
+      Reset the "item" and the "free_list" members of "prm",
+      to avoid double pointers to the same objects from "prm" and
+      from the sp_instr_set instance.
+    */
+    prm->set_item_and_free_list(NULL, NULL);
+    return false;
+  }
+
+  /**
+    Generate a code to set all cursor parameter variables.
+    This method is called only when parameters exists,
+    and the number of formal parameters matches the number of actual
+    parameters. See also comments to add_open_cursor().
+  */
+  bool add_set_cursor_param_variables(THD *thd, sp_pcontext *param_spcont,
+                                      List<sp_assignment_lex> *parameters)
+  {
+    DBUG_ASSERT(param_spcont->context_var_count() == parameters->elements);
+    sp_assignment_lex *prm;
+    List_iterator<sp_assignment_lex> li(*parameters);
+    for (uint idx= 0; (prm= li++); idx++)
+    {
+      if (add_set_cursor_param_variable(thd, param_spcont, idx, prm))
+        return true;
+    }
+    return false;
+  }
+
+  /**
+    Generate a code to set all cursor parameter variables for a FOR LOOP, e.g.:
+      FOR index IN cursor(1,2,3)
+    @param
+  */
+  bool add_set_for_loop_cursor_param_variables(THD *thd,
+                                               sp_pcontext *param_spcont,
+                                               sp_assignment_lex *param_lex,
+                                               Item_args *parameters);
+
+public:
+  /**
+    Generate a code for an "OPEN cursor" statement.
+    @param thd          - current thd, for mem_root allocations
+    @param spcont       - the context of the cursor
+    @param offset       - the offset of the cursor
+    @param param_spcont - the context of the cursor parameter block
+    @param parameters   - the list of the OPEN actual parameters
+
+    The caller must make sure that the number of local variables
+    in "param_spcont" (formal parameters) matches the number of list elements
+    in "parameters" (actual parameters).
+    NULL in either of them means 0 parameters.
+  */
+  bool add_open_cursor(THD *thd, sp_pcontext *spcont,
+                       uint offset,
+                       sp_pcontext *param_spcont,
+                       List<sp_assignment_lex> *parameters);
+
+  /**
+    Generate an initiation code for a CURSOR FOR LOOP, e.g.:
+      FOR index IN cursor         -- cursor without parameters
+      FOR index IN cursor(1,2,3)  -- cursor with parameters
+
+    The code generated by this method does the following during SP run-time:
+    - Sets all cursor parameter vartiables from "parameters"
+    - Initializes the index ROW-type variable from the cursor
+      (the structure is copied from the cursor to the index variable)
+    - The cursor gets opened
+    - The first records is fetched from the cursor to the variable "index".
+
+    @param thd        - the current thread (for mem_root and error reporting)
+    @param spcont     - the current parse context
+    @param index      - the loop "index" ROW-type variable
+    @param pcursor    - the cursor
+    @param coffset    - the cursor offset
+    @param param_lex  - the LEX that owns Items in "parameters"
+    @param parameters - the cursor parameters Item array
+    @retval true      - on error (EOM)
+    @retval false     - on success
+  */
+  bool add_for_loop_open_cursor(THD *thd, sp_pcontext *spcont,
+                                sp_variable *index,
+                                const sp_pcursor *pcursor, uint coffset,
+                                sp_assignment_lex *param_lex,
+                                Item_args *parameters);
   /**
     Returns true if any substatement in the routine directly
     (not through another routine) modifies data/changes table.
@@ -367,6 +518,8 @@ public:
     return i;
   }
 
+  bool replace_instr_to_nop(THD *thd, uint ip);
+
   /*
     Resets lex in 'thd' and keeps a copy of the old one.
 
@@ -375,6 +528,23 @@ public:
   bool
   reset_lex(THD *thd);
 
+  bool
+  reset_lex(THD *thd, sp_lex_local *sublex);
+
+  /**
+    Merge two LEX instances.
+    @param oldlex - the upper level LEX we're going to restore to.
+    @param sublex - the local lex that have just parsed some substatement.
+    @returns      - false on success, true on error (e.g. failed to
+                    merge the routine list or the table list).
+    This method is shared by:
+    - restore_lex(), when the old LEX is popped by sp_head::m_lex.pop()
+    - THD::restore_from_local_lex_to_old_lex(), when the old LEX
+      is stored in the caller's local variable.
+  */
+  bool
+  merge_lex(THD *thd, LEX *oldlex, LEX *sublex);
+
   /**
     Restores lex in 'thd' from our copy, but keeps some status from the
     one in 'thd', like ptr, tables, fields, etc.
@@ -382,16 +552,40 @@ public:
     @todo Conflicting comment in sp_head.cc
   */
   bool
-  restore_lex(THD *thd);
+  restore_lex(THD *thd)
+  {
+    DBUG_ENTER("sp_head::restore_lex");
+    LEX *oldlex= (LEX *) m_lex.pop();
+    if (!oldlex)
+      DBUG_RETURN(false); // Nothing to restore
+    LEX *sublex= thd->lex;
+    if (thd->restore_from_local_lex_to_old_lex(oldlex))// This restores thd->lex
+      DBUG_RETURN(true);
+    if (!sublex->sp_lex_in_use)
+    {
+      sublex->sphead= NULL;
+      lex_end(sublex);
+      delete sublex;
+    }
+    DBUG_RETURN(false);
+  }
 
   /// Put the instruction on the backpatch list, associated with the label.
   int
   push_backpatch(THD *thd, sp_instr *, sp_label *);
+  int
+  push_backpatch_goto(THD *thd, sp_pcontext *ctx, sp_label *lab);
 
   /// Update all instruction with this label in the backpatch list to
   /// the current position.
   void
   backpatch(sp_label *);
+  void
+  backpatch_goto(THD *thd, sp_label *, sp_label *);
+
+  /// Check for unresolved goto label
+  bool
+  check_unresolved_goto();
 
   /// Start a new cont. backpatch level. If 'i' is NULL, the level is just incr.
   int
@@ -404,6 +598,9 @@ public:
   /// Backpatch (and pop) the current level to the current position.
   void
   do_cont_backpatch();
+
+  /// Add cpush instructions for all cursors declared in the current frame
+  bool sp_add_instr_cpush_for_cursors(THD *thd, sp_pcontext *pcontext);
 
   char *name(uint *lenp = 0) const
   {
@@ -420,7 +617,8 @@ public:
 
   /**
     Check and prepare an instance of Column_definition for field creation
-    (fill all necessary attributes).
+    (fill all necessary attributes), for variables, parameters and
+    function return values.
 
     @param[in]  thd          Thread handle
     @param[in]  lex          Yacc parsing context
@@ -434,6 +632,47 @@ public:
     return field_def->check(thd) ||
            field_def->sp_prepare_create_field(thd, mem_root);
   }
+  bool row_fill_field_definitions(THD *thd, Row_definition_list *row)
+  {
+    /*
+      Prepare all row fields. This will (among other things)
+      - convert VARCHAR lengths from character length to octet length
+      - calculate interval lengths for SET and ENUM
+    */
+    List_iterator<Spvar_definition> it(*row);
+    for (Spvar_definition *def= it++; def; def= it++)
+    {
+      if (fill_spvar_definition(thd, def))
+        return true;
+    }
+    return false;
+  }
+  /**
+    Check and prepare a Column_definition for a variable or a parameter.
+  */
+  bool fill_spvar_definition(THD *thd, Column_definition *def)
+  {
+    if (fill_field_definition(thd, def))
+      return true;
+    def->pack_flag|= FIELDFLAG_MAYBE_NULL;
+    return false;
+  }
+  bool fill_spvar_definition(THD *thd, Column_definition *def, const char *name)
+  {
+    def->field_name= name;
+    return fill_spvar_definition(thd, def);
+  }
+  /**
+    Set a column type reference for a parameter definition
+  */
+  void fill_spvar_using_type_reference(sp_variable *spvar,
+                                       Qualified_column_ident *ref)
+  {
+    spvar->field_def.set_column_type_ref(ref);
+    spvar->field_def.field_name= spvar->name.str;
+    m_flags|= sp_head::HAS_COLUMN_TYPE_REFS;
+  }
+
   void set_info(longlong created, longlong modified,
 		st_sp_chistics *chistics, sql_mode_t sql_mode);
 
@@ -539,12 +778,17 @@ private:
   sp_pcontext *m_pcont;		///< Parse context
   List<LEX> m_lex;		///< Temp. store for the other lex
   DYNAMIC_ARRAY m_instr;	///< The "instructions"
+
+  enum backpatch_instr_type { GOTO, CPOP, HPOP };
   typedef struct
   {
     sp_label *lab;
     sp_instr *instr;
+    backpatch_instr_type instr_type;
   } bp_t;
   List<bp_t> m_backpatch;	///< Instructions needing backpatching
+  List<bp_t> m_backpatch_goto; // Instructions needing backpatching (for goto)
+
   /**
     We need a special list for backpatching of instructions with a continue
     destination (in the case of a continue handler catching an error in
@@ -582,7 +826,53 @@ private:
     by routine.
   */
   bool merge_table_list(THD *thd, TABLE_LIST *table, LEX *lex_for_tmp_check);
+
+  /// Put the instruction on the a backpatch list, associated with the label.
+  int
+  push_backpatch(THD *thd, sp_instr *, sp_label *, List<bp_t> *list,
+                 backpatch_instr_type itype);
+
 }; // class sp_head : public Sql_alloc
+
+
+class sp_lex_cursor: public sp_lex_local, public Query_arena
+{
+  LEX_STRING m_cursor_name;
+public:
+  sp_lex_cursor(THD *thd, const LEX *oldlex, MEM_ROOT *mem_root_arg)
+   :sp_lex_local(thd, oldlex),
+    Query_arena(mem_root_arg, STMT_INITIALIZED_FOR_SP),
+    m_cursor_name(null_lex_str)
+  { }
+  sp_lex_cursor(THD *thd, const LEX *oldlex)
+   :sp_lex_local(thd, oldlex),
+    Query_arena(thd->lex->sphead->get_main_mem_root(), STMT_INITIALIZED_FOR_SP)
+  { }
+  ~sp_lex_cursor() { free_items(); }
+  void cleanup_stmt() { }
+  Query_arena *query_arena() { return this; }
+  bool validate()
+  {
+    DBUG_ASSERT(sql_command == SQLCOM_SELECT);
+    if (result)
+    {
+      my_error(ER_SP_BAD_CURSOR_SELECT, MYF(0));
+      return true;
+    }
+    return false;
+  }
+  bool stmt_finalize(THD *thd)
+  {
+    if (validate())
+      return true;
+    sp_lex_in_use= true;
+    free_list= thd->free_list;
+    thd->free_list= NULL;
+    return false;
+  }
+  const LEX_STRING *cursor_name() const { return &m_cursor_name; }
+  void set_cursor_name(const LEX_STRING &name) { m_cursor_name= name; }
+};
 
 
 //
@@ -742,6 +1032,9 @@ public:
   int reset_lex_and_exec_core(THD *thd, uint *nextp, bool open_tables,
                               sp_instr* instr);
 
+  int cursor_reset_lex_and_exec_core(THD *thd, uint *nextp, bool open_tables,
+                                     sp_instr *instr);
+
   inline uint sql_command() const
   {
     return (uint)m_lex->sql_command;
@@ -750,6 +1043,11 @@ public:
   void disable_query_cache()
   {
     m_lex->safe_to_cache_query= 0;
+  }
+
+  const LEX_STRING *cursor_name() const
+  {
+    return m_lex->cursor_name();
   }
 private:
 
@@ -824,9 +1122,9 @@ class sp_instr_set : public sp_instr
 public:
 
   sp_instr_set(uint ip, sp_pcontext *ctx,
-	       uint offset, Item *val, enum enum_field_types type_arg,
+	       uint offset, Item *val,
                LEX *lex, bool lex_resp)
-    : sp_instr(ip, ctx), m_offset(offset), m_value(val), m_type(type_arg),
+    : sp_instr(ip, ctx), m_offset(offset), m_value(val),
       m_lex_keeper(lex, lex_resp)
   {}
 
@@ -839,14 +1137,85 @@ public:
 
   virtual void print(String *str);
 
-private:
+protected:
 
   uint m_offset;		///< Frame offset
   Item *m_value;
-  enum enum_field_types m_type;	///< The declared type
   sp_lex_keeper m_lex_keeper;
 
 }; // class sp_instr_set : public sp_instr
+
+
+/*
+  This class handles assignments of a ROW fields:
+    DECLARE rec ROW (a INT,b INT);
+    SET rec.a= 10;
+*/
+class sp_instr_set_row_field : public sp_instr_set
+{
+  sp_instr_set_row_field(const sp_instr_set_row_field &); // Prevent use of this
+  void operator=(sp_instr_set_row_field &);
+  uint m_field_offset;
+
+public:
+
+  sp_instr_set_row_field(uint ip, sp_pcontext *ctx,
+                         uint offset, uint field_offset,
+                         Item *val,
+                         LEX *lex, bool lex_resp)
+    : sp_instr_set(ip, ctx, offset, val, lex, lex_resp),
+      m_field_offset(field_offset)
+  {}
+
+  virtual ~sp_instr_set_row_field()
+  {}
+
+  virtual int exec_core(THD *thd, uint *nextp);
+
+  virtual void print(String *str);
+}; // class sp_instr_set_field : public sp_instr_set
+
+
+/**
+  This class handles assignment instructions like this:
+  DECLARE
+    CURSOR cur IS SELECT * FROM t1;
+    rec cur%ROWTYPE;
+  BEGIN
+    rec.column1:= 10; -- This instruction
+  END;
+
+  The idea is that during sp_rcontext::create() we do not know the extact
+  structure of "rec". It gets resolved at run time, during the corresponding
+  sp_instr_cursor_copy_struct::exec_core().
+
+  So sp_instr_set_row_field_by_name searches for ROW fields by name,
+  while sp_instr_set_row_field (see above) searches for ROW fields by index.
+*/
+class sp_instr_set_row_field_by_name : public sp_instr_set
+{
+  // Prevent use of this
+  sp_instr_set_row_field_by_name(const sp_instr_set_row_field &);
+  void operator=(sp_instr_set_row_field_by_name &);
+  const LEX_STRING m_field_name;
+
+public:
+
+  sp_instr_set_row_field_by_name(uint ip, sp_pcontext *ctx,
+                                 uint offset, const LEX_STRING &field_name,
+                                 Item *val,
+                                 LEX *lex, bool lex_resp)
+    : sp_instr_set(ip, ctx, offset, val, lex, lex_resp),
+      m_field_name(field_name)
+  {}
+
+  virtual ~sp_instr_set_row_field_by_name()
+  {}
+
+  virtual int exec_core(THD *thd, uint *nextp);
+
+  virtual void print(String *str);
+}; // class sp_instr_set_field_by_name : public sp_instr_set
 
 
 /**
@@ -1020,6 +1389,41 @@ private:
 }; // class sp_instr_jump_if_not : public sp_instr_jump
 
 
+class sp_instr_preturn : public sp_instr
+{
+  sp_instr_preturn(const sp_instr_preturn &);	/**< Prevent use of these */
+  void operator=(sp_instr_preturn &);
+
+public:
+
+  sp_instr_preturn(uint ip, sp_pcontext *ctx)
+    : sp_instr(ip, ctx)
+  {}
+
+  virtual ~sp_instr_preturn()
+  {}
+
+  virtual int execute(THD *thd, uint *nextp)
+  {
+    DBUG_ENTER("sp_instr_preturn::execute");
+    *nextp= UINT_MAX;
+    DBUG_RETURN(0);
+  }
+
+  virtual void print(String *str)
+  {
+    str->append(STRING_WITH_LEN("preturn"));
+  }
+
+  virtual uint opt_mark(sp_head *sp, List<sp_instr> *leads)
+  {
+    marked= 1;
+    return UINT_MAX;
+  }
+
+}; // class sp_instr_preturn : public sp_instr
+
+
 class sp_instr_freturn : public sp_instr
 {
   sp_instr_freturn(const sp_instr_freturn &);	/**< Prevent use of these */
@@ -1138,6 +1542,11 @@ public:
   virtual ~sp_instr_hpop()
   {}
 
+  void update_count(uint count)
+  {
+    m_count= count;
+  }
+
   virtual int execute(THD *thd, uint *nextp);
 
   virtual void print(String *str);
@@ -1230,6 +1639,11 @@ public:
   virtual ~sp_instr_cpop()
   {}
 
+  void update_count(uint count)
+  {
+    m_count= count;
+  }
+
   virtual int execute(THD *thd, uint *nextp);
 
   virtual void print(String *str);
@@ -1266,6 +1680,30 @@ private:
   uint m_cursor;		///< Stack index
 
 }; // class sp_instr_copen : public sp_instr_stmt
+
+
+/**
+  Initialize the structure of a cursor%ROWTYPE variable
+  from the LEX containing the cursor SELECT statement.
+*/
+class sp_instr_cursor_copy_struct: public sp_instr
+{
+  /**< Prevent use of these */
+  sp_instr_cursor_copy_struct(const sp_instr_cursor_copy_struct &);
+  void operator=(sp_instr_cursor_copy_struct &);
+  sp_lex_keeper m_lex_keeper;
+  uint m_var;
+public:
+  sp_instr_cursor_copy_struct(uint ip, sp_pcontext *ctx,
+                              sp_lex_cursor *lex, uint voffs)
+    : sp_instr(ip, ctx), m_lex_keeper(lex, FALSE), m_var(voffs)
+  {}
+  virtual ~sp_instr_cursor_copy_struct()
+  {}
+  virtual int execute(THD *thd, uint *nextp);
+  virtual int exec_core(THD *thd, uint *nextp);
+  virtual void print(String *str);
+};
 
 
 class sp_instr_cclose : public sp_instr
@@ -1415,10 +1853,11 @@ sp_add_to_query_tables(THD *thd, LEX *lex,
                        enum_mdl_type mdl_type);
 
 Item *
-sp_prepare_func_item(THD* thd, Item **it_addr);
+sp_prepare_func_item(THD* thd, Item **it_addr, uint cols= 1);
 
 bool
-sp_eval_expr(THD *thd, Field *result_field, Item **expr_item_ptr);
+sp_eval_expr(THD *thd, Item *result_item, Field *result_field,
+             Item **expr_item_ptr);
 
 /**
   @} (end of group Stored_Routines)

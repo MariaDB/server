@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2010, 2013, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2010, 2016, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -59,8 +59,6 @@ dict_table_open_on_id_low(
 						when loading the table */
 	ibool			open_only_if_in_cache);
 
-#ifndef UNIV_NONINL
 #include "dict0priv.ic"
-#endif
 
 #endif /* dict0priv.h */

@@ -583,15 +583,8 @@ mysql_create_db_internal(THD *thd, char *db,
     DBUG_RETURN(-1);
   }
 
-  char db_tmp[SAFE_NAME_LEN], *dbnorm;
-  if (lower_case_table_names)
-  {
-    strmake_buf(db_tmp, db);
-    my_casedn_str(system_charset_info, db_tmp);
-    dbnorm= db_tmp;
-  }
-  else
-    dbnorm= db;
+  char db_tmp[SAFE_NAME_LEN];
+  char *dbnorm= normalize_db_name(db, db_tmp, sizeof(db_tmp));
 
   if (lock_schema_name(thd, dbnorm))
     DBUG_RETURN(-1);
@@ -815,7 +808,7 @@ static bool
 mysql_rm_db_internal(THD *thd,char *db, bool if_exists, bool silent)
 {
   ulong deleted_tables= 0;
-  bool error= true;
+  bool error= true, rm_mysql_schema;
   char	path[FN_REFLEN + 16];
   MY_DIR *dirp;
   uint length;
@@ -824,15 +817,8 @@ mysql_rm_db_internal(THD *thd,char *db, bool if_exists, bool silent)
   Drop_table_error_handler err_handler;
   DBUG_ENTER("mysql_rm_db");
 
-  char db_tmp[SAFE_NAME_LEN], *dbnorm;
-  if (lower_case_table_names)
-  {
-    strmake_buf(db_tmp, db);
-    my_casedn_str(system_charset_info, db_tmp);
-    dbnorm= db_tmp;
-  }
-  else
-    dbnorm= db;
+  char db_tmp[SAFE_NAME_LEN];
+  char *dbnorm= normalize_db_name(db, db_tmp, sizeof(db_tmp));
 
   if (lock_schema_name(thd, dbnorm))
     DBUG_RETURN(true);
@@ -840,6 +826,19 @@ mysql_rm_db_internal(THD *thd,char *db, bool if_exists, bool silent)
   length= build_table_filename(path, sizeof(path) - 1, db, "", "", 0);
   strmov(path+length, MY_DB_OPT_FILE);		// Append db option file name
   del_dbopt(path);				// Remove dboption hash entry
+  /*
+     Now remove the db.opt file.
+     The 'find_db_tables_and_rm_known_files' doesn't remove this file
+     if there exists a table with the name 'db', so let's just do it
+     separately. We know this file exists and needs to be deleted anyway.
+  */
+  if (mysql_file_delete_with_symlink(key_file_misc, path, "", MYF(0)) &&
+      my_errno != ENOENT)
+  {
+    my_error(EE_DELETE, MYF(0), path, my_errno);
+    DBUG_RETURN(true);
+  }
+    
   path[length]= '\0';				// Remove file name
 
   /* See if the directory exists */
@@ -867,7 +866,8 @@ mysql_rm_db_internal(THD *thd,char *db, bool if_exists, bool silent)
     Disable drop of enabled log tables, must be done before name locking.
     This check is only needed if we are dropping the "mysql" database.
   */
-  if ((my_strcasecmp(system_charset_info, MYSQL_SCHEMA_NAME.str, db) == 0))
+  if ((rm_mysql_schema=
+        (my_strcasecmp(system_charset_info, MYSQL_SCHEMA_NAME.str, db) == 0)))
   {
     for (table= tables; table; table= table->next_local)
       if (check_if_log_table(table, TRUE, "DROP"))
@@ -880,7 +880,7 @@ mysql_rm_db_internal(THD *thd,char *db, bool if_exists, bool silent)
       lock_db_routines(thd, dbnorm))
     goto exit;
 
-  if (!in_bootstrap)
+  if (!in_bootstrap && !rm_mysql_schema)
   {
     for (table= tables; table; table= table->next_local)
     {
@@ -902,7 +902,8 @@ mysql_rm_db_internal(THD *thd,char *db, bool if_exists, bool silent)
   thd->push_internal_handler(&err_handler);
   if (!thd->killed &&
       !(tables &&
-        mysql_rm_table_no_locks(thd, tables, true, false, true, true, false)))
+        mysql_rm_table_no_locks(thd, tables, true, false, true, false, true,
+                                false)))
   {
     /*
       We temporarily disable the binary log while dropping the objects
@@ -921,10 +922,13 @@ mysql_rm_db_internal(THD *thd,char *db, bool if_exists, bool silent)
     ha_drop_database(path);
     tmp_disable_binlog(thd);
     query_cache_invalidate1(thd, dbnorm);
-    (void) sp_drop_db_routines(thd, dbnorm); /* @todo Do not ignore errors */
+    if (!rm_mysql_schema)
+    {
+      (void) sp_drop_db_routines(thd, dbnorm); /* @todo Do not ignore errors */
 #ifdef HAVE_EVENT_SCHEDULER
-    Events::drop_schema_events(thd, dbnorm);
+      Events::drop_schema_events(thd, dbnorm);
 #endif
+    }
     reenable_binlog(thd);
 
     /*
@@ -1137,9 +1141,9 @@ static bool find_db_tables_and_rm_known_files(THD *thd, MY_DIR *dirp,
       strxmov(filePath, path, "/", file->name, NullS);
       /*
         We ignore ENOENT error in order to skip files that was deleted
-        by concurrently running statement like REAPIR TABLE ...
+        by concurrently running statement like REPAIR TABLE ...
       */
-      if (my_delete_with_symlink(filePath, MYF(0)) &&
+      if (mysql_file_delete_with_symlink(key_file_misc, filePath, "", MYF(0)) &&
           my_errno != ENOENT)
       {
         my_error(EE_DELETE, MYF(0), filePath, my_errno);
@@ -1255,7 +1259,7 @@ long mysql_rm_arc_files(THD *thd, MY_DIR *dirp, const char *org_path)
       continue;
     }
     strxmov(filePath, org_path, "/", file->name, NullS);
-    if (mysql_file_delete_with_symlink(key_file_misc, filePath, MYF(MY_WME)))
+    if (mysql_file_delete_with_symlink(key_file_misc, filePath, "", MYF(MY_WME)))
     {
       goto err;
     }
@@ -1874,4 +1878,15 @@ bool check_db_dir_existence(const char *db_name)
   /* Check access. */
 
   return my_access(db_dir_path, F_OK);
+}
+
+
+char *normalize_db_name(char *db, char *buffer, size_t buffer_size)
+{
+  DBUG_ASSERT(buffer_size > 1);
+  if (!lower_case_table_names)
+    return db;
+  strmake(buffer, db, buffer_size - 1);
+  my_casedn_str(system_charset_info, buffer);
+  return buffer;
 }

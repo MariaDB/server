@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -121,7 +122,7 @@ mem_heap_create_func(
 	ulint		size,
 #ifdef UNIV_DEBUG
 	const char*	file_name,
-	ulint		line,
+	unsigned	line,
 #endif /* UNIV_DEBUG */
 	ulint		type);
 
@@ -371,7 +372,7 @@ struct mem_block_info_t {
 	ulint	magic_n;/* magic number for debugging */
 #ifdef UNIV_DEBUG
 	char	file_name[8];/* file name where the mem heap was created */
-	ulint	line;	/*!< line number where the mem heap was created */
+	unsigned line;	/*!< line number where the mem heap was created */
 #endif /* UNIV_DEBUG */
 	UT_LIST_BASE_NODE_T(mem_block_t) base; /* In the first block in the
 			the list this is the base node of the list of blocks;
@@ -390,7 +391,7 @@ struct mem_block_info_t {
 			user data in the block */
 	ulint	start;	/*!< the value of the struct field 'free' at the
 			creation of the block */
-#ifndef UNIV_HOTBACKUP
+
 	void*	free_block;
 			/* if the MEM_HEAP_BTR_SEARCH bit is set in type,
 			and this is the heap root, this can contain an
@@ -401,7 +402,6 @@ struct mem_block_info_t {
 			/* if this block has been allocated from the buffer
 			pool, this contains the buf_block_t handle;
 			otherwise, this is NULL */
-#endif /* !UNIV_HOTBACKUP */
 };
 
 #define MEM_BLOCK_MAGIC_N	764741555
@@ -411,9 +411,7 @@ struct mem_block_info_t {
 #define MEM_BLOCK_HEADER_SIZE	ut_calc_align(sizeof(mem_block_info_t),\
 							UNIV_MEM_ALIGNMENT)
 
-#ifndef UNIV_NONINL
 #include "mem0mem.ic"
-#endif
 
 /** A C++ wrapper class to the mem_heap_t routines, so that it can be used
 as an STL allocator */

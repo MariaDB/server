@@ -5,9 +5,9 @@ drop table if exists t1,t2;
 drop view if exists v1;
 create table t1(n int not null, key(n), key(n), key(n), key(n));
 Warnings:
-Note	1831	Duplicate index 'n_2' defined on the table 'test.t1'. This is deprecated and will be disallowed in a future release
-Note	1831	Duplicate index 'n_3' defined on the table 'test.t1'. This is deprecated and will be disallowed in a future release
-Note	1831	Duplicate index 'n_4' defined on the table 'test.t1'. This is deprecated and will be disallowed in a future release
+Note	1831	Duplicate index `n_2`. This is deprecated and will be disallowed in a future release
+Note	1831	Duplicate index `n_3`. This is deprecated and will be disallowed in a future release
+Note	1831	Duplicate index `n_4`. This is deprecated and will be disallowed in a future release
 check table t1 extended;
 connection con2;
 insert into t1 values (200000);

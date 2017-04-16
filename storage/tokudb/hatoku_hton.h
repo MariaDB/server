@@ -172,12 +172,12 @@ inline uint64_t tokudb_get_killed_time_callback(uint64_t default_killed_time) {
 
 inline int tokudb_killed_callback(void) {
     THD *thd = current_thd;
-    return thd_killed(thd);
+    return thd_kill_level(thd);
 }
 
 inline bool tokudb_killed_thd_callback(void *extra, uint64_t deleted_rows) {
     THD *thd = static_cast<THD *>(extra);
-    return thd_killed(thd) != 0;
+    return thd_kill_level(thd) != 0;
 }
 
 

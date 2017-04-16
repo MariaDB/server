@@ -1,0 +1,17 @@
+--source include/have_rocksdb.inc
+
+#
+# Any create table using the system column family should fail
+
+--disable_warnings
+DROP TABLE IF EXISTS t1;
+--enable_warnings
+
+--error ER_WRONG_ARGUMENTS
+CREATE TABLE t1 (i INT, PRIMARY KEY (i) COMMENT '__system__') ENGINE = ROCKSDB;
+
+#cleanup
+--disable_warnings
+DROP TABLE IF EXISTS t1;
+--enable_warnings
+

@@ -1,0 +1,163 @@
+--source include/have_log_bin.inc
+--source include/have_innodb.inc
+
+--echo #
+--echo # Preparatory cleanup.
+--echo #
+--disable_warnings
+DROP TABLE IF EXISTS t1;
+--enable_warnings
+
+--echo #
+--echo # We need a fixed timestamp to avoid varying results.
+--echo #
+SET timestamp=1000000000;
+
+--echo #
+--echo # Delete all existing binary logs.
+--echo #
+RESET MASTER;
+
+
+CREATE TABLE t1 (
+  c01 tinyint,
+  c02 smallint,
+  c03 mediumint,
+  c04 int,
+  c05 bigint,
+  c06 char(10),
+  c07 varchar(20),
+  c08 TEXT
+) ENGINE=InnoDB;
+
+--echo #
+--echo # Insert data to t1
+--echo #
+INSERT INTO t1 VALUES(0,0,0,0,0,'','','');
+INSERT INTO t1 VALUES(1,2,3,4,5, "abc", "abcdefg", "abcedfghijklmnopqrstuvwxyz");
+INSERT INTO t1 VALUES(127, 32767, 8388607, 2147483647, 9223372036854775807, repeat('a', 10), repeat('a', 20), repeat('a', 255));
+
+
+--echo #
+--echo # Update t1
+--echo #
+UPDATE t1 SET c01=100 WHERE c02=0 OR c03=3;
+
+--echo #
+--echo # Clear t1
+--echo #
+DELETE FROM t1;
+
+FLUSH LOGS;
+
+--echo #
+--echo # Show mysqlbinlog result without -B
+--echo #
+
+let $MYSQLD_DATADIR= `select @@datadir`;
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+--replace_regex /SQL_LOAD_MB-[0-9]-[0-9]/SQL_LOAD_MB-#-#/ /exec_time=[0-9]*/exec_time=#/ /end_log_pos [0-9]*/end_log_pos #/ /# at [0-9]*/# at #/ /Xid = [0-9]*/Xid = #/ /thread_id=[0-9]*/thread_id=#/ /table id [0-9]*/table id #/ /mapped to number [0-9]*/mapped to number #/ /server v [^ ]*/server v #.##.##/ /CRC32 0x[0-9a-f]*/CRC32 XXX/
+--exec $MYSQL_BINLOG --base64-output=decode-rows -v -v $MYSQLD_DATADIR/master-bin.000001
+
+--echo #
+--echo # Show mysqlbinlog result with -B
+--echo #
+
+let $MYSQLD_DATADIR= `select @@datadir`;
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+--replace_regex /SQL_LOAD_MB-[0-9]-[0-9]/SQL_LOAD_MB-#-#/ /exec_time=[0-9]*/exec_time=#/ /end_log_pos [0-9]*/end_log_pos #/ /# at [0-9]*/# at #/ /Xid = [0-9]*/Xid = #/ /thread_id=[0-9]*/thread_id=#/ /table id [0-9]*/table id #/ /mapped to number [0-9]*/mapped to number #/ /server v [^ ]*/server v #.##.##/ /CRC32 0x[0-9a-f]*/CRC32 XXX/
+--exec $MYSQL_BINLOG -B --base64-output=decode-rows -v -v $MYSQLD_DATADIR/master-bin.000001
+
+--echo #
+--echo # Insert data to t1
+--echo #
+TRUNCATE TABLE t1;
+INSERT INTO t1 VALUES(0,0,0,0,0,'','','');
+INSERT INTO t1 VALUES(1,2,3,4,5, "abc", "abcdefg", "abcedfghijklmnopqrstuvwxyz");
+INSERT INTO t1 VALUES(127, 32767, 8388607, 2147483647, 9223372036854775807, repeat('a', 10), repeat('a', 20), repeat('a', 60));
+
+--echo #
+--echo # Delete all existing binary logs.
+--echo #
+RESET MASTER;
+SELECT * FROM t1;
+
+--echo #
+--echo # Operate some data
+--echo #
+
+UPDATE t1 SET c01=20;
+UPDATE t1 SET c02=200;
+UPDATE t1 SET c03=2000;
+
+DELETE FROM t1;
+
+FLUSH LOGS;
+
+--echo #
+--echo # Flashback & Check the result
+--echo #
+
+let $MYSQLD_DATADIR= `select @@datadir`;
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+--exec $MYSQL_BINLOG -B -vv $MYSQLD_DATADIR/master-bin.000001 > $MYSQLTEST_VARDIR/tmp/mysqlbinlog_row_flashback_1.sql
+--exec $MYSQL -e "SET binlog_format= ROW; source $MYSQLTEST_VARDIR/tmp/mysqlbinlog_row_flashback_1.sql;"
+
+SELECT * FROM t1;
+
+RESET MASTER;
+
+--echo #
+--echo # UPDATE multi-rows in one event
+--echo #
+BEGIN;
+UPDATE t1 SET c01=10 WHERE c01=0;
+UPDATE t1 SET c01=20 WHERE c01=10;
+COMMIT;
+
+FLUSH LOGS;
+
+--echo #
+--echo # Flashback & Check the result
+--echo #
+
+let $MYSQLD_DATADIR= `select @@datadir`;
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+--exec $MYSQL_BINLOG -B -vv $MYSQLD_DATADIR/master-bin.000001 > $MYSQLTEST_VARDIR/tmp/mysqlbinlog_row_flashback_2.sql
+--exec $MYSQL -e "SET binlog_format= ROW; source $MYSQLTEST_VARDIR/tmp/mysqlbinlog_row_flashback_2.sql;"
+
+SELECT * FROM t1;
+
+DROP TABLE t1;
+
+--echo #
+--echo # Self-referencing foreign keys
+--echo #
+CREATE TABLE t1 (a INT PRIMARY KEY, b INT, FOREIGN KEY my_fk(b) REFERENCES t1(a)) ENGINE=InnoDB;
+
+BEGIN;
+INSERT INTO t1 VALUES (1, NULL);
+INSERT INTO t1 VALUES (2, 1), (3, 2), (4, 3);
+COMMIT;
+
+SELECT * FROM t1;
+
+# New binlog
+RESET MASTER;
+
+DELETE FROM t1 ORDER BY a DESC;
+
+FLUSH LOGS;
+
+--echo #
+--echo # Flashback & Check the result
+--echo #
+
+let $MYSQLD_DATADIR= `select @@datadir`;
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+--exec $MYSQL_BINLOG -B -vv $MYSQLD_DATADIR/master-bin.000001 > $MYSQLTEST_VARDIR/tmp/mysqlbinlog_row_flashback_3.sql
+--exec $MYSQL -e "SET binlog_format= ROW; source $MYSQLTEST_VARDIR/tmp/mysqlbinlog_row_flashback_3.sql;"
+
+SELECT * FROM t1;
+
+DROP TABLE t1;

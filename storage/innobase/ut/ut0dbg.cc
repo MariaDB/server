@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -34,19 +35,11 @@ ut_dbg_assertion_failed(
 /*====================*/
 	const char* expr,	/*!< in: the failed assertion (optional) */
 	const char* file,	/*!< in: source file containing the assertion */
-	ulint line)		/*!< in: line number of the assertion */
+	unsigned line)		/*!< in: line number of the assertion */
 {
 	ut_print_timestamp(stderr);
-#ifdef UNIV_HOTBACKUP
-	fprintf(stderr, "  InnoDB: Assertion failure in file %s line %lu\n",
+	fprintf(stderr, "  InnoDB: Assertion failure in file %s line %u\n",
 		file, line);
-#else /* UNIV_HOTBACKUP */
-	fprintf(stderr,
-		"  InnoDB: Assertion failure in thread " ULINTPF
-		" in file %s line " ULINTPF "\n",
-		os_thread_pf(os_thread_get_curr_id()),
-		innobase_basename(file), line);
-#endif /* UNIV_HOTBACKUP */
 	if (expr) {
 		fprintf(stderr,
 			"InnoDB: Failing assertion: %s\n", expr);

@@ -333,8 +333,7 @@ char* Parser::read_and_decrypt_file(const char *secret)
 
 // Check for file encryption
   uchar *decrypted;
-  if (file_size > OpenSSL_prefix_len &&
-      is_prefix((char*)buffer, OpenSSL_prefix))
+  if (file_size > OpenSSL_prefix_len && is_prefix((char*)buffer, OpenSSL_prefix))
   {
     uchar key[OpenSSL_key_len];
     uchar iv[OpenSSL_iv_len];
@@ -379,4 +378,3 @@ err1:
 err0:
   return NULL;
 }
-

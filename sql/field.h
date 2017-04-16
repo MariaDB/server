@@ -1,7 +1,7 @@
 #ifndef FIELD_INCLUDED
 #define FIELD_INCLUDED
 /* Copyright (c) 2000, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2015, MariaDB
+   Copyright (c) 2008, 2017, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -851,6 +851,10 @@ public:
   virtual bool str_needs_quotes() { return FALSE; }
   virtual Item_result result_type () const=0;
   virtual Item_result cmp_type () const { return result_type(); }
+  virtual const Type_handler *cast_to_int_type_handler() const
+  {
+    return Type_handler::get_handler_by_field_type(type());
+  }
   static bool type_can_have_key_part(enum_field_types);
   static enum_field_types field_type_merge(enum_field_types, enum_field_types);
   virtual bool eq(Field *field)
@@ -945,16 +949,13 @@ public:
   */
   void set_has_explicit_value()
   {
-    if (table->has_value_set)             /* If we have default functions */
-      bitmap_set_bit(table->has_value_set, field_index);
+    bitmap_set_bit(&table->has_value_set, field_index);
   }
   bool has_explicit_value()
   {
-    /* This function is only called when we have default functions */
-    DBUG_ASSERT(table->has_value_set);
-    return bitmap_is_set(table->has_value_set, field_index);
+    return bitmap_is_set(&table->has_value_set, field_index);
   }
-  virtual void set_explicit_default(Item *value);
+  virtual bool set_explicit_default(Item *value);
 
   /**
      Evaluates the @c UPDATE default function, if one exists, and stores the
@@ -1022,7 +1023,7 @@ public:
   virtual int cmp_max(const uchar *a, const uchar *b, uint max_len)
     { return cmp(a, b); }
   virtual int cmp(const uchar *,const uchar *)=0;
-  virtual int cmp_binary(const uchar *a,const uchar *b, uint32 max_length=~0L)
+  virtual int cmp_binary(const uchar *a,const uchar *b, uint32 max_length=~0U)
   { return memcmp(a,b,pack_length()); }
   virtual int cmp_offset(uint row_offset)
   { return cmp(ptr,ptr+row_offset); }
@@ -1373,7 +1374,8 @@ public:
   void set_storage_type(ha_storage_media storage_type_arg)
   {
     DBUG_ASSERT(field_storage_type() == HA_SM_DEFAULT);
-    flags |= (storage_type_arg << FIELD_FLAGS_STORAGE_MEDIA);
+    flags |= static_cast<uint32>(storage_type_arg) <<
+      FIELD_FLAGS_STORAGE_MEDIA;
   }
 
   column_format_type column_format() const
@@ -1385,7 +1387,8 @@ public:
   void set_column_format(column_format_type column_format_arg)
   {
     DBUG_ASSERT(column_format() == COLUMN_FORMAT_TYPE_DEFAULT);
-    flags |= (column_format_arg << FIELD_FLAGS_COLUMN_FORMAT);
+    flags |= static_cast<uint32>(column_format_arg) <<
+      FIELD_FLAGS_COLUMN_FORMAT;
   }
 
   /*
@@ -1471,6 +1474,9 @@ public:
 
   bool save_in_field_default_value(bool view_eror_processing);
   bool save_in_field_ignore_value(bool view_error_processing);
+
+  /* Mark field in read map. Updates also virtual fields */
+  void register_field_in_read_map();
 
   friend int cre_myisam(char * name, register TABLE *form, uint options,
 			ulonglong auto_increment_value);
@@ -2376,9 +2382,9 @@ public:
   uint32 pack_length() const { return 4; }
   void sql_type(String &str) const;
   bool zero_pack() const { return 0; }
-  virtual int set_time();
-  virtual void set_explicit_default(Item *value);
-  virtual int evaluate_update_default_function()
+  int set_time();
+  bool set_explicit_default(Item *value);
+  int evaluate_update_default_function()
   {
     int res= 0;
     if (has_update_default_function())
@@ -2810,8 +2816,8 @@ public:
   void sql_type(String &str) const;
   bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
   { return Field_datetime::get_TIME(ltime, ptr, fuzzydate); }
-  virtual int set_time();
-  virtual int evaluate_update_default_function()
+  int set_time();
+  int evaluate_update_default_function()
   {
     int res= 0;
     if (has_update_default_function())
@@ -3131,7 +3137,7 @@ public:
   int cmp_max(const uchar *, const uchar *, uint max_length);
   int cmp(const uchar *a,const uchar *b)
   {
-    return cmp_max(a, b, ~0L);
+    return cmp_max(a, b, ~0U);
   }
   void sort_string(uchar *buff,uint length);
   uint get_key_image(uchar *buff,uint length, imagetype type);
@@ -3140,7 +3146,7 @@ public:
   virtual uchar *pack(uchar *to, const uchar *from, uint max_length);
   virtual const uchar *unpack(uchar* to, const uchar *from,
                               const uchar *from_end, uint param_data);
-  int cmp_binary(const uchar *a,const uchar *b, uint32 max_length=~0L);
+  int cmp_binary(const uchar *a,const uchar *b, uint32 max_length=~0U);
   int key_cmp(const uchar *,const uchar*);
   int key_cmp(const uchar *str, uint length);
   uint packed_col_length(const uchar *to, uint length);
@@ -3173,6 +3179,12 @@ protected:
     The 'value'-object is a cache fronting the storage engine.
   */
   String value;
+  /**
+     Cache for blob values when reading a row with a virtual blob
+     field. This is needed to not destroy the old cached value when
+     updating the blob with a new value when creating the new row.
+  */
+  String read_value;
 
   static void do_copy_blob(Copy_field *copy);
   static void do_conv_blob(Copy_field *copy);
@@ -3244,9 +3256,9 @@ public:
   my_decimal *val_decimal(my_decimal *);
   int cmp_max(const uchar *, const uchar *, uint max_length);
   int cmp(const uchar *a,const uchar *b)
-    { return cmp_max(a, b, ~0L); }
+    { return cmp_max(a, b, ~0U); }
   int cmp(const uchar *a, uint32 a_length, const uchar *b, uint32 b_length);
-  int cmp_binary(const uchar *a,const uchar *b, uint32 max_length=~0L);
+  int cmp_binary(const uchar *a,const uchar *b, uint32 max_length=~0U);
   int key_cmp(const uchar *,const uchar*);
   int key_cmp(const uchar *str, uint length);
   /* Never update the value of min_val for a blob field */
@@ -3276,7 +3288,7 @@ public:
     return (uint32) (((ulonglong) 1 << (packlength*8)) -1);
   }
   int reset(void) { bzero(ptr, packlength+sizeof(uchar*)); return 0; }
-  void reset_fields() { bzero((uchar*) &value,sizeof(value)); }
+  void reset_fields() { bzero((uchar*) &value,sizeof(value)); bzero((uchar*) &read_value,sizeof(read_value)); }
   uint32 get_field_buffer_size(void) { return value.alloced_length(); }
   void store_length(uchar *i_ptr, uint i_packlength, uint32 i_number);
   inline void store_length(uint32 number)
@@ -3300,7 +3312,7 @@ public:
     memcpy(ptr,length,packlength);
     memcpy(ptr+packlength, &data,sizeof(char*));
   }
-  void set_ptr_offset(my_ptrdiff_t ptr_diff, uint32 length, uchar *data)
+  void set_ptr_offset(my_ptrdiff_t ptr_diff, uint32 length, const uchar *data)
   {
     uchar *ptr_ofs= ADD_TO_PTR(ptr,ptr_diff,uchar*);
     store_length(ptr_ofs, packlength, length);
@@ -3329,16 +3341,41 @@ public:
     memcpy(ptr+packlength, &tmp, sizeof(char*));
     return 0;
   }
+  /* store value for the duration of the current read record */
+  inline void swap_value_and_read_value()
+  {
+    read_value.swap(value);
+  }
+  inline void set_value(uchar *data)
+  {
+    /* Set value pointer. Lengths are not important */
+    value.reset((char*) data, 1, 1, &my_charset_bin);
+  }
   virtual uchar *pack(uchar *to, const uchar *from, uint max_length);
   virtual const uchar *unpack(uchar *to, const uchar *from,
                               const uchar *from_end, uint param_data);
   uint packed_col_length(const uchar *col_ptr, uint length);
   uint max_packed_col_length(uint max_length);
-  void free() { value.free(); }
-  inline void clear_temporary() { bzero((uchar*) &value, sizeof(value)); }
-  inline bool owns_ptr(uchar* p) const { return p == (uchar*)value.ptr(); }
-  inline void own_value_ptr()
-  { value.reset((char*)get_ptr(), get_length(), get_length(), value.charset()); }
+  void free()
+  {
+    value.free();
+    read_value.free();
+  }
+  inline void clear_temporary()
+  {
+    uchar *tmp= get_ptr();
+    if (likely(value.ptr() == (char*) tmp))
+      bzero((uchar*) &value, sizeof(value));
+    else
+    {
+      /*
+        Currently read_value should never point to tmp, the following code
+        is mainly here to make things future proof.
+      */
+      if (unlikely(read_value.ptr() == (char*) tmp))
+        bzero((uchar*) &read_value, sizeof(read_value));
+    }
+  }
   uint size_of() const { return sizeof(*this); }
   bool has_charset(void) const
   { return charset() == &my_charset_bin ? FALSE : TRUE; }
@@ -3430,6 +3467,10 @@ public:
   Field *make_new_field(MEM_ROOT *root, TABLE *new_table, bool keep_type);
   enum_field_types type() const { return MYSQL_TYPE_STRING; }
   enum Item_result cmp_type () const { return INT_RESULT; }
+  const Type_handler *cast_to_int_type_handler() const
+  {
+    return &type_handler_longlong;
+  }
   enum ha_base_keytype key_type() const;
   Copy_func *get_copy_func(const Field *from) const
   {
@@ -3803,7 +3844,20 @@ public:
     flags(0), pack_length(0), key_length(0), unireg_check(Field::NONE),
     interval(0), charset(&my_charset_bin),
     srid(0), geom_type(Field::GEOM_GEOMETRY),
-    option_list(NULL),
+    option_list(NULL), pack_flag(0),
+    vcol_info(0), default_value(0), check_constraint(0)
+  {
+    interval_list.empty();
+  }
+
+  Column_definition(const char *name, enum_field_types type):
+    field_name(name),
+    comment(null_lex_str),
+    on_update(NULL), sql_type(type), length(0), decimals(0),
+    flags(0), pack_length(0), key_length(0), unireg_check(Field::NONE),
+    interval(0), charset(&my_charset_bin),
+    srid(0), geom_type(Field::GEOM_GEOMETRY),
+    option_list(NULL), pack_flag(0),
     vcol_info(0), default_value(0), check_constraint(0)
   {
     interval_list.empty();
@@ -3847,7 +3901,7 @@ public:
 
   bool sp_prepare_create_field(THD *thd, MEM_ROOT *mem_root);
 
-  bool prepare_create_field(uint *blob_columns, longlong table_flags);
+  bool prepare_create_field(uint *blob_columns, ulonglong table_flags);
 
   bool check(THD *thd);
 
@@ -3894,7 +3948,151 @@ public:
     return unireg_check == Field::TIMESTAMP_DN_FIELD
         || unireg_check == Field::TIMESTAMP_DNUN_FIELD;
   }
+
+  // Replace the entire value by another definition
+  void set_column_definition(const Column_definition *def)
+  {
+    *this= *def;
+  }
 };
+
+
+/**
+  List of ROW element definitions, e.g.:
+    DECLARE a ROW(a INT,b VARCHAR(10))
+*/
+class Row_definition_list: public List<class Spvar_definition>
+{
+public:
+  inline bool eq_name(const Spvar_definition *def, const char *name) const;
+  /**
+    Find a ROW field by name.
+    @param [IN]  name   - the name
+    @param [OUT] offset - if the ROW field found, its offset it returned here
+    @retval NULL        - the ROW field was not found
+    @retval !NULL       - the pointer to the found ROW field
+  */
+  Spvar_definition *find_row_field_by_name(const char *name, uint *offset) const
+  {
+    // Cast-off the "const" qualifier
+    List_iterator<Spvar_definition> it(*((List<Spvar_definition>*)this));
+    Spvar_definition *def;
+    for (*offset= 0; (def= it++); (*offset)++)
+    {
+      if (eq_name(def, name))
+        return def;
+    }
+    return 0;
+  }
+};
+
+
+/**
+  This class is used during a stored routine or a trigger execution,
+  at sp_rcontext::create() time.
+  Currently it can represent:
+  - variables with explicit data types:   DECLARE a INT;
+  - variables with data type references:  DECLARE a t1.a%TYPE;
+  - ROW type variables
+
+  Notes:
+  - Scalar variables have m_field_definitions==NULL.
+  - ROW variables are defined as having MYSQL_TYPE_NULL,
+    with a non-empty m_field_definitions.
+
+  Data type references to other object types will be added soon, e.g.:
+  - DECLARE a table_name%ROWTYPE;
+  - DECLARE a cursor_name%ROWTYPE;
+  - DECLARE a record_name%TYPE;
+  - DECLARE a variable_name%TYPE;
+*/
+class Spvar_definition: public Column_definition
+{
+  class Qualified_column_ident *m_column_type_ref; // for %TYPE
+  class Table_ident *m_table_rowtype_ref;          // for table%ROWTYPE
+  bool m_cursor_rowtype_ref;                       // for cursor%ROWTYPE
+  Row_definition_list *m_row_field_definitions;    // for ROW
+public:
+  Spvar_definition()
+   :m_column_type_ref(NULL),
+    m_table_rowtype_ref(NULL),
+    m_cursor_rowtype_ref(false),
+    m_row_field_definitions(NULL)
+  { }
+  Spvar_definition(THD *thd, Field *field)
+   :Column_definition(thd, field, NULL),
+    m_column_type_ref(NULL),
+    m_table_rowtype_ref(NULL),
+    m_cursor_rowtype_ref(false),
+    m_row_field_definitions(NULL)
+  { }
+  const Type_handler *type_handler() const
+  {
+    return is_row() || is_table_rowtype_ref() || is_cursor_rowtype_ref() ?
+           &type_handler_row :
+           Type_handler::get_handler_by_field_type(sql_type);
+  }
+  bool is_column_type_ref() const { return m_column_type_ref != 0; }
+  bool is_table_rowtype_ref() const { return m_table_rowtype_ref != 0; }
+  bool is_cursor_rowtype_ref() const { return m_cursor_rowtype_ref; }
+  class Qualified_column_ident *column_type_ref() const
+  {
+    return m_column_type_ref;
+  }
+  void set_column_type_ref(class Qualified_column_ident *ref)
+  {
+    m_column_type_ref= ref;
+  }
+
+  class Table_ident *table_rowtype_ref() const
+  {
+    return m_table_rowtype_ref;
+  }
+  void set_table_rowtype_ref(class Table_ident *ref)
+  {
+    m_table_rowtype_ref= ref;
+  }
+  void set_cursor_rowtype_ref(bool ref)
+  {
+    m_cursor_rowtype_ref= ref;
+  }
+
+  /*
+    Find a ROW field by name.
+    See Row_field_list::find_row_field_by_name() for details.
+  */
+  Spvar_definition *find_row_field_by_name(const char *name, uint *offset) const
+  {
+    DBUG_ASSERT(m_row_field_definitions);
+    return m_row_field_definitions->find_row_field_by_name(name, offset);
+  }
+  uint is_row() const
+  {
+    return m_row_field_definitions != NULL;
+  }
+  // Check if "this" defines a ROW variable with n elements
+  uint is_row(uint n) const
+  {
+    return m_row_field_definitions != NULL &&
+           m_row_field_definitions->elements == n;
+  }
+  Row_definition_list *row_field_definitions() const
+  {
+    return m_row_field_definitions;
+  }
+  void set_row_field_definitions(Row_definition_list *list)
+  {
+    m_row_field_definitions= list;
+  }
+
+};
+
+
+inline bool Row_definition_list::eq_name(const Spvar_definition *def,
+                                         const char *name) const
+{
+  return my_strcasecmp(system_charset_info, def->field_name, name) == 0;
+}
 
 
 class Create_field :public Column_definition
@@ -3997,26 +4195,26 @@ bool check_expression(Virtual_column_info *vcol, const char *name,
   The following are for the interface with the .frm file
 */
 
-#define FIELDFLAG_DECIMAL		1
-#define FIELDFLAG_BINARY		1	// Shares same flag
-#define FIELDFLAG_NUMBER		2
-#define FIELDFLAG_ZEROFILL		4
-#define FIELDFLAG_PACK			120	// Bits used for packing
-#define FIELDFLAG_INTERVAL		256     // mangled with decimals!
-#define FIELDFLAG_BITFIELD		512	// mangled with decimals!
-#define FIELDFLAG_BLOB			1024	// mangled with decimals!
-#define FIELDFLAG_GEOM			2048    // mangled with decimals!
+#define FIELDFLAG_DECIMAL		1U
+#define FIELDFLAG_BINARY		1U	// Shares same flag
+#define FIELDFLAG_NUMBER		2U
+#define FIELDFLAG_ZEROFILL		4U
+#define FIELDFLAG_PACK			120U	// Bits used for packing
+#define FIELDFLAG_INTERVAL		256U    // mangled with decimals!
+#define FIELDFLAG_BITFIELD		512U	// mangled with decimals!
+#define FIELDFLAG_BLOB			1024U	// mangled with decimals!
+#define FIELDFLAG_GEOM			2048U   // mangled with decimals!
 
-#define FIELDFLAG_TREAT_BIT_AS_CHAR     4096    /* use Field_bit_as_char */
-#define FIELDFLAG_LONG_DECIMAL          8192
-#define FIELDFLAG_NO_DEFAULT		16384   /* sql */
-#define FIELDFLAG_MAYBE_NULL		((uint) 32768)// sql
-#define FIELDFLAG_HEX_ESCAPE		((uint) 0x10000)
+#define FIELDFLAG_TREAT_BIT_AS_CHAR     4096U   /* use Field_bit_as_char */
+#define FIELDFLAG_LONG_DECIMAL          8192U
+#define FIELDFLAG_NO_DEFAULT		16384U  /* sql */
+#define FIELDFLAG_MAYBE_NULL		32768U	// sql
+#define FIELDFLAG_HEX_ESCAPE		0x10000U
 #define FIELDFLAG_PACK_SHIFT		3
 #define FIELDFLAG_DEC_SHIFT		8
-#define FIELDFLAG_MAX_DEC               63
+#define FIELDFLAG_MAX_DEC               63U
 
-#define MTYP_TYPENR(type) (type & 127)	/* Remove bits from type */
+#define MTYP_TYPENR(type) (type & 127U)	/* Remove bits from type */
 
 #define f_is_dec(x)		((x) & FIELDFLAG_DECIMAL)
 #define f_is_num(x)		((x) & FIELDFLAG_NUMBER)
@@ -4030,7 +4228,7 @@ bool check_expression(Virtual_column_info *vcol, const char *name,
 #define f_is_bitfield(x)        (((x) & (FIELDFLAG_BITFIELD | FIELDFLAG_NUMBER)) == FIELDFLAG_BITFIELD)
 #define f_is_blob(x)		(((x) & (FIELDFLAG_BLOB | FIELDFLAG_NUMBER)) == FIELDFLAG_BLOB)
 #define f_is_geom(x)		(((x) & (FIELDFLAG_GEOM | FIELDFLAG_NUMBER)) == FIELDFLAG_GEOM)
-#define f_settype(x)		(((int) (x)) << FIELDFLAG_PACK_SHIFT)
+#define f_settype(x)		(((uint) (x)) << FIELDFLAG_PACK_SHIFT)
 #define f_maybe_null(x)		((x) & FIELDFLAG_MAYBE_NULL)
 #define f_no_default(x)		((x) & FIELDFLAG_NO_DEFAULT)
 #define f_bit_as_char(x)        ((x) & FIELDFLAG_TREAT_BIT_AS_CHAR)

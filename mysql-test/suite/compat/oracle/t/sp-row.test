@@ -1,0 +1,2290 @@
+SET sql_mode=ORACLE;
+
+
+--echo #
+--echo # MDEV-10914 ROW data type for stored routine variables
+--echo #
+
+
+
+--echo #
+--echo # ROW of ROWs is not supported yet
+--echo #
+
+DELIMITER $$;
+--error ER_PARSE_ERROR
+CREATE PROCEDURE p1()
+AS
+  a ROW(a ROW(a INT));
+BEGIN
+END;
+$$
+DELIMITER ;$$
+
+
+--echo #
+--echo # Returning the entire ROW parameter from a function
+--echo #
+# TODO: this should probably return an error at compile time
+DELIMITER $$;
+CREATE FUNCTION f1(a ROW(a INT, b INT)) RETURN INT
+AS
+BEGIN
+  RETURN a;
+END;
+$$
+DELIMITER ;$$
+--error ER_OPERAND_COLUMNS
+SELECT f1(ROW(10,20));
+DROP FUNCTION f1;
+
+
+
+--echo #
+--echo # ROW as an SP parameter
+--echo #
+
+DELIMITER $$;
+CREATE FUNCTION f1(a ROW(a INT,b INT)) RETURN INT
+AS
+BEGIN
+  RETURN a.b;
+END;
+$$
+CREATE PROCEDURE p1()
+AS
+  a ROW(a INT,b INT):=(11,21);
+BEGIN
+  SELECT f1(a);
+END;
+$$
+DELIMITER ;$$
+SELECT f1(ROW(10,20));
+--error ER_OPERAND_COLUMNS
+SELECT f1(10);
+--error ER_OPERAND_COLUMNS
+SELECT f1(ROW(10,20,30));
+CALL p1();
+DROP PROCEDURE p1;
+DROP FUNCTION f1;
+
+DELIMITER $$;
+CREATE PROCEDURE p1(a ROW(a INT,b INT))
+AS
+BEGIN
+  SELECT a.a, a.b;
+END;
+$$
+DELIMITER ;$$
+CALL p1(ROW(10,20));
+--error ER_OPERAND_COLUMNS
+CALL p1(10);
+--error ER_OPERAND_COLUMNS
+CALL p1(ROW(10,20,30));
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # ROW as an SP OUT parameter
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE p1(a OUT ROW(a INT,b INT))
+AS
+BEGIN
+  a.a:=10;
+  a.b:=20;
+END;
+$$
+CREATE PROCEDURE p2
+AS
+  a ROW(a INT,b INT):=(11,21);
+BEGIN
+  CALL p1(a);
+  SELECT a.a,a.b;
+END;
+$$
+DELIMITER ;$$
+CALL p2();
+DROP PROCEDURE p2;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # ROW as an SP return value is not supported yet
+--echo #
+
+DELIMITER $$;
+--error ER_PARSE_ERROR
+CREATE FUNCTION p1() RETURN ROW(a INT)
+AS
+BEGIN
+  RETURN NULL;
+END;
+$$
+DELIMITER ;$$
+
+
+--echo #
+--echo # Diplicate row field
+--echo #
+DELIMITER $$;
+--error ER_DUP_FIELDNAME
+CREATE PROCEDURE p1()
+AS
+  a ROW (a INT, a DOUBLE);
+BEGIN
+  SELECT a.a;
+END;
+$$
+DELIMITER ;$$
+
+
+--echo #
+--echo # Bad scalar default value
+--echo #
+DELIMITER $$;
+CREATE PROCEDURE p1()
+AS
+  a ROW (a INT, b DOUBLE):= 1;
+BEGIN
+  SELECT a.a;
+END;
+$$
+DELIMITER ;$$
+--error ER_OPERAND_COLUMNS
+CALL p1();
+DROP PROCEDURE p1;
+
+--echo #
+--echo # Bad ROW default value with a wrong number of fields
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+AS
+  a ROW (a INT, b DOUBLE):= ROW(1,2,3);
+BEGIN
+  SELECT a.a;
+END;
+$$
+DELIMITER ;$$
+--error ER_OPERAND_COLUMNS
+CALL p1();
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # Bad usage of a scalar variable as a row
+--echo #
+
+DELIMITER $$;
+--error ER_UNKNOWN_ERROR
+CREATE PROCEDURE p1()
+AS
+  a INT;
+BEGIN
+  SELECT a.x FROM t1;
+END;
+$$
+DELIMITER ;$$
+
+
+--echo #
+--echo # Using the entire ROW variable in select list
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+AS
+  a ROW (a INT);
+BEGIN
+  SELECT a;
+END;
+$$
+DELIMITER ;$$
+--error ER_OPERAND_COLUMNS
+CALL p1();
+DROP PROCEDURE p1;
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+AS
+  a ROW (a INT,b INT);
+BEGIN
+  SELECT a;
+END;
+$$
+DELIMITER ;$$
+--error ER_OPERAND_COLUMNS
+CALL p1();
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # Using the entire ROW variable in functions
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+AS
+  a ROW (a INT);
+BEGIN
+  SELECT COALESCE(a);
+END;
+$$
+DELIMITER ;$$
+--error ER_OPERAND_COLUMNS
+CALL p1();
+DROP PROCEDURE p1;
+
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+AS
+  a ROW (a INT,b INT);
+BEGIN
+  SELECT COALESCE(a);
+END;
+$$
+DELIMITER ;$$
+--error ER_OPERAND_COLUMNS
+CALL p1();
+DROP PROCEDURE p1;
+
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+AS
+  a ROW (a INT);
+BEGIN
+  SELECT a+1;
+END;
+$$
+DELIMITER ;$$
+--error ER_OPERAND_COLUMNS
+CALL p1();
+DROP PROCEDURE p1;
+
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+AS
+  a ROW (a INT,b INT);
+BEGIN
+  SELECT a+1;
+END;
+$$
+DELIMITER ;$$
+--error ER_OPERAND_COLUMNS
+CALL p1();
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # Comparing the entire ROW to a scalar value
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+AS
+  a ROW (a INT,b INT);
+BEGIN
+  SELECT a=1;
+END;
+$$
+DELIMITER ;$$
+--error ER_OPERAND_COLUMNS
+CALL p1();
+DROP PROCEDURE p1;
+
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+AS
+  a ROW (a INT,b INT);
+BEGIN
+  SELECT 1=a;
+END;
+$$
+DELIMITER ;$$
+--error ER_OPERAND_COLUMNS
+CALL p1();
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # Passing the entire ROW to a stored function
+--echo #
+
+DELIMITER $$;
+CREATE FUNCTION f1(a INT) RETURN INT
+AS
+BEGIN
+  RETURN a;
+END;
+CREATE PROCEDURE p1()
+AS
+  a ROW (a INT,b INT);
+BEGIN
+  SELECT f1(a);
+END;
+$$
+DELIMITER ;$$
+--error ER_OPERAND_COLUMNS
+CALL p1();
+DROP PROCEDURE p1;
+DROP FUNCTION f1;
+
+
+DELIMITER $$;
+CREATE FUNCTION f1(a INT) RETURN INT
+AS
+BEGIN
+  RETURN a;
+END;
+CREATE PROCEDURE p1()
+AS
+  a ROW (a INT);
+BEGIN
+  SELECT f1(a);
+END;
+$$
+DELIMITER ;$$
+--error ER_OPERAND_COLUMNS
+CALL p1();
+DROP PROCEDURE p1;
+DROP FUNCTION f1;
+
+
+--echo #
+--echo # Assigning a scalar value to a ROW variable with 1 column
+--echo #
+
+DELIMITER $$;
+CREATE OR REPLACE PROCEDURE p1
+AS
+  rec ROW(a INT);
+BEGIN
+  rec:=1;
+END;
+$$
+DELIMITER ;$$
+--error ER_OPERAND_COLUMNS
+CALL p1();
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # Assigning a scalar value to a ROW variable with 2 columns
+--echo #
+
+DELIMITER $$;
+CREATE OR REPLACE PROCEDURE p1
+AS
+  rec ROW(a INT,b INT);
+BEGIN
+  rec:=1;
+END;
+$$
+DELIMITER ;$$
+--error ER_OPERAND_COLUMNS
+CALL p1();
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # Assigning a ROW value to a ROW variable with different number of columns
+--echo #
+
+DELIMITER $$;
+CREATE OR REPLACE PROCEDURE p1
+AS
+  rec ROW(a INT,b INT);
+BEGIN
+  rec:=ROW(1,2,3);
+END;
+$$
+DELIMITER ;$$
+--error ER_OPERAND_COLUMNS
+CALL p1();
+DROP PROCEDURE p1;
+
+--echo #
+--echo # Returning the entire ROW from a function is not supported yet
+--echo # This syntax would be needed: SELECT f1().x FROM DUAL;
+--echo #
+DELIMITER $$;
+CREATE FUNCTION f1(a INT) RETURN INT
+AS
+  rec ROW(a INT);
+BEGIN
+  RETURN rec;
+END;
+$$
+DELIMITER ;$$
+--error ER_OPERAND_COLUMNS
+SELECT f1(10);
+DROP FUNCTION f1;
+
+
+--echo #
+--echo # Using the entire ROW in SELECT..CREATE
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE p1
+AS
+  rec ROW(a INT,b INT);
+BEGIN
+  CREATE TABLE t1 AS SELECT rec;
+END;
+$$
+DELIMITER ;$$
+--error ER_OPERAND_COLUMNS
+CALL p1();
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # Using the entire ROW in LIMIT
+--echo #
+DELIMITER $$;
+--error ER_WRONG_SPVAR_TYPE_IN_LIMIT
+CREATE PROCEDURE p1()
+AS
+  rec ROW(a INT);
+BEGIN
+  rec.a:= '10';
+  SELECT * FROM t1 LIMIT rec;
+END;
+$$
+DELIMITER ;$$
+
+
+--echo #
+--echo # Setting ROW fields using a SET command
+--echo #
+DELIMITER $$;
+CREATE OR REPLACE PROCEDURE p1
+AS
+  rec ROW(a INT,b DOUBLE,c VARCHAR(10));
+  a INT;
+BEGIN
+  SET @a= 10, rec.a=10, rec.b=20, rec.c= 'test', a= 5;
+  SELECT rec.a, rec.b, rec.c, a;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # Assigning a ROW variable from a ROW value
+--echo #
+DELIMITER $$;
+CREATE PROCEDURE p1
+AS
+  rec ROW(a INT,b INT);
+BEGIN
+  rec:=ROW(1,2);
+  SELECT rec.a, rec.b;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # Assigning a ROW variable from another ROW value
+--echo #
+DELIMITER $$;
+CREATE PROCEDURE p1
+AS
+  rec1 ROW(a INT,b INT);
+  rec2 ROW(a INT,b INT);
+BEGIN
+  rec1:=ROW(1,2);
+  rec2:=rec1;
+  SELECT rec2.a, rec2.b;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # Comparing a ROW variable to a ROW() function
+--echo #
+
+DELIMITER $$;
+CREATE OR REPLACE PROCEDURE p1
+AS
+  rec ROW(a INT,b INT);
+BEGIN
+  rec.a:= 1;
+  rec.b:= 2;
+  SELECT rec=(0,0), rec=ROW(0,0), (0,0)=rec, ROW(0,0)=rec;
+  SELECT rec=(1,2), rec=ROW(1,2), (1,2)=rec, ROW(1,2)=rec;
+  SELECT rec=(NULL,0), rec=ROW(NULL,0);
+  SELECT rec=(NULL,2), rec=ROW(NULL,2);
+  SELECT rec<>(0,0), rec<>ROW(0,0);
+  SELECT rec<>(1,2), rec<>ROW(1,2);
+  SELECT rec<>(NULL,0), rec<>ROW(NULL,0);
+  SELECT rec<>(NULL,2), rec<>ROW(NULL,2);
+  SELECT rec IN ((0,0)), rec IN (ROW(0,0));
+  SELECT rec IN ((1,2)), rec IN (ROW(1,2));
+  SELECT rec IN ((0,NULL),(1,2));
+  SELECT rec NOT IN ((0,NULL),(1,1));
+  SELECT rec NOT IN ((1,NULL),(1,1));
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # Comparing a ROW variable to another ROW variable
+--echo #
+
+DELIMITER $$;
+CREATE OR REPLACE PROCEDURE p1
+AS
+  rec1,rec2,rec3 ROW(a INT,b INT);
+BEGIN
+  rec1.a:= 1;
+  rec1.b:= 2;
+  rec2.a:= 11;
+  rec2.b:= 12;
+  rec3.a:= 11;
+  rec3.b:= 12;
+  SELECT rec1=rec2, rec2=rec1, rec2=rec3, rec3=rec2;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # Referencing a non-existing row variable
+--echo #
+DELIMITER $$;
+--error ER_UNKNOWN_STRUCTURED_VARIABLE
+CREATE PROCEDURE p1()
+AS
+BEGIN
+  SET a.b=1;
+END;
+$$
+DELIMITER ;$$
+
+DELIMITER $$;
+--error ER_UNKNOWN_STRUCTURED_VARIABLE
+CREATE PROCEDURE p1()
+AS
+BEGIN
+  a.b:=1;
+END;
+$$
+DELIMITER ;$$
+
+
+--echo #
+--echo # Referencing a non-existing row field
+--echo #
+DELIMITER $$;
+--error ER_ROW_VARIABLE_DOES_NOT_HAVE_FIELD
+CREATE PROCEDURE p1()
+AS
+  a ROW(a INT,b INT);
+BEGIN
+  SELECT a.c FROM t1;
+END;
+$$
+DELIMITER ;$$
+
+
+--echo #
+--echo # ROW and scalar variables with the same name shadowing each other
+--echo #
+DELIMITER $$;
+CREATE PROCEDURE p1()
+AS
+  a ROW(a INT);
+BEGIN
+  a.a:=100;
+  DECLARE
+   a INT:= 200;
+  BEGIN
+    SELECT a;
+    DECLARE
+      a ROW(a INT);
+    BEGIN
+      a.a:=300;
+      SELECT a.a;
+    END;
+    SELECT a;
+  END;
+  SELECT a.a;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # ROW with good default values
+--echo #
+DELIMITER $$;
+CREATE PROCEDURE p1()
+AS
+  a ROW(a INT,b INT):= (10,20);
+  b ROW(a INT,b INT):= (11,21);
+  c ROW(a INT,b INT):= a;
+BEGIN
+  SELECT a.a, a.b, b.a, b.b, c.a, c.b FROM DUAL;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # ROW in WHERE clause
+--echo #
+
+CREATE TABLE t1 (a INT,b INT);
+INSERT INTO t1 VALUES (10,20);
+DELIMITER $$;
+CREATE PROCEDURE p1()
+AS
+  rec ROW(a INT,b INT):=ROW(10,20);
+BEGIN
+  SELECT * FROM t1 WHERE rec=ROW(a,b);
+  SELECT * FROM t1 WHERE ROW(a,b)=rec;
+  SELECT * FROM t1 WHERE rec=ROW(10,20);
+  SELECT * FROM t1 WHERE ROW(10,20)=rec;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+DROP TABLE t1;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # ROW fields in WHERE clause
+--echo #
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (10),(20);
+DELIMITER $$;
+CREATE PROCEDURE p1()
+AS
+  rec ROW(a INT);
+BEGIN
+  rec.a:= 10;
+  SELECT * FROM t1 WHERE a=rec.a;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+DROP TABLE t1;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # ROW fields in HAVING clause
+--echo #
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (10),(20);
+DELIMITER $$;
+CREATE PROCEDURE p1()
+AS
+  rec ROW(a INT);
+BEGIN
+  rec.a:= 10;
+  SELECT * FROM t1 HAVING a=rec.a;
+  SELECT * FROM t1 HAVING MIN(a)=rec.a;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+DROP TABLE t1;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # ROW fields in LIMIT clause
+--echo #
+
+CREATE TABLE t1 (a INT);
+--error ER_SP_UNDECLARED_VAR
+SELECT 1 FROM t1 LIMIT t1.a;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (10),(20);
+DELIMITER $$;
+CREATE PROCEDURE p1()
+AS
+  rec ROW(a INT);
+BEGIN
+  rec.a:= 10;
+  SELECT * FROM t1 LIMIT rec.a;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+DROP TABLE t1;
+DROP PROCEDURE p1;
+
+
+DELIMITER $$;
+--error ER_WRONG_SPVAR_TYPE_IN_LIMIT
+CREATE PROCEDURE p1()
+AS
+  rec ROW(a VARCHAR(10));
+BEGIN
+  rec.a:= '10';
+  SELECT * FROM t1 LIMIT rec.a;
+END;
+$$
+DELIMITER ;$$
+
+
+--echo #
+--echo # ROW fields in select list
+--echo #
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (10),(20);
+DELIMITER $$;
+CREATE PROCEDURE p1()
+AS
+  t1 ROW(a INT);
+BEGIN
+  t1.a:= 10;
+  SELECT t1.a, 'This is the variable t1.a value, rather than the column t1.a' AS comm FROM t1;
+  SELECT t1.a, t2.a, t1.a+t2.a FROM t1 t2;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+DROP TABLE t1;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # ROW fields as insert values
+--echo #
+
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+DELIMITER $$;
+CREATE PROCEDURE p1()
+AS
+  rec ROW(a INT, b VARCHAR(10));
+BEGIN
+  rec.a:= 10;
+  rec.b:= 'test';
+  INSERT INTO t1 VALUES (rec.a, rec.b);
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+SELECT * FROM t1;
+DROP TABLE t1;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # ROW fields as SP out parameters
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE p1(a OUT INT, b OUT VARCHAR)
+AS
+BEGIN
+  a:= 10;
+  b:= 'test';
+END;
+$$
+CREATE PROCEDURE p2
+AS
+  rec ROW(a INT, b VARCHAR(10));
+BEGIN
+  CALL p1(rec.a, rec.b);
+  SELECT rec.a, rec.b;
+END;
+$$
+DELIMITER ;$$
+CALL p2;
+DROP PROCEDURE p1;
+DROP PROCEDURE p2;
+
+
+--echo #
+--echo # ROW fields as dynamic SQL out parameters
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE p1(a OUT INT, b OUT VARCHAR)
+AS
+BEGIN
+  a:= 20;
+  b:= 'test-dynamic-sql';
+END;
+$$
+CREATE PROCEDURE p2
+AS
+  rec ROW(a INT, b VARCHAR(30));
+BEGIN
+  EXECUTE IMMEDIATE 'CALL p1(?,?)' USING rec.a, rec.b;
+  SELECT rec.a, rec.b;
+END;
+$$
+DELIMITER ;$$
+CALL p2;
+DROP PROCEDURE p1;
+DROP PROCEDURE p2;
+
+
+--echo #
+--echo # ROW fields as SELECT..INTO targets
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE p1
+AS
+  rec ROW(a INT, b VARCHAR(10));
+BEGIN
+  SELECT 10,'test' INTO rec.a,rec.b;
+  SELECT rec.a, rec.b;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # Implicit default NULL handling
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE p1
+AS
+  rec ROW(a INT, b VARCHAR(10), c DOUBLE, d DECIMAL(10,0), e TIME, f DATETIME);
+BEGIN
+  SELECT rec.a, rec.b, rec.c, rec.d, rec.e, rec.f FROM DUAL;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # NULL handling
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE p1
+AS
+  rec1 ROW(a INT, b VARCHAR(10)):=(NULL,NULL);
+  rec2 ROW(a INT, b VARCHAR(10)):=rec1;
+BEGIN
+  SELECT rec1.a, rec1.b, rec2.a, rec2.b;
+
+  rec1:= (10,20);
+  rec2:= rec1;
+  SELECT rec1.a, rec1.b, rec2.a, rec2.b;
+
+  rec1:= (NULL,20);
+  rec2:= rec1;
+  SELECT rec1.a, rec1.b, rec2.a, rec2.b;
+
+  rec1:= (10,NULL);
+  rec2:= rec1;
+  SELECT rec1.a, rec1.b, rec2.a, rec2.b;
+
+  rec1:= (NULL,NULL);
+  rec2:= rec1;
+  SELECT rec1.a, rec1.b, rec2.a, rec2.b;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # Testing multiple ROW variable declarations
+--echo # This makes sure that fill_field_definitions() is called only once
+--echo # per a ROW field, so create length is not converted to internal length
+--echo # multiple times.
+--echo #
+DELIMITER $$;
+CREATE PROCEDURE p1
+AS
+  rec1, rec2, rec3 ROW(a VARCHAR(10) CHARACTER SET utf8);
+BEGIN
+  CREATE TABLE t1 AS SELECT rec1.a, rec2.a, rec3.a;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+DROP PROCEDURE p1;
+
+--echo #
+--echo # INT
+--echo #
+
+--let type=INT
+--source sp-row-vs-var.inc
+
+--let type=INT(1)
+--source sp-row-vs-var.inc
+
+--let type=INT(2)
+--source sp-row-vs-var.inc
+
+--let type=INT(3)
+--source sp-row-vs-var.inc
+
+--let type=INT(4)
+--source sp-row-vs-var.inc
+
+--let type=INT(5)
+--source sp-row-vs-var.inc
+
+--let type=INT(6)
+--source sp-row-vs-var.inc
+
+--let type=INT(7)
+--source sp-row-vs-var.inc
+
+--let type=INT(8)
+--source sp-row-vs-var.inc
+
+--let type=INT(9)
+--source sp-row-vs-var.inc
+
+--let type=INT(10)
+--source sp-row-vs-var.inc
+
+--let type=INT(11)
+--source sp-row-vs-var.inc
+
+--let type=INT(12)
+--source sp-row-vs-var.inc
+
+--let type=INT(13)
+--source sp-row-vs-var.inc
+
+--let type=INT(14)
+--source sp-row-vs-var.inc
+
+--let type=INT(20)
+--source sp-row-vs-var.inc
+
+--let type=INT(21)
+--source sp-row-vs-var.inc
+
+
+--echo #
+--echo # TINYINT
+--echo #
+
+--let type=TINYINT
+--source sp-row-vs-var.inc
+
+--let type=TINYINT(1)
+--source sp-row-vs-var.inc
+
+--let type=TINYINT(2)
+--source sp-row-vs-var.inc
+
+--let type=TINYINT(3)
+--source sp-row-vs-var.inc
+
+--let type=TINYINT(4)
+--source sp-row-vs-var.inc
+
+--let type=TINYINT(5)
+--source sp-row-vs-var.inc
+
+--let type=TINYINT(6)
+--source sp-row-vs-var.inc
+
+--let type=TINYINT(7)
+--source sp-row-vs-var.inc
+
+--let type=TINYINT(8)
+--source sp-row-vs-var.inc
+
+--let type=TINYINT(9)
+--source sp-row-vs-var.inc
+
+--let type=TINYINT(10)
+--source sp-row-vs-var.inc
+
+--let type=TINYINT(11)
+--source sp-row-vs-var.inc
+
+--let type=TINYINT(12)
+--source sp-row-vs-var.inc
+
+--let type=TINYINT(13)
+--source sp-row-vs-var.inc
+
+--let type=TINYINT(14)
+--source sp-row-vs-var.inc
+
+--let type=TINYINT(20)
+--source sp-row-vs-var.inc
+
+--let type=TINYINT(21)
+--source sp-row-vs-var.inc
+
+--echo #
+--echo # SMALLINT
+--echo #
+
+--let type=SMALLINT
+--source sp-row-vs-var.inc
+
+--let type=SMALLINT(1)
+--source sp-row-vs-var.inc
+
+--let type=SMALLINT(2)
+--source sp-row-vs-var.inc
+
+--let type=SMALLINT(3)
+--source sp-row-vs-var.inc
+
+--let type=SMALLINT(4)
+--source sp-row-vs-var.inc
+
+--let type=SMALLINT(5)
+--source sp-row-vs-var.inc
+
+--let type=SMALLINT(6)
+--source sp-row-vs-var.inc
+
+--let type=SMALLINT(7)
+--source sp-row-vs-var.inc
+
+--let type=SMALLINT(8)
+--source sp-row-vs-var.inc
+
+--let type=SMALLINT(9)
+--source sp-row-vs-var.inc
+
+--let type=SMALLINT(10)
+--source sp-row-vs-var.inc
+
+--let type=SMALLINT(11)
+--source sp-row-vs-var.inc
+
+--let type=SMALLINT(12)
+--source sp-row-vs-var.inc
+
+--let type=SMALLINT(13)
+--source sp-row-vs-var.inc
+
+--let type=SMALLINT(14)
+--source sp-row-vs-var.inc
+
+--let type=SMALLINT(20)
+--source sp-row-vs-var.inc
+
+--let type=SMALLINT(21)
+--source sp-row-vs-var.inc
+
+
+--echo #
+--echo # MEDIUMINT
+--echo #
+
+--let type=MEDIUMINT
+--source sp-row-vs-var.inc
+
+--let type=MEDIUMINT(1)
+--source sp-row-vs-var.inc
+
+--let type=MEDIUMINT(2)
+--source sp-row-vs-var.inc
+
+--let type=MEDIUMINT(3)
+--source sp-row-vs-var.inc
+
+--let type=MEDIUMINT(4)
+--source sp-row-vs-var.inc
+
+--let type=MEDIUMINT(5)
+--source sp-row-vs-var.inc
+
+--let type=MEDIUMINT(6)
+--source sp-row-vs-var.inc
+
+--let type=MEDIUMINT(7)
+--source sp-row-vs-var.inc
+
+--let type=MEDIUMINT(8)
+--source sp-row-vs-var.inc
+
+--let type=MEDIUMINT(9)
+--source sp-row-vs-var.inc
+
+--let type=MEDIUMINT(10)
+--source sp-row-vs-var.inc
+
+--let type=MEDIUMINT(11)
+--source sp-row-vs-var.inc
+
+--let type=MEDIUMINT(12)
+--source sp-row-vs-var.inc
+
+--let type=MEDIUMINT(13)
+--source sp-row-vs-var.inc
+
+--let type=MEDIUMINT(14)
+--source sp-row-vs-var.inc
+
+--let type=MEDIUMINT(20)
+--source sp-row-vs-var.inc
+
+--let type=MEDIUMINT(21)
+--source sp-row-vs-var.inc
+
+
+--echo #
+--echo # BIGINT
+--echo #
+
+--let type=BIGINT
+--source sp-row-vs-var.inc
+
+--let type=BIGINT(1)
+--source sp-row-vs-var.inc
+
+--let type=BIGINT(2)
+--source sp-row-vs-var.inc
+
+--let type=BIGINT(3)
+--source sp-row-vs-var.inc
+
+--let type=BIGINT(4)
+--source sp-row-vs-var.inc
+
+--let type=BIGINT(5)
+--source sp-row-vs-var.inc
+
+--let type=BIGINT(6)
+--source sp-row-vs-var.inc
+
+--let type=BIGINT(7)
+--source sp-row-vs-var.inc
+
+--let type=BIGINT(8)
+--source sp-row-vs-var.inc
+
+--let type=BIGINT(9)
+--source sp-row-vs-var.inc
+
+--let type=BIGINT(10)
+--source sp-row-vs-var.inc
+
+--let type=BIGINT(11)
+--source sp-row-vs-var.inc
+
+--let type=BIGINT(12)
+--source sp-row-vs-var.inc
+
+--let type=BIGINT(13)
+--source sp-row-vs-var.inc
+
+--let type=BIGINT(14)
+--source sp-row-vs-var.inc
+
+--let type=BIGINT(20)
+--source sp-row-vs-var.inc
+
+--let type=BIGINT(21)
+--source sp-row-vs-var.inc
+
+
+--echo #
+--echo # DOUBLE
+--echo #
+
+--let type=DOUBLE
+--source sp-row-vs-var.inc
+
+--let type=DOUBLE(30,1)
+--source sp-row-vs-var.inc
+
+--let type=DOUBLE(30,2)
+--source sp-row-vs-var.inc
+
+--let type=DOUBLE(30,3)
+--source sp-row-vs-var.inc
+
+--let type=DOUBLE(30,4)
+--source sp-row-vs-var.inc
+
+--let type=DOUBLE(30,5)
+--source sp-row-vs-var.inc
+
+--let type=DOUBLE(30,6)
+--source sp-row-vs-var.inc
+
+--let type=DOUBLE(30,7)
+--source sp-row-vs-var.inc
+
+--let type=DOUBLE(30,8)
+--source sp-row-vs-var.inc
+
+--let type=DOUBLE(30,9)
+--source sp-row-vs-var.inc
+
+--let type=DOUBLE(30,10)
+--source sp-row-vs-var.inc
+
+--let type=DOUBLE(30,11)
+--source sp-row-vs-var.inc
+
+--let type=DOUBLE(30,12)
+--source sp-row-vs-var.inc
+
+--let type=DOUBLE(30,13)
+--source sp-row-vs-var.inc
+
+--let type=DOUBLE(30,14)
+--source sp-row-vs-var.inc
+
+--let type=DOUBLE(30,20)
+--source sp-row-vs-var.inc
+
+--let type=DOUBLE(30,21)
+--source sp-row-vs-var.inc
+
+--echo #
+--echo # VARCHAR
+--echo #
+
+--let type=CHAR
+--source sp-row-vs-var.inc
+
+--let type=BINARY
+--source sp-row-vs-var.inc
+
+--let type=CHAR(1)
+--source sp-row-vs-var.inc
+
+--let type=CHAR(10)
+--source sp-row-vs-var.inc
+
+--let type=NCHAR(10)
+--source sp-row-vs-var.inc
+
+--let type=BINARY(10)
+--source sp-row-vs-var.inc
+
+--let type=VARBINARY(10)
+--source sp-row-vs-var.inc
+
+--let type=VARCHAR(10)
+--source sp-row-vs-var.inc
+
+--let type=VARCHAR(10) CHARACTER SET utf8
+--source sp-row-vs-var.inc
+
+--let type=VARCHAR(10) CHARACTER SET utf8 COLLATE utf8_bin
+--source sp-row-vs-var.inc
+
+--echo #
+--echo # TIME
+--echo #
+
+--let type=TIME
+--source sp-row-vs-var.inc
+
+--let type=TIME(1)
+--source sp-row-vs-var.inc
+
+--let type=TIME(2)
+--source sp-row-vs-var.inc
+
+--let type=TIME(3)
+--source sp-row-vs-var.inc
+
+--let type=TIME(4)
+--source sp-row-vs-var.inc
+
+--let type=TIME(5)
+--source sp-row-vs-var.inc
+
+--let type=TIME(6)
+--source sp-row-vs-var.inc
+
+--echo #
+--echo # DATETIME
+--echo #
+
+--let type=DATETIME
+--source sp-row-vs-var.inc
+
+--let type=DATETIME(1)
+--source sp-row-vs-var.inc
+
+--let type=DATETIME(2)
+--source sp-row-vs-var.inc
+
+--let type=DATETIME(3)
+--source sp-row-vs-var.inc
+
+--let type=DATETIME(4)
+--source sp-row-vs-var.inc
+
+--let type=DATETIME(5)
+--source sp-row-vs-var.inc
+
+--let type=DATETIME(6)
+--source sp-row-vs-var.inc
+
+
+--echo #
+--echo # LOB
+--echo #
+
+--let type=TEXT
+--source sp-row-vs-var.inc
+
+--let type=TINYTEXT
+--source sp-row-vs-var.inc
+
+--let type=MEDIUMTEXT
+--source sp-row-vs-var.inc
+
+--let type=LONGTEXT
+--source sp-row-vs-var.inc
+
+--let type=TEXT CHARACTER SET utf8
+--source sp-row-vs-var.inc
+
+--let type=TINYTEXT CHARACTER SET utf8
+--source sp-row-vs-var.inc
+
+--let type=MEDIUMTEXT CHARACTER SET utf8
+--source sp-row-vs-var.inc
+
+--let type=LONGTEXT CHARACTER SET utf8
+--source sp-row-vs-var.inc
+
+
+--echo #
+--echo # End of MDEV-10914 ROW data type for stored routine variables
+--echo #
+
+
+--echo #
+--echo # MDEV-12133 sql_mode=ORACLE: table%ROWTYPE in variable declarations
+--echo #
+
+--echo #
+--echo # Referring to a table in a non-existing database
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+AS
+  rec test2.t1%ROWTYPE;
+BEGIN
+  NULL;
+END;
+$$
+DELIMITER ;$$
+--error ER_NO_SUCH_TABLE
+CALL p1();
+CREATE TABLE t1 (a INT, b VARCHAR(10), c DOUBLE, d DECIMAL(10));
+--error ER_NO_SUCH_TABLE
+CALL p1();
+DROP TABLE t1;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # Referring to a table in the current database
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+AS
+  rec t1%ROWTYPE;
+BEGIN
+  CREATE TABLE t2 AS SELECT rec.a, rec.b, rec.c, rec.d;
+  SHOW CREATE TABLE t2;
+  DROP TABLE t2;
+END;
+$$
+DELIMITER ;$$
+--error ER_NO_SUCH_TABLE
+CALL p1();
+CREATE TABLE t1 (a INT, b VARCHAR(10), c DOUBLE, d DECIMAL(10));
+CALL p1();
+DROP TABLE t1;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # Referring to a table in an explicitly specified database
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+AS
+  rec test.t1%ROWTYPE;
+BEGIN
+  CREATE TABLE t2 AS SELECT rec.a, rec.b, rec.c, rec.d;
+  SHOW CREATE TABLE t2;
+  DROP TABLE t2;
+END;
+$$
+DELIMITER ;$$
+--error ER_NO_SUCH_TABLE
+CALL p1();
+CREATE TABLE t1 (a INT, b VARCHAR(10), c DOUBLE, d DECIMAL(10));
+CALL p1();
+DROP TABLE t1;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # Referring to a view in the current database
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+AS
+  rec v1%ROWTYPE;
+BEGIN
+  CREATE TABLE t2 AS SELECT rec.a, rec.b, rec.c, rec.d;
+  SHOW CREATE TABLE t2;
+  DROP TABLE t2;
+END;
+$$
+DELIMITER ;$$
+--error ER_NO_SUCH_TABLE
+CALL p1();
+CREATE TABLE t1 (a INT, b VARCHAR(10), c DOUBLE, d DECIMAL(10));
+CREATE VIEW v1 AS SELECT * FROM t1;
+CALL p1();
+DROP VIEW v1;
+DROP TABLE t1;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # Referring to a view in an explicitly specified database
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+AS
+  rec test.v1%ROWTYPE;
+BEGIN
+  CREATE TABLE t2 AS SELECT rec.a, rec.b, rec.c, rec.d;
+  SHOW CREATE TABLE t2;
+  DROP TABLE t2;
+END;
+$$
+DELIMITER ;$$
+--error ER_NO_SUCH_TABLE
+CALL p1();
+CREATE TABLE t1 (a INT, b VARCHAR(10), c DOUBLE, d DECIMAL(10));
+CREATE VIEW v1 AS SELECT * FROM t1;
+CALL p1();
+DROP VIEW v1;
+DROP TABLE t1;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # Checking that all table%ROWTYPE fields are NULL by default
+--echo #
+CREATE TABLE t1 (a INT, b VARCHAR(10), c DOUBLE, d DECIMAL(10,2));
+DELIMITER $$;
+CREATE PROCEDURE p1()
+AS
+  rec1 t1%ROWTYPE;
+BEGIN
+  SELECT rec1.a, rec1.b, rec1.c, rec1.d;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+DROP TABLE t1;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # A table%ROWTYPE variable with a ROW expression as a default
+--echo #
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+DELIMITER $$;
+CREATE PROCEDURE p1()
+AS
+  rec1 t1%ROWTYPE DEFAULT ROW(10,'bbb');
+BEGIN
+  SELECT rec1.a, rec1.b;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+DROP TABLE t1;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # A table%ROWTYPE variable with an incompatible ROW expression as a default
+--echo #
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+DELIMITER $$;
+CREATE PROCEDURE p1()
+AS
+  rec1 t1%ROWTYPE DEFAULT ROW(10,'bbb','ccc');
+BEGIN
+  SELECT rec1.a, rec1.b;
+END;
+$$
+DELIMITER ;$$
+--error ER_OPERAND_COLUMNS
+CALL p1();
+DROP TABLE t1;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # A table%ROWTYPE variable with a ROW variable as a default
+--echo #
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+DELIMITER $$;
+CREATE PROCEDURE p1()
+AS
+  rec1 ROW(a INT, b VARCHAR(10)):= ROW(10,'bbb');
+  rec2 t1%ROWTYPE DEFAULT rec1;
+BEGIN
+  SELECT rec2.a, rec2.b;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+DROP TABLE t1;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # A ROW variable using a table%ROWTYPE variable as a default
+--echo #
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+DELIMITER $$;
+CREATE PROCEDURE p1()
+AS
+  rec1 t1%ROWTYPE := ROW(10,'bbb');
+  rec2 ROW(a INT, b VARCHAR(10)):= rec1;
+BEGIN
+  SELECT rec2.a, rec2.b;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+DROP TABLE t1;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # Assigning table%ROWTYPE variables with a different column count
+--echo #
+CREATE TABLE t1 (a INT, b VARCHAR(10), c DOUBLE);
+CREATE TABLE t2 (a INT, b VARCHAR(10));
+DELIMITER $$;
+CREATE PROCEDURE p1()
+AS
+  rec1 t1%ROWTYPE;
+  rec2 t2%ROWTYPE;
+BEGIN
+  rec2:=rec1;
+END;
+$$
+DELIMITER ;$$
+--error ER_OPERAND_COLUMNS
+CALL p1();
+DROP PROCEDURE p1;
+DELIMITER $$;
+CREATE PROCEDURE p1()
+AS
+  rec1 t1%ROWTYPE;
+  rec2 t2%ROWTYPE;
+BEGIN
+  rec1:=rec2;
+END;
+$$
+DELIMITER ;$$
+--error ER_OPERAND_COLUMNS
+CALL p1();
+DROP TABLE t2;
+DROP TABLE t1;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # Assigning compatible table%ROWTYPE variables (equal number of fields)
+--echo #
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+CREATE TABLE t2 (x INT, y VARCHAR(10));
+DELIMITER $$;
+CREATE PROCEDURE p1()
+AS
+  rec1 t1%ROWTYPE;
+  rec2 t2%ROWTYPE;
+BEGIN
+  rec1.a:= 10;
+  rec1.b:= 'bbb';
+  rec2:=rec1;
+  SELECT rec2.x, rec2.y;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+DROP TABLE t2;
+DROP TABLE t1;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # Assigning between incompatible table%ROWTYPE and explicit ROW variables
+--echo #
+
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+DELIMITER $$;
+CREATE PROCEDURE p1()
+AS
+  rec1 t1%ROWTYPE;
+  rec2 ROW(x INT,y INT,z INT);
+BEGIN
+  rec2.x:= 10;
+  rec2.y:= 20;
+  rec2.z:= 30;
+  rec1:= rec2;
+END;
+$$
+DELIMITER ;$$
+--error ER_OPERAND_COLUMNS
+CALL p1();
+DROP TABLE t1;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # Assigning between compatible table%ROWTYPE and explicit ROW variables
+--echo #
+
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+DELIMITER $$;
+CREATE PROCEDURE p1()
+AS
+  rec1 t1%ROWTYPE;
+  rec2 ROW(x INT,y INT);
+BEGIN
+  rec2.x:= 10;
+  rec2.y:= 20;
+  rec1:= rec2;
+  SELECT rec1.a, rec1.b;
+  rec1.a:= 11;
+  rec1.b:= 21;
+  rec2:= rec1;
+  SELECT rec2.x, rec2.y;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+DROP TABLE t1;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # Assigning table%ROWTYPE from a ROW expression
+--echo #
+
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+DELIMITER $$;
+CREATE PROCEDURE p1()
+AS
+  rec1 t1%ROWTYPE;
+BEGIN
+  rec1:= ROW(10,20);
+  SELECT rec1.a, rec1.b;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+DROP TABLE t1;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # Fetching a cursor into a table%ROWTYPE variable with a wrong field count
+--echo #
+
+CREATE TABLE t1 (a INT, b VARCHAR(10), c DOUBLE, d DECIMAL(10,2));
+CREATE TABLE t2 (a INT, b VARCHAR(10));
+INSERT INTO t1 VALUES (10,'bb1',111.111e2, 12.31);
+DELIMITER $$;
+CREATE PROCEDURE p1()
+AS
+  rec2 t2%ROWTYPE;
+  CURSOR cur1 IS SELECT * FROM t1;
+BEGIN
+  OPEN cur1;
+  FETCH cur1 INTO rec2;
+  CLOSE cur1;
+END;
+$$
+DELIMITER ;$$
+--error ER_SP_WRONG_NO_OF_FETCH_ARGS
+CALL p1();
+DROP TABLE t2;
+DROP TABLE t1;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # Fetching a cursor into a table%ROWTYPE variable
+--echo #
+
+CREATE TABLE t1 (a INT, b VARCHAR(10), c DOUBLE, d DECIMAL(10,2));
+CREATE TABLE t2 LIKE t1;
+INSERT INTO t1 VALUES (10,'bb1',111.111e2, 12.31);
+INSERT INTO t1 VALUES (20,'bb2',222.222e2, 12.32);
+INSERT INTO t1 VALUES (30,'bb3',333.333e2, 12.33);
+DELIMITER $$;
+CREATE PROCEDURE p1()
+AS
+  rec t1%ROWTYPE;
+  CURSOR cur IS SELECT * FROM t1;
+BEGIN
+  OPEN cur;
+  LOOP
+    FETCH cur INTO rec;
+    EXIT WHEN cur%NOTFOUND;
+    SELECT rec.a, rec.b, rec.c, rec.d;
+    INSERT INTO t2 VALUES (rec.a, rec.b, rec.c, rec.d);
+  END LOOP;
+  CLOSE cur;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+SELECT * FROM t2;
+DROP TABLE t2;
+DROP TABLE t1;
+DROP PROCEDURE p1;
+
+--echo #
+--echo # Fetching a cursor into a table%ROWTYPE variable with different column names
+--echo #
+
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+CREATE TABLE t2 (x INT, y VARCHAR(10));
+INSERT INTO t1 VALUES (10,'bbb');
+DELIMITER $$;
+CREATE PROCEDURE p1()
+AS
+  rec2 t2%ROWTYPE;
+  CURSOR cur1 IS SELECT * FROM t1;
+BEGIN
+  OPEN cur1;
+  FETCH cur1 INTO rec2;
+  SELECT rec2.x, rec2.y;
+  CLOSE cur1;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+DROP TABLE t2;
+DROP TABLE t1;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # Fetching a cursor into a table%ROWTYPE variable, with truncation
+--echo #
+
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+CREATE TABLE t2 (a INT, b INT);
+INSERT INTO t1 VALUES (10,'11x');
+DELIMITER $$;
+CREATE PROCEDURE p1()
+AS
+  rec2 t2%ROWTYPE;
+  CURSOR cur1 IS SELECT * FROM t1;
+BEGIN
+  OPEN cur1;
+  FETCH cur1 INTO rec2;
+  SELECT rec2.a, rec2.b;
+  CLOSE cur1;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+DROP TABLE t2;
+DROP TABLE t1;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # table%ROWTYPE variables are not allowed in LIMIT
+--echo #
+CREATE TABLE t1 (a INT, b INT);
+INSERT INTO t1 VALUES (1,2);
+DELIMITER $$;
+--error ER_WRONG_SPVAR_TYPE_IN_LIMIT
+CREATE PROCEDURE p1()
+AS
+  rec1 t1%ROWTYPE:=(1,2);
+BEGIN
+  SELECT * FROM t1 LIMIT rec1.a;
+END;
+$$
+DELIMITER ;$$
+DROP TABLE t1;
+
+
+--echo #
+--echo # table%ROWTYPE variable fields as OUT parameters
+--echo #
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+DELIMITER $$;
+CREATE PROCEDURE p1(a OUT INT,b OUT VARCHAR(10))
+AS
+BEGIN
+  a:=10;
+  b:='bb';
+END;
+$$
+CREATE PROCEDURE p2()
+AS
+  rec1 t1%ROWTYPE;
+BEGIN
+  CALL p1(rec1.a, rec1.b);
+  SELECT rec1.a, rec1.b;
+END;
+$$
+DELIMITER ;$$
+CALL p2();
+DROP PROCEDURE p2;
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # Passing the entire table%ROWTYPE variable
+--echo #
+
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+DELIMITER $$;
+CREATE PROCEDURE p1(a ROW(a INT, b VARCHAR(10)))
+AS
+BEGIN
+  SELECT a.a, a.b;
+END;
+$$
+CREATE PROCEDURE p2()
+AS
+  rec1 t1%ROWTYPE:= ROW(10,'bb');
+BEGIN
+  CALL p1(rec1);
+END;
+$$
+DELIMITER ;$$
+CALL p2();
+DROP PROCEDURE p2;
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # Passing the entire table%ROWTYPE variable as an OUT parameter
+--echo #
+
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+DELIMITER $$;
+CREATE PROCEDURE p1(a OUT ROW(a INT, b VARCHAR(10)))
+AS
+BEGIN
+  a:= ROW(10,'bb');
+END;
+$$
+CREATE PROCEDURE p2()
+AS
+  rec1 t1%ROWTYPE;
+BEGIN
+  CALL p1(rec1);
+  SELECT rec1.a, rec1.b;
+END;
+$$
+DELIMITER ;$$
+CALL p2();
+DROP PROCEDURE p2;
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # Assigning a table%ROWTYPE field to an OUT parameter
+--echo #
+
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+DELIMITER $$;
+CREATE PROCEDURE p1 (res IN OUT INTEGER)
+AS
+  rec1 t1%ROWTYPE:=ROW(10,'b0');
+BEGIN
+  res:=rec1.a;
+END;
+$$
+DELIMITER ;$$
+CALL p1(@res);
+SELECT @res;
+SET @res=NULL;
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # Testing Item_splocal_row_field_by_name::print
+--echo #
+
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+DELIMITER $$;
+CREATE PROCEDURE p1
+AS
+  rec t1%ROWTYPE:=ROW(10,'bb');
+BEGIN
+  EXPLAIN EXTENDED SELECT rec.a, rec.b;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+--echo #
+--echo # Non-existing field
+--echo #
+
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+DELIMITER $$;
+CREATE PROCEDURE p1
+AS
+  rec t1%ROWTYPE;
+BEGIN
+  SELECT rec.c;
+END;
+$$
+DELIMITER ;$$
+--error ER_ROW_VARIABLE_DOES_NOT_HAVE_FIELD
+CALL p1();
+ALTER TABLE t1 ADD c INT;
+CALL p1();
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # Testing that field names are case insensitive
+--echo #
+
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+DELIMITER $$;
+CREATE PROCEDURE p1
+AS
+  rec t1%ROWTYPE:=ROW(10,'bb');
+BEGIN
+  SELECT rec.A, rec.B;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # Testing that table%ROWTYPE uses temporary tables vs shadowed real tables
+--echo #
+
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+CREATE TEMPORARY TABLE t1 (x INT, y VARCHAR(10));
+DELIMITER $$;
+CREATE PROCEDURE p1
+AS
+  rec t1%ROWTYPE:=ROW(10,'bb');
+BEGIN
+  SELECT rec.A, rec.B;
+END;
+$$
+DELIMITER ;$$
+--error ER_ROW_VARIABLE_DOES_NOT_HAVE_FIELD
+CALL p1();
+DROP TEMPORARY TABLE t1;
+CALL p1();
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+--echo #
+--echo # Testing that the structure of table%ROWTYPE variables is determined at the very beginning and is not changed after ALTER
+--echo #
+
+CREATE TABLE t1 (a INT, b VARCHAR(32));
+INSERT INTO t1 VALUES (10,'b10');
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+BEGIN
+  ALTER TABLE t1 ADD c INT;
+  DECLARE
+    rec t1%ROWTYPE; -- this will not have column "c"
+  BEGIN
+    rec.c:=10;
+  END;
+END;
+$$
+DELIMITER ;$$
+--error ER_ROW_VARIABLE_DOES_NOT_HAVE_FIELD
+CALL p1();
+DROP TABLE t1;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # MDEV-12291 Allow ROW variables as SELECT INTO targets
+--echo #
+
+
+--echo # ROW variable with a wrong column count
+CREATE TABLE t1 (a INT, b VARCHAR(32));
+INSERT INTO t1 VALUES (10,'b10');
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+  rec1 ROW(a INT, b VARCHAR(32), c DOUBLE);
+BEGIN
+  SELECT * FROM t1 INTO rec1;
+  SELECT rec1.a, rec1.b;
+END;
+$$
+DELIMITER ;$$
+--error ER_WRONG_NUMBER_OF_COLUMNS_IN_SELECT
+CALL p1();
+DROP TABLE t1;
+DROP PROCEDURE p1;
+
+
+--echo # Multiple ROW variables
+CREATE TABLE t1 (a INT, b VARCHAR(32));
+INSERT INTO t1 VALUES (10,'b10');
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+  rec1 ROW(a INT, b VARCHAR(32));
+BEGIN
+  SELECT * FROM t1 INTO rec1, rec1;
+  SELECT rec1.a, rec1.b;
+END;
+$$
+DELIMITER ;$$
+--error ER_OPERAND_COLUMNS
+CALL p1();
+DROP TABLE t1;
+DROP PROCEDURE p1;
+
+
+--echo # ROW variables working example
+CREATE TABLE t1 (a INT, b VARCHAR(32));
+INSERT INTO t1 VALUES (10,'b10');
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+  rec1 ROW(a INT, b VARCHAR(32));
+BEGIN
+  SELECT * FROM t1 INTO rec1;
+  SELECT rec1.a, rec1.b;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+DROP TABLE t1;
+DROP PROCEDURE p1;
+
+
+--echo # table%ROWTYPE variable with a wrong column count
+CREATE TABLE t1 (a INT, b VARCHAR(32));
+INSERT INTO t1 VALUES (10,'b10');
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+  rec1 t1%ROWTYPE;
+BEGIN
+  SELECT 10,'a','b' FROM t1 INTO rec1;
+  SELECT rec1.a, rec1.b;
+END;
+$$
+DELIMITER ;$$
+--error ER_WRONG_NUMBER_OF_COLUMNS_IN_SELECT
+CALL p1();
+DROP TABLE t1;
+DROP PROCEDURE p1;
+
+
+--echo # Multiple table%ROWTYPE variables
+CREATE TABLE t1 (a INT, b VARCHAR(32));
+INSERT INTO t1 VALUES (10,'b10');
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+  rec1 t1%ROWTYPE;
+BEGIN
+  SELECT 10,'a' FROM t1 INTO rec1, rec1;
+  SELECT rec1.a, rec1.b;
+END;
+$$
+DELIMITER ;$$
+--error ER_OPERAND_COLUMNS
+CALL p1();
+DROP TABLE t1;
+DROP PROCEDURE p1;
+
+
+--echo # table%ROWTYPE working example
+CREATE TABLE t1 (a INT, b VARCHAR(32));
+INSERT INTO t1 VALUES (10,'b10');
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+  rec1 t1%ROWTYPE;
+BEGIN
+  SELECT * FROM t1 INTO rec1;
+  SELECT rec1.a, rec1.b;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+DROP TABLE t1;
+DROP PROCEDURE p1;
+
+
+--echo # cursor%ROWTYPE variable with a wrong column count
+CREATE TABLE t1 (a INT, b VARCHAR(32));
+INSERT INTO t1 VALUES (10,'b10');
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+  CURSOR cur1 IS SELECT 10, 'b0', 'c0';
+  rec1 cur1%ROWTYPE;
+BEGIN
+  SELECT * FROM t1 INTO rec1;
+  SELECT rec1.a, rec1.b;
+END;
+$$
+DELIMITER ;$$
+--error ER_WRONG_NUMBER_OF_COLUMNS_IN_SELECT
+CALL p1();
+DROP TABLE t1;
+DROP PROCEDURE p1;
+
+
+--echo # Multiple cursor%ROWTYPE variables
+CREATE TABLE t1 (a INT, b VARCHAR(32));
+INSERT INTO t1 VALUES (10,'b10');
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+  CURSOR cur1 IS SELECT * FROM t1;
+  rec1 cur1%ROWTYPE;
+BEGIN
+  SELECT * FROM t1 INTO rec1, rec1;
+  SELECT rec1.a, rec1.b;
+END;
+$$
+DELIMITER ;$$
+--error ER_OPERAND_COLUMNS
+CALL p1();
+DROP TABLE t1;
+DROP PROCEDURE p1;
+
+
+--echo # cursor%ROWTYPE working example
+CREATE TABLE t1 (a INT, b VARCHAR(32));
+INSERT INTO t1 VALUES (10,'b10');
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+  CURSOR cur1 IS SELECT * FROM t1;
+  rec1 cur1%ROWTYPE;
+BEGIN
+  SELECT * FROM t1 INTO rec1;
+  SELECT rec1.a, rec1.b;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+DROP TABLE t1;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # MDEV-12347 Valgrind reports invalid read errors in Item_field_row::element_index_by_name
+--echo #
+
+# An additional test for MDEV-12347, to make sure that
+# Column_definition::interval creates a permanent copy of TYPELIB on
+# the memory root when processing %ROWTYPE for a table with ENUM/SET column,
+# rather than reuses the TYPELIB from table->field[i], which is freed in the
+# end of sp_rcontext::resolve_table_rowtype_ref().
+
+CREATE TABLE t1 (a INT, b ENUM('b0','b1','b12','b3'));
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+BEGIN
+  DECLARE
+    rec t1%ROWTYPE;
+  BEGIN
+    rec.b:='b0';
+    SELECT rec.b;
+  END;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+DROP TABLE t1;
+DROP PROCEDURE p1;
+
+
+CREATE TABLE t1 (a INT, b SET('b0','b1','b12','b3'));
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+BEGIN
+  DECLARE
+    rec t1%ROWTYPE;
+  BEGIN
+    rec.b:='b0';
+    SELECT rec.b;
+  END;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+DROP TABLE t1;
+DROP PROCEDURE p1;

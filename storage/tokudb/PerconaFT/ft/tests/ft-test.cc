@@ -164,17 +164,16 @@ static void  test_read_what_was_written (void) {
     int r;
     const int NVALS=10000;
 
-    if (verbose) printf("test_read_what_was_written(): "); fflush(stdout);
+    if (verbose) {
+        printf("test_read_what_was_written(): "); fflush(stdout);
+    }
 
     unlink(fname);
-    
 
     toku_cachetable_create(&ct, 0, ZERO_LSN, nullptr);
     r = toku_open_ft_handle(fname, 1, &ft, 1<<12, 1<<9, TOKU_DEFAULT_COMPRESSION_METHOD, ct, null_txn, toku_builtin_compare_fun);  assert(r==0);
     r = toku_close_ft_handle_nolsn(ft, 0); assert(r==0);
-    toku_cachetable_close(&ct);
-
-    
+    toku_cachetable_close(&ct);    
 
     /* Now see if we can read an empty tree in. */
     toku_cachetable_create(&ct, 0, ZERO_LSN, nullptr);
@@ -188,8 +187,6 @@ static void  test_read_what_was_written (void) {
 
     r = toku_close_ft_handle_nolsn(ft, 0); assert(r==0);
     toku_cachetable_close(&ct);
-
-    
 
     /* Now see if we can read it in and get the value. */
     toku_cachetable_create(&ct, 0, ZERO_LSN, nullptr);

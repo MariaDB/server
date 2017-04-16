@@ -1,0 +1,7 @@
+SET @start_global_value = @@global.ROCKSDB_TABLE_CACHE_NUMSHARDBITS;
+SELECT @start_global_value;
+@start_global_value
+6
+"Trying to set variable @@global.ROCKSDB_TABLE_CACHE_NUMSHARDBITS to 444. It should fail because it is readonly."
+SET @@global.ROCKSDB_TABLE_CACHE_NUMSHARDBITS   = 444;
+ERROR HY000: Variable 'rocksdb_table_cache_numshardbits' is a read only variable

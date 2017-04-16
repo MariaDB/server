@@ -1,6 +1,6 @@
 '\" t
 .\"
-.TH "\FBMYSQLADMIN\FR" "1" "22/3/2016" "MariaDB 10\&.2" "MariaDB Database System"
+.TH "\FBMYSQLADMIN\FR" "1" "3 April 2017" "MariaDB 10\&.2" "MariaDB Database System"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -815,6 +815,18 @@ Connect to the MariaDB server on the given host\&.
 .el \{\
 .sp -1
 .IP \(bu 2.3
+.\}
+.\" mysqladmin: local option
+.\" local option: mysqladmin
+\fB\-\-local\fR,
+\fB\-l\fR
+.sp
+Suppress the SQL command(s) from being written to the binary log by enabling sql_log_bin=0 for the session\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
 .\}
 .\" mysqladmin: no-beep option
 .\" no-beep option: mysqladmin

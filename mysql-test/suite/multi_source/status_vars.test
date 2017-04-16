@@ -127,13 +127,13 @@ show status like 'Slave_open_temp_tables';
 
 # Cleanup
 
---source reset_master_slave.inc
+--source include/reset_master_slave.inc
 --disconnect slave
 --connection master1
---source reset_master_slave.inc
+--source include/reset_master_slave.inc
 --disconnect master1
 --connection master2
---source reset_master_slave.inc
+--source include/reset_master_slave.inc
 --disconnect master2
 
 

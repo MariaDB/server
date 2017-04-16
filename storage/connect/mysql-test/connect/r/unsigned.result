@@ -27,13 +27,13 @@ UPDATE t1 SET e = d;
 SELECT * FROM t1;
 a	b	c	d	e
 255	65535	4294967295	18446744073709551615	18446744073709551615
-UPDATE t1 SET c = d;
+UPDATE IGNORE t1 SET c = d;
 Warnings:
 Warning	1264	Out of range value for column 'c' at row 1
 SELECT * FROM t1;
 a	b	c	d	e
 255	65535	4294967295	18446744073709551615	18446744073709551615
-UPDATE t1 SET c = e;
+UPDATE IGNORE t1 SET c = e;
 Warnings:
 Warning	1264	Out of range value for column 'c' at row 1
 SELECT * FROM t1;

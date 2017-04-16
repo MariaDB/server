@@ -65,7 +65,6 @@ mlog_close(
 	mtr->get_log()->close(ptr);
 }
 
-#ifndef UNIV_HOTBACKUP
 /********************************************************//**
 Catenates 1 - 4 bytes to the mtr log. The value is not compressed. */
 UNIV_INLINE
@@ -247,4 +246,3 @@ mlog_write_initial_log_record_fast(
 	return(mlog_write_initial_log_record_low(type, space, offset,
 						 log_ptr, mtr));
 }
-#endif /* !UNIV_HOTBACKUP */

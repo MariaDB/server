@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
 
 /* ======================================================================
    Open Query Graph Computation Engine, based on a concept by Arjen Lentz
@@ -193,9 +193,6 @@ int oqgraph3::cursor::restore_position()
       return rc;
     }
 
-    if (table.vfield)
-      table.update_virtual_fields(VCOL_UPDATE_FOR_READ);
-
     table.file->position(table.record[0]);
 
     while (memcmp(table.file->ref, _position.data(), table.file->ref_length))
@@ -205,9 +202,6 @@ int oqgraph3::cursor::restore_position()
         table.file->ha_index_end();
         return rc;
       }
-
-      if (table.vfield)
-        table.update_virtual_fields(VCOL_UPDATE_FOR_READ);
 
       if ((_origid && vertex_id(_graph->_source->val_int()) != *_origid) ||
           (_destid && vertex_id(_graph->_target->val_int()) != *_destid))
@@ -230,9 +224,6 @@ int oqgraph3::cursor::restore_position()
       table.file->ha_rnd_end();
       return rc;
     }
-
-    if (table.vfield)
-      table.update_virtual_fields(VCOL_UPDATE_FOR_READ);
   }
 
   _graph->_cursor= this;
@@ -310,8 +301,6 @@ int oqgraph3::cursor::seek_next()
     return clear_position(rc);
   }
 
-  if (table.vfield)
-    table.update_virtual_fields(VCOL_UPDATE_FOR_READ);
   _graph->_stale= true;
 
   if ((_origid && vertex_id(_graph->_source->val_int()) != *_origid) ||
@@ -345,8 +334,6 @@ int oqgraph3::cursor::seek_prev()
     return clear_position(rc);
   }
 
-  if (table.vfield)
-    table.update_virtual_fields(VCOL_UPDATE_FOR_READ);
   _graph->_stale= true;
 
   if ((_origid && vertex_id(_graph->_source->val_int()) != *_origid) ||
@@ -506,9 +493,6 @@ int oqgraph3::cursor::seek_to(
       table.file->ha_index_end();
       return clear_position(rc);
     }
-
-    if (table.vfield)
-      table.update_virtual_fields(VCOL_UPDATE_FOR_READ);
 
     if ((_origid && vertex_id(_graph->_source->val_int()) != *_origid) ||
         (_destid && vertex_id(_graph->_target->val_int()) != *_destid))

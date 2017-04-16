@@ -14,9 +14,9 @@ EXPORTS
   myfunc_double
   myfunc_int_init
   myfunc_int
-  sequence_init
-  sequence_deinit
-  sequence
+  udf_sequence_init
+  udf_sequence_deinit
+  udf_sequence
   avgcost_init
   avgcost_deinit
   avgcost_reset

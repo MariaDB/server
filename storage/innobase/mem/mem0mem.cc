@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2014, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -26,10 +27,6 @@ Created 6/9/1994 Heikki Tuuri
 #include "ha_prototypes.h"
 
 #include "mem0mem.h"
-#ifdef UNIV_NONINL
-#include "mem0mem.ic"
-#endif
-
 #include "buf0buf.h"
 #include "srv0srv.h"
 #include <stdarg.h>
@@ -272,14 +269,12 @@ mem_heap_create_block_func(
 	ulint		n,	/*!< in: number of bytes needed for user data */
 #ifdef UNIV_DEBUG
 	const char*	file_name,/*!< in: file name where created */
-	ulint		line,	/*!< in: line where created */
+	unsigned	line,	/*!< in: line where created */
 #endif /* UNIV_DEBUG */
 	ulint		type)	/*!< in: type of heap: MEM_HEAP_DYNAMIC or
 				MEM_HEAP_BUFFER */
 {
-#ifndef UNIV_HOTBACKUP
 	buf_block_t*	buf_block = NULL;
-#endif /* !UNIV_HOTBACKUP */
 	mem_block_t*	block;
 	ulint		len;
 
@@ -294,7 +289,6 @@ mem_heap_create_block_func(
 	/* In dynamic allocation, calculate the size: block header + data. */
 	len = MEM_BLOCK_HEADER_SIZE + MEM_SPACE_NEEDED(n);
 
-#ifndef UNIV_HOTBACKUP
 	if (type == MEM_HEAP_DYNAMIC || len < UNIV_PAGE_SIZE / 2) {
 
 		ut_ad(type == MEM_HEAP_DYNAMIC || n <= MEM_MAX_ALLOC_IN_BUF);
@@ -329,11 +323,6 @@ mem_heap_create_block_func(
 
 	block->buf_block = buf_block;
 	block->free_block = NULL;
-#else /* !UNIV_HOTBACKUP */
-	len = MEM_BLOCK_HEADER_SIZE + MEM_SPACE_NEEDED(n);
-	block = ut_malloc_nokey(len);
-	ut_ad(block);
-#endif /* !UNIV_HOTBACKUP */
 
 	block->magic_n = MEM_BLOCK_MAGIC_N;
 	ut_d(ut_strlcpy_rev(block->file_name, file_name,
@@ -428,11 +417,9 @@ mem_heap_block_free(
 {
 	ulint		type;
 	ulint		len;
-#ifndef UNIV_HOTBACKUP
 	buf_block_t*	buf_block;
 
 	buf_block = static_cast<buf_block_t*>(block->buf_block);
-#endif /* !UNIV_HOTBACKUP */
 
 	mem_block_validate(block);
 
@@ -447,7 +434,6 @@ mem_heap_block_free(
 
 	UNIV_MEM_ASSERT_W(block, len);
 
-#ifndef UNIV_HOTBACKUP
 	if (type == MEM_HEAP_DYNAMIC || len < UNIV_PAGE_SIZE / 2) {
 
 		ut_ad(!buf_block);
@@ -457,12 +443,8 @@ mem_heap_block_free(
 
 		buf_block_free(buf_block);
 	}
-#else /* !UNIV_HOTBACKUP */
-	ut_free(block);
-#endif /* !UNIV_HOTBACKUP */
 }
 
-#ifndef UNIV_HOTBACKUP
 /******************************************************************//**
 Frees the free_block field from a memory heap. */
 void
@@ -477,4 +459,3 @@ mem_heap_free_block_free(
 		heap->free_block = NULL;
 	}
 }
-#endif /* !UNIV_HOTBACKUP */

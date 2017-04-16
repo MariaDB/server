@@ -124,7 +124,7 @@ set LC_TIME_NAMES='en_US';
 #
 set names koi8r;
 eval create table t1 (s1 char(1) character set utf8mb4) engine $engine;
-insert into t1 values (_koi8r'¡¬');
+insert ignore into t1 values (_koi8r'¡¬');
 select s1,hex(s1),char_length(s1),octet_length(s1) from t1;
 drop table t1;
 
@@ -136,11 +136,11 @@ if ($is_heap)
 {
 eval create table t1 (s1 varchar(255) character set utf8mb4) engine $engine;
 }
-insert into t1 select repeat('a',300);
-insert into t1 select repeat('—',300);
-insert into t1 select repeat('a—',300);
-insert into t1 select repeat('—a',300);
-insert into t1 select repeat('——',300);
+insert ignore into t1 select repeat('a',300);
+insert ignore into t1 select repeat('—',300);
+insert ignore into t1 select repeat('a—',300);
+insert ignore into t1 select repeat('—a',300);
+insert ignore into t1 select repeat('——',300);
 --sorted_result
 select hex(s1) from t1;
 --sorted_result
@@ -155,11 +155,11 @@ if ($is_heap)
 {
 eval create table t1 (s1 varchar(255) character set utf8mb4) engine $engine;
 }
-insert into t1 select repeat('a',66000);
-insert into t1 select repeat('—',66000);
-insert into t1 select repeat('a—',66000);
-insert into t1 select repeat('—a',66000);
-insert into t1 select repeat('——',66000);
+insert ignore into t1 select repeat('a',66000);
+insert ignore into t1 select repeat('—',66000);
+insert ignore into t1 select repeat('a—',66000);
+insert ignore into t1 select repeat('—a',66000);
+insert ignore into t1 select repeat('——',66000);
 --sorted_result
 select length(s1),char_length(s1) from t1;
 drop table t1;
@@ -168,19 +168,19 @@ drop table t1;
 # Bug #2368 Multibyte charsets do not check that incoming data is well-formed
 #
 eval create table t1 (s1 char(10) character set utf8mb4) engine $engine;
-insert into t1 values (0x41FF);
+insert ignore into t1 values (0x41FF);
 select hex(s1) from t1;
 drop table t1;
 
 eval create table t1 (s1 varchar(10) character set utf8mb4) engine $engine;
-insert into t1 values (0x41FF);
+insert ignore into t1 values (0x41FF);
 select hex(s1) from t1;
 drop table t1;
 
 if (!$is_heap)
 {
 eval create table t1 (s1 text character set utf8mb4) engine $engine;
-insert into t1 values (0x41FF);
+insert ignore into t1 values (0x41FF);
 select hex(s1) from t1;
 drop table t1;
 }
@@ -895,6 +895,7 @@ DROP TABLE t1,t2;
 #
 eval create table t1 (a char(20) character set utf8mb4) engine $engine;
 insert into t1 values ('123456'),('–∞–Ω–¥—Ä–µ–π');
+SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 alter table t1 modify a char(2) character set utf8mb4;
 select char_length(a), length(a), a from t1 order by a;
 drop table t1;
@@ -1282,15 +1283,19 @@ eval create table t1 (
 insert into t1 (a) values ('abcdefghijklmnopqrstuvwxyz');
 select * from t1;
 # varchar to varchar
+SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 alter table t1 change a a varchar(20) character set utf8mb4 not null;
 select * from t1;
 # varchar to char
+SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 alter table t1 change a a char(15) character set utf8mb4 not null;
 select * from t1;
 # char to char
+SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 alter table t1 change a a char(10) character set utf8mb4 not null;
 select * from t1;
 # char to varchar
+SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 alter table t1 change a a varchar(5) character set utf8mb4 not null;
 select * from t1;
 drop table t1;
@@ -1302,6 +1307,7 @@ eval create table t1 (
   a varchar(4000) not null
 ) default character set utf8mb4 engine $engine;
 insert into t1 values (repeat('a',4000));
+SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 alter table t1 change a a varchar(3000) character set utf8mb4 not null;
 select length(a) from t1;
 drop table t1;
@@ -1552,7 +1558,7 @@ eval create table t1 (utf8mb4 char(1) character set utf8mb4) engine $engine;
 --echo Testing [F0][90..BF][80..BF][80..BF]
 insert into t1 values (0xF0908080);
 insert into t1 values (0xF0BFBFBF);
-insert into t1 values (0xF08F8080);
+insert ignore into t1 values (0xF08F8080);
 --sorted_result
 select hex(utf8mb4) from t1;
 delete from t1;
@@ -1567,7 +1573,7 @@ delete from t1;
 --echo Testing [F4][80..8F][80..BF][80..BF]
 insert into t1 values (0xF4808080);
 insert into t1 values (0xF48F8080);
-insert into t1 values (0xF4908080);
+insert ignore into t1 values (0xF4908080);
 --sorted_result
 select hex(utf8mb4) from t1;
 drop table t1;
@@ -1648,13 +1654,13 @@ INSERT INTO t1 VALUES (119070, x'f09d849ef09d859ef09d859ef09d8480f09d859ff09d859
 #  Mix of 3-byte and 4-byte chars 
 INSERT INTO t1 VALUES (65131, x'efb9abf09d849ef09d859ef09d859ef09d8480f09d859fefb9abefb9abf09d85a0efb9ab');
 # All from musical chars, but 11 instead of 10 chars. truncated
-INSERT INTO t1 VALUES (119070, x'f09d849ef09d859ef09d859ef09d8480f09d859ff09d859ff09d859ff09d85a0f09d85a0f09d8480f09d85a0');
+INSERT IGNORE INTO t1 VALUES (119070, x'f09d849ef09d859ef09d859ef09d8480f09d859ff09d859ff09d859ff09d85a0f09d85a0f09d8480f09d85a0');
 
 --sorted_result
 SELECT u_decimal, hex(utf8mb4_encoding) FROM t1 ORDER BY utf8mb4_encoding COLLATE utf8mb4_general_ci, BINARY utf8mb4_encoding;
 
 # First invalid 4 byte value
-INSERT INTO t1 VALUES (1114111, x'f5808080');
+INSERT IGNORE INTO t1 VALUES (1114111, x'f5808080');
 
 --sorted_result
 SELECT character_maximum_length, character_octet_length FROM information_schema.columns WHERE
@@ -1672,14 +1678,14 @@ INSERT INTO t2 VALUES (42856, x'ea9da8');
 # SMALL COMMERCIAL AT
 INSERT INTO t2 VALUES (65131, x'efb9ab');
 # <Plane 16 Private Use, Last> (last 4 byte character)
-INSERT INTO t2 VALUES (1114111, x'f48fbfbf');
+INSERT IGNORE INTO t2 VALUES (1114111, x'f48fbfbf');
 
 --sorted_result
 SELECT character_maximum_length, character_octet_length FROM information_schema.columns WHERE
        table_name= 't2' AND column_name= 'utf8mb3_encoding';
 
 #  Update a 3-byte char col with a 4-byte char, error
-UPDATE t2 SET utf8mb3_encoding= x'f48fbfbd' where u_decimal= 42856;
+UPDATE IGNORE t2 SET utf8mb3_encoding= x'f48fbfbd' where u_decimal= 42856;
 
 #  Update to a 3-byte char casted to 4-byte, error?
 UPDATE t2 SET utf8mb3_encoding= _utf8mb4 x'ea9da8' where u_decimal= 42856;
@@ -1700,6 +1706,7 @@ SELECT count(*) FROM t1, t2
 
 # Alter from 4-byte charset to 3-byte charset, error
 --disable_warnings
+SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 ALTER TABLE t1 CONVERT TO CHARACTER SET utf8;
 --enable_warnings
 SHOW CREATE TABLE t1;

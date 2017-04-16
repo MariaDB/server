@@ -9,7 +9,6 @@ SET @restore_slave_net_timeout=@@global.slave_net_timeout;
 connection master;
 RESET MASTER;
 SET @restore_slave_net_timeout=@@global.slave_net_timeout;
-SET @restore_event_scheduler=@@global.event_scheduler;
 
 connection slave;
 *** Default value ***
@@ -245,7 +244,9 @@ include/start_slave.inc
 connection master;
 SET @@global.event_scheduler=1;
 connection slave;
-Number of received heartbeat events: 0
+connection master;
+connection slave;
+Received heartbeats meet expectations: TRUE
 connection master;
 DELETE FROM t1;
 DROP EVENT e1;

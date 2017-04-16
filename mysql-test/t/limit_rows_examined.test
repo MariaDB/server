@@ -2,6 +2,8 @@
 # Tests for LIMIT ROWS EXAMINED, MDEV-28
 #
 
+call mtr.add_suppression("Sort aborted.*");
+
 set @save_join_cache_level = @@join_cache_level;
 
 create table t1 (c1 char(2));
@@ -393,7 +395,7 @@ drop table t3,t3i;
 --echo INSERT ... SELECT
 CREATE TABLE t4 (a int);
 INSERT INTO t4 values (1), (2);
-INSERT INTO t4 SELECT a + 2 FROM t4 LIMIT ROWS EXAMINED 0;
+INSERT IGNORE INTO t4 SELECT a + 2 FROM t4 LIMIT ROWS EXAMINED 0;
 select * from t4;
 INSERT INTO t4 SELECT a + 2 FROM t4 LIMIT ROWS EXAMINED 6;
 select * from t4;

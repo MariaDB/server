@@ -649,7 +649,7 @@ select least(_latin1'a',_latin2'b',_latin5'c' collate latin5_turkish_ci) as f1;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f1` varchar(1) CHARACTER SET latin5 NOT NULL
+  `f1` varchar(1) CHARACTER SET latin5 DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table t1;
 select case _latin1'a' when _latin2'b' then 1 when _latin5'c' collate
@@ -719,3 +719,38 @@ DROP FUNCTION getText;
 DROP DATABASE test1;
 USE test;
 SET NAMES latin1;
+#
+# MDEV-11320, MySQL BUG#81810: Inconsistent sort order for blob/text between InnoDB and filesort
+#
+CREATE TABLE t1 (
+b LONGTEXT CHARACTER SET "latin1" COLLATE "latin1_bin",
+KEY b (b(32))
+);
+INSERT INTO t1 (b) VALUES ('a'), (_binary 0x1), (_binary 0x0), ('');
+drop table t1;
+CREATE TABLE t1 (
+b LONGTEXT CHARACTER SET "latin1" COLLATE "latin1_bin",
+PRIMARY KEY b (b(32))
+);
+INSERT INTO t1 (b) VALUES ('a'), (_binary 0x1), (_binary 0x0), ('');
+explain 
+select hex(b) from t1 force index (PRIMARY) where b<'zzz';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	PRIMARY	PRIMARY	34	NULL	4	Using where
+select hex(b) from t1 force index (PRIMARY) where b<'zzz';
+hex(b)
+00
+01
+
+61
+explain
+select hex(b) from t1 where b<'zzz' order by b;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	PRIMARY	NULL	NULL	NULL	4	Using where; Using filesort
+select hex(b) from t1 where b<'zzz' order by b;
+hex(b)
+00
+01
+
+61
+drop table t1;

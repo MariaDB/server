@@ -1,5 +1,5 @@
 /* Copyright (c) 2006, 2016, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2016, MariaDB
+   Copyright (c) 2010, 2017, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -49,16 +49,16 @@ typedef Bitmap<((MAX_INDEXES+7)/8*8)> key_map; /* Used for finding keys */
 #endif
 
 	/* Bits from testflag */
-#define TEST_PRINT_CACHED_TABLES 1
-#define TEST_NO_KEY_GROUP	 2
-#define TEST_MIT_THREAD		4
-#define TEST_BLOCKING		8
-#define TEST_KEEP_TMP_TABLES	16
-#define TEST_READCHECK		64	/**< Force use of readcheck */
-#define TEST_NO_EXTRA		128
-#define TEST_CORE_ON_SIGNAL	256	/**< Give core if signal */
-#define TEST_SIGINT		1024	/**< Allow sigint on threads */
-#define TEST_SYNCHRONIZATION    2048    /**< get server to do sleep in
+#define TEST_PRINT_CACHED_TABLES 1U
+#define TEST_NO_KEY_GROUP	 2U
+#define TEST_MIT_THREAD		4U
+#define TEST_BLOCKING		8U
+#define TEST_KEEP_TMP_TABLES	16U
+#define TEST_READCHECK		64U	/**< Force use of readcheck */
+#define TEST_NO_EXTRA		128U
+#define TEST_CORE_ON_SIGNAL	256U	/**< Give core if signal */
+#define TEST_SIGINT		1024U	/**< Allow sigint on threads */
+#define TEST_SYNCHRONIZATION    2048U   /**< get server to do sleep in
                                            some places */
 
 /* Keep things compatible */
@@ -85,7 +85,6 @@ void kill_mysql(THD *thd= 0);
 void close_connection(THD *thd, uint sql_errno= 0);
 void handle_connection_in_main_thread(CONNECT *thd);
 void create_thread_to_handle_connection(CONNECT *connect);
-void delete_running_thd(THD *thd);
 void signal_thd_deleted();
 void unlink_thd(THD *thd);
 bool one_thread_per_connection_end(THD *thd, bool put_in_cache);
@@ -114,6 +113,7 @@ extern uint opt_bin_log_compress_min_len;
 extern my_bool opt_log, opt_bootstrap;
 extern my_bool opt_backup_history_log;
 extern my_bool opt_backup_progress_log;
+extern my_bool opt_support_flashback;
 extern ulonglong log_output_options;
 extern ulong log_backup_output_options;
 extern my_bool opt_log_queries_not_using_indexes;
@@ -145,7 +145,8 @@ extern my_bool sp_automatic_privileges, opt_noacl;
 extern ulong use_stat_tables;
 extern my_bool opt_old_style_user_limits, trust_function_creators;
 extern uint opt_crash_binlog_innodb;
-extern char *shared_memory_base_name, *mysqld_unix_port;
+extern const char *shared_memory_base_name;
+extern char *mysqld_unix_port;
 extern my_bool opt_enable_shared_memory;
 extern ulong opt_replicate_events_marked_for_skip;
 extern char *default_tz_name;
@@ -294,12 +295,12 @@ extern PSI_mutex_key key_BINLOG_LOCK_index, key_BINLOG_LOCK_xid_list,
   key_LOCK_thd_data,
   key_LOCK_user_conn, key_LOG_LOCK_log,
   key_master_info_data_lock, key_master_info_run_lock,
-  key_master_info_sleep_lock,
+  key_master_info_sleep_lock, key_master_info_start_stop_lock,
   key_mutex_slave_reporting_capability_err_lock, key_relay_log_info_data_lock,
   key_relay_log_info_log_space_lock, key_relay_log_info_run_lock,
   key_rpl_group_info_sleep_lock,
   key_structure_guard_mutex, key_TABLE_SHARE_LOCK_ha_data,
-  key_LOCK_start_thread,
+  key_LOCK_start_thread, key_LOCK_SEQUENCE,
   key_LOCK_error_messages, key_LOCK_thread_count, key_PARTITION_LOCK_auto_inc;
 extern PSI_mutex_key key_RELAYLOG_LOCK_index;
 extern PSI_mutex_key key_LOCK_slave_state, key_LOCK_binlog_state,
@@ -688,11 +689,13 @@ enum enum_query_type
                         QT_ITEM_CACHE_WRAPPER_SKIP_DETAILS |
                         QT_ITEM_SUBSELECT_ID_ONLY,
 
-  /// This is used for EXPLAIN EXTENDED extra warnings
+  QT_SHOW_SELECT_NUMBER= (1<<10),
+  /// This is used for EXPLAIN EXTENDED extra warnings / Be more detailed
   /// Be more detailed than QT_EXPLAIN.
   /// Perhaps we should eventually include QT_ITEM_IDENT_SKIP_CURRENT_DATABASE
   /// here, as it would give better readable results
-  QT_EXPLAIN_EXTENDED=  QT_TO_SYSTEM_CHARSET,
+  QT_EXPLAIN_EXTENDED=  QT_TO_SYSTEM_CHARSET|
+                        QT_SHOW_SELECT_NUMBER,
 
   // If an expression is constant, print the expression, not the value
   // it evaluates to. Should be used for error messages, so that they
@@ -720,7 +723,7 @@ inline query_id_t get_query_id()
 /* increment global_thread_id and return it.  */
 inline __attribute__((warn_unused_result)) my_thread_id next_thread_id()
 {
-  return my_atomic_add64_explicit(&global_thread_id, 1, MY_MEMORY_ORDER_RELAXED);
+  return my_atomic_add64_explicit((int64*) &global_thread_id, 1, MY_MEMORY_ORDER_RELAXED);
 }
 
 #if defined(MYSQL_DYNAMIC_PLUGIN) && defined(_WIN32)

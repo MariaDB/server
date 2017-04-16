@@ -1,9 +1,5 @@
 call mtr.add_suppression("InnoDB: Tablespace for table .* is set as discarded.");
 call mtr.add_suppression("InnoDB: Cannot calculate statistics for table .* because the .ibd file is missing. Please refer to .* for how to resolve the issue.");
-SET GLOBAL innodb_file_format = `Barracuda`;
-Warnings:
-Warning	131	Using innodb_file_format is deprecated and the parameter may be removed in future releases. See http://dev.mysql.com/doc/refman/5.7/en/innodb-file-format.html
-SET GLOBAL innodb_file_per_table = ON;
 CREATE TABLE t1 (id INT NOT NULL PRIMARY KEY, a VARCHAR(255)) ENGINE=InnoDB encrypted=yes;
 CREATE TABLE t2 (id INT NOT NULL PRIMARY KEY, a VARCHAR(255)) ENGINE=InnoDB;
 CREATE TABLE t3 (id INT NOT NULL PRIMARY KEY, a VARCHAR(255)) ENGINE=InnoDB row_format=compressed encrypted=yes;
@@ -31,8 +27,16 @@ NOT FOUND /foobar/ in t1.ibd
 NOT FOUND /temp/ in t2.ibd
 # t3 ... on expecting NOT FOUND
 NOT FOUND /barfoo/ in t3.ibd
-FLUSH TABLE t1, t2, t3 FOR EXPORT;
-# List before copying files
+t1.frm
+t1.ibd
+t2.frm
+t2.ibd
+t3.frm
+t3.ibd
+FLUSH TABLES t1, t2, t3 FOR EXPORT;
+backup: t1
+backup: t2
+backup: t3
 t1.cfg
 t1.frm
 t1.ibd
@@ -43,54 +47,21 @@ t3.cfg
 t3.frm
 t3.ibd
 UNLOCK TABLES;
-# Restarting server
-# Done restarting server
-# List before t1 DISCARD
-t1.frm
-t1.ibd
-t2.frm
-t2.ibd
-t3.frm
-t3.ibd
-SET GLOBAL innodb_file_format = `Barracuda`;
-Warnings:
-Warning	131	Using innodb_file_format is deprecated and the parameter may be removed in future releases. See http://dev.mysql.com/doc/refman/5.7/en/innodb-file-format.html
-SET GLOBAL innodb_file_per_table = ON;
 ALTER TABLE t1 DISCARD TABLESPACE;
 ALTER TABLE t2 DISCARD TABLESPACE;
 ALTER TABLE t3 DISCARD TABLESPACE;
-# List after t1 DISCARD
-t1.frm
-t2.frm
-t3.frm
-# Restarting server
-# Done restarting server
-SET GLOBAL innodb_file_format = `Barracuda`;
-Warnings:
-Warning	131	Using innodb_file_format is deprecated and the parameter may be removed in future releases. See http://dev.mysql.com/doc/refman/5.7/en/innodb-file-format.html
-SET GLOBAL innodb_file_per_table = ON;
-# Tablespaces should be still encrypted
-# t1 yes on expecting NOT FOUND
-NOT FOUND /foobar/ in t1.ibd
-# t2 ... on expecting NOT FOUND
-NOT FOUND /temp/ in t2.ibd
-# t3 ... on expecting NOT FOUND
-NOT FOUND /barfoo/ in t3.ibd
+restore: t1 .ibd and .cfg files
+restore: t2 .ibd and .cfg files
+restore: t3 .ibd and .cfg files
 ALTER TABLE t1 IMPORT TABLESPACE;
-Warnings:
-Warning	1814	Tablespace has been discarded for table 't1'
 SELECT COUNT(1) FROM t1;
 COUNT(1)
 10000
 ALTER TABLE t2 IMPORT TABLESPACE;
-Warnings:
-Warning	1814	Tablespace has been discarded for table 't2'
 SELECT COUNT(1) FROM t2;
 COUNT(1)
 10000
 ALTER TABLE t3 IMPORT TABLESPACE;
-Warnings:
-Warning	1814	Tablespace has been discarded for table 't3'
 SELECT COUNT(1) FROM t3;
 COUNT(1)
 10000
@@ -125,14 +96,6 @@ t3	CREATE TABLE `t3` (
   `a` varchar(255) DEFAULT NULL,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=COMPRESSED `encrypted`=yes
-# Wait max 10 min for key encryption threads to encrypt all spaces
-# Tablespaces should be encrypted after alter table
-# t1 yes on expecting NOT FOUND
-NOT FOUND /foobar/ in t1.ibd
-# t2 ... on expecting NOT FOUND
-NOT FOUND /temp/ in t2.ibd
-# t3 ... on expecting NOT FOUND
-NOT FOUND /barfoo/ in t3.ibd
 # Restarting server
 # Done restarting server
 # Verify that tables are still usable
@@ -152,7 +115,8 @@ NOT FOUND /foobar/ in t1.ibd
 NOT FOUND /temp/ in t2.ibd
 # t3 ... on expecting NOT FOUND
 NOT FOUND /barfoo/ in t3.ibd
+# Wait max 10 min for key encryption threads to encrypt all spaces
+# Success!
+# Restart mysqld --innodb_encrypt_tables=0 --innodb_encryption_threads=0
 DROP PROCEDURE innodb_insert_proc;
 DROP TABLE t1, t2, t3;
-Warnings:
-Warning	131	Using innodb_file_format is deprecated and the parameter may be removed in future releases. See http://dev.mysql.com/doc/refman/5.7/en/innodb-file-format.html

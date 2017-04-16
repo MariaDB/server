@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -31,7 +32,6 @@ Created 3/26/1996 Heikki Tuuri
 #include "buf0buf.h"
 #include "fil0fil.h"
 #include "trx0types.h"
-#ifndef UNIV_HOTBACKUP
 #include "mem0mem.h"
 #include "mtr0mtr.h"
 #include "ut0byte.h"
@@ -62,13 +62,9 @@ bool
 trx_sys_hdr_page(
 	const page_id_t&	page_id);
 
-/*****************************************************************//**
-Creates and initializes the central memory structures for the transaction
-system. This is called when the database is started.
-@return min binary heap of rsegs to purge */
-purge_pq_t*
-trx_sys_init_at_db_start(void);
-/*==========================*/
+/** Initialize the transaction system main-memory data structures. */
+void trx_sys_init_at_db_start();
+
 /*****************************************************************//**
 Creates the trx_sys instance and initializes purge_queue and mutex. */
 void
@@ -79,27 +75,10 @@ Creates and initializes the transaction system at the database creation. */
 void
 trx_sys_create_sys_pages(void);
 /*==========================*/
-/****************************************************************//**
-Looks for a free slot for a rollback segment in the trx system file copy.
-@return slot index or ULINT_UNDEFINED if not found */
+/** @return an unallocated rollback segment slot in the TRX_SYS header
+@retval ULINT_UNDEFINED if not found */
 ulint
-trx_sysf_rseg_find_free(
-/*====================*/
-	mtr_t*	mtr,			/*!< in/out: mtr */
-	bool	include_tmp_slots,	/*!< in: if true, report slots reserved
-					for temp-tablespace as free slots. */
-	ulint	nth_free_slots);	/*!< in: allocate nth free slot.
-					0 means next free slot. */
-/***************************************************************//**
-Gets the pointer in the nth slot of the rseg array.
-@return pointer to rseg object, NULL if slot not in use */
-UNIV_INLINE
-trx_rseg_t*
-trx_sys_get_nth_rseg(
-/*=================*/
-	trx_sys_t*	sys,		/*!< in: trx system */
-	ulint		n,		/*!< in: index of slot */
-	bool		is_redo_rseg);	/*!< in: true if redo rseg. */
+trx_sysf_rseg_find_free(mtr_t* mtr);
 /**********************************************************************//**
 Gets a pointer to the transaction system file copy and x-locks its page.
 @return pointer to system file copy, page x-locked */
@@ -175,14 +154,6 @@ extern uint			trx_rseg_n_slots_debug;
 #endif
 
 /*****************************************************************//**
-Check if slot-id is reserved slot-id for noredo rsegs. */
-UNIV_INLINE
-bool
-trx_sys_is_noredo_rseg_slot(
-/*========================*/
-	ulint	slot_id);	/*!< in: slot_id to check */
-
-/*****************************************************************//**
 Writes a trx id to an index page. In case that the id size changes in
 some future version, this function should be used instead of
 mach_write_... */
@@ -244,16 +215,6 @@ trx_rw_is_active(
 					that will be set if corrupt */
 	bool		do_ref_count);	/*!< in: if true then increment the
 					trx_t::n_ref_count */
-#ifdef UNIV_DEBUG
-/****************************************************************//**
-Checks whether a trx is in on of rw_trx_list
-@return TRUE if is in */
-bool
-trx_in_rw_trx_list(
-/*============*/
-	const trx_t*	in_trx)		/*!< in: transaction */
-	MY_ATTRIBUTE((warn_unused_result));
-#endif /* UNIV_DEBUG */
 #if defined UNIV_DEBUG || defined UNIV_BLOB_LIGHT_DEBUG
 /***********************************************************//**
 Assert that a transaction has been recovered.
@@ -343,16 +304,10 @@ trx_sys_file_format_max_set(
 	ulint		format_id,	/*!< in: file format id */
 	const char**	name);		/*!< out: max file format name or
 					NULL if not needed. */
-/*********************************************************************
-Creates the rollback segments
-@return number of rollback segments that are active. */
-ulint
-trx_sys_create_rsegs(
-/*=================*/
-	ulint	n_spaces,	/*!< number of tablespaces for UNDO logs */
-	ulint	n_rsegs,	/*!< number of rollback segments to create */
-	ulint	n_tmp_rsegs);	/*!< number of rollback segments reserved for
-				temp-tables. */
+/** Create the rollback segments.
+@return	whether the creation succeeded */
+bool
+trx_sys_create_rsegs();
 /*****************************************************************//**
 Get the number of transaction in the system, independent of their state.
 @return count of transactions in trx_sys_t::trx_list */
@@ -367,40 +322,6 @@ Check if there are any active (non-prepared) transactions.
 ulint
 trx_sys_any_active_transactions(void);
 /*=================================*/
-#else /* !UNIV_HOTBACKUP */
-/*****************************************************************//**
-Prints to stderr the MySQL binlog info in the system header if the
-magic number shows it valid. */
-void
-trx_sys_print_mysql_binlog_offset_from_page(
-/*========================================*/
-	const byte*	page);	/*!< in: buffer containing the trx
-				system header page, i.e., page number
-				TRX_SYS_PAGE_NO in the tablespace */
-/*****************************************************************//**
-Reads the file format id from the first system table space file.
-Even if the call succeeds and returns TRUE, the returned format id
-may be ULINT_UNDEFINED signalling that the format id was not present
-in the data file.
-@return TRUE if call succeeds */
-ibool
-trx_sys_read_file_format_id(
-/*========================*/
-	const char *pathname,	/*!< in: pathname of the first system
-				table space file */
-	ulint *format_id);	/*!< out: file format of the system table
-				space */
-/*****************************************************************//**
-Reads the file format id from the given per-table data file.
-@return TRUE if call succeeds */
-ibool
-trx_sys_read_pertable_file_format_id(
-/*=================================*/
-	const char *pathname,	/*!< in: pathname of a per-table
-				datafile */
-	ulint *format_id);	/*!< out: file format of the per-table
-				data file */
-#endif /* !UNIV_HOTBACKUP */
 /*****************************************************************//**
 Get the name representation of the file format from its id.
 @return pointer to the max format name */
@@ -590,7 +511,6 @@ identifier is added to this 64-bit constant. */
 	 | TRX_SYS_FILE_FORMAT_TAG_MAGIC_N_LOW)
 /* @} */
 
-#ifndef UNIV_HOTBACKUP
 /** The transaction system central memory data structure. */
 struct trx_sys_t {
 
@@ -615,13 +535,15 @@ struct trx_sys_t {
 					transactions which exist or existed */
 #endif /* UNIV_DEBUG */
 
-	char		pad1[64];	/*!< To avoid false sharing */
+	/** Avoid false sharing */
+	const char	pad1[CACHE_LINE_SIZE];
 	trx_ut_list_t	rw_trx_list;	/*!< List of active and committed in
 					memory read-write transactions, sorted
 					on trx id, biggest first. Recovered
 					transactions are always on this list. */
 
-	char		pad2[64];	/*!< To avoid false sharing */
+	/** Avoid false sharing */
+	const char	pad2[CACHE_LINE_SIZE];
 	trx_ut_list_t	mysql_trx_list;	/*!< List of transactions created
 					for MySQL. All user transactions are
 					on mysql_trx_list. The rw_trx_list
@@ -641,7 +563,13 @@ struct trx_sys_t {
 					to ensure right order of removal and
 					consistent snapshot. */
 
-	char		pad3[64];	/*!< To avoid false sharing */
+	/** Avoid false sharing */
+	const char	pad3[CACHE_LINE_SIZE];
+	/** Temporary rollback segments */
+	trx_rseg_t*	temp_rsegs[TRX_SYS_N_RSEGS];
+	/** Avoid false sharing */
+	const char	pad4[CACHE_LINE_SIZE];
+
 	trx_rseg_t*	rseg_array[TRX_SYS_N_RSEGS];
 					/*!< Pointer array to rollback
 					segments; NULL if slot not in use;
@@ -654,14 +582,6 @@ struct trx_sys_t {
 					list (update undo logs for committed
 					transactions), protected by
 					rseg->mutex */
-
-	trx_rseg_t*	const pending_purge_rseg_array[TRX_SYS_N_RSEGS];
-					/*!< Pointer array to rollback segments
-					between slot-1..slot-srv_tmp_undo_logs
-					that are now replaced by non-redo
-					rollback segments. We need them for
-					scheduling purge if any of the rollback
-					segment has pending records to purge. */
 
 	TrxIdSet	rw_trx_set;	/*!< Mapping from transaction id
 					to transaction instance */
@@ -683,7 +603,6 @@ struct trx_sys_t {
 two) is assigned, the field TRX_SYS_TRX_ID_STORE on the transaction system
 page is updated */
 #define TRX_SYS_TRX_ID_WRITE_MARGIN	((trx_id_t) 256)
-#endif /* !UNIV_HOTBACKUP */
 
 /** Test if trx_sys->mutex is owned. */
 #define trx_sys_mutex_own() (trx_sys->mutex.is_owned())
@@ -698,8 +617,6 @@ page is updated */
 	trx_sys->mutex.exit();				\
 } while (0)
 
-#ifndef UNIV_NONINL
 #include "trx0sys.ic"
-#endif
 
 #endif
