@@ -1483,13 +1483,15 @@ struct THD_TRANS
 
   unsigned int m_unsafe_rollback_flags;
  /*
-    Define the type of statemens which cannot be rolled back safely.
+    Define the type of statements which cannot be rolled back safely.
     Each type occupies one bit in m_unsafe_rollback_flags.
   */
-  static unsigned int const MODIFIED_NON_TRANS_TABLE= 0x01;
-  static unsigned int const CREATED_TEMP_TABLE= 0x02;
-  static unsigned int const DROPPED_TEMP_TABLE= 0x04;
-  static unsigned int const DID_WAIT= 0x08;
+  enum unsafe_statement_types
+  {
+    CREATED_TEMP_TABLE= 2,
+    DROPPED_TEMP_TABLE= 4,
+    DID_WAIT= 8
+  };
 
   void mark_created_temp_table()
   {

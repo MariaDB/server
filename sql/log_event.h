@@ -3459,7 +3459,7 @@ public:
 
   The three elements in the body repeat COUNT times to form the GTID list.
 
-  At the time of writing, only one flag bit is in use.
+  At the time of writing, only two flag bit are in use.
 
   Bit 28 of `count' is used for flag FLAG_UNTIL_REACHED, which is sent in a
   Gtid_list event from the master to the slave to indicate that the START
@@ -3477,9 +3477,12 @@ public:
   uint64 *sub_id_list;
 
   static const uint element_size= 4+4+8;
-  static const uint32 FLAG_UNTIL_REACHED= (1<<28);
-  static const uint32 FLAG_IGN_GTIDS= (1<<29);
-
+  /* Upper bits stored in 'count'. See comment above */
+  enum gtid_flags
+  {
+    FLAG_UNTIL_REACHED= (1<<28),
+    FLAG_IGN_GTIDS= (1<<29),
+  };
 #ifdef MYSQL_SERVER
   Gtid_list_log_event(rpl_binlog_state *gtid_set, uint32 gl_flags);
   Gtid_list_log_event(slave_connection_state *gtid_set, uint32 gl_flags);
