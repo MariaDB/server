@@ -505,6 +505,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  FORCE_SYM
 %token  FOREIGN                       /* SQL-2003-R */
 %token  FOR_SYM                       /* SQL-2003-R */
+%token  FOR_SYSTEM_TIME_SYM           /* INTERNAL */
 %token  FORMAT_SYM
 %token  FOUND_SYM                     /* SQL-2003-R */
 %token  FROM
@@ -735,6 +736,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  PARTITIONING_SYM
 %token  PASSWORD_SYM
 %token  PERCENT_RANK_SYM
+%token  PERIOD_SYM                    /* 32N2439 */
 %token  PERSISTENT_SYM
 %token  PHASE_SYM
 %token  PLUGINS_SYM
@@ -761,6 +763,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  PURGE
 %token  QUARTER_SYM
 %token  QUERY_SYM
+%token  QUERY_FOR_SYM                 /* INTERNAL */
 %token  QUICK
 %token  RAISE_SYM                     /* Oracle-PLSQL-R */
 %token  RANGE_SYM                     /* SQL-2003-R */
@@ -899,6 +902,8 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  SWAPS_SYM
 %token  SWITCHES_SYM
 %token  SYSDATE
+%token  SYSTEM                        /* 32N2439 */
+%token  SYSTEM_TIME_SYM               /* 32N2439 */
 %token  TABLES
 %token  TABLESPACE
 %token  TABLE_REF_PRIORITY
@@ -967,6 +972,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  VARIANCE_SYM
 %token  VARYING                       /* SQL-2003-R */
 %token  VAR_SAMP_SYM
+%token  VERSIONING_SYM                /* 32N2439 */
 %token  VIA_SYM
 %token  VIEW_SYM                      /* SQL-2003-N */
 %token  VIRTUAL_SYM
@@ -979,8 +985,10 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  WINDOW_SYM
 %token  WHILE_SYM
 %token  WITH                          /* SQL-2003-R */
+%token  WITHOUT                       /* SQL-2003-R */
 %token  WITH_CUBE_SYM                 /* INTERNAL */
 %token  WITH_ROLLUP_SYM               /* INTERNAL */
+%token  WITH_SYSTEM_SYM               /* INTERNAL */
 %token  WORK_SYM                      /* SQL-2003-N */
 %token  WRAPPER_SYM
 %token  WRITE_SYM                     /* SQL-2003-N */
