@@ -96,6 +96,9 @@
 #if defined(XML_SUPPORT)
 #include "tabxml.h"
 #endif   // XML_SUPPORT
+#if defined(MONGO_SUPPORT)
+#include "tabmgo.h"
+#endif   // MONGO_SUPPORT
 #if defined(ZIP_SUPPORT)
 #include "tabzip.h"
 #endif   // ZIP_SUPPORT
@@ -161,7 +164,10 @@ TABTYPE GetTypeID(const char *type)
 #ifdef ZIP_SUPPORT
 								 : (!stricmp(type, "ZIP"))   ? TAB_ZIP
 #endif
-								 : (!stricmp(type, "OEM"))   ? TAB_OEM : TAB_NIY;
+#ifdef MONGO_SUPPORT
+		             : (!stricmp(type, "MONGO")) ? TAB_MONGO
+#endif
+		             : (!stricmp(type, "OEM"))   ? TAB_OEM : TAB_NIY;
   } // end of GetTypeID
 
 /***********************************************************************/
@@ -307,6 +313,7 @@ int GetIndexType(TABTYPE type)
     case TAB_MYSQL:
     case TAB_ODBC:
 		case TAB_JDBC:
+		case TAB_MONGO:
 			xtyp= 2;
       break;
     case TAB_VIR:
@@ -583,6 +590,9 @@ PRELDEF MYCAT::MakeTableDesc(PGLOBAL g, PTABLE tablep, LPCSTR am)
 #endif   // PIVOT_SUPPORT
     case TAB_VIR: tdp= new(g) VIRDEF;   break;
     case TAB_JSON: tdp= new(g) JSONDEF; break;
+#if defined(MONGO_SUPPORT)
+		case TAB_MONGO: tdp = new(g) MGODEF; break;
+#endif   // MONGO_SUPPORT
 #if defined(ZIP_SUPPORT)
 		case TAB_ZIP: tdp= new(g) ZIPDEF;   break;
 #endif   // ZIP_SUPPORT

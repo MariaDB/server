@@ -172,7 +172,7 @@
 #define JSONMAX      10             // JSON Default max grp size
 
 extern "C" {
-       char version[]= "Version 1.06.0001 April 7, 2017";
+       char version[]= "Version 1.06.0001 April 17, 2017";
 #if defined(__WIN__)
        char compver[]= "Version 1.06.0001 " __DATE__ " "  __TIME__;
        char slash= '\\';
@@ -4236,7 +4236,8 @@ bool ha_connect::check_privileges(THD *thd, PTOS options, char *dbn, bool quick)
     case TAB_ODBC:
 		case TAB_JDBC:
 		case TAB_MYSQL:
-    case TAB_DIR:
+		case TAB_MONGO:
+		case TAB_DIR:
     case TAB_MAC:
     case TAB_WMI:
 		case TAB_ZIP:

@@ -80,7 +80,8 @@ enum TABTYPE {TAB_UNDEF =  0,   /* Table of undefined type             */
               TAB_DMY   = 25,   /* DMY Dummy tables NIY                */
 							TAB_JDBC  = 26,   /* Table accessed via JDBC             */
 							TAB_ZIP   = 27,   /* ZIP file info table                 */
-							TAB_NIY   = 28};  /* Table not implemented yet           */
+							TAB_MONGO = 28,   /* Table retrieved from MongoDB        */
+              TAB_NIY   = 30};  /* Table not implemented yet           */
 
 enum AMT {TYPE_AM_ERROR =   0,        /* Type not defined              */
           TYPE_AM_ROWID =   1,        /* ROWID type (special column)   */

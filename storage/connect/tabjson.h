@@ -59,7 +59,7 @@ public:
   int   Limit;                  /* Limit of multiple values            */
   int   Pretty;                 /* Depends on file structure           */
   int   Level;                  /* Used for catalog table              */
-  int   Base;                   /* Tne array index base                */
+  int   Base;                   /* The array index base                */
   bool  Strict;                 /* Strict syntax checking              */
 	const char *Uri;							/* MongoDB connection URI              */
 #if defined(MONGO_SUPPORT)
@@ -84,7 +84,7 @@ public:
    TDBJSN(TDBJSN *tdbp);
 
   // Implementation
-  virtual AMT   GetAmType(void) {return Amtype;}
+  virtual AMT   GetAmType(void) {return TYPE_AM_JSN;}
   virtual bool  SkipHeader(PGLOBAL g);
   virtual PTDB  Duplicate(PGLOBAL g) {return (PTDB)new(g) TDBJSN(this);}
           PJSON GetRow(void) {return Row;}
@@ -116,7 +116,6 @@ public:
 	PJSON   Val;                     // The value of the current row
 	PJCOL   Colp;                    // The multiple column
 	JMODE   Jmode;                   // MODE_OBJECT by default
-	AMT     Amtype;									 // Access method type
   char   *Objname;                 // The table object name
   char   *Xcol;                    // Name of expandable column
 	int     Fpos;                    // The current row index

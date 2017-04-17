@@ -129,7 +129,7 @@ PQRYRES JSONColumns(PGLOBAL g, char *db, char *dsn, PTOS topt, bool info)
     htrc("File %s objname=%s pretty=%d lvl=%d\n", 
           tdp->Fn, tdp->Objname, tdp->Pretty, lvl);
 
-	if (tdp->Uri = dsn) {
+	if ((tdp->Uri = dsn) && *tdp->Uri) {
 #if defined(MONGO_SUPPORT)
 		tdp->Collname = GetStringTableOption(g, topt, "Name", NULL);
 		tdp->Collname = GetStringTableOption(g, topt, "Tabname", tdp->Collname);
@@ -576,7 +576,6 @@ TDBJSN::TDBJSN(PJDEF tdp, PTXF txfp) : TDBDOS(tdp, txfp)
   if (tdp) {
     Jmode = tdp->Jmode;
     Objname = tdp->Objname;
-		Amtype = (tdp->Uri ? TYPE_AM_MGO : TYPE_AM_JSN);
     Xcol = tdp->Xcol;
     Limit = tdp->Limit;
     Pretty = tdp->Pretty;
@@ -585,7 +584,6 @@ TDBJSN::TDBJSN(PJDEF tdp, PTXF txfp) : TDBDOS(tdp, txfp)
   } else {
     Jmode = MODE_OBJECT;
     Objname = NULL;
-		Amtype = TYPE_AM_JSN;
 		Xcol = NULL;
     Limit = 1;
     Pretty = 0;
