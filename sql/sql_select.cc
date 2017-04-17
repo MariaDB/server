@@ -16876,15 +16876,18 @@ create_tmp_table(THD *thd, TMP_TABLE_PARAM *param, List<Item> &fields,
 
       if (type == Item::FIELD_ITEM || type == Item::REF_ITEM)
       {
-        Item_field *item_field= (Item_field *)item->real_item();
-        Field *field= item_field->field;
-        TABLE_SHARE *s= field->table->s;
-        if (s->versioned)
+        if (item->real_item()->type() == Item::FIELD_ITEM)
         {
-          if (field->flags & VERS_SYS_START_FLAG)
-            sys_trx_start= new_field;
-          else if (field->flags & VERS_SYS_END_FLAG)
-            sys_trx_end= new_field;
+          Item_field *item_field= (Item_field *)item->real_item();
+          Field *field= item_field->field;
+          TABLE_SHARE *s= field->table->s;
+          if (s->versioned)
+          {
+            if (field->flags & VERS_SYS_START_FLAG)
+              sys_trx_start= new_field;
+            else if (field->flags & VERS_SYS_END_FLAG)
+              sys_trx_end= new_field;
+          }
         }
       }
       if (type == Item::TYPE_HOLDER)
