@@ -88,6 +88,12 @@ alter table t1 drop column a;
 drop table t1;
 
 #
+# MDEV-11117 CHECK constraint fails on intermediate step of ALTER
+#
+-- error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
+create or replace table t1( c1 int auto_increment primary key, check( c1 > 0 or c1 is null ) );
+
+#
 # MDEV-12421 Check constraint with query crashes server and renders DB unusable
 #
 --error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED

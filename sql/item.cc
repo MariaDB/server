@@ -979,7 +979,7 @@ bool Item_field::register_field_in_write_map(void *arg)
   This means:
   - For default fields we can't access the same field or a field after
     itself that doesn't have a non-constant default value.
-  - A virtual fields can't access itself or a virtual field after itself.
+  - A virtual field can't access itself or a virtual field after itself.
   - user-specified values will not see virtual fields or default expressions,
     as in INSERT t1 (a) VALUES (b);
   - no virtual fields can access auto-increment values
@@ -995,13 +995,6 @@ bool Item_field::check_field_expression_processor(void *arg)
   Field *org_field= (Field*) arg;
   if (field->flags & NO_DEFAULT_VALUE_FLAG)
     return 0;
-  if (field->flags & AUTO_INCREMENT_FLAG)
-  {
-      my_error(ER_EXPRESSION_REFERS_TO_UNINIT_FIELD,
-               MYF(0),
-               org_field->field_name, field->field_name);
-      return 1;
-  }
   if ((field->default_value && field->default_value->flags) || field->vcol_info)
   {
     if (field == org_field ||

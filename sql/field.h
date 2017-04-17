@@ -563,7 +563,10 @@ inline bool is_temporal_type_with_time(enum_field_types type)
 enum enum_vcol_info_type
 {
   VCOL_GENERATED_VIRTUAL, VCOL_GENERATED_STORED,
-  VCOL_DEFAULT, VCOL_CHECK_FIELD, VCOL_CHECK_TABLE
+  VCOL_DEFAULT, VCOL_CHECK_FIELD, VCOL_CHECK_TABLE,
+  /* Additional types should be added here */
+  /* Following is the highest value last   */
+  VCOL_TYPE_NONE = 127 // Since the 0 value is already in use
 };
 
 static inline const char *vcol_type_name(enum_vcol_info_type type)
@@ -578,6 +581,8 @@ static inline const char *vcol_type_name(enum_vcol_info_type type)
   case VCOL_CHECK_FIELD:
   case VCOL_CHECK_TABLE:
     return "CHECK";
+  case VCOL_TYPE_NONE:
+    return "UNTYPED";
   }
   return 0;
 }
@@ -591,7 +596,8 @@ static inline const char *vcol_type_name(enum_vcol_info_type type)
 #define VCOL_NON_DETERMINISTIC 2
 #define VCOL_SESSION_FUNC      4  /* uses session data, e.g. USER or DAYNAME */
 #define VCOL_TIME_FUNC         8
-#define VCOL_IMPOSSIBLE       16
+#define VCOL_AUTO_INC         16
+#define VCOL_IMPOSSIBLE       32
 
 #define VCOL_NOT_STRICTLY_DETERMINISTIC                       \
   (VCOL_NON_DETERMINISTIC | VCOL_TIME_FUNC | VCOL_SESSION_FUNC)
@@ -609,6 +615,7 @@ static inline const char *vcol_type_name(enum_vcol_info_type type)
 class Virtual_column_info: public Sql_alloc
 {
 private:
+  enum_vcol_info_type vcol_type; /* Virtual column expression type */
   /*
     The following data is only updated by the parser and read
     when a Create_field object is created/initialized.
@@ -626,7 +633,8 @@ public:
   uint flags;
 
   Virtual_column_info()
-  : field_type((enum enum_field_types)MYSQL_TYPE_VIRTUAL),
+  : vcol_type((enum_vcol_info_type)VCOL_TYPE_NONE),
+    field_type((enum enum_field_types)MYSQL_TYPE_VIRTUAL),
     in_partitioning_expr(FALSE), stored_in_db(FALSE),
     utf8(TRUE), expr(NULL), flags(0)
   {
@@ -634,6 +642,19 @@ public:
     name.length= 0;
   };
   ~Virtual_column_info() {}
+  enum_vcol_info_type get_vcol_type() const
+  {
+    return vcol_type;
+  }
+  void set_vcol_type(enum_vcol_info_type v_type)
+  {
+    vcol_type= v_type;
+  }
+  const char *get_vcol_type_name() const
+  {
+    DBUG_ASSERT(vcol_type != VCOL_TYPE_NONE);
+    return vcol_type_name(vcol_type);
+  }
   enum_field_types get_real_type() const
   {
     return field_type;

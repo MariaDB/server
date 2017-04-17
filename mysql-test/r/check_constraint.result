@@ -140,6 +140,8 @@ create table t1 (a int, b int, check(a>0));
 alter table t1 drop column a;
 ERROR 42S22: Unknown column 'a' in 'CHECK'
 drop table t1;
+create or replace table t1( c1 int auto_increment primary key, check( c1 > 0 or c1 is null ) );
+ERROR HY000: Function or expression 'AUTO_INCREMENT' cannot be used in the CHECK clause of `c1`
 create table t1 (a int check (@b in (select user from mysql.user)));
 ERROR HY000: Function or expression 'select ...' cannot be used in the CHECK clause of `a`
 create table t1 (a int check (a > @b));
