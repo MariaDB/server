@@ -397,7 +397,7 @@ trx_sys_update_wsrep_checkpoint(
 
 }
 
-void
+bool
 trx_sys_read_wsrep_checkpoint(XID* xid)
 /*===================================*/
 {
@@ -418,7 +418,7 @@ trx_sys_read_wsrep_checkpoint(XID* xid)
                 xid->formatID = -1;
                 trx_sys_update_wsrep_checkpoint(xid, sys_header, &mtr);
                 mtr_commit(&mtr);
-                return;
+                return false;
         }
 
         xid->formatID     = (int)mach_read_from_4(
@@ -435,6 +435,7 @@ trx_sys_read_wsrep_checkpoint(XID* xid)
                   XIDDATASIZE);
 
 	mtr_commit(&mtr);
+	return true;
 }
 
 #endif /* WITH_WSREP */
@@ -1330,14 +1331,17 @@ trx_sys_close(void)
 	trx_purge_sys_close();
 
 	/* Free the double write data structures. */
-	buf_dblwr_free();
+	if (buf_dblwr) {
+		buf_dblwr_free();
+	}
 
-	ut_a(UT_LIST_GET_LEN(trx_sys->ro_trx_list) == 0);
 
 	/* Only prepared transactions may be left in the system. Free them. */
 	ut_a(UT_LIST_GET_LEN(trx_sys->rw_trx_list) == trx_sys->n_prepared_trx
 	     || srv_read_only_mode
-	     || srv_force_recovery >= SRV_FORCE_NO_TRX_UNDO);
+	     || srv_force_recovery >= SRV_FORCE_NO_TRX_UNDO
+	     || (IS_XTRABACKUP() && srv_apply_log_only));
+
 
 	while ((trx = UT_LIST_GET_FIRST(trx_sys->rw_trx_list)) != NULL) {
 		trx_free_prepared(trx);
@@ -1368,10 +1372,12 @@ trx_sys_close(void)
 		UT_LIST_REMOVE(view_list, trx_sys->view_list, prev_view);
 	}
 
-	ut_a(UT_LIST_GET_LEN(trx_sys->view_list) == 0);
-	ut_a(UT_LIST_GET_LEN(trx_sys->ro_trx_list) == 0);
-	ut_a(UT_LIST_GET_LEN(trx_sys->rw_trx_list) == 0);
-	ut_a(UT_LIST_GET_LEN(trx_sys->mysql_trx_list) == 0);
+	if (!IS_XTRABACKUP() || !srv_apply_log_only) {
+		ut_a(UT_LIST_GET_LEN(trx_sys->view_list) == 0);
+		ut_a(UT_LIST_GET_LEN(trx_sys->ro_trx_list) == 0);
+		ut_a(UT_LIST_GET_LEN(trx_sys->rw_trx_list) == 0);
+		ut_a(UT_LIST_GET_LEN(trx_sys->mysql_trx_list) == 0);
+	}
 
 	mutex_free(&trx_sys->mutex);
 
@@ -1418,6 +1424,9 @@ ulint
 trx_sys_any_active_transactions(void)
 /*=================================*/
 {
+	if (IS_XTRABACKUP() && srv_apply_log_only) {
+		return(0);
+	}
 	mutex_enter(&trx_sys->mutex);
 
 	ulint	total_trx = UT_LIST_GET_LEN(trx_sys->mysql_trx_list);

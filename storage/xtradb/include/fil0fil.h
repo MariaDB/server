@@ -136,6 +136,7 @@ extern fil_addr_t	fil_addr_null;
 
 #define FIL_PAGE_DATA		38	/*!< start of the data on the page */
 /* Following are used when page compression is used */
+
 #define FIL_PAGE_COMPRESSED_SIZE 2      /*!< Number of bytes used to store
 					actual payload data size on
 					compressed pages. */
@@ -1042,7 +1043,7 @@ space id is != 0.
 @return	DB_SUCCESS or error number */
 UNIV_INTERN
 dberr_t
-fil_load_single_table_tablespaces(void);
+fil_load_single_table_tablespaces(ibool (*pred)(const char*, const char*)=0);
 /*===================================*/
 /*******************************************************************//**
 Returns TRUE if a single-table tablespace does not exist in the memory cache,
@@ -1081,6 +1082,9 @@ fil_space_for_table_exists_in_mem(
 					information to the .err log if a
 					matching tablespace is not found from
 					memory */
+	bool		remove_from_data_dict_if_does_not_exist,
+					/*!< in: remove from the data dictionary
+					if tablespace does not exist */
 	bool		adjust_space,	/*!< in: whether to adjust space id
 					when find table space mismatch */
 	mem_heap_t*	heap,		/*!< in: heap memory */
