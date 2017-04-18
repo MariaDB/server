@@ -3381,7 +3381,7 @@ int handler::delete_table(const char *name)
 
   for (const char **ext=bas_ext(); *ext ; ext++)
   {
-    if (my_handler_delete_with_symlink(key_file_misc, name, *ext, 0))
+    if (mysql_file_delete_with_symlink(key_file_misc, name, *ext, 0))
     {
       if (my_errno != ENOENT)
       {

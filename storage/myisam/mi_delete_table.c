@@ -28,8 +28,8 @@ int mi_delete_table(const char *name)
   check_table_is_closed(name,"delete");
 #endif
 
-  if (my_handler_delete_with_symlink(mi_key_file_kfile, name, MI_NAME_IEXT, 0) ||
-      my_handler_delete_with_symlink(mi_key_file_dfile, name, MI_NAME_DEXT, 0))
+  if (mysql_file_delete_with_symlink(mi_key_file_kfile, name, MI_NAME_IEXT, 0) ||
+      mysql_file_delete_with_symlink(mi_key_file_dfile, name, MI_NAME_DEXT, 0))
     DBUG_RETURN(my_errno);
   DBUG_RETURN(0);
 }
