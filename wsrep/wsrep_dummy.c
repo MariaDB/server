@@ -86,7 +86,8 @@ static wsrep_status_t dummy_options_set(
 static char* dummy_options_get (wsrep_t* w)
 {
     WSREP_DBUG_ENTER(w);
-    return strdup(WSREP_DUMMY(w)->options);
+    char * opt= WSREP_DUMMY(w)->options;
+    return opt ? strdup(opt) : NULL;
 }
 
 static wsrep_status_t dummy_connect(
