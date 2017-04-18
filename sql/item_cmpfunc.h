@@ -25,6 +25,7 @@
 
 #include "thr_malloc.h"                         /* sql_calloc */
 #include "item_func.h"             /* Item_int_func, Item_bool_func */
+long check_stack_available(long margin, uchar *dummy);
 #define PCRE_STATIC 1             /* Important on Windows */
 #include "pcre.h"                 /* pcre header file */
 
@@ -1576,8 +1577,13 @@ public:
     m_library_charset(&my_charset_utf8_general_ci),
     m_subpatterns_needed(0)
   {
+#ifndef EMBEDDED_LIBRARY
+   uchar dummy;
    m_pcre_extra.flags= PCRE_EXTRA_MATCH_LIMIT_RECURSION;
-   m_pcre_extra.match_limit_recursion= 100L;
+   m_pcre_extra.match_limit_recursion= check_stack_available(100, &dummy) / my_pcre_frame_size;
+#else
+   m_pcre_extra.flags= 0L;
+#endif
   }
   int default_regex_flags();
   void init(CHARSET_INFO *data_charset, int extra_flags, uint nsubpatterns)

@@ -134,6 +134,7 @@ bool check_simple_select();
 Item *normalize_cond(Item *cond);
 Item *negate_expression(THD *thd, Item *expr);
 bool check_stack_overrun(THD *thd, long margin, uchar *dummy);
+long check_stack_available(long margin, uchar *dummy);
 
 /* Variables */
 
