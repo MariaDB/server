@@ -2858,10 +2858,9 @@ public:
   bool keyread_enabled() { return keyread < MAX_KEY; }
   int ha_start_keyread(uint idx)
   {
-    if (keyread_enabled())
-      return 0;
+    int res= keyread_enabled() ? 0 : extra(HA_EXTRA_KEYREAD);
     keyread= idx;
-    return extra(HA_EXTRA_KEYREAD);
+    return res;
   }
   int ha_end_keyread()
   {
