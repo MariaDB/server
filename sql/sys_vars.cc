@@ -2493,6 +2493,14 @@ static Sys_var_ulonglong Sys_thread_stack(
        VALID_RANGE(128*1024, ULONGLONG_MAX), DEFAULT(DEFAULT_THREAD_STACK),
        BLOCK_SIZE(1024));
 
+#ifndef EMBEDDED_LIBRARY
+static Sys_var_ulonglong Sys_my_pcre_frame_size(
+       "pcre_frame_size", "Frame size for pcre_recursion",
+       GLOBAL_VAR(my_pcre_frame_size), NO_CMD_LINE,
+       VALID_RANGE(500,1024), DEFAULT(640 + 16), 1, NO_MUTEX_GUARD,
+       NOT_IN_BINLOG, ON_CHECK(0), ON_UPDATE(0));
+#endif
+
 static Sys_var_charptr Sys_tmpdir(
        "tmpdir", "Path for temporary files. Several paths may "
        "be specified, separated by a "

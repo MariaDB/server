@@ -227,6 +227,9 @@ extern void (*fatal_error_handler_hook)(uint my_err, const char *str,
 				       myf MyFlags);
 extern uint my_file_limit;
 extern ulonglong my_thread_stack_size;
+#ifndef EMBEDDED_LIBRARY
+extern ulonglong my_pcre_frame_size;
+#endif
 extern int sf_leaking_memory; /* set to 1 to disable memleak detection */
 
 extern void (*proc_info_hook)(void *, const PSI_stage_info *, PSI_stage_info *,
