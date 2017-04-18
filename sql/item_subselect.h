@@ -596,6 +596,14 @@ public:
   void set_first_execution() { if (first_execution) first_execution= FALSE; }
   bool expr_cache_is_needed(THD *thd);
   inline bool left_expr_has_null();
+  void disable_cond_guard_for_const_null_left_expr(int i)
+  {
+    if (left_expr->const_item() && !left_expr->is_expensive())
+    {
+      if (left_expr->element_index(i)->is_null())
+        set_cond_guard_var(i,FALSE);
+    }
+  }
   
   int optimize(double *out_rows, double *cost);
   /* 

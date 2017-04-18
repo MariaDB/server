@@ -878,7 +878,7 @@ void Item_subselect::update_used_tables()
   if (!forced_const)
   {
     recalc_used_tables(parent_select, FALSE);
-    if (!engine->uncacheable())
+    if (!(engine->uncacheable() & ~UNCACHEABLE_EXPLAIN))
     {
       // did all used tables become static?
       if (!(used_tables_cache & ~engine->upper_select_const_tables()))
@@ -2035,6 +2035,7 @@ Item_in_subselect::create_single_in_to_exists_cond(JOIN *join,
         We can encounter "NULL IN (SELECT ...)". Wrap the added condition
         within a trig_cond.
       */
+      disable_cond_guard_for_const_null_left_expr(0);
       item= new Item_func_trig_cond(item, get_cond_guard(0));
     }
 
@@ -2059,6 +2060,7 @@ Item_in_subselect::create_single_in_to_exists_cond(JOIN *join,
 	having= new Item_is_not_null_test(this, having);
         if (left_expr->maybe_null)
         {
+          disable_cond_guard_for_const_null_left_expr(0);
           if (!(having= new Item_func_trig_cond(having,
                                                 get_cond_guard(0))))
             DBUG_RETURN(true);
@@ -2077,6 +2079,7 @@ Item_in_subselect::create_single_in_to_exists_cond(JOIN *join,
       */
       if (!abort_on_null && left_expr->maybe_null)
       {
+        disable_cond_guard_for_const_null_left_expr(0);
         if (!(item= new Item_func_trig_cond(item, get_cond_guard(0))))
           DBUG_RETURN(true);
       }
@@ -2103,6 +2106,7 @@ Item_in_subselect::create_single_in_to_exists_cond(JOIN *join,
                                             (char *)"<result>"));
         if (!abort_on_null && left_expr->maybe_null)
         {
+          disable_cond_guard_for_const_null_left_expr(0);
           if (!(new_having= new Item_func_trig_cond(new_having,
                                                     get_cond_guard(0))))
             DBUG_RETURN(true);
@@ -2299,6 +2303,7 @@ Item_in_subselect::create_row_in_to_exists_cond(JOIN * join,
       Item *col_item= new Item_cond_or(item_eq, item_isnull);
       if (!abort_on_null && left_expr->element_index(i)->maybe_null)
       {
+        disable_cond_guard_for_const_null_left_expr(i);
         if (!(col_item= new Item_func_trig_cond(col_item, get_cond_guard(i))))
           DBUG_RETURN(true);
       }
@@ -2313,6 +2318,7 @@ Item_in_subselect::create_row_in_to_exists_cond(JOIN * join,
                                                 (char *)"<list ref>"));
       if (!abort_on_null && left_expr->element_index(i)->maybe_null)
       {
+        disable_cond_guard_for_const_null_left_expr(i);
         if (!(item_nnull_test= 
               new Item_func_trig_cond(item_nnull_test, get_cond_guard(i))))
           DBUG_RETURN(true);
@@ -2373,6 +2379,7 @@ Item_in_subselect::create_row_in_to_exists_cond(JOIN * join,
         */
         if (left_expr->element_index(i)->maybe_null)
         {
+          disable_cond_guard_for_const_null_left_expr(i);
           if (!(item= new Item_func_trig_cond(item, get_cond_guard(i))))
             DBUG_RETURN(true);
           if (!(having_col_item= 

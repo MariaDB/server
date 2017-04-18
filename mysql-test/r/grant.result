@@ -1701,6 +1701,7 @@ Assigning privileges without procs_priv table.
 CREATE DATABASE mysqltest1;
 CREATE PROCEDURE mysqltest1.test() SQL SECURITY DEFINER
 SELECT 1;
+CREATE FUNCTION mysqltest1.test() RETURNS INT RETURN 1;
 GRANT EXECUTE ON FUNCTION mysqltest1.test TO mysqltest_1@localhost;
 ERROR 42S02: Table 'mysql.procs_priv' doesn't exist
 GRANT ALL PRIVILEGES ON test.* TO mysqltest_1@localhost;
@@ -2537,3 +2538,51 @@ DROP USER mysqltest_u1@localhost;
 
 # End of Bug#38347.
 
+#
+# BUG#11759114 - '51401: GRANT TREATS NONEXISTENT FUNCTIONS/PRIVILEGES
+#                 DIFFERENTLY'.
+#
+drop database if exists mysqltest_db1;
+create database mysqltest_db1;
+create user mysqltest_u1;
+# Both GRANT statements below should fail with the same error.
+grant execute on function mysqltest_db1.f1 to mysqltest_u1;
+ERROR 42000: FUNCTION or PROCEDURE f1 does not exist
+grant execute on procedure mysqltest_db1.p1 to mysqltest_u1;
+ERROR 42000: FUNCTION or PROCEDURE p1 does not exist
+# Let us show that GRANT behaviour for routines is consistent
+# with GRANT behaviour for tables. Attempt to grant privilege
+# on non-existent table also results in an error.
+grant select on mysqltest_db1.t1 to mysqltest_u1;
+ERROR 42S02: Table 'mysqltest_db1.t1' doesn't exist
+show grants for mysqltest_u1;
+Grants for mysqltest_u1@%
+GRANT USAGE ON *.* TO 'mysqltest_u1'@'%'
+drop database mysqltest_db1;
+drop user mysqltest_u1;
+#
+# Bug#12766319 - 61865: RENAME USER DOES NOT WORK CORRECTLY -
+#                       REQUIRES FLUSH PRIVILEGES
+#
+CREATE USER foo@'127.0.0.1';
+GRANT ALL ON *.* TO foo@'127.0.0.1';
+# First attempt, should connect successfully
+SELECT user(), current_user();
+user()	current_user()
+foo@localhost	foo@127.0.0.1
+# Rename the user
+RENAME USER foo@'127.0.0.1' to foo@'127.0.0.0/255.0.0.0';
+# Second attempt, should connect successfully as its valid mask
+# This was failing without fix
+SELECT user(), current_user();
+user()	current_user()
+foo@localhost	foo@127.0.0.0/255.0.0.0
+# Rename the user back to original
+RENAME USER foo@'127.0.0.0/255.0.0.0' to foo@'127.0.0.1';
+# Third attempt, should connect successfully
+SELECT user(), current_user();
+user()	current_user()
+foo@localhost	foo@127.0.0.1
+# Clean-up
+DROP USER foo@'127.0.0.1';
+# End of Bug#12766319

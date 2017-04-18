@@ -1083,9 +1083,9 @@ static bool find_db_tables_and_rm_known_files(THD *thd, MY_DIR *dirp,
       strxmov(filePath, path, "/", file->name, NullS);
       /*
         We ignore ENOENT error in order to skip files that was deleted
-        by concurrently running statement like REAPIR TABLE ...
+        by concurrently running statement like REPAIR TABLE ...
       */
-      if (my_delete_with_symlink(filePath, MYF(0)) &&
+      if (my_handler_delete_with_symlink(key_file_misc, filePath, "", MYF(0)) &&
           my_errno != ENOENT)
       {
         my_error(EE_DELETE, MYF(0), filePath, my_errno);
@@ -1206,7 +1206,7 @@ long mysql_rm_arc_files(THD *thd, MY_DIR *dirp, const char *org_path)
       continue;
     }
     strxmov(filePath, org_path, "/", file->name, NullS);
-    if (mysql_file_delete_with_symlink(key_file_misc, filePath, MYF(MY_WME)))
+    if (my_handler_delete_with_symlink(key_file_misc, filePath, "", MYF(MY_WME)))
     {
       goto err;
     }

@@ -3191,13 +3191,10 @@ sub mysql_server_start($) {
     if (! $opt_start_dirty)	# If dirty, keep possibly grown system db
     {
       # Copy datadir from installed system db
-      for my $path ( "$opt_vardir", "$opt_vardir/..") {
-        my $install_db= "$path/install.db";
-        copytree($install_db, $datadir)
-          if -d $install_db;
-      }
-      mtr_error("Failed to copy system db to '$datadir'")
-        unless -d $datadir;
+      my $path= ($opt_parallel == 1) ? "$opt_vardir" : "$opt_vardir/..";
+      my $install_db= "$path/install.db";
+      copytree($install_db, $datadir) if -d $install_db;
+      mtr_error("Failed to copy system db to '$datadir'") unless -d $datadir;
     }
   }
   else
@@ -6197,6 +6194,15 @@ sub valgrind_arguments {
     mtr_add_arg($args, "--num-callers=16");
     mtr_add_arg($args, "--suppressions=%s/valgrind.supp", $glob_mysql_test_dir)
       if -f "$glob_mysql_test_dir/valgrind.supp";
+    my $temp= `ldd $ENV{MTR_BINDIR}/sql/mysqld | grep 'libjemalloc'`;
+    if ($temp)
+    {
+      mtr_add_arg($args, "--soname-synonyms=somalloc=libjemalloc*");
+    }
+    else
+    {
+      mtr_add_arg($args, "--soname-synonyms=somalloc=NONE");
+    }
   }
 
   # Add valgrind options, can be overriden by user

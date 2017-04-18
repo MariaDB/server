@@ -1,5 +1,5 @@
 # Copyright (c) 2005, 2015, Oracle and/or its affiliates.
-# Copyright (c) 2008, 2016, MariaDB
+# Copyright (c) 2008, 2017, MariaDB
 #
 # This program is free software; you can redistribute it and/or
 # modify it under the terms of the GNU Library General Public
@@ -525,6 +525,15 @@
    fun:dl_open_worker
 }
 
+{
+   libc pthread_exit 9
+   Memcheck:Leak
+   fun:malloc
+   fun:_dl_close_worker
+   fun:_dl_close
+   fun:_dl_catch_error
+}
+
 #
 # This is seen internally in the system libraries on 64-bit RHAS3.
 #
@@ -923,6 +932,14 @@
    fun:backtrace
 }
 
+{
+   memory leak in mysqld_exit
+   Memcheck:Leak
+   fun:malloc
+   fun:_dl_close_worker
+   fun:_dl_close
+}
+
 #
 # Bug in Glibc 2.9: http://sourceware.org/bugzilla/show_bug.cgi?id=10391
 # Fixed in latest Glibc, but suppressed here for running tests on hosts
@@ -1065,4 +1082,14 @@
    match-leak-kinds:possible
    ...
    fun:pthread_create*
+}
+
+{
+   Memory Leak in loader and valgrind malloc
+   Memcheck:Leak
+   match-leak-kinds:reachable
+   obj:*/vgpreload_memcheck*.so
+   ...
+   obj:*/ld-*.so
+   ...
 }

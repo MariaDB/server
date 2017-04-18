@@ -4883,7 +4883,7 @@ WARN_DATA_TRUNCATED 01000
         spa "Datos truncados para columna '%s' en la línea %lu"
 ER_WARN_USING_OTHER_HANDLER  
         eng "Using storage engine %s for table '%s'"
-        ger "Für Tabelle '%s' wird Speicher-Engine %s benutzt"
+        ger "Speicher-Engine %s wird für Tabelle '%s' benutzt"
         por "Usando engine de armazenamento %s para tabela '%s'"
         spa "Usando motor de almacenamiento %s para tabla '%s'"
         swe "Använder handler %s för tabell '%s'"

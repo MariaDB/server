@@ -34,7 +34,6 @@ eval SET @restore_slave_heartbeat_timeout=$slave_heartbeat_timeout;
 --connection master
 RESET MASTER;
 SET @restore_slave_net_timeout=@@global.slave_net_timeout;
-SET @restore_event_scheduler=@@global.event_scheduler;
 --echo
 
 #
@@ -352,20 +351,53 @@ eval CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_PORT=$MASTER_MYPORT, MASTE
 --connection master
 # Enable scheduler
 SET @@global.event_scheduler=1;
+
 --sync_slave_with_master
 let $rcvd_heartbeats_before= query_get_value(SHOW STATUS LIKE 'slave_received_heartbeats', Value, 1);
-# Wait some updates for table t1 from master
-let $wait_condition= SELECT COUNT(*)=1 FROM t1 WHERE a > 5;
---source include/wait_condition.inc
+
+--connection master
+
+# Whether or not to send a heartbeat is decided on the master, based on
+# whether the binlog was updated during the period or not.
+# Even with the 1-second event, we cannot make the master to write binary
+# logs (or execute SQL) in a timely manner. We can only check that they
+# were executed in a timely manner, and if they were not, neutralize the
+# heartbeat check on the slave.
+# We will wait for 5 events, and keep checking 'Binlog_commits' on master.
+# Time interval between consequent events will be measured.
+# We can only expect that no heartbeats have been sent if the interval
+# between events never exceeded MASTER_HEARTBEAT_PERIOD.
+# If it has exceeded the value at least once, the slave can legitimately
+# receive a heartbeat (but we cannot require it, because the delay
+# could have occurred somewhere else, e.g. upon checking the status).
+# So, if the delay is detected, we will signal slave to ignore possible
+# heartbeats.
+
+let $possible_heartbeats= 0;
+let $commits_to_wait= 5;
+while ($commits_to_wait)
+{
+  let $tm= `SELECT UNIX_TIMESTAMP(NOW(3))`;
+  let $binlog_commits= query_get_value(SHOW STATUS LIKE 'Binlog_commits', Value, 1);
+  let $wait_condition= SELECT VARIABLE_VALUE > $binlog_commits FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME= 'BINLOG_COMMITS';
+  --source include/wait_condition.inc
+  dec $commits_to_wait;
+  if (`SELECT UNIX_TIMESTAMP(NOW(3)) > $tm + 5`)
+  {
+    let $possible_heartbeats= 1;
+    let $commits_to_wait= 0;
+  }
+}
+
+--connection slave
 let $rcvd_heartbeats_after= query_get_value(SHOW STATUS LIKE 'slave_received_heartbeats', Value, 1);
-let $result= query_get_value(SELECT ($rcvd_heartbeats_after - $rcvd_heartbeats_before) > 0 AS Result, Result, 1);
---echo Number of received heartbeat events: $result
+let $result= `SELECT CASE WHEN $possible_heartbeats THEN 'TRUE' WHEN $rcvd_heartbeats_after - $rcvd_heartbeats_before > 0 THEN 'FALSE' ELSE 'TRUE' END`;
+--echo Received heartbeats meet expectations: $result
 --connection master
 DELETE FROM t1;
 DROP EVENT e1;
 --sync_slave_with_master
 --echo
-
 
 # Check received heartbeat events while logs flushed on slave
 --echo *** Flush logs on slave ***

@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1997, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -72,7 +73,7 @@ this must be less than UNIV_PAGE_SIZE as it is stored in the buffer pool */
 #define RECV_READ_AHEAD_AREA	32
 
 /** The recovery system */
-UNIV_INTERN recv_sys_t*	recv_sys = NULL;
+UNIV_INTERN recv_sys_t*	recv_sys;
 /** TRUE when applying redo log records during crash recovery; FALSE
 otherwise.  Note that this is FALSE while a background thread is
 rolling back incomplete transactions. */
@@ -128,9 +129,6 @@ UNIV_INTERN ibool	recv_is_making_a_backup	= FALSE;
 UNIV_INTERN ibool	recv_is_from_backup	= FALSE;
 # define buf_pool_get_curr_size() (5 * 1024 * 1024)
 #endif /* !UNIV_HOTBACKUP */
-/** The following counter is used to decide when to print info on
-log scan */
-static ulint	recv_scan_print_counter;
 
 /** The type of the previous parsed redo log record */
 static ulint	recv_previous_parsed_rec_type;
@@ -285,8 +283,6 @@ recv_sys_var_init(void)
 
 	recv_no_ibuf_operations = FALSE;
 
-	recv_scan_print_counter	= 0;
-
 	recv_previous_parsed_rec_type	= 999999;
 
 	recv_previous_parsed_rec_offset	= 0;
@@ -357,6 +353,7 @@ recv_sys_init(
 	recv_sys->last_block = ut_align(recv_sys->last_block_buf_start,
 					OS_FILE_LOG_BLOCK_SIZE);
 	recv_sys->found_corrupt_log = FALSE;
+	recv_sys->progress_time = ut_time();
 
 	recv_max_page_lsn = 0;
 
@@ -1557,6 +1554,7 @@ recv_recover_page_func(
 	ibool		success;
 #endif /* !UNIV_HOTBACKUP */
 	mtr_t		mtr;
+	ib_time_t	time;
 
 	mutex_enter(&(recv_sys->mutex));
 
@@ -1769,6 +1767,8 @@ recv_recover_page_func(
 
 	mtr_commit(&mtr);
 
+	time = ut_time();
+
 	mutex_enter(&(recv_sys->mutex));
 
 	if (recv_max_page_lsn < page_lsn) {
@@ -1777,11 +1777,16 @@ recv_recover_page_func(
 
 	recv_addr->state = RECV_PROCESSED;
 
-	ut_a(recv_sys->n_addrs);
-	recv_sys->n_addrs--;
+	ut_a(recv_sys->n_addrs > 0);
+	if (--recv_sys->n_addrs && recv_sys->progress_time - time >= 15) {
+		recv_sys->progress_time = time;
+		ut_print_timestamp(stderr);
+		fprintf(stderr,
+			"  InnoDB: To recover: " ULINTPF " pages from log\n",
+			recv_sys->n_addrs);
+	}
 
-	mutex_exit(&(recv_sys->mutex));
-
+	mutex_exit(&recv_sys->mutex);
 }
 
 #ifndef UNIV_HOTBACKUP
@@ -1834,9 +1839,6 @@ recv_read_in_area(
 	}
 
 	buf_read_recv_pages(FALSE, space, zip_size, page_nos, n);
-	/*
-	fprintf(stderr, "Recv pages at %lu n %lu\n", page_nos[0], n);
-	*/
 	return(n);
 }
 
@@ -1860,7 +1862,6 @@ recv_apply_hashed_log_recs(
 	recv_addr_t* recv_addr;
 	ulint	i;
 	ulint	n_pages;
-	ibool	has_printed	= FALSE;
 	mtr_t	mtr;
 loop:
 	mutex_enter(&(recv_sys->mutex));
@@ -1880,6 +1881,20 @@ loop:
 		recv_no_ibuf_operations = TRUE;
 	}
 
+	if (recv_sys->n_addrs) {
+		ut_print_timestamp(stderr);
+		fprintf(stderr,
+			"  InnoDB: %s" ULINTPF " pages from redo log\n",
+			allow_ibuf
+			? "Starting final batch to recover "
+			: "Starting a batch to recover ",
+			recv_sys->n_addrs);
+
+		if (srv_recovery_stats) {
+			recv_sys->stats_recv_turns++;
+		}
+	}
+
 	recv_sys->apply_log_recs = TRUE;
 	recv_sys->apply_batch_on = TRUE;
 
@@ -1893,16 +1908,6 @@ loop:
 			ulint	page_no = recv_addr->page_no;
 
 			if (recv_addr->state == RECV_NOT_PROCESSED) {
-				if (!has_printed) {
-					ut_print_timestamp(stderr);
-					fputs("  InnoDB: Starting an"
-					      " apply batch of log records"
-					      " to the database...\n"
-					      "InnoDB: Progress in percents: ",
-					      stderr);
-					has_printed = TRUE;
-				}
-
 				mutex_exit(&(recv_sys->mutex));
 
 				if (buf_page_peek(space, page_no)) {
@@ -1928,16 +1933,6 @@ loop:
 
 			recv_addr = HASH_GET_NEXT(addr_hash, recv_addr);
 		}
-
-		if (has_printed
-		    && (i * 100) / hash_get_n_cells(recv_sys->addr_hash)
-		    != ((i + 1) * 100)
-		    / hash_get_n_cells(recv_sys->addr_hash)) {
-
-			fprintf(stderr, "%lu ", (ulong)
-				((i * 100)
-				 / hash_get_n_cells(recv_sys->addr_hash)));
-		}
 	}
 
 	/* Wait until all the pages have been processed */
@@ -1949,11 +1944,6 @@ loop:
 		os_thread_sleep(500000);
 
 		mutex_enter(&(recv_sys->mutex));
-	}
-
-	if (has_printed) {
-
-		fprintf(stderr, "\n");
 	}
 
 	if (!allow_ibuf) {
@@ -1983,14 +1973,6 @@ loop:
 
 	recv_sys_empty_hash();
 
-	if (has_printed) {
-		fprintf(stderr, "InnoDB: Apply batch completed\n");
-
-		if (srv_recovery_stats) {
-			recv_sys->stats_recv_turns++;
-		}
-	}
-
 	mutex_exit(&(recv_sys->mutex));
 }
 #else /* !UNIV_HOTBACKUP */
@@ -2013,10 +1995,6 @@ recv_apply_log_recs_for_backup(void)
 	recv_sys->apply_batch_on = TRUE;
 
 	block = back_block1;
-
-	fputs("InnoDB: Starting an apply batch of log records"
-	      " to the database...\n"
-	      "InnoDB: Progress in percents: ", stderr);
 
 	n_hash_cells = hash_get_n_cells(recv_sys->addr_hash);
 
@@ -2808,10 +2786,10 @@ recv_scan_log_recs(
 #ifndef UNIV_HOTBACKUP
 			if (recv_log_scan_is_startup_type
 			    && !recv_needed_recovery) {
-
+				ut_print_timestamp(stderr);
 				fprintf(stderr,
-					"InnoDB: Log scan progressed"
-					" past the checkpoint lsn %llu\n",
+					"  InnoDB: Starting crash recovery"
+					" from checkpoint LSN=%llu\n",
 					recv_sys->scanned_lsn);
 				recv_init_crash_recovery();
 			}
@@ -2861,19 +2839,6 @@ recv_scan_log_recs(
 	} while (log_block < buf + len && !finished);
 
 	*group_scanned_lsn = scanned_lsn;
-
-	if (recv_needed_recovery
-	    || (recv_is_from_backup && !recv_is_making_a_backup)) {
-		recv_scan_print_counter++;
-
-		if (finished || (recv_scan_print_counter % 80 == 0)) {
-
-			fprintf(stderr,
-				"InnoDB: Doing recovery: scanned up to"
-				" log sequence number %llu\n",
-				*group_scanned_lsn);
-		}
-	}
 
 	if (more_data && !recv_sys->found_corrupt_log) {
 		/* Try to parse more log records */
@@ -2965,17 +2930,6 @@ recv_init_crash_recovery(void)
 
 	recv_needed_recovery = TRUE;
 
-	ut_print_timestamp(stderr);
-
-	fprintf(stderr,
-		"  InnoDB: Database was not"
-		" shut down normally!\n"
-		"InnoDB: Starting crash recovery.\n");
-
-	fprintf(stderr,
-		"InnoDB: Reading tablespace information"
-		" from the .ibd files...\n");
-
 	fil_load_single_table_tablespaces();
 
 	/* If we are using the doublewrite method, we will
@@ -2988,8 +2942,7 @@ recv_init_crash_recovery(void)
 		fprintf(stderr,
 			"InnoDB: Restoring possible"
 			" half-written data pages from"
-			" the doublewrite\n"
-			"InnoDB: buffer...\n");
+			" the doublewrite buffer...\n");
 		trx_sys_doublewrite_init_or_restore_pages(TRUE);
 	}
 }

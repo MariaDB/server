@@ -273,7 +273,7 @@ EXPLAIN SELECT 1 FROM t1 WHERE NOT EXISTS
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	1	Using where
 2	DEPENDENT SUBQUERY	t2	eq_ref	PRIMARY,d	d	2	func	1	Using where
-3	DEPENDENT SUBQUERY	t2	index	NULL	d	2	NULL	1	Using where; Using index
+3	DEPENDENT SUBQUERY	t2	index	NULL	d	2	NULL	1	Using index
 DROP TABLE t2;
 CREATE TABLE t2 (b INT, c INT, UNIQUE KEY (b), UNIQUE KEY (b, c )) ENGINE=INNODB;
 INSERT INTO t2 VALUES (1, 1);
@@ -454,3 +454,18 @@ HAVING SQ2_alias1 . col_int_key >= 7
 1
 drop table t1;
 set optimizer_switch=@subselect_innodb_tmp;
+#
+# MDEV-9635:Server crashes in part_of_refkey  or assertion
+# `!created && key_to_save < (int)s->keys' failed in
+# TABLE::use_index(int) or with join_cache_level>2
+#
+SET join_cache_level=3;
+CREATE TABLE t1 (f1 VARCHAR(1024)) ENGINE=InnoDB;
+CREATE ALGORITHM=TEMPTABLE VIEW v1 AS SELECT * FROM t1;
+CREATE TABLE t2 (f2 VARCHAR(4)) ENGINE=InnoDB;
+INSERT INTO t2 VALUES ('foo'),('bar');
+SELECT * FROM v1, t2 WHERE ( f1, f2 ) IN ( SELECT f1, f1 FROM t1 );
+f1	f2
+set join_cache_level = default;
+drop view v1;
+drop table t1,t2;

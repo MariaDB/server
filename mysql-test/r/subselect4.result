@@ -19,7 +19,7 @@ SELECT 1 FROM t1
 WHERE NOT EXISTS (SELECT 1 FROM t2 WHERE 1 = (SELECT MIN(t2.b) FROM t3))
 ORDER BY count(*);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	index	NULL	a	5	NULL	2	Using where; Using index; Using temporary
+1	PRIMARY	t1	index	NULL	a	5	NULL	2	Using index; Using temporary
 2	DEPENDENT SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	2	Using where
 3	DEPENDENT SUBQUERY	t3	system	NULL	NULL	NULL	NULL	0	const row not found
 # should not crash the next statement
@@ -1418,7 +1418,7 @@ GROUP BY f9;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
 3	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
-2	DEPENDENT SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	2	Using where
+2	DEPENDENT SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	2	
 SELECT COUNT(t2.f3),
 (SELECT COUNT(f3) FROM t1 WHERE t2.f1) AS f9
 FROM t2 JOIN t1 ON t1.f3
@@ -1434,7 +1434,7 @@ ORDER BY f9;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
 3	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
-2	DEPENDENT SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	2	Using where
+2	DEPENDENT SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	2	
 SELECT COUNT(t2.f3),
 (SELECT COUNT(f3) FROM t1 WHERE t2.f1) AS f9
 FROM t2 JOIN t1 ON t1.f3
@@ -2444,10 +2444,59 @@ WHERE EXISTS (
 )";
 EXECUTE stmt;
 i
+4
 6
 EXECUTE stmt;
 i
+4
 6
 drop table t1, t2, t3;
+#
+# MDEV-11078: NULL NOT IN (non-empty subquery) should never return results
+#
+create table t1(a int,b int);
+create table t2(a int,b int);
+insert into t1 value (1,2);
+select (NULL)  in (select 1 from t1);
+(NULL)  in (select 1 from t1)
+NULL
+select (null)  in (select 1 from t2);
+(null)  in (select 1 from t2)
+0
+select 1 in (select 1 from t1);
+1 in (select 1 from t1)
+1
+select 1 in (select 1 from t2);
+1 in (select 1 from t2)
+0
+select 1 from dual where null in (select 1 from t1);
+1
+select 1 from dual where null in (select 1 from t2);
+1
+select (null,null) in (select * from t1);
+(null,null) in (select * from t1)
+NULL
+select (null,null) in (select * from t2);
+(null,null) in (select * from t2)
+0
+select 1 from dual where null not in (select 1 from t1);
+1
+select 1 from dual where null not in (select 1 from t2);
+1
+1
+drop table t1,t2;
+#
+# MDEV-6486: Assertion `!table || (!table->read_set || bitmap_is_set(table->read_set, field_index))'
+# failed with SELECT SQ, TEXT field
+#
+CREATE TABLE t1 (a VARCHAR(8), KEY(a)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES ('foo'),( 'bar');
+CREATE TABLE t2 (b VARCHAR(8), c TINYTEXT, KEY(b)) ENGINE=MyISAM;
+INSERT INTO t2 VALUES ('baz','baz'),('qux', 'qux');
+SELECT ( SELECT COUNT(*) FROM t1 WHERE a = c ) AS field, COUNT(DISTINCT c)
+FROM t2 WHERE b <= 'quux' GROUP BY field;
+field	COUNT(DISTINCT c)
+0	1
+drop table t1,t2;
 SET optimizer_switch= @@global.optimizer_switch;
 set @@tmp_table_size= @@global.tmp_table_size;

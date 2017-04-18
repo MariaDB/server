@@ -3694,6 +3694,11 @@ public:
   virtual double val_real() = 0;
   virtual longlong val_int() = 0;
   virtual int save_in_field(Field *field, bool no_conversions) = 0;
+  bool walk(Item_processor processor, bool walk_subquery, uchar *args)
+  {
+    return (item->walk(processor, walk_subquery, args)) ||
+      (this->*processor)(args);
+  }
 };
 
 /**

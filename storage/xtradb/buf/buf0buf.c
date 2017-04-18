@@ -2,6 +2,7 @@
 
 Copyright (c) 1995, 2015, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, Google Inc.
+Copyright (c) 2014, 2017, MariaDB Corporation. All Rights Reserved.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -3348,15 +3349,6 @@ buf_page_init(
 
 	/* Set the state of the block */
 	buf_block_set_file_page(block, space, offset);
-
-#ifdef UNIV_DEBUG_VALGRIND
-	if (!space) {
-		/* Silence valid Valgrind warnings about uninitialized
-		data being written to data files.  There are some unused
-		bytes on some pages that InnoDB does not initialize. */
-		UNIV_MEM_VALID(block->frame, UNIV_PAGE_SIZE);
-	}
-#endif /* UNIV_DEBUG_VALGRIND */
 
 	buf_block_init_low(block);
 

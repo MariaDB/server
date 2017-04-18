@@ -93,7 +93,7 @@ MI_INFO *mi_open(const char *name, int mode, uint open_flags)
   realpath_err= my_realpath(name_buff,
                             fn_format(org_name,name,"",MI_NAME_IEXT,4),MYF(0));
   if (my_is_symlink(org_name) &&
-      (realpath_err || (*myisam_test_invalid_symlink)(name_buff)))
+      (realpath_err || mysys_test_invalid_symlink(name_buff)))
   {
     my_errno= HA_WRONG_CREATE_OPTION;
     DBUG_RETURN (NULL);
@@ -114,15 +114,17 @@ MI_INFO *mi_open(const char *name, int mode, uint open_flags)
                       my_errno= HA_ERR_CRASHED;
                       goto err;
                     });
-    if ((kfile= mysql_file_open(mi_key_file_kfile,
-                                name_buff,
-                                (open_mode= O_RDWR) | O_SHARE, MYF(0))) < 0)
+
+    DEBUG_SYNC_C("mi_open_kfile");
+    if ((kfile= mysql_file_open(mi_key_file_kfile, name_buff,
+                                (open_mode= O_RDWR) | O_SHARE | O_NOFOLLOW,
+                                MYF(MY_NOSYMLINKS))) < 0)
     {
       if ((errno != EROFS && errno != EACCES) ||
 	  mode != O_RDONLY ||
-          (kfile= mysql_file_open(mi_key_file_kfile,
-                                  name_buff,
-                                  (open_mode= O_RDONLY) | O_SHARE, MYF(0))) < 0)
+          (kfile= mysql_file_open(mi_key_file_kfile, name_buff,
+                                  (open_mode= O_RDONLY) | O_SHARE| O_NOFOLLOW,
+                                  MYF(MY_NOSYMLINKS))) < 0)
 	goto err;
     }
     share->mode=open_mode;
@@ -166,7 +168,18 @@ MI_INFO *mi_open(const char *name, int mode, uint open_flags)
       (void) strmov(index_name, org_name);
     *strrchr(org_name, '.')= '\0';
     (void) fn_format(data_name,org_name,"",MI_NAME_DEXT,
-                     MY_APPEND_EXT|MY_UNPACK_FILENAME|MY_RESOLVE_SYMLINKS);
+                     MY_APPEND_EXT|MY_UNPACK_FILENAME);
+    if (my_is_symlink(data_name))
+    {
+      if (my_realpath(data_name, data_name, MYF(0)))
+        goto err;
+      if (mysys_test_invalid_symlink(data_name))
+      {
+        my_errno= HA_WRONG_CREATE_OPTION;
+        goto err;
+      }
+      share->mode|= O_NOFOLLOW; /* all symlinks are resolved by realpath() */
+    }
 
     info_length=mi_uint2korr(share->state.header.header_length);
     base_pos=mi_uint2korr(share->state.header.base_pos);
@@ -480,7 +493,7 @@ MI_INFO *mi_open(const char *name, int mode, uint open_flags)
       lock_error=1;			/* Database unlocked */
     }
 
-    if (mi_open_datafile(&info, share, name, -1))
+    if (mi_open_datafile(&info, share))
       goto err;
     errpos=5;
 
@@ -561,7 +574,7 @@ MI_INFO *mi_open(const char *name, int mode, uint open_flags)
       my_errno=EACCES;				/* Can't open in write mode */
       goto err;
     }
-    if (mi_open_datafile(&info, share, name, old_info->dfile))
+    if (mi_open_datafile(&info, share))
       goto err;
     errpos=5;
     have_rtree= old_info->rtree_recursion_state != NULL;
@@ -1229,33 +1242,14 @@ uchar *mi_recinfo_read(uchar *ptr, MI_COLUMNDEF *recinfo)
 Open data file.
 We can't use dup() here as the data file descriptors need to have different
 active seek-positions.
-
-The argument file_to_dup is here for the future if there would on some OS
-exist a dup()-like call that would give us two different file descriptors.
 *************************************************************************/
 
-int mi_open_datafile(MI_INFO *info, MYISAM_SHARE *share, const char *org_name,
-                     File file_to_dup __attribute__((unused)))
+int mi_open_datafile(MI_INFO *info, MYISAM_SHARE *share)
 {
-  char *data_name= share->data_file_name;
-  char real_data_name[FN_REFLEN];
-
-  if (org_name)
-  {
-    fn_format(real_data_name,org_name,"",MI_NAME_DEXT,4);
-    if (my_is_symlink(real_data_name))
-    {
-      if (my_realpath(real_data_name, real_data_name, MYF(0)) ||
-          (*myisam_test_invalid_symlink)(real_data_name))
-      {
-        my_errno= HA_WRONG_CREATE_OPTION;
-        return 1;
-      }
-      data_name= real_data_name;
-    }
-  }
-  info->dfile= mysql_file_open(mi_key_file_dfile,
-                               data_name, share->mode | O_SHARE, MYF(MY_WME));
+  myf flags= MY_WME | (share->mode & O_NOFOLLOW ? MY_NOSYMLINKS: 0);
+  DEBUG_SYNC_C("mi_open_datafile");
+  info->dfile= mysql_file_open(mi_key_file_dfile, share->data_file_name,
+                               share->mode | O_SHARE, MYF(flags));
   return info->dfile >= 0 ? 0 : 1;
 }
 
@@ -1264,8 +1258,8 @@ int mi_open_keyfile(MYISAM_SHARE *share)
 {
   if ((share->kfile= mysql_file_open(mi_key_file_kfile,
                                      share->unique_file_name,
-                                     share->mode | O_SHARE,
-                                     MYF(MY_WME))) < 0)
+                                     share->mode | O_SHARE | O_NOFOLLOW,
+                                     MYF(MY_NOSYMLINKS | MY_WME))) < 0)
     return 1;
   return 0;
 }

@@ -1,6 +1,6 @@
 /*
-   Copyright (c) 2000, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2013, Monty Program Ab.
+   Copyright (c) 2000, 2017, Oracle and/or its affiliates.
+   Copyright (c) 2009, 2017, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -3449,6 +3449,7 @@ String *Item_func_quote::val_str(String *str)
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
   };
 
+  ulong max_allowed_packet= current_thd->variables.max_allowed_packet;
   char *from, *to, *end, *start;
   String *arg= args[0]->val_str(str);
   uint arg_length, new_length;
@@ -3467,11 +3468,14 @@ String *Item_func_quote::val_str(String *str)
     new_length= arg_length + 2; /* for beginning and ending ' signs */
     for (from= (char*) arg->ptr(), end= from + arg_length; from < end; from++)
       new_length+= get_esc_bit(escmask, (uchar) *from);
+    if (new_length > max_allowed_packet)
+      goto toolong;
   }
   else
   {
     new_length= (arg_length * 2) +  /* For string characters */
                 (2 * collation.collation->mbmaxlen); /* For quotes */
+    set_if_smaller(new_length, max_allowed_packet);
   }
 
   if (tmp_value.alloc(new_length))
@@ -3487,7 +3491,7 @@ String *Item_func_quote::val_str(String *str)
 
     /* Put leading quote */
     if ((mblen= cs->cset->wc_mb(cs, '\'', (uchar *) to, to_end)) <= 0)
-      goto null;
+      goto toolong;
     to+= mblen;
 
     for (start= (char*) arg->ptr(), end= start + arg_length; start < end; )
@@ -3507,17 +3511,17 @@ String *Item_func_quote::val_str(String *str)
       if (escape)
       {
         if ((mblen= cs->cset->wc_mb(cs, '\\', (uchar*) to, to_end)) <= 0)
-          goto null;
+          goto toolong;
         to+= mblen;
       }
       if ((mblen= cs->cset->wc_mb(cs, wc, (uchar*) to, to_end)) <= 0)
-        goto null;
+        goto toolong;
       to+= mblen;
     }
 
     /* Put trailing quote */
     if ((mblen= cs->cset->wc_mb(cs, '\'', (uchar *) to, to_end)) <= 0)
-      goto null;
+      goto toolong;
     to+= mblen;
     new_length= to - tmp_value.ptr();
     goto ret;
@@ -3561,6 +3565,11 @@ ret:
   null_value= 0;
   return &tmp_value;
 
+toolong:
+  push_warning_printf(current_thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+                      ER_WARN_ALLOWED_PACKET_OVERFLOWED,
+                      ER_THD(current_thd, ER_WARN_ALLOWED_PACKET_OVERFLOWED),
+                      func_name(), max_allowed_packet);
 null:
   null_value= 1;
   return 0;

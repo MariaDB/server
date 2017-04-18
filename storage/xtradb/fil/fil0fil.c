@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2013, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2014, 2017, MariaDB Corporation. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -4934,9 +4935,9 @@ fil_extend_space_to_desired_size(
 	ulint		page_size;
 	ibool		success		= TRUE;
 
-	/* file_extend_mutex is for http://bugs.mysql.com/56433 */
-	/* to protect from the other fil_extend_space_to_desired_size() */
-	/* during temprary releasing &fil_system->mutex */
+	/* fil_system->file_extend_mutex is for http://bugs.mysql.com/56433
+	to prevent concurrent fil_extend_space_to_desired_size()
+	while fil_system->mutex is temporarily released */
 	mutex_enter(&fil_system->file_extend_mutex);
 	fil_mutex_enter_and_prepare_for_io(space_id);
 
@@ -4966,26 +4967,31 @@ fil_extend_space_to_desired_size(
 	start_page_no = space->size;
 	file_start_page_no = space->size - node->size;
 
+	mutex_exit(&fil_system->mutex);
+
 #ifdef HAVE_POSIX_FALLOCATE
 	if (srv_use_posix_fallocate) {
-
 		ib_int64_t	start_offset
-			= file_start_page_no * page_size;
-		ib_int64_t	end_offset
-			= (size_after_extend - file_start_page_no) * page_size;
+			= (start_page_no - file_start_page_no) * page_size;
+		ib_int64_t	len
+			= (size_after_extend - start_page_no) * page_size;
+		int err;
+		do {
+			err = posix_fallocate(node->handle, start_offset, len);
+		} while (err == EINTR
+			 && srv_shutdown_state == SRV_SHUTDOWN_NONE);
 
-		mutex_exit(&fil_system->mutex);
-		success = (posix_fallocate(node->handle, start_offset,
-					   end_offset) == 0);
-		if (!success)
-		{
+		success = !err;
+
+		if (!success) {
 			fprintf(stderr,
-				"InnoDB: Error: preallocating file space for "
-				"file \'%s\' failed.  Current size %lld, "
-				"len %lld, desired size %lld\n", node->name,
-				start_offset, end_offset,
-				start_offset + end_offset);
+				"InnoDB: Error: extending file %s"
+				" from %lld to %lld bytes"
+				" failed with error %d\n",
+				node->name,
+				start_offset, len + start_offset, err);
 		}
+
 		mutex_enter(&fil_system->mutex);
 
 		if (success) {
@@ -4999,14 +5005,25 @@ fil_extend_space_to_desired_size(
 	}
 #endif
 
+#ifdef _WIN32
+	/* Write 1 page of zeroes at the desired end. */
+	start_page_no = size_after_extend - 1;
+	buf_size = page_size;
+#else
 	/* Extend at most 64 pages at a time */
 	buf_size = ut_min(64, size_after_extend - start_page_no) * page_size;
-	buf2 = mem_alloc(buf_size + page_size);
+#endif
+	buf2 = calloc(1, buf_size + page_size);
+	if (!buf2) {
+		fprintf(stderr, "InnoDB: Cannot allocate " ULINTPF
+			" bytes to extend file\n",
+			buf_size + page_size);
+		mutex_exit(&fil_system->file_extend_mutex);
+		return(FALSE);
+	}
 	buf = ut_align(buf2, page_size);
 
-	memset(buf, 0, buf_size);
-
-	while (start_page_no < size_after_extend) {
+	for (;;) {
 		ulint	n_pages = ut_min(buf_size / page_size,
 					 size_after_extend - start_page_no);
 
@@ -5016,7 +5033,6 @@ fil_extend_space_to_desired_size(
 			       % (4096 * ((1024 * 1024) / page_size)))
 			* page_size;
 
-		mutex_exit(&fil_system->mutex);
 #ifdef UNIV_HOTBACKUP
 		success = os_file_write(node->name, node->handle, buf,
 					offset_low, offset_high,
@@ -5028,36 +5044,37 @@ fil_extend_space_to_desired_size(
 				 page_size * n_pages,
 				 NULL, NULL, space_id, NULL);
 #endif
+
+		/* Let us measure the size of the file to determine
+		how much we were able to extend it */
+
+		n_pages = (ulint) (os_file_get_size_as_iblonglong(node->handle)
+				   / page_size);
+
 		mutex_enter(&fil_system->mutex);
+		ut_a(n_pages >= node->size);
+
+		start_page_no += n_pages - node->size;
+		space->size += n_pages - node->size;
+		node->size = n_pages;
 
 		if (success) {
-			node->size += n_pages;
-			space->size += n_pages;
-
 			os_has_said_disk_full = FALSE;
-		} else {
-			/* Let us measure the size of the file to determine
-			how much we were able to extend it */
+		}
 
-			n_pages = ((ulint)
-				   (os_file_get_size_as_iblonglong(
-					   node->handle)
-				    / page_size)) - node->size;
-
-			node->size += n_pages;
-			space->size += n_pages;
-
+		if (!success || start_page_no >= size_after_extend) {
 			break;
 		}
 
-		start_page_no += n_pages;
+		mutex_exit(&fil_system->mutex);
 	}
 
-	mem_free(buf2);
-
+	free(buf2);
 	fil_node_complete_io(node, fil_system, OS_FILE_WRITE);
 
+#ifdef HAVE_POSIX_FALLOCATE
 complete_io:
+#endif /* HAVE_POSIX_FALLOCATE */
 
 	*actual_size = space->size;
 

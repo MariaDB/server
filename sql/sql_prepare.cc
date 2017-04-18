@@ -1988,7 +1988,7 @@ static int mysql_test_handler_read(Prepared_statement *stmt,
   THD *thd= stmt->thd;
   LEX *lex= stmt->lex;
   SQL_HANDLER *ha_table;
-  DBUG_ENTER("mysql_test_select");
+  DBUG_ENTER("mysql_test_handler_read");
 
   lex->select_lex.context.resolve_in_select_list= TRUE;
 

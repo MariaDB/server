@@ -1,5 +1,5 @@
-/* Copyright (c) 2000, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2015, MariaDB
+/* Copyright (c) 2000, 2017, Oracle and/or its affiliates.
+   Copyright (c) 2008, 2017, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1844,12 +1844,12 @@ int prepare_schema_table(THD *thd, LEX *lex, Table_ident *table_ident,
 #endif
   case SCH_COLUMNS:
   case SCH_STATISTICS:
-  {
 #ifdef DONT_ALLOW_SHOW_COMMANDS
     my_message(ER_NOT_ALLOWED_COMMAND,
                ER(ER_NOT_ALLOWED_COMMAND), MYF(0)); /* purecov: inspected */
     DBUG_RETURN(1);
 #else
+  {
     DBUG_ASSERT(table_ident);
     TABLE_LIST **query_tables_last= lex->query_tables_last;
     schema_select_lex= new SELECT_LEX();
@@ -6449,7 +6449,7 @@ static void wsrep_mysql_parse(THD *thd, char *rawbuf, uint length,
 #endif /* WITH_WSREP */
 
 /*
-  When you modify mysql_parse(), you may need to mofify
+  When you modify mysql_parse(), you may need to modify
   mysql_test_parse_for_slave() in this same file.
 */
 
@@ -8319,27 +8319,20 @@ bool check_ident_length(LEX_STRING *ident)
   Check if path does not contain mysql data home directory
 
   SYNOPSIS
-    test_if_data_home_dir()
-    dir                     directory
+    path_starts_from_data_home_dir()
+    dir                     directory, with all symlinks resolved
 
   RETURN VALUES
     0	ok
     1	error ;  Given path contains data directory
 */
-C_MODE_START
+extern "C" {
 
-int test_if_data_home_dir(const char *dir)
+int path_starts_from_data_home_dir(const char *path)
 {
-  char path[FN_REFLEN];
-  int dir_len;
-  DBUG_ENTER("test_if_data_home_dir");
+  int dir_len= strlen(path);
+  DBUG_ENTER("path_starts_from_data_home_dir");
 
-  if (!dir)
-    DBUG_RETURN(0);
-
-  (void) fn_format(path, dir, "", "",
-                   (MY_RETURN_REAL_PATH|MY_RESOLVE_SYMLINKS));
-  dir_len= strlen(path);
   if (mysql_unpacked_real_data_home_len<= dir_len)
   {
     if (dir_len > mysql_unpacked_real_data_home_len &&
@@ -8367,7 +8360,31 @@ int test_if_data_home_dir(const char *dir)
   DBUG_RETURN(0);
 }
 
-C_MODE_END
+}
+
+/*
+  Check if path does not contain mysql data home directory
+
+  SYNOPSIS
+    test_if_data_home_dir()
+    dir                     directory
+
+  RETURN VALUES
+    0	ok
+    1	error ;  Given path contains data directory
+*/
+
+int test_if_data_home_dir(const char *dir)
+{
+  char path[FN_REFLEN];
+  DBUG_ENTER("test_if_data_home_dir");
+
+  if (!dir)
+    DBUG_RETURN(0);
+
+  (void) fn_format(path, dir, "", "", MY_RETURN_REAL_PATH);
+  DBUG_RETURN(path_starts_from_data_home_dir(path));
+}
 
 
 /**

@@ -7500,8 +7500,15 @@ static SEL_TREE *get_mm_tree(RANGE_OPT_PARAM *param,COND *cond)
   if (cond_func->functype() == Item_func::BETWEEN ||
       cond_func->functype() == Item_func::IN_FUNC)
     inv= ((Item_func_opt_neg *) cond_func)->negated;
-  else if (cond_func->select_optimize() == Item_func::OPTIMIZE_NONE)
-    DBUG_RETURN(0);			       
+  else
+  {
+    MEM_ROOT *tmp_root= param->mem_root;
+    param->thd->mem_root= param->old_root;
+    Item_func::optimize_type opt_res= cond_func->select_optimize();
+    param->thd->mem_root= tmp_root;
+    if (opt_res == Item_func::OPTIMIZE_NONE)
+      DBUG_RETURN(0);
+  }
 
   param->cond= cond;
 
@@ -9335,6 +9342,13 @@ key_or(RANGE_OPT_PARAM *param, SEL_ARG *key1,SEL_ARG *key2)
 
       if (!tmp->next_key_part)
       {
+        if (key2->use_count)
+	{
+	  SEL_ARG *key2_cpy= new SEL_ARG(*key2);
+          if (key2_cpy)
+            return 0;
+          key2= key2_cpy;
+	}
         /*
           tmp->next_key_part is empty: cut the range that is covered
           by tmp from key2. 
@@ -9366,13 +9380,6 @@ key_or(RANGE_OPT_PARAM *param, SEL_ARG *key1,SEL_ARG *key2)
             key2:               [---]
             tmp:     [---------]
           */
-          if (key2->use_count)
-	  {
-	    SEL_ARG *key2_cpy= new SEL_ARG(*key2);
-            if (key2_cpy)
-              return 0;
-            key2= key2_cpy;
-	  }
           key2->copy_max_to_min(tmp);
           continue;
         }

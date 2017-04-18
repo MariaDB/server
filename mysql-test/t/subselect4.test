@@ -2000,5 +2000,40 @@ EXECUTE stmt;
 
 drop table t1, t2, t3;
 
+--echo #
+--echo # MDEV-11078: NULL NOT IN (non-empty subquery) should never return results
+--echo #
+
+create table t1(a int,b int);
+create table t2(a int,b int);
+insert into t1 value (1,2);
+select (NULL)  in (select 1 from t1);
+select (null)  in (select 1 from t2);
+select 1 in (select 1 from t1);
+select 1 in (select 1 from t2);
+select 1 from dual where null in (select 1 from t1);
+select 1 from dual where null in (select 1 from t2);
+select (null,null) in (select * from t1);
+select (null,null) in (select * from t2);
+select 1 from dual where null not in (select 1 from t1);
+select 1 from dual where null not in (select 1 from t2);
+drop table t1,t2;
+
+
+--echo #
+--echo # MDEV-6486: Assertion `!table || (!table->read_set || bitmap_is_set(table->read_set, field_index))'
+--echo # failed with SELECT SQ, TEXT field
+--echo #
+
+CREATE TABLE t1 (a VARCHAR(8), KEY(a)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES ('foo'),( 'bar');
+
+CREATE TABLE t2 (b VARCHAR(8), c TINYTEXT, KEY(b)) ENGINE=MyISAM;
+INSERT INTO t2 VALUES ('baz','baz'),('qux', 'qux');
+
+SELECT ( SELECT COUNT(*) FROM t1 WHERE a = c ) AS field, COUNT(DISTINCT c)
+FROM t2 WHERE b <= 'quux' GROUP BY field;
+drop table t1,t2;
+
 SET optimizer_switch= @@global.optimizer_switch;
 set @@tmp_table_size= @@global.tmp_table_size;

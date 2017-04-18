@@ -15,9 +15,14 @@
 
 #include "mysys_priv.h"
 #include "mysys_err.h"
-#include <my_dir.h>
+#include <m_string.h>
 #include <errno.h>
 
+CREATE_NOSYMLINK_FUNCTION(
+  open_nosymlinks(const char *pathname, int flags, int mode),
+  openat(dfd, filename, O_NOFOLLOW | flags, mode),
+  open(pathname, O_NOFOLLOW | flags, mode)
+);
 
 /*
   Open a file
@@ -45,10 +50,11 @@ File my_open(const char *FileName, int Flags, myf MyFlags)
     MyFlags|= my_global_flags;
 #if defined(_WIN32)
   fd= my_win_open(FileName, Flags);
-#elif !defined(NO_OPEN_3)
-  fd = open(FileName, Flags, my_umask);	/* Normal unix */
 #else
-  fd = open((char *) FileName, Flags);
+  if (MyFlags & MY_NOSYMLINKS)
+    fd = open_nosymlinks(FileName, Flags, my_umask);
+  else
+    fd = open(FileName, Flags, my_umask);
 #endif
 
   fd= my_register_filename(fd, FileName, FILE_BY_OPEN,
@@ -131,25 +137,16 @@ File my_register_filename(File fd, const char *FileName, enum file_type
       thread_safe_increment(my_file_opened,&THR_LOCK_open);
       DBUG_RETURN(fd);				/* safeguard */
     }
-    else
-    {
-      mysql_mutex_lock(&THR_LOCK_open);
-      if ((my_file_info[fd].name = (char*) my_strdup(FileName,MyFlags)))
-      {
-        my_file_opened++;
-        my_file_total_opened++;
-        my_file_info[fd].type = type_of_file;
-        mysql_mutex_unlock(&THR_LOCK_open);
-        DBUG_PRINT("exit",("fd: %d",fd));
-        DBUG_RETURN(fd);
-      }
-      mysql_mutex_unlock(&THR_LOCK_open);
-      my_errno= ENOMEM;
-    }
-    (void) my_close(fd, MyFlags);
+    mysql_mutex_lock(&THR_LOCK_open);
+    my_file_info[fd].name = (char*) my_strdup(FileName, MyFlags);
+    my_file_opened++;
+    my_file_total_opened++;
+    my_file_info[fd].type = type_of_file;
+    mysql_mutex_unlock(&THR_LOCK_open);
+    DBUG_PRINT("exit",("fd: %d",fd));
+    DBUG_RETURN(fd);
   }
-  else
-    my_errno= errno;
+  my_errno= errno;
 
   DBUG_PRINT("error",("Got error %d on open", my_errno));
   if (MyFlags & (MY_FFNF | MY_FAE | MY_WME))

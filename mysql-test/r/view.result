@@ -5535,6 +5535,89 @@ Warnings:
 Warning	1356	View 'test.v1' references invalid table(s) or column(s) or function(s) or definer/invoker of view lack rights to use them
 drop view v1;
 drop table t1,t2;
+#
+# MDEV-12099: usage of mergeable view with LEFT JOIN 
+#             that can be converted to INNER JOIN
+#
+create table t1 (a int, b int, key(a)) engine=myisam;
+insert into t1 values
+(3,20), (7,10), (2,10), (4,30), (8,70), 
+(7,70), (9,100), (9,60), (8,80), (7,60);
+create table t2 (c int, d int, key (c)) engine=myisam;
+insert into t2 values
+(50,100), (20, 200), (10,300),
+(150,100), (120, 200), (110,300),
+(250,100), (220, 200), (210,300);
+create table t3(e int, f int not null, key(e), unique (f)) engine=myisam;
+insert into t3 values
+(100, 3), (300, 5), (400, 4), (300,7),
+(300,2), (600, 13), (800, 15), (700, 14),
+(600, 23), (800, 25), (700, 24);
+create view v1 as
+select * from t2 left join t3 on t3.e=t2.d where t3.f is not null;
+select *
+from t1 left join v1 on v1.c=t1.b 
+where t1.a < 5;
+a	b	c	d	e	f
+2	10	10	300	300	5
+2	10	10	300	300	7
+2	10	10	300	300	2
+3	20	NULL	NULL	NULL	NULL
+4	30	NULL	NULL	NULL	NULL
+select *
+from t1 left join ( t2 left join t3 on t3.e=t2.d )
+on t2.c=t1.b and  t3.f is not null
+where t1.a < 5;
+a	b	c	d	e	f
+2	10	10	300	300	5
+2	10	10	300	300	7
+2	10	10	300	300	2
+3	20	NULL	NULL	NULL	NULL
+4	30	NULL	NULL	NULL	NULL
+explain extended
+select *
+from t1 left join v1 on v1.c=t1.b 
+where t1.a < 5;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range	a	a	5	NULL	3	100.00	Using index condition
+1	SIMPLE	t2	ref	c	c	5	test.t1.b	2	100.00	Using where
+1	SIMPLE	t3	ref	f,e	e	5	test.t2.d	2	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t2`.`c` AS `c`,`test`.`t2`.`d` AS `d`,`test`.`t3`.`e` AS `e`,`test`.`t3`.`f` AS `f` from `test`.`t1` left join (`test`.`t2` join `test`.`t3`) on(((`test`.`t2`.`c` = `test`.`t1`.`b`) and (`test`.`t3`.`e` = `test`.`t2`.`d`) and (`test`.`t3`.`f` is not null) and (`test`.`t1`.`b` is not null) and (`test`.`t2`.`d` is not null))) where (`test`.`t1`.`a` < 5)
+explain extended
+select *
+from t1 left join ( t2 left join t3 on t3.e=t2.d )
+on t2.c=t1.b and  t3.f is not null
+where t1.a < 5;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range	a	a	5	NULL	3	100.00	Using index condition
+1	SIMPLE	t2	ref	c	c	5	test.t1.b	2	100.00	Using where
+1	SIMPLE	t3	ref	f,e	e	5	test.t2.d	2	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t2`.`c` AS `c`,`test`.`t2`.`d` AS `d`,`test`.`t3`.`e` AS `e`,`test`.`t3`.`f` AS `f` from `test`.`t1` left join (`test`.`t2` join `test`.`t3`) on(((`test`.`t2`.`c` = `test`.`t1`.`b`) and (`test`.`t3`.`e` = `test`.`t2`.`d`) and (`test`.`t3`.`f` is not null) and (`test`.`t1`.`b` is not null) and (`test`.`t2`.`d` is not null))) where (`test`.`t1`.`a` < 5)
+explain extended
+select *
+from t1 left join v1 on v1.c=t1.b and v1.f=t1.a
+where t1.a < 5;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range	a	a	5	NULL	3	100.00	Using index condition
+1	SIMPLE	t3	eq_ref	f,e	f	4	test.t1.a	1	100.00	Using where
+1	SIMPLE	t2	ref	c	c	5	test.t1.b	2	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t2`.`c` AS `c`,`test`.`t2`.`d` AS `d`,`test`.`t3`.`e` AS `e`,`test`.`t3`.`f` AS `f` from `test`.`t1` left join (`test`.`t2` join `test`.`t3`) on(((`test`.`t2`.`c` = `test`.`t1`.`b`) and (`test`.`t3`.`f` = `test`.`t1`.`a`) and (`test`.`t2`.`d` = `test`.`t3`.`e`) and (`test`.`t1`.`a` is not null) and (`test`.`t1`.`a` is not null) and (`test`.`t1`.`b` is not null))) where (`test`.`t1`.`a` < 5)
+explain extended
+select *
+from t1 left join ( t2 left join t3 on t3.e=t2.d )
+on t2.c=t1.b and t3.f=t1.a and t3.f is not null
+where t1.a < 5;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range	a	a	5	NULL	3	100.00	Using index condition
+1	SIMPLE	t3	eq_ref	f,e	f	4	test.t1.a	1	100.00	Using where
+1	SIMPLE	t2	ref	c	c	5	test.t1.b	2	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t2`.`c` AS `c`,`test`.`t2`.`d` AS `d`,`test`.`t3`.`e` AS `e`,`test`.`t3`.`f` AS `f` from `test`.`t1` left join (`test`.`t2` join `test`.`t3`) on(((`test`.`t2`.`c` = `test`.`t1`.`b`) and (`test`.`t3`.`f` = `test`.`t1`.`a`) and (`test`.`t2`.`d` = `test`.`t3`.`e`) and (`test`.`t1`.`a` is not null) and (`test`.`t1`.`a` is not null) and (`test`.`t1`.`b` is not null))) where (`test`.`t1`.`a` < 5)
+drop view v1;
+drop table t1,t2,t3;
 # -----------------------------------------------------------------
 # -- End of 5.5 tests.
 # -----------------------------------------------------------------

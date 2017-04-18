@@ -1,5 +1,5 @@
---- r/innodb_icp.result	2013-07-16 17:01:00.000000000 +0400
-+++ r/innodb_icp,innodb_plugin.reject	2013-07-16 17:16:53.000000000 +0400
+--- innodb_icp.result	2017-04-02 23:39:45.063149325 -0700
++++ innodb_icp,innodb_plugin.result	2017-04-02 23:36:33.279164925 -0700
 @@ -213,7 +213,7 @@
  EXPLAIN
  SELECT c1 FROM t3 WHERE c1 >= 'c-1004=w' and c1 <= 'c-1006=w' and i1 > 2;

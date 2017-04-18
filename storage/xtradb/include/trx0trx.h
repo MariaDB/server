@@ -508,6 +508,7 @@ struct trx_struct{
 					trx_release_descriptor(). Different name
 					ensures we notice any new code changing
 					the state. */
+
 	/*------------------------------*/
 	/* MySQL has a transaction coordinator to coordinate two phase
        	commit between multiple storage engines and the binary log. When

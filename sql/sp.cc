@@ -1,6 +1,6 @@
 /*
-   Copyright (c) 2002, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2015, MariaDB
+   Copyright (c) 2002, 2016, Oracle and/or its affiliates.
+   Copyright (c) 2009, 2017, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -375,7 +375,7 @@ void Proc_table_intact::report_error(uint code, const char *fmt, ...)
   my_vsnprintf(buf, sizeof(buf), fmt, args);
   va_end(args);
 
-  if (code)
+  if (code == ER_COL_COUNT_DOESNT_MATCH_CORRUPTED)
     my_message(code, buf, MYF(0));
   else
     my_error(ER_CANNOT_LOAD_FROM_TABLE, MYF(0), "proc");
@@ -1767,7 +1767,8 @@ sp_find_routine(THD *thd, stored_procedure_type type, sp_name *name,
 
   @param thd Thread handler
   @param routines List of needles in the hay stack
-  @param any Any of the needles are good enough
+  @param is_proc  Indicates whether routines in the list are procedures
+                  or functions.
 
   @return
     @retval FALSE Found.
@@ -1775,7 +1776,7 @@ sp_find_routine(THD *thd, stored_procedure_type type, sp_name *name,
 */
 
 bool
-sp_exist_routines(THD *thd, TABLE_LIST *routines, bool any)
+sp_exist_routines(THD *thd, TABLE_LIST *routines, bool is_proc)
 {
   TABLE_LIST *routine;
   bool sp_object_found;
@@ -1791,17 +1792,14 @@ sp_exist_routines(THD *thd, TABLE_LIST *routines, bool any)
     lex_name.str= thd->strmake(routine->table_name, lex_name.length);
     name= new sp_name(lex_db, lex_name, true);
     name->init_qname(thd);
-    sp_object_found= sp_find_routine(thd, TYPE_ENUM_PROCEDURE, name,
-                                     &thd->sp_proc_cache, FALSE) != NULL ||
-                     sp_find_routine(thd, TYPE_ENUM_FUNCTION, name,
-                                     &thd->sp_func_cache, FALSE) != NULL;
+    sp_object_found= is_proc ? sp_find_routine(thd, TYPE_ENUM_PROCEDURE,
+                                               name, &thd->sp_proc_cache,
+                                               FALSE) != NULL :
+                               sp_find_routine(thd, TYPE_ENUM_FUNCTION,
+                                               name, &thd->sp_func_cache,
+                                               FALSE) != NULL;
     thd->warning_info->clear_warning_info(thd->query_id);
-    if (sp_object_found)
-    {
-      if (any)
-        break;
-    }
-    else if (!any)
+    if (! sp_object_found)
     {
       my_error(ER_SP_DOES_NOT_EXIST, MYF(0), "FUNCTION or PROCEDURE",
                routine->table_name);

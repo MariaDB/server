@@ -42,14 +42,6 @@ ulong    myisam_data_pointer_size=4;
 ulonglong    myisam_mmap_size= SIZE_T_MAX, myisam_mmap_used= 0;
 my_bool (*mi_killed)(MI_INFO *)= mi_killed_standalone;
 
-static int always_valid(const char *filename __attribute__((unused)))
-{
-  return 0;
-}
-
-int (*myisam_test_invalid_symlink)(const char *filename)= always_valid;
-
-
 /*
   read_vec[] is used for converting between P_READ_KEY.. and SEARCH_
   Position is , == , >= , <= , > , <

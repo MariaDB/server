@@ -1435,6 +1435,7 @@ row_upd_changes_ord_field_binary_func(
 	ulint			i;
 	const dict_index_t*	clust_index;
 
+	ut_ad(thr);
 	ut_ad(thr->graph);
 	ut_ad(thr->graph->trx);
 

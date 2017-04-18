@@ -1,5 +1,5 @@
-# Copyright (c) 2006, 2014, Oracle and/or its affiliates.
-# Copyright (c) 2008, 2014, Monty Program Ab
+# Copyright (c) 2006, 2017, Oracle and/or its affiliates.
+# Copyright (c) 2008, 2017, MariaDB
 # 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -240,12 +240,9 @@ IF (WITH_ASAN)
   ENDIF()
 ENDIF()
 
-
-OPTION(ENABLE_DEBUG_SYNC "Enable debug sync (debug builds only)" ON) 
-IF(ENABLE_DEBUG_SYNC) 
-  SET(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -DENABLED_DEBUG_SYNC") 
-  SET(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -DENABLED_DEBUG_SYNC") 
-ENDIF() 
+# Always enable debug sync for debug builds.
+SET(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -DENABLED_DEBUG_SYNC")
+SET(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -DENABLED_DEBUG_SYNC")
  
 OPTION(ENABLE_GCOV "Enable gcov (debug, Linux builds only)" OFF)
 IF (ENABLE_GCOV AND NOT WIN32 AND NOT APPLE)
@@ -349,6 +346,9 @@ INCLUDE(configure.cmake)
 
 # Common defines and includes
 ADD_DEFINITIONS(-DHAVE_CONFIG_H)
+IF(_FILE_OFFSET_BITS)
+  ADD_DEFINITIONS(-D_FILE_OFFSET_BITS=${_FILE_OFFSET_BITS})
+ENDIF()
 INCLUDE_DIRECTORIES(${CMAKE_CURRENT_BINARY_DIR}/include)
 
 # Add bundled or system zlib.
@@ -471,8 +471,7 @@ ADD_CUSTOM_TARGET(INFO_BIN ALL
   WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
 )
 
-INSTALL_DOCUMENTATION(README COPYING COPYING.LESSER EXCEPTIONS-CLIENT
-                      COMPONENT Readme)
+INSTALL_DOCUMENTATION(README COPYING EXCEPTIONS-CLIENT COMPONENT Readme)
 
 # MDEV-6526 these files are not installed anymore
 #INSTALL_DOCUMENTATION(${CMAKE_BINARY_DIR}/Docs/INFO_SRC

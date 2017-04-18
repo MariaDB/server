@@ -2,6 +2,7 @@
 
 Copyright (c) 1995, 2015, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2009, Percona Inc.
+Copyright (c) 2011, 2017, MariaDB Corporation. All Rights Reserved.
 
 Portions of this file contain modifications contributed and copyrighted
 by Percona Inc.. Those modifications are
@@ -2202,42 +2203,48 @@ os_file_set_size(
 
 	ut_a(size == (size & 0xFFFFFFFF));
 
-	current_size = 0;
 	desired_size = (ib_int64_t)size + (((ib_int64_t)size_high) << 32);
 
 #ifdef HAVE_POSIX_FALLOCATE
 	if (srv_use_posix_fallocate) {
-
-		if (posix_fallocate(file, current_size, desired_size) == -1) {
-
-			fprintf(stderr, "InnoDB: Error: preallocating file "
-				"space for file \'%s\' failed.  Current size "
-				"%lld, desired size %lld\n",
-				name, current_size, desired_size);
-			os_file_handle_error_no_exit(name, "posix_fallocate");
-			return(FALSE);
+		int err;
+		do {
+			err = posix_fallocate(file, 0, desired_size);
+		} while (err == EINTR
+			 && srv_shutdown_state == SRV_SHUTDOWN_NONE);
+		if (err) {
+			fprintf(stderr,
+				"InnoDB: Error: preallocating %lld bytes for"
+				" file %s failed with error %d.\n",
+				desired_size, name, err);
 		}
-		return(TRUE);
+		return(!err);
 	}
 #endif
 
+#ifdef _WIN32
+	/* Write 1 page of zeroes at the desired end. */
+	buf_size = UNIV_PAGE_SIZE;
+	current_size = desired_size - buf_size;
+#else
 	/* Write up to 1 megabyte at a time. */
 	buf_size = ut_min(64, (ulint) (desired_size / UNIV_PAGE_SIZE))
 		* UNIV_PAGE_SIZE;
-	buf2 = ut_malloc(buf_size + UNIV_PAGE_SIZE);
+	current_size = 0;
+#endif
+	buf2 = calloc(1, buf_size + UNIV_PAGE_SIZE);
+
+	if (!buf2) {
+		fprintf(stderr, "InnoDB: Cannot allocate " ULINTPF
+			" bytes to extend file\n",
+			buf_size + UNIV_PAGE_SIZE);
+		return(FALSE);
+	}
 
 	/* Align the buffer for possible raw i/o */
 	buf = ut_align(buf2, UNIV_PAGE_SIZE);
 
-	/* Write buffer full of zeros */
-	memset(buf, 0, buf_size);
-
-	if (desired_size >= (ib_int64_t)(100 * 1024 * 1024)) {
-
-		fprintf(stderr, "InnoDB: Progress in MB:");
-	}
-
-	while (current_size < desired_size) {
+	do {
 		ulint	n_bytes;
 
 		if (desired_size - current_size < (ib_int64_t) buf_size) {
@@ -2251,37 +2258,14 @@ os_file_set_size(
 				    (ulint)(current_size >> 32),
 				    n_bytes);
 		if (!ret) {
-			ut_free(buf2);
-			goto error_handling;
-		}
-
-		/* Print about progress for each 100 MB written */
-		if ((ib_int64_t) (current_size + n_bytes) / (ib_int64_t)(100 * 1024 * 1024)
-		    != current_size / (ib_int64_t)(100 * 1024 * 1024)) {
-
-			fprintf(stderr, " %lu00",
-				(ulong) ((current_size + n_bytes)
-					 / (ib_int64_t)(100 * 1024 * 1024)));
+			break;
 		}
 
 		current_size += n_bytes;
-	}
+	} while (current_size < desired_size);
 
-	if (desired_size >= (ib_int64_t)(100 * 1024 * 1024)) {
-
-		fprintf(stderr, "\n");
-	}
-
-	ut_free(buf2);
-
-	ret = os_file_flush(file, TRUE);
-
-	if (ret) {
-		return(TRUE);
-	}
-
-error_handling:
-	return(FALSE);
+	free(buf2);
+	return(ret && os_file_flush(file, TRUE));
 }
 
 /***********************************************************************//**

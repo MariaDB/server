@@ -988,4 +988,27 @@ David	Yes	210
 Edward	Yes	150
 DROP TABLE example1463;
 set sql_mode= @save_sql_mode;
+#
+# MDEV-9028: SELECT DISTINCT constant column of  derived  table
+#            used as the second operand of LEFT JOIN
+#
+create table t1 (id int, data varchar(255));
+insert into t1 values (1,'yes'),(2,'yes');
+select distinct t1.id, tt.id, tt.data
+from t1
+left join
+(select t1.id, 'yes' as data from t1) as tt
+on t1.id = tt.id;
+id	id	data
+1	1	yes
+2	2	yes
+select distinct t1.id, tt.id, tt.data
+from t1
+left join
+(select t1.id, 'yes' as data from t1 where id > 1) as tt
+on t1.id = tt.id;
+id	id	data
+2	2	yes
+1	NULL	NULL
+drop table t1;
 # end of 5.5
