@@ -22,7 +22,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
 #define DS_ENCRYPT_H
 
 #include "datasink.h"
-
+#ifdef HAVE_GCRYPT
 extern datasink_t datasink_encrypt;
-
+#endif
 #endif

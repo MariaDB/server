@@ -33,14 +33,14 @@ struct xb_fil_cur_t;
 struct xb_read_filt_ctxt_t {
 	ib_int64_t		offset;		/*!< current file offset */
 	ib_int64_t		data_file_size;	/*!< data file size */
-	ib_int64_t		buffer_capacity;/*!< read buffer capacity */
-	ulint			space_id;	/*!< space id */
+	size_t		buffer_capacity;/*!< read buffer capacity */
+  ib_int64_t		space_id;	/*!< space id */
 	/* The following fields used only in bitmap filter */
 	/* Move these to union if any other filters are added in future */
 	xb_page_bitmap_range	*bitmap_range;	/*!< changed page bitmap range
 						iterator for space_id */
-	ulint			page_size;	/*!< page size */
-	ulint			filter_batch_end;/*!< the ending page id of the
+	size_t		page_size;	/*!< page size */
+	ulint		filter_batch_end;/*!< the ending page id of the
 						 current changed page block in
 						 the bitmap */
 };

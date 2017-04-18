@@ -49,10 +49,10 @@ struct xb_fil_cur_t {
 					/*!< read filter context */
 	byte*		orig_buf;	/*!< read buffer */
 	byte*		buf;		/*!< aligned pointer for orig_buf */
-	ulint		buf_size;	/*!< buffer size in bytes */
-	ulint		buf_read;	/*!< number of read bytes in buffer
+	size_t		buf_size;	/*!< buffer size in bytes */
+	size_t		buf_read;	/*!< number of read bytes in buffer
 					after the last cursor read */
-	ulint		buf_npages;	/*!< number of pages in buffer after the
+	size_t		buf_npages;	/*!< number of pages in buffer after the
 					last cursor read */
 	ib_int64_t	buf_offset;	/*!< file offset of the first page in
 					buffer */

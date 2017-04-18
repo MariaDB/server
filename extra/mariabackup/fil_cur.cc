@@ -33,6 +33,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
 #include "common.h"
 #include "read_filt.h"
 #include "xtrabackup.h"
+#include "xb0xb.h"
 
 /* Size of read buffer in pages (640 pages = 10M for 16K sized pages) */
 #define XB_FIL_CUR_PAGES 640
@@ -167,7 +168,7 @@ xb_fil_cur_open(
 			os_file_create_simple_no_error_handling(0, node->name,
 								OS_FILE_OPEN,
 								OS_FILE_READ_ONLY,
-								&success);
+								&success,0);
 		if (!success) {
 			/* The following call prints an error message */
 			os_file_get_last_error(TRUE);
@@ -200,7 +201,7 @@ xb_fil_cur_open(
 	cursor->node = node;
 	cursor->file = node->handle;
 
-	if (my_fstat(cursor->file, &cursor->statinfo, MYF(MY_WME))) {
+	if (stat(cursor->abs_path, &cursor->statinfo)) {
 		msg("[%02u] xtrabackup: error: cannot stat %s\n",
 		    thread_n, cursor->abs_path);
 
@@ -253,7 +254,7 @@ xb_fil_cur_open(
 	cursor->buf_page_no = 0;
 	cursor->thread_n = thread_n;
 
-	cursor->space_size = cursor->statinfo.st_size / page_size;
+	cursor->space_size = (ulint)(cursor->statinfo.st_size / page_size);
 
 	cursor->read_filter = read_filter;
 	cursor->read_filter->init(&cursor->read_filter_ctxt, cursor,
@@ -327,26 +328,32 @@ read_retry:
 	cursor->buf_read = 0;
 	cursor->buf_npages = 0;
 	cursor->buf_offset = offset;
-	cursor->buf_page_no = (ulint) (offset >> cursor->page_size_shift);
+	cursor->buf_page_no = (ulint)(offset >> cursor->page_size_shift);
 
 	success = os_file_read(cursor->file, cursor->buf, offset,
-			       to_read);
+			       (ulint)to_read);
 	if (!success) {
 		return(XB_FIL_CUR_ERROR);
 	}
+
+	fil_system_enter();
+	fil_space_t *space = fil_space_get_by_id(cursor->space_id);
+	fil_system_exit();
 
 	/* check pages for corruption and re-read if necessary. i.e. in case of
 	partially written pages */
 	for (page = cursor->buf, i = 0; i < npages;
 	     page += cursor->page_size, i++) {
+	ib_int64_t page_no = cursor->buf_page_no + i;
 
-		if (buf_page_is_corrupted(TRUE, page, cursor->zip_size)) {
+		bool checksum_ok = fil_space_verify_crypt_checksum(page, cursor->zip_size,space, (ulint)page_no);
 
-			ulint page_no = cursor->buf_page_no + i;
+		if (!checksum_ok &&
+		    buf_page_is_corrupted(true, page, cursor->zip_size,space)) {
 
 			if (cursor->is_system &&
-			    page_no >= FSP_EXTENT_SIZE &&
-			    page_no < FSP_EXTENT_SIZE * 3) {
+			    page_no >= (ib_int64_t)FSP_EXTENT_SIZE &&
+			    page_no < (ib_int64_t) FSP_EXTENT_SIZE * 3) {
 				/* skip doublewrite buffer pages */
 				xb_a(cursor->page_size == UNIV_PAGE_SIZE);
 				msg("[%02u] xtrabackup: "

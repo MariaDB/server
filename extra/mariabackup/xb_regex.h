@@ -22,50 +22,27 @@ my_regex is used on Windows and native calls are used on POSIX platforms. */
 #ifndef XB_REGEX_H
 #define XB_REGEX_H
 
-#ifdef _WIN32
+#ifdef HAVE_SYSTEM_REGEX
+#include <regex.h>
+#else
+#include <pcreposix.h>
+#endif
 
-#include <my_regex.h>
+typedef regex_t* xb_regex_t;
 
-typedef my_regex_t xb_regex_t;
-typedef my_regmatch_t xb_regmatch_t;
-
-#define xb_regex_init() my_regex_init(&my_charset_latin1)
+#define xb_regex_init() 
 
 #define xb_regexec(preg,string,nmatch,pmatch,eflags) \
-	my_regexec(preg, string, nmatch, pmatch, eflags)
-
-#define xb_regerror(errcode,preg,errbuf,errbuf_size) \
-	my_regerror(errcode, preg, errbuf, errbuf_size)
-
-#define xb_regcomp(preg,regex,cflags) \
-	my_regcomp(preg, regex, cflags, &my_charset_latin1)
-
-#define xb_regfree(preg) my_regfree(preg)
-
-#define xb_regex_end() my_regex_end()
-
-#else /* ! _WIN32 */
-
-#include <regex.h>
-
-typedef regex_t xb_regex_t;
-typedef regmatch_t xb_regmatch_t;
-
-#define xb_regex_init() do { } while(0)
-
-#define xb_regexec(preg,string,nmatch,pmatch,eflags)	\
 	regexec(preg, string, nmatch, pmatch, eflags)
 
-#define xb_regerror(errcode,preg,errbuf,errbuf_size)	\
+#define xb_regerror(errcode,preg,errbuf,errbuf_size) \
 	regerror(errcode, preg, errbuf, errbuf_size)
 
-#define xb_regcomp(preg,regex,cflags)				\
+#define xb_regcomp(preg,regex,cflags) \
 	regcomp(preg, regex, cflags)
 
 #define xb_regfree(preg) regfree(preg)
 
-#define xb_regex_end() do { } while (0)
-
-#endif /* _WIN32 */
+#define xb_regex_end()
 
 #endif /* XB_REGEX_H */

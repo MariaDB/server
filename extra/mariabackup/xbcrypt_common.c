@@ -27,6 +27,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
 #  pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 #endif
 
+#ifdef HAVE_GRYPT
 #include <gcrypt.h>
 
 #if GCC_VERSION >= 4002
@@ -58,3 +59,4 @@ xb_crypt_create_iv(void* ivbuf, size_t ivlen)
 {
 	gcry_create_nonce(ivbuf, ivlen);
 }
+#endif

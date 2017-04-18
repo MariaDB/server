@@ -152,7 +152,7 @@ compress_open(ds_ctxt_t *ctxt, const char *path, MY_STAT *mystat)
 	/* Write the qpress file header */
 	name_len = strlen(new_name);
 	if (ds_write(dest_file, "F", 1) ||
-	    write_uint32_le(dest_file, name_len) ||
+	    write_uint32_le(dest_file, (uint)name_len) ||
 	    /* we want to write the terminating \0 as well */
 	    ds_write(dest_file, new_name, name_len + 1)) {
 		goto err;
@@ -453,7 +453,7 @@ compress_worker_thread_func(void *arg)
 		with qpress implementation. */
 
 		thd->adler = adler32(0x00000001, (uchar *) thd->to,
-				     thd->to_len);
+				     (uInt)thd->to_len);
 	}
 
 	pthread_mutex_unlock(&thd->data_mutex);

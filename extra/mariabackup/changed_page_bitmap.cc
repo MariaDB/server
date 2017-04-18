@@ -447,7 +447,7 @@ log_online_open_bitmap_file_read_only(
 		= os_file_create_simple_no_error_handling(0, bitmap_file->name,
 							  OS_FILE_OPEN,
 							  OS_FILE_READ_ONLY,
-							  &success);
+							  &success,0);
 	if (UNIV_UNLIKELY(!success)) {
 
 		/* Here and below assume that bitmap file names do not

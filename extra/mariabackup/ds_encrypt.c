@@ -22,7 +22,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
 #include <my_base.h>
 #include "common.h"
 #include "datasink.h"
-
+#ifdef HAVE_GRYPT
 #if GCC_VERSION >= 4002
 /* Workaround to avoid "gcry_ac_* is deprecated" warnings in gcrypt.h */
 #  pragma GCC diagnostic ignored "-Wdeprecated-declarations"
@@ -615,3 +615,4 @@ encrypt_worker_thread_func(void *arg)
 
 	return NULL;
 }
+#endif /* HAVE_GCRYPT*/

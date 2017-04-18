@@ -46,7 +46,7 @@ permission notice:
 #include <trx0sys.h>
 
 #include "common.h"
-
+#ifdef WITH_WSREP
 #define WSREP_XID_PREFIX "WSREPXid"
 #define WSREP_XID_PREFIX_LEN MYSQL_XID_PREFIX_LEN
 #define WSREP_XID_UUID_OFFSET 8
@@ -61,11 +61,11 @@ permission notice:
 
 /* Galera UUID type - for all unique IDs */
 typedef struct wsrep_uuid {
-    uint8_t data[16];
+    unsigned char data[16];
 } wsrep_uuid_t;
 
 /* sequence number of a writeset, etc. */
-typedef int64_t  wsrep_seqno_t;
+typedef long long  wsrep_seqno_t;
 
 /* Undefined UUID */
 static const wsrep_uuid_t WSREP_UUID_UNDEFINED = {{0,}};
@@ -217,3 +217,4 @@ xb_write_galera_info(bool incremental_prepare)
 
 	fclose(fp);
 }
+#endif

@@ -26,6 +26,46 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
 #include <fcntl.h>
 #include <stdarg.h>
 
+
+# define fil_is_user_tablespace_id(i) ((i) > srv_undo_tablespaces_open)
+
+#ifdef _MSC_VER
+#define stat _stati64
+#define PATH_MAX MAX_PATH
+#endif
+
+#ifndef HAVE_VASPRINTF
+static inline int vasprintf(char **strp, const char *fmt, va_list args)
+{
+  int len;
+#ifdef _MSC_VER
+  len = _vscprintf(fmt, args);
+#else
+  len = vsnprintf(NULL, 0, fmt, args);
+#endif
+  if (len < 0)
+  {
+    return -1;
+  }
+  *strp = (char *)malloc(len + 1);
+  if (!*strp)
+  {
+    return -1;
+  }
+  vsprintf(*strp, fmt, args);
+  return len;
+}
+
+static inline int asprintf(char **strp, const char *fmt,...)
+{
+  va_list	args;
+  va_start(args, fmt);
+  int len = vasprintf(strp, fmt, args);
+  va_end(args);
+  return len;
+}
+#endif
+
 #define xb_a(expr)							\
 	do {								\
 		if (!(expr)) {						\
@@ -93,15 +133,15 @@ static inline int msg_ts(const char *fmt, ...)
 /***********************************************************************
 Computes bit shift for a given value. If the argument is not a power
 of 2, returns 0.*/
-static inline ulong
-get_bit_shift(ulong value)
+static inline size_t
+get_bit_shift(size_t value)
 {
-    ulong shift;
+    size_t shift;
 
     if (value == 0)
 	return 0;
 
-    for (shift = 0; !(value & 1UL); shift++) {
+    for (shift = 0; !(value & 1); shift++) {
 	value >>= 1;
     }
     return (value >> 1) ? 0 : shift;

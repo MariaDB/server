@@ -52,14 +52,12 @@ Place, Suite 330, Boston, MA 02111-1307 USA
 #include <mysqld.h>
 #include <my_default.h>
 #include <my_getopt.h>
-#include <strings.h>
 #include <string>
 #include <sstream>
 #include <set>
 #include "common.h"
 #include "innobackupex.h"
 #include "xtrabackup.h"
-#include "xtrabackup_version.h"
 #include "xbstream.h"
 #include "fil_cur.h"
 #include "write_filt.h"
@@ -667,22 +665,6 @@ static struct my_option ibx_long_options[] =
 	 (uchar*) &ibx_xtrabackup_parallel, (uchar*) &ibx_xtrabackup_parallel,
 	 0, GET_INT, REQUIRED_ARG, 1, 1, INT_MAX, 0, 0, 0},
 
-	{"rebuild-indexes", OPT_REBUILD_INDEXES,
-	 "This option only has effect when used together with the --apply-log "
-	 "option and is passed directly to xtrabackup. When used, makes "
-	 "xtrabackup rebuild all secondary indexes after applying the log. "
-	 "This option is normally used to prepare compact backups. See the "
-	 "XtraBackup manual for more information.",
-	 (uchar*) &ibx_xtrabackup_rebuild_indexes,
-	 (uchar*) &ibx_xtrabackup_rebuild_indexes,
-	 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
-
-	{"rebuild-threads", OPT_REBUILD_THREADS,
-	 "Use this number of threads to rebuild indexes in a compact backup. "
-	 "Only has effect with --prepare and --rebuild-indexes.",
-	 (uchar*) &ibx_xtrabackup_rebuild_threads,
-	 (uchar*) &ibx_xtrabackup_rebuild_threads,
-	 0, GET_UINT, REQUIRED_ARG, 1, 1, UINT_MAX, 0, 0, 0},
 
 	{"stream", OPT_STREAM, "This option specifies the format in which to "
 	 "do the streamed backup.  The option accepts a string argument. The "
@@ -845,9 +827,9 @@ ibx_get_one_option(int optid,
 		exit(0);
 		break;
 	case 'v':
-		msg("innobackupex version %s %s (%s) (revision id: %s)\n",
-			XTRABACKUP_VERSION,
-			SYSTEM_TYPE, MACHINE_TYPE, XTRABACKUP_REVISION);
+		msg("innobackupex version %s %s (%s)\n",
+			MYSQL_SERVER_VERSION,
+			SYSTEM_TYPE, MACHINE_TYPE);
 		exit(0);
 		break;
 	case OPT_HISTORY:
@@ -1039,7 +1021,6 @@ ibx_init()
 
 	/* setup xtrabackup options */
 	xb_close_files = ibx_xb_close_files;
-	xtrabackup_compact = ibx_xtrabackup_compact;
 	xtrabackup_compress_alg = ibx_xtrabackup_compress_alg;
 	xtrabackup_compress_threads = ibx_xtrabackup_compress_threads;
 	xtrabackup_compress_chunk_size = ibx_xtrabackup_compress_chunk_size;
@@ -1057,8 +1038,6 @@ ibx_init()
 	xtrabackup_log_copy_interval = ibx_xtrabackup_log_copy_interval;
 	xtrabackup_incremental = ibx_xtrabackup_incremental;
 	xtrabackup_parallel = ibx_xtrabackup_parallel;
-	xtrabackup_rebuild_indexes = ibx_xtrabackup_rebuild_indexes;
-	xtrabackup_rebuild_threads = ibx_xtrabackup_rebuild_threads;
 	xtrabackup_stream_str = ibx_xtrabackup_stream_str;
 	xtrabackup_tables_file = ibx_xtrabackup_tables_file;
 	xtrabackup_throttle = ibx_xtrabackup_throttle;

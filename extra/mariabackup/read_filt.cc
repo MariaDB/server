@@ -75,7 +75,7 @@ rf_pass_through_get_next_batch(
 	*read_batch_start = ctxt->offset;
 	*read_batch_len = ctxt->data_file_size - ctxt->offset;
 
-	if (*read_batch_len > ctxt->buffer_capacity) {
+	if (*read_batch_len > (ib_int64_t)ctxt->buffer_capacity) {
 		*read_batch_len = ctxt->buffer_capacity;
 	}
 
@@ -128,7 +128,7 @@ rf_bitmap_get_next_batch(
 {
 	ulint	start_page_id;
 
-	start_page_id = ctxt->offset / ctxt->page_size;
+	start_page_id = (ulint)(ctxt->offset / ctxt->page_size);
 
 	xb_a (ctxt->offset % ctxt->page_size == 0);
 
@@ -170,7 +170,7 @@ rf_bitmap_get_next_batch(
 	buffer capacity.  The subsequent invocations will continue returning
 	the current block in buffer-sized pieces until ctxt->filter_batch_end
 	is reached, trigerring the next bitmap query.  */
-	if (*read_batch_len > ctxt->buffer_capacity) {
+	if (*read_batch_len > (ib_int64_t)ctxt->buffer_capacity) {
 		*read_batch_len = ctxt->buffer_capacity;
 	}
 

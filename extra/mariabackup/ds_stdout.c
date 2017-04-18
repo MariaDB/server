@@ -79,7 +79,7 @@ stdout_open(ds_ctxt_t *ctxt __attribute__((unused)),
 	setmode(fileno(stdout), _O_BINARY);
 #endif
 
-	stdout_file->fd = fileno(stdout);
+	stdout_file->fd = my_fileno(stdout);
 
 	file->path = (char *) stdout_file + sizeof(ds_stdout_file_t);
 	memcpy(file->path, fullpath, pathlen);

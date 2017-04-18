@@ -28,6 +28,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
 extern "C" {
 #endif
 
+extern char *xtrabackup_tmpdir;
 struct datasink_struct;
 typedef struct datasink_struct datasink_t;
 

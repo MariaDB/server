@@ -34,7 +34,7 @@ struct xb_wstream_struct {
 struct xb_wstream_file_struct {
 	xb_wstream_t	*stream;
 	char		*path;
-	ulong		path_len;
+	size_t		path_len;
 	char		chunk[XB_STREAM_MIN_CHUNK_SIZE];
 	char		*chunk_ptr;
 	size_t		chunk_free;
@@ -54,7 +54,7 @@ xb_stream_default_write_callback(xb_wstream_file_t *file __attribute__((unused))
 				 void *userdata __attribute__((unused)),
 				 const void *buf, size_t len)
 {
-	if (my_write(fileno(stdout), buf, len, MYF(MY_WME | MY_NABP)))
+	if (my_write(my_fileno(stdout), buf, len, MYF(MY_WME | MY_NABP)))
 		return -1;
 	return len;
 }
@@ -77,7 +77,7 @@ xb_stream_write_open(xb_wstream_t *stream, const char *path,
 		     xb_stream_write_callback *onwrite)
 {
 	xb_wstream_file_t	*file;
-	ulong			path_len;
+	size_t			path_len;
 
 	path_len = strlen(path);
 
@@ -90,7 +90,19 @@ xb_stream_write_open(xb_wstream_t *stream, const char *path,
 					       path_len + 1, MYF(MY_FAE));
 
 	file->path = (char *) (file + 1);
+#ifdef _WIN32
+	/* Normalize path on Windows, so we can restore elsewhere.*/
+	{
+		int i;
+		for (i = 0; ; i++) {
+			file->path[i] = (path[i] == '\\') ? '/' : path[i];
+			if (!path[i])
+				break;
+		}
+	}
+#else
 	memcpy(file->path, path, path_len + 1);
+#endif
 	file->path_len = path_len;
 
 	file->stream = stream;
@@ -208,7 +220,7 @@ xb_stream_write_chunk(xb_wstream_file_t *file, const void *buf, size_t len)
 	int8store(ptr, file->offset);            /* Payload offset */
 	ptr += 8;
 
-	checksum = crc32(0, buf, len);           /* checksum */
+	checksum = crc32(0, buf, (uint)len);           /* checksum */
 	int4store(ptr, checksum);
 	ptr += 4;
 

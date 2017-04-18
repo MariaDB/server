@@ -27,7 +27,6 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
 
 #include "fil_cur.h"
 #include "datasink.h"
-#include "compact.h"
 
 /* Incremental page filter context */
 typedef struct {
@@ -41,7 +40,6 @@ typedef struct {
 	xb_fil_cur_t	*cursor;
 	union {
 		xb_wf_incremental_ctxt_t	wf_incremental_ctxt;
-		xb_wf_compact_ctxt_t		wf_compact_ctxt;
 	} u;
 } xb_write_filt_ctxt_t;
 
@@ -56,6 +54,5 @@ typedef struct {
 
 extern xb_write_filt_t wf_write_through;
 extern xb_write_filt_t wf_incremental;
-extern xb_write_filt_t wf_compact;
 
 #endif /* XB_WRITE_FILT_H */

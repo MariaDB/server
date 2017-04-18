@@ -38,6 +38,7 @@ this program; if not, write to the Free Software Foundation, Inc., 59 Temple
 Place, Suite 330, Boston, MA 02111-1307 USA
 
 *******************************************************/
+#define MYSQL_CLIENT
 
 #include <my_global.h>
 #include <mysql.h>
@@ -47,10 +48,12 @@ Place, Suite 330, Boston, MA 02111-1307 USA
 #include <limits>
 #include "common.h"
 #include "xtrabackup.h"
-#include "xtrabackup_version.h"
+#include "mysql_version.h"
 #include "backup_copy.h"
 #include "backup_mysql.h"
 #include "mysqld.h"
+#include "encryption_plugin.h"
+#include <sstream>
 
 
 char *tool_name;
@@ -88,15 +91,7 @@ time_t history_lock_time;
 
 MYSQL *mysql_connection;
 
-extern "C" {
-MYSQL * STDCALL
-cli_mysql_real_connect(MYSQL *mysql,const char *host, const char *user,
-		       const char *passwd, const char *db,
-		       uint port, const char *unix_socket,ulong client_flag);
-}
-
-#define mysql_real_connect cli_mysql_real_connect
-
+my_bool opt_ssl_verify_server_cert;
 
 MYSQL *
 xb_mysql_connect()
@@ -136,11 +131,6 @@ xb_mysql_connect()
 	}
 	mysql_options(connection,MYSQL_OPT_SSL_VERIFY_SERVER_CERT,
 		      (char*)&opt_ssl_verify_server_cert);
-#if !defined(HAVE_YASSL)
-	  if (opt_server_public_key && *opt_server_public_key)
-		mysql_options(connection, MYSQL_SERVER_PUBLIC_KEY,
-			      opt_server_public_key);
-#endif
 #endif
 
 	if (!mysql_real_connect(connection,
@@ -310,7 +300,7 @@ check_server_version(unsigned long version_number,
 	version_supported = version_supported
 		|| (version_number > 50500 && version_number < 50700);
 	version_supported = version_supported
-		|| ((version_number > 100000 && version_number < 100300)
+		|| ((version_number > 100000)
 		    && server_flavor == FLAVOR_MARIADB);
 
 	if (mysql51 && innodb_version == NULL) {
@@ -596,7 +586,7 @@ select_incremental_lsn_from_history(lsn_t *incremental_lsn)
 	if (opt_incremental_history_name) {
 		mysql_real_escape_string(mysql_connection, buf,
 				opt_incremental_history_name,
-				strlen(opt_incremental_history_name));
+				(unsigned long)strlen(opt_incremental_history_name));
 		ut_snprintf(query, sizeof(query),
 			"SELECT innodb_to_lsn "
 			"FROM PERCONA_SCHEMA.xtrabackup_history "
@@ -609,7 +599,7 @@ select_incremental_lsn_from_history(lsn_t *incremental_lsn)
 	if (opt_incremental_history_uuid) {
 		mysql_real_escape_string(mysql_connection, buf,
 				opt_incremental_history_uuid,
-				strlen(opt_incremental_history_uuid));
+				(unsigned long)strlen(opt_incremental_history_uuid));
 		ut_snprintf(query, sizeof(query),
 			"SELECT innodb_to_lsn "
 			"FROM PERCONA_SCHEMA.xtrabackup_history "
@@ -756,7 +746,7 @@ have_queries_to_wait_for(MYSQL *connection, uint threshold)
 
 static
 void
-kill_long_queries(MYSQL *connection, uint timeout)
+kill_long_queries(MYSQL *connection, time_t timeout)
 {
 	MYSQL_RES *result;
 	MYSQL_ROW row;
@@ -768,15 +758,15 @@ kill_long_queries(MYSQL *connection, uint timeout)
 	all_queries = (opt_kill_long_query_type == QUERY_TYPE_ALL);
 	while ((row = mysql_fetch_row(result)) != NULL) {
 		const char	*info		= row[7];
-		int		duration	= atoi(row[5]);
+		long long		duration	= atoll(row[5]);
 		char		*id		= row[0];
 
 		if (info != NULL &&
-		    duration >= (int)timeout &&
+		    (time_t)duration >= timeout &&
 		    ((all_queries && is_query(info)) ||
 		    	is_select_query(info))) {
 			msg_ts("Killing query %s (duration %d sec): %s\n",
-			       id, duration, info);
+			       id, (int)duration, info);
 			ut_snprintf(kill_stmt, sizeof(kill_stmt),
 				    "KILL %s", id);
 			xb_mysql_query(connection, kill_stmt, false, false);
@@ -1378,7 +1368,18 @@ cleanup:
 	return(result);
 }
 
-
+static string escape_and_quote(MYSQL *mysql,const char *str)
+{
+	if (!str)
+		return "NULL";
+	size_t len = strlen(str);
+	char* escaped = (char *)alloca(2 * len + 3);
+	escaped[0] = '\'';
+	size_t new_len = mysql_real_escape_string(mysql, escaped+1, str, len);
+	escaped[new_len + 1] = '\'';
+	escaped[new_len + 2] = 0;
+	return string(escaped);
+}
 
 /*********************************************************************//**
 Writes xtrabackup_info file and if backup_history is enable creates
@@ -1388,25 +1389,16 @@ backup. */
 bool
 write_xtrabackup_info(MYSQL *connection)
 {
-	MYSQL_STMT *stmt;
-	MYSQL_BIND bind[19];
+
 	char *uuid = NULL;
 	char *server_version = NULL;
 	char buf_start_time[100];
 	char buf_end_time[100];
-	int idx;
 	tm tm;
 	my_bool null = TRUE;
-
+	ostringstream oss;
 	const char *xb_stream_name[] = {"file", "tar", "xbstream"};
-	const char *ins_query = "insert into PERCONA_SCHEMA.xtrabackup_history("
-		"uuid, name, tool_name, tool_command, tool_version, "
-		"ibbackup_version, server_version, start_time, end_time, "
-		"lock_time, binlog_pos, innodb_from_lsn, innodb_to_lsn, "
-		"partial, incremental, format, compact, compressed, "
-		"encrypted) "
-		"values(?,?,?,?,?,?,?,from_unixtime(?),from_unixtime(?),"
-		"?,?,?,?,?,?,?,?,?,?)";
+
 
 	ut_ad(xtrabackup_stream_fmt < 3);
 
@@ -1419,6 +1411,11 @@ write_xtrabackup_info(MYSQL *connection)
 	localtime_r(&history_end_time, &tm);
 	strftime(buf_end_time, sizeof(buf_end_time),
 		 "%Y-%m-%d %H:%M:%S", &tm);
+	bool is_partial = (xtrabackup_tables
+		|| xtrabackup_tables_file
+		|| xtrabackup_databases
+		|| xtrabackup_databases_file);
+
 	backup_file_printf(XTRABACKUP_INFO,
 		"uuid = %s\n"
 		"name = %s\n"
@@ -1443,23 +1440,20 @@ write_xtrabackup_info(MYSQL *connection)
 		opt_history ? opt_history : "",  /* name */
 		tool_name,  /* tool_name */
 		tool_args,  /* tool_command */
-		XTRABACKUP_VERSION,  /* tool_version */
-		XTRABACKUP_VERSION,  /* ibbackup_version */
+		MYSQL_SERVER_VERSION,  /* tool_version */
+		MYSQL_SERVER_VERSION,  /* ibbackup_version */
 		server_version,  /* server_version */
 		buf_start_time,  /* start_time */
 		buf_end_time,  /* end_time */
-		history_lock_time, /* lock_time */
+		(int)history_lock_time, /* lock_time */
 		mysql_binlog_position ?
 			mysql_binlog_position : "", /* binlog_pos */
 		incremental_lsn, /* innodb_from_lsn */
 		metadata_to_lsn, /* innodb_to_lsn */
-		(xtrabackup_tables /* partial */
-		 || xtrabackup_tables_file
-		 || xtrabackup_databases
-		 || xtrabackup_databases_file) ? "Y" : "N",
+		is_partial? "Y" : "N",
 		xtrabackup_incremental ? "Y" : "N", /* incremental */
 		xb_stream_name[xtrabackup_stream_fmt], /* format */
-		xtrabackup_compact ? "Y" : "N", /* compact */
+		"N", /* compact */
 		xtrabackup_compress ? "compressed" : "N", /* compressed */
 		xtrabackup_encrypt ? "Y" : "N"); /* encrypted */
 
@@ -1492,142 +1486,36 @@ write_xtrabackup_info(MYSQL *connection)
 		"encrypted ENUM('Y', 'N') DEFAULT NULL"
 		") CHARACTER SET utf8 ENGINE=innodb", false);
 
-	stmt = mysql_stmt_init(connection);
 
-	mysql_stmt_prepare(stmt, ins_query, strlen(ins_query));
+#define ESCAPE_BOOL(expr) ((expr)?"'Y'":"'N'")
 
-	memset(bind, 0, sizeof(bind));
-	idx = 0;
+	oss << "insert into PERCONA_SCHEMA.xtrabackup_history("
+		<< "uuid, name, tool_name, tool_command, tool_version,"
+		<< "ibbackup_version, server_version, start_time, end_time,"
+		<< "lock_time, binlog_pos, innodb_from_lsn, innodb_to_lsn,"
+		<< "partial, incremental, format, compact, compressed, "
+		<< "encrypted) values("
+		<< escape_and_quote(connection, uuid) << ","
+		<< escape_and_quote(connection, opt_history) << ","
+		<< escape_and_quote(connection, tool_name) << ","
+		<< escape_and_quote(connection, tool_args) << ","
+		<< escape_and_quote(connection, MYSQL_SERVER_VERSION) << ","
+		<< escape_and_quote(connection, MYSQL_SERVER_VERSION) << ","
+		<< escape_and_quote(connection, server_version) << ","
+		<< "from_unixtime(" << history_start_time << "),"
+		<< "from_unixtime(" << history_end_time << "),"
+		<< history_lock_time << ","
+		<< escape_and_quote(connection, mysql_binlog_position) << ","
+		<< incremental_lsn << ","
+		<< metadata_to_lsn << ","
+		<< ESCAPE_BOOL(is_partial) << ","
+		<< ESCAPE_BOOL(xtrabackup_incremental)<< ","
+		<< escape_and_quote(connection,xb_stream_name[xtrabackup_stream_fmt]) <<","
+		<< ESCAPE_BOOL(false) << ","
+		<< ESCAPE_BOOL(xtrabackup_compress) << ","
+		<< ESCAPE_BOOL(xtrabackup_encrypt) <<")";
 
-	/* uuid */
-	bind[idx].buffer_type = MYSQL_TYPE_STRING;
-	bind[idx].buffer = uuid;
-	bind[idx].buffer_length = strlen(uuid);
-	++idx;
-
-	/* name */
-	bind[idx].buffer_type = MYSQL_TYPE_STRING;
-	bind[idx].buffer = (char*)(opt_history);
-	bind[idx].buffer_length = strlen(opt_history);
-	if (!(opt_history && *opt_history)) {
-		bind[idx].is_null = &null;
-	}
-	++idx;
-
-	/* tool_name */
-	bind[idx].buffer_type = MYSQL_TYPE_STRING;
-	bind[idx].buffer = tool_name;
-	bind[idx].buffer_length = strlen(tool_name);
-	++idx;
-
-	/* tool_command */
-	bind[idx].buffer_type = MYSQL_TYPE_STRING;
-	bind[idx].buffer = tool_args;
-	bind[idx].buffer_length = strlen(tool_args);
-	++idx;
-
-	/* tool_version */
-	bind[idx].buffer_type = MYSQL_TYPE_STRING;
-	bind[idx].buffer = (char*)(XTRABACKUP_VERSION);
-	bind[idx].buffer_length = strlen(XTRABACKUP_VERSION);
-	++idx;
-
-	/* ibbackup_version */
-	bind[idx].buffer_type = MYSQL_TYPE_STRING;
-	bind[idx].buffer = (char*)(XTRABACKUP_VERSION);
-	bind[idx].buffer_length = strlen(XTRABACKUP_VERSION);
-	++idx;
-
-	/* server_version */
-	bind[idx].buffer_type = MYSQL_TYPE_STRING;
-	bind[idx].buffer = server_version;
-	bind[idx].buffer_length = strlen(server_version);
-	++idx;
-
-	/* start_time */
-	bind[idx].buffer_type = MYSQL_TYPE_LONG;
-	bind[idx].buffer = &history_start_time;
-	++idx;
-
-	/* end_time */
-	bind[idx].buffer_type = MYSQL_TYPE_LONG;
-	bind[idx].buffer = &history_end_time;
-	++idx;
-
-	/* lock_time */
-	bind[idx].buffer_type = MYSQL_TYPE_LONG;
-	bind[idx].buffer = &history_lock_time;
-	++idx;
-
-	/* binlog_pos */
-	bind[idx].buffer_type = MYSQL_TYPE_STRING;
-	bind[idx].buffer = mysql_binlog_position;
-	if (mysql_binlog_position != NULL) {
-		bind[idx].buffer_length = strlen(mysql_binlog_position);
-	} else {
-		bind[idx].is_null = &null;
-	}
-	++idx;
-
-	/* innodb_from_lsn */
-	bind[idx].buffer_type = MYSQL_TYPE_LONGLONG;
-	bind[idx].buffer = (char*)(&incremental_lsn);
-	++idx;
-
-	/* innodb_to_lsn */
-	bind[idx].buffer_type = MYSQL_TYPE_LONGLONG;
-	bind[idx].buffer = (char*)(&metadata_to_lsn);
-	++idx;
-
-	/* partial (Y | N) */
-	bind[idx].buffer_type = MYSQL_TYPE_STRING;
-	bind[idx].buffer = (char*)((xtrabackup_tables
-				    || xtrabackup_tables_file
-				    || xtrabackup_databases
-				    || xtrabackup_databases_file) ? "Y" : "N");
-	bind[idx].buffer_length = 1;
-	++idx;
-
-	/* incremental (Y | N) */
-	bind[idx].buffer_type = MYSQL_TYPE_STRING;
-	bind[idx].buffer = (char*)(
-		(xtrabackup_incremental
-		 || xtrabackup_incremental_basedir
-		 || opt_incremental_history_name
-		 || opt_incremental_history_uuid) ? "Y" : "N");
-	bind[idx].buffer_length = 1;
-	++idx;
-
-	/* format (file | tar | xbstream) */
-	bind[idx].buffer_type = MYSQL_TYPE_STRING;
-	bind[idx].buffer = (char*)(xb_stream_name[xtrabackup_stream_fmt]);
-	bind[idx].buffer_length = strlen(xb_stream_name[xtrabackup_stream_fmt]);
-	++idx;
-
-	/* compact (Y | N) */
-	bind[idx].buffer_type = MYSQL_TYPE_STRING;
-	bind[idx].buffer = (char*)(xtrabackup_compact ? "Y" : "N");
-	bind[idx].buffer_length = 1;
-	++idx;
-
-	/* compressed (Y | N) */
-	bind[idx].buffer_type = MYSQL_TYPE_STRING;
-	bind[idx].buffer = (char*)(xtrabackup_compress ? "Y" : "N");
-	bind[idx].buffer_length = 1;
-	++idx;
-
-	/* encrypted (Y | N) */
-	bind[idx].buffer_type = MYSQL_TYPE_STRING;
-	bind[idx].buffer = (char*)(xtrabackup_encrypt ? "Y" : "N");
-	bind[idx].buffer_length = 1;
-	++idx;
-
-	ut_ad(idx == 19);
-
-	mysql_stmt_bind_param(stmt, bind);
-
-	mysql_stmt_execute(stmt);
-	mysql_stmt_close(stmt);
+	xb_mysql_query(mysql_connection, oss.str().c_str(), false);
 
 cleanup:
 
@@ -1637,10 +1525,11 @@ cleanup:
 	return(true);
 }
 
-bool
-write_backup_config_file()
+extern const char *innodb_checksum_algorithm_names[];
+
+bool write_backup_config_file()
 {
-	return backup_file_printf("backup-my.cnf",
+	int rc= backup_file_printf("backup-my.cnf",
 		"# This MySQL options file was generated by innobackupex.\n\n"
 		"# The MySQL server\n"
 		"[mysqld]\n"
@@ -1649,19 +1538,18 @@ write_backup_config_file()
 		"innodb_data_file_path=%s\n"
 		"innodb_log_files_in_group=%lu\n"
 		"innodb_log_file_size=%lld\n"
-		"innodb_fast_checksum=%s\n"
 		"innodb_page_size=%lu\n"
 		"innodb_log_block_size=%lu\n"
 		"innodb_undo_directory=%s\n"
 		"innodb_undo_tablespaces=%lu\n"
 		"%s%s\n"
-		"%s%s\n",
+		"%s%s\n"
+		"%s\n",
 		innodb_checksum_algorithm_names[srv_checksum_algorithm],
 		innodb_checksum_algorithm_names[srv_log_checksum_algorithm],
 		innobase_data_file_path,
 		srv_n_log_files,
 		innobase_log_file_size,
-		srv_fast_checksum ? "true" : "false",
 		srv_page_size,
 		srv_log_block_size,
 		srv_undo_dir,
@@ -1671,7 +1559,9 @@ write_backup_config_file()
 		innobase_buffer_pool_filename ?
 			"innodb_buffer_pool_filename=" : "",
 		innobase_buffer_pool_filename ?
-			innobase_buffer_pool_filename : "");
+			innobase_buffer_pool_filename : "",
+		encryption_plugin_get_config());
+		return rc;
 }
 
 

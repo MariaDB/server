@@ -46,7 +46,12 @@ ds_create(const char *root, ds_type_t type)
 		ds = &datasink_local;
 		break;
 	case DS_TYPE_ARCHIVE:
+#ifdef HAVE_LIBARCHIVE
 		ds = &datasink_archive;
+#else
+		msg("Error : mariabackup was built without libarchive support");
+		exit(EXIT_FAILURE);
+#endif
 		break;
 	case DS_TYPE_XBSTREAM:
 		ds = &datasink_xbstream;
@@ -55,8 +60,10 @@ ds_create(const char *root, ds_type_t type)
 		ds = &datasink_compress;
 		break;
 	case DS_TYPE_ENCRYPT:
-		ds = &datasink_encrypt;
+		msg("Error : mariabackup does not support encrypted backups.");
+		exit(EXIT_FAILURE);
 		break;
+
 	case DS_TYPE_TMPFILE:
 		ds = &datasink_tmpfile;
 		break;

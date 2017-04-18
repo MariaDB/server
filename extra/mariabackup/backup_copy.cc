@@ -1,6 +1,7 @@
 /******************************************************
 hot backup tool for InnoDB
 (c) 2009-2015 Percona LLC and/or its affiliates
+(c) 2017 MariaDB
 Originally Created 3/3/2009 Yasufumi Kinoshita
 Written by Alexey Kopytov, Aleksandr Kuzminsky, Stewart Smith, Vadim Tkachenko,
 Yasufumi Kinoshita, Ignacio Nin and Baron Schwartz.
@@ -48,13 +49,14 @@ Place, Suite 330, Boston, MA 02111-1307 USA
 #include <set>
 #include <string>
 #include <mysqld.h>
-#include <version_check_pl.h>
 #include <sstream>
 #include "fil_cur.h"
 #include "xtrabackup.h"
 #include "common.h"
 #include "backup_copy.h"
 #include "backup_mysql.h"
+#include <btr0btr.h>
+#include "xb0xb.h"
 
 
 /* list of files to sync for --rsync mode */
@@ -110,6 +112,7 @@ struct datadir_thread_ctxt_t {
 	bool			ret;
 };
 
+static bool backup_files_from_datadir(const char *dir_path);
 
 /************************************************************************
 Retirn true if character if file separator */
@@ -225,7 +228,7 @@ datadir_iter_next_database(datadir_iter_t *it)
 		it->dbdir = NULL;
 	}
 
-	while (fil_file_readdir_next_file(&it->err, it->datadir_path,
+	while (os_file_readdir_next_file(it->datadir_path,
 					  it->dir, &it->dbinfo) == 0) {
 		ulint	len;
 
@@ -340,7 +343,7 @@ datadir_iter_next_file(datadir_iter_t *it)
 		return(false);
 	}
 
-	while (fil_file_readdir_next_file(&it->err, it->dbpath, it->dbdir,
+	while (os_file_readdir_next_file(it->dbpath, it->dbdir,
 					  &it->fileinfo) == 0) {
 
 		if (it->fileinfo.type == OS_FILE_TYPE_DIR) {
@@ -449,9 +452,9 @@ struct datafile_cur_t {
 	uint		thread_n;
 	byte*		orig_buf;
 	byte*		buf;
-	ib_int64_t	buf_size;
-	ib_int64_t	buf_read;
-	ib_int64_t	buf_offset;
+	size_t		buf_size;
+	size_t		buf_read;
+	size_t		buf_offset;
 };
 
 static
@@ -486,7 +489,7 @@ datafile_open(const char *file, datafile_cur_t *cursor, uint thread_n)
 							cursor->abs_path,
 							OS_FILE_OPEN,
 							OS_FILE_READ_ONLY,
-							&success);
+							&success, 0);
 	if (!success) {
 		/* The following call prints an error message */
 		os_file_get_last_error(TRUE);
@@ -498,7 +501,7 @@ datafile_open(const char *file, datafile_cur_t *cursor, uint thread_n)
 		return(false);
 	}
 
-	if (my_fstat(cursor->file, &cursor->statinfo, MYF(MY_WME))) {
+	if (!my_stat(cursor->abs_path, &cursor->statinfo, 0)) {
 		msg("[%02u] error: cannot stat %s\n",
 			thread_n, cursor->abs_path);
 
@@ -510,7 +513,7 @@ datafile_open(const char *file, datafile_cur_t *cursor, uint thread_n)
 	posix_fadvise(cursor->file, 0, 0, POSIX_FADV_SEQUENTIAL);
 
 	cursor->buf_size = 10 * 1024 * 1024;
-	cursor->buf = static_cast<byte *>(ut_malloc(cursor->buf_size));
+	cursor->buf = static_cast<byte *>(ut_malloc((ulint)cursor->buf_size));
 
 	return(true);
 }
@@ -525,7 +528,7 @@ datafile_read(datafile_cur_t *cursor)
 
 	xtrabackup_io_throttling();
 
-	to_read = min(cursor->statinfo.st_size - cursor->buf_offset, 
+	to_read = (ulint)MY_MIN(cursor->statinfo.st_size - cursor->buf_offset, 
 		      cursor->buf_size);
 
 	if (to_read == 0) {
@@ -603,6 +606,11 @@ ends_with(const char *str, const char *suffix)
 	       && strcmp(str + str_len - suffix_len, suffix) == 0);
 }
 
+static bool starts_with(const char *str, const char *prefix)
+{
+	return strncmp(str, prefix, strlen(prefix)) == 0;
+}
+
 /************************************************************************
 Create directories recursively.
 @return 0 if directories created successfully. */
@@ -644,6 +652,7 @@ Return true if first and second arguments are the same path. */
 bool
 equal_paths(const char *first, const char *second)
 {
+#ifdef HAVE_REALPATH
 	char real_first[PATH_MAX];
 	char real_second[PATH_MAX];
 
@@ -655,6 +664,9 @@ equal_paths(const char *first, const char *second)
 	}
 
 	return (strcmp(real_first, real_second) == 0);
+#else
+	return strcmp(first, second) == 0;
+#endif
 }
 
 /************************************************************************
@@ -675,10 +687,8 @@ directory_exists(const char *dir, bool create)
 		}
 
 		if (mkdirp(dir, 0777, MYF(0)) < 0) {
-
-			msg("Can not create directory %s: %s\n", dir,
-			    my_strerror(errbuf, sizeof(errbuf), my_errno));
-
+			my_strerror(errbuf, sizeof(errbuf), my_errno);
+			msg("Can not create directory %s: %s\n", dir, errbuf);
 			return(false);
 
 		}
@@ -688,9 +698,9 @@ directory_exists(const char *dir, bool create)
 	os_dir = os_file_opendir(dir, FALSE);
 
 	if (os_dir == NULL) {
-
+		my_strerror(errbuf, sizeof(errbuf), my_errno);
 		msg("Can not open directory %s: %s\n", dir,
-			my_strerror(errbuf, sizeof(errbuf), my_errno));
+			errbuf);
 
 		return(false);
 	}
@@ -1054,16 +1064,17 @@ move_file(ds_ctxt_t *datasink,
 					dst_file_path, thread_n);
 			msg_ts("[%02u] Removing %s\n", thread_n, src_file_path);
 			if (unlink(src_file_path) != 0) {
+				my_strerror(errbuf, sizeof(errbuf), errno);
 				msg("Error: unlink %s failed: %s\n",
 					src_file_path,
-					my_strerror(errbuf,
-						    sizeof(errbuf), errno));
+					errbuf);
 			}
 			return(ret);
 		}
+		my_strerror(errbuf, sizeof(errbuf), my_errno);
 		msg("Can not move file %s to %s: %s\n",
 			src_file_path, dst_file_path_abs,
-			my_strerror(errbuf, sizeof(errbuf), my_errno));
+			errbuf);
 		return(false);
 	}
 
@@ -1360,6 +1371,10 @@ backup_start()
 		return(false);
 	}
 
+	if (!backup_files_from_datadir(fil_path_to_mysql_datadir)) {
+		return false;
+	}
+
 	// There is no need to stop slave thread before coping non-Innodb data when
 	// --no-lock option is used because --no-lock option requires that no DDL or
 	// DML to non-transaction tables can occur.
@@ -1578,7 +1593,11 @@ ibx_cleanup_full_backup()
 	while (datadir_iter_next(it, &node)) {
 
 		if (node.is_empty_dir) {
+#ifdef _WIN32
+			DeleteFile(node.filepath);
+#else
 			rmdir(node.filepath);
+#endif
 		}
 
 		if (xtrabackup_incremental && !node.is_empty_dir
@@ -1604,6 +1623,9 @@ apply_log_finish()
 
 	return(true);
 }
+
+extern void
+os_io_init_simple(void);
 
 bool
 copy_back()
@@ -1661,7 +1683,7 @@ copy_back()
 	}
 
 	srv_max_n_threads = 1000;
-	os_sync_mutex = NULL;
+	//os_sync_mutex = NULL;
 	ut_mem_init();
 	/* temporally dummy value to avoid crash */
 	srv_page_size_shift = 14;
@@ -1764,10 +1786,9 @@ copy_back()
 
 			if (mkdirp(path, 0777, MYF(0)) < 0) {
 				char errbuf[MYSYS_STRERROR_SIZE];
-
+				my_strerror(errbuf, sizeof(errbuf), my_errno);
 				msg("Can not create directory %s: %s\n",
-					path, my_strerror(errbuf,
-						sizeof(errbuf), my_errno));
+					path, errbuf);
 				ret = false;
 
 				goto cleanup;
@@ -1855,13 +1876,12 @@ cleanup:
 
 	ds_data = NULL;
 
+	//os_sync_free();
+	mem_close();
+	//os_sync_mutex = NULL;
+	ut_free_all_mem();
 	sync_close();
 	sync_initialized = FALSE;
-	os_sync_free();
-	mem_close();
-	os_sync_mutex = NULL;
-	ut_free_all_mem();
-
 	return(ret);
 }
 
@@ -1872,7 +1892,7 @@ decrypt_decompress_file(const char *filepath, uint thread_n)
 	char *dest_filepath = strdup(filepath);
 	bool needs_action = false;
 
-	cmd << "cat " << filepath;
+	cmd << IF_WIN("type ","cat ") << filepath;
 
  	if (ends_with(filepath, ".xbcrypt") && opt_decrypt) {
  		cmd << " | xbcrypt --decrypt --encrypt-algo="
@@ -1926,7 +1946,7 @@ decrypt_decompress_file(const char *filepath, uint thread_n)
 }
 
 static
-os_thread_ret_t
+os_thread_ret_t STDCALL
 decrypt_decompress_thread_func(void *arg)
 {
 	bool ret = true;
@@ -1974,7 +1994,7 @@ decrypt_decompress()
 	datadir_iter_t *it = NULL;
 
 	srv_max_n_threads = 1000;
-	os_sync_mutex = NULL;
+	//os_sync_mutex = NULL;
 	ut_mem_init();
 	os_sync_init();
 	sync_init();
@@ -2008,40 +2028,43 @@ decrypt_decompress()
 
 	sync_close();
 	sync_initialized = FALSE;
-	os_sync_free();
-	os_sync_mutex = NULL;
+	//os_sync_free();
+	//os_sync_mutex = NULL;
 	ut_free_all_mem();
 
 	return(ret);
 }
 
-void
-version_check()
+/*
+  Copy some files from top level datadir.
+  Do not copy the Innodb files (ibdata1, redo log files),
+  as this is done in a separate step.
+*/
+static bool backup_files_from_datadir(const char *dir_path)
 {
-	if (opt_password != NULL) {
-		setenv("option_mysql_password", opt_password, 1);
-	}
-	if (opt_user != NULL) {
-		setenv("option_mysql_user", opt_user, 1);
-	}
-	if (opt_host != NULL) {
-		setenv("option_mysql_host", opt_host, 1);
-	}
-	if (opt_socket != NULL) {
-		setenv("option_mysql_socket", opt_socket, 1);
-	}
-	if (opt_port != 0) {
-		char port[20];
-		snprintf(port, sizeof(port), "%u", opt_port);
-		setenv("option_mysql_port", port, 1);
-	}
+	os_file_dir_t dir = os_file_opendir(dir_path, TRUE);
+	os_file_stat_t info;
+	bool ret = true;
+	while (os_file_readdir_next_file(dir_path, dir, &info) == 0) {
 
-	FILE *pipe = popen("perl", "w");
-	if (pipe == NULL) {
-		return;
+		if (info.type != OS_FILE_TYPE_FILE)
+			continue;
+
+		const char *pname = strrchr(info.name, IF_WIN('\\', '/'));
+		if (!pname)
+			pname = info.name;
+
+		/* Copy aria log files, and aws keys for encryption plugins.*/
+		const char *prefixes[] = { "aria_log", "aws-kms-key" };
+		for (size_t i = 0; i < array_elements(prefixes); i++) {
+			if (starts_with(pname, prefixes[i])) {
+				ret = copy_file(ds_data, info.name, info.name, 1);
+				if (!ret) {
+					break;
+				}
+			}
+		}
 	}
-
-	fputs((const char *)version_check_pl, pipe);
-
-	pclose(pipe);
+	os_file_closedir(dir);
+	return ret;
 }

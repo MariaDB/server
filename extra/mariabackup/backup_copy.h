@@ -41,8 +41,6 @@ bool
 copy_back();
 bool
 decrypt_decompress();
-void
-version_check();
 bool
 is_path_separator(char);
 bool

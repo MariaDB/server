@@ -48,12 +48,12 @@ xb_stream_read_new(void)
 	stream->buffer = my_malloc(INIT_BUFFER_LEN, MYF(MY_FAE));
 	stream->buflen = INIT_BUFFER_LEN;
 
-	stream->fd = fileno(stdin);
-	stream->offset = 0;
-
 #ifdef __WIN__
-	setmode(stream->fd, _O_BINARY);
+	setmode(fileno(stdin), _O_BINARY);
 #endif
+
+	stream->fd = my_fileno(stdin);
+	stream->offset = 0;
 
 	return stream;
 }

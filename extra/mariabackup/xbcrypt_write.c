@@ -73,7 +73,7 @@ int xb_crypt_write_chunk(xb_wcrypt_t *crypt, const void *buf, size_t olen,
 	int8store(ptr, (ulonglong)elen); /* encrypted (actual) size */
 	ptr += 8;
 
-	checksum = crc32(0, buf, elen);
+	checksum = crc32(0, buf, (uint)elen);
 	int4store(ptr, checksum);	/* checksum */
 	ptr += 4;
 
