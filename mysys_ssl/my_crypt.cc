@@ -266,6 +266,32 @@ int my_aes_crypt(enum my_aes_mode mode, int flags,
   return res1 ? res1 : res2;
 }
 
+
+/*
+  calculate the length of the cyphertext from the length of the plaintext
+  for different AES encryption modes with padding enabled.
+  Without padding (ENCRYPTION_FLAG_NOPAD) cyphertext has the same length
+  as the plaintext
+*/
+unsigned int my_aes_get_size(enum my_aes_mode mode __attribute__((unused)), unsigned int source_length)
+{
+#ifdef HAVE_EncryptAes128Ctr
+  if (mode == MY_AES_CTR)
+    return source_length;
+#ifdef HAVE_EncryptAes128Gcm
+  if (mode == MY_AES_GCM)
+    return source_length + MY_AES_BLOCK_SIZE;
+#endif
+#endif
+  return (source_length / MY_AES_BLOCK_SIZE + 1) * MY_AES_BLOCK_SIZE;
+}
+
+
+unsigned int my_aes_ctx_size(enum my_aes_mode)
+{
+  return MY_AES_CTX_SIZE;
+}
+
 #ifdef HAVE_YASSL
 #include <random.hpp>
 int my_random_bytes(uchar* buf, int num)

@@ -232,7 +232,7 @@ bool Parser::parse_file(Dynamic_array<keyentry> *keys, const char *secret)
 void Parser::report_error(const char *reason, uint position)
 {
   my_printf_error(EE_READ, "%s at %s line %u, column %u",
-    MYF(ME_NOREFRESH), reason, filename, line_number, position + 1);
+    ME_ERROR_LOG, reason, filename, line_number, position + 1);
 }
 
 /*
@@ -300,9 +300,8 @@ char* Parser::read_and_decrypt_file(const char *secret)
 {
   if (!filename || !filename[0])
   {
-    my_printf_error(EE_CANT_OPEN_STREAM,
-                    "file-key-management-filename is not set",
-                    MYF(ME_NOREFRESH));
+    my_printf_error(EE_CANT_OPEN_STREAM, "file-key-management-filename is not set",
+                    ME_ERROR_LOG);
     goto err0;
   }
 
@@ -351,7 +350,7 @@ char* Parser::read_and_decrypt_file(const char *secret)
                      iv, OpenSSL_iv_len))
 
     {
-      my_printf_error(EE_READ, "Cannot decrypt %s. Wrong key?", MYF(ME_NOREFRESH), filename);
+      my_printf_error(EE_READ, "Cannot decrypt %s. Wrong key?", ME_ERROR_LOG, filename);
       goto err3;
     }
 
@@ -361,7 +360,7 @@ char* Parser::read_and_decrypt_file(const char *secret)
   }
   else if (*secret)
   {
-    my_printf_error(EE_READ, "Cannot decrypt %s. Not encrypted", MYF(ME_NOREFRESH), filename);
+    my_printf_error(EE_READ, "Cannot decrypt %s. Not encrypted", ME_ERROR_LOG, filename);
     goto err2;
   }
 
@@ -378,4 +377,3 @@ err1:
 err0:
   return NULL;
 }
-

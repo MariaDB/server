@@ -114,14 +114,32 @@ static int example_key_management_plugin_deinit(void *p)
   return 0;
 }
 
+
+static int ctx_update(void *ctx, const unsigned char *src, unsigned int slen,
+  unsigned char *dst, unsigned int *dlen)
+{
+  return my_aes_crypt_update(ctx, src, slen, dst, dlen);
+}
+
+
+int ctx_finish(void *ctx, unsigned char *dst, unsigned int *dlen)
+{
+  return my_aes_crypt_finish(ctx, dst, dlen);
+}
+
+static  uint ctx_size(unsigned int , unsigned int key_version)
+{
+  return my_aes_ctx_size(mode(key_version));
+}
+
 struct st_mariadb_encryption example_key_management_plugin= {
   MariaDB_ENCRYPTION_INTERFACE_VERSION,
   get_latest_key_version,
   get_key,
-  (uint (*)(unsigned int, unsigned int))my_aes_ctx_size,
+  ctx_size,
   ctx_init,
-  my_aes_crypt_update,
-  my_aes_crypt_finish,
+  ctx_update,
+  ctx_finish,
   get_length
 };
 
