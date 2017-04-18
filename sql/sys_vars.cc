@@ -5472,12 +5472,10 @@ static Sys_var_ulonglong Sys_max_thread_mem(
 
 static Sys_var_sesvartrack Sys_track_session_sys_vars(
        "session_track_system_variables",
-       "Track changes in registered system variables. "
-       "For compatibility with MySQL defaults this variable should be set to "
-       "\"autocommit, character_set_client, character_set_connection, "
-       "character_set_results, time_zone\"",
+       "Track changes in registered system variables. ",
        CMD_LINE(REQUIRED_ARG), IN_SYSTEM_CHARSET,
-       DEFAULT(""),
+       DEFAULT("autocommit,character_set_client,character_set_connection,"
+       "character_set_results,time_zone"),
        NO_MUTEX_GUARD);
 
 static bool update_session_track_schema(sys_var *self, THD *thd,
