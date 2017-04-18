@@ -83,7 +83,7 @@ my_bool wsrep_creating_startup_threads = 0;
  */
 my_bool wsrep_inited                   = 0; // initialized ?
 
-static const wsrep_uuid_t cluster_uuid = WSREP_UUID_UNDEFINED;
+static wsrep_uuid_t cluster_uuid = WSREP_UUID_UNDEFINED;
 const wsrep_uuid_t* wsrep_cluster_uuid()
 {
   return &cluster_uuid;
