@@ -27,7 +27,6 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
 #include "ds_local.h"
 #include "ds_stdout.h"
 #include "ds_tmpfile.h"
-#include "ds_encrypt.h"
 #include "ds_buffer.h"
 
 /************************************************************************
@@ -60,6 +59,7 @@ ds_create(const char *root, ds_type_t type)
 		ds = &datasink_compress;
 		break;
 	case DS_TYPE_ENCRYPT:
+  case DS_TYPE_DECRYPT:
 		msg("Error : mariabackup does not support encrypted backups.");
 		exit(EXIT_FAILURE);
 		break;

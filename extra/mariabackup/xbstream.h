@@ -1,5 +1,5 @@
 /******************************************************
-Copyright (c) 2011-2013 Percona LLC and/or its affiliates.
+Copyright (c) 2011-2017 Percona LLC and/or its affiliates.
 
 The xbstream format interface.
 
@@ -89,8 +89,10 @@ typedef struct {
 	char		path[FN_REFLEN];
 	size_t		length;
 	my_off_t	offset;
+	my_off_t	checksum_offset;
 	void		*data;
 	ulong		checksum;
+	size_t		buflen;
 } xb_rstream_chunk_t;
 
 xb_rstream_t *xb_stream_read_new(void);
@@ -99,5 +101,7 @@ xb_rstream_result_t xb_stream_read_chunk(xb_rstream_t *stream,
 					 xb_rstream_chunk_t *chunk);
 
 int xb_stream_read_done(xb_rstream_t *stream);
+
+int xb_stream_validate_checksum(xb_rstream_chunk_t *chunk);
 
 #endif

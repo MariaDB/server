@@ -65,6 +65,7 @@ xb_rcrypt_t *xb_crypt_read_open(void *userdata,
 
 typedef enum {
 	XB_CRYPT_READ_CHUNK,
+	XB_CRYPT_READ_INCOMPLETE,
 	XB_CRYPT_READ_EOF,
 	XB_CRYPT_READ_ERROR
 } xb_rcrypt_result_t;
@@ -75,10 +76,4 @@ xb_rcrypt_result_t xb_crypt_read_chunk(xb_rcrypt_t *crypt, void **buf,
 
 int xb_crypt_read_close(xb_rcrypt_t *crypt);
 
-/******************************************************************************
-Utility interface */
-my_bool xb_crypt_read_key_file(const char *filename,
-			       void** key, uint *keylength);
-
-void xb_crypt_create_iv(void* ivbuf, size_t ivlen);
 #endif

@@ -71,6 +71,7 @@ static ulint srv_data_read, srv_data_written;
 
 MYSQL_PLUGIN_IMPORT extern my_bool lower_case_file_system;
 
+
 /*
 		IMPLEMENTATION OF THE TABLESPACE MEMORY CACHE
 		=============================================
@@ -5379,6 +5380,9 @@ fil_file_readdir_next_file(
 	return(-1);
 }
 
+
+my_bool(*fil_check_if_skip_database_by_path)(const char* name);
+
 #define CHECK_TIME_EVERY_N_FILES   10
 /********************************************************************//**
 At the server startup, if we need crash recovery, scans the database
@@ -5449,7 +5453,19 @@ fil_load_single_table_tablespaces(ibool (*pred)(const char*, const char*))
 			    "%s/%s", fil_path_to_mysql_datadir, dbinfo.name);
 		srv_normalize_path_for_win(dbpath);
 
-		dbdir = os_file_opendir(dbpath, FALSE);
+		if (IS_XTRABACKUP()) {
+			ut_a(fil_check_if_skip_database_by_path);
+			if (fil_check_if_skip_database_by_path(dbpath)) {
+				fprintf(stderr, "Skipping db: %s\n", dbpath);
+				dbdir = NULL;
+			} else {
+				/* We want wrong directory permissions to be a fatal
+				error for XtraBackup. */
+				dbdir = os_file_opendir(dbpath, TRUE);
+			}
+		} else {
+			dbdir = os_file_opendir(dbpath, FALSE);
+		}
 
 		if (dbdir != NULL) {
 

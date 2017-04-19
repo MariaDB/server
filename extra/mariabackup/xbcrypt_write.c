@@ -19,6 +19,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
 *******************************************************/
 
 #include "xbcrypt.h"
+#include "crc_glue.h"
 
 struct xb_wcrypt_struct {
 	void				*userdata;
@@ -73,7 +74,7 @@ int xb_crypt_write_chunk(xb_wcrypt_t *crypt, const void *buf, size_t olen,
 	int8store(ptr, (ulonglong)elen); /* encrypted (actual) size */
 	ptr += 8;
 
-	checksum = crc32(0, buf, (uint)elen);
+	checksum = crc32_iso3309(0, buf, elen);
 	int4store(ptr, checksum);	/* checksum */
 	ptr += 4;
 

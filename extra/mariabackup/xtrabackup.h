@@ -77,6 +77,8 @@ extern char		*xtrabackup_tables;
 extern char		*xtrabackup_tables_file;
 extern char		*xtrabackup_databases;
 extern char		*xtrabackup_databases_file;
+extern char		*xtrabackup_tables_exclude;
+extern char		*xtrabackup_databases_exclude;
 
 extern ibool		xtrabackup_compress;
 extern ibool		xtrabackup_encrypt;
@@ -204,6 +206,17 @@ my_bool
 check_if_skip_table(
 /******************/
 	const char*	name);	/*!< in: path to the table */
+
+
+/************************************************************************
+Checks if a database specified by path should be skipped from backup based on
+the --databases, --databases_file or --databases_exclude options.
+
+@return TRUE if the table should be skipped. */
+my_bool
+check_if_skip_database_by_path(
+	const char* path /*!< in: path to the db directory. */
+);
 
 /************************************************************************
 Check if parameter is set in defaults file or via command line argument

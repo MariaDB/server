@@ -19,6 +19,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
 *******************************************************/
 
 #include "xbcrypt.h"
+#include "crc_glue.h"
 
 struct xb_rcrypt_struct {
 	void				*userdata;
@@ -212,7 +213,7 @@ xb_crypt_read_chunk(xb_rcrypt_t *crypt, void **buf, size_t *olen, size_t *elen,
 		}
 	}
 
-	checksum = crc32(0, crypt->buffer, *elen);
+	checksum = crc32_iso3309(0, crypt->buffer, *elen);
 	if (checksum != checksum_exp) {
 		msg("%s:%s invalid checksum at offset 0x%llx, "
 		    "expected 0x%lx, actual 0x%lx.\n", my_progname, __FUNCTION__,

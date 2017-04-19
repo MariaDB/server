@@ -1414,7 +1414,10 @@ write_xtrabackup_info(MYSQL *connection)
 	bool is_partial = (xtrabackup_tables
 		|| xtrabackup_tables_file
 		|| xtrabackup_databases
-		|| xtrabackup_databases_file);
+		|| xtrabackup_databases_file
+		|| xtrabackup_tables_exclude
+		|| xtrabackup_databases_exclude
+		);
 
 	backup_file_printf(XTRABACKUP_INFO,
 		"uuid = %s\n"

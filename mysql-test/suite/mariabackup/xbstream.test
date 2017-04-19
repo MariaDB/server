@@ -9,7 +9,7 @@ echo # xtrabackup backup to stream;
 exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf  --backup  --stream=xbstream > $streamfile 2>$targetdir/backup_stream.log;
 echo # xbstream extract;
 --disable_result_log
-exec $XBSTREAM -x -C $targetdir  < $streamfile;
+exec $XBSTREAM -x -C $targetdir --parallel=16 < $streamfile;
 
 echo # xtrabackup prepare;
 exec $XTRABACKUP --prepare --target-dir=$targetdir;

@@ -1,5 +1,5 @@
 /******************************************************
-Copyright (c) 2011-2013 Percona LLC and/or its affiliates.
+Copyright (c) 2011-2017 Percona LLC and/or its affiliates.
 
 The xbstream format writer implementation.
 
@@ -23,6 +23,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
 #include <zlib.h>
 #include "common.h"
 #include "xbstream.h"
+#include "crc_glue.h"
 
 /* Group writes smaller than this into a single chunk */
 #define XB_STREAM_MIN_CHUNK_SIZE (10 * 1024 * 1024)
@@ -215,12 +216,13 @@ xb_stream_write_chunk(xb_wstream_file_t *file, const void *buf, size_t len)
 	int8store(ptr, len);                     /* Payload length */
 	ptr += 8;
 
+	checksum = crc32_iso3309(0, buf, (uint)len);   /* checksum */
+
 	pthread_mutex_lock(&stream->mutex);
 
 	int8store(ptr, file->offset);            /* Payload offset */
 	ptr += 8;
 
-	checksum = crc32(0, buf, (uint)len);           /* checksum */
 	int4store(ptr, checksum);
 	ptr += 4;
 

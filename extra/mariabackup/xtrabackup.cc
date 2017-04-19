@@ -1,6 +1,6 @@
 /******************************************************
 XtraBackup: hot backup tool for InnoDB
-(c) 2009-2015 Percona LLC and/or its affiliates
+(c) 2009-2017 Percona LLC and/or its affiliates
 Originally Created 3/3/2009 Yasufumi Kinoshita
 Written by Alexey Kopytov, Aleksandr Kuzminsky, Stewart Smith, Vadim Tkachenko,
 Yasufumi Kinoshita, Ignacio Nin and Baron Schwartz.
@@ -67,6 +67,7 @@ Place, Suite 330, Boston, MA 02111-1307 USA
 #include <srv0start.h>
 #include <buf0dblwr.h>
 
+#include <list>
 #include <sstream>
 #include <set>
 #include <mysql.h>
@@ -94,6 +95,7 @@ Place, Suite 330, Boston, MA 02111-1307 USA
 #include "encryption_plugin.h"
 #include <sql_plugin.h>
 #include <srv0srv.h>
+#include <crc_glue.h>
 
 /* TODO: replace with appropriate macros used in InnoDB 5.6 */
 #define PAGE_ZIP_MIN_SIZE_SHIFT	10
@@ -144,25 +146,24 @@ char xtrabackup_real_incremental_dir[FN_REFLEN];
 
 lsn_t xtrabackup_archived_to_lsn = 0; /* for --archived-to-lsn */
 
-char *xtrabackup_tables = NULL;
-
 char *xtrabackup_tmpdir;
 
-/* List of regular expressions for filtering */
-typedef struct xb_regex_list_node_struct xb_regex_list_node_t;
-struct xb_regex_list_node_struct {
-	UT_LIST_NODE_T(xb_regex_list_node_t)	regex_list;
-	regex_t				regex;
-};
-static UT_LIST_BASE_NODE_T(xb_regex_list_node_t) regex_list;
-static regmatch_t tables_regmatch[1];
-
+char *xtrabackup_tables = NULL;
 char *xtrabackup_tables_file = NULL;
-static hash_table_t* tables_hash = NULL;
+char *xtrabackup_tables_exclude = NULL;
+
+typedef std::list<regex_t> regex_list_t;
+static regex_list_t regex_include_list;
+static regex_list_t regex_exclude_list;
+
+static hash_table_t* tables_include_hash = NULL;
+static hash_table_t* tables_exclude_hash = NULL;
 
 char *xtrabackup_databases = NULL;
 char *xtrabackup_databases_file = NULL;
-static hash_table_t* databases_hash = NULL;
+char *xtrabackup_databases_exclude = NULL;
+static hash_table_t* databases_include_hash = NULL;
+static hash_table_t* databases_exclude_hash = NULL;
 
 static hash_table_t* inc_dir_tables_hash;
 
@@ -615,6 +616,8 @@ enum options_xtrabackup
   OPT_SSL_VERIFY_SERVER_CERT,
   OPT_SERVER_PUBLIC_KEY,
 
+  OPT_XTRA_TABLES_EXCLUDE,
+  OPT_XTRA_DATABASES_EXCLUDE,
 };
 
 struct my_option xb_client_options[] =
@@ -685,6 +688,16 @@ struct my_option xb_client_options[] =
    "filtering by list of databases in the file.",
    (G_PTR*) &xtrabackup_databases_file, (G_PTR*) &xtrabackup_databases_file,
    0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+  {"tables-exclude", OPT_XTRA_TABLES_EXCLUDE, "filtering by regexp for table names. "
+  "Operates the same way as --tables, but matched names are excluded from backup. "
+  "Note that this option has a higher priority than --tables.",
+    (G_PTR*) &xtrabackup_tables_exclude, (G_PTR*) &xtrabackup_tables_exclude,
+    0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+  {"databases-exclude", OPT_XTRA_DATABASES_EXCLUDE, "Excluding databases based on name, "
+  "Operates the same way as --databases, but matched names are excluded from backup. "
+  "Note that this option has a higher priority than --databases.",
+    (G_PTR*) &xtrabackup_databases_exclude, (G_PTR*) &xtrabackup_databases_exclude,
+    0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"create-ib-logfile", OPT_XTRA_CREATE_IB_LOGFILE, "** not work for now** creates ib_logfile* also after '--prepare'. ### If you want create ib_logfile*, only re-execute this command in same options. ###",
    (G_PTR*) &xtrabackup_create_ib_logfile, (G_PTR*) &xtrabackup_create_ib_logfile,
    0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
@@ -1036,8 +1049,8 @@ struct my_option xb_server_options[] =
    (G_PTR*) &opt_mysql_tmpdir,
    (G_PTR*) &opt_mysql_tmpdir, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"parallel", OPT_XTRA_PARALLEL,
-   "Number of threads to use for parallel datafiles transfer. Does not have "
-   "any effect in the stream mode. The default value is 1.",
+   "Number of threads to use for parallel datafiles transfer. "
+   "The default value is 1.",
    (G_PTR*) &xtrabackup_parallel, (G_PTR*) &xtrabackup_parallel, 0, GET_INT,
    REQUIRED_ARG, 1, 1, INT_MAX, 0, 0, 0},
 
@@ -2162,43 +2175,139 @@ xtrabackup_io_throttling(void)
 	}
 }
 
-/************************************************************************
-Checks if a given table name matches any of specifications in the --tables or
---tables-file options.
-
-@return TRUE on match. */
-static my_bool
-check_if_table_matches_filters(const char *name)
+static
+my_bool regex_list_check_match(
+	const regex_list_t& list,
+	const char* name)
 {
-	int 			regres;
-	xb_filter_entry_t*	table;
-	xb_regex_list_node_t*	node;
+	regmatch_t tables_regmatch[1];
+	for (regex_list_t::const_iterator i = list.begin(), end = list.end();
+	     i != end; ++i) {
+		const regex_t& regex = *i;
+		int regres = regexec(&regex, name, 1, tables_regmatch, 0);
 
-	if (UT_LIST_GET_LEN(regex_list)) {
-		/* Check against regular expressions list */
-		for (node = UT_LIST_GET_FIRST(regex_list); node;
-		     node = UT_LIST_GET_NEXT(regex_list, node)) {
-			regres = regexec(&node->regex, name, 1,
-					    tables_regmatch, 0);
-			if (regres != REG_NOMATCH) {
-
-				return(TRUE);
-			}
-		}
-	}
-
-	if (tables_hash) {
-		HASH_SEARCH(name_hash, tables_hash, ut_fold_string(name),
-			    xb_filter_entry_t*,
-			    table, (void) 0,
-			    !strcmp(table->name, name));
-		if (table) {
-
+		if (regres != REG_NOMATCH) {
 			return(TRUE);
 		}
 	}
-
 	return(FALSE);
+}
+
+static
+my_bool
+find_filter_in_hashtable(
+	const char* name,
+	hash_table_t* table,
+	xb_filter_entry_t** result
+)
+{
+	xb_filter_entry_t* found = NULL;
+	HASH_SEARCH(name_hash, table, ut_fold_string(name),
+		    xb_filter_entry_t*,
+		    found, (void) 0,
+		    !strcmp(found->name, name));
+
+	if (found && result) {
+		*result = found;
+	}
+	return (found != NULL);
+}
+
+/************************************************************************
+Checks if a given table name matches any of specifications given in
+regex_list or tables_hash.
+
+@return TRUE on match or both regex_list and tables_hash are empty.*/
+static my_bool
+check_if_table_matches_filters(const char *name,
+	const regex_list_t& regex_list,
+	hash_table_t* tables_hash)
+{
+	if (regex_list.empty() && !tables_hash) {
+		return(FALSE);
+	}
+
+	if (regex_list_check_match(regex_list, name)) {
+		return(TRUE);
+	}
+
+	if (tables_hash && find_filter_in_hashtable(name, tables_hash, NULL)) {
+		return(TRUE);
+	}
+
+	return FALSE;
+}
+
+enum skip_database_check_result {
+	DATABASE_SKIP,
+	DATABASE_SKIP_SOME_TABLES,
+	DATABASE_DONT_SKIP,
+	DATABASE_DONT_SKIP_UNLESS_EXPLICITLY_EXCLUDED,
+};
+
+/************************************************************************
+Checks if a database specified by name should be skipped from backup based on
+the --databases, --databases_file or --databases_exclude options.
+
+@return TRUE if entire database should be skipped,
+	FALSE otherwise.
+*/
+static
+skip_database_check_result
+check_if_skip_database(
+	const char* name  /*!< in: path to the database */
+)
+{
+	/* There are some filters for databases, check them */
+	xb_filter_entry_t*	database = NULL;
+
+	if (databases_exclude_hash &&
+		find_filter_in_hashtable(name, databases_exclude_hash,
+					 &database) &&
+		!database->has_tables) {
+		/* Database is found and there are no tables specified,
+		   skip entire db. */
+		return DATABASE_SKIP;
+	}
+
+	if (databases_include_hash) {
+		if (!find_filter_in_hashtable(name, databases_include_hash,
+					      &database)) {
+		/* Database isn't found, skip the database */
+			return DATABASE_SKIP;
+		} else if (database->has_tables) {
+			return DATABASE_SKIP_SOME_TABLES;
+		} else {
+			return DATABASE_DONT_SKIP_UNLESS_EXPLICITLY_EXCLUDED;
+		}
+	}
+
+	return DATABASE_DONT_SKIP;
+}
+
+/************************************************************************
+Checks if a database specified by path should be skipped from backup based on
+the --databases, --databases_file or --databases_exclude options.
+
+@return TRUE if the table should be skipped. */
+my_bool
+check_if_skip_database_by_path(
+	const char* path /*!< in: path to the db directory. */
+)
+{
+	if (databases_include_hash == NULL &&
+		databases_exclude_hash == NULL) {
+		return(FALSE);
+	}
+
+	const char* db_name = strrchr(path, SRV_PATH_SEPARATOR);
+	if (db_name == NULL) {
+		db_name = path;
+	} else {
+		++db_name;
+	}
+
+	return check_if_skip_database(db_name) == DATABASE_SKIP;
 }
 
 /************************************************************************
@@ -2217,9 +2326,12 @@ check_if_skip_table(
 	const char *ptr;
 	char *eptr;
 
-	if (UT_LIST_GET_LEN(regex_list) == 0 &&
-	    tables_hash == NULL &&
-	    databases_hash == NULL) {
+	if (regex_exclude_list.empty() &&
+		regex_include_list.empty() &&
+		tables_include_hash == NULL &&
+		tables_exclude_hash == NULL &&
+		databases_include_hash == NULL &&
+		databases_exclude_hash == NULL) {
 		return(FALSE);
 	}
 
@@ -2237,23 +2349,10 @@ check_if_skip_table(
 	strncpy(buf, dbname, FN_REFLEN);
 	buf[tbname - 1 - dbname] = 0;
 
-	if (databases_hash) {
-		/* There are some filters for databases, check them */
-		xb_filter_entry_t*	database;
-
-		HASH_SEARCH(name_hash, databases_hash, ut_fold_string(buf),
-			    xb_filter_entry_t*,
-			    database, (void) 0,
-			    !strcmp(database->name, buf));
-		/* Table's database isn't found, skip the table */
-		if (!database) {
-			return(TRUE);
-		}
-		/* There aren't tables specified for the database,
-		it should be backed up entirely */
-		if (!database->has_tables) {
-			return(FALSE);
-		}
+	const skip_database_check_result skip_database =
+			check_if_skip_database(buf);
+	if (skip_database == DATABASE_SKIP) {
+		return (TRUE);
 	}
 
 	buf[FN_REFLEN - 1] = '\0';
@@ -2270,21 +2369,43 @@ check_if_skip_table(
 	/* For partitioned tables first try to match against the regexp
 	without truncating the #P#... suffix so we can backup individual
 	partitions with regexps like '^test[.]t#P#p5' */
-	if (check_if_table_matches_filters(buf)) {
-
+	if (check_if_table_matches_filters(buf, regex_exclude_list,
+					   tables_exclude_hash)) {
+		return(TRUE);
+	}
+	if (check_if_table_matches_filters(buf, regex_include_list,
+					   tables_include_hash)) {
 		return(FALSE);
 	}
 	if ((eptr = strstr(buf, "#P#")) != NULL) {
-
 		*eptr = 0;
 
-		if (check_if_table_matches_filters(buf)) {
-
+		if (check_if_table_matches_filters(buf, regex_exclude_list,
+						   tables_exclude_hash)) {
+			return (TRUE);
+		}
+		if (check_if_table_matches_filters(buf, regex_include_list,
+						   tables_include_hash)) {
 			return(FALSE);
 		}
 	}
 
-	return(TRUE);
+	if (skip_database == DATABASE_DONT_SKIP_UNLESS_EXPLICITLY_EXCLUDED) {
+		/* Database is in include-list, and qualified name wasn't
+		   found in any of exclusion filters.*/
+		return (FALSE);
+	}
+
+	if (skip_database == DATABASE_SKIP_SOME_TABLES ||
+		!regex_include_list.empty() ||
+		tables_include_hash) {
+
+		/* Include lists are present, but qualified name
+		   failed to match any.*/
+		return(TRUE);
+	}
+
+	return(FALSE);
 }
 
 /***********************************************************************
@@ -3040,6 +3161,8 @@ xtrabackup_init_datasinks(void)
 	if (xtrabackup_encrypt) {
 		ds_ctxt_t	*ds;
 
+
+
 		ds = ds_create(xtrabackup_target_dir, DS_TYPE_ENCRYPT);
 		xtrabackup_add_datasink(ds);
 
@@ -3360,7 +3483,10 @@ static
 void
 xb_register_filter_entry(
 /*=====================*/
-	const char*	name)	/*!< in: name */
+	const char*	name,	/*!< in: name */
+	hash_table_t** databases_hash,
+	hash_table_t** tables_hash
+	)
 {
 	const char*		p;
 	size_t			namelen;
@@ -3376,23 +3502,43 @@ xb_register_filter_entry(
 		strncpy(dbname, name, p - name);
 		dbname[p - name] = 0;
 
-		if (databases_hash) {
-			HASH_SEARCH(name_hash, databases_hash,
+		if (*databases_hash) {
+			HASH_SEARCH(name_hash, (*databases_hash),
 					ut_fold_string(dbname),
 					xb_filter_entry_t*,
 					db_entry, (void) 0,
 					!strcmp(db_entry->name, dbname));
 		}
 		if (!db_entry) {
-			db_entry = xb_add_filter(dbname, &databases_hash);
+			db_entry = xb_add_filter(dbname, databases_hash);
 		}
 		db_entry->has_tables = TRUE;
-		xb_add_filter(name, &tables_hash);
+		xb_add_filter(name, tables_hash);
 	} else {
 		xb_validate_name(name, namelen);
 
-		xb_add_filter(name, &databases_hash);
+		xb_add_filter(name, databases_hash);
 	}
+}
+
+static
+void
+xb_register_include_filter_entry(
+	const char* name
+)
+{
+	xb_register_filter_entry(name, &databases_include_hash,
+				 &tables_include_hash);
+}
+
+static
+void
+xb_register_exclude_filter_entry(
+	const char* name
+)
+{
+	xb_register_filter_entry(name, &databases_exclude_hash,
+				 &tables_exclude_hash);
 }
 
 /***********************************************************************
@@ -3408,33 +3554,52 @@ xb_register_table(
 		exit(EXIT_FAILURE);
 	}
 
-	xb_register_filter_entry(name);
+	xb_register_include_filter_entry(name);
 }
 
-/***********************************************************************
-Register new regex for the filter.  */
 static
 void
-xb_register_regex(
-/*==============*/
-	const char* regex)	/*!< in: regex */
+xb_add_regex_to_list(
+	const char* regex,  /*!< in: regex */
+	const char* error_context,  /*!< in: context to error message */
+	regex_list_t* list) /*! in: list to put new regex to */
 {
-	xb_regex_list_node_t*	node;
 	char			errbuf[100];
 	int			ret;
 
-	node = static_cast<xb_regex_list_node_t *>
-		(ut_malloc(sizeof(xb_regex_list_node_t)));
+	regex_t compiled_regex;
+	ret = regcomp(&compiled_regex, regex, REG_EXTENDED);
 
-	ret = regcomp(&node->regex, regex, REG_EXTENDED);
 	if (ret != 0) {
-		xb_regerror(ret, &node->regex, errbuf, sizeof(errbuf));
-		msg("xtrabackup: error: tables regcomp(%s): %s\n",
-			regex, errbuf);
+		regerror(ret, &compiled_regex, errbuf, sizeof(errbuf));
+		msg("xtrabackup: error: %s regcomp(%s): %s\n",
+			error_context, regex, errbuf);
 		exit(EXIT_FAILURE);
 	}
 
-	UT_LIST_ADD_LAST(regex_list, regex_list, node);
+	list->push_back(compiled_regex);
+}
+
+/***********************************************************************
+Register new regex for the include filter.  */
+static
+void
+xb_register_include_regex(
+/*==============*/
+	const char* regex)	/*!< in: regex */
+{
+	xb_add_regex_to_list(regex, "tables", &regex_include_list);
+}
+
+/***********************************************************************
+Register new regex for the exclude filter.  */
+static
+void
+xb_register_exclude_regex(
+/*==============*/
+	const char* regex)	/*!< in: regex */
+{
+	xb_add_regex_to_list(regex, "tables-exclude", &regex_exclude_list);
 }
 
 typedef void (*insert_entry_func_t)(const char*);
@@ -3500,25 +3665,33 @@ static
 void
 xb_filters_init()
 {
-	UT_LIST_INIT(regex_list);
-
 	if (xtrabackup_databases) {
 		xb_load_list_string(xtrabackup_databases, " \t",
-					xb_register_filter_entry);
+				    xb_register_include_filter_entry);
 	}
 
 	if (xtrabackup_databases_file) {
 		xb_load_list_file(xtrabackup_databases_file,
-					xb_register_filter_entry);
+				  xb_register_include_filter_entry);
+	}
+
+	if (xtrabackup_databases_exclude) {
+		xb_load_list_string(xtrabackup_databases_exclude, " \t",
+				    xb_register_exclude_filter_entry);
 	}
 
 	if (xtrabackup_tables) {
 		xb_load_list_string(xtrabackup_tables, ",",
-					xb_register_regex);
+				    xb_register_include_regex);
 	}
 
 	if (xtrabackup_tables_file) {
 		xb_load_list_file(xtrabackup_tables_file, xb_register_table);
+	}
+
+	if (xtrabackup_tables_exclude) {
+		xb_load_list_string(xtrabackup_tables_exclude, ",",
+				    xb_register_exclude_regex);
 	}
 }
 
@@ -3551,25 +3724,37 @@ xb_filter_hash_free(hash_table_t* hash)
 	hash_table_free(hash);
 }
 
+static void xb_regex_list_free(regex_list_t* list)
+{
+	while (list->size() > 0) {
+		xb_regfree(&list->front());
+		list->pop_front();
+	}
+}
+
 /************************************************************************
 Destroy table filters for partial backup. */
 static
 void
 xb_filters_free()
 {
-	while (UT_LIST_GET_LEN(regex_list) > 0) {
-		xb_regex_list_node_t*	node = UT_LIST_GET_FIRST(regex_list);
-		UT_LIST_REMOVE(regex_list, regex_list, node);
-		regfree(&node->regex);
-		ut_free(node);
+	xb_regex_list_free(&regex_include_list);
+	xb_regex_list_free(&regex_exclude_list);
+
+	if (tables_include_hash) {
+		xb_filter_hash_free(tables_include_hash);
 	}
 
-	if (tables_hash) {
-		xb_filter_hash_free(tables_hash);
+	if (tables_exclude_hash) {
+		xb_filter_hash_free(tables_exclude_hash);
 	}
 
-	if (databases_hash) {
-		xb_filter_hash_free(databases_hash);
+	if (databases_include_hash) {
+		xb_filter_hash_free(databases_include_hash);
+	}
+
+	if (databases_exclude_hash) {
+		xb_filter_hash_free(databases_exclude_hash);
 	}
 }
 
@@ -3854,6 +4039,7 @@ xtrabackup_backup_func(void)
 
 	srv_general_init();
 	ut_crc32_init();
+	crc_init();
 
 #ifdef WITH_INNODB_DISALLOW_WRITES
 	srv_allow_writes_event = os_event_create();
@@ -6014,7 +6200,7 @@ xb_export_cfg_write(
 	file = fopen(file_path, "w+b");
 
 	if (file == NULL) {
-		msg("xtrabackup: Error: cannot close %s\n", node->name);
+		msg("xtrabackup: Error: cannot open %s\n", node->name);
 
 		success = false;
 	} else {
@@ -6473,17 +6659,20 @@ skip_check:
 				    table_name);
 				goto next_node;
 			}
-			index = dict_table_get_first_index(table);
-			n_index = UT_LIST_GET_LEN(table->indexes);
-			if (n_index > 31) {
-				msg("xtrabackup: error: "
-				    "sorry, cannot export over "
-				    "31 indexes for now.\n");
-				goto next_node;
-			}
 
 			/* Write MySQL 5.6 .cfg file */
 			if (!xb_export_cfg_write(node, table)) {
+				goto next_node;
+			}
+
+			index = dict_table_get_first_index(table);
+			n_index = UT_LIST_GET_LEN(table->indexes);
+			if (n_index > 31) {
+				msg("xtrabackup: warning: table '%s' has more "
+				    "than 31 indexes, .exp file was not "
+				    "generated. Table will fail to import "
+				    "on server version prior to 5.6.\n",
+				    table->name);
 				goto next_node;
 			}
 
@@ -6658,6 +6847,12 @@ next_node:
 	/* start InnoDB once again to create log files */
 
 	if (!xtrabackup_apply_log_only) {
+
+		/* xtrabackup_incremental_dir is used to indicate that
+		we are going to apply incremental backup. Here we already
+		applied incremental backup and are about to do final prepare
+		of the full backup */
+		xtrabackup_incremental_dir = NULL;
 
 		if(innodb_init_param()) {
 			goto error;
@@ -7016,19 +7211,23 @@ handle_options(int argc, char **argv, char ***argv_client, char ***argv_server)
 }
 
 /* ================= main =================== */
+extern my_bool(*fil_check_if_skip_database_by_path)(const char* name);
 
 int main(int argc, char **argv)
 {
 	char **client_defaults, **server_defaults;
 	char cwd[FN_REFLEN];
-
+  static char INNOBACKUPEX_EXE[]= "innobackupex";
 	if (argc > 1 && (strcmp(argv[1], "--innobackupex") == 0))
 	{
 		argv++;
 		argc--;
-		argv[0] = "innobackupex";
+    argv[0] = INNOBACKUPEX_EXE;
 		innobackupex_mode = true;
 	}
+
+  /* Setup skip fil_load_single_tablespaces callback.*/
+  fil_check_if_skip_database_by_path = check_if_skip_database_by_path;
 
 	init_signals();
 	MY_INIT(argv[0]);
