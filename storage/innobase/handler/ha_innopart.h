@@ -1119,6 +1119,19 @@ private:
 	write_row(
 		uchar*	record)
 	{
+		if (table->versioned())
+		{
+			trx_t* trx = thd_to_trx(ha_thd());
+			if (!trx->id)
+				trx_start_if_not_started_xa(trx, true);
+			ut_a(trx->id);
+			ut_a(table->record[0] == record);
+			bitmap_set_bit(table->write_set, table->vers_start_field()->field_index);
+			bitmap_set_bit(table->write_set, table->vers_end_field()->field_index);
+			table->vers_start_field()->set_notnull();
+			table->vers_start_field()->store(trx->id, true);
+			table->vers_end_field()->set_max();
+		}
 		return(Partition_helper::ph_write_row(record));
 	}
 
@@ -1127,6 +1140,31 @@ private:
 		const uchar*	old_record,
 		uchar*		new_record)
 	{
+		int err;
+		if (table->versioned() && table->vers_end_field()->is_max()) {
+			trx_t* trx = thd_to_trx(ha_thd());
+			if (!trx->id)
+				trx_start_if_not_started_xa(trx, true);
+			ut_a(trx->id);
+			ut_a(table->record[0] == new_record);
+			ut_a(table->record[1] == old_record);
+			store_record(table, record[2]); // store new_record
+			restore_record(table, record[1]); // restore old_record
+			// modify and insert old_record
+			bitmap_set_bit(table->write_set, table->vers_end_field()->field_index);
+			table->vers_end_field()->set_notnull();
+			table->vers_end_field()->store(trx->id, true);
+			err = Partition_helper::ph_write_row(const_cast<uchar*>(table->record[0]));
+			restore_record(table, record[2]); // restore new_record
+			if (err)
+				return err;
+			table->vers_start_field()->store(trx->id, true);
+		}
+		if (unlikely(get_part_for_delete(old_record,
+						new_record,
+						m_part_info,
+						&m_last_part)))
+			return HA_ERR_INTERNAL_ERROR;
 		return(Partition_helper::ph_update_row(old_record, new_record));
 	}
 
@@ -1145,6 +1183,8 @@ private:
 			ut_a(table->record[0] == record);
 			store_record(table, record[1]);
 			ut_a(trx->id);
+			bitmap_set_bit(table->write_set, table->vers_end_field()->field_index);
+			table->vers_end_field()->set_notnull();
 			table->vers_end_field()->store(trx->id, true);
 			return Partition_helper::ph_update_row(table->record[1], table->record[0]);
 		}

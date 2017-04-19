@@ -8718,8 +8718,7 @@ no_commit:
 	innobase_srv_conc_enter_innodb(m_prebuilt);
 
 	vers_set_fields = table->versioned() && (
-		(sql_command != SQLCOM_DELETE ||
-			(m_int_table_flags & HA_INNOPART_DISABLED_TABLE_FLAGS)) &&
+		!is_innopart() &&
 		sql_command != SQLCOM_CREATE_TABLE) ?
 			ROW_INS_VERSIONED :
 			ROW_INS_NORMAL;
@@ -9527,8 +9526,7 @@ ha_innobase::update_row(
 
 	innobase_srv_conc_enter_innodb(m_prebuilt);
 
-	vers_set_fields = m_prebuilt->upd_node->versioned &&
-		(m_int_table_flags & HA_INNOPART_DISABLED_TABLE_FLAGS);
+	vers_set_fields = m_prebuilt->upd_node->versioned && !is_innopart();
 
 	error = row_update_for_mysql((byte*) old_row, m_prebuilt, vers_set_fields);
 
@@ -9652,7 +9650,7 @@ ha_innobase::delete_row(
 
 	bool vers_set_fields =
 		table->versioned() &&
-		(m_int_table_flags & HA_INNOPART_DISABLED_TABLE_FLAGS) &&
+		!is_innopart() &&
 		table->vers_end_field()->is_max();
 
 	error = row_update_for_mysql(

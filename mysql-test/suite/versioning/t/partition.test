@@ -1,3 +1,5 @@
+-- source suite/versioning/common.inc
+
 ### check System Versioning and conventional partitioning
 
 create table t1 (x int)
@@ -83,15 +85,57 @@ alter table t1 drop partition p1;
 --error ER_VERS_WRONG_PARAMS
 alter table t1 drop partition p0;
 
-# insertion, deletion
+# insert, delete, update
+set @now= now(6);
 insert into t1 values (1);
-select * from t1;
-select * from t1 partition (p0);
-select * from t1 partition (pn);
+set @ts_start= sys_commit_ts('sys_trx_start');
+set @ts_end= sys_commit_ts('sys_trx_end');
+set @str= concat('select x, ', @ts_start, ' < @now as A, ', @ts_end, ' > @now as B from t1 partition (p0) for system_time all');
+prepare select_p0 from @str;
+set @str= concat('select x, ', @ts_start, ' > @now as C, ', @ts_end, ' = timestamp\'2038-01-19 03:14:07\' as D from t1 partition (pn) for system_time all');
+prepare select_pn from @str;
 
+execute select_p0;
+execute select_pn;
+
+set @str= concat('select ', @ts_start, ' from t1 partition (pn) into @ts0');
+prepare stmt from @str; execute stmt; drop prepare stmt;
+
+set @now= now(6);
 delete from t1;
-select * from t1 partition (p0) for system_time all;
-select * from t1 partition (pn) for system_time all;
+execute select_p0;
+execute select_pn;
+
+set @str= concat('select ', @ts_start, ' from t1 partition (p0) for system_time all into @ts1');
+prepare stmt from @str; execute stmt; drop prepare stmt;
+
+select @ts0 = @ts1;
+
+set @now= now(6);
+insert into t1 values (2);
+execute select_p0;
+execute select_pn;
+
+set @str= concat('select ', @ts_start, ' from t1 partition (pn) into @ts0');
+prepare stmt from @str; execute stmt; drop prepare stmt;
+
+set @now= now(6);
+update t1 set x = x + 1;
+execute select_p0;
+execute select_pn;
+
+drop prepare select_p0;
+drop prepare select_pn;
+
+set @str= concat('select ', @ts_start, ' from t1 partition (p0) for system_time all where x = 2 into @ts1');
+prepare stmt from @str; execute stmt; drop prepare stmt;
+set @str= concat('select ', @ts_end, ' from t1 partition (p0) for system_time all where x = 2 into @ts2');
+prepare stmt from @str; execute stmt; drop prepare stmt;
+set @str= concat('select ', @ts_start, ' from t1 partition (pn) into @ts3');
+prepare stmt from @str; execute stmt; drop prepare stmt;
+
+select @ts0 = @ts1;
+select @ts2 = @ts3;
 
 # rotation by LIMIT
 create or replace table t1 (x int)
@@ -150,3 +194,5 @@ select * from t1 partition (p1sp0) for system_time all;
 select * from t1 partition (p1sp1) for system_time all;
 
 drop table t1;
+
+-- source suite/versioning/common_finish.inc

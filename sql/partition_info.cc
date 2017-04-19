@@ -1211,6 +1211,7 @@ bool partition_info::vers_setup_2(THD * thd, bool is_create_table_ind)
         }
         else if (vers_scan_min_max(thd, el))
         {
+          table->s->stat_trx= NULL; // may be a leak on endless table open
           error= true;
           break;
         }

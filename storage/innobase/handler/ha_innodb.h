@@ -519,6 +519,11 @@ protected:
 
         /** If mysql has locked with external_lock() */
         bool                    m_mysql_has_locked;
+
+	bool is_innopart()
+	{
+		return m_share == NULL;
+	}
 };
 
 

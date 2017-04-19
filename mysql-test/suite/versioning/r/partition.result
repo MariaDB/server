@@ -1,3 +1,65 @@
+set @@session.time_zone='+00:00';
+select ifnull(max(trx_id), 0) into @start_trx_id from information_schema.innodb_vtq;
+create procedure if not exists verify_vtq()
+begin
+set @i= 0;
+select
+@i:= @i + 1 as No,
+trx_id > 0 as A,
+commit_id >= trx_id as B,
+begin_ts > '1-1-1 0:0:0' as C,
+commit_ts > begin_ts as D
+from information_schema.innodb_vtq
+where trx_id > @start_trx_id;
+select ifnull(max(trx_id), 0)
+into @start_trx_id
+from information_schema.innodb_vtq;
+end~~
+create function if not exists default_engine()
+returns varchar(255)
+deterministic
+begin
+declare e varchar(255);
+select lower(engine) from information_schema.engines where support='DEFAULT' into e;
+return e;
+end~~
+create function if not exists sys_datatype()
+returns varchar(255)
+deterministic
+begin
+if default_engine() = 'innodb' then
+return 'bigint unsigned';
+elseif default_engine() = 'myisam' then
+return 'timestamp(6)';
+end if;
+return NULL;
+end~~
+create function if not exists sys_commit_ts(sys_field varchar(255))
+returns varchar(255)
+deterministic
+begin
+if default_engine() = 'innodb' then
+return concat('vtq_commit_ts(', sys_field, ')');
+elseif default_engine() = 'myisam' then
+return sys_field;
+end if;
+return NULL;
+end~~
+create procedure if not exists innodb_verify_vtq(recs int)
+begin
+declare i int default 1;
+if default_engine() = 'innodb' then
+call verify_vtq;
+elseif default_engine() = 'myisam' then
+create temporary table tmp (No int, A bool, B bool, C bool, D bool);
+while i <= recs do
+insert into tmp values (i, 1, 1, 1, 1);
+set i= i + 1;
+end while;
+select * from tmp;
+drop table tmp;
+end if;
+end~~
 create table t1 (x int)
 with system versioning
 partition by range columns (x) (
@@ -90,21 +152,78 @@ ERROR HY000: Wrong parameters for `BY SYSTEM_TIME`: `AS OF NOW` partition can no
 alter table t1 drop partition p1;
 alter table t1 drop partition p0;
 ERROR HY000: Wrong parameters for `BY SYSTEM_TIME`: one `AS OF NOW` and at least one `VERSIONING` partition required
+set @now= now(6);
 insert into t1 values (1);
-select * from t1;
-x
-1
-select * from t1 partition (p0);
-x
-select * from t1 partition (pn);
-x
-1
+set @ts_start= sys_commit_ts('sys_trx_start');
+set @ts_end= sys_commit_ts('sys_trx_end');
+set @str= concat('select x, ', @ts_start, ' < @now as A, ', @ts_end, ' > @now as B from t1 partition (p0) for system_time all');
+prepare select_p0 from @str;
+set @str= concat('select x, ', @ts_start, ' > @now as C, ', @ts_end, ' = timestamp\'2038-01-19 03:14:07\' as D from t1 partition (pn) for system_time all');
+prepare select_pn from @str;
+execute select_p0;
+x	A	B
+execute select_pn;
+x	C	D
+1	1	1
+set @str= concat('select ', @ts_start, ' from t1 partition (pn) into @ts0');
+prepare stmt from @str;
+execute stmt;
+drop prepare stmt;
+set @now= now(6);
 delete from t1;
-select * from t1 partition (p0) for system_time all;
-x
+execute select_p0;
+x	A	B
+1	1	1
+execute select_pn;
+x	C	D
+set @str= concat('select ', @ts_start, ' from t1 partition (p0) for system_time all into @ts1');
+prepare stmt from @str;
+execute stmt;
+drop prepare stmt;
+select @ts0 = @ts1;
+@ts0 = @ts1
 1
-select * from t1 partition (pn) for system_time all;
-x
+set @now= now(6);
+insert into t1 values (2);
+execute select_p0;
+x	A	B
+1	1	0
+execute select_pn;
+x	C	D
+2	1	1
+set @str= concat('select ', @ts_start, ' from t1 partition (pn) into @ts0');
+prepare stmt from @str;
+execute stmt;
+drop prepare stmt;
+set @now= now(6);
+update t1 set x = x + 1;
+execute select_p0;
+x	A	B
+1	1	0
+2	1	1
+execute select_pn;
+x	C	D
+3	1	1
+drop prepare select_p0;
+drop prepare select_pn;
+set @str= concat('select ', @ts_start, ' from t1 partition (p0) for system_time all where x = 2 into @ts1');
+prepare stmt from @str;
+execute stmt;
+drop prepare stmt;
+set @str= concat('select ', @ts_end, ' from t1 partition (p0) for system_time all where x = 2 into @ts2');
+prepare stmt from @str;
+execute stmt;
+drop prepare stmt;
+set @str= concat('select ', @ts_start, ' from t1 partition (pn) into @ts3');
+prepare stmt from @str;
+execute stmt;
+drop prepare stmt;
+select @ts0 = @ts1;
+@ts0 = @ts1
+1
+select @ts2 = @ts3;
+@ts2 = @ts3
+1
 create or replace table t1 (x int)
 with system versioning
 partition by system_time limit 1 (
@@ -190,3 +309,8 @@ select * from t1 partition (p1sp1) for system_time all;
 x
 2
 drop table t1;
+drop procedure verify_vtq;
+drop procedure innodb_verify_vtq;
+drop function default_engine;
+drop function sys_commit_ts;
+drop function sys_datatype;
