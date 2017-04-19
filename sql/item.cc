@@ -616,8 +616,9 @@ void Item::print_value(String *str)
     str->append("NULL");
   else
   {
-    switch (result_type()) {
+    switch (cmp_type()) {
     case STRING_RESULT:
+    case TIME_RESULT:
       append_unescaped(str, ptr->ptr(), ptr->length());
       break;
     case DECIMAL_RESULT:
@@ -626,7 +627,6 @@ void Item::print_value(String *str)
       str->append(*ptr);
       break;
     case ROW_RESULT:
-    case TIME_RESULT:
       DBUG_ASSERT(0);
     }
   }
@@ -4110,7 +4110,7 @@ Item_param::eq(const Item *item, bool binary_cmp) const
 
 void Item_param::print(String *str, enum_query_type query_type)
 {
-  if (state == NO_VALUE || query_type & QT_NO_DATA_EXPANSION)
+  if (state == NO_VALUE)
   {
     str->append('?');
   }
@@ -9417,17 +9417,28 @@ void Item_cache::store(Item *item)
 
 void Item_cache::print(String *str, enum_query_type query_type)
 {
-  if (value_cached)
+  if (example &&                                          // There is a cached item
+      (query_type & QT_ITEM_CACHE_WRAPPER_SKIP_DETAILS))  // Caller is show-create-table
   {
-    print_value(str);
-    return;
-  }
-  str->append(STRING_WITH_LEN("<cache>("));
-  if (example)
+    // Instead of "cache" or the cached value, print the cached item name
     example->print(str, query_type);
+  }
   else
-    Item::print(str, query_type);
-  str->append(')');
+  {
+    if (value_cached && !(query_type & QT_NO_DATA_EXPANSION))
+    {
+      print_value(str);
+      return;
+    }
+    if (!(query_type & QT_ITEM_CACHE_WRAPPER_SKIP_DETAILS))
+      str->append(STRING_WITH_LEN("<cache>("));
+    if (example)
+      example->print(str, query_type);
+    else
+      Item::print(str, query_type);
+    if (!(query_type & QT_ITEM_CACHE_WRAPPER_SKIP_DETAILS))
+      str->append(')');
+  }
 }
 
 /**
@@ -9653,7 +9664,7 @@ int Item_cache_temporal::save_in_field(Field *field, bool no_conversions)
 
 void Item_cache_temporal::store_packed(longlong val_arg, Item *example_arg)
 {
-  /* An explicit values is given, save it. */
+  /* An explicit value is given, save it. */
   store(example_arg);
   value_cached= true;
   value= val_arg;
@@ -10659,6 +10670,7 @@ void Virtual_column_info::print(String *str)
                                      QT_ITEM_IDENT_SKIP_DB_NAMES |
                                      QT_ITEM_IDENT_SKIP_TABLE_NAMES |
                                      QT_ITEM_CACHE_WRAPPER_SKIP_DETAILS |
-                                     QT_TO_SYSTEM_CHARSET),
+                                     QT_TO_SYSTEM_CHARSET |
+                                     QT_NO_DATA_EXPANSION),
                    LOWEST_PRECEDENCE);
 }

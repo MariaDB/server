@@ -2725,7 +2725,7 @@ bool fix_session_vcol_expr(THD *thd, Virtual_column_info *vcol)
   if (!(vcol->flags & (VCOL_TIME_FUNC|VCOL_SESSION_FUNC)))
     DBUG_RETURN(0);
 
-  vcol->expr->cleanup();
+  vcol->expr->walk(&Item::cleanup_excluding_fields_processor, 0, 0);
   DBUG_ASSERT(!vcol->expr->fixed);
   DBUG_RETURN(fix_vcol_expr(thd, vcol));
 }
@@ -2809,9 +2809,10 @@ static bool fix_and_check_vcol_expr(THD *thd, TABLE *table,
 
   int error= func_expr->walk(&Item::check_vcol_func_processor, 0, &res);
   if (error || (res.errors & VCOL_IMPOSSIBLE))
-  { // this can only happen if the frm was corrupted
+  {
+    // this can only happen if the frm was corrupted
     my_error(ER_VIRTUAL_COLUMN_FUNCTION_IS_NOT_ALLOWED, MYF(0), res.name,
-             "???", "?????");
+             vcol->get_vcol_type_name(), vcol->name.str);
     DBUG_RETURN(1);
   }
   else if (res.errors & VCOL_AUTO_INC)
