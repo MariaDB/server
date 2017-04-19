@@ -182,6 +182,7 @@ my @DEFAULT_SUITES= qw(
     innodb_fts-
     innodb_zip-
     maria-
+    mariabackup-
     multi_source-
     optimizer_unfixed_bugs-
     parts-
