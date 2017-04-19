@@ -52,11 +52,6 @@ struct fil_space_t;
 extern bool	os_has_said_disk_full;
 extern my_bool	srv_use_trim;
 
-/** Number of pending read operations */
-extern ulint	os_n_pending_reads;
-/** Number of pending write operations */
-extern ulint	os_n_pending_writes;
-
 /** File offset in bytes */
 typedef ib_uint64_t os_offset_t;
 

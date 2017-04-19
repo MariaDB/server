@@ -2,7 +2,7 @@
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2009, Percona Inc.
-Copyright (c) 2012, 2017, MariaDB Corporation.
+Copyright (c) 2013, 2017, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted
 by Percona Inc.. Those modifications are
@@ -687,10 +687,6 @@ ulint	os_n_fsyncs;
 static ulint	os_n_file_reads_old;
 static ulint	os_n_file_writes_old;
 static ulint	os_n_fsyncs_old;
-/** Number of pending write operations */
-ulint	os_n_pending_writes;
-/** Number of pending read operations */
-ulint	os_n_pending_reads;
 
 static time_t	os_last_printout;
 bool	os_has_said_disk_full;
@@ -4945,14 +4941,11 @@ os_file_pwrite(
 
 	++os_n_file_writes;
 
-	(void) my_atomic_addlint(&os_n_pending_writes, 1);
-	MONITOR_ATOMIC_INC(MONITOR_OS_PENDING_WRITES);
-
+	const bool monitor = MONITOR_IS_ON(MONITOR_OS_PENDING_WRITES);
+	MONITOR_ATOMIC_INC_LOW(MONITOR_OS_PENDING_WRITES, monitor);
 	ssize_t	n_bytes = os_file_io(type, file, const_cast<byte*>(buf),
 				     n, offset, err);
-
-	(void) my_atomic_addlint(&os_n_pending_writes, -1);
-	MONITOR_ATOMIC_DEC(MONITOR_OS_PENDING_WRITES);
+	MONITOR_ATOMIC_DEC_LOW(MONITOR_OS_PENDING_WRITES, monitor);
 
 	return(n_bytes);
 }
@@ -5032,13 +5025,10 @@ os_file_pread(
 {
 	++os_n_file_reads;
 
-	(void) my_atomic_addlint(&os_n_pending_reads, 1);
-	MONITOR_ATOMIC_INC(MONITOR_OS_PENDING_READS);
-
+	const bool monitor = MONITOR_IS_ON(MONITOR_OS_PENDING_READS);
+	MONITOR_ATOMIC_INC_LOW(MONITOR_OS_PENDING_READS, monitor);
 	ssize_t	n_bytes = os_file_io(type, file, buf, n, offset, err);
-
-	(void) my_atomic_addlint(&os_n_pending_reads, -1);
-	MONITOR_ATOMIC_DEC(MONITOR_OS_PENDING_READS);
+	MONITOR_ATOMIC_DEC_LOW(MONITOR_OS_PENDING_READS, monitor);
 
 	return(n_bytes);
 }
@@ -7467,19 +7457,24 @@ os_aio_print(FILE*	file)
 	time_elapsed = 0.001 + difftime(current_time, os_last_printout);
 
 	fprintf(file,
-		"Pending flushes (fsync) log: %lu; buffer pool: %lu\n"
-		"%lu OS file reads, %lu OS file writes, %lu OS fsyncs\n",
-		(ulint) fil_n_pending_log_flushes,
-		(ulint) fil_n_pending_tablespace_flushes,
-		(ulint) os_n_file_reads,
-		(ulint) os_n_file_writes,
-		(ulint) os_n_fsyncs);
+		"Pending flushes (fsync) log: " ULINTPF
+		"; buffer pool: " ULINTPF "\n"
+		ULINTPF " OS file reads, "
+		ULINTPF " OS file writes, "
+		ULINTPF " OS fsyncs\n",
+		fil_n_pending_log_flushes,
+		fil_n_pending_tablespace_flushes,
+		os_n_file_reads,
+		os_n_file_writes,
+		os_n_fsyncs);
 
-	if (os_n_pending_writes != 0 || os_n_pending_reads != 0) {
+	const ulint n_reads = ulint(MONITOR_VALUE(MONITOR_OS_PENDING_READS));
+	const ulint n_writes = ulint(MONITOR_VALUE(MONITOR_OS_PENDING_WRITES));
+
+	if (n_reads != 0 || n_writes != 0) {
 		fprintf(file,
-			"%lu pending preads, %lu pending pwrites\n",
-			(ulint) os_n_pending_reads,
-			(ulint) os_n_pending_writes);
+			ULINTPF " pending reads, " ULINTPF " pending writes\n",
+			n_reads, n_writes);
 	}
 
 	if (os_n_file_reads == os_n_file_reads_old) {
