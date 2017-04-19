@@ -10,5 +10,12 @@ return "No TokuDB engine" unless $ENV{HA_TOKUDB_SO} or $::mysqld_variables{tokud
 
 sub is_default { not $::opt_embedded_server }
 
+sub skip_combinations {
+  my %skip = ();
+
+  $skip{'t/partition_alter4_tokudb.test'} = "Requires test case timeout >= 20mins (currently $::opt_testcase_timeout)" if $::opt_testcase_timeout < 20;
+  %skip;
+}
+
 bless { };
 
