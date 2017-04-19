@@ -1817,3 +1817,35 @@ DROP TABLE t1,t2;
 --echo #
 --echo # End of 10.1 tests
 --echo #
+
+
+--echo #
+--echo # Start of 10.3 tests
+--echo #
+
+--echo #
+--echo #  MDEV-12515 Wrong value when storing DATE_ADD() and ADDTIME() to a numeric field
+--echo #
+
+SET sql_mode='';
+
+CREATE TABLE t1 AS SELECT
+  DATE_ADD('2001-01-01',INTERVAL 1 DAY) AS c1,
+  ADDTIME('10:20:30',1) AS c2;
+SHOW CREATE TABLE t1;
+SELECT * FROM t1;
+DROP TABLE t1;
+
+CREATE TABLE t2 (c INT);
+INSERT INTO t2 SELECT DATE_ADD('2001-01-01',INTERVAL 1 DAY);
+INSERT INTO t2 VALUES ('2001-01-02');
+SELECT * FROM t2;
+DROP TABLE t2;
+
+CREATE TABLE t2 (a INT);
+INSERT INTO t2 VALUES (ADDTIME('10:20:30',1));
+INSERT INTO t2 VALUES ('10:20:31');
+SELECT * FROM t2;
+DROP TABLE t2;
+
+SET sql_mode=DEFAULT;

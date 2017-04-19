@@ -75,18 +75,10 @@ public:
   {
     return count_string_length(item, nitems);
   }
-  void set_attributes_temporal(uint int_part_length, uint dec)
-  {
-    collation.set_numeric();
-    unsigned_flag= 0;
-    decimals= MY_MIN(dec, TIME_SECOND_PART_DIGITS);
-    uint length= decimals + int_part_length + (dec ? 1 : 0);
-    fix_char_length(length);
-  }
   void aggregate_attributes_temporal(uint int_part_length,
                                      Item **item, uint nitems)
   {
-    set_attributes_temporal(int_part_length, count_max_decimals(item, nitems));
+    fix_attributes_temporal(int_part_length, count_max_decimals(item, nitems));
   }
 
   table_map not_null_tables_cache;
