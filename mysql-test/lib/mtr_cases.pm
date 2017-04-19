@@ -60,8 +60,6 @@ use My::Test;
 use My::Find;
 use My::Suite;
 
-require "mtr_misc.pl";
-
 # locate plugin suites, depending on whether it's a build tree or installed
 my @plugin_suitedirs;
 my $plugin_suitedir_regex;
@@ -1098,7 +1096,7 @@ sub get_tags_from_file($$) {
   $file_to_tags{$file}= $tags;
   $file_to_master_opts{$file}= $master_opts;
   $file_to_slave_opts{$file}= $slave_opts;
-  $file_combinations{$file}= [ uniq(@combinations) ];
+  $file_combinations{$file}= [ ::uniq(@combinations) ];
   $file_in_overlay{$file} = 1 if $in_overlay;
   return @{$tags};
 }
