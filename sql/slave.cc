@@ -4217,16 +4217,17 @@ err:
   // print the current replication position
   if (mi->using_gtid == Master_info::USE_GTID_NO)
     sql_print_information("Slave I/O thread exiting, read up to log '%s', "
-                          "position %s",
-                          IO_RPL_LOG_NAME, llstr(mi->master_log_pos,llbuff));
+                          "position %s, master %s:%u",
+                          IO_RPL_LOG_NAME, llstr(mi->master_log_pos,llbuff),
+                          mi->host, mi->port);
   else
   {
     String tmp;
     mi->gtid_current_pos.to_string(&tmp);
     sql_print_information("Slave I/O thread exiting, read up to log '%s', "
-                          "position %s; GTID position %s",
+                          "position %s; GTID position %s, master %s:%u",
                           IO_RPL_LOG_NAME, llstr(mi->master_log_pos,llbuff),
-                          tmp.c_ptr_safe());
+                          tmp.c_ptr_safe(), mi->host, mi->port);
   }
   RUN_HOOK(binlog_relay_io, thread_stop, (thd, mi));
   thd->reset_query();
@@ -4773,10 +4774,10 @@ log '%s' at position %s, relay log '%s' position: %s%s", RPL_LOG_NAME,
       tmp.append(STRING_WITH_LEN("'"));
     }
     sql_print_information("Slave SQL thread exiting, replication stopped in "
-                          "log '%s' at position %s%s",
+                          "log '%s' at position %s%s, master: %s:%u",
                           RPL_LOG_NAME,
                           llstr(rli->group_master_log_pos,llbuff),
-                          tmp.c_ptr_safe());
+                          tmp.c_ptr_safe(), mi->host, mi->port);
   }
 
  err_before_start:
