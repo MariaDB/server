@@ -3210,3 +3210,48 @@ DROP TABLE t1,t2;
 #
 # End of 10.1 tests
 #
+#
+# Start of 10.3 tests
+#
+#
+#  MDEV-12515 Wrong value when storing DATE_ADD() and ADDTIME() to a numeric field
+#
+SET sql_mode='';
+CREATE TABLE t1 AS SELECT
+DATE_ADD('2001-01-01',INTERVAL 1 DAY) AS c1,
+ADDTIME('10:20:30',1) AS c2;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` varchar(19) DEFAULT NULL,
+  `c2` varchar(26) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+SELECT * FROM t1;
+c1	c2
+2001-01-02	10:20:31
+DROP TABLE t1;
+CREATE TABLE t2 (c INT);
+INSERT INTO t2 SELECT DATE_ADD('2001-01-01',INTERVAL 1 DAY);
+Warnings:
+Warning	1265	Data truncated for column 'c' at row 1
+INSERT INTO t2 VALUES ('2001-01-02');
+Warnings:
+Warning	1265	Data truncated for column 'c' at row 1
+SELECT * FROM t2;
+c
+2001
+2001
+DROP TABLE t2;
+CREATE TABLE t2 (a INT);
+INSERT INTO t2 VALUES (ADDTIME('10:20:30',1));
+Warnings:
+Warning	1265	Data truncated for column 'a' at row 1
+INSERT INTO t2 VALUES ('10:20:31');
+Warnings:
+Warning	1265	Data truncated for column 'a' at row 1
+SELECT * FROM t2;
+a
+10
+10
+DROP TABLE t2;
+SET sql_mode=DEFAULT;

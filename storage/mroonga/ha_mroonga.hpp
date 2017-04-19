@@ -384,7 +384,7 @@ public:
 
   int delete_table(const char *name);
   int write_row(uchar *buf);
-  int update_row(const uchar *old_data, uchar *new_data);
+  int update_row(const uchar *old_data, const uchar *new_data);
   int delete_row(const uchar *buf);
 
   uint max_supported_record_length()   const;
@@ -692,7 +692,7 @@ private:
                                   int nth_column, grn_id record_id);
   void storage_store_fields(uchar *buf, grn_id record_id);
   void storage_store_fields_for_prep_update(const uchar *old_data,
-                                            uchar *new_data,
+                                            const uchar *new_data,
                                             grn_id record_id);
   void storage_store_fields_by_index(uchar *buf);
 
@@ -827,18 +827,21 @@ private:
                                               KEY *key_info,
                                               grn_obj *index_column);
   int storage_write_row_multiple_column_indexes(uchar *buf, grn_id record_id);
-  int storage_write_row_unique_index(uchar *buf,
+  int storage_write_row_unique_index(const uchar *buf,
                                      KEY *key_info,
                                      grn_obj *index_table,
                                      grn_obj *index_column,
                                      grn_id *key_id);
   int storage_write_row_unique_indexes(uchar *buf);
-  int wrapper_get_record_id(uchar *data, grn_id *record_id, const char *context);
-  int wrapper_update_row(const uchar *old_data, uchar *new_data);
-  int wrapper_update_row_index(const uchar *old_data, uchar *new_data);
-  int storage_update_row(const uchar *old_data, uchar *new_data);
-  int storage_update_row_index(const uchar *old_data, uchar *new_data);
-  int storage_update_row_unique_indexes(uchar *new_data);
+  int wrapper_get_record_id(uchar *data, grn_id *record_id,
+                            const char *context);
+  int wrapper_update_row(const uchar *old_data, const uchar *new_data);
+  int wrapper_update_row_index(const uchar *old_data,
+                               const uchar *new_data);
+  int storage_update_row(const uchar *old_data, const uchar *new_data);
+  int storage_update_row_index(const uchar *old_data,
+                               const uchar *new_data);
+  int storage_update_row_unique_indexes(const uchar *new_data);
   int wrapper_delete_row(const uchar *buf);
   int wrapper_delete_row_index(const uchar *buf);
   int storage_delete_row(const uchar *buf);

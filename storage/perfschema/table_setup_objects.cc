@@ -265,7 +265,7 @@ int table_setup_objects::read_row_values(TABLE *table,
 
 int table_setup_objects::update_row_values(TABLE *table,
                                            const unsigned char *,
-                                           unsigned char *,
+                                           const unsigned char *,
                                            Field **fields)
 {
   int result;

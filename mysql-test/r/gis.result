@@ -3902,5 +3902,36 @@ SELECT 1 MOD COALESCE(a) FROM t1;
 ERROR HY000: Illegal parameter data types bigint and geometry for operation '%'
 DROP TABLE t1;
 #
+# MDEV-12514 Split Item_temporal_func::fix_length_and_dec()
+#
+SELECT DATE_ADD(POINT(1,1), INTERVAL 10 DAY);
+ERROR HY000: Illegal parameter data types geometry and interval for operation 'date_add_interval'
+SELECT DATE_SUB(POINT(1,1), INTERVAL 10 DAY);
+ERROR HY000: Illegal parameter data types geometry and interval for operation 'date_add_interval'
+SELECT POINT(1,1) + INTERVAL 10 DAY;
+ERROR HY000: Illegal parameter data types geometry and interval for operation 'date_add_interval'
+SELECT POINT(1,1) - INTERVAL 10 DAY;
+ERROR HY000: Illegal parameter data types geometry and interval for operation 'date_add_interval'
+SELECT INTERVAL 10 DAY + POINT(1,1);
+ERROR HY000: Illegal parameter data types geometry and interval for operation 'date_add_interval'
+SELECT INTERVAL 10 DAY + POINT(1,1);
+ERROR HY000: Illegal parameter data types geometry and interval for operation 'date_add_interval'
+SELECT ADDTIME(POINT(1,1), '10:10:10');
+ERROR HY000: Illegal parameter data types geometry and varchar for operation 'add_time'
+SELECT ADDTIME('10:10:10', POINT(1,1));
+ERROR HY000: Illegal parameter data types varchar and geometry for operation 'add_time'
+SELECT ADDTIME(POINT(1,1), TIME'10:10:10');
+ERROR HY000: Illegal parameter data types geometry and time for operation 'add_time'
+SELECT ADDTIME(TIME'10:10:10', POINT(1,1));
+ERROR HY000: Illegal parameter data types time and geometry for operation 'add_time'
+SELECT ADDTIME(POINT(1,1), TIMESTAMP'2001-01-01 10:10:10');
+ERROR HY000: Illegal parameter data types geometry and datetime for operation 'add_time'
+SELECT ADDTIME(TIMESTAMP'2001-01-01 10:10:10', POINT(1,1));
+ERROR HY000: Illegal parameter data types datetime and geometry for operation 'add_time'
+SELECT STR_TO_DATE(POINT(1,1),'%M %d,%Y');
+ERROR HY000: Illegal parameter data types geometry and varchar for operation 'str_to_date'
+SELECT STR_TO_DATE('2001-01-01', POINT(1,1));
+ERROR HY000: Illegal parameter data types varchar and geometry for operation 'str_to_date'
+#
 # End of 10.3 tests
 #

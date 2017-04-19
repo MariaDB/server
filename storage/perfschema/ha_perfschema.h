@@ -130,7 +130,7 @@ public:
     @param new_data the row new values
     @return 0 on success
   */
-  int update_row(const uchar *old_data, uchar *new_data);
+  int update_row(const uchar *old_data, const uchar *new_data);
 
   /**
     Delete a row.

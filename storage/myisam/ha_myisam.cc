@@ -1779,7 +1779,7 @@ bool ha_myisam::is_crashed() const
 	  (my_disable_locking && file->s->state.open_count));
 }
 
-int ha_myisam::update_row(const uchar *old_data, uchar *new_data)
+int ha_myisam::update_row(const uchar *old_data, const uchar *new_data)
 {
   return mi_update(file,old_data,new_data);
 }

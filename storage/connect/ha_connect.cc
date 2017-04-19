@@ -2097,7 +2097,7 @@ int ha_connect::MakeRecord(char *buf)
 /***********************************************************************/
 /*  Set row values from a MySQL pseudo record. Specific to MySQL.      */
 /***********************************************************************/
-int ha_connect::ScanRecord(PGLOBAL g, uchar *)
+int ha_connect::ScanRecord(PGLOBAL g, const uchar *)
 {
   char    attr_buffer[1024];
   char    data_buffer[1024];
@@ -2239,7 +2239,7 @@ int ha_connect::ScanRecord(PGLOBAL g, uchar *)
 /*  Check change in index column. Specific to MySQL.                   */
 /*  Should be elaborated to check for real changes.                    */
 /***********************************************************************/
-int ha_connect::CheckRecord(PGLOBAL g, const uchar *, uchar *newbuf)
+int ha_connect::CheckRecord(PGLOBAL g, const uchar *, const uchar *newbuf)
 {
 	return ScanRecord(g, newbuf);
 } // end of dummy CheckRecord
@@ -3417,7 +3417,7 @@ int ha_connect::write_row(uchar *buf)
     @see
   sql_select.cc, sql_acl.cc, sql_update.cc and sql_insert.cc
 */
-int ha_connect::update_row(const uchar *old_data, uchar *new_data)
+int ha_connect::update_row(const uchar *old_data, const uchar *new_data)
 {
   int      rc= 0;
   PGLOBAL& g= xp->g;

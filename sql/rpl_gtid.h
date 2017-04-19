@@ -270,8 +270,12 @@ struct slave_connection_state
     rpl_gtid gtid;
     uint32 flags;
   };
-  static const uint32 START_OWN_SLAVE_POS= 0x1;
-  static const uint32 START_ON_EMPTY_DOMAIN= 0x2;
+  /* Bits for 'flags' */
+  enum start_flags
+  {
+    START_OWN_SLAVE_POS= 0x1,
+    START_ON_EMPTY_DOMAIN= 0x2
+  };
 
   /* Mapping from domain_id to the entry with GTID requested for that domain. */
   HASH hash;

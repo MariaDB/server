@@ -519,7 +519,7 @@ ha_tina::ha_tina(handlerton *hton, TABLE_SHARE *table_arg)
   Encode a buffer into the quoted format.
 */
 
-int ha_tina::encode_quote(uchar *buf)
+int ha_tina::encode_quote(const uchar *buf)
 {
   char attribute_buffer[1024];
   String attribute(attribute_buffer, sizeof(attribute_buffer),
@@ -1063,7 +1063,7 @@ int ha_tina::open_update_temp_file_if_needed()
   This will be called in a table scan right before the previous ::rnd_next()
   call.
 */
-int ha_tina::update_row(const uchar * old_data, uchar * new_data)
+int ha_tina::update_row(const uchar * old_data, const uchar * new_data)
 {
   int size;
   int rc= -1;

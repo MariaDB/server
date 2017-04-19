@@ -23,6 +23,8 @@
 
 #include "mysqld.h"
 #include "sql_array.h"
+#include "sql_const.h"
+#include "my_time.h"
 
 class Field;
 class Item;
@@ -260,6 +262,54 @@ public:
   {
     max_length= char_to_byte_length_safe(max_char_length_arg,
                                          collation.collation->mbmaxlen);
+  }
+  void fix_char_length_temporal_not_fixed_dec(uint int_part_length, uint dec)
+  {
+    uint char_length= int_part_length;
+    if ((decimals= dec))
+    {
+      if (decimals == NOT_FIXED_DEC)
+        char_length+= TIME_SECOND_PART_DIGITS + 1;
+      else
+      {
+        set_if_smaller(decimals, TIME_SECOND_PART_DIGITS);
+        char_length+= decimals + 1;
+      }
+    }
+    fix_char_length(char_length);
+  }
+  void fix_attributes_temporal_not_fixed_dec(uint int_part_length, uint dec)
+  {
+    collation.set_numeric();
+    unsigned_flag= 0;
+    fix_char_length_temporal_not_fixed_dec(int_part_length, dec);
+  }
+  void fix_attributes_time_not_fixed_dec(uint dec)
+  {
+    fix_attributes_temporal_not_fixed_dec(MIN_TIME_WIDTH, dec);
+  }
+  void fix_attributes_datetime_not_fixed_dec(uint dec)
+  {
+    fix_attributes_temporal_not_fixed_dec(MAX_DATETIME_WIDTH, dec);
+  }
+  void fix_attributes_temporal(uint int_part_length, uint dec)
+  {
+    collation.set_numeric();
+    unsigned_flag= 0;
+    decimals= MY_MIN(dec, TIME_SECOND_PART_DIGITS);
+    max_length= decimals + int_part_length + (dec ? 1 : 0);
+  }
+  void fix_attributes_date()
+  {
+    fix_attributes_temporal(MAX_DATE_WIDTH, 0);
+  }
+  void fix_attributes_time(uint dec)
+  {
+    fix_attributes_temporal(MIN_TIME_WIDTH, dec);
+  }
+  void fix_attributes_datetime(uint dec)
+  {
+    fix_attributes_temporal(MAX_DATETIME_WIDTH, dec);
   }
 };
 
@@ -1585,6 +1635,7 @@ public:
 
 extern Type_handler_row   type_handler_row;
 extern Type_handler_null  type_handler_null;
+extern Type_handler_string type_handler_string;
 extern Type_handler_varchar type_handler_varchar;
 extern Type_handler_longlong type_handler_longlong;
 extern Type_handler_float type_handler_float;
@@ -1595,6 +1646,10 @@ extern Type_handler_longlong type_handler_longlong;
 extern Type_handler_bit type_handler_bit;
 extern Type_handler_enum type_handler_enum;
 extern Type_handler_set type_handler_set;
+
+extern Type_handler_time2       type_handler_time2;
+extern Type_handler_newdate     type_handler_newdate;
+extern Type_handler_datetime2   type_handler_datetime2;
 
 
 class Type_aggregator

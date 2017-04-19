@@ -84,7 +84,7 @@ public:
   int open(const char *name, int mode, uint test_if_locked);
   int close(void);
   int write_row(byte * buf);
-  int update_row(const byte * old_data, byte * new_data);
+  int update_row(const uchar * old_data, const uchar * new_data);
   int delete_row(const byte * buf);
   int index_read(byte * buf, const byte * key,
 		 uint key_len, enum ha_rkey_function find_flag);

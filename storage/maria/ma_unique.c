@@ -27,8 +27,9 @@
   isn't any versioning information.
 */
 
-my_bool _ma_check_unique(MARIA_HA *info, MARIA_UNIQUEDEF *def, uchar *record,
-			ha_checksum unique_hash, my_off_t disk_pos)
+my_bool _ma_check_unique(MARIA_HA *info, MARIA_UNIQUEDEF *def,
+                         const uchar *record,
+                         ha_checksum unique_hash, my_off_t disk_pos)
 {
   my_off_t lastpos=info->cur_row.lastpos;
   MARIA_KEYDEF *keyinfo= &info->s->keyinfo[def->key];
@@ -38,6 +39,7 @@ my_bool _ma_check_unique(MARIA_HA *info, MARIA_UNIQUEDEF *def, uchar *record,
   DBUG_ENTER("_ma_check_unique");
   DBUG_PRINT("enter",("unique_hash: %lu", (ulong) unique_hash));
 
+  /* We need to store the hash value as a key in the record, breaking const */
   maria_unique_store(record+keyinfo->seg->start, unique_hash);
   /* Can't be spatial so it's ok to call _ma_make_key directly here */
   _ma_make_key(info, &key, def->key, key_buff, record, 0, 0);

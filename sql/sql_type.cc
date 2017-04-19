@@ -26,14 +26,10 @@ static Type_handler_long        type_handler_long;
 static Type_handler_int24       type_handler_int24;
 static Type_handler_year        type_handler_year;
 static Type_handler_time        type_handler_time;
-static Type_handler_time2       type_handler_time2;
 static Type_handler_date        type_handler_date;
-static Type_handler_newdate     type_handler_newdate;
-static Type_handler_datetime2   type_handler_datetime2;
 static Type_handler_timestamp   type_handler_timestamp;
 static Type_handler_timestamp2  type_handler_timestamp2;
 static Type_handler_olddecimal  type_handler_olddecimal;
-static Type_handler_string      type_handler_string;
 static Type_handler_tiny_blob   type_handler_tiny_blob;
 static Type_handler_medium_blob type_handler_medium_blob;
 static Type_handler_long_blob   type_handler_long_blob;
@@ -42,6 +38,7 @@ static Type_handler_blob        type_handler_blob;
 
 Type_handler_null        type_handler_null;
 Type_handler_row         type_handler_row;
+Type_handler_string      type_handler_string;
 Type_handler_varchar     type_handler_varchar;
 Type_handler_longlong    type_handler_longlong;
 Type_handler_float       type_handler_float;
@@ -51,6 +48,10 @@ Type_handler_datetime    type_handler_datetime;
 Type_handler_bit         type_handler_bit;
 Type_handler_enum        type_handler_enum;
 Type_handler_set         type_handler_set;
+
+Type_handler_time2       type_handler_time2;
+Type_handler_newdate     type_handler_newdate;
+Type_handler_datetime2   type_handler_datetime2;
 
 #ifdef HAVE_SPATIAL
 Type_handler_geometry    type_handler_geometry;
@@ -1346,7 +1347,7 @@ bool Type_handler_date_common::
        Item_hybrid_func_fix_attributes(THD *thd, Item_hybrid_func *func,
                                        Item **items, uint nitems) const
 {
-  func->set_attributes_temporal(MAX_DATE_WIDTH, 0);
+  func->fix_attributes_date();
   return false;
 }
 
@@ -2688,7 +2689,7 @@ bool Type_handler_numeric::
 bool Type_handler::
        Item_time_typecast_fix_length_and_dec(Item_time_typecast *item) const
 {
-  item->fix_length_and_dec_generic();
+  item->fix_length_and_dec_generic(MIN_TIME_WIDTH);
   return false;
 }
 
@@ -2696,7 +2697,7 @@ bool Type_handler::
 bool Type_handler::
        Item_date_typecast_fix_length_and_dec(Item_date_typecast *item) const
 {
-  item->fix_length_and_dec_generic();
+  item->fix_length_and_dec_generic(MAX_DATE_WIDTH);
   return false;
 }
 
@@ -2705,7 +2706,7 @@ bool Type_handler::
        Item_datetime_typecast_fix_length_and_dec(Item_datetime_typecast *item)
                                                  const
 {
-  item->fix_length_and_dec_generic();
+  item->fix_length_and_dec_generic(MAX_DATETIME_WIDTH);
   return false;
 
 }

@@ -68,23 +68,27 @@ struct group_commit_orderer {
   */
   bool installed;
 
-  /*
-    This flag is set for a GCO in which we have event groups with multiple
-    different commit_id values from the master. This happens when we
-    optimistically try to execute in parallel transactions not known to be
-    conflict-free.
+  enum force_switch_bits
+  {
+    /*
+      This flag is set for a GCO in which we have event groups with multiple
+      different commit_id values from the master. This happens when we
+      optimistically try to execute in parallel transactions not known to be
+      conflict-free.
 
-    When this flag is set, in case of DDL we need to start a new GCO regardless
-    of current commit_id, as DDL is not safe to speculatively apply in parallel
-    with prior event groups.
-  */
-  static const uint8 MULTI_BATCH = 0x01;
-  /*
-    This flag is set for a GCO that contains DDL. If set, it forces a switch to
-    a new GCO upon seeing a new commit_id, as DDL is not safe to speculatively
-    replicate in parallel with subsequent transactions.
-  */
-  static const uint8 FORCE_SWITCH = 0x02;
+      When this flag is set, in case of DDL we need to start a new GCO
+      regardless of current commit_id, as DDL is not safe to
+      speculatively apply in parallel with prior event groups.
+    */
+    MULTI_BATCH= 1,
+    /*
+      This flag is set for a GCO that contains DDL. If set, it forces
+      a switch to a new GCO upon seeing a new commit_id, as DDL is not
+      safe to speculatively replicate in parallel with subsequent
+      transactions.
+    */
+    FORCE_SWITCH= 2
+  };
   uint8 flags;
 };
 

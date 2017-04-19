@@ -284,7 +284,7 @@ int PFS_engine_table::read_row(TABLE *table,
 */
 int PFS_engine_table::update_row(TABLE *table,
                                  const unsigned char *old_buf,
-                                 unsigned char *new_buf,
+                                 const unsigned char *new_buf,
                                  Field **fields)
 {
   my_bitmap_map *org_bitmap;
@@ -428,7 +428,7 @@ PFS_engine_table::get_field_varchar_utf8(Field *f, String *val)
 
 int PFS_engine_table::update_row_values(TABLE *,
                                         const unsigned char *,
-                                        unsigned char *,
+                                        const unsigned char *,
                                         Field **)
 {
   return HA_ERR_WRONG_COMMAND;

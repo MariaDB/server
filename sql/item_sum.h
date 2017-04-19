@@ -1153,7 +1153,7 @@ public:
   }
 
 protected:
-  static const int NUM_BIT_COUNTERS= 64;
+  enum bit_counters { NUM_BIT_COUNTERS= 64 };
   ulonglong reset_bits,bits;
   /*
     Marks whether the function is to be computed as a window function.

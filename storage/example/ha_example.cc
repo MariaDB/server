@@ -431,7 +431,7 @@ int ha_example::write_row(uchar *buf)
   @see
   sql_select.cc, sql_acl.cc, sql_update.cc and sql_insert.cc
 */
-int ha_example::update_row(const uchar *old_data, uchar *new_data)
+int ha_example::update_row(const uchar *old_data, const uchar *new_data)
 {
 
   DBUG_ENTER("ha_example::update_row");

@@ -231,7 +231,7 @@ int ha_sequence::write_row(uchar *buf)
 }
 
 
-int ha_sequence::update_row(const uchar *old_data, uchar *new_data)
+int ha_sequence::update_row(const uchar *old_data, const uchar *new_data)
 {
   int error;
   sequence_definition tmp_seq;

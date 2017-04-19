@@ -1483,13 +1483,15 @@ struct THD_TRANS
 
   unsigned int m_unsafe_rollback_flags;
  /*
-    Define the type of statemens which cannot be rolled back safely.
+    Define the type of statements which cannot be rolled back safely.
     Each type occupies one bit in m_unsafe_rollback_flags.
   */
-  static unsigned int const MODIFIED_NON_TRANS_TABLE= 0x01;
-  static unsigned int const CREATED_TEMP_TABLE= 0x02;
-  static unsigned int const DROPPED_TEMP_TABLE= 0x04;
-  static unsigned int const DID_WAIT= 0x08;
+  enum unsafe_statement_types
+  {
+    CREATED_TEMP_TABLE= 2,
+    DROPPED_TEMP_TABLE= 4,
+    DID_WAIT= 8
+  };
 
   void mark_created_temp_table()
   {
@@ -2890,7 +2892,7 @@ public:
   */
   int ha_external_lock(THD *thd, int lock_type);
   int ha_write_row(uchar * buf);
-  int ha_update_row(const uchar * old_data, uchar * new_data);
+  int ha_update_row(const uchar * old_data, const uchar * new_data);
   int ha_delete_row(const uchar * buf);
   void ha_release_auto_increment();
 
@@ -2929,7 +2931,7 @@ public:
     int ret= end_bulk_insert();
     DBUG_RETURN(ret);
   }
-  int ha_bulk_update_row(const uchar *old_data, uchar *new_data,
+  int ha_bulk_update_row(const uchar *old_data, const uchar *new_data,
                          uint *dup_key_found);
   int ha_delete_all_rows();
   int ha_truncate();
@@ -4047,7 +4049,7 @@ private:
     message will contain garbage.
   */
   virtual int update_row(const uchar *old_data __attribute__((unused)),
-                         uchar *new_data __attribute__((unused)))
+                         const uchar *new_data __attribute__((unused)))
   {
     return HA_ERR_WRONG_COMMAND;
   }
@@ -4135,7 +4137,7 @@ public:
     @retval  0   Bulk delete used by handler
     @retval  1   Bulk delete not used, normal operation used
   */
-  virtual int bulk_update_row(const uchar *old_data, uchar *new_data,
+  virtual int bulk_update_row(const uchar *old_data, const uchar *new_data,
                               uint *dup_key_found)
   {
     DBUG_ASSERT(FALSE);

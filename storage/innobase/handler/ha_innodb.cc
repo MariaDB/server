@@ -8910,7 +8910,7 @@ dberr_t
 calc_row_difference(
 	upd_t*		uvect,
 	const uchar*	old_row,
-	uchar*		new_row,
+	const uchar*	new_row,
 	TABLE*		table,
 	uchar*		upd_buff,
 	ulint		buff_len,
@@ -9406,7 +9406,7 @@ if its index columns are updated!
 int
 ha_innobase::update_row(
 	const uchar*	old_row,
-	uchar*		new_row)
+	const uchar*	new_row)
 {
 	int		err;
 

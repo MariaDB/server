@@ -206,8 +206,8 @@ public:
   bool     IsOpened(void);
   int      CloseTable(PGLOBAL g);
   int      MakeRecord(char *buf);
-  int      ScanRecord(PGLOBAL g, uchar *buf);
-  int      CheckRecord(PGLOBAL g, const uchar *oldbuf, uchar *newbuf);
+  int      ScanRecord(PGLOBAL g, const uchar *buf);
+  int      CheckRecord(PGLOBAL g, const uchar *oldbuf, const uchar *newbuf);
 	int      ReadIndexed(uchar *buf, OPVAL op, const key_range *kr= NULL);
 	bool     IsIndexed(Field *fp);
   bool     MakeKeyWhere(PGLOBAL g, PSTRG qry, OPVAL op, char q,
@@ -388,7 +388,7 @@ PFIL  CondFilter(PGLOBAL g, Item *cond);
     We implement this in ha_connect.cc. It's not an obligatory method;
     skip it and and MySQL will treat it as not implemented.
   */
-  int update_row(const uchar *old_data, uchar *new_data);
+  int update_row(const uchar *old_data, const uchar *new_data);
 
   /** @brief
     We implement this in ha_connect.cc. It's not an obligatory method;

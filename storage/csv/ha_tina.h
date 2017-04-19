@@ -137,7 +137,7 @@ public:
   int open(const char *name, int mode, uint open_options);
   int close(void);
   int write_row(uchar * buf);
-  int update_row(const uchar * old_data, uchar * new_data);
+  int update_row(const uchar * old_data, const uchar * new_data);
   int delete_row(const uchar * buf);
   int rnd_init(bool scan=1);
   int rnd_next(uchar *buf);
@@ -173,7 +173,7 @@ public:
   void update_status();
 
   /* The following methods were added just for TINA */
-  int encode_quote(uchar *buf);
+  int encode_quote(const uchar *buf);
   int find_current_row(uchar *buf);
   int chain_append();
 };

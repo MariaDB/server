@@ -2457,7 +2457,7 @@ int ha_sphinx::delete_row ( const byte * )
 }
 
 
-int ha_sphinx::update_row ( const byte *, byte * )
+int ha_sphinx::update_row ( const byte *, const byte * )
 {
 	SPH_ENTER_METHOD();
 	SPH_RET ( HA_ERR_WRONG_COMMAND );

@@ -69,7 +69,7 @@ public:
              HA_CREATE_INFO *create_info);
   handler *clone(const char *name, MEM_ROOT *mem_root);
   int write_row(uchar *buf);
-  int update_row(const uchar *old_data, uchar *new_data);
+  int update_row(const uchar *old_data, const uchar *new_data);
   Table_flags table_flags() const;
   /* One can't delete from sequence engine */
   int delete_row(const uchar *buf)

@@ -5674,7 +5674,7 @@ err:
   DBUG_RETURN(error);
 }
 
-int ha_mroonga::storage_write_row_unique_index(uchar *buf,
+int ha_mroonga::storage_write_row_unique_index(const uchar *buf,
                                                KEY *key_info,
                                                grn_obj *index_table,
                                                grn_obj *index_column,
@@ -5856,7 +5856,8 @@ int ha_mroonga::wrapper_get_record_id(uchar *data, grn_id *record_id,
   DBUG_RETURN(error);
 }
 
-int ha_mroonga::wrapper_update_row(const uchar *old_data, uchar *new_data)
+int ha_mroonga::wrapper_update_row(const uchar *old_data,
+                                   const uchar *new_data)
 {
   MRN_DBUG_ENTER_METHOD();
 
@@ -5877,7 +5878,8 @@ int ha_mroonga::wrapper_update_row(const uchar *old_data, uchar *new_data)
   DBUG_RETURN(error);
 }
 
-int ha_mroonga::wrapper_update_row_index(const uchar *old_data, uchar *new_data)
+int ha_mroonga::wrapper_update_row_index(const uchar *old_data,
+                                         const uchar *new_data)
 {
   MRN_DBUG_ENTER_METHOD();
 
@@ -5989,7 +5991,8 @@ err:
   DBUG_RETURN(error);
 }
 
-int ha_mroonga::storage_update_row(const uchar *old_data, uchar *new_data)
+int ha_mroonga::storage_update_row(const uchar *old_data,
+                                   const uchar *new_data)
 {
   MRN_DBUG_ENTER_METHOD();
   int error = 0;
@@ -6152,7 +6155,8 @@ err:
   DBUG_RETURN(error);
 }
 
-int ha_mroonga::storage_update_row_index(const uchar *old_data, uchar *new_data)
+int ha_mroonga::storage_update_row_index(const uchar *old_data,
+                                         const uchar *new_data)
 {
   MRN_DBUG_ENTER_METHOD();
   int error = 0;
@@ -6244,7 +6248,7 @@ err:
   DBUG_RETURN(error);
 }
 
-int ha_mroonga::storage_update_row_unique_indexes(uchar *new_data)
+int ha_mroonga::storage_update_row_unique_indexes(const uchar *new_data)
 {
   int error;
   uint i;
@@ -6321,7 +6325,7 @@ err:
   DBUG_RETURN(error);
 }
 
-int ha_mroonga::update_row(const uchar *old_data, uchar *new_data)
+int ha_mroonga::update_row(const uchar *old_data, const uchar *new_data)
 {
   MRN_DBUG_ENTER_METHOD();
   int error = 0;
@@ -11015,7 +11019,7 @@ void ha_mroonga::storage_store_fields(uchar *buf, grn_id record_id)
 }
 
 void ha_mroonga::storage_store_fields_for_prep_update(const uchar *old_data,
-                                                      uchar *new_data,
+                                                      const uchar *new_data,
                                                       grn_id record_id)
 {
   MRN_DBUG_ENTER_METHOD();

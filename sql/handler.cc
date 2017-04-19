@@ -4042,7 +4042,7 @@ int handler::ha_repair(THD* thd, HA_CHECK_OPT* check_opt)
 */
 
 int
-handler::ha_bulk_update_row(const uchar *old_data, uchar *new_data,
+handler::ha_bulk_update_row(const uchar *old_data, const uchar *new_data,
                             uint *dup_key_found)
 {
   DBUG_ASSERT(table_share->tmp_table != NO_TMP_TABLE ||
@@ -5998,7 +5998,7 @@ int handler::ha_write_row(uchar *buf)
 }
 
 
-int handler::ha_update_row(const uchar *old_data, uchar *new_data)
+int handler::ha_update_row(const uchar *old_data, const uchar *new_data)
 {
   int error;
   Log_func *log_func= Update_rows_log_event::binlog_row_logging_function;

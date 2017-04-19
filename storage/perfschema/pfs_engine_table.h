@@ -46,7 +46,7 @@ public:
   int read_row(TABLE *table, unsigned char *buf, Field **fields);
 
   int update_row(TABLE *table, const unsigned char *old_buf,
-                 unsigned char *new_buf, Field **fields);
+                 const unsigned char *new_buf, Field **fields);
 
   /**
     Delete a row from this table.
@@ -165,7 +165,7 @@ protected:
     @param fields           Table fields
   */
   virtual int update_row_values(TABLE *table, const unsigned char *old_buf,
-                                unsigned char *new_buf, Field **fields);
+                                const unsigned char *new_buf, Field **fields);
 
   /**
     Delete a row.

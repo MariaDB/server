@@ -275,7 +275,7 @@ extern int mi_rsame(struct st_myisam_info *file,uchar *record,int inx);
 extern int mi_rsame_with_pos(struct st_myisam_info *file,uchar *record,
 			     int inx, my_off_t pos);
 extern int mi_update(struct st_myisam_info *file,const uchar *old,
-		     uchar *new_record);
+		     const uchar *new_record);
 extern int mi_write(struct st_myisam_info *file,uchar *buff);
 extern my_off_t mi_position(struct st_myisam_info *file);
 extern int mi_status(struct st_myisam_info *info, MI_ISAMINFO *x, uint flag);
