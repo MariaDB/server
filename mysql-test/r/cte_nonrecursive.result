@@ -703,7 +703,7 @@ ERROR 42S21: Duplicate column name 'f1'
 with t as (select * from t2 where c>3),
 t as (select a from t1 where a>2)
 select * from t,t1 where t1.a=t.c;
-ERROR HY000: Duplicate query name in WITH clause
+ERROR HY000: Duplicate query name `t` in WITH clause
 with t as (select a from s where a<5),
 s as (select a from t1 where b>='d')
 select * from t,s where t.a=s.a;
