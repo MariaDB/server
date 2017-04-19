@@ -9418,27 +9418,24 @@ void Item_cache::store(Item *item)
 void Item_cache::print(String *str, enum_query_type query_type)
 {
   if (example &&                                          // There is a cached item
-      (query_type & QT_ITEM_CACHE_WRAPPER_SKIP_DETAILS))  // Caller is show-create-table
+      (query_type & QT_NO_DATA_EXPANSION))                // Caller is show-create-table
   {
     // Instead of "cache" or the cached value, print the cached item name
     example->print(str, query_type);
+    return;
   }
-  else
+
+  if (value_cached)
   {
-    if (value_cached && !(query_type & QT_NO_DATA_EXPANSION))
-    {
-      print_value(str);
-      return;
-    }
-    if (!(query_type & QT_ITEM_CACHE_WRAPPER_SKIP_DETAILS))
-      str->append(STRING_WITH_LEN("<cache>("));
-    if (example)
-      example->print(str, query_type);
-    else
-      Item::print(str, query_type);
-    if (!(query_type & QT_ITEM_CACHE_WRAPPER_SKIP_DETAILS))
-      str->append(')');
+    print_value(str);
+    return;
   }
+  str->append(STRING_WITH_LEN("<cache>("));
+  if (example)
+    example->print(str, query_type);
+  else
+    Item::print(str, query_type);
+  str->append(')');
 }
 
 /**
@@ -10669,8 +10666,7 @@ void Virtual_column_info::print(String *str)
                    (enum_query_type)(QT_ITEM_ORIGINAL_FUNC_NULLIF |
                                      QT_ITEM_IDENT_SKIP_DB_NAMES |
                                      QT_ITEM_IDENT_SKIP_TABLE_NAMES |
-                                     QT_ITEM_CACHE_WRAPPER_SKIP_DETAILS |
-                                     QT_TO_SYSTEM_CHARSET |
-                                     QT_NO_DATA_EXPANSION),
+                                     QT_NO_DATA_EXPANSION |
+                                     QT_TO_SYSTEM_CHARSET),
                    LOWEST_PRECEDENCE);
 }

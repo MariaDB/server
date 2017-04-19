@@ -7118,7 +7118,7 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "const_condition": "2 < 2 or <in_optimizer>(2,<exists>(subquery#3))",
+    "const_condition": "0 or <in_optimizer>(2,<exists>(subquery#3))",
     "table": {
       "table_name": "t1",
       "access_type": "system",
@@ -7202,7 +7202,7 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "const_condition": "2 < 2 or <in_optimizer>(2,<exists>(subquery#3))",
+    "const_condition": "0 or <in_optimizer>(2,<exists>(subquery#3))",
     "table": {
       "table_name": "t1",
       "access_type": "system",
@@ -7668,7 +7668,7 @@ EXPLAIN
           "access_type": "ALL",
           "rows": 2,
           "filtered": 100,
-          "attached_condition": "v1.b = count(t2.c)",
+          "attached_condition": "v1.b = 2",
           "materialized": {
             "query_block": {
               "select_id": 3,
@@ -7725,7 +7725,7 @@ EXPLAIN
       "access_type": "ALL",
       "rows": 2,
       "filtered": 100,
-      "attached_condition": "v1.f = count(t.pk)",
+      "attached_condition": "v1.f = 2",
       "materialized": {
         "query_block": {
           "select_id": 3,
@@ -7745,7 +7745,7 @@ EXPLAIN
         "access_type": "ALL",
         "rows": 2,
         "filtered": 100,
-        "attached_condition": "v2.pk > count(t.pk)"
+        "attached_condition": "v2.pk > 2"
       },
       "buffer_type": "flat",
       "buffer_size": "256Kb",
@@ -7804,7 +7804,7 @@ EXPLAIN
       "access_type": "ALL",
       "rows": 3,
       "filtered": 100,
-      "attached_condition": "sq.i = min(t2.j)",
+      "attached_condition": "sq.i = 3",
       "materialized": {
         "query_block": {
           "select_id": 2,
@@ -7861,7 +7861,7 @@ EXPLAIN
       "access_type": "ALL",
       "rows": 3,
       "filtered": 100,
-      "attached_condition": "sq.i = min(t2.j)",
+      "attached_condition": "sq.i = 2.7100000381469727",
       "materialized": {
         "query_block": {
           "select_id": 2,
@@ -7913,7 +7913,7 @@ EXPLAIN
       "access_type": "ALL",
       "rows": 3,
       "filtered": 100,
-      "attached_condition": "sq.i = min(t2.j)",
+      "attached_condition": "sq.i = 3.21",
       "materialized": {
         "query_block": {
           "select_id": 2,
@@ -7965,7 +7965,7 @@ EXPLAIN
       "access_type": "ALL",
       "rows": 3,
       "filtered": 100,
-      "attached_condition": "sq.i = min(t2.j)",
+      "attached_condition": "sq.i = 'aa'",
       "materialized": {
         "query_block": {
           "select_id": 2,
@@ -8019,7 +8019,7 @@ EXPLAIN
       "access_type": "ALL",
       "rows": 3,
       "filtered": 100,
-      "attached_condition": "sq.i = min(t2.j)",
+      "attached_condition": "sq.i = '2007-05-28 00:00:00'",
       "materialized": {
         "query_block": {
           "select_id": 2,
@@ -8071,7 +8071,7 @@ EXPLAIN
       "access_type": "ALL",
       "rows": 3,
       "filtered": 100,
-      "attached_condition": "sq.i = min(t2.j)",
+      "attached_condition": "sq.i = '2007-05-28'",
       "materialized": {
         "query_block": {
           "select_id": 2,
@@ -8123,7 +8123,7 @@ EXPLAIN
       "access_type": "ALL",
       "rows": 3,
       "filtered": 100,
-      "attached_condition": "sq.i = min(t2.j)",
+      "attached_condition": "sq.i = '10:00:02'",
       "materialized": {
         "query_block": {
           "select_id": 2,
@@ -8214,7 +8214,7 @@ EXPLAIN
       "access_type": "ALL",
       "rows": 2,
       "filtered": 100,
-      "attached_condition": "v1.c = min(t2.c)",
+      "attached_condition": "v1.c = NULL",
       "materialized": {
         "query_block": {
           "select_id": 3,
@@ -8317,7 +8317,7 @@ EXPLAIN
       "access_type": "ALL",
       "rows": 2,
       "filtered": 100,
-      "attached_condition": "<in_optimizer>(1,<exists>(subquery#2)) or v1.c = 'foo'",
+      "attached_condition": "<cache>(<in_optimizer>(1,<exists>(subquery#2))) or v1.c = 'foo'",
       "materialized": {
         "query_block": {
           "select_id": 3,

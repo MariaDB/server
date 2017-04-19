@@ -811,7 +811,7 @@ EXPLAIN
               "ref": ["func"],
               "rows": 2,
               "filtered": 100,
-              "attached_condition": "trigcond(outer_t1.a = t1.a or t1.a is null)",
+              "attached_condition": "trigcond(<cache>(outer_t1.a) = t1.a or t1.a is null)",
               "using_index": true
             }
           },
@@ -825,7 +825,7 @@ EXPLAIN
             "buffer_type": "flat",
             "buffer_size": "256Kb",
             "join_type": "BNL",
-            "attached_condition": "t2.b <> outer_t1.a and trigcond(outer_t1.a = t1.a or t1.a is null)"
+            "attached_condition": "t2.b <> outer_t1.a and trigcond(<cache>(outer_t1.a) = t1.a or t1.a is null)"
           }
         }
       }
@@ -1106,7 +1106,7 @@ EXPLAIN
       "access_type": "ALL",
       "rows": 2,
       "filtered": 100,
-      "attached_condition": "(case when convert(t1.a using utf8) = _utf8'a' collate utf8_bin then NULL else t1.a end)"
+      "attached_condition": "(case when convert(t1.a using utf8) = <cache>(_utf8'a' collate utf8_bin) then NULL else t1.a end)"
     }
   }
 }
