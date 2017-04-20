@@ -17401,11 +17401,11 @@ innodb_log_archive_update(
 
 	if (in_val) {
 		/* turn archiving on */
-		srv_log_archive_on = innobase_log_archive = 1;
+		innobase_log_archive = srv_log_archive_on = 1;
 		log_archive_archivelog();
 	} else {
 		/* turn archivng off */
-		srv_log_archive_on = innobase_log_archive = 0;
+		innobase_log_archive = srv_log_archive_on = 0;
 		log_archive_noarchivelog();
 	}
 }

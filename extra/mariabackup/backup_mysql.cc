@@ -1395,7 +1395,6 @@ write_xtrabackup_info(MYSQL *connection)
 	char buf_start_time[100];
 	char buf_end_time[100];
 	tm tm;
-	my_bool null = TRUE;
 	ostringstream oss;
 	const char *xb_stream_name[] = {"file", "tar", "xbstream"};
 

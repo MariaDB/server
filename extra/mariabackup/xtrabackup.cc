@@ -6514,7 +6514,7 @@ skip_check:
 		  Unfinished transactions are not rolled back during log applying
 		  as they can be finished at the firther files applyings.
 		*/
-		srv_apply_log_only = xtrabackup_apply_log_only = true;
+		xtrabackup_apply_log_only = srv_apply_log_only = true;
 
 		if (!xtrabackup_arch_search_files(min_flushed_lsn)) {
 			goto error_cleanup;

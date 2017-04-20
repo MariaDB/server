@@ -24,6 +24,11 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
 #include "common.h"
 #include "datasink.h"
 
+#if ARCHIVE_VERSION_NUMBER < 3000000
+#define archive_write_add_filter_none(X) archive_write_set_compression_none(X)
+#define archive_write_free(X) archive_write_finish(X)
+#endif
+
 typedef struct {
 	struct archive	*archive;
 	ds_file_t	*dest_file;
@@ -114,14 +119,14 @@ archive_init(const char *root __attribute__((unused)))
 	archive_ctxt->archive = a;
 	archive_ctxt->dest_file = NULL;
 
-	if (archive_write_set_compression_none(a) != ARCHIVE_OK ||
+        if(archive_write_add_filter_none(a) != ARCHIVE_OK ||
 	    archive_write_set_format_pax_restricted(a) != ARCHIVE_OK ||
 	    /* disable internal buffering so we don't have to flush the
 	    output in xtrabackup */
 	    archive_write_set_bytes_per_block(a, 0) != ARCHIVE_OK) {
 		msg("failed to set libarchive archive options: %s\n",
 		    archive_error_string(a));
-		archive_write_finish(a);
+                archive_write_free(a);
 		goto err;
 	}
 
@@ -262,7 +267,7 @@ archive_deinit(ds_ctxt_t *ctxt)
 	if (archive_write_close(a) != ARCHIVE_OK) {
 		msg("archive_write_close() failed.\n");
 	}
-	archive_write_finish(a);
+	archive_write_free(a);
 
 	if (archive_ctxt->dest_file) {
 		ds_close(archive_ctxt->dest_file);
