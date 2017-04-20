@@ -46,6 +46,8 @@ extra/comp_err
 extra/innochecksum
 extra/jemalloc/build/
 extra/jemalloc/tmp/
+extra/mariabackup/mariabackup
+extra/mariabackup/mbstream
 extra/my_print_defaults
 extra/mysql_waitpid
 extra/mysqld_safe_helper
@@ -118,6 +120,7 @@ scripts/mytop
 scripts/wsrep_sst_common
 scripts/wsrep_sst_mysqldump
 scripts/wsrep_sst_rsync
+scripts/wsrep_sst_mariabackup
 scripts/wsrep_sst_xtrabackup
 scripts/wsrep_sst_xtrabackup-v2
 scripts/maria_add_gis_sp.sql
