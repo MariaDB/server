@@ -10,6 +10,8 @@ SET s= SUBSTR(s FROM 1 FOR LOCATE(",", s) - 1);
 RETURN s;
 END|
 connection server_2;
+include/stop_slave.inc
+include/start_slave.inc
 START SLAVE UNTIL master_gtid_pos = "";
 ERROR HY000: Slave is already running
 include/stop_slave_io.inc

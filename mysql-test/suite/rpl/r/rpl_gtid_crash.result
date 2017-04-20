@@ -88,16 +88,16 @@ include/save_master_gtid.inc
 connection server_2;
 include/sync_with_master_gtid.inc
 include/stop_slave.inc
-SET GLOBAL debug_dbug="+d,crash_commit_before";
 START SLAVE;
+SET GLOBAL debug_dbug="+d,crash_commit_before";
 connection server_1;
 INSERT INTO t1 VALUES (5);
 include/save_master_gtid.inc
 connection server_2;
 include/sync_with_master_gtid.inc
 include/stop_slave.inc
-SET GLOBAL debug_dbug="+d,crash_commit_after";
 START SLAVE;
+SET GLOBAL debug_dbug="+d,crash_commit_after";
 connection server_1;
 INSERT INTO t1 VALUES (6);
 include/save_master_gtid.inc
