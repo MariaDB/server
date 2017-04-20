@@ -1,0 +1,2 @@
+galera_var_dirty_reads :  MDEV-12539
+query_cache : MDEV-12539
