@@ -112,6 +112,11 @@ struct rpl_slave_state
     uint64 sub_id;
     uint64 seq_no;
     uint32 server_id;
+    /*
+      hton of mysql.gtid_slave_pos* table used to record this GTID.
+      Can be NULL if the gtid table failed to load (eg. missing
+      mysql.gtid_slave_pos table following an upgrade).
+    */
     void *hton;
   };
 

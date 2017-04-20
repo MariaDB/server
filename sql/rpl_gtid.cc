@@ -295,7 +295,7 @@ rpl_slave_state::update(uint32 domain_id, uint32 server_id, uint64 sub_id,
   element *elem= NULL;
   list_element *list_elem= NULL;
 
-  DBUG_ASSERT(hton);
+  DBUG_ASSERT(hton || !loaded);
   if (!(elem= get_element(domain_id)))
     return 1;
 
