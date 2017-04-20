@@ -6546,6 +6546,8 @@ skip_check:
 	if(innodb_init())
 		goto error_cleanup;
 
+	if (xtrabackup_incremental) {
+
 	it = datafiles_iter_new(fil_system);
 	if (it == NULL) {
 		msg("xtrabackup: Error: datafiles_iter_new() failed.\n");
@@ -6587,6 +6589,8 @@ skip_check:
 	}
 
 	datafiles_iter_free(it);
+
+	} /* if (xtrabackup_incremental) */
 
 	if (xtrabackup_export) {
 		msg("xtrabackup: export option is specified.\n");
