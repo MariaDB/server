@@ -108,11 +108,19 @@ ELSE()
     SET_TARGET_PROPERTIES(${lib} PROPERTIES IMPORTED_LOCATION ${loc})
   ENDFOREACH()
 
+  # To be compatible with older cmake, we use older version of the SDK
+  # We increase the version for macs however, so the newest mac could built it.
+  IF(APPLE)
+    SET(GIT_TAG "1.0.100")
+  ELSE()
+    SET(GIT_TAG "1.0.8")
+  ENDIF()
+
   SET(AWS_SDK_PATCH_COMMAND )
   ExternalProject_Add(
     aws_sdk_cpp
     GIT_REPOSITORY "https://github.com/awslabs/aws-sdk-cpp.git"
-    GIT_TAG "1.0.100"
+    GIT_TAG ${GIT_TAG}
     UPDATE_COMMAND ""
     SOURCE_DIR "${CMAKE_CURRENT_BINARY_DIR}/aws-sdk-cpp"
     ${byproducts}
