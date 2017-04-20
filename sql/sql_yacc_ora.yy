@@ -9441,46 +9441,22 @@ column_default_non_parenthesized_expr:
           }
         | NEXT_SYM VALUE_SYM FOR_SYM table_ident
           {
-            TABLE_LIST *table;
-            if (!(table= Select->add_table_to_list(thd, $4, 0,
-                                           TL_OPTION_SEQUENCE,
-                                           TL_WRITE_ALLOW_WRITE,
-                                           MDL_SHARED_WRITE)))
-              MYSQL_YYABORT;
-            if (!($$= new (thd->mem_root) Item_func_nextval(thd, table)))
+            if (!($$= Lex->create_item_func_nextval(thd, $4)))
               MYSQL_YYABORT;
           }
         | NEXTVAL_SYM '(' table_ident ')'
           {
-            TABLE_LIST *table;
-            if (!(table= Select->add_table_to_list(thd, $3, 0,
-                                                TL_OPTION_SEQUENCE,
-                                                TL_WRITE_ALLOW_WRITE,
-                                                MDL_SHARED_WRITE)))
-              MYSQL_YYABORT;
-            if (!($$= new (thd->mem_root) Item_func_nextval(thd, table)))
+            if (!($$= Lex->create_item_func_nextval(thd, $3)))
               MYSQL_YYABORT;
           }
         | PREVIOUS_SYM VALUE_SYM FOR_SYM table_ident
           {
-            TABLE_LIST *table;
-            if (!(table= Select->add_table_to_list(thd, $4, 0,
-                                                TL_OPTION_SEQUENCE,
-                                                TL_READ,
-                                                MDL_SHARED_READ)))
-              MYSQL_YYABORT;
-            if (!($$= new (thd->mem_root) Item_func_lastval(thd, table)))
+            if (!($$= Lex->create_item_func_lastval(thd, $4)))
               MYSQL_YYABORT;
           }
         | LASTVAL_SYM '(' table_ident ')'
           {
-            TABLE_LIST *table;
-            if (!(table= Select->add_table_to_list(thd, $3, 0,
-                                                TL_OPTION_SEQUENCE,
-                                                TL_READ,
-                                                MDL_SHARED_WRITE)))
-              MYSQL_YYABORT;
-            if (!($$= new (thd->mem_root) Item_func_lastval(thd, table)))
+            if (!($$= Lex->create_item_func_lastval(thd, $3)))
               MYSQL_YYABORT;
           }
         ;
@@ -14319,53 +14295,12 @@ simple_ident_q2:
           }
         | '.' ident '.' ident
           {
-            LEX *lex= thd->lex;
-            SELECT_LEX *sel= lex->current_select;
-            if (sel->no_table_names_allowed)
-            {
-              my_error(ER_TABLENAME_NOT_ALLOWED_HERE,
-                       MYF(0), $2.str, thd->where);
-            }
-            if ((sel->parsing_place != IN_HAVING) ||
-                (sel->get_in_sum_expr() > 0))
-            {
-              $$= new (thd->mem_root) Item_field(thd, Lex->current_context(),
-                                                 NullS, $2.str, $4.str);
-
-            }
-            else
-            {
-              $$= new (thd->mem_root) Item_ref(thd, Lex->current_context(),
-                                               NullS, $2.str, $4.str);
-            }
-            if ($$ == NULL)
+            if (!($$= Lex->create_item_ident(thd, null_lex_str, $2, $4)))
               MYSQL_YYABORT;
           }
         | ident '.' ident '.' ident
           {
-            LEX *lex= thd->lex;
-            SELECT_LEX *sel= lex->current_select;
-            const char* schema= (thd->client_capabilities & CLIENT_NO_SCHEMA ?
-                                 NullS : $1.str);
-            if (sel->no_table_names_allowed)
-            {
-              my_error(ER_TABLENAME_NOT_ALLOWED_HERE,
-                       MYF(0), $3.str, thd->where);
-            }
-            if ((sel->parsing_place != IN_HAVING) ||
-                (sel->get_in_sum_expr() > 0))
-            {
-              $$= new (thd->mem_root) Item_field(thd, Lex->current_context(),
-                                                 schema,
-                                                 $3.str, $5.str);
-            }
-            else
-            {
-              $$= new (thd->mem_root) Item_ref(thd, Lex->current_context(),
-                                               schema,
-                                               $3.str, $5.str);
-            }
-            if ($$ == NULL)
+            if (!($$= Lex->create_item_ident(thd, $1, $3, $5)))
               MYSQL_YYABORT;
           }
         ;
