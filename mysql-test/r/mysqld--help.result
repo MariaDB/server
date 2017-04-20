@@ -257,6 +257,13 @@ The following options may be given as the first argument:
  applied; this means it is the responsibility of the user
  to ensure that GTID sequence numbers are strictly
  increasing.
+ --gtid-pos-auto-engines=name 
+ List of engines for which to automatically create a
+ mysql.gtid_slave_pos_ENGINE table, if a transaction using
+ that engine is replicated. This can be used to avoid
+ introducing cross-engine transactions, if engines are
+ used different from that used by table
+ mysql.gtid_slave_pos
  --gtid-strict-mode  Enforce strict seq_no ordering of events in the binary
  log. Slave stops with an error if it encounters an event
  that would cause it to generate an out-of-order binlog if
@@ -1254,6 +1261,7 @@ getopt-prefix-matching TRUE
 group-concat-max-len 1048576
 gtid-domain-id 0
 gtid-ignore-duplicates FALSE
+gtid-pos-auto-engines 
 gtid-strict-mode FALSE
 help TRUE
 histogram-size 0
