@@ -4932,10 +4932,10 @@ init_gtid_pos_auto_engines(void)
     then it will certainly not be needed.
   */
   if (gtid_pos_auto_engines)
-    plugins= resolve_engine_list(gtid_pos_auto_engines,
-                                 strlen(gtid_pos_auto_engines), false);
+    plugins= resolve_engine_list(NULL, gtid_pos_auto_engines,
+                                 strlen(gtid_pos_auto_engines), false, false);
   else
-    plugins= resolve_engine_list("", 0, false);
+    plugins= resolve_engine_list(NULL, "", 0, false, false);
   if (!plugins)
     return 1;
   mysql_mutex_lock(&LOCK_global_system_variables);

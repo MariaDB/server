@@ -1301,17 +1301,18 @@ engine_list_next_item(const char **pos, const char *end_pos,
 
 
 static bool
-resolve_engine_list_item(plugin_ref *list, uint32 *idx,
+resolve_engine_list_item(THD *thd, plugin_ref *list, uint32 *idx,
                          const char *pos, const char *pos_end,
-                         bool error_on_unknown_engine)
+                         bool error_on_unknown_engine, bool temp_copy)
 {
   LEX_STRING item_str;
   plugin_ref ref;
   uint32_t i;
+  THD *thd_or_null = (temp_copy ? thd : NULL);
 
   item_str.str= const_cast<char*>(pos);
   item_str.length= pos_end-pos;
-  ref= ha_resolve_by_name(NULL, &item_str, false);
+  ref= ha_resolve_by_name(thd_or_null, &item_str, false);
   if (!ref)
   {
     if (error_on_unknown_engine)
@@ -1327,7 +1328,8 @@ resolve_engine_list_item(plugin_ref *list, uint32 *idx,
   {
     if (plugin_hton(list[i]) == plugin_hton(ref))
     {
-      plugin_unlock(NULL, ref);
+      if (!temp_copy)
+        plugin_unlock(NULL, ref);
       return false;
     }
   }
@@ -1341,10 +1343,16 @@ resolve_engine_list_item(plugin_ref *list, uint32 *idx,
   Helper for class Sys_var_pluginlist.
   Resolve a comma-separated list of storage engine names to a null-terminated
   array of plugin_ref.
+
+  If TEMP_COPY is true, a THD must be given as well. In this case, the
+  allocated memory and locked plugins are registered in the THD and will
+  be freed / unlocked automatically. If TEMP_COPY is true, THD can be
+  passed as NULL, and resources must be freed explicitly later with
+  free_engine_list().
 */
 plugin_ref *
-resolve_engine_list(const char *str_arg, size_t str_arg_len,
-                    bool error_on_unknown_engine)
+resolve_engine_list(THD *thd, const char *str_arg, size_t str_arg_len,
+                    bool error_on_unknown_engine, bool temp_copy)
 {
   uint32 count, idx;
   const char *pos, *item_start, *item_end;
@@ -1360,7 +1368,10 @@ resolve_engine_list(const char *str_arg, size_t str_arg_len,
     ++count;
   }
 
-  res= (plugin_ref *)my_malloc((count+1)*sizeof(*res), MYF(MY_ZEROFILL|MY_WME));
+  if (temp_copy)
+    res= (plugin_ref *)thd->calloc((count+1)*sizeof(*res));
+  else
+    res= (plugin_ref *)my_malloc((count+1)*sizeof(*res), MYF(MY_ZEROFILL|MY_WME));
   if (!res)
   {
     my_error(ER_OUTOFMEMORY, MYF(0), (int)((count+1)*sizeof(*res)));
@@ -1376,15 +1387,16 @@ resolve_engine_list(const char *str_arg, size_t str_arg_len,
     DBUG_ASSERT(idx < count);
     if (idx >= count)
       break;
-    if (resolve_engine_list_item(res, &idx, item_start, item_end,
-                                 error_on_unknown_engine))
+    if (resolve_engine_list_item(thd, res, &idx, item_start, item_end,
+                                 error_on_unknown_engine, temp_copy))
       goto err;
   }
 
   return res;
 
 err:
-  free_engine_list(res);
+  if (!temp_copy)
+    free_engine_list(res);
   return NULL;
 }
 
@@ -1418,6 +1430,32 @@ copy_engine_list(plugin_ref *list)
   }
   for (i= 0; i < count; ++i)
     p[i]= my_plugin_lock(NULL, list[i]);
+  p[i] = NULL;
+  return p;
+}
+
+
+/*
+  Create a temporary copy of an engine list. The memory will be freed
+  (and the plugins unlocked) automatically, on the passed THD.
+*/
+plugin_ref *
+temp_copy_engine_list(THD *thd, plugin_ref *list)
+{
+  plugin_ref *p;
+  uint32 count, i;
+
+  for (p= list, count= 0; *p; ++p, ++count)
+    ;
+  p= (plugin_ref *)thd->alloc((count+1)*sizeof(*p));
+  if (!p)
+  {
+    my_error(ER_OUTOFMEMORY, MYF(0), (int)((count+1)*sizeof(*p)));
+    return NULL;
+  }
+  for (i= 0; i < count; ++i)
+    p[i]= my_plugin_lock(thd, list[i]);
+  p[i] = NULL;
   return p;
 }
 

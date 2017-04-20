@@ -1546,6 +1546,17 @@ public:
 
   These variables don't support command-line equivalents, any such
   command-line options should be added manually to my_long_options in mysqld.cc
+
+  Note on lifetimes of resources allocated: We allocate a zero-terminated array
+  of plugin_ref*, and lock the contained plugins. The list in the global
+  variable must be freed (with free_engine_list()). However, the way Sys_var
+  works, there is no place to explicitly free other lists, like the one
+  returned from get_default().
+
+  Therefore, the code needs to work with temporary lists, which are
+  registered in the THD to be automatically freed (and plugins similarly
+  automatically unlocked). This is why do_check() allocates a temporary
+  list, from which do_update() then makes a permanent copy.
 */
 class Sys_var_pluginlist: public sys_var
 {
@@ -1575,9 +1586,9 @@ public:
     plugin_ref *plugins;
 
     if (!(res=var->value->val_str(&str)))
-      plugins= resolve_engine_list("", 0, true);
+      plugins= resolve_engine_list(thd, "", 0, true, true);
     else
-      plugins= resolve_engine_list(res->ptr(), res->length(), true);
+      plugins= resolve_engine_list(thd, res->ptr(), res->length(), true, true);
     if (!plugins)
       return true;
     var->save_result.plugins= plugins;
@@ -1586,7 +1597,7 @@ public:
   void do_update(plugin_ref **valptr, plugin_ref* newval)
   {
     plugin_ref *oldval= *valptr;
-    *valptr= newval;
+    *valptr= copy_engine_list(newval);
     free_engine_list(oldval);
   }
   bool session_update(THD *thd, set_var *var)
@@ -1604,14 +1615,15 @@ public:
   void session_save_default(THD *thd, set_var *var)
   {
     plugin_ref* plugins= global_var(plugin_ref *);
-    var->save_result.plugins= plugins ? copy_engine_list(plugins) : 0;
+    var->save_result.plugins= plugins ? temp_copy_engine_list(thd, plugins) : 0;
   }
   plugin_ref *get_default(THD *thd)
   {
     char *default_value= *reinterpret_cast<char**>(option.def_value);
     if (!default_value)
       return 0;
-    return resolve_engine_list(default_value, strlen(default_value), false);
+    return resolve_engine_list(thd, default_value, strlen(default_value),
+                               false, true);
   }
 
   void global_save_default(THD *thd, set_var *var)

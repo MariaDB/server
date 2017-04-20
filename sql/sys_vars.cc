@@ -3541,11 +3541,6 @@ check_gtid_pos_auto_engines(sys_var *self, THD *thd, set_var *var)
     if (running)
       err= true;
   }
-  if (err && var->save_result.plugins)
-  {
-    free_engine_list(var->save_result.plugins);
-    var->save_result.plugins= NULL;
-  }
   return err;
 }
 
