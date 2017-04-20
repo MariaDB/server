@@ -58,3 +58,20 @@ View	Create View	character_set_client	collation_connection
 v1	CREATE VIEW "v1" AS select lastval("test"."s1") AS "a"	latin1	latin1_swedish_ci
 DROP VIEW v1;
 DROP SEQUENCE s1;
+#
+# MDEV-12533 sql_mode=ORACLE: Add support for database qualified sequence names in NEXTVAL and CURRVAL
+#
+CREATE SEQUENCE s1;
+SELECT test.s1.nextval;
+test.s1.nextval
+1
+SELECT test.s1.currval;
+test.s1.currval
+1
+SELECT .s1.nextval;
+.s1.nextval
+2
+SELECT .s1.currval;
+.s1.currval
+2
+DROP SEQUENCE s1;

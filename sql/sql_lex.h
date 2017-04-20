@@ -3239,6 +3239,35 @@ public:
                           const LEX_STRING &a,
                           const LEX_STRING &b,
                           uint pos_in_q, uint length_in_q);
+
+  /*
+    Create an item from its qualified name.
+    Depending on context, it can be a table field, a table field reference,
+    or a sequence NEXTVAL and CURRVAL.
+      @param thd         - THD, for mem_root
+      @param a           - the first name
+      @param b           - the second name
+      @param c           - the third name
+      @retval            - NULL on error, or a pointer to a new Item.
+  */
+  Item *create_item_ident(THD *thd,
+                          const LEX_STRING &a,
+                          const LEX_STRING &b,
+                          const LEX_STRING &c);
+
+  /*
+    Create an item for "NEXT VALUE FOR sequence_name"
+  */
+  Item *create_item_func_nextval(THD *thd, Table_ident *ident);
+  Item *create_item_func_nextval(THD *thd, const LEX_STRING &db,
+                                           const LEX_STRING &name);
+  /*
+    Create an item for "PREVIOUS VALUE FOR sequence_name"
+  */
+  Item *create_item_func_lastval(THD *thd, Table_ident *ident);
+  Item *create_item_func_lastval(THD *thd, const LEX_STRING &db,
+                                           const LEX_STRING &name);
+  
   /*
     Create an item for a name in LIMIT clause: LIMIT var
       @param THD         - THD, for mem_root

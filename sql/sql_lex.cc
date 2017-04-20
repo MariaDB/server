@@ -6387,6 +6387,53 @@ my_var *LEX::create_outvar(THD *thd,
 }
 
 
+Item *LEX::create_item_func_nextval(THD *thd, Table_ident *table_ident)
+{
+  TABLE_LIST *table;
+  if (!(table= current_select->add_table_to_list(thd, table_ident, 0,
+                                                 TL_OPTION_SEQUENCE,
+                                                 TL_WRITE_ALLOW_WRITE,
+                                                 MDL_SHARED_WRITE)))
+    return NULL;
+  return new (thd->mem_root) Item_func_nextval(thd, table);
+
+}
+
+
+Item *LEX::create_item_func_lastval(THD *thd, Table_ident *table_ident)
+{
+  TABLE_LIST *table;
+  if (!(table= current_select->add_table_to_list(thd, table_ident, 0,
+                                                 TL_OPTION_SEQUENCE,
+                                                 TL_READ,
+                                                 MDL_SHARED_READ)))
+    return NULL;
+  return new (thd->mem_root) Item_func_lastval(thd, table);
+}
+
+
+Item *LEX::create_item_func_nextval(THD *thd,
+                                    const LEX_STRING &db,
+                                    const LEX_STRING &name)
+{
+  Table_ident *table_ident;
+  if (!(table_ident= new (thd->mem_root) Table_ident(thd, db, name, false)))
+    return NULL;
+  return create_item_func_nextval(thd, table_ident);
+}
+
+
+Item *LEX::create_item_func_lastval(THD *thd,
+                                    const LEX_STRING &db,
+                                    const LEX_STRING &name)
+{
+  Table_ident *table_ident;
+  if (!(table_ident= new (thd->mem_root) Table_ident(thd, db, name, false)))
+    return NULL;
+  return create_item_func_lastval(thd, table_ident);
+}
+
+
 Item *LEX::create_item_ident(THD *thd,
                              const LEX_STRING &a,
                              const LEX_STRING &b,
@@ -6401,36 +6448,49 @@ Item *LEX::create_item_ident(THD *thd,
     if (!my_strnncoll(system_charset_info,
                       (const uchar *) b.str, 7,
                       (const uchar *) "NEXTVAL", 7))
-    {
-      TABLE_LIST *table;
-      Table_ident *table_ident;
-      if (!(table_ident= new (thd->mem_root) Table_ident(a)) ||
-          !(table= current_select->add_table_to_list(thd, table_ident, 0,
-                                                     TL_OPTION_SEQUENCE,
-                                                     TL_WRITE_ALLOW_WRITE,
-                                                     MDL_SHARED_WRITE)))
-        return NULL;
-      return new (thd->mem_root) Item_func_nextval(thd, table);
-    }
+      return create_item_func_nextval(thd, null_lex_str, a);
     else if (!my_strnncoll(system_charset_info,
                           (const uchar *) b.str, 7,
                           (const uchar *) "CURRVAL", 7))
-    {
-      TABLE_LIST *table;
-      Table_ident *table_ident;
-      if (!(table_ident= new (thd->mem_root) Table_ident(a)) ||
-          !(table= current_select->add_table_to_list(thd, table_ident, 0,
-                                                     TL_OPTION_SEQUENCE,
-                                                     TL_READ,
-                                                     MDL_SHARED_READ)))
-        return NULL;
-      return new (thd->mem_root) Item_func_lastval(thd, table);
-    }
+      return create_item_func_lastval(thd, null_lex_str, a);
   }
 
   return create_item_ident_nospvar(thd, a, b);
 }
 
+
+Item *LEX::create_item_ident(THD *thd,
+                             const LEX_STRING &a,
+                             const LEX_STRING &b,
+                             const LEX_STRING &c)
+{
+  const char *schema= (thd->client_capabilities & CLIENT_NO_SCHEMA ?
+                       NullS : a.str);
+
+  if ((thd->variables.sql_mode & MODE_ORACLE) && c.length == 7)
+  {
+    if (!my_strnncoll(system_charset_info,
+                      (const uchar *) c.str, 7,
+                      (const uchar *) "NEXTVAL", 7))
+      return create_item_func_nextval(thd, a, b);
+    else if (!my_strnncoll(system_charset_info,
+                          (const uchar *) c.str, 7,
+                          (const uchar *) "CURRVAL", 7))
+      return create_item_func_lastval(thd, a, b);
+  }
+
+  if (current_select->no_table_names_allowed)
+  {
+    my_error(ER_TABLENAME_NOT_ALLOWED_HERE, MYF(0), b.str, thd->where);
+    return NULL;
+  }
+  if (current_select->parsing_place != IN_HAVING ||
+      current_select->get_in_sum_expr() > 0)
+    return new (thd->mem_root) Item_field(thd, current_context(),
+                                          schema, b.str, c.str);
+  return new (thd->mem_root) Item_ref(thd, current_context(),
+                                      schema, b.str, c.str);
+}
 
 
 Item *LEX::create_item_limit(THD *thd,

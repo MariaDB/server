@@ -2268,12 +2268,32 @@ create table t1 (s1 int);
 create view abc as select * from t1 as abc;
 drop table t1;
 drop view abc;
+flush status;
 create table t1(f1 char(1));
 create view v1 as select * from t1;
-select * from (select f1 as f2 from v1) v where v.f2='a';
-f2
+select * from (select f1 as f2, f1 as f3 from v1) v where v.f2='a';
+f2	f3
+show status like "Created_tmp%";
+Variable_name	Value
+Created_tmp_disk_tables	0
+Created_tmp_files	0
+Created_tmp_tables	0
 drop view v1;
 drop table t1;
+set @tmp=@@optimizer_switch;
+set @@optimizer_switch='derived_merge=OFF';
+create table t1(f1 char(1));
+create view v1 as select * from t1;
+select * from (select f1 as f2, f1 as f3 from v1) v where v.f2='a';
+f2	f3
+show status like "Created_tmp%";
+Variable_name	Value
+Created_tmp_disk_tables	0
+Created_tmp_files	0
+Created_tmp_tables	1
+drop view v1;
+drop table t1;
+set @@optimizer_switch=@tmp;
 create view v1 as SELECT CONVERT_TZ('2004-01-01 12:00:00','GMT','MET');
 select * from v1;
 CONVERT_TZ('2004-01-01 12:00:00','GMT','MET')
