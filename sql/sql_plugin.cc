@@ -938,6 +938,10 @@ SHOW_COMP_OPTION plugin_status(const char *name, size_t len, int type)
 }
 
 
+/*
+  If LEX is passed non-NULL, an automatic unlock of the plugin will happen
+  in the LEX destructor.
+*/
 static plugin_ref intern_plugin_lock(LEX *lex, plugin_ref rc)
 {
   st_plugin_int *pi= plugin_ref_to_int(rc);
@@ -981,6 +985,16 @@ static plugin_ref intern_plugin_lock(LEX *lex, plugin_ref rc)
 }
 
 
+/*
+  Notes on lifetime:
+
+  If THD is passed as non-NULL (and with a non-NULL thd->lex), an entry is made
+  in the thd->lex which will cause an automatic unlock of the plugin in the LEX
+  destructor. In this case, no manual unlock must be done.
+
+  Otherwise, when passing a NULL THD, the caller must arrange that plugin
+  unlock happens later.
+*/
 plugin_ref plugin_lock(THD *thd, plugin_ref ptr)
 {
   LEX *lex= thd ? thd->lex : 0;
@@ -1017,6 +1031,16 @@ plugin_ref plugin_lock(THD *thd, plugin_ref ptr)
 }
 
 
+/*
+  Notes on lifetime:
+
+  If THD is passed as non-NULL (and with a non-NULL thd->lex), an entry is made
+  in the thd->lex which will cause an automatic unlock of the plugin in the LEX
+  destructor. In this case, no manual unlock must be done.
+
+  Otherwise, when passing a NULL THD, the caller must arrange that plugin
+  unlock happens later.
+*/
 plugin_ref plugin_lock_by_name(THD *thd, const LEX_STRING *name, int type)
 {
   LEX *lex= thd ? thd->lex : 0;
