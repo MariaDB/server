@@ -977,7 +977,7 @@ copy_file(ds_ctxt_t *datasink,
 	const char		*action;
 
 	if (!datafile_open(src_file_path, &cursor, thread_n)) {
-		goto error;
+		goto error_close;
 	}
 
 	strncpy(dst_name, cursor.rel_path, sizeof(dst_name));

@@ -7,7 +7,7 @@ shutdown_server;
 echo # remove datadir;
 rmdir $_datadir;
 echo # xtrabackup move back;
-exec $XTRABACKUP --copy-back --datadir=$_datadir --target-dir=$targetdir --parallel=2;
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --copy-back --datadir=$_datadir --target-dir=$targetdir --parallel=2;
 echo # restart server;
 exec echo "restart" > $_expect_file_name;
 enable_reconnect;
