@@ -7401,7 +7401,6 @@ fil_space_acquire_low(ulint id, bool silent, bool for_io = false)
 		if (!silent) {
 			ib_logf(IB_LOG_LEVEL_WARN, "Trying to access missing"
 				" tablespace " ULINTPF ".", id);
-			ut_error;
 		}
 	} else if (!for_io && space->is_stopping()) {
 		space = NULL;
