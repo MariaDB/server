@@ -57,14 +57,6 @@ typedef ib_uint64_t os_offset_t;
 
 #ifdef _WIN32
 
-/**
-Gets the operating system version. Currently works only on Windows.
-@return OS_WIN95, OS_WIN31, OS_WINNT, OS_WIN2000, OS_WINXP, OS_WINVISTA,
-OS_WIN7. */
-
-ulint
-os_get_os_version();
-
 typedef HANDLE	os_file_dir_t;	/*!< directory stream */
 
 /** We define always WIN_ASYNC_IO, and check at run-time whether
