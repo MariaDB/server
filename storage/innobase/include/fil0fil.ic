@@ -27,28 +27,6 @@ Created 31/03/2015 Jan Lindström
 #define fil0fil_ic
 
 /*******************************************************************//**
-Return space name */
-UNIV_INLINE
-char*
-fil_space_name(
-/*===========*/
-	fil_space_t*	space)	/*!< in: space */
-{
-	return (space->name);
-}
-
-/*******************************************************************//**
-Return space flags */
-UNIV_INLINE
-ulint
-fil_space_flags(
-/*===========*/
-	fil_space_t*	space)	/*!< in: space */
-{
-	return (space->flags);
-}
-
-/*******************************************************************//**
 Return page type name */
 UNIV_INLINE
 const char*

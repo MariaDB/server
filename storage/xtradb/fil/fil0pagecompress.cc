@@ -171,12 +171,15 @@ fil_compress_page(
 			/* If error we leave the actual page as it was */
 
 #ifndef UNIV_PAGECOMPRESS_DEBUG
-			if (space->printed_compression_failure == false) {
+			if (space && !space->printed_compression_failure) {
+				space->printed_compression_failure = true;
 #endif
 				ib_logf(IB_LOG_LEVEL_WARN,
-					"Compression failed for space %lu name %s len %lu rt %d write %lu.",
-					space_id, fil_space_name(space), len, err, write_size);
-				space->printed_compression_failure = true;
+					"Compression failed for space " ULINTPF
+					" name %s len " ULINTPF
+					" err %d write_size " ULINTPF ".",
+					space->id, space->name, len,
+					err, write_size);
 #ifndef UNIV_PAGECOMPRESS_DEBUG
 			}
 #endif
@@ -192,11 +195,14 @@ fil_compress_page(
 			buf, len, out_buf+header_len, &write_size, lzo_mem);
 
 		if (err != LZO_E_OK || write_size > UNIV_PAGE_SIZE-header_len) {
-			if (space->printed_compression_failure == false) {
-				ib_logf(IB_LOG_LEVEL_WARN,
-					"Compression failed for space %lu name %s len %lu err %d write_size %lu.",
-					space_id, fil_space_name(space), len, err, write_size);
+			if (space && !space->printed_compression_failure) {
 				space->printed_compression_failure = true;
+				ib_logf(IB_LOG_LEVEL_WARN,
+					"Compression failed for space " ULINTPF
+					" name %s len " ULINTPF
+					" err %d write_size " ULINTPF ".",
+					space->id, space->name, len,
+					err, write_size);
 			}
 
 			srv_stats.pages_page_compression_error.inc();
@@ -221,11 +227,14 @@ fil_compress_page(
 			(size_t)write_size);
 
 		if (err != LZMA_OK || out_pos > UNIV_PAGE_SIZE-header_len) {
-			if (space->printed_compression_failure == false) {
-				ib_logf(IB_LOG_LEVEL_WARN,
-					"Compression failed for space %lu name %s len %lu err %d write_size %lu",
-					space_id, fil_space_name(space), len, err, out_pos);
+			if (space && !space->printed_compression_failure) {
 				space->printed_compression_failure = true;
+				ib_logf(IB_LOG_LEVEL_WARN,
+					"Compression failed for space " ULINTPF
+					" name %s len " ULINTPF
+					" err %d write_size " ULINTPF ".",
+					space->id, space->name, len,
+					err, out_pos);
 			}
 
 			srv_stats.pages_page_compression_error.inc();
@@ -252,11 +261,14 @@ fil_compress_page(
 			0);
 
 		if (err != BZ_OK || write_size > UNIV_PAGE_SIZE-header_len) {
-			if (space->printed_compression_failure == false) {
-				ib_logf(IB_LOG_LEVEL_WARN,
-					"Compression failed for space %lu name %s len %lu err %d write_size %lu.",
-					space_id, fil_space_name(space), len, err, write_size);
+			if (space && !space->printed_compression_failure) {
 				space->printed_compression_failure = true;
+				ib_logf(IB_LOG_LEVEL_WARN,
+					"Compression failed for space " ULINTPF
+					" name %s len " ULINTPF
+					" err %d write_size " ULINTPF ".",
+					space->id, space->name, len,
+					err, write_size);
 			}
 
 			srv_stats.pages_page_compression_error.inc();
@@ -279,11 +291,14 @@ fil_compress_page(
 			(size_t*)&write_size);
 
 		if (cstatus != SNAPPY_OK || write_size > UNIV_PAGE_SIZE-header_len) {
-			if (space->printed_compression_failure == false) {
-				ib_logf(IB_LOG_LEVEL_WARN,
-					"Compression failed for space %lu name %s len %lu err %d write_size %lu.",
-					space_id, fil_space_name(space), len, (int)cstatus, write_size);
+			if (space && !space->printed_compression_failure) {
 				space->printed_compression_failure = true;
+				ib_logf(IB_LOG_LEVEL_WARN,
+					"Compression failed for space " ULINTPF
+					" name %s len " ULINTPF
+					" err %d write_size " ULINTPF ".",
+					space->id, space->name, len,
+					(int)cstatus, write_size);
 			}
 
 			srv_stats.pages_page_compression_error.inc();
@@ -302,13 +317,13 @@ fil_compress_page(
 			/* If error we leave the actual page as it was */
 
 			if (space && !space->printed_compression_failure) {
-				ib_logf(IB_LOG_LEVEL_WARN,
-					"Compression failed for space "
-					ULINTPF " name %s len " ULINTPF
-					" rt %d write " ULINTPF ".",
-					space->id, space->name, len, err,
-					write_size);
 				space->printed_compression_failure = true;
+				ib_logf(IB_LOG_LEVEL_WARN,
+					"Compression failed for space " ULINTPF
+					" name %s len " ULINTPF
+					" rt %d write_size " ULINTPF ".",
+					space->id, space->name, len,
+					err, write_size);
 			}
 
 			srv_stats.pages_page_compression_error.inc();
