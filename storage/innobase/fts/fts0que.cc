@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2007, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -487,7 +488,7 @@ fts_query_lcs(
 	len = FTS_ELEM(table, c, 0, 0);
 
 	fts_print_lcs_table(table, r, c);
-	printf("\nLen=%lu\n", len);
+	printf("\nLen=" ULINTPF "\n", len);
 
 	ut_free(table);
 

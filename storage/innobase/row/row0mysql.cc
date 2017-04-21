@@ -1440,7 +1440,7 @@ row_insert_for_mysql(
 		return(DB_TABLESPACE_NOT_FOUND);
 	} else if (prebuilt->table->is_encrypted) {
 		ib_push_warning(trx, DB_DECRYPTION_FAILED,
-			"Table %s in tablespace %lu encrypted."
+			"Table %s in tablespace " ULINTPF " encrypted."
 			"However key management plugin or used key_id is not found or"
 			" used encryption algorithm or method does not match.",
 			prebuilt->table->name, prebuilt->table->space);
@@ -1866,7 +1866,7 @@ row_update_for_mysql_using_upd_graph(
 		DBUG_RETURN(DB_ERROR);
 	} else if (prebuilt->table->is_encrypted) {
 		ib_push_warning(trx, DB_DECRYPTION_FAILED,
-			"Table %s in tablespace %lu encrypted."
+			"Table %s in tablespace " ULINTPF " encrypted."
 			"However key management plugin or used key_id is not found or"
 			" used encryption algorithm or method does not match.",
 			prebuilt->table->name, prebuilt->table->space);

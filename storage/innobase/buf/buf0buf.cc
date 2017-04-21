@@ -2,7 +2,7 @@
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, Google Inc.
-Copyright (c) 2013, 2017, MariaDB Corporation. All Rights Reserved.
+Copyright (c) 2013, 2017, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -5266,7 +5266,7 @@ buf_page_init(
 		ut_d(buf_LRU_print());
 		ut_d(buf_validate());
 		ut_d(buf_LRU_validate());
-		ut_ad(0);
+		ut_error;
 	}
 
 	ut_ad(!block->page.in_zip_hash);
@@ -6076,7 +6076,7 @@ database_corrupted:
 					}
 
 					ib_push_warning(innobase_get_trx(), DB_DECRYPTION_FAILED,
-						"Table in tablespace %lu encrypted."
+						"Table in tablespace %u encrypted."
 						"However key management plugin or used key_id %lu is not found or"
 						" used encryption algorithm or method does not match."
 						" Can't continue opening the table.",
@@ -7066,15 +7066,16 @@ buf_print_io_instance(
 	ut_ad(pool_info);
 
 	fprintf(file,
-		"Buffer pool size   %lu\n"
-		"Free buffers       %lu\n"
-		"Database pages     %lu\n"
-		"Old database pages %lu\n"
-		"Modified db pages  %lu\n"
+		"Buffer pool size   " ULINTPF "\n"
+		"Free buffers       " ULINTPF "\n"
+		"Database pages     " ULINTPF "\n"
+		"Old database pages " ULINTPF "\n"
+		"Modified db pages  " ULINTPF "\n"
 		"Percent of dirty pages(LRU & free pages): %.3f\n"
 		"Max dirty pages percent: %.3f\n"
-		"Pending reads %lu\n"
-		"Pending writes: LRU %lu, flush list %lu, single page %lu\n",
+		"Pending reads " ULINTPF "\n"
+		"Pending writes: LRU " ULINTPF ", flush list " ULINTPF
+		", single page " ULINTPF "\n",
 		pool_info->pool_size,
 		pool_info->free_list_len,
 		pool_info->lru_len,
@@ -7089,9 +7090,10 @@ buf_print_io_instance(
 		pool_info->n_pending_flush_single_page);
 
 	fprintf(file,
-		"Pages made young %lu, not young %lu\n"
+		"Pages made young " ULINTPF ", not young " ULINTPF "\n"
 		"%.2f youngs/s, %.2f non-youngs/s\n"
-		"Pages read %lu, created %lu, written %lu\n"
+		"Pages read " ULINTPF ", created " ULINTPF
+		", written " ULINTPF "\n"
 		"%.2f reads/s, %.2f creates/s, %.2f writes/s\n",
 		pool_info->n_pages_made_young,
 		pool_info->n_pages_not_made_young,
@@ -7115,8 +7117,9 @@ buf_print_io_instance(
 		hit_rate = 1000 - hit_rate;
 
 		fprintf(file,
-			"Buffer pool hit rate %lu / 1000,"
-			" young-making rate %lu / 1000 not %lu / 1000\n",
+			"Buffer pool hit rate " ULINTPF " / 1000,"
+			" young-making rate " ULINTPF " / 1000 not "
+			ULINTPF " / 1000\n",
 			(ulint) hit_rate,
 			(ulint) (1000 * pool_info->young_making_delta
 				 / pool_info->n_page_get_delta),

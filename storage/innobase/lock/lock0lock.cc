@@ -3613,18 +3613,7 @@ lock_move_reorganize_page(
 			}
 		}
 
-#ifdef UNIV_DEBUG
-		{
-			ulint	i = lock_rec_find_set_bit(lock);
-
-			/* Check that all locks were moved. */
-			if (i != ULINT_UNDEFINED) {
-				ib::fatal() << "lock_move_reorganize_page(): "
-					<< i << " not moved in "
-					<< (void*) lock;
-			}
-		}
-#endif /* UNIV_DEBUG */
+		ut_ad(lock_rec_find_set_bit(lock) == ULINT_UNDEFINED);
 	}
 
 	lock_mutex_exit();
@@ -6606,7 +6595,7 @@ lock_rec_block_validate(
 
 		if (err != DB_SUCCESS) {
 			ib::error() << "Lock rec block validate failed for tablespace "
-				   << ((space && space->name) ? space->name : " system ")
+				   << space->name
 				   << " space_id " << space_id
 				   << " page_no " << page_no << " err " << err;
 		}

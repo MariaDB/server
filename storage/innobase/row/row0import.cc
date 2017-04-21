@@ -1078,10 +1078,9 @@ row_import::match_index_columns(
 
 		ib_errf(thd, IB_LOG_LEVEL_ERROR,
 			ER_TABLE_SCHEMA_MISMATCH,
-			"Index field count %lu doesn't match"
-			" tablespace metadata file value %lu",
-			(ulong) index->n_fields,
-			(ulong) cfg_index->m_n_fields);
+			"Index field count %u doesn't match"
+			" tablespace metadata file value " ULINTPF,
+			index->n_fields, cfg_index->m_n_fields);
 
 		return(DB_ERROR);
 	}
@@ -1098,8 +1097,8 @@ row_import::match_index_columns(
 				ER_TABLE_SCHEMA_MISMATCH,
 				"Index field name %s doesn't match"
 				" tablespace metadata field name %s"
-				" for field position %lu",
-				field->name(), cfg_field->name(), (ulong) i);
+				" for field position " ULINTPF,
+				field->name(), cfg_field->name(), i);
 
 			err = DB_ERROR;
 		}
@@ -1107,12 +1106,10 @@ row_import::match_index_columns(
 		if (cfg_field->prefix_len != field->prefix_len) {
 			ib_errf(thd, IB_LOG_LEVEL_ERROR,
 				ER_TABLE_SCHEMA_MISMATCH,
-				"Index %s field %s prefix len %lu"
-				" doesn't match metadata file value"
-				" %lu",
+				"Index %s field %s prefix len %u"
+				" doesn't match metadata file value %u",
 				index->name(), field->name(),
-				(ulong) field->prefix_len,
-				(ulong) cfg_field->prefix_len);
+				field->prefix_len, cfg_field->prefix_len);
 
 			err = DB_ERROR;
 		}
@@ -1120,12 +1117,11 @@ row_import::match_index_columns(
 		if (cfg_field->fixed_len != field->fixed_len) {
 			ib_errf(thd, IB_LOG_LEVEL_ERROR,
 				ER_TABLE_SCHEMA_MISMATCH,
-				"Index %s field %s fixed len %lu"
-				" doesn't match metadata file value"
-				" %lu",
+				"Index %s field %s fixed len %u"
+				" doesn't match metadata file value %u",
 				index->name(), field->name(),
-				(ulong) field->fixed_len,
-				(ulong) cfg_field->fixed_len);
+				field->fixed_len,
+				cfg_field->fixed_len);
 
 			err = DB_ERROR;
 		}
@@ -1166,12 +1162,11 @@ row_import::match_table_columns(
 		} else if (cfg_col_index != col->ind) {
 
 			ib_errf(thd, IB_LOG_LEVEL_ERROR,
-				 ER_TABLE_SCHEMA_MISMATCH,
-				 "Column %s ordinal value mismatch, it's at"
-				 " %lu in the table and %lu in the tablespace"
-				 " meta-data file",
-				 col_name,
-				 (ulong) col->ind, (ulong) cfg_col_index);
+				ER_TABLE_SCHEMA_MISMATCH,
+				"Column %s ordinal value mismatch, it's at %u"
+				" in the table and " ULINTPF
+				" in the tablespace meta-data file",
+				col_name, col->ind, cfg_col_index);
 
 			err = DB_ERROR;
 		} else {
@@ -1253,19 +1248,19 @@ row_import::match_schema(
 {
 	/* Do some simple checks. */
 
-	if (m_flags != m_table->flags) {
+	if ((m_table->flags ^ m_flags) & ~DICT_TF_MASK_DATA_DIR) {
 		ib_errf(thd, IB_LOG_LEVEL_ERROR, ER_TABLE_SCHEMA_MISMATCH,
-			 "Table flags don't match, server table has 0x%lx"
-			 " and the meta-data file has 0x%lx",
-			 (ulong) m_table->n_cols, (ulong) m_flags);
+			"Table flags don't match, server table has 0x%x"
+			" and the meta-data file has 0x" ULINTPFx,
+			m_table->flags, m_flags);
 
 		return(DB_ERROR);
 	} else if (m_table->n_cols != m_n_cols) {
 		ib_errf(thd, IB_LOG_LEVEL_ERROR, ER_TABLE_SCHEMA_MISMATCH,
-			 "Number of columns don't match, table has %lu"
-			 " columns but the tablespace meta-data file has"
-			 " %lu columns",
-			 (ulong) m_table->n_cols, (ulong) m_n_cols);
+			"Number of columns don't match, table has %u"
+			" columns but the tablespace meta-data file has "
+			ULINTPF " columns",
+			m_table->n_cols, m_n_cols);
 
 		return(DB_ERROR);
 	} else if (UT_LIST_GET_LEN(m_table->indexes) != m_n_indexes) {
@@ -1275,11 +1270,10 @@ row_import::match_schema(
 		table matching the IMPORT definition. */
 
 		ib_errf(thd, IB_LOG_LEVEL_ERROR, ER_TABLE_SCHEMA_MISMATCH,
-			 "Number of indexes don't match, table has %lu"
-			 " indexes but the tablespace meta-data file has"
-			 " %lu indexes",
-			 (ulong) UT_LIST_GET_LEN(m_table->indexes),
-			 (ulong) m_n_indexes);
+			"Number of indexes don't match, table has " ULINTPF
+			" indexes but the tablespace meta-data file has "
+			ULINTPF " indexes",
+			UT_LIST_GET_LEN(m_table->indexes), m_n_indexes);
 
 		return(DB_ERROR);
 	}
@@ -1580,9 +1574,10 @@ PageConverter::adjust_cluster_index_blob_column(
 
 		ib_errf(m_trx->mysql_thd, IB_LOG_LEVEL_ERROR,
 			ER_INNODB_INDEX_CORRUPT,
-			"Externally stored column(%lu) has a reference"
-			" length of %lu in the cluster index %s",
-			(ulong) i, (ulong) len, m_cluster_index->name());
+			"Externally stored column(" ULINTPF
+			") has a reference length of " ULINTPF
+			" in the cluster index %s",
+			i, len, m_cluster_index->name());
 
 		return(DB_CORRUPTION);
 	}
@@ -2265,11 +2260,10 @@ row_import_adjust_root_pages_of_secondary_indexes(
 			ib_errf(trx->mysql_thd,
 				IB_LOG_LEVEL_WARN,
 				ER_INNODB_INDEX_CORRUPT,
-				"Index %s contains %lu entries,"
-				" should be %lu, you should recreate"
-				" this index.", index->name(),
-				(ulong) purge.get_n_rows(),
-				(ulong) n_rows_in_table);
+				"Index '%s' contains " ULINTPF " entries, "
+				"should be " ULINTPF ", you should recreate "
+				"this index.", index->name(),
+				purge.get_n_rows(), n_rows_in_table);
 
 			index->type |= DICT_CORRUPT;
 
@@ -2570,10 +2564,10 @@ row_import_read_index_data(
 			char	msg[BUFSIZ];
 
 			ut_snprintf(msg, sizeof(msg),
-				    "while reading index meta-data, expected"
-				    " to read %lu bytes but read only %lu"
-				    " bytes",
-				    (ulong) sizeof(row), (ulong) n_bytes);
+				    "while reading index meta-data, expected "
+				    "to read " ULINTPF
+				    " bytes but read only " ULINTPF " bytes",
+				    sizeof(row), n_bytes);
 
 			ib_senderrf(
 				thd, IB_LOG_LEVEL_ERROR, ER_IO_READ_ERROR,
@@ -2625,8 +2619,8 @@ row_import_read_index_data(
 		if (len > OS_FILE_MAX_PATH) {
 			ib_errf(thd, IB_LOG_LEVEL_ERROR,
 				ER_INNODB_INDEX_CORRUPT,
-				"Index name length (%lu) is too long,"
-				" the meta-data is corrupt", len);
+				"Index name length (" ULINTPF ") is too long, "
+				"the meta-data is corrupt", len);
 
 			return(DB_CORRUPTION);
 		}
@@ -2708,8 +2702,8 @@ row_import_read_indexes(
 	} else if (cfg->m_n_indexes > 1024) {
 		// FIXME: What is the upper limit? */
 		ib_errf(thd, IB_LOG_LEVEL_ERROR, ER_IO_READ_ERROR,
-			"Number of indexes in meta-data file is too high: %lu",
-			(ulong) cfg->m_n_indexes);
+			"Number of indexes in meta-data file is too high: "
+			ULINTPF, cfg->m_n_indexes);
 		cfg->m_n_indexes = 0;
 
 		return(DB_CORRUPTION);
@@ -2813,8 +2807,8 @@ row_import_read_columns(
 		if (len == 0 || len > 128) {
 			ib_errf(thd, IB_LOG_LEVEL_ERROR,
 				ER_IO_READ_ERROR,
-				"Column name length %lu, is invalid",
-				(ulong) len);
+				"Column name length " ULINTPF ", is invalid",
+				len);
 
 			return(DB_CORRUPTION);
 		}
@@ -3064,8 +3058,8 @@ row_import_read_meta_data(
 		return(row_import_read_v1(file, thd, &cfg));
 	default:
 		ib_errf(thd, IB_LOG_LEVEL_ERROR, ER_IO_READ_ERROR,
-			"Unsupported meta-data version number (%lu),"
-			" file ignored", (ulong) cfg.m_version);
+			"Unsupported meta-data version number (" ULINTPF "), "
+			"file ignored", cfg.m_version);
 	}
 
 	return(DB_ERROR);

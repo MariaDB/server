@@ -1,6 +1,6 @@
 /*****************************************************************************
 Copyright (C) 2013, 2015, Google Inc. All Rights Reserved.
-Copyright (c) 2014, 2017, MariaDB Corporation. All Rights Reserved.
+Copyright (c) 2014, 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -731,7 +731,8 @@ fil_space_decrypt(
 				 << " carries key_version " << key_version
 				 << " (should be undefined)");
 
-			mach_write_to_4(src_frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION, 0);
+			memset(src_frame
+			       + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION, 0, 4);
 		}
 
 		return false;
@@ -1324,7 +1325,8 @@ fil_crypt_realloc_iops(
 	} else {
 
 		DBUG_PRINT("ib_crypt",
-			("thr_no: %u only waited %lu%% skip re-estimate.",
+			("thr_no: %u only waited " ULINTPF
+			 "%% skip re-estimate.",
 			state->thread_no,
 			(100 * state->cnt_waited) / state->batch));
 	}

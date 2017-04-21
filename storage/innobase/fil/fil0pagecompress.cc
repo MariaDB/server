@@ -153,7 +153,8 @@ fil_compress_page(
 
 #ifdef UNIV_PAGECOMPRESS_DEBUG
 	ib_logf(IB_LOG_LEVEL_INFO,
-		"Preparing for compress for space %lu name %s len %lu.",
+		"Preparing for compress for space " ULINTPF
+		" name %s len " ULINTPF ".",
 		space_id, fil_space_name(space), len);
 #endif /* UNIV_PAGECOMPRESS_DEBUG */
 
@@ -341,7 +342,8 @@ fil_compress_page(
 
 #ifdef UNIV_PAGECOMPRESS_DEBUG
 	ib_logf(IB_LOG_LEVEL_INFO,
-		"Compression succeeded for space %lu name %s len %lu out_len %lu.",
+		"Compression succeeded for space " ULINTPF
+		" name %s len " ULINTPF " out_len " ULINTPF ".",
 		space_id, fil_space_name(space), len, write_size);
 #endif /* UNIV_PAGECOMPRESS_DEBUG */
 

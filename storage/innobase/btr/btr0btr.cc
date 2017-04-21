@@ -5163,9 +5163,9 @@ loop:
 
 			rec = btr_cur_get_rec(&node_cur);
 			fprintf(stderr, "\n"
-				"InnoDB: node ptr child page n:o %lu\n",
-				(ulong) btr_node_ptr_get_child_page_no(
-					rec, offsets));
+				"InnoDB: node ptr child page n:o "
+				ULINTPF "\n",
+				btr_node_ptr_get_child_page_no(rec, offsets));
 
 			fputs("InnoDB: record on page ", stderr);
 			rec_print_new(stderr, rec, offsets);

@@ -258,8 +258,8 @@ trx_sys_print_mysql_binlog_offset(void)
 		+ TRX_SYS_MYSQL_LOG_OFFSET_LOW);
 
 	fprintf(stderr,
-		"InnoDB: Last MySQL binlog file position %lu %lu,"
-		" file name %s\n",
+		"InnoDB: Last MySQL binlog file position " ULINTPF " " ULINTPF
+		", file name %s\n",
 		trx_sys_mysql_bin_log_pos_high, trx_sys_mysql_bin_log_pos_low,
 		sys_header + TRX_SYS_MYSQL_LOG_INFO
 		+ TRX_SYS_MYSQL_LOG_NAME);

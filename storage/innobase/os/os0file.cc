@@ -7352,7 +7352,7 @@ AIO::print_segment_info(
 				fprintf(file, ", ");
 			}
 
-			fprintf(file, "%lu", *segments);
+			fprintf(file, ULINTPF, *segments);
 		}
 
 		fprintf(file, "] ");
@@ -7433,8 +7433,8 @@ os_aio_print(FILE*	file)
 	double		avg_bytes_read;
 
 	for (ulint i = 0; i < srv_n_file_io_threads; ++i) {
-		fprintf(file, "I/O thread %lu state: %s (%s)",
-			(ulint) i,
+		fprintf(file, "I/O thread " ULINTPF " state: %s (%s)",
+			i,
 			srv_io_thread_op_info[i],
 			srv_io_thread_function[i]);
 
@@ -7485,7 +7485,7 @@ os_aio_print(FILE*	file)
 	}
 
 	fprintf(file,
-		"%.2f reads/s, %lu avg bytes/read,"
+		"%.2f reads/s, " ULINTPF " avg bytes/read,"
 		" %.2f writes/s, %.2f fsyncs/s\n",
 		(os_n_file_reads - os_n_file_reads_old)
 		/ time_elapsed,
@@ -7540,7 +7540,7 @@ AIO::to_file(FILE* file) const
 {
 	acquire();
 
-	fprintf(file, " %lu\n", static_cast<ulint>(m_n_reserved));
+	fprintf(file, " " ULINTPF "\n", m_n_reserved);
 
 	for (ulint i = 0; i < m_slots.size(); ++i) {
 

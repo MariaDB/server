@@ -587,12 +587,13 @@ sync_array_cell_print(
 			}
 
 			fprintf(file,
-				"number of readers %lu, waiters flag %lu,"
-				" lock_word: %lx\n"
+				"number of readers " ULINTPF
+				", waiters flag %u, "
+				"lock_word: " ULINTPFx "\n"
 				"Last time read locked in file %s line %u\n"
 				"Last time write locked in file %s line %u\n",
-				(ulint) rw_lock_get_reader_count(rwlock),
-				(ulint) rwlock->waiters,
+				rw_lock_get_reader_count(rwlock),
+				rwlock->waiters,
 				rwlock->lock_word,
 				innobase_basename(rwlock->last_s_file_name),
 				rwlock->last_s_line,

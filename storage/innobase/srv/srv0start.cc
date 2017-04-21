@@ -743,7 +743,7 @@ srv_check_undo_redo_logs_exists()
 
 		ut_snprintf(
 			name, sizeof(name),
-			"%s%cundo%03lu",
+			"%s%cundo%03zu",
 			srv_undo_dir, OS_PATH_SEPARATOR,
 			i);
 
@@ -836,7 +836,7 @@ srv_undo_tablespaces_init(bool create_new_db)
 
 		ut_snprintf(
 			name, sizeof(name),
-			"%s%cundo%03lu",
+			"%s%cundo%03zu",
 			srv_undo_dir, OS_PATH_SEPARATOR, i + 1);
 
 		/* Undo space ids start from 1. */
@@ -872,7 +872,7 @@ srv_undo_tablespaces_init(bool create_new_db)
 				char	name[OS_FILE_MAX_PATH];
 
 				ut_snprintf(name, sizeof(name),
-					    "%s%cundo%03lu",
+					    "%s%cundo%03zu",
 					    srv_undo_dir, OS_PATH_SEPARATOR,
 					    undo_tablespace_ids[i]);
 
@@ -913,7 +913,7 @@ srv_undo_tablespaces_init(bool create_new_db)
 
 		ut_snprintf(
 			name, sizeof(name),
-			"%s%cundo%03lu",
+			"%s%cundo%03zu",
 			srv_undo_dir, OS_PATH_SEPARATOR,
 			undo_tablespace_ids[i]);
 
@@ -949,7 +949,7 @@ srv_undo_tablespaces_init(bool create_new_db)
 
 		ut_snprintf(
 			name, sizeof(name),
-			"%s%cundo%03lu", srv_undo_dir, OS_PATH_SEPARATOR, i);
+			"%s%cundo%03zu", srv_undo_dir, OS_PATH_SEPARATOR, i);
 
 		/* Undo space ids start from 1. */
 		err = srv_undo_tablespace_open(name, i);
@@ -2756,9 +2756,9 @@ innodb_shutdown()
 
 	logs_empty_and_mark_files_at_shutdown();
 
-	if (srv_conc_get_active_threads() != 0) {
+	if (ulint n_threads = srv_conc_get_active_threads()) {
 		ib::warn() << "Query counter shows "
-			<< srv_conc_get_active_threads() << " queries still"
+			<< n_threads << " queries still"
 			" inside InnoDB at shutdown";
 	}
 

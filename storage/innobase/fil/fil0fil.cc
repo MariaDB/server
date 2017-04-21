@@ -3859,8 +3859,6 @@ fil_ibd_create(
 		return(DB_OUT_OF_FILE_SPACE);
 	}
 
-	/* printf("Creating tablespace %s id %lu\n", path, space_id); */
-
 	/* We have to write the space id to the file immediately and flush the
 	file to disk. This is because in crash recovery we must be aware what
 	tablespaces exist and what are their space id's, so that we can apply
