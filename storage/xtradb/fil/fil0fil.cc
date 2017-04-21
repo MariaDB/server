@@ -6772,7 +6772,8 @@ fil_iterate(
 			/* If the original page is page_compressed, we need
 			to decompress page before we can update it. */
 			if (page_compressed) {
-				fil_decompress_page(NULL, dst, size, NULL);
+				fil_decompress_page(NULL, dst, ulong(size),
+						    NULL);
 				updated = true;
 			}
 

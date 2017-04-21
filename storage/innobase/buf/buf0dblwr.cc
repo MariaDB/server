@@ -538,7 +538,7 @@ buf_dblwr_process()
 				/* Decompress the page before
 				validating the checksum. */
 				fil_decompress_page(
-					NULL, read_buf, UNIV_PAGE_SIZE,
+					NULL, read_buf, srv_page_size,
 					NULL, true);
 			}
 
@@ -565,7 +565,7 @@ buf_dblwr_process()
 			/* Decompress the page before
 			validating the checksum. */
 			fil_decompress_page(
-				NULL, page, UNIV_PAGE_SIZE, NULL, true);
+				NULL, page, srv_page_size, NULL, true);
 		}
 
 		if (!fil_space_verify_crypt_checksum(page, zip_size, NULL, page_no)

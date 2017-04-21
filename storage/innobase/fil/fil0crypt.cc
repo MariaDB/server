@@ -694,7 +694,8 @@ fil_space_encrypt(
 			comp_mem = (byte *)malloc(UNIV_PAGE_SIZE);
 			uncomp_mem = (byte *)malloc(UNIV_PAGE_SIZE);
 			memcpy(comp_mem, src_frame, UNIV_PAGE_SIZE);
-			fil_decompress_page(uncomp_mem, comp_mem, UNIV_PAGE_SIZE, NULL);
+			fil_decompress_page(uncomp_mem, comp_mem,
+					    srv_page_size, NULL);
 			src = uncomp_mem;
 		}
 
@@ -704,7 +705,8 @@ fil_space_encrypt(
 		/* Need to decompress the page if it was also compressed */
 		if (page_compressed_encrypted) {
 			memcpy(comp_mem, tmp_mem, UNIV_PAGE_SIZE);
-			fil_decompress_page(tmp_mem, comp_mem, UNIV_PAGE_SIZE, NULL);
+			fil_decompress_page(tmp_mem, comp_mem,
+					    srv_page_size, NULL);
 		}
 
 		bool corrupted = buf_page_is_corrupted(true, tmp_mem, zip_size, space);
@@ -1492,20 +1494,21 @@ fil_crypt_realloc_iops(
 
 	if (10 * state->cnt_waited > state->batch) {
 		/* if we waited more than 10% re-estimate max_iops */
-		uint avg_wait_time_us =
+		ulint avg_wait_time_us =
 			state->sum_waited_us / state->cnt_waited;
-
-		DBUG_PRINT("ib_crypt",
-			("thr_no: %u - update estimated_max_iops from %u to %u.",
-			state->thread_no,
-			state->estimated_max_iops,
-			1000000 / avg_wait_time_us));
 
 		if (avg_wait_time_us == 0) {
 			avg_wait_time_us = 1; // prevent division by zero
 		}
 
-		state->estimated_max_iops = 1000000 / avg_wait_time_us;
+		DBUG_PRINT("ib_crypt",
+			("thr_no: %u - update estimated_max_iops from %u to "
+			 ULINTPF ".",
+			state->thread_no,
+			state->estimated_max_iops,
+			1000000 / avg_wait_time_us));
+
+		state->estimated_max_iops = uint(1000000 / avg_wait_time_us);
 		state->cnt_waited = 0;
 		state->sum_waited_us = 0;
 	} else {

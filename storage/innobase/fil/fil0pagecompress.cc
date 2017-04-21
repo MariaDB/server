@@ -300,7 +300,8 @@ fil_compress_page(
 #endif /* HAVE_SNAPPY */
 
 	case PAGE_ZLIB_ALGORITHM:
-		err = compress2(out_buf+header_len, (ulong*)&write_size, buf, len, comp_level);
+		err = compress2(out_buf+header_len, (ulong*)&write_size, buf,
+				uLong(len), comp_level);
 
 		if (err != Z_OK) {
 			/* If error we leave the actual page as it was */
@@ -364,7 +365,7 @@ fil_compress_page(
 		uncomp_page = static_cast<byte *>(ut_malloc(UNIV_PAGE_SIZE));
 		memcpy(comp_page, out_buf, UNIV_PAGE_SIZE);
 
-		fil_decompress_page(uncomp_page, comp_page, len, NULL);
+		fil_decompress_page(uncomp_page, comp_page, ulong(len), NULL);
 
 		if(buf_page_is_corrupted(false, uncomp_page, 0, space)) {
 			buf_page_print(uncomp_page, 0, BUF_PAGE_PRINT_NO_CRASH);

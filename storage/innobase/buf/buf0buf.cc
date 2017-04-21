@@ -6269,9 +6269,9 @@ buf_page_decrypt_after_read(
 
 		/* decompress using comp_buf to dst_frame */
 		fil_decompress_page(slot->comp_buf,
-			dst_frame,
-			size,
-			&bpage->write_size);
+				    dst_frame,
+				    ulong(size),
+				    &bpage->write_size);
 
 		/* Mark this slot as free */
 		slot->reserved = false;
@@ -6323,13 +6323,10 @@ buf_page_decrypt_after_read(
 #endif
 			/* decompress using comp_buf to dst_frame */
 			fil_decompress_page(slot->comp_buf,
-					dst_frame,
-					size,
-					&bpage->write_size);
-
-#ifdef UNIV_DEBUG
-			fil_page_type_validate(dst_frame);
-#endif
+					    dst_frame,
+					    ulong(size),
+					    &bpage->write_size);
+			ut_d(fil_page_type_validate(dst_frame));
 		}
 
 		/* Mark this slot as free */
