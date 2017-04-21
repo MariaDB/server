@@ -360,12 +360,13 @@ int main(int argc, char **argv)
   {
     if (verbose)
       printf("Number of pages: ");
-    printf("%lu\n", pages);
+    printf(ULINTPF "\n", pages);
     goto ok;
   }
   else if (verbose)
   {
-    printf("file %s = %llu bytes (%lu pages)...\n", filename, size, (ulong)pages);
+    printf("file %s = %llu bytes (" ULINTPF " pages)...\n",
+	   filename, size, pages);
     if (do_one_page)
       printf("InnoChecksum; checking page %lu\n", do_page);
     else
@@ -421,7 +422,8 @@ int main(int argc, char **argv)
     if (compressed) {
       /* compressed pages */
       if (!page_zip_verify_checksum(buf, physical_page_size)) {
-        fprintf(stderr, "Fail; page %lu invalid (fails compressed page checksum).\n", ct);
+        fprintf(stderr, "Fail; page " ULINTPF
+		" invalid (fails compressed page checksum).\n", ct);
         if (!skip_corrupt)
           goto error;
       }
@@ -431,10 +433,14 @@ int main(int argc, char **argv)
       logseq= mach_read_from_4(buf + FIL_PAGE_LSN + 4);
       logseqfield= mach_read_from_4(buf + logical_page_size - FIL_PAGE_END_LSN_OLD_CHKSUM + 4);
       if (debug)
-        printf("page %lu: log sequence number: first = %lu; second = %lu\n", ct, logseq, logseqfield);
+        printf("page " ULINTPF
+	       ": log sequence number: first = " ULINTPF
+	       "; second = " ULINTPF "\n",
+	       ct, logseq, logseqfield);
       if (logseq != logseqfield)
       {
-        fprintf(stderr, "Fail; page %lu invalid (fails log sequence number check)\n", ct);
+        fprintf(stderr, "Fail; page " ULINTPF
+		" invalid (fails log sequence number check)\n", ct);
         if (!skip_corrupt)
           goto error;
       }
@@ -443,10 +449,14 @@ int main(int argc, char **argv)
       oldcsum= buf_calc_page_old_checksum(buf);
       oldcsumfield= mach_read_from_4(buf + logical_page_size - FIL_PAGE_END_LSN_OLD_CHKSUM);
       if (debug)
-        printf("page %lu: old style: calculated = %lu; recorded = %lu\n", ct, oldcsum, oldcsumfield);
+        printf("page " ULINTPF
+	       ": old style: calculated = " ULINTPF
+	       "; recorded = " ULINTPF "\n",
+	       ct, oldcsum, oldcsumfield);
       if (oldcsumfield != mach_read_from_4(buf + FIL_PAGE_LSN) && oldcsumfield != oldcsum)
       {
-        fprintf(stderr, "Fail;  page %lu invalid (fails old style checksum)\n", ct);
+        fprintf(stderr, "Fail;  page " ULINTPF
+		" invalid (fails old style checksum)\n", ct);
         if (!skip_corrupt)
           goto error;
       }
@@ -456,11 +466,14 @@ int main(int argc, char **argv)
       crc32= buf_calc_page_crc32(buf);
       csumfield= mach_read_from_4(buf + FIL_PAGE_SPACE_OR_CHKSUM);
       if (debug)
-        printf("page %lu: new style: calculated = %lu; crc32 = %lu; recorded = %lu\n",
+        printf("page " ULINTPF
+	       ": new style: calculated = " ULINTPF
+	       "; crc32 = " ULINTPF "; recorded = " ULINTPF "\n",
                ct, csum, crc32, csumfield);
       if (csumfield != 0 && crc32 != csumfield && csum != csumfield)
       {
-        fprintf(stderr, "Fail; page %lu invalid (fails innodb and crc32 checksum)\n", ct);
+        fprintf(stderr, "Fail; page " ULINTPF
+		" invalid (fails innodb and crc32 checksum)\n", ct);
         if (!skip_corrupt)
           goto error;
       }
@@ -479,7 +492,8 @@ int main(int argc, char **argv)
         if (!lastt) lastt= now;
         if (now - lastt >= 1)
         {
-          printf("page %lu okay: %.3f%% done\n", (ct - 1), (float) ct / pages * 100);
+          printf("page " ULINTPF " okay: %.3f%% done\n",
+		 (ct - 1), (float) ct / pages * 100);
           lastt= now;
         }
       }
