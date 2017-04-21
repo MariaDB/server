@@ -6102,8 +6102,8 @@ os_aio_print(
 		os_n_file_writes,
 		os_n_fsyncs);
 
-	const ulint n_reads = MONITOR_VALUE(MONITOR_OS_PENDING_READS);
-	const ulint n_writes = MONITOR_VALUE(MONITOR_OS_PENDING_WRITES);
+	const ulint n_reads = ulint(MONITOR_VALUE(MONITOR_OS_PENDING_READS));
+	const ulint n_writes = ulint(MONITOR_VALUE(MONITOR_OS_PENDING_WRITES));
 
 	if (n_reads != 0 || n_writes != 0) {
 		fprintf(file,
