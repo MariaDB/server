@@ -9520,7 +9520,7 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
 	It solve problem with select like SELECT * FROM t1 WHERE rand() > 0.5
       */
       if (tab == join->join_tab + join->top_join_tab_count - 1)
-	current_map|= OUTER_REF_TABLE_BIT | RAND_TABLE_BIT;
+        current_map|= RAND_TABLE_BIT;
       used_tables|=current_map;
 
       if (tab->type == JT_REF && tab->quick &&

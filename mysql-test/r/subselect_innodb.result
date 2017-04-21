@@ -314,7 +314,7 @@ EXPLAIN SELECT 1 FROM t1 WHERE NOT EXISTS
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	1	Using where
 2	DEPENDENT SUBQUERY	t2	eq_ref	PRIMARY,d	PRIMARY	1	func	1	Using where
-3	DEPENDENT SUBQUERY	t2	index	NULL	d	2	NULL	1	Using where; Using index
+3	DEPENDENT SUBQUERY	t2	index	NULL	d	2	NULL	1	Using index
 DROP TABLE t2;
 CREATE TABLE t2 (b INT, c INT, UNIQUE KEY (b), UNIQUE KEY (b, c )) ENGINE=INNODB;
 INSERT INTO t2 VALUES (1, 1);

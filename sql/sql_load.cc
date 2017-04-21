@@ -1060,7 +1060,7 @@ read_sep_field(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
     {
       uint length;
       uchar *pos;
-      Item *real_item;
+      Item_field *real_item;
 
       if (read_info.read_field())
 	break;
@@ -1072,16 +1072,26 @@ read_sep_field(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
       pos=read_info.row_start;
       length=(uint) (read_info.row_end-pos);
 
-      real_item= item->real_item();
+      real_item= item->field_for_view_update();
 
       if ((!read_info.enclosed &&
            (enclosed_length && length == 4 &&
             !memcmp(pos, STRING_WITH_LEN("NULL")))) ||
 	  (length == 1 && read_info.found_null))
       {
-        if (real_item->type() == Item::FIELD_ITEM)
+        if (item->type() == Item::STRING_ITEM)
         {
-          Field *field= ((Item_field *)real_item)->field;
+          ((Item_user_var_as_out_param *)item)->set_null_value(
+                                                  read_info.read_charset);
+        }
+        else if (!real_item)
+        {
+          my_error(ER_NONUPDATEABLE_COLUMN, MYF(0), item->name);
+          DBUG_RETURN(1);
+        }
+        else
+        {
+          Field *field= real_item->field;
           if (field->reset())
           {
             my_error(ER_WARN_NULL_TO_NOTNULL, MYF(0), field->field_name,
@@ -1104,39 +1114,29 @@ read_sep_field(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
           /* Do not auto-update this field. */
           field->set_has_explicit_value();
 	}
-        else if (item->type() == Item::STRING_ITEM)
-        {
-          ((Item_user_var_as_out_param *)item)->set_null_value(
-                                                  read_info.read_charset);
-        }
-        else
-        {
-          my_error(ER_LOAD_DATA_INVALID_COLUMN, MYF(0), item->full_name());
-          DBUG_RETURN(1);
-        }
 
 	continue;
       }
 
-      if (real_item->type() == Item::FIELD_ITEM)
+      if (item->type() == Item::STRING_ITEM)
       {
-        Field *field= ((Item_field *)real_item)->field;
+        ((Item_user_var_as_out_param *)item)->set_value((char*) pos, length,
+                                                        read_info.read_charset);
+      }
+      else if (!real_item)
+      {
+        my_error(ER_NONUPDATEABLE_COLUMN, MYF(0), item->name);
+        DBUG_RETURN(1);
+      }
+      else
+      {
+        Field *field= real_item->field;
         field->set_notnull();
         read_info.row_end[0]=0;			// Safe to change end marker
         if (field == table->next_number_field)
           table->auto_increment_field_not_null= TRUE;
         field->store((char*) pos, length, read_info.read_charset);
         field->set_has_explicit_value();
-      }
-      else if (item->type() == Item::STRING_ITEM)
-      {
-        ((Item_user_var_as_out_param *)item)->set_value((char*) pos, length,
-                                                        read_info.read_charset);
-      }
-      else
-      {
-        my_error(ER_LOAD_DATA_INVALID_COLUMN, MYF(0), item->full_name());
-        DBUG_RETURN(1);
       }
     }
 
@@ -1157,10 +1157,20 @@ read_sep_field(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
 	break;
       for (; item ; item= it++)
       {
-        Item *real_item= item->real_item();
-        if (real_item->type() == Item::FIELD_ITEM)
+        Item_field *real_item= item->field_for_view_update();
+        if (item->type() == Item::STRING_ITEM)
         {
-          Field *field= ((Item_field *)real_item)->field;
+          ((Item_user_var_as_out_param *)item)->set_null_value(
+                                                  read_info.read_charset);
+        }
+        else if (!real_item)
+        {
+          my_error(ER_NONUPDATEABLE_COLUMN, MYF(0), item->name);
+          DBUG_RETURN(1);
+        }
+        else
+        {
+          Field *field= real_item->field;
           if (field->reset())
           {
             my_error(ER_WARN_NULL_TO_NOTNULL, MYF(0),field->field_name,
@@ -1181,16 +1191,6 @@ read_sep_field(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
                               ER_WARN_TOO_FEW_RECORDS,
                               ER(ER_WARN_TOO_FEW_RECORDS),
                               thd->get_stmt_da()->current_row_for_warning());
-        }
-        else if (item->type() == Item::STRING_ITEM)
-        {
-          ((Item_user_var_as_out_param *)item)->set_null_value(
-                                                  read_info.read_charset);
-        }
-        else
-        {
-          my_error(ER_LOAD_DATA_INVALID_COLUMN, MYF(0), item->full_name());
-          DBUG_RETURN(1);
         }
       }
     }
