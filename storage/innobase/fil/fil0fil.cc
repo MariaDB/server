@@ -5487,6 +5487,24 @@ fil_flush(
 	mutex_exit(&fil_system->mutex);
 }
 
+/** Flush a tablespace.
+@param[in,out]	space	tablespace to flush */
+void
+fil_flush(fil_space_t* space)
+{
+	ut_ad(space->n_pending_ops > 0);
+	ut_ad(space->purpose == FIL_TYPE_TABLESPACE
+	      || space->purpose == FIL_TYPE_IMPORT);
+
+	if (!space->is_stopping()) {
+		mutex_enter(&fil_system->mutex);
+		if (!space->is_stopping()) {
+			fil_flush_low(space);
+		}
+		mutex_exit(&fil_system->mutex);
+	}
+}
+
 /** Flush to disk the writes in file spaces of the given type
 possibly cached by the OS.
 @param[in]	purpose	FIL_TYPE_TABLESPACE or FIL_TYPE_LOG */
@@ -5955,12 +5973,13 @@ fil_iterate(
 			if (page_compressed) {
 				ulint len = 0;
 
-				byte * res = fil_compress_page(space_id,
+				byte * res = fil_compress_page(
+					NULL,
 					src,
 					NULL,
 					size,
 					dict_table_page_compression_level(iter.table),
-					fil_space_get_block_size(space_id, offset, size),
+					512,/* FIXME: use proper block size */
 					encrypted,
 					&len,
 					NULL);
@@ -5975,6 +5994,8 @@ fil_iterate(
 			/* If tablespace is encrypted, encrypt page before we
 			write it back. Note that we should not encrypt the
 			buffer that is in buffer pool. */
+			/* NOTE: At this stage of IMPORT the
+			buffer pool is not being used at all! */
 			if (decrypted && encrypted) {
 				byte *dest = writeptr + (i * size);
 				ulint space = mach_read_from_4(
@@ -6822,73 +6843,24 @@ fil_space_keyrotate_next(
 	return(space);
 }
 
-/********************************************************************//**
-Find correct node from file space
-@return node */
-static
-fil_node_t*
-fil_space_get_node(
-	fil_space_t*	space,		/*!< in: file spage */
-	ulint 		space_id,	/*!< in: space id   */
-	os_offset_t* 	block_offset,	/*!< in/out: offset in number of blocks */
-	ulint 		byte_offset,	/*!< in: remainder of offset in bytes; in
-					aio this must be divisible by the OS block
-					size */
-	ulint 		len)		/*!< in: how many bytes to read or write; this
-					must not cross a file boundary; in aio this
-					must be a block size multiple */
-{
-	fil_node_t*	node;
-	ut_ad(mutex_own(&fil_system->mutex));
-
-	node = UT_LIST_GET_FIRST(space->chain);
-
-	for (;;) {
-		if (node == NULL) {
-			return(NULL);
-		} else if (fil_is_user_tablespace_id(space->id)
-			   && node->size == 0) {
-
-			/* We do not know the size of a single-table tablespace
-			before we open the file */
-			break;
-		} else if (node->size > *block_offset) {
-			/* Found! */
-			break;
-		} else {
-			*block_offset -= node->size;
-			node = UT_LIST_GET_NEXT(chain, node);
-		}
-	}
-
-	return (node);
-}
-
-/********************************************************************//**
-Return block size of node in file space
-@param[in]	space_id		space id
-@param[in]	block_offset		page offset
-@param[in]	len			page len
-@return file block size */
+/** Determine the block size of the data file.
+@param[in]	space		tablespace
+@param[in]	offset		page number
+@return	block size */
 UNIV_INTERN
 ulint
-fil_space_get_block_size(
-	ulint		space_id,
-	os_offset_t	block_offset,
-	ulint		len)
+fil_space_get_block_size(const fil_space_t* space, unsigned offset)
 {
 	ulint block_size = 512;
-	ut_ad(!mutex_own(&fil_system->mutex));
 
-	mutex_enter(&fil_system->mutex);
-	fil_space_t* space = fil_space_get_space(space_id);
-
-	if (space) {
-		fil_node_t* node = fil_space_get_node(space, space_id, &block_offset, 0, len);
-
-		if (node) {
-			block_size = node->block_size;
+	for (fil_node_t* node = UT_LIST_GET_FIRST(space->chain);
+	     node != NULL;
+	     node = UT_LIST_GET_NEXT(chain, node)) {
+		block_size = node->block_size;
+		if (node->size > offset) {
+			break;
 		}
+		offset -= node->size;
 	}
 
 	/* Currently supporting block size up to 4K,
@@ -6896,8 +6868,6 @@ fil_space_get_block_size(
 	if (block_size > 4096) {
 		block_size = 512;
 	}
-
-	mutex_exit(&fil_system->mutex);
 
 	return block_size;
 }

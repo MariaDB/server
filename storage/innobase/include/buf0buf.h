@@ -1544,17 +1544,19 @@ buf_flush_update_zip_checksum(
 	ulint		size,
 	lsn_t		lsn);
 
-/********************************************************************//**
-The hook that is called just before a page is written to disk.
-The function encrypts the content of the page and returns a pointer
-to a frame that will be written instead of the real frame. */
+/** Encryption and page_compression hook that is called just before
+a page is written to disk.
+@param[in,out]	space		tablespace
+@param[in,out]	bpage		buffer page
+@param[in]	src_frame	physical page frame that is being encrypted
+@return	page frame to be written to file
+(may be src_frame or an encrypted/compressed copy of it) */
 UNIV_INTERN
 byte*
 buf_page_encrypt_before_write(
-/*==========================*/
-	buf_page_t*	page,		/*!< in/out: buffer page to be flushed */
-	byte*		frame,		/*!< in: src frame */
-	ulint		space_id);	/*!< in: space id */
+	fil_space_t*	space,
+	buf_page_t*	bpage,
+	byte*		src_frame);
 
 /** @brief The temporary memory structure.
 
