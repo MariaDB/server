@@ -831,11 +831,12 @@ buf_flush_write_block_low(
 	buf_flush_t	flush_type,	/*!< in: type of flush */
 	bool		sync)		/*!< in: true if sync IO request */
 {
+	fil_space_t*	space = fil_space_acquire(bpage->space, true);
+	if (!space) {
+		return;
+	}
 	ulint	zip_size	= buf_page_get_zip_size(bpage);
 	page_t*	frame		= NULL;
-	ulint space_id          = buf_page_get_space(bpage);
-	atomic_writes_t awrites = fil_space_get_atomic_writes(space_id);
-
 #ifdef UNIV_DEBUG
 	buf_pool_t*	buf_pool = buf_pool_from_bpage(bpage);
 	ut_ad(!buf_pool_mutex_own(buf_pool));
@@ -906,7 +907,7 @@ buf_flush_write_block_low(
 		break;
 	}
 
-	frame = buf_page_encrypt_before_write(bpage, frame, space_id);
+	frame = buf_page_encrypt_before_write(space, bpage, frame);
 
 	if (!srv_use_doublewrite_buf || !buf_dblwr) {
 		fil_io(OS_FILE_WRITE | OS_AIO_SIMULATED_WAKE_LATER,
@@ -928,7 +929,8 @@ buf_flush_write_block_low(
 		atomic writes should be used, no doublewrite buffer
 		is used. */
 
-		if (awrites == ATOMIC_WRITES_ON) {
+		if (fsp_flags_get_atomic_writes(space->flags)
+		    == ATOMIC_WRITES_ON) {
 			fil_io(OS_FILE_WRITE | OS_AIO_SIMULATED_WAKE_LATER,
 				FALSE,
 				buf_page_get_space(bpage),
@@ -952,12 +954,14 @@ buf_flush_write_block_low(
 	are working on. */
 	if (sync) {
 		ut_ad(flush_type == BUF_FLUSH_SINGLE_PAGE);
-		fil_flush(buf_page_get_space(bpage));
+		fil_flush(space);
 
 		/* true means we want to evict this page from the
 		LRU list as well. */
 		buf_page_io_complete(bpage, true);
 	}
+
+	fil_space_release(space);
 
 	/* Increment the counter of I/O operations used
 	for selecting LRU policy. */

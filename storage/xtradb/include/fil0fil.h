@@ -1120,16 +1120,13 @@ _fil_io(
 #define fil_io(type, sync, space_id, zip_size, block_offset, byte_offset, len, buf, message, write_size) \
 	_fil_io(type, sync, space_id, zip_size, block_offset, byte_offset, len, buf, message, write_size, NULL)
 
-/*******************************************************************//**
-Returns the block size of the file space
+/** Determine the block size of the data file.
+@param[in]	space		tablespace
+@param[in]	offset		page number
 @return	block size */
 UNIV_INTERN
 ulint
-fil_space_get_block_size(
-/*=====================*/
-	ulint	id,	/*!< in: space id */
-	ulint   offset, /*!< in: page offset */
-	ulint   len);	/*!< in: page len */
+fil_space_get_block_size(const fil_space_t* space, unsigned offset);
 
 /**********************************************************************//**
 Waits for an aio operation to complete. This function is used to write the
@@ -1151,14 +1148,18 @@ fil_flush(
 /*======*/
 	ulint	space_id);	/*!< in: file space id (this can be a group of
 				log files or a tablespace of the database) */
-/**********************************************************************//**
-Flushes to disk writes in file spaces of the given type possibly cached by
-the OS. */
+/** Flush a tablespace.
+@param[in,out]	space	tablespace to flush */
 UNIV_INTERN
 void
-fil_flush_file_spaces(
-/*==================*/
-	ulint	purpose);	/*!< in: FIL_TABLESPACE, FIL_LOG */
+fil_flush(fil_space_t* space);
+
+/** Flush to disk the writes in file spaces of the given type
+possibly cached by the OS.
+@param[in]	purpose	FIL_TYPE_TABLESPACE or FIL_TYPE_LOG */
+UNIV_INTERN
+void
+fil_flush_file_spaces(ulint purpose);
 /******************************************************************//**
 Checks the consistency of the tablespace cache.
 @return	TRUE if ok */

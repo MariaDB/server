@@ -5956,31 +5956,34 @@ fil_space_get_node(
 
 	return (node);
 }
-/********************************************************************//**
-Return block size of node in file space
-@return file block size */
+
+/** Determine the block size of the data file.
+@param[in]	space		tablespace
+@param[in]	offset		page number
+@return	block size */
 UNIV_INTERN
 ulint
-fil_space_get_block_size(
-/*=====================*/
-	ulint	space_id,
-	ulint	block_offset,
-	ulint	len)
+fil_space_get_block_size(const fil_space_t* space, unsigned offset)
 {
+	ut_ad(space->n_pending_ops > 0);
+
 	ulint block_size = 512;
-	ut_ad(!mutex_own(&fil_system->mutex));
 
-	mutex_enter(&fil_system->mutex);
-	fil_space_t* space = fil_space_get_space(space_id);
-
-	if (space) {
-		fil_node_t* node = fil_space_get_node(space, space_id, &block_offset, 0, len);
-
-		if (node) {
-			block_size = node->file_block_size;
+	for (fil_node_t* node = UT_LIST_GET_FIRST(space->chain);
+	     node != NULL;
+	     node = UT_LIST_GET_NEXT(chain, node)) {
+		block_size = node->file_block_size;
+		if (node->size > offset) {
+			break;
 		}
+		offset -= node->size;
 	}
-	mutex_exit(&fil_system->mutex);
+
+	/* Currently supporting block size up to 4K,
+	fall back to default if bigger requested. */
+	if (block_size > 4096) {
+		block_size = 512;
+	}
 
 	return block_size;
 }
@@ -6334,14 +6337,29 @@ fil_flush(
 	mutex_exit(&fil_system->mutex);
 }
 
-/**********************************************************************//**
-Flushes to disk the writes in file spaces of the given type possibly cached by
-the OS. */
+/** Flush a tablespace.
+@param[in,out]	space	tablespace to flush */
 UNIV_INTERN
 void
-fil_flush_file_spaces(
-/*==================*/
-	ulint	purpose)	/*!< in: FIL_TABLESPACE, FIL_LOG */
+fil_flush(fil_space_t* space)
+{
+	ut_ad(space->n_pending_ops > 0);
+
+	if (!space->is_stopping()) {
+		mutex_enter(&fil_system->mutex);
+		if (!space->is_stopping()) {
+			fil_flush_low(space);
+		}
+		mutex_exit(&fil_system->mutex);
+	}
+}
+
+/** Flush to disk the writes in file spaces of the given type
+possibly cached by the OS.
+@param[in]	purpose	FIL_TYPE_TABLESPACE or FIL_TYPE_LOG */
+UNIV_INTERN
+void
+fil_flush_file_spaces(ulint purpose)
 {
 	fil_space_t*	space;
 	ulint*		space_ids;
@@ -6769,12 +6787,14 @@ fil_iterate(
 
 			if (page_compressed) {
 				ulint len = 0;
-				fil_compress_page(space_id,
+
+				fil_compress_page(
+					NULL,
 					src,
 					NULL,
 					size,
-					fil_space_get_page_compression_level(space_id),
-					fil_space_get_block_size(space_id, offset, size),
+					0,/* FIXME: compression level */
+					512,/* FIXME: use proper block size */
 					encrypted,
 					&len,
 					NULL);
@@ -6785,6 +6805,8 @@ fil_iterate(
 			/* If tablespace is encrypted, encrypt page before we
 			write it back. Note that we should not encrypt the
 			buffer that is in buffer pool. */
+			/* NOTE: At this stage of IMPORT the
+			buffer pool is not being used at all! */
 			if (decrypted && encrypted) {
 				byte *dest = writeptr + (i * size);
 				ulint space = mach_read_from_4(

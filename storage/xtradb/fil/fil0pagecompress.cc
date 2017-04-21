@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (C) 2013, 2016, MariaDB Corporation. All Rights Reserved.
+Copyright (C) 2013, 2017, MariaDB Corporation. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -91,8 +91,7 @@ UNIV_INTERN
 byte*
 fil_compress_page(
 /*==============*/
-	ulint	space_id,	/*!< in: tablespace id of the
-				table. */
+	fil_space_t*	space,	/*!< in,out: tablespace (NULL during IMPORT) */
 	byte*	buf,		/*!< in: buffer from which to write; in aio
 				this must be appropriately aligned */
 	byte*	out_buf,	/*!< out: compressed buffer */
@@ -110,8 +109,11 @@ fil_compress_page(
 	ulint write_size=0;
 	/* Cache to avoid change during function execution */
 	ulint comp_method = innodb_compression_algorithm;
-	ulint orig_page_type;
 	bool allocated=false;
+
+	/* page_compression does not apply to tables or tablespaces
+	that use ROW_FORMAT=COMPRESSED */
+	ut_ad(!space || !FSP_FLAGS_GET_ZIP_SSIZE(space->flags));
 
 	if (encrypted) {
 		header_len += FIL_PAGE_COMPRESSION_METHOD_SIZE;
@@ -133,21 +135,14 @@ fil_compress_page(
 	ut_ad(len);
 	ut_ad(out_len);
 
-	/* read original page type */
-	orig_page_type = mach_read_from_2(buf + FIL_PAGE_TYPE);
-
-	fil_system_enter();
-	fil_space_t* space = fil_space_get_by_id(space_id);
-	fil_system_exit();
-
 	/* Let's not compress file space header or
 	extent descriptor */
-	if (orig_page_type == 0 ||
-	    orig_page_type == FIL_PAGE_TYPE_FSP_HDR ||
-	    orig_page_type == FIL_PAGE_TYPE_XDES ||
-		orig_page_type == FIL_PAGE_PAGE_COMPRESSED) {
+	switch (fil_page_get_type(buf)) {
+	case 0:
+	case FIL_PAGE_TYPE_FSP_HDR:
+	case FIL_PAGE_TYPE_XDES:
+	case FIL_PAGE_PAGE_COMPRESSED:
 		*out_len = len;
-
 		goto err_exit;
 	}
 
@@ -157,11 +152,11 @@ fil_compress_page(
 		comp_level = page_zip_level;
 	}
 
-#ifdef UNIV_PAGECOMPRESS_DEBUG
-	ib_logf(IB_LOG_LEVEL_INFO,
-		"Preparing for compress for space %lu name %s len %lu.",
-		space_id, fil_space_name(space), len);
-#endif /* UNIV_PAGECOMPRESS_DEBUG */
+	DBUG_PRINT("compress",
+		   ("Preparing for space " ULINTPF " '%s' len " ULINTPF,
+		    space ? space->id : 0,
+		    space ? space->name : "(import)",
+		    len));
 
 	write_size = UNIV_PAGE_SIZE - header_len;
 
@@ -306,10 +301,13 @@ fil_compress_page(
 		if (err != Z_OK) {
 			/* If error we leave the actual page as it was */
 
-			if (space->printed_compression_failure == false) {
+			if (space && !space->printed_compression_failure) {
 				ib_logf(IB_LOG_LEVEL_WARN,
-					"Compression failed for space %lu name %s len %lu rt %d write %lu.",
-					space_id, fil_space_name(space), len, err, write_size);
+					"Compression failed for space "
+					ULINTPF " name %s len " ULINTPF
+					" rt %d write " ULINTPF ".",
+					space->id, space->name, len, err,
+					write_size);
 				space->printed_compression_failure = true;
 			}
 
@@ -367,9 +365,8 @@ fil_compress_page(
 
 		fil_decompress_page(uncomp_page, comp_page, ulong(len), NULL);
 
-		if(buf_page_is_corrupted(false, uncomp_page, 0, space)) {
-			buf_page_print(uncomp_page, 0, BUF_PAGE_PRINT_NO_CRASH);
-			ut_error;
+		if (buf_page_is_corrupted(false, uncomp_page, 0, space)) {
+			buf_page_print(uncomp_page, 0, 0);
 		}
 
 		ut_free(comp_page);
@@ -397,11 +394,12 @@ fil_compress_page(
 #endif
 	}
 
-#ifdef UNIV_PAGECOMPRESS_DEBUG
-	ib_logf(IB_LOG_LEVEL_INFO,
-		"Compression succeeded for space %lu name %s len %lu out_len %lu.",
-		space_id, fil_space_name(space), len, write_size);
-#endif /* UNIV_PAGECOMPRESS_DEBUG */
+	DBUG_PRINT("compress",
+		   ("Succeeded for space " ULINTPF
+		    " '%s' len " ULINTPF " out_len " ULINTPF,
+		    space ? space->id : 0,
+		    space ? space->name : "(import)",
+		    len, write_size));
 
 	srv_stats.page_compression_saved.add((len - write_size));
 	srv_stats.pages_page_compressed.inc();
