@@ -362,7 +362,8 @@ err_exit:
 	/* If error we leave the actual page as it was */
 
 #ifndef UNIV_PAGECOMPRESS_DEBUG
-	if (!space->printed_compression_failure) {
+	if (space && !space->printed_compression_failure) {
+		space->printed_compression_failure = true;
 #endif
 		ib::warn() << "Compression failed for space: "
 			   << space->id << " name: "
@@ -372,7 +373,6 @@ err_exit:
 			   << " compression method: "
 			   << fil_get_compression_alg_name(comp_method)
 			   << ".";
-		space->printed_compression_failure = true;
 #ifndef UNIV_PAGECOMPRESS_DEBUG
 	}
 #endif
