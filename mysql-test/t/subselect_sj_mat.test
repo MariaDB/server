@@ -1861,7 +1861,6 @@ drop table t1;
 --echo # MDEV-12429: IN subquery used in WHERE of EXISTS subquery
 --echo #
 
-set optimizer_switch='exists_to_in=off';
 CREATE TABLE t1 (
   pk INT, f1 INT NOT NULL, f2 VARCHAR(3), f3 INT NULL, PRIMARY KEY(pk)) ENGINE=MyISAM;
 INSERT INTO t1 VALUES (1,1,'foo',8), (2,5,'bar',7);
@@ -1870,17 +1869,20 @@ SELECT sq1.f2    FROM t1 AS sq1
   WHERE EXISTS ( SELECT * FROM t1 AS sq2
                    WHERE sq1.`pk` IN ( SELECT f1 FROM t1 ) AND sq2.f1 = sq1.f1 );
 
+set @save_optimizer_switch= @@optimizer_switch;
+
+set optimizer_switch='exists_to_in=off';
 EXPLAIN
 SELECT sq1.f2    FROM t1 AS sq1
   WHERE EXISTS ( SELECT * FROM t1 AS sq2
                    WHERE sq1.`pk` IN ( SELECT f1 FROM t1 ) AND sq2.f1 = sq1.f1 );
 
 --echo # this checks the result set above
-set @save_optimizer_switch= @@optimizer_switch;
 set optimizer_switch= 'materialization=off,semijoin=off';
 SELECT sq1.f2    FROM t1 AS sq1
   WHERE EXISTS ( SELECT * FROM t1 AS sq2
                    WHERE sq1.`pk` IN ( SELECT f1 FROM t1 ) AND sq2.f1 = sq1.f1 );
+
 set optimizer_switch= @save_optimizer_switch;
 
 DROP TABLE t1;
@@ -1889,7 +1891,6 @@ DROP TABLE t1;
 --echo # MDEV-12145: IN subquery used in WHERE of EXISTS subquery
 --echo #
 
-set optimizer_switch='exists_to_in=off';
 CREATE TABLE t1 (f1 INT) ENGINE=MyISAM;
 INSERT INTO t1 VALUES (4),(6);
 
@@ -1899,6 +1900,9 @@ INSERT INTO t2 VALUES (8),(7),(1);
 CREATE TABLE t3 (f3 INT, i3 INT, KEY(i3)) ENGINE=MyISAM;
 INSERT INTO t3 VALUES (8,0),(6,3),(2,8),(3,8),(1,6),(0,0),(1,0),(1,5);
 
+set @save_optimizer_switch= @@optimizer_switch;
+
+set optimizer_switch='exists_to_in=off';
 SELECT * FROM t1
   WHERE EXISTS ( SELECT * FROM t2, t3
                    WHERE i3 = i2 AND f1 IN ( SELECT f3 FROM t3 ) );
@@ -1908,11 +1912,11 @@ SELECT * FROM t1
                    WHERE i3 = i2 AND f1 IN ( SELECT f3 FROM t3 ) );
 
 --echo # this checks the result set above
-set @save_optimizer_switch= @@optimizer_switch;
 set optimizer_switch= 'materialization=off,semijoin=off';
 SELECT * FROM t1
   WHERE EXISTS ( SELECT * FROM t2, t3
                    WHERE i3 = i2 AND f1 IN ( SELECT f3 FROM t3 ) );
+
 set optimizer_switch= @save_optimizer_switch;
 
 DROP TABLE t1,t2,t3;
