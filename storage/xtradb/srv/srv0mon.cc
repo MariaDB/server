@@ -2,7 +2,7 @@
 
 Copyright (c) 2010, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2016, MariaDB Corporation.
+Copyright (c) 2013, 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -690,11 +690,11 @@ static monitor_info_t	innodb_counter_info[] =
 	 MONITOR_DEFAULT_START, MONITOR_OVLD_OS_FSYNC},
 
 	{"os_pending_reads", "os", "Number of reads pending",
-	 MONITOR_NONE,
+	 MONITOR_DEFAULT_ON,
 	 MONITOR_DEFAULT_START, MONITOR_OS_PENDING_READS},
 
 	{"os_pending_writes", "os", "Number of writes pending",
-	 MONITOR_NONE,
+	 MONITOR_DEFAULT_ON,
 	 MONITOR_DEFAULT_START, MONITOR_OS_PENDING_WRITES},
 
 	{"os_log_bytes_written", "os",

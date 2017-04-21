@@ -552,7 +552,8 @@ void print_index_leaf_stats(unsigned long long id, const per_index_stats& index)
   printf("page_no\tdata_size\tn_recs\n");
   while (it_page != index.leaves.end()) {
     const per_page_stats& stat = it_page->second;
-    printf("%lu\t%lu\t%lu\n", it_page->first, stat.data_size, stat.n_recs);
+    printf(ULINTPF "\t" ULINTPF "\t" ULINTPF "\n",
+	   it_page->first, stat.data_size, stat.n_recs);
     page_no = stat.right_page_no;
     it_page = index.leaves.find(page_no);
   }
@@ -582,9 +583,11 @@ void defrag_analysis(unsigned long long id, const per_index_stats& index)
       }
     }
   }
-  if (index.leaf_pages)
-    printf("count = %lu free = %lu\n", index.count, index.free_pages);
-    printf("%llu\t\t%llu\t\t%lu\t\t%lu\t\t%lu\t\t%.2f\t%lu\n",
+  printf("count = " ULINTPF " free = " ULINTPF "\n",
+	 index.count, index.free_pages);
+  if (n_leaf_pages)
+    printf("%llu\t\t%llu\t\t"
+	   ULINTPF "\t\t%lu\t\t" ULINTPF "\t\t%.2f\t" ULINTPF "\n",
            id, index.leaf_pages, n_leaf_pages, n_merge, n_pages,
            1.0 - (double)n_pages / (double)n_leaf_pages, index.max_data_size);
 }
@@ -640,15 +643,15 @@ print_stats()
                "\t#bytes_per_page\n");
        for (std::map<unsigned long long, per_index_stats>::const_iterator it = index_ids.begin(); it != index_ids.end(); it++) {
          const per_index_stats& index = it->second;
-	 longlong recs_per_page = index.total_n_recs;
-	 longlong bytes_per_page = index.total_data_bytes;
+	 ulonglong recs_per_page = index.total_n_recs;
+	 ulonglong bytes_per_page = index.total_data_bytes;
 	 if (index.total_n_recs && index.pages) {
 		 recs_per_page = index.total_n_recs / index.pages;
 	 }
 	 if (index.total_data_bytes && index.pages) {
 		 bytes_per_page = index.total_data_bytes / index.pages;
 	 }
-         printf("%lld\t\t%lld\t\t%lld\t\t%lld\t\t%lld\n",
+         printf("%llu\t\t%llu\t\t%llu\t\t%llu\t\t%llu\n",
                 it->first, index.pages, index.leaf_pages,
 		recs_per_page,
                 bytes_per_page);
@@ -656,10 +659,10 @@ print_stats()
        printf("\n");
        printf("index_id\tpage_data_bytes_histgram(empty,...,oversized)\n");
        for (std::map<unsigned long long, per_index_stats>::const_iterator it = index_ids.begin(); it != index_ids.end(); it++) {
-         printf("%lld\t", it->first);
+         printf("%llu\t", it->first);
          const per_index_stats& index = it->second;
          for (i = 0; i < SIZE_RANGES_FOR_PAGE+2; i++) {
-           printf("\t%lld", index.pages_in_size_range[i]);
+           printf("\t%llu", index.pages_in_size_range[i]);
          }
          printf("\n");
        }
@@ -810,12 +813,13 @@ int main(int argc, char **argv)
   {
     if (verbose)
       printf("Number of pages: ");
-    printf("%lu\n", pages);
+    printf(ULINTPF "\n", pages);
     goto ok;
   }
   else if (verbose)
   {
-    printf("file %s = %llu bytes (%lu pages)...\n", filename, size, (ulong)pages);
+    printf("file %s = %llu bytes (" ULINTPF " pages)...\n",
+	   filename, size, pages);
     if (do_one_page)
       printf("InnoChecksum; checking page %lu\n", do_page);
     else
@@ -895,7 +899,8 @@ int main(int argc, char **argv)
     if (page_type == FIL_PAGE_PAGE_COMPRESSED) {
       /* Page compressed tables do not have any checksum */
       if (debug)
-	fprintf(stderr, "Page %lu page compressed with method %s real_size %lu\n", ct,
+	fprintf(stderr, "Page " ULINTPF
+		" page compressed with method %s real_size " ULINTPF "\n", ct,
 	        fil_get_compression_alg_name(comp_method), comp_size);
       page_ok = 1;
     } else if (compressed) {
@@ -906,7 +911,10 @@ int main(int argc, char **argv)
         if (debug) {
 	  if (key_version != 0) {
 	    fprintf(stderr,
-		    "Page %lu encrypted key_version %lu calculated = %lu; crc32 = %lu; recorded = %u\n",
+		    "Page " ULINTPF
+		    " encrypted key_version " ULINTPF
+		    " calculated = " ULINTPF "; crc32 = " ULINTPF
+		    "; recorded = %u\n",
 		    ct, key_version, icsum, crccsum, encryption_checksum);
 	  }
         }
@@ -914,13 +922,17 @@ int main(int argc, char **argv)
 	if (encrypted) {
 	  if (encryption_checksum != 0 && crccsum != encryption_checksum && icsum != encryption_checksum) {
 	    if (debug)
-	      fprintf(stderr, "page %lu: compressed: calculated = %lu; crc32 = %lu; recorded = %u\n",
+	      fprintf(stderr, "page " ULINTPF
+		      ": compressed: calculated = " ULINTPF
+		      "; crc32 = " ULINTPF "; recorded = %u\n",
 		      ct, icsum, crccsum, encryption_checksum);
-	    fprintf(stderr, "Fail; page %lu invalid (fails compressed page checksum).\n", ct);
+	    fprintf(stderr, "Fail; page " ULINTPF
+		    " invalid (fails compressed page checksum).\n", ct);
 	  }
 	} else {
           if (!page_zip_verify_checksum(buf, physical_page_size)) {
-            fprintf(stderr, "Fail; page %lu invalid (fails compressed page checksum).\n", ct);
+	    fprintf(stderr, "Fail; page " ULINTPF
+		    " invalid (fails compressed page checksum).\n", ct);
             if (!skip_corrupt)
               goto error;
             page_ok = 0;
@@ -932,11 +944,14 @@ int main(int argc, char **argv)
         if (debug) {
 	  if (page_type == FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED) {
 	    fprintf(stderr,
-		    "Page %lu page compressed with method %s real_size %lu and encrypted key_version %lu checksum %u\n",
+		    "Page " ULINTPF
+		    " page compressed with method %s real_size " ULINTPF
+		    " and encrypted key_version " ULINTPF " checksum %u\n",
 		    ct, fil_get_compression_alg_name(comp_method), comp_size, key_version, encryption_checksum);
 	  } else {
 	    fprintf(stderr,
-		    "Page %lu encrypted key_version %lu checksum %u\n",
+		    "Page " ULINTPF
+		    " encrypted key_version " ULINTPF " checksum %u\n",
 		    ct, key_version, encryption_checksum);
 	  }
         }
@@ -948,10 +963,14 @@ int main(int argc, char **argv)
          logseq= mach_read_from_4(buf + FIL_PAGE_LSN + 4);
         logseqfield= mach_read_from_4(buf + logical_page_size - FIL_PAGE_END_LSN_OLD_CHKSUM + 4);
         if (debug)
-          printf("page %lu: log sequence number: first = %lu; second = %lu\n", ct, logseq, logseqfield);
+	  printf("page " ULINTPF
+		 ": log sequence number: first = " ULINTPF
+		 "; second = " ULINTPF "\n",
+		 ct, logseq, logseqfield);
         if (logseq != logseqfield)
         {
-          fprintf(stderr, "Fail; page %lu invalid (fails log sequence number check)\n", ct);
+	  fprintf(stderr, "Fail; page " ULINTPF
+		  " invalid (fails log sequence number check)\n", ct);
           if (!skip_corrupt)
             goto error;
           page_ok = 0;
@@ -961,10 +980,14 @@ int main(int argc, char **argv)
         oldcsum= buf_calc_page_old_checksum(buf);
         oldcsumfield= mach_read_from_4(buf + logical_page_size - FIL_PAGE_END_LSN_OLD_CHKSUM);
         if (debug)
-          printf("page %lu: old style: calculated = %lu; recorded = %lu\n", ct, oldcsum, oldcsumfield);
+	  printf("page " ULINTPF
+		 ": old style: calculated = " ULINTPF
+		 "; recorded = " ULINTPF "\n",
+		 ct, oldcsum, oldcsumfield);
         if (oldcsumfield != mach_read_from_4(buf + FIL_PAGE_LSN) && oldcsumfield != oldcsum)
         {
-          fprintf(stderr, "Fail;  page %lu invalid (fails old style checksum)\n", ct);
+	  fprintf(stderr, "Fail;  page " ULINTPF
+		  " invalid (fails old style checksum)\n", ct);
           if (!skip_corrupt)
             goto error;
           page_ok = 0;
@@ -980,11 +1003,14 @@ int main(int argc, char **argv)
 	      csumfield = encryption_checksum;
 
       if (debug)
-        printf("page %lu: new style: calculated = %lu; crc32 = %lu; recorded = %lu\n",
+        printf("page " ULINTPF
+	       ": new style: calculated = " ULINTPF
+	       "; crc32 = " ULINTPF "; recorded = " ULINTPF "\n",
                ct, csum, crc32, csumfield);
       if (csumfield != 0 && crc32 != csumfield && csum != csumfield)
       {
-        fprintf(stderr, "Fail; page %lu invalid (fails innodb and crc32 checksum)\n", ct);
+        fprintf(stderr, "Fail; page " ULINTPF
+		" invalid (fails innodb and crc32 checksum)\n", ct);
         if (!skip_corrupt)
           goto error;
         page_ok = 0;
@@ -996,7 +1022,7 @@ int main(int argc, char **argv)
 
     if (per_page_details)
     {
-      printf("page %ld ", ct);
+      printf("page " ULINTPF " ", ct);
     }
 
     /* do counter increase and progress printing */
@@ -1025,7 +1051,8 @@ int main(int argc, char **argv)
         if (!lastt) lastt= now;
         if (now - lastt >= 1)
         {
-          printf("page %lu okay: %.3f%% done\n", (ct - 1), (float) ct / pages * 100);
+          printf("page " ULINTPF " okay: %.3f%% done\n",
+		 (ct - 1), (float) ct / pages * 100);
           lastt= now;
         }
       }

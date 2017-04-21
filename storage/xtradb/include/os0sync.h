@@ -718,10 +718,7 @@ os_atomic_clear(volatile lock_word_t* ptr)
 
 # define HAVE_ATOMIC_BUILTINS
 # define HAVE_ATOMIC_BUILTINS_BYTE
-
-# ifndef _WIN32
-#  define HAVE_ATOMIC_BUILTINS_64
-# endif
+# define HAVE_ATOMIC_BUILTINS_64
 
 /**********************************************************//**
 Atomic compare and exchange of signed integers (both 32 and 64 bit).

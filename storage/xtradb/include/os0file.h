@@ -2,7 +2,7 @@
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2009, Percona Inc.
-Copyright (c) 2013, 2017, MariaDB Corporation. All Rights Reserved.
+Copyright (c) 2013, 2017, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted
 by Percona Inc.. Those modifications are
@@ -51,16 +51,6 @@ struct fil_node_t;
 extern ibool	os_has_said_disk_full;
 /** Flag: enable debug printout for asynchronous i/o */
 extern ibool	os_aio_print_debug;
-
-/** Number of pending os_file_pread() operations */
-extern ulint	os_file_n_pending_preads;
-/** Number of pending os_file_pwrite() operations */
-extern ulint	os_file_n_pending_pwrites;
-
-/** Number of pending read operations */
-extern ulint	os_n_pending_reads;
-/** Number of pending write operations */
-extern ulint	os_n_pending_writes;
 
 #ifdef __WIN__
 
