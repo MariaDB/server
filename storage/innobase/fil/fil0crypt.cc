@@ -1557,33 +1557,27 @@ fil_crypt_find_page_to_rotate(
 
 	fil_space_crypt_t *crypt_data = space->crypt_data;
 
-	/* Space might already be dropped */
-	if (crypt_data) {
-		mutex_enter(&crypt_data->mutex);
-		ut_ad(key_state->key_id == crypt_data->key_id);
+	mutex_enter(&crypt_data->mutex);
+	ut_ad(key_state->key_id == crypt_data->key_id);
 
-		if (crypt_data->rotate_state.next_offset <
-		    crypt_data->rotate_state.max_offset) {
+	bool found = crypt_data->rotate_state.max_offset >=
+		crypt_data->rotate_state.next_offset;
 
-			state->offset = crypt_data->rotate_state.next_offset;
-			ulint remaining = crypt_data->rotate_state.max_offset -
-				crypt_data->rotate_state.next_offset;
+	if (found) {
+		state->offset = crypt_data->rotate_state.next_offset;
+		ulint remaining = crypt_data->rotate_state.max_offset -
+			crypt_data->rotate_state.next_offset;
 
-			if (batch <= remaining) {
-				state->batch = batch;
-			} else {
-				state->batch = remaining;
-			}
-
-			crypt_data->rotate_state.next_offset += batch;
-			mutex_exit(&crypt_data->mutex);
-			return true;
+		if (batch <= remaining) {
+			state->batch = batch;
+		} else {
+			state->batch = remaining;
 		}
-
-		mutex_exit(&crypt_data->mutex);
 	}
 
-	return false;
+	crypt_data->rotate_state.next_offset += batch;
+	mutex_exit(&crypt_data->mutex);
+	return found;
 }
 
 /***********************************************************************
@@ -2165,7 +2159,7 @@ DECLARE_THREAD(fil_crypt_thread)(
 			fil_crypt_start_rotate_space(&new_state, &thr);
 
 			/* iterate all pages (cooperativly with other threads) */
-			while (!thr.should_shutdown() && thr.space &&
+			while (!thr.should_shutdown() &&
 			       fil_crypt_find_page_to_rotate(&new_state, &thr)) {
 
 				/* rotate a (set) of pages */
@@ -2174,6 +2168,8 @@ DECLARE_THREAD(fil_crypt_thread)(
 				/* If space is marked as stopping, release
 				space and stop rotation. */
 				if (thr.space->is_stopping()) {
+					fil_crypt_complete_rotate_space(
+						&new_state, &thr);
 					fil_space_release(thr.space);
 					thr.space = NULL;
 					break;
