@@ -253,7 +253,8 @@ fil_compress_page(
 #endif /* HAVE_SNAPPY */
 
 	case PAGE_ZLIB_ALGORITHM:
-		err = compress2(out_buf+header_len, (ulong*)&write_size, buf, len, comp_level);
+		err = compress2(out_buf+header_len, (ulong*)&write_size, buf,
+				uLong(len), comp_level);
 
 		if (err != Z_OK) {
 			goto err_exit;
@@ -308,7 +309,7 @@ fil_compress_page(
 		bool tsfound;
 		const page_size_t page_size = fil_space_get_page_size(space_id, &tsfound);
 
-		fil_decompress_page(uncomp_page, comp_page, len, NULL);
+		fil_decompress_page(uncomp_page, comp_page, ulong(len), NULL);
 
 		if (buf_page_is_corrupted(false, uncomp_page, page_size, space)) {
 			buf_page_print(uncomp_page, page_size, 0);

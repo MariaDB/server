@@ -7107,24 +7107,22 @@ buf_print_io_instance(
 		pool_info->pages_written_rate);
 
 	if (pool_info->n_page_get_delta) {
-		double hit_rate = ((1000 * pool_info->page_read_delta)
-				/ pool_info->n_page_get_delta);
+		double hit_rate = double(pool_info->page_read_delta)
+			/ pool_info->n_page_get_delta;
 
-		if (hit_rate > 1000) {
-			hit_rate = 1000;
+		if (hit_rate > 1) {
+			hit_rate = 1;
 		}
-
-		hit_rate = 1000 - hit_rate;
 
 		fprintf(file,
 			"Buffer pool hit rate " ULINTPF " / 1000,"
 			" young-making rate " ULINTPF " / 1000 not "
 			ULINTPF " / 1000\n",
-			(ulint) hit_rate,
-			(ulint) (1000 * pool_info->young_making_delta
-				 / pool_info->n_page_get_delta),
-			(ulint) (1000 * pool_info->not_young_making_delta
-				 / pool_info->n_page_get_delta));
+			ulint(1000 * (1 - hit_rate)),
+			ulint(1000 * double(pool_info->young_making_delta)
+			      / pool_info->n_page_get_delta),
+			ulint(1000 * double(pool_info->not_young_making_delta)
+			      / pool_info->n_page_get_delta));
 	} else {
 		fputs("No buffer pool page gets since the last printout\n",
 		      file);
@@ -7556,9 +7554,9 @@ buf_page_decrypt_after_read(buf_page_t* bpage)
 
 		/* decompress using comp_buf to dst_frame */
 		fil_decompress_page(slot->comp_buf,
-			dst_frame,
-			size.logical(),
-			&bpage->write_size);
+				    dst_frame,
+				    ulong(size.logical()),
+				    &bpage->write_size);
 
 		/* Mark this slot as free */
 		slot->reserved = false;
@@ -7603,9 +7601,9 @@ buf_page_decrypt_after_read(buf_page_t* bpage)
 			ut_d(fil_page_type_validate(dst_frame));
 			/* decompress using comp_buf to dst_frame */
 			fil_decompress_page(slot->comp_buf,
-					dst_frame,
-					size.logical(),
-					&bpage->write_size);
+					    dst_frame,
+					    ulong(size.logical()),
+					    &bpage->write_size);
 			ut_d(fil_page_type_validate(dst_frame));
 		}
 
