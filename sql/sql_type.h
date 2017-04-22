@@ -367,6 +367,13 @@ public:
   virtual enum_field_types real_field_type() const { return field_type(); }
   virtual Item_result result_type() const= 0;
   virtual Item_result cmp_type() const= 0;
+  /**
+    Prepared statement long data:
+    Check whether this parameter data type is compatible with long data.
+    Used to detect whether a long data stream has been supplied to a
+    incompatible data type.
+  */
+  virtual bool is_param_long_data_type() const { return false; }
   virtual const Type_handler *type_handler_for_comparison() const= 0;
   virtual CHARSET_INFO *charset_for_protocol(const Item *item) const;
   virtual const Type_handler*
@@ -1433,6 +1440,7 @@ public:
   virtual ~Type_handler_string() {}
   const Name name() const { return m_name_char; }
   enum_field_types field_type() const { return MYSQL_TYPE_STRING; }
+  bool is_param_long_data_type() const { return true; }
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
 };
@@ -1445,12 +1453,21 @@ public:
   virtual ~Type_handler_varchar() {}
   const Name name() const { return m_name_varchar; }
   enum_field_types field_type() const { return MYSQL_TYPE_VARCHAR; }
+  bool is_param_long_data_type() const { return true; }
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
 };
 
 
-class Type_handler_tiny_blob: public Type_handler_string_result
+class Type_handler_blob_common: public Type_handler_string_result
+{
+public:
+  virtual ~Type_handler_blob_common() { }
+  bool is_param_long_data_type() const { return true; }
+};
+
+
+class Type_handler_tiny_blob: public Type_handler_blob_common
 {
   static const Name m_name_tinyblob;
 public:
@@ -1462,7 +1479,7 @@ public:
 };
 
 
-class Type_handler_medium_blob: public Type_handler_string_result
+class Type_handler_medium_blob: public Type_handler_blob_common
 {
   static const Name m_name_mediumblob;
 public:
@@ -1474,7 +1491,7 @@ public:
 };
 
 
-class Type_handler_long_blob: public Type_handler_string_result
+class Type_handler_long_blob: public Type_handler_blob_common
 {
   static const Name m_name_longblob;
 public:
@@ -1486,7 +1503,7 @@ public:
 };
 
 
-class Type_handler_blob: public Type_handler_string_result
+class Type_handler_blob: public Type_handler_blob_common
 {
   static const Name m_name_blob;
 public:
@@ -1506,6 +1523,7 @@ public:
   virtual ~Type_handler_geometry() {}
   const Name name() const { return m_name_geometry; }
   enum_field_types field_type() const { return MYSQL_TYPE_GEOMETRY; }
+  bool is_param_long_data_type() const { return true; }
   const Type_handler *type_handler_for_comparison() const;
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
