@@ -9464,7 +9464,10 @@ void Item_cache_row::set_null()
 
 
 Item_type_holder::Item_type_holder(THD *thd, Item *item)
-  :Item(thd, item), enum_set_typelib(0), fld_type(get_real_type(item))
+  :Item(thd, item),
+   enum_set_typelib(0),
+   fld_type(get_real_type(item)),
+   geometry_type(Field::GEOM_GEOMETRY)
 {
   DBUG_ASSERT(item->fixed);
   maybe_null= item->maybe_null;
