@@ -1187,7 +1187,16 @@ public:
   /**
     TIME or DATETIME precision of the item: 0..6
   */
-  uint temporal_precision(enum_field_types type);
+  uint time_precision()
+  {
+    return const_item() ? type_handler()->Item_time_precision(this) :
+                          MY_MIN(decimals, TIME_SECOND_PART_DIGITS);
+  }
+  uint datetime_precision()
+  {
+    return const_item() ? type_handler()->Item_datetime_precision(this) :
+                          MY_MIN(decimals, TIME_SECOND_PART_DIGITS);
+  }
   /* 
     Returns true if this is constant (during query execution, i.e. its value
     will not change until next fix_fields) and its value is known.

@@ -17,6 +17,7 @@
 #include "sql_type.h"
 #include "sql_const.h"
 #include "sql_class.h"
+#include "sql_time.h"
 #include "item.h"
 #include "log.h"
 
@@ -2689,7 +2690,11 @@ bool Type_handler_numeric::
 bool Type_handler::
        Item_time_typecast_fix_length_and_dec(Item_time_typecast *item) const
 {
-  item->fix_length_and_dec_generic(MIN_TIME_WIDTH);
+  uint dec= item->decimals == NOT_FIXED_DEC ?
+            item->arguments()[0]->time_precision() :
+            item->decimals;
+  item->fix_attributes_temporal(MIN_TIME_WIDTH, dec);
+  item->maybe_null= true;
   return false;
 }
 
@@ -2697,7 +2702,8 @@ bool Type_handler::
 bool Type_handler::
        Item_date_typecast_fix_length_and_dec(Item_date_typecast *item) const
 {
-  item->fix_length_and_dec_generic(MAX_DATE_WIDTH);
+  item->fix_attributes_temporal(MAX_DATE_WIDTH, 0);
+  item->maybe_null= true;
   return false;
 }
 
@@ -2706,9 +2712,12 @@ bool Type_handler::
        Item_datetime_typecast_fix_length_and_dec(Item_datetime_typecast *item)
                                                  const
 {
-  item->fix_length_and_dec_generic(MAX_DATETIME_WIDTH);
+  uint dec= item->decimals == NOT_FIXED_DEC ?
+            item->arguments()[0]->datetime_precision() :
+            item->decimals;
+  item->fix_attributes_temporal(MAX_DATETIME_WIDTH, dec);
+  item->maybe_null= true;
   return false;
-
 }
 
 
@@ -3020,6 +3029,38 @@ bool Type_handler_string_result::
 {
   item->fix_length_and_dec_double();
   return false;
+}
+
+/***************************************************************************/
+
+uint Type_handler::Item_time_precision(Item *item) const
+{
+  return MY_MIN(item->decimals, TIME_SECOND_PART_DIGITS);
+}
+
+
+uint Type_handler::Item_datetime_precision(Item *item) const
+{
+  return MY_MIN(item->decimals, TIME_SECOND_PART_DIGITS);
+}
+
+
+uint Type_handler_string_result::Item_temporal_precision(Item *item,
+                                                         bool is_time) const
+{
+  MYSQL_TIME ltime;
+  StringBuffer<64> buf;
+  String *tmp;
+  MYSQL_TIME_STATUS status;
+  DBUG_ASSERT(item->fixed);
+  if ((tmp= item->val_str(&buf)) &&
+      !(is_time ?
+        str_to_time(tmp->charset(), tmp->ptr(), tmp->length(),
+                    &ltime, TIME_TIME_ONLY, &status) :
+        str_to_datetime(tmp->charset(), tmp->ptr(), tmp->length(),
+                        &ltime, TIME_FUZZY_DATES, &status)))
+    return MY_MIN(status.precision, TIME_SECOND_PART_DIGITS);
+  return MY_MIN(item->decimals, TIME_SECOND_PART_DIGITS);
 }
 
 /***************************************************************************/

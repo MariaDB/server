@@ -2009,13 +2009,6 @@ bool Item_func_from_unixtime::get_date(MYSQL_TIME *ltime,
 }
 
 
-void Item_func_convert_tz::fix_length_and_dec()
-{
-  fix_attributes_datetime(args[0]->temporal_precision(MYSQL_TYPE_DATETIME));
-  maybe_null= true;
-}
-
-
 bool Item_func_convert_tz::get_date(MYSQL_TIME *ltime,
                                     ulonglong fuzzy_date __attribute__((unused)))
 {
@@ -2099,8 +2092,7 @@ void Item_date_add_interval::fix_length_and_dec()
   if (arg0_field_type == MYSQL_TYPE_DATETIME ||
       arg0_field_type == MYSQL_TYPE_TIMESTAMP)
   {
-    uint dec= MY_MAX(args[0]->temporal_precision(MYSQL_TYPE_DATETIME),
-                     interval_dec);
+    uint dec= MY_MAX(args[0]->datetime_precision(), interval_dec);
     set_handler(&type_handler_datetime);
     fix_attributes_datetime(dec);
   }
@@ -2119,7 +2111,7 @@ void Item_date_add_interval::fix_length_and_dec()
   }
   else if (arg0_field_type == MYSQL_TYPE_TIME)
   {
-    uint dec= MY_MAX(args[0]->temporal_precision(MYSQL_TYPE_TIME), interval_dec);
+    uint dec= MY_MAX(args[0]->time_precision(), interval_dec);
     if (int_type >= INTERVAL_DAY && int_type != INTERVAL_YEAR_MONTH)
     {
       set_handler(&type_handler_time2);
@@ -2133,8 +2125,7 @@ void Item_date_add_interval::fix_length_and_dec()
   }
   else
   {
-    uint dec= MY_MAX(args[0]->temporal_precision(MYSQL_TYPE_DATETIME),
-                     interval_dec);
+    uint dec= MY_MAX(args[0]->datetime_precision(), interval_dec);
     set_handler(&type_handler_string);
     collation.set(default_charset(), DERIVATION_COERCIBLE, MY_REPERTOIRE_ASCII);
     fix_char_length_temporal_not_fixed_dec(MAX_DATETIME_WIDTH, dec);
@@ -2669,15 +2660,13 @@ void Item_func_add_time::fix_length_and_dec()
       arg0_field_type == MYSQL_TYPE_TIMESTAMP ||
       is_date)
   {
-    uint dec= MY_MAX(args[0]->temporal_precision(MYSQL_TYPE_DATETIME),
-                     args[1]->temporal_precision(MYSQL_TYPE_TIME));
+    uint dec= MY_MAX(args[0]->datetime_precision(), args[1]->time_precision());
     set_handler(&type_handler_datetime2);
     fix_attributes_datetime(dec);
   }
   else if (arg0_field_type == MYSQL_TYPE_TIME)
   {
-    uint dec= MY_MAX(args[0]->temporal_precision(MYSQL_TYPE_TIME),
-                     args[1]->temporal_precision(MYSQL_TYPE_TIME));
+    uint dec= MY_MAX(args[0]->time_precision(), args[1]->time_precision());
     set_handler(&type_handler_time2);
     fix_attributes_time(dec);
   }

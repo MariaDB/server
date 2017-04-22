@@ -555,27 +555,6 @@ uint Item::decimal_precision() const
 }
 
 
-uint Item::temporal_precision(enum_field_types type_arg)
-{
-  if (const_item() && result_type() == STRING_RESULT &&
-      !is_temporal_type(field_type()))
-  {
-    MYSQL_TIME ltime;
-    String buf, *tmp;
-    MYSQL_TIME_STATUS status;
-    DBUG_ASSERT(fixed);
-    if ((tmp= val_str(&buf)) &&
-        !(type_arg == MYSQL_TYPE_TIME ?
-         str_to_time(tmp->charset(), tmp->ptr(), tmp->length(),
-                     &ltime, TIME_TIME_ONLY, &status) :
-         str_to_datetime(tmp->charset(), tmp->ptr(), tmp->length(),
-                         &ltime, TIME_FUZZY_DATES, &status)))
-      return MY_MIN(status.precision, TIME_SECOND_PART_DIGITS);
-  }
-  return MY_MIN(decimals, TIME_SECOND_PART_DIGITS);
-}
-
-
 void Item::print_parenthesised(String *str, enum_query_type query_type,
                                enum precedence parent_prec)
 {

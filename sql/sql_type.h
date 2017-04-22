@@ -389,6 +389,8 @@ public:
   {
     return true;
   }
+  virtual uint Item_time_precision(Item *item) const;
+  virtual uint Item_datetime_precision(Item *item) const;
   /**
     Makes a temporary table Field to handle numeric aggregate functions,
     e.g. SUM(DISTINCT expr), AVG(DISTINCT expr), etc.
@@ -1040,6 +1042,7 @@ public:
 
 class Type_handler_string_result: public Type_handler
 {
+  uint Item_temporal_precision(Item *item, bool is_time) const;
 public:
   Item_result result_type() const { return STRING_RESULT; }
   Item_result cmp_type() const { return STRING_RESULT; }
@@ -1055,6 +1058,14 @@ public:
                   const Type_std_attributes *item,
                   SORT_FIELD_ATTR *attr) const;
   uint32 max_display_length(const Item *item) const;
+  uint Item_time_precision(Item *item) const
+  {
+    return Item_temporal_precision(item, true);
+  }
+  uint Item_datetime_precision(Item *item) const
+  {
+    return Item_temporal_precision(item, false);
+  }
   int Item_save_in_field(Item *item, Field *field, bool no_conversions) const;
   String *print_item_value(THD *thd, Item *item, String *str) const
   {
