@@ -2697,119 +2697,12 @@ double Item_func_units::val_real()
 }
 
 
-void Item_func_min_max::fix_length_and_dec()
+bool Item_func_min_max::fix_attributes(Item **items, uint nitems)
 {
-  uint unsigned_count= 0;
-  int max_int_part=0;
-  decimals=0;
-  max_length=0;
-  maybe_null=0;
-  Item_result tmp_cmp_type= args[0]->cmp_type();
-  uint string_type_count= 0;
-  uint temporal_type_count= 0;
-  enum_field_types temporal_field_type= MYSQL_TYPE_DATETIME;
-
-  for (uint i=0 ; i < arg_count ; i++)
-  {
-    set_if_bigger(max_length, args[i]->max_length);
-    set_if_bigger(decimals, args[i]->decimals);
-    set_if_bigger(max_int_part, args[i]->decimal_int_part());
-    unsigned_count+= args[i]->unsigned_flag;
-    if (args[i]->maybe_null)
-      maybe_null= 1;
-    tmp_cmp_type= item_cmp_type(tmp_cmp_type, args[i]->cmp_type());
-    string_type_count+= args[i]->cmp_type() == STRING_RESULT;
-    if (args[i]->cmp_type() == TIME_RESULT)
-    {
-      if (!temporal_type_count)
-        temporal_field_type= args[i]->field_type();
-      else
-        temporal_field_type= Field::field_type_merge(temporal_field_type,
-                                                     args[i]->field_type());
-      temporal_type_count++;
-    }
-  }
-  unsigned_flag= unsigned_count == arg_count; // if all args are unsigned
-
-  switch (tmp_cmp_type) {
-  case TIME_RESULT:
-    // At least one temporal argument was found.
-    collation.set_numeric();
-    set_handler_by_field_type(temporal_field_type);
-    if (is_temporal_type_with_time(temporal_field_type))
-      set_if_smaller(decimals, TIME_SECOND_PART_DIGITS);
-    else
-      decimals= 0;
-    break;
-
-  case STRING_RESULT:
-    if (aggregate_for_result(func_name(), args, arg_count, false))
-      return;
-    /*
-      All arguments are of string-alike types:
-        CHAR, VARCHAR, TEXT, BINARY, VARBINARY, BLOB, SET, ENUM
-      No numeric and no temporal types were found.
-    */
-    agg_arg_charsets_for_string_result_with_comparison(collation,
-                                                       args, arg_count);
-    break;
-
-  case INT_RESULT:
-    /*
-       All arguments have INT-alike types:
-       TINY, SHORT, LONG, LONGLONG, INT24, YEAR, BIT.
-    */
-    collation.set_numeric();
-    fix_char_length(my_decimal_precision_to_length_no_truncation(max_int_part +
-                                                                 decimals,
-                                                                 decimals,
-                                                                 unsigned_flag));
-    if (unsigned_count != 0 && unsigned_count != arg_count)
-    {
-      /*
-        If all args are of INT-alike type, but have different unsigned_flag,
-        then change type to DECIMAL.
-      */
-      set_handler_by_field_type(MYSQL_TYPE_NEWDECIMAL);
-    }
-    else
-    {
-      /*
-        There are only INT-alike arguments with equal unsigned_flag.
-        Aggregate types to get the best covering type.
-        Treat BIT as LONGLONG when aggregating to non-BIT types.
-        Possible final type: TINY, SHORT, LONG, LONGLONG, INT24, YEAR, BIT.
-      */
-      if (aggregate_for_result(func_name(), args, arg_count, true))
-        return;
-    }
-    break;
-
-  case DECIMAL_RESULT:
-    // All arguments are of DECIMAL type
-    collation.set_numeric();
-    fix_char_length(my_decimal_precision_to_length_no_truncation(max_int_part +
-                                                                 decimals,
-                                                                 decimals,
-                                                                 unsigned_flag));
-    set_handler_by_field_type(MYSQL_TYPE_NEWDECIMAL);
-    break;
-
-  case ROW_RESULT:
-    DBUG_ASSERT(0);
-    // Pass through
-  case REAL_RESULT:
-    collation.set_numeric();
-    fix_char_length(float_length(decimals));
-    /*
-      Set type to DOUBLE, as Item_func::create_tmp_field() does not
-      distinguish between DOUBLE and FLOAT and always creates Field_double.
-      Perhaps we should eventually change this to use aggregate_for_result()
-      and fix Item_func::create_tmp_field() to create Field_float when possible.
-    */
-    set_handler_by_field_type(MYSQL_TYPE_DOUBLE);
-    break;
-  }
+  bool rc= Item_func_min_max::type_handler()->
+             Item_func_min_max_fix_attributes(current_thd, this, items, nitems);
+  DBUG_ASSERT(!rc || current_thd->is_error());
+  return rc;
 }
 
 

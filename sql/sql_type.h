@@ -485,6 +485,10 @@ public:
   virtual bool Item_hybrid_func_fix_attributes(THD *thd, Item_hybrid_func *func,
                                                Item **items,
                                                uint nitems) const= 0;
+  virtual bool Item_func_min_max_fix_attributes(THD *thd,
+                                                Item_func_min_max *func,
+                                                Item **items,
+                                                uint nitems) const;
   virtual bool Item_sum_hybrid_fix_length_and_dec(Item_sum_hybrid *) const= 0;
   virtual bool Item_sum_sum_fix_length_and_dec(Item_sum_sum *) const= 0;
   virtual bool Item_sum_avg_fix_length_and_dec(Item_sum_avg *) const= 0;
@@ -840,6 +844,8 @@ public:
   bool set_comparator_func(Arg_comparator *cmp) const;
   bool Item_hybrid_func_fix_attributes(THD *thd, Item_hybrid_func *func,
                                        Item **items, uint nitems) const;
+  bool Item_func_min_max_fix_attributes(THD *thd, Item_func_min_max *func,
+                                        Item **items, uint nitems) const;
   bool Item_sum_hybrid_fix_length_and_dec(Item_sum_hybrid *func) const;
   bool Item_sum_sum_fix_length_and_dec(Item_sum_sum *) const;
   bool Item_sum_avg_fix_length_and_dec(Item_sum_avg *) const;
@@ -1602,6 +1608,7 @@ public:
 class Type_handler_hybrid_field_type
 {
   const Type_handler *m_type_handler;
+  bool aggregate_for_min_max(const Type_handler *other);
 public:
   Type_handler_hybrid_field_type();
   Type_handler_hybrid_field_type(const Type_handler *handler)
@@ -1657,6 +1664,8 @@ public:
   bool aggregate_for_result(const Type_handler *other);
   bool aggregate_for_result(const char *funcname,
                             Item **item, uint nitems, bool treat_bit_as_number);
+  bool aggregate_for_min_max(const char *funcname, Item **item, uint nitems);
+
   bool aggregate_for_num_op(const class Type_aggregator *aggregator,
                             const Type_handler *h0, const Type_handler *h1);
 };

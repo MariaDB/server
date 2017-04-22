@@ -1789,7 +1789,7 @@ CALL p1('CREATE TABLE t1 (a ENUM(0x61), b Point)');
 CALL p1('CREATE TABLE t1 (a SET(0x61), b Point)');
 --enable_query_log
 
---echo # This does not preserve geometry type (MDEV-9405)
+--echo # This does not preserve geometry type (MDEV-12560)
 CREATE TABLE t1 AS SELECT COALESCE(NULL, Point(1,1));
 SHOW CREATE TABLE t1;
 DROP TABLE t1;
@@ -1868,6 +1868,77 @@ CALL p1('CREATE TABLE t1 (a Point, b Point, c Point)');
 DROP PROCEDURE p1;
 DROP PROCEDURE p2;
 
+
+--echo #
+--echo # MDEV-12506 Split Item_func_min_max::fix_length_and_dec() into methods in Type_handler
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE p2(query TEXT)
+BEGIN
+  DECLARE errcount INT DEFAULT 0;
+  DECLARE CONTINUE HANDLER FOR SQLEXCEPTION
+  BEGIN
+    SET errcount = errcount+1;
+    #SHOW WARNINGS;
+    GET DIAGNOSTICS CONDITION 1 @p= MESSAGE_TEXT;
+    SELECT @p AS `ERROR: `;
+  END;
+  SELECT query AS ``;
+  EXECUTE IMMEDIATE query;
+  IF errcount = 0
+  THEN
+    SHOW CREATE TABLE t2;
+    DROP TABLE t2;
+  END IF;
+END;
+$$
+CREATE PROCEDURE p1(query TEXT)
+BEGIN
+  SELECT query AS `-------------------------------------`;
+  EXECUTE IMMEDIATE query;
+  CALL p2('CREATE TABLE t2 AS SELECT LEAST(a,b) FROM t1');
+  DROP TABLE t1;
+END;
+$$
+DELIMITER ;$$
+
+--disable_query_log
+CALL p1('CREATE TABLE t1 (a CHAR(10), b Point)');
+CALL p1('CREATE TABLE t1 (a VARCHAR(10), b Point)');
+CALL p1('CREATE TABLE t1 (a TINYTEXT, b Point)');
+CALL p1('CREATE TABLE t1 (a TEXT, b Point)');
+CALL p1('CREATE TABLE t1 (a MEDIUMTEXT, b Point)');
+CALL p1('CREATE TABLE t1 (a LONGTEXT, b Point)');
+
+CALL p1('CREATE TABLE t1 (a TINYINT, b Point)');
+CALL p1('CREATE TABLE t1 (a SMALLINT, b Point)');
+CALL p1('CREATE TABLE t1 (a MEDIUMINT, b Point)');
+CALL p1('CREATE TABLE t1 (a INT, b Point)');
+CALL p1('CREATE TABLE t1 (a BIGINT, b Point)');
+CALL p1('CREATE TABLE t1 (a FLOAT, b Point)');
+CALL p1('CREATE TABLE t1 (a DOUBLE, b Point)');
+CALL p1('CREATE TABLE t1 (a DECIMAL(10,2), b Point)');
+CALL p1('CREATE TABLE t1 (a BIT(8), b Point)');
+
+CALL p1('CREATE TABLE t1 (a TIME, b Point)');
+CALL p1('CREATE TABLE t1 (a DATE, b Point)');
+CALL p1('CREATE TABLE t1 (a DATETIME, b Point)');
+CALL p1('CREATE TABLE t1 (a TIMESTAMP, b Point)');
+CALL p1('CREATE TABLE t1 (a YEAR, b Point)');
+
+--echo # This LEAST(ENUM,GEOMETRY) creates BLOB, but fails on error with UNION (see MDEV-12503)
+CALL p1('CREATE TABLE t1 (a ENUM(0x61), b Point)');
+CALL p1('CREATE TABLE t1 (a SET(0x61), b Point)');
+--enable_query_log
+
+--echo # This does not preserve geometry type (MDEV-9405)
+CREATE TABLE t1 AS SELECT LEAST(NULL, Point(1,1));
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+DROP PROCEDURE p1;
+DROP PROCEDURE p2;
 
 --echo #
 --echo # MDEV-12001 Split Item_func_round::fix_length_and_dec to virtual methods in Type_handler

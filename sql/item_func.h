@@ -1434,6 +1434,8 @@ class Item_func_min_max :public Item_hybrid_func
 {
   String tmp_value;
   int cmp_sign;
+protected:
+  bool fix_attributes(Item **item, uint nitems);
 public:
   Item_func_min_max(THD *thd, List<Item> &list, int cmp_sign_arg):
     Item_hybrid_func(thd, list), cmp_sign(cmp_sign_arg)
@@ -1474,7 +1476,32 @@ public:
     return Item_func_min_max::type_handler()->
              Item_func_min_max_get_date(this, res, fuzzy_date);
   }
-  void fix_length_and_dec();
+  void aggregate_attributes_real(Item **items, uint nitems)
+  {
+    /*
+      Aggregating attributes for the double data type for LEAST/GREATEST
+      is almost the same with aggregating for CASE-alike hybrid functions,
+      (CASE..THEN, COALESCE, IF, etc).
+      There is one notable difference though, when a numeric argument is mixed
+      with a string argument:
+      - CASE-alike functions return a string data type in such cases
+        COALESCE(10,'x') -> VARCHAR(2) = '10'
+      - LEAST/GREATEST returns double:
+        GREATEST(10,'10e4') -> DOUBLE = 100000
+      As the string argument can represent a number in the scientific notation,
+      like in the example above, max_length of the result can be longer than
+      max_length of the arguments. To handle this properly, max_length is
+      additionally assigned to the result of float_length(decimals).
+    */
+    Item_func::aggregate_attributes_real(items, nitems);
+    max_length= float_length(decimals);
+  }
+  void fix_length_and_dec()
+  {
+    if (aggregate_for_min_max(func_name(), args, arg_count))
+      return;
+    fix_attributes(args, arg_count);
+  }
 };
 
 class Item_func_min :public Item_func_min_max

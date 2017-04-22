@@ -10187,7 +10187,8 @@ void Item_cache_row::set_null()
 Item_type_holder::Item_type_holder(THD *thd, Item *item)
   :Item(thd, item),
    Type_handler_hybrid_field_type(item->real_type_handler()),
-   enum_set_typelib(0)
+   enum_set_typelib(0),
+   geometry_type(Field::GEOM_GEOMETRY)
 {
   DBUG_ASSERT(item->fixed);
   maybe_null= item->maybe_null;

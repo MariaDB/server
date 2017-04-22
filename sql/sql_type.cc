@@ -370,7 +370,6 @@ Type_handler_hybrid_field_type::aggregate_for_result(const char *funcname,
     return true;
   }
   set_handler(items[0]->type_handler());
-  uint unsigned_count= items[0]->unsigned_flag;
   for (uint i= 1 ; i < nitems ; i++)
   {
     const Type_handler *cur= items[i]->type_handler();
@@ -388,26 +387,6 @@ Type_handler_hybrid_field_type::aggregate_for_result(const char *funcname,
                type_handler()->name().ptr(), cur->name().ptr(), funcname);
       return true;
     }
-    unsigned_count+= items[i]->unsigned_flag;
-  }
-  switch (field_type()) {
-  case MYSQL_TYPE_TINY:
-  case MYSQL_TYPE_SHORT:
-  case MYSQL_TYPE_LONG:
-  case MYSQL_TYPE_LONGLONG:
-  case MYSQL_TYPE_INT24:
-  case MYSQL_TYPE_YEAR:
-  case MYSQL_TYPE_BIT:
-    if (unsigned_count != 0 && unsigned_count != nitems)
-    {
-      /*
-        If all arguments are of INT-alike type but have different
-        unsigned_flag, then convert to DECIMAL.
-      */
-      set_handler(&type_handler_newdecimal);
-    }
-  default:
-    break;
   }
   return false;
 }
@@ -475,6 +454,114 @@ Type_handler_hybrid_field_type::aggregate_for_comparison(const Type_handler *h)
   else
     m_type_handler= &type_handler_double;
   DBUG_ASSERT(m_type_handler == m_type_handler->type_handler_for_comparison());
+  return false;
+}
+
+
+/**
+  Aggregate data type handler for LEAST/GRATEST.
+  aggregate_for_min_max() is close to aggregate_for_comparison(),
+  but tries to preserve the exact type handler for string, int and temporal
+  data types (instead of converting to super-types).
+  FLOAT is not preserved and is converted to its super-type (DOUBLE).
+  This should probably fixed eventually, for symmetry.
+*/
+
+bool
+Type_handler_hybrid_field_type::aggregate_for_min_max(const Type_handler *h)
+{
+  if (!m_type_handler->is_traditional_type() ||
+      !h->is_traditional_type())
+  {
+    /*
+      If at least one data type is non-traditional,
+      do aggregation for result immediately.
+      For now we suppose that these two expressions:
+        - LEAST(type1, type2)
+        - COALESCE(type1, type2)
+      return the same data type (or both expressions return error)
+      if type1 and/or type2 are non-traditional.
+      This may change in the future.
+    */
+    h= type_handler_data->
+       m_type_aggregator_for_result.find_handler(m_type_handler, h);
+    if (!h)
+      return true;
+    m_type_handler= h;
+    return false;
+  }
+
+  Item_result a= cmp_type();
+  Item_result b= h->cmp_type();
+  DBUG_ASSERT(a != ROW_RESULT); // Disallowed by check_cols() in fix_fields()
+  DBUG_ASSERT(b != ROW_RESULT); // Disallowed by check_cols() in fix_fields()
+
+  if (a == STRING_RESULT && b == STRING_RESULT)
+    m_type_handler=
+      Type_handler::aggregate_for_result_traditional(m_type_handler, h);
+  else if (a == INT_RESULT && b == INT_RESULT)
+  {
+    // BIT aggregates with non-BIT as BIGINT
+    if (m_type_handler != h)
+    {
+      if (m_type_handler == &type_handler_bit)
+        m_type_handler= &type_handler_longlong;
+      else if (h == &type_handler_bit)
+        h= &type_handler_longlong;
+    }
+    m_type_handler=
+      Type_handler::aggregate_for_result_traditional(m_type_handler, h);
+  }
+  else if (a == TIME_RESULT || b == TIME_RESULT)
+  {
+    if ((a == TIME_RESULT) + (b == TIME_RESULT) == 1)
+    {
+      /*
+        We're here if there's only one temporal data type:
+        either m_type_handler or h.
+      */
+      if (b == TIME_RESULT)
+        m_type_handler= h; // Temporal types bit non-temporal types
+    }
+    else
+    {
+      /*
+        We're here if both m_type_handler and h are temporal data types.
+      */
+      m_type_handler=
+        Type_handler::aggregate_for_result_traditional(m_type_handler, h);
+    }
+  }
+  else if ((a == INT_RESULT || a == DECIMAL_RESULT) &&
+           (b == INT_RESULT || b == DECIMAL_RESULT))
+  {
+    m_type_handler= &type_handler_newdecimal;
+  }
+  else
+  {
+    m_type_handler= &type_handler_double;
+  }
+  return false;
+}
+
+
+bool
+Type_handler_hybrid_field_type::aggregate_for_min_max(const char *funcname,
+                                                      Item **items, uint nitems)
+{
+  // LEAST/GREATEST require at least two arguments
+  DBUG_ASSERT(nitems > 1);
+  set_handler(items[0]->type_handler());
+  for (uint i= 1; i < nitems;  i++)
+  {
+    const Type_handler *cur= items[i]->type_handler();
+    if (aggregate_for_min_max(cur))
+    {
+      my_error(ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION, MYF(0),
+               type_handler()->name().ptr(), cur->name().ptr(), funcname);
+      return true;
+    }
+  }
   return false;
 }
 
@@ -1313,6 +1400,17 @@ bool Type_handler_int_result::
        Item_hybrid_func_fix_attributes(THD *thd, Item_hybrid_func *func,
                                        Item **items, uint nitems) const
 {
+  uint unsigned_flag= items[0]->unsigned_flag;
+  for (uint i= 1; i < nitems; i++)
+  {
+    if (unsigned_flag != items[i]->unsigned_flag)
+    {
+      // Convert a mixture of signed and unsigned int to decimal
+      func->set_handler(&type_handler_newdecimal);
+      func->aggregate_attributes_decimal(items, nitems);
+      return false;
+    }
+  }
   func->aggregate_attributes_int(items, nitems);
   return false;
 }
@@ -1379,6 +1477,33 @@ bool Type_handler_timestamp_common::
   return false;
 }
 
+/*************************************************************************/
+
+bool Type_handler::
+       Item_func_min_max_fix_attributes(THD *thd, Item_func_min_max *func,
+                                        Item **items, uint nitems) const
+{
+  /*
+    Aggregating attributes for LEAST/GREATES is exactly the same
+    with aggregating for CASE-alike functions (e.g. COALESCE)
+    for the majority of data type handlers.
+  */
+  return Item_hybrid_func_fix_attributes(thd, func, items, nitems);
+}
+
+
+bool Type_handler_real_result::
+       Item_func_min_max_fix_attributes(THD *thd, Item_func_min_max *func,
+                                        Item **items, uint nitems) const
+{
+  /*
+    DOUBLE is an exception and aggregates attributes differently
+    for LEAST/GREATEST vs CASE-alike functions. See the comment in
+    Item_func_min_max::aggregate_attributes_real().
+  */
+  func->aggregate_attributes_real(items, nitems);
+  return false;
+}
 
 /*************************************************************************/
 
