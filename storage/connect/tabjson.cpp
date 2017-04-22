@@ -1171,6 +1171,7 @@ void JSONCOL::SetJsonValue(PGLOBAL g, PVAL vp, PJVAL val, int n)
       case TYPE_INTG:
 			case TYPE_BINT:
 			case TYPE_DBL:
+			case TYPE_DATE:
         vp->SetValue_pval(val->GetValue());
         break;
       case TYPE_BOOL:

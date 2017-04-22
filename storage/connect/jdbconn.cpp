@@ -1235,7 +1235,8 @@ void JDBConn::SetColumnValue(int rank, PSZ name, PVAL val)
 	case 12:          // VARCHAR
 	case -1:          // LONGVARCHAR
 	case 1:           // CHAR
-		if (jb)
+	case 3:           // DECIMAL
+		if (jb && ctyp != 3)
 			cn = (jstring)jb;
 		else if (!gmID(g, chrfldid, "StringField", "(ILjava/lang/String;)Ljava/lang/String;"))
 			cn = (jstring)env->CallObjectMethod(job, chrfldid, (jint)rank, jn);
@@ -1261,7 +1262,7 @@ void JDBConn::SetColumnValue(int rank, PSZ name, PVAL val)
 		break;
 	case 8:           // DOUBLE
 	case 2:           // NUMERIC
-	case 3:           // DECIMAL
+//case 3:           // DECIMAL
 		if (!gmID(g, dblfldid, "DoubleField", "(ILjava/lang/String;)D"))
 			val->SetValue((double)env->CallDoubleMethod(job, dblfldid, rank, jn));
 		else
