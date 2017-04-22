@@ -1216,6 +1216,11 @@ fil_flush(
 /*======*/
 	ulint	space_id);	/*!< in: file space id (this can be a group of
 				log files or a tablespace of the database) */
+/** Flush a tablespace.
+@param[in,out]	space	tablespace to flush */
+void
+fil_flush(fil_space_t* space);
+
 /** Flush to disk the writes in file spaces of the given type
 possibly cached by the OS.
 @param[in]	purpose	FIL_TYPE_TABLESPACE or FIL_TYPE_LOG */
@@ -1582,18 +1587,13 @@ void test_make_filepath();
 #endif /* UNIV_ENABLE_UNIT_TEST_MAKE_FILEPATH */
 
 
-/*******************************************************************//**
-Returns the block size of the file space
-@param[in]	space_id		space id
-@param[in]	offset			page offset
-@param[in]	len			page len
+/** Determine the block size of the data file.
+@param[in]	space		tablespace
+@param[in]	offset		page number
 @return	block size */
 UNIV_INTERN
 ulint
-fil_space_get_block_size(
-	ulint		id,
-	os_offset_t	offset,
-	ulint		len);
+fil_space_get_block_size(const fil_space_t* space, unsigned offset);
 /*******************************************************************//**
 Increments the count of pending operation, if space is not being deleted.
 @return	TRUE if being deleted, and operation should be skipped */

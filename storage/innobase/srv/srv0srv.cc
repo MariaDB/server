@@ -701,13 +701,12 @@ srv_print_master_thread_info(
 /*=========================*/
 	FILE  *file)    /* in: output stream */
 {
-	fprintf(file, "srv_master_thread loops: %lu srv_active,"
-		" %lu srv_shutdown, %lu srv_idle\n",
+	fprintf(file, "srv_master_thread loops: " ULINTPF " srv_active, "
+		ULINTPF " srv_shutdown, " ULINTPF " srv_idle\n"
+		"srv_master_thread log flush and writes: " ULINTPF "\n",
 		srv_main_active_loops,
 		srv_main_shutdown_loops,
-		srv_main_idle_loops);
-	fprintf(file,
-		"srv_master_thread log flush and writes: " ULINTPF "\n",
+		srv_main_idle_loops,
 		srv_log_writes_and_flush);
 }
 
@@ -1376,13 +1375,13 @@ srv_printf_innodb_monitor(
 		srv_conc_get_waiting_threads());
 
 	/* This is a dirty read, without holding trx_sys->mutex. */
-	fprintf(file, "%lu read views open inside InnoDB\n",
+	fprintf(file, ULINTPF " read views open inside InnoDB\n",
 		trx_sys->mvcc->size());
 
 	n_reserved = fil_space_get_n_reserved_extents(0);
 	if (n_reserved > 0) {
 		fprintf(file,
-			"%lu tablespace extents now reserved for"
+			ULINTPF " tablespace extents now reserved for"
 			" B-tree split operations\n",
 			n_reserved);
 	}
@@ -1474,10 +1473,10 @@ srv_export_innodb_status(void)
 	mutex_enter(&srv_innodb_monitor_mutex);
 
 	export_vars.innodb_data_pending_reads =
-		os_n_pending_reads;
+		ulint(MONITOR_VALUE(MONITOR_OS_PENDING_READS));
 
 	export_vars.innodb_data_pending_writes =
-		os_n_pending_writes;
+		ulint(MONITOR_VALUE(MONITOR_OS_PENDING_READS));
 
 	export_vars.innodb_data_pending_fsyncs =
 		fil_n_pending_log_flushes
@@ -1940,8 +1939,8 @@ loop:
 			"WSREP: avoiding InnoDB self crash due to long "
 			"semaphore wait of  > %lu seconds\n"
 			"Server is processing SST donor operation, "
-			"fatal_cnt now: %lu",
-			(ulong) srv_fatal_semaphore_wait_threshold, fatal_cnt);
+			"fatal_cnt now: " ULINTPF,
+			srv_fatal_semaphore_wait_threshold, fatal_cnt);
 	  }
 #endif /* WITH_WSREP */
 		if (fatal_cnt > 10) {

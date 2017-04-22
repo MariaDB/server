@@ -1183,7 +1183,8 @@ bool st_select_lex_unit::exec()
   if (executed && !uncacheable && !describe)
     DBUG_RETURN(FALSE);
   executed= 1;
-  if (!(uncacheable & ~UNCACHEABLE_EXPLAIN) && item)
+  if (!(uncacheable & ~UNCACHEABLE_EXPLAIN) && item &&
+      !item->with_recursive_reference)
     item->make_const();
   
   saved_error= optimize();
@@ -1518,6 +1519,12 @@ bool st_select_lex_unit::exec_recursive()
     if (with_element->level == 1)
       rec_table->reginfo.join_tab->preread_init_done= true;  
   }
+  for (Item_subselect *sq= with_element->sq_with_rec_ref.first;
+       sq;
+       sq= sq->next_with_rec_ref)
+  {
+    sq->engine->force_reexecution();
+  }   
 
   thd->lex->current_select= lex_select_save;
 err:

@@ -742,14 +742,11 @@ failure:
 
 	if (!success) {
 		ib::error() << "Cannot continue operation. ib_logfiles are too"
-			" small for innodb_thread_concurrency "
+			" small for innodb_thread_concurrency="
 			<< srv_thread_concurrency << ". The combined size of"
 			" ib_logfiles should be bigger than"
-			" 200 kB * innodb_thread_concurrency. To get mysqld"
-			" to start up, set innodb_thread_concurrency in"
-			" my.cnf to a lower value, for example, to 8. After"
-			" an ERROR-FREE shutdown of mysqld you can adjust"
-			" the size of ib_logfiles. " << INNODB_PARAMETERS_MSG;
+			" 200 kB * innodb_thread_concurrency. "
+			<< INNODB_PARAMETERS_MSG;
 	}
 
 	return(success);

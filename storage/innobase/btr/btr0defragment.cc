@@ -233,7 +233,9 @@ btr_defragment_add_index(
 		return NULL;
 	}
 
-	if (btr_page_get_level(page, &mtr) == 0) {
+	ut_ad(page_is_root(page));
+
+	if (page_is_leaf(page)) {
 		// Index root is a leaf page, no need to defragment.
 		mtr_commit(&mtr);
 		return NULL;

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2011, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, MariaDB Corporation. All Rights reserved.
+Copyright (c) 2016, 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -2542,7 +2542,7 @@ fts_get_max_cache_size(
 {
 	dberr_t		error;
 	fts_string_t	value;
-	ulint		cache_size_in_mb;
+	ulong		cache_size_in_mb;
 
 	/* Set to the default value. */
 	cache_size_in_mb = FTS_CACHE_SIZE_LOWER_LIMIT_IN_MB;

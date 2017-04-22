@@ -118,6 +118,9 @@ public:
     stage and is used at the execution stage.
   */
   select_union_recursive *rec_result;
+ 
+  /* List of Item_subselects containing recursive references to this CTE */
+  SQL_I_List<Item_subselect> sq_with_rec_ref; 
 
   With_element(LEX_STRING *name,
                List <LEX_STRING> list,

@@ -109,7 +109,7 @@ ALTER TABLE t2 DISCARD TABLESPACE;
 # List after t2 DISCARD
 t2.frm
 ALTER TABLE t2 IMPORT TABLESPACE;
-ERROR HY000: Schema mismatch (Table flags don't match, server table has 0x4 and the meta-data file has 0x1)
+ERROR HY000: Schema mismatch (Table flags don't match, server table has 0x21 and the meta-data file has 0x1)
 ALTER TABLE t2 IMPORT TABLESPACE;
 ERROR HY000: Schema mismatch (Expected FSP_SPACE_FLAGS=0x*, .ibd file contains 0x*.)
 DROP TABLE t2;
@@ -589,7 +589,7 @@ SELECT * FROM t1;
 ERROR HY000: Tablespace has been discarded for table `t1`
 restore: t1 .ibd and .cfg files
 ALTER TABLE t1 IMPORT TABLESPACE;
-ERROR HY000: Schema mismatch (Table flags don't match, server table has 0x5 and the meta-data file has 0x0)
+ERROR HY000: Schema mismatch (Table flags don't match, server table has 0x1 and the meta-data file has 0x0)
 unlink: t1.ibd
 unlink: t1.cfg
 DROP TABLE t1;
@@ -601,7 +601,7 @@ SELECT * FROM t1;
 ERROR HY000: Tablespace has been discarded for table `t1`
 restore: t1 .ibd and .cfg files
 ALTER TABLE t1 IMPORT TABLESPACE;
-ERROR HY000: Schema mismatch (Table flags don't match, server table has 0x5 and the meta-data file has 0x0)
+ERROR HY000: Schema mismatch (Table flags don't match, server table has 0x21 and the meta-data file has 0x0)
 unlink: t1.ibd
 unlink: t1.cfg
 DROP TABLE t1;
@@ -775,7 +775,7 @@ SELECT * FROM t1;
 ERROR HY000: Tablespace has been discarded for table `t1`
 restore: t1 .ibd and .cfg files
 ALTER TABLE t1 IMPORT TABLESPACE;
-ERROR HY000: Schema mismatch (Table flags don't match, server table has 0x5 and the meta-data file has 0x1)
+ERROR HY000: Schema mismatch (Table flags don't match, server table has 0x0 and the meta-data file has 0x1)
 unlink: t1.ibd
 unlink: t1.cfg
 DROP TABLE t1;
@@ -787,7 +787,7 @@ SELECT * FROM t1;
 ERROR HY000: Tablespace has been discarded for table `t1`
 restore: t1 .ibd and .cfg files
 ALTER TABLE t1 IMPORT TABLESPACE;
-ERROR HY000: Schema mismatch (Table flags don't match, server table has 0x5 and the meta-data file has 0x1)
+ERROR HY000: Schema mismatch (Table flags don't match, server table has 0x21 and the meta-data file has 0x1)
 unlink: t1.ibd
 unlink: t1.cfg
 DROP TABLE t1;
@@ -964,7 +964,7 @@ SELECT * FROM t1;
 ERROR HY000: Tablespace has been discarded for table `t1`
 restore: t1 .ibd and .cfg files
 ALTER TABLE t1 IMPORT TABLESPACE;
-ERROR HY000: Schema mismatch (Table flags don't match, server table has 0x5 and the meta-data file has 0x21)
+ERROR HY000: Schema mismatch (Table flags don't match, server table has 0x1 and the meta-data file has 0x21)
 unlink: t1.ibd
 unlink: t1.cfg
 DROP TABLE t1;
@@ -976,7 +976,7 @@ SELECT * FROM t1;
 ERROR HY000: Tablespace has been discarded for table `t1`
 restore: t1 .ibd and .cfg files
 ALTER TABLE t1 IMPORT TABLESPACE;
-ERROR HY000: Schema mismatch (Table flags don't match, server table has 0x5 and the meta-data file has 0x21)
+ERROR HY000: Schema mismatch (Table flags don't match, server table has 0x0 and the meta-data file has 0x21)
 unlink: t1.ibd
 unlink: t1.cfg
 DROP TABLE t1;

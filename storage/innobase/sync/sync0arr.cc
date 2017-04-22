@@ -587,12 +587,13 @@ sync_array_cell_print(
 			}
 
 			fprintf(file,
-				"number of readers %lu, waiters flag %lu,"
-				" lock_word: %lx\n"
+				"number of readers " ULINTPF
+				", waiters flag %u, "
+				"lock_word: " ULINTPFx "\n"
 				"Last time read locked in file %s line %u\n"
 				"Last time write locked in file %s line %u\n",
-				(ulint) rw_lock_get_reader_count(rwlock),
-				(ulint) rwlock->waiters,
+				rw_lock_get_reader_count(rwlock),
+				rwlock->waiters,
 				rwlock->lock_word,
 				innobase_basename(rwlock->last_s_file_name),
 				rwlock->last_s_line,
@@ -1093,9 +1094,10 @@ sync_array_print_long_waits(
 		now the values of pending calls of these. */
 
 		fprintf(stderr,
-			"InnoDB: Pending preads %lu, pwrites %lu\n",
-			(ulong) os_n_pending_reads,
-			(ulong) os_n_pending_writes);
+			"InnoDB: Pending reads " UINT64PF
+			", writes " UINT64PF "\n",
+			MONITOR_VALUE(MONITOR_OS_PENDING_READS),
+			MONITOR_VALUE(MONITOR_OS_PENDING_WRITES));
 
 		srv_print_innodb_monitor = TRUE;
 

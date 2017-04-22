@@ -40,6 +40,7 @@
 #include "set_var.h"
 #include "sql_select.h"
 #include "sql_parse.h"                          // check_stack_overrun
+#include "sql_cte.h"
 #include "sql_test.h"
 
 double get_post_group_estimate(JOIN* join, double join_op_rows);
@@ -312,7 +313,8 @@ bool Item_subselect::fix_fields(THD *thd_param, Item **ref)
   else
     goto end;
   
-  if ((uncacheable= engine->uncacheable() & ~UNCACHEABLE_EXPLAIN))
+  if ((uncacheable= engine->uncacheable() & ~UNCACHEABLE_EXPLAIN) ||
+      with_recursive_reference)
   {
     const_item_cache= 0;
     if (uncacheable & UNCACHEABLE_RAND)
@@ -917,7 +919,7 @@ table_map Item_subselect::used_tables() const
 bool Item_subselect::const_item() const
 {
   DBUG_ASSERT(thd);
-  return (thd->lex->context_analysis_only ?
+  return (thd->lex->context_analysis_only || with_recursive_reference ?
           FALSE :
           forced_const || const_item_cache);
 }
@@ -937,7 +939,8 @@ void Item_subselect::update_used_tables()
     if (!(engine->uncacheable() & ~UNCACHEABLE_EXPLAIN))
     {
       // did all used tables become static?
-      if (!(used_tables_cache & ~engine->upper_select_const_tables()))
+      if (!(used_tables_cache & ~engine->upper_select_const_tables()) &&
+          ! with_recursive_reference)
         const_item_cache= 1;
     }
   }
@@ -1740,7 +1743,7 @@ bool Item_in_subselect::val_bool()
   if (forced_const)
     return value;
   DBUG_ASSERT((engine->uncacheable() & ~UNCACHEABLE_EXPLAIN) ||
-              ! engine->is_executed());
+              ! engine->is_executed() || with_recursive_reference);
   null_value= was_null= FALSE;
   if (exec())
   {
@@ -2833,7 +2836,8 @@ bool Item_exists_subselect::exists2in_processor(void *opt_arg)
       join->having ||
       first_select->with_sum_func ||
       !first_select->leaf_tables.elements||
-      !join->conds)
+      !join->conds ||
+      with_recursive_reference)
     DBUG_RETURN(FALSE);
 
   DBUG_ASSERT(first_select->order_list.elements == 0 &&
@@ -3485,6 +3489,11 @@ int subselect_single_select_engine::get_identifier()
   return select_lex->select_number; 
 }
 
+void subselect_single_select_engine::force_reexecution()
+{ 
+  executed= false;
+}
+
 void subselect_single_select_engine::cleanup()
 {
   DBUG_ENTER("subselect_single_select_engine::cleanup");
@@ -3511,6 +3520,11 @@ void subselect_union_engine::cleanup()
 bool subselect_union_engine::is_executed() const
 {
   return unit->executed;
+}
+
+void subselect_union_engine::force_reexecution()
+{ 
+  unit->executed= false;
 }
 
 
@@ -3829,7 +3843,8 @@ int subselect_single_select_engine::exec()
       tab->read_record.read_record= tab->save_read_record;
     }
     executed= 1;
-    if (!(uncacheable() & ~UNCACHEABLE_EXPLAIN))
+    if (!(uncacheable() & ~UNCACHEABLE_EXPLAIN) &&
+        !item->with_recursive_reference)
       item->make_const();
     thd->where= save_where;
     thd->lex->current_select= save_select;
@@ -6673,6 +6688,13 @@ end:
 
 void subselect_table_scan_engine::cleanup()
 {
+}
+
+
+void Item_subselect::register_as_with_rec_ref(With_element *with_elem)
+{
+  with_elem->sq_with_rec_ref.link_in_list(this, &this->next_with_rec_ref);
+  with_recursive_reference= true;
 }
 
 

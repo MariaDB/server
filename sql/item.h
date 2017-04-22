@@ -1463,6 +1463,7 @@ public:
   /*========= Item processors, to be used with Item::walk() ========*/
   virtual bool remove_dependence_processor(void *arg) { return 0; }
   virtual bool cleanup_processor(void *arg);
+  virtual bool cleanup_excluding_fields_processor(void *arg) { return cleanup_processor(arg); }
   virtual bool cleanup_excluding_const_fields_processor(void *arg) { return cleanup_processor(arg); }
   virtual bool collect_item_field_processor(void *arg) { return 0; }
   virtual bool collect_outer_ref_processor(void *arg) {return 0; }
@@ -2726,6 +2727,11 @@ public:
   bool check_vcol_func_processor(void *arg)
   {
     context= 0;
+    if (field && (field->unireg_check == Field::NEXT_NUMBER))
+    {
+      // Auto increment fields are unsupported
+      return mark_unsupported_function(field_name, arg, VCOL_FIELD_REF | VCOL_AUTO_INC);
+    }
     return mark_unsupported_function(field_name, arg, VCOL_FIELD_REF);
   }
   void cleanup();
@@ -2744,6 +2750,8 @@ public:
   virtual void print(String *str, enum_query_type query_type);
   bool exclusive_dependence_on_table_processor(void *map);
   bool exclusive_dependence_on_grouping_fields_processor(void *arg);
+  bool cleanup_excluding_fields_processor(void *arg)
+  { return field ? 0 : cleanup_processor(arg); }
   bool cleanup_excluding_const_fields_processor(void *arg)
   { return field && const_item() ? 0 : cleanup_processor(arg); }
   
@@ -4407,6 +4415,14 @@ public:
   { return depended_from != NULL; }
   bool exclusive_dependence_on_grouping_fields_processor(void *arg)
   { return depended_from != NULL; }
+  bool cleanup_excluding_fields_processor(void *arg)
+  {
+    Item *item= real_item();
+    if (item && item->type() == FIELD_ITEM &&
+        ((Item_field *)item)->field)
+      return 0;
+    return cleanup_processor(arg);
+  }
   bool cleanup_excluding_const_fields_processor(void *arg)
   { 
     Item *item= real_item();
@@ -5545,7 +5561,25 @@ public:
   }
   bool check_vcol_func_processor(void *arg) 
   {
+    if (example)
+    {
+      Item::vcol_func_processor_result *res= (Item::vcol_func_processor_result*)arg;
+      example->check_vcol_func_processor(arg);
+      if (res->errors & VCOL_NOT_STRICTLY_DETERMINISTIC)
+        res->errors|= VCOL_SESSION_FUNC;
+      return false;
+    }
     return mark_unsupported_function("cache", arg, VCOL_IMPOSSIBLE);
+  }
+  bool cleanup_excluding_fields_processor(void* arg)
+  {
+    cleanup();
+    return 0;
+  }
+  void cleanup()
+  {
+    clear();
+    Item_basic_constant::cleanup();
   }
   /**
      Check if saved item has a non-NULL value.

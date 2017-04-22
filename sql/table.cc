@@ -1973,6 +1973,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
         unireg_check == Field::TIMESTAMP_DN_FIELD)
     {
       reg_field->default_value= new (&share->mem_root) Virtual_column_info();
+      reg_field->default_value->set_vcol_type(VCOL_DEFAULT);
       reg_field->default_value->stored_in_db= 1;
       share->default_expressions++;
     }
@@ -2372,6 +2373,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
 
       if (!(vcol_info=   new (&share->mem_root) Virtual_column_info()))
         goto err;
+
       /* The following can only be true for check_constraints */
 
       if (field_nr != UINT_MAX16)
@@ -2381,6 +2383,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
       }
 
       vcol_screen_pos+= FRM_VCOL_NEW_HEADER_SIZE;
+      vcol_info->set_vcol_type((enum_vcol_info_type) type);
       vcol_info->name.length= name_length;
       if (name_length)
         vcol_info->name.str= strmake_root(&share->mem_root,
@@ -2734,7 +2737,7 @@ bool fix_session_vcol_expr(THD *thd, Virtual_column_info *vcol)
   if (!(vcol->flags & (VCOL_TIME_FUNC|VCOL_SESSION_FUNC)))
     DBUG_RETURN(0);
 
-  vcol->expr->cleanup();
+  vcol->expr->walk(&Item::cleanup_excluding_fields_processor, 0, 0);
   DBUG_ASSERT(!vcol->expr->fixed);
   DBUG_RETURN(fix_vcol_expr(thd, vcol));
 }
@@ -2818,9 +2821,24 @@ static bool fix_and_check_vcol_expr(THD *thd, TABLE *table,
 
   int error= func_expr->walk(&Item::check_vcol_func_processor, 0, &res);
   if (error || (res.errors & VCOL_IMPOSSIBLE))
-  { // this can only happen if the frm was corrupted
+  {
+    // this can only happen if the frm was corrupted
     my_error(ER_VIRTUAL_COLUMN_FUNCTION_IS_NOT_ALLOWED, MYF(0), res.name,
-             "???", "?????");
+             vcol->get_vcol_type_name(), vcol->name.str);
+    DBUG_RETURN(1);
+  }
+  else if (res.errors & VCOL_AUTO_INC)
+  {
+    /*
+      An auto_increment field may not be used in an expression for
+      a check constraint, a default value or a generated column
+
+      Note that this error condition is not detected during parsing
+      of the statement because the field item does not have a field
+      pointer at that time
+    */
+    my_error(ER_VIRTUAL_COLUMN_FUNCTION_IS_NOT_ALLOWED, MYF(0),
+             "AUTO_INCREMENT", vcol->get_vcol_type_name(), res.name);
     DBUG_RETURN(1);
   }
   vcol->flags= res.errors;
@@ -2891,6 +2909,7 @@ unpack_vcol_info_from_frm(THD *thd, MEM_ROOT *mem_root, TABLE *table,
   if (error)
     goto end;
 
+  vcol_storage.vcol_info->set_vcol_type(vcol->get_vcol_type());
   vcol_storage.vcol_info->stored_in_db=      vcol->stored_in_db;
   vcol_storage.vcol_info->name=              vcol->name;
   vcol_storage.vcol_info->utf8=              vcol->utf8;

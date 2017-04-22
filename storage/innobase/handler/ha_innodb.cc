@@ -2297,7 +2297,8 @@ innobase_get_cset_width(
 			if (cset != 0) {
 
 				sql_print_warning(
-					"Unknown collation #%lu.", cset);
+					"Unknown collation #" ULINTPF ".",
+					cset);
 			}
 		} else {
 
@@ -4212,9 +4213,8 @@ innobase_change_buffering_inited_ok:
 	} else if (srv_max_io_capacity < srv_io_capacity) {
 		sql_print_warning("InnoDB: innodb_io_capacity"
 				  " cannot be set higher than"
-				  " innodb_io_capacity_max.\n"
-				  "InnoDB: Setting"
-				  " innodb_io_capacity to %lu\n",
+				  " innodb_io_capacity_max."
+				  "Setting innodb_io_capacity=%lu",
 				  srv_max_io_capacity);
 
 		srv_io_capacity = srv_max_io_capacity;
@@ -6273,9 +6273,10 @@ innobase_build_index_translation(
 		if (index_mapping == NULL) {
 			/* Report an error if index_mapping continues to be
 			NULL and mysql_num_index is a non-zero value */
-			sql_print_error("InnoDB: fail to allocate memory for"
-					" index translation table. Number of"
-					" Index:%lu, array size:%lu",
+			sql_print_error("InnoDB: fail to allocate memory for "
+					"index translation table. Number of "
+					"Index: " ULINTPF
+					", array size:" ULINTPF,
 					mysql_num_index,
 					share->idx_trans_tbl.array_size);
 			ret = false;
@@ -6784,9 +6785,9 @@ ha_innobase::open(
 
 		if (key_used_on_scan != MAX_KEY) {
 			sql_print_warning(
-				"Table %s key_used_on_scan is %lu even"
-				" though there is no primary key inside"
-				" InnoDB.", name, (ulong) key_used_on_scan);
+				"Table %s key_used_on_scan is %u even "
+				"though there is no primary key inside "
+				"InnoDB.", name, key_used_on_scan);
 		}
 	}
 
@@ -11030,7 +11031,8 @@ wsrep_append_foreign_key(
 
 	if (rcode != DB_SUCCESS) {
 		WSREP_ERROR(
-			"FK key set failed: %lu (%lu %lu), index: %s %s, %s",
+			"FK key set failed: " ULINTPF
+			" (" ULINTPF " " ULINTPF "), index: %s %s, %s",
 			rcode, referenced, shared,
 			(index)       ? index->name() : "void index",
 			(index && index->table) ? index->table->name.m_name :
@@ -11092,8 +11094,9 @@ wsrep_append_foreign_key(
                 copy);
 
 	if (rcode) {
-		DBUG_PRINT("wsrep", ("row key failed: %lu", rcode));
-		WSREP_ERROR("Appending cascaded fk row key failed: %s, %lu",
+		DBUG_PRINT("wsrep", ("row key failed: " ULINTPF, rcode));
+		WSREP_ERROR("Appending cascaded fk row key failed: %s, "
+			    ULINTPF,
 			    (wsrep_thd_query(thd)) ?
 			    wsrep_thd_query(thd) : "void", rcode);
 		return DB_ERROR;
@@ -11372,13 +11375,7 @@ ha_innobase::position(
 		len = key_info->key_length;
 	}
 
-	/* We assume that the 'ref' value len is always fixed for the same
-	table. */
-
-	if (len != ref_length) {
-		sql_print_error("Stored ref len is %lu, but table ref len is"
-				" %lu", (ulong) len, (ulong) ref_length);
-	}
+	ut_ad(len == ref_length);
 }
 
 /*****************************************************************//**
@@ -11714,8 +11711,8 @@ create_table_info_t::create_table_def()
 					ER_CANT_CREATE_TABLE,
 					"In InnoDB, charset-collation codes"
 					" must be below 256."
-					" Unsupported code %lu.",
-					(ulong) charset_no);
+					" Unsupported code " ULINTPF ".",
+					charset_no);
 				mem_heap_free(heap);
 				dict_mem_table_free(table);
 
@@ -12236,7 +12233,7 @@ create_table_info_t::create_options_are_invalid()
 			push_warning_printf(
 				m_thd, Sql_condition::WARN_LEVEL_WARN,
 				ER_ILLEGAL_HA_CREATE_OPTION,
-				"InnoDB: invalid KEY_BLOCK_SIZE = %lu."
+				"InnoDB: invalid KEY_BLOCK_SIZE = %u."
 				" Valid values are [1, 2, 4, 8, 16]",
 				m_create_info->key_block_size);
 			ret = "KEY_BLOCK_SIZE";
@@ -12727,7 +12724,7 @@ index_bad:
 			push_warning_printf(
 				m_thd, Sql_condition::WARN_LEVEL_WARN,
 				ER_ILLEGAL_HA_CREATE_OPTION,
-				"InnoDB: ignoring KEY_BLOCK_SIZE=%lu.",
+				"InnoDB: ignoring KEY_BLOCK_SIZE=%u.",
 				m_create_info->key_block_size);
 		}
 	}
@@ -12749,7 +12746,7 @@ index_bad:
 			push_warning_printf(
 				m_thd, Sql_condition::WARN_LEVEL_WARN,
 				ER_ILLEGAL_HA_CREATE_OPTION,
-				"InnoDB: ignoring KEY_BLOCK_SIZE=%lu"
+				"InnoDB: ignoring KEY_BLOCK_SIZE=%u"
 				" unless ROW_FORMAT=COMPRESSED.",
 				m_create_info->key_block_size);
 			zip_allowed = false;
@@ -15044,15 +15041,14 @@ ha_innobase::info_low(
 
 				if (j + 1 > index->n_uniq) {
 					sql_print_error(
-						"Index %s of %s has %lu columns"
-						" unique inside InnoDB, but"
-						" MariaDB is asking statistics for"
-						" %lu columns. Have you mixed"
-						" up .frm files from different"
+						"Index %s of %s has %u columns"
+					        " unique inside InnoDB, but "
+						"MySQL is asking statistics for"
+					        " %lu columns. Have you mixed "
+						"up .frm files from different "
 						" installations? %s",
 						index->name(),
 						ib_table->name.m_name,
-						(unsigned long)
 						index->n_uniq, j + 1,
 						TROUBLESHOOTING_MSG);
 					break;
@@ -15582,11 +15578,9 @@ ha_innobase::check(
 			push_warning_printf(
 				thd, Sql_condition::WARN_LEVEL_WARN,
 				ER_NOT_KEYFILE,
-				"InnoDB: Index '%-.200s' contains %lu"
-				" entries, should be %lu.",
-				index->name(),
-				(ulong) n_rows,
-				(ulong) n_rows_in_table);
+				"InnoDB: Index '%-.200s' contains " ULINTPF
+				" entries, should be " ULINTPF ".",
+				index->name(), n_rows, n_rows_in_table);
 			is_ok = false;
 			dict_set_corrupted(
 				index, m_prebuilt->trx,
@@ -17031,16 +17025,16 @@ innodb_show_rwlock_status(
 		}
 
 		buf1len = ut_snprintf(
-			buf1, sizeof buf1, "rwlock: %s:%lu",
+			buf1, sizeof buf1, "rwlock: %s:%u",
 			innobase_basename(rw_lock->cfile_name),
-			static_cast<ulong>(rw_lock->cline));
+			rw_lock->cline);
 
 		int		buf2len;
 		char		buf2[IO_SIZE];
 
 		buf2len = ut_snprintf(
-			buf2, sizeof buf2, "waits=%lu",
-			static_cast<ulong>(rw_lock->count_os_wait));
+			buf2, sizeof buf2, "waits=%u",
+			rw_lock->count_os_wait);
 
 		if (stat_print(thd, innobase_hton_name,
 			       hton_name_len,
@@ -17059,16 +17053,16 @@ innodb_show_rwlock_status(
 		char		buf1[IO_SIZE];
 
 		buf1len = ut_snprintf(
-			buf1, sizeof buf1, "sum rwlock: %s:%lu",
+			buf1, sizeof buf1, "sum rwlock: %s:%u",
 			innobase_basename(block_rwlock->cfile_name),
-			static_cast<ulong>(block_rwlock->cline));
+			block_rwlock->cline);
 
 		int		buf2len;
 		char		buf2[IO_SIZE];
 
 		buf2len = ut_snprintf(
-			buf2, sizeof buf2, "waits=%lu",
-			static_cast<ulong>(block_rwlock_oswait_count));
+			buf2, sizeof buf2, "waits=" ULINTPF,
+			block_rwlock_oswait_count);
 
 		if (stat_print(thd, innobase_hton_name,
 			       hton_name_len,
@@ -20282,9 +20276,9 @@ wsrep_innobase_kill_one_trx(
 
 	WSREP_LOG_CONFLICT(bf_thd, thd, TRUE);
 
-	WSREP_DEBUG("BF kill (%lu, seqno: %lld), victim: (%lu) trx: "
-		    TRX_ID_FMT,
- 		    signal, (long long)bf_seqno,
+	WSREP_DEBUG("BF kill (" ULINTPF ", seqno: " INT64PF
+		    "), victim: (%lu) trx: " TRX_ID_FMT,
+		    signal, bf_seqno,
 		    thd_get_thread_id(thd),
 		    victim_trx->id);
 
@@ -22725,7 +22719,8 @@ ib_warn_row_too_big(const dict_table_t*	table)
 
 	push_warning_printf(
 		thd, Sql_condition::WARN_LEVEL_WARN, HA_ERR_TO_BIG_ROW,
-		"Row size too large (> %lu). Changing some columns to TEXT"
+		"Row size too large (> " ULINTPF ")."
+		" Changing some columns to TEXT"
 		" or BLOB %smay help. In current row format, BLOB prefix of"
 		" %d bytes is stored inline.", free_space
 		, prefix ? "or using ROW_FORMAT=DYNAMIC or"
@@ -23070,7 +23065,7 @@ ib_push_frm_error(
 		break;
 
 	case DICT_FRM_INCONSISTENT_KEYS:
-		sql_print_error("InnoDB: Table %s contains %lu "
+		sql_print_error("InnoDB: Table %s contains " ULINTPF " "
 			"indexes inside InnoDB, which "
 			"is different from the number of "
 			"indexes %u defined in the MariaDB "
@@ -23085,7 +23080,7 @@ ib_push_frm_error(
 		if (push_warning) {
 			push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
 				ER_NO_SUCH_INDEX,
-				"InnoDB: Table %s contains %lu "
+				"InnoDB: Table %s contains " ULINTPF " "
 				"indexes inside InnoDB, which "
 				"is different from the number of "
 				"indexes %u defined in the MariaDB ",

@@ -6597,7 +6597,7 @@ dict_table_schema_check(
 	if ((ulint) table->n_def - n_sys_cols != req_schema->n_cols) {
 		/* the table has a different number of columns than required */
 		ut_snprintf(errstr, errstr_sz,
-			    "%s has %lu columns but should have %lu.",
+			    "%s has %lu columns but should have " ULINTPF ".",
 			    ut_format_name(req_schema->table_name,
 					   buf, sizeof(buf)),
 			    table->n_def - n_sys_cols,
@@ -6695,7 +6695,7 @@ dict_table_schema_check(
 		ut_snprintf(
 			errstr, errstr_sz,
 			"Table %s has " ULINTPF " foreign key(s) pointing"
-			" to other tables, but it must have %lu.",
+			" to other tables, but it must have " ULINTPF ".",
 			ut_format_name(req_schema->table_name,
 				       buf, sizeof(buf)),
 			static_cast<ulint>(table->foreign_set.size()),
@@ -6707,7 +6707,7 @@ dict_table_schema_check(
 		ut_snprintf(
 			errstr, errstr_sz,
 			"There are " ULINTPF " foreign key(s) pointing to %s, "
-			"but there must be %lu.",
+			"but there must be " ULINTPF ".",
 			static_cast<ulint>(table->referenced_set.size()),
 			ut_format_name(req_schema->table_name,
 				       buf, sizeof(buf)),
@@ -6747,7 +6747,7 @@ dict_fs2utf8(
 
 	strconvert(
 		&my_charset_filename, db, db_len, system_charset_info,
-		db_utf8, db_utf8_size, &errors);
+		db_utf8, uint(db_utf8_size), &errors);
 
 	/* convert each # to @0023 in table name and store the result in buf */
 	const char*	table = dict_remove_db_name(db_and_table);
@@ -6774,7 +6774,7 @@ dict_fs2utf8(
 	strconvert(
 		&my_charset_filename, buf, (uint) (buf_p - buf),
 		system_charset_info,
-		table_utf8, table_utf8_size,
+		table_utf8, uint(table_utf8_size),
 		&errors);
 
 	if (errors != 0) {

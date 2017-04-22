@@ -48,8 +48,6 @@ yylex(void);
 %token PARS_INT_LIT
 %token PARS_FLOAT_LIT
 %token PARS_STR_LIT
-%token PARS_FIXBINARY_LIT
-%token PARS_BLOB_LIT
 %token PARS_NULL_LIT
 %token PARS_ID_TOKEN
 %token PARS_AND_TOKEN
@@ -64,7 +62,6 @@ yylex(void);
 %token PARS_BINARY_TOKEN
 %token PARS_BLOB_TOKEN
 %token PARS_INT_TOKEN
-%token PARS_INTEGER_TOKEN
 %token PARS_FLOAT_TOKEN
 %token PARS_CHAR_TOKEN
 %token PARS_IS_TOKEN
@@ -200,8 +197,6 @@ exp:
 	| PARS_INT_LIT		{ $$ = $1;}
 	| PARS_FLOAT_LIT	{ $$ = $1;}
 	| PARS_STR_LIT		{ $$ = $1;}
-	| PARS_FIXBINARY_LIT	{ $$ = $1;}
-	| PARS_BLOB_LIT		{ $$ = $1;}
 	| PARS_NULL_LIT		{ $$ = $1;}
 	| PARS_SQL_TOKEN	{ $$ = $1;}
 	| exp '+' exp        	{ $$ = pars_op('+', $1, $3); }
@@ -645,7 +640,6 @@ rollback_statement:
 
 type_name:
 	PARS_INT_TOKEN		{ $$ = &pars_int_token; }
-	| PARS_INTEGER_TOKEN	{ $$ = &pars_int_token; }
 	| PARS_BIGINT_TOKEN	{ $$ = &pars_bigint_token; }
 	| PARS_CHAR_TOKEN	{ $$ = &pars_char_token; }
 	| PARS_BINARY_TOKEN	{ $$ = &pars_binary_token; }

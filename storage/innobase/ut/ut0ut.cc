@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -214,14 +215,14 @@ ut_print_timestamp(
 
 	GetLocalTime(&cal_tm);
 
-	fprintf(file, "%d-%02d-%02d %02d:%02d:%02d %#llx",
+	fprintf(file, "%d-%02d-%02d %02d:%02d:%02d %#zx",
 		(int) cal_tm.wYear,
 		(int) cal_tm.wMonth,
 		(int) cal_tm.wDay,
 		(int) cal_tm.wHour,
 		(int) cal_tm.wMinute,
 		(int) cal_tm.wSecond,
-		static_cast<ulonglong>(thread_id));
+		thread_id);
 #else
 	struct tm* cal_tm_ptr;
 	time_t	   tm;
@@ -230,7 +231,7 @@ ut_print_timestamp(
 	time(&tm);
 	localtime_r(&tm, &cal_tm);
 	cal_tm_ptr = &cal_tm;
-	fprintf(file, "%d-%02d-%02d %02d:%02d:%02d %#lx",
+	fprintf(file, "%d-%02d-%02d %02d:%02d:%02d %#zx",
 		cal_tm_ptr->tm_year + 1900,
 		cal_tm_ptr->tm_mon + 1,
 		cal_tm_ptr->tm_mday,
@@ -323,7 +324,7 @@ ut_print_buf(
 	fprintf(file, " len " ULINTPF "; hex ", len);
 
 	for (data = (const byte*) buf, i = 0; i < len; i++) {
-		fprintf(file, "%02lx", static_cast<ulong>(*data++));
+		fprintf(file, "%02x", *data++);
 	}
 
 	fputs("; asc ", file);

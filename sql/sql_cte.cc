@@ -1229,6 +1229,7 @@ bool st_select_lex::check_subqueries_with_recursive_references()
 	continue;
       Item_subselect *subq= (Item_subselect *) sl_master->item;
       subq->with_recursive_reference= true;
+      subq->register_as_with_rec_ref(tbl->with);
     }
   }
   return false;

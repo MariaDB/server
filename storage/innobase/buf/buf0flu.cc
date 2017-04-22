@@ -1006,11 +1006,16 @@ buf_flush_write_block_low(
 	buf_flush_t	flush_type,	/*!< in: type of flush */
 	bool		sync)		/*!< in: true if sync IO request */
 {
+	fil_space_t*	space = fil_space_acquire(bpage->id.space(), true);
+	if (!space) {
+		return;
+	}
+	ut_ad(space->purpose == FIL_TYPE_TEMPORARY
+	      || space->purpose == FIL_TYPE_IMPORT
+	      || space->purpose == FIL_TYPE_TABLESPACE);
+	const bool	is_temp = space->purpose == FIL_TYPE_TEMPORARY;
+	ut_ad(is_temp == fsp_is_system_temporary(space->id));
 	page_t*	frame = NULL;
-	ulint space_id = bpage->id.space();
-	const bool is_temp = fsp_is_system_temporary(space_id);
-	bool atomic_writes = is_temp || fil_space_get_atomic_writes(space_id);
-
 #ifdef UNIV_DEBUG
 	buf_pool_t*	buf_pool = buf_pool_from_bpage(bpage);
 	ut_ad(!buf_pool_mutex_own(buf_pool));
@@ -1076,28 +1081,27 @@ buf_flush_write_block_low(
 		break;
 	}
 
-	frame = buf_page_encrypt_before_write(bpage, frame, space_id);
+	frame = buf_page_encrypt_before_write(space, bpage, frame);
 
 	/* Disable use of double-write buffer for temporary tablespace.
 	Given the nature and load of temporary tablespace doublewrite buffer
 	adds an overhead during flushing. */
 
-	if (!srv_use_doublewrite_buf
-	    || buf_dblwr == NULL
-	    || srv_read_only_mode
-	    || atomic_writes) {
-
-		ut_ad(!srv_read_only_mode
-		      || fsp_is_system_temporary(bpage->id.space()));
+	if (is_temp || space->atomic_write_supported
+	    || !srv_use_doublewrite_buf
+	    || buf_dblwr == NULL) {
 
 		ulint	type = IORequest::WRITE | IORequest::DO_NOT_WAKE;
 
 		IORequest	request(type, bpage);
 
+		/* TODO: pass the tablespace to fil_io() */
 		fil_io(request,
 		       sync, bpage->id, bpage->size, 0, bpage->size.physical(),
-			frame, bpage);
+		       frame, bpage);
 	} else {
+		ut_ad(!srv_read_only_mode);
+
 		if (flush_type == BUF_FLUSH_SINGLE_PAGE) {
 			buf_dblwr_write_single_page(bpage, sync);
 		} else {
@@ -1111,12 +1115,16 @@ buf_flush_write_block_low(
 	are working on. */
 	if (sync) {
 		ut_ad(flush_type == BUF_FLUSH_SINGLE_PAGE);
-		fil_flush(bpage->id.space());
+		if (!is_temp) {
+			fil_flush(space);
+		}
 
 		/* true means we want to evict this page from the
 		LRU list as well. */
 		buf_page_io_complete(bpage, true);
 	}
+
+	fil_space_release(space);
 
 	/* Increment the counter of I/O operations used
 	for selecting LRU policy. */

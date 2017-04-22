@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2007, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -349,7 +350,7 @@ fts_config_set_index_ulint(
 	ut_a(FTS_MAX_INT_LEN < FTS_MAX_CONFIG_VALUE_LEN);
 
 	value.f_len = ut_snprintf(
-		(char*) value.f_str, FTS_MAX_INT_LEN, "%lu", int_value);
+		(char*) value.f_str, FTS_MAX_INT_LEN, ULINTPF, int_value);
 
 	error = fts_config_set_index_value(trx, index, name, &value);
 
@@ -422,7 +423,7 @@ fts_config_set_ulint(
 	ut_a(FTS_MAX_INT_LEN < FTS_MAX_CONFIG_VALUE_LEN);
 
 	value.f_len = my_snprintf(
-		(char*) value.f_str, FTS_MAX_INT_LEN, "%lu", int_value);
+		(char*) value.f_str, FTS_MAX_INT_LEN, ULINTPF, int_value);
 
 	error = fts_config_set_value(trx, fts_table, name, &value);
 
@@ -435,4 +436,3 @@ fts_config_set_ulint(
 
 	return(error);
 }
-

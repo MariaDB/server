@@ -837,6 +837,9 @@ rtr_split_page_move_rec_list(
 	ulint			max_to_move	= 0;
 	rtr_rec_move_t*		rec_move	= NULL;
 
+	ut_ad(!dict_index_is_ibuf(index));
+	ut_ad(dict_index_is_spatial(index));
+
 	rec_offs_init(offsets_);
 
 	page_cur_set_before_first(block, &page_cursor);
@@ -907,8 +910,7 @@ rtr_split_page_move_rec_list(
 	same temp-table in parallel.
 	max_trx_id is ignored for temp tables because it not required
 	for MVCC. */
-	if (dict_index_is_sec_or_ibuf(index)
-	    && page_is_leaf(page)
+	if (page_is_leaf(page)
 	    && !dict_table_is_temporary(index->table)) {
 		page_update_max_trx_id(new_block, NULL,
 				       page_get_max_trx_id(page),
