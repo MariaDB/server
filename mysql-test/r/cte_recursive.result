@@ -2759,3 +2759,15 @@ set standard_compliant_cte=default;
 select @@standard_compliant_cte;
 @@standard_compliant_cte
 1
+#
+# mdev-12554: impossible where in recursive select 
+#             
+CREATE TABLE t1 (i int);
+INSERT INTO t1 VALUES (1),(2);
+WITH RECURSIVE
+cte(f) AS ( SELECT i FROM t1 UNION SELECT f FROM t1, cte WHERE 1=0 )
+SELECT * FROM cte;
+f
+1
+2
+DROP TABLE t1;
