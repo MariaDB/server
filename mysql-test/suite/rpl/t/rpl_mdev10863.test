@@ -99,6 +99,7 @@ SET GLOBAL max_relay_log_size= @old_max_relay;
 --source include/start_slave.inc
 
 --connection server_1
+ALTER TABLE mysql.gtid_slave_pos ENGINE=MyISAM;
 DROP TABLE t1;
 
 --source include/rpl_end.inc
