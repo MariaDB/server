@@ -833,7 +833,7 @@ bool Table_triggers_list::create_trigger(THD *thd, TABLE_LIST *tables,
     }
     else if (lex->create_info.if_not_exists())
     {
-      strxnmov(trigname_buff, sizeof(trigname_buff-1), tables->db, ".",
+      strxnmov(trigname_buff, sizeof(trigname_buff) - 1, tables->db, ".",
                lex->spname->m_name.str, NullS);
       push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
                           ER_TRG_ALREADY_EXISTS,
@@ -852,7 +852,7 @@ bool Table_triggers_list::create_trigger(THD *thd, TABLE_LIST *tables,
     }
     else
     {
-      strxnmov(trigname_buff, sizeof(trigname_buff-1), tables->db, ".",
+      strxnmov(trigname_buff, sizeof(trigname_buff) - 1, tables->db, ".",
                lex->spname->m_name.str, NullS);
       my_error(ER_TRG_ALREADY_EXISTS, MYF(0), trigname_buff);
       DBUG_RETURN(true);
