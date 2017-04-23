@@ -677,8 +677,7 @@ bool With_clause::prepare_unreferenced_elements(THD *thd)
 bool With_element::set_unparsed_spec(THD *thd, char *spec_start, char *spec_end)
 {
   unparsed_spec.length= spec_end - spec_start;
-  unparsed_spec.str= (char*) thd->memdup(spec_start, unparsed_spec.length+1);
-  unparsed_spec.str[unparsed_spec.length]= '\0';
+  unparsed_spec.str= thd->strmake(spec_start, unparsed_spec.length);
 
   if (!unparsed_spec.str)
   {
@@ -748,7 +747,7 @@ st_select_lex_unit *With_element::clone_parsed_spec(THD *thd,
   TABLE_LIST *spec_tables_tail;
   st_select_lex *with_select;
 
-  if (parser_state.init(thd, unparsed_spec.str, unparsed_spec.length))
+  if (parser_state.init(thd, (char*) unparsed_spec.str, unparsed_spec.length))
     goto err;
   lex_start(thd);
   with_select= &lex->select_lex;
@@ -830,9 +829,9 @@ With_element::rename_columns_of_derived_unit(THD *thd,
   if (column_list.elements)  //  The column list is optional
   {
     List_iterator_fast<Item> it(select->item_list);
-    List_iterator_fast<LEX_STRING> nm(column_list);
+    List_iterator_fast<LEX_CSTRING> nm(column_list);
     Item *item;
-    LEX_STRING *name;
+    LEX_CSTRING *name;
 
     if (column_list.elements != select->item_list.elements)
     {

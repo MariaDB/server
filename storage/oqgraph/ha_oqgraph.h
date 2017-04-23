@@ -118,7 +118,7 @@ public:
   virtual const char *table_type() const { return hton_name(ht)->str; }
 #endif
 
-  my_bool register_query_cache_table(THD *thd, char *table_key,
+  my_bool register_query_cache_table(THD *thd, const char *table_key,
                                      uint key_length,
                                      qc_engine_callback
                                      *engine_callback,

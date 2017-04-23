@@ -570,7 +570,7 @@ sql_digest_state* digest_add_token(sql_digest_state *state,
     case IDENT_QUOTED:
     {
       YYSTYPE *lex_token= yylval;
-      char *yytext= lex_token->lex_str.str;
+      const char *yytext= lex_token->lex_str.str;
       size_t yylen= lex_token->lex_str.length;
 
       /*

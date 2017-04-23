@@ -745,12 +745,12 @@ public:
 class Item_func_cursor_int_attr: public Item_int_func
 {
 protected:
-  LEX_STRING m_cursor_name;
+  LEX_CSTRING m_cursor_name;
   uint m_cursor_offset;
   class sp_cursor *get_open_cursor_or_error();
 public:
-  Item_func_cursor_int_attr(THD *thd, const LEX_STRING name, uint offset)
-   :Item_int_func(thd), m_cursor_name(name), m_cursor_offset(offset)
+  Item_func_cursor_int_attr(THD *thd, const LEX_CSTRING *name, uint offset)
+   :Item_int_func(thd), m_cursor_name(*name), m_cursor_offset(offset)
   { }
   bool check_vcol_func_processor(void *arg)
   {
@@ -763,7 +763,7 @@ public:
 class Item_func_cursor_isopen: public Item_func_cursor_int_attr
 {
 public:
-  Item_func_cursor_isopen(THD *thd, const LEX_STRING name, uint offset)
+  Item_func_cursor_isopen(THD *thd, const LEX_CSTRING *name, uint offset)
    :Item_func_cursor_int_attr(thd, name, offset) { }
   const char *func_name() const { return "%ISOPEN"; }
   void fix_length_and_dec() { max_length= 1; }
@@ -776,7 +776,7 @@ public:
 class Item_func_cursor_found: public Item_func_cursor_int_attr
 {
 public:
-  Item_func_cursor_found(THD *thd, const LEX_STRING name, uint offset)
+  Item_func_cursor_found(THD *thd, const LEX_CSTRING *name, uint offset)
    :Item_func_cursor_int_attr(thd, name, offset) { }
   const char *func_name() const { return "%FOUND"; }
   void fix_length_and_dec() { max_length= 1; maybe_null= true; }
@@ -789,7 +789,7 @@ public:
 class Item_func_cursor_notfound: public Item_func_cursor_int_attr
 {
 public:
-  Item_func_cursor_notfound(THD *thd, const LEX_STRING name, uint offset)
+  Item_func_cursor_notfound(THD *thd, const LEX_CSTRING *name, uint offset)
    :Item_func_cursor_int_attr(thd, name, offset) { }
   const char *func_name() const { return "%NOTFOUND"; }
   void fix_length_and_dec() { max_length= 1; maybe_null= true; }
@@ -802,7 +802,7 @@ public:
 class Item_func_cursor_rowcount: public Item_func_cursor_int_attr
 {
 public:
-  Item_func_cursor_rowcount(THD *thd, const LEX_STRING name, uint offset)
+  Item_func_cursor_rowcount(THD *thd, const LEX_CSTRING *name, uint offset)
    :Item_func_cursor_int_attr(thd, name, offset) { }
   const char *func_name() const { return "%ROWCOUNT"; }
   longlong val_int();
@@ -1534,7 +1534,6 @@ public:
   Item_func_rollup_const(THD *thd, Item *a): Item_func(thd, a)
   {
     name= a->name;
-    name_length= a->name_length;
   }
   double val_real() { return args[0]->val_real(); }
   longlong val_int() { return args[0]->val_int(); }
@@ -2187,11 +2186,11 @@ class Item_func_user_var :public Item_hybrid_func
 protected:
   user_var_entry *m_var_entry;
 public:
-  LEX_STRING name; // keep it public
-  Item_func_user_var(THD *thd, LEX_STRING a)
-    :Item_hybrid_func(thd), m_var_entry(NULL), name(a) { }
-  Item_func_user_var(THD *thd, LEX_STRING a, Item *b)
-    :Item_hybrid_func(thd, b), m_var_entry(NULL), name(a) { }
+  LEX_CSTRING name; // keep it public
+  Item_func_user_var(THD *thd, const LEX_CSTRING *a)
+    :Item_hybrid_func(thd), m_var_entry(NULL), name(*a) { }
+  Item_func_user_var(THD *thd, const LEX_CSTRING *a, Item *b)
+    :Item_hybrid_func(thd, b), m_var_entry(NULL), name(*a) { }
   Item_func_user_var(THD *thd, Item_func_user_var *item)
     :Item_hybrid_func(thd, item),
     m_var_entry(item->m_var_entry), name(item->name) { }
@@ -2225,7 +2224,7 @@ class Item_func_set_user_var :public Item_func_user_var
   } save_result;
 
 public:
-  Item_func_set_user_var(THD *thd, LEX_STRING a, Item *b):
+  Item_func_set_user_var(THD *thd, const LEX_CSTRING *a, Item *b):
     Item_func_user_var(thd, a, b),
     entry_thread_id(0)
   {}
@@ -2294,10 +2293,10 @@ class Item_func_get_user_var :public Item_func_user_var,
                               private Settable_routine_parameter
 {
 public:
-  Item_func_get_user_var(THD *thd, LEX_STRING a):
+  Item_func_get_user_var(THD *thd, const LEX_CSTRING *a):
     Item_func_user_var(thd, a) {}
   enum Functype functype() const { return GUSERVAR_FUNC; }
-  LEX_STRING get_name() { return name; }
+  LEX_CSTRING get_name() { return name; }
   double val_real();
   longlong val_int();
   my_decimal *val_decimal(my_decimal*);
@@ -2337,11 +2336,12 @@ public:
 */
 class Item_user_var_as_out_param :public Item
 {
-  LEX_STRING name;
+  LEX_CSTRING name;
   user_var_entry *entry;
 public:
-  Item_user_var_as_out_param(THD *thd, LEX_STRING a): Item(thd), name(a)
-  { set_name(thd, a.str, 0, system_charset_info); }
+  Item_user_var_as_out_param(THD *thd, const LEX_CSTRING *a)
+  :Item(thd), name(*a)
+  { set_name(thd, a->str, a->length, system_charset_info); }
   /* We should return something different from FIELD_ITEM here */
   enum Type type() const { return STRING_ITEM;}
   double val_real();
@@ -2369,7 +2369,7 @@ class Item_func_get_system_var :public Item_func
 {
   sys_var *var;
   enum_var_type var_type, orig_var_type;
-  LEX_STRING component;
+  LEX_CSTRING component;
   longlong cached_llval;
   double cached_dval;
   String cached_strval;
@@ -2380,7 +2380,7 @@ class Item_func_get_system_var :public Item_func
 public:
   Item_func_get_system_var(THD *thd, sys_var *var_arg,
                            enum_var_type var_type_arg,
-                           LEX_STRING *component_arg, const char *name_arg,
+                           LEX_CSTRING *component_arg, const char *name_arg,
                            size_t name_len_arg);
   enum Functype functype() const { return GSYSVAR_FUNC; }
   void update_null_value();
@@ -2890,9 +2890,9 @@ public:
 };
 
 
-Item *get_system_var(THD *thd, enum_var_type var_type, LEX_STRING name,
-                     LEX_STRING component);
-extern bool check_reserved_words(LEX_STRING *name);
+Item *get_system_var(THD *thd, enum_var_type var_type, LEX_CSTRING name,
+                     LEX_CSTRING component);
+extern bool check_reserved_words(const LEX_CSTRING *name);
 Item *find_date_time_item(Item **args, uint nargs, uint col);
 double my_double_round(double value, longlong dec, bool dec_unsigned,
                        bool truncate);

@@ -113,7 +113,7 @@ void ha_tokudb::print_alter_info(
       TOKUDB_TRACE(
         "name: %s, types: %u %u, nullable: %d, null_offset: %d, is_null_field: "
         "%d, is_null %d, pack_length %u",
-        curr_field->field_name,
+        curr_field->field_name.str,
         curr_field->real_type(),
         mysql_to_toku_type(curr_field),
         curr_field->null_bit,
@@ -132,7 +132,7 @@ void ha_tokudb::print_alter_info(
       TOKUDB_TRACE(
             "name: %s, types: %u %u, nullable: %d, null_offset: %d, "
             "is_null_field: %d, is_null %d, pack_length %u",
-            curr_field->field_name,
+            curr_field->field_name.str,
             curr_field->real_type(),
             mysql_to_toku_type(curr_field),
             curr_field->null_bit,
@@ -398,7 +398,7 @@ enum_alter_inplace_result ha_tokudb::check_if_supported_inplace_alter(
                     TOKUDB_TRACE(
                         "Added column: index %d, name %s",
                         curr_added_index,
-                        curr_added_field->field_name);
+                        curr_added_field->field_name.str);
                 }
             }
             result = HA_ALTER_INPLACE_EXCLUSIVE_LOCK;
@@ -427,7 +427,7 @@ enum_alter_inplace_result ha_tokudb::check_if_supported_inplace_alter(
                     TOKUDB_TRACE(
                         "Dropped column: index %d, name %s",
                         curr_dropped_index,
-                        curr_dropped_field->field_name);
+                        curr_dropped_field->field_name.str);
                 }
             }
             result = HA_ALTER_INPLACE_EXCLUSIVE_LOCK;
@@ -1125,7 +1125,7 @@ int ha_tokudb::alter_table_expand_varchar_offsets(
 static bool field_in_key(KEY *key, Field *field) {
     for (uint i = 0; i < key->user_defined_key_parts; i++) {
         KEY_PART_INFO *key_part = &key->key_part[i];
-        if (strcmp(key_part->field->field_name, field->field_name) == 0)
+        if (strcmp(key_part->field->field_name.str, field->field_name.str) == 0)
             return true;
     }
     return false;

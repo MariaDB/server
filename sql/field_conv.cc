@@ -125,7 +125,7 @@ static int set_bad_null_error(Field *field, int err)
     return 0;
   case CHECK_FIELD_ERROR_FOR_NULL:
     if (!field->table->in_use->no_errors)
-      my_error(ER_BAD_NULL_ERROR, MYF(0), field->field_name);
+      my_error(ER_BAD_NULL_ERROR, MYF(0), field->field_name.str);
     return -1;
   }
   DBUG_ASSERT(0); // impossible

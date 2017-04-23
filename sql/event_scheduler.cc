@@ -301,7 +301,7 @@ Event_worker_thread::run(THD *thd, Event_queue_element_for_exec *event)
   if (res)
     goto end;
 
-  if ((res= db_repository->load_named_event(thd, event->dbname, event->name,
+  if ((res= db_repository->load_named_event(thd, &event->dbname, &event->name,
                                             &job_data)))
   {
     DBUG_PRINT("error", ("Got error from load_named_event"));

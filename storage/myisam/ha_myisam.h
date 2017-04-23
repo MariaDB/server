@@ -144,7 +144,7 @@ class ha_myisam: public handler
                                             Alter_inplace_info *alter_info);
   bool check_if_incompatible_data(HA_CREATE_INFO *info, uint table_changes);
 #ifdef HAVE_QUERY_CACHE
-  my_bool register_query_cache_table(THD *thd, char *table_key,
+  my_bool register_query_cache_table(THD *thd, const char *table_key,
                                      uint key_length,
                                      qc_engine_callback
                                      *engine_callback,

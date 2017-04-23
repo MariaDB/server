@@ -25,23 +25,23 @@
 */
 
 /** String, "PERFORMANCE_SCHEMA". */
-extern LEX_STRING PERFORMANCE_SCHEMA_str;
+extern LEX_CSTRING PERFORMANCE_SCHEMA_str;
 
 /** String prefix for all mutex instruments. */
-extern LEX_STRING mutex_instrument_prefix;
+extern LEX_CSTRING mutex_instrument_prefix;
 /** String prefix for all rwlock instruments. */
-extern LEX_STRING rwlock_instrument_prefix;
+extern LEX_CSTRING rwlock_instrument_prefix;
 /** String prefix for all cond instruments. */
-extern LEX_STRING cond_instrument_prefix;
+extern LEX_CSTRING cond_instrument_prefix;
 /** String prefix for all thread instruments. */
-extern LEX_STRING thread_instrument_prefix;
+extern LEX_CSTRING thread_instrument_prefix;
 /** String prefix for all file instruments. */
-extern LEX_STRING file_instrument_prefix;
+extern LEX_CSTRING file_instrument_prefix;
 /** String prefix for all stage instruments. */
-extern LEX_STRING stage_instrument_prefix;
+extern LEX_CSTRING stage_instrument_prefix;
 /** String prefix for all statement instruments. */
-extern LEX_STRING statement_instrument_prefix;
-extern LEX_STRING socket_instrument_prefix;
+extern LEX_CSTRING statement_instrument_prefix;
+extern LEX_CSTRING socket_instrument_prefix;
 
 #endif
 

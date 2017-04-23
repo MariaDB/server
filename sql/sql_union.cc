@@ -976,7 +976,8 @@ bool st_select_lex_unit::prepare(THD *thd_arg, select_result *sel_result,
         else
           intersect_mark->value= 0; //reset
         types.push_front(union_result->intersect_mark= intersect_mark);
-        union_result->intersect_mark->name= (char *)"___";
+        union_result->intersect_mark->name.str= "___";
+        union_result->intersect_mark->name.length= 3;
       }
       bool error=
         union_result->create_result_table(thd, &types,

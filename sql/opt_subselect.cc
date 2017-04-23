@@ -4019,12 +4019,13 @@ SJ_TMP_TABLE::create_sj_weedout_tmp_table(THD *thd)
 
   /* Create the field */
   {
+    LEX_CSTRING field_name= {STRING_WITH_LEN("rowids") };
     /*
       For the sake of uniformity, always use Field_varstring (altough we could
       use Field_string for shorter keys)
     */
-    field= new Field_varstring(uniq_tuple_length_arg, FALSE, "rowids", share,
-                               &my_charset_bin);
+    field= new Field_varstring(uniq_tuple_length_arg, FALSE, &field_name,
+                               share, &my_charset_bin);
     if (!field)
       DBUG_RETURN(0);
     field->table= table;
@@ -4894,7 +4895,7 @@ int rewrite_to_index_subquery_engine(JOIN *join)
     {
       Item *where= join->conds;
       if (join_tab[0].type == JT_EQ_REF &&
-	  join_tab[0].ref.items[0]->name == in_left_expr_name)
+	  join_tab[0].ref.items[0]->name.str == in_left_expr_name.str)
       {
         remove_subq_pushed_predicates(join, &where);
         save_index_subquery_explain_info(join_tab, where);
@@ -4908,7 +4909,7 @@ int rewrite_to_index_subquery_engine(JOIN *join)
                                                                   where)));
       }
       else if (join_tab[0].type == JT_REF &&
-	       join_tab[0].ref.items[0]->name == in_left_expr_name)
+	       join_tab[0].ref.items[0]->name.str == in_left_expr_name.str)
       {
 	remove_subq_pushed_predicates(join, &where);
         save_index_subquery_explain_info(join_tab, where);
@@ -4924,8 +4925,8 @@ int rewrite_to_index_subquery_engine(JOIN *join)
                                                                  0)));
       }
     } else if (join_tab[0].type == JT_REF_OR_NULL &&
-	       join_tab[0].ref.items[0]->name == in_left_expr_name &&
-               join->having->name == in_having_cond)
+	       join_tab[0].ref.items[0]->name.str == in_left_expr_name.str &&
+               join->having->name.str == in_having_cond.str)
     {
       join_tab[0].type= JT_INDEX_SUBQUERY;
       join->error= 0;
@@ -4956,7 +4957,7 @@ int rewrite_to_index_subquery_engine(JOIN *join)
 
 static Item *remove_additional_cond(Item* conds)
 {
-  if (conds->name == in_additional_cond)
+  if (conds->name.str == in_additional_cond.str)
     return 0;
   if (conds->type() == Item::COND_ITEM)
   {
@@ -4965,7 +4966,7 @@ static Item *remove_additional_cond(Item* conds)
     Item *item;
     while ((item= li++))
     {
-      if (item->name == in_additional_cond)
+      if (item->name.str == in_additional_cond.str)
       {
 	li.remove();
 	if (cnd->argument_list()->elements == 1)

@@ -6830,7 +6830,7 @@ void ha_tokudb::update_create_info(HA_CREATE_INFO* create_info) {
 // during drop table, we do not attempt to remove already dropped
 // indexes because we did not keep status.tokudb in sync with list of indexes.
 //
-int ha_tokudb::remove_key_name_from_status(DB* status_block, char* key_name, DB_TXN* txn) {
+int ha_tokudb::remove_key_name_from_status(DB* status_block, const char* key_name, DB_TXN* txn) {
     int error;
     uchar status_key_info[FN_REFLEN + sizeof(HA_METADATA_KEY)];
     HA_METADATA_KEY md_key = hatoku_key_name;
@@ -6856,7 +6856,8 @@ int ha_tokudb::remove_key_name_from_status(DB* status_block, char* key_name, DB_
 // writes the key name in status.tokudb, so that we may later delete or rename
 // the dictionary associated with key_name
 //
-int ha_tokudb::write_key_name_to_status(DB* status_block, char* key_name, DB_TXN* txn) {
+int ha_tokudb::write_key_name_to_status(DB* status_block, const char* key_name,
+ DB_TXN* txn) {
     int error;
     uchar status_key_info[FN_REFLEN + sizeof(HA_METADATA_KEY)];
     HA_METADATA_KEY md_key = hatoku_key_name;
@@ -6895,7 +6896,7 @@ void ha_tokudb::trace_create_table_info(const char *name, TABLE * form) {
             TOKUDB_HANDLER_TRACE(
                 "field:%d:%s:type=%d:flags=%x",
                 i,
-                field->field_name,
+                field->field_name.str,
                 field->type(),
                 field->flags);
         }
@@ -6915,7 +6916,7 @@ void ha_tokudb::trace_create_table_info(const char *name, TABLE * form) {
                     i,
                     p,
                     key_part->length,
-                    field->field_name,
+                    field->field_name.str,
                     field->type(),
                     field->flags);
             }
@@ -7247,7 +7248,7 @@ int ha_tokudb::create(
                 "This is probably due to an alter table engine=TokuDB. To load this "
                 "table, do a dump and load",
                 name,
-                field->field_name
+                field->field_name.str
                 );
             error = HA_ERR_UNSUPPORTED;
             goto cleanup;

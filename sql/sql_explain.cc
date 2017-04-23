@@ -424,7 +424,7 @@ uint Explain_union::make_union_table_name(char *buf)
 {
   uint childno= 0;
   uint len, lastop= 0;
-  LEX_STRING type;
+  LEX_CSTRING type;
   switch (operation)
   {
     case OP_MIX:
@@ -1147,7 +1147,8 @@ void Explain_index_use::set(MEM_ROOT *mem_root, KEY *key, uint key_len_arg)
   uint len= 0;
   for (uint i= 0; i < key->usable_key_parts; i++)
   {
-    key_parts_list.append_str(mem_root, key->key_part[i].field->field_name);
+    key_parts_list.append_str(mem_root,
+                              key->key_part[i].field->field_name.str);
     len += key->key_part[i].store_length;
     if (len >= key_len_arg)
       break;

@@ -82,7 +82,7 @@ public:
   { return HA_CACHE_TBL_NOCACHE; }
   void print_error(int error, myf errflag);
   int info(uint);
-  LEX_STRING *engine_name() { return hton_name(file->ht); }
+  LEX_CSTRING *engine_name() { return hton_name(file->ht); }
   int external_lock(THD *thd, int lock_type);
 
   /* Functions that are directly mapped to the underlying handler */

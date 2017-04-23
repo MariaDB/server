@@ -94,12 +94,12 @@ int alloc_statistics_for_table_share(THD* thd, TABLE_SHARE *share,
                                      bool is_safe);
 int alloc_statistics_for_table(THD *thd, TABLE *table);
 int update_statistics_for_table(THD *thd, TABLE *table);
-int delete_statistics_for_table(THD *thd, LEX_STRING *db, LEX_STRING *tab);
+int delete_statistics_for_table(THD *thd, LEX_CSTRING *db, LEX_CSTRING *tab);
 int delete_statistics_for_column(THD *thd, TABLE *tab, Field *col);
 int delete_statistics_for_index(THD *thd, TABLE *tab, KEY *key_info,
                                 bool ext_prefixes_only);
-int rename_table_in_stat_tables(THD *thd, LEX_STRING *db, LEX_STRING *tab,
-                                LEX_STRING *new_db, LEX_STRING *new_tab);
+int rename_table_in_stat_tables(THD *thd, LEX_CSTRING *db, LEX_CSTRING *tab,
+                                LEX_CSTRING *new_db, LEX_CSTRING *new_tab);
 int rename_column_in_stat_tables(THD *thd, TABLE *tab, Field *col,
                                   const char *new_name);
 void set_statistics_for_table(THD *thd, TABLE *table);
@@ -259,10 +259,10 @@ static inline
 int rename_table_in_stat_tables(THD *thd, const char *db, const char *tab,
                                 const char *new_db, const char *new_tab)
 {
-  LEX_STRING od= { const_cast<char*>(db), strlen(db) };
-  LEX_STRING ot= { const_cast<char*>(tab), strlen(tab) };
-  LEX_STRING nd= { const_cast<char*>(new_db), strlen(new_db) };
-  LEX_STRING nt= { const_cast<char*>(new_tab), strlen(new_tab) };
+  LEX_CSTRING od= { db, strlen(db) };
+  LEX_CSTRING ot= { tab, strlen(tab) };
+  LEX_CSTRING nd= { new_db, strlen(new_db) };
+  LEX_CSTRING nt= { new_tab, strlen(new_tab) };
   return rename_table_in_stat_tables(thd, &od, &ot, &nd, &nt);
 }
 

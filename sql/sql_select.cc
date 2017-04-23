@@ -321,8 +321,8 @@ void dbug_serve_apcs(THD *thd, int n_calls)
 bool dbug_user_var_equals_int(THD *thd, const char *name, int value)
 {
   user_var_entry *var;
-  LEX_STRING varname= {(char*)name, strlen(name)};
-  if ((var= get_variable(&thd->user_vars, varname, FALSE)))
+  LEX_CSTRING varname= { name, strlen(name)};
+  if ((var= get_variable(&thd->user_vars, &varname, FALSE)))
   {
     bool null_value;
     longlong var_value= var->val_int(&null_value);
@@ -514,9 +514,9 @@ fix_inner_refs(THD *thd, List<Item> &all_fields, SELECT_LEX *select,
 
     new_ref= direct_ref ?
               new (thd->mem_root) Item_direct_ref(thd, ref->context, item_ref, ref->table_name,
-                          ref->field_name, ref->alias_name_used) :
+                          &ref->field_name, ref->alias_name_used) :
               new (thd->mem_root) Item_ref(thd, ref->context, item_ref, ref->table_name,
-                          ref->field_name, ref->alias_name_used);
+                          &ref->field_name, ref->alias_name_used);
     if (!new_ref)
       return TRUE;
     ref->outer_ref= new_ref;
@@ -15819,7 +15819,7 @@ const_expression_in_where(COND *cond, Item *comp_item, Field *comp_field,
 */
 
 Field *create_tmp_field_from_field(THD *thd, Field *org_field,
-                                   const char *name, TABLE *table,
+                                   LEX_CSTRING *name, TABLE *table,
                                    Item_field *item)
 {
   Field *new_field;
@@ -15833,7 +15833,7 @@ Field *create_tmp_field_from_field(THD *thd, Field *org_field,
     if (item)
       item->result_field= new_field;
     else
-      new_field->field_name= name;
+      new_field->field_name= *name;
     new_field->flags|= (org_field->flags & NO_DEFAULT_VALUE_FLAG);
     if (org_field->maybe_null() || (item && item->maybe_null))
       new_field->flags&= ~NOT_NULL_FLAG;	// Because of outer join
@@ -15859,21 +15859,25 @@ Field *Item::create_tmp_field(bool group, TABLE *table, uint convert_int_length)
 
   switch (cmp_type()) {
   case REAL_RESULT:
+  {
     new_field= new (mem_root)
-      Field_double(max_length, maybe_null, name, decimals, TRUE);
+      Field_double(max_length, maybe_null, &name, decimals, TRUE);
     break;
+  }
   case INT_RESULT:
+  {
     /*
       Select an integer type with the minimal fit precision.
       convert_int_length is sign inclusive, don't consider the sign.
     */
     if (max_char_length() > convert_int_length)
       new_field= new (mem_root)
-        Field_longlong(max_char_length(), maybe_null, name, unsigned_flag);
+        Field_longlong(max_char_length(), maybe_null, &name, unsigned_flag);
     else
       new_field= new (mem_root)
-        Field_long(max_char_length(), maybe_null, name, unsigned_flag);
+        Field_long(max_char_length(), maybe_null, &name, unsigned_flag);
     break;
+  }
   case TIME_RESULT:
     new_field= tmp_table_field_from_field_type(table, true, false);
     break;
@@ -15967,9 +15971,10 @@ Field *Item::create_field_for_schema(THD *thd, TABLE *table)
   {
     Field *field;
     if (max_length > MAX_FIELD_VARCHARLENGTH)
-      field= new Field_blob(max_length, maybe_null, name, collation.collation);
+      field= new Field_blob(max_length, maybe_null, &name,
+                            collation.collation);
     else
-      field= new Field_varstring(max_length, maybe_null, name,
+      field= new Field_varstring(max_length, maybe_null, &name,
                                  table->s, collation.collation);
     if (field)
       field->init(table);
@@ -16081,12 +16086,13 @@ Field *create_tmp_field(THD *thd, TABLE *table,Item *item, Item::Type type,
         field->result_field= result;
     }
     else
+    {
+      LEX_CSTRING *tmp= orig_item ? &orig_item->name : &item->name;
       result= create_tmp_field_from_field(thd, (*from_field= field->field),
-                                          orig_item ? orig_item->name :
-                                          item->name,
-                                          table,
+                                          tmp, table,
                                           modify_item ? field :
                                           NULL);
+    }
     if (orig_type == Item::REF_ITEM && orig_modify)
       ((Item_ref*)orig_item)->set_result_field(result);
     /*
@@ -16114,11 +16120,10 @@ Field *create_tmp_field(THD *thd, TABLE *table,Item *item, Item::Type type,
       {
         *((*copy_func)++)= item;
       }
-
       Field *result_field=
         create_tmp_field_from_field(thd,
                                     sp_result_field,
-                                    item_func_sp->name,
+                                    &item_func_sp->name,
                                     table,
                                     NULL);
 
@@ -16470,6 +16475,7 @@ create_tmp_table(THD *thd, TMP_TABLE_PARAM *param, List<Item> &fields,
                              distinct, false);
 	  if (!new_field)
 	    goto err;					// Should be OOM
+          DBUG_ASSERT(!new_field->field_name.str || strlen(new_field->field_name.str) == new_field->field_name.length);
 	  tmp_from_field++;
 	  reclength+=new_field->pack_length();
 	  if (new_field->flags & BLOB_FLAG)
@@ -16545,6 +16551,7 @@ create_tmp_table(THD *thd, TMP_TABLE_PARAM *param, List<Item> &fields,
 	  goto err;				// Got OOM
 	continue;				// Some kind of const item
       }
+      DBUG_ASSERT(!new_field->field_name.str || strlen(new_field->field_name.str) == new_field->field_name.length);
       if (type == Item::SUM_FUNC_ITEM)
       {
         Item_sum *agg_item= (Item_sum *) item;
@@ -16988,7 +16995,7 @@ create_tmp_table(THD *thd, TMP_TABLE_PARAM *param, List<Item> &fields,
                                              (uchar*) 0,
                                              (uint) 0,
                                              Field::NONE,
-                                             NullS, &my_charset_bin);
+                                             &null_clex_str, &my_charset_bin);
       if (!key_part_info->field)
         goto err;
       key_part_info->field->init(table);
@@ -17121,7 +17128,7 @@ bool Virtual_tmp_table::add(List<Spvar_definition> &field_list)
     if (!(tmp= cdef->make_field(s, in_use->mem_root, 0,
                              (uchar*) (f_maybe_null(cdef->pack_flag) ? "" : 0),
                              f_maybe_null(cdef->pack_flag) ? 1 : 0,
-                             cdef->field_name)))
+                             &cdef->field_name)))
       return true;
     add(tmp);
   }
@@ -22102,7 +22109,7 @@ find_order_in_list(THD *thd, Ref_ptr_array ref_pointer_array, TABLE_LIST *tables
       push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                           ER_NON_UNIQ_ERROR,
                           ER_THD(thd, ER_NON_UNIQ_ERROR),
-                          ((Item_ident*) order_item)->field_name,
+                          ((Item_ident*) order_item)->field_name.str,
                           thd->where);
     }
   }
@@ -23139,14 +23146,15 @@ change_to_use_tmp_fields(THD *thd, Ref_ptr_array ref_pointer_array,
         ifield->db_name= iref->db_name;
       }
 #ifndef DBUG_OFF
-      if (!item_field->name)
+      if (!item_field->name.str)
       {
         char buff[256];
         String str(buff,sizeof(buff),&my_charset_bin);
         str.length(0);
         str.extra_allocation(1024);
         item->print(&str, QT_ORDINARY);
-        item_field->name= thd->strmake(str.ptr(),str.length());
+        item_field->name.str= thd->strmake(str.ptr(), str.length());
+        item_field->name.length= str.length();
       }
 #endif
     }
@@ -23499,8 +23507,9 @@ static bool change_group_ref(THD *thd, Item_func *expr, ORDER *group_list,
           if (item->eq(*group_tmp->item,0))
           {
             Item *new_item;
-            if (!(new_item= new (thd->mem_root) Item_ref(thd, context, group_tmp->item, 0,
-                                         item->name)))
+            if (!(new_item= new (thd->mem_root) Item_ref(thd, context,
+                                                         group_tmp->item, 0,
+                                                         &item->name)))
               return 1;                                 // fatal_error is set
             thd->change_item_tree(arg, new_item);
             arg_changed= TRUE;

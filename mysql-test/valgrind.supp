@@ -362,7 +362,6 @@
    memory "loss" from _dl_init 2
    Memcheck:Leak
    fun:malloc
-   fun:pool
    ...
    fun:call_init*
    fun:_dl_init

@@ -28,7 +28,7 @@
 
 static void init_master_log_pos(Master_info* mi);
 
-Master_info::Master_info(LEX_STRING *connection_name_arg,
+Master_info::Master_info(LEX_CSTRING *connection_name_arg,
                          bool is_slave_recovery)
   :Slave_reporting_capability("I/O"),
    ssl(0), ssl_verify_server_cert(1), fd(-1), io_thd(0), 
@@ -44,6 +44,7 @@ Master_info::Master_info(LEX_STRING *connection_name_arg,
    in_start_all_slaves(0), in_stop_all_slaves(0),
    users(0), killed(0)
 {
+  char *tmp;
   host[0] = 0; user[0] = 0; password[0] = 0;
   ssl_ca[0]= 0; ssl_capath[0]= 0; ssl_cert[0]= 0;
   ssl_cipher[0]= 0; ssl_key[0]= 0;
@@ -55,16 +56,14 @@ Master_info::Master_info(LEX_STRING *connection_name_arg,
   */
   connection_name.length= cmp_connection_name.length=
     connection_name_arg->length;
-  if ((connection_name.str= (char*) my_malloc(connection_name_arg->length*2+2,
-                                              MYF(MY_WME))))
+  if ((connection_name.str= tmp= (char*)
+       my_malloc(connection_name_arg->length*2+2, MYF(MY_WME))))
   {
-    cmp_connection_name.str= (connection_name.str +
-                              connection_name_arg->length+1);
-    strmake(connection_name.str, connection_name_arg->str,
-            connection_name.length);
-    memcpy(cmp_connection_name.str, connection_name_arg->str,
-           connection_name.length+1);
-    my_casedn_str(system_charset_info, cmp_connection_name.str);
+    strmake(tmp, connection_name_arg->str, connection_name.length);
+    tmp+= connection_name_arg->length+1;
+    cmp_connection_name.str= tmp;
+    memcpy(tmp, connection_name_arg->str, connection_name.length+1);
+    my_casedn_str(system_charset_info, tmp);
   }
   /*
     When MySQL restarted, all Rpl_filter settings which aren't in the my.cnf
@@ -124,7 +123,7 @@ Master_info::~Master_info()
 #endif
   rpl_filters.delete_element(connection_name.str, connection_name.length,
                              (void (*)(const char*, uchar*)) free_rpl_filter);
-  my_free(connection_name.str);
+  my_free(const_cast<char*>(connection_name.str));
   delete_dynamic(&ignore_server_ids);
   mysql_mutex_destroy(&run_lock);
   mysql_mutex_destroy(&data_lock);
@@ -901,7 +900,7 @@ void free_key_master_info(Master_info *mi)
    1 error
 */
 
-bool check_master_connection_name(LEX_STRING *name)
+bool check_master_connection_name(LEX_CSTRING *name)
 {
   if (name->length >= MAX_CONNECTION_NAME)
     return 1;
@@ -931,7 +930,7 @@ bool check_master_connection_name(LEX_STRING *name)
 
 void create_logfile_name_with_suffix(char *res_file_name, size_t length,
                                      const char *info_file, bool append,
-                                     LEX_STRING *suffix)
+                                     LEX_CSTRING *suffix)
 {
   char buff[MAX_CONNECTION_NAME+1],
     res[MAX_CONNECTION_NAME * MAX_FILENAME_MBWIDTH+1], *p;
@@ -1124,7 +1123,7 @@ bool Master_info_index::init_all_master_info()
   while (!init_strvar_from_file(sign, sizeof(sign),
                                 &index_file, NULL))
   {
-    LEX_STRING connection_name;
+    LEX_CSTRING connection_name;
     Master_info *mi;
     char buf_master_info_file[FN_REFLEN];
     char buf_relay_log_info_file[FN_REFLEN];
@@ -1253,7 +1252,7 @@ error:
 
 
 /* Write new master.info to master.info.index File */
-bool Master_info_index::write_master_name_to_index_file(LEX_STRING *name,
+bool Master_info_index::write_master_name_to_index_file(LEX_CSTRING *name,
                                                         bool do_sync)
 {
   DBUG_ASSERT(my_b_inited(&index_file) != 0);
@@ -1290,7 +1289,7 @@ bool Master_info_index::write_master_name_to_index_file(LEX_STRING *name,
 			WARN_LEVEL_ERROR-> Issue error if not exists
 */
 
-Master_info *get_master_info(const LEX_STRING *connection_name,
+Master_info *get_master_info(const LEX_CSTRING *connection_name,
                              Sql_condition::enum_warning_level warning)
 {
   Master_info *mi;
@@ -1356,7 +1355,7 @@ void Master_info::release()
 */
 
 Master_info *
-Master_info_index::get_master_info(const LEX_STRING *connection_name,
+Master_info_index::get_master_info(const LEX_CSTRING *connection_name,
                                    Sql_condition::enum_warning_level warning)
 {
   Master_info *mi;
@@ -1387,7 +1386,7 @@ Master_info_index::get_master_info(const LEX_STRING *connection_name,
 
 
 /* Check Master_host & Master_port is duplicated or not */
-bool Master_info_index::check_duplicate_master_info(LEX_STRING *name_arg,
+bool Master_info_index::check_duplicate_master_info(LEX_CSTRING *name_arg,
                                                     const char *host,
                                                     uint port)
 {
@@ -1917,7 +1916,7 @@ char *Domain_id_filter::as_string(enum_list_type type)
   {
     ulong domain_id;
     get_dynamic(ids, (void *) &domain_id, i);
-    cur_len+= my_snprintf(buf + cur_len, sz, " %u", domain_id);
+    cur_len+= my_snprintf(buf + cur_len, sz, " %lu", domain_id);
     sz-= cur_len;
   }
   return buf;

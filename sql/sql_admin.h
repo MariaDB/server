@@ -20,7 +20,7 @@
 #define SQL_ADMIN_MSG_TEXT_SIZE (128 * 1024)
 
 bool mysql_assign_to_keycache(THD* thd, TABLE_LIST* table_list,
-                              LEX_STRING *key_cache_name);
+                              const LEX_CSTRING *key_cache_name);
 bool mysql_preload_keys(THD* thd, TABLE_LIST* table_list);
 int reassign_keycache_tables(THD* thd, KEY_CACHE *src_cache,
                              KEY_CACHE *dst_cache);

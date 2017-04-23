@@ -2268,7 +2268,7 @@ bool ha_maria::check_and_repair(THD *thd)
   if (!file->state->del && (maria_recover_options & HA_RECOVER_QUICK))
     check_opt.flags |= T_QUICK;
 
-  thd->set_query(table->s->table_name.str,
+  thd->set_query((char*) table->s->table_name.str,
                  (uint) table->s->table_name.length, system_charset_info);
 
   if (!(crashed= maria_is_crashed(file)))
@@ -3403,7 +3403,7 @@ bool maria_show_status(handlerton *hton,
                        stat_print_fn *print,
                        enum ha_stat_type stat)
 {
-  const LEX_STRING *engine_name= hton_name(hton);
+  const LEX_CSTRING *engine_name= hton_name(hton);
   switch (stat) {
   case HA_ENGINE_LOGS:
   {
@@ -3643,7 +3643,7 @@ static int ha_maria_init(void *p)
     @retval FALSE An error occurred
 */
 
-my_bool ha_maria::register_query_cache_table(THD *thd, char *table_name,
+my_bool ha_maria::register_query_cache_table(THD *thd, const char *table_name,
 					     uint table_name_len,
 					     qc_engine_callback
 					     *engine_callback,

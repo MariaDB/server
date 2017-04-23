@@ -2594,7 +2594,7 @@ my_xpath_parse_QName(MY_XPATH *xpath)
 static int
 my_xpath_parse_VariableReference(MY_XPATH *xpath)
 {
-  LEX_STRING name;
+  LEX_CSTRING name;
   int user_var;
   const char *dollar_pos;
   THD *thd= xpath->thd;
@@ -2609,7 +2609,7 @@ my_xpath_parse_VariableReference(MY_XPATH *xpath)
   name.str= (char*) xpath->prevtok.beg;
   
   if (user_var)
-    xpath->item= new (thd->mem_root) Item_func_get_user_var(thd, name);
+    xpath->item= new (thd->mem_root) Item_func_get_user_var(thd, &name);
   else
   {
     sp_variable *spv;
@@ -2617,10 +2617,10 @@ my_xpath_parse_VariableReference(MY_XPATH *xpath)
     LEX *lex;
     if ((lex= thd->lex) &&
         (spc= lex->spcont) &&
-        (spv= spc->find_variable(name, false)))
+        (spv= spc->find_variable(&name, false)))
     {
       Item_splocal *splocal= new (thd->mem_root)
-        Item_splocal(thd, name, spv->offset, spv->sql_type(), 0);
+        Item_splocal(thd, &name, spv->offset, spv->sql_type(), 0);
 #ifndef DBUG_OFF
       if (splocal)
         splocal->m_sp= lex->sphead;

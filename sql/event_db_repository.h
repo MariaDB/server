@@ -77,20 +77,24 @@ public:
   create_event(THD *thd, Event_parse_data *parse_data,
                bool *event_already_exists);
   bool
-  update_event(THD *thd, Event_parse_data *parse_data, LEX_STRING *new_dbname,
-               LEX_STRING *new_name);
+  update_event(THD *thd, Event_parse_data *parse_data, LEX_CSTRING *new_dbname,
+               LEX_CSTRING *new_name);
 
   bool
-  drop_event(THD *thd, LEX_STRING db, LEX_STRING name, bool drop_if_exists);
+  drop_event(THD *thd, const LEX_CSTRING *db, const LEX_CSTRING *name,
+             bool drop_if_exists);
 
   void
-  drop_schema_events(THD *thd, LEX_STRING schema);
+  drop_schema_events(THD *thd, const LEX_CSTRING *schema);
 
   bool
-  find_named_event(LEX_STRING db, LEX_STRING name, TABLE *table);
+  find_named_event(const LEX_CSTRING *db, const LEX_CSTRING *name,
+                   TABLE *table);
 
   bool
-  load_named_event(THD *thd, LEX_STRING dbname, LEX_STRING name, Event_basic *et);
+  load_named_event(THD *thd, const LEX_CSTRING *dbname,
+                   const LEX_CSTRING *name,
+                   Event_basic *et);
 
   static bool
   open_event_table(THD *thd, enum thr_lock_type lock_type, TABLE **table);
@@ -100,8 +104,8 @@ public:
 
   bool
   update_timing_fields_for_event(THD *thd,
-                                 LEX_STRING event_db_name,
-                                 LEX_STRING event_name,
+                                 const LEX_CSTRING *event_db_name,
+                                 const LEX_CSTRING *event_name,
                                  my_time_t last_executed,
                                  ulonglong status);
 public:

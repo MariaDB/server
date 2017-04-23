@@ -142,7 +142,7 @@ static int qc_info_fill_table(THD *thd, TABLE_LIST *tables,
     size_t flags_length;
     const char *key, *db;
     size_t key_length, db_length;
-    LEX_STRING sql_mode_str;
+    LEX_CSTRING sql_mode_str;
     const String *tz;
     CHARSET_INFO *cs_client;
     CHARSET_INFO *cs_result;

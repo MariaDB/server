@@ -37,10 +37,10 @@ typedef longlong (*Udf_func_longlong)(UDF_INIT *, UDF_ARGS *, uchar *,
 
 typedef struct st_udf_func
 {
-  LEX_STRING name;
+  LEX_CSTRING name;
   Item_result returns;
   Item_udftype type;
-  char *dl;
+  const char *dl;
   void *dlhandle;
   Udf_func_any func;
   Udf_func_init func_init;
@@ -137,10 +137,10 @@ class udf_handler :public Sql_alloc
 
 #ifdef HAVE_DLOPEN
 void udf_init(void),udf_free(void);
-udf_func *find_udf(const char *name, uint len=0,bool mark_used=0);
+udf_func *find_udf(const char *name, uint len, bool mark_used=0);
 void free_udf(udf_func *udf);
 int mysql_create_function(THD *thd,udf_func *udf);
-int mysql_drop_function(THD *thd,const LEX_STRING *name);
+int mysql_drop_function(THD *thd, const LEX_CSTRING *name);
 #else
 static inline void udf_init(void) { }
 static inline void udf_free(void) { }

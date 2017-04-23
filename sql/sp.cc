@@ -42,7 +42,8 @@ db_load_routine(THD *thd, stored_procedure_type type, const sp_name *name,
                 sp_head **sphp,
                 sql_mode_t sql_mode, const char *params, const char *returns,
                 const char *body, st_sp_chistics &chistics,
-                LEX_STRING *definer_user_name, LEX_STRING *definer_host_name,
+                LEX_CSTRING *definer_user_name,
+                LEX_CSTRING *definer_host_name,
                 longlong created, longlong modified,
                 Stored_program_creation_ctx *creation_ctx);
 
@@ -542,9 +543,9 @@ db_find_routine(THD *thd, stored_procedure_type type, const sp_name *name,
   Open_tables_backup open_tables_state_backup;
   Stored_program_creation_ctx *creation_ctx;
   char definer_user_name_holder[USERNAME_LENGTH + 1];
-  LEX_STRING definer_user_name= { definer_user_name_holder, USERNAME_LENGTH };
+  LEX_CSTRING definer_user_name= { definer_user_name_holder, USERNAME_LENGTH };
   char definer_host_name_holder[HOSTNAME_LENGTH + 1];
-  LEX_STRING definer_host_name= { definer_host_name_holder, HOSTNAME_LENGTH };
+  LEX_CSTRING definer_host_name= { definer_host_name_holder, HOSTNAME_LENGTH };
 
   DBUG_ENTER("db_find_routine");
   DBUG_PRINT("enter", ("type: %d name: %.*s",
@@ -654,9 +655,10 @@ db_find_routine(THD *thd, stored_procedure_type type, const sp_name *name,
   close_system_tables(thd, &open_tables_state_backup);
   table= 0;
 
+  /* It's ok to cast to char* here as the pointers are to local buffers */
   if (parse_user(definer, strlen(definer),
-                 definer_user_name.str, &definer_user_name.length,
-                 definer_host_name.str, &definer_host_name.length) &&
+                 (char*) definer_user_name.str, &definer_user_name.length,
+                 (char*) definer_host_name.str, &definer_host_name.length) &&
       definer_user_name.length && !definer_host_name.length)
   {
     // 'user@' -> 'user@%'
@@ -812,7 +814,8 @@ db_load_routine(THD *thd, stored_procedure_type type,
                 const sp_name *name, sp_head **sphp,
                 sql_mode_t sql_mode, const char *params, const char *returns,
                 const char *body, st_sp_chistics &chistics,
-                LEX_STRING *definer_user_name, LEX_STRING *definer_host_name,
+                LEX_CSTRING *definer_user_name,
+                LEX_CSTRING *definer_host_name,
                 longlong created, longlong modified,
                 Stored_program_creation_ctx *creation_ctx)
 {
@@ -884,7 +887,9 @@ db_load_routine(THD *thd, stored_procedure_type type,
       generate an error.
     */
 
-    if (cur_db_changed && mysql_change_db(thd, &saved_cur_db_name, TRUE))
+    if (cur_db_changed && mysql_change_db(thd,
+                                          (LEX_CSTRING*) &saved_cur_db_name,
+                                          TRUE))
     {
       ret= SP_INTERNAL_ERROR;
       goto end;
@@ -1023,7 +1028,7 @@ sp_create_routine(THD *thd, stored_procedure_type type, sp_head *sp)
   bool ret= TRUE;
   TABLE *table;
   char definer_buf[USER_HOST_BUFF_SIZE];
-  LEX_STRING definer;
+  LEX_CSTRING definer;
   sql_mode_t saved_mode= thd->variables.sql_mode;
   MDL_key::enum_mdl_namespace mdl_type= type == TYPE_ENUM_FUNCTION ?
                                         MDL_key::FUNCTION : MDL_key::PROCEDURE;
@@ -1501,7 +1506,7 @@ public:
          cases.
  */
 
-bool lock_db_routines(THD *thd, char *db)
+bool lock_db_routines(THD *thd, const char *db)
 {
   TABLE *table;
   uint key_len;
@@ -1587,7 +1592,7 @@ bool lock_db_routines(THD *thd, char *db)
 */
 
 int
-sp_drop_db_routines(THD *thd, char *db)
+sp_drop_db_routines(THD *thd, const char *db)
 {
   TABLE *table;
   int ret;
@@ -1840,13 +1845,12 @@ sp_exist_routines(THD *thd, TABLE_LIST *routines, bool is_proc)
   for (routine= routines; routine; routine= routine->next_global)
   {
     sp_name *name;
-    LEX_STRING lex_db;
-    LEX_STRING lex_name;
-    lex_db.length= strlen(routine->db);
-    lex_name.length= strlen(routine->table_name);
-    lex_db.str= thd->strmake(routine->db, lex_db.length);
-    lex_name.str= thd->strmake(routine->table_name, lex_name.length);
-    name= new sp_name(lex_db, lex_name, true);
+    LEX_CSTRING lex_db;
+    LEX_CSTRING lex_name;
+    thd->make_lex_string(&lex_db, routine->db, strlen(routine->db));
+    thd->make_lex_string(&lex_name, routine->table_name,
+                         strlen(routine->table_name));
+    name= new sp_name(&lex_db, &lex_name, true);
     sp_object_found= is_proc ? sp_find_routine(thd, TYPE_ENUM_PROCEDURE,
                                                name, &thd->sp_proc_cache,
                                                FALSE) != NULL :
@@ -2198,8 +2202,8 @@ show_create_sp(THD *thd, String *buf,
               const char *returns, ulong returnslen,
               const char *body, ulong bodylen,
               st_sp_chistics *chistics,
-              const LEX_STRING *definer_user,
-              const LEX_STRING *definer_host,
+              const LEX_CSTRING *definer_user,
+              const LEX_CSTRING *definer_host,
               sql_mode_t sql_mode)
 {
   sql_mode_t old_sql_mode= thd->variables.sql_mode;
@@ -2300,10 +2304,10 @@ sp_load_for_information_schema(THD *thd, TABLE *proc_table, String *db,
   const char *sp_body;
   String defstr;
   struct st_sp_chistics sp_chistics;
-  const LEX_STRING definer_user= {(char*)STRING_WITH_LEN("")};
-  const LEX_STRING definer_host= {(char*)STRING_WITH_LEN("")}; 
-  LEX_STRING sp_db_str;
-  LEX_STRING sp_name_str;
+  const LEX_CSTRING definer_user= {STRING_WITH_LEN("")};
+  const LEX_CSTRING definer_host= {STRING_WITH_LEN("")}; 
+  LEX_CSTRING sp_db_str;
+  LEX_CSTRING sp_name_str;
   sp_head *sp;
   sp_cache **spc= ((type == TYPE_ENUM_PROCEDURE) ?
                   &thd->sp_proc_cache : &thd->sp_func_cache);
@@ -2311,7 +2315,7 @@ sp_load_for_information_schema(THD *thd, TABLE *proc_table, String *db,
   sp_db_str.length= db->length();
   sp_name_str.str= name->c_ptr();
   sp_name_str.length= name->length();
-  sp_name sp_name_obj(sp_db_str, sp_name_str, true);
+  sp_name sp_name_obj(&sp_db_str, &sp_name_str, true);
   *free_sp_head= 0;
   if ((sp= sp_cache_lookup(spc, &sp_name_obj)))
   {

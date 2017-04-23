@@ -450,7 +450,7 @@ String *Item_func_from_base64::val_str(String *str)
     THD *thd= current_thd;
     push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                         ER_BAD_BASE64_DATA, ER_THD(thd, ER_BAD_BASE64_DATA),
-                        end_ptr - res->ptr());
+                        (int) (end_ptr - res->ptr()));
     goto err;
   }
 

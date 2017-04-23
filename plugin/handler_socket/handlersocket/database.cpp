@@ -1085,8 +1085,8 @@ dbcontext::parse_fields(TABLE *const table, const char *str,
     Field **fld = 0;
     size_t j = 0;
     for (fld = table->field; *fld; ++fld, ++j) {
-      DBG_FLD(fprintf(stderr, "f %s\n", (*fld)->field_name));
-      string_ref fn((*fld)->field_name, strlen((*fld)->field_name));
+      DBG_FLD(fprintf(stderr, "f %s\n", (*fld)->field_name.str));
+      string_ref fn((*fld)->field_name.str, (*fld)->field_name.length);
       if (fn == fldnms[i]) {
 	break;
       }
@@ -1096,7 +1096,7 @@ dbcontext::parse_fields(TABLE *const table, const char *str,
 	std::string(fldnms[i].begin(), fldnms[i].size()).c_str()));
       return false;
     }
-    DBG_FLD(fprintf(stderr, "FLD %s %zu\n", (*fld)->field_name, j));
+    DBG_FLD(fprintf(stderr, "FLD %s %zu\n", (*fld)->field_name.str, j));
     flds.push_back(j);
   }
   return true;

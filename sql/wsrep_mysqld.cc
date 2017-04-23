@@ -1409,7 +1409,7 @@ static int wsrep_create_trigger_query(THD *thd, uchar** buf, size_t* buf_len);
    1: TOI replication was skipped
   -1: TOI replication failed 
  */
-static int wsrep_TOI_begin(THD *thd, char *db_, char *table_,
+static int wsrep_TOI_begin(THD *thd, const char *db_, const char *table_,
                            const TABLE_LIST* table_list)
 {
   wsrep_status_t ret(WSREP_WARNING);
@@ -1473,8 +1473,8 @@ static int wsrep_TOI_begin(THD *thd, char *db_, char *table_,
                ret,
                (thd->db ? thd->db : "(null)"),
                (thd->query()) ? thd->query() : "void");
-    my_error(ER_LOCK_DEADLOCK, MYF(0), "WSREP replication failed. Check "
-	     "your wsrep connection state and retry the query.");
+    my_message(ER_LOCK_DEADLOCK, "WSREP replication failed. Check "
+               "your wsrep connection state and retry the query.", MYF(0));
     wsrep_keys_free(&key_arr);
     rc= -1;
   }
@@ -1512,7 +1512,7 @@ static void wsrep_TOI_end(THD *thd) {
   }
 }
 
-static int wsrep_RSU_begin(THD *thd, char *db_, char *table_)
+static int wsrep_RSU_begin(THD *thd, const char *db_, const char *table_)
 {
   wsrep_status_t ret(WSREP_WARNING);
   WSREP_DEBUG("RSU BEGIN: %lld, %d : %s", (long long)wsrep_thd_trx_seqno(thd),
@@ -1595,7 +1595,7 @@ static void wsrep_RSU_end(THD *thd)
   thd->variables.wsrep_on = 1;
 }
 
-int wsrep_to_isolation_begin(THD *thd, char *db_, char *table_,
+int wsrep_to_isolation_begin(THD *thd, const char *db_, const char *table_,
                              const TABLE_LIST* table_list)
 {
   int ret= 0;
@@ -2549,8 +2549,8 @@ static int wsrep_create_trigger_query(THD *thd, uchar** buf, size_t* buf_len)
   LEX *lex= thd->lex;
   String stmt_query;
 
-  LEX_STRING definer_user;
-  LEX_STRING definer_host;
+  LEX_CSTRING definer_user;
+  LEX_CSTRING definer_host;
 
   if (!lex->definer)
   {
@@ -2587,7 +2587,7 @@ static int wsrep_create_trigger_query(THD *thd, uchar** buf, size_t* buf_len)
 
   append_definer(thd, &stmt_query, &definer_user, &definer_host);
 
-  LEX_STRING stmt_definition;
+  LEX_CSTRING stmt_definition;
   uint not_used;
   stmt_definition.str= (char*) thd->lex->stmt_definition_begin;
   stmt_definition.length= thd->lex->stmt_definition_end

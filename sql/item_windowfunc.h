@@ -690,12 +690,12 @@ class Item_window_func : public Item_func_or_sum
 {
   /* Window function parameters as we've got them from the parser */
 public:
-  LEX_STRING *window_name;
+  LEX_CSTRING *window_name;
 public:
   Window_spec *window_spec;
   
 public:
-  Item_window_func(THD *thd, Item_sum *win_func, LEX_STRING *win_name)
+  Item_window_func(THD *thd, Item_sum *win_func, LEX_CSTRING *win_name)
     : Item_func_or_sum(thd, (Item *) win_func),
       window_name(win_name), window_spec(NULL), 
       force_return_blank(true),

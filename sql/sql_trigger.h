@@ -71,7 +71,7 @@ struct st_trg_execution_order
     Trigger name referenced in the FOLLOWS/PRECEDES clause of the
     CREATE TRIGGER statement.
   */
-  LEX_STRING anchor_trigger_name;
+  LEX_CSTRING anchor_trigger_name;
 };
 
 
@@ -99,15 +99,15 @@ public:
     grouped by event and action_time.
   */
   Item_trigger_field *trigger_fields;
-  LEX_STRING name;
-  LEX_STRING on_table_name;                     /* Raw table name */
-  LEX_STRING definition;
-  LEX_STRING definer;
+  LEX_CSTRING name;
+  LEX_CSTRING on_table_name;                     /* Raw table name */
+  LEX_CSTRING definition;
+  LEX_CSTRING definer;
 
   /* Character sets used */
-  LEX_STRING client_cs_name;
-  LEX_STRING connection_cl_name;
-  LEX_STRING db_cl_name;
+  LEX_CSTRING client_cs_name;
+  LEX_CSTRING connection_cl_name;
+  LEX_CSTRING db_cl_name;
 
   GRANT_INFO subject_table_grants;
   sql_mode_t sql_mode;
@@ -118,7 +118,7 @@ public:
   uint action_order;
 
   bool is_fields_updated_in_trigger(MY_BITMAP *used_fields);
-  void get_trigger_info(LEX_STRING *stmt, LEX_STRING *body,
+  void get_trigger_info(LEX_CSTRING *stmt, LEX_CSTRING *body,
                         LEX_STRING *definer);
   /* Functions executed over each active trigger */
   bool change_on_table_name(void* param_arg);
@@ -189,7 +189,7 @@ public:
     Field responsible for storing triggers definitions in file.
     It have to be public because we are using it directly from parser.
   */
-  List<LEX_STRING>  definitions_list;
+  List<LEX_CSTRING>  definitions_list;
   /**
     List of sql modes for triggers
   */
@@ -197,13 +197,13 @@ public:
   /** Create times for triggers */
   List<ulonglong> create_times;
 
-  List<LEX_STRING>  definers_list;
+  List<LEX_CSTRING>  definers_list;
 
   /* Character set context, used for parsing and executing triggers. */
 
-  List<LEX_STRING> client_cs_names;
-  List<LEX_STRING> connection_cl_names;
-  List<LEX_STRING> db_cl_names;
+  List<LEX_CSTRING> client_cs_names;
+  List<LEX_CSTRING> connection_cl_names;
+  List<LEX_CSTRING> db_cl_names;
 
   /* End of character ser context. */
 
@@ -227,7 +227,8 @@ public:
 
   static bool check_n_load(THD *thd, const char *db, const char *table_name,
                            TABLE *table, bool names_only);
-  static bool drop_all_triggers(THD *thd, char *db, char *table_name);
+  static bool drop_all_triggers(THD *thd, const char *db,
+                                const char *table_name);
   static bool change_table_name(THD *thd, const char *db,
                                 const char *old_alias,
                                 const char *old_table,
@@ -236,7 +237,7 @@ public:
   void add_trigger(trg_event_type event_type, 
                    trg_action_time_type action_time,
                    trigger_order_type ordering_clause,
-                   LEX_STRING *anchor_trigger_name,
+                   LEX_CSTRING *anchor_trigger_name,
                    Trigger *trigger);
   Trigger *get_trigger(trg_event_type event_type, 
                        trg_action_time_type action_time)
@@ -279,7 +280,7 @@ public:
     bzero(extra_null_bitmap, null_bytes);
   }
 
-  Trigger *find_trigger(const LEX_STRING *name, bool remove_from_list);
+  Trigger *find_trigger(const LEX_CSTRING *name, bool remove_from_list);
 
   Trigger* for_all_triggers(Triggers_processor func, void *arg);
 
@@ -287,13 +288,13 @@ private:
   bool prepare_record_accessors(TABLE *table);
   Trigger *change_table_name_in_trignames(const char *old_db_name,
                                           const char *new_db_name,
-                                          LEX_STRING *new_table_name,
+                                          LEX_CSTRING *new_table_name,
                                           Trigger *trigger);
   bool change_table_name_in_triggers(THD *thd,
                                      const char *old_db_name,
                                      const char *new_db_name,
-                                     LEX_STRING *old_table_name,
-                                     LEX_STRING *new_table_name);
+                                     LEX_CSTRING *old_table_name,
+                                     LEX_CSTRING *new_table_name);
 
   bool check_for_broken_triggers() 
   {
@@ -324,8 +325,8 @@ bool check_trn_exists(const LEX_STRING *trn_path);
 
 bool load_table_name_for_trigger(THD *thd,
                                  const sp_name *trg_name,
-                                 const LEX_STRING *trn_path,
-                                 LEX_STRING *tbl_name);
+                                 const LEX_CSTRING *trn_path,
+                                 LEX_CSTRING *tbl_name);
 bool mysql_create_or_drop_trigger(THD *thd, TABLE_LIST *tables, bool create);
 
 extern const char * const TRG_EXT;

@@ -20,18 +20,18 @@
 
 class THD;
 
-int mysql_create_db(THD *thd, char *db,
+int mysql_create_db(THD *thd, const char *db,
                     const DDL_options_st &options,
                     const Schema_specification_st *create);
 bool mysql_alter_db(THD *thd, const char *db,
                     const Schema_specification_st *create);
-bool mysql_rm_db(THD *thd, char *db, bool if_exists);
-bool mysql_upgrade_db(THD *thd, LEX_STRING *old_db);
-bool mysql_change_db(THD *thd, const LEX_STRING *new_db_name,
+bool mysql_rm_db(THD *thd, const char *db, bool if_exists);
+bool mysql_upgrade_db(THD *thd, LEX_CSTRING *old_db);
+bool mysql_change_db(THD *thd, const LEX_CSTRING *new_db_name,
                      bool force_switch);
 
 bool mysql_opt_change_db(THD *thd,
-                         const LEX_STRING *new_db_name,
+                         const LEX_CSTRING *new_db_name,
                          LEX_STRING *saved_db_name,
                          bool force_switch,
                          bool *cur_db_changed);
@@ -45,7 +45,8 @@ CHARSET_INFO *get_default_db_collation(THD *thd, const char *db_name);
 bool my_dbopt_init(void);
 void my_dbopt_cleanup(void);
 
-char *normalize_db_name(char *db, char *buffer, size_t buffer_size);
+const char *normalize_db_name(const char *db, char *buffer,
+                              size_t buffer_size);
 
 #define MY_DB_OPT_FILE "db.opt"
 

@@ -78,7 +78,7 @@ struct Query_cache_tls;
 struct LEX;
 class THD;
 
-typedef my_bool (*qc_engine_callback)(THD *thd, char *table_key,
+typedef my_bool (*qc_engine_callback)(THD *thd, const char *table_key,
                                       uint key_length,
                                       ulonglong *engine_data);
 
@@ -482,7 +482,7 @@ protected:
 		  my_bool using_transactions);
 
   /* Remove all queries that uses any of the tables in following database */
-  void invalidate(THD *thd, char *db);
+  void invalidate(THD *thd, const char *db);
 
   /* Remove all queries that uses any of the listed following table */
   void invalidate_by_MyISAM_filename(const char *filename);

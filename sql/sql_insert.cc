@@ -289,7 +289,8 @@ static int check_insert_fields(THD *thd, TABLE_LIST *table_list,
 
     if (check_unique && thd->dup_field)
     {
-      my_error(ER_FIELD_SPECIFIED_TWICE, MYF(0), thd->dup_field->field_name);
+      my_error(ER_FIELD_SPECIFIED_TWICE, MYF(0),
+               thd->dup_field->field_name.str);
       DBUG_RETURN(-1);
     }
   }
@@ -328,7 +329,8 @@ static bool has_no_default_value(THD *thd, Field *field, TABLE_LIST *table_list)
     else
     {
       push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN, ER_NO_DEFAULT_FOR_FIELD,
-                          ER_THD(thd, ER_NO_DEFAULT_FOR_FIELD), field->field_name);
+                          ER_THD(thd, ER_NO_DEFAULT_FOR_FIELD),
+                          field->field_name.str);
     }
     return thd->really_abort_on_warning();
   }

@@ -51,6 +51,7 @@
 *****************************************************************************/
 
 static const char *zero_timestamp="0000-00-00 00:00:00.000000";
+LEX_CSTRING temp_lex_str= {"temp", 4};
 
 /* number of bytes to store second_part part of the TIMESTAMP(N) */
 static uint sec_part_bytes[MAX_DATETIME_PRECISION+1]= { 0, 1, 1, 2, 2, 3, 3 };
@@ -1297,7 +1298,7 @@ warn:
 */
 Field_num::Field_num(uchar *ptr_arg,uint32 len_arg, uchar *null_ptr_arg,
                      uchar null_bit_arg, utype unireg_check_arg,
-                     const char *field_name_arg,
+                     const LEX_CSTRING *field_name_arg,
                      uint8 dec_arg, bool zero_arg, bool unsigned_arg)
   :Field(ptr_arg, len_arg, null_ptr_arg, null_bit_arg,
          unireg_check_arg, field_name_arg),
@@ -1627,9 +1628,9 @@ String *Field::val_int_as_str(String *val_buffer, bool unsigned_val)
 /// This is used as a table name when the table structure is not set up
 Field::Field(uchar *ptr_arg,uint32 length_arg,uchar *null_ptr_arg,
 	     uchar null_bit_arg,
-	     utype unireg_check_arg, const char *field_name_arg)
+	     utype unireg_check_arg, const LEX_CSTRING *field_name_arg)
   :ptr(ptr_arg), null_ptr(null_ptr_arg), table(0), orig_table(0),
-  table_name(0), field_name(field_name_arg), option_list(0),
+  table_name(0), field_name(*field_name_arg), option_list(0),
   option_struct(0), key_start(0), part_of_key(0),
   part_of_key_not_clustered(0), part_of_sortkey(0),
   unireg_check(unireg_check_arg), field_length(length_arg),
@@ -1888,7 +1889,7 @@ void Field::make_field(Send_field *field)
   else
   {
     field->table_name= "";
-    field->org_col_name= "";
+    field->org_col_name= empty_clex_str;
   }
   field->col_name= field_name;
   field->length=field_length;
@@ -1995,13 +1996,14 @@ bool Field_num::get_date(MYSQL_TIME *ltime,ulonglong fuzzydate)
   longlong nr= val_int();
   bool neg= !(flags & UNSIGNED_FLAG) && nr < 0;
   return int_to_datetime_with_warn(neg, neg ? -nr : nr, ltime, fuzzydate,
-                                   field_name);
+                                   field_name.str);
 }
 
 
 Field_str::Field_str(uchar *ptr_arg,uint32 len_arg, uchar *null_ptr_arg,
                      uchar null_bit_arg, utype unireg_check_arg,
-                     const char *field_name_arg, CHARSET_INFO *charset_arg)
+                     const LEX_CSTRING *field_name_arg,
+                     CHARSET_INFO *charset_arg)
   :Field(ptr_arg, len_arg, null_ptr_arg, null_bit_arg,
          unireg_check_arg, field_name_arg)
 {
@@ -2896,7 +2898,7 @@ Field_new_decimal::Field_new_decimal(uchar *ptr_arg,
                                      uint32 len_arg, uchar *null_ptr_arg,
                                      uchar null_bit_arg,
                                      enum utype unireg_check_arg,
-                                     const char *field_name_arg,
+                                     const LEX_CSTRING *field_name_arg,
                                      uint8 dec_arg,bool zero_arg,
                                      bool unsigned_arg)
   :Field_num(ptr_arg, len_arg, null_ptr_arg, null_bit_arg,
@@ -2912,7 +2914,7 @@ Field_new_decimal::Field_new_decimal(uchar *ptr_arg,
 
 Field_new_decimal::Field_new_decimal(uint32 len_arg,
                                      bool maybe_null_arg,
-                                     const char *name,
+                                     const LEX_CSTRING *name,
                                      uint8 dec_arg,
                                      bool unsigned_arg)
   :Field_num((uchar*) 0, len_arg,
@@ -2932,7 +2934,6 @@ Field *Field_new_decimal::create_from_item(MEM_ROOT *mem_root, Item *item)
   uint8 dec= item->decimals;
   uint8 intg= item->decimal_precision() - dec;
   uint32 len= item->max_char_length();
-
   DBUG_ASSERT (item->result_type() == DECIMAL_RESULT);
 
   /*
@@ -2967,7 +2968,7 @@ Field *Field_new_decimal::create_from_item(MEM_ROOT *mem_root, Item *item)
       len= required_length;
   }
   return new (mem_root)
-    Field_new_decimal(len, item->maybe_null, item->name,
+    Field_new_decimal(len, item->maybe_null, &item->name,
                       dec, item->unsigned_flag);
 }
 
@@ -3272,7 +3273,7 @@ bool Field_new_decimal::get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
 {
   my_decimal value;
   return decimal_to_datetime_with_warn(val_decimal(&value),
-                                       ltime, fuzzydate, field_name);
+                                       ltime, fuzzydate, field_name.str);
 }
 
 
@@ -3442,7 +3443,8 @@ Item *Field_new_decimal::get_equal_const_item(THD *thd, const Context &ctx,
         Field_time::get_equal_const_item().
       */
       my_decimal_round(E_DEC_FATAL_ERROR, val, decimals(), true, &val_buffer2);
-      return new (thd->mem_root) Item_decimal(thd, field_name, &val_buffer2,
+      return new (thd->mem_root) Item_decimal(thd, field_name.str,
+                                              &val_buffer2,
                                               decimals(), field_length);
     }
     break;
@@ -4734,7 +4736,7 @@ bool Field_real::get_date(MYSQL_TIME *ltime,ulonglong fuzzydate)
 {
   ASSERT_COLUMN_MARKED_FOR_READ;
   double nr= val_real();
-  return double_to_datetime_with_warn(nr, ltime, fuzzydate, field_name);
+  return double_to_datetime_with_warn(nr, ltime, fuzzydate, field_name.str);
 }
 
 
@@ -4889,7 +4891,7 @@ void Field_double::sql_type(String &res) const
 Field_timestamp::Field_timestamp(uchar *ptr_arg, uint32 len_arg,
                                  uchar *null_ptr_arg, uchar null_bit_arg,
 				 enum utype unireg_check_arg,
-				 const char *field_name_arg,
+				 const LEX_CSTRING *field_name_arg,
 				 TABLE_SHARE *share)
   :Field_temporal(ptr_arg, len_arg, null_ptr_arg, null_bit_arg,
                   unireg_check_arg, field_name_arg)
@@ -5849,7 +5851,7 @@ bool Field_time::check_zero_in_date_with_warn(ulonglong fuzzydate)
     THD *thd= get_thd();
     push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                         ER_WARN_DATA_OUT_OF_RANGE,
-                        ER_THD(thd, ER_WARN_DATA_OUT_OF_RANGE), field_name,
+                        ER_THD(thd, ER_WARN_DATA_OUT_OF_RANGE), field_name.str,
                         thd->get_stmt_da()->current_row_for_warning());
     return true;
   }
@@ -6230,7 +6232,7 @@ bool Field_year::get_date(MYSQL_TIME *ltime,ulonglong fuzzydate)
   if (tmp || field_length != 4)
     tmp+= 1900;
   return int_to_datetime_with_warn(false, tmp * 10000,
-                                    ltime, fuzzydate, field_name);
+                                    ltime, fuzzydate, field_name.str);
 }
 
 
@@ -7086,7 +7088,7 @@ check_field_for_37426(const void *param_arg)
   Check_field_param *param= (Check_field_param*) param_arg;
   DBUG_ASSERT(param->field->real_type() == MYSQL_TYPE_STRING);
   DBUG_PRINT("debug", ("Field %s - type: %d, size: %d",
-                       param->field->field_name,
+                       param->field->field_name.str,
                        param->field->real_type(),
                        param->field->row_pack_length()));
   return param->field->row_pack_length() > 255;
@@ -7168,7 +7170,8 @@ uchar *Field_string::pack(uchar *to, const uchar *from, uint max_length)
 {
   uint length=      MY_MIN(field_length,max_length);
   uint local_char_length= max_length/field_charset->mbmaxlen;
-  DBUG_PRINT("debug", ("Packing field '%s' - length: %u ", field_name, length));
+  DBUG_PRINT("debug", ("Packing field '%s' - length: %u ", field_name.str,
+                       length));
 
   if (length > local_char_length)
     local_char_length= my_charpos(field_charset, from, from+length,
@@ -7340,7 +7343,7 @@ Field *Field_string::make_new_field(MEM_ROOT *root, TABLE *new_table,
   if (type() != MYSQL_TYPE_VAR_STRING || keep_type)
     field= Field::make_new_field(root, new_table, keep_type);
   else if ((field= new (root) Field_varstring(field_length, maybe_null(),
-                                              field_name,
+                                              &field_name,
                                               new_table->s, charset())))
   {
     /*
@@ -7811,7 +7814,8 @@ void Field_varstring::hash(ulong *nr, ulong *nr2)
 ****************************************************************************/
 
 Field_blob::Field_blob(uchar *ptr_arg, uchar *null_ptr_arg, uchar null_bit_arg,
-		       enum utype unireg_check_arg, const char *field_name_arg,
+		       enum utype unireg_check_arg,
+                       const LEX_CSTRING *field_name_arg,
                        TABLE_SHARE *share, uint blob_pack_length,
 		       CHARSET_INFO *cs)
   :Field_longstr(ptr_arg, BLOB_PACK_LENGTH_TO_MAX_LENGH(blob_pack_length),
@@ -8165,8 +8169,10 @@ Field *Field_blob::new_key_field(MEM_ROOT *root, TABLE *new_table,
                                  uchar *new_null_ptr, uint new_null_bit)
 {
   Field_varstring *res= new (root) Field_varstring(new_ptr, length, 2,
-                                      new_null_ptr, new_null_bit, Field::NONE,
-                                      field_name, table->s, charset());
+                                                   new_null_ptr,
+                                                   new_null_bit, Field::NONE,
+                                                   &field_name,
+                                                   table->s, charset());
   res->init(new_table);
   return res;
 }
@@ -8517,7 +8523,7 @@ int Field_geom::store(const char *from, uint length, CHARSET_INFO *cs)
       my_error(ER_TRUNCATED_WRONG_VALUE_FOR_FIELD, MYF(0),
                Geometry::ci_collection[geom_type]->m_name.str,
                Geometry::ci_collection[wkb_type]->m_name.str,
-               field_name,
+               field_name.str,
                (ulong) table->in_use->get_stmt_da()->
                current_row_for_warning());
       goto err_exit;
@@ -9104,7 +9110,8 @@ bool Field_enum::can_optimize_keypart_ref(const Item_bool_func *cond,
 
 Field_bit::Field_bit(uchar *ptr_arg, uint32 len_arg, uchar *null_ptr_arg,
                      uchar null_bit_arg, uchar *bit_ptr_arg, uchar bit_ofs_arg,
-                     enum utype unireg_check_arg, const char *field_name_arg)
+                     enum utype unireg_check_arg,
+                     const LEX_CSTRING *field_name_arg)
   : Field(ptr_arg, len_arg, null_ptr_arg, null_bit_arg,
           unireg_check_arg, field_name_arg),
     bit_ptr(bit_ptr_arg), bit_ofs(bit_ofs_arg), bit_len(len_arg & 7),
@@ -9619,7 +9626,7 @@ void Field_bit::set_default()
 Field_bit_as_char::Field_bit_as_char(uchar *ptr_arg, uint32 len_arg,
                                      uchar *null_ptr_arg, uchar null_bit_arg,
                                      enum utype unireg_check_arg,
-                                     const char *field_name_arg)
+                                     const LEX_CSTRING *field_name_arg)
   :Field_bit(ptr_arg, len_arg, null_ptr_arg, null_bit_arg, 0, 0,
              unireg_check_arg, field_name_arg)
 {
@@ -9880,7 +9887,7 @@ void Column_definition::create_length_to_internal_length(void)
 }
 
 
-bool check_expression(Virtual_column_info *vcol, const char *name,
+bool check_expression(Virtual_column_info *vcol, LEX_CSTRING *name,
                       enum_vcol_info_type type)
 
 {
@@ -9888,7 +9895,7 @@ bool check_expression(Virtual_column_info *vcol, const char *name,
   Item::vcol_func_processor_result res;
 
   if (!vcol->name.length)
-    vcol->name.str= const_cast<char*>(name);
+    vcol->name= *name;
 
   /*
     Walk through the Item tree checking if all items are valid
@@ -9905,7 +9912,7 @@ bool check_expression(Virtual_column_info *vcol, const char *name,
   if (ret || (res.errors & filter))
   {
     my_error(ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED, MYF(0), res.name,
-             vcol_type_name(type), name);
+             vcol_type_name(type), name->str);
     return TRUE;
   }
   /*
@@ -9930,19 +9937,19 @@ bool Column_definition::check(THD *thd)
   {
     DBUG_ASSERT(vcol_info->expr);
     vcol_info->set_field_type(sql_type);
-    if (check_expression(vcol_info, field_name, vcol_info->stored_in_db
+    if (check_expression(vcol_info, &field_name, vcol_info->stored_in_db
                          ? VCOL_GENERATED_STORED : VCOL_GENERATED_VIRTUAL))
       DBUG_RETURN(TRUE);
   }
 
   if (check_constraint &&
-      check_expression(check_constraint, field_name, VCOL_CHECK_FIELD))
+      check_expression(check_constraint, &field_name, VCOL_CHECK_FIELD))
       DBUG_RETURN(1);
 
   if (default_value)
   {
     Item *def_expr= default_value->expr;
-    if (check_expression(default_value, field_name, VCOL_DEFAULT))
+    if (check_expression(default_value, &field_name, VCOL_DEFAULT))
       DBUG_RETURN(TRUE);
 
     /* Constant's are stored in the 'empty_record', except for blobs */
@@ -9953,7 +9960,7 @@ bool Column_definition::check(THD *thd)
         default_value= 0;
         if ((flags & (NOT_NULL_FLAG | AUTO_INCREMENT_FLAG)) == NOT_NULL_FLAG)
         {
-          my_error(ER_INVALID_DEFAULT, MYF(0), field_name);
+          my_error(ER_INVALID_DEFAULT, MYF(0), field_name.str);
           DBUG_RETURN(1);
         }
       }
@@ -9962,7 +9969,7 @@ bool Column_definition::check(THD *thd)
 
   if (default_value && (flags & AUTO_INCREMENT_FLAG))
   {
-    my_error(ER_INVALID_DEFAULT, MYF(0), field_name);
+    my_error(ER_INVALID_DEFAULT, MYF(0), field_name.str);
     DBUG_RETURN(1);
   }
 
@@ -9988,7 +9995,7 @@ bool Column_definition::check(THD *thd)
     if (mysql_type_to_time_type(sql_type) != MYSQL_TIMESTAMP_DATETIME ||
         on_update->decimals < length)
     {
-      my_error(ER_INVALID_ON_UPDATE, MYF(0), field_name);
+      my_error(ER_INVALID_ON_UPDATE, MYF(0), field_name.str);
       DBUG_RETURN(TRUE);
     }
     unireg_check= unireg_check == Field::NONE ? Field::TIMESTAMP_UN_FIELD
@@ -10031,19 +10038,19 @@ bool Column_definition::check(THD *thd)
     if (decimals >= NOT_FIXED_DEC)
     {
       my_error(ER_TOO_BIG_SCALE, MYF(0), static_cast<ulonglong>(decimals),
-               field_name, static_cast<ulong>(NOT_FIXED_DEC - 1));
+               field_name.str, static_cast<uint>(NOT_FIXED_DEC - 1));
       DBUG_RETURN(TRUE);
     }
     my_decimal_trim(&length, &decimals);
     if (length > DECIMAL_MAX_PRECISION)
     {
-      my_error(ER_TOO_BIG_PRECISION, MYF(0), length, field_name,
+      my_error(ER_TOO_BIG_PRECISION, MYF(0), length, field_name.str,
                DECIMAL_MAX_PRECISION);
       DBUG_RETURN(TRUE);
     }
     if (length < decimals)
     {
-      my_error(ER_M_BIGGER_THAN_D, MYF(0), field_name);
+      my_error(ER_M_BIGGER_THAN_D, MYF(0), field_name.str);
       DBUG_RETURN(TRUE);
     }
     length=
@@ -10083,13 +10090,13 @@ bool Column_definition::check(THD *thd)
     if (length < decimals &&
         decimals != NOT_FIXED_DEC)
     {
-      my_error(ER_M_BIGGER_THAN_D, MYF(0), field_name);
+      my_error(ER_M_BIGGER_THAN_D, MYF(0), field_name.str);
       DBUG_RETURN(TRUE);
     }
     if (decimals != NOT_FIXED_DEC && decimals >= FLOATING_POINT_DECIMALS)
     {
       my_error(ER_TOO_BIG_SCALE, MYF(0), static_cast<ulonglong>(decimals),
-               field_name, static_cast<ulong>(FLOATING_POINT_DECIMALS-1));
+               field_name.str, static_cast<uint>(FLOATING_POINT_DECIMALS-1));
       DBUG_RETURN(TRUE);
     }
     break;
@@ -10103,13 +10110,13 @@ bool Column_definition::check(THD *thd)
     if (length < decimals &&
         decimals != NOT_FIXED_DEC)
     {
-      my_error(ER_M_BIGGER_THAN_D, MYF(0), field_name);
+      my_error(ER_M_BIGGER_THAN_D, MYF(0), field_name.str);
       DBUG_RETURN(TRUE);
     }
     if (decimals != NOT_FIXED_DEC && decimals >= FLOATING_POINT_DECIMALS)
     {
       my_error(ER_TOO_BIG_SCALE, MYF(0), static_cast<ulonglong>(decimals),
-               field_name, static_cast<ulong>(FLOATING_POINT_DECIMALS-1));
+               field_name.str, static_cast<uint>(FLOATING_POINT_DECIMALS-1));
       DBUG_RETURN(TRUE);
     }
     break;
@@ -10117,7 +10124,7 @@ bool Column_definition::check(THD *thd)
   case MYSQL_TYPE_TIMESTAMP2:
     if (length > MAX_DATETIME_PRECISION)
     {
-      my_error(ER_TOO_BIG_PRECISION, MYF(0), length, field_name,
+      my_error(ER_TOO_BIG_PRECISION, MYF(0), length, field_name.str,
                MAX_DATETIME_PRECISION);
       DBUG_RETURN(TRUE);
     }
@@ -10135,7 +10142,7 @@ bool Column_definition::check(THD *thd)
   case MYSQL_TYPE_TIME2:
     if (length > MAX_DATETIME_PRECISION)
     {
-      my_error(ER_TOO_BIG_PRECISION, MYF(0), length, field_name,
+      my_error(ER_TOO_BIG_PRECISION, MYF(0), length, field_name.str,
                MAX_DATETIME_PRECISION);
       DBUG_RETURN(TRUE);
     }
@@ -10145,7 +10152,7 @@ bool Column_definition::check(THD *thd)
   case MYSQL_TYPE_DATETIME2:
     if (length > MAX_DATETIME_PRECISION)
     {
-      my_error(ER_TOO_BIG_PRECISION, MYF(0), length, field_name,
+      my_error(ER_TOO_BIG_PRECISION, MYF(0), length, field_name.str,
                MAX_DATETIME_PRECISION);
       DBUG_RETURN(TRUE);
     }
@@ -10167,7 +10174,7 @@ bool Column_definition::check(THD *thd)
         length= 1;
       if (length > MAX_BIT_FIELD_LENGTH)
       {
-        my_error(ER_TOO_BIG_DISPLAYWIDTH, MYF(0), field_name,
+        my_error(ER_TOO_BIG_DISPLAYWIDTH, MYF(0), field_name.str,
                  static_cast<ulong>(MAX_BIT_FIELD_LENGTH));
         DBUG_RETURN(TRUE);
       }
@@ -10213,18 +10220,19 @@ bool Column_definition::check(THD *thd)
               sql_type == MYSQL_TYPE_STRING) ?  ER_TOO_BIG_FIELDLENGTH :
                                                 ER_TOO_BIG_DISPLAYWIDTH,
               MYF(0),
-              field_name, max_field_charlength); /* purecov: inspected */
+              field_name.str, max_field_charlength); /* purecov: inspected */
     DBUG_RETURN(TRUE);
   }
   else if (length > MAX_FIELD_BLOBLENGTH)
   {
-    my_error(ER_TOO_BIG_DISPLAYWIDTH, MYF(0), field_name, MAX_FIELD_BLOBLENGTH);
+    my_error(ER_TOO_BIG_DISPLAYWIDTH, MYF(0), field_name.str,
+             MAX_FIELD_BLOBLENGTH);
     DBUG_RETURN(1);
   }
 
   if ((~allowed_type_modifier) & flags & conditional_type_modifiers)
   {
-    my_error(ER_WRONG_FIELD_SPEC, MYF(0), field_name);
+    my_error(ER_WRONG_FIELD_SPEC, MYF(0), field_name.str);
     DBUG_RETURN(TRUE);
   }
 
@@ -10327,7 +10335,7 @@ Field *make_field(TABLE_SHARE *share,
 		  Field::geometry_type geom_type, uint srid,
 		  Field::utype unireg_check,
 		  TYPELIB *interval,
-		  const char *field_name)
+		  const LEX_CSTRING *field_name)
 {
   uchar *UNINIT_VAR(bit_ptr);
   uchar UNINIT_VAR(bit_offset);
@@ -10806,7 +10814,7 @@ Field::set_warning(Sql_condition::enum_warning_level level, uint code,
   if (thd->count_cuted_fields)
   {
     thd->cuted_fields+= cut_increment;
-    push_warning_printf(thd, level, code, ER_THD(thd, code), field_name,
+    push_warning_printf(thd, level, code, ER_THD(thd, code), field_name.str,
                         thd->get_stmt_da()->current_row_for_warning());
     return 0;
   }
@@ -10839,7 +10847,7 @@ void Field::set_datetime_warning(Sql_condition::enum_warning_level level,
 {
   THD *thd= get_thd();
   if (thd->really_abort_on_warning() && level >= Sql_condition::WARN_LEVEL_WARN)
-    make_truncated_value_warning(thd, level, str, ts_type, field_name);
+    make_truncated_value_warning(thd, level, str, ts_type, field_name.str);
   else
     set_warning(level, code, cuted_increment);
 }
@@ -10852,7 +10860,7 @@ void Field::set_warning_truncated_wrong_value(const char *type_arg,
   push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                       ER_TRUNCATED_WRONG_VALUE_FOR_FIELD,
                       ER_THD(thd, ER_TRUNCATED_WRONG_VALUE_FOR_FIELD),
-                      type_arg, value, field_name,
+                      type_arg, value, field_name.str,
                       static_cast<ulong>(thd->get_stmt_da()->
                       current_row_for_warning()));
 }
@@ -10921,7 +10929,7 @@ bool Field::validate_value_in_record_with_warn(THD *thd, const uchar *record)
     push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                         ER_INVALID_DEFAULT_VALUE_FOR_FIELD,
                         ER_THD(thd, ER_INVALID_DEFAULT_VALUE_FOR_FIELD),
-                        ErrConvString(&tmp).ptr(), field_name);
+                        ErrConvString(&tmp).ptr(), field_name.str);
   }
   dbug_tmp_restore_column_map(table->read_set, old_map);
   return rc;
@@ -10956,7 +10964,7 @@ bool Field::save_in_field_default_value(bool view_error_processing)
       push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                           ER_NO_DEFAULT_FOR_FIELD,
                           ER_THD(thd, ER_NO_DEFAULT_FOR_FIELD),
-                          field_name);
+                          field_name.str);
     }
     return 1;
   }

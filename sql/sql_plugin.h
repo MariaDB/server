@@ -90,7 +90,7 @@ struct st_ptr_backup {
 
 struct st_plugin_dl
 {
-  LEX_STRING dl;
+  LEX_CSTRING dl;
   void *handle;
   struct st_maria_plugin *plugins;
   st_ptr_backup *ptr_backup;
@@ -105,7 +105,7 @@ struct st_plugin_dl
 
 struct st_plugin_int
 {
-  LEX_STRING name;
+  LEX_CSTRING name;
   struct st_maria_plugin *plugin;
   struct st_plugin_dl *plugin_dl;
   st_ptr_backup *ptr_backup;
@@ -163,18 +163,18 @@ extern const char *plugin_maturity_names[];
 extern int plugin_init(int *argc, char **argv, int init_flags);
 extern void plugin_shutdown(void);
 void add_plugin_options(DYNAMIC_ARRAY *options, MEM_ROOT *mem_root);
-extern bool plugin_is_ready(const LEX_STRING *name, int type);
+extern bool plugin_is_ready(const LEX_CSTRING *name, int type);
 #define my_plugin_lock_by_name(A,B,C) plugin_lock_by_name(A,B,C)
 #define my_plugin_lock(A,B) plugin_lock(A,B)
 extern plugin_ref plugin_lock(THD *thd, plugin_ref ptr);
-extern plugin_ref plugin_lock_by_name(THD *thd, const LEX_STRING *name,
+extern plugin_ref plugin_lock_by_name(THD *thd, const LEX_CSTRING *name,
                                       int type);
 extern void plugin_unlock(THD *thd, plugin_ref plugin);
 extern void plugin_unlock_list(THD *thd, plugin_ref *list, uint count);
-extern bool mysql_install_plugin(THD *thd, const LEX_STRING *name,
-                                 const LEX_STRING *dl);
-extern bool mysql_uninstall_plugin(THD *thd, const LEX_STRING *name,
-                                   const LEX_STRING *dl);
+extern bool mysql_install_plugin(THD *thd, const LEX_CSTRING *name,
+                                 const LEX_CSTRING *dl);
+extern bool mysql_uninstall_plugin(THD *thd, const LEX_CSTRING *name,
+                                   const LEX_CSTRING *dl);
 extern bool plugin_register_builtin(struct st_mysql_plugin *plugin);
 extern void plugin_thdvar_init(THD *thd);
 extern void plugin_thdvar_cleanup(THD *thd);
@@ -192,7 +192,7 @@ extern bool plugin_foreach_with_mask(THD *thd, plugin_foreach_func *func,
                                      int type, uint state_mask, void *arg);
 extern void sync_dynamic_session_variables(THD* thd, bool global_lock);
 
-extern bool plugin_dl_foreach(THD *thd, const LEX_STRING *dl,
+extern bool plugin_dl_foreach(THD *thd, const LEX_CSTRING *dl,
                               plugin_foreach_func *func, void *arg);
 
 sys_var *find_sys_var_ex(THD *thd, const char *str, size_t length,

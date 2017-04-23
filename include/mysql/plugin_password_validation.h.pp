@@ -141,7 +141,8 @@ extern struct my_snprintf_service_st {
   size_t (*my_snprintf_type)(char*, size_t, const char*, ...);
   size_t (*my_vsnprintf_type)(char *, size_t, const char*, va_list);
 } *my_snprintf_service;
-size_t my_snprintf(char* to, size_t n, const char* fmt, ...);
+size_t my_snprintf(char* to, size_t n, const char* fmt, ...)
+  ;
 size_t my_vsnprintf(char *to, size_t n, const char* fmt, va_list ap);
 extern struct progress_report_service_st {
   void (*thd_progress_init_func)(void* thd, unsigned int max_stage);
@@ -233,13 +234,20 @@ struct st_mysql_lex_string
   size_t length;
 };
 typedef struct st_mysql_lex_string MYSQL_LEX_STRING;
+struct st_mysql_const_lex_string
+{
+  const char *str;
+  size_t length;
+};
+typedef struct st_mysql_const_lex_string MYSQL_CONST_LEX_STRING;
 extern struct thd_alloc_service_st {
   void *(*thd_alloc_func)(void*, unsigned int);
   void *(*thd_calloc_func)(void*, unsigned int);
   char *(*thd_strdup_func)(void*, const char *);
   char *(*thd_strmake_func)(void*, const char *, unsigned int);
   void *(*thd_memdup_func)(void*, const void*, unsigned int);
-  MYSQL_LEX_STRING *(*thd_make_lex_string_func)(void*, MYSQL_LEX_STRING *,
+  MYSQL_CONST_LEX_STRING *(*thd_make_lex_string_func)(void*,
+                                        MYSQL_CONST_LEX_STRING *,
                                         const char *, unsigned int, int);
 } *thd_alloc_service;
 void *thd_alloc(void* thd, unsigned int size);
@@ -247,9 +255,10 @@ void *thd_calloc(void* thd, unsigned int size);
 char *thd_strdup(void* thd, const char *str);
 char *thd_strmake(void* thd, const char *str, unsigned int size);
 void *thd_memdup(void* thd, const void* str, unsigned int size);
-MYSQL_LEX_STRING *thd_make_lex_string(void* thd, MYSQL_LEX_STRING *lex_str,
-                                      const char *str, unsigned int size,
-                                      int allocate_lex_string);
+MYSQL_CONST_LEX_STRING
+*thd_make_lex_string(void* thd, MYSQL_CONST_LEX_STRING *lex_str,
+                     const char *str, unsigned int size,
+                     int allocate_lex_string);
 extern struct thd_autoinc_service_st {
   void (*thd_get_autoinc_func)(const void* thd,
                                unsigned long* off, unsigned long* inc);
@@ -487,6 +496,6 @@ void thd_wakeup_subsequent_commits(void* thd, int wakeup_error);
 struct st_mariadb_password_validation
 {
   int interface_version;
-  int (*validate_password)(MYSQL_LEX_STRING *username,
-                           MYSQL_LEX_STRING *password);
+  int (*validate_password)(MYSQL_CONST_LEX_STRING *username,
+                           MYSQL_CONST_LEX_STRING *password);
 };

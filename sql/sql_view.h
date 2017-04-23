@@ -60,7 +60,7 @@ void make_valid_column_names(THD *thd, List<Item> &item_list);
 
 #define VIEW_ANY_ACL (SELECT_ACL | UPDATE_ACL | INSERT_ACL | DELETE_ACL)
 
-extern const LEX_STRING view_type;
+extern const LEX_CSTRING view_type;
 
 void make_valid_column_names(List<Item> &item_list);
 

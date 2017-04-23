@@ -523,8 +523,8 @@ check_v_col_in_order(
 			}
 
 			if (my_strcasecmp(system_charset_info,
-					  field->field_name,
-					  new_field->field_name) != 0) {
+					  field->field_name.str,
+					  new_field->field_name.str) != 0) {
 				/* different column */
 				return(false);
 			} else {
@@ -869,7 +869,7 @@ ha_innobase::check_if_supported_inplace_alter(
 			    && innobase_fulltext_exist(altered_table)
 			    && !my_strcasecmp(
 				    system_charset_info,
-				    key_part->field->field_name,
+				    key_part->field->field_name.str,
 				    FTS_DOC_ID_COL_NAME)) {
 				ha_alter_info->unsupported_reason = innobase_get_err_msg(
 					ER_ALTER_OPERATION_NOT_SUPPORTED_REASON_HIDDEN_FTS);
@@ -966,7 +966,7 @@ ha_innobase::check_if_supported_inplace_alter(
 
 			if (!my_strcasecmp(
 				    system_charset_info,
-				    (*fp)->field_name,
+				    (*fp)->field_name.str,
 				    FTS_DOC_ID_COL_NAME)) {
 				ha_alter_info->unsupported_reason = innobase_get_err_msg(
 					ER_ALTER_OPERATION_NOT_SUPPORTED_REASON_CHANGE_FTS);
@@ -1046,7 +1046,7 @@ innobase_init_foreign(
 /*==================*/
 	dict_foreign_t*	foreign,		/*!< in/out: structure to
 						initialize */
-	char*		constraint_name,	/*!< in/out: constraint name if
+	const char*	constraint_name,	/*!< in/out: constraint name if
 						exists */
 	dict_table_t*	table,			/*!< in: foreign table */
 	dict_index_t*	index,			/*!< in: foreign key index */
@@ -1254,7 +1254,7 @@ no_match:
 			}
 
 			if (innobase_strcasecmp(col_names[j],
-						key_part.field->field_name)) {
+						key_part.field->field_name.str)) {
 				/* Name mismatch */
 				goto no_match;
 			}
@@ -2045,7 +2045,7 @@ name_ok:
 				}
 
 				my_error(ER_WRONG_KEY_COLUMN, MYF(0), "InnoDB",
-					 field->field_name);
+					 field->field_name.str);
 				return(ER_WRONG_KEY_COLUMN);
 			}
 
@@ -2061,7 +2061,7 @@ name_ok:
 				}
 
 				my_error(ER_WRONG_KEY_COLUMN, MYF(0), "InnoDB",
-					 field->field_name);
+					 field->field_name.str);
 				return(ER_WRONG_KEY_COLUMN);
 			}
 		}
@@ -2291,20 +2291,20 @@ innobase_fts_check_doc_id_col(
 		}
 
 		if (my_strcasecmp(system_charset_info,
-				  field->field_name, FTS_DOC_ID_COL_NAME)) {
+				  field->field_name.str, FTS_DOC_ID_COL_NAME)) {
 			continue;
 		}
 
-		if (strcmp(field->field_name, FTS_DOC_ID_COL_NAME)) {
+		if (strcmp(field->field_name.str, FTS_DOC_ID_COL_NAME)) {
 			my_error(ER_WRONG_COLUMN_NAME, MYF(0),
-				 field->field_name);
+				 field->field_name.str);
 		} else if (field->type() != MYSQL_TYPE_LONGLONG
 			   || field->pack_length() != 8
 			   || field->real_maybe_null()
 			   || !(field->flags & UNSIGNED_FLAG)
 			   || innobase_is_v_fld(field)) {
 			my_error(ER_INNODB_FT_WRONG_DOCID_COLUMN, MYF(0),
-				 field->field_name);
+				 field->field_name.str);
 		} else {
 			*fts_doc_col_no = i - *num_v;
 		}
@@ -2377,7 +2377,7 @@ innobase_fts_check_doc_id_index(
 			if ((key.flags & HA_NOSAME)
 			    && key.user_defined_key_parts == 1
 			    && !strcmp(key.name, FTS_DOC_ID_INDEX_NAME)
-			    && !strcmp(key.key_part[0].field->field_name,
+			    && !strcmp(key.key_part[0].field->field_name.str,
 				       FTS_DOC_ID_COL_NAME)) {
 				if (fts_doc_col_no) {
 					*fts_doc_col_no = ULINT_UNDEFINED;
@@ -2456,7 +2456,7 @@ innobase_fts_check_doc_id_index_in_def(
 		if (!(key->flags & HA_NOSAME)
 		    || key->user_defined_key_parts != 1
 		    || strcmp(key->name, FTS_DOC_ID_INDEX_NAME)
-		    || strcmp(key->key_part[0].field->field_name,
+		    || strcmp(key->key_part[0].field->field_name.str,
 			      FTS_DOC_ID_COL_NAME)) {
 			return(FTS_INCORRECT_DOC_ID_INDEX);
 		}
@@ -2960,7 +2960,7 @@ innobase_check_foreigns(
 		if (!new_field || (new_field->flags & NOT_NULL_FLAG)) {
 			if (innobase_check_foreigns_low(
 				    user_table, drop_fk, n_drop_fk,
-				    (*fp)->field_name, !new_field)) {
+				    (*fp)->field_name.str, !new_field)) {
 				return(true);
 			}
 		}
@@ -3255,7 +3255,7 @@ innobase_get_col_names(
 			}
 
 			if (new_field->field == table->field[old_i]) {
-				cols[old_i - num_v] = new_field->field_name;
+				cols[old_i - num_v] = new_field->field_name.str;
 				break;
 			}
 		}
@@ -3543,7 +3543,7 @@ innobase_check_gis_columns(
 
 		ulint col_nr = dict_table_has_column(
 			table,
-			key_part.field->field_name,
+			key_part.field->field_name.str,
 			key_part.fieldnr);
 		ut_ad(col_nr != table->n_def);
 		dict_col_t*	col = &table->cols[col_nr];
@@ -3666,7 +3666,7 @@ prepare_inplace_add_virtual(
 
 			if (charset_no > MAX_CHAR_COLL_NUM) {
 				my_error(ER_WRONG_KEY_COLUMN, MYF(0), "InnoDB",
-					 field->field_name);
+					 field->field_name.str);
 				return(true);
 			}
 		} else {
@@ -3697,7 +3697,7 @@ prepare_inplace_add_virtual(
 
 		ctx->add_vcol[j].m_col.ind = i - 1;
 		ctx->add_vcol[j].num_base = 0;
-		ctx->add_vcol_name[j] = field->field_name;
+		ctx->add_vcol_name[j] = field->field_name.str;
 		ctx->add_vcol[j].base_col = NULL;
 		ctx->add_vcol[j].v_pos = ctx->old_table->n_v_cols
 					 - ctx->num_to_drop_vcol + j;
@@ -3785,7 +3785,7 @@ prepare_inplace_drop_virtual(
 
 			if (charset_no > MAX_CHAR_COLL_NUM) {
 				my_error(ER_WRONG_KEY_COLUMN, MYF(0), "InnoDB",
-					 field->field_name);
+					 field->field_name.str);
 				return(true);
 			}
 		} else {
@@ -3816,7 +3816,7 @@ prepare_inplace_drop_virtual(
 
 		ctx->drop_vcol[j].m_col.ind = i;
 
-		ctx->drop_vcol_name[j] = field->field_name;
+		ctx->drop_vcol_name[j] = field->field_name.str;
 
 		dict_v_col_t*	v_col = dict_table_get_nth_v_col_mysql(
 					ctx->old_table, i);
@@ -4631,7 +4631,7 @@ prepare_inplace_alter_table_dict(
 					dict_mem_table_free(
 						ctx->new_table);
 					my_error(ER_WRONG_KEY_COLUMN, MYF(0), "InnoDB",
-						 field->field_name);
+						 field->field_name.str);
 					goto new_clustered_failed;
 				}
 			} else {
@@ -4665,17 +4665,17 @@ prepare_inplace_alter_table_dict(
 				col_len = DATA_POINT_LEN;
 			}
 
-			if (dict_col_name_is_reserved(field->field_name)) {
+			if (dict_col_name_is_reserved(field->field_name.str)) {
 				dict_mem_table_free(ctx->new_table);
 				my_error(ER_WRONG_COLUMN_NAME, MYF(0),
-					 field->field_name);
+					 field->field_name.str);
 				goto new_clustered_failed;
 			}
 
 			if (is_virtual) {
 				dict_mem_table_add_v_col(
 					ctx->new_table, ctx->heap,
-					field->field_name,
+					field->field_name.str,
 					col_type,
 					dtype_form_prtype(
 						field_type, charset_no)
@@ -4684,7 +4684,7 @@ prepare_inplace_alter_table_dict(
 			} else {
 				dict_mem_table_add_col(
 					ctx->new_table, ctx->heap,
-					field->field_name,
+					field->field_name.str,
 					col_type,
 					dtype_form_prtype(
 						field_type, charset_no),
@@ -5655,7 +5655,7 @@ err_exit_no_heap:
 			cf_it.rewind();
 			while (Create_field* cf = cf_it++) {
 				if (cf->field == *fp) {
-					name = cf->field_name;
+					name = cf->field_name.str;
 					goto check_if_ok_to_rename;
 				}
 			}
@@ -5665,7 +5665,7 @@ check_if_ok_to_rename:
 			/* Prohibit renaming a column from FTS_DOC_ID
 			if full-text indexes exist. */
 			if (!my_strcasecmp(system_charset_info,
-					   (*fp)->field_name,
+					   (*fp)->field_name.str,
 					   FTS_DOC_ID_COL_NAME)
 			    && innobase_fulltext_exist(altered_table)) {
 				my_error(ER_INNODB_FT_WRONG_DOCID_COLUMN,
@@ -7107,8 +7107,8 @@ innobase_rename_columns_try(
 				if (innobase_rename_column_try(
 					    ctx->old_table, trx, table_name,
 					    col_n,
-					    cf->field->field_name,
-					    cf->field_name,
+					    cf->field->field_name.str,
+					    cf->field_name.str,
 					    ctx->need_rebuild(),
 					    is_virtual)) {
 					return(true);
@@ -7332,8 +7332,8 @@ innobase_rename_or_enlarge_columns_cache(
 			if ((*fp)->flags & FIELD_IS_RENAMED) {
 				dict_mem_table_col_rename(
 					user_table, col_n,
-					cf->field->field_name,
-					cf->field_name, is_virtual);
+					cf->field->field_name.str,
+					cf->field_name.str, is_virtual);
 			}
 
 			break;
@@ -7384,7 +7384,7 @@ commit_set_autoinc(
 		const Field*	ai	= old_table->found_next_number_field;
 		ut_ad(!strcmp(dict_table_get_col_name(ctx->old_table,
 						      innodb_col_no(ai)),
-			      ai->field_name));
+			      ai->field_name.str));
 
 		ib_uint64_t	autoinc
 			= ha_alter_info->create_info->auto_increment_value;

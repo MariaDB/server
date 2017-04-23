@@ -198,15 +198,15 @@ Item* convert_charset_partition_constant(Item *item, CHARSET_INFO *cs)
     @retval false  String not found
 */
 
-static bool is_name_in_list(char *name, List<char> list_names)
+static bool is_name_in_list(const char *name, List<const char> list_names)
 {
-  List_iterator<char> names_it(list_names);
+  List_iterator<const char> names_it(list_names);
   uint num_names= list_names.elements;
   uint i= 0;
 
   do
   {
-    char *list_name= names_it++;
+    const char *list_name= names_it++;
     if (!(my_strcasecmp(system_charset_info, name, list_name)))
       return TRUE;
   } while (++i < num_names);
@@ -484,8 +484,8 @@ static bool set_up_field_array(THD *thd, TABLE *table,
       {
         if (!is_sub_part && part_info->column_list)
         {
-          List_iterator<char> it(part_info->part_field_list);
-          char *field_name;
+          List_iterator<const char> it(part_info->part_field_list);
+          const char *field_name;
 
           DBUG_ASSERT(num_fields == part_info->part_field_list.elements);
           inx= 0;
@@ -494,7 +494,7 @@ static bool set_up_field_array(THD *thd, TABLE *table,
             field_name= it++;
             if (!my_strcasecmp(system_charset_info,
                                field_name,
-                               field->field_name))
+                               field->field_name.str))
               break;
           } while (++inx < num_fields);
           if (inx == num_fields)
@@ -779,14 +779,14 @@ static void clear_field_flag(TABLE *table)
 */
 
 
-static bool handle_list_of_fields(THD *thd, List_iterator<char> it,
+static bool handle_list_of_fields(THD *thd, List_iterator<const char> it,
                                   TABLE *table,
                                   partition_info *part_info,
                                   bool is_sub_part)
 {
   Field *field;
   bool result;
-  char *field_name;
+  const char *field_name;
   bool is_list_empty= TRUE;
   DBUG_ENTER("handle_list_of_fields");
 
@@ -1613,7 +1613,7 @@ bool fix_partition_func(THD *thd, TABLE *table,
       set_linear_hash_mask(part_info, part_info->num_subparts);
     if (part_info->list_of_subpart_fields)
     {
-      List_iterator<char> it(part_info->subpart_field_list);
+      List_iterator<const char> it(part_info->subpart_field_list);
       if (unlikely(handle_list_of_fields(thd, it, table, part_info, TRUE)))
         goto end;
     }
@@ -1640,7 +1640,7 @@ bool fix_partition_func(THD *thd, TABLE *table,
       set_linear_hash_mask(part_info, part_info->num_parts);
     if (part_info->list_of_part_fields)
     {
-      List_iterator<char> it(part_info->part_field_list);
+      List_iterator<const char> it(part_info->part_field_list);
       if (unlikely(handle_list_of_fields(thd, it, table, part_info, FALSE)))
         goto end;
     }
@@ -1662,7 +1662,7 @@ bool fix_partition_func(THD *thd, TABLE *table,
     const char *error_str;
     if (part_info->column_list)
     {
-      List_iterator<char> it(part_info->part_field_list);
+      List_iterator<const char> it(part_info->part_field_list);
       if (unlikely(handle_list_of_fields(thd, it, table, part_info, FALSE)))
         goto end;
     }
@@ -1844,12 +1844,12 @@ static int add_subpartition_by(File fptr)
   return err + add_partition_by(fptr);
 }
 
-static int add_part_field_list(File fptr, List<char> field_list)
+static int add_part_field_list(File fptr, List<const char> field_list)
 {
   uint i, num_fields;
   int err= 0;
 
-  List_iterator<char> part_it(field_list);
+  List_iterator<const char> part_it(field_list);
   num_fields= field_list.elements;
   i= 0;
   err+= add_begin_parenthesis(fptr);
@@ -2142,7 +2142,7 @@ error:
     NULL                         No field found
 */
 
-static Create_field* get_sql_field(char *field_name,
+static Create_field* get_sql_field(const char *field_name,
                                    Alter_info *alter_info)
 {
   List_iterator<Create_field> it(alter_info->create_list);
@@ -2152,7 +2152,7 @@ static Create_field* get_sql_field(char *field_name,
   while ((sql_field= it++))
   {
     if (!(my_strcasecmp(system_charset_info,
-                        sql_field->field_name,
+                        sql_field->field_name.str,
                         field_name)))
     {
       DBUG_RETURN(sql_field);
@@ -2169,7 +2169,7 @@ static int add_column_list_values(File fptr, partition_info *part_info,
 {
   int err= 0;
   uint i;
-  List_iterator<char> it(part_info->part_field_list);
+  List_iterator<const char> it(part_info->part_field_list);
   uint num_elements= part_info->part_field_list.elements;
   bool use_parenthesis= (part_info->part_type == LIST_PARTITION &&
                          part_info->num_columns > 1U);
@@ -2179,7 +2179,7 @@ static int add_column_list_values(File fptr, partition_info *part_info,
   for (i= 0; i < num_elements; i++)
   {
     part_column_list_val *col_val= &list_value->col_val_array[i];
-    char *field_name= it++;
+    const char *field_name= it++;
     if (col_val->max_value)
       err+= add_string(fptr, partition_keywords[PKW_MAXVALUE].str);
     else if (col_val->null_value)
@@ -2215,7 +2215,7 @@ static int add_column_list_values(File fptr, partition_info *part_info,
             return 1;
           }
           if (check_part_field(sql_field->sql_type,
-                               sql_field->field_name,
+                               sql_field->field_name.str,
                                &result_type,
                                &need_cs_check))
             return 1;
@@ -2229,7 +2229,7 @@ static int add_column_list_values(File fptr, partition_info *part_info,
           Field *field= part_info->part_field_array[i];
           result_type= field->result_type();
           if (check_part_field(field->real_type(),
-                               field->field_name,
+                               field->field_name.str,
                                &result_type,
                                &need_cs_check))
             return 1;
@@ -6836,7 +6836,7 @@ uint fast_alter_partition_table(THD *thd, TABLE *table,
                                 Alter_info *alter_info,
                                 HA_CREATE_INFO *create_info,
                                 TABLE_LIST *table_list,
-                                char *db,
+                                const char *db,
                                 const char *table_name)
 {
   /* Set-up struct used to write frm files */

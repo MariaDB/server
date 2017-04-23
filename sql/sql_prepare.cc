@@ -202,7 +202,7 @@ public:
   void setup_set_params();
   virtual Query_arena::Type type() const;
   virtual void cleanup_stmt();
-  bool set_name(LEX_STRING *name);
+  bool set_name(LEX_CSTRING *name);
   inline void close_cursor() { delete cursor; cursor= 0; }
   inline bool is_in_use() { return flags & (uint) IS_IN_USE; }
   inline bool is_sql_prepare() const { return flags & (uint) IS_SQL_PREPARE; }
@@ -1940,8 +1940,7 @@ static int mysql_test_show_grants(Prepared_statement *stmt)
   THD *thd= stmt->thd;
   List<Item> fields;
 
-  mysql_show_grants_get_fields(thd, &fields, "Grants for");
-    
+  mysql_show_grants_get_fields(thd, &fields, STRING_WITH_LEN("Grants for"));
   DBUG_RETURN(send_stmt_metadata(thd, stmt, &fields));
 }
 #endif /*NO_EMBEDDED_ACCESS_CHECKS*/
@@ -2264,7 +2263,7 @@ static int mysql_test_handler_read(Prepared_statement *stmt,
   {
     if (!lex->result && !(lex->result= new (stmt->mem_root) select_send(thd)))
     {
-      my_error(ER_OUTOFMEMORY, MYF(0), sizeof(select_send));
+      my_error(ER_OUTOFMEMORY, MYF(0), (int) sizeof(select_send));
       DBUG_RETURN(1);
     }
     if (send_prep_stmt(stmt, ha_table->fields.elements) ||
@@ -2762,7 +2761,7 @@ bool LEX::get_dynamic_sql_string(LEX_CSTRING *dst, String *buffer)
 void mysql_sql_stmt_prepare(THD *thd)
 {
   LEX *lex= thd->lex;
-  LEX_STRING *name= &lex->prepared_stmt_name;
+  LEX_CSTRING *name= &lex->prepared_stmt_name;
   Prepared_statement *stmt;
   LEX_CSTRING query;
   DBUG_ENTER("mysql_sql_stmt_prepare");
@@ -3117,7 +3116,7 @@ void mysql_sql_stmt_execute(THD *thd)
 {
   LEX *lex= thd->lex;
   Prepared_statement *stmt;
-  LEX_STRING *name= &lex->prepared_stmt_name;
+  LEX_CSTRING *name= &lex->prepared_stmt_name;
   /* Query text for binary, general or slow log, if any of them is open */
   String expanded_query;
   DBUG_ENTER("mysql_sql_stmt_execute");
@@ -3338,7 +3337,7 @@ void mysqld_stmt_close(THD *thd, char *packet)
 void mysql_sql_stmt_close(THD *thd)
 {
   Prepared_statement* stmt;
-  LEX_STRING *name= &thd->lex->prepared_stmt_name;
+  LEX_CSTRING *name= &thd->lex->prepared_stmt_name;
   DBUG_PRINT("info", ("DEALLOCATE PREPARE: %.*s\n", (int) name->length,
                       name->str));
 
@@ -3700,7 +3699,7 @@ void Prepared_statement::cleanup_stmt()
 }
 
 
-bool Prepared_statement::set_name(LEX_STRING *name_arg)
+bool Prepared_statement::set_name(LEX_CSTRING *name_arg)
 {
   name.length= name_arg->length;
   name.str= (char*) memdup_root(mem_root, name_arg->str, name_arg->length);
@@ -4353,7 +4352,7 @@ Prepared_statement::reprepare()
   char saved_cur_db_name_buf[SAFE_NAME_LEN+1];
   LEX_STRING saved_cur_db_name=
     { saved_cur_db_name_buf, sizeof(saved_cur_db_name_buf) };
-  LEX_STRING stmt_db_name= { db, db_length };
+  LEX_CSTRING stmt_db_name= { db, db_length };
   bool cur_db_changed;
   bool error;
 
@@ -4376,7 +4375,7 @@ Prepared_statement::reprepare()
   thd->variables.sql_mode= save_sql_mode;
 
   if (cur_db_changed)
-    mysql_change_db(thd, &saved_cur_db_name, TRUE);
+    mysql_change_db(thd, (LEX_CSTRING*) &saved_cur_db_name, TRUE);
 
   if (! error)
   {
@@ -4474,7 +4473,7 @@ Prepared_statement::swap_prepared_statement(Prepared_statement *copy)
   /* Don't swap flags: the copy has IS_SQL_PREPARE always set. */
   /* swap_variables(uint, flags, copy->flags); */
   /* Swap names, the old name is allocated in the wrong memory root */
-  swap_variables(LEX_STRING, name, copy->name);
+  swap_variables(LEX_CSTRING, name, copy->name);
   /* Ditto */
   swap_variables(char *, db, copy->db);
   swap_variables(size_t, db_length, copy->db_length);
@@ -4519,7 +4518,7 @@ bool Prepared_statement::execute(String *expanded_query, bool open_cursor)
     { saved_cur_db_name_buf, sizeof(saved_cur_db_name_buf) };
   bool cur_db_changed;
 
-  LEX_STRING stmt_db_name= { db, db_length };
+  LEX_CSTRING stmt_db_name= { db, db_length };
 
   status_var_increment(thd->status_var.com_stmt_execute);
 
@@ -4647,7 +4646,7 @@ bool Prepared_statement::execute(String *expanded_query, bool open_cursor)
   */
 
   if (cur_db_changed)
-    mysql_change_db(thd, &saved_cur_db_name, TRUE);
+    mysql_change_db(thd, (LEX_CSTRING*) &saved_cur_db_name, TRUE);
 
   /* Assert that if an error, no cursor is open */
   DBUG_ASSERT(! (error && cursor));
@@ -4722,8 +4721,8 @@ bool Prepared_statement::execute_immediate(const char *query, uint query_len)
 {
   DBUG_ENTER("Prepared_statement::execute_immediate");
   String expanded_query;
-  static LEX_STRING execute_immediate_stmt_name=
-    {(char*) STRING_WITH_LEN("(immediate)") };
+  static LEX_CSTRING execute_immediate_stmt_name=
+    {STRING_WITH_LEN("(immediate)") };
 
   set_sql_prepare();
   name= execute_immediate_stmt_name;      // for DBUG_PRINT etc

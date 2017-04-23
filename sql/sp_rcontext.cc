@@ -171,7 +171,7 @@ bool sp_rcontext::resolve_type_ref(THD *thd, Column_definition *def,
       !open_tables_only_view_structure(thd, table_list,
                                        thd->mdl_context.has_locks()))
   {
-    if ((src= lex.query_tables->table->find_field_by_name(ref->m_column.str)))
+    if ((src= lex.query_tables->table->find_field_by_name(&ref->m_column)))
     {
       if (!(rc= check_column_grant_for_type_ref(thd, table_list,
                                                 ref->m_column.str,
@@ -237,14 +237,14 @@ bool sp_rcontext::resolve_table_rowtype_ref(THD *thd,
          as the table will be closed and freed soon,
          in the end of this method.
       */
-      LEX_CSTRING tmp= {src[0]->field_name, strlen(src[0]->field_name)};
+      LEX_CSTRING tmp= src[0]->field_name;
       Spvar_definition *def;
       if ((rc= check_column_grant_for_type_ref(thd, table_list,
                                                tmp.str, tmp.length)) ||
-          (rc= !(src[0]->field_name= thd->strmake(tmp.str, tmp.length))) ||
+          (rc= !(src[0]->field_name.str= thd->strmake(tmp.str, tmp.length))) ||
           (rc= !(def= new (thd->mem_root) Spvar_definition(thd, *src))))
         break;
-      src[0]->field_name= tmp.str; // Restore field name, just in case.
+      src[0]->field_name.str= tmp.str; // Restore field name, just in case.
       def->flags&= (uint) ~NOT_NULL_FLAG;
       if ((rc= def->sp_prepare_create_field(thd, thd->mem_root)))
         break;

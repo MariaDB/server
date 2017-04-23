@@ -840,9 +840,9 @@ bool Protocol::send_result_set_metadata(List<Item> *list, uint flags)
 		     cs, thd_charset) ||
 	  prot.store(field.org_table_name, (uint) strlen(field.org_table_name),
 		     cs, thd_charset) ||
-	  prot.store(field.col_name, (uint) strlen(field.col_name),
+	  prot.store(field.col_name.str, (uint) field.col_name.length,
 		     cs, thd_charset) ||
-	  prot.store(field.org_col_name, (uint) strlen(field.org_col_name),
+	  prot.store(field.org_col_name.str, (uint) field.org_col_name.length,
 		     cs, thd_charset) ||
 	  local_packet->realloc(local_packet->length()+12))
 	goto err;
@@ -898,7 +898,7 @@ bool Protocol::send_result_set_metadata(List<Item> *list, uint flags)
     {
       if (prot.store(field.table_name, (uint) strlen(field.table_name),
 		     cs, thd_charset) ||
-	  prot.store(field.col_name, (uint) strlen(field.col_name),
+	  prot.store(field.col_name.str, (uint) field.col_name.length,
 		     cs, thd_charset) ||
 	  local_packet->realloc(local_packet->length()+10))
 	goto err;

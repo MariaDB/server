@@ -235,7 +235,7 @@ class ha_innobase: public handler
 	/*
 	  ask handler about permission to cache table during query registration
 	*/
-	my_bool register_query_cache_table(THD *thd, char *table_key,
+	my_bool register_query_cache_table(THD *thd, const char *table_key,
 					   uint key_length,
 					   qc_engine_callback *call_back,
 					   ulonglong *engine_data);

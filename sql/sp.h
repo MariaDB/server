@@ -107,7 +107,7 @@ enum
 
 /* Drop all routines in database 'db' */
 int
-sp_drop_db_routines(THD *thd, char *db);
+sp_drop_db_routines(THD *thd, const char *db);
 
 /**
    Acquires exclusive metadata lock on all stored routines in the
@@ -119,7 +119,7 @@ sp_drop_db_routines(THD *thd, char *db);
    @retval  false  Success
    @retval  true   Failure
  */
-bool lock_db_routines(THD *thd, char *db);
+bool lock_db_routines(THD *thd, const char *db);
 
 sp_head *
 sp_find_routine(THD *thd, stored_procedure_type type, const sp_name *name,
@@ -241,7 +241,7 @@ bool show_create_sp(THD *thd, String *buf,
               const char *returns, ulong returnslen,
               const char *body, ulong bodylen,
               st_sp_chistics *chistics,
-              const LEX_STRING *definer_user,
-              const LEX_STRING *definer_host,
+              const LEX_CSTRING *definer_user,
+              const LEX_CSTRING *definer_host,
 	      sql_mode_t sql_mode);
 #endif /* _SP_H_ */

@@ -981,24 +981,24 @@ rpl_slave_state::domain_to_gtid(uint32 domain_id, rpl_gtid *out_gtid)
   Returns 0 on ok, non-zero on parse error.
 */
 static int
-gtid_parser_helper(char **ptr, char *end, rpl_gtid *out_gtid)
+gtid_parser_helper(const char **ptr, const char *end, rpl_gtid *out_gtid)
 {
   char *q;
-  char *p= *ptr;
+  const char *p= *ptr;
   uint64 v1, v2, v3;
   int err= 0;
 
-  q= end;
+  q= (char*) end;
   v1= (uint64)my_strtoll10(p, &q, &err);
   if (err != 0 || v1 > (uint32)0xffffffff || q == end || *q != '-')
     return 1;
   p= q+1;
-  q= end;
+  q= (char*) end;
   v2= (uint64)my_strtoll10(p, &q, &err);
   if (err != 0 || v2 > (uint32)0xffffffff || q == end || *q != '-')
     return 1;
   p= q+1;
-  q= end;
+  q= (char*) end;
   v3= (uint64)my_strtoll10(p, &q, &err);
   if (err != 0)
     return 1;
@@ -1014,8 +1014,8 @@ gtid_parser_helper(char **ptr, char *end, rpl_gtid *out_gtid)
 rpl_gtid *
 gtid_parse_string_to_list(const char *str, size_t str_len, uint32 *out_len)
 {
-  char *p= const_cast<char *>(str);
-  char *end= p + str_len;
+  const char *p= const_cast<char *>(str);
+  const char *end= p + str_len;
   uint32 len= 0, alloc_len= 5;
   rpl_gtid *list= NULL;
 
@@ -1060,10 +1060,10 @@ gtid_parse_string_to_list(const char *str, size_t str_len, uint32 *out_len)
   Returns 0 if ok, non-zero if error.
 */
 int
-rpl_slave_state::load(THD *thd, char *state_from_master, size_t len,
+rpl_slave_state::load(THD *thd, const char *state_from_master, size_t len,
                       bool reset, bool in_statement)
 {
-  char *end= state_from_master + len;
+  const char *end= state_from_master + len;
 
   if (reset)
   {
@@ -1500,7 +1500,7 @@ rpl_binlog_state::read_from_iocache(IO_CACHE *src)
 {
   /* 10-digit - 10-digit - 20-digit \n \0 */
   char buf[10+1+10+1+20+1+1];
-  char *p, *end;
+  const char *p, *end;
   rpl_gtid gtid;
   int res= 0;
 
@@ -1763,9 +1763,9 @@ slave_connection_state::~slave_connection_state()
 */
 
 int
-slave_connection_state::load(char *slave_request, size_t len)
+slave_connection_state::load(const char *slave_request, size_t len)
 {
-  char *p, *end;
+  const char *p, *end;
   uchar *rec;
   rpl_gtid *gtid;
   const entry *e;
@@ -1779,7 +1779,7 @@ slave_connection_state::load(char *slave_request, size_t len)
   {
     if (!(rec= (uchar *)my_malloc(sizeof(entry), MYF(MY_WME))))
     {
-      my_error(ER_OUTOFMEMORY, MYF(0), sizeof(*gtid));
+      my_error(ER_OUTOFMEMORY, MYF(0), (int) sizeof(*gtid));
       return 1;
     }
     gtid= &((entry *)rec)->gtid;
@@ -2399,7 +2399,7 @@ gtid_waiting::get_entry(uint32 domain_id)
 
   if (!(e= (hash_element *)my_malloc(sizeof(*e), MYF(MY_WME))))
   {
-    my_error(ER_OUTOFMEMORY, MYF(0), sizeof(*e));
+    my_error(ER_OUTOFMEMORY, MYF(0), (int) sizeof(*e));
     return NULL;
   }
 

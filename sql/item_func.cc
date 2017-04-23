@@ -59,7 +59,7 @@
 #define sp_restore_security_context(A,B) while (0) {}
 #endif
 
-bool check_reserved_words(LEX_STRING *name)
+bool check_reserved_words(const LEX_CSTRING *name)
 {
   if (!my_strcasecmp(system_charset_info, name->str, "GLOBAL") ||
       !my_strcasecmp(system_charset_info, name->str, "LOCAL") ||
@@ -1106,7 +1106,7 @@ err:
   push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                       ER_WARN_DATA_OUT_OF_RANGE,
                       ER_THD(thd, ER_WARN_DATA_OUT_OF_RANGE),
-                      name, 1L);
+                      name.str, 1L);
   return dec;
 }
 
@@ -1149,7 +1149,7 @@ double Item_double_typecast::val_real()
                         Sql_condition::WARN_LEVEL_WARN,
                         ER_WARN_DATA_OUT_OF_RANGE,
                         ER_THD(thd, ER_WARN_DATA_OUT_OF_RANGE),
-                        name, 1);
+                        name.str, (ulong) 1);
     if (error < 0)
     {
       null_value= 1;                            // Illegal value
@@ -3291,7 +3291,7 @@ udf_handler::fix_fields(THD *thd, Item_func_or_sum *func,
 	!(f_args.maybe_null= (char*) thd->alloc(arg_count * sizeof(char))) ||
 	!(num_buffer= (char*) thd->alloc(arg_count *
 					ALIGN_SIZE(sizeof(double)))) ||
-	!(f_args.attributes= (char**) thd->alloc(arg_count *
+	!(f_args.attributes= (const char**) thd->alloc(arg_count *
                                                  sizeof(char *))) ||
 	!(f_args.attribute_lengths= (ulong*) thd->alloc(arg_count *
 						       sizeof(long))))
@@ -3321,8 +3321,8 @@ udf_handler::fix_fields(THD *thd, Item_func_or_sum *func,
 
       f_args.lengths[i]= arguments[i]->max_length;
       f_args.maybe_null[i]= (char) arguments[i]->maybe_null;
-      f_args.attributes[i]= arguments[i]->name;
-      f_args.attribute_lengths[i]= arguments[i]->name_length;
+      f_args.attributes[i]= arguments[i]->name.str;
+      f_args.attribute_lengths[i]= arguments[i]->name.length;
 
       if (arguments[i]->const_item())
       {
@@ -3690,7 +3690,7 @@ longlong Item_master_pos_wait::val_int()
   longlong pos = (ulong)args[1]->val_int();
   longlong timeout = (arg_count>=3) ? args[2]->val_int() : 0 ;
   String connection_name_buff;
-  LEX_STRING connection_name;
+  LEX_CSTRING connection_name;
   Master_info *mi= NULL;
   if (arg_count >= 4)
   {
@@ -3698,7 +3698,7 @@ longlong Item_master_pos_wait::val_int()
     if (!(con= args[3]->val_str(&connection_name_buff)))
       goto err;
 
-    connection_name.str= (char*) con->ptr();
+    connection_name.str= con->ptr();
     connection_name.length= con->length();
     if (check_master_connection_name(&connection_name))
     {
@@ -4398,16 +4398,16 @@ bool Item_func_user_var::check_vcol_func_processor(void *arg)
 
 #define extra_size sizeof(double)
 
-user_var_entry *get_variable(HASH *hash, LEX_STRING &name,
-				    bool create_if_not_exists)
+user_var_entry *get_variable(HASH *hash, LEX_CSTRING *name,
+                             bool create_if_not_exists)
 {
   user_var_entry *entry;
 
-  if (!(entry = (user_var_entry*) my_hash_search(hash, (uchar*) name.str,
-                                                 name.length)) &&
+  if (!(entry = (user_var_entry*) my_hash_search(hash, (uchar*) name->str,
+                                                 name->length)) &&
       create_if_not_exists)
   {
-    uint size=ALIGN_SIZE(sizeof(user_var_entry))+name.length+1+extra_size;
+    uint size=ALIGN_SIZE(sizeof(user_var_entry))+name->length+1+extra_size;
     if (!my_hash_inited(hash))
       return 0;
     if (!(entry = (user_var_entry*) my_malloc(size,
@@ -4416,7 +4416,7 @@ user_var_entry *get_variable(HASH *hash, LEX_STRING &name,
       return 0;
     entry->name.str=(char*) entry+ ALIGN_SIZE(sizeof(user_var_entry))+
       extra_size;
-    entry->name.length=name.length;
+    entry->name.length=name->length;
     entry->value=0;
     entry->length=0;
     entry->update_query_id=0;
@@ -4434,7 +4434,7 @@ user_var_entry *get_variable(HASH *hash, LEX_STRING &name,
     */
     entry->used_query_id=current_thd->query_id;
     entry->type=STRING_RESULT;
-    memcpy(entry->name.str, name.str, name.length+1);
+    memcpy((char*) entry->name.str, name->str, name->length+1);
     if (my_hash_insert(hash,(uchar*) entry))
     {
       my_free(entry);
@@ -4456,7 +4456,7 @@ bool Item_func_set_user_var::set_entry(THD *thd, bool create_if_not_exists)
 {
   if (m_var_entry && thd->thread_id == entry_thread_id)
     goto end; // update entry->update_query_id for PS
-  if (!(m_var_entry= get_variable(&thd->user_vars, name, create_if_not_exists)))
+  if (!(m_var_entry= get_variable(&thd->user_vars, &name, create_if_not_exists)))
   {
     entry_thread_id= 0;
     return TRUE;
@@ -5090,8 +5090,8 @@ void Item_func_set_user_var::make_field(THD *thd, Send_field *tmp_field)
   {
     result_field->make_field(tmp_field);
     DBUG_ASSERT(tmp_field->table_name != 0);
-    if (Item::name)
-      tmp_field->col_name=Item::name;               // Use user supplied name
+    if (Item::name.str)
+      tmp_field->col_name= Item::name;          // Use user supplied name
   }
   else
     Item::make_field(thd, tmp_field);
@@ -5259,7 +5259,7 @@ longlong Item_func_get_user_var::val_int()
 
 static int
 get_var_with_binlog(THD *thd, enum_sql_command sql_command,
-                    LEX_STRING &name, user_var_entry **out_entry)
+                    LEX_CSTRING *name, user_var_entry **out_entry)
 {
   BINLOG_USER_VAR_EVENT *user_var_event;
   user_var_entry *var_entry;
@@ -5385,7 +5385,7 @@ void Item_func_get_user_var::fix_length_and_dec()
   decimals=NOT_FIXED_DEC;
   max_length=MAX_BLOB_WIDTH;
 
-  error= get_var_with_binlog(thd, thd->lex->sql_command, name, &m_var_entry);
+  error= get_var_with_binlog(thd, thd->lex->sql_command, &name, &m_var_entry);
 
   /*
     If the variable didn't exist it has been created as a STRING-type.
@@ -5462,7 +5462,8 @@ bool Item_func_get_user_var::eq(const Item *item, bool binary_cmp) const
 bool Item_func_get_user_var::set_value(THD *thd,
                                        sp_rcontext * /*ctx*/, Item **it)
 {
-  Item_func_set_user_var *suv= new (thd->mem_root) Item_func_set_user_var(thd, get_name(), *it);
+  LEX_CSTRING tmp_name= get_name();
+  Item_func_set_user_var *suv= new (thd->mem_root) Item_func_set_user_var(thd, &tmp_name, *it);
   /*
     Item_func_set_user_var is not fixed after construction, call
     fix_fields().
@@ -5476,7 +5477,7 @@ bool Item_user_var_as_out_param::fix_fields(THD *thd, Item **ref)
   DBUG_ASSERT(fixed == 0);
   DBUG_ASSERT(thd->lex->exchange);
   if (Item::fix_fields(thd, ref) ||
-      !(entry= get_variable(&thd->user_vars, name, 1)))
+      !(entry= get_variable(&thd->user_vars, &name, 1)))
     return TRUE;
   entry->type= STRING_RESULT;
   /*
@@ -5543,7 +5544,7 @@ void Item_user_var_as_out_param::print_for_load(THD *thd, String *str)
 
 Item_func_get_system_var::
 Item_func_get_system_var(THD *thd, sys_var *var_arg, enum_var_type var_type_arg,
-                       LEX_STRING *component_arg, const char *name_arg,
+                       LEX_CSTRING *component_arg, const char *name_arg,
                        size_t name_len_arg):
   Item_func(thd), var(var_arg), var_type(var_type_arg),
   orig_var_type(var_type_arg), component(*component_arg), cache_present(0)
@@ -5650,8 +5651,8 @@ void Item_func_get_system_var::fix_length_and_dec()
 
 void Item_func_get_system_var::print(String *str, enum_query_type query_type)
 {
-  if (name_length)
-    str->append(name, name_length);
+  if (name.length)
+    str->append(name.str, name.length);
   else
   {
     str->append(STRING_WITH_LEN("@@"));
@@ -6211,11 +6212,11 @@ longlong Item_func_bit_xor::val_int()
 */
 
 
-Item *get_system_var(THD *thd, enum_var_type var_type, LEX_STRING name,
-		     LEX_STRING component)
+Item *get_system_var(THD *thd, enum_var_type var_type, LEX_CSTRING name,
+		     LEX_CSTRING component)
 {
   sys_var *var;
-  LEX_STRING *base_name, *component_name;
+  LEX_CSTRING *base_name, *component_name;
 
   if (component.str)
   {
@@ -6318,7 +6319,7 @@ Item_func_sp::func_name() const
 }
 
 
-void my_missing_function_error(const LEX_STRING &token, const char *func_name)
+void my_missing_function_error(const LEX_CSTRING &token, const char *func_name)
 {
   if (token.length && is_lex_native_function (&token))
     my_error(ER_FUNC_INEXISTENT_NAME_COLLISION, MYF(0), func_name);
@@ -6348,7 +6349,6 @@ void my_missing_function_error(const LEX_STRING &token, const char *func_name)
 bool
 Item_func_sp::init_result_field(THD *thd)
 {
-  LEX_STRING empty_name= { C_STRING_WITH_LEN("") };
   TABLE_SHARE *share;
   DBUG_ENTER("Item_func_sp::init_result_field");
 
@@ -6374,11 +6374,10 @@ Item_func_sp::init_result_field(THD *thd)
   dummy_table->maybe_null = maybe_null;
   dummy_table->in_use= thd;
   dummy_table->copy_blobs= TRUE;
-  share->table_cache_key = empty_name;
-  share->table_name = empty_name;
+  share->table_cache_key= empty_clex_str;
+  share->table_name= empty_clex_str;
 
-  if (!(sp_result_field= m_sp->create_result_field(max_length, name,
-                                                   dummy_table)))
+  if (!(sp_result_field= m_sp->create_result_field(max_length, &name, dummy_table)))
   {
    DBUG_RETURN(TRUE);
   }
@@ -6531,8 +6530,11 @@ Item_func_sp::make_field(THD *thd, Send_field *tmp_field)
   DBUG_ENTER("Item_func_sp::make_field");
   DBUG_ASSERT(sp_result_field);
   sp_result_field->make_field(tmp_field);
-  if (name)
+  if (name.str)
+  {
+    DBUG_ASSERT(name.length == strlen(name.str));
     tmp_field->col_name= name;
+  }
   DBUG_VOID_RETURN;
 }
 

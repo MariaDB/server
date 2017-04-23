@@ -304,8 +304,8 @@ int ha_sequence::external_lock(THD *thd, int lock_type)
 
 void ha_sequence::print_error(int error, myf errflag)
 {
-  char *sequence_db=   table_share->db.str;
-  char *sequence_name= table_share->table_name.str;
+  const char *sequence_db=   table_share->db.str;
+  const char *sequence_name= table_share->table_name.str;
   DBUG_ENTER("ha_sequence::print_error");
 
   switch (error) {
@@ -321,8 +321,7 @@ void ha_sequence::print_error(int error, myf errflag)
     DBUG_VOID_RETURN;
   }
   case HA_ERR_WRONG_COMMAND:
-    my_error(ER_ILLEGAL_HA, MYF(0), "SEQUENCE", table_share->db.str,
-             table_share->table_name.str);
+    my_error(ER_ILLEGAL_HA, MYF(0), "SEQUENCE", sequence_db, sequence_name);
     DBUG_VOID_RETURN;
   }
   file->print_error(error, errflag);

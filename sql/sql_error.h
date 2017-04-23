@@ -1244,7 +1244,7 @@ uint32 convert_error_message(char *to, uint32 to_length,
 
 extern const LEX_STRING warning_level_names[];
 
-bool is_sqlstate_valid(const LEX_STRING *sqlstate);
+bool is_sqlstate_valid(const LEX_CSTRING *sqlstate);
 /**
   Checks if the specified SQL-state-string defines COMPLETION condition.
   This function assumes that the given string contains a valid SQL-state.

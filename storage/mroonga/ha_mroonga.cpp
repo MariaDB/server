@@ -3213,7 +3213,7 @@ int ha_mroonga::storage_create(const char *name, TABLE *table,
     int key_parts = KEY_N_KEY_PARTS(key_info);
     if (key_parts == 1) {
       Field *pkey_field = key_info->key_part[0].field;
-      const char *column_name = pkey_field->field_name;
+      const char *column_name = pkey_field->field_name.str;
       is_id = (strcmp(MRN_COLUMN_NAME_ID, column_name) == 0);
 
       grn_builtin_type gtype = mrn_grn_type_from_field(ctx, pkey_field, false);
@@ -3307,7 +3307,7 @@ int ha_mroonga::storage_create(const char *name, TABLE *table,
   uint n_columns = table->s->fields;
   for (uint i = 0; i < n_columns; i++) {
     Field *field = table->s->field[i];
-    const char *column_name = field->field_name;
+    const char *column_name = field->field_name.str;
     int column_name_size = strlen(column_name);
 
     if (strcmp(MRN_COLUMN_NAME_ID, column_name) == 0) {
@@ -3374,7 +3374,7 @@ int ha_mroonga::storage_create_validate_pseudo_column(TABLE *table)
   n_columns = table->s->fields;
   for (i = 0; i < n_columns; i++) {
     Field *field = table->s->field[i];
-    const char *column_name = field->field_name;
+    const char *column_name = field->field_name.str;
     if (strcmp(MRN_COLUMN_NAME_ID, column_name) == 0) {
       switch (field->type()) {
       case MYSQL_TYPE_TINY :
@@ -3422,17 +3422,17 @@ bool ha_mroonga::storage_create_foreign_key(TABLE *table,
     }
     List_iterator<Key_part_spec> key_part_col_iterator(key->columns);
     Key_part_spec *key_part_col = key_part_col_iterator++;
-    LEX_STRING field_name = key_part_col->field_name;
+    LEX_CSTRING field_name = key_part_col->field_name;
     DBUG_PRINT("info", ("mroonga: field_name=%s", field_name.str));
-    DBUG_PRINT("info", ("mroonga: field->field_name=%s", field->field_name));
-    if (strcmp(field->field_name, field_name.str))
+    DBUG_PRINT("info", ("mroonga: field->field_name=%s", field->field_name.str));
+    if (strcmp(field->field_name.str, field_name.str))
     {
       continue;
     }
     Foreign_key *fk = (Foreign_key *) key;
     List_iterator<Key_part_spec> key_part_ref_col_iterator(fk->ref_columns);
     Key_part_spec *key_part_ref_col = key_part_ref_col_iterator++;
-    LEX_STRING ref_field_name = key_part_ref_col->field_name;
+    LEX_CSTRING ref_field_name = key_part_ref_col->field_name;
     DBUG_PRINT("info", ("mroonga: ref_field_name=%s", ref_field_name.str));
 #ifdef MRN_FOREIGN_KEY_USE_CONST_STRING
     LEX_CSTRING ref_db_name = fk->ref_db;
@@ -3537,7 +3537,7 @@ bool ha_mroonga::storage_create_foreign_key(TABLE *table,
       DBUG_RETURN(false);
     }
     Field *ref_field = &ref_key_info->key_part->field[0];
-    if (strcmp(ref_field->field_name, ref_field_name.str)) {
+    if (strcmp(ref_field->field_name.str, ref_field_name.str)) {
       mrn_open_mutex_lock(table->s);
       mrn_free_tmp_table_share(tmp_ref_table_share);
       mrn_open_mutex_unlock(table->s);
@@ -3554,8 +3554,8 @@ bool ha_mroonga::storage_create_foreign_key(TABLE *table,
     mrn_free_tmp_table_share(tmp_ref_table_share);
     mrn_open_mutex_unlock(table->s);
     grn_obj_flags col_flags = GRN_OBJ_PERSISTENT;
-    column = grn_column_create(ctx, table_obj, field->field_name,
-                               strlen(field->field_name),
+    column = grn_column_create(ctx, table_obj, field->field_name.str,
+                               field->field_name.length,
                                NULL, col_flags, grn_table_ref);
     if (ctx->rc) {
       grn_obj_unlink(ctx, grn_table_ref);
@@ -3564,7 +3564,7 @@ bool ha_mroonga::storage_create_foreign_key(TABLE *table,
       DBUG_RETURN(false);
     }
 
-    mrn::IndexColumnName index_column_name(grn_table_name, field->field_name);
+    mrn::IndexColumnName index_column_name(grn_table_name, field->field_name.str);
     grn_obj_flags ref_col_flags = GRN_OBJ_COLUMN_INDEX | GRN_OBJ_PERSISTENT;
     column_ref = grn_column_create(ctx, grn_table_ref,
                                    index_column_name.c_str(),
@@ -3618,7 +3618,7 @@ int ha_mroonga::storage_create_validate_index(TABLE *table)
       continue;
     }
     Field *field = key_info->key_part[0].field;
-    const char *column_name = field->field_name;
+    const char *column_name = field->field_name.str;
     if (strcmp(MRN_COLUMN_NAME_ID, column_name) == 0) {
       if (key_info->algorithm == HA_KEY_ALG_HASH) {
         continue; // hash index is ok
@@ -3755,8 +3755,8 @@ int ha_mroonga::storage_create_index(TABLE *table, const char *grn_table_name,
   bool is_multiple_column_index = KEY_N_KEY_PARTS(key_info) > 1;
   if (!is_multiple_column_index) {
     Field *field = key_info->key_part[0].field;
-    column_name = field->field_name;
-    column_name_size = strlen(column_name);
+    column_name = field->field_name.str;
+    column_name_size = field->field_name.length;
     if (strcmp(MRN_COLUMN_NAME_ID, column_name) == 0) {
       // skipping _id virtual column
       DBUG_RETURN(0);
@@ -3813,8 +3813,8 @@ int ha_mroonga::storage_create_index(TABLE *table, const char *grn_table_name,
       int j, n_key_parts = KEY_N_KEY_PARTS(key_info);
       for (j = 0; j < n_key_parts; j++) {
         Field *field = key_info->key_part[j].field;
-        const char *column_name = field->field_name;
-        int column_name_size = strlen(column_name);
+        const char *column_name = field->field_name.str;
+        int column_name_size = field->field_name.length;
         grn_obj *source_column = grn_obj_column(ctx, grn_table,
                                                 column_name, column_name_size);
         grn_id source_id = grn_obj_id(ctx, source_column);
@@ -4113,8 +4113,8 @@ int ha_mroonga::wrapper_open_indexes(const char *name)
       /* just for backward compatibility before 1.0. */
       Field *field = key_info->key_part[0].field;
       grn_index_columns[i] = grn_obj_column(ctx, grn_index_tables[i],
-                                            field->field_name,
-                                            strlen(field->field_name));
+                                            field->field_name.str,
+                                            field->field_name.length);
     }
 
     if (ctx->rc) {
@@ -4294,8 +4294,8 @@ int ha_mroonga::storage_open_columns(void)
 
   for (int i = 0; i < n_columns; i++) {
     Field *field = table->field[i];
-    const char *column_name = field->field_name;
-    int column_name_size = strlen(column_name);
+    const char *column_name = field->field_name.str;
+    int column_name_size = field->field_name.length;
     if (table_share->blob_fields)
     {
       blob_buffers[i].set_charset(field->charset());
@@ -4409,8 +4409,8 @@ int ha_mroonga::storage_open_indexes(const char *name)
           /* just for backward compatibility before 1.0. */
           Field *field = key_info->key_part[0].field;
           grn_index_columns[i] = grn_obj_column(ctx, grn_index_tables[i],
-                                                field->field_name,
-                                                strlen(field->field_name));
+                                                field->field_name.str,
+                                                field->field_name.length);
         }
       }
     }
@@ -5401,7 +5401,7 @@ int ha_mroonga::storage_write_row(uchar *buf)
   mrn::DebugColumnAccess debug_column_access(table, table->read_set);
   for (i = 0; i < n_columns; i++) {
     Field *field = table->field[i];
-    const char *column_name = field->field_name;
+    const char *column_name = field->field_name.str;
 
     if (field->is_null()) continue;
 
@@ -5495,7 +5495,7 @@ int ha_mroonga::storage_write_row(uchar *buf)
   GRN_VOID_INIT(&colbuf);
   for (i = 0; i < n_columns; i++) {
     Field *field = table->field[i];
-    const char *column_name = field->field_name;
+    const char *column_name = field->field_name.str;
 
     if (field->is_null())
       continue;
@@ -6010,7 +6010,7 @@ int ha_mroonga::storage_update_row(const uchar *old_data,
 
   for (i = 0; i < n_columns; i++) {
     Field *field = table->field[i];
-    const char *column_name = field->field_name;
+    const char *column_name = field->field_name.str;
 
     if (bitmap_is_set(table->write_set, field->field_index)) {
       if (field->is_null()) continue;
@@ -6047,7 +6047,7 @@ int ha_mroonga::storage_update_row(const uchar *old_data,
   GRN_VOID_INIT(&colbuf);
   for (i = 0; i < n_columns; i++) {
     Field *field = table->field[i];
-    const char *column_name = field->field_name;
+    const char *column_name = field->field_name.str;
     if (bitmap_is_set(table->write_set, field->field_index)) {
       mrn::DebugColumnAccess debug_column_access(table, table->read_set);
       DBUG_PRINT("info", ("mroonga: update column %d(%d)",i,field->field_index));
@@ -6068,7 +6068,7 @@ int ha_mroonga::storage_update_row(const uchar *old_data,
         bool have_pkey = false;
         for (j = 0; j < KEY_N_KEY_PARTS(pkey_info); j++) {
           Field *pkey_field = pkey_info->key_part[j].field;
-          if (strcmp(pkey_field->field_name, column_name) == 0) {
+          if (strcmp(pkey_field->field_name.str, column_name) == 0) {
             if (!replacing_) {
               char message[MRN_BUFFER_SIZE];
               snprintf(message, MRN_BUFFER_SIZE,
@@ -6738,7 +6738,7 @@ ha_rows ha_mroonga::storage_records_in_range(uint key_nr, key_range *range_min,
     DBUG_RETURN(row_count);
   } else {
     Field *field = key_info->key_part[0].field;
-    const char *column_name = field->field_name;
+    const char *column_name = field->field_name.str;
     mrn_change_encoding(ctx, field->charset());
 
     if (strcmp(MRN_COLUMN_NAME_ID, column_name) == 0) {
@@ -7030,7 +7030,7 @@ int ha_mroonga::storage_index_read_map(uchar *buf, const uchar *key,
       DBUG_RETURN(error);
 
     if (find_flag == HA_READ_KEY_EXACT) {
-      const char *column_name = field->field_name;
+      const char *column_name = field->field_name.str;
 
       key_min = key_min_entity;
       key_max = key_min_entity;
@@ -7582,7 +7582,7 @@ int ha_mroonga::storage_read_range_first(const key_range *start_key,
     }
   } else {
     Field *field = key_info->key_part[0].field;
-    const char *column_name = field->field_name;
+    const char *column_name = field->field_name.str;
     error = mrn_change_encoding(ctx, field->charset());
     if (error)
       DBUG_RETURN(error);
@@ -9112,7 +9112,7 @@ grn_obj *ha_mroonga::find_column_type(Field *field, MRN_SHARE *mrn_share, int i,
       char error_message[MRN_BUFFER_SIZE];
       snprintf(error_message, MRN_BUFFER_SIZE,
                "unknown custom Groonga type name for <%s> column: <%s>",
-               field->field_name, grn_type_name);
+               field->field_name.str, grn_type_name);
       GRN_LOG(ctx, GRN_LOG_ERROR, "%s", error_message);
       my_message(error_code, error_message, MYF(0));
 
@@ -9790,8 +9790,8 @@ bool ha_mroonga::is_primary_key_field(Field *field) const
     DBUG_RETURN(false);
   }
 
-  if (strcmp(field->field_name,
-             key_info->key_part[0].field->field_name) == 0) {
+  if (strcmp(field->field_name.str,
+             key_info->key_part[0].field->field_name.str) == 0) {
     DBUG_RETURN(true);
   } else {
     DBUG_RETURN(false);
@@ -9894,8 +9894,8 @@ void ha_mroonga::check_fast_order_limit(grn_table_sort_key **sort_keys,
       if (item->type() == Item::FIELD_ITEM)
       {
         Field *field = static_cast<Item_field *>(item)->field;
-        const char *column_name = field->field_name;
-        int column_name_size = strlen(column_name);
+        const char *column_name = field->field_name.str;
+        int column_name_size = field->field_name.length;
 
         if (should_normalize(field))
         {
@@ -10988,11 +10988,11 @@ void ha_mroonga::storage_store_fields(uchar *buf, grn_id record_id)
 
     if (bitmap_is_set(table->read_set, field->field_index) ||
         bitmap_is_set(table->write_set, field->field_index)) {
-      const char *column_name = field->field_name;
+      const char *column_name = field->field_name.str;
 
       if (ignoring_no_key_columns) {
         KEY *key_info = &(table->s->key_info[active_index]);
-        if (strcmp(key_info->key_part[0].field->field_name, column_name)) {
+        if (strcmp(key_info->key_part[0].field->field_name.str, column_name)) {
           continue;
         }
       }
@@ -11005,7 +11005,7 @@ void ha_mroonga::storage_store_fields(uchar *buf, grn_id record_id)
         field->set_notnull();
         field->store((int)record_id);
       } else if (primary_key_field &&
-                 strcmp(primary_key_field->field_name, column_name) == 0) {
+                 strcmp(primary_key_field->field_name.str, column_name) == 0) {
         // for primary key column
         storage_store_field_column(field, true, i, record_id);
       } else {
@@ -11468,7 +11468,8 @@ int ha_mroonga::storage_encode_key_set(Field *field, const uchar *key,
   MRN_DBUG_ENTER_METHOD();
   int error = 0;
   Field_set unpacker((uchar *)key, field->field_length, (uchar *)(key - 1),
-                     field->null_bit, field->unireg_check, field->field_name,
+                     field->null_bit, field->unireg_check,
+                     &field->field_name,
                      field->pack_length(),
                      static_cast<Field_set*>(field)->typelib,
                      static_cast<Field_set*>(field)->charset());
@@ -12903,8 +12904,8 @@ int ha_mroonga::storage_rename_foreign_key(MRN_SHARE *tmp_share,
   MRN_DBUG_ENTER_METHOD();
   for (i = 0; i < n_columns; ++i) {
     Field *field = tmp_table_share->field[i];
-    const char *column_name = field->field_name;
-    uint column_name_size = strlen(column_name);
+    const char *column_name = field->field_name.str;
+    uint column_name_size = field->field_name.length;
 
     if (strcmp(MRN_COLUMN_NAME_ID, column_name) == 0) {
       continue;
@@ -14570,8 +14571,8 @@ bool ha_mroonga::storage_inplace_alter_table_add_column(
     }
 
     Field *field = altered_table->s->field[i];
-    const char *column_name = field->field_name;
-    int column_name_size = strlen(column_name);
+    const char *column_name = field->field_name.str;
+    int column_name_size = field->field_name.length;
 
     int error = mrn_add_column_param(tmp_share, field, i);
     if (error) {
@@ -14651,8 +14652,8 @@ bool ha_mroonga::storage_inplace_alter_table_drop_column(
       continue;
     }
 
-    const char *column_name = field->field_name;
-    int column_name_size = strlen(column_name);
+    const char *column_name = field->field_name.str;
+    int column_name_size = field->field_name.length;
 
     grn_obj *column_obj;
     column_obj = grn_obj_column(ctx, table_obj, column_name, column_name_size);
@@ -14692,7 +14693,8 @@ bool ha_mroonga::storage_inplace_alter_table_rename_column(
       continue;
     }
 
-    const char *new_name = NULL;
+    LEX_CSTRING new_name;
+    new_name.str= 0;
     List_iterator_fast<Create_field> create_fields(alter_info->create_list);
     while (Create_field *create_field = create_fields++) {
       if (create_field->field == field) {
@@ -14701,15 +14703,16 @@ bool ha_mroonga::storage_inplace_alter_table_rename_column(
       }
     }
 
-    if (!new_name) {
+    if (!new_name.str) {
       continue;
     }
 
-    const char *old_name = field->field_name;
+    const char *old_name = field->field_name.str;
     grn_obj *column_obj;
-    column_obj = grn_obj_column(ctx, table_obj, old_name, strlen(old_name));
+    column_obj = grn_obj_column(ctx, table_obj, old_name,
+                                field->field_name.length);
     if (column_obj) {
-      grn_column_rename(ctx, column_obj, new_name, strlen(new_name));
+      grn_column_rename(ctx, column_obj, new_name.str, new_name.length);
       if (ctx->rc) {
         int error = ER_WRONG_COLUMN_NAME;
         my_message(error, ctx->errbuf, MYF(0));
@@ -15878,8 +15881,8 @@ char *ha_mroonga::storage_get_foreign_key_create_info()
   create_info_str.length(0);
   for (i = 0; i < n_columns; ++i) {
     Field *field = table_share->field[i];
-    const char *column_name = field->field_name;
-    uint column_name_size = strlen(column_name);
+    const char *column_name = field->field_name.str;
+    uint column_name_size = field->field_name.length;
 
     if (strcmp(MRN_COLUMN_NAME_ID, column_name) == 0) {
       continue;
@@ -15953,8 +15956,8 @@ char *ha_mroonga::storage_get_foreign_key_create_info()
     uint ref_pkey_nr = tmp_ref_table_share->primary_key;
     KEY *ref_key_info = &tmp_ref_table_share->key_info[ref_pkey_nr];
     Field *ref_field = &ref_key_info->key_part->field[0];
-    append_identifier(ha_thd(), &create_info_str, ref_field->field_name,
-                      strlen(ref_field->field_name));
+    append_identifier(ha_thd(), &create_info_str, ref_field->field_name.str,
+                      ref_field->field_name.length);
     mrn_open_mutex_lock(table_share);
     mrn_free_tmp_table_share(tmp_ref_table_share);
     mrn_open_mutex_unlock(table_share);
@@ -16085,8 +16088,8 @@ int ha_mroonga::storage_get_foreign_key_list(THD *thd,
   MRN_DBUG_ENTER_METHOD();
   for (i = 0; i < n_columns; ++i) {
     Field *field = table_share->field[i];
-    const char *column_name = field->field_name;
-    uint column_name_size = strlen(column_name);
+    const char *column_name = field->field_name.str;
+    uint column_name_size = field->field_name.length;
 
     if (strcmp(MRN_COLUMN_NAME_ID, column_name) == 0) {
       continue;
@@ -16132,7 +16135,7 @@ int ha_mroonga::storage_get_foreign_key_list(THD *thd,
     f_key_info.delete_method = FK_OPTION_RESTRICT;
     f_key_info.referenced_key_name = thd_make_lex_string(thd, NULL, "PRIMARY",
                                                           7, TRUE);
-    LEX_STRING *field_name = thd_make_lex_string(thd, NULL, column_name,
+    LEX_CSTRING *field_name = thd_make_lex_string(thd, NULL, column_name,
                                                  column_name_size, TRUE);
     f_key_info.foreign_fields.push_back(field_name);
 
@@ -16157,9 +16160,9 @@ int ha_mroonga::storage_get_foreign_key_list(THD *thd,
     uint ref_pkey_nr = tmp_ref_table_share->primary_key;
     KEY *ref_key_info = &tmp_ref_table_share->key_info[ref_pkey_nr];
     Field *ref_field = &ref_key_info->key_part->field[0];
-    LEX_STRING *ref_col_name = thd_make_lex_string(thd, NULL,
-                                                   ref_field->field_name,
-                                                   strlen(ref_field->field_name),
+    LEX_CSTRING *ref_col_name = thd_make_lex_string(thd, NULL,
+                                                   ref_field->field_name.str,
+                                                   ref_field->field_name.length,
                                                    TRUE);
     f_key_info.referenced_fields.push_back(ref_col_name);
     mrn_open_mutex_lock(table_share);
@@ -16432,7 +16435,7 @@ void ha_mroonga::rebind_psi()
 #endif
 
 my_bool ha_mroonga::wrapper_register_query_cache_table(THD *thd,
-                                                       char *table_key,
+                                                       const char *table_key,
                                                        uint key_length,
                                                        qc_engine_callback
                                                        *engine_callback,
@@ -16453,7 +16456,7 @@ my_bool ha_mroonga::wrapper_register_query_cache_table(THD *thd,
 }
 
 my_bool ha_mroonga::storage_register_query_cache_table(THD *thd,
-                                                       char *table_key,
+                                                       const char *table_key,
                                                        uint key_length,
                                                        qc_engine_callback
                                                        *engine_callback,
@@ -16469,7 +16472,7 @@ my_bool ha_mroonga::storage_register_query_cache_table(THD *thd,
 }
 
 my_bool ha_mroonga::register_query_cache_table(THD *thd,
-                                               char *table_key,
+                                               const char *table_key,
                                                uint key_length,
                                                qc_engine_callback
                                                *engine_callback,

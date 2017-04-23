@@ -91,7 +91,7 @@ static void dump_item(Item* item) {
             ":field=%s.%s.%s",
             field_item->db_name,
             field_item->table_name,
-            field_item->field_name);
+            field_item->field_name.str);
         break;
     }
     case Item::COND_ITEM: {
@@ -141,7 +141,7 @@ static Field* find_field_by_name(TABLE* table, Item* item) {
     Field *found_field = NULL;
     for (uint i = 0; i < table->s->fields; i++) {
         Field *test_field = table->s->field[i];
-        if (strcmp(field_item->field_name, test_field->field_name) == 0) {
+        if (strcmp(field_item->field_name.str, test_field->field_name.str) == 0) {
             found_field = test_field;
             break;
         }
@@ -290,7 +290,7 @@ static bool check_insert_value(Item* item, const char* field_name) {
     if (value_item->arg->type() != Item::FIELD_ITEM)
         return false;
     Item_field* arg = static_cast<Item_field*>(value_item->arg);
-    if (strcmp(field_name, arg->field_name) != 0)
+    if (strcmp(field_name, arg->field_name.str) != 0)
         return false;
     return true;
 }
@@ -315,7 +315,7 @@ static bool check_x_op_constant(
     if (arguments[0]->type() != Item::FIELD_ITEM)
         return false;
     Item_field* arg0 = static_cast<Item_field*>(arguments[0]);
-    if (strcmp(field_name, arg0->field_name) != 0)
+    if (strcmp(field_name, arg0->field_name.str) != 0)
         return false;
     if (!check_int_result(arguments[1]))
         if (!(allow_insert_value &&
@@ -359,11 +359,11 @@ static bool check_decr_floor_expression(Field* lhs_field, Item* item) {
     uint n = item_func->argument_count();
     if (n != 3)
         return false;
-    if (!check_x_equal_0(lhs_field->field_name, arguments[0]))
+    if (!check_x_equal_0(lhs_field->field_name.str, arguments[0]))
         return false;
     if (arguments[1]->type() != Item::INT_ITEM || arguments[1]->val_int() != 0)
         return false;
-    if (!check_x_minus_1(lhs_field->field_name, arguments[2]))
+    if (!check_x_minus_1(lhs_field->field_name.str, arguments[2]))
         return false;
     if (!(lhs_field->flags & UNSIGNED_FLAG))
         return false;
@@ -394,14 +394,14 @@ static bool check_update_expression(
             return true;
         Item* item_constant;
         if (check_x_op_constant(
-                lhs_field->field_name,
+                lhs_field->field_name.str,
                 rhs_item,
                 "+",
                 &item_constant,
                 allow_insert_value))
             return true;
         if (check_x_op_constant(
-                lhs_field->field_name,
+                lhs_field->field_name.str,
                 rhs_item,
                 "-",
                 &item_constant,
@@ -455,7 +455,7 @@ static bool full_field_in_key(TABLE* table, Field* field) {
     KEY* key = &table->s->key_info[table->s->primary_key];
     for (uint i = 0; i < key->user_defined_key_parts; i++) {
         KEY_PART_INFO* key_part = &key->key_part[i];
-        if (strcmp(field->field_name, key_part->field->field_name) == 0) {
+        if (strcmp(field->field_name.str, key_part->field->field_name.str) == 0) {
             return key_part->length == field->field_length;
         }
     }

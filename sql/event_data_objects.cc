@@ -171,13 +171,13 @@ Event_creation_ctx::load_from_db(THD *thd,
 */
 
 bool
-Event_queue_element_for_exec::init(LEX_STRING db, LEX_STRING n)
+Event_queue_element_for_exec::init(LEX_CSTRING db, LEX_CSTRING n)
 {
   if (!(dbname.str= my_strndup(db.str, dbname.length= db.length, MYF(MY_WME))))
     return TRUE;
   if (!(name.str= my_strndup(n.str, name.length= n.length, MYF(MY_WME))))
   {
-    my_free(dbname.str);
+    my_free(const_cast<char*>(dbname.str));
     return TRUE;
   }
   return FALSE;
@@ -193,8 +193,8 @@ Event_queue_element_for_exec::init(LEX_STRING db, LEX_STRING n)
 
 Event_queue_element_for_exec::~Event_queue_element_for_exec()
 {
-  my_free(dbname.str);
-  my_free(name.str);
+  my_free(const_cast<char*>(dbname.str));
+  my_free(const_cast<char*>(name.str));
 }
 
 
@@ -233,7 +233,7 @@ Event_basic::~Event_basic()
 
 
 /*
-  Short function to load a char column into a LEX_STRING
+  Short function to load a char column into a LEX_CSTRING
 
   SYNOPSIS
     Event_basic::load_string_field()
@@ -249,7 +249,7 @@ Event_basic::load_string_fields(Field **fields, ...)
   bool ret= FALSE;
   va_list args;
   enum enum_events_table_field field_name;
-  LEX_STRING *field_value;
+  LEX_CSTRING *field_value;
 
   DBUG_ENTER("Event_basic::load_string_fields");
 
@@ -257,7 +257,7 @@ Event_basic::load_string_fields(Field **fields, ...)
   field_name= (enum enum_events_table_field) va_arg(args, int);
   while (field_name < ET_FIELD_COUNT)
   {
-    field_value= va_arg(args, LEX_STRING *);
+    field_value= va_arg(args, LEX_CSTRING *);
     if ((field_value->str= get_field(&mem_root, fields[field_name])) == NullS)
     {
       ret= TRUE;
@@ -274,9 +274,9 @@ Event_basic::load_string_fields(Field **fields, ...)
 
 
 bool
-Event_basic::load_time_zone(THD *thd, const LEX_STRING tz_name)
+Event_basic::load_time_zone(THD *thd, const LEX_CSTRING *tz_name)
 {
-  String str(tz_name.str, &my_charset_latin1);
+  String str(tz_name->str, &my_charset_latin1);
   time_zone= my_tz_find(thd, &str);
 
   return (time_zone == NULL);
@@ -391,9 +391,9 @@ Event_timed::init()
 bool
 Event_job_data::load_from_row(THD *thd, TABLE *table)
 {
-  char *ptr;
+  const char *ptr;
   size_t len;
-  LEX_STRING tz_name;
+  LEX_CSTRING tz_name;
 
   DBUG_ENTER("Event_job_data::load_from_row");
 
@@ -412,7 +412,7 @@ Event_job_data::load_from_row(THD *thd, TABLE *table)
                          ET_FIELD_COUNT))
     DBUG_RETURN(TRUE);
 
-  if (load_time_zone(thd, tz_name))
+  if (load_time_zone(thd, &tz_name))
     DBUG_RETURN(TRUE);
 
   Event_creation_ctx::load_from_db(thd, &mem_root, dbname.str, name.str, table,
@@ -452,9 +452,9 @@ Event_job_data::load_from_row(THD *thd, TABLE *table)
 bool
 Event_queue_element::load_from_row(THD *thd, TABLE *table)
 {
-  char *ptr;
+  const char *ptr;
   MYSQL_TIME time;
-  LEX_STRING tz_name;
+  LEX_CSTRING tz_name;
 
   DBUG_ENTER("Event_queue_element::load_from_row");
 
@@ -472,7 +472,7 @@ Event_queue_element::load_from_row(THD *thd, TABLE *table)
                          ET_FIELD_COUNT))
     DBUG_RETURN(TRUE);
 
-  if (load_time_zone(thd, tz_name))
+  if (load_time_zone(thd, &tz_name))
     DBUG_RETURN(TRUE);
 
   starts_null= table->field[ET_FIELD_STARTS]->is_null();
@@ -519,7 +519,7 @@ Event_queue_element::load_from_row(THD *thd, TABLE *table)
     int i;
     char buff[MAX_FIELD_WIDTH];
     String str(buff, sizeof(buff), &my_charset_bin);
-    LEX_STRING tmp;
+    LEX_CSTRING tmp;
 
     table->field[ET_FIELD_TRANSIENT_INTERVAL]->val_str(&str);
     if (!(tmp.length= str.length()))
@@ -590,7 +590,7 @@ Event_queue_element::load_from_row(THD *thd, TABLE *table)
 bool
 Event_timed::load_from_row(THD *thd, TABLE *table)
 {
-  char *ptr;
+  const char *ptr;
   size_t len;
 
   DBUG_ENTER("Event_timed::load_from_row");
@@ -1203,7 +1203,7 @@ Event_timed::get_create_event(THD *thd, String *buf)
     buf->append(STRING_WITH_LEN(" ON SCHEDULE EVERY "));
     buf->append(expr_buf);
     buf->append(' ');
-    LEX_STRING *ival= &interval_type_to_name[interval];
+    LEX_CSTRING *ival= &interval_type_to_name[interval];
     buf->append(ival->str, ival->length);
 
     if (!starts_null)
@@ -1249,7 +1249,7 @@ Event_timed::get_create_event(THD *thd, String *buf)
 bool
 Event_job_data::construct_sp_sql(THD *thd, String *sp_sql)
 {
-  LEX_STRING buffer;
+  LEX_CSTRING buffer;
   const uint STATIC_SQL_LENGTH= 44;
 
   DBUG_ENTER("Event_job_data::construct_sp_sql");
@@ -1298,7 +1298,7 @@ Event_job_data::construct_sp_sql(THD *thd, String *sp_sql)
 bool
 Event_job_data::construct_drop_event_sql(THD *thd, String *sp_sql)
 {
-  LEX_STRING buffer;
+  LEX_CSTRING buffer;
   const uint STATIC_SQL_LENGTH= 14;
 
   DBUG_ENTER("Event_job_data::construct_drop_event_sql");
@@ -1478,7 +1478,7 @@ end:
         WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL);
       }
 
-      ret= Events::drop_event(thd, dbname, name, FALSE);
+      ret= Events::drop_event(thd, &dbname, &name, FALSE);
 
       WSREP_TO_ISOLATION_END;
 
@@ -1519,9 +1519,9 @@ end:
 */
 
 bool
-event_basic_db_equal(LEX_STRING db, Event_basic *et)
+event_basic_db_equal(const LEX_CSTRING *db, Event_basic *et)
 {
-  return !sortcmp_lex_string(et->dbname, db, system_charset_info);
+  return !sortcmp_lex_string(&et->dbname, db, system_charset_info);
 }
 
 
@@ -1540,10 +1540,11 @@ event_basic_db_equal(LEX_STRING db, Event_basic *et)
 */
 
 bool
-event_basic_identifier_equal(LEX_STRING db, LEX_STRING name, Event_basic *b)
+event_basic_identifier_equal(const LEX_CSTRING *db, const LEX_CSTRING *name,
+                             Event_basic *b)
 {
-  return !sortcmp_lex_string(name, b->name, system_charset_info) &&
-         !sortcmp_lex_string(db, b->dbname, system_charset_info);
+  return !sortcmp_lex_string(name, &b->name, system_charset_info) &&
+         !sortcmp_lex_string(db, &b->dbname, system_charset_info);
 }
 
 /**
