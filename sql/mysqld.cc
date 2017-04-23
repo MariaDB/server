@@ -7790,7 +7790,7 @@ static int show_slaves_running(THD *thd, SHOW_VAR *var, char *buff)
   var->type= SHOW_LONGLONG;
   var->value= buff;
 
-  *((longlong *)buff)= any_slave_sql_running();
+  *((longlong *)buff)= any_slave_sql_running(false);
 
   return 0;
 }

@@ -3031,10 +3031,6 @@ int start_slave(THD* thd , Master_info* mi,  bool net_report)
   if (check_access(thd, SUPER_ACL, any_db, NULL, NULL, 0, 0))
     DBUG_RETURN(-1);
 
-  /* Re-load the set of mysql.gtid_slave_posXXX tables available. */
-  if (find_gtid_slave_pos_tables(thd))
-    DBUG_RETURN(-1);
-
   create_logfile_name_with_suffix(master_info_file_tmp,
                                   sizeof(master_info_file_tmp),
                                   master_info_file, 0,

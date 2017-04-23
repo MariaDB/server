@@ -1917,7 +1917,7 @@ find_gtid_slave_pos_tables(THD *thd)
 {
   int err= 0;
   load_gtid_state_cb_data cb_data;
-  bool any_running;
+  uint num_running;
 
   mysql_mutex_lock(&rpl_global_gtid_slave_state->LOCK_slave_state);
   bool loaded= rpl_global_gtid_slave_state->loaded;
@@ -1949,10 +1949,17 @@ find_gtid_slave_pos_tables(THD *thd)
   if ((err= gtid_pos_auto_create_tables(&cb_data.table_list)))
     goto end;
 
-  any_running= any_slave_sql_running();
+  mysql_mutex_lock(&LOCK_active_mi);
+  num_running= any_slave_sql_running(true);
   mysql_mutex_lock(&rpl_global_gtid_slave_state->LOCK_slave_state);
-  if (!any_running)
+  if (num_running <= 1)
   {
+    /*
+      If no slave is running now, the count will be 1, since this SQL thread
+      which is starting is included in the count. In this case, we can safely
+      replace the list, no-one can be trying to read it without lock.
+    */
+    DBUG_ASSERT(num_running == 1);
     rpl_global_gtid_slave_state->set_gtid_pos_tables_list(cb_data.table_list,
                                                           cb_data.default_entry);
     cb_data.table_list= NULL;
@@ -2012,6 +2019,7 @@ find_gtid_slave_pos_tables(THD *thd)
     }
   }
   mysql_mutex_unlock(&rpl_global_gtid_slave_state->LOCK_slave_state);
+  mysql_mutex_unlock(&LOCK_active_mi);
 
 end:
   if (cb_data.table_list)
