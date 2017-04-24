@@ -483,7 +483,7 @@ public:
 
 
 class Item: public Value_source,
-            public Type_std_attributes
+            public Type_all_attributes
 {
   void operator=(Item &);
   /**
@@ -537,9 +537,7 @@ protected:
   SEL_TREE *get_mm_tree_for_const(RANGE_OPT_PARAM *param);
 
   virtual Field *make_string_field(TABLE *table);
-  Field *tmp_table_field_from_field_type(TABLE *table,
-                                         bool fixed_length,
-                                         bool set_blob_packlength);
+  Field *tmp_table_field_from_field_type(TABLE *table);
   Field *create_tmp_field(bool group, TABLE *table, uint convert_int_length);
 
   void push_note_converted_to_negative_complement(THD *thd);
@@ -1744,6 +1742,8 @@ public:
   }
   virtual Field::geometry_type get_geometry_type() const
     { return Field::GEOM_GEOMETRY; };
+  uint uint_geometry_type() const
+  { return get_geometry_type(); }
   String *check_well_formed_result(String *str, bool send_error= 0);
   bool eq_by_collation(Item *item, bool binary_cmp, CHARSET_INFO *cs); 
   bool too_big_for_varchar() const
@@ -2262,7 +2262,7 @@ public:
     based on result_type(), which is less exact.
   */
   Field *create_field_for_create_select(TABLE *table)
-  { return tmp_table_field_from_field_type(table, false, true); }
+  { return tmp_table_field_from_field_type(table); }
 };
 
 
@@ -2638,6 +2638,10 @@ public:
   fast_field_copier setup_fast_field_copier(Field *field);
   table_map used_tables() const;
   table_map all_used_tables() const; 
+  const Type_handler *type_handler() const
+  {
+    return field->type_handler();
+  }
   enum Item_result result_type () const
   {
     return field->result_type();
@@ -3637,7 +3641,14 @@ public:
     Item_partition_func_safe_string(thd, name_arg, safe_strlen(name_arg), &my_charset_bin)
   { max_length= length; }
   enum Type type() const { return TYPE_HOLDER; }
-  enum_field_types field_type() const { return MYSQL_TYPE_BLOB; }
+  enum_field_types field_type() const
+  {
+    return Item_blob::type_handler()->field_type();
+  }
+  const Type_handler *type_handler() const
+  {
+    return Type_handler::blob_type_handler(max_length);
+  }
   const Type_handler *real_type_handler() const
   {
     // Should not be called, Item_blob is used for SHOW purposes only.
@@ -3645,7 +3656,7 @@ public:
     return &type_handler_varchar;
   }
   Field *create_field_for_schema(THD *thd, TABLE *table)
-  { return tmp_table_field_from_field_type(table, false, true); }
+  { return tmp_table_field_from_field_type(table); }
 };
 
 

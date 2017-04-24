@@ -414,8 +414,14 @@ CREATE TABLE t1
   c_double     DOUBLE,
   c_decimal103 DECIMAL(10,3),
   c_varchar10  VARCHAR(10),
+  c_tinytext   TINYTEXT,
   c_text       TEXT,
+  c_mediumtext MEDIUMTEXT,
+  c_longtext   LONGTEXT,
+  c_tinyblob   TINYBLOB,
   c_blob       BLOB,
+  c_mediumblob MEDIUMBLOB,
+  c_longblob   LONGBLOB,
   c_enum       ENUM('one','two','tree'),
   c_datetime3  DATETIME(3),
   c_timestamp3 TIMESTAMP(3),
@@ -597,6 +603,27 @@ SHOW CREATE TABLE t2;
 DROP TABLE t2;
 
 CREATE TABLE t2 AS SELECT
+  NULLIF(c_tinytext,  1),
+  NULLIF(c_tinytext,  c_smallint),
+  NULLIF(c_tinytext,  c_tinyint),
+  NULLIF(c_tinytext,  c_int),
+  NULLIF(c_tinytext,  c_bigint),
+  NULLIF(c_tinytext,  c_float),
+  NULLIF(c_tinytext,  c_double),
+  NULLIF(c_tinytext,  c_decimal103),
+  NULLIF(c_tinytext,  c_varchar10),
+  NULLIF(c_tinytext,  c_text),
+  NULLIF(c_tinytext,  c_blob),
+  NULLIF(c_tinytext,  c_enum),
+  NULLIF(c_tinytext,  c_datetime3),
+  NULLIF(c_tinytext,  c_timestamp3),
+  NULLIF(c_tinytext,  c_date),
+  NULLIF(c_tinytext,  c_time)
+FROM t1;
+SHOW CREATE TABLE t2;
+DROP TABLE t2;
+
+CREATE TABLE t2 AS SELECT
   NULLIF(c_text,  1),
   NULLIF(c_text,  c_smallint),
   NULLIF(c_text,  c_tinyint),
@@ -617,7 +644,70 @@ FROM t1;
 SHOW CREATE TABLE t2;
 DROP TABLE t2;
 
-# QQ: this should probably create BLOB instead of LONGBLOB
+CREATE TABLE t2 AS SELECT
+  NULLIF(c_mediumtext,  1),
+  NULLIF(c_mediumtext,  c_smallint),
+  NULLIF(c_mediumtext,  c_tinyint),
+  NULLIF(c_mediumtext,  c_int),
+  NULLIF(c_mediumtext,  c_bigint),
+  NULLIF(c_mediumtext,  c_float),
+  NULLIF(c_mediumtext,  c_double),
+  NULLIF(c_mediumtext,  c_decimal103),
+  NULLIF(c_mediumtext,  c_varchar10),
+  NULLIF(c_mediumtext,  c_text),
+  NULLIF(c_mediumtext,  c_blob),
+  NULLIF(c_mediumtext,  c_enum),
+  NULLIF(c_mediumtext,  c_datetime3),
+  NULLIF(c_mediumtext,  c_timestamp3),
+  NULLIF(c_mediumtext,  c_date),
+  NULLIF(c_mediumtext,  c_time)
+FROM t1;
+SHOW CREATE TABLE t2;
+DROP TABLE t2;
+
+CREATE TABLE t2 AS SELECT
+  NULLIF(c_longtext,  1),
+  NULLIF(c_longtext,  c_smallint),
+  NULLIF(c_longtext,  c_tinyint),
+  NULLIF(c_longtext,  c_int),
+  NULLIF(c_longtext,  c_bigint),
+  NULLIF(c_longtext,  c_float),
+  NULLIF(c_longtext,  c_double),
+  NULLIF(c_longtext,  c_decimal103),
+  NULLIF(c_longtext,  c_varchar10),
+  NULLIF(c_longtext,  c_text),
+  NULLIF(c_longtext,  c_blob),
+  NULLIF(c_longtext,  c_enum),
+  NULLIF(c_longtext,  c_datetime3),
+  NULLIF(c_longtext,  c_timestamp3),
+  NULLIF(c_longtext,  c_date),
+  NULLIF(c_longtext,  c_time)
+FROM t1;
+SHOW CREATE TABLE t2;
+DROP TABLE t2;
+
+
+CREATE TABLE t2 AS SELECT
+  NULLIF(c_tinyblob,  1),
+  NULLIF(c_tinyblob,  c_smallint),
+  NULLIF(c_tinyblob,  c_tinyint),
+  NULLIF(c_tinyblob,  c_int),
+  NULLIF(c_tinyblob,  c_bigint),
+  NULLIF(c_tinyblob,  c_float),
+  NULLIF(c_tinyblob,  c_double),
+  NULLIF(c_tinyblob,  c_decimal103),
+  NULLIF(c_tinyblob,  c_varchar10),
+  NULLIF(c_tinyblob,  c_text),
+  NULLIF(c_tinyblob,  c_blob),
+  NULLIF(c_tinyblob,  c_enum),
+  NULLIF(c_tinyblob,  c_datetime3),
+  NULLIF(c_tinyblob,  c_timestamp3),
+  NULLIF(c_tinyblob,  c_date),
+  NULLIF(c_tinyblob,  c_time)
+FROM t1;
+SHOW CREATE TABLE t2;
+DROP TABLE t2;
+
 CREATE TABLE t2 AS SELECT
   NULLIF(c_blob,  1),
   NULLIF(c_blob,  c_smallint),
@@ -638,6 +728,49 @@ CREATE TABLE t2 AS SELECT
 FROM t1;
 SHOW CREATE TABLE t2;
 DROP TABLE t2;
+
+CREATE TABLE t2 AS SELECT
+  NULLIF(c_mediumblob,  1),
+  NULLIF(c_mediumblob,  c_smallint),
+  NULLIF(c_mediumblob,  c_tinyint),
+  NULLIF(c_mediumblob,  c_int),
+  NULLIF(c_mediumblob,  c_bigint),
+  NULLIF(c_mediumblob,  c_float),
+  NULLIF(c_mediumblob,  c_double),
+  NULLIF(c_mediumblob,  c_decimal103),
+  NULLIF(c_mediumblob,  c_varchar10),
+  NULLIF(c_mediumblob,  c_text),
+  NULLIF(c_mediumblob,  c_blob),
+  NULLIF(c_mediumblob,  c_enum),
+  NULLIF(c_mediumblob,  c_datetime3),
+  NULLIF(c_mediumblob,  c_timestamp3),
+  NULLIF(c_mediumblob,  c_date),
+  NULLIF(c_mediumblob,  c_time)
+FROM t1;
+SHOW CREATE TABLE t2;
+DROP TABLE t2;
+
+CREATE TABLE t2 AS SELECT
+  NULLIF(c_longblob,  1),
+  NULLIF(c_longblob,  c_smallint),
+  NULLIF(c_longblob,  c_tinyint),
+  NULLIF(c_longblob,  c_int),
+  NULLIF(c_longblob,  c_bigint),
+  NULLIF(c_longblob,  c_float),
+  NULLIF(c_longblob,  c_double),
+  NULLIF(c_longblob,  c_decimal103),
+  NULLIF(c_longblob,  c_varchar10),
+  NULLIF(c_longblob,  c_text),
+  NULLIF(c_longblob,  c_blob),
+  NULLIF(c_longblob,  c_enum),
+  NULLIF(c_longblob,  c_datetime3),
+  NULLIF(c_longblob,  c_timestamp3),
+  NULLIF(c_longblob,  c_date),
+  NULLIF(c_longblob,  c_time)
+FROM t1;
+SHOW CREATE TABLE t2;
+DROP TABLE t2;
+
 
 # QQ: this should probably create a ENUM column instead of VARCHAR(4)
 CREATE TABLE t2 AS SELECT

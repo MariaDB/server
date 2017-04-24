@@ -2254,8 +2254,8 @@ void Item_func_int_val::fix_length_and_dec_int_or_decimal()
 {
   ulonglong tmp_max_length= (ulonglong ) args[0]->max_length - 
     (args[0]->decimals ? args[0]->decimals + 1 : 0) + 2;
-  max_length= tmp_max_length > (ulonglong) 4294967295U ?
-    (uint32) 4294967295U : (uint32) tmp_max_length;
+  max_length= tmp_max_length > (ulonglong) UINT_MAX32 ?
+    (uint32) UINT_MAX32 : (uint32) tmp_max_length;
   uint tmp= float_length(decimals);
   set_if_smaller(max_length,tmp);
   decimals= 0;

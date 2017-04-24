@@ -7368,7 +7368,7 @@ blob_length_by_type(enum_field_types type)
   case MYSQL_TYPE_MEDIUM_BLOB:
     return 16777215;
   case MYSQL_TYPE_LONG_BLOB:
-    return 4294967295U;
+    return (uint) UINT32_MAX;
   default:
     DBUG_ASSERT(0); // we should never go here
     return 0;

@@ -971,6 +971,10 @@ public:
   virtual bool zero_pack() const { return 1; }
   virtual enum ha_base_keytype key_type() const { return HA_KEYTYPE_BINARY; }
   virtual uint32 key_length() const { return pack_length(); }
+  virtual const Type_handler *type_handler() const
+  {
+    return Type_handler::get_handler_by_field_type(type());
+  }
   virtual enum_field_types type() const =0;
   virtual enum_field_types real_type() const { return type(); }
   virtual enum_field_types binlog_type() const
@@ -1842,9 +1846,6 @@ public:
                     enum utype unireg_check_arg,
                     const LEX_CSTRING *field_name_arg,
                     uint8 dec_arg, bool zero_arg, bool unsigned_arg);
-  Field_new_decimal(uint32 len_arg, bool maybe_null_arg,
-                    const LEX_CSTRING *field_name_arg, uint8 dec_arg,
-                    bool unsigned_arg);
   enum_field_types type() const { return MYSQL_TYPE_NEWDECIMAL;}
   enum ha_base_keytype key_type() const { return HA_KEYTYPE_BINARY; }
   Item_result result_type () const { return DECIMAL_RESULT; }
@@ -1897,7 +1898,6 @@ public:
                              uint16 mflags, int *order_var);
   uint is_equal(Create_field *new_field);
   virtual const uchar *unpack(uchar* to, const uchar *from, const uchar *from_end, uint param_data);
-  static Field *create_from_item(MEM_ROOT *root, Item *);
   Item *get_equal_const_item(THD *thd, const Context &ctx, Item *const_item);
 };
 
@@ -3231,6 +3231,15 @@ public:
     :Field_longstr((uchar*) 0, 0, (uchar*) "", 0, NONE, &temp_lex_str,
                    system_charset_info),
     packlength(packlength_arg) {}
+  const Type_handler *type_handler() const
+  {
+    switch (packlength) {
+    case 1: return &type_handler_tiny_blob;
+    case 2: return &type_handler_blob;
+    case 3: return &type_handler_medium_blob;
+    }
+    return &type_handler_long_blob;
+  }
   /* Note that the default copy constructor is used, in clone() */
   enum_field_types type() const { return MYSQL_TYPE_BLOB;}
   enum ha_base_keytype key_type() const
@@ -3417,11 +3426,11 @@ public:
      :Field_blob(ptr_arg, null_ptr_arg, null_bit_arg, unireg_check_arg,
                  field_name_arg, share, blob_pack_length, &my_charset_bin)
   { geom_type= geom_type_arg; srid= field_srid; }
-  Field_geom(uint32 len_arg,bool maybe_null_arg, const LEX_CSTRING *field_name_arg,
-	     TABLE_SHARE *share, enum geometry_type geom_type_arg)
-    :Field_blob(len_arg, maybe_null_arg, field_name_arg, &my_charset_bin)
-  { geom_type= geom_type_arg; srid= 0; }
   enum ha_base_keytype key_type() const { return HA_KEYTYPE_VARBINARY2; }
+  const Type_handler *type_handler() const
+  {
+    return &type_handler_geometry;
+  }
   enum_field_types type() const { return MYSQL_TYPE_GEOMETRY; }
   bool can_optimize_range(const Item_bool_func *cond,
                                   const Item *item,

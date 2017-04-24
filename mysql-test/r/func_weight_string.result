@@ -57,7 +57,7 @@ create table t1 select weight_string(repeat('t',66000)) as w;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `w` longblob DEFAULT NULL
+  `w` mediumblob DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table t1;
 select weight_string(NULL);

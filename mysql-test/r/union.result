@@ -1449,6 +1449,28 @@ t2	CREATE TABLE `t2` (
   `f8` mediumtext CHARACTER SET utf8 DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table t1, t2;
+CREATE TABLE t1
+(
+c_varchar varchar(1) character set utf8 collate utf8_general_ci,
+c_tinytext tinytext,
+c_text text,
+c_mediumtext mediumtext,
+c_longtext longtext
+);
+CREATE TABLE t2 AS
+SELECT c_tinytext, c_text, c_mediumtext, c_longtext FROM t1
+UNION
+SELECT c_varchar, c_varchar, c_varchar, c_varchar FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `c_tinytext` text CHARACTER SET utf8 DEFAULT NULL,
+  `c_text` mediumtext CHARACTER SET utf8 DEFAULT NULL,
+  `c_mediumtext` longtext CHARACTER SET utf8 DEFAULT NULL,
+  `c_longtext` longtext CHARACTER SET utf8 DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t2;
+DROP TABLE t1;
 (select avg(1)) union (select avg(1)) union (select avg(1)) union
 (select avg(1)) union (select avg(1)) union (select avg(1)) union
 (select avg(1)) union (select avg(1)) union (select avg(1)) union

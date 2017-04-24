@@ -40,7 +40,6 @@ public:
   Item_geometry_func(THD *thd, List<Item> &list): Item_str_func(thd, list) {}
   void fix_length_and_dec();
   enum_field_types field_type() const  { return MYSQL_TYPE_GEOMETRY; }
-  Field *create_field_for_create_select(TABLE *table);
 };
 
 class Item_func_geometry_from_text: public Item_geometry_func
@@ -101,7 +100,7 @@ public:
   Item_func_as_wkb(THD *thd, Item *a): Item_geometry_func(thd, a) {}
   const char *func_name() const { return "st_aswkb"; }
   String *val_str(String *);
-  enum_field_types field_type() const  { return MYSQL_TYPE_BLOB; }
+  enum_field_types field_type() const  { return MYSQL_TYPE_LONG_BLOB; }
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_func_as_wkb>(thd, mem_root, this); }
 };

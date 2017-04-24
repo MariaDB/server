@@ -31,10 +31,6 @@ static Type_handler_date        type_handler_date;
 static Type_handler_timestamp   type_handler_timestamp;
 static Type_handler_timestamp2  type_handler_timestamp2;
 static Type_handler_olddecimal  type_handler_olddecimal;
-static Type_handler_tiny_blob   type_handler_tiny_blob;
-static Type_handler_medium_blob type_handler_medium_blob;
-static Type_handler_long_blob   type_handler_long_blob;
-static Type_handler_blob        type_handler_blob;
 
 
 Type_handler_null        type_handler_null;
@@ -53,6 +49,11 @@ Type_handler_set         type_handler_set;
 Type_handler_time2       type_handler_time2;
 Type_handler_newdate     type_handler_newdate;
 Type_handler_datetime2   type_handler_datetime2;
+
+Type_handler_tiny_blob   type_handler_tiny_blob;
+Type_handler_medium_blob type_handler_medium_blob;
+Type_handler_long_blob   type_handler_long_blob;
+Type_handler_blob        type_handler_blob;
 
 #ifdef HAVE_SPATIAL
 Type_handler_geometry    type_handler_geometry;
@@ -81,7 +82,16 @@ bool Type_handler_data::init()
                                      &type_handler_geometry,
                                      &type_handler_geometry) ||
     m_type_aggregator_for_result.add(&type_handler_geometry,
+                                     &type_handler_tiny_blob,
+                                     &type_handler_long_blob) ||
+    m_type_aggregator_for_result.add(&type_handler_geometry,
                                      &type_handler_blob,
+                                     &type_handler_long_blob) ||
+    m_type_aggregator_for_result.add(&type_handler_geometry,
+                                     &type_handler_medium_blob,
+                                     &type_handler_long_blob) ||
+    m_type_aggregator_for_result.add(&type_handler_geometry,
+                                     &type_handler_long_blob,
                                      &type_handler_long_blob) ||
     m_type_aggregator_for_result.add(&type_handler_geometry,
                                      &type_handler_varchar,
@@ -137,6 +147,19 @@ Type_handler::string_type_handler(uint max_octet_length)
   else if (max_octet_length >= 65536)
     return &type_handler_medium_blob;
   return &type_handler_varchar;
+}
+
+
+const Type_handler *
+Type_handler::blob_type_handler(uint max_octet_length)
+{
+  if (max_octet_length <= 255)
+    return &type_handler_tiny_blob;
+  if (max_octet_length <= 65535)
+    return &type_handler_blob;
+  if (max_octet_length <= 16777215)
+    return &type_handler_medium_blob;
+  return &type_handler_long_blob;
 }
 
 
@@ -1153,6 +1176,423 @@ Field *Type_handler_set::make_conversion_table_field(TABLE *table,
 }
 
 /*************************************************************************/
+Field *Type_handler::make_and_init_table_field(const LEX_CSTRING *name,
+                                               const Record_addr &addr,
+                                               const Type_all_attributes &attr,
+                                               TABLE *table) const
+{
+  Field *field= make_table_field(name, addr, attr, table);
+  if (field)
+    field->init(table);
+  return field;
+}
+
+
+Field *Type_handler_tiny::make_table_field(const LEX_CSTRING *name,
+                                           const Record_addr &addr,
+                                           const Type_all_attributes &attr,
+                                           TABLE *table) const
+{
+  return new (table->in_use->mem_root)
+         Field_tiny(addr.ptr, attr.max_length, addr.null_ptr, addr.null_bit,
+                    Field::NONE, name, 0/*zerofill*/, attr.unsigned_flag);
+}
+
+
+Field *Type_handler_short::make_table_field(const LEX_CSTRING *name,
+                                           const Record_addr &addr,
+                                           const Type_all_attributes &attr,
+                                           TABLE *table) const
+
+{
+  return new (table->in_use->mem_root)
+         Field_short(addr.ptr, attr.max_length, addr.null_ptr, addr.null_bit,
+                     Field::NONE, name, 0/*zerofill*/, attr.unsigned_flag);
+}
+
+
+Field *Type_handler_int24::make_table_field(const LEX_CSTRING *name,
+                                            const Record_addr &addr,
+                                            const Type_all_attributes &attr,
+                                            TABLE *table) const
+{
+  return new (table->in_use->mem_root)
+         Field_medium(addr.ptr, attr.max_length, addr.null_ptr, addr.null_bit,
+                      Field::NONE, name,
+                      0/*zerofill*/, attr.unsigned_flag);
+}
+
+
+Field *Type_handler_long::make_table_field(const LEX_CSTRING *name,
+                                           const Record_addr &addr,
+                                           const Type_all_attributes &attr,
+                                           TABLE *table) const
+{
+  return new (table->in_use->mem_root)
+         Field_long(addr.ptr, attr.max_length, addr.null_ptr, addr.null_bit,
+                    Field::NONE, name, 0/*zerofill*/, attr.unsigned_flag);
+}
+
+
+Field *Type_handler_longlong::make_table_field(const LEX_CSTRING *name,
+                                               const Record_addr &addr,
+                                               const Type_all_attributes &attr,
+                                               TABLE *table) const
+{
+  return new (table->in_use->mem_root)
+         Field_longlong(addr.ptr, attr.max_length,
+                        addr.null_ptr, addr.null_bit,
+                        Field::NONE, name,
+                        0/*zerofill*/, attr.unsigned_flag);
+}
+
+
+Field *Type_handler_float::make_table_field(const LEX_CSTRING *name,
+                                            const Record_addr &addr,
+                                            const Type_all_attributes &attr,
+                                            TABLE *table) const
+{
+  return new (table->in_use->mem_root)
+         Field_float(addr.ptr, attr.max_length, addr.null_ptr, addr.null_bit,
+                     Field::NONE, name,
+                     attr.decimals, 0/*zerofill*/, attr.unsigned_flag);
+}
+
+
+Field *Type_handler_double::make_table_field(const LEX_CSTRING *name,
+                                             const Record_addr &addr,
+                                             const Type_all_attributes &attr,
+                                             TABLE *table) const
+{
+  return new (table->in_use->mem_root)
+         Field_double(addr.ptr, attr.max_length,
+                      addr.null_ptr, addr.null_bit,
+                      Field::NONE, name,
+                      attr.decimals, 0/*zerofill*/, attr.unsigned_flag);
+}
+
+
+Field *
+Type_handler_olddecimal::make_table_field(const LEX_CSTRING *name,
+                                          const Record_addr &addr,
+                                          const Type_all_attributes &attr,
+                                          TABLE *table) const
+{
+  /*
+    Currently make_table_field() is used for Item purpose only.
+    On Item level we have type_handler_newdecimal only.
+    Will be implemented when we reuse Type_handler::make_table_field()
+    in make_field() in field.cc, to open old tables with old decimal.
+  */
+  DBUG_ASSERT(0);
+  return NULL;
+}
+
+
+Field *
+Type_handler_newdecimal::make_table_field(const LEX_CSTRING *name,
+                                          const Record_addr &addr,
+                                          const Type_all_attributes &attr,
+                                          TABLE *table) const
+{
+  uint8 dec= attr.decimals;
+  uint8 intg= attr.decimal_precision() - dec;
+  uint32 len= attr.max_char_length();
+
+  /*
+    Trying to put too many digits overall in a DECIMAL(prec,dec)
+    will always throw a warning. We must limit dec to
+    DECIMAL_MAX_SCALE however to prevent an assert() later.
+  */
+
+  if (dec > 0)
+  {
+    signed int overflow;
+
+    dec= MY_MIN(dec, DECIMAL_MAX_SCALE);
+
+    /*
+      If the value still overflows the field with the corrected dec,
+      we'll throw out decimals rather than integers. This is still
+      bad and of course throws a truncation warning.
+      +1: for decimal point
+      */
+
+    const int required_length=
+      my_decimal_precision_to_length(intg + dec, dec, attr.unsigned_flag);
+
+    overflow= required_length - len;
+
+    if (overflow > 0)
+      dec= MY_MAX(0, dec - overflow);            // too long, discard fract
+    else
+      /* Corrected value fits. */
+      len= required_length;
+  }
+  return new (table->in_use->mem_root)
+         Field_new_decimal(addr.ptr, len, addr.null_ptr, addr.null_bit,
+                           Field::NONE, name,
+                           dec, 0/*zerofill*/, attr.unsigned_flag);
+}
+
+
+Field *Type_handler_year::make_table_field(const LEX_CSTRING *name,
+                                           const Record_addr &addr,
+                                           const Type_all_attributes &attr,
+                                           TABLE *table) const
+{
+  return new (table->in_use->mem_root)
+         Field_year(addr.ptr, attr.max_length, addr.null_ptr, addr.null_bit,
+                    Field::NONE, name);
+}
+
+
+Field *Type_handler_null::make_table_field(const LEX_CSTRING *name,
+                                           const Record_addr &addr,
+                                           const Type_all_attributes &attr,
+                                           TABLE *table) const
+
+{
+  return new (table->in_use->mem_root)
+         Field_null(addr.ptr, attr.max_length,
+                    Field::NONE, name, attr.collation.collation);
+}
+
+
+Field *Type_handler_timestamp::make_table_field(const LEX_CSTRING *name,
+                                                const Record_addr &addr,
+                                                const Type_all_attributes &attr,
+                                                TABLE *table) const
+
+{
+  return new_Field_timestamp(table->in_use->mem_root,
+                             addr.ptr, addr.null_ptr, addr.null_bit,
+                             Field::NONE, name, table->s, attr.decimals);
+}
+
+
+Field *Type_handler_timestamp2::make_table_field(const LEX_CSTRING *name,
+                                                 const Record_addr &addr,
+                                                 const Type_all_attributes &attr,
+                                                 TABLE *table) const
+
+{
+  return new (table->in_use->mem_root)
+         Field_timestampf(addr.ptr, addr.null_ptr, addr.null_bit,
+                          Field::NONE, name, table->s, attr.decimals);
+}
+
+
+Field *Type_handler_newdate::make_table_field(const LEX_CSTRING *name,
+                                              const Record_addr &addr,
+                                              const Type_all_attributes &attr,
+                                              TABLE *table) const
+
+{
+  return new (table->in_use->mem_root)
+         Field_newdate(addr.ptr, addr.null_ptr, addr.null_bit,
+                       Field::NONE, name);
+}
+
+
+Field *Type_handler_date::make_table_field(const LEX_CSTRING *name,
+                                           const Record_addr &addr,
+                                           const Type_all_attributes &attr,
+                                           TABLE *table) const
+
+{
+  return new (table->in_use->mem_root)
+         Field_date(addr.ptr, addr.null_ptr, addr.null_bit,
+                    Field::NONE, name);
+}
+
+
+Field *Type_handler_time::make_table_field(const LEX_CSTRING *name,
+                                           const Record_addr &addr,
+                                           const Type_all_attributes &attr,
+                                           TABLE *table) const
+
+{
+  return new_Field_time(table->in_use->mem_root,
+                        addr.ptr, addr.null_ptr, addr.null_bit,
+                        Field::NONE, name, attr.decimals);
+}
+
+
+Field *Type_handler_time2::make_table_field(const LEX_CSTRING *name,
+                                            const Record_addr &addr,
+                                            const Type_all_attributes &attr,
+                                            TABLE *table) const
+
+
+{
+  return new (table->in_use->mem_root)
+         Field_timef(addr.ptr, addr.null_ptr, addr.null_bit,
+                     Field::NONE, name, attr.decimals);
+}
+
+
+Field *Type_handler_datetime::make_table_field(const LEX_CSTRING *name,
+                                               const Record_addr &addr,
+                                               const Type_all_attributes &attr,
+                                               TABLE *table) const
+
+{
+  return new_Field_datetime(table->in_use->mem_root,
+                            addr.ptr, addr.null_ptr, addr.null_bit,
+                            Field::NONE, name, attr.decimals);
+}
+
+
+Field *Type_handler_datetime2::make_table_field(const LEX_CSTRING *name,
+                                                const Record_addr &addr,
+                                                const Type_all_attributes &attr,
+                                                TABLE *table) const
+{
+  return new (table->in_use->mem_root)
+         Field_datetimef(addr.ptr, addr.null_ptr, addr.null_bit,
+                         Field::NONE, name, attr.decimals);
+}
+
+
+Field *Type_handler_bit::make_table_field(const LEX_CSTRING *name,
+                                          const Record_addr &addr,
+                                          const Type_all_attributes &attr,
+                                          TABLE *table) const
+
+{
+  return new (table->in_use->mem_root)
+         Field_bit_as_char(addr.ptr, attr.max_length,
+                           addr.null_ptr, addr.null_bit,
+                           Field::NONE, name);
+}
+
+
+Field *Type_handler_string::make_table_field(const LEX_CSTRING *name,
+                                             const Record_addr &addr,
+                                             const Type_all_attributes &attr,
+                                             TABLE *table) const
+
+{
+  return new (table->in_use->mem_root)
+         Field_string(addr.ptr, attr.max_length, addr.null_ptr, addr.null_bit,
+                      Field::NONE, name, attr.collation.collation);
+}
+
+
+Field *Type_handler_varchar::make_table_field(const LEX_CSTRING *name,
+                                              const Record_addr &addr,
+                                              const Type_all_attributes &attr,
+                                              TABLE *table) const
+
+{
+  return new (table->in_use->mem_root)
+         Field_varstring(addr.ptr, attr.max_length,
+                         HA_VARCHAR_PACKLENGTH(attr.max_length),
+                         addr.null_ptr, addr.null_bit,
+                         Field::NONE, name,
+                         table->s, attr.collation.collation);
+}
+
+
+Field *Type_handler_tiny_blob::make_table_field(const LEX_CSTRING *name,
+                                                const Record_addr &addr,
+                                                const Type_all_attributes &attr,
+                                                TABLE *table) const
+
+{
+  return new (table->in_use->mem_root)
+         Field_blob(addr.ptr, addr.null_ptr, addr.null_bit,
+                    Field::NONE, name, table->s,
+                    1, attr.collation.collation);
+}
+
+
+Field *Type_handler_blob::make_table_field(const LEX_CSTRING *name,
+                                           const Record_addr &addr,
+                                           const Type_all_attributes &attr,
+                                           TABLE *table) const
+
+{
+  return new (table->in_use->mem_root)
+         Field_blob(addr.ptr, addr.null_ptr, addr.null_bit,
+                    Field::NONE, name, table->s,
+                    2, attr.collation.collation);
+}
+
+
+Field *
+Type_handler_medium_blob::make_table_field(const LEX_CSTRING *name,
+                                           const Record_addr &addr,
+                                           const Type_all_attributes &attr,
+                                           TABLE *table) const
+
+{
+  return new (table->in_use->mem_root)
+         Field_blob(addr.ptr, addr.null_ptr, addr.null_bit,
+                    Field::NONE, name, table->s,
+                    3, attr.collation.collation);
+}
+
+
+Field *Type_handler_long_blob::make_table_field(const LEX_CSTRING *name,
+                                                const Record_addr &addr,
+                                                const Type_all_attributes &attr,
+                                                TABLE *table) const
+
+{
+  return new (table->in_use->mem_root)
+         Field_blob(addr.ptr, addr.null_ptr, addr.null_bit,
+                    Field::NONE, name, table->s,
+                    4, attr.collation.collation);
+}
+
+
+
+#ifdef HAVE_SPATIAL
+Field *Type_handler_geometry::make_table_field(const LEX_CSTRING *name,
+                                               const Record_addr &addr,
+                                               const Type_all_attributes &attr,
+                                               TABLE *table) const
+{
+  return new (table->in_use->mem_root)
+         Field_geom(addr.ptr, addr.null_ptr, addr.null_bit,
+                    Field::NONE, name, table->s, 4,
+                    (Field::geometry_type) attr.uint_geometry_type(),
+                    0);
+}
+#endif
+
+
+Field *Type_handler_enum::make_table_field(const LEX_CSTRING *name,
+                                           const Record_addr &addr,
+                                           const Type_all_attributes &attr,
+                                           TABLE *table) const
+{
+  /*
+    Will be implemented when we split Item_type_holder::make_field_by_type()
+    and/or reuse Type_handler::make_table_field() in make_field() in field.cc
+  */
+  DBUG_ASSERT(0);
+  return 0;
+}
+
+
+Field *Type_handler_set::make_table_field(const LEX_CSTRING *name,
+                                          const Record_addr &addr,
+                                          const Type_all_attributes &attr,
+                                          TABLE *table) const
+
+{
+  /*
+    Will be implemented when we split Item_type_holder::make_field_by_type()
+    and/or reuse Type_handler::make_table_field() in make_field() in field.cc
+  */
+  DBUG_ASSERT(0);
+  return 0;
+}
+
+/*************************************************************************/
 
 uint32 Type_handler_decimal_result::max_display_length(const Item *item) const
 {
@@ -1437,6 +1877,17 @@ bool Type_handler_string_result::
                                        Item **items, uint nitems) const
 {
   return func->aggregate_attributes_string(items, nitems);
+}
+
+
+bool Type_handler_blob_common::
+       Item_hybrid_func_fix_attributes(THD *thd, Item_hybrid_func *func,
+                                       Item **items, uint nitems) const
+{
+  if (func->aggregate_attributes_string(items, nitems))
+    return true;
+  func->set_handler(blob_type_handler(func->max_length));
+  return false;
 }
 
 

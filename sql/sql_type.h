@@ -314,6 +314,27 @@ public:
 };
 
 
+class Type_all_attributes: public Type_std_attributes
+{
+public:
+  Type_all_attributes()
+   :Type_std_attributes()
+  { }
+  Type_all_attributes(const Type_all_attributes *other)
+   :Type_std_attributes(other)
+  { }
+  // Returns total number of decimal digits
+  virtual uint decimal_precision() const= 0;
+  /*
+    Field::geometry_type is not visible here.
+    Let's use an "uint" wrapper for now. Later when we move Field_geom
+    into a plugin, this method will be replaced to some generic
+    datatype indepented method.
+  */
+  virtual uint uint_geometry_type() const= 0;
+};
+
+
 class Name: private LEX_CSTRING
 {
 public:
@@ -324,6 +345,31 @@ public:
   }
   const char *ptr() const { return LEX_CSTRING::str; }
   uint length() const { return LEX_CSTRING::length; }
+};
+
+
+class Record_addr
+{
+public:
+  uchar *ptr;      // Position to field in record
+  /**
+     Byte where the @c NULL bit is stored inside a record. If this Field is a
+     @c NOT @c NULL field, this member is @c NULL.
+  */
+  uchar *null_ptr;
+  uchar null_bit;  // Bit used to test null bit
+  Record_addr(uchar *ptr_arg,
+              uchar *null_ptr_arg,
+              uchar null_bit_arg)
+   :ptr(ptr_arg),
+    null_ptr(null_ptr_arg),
+    null_bit(null_bit_arg)
+  { }
+  Record_addr(bool maybe_null)
+   :ptr(NULL),
+    null_ptr(maybe_null ? (uchar*) "" : 0),
+    null_bit(0)
+  { }
 };
 
 
@@ -342,6 +388,7 @@ protected:
   bool
   Item_func_or_sum_illegal_param(const Item_func_or_sum *) const;
 public:
+  static const Type_handler *blob_type_handler(uint max_octet_length);
   static const Type_handler *string_type_handler(uint max_octet_length);
   static const Type_handler *get_handler_by_field_type(enum_field_types type);
   static const Type_handler *get_handler_by_real_type(enum_field_types type);
@@ -431,6 +478,14 @@ public:
   virtual Field *make_conversion_table_field(TABLE *TABLE,
                                              uint metadata,
                                              const Field *target) const= 0;
+  virtual Field *make_table_field(const LEX_CSTRING *name,
+                                  const Record_addr &addr,
+                                  const Type_all_attributes &attr,
+                                  TABLE *table) const= 0;
+  Field *make_and_init_table_field(const LEX_CSTRING *name,
+                                   const Record_addr &addr,
+                                   const Type_all_attributes &attr,
+                                   TABLE *table) const;
   virtual void make_sort_key(uchar *to, Item *item,
                              const SORT_FIELD_ATTR *sort_field,
                              Sort_param *param) const= 0;
@@ -626,6 +681,14 @@ public:
   Field *make_conversion_table_field(TABLE *TABLE,
                                      uint metadata,
                                      const Field *target) const
+  {
+    DBUG_ASSERT(0);
+    return NULL;
+  }
+  Field *make_table_field(const LEX_CSTRING *name,
+                          const Record_addr &addr,
+                          const Type_all_attributes &attr,
+                          TABLE *table) const
   {
     DBUG_ASSERT(0);
     return NULL;
@@ -1179,6 +1242,10 @@ public:
   uint32 max_display_length(const Item *item) const { return 4; }
   Field *make_conversion_table_field(TABLE *TABLE, uint metadata,
                                      const Field *target) const;
+  Field *make_table_field(const LEX_CSTRING *name,
+                          const Record_addr &addr,
+                          const Type_all_attributes &attr,
+                          TABLE *table) const;
 };
 
 
@@ -1192,6 +1259,10 @@ public:
   uint32 max_display_length(const Item *item) const { return 6; }
   Field *make_conversion_table_field(TABLE *TABLE, uint metadata,
                                      const Field *target) const;
+  Field *make_table_field(const LEX_CSTRING *name,
+                          const Record_addr &addr,
+                          const Type_all_attributes &attr,
+                          TABLE *table) const;
 };
 
 
@@ -1208,6 +1279,10 @@ public:
   }
   Field *make_conversion_table_field(TABLE *TABLE, uint metadata,
                                      const Field *target) const;
+  Field *make_table_field(const LEX_CSTRING *name,
+                          const Record_addr &addr,
+                          const Type_all_attributes &attr,
+                          TABLE *table) const;
 };
 
 
@@ -1221,6 +1296,10 @@ public:
   uint32 max_display_length(const Item *item) const { return 20; }
   Field *make_conversion_table_field(TABLE *TABLE, uint metadata,
                                      const Field *target) const;
+  Field *make_table_field(const LEX_CSTRING *name,
+                          const Record_addr &addr,
+                          const Type_all_attributes &attr,
+                          TABLE *table) const;
 };
 
 
@@ -1234,6 +1313,10 @@ public:
   uint32 max_display_length(const Item *item) const { return 8; }
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
+  Field *make_table_field(const LEX_CSTRING *name,
+                          const Record_addr &addr,
+                          const Type_all_attributes &attr,
+                          TABLE *table) const;
 };
 
 
@@ -1247,6 +1330,10 @@ public:
   uint32 max_display_length(const Item *item) const;
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
+  Field *make_table_field(const LEX_CSTRING *name,
+                          const Record_addr &addr,
+                          const Type_all_attributes &attr,
+                          TABLE *table) const;
 };
 
 
@@ -1264,6 +1351,10 @@ public:
   }
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
+  Field *make_table_field(const LEX_CSTRING *name,
+                          const Record_addr &addr,
+                          const Type_all_attributes &attr,
+                          TABLE *table) const;
 };
 
 
@@ -1278,6 +1369,10 @@ public:
   Field *make_num_distinct_aggregator_field(MEM_ROOT *, const Item *) const;
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
+  Field *make_table_field(const LEX_CSTRING *name,
+                          const Record_addr &addr,
+                          const Type_all_attributes &attr,
+                          TABLE *table) const;
 };
 
 
@@ -1291,6 +1386,10 @@ public:
   uint32 max_display_length(const Item *item) const { return 53; }
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
+  Field *make_table_field(const LEX_CSTRING *name,
+                          const Record_addr &addr,
+                          const Type_all_attributes &attr,
+                          TABLE *table) const;
 };
 
 
@@ -1321,6 +1420,10 @@ public:
   virtual ~Type_handler_time() {}
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
+  Field *make_table_field(const LEX_CSTRING *name,
+                          const Record_addr &addr,
+                          const Type_all_attributes &attr,
+                          TABLE *table) const;
 };
 
 
@@ -1331,6 +1434,10 @@ public:
   enum_field_types real_field_type() const { return MYSQL_TYPE_TIME2; }
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
+  Field *make_table_field(const LEX_CSTRING *name,
+                          const Record_addr &addr,
+                          const Type_all_attributes &attr,
+                          TABLE *table) const;
 };
 
 
@@ -1367,6 +1474,10 @@ public:
   virtual ~Type_handler_date() {}
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
+  Field *make_table_field(const LEX_CSTRING *name,
+                          const Record_addr &addr,
+                          const Type_all_attributes &attr,
+                          TABLE *table) const;
 };
 
 
@@ -1376,6 +1487,10 @@ public:
   virtual ~Type_handler_newdate() {}
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
+  Field *make_table_field(const LEX_CSTRING *name,
+                          const Record_addr &addr,
+                          const Type_all_attributes &attr,
+                          TABLE *table) const;
 };
 
 
@@ -1402,6 +1517,10 @@ public:
   virtual ~Type_handler_datetime() {}
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
+  Field *make_table_field(const LEX_CSTRING *name,
+                          const Record_addr &addr,
+                          const Type_all_attributes &attr,
+                          TABLE *table) const;
 };
 
 
@@ -1412,6 +1531,10 @@ public:
   enum_field_types real_field_type() const { return MYSQL_TYPE_DATETIME2; }
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
+  Field *make_table_field(const LEX_CSTRING *name,
+                          const Record_addr &addr,
+                          const Type_all_attributes &attr,
+                          TABLE *table) const;
 };
 
 
@@ -1438,6 +1561,10 @@ public:
   virtual ~Type_handler_timestamp() {}
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
+  Field *make_table_field(const LEX_CSTRING *name,
+                          const Record_addr &addr,
+                          const Type_all_attributes &attr,
+                          TABLE *table) const;
 };
 
 
@@ -1448,6 +1575,10 @@ public:
   enum_field_types real_field_type() const { return MYSQL_TYPE_TIMESTAMP2; }
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
+  Field *make_table_field(const LEX_CSTRING *name,
+                          const Record_addr &addr,
+                          const Type_all_attributes &attr,
+                          TABLE *table) const;
 };
 
 
@@ -1460,6 +1591,10 @@ public:
   enum_field_types field_type() const { return MYSQL_TYPE_DECIMAL; }
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
+  Field *make_table_field(const LEX_CSTRING *name,
+                          const Record_addr &addr,
+                          const Type_all_attributes &attr,
+                          TABLE *table) const;
 };
 
 
@@ -1472,6 +1607,10 @@ public:
   enum_field_types field_type() const { return MYSQL_TYPE_NEWDECIMAL; }
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
+  Field *make_table_field(const LEX_CSTRING *name,
+                          const Record_addr &addr,
+                          const Type_all_attributes &attr,
+                          TABLE *table) const;
 };
 
 
@@ -1486,6 +1625,10 @@ public:
   uint32 max_display_length(const Item *item) const { return 0; }
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
+  Field *make_table_field(const LEX_CSTRING *name,
+                          const Record_addr &addr,
+                          const Type_all_attributes &attr,
+                          TABLE *table) const;
 };
 
 
@@ -1499,6 +1642,10 @@ public:
   bool is_param_long_data_type() const { return true; }
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
+  Field *make_table_field(const LEX_CSTRING *name,
+                          const Record_addr &addr,
+                          const Type_all_attributes &attr,
+                          TABLE *table) const;
 };
 
 
@@ -1512,6 +1659,10 @@ public:
   bool is_param_long_data_type() const { return true; }
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
+  Field *make_table_field(const LEX_CSTRING *name,
+                          const Record_addr &addr,
+                          const Type_all_attributes &attr,
+                          TABLE *table) const;
 };
 
 
@@ -1525,6 +1676,8 @@ public:
     return false; // Materialization does not work with BLOB columns
   }
   bool is_param_long_data_type() const { return true; }
+  bool Item_hybrid_func_fix_attributes(THD *thd, Item_hybrid_func *func,
+                                       Item **items, uint nitems) const;
 };
 
 
@@ -1537,6 +1690,10 @@ public:
   enum_field_types field_type() const { return MYSQL_TYPE_TINY_BLOB; }
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
+  Field *make_table_field(const LEX_CSTRING *name,
+                          const Record_addr &addr,
+                          const Type_all_attributes &attr,
+                          TABLE *table) const;
 };
 
 
@@ -1549,6 +1706,10 @@ public:
   enum_field_types field_type() const { return MYSQL_TYPE_MEDIUM_BLOB; }
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
+  Field *make_table_field(const LEX_CSTRING *name,
+                          const Record_addr &addr,
+                          const Type_all_attributes &attr,
+                          TABLE *table) const;
 };
 
 
@@ -1561,6 +1722,10 @@ public:
   enum_field_types field_type() const { return MYSQL_TYPE_LONG_BLOB; }
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
+  Field *make_table_field(const LEX_CSTRING *name,
+                          const Record_addr &addr,
+                          const Type_all_attributes &attr,
+                          TABLE *table) const;
 };
 
 
@@ -1573,6 +1738,10 @@ public:
   enum_field_types field_type() const { return MYSQL_TYPE_BLOB; }
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
+  Field *make_table_field(const LEX_CSTRING *name,
+                          const Record_addr &addr,
+                          const Type_all_attributes &attr,
+                          TABLE *table) const;
 };
 
 
@@ -1593,6 +1762,11 @@ public:
   }
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
+  Field *make_table_field(const LEX_CSTRING *name,
+                          const Record_addr &addr,
+                          const Type_all_attributes &attr,
+                          TABLE *table) const;
+
   bool is_traditional_type() const
   {
     return false;
@@ -1629,6 +1803,10 @@ public:
   virtual enum_field_types real_field_type() const { return MYSQL_TYPE_ENUM; }
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
+  Field *make_table_field(const LEX_CSTRING *name,
+                          const Record_addr &addr,
+                          const Type_all_attributes &attr,
+                          TABLE *table) const;
 };
 
 
@@ -1642,6 +1820,10 @@ public:
   virtual enum_field_types real_field_type() const { return MYSQL_TYPE_SET; }
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
+  Field *make_table_field(const LEX_CSTRING *name,
+                          const Record_addr &addr,
+                          const Type_all_attributes &attr,
+                          TABLE *table) const;
 };
 
 
@@ -1742,6 +1924,10 @@ extern Type_handler_time2       type_handler_time2;
 extern Type_handler_newdate     type_handler_newdate;
 extern Type_handler_datetime2   type_handler_datetime2;
 
+extern Type_handler_tiny_blob   type_handler_tiny_blob;
+extern Type_handler_blob        type_handler_blob;
+extern Type_handler_medium_blob type_handler_medium_blob;
+extern Type_handler_long_blob   type_handler_long_blob;
 
 class Type_aggregator
 {

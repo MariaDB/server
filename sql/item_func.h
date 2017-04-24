@@ -208,7 +208,7 @@ public:
   {
     return result_type() != STRING_RESULT ?
            create_tmp_field(false, table, MY_INT32_NUM_DECIMAL_DIGITS) :
-           tmp_table_field_from_field_type(table, false, false);
+           tmp_table_field_from_field_type(table);
   }
   Item *get_tmp_table_item(THD *thd);
 
@@ -2255,12 +2255,6 @@ public:
   bool update();
   bool fix_fields(THD *thd, Item **ref);
   void fix_length_and_dec();
-  Field *create_field_for_create_select(TABLE *table)
-  {
-    return result_type() != STRING_RESULT ?
-           create_tmp_field(false, table, MY_INT32_NUM_DECIMAL_DIGITS) :
-           tmp_table_field_from_field_type(table, false, true);
-  }
   table_map used_tables() const
   {
     return used_tables_cache | RAND_TABLE_BIT;
@@ -2302,6 +2296,14 @@ public:
   my_decimal *val_decimal(my_decimal*);
   String *val_str(String* str);
   void fix_length_and_dec();
+  Field *create_field_for_create_select(TABLE *table)
+  {
+    return cmp_type() == STRING_RESULT ?
+      type_handler_long_blob.make_and_init_table_field(&(Item::name),
+                                                       Record_addr(maybe_null),
+                                                       *this, table) :
+      create_tmp_field(false, table, MY_INT32_NUM_DECIMAL_DIGITS);
+  }
   virtual void print(String *str, enum_query_type query_type);
   /*
     We must always return variables as strings to guard against selects of type
@@ -2655,7 +2657,7 @@ public:
   {
     return result_type() != STRING_RESULT ?
            sp_result_field :
-           tmp_table_field_from_field_type(table, false, false);
+           tmp_table_field_from_field_type(table);
   }
   void make_field(THD *thd, Send_field *tmp_field);
 

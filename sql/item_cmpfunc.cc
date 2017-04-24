@@ -2577,7 +2577,7 @@ Item_func_nullif::fix_length_and_dec()
     thd->change_item_tree(&args[0], m_cache);
     thd->change_item_tree(&args[2], m_cache);
   }
-  set_handler_by_field_type(args[2]->field_type());
+  set_handler(args[2]->type_handler());
   collation.set(args[2]->collation);
   decimals= args[2]->decimals;
   unsigned_flag= args[2]->unsigned_flag;

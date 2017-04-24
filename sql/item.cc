@@ -518,7 +518,7 @@ Item::Item(THD *thd):
   tables.
 */
 Item::Item(THD *thd, Item *item):
-  Type_std_attributes(item),
+  Type_all_attributes(item),
   join_tab_idx(item->join_tab_idx),
   is_expensive_cache(-1),
   rsize(0),
@@ -5854,6 +5854,8 @@ const Type_handler *Item_field::real_type_handler() const
   // TODO: We should add Field::real_type_handler() eventually
   if (type == MYSQL_TYPE_STRING && field->type() == MYSQL_TYPE_VAR_STRING)
     type= MYSQL_TYPE_VAR_STRING;
+  else if (type == MYSQL_TYPE_BLOB)
+    return field->type_handler();
   return Type_handler::get_handler_by_real_type(type);
 
 }
@@ -6276,122 +6278,23 @@ Field *Item::make_string_field(TABLE *table)
     \#    Created field
 */
 
-Field *Item::tmp_table_field_from_field_type(TABLE *table,
-                                             bool fixed_length,
-                                             bool set_blob_packlength)
+Field *Item::tmp_table_field_from_field_type(TABLE *table)
 {
-  /*
-    The field functions defines a field to be not null if null_ptr is not 0
-  */
-  uchar *null_ptr= maybe_null ? (uchar*) "" : 0;
-  Field *field;
-  MEM_ROOT *mem_root= table->in_use->mem_root;
+  const Type_handler *handler= type_handler();
+  Record_addr addr(maybe_null);
 
-  switch (field_type()) {
-  case MYSQL_TYPE_DECIMAL:
-  case MYSQL_TYPE_NEWDECIMAL:
-    field= Field_new_decimal::create_from_item(mem_root, this);
-    break;
-  case MYSQL_TYPE_TINY:
-    field= new (mem_root)
-      Field_tiny((uchar*) 0, max_length, null_ptr, 0, Field::NONE,
-                 &name, 0, unsigned_flag);
-    break;
-  case MYSQL_TYPE_SHORT:
-    field= new (mem_root)
-      Field_short((uchar*) 0, max_length, null_ptr, 0, Field::NONE,
-                  &name, 0, unsigned_flag);
-    break;
-  case MYSQL_TYPE_LONG:
-    field= new (mem_root)
-      Field_long((uchar*) 0, max_length, null_ptr, 0, Field::NONE,
-                 &name, 0, unsigned_flag);
-    break;
-#ifdef HAVE_LONG_LONG
-  case MYSQL_TYPE_LONGLONG:
-    field= new (mem_root)
-      Field_longlong((uchar*) 0, max_length, null_ptr, 0, Field::NONE,
-                     &name, 0, unsigned_flag);
-    break;
-#endif
-  case MYSQL_TYPE_FLOAT:
-    field= new (mem_root)
-      Field_float((uchar*) 0, max_length, null_ptr, 0, Field::NONE,
-                  &name, decimals, 0, unsigned_flag);
-    break;
-  case MYSQL_TYPE_DOUBLE:
-    field= new (mem_root)
-      Field_double((uchar*) 0, max_length, null_ptr, 0, Field::NONE,
-                   &name, decimals, 0, unsigned_flag);
-    break;
-  case MYSQL_TYPE_INT24:
-    field= new (mem_root)
-      Field_medium((uchar*) 0, max_length, null_ptr, 0, Field::NONE,
-                   &name, 0, unsigned_flag);
-    break;
-  case MYSQL_TYPE_NEWDATE:
-  case MYSQL_TYPE_DATE:
-    field= new (mem_root)
-      Field_newdate(0, null_ptr, 0, Field::NONE, &name);
-    break;
-  case MYSQL_TYPE_TIME:
-    field= new_Field_time(mem_root, 0, null_ptr, 0, Field::NONE, &name,
-                          decimals);
-    break;
-  case MYSQL_TYPE_TIMESTAMP:
-    field= new_Field_timestamp(mem_root, 0, null_ptr, 0,
-                               Field::NONE, &name, 0, decimals);
-    break;
-  case MYSQL_TYPE_DATETIME:
-    field= new_Field_datetime(mem_root, 0, null_ptr, 0, Field::NONE,
-                              &name, decimals);
-    break;
-  case MYSQL_TYPE_YEAR:
-    field= new (mem_root)
-      Field_year((uchar*) 0, max_length, null_ptr, 0, Field::NONE,
-                 &name);
-    break;
-  case MYSQL_TYPE_BIT:
-    field= new (mem_root)
-      Field_bit_as_char(NULL, max_length, null_ptr, 0, Field::NONE,
-                        &name);
-    break;
-  default:
-    /* This case should never be chosen */
-    DBUG_ASSERT(0);
-    /* If something goes awfully wrong, it's better to get a string than die */
+  switch (handler->field_type()) {
   case MYSQL_TYPE_NULL:
   case MYSQL_TYPE_STRING:
-    if (fixed_length && !too_big_for_varchar())
-    {
-      field= new (mem_root)
-        Field_string(max_length, maybe_null, &name, collation.collation);
-      break;
-    }
-    /* Fall through to make_string_field() */
   case MYSQL_TYPE_ENUM:
   case MYSQL_TYPE_SET:
   case MYSQL_TYPE_VAR_STRING:
   case MYSQL_TYPE_VARCHAR:
     return make_string_field(table);
-  case MYSQL_TYPE_TINY_BLOB:
-  case MYSQL_TYPE_MEDIUM_BLOB:
-  case MYSQL_TYPE_LONG_BLOB:
-  case MYSQL_TYPE_BLOB:
-    field= new (mem_root)
-           Field_blob(max_length, maybe_null, &name,
-                      collation.collation, set_blob_packlength);
-    break;					// Blob handled outside of case
-#ifdef HAVE_SPATIAL
-  case MYSQL_TYPE_GEOMETRY:
-    field= new (mem_root)
-      Field_geom(max_length, maybe_null, &name, table->s,
-                 get_geometry_type());
-#endif /* HAVE_SPATIAL */
+  default:
+    break;
   }
-  if (field)
-    field->init(table);
-  return field;
+  return handler->make_and_init_table_field(&name, addr, *this, table);
 }
 
 
@@ -10423,10 +10326,16 @@ Field *Item_type_holder::make_field_by_type(TABLE *table)
   }
   case MYSQL_TYPE_NULL:
     return make_string_field(table);
+  case MYSQL_TYPE_TINY_BLOB:
+  case MYSQL_TYPE_BLOB:
+  case MYSQL_TYPE_MEDIUM_BLOB:
+  case MYSQL_TYPE_LONG_BLOB:
+    set_handler(Type_handler::blob_type_handler(max_length));
+    break;
   default:
     break;
   }
-  return tmp_table_field_from_field_type(table, false, true);
+  return tmp_table_field_from_field_type(table);
 }
 
 

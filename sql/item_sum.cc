@@ -1669,8 +1669,6 @@ Item *Item_sum_avg::copy_or_same(THD* thd)
 
 Field *Item_sum_avg::create_tmp_field(bool group, TABLE *table)
 {
-  Field *field;
-  MEM_ROOT *mem_root= table->in_use->mem_root;
 
   if (group)
   {
@@ -1679,21 +1677,15 @@ Field *Item_sum_avg::create_tmp_field(bool group, TABLE *table)
       The easiest way is to do this is to store both value in a string
       and unpack on access.
     */
-    field= new (mem_root)
+    Field *field= new (table->in_use->mem_root)
       Field_string(((Item_sum_avg::result_type() == DECIMAL_RESULT) ?
-                    dec_bin_size : sizeof(double)) + sizeof(longlong),
+                   dec_bin_size : sizeof(double)) + sizeof(longlong),
                    0, &name, &my_charset_bin);
+    if (field)
+      field->init(table);
+    return field;
   }
-  else if (Item_sum_avg::result_type() == DECIMAL_RESULT)
-    field= Field_new_decimal::create_from_item(mem_root, this);
-  else
-  {
-    field= new (mem_root) Field_double(max_length, maybe_null, &name,
-                                       decimals, TRUE);
-  }
-  if (field)
-    field->init(table);
-  return field;
+  return tmp_table_field_from_field_type(table);
 }
 
 

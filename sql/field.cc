@@ -2912,67 +2912,6 @@ Field_new_decimal::Field_new_decimal(uchar *ptr_arg,
 }
 
 
-Field_new_decimal::Field_new_decimal(uint32 len_arg,
-                                     bool maybe_null_arg,
-                                     const LEX_CSTRING *name,
-                                     uint8 dec_arg,
-                                     bool unsigned_arg)
-  :Field_num((uchar*) 0, len_arg,
-             maybe_null_arg ? (uchar*) "": 0, 0,
-             NONE, name, dec_arg, 0, unsigned_arg)
-{
-  precision= my_decimal_length_to_precision(len_arg, dec_arg, unsigned_arg);
-  set_if_smaller(precision, DECIMAL_MAX_PRECISION);
-  DBUG_ASSERT((precision <= DECIMAL_MAX_PRECISION) &&
-              (dec <= DECIMAL_MAX_SCALE));
-  bin_size= my_decimal_get_binary_size(precision, dec);
-}
-
-
-Field *Field_new_decimal::create_from_item(MEM_ROOT *mem_root, Item *item)
-{
-  uint8 dec= item->decimals;
-  uint8 intg= item->decimal_precision() - dec;
-  uint32 len= item->max_char_length();
-  DBUG_ASSERT (item->result_type() == DECIMAL_RESULT);
-
-  /*
-    Trying to put too many digits overall in a DECIMAL(prec,dec)
-    will always throw a warning. We must limit dec to
-    DECIMAL_MAX_SCALE however to prevent an assert() later.
-  */
-
-  if (dec > 0)
-  {
-    signed int overflow;
-
-    dec= MY_MIN(dec, DECIMAL_MAX_SCALE);
-
-    /*
-      If the value still overflows the field with the corrected dec,
-      we'll throw out decimals rather than integers. This is still
-      bad and of course throws a truncation warning.
-      +1: for decimal point
-      */
-
-    const int required_length=
-      my_decimal_precision_to_length(intg + dec, dec,
-                                     item->unsigned_flag);
-
-    overflow= required_length - len;
-
-    if (overflow > 0)
-      dec= MY_MAX(0, dec - overflow);            // too long, discard fract
-    else
-      /* Corrected value fits. */
-      len= required_length;
-  }
-  return new (mem_root)
-    Field_new_decimal(len, item->maybe_null, &item->name,
-                      dec, item->unsigned_flag);
-}
-
-
 int Field_new_decimal::reset(void)
 {
   store_value(&decimal_zero);
@@ -10717,7 +10656,7 @@ uint32 Field_blob::char_length() const
   case 3:
     return 16777215;
   case 4:
-    return (uint32) 4294967295U;
+    return (uint32) UINT_MAX32;
   default:
     DBUG_ASSERT(0); // we should never go here
     return 0;
@@ -10770,7 +10709,7 @@ uint32 Field_blob::max_display_length()
   case 3:
     return 16777215 * field_charset->mbmaxlen;
   case 4:
-    return (uint32) 4294967295U;
+    return (uint32) UINT_MAX32;
   default:
     DBUG_ASSERT(0); // we should never go here
     return 0;
