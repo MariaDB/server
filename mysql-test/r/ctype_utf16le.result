@@ -1168,6 +1168,42 @@ a
 2007-09-16
 DROP TABLE t1;
 #
+# Checking str_to_datetime() for RFC3339
+#
+select @@collation_connection;
+@@collation_connection
+utf16le_general_ci
+CREATE TABLE t1 (a datetime);
+INSERT INTO t1 VALUES ('2016-12-10T10:10:10-05:00');
+SELECT * FROM t1;
+a
+2016-12-10 10:10:10
+DROP TABLE t1;
+#
+# Checking str_to_datetime() for RFC3339
+#
+select @@collation_connection;
+@@collation_connection
+utf16le_general_ci
+CREATE TABLE t1 (a datetime);
+INSERT INTO t1 VALUES ('2016-12-10T10:10:10+01:30');
+SELECT * FROM t1;
+a
+2016-12-10 10:10:10
+DROP TABLE t1;
+#
+# Checking str_to_datetime() for RFC3339
+#
+select @@collation_connection;
+@@collation_connection
+utf16le_general_ci
+CREATE TABLE t1 (a datetime);
+INSERT INTO t1 VALUES ('2016-12-10T10:10:10Z');
+SELECT * FROM t1;
+a
+2016-12-10 10:10:10
+DROP TABLE t1;
+#
 # Testing cs->cset->ll10tostr
 #
 CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET utf16le);
