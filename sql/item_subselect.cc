@@ -2388,7 +2388,8 @@ Item_in_subselect::create_row_in_to_exists_cond(JOIN * join,
                                   (char *)"<list ref>"));
       Item *col_item= new (thd->mem_root)
         Item_cond_or(thd, item_eq, item_isnull);
-      if (!abort_on_null && left_expr->element_index(i)->maybe_null)
+      if (!abort_on_null && left_expr->element_index(i)->maybe_null &&
+          get_cond_guard(i))
       {
         disable_cond_guard_for_const_null_left_expr(i);
         if (!(col_item= new (thd->mem_root)
@@ -2406,7 +2407,8 @@ Item_in_subselect::create_row_in_to_exists_cond(JOIN * join,
                                        ref_pointer_array[i],
                                        (char *)"<no matter>",
                                        (char *)"<list ref>"));
-      if (!abort_on_null && left_expr->element_index(i)->maybe_null)
+      if (!abort_on_null && left_expr->element_index(i)->maybe_null &&
+          get_cond_guard(i) )
       {
         disable_cond_guard_for_const_null_left_expr(i);
         if (!(item_nnull_test= 
@@ -2467,7 +2469,7 @@ Item_in_subselect::create_row_in_to_exists_cond(JOIN * join,
                                            (char *)"<no matter>",
                                            (char *)"<list ref>"));
         item= new (thd->mem_root) Item_cond_or(thd, item, item_isnull);
-        if (left_expr->element_index(i)->maybe_null)
+        if (left_expr->element_index(i)->maybe_null && get_cond_guard(i))
         {
           disable_cond_guard_for_const_null_left_expr(i);
           if (!(item= new (thd->mem_root)
@@ -2479,7 +2481,8 @@ Item_in_subselect::create_row_in_to_exists_cond(JOIN * join,
         }
         *having_item= and_items(thd, *having_item, having_col_item);
       }
-      if (!abort_on_null && left_expr->element_index(i)->maybe_null)
+      if (!abort_on_null && left_expr->element_index(i)->maybe_null &&
+          get_cond_guard(i))
       {
         if (!(item= new (thd->mem_root)
               Item_func_trig_cond(thd, item, get_cond_guard(i))))
