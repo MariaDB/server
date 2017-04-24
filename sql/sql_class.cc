@@ -370,16 +370,6 @@ void thd_close_connection(THD *thd)
 }
 
 /**
-  Get current THD object from thread local data
-
-  @retval     The THD object for the thread, NULL if not connection thread
-*/
-THD *thd_get_current_thd()
-{
-  return current_thd;
-}
-
-/**
   Lock data that needs protection in THD object
 
   @param thd                   THD object
@@ -4074,16 +4064,12 @@ my_bool thd_net_is_killed()
 
 void thd_increment_bytes_received(void *thd, ulong length)
 {
-  if (unlikely(!thd))                           // Called from federatedx
-    thd= current_thd;
   ((THD*) thd)->status_var.bytes_received+= length;
 }
 
 
 void thd_increment_net_big_packet_count(void *thd, ulong length)
 {
-  if (unlikely(!thd))                           // Called from federatedx
-    thd= current_thd;
   ((THD*) thd)->status_var.net_big_packet_count+= length;
 }
 

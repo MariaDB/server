@@ -6187,7 +6187,7 @@ static void bootstrap(MYSQL_FILE *file)
   thd->variables.wsrep_on= 0;
 #endif
   thd->bootstrap=1;
-  my_net_init(&thd->net,(st_vio*) 0, (void*) 0, MYF(0));
+  my_net_init(&thd->net,(st_vio*) 0, thd, MYF(0));
   thd->max_client_packet_length= thd->net.max_packet;
   thd->security_ctx->master_access= ~(ulong)0;
   thd->thread_id= thd->variables.pseudo_thread_id= thread_id++;

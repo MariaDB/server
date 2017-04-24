@@ -761,20 +761,6 @@ inline void dec_thread_running()
 
 void set_server_version(void);
 
-#if defined(MYSQL_DYNAMIC_PLUGIN) && defined(_WIN32)
-extern "C" THD *_current_thd_noinline();
-#define _current_thd() _current_thd_noinline()
-#else
-/*
-  THR_THD is a key which will be used to set/get THD* for a thread,
-  using my_pthread_setspecific_ptr()/my_thread_getspecific_ptr().
-*/
-extern pthread_key(THD*, THR_THD);
-inline THD *_current_thd(void)
-{
-  return my_pthread_getspecific_ptr(THD*,THR_THD);
-}
-#endif
 #define current_thd _current_thd()
 inline int set_current_thd(THD *thd)
 {

@@ -3408,7 +3408,7 @@ CLI_MYSQL_REAL_CONNECT(MYSQL *mysql,const char *host, const char *user,
   if (mysql->options.extension && mysql->options.extension->async_context)
     net->vio->async_context= mysql->options.extension->async_context;
 
-  if (my_net_init(net, net->vio, 0, MYF(0)))
+  if (my_net_init(net, net->vio, _current_thd(), MYF(0)))
   {
     vio_delete(net->vio);
     net->vio = 0;
