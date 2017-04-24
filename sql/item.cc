@@ -9711,9 +9711,8 @@ Item_cache_temporal::Item_cache_temporal(THD *thd,
                                          enum_field_types field_type_arg):
   Item_cache_int(thd, field_type_arg)
 {
-  if (mysql_type_to_time_type(Item_cache_temporal::field_type()) ==
-                              MYSQL_TIMESTAMP_ERROR)
-    set_handler_by_field_type(MYSQL_TYPE_DATETIME);
+  if (mysql_timestamp_type() == MYSQL_TIMESTAMP_ERROR)
+    set_handler(&type_handler_datetime2);
 }
 
 
@@ -9821,7 +9820,7 @@ bool Item_cache_temporal::get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
   }
 
   unpack_time(value, ltime);
-  ltime->time_type= mysql_type_to_time_type(field_type());
+  ltime->time_type= mysql_timestamp_type();
   if (ltime->time_type == MYSQL_TIMESTAMP_TIME)
   {
     ltime->hour+= (ltime->month*32+ltime->day)*24;

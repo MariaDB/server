@@ -1532,7 +1532,7 @@ String *Item_temporal_hybrid_func::val_str_ascii(String *str)
   /* Check that the returned timestamp type matches to the function type */
   DBUG_ASSERT(field_type() == MYSQL_TYPE_STRING ||
               ltime.time_type == MYSQL_TIMESTAMP_NONE ||
-              mysql_type_to_time_type(field_type()) == ltime.time_type);
+              ltime.time_type == mysql_timestamp_type());
   return str;
 }
 
@@ -3226,7 +3226,7 @@ void Item_func_str_to_date::fix_length_and_dec()
       }
     }
   }
-  cached_timestamp_type= mysql_type_to_time_type(field_type());
+  cached_timestamp_type= mysql_timestamp_type();
 }
 
 

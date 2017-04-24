@@ -367,6 +367,10 @@ public:
   virtual enum_field_types real_field_type() const { return field_type(); }
   virtual Item_result result_type() const= 0;
   virtual Item_result cmp_type() const= 0;
+  virtual enum_mysql_timestamp_type mysql_timestamp_type() const
+  {
+    return MYSQL_TIMESTAMP_ERROR;
+  }
   /**
     Prepared statement long data:
     Check whether this parameter data type is compatible with long data.
@@ -480,6 +484,9 @@ public:
                                Item *target_expr, Item *target_value,
                                Item_bool_func2 *source,
                                Item *source_expr, Item *source_const) const= 0;
+  virtual bool
+  subquery_type_allows_materialization(const Item *inner,
+                                       const Item *outer) const= 0;
   virtual Item_cache *Item_get_cache(THD *thd, const Item *item) const= 0;
   virtual bool set_comparator_func(Arg_comparator *cmp) const= 0;
   virtual bool Item_hybrid_func_fix_attributes(THD *thd, Item_hybrid_func *func,
@@ -605,6 +612,12 @@ public:
     return ROW_RESULT;
   }
   const Type_handler *type_handler_for_comparison() const;
+  bool subquery_type_allows_materialization(const Item *inner,
+                                            const Item *outer) const
+  {
+    DBUG_ASSERT(0);
+    return false;
+  }
   Field *make_num_distinct_aggregator_field(MEM_ROOT *, const Item *) const
   {
     DBUG_ASSERT(0);
@@ -834,6 +847,8 @@ public:
   Item_result cmp_type() const { return REAL_RESULT; }
   virtual ~Type_handler_real_result() {}
   const Type_handler *type_handler_for_comparison() const;
+  bool subquery_type_allows_materialization(const Item *inner,
+                                            const Item *outer) const;
   void make_sort_key(uchar *to, Item *item, const SORT_FIELD_ATTR *sort_field,
                      Sort_param *param) const;
   void sortlength(THD *thd,
@@ -889,6 +904,8 @@ public:
   Item_result cmp_type() const { return DECIMAL_RESULT; }
   virtual ~Type_handler_decimal_result() {};
   const Type_handler *type_handler_for_comparison() const;
+  bool subquery_type_allows_materialization(const Item *inner,
+                                            const Item *outer) const;
   Field *make_num_distinct_aggregator_field(MEM_ROOT *, const Item *) const;
   void make_sort_key(uchar *to, Item *item, const SORT_FIELD_ATTR *sort_field,
                      Sort_param *param) const;
@@ -943,6 +960,8 @@ public:
   Item_result cmp_type() const { return INT_RESULT; }
   virtual ~Type_handler_int_result() {}
   const Type_handler *type_handler_for_comparison() const;
+  bool subquery_type_allows_materialization(const Item *inner,
+                                            const Item *outer) const;
   Field *make_num_distinct_aggregator_field(MEM_ROOT *, const Item *) const;
   void make_sort_key(uchar *to, Item *item, const SORT_FIELD_ATTR *sort_field,
                      Sort_param *param) const;
@@ -1005,6 +1024,8 @@ public:
                                    Item *target_expr, Item *target_value,
                                    Item_bool_func2 *source,
                                    Item *source_expr, Item *source_const) const;
+  bool subquery_type_allows_materialization(const Item *inner,
+                                            const Item *outer) const;
   Item_cache *Item_get_cache(THD *thd, const Item *item) const;
   bool set_comparator_func(Arg_comparator *cmp) const;
   bool Item_sum_hybrid_fix_length_and_dec(Item_sum_hybrid *func) const;
@@ -1081,6 +1102,8 @@ public:
                                    Item *target_expr, Item *target_value,
                                    Item_bool_func2 *source,
                                    Item *source_expr, Item *source_const) const;
+  bool subquery_type_allows_materialization(const Item *inner,
+                                            const Item *outer) const;
   Item_cache *Item_get_cache(THD *thd, const Item *item) const;
   bool set_comparator_func(Arg_comparator *cmp) const;
   bool Item_hybrid_func_fix_attributes(THD *thd, Item_hybrid_func *func,
@@ -1278,6 +1301,10 @@ public:
   virtual ~Type_handler_time_common() { }
   const Name name() const { return m_name_time; }
   enum_field_types field_type() const { return MYSQL_TYPE_TIME; }
+  enum_mysql_timestamp_type mysql_timestamp_type() const
+  {
+    return MYSQL_TIMESTAMP_TIME;
+  }
   const Type_handler *type_handler_for_comparison() const;
   int Item_save_in_field(Item *item, Field *field, bool no_conversions) const;
   String *print_item_value(THD *thd, Item *item, String *str) const;
@@ -1325,6 +1352,10 @@ public:
   virtual ~Type_handler_date_common() {}
   const Name name() const { return m_name_date; }
   enum_field_types field_type() const { return MYSQL_TYPE_DATE; }
+  enum_mysql_timestamp_type mysql_timestamp_type() const
+  {
+    return MYSQL_TIMESTAMP_DATE;
+  }
   String *print_item_value(THD *thd, Item *item, String *str) const;
   bool Item_hybrid_func_fix_attributes(THD *thd, Item_hybrid_func *func,
                                        Item **items, uint nitems) const;
@@ -1355,6 +1386,10 @@ public:
   virtual ~Type_handler_datetime_common() {}
   const Name name() const { return m_name_datetime; }
   enum_field_types field_type() const { return MYSQL_TYPE_DATETIME; }
+  enum_mysql_timestamp_type mysql_timestamp_type() const
+  {
+    return MYSQL_TIMESTAMP_DATETIME;
+  }
   String *print_item_value(THD *thd, Item *item, String *str) const;
   bool Item_hybrid_func_fix_attributes(THD *thd, Item_hybrid_func *func,
                                        Item **items, uint nitems) const;
@@ -1387,6 +1422,10 @@ public:
   virtual ~Type_handler_timestamp_common() {}
   const Name name() const { return m_name_timestamp; }
   enum_field_types field_type() const { return MYSQL_TYPE_TIMESTAMP; }
+  enum_mysql_timestamp_type mysql_timestamp_type() const
+  {
+    return MYSQL_TIMESTAMP_DATETIME;
+  }
   String *print_item_value(THD *thd, Item *item, String *str) const;
   bool Item_hybrid_func_fix_attributes(THD *thd, Item_hybrid_func *func,
                                        Item **items, uint nitems) const;
@@ -1480,6 +1519,11 @@ class Type_handler_blob_common: public Type_handler_string_result
 {
 public:
   virtual ~Type_handler_blob_common() { }
+  bool subquery_type_allows_materialization(const Item *inner,
+                                            const Item *outer) const
+  {
+    return false; // Materialization does not work with BLOB columns
+  }
   bool is_param_long_data_type() const { return true; }
 };
 
@@ -1542,6 +1586,11 @@ public:
   enum_field_types field_type() const { return MYSQL_TYPE_GEOMETRY; }
   bool is_param_long_data_type() const { return true; }
   const Type_handler *type_handler_for_comparison() const;
+  bool subquery_type_allows_materialization(const Item *inner,
+                                            const Item *outer) const
+  {
+    return false; // Materialization does not work with GEOMETRY columns
+  }
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
   bool is_traditional_type() const
@@ -1628,6 +1677,10 @@ public:
   }
   Item_result result_type() const { return m_type_handler->result_type(); }
   Item_result cmp_type() const { return m_type_handler->cmp_type(); }
+  enum_mysql_timestamp_type mysql_timestamp_type() const
+  {
+    return m_type_handler->mysql_timestamp_type();
+  }
   void set_handler(const Type_handler *other)
   {
     m_type_handler= other;

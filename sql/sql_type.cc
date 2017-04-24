@@ -3187,3 +3187,57 @@ uint Type_handler_string_result::Item_temporal_precision(Item *item,
 }
 
 /***************************************************************************/
+
+bool Type_handler_real_result::
+       subquery_type_allows_materialization(const Item *inner,
+                                            const Item *outer) const
+{
+  DBUG_ASSERT(inner->cmp_type() == REAL_RESULT);
+  return outer->cmp_type() == REAL_RESULT;
+}
+
+
+bool Type_handler_int_result::
+       subquery_type_allows_materialization(const Item *inner,
+                                            const Item *outer) const
+{
+  DBUG_ASSERT(inner->cmp_type() == INT_RESULT);
+  return outer->cmp_type() == INT_RESULT;
+}
+
+
+bool Type_handler_decimal_result::
+       subquery_type_allows_materialization(const Item *inner,
+                                            const Item *outer) const
+{
+  DBUG_ASSERT(inner->cmp_type() == DECIMAL_RESULT);
+  return outer->cmp_type() == DECIMAL_RESULT;
+}
+
+
+bool Type_handler_string_result::
+       subquery_type_allows_materialization(const Item *inner,
+                                            const Item *outer) const
+{
+  DBUG_ASSERT(inner->cmp_type() == STRING_RESULT);
+  return outer->cmp_type() == STRING_RESULT &&
+         outer->collation.collation == inner->collation.collation &&
+         /*
+           Materialization also is unable to work when create_tmp_table() will
+           create a blob column because item->max_length is too big.
+           The following test is copied from Item::make_string_field():
+         */
+         !inner->too_big_for_varchar();
+}
+
+
+bool Type_handler_temporal_result::
+       subquery_type_allows_materialization(const Item *inner,
+                                            const Item *outer) const
+{
+  DBUG_ASSERT(inner->cmp_type() == TIME_RESULT);
+  return mysql_timestamp_type() ==
+         outer->type_handler()->mysql_timestamp_type();
+}
+
+/***************************************************************************/
