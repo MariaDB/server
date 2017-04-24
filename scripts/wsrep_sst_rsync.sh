@@ -60,7 +60,8 @@ check_pid_and_port()
 {
     local pid_file=$1
     local rsync_pid=$2
-    local rsync_port=$3
+    local rsync_addr=$3
+    local rsync_port=$4
 
     if ! which lsof > /dev/null; then
       wsrep_log_error "lsof tool not found in PATH! Make sure you have it installed."
@@ -69,16 +70,40 @@ check_pid_and_port()
 
     local port_info=$(lsof -i :$rsync_port -Pn 2>/dev/null | \
         grep "(LISTEN)")
+    local is_listening_all=$(echo $port_info | \
+        grep "*:$rsync_port" 2>/dev/null)
+    local is_listening_addr=$(echo $port_info | \
+        grep "$rsync_addr:$rsync_port" 2>/dev/null)
     local is_rsync=$(echo $port_info | \
         grep -w '^rsync[[:space:]]\+'"$rsync_pid" 2>/dev/null)
 
-    if [ -n "$port_info" -a -z "$is_rsync" ]; then
-        wsrep_log_error "rsync daemon port '$rsync_port' has been taken"
-        exit 16 # EBUSY
+    if [ ! -z "$is_listening_all" -o ! -z "$is_listening_addr" ]; then
+        if [ -z "$is_rsync" ]; then
+            wsrep_log_error "rsync daemon port '$rsync_port' has been taken"
+            exit 16 # EBUSY
+        fi
     fi
     check_pid $pid_file && \
         [ -n "$port_info" ] && [ -n "$is_rsync" ] && \
         [ $(cat $pid_file) -eq $rsync_pid ]
+}
+
+is_local_ip()
+{
+  local address="$1"
+  local wherebin=`which ifconfig`
+  if [ -z "$wherebin" ]
+  then
+    wherebin=`which ip`
+    wherebin="$wherebin address show"
+    # Add an slash at the end, so we don't get false positive : 172.18.0.4 matches 172.18.0.41
+    address="${address}/"
+  else
+    # Add an space at the end, so we don't get false positive : 172.18.0.4 matches 172.18.0.41
+    address="$address "
+  fi
+
+  $wherebin | grep "$address" > /dev/null
 }
 
 MAGIC_FILE="$WSREP_SST_OPT_DATA/rsync_sst_complete"
@@ -271,6 +296,7 @@ then
 
     ADDR=$WSREP_SST_OPT_ADDR
     RSYNC_PORT=$(echo $ADDR | awk -F ':' '{ print $2 }')
+    RSYNC_ADDR=$(echo $ADDR | awk -F ':' '{ print $1 }')
     if [ -z "$RSYNC_PORT" ]
     then
         RSYNC_PORT=4444
@@ -303,11 +329,19 @@ EOF
 
 #    rm -rf "$DATA"/ib_logfile* # we don't want old logs around
 
-    # listen at all interfaces (for firewalled setups)
-    rsync --daemon --no-detach --port $RSYNC_PORT --config "$RSYNC_CONF" &
+    # If the IP is local listen only in it
+    if is_local_ip $RSYNC_ADDR
+    then
+      rsync --daemon --no-detach --address $RSYNC_ADDR --port $RSYNC_PORT --config "$RSYNC_CONF" &
+    else
+      # Not local, possibly a NAT, listen in all interface
+      rsync --daemon --no-detach --port $RSYNC_PORT --config "$RSYNC_CONF" &
+      # Overwrite address with all
+      RSYNC_ADDR="*"
+    fi
     RSYNC_REAL_PID=$!
 
-    until check_pid_and_port $RSYNC_PID $RSYNC_REAL_PID $RSYNC_PORT
+    until check_pid_and_port $RSYNC_PID $RSYNC_REAL_PID $RSYNC_ADDR $RSYNC_PORT
     do
         sleep 0.2
     done
