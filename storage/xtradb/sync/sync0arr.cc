@@ -527,7 +527,7 @@ sync_array_cell_print(
 				"waiters flag " ULINTPF "\n",
 				(void*) mutex, mutex->cmutex_name,
 				(ulong) mutex->lock_word,
-				mutex->thread_id,
+				os_thread_pf(mutex->thread_id),
 				mutex->file_name, mutex->line,
 				mutex->waiters);
 		}
