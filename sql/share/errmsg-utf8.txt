@@ -7775,3 +7775,7 @@ ER_WRONG_INSERT_INTO_SEQUENCE
         eng "Wrong INSERT into a SEQUENCE. One can only do single table INSERT into a sequence object (like with mysqldump).  If you want to change the SEQUENCE, use ALTER SEQUENCE instead."
 ER_SP_STACK_TRACE
         eng "At line %u in %s"
+ER_COMPRESSED_COLUMN_USED_AS_KEY
+  eng "Compressed column '%-.192s' can't be used in key specification"
+ER_UNKNOWN_COMPRESSION_METHOD
+  eng "Unknown compression method: %s"

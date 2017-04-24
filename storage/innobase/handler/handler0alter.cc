@@ -727,6 +727,13 @@ ha_innobase::check_if_supported_inplace_alter(
 
 			DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
 		}
+
+		/* Disable online ALTER TABLE for compressed columns until
+		MDEV-13359 - "Online ALTER TABLE will be disabled for compressed columns"
+		is fixed. */
+		if (field->compression_method()) {
+			DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
+		}
 	}
 
 	ulint n_indexes = UT_LIST_GET_LEN((m_prebuilt->table)->indexes);
@@ -1025,6 +1032,12 @@ ha_innobase::check_if_supported_inplace_alter(
 			    || (ha_alter_info->handler_flags
 				& Alter_inplace_info::ADD_COLUMN));
 
+		/* Disable online ALTER TABLE for compressed columns until
+		MDEV-13359 - "Online ALTER TABLE will be disabled for compressed columns"
+		is fixed. */
+		if (cf->compression_method()) {
+			DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
+		}
 		if (const Field* f = cf->field) {
 			/* This could be changing an existing column
 			from NULL to NOT NULL. */

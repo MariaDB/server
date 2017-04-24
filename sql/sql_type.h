@@ -2525,6 +2525,14 @@ public:
 };
 
 
+class Type_handler_varchar_compressed: public Type_handler_varchar
+{
+public:
+  Field *make_conversion_table_field(TABLE *, uint metadata,
+                                     const Field *target) const;
+};
+
+
 class Type_handler_blob_common: public Type_handler_longstr
 {
 public:
@@ -2622,6 +2630,14 @@ public:
                           const Record_addr &addr,
                           const Type_all_attributes &attr,
                           TABLE *table) const;
+};
+
+
+class Type_handler_blob_compressed: public Type_handler_blob
+{
+public:
+  Field *make_conversion_table_field(TABLE *, uint metadata,
+                                     const Field *target) const;
 };
 
 

@@ -762,6 +762,53 @@ static Sys_var_struct Sys_collation_server(
        offsetof(CHARSET_INFO, name), DEFAULT(&default_charset_info),
        NO_MUTEX_GUARD, IN_BINLOG, ON_CHECK(check_collation_not_null));
 
+static Sys_var_uint Sys_column_compression_threshold(
+       "column_compression_threshold",
+       "Minimum column data length eligible for compression",
+       SESSION_VAR(column_compression_threshold), CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(0, UINT_MAX), DEFAULT(100), BLOCK_SIZE(1));
+
+static Sys_var_uint Sys_column_compression_zlib_level(
+       "column_compression_zlib_level",
+       "zlib compression level (1 gives best speed, 9 gives best compression)",
+       SESSION_VAR(column_compression_zlib_level), CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(0, 9), DEFAULT(6), BLOCK_SIZE(1));
+
+/*
+  Note that names must correspond to zlib strategy definition. So that we can
+  pass column_compression_zlib_strategy directly to deflateInit2().
+*/
+static const char *column_compression_zlib_strategy_names[]=
+{ "DEFAULT_STRATEGY", "FILTERED", "HUFFMAN_ONLY", "RLE", "FIXED", 0 };
+
+static Sys_var_enum Sys_column_compression_zlib_strategy(
+       "column_compression_zlib_strategy",
+       "The strategy parameter is used to tune the compression algorithm. Use "
+       "the value DEFAULT_STRATEGY for normal data, FILTERED for data produced "
+       "by a filter (or predictor), HUFFMAN_ONLY to force Huffman encoding "
+       "only (no string match), or RLE to limit match distances to one "
+       "(run-length encoding). Filtered data consists mostly of small values "
+       "with a somewhat random distribution. In this case, the compression "
+       "algorithm is tuned to compress them better. The effect of FILTERED is "
+       "to force more Huffman coding and less string matching; it is somewhat "
+       "intermediate between DEFAULT_STRATEGY and HUFFMAN_ONLY. RLE is "
+       "designed to be almost as fast as HUFFMAN_ONLY, but give better "
+       "compression for PNG image data. The strategy parameter only affects "
+       "the compression ratio but not the correctness of the compressed output "
+       "even if it is not set appropriately. FIXED prevents the use of dynamic "
+       "Huffman codes, allowing for a simpler decoder for special "
+       "applications.",
+       SESSION_VAR(column_compression_zlib_strategy), CMD_LINE(REQUIRED_ARG),
+       column_compression_zlib_strategy_names, DEFAULT(0));
+
+static Sys_var_mybool Sys_column_compression_zlib_wrap(
+       "column_compression_zlib_wrap",
+       "Generate zlib header and trailer and compute adler32 check value. "
+       "It can be used with storage engines that don't provide data integrity "
+       "verification to detect data corruption.",
+       SESSION_VAR(column_compression_zlib_wrap), CMD_LINE(OPT_ARG),
+       DEFAULT(FALSE));
+
 static const char *concurrent_insert_names[]= {"NEVER", "AUTO", "ALWAYS", 0};
 static Sys_var_enum Sys_concurrent_insert(
        "concurrent_insert", "Use concurrent insert with MyISAM",

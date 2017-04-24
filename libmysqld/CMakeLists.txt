@@ -43,7 +43,7 @@ SET(SQL_EMBEDDED_SOURCES emb_qcache.cc libmysqld.c lib_sql.cc
            ../sql-common/my_user.c ../sql-common/pack.c
            ../sql-common/client_plugin.c ../sql-common/mysql_async.c
            ../sql/password.c ../sql/discover.cc ../sql/derror.cc 
-           ../sql/field.cc ../sql/field_conv.cc
+           ../sql/field.cc ../sql/field_conv.cc ../sql/field_comp.cc
            ../sql/filesort_utils.cc ../sql/sql_digest.cc
            ../sql/filesort.cc ../sql/gstream.cc ../sql/slave.cc
            ../sql/signal_handler.cc

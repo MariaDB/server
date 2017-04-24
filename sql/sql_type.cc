@@ -55,11 +55,13 @@ Type_handler_set         type_handler_set;
 Type_handler_string      type_handler_string;
 Type_handler_var_string  type_handler_var_string;
 Type_handler_varchar     type_handler_varchar;
+static Type_handler_varchar_compressed type_handler_varchar_compressed;
 
 Type_handler_tiny_blob   type_handler_tiny_blob;
 Type_handler_medium_blob type_handler_medium_blob;
 Type_handler_long_blob   type_handler_long_blob;
 Type_handler_blob        type_handler_blob;
+static Type_handler_blob_compressed type_handler_blob_compressed;
 
 #ifdef HAVE_SPATIAL
 Type_handler_geometry    type_handler_geometry;
@@ -923,6 +925,9 @@ Type_handler::get_handler_by_field_type(enum_field_types type)
       in field_type() context and add DBUG_ASSERT(0) here.
     */
     return &type_handler_newdate;
+  case MYSQL_TYPE_VARCHAR_COMPRESSED:
+  case MYSQL_TYPE_BLOB_COMPRESSED:
+    break;
   };
   DBUG_ASSERT(0);
   return &type_handler_string;
@@ -946,10 +951,12 @@ Type_handler::get_handler_by_real_type(enum_field_types type)
   case MYSQL_TYPE_DOUBLE:      return &type_handler_double;
   case MYSQL_TYPE_NULL:        return &type_handler_null;
   case MYSQL_TYPE_VARCHAR:     return &type_handler_varchar;
+  case MYSQL_TYPE_VARCHAR_COMPRESSED: return &type_handler_varchar_compressed;
   case MYSQL_TYPE_TINY_BLOB:   return &type_handler_tiny_blob;
   case MYSQL_TYPE_MEDIUM_BLOB: return &type_handler_medium_blob;
   case MYSQL_TYPE_LONG_BLOB:   return &type_handler_long_blob;
   case MYSQL_TYPE_BLOB:        return &type_handler_blob;
+  case MYSQL_TYPE_BLOB_COMPRESSED: return &type_handler_blob_compressed;
   case MYSQL_TYPE_VAR_STRING:
     /*
       VAR_STRING is actually a field_type(), not a real_type(),
@@ -1302,6 +1309,21 @@ Field *Type_handler_varchar::make_conversion_table_field(TABLE *table,
 }
 
 
+Field *Type_handler_varchar_compressed::make_conversion_table_field(TABLE *table,
+                                                         uint metadata,
+                                                         const Field *target)
+                                                         const
+{
+  return new(table->in_use->mem_root)
+         Field_varstring_compressed(NULL, metadata,
+                                    HA_VARCHAR_PACKLENGTH(metadata),
+                                    (uchar *) "", 1, Field::NONE,
+                                    &empty_clex_str,
+                                    table->s, target->charset(),
+                                    zlib_compression_method);
+}
+
+
 Field *Type_handler_tiny_blob::make_conversion_table_field(TABLE *table,
                                                            uint metadata,
                                                            const Field *target)
@@ -1321,6 +1343,19 @@ Field *Type_handler_blob::make_conversion_table_field(TABLE *table,
   return new(table->in_use->mem_root)
          Field_blob(NULL, (uchar *) "", 1, Field::NONE, &empty_clex_str,
                     table->s, 2, target->charset());
+}
+
+
+Field *Type_handler_blob_compressed::make_conversion_table_field(TABLE *table,
+                                                      uint metadata,
+                                                      const Field *target)
+                                                      const
+{
+  return new(table->in_use->mem_root)
+         Field_blob_compressed(NULL, (uchar *) "", 1, Field::NONE,
+                               &empty_clex_str,
+                               table->s, 2, target->charset(),
+                               zlib_compression_method);
 }
 
 
@@ -1693,6 +1728,7 @@ bool Type_handler_string_result::
                                          const
 {
   def->redefine_stage1_common(dup, file, schema);
+  def->set_compression_method(dup->compression_method());
   def->create_length_to_internal_length_string();
   return false;
 }

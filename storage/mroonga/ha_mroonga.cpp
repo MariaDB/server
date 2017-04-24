@@ -1410,6 +1410,9 @@ static grn_builtin_type mrn_grn_type_from_field(grn_ctx *ctx, Field *field,
   case MYSQL_TYPE_GEOMETRY:     // case-by-case
     type = GRN_DB_WGS84_GEO_POINT; // 8bytes
     break;
+  case MYSQL_TYPE_VARCHAR_COMPRESSED:
+  case MYSQL_TYPE_BLOB_COMPRESSED:
+    DBUG_ASSERT(0);
   }
   return type;
 }
@@ -10906,6 +10909,9 @@ void ha_mroonga::storage_store_field(Field *field,
   case MYSQL_TYPE_GEOMETRY:
     storage_store_field_geometry(field, value, value_length);
     break;
+  case MYSQL_TYPE_VARCHAR_COMPRESSED:
+  case MYSQL_TYPE_BLOB_COMPRESSED:
+    DBUG_ASSERT(0);
   }
 }
 

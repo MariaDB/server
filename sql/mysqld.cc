@@ -8435,6 +8435,8 @@ SHOW_VAR status_vars[]= {
   {"Busy_time",                (char*) offsetof(STATUS_VAR, busy_time), SHOW_DOUBLE_STATUS},
   {"Bytes_received",           (char*) offsetof(STATUS_VAR, bytes_received), SHOW_LONGLONG_STATUS},
   {"Bytes_sent",               (char*) offsetof(STATUS_VAR, bytes_sent), SHOW_LONGLONG_STATUS},
+  {"Column_compressions",      (char*) offsetof(STATUS_VAR, column_compressions), SHOW_LONG_STATUS},
+  {"Column_decompressions",    (char*) offsetof(STATUS_VAR, column_decompressions), SHOW_LONG_STATUS},
   {"Com",                      (char*) com_status_vars, SHOW_ARRAY},
   {"Compression",              (char*) &show_net_compression, SHOW_SIMPLE_FUNC},
   {"Connections",              (char*) &global_thread_id,         SHOW_LONG_NOFLUSH},

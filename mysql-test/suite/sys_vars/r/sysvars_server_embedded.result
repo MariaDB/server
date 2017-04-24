@@ -443,6 +443,62 @@ NUMERIC_BLOCK_SIZE	NULL
 ENUM_VALUE_LIST	NULL
 READ_ONLY	NO
 COMMAND_LINE_ARGUMENT	NULL
+VARIABLE_NAME	COLUMN_COMPRESSION_THRESHOLD
+SESSION_VALUE	100
+GLOBAL_VALUE	100
+GLOBAL_VALUE_ORIGIN	COMPILE-TIME
+DEFAULT_VALUE	100
+VARIABLE_SCOPE	SESSION
+VARIABLE_TYPE	INT UNSIGNED
+VARIABLE_COMMENT	Minimum column data length eligible for compression
+NUMERIC_MIN_VALUE	0
+NUMERIC_MAX_VALUE	4294967295
+NUMERIC_BLOCK_SIZE	1
+ENUM_VALUE_LIST	NULL
+READ_ONLY	NO
+COMMAND_LINE_ARGUMENT	REQUIRED
+VARIABLE_NAME	COLUMN_COMPRESSION_ZLIB_LEVEL
+SESSION_VALUE	6
+GLOBAL_VALUE	6
+GLOBAL_VALUE_ORIGIN	COMPILE-TIME
+DEFAULT_VALUE	6
+VARIABLE_SCOPE	SESSION
+VARIABLE_TYPE	INT UNSIGNED
+VARIABLE_COMMENT	zlib compression level (1 gives best speed, 9 gives best compression)
+NUMERIC_MIN_VALUE	0
+NUMERIC_MAX_VALUE	9
+NUMERIC_BLOCK_SIZE	1
+ENUM_VALUE_LIST	NULL
+READ_ONLY	NO
+COMMAND_LINE_ARGUMENT	REQUIRED
+VARIABLE_NAME	COLUMN_COMPRESSION_ZLIB_STRATEGY
+SESSION_VALUE	DEFAULT_STRATEGY
+GLOBAL_VALUE	DEFAULT_STRATEGY
+GLOBAL_VALUE_ORIGIN	COMPILE-TIME
+DEFAULT_VALUE	DEFAULT_STRATEGY
+VARIABLE_SCOPE	SESSION
+VARIABLE_TYPE	ENUM
+VARIABLE_COMMENT	The strategy parameter is used to tune the compression algorithm. Use the value DEFAULT_STRATEGY for normal data, FILTERED for data produced by a filter (or predictor), HUFFMAN_ONLY to force Huffman encoding only (no string match), or RLE to limit match distances to one (run-length encoding). Filtered data consists mostly of small values with a somewhat random distribution. In this case, the compression algorithm is tuned to compress them better. The effect of FILTERED is to force more Huffman coding and less string matching; it is somewhat intermediate between DEFAULT_STRATEGY and HUFFMAN_ONLY. RLE is designed to be almost as fast as HUFFMAN_ONLY, but give better compression for PNG image data. The strategy parameter only affects the compression ratio but not the correctness of the compressed output even if it is not set appropriately. FIXED prevents the use of dynamic Huffman codes, allowing for a simpler decoder for special applications.
+NUMERIC_MIN_VALUE	NULL
+NUMERIC_MAX_VALUE	NULL
+NUMERIC_BLOCK_SIZE	NULL
+ENUM_VALUE_LIST	DEFAULT_STRATEGY,FILTERED,HUFFMAN_ONLY,RLE,FIXED
+READ_ONLY	NO
+COMMAND_LINE_ARGUMENT	REQUIRED
+VARIABLE_NAME	COLUMN_COMPRESSION_ZLIB_WRAP
+SESSION_VALUE	OFF
+GLOBAL_VALUE	OFF
+GLOBAL_VALUE_ORIGIN	COMPILE-TIME
+DEFAULT_VALUE	OFF
+VARIABLE_SCOPE	SESSION
+VARIABLE_TYPE	BOOLEAN
+VARIABLE_COMMENT	Generate zlib header and trailer and compute adler32 check value. It can be used with storage engines that don't provide data integrity verification to detect data corruption.
+NUMERIC_MIN_VALUE	NULL
+NUMERIC_MAX_VALUE	NULL
+NUMERIC_BLOCK_SIZE	NULL
+ENUM_VALUE_LIST	OFF,ON
+READ_ONLY	NO
+COMMAND_LINE_ARGUMENT	OPTIONAL
 VARIABLE_NAME	COMPLETION_TYPE
 SESSION_VALUE	NO_CHAIN
 GLOBAL_VALUE	NO_CHAIN
