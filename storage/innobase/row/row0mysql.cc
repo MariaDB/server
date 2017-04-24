@@ -2004,7 +2004,8 @@ run_again:
 		upd_field_t* ufield;
 		dict_col_t* col;
 		unsigned col_idx;
-		if (node->is_delete) {
+		if (node->is_delete ||
+			thd_sql_command(trx->mysql_thd) == SQLCOM_ALTER_TABLE) {
 			ufield = &uvect->fields[0];
 			uvect->n_fields = 0;
 			node->is_delete = false;

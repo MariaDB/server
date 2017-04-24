@@ -9530,7 +9530,8 @@ ha_innobase::update_row(
 
 	error = row_update_for_mysql((byte*) old_row, m_prebuilt, vers_set_fields);
 
-	if (error == DB_SUCCESS && vers_set_fields) {
+	if (error == DB_SUCCESS && vers_set_fields &&
+		thd_sql_command(m_user_thd) != SQLCOM_ALTER_TABLE) {
 		if (trx->id != static_cast<trx_id_t>(table->vers_start_field()->val_int()))
 			error = row_insert_for_mysql((byte*) old_row, m_prebuilt, ROW_INS_HISTORICAL);
 	}

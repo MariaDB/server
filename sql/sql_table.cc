@@ -5155,6 +5155,85 @@ static void make_unique_constraint_name(THD *thd, LEX_STRING *name,
 ** Alter a table definition
 ****************************************************************************/
 
+// Works as NOW(6)
+static MYSQL_TIME vers_thd_get_now(THD *thd)
+{
+  MYSQL_TIME now;
+  thd->variables.time_zone->gmt_sec_to_TIME(&now, thd->query_start());
+  now.second_part= thd->query_start_sec_part();
+  thd->time_zone_used= 1;
+  return now;
+}
+
+static void vers_table_name_date(THD *thd, const char *table_name,
+                                 char *new_name, size_t new_name_size)
+{
+  const MYSQL_TIME now= vers_thd_get_now(thd);
+  my_snprintf(new_name, new_name_size, "%s_%04d%02d%02d_%02d%02d%02d_%06d",
+              table_name, now.year, now.month, now.day, now.hour, now.minute,
+              now.second, now.second_part);
+}
+
+bool operator!=(const MYSQL_TIME &lhs, const MYSQL_TIME &rhs)
+{
+  return lhs.year != rhs.year || lhs.month != rhs.month || lhs.day != rhs.day ||
+         lhs.hour != rhs.hour || lhs.minute != rhs.minute ||
+         lhs.second_part != rhs.second_part || lhs.neg != rhs.neg ||
+         lhs.time_type != rhs.time_type;
+}
+
+// Sets sys_trx_end=MAX for rows with sys_trx_end=now(6)
+static bool vers_reset_alter_copy(THD *thd, TABLE *table)
+{
+  const MYSQL_TIME now= vers_thd_get_now(thd);
+
+  READ_RECORD info;
+  int error= 0;
+  bool will_batch= false;
+  uint dup_key_found= 0;
+  if (init_read_record(&info, thd, table, NULL, NULL, 0, 1, true))
+    goto err;
+
+  will_batch= !table->file->start_bulk_update();
+
+  while (!(error= info.read_record(&info)))
+  {
+    MYSQL_TIME current;
+    if (table->vers_end_field()->get_date(&current, 0))
+      goto err_read_record;
+    if (current != now)
+    {
+      continue;
+    }
+
+    store_record(table, record[1]);
+    table->vers_end_field()->set_max();
+    if (will_batch)
+      error= table->file->ha_bulk_update_row(table->record[1], table->record[0],
+                                             &dup_key_found);
+    else
+      error= table->file->ha_update_row(table->record[1], table->record[0]);
+    if (error && table->file->is_fatal_error(error, HA_CHECK_ALL))
+    {
+      table->file->print_error(error, MYF(ME_FATALERROR));
+      goto err_read_record;
+    }
+  }
+
+  if (will_batch && (error= table->file->exec_bulk_update(&dup_key_found)))
+    table->file->print_error(error, MYF(ME_FATALERROR));
+  if (will_batch)
+    table->file->end_bulk_update();
+
+err_read_record:
+  end_read_record(&info);
+
+err:
+  if (table->file->ha_external_lock(thd, F_UNLCK))
+    return true;
+
+  return error ? true : false;
+}
 
 /**
   Rename a table.
@@ -8602,6 +8681,26 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
   bool error= open_tables(thd, &table_list, &tables_opened, 0,
                           &alter_prelocking_strategy);
   thd->open_options&= ~HA_OPEN_FOR_ALTER;
+  bool versioned= table_list->table && table_list->table->versioned();
+  if (versioned && thd->variables.vers_ddl_survival)
+  {
+    table_list->set_lock_type(thd, TL_WRITE);
+    if (thd->mdl_context.upgrade_shared_lock(table_list->table->mdl_ticket,
+                                             MDL_EXCLUSIVE,
+                                             thd->variables.lock_wait_timeout))
+    {
+      DBUG_RETURN(true);
+    }
+
+    if (table_list->table->versioned_by_engine() &&
+        alter_info->requested_algorithm ==
+            Alter_info::ALTER_TABLE_ALGORITHM_DEFAULT &&
+        !table_list->table->s->partition_info_str)
+    {
+      // Changle default ALGORITHM to COPY for INNODB
+      alter_info->requested_algorithm= Alter_info::ALTER_TABLE_ALGORITHM_COPY;
+    }
+  }
 
   DEBUG_SYNC(thd, "alter_opened_table");
 
@@ -8914,9 +9013,11 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
       Upgrade from MDL_SHARED_UPGRADABLE to MDL_SHARED_NO_WRITE.
       Afterwards it's safe to take the table level lock.
     */
-    if (thd->mdl_context.upgrade_shared_lock(mdl_ticket, MDL_SHARED_NO_WRITE,
-                                             thd->variables.lock_wait_timeout)
-        || lock_tables(thd, table_list, alter_ctx.tables_opened, 0))
+    if ((!(versioned && thd->variables.vers_ddl_survival) &&
+         thd->mdl_context.upgrade_shared_lock(
+             mdl_ticket, MDL_SHARED_NO_WRITE,
+             thd->variables.lock_wait_timeout)) ||
+        lock_tables(thd, table_list, alter_ctx.tables_opened, 0))
     {
       DBUG_RETURN(true);
     }
@@ -8981,6 +9082,7 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
   handlerton *new_db_type= create_info->db_type;
   handlerton *old_db_type= table->s->db_type();
   TABLE *new_table= NULL;
+  bool new_versioned= false;
   ha_rows copied=0,deleted=0;
 
   /*
@@ -9315,6 +9417,7 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
   }
   if (!new_table)
     goto err_new_table_cleanup;
+  new_versioned= new_table->versioned();
   /*
     Note: In case of MERGE table, we do not attach children. We do not
     copy data for MERGE tables. Only the children have data.
@@ -9341,7 +9444,18 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
                                  order_num, order, &copied, &deleted,
                                  alter_info->keys_onoff,
                                  &alter_ctx))
+    {
+      if (versioned && new_versioned && thd->variables.vers_ddl_survival)
+      {
+        if (table->versioned_by_sql())
+        {
+          // Failure of this function may result in corruption of
+          // an original table.
+          vers_reset_alter_copy(thd, table);
+        }
+      }
       goto err_new_table_cleanup;
+    }
   }
   else
   {
@@ -9436,9 +9550,14 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
     Rename the old table to temporary name to have a backup in case
     anything goes wrong while renaming the new table.
   */
-  char backup_name[32];
-  my_snprintf(backup_name, sizeof(backup_name), "%s2-%lx-%lx", tmp_file_prefix,
-              current_pid, thd->thread_id);
+  char backup_name[FN_LEN];
+  if (versioned && thd->variables.vers_ddl_survival)
+    vers_table_name_date(thd, alter_ctx.table_name, backup_name,
+                         sizeof(backup_name));
+  else
+    my_snprintf(backup_name, sizeof(backup_name), "%s2-%lx-%lx",
+                tmp_file_prefix, current_pid, thd->thread_id);
+
   if (lower_case_table_names)
     my_casedn_str(files_charset_info, backup_name);
   if (mysql_rename_table(old_db_type, alter_ctx.db, alter_ctx.table_name,
@@ -9490,7 +9609,8 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
   }
 
   // ALTER TABLE succeeded, delete the backup of the old table.
-  if (quick_rm_table(thd, old_db_type, alter_ctx.db, backup_name, FN_IS_TMP))
+  if (!(versioned && new_versioned && thd->variables.vers_ddl_survival) &&
+      quick_rm_table(thd, old_db_type, alter_ctx.db, backup_name, FN_IS_TMP))
   {
     /*
       The fact that deletion of the backup failed is not critical
@@ -9674,7 +9794,8 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
   Field **dfield_ptr= to->default_field;
   bool make_versioned= !from->versioned() && to->versioned();
   bool make_unversioned= from->versioned() && !to->versioned();
-  Field *to_sys_trx_start= NULL, *from_sys_trx_end= NULL, *to_sys_trx_end= NULL;
+  bool keep_versioned= from->versioned() && to->versioned();
+  Field *to_sys_trx_start= NULL, *to_sys_trx_end= NULL, *from_sys_trx_end= NULL;
   MYSQL_TIME now;
   DBUG_ENTER("copy_data_between_tables");
 
@@ -9777,19 +9898,26 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
 
   if (make_versioned)
   {
-    thd->variables.time_zone->gmt_sec_to_TIME(&now, thd->query_start());
-    now.second_part= thd->query_start_sec_part();
-    thd->time_zone_used= 1;
-    to_sys_trx_start= to->field[to->s->row_start_field];
-    to_sys_trx_end= to->field[to->s->row_end_field];
+    now= vers_thd_get_now(thd);
+    to_sys_trx_start= to->vers_start_field();
+    to_sys_trx_end= to->vers_end_field();
   }
   else if (make_unversioned)
   {
-    from_sys_trx_end= from->field[from->s->row_end_field];
+    from_sys_trx_end= from->vers_end_field();
   }
-  else if (from->versioned() && to->versioned())
+  else if (keep_versioned)
   {
     to->file->vers_auto_decrement= 0xffffffffffffffff;
+    if (thd->variables.vers_ddl_survival)
+    {
+      thd->variables.time_zone->gmt_sec_to_TIME(&now, thd->query_start());
+      now.second_part= thd->query_start_sec_part();
+      thd->time_zone_used= 1;
+
+      from_sys_trx_end= from->vers_end_field();
+      to_sys_trx_start= to->vers_start_field();
+    }
   }
 
   THD_STAGE_INFO(thd, stage_copy_to_tmp_table);
@@ -9862,6 +9990,17 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
       // Drop history rows.
       if (!from_sys_trx_end->is_max())
         continue;
+    }
+    else if (keep_versioned && thd->variables.vers_ddl_survival)
+    {
+      // Do not copy history rows.
+      if (!from_sys_trx_end->is_max())
+        continue;
+
+      store_record(from, record[1]);
+      from->vers_end_field()->store_time(&now);
+      from->file->ha_update_row(from->record[1], from->record[0]);
+      to_sys_trx_start->store_time(&now);
     }
 
     prev_insert_id= to->file->next_insert_id;

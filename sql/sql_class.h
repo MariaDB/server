@@ -711,6 +711,7 @@ typedef struct system_variables
   my_bool vers_force;
   ulong vers_hide;
   my_bool vers_innodb_algorithm_simple;
+  my_bool vers_ddl_survival;
 } SV;
 
 /**
