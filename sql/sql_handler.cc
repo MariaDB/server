@@ -549,7 +549,7 @@ SQL_HANDLER *mysql_ha_find_handler(THD *thd, const char *name)
 
 static bool
 mysql_ha_fix_cond_and_key(SQL_HANDLER *handler, 
-                          enum enum_ha_read_modes mode, char *keyname,
+                          enum enum_ha_read_modes mode, const char *keyname,
                           List<Item> *key_expr,
                           Item *cond, bool in_prepare)
 {
@@ -671,7 +671,7 @@ mysql_ha_fix_cond_and_key(SQL_HANDLER *handler,
 */
  
 bool mysql_ha_read(THD *thd, TABLE_LIST *tables,
-                   enum enum_ha_read_modes mode, char *keyname,
+                   enum enum_ha_read_modes mode, const char *keyname,
                    List<Item> *key_expr,
                    enum ha_rkey_function ha_rkey_mode, Item *cond,
                    ha_rows select_limit_cnt, ha_rows offset_limit_cnt)
@@ -926,7 +926,8 @@ err0:
 */
 
 SQL_HANDLER *mysql_ha_read_prepare(THD *thd, TABLE_LIST *tables,
-                                   enum enum_ha_read_modes mode, char *keyname,
+                                   enum enum_ha_read_modes mode,
+                                   const char *keyname,
                                    List<Item> *key_expr, Item *cond)
 {
   SQL_HANDLER *handler;

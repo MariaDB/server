@@ -144,7 +144,7 @@ private:
   handler **m_new_file;                 // Array of references to new handlers
   handler **m_reorged_file;             // Reorganised partitions
   handler **m_added_file;               // Added parts kept for errors
-  LEX_STRING *m_connect_string;
+  LEX_CSTRING *m_connect_string;
   partition_info *m_part_info;          // local reference to partition
   Field **m_part_field_array;           // Part field array locally to save acc
   uchar *m_ordered_rec_buffer;          // Row and key buffer for ord. idx scan
@@ -429,7 +429,8 @@ public:
   virtual THR_LOCK_DATA **store_lock(THD * thd, THR_LOCK_DATA ** to,
 				     enum thr_lock_type lock_type);
   virtual int external_lock(THD * thd, int lock_type);
-  LEX_STRING *engine_name() { return hton_name(table->part_info->default_engine_type); }
+  LEX_CSTRING *engine_name()
+  { return hton_name(table->part_info->default_engine_type); }
   /*
     When table is locked a statement is started by calling start_stmt
     instead of external_lock

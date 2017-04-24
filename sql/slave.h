@@ -273,7 +273,7 @@ extern bool volatile abort_loop;
 extern Master_info *active_mi; /* active_mi for multi-master */
 extern Master_info *default_master_info; /* To replace active_mi */
 extern Master_info_index *master_info_index;
-extern LEX_STRING default_master_connection_name;
+extern LEX_CSTRING default_master_connection_name;
 extern my_bool replicate_same_server_id;
 
 extern int disconnect_slave_event_count, abort_slave_event_count ;

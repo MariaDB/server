@@ -466,7 +466,7 @@ int mrn_parse_table_param(MRN_SHARE *share, TABLE *table)
 
   if (share->engine)
   {
-    LEX_STRING engine_name;
+    LEX_CSTRING engine_name;
     if (
       (
         share->engine_length == MRN_DEFAULT_LEN &&
@@ -1064,9 +1064,9 @@ TABLE_SHARE *mrn_create_tmp_table_share(TABLE_LIST *table_list, const char *path
 void mrn_free_tmp_table_share(TABLE_SHARE *tmp_table_share)
 {
   MRN_DBUG_ENTER_FUNCTION();
-  char *normalized_path = tmp_table_share->normalized_path.str;
+  const char *normalized_path = tmp_table_share->normalized_path.str;
   free_table_share(tmp_table_share);
-  my_free(normalized_path);
+  my_free((char*) normalized_path);
   DBUG_VOID_RETURN;
 }
 

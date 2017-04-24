@@ -68,7 +68,7 @@ static int qa_auth_interface (MYSQL_PLUGIN_VIO *vio, MYSQL_SERVER_AUTH_INFO *inf
   else if (strcmp(info->user_name, "qa_test_2_user")== 0)
   {
     /* Overwriting not intended, but with effect on USER() */
-     strcpy(info->user_name, "user_name");
+    strcpy((char*) info->user_name, "user_name");
      info->user_name_length= 9;
     /* Overwriting not intended, effect not visible */
      strcpy((char *)info->auth_string, "auth_string");
@@ -107,7 +107,7 @@ static int qa_auth_interface (MYSQL_PLUGIN_VIO *vio, MYSQL_SERVER_AUTH_INFO *inf
   else if (strcmp(info->user_name, "qa_test_5_user")== 0)  
   {
 /* This assignment has no effect.*/
-     strcpy(info->user_name, "");
+    strcpy((char*) info->user_name, "");
      info->user_name_length= 0;
 /* This assignment has no effect.*/
      strcpy((char *)info->auth_string, "");

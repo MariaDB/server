@@ -82,7 +82,7 @@ ulonglong opt_read_binlog_speed_limit = 0;
 const char *relay_log_index= 0;
 const char *relay_log_basename= 0;
 
-LEX_STRING default_master_connection_name= { (char*) "", 0 };
+LEX_CSTRING default_master_connection_name= { (char*) "", 0 };
 
 /*
   When slave thread exits, we need to remember the temporary tables so we

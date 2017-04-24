@@ -90,8 +90,8 @@ bool mysqld_show_create_get_fields(THD *thd, TABLE_LIST *table_list,
                                    List<Item> *field_list, String *buffer);
 bool mysqld_show_create(THD *thd, TABLE_LIST *table_list);
 void mysqld_show_create_db_get_fields(THD *thd, List<Item> *field_list);
-bool mysqld_show_create_db(THD *thd, LEX_STRING *db_name,
-                           LEX_STRING *orig_db_name,
+bool mysqld_show_create_db(THD *thd, LEX_CSTRING *db_name,
+                           LEX_CSTRING *orig_db_name,
                            const DDL_options_st &options);
 
 void mysqld_list_processes(THD *thd,const char *user,bool verbose);
@@ -103,8 +103,8 @@ bool mysqld_show_contributors(THD *thd);
 bool mysqld_show_privileges(THD *thd);
 char *make_backup_log_name(char *buff, const char *name, const char* log_ext);
 uint calc_sum_of_all_status(STATUS_VAR *to);
-void append_definer(THD *thd, String *buffer, const LEX_STRING *definer_user,
-                    const LEX_STRING *definer_host);
+void append_definer(THD *thd, String *buffer, const LEX_CSTRING *definer_user,
+                    const LEX_CSTRING *definer_host);
 int add_status_vars(SHOW_VAR *list);
 void remove_status_vars(SHOW_VAR *list);
 void init_status_vars();
@@ -180,13 +180,13 @@ typedef struct st_lookup_field_values
     Note that this value length may exceed @c NAME_LEN.
     @sa wild_db_value
   */
-  LEX_STRING db_value;
+  LEX_CSTRING db_value;
   /**
     Value of a TABLE_NAME clause.
     Note that this value length may exceed @c NAME_LEN.
     @sa wild_table_value
   */
-  LEX_STRING table_value;
+  LEX_CSTRING table_value;
   /**
     True when @c db_value is a LIKE clause,
     false when @c db_value is an '=' clause.

@@ -443,16 +443,13 @@ class Item_func_dayname :public Item_func_weekday
 
 class Item_func_seconds_hybrid: public Item_func_numhybrid
 {
-protected:
-  virtual enum_field_types arg0_expected_type() const = 0;
 public:
   Item_func_seconds_hybrid(THD *thd): Item_func_numhybrid(thd) {}
   Item_func_seconds_hybrid(THD *thd, Item *a): Item_func_numhybrid(thd, a) {}
-  void fix_length_and_dec()
+  void fix_length_and_dec_generic(uint dec)
   {
-    if (arg_count)
-      decimals= args[0]->temporal_precision(arg0_expected_type());
-    set_if_smaller(decimals, TIME_SECOND_PART_DIGITS);
+    DBUG_ASSERT(dec <= TIME_SECOND_PART_DIGITS);
+    decimals= dec;
     max_length=17 + (decimals ? decimals + 1 : 0);
     maybe_null= true;
     set_handler_by_result_type(decimals ? DECIMAL_RESULT : INT_RESULT);
@@ -466,8 +463,6 @@ public:
 class Item_func_unix_timestamp :public Item_func_seconds_hybrid
 {
   bool get_timestamp_value(my_time_t *seconds, ulong *second_part);
-protected:
-  enum_field_types arg0_expected_type() const { return MYSQL_TYPE_DATETIME; }
 public:
   Item_func_unix_timestamp(THD *thd): Item_func_seconds_hybrid(thd) {}
   Item_func_unix_timestamp(THD *thd, Item *a):
@@ -491,6 +486,10 @@ public:
       return FALSE;
     return mark_unsupported_function(func_name(), "()", arg, VCOL_TIME_FUNC);
   }
+  void fix_length_and_dec()
+  {
+    fix_length_and_dec_generic(arg_count ? args[0]->datetime_precision() : 0);
+  }
   longlong int_op();
   my_decimal *decimal_op(my_decimal* buf);
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
@@ -500,8 +499,6 @@ public:
 
 class Item_func_time_to_sec :public Item_func_seconds_hybrid
 {
-protected:
-  enum_field_types arg0_expected_type() const { return MYSQL_TYPE_TIME; }
 public:
   Item_func_time_to_sec(THD *thd, Item *item):
     Item_func_seconds_hybrid(thd, item) {}
@@ -511,6 +508,10 @@ public:
   bool check_valid_arguments_processor(void *int_arg)
   {
     return !has_time_args();
+  }
+  void fix_length_and_dec()
+  {
+    fix_length_and_dec_generic(args[0]->time_precision());
   }
   longlong int_op();
   my_decimal *decimal_op(my_decimal* buf);
@@ -864,7 +865,11 @@ class Item_func_convert_tz :public Item_datetimefunc
   Item_func_convert_tz(THD *thd, Item *a, Item *b, Item *c):
     Item_datetimefunc(thd, a, b, c), from_tz_cached(0), to_tz_cached(0) {}
   const char *func_name() const { return "convert_tz"; }
-  void fix_length_and_dec();
+  void fix_length_and_dec()
+  {
+    fix_attributes_datetime(args[0]->datetime_precision());
+    maybe_null= true;
+  }
   bool get_date(MYSQL_TIME *res, ulonglong fuzzy_date);
   void cleanup();
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
@@ -1059,13 +1064,6 @@ public:
   Item_temporal_typecast(THD *thd, Item *a): Item_temporal_func(thd, a) {}
   virtual const char *cast_type() const = 0;
   void print(String *str, enum_query_type query_type);
-  void fix_length_and_dec_generic(uint int_part_len)
-  {
-    if (decimals == NOT_FIXED_DEC)
-      decimals= args[0]->temporal_precision(field_type());
-    fix_attributes_temporal(int_part_len, decimals);
-    maybe_null= true;
-  }
 };
 
 class Item_date_typecast :public Item_temporal_typecast
@@ -1157,8 +1155,7 @@ public:
   const char *func_name() const { return "timediff"; }
   void fix_length_and_dec()
   {
-    uint dec= MY_MAX(args[0]->temporal_precision(MYSQL_TYPE_TIME),
-                     args[1]->temporal_precision(MYSQL_TYPE_TIME));
+    uint dec= MY_MAX(args[0]->time_precision(), args[1]->time_precision());
     fix_attributes_time(dec);
     maybe_null= true;
   }

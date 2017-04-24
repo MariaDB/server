@@ -96,7 +96,7 @@ class Window_spec : public Sql_alloc
  public:
   virtual ~Window_spec() {}
 
-  LEX_STRING *window_ref;
+  LEX_CSTRING *window_ref;
 
   SQL_I_List<ORDER> *partition_list;
 
@@ -106,7 +106,7 @@ class Window_spec : public Sql_alloc
 
   Window_spec *referenced_win_spec;
 
-  Window_spec(LEX_STRING *win_ref, 
+  Window_spec(LEX_CSTRING *win_ref, 
               SQL_I_List<ORDER> *part_list,
               SQL_I_List<ORDER> *ord_list,
               Window_frame *win_frame)
@@ -114,11 +114,14 @@ class Window_spec : public Sql_alloc
       partition_list(part_list), order_list(ord_list),
       window_frame(win_frame), referenced_win_spec(NULL) {}
 
-  virtual char *name() { return NULL; }
+  virtual const char *name() { return NULL; }
 
   bool check_window_names(List_iterator_fast<Window_spec> &it);
 
-  char *window_reference() { return window_ref ? window_ref->str : NULL; }
+  const char *window_reference()
+  {
+    return window_ref ? window_ref->str : NULL;
+  }
 
   void join_partition_and_order_lists()
   {
@@ -138,17 +141,17 @@ class Window_def : public Window_spec
 {
  public:
 
-  LEX_STRING *window_name;
+  LEX_CSTRING *window_name;
 
-  Window_def(LEX_STRING *win_name,
-             LEX_STRING *win_ref, 
+  Window_def(LEX_CSTRING *win_name,
+             LEX_CSTRING *win_ref, 
              SQL_I_List<ORDER> *part_list,
              SQL_I_List<ORDER> *ord_list,
              Window_frame *win_frame) 
     : Window_spec(win_ref, part_list, ord_list, win_frame),
       window_name(win_name) {}
  
-  char *name() { return window_name->str; }
+  const char *name() { return window_name->str; }
 
 };
 

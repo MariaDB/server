@@ -454,8 +454,8 @@ error:
 */
 
 sp_name::sp_name(const MDL_key *key, char *qname_buff)
- :Database_qualified_name((char*)key->db_name(), key->db_name_length(),
-                          (char*)key->name(),  key->name_length()),
+ :Database_qualified_name(key->db_name(), key->db_name_length(),
+                          key->name(),  key->name_length()),
   m_explicit_name(false)
 {
   if (m_db.length)
@@ -479,7 +479,7 @@ sp_name::sp_name(const MDL_key *key, char *qname_buff)
 */
 
 bool
-check_routine_name(LEX_STRING *ident)
+check_routine_name(LEX_CSTRING *ident)
 {
   DBUG_ASSERT(ident);
   DBUG_ASSERT(ident->str);
@@ -541,7 +541,7 @@ sp_head::operator delete(void *ptr, size_t size) throw()
 
 sp_head::sp_head()
   :Query_arena(&main_mem_root, STMT_INITIALIZED_FOR_SP),
-   Database_qualified_name(null_lex_str, null_lex_str),
+   Database_qualified_name(&null_clex_str, &null_clex_str),
    m_flags(0),
    m_sp_cache_version(0),
    m_creation_ctx(0),
@@ -560,7 +560,7 @@ sp_head::sp_head()
     be rewritten soon. Remove the else part and replace 'if' with
     an assert when this is done.
   */
-  m_qname= null_lex_str;
+  m_qname= null_clex_str;
 
   DBUG_ENTER("sp_head::sp_head");
 
@@ -750,10 +750,11 @@ sp_head::~sp_head()
 */
 
 Field *
-sp_head::create_result_field(uint field_max_length, const char *field_name,
+sp_head::create_result_field(uint field_max_length, const LEX_CSTRING *field_name,
                              TABLE *table)
 {
   Field *field;
+  LEX_CSTRING name;
 
   DBUG_ENTER("sp_head::create_result_field");
 
@@ -796,11 +797,13 @@ sp_head::create_result_field(uint field_max_length, const char *field_name,
                (m_return_field_def.pack_flag &
                 (FIELDFLAG_BLOB|FIELDFLAG_GEOM))));
 
+  if (field_name)
+    name= *field_name;
+  else
+    name= m_name;
   field= m_return_field_def.make_field(table->s, /* TABLE_SHARE ptr */
                                        table->in_use->mem_root,
-                                       field_name ?
-                                       field_name :
-                                       (const char *) m_name.str);
+                                       &name);
 
   field->vcol_info= m_return_field_def.vcol_info;
   if (field)
@@ -1359,7 +1362,7 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
       NULL. In this case, mysql_change_db() would generate an error.
     */
 
-    err_status|= mysql_change_db(thd, &saved_cur_db_name, TRUE);
+    err_status|= mysql_change_db(thd, (LEX_CSTRING*) &saved_cur_db_name, TRUE);
   }
   m_flags&= ~IS_INVOKED;
   DBUG_PRINT("info",
@@ -1513,8 +1516,8 @@ sp_rcontext *sp_head::rcontext_create(THD *thd, bool is_proc, Field *ret_value)
 
 bool
 sp_head::execute_trigger(THD *thd,
-                         const LEX_STRING *db_name,
-                         const LEX_STRING *table_name,
+                         const LEX_CSTRING *db_name,
+                         const LEX_CSTRING *table_name,
                          GRANT_INFO *grant_info)
 {
   sp_rcontext *octx = thd->spcont;
@@ -2108,8 +2111,8 @@ sp_head::execute_procedure(THD *thd, List<Item> *args)
       out_param_info->db_name= m_db.str;
       out_param_info->table_name= m_name.str;
       out_param_info->org_table_name= m_name.str;
-      out_param_info->col_name= spvar->name.str;
-      out_param_info->org_col_name= spvar->name.str;
+      out_param_info->col_name= spvar->name;
+      out_param_info->org_col_name= spvar->name;
 
       srp->set_out_param_info(out_param_info);
     }
@@ -2383,7 +2386,7 @@ sp_head::check_unresolved_goto()
     {
       if ((bp->instr_type == GOTO))
       {
-        my_error(ER_SP_LILABEL_MISMATCH, MYF(0), "GOTO", bp->lab->name);
+        my_error(ER_SP_LILABEL_MISMATCH, MYF(0), "GOTO", bp->lab->name.str);
         has_unresolved_label=true;
       }
     }
@@ -2465,13 +2468,13 @@ void
 sp_head::set_definer(const char *definer, uint definerlen)
 {
   char user_name_holder[USERNAME_LENGTH + 1];
-  LEX_STRING user_name= { user_name_holder, USERNAME_LENGTH };
+  LEX_CSTRING user_name= { user_name_holder, USERNAME_LENGTH };
 
   char host_name_holder[HOSTNAME_LENGTH + 1];
-  LEX_STRING host_name= { host_name_holder, HOSTNAME_LENGTH };
+  LEX_CSTRING host_name= { host_name_holder, HOSTNAME_LENGTH };
 
-  if (parse_user(definer, definerlen, user_name.str, &user_name.length,
-                 host_name.str, &host_name.length) &&
+  if (parse_user(definer, definerlen, user_name_holder, &user_name.length,
+                 host_name_holder, &host_name.length) &&
       user_name.length && !host_name.length)
   {
     // 'user@' -> 'user@%'
@@ -2483,7 +2486,7 @@ sp_head::set_definer(const char *definer, uint definerlen)
 
 
 void
-sp_head::set_definer(const LEX_STRING *user_name, const LEX_STRING *host_name)
+sp_head::set_definer(const LEX_CSTRING *user_name, const LEX_CSTRING *host_name)
 {
   m_definer_user.str= strmake_root(mem_root, user_name->str, user_name->length);
   m_definer_user.length= user_name->length;
@@ -2661,7 +2664,7 @@ sp_head::show_create_routine(THD *thd, int type)
   Protocol *protocol= thd->protocol;
   List<Item> fields;
 
-  LEX_STRING sql_mode;
+  LEX_CSTRING sql_mode;
 
   bool full_access;
   MEM_ROOT *mem_root= thd->mem_root;
@@ -3439,13 +3442,13 @@ sp_instr_set_row_field::print(String *str)
     var->field_def.row_field_definitions()->elem(m_field_offset);
   DBUG_ASSERT(def);
 
-  rsrv+= var->name.length + strlen(def->field_name);
+  rsrv+= var->name.length + def->field_name.length;
   if (str->reserve(rsrv))
     return;
   str->qs_append(STRING_WITH_LEN("set "));
     str->qs_append(var->name.str, var->name.length);
   str->qs_append('.');
-  str->qs_append(def->field_name);
+  str->qs_append(def->field_name.str, def->field_name.length);
   str->qs_append('@');
   str->qs_append(m_offset);
   str->qs_append('[');
@@ -3966,7 +3969,7 @@ sp_instr_cpush::execute(THD *thd, uint *nextp)
 void
 sp_instr_cpush::print(String *str)
 {
-  const LEX_STRING *cursor_name= m_ctx->find_cursor(m_cursor);
+  const LEX_CSTRING *cursor_name= m_ctx->find_cursor(m_cursor);
 
   /* cpush name@offset */
   uint rsrv= SP_INSTR_UINT_MAXLEN+7;
@@ -4054,7 +4057,7 @@ sp_instr_copen::exec_core(THD *thd, uint *nextp)
 void
 sp_instr_copen::print(String *str)
 {
-  const LEX_STRING *cursor_name= m_ctx->find_cursor(m_cursor);
+  const LEX_CSTRING *cursor_name= m_ctx->find_cursor(m_cursor);
 
   /* copen name@offset */
   uint rsrv= SP_INSTR_UINT_MAXLEN+7;
@@ -4096,7 +4099,7 @@ sp_instr_cclose::execute(THD *thd, uint *nextp)
 void
 sp_instr_cclose::print(String *str)
 {
-  const LEX_STRING *cursor_name= m_ctx->find_cursor(m_cursor);
+  const LEX_CSTRING *cursor_name= m_ctx->find_cursor(m_cursor);
 
   /* cclose name@offset */
   uint rsrv= SP_INSTR_UINT_MAXLEN+8;
@@ -4139,7 +4142,7 @@ sp_instr_cfetch::print(String *str)
 {
   List_iterator_fast<sp_variable> li(m_varlist);
   sp_variable *pv;
-  const LEX_STRING *cursor_name= m_ctx->find_cursor(m_cursor);
+  const LEX_CSTRING *cursor_name= m_ctx->find_cursor(m_cursor);
 
   /* cfetch name@offset vars... */
   uint rsrv= SP_INSTR_UINT_MAXLEN+8;
@@ -4235,11 +4238,11 @@ void
 sp_instr_cursor_copy_struct::print(String *str)
 {
   sp_variable *var= m_ctx->find_variable(m_var);
-  const LEX_STRING *name= m_lex_keeper.cursor_name();
+  const LEX_CSTRING *name= m_lex_keeper.cursor_name();
   str->append(STRING_WITH_LEN("cursor_copy_struct "));
-  str->append(name->str, name->length);
+  str->append(name);
   str->append(' ');
-  str->append(var->name.str, var->name.length);
+  str->append(&var->name);
   str->append('@');
   str->append_ulonglong(m_var);
 }
@@ -4664,7 +4667,7 @@ sp_head::set_local_variable_row_field(THD *thd, sp_pcontext *spcont,
 bool
 sp_head::set_local_variable_row_field_by_name(THD *thd, sp_pcontext *spcont,
                                               sp_variable *spv,
-                                              const LEX_STRING &field_name,
+                                              const LEX_CSTRING *field_name,
                                               Item *val, LEX *lex)
 {
   if (!(val= adjust_assignment_source(thd, val, NULL)))
@@ -4674,7 +4677,7 @@ sp_head::set_local_variable_row_field_by_name(THD *thd, sp_pcontext *spcont,
     new (thd->mem_root) sp_instr_set_row_field_by_name(instructions(),
                                                        spcont,
                                                        spv->offset,
-                                                       field_name,
+                                                       *field_name,
                                                        val,
                                                        lex, true);
   return sp_set == NULL || add_instr(sp_set);

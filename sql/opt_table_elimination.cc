@@ -1843,7 +1843,7 @@ void Dep_analysis_context::dbug_print_deps()
               (long)(eq_mod - equality_mods),
               str.c_ptr(),
               eq_mod->field->table->table->alias.c_ptr(),
-              eq_mod->field->field->field_name);
+              eq_mod->field->field->field_name.str);
     }
     else
     {
@@ -1867,7 +1867,7 @@ void Dep_analysis_context::dbug_print_deps()
       {
         fprintf(DBUG_FILE, "    field %s.%s ->",
                 table_dep->table->alias.c_ptr(),
-                field_dep->field->field_name);
+                field_dep->field->field_name.str);
         uint ofs= field_dep->bitmap_offset;
         for (uint bit= ofs; bit < ofs + n_equality_mods; bit++)
         {

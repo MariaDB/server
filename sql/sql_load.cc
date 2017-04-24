@@ -283,13 +283,13 @@ int mysql_load(THD *thd,sql_exchange *ex,TABLE_LIST *table_list,
   killed_state killed_status;
   bool is_concurrent;
 #endif
-  char *db = table_list->db;			// This is never null
+  const char *db = table_list->db;		// This is never null
   /*
     If path for file is not defined, we will use the current database.
     If this is not set, we will use the directory where the table to be
     loaded is located
   */
-  char *tdb= thd->db ? thd->db : db;		// Result is never null
+  const char *tdb= thd->db ? thd->db : db;	// Result is never null
   ulong skip_lines= ex->skip_lines;
   bool transactional_table __attribute__((unused));
   DBUG_ENTER("mysql_load");
@@ -812,7 +812,7 @@ static bool write_execute_load_query_log_event(THD *thd, sql_exchange* ex,
       if (n++)
         query_str.append(", ");
       if (item->real_type() == Item::FIELD_ITEM)
-        append_identifier(thd, &query_str, item->name, strlen(item->name));
+        append_identifier(thd, &query_str, item->name.str, item->name.length);
       else
       {
         /* Actually Item_user_var_as_out_param despite claiming STRING_ITEM. */
@@ -836,8 +836,8 @@ static bool write_execute_load_query_log_event(THD *thd, sql_exchange* ex,
       val= lv++;
       if (n++)
         query_str.append(STRING_WITH_LEN(", "));
-      append_identifier(thd, &query_str, item->name, strlen(item->name));
-      query_str.append(val->name);
+      append_identifier(thd, &query_str, item->name.str, item->name.length);
+      query_str.append(val->name.str, val->name.length);
     }
   }
 
@@ -1085,7 +1085,7 @@ read_sep_field(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
           Field *field= ((Item_field *)real_item)->field;
           if (field->reset())
           {
-            my_error(ER_WARN_NULL_TO_NOTNULL, MYF(0), field->field_name,
+            my_error(ER_WARN_NULL_TO_NOTNULL, MYF(0), field->field_name.str,
                      thd->get_stmt_da()->current_row_for_warning());
             DBUG_RETURN(1);
           }
@@ -1164,7 +1164,7 @@ read_sep_field(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
           Field *field= ((Item_field *)real_item)->field;
           if (field->reset())
           {
-            my_error(ER_WARN_NULL_TO_NOTNULL, MYF(0),field->field_name,
+            my_error(ER_WARN_NULL_TO_NOTNULL, MYF(0),field->field_name.str,
                      thd->get_stmt_da()->current_row_for_warning());
             DBUG_RETURN(1);
           }
@@ -1296,7 +1296,7 @@ read_xml_field(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
       xmlit.rewind();
       tag= xmlit++;
       
-      while(tag && strcmp(tag->field.c_ptr(), item->name) != 0)
+      while(tag && strcmp(tag->field.c_ptr(), item->name.str) != 0)
         tag= xmlit++;
       
       if (!tag) // found null

@@ -233,12 +233,12 @@ bool sys_var::update(THD *thd, set_var *var)
   }
 }
 
-uchar *sys_var::session_value_ptr(THD *thd, const LEX_STRING *base)
+uchar *sys_var::session_value_ptr(THD *thd, const LEX_CSTRING *base)
 {
   return session_var_ptr(thd);
 }
 
-uchar *sys_var::global_value_ptr(THD *thd, const LEX_STRING *base)
+uchar *sys_var::global_value_ptr(THD *thd, const LEX_CSTRING *base)
 {
   return global_var_ptr();
 }
@@ -271,7 +271,8 @@ bool sys_var::check(THD *thd, set_var *var)
   return false;
 }
 
-uchar *sys_var::value_ptr(THD *thd, enum_var_type type, const LEX_STRING *base)
+uchar *sys_var::value_ptr(THD *thd, enum_var_type type,
+                          const LEX_CSTRING *base)
 {
   DBUG_ASSERT(base);
   if (type == OPT_GLOBAL || scope() == GLOBAL)
@@ -327,7 +328,8 @@ do {                                                \
       break
 
 longlong sys_var::val_int(bool *is_null,
-                          THD *thd, enum_var_type type, const LEX_STRING *base)
+                          THD *thd, enum_var_type type,
+                          const LEX_CSTRING *base)
 {
   LEX_STRING sval;
   AutoWLock lock(&PLock_global_system_variables);
@@ -382,7 +384,7 @@ String *sys_var::val_str_nolock(String *str, THD *thd, const uchar *value)
 
 
 String *sys_var::val_str(String *str,
-                         THD *thd, enum_var_type type, const LEX_STRING *base)
+                         THD *thd, enum_var_type type, const LEX_CSTRING *base)
 {
   AutoWLock lock(&PLock_global_system_variables);
   const uchar *value= value_ptr(thd, type, base);
@@ -391,7 +393,7 @@ String *sys_var::val_str(String *str,
 
 
 double sys_var::val_real(bool *is_null,
-                         THD *thd, enum_var_type type, const LEX_STRING *base)
+                         THD *thd, enum_var_type type, const LEX_CSTRING *base)
 {
   LEX_STRING sval;
   AutoWLock lock(&PLock_global_system_variables);
@@ -691,7 +693,7 @@ bool find_sys_var_null_base(THD *thd, struct sys_var_with_base *tmp)
   tmp->var= find_sys_var(thd, tmp->base_name.str, tmp->base_name.length);
 
   if (tmp->var != NULL)
-    tmp->base_name= null_lex_str;
+    tmp->base_name= null_clex_str;
 
   return thd->is_error();
 }
@@ -838,7 +840,7 @@ int set_var::update(THD *thd)
 
 
 set_var::set_var(THD *thd, enum_var_type type_arg, sys_var *var_arg,
-                 const LEX_STRING *base_name_arg, Item *value_arg)
+                 const LEX_CSTRING *base_name_arg, Item *value_arg)
   :var(var_arg), type(type_arg), base(*base_name_arg)
 {
   /*
@@ -849,7 +851,9 @@ set_var::set_var(THD *thd, enum_var_type type_arg, sys_var *var_arg,
   {
     Item_field *item= (Item_field*) value_arg;
     // names are utf8
-    if (!(value= new (thd->mem_root) Item_string_sys(thd, item->field_name)))
+    if (!(value= new (thd->mem_root) Item_string_sys(thd,
+                                                     item->field_name.str,
+                                                     item->field_name.length)))
       value=value_arg;                        /* Give error message later */
   }
   else
@@ -1061,7 +1065,7 @@ static void store_var(Field *field, sys_var *var, enum_var_type scope,
     return;
 
   store_value_ptr(field, var, str,
-                  var->value_ptr(field->table->in_use, scope, &null_lex_str));
+                  var->value_ptr(field->table->in_use, scope, &null_clex_str));
 }
 
 int fill_sysvars(THD *thd, TABLE_LIST *tables, COND *cond)

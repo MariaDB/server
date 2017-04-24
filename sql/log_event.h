@@ -2013,8 +2013,8 @@ protected:
 */
 class Query_log_event: public Log_event
 {
-  LEX_STRING user;
-  LEX_STRING host;
+  LEX_CSTRING user;
+  LEX_CSTRING host;
 protected:
   Log_event::Byte* data_buf;
 public:
@@ -3041,9 +3041,9 @@ public:
     UNDEF_F= 0,
     UNSIGNED_F= 1
   };
-  char *name;
+  const char *name;
   uint name_len;
-  char *val;
+  const char *val;
   ulong val_len;
   Item_result type;
   uint charset_number;
@@ -3052,8 +3052,8 @@ public:
 #ifdef MYSQL_SERVER
   bool deferred;
   query_id_t query_id;
-  User_var_log_event(THD* thd_arg, char *name_arg, uint name_len_arg,
-                     char *val_arg, ulong val_len_arg, Item_result type_arg,
+  User_var_log_event(THD* thd_arg, const char *name_arg, uint name_len_arg,
+                     const char *val_arg, ulong val_len_arg, Item_result type_arg,
 		     uint charset_number_arg, uchar flags_arg,
                      bool using_trans, bool direct)
     :Log_event(thd_arg, 0, using_trans),

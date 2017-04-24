@@ -418,7 +418,7 @@ create_group_by_handler(THD *thd, Query *query)
     if (field->table != query->from->table)
       return 0;
     /* Check that we are using a SUM() on the primary key */
-    if (strcmp(field->field_name, "seq"))
+    if (strcmp(field->field_name.str, "seq"))
       return 0;
   }
 

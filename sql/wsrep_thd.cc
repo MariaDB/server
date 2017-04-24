@@ -103,7 +103,7 @@ static rpl_group_info* wsrep_relay_group_init(const char* log_fname)
       new Format_description_log_event(4);
   }
 
-  static LEX_STRING connection_name= { C_STRING_WITH_LEN("wsrep") };
+  static LEX_CSTRING connection_name= { STRING_WITH_LEN("wsrep") };
 
   /*
     Master_info's constructor initializes rpl_filter by either an already
@@ -285,7 +285,6 @@ void wsrep_replay_transaction(THD *thd)
         else
         {
           WSREP_DEBUG("replay failed, rolling back");
-          //my_error(ER_LOCK_DEADLOCK, MYF(0), "wsrep aborted transaction");
         }
         thd->wsrep_conflict_state= ABORTED;
         wsrep->post_rollback(wsrep, &thd->wsrep_ws_handle);

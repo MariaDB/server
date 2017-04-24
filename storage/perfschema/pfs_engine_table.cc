@@ -1372,7 +1372,7 @@ end:
 }
 
 int pfs_discover_table_names(handlerton *hton __attribute__((unused)),
-                             LEX_STRING *db,
+                             LEX_CSTRING *db,
                              MY_DIR *dir __attribute__((unused)),
                              handlerton::discovered_list *result)
 {

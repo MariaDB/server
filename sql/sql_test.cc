@@ -135,7 +135,8 @@ void TEST_filesort(SORT_FIELD *sortorder,uint s_length)
 	out.append(*sortorder->field->table_name);
 	out.append('.');
       }
-      out.append(sortorder->field->field_name ? sortorder->field->field_name:
+      out.append(sortorder->field->field_name.str ?
+                 sortorder->field->field_name.str :
 		 "tmp_table_column");
     }
     else
@@ -236,11 +237,11 @@ static void print_keyuse(KEYUSE *keyuse)
   keyuse->val->print(&str, QT_ORDINARY);
   str.append('\0');
   if (keyuse->is_for_hash_join())
-    fieldname= keyuse->table->field[keyuse->keypart]->field_name;
+    fieldname= keyuse->table->field[keyuse->keypart]->field_name.str;
   else if (keyuse->keypart == FT_KEYPART)
     fieldname= "FT_KEYPART";
   else
-    fieldname= key_info->key_part[keyuse->keypart].field->field_name;
+    fieldname= key_info->key_part[keyuse->keypart].field->field_name.str;
   ll2str(keyuse->used_tables, buf2, 16, 0); 
   fprintf(DBUG_FILE, "KEYUSE: %s.%s=%s  optimize: %u  used_tables: %s "
           "ref_table_rows: %lu  keypart_map: %0lx\n",

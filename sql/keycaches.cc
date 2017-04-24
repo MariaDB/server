@@ -99,11 +99,11 @@ void NAMED_ILIST::delete_elements(void (*free_element)(const char *name, uchar*)
 
 /* Key cache functions */
 
-LEX_STRING default_key_cache_base= {C_STRING_WITH_LEN("default")};
+LEX_CSTRING default_key_cache_base= {C_STRING_WITH_LEN("default")};
 
 KEY_CACHE zero_key_cache; ///< @@nonexistent_cache.param->value_ptr() points here
 
-KEY_CACHE *get_key_cache(const LEX_STRING *cache_name)
+KEY_CACHE *get_key_cache(const LEX_CSTRING *cache_name)
 {
   if (!cache_name || ! cache_name->length)
     cache_name= &default_key_cache_base;
@@ -145,10 +145,10 @@ KEY_CACHE *create_key_cache(const char *name, uint length)
 
 KEY_CACHE *get_or_create_key_cache(const char *name, uint length)
 {
-  LEX_STRING key_cache_name;
+  LEX_CSTRING key_cache_name;
   KEY_CACHE *key_cache;
 
-  key_cache_name.str= (char *) name;
+  key_cache_name.str= name;
   key_cache_name.length= length;
   if (!(key_cache= get_key_cache(&key_cache_name)))
     key_cache= create_key_cache(name, length);

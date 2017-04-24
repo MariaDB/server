@@ -44,7 +44,7 @@ static int read_string(File file, uchar**to, size_t length)
   @param[in]  path              path to FRM file.
   @param[in/out] engine_name    table engine name (length < NAME_CHAR_LEN)
 
-  engine_name is a LEX_STRING, where engine_name->str must point to
+  engine_name is a LEX_CSTRING, where engine_name->str must point to
   a buffer of at least NAME_CHAR_LEN+1 bytes.
 
   @param[out] is_sequence  1 if table is a SEQUENCE, 0 otherwise
@@ -55,7 +55,7 @@ static int read_string(File file, uchar**to, size_t length)
   @retval  TABLE_TYPE_VIEW      view
 */
 
-Table_type dd_frm_type(THD *thd, char *path, LEX_STRING *engine_name,
+Table_type dd_frm_type(THD *thd, char *path, LEX_CSTRING *engine_name,
                        bool *is_sequence)
 {
   File file;
@@ -132,8 +132,14 @@ Table_type dd_frm_type(THD *thd, char *path, LEX_STRING *engine_name,
       {
         uint len= uint2korr(next_chunk);
         if (len <= NAME_CHAR_LEN)
-          strmake(engine_name->str, (char*)next_chunk + 2,
+        {
+          /*
+            The following cast is safe as the caller has allocated buffer
+            and it's up to this function to generate the name.
+          */
+          strmake((char*) engine_name->str, (char*)next_chunk + 2,
                   engine_name->length= len);
+        }
       }
     }
 

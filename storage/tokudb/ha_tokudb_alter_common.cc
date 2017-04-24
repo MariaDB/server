@@ -697,8 +697,8 @@ static int find_changed_columns(
             sql_print_error(
                 "Two fields that were supposedly the same are not: %s in "
                 "original, %s in new",
-                curr_field_in_orig->field_name,
-                curr_field_in_new->field_name);
+                curr_field_in_orig->field_name.str,
+                curr_field_in_new->field_name.str);
             retval = 1;
             goto cleanup;
         }

@@ -1239,7 +1239,7 @@ public:
   void save_in_result_field(bool no_conversions) { DBUG_ASSERT(0); }
   bool check_vcol_func_processor(void *arg)
   {
-    return mark_unsupported_function(name, arg, VCOL_IMPOSSIBLE);
+    return mark_unsupported_function(name.str, arg, VCOL_IMPOSSIBLE);
   }
 };
 

@@ -25,7 +25,7 @@
 #define MIN_AUTHENTICATION_INTERFACE_VERSION 0x0100
 
 struct MYSQL_SERVER_AUTH_INFO_0x0100 {
-  char *user_name;
+  const char *user_name;
   unsigned int user_name_length;
   const char *auth_string;
   unsigned long auth_string_length;

@@ -63,7 +63,7 @@ private:
     Unparsed specification of the query that specifies this element.
     It used to build clones of the specification if they are needed.
   */
-  LEX_STRING unparsed_spec;
+  LEX_CSTRING unparsed_spec;
 
   /* Return the map where 1 is set only in the position for this element */
   table_map get_elem_map() { return (table_map) 1 << number; }
@@ -73,14 +73,14 @@ public:
     The name of the table introduced by this with elememt. The name
      can be used in FROM lists of the queries in the scope of the element.
   */
-  LEX_STRING *query_name;
+  LEX_CSTRING *query_name;
   /*
     Optional list of column names to name the columns of the table introduced
     by this with element. It is used in the case when the names are not
     inherited from the query that specified the table. Otherwise the list is
     always empty.
   */
-  List <LEX_STRING> column_list;
+  List <LEX_CSTRING> column_list;
   /* The query that specifies the table introduced by this with element */
   st_select_lex_unit *spec;
   /* 
@@ -122,8 +122,8 @@ public:
   /* List of Item_subselects containing recursive references to this CTE */
   SQL_I_List<Item_subselect> sq_with_rec_ref; 
 
-  With_element(LEX_STRING *name,
-               List <LEX_STRING> list,
+  With_element(LEX_CSTRING *name,
+               List <LEX_CSTRING> list,
                st_select_lex_unit *unit)
     : next(NULL), base_dep_map(0), derived_dep_map(0),
       sq_dep_map(0), work_dep_map(0), mutually_recursive(0),

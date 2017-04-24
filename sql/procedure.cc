@@ -89,7 +89,7 @@ setup_procedure(THD *thd,ORDER *param,select_result *result,
   for (i=0 ; i < array_elements(sql_procs) ; i++)
   {
     if (!my_strcasecmp(system_charset_info,
-                       (*param->item)->name,sql_procs[i].name))
+                       (*param->item)->name.str, sql_procs[i].name))
     {
       Procedure *proc=(*sql_procs[i].init)(thd,param,result,field_list);
       *error= !proc;

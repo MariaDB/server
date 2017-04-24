@@ -892,8 +892,8 @@ uint ha_federatedx::convert_row_to_internal_format(uchar *record,
 static bool emit_key_part_name(String *to, KEY_PART_INFO *part)
 {
   DBUG_ENTER("emit_key_part_name");
-  if (append_ident(to, part->field->field_name, 
-                   strlen(part->field->field_name), ident_quote_char))
+  if (append_ident(to, part->field->field_name.str,
+                   part->field->field_name.length, ident_quote_char))
     DBUG_RETURN(1);                           // Out of memory
   DBUG_RETURN(0);
 }
@@ -1595,8 +1595,8 @@ static FEDERATEDX_SHARE *get_share(const char *table_name, TABLE *table)
     query.append(STRING_WITH_LEN("SELECT "));
     for (field= table->field; *field; field++)
     {
-      append_ident(&query, (*field)->field_name, 
-                   strlen((*field)->field_name), ident_quote_char);
+      append_ident(&query, (*field)->field_name.str,
+                   (*field)->field_name.length, ident_quote_char);
       query.append(STRING_WITH_LEN(", "));
     }
     /* chops off trailing comma */
@@ -1604,7 +1604,7 @@ static FEDERATEDX_SHARE *get_share(const char *table_name, TABLE *table)
 
     query.append(STRING_WITH_LEN(" FROM "));
 
-    append_ident(&query, tmp_share.table_name, 
+    append_ident(&query, tmp_share.table_name,
                  tmp_share.table_name_length, ident_quote_char);
 
     if (!(share= (FEDERATEDX_SHARE *) memdup_root(&mem_root, (char*)&tmp_share, sizeof(*share))) ||
@@ -1900,7 +1900,7 @@ bool ha_federatedx::append_stmt_insert(String *query)
     insert_string.append(STRING_WITH_LEN("INSERT IGNORE INTO "));
   else
     insert_string.append(STRING_WITH_LEN("INSERT INTO "));
-  append_ident(&insert_string, share->table_name, share->table_name_length, 
+  append_ident(&insert_string, share->table_name, share->table_name_length,
                ident_quote_char);
   tmp_length= insert_string.length();
   insert_string.append(STRING_WITH_LEN(" ("));
@@ -1914,8 +1914,8 @@ bool ha_federatedx::append_stmt_insert(String *query)
     if (bitmap_is_set(table->write_set, (*field)->field_index))
     {
       /* append the field name */
-      append_ident(&insert_string, (*field)->field_name, 
-                   strlen((*field)->field_name), ident_quote_char);
+      append_ident(&insert_string, (*field)->field_name.str,
+                   (*field)->field_name.length, ident_quote_char);
 
       /* append commas between both fields and fieldnames */
       /*
@@ -2212,7 +2212,7 @@ int ha_federatedx::optimize(THD* thd, HA_CHECK_OPT* check_opt)
 
   query.set_charset(system_charset_info);
   query.append(STRING_WITH_LEN("OPTIMIZE TABLE "));
-  append_ident(&query, share->table_name, share->table_name_length, 
+  append_ident(&query, share->table_name, share->table_name_length,
                ident_quote_char);
 
   DBUG_ASSERT(txn == get_txn(thd));
@@ -2238,7 +2238,7 @@ int ha_federatedx::repair(THD* thd, HA_CHECK_OPT* check_opt)
 
   query.set_charset(system_charset_info);
   query.append(STRING_WITH_LEN("REPAIR TABLE "));
-  append_ident(&query, share->table_name, share->table_name_length, 
+  append_ident(&query, share->table_name, share->table_name_length,
                ident_quote_char);
   if (check_opt->flags & T_QUICK)
     query.append(STRING_WITH_LEN(" QUICK"));
@@ -2342,8 +2342,8 @@ int ha_federatedx::update_row(const uchar *old_data, const uchar *new_data)
   {
     if (bitmap_is_set(table->write_set, (*field)->field_index))
     {
-      uint field_name_length= strlen((*field)->field_name);
-      append_ident(&update_string, (*field)->field_name, field_name_length,
+      append_ident(&update_string, (*field)->field_name.str,
+                   (*field)->field_name.length,
                    ident_quote_char);
       update_string.append(STRING_WITH_LEN(" = "));
 
@@ -2368,8 +2368,8 @@ int ha_federatedx::update_row(const uchar *old_data, const uchar *new_data)
 
     if (bitmap_is_set(table->read_set, (*field)->field_index))
     {
-      uint field_name_length= strlen((*field)->field_name);
-      append_ident(&where_string, (*field)->field_name, field_name_length,
+      append_ident(&where_string, (*field)->field_name.str,
+                   (*field)->field_name.length,
                    ident_quote_char);
       if (field_in_record_is_null(table, *field, (char*) old_data))
         where_string.append(STRING_WITH_LEN(" IS NULL "));
@@ -2455,8 +2455,8 @@ int ha_federatedx::delete_row(const uchar *buf)
     found++;
     if (bitmap_is_set(table->read_set, cur_field->field_index))
     {
-      append_ident(&delete_string, (*field)->field_name,
-                   strlen((*field)->field_name), ident_quote_char);
+      append_ident(&delete_string, (*field)->field_name.str,
+                   (*field)->field_name.length, ident_quote_char);
       data_string.length(0);
       if (cur_field->is_null())
       {

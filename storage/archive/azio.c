@@ -913,7 +913,7 @@ int azread_frm(azio_stream *s, uchar *blob)
 /*
   Simple comment field
 */
-int azwrite_comment(azio_stream *s, char *blob, unsigned int length)
+int azwrite_comment(azio_stream *s, const char *blob, unsigned int length)
 {
   if (s->mode == 'r') 
     return 1;

@@ -3904,7 +3904,7 @@ int spider_handlersocket_share::create_column_name_str()
     str->init_calc_mem(202);
     str->set_charset(spider_share->access_charset);
     if ((error_num = spider_db_append_name_with_quote_str(str,
-      (char *) (*field)->field_name, dbton_id)))
+      (char *) (*field)->field_name.str, dbton_id)))
       goto error;
   }
   DBUG_RETURN(0);

@@ -634,7 +634,7 @@ typedef struct st_udf_args
   char **args;				/* Pointer to argument */
   unsigned long *lengths;		/* Length of string arguments */
   char *maybe_null;			/* Set to 1 for all maybe_null args */
-  char **attributes;                    /* Pointer to attribute name */
+  const char **attributes;              /* Pointer to attribute name */
   unsigned long *attribute_lengths;     /* Length of attribute arguments */
   void *extension;
 } UDF_ARGS;

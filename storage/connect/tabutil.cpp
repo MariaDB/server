@@ -181,7 +181,7 @@ PQRYRES TabColumns(PGLOBAL g, THD *thd, const char *db,
 
     // Get column name
     crp = qrp->Colresp;                    // Column_Name
-    colname = (char *)fp->field_name;
+    colname = (char *)fp->field_name.str;
     crp->Kdata->SetValue(colname, i);
 
     chset = (char *)fp->charset()->name;
@@ -262,7 +262,7 @@ PQRYRES TabColumns(PGLOBAL g, THD *thd, const char *db,
     crp = crp->Next;                       // Remark
 
     // For Valgrind
-    if (fp->comment.length > 0 && (fld = fp->comment.str))
+    if (fp->comment.length > 0 && (fld = (char*) fp->comment.str))
       crp->Kdata->SetValue(fld, fp->comment.length, i);
     else
       crp->Kdata->Reset(i);

@@ -1208,9 +1208,8 @@ Field *Item_sum_hybrid::create_tmp_field(bool group, TABLE *table)
   if (args[0]->type() == Item::FIELD_ITEM)
   {
     field= ((Item_field*) args[0])->field;
-
-    if ((field= create_tmp_field_from_field(table->in_use, field, name, table,
-					    NULL)))
+    if ((field= create_tmp_field_from_field(table->in_use, field, &name,
+                                            table, NULL)))
       field->flags&= ~NOT_NULL_FLAG;
     return field;
   }
@@ -1223,18 +1222,25 @@ Field *Item_sum_hybrid::create_tmp_field(bool group, TABLE *table)
   mem_root= table->in_use->mem_root;
   switch (args[0]->field_type()) {
   case MYSQL_TYPE_DATE:
+  {
     field= new (mem_root)
-      Field_newdate(0, maybe_null ? (uchar*)"" : 0, 0, Field::NONE, name);
+      Field_newdate(0, maybe_null ? (uchar*)"" : 0, 0, Field::NONE,
+                    &name);
     break;
+  }
   case MYSQL_TYPE_TIME:
+  {
     field= new_Field_time(mem_root, 0, maybe_null ? (uchar*)"" : 0, 0,
-                          Field::NONE, name, decimals);
+                          Field::NONE, &name, decimals);
     break;
+  }
   case MYSQL_TYPE_TIMESTAMP:
   case MYSQL_TYPE_DATETIME:
+  {
     field= new_Field_datetime(mem_root, 0, maybe_null ? (uchar*)"" : 0, 0,
-                              Field::NONE, name, decimals);
+                              Field::NONE, &name, decimals);
     break;
+  }
   default:
     return Item_sum::create_tmp_field(group, table);
   }
@@ -1676,13 +1682,15 @@ Field *Item_sum_avg::create_tmp_field(bool group, TABLE *table)
     field= new (mem_root)
       Field_string(((Item_sum_avg::result_type() == DECIMAL_RESULT) ?
                     dec_bin_size : sizeof(double)) + sizeof(longlong),
-                   0, name, &my_charset_bin);
+                   0, &name, &my_charset_bin);
   }
   else if (Item_sum_avg::result_type() == DECIMAL_RESULT)
     field= Field_new_decimal::create_from_item(mem_root, this);
   else
-    field= new (mem_root) Field_double(max_length, maybe_null, name, decimals,
-                                       TRUE);
+  {
+    field= new (mem_root) Field_double(max_length, maybe_null, &name,
+                                       decimals, TRUE);
+  }
   if (field)
     field->init(table);
   return field;
@@ -1910,10 +1918,12 @@ Field *Item_sum_variance::create_tmp_field(bool group, TABLE *table)
       The easiest way is to do this is to store both value in a string
       and unpack on access.
     */
-    field= new Field_string(sizeof(double)*2 + sizeof(longlong), 0, name, &my_charset_bin);
+    field= new Field_string(sizeof(double)*2 + sizeof(longlong), 0,
+                            &name, &my_charset_bin);
   }
   else
-    field= new Field_double(max_length, maybe_null, name, decimals, TRUE);
+    field= new Field_double(max_length, maybe_null, &name, decimals,
+                            TRUE);
 
   if (field != NULL)
     field->init(table);
@@ -3356,13 +3366,13 @@ Field *Item_func_group_concat::make_string_field(TABLE *table_arg)
 {
   Field *field;
   DBUG_ASSERT(collation.collation);
+
   if (too_big_for_varchar())
     field= new Field_blob(max_length,
-                          maybe_null, name, collation.collation, TRUE);
+                          maybe_null, &name, collation.collation, TRUE);
   else
     field= new Field_varstring(max_length,
-                               maybe_null, name, table_arg->s,
-                               collation.collation);
+                               maybe_null, &name, table_arg->s, collation.collation);
 
   if (field)
     field->init(table_arg);

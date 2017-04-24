@@ -51,7 +51,7 @@ typedef struct st_mysql_server_auth_info
     User name as sent by the client and shown in USER().
     NULL if the client packet with the user name was not received yet.
   */
-  char *user_name;
+  const char *user_name;
 
   /**
     Length of user_name

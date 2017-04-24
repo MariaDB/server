@@ -192,7 +192,7 @@ extern "C" {
 #  define MRN_HAVE_HTON_ALTER_TABLE_FLAGS
 #endif
 
-#if MYSQL_VERSION_ID >= 50706 && !defined(MRN_MARIADB_P)
+#if MYSQL_VERSION_ID >= 50706
 #  define MRN_FOREIGN_KEY_USE_CONST_STRING
 #endif
 
@@ -559,7 +559,7 @@ protected:
   void rebind_psi();
 #endif
   my_bool register_query_cache_table(THD *thd,
-                                     char *table_key,
+                                     const char *table_key,
                                      uint key_length,
                                      qc_engine_callback *engine_callback,
                                      ulonglong *engine_data);
@@ -1219,13 +1219,13 @@ private:
   void storage_rebind_psi();
 #endif
   my_bool wrapper_register_query_cache_table(THD *thd,
-                                             char *table_key,
+                                             const char *table_key,
                                              uint key_length,
                                              qc_engine_callback
                                              *engine_callback,
                                              ulonglong *engine_data);
   my_bool storage_register_query_cache_table(THD *thd,
-                                             char *table_key,
+                                             const char *table_key,
                                              uint key_length,
                                              qc_engine_callback
                                              *engine_callback,

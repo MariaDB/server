@@ -42,13 +42,21 @@ struct st_mysql_lex_string
 };
 typedef struct st_mysql_lex_string MYSQL_LEX_STRING;
 
+struct st_mysql_const_lex_string
+{
+  const char *str;
+  size_t length;
+};
+typedef struct st_mysql_const_lex_string MYSQL_CONST_LEX_STRING;
+
 extern struct thd_alloc_service_st {
   void *(*thd_alloc_func)(MYSQL_THD, unsigned int);
   void *(*thd_calloc_func)(MYSQL_THD, unsigned int);
   char *(*thd_strdup_func)(MYSQL_THD, const char *);
   char *(*thd_strmake_func)(MYSQL_THD, const char *, unsigned int);
   void *(*thd_memdup_func)(MYSQL_THD, const void*, unsigned int);
-  MYSQL_LEX_STRING *(*thd_make_lex_string_func)(MYSQL_THD, MYSQL_LEX_STRING *,
+  MYSQL_CONST_LEX_STRING *(*thd_make_lex_string_func)(MYSQL_THD,
+                                        MYSQL_CONST_LEX_STRING *,
                                         const char *, unsigned int, int);
 } *thd_alloc_service;
 
@@ -115,9 +123,10 @@ void *thd_memdup(MYSQL_THD thd, const void* str, unsigned int size);
 
   @see thd_alloc()
 */
-MYSQL_LEX_STRING *thd_make_lex_string(MYSQL_THD thd, MYSQL_LEX_STRING *lex_str,
-                                      const char *str, unsigned int size,
-                                      int allocate_lex_string);
+MYSQL_CONST_LEX_STRING
+*thd_make_lex_string(MYSQL_THD thd, MYSQL_CONST_LEX_STRING *lex_str,
+                     const char *str, unsigned int size,
+                     int allocate_lex_string);
 
 #endif
 

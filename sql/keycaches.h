@@ -35,12 +35,12 @@ class NAMED_ILIST: public I_List<NAMED_ILINK>
 };
 
 /* For key cache */
-extern LEX_STRING default_key_cache_base;
+extern LEX_CSTRING default_key_cache_base;
 extern KEY_CACHE zero_key_cache;
 extern NAMED_ILIST key_caches;
 
 KEY_CACHE *create_key_cache(const char *name, uint length);
-KEY_CACHE *get_key_cache(const LEX_STRING *cache_name);
+KEY_CACHE *get_key_cache(const LEX_CSTRING *cache_name);
 KEY_CACHE *get_or_create_key_cache(const char *name, uint length);
 void free_key_cache(const char *name, KEY_CACHE *key_cache);
 bool process_key_caches(process_key_cache_t func, void *param);

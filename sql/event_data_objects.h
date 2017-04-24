@@ -37,10 +37,10 @@ public:
   ~Event_queue_element_for_exec();
 
   bool
-  init(LEX_STRING dbname, LEX_STRING name);
+  init(LEX_CSTRING dbname, LEX_CSTRING name);
 
-  LEX_STRING dbname;
-  LEX_STRING name;
+  LEX_CSTRING dbname;
+  LEX_CSTRING name;
   bool dropped;
   THD *thd;
 
@@ -58,9 +58,9 @@ protected:
 
 public:
 
-  LEX_STRING dbname;
-  LEX_STRING name;
-  LEX_STRING definer;// combination of user and host
+  LEX_CSTRING dbname;
+  LEX_CSTRING name;
+  LEX_CSTRING definer;// combination of user and host
 
   Time_zone *time_zone;
 
@@ -75,7 +75,7 @@ protected:
   load_string_fields(Field **fields, ...);
 
   bool
-  load_time_zone(THD *thd, const LEX_STRING tz_name);
+  load_time_zone(THD *thd, const LEX_CSTRING *tz_name);
 };
 
 
@@ -122,12 +122,12 @@ class Event_timed : public Event_queue_element
   void operator=(Event_timed &);
 
 public:
-  LEX_STRING body;
+  LEX_CSTRING body;
 
-  LEX_STRING definer_user;
-  LEX_STRING definer_host;
+  LEX_CSTRING definer_user;
+  LEX_CSTRING definer_host;
 
-  LEX_STRING comment;
+  LEX_CSTRING comment;
 
   ulonglong created;
   ulonglong modified;
@@ -135,7 +135,7 @@ public:
   sql_mode_t sql_mode;
 
   class Stored_program_creation_ctx *creation_ctx;
-  LEX_STRING body_utf8;
+  LEX_CSTRING body_utf8;
 
   Event_timed();
   virtual ~Event_timed();
@@ -154,9 +154,9 @@ public:
 class Event_job_data : public Event_basic
 {
 public:
-  LEX_STRING body;
-  LEX_STRING definer_user;
-  LEX_STRING definer_host;
+  LEX_CSTRING body;
+  LEX_CSTRING definer_user;
+  LEX_CSTRING definer_host;
 
   sql_mode_t sql_mode;
 
@@ -182,11 +182,12 @@ private:
 
 /* Compares only the schema part of the identifier */
 bool
-event_basic_db_equal(LEX_STRING db, Event_basic *et);
+event_basic_db_equal(const LEX_CSTRING *db, Event_basic *et);
 
 /* Compares the whole identifier*/
 bool
-event_basic_identifier_equal(LEX_STRING db, LEX_STRING name, Event_basic *b);
+event_basic_identifier_equal(const LEX_CSTRING *db, const LEX_CSTRING *name,
+                             Event_basic *b);
 
 /**
   @} (End of group Event_Scheduler)

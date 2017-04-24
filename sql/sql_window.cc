@@ -12,13 +12,13 @@ Window_spec::check_window_names(List_iterator_fast<Window_spec> &it)
 {
   if (window_names_are_checked)
     return false;
-  char *name= this->name();
-  char *ref_name= window_reference();
+  const char *name= this->name();
+  const char *ref_name= window_reference();
   it.rewind();
   Window_spec *win_spec;
   while((win_spec= it++) && win_spec != this)
   {
-    char *win_spec_name= win_spec->name();
+    const char *win_spec_name= win_spec->name();
     if (!win_spec_name)
       break;
     if (name && my_strcasecmp(system_charset_info, name, win_spec_name) == 0)
@@ -384,8 +384,8 @@ int compare_window_frame_bounds(Window_frame_bound *win_frame_bound1,
       return CMP_EQ;
     else
     {
-      res= strcmp(win_frame_bound1->offset->name,
-                  win_frame_bound2->offset->name);
+      res= strcmp(win_frame_bound1->offset->name.str,
+                  win_frame_bound2->offset->name.str);
       res= res > 0 ? CMP_GT : CMP_LT;
       if (is_bottom_bound)
         res= -res;

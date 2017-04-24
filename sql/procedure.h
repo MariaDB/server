@@ -40,7 +40,8 @@ class Item_proc :public Item
 public:
   Item_proc(THD *thd, const char *name_par): Item(thd)
   {
-     this->name=(char*) name_par;
+     this->name.str=    name_par;
+     this->name.length= strlen(name_par);
   }
   enum Type type() const { return Item::PROC_ITEM; }
   virtual void set(double nr)=0;

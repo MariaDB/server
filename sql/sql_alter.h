@@ -156,7 +156,7 @@ public:
   // Enable or disable keys.
   enum_enable_or_disable        keys_onoff;
   // List of partitions.
-  List<char>                    partition_names;
+  List<const char>              partition_names;
   // Number of partitions.
   uint                          num_parts;
   // Type of ALTER TABLE algorithm.
@@ -216,7 +216,7 @@ public:
      @retval false  Supported value found, state updated
      @retval true   Not supported value, no changes made
   */
-  bool set_requested_algorithm(const LEX_STRING *str);
+  bool set_requested_algorithm(const LEX_CSTRING *str);
 
 
   /**
@@ -229,7 +229,7 @@ public:
      @retval true   Not supported value, no changes made
   */
 
-  bool set_requested_lock(const LEX_STRING *str);
+  bool set_requested_lock(const LEX_CSTRING *str);
 
 private:
   Alter_info &operator=(const Alter_info &rhs); // not implemented
@@ -244,7 +244,7 @@ public:
   Alter_table_ctx();
 
   Alter_table_ctx(THD *thd, TABLE_LIST *table_list, uint tables_opened_arg,
-                  char *new_db_arg, char *new_name_arg);
+                  const char *new_db_arg, const char *new_name_arg);
 
   /**
      @return true if the table is moved to another database, false otherwise.
@@ -306,12 +306,12 @@ public:
   Create_field *datetime_field;
   bool         error_if_not_empty;
   uint         tables_opened;
-  char         *db;
-  char         *table_name;
-  char         *alias;
-  char         *new_db;
-  char         *new_name;
-  char         *new_alias;
+  const char   *db;
+  const char   *table_name;
+  const char   *alias;
+  const char   *new_db;
+  const char   *new_name;
+  const char   *new_alias;
   char         tmp_name[80];
   /**
     Indicates that if a row is deleted during copying of data from old version

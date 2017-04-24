@@ -29,8 +29,8 @@ enum { ENGINE_OPTION_MAX_LENGTH=32767 };
 class engine_option_value: public Sql_alloc
 {
  public:
-  LEX_STRING name;
-  LEX_STRING value;
+  LEX_CSTRING name;
+  LEX_CSTRING value;
   engine_option_value *next;    ///< parser puts them in a FIFO linked list
   bool parsed;                  ///< to detect unrecognized options
   bool quoted_value;            ///< option=VAL vs. option='VAL'
@@ -42,28 +42,30 @@ class engine_option_value: public Sql_alloc
   {
     link(start, end);
   }
-  engine_option_value(LEX_STRING &name_arg, LEX_STRING &value_arg, bool quoted,
+  engine_option_value(LEX_CSTRING &name_arg, LEX_CSTRING &value_arg,
+                      bool quoted,
                       engine_option_value **start, engine_option_value **end) :
     name(name_arg), value(value_arg),
     next(NULL), parsed(false), quoted_value(quoted)
   {
     link(start, end);
   }
-  engine_option_value(LEX_STRING &name_arg,
+  engine_option_value(LEX_CSTRING &name_arg,
                       engine_option_value **start, engine_option_value **end) :
-    name(name_arg), value(null_lex_str),
+    name(name_arg), value(null_clex_str),
     next(NULL), parsed(false), quoted_value(false)
   {
     link(start, end);
   }
-  engine_option_value(LEX_STRING &name_arg, ulonglong value_arg,
+  engine_option_value(LEX_CSTRING &name_arg, ulonglong value_arg,
                       engine_option_value **start, engine_option_value **end,
                       MEM_ROOT *root) :
     name(name_arg), next(NULL), parsed(false), quoted_value(false)
   {
-    if ((value.str= (char *)alloc_root(root, 22)))
+    char *str;
+    if ((value.str= str= (char *)alloc_root(root, 22)))
     {
-      value.length= longlong10_to_str(value_arg, value.str, 10) - value.str;
+      value.length= longlong10_to_str(value_arg, str, 10) - str;
       link(start, end);
     }
   }

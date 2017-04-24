@@ -1015,7 +1015,7 @@ static Sys_var_lexstring Sys_init_connect(
 #ifdef HAVE_REPLICATION
 static bool check_master_connection(sys_var *self, THD *thd, set_var *var)
 {
-  LEX_STRING tmp;
+  LEX_CSTRING tmp;
   tmp.str= var->save_result.string_value.str;
   tmp.length= var->save_result.string_value.length;
   if (!tmp.str || check_master_connection_name(&tmp))
@@ -1547,7 +1547,7 @@ static Sys_var_gtid_binlog_pos Sys_gtid_binlog_pos(
 
 
 uchar *
-Sys_var_gtid_binlog_pos::global_value_ptr(THD *thd, const LEX_STRING *base)
+Sys_var_gtid_binlog_pos::global_value_ptr(THD *thd, const LEX_CSTRING *base)
 {
   char buf[128];
   String str(buf, sizeof(buf), system_charset_info);
@@ -1575,7 +1575,7 @@ static Sys_var_gtid_current_pos Sys_gtid_current_pos(
 
 
 uchar *
-Sys_var_gtid_current_pos::global_value_ptr(THD *thd, const LEX_STRING *base)
+Sys_var_gtid_current_pos::global_value_ptr(THD *thd, const LEX_CSTRING *base)
 {
   String str;
   char *p;
@@ -1656,7 +1656,7 @@ Sys_var_gtid_slave_pos::global_update(THD *thd, set_var *var)
 
 
 uchar *
-Sys_var_gtid_slave_pos::global_value_ptr(THD *thd, const LEX_STRING *base)
+Sys_var_gtid_slave_pos::global_value_ptr(THD *thd, const LEX_CSTRING *base)
 {
   String str;
   char *p;
@@ -1774,7 +1774,7 @@ Sys_var_gtid_binlog_state::global_update(THD *thd, set_var *var)
 
 
 uchar *
-Sys_var_gtid_binlog_state::global_value_ptr(THD *thd, const LEX_STRING *base)
+Sys_var_gtid_binlog_state::global_value_ptr(THD *thd, const LEX_CSTRING *base)
 {
   char buf[512];
   String str(buf, sizeof(buf), system_charset_info);
@@ -1807,7 +1807,7 @@ static Sys_var_last_gtid Sys_last_gtid(
 
 
 uchar *
-Sys_var_last_gtid::session_value_ptr(THD *thd, const LEX_STRING *base)
+Sys_var_last_gtid::session_value_ptr(THD *thd, const LEX_CSTRING *base)
 {
   char buf[10+1+10+1+20+1];
   String str(buf, sizeof(buf), system_charset_info);
@@ -1916,7 +1916,7 @@ Sys_var_slave_parallel_mode::global_update(THD *thd, set_var *var)
 {
   enum_slave_parallel_mode new_value=
     (enum_slave_parallel_mode)var->save_result.ulonglong_value;
-  LEX_STRING *base_name= &var->base;
+  LEX_CSTRING *base_name= &var->base;
   Master_info *mi;
   bool res= false;
 
@@ -1936,7 +1936,7 @@ Sys_var_slave_parallel_mode::global_update(THD *thd, set_var *var)
     if (mi->rli.slave_running)
     {
       my_error(ER_SLAVE_MUST_STOP, MYF(0),
-          mi->connection_name.length, mi->connection_name.str);
+               (int) mi->connection_name.length, mi->connection_name.str);
       res= true;
     }
     else
@@ -1959,7 +1959,7 @@ Sys_var_slave_parallel_mode::global_update(THD *thd, set_var *var)
 
 uchar *
 Sys_var_slave_parallel_mode::global_value_ptr(THD *thd,
-                                              const LEX_STRING *base_name)
+                                              const LEX_CSTRING *base_name)
 {
   Master_info *mi;
   enum_slave_parallel_mode val=
@@ -3061,7 +3061,7 @@ static const char *sql_mode_names[]=
 };
 
 export bool sql_mode_string_representation(THD *thd, sql_mode_t sql_mode,
-                                           LEX_STRING *ls)
+                                           LEX_CSTRING *ls)
 {
   set_to_string(thd, ls, sql_mode, sql_mode_names);
   return ls->str == 0;
@@ -4357,7 +4357,7 @@ static Sys_var_mybool Sys_relay_log_recovery(
 bool Sys_var_rpl_filter::global_update(THD *thd, set_var *var)
 {
   bool result= true;                            // Assume error
-  LEX_STRING *base_name= &var->base;
+  LEX_CSTRING *base_name= &var->base;
 
   if (!base_name->length)
     base_name= &thd->variables.default_master_connection;
@@ -4371,7 +4371,7 @@ bool Sys_var_rpl_filter::global_update(THD *thd, set_var *var)
     if (mi->rli.slave_running)
     {
       my_error(ER_SLAVE_MUST_STOP, MYF(0), 
-               mi->connection_name.length,
+               (int) mi->connection_name.length,
                mi->connection_name.str);
       result= true;
     }
@@ -4418,7 +4418,7 @@ bool Sys_var_rpl_filter::set_filter_value(const char *value, Master_info *mi)
 }
 
 uchar *Sys_var_rpl_filter::global_value_ptr(THD *thd,
-                                            const LEX_STRING *base_name)
+                                            const LEX_CSTRING *base_name)
 {
   char buf[256];
   String tmp(buf, sizeof(buf), &my_charset_bin);
@@ -4574,7 +4574,7 @@ static bool update_slave_skip_counter(sys_var *self, THD *thd, Master_info *mi)
 {
   if (mi->rli.slave_running)
   {
-    my_error(ER_SLAVE_MUST_STOP, MYF(0), mi->connection_name.length,
+    my_error(ER_SLAVE_MUST_STOP, MYF(0), (int) mi->connection_name.length,
              mi->connection_name.str);
     return true;
   }

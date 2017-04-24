@@ -3031,7 +3031,7 @@ static uint32_t pack_key_from_desc(
 }
 
 static bool fields_have_same_name(Field* a, Field* b) {
-    return strcmp(a->field_name, b->field_name) == 0;
+    return strcmp(a->field_name.str, b->field_name.str) == 0;
 }
 
 static bool fields_are_same_type(Field* a, Field* b) {

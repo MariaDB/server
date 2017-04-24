@@ -1986,7 +1986,7 @@ drop table if exists t1;
 create table t1 (i int, j int);
 create trigger t1_bi before insert on t1 for each row begin end;
 create trigger t1_bi before insert on t1 for each row begin end;
-ERROR HY000: Trigger 'test.t1_' already exists
+ERROR HY000: Trigger 'test.t1_bi' already exists
 create trigger t1_bi2 before insert on t1 for each row begin end;
 drop trigger t1_bi;
 drop trigger t1_bi2;

@@ -33,8 +33,8 @@
 
 static TABLE_LIST *rename_tables(THD *thd, TABLE_LIST *table_list,
 				 bool skip_error);
-static bool do_rename(THD *thd, TABLE_LIST *ren_table, char *new_db,
-                      char *new_table_name, char *new_table_alias,
+static bool do_rename(THD *thd, TABLE_LIST *ren_table, const char *new_db,
+                      const char *new_table_name, const char *new_table_alias,
                       bool skip_error);
 
 static TABLE_LIST *reverse_table_list(TABLE_LIST *table_list);
@@ -50,7 +50,7 @@ bool mysql_rename_tables(THD *thd, TABLE_LIST *table_list, bool silent)
   bool binlog_error= 0;
   TABLE_LIST *ren_table= 0;
   int to_table;
-  char *rename_log_table[2]= {NULL, NULL};
+  const char *rename_log_table[2]= {NULL, NULL};
   DBUG_ENTER("mysql_rename_tables");
 
   /*
@@ -254,8 +254,9 @@ do_rename_temporary(THD *thd, TABLE_LIST *ren_table, TABLE_LIST *new_table,
 */
 
 static bool
-do_rename(THD *thd, TABLE_LIST *ren_table, char *new_db, char *new_table_name,
-          char *new_table_alias, bool skip_error)
+do_rename(THD *thd, TABLE_LIST *ren_table, const char *new_db,
+          const char *new_table_name, const char *new_table_alias,
+          bool skip_error)
 {
   int rc= 1;
   handlerton *hton;
@@ -291,11 +292,11 @@ do_rename(THD *thd, TABLE_LIST *ren_table, char *new_db, char *new_table_name,
       if (!(rc= mysql_rename_table(hton, ren_table->db, old_alias,
                                    new_db, new_alias, 0)))
       {
-        LEX_STRING db_name= { ren_table->db, ren_table->db_length };
-        LEX_STRING table_name= { ren_table->table_name,
+        LEX_CSTRING db_name= { ren_table->db, ren_table->db_length };
+        LEX_CSTRING table_name= { ren_table->table_name,
                                  ren_table->table_name_length };
-        LEX_STRING new_table= { (char *) new_alias, strlen(new_alias) };
-        LEX_STRING new_db_name= { (char*)new_db, strlen(new_db)};
+        LEX_CSTRING new_table= { new_alias, strlen(new_alias) };
+        LEX_CSTRING new_db_name= { new_db, strlen(new_db)};
         (void) rename_table_in_stat_tables(thd, &db_name, &table_name,
                                            &new_db_name, &new_table);
         if ((rc= Table_triggers_list::change_table_name(thd, ren_table->db,

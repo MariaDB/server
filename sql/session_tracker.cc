@@ -396,7 +396,7 @@ bool Session_sysvars_tracker::vars_list::parse_var_list(THD *thd,
     return false;
   }
 
-  if(!strcmp(var_list.str,(const char *)"*"))
+  if(!strcmp(var_list.str, "*"))
   {
     track_all= true;
     buffer_length= 2;
@@ -418,7 +418,7 @@ bool Session_sysvars_tracker::vars_list::parse_var_list(THD *thd,
   for (;;)
   {
     sys_var *svar;
-    LEX_STRING var;
+    LEX_CSTRING var;
     uint not_used;
 
     lasts= (char *) memchr(token, separator, rest);
@@ -435,7 +435,7 @@ bool Session_sysvars_tracker::vars_list::parse_var_list(THD *thd,
     /* Remove leading/trailing whitespace. */
     trim_whitespace(char_set, &var, &not_used);
 
-    if(!strcmp(var.str,(const char *)"*"))
+    if(!strcmp(var.str, "*"))
     {
       track_all= true;
     }
@@ -483,7 +483,7 @@ bool Session_sysvars_tracker::check_var_list(THD *thd,
   size_t rest= var_list.length;
 
   if (!var_list.str || var_list.length == 0 ||
-      !strcmp(var_list.str,(const char *)"*"))
+      !strcmp(var_list.str, "*"))
   {
     return false;
   }
@@ -500,7 +500,7 @@ bool Session_sysvars_tracker::check_var_list(THD *thd,
     mysql_mutex_lock(&LOCK_plugin);
   for (;;)
   {
-    LEX_STRING var;
+    LEX_CSTRING var;
     uint not_used;
 
     lasts= (char *) memchr(token, separator, rest);
@@ -517,7 +517,7 @@ bool Session_sysvars_tracker::check_var_list(THD *thd,
     /* Remove leading/trailing whitespace. */
     trim_whitespace(char_set, &var, &not_used);
 
-    if(!strcmp(var.str,(const char *)"*") &&
+    if(!strcmp(var.str, "*") &&
        !find_sys_var_ex(thd, var.str, var.length, throw_error, true))
     {
       if (throw_error && take_mutex && thd)

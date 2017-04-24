@@ -17,6 +17,7 @@
 #include "sql_type.h"
 #include "sql_const.h"
 #include "sql_class.h"
+#include "sql_time.h"
 #include "item.h"
 #include "log.h"
 
@@ -369,7 +370,6 @@ Type_handler_hybrid_field_type::aggregate_for_result(const char *funcname,
     return true;
   }
   set_handler(items[0]->type_handler());
-  uint unsigned_count= items[0]->unsigned_flag;
   for (uint i= 1 ; i < nitems ; i++)
   {
     const Type_handler *cur= items[i]->type_handler();
@@ -387,26 +387,6 @@ Type_handler_hybrid_field_type::aggregate_for_result(const char *funcname,
                type_handler()->name().ptr(), cur->name().ptr(), funcname);
       return true;
     }
-    unsigned_count+= items[i]->unsigned_flag;
-  }
-  switch (field_type()) {
-  case MYSQL_TYPE_TINY:
-  case MYSQL_TYPE_SHORT:
-  case MYSQL_TYPE_LONG:
-  case MYSQL_TYPE_LONGLONG:
-  case MYSQL_TYPE_INT24:
-  case MYSQL_TYPE_YEAR:
-  case MYSQL_TYPE_BIT:
-    if (unsigned_count != 0 && unsigned_count != nitems)
-    {
-      /*
-        If all arguments are of INT-alike type but have different
-        unsigned_flag, then convert to DECIMAL.
-      */
-      set_handler(&type_handler_newdecimal);
-    }
-  default:
-    break;
   }
   return false;
 }
@@ -474,6 +454,114 @@ Type_handler_hybrid_field_type::aggregate_for_comparison(const Type_handler *h)
   else
     m_type_handler= &type_handler_double;
   DBUG_ASSERT(m_type_handler == m_type_handler->type_handler_for_comparison());
+  return false;
+}
+
+
+/**
+  Aggregate data type handler for LEAST/GRATEST.
+  aggregate_for_min_max() is close to aggregate_for_comparison(),
+  but tries to preserve the exact type handler for string, int and temporal
+  data types (instead of converting to super-types).
+  FLOAT is not preserved and is converted to its super-type (DOUBLE).
+  This should probably fixed eventually, for symmetry.
+*/
+
+bool
+Type_handler_hybrid_field_type::aggregate_for_min_max(const Type_handler *h)
+{
+  if (!m_type_handler->is_traditional_type() ||
+      !h->is_traditional_type())
+  {
+    /*
+      If at least one data type is non-traditional,
+      do aggregation for result immediately.
+      For now we suppose that these two expressions:
+        - LEAST(type1, type2)
+        - COALESCE(type1, type2)
+      return the same data type (or both expressions return error)
+      if type1 and/or type2 are non-traditional.
+      This may change in the future.
+    */
+    h= type_handler_data->
+       m_type_aggregator_for_result.find_handler(m_type_handler, h);
+    if (!h)
+      return true;
+    m_type_handler= h;
+    return false;
+  }
+
+  Item_result a= cmp_type();
+  Item_result b= h->cmp_type();
+  DBUG_ASSERT(a != ROW_RESULT); // Disallowed by check_cols() in fix_fields()
+  DBUG_ASSERT(b != ROW_RESULT); // Disallowed by check_cols() in fix_fields()
+
+  if (a == STRING_RESULT && b == STRING_RESULT)
+    m_type_handler=
+      Type_handler::aggregate_for_result_traditional(m_type_handler, h);
+  else if (a == INT_RESULT && b == INT_RESULT)
+  {
+    // BIT aggregates with non-BIT as BIGINT
+    if (m_type_handler != h)
+    {
+      if (m_type_handler == &type_handler_bit)
+        m_type_handler= &type_handler_longlong;
+      else if (h == &type_handler_bit)
+        h= &type_handler_longlong;
+    }
+    m_type_handler=
+      Type_handler::aggregate_for_result_traditional(m_type_handler, h);
+  }
+  else if (a == TIME_RESULT || b == TIME_RESULT)
+  {
+    if ((a == TIME_RESULT) + (b == TIME_RESULT) == 1)
+    {
+      /*
+        We're here if there's only one temporal data type:
+        either m_type_handler or h.
+      */
+      if (b == TIME_RESULT)
+        m_type_handler= h; // Temporal types bit non-temporal types
+    }
+    else
+    {
+      /*
+        We're here if both m_type_handler and h are temporal data types.
+      */
+      m_type_handler=
+        Type_handler::aggregate_for_result_traditional(m_type_handler, h);
+    }
+  }
+  else if ((a == INT_RESULT || a == DECIMAL_RESULT) &&
+           (b == INT_RESULT || b == DECIMAL_RESULT))
+  {
+    m_type_handler= &type_handler_newdecimal;
+  }
+  else
+  {
+    m_type_handler= &type_handler_double;
+  }
+  return false;
+}
+
+
+bool
+Type_handler_hybrid_field_type::aggregate_for_min_max(const char *funcname,
+                                                      Item **items, uint nitems)
+{
+  // LEAST/GREATEST require at least two arguments
+  DBUG_ASSERT(nitems > 1);
+  set_handler(items[0]->type_handler());
+  for (uint i= 1; i < nitems;  i++)
+  {
+    const Type_handler *cur= items[i]->type_handler();
+    if (aggregate_for_min_max(cur))
+    {
+      my_error(ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION, MYF(0),
+               type_handler()->name().ptr(), cur->name().ptr(), funcname);
+      return true;
+    }
+  }
   return false;
 }
 
@@ -651,7 +739,7 @@ Type_handler::make_num_distinct_aggregator_field(MEM_ROOT *mem_root,
          Field_double(NULL, item->max_length,
                       (uchar *) (item->maybe_null ? "" : 0),
                       item->maybe_null ? 1 : 0, Field::NONE,
-                      item->name, item->decimals, 0, item->unsigned_flag);
+                      &item->name, item->decimals, 0, item->unsigned_flag);
 }
 
 
@@ -664,7 +752,7 @@ Type_handler_float::make_num_distinct_aggregator_field(MEM_ROOT *mem_root,
          Field_float(NULL, item->max_length,
                      (uchar *) (item->maybe_null ? "" : 0),
                      item->maybe_null ? 1 : 0, Field::NONE,
-                     item->name, item->decimals, 0, item->unsigned_flag);
+                     &item->name, item->decimals, 0, item->unsigned_flag);
 }
 
 
@@ -679,7 +767,7 @@ Type_handler_decimal_result::make_num_distinct_aggregator_field(
          Field_new_decimal(NULL, item->max_length,
                            (uchar *) (item->maybe_null ? "" : 0),
                            item->maybe_null ? 1 : 0, Field::NONE,
-                           item->name, item->decimals, 0, item->unsigned_flag);
+                           &item->name, item->decimals, 0, item->unsigned_flag);
 }
 
 
@@ -696,13 +784,11 @@ Type_handler_int_result::make_num_distinct_aggregator_field(MEM_ROOT *mem_root,
          Field_longlong(NULL, item->max_length,
                         (uchar *) (item->maybe_null ? "" : 0),
                         item->maybe_null ? 1 : 0, Field::NONE,
-                        item->name, 0, item->unsigned_flag);
+                        &item->name, 0, item->unsigned_flag);
 }
 
 
 /***********************************************************************/
-
-#define TMPNAME ""
 
 Field *Type_handler_tiny::make_conversion_table_field(TABLE *table,
                                                       uint metadata,
@@ -717,7 +803,7 @@ Field *Type_handler_tiny::make_conversion_table_field(TABLE *table,
   bool unsigned_flag= ((Field_num*) target)->unsigned_flag;
   return new (table->in_use->mem_root)
          Field_tiny(NULL, 4 /*max_length*/, (uchar *) "", 1, Field::NONE,
-                    TMPNAME, 0/*zerofill*/, unsigned_flag);
+                    &empty_clex_str, 0/*zerofill*/, unsigned_flag);
 }
 
 
@@ -729,7 +815,7 @@ Field *Type_handler_short::make_conversion_table_field(TABLE *table,
   bool unsigned_flag= ((Field_num*) target)->unsigned_flag;
   return new (table->in_use->mem_root)
          Field_short(NULL, 6 /*max_length*/, (uchar *) "", 1, Field::NONE,
-                     TMPNAME, 0/*zerofill*/, unsigned_flag);
+                     &empty_clex_str, 0/*zerofill*/, unsigned_flag);
 }
 
 
@@ -741,7 +827,7 @@ Field *Type_handler_int24::make_conversion_table_field(TABLE *table,
   bool unsigned_flag= ((Field_num*) target)->unsigned_flag;
   return new (table->in_use->mem_root)
          Field_medium(NULL, 9 /*max_length*/, (uchar *) "", 1, Field::NONE,
-                      TMPNAME, 0/*zerofill*/, unsigned_flag);
+                      &empty_clex_str, 0/*zerofill*/, unsigned_flag);
 }
 
 
@@ -753,7 +839,7 @@ Field *Type_handler_long::make_conversion_table_field(TABLE *table,
   bool unsigned_flag= ((Field_num*) target)->unsigned_flag;
   return new (table->in_use->mem_root)
          Field_long(NULL, 11 /*max_length*/, (uchar *) "", 1, Field::NONE,
-         TMPNAME, 0/*zerofill*/, unsigned_flag);
+         &empty_clex_str, 0/*zerofill*/, unsigned_flag);
 }
 
 
@@ -765,7 +851,7 @@ Field *Type_handler_longlong::make_conversion_table_field(TABLE *table,
   bool unsigned_flag= ((Field_num*) target)->unsigned_flag;
   return new (table->in_use->mem_root)
          Field_longlong(NULL, 20 /*max_length*/,(uchar *) "", 1, Field::NONE,
-                        TMPNAME, 0/*zerofill*/, unsigned_flag);
+                        &empty_clex_str, 0/*zerofill*/, unsigned_flag);
 }
 
 
@@ -777,7 +863,7 @@ Field *Type_handler_float::make_conversion_table_field(TABLE *table,
 {
   return new (table->in_use->mem_root)
          Field_float(NULL, 12 /*max_length*/, (uchar *) "", 1, Field::NONE,
-                     TMPNAME, 0/*dec*/, 0/*zerofill*/, 0/*unsigned_flag*/);
+                     &empty_clex_str, 0/*dec*/, 0/*zerofill*/, 0/*unsigned_flag*/);
 }
 
 
@@ -788,7 +874,7 @@ Field *Type_handler_double::make_conversion_table_field(TABLE *table,
 {
   return new (table->in_use->mem_root)
          Field_double(NULL, 22 /*max_length*/, (uchar *) "", 1, Field::NONE,
-                      TMPNAME, 0/*dec*/, 0/*zerofill*/, 0/*unsigned_flag*/);
+                      &empty_clex_str, 0/*dec*/, 0/*zerofill*/, 0/*unsigned_flag*/);
 }
 
 
@@ -803,7 +889,7 @@ Field *Type_handler_newdecimal::make_conversion_table_field(TABLE *table,
   DBUG_ASSERT(decimals <= DECIMAL_MAX_SCALE);
   return new (table->in_use->mem_root)
          Field_new_decimal(NULL, max_length, (uchar *) "", 1, Field::NONE,
-                           TMPNAME, decimals, 0/*zerofill*/, 0/*unsigned*/);
+                           &empty_clex_str, decimals, 0/*zerofill*/, 0/*unsigned*/);
 }
 
 
@@ -819,7 +905,7 @@ Field *Type_handler_olddecimal::make_conversion_table_field(TABLE *table,
                   " column Name: %s.%s.%s.",
                   target->table->s->db.str,
                   target->table->s->table_name.str,
-                  target->field_name);
+                  target->field_name.str);
   return NULL;
 }
 
@@ -830,7 +916,7 @@ Field *Type_handler_year::make_conversion_table_field(TABLE *table,
                                                       const
 {
   return new(table->in_use->mem_root)
-         Field_year(NULL, 4, (uchar *) "", 1, Field::NONE, TMPNAME);
+         Field_year(NULL, 4, (uchar *) "", 1, Field::NONE, &empty_clex_str);
 }
 
 
@@ -840,7 +926,7 @@ Field *Type_handler_null::make_conversion_table_field(TABLE *table,
                                                       const
 {
   return new(table->in_use->mem_root)
-         Field_null(NULL, 0, Field::NONE, TMPNAME, target->charset());
+         Field_null(NULL, 0, Field::NONE, &empty_clex_str, target->charset());
 }
 
 
@@ -850,7 +936,7 @@ Field *Type_handler_timestamp::make_conversion_table_field(TABLE *table,
                                                            const
 {
   return new_Field_timestamp(table->in_use->mem_root, NULL, (uchar *) "", 1,
-                           Field::NONE, TMPNAME, table->s, target->decimals());
+                           Field::NONE, &empty_clex_str, table->s, target->decimals());
 }
 
 
@@ -861,7 +947,7 @@ Field *Type_handler_timestamp2::make_conversion_table_field(TABLE *table,
 {
   return new(table->in_use->mem_root)
          Field_timestampf(NULL, (uchar *) "", 1, Field::NONE,
-                          TMPNAME, table->s, metadata);
+                          &empty_clex_str, table->s, metadata);
 }
 
 
@@ -871,7 +957,7 @@ Field *Type_handler_newdate::make_conversion_table_field(TABLE *table,
                                                          const
 {
   return new(table->in_use->mem_root)
-         Field_newdate(NULL, (uchar *) "", 1, Field::NONE, TMPNAME);
+         Field_newdate(NULL, (uchar *) "", 1, Field::NONE, &empty_clex_str);
 }
 
 
@@ -881,7 +967,7 @@ Field *Type_handler_date::make_conversion_table_field(TABLE *table,
                                                       const
 {
   return new(table->in_use->mem_root)
-         Field_date(NULL, (uchar *) "", 1, Field::NONE, TMPNAME);
+         Field_date(NULL, (uchar *) "", 1, Field::NONE, &empty_clex_str);
 }
 
 
@@ -891,7 +977,7 @@ Field *Type_handler_time::make_conversion_table_field(TABLE *table,
                                                       const
 {
   return new_Field_time(table->in_use->mem_root, NULL, (uchar *) "", 1,
-                        Field::NONE, TMPNAME, target->decimals());
+                        Field::NONE, &empty_clex_str, target->decimals());
 }
 
 
@@ -901,7 +987,7 @@ Field *Type_handler_time2::make_conversion_table_field(TABLE *table,
                                                        const
 {
   return new(table->in_use->mem_root)
-         Field_timef(NULL, (uchar *) "", 1, Field::NONE, TMPNAME, metadata);
+         Field_timef(NULL, (uchar *) "", 1, Field::NONE, &empty_clex_str, metadata);
 }
 
 
@@ -911,7 +997,7 @@ Field *Type_handler_datetime::make_conversion_table_field(TABLE *table,
                                                           const
 {
   return new_Field_datetime(table->in_use->mem_root, NULL, (uchar *) "", 1,
-                            Field::NONE, TMPNAME, target->decimals());
+                            Field::NONE, &empty_clex_str, target->decimals());
 }
 
 
@@ -922,7 +1008,7 @@ Field *Type_handler_datetime2::make_conversion_table_field(TABLE *table,
 {
   return new(table->in_use->mem_root)
          Field_datetimef(NULL, (uchar *) "", 1,
-                         Field::NONE, TMPNAME, metadata);
+                         Field::NONE, &empty_clex_str, metadata);
 }
 
 
@@ -935,7 +1021,7 @@ Field *Type_handler_bit::make_conversion_table_field(TABLE *table,
   uint32 max_length= 8 * (metadata >> 8U) + (metadata & 0x00ff);
   return new(table->in_use->mem_root)
          Field_bit_as_char(NULL, max_length, (uchar *) "", 1,
-                           Field::NONE, TMPNAME);
+                           Field::NONE, &empty_clex_str);
 }
 
 
@@ -948,7 +1034,7 @@ Field *Type_handler_string::make_conversion_table_field(TABLE *table,
   uint32 max_length= (((metadata >> 4) & 0x300) ^ 0x300) + (metadata & 0x00ff);
   return new(table->in_use->mem_root)
          Field_string(NULL, max_length, (uchar *) "", 1,
-                      Field::NONE, TMPNAME, target->charset());
+                      Field::NONE, &empty_clex_str, target->charset());
 }
 
 
@@ -959,7 +1045,7 @@ Field *Type_handler_varchar::make_conversion_table_field(TABLE *table,
 {
   return new(table->in_use->mem_root)
          Field_varstring(NULL, metadata, HA_VARCHAR_PACKLENGTH(metadata),
-                         (uchar *) "", 1, Field::NONE, TMPNAME,
+                         (uchar *) "", 1, Field::NONE, &empty_clex_str,
                          table->s, target->charset());
 }
 
@@ -970,7 +1056,7 @@ Field *Type_handler_tiny_blob::make_conversion_table_field(TABLE *table,
                                                            const
 {
   return new(table->in_use->mem_root)
-         Field_blob(NULL, (uchar *) "", 1, Field::NONE, TMPNAME,
+         Field_blob(NULL, (uchar *) "", 1, Field::NONE, &empty_clex_str,
                     table->s, 1, target->charset());
 }
 
@@ -981,7 +1067,7 @@ Field *Type_handler_blob::make_conversion_table_field(TABLE *table,
                                                       const
 {
   return new(table->in_use->mem_root)
-         Field_blob(NULL, (uchar *) "", 1, Field::NONE, TMPNAME,
+         Field_blob(NULL, (uchar *) "", 1, Field::NONE, &empty_clex_str,
                     table->s, 2, target->charset());
 }
 
@@ -992,7 +1078,7 @@ Field *Type_handler_medium_blob::make_conversion_table_field(TABLE *table,
                                                            const
 {
   return new(table->in_use->mem_root)
-         Field_blob(NULL, (uchar *) "", 1, Field::NONE, TMPNAME,
+         Field_blob(NULL, (uchar *) "", 1, Field::NONE, &empty_clex_str,
                     table->s, 3, target->charset());
 }
 
@@ -1003,7 +1089,7 @@ Field *Type_handler_long_blob::make_conversion_table_field(TABLE *table,
                                                            const
 {
   return new(table->in_use->mem_root)
-         Field_blob(NULL, (uchar *) "", 1, Field::NONE, TMPNAME,
+         Field_blob(NULL, (uchar *) "", 1, Field::NONE, &empty_clex_str,
                     table->s, 4, target->charset());
 }
 
@@ -1031,7 +1117,7 @@ Field *Type_handler_geometry::make_conversion_table_field(TABLE *table,
     The statistics was already incremented when "target" was created.
   */
   return new(table->in_use->mem_root)
-         Field_geom(NULL, (uchar *) "", 1, Field::NONE, TMPNAME, table->s, 4,
+         Field_geom(NULL, (uchar *) "", 1, Field::NONE, &empty_clex_str, table->s, 4,
                     ((const Field_geom*) target)->geom_type,
                     ((const Field_geom*) target)->srid);
 }
@@ -1046,7 +1132,7 @@ Field *Type_handler_enum::make_conversion_table_field(TABLE *table,
   DBUG_ASSERT(target->real_type() == MYSQL_TYPE_ENUM);
   return new(table->in_use->mem_root)
          Field_enum(NULL, target->field_length,
-                    (uchar *) "", 1, Field::NONE, TMPNAME,
+                    (uchar *) "", 1, Field::NONE, &empty_clex_str,
                     metadata & 0x00ff/*pack_length()*/,
                     ((const Field_enum*) target)->typelib, target->charset());
 }
@@ -1061,7 +1147,7 @@ Field *Type_handler_set::make_conversion_table_field(TABLE *table,
   DBUG_ASSERT(target->real_type() == MYSQL_TYPE_SET);
   return new(table->in_use->mem_root)
          Field_set(NULL, target->field_length,
-                   (uchar *) "", 1, Field::NONE, TMPNAME,
+                   (uchar *) "", 1, Field::NONE, &empty_clex_str,
                    metadata & 0x00ff/*pack_length()*/,
                    ((const Field_enum*) target)->typelib, target->charset());
 }
@@ -1312,6 +1398,17 @@ bool Type_handler_int_result::
        Item_hybrid_func_fix_attributes(THD *thd, Item_hybrid_func *func,
                                        Item **items, uint nitems) const
 {
+  uint unsigned_flag= items[0]->unsigned_flag;
+  for (uint i= 1; i < nitems; i++)
+  {
+    if (unsigned_flag != items[i]->unsigned_flag)
+    {
+      // Convert a mixture of signed and unsigned int to decimal
+      func->set_handler(&type_handler_newdecimal);
+      func->aggregate_attributes_decimal(items, nitems);
+      return false;
+    }
+  }
   func->aggregate_attributes_int(items, nitems);
   return false;
 }
@@ -1378,6 +1475,33 @@ bool Type_handler_timestamp_common::
   return false;
 }
 
+/*************************************************************************/
+
+bool Type_handler::
+       Item_func_min_max_fix_attributes(THD *thd, Item_func_min_max *func,
+                                        Item **items, uint nitems) const
+{
+  /*
+    Aggregating attributes for LEAST/GREATES is exactly the same
+    with aggregating for CASE-alike functions (e.g. COALESCE)
+    for the majority of data type handlers.
+  */
+  return Item_hybrid_func_fix_attributes(thd, func, items, nitems);
+}
+
+
+bool Type_handler_real_result::
+       Item_func_min_max_fix_attributes(THD *thd, Item_func_min_max *func,
+                                        Item **items, uint nitems) const
+{
+  /*
+    DOUBLE is an exception and aggregates attributes differently
+    for LEAST/GREATEST vs CASE-alike functions. See the comment in
+    Item_func_min_max::aggregate_attributes_real().
+  */
+  func->aggregate_attributes_real(items, nitems);
+  return false;
+}
 
 /*************************************************************************/
 
@@ -2689,7 +2813,11 @@ bool Type_handler_numeric::
 bool Type_handler::
        Item_time_typecast_fix_length_and_dec(Item_time_typecast *item) const
 {
-  item->fix_length_and_dec_generic(MIN_TIME_WIDTH);
+  uint dec= item->decimals == NOT_FIXED_DEC ?
+            item->arguments()[0]->time_precision() :
+            item->decimals;
+  item->fix_attributes_temporal(MIN_TIME_WIDTH, dec);
+  item->maybe_null= true;
   return false;
 }
 
@@ -2697,7 +2825,8 @@ bool Type_handler::
 bool Type_handler::
        Item_date_typecast_fix_length_and_dec(Item_date_typecast *item) const
 {
-  item->fix_length_and_dec_generic(MAX_DATE_WIDTH);
+  item->fix_attributes_temporal(MAX_DATE_WIDTH, 0);
+  item->maybe_null= true;
   return false;
 }
 
@@ -2706,9 +2835,12 @@ bool Type_handler::
        Item_datetime_typecast_fix_length_and_dec(Item_datetime_typecast *item)
                                                  const
 {
-  item->fix_length_and_dec_generic(MAX_DATETIME_WIDTH);
+  uint dec= item->decimals == NOT_FIXED_DEC ?
+            item->arguments()[0]->datetime_precision() :
+            item->decimals;
+  item->fix_attributes_temporal(MAX_DATETIME_WIDTH, dec);
+  item->maybe_null= true;
   return false;
-
 }
 
 
@@ -3020,6 +3152,38 @@ bool Type_handler_string_result::
 {
   item->fix_length_and_dec_double();
   return false;
+}
+
+/***************************************************************************/
+
+uint Type_handler::Item_time_precision(Item *item) const
+{
+  return MY_MIN(item->decimals, TIME_SECOND_PART_DIGITS);
+}
+
+
+uint Type_handler::Item_datetime_precision(Item *item) const
+{
+  return MY_MIN(item->decimals, TIME_SECOND_PART_DIGITS);
+}
+
+
+uint Type_handler_string_result::Item_temporal_precision(Item *item,
+                                                         bool is_time) const
+{
+  MYSQL_TIME ltime;
+  StringBuffer<64> buf;
+  String *tmp;
+  MYSQL_TIME_STATUS status;
+  DBUG_ASSERT(item->fixed);
+  if ((tmp= item->val_str(&buf)) &&
+      !(is_time ?
+        str_to_time(tmp->charset(), tmp->ptr(), tmp->length(),
+                    &ltime, TIME_TIME_ONLY, &status) :
+        str_to_datetime(tmp->charset(), tmp->ptr(), tmp->length(),
+                        &ltime, TIME_FUZZY_DATES, &status)))
+    return MY_MIN(status.precision, TIME_SECOND_PART_DIGITS);
+  return MY_MIN(item->decimals, TIME_SECOND_PART_DIGITS);
 }
 
 /***************************************************************************/

@@ -31,7 +31,7 @@ extern PSI_cond_key key_COND_queue_state;
 #endif /* HAVE_PSI_INTERFACE */
 
 #include "queues.h"                             // QUEUE
-#include "sql_string.h"                         /* LEX_STRING */
+#include "sql_string.h"                         /* LEX_CSTRING */
 #include "my_time.h"                    /* my_time_t, interval_type */
 
 class Event_basic;
@@ -60,14 +60,14 @@ public:
                bool *created);
 
   void
-  update_event(THD *thd, LEX_STRING dbname, LEX_STRING name,
+  update_event(THD *thd, const LEX_CSTRING *dbname, const LEX_CSTRING *name,
                Event_queue_element *new_element);
 
   void
-  drop_event(THD *thd, LEX_STRING dbname, LEX_STRING name);
+  drop_event(THD *thd, const LEX_CSTRING *dbname, const LEX_CSTRING *name);
 
   void
-  drop_schema_events(THD *thd, LEX_STRING schema);
+  drop_schema_events(THD *thd, const LEX_CSTRING *schema);
 
   void
   recalculate_activation_times(THD *thd);
@@ -98,12 +98,12 @@ private:
             const char *src_func, const char *src_file, uint src_line);
 
   void
-  find_n_remove_event(LEX_STRING db, LEX_STRING name);
+  find_n_remove_event(const LEX_CSTRING *db, const LEX_CSTRING *name);
 
 
   void
-  drop_matching_events(THD *thd, LEX_STRING pattern,
-                       bool (*)(LEX_STRING, Event_basic *));
+  drop_matching_events(THD *thd, const LEX_CSTRING *pattern,
+                       bool (*)(const LEX_CSTRING*, Event_basic *));
 
 
   void

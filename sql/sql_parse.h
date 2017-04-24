@@ -70,19 +70,19 @@ int prepare_schema_table(THD *thd, LEX *lex, Table_ident *table_ident,
                          enum enum_schema_tables schema_table_idx);
 void get_default_definer(THD *thd, LEX_USER *definer, bool role);
 LEX_USER *create_default_definer(THD *thd, bool role);
-LEX_USER *create_definer(THD *thd, LEX_STRING *user_name, LEX_STRING *host_name);
+LEX_USER *create_definer(THD *thd, LEX_CSTRING *user_name, LEX_CSTRING *host_name);
 LEX_USER *get_current_user(THD *thd, LEX_USER *user, bool lock=true);
 bool sp_process_definer(THD *thd);
-bool check_string_byte_length(LEX_STRING *str, uint err_msg,
+bool check_string_byte_length(LEX_CSTRING *str, uint err_msg,
                               uint max_byte_length);
-bool check_string_char_length(LEX_STRING *str, uint err_msg,
+bool check_string_char_length(LEX_CSTRING *str, uint err_msg,
                               uint max_char_length, CHARSET_INFO *cs,
                               bool no_error);
-bool check_ident_length(LEX_STRING *ident);
+bool check_ident_length(LEX_CSTRING *ident);
 CHARSET_INFO* merge_charset_and_collation(CHARSET_INFO *cs, CHARSET_INFO *cl);
 CHARSET_INFO *find_bin_collation(CHARSET_INFO *cs);
-bool check_host_name(LEX_STRING *str);
-bool check_identifier_name(LEX_STRING *str, uint max_char_length,
+bool check_host_name(LEX_CSTRING *str);
+bool check_identifier_name(LEX_CSTRING *str, uint max_char_length,
                            uint err_code, const char *param_for_err_msg);
 bool mysql_test_parse_for_slave(THD *thd,char *inBuf,uint length);
 bool sqlcom_can_generate_row_events(const THD *thd);
@@ -136,12 +136,12 @@ extern const LEX_STRING command_name[];
 extern uint server_command_flags[];
 
 /* Inline functions */
-inline bool check_identifier_name(LEX_STRING *str, uint err_code)
+inline bool check_identifier_name(LEX_CSTRING *str, uint err_code)
 {
   return check_identifier_name(str, NAME_CHAR_LEN, err_code, "");
 }
 
-inline bool check_identifier_name(LEX_STRING *str)
+inline bool check_identifier_name(LEX_CSTRING *str)
 {
   return check_identifier_name(str, NAME_CHAR_LEN, 0, "");
 }
@@ -150,7 +150,8 @@ inline bool check_identifier_name(LEX_STRING *str)
 bool check_one_table_access(THD *thd, ulong privilege, TABLE_LIST *tables);
 bool check_single_table_access(THD *thd, ulong privilege,
 			   TABLE_LIST *tables, bool no_errors);
-bool check_routine_access(THD *thd,ulong want_access,char *db,char *name,
+bool check_routine_access(THD *thd,ulong want_access,const char *db,
+                          const char *name,
 			  bool is_proc, bool no_errors);
 bool check_some_access(THD *thd, ulong want_access, TABLE_LIST *table);
 bool check_some_routine_access(THD *thd, const char *db, const char *name, bool is_proc);
@@ -164,8 +165,8 @@ inline bool check_one_table_access(THD *thd, ulong privilege, TABLE_LIST *tables
 inline bool check_single_table_access(THD *thd, ulong privilege,
 			   TABLE_LIST *tables, bool no_errors)
 { return false; }
-inline bool check_routine_access(THD *thd,ulong want_access,char *db,
-                                 char *name, bool is_proc, bool no_errors)
+inline bool check_routine_access(THD *thd,ulong want_access, const char *db,
+                                 const char *name, bool is_proc, bool no_errors)
 { return false; }
 inline bool check_some_access(THD *thd, ulong want_access, TABLE_LIST *table)
 {

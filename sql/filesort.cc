@@ -569,7 +569,8 @@ const char* dbug_print_table_row(TABLE *table)
     else
       output.append(",");
 
-    output.append((*pfield)->field_name? (*pfield)->field_name: "NULL");
+    output.append((*pfield)->field_name.str ?
+                  (*pfield)->field_name.str: "NULL");
   }
 
   output.append(")=(");
@@ -620,7 +621,8 @@ static void dbug_print_record(TABLE *table, bool print_rowid)
   
   fprintf(DBUG_FILE, "record (");
   for (pfield= table->field; *pfield ; pfield++)
-    fprintf(DBUG_FILE, "%s%s", (*pfield)->field_name, (pfield[1])? ", ":"");
+    fprintf(DBUG_FILE, "%s%s", (*pfield)->field_name.str,
+            (pfield[1])? ", ":"");
   fprintf(DBUG_FILE, ") = ");
 
   fprintf(DBUG_FILE, "(");

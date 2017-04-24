@@ -367,6 +367,13 @@ public:
   virtual enum_field_types real_field_type() const { return field_type(); }
   virtual Item_result result_type() const= 0;
   virtual Item_result cmp_type() const= 0;
+  /**
+    Prepared statement long data:
+    Check whether this parameter data type is compatible with long data.
+    Used to detect whether a long data stream has been supplied to a
+    incompatible data type.
+  */
+  virtual bool is_param_long_data_type() const { return false; }
   virtual const Type_handler *type_handler_for_comparison() const= 0;
   virtual CHARSET_INFO *charset_for_protocol(const Item *item) const;
   virtual const Type_handler*
@@ -382,6 +389,8 @@ public:
   {
     return true;
   }
+  virtual uint Item_time_precision(Item *item) const;
+  virtual uint Item_datetime_precision(Item *item) const;
   /**
     Makes a temporary table Field to handle numeric aggregate functions,
     e.g. SUM(DISTINCT expr), AVG(DISTINCT expr), etc.
@@ -476,6 +485,10 @@ public:
   virtual bool Item_hybrid_func_fix_attributes(THD *thd, Item_hybrid_func *func,
                                                Item **items,
                                                uint nitems) const= 0;
+  virtual bool Item_func_min_max_fix_attributes(THD *thd,
+                                                Item_func_min_max *func,
+                                                Item **items,
+                                                uint nitems) const;
   virtual bool Item_sum_hybrid_fix_length_and_dec(Item_sum_hybrid *) const= 0;
   virtual bool Item_sum_sum_fix_length_and_dec(Item_sum_sum *) const= 0;
   virtual bool Item_sum_avg_fix_length_and_dec(Item_sum_avg *) const= 0;
@@ -831,6 +844,8 @@ public:
   bool set_comparator_func(Arg_comparator *cmp) const;
   bool Item_hybrid_func_fix_attributes(THD *thd, Item_hybrid_func *func,
                                        Item **items, uint nitems) const;
+  bool Item_func_min_max_fix_attributes(THD *thd, Item_func_min_max *func,
+                                        Item **items, uint nitems) const;
   bool Item_sum_hybrid_fix_length_and_dec(Item_sum_hybrid *func) const;
   bool Item_sum_sum_fix_length_and_dec(Item_sum_sum *) const;
   bool Item_sum_avg_fix_length_and_dec(Item_sum_avg *) const;
@@ -1033,6 +1048,7 @@ public:
 
 class Type_handler_string_result: public Type_handler
 {
+  uint Item_temporal_precision(Item *item, bool is_time) const;
 public:
   Item_result result_type() const { return STRING_RESULT; }
   Item_result cmp_type() const { return STRING_RESULT; }
@@ -1048,6 +1064,14 @@ public:
                   const Type_std_attributes *item,
                   SORT_FIELD_ATTR *attr) const;
   uint32 max_display_length(const Item *item) const;
+  uint Item_time_precision(Item *item) const
+  {
+    return Item_temporal_precision(item, true);
+  }
+  uint Item_datetime_precision(Item *item) const
+  {
+    return Item_temporal_precision(item, false);
+  }
   int Item_save_in_field(Item *item, Field *field, bool no_conversions) const;
   String *print_item_value(THD *thd, Item *item, String *str) const
   {
@@ -1433,6 +1457,7 @@ public:
   virtual ~Type_handler_string() {}
   const Name name() const { return m_name_char; }
   enum_field_types field_type() const { return MYSQL_TYPE_STRING; }
+  bool is_param_long_data_type() const { return true; }
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
 };
@@ -1445,12 +1470,21 @@ public:
   virtual ~Type_handler_varchar() {}
   const Name name() const { return m_name_varchar; }
   enum_field_types field_type() const { return MYSQL_TYPE_VARCHAR; }
+  bool is_param_long_data_type() const { return true; }
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
 };
 
 
-class Type_handler_tiny_blob: public Type_handler_string_result
+class Type_handler_blob_common: public Type_handler_string_result
+{
+public:
+  virtual ~Type_handler_blob_common() { }
+  bool is_param_long_data_type() const { return true; }
+};
+
+
+class Type_handler_tiny_blob: public Type_handler_blob_common
 {
   static const Name m_name_tinyblob;
 public:
@@ -1462,7 +1496,7 @@ public:
 };
 
 
-class Type_handler_medium_blob: public Type_handler_string_result
+class Type_handler_medium_blob: public Type_handler_blob_common
 {
   static const Name m_name_mediumblob;
 public:
@@ -1474,7 +1508,7 @@ public:
 };
 
 
-class Type_handler_long_blob: public Type_handler_string_result
+class Type_handler_long_blob: public Type_handler_blob_common
 {
   static const Name m_name_longblob;
 public:
@@ -1486,7 +1520,7 @@ public:
 };
 
 
-class Type_handler_blob: public Type_handler_string_result
+class Type_handler_blob: public Type_handler_blob_common
 {
   static const Name m_name_blob;
 public:
@@ -1506,6 +1540,7 @@ public:
   virtual ~Type_handler_geometry() {}
   const Name name() const { return m_name_geometry; }
   enum_field_types field_type() const { return MYSQL_TYPE_GEOMETRY; }
+  bool is_param_long_data_type() const { return true; }
   const Type_handler *type_handler_for_comparison() const;
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
@@ -1573,6 +1608,7 @@ public:
 class Type_handler_hybrid_field_type
 {
   const Type_handler *m_type_handler;
+  bool aggregate_for_min_max(const Type_handler *other);
 public:
   Type_handler_hybrid_field_type();
   Type_handler_hybrid_field_type(const Type_handler *handler)
@@ -1628,6 +1664,8 @@ public:
   bool aggregate_for_result(const Type_handler *other);
   bool aggregate_for_result(const char *funcname,
                             Item **item, uint nitems, bool treat_bit_as_number);
+  bool aggregate_for_min_max(const char *funcname, Item **item, uint nitems);
+
   bool aggregate_for_num_op(const class Type_aggregator *aggregator,
                             const Type_handler *h0, const Type_handler *h1);
 };

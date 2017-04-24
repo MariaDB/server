@@ -43,8 +43,8 @@ public:
   List<partition_element> partitions;
   List<partition_element> temp_partitions;
 
-  List<char> part_field_list;
-  List<char> subpart_field_list;
+  List<const char> part_field_list;
+  List<const char> subpart_field_list;
   
   /* 
     If there is no subpartitioning, use only this func to get partition ids.
@@ -306,7 +306,7 @@ public:
   bool set_up_defaults_for_partitioning(THD *thd, handler *file,
                                         HA_CREATE_INFO *info,
                                         uint start_no);
-  char *find_duplicate_field();
+  const char *find_duplicate_field();
   char *find_duplicate_name();
   bool check_engine_mix(handlerton *engine_type, bool default_engine);
   bool check_range_constants(THD *thd);

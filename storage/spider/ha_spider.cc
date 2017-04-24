@@ -7790,7 +7790,8 @@ int ha_spider::cmp_ref(
     ) {
       if ((ret = (*field)->cmp_binary_offset(ptr_diff)))
       {
-        DBUG_PRINT("info",("spider different at %s", (*field)->field_name));
+        DBUG_PRINT("info",("spider different at %s",
+                           (*field)->field_name.str));
         break;
       }
     }

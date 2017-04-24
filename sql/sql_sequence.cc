@@ -28,7 +28,7 @@ struct Field_definition
   const char *field_name;
   uint length;
   enum enum_field_types sql_type;
-  LEX_STRING comment;
+  LEX_CSTRING comment;
   ulong flags;
 };
 
@@ -45,19 +45,19 @@ struct Field_definition
 
 static Field_definition sequence_structure[]=
 {
-  {"next_value", 21, MYSQL_TYPE_LONGLONG, {C_STRING_WITH_LEN("next not cached value")},
+  {"next_value", 21, MYSQL_TYPE_LONGLONG, {STRING_WITH_LEN("next not cached value")},
    FL},
-  {"min_value", 21, MYSQL_TYPE_LONGLONG, {C_STRING_WITH_LEN("min value")}, FL},
-  {"max_value", 21, MYSQL_TYPE_LONGLONG, {C_STRING_WITH_LEN("max value")}, FL},
-  {"start", 21, MYSQL_TYPE_LONGLONG, {C_STRING_WITH_LEN("start value")},  FL},
+  {"min_value", 21, MYSQL_TYPE_LONGLONG, {STRING_WITH_LEN("min value")}, FL},
+  {"max_value", 21, MYSQL_TYPE_LONGLONG, {STRING_WITH_LEN("max value")}, FL},
+  {"start", 21, MYSQL_TYPE_LONGLONG, {STRING_WITH_LEN("start value")},  FL},
   {"increment", 21, MYSQL_TYPE_LONGLONG,
    {C_STRING_WITH_LEN("increment value")}, FL},
-  {"cache", 21, MYSQL_TYPE_LONGLONG, {C_STRING_WITH_LEN("cache size")}, FL},
-  {"cycle", 1, MYSQL_TYPE_TINY, {C_STRING_WITH_LEN("cycle state")},
+  {"cache", 21, MYSQL_TYPE_LONGLONG, {STRING_WITH_LEN("cache size")}, FL},
+  {"cycle", 1, MYSQL_TYPE_TINY, {STRING_WITH_LEN("cycle state")},
    FL | UNSIGNED_FLAG },
   {"round", 21, MYSQL_TYPE_LONGLONG,
-   {C_STRING_WITH_LEN("How many cycles has been done")}, FL},
-  {NULL, 0, MYSQL_TYPE_LONGLONG, {C_STRING_WITH_LEN("")}, 0}
+   {STRING_WITH_LEN("How many cycles has been done")}, FL},
+  {NULL, 0, MYSQL_TYPE_LONGLONG, {STRING_WITH_LEN("")}, 0}
 };
 
 #undef FL
@@ -194,11 +194,11 @@ bool check_sequence_fields(LEX *lex, List<Create_field> *fields)
   {
     Field_definition *field_def= &sequence_structure[field_no];
     if (my_strcasecmp(system_charset_info, field_def->field_name,
-                      field->field_name) ||
+                      field->field_name.str) ||
         field->flags != field_def->flags ||
         field->sql_type != field_def->sql_type)
     {
-      reason= field->field_name;
+      reason= field->field_name.str;
       goto err;
     }
   }
@@ -228,10 +228,13 @@ bool prepare_sequence_fields(THD *thd, List<Create_field> *fields)
   for (field_info= sequence_structure; field_info->field_name ; field_info++)
   {
     Create_field *new_field;
+    LEX_CSTRING field_name= {field_info->field_name,
+                             strlen(field_info->field_name)};
+
     if (unlikely(!(new_field= new Create_field())))
       DBUG_RETURN(TRUE); /* purify inspected */
 
-    new_field->field_name=  field_info->field_name;
+    new_field->field_name=  field_name;
     new_field->sql_type=    field_info->sql_type;
     new_field->length=      field_info->length;
     new_field->char_length= field_info->length;

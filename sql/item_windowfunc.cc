@@ -13,7 +13,7 @@ Item_window_func::resolve_window_name(THD *thd)
     return false;
   }
   DBUG_ASSERT(window_name != NULL && window_spec == NULL);
-  char *ref_name= window_name->str;
+  const char *ref_name= window_name->str;
 
   /* !TODO: Add the code to resolve ref_name in outer queries */ 
   /* 
@@ -26,7 +26,7 @@ Item_window_func::resolve_window_name(THD *thd)
   Window_spec *win_spec;
   while((win_spec= it++))
   {
-    char *win_spec_name= win_spec->name();
+    const char *win_spec_name= win_spec->name();
     if (win_spec_name &&
         my_strcasecmp(system_charset_info, ref_name, win_spec_name) == 0)
     {

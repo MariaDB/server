@@ -140,7 +140,7 @@ static bool check_fields(THD *thd, List<Item> &items)
     if (!(field= item->field_for_view_update()))
     {
       /* item has name, because it comes from VIEW SELECT list */
-      my_error(ER_NONUPDATEABLE_COLUMN, MYF(0), item->name);
+      my_error(ER_NONUPDATEABLE_COLUMN, MYF(0), item->name.str);
       return TRUE;
     }
     /*
@@ -1992,6 +1992,9 @@ loop_end:
     TABLE *tbl= table;
     do
     {
+      LEX_CSTRING field_name;
+      field_name.str= tbl->alias.c_ptr();
+      field_name.length= strlen(field_name.str);
       /*
         Signal each table (including tables referenced by WITH CHECK OPTION
         clause) for which we will store row position in the temporary table
@@ -2000,7 +2003,7 @@ loop_end:
       tbl->prepare_for_position();
 
       Field_string *field= new Field_string(tbl->file->ref_length, 0,
-                                            tbl->alias.c_ptr(),
+                                            &field_name,
                                             &my_charset_bin);
       if (!field)
         DBUG_RETURN(1);

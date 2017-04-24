@@ -288,7 +288,7 @@ public:
 	*/
 	my_bool register_query_cache_table(
 		THD*			thd,
-		char*			table_key,
+		const char*		table_key,
 		uint			key_length,
 		qc_engine_callback*	call_back,
 		ulonglong*		engine_data);

@@ -166,7 +166,7 @@ bool reload_acl_and_cache(THD *thd, unsigned long long options,
   if (options & REFRESH_RELAY_LOG)
   {
 #ifdef HAVE_REPLICATION
-    LEX_STRING connection_name;
+    LEX_CSTRING connection_name;
     Master_info *mi;
     if (thd)
       connection_name= thd->lex->relay_log_connection_name;

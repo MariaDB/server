@@ -4398,7 +4398,7 @@ static void print_partitioning_index(KEY_PART *parts, KEY_PART *parts_end)
   fprintf(DBUG_FILE, "partitioning INDEX(");
   for (KEY_PART *p=parts; p != parts_end; p++)
   {
-    fprintf(DBUG_FILE, "%s%s", p==parts?"":" ,", p->field->field_name);
+    fprintf(DBUG_FILE, "%s%s", p==parts?"":" ,", p->field->field_name.str);
   }
   fputs(");\n", DBUG_FILE);
   DBUG_UNLOCK_FILE;
@@ -4437,7 +4437,7 @@ static void dbug_print_segment_range(SEL_ARG *arg, KEY_PART *part)
       fputs(" <= ", DBUG_FILE);
   }
 
-  fprintf(DBUG_FILE, "%s", part->field->field_name);
+  fprintf(DBUG_FILE, "%s", part->field->field_name.str);
 
   if (!(arg->max_flag & NO_MAX_RANGE))
   {
@@ -4476,7 +4476,7 @@ static void dbug_print_singlepoint_range(SEL_ARG **start, uint num)
   for (SEL_ARG **arg= start; arg != end; arg++)
   {
     Field *field= (*arg)->field;
-    fprintf(DBUG_FILE, "%s%s=", (arg==start)?"":", ", field->field_name);
+    fprintf(DBUG_FILE, "%s%s=", (arg==start)?"":", ", field->field_name.str);
     dbug_print_field(field);
   }
   fputs("\n", DBUG_FILE);
