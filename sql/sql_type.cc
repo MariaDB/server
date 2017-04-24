@@ -1281,11 +1281,15 @@ Type_handler_olddecimal::make_table_field(const LEX_CSTRING *name,
   /*
     Currently make_table_field() is used for Item purpose only.
     On Item level we have type_handler_newdecimal only.
-    Will be implemented when we reuse Type_handler::make_table_field()
+    For now we have DBUG_ASSERT(0).
+    It will be removed when we reuse Type_handler::make_table_field()
     in make_field() in field.cc, to open old tables with old decimal.
   */
   DBUG_ASSERT(0);
-  return NULL;
+  return new (table->in_use->mem_root)
+         Field_decimal(addr.ptr, attr.max_length, addr.null_ptr, addr.null_bit,
+                       Field::NONE, name, attr.decimals,
+                       0/*zerofill*/,attr.unsigned_flag);
 }
 
 

@@ -6284,6 +6284,9 @@ Field *Item::tmp_table_field_from_field_type(TABLE *table)
   Record_addr addr(maybe_null);
 
   switch (handler->field_type()) {
+  case MYSQL_TYPE_DECIMAL:
+    handler= &type_handler_newdecimal;
+    break;
   case MYSQL_TYPE_NULL:
   case MYSQL_TYPE_STRING:
   case MYSQL_TYPE_ENUM:
