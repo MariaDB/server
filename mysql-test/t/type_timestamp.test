@@ -588,5 +588,21 @@ DROP TABLE t1;
 SET @@timestamp=DEFAULT;
 
 --echo #
+--echo # MDEV-12582 Wrong data type for CREATE..SELECT MAX(COALESCE(timestamp_column))
+--echo #
+
+CREATE TABLE t1 (a TIMESTAMP);
+CREATE TABLE t2 AS SELECT
+  MAX(a),
+  COALESCE(a),
+  COALESCE(MAX(a)),
+  MAX(COALESCE(a))
+FROM t1;
+SHOW CREATE TABLE t2;
+DROP TABLE t2;
+DROP TABLE t1;
+
+
+--echo #
 --echo # End of 10.3 tests
 --echo #

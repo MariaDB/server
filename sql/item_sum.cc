@@ -1202,51 +1202,15 @@ void Item_sum_hybrid::setup_hybrid(THD *thd, Item *item, Item *value_arg)
 
 Field *Item_sum_hybrid::create_tmp_field(bool group, TABLE *table)
 {
-  Field *field;
-  MEM_ROOT *mem_root;
-
   if (args[0]->type() == Item::FIELD_ITEM)
   {
-    field= ((Item_field*) args[0])->field;
+    Field *field= ((Item_field*) args[0])->field;
     if ((field= create_tmp_field_from_field(table->in_use, field, &name,
                                             table, NULL)))
       field->flags&= ~NOT_NULL_FLAG;
     return field;
   }
-
-  /*
-    DATE/TIME fields have STRING_RESULT result types.
-    In order to preserve field type, it's needed to handle DATE/TIME
-    fields creations separately.
-  */
-  mem_root= table->in_use->mem_root;
-  switch (args[0]->field_type()) {
-  case MYSQL_TYPE_DATE:
-  {
-    field= new (mem_root)
-      Field_newdate(0, maybe_null ? (uchar*)"" : 0, 0, Field::NONE,
-                    &name);
-    break;
-  }
-  case MYSQL_TYPE_TIME:
-  {
-    field= new_Field_time(mem_root, 0, maybe_null ? (uchar*)"" : 0, 0,
-                          Field::NONE, &name, decimals);
-    break;
-  }
-  case MYSQL_TYPE_TIMESTAMP:
-  case MYSQL_TYPE_DATETIME:
-  {
-    field= new_Field_datetime(mem_root, 0, maybe_null ? (uchar*)"" : 0, 0,
-                              Field::NONE, &name, decimals);
-    break;
-  }
-  default:
-    return Item_sum::create_tmp_field(group, table);
-  }
-  if (field)
-    field->init(table);
-  return field;
+  return Item_sum::create_tmp_field(group, table);
 }
 
 
