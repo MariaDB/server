@@ -7044,3 +7044,25 @@ bool LEX::sp_add_cfetch(THD *thd, const LEX_STRING &name)
     return true;
   return false;
 }
+
+
+bool SELECT_LEX::vers_push_field(THD *thd, TABLE_LIST *table, const char* field_name)
+{
+  char buf[MAX_FIELD_NAME];
+  Item_field *fld= new (thd->mem_root) Item_field(thd, &context,
+                                      table->db, table->alias, field_name);
+  if (!fld)
+    return true;
+
+  item_list.push_back(fld);
+
+  if (thd->lex->view_list.elements)
+  {
+    if (LEX_STRING *l= thd->make_lex_string(field_name, strlen(field_name)))
+      thd->lex->view_list.push_back(l);
+    else
+      return true;
+  }
+
+  return false;
+}

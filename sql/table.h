@@ -1512,31 +1512,32 @@ public:
 
   bool versioned() const
   {
+    DBUG_ASSERT(s);
     return s->versioned;
   }
 
   /* Versioned by SQL layer */
   bool versioned_by_sql() const
   {
-    DBUG_ASSERT(file);
+    DBUG_ASSERT(s && file);
     return s->versioned && !file->versioned();
   }
 
   bool versioned_by_engine() const
   {
-    DBUG_ASSERT(file);
+    DBUG_ASSERT(s && file);
     return s->versioned && file->versioned();
   }
 
   Field *vers_start_field() const
   {
-    DBUG_ASSERT(s->versioned);
+    DBUG_ASSERT(s && s->versioned);
     return field[s->row_start_field];
   }
 
   Field *vers_end_field() const
   {
-    DBUG_ASSERT(s->versioned);
+    DBUG_ASSERT(s && s->versioned);
     return field[s->row_end_field];
   }
 
@@ -1874,6 +1875,19 @@ struct vers_select_conds_t
   }
 
   bool init_from_sysvar(THD *thd);
+
+  bool operator== (vers_range_type_t b)
+  {
+    return type == b;
+  }
+  bool operator!= (vers_range_type_t b)
+  {
+    return type != b;
+  }
+  operator bool()
+  {
+    return type != FOR_SYSTEM_TIME_UNSPECIFIED;
+  }
 };
 
 struct LEX;

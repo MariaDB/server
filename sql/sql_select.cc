@@ -694,6 +694,7 @@ int vers_setup_select(THD *thd, TABLE_LIST *tables, COND **where_expr,
 
   TABLE_LIST *table;
   int versioned_tables= 0;
+  int slex_conds_used= 0;
   Query_arena *arena= 0, backup;
 
   if (!thd->stmt_arena->is_conventional() &&
@@ -707,7 +708,7 @@ int vers_setup_select(THD *thd, TABLE_LIST *tables, COND **where_expr,
   {
     if (table->table && table->table->versioned())
       versioned_tables++;
-    else if (table->vers_conditions.type != FOR_SYSTEM_TIME_UNSPECIFIED)
+    else if (table->vers_conditions)
     {
       my_error(ER_VERSIONING_REQUIRED, MYF(0), "`FOR SYSTEM_TIME` query");
       DBUG_RETURN(-1);
@@ -716,7 +717,7 @@ int vers_setup_select(THD *thd, TABLE_LIST *tables, COND **where_expr,
 
   if (versioned_tables == 0)
   {
-    if (slex->vers_conditions.type != FOR_SYSTEM_TIME_UNSPECIFIED)
+    if (slex->vers_conditions)
     {
       my_error(ER_VERSIONING_REQUIRED, MYF(0), "`FOR SYSTEM_TIME` query");
       DBUG_RETURN(-1);
@@ -775,17 +776,17 @@ int vers_setup_select(THD *thd, TABLE_LIST *tables, COND **where_expr,
   {
     if (table->table && table->table->versioned())
     {
-      vers_select_conds_t &vers_conditions=
-        table->vers_conditions.type == FOR_SYSTEM_TIME_UNSPECIFIED ?
-          slex->vers_conditions : table->vers_conditions;
+      vers_select_conds_t &vers_conditions= !table->vers_conditions?
+          (++slex_conds_used, slex->vers_conditions) :
+          table->vers_conditions;
 
-      if (vers_conditions.type == FOR_SYSTEM_TIME_UNSPECIFIED)
+      if (!vers_conditions)
       {
         if (vers_conditions.init_from_sysvar(thd))
           DBUG_RETURN(-1);
       }
 
-      if (vers_conditions.type != FOR_SYSTEM_TIME_UNSPECIFIED)
+      if (vers_conditions)
       {
         switch (slex->lock_type)
         {
@@ -804,9 +805,9 @@ int vers_setup_select(THD *thd, TABLE_LIST *tables, COND **where_expr,
           break;
         }
 
-        if (vers_conditions.type == FOR_SYSTEM_TIME_ALL)
+        if (vers_conditions == FOR_SYSTEM_TIME_ALL)
           continue;
-      }
+      } // if (vers_conditions)
 
       COND** dst_cond= where_expr;
       if (table->on_expr)
@@ -978,6 +979,12 @@ int vers_setup_select(THD *thd, TABLE_LIST *tables, COND **where_expr,
 
   if (arena)
     thd->restore_active_arena(arena, &backup);
+
+  if (!slex_conds_used && slex->vers_conditions)
+  {
+    my_error(ER_VERS_WRONG_QUERY, MYF(0), "unused `QUERY FOR SYSTEM_TIME` clause!");
+    DBUG_RETURN(-1);
+  }
 
   DBUG_RETURN(0);
 #undef newx
@@ -16985,8 +16992,8 @@ create_tmp_table(THD *thd, TMP_TABLE_PARAM *param, List<Item> &fields,
     sys_trx_end->flags|= VERS_SYS_END_FLAG | HIDDEN_FLAG;
     share->versioned= true;
     share->field= table->field;
-    share->row_start_field= field_count - 2;
-    share->row_end_field= field_count - 1;
+    share->row_start_field= sys_trx_start->field_index;
+    share->row_end_field= sys_trx_end->field_index;
   }
 
   DBUG_ASSERT(fieldnr == (uint) (reg_field - table->field));

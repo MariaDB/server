@@ -7535,5 +7535,14 @@ ER_VERS_NOT_ALLOWED
 ER_VERS_WRONG_QUERY_TYPE
         eng "%`s works only with %`s query type"
 
+ER_VERS_VIEW_PROHIBITED
+        eng "Creating VIEW %`s is prohibited!"
+
+ER_VERS_WRONG_QUERY
+        eng "Wrong versioned query: %s"
+
+WARN_VERS_ALIAS_TOO_LONG
+        eng "Auto generated alias for `%s.%s` is too long; using `%s`."
+
 ER_WRONG_TABLESPACE_NAME 42000
   eng "Incorrect tablespace name `%-.192s`"

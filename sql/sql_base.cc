@@ -7582,7 +7582,6 @@ insert_fields(THD *thd, Name_resolution_context *context, const char *db_name,
       if (!(item= field_iterator.create_item(thd)))
         DBUG_RETURN(TRUE);
 
-      /* This will be deprecated when HIDDEN feature will come to MariaDB. */
       if (item->type() == Item::FIELD_ITEM)
       {
         Item_field *f= static_cast<Item_field *>(item);
@@ -7597,8 +7596,8 @@ insert_fields(THD *thd, Name_resolution_context *context, const char *db_name,
           tl->vers_conditions.type == FOR_SYSTEM_TIME_UNSPECIFIED ?
             slex->vers_conditions.type : tl->vers_conditions.type;
 
-        if ((sys_field && vers_hide == VERS_HIDE_FULL &&
-            thd->lex->sql_command != SQLCOM_CREATE_TABLE) ||
+        if ((sys_field && (thd->lex->sql_command == SQLCOM_CREATE_VIEW ||
+            vers_hide == VERS_HIDE_FULL && thd->lex->sql_command != SQLCOM_CREATE_TABLE)) ||
           ((fl & HIDDEN_FLAG) && (
             !sys_field ||
             vers_hide == VERS_HIDE_IMPLICIT ||

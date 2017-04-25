@@ -12,7 +12,7 @@ delete from t1;
 set @vt1= concat("create view vt1 as select * from t1 for system_time as of timestamp '", @t1, "'");
 prepare stmt from @vt1; execute stmt; drop prepare stmt;
 
-set @vt2= concat("create view vt2 as select * from t1 for system_time as of timestamp '", @t2, "'");
+set @vt2= concat("create view vt2 as select *, sys_trx_end from t1 for system_time as of timestamp '", @t2, "'");
 prepare stmt from @vt2; execute stmt; drop prepare stmt;
 
 select * from vt1 for system_time all;
@@ -46,11 +46,6 @@ select * from vt1;
 select * from t1 for system_time all;
 select * from vt1 for system_time all;
 
---error ER_DUP_FIELDNAME
-create view error_view as select *, sys_trx_start from t1;
---error ER_DUP_FIELDNAME
-create view error_view as select *, sys_trx_end from t1;
-
 create or replace table t1 (x int) with system versioning;
 insert into t1 values (1), (2);
 set @t1=now(6);
@@ -61,20 +56,14 @@ set @t3=now(6);
 
 set @tmp= concat("create or replace view vt1 as select * from t1 for system_time as of timestamp '", @t1, "'");
 prepare stmt from @tmp; execute stmt; drop prepare stmt;
-set @tmp= concat("create or replace view vvt1 as select * from vt1 for system_time as of timestamp '", @t2, "'");
-prepare stmt from @tmp; execute stmt; drop prepare stmt;
-set @tmp= concat("create or replace view vvvt1 as select * from vvt1 for system_time as of timestamp '", @t3, "'");
-prepare stmt from @tmp; execute stmt; drop prepare stmt;
 
 select * from vt1 for system_time all;
-select * from vvt1 for system_time all;
-select * from vvvt1 for system_time all;
 
 create or replace table t1 (x int) with system versioning;
 create or replace view vt1(c) as select x from t1;
 
-create or replace table t1 (a int) with system versioning;
-create or replace table t2 (b int) with system versioning;
+create or replace table t1 (a int) with system versioning engine innodb;
+create or replace table t2 (b int) with system versioning engine innodb;
 insert into t1 values (1);
 insert into t2 values (2);
 create or replace view vt12 as select * from t1 cross join t2;
@@ -82,5 +71,21 @@ select * from vt12;
 create or replace view vt12 as select * from t1 for system_time as of timestamp '0-0-0' cross join t2;
 select * from vt12;
 
-drop view vt1, vvt1, vvvt1, vt12;
-drop table t1, t2;
+--error ER_VERS_VIEW_PROHIBITED
+create or replace view vt1 as select a, t1.sys_trx_start, t2.sys_trx_end from t1, t2;
+--error ER_VERS_VIEW_PROHIBITED
+create or replace view vt1 as select a, t1.sys_trx_end, t2.sys_trx_end from t1, t2;
+
+create or replace table t3 (x int);
+create or replace view vt1 as select * from t1, t2, t3;
+show create view vt1;
+create or replace view vt1 as select * from t3, t2, t1;
+show create view vt1;
+create or replace view vt1 as select a, t2.sys_trx_end as endo from t3, t1, t2;
+show create view vt1;
+
+--error ER_VERS_VIEW_PROHIBITED
+create or replace view vvt1 as select * from t1, t2, vt1;
+
+drop view vt1, vt12;
+drop table t1, t2, t3;

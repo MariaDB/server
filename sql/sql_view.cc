@@ -453,38 +453,125 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
     goto err;
   }
 
-  /* Implicitly add versioning fields if needed */
-  {
-    TABLE_LIST *tl = tables;
-    while (tl && tl->is_view())
-      tl = tl->view->select_lex.table_list.first;
-    if (tl && tl->table)
+  { /* System Versioning begin */
+    TABLE_LIST *impli_table= NULL, *expli_table= NULL;
+    const char *impli_start, *impli_end;
+    Item_field *expli_start= NULL, *expli_end= NULL;
+
+    for (TABLE_LIST *table= tables; table; table= table->next_local)
     {
-      TABLE_SHARE *s= tl->table->s;
-      if (s->versioned)
+      DBUG_ASSERT(!table->is_view() || table->view);
+
+      // Any versioned table in VIEW will add `FOR SYSTEM_TIME ALL` + WHERE:
+      // if there are at least one versioned table then VIEW will contain FOR_SYSTEM_TIME_ALL
+      // (because it is in fact LEX used to parse its SELECT).
+      if (table->is_view() && table->view->vers_conditions == FOR_SYSTEM_TIME_ALL)
       {
-        const char *start= s->vers_start_field()->field_name;
-        const char *end = s->vers_end_field()->field_name;
-
-        select_lex->item_list.push_back(new (thd->mem_root) Item_field(
-            thd, &select_lex->context, tables->db, tables->alias, start));
-        select_lex->item_list.push_back(new (thd->mem_root) Item_field(
-            thd, &select_lex->context, tables->db, tables->alias, end));
-
-        if (lex->view_list.elements)
-        {
-          if (LEX_STRING *s= thd->make_lex_string(start, strlen(start)))
-            lex->view_list.push_back(s);
-          else
-            goto err;
-          if (LEX_STRING *s= thd->make_lex_string(end, strlen(end)))
-            lex->view_list.push_back(s);
-          else
-            goto err;
-        }
+        my_printf_error(
+          ER_VERS_VIEW_PROHIBITED,
+          "Creating VIEW %`s is prohibited: versioned VIEW %`s in query!", MYF(0),
+          view->table_name,
+          table->table_name);
+        res= true;
+        goto err;
       }
-    }
-  }
+
+      if (!table->table || !table->table->versioned())
+        continue;
+
+      const char *table_start= table->table->vers_start_field()->field_name;
+      const char *table_end= table->table->vers_end_field()->field_name;
+
+      if (!impli_table)
+      {
+        impli_table= table;
+        impli_start= table_start;
+        impli_end= table_end;
+      }
+
+      /* Implicitly add versioning fields if needed */
+      Item *item;
+      List_iterator_fast<Item> it(select_lex->item_list);
+
+      DBUG_ASSERT(table->alias);
+      while ((item= it++))
+      {
+        if (item->real_item()->type() != Item::FIELD_ITEM)
+          continue;
+        Item_field *fld= (Item_field*) (item->real_item());
+        if (fld->table_name && 0 != my_strcasecmp(table_alias_charset, table->alias, fld->table_name))
+          continue;
+        DBUG_ASSERT(fld->field_name);
+        if (0 == my_strcasecmp(system_charset_info, table_start, fld->field_name))
+        {
+          if (expli_start)
+          {
+            my_printf_error(
+              ER_VERS_VIEW_PROHIBITED,
+              "Creating VIEW %`s is prohibited: multiple start system fields `%s.%s`, `%s.%s` in query!", MYF(0),
+              view->table_name,
+              expli_table->alias,
+              expli_start->field_name,
+              table->alias,
+              fld->field_name);
+            res= true;
+            goto err;
+          }
+          if (expli_table)
+          {
+            if (expli_table != table)
+            {
+expli_table_err:
+              my_printf_error(
+                ER_VERS_VIEW_PROHIBITED,
+                "Creating VIEW %`s is prohibited: system fields from multiple tables %`s, %`s in query!", MYF(0),
+                view->table_name,
+                expli_table->alias,
+                table->alias);
+              res= true;
+              goto err;
+            }
+          }
+          else
+            expli_table= table;
+          expli_start= fld;
+          impli_end= table_end;
+        }
+        else if (0 == my_strcasecmp(system_charset_info, table_end, fld->field_name))
+        {
+          if (expli_end)
+          {
+            my_printf_error(
+              ER_VERS_VIEW_PROHIBITED,
+              "Creating VIEW %`s is prohibited: multiple end system fields `%s.%s`, `%s.%s` in query!", MYF(0),
+              view->table_name,
+              expli_table->alias,
+              expli_end->field_name,
+              table->alias,
+              fld->field_name);
+            res= true;
+            goto err;
+          }
+          if (expli_table)
+          {
+            if (expli_table != table)
+              goto expli_table_err;
+          }
+          else
+            expli_table= table;
+          expli_end= fld;
+          impli_start= table_start;
+        }
+      } // while ((item= it++))
+    } // for (TABLE_LIST *table)
+
+    if (expli_table)
+      impli_table= expli_table;
+    if (!expli_start && select_lex->vers_push_field(thd, impli_table, impli_start))
+      goto err;
+    if (!expli_end && select_lex->vers_push_field(thd, impli_table, impli_end))
+      goto err;
+  } /* System Versioning end */
 
   view= lex->unlink_first_table(&link_to_local);
 
@@ -2071,8 +2158,8 @@ bool insert_view_fields(THD *thd, List<Item> *list, TABLE_LIST *view)
     {
       TABLE_SHARE *s= fld->context->table_list->table->s;
       if (s->versioned &&
-          (!strcmp(fld->name, s->vers_start_field()->field_name) ||
-           !strcmp(fld->name, s->vers_end_field()->field_name)))
+          (!strcmp(fld->field_name, s->vers_start_field()->field_name) ||
+           !strcmp(fld->field_name, s->vers_end_field()->field_name)))
         continue;
       list->push_back(fld, thd->mem_root);
     }

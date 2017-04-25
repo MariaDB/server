@@ -436,6 +436,8 @@ x	y
 1	1
 2	1
 3	1
+select * from t1 for system_time all, t2 for system_time all query for system_time all;
+ERROR HY000: Wrong versioned query: unused `QUERY FOR SYSTEM_TIME` clause!
 drop view v1;
 drop table t1, t2;
 call innodb_verify_vtq(27);

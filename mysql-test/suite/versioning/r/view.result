@@ -8,7 +8,7 @@ set @vt1= concat("create view vt1 as select * from t1 for system_time as of time
 prepare stmt from @vt1;
 execute stmt;
 drop prepare stmt;
-set @vt2= concat("create view vt2 as select * from t1 for system_time as of timestamp '", @t2, "'");
+set @vt2= concat("create view vt2 as select *, sys_trx_end from t1 for system_time as of timestamp '", @t2, "'");
 prepare stmt from @vt2;
 execute stmt;
 drop prepare stmt;
@@ -76,10 +76,6 @@ x
 select * from vt1 for system_time all;
 x
 3
-create view error_view as select *, sys_trx_start from t1;
-ERROR 42S21: Duplicate column name 'sys_trx_start'
-create view error_view as select *, sys_trx_end from t1;
-ERROR 42S21: Duplicate column name 'sys_trx_end'
 create or replace table t1 (x int) with system versioning;
 insert into t1 values (1), (2);
 set @t1=now(6);
@@ -91,27 +87,14 @@ set @tmp= concat("create or replace view vt1 as select * from t1 for system_time
 prepare stmt from @tmp;
 execute stmt;
 drop prepare stmt;
-set @tmp= concat("create or replace view vvt1 as select * from vt1 for system_time as of timestamp '", @t2, "'");
-prepare stmt from @tmp;
-execute stmt;
-drop prepare stmt;
-set @tmp= concat("create or replace view vvvt1 as select * from vvt1 for system_time as of timestamp '", @t3, "'");
-prepare stmt from @tmp;
-execute stmt;
-drop prepare stmt;
 select * from vt1 for system_time all;
 x
 1
 2
-select * from vvt1 for system_time all;
-x
-1
-select * from vvvt1 for system_time all;
-x
 create or replace table t1 (x int) with system versioning;
 create or replace view vt1(c) as select x from t1;
-create or replace table t1 (a int) with system versioning;
-create or replace table t2 (b int) with system versioning;
+create or replace table t1 (a int) with system versioning engine innodb;
+create or replace table t2 (b int) with system versioning engine innodb;
 insert into t1 values (1);
 insert into t2 values (2);
 create or replace view vt12 as select * from t1 cross join t2;
@@ -121,5 +104,24 @@ a	b
 create or replace view vt12 as select * from t1 for system_time as of timestamp '0-0-0' cross join t2;
 select * from vt12;
 a	b
-drop view vt1, vvt1, vvvt1, vt12;
-drop table t1, t2;
+create or replace view vt1 as select a, t1.sys_trx_start, t2.sys_trx_end from t1, t2;
+ERROR HY000: Creating VIEW `vt1` is prohibited: system fields from multiple tables `t1`, `t2` in query!
+create or replace view vt1 as select a, t1.sys_trx_end, t2.sys_trx_end from t1, t2;
+ERROR HY000: Creating VIEW `vt1` is prohibited: multiple end system fields `t1.sys_trx_end`, `t2.sys_trx_end` in query!
+create or replace table t3 (x int);
+create or replace view vt1 as select * from t1, t2, t3;
+show create view vt1;
+View	Create View	character_set_client	collation_connection
+vt1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `vt1` AS select `t1`.`a` AS `a`,`t2`.`b` AS `b`,`t3`.`x` AS `x`,`t1`.`sys_trx_start` AS `sys_trx_start`,`t1`.`sys_trx_end` AS `sys_trx_end` from ((`t1` FOR SYSTEM_TIME ALL join `t2` FOR SYSTEM_TIME ALL) join `t3`) where `t1`.`sys_trx_end` = 18446744073709551615 and `t2`.`sys_trx_end` = 18446744073709551615	latin1	latin1_swedish_ci
+create or replace view vt1 as select * from t3, t2, t1;
+show create view vt1;
+View	Create View	character_set_client	collation_connection
+vt1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `vt1` AS select `t3`.`x` AS `x`,`t2`.`b` AS `b`,`t1`.`a` AS `a`,`t2`.`sys_trx_start` AS `sys_trx_start`,`t2`.`sys_trx_end` AS `sys_trx_end` from ((`t3` join `t2` FOR SYSTEM_TIME ALL) join `t1` FOR SYSTEM_TIME ALL) where `t2`.`sys_trx_end` = 18446744073709551615 and `t1`.`sys_trx_end` = 18446744073709551615	latin1	latin1_swedish_ci
+create or replace view vt1 as select a, t2.sys_trx_end as endo from t3, t1, t2;
+show create view vt1;
+View	Create View	character_set_client	collation_connection
+vt1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `vt1` AS select `t1`.`a` AS `a`,`t2`.`sys_trx_end` AS `endo`,`t2`.`sys_trx_start` AS `sys_trx_start` from ((`t3` join `t1` FOR SYSTEM_TIME ALL) join `t2` FOR SYSTEM_TIME ALL) where `t1`.`sys_trx_end` = 18446744073709551615 and `t2`.`sys_trx_end` = 18446744073709551615	latin1	latin1_swedish_ci
+create or replace view vvt1 as select * from t1, t2, vt1;
+ERROR HY000: Creating VIEW `vvt1` is prohibited: versioned VIEW `vt1` in query!
+drop view vt1, vt12;
+drop table t1, t2, t3;

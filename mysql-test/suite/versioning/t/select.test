@@ -197,6 +197,9 @@ delete from t1 where x = 3;
 insert into t2 values (1);
 select * from t1, t2 query for system_time all;
 
+--error ER_VERS_WRONG_QUERY
+select * from t1 for system_time all, t2 for system_time all query for system_time all;
+
 drop view v1;
 drop table t1, t2;
 

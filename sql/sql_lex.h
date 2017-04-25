@@ -991,8 +991,9 @@ public:
   /* it is for correct printing SELECT options */
   thr_lock_type lock_type;
 
-  /* System Versioning conditions */
+  /* System Versioning */
   vers_select_conds_t vers_conditions;
+  bool vers_push_field(THD *thd, TABLE_LIST *table, const char* field_name);
 
   void init_query();
   void init_select();
