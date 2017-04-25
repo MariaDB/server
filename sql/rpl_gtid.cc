@@ -489,8 +489,12 @@ rpl_slave_state::select_gtid_pos_table(THD *thd, LEX_STRING *out_tablename)
   Ha_trx_info *ha_info= thd->transaction.all.ha_list;
   while (ha_info)
   {
-    void *trx_hton= ha_info->ht();
+    void *trx_hton;
     table_entry= list;
+
+    if (!ha_info->is_trx_read_write())
+      continue;
+    trx_hton= ha_info->ht();
     while (table_entry)
     {
       if (table_entry->table_hton == trx_hton)
