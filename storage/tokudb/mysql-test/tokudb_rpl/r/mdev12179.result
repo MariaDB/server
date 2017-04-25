@@ -1,5 +1,6 @@
 include/master-slave.inc
 [connection master]
+connection server_2;
 include/stop_slave.inc
 CHANGE MASTER TO master_use_gtid=slave_pos;
 SET sql_log_bin=0;
@@ -12,6 +13,7 @@ CREATE TABLE mysql.gtid_slave_pos_innodb_redundant LIKE mysql.gtid_slave_pos;
 ALTER TABLE mysql.gtid_slave_pos_innodb_redundant ENGINE=InnoDB;
 call mtr.add_suppression("Ignoring redundant table.*since.*has the same storage engine");
 include/start_slave.inc
+connection server_1;
 CREATE TABLE t1 (a INT PRIMARY KEY);
 CREATE TABLE t2 (a INT PRIMARY KEY) ENGINE=InnoDB;
 CREATE TABLE t3 (a INT PRIMARY KEY) ENGINE=TokuDB;
@@ -27,6 +29,7 @@ a
 SELECT * FROM t3 ORDER BY a;
 a
 1
+connection server_2;
 SELECT * FROM t1 ORDER BY a;
 a
 1
@@ -48,12 +51,14 @@ domain_id	sub_id	server_id	seq_no
 SELECT * FROM mysql.gtid_slave_pos_tokudb ORDER BY sub_id;
 domain_id	sub_id	server_id	seq_no
 0	6	1	6
+connection server_2;
 SET sql_log_bin=0;
 DROP TABLE mysql.gtid_slave_pos_innodb;
 DROP TABLE mysql.gtid_slave_pos_tokudb;
 DROP TABLE mysql.gtid_slave_pos_myisam_redundant;
 DROP TABLE mysql.gtid_slave_pos_innodb_redundant;
 SET sql_log_bin=1;
+connection server_1;
 DROP TABLE t1;
 DROP TABLE t2;
 DROP TABLE t3;
