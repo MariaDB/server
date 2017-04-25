@@ -255,6 +255,7 @@ ELSE()
   IF(WITH_WSREP)
     SET(WSREP_SCRIPTS
       wsrep_sst_mysqldump
+      wsrep_sst_common
       wsrep_sst_rsync
       wsrep_sst_xtrabackup
       wsrep_sst_xtrabackup-v2
