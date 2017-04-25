@@ -1381,9 +1381,13 @@ Field *Type_handler_timestamp2::make_table_field(const LEX_CSTRING *name,
                                                  TABLE *table) const
 
 {
-  return new (table->in_use->mem_root)
-         Field_timestampf(addr.ptr, addr.null_ptr, addr.null_bit,
-                          Field::NONE, name, table->s, attr.decimals);
+  /*
+    Will be changed to "new Field_timestampf" when we reuse
+    make_table_field() for make_field() purposes in field.cc.
+  */
+  return new_Field_timestamp(table->in_use->mem_root,
+                             addr.ptr, addr.null_ptr, addr.null_bit,
+                             Field::NONE, name, table->s, attr.decimals);
 }
 
 
@@ -1405,6 +1409,11 @@ Field *Type_handler_date::make_table_field(const LEX_CSTRING *name,
                                            TABLE *table) const
 
 {
+  /*
+    DBUG_ASSERT will be removed when we reuse make_table_field()
+    for make_field() in field.cc
+  */
+  DBUG_ASSERT(0);
   return new (table->in_use->mem_root)
          Field_date(addr.ptr, addr.null_ptr, addr.null_bit,
                     Field::NONE, name);
@@ -1430,9 +1439,13 @@ Field *Type_handler_time2::make_table_field(const LEX_CSTRING *name,
 
 
 {
-  return new (table->in_use->mem_root)
-         Field_timef(addr.ptr, addr.null_ptr, addr.null_bit,
-                     Field::NONE, name, attr.decimals);
+  /*
+    Will be changed to "new Field_timef" when we reuse
+    make_table_field() for make_field() purposes in field.cc.
+  */
+  return new_Field_time(table->in_use->mem_root,
+                        addr.ptr, addr.null_ptr, addr.null_bit,
+                        Field::NONE, name, attr.decimals);
 }
 
 
@@ -1453,9 +1466,13 @@ Field *Type_handler_datetime2::make_table_field(const LEX_CSTRING *name,
                                                 const Type_all_attributes &attr,
                                                 TABLE *table) const
 {
-  return new (table->in_use->mem_root)
-         Field_datetimef(addr.ptr, addr.null_ptr, addr.null_bit,
-                         Field::NONE, name, attr.decimals);
+  /*
+    Will be changed to "new Field_datetimef" when we reuse
+    make_table_field() for make_field() purposes in field.cc.
+  */
+  return new_Field_datetime(table->in_use->mem_root,
+                            addr.ptr, addr.null_ptr, addr.null_bit,
+                            Field::NONE, name, attr.decimals);
 }
 
 
