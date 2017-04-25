@@ -403,10 +403,6 @@ byte, therefore 128; each slot is currently 8 bytes in size. If you want
 to raise the level to 256 then you will need to fix some assertions that
 impose the 7 bit restriction. e.g., mach_write_to_3() */
 #define	TRX_SYS_N_RSEGS			128
-/* Originally, InnoDB defined TRX_SYS_N_RSEGS as 256 but created only one
-rollback segment.  It initialized some arrays with this number of entries.
-We must remember this limit in order to keep file compatibility. */
-#define TRX_SYS_OLD_N_RSEGS		256
 
 /** Maximum length of MySQL binlog file name, in bytes. */
 #define TRX_SYS_MYSQL_LOG_NAME_LEN	512
