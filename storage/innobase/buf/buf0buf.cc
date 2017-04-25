@@ -83,6 +83,10 @@ Created 11/5/1995 Heikki Tuuri
 #include "lzo/lzo1x.h"
 #endif
 
+#ifdef HAVE_MADVISE
+#include <sys/mman.h>
+#endif
+
 #ifdef HAVE_LIBNUMA
 #include <numa.h>
 #include <numaif.h>
@@ -1595,6 +1599,13 @@ buf_chunk_init(
 
 		return(NULL);
 	}
+#if defined(HAVE_MADVISE) && defined(MADV_DONTDUMP)
+	if (madvise(chunk->mem, chunk->mem_pfx.m_size, MADV_DONTDUMP))
+	{
+		ib::warn() << "Failed to set memory to DONTDUMP: "
+							 << strerror(errno);
+	}
+#endif
 
 #ifdef HAVE_LIBNUMA
 	if (srv_numa_interleave) {
@@ -1611,7 +1622,6 @@ buf_chunk_init(
 		}
 	}
 #endif /* HAVE_LIBNUMA */
-
 
 	/* Allocate the block descriptors from
 	the start of the memory block. */
@@ -1880,6 +1890,13 @@ buf_pool_init_instance(
 							&block->debug_latch));
 					}
 
+#if defined(HAVE_MADVISE) && defined(MADV_DODUMP)
+					if (madvise(chunk->mem, chunk->mem_pfx.m_size, MADV_DODUMP))
+					{
+						ib::warn() << "Failed to set memory to DODUMP: "
+											 << strerror(errno);
+					}
+#endif
 					buf_pool->allocator.deallocate_large(
 						chunk->mem, &chunk->mem_pfx);
 				}
@@ -2027,6 +2044,13 @@ buf_pool_free_instance(
 			ut_d(rw_lock_free(&block->debug_latch));
 		}
 
+#if defined(HAVE_MADVISE) && defined(MADV_DODUMP)
+		if (madvise(chunk->mem, chunk->mem_pfx.m_size, MADV_DODUMP))
+		{
+			ib::warn() << "Failed to set memory to DODUMP: "
+								 << strerror(errno);
+		}
+#endif
 		buf_pool->allocator.deallocate_large(
 			chunk->mem, &chunk->mem_pfx);
 	}
@@ -2905,6 +2929,13 @@ withdraw_retry:
 						&block->debug_latch));
 				}
 
+#if defined(HAVE_MADVISE) && defined(MADV_DODUMP)
+				if (madvise(chunk->mem, chunk->mem_pfx.m_size, MADV_DODUMP))
+				{
+					ib::warn() << "Failed to set memory to DODUMP: "
+										 << strerror(errno);
+				}
+#endif
 				buf_pool->allocator.deallocate_large(
 					chunk->mem, &chunk->mem_pfx);
 
