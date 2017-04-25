@@ -35,9 +35,9 @@
 /***********************************************************************/
 /*  CONDFIL Constructor.                                               */
 /***********************************************************************/
-CONDFIL::CONDFIL(const Item *cond, uint idx, AMT type)
+CONDFIL::CONDFIL(uint idx, AMT type)
 {
-	Cond = cond; 
+//Cond = cond; 
 	Idx = idx; 
 	Type = type;
 	Op = OP_XX;

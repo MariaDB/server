@@ -558,6 +558,38 @@ bool VALUE::Compute(PGLOBAL g, PVAL *, int, OPVAL)
   return true;
   } // end of Compute
 
+/***********************************************************************/
+/*  Make file output of an object value.                               */
+/***********************************************************************/
+void VALUE::Print(PGLOBAL g, FILE *f, uint n)
+{
+	char m[64], buf[64];
+
+	memset(m, ' ', n);                             /* Make margin string */
+	m[n] = '\0';
+
+	if (Null)
+		fprintf(f, "%s<null>\n", m);
+	else
+		fprintf(f, strcat(strcat(GetCharString(buf), "\n"), m));
+
+} /* end of Print */
+
+/***********************************************************************/
+/*  Make string output of an object value.                             */
+/***********************************************************************/
+void VALUE::Print(PGLOBAL g, char *ps, uint z)
+{
+	char *p, buf[64];
+
+	if (Null)
+		p = strcpy(buf, "<null>");
+	else
+		p = GetCharString(buf);
+
+  strncpy(ps, p, z);
+} // end of Print
+
 /* -------------------------- Class TYPVAL ---------------------------- */
 
 /***********************************************************************/
@@ -1192,37 +1224,6 @@ bool TYPVAL<TYPE>::SetConstFormat(PGLOBAL g, FORMAT& fmt)
   return false;
   } // end of SetConstFormat
 
-/***********************************************************************/
-/*  Make file output of a typed object.                                */
-/***********************************************************************/
-template <class TYPE>
-void TYPVAL<TYPE>::Print(PGLOBAL g, FILE *f, uint n)
-  {
-  char m[64], buf[12];
-
-  memset(m, ' ', n);                             /* Make margin string */
-  m[n] = '\0';
-
-  if (Null)
-    fprintf(f, "%s<null>\n", m);
-  else
-    fprintf(f, strcat(strcat(strcpy(buf, "%s"), Fmt), "\n"), m, Tval);
-
-  } /* end of Print */
-
-/***********************************************************************/
-/*  Make string output of a int object.                                */
-/***********************************************************************/
-template <class TYPE>
-void TYPVAL<TYPE>::Print(PGLOBAL g, char *ps, uint z)
-  {
-  if (Null)
-    strcpy(ps, "<null>");
-  else
-    sprintf(ps, Fmt, Tval);
-
-  } /* end of Print */
-
 /* -------------------------- Class STRING --------------------------- */
 
 /***********************************************************************/
@@ -1707,6 +1708,18 @@ bool TYPVAL<PSZ>::SetConstFormat(PGLOBAL, FORMAT& fmt)
   fmt.Prec = 0;
   return false;
   } // end of SetConstFormat
+
+/***********************************************************************/
+/*  Make string output of an object value.                             */
+/***********************************************************************/
+void TYPVAL<PSZ>::Print(PGLOBAL g, char *ps, uint z)
+{
+	if (Null)
+		strncpy(ps, "null", z);
+	else
+		strcat(strncat(strncpy(ps, "\"", z), Strp, z-2), "\"");
+
+} // end of Print
 
 /* -------------------------- Class DECIMAL -------------------------- */
 

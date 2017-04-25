@@ -211,6 +211,9 @@ PQRYRES OEMColumns(PGLOBAL g, PTOS topt, char *tab, char *db, bool info);
 PQRYRES VirColumns(PGLOBAL g, bool info);
 PQRYRES JSONColumns(PGLOBAL g, char *db, char *dsn, PTOS topt, bool info);
 PQRYRES XMLColumns(PGLOBAL g, char *db, char *tab, PTOS topt, bool info);
+#if defined(MONGO_SUPPORT)
+PQRYRES MGOColumns(PGLOBAL g, char *db, char *dsn, PTOS topt, bool info);
+#endif   // MONGO_SUPPORT
 int     TranslateJDBCType(int stp, char *tn, int prec, int& len, char& v);
 void    PushWarning(PGLOBAL g, THD *thd, int level);
 bool    CheckSelf(PGLOBAL g, TABLE_SHARE *s, const char *host,
@@ -3072,11 +3075,11 @@ const COND *ha_connect::cond_push(const COND *cond)
 				PCFIL filp;
 				int   rc;
 
-				if ((filp = tdbp->GetCondFil()) && filp->Cond == cond &&
+				if ((filp = tdbp->GetCondFil()) && tdbp->GetCond() == cond &&
 					filp->Idx == active_index && filp->Type == tty)
 					goto fin;
 
-				filp = new(g) CONDFIL(cond, active_index, tty);
+				filp = new(g) CONDFIL(active_index, tty);
 				rc = filp->Init(g, this);
 
 				if (rc == RC_INFO) {
@@ -3095,6 +3098,8 @@ const COND *ha_connect::cond_push(const COND *cond)
 					if (trace)
 						htrc("cond_push: %s\n", filp->Body);
 
+					tdbp->SetCond(cond);
+
 					if (!x)
 						PlugSubAlloc(g, NULL, strlen(filp->Body) + 1);
 					else
@@ -3104,8 +3109,16 @@ const COND *ha_connect::cond_push(const COND *cond)
 				} else if (x && cond)
 					tdbp->SetCondFil(filp);   // Wrong filter
 
-			} else if (tty != TYPE_AM_JSN && tty != TYPE_AM_JSON)
-				tdbp->SetFilter(CondFilter(g, (Item *)cond));
+			} else if (tty != TYPE_AM_JSN && tty != TYPE_AM_JSON) {
+				if (!tdbp->GetCond() || tdbp->GetCond() != cond) {
+					tdbp->SetFilter(CondFilter(g, (Item *)cond));
+
+					if (tdbp->GetFilter())
+					  tdbp->SetCond(cond);
+
+			  } // endif cond
+
+			}	// endif tty
 
 		} catch (int n) {
 			if (trace)
@@ -5545,6 +5558,17 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 					ok = true;
 
 				break;
+#if defined(MONGO_SUPPORT)
+			case TAB_MONGO:
+				dsn = strz(g, create_info->connect_string);
+
+				if (!dsn)
+					strcpy(g->Message, "Missing URI");
+				else
+					ok = true;
+
+				break;
+#endif   // MONGO_SUPPORT
 			case TAB_VIR:
 				ok = true;
 				break;
@@ -5688,6 +5712,11 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 				case TAB_JSON:
 					qrp = JSONColumns(g, (char*)db, dsn, topt, fnc == FNC_COL);
 					break;
+#if defined(MONGO_SUPPORT)
+				case TAB_MONGO:
+					qrp = MGOColumns(g, (char*)db, dsn, topt, fnc == FNC_COL);
+					break;
+#endif   // MONGO_SUPPORT
 #if defined(LIBXML2_SUPPORT) || defined(DOMDOC_SUPPORT)
 				case TAB_XML:
 					qrp = XMLColumns(g, (char*)db, tab, topt, fnc == FNC_COL);

@@ -38,6 +38,10 @@
 //#include "token.h"
 //#include "select.h"
 #include "xindex.h"
+#if defined(MONGO_SUPPORT)
+#include "tabext.h"
+#include "tabmgo.h"
+#endif   // MONGO_SUPPORT
 
 /***********************************************************************/
 /*  Utility routines.                                                  */
@@ -1404,6 +1408,88 @@ PFIL FILTER::Copy(PTABS t)
   return newfilchain;
   } // end of Copy
 #endif // 0
+
+/***********************************************************************/
+/*  Make selector json representation for Mongo tables.                */
+/***********************************************************************/
+#if defined(MONGO_SUPPORT)
+bool FILTER::MakeSelector(PGLOBAL g, PSTRG s)
+{
+	s->Append('{');
+
+	if (Opc == OP_AND || Opc == OP_OR) {
+		if (GetArgType(0) != TYPE_FILTER || GetArgType(1) != TYPE_FILTER)
+			return true;
+
+		s->Append("\"$");
+		s->Append(Opc == OP_AND ? "and" : "or");
+		s->Append("\":[");
+
+		if (((PFIL)Arg(0))->MakeSelector(g, s))
+			return true;
+
+		s->Append(',');
+
+		if (((PFIL)Arg(1))->MakeSelector(g, s))
+			return true;
+
+		s->Append(']');
+	} else {
+		char buf[501];
+
+		if (GetArgType(0) != TYPE_COLBLK)
+			return true;
+
+		s->Append('"');
+		s->Append(((PMGOCOL)Arg(0))->Jpath);
+		s->Append("\":{\"$");
+
+		switch (Opc) {
+			case OP_EQ:
+				s->Append("eq");
+				break;
+			case OP_NE:
+				s->Append("ne");
+				break;
+			case OP_GT:
+				s->Append("gt");
+				break;
+			case OP_GE:
+				s->Append("gte");
+				break;
+			case OP_LT:
+				s->Append("lt");
+				break;
+			case OP_LE:
+				s->Append("lte");
+				break;
+				//case OP_NULL:
+				//	s->Append("ne");
+				//	break;
+				//case OP_LIKE:
+				//	s->Append("ne");
+				//	break;
+				//case OP_EXIST:
+				//	s->Append("ne");
+				//	break;
+			default:
+				return true;
+		} // endswitch Opc
+
+		s->Append("\":");
+
+		if (GetArgType(1) == TYPE_COLBLK)
+			return true;
+
+		Arg(1)->Print(g, buf, 500);
+		s->Append(buf);
+		s->Append('}');
+	} // endif Opc
+
+	s->Append('}');
+	return false;
+} // end of MakeSelector
+#endif   // MONGO_SUPPORT
 
 /*********************************************************************/
 /*  Make file output of FILTER contents.                             */

@@ -19,6 +19,48 @@
 typedef class MGODEF *PMGODEF;
 typedef class TDBMGO *PTDBMGO;
 typedef class MGOCOL *PMGOCOL;
+typedef class INCOL  *PINCOL;
+
+typedef struct _bncol {
+	struct _bncol *Next;
+	char *Name;
+	char *Fmt;
+	int   Type;
+	int   Len;
+	int   Scale;
+	bool  Cbn;
+	bool  Found;
+} BCOL, *PBCOL;
+
+typedef struct KEYCOL {
+	KEYCOL *Next;
+	PINCOL  Incolp;
+	PCOL    Colp;
+	char   *Key;
+} *PKC;
+
+/***********************************************************************/
+/*  Class used to get the columns of a mongo collection.               */
+/***********************************************************************/
+class MGODISC : public BLOCK {
+public:
+	// Constructor
+	MGODISC(PGLOBAL g, int *lg);
+
+	// Functions
+	int  GetColumns(PGLOBAL g, char *db, char *dsn, PTOS topt);
+	bool FindInDoc(PGLOBAL g, bson_iter_t *iter, const bson_t *doc,
+		             char *pcn, char *pfmt, int i, int k, bool b);
+
+	// Members
+	BCOL    bcol;
+	PBCOL   bcp, fbcp, pbcp;
+	PMGODEF tdp;
+	TDBMGO *tmgp;
+	int    *length;
+	int     n, k, lvl;
+	bool    all;
+}; // end of MGODISC
 
 /***********************************************************************/
 /*  MongoDB table.                                                     */
@@ -26,6 +68,8 @@ typedef class MGOCOL *PMGOCOL;
 class DllExport MGODEF : public EXTDEF {          /* Table description */
 	friend class TDBMGO;
 	friend class MGOFAM;
+	friend class MGODISC;
+	friend PQRYRES MGOColumns(PGLOBAL, char *, char *, PTOS, bool);
 public:
 	// Constructor
 	MGODEF(void);
@@ -44,9 +88,26 @@ protected:
 	char *Filter;									/* Filtering query                     */						
 	int   Level;                  /* Used for catalog table              */
 	int   Base;                   /* The array index base                */
+	bool  Pipe;                   /* True is Colist is a pipeline        */
 }; // end of MGODEF
 
-/* -------------------------- TDBMGO class --------------------------- */
+/* ------------------------- TDBMGO classes -------------------------- */
+
+/***********************************************************************/
+/*  Used when inserting values in a MongoDB collection.                */
+/***********************************************************************/
+class INCOL : public BLOCK {
+public:
+	// Constructor
+	INCOL(void) { Klist = NULL; }
+
+	// Methods
+	void AddCol(PGLOBAL g, PCOL colp, char *jp);
+
+	//Members
+	bson_t Child;
+	PKC    Klist;
+}; // end of INCOL;
 
 /***********************************************************************/
 /*  This is the MongoDB Access Method class declaration.               */
@@ -55,6 +116,8 @@ protected:
 class DllExport TDBMGO : public TDBEXT {
 	friend class MGOCOL;
 	friend class MGODEF;
+	friend class MGODISC;
+	friend PQRYRES MGOColumns(PGLOBAL, char *, char *, PTOS, bool);
 public:
 	// Constructor
 	TDBMGO(PMGODEF tdp);
@@ -83,6 +146,8 @@ public:
 protected:
 	bool  Init(PGLOBAL g);
 	void  ShowDocument(bson_iter_t *i, const bson_t *b, const char *k);
+	void  MakeColumnGroups(PGLOBAL g);
+	bool  DocWrite(PGLOBAL g, PINCOL icp);
 
 	// Members
 	mongoc_uri_t         *Uri;
@@ -95,6 +160,7 @@ protected:
 	bson_t               *Query;			// MongoDB cursor filter
 	bson_t               *Opts;			  // MongoDB cursor options
 	bson_error_t          Error;
+	PINCOL                Fpc;				// To insert INCOL classes
 	const char           *Uristr;
 	const char           *Db_name;
 	const char           *Coll_name;
@@ -104,6 +170,7 @@ protected:
 	int                   N;          // The current Rownum
 	int                   B;          // Array index base
 	bool                  Done;			  // Init done
+	bool                  Pipe;			  // True for pipeline
 }; // end of class TDBMGO
 
 /* --------------------------- MGOCOL class -------------------------- */
@@ -113,6 +180,7 @@ protected:
 /***********************************************************************/
 class DllExport MGOCOL : public EXTCOL {
 	friend class TDBMGO;
+	friend class FILTER;
 public:
 	// Constructors
 	MGOCOL(PGLOBAL g, PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i);
@@ -122,19 +190,22 @@ public:
 	virtual int  GetAmType(void) { return Tmgp->GetAmType(); }
 
 	// Methods
-	virtual bool SetBuffer(PGLOBAL g, PVAL value, bool ok, bool check);
+//virtual bool SetBuffer(PGLOBAL g, PVAL value, bool ok, bool check);
 	virtual void ReadColumn(PGLOBAL g);
 	virtual void WriteColumn(PGLOBAL g);
+	        bool AddValue(PGLOBAL g, bson_t *doc, char *key, bool upd);
 
 protected:
 	// Default constructor not to be used
 	MGOCOL(void) {}
+	char *Mini(PGLOBAL g, const bson_t *bson, bool b);
 
 	// Members
 	TDBMGO *Tmgp;                 // To the MGO table block
 	bson_iter_t Iter;						  // Used to retrieve column value
 	bson_iter_t Desc;						  // Descendant iter
 	char   *Jpath;                // The json path
+	char   *Mbuf;									// The Mini buffer
 }; // end of class MGOCOL
 
 #if 0

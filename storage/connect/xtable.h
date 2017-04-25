@@ -33,29 +33,6 @@ class CMD : public BLOCK {
   char *Cmd;
 }; // end of class CMD
 
-#if 0
-// Condition filter structure
-class CONDFIL : public BLOCK {
- public:
-	// Constructor
-	CONDFIL(const Item *cond, uint idx, AMT type) 
-	{
-		Cond = cond; Idx = idx; Type = type; Op = OP_XX; 
-		Cmds = NULL; All = true; Body = NULL, Having = NULL;
-	}
-
-	// Members
-	const Item *Cond;
-	AMT   Type;
-	uint  Idx;
-  OPVAL Op;
-  PCMD  Cmds;
-	bool  All;
-	char *Body;
-	char *Having;
-}; // end of class CONDFIL
-#endif // 0
-
 typedef class EXTCOL *PEXTCOL;
 typedef class CONDFIL *PCFIL;
 typedef class TDBCAT *PTDBCAT;
@@ -94,6 +71,8 @@ class DllExport TDB: public BLOCK {     // Table Descriptor Block.
 	inline  void    SetColumns(PCOL colp) {Columns = colp;}
 	inline  void    SetDegree(int degree) {Degree = degree;}
 	inline  void    SetMode(MODE mode) {Mode = mode;}
+	inline  const	Item *GetCond(void) {return Cond;}
+	inline  void    SetCond(const Item *cond) {Cond = cond;}
 
   // Properties
   virtual AMT     GetAmType(void) {return TYPE_AM_ERROR;}
@@ -157,6 +136,7 @@ class DllExport TDB: public BLOCK {     // Table Descriptor Block.
 	TUSE    Use;
 	PFIL    To_Filter;
 	PCFIL   To_CondFil;   // To condition filter structure
+	const Item *Cond;			// The condition used to make filters
 	static  int Tnum;     // Used to generate Tdb_no's
 	const   int Tdb_No;   // GetTdb_No() is always 0 for OPJOIN
 	PTDB    Next;         // Next in linearized queries
