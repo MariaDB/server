@@ -486,15 +486,15 @@ rpl_slave_state::select_gtid_pos_table(THD *thd, LEX_STRING *out_tablename)
   */
   list= my_atomic_loadptr_explicit(&gtid_pos_tables, MY_MEMORY_ORDER_ACQUIRE);
 
-  Ha_trx_info *ha_info= thd->transaction.all.ha_list;
-  while (ha_info)
+  Ha_trx_info *ha_info;
+  uint count = 0;
+  for (ha_info= thd->transaction.all.ha_list; ha_info; ha_info= ha_info->next())
   {
-    void *trx_hton;
+    void *trx_hton= ha_info->ht();
     table_entry= list;
 
-    if (!ha_info->is_trx_read_write())
+    if (!ha_info->is_trx_read_write() || trx_hton == binlog_hton)
       continue;
-    trx_hton= ha_info->ht();
     while (table_entry)
     {
       if (table_entry->table_hton == trx_hton)
@@ -502,6 +502,26 @@ rpl_slave_state::select_gtid_pos_table(THD *thd, LEX_STRING *out_tablename)
         if (likely(table_entry->state == GTID_POS_AVAILABLE))
         {
           *out_tablename= table_entry->table_name;
+          /*
+            Check if this is a cross-engine transaction, so we can correctly
+            maintain the rpl_transactions_multi_engine status variable.
+          */
+          if (count >= 1)
+            statistic_increment(rpl_transactions_multi_engine, LOCK_status);
+          else
+          {
+            for (;;)
+            {
+              ha_info= ha_info->next();
+              if (!ha_info)
+                break;
+              if (ha_info->is_trx_read_write() && ha_info->ht() != binlog_hton)
+              {
+                statistic_increment(rpl_transactions_multi_engine, LOCK_status);
+                break;
+              }
+            }
+          }
           return;
         }
         /*
@@ -516,7 +536,7 @@ rpl_slave_state::select_gtid_pos_table(THD *thd, LEX_STRING *out_tablename)
       }
       table_entry= table_entry->next;
     }
-    ha_info= ha_info->next();
+    ++count;
   }
   /*
     If we cannot find any table whose engine matches an engine that is
@@ -526,6 +546,13 @@ rpl_slave_state::select_gtid_pos_table(THD *thd, LEX_STRING *out_tablename)
   default_entry= my_atomic_loadptr_explicit(&default_gtid_pos_table,
                                             MY_MEMORY_ORDER_ACQUIRE);
   *out_tablename= default_entry->table_name;
+  /* Record in status that we failed to find a suitable gtid_pos table. */
+  if (count > 0)
+  {
+    statistic_increment(transactions_gtid_foreign_engine, LOCK_status);
+    if (count > 1)
+      statistic_increment(rpl_transactions_multi_engine, LOCK_status);
+  }
 }
 
 

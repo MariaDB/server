@@ -527,6 +527,9 @@ ulong max_connections, max_connect_errors;
 ulong extra_max_connections;
 uint max_digest_length= 0;
 ulong slave_retried_transactions;
+ulong transactions_multi_engine;
+ulong rpl_transactions_multi_engine;
+ulong transactions_gtid_foreign_engine;
 ulonglong slave_skipped_errors;
 ulong feature_files_opened_with_delayed_keys= 0, feature_check_constraint= 0;
 ulonglong denied_connections;
@@ -8564,6 +8567,9 @@ SHOW_VAR status_vars[]= {
   {"Threads_connected",        (char*) &connection_count,       SHOW_INT},
   {"Threads_created",	       (char*) &thread_created,		SHOW_LONG_NOFLUSH},
   {"Threads_running",          (char*) &thread_running,         SHOW_INT},
+  {"Transactions_multi_engine", (char*) &transactions_multi_engine, SHOW_LONG},
+  {"Rpl_transactions_multi_engine", (char*) &rpl_transactions_multi_engine, SHOW_LONG},
+  {"Transactions_gtid_foreign_engine", (char*) &transactions_gtid_foreign_engine, SHOW_LONG},
   {"Update_scan",	       (char*) offsetof(STATUS_VAR, update_scan_count), SHOW_LONG_STATUS},
   {"Uptime",                   (char*) &show_starttime,         SHOW_SIMPLE_FUNC},
 #ifdef ENABLED_PROFILING
@@ -8807,6 +8813,9 @@ static int mysql_init_variables(void)
   report_user= report_password = report_host= 0;	/* TO BE DELETED */
   opt_relay_logname= opt_relaylog_index_name= 0;
   slave_retried_transactions= 0;
+  transactions_multi_engine= 0;
+  rpl_transactions_multi_engine= 0;
+  transactions_gtid_foreign_engine= 0;
   log_bin_basename= NULL;
   log_bin_index= NULL;
 
