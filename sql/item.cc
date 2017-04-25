@@ -5841,26 +5841,6 @@ error:
 }
 
 
-const Type_handler *Item_field::real_type_handler() const
-{
-  /*
-    Item_field::field_type ask Field_type() but sometimes field return
-    a different type, like for enum/set, so we need to ask real type.
-  */
-  if (field->is_created_from_null_item)
-    return &type_handler_null;
-  /* work around about varchar type field detection */
-  enum_field_types type= field->real_type();
-  // TODO: We should add Field::real_type_handler() eventually
-  if (type == MYSQL_TYPE_STRING && field->type() == MYSQL_TYPE_VAR_STRING)
-    type= MYSQL_TYPE_VAR_STRING;
-  else if (type == MYSQL_TYPE_BLOB)
-    return field->type_handler();
-  return Type_handler::get_handler_by_real_type(type);
-
-}
-
-
 /*
   @brief
   Mark virtual columns as used in a partitioning expression 

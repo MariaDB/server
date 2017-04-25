@@ -2640,6 +2640,11 @@ public:
   table_map all_used_tables() const; 
   const Type_handler *type_handler() const
   {
+    const Type_handler *handler= field->type_handler();
+    // This special code for ENUM and SET should eventually be removed
+    if (handler == &type_handler_enum ||
+        handler == &type_handler_set)
+      return &type_handler_string;
     return field->type_handler();
   }
   enum Item_result result_type () const
@@ -2648,13 +2653,18 @@ public:
   }
   const Type_handler *cast_to_int_type_handler() const
   {
-    return field->cast_to_int_type_handler();
+    return field->type_handler()->cast_to_int_type_handler();
   }
   enum_field_types field_type() const
   {
     return field->type();
   }
-  const Type_handler *real_type_handler() const;
+  const Type_handler *real_type_handler() const
+  {
+    if (field->is_created_from_null_item)
+      return &type_handler_null;
+    return field->type_handler();
+  }
   enum_monotonicity_info get_monotonicity_info() const
   {
     return MONOTONIC_STRICT_INCREASING;
@@ -5859,8 +5869,6 @@ public:
   { return Type_handler_hybrid_field_type::type_handler(); }
   enum_field_types field_type() const
   { return Type_handler_hybrid_field_type::field_type(); }
-  enum_field_types real_field_type() const
-  { return Type_handler_hybrid_field_type::real_field_type(); }
   enum Item_result result_type () const
   {
     /*

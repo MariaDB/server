@@ -1256,14 +1256,14 @@ bool Field::can_optimize_group_min_max(const Item_bool_func *cond,
 
 
 /*
-  This covers all numeric types, ENUM, SET, BIT
+  This covers all numeric types, BIT
 */
 bool Field::can_optimize_range(const Item_bool_func *cond,
                                const Item *item,
                                bool is_eq_func) const
 {
   DBUG_ASSERT(cmp_type() != TIME_RESULT);   // Handled in Field_temporal
-  DBUG_ASSERT(cmp_type() != STRING_RESULT); // Handled in Field_longstr
+  DBUG_ASSERT(cmp_type() != STRING_RESULT); // Handled in Field_str descendants
   return item->cmp_type() != TIME_RESULT;
 }
 
@@ -8577,12 +8577,16 @@ int Field_enum::store(const char *from,uint length,CHARSET_INFO *cs)
       {
 	tmp=0;
 	set_warning(WARN_DATA_TRUNCATED, 1);
+	err= 1;
       }
-      if (!get_thd()->count_cuted_fields)
+      if (!get_thd()->count_cuted_fields && !length)
         err= 0;
     }
     else
+    {
       set_warning(WARN_DATA_TRUNCATED, 1);
+      err= 1;
+    }
   }
   store_type((ulonglong) tmp);
   return err;
@@ -8756,6 +8760,7 @@ int Field_set::store(const char *from,uint length,CHARSET_INFO *cs)
     {
       tmp=0;      
       set_warning(WARN_DATA_TRUNCATED, 1);
+      err= 1;
     }
   }
   else if (got_warning)
@@ -8994,12 +8999,17 @@ uint Field_num::is_equal(Create_field *new_field)
 }
 
 
+bool Field_enum::can_optimize_range(const Item_bool_func *cond,
+                                    const Item *item,
+                                    bool is_eq_func) const
+{
+  return item->cmp_type() != TIME_RESULT;
+}
+
+
 bool Field_enum::can_optimize_keypart_ref(const Item_bool_func *cond,
                                           const Item *item) const
 {
-  DBUG_ASSERT(cmp_type() == INT_RESULT);
-  DBUG_ASSERT(result_type() == STRING_RESULT);
-
   switch (item->cmp_type())
   {
   case TIME_RESULT:

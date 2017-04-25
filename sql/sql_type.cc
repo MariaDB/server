@@ -21,34 +21,38 @@
 #include "item.h"
 #include "log.h"
 
-static Type_handler_tiny        type_handler_tiny;
-static Type_handler_short       type_handler_short;
-static Type_handler_long        type_handler_long;
-static Type_handler_int24       type_handler_int24;
-static Type_handler_year        type_handler_year;
-static Type_handler_time        type_handler_time;
-static Type_handler_date        type_handler_date;
-static Type_handler_timestamp   type_handler_timestamp;
-static Type_handler_timestamp2  type_handler_timestamp2;
-static Type_handler_olddecimal  type_handler_olddecimal;
-
+Type_handler_row         type_handler_row;
 
 Type_handler_null        type_handler_null;
-Type_handler_row         type_handler_row;
-Type_handler_string      type_handler_string;
-Type_handler_varchar     type_handler_varchar;
+
+Type_handler_tiny        type_handler_tiny;
+Type_handler_short       type_handler_short;
+Type_handler_long        type_handler_long;
+Type_handler_int24       type_handler_int24;
 Type_handler_longlong    type_handler_longlong;
 Type_handler_float       type_handler_float;
 Type_handler_double      type_handler_double;
-Type_handler_newdecimal  type_handler_newdecimal;
-Type_handler_datetime    type_handler_datetime;
 Type_handler_bit         type_handler_bit;
-Type_handler_enum        type_handler_enum;
-Type_handler_set         type_handler_set;
 
+Type_handler_olddecimal  type_handler_olddecimal;
+Type_handler_newdecimal  type_handler_newdecimal;
+
+Type_handler_year        type_handler_year;
+Type_handler_time        type_handler_time;
+Type_handler_date        type_handler_date;
+Type_handler_timestamp   type_handler_timestamp;
+Type_handler_timestamp2  type_handler_timestamp2;
+Type_handler_datetime    type_handler_datetime;
 Type_handler_time2       type_handler_time2;
 Type_handler_newdate     type_handler_newdate;
 Type_handler_datetime2   type_handler_datetime2;
+
+Type_handler_enum        type_handler_enum;
+Type_handler_set         type_handler_set;
+
+Type_handler_string      type_handler_string;
+Type_handler_var_string  type_handler_var_string;
+Type_handler_varchar     type_handler_varchar;
 
 Type_handler_tiny_blob   type_handler_tiny_blob;
 Type_handler_medium_blob type_handler_medium_blob;
@@ -245,6 +249,7 @@ const Name Type_handler_null::m_name_null(C_STRING_WITH_LEN("null"));
 
 const Name
   Type_handler_string::m_name_char(C_STRING_WITH_LEN("char")),
+  Type_handler_var_string::m_name_var_string(C_STRING_WITH_LEN("varchar")),
   Type_handler_varchar::m_name_varchar(C_STRING_WITH_LEN("varchar")),
   Type_handler_tiny_blob::m_name_tinyblob(C_STRING_WITH_LEN("tinyblob")),
   Type_handler_medium_blob::m_name_mediumblob(C_STRING_WITH_LEN("mediumblob")),
@@ -326,6 +331,18 @@ const Type_handler *Type_handler_row::type_handler_for_comparison() const
   return &type_handler_row;
 }
 
+/***************************************************************************/
+
+const Type_handler *Type_handler_enum::cast_to_int_type_handler() const
+{
+  return &type_handler_longlong;
+}
+
+
+const Type_handler *Type_handler_set::cast_to_int_type_handler() const
+{
+  return &type_handler_longlong;
+}
 
 /***************************************************************************/
 

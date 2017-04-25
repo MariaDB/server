@@ -7926,7 +7926,9 @@ Item_func_like::get_mm_leaf(RANGE_OPT_PARAM *param,
   if (!(res= value->val_str(&tmp)))
     DBUG_RETURN(&null_element);
 
-  if (field->cmp_type() != STRING_RESULT)
+  if (field->cmp_type() != STRING_RESULT ||
+      field->type_handler() == &type_handler_enum ||
+      field->type_handler() == &type_handler_set)
     DBUG_RETURN(0);
 
   /*
@@ -8022,19 +8024,31 @@ Item_bool_func::get_mm_leaf(RANGE_OPT_PARAM *param,
     goto end;
 
   err= value->save_in_field_no_warnings(field, 1);
-  if (err == 2 && field->cmp_type() == STRING_RESULT)
-  {
-    if (type == EQ_FUNC || type == EQUAL_FUNC)
-    {
-      tree= new (alloc) SEL_ARG(field, 0, 0);
-      tree->type= SEL_ARG::IMPOSSIBLE;
-    }
-    else 
-      tree= NULL; /*  Cannot infer anything */
-    goto end;
-  }
   if (err > 0)
   {
+    if (field->type_handler() == &type_handler_enum ||
+        field->type_handler() == &type_handler_set)
+    {
+      if (type == EQ_FUNC || type == EQUAL_FUNC)
+      {
+        tree= new (alloc) SEL_ARG(field, 0, 0);
+        tree->type= SEL_ARG::IMPOSSIBLE;
+      }
+      goto end;
+    }
+
+    if (err == 2 && field->cmp_type() == STRING_RESULT)
+    {
+      if (type == EQ_FUNC || type == EQUAL_FUNC)
+      {
+        tree= new (alloc) SEL_ARG(field, 0, 0);
+        tree->type= SEL_ARG::IMPOSSIBLE;
+      }
+      else
+        tree= NULL; /*  Cannot infer anything */
+      goto end;
+    }
+
     if (field->cmp_type() != value->result_type())
     {
       if ((type == EQ_FUNC || type == EQUAL_FUNC) &&

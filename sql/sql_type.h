@@ -426,6 +426,10 @@ public:
   */
   virtual bool is_param_long_data_type() const { return false; }
   virtual const Type_handler *type_handler_for_comparison() const= 0;
+  virtual const Type_handler *cast_to_int_type_handler() const
+  {
+    return this;
+  }
   virtual CHARSET_INFO *charset_for_protocol(const Item *item) const;
   virtual const Type_handler*
   type_handler_adjusted_to_max_octet_length(uint max_octet_length,
@@ -1485,6 +1489,7 @@ class Type_handler_newdate: public Type_handler_date_common
 {
 public:
   virtual ~Type_handler_newdate() {}
+  enum_field_types real_field_type() const { return MYSQL_TYPE_NEWDATE; }
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
   Field *make_table_field(const LEX_CSTRING *name,
@@ -1649,6 +1654,18 @@ public:
 };
 
 
+/* Old varchar */
+class Type_handler_var_string: public Type_handler_string
+{
+  static const Name m_name_var_string;
+public:
+  virtual ~Type_handler_var_string() {}
+  const Name name() const { return m_name_var_string; }
+  enum_field_types field_type() const { return MYSQL_TYPE_VAR_STRING; }
+  enum_field_types real_field_type() const { return MYSQL_TYPE_STRING; }
+};
+
+
 class Type_handler_varchar: public Type_handler_string_result
 {
   static const Name m_name_varchar;
@@ -1799,8 +1816,9 @@ class Type_handler_enum: public Type_handler_string_result
 public:
   virtual ~Type_handler_enum() {}
   const Name name() const { return m_name_enum; }
-  enum_field_types field_type() const { return MYSQL_TYPE_VARCHAR; }
+  enum_field_types field_type() const { return MYSQL_TYPE_STRING; }
   virtual enum_field_types real_field_type() const { return MYSQL_TYPE_ENUM; }
+  const Type_handler *cast_to_int_type_handler() const;
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
   Field *make_table_field(const LEX_CSTRING *name,
@@ -1816,8 +1834,9 @@ class Type_handler_set: public Type_handler_string_result
 public:
   virtual ~Type_handler_set() {}
   const Name name() const { return m_name_set; }
-  enum_field_types field_type() const { return MYSQL_TYPE_VARCHAR; }
+  enum_field_types field_type() const { return MYSQL_TYPE_STRING; }
   virtual enum_field_types real_field_type() const { return MYSQL_TYPE_SET; }
+  const Type_handler *cast_to_int_type_handler() const;
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
   Field *make_table_field(const LEX_CSTRING *name,
@@ -1906,23 +1925,44 @@ public:
 };
 
 
-extern Type_handler_row   type_handler_row;
-extern Type_handler_null  type_handler_null;
-extern Type_handler_string type_handler_string;
-extern Type_handler_varchar type_handler_varchar;
-extern Type_handler_longlong type_handler_longlong;
-extern Type_handler_float type_handler_float;
-extern Type_handler_double type_handler_double;
-extern Type_handler_newdecimal type_handler_newdecimal;
-extern Type_handler_datetime type_handler_datetime;
-extern Type_handler_longlong type_handler_longlong;
-extern Type_handler_bit type_handler_bit;
-extern Type_handler_enum type_handler_enum;
-extern Type_handler_set type_handler_set;
+extern Type_handler_row         type_handler_row;
+extern Type_handler_null        type_handler_null;
 
-extern Type_handler_time2       type_handler_time2;
+extern Type_handler_float       type_handler_float;
+extern Type_handler_double      type_handler_double;
+
+extern Type_handler_bit         type_handler_bit;
+
+extern Type_handler_enum        type_handler_enum;
+extern Type_handler_set         type_handler_set;
+
+extern Type_handler_string      type_handler_string;
+extern Type_handler_var_string  type_handler_var_string;
+extern Type_handler_varchar     type_handler_varchar;
+
+extern Type_handler_tiny_blob   type_handler_tiny_blob;
+extern Type_handler_medium_blob type_handler_medium_blob;
+extern Type_handler_long_blob   type_handler_long_blob;
+extern Type_handler_blob        type_handler_blob;
+
+extern Type_handler_tiny        type_handler_tiny;
+extern Type_handler_short       type_handler_short;
+extern Type_handler_int24       type_handler_int24;
+extern Type_handler_long        type_handler_long;
+extern Type_handler_longlong    type_handler_longlong;
+
+extern Type_handler_newdecimal  type_handler_newdecimal;
+extern Type_handler_olddecimal  type_handler_olddecimal;
+
+extern Type_handler_year        type_handler_year;
 extern Type_handler_newdate     type_handler_newdate;
+extern Type_handler_date        type_handler_date;
+extern Type_handler_time        type_handler_time;
+extern Type_handler_time2       type_handler_time2;
+extern Type_handler_datetime    type_handler_datetime;
 extern Type_handler_datetime2   type_handler_datetime2;
+extern Type_handler_timestamp   type_handler_timestamp;
+extern Type_handler_timestamp2  type_handler_timestamp2;
 
 extern Type_handler_tiny_blob   type_handler_tiny_blob;
 extern Type_handler_blob        type_handler_blob;
