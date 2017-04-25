@@ -121,8 +121,6 @@ extern	lsn_t	srv_start_lsn;
 extern	bool	srv_is_being_started;
 /** TRUE if SYS_TABLESPACES is available for lookups */
 extern	bool	srv_sys_tablespaces_open;
-/** TRUE if the server was successfully started */
-extern	ibool	srv_was_started;
 /** TRUE if the server is being started, before rolling back any
 incomplete transactions */
 extern	bool	srv_startup_is_before_trx_rollback_phase;

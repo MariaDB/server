@@ -301,6 +301,9 @@ extern long    srv_mtflush_threads;
 /* If this flag is TRUE, then we will use multi threaded flush. */
 extern my_bool	srv_use_mtflush;
 
+/** TRUE if the server was successfully started */
+extern bool	srv_was_started;
+
 /** Server undo tablespaces directory, can be absolute path. */
 extern char*	srv_undo_dir;
 

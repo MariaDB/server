@@ -879,7 +879,7 @@ trx_sys_create_rsegs()
 	srv_undo_logs determines how many of the
 	srv_available_undo_logs rollback segments may be used for
 	logging new transactions. */
-	ut_ad(srv_undo_tablespaces < TRX_SYS_N_RSEGS);
+	ut_ad(srv_undo_tablespaces <= TRX_SYS_MAX_UNDO_SPACES);
 	ut_ad(srv_undo_logs <= TRX_SYS_N_RSEGS);
 
 	if (srv_read_only_mode) {

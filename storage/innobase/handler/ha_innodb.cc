@@ -4487,7 +4487,7 @@ innobase_change_buffering_inited_ok:
 			os_thread_sleep(20);
 	}
 
-	srv_was_started = TRUE;
+	srv_was_started = true;
 	/* Adjust the innodb_undo_logs config object */
 	innobase_undo_logs_init_default_max();
 
@@ -21477,11 +21477,11 @@ static MYSQL_SYSVAR_STR(undo_directory, srv_undo_dir,
 
 static MYSQL_SYSVAR_ULONG(undo_tablespaces, srv_undo_tablespaces,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
-  "Number of undo tablespaces to use. ",
+  "Number of undo tablespaces to use.",
   NULL, NULL,
   0L,			/* Default seting */
   0L,			/* Minimum value */
-  95L, 0);		/* Maximum value */
+  TRX_SYS_MAX_UNDO_SPACES, 0); /* Maximum value */
 
 static MYSQL_SYSVAR_ULONG(undo_logs, srv_undo_logs,
   PLUGIN_VAR_OPCMDARG,
