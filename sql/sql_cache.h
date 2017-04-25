@@ -337,6 +337,7 @@ protected:
     till the end of a flush operation.
   */
   mysql_mutex_t structure_guard_mutex;
+  ulong additional_data_size;
   uchar *cache;					// cache memory
   Query_cache_block *first_block;		// physical location block list
   Query_cache_block *queries_blocks;		// query list (LIFO)

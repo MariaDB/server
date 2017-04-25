@@ -329,6 +329,9 @@ TODO list:
 */
 
 #include "mariadb.h"                          /* NO_EMBEDDED_ACCESS_CHECKS */
+#if defined(DBUG_OFF) && defined(HAVE_MADVISE)
+#include <sys/mman.h>
+#endif
 #include "sql_priv.h"
 #include "sql_basic_types.h"
 #include "sql_cache.h"
@@ -2581,7 +2584,7 @@ ulong Query_cache::init_cache()
 {
   uint mem_bin_count, num, step;
   ulong mem_bin_size, prev_size, inc;
-  ulong additional_data_size, max_mem_bin_size, approx_additional_data_size;
+  ulong max_mem_bin_size, approx_additional_data_size;
   int align;
 
   DBUG_ENTER("Query_cache::init_cache");
@@ -2646,6 +2649,13 @@ ulong Query_cache::init_cache()
   if (!(cache= (uchar *)
         my_malloc_lock(query_cache_size+additional_data_size, MYF(0))))
     goto err;
+#if defined(DBUG_OFF) && defined(HAVE_MADVISE) &&  defined(MADV_DONTDUMP)
+  if (madvise(cache, query_cache_size+additional_data_size, MADV_DONTDUMP))
+  {
+    DBUG_PRINT("warning", ("coudn't mark query cache memory as MADV_DONTDUMP: %s",
+			 strerror(errno)));
+  }
+#endif
 
   DBUG_PRINT("qcache", ("cache length %lu, min unit %lu, %u bins",
 		      query_cache_size, min_allocation_unit, mem_bin_num));
@@ -2797,6 +2807,13 @@ void Query_cache::free_cache()
     } while (block != queries_blocks);
   }
 
+#if defined(DBUG_OFF) && defined(HAVE_MADVISE) &&  defined(MADV_DODUMP)
+  if (madvise(cache, query_cache_size+additional_data_size, MADV_DODUMP))
+  {
+    DBUG_PRINT("warning", ("coudn't mark query cache memory as MADV_DODUMP: %s",
+			 strerror(errno)));
+  }
+#endif
   my_free(cache);
   make_disabled();
   my_hash_free(&queries);
