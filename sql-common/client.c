@@ -1768,15 +1768,22 @@ mysql_get_ssl_cipher(MYSQL *mysql __attribute__((unused)))
 
 #if defined(HAVE_OPENSSL)
 
+#if OPENSSL_VERSION_NUMBER >= 0x10002000L && !defined(HAVE_YASSL)
+#include <openssl/x509v3.h>
+#define HAVE_X509_check_host
+#endif
+
 static int ssl_verify_server_cert(Vio *vio, const char* server_hostname, const char **errptr)
 {
   SSL *ssl;
   X509 *server_cert= NULL;
+#ifndef HAVE_X509_check_host
   char *cn= NULL;
   int cn_loc= -1;
   ASN1_STRING *cn_asn1= NULL;
   X509_NAME_ENTRY *cn_entry= NULL;
   X509_NAME *subject= NULL;
+#endif
   int ret_validation= 1;
 
   DBUG_ENTER("ssl_verify_server_cert");
@@ -1811,14 +1818,9 @@ static int ssl_verify_server_cert(Vio *vio, const char* server_hostname, const c
     are what we expect.
   */
 
-  /*
-   Some notes for future development
-   We should check host name in alternative name first and then if needed check in common name.
-   Currently yssl doesn't support alternative name.
-   openssl 1.0.2 support X509_check_host method for host name validation, we may need to start using
-   X509_check_host in the future.
-  */
-
+#ifdef HAVE_X509_check_host
+  ret_validation= X509_check_host(server_cert, server_hostname, 0, 0, 0) != 1;
+#else
   subject= X509_get_subject_name(server_cert);
   cn_loc= X509_NAME_get_index_by_NID(subject, NID_commonName, -1);
   if (cn_loc < 0)
@@ -1826,7 +1828,6 @@ static int ssl_verify_server_cert(Vio *vio, const char* server_hostname, const c
     *errptr= "Failed to get CN location in the certificate subject";
     goto error;
   }
-
   cn_entry= X509_NAME_get_entry(subject, cn_loc);
   if (cn_entry == NULL)
   {
@@ -1855,7 +1856,7 @@ static int ssl_verify_server_cert(Vio *vio, const char* server_hostname, const c
     /* Success */
     ret_validation= 0;
   }
-
+#endif
   *errptr= "SSL certificate validation failure";
 
 error:

@@ -29,4 +29,11 @@ openssl req -newkey rsa:1024 -keyout client-key.pem -out demoCA/client-req.pem -
 openssl rsa -in client-key.pem -out client-key.pem
 openssl ca -keyfile cakey.pem -days 7300 -batch -cert cacert.pem -policy policy_anything -out client-cert.pem -infiles demoCA/client-req.pem
 
+# with SubjectAltName, only for OpenSSL 1.0.2+
+cat > demoCA/sanext.conf <<EOF
+subjectAltName=DNS:localhost
+EOF
+openssl req -newkey rsa:1024 -keyout serversan-key.pem -out demoCA/serversan-req.pem -days 7300 -nodes -subj '/CN=server/C=FI/ST=Helsinki/L=Helsinki/O=MariaDB'
+openssl ca -keyfile cakey.pem -extfile demoCA/sanext.conf -days 7300 -batch -cert cacert.pem -policy policy_anything -out serversan-cert.pem -infiles demoCA/serversan-req.pem
+
 rm -rf demoCA
