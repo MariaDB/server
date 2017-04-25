@@ -853,17 +853,10 @@ try_again:
 		/* The table has been dropped: no need to do purge */
 		goto err_exit;
 	}
+
 	ut_ad(!dict_table_is_temporary(node->table));
 
-	if (fil_space_is_being_truncated(node->table->space)) {
-
-#if UNIV_DEBUG
-		ib::info() << "Record with space id "
-			   << node->table->space
-			   << " belongs to table which is being truncated"
-			   << " therefore skipping this undo record.";
-#endif
-		ut_ad(dict_table_is_file_per_table(node->table));
+	if (!fil_table_accessible(node->table)) {
 		dict_table_close(node->table, FALSE, FALSE);
 		node->table = NULL;
 		goto err_exit;
@@ -885,16 +878,6 @@ try_again:
 
 		/* Initialize the template for the table */
 		innobase_init_vc_templ(node->table);
-	}
-
-	if (node->table->ibd_file_missing) {
-		/* We skip purge of missing .ibd files */
-
-		dict_table_close(node->table, FALSE, FALSE);
-
-		node->table = NULL;
-
-		goto err_exit;
 	}
 
 	clust_index = dict_table_get_first_index(node->table);

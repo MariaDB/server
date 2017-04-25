@@ -883,6 +883,17 @@ fil_op_replay_rename(
 	const char*	new_name)
 	MY_ATTRIBUTE((warn_unused_result));
 
+/** Determine whether a table can be accessed in operations that are
+not (necessarily) protected by meta-data locks.
+(Rollback would generally be protected, but rollback of
+FOREIGN KEY CASCADE/SET NULL is not protected by meta-data locks
+but only by InnoDB table locks, which may be broken by TRUNCATE TABLE.)
+@param[in]	table	persistent table
+checked @return whether the table is accessible */
+bool
+fil_table_accessible(const dict_table_t* table)
+	MY_ATTRIBUTE((warn_unused_result, nonnull));
+
 /** Deletes an IBD tablespace, either general or single-table.
 The tablespace must be cached in the memory cache. This will delete the
 datafile, fil_space_t & fil_node_t entries from the file_system_t cache.

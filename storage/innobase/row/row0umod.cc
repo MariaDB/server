@@ -1139,8 +1139,17 @@ row_undo_mod_parse_undo_rec(
 		return;
 	}
 
-	if (node->table->ibd_file_missing ||
-	    fil_space_is_being_truncated(node->table->space) ) {
+	if (UNIV_UNLIKELY(!fil_table_accessible(node->table))) {
+close_table:
+		/* Normally, tables should not disappear or become
+		unaccessible during ROLLBACK, because they should be
+		protected by InnoDB table locks. TRUNCATE TABLE
+		or table corruption could be valid exceptions.
+
+		FIXME: When running out of temporary tablespace, it
+		would probably be better to just drop all temporary
+		tables (and temporary undo log records) of the current
+		connection, instead of doing this rollback. */
 		dict_table_close(node->table, dict_locked, FALSE);
 		node->table = NULL;
 		return;
@@ -1160,15 +1169,21 @@ row_undo_mod_parse_undo_rec(
 	node->new_trx_id = trx_id;
 	node->cmpl_info = cmpl_info;
 
-	if (!row_undo_search_clust_to_pcur(node)) {
-
-		dict_table_close(node->table, dict_locked, FALSE);
-
-		node->table = NULL;
+	if (UNIV_UNLIKELY(!row_undo_search_clust_to_pcur(node))) {
+		/* This should never occur. As long as this
+		rolling-back transaction exists, the PRIMARY KEY value
+		pointed to by the undo log record must exist.
+		btr_cur_upd_lock_and_undo() only writes the undo log
+		record after successfully acquiring an exclusive lock
+		on the the clustered index record. That lock will not
+		be released before the transaction is committed or
+		fully rolled back. */
+		ut_ad(0);
+		goto close_table;
 	}
 
 	/* Extract indexed virtual columns from undo log */
-	if (node->table && node->table->n_v_cols) {
+	if (node->table->n_v_cols) {
 		row_upd_replace_vcol(node->row, node->table,
 				     node->update, false, node->undo_row,
 				     (node->cmpl_info & UPD_NODE_NO_ORD_CHANGE)

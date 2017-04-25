@@ -346,12 +346,20 @@ row_undo_ins_parse_undo_rec(
 
 	/* Skip the UNDO if we can't find the table or the .ibd file. */
 	if (UNIV_UNLIKELY(node->table == NULL)) {
-	} else if (UNIV_UNLIKELY(node->table->ibd_file_missing)) {
-close_table:
-		dict_table_close(node->table, dict_locked, FALSE);
-		node->table = NULL;
-	} else if (fil_space_is_being_truncated(node->table->space)) {
+		return;
+	}
 
+	if (UNIV_UNLIKELY(!fil_table_accessible(node->table))) {
+close_table:
+		/* Normally, tables should not disappear or become
+		unaccessible during ROLLBACK, because they should be
+		protected by InnoDB table locks. TRUNCATE TABLE
+		or table corruption could be valid exceptions.
+
+		FIXME: When running out of temporary tablespace, it
+		would probably be better to just drop all temporary
+		tables (and temporary undo log records) of the current
+		connection, instead of doing this rollback. */
 		dict_table_close(node->table, dict_locked, FALSE);
 		node->table = NULL;
 	} else {
@@ -362,6 +370,9 @@ close_table:
 				ptr, clust_index, &node->ref, node->heap);
 
 			if (!row_undo_search_clust_to_pcur(node)) {
+				/* An error probably occurred during
+				an insert into the clustered index,
+				after we wrote the undo log record. */
 				goto close_table;
 			}
 			if (node->table->n_v_cols) {

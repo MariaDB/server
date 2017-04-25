@@ -319,14 +319,9 @@ dict_stats_process_entry_from_recalc_pool()
 		return;
 	}
 
-	if (fil_space_is_being_truncated(table->space)) {
-		dict_table_close(table, TRUE, FALSE);
-		mutex_exit(&dict_sys->mutex);
-		return;
-	}
+	ut_ad(!dict_table_is_temporary(table));
 
-	/* Check whether table is corrupted */
-	if (table->corrupted) {
+	if (!fil_table_accessible(table)) {
 		dict_table_close(table, TRUE, FALSE);
 		mutex_exit(&dict_sys->mutex);
 		return;

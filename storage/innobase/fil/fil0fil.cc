@@ -3055,6 +3055,32 @@ fil_close_tablespace(
 	return(err);
 }
 
+/** Determine whether a table can be accessed in operations that are
+not (necessarily) protected by meta-data locks.
+(Rollback would generally be protected, but rollback of
+FOREIGN KEY CASCADE/SET NULL is not protected by meta-data locks
+but only by InnoDB table locks, which may be broken by TRUNCATE TABLE.)
+@param[in]	table	persistent table
+checked @return whether the table is accessible */
+bool
+fil_table_accessible(const dict_table_t* table)
+{
+	if (UNIV_UNLIKELY(table->ibd_file_missing || table->corrupted)) {
+		return(false);
+	}
+
+	if (fil_space_t* space = fil_space_acquire(table->space)) {
+		bool accessible = !space->is_stopping();
+		fil_space_release(space);
+		ut_ad(accessible || dict_table_is_file_per_table(table));
+		return(accessible);
+	} else {
+		/* The tablespace may momentarily be missing during
+		TRUNCATE TABLE. */
+		return(false);
+	}
+}
+
 /** Deletes an IBD tablespace, either general or single-table.
 The tablespace must be cached in the memory cache. This will delete the
 datafile, fil_space_t & fil_node_t entries from the file_system_t cache.
@@ -3288,7 +3314,7 @@ fil_reinit_space_header(
 	/* Lock the search latch in shared mode to prevent user
 	from disabling AHI during the scan */
 	btr_search_s_lock_all();
-	DEBUG_SYNC_C("simulate_buffer_pool_scan");
+	DEBUG_SYNC_C("buffer_pool_scan");
 	buf_LRU_flush_or_remove_pages(id, BUF_REMOVE_ALL_NO_WRITE, 0);
 	btr_search_s_unlock_all();
 	row_mysql_lock_data_dictionary(trx);
