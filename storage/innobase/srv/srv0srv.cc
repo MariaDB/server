@@ -107,34 +107,34 @@ const char		srv_mysql50_table_name_prefix[10] = "#mysql50#";
 /* The following three are dir paths which are catenated before file
 names, where the file name itself may also contain a path */
 
-char*	srv_data_home	= NULL;
+char*	srv_data_home;
 
 /** Rollback files directory, can be absolute. */
-char*	srv_undo_dir = NULL;
+char*	srv_undo_dir;
 
 /** The number of tablespaces to use for rollback segments. */
-ulong	srv_undo_tablespaces = 0;
+ulong	srv_undo_tablespaces;
 
 /** The number of UNDO tablespaces that are open and ready to use. */
-ulint	srv_undo_tablespaces_open = 0;
+ulint	srv_undo_tablespaces_open;
 
 /** The number of UNDO tablespaces that are active (hosting some rollback
 segment). It is quite possible that some of the tablespaces doesn't host
 any of the rollback-segment based on configuration used. */
-ulint	srv_undo_tablespaces_active = 0;
+ulint	srv_undo_tablespaces_active;
 
 /* The number of rollback segments to use */
-ulong	srv_undo_logs = 1;
+ulong	srv_undo_logs;
 
 /** Rate at which UNDO records should be purged. */
-ulong	srv_purge_rseg_truncate_frequency = 128;
+ulong	srv_purge_rseg_truncate_frequency;
 
 /** Enable or Disable Truncate of UNDO tablespace.
 Note: If enabled then UNDO tablespace will be selected for truncate.
 While Server waits for undo-tablespace to truncate if user disables
 it, truncate action is completed but no new tablespace is marked
 for truncate (action is never aborted). */
-my_bool	srv_undo_log_truncate = FALSE;
+my_bool	srv_undo_log_truncate;
 
 /** Maximum size of undo tablespace. */
 unsigned long long	srv_max_undo_log_size;
@@ -166,9 +166,9 @@ my_bool	high_level_read_only;
 
 /** Place locks to records only i.e. do not use next-key locking except
 on duplicate key checking and foreign key checking */
-ibool	srv_locks_unsafe_for_binlog = FALSE;
+ibool	srv_locks_unsafe_for_binlog;
 /** Sort buffer size in index creation */
-ulong	srv_sort_buf_size = 1048576;
+ulong	srv_sort_buf_size;
 /** Maximum modification log file size for online index creation */
 unsigned long long	srv_online_max_size;
 
@@ -176,13 +176,13 @@ unsigned long long	srv_online_max_size;
 OS (provided we compiled Innobase with it in), otherwise we will
 use simulated aio we build below with threads.
 Currently we support native aio on windows and linux */
-my_bool	srv_use_native_aio = TRUE;
-my_bool	srv_numa_interleave = FALSE;
+my_bool	srv_use_native_aio;
+my_bool	srv_numa_interleave;
 /* If this flag is TRUE, then we will use fallocate(PUCH_HOLE)
 to the pages */
 UNIV_INTERN my_bool	srv_use_trim;
 /* If this flag is TRUE, then we disable doublewrite buffer */
-UNIV_INTERN my_bool	srv_use_atomic_writes = FALSE;
+UNIV_INTERN my_bool	srv_use_atomic_writes;
 /* If this flag IS TRUE, then we use this algorithm for page compressing the pages */
 UNIV_INTERN ulong	innodb_compression_algorithm = PAGE_ZLIB_ALGORITHM;
 /* Number of threads used for multi-threaded flush */

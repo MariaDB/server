@@ -215,46 +215,46 @@ static uint innobase_old_blocks_pct;
 /* The default values for the following char* start-up parameters
 are determined in innobase_init below: */
 
-static char*	innobase_data_home_dir			= NULL;
-static char*	innobase_data_file_path			= NULL;
-static char*	innobase_temp_data_file_path		= NULL;
-static char*	innobase_file_format_name		= NULL;
-static char*	innobase_change_buffering		= NULL;
-static char*	innobase_enable_monitor_counter		= NULL;
-static char*	innobase_disable_monitor_counter	= NULL;
-static char*	innobase_reset_monitor_counter		= NULL;
-static char*	innobase_reset_all_monitor_counter	= NULL;
+static char*	innobase_data_home_dir;
+static char*	innobase_data_file_path;
+static char*	innobase_temp_data_file_path;
+static char*	innobase_file_format_name;
+static char*	innobase_change_buffering;
+static char*	innobase_enable_monitor_counter;
+static char*	innobase_disable_monitor_counter;
+static char*	innobase_reset_monitor_counter;
+static char*	innobase_reset_all_monitor_counter;
 
 /* The highest file format being used in the database. The value can be
 set by user, however, it will be adjusted to the newer file format if
 a table of such format is created/opened. */
-char*	innobase_file_format_max		= NULL;
+char*	innobase_file_format_max;
 
 /** Default value of innodb_file_format */
 static const char*	innodb_file_format_default	= "Barracuda";
 /** Default value of innodb_file_format_max */
 static const char*	innodb_file_format_max_default	= "Antelope";
 
-static char*	innobase_file_flush_method		= NULL;
+static char*	innobase_file_flush_method;
 
 /* This variable can be set in the server configure file, specifying
 stopword table to be used */
-static char*	innobase_server_stopword_table		= NULL;
+static char*	innobase_server_stopword_table;
 
 /* Below we have boolean-valued start-up parameters, and their default
 values */
 
-static my_bool	innobase_file_format_check		= TRUE;
-static my_bool	innobase_use_atomic_writes		= TRUE;
+static my_bool	innobase_file_format_check;
+static my_bool	innobase_use_atomic_writes;
 static my_bool	innobase_use_fallocate;
-static my_bool	innobase_use_doublewrite		= TRUE;
-static my_bool	innobase_use_checksums			= TRUE;
-static my_bool	innobase_locks_unsafe_for_binlog	= FALSE;
-static my_bool	innobase_rollback_on_timeout		= FALSE;
-static my_bool	innobase_create_status_file		= FALSE;
-my_bool	innobase_stats_on_metadata		= TRUE;
-static my_bool	innobase_large_prefix			= FALSE;
-static my_bool	innodb_optimize_fulltext_only		= FALSE;
+static my_bool	innobase_use_doublewrite;
+static my_bool	innobase_use_checksums;
+static my_bool	innobase_locks_unsafe_for_binlog;
+static my_bool	innobase_rollback_on_timeout;
+static my_bool	innobase_create_status_file;
+my_bool	innobase_stats_on_metadata;
+static my_bool	innobase_large_prefix;
+static my_bool	innodb_optimize_fulltext_only;
 
 static char*	innodb_version_str = (char*) INNODB_VERSION_STR;
 
