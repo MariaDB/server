@@ -2986,7 +2986,7 @@ recv_init_missing_space(dberr_t err, const recv_spaces_t::const_iterator& i)
 @return error code or DB_SUCCESS */
 static MY_ATTRIBUTE((warn_unused_result))
 dberr_t
-recv_init_crash_recovery_spaces(void)
+recv_init_crash_recovery_spaces()
 {
 	typedef std::set<ulint>	space_set_t;
 	bool		flag_deleted	= false;
