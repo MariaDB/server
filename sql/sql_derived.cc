@@ -1147,6 +1147,9 @@ bool pushdown_cond_for_derived(THD *thd, Item *cond, TABLE_LIST *derived)
   st_select_lex_unit *unit= derived->get_unit();
   st_select_lex *sl= unit->first_select();
 
+  if (derived->prohibit_cond_pushdown)
+    DBUG_RETURN(false);
+
   /* Do not push conditions into constant derived */
   if (unit->executed)
     DBUG_RETURN(false);

@@ -2148,6 +2148,8 @@ struct TABLE_LIST
   /* I_S: Flags to open_table (e.g. OPEN_TABLE_ONLY or OPEN_VIEW_ONLY) */
   uint i_s_requested_object;
 
+  bool prohibit_cond_pushdown;
+
   /*
     I_S: how to read the tables (SKIP_OPEN_TABLE/OPEN_FRM_ONLY/OPEN_FULL_TABLE)
   */

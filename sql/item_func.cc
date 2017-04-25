@@ -4698,7 +4698,10 @@ bool Item_func_set_user_var::fix_fields(THD *thd, Item **ref)
     for (derived= unit->derived;
          derived;
          derived= derived->select_lex->master_unit()->derived)
+    {
       derived->set_materialized_derived();
+      derived->prohibit_cond_pushdown= true;
+    }
   }
 
   return FALSE;
