@@ -18803,7 +18803,6 @@ innodb_internal_table_validate(
 	return(ret);
 }
 
-#ifdef BTR_CUR_HASH_ADAPT
 /****************************************************************//**
 Update global variable "fts_internal_tbl_name" with the "saved"
 stopword table name value. This function is registered as a callback
@@ -18839,6 +18838,7 @@ innodb_internal_table_update(
 	}
 }
 
+#ifdef BTR_CUR_HASH_ADAPT
 /****************************************************************//**
 Update the system variable innodb_adaptive_hash_index using the "saved"
 value. This function is registered as a callback with MySQL. */
