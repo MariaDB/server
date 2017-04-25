@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -987,27 +987,20 @@ trx_purge_initiate_truncate(
 	   initiate truncate.
 	d. Execute actual truncate
 	e. Remove the DDL log. */
-	DBUG_EXECUTE_IF("ib_undo_trunc_before_checkpoint",
-			ib::info() << "ib_undo_trunc_before_checkpoint";
-			DBUG_SUICIDE(););
 
 	/* After truncate if server crashes then redo logging done for this
 	undo tablespace might not stand valid as tablespace has been
 	truncated. */
 	log_make_checkpoint_at(LSN_MAX, TRUE);
 
-	ib::info() << "Truncating UNDO tablespace with space identifier "
-		<< undo_trunc->get_marked_space_id();
+	const ulint space_id = undo_trunc->get_marked_space_id();
 
-	DBUG_EXECUTE_IF("ib_undo_trunc_before_ddl_log_start",
-			ib::info() << "ib_undo_trunc_before_ddl_log_start";
-			DBUG_SUICIDE(););
+	ib::info() << "Truncating UNDO tablespace " << space_id;
 
 #ifdef UNIV_DEBUG
 	dberr_t	err =
 #endif /* UNIV_DEBUG */
-		undo_trunc->start_logging(
-			undo_trunc->get_marked_space_id());
+		undo_trunc->start_logging(space_id);
 	ut_ad(err == DB_SUCCESS);
 
 	DBUG_EXECUTE_IF("ib_undo_trunc_before_truncate",
@@ -1016,14 +1009,12 @@ trx_purge_initiate_truncate(
 
 	trx_purge_cleanse_purge_queue(undo_trunc);
 
-	bool	success = trx_undo_truncate_tablespace(undo_trunc);
-	if (!success) {
+	if (!trx_undo_truncate_tablespace(undo_trunc)) {
 		/* Note: In case of error we don't enable the rsegs
 		and neither unmark the tablespace so the tablespace
 		continue to remain inactive. */
-		ib::error() << "Failed to truncate UNDO tablespace with"
-			" space identifier "
-			<< undo_trunc->get_marked_space_id();
+		ib::error() << "Failed to truncate UNDO tablespace "
+			<< space_id;
 		return;
 	}
 
@@ -1046,7 +1037,7 @@ trx_purge_initiate_truncate(
 
 	log_make_checkpoint_at(LSN_MAX, TRUE);
 
-	undo_trunc->done_logging(undo_trunc->get_marked_space_id());
+	undo_trunc->done_logging(space_id);
 
 	/* Completed truncate. Now it is safe to re-use the tablespace. */
 	for (ulint i = 0; i < undo_trunc->rsegs_size(); ++i) {
@@ -1054,8 +1045,7 @@ trx_purge_initiate_truncate(
 		rseg->skip_allocation = false;
 	}
 
-	ib::info() << "Completed truncate of UNDO tablespace with space"
-		" identifier " << undo_trunc->get_marked_space_id();
+	ib::info() << "Truncated UNDO tablespace " << space_id;
 
 	undo_trunc->reset();
 	undo::Truncate::clear_trunc_list();
@@ -1075,7 +1065,7 @@ trx_purge_truncate_history(
 	purge_iter_t*		limit,		/*!< in: truncate limit */
 	const ReadView*		view)		/*!< in: purge view */
 {
-	ulint		i;
+	ut_ad(trx_purge_check_limit());
 
 	/* We play safe and set the truncate limit at most to the purge view
 	low_limit number, though this is not necessary */
@@ -1088,7 +1078,7 @@ trx_purge_truncate_history(
 
 	ut_ad(limit->trx_no <= purge_sys->view.low_limit_no());
 
-	for (i = 0; i < TRX_SYS_N_RSEGS; ++i) {
+	for (ulint i = 0; i < TRX_SYS_N_RSEGS; ++i) {
 		trx_rseg_t*	rseg = trx_sys->rseg_array[i];
 
 		if (rseg != NULL) {
@@ -1100,8 +1090,7 @@ trx_purge_truncate_history(
 	/* UNDO tablespace truncate. We will try to truncate as much as we
 	can (greedy approach). This will ensure when the server is idle we
 	try and truncate all the UNDO tablespaces. */
-	ulint	nchances = srv_undo_tablespaces_active;
-	for (i = 0; i < nchances; i++) {
+	for (ulint i = srv_undo_tablespaces_active; i--; ) {
 		trx_purge_mark_undo_for_truncate(&purge_sys->undo_trunc);
 		trx_purge_initiate_truncate(limit, &purge_sys->undo_trunc);
 	}
@@ -1638,22 +1627,6 @@ trx_purge_wait_for_workers_to_complete(
 	ut_a(srv_get_task_queue_length() == 0);
 }
 
-/******************************************************************//**
-Remove old historical changes from the rollback segments. */
-static
-void
-trx_purge_truncate(void)
-/*====================*/
-{
-	ut_ad(trx_purge_check_limit());
-
-	if (purge_sys->limit.trx_no == 0) {
-		trx_purge_truncate_history(&purge_sys->iter, &purge_sys->view);
-	} else {
-		trx_purge_truncate_history(&purge_sys->limit, &purge_sys->view);
-	}
-}
-
 /*******************************************************************//**
 This function runs a purge batch.
 @return number of undo log pages handled in the batch */
@@ -1742,7 +1715,11 @@ run_synchronously:
 #endif /* UNIV_DEBUG */
 
 	if (truncate) {
-		trx_purge_truncate();
+		trx_purge_truncate_history(
+			purge_sys->limit.trx_no
+			? &purge_sys->limit
+			: &purge_sys->iter,
+			&purge_sys->view);
 	}
 
 	MONITOR_INC_VALUE(MONITOR_PURGE_INVOKED, 1);

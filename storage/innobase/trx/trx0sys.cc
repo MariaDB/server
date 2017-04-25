@@ -935,8 +935,14 @@ trx_sys_create_rsegs()
 
 	ut_ad(srv_undo_logs <= srv_available_undo_logs);
 
-	ib::info() << srv_undo_logs << " out of " << srv_available_undo_logs
-		<< " rollback segments are active.";
+	ib::info info;
+	info << srv_undo_logs << " out of " << srv_available_undo_logs;
+	if (srv_undo_tablespaces_active) {
+		info << " rollback segments in " << srv_undo_tablespaces_active
+		<< " undo tablespaces are active.";
+	} else {
+		info << " rollback segments are active.";
+	}
 
 	return(true);
 }

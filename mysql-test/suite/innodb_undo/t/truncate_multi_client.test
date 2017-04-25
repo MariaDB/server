@@ -1,0 +1,77 @@
+#
+# WL#6965: Truncate UNDO logs.
+#
+
+--source include/have_innodb.inc
+# This test is restarting the server.
+--source include/not_embedded.inc
+# With larger innodb_page_size, the undo log tablespaces do not grow enough.
+--source include/have_innodb_max_16k.inc
+--source include/have_undo_tablespaces.inc
+
+SET GLOBAL innodb_fast_shutdown=0;
+--let $restart_parameters=--innodb_undo_tablespaces=2 --innodb_undo_logs=4
+--source include/restart_mysqld.inc
+
+#-----------------------------------------------------------------------------
+#
+# Perform DML action using multiple clients and multiple undo tablespace.
+#
+#
+create table t1(keyc int primary key, c char(100)) engine = innodb;
+create table t2(keyc int primary key, c char(100)) engine = innodb;
+#
+delimiter |;
+CREATE PROCEDURE populate_t1()
+BEGIN
+        DECLARE i INT DEFAULT 1;
+        while (i <= 20000) DO
+                insert into t1 values (i, 'a');
+                SET i = i + 1;
+        END WHILE;
+END |
+delimiter ;|
+#
+delimiter |;
+CREATE PROCEDURE populate_t2()
+BEGIN
+        DECLARE i INT DEFAULT 1;
+        while (i <= 20000) DO
+                insert into t2 values (i, 'a');
+                SET i = i + 1;
+        END WHILE;
+END |
+delimiter ;|
+#
+#
+connect (con1,localhost,root,,);
+begin;
+send call populate_t1();
+
+connect (con2,localhost,root,,);
+begin;
+send call populate_t2();
+
+connection con1; reap; send update t1 set c = 'mysql';
+connection con2; reap; send update t2 set c = 'mysql';
+connection con1; reap; send update t1 set c = 'oracle';
+connection con2; reap; send update t2 set c = 'oracle';
+connection con1; reap; send delete from t1;
+connection con2; reap; send delete from t2;
+connection con1; reap; commit; disconnect con1;
+connection con2; reap; commit; disconnect con2;
+
+connection default;
+drop table t1, t2;
+drop PROCEDURE populate_t1;
+drop PROCEDURE populate_t2;
+
+SET GLOBAL innodb_fast_shutdown=0;
+SET GLOBAL innodb_undo_log_truncate=1;
+SET GLOBAL innodb_purge_rseg_truncate_frequency=1;
+
+--source include/restart_mysqld.inc
+
+let SEARCH_FILE = $MYSQLTEST_VARDIR/log/mysqld.1.err;
+let SEARCH_PATTERN = Truncating UNDO tablespace 1;
+--source include/search_pattern_in_file.inc

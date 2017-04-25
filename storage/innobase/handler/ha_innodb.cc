@@ -1359,15 +1359,11 @@ void
 innobase_commit_concurrency_init_default();
 /*=======================================*/
 
-/** @brief Initialize the default and max value of innodb_undo_logs.
-
-Once InnoDB is running, the default value and the max value of
-innodb_undo_logs must be equal to the available undo logs,
-given by srv_available_undo_logs. */
+/** @brief Adjust some InnoDB startup parameters based on file contents
+or innodb_page_size. */
 static
 void
-innobase_undo_logs_init_default_max();
-/*==================================*/
+innodb_params_adjust();
 
 /************************************************************//**
 Validate the file format name and return its corresponding id.
@@ -4291,6 +4287,11 @@ innobase_change_buffering_inited_ok:
 
 	if (UNIV_PAGE_SIZE_DEF != srv_page_size) {
 		ib::info() << "innodb_page_size=" << srv_page_size;
+
+		srv_max_undo_log_size = std::max(
+			srv_max_undo_log_size,
+			ulonglong(SRV_UNDO_TABLESPACE_SIZE_IN_PAGES)
+			* srv_page_size);
 	}
 
 	if (srv_log_write_ahead_size > srv_page_size) {
@@ -4457,12 +4458,6 @@ innobase_change_buffering_inited_ok:
 	}
 	*/
 
-	/* Since we in this module access directly the fields of a trx
-	struct, and due to different headers and flags it might happen that
-	ib_mutex_t has a different size in this module and in InnoDB
-	modules, we check at run time that the size is the same in
-	these compilation modules. */
-
 	err = innobase_start_or_create_for_mysql();
 
 	if (srv_buf_pool_size_org != 0) {
@@ -4488,8 +4483,7 @@ innobase_change_buffering_inited_ok:
 	}
 
 	srv_was_started = true;
-	/* Adjust the innodb_undo_logs config object */
-	innobase_undo_logs_init_default_max();
+	innodb_params_adjust();
 
 	innobase_old_blocks_pct = static_cast<uint>(
 		buf_LRU_old_ratio_update(innobase_old_blocks_pct, TRUE));
@@ -21493,12 +21487,10 @@ static MYSQL_SYSVAR_ULONG(undo_logs, srv_undo_logs,
 
 static MYSQL_SYSVAR_ULONGLONG(max_undo_log_size, srv_max_undo_log_size,
   PLUGIN_VAR_OPCMDARG,
-  "Maximum size of UNDO tablespace in MB (If UNDO tablespace grows"
-  " beyond this size it will be truncated in due course). ",
+  "Desired maximum UNDO tablespace size in bytes",
   NULL, NULL,
-  1024 * 1024 * 1024L,
-  10 * 1024 * 1024L,
-  ~0ULL, 0);
+  10 << 20, 10 << 20,
+  1ULL << (32 + UNIV_PAGE_SIZE_SHIFT_MAX), 0);
 
 static MYSQL_SYSVAR_ULONG(purge_rseg_truncate_frequency,
   srv_purge_rseg_truncate_frequency,
@@ -22222,19 +22214,25 @@ innobase_commit_concurrency_init_default()
 		= innobase_commit_concurrency;
 }
 
-/** @brief Initialize the default and max value of innodb_undo_logs.
-
-Once InnoDB is running, the default value and the max value of
-innodb_undo_logs must be equal to the available undo logs,
-given by srv_available_undo_logs. */
+/** @brief Adjust some InnoDB startup parameters based on file contents
+or innodb_page_size. */
 static
 void
-innobase_undo_logs_init_default_max()
-/*=================================*/
+innodb_params_adjust()
 {
+	/* The default value and the max value of
+	innodb_undo_logs must be equal to the available undo logs. */
 	MYSQL_SYSVAR_NAME(undo_logs).max_val
 		= MYSQL_SYSVAR_NAME(undo_logs).def_val
 		= srv_available_undo_logs;
+	MYSQL_SYSVAR_NAME(max_undo_log_size).max_val
+		= 1ULL << (32 + UNIV_PAGE_SIZE_SHIFT);
+	MYSQL_SYSVAR_NAME(max_undo_log_size).min_val
+		= MYSQL_SYSVAR_NAME(max_undo_log_size).def_val
+		= ulonglong(SRV_UNDO_TABLESPACE_SIZE_IN_PAGES)
+		* srv_page_size;
+	MYSQL_SYSVAR_NAME(max_undo_log_size).max_val
+		= 1ULL << (32 + UNIV_PAGE_SIZE_SHIFT);
 }
 
 /****************************************************************************

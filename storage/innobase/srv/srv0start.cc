@@ -894,6 +894,7 @@ srv_undo_tablespaces_init(bool create_new_db)
 			}
 		}
 	} else {
+		srv_undo_tablespaces_active = srv_undo_tablespaces;
 		n_undo_tablespaces = srv_undo_tablespaces;
 
 		for (i = 1; i <= n_undo_tablespaces; ++i) {
@@ -975,12 +976,10 @@ srv_undo_tablespaces_init(bool create_new_db)
 
 		return(err != DB_SUCCESS ? err : DB_ERROR);
 
-	} else  if (n_undo_tablespaces > 0) {
+	} else if (n_undo_tablespaces > 0) {
 
 		ib::info() << "Opened " << n_undo_tablespaces
-			<< " undo tablespaces ("
-			<< srv_undo_tablespaces_active
-			<< " active)";
+			<< " undo tablespaces";
 
 		if (srv_undo_tablespaces == 0) {
 			ib::warn() << "innodb_undo_tablespaces=0 disables"
