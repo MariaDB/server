@@ -1173,6 +1173,57 @@ buf_page_is_corrupted(
 }
 
 #ifndef UNIV_INNOCHECKSUM
+
+#if defined(DBUG_OFF) && defined(HAVE_MADVISE) &&  defined(MADV_DODUMP)
+/** Enable buffers to be dumped to core files
+
+A convience function, not called anyhwere directly however
+it is left available for gdb or any debugger to call
+in the event that you want all of the memory to be dumped
+to a core file.
+
+Returns number of errors found in madvise calls. */
+int
+buf_madvise_do_dump()
+{
+	int ret= 0;
+	buf_pool_t*	buf_pool;
+	ulint		n;
+	buf_chunk_t*	chunk;
+
+	/* mirrors allocation in log_sys_init() */
+	if (log_sys->buf)
+	{
+		ret+= madvise(log_sys->first_in_use ? log_sys->buf
+						    : log_sys->buf - log_sys->buf_size,
+			      log_sys->buf_size,
+			      MADV_DODUMP);
+	}
+	/* mirrors recv_sys_init() */
+	if (recv_sys->buf)
+	{
+		ret+= madvise(recv_sys->buf, recv_sys->len, MADV_DODUMP);
+	}
+
+	buf_pool_mutex_enter_all();
+
+	for (int i= 0; i < srv_buf_pool_instances; i++)
+	{
+		buf_pool = buf_pool_from_array(i);
+		chunk = buf_pool->chunks;
+
+		for (int n = buf_pool->n_chunks; n--; chunk++)
+		{
+			ret+= madvise(chunk->mem, chunk->mem_size(), MADV_DODUMP);
+		}
+	}
+
+	buf_pool_mutex_exit_all();
+
+	return ret;
+}
+#endif
+
 /** Dump a page to stderr.
 @param[in]	read_buf	database page
 @param[in]	page_size	page size */
@@ -1502,7 +1553,7 @@ buf_chunk_init(
 	DBUG_EXECUTE_IF("ib_buf_chunk_init_fails", return(NULL););
 
 	chunk->mem = buf_pool->allocator.allocate_large(mem_size,
-							&chunk->mem_pfx);
+							&chunk->mem_pfx, true);
 
 	if (UNIV_UNLIKELY(chunk->mem == NULL)) {
 
@@ -1796,7 +1847,8 @@ buf_pool_init_instance(
 					}
 
 					buf_pool->allocator.deallocate_large(
-						chunk->mem, &chunk->mem_pfx);
+						chunk->mem, &chunk->mem_pfx, chunk->mem_size(),
+						true);
 				}
 				ut_free(buf_pool->chunks);
 				buf_pool_mutex_exit(buf_pool);
@@ -1943,7 +1995,7 @@ buf_pool_free_instance(
 		}
 
 		buf_pool->allocator.deallocate_large(
-			chunk->mem, &chunk->mem_pfx);
+			chunk->mem, &chunk->mem_pfx, true);
 	}
 
 	for (ulint i = BUF_FLUSH_LRU; i < BUF_FLUSH_N_TYPES; ++i) {
@@ -2819,7 +2871,7 @@ withdraw_retry:
 				}
 
 				buf_pool->allocator.deallocate_large(
-					chunk->mem, &chunk->mem_pfx);
+					chunk->mem, &chunk->mem_pfx, true);
 
 				sum_freed += chunk->size;
 

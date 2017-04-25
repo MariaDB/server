@@ -438,7 +438,9 @@ recv_sys_close()
 			os_event_destroy(recv_sys->flush_end);
 		}
 
-		ut_free(recv_sys->buf);
+		if (recv_sys->buf != NULL) {
+			ut_free_dodump(recv_sys->buf, recv_sys->buf_size);
+		}
 
 		ut_ad(!recv_writer_thread_active);
 		mutex_free(&recv_sys->writer_mutex);
@@ -553,7 +555,8 @@ recv_sys_init()
 	}
 
 	recv_sys->buf = static_cast<byte*>(
-		ut_malloc_nokey(RECV_PARSING_BUF_SIZE));
+		ut_malloc_dontdump(RECV_PARSING_BUF_SIZE));
+	recv_sys->buf_size = RECV_PARSING_BUF_SIZE;
 
 	recv_sys->addr_hash = hash_create(size / 512);
 	recv_sys->progress_time = ut_time();
@@ -588,8 +591,9 @@ recv_sys_debug_free(void)
 
 	hash_table_free(recv_sys->addr_hash);
 	mem_heap_free(recv_sys->heap);
-	ut_free(recv_sys->buf);
+	ut_free_dodump(recv_sys->buf, recv_sys->buf_size);
 
+	recv_sys->buf_size = 0;
 	recv_sys->buf = NULL;
 	recv_sys->heap = NULL;
 	recv_sys->addr_hash = NULL;

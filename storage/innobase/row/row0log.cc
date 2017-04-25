@@ -71,6 +71,7 @@ enum row_op {
 /** Log block for modifications during online ALTER TABLE */
 struct row_log_buf_t {
 	byte*		block;	/*!< file block buffer */
+	size_t		size; /*!< length of block in bytes */
 	ut_new_pfx_t	block_pfx; /*!< opaque descriptor of "block". Set
 				by ut_allocator::allocate_large() and fed to
 				ut_allocator::deallocate_large(). */
@@ -265,6 +266,7 @@ row_log_block_allocate(
 		if (log_buf.block == NULL) {
 			DBUG_RETURN(false);
 		}
+		log_buf.size = srv_sort_buf_size;
 	}
 	DBUG_RETURN(true);
 }
@@ -279,7 +281,7 @@ row_log_block_free(
 	DBUG_ENTER("row_log_block_free");
 	if (log_buf.block != NULL) {
 		ut_allocator<byte>(mem_key_row_log_buf).deallocate_large(
-			log_buf.block, &log_buf.block_pfx);
+			log_buf.block, &log_buf.block_pfx, log_buf.size);
 		log_buf.block = NULL;
 	}
 	DBUG_VOID_RETURN;
