@@ -28,17 +28,23 @@
 #include <my_global.h>
 #include <my_pthread.h>
 #include <mysql/plugin_encryption.h>
-#include <my_rnd.h>
 #include <my_crypt.h>
 
 /* rotate key randomly between 45 and 90 seconds */
 #define KEY_ROTATION_MIN 45
 #define KEY_ROTATION_MAX 90
 
-static struct my_rnd_struct seed;
 static time_t key_version = 0;
 static time_t next_key_version = 0;
 static pthread_mutex_t mutex;
+
+
+/* Random double value in 0..1 range */
+static double double_rnd()
+{
+  return ((double)rand()) / RAND_MAX;
+}
+
 
 static unsigned int
 get_latest_key_version(unsigned int key_id)
@@ -50,7 +56,7 @@ get_latest_key_version(unsigned int key_id)
     key_version = now;
     unsigned int interval = KEY_ROTATION_MAX - KEY_ROTATION_MIN;
     next_key_version = (time_t) (now + KEY_ROTATION_MIN +
-                                 my_rnd(&seed) * interval);
+                                 double_rnd() * interval);
   }
   pthread_mutex_unlock(&mutex);
 
@@ -101,7 +107,6 @@ static unsigned int get_length(unsigned int slen, unsigned int key_id,
 static int example_key_management_plugin_init(void *p)
 {
   /* init */
-  my_rnd_init(&seed, time(0), 0);
   pthread_mutex_init(&mutex, NULL);
   get_latest_key_version(1);
 
