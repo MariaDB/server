@@ -1762,7 +1762,9 @@ buf_chunk_not_freed(
 				      == block->page.newest_modification);
 				ut_ad(block->page.oldest_modification == 0
 				      || block->page.oldest_modification
-				      == recv_sys->recovered_lsn);
+				      == recv_sys->recovered_lsn
+				      || srv_force_recovery
+				      == SRV_FORCE_NO_LOG_REDO);
 				ut_ad(block->page.buf_fix_count == 0);
 				ut_ad(block->page.io_fix == BUF_IO_NONE);
 				break;

@@ -2172,7 +2172,8 @@ wait_suspend_loop:
 	bool	freed = buf_all_freed();
 	ut_a(freed);
 
-	ut_a(lsn == log_sys->lsn);
+	ut_a(lsn == log_sys->lsn
+	     || srv_force_recovery == SRV_FORCE_NO_LOG_REDO);
 
 	if (lsn < srv_start_lsn) {
 		ib::error() << "Shutdown LSN=" << lsn
@@ -2198,7 +2199,8 @@ wait_suspend_loop:
 	freed = buf_all_freed();
 	ut_a(freed);
 
-	ut_a(lsn == log_sys->lsn);
+	ut_a(lsn == log_sys->lsn
+	     || srv_force_recovery == SRV_FORCE_NO_LOG_REDO);
 }
 
 /******************************************************//**
