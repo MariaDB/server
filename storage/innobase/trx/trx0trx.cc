@@ -1908,6 +1908,7 @@ trx_commit_in_memory(
 	trx_mutex_exit(trx);
 
 	ut_a(trx->error_state == DB_SUCCESS);
+	srv_wake_purge_thread_if_not_active();
 }
 
 /****************************************************************//**

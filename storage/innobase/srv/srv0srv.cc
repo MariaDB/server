@@ -648,14 +648,16 @@ struct srv_sys_t{
 
 	ulint		n_threads_active[SRV_MASTER + 1];
 						/*!< number of threads active
-						in a thread class */
+						in a thread class; protected
+						by both my_atomic_addlint()
+						and mutex */
 
 	srv_stats_t::ulint_ctr_1_t
 			activity_count;		/*!< For tracking server
 						activity */
 };
 
-static srv_sys_t*	srv_sys	= NULL;
+static srv_sys_t*	srv_sys;
 
 /** Event to signal srv_monitor_thread. Not protected by a mutex.
 Set after setting srv_print_innodb_monitor. */
@@ -853,7 +855,7 @@ srv_reserve_slot(
 
 	ut_ad(srv_slot_get_type(slot) == type);
 
-	++srv_sys->n_threads_active[type];
+	my_atomic_addlint(&srv_sys->n_threads_active[type], 1);
 
 	srv_sys_mutex_exit();
 
@@ -894,16 +896,15 @@ srv_suspend_thread_low(
 
 	case SRV_WORKER:
 		ut_a(srv_n_purge_threads > 1);
-		ut_a(srv_sys->n_threads_active[type] > 0);
 		break;
 	}
 
 	ut_a(!slot->suspended);
 	slot->suspended = TRUE;
 
-	ut_a(srv_sys->n_threads_active[type] > 0);
-
-	srv_sys->n_threads_active[type]--;
+	if (my_atomic_addlint(&srv_sys->n_threads_active[type], -1) < 0) {
+		ut_error;
+	}
 
 	return(os_event_reset(slot->event));
 }
@@ -958,7 +959,7 @@ srv_resume_thread(srv_slot_t* slot, int64_t sig_count = 0, bool wait = true,
 	ut_ad(slot->suspended);
 
 	slot->suspended = FALSE;
-	++srv_sys->n_threads_active[slot->type];
+	my_atomic_addlint(&srv_sys->n_threads_active[slot->type], 1);
 	srv_sys_mutex_exit();
 	return(timeout);
 }
@@ -2066,22 +2067,16 @@ srv_get_active_thread_type(void)
 	return(ret);
 }
 
-/*******************************************************************//**
-Tells the InnoDB server that there has been activity in the database
-and wakes up the master thread if it is suspended (not sleeping). Used
-in the MySQL interface. Note that there is a small chance that the master
-thread stays suspended (we do not protect our operation with the
-srv_sys_t->mutex, for performance reasons). */
+/** Wake up the InnoDB master thread if it was suspended (not sleeping). */
 void
 srv_active_wake_master_thread_low()
-/*===============================*/
 {
 	ut_ad(!srv_read_only_mode);
 	ut_ad(!srv_sys_mutex_own());
 
 	srv_inc_activity_count();
 
-	if (srv_sys->n_threads_active[SRV_MASTER] == 0) {
+	if (my_atomic_loadlint(&srv_sys->n_threads_active[SRV_MASTER]) == 0) {
 		srv_slot_t*	slot;
 
 		srv_sys_mutex_enter();
@@ -2099,35 +2094,25 @@ srv_active_wake_master_thread_low()
 	}
 }
 
-/*******************************************************************//**
-Tells the purge thread that there has been activity in the database
-and wakes up the purge thread if it is suspended (not sleeping).  Note
-that there is a small chance that the purge thread stays suspended
-(we do not protect our check with the srv_sys_t:mutex and the
-purge_sys->latch, for performance reasons). */
+/** Wake up the purge threads if there is work to do. */
 void
-srv_wake_purge_thread_if_not_active(void)
-/*=====================================*/
+srv_wake_purge_thread_if_not_active()
 {
 	ut_ad(!srv_sys_mutex_own());
 
 	if (purge_sys->state == PURGE_STATE_RUN
-	    && srv_sys->n_threads_active[SRV_PURGE] == 0) {
+	    && !my_atomic_loadlint(&srv_sys->n_threads_active[SRV_PURGE])
+	    && my_atomic_loadlint(&trx_sys->rseg_history_len)) {
 
 		srv_release_threads(SRV_PURGE, 1);
 	}
 }
 
-/*******************************************************************//**
-Wakes up the master thread if it is suspended or being suspended. */
+/** Wake up the master thread if it is suspended or being suspended. */
 void
-srv_wake_master_thread(void)
-/*========================*/
+srv_wake_master_thread()
 {
-	ut_ad(!srv_sys_mutex_own());
-
 	srv_inc_activity_count();
-
 	srv_release_threads(SRV_MASTER, 1);
 }
 
@@ -2713,12 +2698,8 @@ DECLARE_THREAD(srv_worker_thread)(
 	slot = srv_reserve_slot(SRV_WORKER);
 
 	ut_a(srv_n_purge_threads > 1);
-
-	srv_sys_mutex_enter();
-
-	ut_a(srv_sys->n_threads_active[SRV_WORKER] < srv_n_purge_threads);
-
-	srv_sys_mutex_exit();
+	ut_a(my_atomic_loadlint(&srv_sys->n_threads_active[SRV_WORKER])
+	     < static_cast<lint>(srv_n_purge_threads));
 
 	/* We need to ensure that the worker threads exit after the
 	purge coordinator thread. Otherwise the purge coordinator can

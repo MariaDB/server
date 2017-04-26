@@ -749,36 +749,24 @@ srv_set_io_thread_op_info(
 Resets the info describing an i/o thread current state. */
 void
 srv_reset_io_thread_op_info();
-/*=========================*/
-/*******************************************************************//**
-Tells the purge thread that there has been activity in the database
-and wakes up the purge thread if it is suspended (not sleeping).  Note
-that there is a small chance that the purge thread stays suspended
-(we do not protect our operation with the srv_sys_t:mutex, for
-performance reasons). */
+
+/** Wake up the purge threads if there is work to do. */
 void
-srv_wake_purge_thread_if_not_active(void);
-/*=====================================*/
-/*******************************************************************//**
-Tells the Innobase server that there has been activity in the database
-and wakes up the master thread if it is suspended (not sleeping). Used
-in the MySQL interface. Note that there is a small chance that the master
-thread stays suspended (we do not protect our operation with the kernel
-mutex, for performace reasons). */
+srv_wake_purge_thread_if_not_active();
+/** Wake up the InnoDB master thread if it was suspended (not sleeping). */
 void
-srv_active_wake_master_thread_low(void);
-/*===================================*/
+srv_active_wake_master_thread_low();
+
 #define srv_active_wake_master_thread()					\
 	do {								\
 		if (!srv_read_only_mode) {				\
 			srv_active_wake_master_thread_low();		\
 		}							\
 	} while (0)
-/*******************************************************************//**
-Wakes up the master thread if it is suspended or being suspended. */
+/** Wake up the master thread if it is suspended or being suspended. */
 void
-srv_wake_master_thread(void);
-/*========================*/
+srv_wake_master_thread();
+
 /******************************************************************//**
 Outputs to a file the output of the InnoDB Monitor.
 @return FALSE if not all information printed
