@@ -968,6 +968,17 @@ With_element *st_select_lex::find_table_def_in_with_clauses(TABLE_LIST *table)
 
 bool TABLE_LIST::set_as_with_table(THD *thd, With_element *with_elem)
 {
+  if (table)
+  {
+    /*
+      This table was prematurely identified as a temporary table.
+      We correct it here, but it's not a nice solution in the case
+      when the temporary table with this name is not used anywhere
+      else in the query.
+    */
+    thd->mark_tmp_table_as_free_for_reuse(table);
+    table= 0;
+  }
   with= with_elem;
   if (!with_elem->is_referenced() || with_elem->is_recursive)
     derived= with_elem->spec;
