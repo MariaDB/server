@@ -2991,14 +2991,9 @@ DECLARE_THREAD(srv_purge_coordinator_thread)(
 
 	ut_a(srv_purge_should_exit(thd, n_total_purged));
 
-	ulint	n_pages_purged = ULINT_MAX;
-
-	/* Ensure that all records are purged if it is not a fast shutdown.
-	This covers the case where a record can be added after we exit the
-	loop above. */
-	while (srv_fast_shutdown == 0 && n_pages_purged > 0) {
-		n_pages_purged = trx_purge(1, srv_purge_batch_size, false);
-	}
+	/* Ensure that all records are purged on slow shutdown. */
+	while (srv_fast_shutdown == 0
+	       && trx_purge(1, srv_purge_batch_size, false));
 
 #ifdef UNIV_DEBUG
 	if (srv_fast_shutdown == 0) {
@@ -3012,12 +3007,10 @@ DECLARE_THREAD(srv_purge_coordinator_thread)(
 	delay in shutdown ,so reducing the batch size to magic number 20
 	(which was default in 5.5), which we hope will be sufficient to
 	remove all the undo records */
-	const	uint temp_batch_size = 20;
 
-	n_pages_purged = trx_purge(1, srv_purge_batch_size <= temp_batch_size
-				      ? srv_purge_batch_size : temp_batch_size,
-				   true);
-	ut_a(n_pages_purged == 0 || srv_fast_shutdown != 0);
+	if (trx_purge(1, std::min(srv_purge_batch_size, 20UL), true)) {
+		ut_a(srv_fast_shutdown);
+	}
 
 	/* The task queue should always be empty, independent of fast
 	shutdown state. */
