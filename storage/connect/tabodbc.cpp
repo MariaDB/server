@@ -299,7 +299,7 @@ bool TDBODBC::MakeInsert(PGLOBAL g)
   {
 	char  *schmp = NULL, *catp = NULL, buf[NAM_LEN * 3];
 	int    len = 0;
-	bool   b = false, oom = false;
+	bool   oom, b = false;
 	PTABLE tablep = To_Table;
 	PCOL   colp;
 
@@ -336,32 +336,32 @@ bool TDBODBC::MakeInsert(PGLOBAL g)
 	Query = new(g) STRING(g, len, "INSERT INTO ");
 
 	if (catp) {
-		oom |= Query->Append(catp);
+		Query->Append(catp);
 
 		if (schmp) {
-			oom |= Query->Append('.');
-			oom |= Query->Append(schmp);
+			Query->Append('.');
+			Query->Append(schmp);
 		} // endif schmp
 
-		oom |= Query->Append('.');
+		Query->Append('.');
 	}	else if (schmp) {
-		oom |= Query->Append(schmp);
-		oom |= Query->Append('.');
+		Query->Append(schmp);
+		Query->Append('.');
 	} // endif schmp
 
 	if (Quote) {
 		// Put table name between identifier quotes in case in contains blanks
-		oom |= Query->Append(Quote);
-		oom |= Query->Append(buf);
-		oom |= Query->Append(Quote);
+		Query->Append(Quote);
+		Query->Append(buf);
+		Query->Append(Quote);
 	}	else
-		oom |= Query->Append(buf);
+		Query->Append(buf);
 
-	oom |= Query->Append('(');
+	Query->Append('(');
 
 	for (colp = Columns; colp; colp = colp->GetNext()) {
 		if (b)
-			oom |= Query->Append(", ");
+			Query->Append(", ");
 		else
 			b = true;
 
@@ -370,20 +370,20 @@ bool TDBODBC::MakeInsert(PGLOBAL g)
 
 		if (Quote) {
 			// Put column name between identifier quotes in case in contains blanks
-			oom |= Query->Append(Quote);
-			oom |= Query->Append(buf);
-			oom |= Query->Append(Quote);
+			Query->Append(Quote);
+			Query->Append(buf);
+			Query->Append(Quote);
 		}	else
-			oom |= Query->Append(buf);
+			Query->Append(buf);
 
 		} // endfor colp
 
-	oom |= Query->Append(") VALUES (");
+	Query->Append(") VALUES (");
 
 	for (int i = 0; i < Nparm; i++)
-		oom |= Query->Append("?,");
+		Query->Append("?,");
 
-	if (oom)
+	if ((oom = Query->IsTruncated()))
 		strcpy(g->Message, "MakeInsert: Out of memory");
 	else
 		Query->RepLast(')');

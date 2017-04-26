@@ -192,7 +192,7 @@ void CONSTANT::Print(PGLOBAL g, char *ps, uint z)
 /*  STRING public constructor for new char values. Alloc Size must be  */
 /*  calculated because PlugSubAlloc rounds up size to multiple of 8.   */
 /***********************************************************************/
-STRING::STRING(PGLOBAL g, uint n, char *str)
+STRING::STRING(PGLOBAL g, uint n, PSZ str)
 {
   G = g;
   Length = (str) ? strlen(str) : 0;
@@ -205,10 +205,12 @@ STRING::STRING(PGLOBAL g, uint n, char *str)
 
     Next = GetNext();
     Size = Next - Strp;
+		Trc = false;
   } else {
     // This should normally never happen
     Next = NULL;
     Size = 0;
+		Trc = true;
   } // endif Strp
 
 } // end of STRING constructor
@@ -229,6 +231,7 @@ char *STRING::Realloc(uint len)
   if (!p) {
     // No more room in Sarea; this is very unlikely
     strcpy(G->Message, "No more room in work area");
+		Trc = true;
     return NULL;
     } // endif p
 

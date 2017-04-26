@@ -495,11 +495,11 @@ PCOL TDBMYSQL::MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n)
 /*  filter should be removed from column list.                         */
 /***********************************************************************/
 bool TDBMYSQL::MakeSelect(PGLOBAL g, bool mx)
-  {
+{
 //char   *tk = "`";
   char    tk = '`';
   int     len = 0, rank = 0;
-  bool    b = false, oom = false;
+  bool    b = false;
   PCOL    colp;
 //PDBUSER dup = PlgGetUser(g);
 
@@ -526,13 +526,13 @@ bool TDBMYSQL::MakeSelect(PGLOBAL g, bool mx)
     for (colp = Columns; colp; colp = colp->GetNext())
       if (!colp->IsSpecial()) {
         if (b)
-          oom |= Query->Append(", ");
+          Query->Append(", ");
         else
           b = true;
 
-        oom |= Query->Append(tk);
-        oom |= Query->Append(colp->GetName());
-        oom |= Query->Append(tk);
+        Query->Append(tk);
+        Query->Append(colp->GetName());
+        Query->Append(tk);
         ((PMYCOL)colp)->Rank = rank++;
       } // endif colp
 
@@ -542,22 +542,22 @@ bool TDBMYSQL::MakeSelect(PGLOBAL g, bool mx)
     // Query '*' from...
     // (the use of a char constant minimize the result storage)
     if (Isview)
-      oom |= Query->Append('*');
+      Query->Append('*');
     else
-      oom |= Query->Append("'*'");
+      Query->Append("'*'");
 
   } // endif ncol
 
-  oom |= Query->Append(" FROM ");
-  oom |= Query->Append(tk);
-  oom |= Query->Append(TableName);
-  oom |= Query->Append(tk);
+  Query->Append(" FROM ");
+  Query->Append(tk);
+  Query->Append(TableName);
+  Query->Append(tk);
   len = Query->GetLength();
 
   if (To_CondFil) {
     if (!mx) {
-      oom |= Query->Append(" WHERE ");
-      oom |= Query->Append(To_CondFil->Body);
+      Query->Append(" WHERE ");
+      Query->Append(To_CondFil->Body);
       len = Query->GetLength() + 1;
     } else
       len += (strlen(To_CondFil->Body) + 256);
@@ -565,16 +565,16 @@ bool TDBMYSQL::MakeSelect(PGLOBAL g, bool mx)
   } else
     len += (mx ? 256 : 1);
 
-  if (oom || Query->Resize(len)) {
+  if (Query->IsTruncated() || Query->Resize(len)) {
     strcpy(g->Message, "MakeSelect: Out of memory");
     return true;
-    } // endif oom
+  } // endif Query
 
   if (trace)
     htrc("Query=%s\n", Query->GetStr());
 
   return false;
-  } // end of MakeSelect
+} // end of MakeSelect
 
 /***********************************************************************/
 /*  MakeInsert: make the Insert statement used with MySQL connection.  */
@@ -583,7 +583,7 @@ bool TDBMYSQL::MakeInsert(PGLOBAL g)
   {
   char *tk = "`";
   uint  len = 0;
-  bool  b = false, oom;
+  bool  oom, b = false;
   PCOL  colp;
 
   if (Query)
@@ -622,38 +622,38 @@ bool TDBMYSQL::MakeInsert(PGLOBAL g)
   Query = new(g) STRING(g, len);
 
   if (Delayed)
-    oom = Query->Set("INSERT DELAYED INTO ");
+    Query->Set("INSERT DELAYED INTO ");
   else
-    oom = Query->Set("INSERT INTO ");
+    Query->Set("INSERT INTO ");
 
-  oom |= Query->Append(tk);
-  oom |= Query->Append(TableName);
-  oom |= Query->Append("` (");
+  Query->Append(tk);
+  Query->Append(TableName);
+  Query->Append("` (");
 
   for (colp = Columns; colp; colp = colp->GetNext()) {
     if (b)
-      oom |= Query->Append(", ");
+      Query->Append(", ");
     else
       b = true;
   
-    oom |= Query->Append(tk);
-    oom |= Query->Append(colp->GetName());
-    oom |= Query->Append(tk);
+    Query->Append(tk);
+    Query->Append(colp->GetName());
+    Query->Append(tk);
     } // endfor colp
 
-  oom |= Query->Append(") VALUES (");
+  Query->Append(") VALUES (");
 
 #if defined(MYSQL_PREPARED_STATEMENTS)
   if (Prep) {
     for (int i = 0; i < Nparm; i++)
-      oom |= Query->Append("?,");
+      Query->Append("?,");
 
     Query->RepLast(')');
     Query->Trim();
     }  // endif Prep
 #endif  // MYSQL_PREPARED_STATEMENTS 
 
-  if (oom)
+  if ((oom = Query->IsTruncated()))
     strcpy(g->Message, "MakeInsert: Out of memory");
 
   return oom;
@@ -684,18 +684,18 @@ bool TDBMYSQL::MakeCommand(PGLOBAL g)
       strlwr(strcpy(name, Name));     // Not a keyword
 
     if ((p = strstr(qrystr, name))) {
-      bool oom = Query->Set(Qrystr, p - qrystr);
+      Query->Set(Qrystr, p - qrystr);
 
       if (qtd && *(p-1) == ' ') {
-        oom |= Query->Append('`');
-        oom |= Query->Append(TableName);
-        oom |= Query->Append('`');
+        Query->Append('`');
+        Query->Append(TableName);
+        Query->Append('`');
       } else
-        oom |= Query->Append(TableName);
+        Query->Append(TableName);
 
-      oom |= Query->Append(Qrystr + (p - qrystr) + strlen(name));
+      Query->Append(Qrystr + (p - qrystr) + strlen(name));
 
-      if (oom) {
+      if (Query->IsTruncated()) {
         strcpy(g->Message, "MakeCommand: Out of memory");
         return true;
       } else
@@ -1161,24 +1161,23 @@ int TDBMYSQL::WriteDB(PGLOBAL g)
   int  rc;
   uint len = Query->GetLength();
   char buf[64];
-  bool oom = false;
 
   // Make the Insert command value list
   for (PCOL colp = Columns; colp; colp = colp->GetNext()) {
     if (!colp->GetValue()->IsNull()) {
       if (colp->GetResultType() == TYPE_STRING ||
           colp->GetResultType() == TYPE_DATE)
-        oom |= Query->Append_quoted(colp->GetValue()->GetCharString(buf));
+        Query->Append_quoted(colp->GetValue()->GetCharString(buf));
       else
-        oom |= Query->Append(colp->GetValue()->GetCharString(buf));
+        Query->Append(colp->GetValue()->GetCharString(buf));
   
     } else
-      oom |= Query->Append("NULL");
+      Query->Append("NULL");
   
-    oom |= Query->Append(',');
+    Query->Append(',');
     } // endfor colp
 
-  if (unlikely(oom)) {
+  if (unlikely(Query->IsTruncated())) {
     strcpy(g->Message, "WriteDB: Out of memory");
     rc = RC_FX;
   } else {
@@ -1186,7 +1185,7 @@ int TDBMYSQL::WriteDB(PGLOBAL g)
     Myc.m_Rows = -1;          // To execute the query
     rc = Myc.ExecSQL(g, Query->GetStr());
     Query->Truncate(len);     // Restore query
-  } // endif oom
+  } // endif Query
 
   return (rc == RC_NF) ? RC_OK : rc;      // RC_NF is Ok
   } // end of WriteDB

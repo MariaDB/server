@@ -130,6 +130,7 @@ class DllExport STRING : public BLOCK {
 	inline void   SetLength(uint n) {Length = n;}
 	inline PSZ    GetStr(void) {return Strp;}
   inline uint32 GetSize(void) {return Size;}
+	inline bool   IsTruncated(void) {return Trc;}
 
   // Methods
   inline void   Reset(void) {*Strp = 0;}
@@ -156,6 +157,7 @@ class DllExport STRING : public BLOCK {
   PSZ     Strp;                // The char string
   uint    Length;              // String length
   uint    Size;                // Allocated size
+	bool    Trc;								 // When truncated
   char   *Next;                // Next alloc position
   }; // end of class STRING
 

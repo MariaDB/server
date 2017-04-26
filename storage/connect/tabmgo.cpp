@@ -586,15 +586,45 @@ PCOL TDBMGO::InsertSpecialColumn(PCOL colp)
 int TDBMGO::Cardinality(PGLOBAL g)
 {
 	if (!g)
-		return 0;
+		return 1;
 	else if (Cardinal < 0)
-		Cardinal = 10;
+		if (!Init(g)) {
+			bson_t     *query;
+			const char *jf = NULL;
+
+			if (Pipe)
+				return 10;
+			else if (Filter)
+				jf = Filter;
+
+			if (jf) {
+				query = bson_new_from_json((const uint8_t *)jf, -1, &Error);
+
+				if (!query) {
+					htrc("Wrong filter: %s", Error.message);
+					return 10;
+				}	// endif Query
+
+			} else
+				query = bson_new();
+
+			Cardinal = (int)mongoc_collection_count(Collection,
+				MONGOC_QUERY_NONE, query, 0, 0, NULL, &Error);
+
+			if (Cardinal < 0) {
+				htrc("Collection count: %s", Error.message);
+				Cardinal = 10;
+			} // endif Cardinal
+
+			bson_destroy(query);
+		} else
+			return 10;
 
 	return Cardinal;
 } // end of Cardinality
 
 /***********************************************************************/
-/*  MONGO GetMaxSize: returns file size estimate in number of lines.   */
+/*  MONGO GetMaxSize: returns collection size estimate.                */
 /***********************************************************************/
 int TDBMGO::GetMaxSize(PGLOBAL g)
 {
@@ -623,103 +653,7 @@ bool TDBMGO::Init(PGLOBAL g)
 
 		} // endif p
 
-		if (*Options) {
-			if (trace)
-				htrc("options=%s\n", Options);
-
-			Opts = bson_new_from_json((const uint8_t *)Options, -1, &Error);
-
-			if (!Opts) {
-				sprintf(g->Message, "Wrong options: %s", Error.message);
-				return true;
-			} // endif Opts
-
-		} // endif *Options
-
 	} // endif Options
-
-	if (Pipe) {
-		const char *p;
-
-		if (trace)
-			htrc("Pipeline: %s\n", Options);
-
-		if (To_Filter) {
-			p = strrchr(Options, ']');
-
-			if (!p) { 
-				strcpy(g->Message, "Missing ] in pipeline");
-				return true;
-			}	else
-			  *(char*)p = 0;
-
-			PSTRG s = new(g) STRING(g, 1023, (PSZ)Options);
-			s->Append(",{\"$match\":");
-
-			if (To_Filter->MakeSelector(g, s)) {
-				strcpy(g->Message, "Failed making selector");
-				return true;
-			}	// endif Selector
-
-			s->Append("}]}");
-			s->Resize(s->GetLength() + 1);
-			p = s->GetStr();
-
-			if (trace)
-				htrc("New Pipeline: %s\n", p);
-
-			To_Filter = NULL;   // Not needed anymore
-		} else
-			p = Options;
-
-		Query = bson_new_from_json((const uint8_t *)p, -1, &Error);
-
-		if (!Query) {
-			sprintf(g->Message, "Wrong pipeline: %s", Error.message);
-			return true;
-		}	// endif Query
-
-	}	else if (Filter || To_Filter) {
-		if (trace) {
-			if (Filter)
-				htrc("Filter: %s\n", Filter);
-
-			if (To_Filter) {
-				char buf[512];
-
-				To_Filter->Print(g, buf, 511);
-				htrc("To_Filter: %s\n", buf);
-			} // endif To_Filter
-
-		}	// endif trace
-
-		PSTRG s = new(g) STRING(g, 1023, (PSZ)Filter);
-
-		if (To_Filter) {
-			if (Filter)
-				s->Append(',');
-
-			if (To_Filter->MakeSelector(g, s)) {
-				strcpy(g->Message, "Failed making selector");
-				return true;
-			}	// endif Selector
-
-			s->Resize(s->GetLength() + 1);
-			To_Filter = NULL;   // Not needed anymore
-		} // endif To_Filter
-
-		if (trace)
-			htrc("selector: %s\n", s->GetStr());
-
-		Query = bson_new_from_json((const uint8_t *)s->GetStr(), -1, &Error);
-
-		if (!Query) {
-			sprintf(g->Message, "Wrong filter: %s", Error.message);
-			return true;
-		}	// endif Query
-
-	}	else
-		Query = bson_new();
 
 	Uri = mongoc_uri_new(Uristr);
 
@@ -768,6 +702,148 @@ bool TDBMGO::Init(PGLOBAL g)
 /***********************************************************************/
 /*  OpenDB: Data Base open routine for MONGO access method.            */
 /***********************************************************************/
+bool TDBMGO::MakeCursor(PGLOBAL g)
+{
+	const char *p;
+	PSTRG       s;
+
+	if (Pipe) {
+		if (trace)
+			htrc("Pipeline: %s\n", Options);
+
+		p = strrchr(Options, ']');
+
+		if (!p) {
+			strcpy(g->Message, "Missing ] in pipeline");
+			return true;
+		} else
+			*(char*)p = 0;
+
+		s = new(g) STRING(g, 1023, (PSZ)Options);
+
+		if (To_Filter) {
+			s->Append(",{\"$match\":");
+
+			if (To_Filter->MakeSelector(g, s)) {
+				strcpy(g->Message, "Failed making selector");
+				return true;
+			} else
+				s->Append('}');
+
+			To_Filter = NULL;   // Not needed anymore
+		} // endif To_Filter
+
+		// Project list
+		s->Append(",{\"$project\":{\"_id\":0");
+
+		for (PCOL cp = Columns; cp; cp = cp->GetNext()) {
+			s->Append(",\"");
+			s->Append(((PMGOCOL)cp)->Jpath);
+			s->Append("\":1");
+		} // endfor cp
+
+		s->Append("}}]}");
+		s->Resize(s->GetLength() + 1);
+		p = s->GetStr();
+
+		if (trace)
+			htrc("New Pipeline: %s\n", p);
+
+		Query = bson_new_from_json((const uint8_t *)p, -1, &Error);
+
+		if (!Query) {
+			sprintf(g->Message, "Wrong pipeline: %s", Error.message);
+			return true;
+		}	// endif Query
+
+		Cursor = mongoc_collection_aggregate(Collection, MONGOC_QUERY_NONE,
+			Query, NULL, NULL);
+
+		if (mongoc_cursor_error(Cursor, &Error)) {
+			sprintf(g->Message, "Mongo aggregate Failure: %s", Error.message);
+			return true;
+		} // endif cursor
+
+	} else {
+		if (Filter || To_Filter) {
+			if (trace) {
+				if (Filter)
+					htrc("Filter: %s\n", Filter);
+
+				if (To_Filter) {
+					char buf[512];
+
+					To_Filter->Print(g, buf, 511);
+					htrc("To_Filter: %s\n", buf);
+				} // endif To_Filter
+
+			}	// endif trace
+
+			s = new(g) STRING(g, 1023, (PSZ)Filter);
+
+			if (To_Filter) {
+				if (Filter)
+					s->Append(',');
+
+				if (To_Filter->MakeSelector(g, s)) {
+					strcpy(g->Message, "Failed making selector");
+					return true;
+				}	// endif Selector
+
+				To_Filter = NULL;   // Not needed anymore
+			} // endif To_Filter
+
+			if (trace)
+				htrc("selector: %s\n", s->GetStr());
+
+			s->Resize(s->GetLength() + 1);
+			Query = bson_new_from_json((const uint8_t *)s->GetStr(), -1, &Error);
+
+			if (!Query) {
+				sprintf(g->Message, "Wrong filter: %s", Error.message);
+				return true;
+			}	// endif Query
+
+		} else
+			Query = bson_new();
+
+		if (Options && *Options) {
+			if (trace)
+				htrc("options=%s\n", Options);
+
+			Opts = bson_new_from_json((const uint8_t *)Options, -1, &Error);
+		} else {
+			// Projection list
+			if (s)
+				s->Set("{\"projection\":{\"_id\":0");
+			else
+				s = new(g) STRING(g, 511, "{\"projection\":{\"_id\":0");
+
+			for (PCOL cp = Columns; cp; cp = cp->GetNext()) {
+				s->Append(",\"");
+				s->Append(((PMGOCOL)cp)->Jpath);
+				s->Append("\":1");
+			} // endfor cp
+
+			s->Append("}}");
+			s->Resize(s->GetLength() + 1);
+			Opts = bson_new_from_json((const uint8_t *)s->GetStr(), -1, &Error);
+		} // endif Options
+
+		if (!Opts) {
+			sprintf(g->Message, "Wrong options: %s", Error.message);
+			return true;
+		} // endif Opts
+
+		Cursor = mongoc_collection_find_with_opts(Collection, Query, Opts, NULL);
+	} // endif Pipe
+
+	return false;
+} // end of MakeCursor
+
+/***********************************************************************/
+/*  OpenDB: Data Base open routine for MONGO access method.            */
+/***********************************************************************/
 bool TDBMGO::OpenDB(PGLOBAL g)
 {
 	if (Use == USE_OPEN) {
@@ -797,17 +873,8 @@ bool TDBMGO::OpenDB(PGLOBAL g)
 
 		} else if (Mode == MODE_INSERT)
 			MakeColumnGroups(g);
-		else if (Pipe) {
-			Cursor = mongoc_collection_aggregate(Collection, MONGOC_QUERY_NONE,
-				                                   Query, NULL, NULL);
-
-			if (mongoc_cursor_error(Cursor, &Error)) {
-				sprintf(g->Message, "Mongo aggregate Failure: %s", Error.message);
-				return true;
-			} // endif cursor
-
-		} else
-		  Cursor = mongoc_collection_find_with_opts(Collection, Query, Opts, NULL);
+		else if (MakeCursor(g))
+			return true;
 
 	} // endif Use
 

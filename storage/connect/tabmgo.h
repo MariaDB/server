@@ -124,30 +124,31 @@ public:
 	TDBMGO(TDBMGO *tdbp);
 
 	// Implementation
-	virtual AMT   GetAmType(void) { return TYPE_AM_MGO; }
-	virtual PTDB  Duplicate(PGLOBAL g) { return (PTDB)new(g) TDBMGO(this); }
+	virtual AMT  GetAmType(void) {return TYPE_AM_MGO;}
+	virtual PTDB Duplicate(PGLOBAL g) {return (PTDB)new(g) TDBMGO(this);}
 
 	// Methods
-	virtual PTDB  Clone(PTABS t);
-	virtual PCOL  MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n);
-	virtual PCOL  InsertSpecialColumn(PCOL colp);
-	virtual int   RowNumber(PGLOBAL g, bool b = FALSE) {return N;}
+	virtual PTDB Clone(PTABS t);
+	virtual PCOL MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n);
+	virtual PCOL InsertSpecialColumn(PCOL colp);
+	virtual int  RowNumber(PGLOBAL g, bool b = FALSE) {return N;}
 
 	// Database routines
-	virtual int   Cardinality(PGLOBAL g);
-	virtual int   GetMaxSize(PGLOBAL g);
-	virtual bool  OpenDB(PGLOBAL g);
-	virtual int   ReadDB(PGLOBAL g);
-	virtual int   WriteDB(PGLOBAL g);
-	virtual int   DeleteDB(PGLOBAL g, int irc);
-	virtual void  CloseDB(PGLOBAL g);
-	virtual bool  ReadKey(PGLOBAL g, OPVAL op, const key_range *kr);
+	virtual int  Cardinality(PGLOBAL g);
+	virtual int  GetMaxSize(PGLOBAL g);
+	virtual bool OpenDB(PGLOBAL g);
+	virtual int  ReadDB(PGLOBAL g);
+	virtual int  WriteDB(PGLOBAL g);
+	virtual int  DeleteDB(PGLOBAL g, int irc);
+	virtual void CloseDB(PGLOBAL g);
+	virtual bool ReadKey(PGLOBAL g, OPVAL op, const key_range *kr);
 
 protected:
-	bool  Init(PGLOBAL g);
-	void  ShowDocument(bson_iter_t *i, const bson_t *b, const char *k);
-	void  MakeColumnGroups(PGLOBAL g);
-	bool  DocWrite(PGLOBAL g, PINCOL icp);
+	bool Init(PGLOBAL g);
+	bool MakeCursor(PGLOBAL g);
+	void ShowDocument(bson_iter_t *i, const bson_t *b, const char *k);
+	void MakeColumnGroups(PGLOBAL g);
+	bool DocWrite(PGLOBAL g, PINCOL icp);
 
 	// Members
 	mongoc_uri_t         *Uri;

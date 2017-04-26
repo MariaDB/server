@@ -2283,7 +2283,7 @@ bool ha_connect::MakeKeyWhere(PGLOBAL g, PSTRG qry, OPVAL vop, char q,
 	const uchar     *ptr;
 //uint             i, rem, len, klen, stlen;
 	uint             i, rem, len, stlen;
-	bool             nq, both, oom= false;
+	bool             nq, both, oom;
 	OPVAL            op;
 	Field           *fp;
 	const key_range *ranges[2];
@@ -2311,9 +2311,9 @@ bool ha_connect::MakeKeyWhere(PGLOBAL g, PSTRG qry, OPVAL vop, char q,
 			continue;
 
 		if (both && i > 0)
-			oom|= qry->Append(") AND (");
+			qry->Append(") AND (");
 		else
-			oom|= qry->Append(" WHERE (");
+			qry->Append(" WHERE (");
 
 //	klen= len= ranges[i]->length;
 		len= ranges[i]->length;
@@ -2326,14 +2326,14 @@ bool ha_connect::MakeKeyWhere(PGLOBAL g, PSTRG qry, OPVAL vop, char q,
 			nq= fp->str_needs_quotes();
 
 			if (kpart != kfp->key_part)
-				oom|= qry->Append(" AND ");
+				qry->Append(" AND ");
 
 			if (q) {
-				oom|= qry->Append(q);
-				oom|= qry->Append((PSZ)fp->field_name);
-				oom|= qry->Append(q);
+				qry->Append(q);
+				qry->Append((PSZ)fp->field_name);
+				qry->Append(q);
 			}	else
-				oom|= qry->Append((PSZ)fp->field_name);
+				qry->Append((PSZ)fp->field_name);
 
 			switch (ranges[i]->flag) {
 			case HA_READ_KEY_EXACT:
@@ -2358,10 +2358,10 @@ bool ha_connect::MakeKeyWhere(PGLOBAL g, PSTRG qry, OPVAL vop, char q,
 				goto err;
 			}	// endswitch flag
 
-			oom|= qry->Append((PSZ)GetValStr(op, false));
+			qry->Append((PSZ)GetValStr(op, false));
 
 			if (nq)
-				oom|= qry->Append('\'');
+				qry->Append('\'');
 
 			if (kpart->key_part_flag & HA_VAR_LENGTH_PART) {
 				String varchar;
@@ -2369,17 +2369,17 @@ bool ha_connect::MakeKeyWhere(PGLOBAL g, PSTRG qry, OPVAL vop, char q,
 
 				varchar.set_quick((char*)ptr + HA_KEY_BLOB_LENGTH,
 					var_length, &my_charset_bin);
-				oom|= qry->Append(varchar.ptr(), varchar.length(), nq);
+				qry->Append(varchar.ptr(), varchar.length(), nq);
 			}	else {
 				char   strbuff[MAX_FIELD_WIDTH];
 				String str(strbuff, sizeof(strbuff), kpart->field->charset()), *res;
 
 				res= fp->val_str(&str, ptr);
-				oom|= qry->Append(res->ptr(), res->length(), nq);
+				qry->Append(res->ptr(), res->length(), nq);
 			} // endif flag
 
 			if (nq)
-				oom |= qry->Append('\'');
+				qry->Append('\'');
 
 			if (stlen >= len)
 				break;
@@ -2394,7 +2394,9 @@ bool ha_connect::MakeKeyWhere(PGLOBAL g, PSTRG qry, OPVAL vop, char q,
 
 		} // endfor i
 
-  if ((oom|= qry->Append(")")))
+	qry->Append(')');
+
+  if ((oom= qry->IsTruncated()))
     strcpy(g->Message, "Out of memory");
 
 	dbug_tmp_restore_column_map(table->write_set, old_map);
