@@ -552,15 +552,6 @@ void
 fil_space_set_imported(
 	ulint	id);
 
-#ifdef UNIV_DEBUG
-/** Determine if a tablespace is temporary.
-@param[in]	id	tablespace identifier
-@return whether it is a temporary tablespace */
-bool
-fsp_is_temporary(ulint id)
-MY_ATTRIBUTE((warn_unused_result, pure));
-#endif /* UNIV_DEBUG */
-
 /** Append a file to the chain of files of a space.
 @param[in]	name		file name of a file that is not open
 @param[in]	size		file size in entire database blocks
