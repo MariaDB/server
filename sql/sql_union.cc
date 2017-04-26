@@ -105,7 +105,8 @@ int select_union_recursive::send_data(List<Item> &values)
 {
   int rc= select_union::send_data(values);
 
-  if (write_err != HA_ERR_FOUND_DUPP_KEY)
+  if (write_err != HA_ERR_FOUND_DUPP_KEY && 
+      write_err != HA_ERR_FOUND_DUPP_UNIQUE)
   { 
     int err;
     if ((err= incr_table->file->ha_write_tmp_row(table->record[0])))
