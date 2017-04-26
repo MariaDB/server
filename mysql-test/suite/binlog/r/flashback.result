@@ -502,4 +502,8 @@ a	b
 2	1
 3	2
 4	3
+SET binlog_format=statement;
+ERROR HY000: Flashback does not support binlog_format STATEMENT
+SET GLOBAL binlog_format=statement;
+ERROR HY000: Flashback does not support binlog_format STATEMENT
 DROP TABLE t1;
