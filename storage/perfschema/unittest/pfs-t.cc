@@ -1316,6 +1316,7 @@ void test_locker_disabled()
   /* Pretend the socket does not have a thread owner */
   /* ---------------------------------------------- */
 
+  psi->delete_current_thread();
   socket_class_A->m_enabled= true;
   socket_A1= psi->init_socket(socket_key_A, NULL, NULL, 0);
   ok(socket_A1 != NULL, "instrumented");

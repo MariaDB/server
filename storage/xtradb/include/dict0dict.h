@@ -2,7 +2,7 @@
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2015, MariaDB Corporation.
+Copyright (c) 2013, 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -762,7 +762,7 @@ ulint
 dict_index_is_clust(
 /*================*/
 	const dict_index_t*	index)	/*!< in: index */
-	MY_ATTRIBUTE((nonnull, pure, warn_unused_result));
+	MY_ATTRIBUTE((warn_unused_result));
 /********************************************************************//**
 Check whether the index is unique.
 @return	nonzero for unique index, zero for other indexes */
@@ -771,7 +771,7 @@ ulint
 dict_index_is_unique(
 /*=================*/
 	const dict_index_t*	index)	/*!< in: index */
-	MY_ATTRIBUTE((nonnull, pure, warn_unused_result));
+	MY_ATTRIBUTE((warn_unused_result));
 /********************************************************************//**
 Check whether the index is the insert buffer tree.
 @return	nonzero for insert buffer, zero for other indexes */
@@ -780,7 +780,7 @@ ulint
 dict_index_is_ibuf(
 /*===============*/
 	const dict_index_t*	index)	/*!< in: index */
-	MY_ATTRIBUTE((nonnull, pure, warn_unused_result));
+	MY_ATTRIBUTE((warn_unused_result));
 /********************************************************************//**
 Check whether the index is a secondary index or the insert buffer tree.
 @return	nonzero for insert buffer, zero for other indexes */
@@ -789,7 +789,7 @@ ulint
 dict_index_is_sec_or_ibuf(
 /*======================*/
 	const dict_index_t*	index)	/*!< in: index */
-	MY_ATTRIBUTE((nonnull, pure, warn_unused_result));
+	MY_ATTRIBUTE((warn_unused_result));
 
 /************************************************************************
 Gets the all the FTS indexes for the table. NOTE: must not be called for
@@ -811,7 +811,7 @@ ulint
 dict_table_get_n_user_cols(
 /*=======================*/
 	const dict_table_t*	table)	/*!< in: table */
-	MY_ATTRIBUTE((nonnull, pure, warn_unused_result));
+	MY_ATTRIBUTE((warn_unused_result));
 /********************************************************************//**
 Gets the number of system columns in a table in the dictionary cache.
 @return	number of system (e.g., ROW_ID) columns of a table */
@@ -830,7 +830,7 @@ ulint
 dict_table_get_n_cols(
 /*==================*/
 	const dict_table_t*	table)	/*!< in: table */
-	MY_ATTRIBUTE((nonnull, pure, warn_unused_result));
+	MY_ATTRIBUTE((warn_unused_result));
 /********************************************************************//**
 Gets the approximately estimated number of rows in the table.
 @return	estimated number of rows */
@@ -1784,7 +1784,7 @@ ulint
 dict_index_is_corrupted(
 /*====================*/
 	const dict_index_t*	index)	/*!< in: index */
-	MY_ATTRIBUTE((nonnull, warn_unused_result));
+	MY_ATTRIBUTE((warn_unused_result));
 
 #endif /* !UNIV_HOTBACKUP */
 /**********************************************************************//**
@@ -1797,7 +1797,7 @@ dict_set_corrupted(
 	dict_index_t*	index,	/*!< in/out: index */
 	trx_t*		trx,	/*!< in/out: transaction */
 	const char*	ctx)	/*!< in: context */
-	UNIV_COLD MY_ATTRIBUTE((nonnull));
+	UNIV_COLD;
 
 /**********************************************************************//**
 Flags an index corrupted in the data dictionary cache only. This
@@ -1808,8 +1808,7 @@ void
 dict_set_corrupted_index_cache_only(
 /*================================*/
 	dict_index_t*	index,		/*!< in/out: index */
-	dict_table_t*	table)		/*!< in/out: table */
-	MY_ATTRIBUTE((nonnull));
+	dict_table_t*	table);		/*!< in/out: table */
 
 /**********************************************************************//**
 Flags a table with specified space_id corrupted in the table dictionary
@@ -1909,52 +1908,6 @@ dict_table_set_corrupt_by_space(
 /*============================*/
 	ulint	space_id,
 	ibool	need_mutex);
-
-/** Insert a records into SYS_ZIP_DICT.
-@retval	DB_SUCCESS	if OK
-@retval	dberr_t		if the insert failed */
-UNIV_INTERN
-dberr_t
-dict_create_zip_dict(
-	const char*	name,		/*!< in: zip_dict name */
-	ulint		name_len,	/*!< in: zip_dict name length*/
-	const char*	data,		/*!< in: zip_dict data */
-	ulint		data_len);	/*!< in: zip_dict data length */
-
-/** Get single compression dictionary id for the given
-(table id, column pos) pair.
-@retval	DB_SUCCESS		if OK
-@retval	DB_RECORD_NOT_FOUND	if not found */
-UNIV_INTERN
-dberr_t
-dict_get_dictionary_id_by_key(
-	ulint	table_id,	/*!< in: table id */
-	ulint	column_pos,	/*!< in: column position */
-	ulint*	dict_id);	/*!< out: zip_dict id */
-
-/** Get compression dictionary info (name and data) for the given id.
-Allocates memory in name->str and data->str on success.
-Must be freed with mem_free().
-@retval	DB_SUCCESS		if OK
-@retval	DB_RECORD_NOT_FOUND	if not found */
-UNIV_INTERN
-dberr_t
-dict_get_dictionary_info_by_id(
-	ulint	dict_id,	/*!< in: table name */
-	char**	name,		/*!< out: dictionary name */
-	ulint*	name_len,	/*!< out: dictionary name length*/
-	char**	data,		/*!< out: dictionary data */
-	ulint*	data_len);	/*!< out: dictionary data length*/
-
-/** Delete a record in SYS_ZIP_DICT with the given name.
-@retval	DB_SUCCESS		if OK
-@retval	DB_RECORD_NOT_FOUND	if not found
-@retval	DB_ROW_IS_REFERENCED	if in use */
-UNIV_INTERN
-dberr_t
-dict_drop_zip_dict(
-	const char*	name,		/*!< in: zip_dict name */
-	ulint		name_len);	/*!< in: zip_dict name length*/
 
 #ifndef UNIV_NONINL
 #include "dict0dict.ic"

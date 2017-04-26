@@ -442,17 +442,17 @@
 #endif
 
 /**
-  @def mysql_file_delete_with_symlink(K, P1, P2)
+  @def mysql_file_delete_with_symlink(K, P1, P2, P3)
   Instrumented delete with symbolic link.
   @c mysql_file_delete_with_symlink is a replacement
-  for @c my_delete_with_symlink.
+  for @c my_handler_delete_with_symlink.
 */
 #ifdef HAVE_PSI_FILE_INTERFACE
-  #define mysql_file_delete_with_symlink(K, P1, P2) \
-  inline_mysql_file_delete_with_symlink(K, __FILE__, __LINE__, P1, P2)
+  #define mysql_file_delete_with_symlink(K, P1, P2, P3) \
+  inline_mysql_file_delete_with_symlink(K, __FILE__, __LINE__, P1, P2, P3)
 #else
-  #define mysql_file_delete_with_symlink(K, P1, P2) \
-  inline_mysql_file_delete_with_symlink(P1, P2)
+  #define mysql_file_delete_with_symlink(K, P1, P2, P3) \
+  inline_mysql_file_delete_with_symlink(P1, P2, P3)
 #endif
 
 /**
@@ -1308,6 +1308,7 @@ inline_mysql_file_rename(
   return result;
 }
 
+
 static inline File
 inline_mysql_file_create_with_symlink(
 #ifdef HAVE_PSI_FILE_INTERFACE
@@ -1337,31 +1338,35 @@ inline_mysql_file_create_with_symlink(
   return file;
 }
 
+
 static inline int
 inline_mysql_file_delete_with_symlink(
 #ifdef HAVE_PSI_FILE_INTERFACE
   PSI_file_key key, const char *src_file, uint src_line,
 #endif
-  const char *name, myf flags)
+  const char *name, const char *ext, myf flags)
 {
   int result;
+  char buf[FN_REFLEN];
+  char *fullname= fn_format(buf, name, "", ext, MY_UNPACK_FILENAME | MY_APPEND_EXT);
 #ifdef HAVE_PSI_FILE_INTERFACE
   struct PSI_file_locker *locker;
   PSI_file_locker_state state;
   locker= PSI_FILE_CALL(get_thread_file_name_locker)
-    (&state, key, PSI_FILE_DELETE, name, &locker);
+    (&state, key, PSI_FILE_DELETE, fullname, &locker);
   if (likely(locker != NULL))
   {
     PSI_FILE_CALL(start_file_close_wait)(locker, src_file, src_line);
-    result= my_delete_with_symlink(name, flags);
+    result= my_handler_delete_with_symlink(fullname, flags);
     PSI_FILE_CALL(end_file_close_wait)(locker, result);
     return result;
   }
 #endif
 
-  result= my_delete_with_symlink(name, flags);
+  result= my_handler_delete_with_symlink(fullname, flags);
   return result;
 }
+
 
 static inline int
 inline_mysql_file_rename_with_symlink(

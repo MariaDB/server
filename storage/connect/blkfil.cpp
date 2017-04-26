@@ -595,11 +595,7 @@ BLKFILIN::BLKFILIN(PGLOBAL g, PTDBDOS tdbp, int op, int opm, PXOB *xp)
 
   if (Colp->GetResultType() != Type) {
     sprintf(g->Message, "BLKFILIN: %s", MSG(VALTYPE_NOMATCH));
-#if defined(USE_TRY)
 		throw g->Message;
-#else   // !USE_TRY
-		longjmp(g->jumper[g->jump_level], 99);
-#endif  // !USE_TRY
 	} else if (Colp->GetValue()->IsCi())
     Arap->SetPrecision(g, 1);        // Case insensitive
 

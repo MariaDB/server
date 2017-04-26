@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2000, 2016, Oracle and/or its affiliates.
-Copyright (c) 2013, 2016, MariaDB Corporation.
+Copyright (c) 2013, 2017, MariaDB Corporation.
 Copyright (c) 2008, 2009 Google Inc.
 Copyright (c) 2009, Percona Inc.
 Copyright (c) 2012, Facebook Inc.
@@ -68,7 +68,6 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include "srv0srv.h"
 #include "trx0roll.h"
 #include "trx0trx.h"
-
 #include "trx0sys.h"
 #include "rem0types.h"
 #include "row0ins.h"
@@ -112,14 +111,6 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include "fil0pagecompress.h"
 
 #define thd_get_trx_isolation(X) ((enum_tx_isolation)thd_tx_isolation(X))
-
-#ifndef HAVE_PERCONA_COMPRESSED_COLUMNS
-#define COLUMN_FORMAT_TYPE_COMPRESSED                   0xBADF00D
-#define SQLCOM_CREATE_COMPRESSION_DICTIONARY            0xDECAF
-#define SQLCOM_DROP_COMPRESSION_DICTIONARY              0xC0FFEE
-#define ER_COMPRESSION_DICTIONARY_DOES_NOT_EXIST        0xDEADFACE
-const static LEX_CSTRING null_lex_cstr={0,0};
-#endif
 
 #ifdef MYSQL_DYNAMIC_PLUGIN
 #define tc_size 400
@@ -260,7 +251,6 @@ static char*	internal_innobase_data_file_path	= NULL;
 
 static char*	innodb_version_str = (char*) INNODB_VERSION_STR;
 
-extern uint srv_n_fil_crypt_threads;
 extern uint srv_fil_crypt_rotate_key_age;
 extern uint srv_n_fil_crypt_iops;
 
@@ -1300,6 +1290,9 @@ static SHOW_VAR innodb_status_variables[]= {
   {"encryption_rotation_estimated_iops",
   (char*) &export_vars.innodb_encryption_rotation_estimated_iops,
    SHOW_LONG},
+  {"encryption_key_rotation_list_length",
+  (char*)&export_vars.innodb_key_rotation_list_length,
+   SHOW_LONGLONG},
 
   /* Scrubing feature */
   {"scrub_background_page_reorganizations",
@@ -1703,30 +1696,6 @@ normalize_table_name_low(
 	ibool           set_lower_case); /* in: TRUE if we want to set
 					 name to lower case */
 
-#ifdef HAVE_PERCONA_COMPRESSED_COLUMNS
-/** Creates a new compression dictionary. */
-static
-handler_create_zip_dict_result
-innobase_create_zip_dict(
-	handlerton*	hton,	/*!< in: innobase handlerton */
-	THD*		thd,	/*!< in: handle to the MySQL thread */
-	const char*	name,	/*!< in: zip dictionary name */
-	ulint*		name_len,
-				/*!< in/out: zip dictionary name length */
-	const char*	data,	/*!< in: zip dictionary data */
-	ulint*		data_len);
-				/*!< in/out: zip dictionary data length */
-
-/** Drops a existing compression dictionary. */
-static
-handler_drop_zip_dict_result
-innobase_drop_zip_dict(
-	handlerton*	hton,	/*!< in: innobase handlerton */
-	THD*		thd,	/*!< in: handle to the MySQL thread */
-	const char*	name,	/*!< in: zip dictionary name */
-	ulint*		name_len);
-				/*!< in/out: zip dictionary name length */
-#endif
 /*************************************************************//**
 Checks if buffer pool is big enough to enable backoff algorithm.
 InnoDB empty free list algorithm backoff requires free pages
@@ -1776,6 +1745,7 @@ static bool innobase_purge_archive_logs(
 	return (err != DB_SUCCESS);
 }
 #endif
+
 
 /*************************************************************//**
 Check for a valid value of innobase_commit_concurrency.
@@ -2009,6 +1979,15 @@ thd_has_edited_nontrans_tables(
 	THD*	thd)	/*!< in: thread handle */
 {
 	return((ibool) thd_non_transactional_update(thd));
+}
+
+/* Return high resolution timestamp for the start of the current query */
+UNIV_INTERN
+unsigned long long
+thd_query_start_micro(
+	const THD*	thd)	/*!< in: thread handle */
+{
+	return thd_start_utime(thd);
 }
 
 /******************************************************************//**
@@ -3854,10 +3833,6 @@ innobase_init(
 
 	innodb_remember_check_sysvar_funcs();
 
-#ifdef HAVE_PERCONA_COMPRESSED_COLUMNS
-	innobase_hton->create_zip_dict = innobase_create_zip_dict;
-	innobase_hton->drop_zip_dict = innobase_drop_zip_dict;
-#endif
 	ut_a(DATA_MYSQL_TRUE_VARCHAR == (ulint)MYSQL_TYPE_VARCHAR);
 
 #ifndef DBUG_OFF
@@ -3903,22 +3878,16 @@ innobase_init(
 		srv_log_block_size = 512;
 	}
 
-	if (UNIV_PAGE_SIZE != UNIV_PAGE_SIZE_DEF) {
+	/* The buffer pool needs to be able to accommodate enough many
+	pages, even for larger pages */
+	if (UNIV_PAGE_SIZE > UNIV_PAGE_SIZE_DEF
+	    && innobase_buffer_pool_size < (24 * 1024 * 1024)) {
 		ib_logf(IB_LOG_LEVEL_INFO,
-			"innodb_page_size has been "
-			"changed from default value %d to %ldd.",
-			UNIV_PAGE_SIZE_DEF, UNIV_PAGE_SIZE);
-
-		/* There is hang on buffer pool when trying to get a new
-		page if buffer pool size is too small for large page sizes */
-		if (innobase_buffer_pool_size < (24 * 1024 * 1024)) {
-			ib_logf(IB_LOG_LEVEL_INFO,
-				"innobase_page_size %lu requires "
-				"innodb_buffer_pool_size > 24M current %lld",
-				UNIV_PAGE_SIZE, innobase_buffer_pool_size);
-
-			goto error;
-		}
+			"innodb_page_size= " ULINTPF " requires "
+			"innodb_buffer_pool_size > 24M current %lld. ",
+			UNIV_PAGE_SIZE,
+			innobase_buffer_pool_size);
+		goto error;
 	}
 
 	ut_ad (srv_log_block_size >= OS_MIN_LOG_BLOCK_SIZE);
@@ -4241,11 +4210,11 @@ innobase_change_buffering_inited_ok:
 				srv_page_size);
 		goto mem_free_and_error;
 	}
+
 	if (UNIV_PAGE_SIZE_DEF != srv_page_size) {
-		ut_print_timestamp(stderr);
-		fprintf(stderr,
-			" InnoDB: innodb-page-size has been changed"
-			" from the default value %d to %lu.\n",
+		ib_logf(IB_LOG_LEVEL_INFO,
+			" innodb-page-size has been changed"
+			" from the default value %d to " ULINTPF " .",
 			UNIV_PAGE_SIZE_DEF, srv_page_size);
 	}
 
@@ -4387,14 +4356,9 @@ innobase_change_buffering_inited_ok:
 
 	innobase_commit_concurrency_init_default();
 
-#ifndef EXTENDED_FOR_KILLIDLE
-	srv_kill_idle_transaction = 0;
-#endif
-
 #ifdef HAVE_POSIX_FALLOCATE
 	srv_use_posix_fallocate = (ibool) innobase_use_fallocate;
 #endif
-
 	/* Do not enable backoff algorithm for small buffer pool. */
 	if (!innodb_empty_free_list_algorithm_backoff_allowed(
 			static_cast<srv_empty_free_list_t>(
@@ -4630,90 +4594,6 @@ innobase_purge_changed_page_bitmaps(
 	return (my_bool)log_online_purge_changed_page_bitmaps(lsn);
 }
 
-#ifdef HAVE_PERCONA_COMPRESSED_COLUMNS
-/** Creates a new compression dictionary. */
-static
-handler_create_zip_dict_result
-innobase_create_zip_dict(
-	handlerton*	hton,	/*!< in: innobase handlerton */
-	THD*		thd,	/*!< in: handle to the MySQL thread */
-	const char*	name,	/*!< in: zip dictionary name */
-	ulint*		name_len,
-				/*!< in/out: zip dictionary name length */
-	const char*	data,	/*!< in: zip dictionary data */
-	ulint*		data_len)
-				/*!< in/out: zip dictionary data length */
-{
-	handler_create_zip_dict_result result =
-		HA_CREATE_ZIP_DICT_UNKNOWN_ERROR;
-
-	DBUG_ENTER("innobase_create_zip_dict");
-	DBUG_ASSERT(hton == innodb_hton_ptr);
-
-	if (UNIV_UNLIKELY(high_level_read_only)) {
-		DBUG_RETURN(HA_CREATE_ZIP_DICT_READ_ONLY);
-	}
-
-	if (UNIV_UNLIKELY(*name_len > ZIP_DICT_MAX_NAME_LENGTH)) {
-		*name_len = ZIP_DICT_MAX_NAME_LENGTH;
-		DBUG_RETURN(HA_CREATE_ZIP_DICT_NAME_TOO_LONG);
-	}
-
-	if (UNIV_UNLIKELY(*data_len > ZIP_DICT_MAX_DATA_LENGTH)) {
-		*data_len = ZIP_DICT_MAX_DATA_LENGTH;
-		DBUG_RETURN(HA_CREATE_ZIP_DICT_DATA_TOO_LONG);
-	}
-
-	switch (dict_create_zip_dict(name, *name_len, data, *data_len)) {
-		case DB_SUCCESS:
-			result = HA_CREATE_ZIP_DICT_OK;
-			break;
-		case DB_DUPLICATE_KEY:
-			result = HA_CREATE_ZIP_DICT_ALREADY_EXISTS;
-			break;
-		default:
-			ut_ad(0);
-			result = HA_CREATE_ZIP_DICT_UNKNOWN_ERROR;
-	}
-	DBUG_RETURN(result);
-}
-
-/** Drops a existing compression dictionary. */
-static
-handler_drop_zip_dict_result
-innobase_drop_zip_dict(
-	handlerton*	hton,	/*!< in: innobase handlerton */
-	THD*		thd,	/*!< in: handle to the MySQL thread */
-	const char*	name,	/*!< in: zip dictionary name */
-	ulint*		name_len)
-				/*!< in/out: zip dictionary name length */
-{
-	handler_drop_zip_dict_result result = HA_DROP_ZIP_DICT_UNKNOWN_ERROR;
-
-	DBUG_ENTER("innobase_drop_zip_dict");
-	DBUG_ASSERT(hton == innodb_hton_ptr);
-
-	if (UNIV_UNLIKELY(high_level_read_only)) {
-		DBUG_RETURN(HA_DROP_ZIP_DICT_READ_ONLY);
-	}
-
-	switch (dict_drop_zip_dict(name, *name_len)) {
-		case DB_SUCCESS:
-			result = HA_DROP_ZIP_DICT_OK;
-			break;
-		case DB_RECORD_NOT_FOUND:
-			result = HA_DROP_ZIP_DICT_DOES_NOT_EXIST;
-			break;
-		case DB_ROW_IS_REFERENCED:
-			result = HA_DROP_ZIP_DICT_IS_REFERENCED;
-			break;
-		default:
-			ut_ad(0);
-			result = HA_DROP_ZIP_DICT_UNKNOWN_ERROR;
-	}
-	DBUG_RETURN(result);
-}
-#endif
 /*****************************************************************//**
 Check whether this is a fake change transaction.
 @return TRUE if a fake change transaction */
@@ -4741,7 +4621,7 @@ innobase_commit_low(
 #ifdef WITH_WSREP
 	THD* thd = (THD*)trx->mysql_thd;
 	const char* tmp = 0;
-	if (wsrep_on(thd)) {
+	if (thd && wsrep_on(thd)) {
 #ifdef WSREP_PROC_INFO
 		char info[64];
 		info[sizeof(info) - 1] = '\0';
@@ -6251,88 +6131,6 @@ func_exit:
 	DBUG_RETURN(ret);
 }
 
-/** This function checks if all the compression dictionaries referenced
-in table->fields exist in SYS_ZIP_DICT InnoDB system table.
-@return true if all referenced dictionaries exist */
-UNIV_INTERN
-bool
-innobase_check_zip_dicts(
-	const TABLE*	table,		/*!< in: table in MySQL data
-					dictionary */
-	ulint*		dict_ids,	/*!< out: identified zip dict ids
-					(at least n_fields long) */
-	trx_t*		trx,		/*!< in: transaction */
-	const char**	err_dict_name)	/*!< out: the name of the
-					zip_dict which does not exist. */
-{
-	DBUG_ENTER("innobase_check_zip_dicts");
-
-	bool res = true;
-#ifdef HAVE_PERCONA_COMPRESSED_COLUMNS
-	dberr_t err = DB_SUCCESS;
-	const size_t n_fields = table->s->fields;
-
-	Field* field_ptr;
-	for (size_t field_idx = 0; err == DB_SUCCESS && field_idx < n_fields;
-		++field_idx)
-	{
-		field_ptr = table->field[field_idx];
-		if (field_ptr->has_associated_compression_dictionary()) {
-			err = dict_create_get_zip_dict_id_by_name(
-				field_ptr->zip_dict_name.str,
-				field_ptr->zip_dict_name.length,
-				&dict_ids[field_idx],
-				trx);
-			ut_a(err == DB_SUCCESS || err == DB_RECORD_NOT_FOUND);
-		}
-		else {
-			dict_ids[field_idx] = ULINT_UNDEFINED;
-		}
-
-	}
-
-	if (err != DB_SUCCESS) {
-		res = false;
-		*err_dict_name = field_ptr->zip_dict_name.str;
-	}
-
-#endif
-	DBUG_RETURN(res);
-}
-
-/** This function creates compression dictionary references in
-SYS_ZIP_DICT_COLS InnoDB system table for table_id based on info
-in table->fields and provided zip dict ids. */
-UNIV_INTERN
-void
-innobase_create_zip_dict_references(
-	const TABLE*	table,		/*!< in: table in MySQL data
-					dictionary */
-	table_id_t	ib_table_id,	/*!< in: table ID in Innodb data
-					dictionary */
-	ulint*		zip_dict_ids,	/*!< in: zip dict ids
-					(at least n_fields long) */
-	trx_t*		trx)		/*!< in: transaction */
-{
-	DBUG_ENTER("innobase_create_zip_dict_references");
-
-	dberr_t err = DB_SUCCESS;
-	const size_t n_fields = table->s->fields;
-
-	for (size_t field_idx = 0; err == DB_SUCCESS && field_idx < n_fields;
-		++field_idx)
-	{
-		if (zip_dict_ids[field_idx] != ULINT_UNDEFINED) {
-			err = dict_create_add_zip_dict_reference(ib_table_id,
-				table->field[field_idx]->field_index,
-				zip_dict_ids[field_idx], trx);
-			ut_a(err == DB_SUCCESS);
-		}
-	}
-
-	DBUG_VOID_RETURN;
-}
-
 /*******************************************************************//**
 This function uses index translation table to quickly locate the
 requested index structure.
@@ -7761,16 +7559,7 @@ wsrep_store_key_val_for_row(
 			blob_data = row_mysql_read_blob_ref(&blob_len,
 				(byte*) (record
 				+ (ulint) get_field_offset(table, field)),
-				(ulint) field->pack_length(),
-#ifdef HAVE_PERCONA_COMPRESSED_COLUMNS
-				field->column_format() ==
-					COLUMN_FORMAT_TYPE_COMPRESSED,
-				reinterpret_cast<const byte*>(
-					field->zip_dict_data.str),
-				field->zip_dict_data.length, prebuilt);
-#else
-                                0, 0, 0, prebuilt);
-#endif
+				(ulint) field->pack_length());
 
 			true_len = blob_len;
 
@@ -8065,16 +7854,7 @@ ha_innobase::store_key_val_for_row(
 			blob_data = row_mysql_read_blob_ref(&blob_len,
 				(byte*) (record
 				+ (ulint) get_field_offset(table, field)),
-				(ulint) field->pack_length(),
-#ifdef HAVE_PERCONA_COMPRESSED_COLUMNS
-				field->column_format() ==
-					COLUMN_FORMAT_TYPE_COMPRESSED,
-				reinterpret_cast<const byte*>(
-					field->zip_dict_data.str),
-				field->zip_dict_data.length, prebuilt);
-#else
-                                0, 0, 0, prebuilt);
-#endif
+				(ulint) field->pack_length());
 
 			true_len = blob_len;
 
@@ -8398,14 +8178,6 @@ build_template_field(
 	templ->mbminlen = dict_col_get_mbminlen(col);
 	templ->mbmaxlen = dict_col_get_mbmaxlen(col);
 	templ->is_unsigned = col->prtype & DATA_UNSIGNED;
-#ifdef HAVE_PERCONA_COMPRESSED_COLUMNS
-	templ->compressed = (field->column_format()
-				== COLUMN_FORMAT_TYPE_COMPRESSED);
-	templ->zip_dict_data = field->zip_dict_data;
-#else
-	templ->compressed = 0;
-	templ->zip_dict_data = null_lex_cstr;
-#endif
 
 	if (!dict_index_is_clust(index)
 	    && templ->rec_field_no == ULINT_UNDEFINED) {
@@ -9316,10 +9088,8 @@ calc_row_difference(
 
 		case DATA_BLOB:
 			/* Do not compress blob column while comparing*/
-			o_ptr = row_mysql_read_blob_ref(&o_len, o_ptr, o_len,
-				false, 0, 0, prebuilt);
-			n_ptr = row_mysql_read_blob_ref(&n_len, n_ptr, n_len,
-				false, 0, 0, prebuilt);
+			o_ptr = row_mysql_read_blob_ref(&o_len, o_ptr, o_len);
+			n_ptr = row_mysql_read_blob_ref(&n_len, n_ptr, n_len);
 
 			break;
 
@@ -9389,17 +9159,7 @@ calc_row_difference(
 					TRUE,
 					new_mysql_row_col,
 					col_pack_len,
-					dict_table_is_comp(prebuilt->table),
-#ifdef HAVE_PERCONA_COMPRESSED_COLUMNS
-					field->column_format() ==
-						COLUMN_FORMAT_TYPE_COMPRESSED,
-					reinterpret_cast<const byte*>(
-						field->zip_dict_data.str),
-					field->zip_dict_data.length,
-#else
-                                        0, 0, 0,
-#endif
-					prebuilt);
+					dict_table_is_comp(prebuilt->table));
 				dfield_copy(&ufield->new_val, &dfield);
 			} else {
 				dfield_set_null(&ufield->new_val);
@@ -9571,9 +9331,7 @@ wsrep_calc_row_hash(
 		switch (col_type) {
 
 		case DATA_BLOB:
-			ptr = row_mysql_read_blob_ref(&len, ptr, len,
-				false, 0, 0, prebuilt);
-
+			ptr = row_mysql_read_blob_ref(&len, ptr, len);
 			break;
 
 		case DATA_VARCHAR:
@@ -11612,7 +11370,6 @@ create_table_def(
 	ulint		unsigned_type;
 	ulint		binary_type;
 	ulint		long_true_varchar;
-	ulint		compressed;
 	ulint		charset_no;
 	ulint		i;
 	ulint		doc_id_col = 0;
@@ -11762,13 +11519,6 @@ create_table_def(
 			}
 		}
 
-		/* Check if the the field has COMPRESSED attribute */
-		compressed = 0;
-		if (field->column_format() ==
-			COLUMN_FORMAT_TYPE_COMPRESSED) {
-			compressed = DATA_COMPRESSED;
-		}
-
 		/* First check whether the column to be added has a
 		system reserved name. */
 		if (dict_col_name_is_reserved(field->field_name)){
@@ -11789,8 +11539,7 @@ err_col:
 			dtype_form_prtype(
 				(ulint) field->type()
 				| nulls_allowed | unsigned_type
-				| binary_type | long_true_varchar
-				| compressed,
+				| binary_type | long_true_varchar,
 				charset_no),
 			col_len);
 	}
@@ -12646,7 +12395,7 @@ ha_innobase::check_table_options(
 	atomic_writes_t awrites = (atomic_writes_t)options->atomic_writes;
 	fil_encryption_t encrypt = (fil_encryption_t)options->encryption;
 
-	if (encrypt != FIL_SPACE_ENCRYPTION_DEFAULT && !use_tablespace) {
+	if (encrypt != FIL_ENCRYPTION_DEFAULT && !use_tablespace) {
 		push_warning(
 			thd, Sql_condition::WARN_LEVEL_WARN,
 			HA_WRONG_CREATE_OPTION,
@@ -12654,7 +12403,7 @@ ha_innobase::check_table_options(
 		return "ENCRYPTED";
 	}
 
-        if (encrypt == FIL_SPACE_ENCRYPTION_OFF && srv_encrypt_tables == 2) {
+        if (encrypt == FIL_ENCRYPTION_OFF && srv_encrypt_tables == 2) {
 		push_warning(
 			thd, Sql_condition::WARN_LEVEL_WARN,
 			HA_WRONG_CREATE_OPTION,
@@ -12735,8 +12484,8 @@ ha_innobase::check_table_options(
 	}
 
 	/* If encryption is set up make sure that used key_id is found */
-	if (encrypt == FIL_SPACE_ENCRYPTION_ON ||
-            (encrypt == FIL_SPACE_ENCRYPTION_DEFAULT && srv_encrypt_tables)) {
+	if (encrypt == FIL_ENCRYPTION_ON ||
+            (encrypt == FIL_ENCRYPTION_DEFAULT && srv_encrypt_tables)) {
 		if (!encryption_key_id_exists((unsigned int)options->encryption_key_id)) {
 			push_warning_printf(
 				thd, Sql_condition::WARN_LEVEL_WARN,
@@ -12750,7 +12499,7 @@ ha_innobase::check_table_options(
 	}
 
 	/* Ignore nondefault key_id if encryption is set off */
-	if (encrypt == FIL_SPACE_ENCRYPTION_OFF &&
+	if (encrypt == FIL_ENCRYPTION_OFF &&
 		options->encryption_key_id != THDVAR(thd, default_encryption_key_id)) {
 		push_warning_printf(
 			thd, Sql_condition::WARN_LEVEL_WARN,
@@ -12763,7 +12512,7 @@ ha_innobase::check_table_options(
 
 	/* If default encryption is used make sure that used kay is found
 	from key file. */
-	if (encrypt == FIL_SPACE_ENCRYPTION_DEFAULT &&
+	if (encrypt == FIL_ENCRYPTION_DEFAULT &&
 		!srv_encrypt_tables &&
 		options->encryption_key_id != FIL_DEFAULT_ENCRYPTION_KEY) {
 		if (!encryption_key_id_exists((unsigned int)options->encryption_key_id)) {
@@ -12839,9 +12588,6 @@ ha_innobase::create(
 	ha_table_option_struct *options= form->s->option_struct;
 	fil_encryption_t encrypt = (fil_encryption_t)options->encryption;
 	uint		key_id = (uint)options->encryption_key_id;
-
-	mem_heap_t*	heap = 0;
-	ulint*		zip_dict_ids = 0;
 
 	DBUG_ENTER("ha_innobase::create");
 
@@ -12938,25 +12684,6 @@ ha_innobase::create(
 	Drop table etc. do this latching in row0mysql.cc. */
 
 	row_mysql_lock_data_dictionary(trx);
-
-	heap = mem_heap_create(form->s->fields * sizeof(ulint));
-	zip_dict_ids = static_cast<ulint*>(
-		mem_heap_alloc(heap, form->s->fields * sizeof(ulint)));
-
-	/* This is currently required for valgrind because MariaDB does
-	not currently support compressed columns. */
-	for (size_t field_idx = 0; field_idx < form->s->fields; ++field_idx) {
-		zip_dict_ids[field_idx] = ULINT_UNDEFINED;
-	}
-
-	const char*	err_zip_dict_name = 0;
-	if (!innobase_check_zip_dicts(form, zip_dict_ids,
-		trx, &err_zip_dict_name)) {
-		error = -1;
-		my_error(ER_COMPRESSION_DICTIONARY_DOES_NOT_EXIST,
-			MYF(0), err_zip_dict_name);
-		goto cleanup;
-	}
 
 	error = create_table_def(trx, form, norm_name, temp_path,
 			remote_path, flags, flags2, encrypt, key_id);
@@ -13063,22 +12790,6 @@ ha_innobase::create(
 		ut_a(fts != NULL);
 
 		dict_table_get_all_fts_indexes(innobase_table, fts->indexes);
-	}
-
-	/*
-	Adding compression dictionary <-> compressed table column links
-	to the SYS_ZIP_DICT_COLS table.
-	*/
-	ut_a(zip_dict_ids != 0);
-	{
-		dict_table_t*	local_table = dict_table_open_on_name(
-			norm_name, TRUE, FALSE, DICT_ERR_IGNORE_NONE);
-
-		ut_a(local_table);
-		table_id_t table_id = local_table->id;
-		dict_table_close(local_table, TRUE, FALSE);
-		innobase_create_zip_dict_references(form,
-			table_id, zip_dict_ids, trx);
 	}
 
 	stmt = innobase_get_stmt(thd, &stmt_len);
@@ -13197,9 +12908,6 @@ ha_innobase::create(
 
 	trx_free_for_mysql(trx);
 
-	if (heap != 0)
-		mem_heap_free(heap);
-
 	DBUG_RETURN(0);
 
 cleanup:
@@ -13208,9 +12916,6 @@ cleanup:
 	row_mysql_unlock_data_dictionary(trx);
 
 	trx_free_for_mysql(trx);
-
-	if (heap != 0)
-		mem_heap_free(heap);
 
 	DBUG_RETURN(error);
 }
@@ -14399,9 +14104,13 @@ ha_innobase::info_low(
 					/* If this table is already queued for
 					background analyze, remove it from the
 					queue as we are about to do the same */
-					dict_mutex_enter_for_mysql();
-					dict_stats_recalc_pool_del(ib_table);
-					dict_mutex_exit_for_mysql();
+					if (!srv_read_only_mode) {
+
+						dict_mutex_enter_for_mysql();
+						dict_stats_recalc_pool_del(
+							ib_table);
+						dict_mutex_exit_for_mysql();
+					}
 
 					opt = DICT_STATS_RECALC_PERSISTENT;
 				} else {
@@ -15624,10 +15333,6 @@ ha_innobase::extra(
 			row_mysql_prebuilt_free_blob_heap(prebuilt);
 		}
 
-		if (prebuilt->compress_heap) {
-			row_mysql_prebuilt_free_compress_heap(prebuilt);
-		}
-
 		break;
 	case HA_EXTRA_RESET_STATE:
 		reset_template();
@@ -15677,10 +15382,6 @@ ha_innobase::reset()
 {
 	if (prebuilt->blob_heap) {
 		row_mysql_prebuilt_free_blob_heap(prebuilt);
-	}
-
-	if (prebuilt->compress_heap) {
-		row_mysql_prebuilt_free_compress_heap(prebuilt);
 	}
 
 	reset_template();
@@ -15889,11 +15590,7 @@ ha_innobase::external_lock(
 		    && lock_type == F_WRLCK)
 		|| thd_sql_command(thd) == SQLCOM_CREATE_INDEX
 		|| thd_sql_command(thd) == SQLCOM_DROP_INDEX
-		|| thd_sql_command(thd) == SQLCOM_DELETE
-		|| thd_sql_command(thd) ==
-			SQLCOM_CREATE_COMPRESSION_DICTIONARY
-		|| thd_sql_command(thd) ==
-			SQLCOM_DROP_COMPRESSION_DICTIONARY)) {
+		|| thd_sql_command(thd) == SQLCOM_DELETE)) {
 
 		if (thd_sql_command(thd) == SQLCOM_CREATE_TABLE)
 		{
@@ -16661,9 +16358,7 @@ ha_innobase::store_lock(
 			 && lock_type <= TL_WRITE))
 		|| sql_command == SQLCOM_CREATE_INDEX
 		|| sql_command == SQLCOM_DROP_INDEX
-		|| sql_command == SQLCOM_DELETE
-		|| sql_command == SQLCOM_CREATE_COMPRESSION_DICTIONARY
-		|| sql_command == SQLCOM_DROP_COMPRESSION_DICTIONARY)) {
+		|| sql_command == SQLCOM_DELETE)) {
 
 		ib_senderrf(trx->mysql_thd,
 			    IB_LOG_LEVEL_WARN, ER_READ_ONLY_MODE);
@@ -16953,6 +16648,37 @@ ha_innobase::get_auto_increment(
 	whether we update the table autoinc counter or not. */
 	ulonglong	col_max_value = innobase_get_int_col_max_value(
 		table->next_number_field);
+
+	/** The following logic is needed to avoid duplicate key error
+	for autoincrement column.
+
+	(1) InnoDB gives the current autoincrement value with respect
+	to increment and offset value.
+
+	(2) Basically it does compute_next_insert_id() logic inside InnoDB
+	to avoid the current auto increment value changed by handler layer.
+
+	(3) It is restricted only for insert operations. */
+
+	if (increment > 1 && thd_sql_command(user_thd) != SQLCOM_ALTER_TABLE
+	    && autoinc < col_max_value) {
+
+		ulonglong	prev_auto_inc = autoinc;
+
+		autoinc = ((autoinc - 1) + increment - offset)/ increment;
+
+		autoinc = autoinc * increment + offset;
+
+		/* If autoinc exceeds the col_max_value then reset
+		to old autoinc value. Because in case of non-strict
+		sql mode, boundary value is not considered as error. */
+
+		if (autoinc >= col_max_value) {
+			autoinc = prev_auto_inc;
+		}
+
+		ut_ad(autoinc > 0);
+	}
 
 	/* Called for the first time ? */
 	if (trx->n_autoinc_rows == 0) {
@@ -17632,84 +17358,6 @@ ha_innobase::check_if_incompatible_data(
 	}
 
 	return(COMPATIBLE_DATA_YES);
-}
-
-/** This function reads zip dict-related info from SYS_ZIP_DICT
-and SYS_ZIP_DICT_COLS for all columns marked with
-COLUMN_FORMAT_TYPE_COMPRESSED flag and updates
-zip_dict_name / zip_dict_data for those which have associated
-compression dictionaries.
-*/
-UNIV_INTERN
-void
-ha_innobase::update_field_defs_with_zip_dict_info()
-{
-	DBUG_ENTER("update_field_defs_with_zip_dict_info");
-	ut_ad(!mutex_own(&dict_sys->mutex));
-
-	char norm_name[FN_REFLEN];
-	normalize_table_name(norm_name, table_share->normalized_path.str);
-
-	dict_table_t* ib_table = dict_table_open_on_name(
-		norm_name, FALSE, FALSE, DICT_ERR_IGNORE_NONE);
-
-	/* if dict_table_open_on_name() returns NULL, then it means that
-	TABLE_SHARE is populated for a table being created and we can
-	skip filling zip dict info here */
-	if (ib_table == 0)
-		DBUG_VOID_RETURN;
-
-#ifdef HAVE_PERCONA_COMPRESSED_COLUMNS
-	table_id_t ib_table_id = ib_table->id;
-	dict_table_close(ib_table, FALSE, FALSE);
-	Field* field;
-	for (uint i = 0; i < table_share->fields; ++i) {
-		field = table_share->field[i];
-		if (field->column_format() ==
-		    COLUMN_FORMAT_TYPE_COMPRESSED) {
-			bool reference_found = false;
-			ulint dict_id = 0;
-			switch (dict_get_dictionary_id_by_key(ib_table_id, i,
-				&dict_id)) {
-				case DB_SUCCESS:
-					reference_found = true;
-					break;
-				case DB_RECORD_NOT_FOUND:
-					reference_found = false;
-					break;
-				default:
-					ut_error;
-			}
-			if (reference_found) {
-				char* local_name = 0;
-				ulint local_name_len = 0;
-				char* local_data = 0;
-				ulint local_data_len = 0;
-				if (dict_get_dictionary_info_by_id(dict_id,
-					&local_name, &local_name_len,
-					&local_data, &local_data_len) !=
-					DB_SUCCESS) {
-					ut_error;
-				}
-				else {
-					field->zip_dict_name.str =
-						local_name;
-					field->zip_dict_name.length =
-						local_name_len;
-					field->zip_dict_data.str =
-						local_data;
-					field->zip_dict_data.length =
-						local_data_len;
-				}
-			}
-			else {
-				field->zip_dict_name = null_lex_cstr;
-				field->zip_dict_data = null_lex_cstr;
-			}
-		}
-	}
-#endif
-	DBUG_VOID_RETURN;
 }
 
 /****************************************************************//**
@@ -19544,32 +19192,6 @@ innobase_fts_retrieve_ranking(
 }
 
 /***********************************************************************
-functions for kill session of idle transaction */
-ibool
-innobase_thd_is_idle(
-/*=================*/
-	const void*	thd)	/*!< in: thread handle (THD*) */
-{
-#ifdef EXTENDED_FOR_KILLIDLE
-	return(thd_command((const THD*) thd) == COM_SLEEP);
-#else
-	return(FALSE);
-#endif
-}
-
-ib_int64_t
-innobase_thd_get_start_time(
-/*========================*/
-	const void*	thd)	/*!< in: thread handle (THD*) */
-{
-#ifdef EXTENDED_FOR_KILLIDLE
-	return((ib_int64_t)thd_start_time((const THD*) thd));
-#else
-	return(0); /*dummy value*/
-#endif
-}
-
-/***********************************************************************
 Free the memory for the FTS handler */
 UNIV_INTERN
 void
@@ -19586,19 +19208,6 @@ innobase_fts_close_ranking(
 	my_free((uchar*) fts_hdl);
 
 	return;
-}
-
-UNIV_INTERN
-void
-innobase_thd_kill(
-/*==============*/
-	ulong	thd_id)
-{
-#ifdef EXTENDED_FOR_KILLIDLE
-	thd_kill(thd_id);
-#else
-	return;
-#endif
 }
 
 /***********************************************************************
@@ -19796,16 +19405,6 @@ innobase_fts_retrieve_docid(
 
 	return(ft_prebuilt->fts_doc_id);
 }
-
-
-ulong
-innobase_thd_get_thread_id(
-/*=======================*/
-	const void*	thd)
-{
-	return(thd_get_thread_id((const THD*) thd));
-}
-
 
 
 /***********************************************************************
@@ -20041,19 +19640,21 @@ wsrep_innobase_kill_one_trx(
 
 	if (!thd) {
 		DBUG_PRINT("wsrep", ("no thd for conflicting lock"));
-		WSREP_WARN("no THD for trx: %lu", victim_trx->id);
+		WSREP_WARN("no THD for trx: " TRX_ID_FMT, victim_trx->id);
 		DBUG_RETURN(1);
 	}
 
 	if (!bf_thd) {
 		DBUG_PRINT("wsrep", ("no BF thd for conflicting lock"));
-		WSREP_WARN("no BF THD for trx: %lu", (bf_trx) ? bf_trx->id : 0);
+		WSREP_WARN("no BF THD for trx: " TRX_ID_FMT,
+			   bf_trx ? bf_trx->id : 0);
 		DBUG_RETURN(1);
 	}
 
 	WSREP_LOG_CONFLICT(bf_thd, thd, TRUE);
 
-	WSREP_DEBUG("BF kill (%lu, seqno: %lld), victim: (%lu) trx: %lu",
+	WSREP_DEBUG("BF kill (%lu, seqno: %lld), victim: (%lu) trx: "
+		    TRX_ID_FMT,
  		    signal, (long long)bf_seqno,
 		    thd_get_thread_id(thd),
 		    victim_trx->id);
@@ -20073,13 +19674,14 @@ wsrep_innobase_kill_one_trx(
 
 
 	if (wsrep_thd_query_state(thd) == QUERY_EXITING) {
-		WSREP_DEBUG("kill trx EXITING for %lu", victim_trx->id);
+		WSREP_DEBUG("kill trx EXITING for " TRX_ID_FMT,
+			    victim_trx->id);
 		wsrep_thd_UNLOCK(thd);
 		DBUG_RETURN(0);
 	}
 
 	if(wsrep_thd_exec_mode(thd) != LOCAL_STATE) {
-		WSREP_DEBUG("withdraw for BF trx: %lu, state: %d",
+		WSREP_DEBUG("withdraw for BF trx: " TRX_ID_FMT ", state: %d",
 			    victim_trx->id,
 		wsrep_thd_get_conflict_state(thd));
 	}
@@ -20089,7 +19691,7 @@ wsrep_innobase_kill_one_trx(
 		wsrep_thd_set_conflict_state(thd, MUST_ABORT);
 		break;
         case MUST_ABORT:
-		WSREP_DEBUG("victim %lu in MUST ABORT state",
+		WSREP_DEBUG("victim " TRX_ID_FMT " in MUST ABORT state",
 			    victim_trx->id);
 		wsrep_thd_UNLOCK(thd);
 		wsrep_thd_awake(thd, signal);
@@ -20098,7 +19700,7 @@ wsrep_innobase_kill_one_trx(
 	case ABORTED:
 	case ABORTING: // fall through
 	default:
-		WSREP_DEBUG("victim %lu in state %d",
+		WSREP_DEBUG("victim " TRX_ID_FMT " in state %d",
 			    victim_trx->id, wsrep_thd_get_conflict_state(thd));
 		wsrep_thd_UNLOCK(thd);
 		DBUG_RETURN(0);
@@ -20111,7 +19713,7 @@ wsrep_innobase_kill_one_trx(
 
 		WSREP_DEBUG("kill query for: %ld",
 			    thd_get_thread_id(thd));
-		WSREP_DEBUG("kill trx QUERY_COMMITTING for %lu",
+		WSREP_DEBUG("kill trx QUERY_COMMITTING for " TRX_ID_FMT,
 			    victim_trx->id);
 
 		if (wsrep_thd_exec_mode(thd) == REPL_RECV) {
@@ -20126,7 +19728,8 @@ wsrep_innobase_kill_one_trx(
 
 			switch (rcode) {
 			case WSREP_WARNING:
-				WSREP_DEBUG("cancel commit warning: %lu",
+				WSREP_DEBUG("cancel commit warning: "
+					    TRX_ID_FMT,
 					    victim_trx->id);
 				wsrep_thd_UNLOCK(thd);
 				wsrep_thd_awake(thd, signal);
@@ -20136,7 +19739,8 @@ wsrep_innobase_kill_one_trx(
 				break;
 			default:
 				WSREP_ERROR(
-					"cancel commit bad exit: %d %lu",
+					"cancel commit bad exit: %d "
+					TRX_ID_FMT,
 					rcode,
 					victim_trx->id);
 				/* unable to interrupt, must abort */
@@ -20154,7 +19758,8 @@ wsrep_innobase_kill_one_trx(
 		/* it is possible that victim trx is itself waiting for some
 		 * other lock. We need to cancel this waiting
 		 */
-		WSREP_DEBUG("kill trx QUERY_EXEC for %lu", victim_trx->id);
+		WSREP_DEBUG("kill trx QUERY_EXEC for " TRX_ID_FMT,
+			    victim_trx->id);
 
 		victim_trx->lock.was_chosen_as_deadlock_victim= TRUE;
 		if (victim_trx->lock.wait_lock) {
@@ -20189,7 +19794,7 @@ wsrep_innobase_kill_one_trx(
 		break;
 	case QUERY_IDLE:
 	{
-		WSREP_DEBUG("kill IDLE for %lu", victim_trx->id);
+		WSREP_DEBUG("kill IDLE for " TRX_ID_FMT, victim_trx->id);
 
 		if (wsrep_thd_exec_mode(thd) == REPL_RECV) {
 			WSREP_DEBUG("kill BF IDLE, seqno: %lld",
@@ -20461,6 +20066,12 @@ static MYSQL_SYSVAR_BOOL(doublewrite, innobase_use_doublewrite,
   "Enable InnoDB doublewrite buffer (enabled by default). "
   "Disable with --skip-innodb-doublewrite.",
   NULL, NULL, TRUE);
+
+static MYSQL_SYSVAR_BOOL(stats_include_delete_marked,
+  srv_stats_include_delete_marked,
+  PLUGIN_VAR_OPCMDARG,
+  "Scan delete marked records for persistent stat",
+  NULL, NULL, FALSE);
 
 static MYSQL_SYSVAR_BOOL(use_atomic_writes, innobase_use_atomic_writes,
   PLUGIN_VAR_NOCMDARG | PLUGIN_VAR_READONLY,
@@ -21172,13 +20783,6 @@ static MYSQL_SYSVAR_ULONG(force_recovery, srv_force_recovery,
   "Helps to save your data in case the disk image of the database becomes corrupt.",
   NULL, NULL, 0, 0, 6, 0);
 
-#ifndef DBUG_OFF
-static MYSQL_SYSVAR_ULONG(force_recovery_crash, srv_force_recovery_crash,
-  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
-  "Kills the server during crash recovery.",
-  NULL, NULL, 0, 0, 10, 0);
-#endif /* !DBUG_OFF */
-
 static MYSQL_SYSVAR_ULONG(page_size, srv_page_size,
   PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_READONLY,
   "Page size to use for all InnoDB tablespaces.",
@@ -21560,6 +21164,12 @@ static MYSQL_SYSVAR_BOOL(trx_purge_view_update_only_debug,
   "but the each purges were not done yet.",
   NULL, NULL, FALSE);
 
+static MYSQL_SYSVAR_UINT(data_file_size_debug,
+  srv_sys_space_size_debug,
+  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
+  "InnoDB system tablespace size to be set in recovery.",
+  NULL, NULL, 0, 0, UINT_MAX32, 0);
+
 static MYSQL_SYSVAR_ULONG(fil_make_page_dirty_debug,
   srv_fil_make_page_dirty_debug, PLUGIN_VAR_OPCMDARG,
   "Make the first page of the given tablespace dirty.",
@@ -21615,21 +21225,6 @@ static MYSQL_SYSVAR_BOOL(use_stacktrace, srv_use_stacktrace,
   "Print stacktrace on long semaphore wait (off by default supported only on linux)",
   NULL, NULL, FALSE);
 
-#ifdef HAVE_PERCONA_COMPRESSED_COLUMNS
-static MYSQL_SYSVAR_UINT(compressed_columns_zip_level,
-  srv_compressed_columns_zip_level,
-  PLUGIN_VAR_RQCMDARG,
-  "Compression level used for compressed columns.  0 is no compression"
-  ", 1 is fastest and 9 is best compression. Default is 6.",
-  NULL, NULL, DEFAULT_COMPRESSION_LEVEL, 0, 9, 0);
-
-static MYSQL_SYSVAR_ULONG(compressed_columns_threshold,
-  srv_compressed_columns_threshold,
-  PLUGIN_VAR_RQCMDARG,
-  "Compress column data if its length exceeds this value. Default is 96",
-  NULL, NULL, 96, 1, ~0UL, 0);
-#endif
-
 static MYSQL_SYSVAR_UINT(compression_level, page_zip_level,
   PLUGIN_VAR_RQCMDARG,
   "Compression level used for zlib compression.  0 is no compression"
@@ -21654,7 +21249,7 @@ static MYSQL_SYSVAR_ENUM(compression_algorithm, innodb_compression_algorithm,
   /* We use here the largest number of supported compression method to
   enable all those methods that are available. Availability of compression
   method is verified on innodb_compression_algorithm_validate function. */
-  PAGE_UNCOMPRESSED,
+  PAGE_ZLIB_ALGORITHM,
   &page_compression_algorithms_typelib);
 
 static MYSQL_SYSVAR_LONG(mtflush_threads, srv_mtflush_threads,
@@ -21707,10 +21302,11 @@ static MYSQL_SYSVAR_UINT(encryption_rotate_key_age,
 			 PLUGIN_VAR_RQCMDARG,
 			 "Key rotation - re-encrypt in background "
                          "all pages that were encrypted with a key that "
-                         "many (or more) versions behind",
+                         "many (or more) versions behind. Value 0 indicates "
+			 "that key rotation is disabled.",
 			 NULL,
 			 innodb_encryption_rotate_key_age_update,
-			 srv_fil_crypt_rotate_key_age, 0, UINT_MAX32, 0);
+			 1, 0, UINT_MAX32, 0);
 
 static MYSQL_SYSVAR_UINT(encryption_rotation_iops, srv_n_fil_crypt_iops,
 			 PLUGIN_VAR_RQCMDARG,
@@ -21829,6 +21425,7 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(data_file_path),
   MYSQL_SYSVAR(data_home_dir),
   MYSQL_SYSVAR(doublewrite),
+  MYSQL_SYSVAR(stats_include_delete_marked),
   MYSQL_SYSVAR(api_enable_binlog),
   MYSQL_SYSVAR(api_enable_mdl),
   MYSQL_SYSVAR(api_disable_rowlock),
@@ -21847,9 +21444,6 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(use_global_flush_log_at_trx_commit),
   MYSQL_SYSVAR(flush_method),
   MYSQL_SYSVAR(force_recovery),
-#ifndef DBUG_OFF
-  MYSQL_SYSVAR(force_recovery_crash),
-#endif /* !DBUG_OFF */
   MYSQL_SYSVAR(ft_cache_size),
   MYSQL_SYSVAR(ft_total_cache_size),
   MYSQL_SYSVAR(ft_result_cache_limit),
@@ -21998,6 +21592,7 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(trx_rseg_n_slots_debug),
   MYSQL_SYSVAR(limit_optimistic_insert_debug),
   MYSQL_SYSVAR(trx_purge_view_update_only_debug),
+  MYSQL_SYSVAR(data_file_size_debug),
   MYSQL_SYSVAR(fil_make_page_dirty_debug),
   MYSQL_SYSVAR(saved_page_number_debug),
 #endif /* UNIV_DEBUG */
@@ -22007,10 +21602,6 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(locking_fake_changes),
   MYSQL_SYSVAR(tmpdir),
   MYSQL_SYSVAR(use_stacktrace),
-#ifdef HAVE_PERCONA_COMPRESSED_COLUMNS
-  MYSQL_SYSVAR(compressed_columns_zip_level),
-  MYSQL_SYSVAR(compressed_columns_threshold),
-#endif
   MYSQL_SYSVAR(force_primary_key),
   MYSQL_SYSVAR(fatal_semaphore_wait_threshold),
   /* Table page compression feature */
@@ -22060,10 +21651,6 @@ maria_declare_plugin(xtradb)
 i_s_xtradb_read_view,
 i_s_xtradb_internal_hash_tables,
 i_s_xtradb_rseg,
-#ifdef HAVE_PERCONA_COMPRESSED_COLUMNS
-i_s_xtradb_zip_dict,
-i_s_xtradb_zip_dict_cols,
-#endif
 i_s_innodb_trx,
 i_s_innodb_locks,
 i_s_innodb_lock_waits,
@@ -22680,8 +22267,9 @@ innodb_encrypt_tables_validate(
 						for update function */
 	struct st_mysql_value*		value)	/*!< in: incoming string */
 {
-	if (check_sysvar_enum(thd, var, save, value))
+	if (check_sysvar_enum(thd, var, save, value)) {
 		return 1;
+	}
 
 	ulong encrypt_tables = *(ulong*)save;
 
@@ -22693,6 +22281,17 @@ innodb_encrypt_tables_validate(
 		                    "encryption plugin is not available");
 		return 1;
 	}
+
+	if (!srv_fil_crypt_rotate_key_age) {
+		const char *msg = (encrypt_tables ? "enable" : "disable");
+		push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+				    HA_ERR_UNSUPPORTED,
+				    "InnoDB: cannot %s encryption, "
+				    "innodb_encryption_rotate_key_age=0"
+				    " i.e. key rotation disabled", msg);
+		return 1;
+	}
+
 	return 0;
 }
 

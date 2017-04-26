@@ -57,17 +57,10 @@
 /*  Check macro's.                                                     */
 /***********************************************************************/
 #if defined(_DEBUG)
-#if defined(USE_TRY)
 #define CheckType(V)    if (Type != V->GetType()) { \
     PGLOBAL& g = Global; \
     strcpy(g->Message, MSG(VALTYPE_NOMATCH)); \
     throw Type;
-#else   // !USE_TRY
-#define CheckType(V)    if (Type != V->GetType()) { \
-    PGLOBAL& g = Global; \
-    strcpy(g->Message, MSG(VALTYPE_NOMATCH)); \
-		longjmp(g->jumper[g->jump_level], Type);
-#endif  // !USE_TRY
 #else
 #define CheckType(V)
 #endif
@@ -565,6 +558,38 @@ bool VALUE::Compute(PGLOBAL g, PVAL *, int, OPVAL)
   return true;
   } // end of Compute
 
+/***********************************************************************/
+/*  Make file output of an object value.                               */
+/***********************************************************************/
+void VALUE::Print(PGLOBAL g, FILE *f, uint n)
+{
+	char m[64], buf[64];
+
+	memset(m, ' ', n);                             /* Make margin string */
+	m[n] = '\0';
+
+	if (Null)
+		fprintf(f, "%s<null>\n", m);
+	else
+		fprintf(f, strcat(strcat(GetCharString(buf), "\n"), m));
+
+} /* end of Print */
+
+/***********************************************************************/
+/*  Make string output of an object value.                             */
+/***********************************************************************/
+void VALUE::Print(PGLOBAL g, char *ps, uint z)
+{
+	char *p, buf[64];
+
+	if (Null)
+		p = strcpy(buf, "<null>");
+	else
+		p = GetCharString(buf);
+
+  strncpy(ps, p, z);
+} // end of Print
+
 /* -------------------------- Class TYPVAL ---------------------------- */
 
 /***********************************************************************/
@@ -1026,19 +1051,11 @@ TYPE TYPVAL<TYPE>::SafeAdd(TYPE n1, TYPE n2)
   if ((n2 > 0) && (n < n1)) {
     // Overflow
     strcpy(g->Message, MSG(FIX_OVFLW_ADD));
-#if defined(USE_TRY)
 		throw 138;
-#else   // !USE_TRY
-		longjmp(g->jumper[g->jump_level], 138);
-#endif  // !USE_TRY
 	} else if ((n2 < 0) && (n > n1)) {
     // Underflow
     strcpy(g->Message, MSG(FIX_UNFLW_ADD));
-#if defined(USE_TRY)
 		throw 138;
-#else   // !USE_TRY
-		longjmp(g->jumper[g->jump_level], 138);
-#endif  // !USE_TRY
 	} // endif's n2
 
   return n;
@@ -1062,19 +1079,11 @@ TYPE TYPVAL<TYPE>::SafeMult(TYPE n1, TYPE n2)
   if (n > MinMaxVal(true)) {
     // Overflow
     strcpy(g->Message, MSG(FIX_OVFLW_TIMES));
-#if defined(USE_TRY)
 		throw 138;
-#else   // !USE_TRY
-		longjmp(g->jumper[g->jump_level], 138);
-#endif  // !USE_TRY
 	} else if (n < MinMaxVal(false)) {
     // Underflow
     strcpy(g->Message, MSG(FIX_UNFLW_TIMES));
-#if defined(USE_TRY)
 		throw 138;
-#else   // !USE_TRY
-		longjmp(g->jumper[g->jump_level], 138);
-#endif  // !USE_TRY
 	} // endif's n2
 
   return (TYPE)n;
@@ -1214,37 +1223,6 @@ bool TYPVAL<TYPE>::SetConstFormat(PGLOBAL g, FORMAT& fmt)
   fmt.Prec = Prec;
   return false;
   } // end of SetConstFormat
-
-/***********************************************************************/
-/*  Make file output of a typed object.                                */
-/***********************************************************************/
-template <class TYPE>
-void TYPVAL<TYPE>::Print(PGLOBAL g, FILE *f, uint n)
-  {
-  char m[64], buf[12];
-
-  memset(m, ' ', n);                             /* Make margin string */
-  m[n] = '\0';
-
-  if (Null)
-    fprintf(f, "%s<null>\n", m);
-  else
-    fprintf(f, strcat(strcat(strcpy(buf, "%s"), Fmt), "\n"), m, Tval);
-
-  } /* end of Print */
-
-/***********************************************************************/
-/*  Make string output of a int object.                                */
-/***********************************************************************/
-template <class TYPE>
-void TYPVAL<TYPE>::Print(PGLOBAL g, char *ps, uint z)
-  {
-  if (Null)
-    strcpy(ps, "<null>");
-  else
-    sprintf(ps, Fmt, Tval);
-
-  } /* end of Print */
 
 /* -------------------------- Class STRING --------------------------- */
 
@@ -1455,15 +1433,7 @@ void TYPVAL<PSZ>::SetValue(int n)
 
   if (k > Len) {
     sprintf(g->Message, MSG(VALSTR_TOO_LONG), buf, Len);
-#if defined(USE_TRY)
 		throw 138;
-#else   // !USE_TRY
-#if defined(USE_TRY)
-		throw 138;
-#else   // !USE_TRY
-		longjmp(g->jumper[g->jump_level], 138);
-#endif  // !USE_TRY
-#endif  // !USE_TRY
 	} else
     SetValue_psz(buf);
 
@@ -1517,11 +1487,7 @@ void TYPVAL<PSZ>::SetValue(longlong n)
 
   if (k > Len) {
     sprintf(g->Message, MSG(VALSTR_TOO_LONG), buf, Len);
-#if defined(USE_TRY)
 		throw 138;
-#else   // !USE_TRY
-		longjmp(g->jumper[g->jump_level], 138);
-#endif  // !USE_TRY
 	} else
     SetValue_psz(buf);
 
@@ -1564,11 +1530,7 @@ void TYPVAL<PSZ>::SetValue(double f)
 
   if (k > Len) {
     sprintf(g->Message, MSG(VALSTR_TOO_LONG), buf, Len);
-#if defined(USE_TRY)
 		throw 138;
-#else   // !USE_TRY
-		longjmp(g->jumper[g->jump_level], 138);
-#endif  // !USE_TRY
 	} else
     SetValue_psz(buf);
 
@@ -1746,6 +1708,18 @@ bool TYPVAL<PSZ>::SetConstFormat(PGLOBAL, FORMAT& fmt)
   fmt.Prec = 0;
   return false;
   } // end of SetConstFormat
+
+/***********************************************************************/
+/*  Make string output of an object value.                             */
+/***********************************************************************/
+void TYPVAL<PSZ>::Print(PGLOBAL g, char *ps, uint z)
+{
+	if (Null)
+		strncpy(ps, "null", z);
+	else
+		strcat(strncat(strncpy(ps, "\"", z), Strp, z-2), "\"");
+
+} // end of Print
 
 /* -------------------------- Class DECIMAL -------------------------- */
 
@@ -2707,7 +2681,11 @@ bool DTVAL::SetValue_pval(PVAL valp, bool chktype)
 
         ndv = ExtractDate(valp->GetCharValue(), Pdtp, DefYear, dval);
         MakeDate(NULL, dval, ndv);
-      } else
+			} else if (valp->GetType() == TYPE_BIGINT &&
+				       !(valp->GetBigintValue() % 1000)) {
+				// Assuming that this timestamp is in milliseconds
+				Tval = valp->GetBigintValue() / 1000;
+			}	else
         Tval = valp->GetIntValue();
 
     } else

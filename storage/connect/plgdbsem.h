@@ -80,7 +80,8 @@ enum TABTYPE {TAB_UNDEF =  0,   /* Table of undefined type             */
               TAB_DMY   = 25,   /* DMY Dummy tables NIY                */
 							TAB_JDBC  = 26,   /* Table accessed via JDBC             */
 							TAB_ZIP   = 27,   /* ZIP file info table                 */
-							TAB_NIY   = 28};  /* Table not implemented yet           */
+							TAB_MONGO = 28,   /* Table retrieved from MongoDB        */
+              TAB_NIY   = 30};  /* Table not implemented yet           */
 
 enum AMT {TYPE_AM_ERROR =   0,        /* Type not defined              */
           TYPE_AM_ROWID =   1,        /* ROWID type (special column)   */
@@ -143,7 +144,8 @@ enum AMT {TYPE_AM_ERROR =   0,        /* Type not defined              */
           TYPE_AM_MYX   = 193,        /* MYSQL EXEC access method type */
           TYPE_AM_CAT   = 195,        /* Catalog access method type no */
 					TYPE_AM_ZIP   = 198,				/* ZIP access method type no     */
-					TYPE_AM_OUT   = 200};       /* Output relations (storage)    */
+	        TYPE_AM_MGO   = 199,				/* MGO access method type no     */
+	        TYPE_AM_OUT   = 200};       /* Output relations (storage)    */
 
 enum RECFM {RECFM_NAF   =    -2,      /* Not a file                    */
             RECFM_OEM   =    -1,      /* OEM file access method        */

@@ -10,7 +10,7 @@
 
 
 # Give message why the building this plugin is skipped (only if -DVERBOSE is defined)
-# or if plugin is explicitely requested to build. Then bail out.
+# or if plugin is explicitly requested to build. Then bail out.
 MACRO(SKIP_AWS_PLUGIN msg)
   IF(VERBOSE OR "${PLUGIN_AWS_KEY_MANAGEMENT}" MATCHES "^(STATIC|DYNAMIC)$")
     MESSAGE(STATUS "Can't build aws_key_management - ${msg}")
@@ -59,12 +59,13 @@ ENDIF()
 
 
 FIND_LIBRARY(AWS_CPP_SDK_CORE NAMES aws-cpp-sdk-core PATH_SUFFIXES  "${SDK_INSTALL_BINARY_PREFIX}")
-FIND_LIBRARY(AWS_CPP_SDK_KMS NAMES aws-cpp-sdk-core PATH_SUFFIXES  "${SDK_INSTALL_BINARY_PREFIX}")
+FIND_LIBRARY(AWS_CPP_SDK_KMS NAMES aws-cpp-sdk-kms PATH_SUFFIXES  "${SDK_INSTALL_BINARY_PREFIX}")
 SET(CMAKE_REQUIRED_FLAGS ${CXX11_FLAGS})
-CHECK_INCLUDE_FILE_CXX(aws/kms/KMSClient.h HAVE_AWS_HEADERS)
+FIND_PATH(AWS_CPP_SDK_INCLUDE_DIR NAMES aws/kms/KMSClient.h)
 
-IF(AWS_CPP_SDK_CORE AND AWS_CPP_SDK_KMS AND HAVE_AWS_HEADERS)
-  # AWS C++ SDK installed 
+IF(AWS_CPP_SDK_CORE AND AWS_CPP_SDK_KMS AND AWS_CPP_SDK_INCLUDE_DIR)
+  # AWS C++ SDK installed
+  INCLUDE_DIRECTORIES(${AWS_CPP_SDK_INCLUDE_DIR})
   SET(AWS_SDK_LIBS ${AWS_CPP_SDK_CORE} ${AWS_CPP_SDK_KMS})
 ELSE()
   # Build from source, using ExternalProject_Add
@@ -95,11 +96,22 @@ ELSE()
     ENDIF()
   ENDIF()
   IF(MSVC)
-    SET(EXTRA_SDK_CMAKE_FLAGS -DCMAKE_CXX_FLAGS_DEBUGOPT="" -DCMAKE_EXE_LINKER_FLAGS_DEBUGOPT="" "-DCMAKE_CXX_FLAGS=/wd4530 /WX-")
+    SET(EXTRA_SDK_CMAKE_FLAGS -DCMAKE_CXX_FLAGS_DEBUGOPT="" -DCMAKE_EXE_LINKER_FLAGS_DEBUGOPT="" "-DCMAKE_CXX_FLAGS=/wd4530 /wd4577 /WX-")
   ENDIF()
   IF(CMAKE_CXX_COMPILER)
    SET(EXTRA_SDK_CMAKE_FLAGS ${EXTRA_SDK_CMAKE_FLAGS} -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER})
   ENDIF()
+
+  SET(byproducts )
+  # We do not need to build the whole SDK , just 2 of its libs
+  set(AWS_SDK_LIBS aws-cpp-sdk-core aws-cpp-sdk-kms)
+  FOREACH(lib ${AWS_SDK_LIBS})
+    ADD_LIBRARY(${lib} STATIC IMPORTED GLOBAL)
+    ADD_DEPENDENCIES(${lib} aws_sdk_cpp)
+    SET(loc "${CMAKE_CURRENT_BINARY_DIR}/aws_sdk_cpp/lib/${CMAKE_STATIC_LIBRARY_PREFIX}${lib}${CMAKE_STATIC_LIBRARY_SUFFIX}")
+    SET(byproducts ${byproducts} BUILD_BYPRODUCTS ${loc})
+    SET_TARGET_PROPERTIES(${lib} PROPERTIES IMPORTED_LOCATION ${loc})
+  ENDFOREACH()
 
   SET(AWS_SDK_PATCH_COMMAND )
   ExternalProject_Add(
@@ -107,8 +119,9 @@ ELSE()
     GIT_REPOSITORY "https://github.com/awslabs/aws-sdk-cpp.git"
     GIT_TAG "1.0.8"
     UPDATE_COMMAND ""
-    SOURCE_DIR "${CMAKE_BINARY_DIR}/aws-sdk-cpp"
-    CMAKE_ARGS 
+    SOURCE_DIR "${CMAKE_CURRENT_BINARY_DIR}/aws-sdk-cpp"
+    ${byproducts}
+    CMAKE_ARGS
     -DBUILD_ONLY=kms
     -DBUILD_SHARED_LIBS=OFF
     -DFORCE_SHARED_CRT=OFF
@@ -117,32 +130,26 @@ ELSE()
     "-DCMAKE_CXX_FLAGS_RELEASE=${CMAKE_CXX_FLAGS_RELEASE} ${PIC_FLAG}"
     "-DCMAKE_CXX_FLAGS_MINSIZEREL=${CMAKE_CXX_FLAGS_MINSIZEREL} ${PIC_FLAG}"
     ${EXTRA_SDK_CMAKE_FLAGS}
-    -DCMAKE_INSTALL_PREFIX=${CMAKE_BINARY_DIR}/aws_sdk_cpp
+    -DCMAKE_INSTALL_PREFIX=${CMAKE_CURRENT_BINARY_DIR}/aws_sdk_cpp
     TEST_COMMAND ""
   )
   SET_TARGET_PROPERTIES(aws_sdk_cpp PROPERTIES EXCLUDE_FROM_ALL TRUE)
-  # We do not need to build the whole SDK , just 2 of its libs
-  set(AWS_SDK_LIBS aws-cpp-sdk-core aws-cpp-sdk-kms)
-  FOREACH(lib ${AWS_SDK_LIBS})
-    ADD_LIBRARY(${lib} STATIC IMPORTED GLOBAL)
-    ADD_DEPENDENCIES(${lib} aws_sdk_cpp)
-    SET(loc "${CMAKE_BINARY_DIR}/aws_sdk_cpp/lib/${CMAKE_STATIC_LIBRARY_PREFIX}${lib}${CMAKE_STATIC_LIBRARY_SUFFIX}")
-    SET_TARGET_PROPERTIES(${lib} PROPERTIES IMPORTED_LOCATION ${loc})
-    IF(WIN32)
-      SET_TARGET_PROPERTIES(${lib} PROPERTIES IMPORTED_LINK_INTERFACE_LIBRARIES "bcrypt;winhttp;wininet;userenv")
-    ELSE()
-      SET_TARGET_PROPERTIES(${lib} PROPERTIES IMPORTED_LINK_INTERFACE_LIBRARIES "${SSL_LIBRARIES};${CURL_LIBRARIES};${UUID_LIBRARIES}")
-    ENDIF()  
-  ENDFOREACH()
 
   IF(CMAKE_SYSTEM_NAME MATCHES "Linux")
     # Need whole-archive , otherwise static libraries are not linked
     SET(AWS_SDK_LIBS -Wl,--whole-archive ${AWS_SDK_LIBS} -Wl,--no-whole-archive)
   ENDIF()
   SET_TARGET_PROPERTIES(aws_sdk_cpp PROPERTIES EXCLUDE_FROM_ALL TRUE)
-  INCLUDE_DIRECTORIES(${CMAKE_BINARY_DIR}/aws_sdk_cpp/include)
+  INCLUDE_DIRECTORIES(${CMAKE_CURRENT_BINARY_DIR}/aws_sdk_cpp/include)
 ENDIF()
 
 ADD_DEFINITIONS(${SSL_DEFINES}) # Need to know whether openssl should be initialized
 SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}  ${CXX11_FLAGS}")
-TARGET_LINK_LIBRARIES(aws_key_management ${AWS_SDK_LIBS})
+
+IF(WIN32)
+ SET(AWS_CPP_SDK_DEPENDENCIES bcrypt winhttp wininet userenv version)
+ELSE()
+ SET(AWS_CPP_SDK_DEPENDENCIES ${SSL_LIBRARIES} ${CURL_LIBRARIES} ${UUID_LIBRARIES})
+ENDIF()
+
+TARGET_LINK_LIBRARIES(aws_key_management ${AWS_SDK_LIBS} ${AWS_CPP_SDK_DEPENDENCIES})

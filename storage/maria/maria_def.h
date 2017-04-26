@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
 
 /* This file is included by all internal maria files */
 
@@ -889,7 +889,7 @@ struct st_maria_handler
 #define PACK_TYPE_SELECTED	1	/* Bits in field->pack_type */
 #define PACK_TYPE_SPACE_FIELDS	2
 #define PACK_TYPE_ZERO_FILL	4
-#define MARIA_FOUND_WRONG_KEY 32738	/* Impossible value from ha_key_cmp */
+#define MARIA_FOUND_WRONG_KEY 32768	/* Impossible value from ha_key_cmp */
 
 #define MARIA_BLOCK_SIZE(key_length,data_pointer,key_pointer,block_size)  (((((key_length)+(data_pointer)+(key_pointer))*4+(key_pointer)+2)/(block_size)+1)*(block_size))
 #define MARIA_MAX_KEYPTR_SIZE	5	/* For calculating block lengths */
@@ -1346,8 +1346,7 @@ int _ma_def_scan_restore_pos(MARIA_HA *info, MARIA_RECORD_POS lastpos);
 
 extern MARIA_HA *_ma_test_if_reopen(const char *filename);
 my_bool _ma_check_table_is_closed(const char *name, const char *where);
-int _ma_open_datafile(MARIA_HA *info, MARIA_SHARE *share, const char *org_name,
-                      File file_to_dup);
+int _ma_open_datafile(MARIA_HA *info, MARIA_SHARE *share);
 int _ma_open_keyfile(MARIA_SHARE *share);
 void _ma_setup_functions(register MARIA_SHARE *share);
 my_bool _ma_dynmap_file(MARIA_HA *info, my_off_t size);

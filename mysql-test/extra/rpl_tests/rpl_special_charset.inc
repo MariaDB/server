@@ -20,7 +20,7 @@
 #  then set default's client character set(latin1) as client's character set.
 ###############################################################################
 --source include/master-slave.inc
-call mtr.add_suppression("Cannot use utf16 as character_set_client");
+call mtr.add_suppression("'utf16' can not be used as client character set");
 CREATE TABLE t1(i VARCHAR(20));
 INSERT INTO t1 VALUES (0xFFFF);
 --sync_slave_with_master

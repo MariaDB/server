@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
 
 /*
   These functions handle page caching for Maria tables.
@@ -887,8 +887,8 @@ size_t init_pagecache(PAGECACHE *pagecache, size_t use_mem,
   pagecache->waiting_for_hash_link.last_thread= NULL;
   pagecache->waiting_for_block.last_thread= NULL;
   DBUG_PRINT("exit",
-             ("disk_blocks: %ld  block_root: 0x%lx  hash_entries: %ld\
- hash_root: 0x%lx  hash_links: %ld  hash_link_root: 0x%lx",
+             ("disk_blocks: %zu  block_root: 0x%lx  hash_entries: %zu\
+ hash_root: 0x%lx  hash_links: %zu  hash_link_root: 0x%lx",
               pagecache->disk_blocks, (long) pagecache->block_root,
               pagecache->hash_entries, (long) pagecache->hash_root,
               pagecache->hash_links, (long) pagecache->hash_link_root));
@@ -1186,7 +1186,7 @@ void end_pagecache(PAGECACHE *pagecache, my_bool cleanup)
     pagecache->blocks_changed= 0;
   }
 
-  DBUG_PRINT("status", ("used: %lu  changed: %lu  w_requests: %lu  "
+  DBUG_PRINT("status", ("used: %zu  changed: %zu  w_requests: %lu  "
                         "writes: %lu  r_requests: %lu  reads: %lu",
                         pagecache->blocks_used,
                         pagecache->global_blocks_changed,
@@ -1521,7 +1521,7 @@ static void unreg_request(PAGECACHE *pagecache,
       if (block->temperature == PCBLOCK_WARM)
         pagecache->warm_blocks--;
       block->temperature= PCBLOCK_HOT;
-      KEYCACHE_DBUG_PRINT("unreg_request", ("#warm_blocks: %lu",
+      KEYCACHE_DBUG_PRINT("unreg_request", ("#warm_blocks: %zu",
                            pagecache->warm_blocks));
     }
     link_block(pagecache, block, hot, (my_bool)at_end);
@@ -1540,7 +1540,7 @@ static void unreg_request(PAGECACHE *pagecache,
         pagecache->warm_blocks++;
         block->temperature= PCBLOCK_WARM;
       }
-      KEYCACHE_DBUG_PRINT("unreg_request", ("#warm_blocks: %lu",
+      KEYCACHE_DBUG_PRINT("unreg_request", ("#warm_blocks: %zu",
                            pagecache->warm_blocks));
     }
   }
@@ -4494,7 +4494,7 @@ static int flush_pagecache_blocks_int(PAGECACHE *pagecache,
   int rc= PCFLUSH_OK;
   DBUG_ENTER("flush_pagecache_blocks_int");
   DBUG_PRINT("enter",
-             ("fd: %d  blocks_used: %lu  blocks_changed: %lu  type: %d",
+             ("fd: %d  blocks_used: %zu  blocks_changed: %zu  type: %d",
               file->file, pagecache->blocks_used, pagecache->blocks_changed,
               type));
 
@@ -4959,7 +4959,7 @@ my_bool pagecache_collect_changed_blocks_with_lsn(PAGECACHE *pagecache,
   ptr= str->str;
   int8store(ptr, (ulonglong)stored_list_size);
   ptr+= 8;
-  DBUG_PRINT("info", ("found %lu dirty pages", stored_list_size));
+  DBUG_PRINT("info", ("found %zu dirty pages", stored_list_size));
   if (stored_list_size == 0)
     goto end;
   for (file_hash= 0; file_hash < pagecache->changed_blocks_hash_size; file_hash++)

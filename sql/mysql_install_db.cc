@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
 
 /*
   mysql_install_db creates a new database instance (optionally as service)
@@ -233,6 +233,20 @@ static void get_basedir(char *basedir, int size, const char *mysqld_path)
   }
 }
 
+#define STR(s) _STR(s)
+#define _STR(s) #s
+
+static char *get_plugindir()
+{
+  static char plugin_dir[2*MAX_PATH];
+  get_basedir(plugin_dir, sizeof(plugin_dir), mysqld_path);
+  strcat(plugin_dir, "/" STR(INSTALL_PLUGINDIR));
+
+  if (access(plugin_dir, 0) == 0)
+    return plugin_dir;
+
+  return NULL;
+}
 
 /**
   Allocate and initialize command line for mysqld --bootstrap.
@@ -313,6 +327,10 @@ static int create_myini()
     fprintf(myini,"protocol=pipe\n");
   else if (opt_port)
     fprintf(myini,"port=%d\n",opt_port);
+
+  char *plugin_dir = get_plugindir();
+  if (plugin_dir)
+    fprintf(myini, "plugin-dir=%s\n", plugin_dir);
   fclose(myini);
   return 0;
 }
@@ -368,8 +386,8 @@ static int register_service()
     CloseServiceHandle(sc_manager);
     die("CreateService failed (%u)", GetLastError());
   }
-
-  SERVICE_DESCRIPTION sd= { "MariaDB database server" };
+  char description[] = "MariaDB database server";
+  SERVICE_DESCRIPTION sd= { description };
   ChangeServiceConfig2(sc_service, SERVICE_CONFIG_DESCRIPTION, &sd);
   CloseServiceHandle(sc_service); 
   CloseServiceHandle(sc_manager);

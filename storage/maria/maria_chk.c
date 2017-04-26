@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
 
 /* Describe, check and repair of MARIA tables */
 
@@ -1275,7 +1275,7 @@ static int maria_chk(HA_CHECK *param, char *filename)
         mysql_file_close(info->dfile.file, MYF(MY_WME)); /* Close new file */
         error|=maria_change_to_newfile(filename,MARIA_NAME_DEXT,DATA_TMP_EXT,
                                        0, MYF(0));
-        if (_ma_open_datafile(info,info->s, NullS, -1))
+        if (_ma_open_datafile(info, info->s))
           error=1;
         param->out_flag&= ~O_NEW_DATA; /* We are using new datafile */
         param->read_cache.file= info->dfile.file;

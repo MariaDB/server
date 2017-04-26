@@ -227,14 +227,13 @@ void udf_init()
     if (dl == NULL)
     {
       char dlpath[FN_REFLEN];
-      strxnmov(dlpath, sizeof(dlpath) - 1, opt_plugin_dir, "/", tmp->dl,
-               NullS);
+      strxnmov(dlpath, sizeof(dlpath) - 1, opt_plugin_dir, "/", tmp->dl, NullS);
       (void) unpack_filename(dlpath, dlpath);
       if (!(dl= dlopen(dlpath, RTLD_NOW)))
       {
 	/* Print warning to log */
         sql_print_error(ER_THD(new_thd, ER_CANT_OPEN_LIBRARY),
-                        tmp->dl, errno, dlerror());
+                        tmp->dl, errno, my_dlerror(dlpath));
 	/* Keep the udf in the hash so that we can remove it later */
 	continue;
       }
@@ -500,12 +499,8 @@ int mysql_create_function(THD *thd,udf_func *udf)
     my_message(ER_UDF_NO_PATHS, ER_THD(thd, ER_UDF_NO_PATHS), MYF(0));
     DBUG_RETURN(1);
   }
-  if (check_string_char_length(&udf->name, 0, NAME_CHAR_LEN,
-                               system_charset_info, 1))
-  {
-    my_error(ER_TOO_LONG_IDENT, MYF(0), udf->name.str);
+  if (check_ident_length(&udf->name))
     DBUG_RETURN(1);
-  }
 
   tables.init_one_table(STRING_WITH_LEN("mysql"), STRING_WITH_LEN("func"),
                         "func", TL_WRITE);
@@ -542,10 +537,10 @@ int mysql_create_function(THD *thd,udf_func *udf)
 
     if (!(dl = dlopen(dlpath, RTLD_NOW)))
     {
+      my_error(ER_CANT_OPEN_LIBRARY, MYF(0),
+               udf->dl, errno, my_dlerror(dlpath));
       DBUG_PRINT("error",("dlopen of %s failed, error: %d (%s)",
                           udf->dl, errno, dlerror()));
-      my_error(ER_CANT_OPEN_LIBRARY, MYF(0),
-               udf->dl, errno, dlerror());
       goto err;
     }
     new_dl=1;

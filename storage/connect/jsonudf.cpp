@@ -2921,70 +2921,53 @@ char *jsonget_string(UDF_INIT *initid, UDF_ARGS *args, char *result,
 
 	if (g->N) {
 		str = (char*)g->Activityp;
-		goto fin;
+		goto err;
 	} else if (initid->const_item)
 		g->N = 1;
 
-#if defined(USE_TRY)
 	try {
-#else   // !USE_TRY
-	// Save stack and allocation environment and prepare error return
-	if (g->jump_level == MAX_JUMP) {
-		PUSH_WARNING(MSG(TOO_MANY_JUMPS));
-		*is_null = 1;
-		return NULL;
-	} // endif jump_level
-
-	if (setjmp(g->jumper[++g->jump_level])) {
-		PUSH_WARNING(g->Message);
-		str = NULL;
-		goto err;
-	} // endif rc
-#endif  // !USE_TRY
-
-	if (!g->Xchk) {
-		if (CheckMemory(g, initid, args, 1, true)) {
-			PUSH_WARNING("CheckMemory error");
-			goto err;
-		} else
-			jvp = MakeValue(g, args, 0);
-
-		if ((p = jvp->GetString())) {
-			if (!(jsp = ParseJson(g, p, strlen(p)))) {
-				PUSH_WARNING(g->Message);
+		if (!g->Xchk) {
+			if (CheckMemory(g, initid, args, 1, true)) {
+				PUSH_WARNING("CheckMemory error");
 				goto err;
-			} // endif jsp
+			} else
+				jvp = MakeValue(g, args, 0);
+
+			if ((p = jvp->GetString())) {
+				if (!(jsp = ParseJson(g, p, strlen(p)))) {
+					PUSH_WARNING(g->Message);
+					goto err;
+				} // endif jsp
+
+			} else
+				jsp = jvp->GetJson();
+
+			if (g->Mrr) {			 // First argument is a constant
+				g->Xchk = jsp;
+				JsonMemSave(g);
+			} // endif Mrr
 
 		} else
-			jsp = jvp->GetJson();
+			jsp = (PJSON)g->Xchk;
 
-		if (g->Mrr) {			 // First argument is a constant
-			g->Xchk = jsp;
-			JsonMemSave(g);
-		} // endif Mrr
+		path = MakePSZ(g, args, 1);
+		jsx = new(g) JSNX(g, jsp, TYPE_STRING, initid->max_length);
 
-	} else
-		jsp = (PJSON)g->Xchk;
+		if (jsx->SetJpath(g, path)) {
+			PUSH_WARNING(g->Message);
+			goto err;
+		}	// endif SetJpath
 
-	path = MakePSZ(g, args, 1);
-	jsx = new(g) JSNX(g, jsp, TYPE_STRING, initid->max_length);
+		jsx->ReadValue(g);
 
-	if (jsx->SetJpath(g, path)) {
-		PUSH_WARNING(g->Message);
-		goto err;
-	}	// endif SetJpath
+		if (!jsx->GetValue()->IsNull())
+			str = jsx->GetValue()->GetCharValue();
 
-	jsx->ReadValue(g);
+		if (initid->const_item)
+			// Keep result of constant function
+			g->Activityp = (PACTIVITY)str;
 
-	if (!jsx->GetValue()->IsNull())
-		str = jsx->GetValue()->GetCharValue();
-
-	if (initid->const_item)
-		// Keep result of constant function
-		g->Activityp = (PACTIVITY)str;
-
-#if defined(USE_TRY)
-  } catch (int n) {
+	} catch (int n) {
 	  if (trace)
 		  htrc("Exception %d: %s\n", n, g->Message);
 		PUSH_WARNING(g->Message);
@@ -2996,12 +2979,6 @@ char *jsonget_string(UDF_INIT *initid, UDF_ARGS *args, char *result,
   } // end catch
 
  err:
-#else   // !USE_TRY
- err:
-	g->jump_level--;
-#endif  // !USE_TRY
-
- fin:
 	if (!str) {
 		*is_null = 1;
 		*res_length = 0;
@@ -3292,64 +3269,45 @@ char *jsonlocate(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	} else if (initid->const_item)
 		g->N = 1;
 
-#if defined(USE_TRY)
 	try {
-#else   // !USE_TRY
-	// Save stack and allocation environment and prepare error return
-	if (g->jump_level == MAX_JUMP) {
-		PUSH_WARNING(MSG(TOO_MANY_JUMPS));
-		*error = 1;
-		*is_null = 1;
-		return NULL;
-	} // endif jump_level
-
-	if (setjmp(g->jumper[++g->jump_level])) {
-		PUSH_WARNING(g->Message);
-		*error = 1;
-		path = NULL;
-		goto err;
-	} // endif rc
-#endif  // !USE_TRY
-
-	if (!g->Xchk) {
-		if (CheckMemory(g, initid, args, 1, !g->Xchk)) {
-			PUSH_WARNING("CheckMemory error");
-			*error = 1;
-			goto err;
-		} else
-			jvp = MakeValue(g, args, 0);
-
-		if ((p = jvp->GetString())) {
-			if (!(jsp = ParseJson(g, p, strlen(p)))) {
-				PUSH_WARNING(g->Message);
+		if (!g->Xchk) {
+			if (CheckMemory(g, initid, args, 1, !g->Xchk)) {
+				PUSH_WARNING("CheckMemory error");
+				*error = 1;
 				goto err;
-			} // endif jsp
+			} else
+				jvp = MakeValue(g, args, 0);
+
+			if ((p = jvp->GetString())) {
+				if (!(jsp = ParseJson(g, p, strlen(p)))) {
+					PUSH_WARNING(g->Message);
+					goto err;
+				} // endif jsp
+
+			} else
+				jsp = jvp->GetJson();
+
+			if (g->Mrr) {			 // First argument is a constant
+				g->Xchk = jsp;
+				JsonMemSave(g);
+			} // endif Mrr
 
 		} else
-			jsp = jvp->GetJson();
+			jsp = (PJSON)g->Xchk;
 
-		if (g->Mrr) {			 // First argument is a constant
-			g->Xchk = jsp;
-			JsonMemSave(g);
-		} // endif Mrr
+		// The item to locate
+		jvp2 = MakeValue(g, args, 1);
 
-	} else
-		jsp = (PJSON)g->Xchk;
+		k = (args->arg_count > 2) ? (int)*(long long*)args->args[2] : 1;
 
-	// The item to locate
-	jvp2 = MakeValue(g, args, 1);
+		jsx = new(g) JSNX(g, jsp, TYPE_STRING);
+		path = jsx->Locate(g, jsp, jvp2, k);
 
-	k = (args->arg_count > 2) ? (int)*(long long*)args->args[2] : 1;
+		if (initid->const_item)
+			// Keep result of constant function
+			g->Activityp = (PACTIVITY)path;
 
-	jsx = new(g) JSNX(g, jsp, TYPE_STRING);
-	path = jsx->Locate(g, jsp, jvp2, k);
-
-	if (initid->const_item)
-		// Keep result of constant function
-		g->Activityp = (PACTIVITY)path;
-
-#if defined(USE_TRY)
-  } catch (int n) {
+	} catch (int n) {
 	  if (trace)
 		  htrc("Exception %d: %s\n", n, g->Message);
 		PUSH_WARNING(g->Message);
@@ -3363,11 +3321,6 @@ char *jsonlocate(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	} // end catch
 
  err:
-#else   // !USE_TRY
- err:
-	g->jump_level--;
-#endif  // !USE_TRY
-
 	if (!path) {
 		*res_length = 0;
 		*is_null = 1;
@@ -3439,65 +3392,46 @@ char *json_locate_all(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	} else if (initid->const_item)
 		g->N = 1;
 
-#if defined(USE_TRY)
 	try {
-#else   // !USE_TRY
-	// Save stack and allocation environment and prepare error return
-	if (g->jump_level == MAX_JUMP) {
-		PUSH_WARNING(MSG(TOO_MANY_JUMPS));
-		*error = 1;
-		*is_null = 1;
-		return NULL;
-	} // endif jump_level
-
-	if (setjmp(g->jumper[++g->jump_level])) {
-		PUSH_WARNING(g->Message);
-		*error = 1;
-		path = NULL;
-		goto err;
-	} // endif rc
-#endif  // !USE_TRY
-
-	if (!g->Xchk) {
-		if (CheckMemory(g, initid, args, 1, true)) {
-			PUSH_WARNING("CheckMemory error");
-			*error = 1;
-			goto err;
-		} else
-			jvp = MakeValue(g, args, 0);
-
-		if ((p = jvp->GetString())) {
-			if (!(jsp = ParseJson(g, p, strlen(p)))) {
-				PUSH_WARNING(g->Message);
+		if (!g->Xchk) {
+			if (CheckMemory(g, initid, args, 1, true)) {
+				PUSH_WARNING("CheckMemory error");
+				*error = 1;
 				goto err;
-			} // endif jsp
+			} else
+				jvp = MakeValue(g, args, 0);
+
+			if ((p = jvp->GetString())) {
+				if (!(jsp = ParseJson(g, p, strlen(p)))) {
+					PUSH_WARNING(g->Message);
+					goto err;
+				} // endif jsp
+
+			} else
+				jsp = jvp->GetJson();
+
+			if (g->Mrr) {			 // First argument is a constant
+				g->Xchk = jsp;
+				JsonMemSave(g);
+			} // endif Mrr
 
 		} else
-			jsp = jvp->GetJson();
+			jsp = (PJSON)g->Xchk;
 
-		if (g->Mrr) {			 // First argument is a constant
-			g->Xchk = jsp;
-			JsonMemSave(g);
-		} // endif Mrr
+		// The item to locate
+		jvp2 = MakeValue(g, args, 1);
 
-	} else
-		jsp = (PJSON)g->Xchk;
+		if (args->arg_count > 2)
+			mx = (int)*(long long*)args->args[2];
 
-	// The item to locate
-	jvp2 = MakeValue(g, args, 1);
+		jsx = new(g) JSNX(g, jsp, TYPE_STRING);
+		path = jsx->LocateAll(g, jsp, jvp2, mx);
 
-	if (args->arg_count > 2)
-		mx = (int)*(long long*)args->args[2];
+		if (initid->const_item)
+			// Keep result of constant function
+			g->Activityp = (PACTIVITY)path;
 
-	jsx = new(g) JSNX(g, jsp, TYPE_STRING);
-	path = jsx->LocateAll(g, jsp, jvp2, mx);
-
-	if (initid->const_item)
-		// Keep result of constant function
-		g->Activityp = (PACTIVITY)path;
-
-#if defined(USE_TRY)
-  } catch (int n) {
+	} catch (int n) {
 		if (trace)
 			htrc("Exception %d: %s\n", n, g->Message);
 		PUSH_WARNING(g->Message);
@@ -3511,11 +3445,6 @@ char *json_locate_all(UDF_INIT *initid, UDF_ARGS *args, char *result,
   } // end catch
 
  err:
-#else   // !USE_TRY
- err:
-	g->jump_level--;
-#endif  // !USE_TRY
-
 	if (!path) {
 		*res_length = 0;
 		*is_null = 1;
@@ -3722,87 +3651,61 @@ char *handle_item(UDF_INIT *initid, UDF_ARGS *args, char *result,
 		goto fin;
 	}	// endelse
 
-#if defined(USE_TRY)
 	try {
-#else   // !USE_TRY
-		// Save stack and allocation environment and prepare error return
-	if (g->jump_level == MAX_JUMP) {
-		PUSH_WARNING(MSG(TOO_MANY_JUMPS));
-		*error = 1;
-		goto fin;
-	} // endif jump_level
+		if (!g->Xchk) {
+			if (CheckMemory(g, initid, args, 1, true, false, true)) {
+				PUSH_WARNING("CheckMemory error");
+				throw 1;
+			} else
+				jvp = MakeValue(g, args, 0);
 
-	if (setjmp(g->jumper[++g->jump_level])) {
-		PUSH_WARNING(g->Message);
-		str = NULL;
-		goto err;
-	} // endif rc
-#endif  // !USE_TRY
+			if ((p = jvp->GetString())) {
+				if (!(jsp = ParseJson(g, p, strlen(p)))) {
+					throw 2;
+				} // endif jsp
 
-	if (!g->Xchk) {
-		if (CheckMemory(g, initid, args, 1, true, false, true)) {
-			PUSH_WARNING("CheckMemory error");
-#if defined(USE_TRY)
-			throw 1;
-#else   // !USE_TRY
-			goto err;
-#endif  // !USE_TRY
+			} else
+				jsp = jvp->GetJson();
+
+			if (g->Mrr) {			 // First argument is a constant
+				g->Xchk = jsp;
+				JsonMemSave(g);
+			} // endif Mrr
+
 		} else
-			jvp = MakeValue(g, args, 0);
+			jsp = (PJSON)g->Xchk;
 
-		if ((p = jvp->GetString())) {
-			if (!(jsp = ParseJson(g, p, strlen(p)))) {
-#if defined(USE_TRY)
-				throw 2;
-#else   // !USE_TRY
+		jsx = new(g)JSNX(g, jsp, TYPE_STRING, initid->max_length, 0, true);
+
+		for (uint i = 1; i + 1 < args->arg_count; i += 2) {
+			jvp = MakeValue(gb, args, i);
+			path = MakePSZ(g, args, i + 1);
+
+			if (jsx->SetJpath(g, path, false)) {
 				PUSH_WARNING(g->Message);
-				goto err;
-#endif  // !USE_TRY
-			} // endif jsp
+				continue;
+			}	// endif SetJpath
 
-		} else
-			jsp = jvp->GetJson();
+			if (w) {
+				jsx->ReadValue(g);
+				b = jsx->GetValue()->IsNull();
+				b = (w == 1) ? b : !b;
+			}	// endif w
 
-		if (g->Mrr) {			 // First argument is a constant
-			g->Xchk = jsp;
-			JsonMemSave(g);
-		} // endif Mrr
+			if (b && jsx->WriteValue(gb, jvp))
+				PUSH_WARNING(g->Message);
 
-	} else
-		jsp = (PJSON)g->Xchk;
+		} // endfor i
 
-	jsx = new(g)JSNX(g, jsp, TYPE_STRING, initid->max_length, 0, true);
+		// In case of error or file, return unchanged argument
+		if (!(str = MakeResult(g, args, jsp, INT_MAX32)))
+			str = MakePSZ(g, args, 0);
 
-	for (uint i = 1; i+1 < args->arg_count; i += 2) {
-		jvp = MakeValue(gb, args, i);
-		path = MakePSZ(g, args, i+1);
+		if (g->N)
+			// Keep result of constant function
+			g->Activityp = (PACTIVITY)str;
 
-		if (jsx->SetJpath(g, path, false)) {
-			PUSH_WARNING(g->Message);
-			continue;
-		}	// endif SetJpath
-
-		if (w) {
-			jsx->ReadValue(g);
-			b = jsx->GetValue()->IsNull();
-			b = (w == 1) ? b : !b;
-		}	// endif w
-
-		if (b && jsx->WriteValue(gb, jvp))
-			PUSH_WARNING(g->Message);
-
-	} // endfor i
-
-	// In case of error or file, return unchanged argument
-	if (!(str = MakeResult(g, args, jsp, INT_MAX32)))
-		str = MakePSZ(g, args, 0);
-
-	if (g->N)
-		// Keep result of constant function
-		g->Activityp = (PACTIVITY)str;
-
-#if defined(USE_TRY)
-  } catch (int n) {
+	} catch (int n) {
 	  if (trace)
 		  htrc("Exception %d: %s\n", n, g->Message);
 		PUSH_WARNING(g->Message);
@@ -3812,10 +3715,6 @@ char *handle_item(UDF_INIT *initid, UDF_ARGS *args, char *result,
 		PUSH_WARNING(g->Message);
 		str = NULL;
 	} // end catch
-#else   // !USE_TRY
-err:
-	g->jump_level--;
-#endif  // !USE_TRY
 
 fin:
 	if (!str) {

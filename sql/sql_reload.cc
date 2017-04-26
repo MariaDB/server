@@ -181,24 +181,20 @@ bool reload_acl_and_cache(THD *thd, unsigned long long options,
       slave is not likely to have the same connection names.
     */
     tmp_write_to_binlog= 0;
-    mysql_mutex_lock(&LOCK_active_mi);
-    if (master_info_index)
+
+    if (!(mi= (get_master_info(&connection_name,
+                               Sql_condition::WARN_LEVEL_ERROR))))
     {
-      if (!(mi= (master_info_index->
-                 get_master_info(&connection_name,
-                                 Sql_condition::WARN_LEVEL_ERROR))))
-      {
-        result= 1;
-      }
-      else
-      {
-        mysql_mutex_lock(&mi->data_lock);
-        if (rotate_relay_log(mi))
-          *write_to_binlog= -1;
-        mysql_mutex_unlock(&mi->data_lock);
-      }
+      result= 1;
     }
-    mysql_mutex_unlock(&LOCK_active_mi);
+    else
+    {
+      mysql_mutex_lock(&mi->data_lock);
+      if (rotate_relay_log(mi))
+        *write_to_binlog= -1;
+      mysql_mutex_unlock(&mi->data_lock);
+      mi->release();
+    }
 #endif
   }
 #ifdef HAVE_QUERY_CACHE
@@ -375,27 +371,33 @@ bool reload_acl_and_cache(THD *thd, unsigned long long options,
    LEX_MASTER_INFO* lex_mi= &thd->lex->mi;
    Master_info *mi;
    tmp_write_to_binlog= 0;
-   mysql_mutex_lock(&LOCK_active_mi);
-   if (master_info_index)
+
+   if (!(mi= get_master_info(&lex_mi->connection_name,
+                             Sql_condition::WARN_LEVEL_ERROR)))
    {
-     if (!(mi= (master_info_index->
-                get_master_info(&lex_mi->connection_name,
-                                Sql_condition::WARN_LEVEL_ERROR))))
+     result= 1;
+   }
+   else
+   {
+     /* The following will fail if slave is running */
+     if (reset_slave(thd, mi))
      {
-       result= 1;
-     }
-     else if (reset_slave(thd, mi))
-     {
+       mi->release();
        /* NOTE: my_error() has been already called by reset_slave(). */
        result= 1;
      }
      else if (mi->connection_name.length && thd->lex->reset_slave_info.all)
      {
        /* If not default connection and 'all' is used */
-       master_info_index->remove_master_info(&mi->connection_name);
+       mi->release();
+       mysql_mutex_lock(&LOCK_active_mi);
+       if (master_info_index->remove_master_info(mi))
+         result= 1;
+       mysql_mutex_unlock(&LOCK_active_mi);
      }
+     else
+       mi->release();
    }
-   mysql_mutex_unlock(&LOCK_active_mi);
  }
 #endif
  if (options & REFRESH_USER_RESOURCES)

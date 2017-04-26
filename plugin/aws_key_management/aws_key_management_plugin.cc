@@ -25,7 +25,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <mysqld_error.h>
-#include <base64.h>
 #include <map>
 #include <algorithm>
 #include <string>

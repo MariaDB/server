@@ -511,19 +511,11 @@ void INICOL::WriteColumn(PGLOBAL g)
 
   if (strlen(p) > (unsigned)Long) {
     sprintf(g->Message, MSG(VALUE_TOO_LONG), p, Name, Long);
-#if defined(USE_TRY)
 		throw 31;
-#else   // !USE_TRY
-		longjmp(g->jumper[g->jump_level], 31);
-#endif  // !USE_TRY
 	} else if (Flag == 1) {
     if (tdbp->Mode == MODE_UPDATE) {
       strcpy(g->Message, MSG(NO_SEC_UPDATE));
-#if defined(USE_TRY)
 			throw 31;
-#else   // !USE_TRY
-			longjmp(g->jumper[g->jump_level], 31);
-#endif  // !USE_TRY
 		} else if (*p) {
       tdbp->Section = p;
     } else
@@ -532,11 +524,7 @@ void INICOL::WriteColumn(PGLOBAL g)
     return;
   } else if (!tdbp->Section) {
     strcpy(g->Message, MSG(SEC_NAME_FIRST));
-#if defined(USE_TRY)
 		throw 31;
-#else   // !USE_TRY
-		longjmp(g->jumper[g->jump_level], 31);
-#endif  // !USE_TRY
 	} // endif's
 
   /*********************************************************************/
@@ -548,11 +536,7 @@ void INICOL::WriteColumn(PGLOBAL g)
     if (!rc) {
       sprintf(g->Message, "Error %d writing to %s", 
                           GetLastError(), tdbp->Ifile);
-#if defined(USE_TRY)
 			throw 31;
-#else   // !USE_TRY
-			longjmp(g->jumper[g->jump_level], 31);
-#endif  // !USE_TRY
 		} // endif rc
 
     } // endif Status
@@ -853,19 +837,11 @@ void XINCOL::WriteColumn(PGLOBAL g)
 
   if (strlen(p) > (unsigned)Long) {
     sprintf(g->Message, MSG(VALUE_TOO_LONG), p, Name, Long);
-#if defined(USE_TRY)
 		throw 31;
-#else   // !USE_TRY
-		longjmp(g->jumper[g->jump_level], 31);
-#endif  // !USE_TRY
 	} else if (Flag == 1) {
     if (tdbp->Mode == MODE_UPDATE) {
       strcpy(g->Message, MSG(NO_SEC_UPDATE));
-#if defined(USE_TRY)
 			throw 31;
-#else   // !USE_TRY
-			longjmp(g->jumper[g->jump_level], 31);
-#endif  // !USE_TRY
 		} else if (*p) {
       tdbp->Section = p;
     } else
@@ -875,11 +851,7 @@ void XINCOL::WriteColumn(PGLOBAL g)
   } else if (Flag == 2) {
     if (tdbp->Mode == MODE_UPDATE) {
       strcpy(g->Message, MSG(NO_KEY_UPDATE));
-#if defined(USE_TRY)
 			throw 31;
-#else   // !USE_TRY
-			longjmp(g->jumper[g->jump_level], 31);
-#endif  // !USE_TRY
 		} else if (*p) {
       tdbp->Keycur = p;
     } else
@@ -888,11 +860,7 @@ void XINCOL::WriteColumn(PGLOBAL g)
     return;
   } else if (!tdbp->Section || !tdbp->Keycur) {
     strcpy(g->Message, MSG(SEC_KEY_FIRST));
-#if defined(USE_TRY)
 		throw 31;
-#else   // !USE_TRY
-		longjmp(g->jumper[g->jump_level], 31);
-#endif  // !USE_TRY
 	} // endif's
 
   /*********************************************************************/
@@ -904,11 +872,7 @@ void XINCOL::WriteColumn(PGLOBAL g)
     if (!rc) {
       sprintf(g->Message, "Error %d writing to %s", 
                           GetLastError(), tdbp->Ifile);
-#if defined(USE_TRY)
 			throw 31;
-#else   // !USE_TRY
-			longjmp(g->jumper[g->jump_level], 31);
-#endif  // !USE_TRY
 		} // endif rc
 
     } // endif Status

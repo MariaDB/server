@@ -1345,12 +1345,15 @@ void Field_num::prepend_zeros(String *value) const
   int diff;
   if ((diff= (int) (field_length - value->length())) > 0)
   {
-    bmove_upp((uchar*) value->ptr()+field_length,
-              (uchar*) value->ptr()+value->length(),
-	      value->length());
-    bfill((uchar*) value->ptr(),diff,'0');
-    value->length(field_length);
-    (void) value->c_ptr_quick();		// Avoid warnings in purify
+    const bool error= value->realloc(field_length);
+    if (!error)
+    {
+      bmove_upp((uchar*) value->ptr()+field_length,
+                (uchar*) value->ptr()+value->length(),
+	        value->length());
+      bfill((uchar*) value->ptr(),diff,'0');
+      value->length(field_length);
+    }
   }
 }
 
@@ -10597,7 +10600,7 @@ Create_field::Create_field(THD *thd, Field *old_field, Field *orig_field)
     if (length != 4)
     {
       char buff[sizeof("YEAR()") + MY_INT64_NUM_DECIMAL_DIGITS + 1];
-      my_snprintf(buff, sizeof(buff), "YEAR(%lu)", length);
+      my_snprintf(buff, sizeof(buff), "YEAR(%llu)", length);
       push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
                           ER_WARN_DEPRECATED_SYNTAX,
                           ER_THD(thd, ER_WARN_DEPRECATED_SYNTAX),

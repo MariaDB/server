@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1997, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -300,20 +301,12 @@ void
 recv_sys_var_init(void);
 /*===================*/
 #endif /* !UNIV_HOTBACKUP */
-/*******************************************************************//**
-Empties the hash table of stored log records, applying them to appropriate
-pages. */
+/** Apply the hash table of stored log records to persistent data pages.
+@param[in]	last_batch	whether the change buffer merge will be
+				performed as part of the operation */
 UNIV_INTERN
-dberr_t
-recv_apply_hashed_log_recs(
-/*=======================*/
-	ibool	allow_ibuf);	/*!< in: if TRUE, also ibuf operations are
-				allowed during the application; if FALSE,
-				no ibuf operations are allowed, and after
-				the application all file pages are flushed to
-				disk and invalidated in buffer pool: this
-				alternative means that no new log records
-				can be generated during the application */
+void
+recv_apply_hashed_log_recs(bool last_batch);
 #ifdef UNIV_HOTBACKUP
 /*******************************************************************//**
 Applies log records in the hash table to a backup. */
@@ -439,6 +432,8 @@ struct recv_sys_t{
 				scan find a corrupt log block, or a corrupt
 				log record, or there is a log parsing
 				buffer overflow */
+	/** the time when progress was last reported */
+	ib_time_t	progress_time;
 #ifdef UNIV_LOG_ARCHIVE
 	log_group_t*	archive_group;
 				/*!< in archive recovery: the log group whose
@@ -451,6 +446,20 @@ struct recv_sys_t{
 				addresses in the hash table */
 
 	recv_dblwr_t	dblwr;
+
+	/** Determine whether redo log recovery progress should be reported.
+	@param[in]	time	the current time
+	@return	whether progress should be reported
+		(the last report was at least 15 seconds ago) */
+	bool report(ib_time_t time)
+	{
+		if (time - progress_time < 15) {
+			return false;
+		}
+
+		progress_time = time;
+		return true;
+	}
 };
 
 /** The recovery system */

@@ -8,9 +8,9 @@
 #------------------------------------------------------------------------------#
 # Original Author: HH                                                          #
 # Original Date: 2006-08-01                                                    #
-# Change Author:                                                               #
-# Change Date:                                                                 #
-# Change:                                                                      #
+# Change Author: Elena Stepanova                                               #
+# Change Date: 2017-02-18                                                      #
+# Change: Int subtypes (tinyint etc.) have been spawned into separate tests    #
 ################################################################################
 
 #
@@ -43,8 +43,4 @@ let $maxrows=65535;
 
 #------------------------------------------------------------------------------#
 # Execute the tests to be applied to all storage engines
---source suite/parts/inc/partition_tinyint.inc
---source suite/parts/inc/partition_smallint.inc
 --source suite/parts/inc/partition_int.inc
---source suite/parts/inc/partition_mediumint.inc
---source suite/parts/inc/partition_bigint.inc

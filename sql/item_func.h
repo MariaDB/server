@@ -626,8 +626,15 @@ public:
   longlong val_int_from_str(int *error);
   void fix_length_and_dec()
   {
-    fix_char_length(MY_MIN(args[0]->max_char_length(),
-                           MY_INT64_NUM_DECIMAL_DIGITS));
+    uint32 char_length= MY_MIN(args[0]->max_char_length(),
+                               MY_INT64_NUM_DECIMAL_DIGITS);
+    /*
+      args[0]->max_char_length() can return 0.
+      Reserve max_length to fit at least one character for one digit,
+      plus one character for the sign (if signed).
+    */
+    set_if_bigger(char_length, 1U + (unsigned_flag ? 0 : 1));
+    fix_char_length(char_length);
   }
   virtual void print(String *str, enum_query_type query_type);
   uint decimal_precision() const { return args[0]->decimal_precision(); }
@@ -1061,7 +1068,6 @@ class Item_func_min_max :public Item_hybrid_func
 {
   String tmp_value;
   int cmp_sign;
-  THD *thd;
 public:
   Item_func_min_max(THD *thd, List<Item> &list, int cmp_sign_arg):
     Item_hybrid_func(thd, list), cmp_sign(cmp_sign_arg)

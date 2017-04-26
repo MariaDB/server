@@ -111,31 +111,43 @@ log_scrub_failure(
 Lock dict mutexes */
 static
 bool
-btr_scrub_lock_dict_func(ulint space, bool lock_to_close_table,
+btr_scrub_lock_dict_func(ulint space_id, bool lock_to_close_table,
 			 const char * file, uint line)
 {
-	uint start = time(0);
-	uint last = start;
+	time_t start = time(0);
+	time_t last = start;
+
+	/* FIXME: this is not the proper way of doing things. The
+	dict_sys->mutex should not be held by any thread for longer
+	than a few microseconds. It must not be held during I/O,
+	for example. So, what is the purpose for this busy-waiting?
+	This function should be rewritten as part of MDEV-8139:
+	Fix scrubbing tests. */
 
 	while (mutex_enter_nowait_func(&(dict_sys->mutex), file, line)) {
 		/* if we lock to close a table, we wait forever
 		* if we don't lock to close a table, we check if space
 		* is closing, and then instead give up
 		*/
-		if (lock_to_close_table == false) {
-			if (fil_crypt_is_closing(space)) {
+		if (lock_to_close_table) {
+		} else if (fil_space_t* space = fil_space_acquire(space_id)) {
+			bool stopping = space->is_stopping();
+			fil_space_release(space);
+			if (stopping) {
 				return false;
 			}
+		} else {
+			return false;
 		}
 		os_thread_sleep(250000);
 
-		uint now = time(0);
+		time_t now = time(0);
 		if (now >= last + 30) {
 			fprintf(stderr,
-				"WARNING: %s:%u waited %u seconds for"
+				"WARNING: %s:%u waited %ld seconds for"
 				" dict_sys lock, space: %lu"
-				" lock_to_close_table: %u\n",
-				file, line, now - start, space,
+				" lock_to_close_table: %d\n",
+				file, line, now - start, space_id,
 				lock_to_close_table);
 
 			last = now;
@@ -181,16 +193,21 @@ void
 btr_scrub_table_close_for_thread(
 	btr_scrub_t *scrub_data)
 {
-	if (scrub_data->current_table == NULL)
+	if (scrub_data->current_table == NULL) {
 		return;
+	}
 
-	bool lock_for_close = true;
-	btr_scrub_lock_dict(scrub_data->space, lock_for_close);
-
-	/* perform the actual closing */
-	btr_scrub_table_close(scrub_data->current_table);
-
-	btr_scrub_unlock_dict();
+	if (fil_space_t* space = fil_space_acquire(scrub_data->space)) {
+		/* If tablespace is not marked as stopping perform
+		the actual close. */
+		if (!space->is_stopping()) {
+			mutex_enter(&dict_sys->mutex);
+			/* perform the actual closing */
+			btr_scrub_table_close(scrub_data->current_table);
+			mutex_exit(&dict_sys->mutex);
+		}
+		fil_space_release(space);
+	}
 
 	scrub_data->current_table = NULL;
 	scrub_data->current_index = NULL;

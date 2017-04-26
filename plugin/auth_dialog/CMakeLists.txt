@@ -14,5 +14,6 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA
 
+ADD_DEFINITIONS(-DNO_GET_TTY_PASSWORD)
 MYSQL_ADD_PLUGIN(dialog dialog.c ${CMAKE_SOURCE_DIR}/libmysql/get_password.c
   MODULE_ONLY CLIENT COMPONENT ClientPlugins)

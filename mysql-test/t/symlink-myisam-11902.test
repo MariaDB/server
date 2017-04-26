@@ -1,0 +1,60 @@
+#
+# MDEV-11902 mi_open race condition
+#
+source include/have_debug_sync.inc;
+source include/have_symlink.inc;
+source include/not_windows.inc;
+call mtr.add_suppression("File.*t1.* not found");
+
+create table mysql.t1 (a int, b char(16), index(a));
+insert mysql.t1 values (100, 'test'),(101,'test');
+let $datadir=`select @@datadir`;
+
+exec mkdir $MYSQLTEST_VARDIR/tmp/foo;
+replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR;
+eval create table t1 (a int, b char(16), index(a))
+                      data directory="$MYSQLTEST_VARDIR/tmp/foo";
+insert t1 values (200, 'some'),(201,'some');
+select * from t1;
+flush tables;
+set debug_sync='mi_open_datafile SIGNAL ok WAIT_FOR go';
+send select * from t1;
+connect con1, localhost, root;
+set debug_sync='now WAIT_FOR ok';
+exec rm -r $MYSQLTEST_VARDIR/tmp/foo;
+exec ln -s $datadir/mysql $MYSQLTEST_VARDIR/tmp/foo;
+set debug_sync='now SIGNAL go';
+connection default;
+replace_regex / '.*\/tmp\// 'MYSQLTEST_VARDIR\/tmp\// /31/20/ /40/20/ /20.*/20 <errmsg>)/;
+error 29;
+reap;
+flush tables;
+drop table if exists t1;
+exec rm -r $MYSQLTEST_VARDIR/tmp/foo;
+
+# same with INDEX DIRECTORY
+exec mkdir $MYSQLTEST_VARDIR/tmp/foo;
+replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR;
+eval create table t1 (a int, b char(16), index (a))
+                      index directory="$MYSQLTEST_VARDIR/tmp/foo";
+insert t1 values (200, 'some'),(201,'some');
+explain select a from t1;
+select a from t1;
+flush tables;
+set debug_sync='mi_open_kfile SIGNAL waiting WAIT_FOR run';
+send select a from t1;
+connection con1;
+set debug_sync='now WAIT_FOR waiting';
+exec rm -r $MYSQLTEST_VARDIR/tmp/foo;
+exec ln -s $datadir/mysql $MYSQLTEST_VARDIR/tmp/foo;
+set debug_sync='now SIGNAL run';
+connection default;
+replace_regex / '.*\/test\// '.\/test\// /31/20/ /40/20/ /20.*/20 <errmsg>)/;
+error ER_FILE_NOT_FOUND;
+reap;
+flush tables;
+drop table if exists t1;
+exec rm -r $MYSQLTEST_VARDIR/tmp/foo;
+
+drop table mysql.t1;
+set debug_sync='RESET';

@@ -138,11 +138,7 @@ PSZ VALBLK::GetCharValue(int)
 
   assert(g);
   sprintf(g->Message, MSG(NO_CHAR_FROM), Type);
-#if defined(USE_TRY)
 	throw Type;
-#else   // !USE_TRY
-	longjmp(g->jumper[g->jump_level], Type);
-#endif  // !USE_TRY
 	return NULL;
   } // end of GetCharValue
 
@@ -210,11 +206,7 @@ void VALBLK::ChkIndx(int n)
   if (n < 0 || n >= Nval) {
     PGLOBAL& g = Global;
     strcpy(g->Message, MSG(BAD_VALBLK_INDX));
-#if defined(USE_TRY)
 		throw Type;
-#else   // !USE_TRY
-		longjmp(g->jumper[g->jump_level], Type);
-#endif  // !USE_TRY
 	} // endif n
 
   } // end of ChkIndx
@@ -224,11 +216,7 @@ void VALBLK::ChkTyp(PVAL v)
   if (Check && (Type != v->GetType() || Unsigned != v->IsUnsigned())) {
     PGLOBAL& g = Global;
     strcpy(g->Message, MSG(VALTYPE_NOMATCH));
-#if defined(USE_TRY)
 		throw Type;
-#else   // !USE_TRY
-		longjmp(g->jumper[g->jump_level], Type);
-#endif  // !USE_TRY
 	} // endif Type
 
   } // end of ChkTyp
@@ -238,11 +226,7 @@ void VALBLK::ChkTyp(PVBLK vb)
   if (Check && (Type != vb->GetType() || Unsigned != vb->IsUnsigned())) {
     PGLOBAL& g = Global;
     strcpy(g->Message, MSG(VALTYPE_NOMATCH));
-#if defined(USE_TRY)
 		throw Type;
-#else   // !USE_TRY
-		longjmp(g->jumper[g->jump_level], Type);
-#endif  // !USE_TRY
 	} // endif Type
 
   } // end of ChkTyp
@@ -358,11 +342,7 @@ void TYPBLK<TYPE>::SetValue(PSZ p, int n)
   if (Check) {
     PGLOBAL& g = Global;
     strcpy(g->Message, MSG(BAD_SET_STRING));
-#if defined(USE_TRY)
 		throw Type;
-#else   // !USE_TRY
-		longjmp(g->jumper[g->jump_level], Type);
-#endif  // !USE_TRY
 	} // endif Check
 
   bool      minus;
@@ -412,11 +392,7 @@ void TYPBLK<double>::SetValue(PSZ p, int n)
   if (Check) {
     PGLOBAL& g = Global;
     strcpy(g->Message, MSG(BAD_SET_STRING));
-#if defined(USE_TRY)
 		throw Type;
-#else   // !USE_TRY
-		longjmp(g->jumper[g->jump_level], Type);
-#endif  // !USE_TRY
 	} // endif Check
 
   Typp[n] = atof(p);
@@ -819,11 +795,7 @@ void CHRBLK::SetValue(char *sp, uint len, int n)
   if (Check && (signed)len > Long) {
     PGLOBAL& g = Global;
     strcpy(g->Message, MSG(SET_STR_TRUNC));
-#if defined(USE_TRY)
 		throw Type;
-#else   // !USE_TRY
-		longjmp(g->jumper[g->jump_level], Type);
-#endif  // !USE_TRY
 	} // endif Check
 #endif   // _DEBUG
 
@@ -851,11 +823,7 @@ void CHRBLK::SetValue(PVBLK pv, int n1, int n2)
   if (Type != pv->GetType() || Long != ((CHRBLK*)pv)->Long) {
     PGLOBAL& g = Global;
     strcpy(g->Message, MSG(BLKTYPLEN_MISM));
-#if defined(USE_TRY)
 		throw Type;
-#else   // !USE_TRY
-		longjmp(g->jumper[g->jump_level], Type);
-#endif  // !USE_TRY
 	} // endif Type
 
   if (!(b = pv->IsNull(n2)))
@@ -906,11 +874,7 @@ void CHRBLK::SetValues(PVBLK pv, int k, int n)
   if (Type != pv->GetType() || Long != ((CHRBLK*)pv)->Long) {
     PGLOBAL& g = Global;
     strcpy(g->Message, MSG(BLKTYPLEN_MISM));
-#if defined(USE_TRY)
 		throw Type;
-#else   // !USE_TRY
-		longjmp(g->jumper[g->jump_level], Type);
-#endif  // !USE_TRY
 	} // endif Type
 #endif   // _DEBUG
   char *p = ((CHRBLK*)pv)->Chrp;

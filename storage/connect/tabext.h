@@ -28,14 +28,14 @@ class ALIAS : public BLOCK {
 class CONDFIL : public BLOCK {
  public:
 	// Constructor
-	CONDFIL(const Item *cond, uint idx, AMT type);
+	CONDFIL(uint idx, AMT type);
 
 	// Functions
 	int Init(PGLOBAL g, PHC hc);
 	const char *Chk(const char *cln, bool *h);
 
 	// Members
-	const Item *Cond;
+//const Item *Cond;
 	AMT   Type;
 	uint  Idx;
 	OPVAL Op;

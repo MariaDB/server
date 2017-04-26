@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, MariaDB Corporation. All Rights Reserved.
+Copyright (c) 2016, 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -753,9 +753,9 @@ trx_rollback_or_clean_recovered(
 	}
 
 	if (all) {
-		fprintf(stderr,
-			"InnoDB: Starting in background the rollback"
-			" of uncommitted transactions\n");
+		ib_logf(IB_LOG_LEVEL_INFO,
+			"Starting in background the rollback"
+			" of recovered transactions");
 	}
 
 	/* Note: For XA recovered transactions, we rely on MySQL to
@@ -775,6 +775,12 @@ trx_rollback_or_clean_recovered(
 
 			assert_trx_in_rw_list(trx);
 
+			if (srv_shutdown_state != SRV_SHUTDOWN_NONE
+			    && srv_fast_shutdown != 0) {
+				all = FALSE;
+				break;
+			}
+
 			/* If this function does a cleanup or rollback
 			then it will release the trx_sys->mutex, therefore
 			we need to reacquire it before retrying the loop. */
@@ -792,10 +798,8 @@ trx_rollback_or_clean_recovered(
 	} while (trx != NULL);
 
 	if (all) {
-		ut_print_timestamp(stderr);
-		fprintf(stderr,
-			"  InnoDB: Rollback of non-prepared"
-			" transactions completed\n");
+		ib_logf(IB_LOG_LEVEL_INFO,
+			"Rollback of non-prepared transactions completed");
 	}
 }
 

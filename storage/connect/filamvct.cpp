@@ -559,7 +559,7 @@ bool VCTFAM::AllocateBuffer(PGLOBAL g)
 /*  Do initial action when inserting.                                  */
 /***********************************************************************/
 bool VCTFAM::InitInsert(PGLOBAL g)
-  {
+{
 	bool rc = false;
 
   // We come here in MODE_INSERT only
@@ -575,26 +575,11 @@ bool VCTFAM::InitInsert(PGLOBAL g)
     CurBlk = Block - 1;
     CurNum = Last;
 
-#if defined(USE_TRY)
 		try {
-#else   // !USE_TRY
-		// Prepare error return
-		if (g->jump_level == MAX_JUMP) {
-			strcpy(g->Message, MSG(TOO_MANY_JUMPS));
-			return true;
-		} // endif
+			// Last block must be updated by new values
+			for (; cp; cp = (PVCTCOL)cp->Next)
+				cp->ReadBlock(g);
 
-		if ((rc = setjmp(g->jumper[++g->jump_level])) != 0) {
-			g->jump_level--;
-			return true;
-		} // endif
-#endif  // !USE_TRY
-
-    // Last block must be updated by new values
-    for (; cp; cp = (PVCTCOL)cp->Next)
-      cp->ReadBlock(g);
-
-#if defined(USE_TRY)
 		} catch (int n) {
 			if (trace)
 				htrc("Exception %d: %s\n", n, g->Message);
@@ -603,9 +588,7 @@ bool VCTFAM::InitInsert(PGLOBAL g)
 			strcpy(g->Message, msg);
 			rc = true;
 		} // end catch
-#else   // !USE_TRY
-		g->jump_level--;
-#endif  // !USE_TRY
+
   } // endif Last
 
 	if (!rc)
@@ -1126,11 +1109,7 @@ void VCTFAM::CloseTableFile(PGLOBAL g, bool abort)
     } else if (AddBlock) {
       // Last block was not written
       rc = ResetTableSize(g, CurBlk, Nrec);
-#if defined(USE_TRY)
 			throw 44;
-#else   // !USE_TRY
-			longjmp(g->jumper[g->jump_level], 44);
-#endif  // !USE_TRY
     } // endif
 
   } else if (mode == MODE_UPDATE) {
@@ -1550,7 +1529,7 @@ bool VCMFAM::AllocateBuffer(PGLOBAL g)
 /*  Do initial action when inserting.                                  */
 /***********************************************************************/
 bool VCMFAM::InitInsert(PGLOBAL g)
-  {
+{
   bool     rc = false;
   volatile PVCTCOL cp = (PVCTCOL)Tdbp->GetColumns();
 
@@ -1565,27 +1544,12 @@ bool VCMFAM::InitInsert(PGLOBAL g)
     CurNum = Last;
   } // endif Last
 
-#if defined(USE_TRY)
 	try {
-#else   // !USE_TRY
-	//  Prepare error return
-	if (g->jump_level == MAX_JUMP) {
-		strcpy(g->Message, MSG(TOO_MANY_JUMPS));
-		return true;
-	} // endif
+		// Initialize the column block pointer
+		for (; cp; cp = (PVCTCOL)cp->Next)
+			cp->ReadBlock(g);
 
-	if ((rc = setjmp(g->jumper[++g->jump_level])) != 0) {
-		g->jump_level--;
-		return true;
-	} // endif
-#endif  // !USE_TRY
-
-  // Initialize the column block pointer
-  for (; cp; cp = (PVCTCOL)cp->Next)
-    cp->ReadBlock(g);
-
-#if defined(USE_TRY)
-  } catch (int n) {
+	} catch (int n) {
 	  if (trace)
 		  htrc("Exception %d: %s\n", n, g->Message);
 		rc = true;
@@ -1593,11 +1557,9 @@ bool VCMFAM::InitInsert(PGLOBAL g)
 	  strcpy(g->Message, msg);
 		rc = true;
   } // end catch
-#else   // !USE_TRY
-	g->jump_level--;
-#endif  // !USE_TRY
+
   return rc;
-  } // end of InitInsert
+} // end of InitInsert
 
 /***********************************************************************/
 /*  Data Base write routine for VMP access method.                     */
@@ -2541,11 +2503,7 @@ void VECFAM::CloseTableFile(PGLOBAL g, bool abort)
     if (wrc != RC_FX)
       rc = ResetTableSize(g, Block, Last);
     else
-#if defined(USE_TRY)
 			throw 44;
-#else   // !USE_TRY
-			longjmp(g->jumper[g->jump_level], 44);
-#endif  // !USE_TRY
 
   } else if (mode == MODE_UPDATE) {
     if (UseTemp && !InitUpdate && !Abort) {
@@ -4206,11 +4164,7 @@ void BGVFAM::CloseTableFile(PGLOBAL g, bool abort)
     } else if (AddBlock) {
       // Last block was not written
       rc = ResetTableSize(g, CurBlk, Nrec);
-#if defined(USE_TRY)
 			throw 44;
-#else   // !USE_TRY
-			longjmp(g->jumper[g->jump_level], 44);
-#endif  // !USE_TRY
 		} // endif
 
   } else if (mode == MODE_UPDATE) {

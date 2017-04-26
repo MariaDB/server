@@ -3,7 +3,7 @@
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All rights reserved.
 Copyright (c) 2008, 2009, Google Inc.
 Copyright (c) 2009, Percona Inc.
-Copyright (c) 2013, 2016, MariaDB Corporation
+Copyright (c) 2013, 2017, MariaDB Corporation Ab. All Rights Reserved.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -185,6 +185,9 @@ struct srv_stats_t {
 
 	/** Number of encryption_get_latest_key_version calls */
 	ulint_ctr_64_t		n_key_requests;
+
+	/** Number of spaces in keyrotation list */
+	ulint_ctr_64_t		key_rotation_list_length;
 };
 
 extern const char*	srv_main_thread_op_info;
@@ -192,13 +195,16 @@ extern const char*	srv_main_thread_op_info;
 /** Prefix used by MySQL to indicate pre-5.1 table name encoding */
 extern const char	srv_mysql50_table_name_prefix[10];
 
-/* The monitor thread waits on this event. */
+/** Event to signal srv_monitor_thread. Not protected by a mutex.
+Set after setting srv_print_innodb_monitor. */
 extern os_event_t	srv_monitor_event;
 
-/* The error monitor thread waits on this event. */
+/** Event to signal the shutdown of srv_error_monitor_thread.
+Not protected by a mutex. */
 extern os_event_t	srv_error_event;
 
-/** The buffer pool dump/load thread waits on this event. */
+/** Event for waking up buf_dump_thread. Not protected by a mutex.
+Set on shutdown or by buf_dump_start() or buf_load_start(). */
 extern os_event_t	srv_buf_dump_event;
 
 /** The buffer pool dump/load file name */
@@ -328,6 +334,9 @@ extern char**	srv_data_file_names;
 extern ulint*	srv_data_file_sizes;
 extern ulint*	srv_data_file_is_raw_partition;
 
+extern uint	srv_n_fil_crypt_threads;
+extern uint	srv_n_fil_crypt_threads_started;
+
 extern ibool	srv_auto_extend_last_data_file;
 extern ulint	srv_last_file_size_max;
 extern char*	srv_log_group_home_dir;
@@ -436,9 +445,6 @@ extern double	srv_adaptive_flushing_lwm;
 extern ulong	srv_flushing_avg_loops;
 
 extern ulong	srv_force_recovery;
-#ifndef DBUG_OFF
-extern ulong	srv_force_recovery_crash;
-#endif /* !DBUG_OFF */
 
 extern ulint	srv_fast_shutdown;	/*!< If this is 1, do not do a
 					purge and index buffer merge.
@@ -455,6 +461,7 @@ extern unsigned long long	srv_stats_persistent_sample_pages;
 extern my_bool			srv_stats_auto_recalc;
 extern unsigned long long	srv_stats_modified_counter;
 extern my_bool			srv_stats_sample_traditional;
+extern my_bool			srv_stats_include_delete_marked;
 
 extern ibool	srv_use_doublewrite_buf;
 extern ulong	srv_doublewrite_batch_size;
@@ -478,19 +485,17 @@ extern ibool	srv_print_verbose_log;
 	"tables instead, see " REFMAN "innodb-i_s-tables.html"
 extern ibool	srv_print_innodb_table_monitor;
 
-extern ibool	srv_monitor_active;
-extern ibool	srv_error_monitor_active;
+extern bool	srv_monitor_active;
+extern bool	srv_error_monitor_active;
 
 /* TRUE during the lifetime of the buffer pool dump/load thread */
-extern ibool	srv_buf_dump_thread_active;
+extern bool	srv_buf_dump_thread_active;
 
 /* TRUE during the lifetime of the stats thread */
-extern ibool	srv_dict_stats_thread_active;
+extern bool	srv_dict_stats_thread_active;
 
 /* TRUE if enable log scrubbing */
 extern my_bool	srv_scrub_log;
-/* TRUE during the lifetime of the log scrub thread */
-extern ibool	srv_log_scrub_thread_active;
 
 extern ulong	srv_n_spin_wait_rounds;
 extern ulong	srv_n_free_tickets_to_enter;
@@ -524,6 +529,7 @@ extern my_bool	srv_ibuf_disable_background_merge;
 
 #ifdef UNIV_DEBUG
 extern my_bool	srv_purge_view_update_only_debug;
+extern uint	srv_sys_space_size_debug;
 #endif /* UNIV_DEBUG */
 
 #define SRV_SEMAPHORE_WAIT_EXTENSION	7200
@@ -886,33 +892,17 @@ ulint
 srv_get_task_queue_length(void);
 /*===========================*/
 
-/*********************************************************************//**
-Releases threads of the type given from suspension in the thread table.
-NOTE! The server mutex has to be reserved by the caller!
-@return number of threads released: this may be less than n if not
-enough threads were suspended at the moment */
-UNIV_INTERN
-ulint
-srv_release_threads(
-/*================*/
-	enum srv_thread_type	type,	/*!< in: thread type */
-	ulint			n);	/*!< in: number of threads to release */
+/** Ensure that a given number of threads of the type given are running
+(or are already terminated).
+@param[in]	type	thread type
+@param[in]	n	number of threads that have to run */
+void
+srv_release_threads(enum srv_thread_type type, ulint n);
 
-/**********************************************************************//**
-Check whether any background thread are active. If so print which thread
-is active. Send the threads wakeup signal.
-@return name of thread that is active or NULL */
-UNIV_INTERN
-const char*
-srv_any_background_threads_are_active(void);
-/*=======================================*/
-
-/**********************************************************************//**
-Wakeup the purge threads. */
+/** Wake up the purge threads. */
 UNIV_INTERN
 void
-srv_purge_wakeup(void);
-/*==================*/
+srv_purge_wakeup();
 
 /** Status variables to be passed to MySQL */
 struct export_var_t{
@@ -1045,6 +1035,7 @@ struct export_var_t{
 	ulint innodb_encryption_rotation_pages_flushed;
 	ulint innodb_encryption_rotation_estimated_iops;
 	ib_int64_t innodb_encryption_key_requests;
+	ib_int64_t innodb_key_rotation_list_length;
 
 	ulint innodb_scrub_page_reorganizations;
 	ulint innodb_scrub_page_splits;

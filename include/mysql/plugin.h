@@ -1,5 +1,5 @@
 /* Copyright (c) 2005, 2013, Oracle and/or its affiliates
-   Copyright (C) 2009, 2013, Monty Program Ab
+   Copyright (C) 2009, 2017, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -14,8 +14,8 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
 
-#ifndef _my_plugin_h
-#define _my_plugin_h
+#ifndef MYSQL_PLUGIN_INCLUDED
+#define MYSQL_PLUGIN_INCLUDED
 
 /*
   On Windows, exports from DLL need to be declared
@@ -75,7 +75,7 @@ typedef struct st_mysql_xid MYSQL_XID;
 #define MYSQL_PLUGIN_INTERFACE_VERSION 0x0104
 
 /* MariaDB plugin interface version */
-#define MARIA_PLUGIN_INTERFACE_VERSION 0x010b
+#define MARIA_PLUGIN_INTERFACE_VERSION 0x010c
 
 /*
   The allowable types of plugins

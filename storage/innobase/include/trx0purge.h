@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2011, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -145,7 +146,10 @@ struct trx_purge_t{
 					log operation can prevent this by
 					obtaining an s-latch here. It also
 					protects state and running */
-	os_event_t	event;		/*!< State signal event */
+	os_event_t	event;		/*!< State signal event;
+					os_event_set() and os_event_reset()
+					are protected by trx_purge_t::latch
+					X-lock */
 	ulint		n_stop;		/*!< Counter to track number stops */
 	volatile bool	running;	/*!< true, if purge is active,
 					we check this without the latch too */

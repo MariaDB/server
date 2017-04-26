@@ -572,9 +572,7 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
   {
     explain->tracker.on_record_read();
     if (table->vfield)
-      update_virtual_fields(thd, table,
-                            table->triggers ? VCOL_UPDATE_ALL :
-                                              VCOL_UPDATE_FOR_READ);
+      update_virtual_fields(thd, table, VCOL_UPDATE_FOR_READ);
     thd->inc_examined_row_count(1);
     // thd->is_error() is tested to disallow delete row on error
     if (!select || select->skip_record(thd) > 0)
@@ -1343,4 +1341,3 @@ bool multi_delete::send_eof()
   }
   return 0;
 }
-

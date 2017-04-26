@@ -109,7 +109,7 @@ class TDBMYSQL : public TDBEXT {
   // Internal functions
   bool MakeSelect(PGLOBAL g, bool mx);
   bool MakeInsert(PGLOBAL g);
-  int  BindColumns(PGLOBAL g);
+  int  BindColumns(PGLOBAL g __attribute__((unused)));
   virtual bool MakeCommand(PGLOBAL g);
 //int  MakeUpdate(PGLOBAL g);  
 //int  MakeDelete(PGLOBAL g);

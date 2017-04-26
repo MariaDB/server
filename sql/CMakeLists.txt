@@ -81,7 +81,7 @@ SET (SQL_SOURCE
               ../sql-common/client.c compat56.cc derror.cc des_key_file.cc
                discover.cc ../libmysql/errmsg.c field.cc  field_conv.cc 
                filesort_utils.cc
-               filesort.cc gstream.cc sha2.cc
+               filesort.cc gstream.cc
                signal_handler.cc
                handler.cc hash_filo.h
                hostname.cc init.cc item.cc item_buff.cc item_cmpfunc.cc 
@@ -415,6 +415,7 @@ IF(WIN32)
     ${CMAKE_CURRENT_BINARY_DIR}/mysql_bootstrap_sql.c
     COMPONENT Server
   )
+  SET_TARGET_PROPERTIES(mysql_install_db PROPERTIES COMPILE_FLAGS -DINSTALL_PLUGINDIR=${INSTALL_PLUGINDIR})
   TARGET_LINK_LIBRARIES(mysql_install_db mysys)
 
   ADD_LIBRARY(winservice STATIC winservice.c)

@@ -1464,7 +1464,7 @@ READ_INFO::READ_INFO(File file_par, uint tot_length, CHARSET_INFO *cs,
   stack=stack_pos=(int*) sql_alloc(sizeof(int)*length);
 
   if (!(buffer=(uchar*) my_malloc(buff_length+1,MYF(MY_WME | MY_THREAD_SPECIFIC))))
-    error=1; /* purecov: inspected */
+    error= 1; /* purecov: inspected */
   else
   {
     end_of_buff=buffer+buff_length;
@@ -1724,7 +1724,7 @@ int READ_INFO::read_field()
     ** We come here if buffer is too small. Enlarge it and continue
     */
     if (!(new_buffer=(uchar*) my_realloc((char*) buffer,buff_length+1+IO_SIZE,
-					MYF(MY_WME | MY_THREAD_SPECIFIC))))
+                                         MYF(MY_WME | MY_THREAD_SPECIFIC))))
       return (error=1);
     to=new_buffer + (to-buffer);
     buffer=new_buffer;
@@ -1960,15 +1960,7 @@ int READ_INFO::read_value(int delim, String *val)
   for (chr= GET; my_tospace(chr) != delim && chr != my_b_EOF;)
   {
 #ifdef USE_MB
-    uint ml= my_mbcharlen(read_charset, chr);
-    if (ml == 0)
-    {
-      chr= my_b_EOF;
-      val->length(0);
-      return chr;
-    }
-
-    if (ml > 1)
+    if (my_mbcharlen(read_charset, chr) > 1)
     {
       DBUG_PRINT("read_xml",("multi byte"));
       int i, ml= my_mbcharlen(read_charset, chr);

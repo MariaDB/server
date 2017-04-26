@@ -108,6 +108,34 @@ size_t sf_malloc_usable_size(void *ptr, my_bool *is_thread_specific);
 
 void my_error_unregister_all(void);
 
+#if !defined(O_PATH) && defined(O_EXEC) /* FreeBSD */
+#define O_PATH O_EXEC
+#endif
+
+#ifdef O_PATH
+#define HAVE_OPEN_PARENT_DIR_NOSYMLINKS
+const char *my_open_parent_dir_nosymlinks(const char *pathname, int *pdfd);
+#define NOSYMLINK_FUNCTION_BODY(AT,NOAT)                                \
+  int dfd, res;                                                         \
+  const char *filename= my_open_parent_dir_nosymlinks(pathname, &dfd);  \
+  if (filename == NULL) return -1;                                      \
+  res= AT;                                                              \
+  if (dfd >= 0) close(dfd);                                             \
+  return res;
+#elif defined(HAVE_REALPATH)
+#define NOSYMLINK_FUNCTION_BODY(AT,NOAT)                                \
+  char buf[PATH_MAX+1];                                                 \
+  if (realpath(pathname, buf) == NULL) return -1;                       \
+  if (strcmp(pathname, buf)) { errno= ENOTDIR; return -1; }             \
+  return NOAT;
+#else
+#define NOSYMLINK_FUNCTION_BODY(AT,NOAT)                                \
+  return NOAT;
+#endif
+
+#define CREATE_NOSYMLINK_FUNCTION(PROTO,AT,NOAT)                        \
+static int PROTO { NOSYMLINK_FUNCTION_BODY(AT,NOAT) }
+
 #ifdef _WIN32
 #include <sys/stat.h>
 /* my_winfile.c exports, should not be used outside mysys */

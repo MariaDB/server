@@ -1,5 +1,5 @@
 call mtr.add_suppression("InnoDB: Block in space_id .* in file test/.* encrypted");
-call mtr.add_suppression("InnoDB: However key management plugin or used key_id .* is not found or used encryption algorithm or method does not match.");
+call mtr.add_suppression("InnoDB: However key management plugin or used key_version .* is not found or used encryption algorithm or method does not match.");
 call mtr.add_suppression("InnoDB: Marking tablespace as missing. You may drop this table or install correct key management plugin and key file.");
 call mtr.add_suppression(".*InnoDB: Cannot open table test/.* from the internal data dictionary of InnoDB though the .frm file for the table exists. See .* for how you can resolve the problem.");
 call mtr.add_suppression("InnoDB: .ibd file is missing for table test/.*");

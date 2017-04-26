@@ -446,11 +446,7 @@ bool XINDEX::Make(PGLOBAL g, PIXDEF sxp)
 #if 0
     if (!dup->Step) {
       strcpy(g->Message, MSG(QUERY_CANCELLED));
-#if defined(USE_TRY)
 			throw 99;
-#else   // !USE_TRY
-			longjmp(g->jumper[g->jump_level], 99);
-#endif  // !USE_TRY
 	} // endif Step
 #endif // 0
 

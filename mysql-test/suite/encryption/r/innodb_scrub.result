@@ -1,207 +1,121 @@
 create table snapshot_status engine = myisam
 select * from information_schema.global_status
 where variable_name like 'innodb_scrub%';
-#
-# Test delete of records
-#
-create table t1 (
+# MDEV-8139 Fix scrubbing tests
+# FIXME: Add index(b) to each table; ensure that undo logs are scrubbed.
+create table delete_3 (
+a int auto_increment primary key,
+b varchar(256),
+c text) engine = innodb row_format=compressed;
+delete from delete_3;
+create table delete_rollback_delete_3 (
+a int auto_increment primary key,
+b varchar(256),
+c text) engine = innodb row_format=compressed;
+begin;
+delete from delete_rollback_delete_3;
+rollback;
+delete from delete_rollback_delete_3;
+create table insert_rollback_3 (
+a int auto_increment primary key,
+b varchar(256),
+c text) engine = innodb row_format=compressed;
+begin;
+rollback;
+create table delete_2 (
 a int auto_increment primary key,
 b varchar(256),
 c text) engine = innodb row_format=compact;
-# Populate table with rows
-delete from t1;
-# restart mysqld so that all pages are flushed
-# read all rows from table
-select * from t1;
-# compact: delete from: grep -c bicycle t1.ibd
-0
-# compact: delete from: grep -c bicycle ibdata1
-0
-# compact: delete from: grep -c repairman t1.ibd
-0
-# compact: delete from: grep -c repairman ibdata1
-0
-drop table t1;
-#
-# Test delete+rollback+delete
-#
-create table t1 (
+delete from delete_2;
+create table delete_rollback_delete_2 (
 a int auto_increment primary key,
 b varchar(256),
 c text) engine = innodb row_format=compact;
-# Populate table with rows
 begin;
-delete from t1;
+delete from delete_rollback_delete_2;
 rollback;
-delete from t1;
-# restart mysqld so that all pages are flushed
-# read all rows from table
-select * from t1;
-# compact: delete rollback: grep -c bicycle t1.ibd
-0
-# compact: delete rollback: grep -c bicycle ibdata1
-0
-# compact: delete rollback: grep -c repairman t1.ibd
-0
-# compact: delete rollback: grep -c repairman ibdata1
-0
-drop table t1;
-#
-# Test insert+rollback
-#
-create table t1 (
+delete from delete_rollback_delete_2;
+create table insert_rollback_2 (
 a int auto_increment primary key,
 b varchar(256),
 c text) engine = innodb row_format=compact;
-# Populate table with rows
 begin;
 rollback;
-# restart mysqld so that all pages are flushed
-# read all rows from table
-select * from t1;
-# compact: insert rollback: grep -c bicycle t1.ibd
-0
-# compact: insert rollback: grep -c bicycle ibdata1
-0
-# compact: insert rollback: grep -c repairman t1.ibd
-0
-# compact: insert rollback: grep -c repairman ibdata1
-0
-drop table t1;
-#
-# Test delete of records
-#
-create table t1 (
+create table delete_1 (
 a int auto_increment primary key,
 b varchar(256),
 c text) engine = innodb row_format=redundant;
-# Populate table with rows
-delete from t1;
-# restart mysqld so that all pages are flushed
-# read all rows from table
-select * from t1;
-# redundant: delete from: grep -c bicycle t1.ibd
-0
-# redundant: delete from: grep -c bicycle ibdata1
-0
-# redundant: delete from: grep -c repairman t1.ibd
-0
-# redundant: delete from: grep -c repairman ibdata1
-0
-drop table t1;
-#
-# Test delete+rollback+delete
-#
-create table t1 (
+delete from delete_1;
+create table delete_rollback_delete_1 (
 a int auto_increment primary key,
 b varchar(256),
 c text) engine = innodb row_format=redundant;
-# Populate table with rows
 begin;
-delete from t1;
+delete from delete_rollback_delete_1;
 rollback;
-delete from t1;
-# restart mysqld so that all pages are flushed
-# read all rows from table
-select * from t1;
-# redundant: delete rollback: grep -c bicycle t1.ibd
-0
-# redundant: delete rollback: grep -c bicycle ibdata1
-0
-# redundant: delete rollback: grep -c repairman t1.ibd
-0
-# redundant: delete rollback: grep -c repairman ibdata1
-0
-drop table t1;
-#
-# Test insert+rollback
-#
-create table t1 (
+delete from delete_rollback_delete_1;
+create table insert_rollback_1 (
 a int auto_increment primary key,
 b varchar(256),
 c text) engine = innodb row_format=redundant;
-# Populate table with rows
 begin;
 rollback;
-# restart mysqld so that all pages are flushed
-# read all rows from table
-select * from t1;
-# redundant: insert rollback: grep -c bicycle t1.ibd
-0
-# redundant: insert rollback: grep -c bicycle ibdata1
-0
-# redundant: insert rollback: grep -c repairman t1.ibd
-0
-# redundant: insert rollback: grep -c repairman ibdata1
-0
-drop table t1;
-#
-# Test delete of records
-#
-create table t1 (
+create table delete_0 (
 a int auto_increment primary key,
 b varchar(256),
 c text) engine = innodb row_format=dynamic;
-# Populate table with rows
-delete from t1;
-# restart mysqld so that all pages are flushed
-# read all rows from table
-select * from t1;
-# dynamic: delete from: grep -c bicycle t1.ibd
-0
-# dynamic: delete from: grep -c bicycle ibdata1
-0
-# dynamic: delete from: grep -c repairman t1.ibd
-0
-# dynamic: delete from: grep -c repairman ibdata1
-0
-drop table t1;
-#
-# Test delete+rollback+delete
-#
-create table t1 (
+delete from delete_0;
+create table delete_rollback_delete_0 (
 a int auto_increment primary key,
 b varchar(256),
 c text) engine = innodb row_format=dynamic;
-# Populate table with rows
 begin;
-delete from t1;
+delete from delete_rollback_delete_0;
 rollback;
-delete from t1;
-# restart mysqld so that all pages are flushed
-# read all rows from table
-select * from t1;
-# dynamic: delete rollback: grep -c bicycle t1.ibd
-0
-# dynamic: delete rollback: grep -c bicycle ibdata1
-0
-# dynamic: delete rollback: grep -c repairman t1.ibd
-0
-# dynamic: delete rollback: grep -c repairman ibdata1
-0
-drop table t1;
-#
-# Test insert+rollback
-#
-create table t1 (
+delete from delete_rollback_delete_0;
+create table insert_rollback_0 (
 a int auto_increment primary key,
 b varchar(256),
 c text) engine = innodb row_format=dynamic;
-# Populate table with rows
 begin;
 rollback;
-# restart mysqld so that all pages are flushed
-# read all rows from table
-select * from t1;
-# dynamic: insert rollback: grep -c bicycle t1.ibd
-0
-# dynamic: insert rollback: grep -c bicycle ibdata1
-0
-# dynamic: insert rollback: grep -c repairman t1.ibd
-0
-# dynamic: insert rollback: grep -c repairman ibdata1
-0
-drop table t1;
+SET GLOBAL innodb_fast_shutdown=0;
+# delete_3.ibd
+# delete_rollback_delete_3.ibd
+# insert_rollback_3.ibd
+# delete_2.ibd
+# delete_rollback_delete_2.ibd
+# insert_rollback_2.ibd
+# delete_1.ibd
+# delete_rollback_delete_1.ibd
+# insert_rollback_1.ibd
+# delete_0.ibd
+# delete_rollback_delete_0.ibd
+# insert_rollback_0.ibd
+check table delete_3, delete_rollback_delete_3, insert_rollback_3;
+Table	Op	Msg_type	Msg_text
+test.delete_3	check	status	OK
+test.delete_rollback_delete_3	check	status	OK
+test.insert_rollback_3	check	status	OK
+drop table delete_3, delete_rollback_delete_3, insert_rollback_3;
+check table delete_2, delete_rollback_delete_2, insert_rollback_2;
+Table	Op	Msg_type	Msg_text
+test.delete_2	check	status	OK
+test.delete_rollback_delete_2	check	status	OK
+test.insert_rollback_2	check	status	OK
+drop table delete_2, delete_rollback_delete_2, insert_rollback_2;
+check table delete_1, delete_rollback_delete_1, insert_rollback_1;
+Table	Op	Msg_type	Msg_text
+test.delete_1	check	status	OK
+test.delete_rollback_delete_1	check	status	OK
+test.insert_rollback_1	check	status	OK
+drop table delete_1, delete_rollback_delete_1, insert_rollback_1;
+check table delete_0, delete_rollback_delete_0, insert_rollback_0;
+Table	Op	Msg_type	Msg_text
+test.delete_0	check	status	OK
+test.delete_rollback_delete_0	check	status	OK
+test.insert_rollback_0	check	status	OK
+drop table delete_0, delete_rollback_delete_0, insert_rollback_0;
 show variables like 'innodb_%scrub_data%';
 Variable_name	Value
 innodb_background_scrub_data_check_interval	3600

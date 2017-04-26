@@ -132,7 +132,8 @@ bool DOSDEF::DefineAM(PGLOBAL g, LPCSTR am, int)
   bool   map = (am && (*am == 'M' || *am == 'm'));
   LPCSTR dfm = (am && (*am == 'F' || *am == 'f')) ? "F"
              : (am && (*am == 'B' || *am == 'b')) ? "B"
-             : (am && !stricmp(am, "DBF"))        ? "D" : "V";
+		         : (am && (*am == 'X' || *am == 'x')) ? "X"
+		         : (am && !stricmp(am, "DBF"))        ? "D" : "V";
 
 	if ((Zipped = GetBoolCatInfo("Zipped", false))) {
 		Entry = GetStringCatInfo(g, "Entry", NULL);
@@ -148,7 +149,8 @@ bool DOSDEF::DefineAM(PGLOBAL g, LPCSTR am, int)
   GetCharCatInfo("Recfm", (PSZ)dfm, buf, sizeof(buf));
   Recfm = (toupper(*buf) == 'F') ? RECFM_FIX :
           (toupper(*buf) == 'B') ? RECFM_BIN :
-          (toupper(*buf) == 'D') ? RECFM_DBF : RECFM_VAR;
+		      (toupper(*buf) == 'X') ? RECFM_NAF : // MGO
+		      (toupper(*buf) == 'D') ? RECFM_DBF : RECFM_VAR;
   Lrecl = GetIntCatInfo("Lrecl", 0);
 
   if (Recfm != RECFM_DBF)
@@ -1511,11 +1513,7 @@ PBF TDBDOS::CheckBlockFilari(PGLOBAL g, PXOB *arg, int op, bool *cnv)
     if (n == 8 && ctype != TYPE_LIST) {
       // Should never happen
       strcpy(g->Message, "Block opt: bad constant");
-#if defined(USE_TRY)
 			throw 99;
-#else   // !USE_TRY
-			longjmp(g->jumper[g->jump_level], 99);
-#endif  // !USE_TRY
 		} // endif Conv
 
     if (type[0] == 1) {
@@ -1796,7 +1794,7 @@ err:
 /*  Make a dynamic index.                                              */
 /***********************************************************************/
 bool TDBDOS::InitialyzeIndex(PGLOBAL g, volatile PIXDEF xdp, bool sorted)
-  {
+{
   int     k;
   volatile bool dynamic;
   bool    brc;
@@ -1867,17 +1865,7 @@ bool TDBDOS::InitialyzeIndex(PGLOBAL g, volatile PIXDEF xdp, bool sorted)
   } else                      // Column contains same values as ROWID
     kxp = new(g) XXROW(this);
 
-#if defined(USE_TRY)
 	try {
-#else   // !USE_TRY
-	//  Prepare error return
-	if (g->jump_level == MAX_JUMP) {
-		strcpy(g->Message, MSG(TOO_MANY_JUMPS));
-		return true;
-	} // endif
-
-	if (!setjmp(g->jumper[++g->jump_level])) {
-#endif  // !USE_TRY
     if (dynamic) {
       ResetBlockFilter(g);
       kxp->SetDynamic(dynamic);
@@ -1902,7 +1890,6 @@ bool TDBDOS::InitialyzeIndex(PGLOBAL g, volatile PIXDEF xdp, bool sorted)
 
       } // endif brc
 
-#if defined(USE_TRY)
 	} catch (int n) {
 		if (trace)
 			htrc("Exception %d: %s\n", n, g->Message);
@@ -1911,14 +1898,9 @@ bool TDBDOS::InitialyzeIndex(PGLOBAL g, volatile PIXDEF xdp, bool sorted)
 		strcpy(g->Message, msg);
 		brc = true;
 	} // end catch
-#else   // !USE_TRY
-	} else
-		brc = true;
 
-	g->jump_level--;
-#endif  // !USE_TRY
 	return brc;
-  } // end of InitialyzeIndex
+} // end of InitialyzeIndex
 
 /***********************************************************************/
 /*  DOS GetProgMax: get the max value for progress information.        */
@@ -2139,7 +2121,8 @@ bool TDBDOS::OpenDB(PGLOBAL g)
     return false;
     } // endif use
 
-  if (Mode == MODE_DELETE && !Next && Txfp->GetAmType() != TYPE_AM_DOS) {
+  if (Mode == MODE_DELETE && !Next && Txfp->GetAmType() != TYPE_AM_DOS
+		                               && Txfp->GetAmType() != TYPE_AM_MGO) {
     // Delete all lines. Not handled in MAP or block mode
     Txfp = new(g) DOSFAM((PDOSDEF)To_Def);
     Txfp->SetTdbp(this);
@@ -2358,7 +2341,7 @@ DOSCOL::DOSCOL(PGLOBAL g, PCOLDEF cdp, PTDB tp, PCOL cp, int i, PSZ am)
   Dval = NULL;
   Buf = NULL;
 
-  if (txfp->Blocked && Opt && (cdp->GetMin() || cdp->GetDval())) {
+  if (txfp && txfp->Blocked && Opt && (cdp->GetMin() || cdp->GetDval())) {
     int nblk = txfp->GetBlock();
 
     Clustered = (cdp->GetXdb2()) ? 2 : 1;
@@ -2537,11 +2520,7 @@ void DOSCOL::ReadColumn(PGLOBAL g)
       if (rc == RC_EF)
         sprintf(g->Message, MSG(INV_DEF_READ), rc);
 
-#if defined(USE_TRY)
 			throw 11;
-#else   // !USE_TRY
-			longjmp(g->jumper[g->jump_level], 11);
-#endif  // !USE_TRY
 		} // endif
 
   p = tdbp->To_Line + Deplac;
@@ -2597,11 +2576,7 @@ void DOSCOL::ReadColumn(PGLOBAL g)
       break;
     default:
       sprintf(g->Message, MSG(BAD_RECFM), tdbp->Ftype);
-#if defined(USE_TRY)
 			throw 34;
-#else   // !USE_TRY
-			longjmp(g->jumper[g->jump_level], 34);
-#endif  // !USE_TRY
 	} // endswitch Ftype
 
   // Set null when applicable
@@ -2710,11 +2685,7 @@ void DOSCOL::WriteColumn(PGLOBAL g)
           break;
         default:
           sprintf(g->Message, "Invalid field format for column %s", Name);
-#if defined(USE_TRY)
 					throw 31;
-#else   // !USE_TRY
-					longjmp(g->jumper[g->jump_level], 31);
-#endif  // !USE_TRY
 			} // endswitch BufType
 
       p2 = Buf;
@@ -2726,11 +2697,7 @@ void DOSCOL::WriteColumn(PGLOBAL g)
 
     if ((len = strlen(p2)) > field) {
       sprintf(g->Message, MSG(VALUE_TOO_LONG), p2, Name, field);
-#if defined(USE_TRY)
 			throw 31;
-#else   // !USE_TRY
-			longjmp(g->jumper[g->jump_level], 31);
-#endif  // !USE_TRY
 		} else if (Dsp)
       for (i = 0; i < len; i++)
         if (p2[i] == '.')

@@ -5515,3 +5515,4 @@ USE `db1`;
 
 DROP DATABASE db1;
 DROP DATABASE db2;
+FOUND /Database: mysql/ in bug11505.sql

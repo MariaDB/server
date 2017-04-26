@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
 
 /**
   @file
@@ -589,6 +589,11 @@ void JOIN_CACHE::create_remaining_fields()
   {
     MY_BITMAP *rem_field_set;
     TABLE *table= tab->table;
+#if MYSQL_VERSION_ID < 100204
+    empty_record(table);
+#else
+#error remove
+#endif
 
     if (all_read_fields)
       rem_field_set= table->read_set;
