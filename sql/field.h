@@ -3238,15 +3238,7 @@ public:
     :Field_longstr((uchar*) 0, 0, (uchar*) "", 0, NONE, &temp_lex_str,
                    system_charset_info),
     packlength(packlength_arg) {}
-  const Type_handler *type_handler() const
-  {
-    switch (packlength) {
-    case 1: return &type_handler_tiny_blob;
-    case 2: return &type_handler_blob;
-    case 3: return &type_handler_medium_blob;
-    }
-    return &type_handler_long_blob;
-  }
+  const Type_handler *type_handler() const;
   /* Note that the default copy constructor is used, in clone() */
   enum_field_types type() const
   {

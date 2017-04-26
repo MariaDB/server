@@ -8176,6 +8176,22 @@ void Field_blob::sort_string(uchar *to,uint length)
 }
 
 
+/*
+  Return the data type handler, according to packlength.
+  Implemented in field.cc rather than in field.h
+  to avoid exporting type_handler_xxx with MYSQL_PLUGIN_IMPORT.
+*/
+const Type_handler *Field_blob::type_handler() const
+{
+  switch (packlength) {
+  case 1: return &type_handler_tiny_blob;
+  case 2: return &type_handler_blob;
+  case 3: return &type_handler_medium_blob;
+  }
+  return &type_handler_long_blob;
+}
+
+
 void Field_blob::sql_type(String &res) const
 {
   const char *str;
