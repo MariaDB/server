@@ -2,7 +2,7 @@
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2015, MariaDB Corporation.
+Copyright (c) 2013, 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1185,12 +1185,29 @@ dict_table_open_on_name(
 
 	if (table != NULL) {
 
-		/* If table is encrypted return table */
+		/* If table is encrypted or corrupted */
 		if (ignore_err == DICT_ERR_IGNORE_NONE
-			&& table->is_encrypted) {
+		    && !table->is_readable()) {
 			/* Make life easy for drop table. */
 			if (table->can_be_evicted) {
 				dict_table_move_from_lru_to_non_lru(table);
+			}
+
+			if (table->corrupted) {
+
+				if (!dict_locked) {
+					mutex_exit(&dict_sys->mutex);
+				}
+
+				char		buf[MAX_FULL_NAME_LEN];
+				ut_format_name(table->name, TRUE, buf, sizeof(buf));
+
+				ib_logf(IB_LOG_LEVEL_ERROR,
+					"Table %s is corrupted. Please "
+					"drop the table and recreate.",
+					buf);
+
+				return(NULL);
 			}
 
 			if (table->can_be_evicted) {
@@ -1204,28 +1221,6 @@ dict_table_open_on_name(
 			}
 
 			return (table);
-		}
-		/* If table is corrupted, return NULL */
-		else if (ignore_err == DICT_ERR_IGNORE_NONE
-		    && table->corrupted) {
-
-			/* Make life easy for drop table. */
-			if (table->can_be_evicted) {
-				dict_table_move_from_lru_to_non_lru(table);
-			}
-
-			if (!dict_locked) {
-				mutex_exit(&dict_sys->mutex);
-			}
-
-			ut_print_timestamp(stderr);
-
-			fprintf(stderr, "  InnoDB: table ");
-			ut_print_name(stderr, NULL, TRUE, table->name);
-			fprintf(stderr, "is corrupted. Please drop the table "
-				"and recreate\n");
-
-			return(NULL);
 		}
 
 		if (table->can_be_evicted) {
@@ -6183,9 +6178,27 @@ dict_set_corrupted_by_space(
 
 	/* mark the table->corrupted bit only, since the caller
 	could be too deep in the stack for SYS_INDEXES update */
-	table->corrupted = TRUE;
+	table->corrupted = true;
+	table->file_unreadable = true;
 
 	return(TRUE);
+}
+
+
+/** Flags a table with specified space_id encrypted in the data dictionary
+cache
+@param[in]	space_id	Tablespace id */
+UNIV_INTERN
+void
+dict_set_encrypted_by_space(ulint	space_id)
+{
+	dict_table_t*   table;
+
+	table = dict_find_table_by_space(space_id);
+
+	if (table) {
+		table->file_unreadable = true;
+	}
 }
 
 /**********************************************************************//**
@@ -6645,7 +6658,8 @@ dict_table_schema_check(
 		}
 	}
 
-	if (table->ibd_file_missing) {
+	if (!table->is_readable() &&
+	    fil_space_get(table->space) == NULL) {
 		/* missing tablespace */
 
 		ut_snprintf(errstr, errstr_sz,

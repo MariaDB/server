@@ -1,18 +1,8 @@
-call mtr.add_suppression("InnoDB: Database page corruption on disk or a failed.*");
-call mtr.add_suppression("InnoDB: Corruption: Block in space_id .* in file .* corrupted.");
-call mtr.add_suppression("InnoDB: Based on page type .*");
-CALL mtr.add_suppression("InnoDB: Error: Unable to read tablespace .* page no .* into the buffer pool after 100 attempts");
-CALL mtr.add_suppression("InnoDB: Database page corruption on disk or a failed");
-CALL mtr.add_suppression("InnoDB: Space .* file test/t1 read of page .*");
-CALL mtr.add_suppression("InnoDB: You may have to recover from a backup.");
-CALL mtr.add_suppression("InnoDB: It is also possible that your operatingsystem has corrupted its own file cache.");
-CALL mtr.add_suppression("InnoDB: and rebooting your computer removes the error.");
-CALL mtr.add_suppression("InnoDB: If the corrupt page is an index page you can also try to");
-CALL mtr.add_suppression("InnoDB: fix the corruption by dumping, dropping, and reimporting");
-CALL mtr.add_suppression("InnoDB: the corrupt table. You can use CHECK");
-CALL mtr.add_suppression("InnoDB: TABLE to scan your table for corruption.");
-CALL mtr.add_suppression("InnoDB: See also .* about forcing recovery.");
+call mtr.add_suppression("InnoDB: Table \"test\".\"t1\" is corrupted. Please drop the table and recreate.");
+call mtr.add_suppression("InnoDB: Cannot open table test/t1 from the internal data dictionary of InnoDB though the .frm file for the table exists. See http://dev.mysql.com/doc/refman/5.6/en/innodb-troubleshooting.html for how you can resolve the problem.");
+call mtr.add_suppression("InnoDB: Database page corruption on disk or a failed file read of tablespace test/t1 page  \[page id: space=[0-9]+, page number=[0-9]+\]. You may have to recover from a backup.");
 # Create and populate the table to be corrupted
+set global innodb_file_per_table=ON;
 CREATE TABLE t1 (a INT AUTO_INCREMENT PRIMARY KEY, b TEXT) ENGINE=InnoDB;
 INSERT INTO t1 (b) VALUES ('corrupt me');
 INSERT INTO t1 (b) VALUES ('corrupt me');
@@ -20,13 +10,17 @@ INSERT INTO t1 (b) VALUES ('corrupt me');
 # Corrupt the table
 Munged a string.
 Munged a string.
-SET DEBUG_DBUG = '+d,innodb_page_corruption_retries';
-# Write file to make mysql-test-run.pl expect the "crash", but don't
-# start it until it's told to
-# The below SELECT query will crash the server because some pages
-# on the disk are corrupted
+# The below SELECT query will return that table is not
+# in engine because table is corrupted
 SELECT * FROM t1;
-ERROR HY000: Lost connection to MySQL server during query
-# Restore the original t1.ibd
+ERROR 42S02: Table 'test.t1' doesn't exist in engine
+INSERT INTO t1(b) VALUES('abcdef');
+ERROR 42S02: Table 'test.t1' doesn't exist in engine
+UPDATE t1 set b = 'deadbeef' where a = 1;
+ERROR 42S02: Table 'test.t1' doesn't exist in engine
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Error	Table 'test.t1' doesn't exist in engine
+test.t1	check	status	Operation failed
 # Cleanup
 DROP TABLE t1;

@@ -13,17 +13,20 @@
 --let t2_IBD = $MYSQLD_DATADIR/test/t2.ibd
 --let t3_IBD = $MYSQLD_DATADIR/test/t3.ibd
 --let SEARCH_RANGE = 10000000
---let SEARCH_PATTERN=foobar
 
+--disable_warnings
 SET GLOBAL innodb_file_per_table = ON;
+SET GLOBAL innodb_file_format = `Barracuda`;
+--enable_warnings
 
 create table t1 (a varchar(255)) engine=innodb encrypted=yes;
 create table t2 (a varchar(255)) engine=innodb;
+show warnings;
 create table t3 (a varchar(255)) engine=innodb encrypted=no;
 
-insert t1 values (repeat('foobar', 42));
-insert t2 values (repeat('temp', 42));
-insert t3 values (repeat('dummy', 42));
+insert t1 values (repeat('foobarsecret', 22));
+insert t2 values (repeat('tempsecret', 22));
+insert t3 values (repeat('dummysecret', 22));
 
 --echo # Wait max 10 min for key encryption threads to encrypt all spaces
 --let $wait_timeout= 600
@@ -35,19 +38,19 @@ SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_
 
 --source include/shutdown_mysqld.inc
 
---let SEARCH_PATTERN=foobar
+--let SEARCH_PATTERN=foobarsecret
 --echo # t1 yes on expecting NOT FOUND
 -- let SEARCH_FILE=$t1_IBD
 -- source include/search_pattern_in_file.inc
---let SEARCH_PATTERN=temp
+--let SEARCH_PATTERN=tempsecret
 --echo # t2 ... on expecting NOT FOUND
 -- let SEARCH_FILE=$t2_IBD
 -- source include/search_pattern_in_file.inc
---let SEARCH_PATTERN=dummy
+--let SEARCH_PATTERN=dummysecret
 --echo # t3 no  on expecting FOUND
 -- let SEARCH_FILE=$t3_IBD
 -- source include/search_pattern_in_file.inc
---let SEARCH_PATTERN=foobar
+--let SEARCH_PATTERN=foobarsecret
 --echo # ibdata1 expecting NOT FOUND
 -- let SEARCH_FILE=$ib1_IBD
 -- source include/search_pattern_in_file.inc
@@ -55,12 +58,12 @@ SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_
 -- source include/start_mysqld.inc
 
 --echo # Now turn off encryption and wait for threads to decrypt everything
-SET GLOBAL innodb_encryption_threads = 1;
+
 SET GLOBAL innodb_encrypt_tables = off;
 
 --echo # Wait max 10 min for key encryption threads to decrypt all spaces
 --let $wait_timeout= 600
---let $wait_condition=SELECT COUNT(*) = 5 FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION = 0 AND KEY_ROTATION_PAGE_NUMBER IS NULL;
+--let $wait_condition=SELECT COUNT(*) = 5 FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION = 0 AND CURRENT_KEY_VERSION = 0;
 --source include/wait_condition.inc
 
 SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION = 0;
@@ -68,27 +71,27 @@ SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_
 
 --source include/shutdown_mysqld.inc
 
---let SEARCH_PATTERN=foobar
+--let SEARCH_PATTERN=foobarsecret
 --echo # t1 yes on expecting NOT FOUND
 -- let SEARCH_FILE=$t1_IBD
 -- source include/search_pattern_in_file.inc
---let SEARCH_PATTERN=temp
---echo # t2 ... on expecting FOUND
+--let SEARCH_PATTERN=tempsecret
+--echo # t2 ... default expecting FOUND
 -- let SEARCH_FILE=$t2_IBD
 -- source include/search_pattern_in_file.inc
---let SEARCH_PATTERN=dummy
+--let SEARCH_PATTERN=dummysecret
 --echo # t3 no  on expecting FOUND
 -- let SEARCH_FILE=$t3_IBD
 -- source include/search_pattern_in_file.inc
---let SEARCH_PATTERN=foobar
+--let SEARCH_PATTERN=foobarsecret
 --echo # ibdata1 expecting NOT FOUND
 -- let SEARCH_FILE=$ib1_IBD
 -- source include/search_pattern_in_file.inc
 
+
 -- source include/start_mysqld.inc
 
 --echo # Now turn on encryption and wait for threads to encrypt all spaces
-SET GLOBAL innodb_encryption_threads = 4;
 SET GLOBAL innodb_encrypt_tables = on;
 
 --echo # Wait max 10 min for key encryption threads to encrypt all spaces
@@ -101,19 +104,19 @@ SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_
 
 --source include/shutdown_mysqld.inc
 
---let SEARCH_PATTERN=foobar
+--let SEARCH_PATTERN=foobarsecret
 --echo # t1 yes on expecting NOT FOUND
 -- let SEARCH_FILE=$t1_IBD
 -- source include/search_pattern_in_file.inc
---let SEARCH_PATTERN=temp
+--let SEARCH_PATTERN=tempsecret
 --echo # t2 ... on expecting NOT FOUND
 -- let SEARCH_FILE=$t2_IBD
 -- source include/search_pattern_in_file.inc
---let SEARCH_PATTERN=dummy
+--let SEARCH_PATTERN=dummysecret
 --echo # t3 no  on expecting FOUND
 -- let SEARCH_FILE=$t3_IBD
 -- source include/search_pattern_in_file.inc
---let SEARCH_PATTERN=foobar
+--let SEARCH_PATTERN=foobarsecret
 --echo # ibdata1 expecting NOT FOUND
 -- let SEARCH_FILE=$ib1_IBD
 -- source include/search_pattern_in_file.inc

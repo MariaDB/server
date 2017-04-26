@@ -583,13 +583,17 @@ void defrag_analysis(unsigned long long id, const per_index_stats& index)
       }
     }
   }
+  if (!n_leaf_pages) {
+	  n_leaf_pages=1;
+  }
   printf("count = " ULINTPF " free = " ULINTPF "\n",
 	 index.count, index.free_pages);
-  if (n_leaf_pages)
+  if (n_leaf_pages) {
     printf("%llu\t\t%llu\t\t"
 	   ULINTPF "\t\t%lu\t\t" ULINTPF "\t\t%.2f\t" ULINTPF "\n",
            id, index.leaf_pages, n_leaf_pages, n_merge, n_pages,
-           1.0 - (double)n_pages / (double)n_leaf_pages, index.max_data_size);
+                     1.0 - (double)n_pages / (double)n_leaf_pages, index.max_data_size);
+  }
 }
 
 void print_leaf_stats()

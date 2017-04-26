@@ -330,7 +330,11 @@ fil_write(
 }
 
 /*******************************************************************//**
-Returns the table space by a given id, NULL if not found. */
+Returns the table space by a given id, NULL if not found.
+It is unsafe to dereference the returned pointer. It is fine to check
+for NULL.
+@param[in]	id		Tablespace id
+@return table space or NULL */
 fil_space_t*
 fil_space_get_by_id(
 /*================*/
@@ -348,26 +352,6 @@ fil_space_get_by_id(
 	/* The system tablespace must always be found */
 	ut_ad(space || id != 0 || srv_is_being_started);
 	return(space);
-}
-
-/*******************************************************************//**
-Returns the table space by a given id, NULL if not found. */
-fil_space_t*
-fil_space_found_by_id(
-/*==================*/
-	ulint	id)	/*!< in: space id */
-{
-	fil_space_t* space = NULL;
-	mutex_enter(&fil_system->mutex);
-	space = fil_space_get_by_id(id);
-
-	/* Not found if space is being deleted */
-	if (space && space->stop_new_ops) {
-		space = NULL;
-	}
-
-	mutex_exit(&fil_system->mutex);
-	return space;
 }
 
 /****************************************************************//**
@@ -2516,74 +2500,6 @@ fil_read_first_page(
 
 /*================ SINGLE-TABLE TABLESPACES ==========================*/
 
-#ifndef UNIV_HOTBACKUP
-/*******************************************************************//**
-Increments the count of pending operation, if space is not being deleted.
-@return	TRUE if being deleted, and operation should be skipped */
-UNIV_INTERN
-ibool
-fil_inc_pending_ops(
-/*================*/
-	ulint	id,		/*!< in: space id */
-	ibool	print_err)	/*!< in: need to print error or not */
-{
-	fil_space_t*	space;
-
-	mutex_enter(&fil_system->mutex);
-
-	space = fil_space_get_by_id(id);
-
-	if (space == NULL) {
-		if (print_err) {
-			fprintf(stderr,
-				"InnoDB: Error: trying to do an operation on a"
-				" dropped tablespace %lu\n",
-				(ulong) id);
-		}
-	}
-
-	if (space == NULL || space->stop_new_ops) {
-		mutex_exit(&fil_system->mutex);
-
-		return(TRUE);
-	}
-
-	space->n_pending_ops++;
-
-	mutex_exit(&fil_system->mutex);
-
-	return(FALSE);
-}
-
-/*******************************************************************//**
-Decrements the count of pending operations. */
-UNIV_INTERN
-void
-fil_decr_pending_ops(
-/*=================*/
-	ulint	id)	/*!< in: space id */
-{
-	fil_space_t*	space;
-
-	mutex_enter(&fil_system->mutex);
-
-	space = fil_space_get_by_id(id);
-
-	if (space == NULL) {
-		fprintf(stderr,
-			"InnoDB: Error: decrementing pending operation"
-			" of a dropped tablespace %lu\n",
-			(ulong) id);
-	}
-
-	if (space != NULL) {
-		space->n_pending_ops--;
-	}
-
-	mutex_exit(&fil_system->mutex);
-}
-#endif /* !UNIV_HOTBACKUP */
-
 /********************************************************//**
 Creates the database directory for a table if it does not exist yet. */
 static
@@ -2975,7 +2891,7 @@ fil_check_pending_operations(
 	fil_space_t* sp = fil_space_get_by_id(id);
 
 	if (sp) {
-		sp->stop_new_ops = TRUE;
+		sp->stop_new_ops = true;
 		/* space could be freed by other threads as soon
 		as n_pending_ops reaches 0, thus increment pending
 		ops here. */
@@ -5390,7 +5306,7 @@ fil_tablespace_deleted_or_being_deleted_in_mem(
 
 	space = fil_space_get_by_id(id);
 
-	if (space == NULL || space->stop_new_ops) {
+	if (space == NULL || space->is_stopping()) {
 		mutex_exit(&fil_system->mutex);
 
 		return(TRUE);
@@ -6143,15 +6059,19 @@ _fil_io(
 	/* If we are deleting a tablespace we don't allow async read operations
 	on that. However, we do allow write and sync read operations */
 	if (space == 0
-	    || (type == OS_FILE_READ && !sync && space->stop_new_ops)) {
+	    || (type == OS_FILE_READ
+		&& !sync
+		&& space->stop_new_ops)) {
 		mutex_exit(&fil_system->mutex);
 
 		ib_logf(IB_LOG_LEVEL_ERROR,
 			"Trying to do i/o to a tablespace which does "
-			"not exist. i/o type %lu, space id %lu, "
-			"page no. %lu, i/o length %lu bytes",
-			(ulong) type, (ulong) space_id, (ulong) block_offset,
-			(ulong) len);
+			"not exist. i/o type " ULINTPF
+			", space id " ULINTPF " , "
+			"page no. " ULINTPF
+			", i/o length " ULINTPF " bytes",
+			type, space_id, block_offset,
+			len);
 
 		return(DB_TABLESPACE_DELETED);
 	}
@@ -6255,8 +6175,15 @@ _fil_io(
 			mutex_exit(&fil_system->mutex);
 			if (mode == OS_AIO_NORMAL) {
 				ut_a(space->purpose == FIL_TABLESPACE);
-				buf_page_io_complete(static_cast<buf_page_t *>
-						     (message));
+				dberr_t err = buf_page_io_complete(static_cast<buf_page_t *>
+					(message));
+
+				if (err != DB_SUCCESS) {
+					ib_logf(IB_LOG_LEVEL_ERROR,
+						"Write operation failed for tablespace %s ("
+						ULINTPF ") offset " ULINTPF " error=%d.",
+						space->name, space->id, byte_offset, err);
+				}
 			}
 		}
 
@@ -6359,6 +6286,8 @@ fil_aio_wait(
 	mutex_enter(&fil_system->mutex);
 
 	fil_node_complete_io(fil_node, fil_system, type);
+	ulint purpose = fil_node->space->purpose;
+	space_id = fil_node->space->id;
 
 	mutex_exit(&fil_system->mutex);
 
@@ -6370,9 +6299,27 @@ fil_aio_wait(
 	deadlocks in the i/o system. We keep tablespace 0 data files always
 	open, and use a special i/o thread to serve insert buffer requests. */
 
-	if (fil_node->space->purpose == FIL_TABLESPACE) {
+	if (purpose == FIL_TABLESPACE) {
 		srv_set_io_thread_op_info(segment, "complete io for buf page");
-		buf_page_io_complete(static_cast<buf_page_t*>(message));
+		buf_page_t* bpage = static_cast<buf_page_t*>(message);
+		ulint offset = bpage->offset;
+		dberr_t err = buf_page_io_complete(bpage);
+
+		if (err != DB_SUCCESS) {
+			ut_ad(type == OS_FILE_READ);
+			/* In crash recovery set log corruption on
+			and produce only an error to fail InnoDB startup. */
+			if (recv_recovery_is_on() && !srv_force_recovery) {
+				recv_sys->found_corrupt_log = true;
+			}
+
+			ib_logf(IB_LOG_LEVEL_ERROR,
+				"Read operation failed for tablespace %s"
+				" offset " ULINTPF " with error %s",
+				fil_node->name,
+				offset,
+				ut_strerr(err));
+		}
 	} else {
 		srv_set_io_thread_op_info(segment, "complete io for log");
 		log_io_complete(static_cast<log_group_t*>(message));
@@ -6393,7 +6340,8 @@ fil_flush(
 	mutex_enter(&fil_system->mutex);
 
 	if (fil_space_t* space = fil_space_get_by_id(space_id)) {
-		if (!space->is_stopping()) {
+		if (!space->stop_new_ops) {
+
 			fil_flush_low(space);
 		}
 	}
@@ -7331,76 +7279,6 @@ fil_space_set_corrupt(
 	mutex_exit(&fil_system->mutex);
 }
 
-/******************************************************************
-Get id of first tablespace or ULINT_UNDEFINED if none */
-UNIV_INTERN
-ulint
-fil_get_first_space()
-/*=================*/
-{
-	ulint out_id = ULINT_UNDEFINED;
-	fil_space_t* space;
-
-	mutex_enter(&fil_system->mutex);
-
-	space = UT_LIST_GET_FIRST(fil_system->space_list);
-	if (space != NULL) {
-		do
-		{
-			if (!space->stop_new_ops) {
-				out_id = space->id;
-				break;
-			}
-			space = UT_LIST_GET_NEXT(space_list, space);
-		} while (space != NULL);
-	}
-
-	mutex_exit(&fil_system->mutex);
-
-	return out_id;
-}
-
-/******************************************************************
-Get id of next tablespace or ULINT_UNDEFINED if none */
-UNIV_INTERN
-ulint
-fil_get_next_space(
-/*===============*/
-	ulint	id)	/*!< in: previous space id */
-{
-	bool found;
-	fil_space_t* space;
-	ulint out_id = ULINT_UNDEFINED;
-
-	mutex_enter(&fil_system->mutex);
-
-	space = fil_space_get_by_id(id);
-	if (space == NULL) {
-		/* we didn't find it...search for space with space->id > id */
-		found = false;
-		space = UT_LIST_GET_FIRST(fil_system->space_list);
-	} else {
-		/* we found it, take next available space */
-		found = true;
-	}
-
-	while ((space = UT_LIST_GET_NEXT(space_list, space)) != NULL) {
-
-		if (!found && space->id <= id)
-			continue;
-
-		if (!space->stop_new_ops && UT_LIST_GET_LEN(space->chain) > 0) {
-			/* inc reference to prevent drop */
-			out_id = space->id;
-			break;
-		}
-	}
-
-	mutex_exit(&fil_system->mutex);
-
-	return out_id;
-}
-
 /** Acquire a tablespace when it could be dropped concurrently.
 Used by background threads that do not necessarily hold proper locks
 for concurrency control.
@@ -7410,9 +7288,9 @@ for concurrency control.
 			(possibly executing TRUNCATE)
 @return	the tablespace
 @retval	NULL if missing or being deleted or truncated */
-inline
+UNIV_INTERN
 fil_space_t*
-fil_space_acquire_low(ulint id, bool silent, bool for_io = false)
+fil_space_acquire_low(ulint id, bool silent, bool for_io)
 {
 	fil_space_t*	space;
 
@@ -7434,32 +7312,6 @@ fil_space_acquire_low(ulint id, bool silent, bool for_io = false)
 	mutex_exit(&fil_system->mutex);
 
 	return(space);
-}
-
-/** Acquire a tablespace when it could be dropped concurrently.
-Used by background threads that do not necessarily hold proper locks
-for concurrency control.
-@param[in]	id	tablespace ID
-@param[in]	for_io	whether to look up the tablespace while performing I/O
-			(possibly executing TRUNCATE)
-@return	the tablespace
-@retval	NULL	if missing or being deleted or truncated */
-fil_space_t*
-fil_space_acquire(ulint id, bool for_io)
-{
-	return(fil_space_acquire_low(id, false, for_io));
-}
-
-/** Acquire a tablespace that may not exist.
-Used by background threads that do not necessarily hold proper locks
-for concurrency control.
-@param[in]	id	tablespace ID
-@return	the tablespace
-@retval	NULL if missing or being deleted */
-fil_space_t*
-fil_space_acquire_silent(ulint id)
-{
-	return(fil_space_acquire_low(id, true));
 }
 
 /** Release a tablespace acquired with fil_space_acquire().
@@ -7590,7 +7442,7 @@ fil_space_keyrotate_next(
 	space->purpose == FIL_TABLESPACE. */
 	while (space != NULL
 		&& (UT_LIST_GET_LEN(space->chain) == 0
-			|| space->stop_new_ops)) {
+			|| space->is_stopping())) {
 
 		old = space;
 		space = UT_LIST_GET_NEXT(rotation_list, space);

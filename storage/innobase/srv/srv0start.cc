@@ -2494,6 +2494,11 @@ files_checked:
 			recv_group_scan_log_recs(). */
 
 			recv_apply_hashed_log_recs(true);
+
+			if (recv_sys->found_corrupt_log) {
+				return (DB_CORRUPTION);
+			}
+
 			DBUG_PRINT("ib_log", ("apply completed"));
 		}
 

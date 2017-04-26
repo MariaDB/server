@@ -1614,7 +1614,8 @@ row_merge_read_clustered_index(
 		page_cur_t*	cur	= btr_pcur_get_page_cur(&pcur);
 
 		/* Do not continue if table pages are still encrypted */
-		if (old_table->is_encrypted || new_table->is_encrypted) {
+		if (!old_table->is_readable() ||
+		    !new_table->is_readable()) {
 			err = DB_DECRYPTION_FAILED;
 			trx->error_key_num = 0;
 			goto func_exit;
@@ -3693,7 +3694,7 @@ row_merge_rename_tables_dict(
 	table is in a non-system tablespace where space > 0. */
 	if (err == DB_SUCCESS
 	    && old_table->space != TRX_SYS_SPACE
-	    && !old_table->ibd_file_missing) {
+	    && fil_space_get(old_table->space) != NULL) {
 		/* Make pathname to update SYS_DATAFILES. */
 		char* tmp_path = row_make_new_pathname(old_table, tmp_name);
 
@@ -4003,6 +4004,7 @@ row_merge_build_indexes(
 			os_mem_alloc_large(&block_size));
 
 		if (crypt_block == NULL) {
+			fil_space_release(space);
 			DBUG_RETURN(DB_OUT_OF_MEMORY);
 		}
 	} else {
@@ -4068,13 +4070,15 @@ row_merge_build_indexes(
 	pct_cost = COST_READ_CLUSTERED_INDEX * 100 / (total_static_cost + total_dynamic_cost);
 
 	/* Do not continue if we can't encrypt table pages */
-	if (old_table->is_encrypted || new_table->is_encrypted) {
+	if (!old_table->is_readable() ||
+	    !new_table->is_readable()) {
 		error = DB_DECRYPTION_FAILED;
 		ib_push_warning(trx->mysql_thd, DB_DECRYPTION_FAILED,
 			"Table %s is encrypted but encryption service or"
 			" used key_id is not available. "
 			" Can't continue reading table.",
-			old_table->is_encrypted ? old_table->name : new_table->name);
+			!old_table->is_readable() ? old_table->name :
+				new_table->name);
 		goto func_exit;
 	}
 

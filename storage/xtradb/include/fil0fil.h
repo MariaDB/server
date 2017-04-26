@@ -650,23 +650,45 @@ fil_write_flushed_lsn_to_data_files(
 Used by background threads that do not necessarily hold proper locks
 for concurrency control.
 @param[in]	id	tablespace ID
+@param[in]	silent	whether to silently ignore missing tablespaces
 @param[in]	for_io	whether to look up the tablespace while performing I/O
 			(possibly executing TRUNCATE)
 @return	the tablespace
 @retval	NULL if missing or being deleted or truncated */
+UNIV_INTERN
+fil_space_t*
+fil_space_acquire_low(ulint id, bool silent, bool for_io = false)
+	MY_ATTRIBUTE((warn_unused_result));
+
+/** Acquire a tablespace when it could be dropped concurrently.
+Used by background threads that do not necessarily hold proper locks
+for concurrency control.
+@param[in]	id	tablespace ID
+@param[in]	for_io	whether to look up the tablespace while performing I/O
+			(possibly executing TRUNCATE)
+@return	the tablespace
+@retval	NULL if missing or being deleted or truncated */
+inline
 fil_space_t*
 fil_space_acquire(ulint id, bool for_io = false)
-	MY_ATTRIBUTE((warn_unused_result));
+{
+	return (fil_space_acquire_low(id, false, for_io));
+}
 
 /** Acquire a tablespace that may not exist.
 Used by background threads that do not necessarily hold proper locks
 for concurrency control.
 @param[in]	id	tablespace ID
+@param[in]	for_io	whether to look up the tablespace while performing I/O
+			(possibly executing TRUNCATE)
 @return	the tablespace
 @retval	NULL if missing or being deleted */
+inline
 fil_space_t*
-fil_space_acquire_silent(ulint id)
-	MY_ATTRIBUTE((warn_unused_result));
+fil_space_acquire_silent(ulint id, bool for_io = false)
+{
+	return (fil_space_acquire_low(id, true, for_io));
+}
 
 /** Release a tablespace acquired with fil_space_acquire().
 @param[in,out]	space	tablespace to release  */
@@ -699,6 +721,64 @@ fil_space_keyrotate_next(
 	fil_space_t*	prev_space)
 	MY_ATTRIBUTE((warn_unused_result));
 
+/** Wrapper with reference-counting for a fil_space_t. */
+class FilSpace
+{
+public:
+	/** Default constructor: Use this when reference counting
+	is done outside this wrapper. */
+	FilSpace() : m_space(NULL) {}
+
+	/** Constructor: Look up the tablespace and increment the
+	reference count if found.
+	@param[in]	space_id	tablespace ID
+	@param[in]	silent		whether not print any errors
+	@param[in]	for_io		whether to look up the tablespace
+					while performing I/O
+					(possibly executing TRUNCATE) */
+	explicit FilSpace(ulint space_id, bool silent = false, bool for_io = false)
+		: m_space(fil_space_acquire_low(space_id, silent, for_io)) {}
+
+	/** Assignment operator: This assumes that fil_space_acquire()
+	has already been done for the fil_space_t. The caller must
+	assign NULL if it calls fil_space_release().
+	@param[in]	space	tablespace to assign */
+	class FilSpace& operator=(fil_space_t* space)
+	{
+		/* fil_space_acquire() must have been invoked. */
+		ut_ad(space == NULL || space->n_pending_ops > 0);
+		m_space = space;
+		return(*this);
+	}
+
+	/** Destructor - Decrement the reference count if a fil_space_t
+	is still assigned. */
+	~FilSpace()
+	{
+		if (m_space != NULL) {
+			fil_space_release(m_space);
+		}
+	}
+
+	/** Implicit type conversion
+	@return the wrapped object */
+	operator const fil_space_t*() const
+	{
+		return(m_space);
+	}
+
+	/** Explicit type conversion
+	@return the wrapped object */
+	const fil_space_t* operator()() const
+	{
+		return(m_space);
+	}
+
+private:
+	/** The wrapped pointer */
+	fil_space_t*	m_space;
+};
+
 /*******************************************************************//**
 Reads the flushed lsn, arch no, and tablespace flag fields from a data
 file at database startup.
@@ -721,22 +801,6 @@ fil_read_first_page(
 	fil_space_crypt_t** crypt_data)		/*!< out: crypt data */
 
 	__attribute__((warn_unused_result));
-/*******************************************************************//**
-Increments the count of pending operation, if space is not being deleted.
-@return	TRUE if being deleted, and operation should be skipped */
-UNIV_INTERN
-ibool
-fil_inc_pending_ops(
-/*================*/
-	ulint	id,		/*!< in: space id */
-	ibool	print_err);	/*!< in: need to print error or not */
-/*******************************************************************//**
-Decrements the count of pending operations. */
-UNIV_INTERN
-void
-fil_decr_pending_ops(
-/*=================*/
-	ulint	id);	/*!< in: space id */
 #endif /* !UNIV_HOTBACKUP */
 /*******************************************************************//**
 Parses the body of a log record written about an .ibd file operation. That is,
@@ -1427,36 +1491,6 @@ fil_space_t*
 fil_space_get_by_id(
 /*================*/
 	ulint	id);	/*!< in: space id */
-
-/******************************************************************
-Get id of first tablespace or ULINT_UNDEFINED if none */
-UNIV_INTERN
-ulint
-fil_get_first_space();
-/*=================*/
-
-/******************************************************************
-Get id of next tablespace or ULINT_UNDEFINED if none */
-UNIV_INTERN
-ulint
-fil_get_next_space(
-/*===============*/
-	ulint id);      /*!< in: space id */
-
-/******************************************************************
-Get id of first tablespace that has node or ULINT_UNDEFINED if none */
-UNIV_INTERN
-ulint
-fil_get_first_space_safe();
-/*======================*/
-
-/******************************************************************
-Get id of next tablespace that has node or ULINT_UNDEFINED if none */
-UNIV_INTERN
-ulint
-fil_get_next_space_safe(
-/*====================*/
-	ulint	id);	/*!< in: previous space id */
 
 #endif /*  UNIV_INNOCHECKSUM */
 

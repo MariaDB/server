@@ -1098,7 +1098,7 @@ row_undo_mod_parse_undo_rec(
 		return;
 	}
 
-	if (node->table->ibd_file_missing) {
+	if (node->table->file_unreadable) {
 		dict_table_close(node->table, dict_locked, FALSE);
 
 		/* We skip undo operations to missing .ibd files */

@@ -958,7 +958,12 @@ buf_flush_write_block_low(
 
 		/* true means we want to evict this page from the
 		LRU list as well. */
+#ifdef UNIV_DEBUG
+		dberr_t err =
+#endif
 		buf_page_io_complete(bpage, true);
+
+		ut_ad(err == DB_SUCCESS);
 	}
 
 	fil_space_release(space);

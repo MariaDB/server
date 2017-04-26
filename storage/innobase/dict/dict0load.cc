@@ -1963,7 +1963,7 @@ dict_load_indexes(
 			dict_mem_index_free(index);
 			goto func_exit;
 		} else if (index->page == FIL_NULL
-			   && !table->ibd_file_missing
+			   && !table->file_unreadable
 			   && (!(index->type & DICT_FTS))) {
 
 			fprintf(stderr,
@@ -2191,8 +2191,7 @@ err_len:
 	ut_ad(len == 8); /* this was checked earlier */
 
 	(*table)->id = mach_read_from_8(field);
-
-	(*table)->ibd_file_missing = FALSE;
+	(*table)->file_unreadable = false;
 
 	return(NULL);
 }
@@ -2379,7 +2378,7 @@ err_exit:
 			"Table '%s' tablespace is set as discarded.",
 			table_name);
 
-		table->ibd_file_missing = TRUE;
+		table->file_unreadable = true;
 
 	} else if (!fil_space_for_table_exists_in_mem(
 			table->space, name, false, true, heap,
@@ -2387,7 +2386,7 @@ err_exit:
 
 		if (DICT_TF2_FLAG_IS_SET(table, DICT_TF2_TEMPORARY)) {
 			/* Do not bother to retry opening temporary tables. */
-			table->ibd_file_missing = TRUE;
+			table->file_unreadable = true;
 
 		} else {
 			if (!(ignore_err & DICT_ERR_IGNORE_RECOVER_LOCK)) {
@@ -2422,8 +2421,9 @@ err_exit:
 				/* We failed to find a sensible
 				tablespace file */
 
-				table->ibd_file_missing = TRUE;
+				table->file_unreadable = true;
 			}
+
 			if (filepath) {
 				mem_free(filepath);
 			}
@@ -2447,9 +2447,10 @@ err_exit:
 	were not allowed while the table is being locked by a transaction. */
 	dict_err_ignore_t index_load_err =
 		!(ignore_err & DICT_ERR_IGNORE_RECOVER_LOCK)
-		&& table->ibd_file_missing
+		&& table->file_unreadable
 		? DICT_ERR_IGNORE_ALL
 		: ignore_err;
+
 	err = dict_load_indexes(table, heap, index_load_err);
 
 	if (err == DB_INDEX_CORRUPT) {
@@ -2484,7 +2485,7 @@ err_exit:
 	of the error condition, since the user may want to dump data from the
 	clustered index. However we load the foreign key information only if
 	all indexes were loaded. */
-	if (!cached || table->ibd_file_missing) {
+	if (!cached || table->file_unreadable) {
 		/* Don't attempt to load the indexes from disk. */
 	} else if (err == DB_SUCCESS) {
 		err = dict_load_foreigns(table->name, NULL, true, true,
@@ -2517,12 +2518,12 @@ err_exit:
 			table = NULL;
 
 		} else if (dict_index_is_corrupted(index)
-			   && !table->ibd_file_missing) {
+			   && !table->file_unreadable) {
 
 			/* It is possible we force to load a corrupted
 			clustered index if srv_load_corrupted is set.
 			Mark the table as corrupted in this case */
-			table->corrupted = TRUE;
+			table->corrupted = true;
 		}
 	}
 
@@ -2531,7 +2532,7 @@ func_exit:
 
 	ut_ad(!table
 	      || ignore_err != DICT_ERR_IGNORE_NONE
-	      || table->ibd_file_missing
+	      || table->file_unreadable
 	      || !table->corrupted);
 
 	if (table && table->fts) {

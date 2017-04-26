@@ -1512,7 +1512,7 @@ run_again:
 	}
 
 	if (check_table == NULL
-	    || check_table->ibd_file_missing
+	    || check_table->file_unreadable
 	    || check_index == NULL) {
 
 		if (!srv_read_only_mode && check_ref) {
@@ -2375,8 +2375,7 @@ row_ins_clust_index_entry_low(
 				    &cursor, 0, __FILE__, __LINE__, &mtr);
 
 	if (err != DB_SUCCESS) {
-		index->table->is_encrypted = true;
-		index->table->ibd_file_missing = true;
+		index->table->file_unreadable = true;
 		mtr_commit(&mtr);
 		goto func_exit;
 	}
@@ -2698,7 +2697,7 @@ row_ins_sec_index_entry_low(
 				" used key_id is not available. "
 				" Can't continue reading table.",
 				index->table->name);
-			index->table->is_encrypted = true;
+			index->table->file_unreadable = true;
 		}
 		goto func_exit;
 	}

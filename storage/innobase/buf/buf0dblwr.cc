@@ -493,7 +493,9 @@ buf_dblwr_process()
 		page_no  = mach_read_from_4(page + FIL_PAGE_OFFSET);
 		space_id = mach_read_from_4(page + FIL_PAGE_SPACE_ID);
 
-		if (!fil_tablespace_exists_in_mem(space_id)) {
+		FilSpace space(space_id, true);
+
+		if (!space()) {
 			/* Maybe we have dropped the single-table tablespace
 			and this page once belonged to it: do nothing */
 			continue;
@@ -508,8 +510,7 @@ buf_dblwr_process()
 			continue;
 		}
 
-		fil_space_t* space = fil_space_found_by_id(space_id);
-		ulint	zip_size = fil_space_get_zip_size(space_id);
+		ulint	zip_size = fsp_flags_get_zip_size(space()->flags);
 		ut_ad(!buf_page_is_zeroes(page, zip_size));
 
 		/* Read in the actual page from the file */
@@ -545,7 +546,7 @@ buf_dblwr_process()
 			if (fil_space_verify_crypt_checksum(
 					read_buf, zip_size, NULL, page_no)
 			   || !buf_page_is_corrupted(
-				   true, read_buf, zip_size, space)) {
+				   true, read_buf, zip_size, space())) {
 				/* The page is good; there is no need
 				to consult the doublewrite buffer. */
 				continue;

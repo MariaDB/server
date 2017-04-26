@@ -416,6 +416,11 @@ btr_pcur_move_to_next_page(
 	cursor->old_stored = BTR_PCUR_OLD_NOT_STORED;
 
 	page = btr_pcur_get_page(cursor);
+
+	if (UNIV_UNLIKELY(!page)) {
+		return;
+	}
+
 	next_page_no = btr_page_get_next(page, mtr);
 	space = buf_block_get_space(btr_pcur_get_block(cursor));
 	zip_size = buf_block_get_zip_size(btr_pcur_get_block(cursor));
@@ -425,6 +430,11 @@ btr_pcur_move_to_next_page(
 	next_block = btr_block_get(space, zip_size, next_page_no,
 				   cursor->latch_mode,
 				   btr_pcur_get_btr_cur(cursor)->index, mtr);
+
+	if (UNIV_UNLIKELY(!next_block)) {
+		return;
+	}
+
 	next_page = buf_block_get_frame(next_block);
 #ifdef UNIV_BTR_DEBUG
 	ut_a(page_is_comp(next_page) == page_is_comp(page));

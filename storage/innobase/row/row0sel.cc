@@ -2,7 +2,7 @@
 
 Copyright (c) 1997, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, Google Inc.
-Copyright (c) 2015, MariaDB Corporation.
+Copyright (c) 2015, 2017, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -3714,13 +3714,12 @@ row_search_for_mysql(
 
 		return(DB_TABLESPACE_DELETED);
 
-	} else if (prebuilt->table->ibd_file_missing) {
-
-		return(DB_TABLESPACE_NOT_FOUND);
-
-	} else if (prebuilt->table->is_encrypted) {
-
-		return(DB_DECRYPTION_FAILED);
+	} else if (!prebuilt->table->is_readable()) {
+		if (fil_space_get(prebuilt->table->space) == NULL) {
+			return(DB_TABLESPACE_NOT_FOUND);
+		} else {
+			return(DB_DECRYPTION_FAILED);
+		}
 	} else if (!prebuilt->index_usable) {
 
 		return(DB_MISSING_HISTORY);
@@ -4200,7 +4199,7 @@ wait_table_again:
 					" used key_id is not available. "
 					" Can't continue reading table.",
 					prebuilt->table->name);
-				index->table->is_encrypted = true;
+				index->table->file_unreadable = true;
 			}
 			rec = NULL;
 			goto lock_wait_or_error;
@@ -4220,7 +4219,7 @@ rec_loop:
 
 	rec = btr_pcur_get_rec(pcur);
 
-	if (!rec) {
+	if (!index->table->is_readable()) {
 		err = DB_DECRYPTION_FAILED;
 		goto lock_wait_or_error;
 	}
@@ -4314,13 +4313,15 @@ wrong_offs:
 				(void*) rec, (ulong)
 				btr_cur_get_block(btr_pcur_get_btr_cur(pcur))
 				->page.buf_fix_count);
-			fprintf(stderr,
-				"InnoDB: Index corruption: rec offs %lu"
-				" next offs %lu, page no %lu,\n"
+			ib_logf(IB_LOG_LEVEL_ERROR,
+				"Index corruption: rec offs " ULINTPF
+				" next offs " ULINTPF
+				", page no " ULINTPF " ,"
 				"InnoDB: ",
-				(ulong) page_offset(rec),
-				(ulong) next_offs,
-				(ulong) page_get_page_no(page_align(rec)));
+				page_offset(rec),
+				next_offs,
+				page_get_page_no(page_align(rec)));
+
 			dict_index_name_print(stderr, trx, index);
 			fputs(". Run CHECK TABLE. You may need to\n"
 			      "InnoDB: restore from a backup, or"
@@ -4362,16 +4363,18 @@ wrong_offs:
 	if (UNIV_UNLIKELY(srv_force_recovery > 0)) {
 		if (!rec_validate(rec, offsets)
 		    || !btr_index_rec_validate(rec, index, FALSE)) {
-			fprintf(stderr,
-				"InnoDB: Index corruption: rec offs %lu"
-				" next offs %lu, page no %lu,\n"
-				"InnoDB: ",
-				(ulong) page_offset(rec),
-				(ulong) next_offs,
-				(ulong) page_get_page_no(page_align(rec)));
-			dict_index_name_print(stderr, trx, index);
-			fputs(". We try to skip the record.\n",
-			      stderr);
+			char		buf[MAX_FULL_NAME_LEN];
+			ut_format_name(index->table->name, FALSE, buf, sizeof(buf));
+
+			ib_logf(IB_LOG_LEVEL_ERROR,
+				"Index %s corrupted: rec offs " ULINTPF
+				" next offs " ULINTPF
+				", page no " ULINTPF " ."
+				" We try to skip the record.",
+				buf,
+				page_offset(rec),
+				next_offs,
+				page_get_page_no(page_align(rec)));
 
 			goto next_rec;
 		}

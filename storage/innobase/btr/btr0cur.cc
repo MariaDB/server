@@ -3,7 +3,7 @@
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, Google Inc.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2015, MariaDB Corporation.
+Copyright (c) 2015, 2017, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -613,7 +613,11 @@ retry_page_get:
 		space, zip_size, page_no, rw_latch, guess, buf_mode,
 		file, line, mtr, &err);
 
+	/* Note that block==NULL signifies either an error or change
+	buffering. */
+
 	if (err != DB_SUCCESS) {
+		ut_ad(block == NULL);
 		if (err == DB_DECRYPTION_FAILED) {
 			ib_push_warning((void *)NULL,
 				DB_DECRYPTION_FAILED,
@@ -621,7 +625,7 @@ retry_page_get:
 				" used key_id is not available. "
 				" Can't continue reading table.",
 				index->table->name);
-			index->table->is_encrypted = true;
+			index->table->file_unreadable = true;
 		}
 
 		goto func_exit;
@@ -872,7 +876,7 @@ btr_cur_open_at_index_side_func(
 	ulint		offsets_[REC_OFFS_NORMAL_SIZE];
 	ulint*		offsets		= offsets_;
 	dberr_t		err = DB_SUCCESS;
-	
+
 	rec_offs_init(offsets_);
 
 	estimate = latch_mode & BTR_ESTIMATE;
@@ -916,6 +920,9 @@ btr_cur_open_at_index_side_func(
 		block = buf_page_get_gen(space, zip_size, page_no,
 					 RW_NO_LATCH, NULL, BUF_GET,
 					 file, line, mtr, &err);
+
+		ut_ad((block != NULL) == (err == DB_SUCCESS));
+
 		if (err != DB_SUCCESS) {
 			if (err == DB_DECRYPTION_FAILED) {
 				ib_push_warning((void *)NULL,
@@ -924,7 +931,7 @@ btr_cur_open_at_index_side_func(
 					" used key_id is not available. "
 					" Can't continue reading table.",
 					index->table->name);
-				index->table->is_encrypted = true;
+				index->table->file_unreadable = true;
 			}
 
 			goto exit_loop;
@@ -1073,6 +1080,8 @@ btr_cur_open_at_rnd_pos_func(
 					 RW_NO_LATCH, NULL, BUF_GET,
 					 file, line, mtr, &err);
 
+		ut_ad((block != NULL) == (err == DB_SUCCESS));
+
 		if (err != DB_SUCCESS) {
 			if (err == DB_DECRYPTION_FAILED) {
 				ib_push_warning((void *)NULL,
@@ -1081,8 +1090,9 @@ btr_cur_open_at_rnd_pos_func(
 					" used key_id is not available. "
 					" Can't continue reading table.",
 					index->table->name);
-				index->table->is_encrypted = true;
+				index->table->file_unreadable = true;
 			}
+
 			goto exit_loop;
 		}
 
@@ -3667,6 +3677,8 @@ btr_estimate_n_rows_in_range_on_level(
 					 NULL, BUF_GET_POSSIBLY_FREED,
 					 __FILE__, __LINE__, &mtr, &err);
 
+		ut_ad((block != NULL) == (err == DB_SUCCESS));
+
 		if (err != DB_SUCCESS) {
 			if (err == DB_DECRYPTION_FAILED) {
 				ib_push_warning((void *)NULL,
@@ -3675,13 +3687,12 @@ btr_estimate_n_rows_in_range_on_level(
 					" used key_id is not available. "
 					" Can't continue reading table.",
 					index->table->name);
-				index->table->is_encrypted = true;
+				index->table->file_unreadable = true;
 			}
 
 			mtr_commit(&mtr);
 			goto inexact;
 		}
-
 
 		page = buf_block_get_frame(block);
 
@@ -3800,6 +3811,10 @@ btr_estimate_n_rows_in_range(
 	}
 
 	mtr_commit(&mtr);
+
+	if (index->table->file_unreadable) {
+		return (0);
+	}
 
 	mtr_start_trx(&mtr, trx);
 
@@ -4094,6 +4109,11 @@ btr_estimate_number_of_different_key_vals(
 		because otherwise our algorithm would give a wrong estimate
 		for an index where there is just one key value. */
 
+		if (index->table->file_unreadable) {
+			mtr_commit(&mtr);
+			goto exit_loop;
+		}
+
 		page = btr_cur_get_page(&cursor);
 
 		rec = page_rec_get_next(page_get_infimum_rec(page));
@@ -4180,6 +4200,7 @@ btr_estimate_number_of_different_key_vals(
 		mtr_commit(&mtr);
 	}
 
+exit_loop:
 	/* If we saw k borders between different key values on
 	n_sample_pages leaf pages, we can estimate how many
 	there will be in index->stat_n_leaf_pages */
