@@ -636,6 +636,59 @@ st_select_lex_unit::init_prepare_fake_select_lex(THD *thd_arg,
 }
 
 
+bool st_select_lex_unit::prepare_join(THD *thd_arg, SELECT_LEX *sl,
+                                      select_result *tmp_result,
+                                      ulong additional_options,
+                                      bool is_union_select)
+{
+  DBUG_ENTER("st_select_lex_unit::prepare_join");
+  bool can_skip_order_by;
+  sl->options|=  SELECT_NO_UNLOCK;
+  JOIN *join= new JOIN(thd_arg, sl->item_list,
+                       (sl->options | thd_arg->variables.option_bits |
+                        additional_options),
+                       tmp_result);
+  if (!join)
+    DBUG_RETURN(true);
+
+  thd_arg->lex->current_select= sl;
+
+  can_skip_order_by= is_union_select && !(sl->braces && sl->explicit_limit);
+
+  saved_error= join->prepare(sl->table_list.first,
+                             sl->with_wild,
+                             sl->where,
+                             (can_skip_order_by ? 0 :
+                              sl->order_list.elements) +
+                             sl->group_list.elements,
+                             can_skip_order_by ?
+                             NULL : sl->order_list.first,
+                             can_skip_order_by,
+                             sl->group_list.first,
+                             sl->having,
+                             (is_union_select ? NULL :
+                              thd_arg->lex->proc_list.first),
+                             sl, this);
+
+  /* There are no * in the statement anymore (for PS) */
+  sl->with_wild= 0;
+  last_procedure= join->procedure;
+
+  if (saved_error || (saved_error= thd_arg->is_fatal_error))
+    DBUG_RETURN(true);
+  /*
+    Remove all references from the select_lex_units to the subqueries that
+    are inside the ORDER BY clause.
+  */
+  if (can_skip_order_by)
+  {
+    for (ORDER *ord= (ORDER *)sl->order_list.first; ord; ord= ord->next)
+    {
+      (*ord->item)->walk(&Item::eliminate_subselect_processor, FALSE, NULL);
+    }
+  }
+  DBUG_RETURN(false);
+}
 
 
 bool st_select_lex_unit::prepare(THD *thd_arg, select_result *sel_result,
@@ -747,15 +800,22 @@ bool st_select_lex_unit::prepare(THD *thd_arg, select_result *sel_result,
     tmp_result= sel_result;
 
   sl->context.resolve_in_select_list= TRUE;
+
+  if (!is_union_select && !is_recursive)
+  {
+    if (prepare_join(thd_arg, first_sl, tmp_result, additional_options,
+                     is_union_select))
+      goto err;
+    types= first_sl->item_list;
+    goto cont;
+  }
  
   for (;sl; sl= sl->next_select())
-  {  
-    bool can_skip_order_by;
-    sl->options|=  SELECT_NO_UNLOCK;
-    JOIN *join= new JOIN(thd_arg, sl->item_list,
-			 (sl->options | thd_arg->variables.option_bits |
-                          additional_options),
-			 tmp_result);
+  {
+    if (prepare_join(thd_arg, sl, tmp_result, additional_options,
+                     is_union_select))
+      goto err;
+
     /*
       setup_tables_done_option should be set only for very first SELECT,
       because it protect from secont setup_tables call for select-like non
@@ -763,53 +823,12 @@ bool st_select_lex_unit::prepare(THD *thd_arg, select_result *sel_result,
       SELECT (for union it can be only INSERT ... SELECT).
     */
     additional_options&= ~OPTION_SETUP_TABLES_DONE;
-    if (!join)
-      goto err;
-
-    thd_arg->lex->current_select= sl;
-
-    can_skip_order_by= is_union_select && !(sl->braces && sl->explicit_limit);
-
-    saved_error= join->prepare(sl->table_list.first,
-                               sl->with_wild,
-                               sl->where,
-                               (can_skip_order_by ? 0 :
-                                sl->order_list.elements) +
-                               sl->group_list.elements,
-                               can_skip_order_by ?
-                               NULL : sl->order_list.first,
-                               can_skip_order_by,
-                               sl->group_list.first,
-                               sl->having,
-                               (is_union_select ? NULL :
-                                thd_arg->lex->proc_list.first),
-                               sl, this);
-
-    /* There are no * in the statement anymore (for PS) */
-    sl->with_wild= 0;
-    last_procedure= join->procedure;
-
-    if (saved_error || (saved_error= thd_arg->is_fatal_error))
-      goto err;
-    /*
-      Remove all references from the select_lex_units to the subqueries that
-      are inside the ORDER BY clause.
-    */
-    if (can_skip_order_by)
-    {
-      for (ORDER *ord= (ORDER *)sl->order_list.first; ord; ord= ord->next)
-      {
-        (*ord->item)->walk(&Item::eliminate_subselect_processor, FALSE, NULL);
-      }
-    }
 
     /*
       Use items list of underlaid select for derived tables to preserve
       information about fields lengths and exact types
     */
-    if (!is_union_select && !is_recursive)
-      types= first_sl->item_list;
-    else if (sl == first_sl)
+    if (sl == first_sl)
     {
       if (is_recursive)
       {
@@ -846,6 +865,7 @@ bool st_select_lex_unit::prepare(THD *thd_arg, select_result *sel_result,
         Item *type, *item_tmp;
         while ((type= tp++, item_tmp= it++))
         {
+          DBUG_ASSERT(item_tmp->fixed);
           if (((Item_type_holder*)type)->join_types(thd_arg, item_tmp))
 	    DBUG_RETURN(TRUE);
         }
@@ -878,6 +898,7 @@ bool st_select_lex_unit::prepare(THD *thd_arg, select_result *sel_result,
     }      
   }
 
+cont:
   /*
     If the query is using select_union_direct, we have postponed
     preparation of the underlying select_result until column types

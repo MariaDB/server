@@ -749,6 +749,9 @@ public:
 
   /* UNION methods */
   bool prepare(THD *thd, select_result *result, ulong additional_options);
+  bool prepare_join(THD *thd, SELECT_LEX *sl, select_result *result,
+                    ulong additional_options,
+                    bool is_union_select);
   bool optimize();
   bool exec();
   bool exec_recursive();
