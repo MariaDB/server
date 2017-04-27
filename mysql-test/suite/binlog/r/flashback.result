@@ -503,7 +503,8 @@ a	b
 3	2
 4	3
 SET binlog_format=statement;
-ERROR HY000: Flashback does not support binlog_format STATEMENT
+Warnings:
+Warning        1105    MariaDB Galera and flashback do not support binlog format: STATEMENT
 SET GLOBAL binlog_format=statement;
 ERROR HY000: Flashback does not support binlog_format STATEMENT
 DROP TABLE t1;
