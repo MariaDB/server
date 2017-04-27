@@ -2052,8 +2052,8 @@ CALL p1();
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `var` varchar(255) DEFAULT NULL,
-  `rec.var` varchar(255) DEFAULT NULL
+  `var` tinytext DEFAULT NULL,
+  `rec.var` tinytext DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t1;
 DROP PROCEDURE p1;
@@ -2092,8 +2092,8 @@ CALL p1();
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `var` varchar(255) CHARACTER SET utf8 DEFAULT NULL,
-  `rec.var` varchar(255) CHARACTER SET utf8 DEFAULT NULL
+  `var` text CHARACTER SET utf8 DEFAULT NULL,
+  `rec.var` text CHARACTER SET utf8 DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t1;
 DROP PROCEDURE p1;

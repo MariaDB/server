@@ -6205,82 +6205,6 @@ bool Item::eq_by_collation(Item *item, bool binary_cmp, CHARSET_INFO *cs)
 }  
 
 
-/**
-  Create a field to hold a string value from an item.
-
-  If too_big_for_varchar() create a blob @n
-  If max_length > 0 create a varchar @n
-  If max_length == 0 create a CHAR(0) 
-
-  @param table		Table for which the field is created
-*/
-
-Field *Item::make_string_field(TABLE *table)
-{
-  Field *field;
-  MEM_ROOT *mem_root= table->in_use->mem_root;
-  DBUG_ASSERT(collation.collation);
-  /* 
-    Note: the following check is repeated in 
-    subquery_types_allow_materialization():
-  */
-  if (too_big_for_varchar())
-    field= new (mem_root)
-      Field_blob(max_length, maybe_null, &name,
-                 collation.collation, TRUE);
-  /* Item_type_holder holds the exact type, do not change it */
-  else if (max_length > 0 &&
-      (type() != Item::TYPE_HOLDER || field_type() != MYSQL_TYPE_STRING))
-    field= new (mem_root)
-      Field_varstring(max_length, maybe_null, &name, table->s,
-                      collation.collation);
-  else
-    field= new (mem_root)
-      Field_string(max_length, maybe_null, &name, collation.collation);
-  if (field)
-    field->init(table);
-  return field;
-}
-
-
-/**
-  Create a field based on field_type of argument.
-
-  This is used to create a field for
-  - IFNULL(x,something)
-  - time functions
-  - prepared statement placeholders
-  - SP variables with data type references: DECLARE a t1.a%TYPE;
-
-  @retval
-    NULL  error
-  @retval
-    \#    Created field
-*/
-
-Field *Item::tmp_table_field_from_field_type(TABLE *table)
-{
-  const Type_handler *handler= type_handler();
-  Record_addr addr(maybe_null);
-
-  switch (handler->field_type()) {
-  case MYSQL_TYPE_DECIMAL:
-    handler= &type_handler_newdecimal;
-    break;
-  case MYSQL_TYPE_NULL:
-  case MYSQL_TYPE_STRING:
-  case MYSQL_TYPE_ENUM:
-  case MYSQL_TYPE_SET:
-  case MYSQL_TYPE_VAR_STRING:
-  case MYSQL_TYPE_VARCHAR:
-    return make_string_field(table);
-  default:
-    break;
-  }
-  return handler->make_and_init_table_field(&name, addr, *this, table);
-}
-
-
 /* ARGSUSED */
 void Item_field::make_field(THD *thd, Send_field *tmp_field)
 {
@@ -10256,6 +10180,7 @@ bool Item_type_holder::join_types(THD *thd, Item *item)
   };
   maybe_null|= item->maybe_null;
   get_full_info(item);
+  set_handler(Item_type_holder::type_handler()->type_handler_for_union(this));
 
   /* Remember decimal integer part to be used in DECIMAL_RESULT handleng */
   prev_decimal_int_part= decimal_int_part();
@@ -10263,62 +10188,6 @@ bool Item_type_holder::join_types(THD *thd, Item *item)
                       real_type_handler()->name().ptr(),
                       max_length, (uint) decimals));
   DBUG_RETURN(FALSE);
-}
-
-
-/**
-  Make temporary table field according collected information about type
-  of UNION result.
-
-  @param table  temporary table for which we create fields
-
-  @return
-    created field
-*/
-
-Field *Item_type_holder::make_field_by_type(TABLE *table)
-{
-  /*
-    The field functions defines a field to be not null if null_ptr is not 0
-  */
-  uchar *null_ptr= maybe_null ? (uchar*) "" : 0;
-  Field *field;
-
-  switch (Item_type_holder::real_type_handler()->real_field_type()) {
-  case MYSQL_TYPE_ENUM:
-  {
-    DBUG_ASSERT(enum_set_typelib);
-    field= new Field_enum((uchar *) 0, max_length, null_ptr, 0,
-                          Field::NONE, &name,
-                          get_enum_pack_length(enum_set_typelib->count),
-                          enum_set_typelib, collation.collation);
-    if (field)
-      field->init(table);
-    return field;
-  }
-  case MYSQL_TYPE_SET:
-  {
-    DBUG_ASSERT(enum_set_typelib);
-    field= new Field_set((uchar *) 0, max_length, null_ptr, 0,
-                         Field::NONE, &name,
-                         get_set_pack_length(enum_set_typelib->count),
-                         enum_set_typelib, collation.collation);
-    if (field)
-      field->init(table);
-    return field;
-  }
-  case MYSQL_TYPE_NULL:
-    return make_string_field(table);
-  case MYSQL_TYPE_TINY_BLOB:
-  case MYSQL_TYPE_BLOB:
-  case MYSQL_TYPE_MEDIUM_BLOB:
-  case MYSQL_TYPE_LONG_BLOB:
-    set_handler(Type_handler::blob_type_handler(max_length));
-    break;
-  default:
-    break;
-  }
-  return tmp_table_field_from_field_type(table);
 }
 
 

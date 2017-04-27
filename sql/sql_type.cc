@@ -155,6 +155,17 @@ Type_handler::string_type_handler(uint max_octet_length)
 
 
 const Type_handler *
+Type_handler::varstring_type_handler(const Item *item)
+{
+  if (!item->max_length)
+    return &type_handler_string;
+  if (item->too_big_for_varchar())
+    return blob_type_handler(item->max_length);
+  return &type_handler_varchar;
+}
+
+
+const Type_handler *
 Type_handler::blob_type_handler(uint max_octet_length)
 {
   if (max_octet_length <= 255)
@@ -166,6 +177,12 @@ Type_handler::blob_type_handler(uint max_octet_length)
   return &type_handler_long_blob;
 }
 
+
+const Type_handler *
+Type_handler::blob_type_handler(const Item *item)
+{
+  return blob_type_handler(item->max_length);
+}
 
 /**
   This method is used by:
@@ -1514,7 +1531,7 @@ Field *Type_handler_string::make_table_field(const LEX_CSTRING *name,
 {
   return new (table->in_use->mem_root)
          Field_string(addr.ptr, attr.max_length, addr.null_ptr, addr.null_bit,
-                      Field::NONE, name, attr.collation.collation);
+                      Field::NONE, name, attr.collation);
 }
 
 
@@ -1529,7 +1546,7 @@ Field *Type_handler_varchar::make_table_field(const LEX_CSTRING *name,
                          HA_VARCHAR_PACKLENGTH(attr.max_length),
                          addr.null_ptr, addr.null_bit,
                          Field::NONE, name,
-                         table->s, attr.collation.collation);
+                         table->s, attr.collation);
 }
 
 
@@ -1542,7 +1559,7 @@ Field *Type_handler_tiny_blob::make_table_field(const LEX_CSTRING *name,
   return new (table->in_use->mem_root)
          Field_blob(addr.ptr, addr.null_ptr, addr.null_bit,
                     Field::NONE, name, table->s,
-                    1, attr.collation.collation);
+                    1, attr.collation);
 }
 
 
@@ -1555,7 +1572,7 @@ Field *Type_handler_blob::make_table_field(const LEX_CSTRING *name,
   return new (table->in_use->mem_root)
          Field_blob(addr.ptr, addr.null_ptr, addr.null_bit,
                     Field::NONE, name, table->s,
-                    2, attr.collation.collation);
+                    2, attr.collation);
 }
 
 
@@ -1569,7 +1586,7 @@ Type_handler_medium_blob::make_table_field(const LEX_CSTRING *name,
   return new (table->in_use->mem_root)
          Field_blob(addr.ptr, addr.null_ptr, addr.null_bit,
                     Field::NONE, name, table->s,
-                    3, attr.collation.collation);
+                    3, attr.collation);
 }
 
 
@@ -1582,7 +1599,7 @@ Field *Type_handler_long_blob::make_table_field(const LEX_CSTRING *name,
   return new (table->in_use->mem_root)
          Field_blob(addr.ptr, addr.null_ptr, addr.null_bit,
                     Field::NONE, name, table->s,
-                    4, attr.collation.collation);
+                    4, attr.collation);
 }
 
 
@@ -1607,12 +1624,13 @@ Field *Type_handler_enum::make_table_field(const LEX_CSTRING *name,
                                            const Type_all_attributes &attr,
                                            TABLE *table) const
 {
-  /*
-    Will be implemented when we split Item_type_holder::make_field_by_type()
-    and/or reuse Type_handler::make_table_field() in make_field() in field.cc
-  */
-  DBUG_ASSERT(0);
-  return 0;
+  TYPELIB *typelib= attr.get_typelib();
+  DBUG_ASSERT(typelib);
+  return new (table->in_use->mem_root)
+         Field_enum(addr.ptr, attr.max_length, addr.null_ptr, addr.null_bit,
+                    Field::NONE, name,
+                    get_enum_pack_length(typelib->count), typelib,
+                    attr.collation);
 }
 
 
@@ -1622,12 +1640,13 @@ Field *Type_handler_set::make_table_field(const LEX_CSTRING *name,
                                           TABLE *table) const
 
 {
-  /*
-    Will be implemented when we split Item_type_holder::make_field_by_type()
-    and/or reuse Type_handler::make_table_field() in make_field() in field.cc
-  */
-  DBUG_ASSERT(0);
-  return 0;
+  TYPELIB *typelib= attr.get_typelib();
+  DBUG_ASSERT(typelib);
+  return new (table->in_use->mem_root)
+         Field_set(addr.ptr, attr.max_length, addr.null_ptr, addr.null_bit,
+                   Field::NONE, name,
+                   get_enum_pack_length(typelib->count), typelib,
+                   attr.collation);
 }
 
 /*************************************************************************/
@@ -3714,7 +3733,7 @@ bool Type_handler_string_result::
          /*
            Materialization also is unable to work when create_tmp_table() will
            create a blob column because item->max_length is too big.
-           The following test is copied from Item::make_string_field():
+           The following test is copied from varstring_type_handler().
          */
          !inner->too_big_for_varchar();
 }
@@ -3728,5 +3747,35 @@ bool Type_handler_temporal_result::
   return mysql_timestamp_type() ==
          outer->type_handler()->mysql_timestamp_type();
 }
+
+/***************************************************************************/
+
+
+const Type_handler *
+Type_handler_null::type_handler_for_tmp_table(const Item *item) const
+{
+  return &type_handler_string;
+}
+
+
+const Type_handler *
+Type_handler_null::type_handler_for_union(const Item *item) const
+{
+  return &type_handler_string;
+}
+
+
+const Type_handler *
+Type_handler_olddecimal::type_handler_for_tmp_table(const Item *item) const
+{
+  return &type_handler_newdecimal;
+}
+
+const Type_handler *
+Type_handler_olddecimal::type_handler_for_union(const Item *item) const
+{
+  return &type_handler_newdecimal;
+}
+
 
 /***************************************************************************/

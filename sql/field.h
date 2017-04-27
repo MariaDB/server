@@ -1306,9 +1306,6 @@ public:
   virtual enum Derivation derivation(void) const
   { return DERIVATION_IMPLICIT; }
   virtual uint repertoire(void) const { return MY_REPERTOIRE_UNICODE30; }
-  virtual void set_derivation(enum Derivation derivation_arg,
-                              uint repertoire_arg)
-  { }
   virtual int set_time() { return 1; }
   bool set_warning(Sql_condition::enum_warning_level, unsigned int code,
                    int cuted_increment) const;
@@ -1659,7 +1656,8 @@ public:
                                         const Item_equal *item_equal);
   Field_str(uchar *ptr_arg,uint32 len_arg, uchar *null_ptr_arg,
 	    uchar null_bit_arg, utype unireg_check_arg,
-	    const LEX_CSTRING *field_name_arg, CHARSET_INFO *charset);
+	    const LEX_CSTRING *field_name_arg,
+	    const DTCollation &collation);
   uint decimals() const { return NOT_FIXED_DEC; }
   int  save_in_field(Field *to) { return save_in_field_str(to); }
   bool memcpy_field_possible(const Field *from) const
@@ -1679,12 +1677,6 @@ public:
   uint repertoire(void) const { return field_repertoire; }
   CHARSET_INFO *charset(void) const { return field_charset; }
   enum Derivation derivation(void) const { return field_derivation; }
-  void set_derivation(enum Derivation derivation_arg,
-                      uint repertoire_arg)
-  {
-    field_derivation= derivation_arg;
-    field_repertoire= repertoire_arg;
-  }
   bool binary() const { return field_charset == &my_charset_bin; }
   uint32 max_display_length() { return field_length; }
   friend class Create_field;
@@ -1726,9 +1718,10 @@ protected:
 public:
   Field_longstr(uchar *ptr_arg, uint32 len_arg, uchar *null_ptr_arg,
                 uchar null_bit_arg, utype unireg_check_arg,
-                const LEX_CSTRING *field_name_arg, CHARSET_INFO *charset_arg)
+                const LEX_CSTRING *field_name_arg,
+                const DTCollation &collation)
     :Field_str(ptr_arg, len_arg, null_ptr_arg, null_bit_arg, unireg_check_arg,
-               field_name_arg, charset_arg)
+               field_name_arg, collation)
     {}
 
   int store_decimal(const my_decimal *d);
@@ -2222,9 +2215,9 @@ class Field_null :public Field_str {
 public:
   Field_null(uchar *ptr_arg, uint32 len_arg,
 	     enum utype unireg_check_arg, const LEX_CSTRING *field_name_arg,
-	     CHARSET_INFO *cs)
+	     const DTCollation &collation)
     :Field_str(ptr_arg, len_arg, null, 1,
-	       unireg_check_arg, field_name_arg, cs)
+	       unireg_check_arg, field_name_arg, collation)
     {}
   const Type_handler *type_handler() const { return &type_handler_null; }
   Copy_func *get_copy_func(const Field *from) const
@@ -3023,15 +3016,15 @@ public:
   Field_string(uchar *ptr_arg, uint32 len_arg,uchar *null_ptr_arg,
 	       uchar null_bit_arg,
 	       enum utype unireg_check_arg, const LEX_CSTRING *field_name_arg,
-	       CHARSET_INFO *cs)
+	       const DTCollation &collation)
     :Field_longstr(ptr_arg, len_arg, null_ptr_arg, null_bit_arg,
-                   unireg_check_arg, field_name_arg, cs),
+                   unireg_check_arg, field_name_arg, collation),
      can_alter_field_type(1) {};
   Field_string(uint32 len_arg,bool maybe_null_arg,
                const LEX_CSTRING *field_name_arg,
-               CHARSET_INFO *cs)
+               const DTCollation &collation)
     :Field_longstr((uchar*) 0, len_arg, maybe_null_arg ? (uchar*) "": 0, 0,
-                   NONE, field_name_arg, cs),
+                   NONE, field_name_arg, collation),
      can_alter_field_type(1) {};
 
   const Type_handler *type_handler() const
@@ -3110,18 +3103,18 @@ public:
                   uint32 len_arg, uint length_bytes_arg,
                   uchar *null_ptr_arg, uchar null_bit_arg,
 		  enum utype unireg_check_arg, const LEX_CSTRING *field_name_arg,
-		  TABLE_SHARE *share, CHARSET_INFO *cs)
+		  TABLE_SHARE *share, const DTCollation &collation)
     :Field_longstr(ptr_arg, len_arg, null_ptr_arg, null_bit_arg,
-                   unireg_check_arg, field_name_arg, cs),
+                   unireg_check_arg, field_name_arg, collation),
      length_bytes(length_bytes_arg)
   {
     share->varchar_fields++;
   }
   Field_varstring(uint32 len_arg,bool maybe_null_arg,
                   const LEX_CSTRING *field_name_arg,
-                  TABLE_SHARE *share, CHARSET_INFO *cs)
+                  TABLE_SHARE *share, const DTCollation &collation)
     :Field_longstr((uchar*) 0,len_arg, maybe_null_arg ? (uchar*) "": 0, 0,
-                   NONE, field_name_arg, cs),
+                   NONE, field_name_arg, collation),
      length_bytes(len_arg < 256 ? 1 :2)
   {
     share->varchar_fields++;
@@ -3210,20 +3203,21 @@ protected:
 public:
   Field_blob(uchar *ptr_arg, uchar *null_ptr_arg, uchar null_bit_arg,
 	     enum utype unireg_check_arg, const LEX_CSTRING *field_name_arg,
-	     TABLE_SHARE *share, uint blob_pack_length, CHARSET_INFO *cs);
+	     TABLE_SHARE *share, uint blob_pack_length,
+	     const DTCollation &collation);
   Field_blob(uint32 len_arg,bool maybe_null_arg, const LEX_CSTRING *field_name_arg,
-             CHARSET_INFO *cs)
+             const DTCollation &collation)
     :Field_longstr((uchar*) 0, len_arg, maybe_null_arg ? (uchar*) "": 0, 0,
-                   NONE, field_name_arg, cs),
+                   NONE, field_name_arg, collation),
     packlength(4)
   {
     flags|= BLOB_FLAG;
   }
   Field_blob(uint32 len_arg,bool maybe_null_arg,
              const LEX_CSTRING *field_name_arg,
-	     CHARSET_INFO *cs, bool set_packlength)
+             const DTCollation &collation, bool set_packlength)
     :Field_longstr((uchar*) 0,len_arg, maybe_null_arg ? (uchar*) "": 0, 0,
-                   NONE, field_name_arg, cs)
+                   NONE, field_name_arg, collation)
   {
     flags|= BLOB_FLAG;
     packlength= 4;
@@ -3501,9 +3495,9 @@ public:
              enum utype unireg_check_arg, const LEX_CSTRING *field_name_arg,
              uint packlength_arg,
              TYPELIB *typelib_arg,
-             CHARSET_INFO *charset_arg)
+             const DTCollation &collation)
     :Field_str(ptr_arg, len_arg, null_ptr_arg, null_bit_arg,
-	       unireg_check_arg, field_name_arg, charset_arg),
+	       unireg_check_arg, field_name_arg, collation),
     packlength(packlength_arg),typelib(typelib_arg)
   {
       flags|=ENUM_FLAG;
@@ -3594,12 +3588,12 @@ public:
 	    uchar null_bit_arg,
 	    enum utype unireg_check_arg, const LEX_CSTRING *field_name_arg,
 	    uint32 packlength_arg,
-	    TYPELIB *typelib_arg, CHARSET_INFO *charset_arg)
+	    TYPELIB *typelib_arg, const DTCollation &collation)
     :Field_enum(ptr_arg, len_arg, null_ptr_arg, null_bit_arg,
 		    unireg_check_arg, field_name_arg,
                 packlength_arg,
-                typelib_arg,charset_arg),
-      empty_set_string("", 0, charset_arg)
+                typelib_arg, collation),
+      empty_set_string("", 0, collation.collation)
     {
       flags=(flags & ~ENUM_FLAG) | SET_FLAG;
     }

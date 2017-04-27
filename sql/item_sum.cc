@@ -3318,24 +3318,6 @@ void Item_func_group_concat::cleanup()
 }
 
 
-Field *Item_func_group_concat::make_string_field(TABLE *table_arg)
-{
-  Field *field;
-  DBUG_ASSERT(collation.collation);
-
-  if (too_big_for_varchar())
-    field= new Field_blob(max_length,
-                          maybe_null, &name, collation.collation, TRUE);
-  else
-    field= new Field_varstring(max_length,
-                               maybe_null, &name, table_arg->s, collation.collation);
-
-  if (field)
-    field->init(table_arg);
-  return field;
-}
-
-
 Item *Item_func_group_concat::copy_or_same(THD* thd)
 {
   return new (thd->mem_root) Item_func_group_concat(thd, this);

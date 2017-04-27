@@ -536,8 +536,22 @@ protected:
 
   SEL_TREE *get_mm_tree_for_const(RANGE_OPT_PARAM *param);
 
-  virtual Field *make_string_field(TABLE *table);
-  Field *tmp_table_field_from_field_type(TABLE *table);
+  /**
+    Create a field based on field_type of argument.
+    This is used to create a field for
+    - IFNULL(x,something)
+    - time functions
+    - prepared statement placeholders
+    - SP variables with data type references: DECLARE a TYPE OF t1.a;
+    @retval  NULL  error
+    @retval  !NULL on success
+  */
+  Field *tmp_table_field_from_field_type(TABLE *table)
+  {
+    const Type_handler *h= type_handler()->type_handler_for_tmp_table(this);
+    return h->make_and_init_table_field(&name, Record_addr(maybe_null),
+                                        *this, table);
+  }
   Field *create_tmp_field(bool group, TABLE *table, uint convert_int_length);
 
   void push_note_converted_to_negative_complement(THD *thd);
@@ -5891,12 +5905,18 @@ public:
   }
 
   enum Type type() const { return TYPE_HOLDER; }
+  TYPELIB *get_typelib() const { return enum_set_typelib; }
   double val_real();
   longlong val_int();
   my_decimal *val_decimal(my_decimal *);
   String *val_str(String*);
   bool join_types(THD *thd, Item *);
-  Field *make_field_by_type(TABLE *table);
+  Field *create_tmp_field(bool group, TABLE *table)
+  {
+    return Item_type_holder::type_handler()->
+           make_and_init_table_field(&name, Record_addr(maybe_null),
+                                     *this, table);
+  }
   Field::geometry_type get_geometry_type() const { return geometry_type; };
   Item* get_copy(THD *thd, MEM_ROOT *mem_root) { return 0; }
 };

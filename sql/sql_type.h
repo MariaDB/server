@@ -130,6 +130,21 @@ public:
     derivation= DERIVATION_NONE;
     repertoire= MY_REPERTOIRE_UNICODE30;
   }
+  DTCollation(CHARSET_INFO *collation_arg)
+  {
+    /*
+      This constructor version is used in combination with Field constructors,
+      to pass "CHARSET_INFO" instead of the full DTCollation.
+      Therefore, derivation is set to DERIVATION_IMPLICIT, which is the
+      proper derivation for table fields.
+      We should eventually remove all code pieces that pass "CHARSET_INFO"
+      (e.g. in storage engine sources) and fix to pass the full DTCollation
+      instead. Then, this constructor can be removed.
+    */
+    collation= collation_arg;
+    derivation= DERIVATION_IMPLICIT;
+    repertoire= my_charset_repertoire(collation_arg);
+  }
   DTCollation(CHARSET_INFO *collation_arg, Derivation derivation_arg)
   {
     collation= collation_arg;
@@ -332,6 +347,7 @@ public:
     datatype indepented method.
   */
   virtual uint uint_geometry_type() const= 0;
+  virtual TYPELIB *get_typelib() const { return NULL; }
 };
 
 
@@ -390,6 +406,15 @@ protected:
 public:
   static const Type_handler *blob_type_handler(uint max_octet_length);
   static const Type_handler *string_type_handler(uint max_octet_length);
+  /**
+    Return a string type handler for Item
+    If too_big_for_varchar() returns a BLOB variant, according to length.
+    If max_length > 0 create a VARCHAR(n)
+    If max_length == 0 create a CHAR(0)
+    @param item - the Item to get the handler to.
+  */
+  static const Type_handler *varstring_type_handler(const Item *item);
+  static const Type_handler *blob_type_handler(const Item *item);
   static const Type_handler *get_handler_by_field_type(enum_field_types type);
   static const Type_handler *get_handler_by_real_type(enum_field_types type);
   static const Type_handler *get_handler_by_cmp_type(Item_result type);
@@ -426,6 +451,14 @@ public:
   */
   virtual bool is_param_long_data_type() const { return false; }
   virtual const Type_handler *type_handler_for_comparison() const= 0;
+  virtual const Type_handler *type_handler_for_tmp_table(const Item *) const
+  {
+    return this;
+  }
+  virtual const Type_handler *type_handler_for_union(const Item *) const
+  {
+    return this;
+  }
   virtual const Type_handler *cast_to_int_type_handler() const
   {
     return this;
@@ -1594,6 +1627,8 @@ public:
   virtual ~Type_handler_olddecimal() {}
   const Name name() const { return m_name_decimal; }
   enum_field_types field_type() const { return MYSQL_TYPE_DECIMAL; }
+  const Type_handler *type_handler_for_tmp_table(const Item *item) const;
+  const Type_handler *type_handler_for_union(const Item *item) const;
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
   Field *make_table_field(const LEX_CSTRING *name,
@@ -1627,6 +1662,8 @@ public:
   const Name name() const { return m_name_null; }
   enum_field_types field_type() const { return MYSQL_TYPE_NULL; }
   const Type_handler *type_handler_for_comparison() const;
+  const Type_handler *type_handler_for_tmp_table(const Item *item) const;
+  const Type_handler *type_handler_for_union(const Item *) const;
   uint32 max_display_length(const Item *item) const { return 0; }
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
@@ -1645,6 +1682,10 @@ public:
   const Name name() const { return m_name_char; }
   enum_field_types field_type() const { return MYSQL_TYPE_STRING; }
   bool is_param_long_data_type() const { return true; }
+  const Type_handler *type_handler_for_tmp_table(const Item *item) const
+  {
+    return varstring_type_handler(item);
+  }
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
   Field *make_table_field(const LEX_CSTRING *name,
@@ -1663,6 +1704,14 @@ public:
   const Name name() const { return m_name_var_string; }
   enum_field_types field_type() const { return MYSQL_TYPE_VAR_STRING; }
   enum_field_types real_field_type() const { return MYSQL_TYPE_STRING; }
+  const Type_handler *type_handler_for_tmp_table(const Item *item) const
+  {
+    return varstring_type_handler(item);
+  }
+  const Type_handler *type_handler_for_union(const Item *item) const
+  {
+    return varstring_type_handler(item);
+  }
 };
 
 
@@ -1673,6 +1722,14 @@ public:
   virtual ~Type_handler_varchar() {}
   const Name name() const { return m_name_varchar; }
   enum_field_types field_type() const { return MYSQL_TYPE_VARCHAR; }
+  const Type_handler *type_handler_for_tmp_table(const Item *item) const
+  {
+    return varstring_type_handler(item);
+  }
+  const Type_handler *type_handler_for_union(const Item *item) const
+  {
+    return varstring_type_handler(item);
+  }
   bool is_param_long_data_type() const { return true; }
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
@@ -1687,6 +1744,14 @@ class Type_handler_blob_common: public Type_handler_string_result
 {
 public:
   virtual ~Type_handler_blob_common() { }
+  const Type_handler *type_handler_for_tmp_table(const Item *item) const
+  {
+    return blob_type_handler(item);
+  }
+  const Type_handler *type_handler_for_union(const Item *item) const
+  {
+    return blob_type_handler(item);
+  }
   bool subquery_type_allows_materialization(const Item *inner,
                                             const Item *outer) const
   {

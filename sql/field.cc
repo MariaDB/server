@@ -2003,15 +2003,15 @@ bool Field_num::get_date(MYSQL_TIME *ltime,ulonglong fuzzydate)
 Field_str::Field_str(uchar *ptr_arg,uint32 len_arg, uchar *null_ptr_arg,
                      uchar null_bit_arg, utype unireg_check_arg,
                      const LEX_CSTRING *field_name_arg,
-                     CHARSET_INFO *charset_arg)
+                     const DTCollation &collation)
   :Field(ptr_arg, len_arg, null_ptr_arg, null_bit_arg,
          unireg_check_arg, field_name_arg)
 {
-  field_charset= charset_arg;
-  if (charset_arg->state & MY_CS_BINSORT)
+  field_charset= collation.collation;
+  if (collation.collation->state & MY_CS_BINSORT)
     flags|=BINARY_FLAG;
-  field_derivation= DERIVATION_IMPLICIT;
-  field_repertoire= my_charset_repertoire(charset_arg);
+  field_derivation= collation.derivation;
+  field_repertoire= collation.repertoire;
 }
 
 
@@ -7756,10 +7756,10 @@ Field_blob::Field_blob(uchar *ptr_arg, uchar *null_ptr_arg, uchar null_bit_arg,
 		       enum utype unireg_check_arg,
                        const LEX_CSTRING *field_name_arg,
                        TABLE_SHARE *share, uint blob_pack_length,
-		       CHARSET_INFO *cs)
+		       const DTCollation &collation)
   :Field_longstr(ptr_arg, BLOB_PACK_LENGTH_TO_MAX_LENGH(blob_pack_length),
                  null_ptr_arg, null_bit_arg, unireg_check_arg, field_name_arg,
-                 cs),
+                 collation),
    packlength(blob_pack_length)
 {
   DBUG_ASSERT(blob_pack_length <= 4); // Only pack lengths 1-4 supported currently
