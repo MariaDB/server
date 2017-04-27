@@ -43,6 +43,7 @@ protected:
   String *val_str_from_val_str_ascii(String *str, String *str2);
 
   void count_only_length(Item **item, uint nitems);
+  void count_octet_length(Item **item, uint nitems);
   void count_real_length(Item **item, uint nitems);
   void count_decimal_length(Item **item, uint nitems);
   bool count_string_length(Item **item, uint nitems);

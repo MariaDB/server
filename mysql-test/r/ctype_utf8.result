@@ -11184,5 +11184,21 @@ SET NAMES utf8;
 CREATE TABLE t1 (a SET('a,bü'));
 ERROR 22007: Illegal set 'a,bü' value found during parsing
 #
+# MDEV-12607 Hybrid functions create wrong VARBINARY length when mixing character and binary data
+#
+SET sql_mode='';
+SET NAMES utf8;
+CREATE OR REPLACE TABLE t1 AS SELECT COALESCE('ßa',_binary 'a');
+SELECT * FROM t1;
+COALESCE('ßa',_binary 'a')
+ßa
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `COALESCE('ßa',_binary 'a')` varbinary(6) NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+SET sql_mode=DEFAULT;
+#
 # End of 10.3 tests
 #

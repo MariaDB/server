@@ -2110,5 +2110,17 @@ SET NAMES utf8;
 CREATE TABLE t1 (a SET('a,bü'));
 
 --echo #
+--echo # MDEV-12607 Hybrid functions create wrong VARBINARY length when mixing character and binary data
+--echo #
+SET sql_mode='';
+SET NAMES utf8;
+CREATE OR REPLACE TABLE t1 AS SELECT COALESCE('ßa',_binary 'a');
+SELECT * FROM t1;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+SET sql_mode=DEFAULT;
+
+
+--echo #
 --echo # End of 10.3 tests
 --echo #

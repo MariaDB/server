@@ -632,6 +632,18 @@ void Item_func::count_only_length(Item **item, uint nitems)
 }
 
 
+void Item_func::count_octet_length(Item **item, uint nitems)
+{
+  max_length= 0;
+  unsigned_flag= 0;
+  for (uint i= 0; i < nitems ; i++)
+  {
+    set_if_bigger(max_length, item[i]->max_length);
+    set_if_bigger(unsigned_flag, item[i]->unsigned_flag);
+  }
+}
+
+
 /**
   Set max_length/decimals of function if function is floating point and
   result length/precision depends on argument ones.
@@ -681,7 +693,10 @@ bool Item_func::count_string_length(Item **items, uint nitems)
   DBUG_ASSERT(!is_temporal_type(field_type()));
   if (agg_arg_charsets_for_string_result(collation, items, nitems, 1))
     return true;
-  count_only_length(items, nitems);
+  if (collation.collation == &my_charset_bin)
+    count_octet_length(items, nitems);
+  else
+    count_only_length(items, nitems);
   decimals= max_length ? NOT_FIXED_DEC : 0;
   return false;
 }
