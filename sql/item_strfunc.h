@@ -1074,7 +1074,7 @@ public:
   }
   void fix_length_and_dec()
   {
-    collation.set(default_charset());
+    collation.set(default_charset(), DERIVATION_COERCIBLE, MY_REPERTOIRE_ASCII);
     decimals=0;
     fix_char_length(args[0]->max_length * 2);
     m_arg0_type_handler= args[0]->type_handler();
