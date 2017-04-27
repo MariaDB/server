@@ -65,6 +65,9 @@ Created 11/5/1995 Heikki Tuuri
 #include "fil0pagecompress.h"
 #include "ha_prototypes.h"
 
+/* for core dump specific stuff */
+#include "my_core_no_dump.h"
+
 /* prototypes for new functions added to ha_innodb.cc */
 trx_t* innobase_get_trx();
 
@@ -1281,6 +1284,8 @@ buf_chunk_init(
 		}
 	}
 #endif // HAVE_LIBNUMA
+	// exclude from core dumps if configured to do so
+	exclude_from_coredump(chunk->mem, chunk->mem_size, CORE_NODUMP_INNODB_POOL_BUFFER);
 
 	/* Allocate the block descriptors from
 	the start of the memory block. */

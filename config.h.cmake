@@ -206,6 +206,7 @@
 #cmakedefine HAVE_NL_LANGINFO 1
 #cmakedefine HAVE_MADVISE 1
 #cmakedefine HAVE_DECL_MADVISE 1
+#cmakedefine HAVE_MADV_DONTDUMP 1
 #cmakedefine HAVE_DECL_TGOTO 1
 #cmakedefine HAVE_DECL_MHA_MAPSIZE_VA 1
 #cmakedefine HAVE_MALLINFO 1
