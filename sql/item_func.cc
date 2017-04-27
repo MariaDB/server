@@ -662,6 +662,8 @@ void Item_func::count_real_length(Item **items, uint nitems)
     else
       max_length= length;
   }
+  // Corner case: COALESCE(DOUBLE(255,4), DOUBLE(255,3)) -> FLOAT(255, 4)
+  set_if_smaller(max_length, MAX_FIELD_CHARLENGTH);
 }
 
 
