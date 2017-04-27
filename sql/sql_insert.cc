@@ -4313,9 +4313,38 @@ bool select_create::send_eof()
     */
     if (!table->s->tmp_table)
     {
+ #ifdef WITH_WSREP
+      /*
+         append table level exclusive key for CTAS
+      */
+      wsrep_key_arr_t key_arr= {0, 0};
+      wsrep_prepare_keys_for_isolation(thd,
+                                       create_table->db,
+                                       create_table->table_name,
+                                       table_list,
+                                       &key_arr);
+      int rcode = wsrep->append_key(
+                                wsrep,
+                                &thd->wsrep_ws_handle,
+                                key_arr.keys, //&wkey,
+                                key_arr.keys_len,
+                                WSREP_KEY_EXCLUSIVE,
+                                false);
+      wsrep_keys_free(&key_arr);
+      if (rcode) {
+        DBUG_PRINT("wsrep", ("row key failed: %d", rcode));
+        WSREP_ERROR("Appending table key for CTAS failed: %s, %d",
+                    (wsrep_thd_query(thd)) ?
+                    wsrep_thd_query(thd) : "void", rcode);
+        return true;
+      }
+      /* If commit fails, we should be able to reset the OK status. */
+      thd->stmt_da->can_overwrite_status= TRUE;
+#endif /* WITH_WSREP */
       trans_commit_stmt(thd);
       trans_commit_implicit(thd);
 #ifdef WITH_WSREP
+      thd->stmt_da->can_overwrite_status= FALSE;
       mysql_mutex_lock(&thd->LOCK_wsrep_thd);
       if (thd->wsrep_conflict_state != NO_CONFLICT)
       {

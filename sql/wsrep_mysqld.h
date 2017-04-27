@@ -322,4 +322,15 @@ const wsrep_uuid_t* wsrep_xid_uuid(const xid_t*);
 wsrep_seqno_t wsrep_xid_seqno(const xid_t*);
 extern "C" int wsrep_is_wsrep_xid(const void* xid);
 
+typedef struct wsrep_key_arr
+{
+    wsrep_key_t* keys;
+    size_t       keys_len;
+} wsrep_key_arr_t;
+bool wsrep_prepare_keys_for_isolation(THD*              thd,
+                                      const char*       db,
+                                      const char*       table,
+                                      const TABLE_LIST* table_list,
+                                      wsrep_key_arr_t*  ka);
+void wsrep_keys_free(wsrep_key_arr_t* key_arr);
 #endif /* WSREP_MYSQLD_H */

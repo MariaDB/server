@@ -5426,6 +5426,11 @@ void ha_wsrep_fake_trx_id(THD *thd)
     DBUG_VOID_RETURN;
   }
 
+  if (thd->wsrep_ws_handle.trx_id != WSREP_UNDEFINED_TRX_ID)
+  {
+    WSREP_DEBUG("fake trx id skipped: %lu", thd->wsrep_ws_handle.trx_id);
+    DBUG_VOID_RETURN;
+  }
   handlerton *hton= installed_htons[DB_TYPE_INNODB];
   if (hton && hton->wsrep_fake_trx_id)
   {

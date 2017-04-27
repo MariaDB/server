@@ -9506,11 +9506,22 @@ void tdc_remove_table(THD *thd, enum_tdc_remove_table_type remove_type,
       I_P_List_iterator<TABLE, TABLE_share> it(share->free_tables);
 #ifndef DBUG_OFF
       if (remove_type == TDC_RT_REMOVE_ALL)
+#ifdef WITH_WSREP
       {
-        DBUG_ASSERT(share->used_tables.is_empty());
+        /* following assert may cause false posivive fire for CTAS */
+        if (thd->lex->sql_command != SQLCOM_CREATE_TABLE)
+        {
+#endif /* WITH_WSREP */
+          {
+            DBUG_ASSERT(share->used_tables.is_empty());
+          }
+#ifdef WITH_WSREP
+        }
       }
       else if (remove_type == TDC_RT_REMOVE_NOT_OWN ||
                remove_type == TDC_RT_REMOVE_NOT_OWN_AND_MARK_NOT_USABLE)
+#endif /* WITH_WSREP */
+
       {
         I_P_List_iterator<TABLE, TABLE_share> it2(share->used_tables);
         while ((table= it2++))
