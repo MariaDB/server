@@ -695,7 +695,6 @@ int vers_setup_select(THD *thd, TABLE_LIST *tables, COND **where_expr,
   TABLE_LIST *table;
   int versioned_tables= 0;
   int slex_conds_used= 0;
-  Query_arena *arena= 0, backup;
 
   if (!thd->stmt_arena->is_conventional() &&
       !thd->stmt_arena->is_stmt_prepare() && !thd->stmt_arena->is_sp_execute())
@@ -727,7 +726,7 @@ int vers_setup_select(THD *thd, TABLE_LIST *tables, COND **where_expr,
 
   /* For prepared statements we create items on statement arena,
      because they must outlive execution phase for multiple executions. */
-  arena= thd->activate_stmt_arena_if_needed(&backup);
+  Query_arena_stmt on_stmt_arena(thd);
 
   if (slex->saved_where)
   {
@@ -798,8 +797,6 @@ int vers_setup_select(THD *thd, TABLE_LIST *tables, COND **where_expr,
         case TL_WRITE:
         case TL_WRITE_ONLY:
           my_error(ER_VERS_WRONG_PARAMS, MYF(0), "FOR SYSTEM_TIME query", "write-locking of historic rows");
-          if (arena)
-            thd->restore_active_arena(arena, &backup);
           DBUG_RETURN(-1);
         default:
           break;
@@ -969,16 +966,13 @@ int vers_setup_select(THD *thd, TABLE_LIST *tables, COND **where_expr,
             cond2,
             cond1));
 
-        if (arena)
+        if (on_stmt_arena.arena_replaced())
           *dst_cond= cond1;
         else
           thd->change_item_tree(dst_cond, cond1);
       }
     } // if (... table->table->versioned())
   } // for (table= tables; ...)
-
-  if (arena)
-    thd->restore_active_arena(arena, &backup);
 
   if (!slex_conds_used && slex->vers_conditions)
   {

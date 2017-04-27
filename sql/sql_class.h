@@ -1024,6 +1024,22 @@ public:
 };
 
 
+class Query_arena_stmt
+{
+  THD *thd;
+  Query_arena backup;
+  Query_arena *arena;
+
+public:
+  Query_arena_stmt(THD *_thd);
+  ~Query_arena_stmt();
+  bool arena_replaced()
+  {
+    return arena != NULL;
+  }
+};
+
+
 class Server_side_cursor;
 
 /**

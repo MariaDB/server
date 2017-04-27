@@ -723,14 +723,11 @@ bool mysql_derived_prepare(THD *thd, LEX *lex, TABLE_LIST *derived)
         TABLE_SHARE *s= tl->table->s;
         const char *db= tl->db;
         const char *alias= tl->alias;
-        Query_arena backup;
-        Query_arena *arena= thd->activate_stmt_arena_if_needed(&backup);
+        Query_arena_stmt on_stmt_arena(thd);
         sl->item_list.push_back(new (thd->mem_root) Item_field(
             thd, &sl->context, db, alias, s->vers_start_field()->field_name));
         sl->item_list.push_back(new (thd->mem_root) Item_field(
             thd, &sl->context, db, alias, s->vers_end_field()->field_name));
-        if (arena)
-          thd->restore_active_arena(arena, &backup);
       }
     }
   }
