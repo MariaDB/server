@@ -296,8 +296,6 @@ ELSE()
       wsrep_sst_xtrabackup
       wsrep_sst_xtrabackup-v2
     )
-    INSTALL(FILES ${CMAKE_CURRENT_SOURCE_DIR}/wsrep_sst_common
-            DESTINATION ${INSTALL_BINDIR} COMPONENT Server)
   ENDIF()
   IF (NOT WITHOUT_SERVER)
     SET(SERVER_SCRIPTS
