@@ -1082,11 +1082,12 @@ row_ins_foreign_check_on_constraint(
 
 #ifdef WITH_WSREP
 	err = wsrep_append_foreign_key(
-				       thr_get_trx(thr),
-				       foreign,
-				       clust_rec, 
-				       clust_index,
-				       FALSE, FALSE);
+					thr_get_trx(thr),
+					foreign,
+					clust_rec,
+					clust_index,
+					FALSE,
+					(node) ? TRUE : FALSE);
 	if (err != DB_SUCCESS) {
 		fprintf(stderr, 
 			"WSREP: foreign key append failed: %lu\n", err);
@@ -1247,6 +1248,9 @@ row_ins_check_foreign_constraint(
 	ulint*		offsets		= offsets_;
 	rec_offs_init(offsets_);
 
+#ifdef WITH_WSREP
+	upd_node= NULL;
+#endif /* WITH_WSREP */
 run_again:
 #ifdef UNIV_SYNC_DEBUG
 	ut_ad(rw_lock_own(&dict_operation_lock, RW_LOCK_SHARED));
@@ -1429,9 +1433,10 @@ run_again:
 					err = wsrep_append_foreign_key(
 						thr_get_trx(thr),
 						foreign,
-						rec, 
-						check_index, 
-						check_ref, TRUE);
+						rec,
+						check_index,
+						check_ref,
+						(upd_node) ? TRUE : FALSE);
 #endif /* WITH_WSREP */
 					goto end_scan;
 				} else if (foreign->type != 0) {
