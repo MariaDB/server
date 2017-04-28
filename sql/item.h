@@ -3207,6 +3207,17 @@ public:
   enum Type type() const { return INT_ITEM; }
   enum Item_result result_type () const { return INT_RESULT; }
   enum_field_types field_type() const { return MYSQL_TYPE_LONGLONG; }
+  const Type_handler *type_handler() const
+  {
+    // The same condition is repeated in Item::create_tmp_field()
+    if (max_length > MY_INT32_NUM_DECIMAL_DIGITS - 2)
+      return &type_handler_longlong;
+    return &type_handler_long;
+  }
+  Field *create_tmp_field(bool group, TABLE *table)
+  { return tmp_table_field_from_field_type(table); }
+  Field *create_field_for_create_select(TABLE *table)
+  { return tmp_table_field_from_field_type(table); }
   longlong val_int() { DBUG_ASSERT(fixed == 1); return value; }
   double val_real() { DBUG_ASSERT(fixed == 1); return (double) value; }
   my_decimal *val_decimal(my_decimal *);
@@ -3717,6 +3728,10 @@ public:
     unsigned_flag=1;
   }
   enum_field_types field_type() const { return int_field_type; }
+  const Type_handler *type_handler() const
+  {
+    return Type_handler::get_handler_by_field_type(int_field_type);
+  }
 };
 
 

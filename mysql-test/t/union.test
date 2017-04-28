@@ -1523,3 +1523,27 @@ SELECT * FROM t1 t1_1 LEFT JOIN t1 t1_2 ON ( t1_2.b = t1_1.a )
   WHERE t1_2.b NOT IN ( SELECT 4 UNION ALL SELECT 5 );
 
 DROP TABLE t1;
+
+--echo #
+--echo # Start of 10.3 tests
+--echo #
+
+--echo #
+--echo # MDEV-12619 UNION creates excessive integer column types for integer literals
+--echo #
+
+CREATE TABLE t1 AS SELECT 1;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+CREATE OR REPLACE TABLE t1 AS SELECT 1 UNION SELECT 1;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+CREATE OR REPLACE TABLE t1 AS SELECT * FROM (SELECT 1 UNION SELECT 1) AS t0;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+--echo #
+--echo # End of 10.3 tests
+--echo #

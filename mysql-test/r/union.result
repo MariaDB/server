@@ -852,7 +852,7 @@ select * from t1;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `1` bigint(20) NOT NULL DEFAULT 0
+  `1` int(11) NOT NULL DEFAULT 0
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table t1;
 create table t1 select _latin1"test" union select _latin2"testt" ;
@@ -2178,3 +2178,33 @@ WHERE t1_2.b NOT IN ( SELECT 4 UNION ALL SELECT 5 );
 a	b	a	b
 1	1	1	1
 DROP TABLE t1;
+#
+# Start of 10.3 tests
+#
+#
+# MDEV-12619 UNION creates excessive integer column types for integer literals
+#
+CREATE TABLE t1 AS SELECT 1;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `1` int(1) NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE OR REPLACE TABLE t1 AS SELECT 1 UNION SELECT 1;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `1` int(11) NOT NULL DEFAULT 0
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE OR REPLACE TABLE t1 AS SELECT * FROM (SELECT 1 UNION SELECT 1) AS t0;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `1` int(11) NOT NULL DEFAULT 0
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+#
+# End of 10.3 tests
+#
