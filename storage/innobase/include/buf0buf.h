@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2017, MariaDB Corporation. All Rights Reserved.
+Copyright (c) 2013, 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -679,13 +679,13 @@ buf_page_is_checksum_valid_none(
 	ulint		checksum_field2)
 	MY_ATTRIBUTE((warn_unused_result));
 
-/********************************************************************//**
-Checks if a page is corrupt.
+/** Check if a page is corrupt.
 @param[in]	check_lsn		true if LSN should be checked
 @param[in]	read_buf		Page to be checked
 @param[in]	zip_size		compressed size or 0
 @param[in]	space			Pointer to tablespace
 @return	true if corrupted, false if not */
+UNIV_INTERN
 bool
 buf_page_is_corrupted(
 	bool			check_lsn,
@@ -693,15 +693,13 @@ buf_page_is_corrupted(
 	ulint			zip_size,
 	const fil_space_t* 	space)
 	MY_ATTRIBUTE((warn_unused_result));
-/********************************************************************//**
-Checks if a page is all zeroes.
-@return	TRUE if the page is all zeroes */
+/** Check if a page is all zeroes.
+@param[in]	read_buf	database page
+@param[in]	zip_size	ROW_FORMAT=COMPRESSED page size, or 0
+@return	whether the page is all zeroes */
+UNIV_INTERN
 bool
-buf_page_is_zeroes(
-/*===============*/
-	const byte*	read_buf,	/*!< in: a database page */
-	const ulint	zip_size);	/*!< in: size of compressed page;
-					0 for uncompressed pages */
+buf_page_is_zeroes(const byte* read_buf, ulint zip_size);
 #ifndef UNIV_HOTBACKUP
 /**********************************************************************//**
 Gets the space id, page offset, and byte offset within page of a
@@ -1240,20 +1238,20 @@ buf_page_init_for_read(
 				version of the tablespace in case we have done
 				DISCARD + IMPORT */
 	ulint		offset);/*!< in: page number */
-/********************************************************************//**
-Completes an asynchronous read or write request of a file page to or from
-the buffer pool.
-@param[in,out]	bpage		pointer to the block in question
-@param[in]	evict		true if page should be evicted from LRU
-@return DB_SUCCESS if page has been read and is not corrupted,
-DB_PAGE_CORRUPTED if page based on checksum check is corrupted,
-DB_DECRYPTION_FAILED if page post encryption checksum matches but
-after decryption normal page checksum does not match.*/
+/** Complete a read or write request of a file page to or from the buffer pool.
+@param[in,out]		bpage		Page to complete
+@param[in]		evict		whether or not to evict the page
+					from LRU list.
+@return whether the operation succeeded
+@retval	DB_SUCCESS		always when writing, or if a read page was OK
+@retval	DB_PAGE_CORRUPTED	if the checksum fails on a page read
+@retval	DB_DECRYPTION_FAILED	if page post encryption checksum matches but
+				after decryption normal page checksum does
+				not match */
 UNIV_INTERN
 dberr_t
-buf_page_io_complete(
-	buf_page_t*	bpage,
-	bool		evict = false);
+buf_page_io_complete(buf_page_t* bpage, bool evict = false)
+	MY_ATTRIBUTE((nonnull));
 
 /********************************************************************//**
 Calculates a folded value of a file page address to use in the page hash

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2014, 2017, MariaDB Corporation. All Rights Reserved.
+Copyright (c) 2014, 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -244,18 +244,16 @@ fil_node_complete_io(
 	ulint		type);	/*!< in: OS_FILE_WRITE or OS_FILE_READ; marks
 				the node as modified if
 				type == OS_FILE_WRITE */
-/*******************************************************************//**
-Frees a space object from the tablespace memory cache. Closes the files in
-the chain but does not delete them. There must not be any pending i/o's or
+/** Free a space object from the tablespace memory cache. Close the files in
+the chain but do not delete them. There must not be any pending i/o's or
 flushes on the files.
-@return TRUE on success */
+The fil_system->mutex will be released.
+@param[in]	id		tablespace ID
+@param[in]	x_latched	whether the caller holds exclusive space->latch
+@return whether the tablespace existed */
 static
-ibool
-fil_space_free(
-/*===========*/
-	ulint		id,		/* in: space id */
-	ibool		x_latched);	/* in: TRUE if caller has space->latch
-					in X mode */
+bool
+fil_space_free_and_mutex_exit(ulint id, bool x_latched);
 /********************************************************************//**
 Reads data from a space to a buffer. Remember that the possible incomplete
 blocks at the end of file are ignored: they are not taken into account when
@@ -1360,18 +1358,14 @@ retry:
 	}
 }
 
-/*******************************************************************//**
-Frees a file node object from a tablespace memory cache. */
+/** Prepare a data file object for freeing.
+@param[in,out]	space	tablespace
+@param[in,out]	node	data file */
 static
 void
-fil_node_free(
-/*==========*/
-	fil_node_t*	node,	/*!< in, own: file node */
-	fil_system_t*	system,	/*!< in: tablespace memory cache */
-	fil_space_t*	space)	/*!< in: space where the file node is chained */
+fil_node_free_part1(fil_space_t* space, fil_node_t* node)
 {
-	ut_ad(node && system && space);
-	ut_ad(mutex_own(&(system->mutex)));
+	ut_ad(mutex_own(&fil_system->mutex));
 	ut_a(node->magic_n == FIL_NODE_MAGIC_N);
 	ut_a(node->n_pending == 0);
 	ut_a(!node->being_extended);
@@ -1394,12 +1388,22 @@ fil_node_free(
 			space->is_in_unflushed_spaces = false;
 
 			UT_LIST_REMOVE(unflushed_spaces,
-				       system->unflushed_spaces,
+				       fil_system->unflushed_spaces,
 				       space);
 		}
 
-		fil_node_close_file(node, system);
+		fil_node_close_file(node, fil_system);
 	}
+}
+
+/** Free a data file object.
+@param[in,out]	space	tablespace
+@param[in]	node	data file */
+static
+void
+fil_node_free_part2(fil_space_t* space, fil_node_t* node)
+{
+	ut_ad(!node->open);
 
 	space->size -= node->size;
 
@@ -1439,7 +1443,8 @@ fil_space_truncate_start(
 
 		trunc_len -= node->size * UNIV_PAGE_SIZE;
 
-		fil_node_free(node, fil_system, space);
+		fil_node_free_part1(space, node);
+		fil_node_free_part2(space, node);
 	}
 
 	mutex_exit(&fil_system->mutex);
@@ -1498,10 +1503,9 @@ fil_space_create(
 				"from the cache with id %lu",
 				name, (ulong) id);
 
-			ibool	success = fil_space_free(space->id, FALSE);
+			bool	success = fil_space_free_and_mutex_exit(
+				space->id, false);
 			ut_a(success);
-
-			mutex_exit(&fil_system->mutex);
 		}
 
 	} while (space != 0);
@@ -1656,19 +1660,16 @@ fil_assign_new_space_id(
 	return(success);
 }
 
-/*******************************************************************//**
-Frees a space object from the tablespace memory cache. Closes the files in
-the chain but does not delete them. There must not be any pending i/o's or
+/** Free a space object from the tablespace memory cache. Close the files in
+the chain but do not delete them. There must not be any pending i/o's or
 flushes on the files.
-@return	TRUE if success */
+The fil_system->mutex will be released.
+@param[in]	id		tablespace ID
+@param[in]	x_latched	whether the caller holds exclusive space->latch
+@return whether the tablespace existed */
 static
-ibool
-fil_space_free(
-/*===========*/
-					/* out: TRUE if success */
-	ulint		id,		/* in: space id */
-	ibool		x_latched)	/* in: TRUE if caller has space->latch
-					in X mode */
+bool
+fil_space_free_and_mutex_exit(ulint id, bool x_latched)
 {
 	fil_space_t*	space;
 	fil_space_t*	fnamespace;
@@ -1678,13 +1679,11 @@ fil_space_free(
 	space = fil_space_get_by_id(id);
 
 	if (!space) {
-		ut_print_timestamp(stderr);
-		fprintf(stderr,
-			"  InnoDB: Error: trying to remove tablespace %lu"
-			" from the cache but\n"
-			"InnoDB: it is not there.\n", (ulong) id);
-
-		return(FALSE);
+		ib_logf(IB_LOG_LEVEL_ERROR,
+			"trying to remove non-existing tablespace " ULINTPF,
+			id);
+		mutex_exit(&fil_system->mutex);
+		return(false);
 	}
 
 	HASH_DELETE(fil_space_t, hash, fil_system->spaces, id, space);
@@ -1716,11 +1715,25 @@ fil_space_free(
 	ut_a(space->magic_n == FIL_SPACE_MAGIC_N);
 	ut_a(0 == space->n_pending_flushes);
 
+	for (fil_node_t* node = UT_LIST_GET_FIRST(space->chain);
+	     node != NULL;
+	     node = UT_LIST_GET_NEXT(chain, node)) {
+		fil_node_free_part1(space, node);
+	}
+
+	mutex_exit(&fil_system->mutex);
+
+	/* Wait for fil_space_release_for_io(); after
+	fil_space_detach(), the tablespace cannot be found, so
+	fil_space_acquire_for_io() would return NULL */
+	while (space->n_pending_ios) {
+		os_thread_sleep(100);
+	}
+
 	for (fil_node_t* fil_node = UT_LIST_GET_FIRST(space->chain);
 	     fil_node != NULL;
 	     fil_node = UT_LIST_GET_FIRST(space->chain)) {
-
-		fil_node_free(fil_node, fil_system, space);
+		fil_node_free_part2(space, fil_node);
 	}
 
 	ut_a(0 == UT_LIST_GET_LEN(space->chain));
@@ -2114,7 +2127,11 @@ fil_close_all_files(void)
 
 		space = UT_LIST_GET_NEXT(space_list, space);
 
-		fil_space_free(prev_space->id, FALSE);
+		/* This is executed during shutdown. No other thread
+		can create or remove tablespaces while we are not
+		holding fil_system->mutex. */
+		fil_space_free_and_mutex_exit(prev_space->id, false);
+		mutex_enter(&fil_system->mutex);
 	}
 
 	mutex_exit(&fil_system->mutex);
@@ -2156,7 +2173,11 @@ fil_close_log_files(
 		space = UT_LIST_GET_NEXT(space_list, space);
 
 		if (free) {
-			fil_space_free(prev_space->id, FALSE);
+			/* This is executed during startup. No other thread
+			can create or remove tablespaces while we are not
+			holding fil_system->mutex. */
+			fil_space_free_and_mutex_exit(prev_space->id, false);
+			mutex_enter(&fil_system->mutex);
 		}
 	}
 
@@ -2962,14 +2983,12 @@ fil_close_tablespace(
 	/* If the free is successful, the X lock will be released before
 	the space memory data structure is freed. */
 
-	if (!fil_space_free(id, TRUE)) {
+	if (!fil_space_free_and_mutex_exit(id, TRUE)) {
 		rw_lock_x_unlock(&space->latch);
 		err = DB_TABLESPACE_NOT_FOUND;
 	} else {
 		err = DB_SUCCESS;
 	}
-
-	mutex_exit(&fil_system->mutex);
 
 	/* If it is a delete then also delete any generated files, otherwise
 	when we drop the database the remove directory will fail. */
@@ -3079,11 +3098,9 @@ fil_delete_tablespace(
 		ut_a(node->n_pending == 0);
 	}
 
-	if (!fil_space_free(id, TRUE)) {
+	if (!fil_space_free_and_mutex_exit(id, true)) {
 		err = DB_TABLESPACE_NOT_FOUND;
 	}
-
-	mutex_exit(&fil_system->mutex);
 
 	if (err != DB_SUCCESS) {
 		rw_lock_x_unlock(&space->latch);
@@ -5879,7 +5896,7 @@ UNIV_INTERN
 ulint
 fil_space_get_block_size(const fil_space_t* space, unsigned offset)
 {
-	ut_ad(space->n_pending_ops > 0);
+	ut_ad(space->n_pending_ios > 0);
 
 	ulint block_size = 512;
 
@@ -6280,7 +6297,7 @@ UNIV_INTERN
 void
 fil_flush(fil_space_t* space)
 {
-	ut_ad(space->n_pending_ops > 0);
+	ut_ad(space->n_pending_ios > 0);
 
 	if (!space->is_stopping()) {
 		mutex_enter(&fil_system->mutex);
@@ -7161,13 +7178,11 @@ Used by background threads that do not necessarily hold proper locks
 for concurrency control.
 @param[in]	id	tablespace ID
 @param[in]	silent	whether to silently ignore missing tablespaces
-@param[in]	for_io	whether to look up the tablespace while performing I/O
-			(possibly executing TRUNCATE)
 @return	the tablespace
 @retval	NULL if missing or being deleted or truncated */
 UNIV_INTERN
 fil_space_t*
-fil_space_acquire_low(ulint id, bool silent, bool for_io)
+fil_space_acquire_low(ulint id, bool silent)
 {
 	fil_space_t*	space;
 
@@ -7180,7 +7195,7 @@ fil_space_acquire_low(ulint id, bool silent, bool for_io)
 			ib_logf(IB_LOG_LEVEL_WARN, "Trying to access missing"
 				" tablespace " ULINTPF ".", id);
 		}
-	} else if (!for_io && space->is_stopping()) {
+	} else if (space->is_stopping()) {
 		space = NULL;
 	} else {
 		space->n_pending_ops++;
@@ -7193,6 +7208,7 @@ fil_space_acquire_low(ulint id, bool silent, bool for_io)
 
 /** Release a tablespace acquired with fil_space_acquire().
 @param[in,out]	space	tablespace to release  */
+UNIV_INTERN
 void
 fil_space_release(fil_space_t* space)
 {
@@ -7200,6 +7216,41 @@ fil_space_release(fil_space_t* space)
 	ut_ad(space->magic_n == FIL_SPACE_MAGIC_N);
 	ut_ad(space->n_pending_ops > 0);
 	space->n_pending_ops--;
+	mutex_exit(&fil_system->mutex);
+}
+
+/** Acquire a tablespace for reading or writing a block,
+when it could be dropped concurrently.
+@param[in]	id	tablespace ID
+@return	the tablespace
+@retval	NULL if missing */
+UNIV_INTERN
+fil_space_t*
+fil_space_acquire_for_io(ulint id)
+{
+	mutex_enter(&fil_system->mutex);
+
+	fil_space_t* space = fil_space_get_by_id(id);
+
+	if (space) {
+		space->n_pending_ios++;
+	}
+
+	mutex_exit(&fil_system->mutex);
+
+	return(space);
+}
+
+/** Release a tablespace acquired with fil_space_acquire_for_io().
+@param[in,out]	space	tablespace to release  */
+UNIV_INTERN
+void
+fil_space_release_for_io(fil_space_t* space)
+{
+	mutex_enter(&fil_system->mutex);
+	ut_ad(space->magic_n == FIL_SPACE_MAGIC_N);
+	ut_ad(space->n_pending_ios > 0);
+	space->n_pending_ios--;
 	mutex_exit(&fil_system->mutex);
 }
 
@@ -7211,6 +7262,7 @@ blocks a concurrent operation from dropping the tablespace.
 If NULL, use the first fil_space_t on fil_system->space_list.
 @return pointer to the next fil_space_t.
 @retval NULL if this was the last*/
+UNIV_INTERN
 fil_space_t*
 fil_space_next(fil_space_t* prev_space)
 {
@@ -7278,6 +7330,7 @@ blocks a concurrent operation from dropping the tablespace.
 If NULL, use the first fil_space_t on fil_system->space_list.
 @return pointer to the next fil_space_t.
 @retval NULL if this was the last*/
+UNIV_INTERN
 fil_space_t*
 fil_space_keyrotate_next(
 	fil_space_t*	prev_space)

@@ -683,7 +683,7 @@ fil_space_encrypt(
 	}
 
 	fil_space_crypt_t* crypt_data = space->crypt_data;
-	ut_ad(space->n_pending_ops);
+	ut_ad(space->n_pending_ios > 0);
 	ulint zip_size = fsp_flags_get_zip_size(space->flags);
 	byte* tmp = fil_encrypt_buf(crypt_data, space->id, offset, lsn, src_frame, zip_size, dst_frame);
 
@@ -860,7 +860,7 @@ fil_space_decrypt(
 	*decrypted = false;
 
 	ut_ad(space->crypt_data != NULL && space->crypt_data->is_encrypted());
-	ut_ad(space->n_pending_ops > 0);
+	ut_ad(space->n_pending_ios > 0);
 
 	bool encrypted = fil_space_decrypt(
 				space->crypt_data,

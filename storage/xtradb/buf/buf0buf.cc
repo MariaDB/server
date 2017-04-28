@@ -65,6 +65,15 @@ Created 11/5/1995 Heikki Tuuri
 #include "fil0pagecompress.h"
 #include "ha_prototypes.h"
 
+/** Decrypt a page.
+@param[in,out]	bpage	Page control block
+@param[in,out]	space	tablespace
+@return whether the operation was successful */
+static
+bool
+buf_page_decrypt_after_read(buf_page_t* bpage, fil_space_t* space)
+	MY_ATTRIBUTE((nonnull));
+
 /* prototypes for new functions added to ha_innodb.cc */
 trx_t* innobase_get_trx();
 
@@ -548,16 +557,13 @@ buf_block_alloc(
 }
 #endif /* !UNIV_HOTBACKUP */
 
-/********************************************************************//**
-Checks if a page is all zeroes.
-@return	TRUE if the page is all zeroes */
+/** Check if a page is all zeroes.
+@param[in]	read_buf	database page
+@param[in]	zip_size	ROW_FORMAT=COMPRESSED page size, or 0
+@return	whether the page is all zeroes */
 UNIV_INTERN
 bool
-buf_page_is_zeroes(
-/*===============*/
-	const byte*	read_buf,	/*!< in: a database page */
-	const ulint	zip_size)	/*!< in: size of compressed page;
-					0 for uncompressed pages */
+buf_page_is_zeroes(const byte* read_buf, ulint zip_size)
 {
 	const ulint page_size = zip_size ? zip_size : UNIV_PAGE_SIZE;
 
@@ -673,8 +679,7 @@ buf_page_is_checksum_valid_none(
 	       && checksum_field1 == BUF_NO_CHECKSUM_MAGIC);
 }
 
-/********************************************************************//**
-Checks if a page is corrupt.
+/** Check if a page is corrupt.
 @param[in]	check_lsn		true if LSN should be checked
 @param[in]	read_buf		Page to be checked
 @param[in]	zip_size		compressed size or 0
@@ -4526,34 +4531,30 @@ buf_mark_space_corrupt(
 	mutex_exit(&buf_pool->LRU_list_mutex);
 }
 
-/********************************************************************//**
-Check if page is maybe compressed, encrypted or both when we encounter
+/** Check if page is maybe compressed, encrypted or both when we encounter
 corrupted page. Note that we can't be 100% sure if page is corrupted
 or decrypt/decompress just failed.
-@param[in,out]	bpage		Page
-@return DB_SUCCESS if page has been read and is not corrupted,
-@retval DB_PAGE_CORRUPTED if page based on checksum check is corrupted,
-@retval DB_DECRYPTION_FAILED if page post encryption checksum matches but
+@param[in,out]	bpage		page
+@param[in,out]	space		tablespace from fil_space_acquire_for_io()
+@return	whether the operation succeeded
+@retval	DB_SUCCESS		if page has been read and is not corrupted
+@retval	DB_PAGE_CORRUPTED	if page based on checksum check is corrupted
+@retval	DB_DECRYPTION_FAILED	if page post encryption checksum matches but
 after decryption normal page checksum does not match.
-@retval DB_TABLESPACE_DELETED if accessed tablespace is not found */
+@retval	DB_TABLESPACE_DELETED	if accessed tablespace is not found */
 static
 dberr_t
-buf_page_check_corrupt(buf_page_t*	bpage)
+buf_page_check_corrupt(buf_page_t* bpage, fil_space_t* space)
 {
+	ut_ad(space->n_pending_ios > 0);
+
 	ulint zip_size = buf_page_get_zip_size(bpage);
 	byte* dst_frame = (zip_size) ? bpage->zip.data :
 		((buf_block_t*) bpage)->frame;
-	FilSpace space(bpage->space, true);
 	bool still_encrypted = false;
 	dberr_t err = DB_SUCCESS;
 	bool corrupted = false;
-	fil_space_crypt_t* crypt_data = NULL;
-
-	if (!space()) {
-		return(DB_TABLESPACE_DELETED);
-	}
-
-	crypt_data = space()->crypt_data;
+	fil_space_crypt_t* crypt_data = space->crypt_data;
 
 	/* In buf_decrypt_after_read we have either decrypted the page if
 	page post encryption checksum matches and used key_id is found
@@ -4565,12 +4566,12 @@ buf_page_check_corrupt(buf_page_t*	bpage)
 		crypt_data->type != CRYPT_SCHEME_UNENCRYPTED &&
 		!bpage->encrypted &&
 		fil_space_verify_crypt_checksum(dst_frame, zip_size,
-			space(), bpage->offset));
-
+			space, bpage->offset));
 	if (!still_encrypted) {
 		/* If traditional checksums match, we assume that page is
 		not anymore encrypted. */
-		corrupted = buf_page_is_corrupted(true, dst_frame, zip_size, space());
+		corrupted = buf_page_is_corrupted(true, dst_frame, zip_size,
+						  space);
 
 		if (!corrupted) {
 			bpage->encrypted = false;
@@ -4593,7 +4594,7 @@ buf_page_check_corrupt(buf_page_t*	bpage)
 			", page number=%u]"
 			" in file %s cannot be decrypted.",
 			bpage->space, bpage->offset,
-			space()->name);
+			space->name);
 
 		ib_logf(IB_LOG_LEVEL_INFO,
 			"However key management plugin or used key_version " ULINTPF
@@ -4611,26 +4612,23 @@ buf_page_check_corrupt(buf_page_t*	bpage)
 	return (err);
 }
 
-/********************************************************************//**
-Completes an asynchronous read or write request of a file page to or from
-the buffer pool.
+/** Complete a read or write request of a file page to or from the buffer pool.
 @param[in,out]		bpage		Page to complete
-@return DB_SUCCESS if page has been read and is not corrupted,
-DB_PAGE_CORRUPTED if page based on checksum check is corrupted,
-DB_DECRYPTION_FAILED if page post encryption checksum matches but
-after decryption normal page checksum does not match.
-in write only DB_SUCCESS is possible. */
+@return whether the operation succeeded
+@retval	DB_SUCCESS		always when writing, or if a read page was OK
+@retval	DB_PAGE_CORRUPTED	if the checksum fails on a page read
+@retval	DB_DECRYPTION_FAILED	if page post encryption checksum matches but
+				after decryption normal page checksum does
+				not match */
 UNIV_INTERN
 dberr_t
-buf_page_io_complete(
-	buf_page_t*	bpage)
+buf_page_io_complete(buf_page_t* bpage)
 {
 	enum buf_io_fix	io_type;
 	buf_pool_t*	buf_pool = buf_pool_from_bpage(bpage);
 	const ibool	uncompressed = (buf_page_get_state(bpage)
 					== BUF_BLOCK_FILE_PAGE);
 	bool		have_LRU_mutex = false;
-	fil_space_t*	space = NULL;
 	byte*		frame = NULL;
 	dberr_t 	err = DB_SUCCESS;
 
@@ -4650,7 +4648,13 @@ buf_page_io_complete(
 		ulint	read_space_id = 0;
 		uint	key_version = 0;
 
-		buf_page_decrypt_after_read(bpage);
+		ut_ad(bpage->zip.data || ((buf_block_t*)bpage)->frame);
+		fil_space_t* space = fil_space_acquire_for_io(bpage->space);
+		if (!space) {
+			return(DB_TABLESPACE_DELETED);
+		}
+
+		buf_page_decrypt_after_read(bpage, space);
 
 		if (buf_page_get_zip_size(bpage)) {
 			frame = bpage->zip.data;
@@ -4724,7 +4728,7 @@ buf_page_io_complete(
 
 		if (UNIV_LIKELY(!bpage->is_corrupt ||
 				!srv_pass_corrupt_table)) {
-			err = buf_page_check_corrupt(bpage);
+			err = buf_page_check_corrupt(bpage, space);
 		}
 
 database_corrupted:
@@ -4737,6 +4741,7 @@ database_corrupted:
 					buf_mark_space_corrupt(bpage);
 					ib_logf(IB_LOG_LEVEL_INFO,
 						"Simulated page corruption");
+					fil_space_release_for_io(space);
 					return(err);
 				}
 				err = DB_SUCCESS;
@@ -4744,9 +4749,6 @@ database_corrupted:
 			);
 
 			if (err == DB_PAGE_CORRUPTED) {
-				fil_system_enter();
-				space = fil_space_get_by_id(bpage->space);
-
 				ib_logf(IB_LOG_LEVEL_ERROR,
 					"Database page corruption on disk"
 					" or a failed file read of tablespace %s"
@@ -4756,8 +4758,6 @@ database_corrupted:
 					"a backup.",
 					space->name,
 					bpage->space, bpage->offset);
-
-				fil_system_exit();
 
 				buf_page_print(frame, buf_page_get_zip_size(bpage),
 					BUF_PAGE_PRINT_NO_CRASH);
@@ -4795,6 +4795,7 @@ database_corrupted:
 				table as corrupted instead of crashing server */
 				if (bpage->space > TRX_SYS_SPACE) {
 					buf_mark_space_corrupt(bpage);
+					fil_space_release_for_io(space);
 					return(err);
 				} else {
 					ib_logf(IB_LOG_LEVEL_FATAL,
@@ -4833,6 +4834,8 @@ database_corrupted:
 			}
 
 		}
+
+		fil_space_release_for_io(space);
 	} else {
 		/* io_type == BUF_IO_WRITE */
 		if (bpage->slot) {
@@ -6303,16 +6306,17 @@ buf_page_encrypt_before_write(
 	return dst_frame;
 }
 
-/********************************************************************//**
-Decrypt page after it has been read from disk
-@param[in,out]	bpage		Page control block
-@return true if successfull, false if something went wrong
-*/
-UNIV_INTERN
+/** Decrypt a page.
+@param[in,out]	bpage	Page control block
+@param[in,out]	space	tablespace
+@return whether the operation was successful */
+static
 bool
-buf_page_decrypt_after_read(
-	buf_page_t*	bpage)
+buf_page_decrypt_after_read(buf_page_t* bpage, fil_space_t* space)
 {
+	ut_ad(space->n_pending_ios > 0);
+	ut_ad(space->id == bpage->space);
+
 	ulint zip_size = buf_page_get_zip_size(bpage);
 	ulint size = (zip_size) ? zip_size : UNIV_PAGE_SIZE;
 
@@ -6330,12 +6334,10 @@ buf_page_decrypt_after_read(
 		return (true);
 	}
 
-	FilSpace space(bpage->space, false, true);
-
 	/* Page is encrypted if encryption information is found from
 	tablespace and page contains used key_version. This is true
 	also for pages first compressed and then encrypted. */
-	if (!space() || !space()->crypt_data) {
+	if (!space->crypt_data) {
 		key_version = 0;
 	}
 
@@ -6372,8 +6374,8 @@ buf_page_decrypt_after_read(
 
 				/* Mark page encrypted in case it should
 				be. */
-				if (key_version && space()->crypt_data &&
-				    space()->crypt_data->type != CRYPT_SCHEME_UNENCRYPTED) {
+				if (space->crypt_data->type
+				    != CRYPT_SCHEME_UNENCRYPTED) {
 					bpage->encrypted = true;
 				}
 
@@ -6388,12 +6390,8 @@ buf_page_decrypt_after_read(
 #endif
 
 			/* decrypt using crypt_buf to dst_frame */
-			byte* res = fil_space_decrypt(space(),
-						slot->crypt_buf,
-						dst_frame,
-						&bpage->encrypted);
-
-			if (!res) {
+			if (!fil_space_decrypt(space, slot->crypt_buf,
+					       dst_frame, &bpage->encrypted)) {
 				success = false;
 			}
 
@@ -6424,5 +6422,6 @@ buf_page_decrypt_after_read(
 		}
 	}
 
+	ut_ad(space->n_pending_ios > 0);
 	return (success);
 }
