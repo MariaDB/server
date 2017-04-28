@@ -312,7 +312,7 @@ EXPLAIN SELECT 1 FROM t1 WHERE NOT EXISTS
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	1	Using where
 2	DEPENDENT SUBQUERY	t2	eq_ref	PRIMARY,d	PRIMARY	1	func	1	Using where
-3	DEPENDENT SUBQUERY	t2	index	NULL	d	2	NULL	1	Using where; Using index
+3	DEPENDENT SUBQUERY	t2	index	NULL	d	2	NULL	1	Using index
 DROP TABLE t2;
 CREATE TABLE t2 (b INT, c INT, UNIQUE KEY (b), UNIQUE KEY (b, c )) ENGINE=INNODB;
 INSERT INTO t2 VALUES (1, 1);
@@ -508,6 +508,20 @@ f1	f2
 set join_cache_level = default;
 drop view v1;
 drop table t1,t2;
+#
+# MDEV-10693: cost-based choice between materialization and in-to-exists
+#             for a subquery from the expression used in ref access 
+#
+CREATE TABLE t1 (i1 INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1),(2);
+CREATE TABLE t2 (i2 INT) ENGINE=InnoDB;
+CREATE TABLE t3 (i3 INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t3 VALUES (3);
+SELECT * FROM t1
+WHERE NULL IN ( SELECT i2 FROM t2 
+WHERE i1 IN ( i2 IN ( SELECT i3 FROM t3 ) ) AND i2 = 2 );
+i1
+DROP TABLE t1,t2,t3;
 #
 # MDEV-6041: ORDER BY+subqueries: subquery_table.key=outer_table.col is not recongized as binding
 #

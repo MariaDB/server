@@ -704,6 +704,13 @@ public:
     in_strategy= (SUBS_STRATEGY_CHOSEN | strategy);
     DBUG_VOID_RETURN;
   }
+
+  bool walk(Item_processor processor, bool walk_subquery, uchar *arg)
+  {
+    return left_expr->walk(processor, walk_subquery, arg) ||
+           Item_subselect::walk(processor, walk_subquery, arg);
+  }
+
   bool exists2in_processor(uchar *opt_arg __attribute__((unused)))
   {
     return 0;

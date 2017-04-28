@@ -69,6 +69,7 @@
 #define RAND_TABLE_BIT	(((table_map) 1) << (sizeof(table_map)*8-1))
 #define PSEUDO_TABLE_BITS (PARAM_TABLE_BIT | OUTER_REF_TABLE_BIT | \
                            RAND_TABLE_BIT)
+#define CONNECT_STRING_MAXLEN   65535           /* stored in 2 bytes in .frm */
 #define MAX_FIELDS	4096			/* Limit in the .frm file */
 #define MAX_PARTITIONS  8192
 
