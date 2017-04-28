@@ -880,7 +880,8 @@ trx_resurrect_insert(
 	if (trx->state == TRX_STATE_ACTIVE
 	    || trx->state == TRX_STATE_PREPARED) {
 
-		trx->start_time = ut_time();
+		ut_usectime((ulong *)&trx->start_time,
+			(ulong *)&trx->start_time_micro);
 	}
 
 	if (undo->dict_operation) {
@@ -980,7 +981,8 @@ trx_resurrect_update(
 	start time here.*/
 	if (trx->state == TRX_STATE_ACTIVE
 	    || trx->state == TRX_STATE_PREPARED) {
-		trx->start_time = ut_time();
+		ut_usectime((ulong *)&trx->start_time,
+			(ulong *)&trx->start_time_micro);
 	}
 
 	if (undo->dict_operation) {
