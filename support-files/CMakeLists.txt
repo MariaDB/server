@@ -148,9 +148,11 @@ IF(UNIX)
   IF (INSTALL_SYSCONFDIR)
     INSTALL(FILES ${CMAKE_CURRENT_BINARY_DIR}/mysql-log-rotate DESTINATION ${INSTALL_SYSCONFDIR}/logrotate.d
             RENAME mysql COMPONENT SupportFiles)
-    INSTALL(PROGRAMS ${CMAKE_CURRENT_BINARY_DIR}/mysql.server
-            DESTINATION  ${INSTALL_SYSCONFDIR}/init.d
-            RENAME mysql COMPONENT SupportFiles)
+    IF(NOT HAVE_SYSTEMD)
+      INSTALL(PROGRAMS ${CMAKE_CURRENT_BINARY_DIR}/mysql.server
+              DESTINATION  ${INSTALL_SYSCONFDIR}/init.d
+              RENAME mysql COMPONENT SupportFiles)
+    ENDIF()
 
     INSTALL(FILES rpm/my.cnf DESTINATION ${INSTALL_SYSCONFDIR}
             COMPONENT Common)
