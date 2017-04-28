@@ -405,10 +405,22 @@ buf_pool_register_chunk(
 
 /** Decrypt a page.
 @param[in,out]	bpage	Page control block
+@param[in,out]	space	tablespace
 @return whether the operation was successful */
 static
 bool
-buf_page_decrypt_after_read(buf_page_t* bpage);
+buf_page_decrypt_after_read(buf_page_t* bpage, fil_space_t* space)
+	MY_ATTRIBUTE((nonnull));
+
+/** Check if page is maybe compressed, encrypted or both when we encounter
+corrupted page. Note that we can't be 100% sure if page is corrupted
+or decrypt/decompress just failed.
+@param[in,out]	bpage		Page
+@return true if page corrupted, false if not */
+static
+bool
+buf_page_check_corrupt(buf_page_t* bpage)
+	MY_ATTRIBUTE((nonnull, warn_unused_result));
 
 /* prototypes for new functions added to ha_innodb.cc */
 trx_t* innobase_get_trx();
@@ -5844,16 +5856,14 @@ buf_mark_space_corrupt(
 	return(ret);
 }
 
-/********************************************************************//**
-Check if page is maybe compressed, encrypted or both when we encounter
+/** Check if page is maybe compressed, encrypted or both when we encounter
 corrupted page. Note that we can't be 100% sure if page is corrupted
 or decrypt/decompress just failed.
 @param[in,out]	bpage		Page
 @return true if page corrupted, false if not */
-UNIV_INTERN
+static
 bool
-buf_page_check_corrupt(
-	buf_page_t*	bpage)
+buf_page_check_corrupt(buf_page_t* bpage)
 {
 	byte* dst_frame = (bpage->zip.data) ? bpage->zip.data :
 		((buf_block_t*) bpage)->frame;
@@ -5956,8 +5966,13 @@ buf_page_io_complete(
 		ulint	read_space_id;
 
 		ut_ad(bpage->zip.data != NULL || ((buf_block_t*)bpage)->frame != NULL);
+		fil_space_t* space = fil_space_acquire_for_io(
+			bpage->id.space());
+		if (!space) {
+			return false;
+		}
 
-		buf_page_decrypt_after_read(bpage);
+		buf_page_decrypt_after_read(bpage, space);
 
 		if (bpage->size.is_compressed()) {
 			frame = bpage->zip.data;
@@ -6031,21 +6046,17 @@ database_corrupted:
 				    && buf_mark_space_corrupt(bpage)) {
 					ib::info() << "Simulated IMPORT "
 						"corruption";
+					fil_space_release_for_io(space);
 					return(true);
 				}
 				goto page_not_corrupt;
 			);
 
 			if (!bpage->encrypted) {
-				fil_system_enter();
-				fil_space_t* space = fil_space_get_by_id(bpage->id.space());
-				fil_system_exit();
-
 				ib::error()
 					<< "Database page corruption on disk"
 					" or a failed file read of tablespace "
-					<< (space->name ? space->name : "NULL")
-					<< " page " << bpage->id
+					<< space->name << " page " << bpage->id
 					<< ". You may have to recover from "
 					<< "a backup.";
 
@@ -6074,6 +6085,7 @@ database_corrupted:
 
 				if (bpage->id.space() > TRX_SYS_SPACE
 				    && buf_mark_space_corrupt(bpage)) {
+					fil_space_release_for_io(space);
 					return(false);
 				} else {
 					if (!bpage->encrypted) {
@@ -6099,6 +6111,7 @@ database_corrupted:
 						ut_error;
 					}
 
+					fil_space_release_for_io(space);
 					return(false);
 				}
 			}
@@ -6142,6 +6155,8 @@ database_corrupted:
 			}
 
 		}
+
+		fil_space_release_for_io(space);
 	} else {
 		/* io_type == BUF_IO_WRITE */
 		if (bpage->slot) {
@@ -7502,11 +7517,15 @@ buf_page_encrypt_before_write(
 
 /** Decrypt a page.
 @param[in,out]	bpage	Page control block
+@param[in,out]	space	tablespace
 @return whether the operation was successful */
 static
 bool
-buf_page_decrypt_after_read(buf_page_t* bpage)
+buf_page_decrypt_after_read(buf_page_t* bpage, fil_space_t* space)
 {
+	ut_ad(space->n_pending_ios > 0);
+	ut_ad(space->id == bpage->id.space());
+
 	bool compressed = bpage->size.is_compressed();
 	const page_size_t& size = bpage->size;
 	byte* dst_frame = compressed ? bpage->zip.data :
@@ -7525,12 +7544,10 @@ buf_page_decrypt_after_read(buf_page_t* bpage)
 		return (true);
 	}
 
-	FilSpace space(bpage->id.space(), true);
-
 	/* Page is encrypted if encryption information is found from
 	tablespace and page contains used key_version. This is true
 	also for pages first compressed and then encrypted. */
-	if (!space() || !space()->crypt_data) {
+	if (!space->crypt_data) {
 		key_version = 0;
 	}
 
@@ -7602,6 +7619,7 @@ buf_page_decrypt_after_read(buf_page_t* bpage)
 		}
 	}
 
+	ut_ad(space->n_pending_ios > 0);
 	return (success);
 }
 

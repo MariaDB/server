@@ -1506,6 +1506,13 @@ fil_space_free_low(
 	ut_ad(srv_fast_shutdown == 2 || !srv_was_started
 	      || space->max_lsn == 0);
 
+	/* Wait for fil_space_release_for_io(); after
+	fil_space_detach(), the tablespace cannot be found, so
+	fil_space_acquire_for_io() would return NULL */
+	while (space->n_pending_ios) {
+		os_thread_sleep(100);
+	}
+
 	for (fil_node_t* node = UT_LIST_GET_FIRST(space->chain);
 	     node != NULL; ) {
 		ut_d(space->size -= node->size);
@@ -2267,13 +2274,11 @@ Used by background threads that do not necessarily hold proper locks
 for concurrency control.
 @param[in]	id	tablespace ID
 @param[in]	silent	whether to silently ignore missing tablespaces
-@param[in]	for_io	whether to look up the tablespace while performing I/O
-			(possibly executing TRUNCATE)
 @return	the tablespace
 @retval	NULL if missing or being deleted or truncated */
 inline
 fil_space_t*
-fil_space_acquire_low(ulint id, bool silent, bool for_io = false)
+fil_space_acquire_low(ulint id, bool silent)
 {
 	fil_space_t*	space;
 
@@ -2286,7 +2291,7 @@ fil_space_acquire_low(ulint id, bool silent, bool for_io = false)
 			ib::warn() << "Trying to access missing"
 				" tablespace " << id;
 		}
-	} else if (!for_io && space->is_stopping()) {
+	} else if (space->is_stopping()) {
 		space = NULL;
 	} else {
 		space->n_pending_ops++;
@@ -2301,14 +2306,12 @@ fil_space_acquire_low(ulint id, bool silent, bool for_io = false)
 Used by background threads that do not necessarily hold proper locks
 for concurrency control.
 @param[in]	id	tablespace ID
-@param[in]	for_io	whether to look up the tablespace while performing I/O
-			(possibly executing TRUNCATE)
 @return	the tablespace
 @retval	NULL	if missing or being deleted or truncated */
 fil_space_t*
-fil_space_acquire(ulint id, bool for_io)
+fil_space_acquire(ulint id)
 {
-	return(fil_space_acquire_low(id, false, for_io));
+	return(fil_space_acquire_low(id, false));
 }
 
 /** Acquire a tablespace that may not exist.
@@ -2332,6 +2335,39 @@ fil_space_release(fil_space_t* space)
 	ut_ad(space->magic_n == FIL_SPACE_MAGIC_N);
 	ut_ad(space->n_pending_ops > 0);
 	space->n_pending_ops--;
+	mutex_exit(&fil_system->mutex);
+}
+
+/** Acquire a tablespace for reading or writing a block,
+when it could be dropped concurrently.
+@param[in]	id	tablespace ID
+@return	the tablespace
+@retval	NULL if missing */
+fil_space_t*
+fil_space_acquire_for_io(ulint id)
+{
+	mutex_enter(&fil_system->mutex);
+
+	fil_space_t* space = fil_space_get_by_id(id);
+
+	if (space) {
+		space->n_pending_ios++;
+	}
+
+	mutex_exit(&fil_system->mutex);
+
+	return(space);
+}
+
+/** Release a tablespace acquired with fil_space_acquire_for_io().
+@param[in,out]	space	tablespace to release  */
+void
+fil_space_release_for_io(fil_space_t* space)
+{
+	mutex_enter(&fil_system->mutex);
+	ut_ad(space->magic_n == FIL_SPACE_MAGIC_N);
+	ut_ad(space->n_pending_ios > 0);
+	space->n_pending_ios--;
 	mutex_exit(&fil_system->mutex);
 }
 
@@ -2836,15 +2872,15 @@ enum fil_operation_t {
 @return 0 if no operations else count + 1. */
 static
 ulint
-fil_check_pending_ops(
-	fil_space_t*	space,
-	ulint		count)
+fil_check_pending_ops(const fil_space_t* space, ulint count)
 {
 	ut_ad(mutex_own(&fil_system->mutex));
 
-	const ulint	n_pending_ops = space ? space->n_pending_ops : 0;
+	if (space == NULL) {
+		return 0;
+	}
 
-	if (n_pending_ops) {
+	if (ulint n_pending_ops = space->n_pending_ops) {
 
 		if (count > 5000) {
 			ib::warn() << "Trying to close/delete/truncate"
@@ -5531,7 +5567,7 @@ fil_flush(
 void
 fil_flush(fil_space_t* space)
 {
-	ut_ad(space->n_pending_ops > 0);
+	ut_ad(space->n_pending_ios > 0);
 	ut_ad(space->purpose == FIL_TYPE_TABLESPACE
 	      || space->purpose == FIL_TYPE_IMPORT);
 

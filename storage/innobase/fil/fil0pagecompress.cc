@@ -631,11 +631,11 @@ err_exit:
 	/* Note that as we have found the page is corrupted, so
 	all this could be incorrect. */
 	ulint space_id = mach_read_from_4(buf+FIL_PAGE_SPACE_ID);
-	const FilSpace space(space_id, true);
+	fil_space_t* space = fil_space_acquire_for_io(space_id);
 
 	ib::error() << "Corruption: Page is marked as compressed"
 		    << " space: " <<  space_id << " name: "
-		    << (space() ? space()->name : "NULL")
+		    << (space ? space->name : "NULL")
 		    << " but uncompress failed with error: " << err
 		    << " size: " << actual_size
 		    << " len: " << len
@@ -643,4 +643,5 @@ err_exit:
 		    << fil_get_compression_alg_name(compression_alg) << ".";
 
 	buf_page_print(buf, univ_page_size, 0);
+	fil_space_release_for_io(space);
 }

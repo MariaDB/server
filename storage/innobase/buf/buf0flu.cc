@@ -1006,7 +1006,7 @@ buf_flush_write_block_low(
 	buf_flush_t	flush_type,	/*!< in: type of flush */
 	bool		sync)		/*!< in: true if sync IO request */
 {
-	fil_space_t*	space = fil_space_acquire(bpage->id.space(), true);
+	fil_space_t* space = fil_space_acquire_for_io(bpage->id.space());
 	if (!space) {
 		return;
 	}
@@ -1121,10 +1121,16 @@ buf_flush_write_block_low(
 
 		/* true means we want to evict this page from the
 		LRU list as well. */
+		/* The tablespace could already have been dropped,
+		because fil_io(request, sync) would already have
+		decremented the node->n_pending. However,
+		buf_page_io_complete() only needs to look up the
+		tablespace during read requests, not during writes. */
+		ut_ad(buf_page_get_io_fix(bpage) == BUF_IO_WRITE);
 		buf_page_io_complete(bpage, true);
 	}
 
-	fil_space_release(space);
+	fil_space_release_for_io(space);
 
 	/* Increment the counter of I/O operations used
 	for selecting LRU policy. */

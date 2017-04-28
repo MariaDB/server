@@ -835,17 +835,6 @@ buf_page_is_checksum_valid_none(
 	)
 	MY_ATTRIBUTE((nonnull(1), warn_unused_result));
 
-/********************************************************************//**
-Check if page is maybe compressed, encrypted or both when we encounter
-corrupted page. Note that we can't be 100% sure if page is corrupted
-or decrypt/decompress just failed.
-@param[in]	bpage		Page
-@return true if page corrupted, false if not */
-bool
-buf_page_check_corrupt(
-	buf_page_t*	bpage)	/*!< in/out: buffer page read from disk */
-	MY_ATTRIBUTE((nonnull, warn_unused_result));
-
 /** Checks if a page contains only zeroes.
 @param[in]	read_buf	database page
 @param[in]	page_size	page size
