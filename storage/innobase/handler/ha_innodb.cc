@@ -3441,11 +3441,35 @@ innobase_invalidate_query_cache(
 	above the InnoDB trx_sys_t->lock. The caller of this function must
 	not have latches of a lower rank. */
 
-	/* Argument TRUE below means we are using transactions */
-	mysql_query_cache_invalidate4(trx->mysql_thd,
-				      full_name,
-				      (uint32) full_name_len,
-				      TRUE);
+#ifdef HAVE_QUERY_CACHE
+        char    qcache_key_name[2 * (NAME_LEN + 1)];
+        char db_name[NAME_CHAR_LEN * MY_CS_MBMAXLEN + 1];
+        const char *key_ptr;
+        size_t  tabname_len;
+        size_t  dbname_len;
+
+        // Extract the database name.
+        key_ptr= strchr(full_name, '/');
+        DBUG_ASSERT(key_ptr != NULL); // Database name should be present
+        memcpy(db_name, full_name, (dbname_len= (key_ptr - full_name)));
+        db_name[dbname_len]= '\0';
+
+        /* Construct the key("db-name\0table$name\0") for the query cache using
+        the path name("db@002dname\0table@0024name\0") of the table in its
+        canonical form. */
+        dbname_len = filename_to_tablename(db_name, qcache_key_name,
+                                           sizeof(qcache_key_name));
+        tabname_len = filename_to_tablename(++key_ptr,
+                                            (qcache_key_name + dbname_len + 1),
+                                            sizeof(qcache_key_name) -
+                                            dbname_len - 1);
+
+        /* Argument TRUE below means we are using transactions */
+        mysql_query_cache_invalidate4(trx->mysql_thd,
+                                      qcache_key_name,
+                                      (dbname_len + tabname_len + 2),
+                                      TRUE);
+#endif
 }
 
 /** Quote a standard SQL identifier like index or column name.
