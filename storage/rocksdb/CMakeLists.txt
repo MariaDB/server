@@ -22,6 +22,13 @@ IF(CMAKE_SYSTEM_PROCESSOR MATCHES "i[36]86")
   SKIP_ROCKSDB_PLUGIN("Intel 32 bit not supported.")
 ENDIF()
 
+# Due to retrieved data being incorrect endian
+include(TestBigEndian)
+test_big_endian(BIG_ENDIAN)
+if(BIG_ENDIAN)
+  SKIP_ROCKSDB_PLUGIN("Big Endian not supported.")
+endif()
+
 #
 # Also, disable building on 32-bit Windows
 #
