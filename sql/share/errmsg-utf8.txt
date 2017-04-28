@@ -7538,6 +7538,9 @@ ER_VERS_WRONG_QUERY_TYPE
 ER_VERS_VIEW_PROHIBITED
         eng "Creating VIEW %`s is prohibited!"
 
+ER_VERS_DERIVED_PROHIBITED
+        eng "Derived table is prohibited!"
+
 ER_VERS_WRONG_QUERY
         eng "Wrong versioned query: %s"
 

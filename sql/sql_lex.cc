@@ -2298,6 +2298,7 @@ void st_select_lex::init_select()
   join= 0;
   lock_type= TL_READ_DEFAULT;
   vers_conditions.empty();
+  vers_derived_conds.empty();
 }
 
 /*
@@ -7048,7 +7049,6 @@ bool LEX::sp_add_cfetch(THD *thd, const LEX_STRING &name)
 
 bool SELECT_LEX::vers_push_field(THD *thd, TABLE_LIST *table, const char* field_name)
 {
-  char buf[MAX_FIELD_NAME];
   Item_field *fld= new (thd->mem_root) Item_field(thd, &context,
                                       table->db, table->alias, field_name);
   if (!fld)

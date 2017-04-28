@@ -993,6 +993,7 @@ public:
 
   /* System Versioning */
   vers_select_conds_t vers_conditions;
+  vers_select_conds_t vers_derived_conds;
   bool vers_push_field(THD *thd, TABLE_LIST *table, const char* field_name);
 
   void init_query();

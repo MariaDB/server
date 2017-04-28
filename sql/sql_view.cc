@@ -454,6 +454,9 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
   }
 
   { /* System Versioning begin */
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wformat"
+#pragma GCC diagnostic ignored "-Wformat-extra-args"
     TABLE_LIST *impli_table= NULL, *expli_table= NULL;
     const char *impli_start, *impli_end;
     Item_field *expli_start= NULL, *expli_end= NULL;
@@ -498,7 +501,7 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
       {
         if (item->real_item()->type() != Item::FIELD_ITEM)
           continue;
-        Item_field *fld= (Item_field*) (item->real_item());
+        Item_field *fld= (Item_field*) item->real_item();
         if (fld->table_name && 0 != my_strcasecmp(table_alias_charset, table->alias, fld->table_name))
           continue;
         DBUG_ASSERT(fld->field_name);
@@ -567,10 +570,15 @@ expli_table_err:
 
     if (expli_table)
       impli_table= expli_table;
-    if (!expli_start && select_lex->vers_push_field(thd, impli_table, impli_start))
-      goto err;
-    if (!expli_end && select_lex->vers_push_field(thd, impli_table, impli_end))
-      goto err;
+
+    if (impli_table)
+    {
+      if (!expli_start && select_lex->vers_push_field(thd, impli_table, impli_start))
+        goto err;
+      if (!expli_end && select_lex->vers_push_field(thd, impli_table, impli_end))
+        goto err;
+    }
+#pragma GCC diagnostic pop
   } /* System Versioning end */
 
   view= lex->unlink_first_table(&link_to_local);

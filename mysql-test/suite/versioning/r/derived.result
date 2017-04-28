@@ -19,13 +19,13 @@ execute stmt;
 emp_id	name	mgr
 4	john	1
 drop prepare stmt;
-with ancestors as (select * from emp for system_time all) select * from ancestors for system_time all;
+with ancestors as (select * from emp for system_time all) select * from ancestors;
 emp_id	name	mgr
 1	bill	0
 2	bill	1
 3	kate	1
 4	john	1
-set @tmp= "with ancestors as (select * from emp for system_time all) select * from ancestors for system_time all";
+set @tmp= "with ancestors as (select * from emp for system_time all) select * from ancestors";
 prepare stmt from @tmp;
 execute stmt;
 emp_id	name	mgr
@@ -80,8 +80,7 @@ as
   from emp as ee, ancestors as a
   where ee.mgr = a.emp_id
 )
-select * from ancestors
-";
+select * from ancestors";
 prepare stmt from @tmp;
 execute stmt;
 emp_id	name	mgr
@@ -99,7 +98,7 @@ select ee.emp_id, ee.name, ee.mgr
 from emp as ee for system_time as of timestamp @ts, ancestors as a for system_time as of timestamp @ts
 where ee.mgr = a.emp_id
 )
-select * from ancestors for system_time as of timestamp @ts;
+select * from ancestors;
 emp_id	name	mgr
 1	bill	0
 2	bill	1
@@ -117,8 +116,7 @@ as
   from emp as ee for system_time as of timestamp @ts, ancestors as a for system_time as of timestamp @ts
   where ee.mgr = a.emp_id
 )
-select * from ancestors for system_time as of timestamp @ts;
-";
+select * from ancestors";
 prepare stmt from @tmp;
 execute stmt;
 emp_id	name	mgr
@@ -127,3 +125,41 @@ emp_id	name	mgr
 3	kate	1
 drop prepare stmt;
 drop table emp;
+create or replace table t1 (x int) with system versioning;
+create or replace table t2 (y int) with system versioning;
+insert into t1 values (1);
+set @t0= now(6);
+insert into t1 values (2);
+delete from t1 where x = 1;
+insert into t2 values (10);
+select * from (select *, t1.sys_trx_end, t1.sys_trx_end as endo from t1) as s0;
+ERROR HY000: Derived table is prohibited: multiple end system fields `t1.sys_trx_end`, `t1.sys_trx_end` in query!
+select * from (select *, t1.sys_trx_end, t2.sys_trx_start from t1, t2) as s0;
+ERROR HY000: Derived table is prohibited: system fields from multiple tables `t1`, `t2` in query!
+select * from (select * from t1 for system_time as of timestamp @t0, t2) as s0;
+x	y
+1	10
+select * from (select *, t1.sys_trx_end from t2, t1 for system_time as of timestamp @t0) as s0;
+y	x
+10	1
+select * from (select *, t1.sys_trx_start from t2 for system_time as of now, t1) as s0 query for system_time as of timestamp @t0;
+y	x
+10	1
+set @q= concat("create view vt1 as select * from t1 for system_time as of timestamp '", @t0, "'");
+prepare q from @q;
+execute q;
+drop prepare q;
+select * from vt1;
+x
+1
+select * from (select * from vt1, t2) as s0;
+x	y
+1	10
+select * from (select *, vt1.sys_trx_end from t2, vt1) as s0;
+y	x
+10	1
+select * from (select *, vt1.sys_trx_start from t2 for system_time as of now, vt1) as s0 query for system_time as of timestamp @t0;
+y	x
+10	1
+drop table t1, t2;
+drop view vt1;
