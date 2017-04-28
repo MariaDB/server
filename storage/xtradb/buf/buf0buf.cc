@@ -5931,23 +5931,22 @@ buf_print_io_instance(
 		pool_info->pages_written_rate);
 
 	if (pool_info->n_page_get_delta) {
-		double hit_rate = ((1000 * pool_info->page_read_delta)
-				/ pool_info->n_page_get_delta);
+		double hit_rate = double(pool_info->page_read_delta)
+			/ pool_info->n_page_get_delta;
 
-		if (hit_rate > 1000) {
-			hit_rate = 1000;
+		if (hit_rate > 1) {
+			hit_rate = 1;
 		}
 
-		hit_rate = 1000 - hit_rate;
-
 		fprintf(file,
-			"Buffer pool hit rate %lu / 1000,"
-			" young-making rate %lu / 1000 not %lu / 1000\n",
-			(ulint) hit_rate,
-			(ulint) (1000 * pool_info->young_making_delta
-				 / pool_info->n_page_get_delta),
-			(ulint) (1000 * pool_info->not_young_making_delta
-				 / pool_info->n_page_get_delta));
+			"Buffer pool hit rate " ULINTPF " / 1000,"
+			" young-making rate " ULINTPF " / 1000 not "
+			ULINTPF " / 1000\n",
+			ulint(1000 * (1 - hit_rate)),
+			ulint(1000 * double(pool_info->young_making_delta)
+			      / pool_info->n_page_get_delta),
+			ulint(1000 * double(pool_info->not_young_making_delta)
+			      / pool_info->n_page_get_delta));
 	} else {
 		fputs("No buffer pool page gets since the last printout\n",
 		      file);
@@ -6245,70 +6244,54 @@ buf_pool_reserve_tmp_slot(
 	return (free_slot);
 }
 
-/********************************************************************//**
-Encrypts a buffer page right before it's flushed to disk
-@param[in,out]	bpage		Page control block
-@param[in,out]	src_frame	Source page
-@param[in]	space_id	Tablespace id
-@return either unencrypted source page or decrypted page.
-*/
+/** Encryption and page_compression hook that is called just before
+a page is written to disk.
+@param[in,out]	space		tablespace
+@param[in,out]	bpage		buffer page
+@param[in]	src_frame	physical page frame that is being encrypted
+@return	page frame to be written to file
+(may be src_frame or an encrypted/compressed copy of it) */
+UNIV_INTERN
 byte*
 buf_page_encrypt_before_write(
+	fil_space_t*	space,
 	buf_page_t*	bpage,
-	byte*		src_frame,
-	ulint		space_id)
+	byte*		src_frame)
 {
+	ut_ad(space->id == bpage->space);
 	bpage->real_size = UNIV_PAGE_SIZE;
 
 	fil_page_type_validate(src_frame);
 
-	if (bpage->offset == 0) {
+	switch (bpage->offset) {
+	case 0:
 		/* Page 0 of a tablespace is not encrypted/compressed */
 		ut_ad(bpage->key_version == 0);
 		return src_frame;
-	}
-
-	if (bpage->space == TRX_SYS_SPACE && bpage->offset == TRX_SYS_PAGE_NO) {
-		/* don't encrypt/compress page as it contains address to dblwr buffer */
-		bpage->key_version = 0;
-		return src_frame;
-	}
-
-	fil_space_t* space = fil_space_acquire_silent(space_id);
-
-	/* Tablespace must exist during write operation */
-	if (!space) {
-		/* This could be true on discard if we have injected a error
-		case e.g. in innodb.innodb-wl5522-debug-zip so that space
-		is already marked as stop_new_ops = true. */
-		return src_frame;
+	case TRX_SYS_PAGE_NO:
+		if (bpage->space == TRX_SYS_SPACE) {
+			/* don't encrypt/compress page as it contains
+			address to dblwr buffer */
+			bpage->key_version = 0;
+			return src_frame;
+		}
 	}
 
 	fil_space_crypt_t* crypt_data = space->crypt_data;
-	bool encrypted = true;
+	const bool encrypted = crypt_data
+		&& !crypt_data->not_encrypted()
+		&& crypt_data->type != CRYPT_SCHEME_UNENCRYPTED
+		&& (!crypt_data->is_default_encryption()
+		    || srv_encrypt_tables);
 
-	if (space->crypt_data != NULL && space->crypt_data->not_encrypted()) {
-		/* Encryption is disabled */
-		encrypted = false;
-	}
-
-	if (!srv_encrypt_tables && (crypt_data == NULL || crypt_data->is_default_encryption())) {
-		/* Encryption is disabled */
-		encrypted = false;
-	}
-
-	/* Is encryption needed? */
-	if (crypt_data == NULL || crypt_data->type == CRYPT_SCHEME_UNENCRYPTED) {
-		/* An unencrypted table */
+	if (!encrypted) {
 		bpage->key_version = 0;
-		encrypted = false;
 	}
 
-	bool page_compressed = fil_space_is_page_compressed(bpage->space);
+	bool page_compressed = FSP_FLAGS_HAS_PAGE_COMPRESSION(space->flags);
 
 	if (!encrypted && !page_compressed) {
 		/* No need to encrypt or page compress the page */
-		fil_space_release(space);
 		return src_frame;
 	}
 
@@ -6336,25 +6319,21 @@ buf_page_encrypt_before_write(
 		bpage->real_size = page_size;
 		slot->out_buf = dst_frame = tmp;
 
-#ifdef UNIV_DEBUG
-		fil_page_type_validate(tmp);
-#endif
-
+		ut_d(fil_page_type_validate(tmp));
 	} else {
 		/* First we compress the page content */
 		ulint out_len = 0;
-		ulint block_size = fil_space_get_block_size(bpage->space, bpage->offset, page_size);
 
-		byte *tmp = fil_compress_page(bpage->space,
-					(byte *)src_frame,
-					slot->comp_buf,
-					page_size,
-					fil_space_get_page_compression_level(bpage->space),
-					block_size,
-					encrypted,
-					&out_len,
-					IF_LZO(slot->lzo_mem, NULL)
-					);
+		byte *tmp = fil_compress_page(
+			space,
+			(byte *)src_frame,
+			slot->comp_buf,
+			page_size,
+			fsp_flags_get_page_compression_level(space->flags),
+			fil_space_get_block_size(space, bpage->offset),
+			encrypted,
+			&out_len,
+			IF_LZO(slot->lzo_mem, NULL));
 
 		bpage->real_size = out_len;
 
@@ -6379,7 +6358,6 @@ buf_page_encrypt_before_write(
 	fil_page_type_validate(dst_frame);
 #endif
 
-	fil_space_release(space);
 	// return dst_frame which will be written
 	return dst_frame;
 }
@@ -6433,9 +6411,9 @@ buf_page_decrypt_after_read(
 
 		/* decompress using comp_buf to dst_frame */
 		fil_decompress_page(slot->comp_buf,
-			dst_frame,
-			size,
-			&bpage->write_size);
+				    dst_frame,
+				    ulong(size),
+				    &bpage->write_size);
 
 		/* Mark this slot as free */
 		slot->reserved = false;
@@ -6487,13 +6465,10 @@ buf_page_decrypt_after_read(
 #endif
 			/* decompress using comp_buf to dst_frame */
 			fil_decompress_page(slot->comp_buf,
-					dst_frame,
-					size,
-					&bpage->write_size);
-
-#ifdef UNIV_DEBUG
-			fil_page_type_validate(dst_frame);
-#endif
+					    dst_frame,
+					    ulong(size),
+					    &bpage->write_size);
+			ut_d(fil_page_type_validate(dst_frame));
 		}
 
 		/* Mark this slot as free */

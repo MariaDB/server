@@ -1511,7 +1511,7 @@ srv_export_innodb_status(void)
 		ulint(MONITOR_VALUE(MONITOR_OS_PENDING_READS));
 
 	export_vars.innodb_data_pending_writes =
-		ulint(MONITOR_VALUE(MONITOR_OS_PENDING_READS));
+		ulint(MONITOR_VALUE(MONITOR_OS_PENDING_WRITES));
 
 	export_vars.innodb_data_pending_fsyncs =
 		fil_n_pending_log_flushes

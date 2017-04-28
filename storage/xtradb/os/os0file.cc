@@ -2,7 +2,7 @@
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2009, Percona Inc.
-Copyright (c) 2013, 2017, MariaDB Corporation. All Rights Reserved.
+Copyright (c) 2013, 2017, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted
 by Percona Inc.. Those modifications are
@@ -338,21 +338,6 @@ UNIV_INTERN ulint	os_n_fsyncs_old		= 0;
 UNIV_INTERN time_t	os_last_printout;
 
 UNIV_INTERN ibool	os_has_said_disk_full	= FALSE;
-
-#if !defined(UNIV_HOTBACKUP)	\
-    && (!defined(HAVE_ATOMIC_BUILTINS) || UNIV_WORD_SIZE < 8)
-/** The mutex protecting the following counts of pending I/O operations */
-static os_ib_mutex_t	os_file_count_mutex;
-#endif /* !UNIV_HOTBACKUP && (!HAVE_ATOMIC_BUILTINS || UNIV_WORD_SIZE < 8) */
-
-/** Number of pending os_file_pread() operations */
-UNIV_INTERN ulint	os_file_n_pending_preads;
-/** Number of pending os_file_pwrite() operations */
-UNIV_INTERN ulint	os_file_n_pending_pwrites;
-/** Number of pending write operations */
-UNIV_INTERN ulint	os_n_pending_writes;
-/** Number of pending read operations */
-UNIV_INTERN ulint	os_n_pending_reads;
 
 #if defined(WIN_ASYNC_IO) || defined(LINUX_NATIVE_AIO)
 /** After first fallocate failure we will disable os_file_trim */
@@ -1021,10 +1006,6 @@ void
 os_io_init_simple(void)
 /*===================*/
 {
-#if !defined(HAVE_ATOMIC_BUILTINS) || UNIV_WORD_SIZE < 8
-	os_file_count_mutex = os_mutex_create();
-#endif /* !HAVE_ATOMIC_BUILTINS || UNIV_WORD_SIZE < 8 */
-
 	for (ulint i = 0; i < OS_FILE_N_SEEK_MUTEXES; i++) {
 		os_file_seek_mutexes[i] = os_mutex_create();
 	}
@@ -2811,10 +2792,6 @@ os_file_pread(
 	trx_t*		trx)
 {
 	off_t	offs;
-#if defined(HAVE_PREAD) && !defined(HAVE_BROKEN_PREAD)
-	ssize_t	n_bytes;
-	ssize_t n_read;
-#endif /* HAVE_PREAD && !HAVE_BROKEN_PREAD */
 	ulint		sec;
 	ulint		ms;
 	ib_uint64_t	start_time;
@@ -2844,22 +2821,16 @@ os_file_pread(
 	} else {
 		start_time = 0;
 	}
-#if defined(HAVE_PREAD) && !defined(HAVE_BROKEN_PREAD)
-#if defined(HAVE_ATOMIC_BUILTINS) && UNIV_WORD_SIZE == 8
-	(void) os_atomic_increment_ulint(&os_n_pending_reads, 1);
-	(void) os_atomic_increment_ulint(&os_file_n_pending_preads, 1);
-	MONITOR_ATOMIC_INC(MONITOR_OS_PENDING_READS);
-#else
-	os_mutex_enter(os_file_count_mutex);
-	os_file_n_pending_preads++;
-	os_n_pending_reads++;
-	MONITOR_INC(MONITOR_OS_PENDING_READS);
-	os_mutex_exit(os_file_count_mutex);
-#endif /* HAVE_ATOMIC_BUILTINS && UNIV_WORD == 8 */
+
+	const bool monitor = MONITOR_IS_ON(MONITOR_OS_PENDING_READS);
+#ifdef HAVE_PREAD
+	MONITOR_ATOMIC_INC_LOW(MONITOR_OS_PENDING_READS, monitor);
+
+	ssize_t	n_bytes;
 
 	/* Handle partial reads and signal interruptions correctly */
 	for (n_bytes = 0; n_bytes < (ssize_t) n; ) {
-		n_read = pread(file, buf, (ssize_t)n - n_bytes, offs);
+		ssize_t n_read = pread(file, buf, (ssize_t)n - n_bytes, offs);
 		if (n_read > 0) {
 			n_bytes += n_read;
 			offs += n_read;
@@ -2871,17 +2842,7 @@ os_file_pread(
 		}
 	}
 
-#if defined(HAVE_ATOMIC_BUILTINS) && UNIV_WORD_SIZE == 8
-	(void) os_atomic_decrement_ulint(&os_n_pending_reads, 1);
-	(void) os_atomic_decrement_ulint(&os_file_n_pending_preads, 1);
-	MONITOR_ATOMIC_DEC(MONITOR_OS_PENDING_READS);
-#else
-	os_mutex_enter(os_file_count_mutex);
-	os_file_n_pending_preads--;
-	os_n_pending_reads--;
-	MONITOR_DEC(MONITOR_OS_PENDING_READS);
-	os_mutex_exit(os_file_count_mutex);
-#endif /* !HAVE_ATOMIC_BUILTINS || UNIV_WORD == 8 */
+	MONITOR_ATOMIC_DEC_LOW(MONITOR_OS_PENDING_READS, monitor);
 
 	if (UNIV_UNLIKELY(start_time != 0))
 	{
@@ -2900,15 +2861,7 @@ os_file_pread(
 		ulint	i;
 #endif /* !UNIV_HOTBACKUP */
 
-#if defined(HAVE_ATOMIC_BUILTINS) && UNIV_WORD_SIZE == 8
-		(void) os_atomic_increment_ulint(&os_n_pending_reads, 1);
-		MONITOR_ATOMIC_INC(MONITOR_OS_PENDING_READS);
-#else
-		os_mutex_enter(os_file_count_mutex);
-		os_n_pending_reads++;
-		MONITOR_INC(MONITOR_OS_PENDING_READS);
-		os_mutex_exit(os_file_count_mutex);
-#endif /* HAVE_ATOMIC_BUILTINS && UNIV_WORD == 8 */
+		MONITOR_ATOMIC_INC_LOW(MONITOR_OS_PENDING_READS, monitor);
 #ifndef UNIV_HOTBACKUP
 		/* Protect the seek / read operation with a mutex */
 		i = ((ulint) file) % OS_FILE_N_SEEK_MUTEXES;
@@ -2938,15 +2891,7 @@ os_file_pread(
 		os_mutex_exit(os_file_seek_mutexes[i]);
 #endif /* !UNIV_HOTBACKUP */
 
-#if defined(HAVE_ATOMIC_BUILTINS) && UNIV_WORD_SIZE == 8
-		(void) os_atomic_decrement_ulint(&os_n_pending_reads, 1);
-		MONITOR_ATOIC_DEC(MONITOR_OS_PENDING_READS);
-#else
-		os_mutex_enter(os_file_count_mutex);
-		os_n_pending_reads--;
-		MONITOR_DEC(MONITOR_OS_PENDING_READS);
-		os_mutex_exit(os_file_count_mutex);
-#endif /* HAVE_ATOMIC_BUILTINS && UNIV_WORD_SIZE == 8 */
+		MONITOR_ATOMIC_DEC_LOW(MONITOR_OS_PENDING_READS, monitor);
 
 		if (UNIV_UNLIKELY(start_time != 0)
 		{
@@ -2992,18 +2937,9 @@ os_file_pwrite(
 
 	os_n_file_writes++;
 
-#if defined(HAVE_PWRITE) && !defined(HAVE_BROKEN_PREAD)
-#if !defined(HAVE_ATOMIC_BUILTINS) || UNIV_WORD_SIZE < 8
-	os_mutex_enter(os_file_count_mutex);
-	os_file_n_pending_pwrites++;
-	os_n_pending_writes++;
-	MONITOR_INC(MONITOR_OS_PENDING_WRITES);
-	os_mutex_exit(os_file_count_mutex);
-#else
-	(void) os_atomic_increment_ulint(&os_n_pending_writes, 1);
-	(void) os_atomic_increment_ulint(&os_file_n_pending_pwrites, 1);
-	MONITOR_ATOMIC_INC(MONITOR_OS_PENDING_WRITES);
-#endif /* !HAVE_ATOMIC_BUILTINS || UNIV_WORD < 8 */
+	const bool monitor = MONITOR_IS_ON(MONITOR_OS_PENDING_WRITES);
+#ifdef HAVE_PWRITE
+	MONITOR_ATOMIC_INC_LOW(MONITOR_OS_PENDING_WRITES, monitor);
 
 	/* Handle partial writes and signal interruptions correctly */
 	for (ret = 0; ret < (ssize_t) n; ) {
@@ -3022,17 +2958,7 @@ os_file_pwrite(
 		}
 	}
 
-#if !defined(HAVE_ATOMIC_BUILTINS) || UNIV_WORD_SIZE < 8
-	os_mutex_enter(os_file_count_mutex);
-	os_file_n_pending_pwrites--;
-	os_n_pending_writes--;
-	MONITOR_DEC(MONITOR_OS_PENDING_WRITES);
-	os_mutex_exit(os_file_count_mutex);
-#else
-	(void) os_atomic_decrement_ulint(&os_n_pending_writes, 1);
-	(void) os_atomic_decrement_ulint(&os_file_n_pending_pwrites, 1);
-	MONITOR_ATOMIC_DEC(MONITOR_OS_PENDING_WRITES);
-#endif /* !HAVE_ATOMIC_BUILTINS || UNIV_WORD < 8 */
+	MONITOR_ATOMIC_DEC_LOW(MONITOR_OS_PENDING_WRITES, monitor);
 
 	return(ret);
 #else
@@ -3042,10 +2968,7 @@ os_file_pwrite(
 		ulint	i;
 # endif /* !UNIV_HOTBACKUP */
 
-		os_mutex_enter(os_file_count_mutex);
-		os_n_pending_writes++;
-		MONITOR_INC(MONITOR_OS_PENDING_WRITES);
-		os_mutex_exit(os_file_count_mutex);
+		MONITOR_ATOMIC_INC_LOW(MONITOR_OS_PENDING_WRITES, monitor);
 
 # ifndef UNIV_HOTBACKUP
 		/* Protect the seek / write operation with a mutex */
@@ -3079,14 +3002,10 @@ func_exit:
 		os_mutex_exit(os_file_seek_mutexes[i]);
 # endif /* !UNIV_HOTBACKUP */
 
-		os_mutex_enter(os_file_count_mutex);
-		os_n_pending_writes--;
-		MONITOR_DEC(MONITOR_OS_PENDING_WRITES);
-		os_mutex_exit(os_file_count_mutex);
-
+		MONITOR_ATOMIC_DEC_LOW(MONITOR_OS_PENDING_WRITES, monitor);
 		return(ret);
 	}
-#endif /* !UNIV_HOTBACKUP */
+#endif /* HAVE_PWRITE */
 }
 #endif
 
@@ -3118,15 +3037,13 @@ os_file_read_func(
 
 	os_n_file_reads++;
 	os_bytes_read_since_printout += n;
+	const bool monitor = MONITOR_IS_ON(MONITOR_OS_PENDING_READS);
 
 try_again:
 	ut_ad(buf);
 	ut_ad(n > 0);
 
-	os_mutex_enter(os_file_count_mutex);
-	os_n_pending_reads++;
-	MONITOR_INC(MONITOR_OS_PENDING_READS);
-	os_mutex_exit(os_file_count_mutex);
+	MONITOR_ATOMIC_INC_LOW(MONITOR_OS_PENDING_READS, monitor);
 
 	memset (&overlapped, 0, sizeof (overlapped));
 	overlapped.Offset = (DWORD)(offset & 0xFFFFFFFF);
@@ -3139,10 +3056,7 @@ try_again:
 	else if(GetLastError() == ERROR_IO_PENDING) {
 		ret = GetOverlappedResult(file, &overlapped, (DWORD *)&len, TRUE);
         }
-	os_mutex_enter(os_file_count_mutex);
-	os_n_pending_reads--;
-	MONITOR_DEC(MONITOR_OS_PENDING_READS);
-	os_mutex_exit(os_file_count_mutex);
+	MONITOR_ATOMIC_DEC_LOW(MONITOR_OS_PENDING_READS, monitor);
 
 	if (ret && len == n) {
 		return(TRUE);
@@ -3226,15 +3140,13 @@ os_file_read_no_error_handling_func(
 
 	os_n_file_reads++;
 	os_bytes_read_since_printout += n;
+	const bool monitor = MONITOR_IS_ON(MONITOR_OS_PENDING_READS);
 
 try_again:
 	ut_ad(buf);
 	ut_ad(n > 0);
 
-	os_mutex_enter(os_file_count_mutex);
-	os_n_pending_reads++;
-	MONITOR_INC(MONITOR_OS_PENDING_READS);
-	os_mutex_exit(os_file_count_mutex);
+	MONITOR_ATOMIC_INC_LOW(MONITOR_OS_PENDING_READS, monitor);
 
 	memset (&overlapped, 0, sizeof (overlapped));
 	overlapped.Offset = (DWORD)(offset & 0xFFFFFFFF);
@@ -3247,10 +3159,7 @@ try_again:
 	else if(GetLastError() == ERROR_IO_PENDING) {
 		ret = GetOverlappedResult(file, &overlapped, (DWORD *)&len, TRUE);
 	}
-	os_mutex_enter(os_file_count_mutex);
-	os_n_pending_reads--;
-	MONITOR_DEC(MONITOR_OS_PENDING_READS);
-	os_mutex_exit(os_file_count_mutex);
+	MONITOR_ATOMIC_DEC_LOW(MONITOR_OS_PENDING_READS, monitor);
 
 	if (ret && len == n) {
 		return(TRUE);
@@ -3344,13 +3253,10 @@ os_file_write_func(
 
 	ut_ad(buf);
 	ut_ad(n > 0);
-
+	const bool monitor = MONITOR_IS_ON(MONITOR_OS_PENDING_WRITES);
 retry:
 
-	os_mutex_enter(os_file_count_mutex);
-	os_n_pending_writes++;
-	MONITOR_INC(MONITOR_OS_PENDING_WRITES);
-	os_mutex_exit(os_file_count_mutex);
+	MONITOR_ATOMIC_INC_LOW(MONITOR_OS_PENDING_WRITES, monitor);
 
 	memset (&overlapped, 0, sizeof (overlapped));
 	overlapped.Offset = (DWORD)(offset & 0xFFFFFFFF);
@@ -3365,10 +3271,7 @@ retry:
 		ret = GetOverlappedResult(file, &overlapped, (DWORD *)&len, TRUE);
 	}
 
-	os_mutex_enter(os_file_count_mutex);
-	os_n_pending_writes--;
-	MONITOR_DEC(MONITOR_OS_PENDING_WRITES);
-	os_mutex_exit(os_file_count_mutex);
+	MONITOR_ATOMIC_DEC_LOW(MONITOR_OS_PENDING_WRITES, monitor);
 
 	if (ret && len == n) {
 
@@ -4462,10 +4365,6 @@ os_aio_free(void)
 			os_event_free(os_aio_segment_wait_events[i]);
 		}
 	}
-
-#if !defined(HAVE_ATOMIC_BUILTINS) || UNIV_WORD_SIZE < 8
-	os_mutex_free(os_file_count_mutex);
-#endif /* !HAVE_ATOMIC_BUILTINS || UNIV_WORD_SIZE < 8 */
 
 	for (ulint i = 0; i < OS_FILE_N_SEEK_MUTEXES; i++) {
 		os_mutex_free(os_file_seek_mutexes[i]);
@@ -6192,19 +6091,24 @@ os_aio_print(
 	time_elapsed = 0.001 + difftime(current_time, os_last_printout);
 
 	fprintf(file,
-		"Pending flushes (fsync) log: %lu; buffer pool: %lu\n"
-		"%lu OS file reads, %lu OS file writes, %lu OS fsyncs\n",
-		(ulong) fil_n_pending_log_flushes,
-		(ulong) fil_n_pending_tablespace_flushes,
-		(ulong) os_n_file_reads,
-		(ulong) os_n_file_writes,
-		(ulong) os_n_fsyncs);
+		"Pending flushes (fsync) log: " ULINTPF
+		"; buffer pool: " ULINTPF "\n"
+		ULINTPF " OS file reads, "
+		ULINTPF " OS file writes, "
+		ULINTPF " OS fsyncs\n",
+		fil_n_pending_log_flushes,
+		fil_n_pending_tablespace_flushes,
+		os_n_file_reads,
+		os_n_file_writes,
+		os_n_fsyncs);
 
-	if (os_file_n_pending_preads != 0 || os_file_n_pending_pwrites != 0) {
+	const ulint n_reads = ulint(MONITOR_VALUE(MONITOR_OS_PENDING_READS));
+	const ulint n_writes = ulint(MONITOR_VALUE(MONITOR_OS_PENDING_WRITES));
+
+	if (n_reads != 0 || n_writes != 0) {
 		fprintf(file,
-			"%lu pending preads, %lu pending pwrites\n",
-			(ulong) os_file_n_pending_preads,
-			(ulong) os_file_n_pending_pwrites);
+			ULINTPF " pending reads, " ULINTPF " pending writes\n",
+			n_reads, n_writes);
 	}
 
 	if (os_n_file_reads == os_n_file_reads_old) {

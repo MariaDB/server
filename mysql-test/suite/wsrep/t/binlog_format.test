@@ -1,7 +1,7 @@
 --source include/have_wsrep_provider.inc
 --source include/have_binlog_format_row.inc
 
-call mtr.add_suppression("WSREP: MariaDB Galera and flashback do not support binlog format.*");
+call mtr.add_suppression("WSREP: MariaDB Galera does not support binlog format");
 call mtr.add_suppression("WSREP: Cannot get fake transaction ID from storage engine.");
 
 --echo #

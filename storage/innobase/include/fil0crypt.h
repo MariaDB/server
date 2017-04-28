@@ -116,10 +116,10 @@ struct fil_space_crypt_t : st_encryption_scheme
 		min_key_version(new_min_key_version),
 		page0_offset(0),
 		encryption(new_encryption),
-		key_found(),
+		mutex(),
+		key_found(new_min_key_version),
 		rotate_state()
 	{
-		key_found = new_min_key_version;
 		key_id = new_key_id;
 		my_random_bytes(iv, sizeof(iv));
 		mutex_create(LATCH_ID_FIL_CRYPT_DATA_MUTEX, &mutex);

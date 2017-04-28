@@ -1,0 +1,98 @@
+#
+# Test that the wsrep_retry_autocommit variable is respected. We use an INSERT that
+# proceeds very slowly due to extra SLEEP() in a trigger
+#
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+--connection node_1
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY, f2 INTEGER) ENGINE=InnoDB;
+CREATE TRIGGER tr1 BEFORE INSERT ON t1 FOR EACH ROW SET NEW.f2 = SLEEP(5);
+
+#
+# With wsrep_retry_autocommit = 0, error is certain
+#
+
+--connection node_1
+SET SESSION wsrep_retry_autocommit = 0;
+--send INSERT INTO t1 (f1) VALUES (1),(2);
+
+--connection node_2
+--sleep 1
+TRUNCATE TABLE t1;
+
+--connection node_1
+--error ER_LOCK_DEADLOCK
+--reap
+
+#
+# With wsrep_retry_autocommit = 1, success against one TRUNCATE
+#
+
+--connection node_1
+SET SESSION wsrep_retry_autocommit = 1;
+--send INSERT INTO t1 (f1) VALUES (3),(4);
+
+--connection node_2
+--sleep 1
+TRUNCATE TABLE t1;
+
+--connection node_1
+--error 0
+--reap
+SELECT * FROM test.t1;
+
+#
+# With wsrep_retry_autocommit = 1, failure against multiple TRUNCATEs
+#
+
+--connection node_2
+DELIMITER |;
+CREATE PROCEDURE repeated_truncate ()
+BEGIN
+	DECLARE i INT;
+	DECLARE CONTINUE HANDLER FOR SQLEXCEPTION BEGIN END;
+
+	SET i = 0;
+        WHILE i <= 1000 DO
+		TRUNCATE TABLE t1;
+		SET i = i + 1;
+        END WHILE;
+END|
+DELIMITER ;|
+
+# Begin streaming TRUNCATEs
+--let $truncate_connection_id = `SELECT CONNECTION_ID()`
+--send CALL repeated_truncate()
+
+--connection node_1
+SET SESSION wsrep_retry_autocommit = 1;
+--sleep 1
+--error ER_LOCK_DEADLOCK
+INSERT INTO t1 (f1) VALUES (5),(6);
+
+#
+# With wsrep_retry_autocommit = 1024, success against multiple TRUNCATEs
+#
+
+--connection node_1
+SET SESSION wsrep_retry_autocommit = 1024;
+--send INSERT INTO t1 (f1) VALUES (7),(8);
+
+--sleep 6
+
+# Once he stream of TRUNCATEs is complete
+--connection node_2
+--reap
+
+# the INSERT will eventually be sucessfull
+--connection node_1
+--error 0
+--reap
+
+--let $diff_servers = 1 2
+--source include/diff_servers.inc
+
+DROP TABLE t1;
+DROP PROCEDURE repeated_truncate;

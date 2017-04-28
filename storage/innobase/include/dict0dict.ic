@@ -793,7 +793,8 @@ dict_sys_tables_type_validate(
 	} else if (zip_ssize) {
 		/* Antelope does not support COMPRESSED format. */
 		ib::error()
-			<< "SYS_TABLES::TYPE=" << type << "zip_ssize:" << zip_ssize;
+			<< "SYS_TABLES::TYPE=" << type
+			<< ", zip_ssize:" << zip_ssize;
 
 		return(ULINT_UNDEFINED);
 	}
@@ -805,16 +806,16 @@ dict_sys_tables_type_validate(
 		low_order_bit and DICT_N_COLS_COMPACT flags. */
 		if (!atomic_blobs) {
 			ib::error() << "SYS_TABLES::TYPE=" << type
-				<< " zip_ssize:" << zip_ssize
-				<< " atomic_blobs:" << atomic_blobs;
+				<< ", zip_ssize:" << zip_ssize
+				<< ", atomic_blobs:" << atomic_blobs;
 			return(ULINT_UNDEFINED);
 		}
 
 		/* Validate that the number is within allowed range. */
 		if (zip_ssize > PAGE_ZIP_SSIZE_MAX) {
 			ib::error() << "SYS_TABLES::TYPE=" << type
-				<< " zip_ssize:" << zip_ssize
-				<< " max:" << PAGE_ZIP_SSIZE_MAX;
+				<< ", zip_ssize:" << zip_ssize
+				<< " > " << PAGE_ZIP_SSIZE_MAX;
 			return(ULINT_UNDEFINED);
 		}
 	}

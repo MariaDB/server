@@ -1,0 +1,87 @@
+#
+# This .cnf file creates a setup with a 2-node Galera cluster and one stand-alone MySQL server, to be used as a slave
+#
+
+# Use default setting for mysqld processes
+!include include/default_mysqld.cnf
+
+[mysqld]
+default-storage-engine=InnoDB
+
+[mysqld.1]
+server-id=1
+binlog-format=row
+log-bin=mysqld-bin
+log_slave_updates
+gtid-mode=on
+enforce-gtid-consistency=true
+event-scheduler=1
+
+wsrep_provider=@ENV.WSREP_PROVIDER
+wsrep_cluster_address='gcomm://'
+wsrep_provider_options='base_port=@mysqld.1.#galera_port'
+
+# enforce read-committed characteristics across the cluster
+wsrep_causal_reads=ON
+wsrep_sync_wait = 7
+
+wsrep_node_address=127.0.0.1
+wsrep_sst_receive_address=127.0.0.2:@mysqld.1.#sst_port
+wsrep_node_incoming_address=127.0.0.1:@mysqld.1.port
+
+# Required for Galera
+innodb_autoinc_lock_mode=2
+
+innodb_flush_log_at_trx_commit=2
+
+[mysqld.2]
+server-id=2
+binlog-format=row
+log-bin=mysqld-bin
+log_slave_updates
+gtid-mode=on
+enforce-gtid-consistency=true
+event-scheduler=1
+
+wsrep_provider=@ENV.WSREP_PROVIDER
+wsrep_cluster_address='gcomm://127.0.0.1:@mysqld.1.#galera_port'
+wsrep_provider_options='base_port=@mysqld.2.#galera_port'
+
+# enforce read-committed characteristics across the cluster
+wsrep_causal_reads=ON
+wsrep_sync_wait = 7
+
+wsrep_node_address=127.0.0.1
+wsrep_sst_receive_address=127.0.0.2:@mysqld.2.#sst_port
+wsrep_node_incoming_address=127.0.0.1:@mysqld.2.port
+
+# Required for Galera
+innodb_autoinc_lock_mode=2
+
+innodb_flush_log_at_trx_commit=2
+
+[mysqld.3]
+server-id=3
+replicate-ignore-db=test
+replicate-wild-ignore-table=test.%
+log-bin=mysqld-bin
+log_slave_updates
+gtid-mode=on
+enforce-gtid-consistency=true
+event-scheduler=1
+
+[ENV]
+NODE_MYPORT_1= @mysqld.1.port
+NODE_MYSOCK_1= @mysqld.1.socket
+
+NODE_MYPORT_2= @mysqld.2.port
+NODE_MYSOCK_2= @mysqld.2.socket
+
+NODE_MYPORT_3= @mysqld.3.port
+NODE_MYSOCK_3= @mysqld.3.socket
+
+NODE_GALERAPORT_1= @mysqld.1.#galera_port
+NODE_GALERAPORT_2= @mysqld.2.#galera_port
+
+NODE_SSTPORT_1= @mysqld.1.#sst_port
+NODE_SSTPORT_2= @mysqld.2.#sst_port

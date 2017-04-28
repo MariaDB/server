@@ -1485,7 +1485,7 @@ fil_mtr_rename_log(
 	const dict_table_t*	new_table,
 	const char*		tmp_name,
 	mtr_t*			mtr)
-	MY_ATTRIBUTE((warn_unused_result));
+	MY_ATTRIBUTE((nonnull, warn_unused_result));
 
 /** Acquire the fil_system mutex. */
 #define fil_system_enter()	mutex_enter(&fil_system->mutex)
@@ -1592,7 +1592,6 @@ fil_names_clear(
 void test_make_filepath();
 #endif /* UNIV_ENABLE_UNIT_TEST_MAKE_FILEPATH */
 
-
 /** Determine the block size of the data file.
 @param[in]	space		tablespace
 @param[in]	offset		page number
@@ -1600,22 +1599,6 @@ void test_make_filepath();
 UNIV_INTERN
 ulint
 fil_space_get_block_size(const fil_space_t* space, unsigned offset);
-/*******************************************************************//**
-Increments the count of pending operation, if space is not being deleted.
-@return	TRUE if being deleted, and operation should be skipped */
-UNIV_INTERN
-ibool
-fil_inc_pending_ops(
-/*================*/
-	ulint	id,		/*!< in: space id */
-	ibool	print_err);	/*!< in: need to print error or not */
-/*******************************************************************//**
-Decrements the count of pending operations. */
-UNIV_INTERN
-void
-fil_decr_pending_ops(
-/*=================*/
-	ulint	id);	/*!< in: space id */
 
 #include "fil0fil.ic"
 #endif /* UNIV_INNOCHECKSUM */

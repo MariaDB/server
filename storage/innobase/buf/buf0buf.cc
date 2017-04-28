@@ -7409,7 +7409,7 @@ buf_page_encrypt_before_write(
 		ut_ad(bpage->key_version == 0);
 		return src_frame;
 	case TRX_SYS_PAGE_NO:
-		if (bpage->id.space() == 0) {
+		if (bpage->id.space() == TRX_SYS_SPACE) {
 			/* don't encrypt/compress page as it contains
 			address to dblwr buffer */
 			bpage->key_version = 0;

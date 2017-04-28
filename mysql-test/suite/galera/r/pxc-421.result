@@ -1,0 +1,42 @@
+connection node_1;
+set GLOBAL wsrep_slave_threads=26;
+CREATE TABLE t1 (f1 INTEGER) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+INSERT INTO t1 (f1) SELECT * from t1 as x1;
+connection node_2;
+set GLOBAL wsrep_slave_threads=16;
+SET GLOBAL wsrep_provider='none';
+INSERT INTO t1 VALUES (2);
+connection node_1;
+INSERT INTO t1 VALUES (3);
+connection node_2;
+INSERT INTO t1 VALUES (4);
+set GLOBAL wsrep_slave_threads=5;
+SELECT COUNT(*) = 5 FROM t1;
+COUNT(*) = 5
+1
+connection node_1;
+set GLOBAL wsrep_slave_threads=12;
+SELECT COUNT(*) = 4 FROM t1;
+COUNT(*) = 4
+1
+INSERT INTO t1 VALUES (100), (101), (102);
+connection node_2;
+set GLOBAL wsrep_slave_threads=5;
+INSERT INTO t1 (f1) SELECT * from t1 as x1;
+show global variables like 'wsrep_slave_threads';
+Variable_name	Value
+wsrep_slave_threads	5
+SET GLOBAL wsrep_slave_threads = 1;
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+16
+connection node_1;
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+15
+show global variables like 'wsrep_slave_threads';
+Variable_name	Value
+wsrep_slave_threads	12
+SET GLOBAL wsrep_slave_threads = 1;
+DROP TABLE t1;

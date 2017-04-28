@@ -107,7 +107,7 @@ fil_compress_page(
 
 	/* page_compression does not apply to tables or tablespaces
 	that use ROW_FORMAT=COMPRESSED */
-	ut_ad(!space || !page_size_t(space->flags).is_compressed());
+	ut_ad(!space || !FSP_FLAGS_GET_ZIP_SSIZE(space->flags));
 
 	if (encrypted) {
 		header_len += FIL_PAGE_COMPRESSION_METHOD_SIZE;
@@ -137,7 +137,6 @@ fil_compress_page(
 	case FIL_PAGE_TYPE_XDES:
 	case FIL_PAGE_PAGE_COMPRESSED:
 		*out_len = len;
-
 		goto err_exit;
 	}
 
@@ -323,7 +322,6 @@ fil_compress_page(
 	/* Actual write needs to be alligned on block size */
 	if (write_size % block_size) {
 		size_t tmp = write_size;
-
 		write_size =  (size_t)ut_uint64_align_up((ib_uint64_t)write_size, block_size);
 		/* Clean up the end of buffer */
 		memset(out_buf+tmp, 0, write_size - tmp);
