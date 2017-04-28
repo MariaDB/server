@@ -1,0 +1,68 @@
+create or replace table dept (
+dept_id int(10) primary key, 
+name varchar(100)
+)
+with system versioning;
+create or replace table emp (
+emp_id int(10) primary key,
+dept_id int(10) not null,
+name varchar(100) not null,
+mgr int(10),
+salary int(10) not null,
+constraint `dept-emp-fk`
+    foreign key (dept_id) references dept (dept_id)
+on delete cascade
+on update restrict,
+constraint `mgr-fk`
+    foreign key (mgr) references emp (emp_id)
+on delete restrict
+on update restrict
+) 
+with system versioning;
+insert into dept (dept_id, name) values (10, "accounting");
+insert into emp (emp_id, name, salary, dept_id, mgr) values 
+(1, "bill", 1000, 10, null),
+(20, "john", 500, 10, 1),
+(30, "jane", 750, 10,1 );
+select vtq_commit_ts(max(sys_trx_start)) into @ts_1 from emp;
+update emp set mgr=30 where name ="john";
+select vtq_commit_ts(sys_trx_start) into @ts_2 from emp where name="john";
+/* All report to 'Bill' */
+with recursive
+ancestors
+as
+(
+select e.emp_id, e.name, e.mgr, e.salary
+from emp as e for system_time as of timestamp @ts_1
+where name = 'bill'
+  union 
+select e.emp_id, e.name, e.mgr, e.salary
+from emp as e for system_time as of timestamp @ts_1, 
+ancestors as a
+where e.mgr = a.emp_id
+)
+select * from ancestors;
+emp_id	name	mgr	salary
+1	bill	NULL	1000
+30	jane	1	750
+/* Expected 3 rows */
+with recursive
+ancestors
+as
+(
+select e.emp_id, e.name, e.mgr, e.salary
+from emp as e for system_time as of timestamp @ts_2
+where name = 'bill'
+  union 
+select e.emp_id, e.name, e.mgr, e.salary
+from emp as e for system_time as of timestamp @ts_2,
+ancestors as a
+where e.mgr = a.emp_id
+)
+select * from ancestors for system_time as of timestamp @ts_2;
+emp_id	name	mgr	salary
+1	bill	NULL	1000
+30	jane	1	750
+20	john	30	500
+drop table emp;
+drop table dept;
