@@ -63,9 +63,10 @@ public:
   bool  Strict;                 /* Strict syntax checking              */
 	const char *Uri;							/* MongoDB connection URI              */
 #if defined(MONGO_SUPPORT)
-	PSZ         Collname;         /* External collection name            */
-	PSZ         Schema;           /* External schema (DB) name           */
-	PSZ         Options;          /* Colist ; filter                     */
+	PSZ   Collname;               /* External collection name            */
+	PSZ   Schema;                 /* External schema (DB) name           */
+	PSZ   Options;                /* Colist ; filter                     */
+	bool  Pipe;							      /* True if Colist is a pipeline        */
 #endif   // MONGO_SUPPORT
   }; // end of JSONDEF
 
@@ -78,6 +79,9 @@ public:
 class DllExport TDBJSN : public TDBDOS {
   friend class JSONCOL;
 	friend class JSONDEF;
+#if defined(MONGO_SUPPORT)
+	friend class MGOFAM;
+#endif   // MONGO_SUPPORT
 public:
   // Constructor
    TDBJSN(PJDEF tdp, PTXF txfp);
@@ -96,6 +100,8 @@ public:
   virtual PCOL  InsertSpecialColumn(PCOL colp);
   virtual int   RowNumber(PGLOBAL g, bool b = FALSE)
                  {return (b) ? M : N;}
+	virtual bool  CanBeFiltered(void) 
+	              {return Txfp->GetAmType() == TYPE_AM_MGO || !Xcol;}
 
   // Database routines
   virtual int   Cardinality(PGLOBAL g);
@@ -139,6 +145,7 @@ public:
 class DllExport JSONCOL : public DOSCOL {
   friend class TDBJSN;
   friend class TDBJSON;
+	friend class MGOFAM;
  public:
   // Constructors
   JSONCOL(PGLOBAL g, PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i);
@@ -148,20 +155,21 @@ class DllExport JSONCOL : public DOSCOL {
   virtual int  GetAmType(void) {return Tjp->GetAmType();}
 
   // Methods
-  virtual bool SetBuffer(PGLOBAL g, PVAL value, bool ok, bool check);
-          bool ParseJpath(PGLOBAL g);
-  virtual void ReadColumn(PGLOBAL g);
-  virtual void WriteColumn(PGLOBAL g);
+  virtual bool  SetBuffer(PGLOBAL g, PVAL value, bool ok, bool check);
+          bool  ParseJpath(PGLOBAL g);
+					char *GetJpath(PGLOBAL g, bool proj);
+	virtual void  ReadColumn(PGLOBAL g);
+  virtual void  WriteColumn(PGLOBAL g);
 
  protected:
-  bool    CheckExpand(PGLOBAL g, int i, PSZ nm, bool b);
-  bool    SetArrayOptions(PGLOBAL g, char *p, int i, PSZ nm);
-  PVAL    GetColumnValue(PGLOBAL g, PJSON row, int i);
-  PVAL    ExpandArray(PGLOBAL g, PJAR arp, int n);
-  PVAL    CalculateArray(PGLOBAL g, PJAR arp, int n);
-  PVAL    MakeJson(PGLOBAL g, PJSON jsp);
-  void    SetJsonValue(PGLOBAL g, PVAL vp, PJVAL val, int n);
-  PJSON   GetRow(PGLOBAL g);
+  bool  CheckExpand(PGLOBAL g, int i, PSZ nm, bool b);
+  bool  SetArrayOptions(PGLOBAL g, char *p, int i, PSZ nm);
+  PVAL  GetColumnValue(PGLOBAL g, PJSON row, int i);
+  PVAL  ExpandArray(PGLOBAL g, PJAR arp, int n);
+  PVAL  CalculateArray(PGLOBAL g, PJAR arp, int n);
+  PVAL  MakeJson(PGLOBAL g, PJSON jsp);
+  void  SetJsonValue(PGLOBAL g, PVAL vp, PJVAL val, int n);
+  PJSON GetRow(PGLOBAL g);
 
   // Default constructor not to be used
   JSONCOL(void) {}

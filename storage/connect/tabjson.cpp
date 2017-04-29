@@ -135,6 +135,7 @@ PQRYRES JSONColumns(PGLOBAL g, char *db, char *dsn, PTOS topt, bool info)
 		tdp->Collname = GetStringTableOption(g, topt, "Tabname", tdp->Collname);
 		tdp->Schema = GetStringTableOption(g, topt, "Dbname", "test");
 		tdp->Options = GetStringTableOption(g, topt, "Colist", NULL);
+		tdp->Pipe = GetBooleanTableOption(g, topt, "Pipeline", false);
 		tdp->Pretty = 0;
 #else   // !MONGO_SUPPORT
 		sprintf(g->Message, MSG(NO_FEAT_SUPPORT), "MONGO");
@@ -452,6 +453,7 @@ bool JSONDEF::DefineAM(PGLOBAL g, LPCSTR, int poff)
 		Collname = GetStringCatInfo(g, "Tabname", Collname);
 		Schema = GetStringCatInfo(g, "Dbname", "test");
 		Options = GetStringCatInfo(g, "Colist", NULL);
+		Pipe = GetBoolCatInfo("Pipeline", false);
 		Pretty = 0;
 #else   // !MONGO_SUPPORT
 		sprintf(g->Message, MSG(NO_FEAT_SUPPORT), "MONGO");
@@ -481,7 +483,14 @@ PTDB JSONDEF::GetTable(PGLOBAL g, MODE m)
                 !(tmp == TMP_FORCE &&
                 (m == MODE_UPDATE || m == MODE_DELETE));
 
-		if (Zipped) {
+		if (Uri) {
+#if defined(MONGO_SUPPORT)
+			txfp = new(g) MGOFAM(this);
+#else   // !MONGO_SUPPORT
+			sprintf(g->Message, MSG(NO_FEAT_SUPPORT), "MONGO");
+			return NULL;
+#endif  // !MONGO_SUPPORT
+		} else if (Zipped) {
 #if defined(ZIP_SUPPORT)
 			if (m == MODE_READ || m == MODE_READX) {
 				txfp = new(g) UNZFAM(this);
@@ -505,13 +514,6 @@ PTDB JSONDEF::GetTable(PGLOBAL g, MODE m)
       sprintf(g->Message, MSG(NO_FEAT_SUPPORT), "GZ");
       return NULL;
 #endif  // !GZ_SUPPORT
-		} else if (Uri) {
-#if defined(MONGO_SUPPORT)
-			txfp = new(g) MGOFAM(this);
-#else   // !MONGO_SUPPORT
-			sprintf(g->Message, MSG(NO_FEAT_SUPPORT), "MONGO");
-			return NULL;
-#endif  // !MONGO_SUPPORT
 		} else if (map)
       txfp = new(g) MAPFAM(this);
     else
@@ -746,6 +748,9 @@ bool TDBJSN::OpenDB(PGLOBAL g)
 
 	} // endif Use
 
+	if (Xcol && Txfp->GetAmType() != TYPE_AM_MGO)
+		To_Filter = NULL;							 // Imcompatible
+
   return TDBDOS::OpenDB(g);
   } // end of OpenDB
 
@@ -922,9 +927,6 @@ int TDBJSN::WriteDB(PGLOBAL g)
 	int rc = TDBDOS::WriteDB(g);
 
 #if USE_G
-	//if (rc == RC_FX)
-	//	strcpy(g->Message, G->Message);
-
 	PlugSubSet(G, G->Sarea, G->Sarea_Size);
 #endif
 	Row->Clear();
@@ -1196,11 +1198,61 @@ bool JSONCOL::ParseJpath(PGLOBAL g)
   } // end of ParseJpath
 
 /***********************************************************************/
+/*  Get Jpath converted to Mongo path.                                 */
+/***********************************************************************/
+char *JSONCOL::GetJpath(PGLOBAL g, bool proj)
+{
+	if (Jpath) {
+		char *p1, *p2, *mgopath;
+		int   i = 0;
+
+		if (strcmp(Jpath, "*"))
+			mgopath = PlugDup(g, Jpath);
+		else
+			return NULL;
+
+		for (p1 = p2 = mgopath; *p1; p1++)
+			if (i) {								 // Inside []
+				if (isdigit(*p1)) {
+					if (!proj)
+					  *p2++ = *p1;
+
+					i = 2;
+				} else if (*p1 == ']' && i == 2) {
+					if (proj && *(p1 + 1) == ':')
+						p1++;
+
+					i = 0;
+				} else if (proj)
+					i = 2;
+				else
+					return NULL;
+			
+			} else switch (*p1) {
+				case ':':	*p2++ = '.'; break;
+				case '[':	i = 1;       break;
+				case '*':
+					if (*(p2 - 1) == '.' && !*(p1 + 1)) {
+						p2--;							 // Suppress last :*
+						break;
+					} // endif p2
+
+				default:	*p2++ = *p1; break;
+		  } // endswitch p1;
+
+			*p2 = 0;
+			return mgopath;
+	} else
+		return NULL;
+
+} // end of GetJpath
+
+/***********************************************************************/
 /*  MakeJson: Serialize the json item and set value to it.             */
 /***********************************************************************/
 PVAL JSONCOL::MakeJson(PGLOBAL g, PJSON jsp)
-  {
-  if (Value->IsTypeNum()) {
+{
+	if (Value->IsTypeNum()) {
     strcpy(g->Message, "Cannot make Json for a numeric column");
     Value->Reset();
   } else
@@ -1910,8 +1962,11 @@ bool TDBJSON::OpenDB(PGLOBAL g)
         return true;
       } // endswitch Jmode
 
-  Use = USE_OPEN;
-  return false;
+	if (Xcol)
+		To_Filter = NULL;							 // Imcompatible
+
+	Use = USE_OPEN;
+	return false;
   } // end of OpenDB
 
 /***********************************************************************/
@@ -1921,7 +1976,7 @@ int TDBJSON::ReadDB(PGLOBAL)
   {
   int rc;
 
-  N++;
+	N++;
 
   if (NextSame) {
     SameRow = NextSame;

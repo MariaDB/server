@@ -63,6 +63,7 @@ protected:
 	virtual int   RenameTempFile(PGLOBAL g) { return RC_OK; }
 	virtual int   InitDelete(PGLOBAL g, int fpos, int spos);
 	bool  Init(PGLOBAL g);
+	bool  MakeCursor(PGLOBAL g);
 	void  ShowDocument(bson_iter_t *i, const bson_t *b, const char *k);
 	//static void *mgo_alloc(size_t n);
 	//static void *mgo_calloc(size_t n, size_t sz);
@@ -85,11 +86,12 @@ protected:
 	bson_error_t          Error;
 	PFBLOCK               To_Fbt;     // Pointer to temp file block
 	MODE                  Mode;
-	const char           *uristr;
-	const char           *db_name;
-	const char           *coll_name;
-	const char           *options;
-	const char           *filter;
+	const char           *Uristr;
+	const char           *Db_name;
+	const char           *Coll_name;
+	const char           *Options;
+	const char           *Filter;
 	bool                  Done;			  // Init done
+	bool                  Pipe;
 }; // end of class MGOFAM
 

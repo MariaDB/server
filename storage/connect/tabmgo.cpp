@@ -481,6 +481,7 @@ void INCOL::AddCol(PGLOBAL g, PCOL colp, char *jp)
 /***********************************************************************/
 TDBMGO::TDBMGO(PMGODEF tdp) : TDBEXT(tdp)
 {
+	G = NULL;
 	Uri = NULL;
 	Pool = NULL;
 	Client = NULL;
@@ -490,6 +491,7 @@ TDBMGO::TDBMGO(PMGODEF tdp) : TDBEXT(tdp)
 	Query = NULL;
 	Opts = NULL;
 	Fpc = NULL;
+	Cnd = NULL;
 
 	if (tdp) {
 		Uristr = tdp->Uri;
@@ -516,6 +518,7 @@ TDBMGO::TDBMGO(PMGODEF tdp) : TDBEXT(tdp)
 
 TDBMGO::TDBMGO(TDBMGO *tdbp) : TDBEXT(tdbp)
 {
+	G = tdbp->G;
 	Uri = tdbp->Uri;
 	Pool = tdbp->Pool;
 	Client = tdbp->Client;
@@ -525,6 +528,7 @@ TDBMGO::TDBMGO(TDBMGO *tdbp) : TDBEXT(tdbp)
 	Query = tdbp->Query;
 	Opts = tdbp->Opts;
 	Fpc = tdbp->Fpc;
+	Cnd = tdbp->Cnd;
 	Uristr = tdbp->Uristr;
 	Db_name = tdbp->Db_name;;
 	Coll_name = tdbp->Coll_name;
@@ -642,6 +646,8 @@ bool TDBMGO::Init(PGLOBAL g)
 	if (Done)
 		return false;
 
+	G = g;
+
 	if (Options && !Pipe) {
 		char *p = (char*)strchr(Options, ';');
 
@@ -700,12 +706,32 @@ bool TDBMGO::Init(PGLOBAL g)
 } // end of Init
 
 /***********************************************************************/
+/*  On update the filter can be made by Cond_Push after MakeCursor.    */
+/***********************************************************************/
+void TDBMGO::SetFilter(PFIL fp)
+{
+	To_Filter = fp;
+
+	if (fp && Cursor && Cnd != Cond) {
+		mongoc_cursor_t *cursor = NULL;
+
+		if (!MakeCursor(G, cursor)) {
+			mongoc_cursor_destroy(Cursor);
+			Cursor = cursor;
+		} else if (cursor)
+			mongoc_cursor_destroy(cursor);
+
+	} // endif Cursor
+
+} // end of SetFilter
+
+/***********************************************************************/
 /*  OpenDB: Data Base open routine for MONGO access method.            */
 /***********************************************************************/
-bool TDBMGO::MakeCursor(PGLOBAL g)
+bool TDBMGO::MakeCursor(PGLOBAL g, mongoc_cursor_t *cursor)
 {
 	const char *p;
-	PSTRG       s;
+	PSTRG       s = NULL;
 
 	if (Pipe) {
 		if (trace)
@@ -724,7 +750,7 @@ bool TDBMGO::MakeCursor(PGLOBAL g)
 		if (To_Filter) {
 			s->Append(",{\"$match\":");
 
-			if (To_Filter->MakeSelector(g, s)) {
+			if (To_Filter->MakeSelector(g, s, true)) {
 				strcpy(g->Message, "Failed making selector");
 				return true;
 			} else
@@ -738,7 +764,7 @@ bool TDBMGO::MakeCursor(PGLOBAL g)
 
 		for (PCOL cp = Columns; cp; cp = cp->GetNext()) {
 			s->Append(",\"");
-			s->Append(((PMGOCOL)cp)->Jpath);
+			s->Append(((PMGOCOL)cp)->GetProjPath(g));
 			s->Append("\":1");
 		} // endfor cp
 
@@ -785,7 +811,7 @@ bool TDBMGO::MakeCursor(PGLOBAL g)
 				if (Filter)
 					s->Append(',');
 
-				if (To_Filter->MakeSelector(g, s)) {
+				if (To_Filter->MakeSelector(g, s, true)) {
 					strcpy(g->Message, "Failed making selector");
 					return true;
 				}	// endif Selector
@@ -821,7 +847,7 @@ bool TDBMGO::MakeCursor(PGLOBAL g)
 
 			for (PCOL cp = Columns; cp; cp = cp->GetNext()) {
 				s->Append(",\"");
-				s->Append(((PMGOCOL)cp)->Jpath);
+				s->Append(((PMGOCOL)cp)->GetProjPath(g));
 				s->Append("\":1");
 			} // endfor cp
 
@@ -873,7 +899,7 @@ bool TDBMGO::OpenDB(PGLOBAL g)
 
 		} else if (Mode == MODE_INSERT)
 			MakeColumnGroups(g);
-		else if (MakeCursor(g))
+		else if (MakeCursor(g, Cursor))
 			return true;
 
 	} // endif Use
@@ -1140,6 +1166,37 @@ MGOCOL::MGOCOL(MGOCOL *col1, PTDB tdbp) : EXTCOL(col1, tdbp)
 	Jpath = col1->Jpath;
 	Mbuf = col1->Mbuf;
 } // end of MGOCOL copy constructor
+
+/***********************************************************************/
+/*  Get projection path.                                               */
+/***********************************************************************/
+char *MGOCOL::GetProjPath(PGLOBAL g)
+{
+	if (Jpath) {
+		char *p1, *p2, *projpath = PlugDup(g, Jpath);
+		int   i = 0;
+
+		for (p1 = p2 = projpath; *p1; p1++)
+			if (*p1 == '.') {
+				if (!i)
+  				*p2++ = *p1;
+
+				i = 1;
+			} else if (i) {
+				if (!isdigit(*p1)) {
+					*p2++ = *p1;
+					i = 0;
+				} // endif p1
+
+			} else 
+				*p2++ = *p1;
+
+		*p2 = 0;
+		return projpath;
+	} else
+		return NULL;
+
+} // end of GetProjPath
 
 /***********************************************************************/
 /*  Mini: used to suppress blanks to json strings.                     */
