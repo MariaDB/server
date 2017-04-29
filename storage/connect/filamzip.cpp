@@ -1,7 +1,7 @@
 /*********** File AM Zip C++ Program Source Code File (.CPP) ***********/
 /* PROGRAM NAME: FILAMZIP                                              */
 /* -------------                                                       */
-/*  Version 1.1                                                        */
+/*  Version 1.2                                                        */
 /*                                                                     */
 /* COPYRIGHT:                                                          */
 /* ----------                                                          */
@@ -652,12 +652,18 @@ bool UNZIPUTL::openEntry(PGLOBAL g)
 	}	// endif rc
 
 	size = finfo.uncompressed_size;
-	memory = new char[size + 1];
+
+	try {
+		memory = new char[size + 1];
+	} catch (...) {
+		strcpy(g->Message, "Out of memory");
+		return true;
+	} // end try/catch
 
 	if ((rc = unzReadCurrentFile(zipfile, memory, size)) < 0) {
 		sprintf(g->Message, "unzReadCurrentFile rc = %d", rc);
 		unzCloseCurrentFile(zipfile);
-		free(memory);
+		delete[] memory;
 		memory = NULL;
 		entryopen = false;
 	} else {
@@ -682,7 +688,7 @@ void UNZIPUTL::closeEntry()
 	}	// endif entryopen
 
 	if (memory) {
-		free(memory);
+		delete[] memory;
 		memory = NULL;
 	}	// endif memory
 
