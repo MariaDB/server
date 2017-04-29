@@ -531,7 +531,9 @@ rpl_slave_state::select_gtid_pos_table(THD *thd, LEX_STRING *out_tablename)
           to create it, and in a short while it should become available
           for following transactions.
         */
+#ifdef HAVE_REPLICATION
         slave_background_gtid_pos_create_request(table_entry);
+#endif
         break;
       }
       table_entry= table_entry->next;
