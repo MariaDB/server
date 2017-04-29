@@ -1876,3 +1876,55 @@ eval $q2;
 
 DROP TABLE t;
 
+--echo #
+--echo # mdev-12563: no recursive references on the top level of the CTE spec 
+--echo #  
+
+CREATE TABLE t (i int);
+INSERT INTO t VALUES (3), (1),(2);
+ 
+SET standard_compliant_cte=0;
+ 
+WITH RECURSIVE cte(f) AS (
+  SELECT i FROM t
+  UNION
+  SELECT i FROM t WHERE i NOT IN ( SELECT * FROM cte )
+) SELECT * FROM cte;           
+
+WITH RECURSIVE cte(f) AS (
+  SELECT i FROM t
+  UNION
+  SELECT i FROM t WHERE i NOT IN ( SELECT * FROM cte WHERE i < 2 )
+  UNION
+  SELECT i FROM t WHERE i NOT IN ( SELECT * FROM cte WHERE i > 2 )
+) SELECT * FROM cte;
+           
+WITH RECURSIVE cte(f) AS (
+  SELECT i FROM t
+  UNION
+  SELECT i FROM t
+    WHERE i NOT IN ( SELECT * FROM cte WHERE i < 2
+                     UNION
+                     SELECT * FROM cte WHERE i > 2)
+) SELECT * FROM cte;           
+
+WITH RECURSIVE cte(f) AS (
+  SELECT i FROM t
+  UNION
+  SELECT i FROM t 
+    WHERE i NOT IN ( SELECT * FROM t
+                       WHERE i IN ( SELECT * FROM cte ) GROUP BY i )
+) SELECT * FROM cte;           
+
+WITH RECURSIVE cte(f) AS (
+  SELECT i FROM t
+  UNION
+  SELECT i FROM t WHERE i NOT IN ( SELECT * FROM cte )
+  UNION 
+  SELECT * FROM cte WHERE f > 2
+) SELECT * FROM cte;           
+
+set standard_compliant_cte=default;
+
+DROP TABLE t;
+

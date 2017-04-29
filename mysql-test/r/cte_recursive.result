@@ -2813,3 +2813,65 @@ SELECT c2 FROM t, cte
 COUNT(*)
 4
 DROP TABLE t;
+#
+# mdev-12563: no recursive references on the top level of the CTE spec 
+#  
+CREATE TABLE t (i int);
+INSERT INTO t VALUES (3), (1),(2);
+SET standard_compliant_cte=0;
+WITH RECURSIVE cte(f) AS (
+SELECT i FROM t
+UNION
+SELECT i FROM t WHERE i NOT IN ( SELECT * FROM cte )
+) SELECT * FROM cte;
+f
+3
+1
+2
+WITH RECURSIVE cte(f) AS (
+SELECT i FROM t
+UNION
+SELECT i FROM t WHERE i NOT IN ( SELECT * FROM cte WHERE i < 2 )
+UNION
+SELECT i FROM t WHERE i NOT IN ( SELECT * FROM cte WHERE i > 2 )
+) SELECT * FROM cte;
+f
+3
+1
+2
+WITH RECURSIVE cte(f) AS (
+SELECT i FROM t
+UNION
+SELECT i FROM t
+WHERE i NOT IN ( SELECT * FROM cte WHERE i < 2
+UNION
+SELECT * FROM cte WHERE i > 2)
+) SELECT * FROM cte;
+f
+3
+1
+2
+WITH RECURSIVE cte(f) AS (
+SELECT i FROM t
+UNION
+SELECT i FROM t 
+WHERE i NOT IN ( SELECT * FROM t
+WHERE i IN ( SELECT * FROM cte ) GROUP BY i )
+) SELECT * FROM cte;
+f
+3
+1
+2
+WITH RECURSIVE cte(f) AS (
+SELECT i FROM t
+UNION
+SELECT i FROM t WHERE i NOT IN ( SELECT * FROM cte )
+UNION 
+SELECT * FROM cte WHERE f > 2
+) SELECT * FROM cte;
+f
+3
+1
+2
+set standard_compliant_cte=default;
+DROP TABLE t;

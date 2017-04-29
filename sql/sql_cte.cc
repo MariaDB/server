@@ -141,7 +141,7 @@ bool With_clause::check_dependencies()
 
   /*
     Mark those elements where tables are defined with direct or indirect
-   make recursion.
+    recursion.
   */ 
   for (With_element *with_elem= with_list.first;
        with_elem;
@@ -342,12 +342,61 @@ void With_element::check_dependencies_in_select(st_select_lex *sl,
       tbl->with_internal_reference_map= get_elem_map();
       if (in_subq)
         sq_dep_map|= tbl->with->get_elem_map();
+      else
+        top_level_dep_map|= tbl->with->get_elem_map();
     }
   }
   /* Now look for the dependencies in the subqueries of sl */
   st_select_lex_unit *inner_unit= sl->first_inner_unit();
   for (; inner_unit; inner_unit= inner_unit->next_unit())
     check_dependencies_in_unit(inner_unit, ctxt, in_subq, dep_map);
+}
+
+
+/**
+  @brief
+    Find a recursive reference to this with element in subqueries of a select
+ 
+  @param  sel      The select in whose subqueries the reference
+                   to be looked for
+
+  @details
+    The function looks for a recursive reference to this with element in
+    subqueries of select sl. When the first such reference is found
+    it is returned as the result.
+    The function assumes that the identification of all CTE references
+    has been performed earlier.
+
+  @retval
+    Pointer to the found recursive reference if the search succeeded
+    NULL - otherwise 
+*/
+
+TABLE_LIST *With_element::find_first_sq_rec_ref_in_select(st_select_lex *sel)
+{
+  TABLE_LIST *rec_ref= NULL;
+  st_select_lex_unit *inner_unit= sel->first_inner_unit();
+  for (; inner_unit; inner_unit= inner_unit->next_unit())
+  {
+    st_select_lex *sl= inner_unit->first_select();
+    for (; sl; sl= sl->next_select())
+    {
+      for (TABLE_LIST *tbl= sl->table_list.first; tbl; tbl= tbl->next_local)
+      {
+        if (tbl->derived || tbl->nested_join)
+          continue;
+        if (tbl->with && tbl->with->owner== this->owner &&
+            (tbl->with_internal_reference_map & mutually_recursive))
+	{
+	  rec_ref= tbl;
+          return rec_ref;
+        }
+      }
+      if ((rec_ref= find_first_sq_rec_ref_in_select(sl)))
+        return rec_ref;
+    } 
+  }
+  return 0;
 }
 
 
@@ -602,6 +651,10 @@ void With_clause::move_anchors_ahead()
   @details
     If the specification of this with element contains anchors the method
     moves them at the very beginning of the specification.
+    Additionally for the other selects of the specification if none of them
+    contains a recursive reference to this with element or a mutually recursive
+    one the method looks for the first such reference in the first recursive 
+    select and set a pointer to it in this->sq_rec_ref.   
 */
 
 void With_element::move_anchors_ahead()
@@ -617,6 +670,11 @@ void With_element::move_anchors_ahead()
     {
       sl->move_node(new_pos);
       new_pos= sl->next_select();
+    }
+    else if (!sq_rec_ref && no_rec_ref_on_top_level())
+    {
+      sq_rec_ref= find_first_sq_rec_ref_in_select(sl);
+      DBUG_ASSERT(sq_rec_ref != NULL);
     }
     last_sl= sl;
   }
