@@ -1,7 +1,7 @@
 /************ MONGO FAM C++ Program Source Code File (.CPP) ************/
 /* PROGRAM NAME: mongofam.cpp                                          */
 /* -------------                                                       */
-/*  Version 1.0                                                        */
+/*  Version 1.1                                                        */
 /*                                                                     */
 /* COPYRIGHT:                                                          */
 /* ----------                                                          */
@@ -58,24 +58,13 @@
 //#define _O_RDONLY O_RDONLY
 #endif
 
-//PGLOBAL MGOFAM::G = NULL;
-
 // Required to initialize libmongoc's internals
 void mongo_init(bool init)
 {
-	if (init) {
-		//bson_mem_vtable_t vtable;
-
-		//vtable.malloc = MGOFAM::mgo_alloc;
-		//vtable.calloc = MGOFAM::mgo_calloc;
-		//vtable.realloc = MGOFAM::mgo_realloc;
-		//vtable.free = MGOFAM::mgo_free;
+	if (init)
 		mongoc_init();
-		//bson_mem_set_vtable(&vtable);
-	} else {
-		//bson_mem_restore_vtable();
+	else
 		mongoc_cleanup();
-	} // endif init
 
 }	// end of mongo_init
 
@@ -94,18 +83,18 @@ MGOFAM::MGOFAM(PJDEF tdp) : DOSFAM((PDOSDEF)NULL)
 	Opts = NULL;
 	To_Fbt = NULL;
 	Mode = MODE_ANY;
-	uristr = tdp->Uri;
-	db_name = tdp->Schema;
-	coll_name = tdp->Collname;
-	options = tdp->Options;
-	filter = NULL;
+	Uristr = tdp->Uri;
+	Db_name = tdp->Schema;
+	Coll_name = tdp->Collname;
+	Options = tdp->Options;
+	Filter = NULL;
 	Done = false;
- 	Lrecl = tdp->Lrecl + tdp->Ending;
+	Pipe = tdp->Pipe;
+	Lrecl = tdp->Lrecl + tdp->Ending;
 } // end of MGOFAM standard constructor
  
  MGOFAM::MGOFAM(PMGOFAM tdfp) : DOSFAM(tdfp)
 {
-//G = tdfp->G;
 	Client = tdfp->Client;
 	Database = NULL;
 	Collection = tdfp->Collection;
@@ -114,8 +103,14 @@ MGOFAM::MGOFAM(PJDEF tdp) : DOSFAM((PDOSDEF)NULL)
 	Opts = tdfp->Opts;
 	To_Fbt = tdfp->To_Fbt;
 	Mode = tdfp->Mode;
+	Uristr = tdfp->Uristr;
+	Db_name = tdfp->Db_name;
+	Coll_name = tdfp->Coll_name;
+	Options = tdfp->Options;
+	Filter = NULL;
 	Done = tdfp->Done;
-} // end of MGOFAM copy constructor
+	Pipe = tdfp->Pipe;
+ } // end of MGOFAM copy constructor
 
 #if 0
 void *MGOFAM::mgo_alloc(size_t n)
@@ -188,13 +183,33 @@ int MGOFAM::Cardinality(PGLOBAL g)
 {
 	if (g) {
 		if (!Init(g)) {
-			int64_t card = mongoc_collection_count(Collection,
-				             MONGOC_QUERY_NONE, Query, 0, 0, NULL, &Error);
+			bson_t     *query;
+			const char *jf = NULL;
+
+			if (Pipe)
+				return 10;
+			else if (Filter)
+				jf = Filter;
+
+			if (jf) {
+				query = bson_new_from_json((const uint8_t *)jf, -1, &Error);
+
+				if (!query) {
+					htrc("Wrong filter: %s", Error.message);
+					return 10;
+				}	// endif Query
+
+			} else
+				query = bson_new();
+
+			int64_t card = (int)mongoc_collection_count(Collection,
+				MONGOC_QUERY_NONE, query, 0, 0, NULL, &Error);
 
 			if (card < 0)
-				sprintf(g->Message, "Cardinality: %s", Error.message);
+				sprintf(g->Message, "Collection count: %s", Error.message);
 
-			return (int)card;
+			bson_destroy(query);
+			return card;
 		}	else
 			return -1;
 
@@ -204,7 +219,6 @@ int MGOFAM::Cardinality(PGLOBAL g)
 } // end of Cardinality
 
 /***********************************************************************/
-/*  Use BlockTest to reduce the table estimated size.                  */
 /*  Note: This function is not really implemented yet.                 */
 /***********************************************************************/
 int MGOFAM::MaxBlkSize(PGLOBAL, int s)
@@ -220,47 +234,23 @@ bool MGOFAM::Init(PGLOBAL g)
 	if (Done)
 		return false;
 
-	if (options) {
-		char *p = (char*)strchr(options, ';');
+	if (Options && !Pipe) {
+		char *p = (char*)strchr(Options, ';');
 
 		if (p) {
 			*p++ = 0;
-			filter = p;
+
+			if (p)
+				Filter = p;
+
 		} // endif p
 
-	} // endif opts
+	} // endif Options
 
-	if (filter && *filter) {
-		if (trace)
-			htrc("filter=%s\n", filter);
-
-		Query = bson_new_from_json((const uint8_t *)filter, -1, &Error);
-
-		if (!Query) {
-			sprintf(g->Message, "Wrong filter: %s", Error.message);
-			return true;
-		}	// endif Query
-
-	} else
-		Query = bson_new();
-
-	if (options && *options) {
-		if (trace)
-			htrc("options=%s\n", options);
-
-		Opts = bson_new_from_json((const uint8_t *)options, -1, &Error);
-
-		if (!Opts) {
-			sprintf(g->Message, "Wrong options: %s", Error.message);
-			return true;
-		} // endif Opts
-
-	} // endif options
-
-	Uri = mongoc_uri_new(uristr);
+	Uri = mongoc_uri_new(Uristr);
 
 	if (!Uri) {
-		sprintf(g->Message, "Failed to parse URI: \"%s\"", uristr);
+		sprintf(g->Message, "Failed to parse URI: \"%s\"", Uristr);
 		return true;
 	}	// endif Uri
 
@@ -281,19 +271,19 @@ bool MGOFAM::Init(PGLOBAL g)
 		return true;
 	}	// endif Client
 
-//mongoc_client_set_error_api(Client, 2);
+		//mongoc_client_set_error_api(Client, 2);
 
-// Register the application name so we can track it in the profile logs
-// on the server. This can also be done from the URI.
-//mongoc_client_set_appname(Client, "Connect");
+		// Register the application name so we can track it in the profile logs
+		// on the server. This can also be done from the URI.
+		//mongoc_client_set_appname(Client, "Connect");
 
-// Get a handle on the database db_name and collection coll_name
-//	Database = mongoc_client_get_database(Client, db_name);
-//	Collection = mongoc_database_get_collection(Database, coll_name);
-	Collection = mongoc_client_get_collection(Client, db_name, coll_name);
+		// Get a handle on the database Db_name and collection Coll_name
+		//	Database = mongoc_client_get_database(Client, Db_name);
+		//	Collection = mongoc_database_get_collection(Database, Coll_name);
+	Collection = mongoc_client_get_collection(Client, Db_name, Coll_name);
 
-	if (!Collection /*&& Mode != MODE_INSERT*/) {
-		sprintf(g->Message, "Failed to get Collection %s.%s", db_name, coll_name);
+	if (!Collection) {
+		sprintf(g->Message, "Failed to get Collection %s.%s", Db_name, Coll_name);
 		return true;
 	}	// endif Collection
 
@@ -302,27 +292,199 @@ bool MGOFAM::Init(PGLOBAL g)
 } // end of Init
 
 /***********************************************************************/
+/*  OpenDB: Data Base open routine for MONGO access method.            */
+/***********************************************************************/
+bool MGOFAM::MakeCursor(PGLOBAL g)
+{
+	const char *p;
+	uint  len;
+	PSZ   jp;
+	PSTRG s = NULL;
+
+	if (Pipe) {
+		if (trace)
+			htrc("Pipeline: %s\n", Options);
+
+		p = strrchr(Options, ']');
+
+		if (!p) {
+			strcpy(g->Message, "Missing ] in pipeline");
+			return true;
+		} else
+			*(char*)p = 0;
+
+		s = new(g) STRING(g, 1023, (PSZ)Options);
+		len = s->GetLength();
+
+		if (Tdbp->GetFilter()) {
+			s->Append(",{\"$match\":");
+
+			if (!Tdbp->GetFilter()->MakeSelector(g, s, false)) {
+				s->Append('}');
+				Tdbp->SetFilter(NULL);     // Not needed anymore
+			} else {
+				if (((TDBJSN*)Tdbp)->Xcol)
+					Tdbp->SetFilter(NULL);   // Incompatible
+
+				htrc("Failed making selector\n");
+				s->Truncate(len);
+			} // endif Selector
+
+		} // endif To_Filter
+
+		// Project list
+		len = s->GetLength();
+		s->Append(",{\"$project\":{\"_id\":0");
+
+		for (PCOL cp = Tdbp->GetColumns(); cp; cp = cp->GetNext()) {
+			s->Append(",\"");
+
+			if ((jp = ((PJCOL)cp)->GetJpath(g, true)))
+				s->Append(jp);
+			else {
+				s->Truncate(len);
+				goto nop;
+			}	// endif Jpath
+
+			s->Append("\":1");
+		} // endfor cp
+
+		s->Append("}}");
+
+	 nop:
+		s->Append("]}");
+		s->Resize(s->GetLength() + 1);
+		p = s->GetStr();
+
+		if (trace)
+			htrc("New Pipeline: %s\n", p);
+
+		Query = bson_new_from_json((const uint8_t *)p, -1, &Error);
+
+		if (!Query) {
+			sprintf(g->Message, "Wrong pipeline: %s", Error.message);
+			return true;
+		}	// endif Query
+
+		Cursor = mongoc_collection_aggregate(Collection, MONGOC_QUERY_NONE,
+			Query, NULL, NULL);
+
+		if (mongoc_cursor_error(Cursor, &Error)) {
+			sprintf(g->Message, "Mongo aggregate Failure: %s", Error.message);
+			return true;
+		} // endif cursor
+
+	} else {
+		if (Filter || Tdbp->GetFilter()) {
+			if (trace) {
+				if (Filter)
+					htrc("Filter: %s\n", Filter);
+
+				if (Tdbp->GetFilter()) {
+					char buf[512];
+
+					Tdbp->GetFilter()->Print(g, buf, 511);
+					htrc("To_Filter: %s\n", buf);
+				} // endif To_Filter
+
+			}	// endif trace
+
+			s = new(g) STRING(g, 1023, (PSZ)Filter);
+			len = s->GetLength();
+
+			if (Tdbp->GetFilter()) {
+				if (Filter)
+					s->Append(',');
+
+				if (Tdbp->GetFilter()->MakeSelector(g, s, false)) {
+					if (((TDBJSN*)Tdbp)->Xcol)
+						Tdbp->SetFilter(NULL);   // Incompatible
+
+					htrc("Cannot make selector\n");
+					s->Truncate(len);
+				}	else
+					Tdbp->SetFilter(NULL);     // Not needed anymore
+
+			} // endif To_Filter
+
+			if (trace)
+				htrc("selector: %s\n", s->GetStr());
+
+			s->Resize(s->GetLength() + 1);
+
+			if (s->GetLength()) {
+				Query = bson_new_from_json((const uint8_t *)s->GetStr(), -1, &Error);
+
+				if (!Query) {
+					sprintf(g->Message, "Wrong filter: %s", Error.message);
+					return true;
+				}	// endif Query
+
+			}	else
+				Query = bson_new();
+
+		} else
+			Query = bson_new();
+
+		if (Options && *Options) {
+			if (trace)
+				htrc("options=%s\n", Options);
+
+			Opts = bson_new_from_json((const uint8_t *)Options, -1, &Error);
+		} else {
+			// Projection list
+			if (s)
+				s->Set("{\"projection\":{\"_id\":0");
+			else
+				s = new(g) STRING(g, 511, "{\"projection\":{\"_id\":0");
+
+			for (PCOL cp = Tdbp->GetColumns(); cp; cp = cp->GetNext()) {
+				s->Append(",\"");
+
+				if ((jp = ((PJCOL)cp)->GetJpath(g, true)))
+					s->Append(jp);
+				else {
+					s->Reset();
+					s->Resize(0);
+					goto nope;
+				}	// endif Jpath
+
+				s->Append("\":1");
+			} // endfor cp
+
+			s->Append("}}");
+			s->Resize(s->GetLength() + 1);
+			Opts = bson_new_from_json((const uint8_t *)s->GetStr(), -1, &Error);
+		} // endif Options
+
+		if (!Opts) {
+			sprintf(g->Message, "Wrong options: %s", Error.message);
+			return true;
+		} // endif Opts
+
+	nope:
+		Cursor = mongoc_collection_find_with_opts(Collection, Query, Opts, NULL);
+	} // endif Pipe
+
+	return false;
+} // end of MakeCursor
+
+/***********************************************************************/
 /*  OpenTableFile: Open a MongoDB table.                               */
 /***********************************************************************/
 bool MGOFAM::OpenTableFile(PGLOBAL g)
 {
-	//if (!G) {
-	//	G = g;
-	//	Vtable.malloc = mgo_alloc;
-	//	Vtable.calloc = mgo_calloc;
-	//	Vtable.realloc = mgo_realloc;
-	//	Vtable.free = mgo_free;
-	//  bson_mem_set_vtable(&Vtable);
-	//} else {
-	//	strcpy(g->Message, "G is not usable");
-	//	return true;
-	//}	// endif G
 	Mode = Tdbp->GetMode();
+
+	if (Pipe && Mode != MODE_READ) {
+		strcpy(g->Message, "Pipeline tables are read only");
+		return true;
+	}	// endif Pipe
 
 	if (Init(g))
 		return true;
 
-	if (Mode == MODE_DELETE && !Tdbp->GetNext()) {
+  if (Mode == MODE_DELETE && !Tdbp->GetNext()) {
 		// Store the number of deleted lines
 		DelRows = Cardinality(g);
 
@@ -334,7 +496,8 @@ bool MGOFAM::OpenTableFile(PGLOBAL g)
 		}	// endif remove
 
 	} else if (Mode != MODE_INSERT)
-		Cursor = mongoc_collection_find_with_opts(Collection, Query, Opts, NULL);
+		if (MakeCursor(g))
+			return true;
 
 	return false;
 } // end of OpenTableFile

@@ -62,7 +62,7 @@ class DllExport FILTER : public XOBJECT { /* Filter description block  */
 //virtual bool   CheckLocal(PTDB);
 //virtual int    CheckSpcCol(PTDB tdbp, int n);
 #if defined(MONGO_SUPPORT)
-	        bool   MakeSelector(PGLOBAL g, PSTRG s);
+	        bool   MakeSelector(PGLOBAL g, PSTRG s, bool m);
 #endif   // MONGO_SUPPORT
 	virtual void   Print(PGLOBAL g, FILE *f, uint n);
   virtual void   Print(PGLOBAL g, char *ps, uint z);

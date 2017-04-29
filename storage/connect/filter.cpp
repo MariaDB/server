@@ -39,6 +39,9 @@
 //#include "select.h"
 #include "xindex.h"
 #if defined(MONGO_SUPPORT)
+#include "filamtxt.h"
+#include "tabdos.h"
+#include "tabjson.h"
 #include "tabext.h"
 #include "tabmgo.h"
 #endif   // MONGO_SUPPORT
@@ -1413,7 +1416,7 @@ PFIL FILTER::Copy(PTABS t)
 /*  Make selector json representation for Mongo tables.                */
 /***********************************************************************/
 #if defined(MONGO_SUPPORT)
-bool FILTER::MakeSelector(PGLOBAL g, PSTRG s)
+bool FILTER::MakeSelector(PGLOBAL g, PSTRG s, bool m)
 {
 	s->Append('{');
 
@@ -1425,23 +1428,29 @@ bool FILTER::MakeSelector(PGLOBAL g, PSTRG s)
 		s->Append(Opc == OP_AND ? "and" : "or");
 		s->Append("\":[");
 
-		if (((PFIL)Arg(0))->MakeSelector(g, s))
+		if (((PFIL)Arg(0))->MakeSelector(g, s, m))
 			return true;
 
 		s->Append(',');
 
-		if (((PFIL)Arg(1))->MakeSelector(g, s))
+		if (((PFIL)Arg(1))->MakeSelector(g, s, m))
 			return true;
 
 		s->Append(']');
 	} else {
-		char buf[501];
+		char *pth, buf[501];
 
 		if (GetArgType(0) != TYPE_COLBLK)
 			return true;
 
 		s->Append('"');
-		s->Append(((PMGOCOL)Arg(0))->Jpath);
+
+		if (m)
+		  pth = ((PMGOCOL)Arg(0))->Jpath;
+		else if (!(pth = ((PJCOL)Arg(0))->GetJpath(g, false)))
+			return true;
+
+		s->Append(pth);
 		s->Append("\":{\"$");
 
 		switch (Opc) {

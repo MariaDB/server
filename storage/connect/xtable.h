@@ -61,7 +61,6 @@ class DllExport TDB: public BLOCK {     // Table Descriptor Block.
 	inline  PFIL    GetFilter(void) {return To_Filter;}
   inline  PCOL    GetSetCols(void) {return To_SetCols;}
   inline  void    SetSetCols(PCOL colp) {To_SetCols = colp;}
-	inline  void    SetFilter(PFIL fp) {To_Filter = fp;}
 	inline  void    SetOrig(PTDB txp) {To_Orig = txp;}
 	inline  void    SetUse(TUSE n) {Use = n;}
 	inline  void    SetCondFil(PCFIL cfp) {To_CondFil = cfp;}
@@ -78,6 +77,7 @@ class DllExport TDB: public BLOCK {     // Table Descriptor Block.
   virtual AMT     GetAmType(void) {return TYPE_AM_ERROR;}
 	virtual bool    IsRemote(void) {return false;}
   virtual bool    IsIndexed(void) {return false;}
+	virtual void    SetFilter(PFIL fp) {To_Filter = fp;}
 	virtual int     GetTdb_No(void) {return Tdb_No;}
   virtual PTDB    GetNext(void) {return Next;}
   virtual PCATLG  GetCat(void) {return NULL;}
@@ -103,6 +103,7 @@ class DllExport TDB: public BLOCK {     // Table Descriptor Block.
 	virtual void   ResetDB(void) {}
 	virtual void   ResetSize(void) {MaxSize = -1;}
 	virtual int    RowNumber(PGLOBAL g, bool b = false);
+	virtual bool   CanBeFiltered(void) {return true;}
   virtual PTDB   Duplicate(PGLOBAL) {return NULL;}
   virtual PTDB   Clone(PTABS) {return this;}
   virtual PTDB   Copy(PTABS t);

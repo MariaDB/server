@@ -131,6 +131,7 @@ public:
 	virtual PTDB Clone(PTABS t);
 	virtual PCOL MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n);
 	virtual PCOL InsertSpecialColumn(PCOL colp);
+	virtual void SetFilter(PFIL fp);
 	virtual int  RowNumber(PGLOBAL g, bool b = FALSE) {return N;}
 
 	// Database routines
@@ -145,12 +146,13 @@ public:
 
 protected:
 	bool Init(PGLOBAL g);
-	bool MakeCursor(PGLOBAL g);
+	bool MakeCursor(PGLOBAL g, mongoc_cursor_t *cursor);
 	void ShowDocument(bson_iter_t *i, const bson_t *b, const char *k);
 	void MakeColumnGroups(PGLOBAL g);
 	bool DocWrite(PGLOBAL g, PINCOL icp);
 
 	// Members
+	PGLOBAL               G;					// Needed by SetFilter
 	mongoc_uri_t         *Uri;
 	mongoc_client_pool_t *Pool;				// Thread safe client pool
 	mongoc_client_t      *Client;		  // The MongoDB client
@@ -162,6 +164,7 @@ protected:
 	bson_t               *Opts;			  // MongoDB cursor options
 	bson_error_t          Error;
 	PINCOL                Fpc;				// To insert INCOL classes
+	const Item           *Cnd;			  // The first condition
 	const char           *Uristr;
 	const char           *Db_name;
 	const char           *Coll_name;
@@ -199,6 +202,7 @@ public:
 protected:
 	// Default constructor not to be used
 	MGOCOL(void) {}
+	char *GetProjPath(PGLOBAL g);
 	char *Mini(PGLOBAL g, const bson_t *bson, bool b);
 
 	// Members
