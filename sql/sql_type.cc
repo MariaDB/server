@@ -3696,6 +3696,36 @@ uint Type_handler_string_result::Item_temporal_precision(Item *item,
 
 /***************************************************************************/
 
+uint Type_handler::Item_decimal_scale(const Item *item) const
+{
+  return item->decimals < NOT_FIXED_DEC ?
+         item->decimals :
+         MY_MIN(item->max_length, DECIMAL_MAX_SCALE);
+}
+
+uint Type_handler_temporal_result::
+       Item_decimal_scale_with_seconds(const Item *item) const
+{
+  return item->decimals < NOT_FIXED_DEC ?
+         item->decimals :
+         TIME_SECOND_PART_DIGITS;
+}
+
+uint Type_handler::Item_divisor_precision_increment(const Item *item) const
+{
+  return item->decimals;
+}
+
+uint Type_handler_temporal_result::
+       Item_divisor_precision_increment_with_seconds(const Item *item) const
+{
+  return item->decimals <  NOT_FIXED_DEC ?
+         item->decimals :
+         TIME_SECOND_PART_DIGITS;
+}
+
+/***************************************************************************/
+
 bool Type_handler_real_result::
        subquery_type_allows_materialization(const Item *inner,
                                             const Item *outer) const

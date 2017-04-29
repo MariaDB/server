@@ -479,6 +479,12 @@ public:
   }
   virtual uint Item_time_precision(Item *item) const;
   virtual uint Item_datetime_precision(Item *item) const;
+  virtual uint Item_decimal_scale(const Item *item) const;
+  /*
+    Returns how many digits a divisor adds into a division result.
+    See Item::divisor_precision_increment() in item.h for more comments.
+  */
+  virtual uint Item_divisor_precision_increment(const Item *) const;
   /**
     Makes a temporary table Field to handle numeric aggregate functions,
     e.g. SUM(DISTINCT expr), AVG(DISTINCT expr), etc.
@@ -1110,6 +1116,9 @@ public:
 
 class Type_handler_temporal_result: public Type_handler
 {
+protected:
+  uint Item_decimal_scale_with_seconds(const Item *item) const;
+  uint Item_divisor_precision_increment_with_seconds(const Item *) const;
 public:
   Item_result result_type() const { return STRING_RESULT; }
   Item_result cmp_type() const { return TIME_RESULT; }
@@ -1441,6 +1450,14 @@ public:
   {
     return MYSQL_TIMESTAMP_TIME;
   }
+  uint Item_decimal_scale(const Item *item) const
+  {
+    return Item_decimal_scale_with_seconds(item);
+  }
+  uint Item_divisor_precision_increment(const Item *item) const
+  {
+    return Item_divisor_precision_increment_with_seconds(item);
+  }
   const Type_handler *type_handler_for_comparison() const;
   int Item_save_in_field(Item *item, Field *field, bool no_conversions) const;
   String *print_item_value(THD *thd, Item *item, String *str) const;
@@ -1543,6 +1560,14 @@ public:
   {
     return MYSQL_TIMESTAMP_DATETIME;
   }
+  uint Item_decimal_scale(const Item *item) const
+  {
+    return Item_decimal_scale_with_seconds(item);
+  }
+  uint Item_divisor_precision_increment(const Item *item) const
+  {
+    return Item_divisor_precision_increment_with_seconds(item);
+  }
   String *print_item_value(THD *thd, Item *item, String *str) const;
   bool Item_hybrid_func_fix_attributes(THD *thd, Item_hybrid_func *func,
                                        Item **items, uint nitems) const;
@@ -1586,6 +1611,14 @@ public:
   enum_mysql_timestamp_type mysql_timestamp_type() const
   {
     return MYSQL_TIMESTAMP_DATETIME;
+  }
+  uint Item_decimal_scale(const Item *item) const
+  {
+    return Item_decimal_scale_with_seconds(item);
+  }
+  uint Item_divisor_precision_increment(const Item *item) const
+  {
+    return Item_divisor_precision_increment_with_seconds(item);
   }
   String *print_item_value(THD *thd, Item *item, String *str) const;
   bool Item_hybrid_func_fix_attributes(THD *thd, Item_hybrid_func *func,
