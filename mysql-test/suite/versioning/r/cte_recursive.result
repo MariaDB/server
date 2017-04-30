@@ -41,7 +41,7 @@ from emp as e for system_time as of timestamp @ts_1,
 ancestors as a
 where e.mgr = a.emp_id
 )
-select * from ancestors;
+select * from ancestors for system_time as of now;
 emp_id	name	mgr	salary
 1	bill	NULL	1000
 30	jane	1	750
@@ -59,7 +59,7 @@ from emp as e for system_time as of timestamp @ts_2,
 ancestors as a
 where e.mgr = a.emp_id
 )
-select * from ancestors for system_time as of timestamp @ts_2;
+select * from ancestors;
 emp_id	name	mgr	salary
 1	bill	NULL	1000
 30	jane	1	750

@@ -39,9 +39,13 @@ x
 drop prepare stmt;
 select * from vt1;
 x
+2
+1
 prepare stmt from 'select * from vt1';
 execute stmt;
 x
+2
+1
 drop prepare stmt;
 select * from t1 for system_time as of timestamp @t1;
 x

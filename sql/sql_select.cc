@@ -771,6 +771,7 @@ int vers_setup_select(THD *thd, TABLE_LIST *tables, COND **where_expr,
   }
 
   SELECT_LEX *outer_slex= slex->next_select_in_list();
+  bool use_slex_conds= false;
   if (outer_slex)
   {
     if (slex->vers_derived_conds)
@@ -778,11 +779,12 @@ int vers_setup_select(THD *thd, TABLE_LIST *tables, COND **where_expr,
       // Propagate derived conditions to outer SELECT_LEX:
       if (!outer_slex->vers_conditions)
       {
-        (outer_slex->vers_conditions= slex->vers_derived_conds).
-          from_inner= true;
+        outer_slex->vers_conditions= slex->vers_derived_conds;
+        outer_slex->vers_conditions.from_inner= true;
+        outer_slex->vers_conditions.used= true;
       }
     }
-    else if (slex->vers_conditions.import_outer)
+    if (slex->vers_conditions.import_outer)
     {
       // Propagate query conditions from nearest outer SELECT_LEX:
       while (outer_slex && (!outer_slex->vers_conditions || outer_slex->vers_conditions.from_inner))
@@ -791,6 +793,8 @@ int vers_setup_select(THD *thd, TABLE_LIST *tables, COND **where_expr,
       {
         slex->vers_conditions= outer_slex->vers_conditions;
         outer_slex->vers_conditions.used= true;
+        DBUG_ASSERT(slex->master_unit()->derived);
+        use_slex_conds= slex->master_unit()->derived->is_view();
       }
     }
   }
@@ -799,7 +803,7 @@ int vers_setup_select(THD *thd, TABLE_LIST *tables, COND **where_expr,
   {
     if (table->table && table->table->versioned())
     {
-      vers_select_conds_t &vers_conditions= !table->vers_conditions?
+      vers_select_conds_t &vers_conditions= use_slex_conds || !table->vers_conditions?
           (slex->vers_conditions.used= true, slex->vers_conditions) :
           table->vers_conditions;
 

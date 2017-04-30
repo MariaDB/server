@@ -47,7 +47,7 @@ as
        ancestors as a
   where e.mgr = a.emp_id
 )
-select * from ancestors;
+select * from ancestors for system_time as of now;
 
 /* Expected 3 rows */
 with recursive
@@ -63,7 +63,7 @@ as
        ancestors as a
   where e.mgr = a.emp_id
 )
-select * from ancestors for system_time as of timestamp @ts_2;
+select * from ancestors;
 
 drop table emp;
 drop table dept;
