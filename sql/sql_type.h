@@ -63,6 +63,7 @@ class in_vector;
 class Type_std_attributes;
 class Sort_param;
 class Arg_comparator;
+struct st_value;
 struct TABLE;
 struct SORT_FIELD_ATTR;
 
@@ -403,6 +404,7 @@ protected:
   Item_func_or_sum_illegal_param(const char *name) const;
   bool
   Item_func_or_sum_illegal_param(const Item_func_or_sum *) const;
+  bool check_null(const Item *item, st_value *value) const;
 public:
   static const Type_handler *blob_type_handler(uint max_octet_length);
   static const Type_handler *string_type_handler(uint max_octet_length);
@@ -537,6 +539,7 @@ public:
                           SORT_FIELD_ATTR *attr) const= 0;
 
   virtual uint32 max_display_length(const Item *item) const= 0;
+  virtual bool Item_save_in_value(Item *item, st_value *value) const= 0;
   virtual int Item_save_in_field(Item *item, Field *field,
                                  bool no_conversions) const= 0;
 
@@ -752,6 +755,7 @@ public:
     DBUG_ASSERT(0);
     return 0;
   }
+  bool Item_save_in_value(Item *item, st_value *value) const;
   int Item_save_in_field(Item *item, Field *field, bool no_conversions) const
   {
     DBUG_ASSERT(0);
@@ -960,6 +964,7 @@ public:
   void sortlength(THD *thd,
                   const Type_std_attributes *item,
                   SORT_FIELD_ATTR *attr) const;
+  bool Item_save_in_value(Item *item, st_value *value) const;
   int Item_save_in_field(Item *item, Field *field, bool no_conversions) const;
   Item_cache *Item_get_cache(THD *thd, const Item *item) const;
   bool set_comparator_func(Arg_comparator *cmp) const;
@@ -1019,6 +1024,7 @@ public:
                   const Type_std_attributes *item,
                   SORT_FIELD_ATTR *attr) const;
   uint32 max_display_length(const Item *item) const;
+  bool Item_save_in_value(Item *item, st_value *value) const;
   int Item_save_in_field(Item *item, Field *field, bool no_conversions) const;
   Item_cache *Item_get_cache(THD *thd, const Item *item) const;
   bool set_comparator_func(Arg_comparator *cmp) const;
@@ -1074,6 +1080,7 @@ public:
   void sortlength(THD *thd,
                   const Type_std_attributes *item,
                   SORT_FIELD_ATTR *attr) const;
+  bool Item_save_in_value(Item *item, st_value *value) const;
   int Item_save_in_field(Item *item, Field *field, bool no_conversions) const;
   Item_cache *Item_get_cache(THD *thd, const Item *item) const;
   bool set_comparator_func(Arg_comparator *cmp) const;
@@ -1202,6 +1209,7 @@ public:
   {
     return Item_temporal_precision(item, false);
   }
+  bool Item_save_in_value(Item *item, st_value *value) const;
   int Item_save_in_field(Item *item, Field *field, bool no_conversions) const;
   String *print_item_value(THD *thd, Item *item, String *str) const
   {
@@ -1459,6 +1467,7 @@ public:
     return Item_divisor_precision_increment_with_seconds(item);
   }
   const Type_handler *type_handler_for_comparison() const;
+  bool Item_save_in_value(Item *item, st_value *value) const;
   int Item_save_in_field(Item *item, Field *field, bool no_conversions) const;
   String *print_item_value(THD *thd, Item *item, String *str) const;
   bool Item_hybrid_func_fix_attributes(THD *thd, Item_hybrid_func *func,
@@ -1500,6 +1509,7 @@ class Type_handler_temporal_with_date: public Type_handler_temporal_result
 public:
   virtual ~Type_handler_temporal_with_date() {}
   const Type_handler *type_handler_for_comparison() const;
+  bool Item_save_in_value(Item *item, st_value *value) const;
   int Item_save_in_field(Item *item, Field *field, bool no_conversions) const;
   cmp_item *make_cmp_item(THD *thd, CHARSET_INFO *cs) const;
   in_vector *make_in_vector(THD *, const Item_func_in *, uint nargs) const;
@@ -1698,6 +1708,7 @@ public:
   const Type_handler *type_handler_for_tmp_table(const Item *item) const;
   const Type_handler *type_handler_for_union(const Item *) const;
   uint32 max_display_length(const Item *item) const { return 0; }
+  bool Item_save_in_value(Item *item, st_value *value) const;
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
   Field *make_table_field(const LEX_CSTRING *name,

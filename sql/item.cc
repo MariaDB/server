@@ -3787,7 +3787,7 @@ bool Item_param::set_from_item(THD *thd, Item *item)
     }
   }
   struct st_value tmp;
-  if (!item->store(&tmp, 0))
+  if (!item->save_in_value(&tmp))
   {
     unsigned_flag= item->unsigned_flag;
     switch (item->cmp_type()) {
