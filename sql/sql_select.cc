@@ -694,7 +694,6 @@ int vers_setup_select(THD *thd, TABLE_LIST *tables, COND **where_expr,
 
   TABLE_LIST *table;
   int versioned_tables= 0;
-  int slex_conds_used= 0;
 
   if (!thd->stmt_arena->is_conventional() &&
       !thd->stmt_arena->is_stmt_prepare() && !thd->stmt_arena->is_sp_execute())
@@ -789,7 +788,10 @@ int vers_setup_select(THD *thd, TABLE_LIST *tables, COND **where_expr,
       while (outer_slex && (!outer_slex->vers_conditions || outer_slex->vers_conditions.from_inner))
         outer_slex= outer_slex->next_select_in_list();
       if (outer_slex)
+      {
         slex->vers_conditions= outer_slex->vers_conditions;
+        outer_slex->vers_conditions.used= true;
+      }
     }
   }
 
@@ -798,7 +800,7 @@ int vers_setup_select(THD *thd, TABLE_LIST *tables, COND **where_expr,
     if (table->table && table->table->versioned())
     {
       vers_select_conds_t &vers_conditions= !table->vers_conditions?
-          (++slex_conds_used, slex->vers_conditions) :
+          (slex->vers_conditions.used= true, slex->vers_conditions) :
           table->vers_conditions;
 
       if (!vers_conditions)
@@ -996,7 +998,7 @@ int vers_setup_select(THD *thd, TABLE_LIST *tables, COND **where_expr,
     } // if (... table->table->versioned())
   } // for (table= tables; ...)
 
-  if (!slex_conds_used && slex->vers_conditions)
+  if (!slex->vers_conditions.used && slex->vers_conditions)
   {
     my_error(ER_VERS_WRONG_QUERY, MYF(0), "unused `QUERY FOR SYSTEM_TIME` clause!");
     DBUG_RETURN(-1);

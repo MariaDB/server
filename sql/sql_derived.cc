@@ -824,7 +824,7 @@ expli_table_err:
         if (!expli_end && (res= sl->vers_push_field(thd, impli_table, impli_end)))
           goto exit;
 
-        if (impli_table->vers_conditions)
+        if (impli_table->vers_conditions && !derived->is_view())
           sl->vers_derived_conds= impli_table->vers_conditions;
         else if (sl->vers_conditions)
           sl->vers_derived_conds= sl->vers_conditions;
