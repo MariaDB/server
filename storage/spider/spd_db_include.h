@@ -1279,6 +1279,9 @@ public:
     ulong sql_type,
     int link_idx
   ) = 0;
+  virtual bool is_sole_projection_field(
+      uint16 field_index
+  ) = 0;
   virtual bool is_bulk_insert_exec_period(
     bool bulk_end
   ) = 0;
