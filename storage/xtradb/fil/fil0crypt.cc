@@ -2258,6 +2258,11 @@ fil_crypt_complete_rotate_space(
 			crypt_data->rotate_state.flushing = false;
 			mutex_exit(&crypt_data->mutex);
 		}
+	} else {
+		mutex_enter(&crypt_data->mutex);
+		ut_a(crypt_data->rotate_state.active_threads > 0);
+		crypt_data->rotate_state.active_threads--;
+		mutex_exit(&crypt_data->mutex);
 	}
 }
 
@@ -2543,8 +2548,9 @@ fil_space_crypt_close_tablespace(
 
 		if (now >= last + 30) {
 			ib_logf(IB_LOG_LEVEL_WARN,
-				"Waited %ld seconds to drop space: %s(" ULINTPF ").",
-				now - start, space->name, space->id);
+				"Waited %ld seconds to drop space: %s (" ULINTPF
+				") active threads %u flushing=%d.",
+				now - start, space->name, space->id, cnt, flushing);
 			last = now;
 		}
 	}

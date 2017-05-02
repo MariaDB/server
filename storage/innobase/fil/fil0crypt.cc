@@ -2258,6 +2258,11 @@ fil_crypt_complete_rotate_space(
 			crypt_data->rotate_state.flushing = false;
 			mutex_exit(&crypt_data->mutex);
 		}
+	} else {
+		mutex_enter(&crypt_data->mutex);
+		ut_a(crypt_data->rotate_state.active_threads > 0);
+		crypt_data->rotate_state.active_threads--;
+		mutex_exit(&crypt_data->mutex);
 	}
 }
 
