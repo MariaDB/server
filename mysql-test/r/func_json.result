@@ -636,3 +636,9 @@ JSON_SEARCH('{"foo":"bar"}', 'all' , @str, '%', @path)
 SELECT JSON_VALUE('[{"foo": 1},"bar"]', '$[*][0]');
 JSON_VALUE('[{"foo": 1},"bar"]', '$[*][0]')
 bar
+CREATE TABLE t1 (f INT NOT NULL);
+INSERT INTO t1 VALUES (0);
+SELECT JSON_KEYS(f) FROM t1 ORDER BY 1;
+JSON_KEYS(f)
+NULL
+DROP TABLE t1;
