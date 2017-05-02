@@ -3423,6 +3423,20 @@ public:
 
   bool convert_string(String *s, CHARSET_INFO *from_cs, CHARSET_INFO *to_cs);
 
+  /*
+    Create a string literal with optional client->connection conversion.
+    @param str        - the string in the client character set
+    @param length     - length of the string
+    @param repertoire - the repertoire of the string
+  */
+  Item_string *make_string_literal(const char *str, size_t length,
+                                   uint repertoire);
+  Item_string *make_string_literal(const Lex_string_with_metadata_st &str)
+  {
+    uint repertoire= str.repertoire(variables.character_set_client);
+    return make_string_literal(str.str, str.length, repertoire);
+  }
+
   void add_changed_table(TABLE *table);
   void add_changed_table(const char *key, long key_length);
   CHANGED_TABLE_LIST * changed_table_dup(const char *key, long key_length);

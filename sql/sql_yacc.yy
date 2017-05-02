@@ -13712,27 +13712,7 @@ load_data_set_elem:
 text_literal:
           TEXT_STRING
           {
-            LEX_CSTRING tmp;
-            CHARSET_INFO *cs_con= thd->variables.collation_connection;
-            CHARSET_INFO *cs_cli= thd->variables.character_set_client;
-            uint repertoire= $1.repertoire(cs_cli);
-            if (thd->charset_is_collation_connection ||
-                (repertoire == MY_REPERTOIRE_ASCII &&
-                 my_charset_is_ascii_based(cs_con)))
-              tmp= $1;
-            else
-            {
-              LEX_STRING to;
-              if (thd->convert_string(&to, cs_con, $1.str, $1.length, cs_cli))
-                MYSQL_YYABORT;
-	      tmp.str=    to.str;
-	      tmp.length= to.length;
-            }
-            $$= new (thd->mem_root) Item_string(thd, tmp.str, tmp.length,
-                                                cs_con,
-                                                DERIVATION_COERCIBLE,
-                                                repertoire);
-            if ($$ == NULL)
+            if (!($$= thd->make_string_literal($1)))
               MYSQL_YYABORT;
           }
         | NCHAR_STRING
