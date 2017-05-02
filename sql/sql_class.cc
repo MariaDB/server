@@ -3134,7 +3134,7 @@ int select_export::send_data(List<Item> &items)
                             ER_TRUNCATED_WRONG_VALUE_FOR_FIELD,
                             ER_THD(thd, ER_TRUNCATED_WRONG_VALUE_FOR_FIELD),
                             "string", printable_buff,
-                            item->name, static_cast<long>(row_count));
+                            item->name.str, static_cast<long>(row_count));
       }
       else if (copier.source_end_pos() < res->ptr() + res->length())
       { 

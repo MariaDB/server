@@ -8762,7 +8762,7 @@ bool Item_default_value::fix_fields(THD *thd, Item **items)
   real_arg= arg->real_item();
   if (real_arg->type() != FIELD_ITEM)
   {
-    my_error(ER_NO_DEFAULT_FOR_FIELD, MYF(0), arg->name);
+    my_error(ER_NO_DEFAULT_FOR_FIELD, MYF(0), arg->name.str);
     goto error;
   }
 
