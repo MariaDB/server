@@ -4661,3 +4661,20 @@ DROP TABLE t1;
 #
 # End of 10.1 tests
 #
+#
+# Start of 10.3 tests
+#
+#
+# MDEV-12592 Illegal mix of collations with the HEX function
+#
+SET NAMES utf8;
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET latin1);
+INSERT INTO t1 VALUES (0x09),('a');
+SELECT IF(a<' ',HEX(a),a) FROM t1 ORDER BY a;
+IF(a<' ',HEX(a),a)
+09
+a
+DROP TABLE  t1;
+#
+# End of 10.3 tests
+#

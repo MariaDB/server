@@ -518,7 +518,7 @@ Item::Item(THD *thd):
   tables.
 */
 Item::Item(THD *thd, Item *item):
-  Type_std_attributes(item),
+  Type_all_attributes(item),
   join_tab_idx(item->join_tab_idx),
   is_expensive_cache(-1),
   rsize(0),
@@ -2348,9 +2348,9 @@ void my_coll_agg_error(Item** args, uint count, const char *fname,
 }
 
 
-bool Item_func_or_sum::agg_item_collations(DTCollation &c, const char *fname,
-                                           Item **av, uint count,
-                                           uint flags, int item_sep)
+bool Type_std_attributes::agg_item_collations(DTCollation &c, const char *fname,
+                                              Item **av, uint count,
+                                              uint flags, int item_sep)
 {
   uint i;
   Item **arg;
@@ -2395,10 +2395,10 @@ bool Item_func_or_sum::agg_item_collations(DTCollation &c, const char *fname,
 }
 
 
-bool Item_func_or_sum::agg_item_set_converter(const DTCollation &coll,
-                                              const char *fname,
-                                              Item **args, uint nargs,
-                                              uint flags, int item_sep)
+bool Type_std_attributes::agg_item_set_converter(const DTCollation &coll,
+                                                 const char *fname,
+                                                 Item **args, uint nargs,
+                                                 uint flags, int item_sep)
 {
   Item **arg, *safe_args[2]= {NULL, NULL};
 
@@ -3780,7 +3780,7 @@ bool Item_param::set_from_item(THD *thd, Item *item)
     }
   }
   struct st_value tmp;
-  if (!item->store(&tmp, 0))
+  if (!item->save_in_value(&tmp))
   {
     unsigned_flag= item->unsigned_flag;
     switch (item->cmp_type()) {
@@ -5834,24 +5834,6 @@ error:
 }
 
 
-const Type_handler *Item_field::real_type_handler() const
-{
-  /*
-    Item_field::field_type ask Field_type() but sometimes field return
-    a different type, like for enum/set, so we need to ask real type.
-  */
-  if (field->is_created_from_null_item)
-    return &type_handler_null;
-  /* work around about varchar type field detection */
-  enum_field_types type= field->real_type();
-  // TODO: We should add Field::real_type_handler() eventually
-  if (type == MYSQL_TYPE_STRING && field->type() == MYSQL_TYPE_VAR_STRING)
-    type= MYSQL_TYPE_VAR_STRING;
-  return Type_handler::get_handler_by_real_type(type);
-
-}
-
-
 /*
   @brief
   Mark virtual columns as used in a partitioning expression 
@@ -6214,178 +6196,6 @@ bool Item::eq_by_collation(Item *item, bool binary_cmp, CHARSET_INFO *cs)
     item->collation.collation= save_item_cs;
   return res;
 }  
-
-
-/**
-  Create a field to hold a string value from an item.
-
-  If too_big_for_varchar() create a blob @n
-  If max_length > 0 create a varchar @n
-  If max_length == 0 create a CHAR(0) 
-
-  @param table		Table for which the field is created
-*/
-
-Field *Item::make_string_field(TABLE *table)
-{
-  Field *field;
-  MEM_ROOT *mem_root= table->in_use->mem_root;
-  DBUG_ASSERT(collation.collation);
-  /* 
-    Note: the following check is repeated in 
-    subquery_types_allow_materialization():
-  */
-  if (too_big_for_varchar())
-    field= new (mem_root)
-      Field_blob(max_length, maybe_null, &name,
-                 collation.collation, TRUE);
-  /* Item_type_holder holds the exact type, do not change it */
-  else if (max_length > 0 &&
-      (type() != Item::TYPE_HOLDER || field_type() != MYSQL_TYPE_STRING))
-    field= new (mem_root)
-      Field_varstring(max_length, maybe_null, &name, table->s,
-                      collation.collation);
-  else
-    field= new (mem_root)
-      Field_string(max_length, maybe_null, &name, collation.collation);
-  if (field)
-    field->init(table);
-  return field;
-}
-
-
-/**
-  Create a field based on field_type of argument.
-
-  This is used to create a field for
-  - IFNULL(x,something)
-  - time functions
-  - prepared statement placeholders
-  - SP variables with data type references: DECLARE a t1.a%TYPE;
-
-  @retval
-    NULL  error
-  @retval
-    \#    Created field
-*/
-
-Field *Item::tmp_table_field_from_field_type(TABLE *table,
-                                             bool fixed_length,
-                                             bool set_blob_packlength)
-{
-  /*
-    The field functions defines a field to be not null if null_ptr is not 0
-  */
-  uchar *null_ptr= maybe_null ? (uchar*) "" : 0;
-  Field *field;
-  MEM_ROOT *mem_root= table->in_use->mem_root;
-
-  switch (field_type()) {
-  case MYSQL_TYPE_DECIMAL:
-  case MYSQL_TYPE_NEWDECIMAL:
-    field= Field_new_decimal::create_from_item(mem_root, this);
-    break;
-  case MYSQL_TYPE_TINY:
-    field= new (mem_root)
-      Field_tiny((uchar*) 0, max_length, null_ptr, 0, Field::NONE,
-                 &name, 0, unsigned_flag);
-    break;
-  case MYSQL_TYPE_SHORT:
-    field= new (mem_root)
-      Field_short((uchar*) 0, max_length, null_ptr, 0, Field::NONE,
-                  &name, 0, unsigned_flag);
-    break;
-  case MYSQL_TYPE_LONG:
-    field= new (mem_root)
-      Field_long((uchar*) 0, max_length, null_ptr, 0, Field::NONE,
-                 &name, 0, unsigned_flag);
-    break;
-#ifdef HAVE_LONG_LONG
-  case MYSQL_TYPE_LONGLONG:
-    field= new (mem_root)
-      Field_longlong((uchar*) 0, max_length, null_ptr, 0, Field::NONE,
-                     &name, 0, unsigned_flag);
-    break;
-#endif
-  case MYSQL_TYPE_FLOAT:
-    field= new (mem_root)
-      Field_float((uchar*) 0, max_length, null_ptr, 0, Field::NONE,
-                  &name, decimals, 0, unsigned_flag);
-    break;
-  case MYSQL_TYPE_DOUBLE:
-    field= new (mem_root)
-      Field_double((uchar*) 0, max_length, null_ptr, 0, Field::NONE,
-                   &name, decimals, 0, unsigned_flag);
-    break;
-  case MYSQL_TYPE_INT24:
-    field= new (mem_root)
-      Field_medium((uchar*) 0, max_length, null_ptr, 0, Field::NONE,
-                   &name, 0, unsigned_flag);
-    break;
-  case MYSQL_TYPE_NEWDATE:
-  case MYSQL_TYPE_DATE:
-    field= new (mem_root)
-      Field_newdate(0, null_ptr, 0, Field::NONE, &name);
-    break;
-  case MYSQL_TYPE_TIME:
-    field= new_Field_time(mem_root, 0, null_ptr, 0, Field::NONE, &name,
-                          decimals);
-    break;
-  case MYSQL_TYPE_TIMESTAMP:
-    field= new_Field_timestamp(mem_root, 0, null_ptr, 0,
-                               Field::NONE, &name, 0, decimals);
-    break;
-  case MYSQL_TYPE_DATETIME:
-    field= new_Field_datetime(mem_root, 0, null_ptr, 0, Field::NONE,
-                              &name, decimals);
-    break;
-  case MYSQL_TYPE_YEAR:
-    field= new (mem_root)
-      Field_year((uchar*) 0, max_length, null_ptr, 0, Field::NONE,
-                 &name);
-    break;
-  case MYSQL_TYPE_BIT:
-    field= new (mem_root)
-      Field_bit_as_char(NULL, max_length, null_ptr, 0, Field::NONE,
-                        &name);
-    break;
-  default:
-    /* This case should never be chosen */
-    DBUG_ASSERT(0);
-    /* If something goes awfully wrong, it's better to get a string than die */
-  case MYSQL_TYPE_NULL:
-  case MYSQL_TYPE_STRING:
-    if (fixed_length && !too_big_for_varchar())
-    {
-      field= new (mem_root)
-        Field_string(max_length, maybe_null, &name, collation.collation);
-      break;
-    }
-    /* Fall through to make_string_field() */
-  case MYSQL_TYPE_ENUM:
-  case MYSQL_TYPE_SET:
-  case MYSQL_TYPE_VAR_STRING:
-  case MYSQL_TYPE_VARCHAR:
-    return make_string_field(table);
-  case MYSQL_TYPE_TINY_BLOB:
-  case MYSQL_TYPE_MEDIUM_BLOB:
-  case MYSQL_TYPE_LONG_BLOB:
-  case MYSQL_TYPE_BLOB:
-    field= new (mem_root)
-           Field_blob(max_length, maybe_null, &name,
-                      collation.collation, set_blob_packlength);
-    break;					// Blob handled outside of case
-#ifdef HAVE_SPATIAL
-  case MYSQL_TYPE_GEOMETRY:
-    field= new (mem_root)
-      Field_geom(max_length, maybe_null, &name, table->s,
-                 get_geometry_type());
-#endif /* HAVE_SPATIAL */
-  }
-  if (field)
-    field->init(table);
-  return field;
-}
 
 
 /* ARGSUSED */
@@ -8945,7 +8755,7 @@ bool Item_default_value::fix_fields(THD *thd, Item **items)
   real_arg= arg->real_item();
   if (real_arg->type() != FIELD_ITEM)
   {
-    my_error(ER_NO_DEFAULT_FOR_FIELD, MYF(0), arg->name);
+    my_error(ER_NO_DEFAULT_FOR_FIELD, MYF(0), arg->name.str);
     goto error;
   }
 
@@ -9715,9 +9525,8 @@ Item_cache_temporal::Item_cache_temporal(THD *thd,
                                          enum_field_types field_type_arg):
   Item_cache_int(thd, field_type_arg)
 {
-  if (mysql_type_to_time_type(Item_cache_temporal::field_type()) ==
-                              MYSQL_TIMESTAMP_ERROR)
-    set_handler_by_field_type(MYSQL_TYPE_DATETIME);
+  if (mysql_timestamp_type() == MYSQL_TIMESTAMP_ERROR)
+    set_handler(&type_handler_datetime2);
 }
 
 
@@ -9825,7 +9634,7 @@ bool Item_cache_temporal::get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
   }
 
   unpack_time(value, ltime);
-  ltime->time_type= mysql_type_to_time_type(field_type());
+  ltime->time_type= mysql_timestamp_type();
   if (ltime->time_type == MYSQL_TIMESTAMP_TIME)
   {
     ltime->hour+= (ltime->month*32+ltime->day)*24;
@@ -10267,7 +10076,7 @@ bool Item_type_holder::join_types(THD *thd, Item *item)
   if (aggregate_for_result(item_type_handler))
   {
     my_error(ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION, MYF(0),
-             Item_type_holder::type_handler()->name().ptr(),
+             Item_type_holder::real_type_handler()->name().ptr(),
              item_type_handler->name().ptr(),
              "UNION");
     DBUG_RETURN(true);
@@ -10375,6 +10184,14 @@ bool Item_type_holder::join_types(THD *thd, Item *item)
   };
   maybe_null|= item->maybe_null;
   get_full_info(item);
+  /*
+    Adjust data type for union, e.g.:
+    - convert type_handler_null to type_handler_string
+    - convert type_handler_olddecimal to type_handler_newdecimal
+    - adjust varchar/blob according to max_length
+  */
+  set_handler(Item_type_holder::
+                real_type_handler()->type_handler_for_union(this));
 
   /* Remember decimal integer part to be used in DECIMAL_RESULT handleng */
   prev_decimal_int_part= decimal_int_part();
@@ -10382,56 +10199,6 @@ bool Item_type_holder::join_types(THD *thd, Item *item)
                       real_type_handler()->name().ptr(),
                       max_length, (uint) decimals));
   DBUG_RETURN(FALSE);
-}
-
-
-/**
-  Make temporary table field according collected information about type
-  of UNION result.
-
-  @param table  temporary table for which we create fields
-
-  @return
-    created field
-*/
-
-Field *Item_type_holder::make_field_by_type(TABLE *table)
-{
-  /*
-    The field functions defines a field to be not null if null_ptr is not 0
-  */
-  uchar *null_ptr= maybe_null ? (uchar*) "" : 0;
-  Field *field;
-
-  switch (Item_type_holder::real_type_handler()->real_field_type()) {
-  case MYSQL_TYPE_ENUM:
-  {
-    DBUG_ASSERT(enum_set_typelib);
-    field= new Field_enum((uchar *) 0, max_length, null_ptr, 0,
-                          Field::NONE, &name,
-                          get_enum_pack_length(enum_set_typelib->count),
-                          enum_set_typelib, collation.collation);
-    if (field)
-      field->init(table);
-    return field;
-  }
-  case MYSQL_TYPE_SET:
-  {
-    DBUG_ASSERT(enum_set_typelib);
-    field= new Field_set((uchar *) 0, max_length, null_ptr, 0,
-                         Field::NONE, &name,
-                         get_set_pack_length(enum_set_typelib->count),
-                         enum_set_typelib, collation.collation);
-    if (field)
-      field->init(table);
-    return field;
-  }
-  case MYSQL_TYPE_NULL:
-    return make_string_field(table);
-  default:
-    break;
-  }
-  return tmp_table_field_from_field_type(table, false, true);
 }
 
 

@@ -125,7 +125,7 @@ static enum_field_types field_types_merge_rules [FIELDTYPE_NUM][FIELDTYPE_NUM]=
   //MYSQL_TYPE_NULL         MYSQL_TYPE_TIMESTAMP
     MYSQL_TYPE_NEWDECIMAL,  MYSQL_TYPE_VARCHAR,
   //MYSQL_TYPE_LONGLONG     MYSQL_TYPE_INT24
-    MYSQL_TYPE_DECIMAL,     MYSQL_TYPE_DECIMAL,
+    MYSQL_TYPE_NEWDECIMAL,  MYSQL_TYPE_NEWDECIMAL,
   //MYSQL_TYPE_DATE         MYSQL_TYPE_TIME
     MYSQL_TYPE_VARCHAR,     MYSQL_TYPE_VARCHAR,
   //MYSQL_TYPE_DATETIME     MYSQL_TYPE_YEAR
@@ -520,7 +520,7 @@ static enum_field_types field_types_merge_rules [FIELDTYPE_NUM][FIELDTYPE_NUM]=
   /* MYSQL_TYPE_YEAR -> */
   {
   //MYSQL_TYPE_DECIMAL      MYSQL_TYPE_TINY
-    MYSQL_TYPE_DECIMAL,     MYSQL_TYPE_TINY,
+    MYSQL_TYPE_NEWDECIMAL,  MYSQL_TYPE_TINY,
   //MYSQL_TYPE_SHORT        MYSQL_TYPE_LONG
     MYSQL_TYPE_SHORT,       MYSQL_TYPE_LONG,
   //MYSQL_TYPE_FLOAT        MYSQL_TYPE_DOUBLE
@@ -1256,14 +1256,14 @@ bool Field::can_optimize_group_min_max(const Item_bool_func *cond,
 
 
 /*
-  This covers all numeric types, ENUM, SET, BIT
+  This covers all numeric types, BIT
 */
 bool Field::can_optimize_range(const Item_bool_func *cond,
                                const Item *item,
                                bool is_eq_func) const
 {
   DBUG_ASSERT(cmp_type() != TIME_RESULT);   // Handled in Field_temporal
-  DBUG_ASSERT(cmp_type() != STRING_RESULT); // Handled in Field_longstr
+  DBUG_ASSERT(cmp_type() != STRING_RESULT); // Handled in Field_str descendants
   return item->cmp_type() != TIME_RESULT;
 }
 
@@ -2003,15 +2003,15 @@ bool Field_num::get_date(MYSQL_TIME *ltime,ulonglong fuzzydate)
 Field_str::Field_str(uchar *ptr_arg,uint32 len_arg, uchar *null_ptr_arg,
                      uchar null_bit_arg, utype unireg_check_arg,
                      const LEX_CSTRING *field_name_arg,
-                     CHARSET_INFO *charset_arg)
+                     const DTCollation &collation)
   :Field(ptr_arg, len_arg, null_ptr_arg, null_bit_arg,
          unireg_check_arg, field_name_arg)
 {
-  field_charset= charset_arg;
-  if (charset_arg->state & MY_CS_BINSORT)
+  field_charset= collation.collation;
+  if (collation.collation->state & MY_CS_BINSORT)
     flags|=BINARY_FLAG;
-  field_derivation= DERIVATION_IMPLICIT;
-  field_repertoire= my_charset_repertoire(charset_arg);
+  field_derivation= collation.derivation;
+  field_repertoire= collation.repertoire;
 }
 
 
@@ -2909,67 +2909,6 @@ Field_new_decimal::Field_new_decimal(uchar *ptr_arg,
   DBUG_ASSERT((precision <= DECIMAL_MAX_PRECISION) &&
               (dec <= DECIMAL_MAX_SCALE));
   bin_size= my_decimal_get_binary_size(precision, dec);
-}
-
-
-Field_new_decimal::Field_new_decimal(uint32 len_arg,
-                                     bool maybe_null_arg,
-                                     const LEX_CSTRING *name,
-                                     uint8 dec_arg,
-                                     bool unsigned_arg)
-  :Field_num((uchar*) 0, len_arg,
-             maybe_null_arg ? (uchar*) "": 0, 0,
-             NONE, name, dec_arg, 0, unsigned_arg)
-{
-  precision= my_decimal_length_to_precision(len_arg, dec_arg, unsigned_arg);
-  set_if_smaller(precision, DECIMAL_MAX_PRECISION);
-  DBUG_ASSERT((precision <= DECIMAL_MAX_PRECISION) &&
-              (dec <= DECIMAL_MAX_SCALE));
-  bin_size= my_decimal_get_binary_size(precision, dec);
-}
-
-
-Field *Field_new_decimal::create_from_item(MEM_ROOT *mem_root, Item *item)
-{
-  uint8 dec= item->decimals;
-  uint8 intg= item->decimal_precision() - dec;
-  uint32 len= item->max_char_length();
-  DBUG_ASSERT (item->result_type() == DECIMAL_RESULT);
-
-  /*
-    Trying to put too many digits overall in a DECIMAL(prec,dec)
-    will always throw a warning. We must limit dec to
-    DECIMAL_MAX_SCALE however to prevent an assert() later.
-  */
-
-  if (dec > 0)
-  {
-    signed int overflow;
-
-    dec= MY_MIN(dec, DECIMAL_MAX_SCALE);
-
-    /*
-      If the value still overflows the field with the corrected dec,
-      we'll throw out decimals rather than integers. This is still
-      bad and of course throws a truncation warning.
-      +1: for decimal point
-      */
-
-    const int required_length=
-      my_decimal_precision_to_length(intg + dec, dec,
-                                     item->unsigned_flag);
-
-    overflow= required_length - len;
-
-    if (overflow > 0)
-      dec= MY_MAX(0, dec - overflow);            // too long, discard fract
-    else
-      /* Corrected value fits. */
-      len= required_length;
-  }
-  return new (mem_root)
-    Field_new_decimal(len, item->maybe_null, &item->name,
-                      dec, item->unsigned_flag);
 }
 
 
@@ -7817,10 +7756,10 @@ Field_blob::Field_blob(uchar *ptr_arg, uchar *null_ptr_arg, uchar null_bit_arg,
 		       enum utype unireg_check_arg,
                        const LEX_CSTRING *field_name_arg,
                        TABLE_SHARE *share, uint blob_pack_length,
-		       CHARSET_INFO *cs)
+		       const DTCollation &collation)
   :Field_longstr(ptr_arg, BLOB_PACK_LENGTH_TO_MAX_LENGH(blob_pack_length),
                  null_ptr_arg, null_bit_arg, unireg_check_arg, field_name_arg,
-                 cs),
+                 collation),
    packlength(blob_pack_length)
 {
   DBUG_ASSERT(blob_pack_length <= 4); // Only pack lengths 1-4 supported currently
@@ -8237,6 +8176,22 @@ void Field_blob::sort_string(uchar *to,uint length)
 }
 
 
+/*
+  Return the data type handler, according to packlength.
+  Implemented in field.cc rather than in field.h
+  to avoid exporting type_handler_xxx with MYSQL_PLUGIN_IMPORT.
+*/
+const Type_handler *Field_blob::type_handler() const
+{
+  switch (packlength) {
+  case 1: return &type_handler_tiny_blob;
+  case 2: return &type_handler_blob;
+  case 3: return &type_handler_medium_blob;
+  }
+  return &type_handler_long_blob;
+}
+
+
 void Field_blob::sql_type(String &res) const
 {
   const char *str;
@@ -8638,12 +8593,16 @@ int Field_enum::store(const char *from,uint length,CHARSET_INFO *cs)
       {
 	tmp=0;
 	set_warning(WARN_DATA_TRUNCATED, 1);
+	err= 1;
       }
-      if (!get_thd()->count_cuted_fields)
+      if (!get_thd()->count_cuted_fields && !length)
         err= 0;
     }
     else
+    {
       set_warning(WARN_DATA_TRUNCATED, 1);
+      err= 1;
+    }
   }
   store_type((ulonglong) tmp);
   return err;
@@ -8817,6 +8776,7 @@ int Field_set::store(const char *from,uint length,CHARSET_INFO *cs)
     {
       tmp=0;      
       set_warning(WARN_DATA_TRUNCATED, 1);
+      err= 1;
     }
   }
   else if (got_warning)
@@ -9055,12 +9015,17 @@ uint Field_num::is_equal(Create_field *new_field)
 }
 
 
+bool Field_enum::can_optimize_range(const Item_bool_func *cond,
+                                    const Item *item,
+                                    bool is_eq_func) const
+{
+  return item->cmp_type() != TIME_RESULT;
+}
+
+
 bool Field_enum::can_optimize_keypart_ref(const Item_bool_func *cond,
                                           const Item *item) const
 {
-  DBUG_ASSERT(cmp_type() == INT_RESULT);
-  DBUG_ASSERT(result_type() == STRING_RESULT);
-
   switch (item->cmp_type())
   {
   case TIME_RESULT:
@@ -10717,7 +10682,7 @@ uint32 Field_blob::char_length() const
   case 3:
     return 16777215;
   case 4:
-    return (uint32) 4294967295U;
+    return (uint32) UINT_MAX32;
   default:
     DBUG_ASSERT(0); // we should never go here
     return 0;
@@ -10770,7 +10735,7 @@ uint32 Field_blob::max_display_length()
   case 3:
     return 16777215 * field_charset->mbmaxlen;
   case 4:
-    return (uint32) 4294967295U;
+    return (uint32) UINT_MAX32;
   default:
     DBUG_ASSERT(0); // we should never go here
     return 0;

@@ -2352,6 +2352,26 @@ bool THD::convert_string(String *s, CHARSET_INFO *from_cs, CHARSET_INFO *to_cs)
 }
 
 
+Item_string *THD::make_string_literal(const char *str, size_t length,
+                                      uint repertoire)
+{
+  if (!charset_is_collation_connection &&
+      (repertoire != MY_REPERTOIRE_ASCII ||
+       !my_charset_is_ascii_based(variables.collation_connection)))
+  {
+    LEX_STRING to;
+    if (convert_string(&to, variables.collation_connection,
+                       str, length, variables.character_set_client))
+      return NULL;
+    str= to.str;
+    length= to.length;
+  }
+  return new (mem_root) Item_string(this, str, length,
+                                    variables.collation_connection,
+                                    DERIVATION_COERCIBLE, repertoire);
+}
+
+
 /*
   Update some cache variables when character set changes
 */
@@ -3114,7 +3134,7 @@ int select_export::send_data(List<Item> &items)
                             ER_TRUNCATED_WRONG_VALUE_FOR_FIELD,
                             ER_THD(thd, ER_TRUNCATED_WRONG_VALUE_FOR_FIELD),
                             "string", printable_buff,
-                            item->name, static_cast<long>(row_count));
+                            item->name.str, static_cast<long>(row_count));
       }
       else if (copier.source_end_pos() < res->ptr() + res->length())
       { 

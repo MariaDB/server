@@ -612,3 +612,46 @@ select cast('-0.0' as decimal(5,1)) < 0;
 --echo #
 --echo # End of 5.5 tests
 --echo #
+
+--echo #
+--echo # Start of 10.3 tests
+--echo #
+
+--echo #
+--echo # MDEV-9217 Split Item::tmp_table_field_from_field_type() into virtual methods in Type_handler
+--echo #
+
+let $MYSQLD_DATADIR= `select @@datadir`;
+
+--copy_file std_data/old_decimal/t1dec102.frm $MYSQLD_DATADIR/test/t1dec102.frm
+--copy_file std_data/old_decimal/t1dec102.MYD $MYSQLD_DATADIR/test/t1dec102.MYD
+--copy_file std_data/old_decimal/t1dec102.MYI $MYSQLD_DATADIR/test/t1dec102.MYI
+
+--echo # This creates the old DECIMAL. Will be fixed in MDEV-12574.
+CREATE TABLE t1 AS SELECT MAX(a) FROM t1dec102;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 AS SELECT COALESCE(a) FROM t1dec102;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a BIGINT);
+CREATE TABLE t2 AS SELECT a FROM t1dec102 UNION SELECT a FROM t1;
+SHOW CREATE TABLE t2;
+DROP TABLE t2;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a MEDIUMINT);
+CREATE TABLE t2 AS SELECT a FROM t1dec102 UNION SELECT a FROM t1;
+SHOW CREATE TABLE t2;
+DROP TABLE t2;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a YEAR);
+CREATE TABLE t2 AS SELECT a FROM t1 UNION SELECT a FROM t1dec102;
+SHOW CREATE TABLE t2;
+DROP TABLE t2;
+DROP TABLE t1;
+
+DROP TABLE t1dec102;

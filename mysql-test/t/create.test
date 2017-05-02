@@ -402,6 +402,22 @@ explain t2;
 select * from t2;
 drop table t1, t2;
 
+CREATE TABLE t1 (
+  c_tinytext tinytext,
+  c_text text,
+  c_mediumtext mediumtext,
+  c_longtext longtext
+);
+CREATE TABLE t2 AS SELECT
+  ifnull(c_tinytext,   CAST('yet another binary data' AS BINARY)),
+  ifnull(c_text,       CAST('yet another binary data' AS BINARY)),
+  ifnull(c_mediumtext, CAST('yet another binary data' AS BINARY)),
+  ifnull(c_longtext,   CAST('yet another binary data' AS BINARY))
+FROM t1;
+SHOW CREATE TABLE t2;
+DROP TABLE t2;
+DROP TABLE t1;
+
 create table t1 (a tinyint, b smallint, c mediumint, d int, e bigint, f float(3,2), g double(4,3), h decimal(5,4), i year, j date, k timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, l datetime, m enum('a','b'), n set('a','b'), o char(10));
 create table t2 select ifnull(a,a), ifnull(b,b), ifnull(c,c), ifnull(d,d), ifnull(e,e), ifnull(f,f), ifnull(g,g), ifnull(h,h), ifnull(i,i), ifnull(j,j), ifnull(k,k), ifnull(l,l), ifnull(m,m), ifnull(n,n), ifnull(o,o) from t1;
 show create table t2;

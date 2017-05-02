@@ -1202,51 +1202,15 @@ void Item_sum_hybrid::setup_hybrid(THD *thd, Item *item, Item *value_arg)
 
 Field *Item_sum_hybrid::create_tmp_field(bool group, TABLE *table)
 {
-  Field *field;
-  MEM_ROOT *mem_root;
-
   if (args[0]->type() == Item::FIELD_ITEM)
   {
-    field= ((Item_field*) args[0])->field;
+    Field *field= ((Item_field*) args[0])->field;
     if ((field= create_tmp_field_from_field(table->in_use, field, &name,
                                             table, NULL)))
       field->flags&= ~NOT_NULL_FLAG;
     return field;
   }
-
-  /*
-    DATE/TIME fields have STRING_RESULT result types.
-    In order to preserve field type, it's needed to handle DATE/TIME
-    fields creations separately.
-  */
-  mem_root= table->in_use->mem_root;
-  switch (args[0]->field_type()) {
-  case MYSQL_TYPE_DATE:
-  {
-    field= new (mem_root)
-      Field_newdate(0, maybe_null ? (uchar*)"" : 0, 0, Field::NONE,
-                    &name);
-    break;
-  }
-  case MYSQL_TYPE_TIME:
-  {
-    field= new_Field_time(mem_root, 0, maybe_null ? (uchar*)"" : 0, 0,
-                          Field::NONE, &name, decimals);
-    break;
-  }
-  case MYSQL_TYPE_TIMESTAMP:
-  case MYSQL_TYPE_DATETIME:
-  {
-    field= new_Field_datetime(mem_root, 0, maybe_null ? (uchar*)"" : 0, 0,
-                              Field::NONE, &name, decimals);
-    break;
-  }
-  default:
-    return Item_sum::create_tmp_field(group, table);
-  }
-  if (field)
-    field->init(table);
-  return field;
+  return Item_sum::create_tmp_field(group, table);
 }
 
 
@@ -1669,8 +1633,6 @@ Item *Item_sum_avg::copy_or_same(THD* thd)
 
 Field *Item_sum_avg::create_tmp_field(bool group, TABLE *table)
 {
-  Field *field;
-  MEM_ROOT *mem_root= table->in_use->mem_root;
 
   if (group)
   {
@@ -1679,21 +1641,15 @@ Field *Item_sum_avg::create_tmp_field(bool group, TABLE *table)
       The easiest way is to do this is to store both value in a string
       and unpack on access.
     */
-    field= new (mem_root)
+    Field *field= new (table->in_use->mem_root)
       Field_string(((Item_sum_avg::result_type() == DECIMAL_RESULT) ?
-                    dec_bin_size : sizeof(double)) + sizeof(longlong),
+                   dec_bin_size : sizeof(double)) + sizeof(longlong),
                    0, &name, &my_charset_bin);
+    if (field)
+      field->init(table);
+    return field;
   }
-  else if (Item_sum_avg::result_type() == DECIMAL_RESULT)
-    field= Field_new_decimal::create_from_item(mem_root, this);
-  else
-  {
-    field= new (mem_root) Field_double(max_length, maybe_null, &name,
-                                       decimals, TRUE);
-  }
-  if (field)
-    field->init(table);
-  return field;
+  return tmp_table_field_from_field_type(table);
 }
 
 
@@ -3359,24 +3315,6 @@ void Item_func_group_concat::cleanup()
     order_ptr++;
   }
   DBUG_VOID_RETURN;
-}
-
-
-Field *Item_func_group_concat::make_string_field(TABLE *table_arg)
-{
-  Field *field;
-  DBUG_ASSERT(collation.collation);
-
-  if (too_big_for_varchar())
-    field= new Field_blob(max_length,
-                          maybe_null, &name, collation.collation, TRUE);
-  else
-    field= new Field_varstring(max_length,
-                               maybe_null, &name, table_arg->s, collation.collation);
-
-  if (field)
-    field->init(table_arg);
-  return field;
 }
 
 

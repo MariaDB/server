@@ -156,7 +156,7 @@ bool check_duplicate_names(THD *thd, List<Item> &item_list, bool gen_unique_view
   DBUG_RETURN(FALSE);
 
 err:
-  my_error(ER_DUP_FIELDNAME, MYF(0), item->name);
+  my_error(ER_DUP_FIELDNAME, MYF(0), item->name.str);
   DBUG_RETURN(TRUE);
 }
 

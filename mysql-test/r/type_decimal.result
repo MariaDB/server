@@ -1019,3 +1019,52 @@ cast('-0.0' as decimal(5,1)) < 0
 #
 # End of 5.5 tests
 #
+#
+# Start of 10.3 tests
+#
+#
+# MDEV-9217 Split Item::tmp_table_field_from_field_type() into virtual methods in Type_handler
+#
+# This creates the old DECIMAL. Will be fixed in MDEV-12574.
+CREATE TABLE t1 AS SELECT MAX(a) FROM t1dec102;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `MAX(a)` decimal(10,2)/*old*/ DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 AS SELECT COALESCE(a) FROM t1dec102;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `COALESCE(a)` decimal(10,2) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 (a BIGINT);
+CREATE TABLE t2 AS SELECT a FROM t1dec102 UNION SELECT a FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` decimal(21,2) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t2;
+DROP TABLE t1;
+CREATE TABLE t1 (a MEDIUMINT);
+CREATE TABLE t2 AS SELECT a FROM t1dec102 UNION SELECT a FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` decimal(10,2) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t2;
+DROP TABLE t1;
+CREATE TABLE t1 (a YEAR);
+CREATE TABLE t2 AS SELECT a FROM t1 UNION SELECT a FROM t1dec102;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` decimal(10,2) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t2;
+DROP TABLE t1;
+DROP TABLE t1dec102;

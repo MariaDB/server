@@ -3500,5 +3500,17 @@ t2	CREATE TABLE `t2` (
 DROP TABLE t2;
 DROP TABLE t1;
 #
+# MDEV-12601 Hybrid functions create a column of an impossible type DOUBLE(256,4)
+#
+CREATE TABLE t1 (a DOUBLE(255,4),b DOUBLE(255,3));
+CREATE TABLE t2 AS SELECT COALESCE(a,b) FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `COALESCE(a,b)` double(255,4) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t2;
+DROP TABLE t1;
+#
 # End of 10.3 tests
 #

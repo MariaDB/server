@@ -536,7 +536,7 @@ public:
   my_decimal *val_decimal(my_decimal *decimal_value)
   { return  val_decimal_from_date(decimal_value); }
   Field *create_field_for_create_select(TABLE *table)
-  { return tmp_table_field_from_field_type(table, false, false); }
+  { return tmp_table_field_from_field_type(table); }
   int save_in_field(Field *field, bool no_conversions)
   { return save_date_in_field(field, no_conversions); }
 };
@@ -1018,7 +1018,7 @@ class Item_extract :public Item_int_func
     return true;
   }
   Field *create_field_for_create_select(TABLE *table)
-  { return tmp_table_field_from_field_type(table, false, false); }
+  { return tmp_table_field_from_field_type(table); }
 
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_extract>(thd, mem_root, this); }

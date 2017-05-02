@@ -483,7 +483,7 @@ public:
 
 
 class Item: public Value_source,
-            public Type_std_attributes
+            public Type_all_attributes
 {
   void operator=(Item &);
   /**
@@ -536,10 +536,22 @@ protected:
 
   SEL_TREE *get_mm_tree_for_const(RANGE_OPT_PARAM *param);
 
-  virtual Field *make_string_field(TABLE *table);
-  Field *tmp_table_field_from_field_type(TABLE *table,
-                                         bool fixed_length,
-                                         bool set_blob_packlength);
+  /**
+    Create a field based on field_type of argument.
+    This is used to create a field for
+    - IFNULL(x,something)
+    - time functions
+    - prepared statement placeholders
+    - SP variables with data type references: DECLARE a TYPE OF t1.a;
+    @retval  NULL  error
+    @retval  !NULL on success
+  */
+  Field *tmp_table_field_from_field_type(TABLE *table)
+  {
+    const Type_handler *h= type_handler()->type_handler_for_tmp_table(this);
+    return h->make_and_init_table_field(&name, Record_addr(maybe_null),
+                                        *this, table);
+  }
   Field *create_tmp_field(bool group, TABLE *table, uint convert_int_length);
 
   void push_note_converted_to_negative_complement(THD *thd);
@@ -664,54 +676,9 @@ public:
   */
   virtual inline void quick_fix_field() { fixed= 1; }
 
-  bool store(struct st_value *value, ulonglong fuzzydate)
+  bool save_in_value(struct st_value *value)
   {
-    switch (cmp_type()) {
-    case INT_RESULT:
-    {
-      value->m_type= unsigned_flag ? DYN_COL_UINT : DYN_COL_INT;
-      value->value.m_longlong= val_int();
-      break;
-    }
-    case REAL_RESULT:
-    {
-      value->m_type= DYN_COL_DOUBLE;
-      value->value.m_double= val_real();
-      break;
-    }
-    case DECIMAL_RESULT:
-    {
-      value->m_type= DYN_COL_DECIMAL;
-      my_decimal *dec= val_decimal(&value->m_decimal);
-      if (dec != &value->m_decimal && !null_value)
-        my_decimal2decimal(dec, &value->m_decimal);
-      break;
-    }
-    case STRING_RESULT:
-    {
-      value->m_type= DYN_COL_STRING;
-      String *str= val_str(&value->m_string);
-      if (str != &value->m_string && !null_value)
-        value->m_string.set(str->ptr(), str->length(), str->charset());
-      break;
-    }
-    case TIME_RESULT:
-    {
-      value->m_type= DYN_COL_DATETIME;
-      get_date(&value->value.m_time, fuzzydate);
-      break;
-    }
-    case ROW_RESULT:
-      DBUG_ASSERT(false);
-      null_value= true;
-      break;
-    }
-    if (null_value)
-    {
-      value->m_type= DYN_COL_NULL;
-      return true;
-    }
-    return false;
+    return type_handler()->Item_save_in_value(this, value);
   }
 
   /* Function returns 1 on overflow and -1 on fatal errors */
@@ -1150,10 +1117,7 @@ public:
   */
   uint decimal_scale() const
   {
-    return decimals < NOT_FIXED_DEC ? decimals :
-           is_temporal_type_with_time(field_type()) ?
-           TIME_SECOND_PART_DIGITS :
-           MY_MIN(max_length, DECIMAL_MAX_SCALE);
+    return type_handler()->Item_decimal_scale(this);
   }
   /*
     Returns how many digits a divisor adds into a division result.
@@ -1174,10 +1138,7 @@ public:
   */
   uint divisor_precision_increment() const
   {
-    return decimals <  NOT_FIXED_DEC ? decimals :
-           is_temporal_type_with_time(field_type()) ?
-           TIME_SECOND_PART_DIGITS :
-           decimals;
+    return type_handler()->Item_divisor_precision_increment(this);
   }
   /**
     TIME or DATETIME precision of the item: 0..6
@@ -1745,6 +1706,8 @@ public:
   }
   virtual Field::geometry_type get_geometry_type() const
     { return Field::GEOM_GEOMETRY; };
+  uint uint_geometry_type() const
+  { return get_geometry_type(); }
   String *check_well_formed_result(String *str, bool send_error= 0);
   bool eq_by_collation(Item *item, bool binary_cmp, CHARSET_INFO *cs); 
   bool too_big_for_varchar() const
@@ -2263,7 +2226,7 @@ public:
     based on result_type(), which is less exact.
   */
   Field *create_field_for_create_select(TABLE *table)
-  { return tmp_table_field_from_field_type(table, false, true); }
+  { return tmp_table_field_from_field_type(table); }
 };
 
 
@@ -2639,19 +2602,29 @@ public:
   fast_field_copier setup_fast_field_copier(Field *field);
   table_map used_tables() const;
   table_map all_used_tables() const; 
+  const Type_handler *type_handler() const
+  {
+    const Type_handler *handler= field->type_handler();
+    return handler->type_handler_for_item_field();
+  }
   enum Item_result result_type () const
   {
     return field->result_type();
   }
   const Type_handler *cast_to_int_type_handler() const
   {
-    return field->cast_to_int_type_handler();
+    return field->type_handler()->cast_to_int_type_handler();
   }
   enum_field_types field_type() const
   {
     return field->type();
   }
-  const Type_handler *real_type_handler() const;
+  const Type_handler *real_type_handler() const
+  {
+    if (field->is_created_from_null_item)
+      return &type_handler_null;
+    return field->type_handler();
+  }
   enum_monotonicity_info get_monotonicity_info() const
   {
     return MONOTONIC_STRICT_INCREASING;
@@ -3187,6 +3160,17 @@ public:
   enum Type type() const { return INT_ITEM; }
   enum Item_result result_type () const { return INT_RESULT; }
   enum_field_types field_type() const { return MYSQL_TYPE_LONGLONG; }
+  const Type_handler *type_handler() const
+  {
+    // The same condition is repeated in Item::create_tmp_field()
+    if (max_length > MY_INT32_NUM_DECIMAL_DIGITS - 2)
+      return &type_handler_longlong;
+    return &type_handler_long;
+  }
+  Field *create_tmp_field(bool group, TABLE *table)
+  { return tmp_table_field_from_field_type(table); }
+  Field *create_field_for_create_select(TABLE *table)
+  { return tmp_table_field_from_field_type(table); }
   longlong val_int() { DBUG_ASSERT(fixed == 1); return value; }
   double val_real() { DBUG_ASSERT(fixed == 1); return (double) value; }
   my_decimal *val_decimal(my_decimal *);
@@ -3645,7 +3629,14 @@ public:
     Item_partition_func_safe_string(thd, name_arg, safe_strlen(name_arg), &my_charset_bin)
   { max_length= length; }
   enum Type type() const { return TYPE_HOLDER; }
-  enum_field_types field_type() const { return MYSQL_TYPE_BLOB; }
+  enum_field_types field_type() const
+  {
+    return Item_blob::type_handler()->field_type();
+  }
+  const Type_handler *type_handler() const
+  {
+    return Type_handler::blob_type_handler(max_length);
+  }
   const Type_handler *real_type_handler() const
   {
     // Should not be called, Item_blob is used for SHOW purposes only.
@@ -3653,7 +3644,7 @@ public:
     return &type_handler_varchar;
   }
   Field *create_field_for_schema(THD *thd, TABLE *table)
-  { return tmp_table_field_from_field_type(table, false, true); }
+  { return tmp_table_field_from_field_type(table); }
 };
 
 
@@ -3690,6 +3681,10 @@ public:
     unsigned_flag=1;
   }
   enum_field_types field_type() const { return int_field_type; }
+  const Type_handler *type_handler() const
+  {
+    return Type_handler::get_handler_by_field_type(int_field_type);
+  }
 };
 
 
@@ -4068,80 +4063,31 @@ class Item_func_or_sum: public Item_result_field,
                         public Item_args,
                         public Used_tables_and_const_cache
 {
-  bool agg_item_collations(DTCollation &c, const char *name,
-                           Item **items, uint nitems,
-                           uint flags, int item_sep);
-  bool agg_item_set_converter(const DTCollation &coll, const char *fname,
-                              Item **args, uint nargs,
-                              uint flags, int item_sep);
 protected:
-  /*
-    Collect arguments' character sets together.
-    We allow to apply automatic character set conversion in some cases.
-    The conditions when conversion is possible are:
-    - arguments A and B have different charsets
-    - A wins according to coercibility rules
-      (i.e. a column is stronger than a string constant,
-       an explicit COLLATE clause is stronger than a column)
-    - character set of A is either superset for character set of B,
-      or B is a string constant which can be converted into the
-      character set of A without data loss.
-
-    If all of the above is true, then it's possible to convert
-    B into the character set of A, and then compare according
-    to the collation of A.
-
-    For functions with more than two arguments:
-
-      collect(A,B,C) ::= collect(collect(A,B),C)
-
-    Since this function calls THD::change_item_tree() on the passed Item **
-    pointers, it is necessary to pass the original Item **'s, not copies.
-    Otherwise their values will not be properly restored (see BUG#20769).
-    If the items are not consecutive (eg. args[2] and args[5]), use the
-    item_sep argument, ie.
-
-      agg_item_charsets(coll, fname, &args[2], 2, flags, 3)
-  */
   bool agg_arg_charsets(DTCollation &c, Item **items, uint nitems,
                         uint flags, int item_sep)
   {
-    if (agg_item_collations(c, func_name(), items, nitems, flags, item_sep))
-      return true;
-
-    return agg_item_set_converter(c, func_name(), items, nitems,
-                                  flags, item_sep);
+    return Type_std_attributes::agg_arg_charsets(c, func_name(),
+                                                 items, nitems,
+                                                 flags, item_sep);
   }
-  /*
-    Aggregate arguments for string result, e.g: CONCAT(a,b)
-    - convert to @@character_set_connection if all arguments are numbers
-    - allow DERIVATION_NONE
-  */
   bool agg_arg_charsets_for_string_result(DTCollation &c,
                                           Item **items, uint nitems,
                                           int item_sep= 1)
   {
-    uint flags= MY_COLL_ALLOW_SUPERSET_CONV |
-                MY_COLL_ALLOW_COERCIBLE_CONV |
-                MY_COLL_ALLOW_NUMERIC_CONV;
-    return agg_arg_charsets(c, items, nitems, flags, item_sep);
+    return Type_std_attributes::
+      agg_arg_charsets_for_string_result(c, func_name(),
+                                         items, nitems, item_sep);
   }
-  /*
-    Aggregate arguments for string result, when some comparison
-    is involved internally, e.g: REPLACE(a,b,c)
-    - convert to @@character_set_connection if all arguments are numbers
-    - disallow DERIVATION_NONE
-  */
   bool agg_arg_charsets_for_string_result_with_comparison(DTCollation &c,
                                                           Item **items,
                                                           uint nitems,
                                                           int item_sep= 1)
   {
-    uint flags= MY_COLL_ALLOW_SUPERSET_CONV |
-                MY_COLL_ALLOW_COERCIBLE_CONV |
-                MY_COLL_ALLOW_NUMERIC_CONV |
-                MY_COLL_DISALLOW_NONE;
-    return agg_arg_charsets(c, items, nitems, flags, item_sep);
+    return Type_std_attributes::
+      agg_arg_charsets_for_string_result_with_comparison(c, func_name(),
+                                                         items, nitems,
+                                                         item_sep);
   }
 
   /*
@@ -4153,12 +4099,9 @@ protected:
                                        Item **items, uint nitems,
                                        int item_sep= 1)
   {
-    uint flags= MY_COLL_ALLOW_SUPERSET_CONV |
-                MY_COLL_ALLOW_COERCIBLE_CONV |
-                MY_COLL_DISALLOW_NONE;
-    return agg_arg_charsets(c, items, nitems, flags, item_sep);
+    return Type_std_attributes::
+      agg_arg_charsets_for_comparison(c, func_name(), items, nitems, item_sep);
   }
-
 
 public:
   // This method is used by Arg_comparator
@@ -5879,11 +5822,12 @@ public:
   Item_type_holder(THD*, Item*);
 
   const Type_handler *type_handler() const
-  { return Type_handler_hybrid_field_type::type_handler(); }
+  {
+    const Type_handler *handler= Type_handler_hybrid_field_type::type_handler();
+    return handler->type_handler_for_item_field();
+  }
   enum_field_types field_type() const
   { return Type_handler_hybrid_field_type::field_type(); }
-  enum_field_types real_field_type() const
-  { return Type_handler_hybrid_field_type::real_field_type(); }
   enum Item_result result_type () const
   {
     /*
@@ -5902,16 +5846,22 @@ public:
   }
   const Type_handler *real_type_handler() const
   {
-    return Item_type_holder::type_handler();
+    return Type_handler_hybrid_field_type::type_handler();
   }
 
   enum Type type() const { return TYPE_HOLDER; }
+  TYPELIB *get_typelib() const { return enum_set_typelib; }
   double val_real();
   longlong val_int();
   my_decimal *val_decimal(my_decimal *);
   String *val_str(String*);
   bool join_types(THD *thd, Item *);
-  Field *make_field_by_type(TABLE *table);
+  Field *create_tmp_field(bool group, TABLE *table)
+  {
+    return Item_type_holder::real_type_handler()->
+           make_and_init_table_field(&name, Record_addr(maybe_null),
+                                     *this, table);
+  }
   Field::geometry_type get_geometry_type() const { return geometry_type; };
   Item* get_copy(THD *thd, MEM_ROOT *mem_root) { return 0; }
 };

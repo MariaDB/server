@@ -218,3 +218,25 @@ DROP TABLE t1;
 --echo #
 --echo # End of 10.1 tests
 --echo #
+
+
+--echo #
+--echo # Start of 10.3 tests
+--echo #
+
+--echo #
+--echo # MDEV-12432 Range optimizer for ENUM and SET does not return "Impossible WHERE" in some case
+--echo #
+
+CREATE TABLE t1 (a SET('a','b','c','1'),KEY(a));
+INSERT INTO t1 VALUES ('a'),('b'),('c'),('1');
+EXPLAIN SELECT * FROM t1 WHERE a='xx';
+EXPLAIN SELECT * FROM t1 WHERE a='99999999';
+EXPLAIN SELECT * FROM t1 WHERE a=100.1e0;
+EXPLAIN SELECT * FROM t1 WHERE a=100;
+EXPLAIN SELECT * FROM t1 WHERE a=100.1;
+EXPLAIN SELECT * FROM t1 WHERE a='100';
+EXPLAIN SELECT * FROM t1 WHERE a='1x';
+EXPLAIN SELECT * FROM t1 WHERE a='1.0';
+EXPLAIN SELECT * FROM t1 WHERE a='1.1';
+DROP TABLE t1;

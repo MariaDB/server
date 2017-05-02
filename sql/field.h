@@ -525,27 +525,6 @@ inline bool is_temporal_type(enum_field_types type)
 }
 
 
-/**
-  Tests if field type is temporal and has time part,
-  i.e. represents TIME, DATETIME or TIMESTAMP types in SQL.
-
-  @param type    Field type, as returned by field->type().
-  @retval true   If field type is temporal type with time part.
-  @retval false  If field type is not temporal type with time part.
-*/
-inline bool is_temporal_type_with_time(enum_field_types type)
-{
-  switch (type)
-  {
-  case MYSQL_TYPE_TIME:
-  case MYSQL_TYPE_DATETIME:
-  case MYSQL_TYPE_TIMESTAMP:
-    return true;
-  default:
-    return false;
-  }
-}
-
 enum enum_vcol_info_type
 {
   VCOL_GENERATED_VIRTUAL, VCOL_GENERATED_STORED,
@@ -872,11 +851,13 @@ public:
    to be quoted when used in constructing an SQL query.
   */
   virtual bool str_needs_quotes() { return FALSE; }
-  virtual Item_result result_type () const=0;
-  virtual Item_result cmp_type () const { return result_type(); }
-  virtual const Type_handler *cast_to_int_type_handler() const
+  Item_result result_type () const
   {
-    return Type_handler::get_handler_by_field_type(type());
+    return type_handler()->result_type();
+  }
+  Item_result cmp_type () const
+  {
+    return type_handler()->cmp_type();
   }
   static bool type_can_have_key_part(enum_field_types);
   static enum_field_types field_type_merge(enum_field_types, enum_field_types);
@@ -992,8 +973,15 @@ public:
   virtual bool zero_pack() const { return 1; }
   virtual enum ha_base_keytype key_type() const { return HA_KEYTYPE_BINARY; }
   virtual uint32 key_length() const { return pack_length(); }
-  virtual enum_field_types type() const =0;
-  virtual enum_field_types real_type() const { return type(); }
+  virtual const Type_handler *type_handler() const= 0;
+  virtual enum_field_types type() const
+  {
+    return type_handler()->field_type();
+  }
+  virtual enum_field_types real_type() const
+  {
+    return type_handler()->real_field_type();
+  }
   virtual enum_field_types binlog_type() const
   {
     /*
@@ -1318,9 +1306,6 @@ public:
   virtual enum Derivation derivation(void) const
   { return DERIVATION_IMPLICIT; }
   virtual uint repertoire(void) const { return MY_REPERTOIRE_UNICODE30; }
-  virtual void set_derivation(enum Derivation derivation_arg,
-                              uint repertoire_arg)
-  { }
   virtual int set_time() { return 1; }
   bool set_warning(Sql_condition::enum_warning_level, unsigned int code,
                    int cuted_increment) const;
@@ -1610,7 +1595,6 @@ public:
 	    uchar null_bit_arg, utype unireg_check_arg,
 	    const LEX_CSTRING *field_name_arg,
             uint8 dec_arg, bool zero_arg, bool unsigned_arg);
-  enum Item_result result_type () const { return INT_RESULT; }
   enum Derivation derivation(void) const { return DERIVATION_NUMERIC; }
   uint repertoire(void) const { return MY_REPERTOIRE_NUMERIC; }
   CHARSET_INFO *charset(void) const { return &my_charset_numeric; }
@@ -1672,8 +1656,8 @@ public:
                                         const Item_equal *item_equal);
   Field_str(uchar *ptr_arg,uint32 len_arg, uchar *null_ptr_arg,
 	    uchar null_bit_arg, utype unireg_check_arg,
-	    const LEX_CSTRING *field_name_arg, CHARSET_INFO *charset);
-  Item_result result_type () const { return STRING_RESULT; }
+	    const LEX_CSTRING *field_name_arg,
+	    const DTCollation &collation);
   uint decimals() const { return NOT_FIXED_DEC; }
   int  save_in_field(Field *to) { return save_in_field_str(to); }
   bool memcpy_field_possible(const Field *from) const
@@ -1693,12 +1677,6 @@ public:
   uint repertoire(void) const { return field_repertoire; }
   CHARSET_INFO *charset(void) const { return field_charset; }
   enum Derivation derivation(void) const { return field_derivation; }
-  void set_derivation(enum Derivation derivation_arg,
-                      uint repertoire_arg)
-  {
-    field_derivation= derivation_arg;
-    field_repertoire= repertoire_arg;
-  }
   bool binary() const { return field_charset == &my_charset_bin; }
   uint32 max_display_length() { return field_length; }
   friend class Create_field;
@@ -1740,9 +1718,10 @@ protected:
 public:
   Field_longstr(uchar *ptr_arg, uint32 len_arg, uchar *null_ptr_arg,
                 uchar null_bit_arg, utype unireg_check_arg,
-                const LEX_CSTRING *field_name_arg, CHARSET_INFO *charset_arg)
+                const LEX_CSTRING *field_name_arg,
+                const DTCollation &collation)
     :Field_str(ptr_arg, len_arg, null_ptr_arg, null_bit_arg, unireg_check_arg,
-               field_name_arg, charset_arg)
+               field_name_arg, collation)
     {}
 
   int store_decimal(const my_decimal *d);
@@ -1781,7 +1760,6 @@ public:
                field_name_arg, dec_arg, zero_arg, unsigned_arg),
     not_fixed(dec_arg >= FLOATING_POINT_DECIMALS)
     {}
-  Item_result result_type () const { return REAL_RESULT; }
   Copy_func *get_copy_func(const Field *from) const
   {
     return do_field_real;
@@ -1818,7 +1796,7 @@ public:
                 unireg_check_arg, field_name_arg,
                 dec_arg, zero_arg, unsigned_arg)
     {}
-  enum_field_types type() const { return MYSQL_TYPE_DECIMAL;}
+  const Type_handler *type_handler() const { return &type_handler_olddecimal; }
   enum ha_base_keytype key_type() const
   { return zerofill ? HA_KEYTYPE_BINARY : HA_KEYTYPE_NUM; }
   Copy_func *get_copy_func(const Field *from) const
@@ -1863,12 +1841,8 @@ public:
                     enum utype unireg_check_arg,
                     const LEX_CSTRING *field_name_arg,
                     uint8 dec_arg, bool zero_arg, bool unsigned_arg);
-  Field_new_decimal(uint32 len_arg, bool maybe_null_arg,
-                    const LEX_CSTRING *field_name_arg, uint8 dec_arg,
-                    bool unsigned_arg);
-  enum_field_types type() const { return MYSQL_TYPE_NEWDECIMAL;}
+  const Type_handler *type_handler() const { return &type_handler_newdecimal; }
   enum ha_base_keytype key_type() const { return HA_KEYTYPE_BINARY; }
-  Item_result result_type () const { return DECIMAL_RESULT; }
   Copy_func *get_copy_func(const Field *from) const
   {
     //  if (from->real_type() == MYSQL_TYPE_BIT) // QQ: why?
@@ -1918,7 +1892,6 @@ public:
                              uint16 mflags, int *order_var);
   uint is_equal(Create_field *new_field);
   virtual const uchar *unpack(uchar* to, const uchar *from, const uchar *from_end, uint param_data);
-  static Field *create_from_item(MEM_ROOT *root, Item *);
   Item *get_equal_const_item(THD *thd, const Context &ctx, Item *const_item);
 };
 
@@ -1933,7 +1906,7 @@ public:
 	       unireg_check_arg, field_name_arg,
 	       0, zero_arg,unsigned_arg)
     {}
-  enum_field_types type() const { return MYSQL_TYPE_TINY;}
+  const Type_handler *type_handler() const { return &type_handler_tiny; }
   enum ha_base_keytype key_type() const
     { return unsigned_flag ? HA_KEYTYPE_BINARY : HA_KEYTYPE_INT8; }
   int store(const char *to,uint length,CHARSET_INFO *charset);
@@ -1983,7 +1956,7 @@ public:
     :Field_num((uchar*) 0, len_arg, maybe_null_arg ? (uchar*) "": 0,0,
 	       NONE, field_name_arg, 0, 0, unsigned_arg)
     {}
-  enum_field_types type() const { return MYSQL_TYPE_SHORT;}
+  const Type_handler *type_handler() const { return &type_handler_short; }
   enum ha_base_keytype key_type() const
     { return unsigned_flag ? HA_KEYTYPE_USHORT_INT : HA_KEYTYPE_SHORT_INT;}
   int store(const char *to,uint length,CHARSET_INFO *charset);
@@ -2018,7 +1991,7 @@ public:
 	       unireg_check_arg, field_name_arg,
 	       0, zero_arg,unsigned_arg)
     {}
-  enum_field_types type() const { return MYSQL_TYPE_INT24;}
+  const Type_handler *type_handler() const { return &type_handler_int24; }
   enum ha_base_keytype key_type() const
     { return unsigned_flag ? HA_KEYTYPE_UINT24 : HA_KEYTYPE_INT24; }
   int store(const char *to,uint length,CHARSET_INFO *charset);
@@ -2058,7 +2031,7 @@ public:
     :Field_num((uchar*) 0, len_arg, maybe_null_arg ? (uchar*) "": 0,0,
 	       NONE, field_name_arg,0,0,unsigned_arg)
     {}
-  enum_field_types type() const { return MYSQL_TYPE_LONG;}
+  const Type_handler *type_handler() const { return &type_handler_long; }
   enum ha_base_keytype key_type() const
     { return unsigned_flag ? HA_KEYTYPE_ULONG_INT : HA_KEYTYPE_LONG_INT; }
   int store(const char *to,uint length,CHARSET_INFO *charset);
@@ -2104,7 +2077,7 @@ public:
     :Field_num((uchar*) 0, len_arg, maybe_null_arg ? (uchar*) "": 0,0,
 	       NONE, field_name_arg,0,0,unsigned_arg)
     {}
-  enum_field_types type() const { return MYSQL_TYPE_LONGLONG;}
+  const Type_handler *type_handler() const { return &type_handler_longlong; }
   enum ha_base_keytype key_type() const
     { return unsigned_flag ? HA_KEYTYPE_ULONGLONG : HA_KEYTYPE_LONGLONG; }
   int store(const char *to,uint length,CHARSET_INFO *charset);
@@ -2158,7 +2131,7 @@ public:
       if (dec_arg >= FLOATING_POINT_DECIMALS)
         dec_arg= NOT_FIXED_DEC;
     }
-  enum_field_types type() const { return MYSQL_TYPE_FLOAT;}
+  const Type_handler *type_handler() const { return &type_handler_float; }
   enum ha_base_keytype key_type() const { return HA_KEYTYPE_FLOAT; }
   int store(const char *to,uint length,CHARSET_INFO *charset);
   int store(double nr);
@@ -2209,7 +2182,7 @@ public:
       if (dec_arg >= FLOATING_POINT_DECIMALS)
         dec_arg= NOT_FIXED_DEC;
     }
-  enum_field_types type() const { return MYSQL_TYPE_DOUBLE;}
+  const Type_handler *type_handler() const { return &type_handler_double; }
   enum ha_base_keytype key_type() const { return HA_KEYTYPE_DOUBLE; }
   int  store(const char *to,uint length,CHARSET_INFO *charset);
   int  store(double nr);
@@ -2242,11 +2215,11 @@ class Field_null :public Field_str {
 public:
   Field_null(uchar *ptr_arg, uint32 len_arg,
 	     enum utype unireg_check_arg, const LEX_CSTRING *field_name_arg,
-	     CHARSET_INFO *cs)
+	     const DTCollation &collation)
     :Field_str(ptr_arg, len_arg, null, 1,
-	       unireg_check_arg, field_name_arg, cs)
+	       unireg_check_arg, field_name_arg, collation)
     {}
-  enum_field_types type() const { return MYSQL_TYPE_NULL;}
+  const Type_handler *type_handler() const { return &type_handler_null; }
   Copy_func *get_copy_func(const Field *from) const
   {
     return do_field_string;
@@ -2296,7 +2269,6 @@ public:
     :Field(ptr_arg, len_arg, null_ptr_arg, null_bit_arg, unireg_check_arg,
                field_name_arg)
     { flags|= BINARY_FLAG; }
-  Item_result result_type () const { return STRING_RESULT; }   
   int  store_hex_hybrid(const char *str, uint length)
   {
     return store(str, length, &my_charset_bin);
@@ -2317,7 +2289,6 @@ public:
   CHARSET_INFO *charset(void) const { return &my_charset_numeric; }
   CHARSET_INFO *sort_charset(void) const { return &my_charset_bin; }
   bool binary() const { return true; }
-  enum Item_result cmp_type () const { return TIME_RESULT; }
   bool val_bool() { return val_real() != 0e0; }
   uint is_equal(Create_field *new_field);
   bool eq_def(const Field *field) const
@@ -2394,7 +2365,7 @@ public:
 		  enum utype unireg_check_arg,
                   const LEX_CSTRING *field_name_arg,
 		  TABLE_SHARE *share);
-  enum_field_types type() const { return MYSQL_TYPE_TIMESTAMP;}
+  const Type_handler *type_handler() const { return &type_handler_timestamp; }
   enum ha_base_keytype key_type() const { return HA_KEYTYPE_ULONG_INT; }
   int  store(const char *to,uint length,CHARSET_INFO *charset);
   int  store(double nr);
@@ -2528,7 +2499,7 @@ public:
     Field_timestamp_with_dec(ptr_arg, null_ptr_arg, null_bit_arg,
                              unireg_check_arg, field_name_arg, share, dec_arg)
     {}
-  enum_field_types real_type() const { return MYSQL_TYPE_TIMESTAMP2; }
+  const Type_handler *type_handler() const { return &type_handler_timestamp2; }
   enum_field_types binlog_type() const { return MYSQL_TYPE_TIMESTAMP2; }
   uint32 pack_length() const
   {
@@ -2559,14 +2530,19 @@ public:
     :Field_tiny(ptr_arg, len_arg, null_ptr_arg, null_bit_arg,
 		unireg_check_arg, field_name_arg, 1, 1)
     {}
-  enum_field_types type() const { return MYSQL_TYPE_YEAR;}
+  const Type_handler *type_handler() const { return &type_handler_year; }
   Copy_func *get_copy_func(const Field *from) const
   {
     if (eq_def(from))
       return get_identical_copy_func();
     switch (from->cmp_type()) {
     case STRING_RESULT:
+    {
+      const Type_handler *handler= from->type_handler();
+      if (handler == &type_handler_enum || handler == &type_handler_set)
+        return do_field_int;
       return do_field_string;
+    }
     case TIME_RESULT:
       return do_field_temporal;
     case DECIMAL_RESULT:
@@ -2604,7 +2580,7 @@ public:
 	     enum utype unireg_check_arg, const LEX_CSTRING *field_name_arg)
     :Field_temporal_with_date(ptr_arg, MAX_DATE_WIDTH, null_ptr_arg, null_bit_arg,
                               unireg_check_arg, field_name_arg) {}
-  enum_field_types type() const { return MYSQL_TYPE_DATE;}
+  const Type_handler *type_handler() const { return &type_handler_date; }
   enum ha_base_keytype key_type() const { return HA_KEYTYPE_ULONG_INT; }
   int reset(void) { ptr[0]=ptr[1]=ptr[2]=ptr[3]=0; return 0; }
   bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
@@ -2640,8 +2616,7 @@ public:
     :Field_temporal_with_date(ptr_arg, MAX_DATE_WIDTH, null_ptr_arg, null_bit_arg,
                               unireg_check_arg, field_name_arg)
     {}
-  enum_field_types type() const { return MYSQL_TYPE_DATE;}
-  enum_field_types real_type() const { return MYSQL_TYPE_NEWDATE; }
+  const Type_handler *type_handler() const { return &type_handler_newdate; }
   enum ha_base_keytype key_type() const { return HA_KEYTYPE_UINT24; }
   int reset(void) { ptr[0]=ptr[1]=ptr[2]=0; return 0; }
   double val_real(void);
@@ -2679,7 +2654,7 @@ public:
     :Field_temporal(ptr_arg, length_arg, null_ptr_arg, null_bit_arg,
                     unireg_check_arg, field_name_arg), curdays(0)
     {}
-  enum_field_types type() const { return MYSQL_TYPE_TIME;}
+  const Type_handler *type_handler() const { return &type_handler_time; }
   enum ha_base_keytype key_type() const { return HA_KEYTYPE_INT24; }
   Copy_func *get_copy_func(const Field *from) const
   {
@@ -2791,7 +2766,7 @@ public:
   {
     DBUG_ASSERT(dec <= TIME_SECOND_PART_DIGITS);
   }
-  enum_field_types real_type() const { return MYSQL_TYPE_TIME2; }
+  const Type_handler *type_handler() const { return &type_handler_time2; }
   enum_field_types binlog_type() const { return MYSQL_TYPE_TIME2; }
   uint32 pack_length() const
   {
@@ -2833,7 +2808,7 @@ public:
           unireg_check == TIMESTAMP_DNUN_FIELD)
         flags|= ON_UPDATE_NOW_FLAG;
     }
-  enum_field_types type() const { return MYSQL_TYPE_DATETIME;}
+  const Type_handler *type_handler() const { return &type_handler_datetime; }
   enum ha_base_keytype key_type() const { return HA_KEYTYPE_ULONGLONG; }
   double val_real(void);
   longlong val_int(void);
@@ -2950,7 +2925,7 @@ public:
     :Field_datetime_with_dec(ptr_arg, null_ptr_arg, null_bit_arg,
                              unireg_check_arg, field_name_arg, dec_arg)
   {}
-  enum_field_types real_type() const { return MYSQL_TYPE_DATETIME2; }
+  const Type_handler *type_handler() const { return &type_handler_datetime2; }
   enum_field_types binlog_type() const { return MYSQL_TYPE_DATETIME2; }
   uint32 pack_length() const
   {
@@ -3028,29 +3003,35 @@ class Field_string :public Field_longstr {
   public:
     Warn_filter_string(const THD *thd, const Field_string *field);
   };
+  bool is_var_string() const
+  {
+    return can_alter_field_type &&
+           orig_table &&
+           (orig_table->s->db_create_options & HA_OPTION_PACK_RECORD) &&
+           field_length >= 4 &&
+           orig_table->s->frm_version < FRM_VER_TRUE_VARCHAR;
+  }
 public:
   bool can_alter_field_type;
   Field_string(uchar *ptr_arg, uint32 len_arg,uchar *null_ptr_arg,
 	       uchar null_bit_arg,
 	       enum utype unireg_check_arg, const LEX_CSTRING *field_name_arg,
-	       CHARSET_INFO *cs)
+	       const DTCollation &collation)
     :Field_longstr(ptr_arg, len_arg, null_ptr_arg, null_bit_arg,
-                   unireg_check_arg, field_name_arg, cs),
+                   unireg_check_arg, field_name_arg, collation),
      can_alter_field_type(1) {};
   Field_string(uint32 len_arg,bool maybe_null_arg,
                const LEX_CSTRING *field_name_arg,
-               CHARSET_INFO *cs)
+               const DTCollation &collation)
     :Field_longstr((uchar*) 0, len_arg, maybe_null_arg ? (uchar*) "": 0, 0,
-                   NONE, field_name_arg, cs),
+                   NONE, field_name_arg, collation),
      can_alter_field_type(1) {};
 
-  enum_field_types type() const
+  const Type_handler *type_handler() const
   {
-    return ((can_alter_field_type && orig_table &&
-             orig_table->s->db_create_options & HA_OPTION_PACK_RECORD &&
-	     field_length >= 4) &&
-            orig_table->s->frm_version < FRM_VER_TRUE_VARCHAR ?
-	    MYSQL_TYPE_VAR_STRING : MYSQL_TYPE_STRING);
+    if (is_var_string())
+      return &type_handler_var_string;
+    return &type_handler_string;
   }
   enum ha_base_keytype key_type() const
     { return binary() ? HA_KEYTYPE_BINARY : HA_KEYTYPE_TEXT; }
@@ -3092,7 +3073,6 @@ public:
   uint packed_col_length(const uchar *to, uint length);
   uint max_packed_col_length(uint max_length);
   uint size_of() const { return sizeof(*this); }
-  enum_field_types real_type() const { return MYSQL_TYPE_STRING; }
   bool has_charset(void) const
   { return charset() == &my_charset_bin ? FALSE : TRUE; }
   Field *make_new_field(MEM_ROOT *root, TABLE *new_table, bool keep_type);
@@ -3123,24 +3103,24 @@ public:
                   uint32 len_arg, uint length_bytes_arg,
                   uchar *null_ptr_arg, uchar null_bit_arg,
 		  enum utype unireg_check_arg, const LEX_CSTRING *field_name_arg,
-		  TABLE_SHARE *share, CHARSET_INFO *cs)
+		  TABLE_SHARE *share, const DTCollation &collation)
     :Field_longstr(ptr_arg, len_arg, null_ptr_arg, null_bit_arg,
-                   unireg_check_arg, field_name_arg, cs),
+                   unireg_check_arg, field_name_arg, collation),
      length_bytes(length_bytes_arg)
   {
     share->varchar_fields++;
   }
   Field_varstring(uint32 len_arg,bool maybe_null_arg,
                   const LEX_CSTRING *field_name_arg,
-                  TABLE_SHARE *share, CHARSET_INFO *cs)
+                  TABLE_SHARE *share, const DTCollation &collation)
     :Field_longstr((uchar*) 0,len_arg, maybe_null_arg ? (uchar*) "": 0, 0,
-                   NONE, field_name_arg, cs),
+                   NONE, field_name_arg, collation),
      length_bytes(len_arg < 256 ? 1 :2)
   {
     share->varchar_fields++;
   }
 
-  enum_field_types type() const { return MYSQL_TYPE_VARCHAR; }
+  const Type_handler *type_handler() const { return &type_handler_varchar; }
   enum ha_base_keytype key_type() const;
   uint row_pack_length() const { return field_length; }
   bool zero_pack() const { return 0; }
@@ -3184,7 +3164,6 @@ public:
   uint max_packed_col_length(uint max_length);
   uint32 data_length();
   uint size_of() const { return sizeof(*this); }
-  enum_field_types real_type() const { return MYSQL_TYPE_VARCHAR; }
   bool has_charset(void) const
   { return charset() == &my_charset_bin ? FALSE : TRUE; }
   Field *make_new_field(MEM_ROOT *root, TABLE *new_table, bool keep_type);
@@ -3224,20 +3203,21 @@ protected:
 public:
   Field_blob(uchar *ptr_arg, uchar *null_ptr_arg, uchar null_bit_arg,
 	     enum utype unireg_check_arg, const LEX_CSTRING *field_name_arg,
-	     TABLE_SHARE *share, uint blob_pack_length, CHARSET_INFO *cs);
+	     TABLE_SHARE *share, uint blob_pack_length,
+	     const DTCollation &collation);
   Field_blob(uint32 len_arg,bool maybe_null_arg, const LEX_CSTRING *field_name_arg,
-             CHARSET_INFO *cs)
+             const DTCollation &collation)
     :Field_longstr((uchar*) 0, len_arg, maybe_null_arg ? (uchar*) "": 0, 0,
-                   NONE, field_name_arg, cs),
+                   NONE, field_name_arg, collation),
     packlength(4)
   {
     flags|= BLOB_FLAG;
   }
   Field_blob(uint32 len_arg,bool maybe_null_arg,
              const LEX_CSTRING *field_name_arg,
-	     CHARSET_INFO *cs, bool set_packlength)
+             const DTCollation &collation, bool set_packlength)
     :Field_longstr((uchar*) 0,len_arg, maybe_null_arg ? (uchar*) "": 0, 0,
-                   NONE, field_name_arg, cs)
+                   NONE, field_name_arg, collation)
   {
     flags|= BLOB_FLAG;
     packlength= 4;
@@ -3252,8 +3232,24 @@ public:
     :Field_longstr((uchar*) 0, 0, (uchar*) "", 0, NONE, &temp_lex_str,
                    system_charset_info),
     packlength(packlength_arg) {}
+  const Type_handler *type_handler() const;
   /* Note that the default copy constructor is used, in clone() */
-  enum_field_types type() const { return MYSQL_TYPE_BLOB;}
+  enum_field_types type() const
+  {
+    /*
+      We cannot return type_handler()->field_type() here.
+      Some pieces of the code (e.g. in engines) rely on the fact
+      that Field::type(), Field::real_type() and Item_field::field_type()
+      return MYSQL_TYPE_BLOB for all blob variants.
+      We should eventually fix all such code pieces to expect
+      all BLOB type codes.
+    */
+    return MYSQL_TYPE_BLOB;
+  }
+  enum_field_types real_type() const
+  {
+    return MYSQL_TYPE_BLOB;
+  }
   enum ha_base_keytype key_type() const
     { return binary() ? HA_KEYTYPE_VARBINARY2 : HA_KEYTYPE_VARTEXT2; }
   Copy_func *get_copy_func(const Field *from) const
@@ -3438,12 +3434,19 @@ public:
      :Field_blob(ptr_arg, null_ptr_arg, null_bit_arg, unireg_check_arg,
                  field_name_arg, share, blob_pack_length, &my_charset_bin)
   { geom_type= geom_type_arg; srid= field_srid; }
-  Field_geom(uint32 len_arg,bool maybe_null_arg, const LEX_CSTRING *field_name_arg,
-	     TABLE_SHARE *share, enum geometry_type geom_type_arg)
-    :Field_blob(len_arg, maybe_null_arg, field_name_arg, &my_charset_bin)
-  { geom_type= geom_type_arg; srid= 0; }
   enum ha_base_keytype key_type() const { return HA_KEYTYPE_VARBINARY2; }
-  enum_field_types type() const { return MYSQL_TYPE_GEOMETRY; }
+  const Type_handler *type_handler() const
+  {
+    return &type_handler_geometry;
+  }
+  enum_field_types type() const
+  {
+    return MYSQL_TYPE_GEOMETRY;
+  }
+  enum_field_types real_type() const
+  {
+    return MYSQL_TYPE_GEOMETRY;
+  }
   bool can_optimize_range(const Item_bool_func *cond,
                                   const Item *item,
                                   bool is_eq_func) const;
@@ -3492,20 +3495,15 @@ public:
              enum utype unireg_check_arg, const LEX_CSTRING *field_name_arg,
              uint packlength_arg,
              TYPELIB *typelib_arg,
-             CHARSET_INFO *charset_arg)
+             const DTCollation &collation)
     :Field_str(ptr_arg, len_arg, null_ptr_arg, null_bit_arg,
-	       unireg_check_arg, field_name_arg, charset_arg),
+	       unireg_check_arg, field_name_arg, collation),
     packlength(packlength_arg),typelib(typelib_arg)
   {
       flags|=ENUM_FLAG;
   }
   Field *make_new_field(MEM_ROOT *root, TABLE *new_table, bool keep_type);
-  enum_field_types type() const { return MYSQL_TYPE_STRING; }
-  enum Item_result cmp_type () const { return INT_RESULT; }
-  const Type_handler *cast_to_int_type_handler() const
-  {
-    return &type_handler_longlong;
-  }
+  const Type_handler *type_handler() const { return &type_handler_enum; }
   enum ha_base_keytype key_type() const;
   Copy_func *get_copy_func(const Field *from) const
   {
@@ -3546,7 +3544,6 @@ public:
   void store_type(ulonglong value);
   void sql_type(String &str) const;
   uint size_of() const { return sizeof(*this); }
-  enum_field_types real_type() const { return MYSQL_TYPE_ENUM; }
   uint pack_length_from_metadata(uint field_metadata)
   { return (field_metadata & 0x00ff); }
   uint row_pack_length() const { return pack_length(); }
@@ -3576,6 +3573,9 @@ public:
     */
     return false;
   }
+  bool can_optimize_range(const Item_bool_func *cond,
+                          const Item *item,
+                          bool is_eq_func) const;
 private:
   int do_save_field_metadata(uchar *first_byte);
   uint is_equal(Create_field *new_field);
@@ -3588,12 +3588,12 @@ public:
 	    uchar null_bit_arg,
 	    enum utype unireg_check_arg, const LEX_CSTRING *field_name_arg,
 	    uint32 packlength_arg,
-	    TYPELIB *typelib_arg, CHARSET_INFO *charset_arg)
+	    TYPELIB *typelib_arg, const DTCollation &collation)
     :Field_enum(ptr_arg, len_arg, null_ptr_arg, null_bit_arg,
 		    unireg_check_arg, field_name_arg,
                 packlength_arg,
-                typelib_arg,charset_arg),
-      empty_set_string("", 0, charset_arg)
+                typelib_arg, collation),
+      empty_set_string("", 0, collation.collation)
     {
       flags=(flags & ~ENUM_FLAG) | SET_FLAG;
     }
@@ -3606,7 +3606,7 @@ public:
   String *val_str(String*,String *);
   void sql_type(String &str) const;
   uint size_of() const { return sizeof(*this); }
-  enum_field_types real_type() const { return MYSQL_TYPE_SET; }
+  const Type_handler *type_handler() const { return &type_handler_set; }
   bool has_charset(void) const { return TRUE; }
 private:
   const String empty_set_string;
@@ -3636,13 +3636,12 @@ public:
   Field_bit(uchar *ptr_arg, uint32 len_arg, uchar *null_ptr_arg,
             uchar null_bit_arg, uchar *bit_ptr_arg, uchar bit_ofs_arg,
             enum utype unireg_check_arg, const LEX_CSTRING *field_name_arg);
-  enum_field_types type() const { return MYSQL_TYPE_BIT; }
+  const Type_handler *type_handler() const { return &type_handler_bit; }
   enum ha_base_keytype key_type() const { return HA_KEYTYPE_BIT; }
   uint32 key_length() const { return (uint32) (field_length + 7) / 8; }
   uint32 max_data_length() const { return (field_length + 7) / 8; }
   uint32 max_display_length() { return field_length; }
   uint size_of() const { return sizeof(*this); }
-  Item_result result_type () const { return INT_RESULT; }
   int reset(void) { 
     bzero(ptr, bytes_in_rec); 
     if (bit_ptr && (bit_len > 0))  // reset odd bits among null bits

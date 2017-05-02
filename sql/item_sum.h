@@ -1636,9 +1636,6 @@ class Item_func_group_concat : public Item_sum
   friend int dump_leaf_key(void* key_arg,
                            element_count count __attribute__((unused)),
 			   void* item_arg);
-protected:
-  virtual Field *make_string_field(TABLE *table);
-
 public:
   Item_func_group_concat(THD *thd, Name_resolution_context *context_arg,
                          bool is_distinct, List<Item> *is_select,

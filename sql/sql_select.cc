@@ -15880,22 +15880,9 @@ Field *Item::create_tmp_field(bool group, TABLE *table, uint convert_int_length)
     break;
   }
   case TIME_RESULT:
-    new_field= tmp_table_field_from_field_type(table, true, false);
-    break;
-  case STRING_RESULT:
-    DBUG_ASSERT(collation.collation);
-    /*
-      GEOMETRY fields have STRING_RESULT result type.
-      To preserve type they needed to be handled separately.
-    */
-    if (field_type() == MYSQL_TYPE_GEOMETRY)
-      new_field= tmp_table_field_from_field_type(table, true, false);
-    else
-      new_field= make_string_field(table);
-    new_field->set_derivation(collation.derivation, collation.repertoire);
-    break;
   case DECIMAL_RESULT:
-    new_field= Field_new_decimal::create_from_item(mem_root, this);
+  case STRING_RESULT:
+    new_field= tmp_table_field_from_field_type(table);
     break;
   case ROW_RESULT:
     // This case should never be choosen
@@ -15981,7 +15968,7 @@ Field *Item::create_field_for_schema(THD *thd, TABLE *table)
       field->init(table);
     return field;
   }
-  return tmp_table_field_from_field_type(table, false, false);
+  return tmp_table_field_from_field_type(table);
 }
 
 
@@ -16032,6 +16019,7 @@ Field *create_tmp_field(THD *thd, TABLE *table,Item *item, Item::Type type,
   }
 
   switch (type) {
+  case Item::TYPE_HOLDER:
   case Item::SUM_FUNC_ITEM:
   {
     result= item->create_tmp_field(group, table);
@@ -16161,11 +16149,6 @@ Field *create_tmp_field(THD *thd, TABLE *table,Item *item, Item::Type type,
     return create_tmp_field_from_item(thd, item, table,
                                       (make_copy_field ? 0 : copy_func),
                                        modify_item);
-  case Item::TYPE_HOLDER:  
-    result= ((Item_type_holder *)item)->make_field_by_type(table);
-    result->set_derivation(item->collation.derivation,
-                           item->collation.repertoire);
-    return result;
   default:					// Dosen't have to be stored
     return 0;
   }

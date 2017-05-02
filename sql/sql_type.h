@@ -60,9 +60,9 @@ class Item_func_div;
 class Item_func_mod;
 class cmp_item;
 class in_vector;
-class Type_std_attributes;
 class Sort_param;
 class Arg_comparator;
+struct st_value;
 struct TABLE;
 struct SORT_FIELD_ATTR;
 
@@ -129,6 +129,21 @@ public:
     collation= &my_charset_bin;
     derivation= DERIVATION_NONE;
     repertoire= MY_REPERTOIRE_UNICODE30;
+  }
+  DTCollation(CHARSET_INFO *collation_arg)
+  {
+    /*
+      This constructor version is used in combination with Field constructors,
+      to pass "CHARSET_INFO" instead of the full DTCollation.
+      Therefore, derivation is set to DERIVATION_IMPLICIT, which is the
+      proper derivation for table fields.
+      We should eventually remove all code pieces that pass "CHARSET_INFO"
+      (e.g. in storage engine sources) and fix to pass the full DTCollation
+      instead. Then, this constructor can be removed.
+    */
+    collation= collation_arg;
+    derivation= DERIVATION_IMPLICIT;
+    repertoire= my_charset_repertoire(collation_arg);
   }
   DTCollation(CHARSET_INFO *collation_arg, Derivation derivation_arg)
   {
@@ -311,6 +326,155 @@ public:
   {
     fix_attributes_temporal(MAX_DATETIME_WIDTH, dec);
   }
+
+  void count_only_length(Item **item, uint nitems);
+  void count_octet_length(Item **item, uint nitems);
+  void count_real_length(Item **item, uint nitems);
+  void count_decimal_length(Item **item, uint nitems);
+  bool count_string_length(const char *func_name, Item **item, uint nitems);
+  uint count_max_decimals(Item **item, uint nitems);
+
+  void aggregate_attributes_int(Item **items, uint nitems)
+  {
+    collation.set_numeric();
+    count_only_length(items, nitems);
+    decimals= 0;
+  }
+  void aggregate_attributes_real(Item **items, uint nitems)
+  {
+    collation.set_numeric();
+    count_real_length(items, nitems);
+  }
+  void aggregate_attributes_decimal(Item **items, uint nitems)
+  {
+    collation.set_numeric();
+    count_decimal_length(items, nitems);
+  }
+  bool aggregate_attributes_string(const char *func_name,
+                                   Item **item, uint nitems)
+  {
+    return count_string_length(func_name, item, nitems);
+  }
+  void aggregate_attributes_temporal(uint int_part_length,
+                                     Item **item, uint nitems)
+  {
+    fix_attributes_temporal(int_part_length, count_max_decimals(item, nitems));
+  }
+
+  bool agg_item_collations(DTCollation &c, const char *name,
+                           Item **items, uint nitems,
+                           uint flags, int item_sep);
+  bool agg_item_set_converter(const DTCollation &coll, const char *fname,
+                              Item **args, uint nargs,
+                              uint flags, int item_sep);
+
+  /*
+    Collect arguments' character sets together.
+    We allow to apply automatic character set conversion in some cases.
+    The conditions when conversion is possible are:
+    - arguments A and B have different charsets
+    - A wins according to coercibility rules
+      (i.e. a column is stronger than a string constant,
+       an explicit COLLATE clause is stronger than a column)
+    - character set of A is either superset for character set of B,
+      or B is a string constant which can be converted into the
+      character set of A without data loss.
+
+    If all of the above is true, then it's possible to convert
+    B into the character set of A, and then compare according
+    to the collation of A.
+
+    For functions with more than two arguments:
+
+      collect(A,B,C) ::= collect(collect(A,B),C)
+
+    Since this function calls THD::change_item_tree() on the passed Item **
+    pointers, it is necessary to pass the original Item **'s, not copies.
+    Otherwise their values will not be properly restored (see BUG#20769).
+    If the items are not consecutive (eg. args[2] and args[5]), use the
+    item_sep argument, ie.
+
+      agg_item_charsets(coll, fname, &args[2], 2, flags, 3)
+  */
+  bool agg_arg_charsets(DTCollation &c, const char *func_name,
+                        Item **items, uint nitems,
+                        uint flags, int item_sep)
+  {
+    if (agg_item_collations(c, func_name, items, nitems, flags, item_sep))
+      return true;
+    return agg_item_set_converter(c, func_name, items, nitems, flags, item_sep);
+  }
+  /*
+    Aggregate arguments for string result, e.g: CONCAT(a,b)
+    - convert to @@character_set_connection if all arguments are numbers
+    - allow DERIVATION_NONE
+  */
+  bool agg_arg_charsets_for_string_result(DTCollation &c, const char *func_name,
+                                          Item **items, uint nitems,
+                                          int item_sep)
+  {
+    uint flags= MY_COLL_ALLOW_SUPERSET_CONV |
+                MY_COLL_ALLOW_COERCIBLE_CONV |
+                MY_COLL_ALLOW_NUMERIC_CONV;
+    return agg_arg_charsets(c, func_name, items, nitems, flags, item_sep);
+  }
+  /*
+    Aggregate arguments for string result, when some comparison
+    is involved internally, e.g: REPLACE(a,b,c)
+    - convert to @@character_set_connection if all arguments are numbers
+    - disallow DERIVATION_NONE
+  */
+  bool agg_arg_charsets_for_string_result_with_comparison(DTCollation &c,
+                                                          const char *func_name,
+                                                          Item **items,
+                                                          uint nitems,
+                                                          int item_sep)
+  {
+    uint flags= MY_COLL_ALLOW_SUPERSET_CONV |
+                MY_COLL_ALLOW_COERCIBLE_CONV |
+                MY_COLL_ALLOW_NUMERIC_CONV |
+                MY_COLL_DISALLOW_NONE;
+    return agg_arg_charsets(c, func_name, items, nitems, flags, item_sep);
+  }
+
+  /*
+    Aggregate arguments for comparison, e.g: a=b, a LIKE b, a RLIKE b
+    - don't convert to @@character_set_connection if all arguments are numbers
+    - don't allow DERIVATION_NONE
+  */
+  bool agg_arg_charsets_for_comparison(DTCollation &c,
+                                       const char *func_name,
+                                       Item **items, uint nitems,
+                                       int item_sep)
+  {
+    uint flags= MY_COLL_ALLOW_SUPERSET_CONV |
+                MY_COLL_ALLOW_COERCIBLE_CONV |
+                MY_COLL_DISALLOW_NONE;
+    return agg_arg_charsets(c, func_name, items, nitems, flags, item_sep);
+  }
+
+};
+
+
+class Type_all_attributes: public Type_std_attributes
+{
+public:
+  Type_all_attributes()
+   :Type_std_attributes()
+  { }
+  Type_all_attributes(const Type_all_attributes *other)
+   :Type_std_attributes(other)
+  { }
+  // Returns total number of decimal digits
+  virtual uint decimal_precision() const= 0;
+  /*
+    Field::geometry_type is not visible here.
+    Let's use an "uint" wrapper for now. Later when we move Field_geom
+    into a plugin, this method will be replaced to some generic
+    datatype indepented method.
+  */
+  virtual uint uint_geometry_type() const= 0;
+  virtual TYPELIB *get_typelib() const { return NULL; }
 };
 
 
@@ -324,6 +488,31 @@ public:
   }
   const char *ptr() const { return LEX_CSTRING::str; }
   uint length() const { return LEX_CSTRING::length; }
+};
+
+
+class Record_addr
+{
+public:
+  uchar *ptr;      // Position to field in record
+  /**
+     Byte where the @c NULL bit is stored inside a record. If this Field is a
+     @c NOT @c NULL field, this member is @c NULL.
+  */
+  uchar *null_ptr;
+  uchar null_bit;  // Bit used to test null bit
+  Record_addr(uchar *ptr_arg,
+              uchar *null_ptr_arg,
+              uchar null_bit_arg)
+   :ptr(ptr_arg),
+    null_ptr(null_ptr_arg),
+    null_bit(null_bit_arg)
+  { }
+  Record_addr(bool maybe_null)
+   :ptr(NULL),
+    null_ptr(maybe_null ? (uchar*) "" : 0),
+    null_bit(0)
+  { }
 };
 
 
@@ -341,8 +530,19 @@ protected:
   Item_func_or_sum_illegal_param(const char *name) const;
   bool
   Item_func_or_sum_illegal_param(const Item_func_or_sum *) const;
+  bool check_null(const Item *item, st_value *value) const;
 public:
+  static const Type_handler *blob_type_handler(uint max_octet_length);
   static const Type_handler *string_type_handler(uint max_octet_length);
+  /**
+    Return a string type handler for Item
+    If too_big_for_varchar() returns a BLOB variant, according to length.
+    If max_length > 0 create a VARCHAR(n)
+    If max_length == 0 create a CHAR(0)
+    @param item - the Item to get the handler to.
+  */
+  static const Type_handler *varstring_type_handler(const Item *item);
+  static const Type_handler *blob_type_handler(const Item *item);
   static const Type_handler *get_handler_by_field_type(enum_field_types type);
   static const Type_handler *get_handler_by_real_type(enum_field_types type);
   static const Type_handler *get_handler_by_cmp_type(Item_result type);
@@ -367,6 +567,10 @@ public:
   virtual enum_field_types real_field_type() const { return field_type(); }
   virtual Item_result result_type() const= 0;
   virtual Item_result cmp_type() const= 0;
+  virtual enum_mysql_timestamp_type mysql_timestamp_type() const
+  {
+    return MYSQL_TIMESTAMP_ERROR;
+  }
   /**
     Prepared statement long data:
     Check whether this parameter data type is compatible with long data.
@@ -375,6 +579,22 @@ public:
   */
   virtual bool is_param_long_data_type() const { return false; }
   virtual const Type_handler *type_handler_for_comparison() const= 0;
+  virtual const Type_handler *type_handler_for_item_field() const
+  {
+    return this;
+  }
+  virtual const Type_handler *type_handler_for_tmp_table(const Item *) const
+  {
+    return this;
+  }
+  virtual const Type_handler *type_handler_for_union(const Item *) const
+  {
+    return this;
+  }
+  virtual const Type_handler *cast_to_int_type_handler() const
+  {
+    return this;
+  }
   virtual CHARSET_INFO *charset_for_protocol(const Item *item) const;
   virtual const Type_handler*
   type_handler_adjusted_to_max_octet_length(uint max_octet_length,
@@ -391,6 +611,12 @@ public:
   }
   virtual uint Item_time_precision(Item *item) const;
   virtual uint Item_datetime_precision(Item *item) const;
+  virtual uint Item_decimal_scale(const Item *item) const;
+  /*
+    Returns how many digits a divisor adds into a division result.
+    See Item::divisor_precision_increment() in item.h for more comments.
+  */
+  virtual uint Item_divisor_precision_increment(const Item *) const;
   /**
     Makes a temporary table Field to handle numeric aggregate functions,
     e.g. SUM(DISTINCT expr), AVG(DISTINCT expr), etc.
@@ -427,6 +653,14 @@ public:
   virtual Field *make_conversion_table_field(TABLE *TABLE,
                                              uint metadata,
                                              const Field *target) const= 0;
+  virtual Field *make_table_field(const LEX_CSTRING *name,
+                                  const Record_addr &addr,
+                                  const Type_all_attributes &attr,
+                                  TABLE *table) const= 0;
+  Field *make_and_init_table_field(const LEX_CSTRING *name,
+                                   const Record_addr &addr,
+                                   const Type_all_attributes &attr,
+                                   TABLE *table) const;
   virtual void make_sort_key(uchar *to, Item *item,
                              const SORT_FIELD_ATTR *sort_field,
                              Sort_param *param) const= 0;
@@ -435,6 +669,7 @@ public:
                           SORT_FIELD_ATTR *attr) const= 0;
 
   virtual uint32 max_display_length(const Item *item) const= 0;
+  virtual bool Item_save_in_value(Item *item, st_value *value) const= 0;
   virtual int Item_save_in_field(Item *item, Field *field,
                                  bool no_conversions) const= 0;
 
@@ -480,6 +715,9 @@ public:
                                Item *target_expr, Item *target_value,
                                Item_bool_func2 *source,
                                Item *source_expr, Item *source_const) const= 0;
+  virtual bool
+  subquery_type_allows_materialization(const Item *inner,
+                                       const Item *outer) const= 0;
   virtual Item_cache *Item_get_cache(THD *thd, const Item *item) const= 0;
   virtual bool set_comparator_func(Arg_comparator *cmp) const= 0;
   virtual bool Item_hybrid_func_fix_attributes(THD *thd, Item_hybrid_func *func,
@@ -605,6 +843,12 @@ public:
     return ROW_RESULT;
   }
   const Type_handler *type_handler_for_comparison() const;
+  bool subquery_type_allows_materialization(const Item *inner,
+                                            const Item *outer) const
+  {
+    DBUG_ASSERT(0);
+    return false;
+  }
   Field *make_num_distinct_aggregator_field(MEM_ROOT *, const Item *) const
   {
     DBUG_ASSERT(0);
@@ -613,6 +857,14 @@ public:
   Field *make_conversion_table_field(TABLE *TABLE,
                                      uint metadata,
                                      const Field *target) const
+  {
+    DBUG_ASSERT(0);
+    return NULL;
+  }
+  Field *make_table_field(const LEX_CSTRING *name,
+                          const Record_addr &addr,
+                          const Type_all_attributes &attr,
+                          TABLE *table) const
   {
     DBUG_ASSERT(0);
     return NULL;
@@ -633,6 +885,7 @@ public:
     DBUG_ASSERT(0);
     return 0;
   }
+  bool Item_save_in_value(Item *item, st_value *value) const;
   int Item_save_in_field(Item *item, Field *field, bool no_conversions) const
   {
     DBUG_ASSERT(0);
@@ -834,11 +1087,14 @@ public:
   Item_result cmp_type() const { return REAL_RESULT; }
   virtual ~Type_handler_real_result() {}
   const Type_handler *type_handler_for_comparison() const;
+  bool subquery_type_allows_materialization(const Item *inner,
+                                            const Item *outer) const;
   void make_sort_key(uchar *to, Item *item, const SORT_FIELD_ATTR *sort_field,
                      Sort_param *param) const;
   void sortlength(THD *thd,
                   const Type_std_attributes *item,
                   SORT_FIELD_ATTR *attr) const;
+  bool Item_save_in_value(Item *item, st_value *value) const;
   int Item_save_in_field(Item *item, Field *field, bool no_conversions) const;
   Item_cache *Item_get_cache(THD *thd, const Item *item) const;
   bool set_comparator_func(Arg_comparator *cmp) const;
@@ -889,6 +1145,8 @@ public:
   Item_result cmp_type() const { return DECIMAL_RESULT; }
   virtual ~Type_handler_decimal_result() {};
   const Type_handler *type_handler_for_comparison() const;
+  bool subquery_type_allows_materialization(const Item *inner,
+                                            const Item *outer) const;
   Field *make_num_distinct_aggregator_field(MEM_ROOT *, const Item *) const;
   void make_sort_key(uchar *to, Item *item, const SORT_FIELD_ATTR *sort_field,
                      Sort_param *param) const;
@@ -896,6 +1154,7 @@ public:
                   const Type_std_attributes *item,
                   SORT_FIELD_ATTR *attr) const;
   uint32 max_display_length(const Item *item) const;
+  bool Item_save_in_value(Item *item, st_value *value) const;
   int Item_save_in_field(Item *item, Field *field, bool no_conversions) const;
   Item_cache *Item_get_cache(THD *thd, const Item *item) const;
   bool set_comparator_func(Arg_comparator *cmp) const;
@@ -943,12 +1202,15 @@ public:
   Item_result cmp_type() const { return INT_RESULT; }
   virtual ~Type_handler_int_result() {}
   const Type_handler *type_handler_for_comparison() const;
+  bool subquery_type_allows_materialization(const Item *inner,
+                                            const Item *outer) const;
   Field *make_num_distinct_aggregator_field(MEM_ROOT *, const Item *) const;
   void make_sort_key(uchar *to, Item *item, const SORT_FIELD_ATTR *sort_field,
                      Sort_param *param) const;
   void sortlength(THD *thd,
                   const Type_std_attributes *item,
                   SORT_FIELD_ATTR *attr) const;
+  bool Item_save_in_value(Item *item, st_value *value) const;
   int Item_save_in_field(Item *item, Field *field, bool no_conversions) const;
   Item_cache *Item_get_cache(THD *thd, const Item *item) const;
   bool set_comparator_func(Arg_comparator *cmp) const;
@@ -991,6 +1253,9 @@ public:
 
 class Type_handler_temporal_result: public Type_handler
 {
+protected:
+  uint Item_decimal_scale_with_seconds(const Item *item) const;
+  uint Item_divisor_precision_increment_with_seconds(const Item *) const;
 public:
   Item_result result_type() const { return STRING_RESULT; }
   Item_result cmp_type() const { return TIME_RESULT; }
@@ -1005,6 +1270,8 @@ public:
                                    Item *target_expr, Item *target_value,
                                    Item_bool_func2 *source,
                                    Item *source_expr, Item *source_const) const;
+  bool subquery_type_allows_materialization(const Item *inner,
+                                            const Item *outer) const;
   Item_cache *Item_get_cache(THD *thd, const Item *item) const;
   bool set_comparator_func(Arg_comparator *cmp) const;
   bool Item_sum_hybrid_fix_length_and_dec(Item_sum_hybrid *func) const;
@@ -1072,6 +1339,7 @@ public:
   {
     return Item_temporal_precision(item, false);
   }
+  bool Item_save_in_value(Item *item, st_value *value) const;
   int Item_save_in_field(Item *item, Field *field, bool no_conversions) const;
   String *print_item_value(THD *thd, Item *item, String *str) const
   {
@@ -1081,6 +1349,8 @@ public:
                                    Item *target_expr, Item *target_value,
                                    Item_bool_func2 *source,
                                    Item *source_expr, Item *source_const) const;
+  bool subquery_type_allows_materialization(const Item *inner,
+                                            const Item *outer) const;
   Item_cache *Item_get_cache(THD *thd, const Item *item) const;
   bool set_comparator_func(Arg_comparator *cmp) const;
   bool Item_hybrid_func_fix_attributes(THD *thd, Item_hybrid_func *func,
@@ -1156,6 +1426,10 @@ public:
   uint32 max_display_length(const Item *item) const { return 4; }
   Field *make_conversion_table_field(TABLE *TABLE, uint metadata,
                                      const Field *target) const;
+  Field *make_table_field(const LEX_CSTRING *name,
+                          const Record_addr &addr,
+                          const Type_all_attributes &attr,
+                          TABLE *table) const;
 };
 
 
@@ -1169,6 +1443,10 @@ public:
   uint32 max_display_length(const Item *item) const { return 6; }
   Field *make_conversion_table_field(TABLE *TABLE, uint metadata,
                                      const Field *target) const;
+  Field *make_table_field(const LEX_CSTRING *name,
+                          const Record_addr &addr,
+                          const Type_all_attributes &attr,
+                          TABLE *table) const;
 };
 
 
@@ -1185,6 +1463,10 @@ public:
   }
   Field *make_conversion_table_field(TABLE *TABLE, uint metadata,
                                      const Field *target) const;
+  Field *make_table_field(const LEX_CSTRING *name,
+                          const Record_addr &addr,
+                          const Type_all_attributes &attr,
+                          TABLE *table) const;
 };
 
 
@@ -1198,6 +1480,10 @@ public:
   uint32 max_display_length(const Item *item) const { return 20; }
   Field *make_conversion_table_field(TABLE *TABLE, uint metadata,
                                      const Field *target) const;
+  Field *make_table_field(const LEX_CSTRING *name,
+                          const Record_addr &addr,
+                          const Type_all_attributes &attr,
+                          TABLE *table) const;
 };
 
 
@@ -1211,6 +1497,10 @@ public:
   uint32 max_display_length(const Item *item) const { return 8; }
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
+  Field *make_table_field(const LEX_CSTRING *name,
+                          const Record_addr &addr,
+                          const Type_all_attributes &attr,
+                          TABLE *table) const;
 };
 
 
@@ -1224,6 +1514,10 @@ public:
   uint32 max_display_length(const Item *item) const;
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
+  Field *make_table_field(const LEX_CSTRING *name,
+                          const Record_addr &addr,
+                          const Type_all_attributes &attr,
+                          TABLE *table) const;
 };
 
 
@@ -1241,6 +1535,10 @@ public:
   }
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
+  Field *make_table_field(const LEX_CSTRING *name,
+                          const Record_addr &addr,
+                          const Type_all_attributes &attr,
+                          TABLE *table) const;
 };
 
 
@@ -1255,6 +1553,10 @@ public:
   Field *make_num_distinct_aggregator_field(MEM_ROOT *, const Item *) const;
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
+  Field *make_table_field(const LEX_CSTRING *name,
+                          const Record_addr &addr,
+                          const Type_all_attributes &attr,
+                          TABLE *table) const;
 };
 
 
@@ -1268,6 +1570,10 @@ public:
   uint32 max_display_length(const Item *item) const { return 53; }
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
+  Field *make_table_field(const LEX_CSTRING *name,
+                          const Record_addr &addr,
+                          const Type_all_attributes &attr,
+                          TABLE *table) const;
 };
 
 
@@ -1278,7 +1584,20 @@ public:
   virtual ~Type_handler_time_common() { }
   const Name name() const { return m_name_time; }
   enum_field_types field_type() const { return MYSQL_TYPE_TIME; }
+  enum_mysql_timestamp_type mysql_timestamp_type() const
+  {
+    return MYSQL_TIMESTAMP_TIME;
+  }
+  uint Item_decimal_scale(const Item *item) const
+  {
+    return Item_decimal_scale_with_seconds(item);
+  }
+  uint Item_divisor_precision_increment(const Item *item) const
+  {
+    return Item_divisor_precision_increment_with_seconds(item);
+  }
   const Type_handler *type_handler_for_comparison() const;
+  bool Item_save_in_value(Item *item, st_value *value) const;
   int Item_save_in_field(Item *item, Field *field, bool no_conversions) const;
   String *print_item_value(THD *thd, Item *item, String *str) const;
   bool Item_hybrid_func_fix_attributes(THD *thd, Item_hybrid_func *func,
@@ -1294,6 +1613,10 @@ public:
   virtual ~Type_handler_time() {}
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
+  Field *make_table_field(const LEX_CSTRING *name,
+                          const Record_addr &addr,
+                          const Type_all_attributes &attr,
+                          TABLE *table) const;
 };
 
 
@@ -1304,6 +1627,10 @@ public:
   enum_field_types real_field_type() const { return MYSQL_TYPE_TIME2; }
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
+  Field *make_table_field(const LEX_CSTRING *name,
+                          const Record_addr &addr,
+                          const Type_all_attributes &attr,
+                          TABLE *table) const;
 };
 
 
@@ -1312,6 +1639,7 @@ class Type_handler_temporal_with_date: public Type_handler_temporal_result
 public:
   virtual ~Type_handler_temporal_with_date() {}
   const Type_handler *type_handler_for_comparison() const;
+  bool Item_save_in_value(Item *item, st_value *value) const;
   int Item_save_in_field(Item *item, Field *field, bool no_conversions) const;
   cmp_item *make_cmp_item(THD *thd, CHARSET_INFO *cs) const;
   in_vector *make_in_vector(THD *, const Item_func_in *, uint nargs) const;
@@ -1325,6 +1653,10 @@ public:
   virtual ~Type_handler_date_common() {}
   const Name name() const { return m_name_date; }
   enum_field_types field_type() const { return MYSQL_TYPE_DATE; }
+  enum_mysql_timestamp_type mysql_timestamp_type() const
+  {
+    return MYSQL_TIMESTAMP_DATE;
+  }
   String *print_item_value(THD *thd, Item *item, String *str) const;
   bool Item_hybrid_func_fix_attributes(THD *thd, Item_hybrid_func *func,
                                        Item **items, uint nitems) const;
@@ -1336,6 +1668,10 @@ public:
   virtual ~Type_handler_date() {}
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
+  Field *make_table_field(const LEX_CSTRING *name,
+                          const Record_addr &addr,
+                          const Type_all_attributes &attr,
+                          TABLE *table) const;
 };
 
 
@@ -1343,8 +1679,13 @@ class Type_handler_newdate: public Type_handler_date_common
 {
 public:
   virtual ~Type_handler_newdate() {}
+  enum_field_types real_field_type() const { return MYSQL_TYPE_NEWDATE; }
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
+  Field *make_table_field(const LEX_CSTRING *name,
+                          const Record_addr &addr,
+                          const Type_all_attributes &attr,
+                          TABLE *table) const;
 };
 
 
@@ -1355,6 +1696,18 @@ public:
   virtual ~Type_handler_datetime_common() {}
   const Name name() const { return m_name_datetime; }
   enum_field_types field_type() const { return MYSQL_TYPE_DATETIME; }
+  enum_mysql_timestamp_type mysql_timestamp_type() const
+  {
+    return MYSQL_TIMESTAMP_DATETIME;
+  }
+  uint Item_decimal_scale(const Item *item) const
+  {
+    return Item_decimal_scale_with_seconds(item);
+  }
+  uint Item_divisor_precision_increment(const Item *item) const
+  {
+    return Item_divisor_precision_increment_with_seconds(item);
+  }
   String *print_item_value(THD *thd, Item *item, String *str) const;
   bool Item_hybrid_func_fix_attributes(THD *thd, Item_hybrid_func *func,
                                        Item **items, uint nitems) const;
@@ -1367,6 +1720,10 @@ public:
   virtual ~Type_handler_datetime() {}
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
+  Field *make_table_field(const LEX_CSTRING *name,
+                          const Record_addr &addr,
+                          const Type_all_attributes &attr,
+                          TABLE *table) const;
 };
 
 
@@ -1377,6 +1734,10 @@ public:
   enum_field_types real_field_type() const { return MYSQL_TYPE_DATETIME2; }
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
+  Field *make_table_field(const LEX_CSTRING *name,
+                          const Record_addr &addr,
+                          const Type_all_attributes &attr,
+                          TABLE *table) const;
 };
 
 
@@ -1387,6 +1748,18 @@ public:
   virtual ~Type_handler_timestamp_common() {}
   const Name name() const { return m_name_timestamp; }
   enum_field_types field_type() const { return MYSQL_TYPE_TIMESTAMP; }
+  enum_mysql_timestamp_type mysql_timestamp_type() const
+  {
+    return MYSQL_TIMESTAMP_DATETIME;
+  }
+  uint Item_decimal_scale(const Item *item) const
+  {
+    return Item_decimal_scale_with_seconds(item);
+  }
+  uint Item_divisor_precision_increment(const Item *item) const
+  {
+    return Item_divisor_precision_increment_with_seconds(item);
+  }
   String *print_item_value(THD *thd, Item *item, String *str) const;
   bool Item_hybrid_func_fix_attributes(THD *thd, Item_hybrid_func *func,
                                        Item **items, uint nitems) const;
@@ -1399,6 +1772,10 @@ public:
   virtual ~Type_handler_timestamp() {}
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
+  Field *make_table_field(const LEX_CSTRING *name,
+                          const Record_addr &addr,
+                          const Type_all_attributes &attr,
+                          TABLE *table) const;
 };
 
 
@@ -1409,6 +1786,10 @@ public:
   enum_field_types real_field_type() const { return MYSQL_TYPE_TIMESTAMP2; }
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
+  Field *make_table_field(const LEX_CSTRING *name,
+                          const Record_addr &addr,
+                          const Type_all_attributes &attr,
+                          TABLE *table) const;
 };
 
 
@@ -1419,8 +1800,14 @@ public:
   virtual ~Type_handler_olddecimal() {}
   const Name name() const { return m_name_decimal; }
   enum_field_types field_type() const { return MYSQL_TYPE_DECIMAL; }
+  const Type_handler *type_handler_for_tmp_table(const Item *item) const;
+  const Type_handler *type_handler_for_union(const Item *item) const;
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
+  Field *make_table_field(const LEX_CSTRING *name,
+                          const Record_addr &addr,
+                          const Type_all_attributes &attr,
+                          TABLE *table) const;
 };
 
 
@@ -1433,6 +1820,10 @@ public:
   enum_field_types field_type() const { return MYSQL_TYPE_NEWDECIMAL; }
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
+  Field *make_table_field(const LEX_CSTRING *name,
+                          const Record_addr &addr,
+                          const Type_all_attributes &attr,
+                          TABLE *table) const;
 };
 
 
@@ -1444,9 +1835,16 @@ public:
   const Name name() const { return m_name_null; }
   enum_field_types field_type() const { return MYSQL_TYPE_NULL; }
   const Type_handler *type_handler_for_comparison() const;
+  const Type_handler *type_handler_for_tmp_table(const Item *item) const;
+  const Type_handler *type_handler_for_union(const Item *) const;
   uint32 max_display_length(const Item *item) const { return 0; }
+  bool Item_save_in_value(Item *item, st_value *value) const;
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
+  Field *make_table_field(const LEX_CSTRING *name,
+                          const Record_addr &addr,
+                          const Type_all_attributes &attr,
+                          TABLE *table) const;
 };
 
 
@@ -1458,8 +1856,36 @@ public:
   const Name name() const { return m_name_char; }
   enum_field_types field_type() const { return MYSQL_TYPE_STRING; }
   bool is_param_long_data_type() const { return true; }
+  const Type_handler *type_handler_for_tmp_table(const Item *item) const
+  {
+    return varstring_type_handler(item);
+  }
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
+  Field *make_table_field(const LEX_CSTRING *name,
+                          const Record_addr &addr,
+                          const Type_all_attributes &attr,
+                          TABLE *table) const;
+};
+
+
+/* Old varchar */
+class Type_handler_var_string: public Type_handler_string
+{
+  static const Name m_name_var_string;
+public:
+  virtual ~Type_handler_var_string() {}
+  const Name name() const { return m_name_var_string; }
+  enum_field_types field_type() const { return MYSQL_TYPE_VAR_STRING; }
+  enum_field_types real_field_type() const { return MYSQL_TYPE_STRING; }
+  const Type_handler *type_handler_for_tmp_table(const Item *item) const
+  {
+    return varstring_type_handler(item);
+  }
+  const Type_handler *type_handler_for_union(const Item *item) const
+  {
+    return varstring_type_handler(item);
+  }
 };
 
 
@@ -1470,9 +1896,21 @@ public:
   virtual ~Type_handler_varchar() {}
   const Name name() const { return m_name_varchar; }
   enum_field_types field_type() const { return MYSQL_TYPE_VARCHAR; }
+  const Type_handler *type_handler_for_tmp_table(const Item *item) const
+  {
+    return varstring_type_handler(item);
+  }
+  const Type_handler *type_handler_for_union(const Item *item) const
+  {
+    return varstring_type_handler(item);
+  }
   bool is_param_long_data_type() const { return true; }
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
+  Field *make_table_field(const LEX_CSTRING *name,
+                          const Record_addr &addr,
+                          const Type_all_attributes &attr,
+                          TABLE *table) const;
 };
 
 
@@ -1480,7 +1918,22 @@ class Type_handler_blob_common: public Type_handler_string_result
 {
 public:
   virtual ~Type_handler_blob_common() { }
+  const Type_handler *type_handler_for_tmp_table(const Item *item) const
+  {
+    return blob_type_handler(item);
+  }
+  const Type_handler *type_handler_for_union(const Item *item) const
+  {
+    return blob_type_handler(item);
+  }
+  bool subquery_type_allows_materialization(const Item *inner,
+                                            const Item *outer) const
+  {
+    return false; // Materialization does not work with BLOB columns
+  }
   bool is_param_long_data_type() const { return true; }
+  bool Item_hybrid_func_fix_attributes(THD *thd, Item_hybrid_func *func,
+                                       Item **items, uint nitems) const;
 };
 
 
@@ -1493,6 +1946,10 @@ public:
   enum_field_types field_type() const { return MYSQL_TYPE_TINY_BLOB; }
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
+  Field *make_table_field(const LEX_CSTRING *name,
+                          const Record_addr &addr,
+                          const Type_all_attributes &attr,
+                          TABLE *table) const;
 };
 
 
@@ -1505,6 +1962,10 @@ public:
   enum_field_types field_type() const { return MYSQL_TYPE_MEDIUM_BLOB; }
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
+  Field *make_table_field(const LEX_CSTRING *name,
+                          const Record_addr &addr,
+                          const Type_all_attributes &attr,
+                          TABLE *table) const;
 };
 
 
@@ -1517,6 +1978,10 @@ public:
   enum_field_types field_type() const { return MYSQL_TYPE_LONG_BLOB; }
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
+  Field *make_table_field(const LEX_CSTRING *name,
+                          const Record_addr &addr,
+                          const Type_all_attributes &attr,
+                          TABLE *table) const;
 };
 
 
@@ -1529,6 +1994,10 @@ public:
   enum_field_types field_type() const { return MYSQL_TYPE_BLOB; }
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
+  Field *make_table_field(const LEX_CSTRING *name,
+                          const Record_addr &addr,
+                          const Type_all_attributes &attr,
+                          TABLE *table) const;
 };
 
 
@@ -1542,8 +2011,18 @@ public:
   enum_field_types field_type() const { return MYSQL_TYPE_GEOMETRY; }
   bool is_param_long_data_type() const { return true; }
   const Type_handler *type_handler_for_comparison() const;
+  bool subquery_type_allows_materialization(const Item *inner,
+                                            const Item *outer) const
+  {
+    return false; // Materialization does not work with GEOMETRY columns
+  }
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
+  Field *make_table_field(const LEX_CSTRING *name,
+                          const Record_addr &addr,
+                          const Type_all_attributes &attr,
+                          TABLE *table) const;
+
   bool is_traditional_type() const
   {
     return false;
@@ -1576,10 +2055,16 @@ class Type_handler_enum: public Type_handler_string_result
 public:
   virtual ~Type_handler_enum() {}
   const Name name() const { return m_name_enum; }
-  enum_field_types field_type() const { return MYSQL_TYPE_VARCHAR; }
+  enum_field_types field_type() const { return MYSQL_TYPE_STRING; }
   virtual enum_field_types real_field_type() const { return MYSQL_TYPE_ENUM; }
+  const Type_handler *type_handler_for_item_field() const;
+  const Type_handler *cast_to_int_type_handler() const;
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
+  Field *make_table_field(const LEX_CSTRING *name,
+                          const Record_addr &addr,
+                          const Type_all_attributes &attr,
+                          TABLE *table) const;
 };
 
 
@@ -1589,10 +2074,16 @@ class Type_handler_set: public Type_handler_string_result
 public:
   virtual ~Type_handler_set() {}
   const Name name() const { return m_name_set; }
-  enum_field_types field_type() const { return MYSQL_TYPE_VARCHAR; }
+  enum_field_types field_type() const { return MYSQL_TYPE_STRING; }
   virtual enum_field_types real_field_type() const { return MYSQL_TYPE_SET; }
+  const Type_handler *type_handler_for_item_field() const;
+  const Type_handler *cast_to_int_type_handler() const;
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
+  Field *make_table_field(const LEX_CSTRING *name,
+                          const Record_addr &addr,
+                          const Type_all_attributes &attr,
+                          TABLE *table) const;
 };
 
 
@@ -1628,6 +2119,10 @@ public:
   }
   Item_result result_type() const { return m_type_handler->result_type(); }
   Item_result cmp_type() const { return m_type_handler->cmp_type(); }
+  enum_mysql_timestamp_type mysql_timestamp_type() const
+  {
+    return m_type_handler->mysql_timestamp_type();
+  }
   void set_handler(const Type_handler *other)
   {
     m_type_handler= other;
@@ -1671,24 +2166,49 @@ public:
 };
 
 
-extern Type_handler_row   type_handler_row;
-extern Type_handler_null  type_handler_null;
-extern Type_handler_string type_handler_string;
-extern Type_handler_varchar type_handler_varchar;
-extern Type_handler_longlong type_handler_longlong;
-extern Type_handler_float type_handler_float;
-extern Type_handler_double type_handler_double;
-extern Type_handler_newdecimal type_handler_newdecimal;
-extern Type_handler_datetime type_handler_datetime;
-extern Type_handler_longlong type_handler_longlong;
-extern Type_handler_bit type_handler_bit;
-extern Type_handler_enum type_handler_enum;
-extern Type_handler_set type_handler_set;
+extern Type_handler_row         type_handler_row;
+extern Type_handler_null        type_handler_null;
 
-extern Type_handler_time2       type_handler_time2;
+extern Type_handler_float       type_handler_float;
+extern Type_handler_double      type_handler_double;
+
+extern Type_handler_bit         type_handler_bit;
+
+extern Type_handler_enum        type_handler_enum;
+extern Type_handler_set         type_handler_set;
+
+extern Type_handler_string      type_handler_string;
+extern Type_handler_var_string  type_handler_var_string;
+extern Type_handler_varchar     type_handler_varchar;
+
+extern Type_handler_tiny_blob   type_handler_tiny_blob;
+extern Type_handler_medium_blob type_handler_medium_blob;
+extern Type_handler_long_blob   type_handler_long_blob;
+extern Type_handler_blob        type_handler_blob;
+
+extern Type_handler_tiny        type_handler_tiny;
+extern Type_handler_short       type_handler_short;
+extern Type_handler_int24       type_handler_int24;
+extern Type_handler_long        type_handler_long;
+extern Type_handler_longlong    type_handler_longlong;
+
+extern Type_handler_newdecimal  type_handler_newdecimal;
+extern Type_handler_olddecimal  type_handler_olddecimal;
+
+extern Type_handler_year        type_handler_year;
 extern Type_handler_newdate     type_handler_newdate;
+extern Type_handler_date        type_handler_date;
+extern Type_handler_time        type_handler_time;
+extern Type_handler_time2       type_handler_time2;
+extern Type_handler_datetime    type_handler_datetime;
 extern Type_handler_datetime2   type_handler_datetime2;
+extern Type_handler_timestamp   type_handler_timestamp;
+extern Type_handler_timestamp2  type_handler_timestamp2;
 
+extern Type_handler_tiny_blob   type_handler_tiny_blob;
+extern Type_handler_blob        type_handler_blob;
+extern Type_handler_medium_blob type_handler_medium_blob;
+extern Type_handler_long_blob   type_handler_long_blob;
 
 class Type_aggregator
 {

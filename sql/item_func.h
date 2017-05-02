@@ -42,44 +42,8 @@ protected:
   uint allowed_arg_cols;
   String *val_str_from_val_str_ascii(String *str, String *str2);
 
-  void count_only_length(Item **item, uint nitems);
-  void count_real_length(Item **item, uint nitems);
-  void count_decimal_length(Item **item, uint nitems);
-  bool count_string_length(Item **item, uint nitems);
-  uint count_max_decimals(Item **item, uint nitems)
-  {
-    uint res= 0;
-    for (uint i= 0; i < nitems; i++)
-      set_if_bigger(res, item[i]->decimals);
-    return res;
-  }
   virtual bool check_allowed_arg_cols(uint argno);
 public:
-  void aggregate_attributes_int(Item **items, uint nitems)
-  {
-    collation.set_numeric();
-    count_only_length(items, nitems);
-    decimals= 0;
-  }
-  void aggregate_attributes_real(Item **items, uint nitems)
-  {
-    collation.set_numeric();
-    count_real_length(items, nitems);
-  }
-  void aggregate_attributes_decimal(Item **items, uint nitems)
-  {
-    collation.set_numeric();
-    count_decimal_length(items, nitems);
-  }
-  bool aggregate_attributes_string(Item **item, uint nitems)
-  {
-    return count_string_length(item, nitems);
-  }
-  void aggregate_attributes_temporal(uint int_part_length,
-                                     Item **item, uint nitems)
-  {
-    fix_attributes_temporal(int_part_length, count_max_decimals(item, nitems));
-  }
 
   table_map not_null_tables_cache;
 
@@ -208,7 +172,7 @@ public:
   {
     return result_type() != STRING_RESULT ?
            create_tmp_field(false, table, MY_INT32_NUM_DECIMAL_DIGITS) :
-           tmp_table_field_from_field_type(table, false, false);
+           tmp_table_field_from_field_type(table);
   }
   Item *get_tmp_table_item(THD *thd);
 
@@ -2255,12 +2219,6 @@ public:
   bool update();
   bool fix_fields(THD *thd, Item **ref);
   void fix_length_and_dec();
-  Field *create_field_for_create_select(TABLE *table)
-  {
-    return result_type() != STRING_RESULT ?
-           create_tmp_field(false, table, MY_INT32_NUM_DECIMAL_DIGITS) :
-           tmp_table_field_from_field_type(table, false, true);
-  }
   table_map used_tables() const
   {
     return used_tables_cache | RAND_TABLE_BIT;
@@ -2302,6 +2260,14 @@ public:
   my_decimal *val_decimal(my_decimal*);
   String *val_str(String* str);
   void fix_length_and_dec();
+  Field *create_field_for_create_select(TABLE *table)
+  {
+    return cmp_type() == STRING_RESULT ?
+      type_handler_long_blob.make_and_init_table_field(&(Item::name),
+                                                       Record_addr(maybe_null),
+                                                       *this, table) :
+      create_tmp_field(false, table, MY_INT32_NUM_DECIMAL_DIGITS);
+  }
   virtual void print(String *str, enum_query_type query_type);
   /*
     We must always return variables as strings to guard against selects of type
@@ -2655,7 +2621,7 @@ public:
   {
     return result_type() != STRING_RESULT ?
            sp_result_field :
-           tmp_table_field_from_field_type(table, false, false);
+           tmp_table_field_from_field_type(table);
   }
   void make_field(THD *thd, Send_field *tmp_field);
 

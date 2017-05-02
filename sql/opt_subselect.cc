@@ -843,34 +843,9 @@ bool subquery_types_allow_materialization(Item_in_subselect *in_subs)
     all_are_fields &= (outer->real_item()->type() == Item::FIELD_ITEM && 
                        inner->real_item()->type() == Item::FIELD_ITEM);
     total_key_length += inner->max_length;
-    if (outer->cmp_type() != inner->cmp_type())
+    if (!inner->type_handler()->subquery_type_allows_materialization(inner,
+                                                                     outer))
       DBUG_RETURN(FALSE);
-    switch (outer->cmp_type()) {
-    case STRING_RESULT:
-      if (!(outer->collation.collation == inner->collation.collation))
-        DBUG_RETURN(FALSE);
-      // Materialization does not work with BLOB columns
-      if (inner->field_type() == MYSQL_TYPE_BLOB || 
-          inner->field_type() == MYSQL_TYPE_GEOMETRY)
-        DBUG_RETURN(FALSE);
-      /* 
-        Materialization also is unable to work when create_tmp_table() will
-        create a blob column because item->max_length is too big.
-        The following check is copied from Item::make_string_field():
-      */ 
-      if (inner->too_big_for_varchar())
-      {
-        DBUG_RETURN(FALSE);
-      }
-      break;
-    case TIME_RESULT:
-      if (mysql_type_to_time_type(outer->field_type()) !=
-          mysql_type_to_time_type(inner->field_type()))
-        DBUG_RETURN(FALSE);
-    default:
-      /* suitable for materialization */
-      break;
-    }
   }
 
   /*

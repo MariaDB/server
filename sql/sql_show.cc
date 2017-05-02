@@ -5439,7 +5439,7 @@ static void store_column_type(TABLE *table, Field *field, CHARSET_INFO *cs,
       field->real_type() == MYSQL_TYPE_STRING)     // For binary type
   {
     uint32 octet_max_length= field->max_display_length();
-    if (is_blob && octet_max_length != (uint32) 4294967295U)
+    if (is_blob && octet_max_length != (uint32) UINT_MAX32)
       octet_max_length /= field->charset()->mbmaxlen;
     longlong char_max_len= is_blob ? 
       (longlong) octet_max_length / field->charset()->mbminlen :

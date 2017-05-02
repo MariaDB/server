@@ -592,99 +592,6 @@ void Item_udf_func::fix_num_length_and_dec()
 }
 
 
-/**
-  Set max_length/decimals of function if function is fixed point and
-  result length/precision depends on argument ones.
-*/
-
-void Item_func::count_decimal_length(Item **item, uint nitems)
-{
-  int max_int_part= 0;
-  decimals= 0;
-  unsigned_flag= 1;
-  for (uint i=0 ; i < nitems ; i++)
-  {
-    set_if_bigger(decimals, item[i]->decimals);
-    set_if_bigger(max_int_part, item[i]->decimal_int_part());
-    set_if_smaller(unsigned_flag, item[i]->unsigned_flag);
-  }
-  int precision= MY_MIN(max_int_part + decimals, DECIMAL_MAX_PRECISION);
-  fix_char_length(my_decimal_precision_to_length_no_truncation(precision,
-                                                               decimals,
-                                                               unsigned_flag));
-}
-
-
-/**
-  Set max_length of if it is maximum length of its arguments.
-*/
-
-void Item_func::count_only_length(Item **item, uint nitems)
-{
-  uint32 char_length= 0;
-  unsigned_flag= 0;
-  for (uint i= 0; i < nitems ; i++)
-  {
-    set_if_bigger(char_length, item[i]->max_char_length());
-    set_if_bigger(unsigned_flag, item[i]->unsigned_flag);
-  }
-  fix_char_length(char_length);
-}
-
-
-/**
-  Set max_length/decimals of function if function is floating point and
-  result length/precision depends on argument ones.
-*/
-
-void Item_func::count_real_length(Item **items, uint nitems)
-{
-  uint32 length= 0;
-  decimals= 0;
-  max_length= 0;
-  unsigned_flag= false;
-  for (uint i=0 ; i < nitems ; i++)
-  {
-    if (decimals < FLOATING_POINT_DECIMALS)
-    {
-      set_if_bigger(decimals, items[i]->decimals);
-      /* Will be ignored if items[i]->decimals >= FLOATING_POINT_DECIMALS */
-      set_if_bigger(length, (items[i]->max_length - items[i]->decimals));
-    }
-    set_if_bigger(max_length, items[i]->max_length);
-  }
-  if (decimals < FLOATING_POINT_DECIMALS)
-  {
-    max_length= length;
-    length+= decimals;
-    if (length < max_length)  // If previous operation gave overflow
-      max_length= UINT_MAX32;
-    else
-      max_length= length;
-  }
-}
-
-
-/**
-  Calculate max_length and decimals for string functions.
-
-  @param field_type  Field type.
-  @param items       Argument array.
-  @param nitems      Number of arguments.
-
-  @retval            False on success, true on error.
-*/
-bool Item_func::count_string_length(Item **items, uint nitems)
-{
-  DBUG_ASSERT(!is_temporal_type(field_type()));
-  if (agg_arg_charsets_for_string_result(collation, items, nitems, 1))
-    return true;
-  count_only_length(items, nitems);
-  decimals= max_length ? NOT_FIXED_DEC : 0;
-  return false;
-}
-
-
 void Item_func::signal_divide_by_null()
 {
   THD *thd= current_thd;
@@ -890,7 +797,7 @@ String *Item_func_hybrid_field_type::val_str_from_date_op(String *str)
   if (date_op_with_null_check(&ltime) ||
       (null_value= str->alloc(MAX_DATE_STRING_REP_LENGTH)))
     return (String *) 0;
-  ltime.time_type= mysql_type_to_time_type(field_type());
+  ltime.time_type= mysql_timestamp_type();
   str->length(my_TIME_to_str(&ltime, const_cast<char*>(str->ptr()), decimals));
   str->set_charset(&my_charset_bin);
   DBUG_ASSERT(!null_value);
@@ -902,7 +809,7 @@ double Item_func_hybrid_field_type::val_real_from_date_op()
   MYSQL_TIME ltime;
   if (date_op_with_null_check(&ltime))
     return 0;
-  ltime.time_type= mysql_type_to_time_type(field_type());
+  ltime.time_type= mysql_timestamp_type();
   return TIME_to_double(&ltime);
 }
 
@@ -911,7 +818,7 @@ longlong Item_func_hybrid_field_type::val_int_from_date_op()
   MYSQL_TIME ltime;
   if (date_op_with_null_check(&ltime))
     return 0;
-  ltime.time_type= mysql_type_to_time_type(field_type());
+  ltime.time_type= mysql_timestamp_type();
   return TIME_to_ulonglong(&ltime);
 }
 
@@ -924,7 +831,7 @@ Item_func_hybrid_field_type::val_decimal_from_date_op(my_decimal *dec)
     my_decimal_set_zero(dec);
     return 0;
   }
-  ltime.time_type= mysql_type_to_time_type(field_type());
+  ltime.time_type= mysql_timestamp_type();
   return date2my_decimal(&ltime, dec);
 }
 
@@ -2255,8 +2162,8 @@ void Item_func_int_val::fix_length_and_dec_int_or_decimal()
 {
   ulonglong tmp_max_length= (ulonglong ) args[0]->max_length - 
     (args[0]->decimals ? args[0]->decimals + 1 : 0) + 2;
-  max_length= tmp_max_length > (ulonglong) 4294967295U ?
-    (uint32) 4294967295U : (uint32) tmp_max_length;
+  max_length= tmp_max_length > (ulonglong) UINT_MAX32 ?
+    (uint32) UINT_MAX32 : (uint32) tmp_max_length;
   uint tmp= float_length(decimals);
   set_if_smaller(max_length,tmp);
   decimals= 0;
