@@ -59,7 +59,6 @@ addons:
       - libcrack2-dev
       - libjemalloc-dev
       - devscripts # implicit for any build on Ubuntu
-      - libtcmalloc-minimal4
       - valgrind
 
 env:
@@ -75,4 +74,4 @@ env:
 script:
   - ${CC} --version ; ${CXX} --version
   - cd "${TRAVIS_BUILD_DIR}"
-  - "LD_PRELOAD=/usr/lib/libtcmalloc_minimal.so.4 cmake -DWITH_INNOBASE_STORAGE_ENGINE=yes $BUILD_TYPE && LD_PRELOAD=/usr/lib/libtcmalloc_minimal.so.4 make -j $(grep -c processor /proc/cpuinfo) && cd ./mysql-test && ./mtr $MTR_FLAGS --suite=versioning --force --max-test-fail=0"
+  - "cmake -DWITH_INNOBASE_STORAGE_ENGINE=1 -DWITHOUT_TOKUDB_STORAGE_ENGINE=1 -DWITHOUT_ROCKSDB_STORAGE_ENGINE=1 $BUILD_TYPE && make -j $(grep -c processor /proc/cpuinfo) && cd ./mysql-test && ./mtr $MTR_FLAGS --mem --suite=versioning --force --max-test-fail=0"
