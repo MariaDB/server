@@ -465,6 +465,7 @@ public:
   Type_all_attributes(const Type_all_attributes *other)
    :Type_std_attributes(other)
   { }
+  virtual ~Type_all_attributes() {}
   // Returns total number of decimal digits
   virtual uint decimal_precision() const= 0;
   /*
