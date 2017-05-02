@@ -458,6 +458,10 @@ SELECT * FROM t1;
 DROP TABLE t1;
 
 --echo #
+--echo # Start of 10.3 tests
+--echo #
+
+--echo #
 --echo # MDEV-12432 Range optimizer for ENUM and SET does not return "Impossible WHERE" in some case
 --echo #
 
@@ -472,4 +476,45 @@ EXPLAIN SELECT * FROM t1 WHERE a='100';
 EXPLAIN SELECT * FROM t1 WHERE a='1x';
 EXPLAIN SELECT * FROM t1 WHERE a='1.0';
 EXPLAIN SELECT * FROM t1 WHERE a='1.1';
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-12656 Crash in CREATE..SELECT..UNION with a ENUM column and NULL
+--echo #
+
+CREATE TABLE t1 (a ENUM('a'));
+--echo # non-UNION + table column
+CREATE TABLE t2 AS SELECT (SELECT a FROM t1);
+SHOW CREATE TABLE t2;
+DROP TABLE t2;
+--echo # UNION + table column
+CREATE TABLE t2 AS SELECT (SELECT a FROM t1 UNION SELECT NULL);
+SHOW CREATE TABLE t2;
+DROP TABLE t2;
+--echo # UNION + SP variable
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE va ENUM('a');
+  CREATE TABLE t2 AS SELECT (SELECT va FROM t1 UNION SELECT NULL);
+  SHOW CREATE TABLE t2;
+  DROP TABLE t2;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+DROP PROCEDURE p1;
+--echo # UNION + anchored SP variable
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE va TYPE OF t1.a;
+  CREATE TABLE t2 AS SELECT (SELECT va FROM t1 UNION SELECT NULL);
+  SHOW CREATE TABLE t2;
+  DROP TABLE t2;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+DROP PROCEDURE p1;
 DROP TABLE t1;

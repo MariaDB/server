@@ -10072,7 +10072,7 @@ bool Item_type_holder::join_types(THD *thd, Item *item)
   if (aggregate_for_result(item_type_handler))
   {
     my_error(ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION, MYF(0),
-             Item_type_holder::type_handler()->name().ptr(),
+             Item_type_holder::real_type_handler()->name().ptr(),
              item_type_handler->name().ptr(),
              "UNION");
     DBUG_RETURN(true);
@@ -10180,7 +10180,14 @@ bool Item_type_holder::join_types(THD *thd, Item *item)
   };
   maybe_null|= item->maybe_null;
   get_full_info(item);
-  set_handler(Item_type_holder::type_handler()->type_handler_for_union(this));
+  /*
+    Adjust data type for union, e.g.:
+    - convert type_handler_null to type_handler_string
+    - convert type_handler_olddecimal to type_handler_newdecimal
+    - adjust varchar/blob according to max_length
+  */
+  set_handler(Item_type_holder::
+                real_type_handler()->type_handler_for_union(this));
 
   /* Remember decimal integer part to be used in DECIMAL_RESULT handleng */
   prev_decimal_int_part= decimal_int_part();

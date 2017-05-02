@@ -2225,6 +2225,9 @@ a
 
 DROP TABLE t1;
 #
+# Start of 10.3 tests
+#
+#
 # MDEV-12432 Range optimizer for ENUM and SET does not return "Impossible WHERE" in some case
 #
 CREATE TABLE t1 (a ENUM('a','b','c','1'),KEY(a));
@@ -2256,4 +2259,55 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 EXPLAIN SELECT * FROM t1 WHERE a='1.1';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+DROP TABLE t1;
+#
+# MDEV-12656 Crash in CREATE..SELECT..UNION with a ENUM column and NULL
+#
+CREATE TABLE t1 (a ENUM('a'));
+# non-UNION + table column
+CREATE TABLE t2 AS SELECT (SELECT a FROM t1);
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `(SELECT a FROM t1)` varchar(1) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t2;
+# UNION + table column
+CREATE TABLE t2 AS SELECT (SELECT a FROM t1 UNION SELECT NULL);
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `(SELECT a FROM t1 UNION SELECT NULL)` varchar(1) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t2;
+# UNION + SP variable
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE va ENUM('a');
+CREATE TABLE t2 AS SELECT (SELECT va FROM t1 UNION SELECT NULL);
+SHOW CREATE TABLE t2;
+DROP TABLE t2;
+END;
+$$
+CALL p1();
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `(SELECT va FROM t1 UNION SELECT NULL)` varchar(1) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP PROCEDURE p1;
+# UNION + anchored SP variable
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE va TYPE OF t1.a;
+CREATE TABLE t2 AS SELECT (SELECT va FROM t1 UNION SELECT NULL);
+SHOW CREATE TABLE t2;
+DROP TABLE t2;
+END;
+$$
+CALL p1();
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `(SELECT va FROM t1 UNION SELECT NULL)` varchar(1) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP PROCEDURE p1;
 DROP TABLE t1;

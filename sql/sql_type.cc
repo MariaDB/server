@@ -470,9 +470,21 @@ const Type_handler *Type_handler_row::type_handler_for_comparison() const
 
 /***************************************************************************/
 
+const Type_handler *Type_handler_enum::type_handler_for_item_field() const
+{
+  return &type_handler_string;
+}
+
+
 const Type_handler *Type_handler_enum::cast_to_int_type_handler() const
 {
   return &type_handler_longlong;
+}
+
+
+const Type_handler *Type_handler_set::type_handler_for_item_field() const
+{
+  return &type_handler_string;
 }
 
 

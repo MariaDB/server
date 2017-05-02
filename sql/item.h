@@ -2604,11 +2604,7 @@ public:
   const Type_handler *type_handler() const
   {
     const Type_handler *handler= field->type_handler();
-    // This special code for ENUM and SET should eventually be removed
-    if (handler == &type_handler_enum ||
-        handler == &type_handler_set)
-      return &type_handler_string;
-    return field->type_handler();
+    return handler->type_handler_for_item_field();
   }
   enum Item_result result_type () const
   {
@@ -5792,7 +5788,10 @@ public:
   Item_type_holder(THD*, Item*);
 
   const Type_handler *type_handler() const
-  { return Type_handler_hybrid_field_type::type_handler(); }
+  {
+    const Type_handler *handler= Type_handler_hybrid_field_type::type_handler();
+    return handler->type_handler_for_item_field();
+  }
   enum_field_types field_type() const
   { return Type_handler_hybrid_field_type::field_type(); }
   enum Item_result result_type () const
@@ -5813,7 +5812,7 @@ public:
   }
   const Type_handler *real_type_handler() const
   {
-    return Item_type_holder::type_handler();
+    return Type_handler_hybrid_field_type::type_handler();
   }
 
   enum Type type() const { return TYPE_HOLDER; }
@@ -5825,7 +5824,7 @@ public:
   bool join_types(THD *thd, Item *);
   Field *create_tmp_field(bool group, TABLE *table)
   {
-    return Item_type_holder::type_handler()->
+    return Item_type_holder::real_type_handler()->
            make_and_init_table_field(&name, Record_addr(maybe_null),
                                      *this, table);
   }

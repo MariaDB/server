@@ -579,6 +579,10 @@ public:
   */
   virtual bool is_param_long_data_type() const { return false; }
   virtual const Type_handler *type_handler_for_comparison() const= 0;
+  virtual const Type_handler *type_handler_for_item_field() const
+  {
+    return this;
+  }
   virtual const Type_handler *type_handler_for_tmp_table(const Item *) const
   {
     return this;
@@ -2053,6 +2057,7 @@ public:
   const Name name() const { return m_name_enum; }
   enum_field_types field_type() const { return MYSQL_TYPE_STRING; }
   virtual enum_field_types real_field_type() const { return MYSQL_TYPE_ENUM; }
+  const Type_handler *type_handler_for_item_field() const;
   const Type_handler *cast_to_int_type_handler() const;
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
@@ -2071,6 +2076,7 @@ public:
   const Name name() const { return m_name_set; }
   enum_field_types field_type() const { return MYSQL_TYPE_STRING; }
   virtual enum_field_types real_field_type() const { return MYSQL_TYPE_SET; }
+  const Type_handler *type_handler_for_item_field() const;
   const Type_handler *cast_to_int_type_handler() const;
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
