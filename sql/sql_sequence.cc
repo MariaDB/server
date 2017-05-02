@@ -327,7 +327,9 @@ bool sequence_insert(THD *thd, LEX *lex, TABLE_LIST *table_list)
   tmp_disable_binlog(thd);
   save_write_set= table->write_set;
   table->write_set= &table->s->all_set;
+  table->s->sequence->initialized= SEQUENCE::SEQ_IN_PREPARE;
   error= table->file->ha_write_row(table->record[0]);
+  table->s->sequence->initialized= SEQUENCE::SEQ_UNINTIALIZED;
   reenable_binlog(thd);
   table->write_set= save_write_set;
 
@@ -339,7 +341,7 @@ bool sequence_insert(THD *thd, LEX *lex, TABLE_LIST *table_list)
       Sequence structure is up to date and table has one row,
       sequence is now usable
     */
-    table->s->sequence->initialized= 1;
+    table->s->sequence->initialized= SEQUENCE::SEQ_READY_TO_USE;
   }
 
   trans_commit_stmt(thd);
@@ -353,7 +355,7 @@ bool sequence_insert(THD *thd, LEX *lex, TABLE_LIST *table_list)
 
 /* Create a SQUENCE object */
 
-SEQUENCE::SEQUENCE() :initialized(0), all_values_used(0), table(0)
+SEQUENCE::SEQUENCE() :all_values_used(0), initialized(SEQ_UNINTIALIZED), table(0)
 {
   mysql_mutex_init(key_LOCK_SEQUENCE, &mutex, MY_MUTEX_INIT_SLOW);
 }
@@ -376,11 +378,11 @@ int SEQUENCE::read_initial_values(TABLE *table_arg)
   MDL_request mdl_request;                      // Empty constructor!
   DBUG_ENTER("SEQUENCE::read_initial_values");
 
-  if (likely(initialized))
+  if (likely(initialized != SEQ_UNINTIALIZED))
     DBUG_RETURN(0);
   table= table_arg;
   mysql_mutex_lock(&mutex);
-  if (unlikely(!initialized))
+  if (likely(initialized == SEQ_UNINTIALIZED))
   {
     MYSQL_LOCK *lock;
     bool mdl_lock_used= 0;
@@ -419,7 +421,7 @@ int SEQUENCE::read_initial_values(TABLE *table_arg)
       DBUG_RETURN(HA_ERR_LOCK_WAIT_TIMEOUT);
     }
     if (!(error= read_stored_values()))
-      initialized= 1;
+      initialized= SEQ_READY_TO_USE;
     mysql_unlock_tables(thd, lock, 0);
     if (mdl_lock_used)
       thd->mdl_context.release_lock(mdl_request.ticket);

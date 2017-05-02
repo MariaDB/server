@@ -110,6 +110,8 @@ int ha_sequence::open(const char *name, int mode, uint flags)
       if ((error= table->s->sequence->read_initial_values(table)))
         file->ha_close();
     }
+    else
+      table->m_needs_reopen= true;
   }
   DBUG_RETURN(error);
 }
@@ -189,11 +191,13 @@ int ha_sequence::write_row(uchar *buf)
   DBUG_ASSERT(table->record[0] == buf);
 
   row_already_logged= 0;
-  if (!sequence->initialized)
+  if (unlikely(sequence->initialized == SEQUENCE::SEQ_IN_PREPARE))
   {
     /* This calls is from ha_open() as part of create table */
     DBUG_RETURN(file->write_row(buf));
   }
+  if (unlikely(sequence->initialized != SEQUENCE::SEQ_READY_TO_USE))
+    DBUG_RETURN(HA_ERR_WRONG_COMMAND);
 
   /*
     User tries to write a row

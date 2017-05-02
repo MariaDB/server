@@ -66,6 +66,7 @@ public:
 class SEQUENCE :public sequence_definition
 {
 public:
+  enum seq_init { SEQ_UNINTIALIZED, SEQ_IN_PREPARE, SEQ_READY_TO_USE };
   SEQUENCE();
   ~SEQUENCE();
   int  read_initial_values(TABLE *table);
@@ -87,8 +88,9 @@ public:
   }
   longlong next_value(TABLE *table, bool second_round, int *error);
 
-  bool initialized;                         // If row has been read
   bool all_values_used;
+  seq_init initialized;
+
 private:
   TABLE         *table;
   mysql_mutex_t mutex;
