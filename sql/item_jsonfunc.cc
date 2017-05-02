@@ -2898,7 +2898,7 @@ String *Item_func_json_search::val_str(String *str)
     json_path_with_flags *c_path= paths + n_arg - 4;
     if (!c_path->parsed)
     {
-      String *s_p= args[n_arg]->val_str(tmp_paths + (n_arg-1));
+      String *s_p= args[n_arg]->val_str(tmp_paths + (n_arg-4));
       if (s_p &&
           json_path_setup(&c_path->p,s_p->charset(),(const uchar *) s_p->ptr(),
                           (const uchar *) s_p->ptr() + s_p->length()))

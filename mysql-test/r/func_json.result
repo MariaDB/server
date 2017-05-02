@@ -629,3 +629,7 @@ j	p	json_remove(j, p)
 {"a":1,"b":2,"c":3}	$.b	{"a": 1, "c": 3}
 {"a":1,"b":2,"c":3}	$.c	{"a": 1, "b": 2}
 drop table t1;
+SET @str = 'bar', @path = '$';
+SELECT JSON_SEARCH('{"foo":"bar"}', 'all' , @str, '%', @path);
+JSON_SEARCH('{"foo":"bar"}', 'all' , @str, '%', @path)
+"$.foo"

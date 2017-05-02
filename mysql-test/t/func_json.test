@@ -274,3 +274,10 @@ insert into t1 values
       ('{"a":1,"b":2,"c":3}','$.c');
 select j, p, json_remove(j, p) from t1;
 drop table t1;
+
+#
+# MDEV-12364 Server crashes in __memcpy_sse2_unaligned / String::copy on JSON_SEARCH with variables.
+#
+SET @str = 'bar', @path = '$';
+SELECT JSON_SEARCH('{"foo":"bar"}', 'all' , @str, '%', @path);
+
